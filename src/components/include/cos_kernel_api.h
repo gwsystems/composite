@@ -29,6 +29,7 @@ struct cos_meminfo {
 
 /* Component captbl/pgtbl allocation information */
 struct cos_compinfo {
+	int compid;
 	/* capabilities to higher-order capability tables (or -1) */
 	capid_t pgtbl_cap, captbl_cap, comp_cap;
 	/* the frontier of unallocated caps, and the allocated captbl range */
@@ -52,7 +53,7 @@ struct cos_shminfo {
 int cos_mem_partition(struct cos_compinfo *ci, vaddr_t start_addr, unsigned long untyped_sz);
 
 void cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz);
-void cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t shm_ptr, struct cos_compinfo *ci_resources);
+void cos_compinfo_init(struct cos_compinfo *ci, int compid, captblcap_t pgtbl_cap, pgtblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t shm_ptr, struct cos_compinfo *ci_resources);
 /*
  * This only needs be called on compinfos that are managing resources
  * (i.e. likely only one).  All of the capabilities will be relative
@@ -112,5 +113,8 @@ void *cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa);
 int cos_hw_cycles_per_usec(hwcap_t hwc);
 
 void *cos_va2pa(struct cos_compinfo *ci, void * vaddr);
+
+int cos_send_data(struct cos_compinfo *ci, asndcap_t sndcap, void *buff, size_t sz, unsigned int to_vmid);
+int cos_recv_data(struct cos_compinfo *ci, arcvcap_t rcvcap, void *buff, size_t sz, unsigned int from_vmid);
 
 #endif /* COS_KERNEL_API_H */

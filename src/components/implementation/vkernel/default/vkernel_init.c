@@ -15,6 +15,8 @@ struct cos_compinfo vkern_info;
 //thdcap_t termthd; 		
 sinvcap_t invcap;
 thdcap_t vm_main_thd[COS_VIRT_MACH_COUNT];
+arcvcap_t vminitrcv[COS_VIRT_MACH_COUNT];
+asndcap_t vminitasnd[COS_VIRT_MACH_COUNT][COS_VIRT_MACH_COUNT];
 unsigned int ready_vms = COS_VIRT_MACH_COUNT;
 
 void
@@ -64,13 +66,14 @@ void
 cos_init(void)
 {
 	printc("Hypervisor:vkernel START\n");
+	struct cos_compinfo vmbooter_info[COS_VIRT_MACH_COUNT];
 
 	int i = 0, id = 0;
 	int page_range = 0;
 
 	printc("Hypervisor:vkernel initializing\n");
 	cos_meminfo_init(&vkern_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
-	cos_compinfo_init(&vkern_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+	cos_compinfo_init(&vkern_info, -1, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, 
 			(vaddr_t)BOOT_MEM_SHM_BASE, &vkern_info);
 
@@ -83,7 +86,7 @@ cos_init(void)
 	//printc("cos_upcall_entry: %x\n", (unsigned int)&cos_upcall_entry);
 
 	for (id = 0; id < COS_VIRT_MACH_COUNT; id ++) {
-		printc("\nVM %d Initialization Start\n", id);
+		printc("VM %d Initialization Start\n", id);
 		thdcap_t vmthd;
 		thdcap_t vmthd0;
 
@@ -91,13 +94,17 @@ cos_init(void)
 		pgtblcap_t vmpt;
 		compcap_t vmcc;
 
+		tcap_t vmtcap, vmvirtcap;
+		arcvcap_t vmvirtrcv;
+		
+		asndcap_t vmvirtsnd;
+
 		printc("\tForking VM\n");
 		//printc("%s:%d\n", __FILE__, __LINE__);
 		vm_exit_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vm_exit, (void *)id);
 		assert(vm_exit_thd);
 		//printc("%s:%d\n", __FILE__, __LINE__);
 
-		struct cos_compinfo vmbooter_info;
 
 		vmct = cos_captbl_alloc(&vkern_info);
 		assert(vmct);
@@ -112,19 +119,19 @@ cos_init(void)
 		//vmcc = cos_comp_alloc(&vkern_info, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (vaddr_t)&cos_upcall_entry);
 		assert(vmcc);
 
-		//cos_meminfo_init(&vmbooter_info.mi, BOOT_MEM_PM_BASE + COS_MEM_USER_PA_SZ - VM_MEM_PM_SIZE, VM_MEM_PM_SIZE,
+		//cos_meminfo_init(&vmbooter_info[id].mi, BOOT_MEM_PM_BASE + COS_MEM_USER_PA_SZ - VM_MEM_PM_SIZE, VM_MEM_PM_SIZE,
 		//		 BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ - VM_MEM_KM_SIZE, VM_MEM_KM_SIZE);
-		cos_meminfo_init(&vmbooter_info.mi, 
+		cos_meminfo_init(&vmbooter_info[id].mi, 
 				BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
-		cos_compinfo_init(&vmbooter_info, vmpt, vmct, vmcc,
-				(vaddr_t)BOOT_MEM_VM_BASE, BOOT_CAPTBL_FREE, 
+		cos_compinfo_init(&vmbooter_info[id], id, vmpt, vmct, vmcc,
+				(vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, 
 				(vaddr_t)BOOT_MEM_SHM_BASE, &vkern_info);
 		//printc("%s:%d\n", __FILE__, __LINE__);
 
-		vm_main_thd[id] = cos_thd_alloc(&vkern_info, vmbooter_info.comp_cap, vm_init, (void *)id);
+		vm_main_thd[id] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vm_init, (void *)id);
 		assert(vm_main_thd[id]);
 		//printc("%s:%d\n", __FILE__, __LINE__);
-		cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_INITTHD_BASE, &vkern_info, vm_main_thd[id]);
+		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITTHD_BASE, &vkern_info, vm_main_thd[id]);
 		//printc("%s:%d\n", __FILE__, __LINE__);
 		//vm_main_thd[i] = vmthd;
 		//printc("%s:%d\n", __FILE__, __LINE__);
@@ -140,24 +147,49 @@ cos_init(void)
 		//printc("%s:%d\n", __FILE__, __LINE__);
 
 		printc("\tCopying required capabilities\n");
-		cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_CT, &vkern_info, vmct);
+		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_CT, &vkern_info, vmct);
 		//printc("%s:%d\n", __FILE__, __LINE__);
-		cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_PT, &vkern_info, vmpt);
+		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_PT, &vkern_info, vmpt);
 		//printc("%s:%d\n", __FILE__, __LINE__);
-		cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_COMP, &vkern_info, vmcc);
+		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_COMP, &vkern_info, vmcc);
 		//printc("%s:%d\n", __FILE__, __LINE__);
 		/* 
 		 * TODO: We need seperate such capabilities for each VM. Can't use the BOOTER ones. 
 		 */
-		cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, &vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE);
+		//cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITTCAP_BASE, &vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE);
 		//printc("%s:%d\n", __FILE__, __LINE__);
-		cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_INITRCV_BASE, &vkern_info, BOOT_CAPTBL_SELF_INITRCV_BASE);
+		//cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITRCV_BASE, &vkern_info, BOOT_CAPTBL_SELF_INITRCV_BASE);
 		//printc("%s:%d\n", __FILE__, __LINE__);
-		cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_INITHW_BASE, &vkern_info, BOOT_CAPTBL_SELF_INITHW_BASE); 
+		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITHW_BASE, &vkern_info, BOOT_CAPTBL_SELF_INITHW_BASE); 
 		//printc("%s:%d\n", __FILE__, __LINE__);
-		//		cos_cap_cpy_at(&vmbooter_info, termthd, &vkern_info, termthd); 
-		//cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd); 
-		cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_LAST_CAP, &vkern_info, vm_exit_thd); 
+		//		cos_cap_cpy_at(&vmbooter_info[id], termthd, &vkern_info, termthd); 
+		//cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd); 
+		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_FREE, &vkern_info, vm_exit_thd); 
+
+		printc("\tCreating other required initial capabilities\n");
+		vmtcap = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+		assert(vmtcap);
+		//printc("%s:%d\n", __FILE__, __LINE__);
+		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITTCAP_BASE, &vkern_info, vmtcap);
+		//printc("%s:%d\n", __FILE__, __LINE__);
+
+		vminitrcv[id] = cos_arcv_alloc(&vkern_info, vm_main_thd[id], vmtcap, vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+		assert(vminitrcv[id]);
+		//printc("%s:%d\n", __FILE__, __LINE__);
+		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITRCV_BASE, &vkern_info, vminitrcv[id]);
+		//printc("%s:%d\n", __FILE__, __LINE__);
+
+//		vmvirtcap = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+//		assert(vmvirtcap);
+//		printc("%s:%d\n", __FILE__, __LINE__);
+//		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_VIRTTCAP_BASE, &vkern_info, vmvirtcap);
+//		printc("%s:%d\n", __FILE__, __LINE__);
+
+//		vmvirtrcv = cos_arcv_alloc(&vkern_info, vm_main_thd[id], vmtcap, vkern_info.comp_cap, vminitrcv);
+//		assert(vmvirtrcv);
+//		printc("%s:%d\n", __FILE__, __LINE__);
+//		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_VIRTRCV_BASE, &vkern_info, vmvirtrcv);
+//		printc("%s:%d\n", __FILE__, __LINE__);
 
 		/*
 		 * Create a new memory hole
@@ -172,33 +204,33 @@ cos_init(void)
 			vaddr_t spg = (vaddr_t) cos_page_bump_alloc(&vkern_info);
 			// copy mem - can even do it after creating and copying all pages.
 			memcpy((void *) spg, (void *) (BOOT_MEM_VM_BASE + i), PAGE_SIZE);
-			//printc("dst pgtbl:%x src pgtbl:%x src pg:%x\n", vmbooter_info.pgtbl_cap, vkern_info.pgtbl_cap, spg);
+			//printc("dst pgtbl:%x src pgtbl:%x src pg:%x\n", vmbooter_info[id].pgtbl_cap, vkern_info.pgtbl_cap, spg);
 			// copy cap
-			vaddr_t dpg = cos_mem_alias(&vmbooter_info, &vkern_info, spg);
+			vaddr_t dpg = cos_mem_alias(&vmbooter_info[id], &vkern_info, spg);
 			//printc("%s:%d - %d\n", __FILE__, __LINE__, i);
-			//printc("dst pgtbl:%x dst pg:%x src pgtbl:%x src pg:%x\n", vmbooter_info.pgtbl_cap, dpg, vkern_info.pgtbl_cap, spg);
-			//cos_mem_alias(vmbooter_info.pgtbl_cap, , vkern_info.pgtbl_cap, pg);
+			//printc("dst pgtbl:%x dst pg:%x src pgtbl:%x src pg:%x\n", vmbooter_info[id].pgtbl_cap, dpg, vkern_info.pgtbl_cap, spg);
+			//cos_mem_alias(vmbooter_info[id].pgtbl_cap, , vkern_info.pgtbl_cap, pg);
 		}
 		//printc("%s:%d\n", __FILE__, __LINE__);
 
 		//printc("%s:%d\n", __FILE__, __LINE__);
 		if (!id) {
 			printc("\tCreating shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_ALL_SZ);
-			cos_shmem_alloc(&vmbooter_info, COS_SHM_ALL_SZ);
+			cos_shmem_alloc(&vmbooter_info[id], COS_SHM_ALL_SZ);
 		} else {
 			printc("\tMapping shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_VM_SZ);
-			cos_shmem_map(&vmbooter_info, COS_SHM_VM_SZ);
+			cos_shmem_map(&vmbooter_info[id], COS_SHM_VM_SZ);
 		}
 		//printc("%s:%d\n", __FILE__, __LINE__);
 
-		//cos_mem_partition(&vmbooter_info, BOOT_MEM_KM_BASE, VM_MEM_KM_SIZE);
+		//cos_mem_partition(&vmbooter_info[id], BOOT_MEM_KM_BASE, VM_MEM_KM_SIZE);
 		printc("\tAllocating/Partitioning Untyped memory\n");
-		cos_meminfo_alloc(&vmbooter_info, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ);
+		cos_meminfo_alloc(&vmbooter_info[id], BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ);
 		//		invcap = cos_sinv_alloc(&vkern_info, vkern_info.comp_cap, (vaddr_t)vm_captbl_op_inv);
 		//		assert(invcap);
 		//		printc("%s:%d\n", __FILE__, __LINE__);
-		//		cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_CT, &vkern_info, invcap);
-		//		vmbooter_info.captbl_cap = invcap;
+		//		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_CT, &vkern_info, invcap);
+		//		vmbooter_info[id].captbl_cap = invcap;
 		//printc("%s:%d\n", __FILE__, __LINE__);
 
 
@@ -207,8 +239,52 @@ cos_init(void)
 		//while(test_status) cos_thd_switch(vmthd);
 		//cos_thd_switch(vmthd);
 
-		printc("VM %d Init DONE\n\n", id);
+		printc("VM %d Init DONE\n", id);
 	}
+
+	printc("Setting up Cross VM (between vm0 and other vms) communication channels\n");
+
+	int p, q;
+	for (p = 1; p < COS_VIRT_MACH_COUNT; p ++) {
+
+		asndcap_t ptozero, zerotop;
+		//Create ASNYC END POINT BETWEEN p & q
+		//printc("%d %d\n", p, q);
+
+		ptozero = cos_asnd_alloc(&vkern_info, BOOT_CAPTBL_SELF_INITRCV_BASE, vmbooter_info[0].captbl_cap);
+		//printc("%s:%d\n", __FILE__, __LINE__);
+		assert(ptozero);
+		//printc("%s:%d\n", __FILE__, __LINE__);
+		cos_cap_cpy_at(&vmbooter_info[p], VM_CAPTBL_SELF_VTASND_SET_BASE, &vkern_info, ptozero);
+		//printc("%s:%d\n", __FILE__, __LINE__);
+
+		zerotop = cos_asnd_alloc(&vkern_info, BOOT_CAPTBL_SELF_INITRCV_BASE, vmbooter_info[p].captbl_cap);
+		//printc("%s:%d\n", __FILE__, __LINE__);
+		assert(zerotop);
+		//printc("%s:%d\n", __FILE__, __LINE__);
+		cos_cap_cpy_at(&vmbooter_info[0], VM_CAPTBL_SELF_VTASND_SET_BASE + (p - 1) * CAP64B_IDSZ, &vkern_info, zerotop);
+		//printc("%s:%d\n", __FILE__, __LINE__);
+	}
+
+#if 0
+	int p, q;
+	for (p = 0; p < COS_VIRT_MACH_COUNT; p ++) {
+		for (q = 0; q < COS_VIRT_MACH_COUNT; q ++) {
+			
+			if (p == q) continue;
+			//Create ASNYC END POINT BETWEEN p & q
+			//printc("%d %d\n", p, q);
+
+			//vminitasnd[p][q] = cos_asnd_alloc(&vkern_info, vminitrcv[q], vmbooter_info[q].captbl_cap);
+			vminitasnd[p][q] = cos_asnd_alloc(&vkern_info, BOOT_CAPTBL_SELF_INITRCV_BASE, vmbooter_info[q].captbl_cap);
+			//printc("%s:%d\n", __FILE__, __LINE__);
+			assert(vminitasnd[p][q]);
+			//printc("%s:%d\n", __FILE__, __LINE__);
+			cos_cap_cpy_at(&vmbooter_info[p], VM_CAPTBL_SELF_VTASND_SET_BASE + q*CAP64B_IDSZ, &vkern_info, vminitasnd[p][q]);
+			//printc("%s:%d\n", __FILE__, __LINE__);
+		}
+	}
+#endif
 
 	printc("Starting Timer/Scheduler Thread\n");
 	//printc("%s:%d\n", __FILE__, __LINE__);

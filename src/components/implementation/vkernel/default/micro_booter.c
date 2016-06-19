@@ -16,6 +16,7 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 
+
 static void
 cos_llprint(char *s, int len)
 { call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0); }
@@ -45,9 +46,12 @@ printc(char *fmt, ...)
 	  return ret;
 }
 
+#define printvm(...) do { printc("VM %d>", vmid); printc(__VA_ARGS__); } while (0)
+
 extern thdcap_t vm_exit_thd;
 struct cos_compinfo booter_info;
 thdcap_t termthd; 		/* switch to this to shutdown */
+unsigned int vmid = 0;
 /* For Div-by-zero test */
 int num = 1, den = 0;
 
@@ -77,7 +81,7 @@ thd_fn_perf(void *d)
 	while(1) {
 		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	}
-	printc("Error, shouldn't get here!\n");
+	printvm("Error, shouldn't get here!\n");
 }
 
 static void
@@ -99,18 +103,18 @@ test_thds_perf(void)
 	rdtscll(end_swt_cycles);
 	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
 
-	printc("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
+	printvm("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
 		total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));
 }
 
 static void
 thd_fn(void *d)
 {
-	printc("\tNew thread %d with argument %d, capid %ld\n", cos_thdid(), (int)d, tls_test[(int)d]);
+	printvm("\tNew thread %d with argument %d, capid %ld\n", cos_thdid(), (int)d, tls_test[(int)d]);
 	/* Test the TLS support! */
 	assert(tls_get(0) == tls_test[(int)d]);
 	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
-	printc("Error, shouldn't get here!\n");
+	printvm("Error, shouldn't get here!\n");
 }
 
 static void
@@ -124,11 +128,11 @@ test_thds(void)
 		assert(ts[i]);
 		tls_test[i] = i;
 		cos_thd_mod(&booter_info, ts[i], &tls_test[i]);
-		printc("switchto %d @ %x\n", (int)ts[i], cos_introspect(&booter_info, ts[i], 0));
+		printvm("switchto %d @ %x\n", (int)ts[i], cos_introspect(&booter_info, ts[i], 0));
 		cos_thd_switch(ts[i]);
 	}
 
-	printc("test done\n");
+	printvm("test done\n");
 }
 
 #define TEST_NPAGES (1024*2) 	/* Testing with 8MB for now */
@@ -145,7 +149,7 @@ test_mem(void)
 	strcpy(p, chk);
 
 	assert(0 == strcmp(chk, p));
-	printc("%x: Page allocation\n", p);
+	printvm("%x: Page allocation\n", p);
 
 	s = cos_page_bump_alloc(&booter_info);
 	assert(s);
@@ -153,11 +157,11 @@ test_mem(void)
 	for (i = 0 ; i < TEST_NPAGES ; i++) {
 		t = cos_page_bump_alloc(&booter_info);
 		assert(t);// && t == prev + 4096);
-		//printc("%d:%x: Page allocation\n", i, t);
+		//printvm("%d:%x: Page allocation\n", i, t);
 		prev = t;
 	}
 	memset(s, 0, TEST_NPAGES * 4096);
-	printc("SUCCESS: Allocated and zeroed %d pages.\n", TEST_NPAGES);
+	printvm("SUCCESS: Allocated and zeroed %d pages.\n", TEST_NPAGES);
 }
 
 volatile arcvcap_t rcc_global, rcp_global;
@@ -202,7 +206,7 @@ async_thd_parent_perf(void *thdcap)
 	rdtscll(end_arcv_cycles);
 	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
 
-	printc("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n",
+	printvm("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n",
 		total_asnd_cycles, (long long) (ITER), (total_asnd_cycles / (long long)(ITER)));
 
 	async_test_flag = 0;
@@ -219,15 +223,15 @@ async_thd_fn(void *thdcap)
 	cycles_t cycles;
 	int pending;
 
-	printc("Asynchronous event thread handler.\n<-- rcving...\n");
+	printvm("Asynchronous event thread handler.\n<-- rcving...\n");
 	pending = cos_rcv(rc, &tid, &rcving, &cycles);
-	printc("<-- pending %d, thdid %d, rcving %d, cycles %lld\n<-- rcving...\n", pending, tid, rcving, cycles);
+	printvm("<-- pending %d, thdid %d, rcving %d, cycles %lld\n<-- rcving...\n", pending, tid, rcving, cycles);
 	pending = cos_rcv(rc, &tid, &rcving, &cycles);
-	printc("<-- pending %d, thdid %d, rcving %d, cycles %lld\n<-- rcving...\n", pending, tid, rcving, cycles);
+	printvm("<-- pending %d, thdid %d, rcving %d, cycles %lld\n<-- rcving...\n", pending, tid, rcving, cycles);
 	pending = cos_rcv(rc, &tid, &rcving, &cycles);
-	printc("<-- Error: manually returning to snding thread.\n");
+	printvm("<-- Error: manually returning to snding thread.\n");
 	cos_thd_switch(tc);
-	printc("ERROR: in async thd *after* switching back to the snder.\n");
+	printvm("ERROR: in async thd *after* switching back to the snder.\n");
 	while (1) ;
 }
 
@@ -242,15 +246,15 @@ async_thd_parent(void *thdcap)
 	int rcving;
 	cycles_t cycles;
 
-	printc("--> sending\n");
+	printvm("--> sending\n");
 	ret = cos_asnd(sc);
-	if (ret) printc("asnd returned %d.\n", ret);
-	printc("--> Back in the asnder.\n--> sending\n");
+	if (ret) printvm("asnd returned %d.\n", ret);
+	printvm("--> Back in the asnder.\n--> sending\n");
 	ret = cos_asnd(sc);
-	if (ret) printc("--> asnd returned %d.\n", ret);
-	printc("--> Back in the asnder.\n--> receiving to get notifications\n");
+	if (ret) printvm("--> asnd returned %d.\n", ret);
+	printvm("--> Back in the asnder.\n--> receiving to get notifications\n");
 	pending = cos_rcv(rc, &tid, &rcving, &cycles);
-	printc("--> pending %d, thdid %d, rcving %d, cycles %lld\n", pending, tid, rcving, cycles);
+	printvm("--> pending %d, thdid %d, rcving %d, cycles %lld\n", pending, tid, rcving, cycles);
 
 	async_test_flag = 0;
 	cos_thd_switch(tc);
@@ -263,7 +267,7 @@ test_async_endpoints(void)
 	tcap_t    tccp, tccc;
 	arcvcap_t rcp, rcc;
 
-	printc("Creating threads, and async end-points.\n");
+	printvm("Creating threads, and async end-points.\n");
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
@@ -290,7 +294,7 @@ test_async_endpoints(void)
 	async_test_flag = 1;
 	while (async_test_flag) cos_thd_switch(tcp);
 
-	printc("Async end-point test successful.\nTest done.\n");
+	printvm("Async end-point test successful.\nTest done.\n");
 }
 
 static void
@@ -344,7 +348,7 @@ tcap_child(void *d)
 		cycles_t cycles;
 
 		pending = cos_rcv(__tc_crc, &tid, &rcving, &cycles);
-		printc("tcap_test:rcv: pending %d\n", pending);
+		printvm("tcap_test:rcv: pending %d\n", pending);
 	}
 }
 
@@ -404,7 +408,7 @@ test_timer(void)
 	thdcap_t tc;
 	cycles_t c = 0, p = 0, t = 0;
 
-	printc("Starting timer test.\n");
+	printvm("Starting timer test.\n");
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 
 	for (i = 0 ; i <= 16 ; i++) {
@@ -419,9 +423,9 @@ test_timer(void)
 		if (i > 0) t += c-p;
 	}
 
-	printc("\tCycles per tick (10 microseconds) = %lld\n", t/16);
+	printvm("\tCycles per tick (10 microseconds) = %lld\n", t/16);
 
-	printc("Timer test completed.\nSuccess.\n");
+	printvm("Timer test completed.\nSuccess.\n");
 }
 
 long long midinv_cycles = 0LL;
@@ -476,8 +480,8 @@ test_inv(void)
 	assert(ic > 0);
 
 	r = call_cap_mb(ic, 1, 2, 3);
-	printc("Return from invocation: %x (== DEADBEEF?)\n", r);
-	printc("Test done.\n");
+	printvm("Return from invocation: %x (== DEADBEEF?)\n", r);
+	printvm("Test done.\n");
 }
 
 static void
@@ -508,9 +512,9 @@ test_inv_perf(void)
 		total_ret_cycles += (end_cycles - midinv_cycles);
 	}
 
-	printc("Average SINV (Total: %lld / Iterations: %lld ): %lld\n",
+	printvm("Average SINV (Total: %lld / Iterations: %lld ): %lld\n",
 		total_inv_cycles, (long long) (ITER), (total_inv_cycles / (long long)(ITER)));
-	printc("Average SRET (Total: %lld / Iterations: %lld ): %lld\n",
+	printvm("Average SRET (Total: %lld / Iterations: %lld ): %lld\n",
 		total_ret_cycles, (long long) (ITER), (total_ret_cycles / (long long)(ITER)));
 }
 
@@ -528,48 +532,46 @@ test_captbl_expand(void)
 		ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
 		assert(ic > 0);
 	}
-	printc("\nCaptbl expand SUCCESS.\n");
+	printvm("\nCaptbl expand SUCCESS.\n");
 }
 
 void
 test_run(void)
 {
-	printc("\nMicro Booter started.\n");
 
 //	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
-//	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+//	printvm("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 	test_thds();
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 	test_thds_perf();
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 //	test_timer();
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 	test_mem();
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 	test_async_endpoints();
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 	test_async_endpoints_perf();
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 	test_inv();
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 	test_inv_perf();
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 	test_captbl_expand();
-	printc("---------------------------\n");
+	printvm("---------------------------\n");
 
-	printc("\nMicro Booter done.\n");
 //	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 }
 
@@ -584,15 +586,50 @@ test_shmem(int vm)
 			vaddr_t shm_addr = BOOT_MEM_SHM_BASE + i * COS_SHM_VM_SZ;
 			sprintf(buf, "SHMEM %d to %d - %x", vm, i + 1, cos_va2pa(&booter_info, shm_addr));
 			strcpy(shm_addr, buf);
-			printc("VM %d Wrote to %d: \"%s\" @ %x:%x\n", vm, i + 1, buf, shm_addr, cos_va2pa(&booter_info, shm_addr));
+			printvm("VM %d Wrote to %d: \"%s\" @ %x:%x\n", vm, i + 1, buf, shm_addr, cos_va2pa(&booter_info, shm_addr));
 			i ++;
 		}
 	} else {
 		int i = 0;
-		//printc("%d: read after delay\n", vm);
-		for (i = 0; i < 90000; i ++) ;
+		//printvm("%d: read after delay\n", vm);
+		for (i = 0; i < 99000; i ++) ;
 		strncpy(buf, BOOT_MEM_SHM_BASE, 49);
-		printc("VM %d Read: %s @ %x:%x\n", vm, buf, BOOT_MEM_SHM_BASE, cos_va2pa(&booter_info, BOOT_MEM_SHM_BASE));
+		printvm("VM %d Read: %s @ %x:%x\n", vm, buf, BOOT_MEM_SHM_BASE, cos_va2pa(&booter_info, BOOT_MEM_SHM_BASE));
+	}
+}
+
+void
+test_vmio(int vm)
+{
+//	printvm("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+	char buf[50] = { '\0' };
+	if (!vm) {
+//	printvm("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+		int i = 1;
+		while (i < COS_VIRT_MACH_COUNT) {
+//	printvm("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+			memset(buf, '\0', 50);
+//	printvm("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+			asndcap_t sndcap = VM_CAPTBL_SELF_VTASND_SET_BASE + (i - 1) * CAP64B_IDSZ;
+			vaddr_t shm_addr = BOOT_MEM_SHM_BASE + (i - 1) * COS_SHM_VM_SZ;
+//	printvm("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+			sprintf(buf, "SHMEM %d to %d - %x", vm, i, cos_va2pa(&booter_info, shm_addr));
+			//strcpy(shm_addr, buf);
+//	printvm("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+			cos_send_data(&booter_info, sndcap, buf, strlen(buf) + 1, i);
+//	printvm("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+			printvm("Sent to %d: \"%s\" @ %x:%x\n", i, buf, shm_addr, cos_va2pa(&booter_info, shm_addr));
+			i ++;
+		}
+	} else {
+//	printvm("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+		int i = 0;
+		//printvm("%d: read after delay\n", vm);
+	//	for (i = 0; i < 99000; i ++) ;
+		cos_recv_data(&booter_info, BOOT_CAPTBL_SELF_INITRCV_BASE, buf, 50, i);
+//	printvm("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+		//strncpy(buf, BOOT_MEM_SHM_BASE, 49);
+		printvm("Recvd: %s @ %x:%x\n", buf, BOOT_MEM_SHM_BASE, cos_va2pa(&booter_info, BOOT_MEM_SHM_BASE));
 	}
 }
 
@@ -606,25 +643,26 @@ void
 vm_init(void *id)
 {
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ);
-	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, 
+	cos_compinfo_init(&booter_info, (int)id, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+			  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, 
 			(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
-//	printc("heap ptr: %x\n", (vaddr_t)cos_get_heap_ptr());
-	printc("VM ID: %d STARTED\n", (int) id);
+	vmid = (int)id;
+	printvm("Micro Booter started.\n");
+//	printvm("heap ptr: %x\n", (vaddr_t)cos_get_heap_ptr());
 
-	//printc("%x %x\n", BOOT_MEM_KM_BASE, round_up_to_pgd_page(BOOT_MEM_KM_BASE));
-	//printc("%x %x\n", BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ, round_up_to_pgd_page(BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ));
-	//printc("%x\n", cos_va2pa(&booter_info, BOOT_MEM_KM_BASE));
+	//printvm("%x %x\n", BOOT_MEM_KM_BASE, round_up_to_pgd_page(BOOT_MEM_KM_BASE));
+	//printvm("%x %x\n", BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ, round_up_to_pgd_page(BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ));
+	//printvm("%x\n", cos_va2pa(&booter_info, BOOT_MEM_KM_BASE));
 
 	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 	assert(termthd);
 
-	test_shmem((int)id);
+	test_vmio((int)id);
+	//test_shmem((int)id);
 	test_run();
-	//cos_thd_switch(BOOT_CAPTBL_SELF_EXITTHD_BASE);
-	printc("VM %d DONE\n", (int) id);
+	printvm("Micro Booter done.\n");
 
-	while (1) cos_thd_switch(BOOT_CAPTBL_LAST_CAP); 
+	while (1) cos_thd_switch(BOOT_CAPTBL_FREE); 
 	//cos_thd_switch(termthd);
 	return;
 }

@@ -40,12 +40,13 @@ __compinfo_metacap(struct cos_compinfo *ci)
 { return ci->memsrc; }
 
 void
-cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_t captbl_cap,
+cos_compinfo_init(struct cos_compinfo *ci, int compid, captblcap_t pgtbl_cap, pgtblcap_t captbl_cap,
 		  compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier,
 		  vaddr_t shm_ptr, struct cos_compinfo *ci_resources)
 {
 	assert(ci && ci_resources);
 	assert(cap_frontier % CAPMAX_ENTRY_SZ == 0);
+	ci->compid = compid;
 
 	ci->memsrc = ci_resources;
 	assert(ci_resources->memsrc == ci_resources); /* prevent infinite data-structs */
@@ -600,7 +601,7 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, vaddr_t entry, vad
 	 * 	Just incase we use this API to create Compinfo struct for VM components
 	 * 	and copy/init the BOOTER capabilities like RCV, THD, HW etc in the child
 	 */
-	cos_compinfo_init(ci, ptc, ctc, compc, heap_ptr, BOOT_CAPTBL_FREE, shm_ptr, ci_resources);
+	cos_compinfo_init(ci, -1, ptc, ctc, compc, heap_ptr, BOOT_CAPTBL_FREE, shm_ptr, ci_resources);
 
 	return 0;
 }
@@ -909,4 +910,56 @@ cos_va2pa(struct cos_compinfo *ci, void * vaddr)
         int paddr = call_cap_op(ci->pgtbl_cap, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
 	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
         return (void *)paddr;
+}
+
+int
+cos_send_data(struct cos_compinfo *ci, asndcap_t sndcap, void *buff, size_t sz, unsigned int to_vmid)
+{
+	assert(ci || buff);
+	assert(ci->compid != to_vmid);
+	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+	/* need to change a lot of this.. change from hard-coding for sure */
+	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
+//	asndcap_t sndcap = VM_CAPTBL_SELF_VTASND_SET_BASE;
+	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+
+	if (ci->compid == 0) {
+	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+		data_vaddr += ((to_vmid -1) * COS_SHM_VM_SZ);
+//		sndcap += ((to_vmid - 1) * CAP64B_IDSZ);
+	}
+	
+	/* TODO: Ring buffer */
+	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+	memcpy((void *)data_vaddr, buff, sz);
+//	printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+	cos_asnd(sndcap);
+	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+	return sz;
+}
+
+int
+cos_recv_data(struct cos_compinfo *ci, arcvcap_t rcvcap, void *buff, size_t sz, unsigned int from_vmid)
+{
+	assert(ci || buff);
+	assert(ci->compid != from_vmid);
+	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+
+	int pending, rcving;
+	thdid_t tid;
+	cycles_t cycles;
+	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
+	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+
+	if (ci->compid == 0) {
+	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+		data_vaddr += ((from_vmid - 1) * COS_SHM_VM_SZ);
+	}
+
+//	printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+	pending = cos_rcv(rcvcap, &tid, &rcving, &cycles);
+//	printc("%s-%s:%d tid: %x recving: %d cycles: %d pending: %d\n", __FILE__, __func__, __LINE__,	tid, rcving, cycles, pending);
+	memcpy(buff, (void *)data_vaddr, sz);
+	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+	return sz;
 }
