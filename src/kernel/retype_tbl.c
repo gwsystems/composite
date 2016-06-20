@@ -89,16 +89,23 @@ mod_mem_type(void *pa, const mem_type_t type)
 
 	/* only can retype untyped mem sets. */
 	if (unlikely(old_type != RETYPETBL_UNTYPED)) {
+		printk("%s:%d\n", __FILE__, __LINE__);
 		if (old_type == type) return -EEXIST;
 		else                  return -EPERM;
 	}
 
 	/* Kernel memory needs to be kernel accessible: pa2va returns
 	 * null if it's not. */
-	if (type == RETYPETBL_KERN && chal_pa2va((paddr_t)pa) == NULL) return -EINVAL;
+	if (type == RETYPETBL_KERN && chal_pa2va((paddr_t)pa) == NULL) {
+		printk("%s:%d\n", __FILE__, __LINE__);
+		return -EINVAL;
+	}
 
 	ret = retypetbl_cas(&(glb_retype_info->type), RETYPETBL_UNTYPED, RETYPETBL_RETYPING);
-	if (ret != CAS_SUCCESS) return -ECASFAIL;
+	if (ret != CAS_SUCCESS) {
+		printk("%s:%d\n", __FILE__, __LINE__);
+		return -ECASFAIL;
+	}
 	cos_mem_fence();
 
 	/* Set the retyping flag successfully. Now nobody else can
@@ -125,7 +132,7 @@ retypetbl_retype2user(void *pa)
 int
 retypetbl_retype2kern(void *pa)
 {
-	if ((unsigned long)pa >= COS_MEM_USER_PA) return -EINVAL;
+	//if ((unsigned long)pa >= COS_MEM_USER_PA) return -EINVAL;
 	return mod_mem_type(pa, RETYPETBL_KERN);
 }
 

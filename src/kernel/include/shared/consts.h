@@ -107,8 +107,8 @@ struct pt_regs {
 #define COS_NUM_ATOMIC_SECTIONS 10
 
 /* # of pages */
-#define COS_MAX_MEMORY    (COS_MEM_USER_PA_SZ/PAGE_SIZE)  /* # of pages */
-#define COS_MEM_BOUND     (COS_MEM_USER_PA + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
+#define COS_MAX_MEMORY    (COS_MEM_KERN_PA_SZ/PAGE_SIZE)  /* # of pages */
+#define COS_MEM_BOUND     (COS_MEM_KERN_PA + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
 
 /* These are deprecated, use the macros they reference */
 #define KERN_MEM_ORDER    (COS_MEM_KERN_PA_ORDER-PAGE_ORDER)
@@ -119,11 +119,7 @@ struct pt_regs {
  * size. Multiple of 16 on x86.  If you change, this, make sure to
  * update the linker script as well.
  */
-#ifdef COS_LINUX
-#define RETYPE_MEM_NPAGES        (32)
-#else
 #define RETYPE_MEM_NPAGES        (1)
-#endif
 #define RETYPE_MEM_SIZE          (RETYPE_MEM_NPAGES * PAGE_SIZE)
 
 #include "../asm_ipc_defs.h" 	/* FIXME: just for cos_component.h now */

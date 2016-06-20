@@ -90,22 +90,33 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	printk("\tMemory regions:\n");
 	for (i = 0 ; i < mb->mmap_length/sizeof(struct multiboot_mem_list) ; i++) {
 		struct multiboot_mem_list *mem = &mems[i];
+		u8_t *mod_end  = glb_memlayout.mod_end;
+		u8_t *mem_addr = chal_pa2va((paddr_t)mem->addr);
 
 		printk("\t- %d (%s): [%08llx, %08llx)\n", i,
 		       mem->type == 1 ? "Available" : "Reserved ", mem->addr, mem->addr + mem->len);
+
+		/* is this the memory region we'll use for component memory? */
+		if (mem->type == 1 && mod_end >= mem_addr && mod_end < (mem_addr + mem->len)) {
+			unsigned long sz = (mem_addr + mem->len) - mod_end;
+
+			glb_memlayout.kmem_end = mem_addr + mem->len;
+			printk("\t  memory available at boot time: %lx (%ld MB + %ld KB)\n", sz, sz>>20, (sz&((1<<20)-1))>>10);
+		}
 	}
 	/* FIXME: check memory layout vs. the multiboot memory regions... */
 	/* Validate the memory layout. */
-	assert(mem_kern_end()   <= mem_bootc_start());
-	assert(mem_bootc_end()  <= mem_boot_start());
-	assert(mem_boot_start() >= mem_kmem_start());
-	assert(mem_kmem_start() == mem_bootc_start());
-	assert(mem_kmem_end()   >= mem_boot_end());
-	assert(mem_kmem_end()   <= mem_usermem_start());
+	assert(mem_kern_end()    <= mem_bootc_start());
+	assert(mem_bootc_end()   <= mem_boot_start());
+	assert(mem_boot_start()  >= mem_kmem_start());
+	assert(mem_kmem_start()  == mem_bootc_start());
+	assert(mem_kmem_end()    >= mem_boot_end());
+	assert(mem_utmem_start() >= mem_kmem_start());
+	assert(mem_utmem_start() >= mem_boot_end());
+	assert(mem_utmem_end()   <= mem_kmem_end());
 	assert(mem_bootc_entry() - mem_bootc_vaddr() <= mem_bootc_end() - mem_bootc_start());
 
-	wastage += mem_boot_start()    - mem_bootc_end();
-	wastage += mem_usermem_start() - mem_kmem_end();
+	wastage += mem_boot_start() - mem_bootc_end();
 
 	printk("\tAmount of wasted memory due to layout is %u MB + 0x%x B\n",
 	       wastage>>20, wastage & ((1<<20)-1));

@@ -44,6 +44,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, pgtbl_t pgtbl, capid_t ptecap, const 
 	pte_cap = (struct cap_pgtbl*)captbl_lkup(ct, ptecap);
 	assert(pte_cap);
 
+	/* Hook in the PTEs */
 	for (i = 0 ; i < nptes ; i++) {
 		u8_t   *p  = ptes + i * PAGE_SIZE;
 		paddr_t pf = chal_va2pa(p);
@@ -146,9 +147,6 @@ kern_boot_comp(void)
 	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(),
 				      (unsigned long)mem_bootc_vaddr(), mem_bootc_end() - mem_bootc_start(), 1);
 	assert(ret == 0);
-	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_PHYSM_PTE, "user-typed memory", mem_usermem_start(),
-				      BOOT_MEM_PM_BASE, mem_usermem_end() - mem_usermem_start(), 0);
-	assert(ret == 0);
 
 	/*
 	 * This _must_ be the last allocation.  The bump pointer
@@ -157,9 +155,9 @@ kern_boot_comp(void)
 	 * Need to account for the pages that will be allocated as
 	 * PTEs
 	 */
-	nkmemptes = boot_nptes(mem_kmem_end() - mem_boot_end());
+	nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
 	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_KM_PTE, "untyped memory", mem_boot_nalloc_end(nkmemptes),
-				      BOOT_MEM_KM_BASE, mem_kmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
+				      BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
 	assert(ret == 0);
 	/* Shut off further bump allocations */
 	glb_memlayout.allocs_avail = 0;

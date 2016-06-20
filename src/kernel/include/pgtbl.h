@@ -264,35 +264,45 @@ pgtbl_quie_check(u32_t orig_v)
 static int
 pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
+	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 	int ret = 0;
 	struct ert_intern *pte;
 	u32_t orig_v, accum = 0;
 
 	assert(pt);
+	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 	assert((PGTBL_FLAG_MASK & page) == 0);
+	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 	assert((PGTBL_FRAME_MASK & flags) == 0);
+	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 
 	/* get the pte */
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT),
 						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
 	if (!pte) return -ENOENT;
+	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 	orig_v = (u32_t)(pte->next);
 
 	if (orig_v & PGTBL_PRESENT)  return -EEXIST;
+	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 	if (orig_v & PGTBL_COSFRAME) return -EPERM;
 
+	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 	/* Quiescence check */
 	ret = pgtbl_quie_check(orig_v);
 	if (ret) return ret;
+	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 
 	/* ref cnt on the frame. */
 	ret = retypetbl_ref((void *)page);
 	if (ret) return ret;
 
+	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 	ret = __pgtbl_update_leaf(pte, (void *)(page | flags), orig_v);
 	/* restore the refcnt if necessary */
 	if (ret) retypetbl_deref((void *)page);
 
+	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 	return ret;
 }
 
@@ -471,13 +481,16 @@ pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
 	unsigned long *pte;
 	paddr_t v;
 
+	//printk("%s-%s:%d - %x\n", __FILE__, __func__, __LINE__, frame_addr);
 	pte = pgtbl_lkup_pte(pt, frame_addr, &flags);
 	if (!pte) return -EINVAL;
 
 	v = *pte;
+	//printk("%s-%s:%d - %x\n", __FILE__, __func__, __LINE__, v);
 	if (!(v & PGTBL_COSFRAME)) return -EINVAL;
 
 	*cosframe = v & PGTBL_FRAME_MASK;
+	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 
 	return 0;
 }
