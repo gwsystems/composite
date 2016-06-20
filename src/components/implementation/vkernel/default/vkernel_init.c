@@ -16,7 +16,7 @@ struct cos_compinfo vkern_info;
 sinvcap_t invcap;
 thdcap_t vm_main_thd[COS_VIRT_MACH_COUNT];
 arcvcap_t vminitrcv[COS_VIRT_MACH_COUNT];
-asndcap_t vminitasnd[COS_VIRT_MACH_COUNT][COS_VIRT_MACH_COUNT];
+//asndcap_t vminitasnd[COS_VIRT_MACH_COUNT][COS_VIRT_MACH_COUNT];
 unsigned int ready_vms = COS_VIRT_MACH_COUNT;
 
 void
@@ -25,6 +25,51 @@ vk_term_fn(void *d)
 	BUG();
 }
 
+#if 0
+void
+timer_fn(void) {
+	static unsigned int i = 0;
+	static unsigned int zero = 1;
+	thdid_t tid;
+	int rcving;
+	cycles_t cycles;
+
+	while (ready_vms && cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles)) {
+		/*
+		 * FIXME: Should cos_thd_switch() be able to switch to a thread that is waiting on RECV end point
+		 *  	  and have not received any message/event yet? Looks like it does switch and unblock the thread..
+		 * 	Problem is, cos_recv_data() just returns even when there is no event and reads stale content in the shared memory.
+		 *
+		 * 	What am I doing here? Just increasing the frequency of VM0 switches. This is not a fix at all. Just a change to understand the behavior better.
+		 * 	Especially if VM0 is waiting on message, it would be unblocked too.
+		 *
+		 * 	This whole thing is based on the fact that the current design for Snd/Rcv message uses Main thread and Initial RCV end-point. 
+		 * 	Will need to change that for sure: Distinct thread and recv end-points, so that each main-thread can act as schedulers and schedule from their queue.
+		 */
+		if (zero && vm_main_thd[0]) {
+			zero = 0;
+			cos_thd_switch(vm_main_thd[0]);
+		} else if (COS_VIRT_MACH_COUNT - 1 > 0) {
+			int index = (i ++ % (COS_VIRT_MACH_COUNT - 1)) + 1;
+			int retry = 0;
+			while (!vm_main_thd[index]) {
+				retry ++;
+				index = (i ++ % (COS_VIRT_MACH_COUNT - 1)) + 1;
+				if (!ready_vms) goto timer_done;
+				if (retry == COS_VIRT_MACH_COUNT - 1) {
+					if (!vm_main_thd[0]) goto timer_done;
+					else cos_thd_switch(vm_main_thd[0]);
+				}
+			}
+			zero = 1;
+			cos_thd_switch(vm_main_thd[index]);
+		} else if (COS_VIRT_MACH_COUNT == 1 && !vm_main_thd[0]) goto timer_done;
+		else zero = 1;
+	}
+timer_done:
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+}
+#endif
 void
 timer_fn(void) {
 	static unsigned int i = 0;
@@ -242,49 +287,51 @@ cos_init(void)
 		printc("VM %d Init DONE\n", id);
 	}
 
-	printc("Setting up Cross VM (between vm0 and other vms) communication channels\n");
+	if (COS_VIRT_MACH_COUNT > 1) {
+		printc("Setting up Cross VM (between vm0 and other vms) communication channels\n");
 
-	int p, q;
-	for (p = 1; p < COS_VIRT_MACH_COUNT; p ++) {
+		int p, q;
+		for (p = 1; p < COS_VIRT_MACH_COUNT; p ++) {
 
-		asndcap_t ptozero, zerotop;
-		//Create ASNYC END POINT BETWEEN p & q
-		//printc("%d %d\n", p, q);
-
-		ptozero = cos_asnd_alloc(&vkern_info, BOOT_CAPTBL_SELF_INITRCV_BASE, vmbooter_info[0].captbl_cap);
-		//printc("%s:%d\n", __FILE__, __LINE__);
-		assert(ptozero);
-		//printc("%s:%d\n", __FILE__, __LINE__);
-		cos_cap_cpy_at(&vmbooter_info[p], VM_CAPTBL_SELF_VTASND_SET_BASE, &vkern_info, ptozero);
-		//printc("%s:%d\n", __FILE__, __LINE__);
-
-		zerotop = cos_asnd_alloc(&vkern_info, BOOT_CAPTBL_SELF_INITRCV_BASE, vmbooter_info[p].captbl_cap);
-		//printc("%s:%d\n", __FILE__, __LINE__);
-		assert(zerotop);
-		//printc("%s:%d\n", __FILE__, __LINE__);
-		cos_cap_cpy_at(&vmbooter_info[0], VM_CAPTBL_SELF_VTASND_SET_BASE + (p - 1) * CAP64B_IDSZ, &vkern_info, zerotop);
-		//printc("%s:%d\n", __FILE__, __LINE__);
-	}
-
-#if 0
-	int p, q;
-	for (p = 0; p < COS_VIRT_MACH_COUNT; p ++) {
-		for (q = 0; q < COS_VIRT_MACH_COUNT; q ++) {
-			
-			if (p == q) continue;
+			asndcap_t ptozero, zerotop;
 			//Create ASNYC END POINT BETWEEN p & q
 			//printc("%d %d\n", p, q);
 
-			//vminitasnd[p][q] = cos_asnd_alloc(&vkern_info, vminitrcv[q], vmbooter_info[q].captbl_cap);
-			vminitasnd[p][q] = cos_asnd_alloc(&vkern_info, BOOT_CAPTBL_SELF_INITRCV_BASE, vmbooter_info[q].captbl_cap);
+			ptozero = cos_asnd_alloc(&vkern_info, BOOT_CAPTBL_SELF_INITRCV_BASE, vmbooter_info[0].captbl_cap);
 			//printc("%s:%d\n", __FILE__, __LINE__);
-			assert(vminitasnd[p][q]);
+			assert(ptozero);
 			//printc("%s:%d\n", __FILE__, __LINE__);
-			cos_cap_cpy_at(&vmbooter_info[p], VM_CAPTBL_SELF_VTASND_SET_BASE + q*CAP64B_IDSZ, &vkern_info, vminitasnd[p][q]);
+			cos_cap_cpy_at(&vmbooter_info[p], VM_CAPTBL_SELF_VTASND_SET_BASE, &vkern_info, ptozero);
+			//printc("%s:%d\n", __FILE__, __LINE__);
+
+			zerotop = cos_asnd_alloc(&vkern_info, BOOT_CAPTBL_SELF_INITRCV_BASE, vmbooter_info[p].captbl_cap);
+			//printc("%s:%d\n", __FILE__, __LINE__);
+			assert(zerotop);
+			//printc("%s:%d\n", __FILE__, __LINE__);
+			cos_cap_cpy_at(&vmbooter_info[0], VM_CAPTBL_SELF_VTASND_SET_BASE + (p - 1) * CAP64B_IDSZ, &vkern_info, zerotop);
 			//printc("%s:%d\n", __FILE__, __LINE__);
 		}
-	}
+
+#if 0
+		int p, q;
+		for (p = 0; p < COS_VIRT_MACH_COUNT; p ++) {
+			for (q = 0; q < COS_VIRT_MACH_COUNT; q ++) {
+
+				if (p == q) continue;
+				//Create ASNYC END POINT BETWEEN p & q
+				//printc("%d %d\n", p, q);
+
+				//vminitasnd[p][q] = cos_asnd_alloc(&vkern_info, vminitrcv[q], vmbooter_info[q].captbl_cap);
+				vminitasnd[p][q] = cos_asnd_alloc(&vkern_info, BOOT_CAPTBL_SELF_INITRCV_BASE, vmbooter_info[q].captbl_cap);
+				//printc("%s:%d\n", __FILE__, __LINE__);
+				assert(vminitasnd[p][q]);
+				//printc("%s:%d\n", __FILE__, __LINE__);
+				cos_cap_cpy_at(&vmbooter_info[p], VM_CAPTBL_SELF_VTASND_SET_BASE + q*CAP64B_IDSZ, &vkern_info, vminitasnd[p][q]);
+				//printc("%s:%d\n", __FILE__, __LINE__);
+			}
+		}
 #endif
+	}
 
 	printc("Starting Timer/Scheduler Thread\n");
 	//printc("%s:%d\n", __FILE__, __LINE__);

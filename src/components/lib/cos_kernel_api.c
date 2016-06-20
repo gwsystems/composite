@@ -394,27 +394,7 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 
 	/* Do we need to allocate a PTE? */
 	if (heap_vaddr == *mem_frontier) {
-		capid_t pte_cap;
-		vaddr_t ptemem_cap;
-
-		pte_cap    = __capid_bump_alloc(meta, CAP_PGTBL);
-		ptemem_cap = __kmem_bump_alloc(meta);
-		/* TODO: handle the case of running out of memory */
-		if (pte_cap == 0 || ptemem_cap == 0) return 0;
-
-		/* PTE */
-		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_PGTBLACTIVATE,
-				pte_cap, meta->pgtbl_cap, ptemem_cap, 1)) {
-			assert(0); /* race? */
-			return 0;
-		}
-
-		/* Construct pgtbl */
-		if (call_cap_op(ci->pgtbl_cap, CAPTBL_OP_CONS, pte_cap, heap_vaddr, 0, 0)) {
-			assert(0); /* race? */
-			return 0;
-		}
-
+		__bump_mem_expand_range(ci, heap_vaddr, PGD_RANGE);
 		*mem_frontier += PGD_RANGE;
 		assert(*mem_frontier == round_up_to_pgd_page(*mem_frontier));
 	}

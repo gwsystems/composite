@@ -169,10 +169,10 @@ typedef enum {
 #define CAPTBL_EXPAND_SZ 128
 
 #define COS_VIRT_MACH_COUNT 2
-#define COS_VIRT_MACH_MEM_SZ (1<<25) //32MB
+#define COS_VIRT_MACH_MEM_SZ (1<<26) //64MB
 
 #define COS_SHM_VM_SZ (1<<20) //4MB
-#define COS_SHM_ALL_SZ ((COS_VIRT_MACH_COUNT - 1) * COS_SHM_VM_SZ) //shared regions with VM 0
+#define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
 
 /* a function instead of a struct to enable inlining + constant prop */
 static inline cap_sz_t
@@ -242,8 +242,10 @@ enum {
 	BOOT_CAPTBL_FREE               = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
 	/* BOOT_CAPTBL_FREE used as VM Exit thread */
 	VM_CAPTBL_SELF_VTASND_SET_BASE = round_up_to_pow2(BOOT_CAPTBL_FREE + CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
-	VM_CAPTBL_LAST_CAP             = round_up_to_pow2(VM_CAPTBL_SELF_VTASND_SET_BASE + NUM_CPU_COS*CAP64B_IDSZ*COS_VIRT_MACH_COUNT, CAPMAX_ENTRY_SZ),
+	VM0_CAPTBL_LAST_CAP             = round_up_to_pow2(VM_CAPTBL_SELF_VTASND_SET_BASE + NUM_CPU_COS*CAP64B_IDSZ*(COS_VIRT_MACH_COUNT <= 1 ? 1 : COS_VIRT_MACH_COUNT - 1), CAPMAX_ENTRY_SZ),
+	VM_CAPTBL_LAST_CAP             = round_up_to_pow2(VM_CAPTBL_SELF_VTASND_SET_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
 	VM_CAPTBL_FREE                 = round_up_to_pow2(VM_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
+	VM0_CAPTBL_FREE                 = round_up_to_pow2(VM0_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
 };
 
 enum {

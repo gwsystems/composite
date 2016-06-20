@@ -643,9 +643,14 @@ void
 vm_init(void *id)
 {
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ);
-	cos_compinfo_init(&booter_info, (int)id, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, 
-			(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
+	if (!id) 
+		cos_compinfo_init(&booter_info, (int)id, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+				  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE, 
+				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
+	else 
+		cos_compinfo_init(&booter_info, (int)id, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+				  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, 
+				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 	vmid = (int)id;
 	printvm("Micro Booter started.\n");
 //	printvm("heap ptr: %x\n", (vaddr_t)cos_get_heap_ptr());
