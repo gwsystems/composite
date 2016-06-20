@@ -59,7 +59,7 @@ char *get_name(struct bmk_thread *thread);
 long long cos_cpu_clock_now(void);
 void cos_irqthd_handler(void *line);
 
-void *cos_va2pa(void* addr);
+void *cos_vatpa(void* addr);
 void *cos_pa2va(void* addr, unsigned long len);
 
 #endif /* RUMPCALLS_H */
