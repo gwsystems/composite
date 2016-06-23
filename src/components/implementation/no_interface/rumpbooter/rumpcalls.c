@@ -75,7 +75,9 @@ void
 rump_bmk_memsize_init(void)
 {
 	/* (1<<20) == 1 MG */
-	bmk_memsize = COS_MEM_USER_PA_SZ - ((1<<20)*2);
+	bmk_memsize = COS_MEM_KERN_PA_SZ - ((1<<20)*2);
+	printc("FIX ME: ");
+	printc("bmk_memsize: %lu\n", bmk_memsize);
 }
 
 void

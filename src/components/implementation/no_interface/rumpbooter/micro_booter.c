@@ -130,15 +130,32 @@ test_thds(void)
 	printc("test done\n");
 }
 
+#define TEST_NPAGES (1024*2) 	/* Testing with 8MB for now */
+
 static void
 test_mem(void)
 {
-	char *p = cos_page_bump_alloc(&booter_info);
-//	something wrong! above call returns NULL on 64bit!!
-//	assert(p);
-	strcpy(p, "victory");
+	char *p, *s, *t, *prev;
+	int i;
+	const char *chk = "SUCCESS";
 
-	printc("Page allocation: %s\n", p);
+	p = cos_page_bump_alloc(&booter_info);
+	assert(p);
+	strcpy(p, chk);
+
+	assert(0 == strcmp(chk, p));
+	printc("%s: Page allocation\n", p);
+
+	s = cos_page_bump_alloc(&booter_info);
+	assert(s);
+	prev = s;
+	for (i = 0 ; i < TEST_NPAGES ; i++) {
+		t = cos_page_bump_alloc(&booter_info);
+		assert(t && t == prev + 4096);
+		prev = t;
+	}
+	memset(s, 0, TEST_NPAGES * 4096);
+	printc("SUCCESS: Allocated and zeroed %d pages.\n", TEST_NPAGES);
 }
 
 volatile arcvcap_t rcc_global, rcp_global;
@@ -240,6 +257,8 @@ async_thd_parent(void *thdcap)
 static void
 test_async_endpoints(void)
 {
+
+
 	thdcap_t tcp, tcc;
 	tcap_t tccp, tccc;
 	arcvcap_t rcp, rcc;
@@ -563,15 +582,14 @@ term_fn(void *d)
 void
 cos_init(void)
 {
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_PM_BASE, COS_MEM_USER_PA_SZ,
-			 BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
+	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 
 	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 	assert(termthd);
 
-	test_run();
+	//test_run();
 	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 
 	rump_booter_init();
