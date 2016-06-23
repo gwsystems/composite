@@ -18,8 +18,9 @@
 #include "cpu_ghz.h"
 
 /* we already use 16 MB of kernel memory + the kernel img, thus 32MB offset for this: */
-#define COS_MEM_USER_PA       (1<<25)
-#define COS_MEM_USER_PA_SZ    (1<<25) /* start with 32MB of memory */
+/* TODO: Now that there is only one region. do we need these?? There are some inconsistencies in having these.. */
+//#define COS_MEM_USER_PA       (1<<25)
+//#define COS_MEM_USER_PA_SZ    (1<<25) /* start with 32MB of memory */
 
 /*
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
@@ -27,13 +28,13 @@
  * linker script (.ld) as well.
  */
 #define COS_MEM_KERN_PA (0x00100000)
-#define COS_MEM_KERN_PA_ORDER (25)
+#define COS_MEM_KERN_PA_ORDER (29)
 #define COS_MEM_KERN_PA_SZ    (1<<COS_MEM_KERN_PA_ORDER)
 
 #define COS_MEM_COMP_START_VA ((1<<30) + (1<<22)) /* 1GB + 4MB (a relic) */
 #define COS_MEM_KERN_START_VA (0xc0000000) //COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
 
-#define COS_MEM_USER_VA_SZ (1<<31) /* 2 GB */
+//#define COS_MEM_USER_VA_SZ (1<<31) /* 2 GB */
 #define COS_MEM_KERN_VA_SZ (1<<24) /* 16 MB from KERN_START_VA + end of kernel image onward */
 
 /* To get more memory, we need many PTE caps in the captbl. So give
@@ -65,7 +66,7 @@
 #define NUM_CPU_COS            (NUM_CPU > 1 ? NUM_CPU - 1 : 1)
 
 /* Composite user memory uses physical memory above this. */
-#define COS_MEM_START          COS_MEM_USER_PA
+#define COS_MEM_START          COS_MEM_KERN_PA
 
 /* NUM_CPU_SOCKETS defined in cpu_ghz.h. The information is used for
  * intelligent IPI distribution. */

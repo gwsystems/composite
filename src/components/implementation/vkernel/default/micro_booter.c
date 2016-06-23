@@ -148,7 +148,6 @@ test_mem(void)
 	strcpy(p, chk);
 
 	assert(0 == strcmp(chk, p));
-
 	PRINTVM("%x: Page allocation\n", p);
 
 	s = cos_page_bump_alloc(&booter_info);
@@ -643,7 +642,7 @@ void
 vm_init(void *id)
 {
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ);
-	if (!id)
+	if (!id) 
 		cos_compinfo_init(&booter_info, (int)id, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 				  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE, 
 				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
@@ -652,24 +651,20 @@ vm_init(void *id)
 				  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, 
 				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 	vmid = (int)id;
-	if (vmid) {
-		PRINTVM("Micro Booter started.\n");
-		//	PRINTVM("heap ptr: %x\n", (vaddr_t)cos_get_heap_ptr());
+	PRINTVM("Micro Booter started.\n");
+//	PRINTVM("heap ptr: %x\n", (vaddr_t)cos_get_heap_ptr());
 
-		//PRINTVM("%x %x\n", BOOT_MEM_KM_BASE, round_up_to_pgd_page(BOOT_MEM_KM_BASE));
-		//PRINTVM("%x %x\n", BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ, round_up_to_pgd_page(BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ));
-		//PRINTVM("%x\n", cos_va2pa(&booter_info, BOOT_MEM_KM_BASE));
+	//PRINTVM("%x %x\n", BOOT_MEM_KM_BASE, round_up_to_pgd_page(BOOT_MEM_KM_BASE));
+	//PRINTVM("%x %x\n", BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ, round_up_to_pgd_page(BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ));
+	//PRINTVM("%x\n", cos_va2pa(&booter_info, BOOT_MEM_KM_BASE));
 
-		termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
-		assert(termthd);
+	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
+	assert(termthd);
 
-		//test_vmio((int)id);
-		//test_shmem((int)id);
-		test_run();
-		PRINTVM("Micro Booter done.\n");
-	} else {
-		rump_booter_init();
-	}
+	test_vmio((int)id);
+	//test_shmem((int)id);
+	test_run();
+	PRINTVM("Micro Booter done.\n");
 
 	while (1) cos_thd_switch(BOOT_CAPTBL_FREE); 
 	//cos_thd_switch(termthd);
