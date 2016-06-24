@@ -7,6 +7,7 @@ extern struct cos_compinfo booter_info;
 
 /* The amount of memory to give RK to start in bytes */
 #define RK_MEM (1<<25) //32MB
+
 static unsigned long
 alloc_initmem_all(void)
 {

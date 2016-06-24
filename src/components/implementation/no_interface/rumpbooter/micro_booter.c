@@ -148,7 +148,6 @@ test_mem(void)
 	strcpy(p, chk);
 
 	assert(0 == strcmp(chk, p));
-
 	PRINTVM("%x: Page allocation\n", p);
 
 	s = cos_page_bump_alloc(&booter_info);
