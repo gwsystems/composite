@@ -129,6 +129,8 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	int j, r;
 	int ndeps;
 
+	printc("ndeps = %d\n", ndeps);
+
 	// how to fix this? Can quarantine have an init method
 	/* FIXME: initialization hack. */
 	static int first = 1;
@@ -262,28 +264,36 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		cnt = cos_cap_cntl(COS_CAP_GET_FORK_CNT, source, cap->cap_off, 0);
 		assert(cnt > 0);
 		if (cos_cap_cntl(COS_CAP_SET_FORK_CNT, d_spd, cap->cap_off, cnt)) BUG();
-		printd("Updated fork count for cap %d from spd %d to count %d\n", j, source, cnt);
+		printd("Updated fork count (send-side) for cap %d from spd %d to count %d\n", j, source, cnt);
 	}
 
 	/* Find every spd that has an invocation cap to source and update
 	 * the receive-side fork count. */
+	ndeps = cgraph_ndeps();
+	printc("ndeps = %d\n", ndeps);
 	for (j = 0; j < ndeps; j++) {
 		int i;
 		int ncaps;
 		spdid_t c, s;
-		if (cgraph_server(j) == source) {
-			c = cgraph_client(j);
+		c = cgraph_client(j);
+		printc("\n\tj = %d, c = %d\n", j, c);
+		if (c == source) {
+
 			ncaps = cos_cap_cntl(COS_CAP_GET_SPD_NCAPS, c, 0, 0);
+			printc("\tncaps = %d\n", ncaps);
 			for (i = 0; i < ncaps; i++) {
 				s = cos_cap_cntl(COS_CAP_GET_DEST_SPD, c, i, 0);
+				printc("\t\ti = %d, s = %d\n", i, s);
+
 				if (s < 0) BUG();
 				if (s == source) {
 					cos_cap_cntl(COS_CAP_INC_FORK_CNT, c, i, (0 << 8) | 1);
-					printd("Updated fork count for cap %d from %d->%d\n", i, c, s);
+					printd("\t\tUpdated fork count (receive-side) for cap %d from %d->%d to count %d\n", i, c, s, (0 << 8) | 1);
 					break;
 				}
 			}
-			printd("Unable to find client cap from %d -> %d\n", c, s);
+			printc("\n");
+			//printd("Unable to find client cap from %d -> %d\n", c, s);
 		}
 	}
 

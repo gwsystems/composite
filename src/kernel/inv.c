@@ -112,8 +112,8 @@ need_fork_fix(struct thread *thd, struct spd *curr_spd, struct invocation_cap *c
 	assert(c->fork.cnt.rcv >= 0);
 	int ret = (((int)c->fork.cnt.snd)<<8) | (int)c->fork.cnt.rcv;
 	int spd = spd_get_index(curr_spd);	
-	if (unlikely(ret > 0 || spd == 12 || spd == 13)) {	// 12 = malloc_comp calling printc, 13 = malloc_fork calling malloc_comp. 13 is higher because it has a dependency on comp so that is loaded first
-		printk("need_fork_fix spd %d snd %d rcv %d\n", spd, c->fork.cnt.snd, c->fork.cnt.rcv);
+	if (unlikely(ret > 0 || spd == 12 || spd == 13) || spd == 14) {	// 12 = malloc_comp calling printc, 13 = malloc_fork calling malloc_comp. 13 is higher because it has a dependency on comp so that is loaded first
+		if (c->fork.cnt.snd != 0 || c->fork.cnt.rcv != 0) printk("need_fork_fix spd %d snd %d rcv %d\n", spd, c->fork.cnt.snd, c->fork.cnt.rcv);
 	}
 
 	return ret;
@@ -214,7 +214,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	fork_cnts = need_fork_fix(thd, curr_spd, cap_entry);
 	if (unlikely(fork_cnts > 0)) {
 		/* the off-by-1 capability */
-		printk("ipc_walk_static_cap thd->id: %d, with curr_spd %d, d_spd %d, with fork_cnts %d\n", thd_get_id(thd), spd_get_index(curr_spd), spd_get_index(dest_spd), fork_cnts);
+		printk("ipc_walk_static_cap found need to fork fix thd->id: %d, with curr_spd %d, d_spd %d, with fork_cnts %d\n", thd_get_id(thd), spd_get_index(curr_spd), spd_get_index(dest_spd), fork_cnts);
 		return thd_quarantine_fault(thd, curr_spd, dest_spd, ((capability-1)<<16) | fork_cnts, COS_FLT_QUARANTINE, ret);
 	}
 

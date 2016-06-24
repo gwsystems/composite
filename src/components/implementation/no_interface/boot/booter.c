@@ -489,6 +489,12 @@ cgraph_client(int iter)
 	return deps[iter].client;
 }
 
+int 
+cgraph_ndeps(void)
+{
+	return ndeps;
+}
+
 int
 cgraph_add(int serv, int client)
 {
