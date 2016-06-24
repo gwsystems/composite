@@ -42,7 +42,7 @@ cos2rump_setup(void)
 	crcalls.rump_cpu_sched_switch_viathd    = cos_cpu_sched_switch;
 	crcalls.rump_memfree			= cos_memfree;
 	crcalls.rump_tls_init 			= cos_tls_init;
-	crcalls.rump_va2pa			= cos_va2pa;
+	crcalls.rump_va2pa			= cos_vatpa;
 	crcalls.rump_pa2va			= cos_pa2va;
 	return;
 }
@@ -75,7 +75,7 @@ void
 rump_bmk_memsize_init(void)
 {
 	/* (1<<20) == 1 MG */
-	bmk_memsize = COS_MEM_KERN_PA_SZ - ((1<<20)*2);
+	bmk_memsize = COS_VIRT_MACH_MEM_SZ - ((1<<20)*2);
 	printc("FIX ME: ");
 	printc("bmk_memsize: %lu\n", bmk_memsize);
 }
@@ -232,11 +232,12 @@ cos_cpu_clock_now(void)
 }
 
 void *
-cos_va2pa(void * vaddr)
+cos_vatpa(void * vaddr)
 {
-        int paddr = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
-	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
-        return (void *)paddr;
+//        int paddr = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
+//	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
+//        return (void *)paddr;
+	return cos_va2pa(&booter_info, vaddr);
 }
 
 void *
