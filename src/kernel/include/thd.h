@@ -412,6 +412,7 @@ thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 	case 6: *retval = t->regs.dx; break;
 	case 7: *retval = t->regs.si; break;
 	case 8: *retval = t->regs.di; break;
+	case 9: *retval = t->tid; break;
 	default: return -EINVAL;
 	}
 	return 0;
