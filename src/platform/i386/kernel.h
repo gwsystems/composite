@@ -32,7 +32,7 @@ typedef enum {
 	TIMER_ONESHOT  = 1,
 } timer_type_t;
 
-#define TIMER_DEFAULT_US_INTERARRIVAL 100 /* US = microseconds */
+#define TIMER_DEFAULT_US_INTERARRIVAL 1000 /* US = microseconds */
 
 void timer_set(timer_type_t timer_type, u64_t cycles);
 void timer_init(void);

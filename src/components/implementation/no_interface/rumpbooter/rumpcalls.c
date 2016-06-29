@@ -44,6 +44,7 @@ cos2rump_setup(void)
 	crcalls.rump_tls_init 			= cos_tls_init;
 	crcalls.rump_va2pa			= cos_vatpa;
 	crcalls.rump_pa2va			= cos_pa2va;
+	crcalls.rump_platform_exit		= cos_vm_exit;
 	return;
 }
 
@@ -245,3 +246,7 @@ cos_pa2va(void * pa, unsigned long len)
 {
         return (void *)cos_hw_map(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)pa, (unsigned int)len);
 }
+
+void
+cos_vm_exit(void)
+{ while (1) cos_thd_switch(VM_CAPTBL_SELF_EXITTHD_BASE); }
