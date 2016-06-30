@@ -41,11 +41,11 @@ alloc_initmem_all(void)
 	printc("max: %x\n", max);
 	return max;
 }
-
 void
 cos_run(char *cmdline)
 {
-	printc("Rump Kernel bootstrap on platform Composite\n");
+	extern int rump_vmid;
+	printc("cos_run, rump_vmid: %d\n", rump_vmid);
 	bmk_sched_init();
 	printc("bmk_sched_init done\n");
 	bmk_memalloc_init();

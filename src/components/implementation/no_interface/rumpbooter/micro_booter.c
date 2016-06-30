@@ -46,6 +46,7 @@ printc(char *fmt, ...)
 }
 
 int vmid = -1;
+int rump_vmid;
 #define PRINTVM(fmt, args...) printc("%d: " fmt, vmid , ##args)
 
 extern thdcap_t vm_exit_thd;
@@ -651,7 +652,8 @@ vm_init(void *id)
 				  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, 
 				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 	vmid = (int)id;
-	if (vmid) {
+	rump_vmid = (int)id;
+	if (vmid==2) {
 		PRINTVM("Micro Booter started.\n");
 		//	PRINTVM("heap ptr: %x\n", (vaddr_t)cos_get_heap_ptr());
 
@@ -667,6 +669,7 @@ vm_init(void *id)
 		test_run();
 		PRINTVM("Micro Booter done.\n");
 	} else {
+		PRINTVM("rump_booter_init\n");
 		rump_booter_init();
 	}
 

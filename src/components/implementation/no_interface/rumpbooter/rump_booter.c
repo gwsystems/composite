@@ -76,22 +76,25 @@ hw_irq_alloc(void){
 		cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
 	}
 }
-
 void
 rump_booter_init(void)
 {
-	printc("\n%s\n", __func__);
 	thdcap_t tc;
 	arcvcap_t rc;
 	thdid_t tid;
 	int rcving;
+	extern int rump_vmid;
 	cycles_t cycles;
 	tcap_t tcc;
 
 
+	char *json_file = "";
 	//char *json_file = "{,\"blk\":{,\"source\":\"dev\",\"path\":\"/dev/paws\",\"fstype\":\"cd9660\",\"mountpoint\":\"data\",},\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"net\":{,\"if\":\"tun0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"111.111.111.0\",\"mask\":\"24\",\"gw\":\"111.111.111.0\",},\"cmdline\":\"nginx.bin\",},\0";
-	char *json_file = "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
-	//char *json_file = "";
+	if(rump_vmid){
+		char *json_file = "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
+
+	}
+
 
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_rk_fn, NULL);
 	assert(tc);

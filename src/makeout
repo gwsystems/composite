@@ -1,0 +1,193 @@
+
+***********************************************
+************* Building Components *************
+***********************************************
+
+make  --no-print-directory -I /home/lucasbaier/research/rump2cos/Composite/src -C components
+components makeflag  --no-print-directory
+####### Stack Manager is Enabled #######
+make  --no-print-directory -I /home/lucasbaier/research/rump2cos/Composite/src -I /home/lucasbaier/research/rump2cos/Composite/src -I /home/lucasbaier/research/rump2cos/Composite/src/components -C lib
+|     [CC]   Creating library file heap.a from heap.c
+|     [CC]   Creating library file cobj_format.a from cobj_format.c
+|     [CC]   Creating library file cos_kernel_api.a from cos_kernel_api.c
+cos_kernel_api.c: In function ‘__mem_bump_alloc’:
+cos_kernel_api.c:130:4: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 5 has type ‘vaddr_t’ [-Wformat=]
+    printc("%s-%s:%d %x\n", __FILE__, __func__, __LINE__, ret);
+    ^
+cos_kernel_api.c: In function ‘cos_hw_map’:
+cos_kernel_api.c:887:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 4 has type ‘paddr_t’ [-Wformat=]
+  printc("%s:%d - pa: %x fva: %x len: %d.. size: %u\n", __func__, __LINE__, pa, fva, len, sz);
+  ^
+cos_kernel_api.c:887:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 5 has type ‘vaddr_t’ [-Wformat=]
+cos_kernel_api.c:897:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 5 has type ‘paddr_t’ [-Wformat=]
+  printc("%s:%d - size: %u pa: %x\n", __func__, __LINE__, sz, pa);
+  ^
+cos_kernel_api.c:910:3: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 4 has type ‘vaddr_t’ [-Wformat=]
+   printc("%s:%d - va: %x size: %u pa: %x\n", __func__, __LINE__, va, sz, pa);
+   ^
+cos_kernel_api.c:910:3: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 6 has type ‘paddr_t’ [-Wformat=]
+In file included from /home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:10:0,
+                 from cos_kernel_api.c:7:
+cos_kernel_api.c: In function ‘cos_send_data’:
+cos_kernel_api.c:930:20: warning: comparison between signed and unsigned integer expressions [-Wsign-compare]
+  assert(ci->compid != to_vmid);
+                    ^
+/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_component.h:472:45: note: in definition of macro ‘unlikely’
+ #define unlikely(x)     __builtin_expect(!!(x), 0)
+                                             ^
+cos_kernel_api.c:930:2: note: in expansion of macro ‘assert’
+  assert(ci->compid != to_vmid);
+  ^
+cos_kernel_api.c: In function ‘cos_recv_data’:
+cos_kernel_api.c:956:20: warning: comparison between signed and unsigned integer expressions [-Wsign-compare]
+  assert(ci->compid != from_vmid);
+                    ^
+/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_component.h:472:45: note: in definition of macro ‘unlikely’
+ #define unlikely(x)     __builtin_expect(!!(x), 0)
+                                             ^
+cos_kernel_api.c:956:2: note: in expansion of macro ‘assert’
+  assert(ci->compid != from_vmid);
+  ^
+cos_kernel_api.c:959:6: warning: variable ‘pending’ set but not used [-Wunused-but-set-variable]
+  int pending, rcving;
+      ^
+make  --no-print-directory -I /home/lucasbaier/research/rump2cos/Composite/src -I /home/lucasbaier/research/rump2cos/Composite/src -I /home/lucasbaier/research/rump2cos/Composite/src/components -C interface
+***********************************************
+************[ Building interfaces ]************
+***********************************************
+rm cbuf_c.o
+rm cos_synchronization.o
+rm cos_alloc.o
+rm cos_alloc.o
+rm parlib.o
+rm printc.o
+rm printt.o
+make  --no-print-directory -I /home/lucasbaier/research/rump2cos/Composite/src -I /home/lucasbaier/research/rump2cos/Composite/src -I /home/lucasbaier/research/rump2cos/Composite/src/components -C implementation
+***********************************************
+*********[ Building Implementations ]**********
+***********************************************
+make[3]: Nothing to be done for `init'.
+make[3]: Nothing to be done for `cp'.
+Warning: in component mem_mgr.hier, function mman_valloc defined in an interface, but not in component
+Warning: in component mem_mgr.hier, function mman_revoke_page defined in an interface, but not in component
+Warning: in component mem_mgr.naive, function mman_valloc defined in an interface, but not in component
+Error: component mem_mgr.naive does not have stated dependencies to provide ['mman_valloc']
+	Suggested Fix: add the proper interface dependency in the DEPENDENCIES list in components/implementation/mem_mgr/naive/Makefile.
+Less likely fixes: a) you should specify a FN_PREPEND in the Makefile for a component that wishes to invoke another component with the same interface.
+b) you should reorder dependencies within the Makefile (see FAQ).
+|     [CP]   copying network stack from lwip
+cp: cannot stat ‘/home/lucasbaier/research/rump2cos/Composite/src//components//lib/lwip/cos/net_stack.o’: No such file or directory
+make[3]: *** [first] Error 1
+Error: component no_interface.blk does not have stated dependencies to provide ['prints']
+	Suggested Fix: add the proper interface dependency in the DEPENDENCIES list in components/implementation/no_interface/blk/Makefile.
+Less likely fixes: a) you should specify a FN_PREPEND in the Makefile for a component that wishes to invoke another component with the same interface.
+b) you should reorder dependencies within the Makefile (see FAQ).
+make[4]: *** No targets.  Stop.
+make[4]: Nothing to be done for `cp'.
+make[4]: Nothing to be done for `cp'.
+In file included from rump_booter.c:8:0:
+rumpcalls.h:10:0: warning: "va_end" redefined [enabled by default]
+ #define va_end(va_arg)     __builtin_va_end(va_arg)
+ ^
+In file included from /home/lucasbaier/research/rump2cos/Composite/src//components//lib/dietlibc-0.29/include/stdio.h:7:0,
+                 from rump_booter.c:1:
+/home/lucasbaier/research/rump2cos/Composite/src//components//lib/dietlibc-0.29/include/stdarg.h:15:0: note: this is the location of the previous definition
+ #define va_end  __builtin_va_end
+ ^
+rump_booter.c: In function ‘hw_irq_alloc’:
+rump_booter.c:73:3: warning: passing argument 4 of ‘cos_thd_alloc’ makes pointer from integer without a cast [enabled by default]
+   irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, i);
+   ^
+In file included from rump_booter.c:6:0:
+/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:74:11: note: expected ‘void *’ but argument is of type ‘int’
+ thdcap_t  cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
+           ^
+rump_booter.c: In function ‘rump_booter_init’:
+rump_booter.c:99:2: warning: passing argument 3 of ‘cos_thd_alloc’ from incompatible pointer type [enabled by default]
+  tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_rk_fn, NULL);
+  ^
+In file included from rump_booter.c:6:0:
+/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:74:11: note: expected ‘cos_thd_fn_t’ but argument is of type ‘void (*)(void)’
+ thdcap_t  cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
+           ^
+In file included from rumpcalls.c:8:0:
+rumpcalls.h:10:0: warning: "va_end" redefined [enabled by default]
+ #define va_end(va_arg)     __builtin_va_end(va_arg)
+ ^
+In file included from /home/lucasbaier/research/rump2cos/Composite/src//components//lib/dietlibc-0.29/include/stdio.h:7:0,
+                 from rumpcalls.c:1:
+/home/lucasbaier/research/rump2cos/Composite/src//components//lib/dietlibc-0.29/include/stdarg.h:15:0: note: this is the location of the previous definition
+ #define va_end  __builtin_va_end
+ ^
+rumpcalls.c: In function ‘cos2rump_setup’:
+rumpcalls.c:28:34: warning: assignment from incompatible pointer type [enabled by default]
+  crcalls.rump_strncpy            = strncpy;
+                                  ^
+rumpcalls.c:31:34: warning: assignment from incompatible pointer type [enabled by default]
+  crcalls.rump_memcalloc          = cos_memcalloc;
+                                  ^
+rumpcalls.c:32:34: warning: assignment from incompatible pointer type [enabled by default]
+  crcalls.rump_memalloc           = cos_memalloc;
+                                  ^
+rumpcalls.c:36:34: warning: assignment from incompatible pointer type [enabled by default]
+  crcalls.rump_memcpy             = memcpy;
+                                  ^
+rumpcalls.c:37:24: warning: assignment from incompatible pointer type [enabled by default]
+  crcalls.rump_memset   = cos_memset;
+                        ^
+rumpcalls.c: In function ‘cos_irqthd_handler’:
+rumpcalls.c:68:4: warning: implicit declaration of function ‘bmk_isr’ [-Wimplicit-function-declaration]
+    bmk_isr(which);
+    ^
+rumpcalls.c: In function ‘cos_memfree’:
+rumpcalls.c:86:2: warning: implicit declaration of function ‘rump_cos_free’ [-Wimplicit-function-declaration]
+  rump_cos_free(cp);
+  ^
+rumpcalls.c: In function ‘cos_memcalloc’:
+rumpcalls.c:102:2: warning: implicit declaration of function ‘rump_cos_calloc’ [-Wimplicit-function-declaration]
+  rv = rump_cos_calloc(n, size);
+  ^
+rumpcalls.c:102:5: warning: assignment makes pointer from integer without a cast [enabled by default]
+  rv = rump_cos_calloc(n, size);
+     ^
+rumpcalls.c: In function ‘cos_memalloc’:
+rumpcalls.c:114:2: warning: implicit declaration of function ‘rump_cos_malloc’ [-Wimplicit-function-declaration]
+  rv = rump_cos_malloc(nbytes);
+  ^
+rumpcalls.c:114:5: warning: assignment makes pointer from integer without a cast [enabled by default]
+  rv = rump_cos_malloc(nbytes);
+     ^
+rumpcalls.c: In function ‘cos_tls_init’:
+rumpcalls.c:127:2: warning: passing argument 3 of ‘cos_thd_mod’ makes pointer from integer without a cast [enabled by default]
+  cos_thd_mod(&booter_info, tc, tp);
+  ^
+In file included from rumpcalls.c:6:0:
+/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:89:5: note: expected ‘void *’ but argument is of type ‘long unsigned int’
+ int cos_thd_mod(struct cos_compinfo *ci, thdcap_t c, void *tls_addr); /* set tls addr of thd in captbl */
+     ^
+stubs.c:3:11: warning: array ‘_DYNAMIC’ assumed to have one element [enabled by default]
+ Elf64_Dyn _DYNAMIC [];
+           ^
+|     [LD]   no_interface.rumpbooter (rump_boot.o): Linking  cos_init.o micro_booter.o rump_booter.o rumpcalls.o rump_cos_alloc.o stubs.o vkernel_init.o inv.o
+Error: component no_interface.rumpbooter does not have stated dependencies to provide ['bmk_current', 'bmk_isr', 'bmk_mainthread', 'bmk_memalloc_init', 'bmk_memsize', 'bmk_pgalloc_loadmem', 'bmk_sched_init', 'bmk_sched_startmain', 'crcalls', 'get_cos_thdcap', 'get_name', '_GLOBAL_OFFSET_TABLE_', 'set_cos_thdcap']
+	Suggested Fix: add the proper interface dependency in the DEPENDENCIES list in components/implementation/no_interface/rumpbooter/Makefile.
+Less likely fixes: a) you should specify a FN_PREPEND in the Makefile for a component that wishes to invoke another component with the same interface.
+b) you should reorder dependencies within the Makefile (see FAQ).
+make[4]: *** No rule to make target `/usr/lib/libm.a', needed by `fft.o'.  Stop.
+make[4]: *** No rule to make target `/usr/lib/libm.a', needed by `cos_jacobi.o'.  Stop.
+make[4]: Nothing to be done for `cp'.
+|     [CP]   copying network stack from lwip
+cp: cannot stat ‘/home/lucasbaier/research/rump2cos/Composite/src//components//lib/lwip/cos/net_stack.o’: No such file or directory
+make[4]: *** [first] Error 1
+Warning: component vkernel.default has stated it implements interface vkernel and the interface doesn't exist.
+	Suggested Fix: remove it from the INTERFACES list in components/implementation/vkernel/default/Makefile
+
+***********************************************
+***** Building i386 Platform and Kernel *******
+***********************************************
+
+make  --no-print-directory -I /home/lucasbaier/research/rump2cos/Composite/src PLATFORM=i386 -C platform
+make -C i386
+make[2]: Nothing to be done for `all'.
+make -C linker
+make[2]: Nothing to be done for `default'.
