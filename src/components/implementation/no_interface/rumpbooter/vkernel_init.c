@@ -76,10 +76,6 @@ timer_fn(void) {
 	thdid_t tid;
 	int rcving;
 	cycles_t cycles;
-	if (ready_vms == 1) {
-		cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
-		return;
-	}
 
 	while (ready_vms && cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles)) {
 		int index = i ++ % COS_VIRT_MACH_COUNT;
@@ -337,18 +333,18 @@ cos_init(void)
 #endif
 	}
 
-//	printc("Starting Timer/Scheduler Thread\n");
-//	//printc("%s:%d\n", __FILE__, __LINE__);
-//	vk_timer_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, timer_fn, NULL);
-//	assert(vk_timer_thd);
-//	//printc("%s:%d\n", __FILE__, __LINE__);
-//
-//	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
-//	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
-//
-//	while (ready_vms) cos_thd_switch(vk_timer_thd);
-//	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
-//	printc("Timer thread DONE\n");
+	printc("Starting Timer/Scheduler Thread\n");
+	//printc("%s:%d\n", __FILE__, __LINE__);
+	vk_timer_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, timer_fn, NULL);
+	assert(vk_timer_thd);
+	//printc("%s:%d\n", __FILE__, __LINE__);
+
+	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+
+	while (ready_vms) cos_thd_switch(vk_timer_thd);
+	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
+	printc("Timer thread DONE\n");
 
 	while(1) cos_thd_switch(vm_main_thd[0]);
 	//cos_thd_switch(termthd);

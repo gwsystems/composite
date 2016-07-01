@@ -2,8 +2,8 @@
 #include <string.h>
 #include <cos_component.h>
 #include <cos_alloc.h>
-
 #include <cos_kernel_api.h>
+#include <cos_types.h>
 
 #include "rumpcalls.h"
 #include "rump_cos_alloc.h"
@@ -13,6 +13,53 @@
 
 extern struct cos_rumpcalls crcalls;
 int boot_thread = 1;
+//void lock(int *i) {
+//	while (!(*i)) ;
+//	*i = 0;
+//}
+//
+//void unlock(int *i) {
+//	*i = 1;
+//}
+
+/* Thread id */
+capid_t cos_cur = 0;
+int cos_isr = 0;
+
+extern int intr;
+
+int expected = 1;
+
+//void lock(char *i) {
+//	while(!__atomic_test_and_set(i, __ATOMIC_ACQUIRE));
+//}
+//
+//void lock_isr(char *i, int which) {
+//	while(!__atomic_test_and_set(i, __ATOMIC_ACQUIRE)) cos_thd_switch(cos_cur);
+//}
+//
+//
+//void unlock(char *i) {
+//	__atomic_clear(i, __ATOMIC_RELEASE);
+//}
+
+
+//  __atomic_compare_exchange_n (type *ptr, type *expected, type desired, bool weak, int success_memorder, int failure_memorder)
+//void lock(int *i)
+//{
+//	while(!__atomic_compare_exchange_n (i, &expected, 0, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+//		/* On a fail the value of i is writen into expected, we need to reset it */
+//		__atomic_exchange_n (&expected, 1, __ATOMIC_ACQ_REL);
+//	}
+//}
+//
+//// __atomic_exchange_n (type *ptr, type val, int memorder)
+//void unlock(int *i)
+//{
+//	__atomic_exchange_n (i, 1, __ATOMIC_ACQ_REL);
+//}
+
+
 
 /* Mapping the functions from rumpkernel to composite */
 
@@ -44,6 +91,7 @@ cos2rump_setup(void)
 	crcalls.rump_tls_init 			= cos_tls_init;
 	crcalls.rump_va2pa			= cos_vatpa;
 	crcalls.rump_pa2va			= cos_pa2va;
+	crcalls.rump_resume                     = cos_resume;
 	return;
 }
 
@@ -51,21 +99,20 @@ cos2rump_setup(void)
 void
 cos_irqthd_handler(void *line)
 {
-	printc("\n!!!cos_irqthd_handler!!!\n");
 	int which = (int)line;
-	int first = 1;
 	thdid_t tid;
 	int rcving;
 	cycles_t cycles;
 
 	while(1) {
 		cos_rcv(irq_arcvcap[which], &tid, &rcving, &cycles);
-		if(first){
-			first = 0;
-			printc("I'm in irq # %x. \n", which);
-		}
-		if (which != 0) /* no timer handler in rumpkernel! */
-			bmk_isr(which);
+		//cos_isr = irq_thdcap[which];
+		/* Put which atomically into cos_isr for array look up in resume */
+		__atomic_exchange_n (&cos_isr, which, __ATOMIC_ACQ_REL);
+
+		bmk_isr(which);
+
+		__atomic_exchange_n (&cos_isr, 0, __ATOMIC_ACQ_REL);
 	}
 }
 
@@ -139,6 +186,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void *stack_base, unsigned long stack_size)
 {
 
+	
 	//printc("thdname: %s\n", get_name(thread));
 
 	thdcap_t newthd_cap;
@@ -159,10 +207,10 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	thd_meta->arg = arg;
 
 	newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, rump_thd_fn, thd_meta);
+	set_cos_thdcap(thread, newthd_cap);
 	// To access the thd_id
 	ret = cos_thd_switch(newthd_cap);
 	if(ret) printc("cos_thd_switch FAILED\n");
-	set_cos_thdcap(thread, newthd_cap);
 
 	/*
 	 *  printc("\n------\nNew thread %d @ %x\n------\n\n",
@@ -171,35 +219,52 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	 */
 }
 
-struct bmk_thread *glob_prev;
-struct bmk_thread *glob_next;
+
+/* Called from RK init thread. The one in while(1) */
 
 void
-cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next)
+cos_resume()
 {
-	glob_prev = prev;
-	glob_next = next;
+	if (cos_isr)
+		cos_thd_switch(irq_thdcap[cos_isr]);
+	else
+		cos_thd_switch(cos_cur);
+}
 
-	//printc("\ncos_cpu_sched_switch\n");
-
-	struct thd_creation_protocol info;
-	struct thd_creation_protocol *thd_meta = &info;
+void
+cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
+{
 	int ret;
+	//capid_t tmp;
+	//struct thd_creation_protocol info;
+	//struct thd_creation_protocol *thd_meta = &info;
 
+	/* FIXME
+	 * RG: May, or may not need locks. Test 
+         */
+	//lock(&lk);
+	//printc("\tTook lock: switch\n");
+	cos_cur = get_cos_thdcap(next);
+	//tmp = cos_cur;
+	//unlock(&lk);
+	//printc("\tReleasing lock: switch\n");
 
-	thd_meta->retcap = get_cos_thdcap(next);
+	//thd_meta->retcap = get_cos_thdcap(next);
 
 	/* For Debugging
-	 * printc("\n------\nSwitching thread to %d @ %x\n------\n\n",
-	 *		(int)(thd_meta->retcap),
-	 *		cos_introspect(&booter_info, thd_meta->retcap, 0));
+	 *
+	 *printc("------\nSwitching thread to %d @ %x\n------\n",
+	 *     	(int)(thd_meta->retcap),
+	 *     	cos_introspect(&booter_info, thd_meta->retcap, 0));
 	 */
+	 
 
-	//printc("prev: %s\n", get_name(prev));
-	//printc("next: %s\n", get_name(next));
+	//printc("\nprev: %s\n", get_name(prev));
+	//printc("next: %s\n\n", get_name(next));
 	//printc("retcap: %d\n\n", thd_meta->retcap);
 
-	ret = cos_thd_switch(thd_meta->retcap);
+	//ret = cos_thd_switch(thd_meta->retcap);
+	ret = cos_thd_switch(cos_cur);
 	if(ret)
 		printc("thread switch failed\n");
 }
