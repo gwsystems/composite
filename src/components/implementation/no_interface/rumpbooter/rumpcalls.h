@@ -42,6 +42,7 @@ struct cos_rumpcalls
 	void*  (*rump_va2pa)(void *addr);
 	void*  (*rump_pa2va)(void *addr, unsigned long len);
 	void   (*rump_resume)(void);
+	void   (*rump_platform_exit)(void);
 };
 
 /* Mapping the functions from rumpkernel to composite */
@@ -62,4 +63,7 @@ void cos_irqthd_handler(void *line);
 
 void *cos_vatpa(void* addr);
 void *cos_pa2va(void* addr, unsigned long len);
+
+void cos_vm_exit(void);
+
 #endif /* RUMPCALLS_H */

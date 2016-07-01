@@ -224,9 +224,9 @@ async_thd_fn(void *thdcap)
 
 	PRINTVM("Asynchronous event thread handler.\n<-- rcving...\n");
 	pending = cos_rcv(rc, &tid, &rcving, &cycles);
-	PRINTVM("<-- pending %d, thdid %d, rcving %d, cycles %lld\n<-- rcving...\n", pending, tid, rcving, cycles);
+	PRINTVM("<-- pending %d, thdid %d, rcving %d, cycles %lld\t<-- rcving...\n", pending, tid, rcving, cycles);
 	pending = cos_rcv(rc, &tid, &rcving, &cycles);
-	PRINTVM("<-- pending %d, thdid %d, rcving %d, cycles %lld\n<-- rcving...\n", pending, tid, rcving, cycles);
+	PRINTVM("<-- pending %d, thdid %d, rcving %d, cycles %lld\t<-- rcving...\n", pending, tid, rcving, cycles);
 	pending = cos_rcv(rc, &tid, &rcving, &cycles);
 	PRINTVM("<-- Error: manually returning to snding thread.\n");
 	cos_thd_switch(tc);
@@ -248,10 +248,10 @@ async_thd_parent(void *thdcap)
 	PRINTVM("--> sending\n");
 	ret = cos_asnd(sc);
 	if (ret) PRINTVM("asnd returned %d.\n", ret);
-	PRINTVM("--> Back in the asnder.\n--> sending\n");
+	PRINTVM("--> Back in the asnder.\t--> sending\n");
 	ret = cos_asnd(sc);
 	if (ret) PRINTVM("--> asnd returned %d.\n", ret);
-	PRINTVM("--> Back in the asnder.\n--> receiving to get notifications\n");
+	PRINTVM("--> Back in the asnder.\t--> receiving to get notifications\n");
 	pending = cos_rcv(rc, &tid, &rcving, &cycles);
 	PRINTVM("--> pending %d, thdid %d, rcving %d, cycles %lld\n", pending, tid, rcving, cycles);
 
@@ -293,7 +293,7 @@ test_async_endpoints(void)
 	async_test_flag = 1;
 	while (async_test_flag) cos_thd_switch(tcp);
 
-	PRINTVM("Async end-point test successful.\nTest done.\n");
+	PRINTVM("Async end-point test successful.\tTest done.\n");
 }
 
 static void
@@ -424,7 +424,7 @@ test_timer(void)
 
 	PRINTVM("\tCycles per tick (10 microseconds) = %lld\n", t/16);
 
-	PRINTVM("Timer test completed.\nSuccess.\n");
+	PRINTVM("Timer test completed.\tSuccess.\n");
 }
 
 long long midinv_cycles = 0LL;
@@ -531,47 +531,26 @@ test_captbl_expand(void)
 		ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
 		assert(ic > 0);
 	}
-	PRINTVM("\nCaptbl expand SUCCESS.\n");
+	PRINTVM("Captbl expand SUCCESS.\n");
 }
 
 void
 test_run(void)
 {
-
-//	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
-//	PRINTVM("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
-
-	PRINTVM("---------------------------\n");
 	test_thds();
-	PRINTVM("---------------------------\n");
 	test_thds_perf();
-	PRINTVM("---------------------------\n");
 
-	PRINTVM("---------------------------\n");
 //	test_timer();
-	PRINTVM("---------------------------\n");
 
-	PRINTVM("---------------------------\n");
 	test_mem();
-	PRINTVM("---------------------------\n");
 
-	PRINTVM("---------------------------\n");
 	test_async_endpoints();
-	PRINTVM("---------------------------\n");
 	test_async_endpoints_perf();
-	PRINTVM("---------------------------\n");
 
-	PRINTVM("---------------------------\n");
 	test_inv();
-	PRINTVM("---------------------------\n");
 	test_inv_perf();
-	PRINTVM("---------------------------\n");
 
-	PRINTVM("---------------------------\n");
 	test_captbl_expand();
-	PRINTVM("---------------------------\n");
-
-//	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 }
 
 void
@@ -600,35 +579,28 @@ test_shmem(int vm)
 void
 test_vmio(int vm)
 {
-//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-	char buf[50] = { '\0' };
-	if (!vm) {
-//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-		int i = 1;
-		while (i < COS_VIRT_MACH_COUNT) {
-//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-			memset(buf, '\0', 50);
-//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-			asndcap_t sndcap = VM_CAPTBL_SELF_VTASND_SET_BASE + (i - 1) * CAP64B_IDSZ;
-			vaddr_t shm_addr = BOOT_MEM_SHM_BASE + (i - 1) * COS_SHM_VM_SZ;
-//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-			sprintf(buf, "SHMEM %d to %d - %x", vm, i, cos_va2pa(&booter_info, shm_addr));
-			//strcpy(shm_addr, buf);
-//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-			cos_send_data(&booter_info, sndcap, buf, strlen(buf) + 1, i);
-//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-			PRINTVM("Sent to %d: \"%s\" @ %x:%x\n", i, buf, shm_addr, cos_va2pa(&booter_info, shm_addr));
-			i ++;
+	if (COS_VIRT_MACH_COUNT > 1) {
+		static int it = 0;
+		char buf[50] = { '\0' };
+		if (!vm) {
+			int i = 1;
+			while (i < COS_VIRT_MACH_COUNT) {
+				memset(buf, '\0', 50);
+				asndcap_t sndcap = VM_CAPTBL_SELF_VTASND_SET_BASE + (i - 1) * CAP64B_IDSZ;
+				vaddr_t shm_addr = BOOT_MEM_SHM_BASE + (i - 1) * COS_SHM_VM_SZ;
+				sprintf(buf, "%d:SHMEM %d to %d - %x", it, vm, i, cos_va2pa(&booter_info, shm_addr));
+				PRINTVM("Sending to %d\n", i);
+				cos_send_data(&booter_info, sndcap, buf, strlen(buf) + 1, i);
+				PRINTVM("Sent to %d: \"%s\" @ %x:%x\n", i, buf, shm_addr, cos_va2pa(&booter_info, shm_addr));
+				i ++;
+			}
+		} else {
+			int i = 0;
+			PRINTVM("%d Receiving..\n", vm);
+			cos_recv_data(&booter_info, BOOT_CAPTBL_SELF_INITRCV_BASE, buf, 50, i);
+			PRINTVM("Recvd: %s @ %x:%x\n", buf, BOOT_MEM_SHM_BASE, cos_va2pa(&booter_info, BOOT_MEM_SHM_BASE));
 		}
-	} else {
-//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-		int i = 0;
-		//PRINTVM("%d: read after delay\n", vm);
-	//	for (i = 0; i < 99000; i ++) ;
-		cos_recv_data(&booter_info, BOOT_CAPTBL_SELF_INITRCV_BASE, buf, 50, i);
-//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-		//strncpy(buf, BOOT_MEM_SHM_BASE, 49);
-		PRINTVM("Recvd: %s @ %x:%x\n", buf, BOOT_MEM_SHM_BASE, cos_va2pa(&booter_info, BOOT_MEM_SHM_BASE));
+		it ++;
 	}
 }
 
@@ -650,27 +622,20 @@ vm_init(void *id)
 		cos_compinfo_init(&booter_info, (int)id, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 				  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, 
 				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
+	test_vmio((int)id);
+
 	vmid = (int)id;
 	if (vmid) {
 		PRINTVM("Micro Booter started.\n");
-		//	PRINTVM("heap ptr: %x\n", (vaddr_t)cos_get_heap_ptr());
-
-		//PRINTVM("%x %x\n", BOOT_MEM_KM_BASE, round_up_to_pgd_page(BOOT_MEM_KM_BASE));
-		//PRINTVM("%x %x\n", BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ, round_up_to_pgd_page(BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ));
-		//PRINTVM("%x\n", cos_va2pa(&booter_info, BOOT_MEM_KM_BASE));
-
 		termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 		assert(termthd);
 
-		//test_vmio((int)id);
-		//test_shmem((int)id);
 		test_run();
 		PRINTVM("Micro Booter done.\n");
 	} else {
 		rump_booter_init();
 	}
 
-	while (1) cos_thd_switch(BOOT_CAPTBL_FREE); 
-	//cos_thd_switch(termthd);
+	while (1) cos_thd_switch(VM_CAPTBL_SELF_EXITTHD_BASE); 
 	return;
 }
