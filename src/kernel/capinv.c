@@ -51,6 +51,11 @@ printfn(struct pt_regs *regs)
 	if (len >= MAX_LEN) len = MAX_LEN - 1;
 	memcpy(kern_buf, str, len);
 
+	/*
+	 * Hack of all hacks.  Manually request TLB flushes from
+	 * user-level.  Should be replaced with invocations to async
+	 * invocations instead.
+	 */
 	if (len >= 7) {
 		if (kern_buf[0] == 'F' && kern_buf[1] == 'L' && kern_buf[2] == 'U' &&
 		    kern_buf[3] == 'S' && kern_buf[4] == 'H' && kern_buf[5] == '!') {
@@ -415,11 +420,13 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to,
 }
 
 static int
-cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next,
+cap_switch_thd(struct pt_regs *regs, struct thread *curr,
+	       struct thread  *next, struct tcap *next_tcap,
 	       struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
-	int preempt = 0;
-	struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
+	struct comp_info *next_ci   = &(next->invstk[next->invstk_top].comp_info);
+	struct tcap      *curr_tcap = tcap_current_update(cos_info);
+	int               preempt   = 0;
 
 	if (unlikely(curr == next)) {
 		assert(!(curr->state & (THD_STATE_RCVING)));
@@ -428,7 +435,7 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next,
 	}
 
 	assert(next_ci && curr && next);
-	/* FIXME: trigger fault for the next thread */
+	/* FIXME: trigger fault for the next thread, for now, return error */
 	if (unlikely(!ltbl_isalive(&next_ci->liveness))) {
 		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
 		return 0;
@@ -441,7 +448,7 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next,
 		copy_all_regs(regs, &curr->regs);
 	}
 
-	thd_current_update(next, NULL, curr, cos_info);
+	thd_current_update(next, next_tcap, curr, cos_info);
 	if (likely(ci->pgtbl != next_ci->pgtbl)) pgtbl_update(next_ci->pgtbl);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
@@ -473,6 +480,9 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 {
 	struct thread *next = thd_cap->t;
 	capid_t arcv        = __userregs_get1(regs);
+	capid_t tc          = __userregs_get2(regs);
+	tcap_prio_t prio    = (tcap_prio_t)__userregs_get4(regs) | (tcap_prio_t)__userregs_get3(regs);
+	struct tcap *tcap;
 
 	if (thd_cap->cpuid != get_cpuid() || next->cpuid != get_cpuid()) return -EINVAL;
 
@@ -488,7 +498,18 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 		if (thd_rcvcap_pending(rcvt) > 0) next = rcvt;
 	}
 
-	return cap_switch_thd(regs, thd, next, ci, cos_info);
+	tcap = tcap_current(cos_info);
+	if (tc) {
+		struct cap_tcap *tcap_cap;
+
+		tcap_cap = (struct cap_tcap *)captbl_lkup(ci->captbl, tc);
+		if (!tcap_cap || tcap_cap->h.type != CAP_TCAP || tcap_cap->cpuid != get_cpuid()) {
+			return -EINVAL;
+		}
+		tcap = tcap_cap->tcap;
+	}
+
+	return cap_switch_thd(regs, thd, next, tcap, ci, cos_info);
 }
 
 /**
@@ -496,7 +517,8 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
  * Return the thread that should be executed next.
  */
 static struct thread *
-asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, struct tcap *tcap, int yield)
+asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
+	     struct tcap *tcap, struct tcap **tcap_next, int yield)
 {
 	struct thread *next;
 	struct thread *arcv_notif;
@@ -510,6 +532,7 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, 
 	/* The thread switch decision: */
 	/* if (tcap_higher_prio(rcv_tcap, tcap)) next = rcv_thd; */
 	/* else                                  next = thd; */
+	*tcap_next = tcap;
 
 	return next;
 }
@@ -534,7 +557,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	int curr_cpu = get_cpuid();
 	struct cap_arcv *arcv;
 	struct thread *rcv_thd, *next;
-	struct tcap *rcv_tcap, *tcap;
+	struct tcap *rcv_tcap, *tcap, *tcap_next;
 
 	assert(asnd->arcv_capid);
 	/* IPI notification to another core */
@@ -547,9 +570,9 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
 
-	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, 0);
+	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0);
 
-	return cap_switch_thd(regs, thd, next, ci, cos_info);
+	return cap_switch_thd(regs, thd, next, tcap_next, ci, cos_info);
 }
 
 int
@@ -560,7 +583,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	struct cap_arcv *arcv;
 	struct cos_cpu_local_info *cos_info;
 	struct thread *rcv_thd, *next, *thd;
-	struct tcap *rcv_tcap, *tcap;
+	struct tcap *rcv_tcap, *tcap, *tcap_next;
 	struct comp_info *ci;
 	unsigned long ip, sp;
 
@@ -588,11 +611,11 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	rcv_tcap   = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
 
-	next       = asnd_process(rcv_thd, thd, rcv_tcap, tcap, 0);
+	next       = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0);
 	if (next == thd) return restore_curr_thd;
 
 	thd->state |= THD_STATE_PREEMPTED;
-	return cap_switch_thd(regs, thd, next, ci, cos_info);
+	return cap_switch_thd(regs, thd, next, tcap_next, ci, cos_info);
 }
 
 static int
@@ -600,6 +623,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 	    struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
 	struct thread *next;
+	struct tcap   *tc = tcap_current(cos_info), *tc_next = tc;
 
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
 
@@ -613,6 +637,8 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		return 0;
 	}
 
+	/* FIXME:  for now, lets just ignore this path...need to plumb tcaps into it */
+	thd->interrupted_thread = NULL;
 	if (thd->interrupted_thread) {
 		next = thd->interrupted_thread;
 		assert(next->state & THD_STATE_PREEMPTED);
@@ -620,6 +646,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		assert(0); 		/* need to take care of the tcap as well */
 	} else {
 		next = arcv_thd_notif(thd);
+		/* don't change the current tcap: scheduler thread inherits it */
 		/* root capability? */
 		if (!next) return -EAGAIN;
 		thd_rcvcap_evt_enqueue(next, thd);
@@ -630,7 +657,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		thd->state |= THD_STATE_RCVING;
 	}
 
-	return cap_switch_thd(regs, thd, next, ci, cos_info);
+	return cap_switch_thd(regs, thd, next, tc_next, ci, cos_info);
 }
 
 static int
@@ -732,9 +759,9 @@ composite_syscall_handler(struct pt_regs *regs)
 	ret = composite_syscall_slowpath(regs, &thd_switch);
 done:
 	/*
-	 * Note: we need to return ret to user-level, which is not the
-	 * return value of this function.  Thus the level of
-	 * indirection here.
+	 * Note: we need to return ret to user-level (e.g. as a return
+	 * value), which is not the return value of this function.
+	 * Thus the level of indirection here.
 	 */
 	if (!thd_switch) __userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
 
@@ -1304,7 +1331,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			struct cap_arcv *arcv;
 			struct cap_asnd *asnd;
 			struct thread   *rthd;
-			struct tcap     *tcapdst;
+			struct tcap     *tcapdst, *tcap_next;
 			int yield;
 			struct thread *n;
 
@@ -1324,9 +1351,9 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			ret = tcap_delegate(tcapsrc->tcap, tcapdst, res, prio);
 			if (unlikely(ret)) cos_throw(err, -EINVAL);
 
-			n = asnd_process(rthd, thd, tcapdst, tcap_current(cos_info), yield);
+			n = asnd_process(rthd, thd, tcapdst, tcap_current(cos_info), &tcap_next, yield);
 			if (n != thd) {
-				ret = cap_switch_thd(regs, thd, n, ci, cos_info);
+				ret = cap_switch_thd(regs, thd, n, tcap_next, ci, cos_info);
 				*thd_switch = 1;
 			}
 

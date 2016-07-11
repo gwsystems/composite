@@ -114,7 +114,7 @@ tcap_ref(struct tcap *t)
  * the pool is out.  Consume budget from both the local and the parent
  * budget.
  */
-static inline int
+static inline tcap_res_t
 tcap_consume(struct tcap *t, tcap_res_t cycles)
 {
 	assert(t);
@@ -122,8 +122,11 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 	if (TCAP_RES_IS_INF(t->budget.cycles)) return 0;
 	t->budget.cycles -= cycles;
 	if (t->budget.cycles <= 0) {
+		tcap_res_t left = cycles - t->budget.cycles;
+
 		t->budget.cycles = 0;
-		return 1;
+
+		return left;
 	}
 	/*
 	 * TODO: Add removal from global list of pools and declassify
@@ -139,6 +142,22 @@ tcap_expended(struct tcap *t)
 static inline struct tcap *
 tcap_current(struct cos_cpu_local_info *cos_info)
 { return (struct tcap *)(cos_info->curr_tcap); }
+
+/* Get the current tcap _and_ update its cycle count */
+static inline struct tcap *
+tcap_current_update(struct cos_cpu_local_info *cos_info)
+{
+	struct tcap *t;
+	tcap_res_t cycles, overshoot;
+
+	t                = tcap_current(cos_info);
+	cycles           = tsc();
+	overshoot        = tcap_consume(t, cycles - cos_info->cycles);
+	/* TODO: use overshoot somehow? return to caller? */
+	cos_info->cycles = cycles;
+
+	return t;
+}
 
 /*
  * Is the newly activated thread of a higher priority than the current

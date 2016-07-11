@@ -563,6 +563,10 @@ cos_thd_switch(thdcap_t c)
 { return call_cap_op(c, 0, 0, 0, 0, 0); }
 
 int
+cos_thd_tcap_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_res_t res, arcvcap_t rcv)
+{ (void) res; return call_cap_op(c, 0, rcv, tc, (prio << 32) >> 32, prio >> 32); }
+
+int
 cos_asnd(asndcap_t snd)
 { return call_cap_op(snd, 0, 0, 0, 0, 0); }
 

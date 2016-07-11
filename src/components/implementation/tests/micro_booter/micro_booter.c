@@ -541,6 +541,7 @@ test_run(void)
 	test_thds_perf();
 
 	test_timer();
+	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 
 	test_mem();
 

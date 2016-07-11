@@ -132,12 +132,14 @@ __tcap_legal_transfer(struct tcap *dst, struct tcap *src)
 		}
 		if (d->tcap_uid == s->tcap_uid) {
 			if (d->prio < s->prio) return -1;
-			/* another option is to _degrade_ the
+			/*
+			 * another option is to _degrade_ the
 			 * destination by manually lower the
 			 * delegation's priority.  However, I think
 			 * having a more predictable check is more
 			 * important, rather than perhaps causing
-			 * transparent degradation of priority. */
+			 * transparent degradation of priority.
+			 */
 			i++;
 		}
 		/* OK so far, look at the next comparison */

@@ -21,3 +21,7 @@ modules.order
 .depend
 *.img
 transfer/
+GPATH
+GRTAGS
+GSYMS
+GTAGS
