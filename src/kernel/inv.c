@@ -106,14 +106,14 @@ struct inv_ret_struct {
  * and the least-significant byte for receive (server) side.
  */
 static inline int
-need_fork_fix(struct thread *thd, struct spd *curr_spd, struct invocation_cap *c)
+need_fork_fix(struct thread *thd, struct spd *curr_spd, struct spd *d_spd, struct invocation_cap *c)
 {
 	assert(c->fork.cnt.snd >= 0);
 	assert(c->fork.cnt.rcv >= 0);
 	int ret = (((int)c->fork.cnt.snd)<<8) | (int)c->fork.cnt.rcv;
-	int spd = spd_get_index(curr_spd);	
-	if (unlikely(ret > 0 || spd == 12 || spd == 13) || spd == 14) {	// 12 = malloc_comp calling printc, 13 = malloc_fork calling malloc_comp. 13 is higher because it has a dependency on comp so that is loaded first
-		if (c->fork.cnt.snd != 0 || c->fork.cnt.rcv != 0) printk("need_fork_fix spd %d snd %d rcv %d\n", spd, c->fork.cnt.snd, c->fork.cnt.rcv);
+	int spd = spd_get_index(curr_spd);
+	if ((spd == 13 && spd_get_index(d_spd) == 12) || (spd == 12 && spd_get_index(d_spd) == 13)) {		// 12 = malloc_comp calling printc, 13 = malloc_fork calling malloc_comp. 13 is higher because it has a dependency on comp so that is loaded first
+		printk("need_fork_fix spd %d->%d snd %d rcv %d ret %d\n", spd, spd_get_index(d_spd), c->fork.cnt.snd, c->fork.cnt.rcv, ret);
 	}
 
 	return ret;
@@ -133,7 +133,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 		    vaddr_t ip, struct inv_ret_struct *ret)
 {
 	struct thd_invocation_frame *curr_frame;
-	struct spd *curr_spd, *dest_spd;
+	struct spd *curr_spd, *d_spd;
 	struct invocation_cap *cap_entry;
 	struct thread *thd = core_get_curr_thd_id(get_cpuid_fast());
 	int fork_cnts = 0;
@@ -160,11 +160,11 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 
 	/* what spd are we in (what stack frame)? */
 	curr_frame = &thd->stack_base[thd->stack_ptr];
-	dest_spd = cap_entry->destination;
+	d_spd = cap_entry->destination;
 
-	/* printk("cos: dest_spd %d, address %x\n", spd_get_index(dest_spd), cap_entry->dest_entry_instruction); */
+	/* printk("cos: d_spd %d, address %x\n", spd_get_index(d_spd), cap_entry->dest_entry_instruction); */
 
-	if (unlikely(!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
+	if (unlikely(!d_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
 		printk("cos: Attempted use of unallocated capability.\n");
 		return 0;
 	}
@@ -196,26 +196,26 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	/* now we are committing to the invocation */
 	cos_meas_event(COS_MEAS_INVOCATIONS);
 
-	open_close_spd(dest_spd->composite_spd, curr_spd->composite_spd);
+	open_close_spd(d_spd->composite_spd, curr_spd->composite_spd);
 
 	/* Updating current spd: not used for now. */
-	/* core_put_curr_spd(&(dest_spd->spd_info)); */
+	/* core_put_curr_spd(&(d_spd->spd_info)); */
 
 	ret->thd_id = thd->thread_id | (get_cpuid_fast() << 16);
 	ret->spd_id = spd_get_index(curr_spd);
 	
-	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
+	spd_mpd_ipc_take((struct composite_spd *)d_spd->composite_spd);
 
 	/* add a new stack frame for the spd we are invoking (we're committed) */
 	thd_invocation_push(thd, cap_entry->destination, sp, ip);
 	cap_entry->invocation_cnt++;
 
 	/* Check for forking */
-	fork_cnts = need_fork_fix(thd, curr_spd, cap_entry);
+	fork_cnts = need_fork_fix(thd, curr_spd, d_spd, cap_entry);
 	if (unlikely(fork_cnts > 0)) {
 		/* the off-by-1 capability */
-		printk("ipc_walk_static_cap found need to fork fix thd->id: %d, with curr_spd %d, d_spd %d, with fork_cnts %d\n", thd_get_id(thd), spd_get_index(curr_spd), spd_get_index(dest_spd), fork_cnts);
-		return thd_quarantine_fault(thd, curr_spd, dest_spd, ((capability-1)<<16) | fork_cnts, COS_FLT_QUARANTINE, ret);
+		printk("ipc_walk_static_cap found need to fork fix thd->id: %d, with curr_spd %d, d_spd %d, with fork_cnts %d\n", thd_get_id(thd), spd_get_index(curr_spd), spd_get_index(d_spd), fork_cnts);
+		return thd_quarantine_fault(thd, curr_spd, d_spd, ((capability-1)<<16) | fork_cnts, COS_FLT_QUARANTINE, ret);
 	}
 
 	return cap_entry->dest_entry_instruction;

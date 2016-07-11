@@ -563,6 +563,9 @@ int spd_cap_inc_fork_cnt(struct spd *spd, int cap, s8_t send, s8_t receive)
 	if (!c) return -1;
 	c->fork.cnt.snd += send;
 	c->fork.cnt.rcv += receive;
+
+	printd("spd_cap_inc_fork_cnt spd %d cap %d snd %d rcv %d\n", spd_get_index(spd), cap, c->fork.cnt.snd, c->fork.cnt.rcv);
+
 	assert(c->fork.cnt.snd >= 0);
 	assert(c->fork.cnt.rcv >= 0);
 	return 0;

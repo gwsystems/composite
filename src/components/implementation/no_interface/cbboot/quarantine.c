@@ -127,9 +127,6 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	vaddr_t init_daddr;
 	long tot = 0;
 	int j, r;
-	int ndeps;
-
-	printc("ndeps = %d\n", ndeps);
 
 	// how to fix this? Can quarantine have an init method
 	/* FIXME: initialization hack. */
@@ -254,8 +251,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	printd("Setting capabilities for %d\n", d_spd);
 	if (__boot_spd_caps(src_hdr, d_spd)) BUG();
 
-	/* Increment send-side fork count in source's caps, and
-	 * copy fork count into d_spd's caps. */
+	/* Increment send-side fork count in source's caps, and copy fork count into d_spd's caps. */
 	for (j = 0; j < src_hdr->ncap; j++) {
 		int cnt;
 		cap = cobj_cap_get(src_hdr, j);
@@ -267,33 +263,27 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		printd("Updated fork count (send-side) for cap %d from spd %d to count %d\n", j, source, cnt);
 	}
 
-	/* Find every spd that has an invocation cap to source and update
-	 * the receive-side fork count. */
-	ndeps = cgraph_ndeps();
-	printc("ndeps = %d\n", ndeps);
-	for (j = 0; j < ndeps; j++) {
+	/* Find every spd that has an invocation cap to source and update the receive-side fork count. */
+	for (j = 0; -1 != cgraph_client(j); j++) {
 		int i;
 		int ncaps;
 		spdid_t c, s;
-		c = cgraph_client(j);
-		printc("\n\tj = %d, c = %d\n", j, c);
-		if (c == source) {
-
+		
+		if (cgraph_server(j) == source) {
+			c = cgraph_client(j);
 			ncaps = cos_cap_cntl(COS_CAP_GET_SPD_NCAPS, c, 0, 0);
-			printc("\tncaps = %d\n", ncaps);
 			for (i = 0; i < ncaps; i++) {
 				s = cos_cap_cntl(COS_CAP_GET_DEST_SPD, c, i, 0);
-				printc("\t\ti = %d, s = %d\n", i, s);
 
 				if (s < 0) BUG();
+				printc("c = %d, s = %d\n", c, s);
 				if (s == source) {
-					cos_cap_cntl(COS_CAP_INC_FORK_CNT, c, i, (0 << 8) | 1);
-					printd("\t\tUpdated fork count (receive-side) for cap %d from %d->%d to count %d\n", i, c, s, (0 << 8) | 1);
+					if (-1 == cos_cap_cntl(COS_CAP_INC_FORK_CNT, c, i, (0 << 8) | 1)) BUG();
+					printd("Updated fork count (receive-side) for cap %d from %d->%d to count %d\n", i, c, s, (0 << 8) | 1);
 					break;
 				}
 			}
 			printc("\n");
-			//printd("Unable to find client cap from %d -> %d\n", c, s);
 		}
 	}
 
