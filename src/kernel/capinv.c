@@ -117,8 +117,26 @@ cos_cap_ipi_handling(void)
 	return;
 }
 
-/* The deact_pre / _post are used by kernel object deactivation:
- * cap_captbl, cap_pgtbl and thd. */
+static void
+kmem_unalloc(unsigned long *pte)
+{
+	/*
+	 * Release the kmem page. We must be the only one has access
+	 * to it.  It is most useful when newly allocated kernel
+	 * memory must be quickly de-allocated due to an error
+	 * elsewhere.
+	 */
+	unsigned long old = *pte;
+
+	assert(old & PGTBL_COSKMEM);
+	retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
+	*pte = old & ~PGTBL_COSKMEM;
+}
+
+/*
+ * The deact_pre / _post are used by kernel object deactivation:
+ * cap_captbl, cap_pgtbl and thd.
+ */
 int
 kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 	       capid_t cosframe_addr, unsigned long **p_pte, unsigned long *v)
@@ -479,33 +497,35 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 	   struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
 	struct thread *next = thd_cap->t;
-	capid_t arcv        = __userregs_get1(regs);
-	capid_t tc          = __userregs_get2(regs);
-	tcap_prio_t prio    = (tcap_prio_t)__userregs_get4(regs) | (tcap_prio_t)__userregs_get3(regs);
+	capid_t arcv        = (__userregs_get1(regs) << 16) >> 16;
+	capid_t tc          = __userregs_get1(regs) >> 16;
+	tcap_prio_t prio    = (tcap_prio_t)__userregs_get3(regs) | (tcap_prio_t)__userregs_get2(regs);
+	tcap_res_t res      = (tcap_res_t)__userregs_get4(regs);
 	struct tcap *tcap;
 
-	if (thd_cap->cpuid != get_cpuid() || next->cpuid != get_cpuid()) return -EINVAL;
+	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
 
+	tcap = tcap_current(cos_info);
 	if (arcv) {
 		struct cap_arcv *arcv_cap;
 		struct thread *rcvt;
 
 		arcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv);
-		if (!arcv_cap || arcv_cap->h.type != CAP_ARCV || arcv_cap->cpuid != get_cpuid()) {
-			return -EINVAL;
-		}
+		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
 		rcvt = arcv_cap->thd;
-		if (thd_rcvcap_pending(rcvt) > 0) next = rcvt;
+		if (thd_rcvcap_pending(rcvt) > 0) {
+			next = rcvt;
+			/* tcap inheritance here...use the current tcap to process events */
+			tc  = 0;
+			res = 0;
+		}
 	}
 
-	tcap = tcap_current(cos_info);
 	if (tc) {
 		struct cap_tcap *tcap_cap;
 
 		tcap_cap = (struct cap_tcap *)captbl_lkup(ci->captbl, tc);
-		if (!tcap_cap || tcap_cap->h.type != CAP_TCAP || tcap_cap->cpuid != get_cpuid()) {
-			return -EINVAL;
-		}
+		if (!CAP_TYPECHK_CORE(tcap_cap, CAP_TCAP)) return -EINVAL;
 		tcap = tcap_cap->tcap;
 	}
 
@@ -587,7 +607,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	struct comp_info *ci;
 	unsigned long ip, sp;
 
-	if (asnd->h.type != CAP_ASND) return restore_curr_thd;
+	if (!CAP_TYPECHK(asnd, CAP_ASND)) return restore_curr_thd;
 	assert(asnd->arcv_capid);
 
 	/* IPI notification to another core */
@@ -842,16 +862,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			}
 
 			ret = captbl_activate(ct, cap, newcaptbl_cap, (struct captbl *)kmem_addr, captbl_lvl);
-
-			if (ret) {
-				/* Release the kmem page. We are the only one
-				 * has access to it. */
-				unsigned long old = *pte;
-				assert(old & PGTBL_COSKMEM);
-
-				retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
-				*pte = old & ~PGTBL_COSKMEM;
-			}
+			if (ret) kmem_unalloc(pte);
 
 			break;
 		}
@@ -891,7 +902,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			if (pgtbl_lvl == 0) {
 				/* PGD */
 				struct cap_pgtbl *cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
-				if (cap_pt->h.type != CAP_PGTBL) {
+				if (!CAP_TYPECHK(cap_pt, CAP_PGTBL)) {
 					ret = -EINVAL;
 					break;
 				}
@@ -911,15 +922,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 				ret = -1;
 			}
 
-			if (ret) {
-				/* Release the kmem page. We are the only one
-				 * has access to it. */
-				unsigned long old = *pte;
-				assert(old & PGTBL_COSKMEM);
-
-				retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
-				*pte = old & ~PGTBL_COSKMEM;
-			}
+			if (ret) kmem_unalloc(pte);
 
 			break;
 		}
@@ -958,15 +961,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 
 			/* ret is returned by the overall function */
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data);
-			if (ret) {
-				/* Release the kmem page. We are the only one
-				 * has access to it. */
-				unsigned long old = *pte;
-				assert(old & PGTBL_COSKMEM);
-
-				retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
-				*pte = old & ~PGTBL_COSKMEM;
-			}
+			if (ret) kmem_unalloc(pte);
 
 			break;
 		}
@@ -975,25 +970,14 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			capid_t tcap_cap   = __userregs_get1(regs);
 			capid_t pgtbl_cap  = __userregs_get2(regs);
 			capid_t pgtbl_addr = __userregs_get3(regs);
-			capid_t tcap_src   = __userregs_get4(regs);
-			struct tcap     *tcap;
-			unsigned long   *pte = NULL;
-			int              pool;
-
-			pool     = tcap_src >> ((sizeof(tcap_src)*8)-1);
-			tcap_src = (tcap_src << 1) >> 1;
+			struct tcap   *tcap;
+			unsigned long *pte = NULL;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&tcap, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);
 
-			ret = tcap_split(ct, cap, tcap_cap, tcap, tcap_src, pool, 0);
-			if (ret) {
-				unsigned long old = *pte;
-				assert (old & PGTBL_COSKMEM);
-
-				retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
-				*pte = old & ~PGTBL_COSKMEM;
-			}
+			ret = tcap_activate(ct, cap, tcap_cap, tcap);
+			if (ret) kmem_unalloc(pte);
 
 			break;
 		}
@@ -1011,7 +995,6 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 
 			assert(op_cap->captbl);
 			if (thd_tls_set(op_cap->captbl, thd_cap, tlsaddr, thd)) cos_throw(err, -EINVAL);
-
 			break;
 		}
 		case CAPTBL_OP_THDDEACTIVATE_ROOT:
@@ -1064,7 +1047,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		}
 		case CAPTBL_OP_SRETACTIVATE:
 		{
-			printk("Error: No activation for SRET implementation yet!\n");
+			ret = -EINVAL;
 			break;
 		}
 		case CAPTBL_OP_SRETDEACTIVATE:
@@ -1091,7 +1074,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		}
 		case CAPTBL_OP_ARCVACTIVATE:
 		{
-			capid_t thd_cap  = __userregs_get2(regs) & ((1<<16)-1);
+			capid_t thd_cap  = (__userregs_get2(regs) << 16) >> 16;
 			capid_t tcap_cap = __userregs_get2(regs) >> 16;
 			capid_t comp_cap = __userregs_get3(regs);
 			capid_t arcv_cap = __userregs_get4(regs);
@@ -1313,7 +1296,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			struct cap_tcap *tcapdst;
 
 			tcapdst = (struct cap_tcap *)captbl_lkup(ci->captbl, tcpdst);
-			if (tcapdst->h.type != CAP_TCAP) cos_throw(err, -EINVAL);
+			if (!CAP_TYPECHK_CORE(tcapdst, CAP_TCAP)) cos_throw(err, -EINVAL);
 
 			ret = tcap_transfer(tcapdst->tcap, tcapsrc->tcap, res, prio);
 			if (unlikely(ret)) cos_throw(err, -EINVAL);
@@ -1340,8 +1323,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			prio_higher = (prio_higher << 1) >> 1;
 			prio        = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
 			asnd        = (struct cap_asnd *)captbl_lkup(ci->captbl, asnd_cap);
-
-			if (unlikely(!asnd || asnd->h.type != CAP_ASND)) cos_throw(err, -EINVAL);
+			if (!CAP_TYPECHK(asnd, CAP_ASND)) cos_throw(err, -EINVAL);
 
 			arcv = __cap_asnd_to_arcv(asnd);
 			rthd = arcv->thd;
@@ -1366,7 +1348,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			struct cap_tcap *tcaprm;
 
 			tcaprm = (struct cap_tcap *)captbl_lkup(ci->captbl, tcaprem);
-			if (unlikely(tcaprm->h.type != CAP_TCAP)) cos_throw(err, -EINVAL);
+			if (!CAP_TYPECHK_CORE(tcaprm, CAP_TCAP)) cos_throw(err, -EINVAL);
 
 			ret = tcap_merge(tcapdst->tcap, tcaprm->tcap);
 			if (unlikely(ret)) cos_throw(err, -ENOENT);
@@ -1387,7 +1369,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			capid_t rcvcap = __userregs_get2(regs);
 
 			rcvc = (struct cap_arcv *)captbl_lkup(ci->captbl, rcvcap);
-			if (unlikely(!rcvc || rcvc->h.type != CAP_ARCV)) return -EINVAL;
+			if (!CAP_TYPECHK(rcvc, CAP_ARCV)) cos_throw(err, -EINVAL);
 
 			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcvcap);
 			break;
@@ -1416,7 +1398,8 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			 * PCI).
 			 */
 			ptc = (struct cap_pgtbl *)captbl_lkup(ci->captbl, ptcap);
-			if (unlikely(!ptc || ptc->h.type != CAP_PGTBL)) cos_throw(err, -EINVAL);
+			if (!CAP_TYPECHK(ptc, CAP_PGTBL)) cos_throw(err, -EINVAL);
+
 			pte = pgtbl_lkup_pte(ptc->pgtbl, va, &flags);
 			if (!pte)                    cos_throw(err, -EINVAL);
 			if (*pte & PGTBL_FRAME_MASK) cos_throw(err, -ENOENT);

@@ -64,6 +64,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 
 	glb_memlayout.kern_end = &end + PAGE_SIZE;
 	assert((unsigned int)&end % RETYPE_MEM_NPAGES*PAGE_SIZE == 0);
+
 	printk("System memory info from multiboot (end 0x%x):\n", &end);
 	printk("\tModules:\n");
 	for (i = 0 ; i < mb->mods_count ; i++) {
@@ -86,6 +87,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		       glb_memlayout.bootc_vaddr, glb_memlayout.bootc_entry);
 	}
 	glb_memlayout.kern_boot_heap = mem_boot_start();
+
 	printk("\tMemory regions:\n");
 	for (i = 0 ; i < mb->mmap_length/sizeof(struct multiboot_mem_list) ; i++) {
 		struct multiboot_mem_list *mem = &mems[i];
@@ -155,6 +157,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	retype_tbl_init();
 	comp_init();
 	thd_init();
+	tcap_init();
 	paging_init();
 #ifdef ENABLE_VGA
 	vga_high_init();
