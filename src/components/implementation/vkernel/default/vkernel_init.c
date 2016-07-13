@@ -279,7 +279,7 @@ cos_init(void)
 		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd); 
 
 		printc("\tCreating other required initial capabilities\n");
-		vminittcap[id] = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+		vminittcap[id] = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 		assert(vminittcap[id]);
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITTCAP_BASE, &vkern_info, vminittcap[id]);
 
@@ -290,7 +290,7 @@ cos_init(void)
 
 		printc("\tCreating TCap transfer capabilities (Between VKernel and VM%d)\n", id);
 		/* VKERN to VM */
-		vk_time_tcap[id] = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+		vk_time_tcap[id] = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 		assert(vk_time_tcap[id]);
 		vk_time_thd[id] = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vk_time_fn, (void *)id);
 		assert(vk_time_thd[id]);
@@ -299,7 +299,7 @@ cos_init(void)
 		vk_time_rcv[id] = cos_arcv_alloc(&vkern_info, vk_time_thd[id], vk_time_tcap[id], vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 		assert(vk_time_rcv[id]);
 		/* VM to VKERN */		
-		vms_time_tcap[id] = cos_tcap_split(&vkern_info, vminittcap[id], 0);
+		vms_time_tcap[id] = cos_tcap_split(&vkern_info, vminittcap[id], 0, 0);
 		assert(vms_time_tcap[id]);
 		vms_time_thd[id] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vm_time_fn, (void *)id);
 		assert(vms_time_thd[id]);
@@ -319,14 +319,14 @@ cos_init(void)
 		if (id > 0) {
 			printc("\tSetting up Cross VM (between vm0 and vm%d) communication channels\n", id);
 			/* VM0 to VMid */
-			vm0_io_tcap[id-1] = cos_tcap_split(&vkern_info, vminittcap[0], 0);
+			vm0_io_tcap[id-1] = cos_tcap_split(&vkern_info, vminittcap[0], 0, 0);
 			assert(vm0_io_tcap[id-1]);
 			vm0_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[0].comp_cap, vm0_io_fn, (void *)id);
 			assert(vm0_io_thd[id-1]);
 			vm0_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vm0_io_thd[id-1], vm0_io_tcap[id-1], vmbooter_info[0].comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 			assert(vm0_io_rcv[id-1]);
 			/* VMp to VM0 */		
-			vms_io_tcap[id-1] = cos_tcap_split(&vkern_info, vminittcap[id], 0);
+			vms_io_tcap[id-1] = cos_tcap_split(&vkern_info, vminittcap[id], 0, 0);
 			assert(vms_io_tcap[id-1]);
 			vms_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vmx_io_fn, (void *)id);
 			assert(vms_io_thd[id-1]);
