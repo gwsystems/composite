@@ -104,6 +104,11 @@ typedef enum {
 	CAP_HW,			/* hardware (interrupt) */
 } cap_t;
 
+/* TODO: pervasive use of these macros */
+/* v \in struct cap_* *, type \in cap_t */
+#define CAP_TYPECHK(v, t) ((v) && (v)->h.type == (t))
+#define CAP_TYPECHK_CORE(v, type) (CAP_TYPECHK((v), (type)) && (v)->cpuid == get_cpuid())
+
 typedef enum {
 	HW_PERIODIC = 32,	/* periodic timer interrupt */
 	HW_KEYBOARD,		/* keyboard interrupt */

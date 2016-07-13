@@ -59,8 +59,8 @@ config-gen:
 	@echo "LDIR=\$$(CODE_DIR)/linux-2.6.36/" >> Makefile.cosconfig
 	@echo "TEST_DIR=/root/experiments/" >> Makefile.cosconfig
 
-# default platform is linux
-config: config-linux
+# default platform is i386
+config: config-i386
 
 config-linux: config-gen
 	@echo "#define COS_PLATFORM LINUX" >> ./kernel/include/shared/cpu_ghz.h

@@ -91,8 +91,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 			   thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
 	assert(!ret);
 
-	ret = tcap_split(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE,
-			 tcap_mem, 0 /* no source tcap */, 1, 1);
+	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE, tcap_mem);
 	tc->budget.cycles = TCAP_RES_INF; /* father time's got all the time in the world */
 	assert(!ret);
 	thd_current_update(t, tcap_mem, t, cos_cpu_local_info());

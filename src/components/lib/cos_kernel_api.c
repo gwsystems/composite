@@ -558,7 +558,6 @@ cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t
 	return cap;
 }
 
-/* Allocate an entire new component and initialize ci with it's data */
 int
 cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, vaddr_t entry, vaddr_t shm_ptr,
 		   struct cos_compinfo *ci_resources)
@@ -615,7 +614,9 @@ cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap
 {
 	capid_t cap;
 
-	assert(ci && thdcap && compcap);
+	assert(ci && thdcap && tcapcap && compcap);
+
+	printd("arcv_alloc: tcap cap %d\n", (int)tcapcap);
 
 	cap = __capid_bump_alloc(ci, CAP_ARCV);
 	if (!cap) return 0;
@@ -737,6 +738,10 @@ cos_thd_switch(thdcap_t c)
 { return call_cap_op(c, 0, 0, 0, 0, 0); }
 
 int
+cos_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_res_t res, arcvcap_t rcv)
+{ (void)res; return call_cap_op(c, 0, tc << 16 | rcv, (prio << 32) >> 32, prio >> 32, res); }
+
+int
 cos_asnd(asndcap_t snd)
 { return call_cap_op(snd, 0, 0, 0, 0, 0); }
 
@@ -818,19 +823,17 @@ cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 /***************** [Kernel Tcap Operations] *****************/
 
 tcap_t
-cos_tcap_split(struct cos_compinfo *ci, tcap_t src, int pool)
+cos_tcap_alloc(struct cos_compinfo *ci)
 {
 	vaddr_t kmem;
 	capid_t cap;
-	/* top bit is if it is a pool or not */
-	u32_t s = (u32_t)(src) | ((u32_t)pool << ((sizeof(s)*8)-1));
 
-	printd("cos_tcap_split\n");
+	printd("cos_tcap_alloc\n");
 	assert (ci);
 
 	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, cap, ci->pgtbl_cap, kmem, (u32_t)s)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, cap, ci->pgtbl_cap, kmem, 0)) BUG();
 
 	return cap;
 }
@@ -842,6 +845,18 @@ cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio)
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
 
 	return call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, dst, res, prio_higher, prio_lower);
+}
+
+tcap_t
+cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio)
+{
+	capid_t tcap;
+
+	tcap = cos_tcap_alloc(ci);
+	if (!tcap)                                   return 0;
+	if (cos_tcap_transfer(src, tcap, res, prio)) return 0;
+
+	return tcap;
 }
 
 int
