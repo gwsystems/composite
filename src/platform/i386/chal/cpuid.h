@@ -10,8 +10,19 @@
 #define CPUID_H
 
 #include "../../../kernel/include/shared/consts.h"
+#include "../../../kernel/include/shared/cos_types.h"
 #include "../../../kernel/include/asm_ipc_defs.h"
 #include "../chal_asm_inc.h"
+
+static inline tcap_res_t
+tsc(void)
+{
+	unsigned long long ret;
+
+	__asm__ __volatile__("rdtsc" : "=A" (ret));
+
+	return ret;
+}
 
 struct cos_cpu_local_info {
 	/* orig_sysenter_esp SHOULD be the first variable here. The
@@ -22,6 +33,7 @@ struct cos_cpu_local_info {
 	unsigned long cpuid;
 	void *curr_thd;
 	void *curr_tcap;
+	tcap_res_t cycles;
 	/* cache the stk_top index to save a cacheline access on
 	 * inv/ret. Could use a struct here if need to cache multiple
 	 * things. (e.g. captbl, etc) */

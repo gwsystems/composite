@@ -127,7 +127,7 @@ __mem_bump_alloc(struct cos_compinfo *__ci, int km, int retype)
 		syscall_op_t op = km ? CAPTBL_OP_MEM_RETYPE2KERN : CAPTBL_OP_MEM_RETYPE2USER;
 
 		if (call_cap_op(ci->pgtbl_cap, op, ret, 0, 0, 0)) {
-			printc("%s-%s:%d %x\n", __FILE__, __func__, __LINE__, ret);
+			printc("%s-%s:%d %x\n", __FILE__, __func__, __LINE__, (unsigned int)ret);
 			return 0;
 		}
 	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
@@ -487,8 +487,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 
 	assert(ci && comp > 0);
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
-	
-	assert(((size_t)init_data  & ((1<<(sizeof(u16_t)*8))-1)) != 0);
+	assert(!(init_data & ~((1<<16)-1)));
 	/* TODO: Add cap size checking */
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
 	return cap;
@@ -561,7 +560,6 @@ cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t
 	return cap;
 }
 
-/* Allocate an entire new component and initialize ci with it's data */
 int
 cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, vaddr_t entry, vaddr_t shm_ptr,
 		   struct cos_compinfo *ci_resources)
@@ -617,10 +615,10 @@ arcvcap_t
 cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap, arcvcap_t arcvcap)
 {
 	capid_t cap;
-	assert(ci);
-	assert(thdcap);
-	assert(compcap);
-	//assert(ci && thdcap && compcap);
+
+	assert(ci && thdcap && tcapcap && compcap);
+
+	printd("arcv_alloc: tcap cap %d\n", (int)tcapcap);
 
 	cap = __capid_bump_alloc(ci, CAP_ARCV);
 	if (!cap) return 0;
@@ -742,6 +740,10 @@ cos_thd_switch(thdcap_t c)
 { return call_cap_op(c, 0, 0, 0, 0, 0); }
 
 int
+cos_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_res_t res, arcvcap_t rcv)
+{ (void)res; return call_cap_op(c, 0, tc << 16 | rcv, (prio << 32) >> 32, prio >> 32, res); }
+
+int
 cos_asnd(asndcap_t snd)
 { return call_cap_op(snd, 0, 0, 0, 0, 0); }
 
@@ -777,7 +779,7 @@ cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *s
 {
 	assert(dstci);
 	assert(srcci);
-	/* TODO */
+
 	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0))  BUG();
 	return 0;
 }
@@ -823,19 +825,17 @@ cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 /***************** [Kernel Tcap Operations] *****************/
 
 tcap_t
-cos_tcap_split(struct cos_compinfo *ci, tcap_t src, int pool)
+cos_tcap_alloc(struct cos_compinfo *ci)
 {
 	vaddr_t kmem;
 	capid_t cap;
-	/* top bit is if it is a pool or not */
-	u32_t s = (u32_t)(src) | ((u32_t)pool << ((sizeof(s)*8)-1));
 
-	printd("cos_tcap_split\n");
+	printd("cos_tcap_alloc\n");
 	assert (ci);
 
 	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, cap, ci->pgtbl_cap, kmem, (u32_t)s)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, cap, ci->pgtbl_cap, kmem, 0)) BUG();
 
 	return cap;
 }
@@ -847,6 +847,18 @@ cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio)
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
 
 	return call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, dst, res, prio_higher, prio_lower);
+}
+
+tcap_t
+cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio)
+{
+	capid_t tcap;
+
+	tcap = cos_tcap_alloc(ci);
+	if (!tcap)                                   return 0;
+	if (cos_tcap_transfer(src, tcap, res, prio)) return 0;
+
+	return tcap;
 }
 
 int
@@ -921,6 +933,40 @@ cos_va2pa(struct cos_compinfo *ci, void * vaddr)
         int paddr = call_cap_op(ci->pgtbl_cap, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
 	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
         return (void *)paddr;
+}
+
+int
+cos_shm_read(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int vmid)
+{
+
+	assert(ci || buff);
+	assert(ci->compid != vmid);
+
+	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
+	if (ci->compid == 0) {
+		data_vaddr += ((vmid - 1) * COS_SHM_VM_SZ);
+	}
+	
+	memcpy(buff, (void *)data_vaddr, sz);
+
+	return sz;
+}
+
+int
+cos_shm_write(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int vmid)
+{
+
+	assert(ci || buff);
+	assert(ci->compid != vmid);
+
+	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
+	if (ci->compid == 0) {
+		data_vaddr += ((vmid - 1) * COS_SHM_VM_SZ);
+	}
+	
+	memcpy((void *)data_vaddr, buff, sz);
+
+	return sz;
 }
 
 int

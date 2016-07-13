@@ -104,6 +104,11 @@ typedef enum {
 	CAP_HW,			/* hardware (interrupt) */
 } cap_t;
 
+/* TODO: pervasive use of these macros */
+/* v \in struct cap_* *, type \in cap_t */
+#define CAP_TYPECHK(v, t) ((v) && (v)->h.type == (t))
+#define CAP_TYPECHK_CORE(v, type) (CAP_TYPECHK((v), (type)) && (v)->cpuid == get_cpuid())
+
 typedef enum {
 	HW_PERIODIC = 32,	/* periodic timer interrupt */
 	HW_KEYBOARD,		/* keyboard interrupt */
@@ -240,13 +245,30 @@ enum {
 	BOOT_CAPTBL_LAST_CAP           = round_up_to_pow2(BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ, CAPMAX_ENTRY_SZ),
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE               = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
-	VM_CAPTBL_SELF_EXITTHD_BASE    = BOOT_CAPTBL_FREE,
+};
+
+enum {
 	/* BOOT_CAPTBL_FREE used as VM Exit thread */
-	VM_CAPTBL_SELF_VTASND_SET_BASE = round_up_to_pow2(VM_CAPTBL_SELF_EXITTHD_BASE + CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
-	VM0_CAPTBL_LAST_CAP            = round_up_to_pow2(VM_CAPTBL_SELF_VTASND_SET_BASE + NUM_CPU_COS*CAP64B_IDSZ*(COS_VIRT_MACH_COUNT <= 1 ? 1 : COS_VIRT_MACH_COUNT - 1), CAPMAX_ENTRY_SZ),
-	VM_CAPTBL_LAST_CAP             = round_up_to_pow2(VM_CAPTBL_SELF_VTASND_SET_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
+	/* ASK: Why do we need one Capability per CORE?? */
+	/* FIXME: Obviously, I've created per-core caps below blindly */
+	VM_CAPTBL_SELF_EXITTHD_BASE    = BOOT_CAPTBL_FREE,
+	VM_CAPTBL_SELF_TIMETHD_BASE    = round_up_to_pow2(VM_CAPTBL_SELF_EXITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ), 
+	VM_CAPTBL_SELF_TIMETCAP_BASE   = round_up_to_pow2(VM_CAPTBL_SELF_TIMETHD_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ), 
+	VM_CAPTBL_SELF_TIMERCV_BASE    = round_up_to_pow2(VM_CAPTBL_SELF_TIMETCAP_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ), 
+	VM_CAPTBL_SELF_TIMEASND_BASE   = round_up_to_pow2(VM_CAPTBL_SELF_TIMERCV_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ), 
+	VM_CAPTBL_SELF_IOTHD_BASE      = round_up_to_pow2(VM_CAPTBL_SELF_TIMEASND_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ), 
+	VM_CAPTBL_SELF_IOTCAP_BASE     = round_up_to_pow2(VM_CAPTBL_SELF_IOTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ), 
+	VM_CAPTBL_SELF_IORCV_BASE      = round_up_to_pow2(VM_CAPTBL_SELF_IOTCAP_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ), 
+	VM_CAPTBL_SELF_IOASND_BASE     = round_up_to_pow2(VM_CAPTBL_SELF_IORCV_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
+	VM_CAPTBL_LAST_CAP             = round_up_to_pow2(VM_CAPTBL_SELF_IOASND_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
 	VM_CAPTBL_FREE                 = round_up_to_pow2(VM_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
-	VM0_CAPTBL_FREE                = round_up_to_pow2(VM0_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
+
+	VM0_CAPTBL_SELF_IOTHD_SET_BASE      = VM_CAPTBL_SELF_IOTHD_BASE, 
+	VM0_CAPTBL_SELF_IOTCAP_SET_BASE     = round_up_to_pow2(VM0_CAPTBL_SELF_IOTHD_SET_BASE + NUM_CPU_COS*CAP16B_IDSZ*(COS_VIRT_MACH_COUNT-1), CAPMAX_ENTRY_SZ), 
+	VM0_CAPTBL_SELF_IORCV_SET_BASE      = round_up_to_pow2(VM0_CAPTBL_SELF_IOTCAP_SET_BASE + NUM_CPU_COS*CAP16B_IDSZ*(COS_VIRT_MACH_COUNT-1), CAPMAX_ENTRY_SZ), 
+	VM0_CAPTBL_SELF_IOASND_SET_BASE     = round_up_to_pow2(VM0_CAPTBL_SELF_IORCV_SET_BASE + NUM_CPU_COS*CAP64B_IDSZ*(COS_VIRT_MACH_COUNT-1), CAPMAX_ENTRY_SZ),
+	VM0_CAPTBL_LAST_CAP                 = round_up_to_pow2(VM0_CAPTBL_SELF_IOASND_SET_BASE + NUM_CPU_COS*CAP64B_IDSZ*(COS_VIRT_MACH_COUNT-1), CAPMAX_ENTRY_SZ),
+	VM0_CAPTBL_FREE                     = round_up_to_pow2(VM0_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
 };
 
 enum {
@@ -834,8 +856,8 @@ cos_mem_fence(void)
 { __asm__ __volatile__("mfence" ::: "memory"); }
 
 // ncpu * 16 (or max 256) entries. can be increased if necessary.
-//lucas made this 64
-#define COS_THD_INIT_REGION_SIZE (((NUM_CPU*16) > (1<<8)) ? (1<<8) : (NUM_CPU*64))
+//#define COS_THD_INIT_REGION_SIZE (((NUM_CPU*16) > (1<<8)) ? (1<<8) : (NUM_CPU*16))
+#define COS_THD_INIT_REGION_SIZE (1<<8)
 // Static entries are after the dynamic allocated entries
 #define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))
 

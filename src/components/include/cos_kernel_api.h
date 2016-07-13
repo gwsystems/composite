@@ -86,6 +86,7 @@ capid_t cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_
 int cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_compinfo *srcci, capid_t srccap);
 
 int cos_thd_switch(thdcap_t c);
+int cos_thd_tcap_switch(thdcap_t c, tcap_t t, tcap_prio_t p, tcap_res_t r, asndcap_t s);
 int cos_thd_mod(struct cos_compinfo *ci, thdcap_t c, void *tls_addr); /* set tls addr of thd in captbl */
 
 int cos_asnd(asndcap_t snd);
@@ -100,7 +101,7 @@ int cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo
 int cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
 
 /* Tcap operations */
-tcap_t cos_tcap_split(struct cos_compinfo *ci, tcap_t src, int pool);
+tcap_t cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio);
 int cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio);
 int cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags);
 int cos_tcap_merge(tcap_t dst, tcap_t rm);
@@ -116,5 +117,9 @@ void *cos_va2pa(struct cos_compinfo *ci, void * vaddr);
 
 int cos_send_data(struct cos_compinfo *ci, asndcap_t sndcap, void *buff, size_t sz, unsigned int to_vmid);
 int cos_recv_data(struct cos_compinfo *ci, arcvcap_t rcvcap, void *buff, size_t sz, unsigned int from_vmid);
+
+
+int cos_shm_read(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int vmid);
+int cos_shm_write(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int vmid);
 
 #endif /* COS_KERNEL_API_H */

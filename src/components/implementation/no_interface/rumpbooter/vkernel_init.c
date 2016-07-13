@@ -6,19 +6,54 @@
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
 
-thdcap_t vm_exit_thd = 0; /* exit thread created for each forked component, for graceful exit */
-thdcap_t vk_termthd = 0; /* switch to this to shutdown */
-thdcap_t vk_timer_thd = 0; /* timer thread - simple round-robin scheduler */
+thdcap_t vm_exit_thd; /* exit thread created for each forked component, for graceful exit */
+thdcap_t vk_termthd; /* switch to this to shutdown */
+thdcap_t vk_sched_thd; /* sched thread - simple round-robin scheduler */
 extern void vm_init(void *);
 extern vaddr_t cos_upcall_entry;
 struct cos_compinfo vkern_info;
-sinvcap_t invcap;
+unsigned int ready_vms = COS_VIRT_MACH_COUNT;
+
+/*
+ * Init caps for each VM
+ */
+tcap_t vminittcap[COS_VIRT_MACH_COUNT];
 thdcap_t vm_main_thd[COS_VIRT_MACH_COUNT];
 thdid_t vm_main_thdid[COS_VIRT_MACH_COUNT];
 int vm_blocked[COS_VIRT_MACH_COUNT];
 arcvcap_t vminitrcv[COS_VIRT_MACH_COUNT];
-arcvcap_t commrcv;
-unsigned int ready_vms = COS_VIRT_MACH_COUNT;
+
+/*
+ * TCap transfer caps from VKERN <=> VM
+ */
+thdcap_t vk_time_thd[COS_VIRT_MACH_COUNT];
+thdid_t vk_time_thdid[COS_VIRT_MACH_COUNT];
+int vk_time_blocked[COS_VIRT_MACH_COUNT];
+tcap_t vk_time_tcap[COS_VIRT_MACH_COUNT];
+arcvcap_t vk_time_rcv[COS_VIRT_MACH_COUNT];
+asndcap_t vk_time_asnd[COS_VIRT_MACH_COUNT];
+/*
+ * TCap transfer caps from VM <=> VKERN
+ */
+thdcap_t vms_time_thd[COS_VIRT_MACH_COUNT];
+tcap_t vms_time_tcap[COS_VIRT_MACH_COUNT];
+arcvcap_t vms_time_rcv[COS_VIRT_MACH_COUNT];
+asndcap_t vms_time_asnd[COS_VIRT_MACH_COUNT];
+
+/*
+ * I/O transfer caps from VM0 <=> VMx
+ */
+thdcap_t vm0_io_thd[COS_VIRT_MACH_COUNT-1];
+tcap_t vm0_io_tcap[COS_VIRT_MACH_COUNT-1];
+arcvcap_t vm0_io_rcv[COS_VIRT_MACH_COUNT-1];
+asndcap_t vm0_io_asnd[COS_VIRT_MACH_COUNT-1];
+/*
+ * I/O transfer caps from VMx <=> VM0
+ */
+thdcap_t vms_io_thd[COS_VIRT_MACH_COUNT-1];
+tcap_t vms_io_tcap[COS_VIRT_MACH_COUNT-1];
+arcvcap_t vms_io_rcv[COS_VIRT_MACH_COUNT-1];
+asndcap_t vms_io_asnd[COS_VIRT_MACH_COUNT-1];
 
 void
 vk_term_fn(void *d)
@@ -27,7 +62,82 @@ vk_term_fn(void *d)
 }
 
 void
-timer_fn(void) {
+vk_time_fn(void *d) 
+{
+	while (1) {
+		thdid_t tid;
+		int rcving;
+		cycles_t cycles;
+
+		int pending = cos_rcv(vk_time_rcv[(int)d], &tid, &rcving, &cycles);
+		printc("vkernel: rcv'd from vm %d\n", (int)d);
+	}
+}
+
+void
+vm_time_fn(void *d)
+{
+	while (1) {
+		thdid_t tid;
+		int rcving;
+		cycles_t cycles;
+
+		int pending = cos_rcv(VM_CAPTBL_SELF_TIMERCV_BASE, &tid, &rcving, &cycles);
+		printc("%d: rcv'd from vkernel\n", (int)d);
+	}
+}
+
+void
+vm0_io_fn(void *d) 
+{
+	static int x = 0;
+	arcvcap_t rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + ((int)d - 1) * CAP64B_IDSZ;
+	asndcap_t sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE * ((int)d - 1) * CAP64B_IDSZ;
+	while (1) {
+		thdid_t tid;
+		int rcving;
+		cycles_t cycles;
+
+		int pending = cos_rcv(rcvcap, &tid, &rcving, &cycles);
+		printc("vm0: rcv'd from vm %d\n", (int)d);
+		x ++;
+
+		/* read from shared memory here */
+		/* just for test */
+		if (x % 10 == 0) {
+			/* write to shared memory here */
+			printc("vm0: snding to vm %d\n", (int)d);
+			cos_asnd(sndcap);
+		}
+	}
+}
+
+void
+vmx_io_fn(void *d)
+{
+	static int x = 0;
+	while (1) {
+		thdid_t tid;
+		int rcving;
+		cycles_t cycles;
+
+		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
+		printc("%d: rcv'd from vm0\n", (int)d);
+		x ++;
+
+		/* read from shared memory here */
+		/* just for test */
+		if (x % 10 == 0) {
+			/* write to shared memory here */
+			printc("%d: snding to vm0\n", (int)d);
+			cos_asnd(VM_CAPTBL_SELF_IOASND_BASE);
+		}
+	}
+}
+
+void
+sched_fn(void) 
+{
 	static unsigned int i = 0;
 	thdid_t tid;
 	int rcving;
@@ -37,20 +147,31 @@ timer_fn(void) {
 		int j;
 		int pending;
 
-		while ((pending = cos_rcv(commrcv, &tid, &rcving, &cycles)) > 0) { 
+		while ((pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles)) > 0) { 
 			if (tid) break;
 		}
 		//printc("%x %d\n", tid, rcving);
 		for (j = 0; j < COS_VIRT_MACH_COUNT; j ++) {
-			if(tid && vm_main_thdid[j] == tid) {
-				if (!rcving) {
-					printc("tid:%x unblocked\n", tid);
-					vm_blocked[j] = 0;
-				} else {
-					printc("tid:%x blocked\n", tid);
-					vm_blocked[j] = 1;
+			if(tid) {
+				if(vm_main_thdid[j] == tid) {
+					if (!rcving) {
+						printc("tid:%x unblocked\n", tid);
+						vm_blocked[j] = 0;
+					} else {
+						printc("tid:%x blocked\n", tid);
+						vm_blocked[j] = 1;
+					}
+					break;
+				} else if (vk_time_thdid[j] == tid) {
+					if (!rcving) {
+						printc("time tid:%x unblocked\n", tid);
+						vk_time_blocked[j] = 0;
+					} else {
+						printc("time tid:%x blocked\n", tid);
+						vk_time_blocked[j] = 1;
+					}
+					break;
 				}
-				break;
 			}
  		}
 
@@ -60,7 +181,6 @@ timer_fn(void) {
 			cos_thd_switch(vm_main_thd[index]);
 		}
 	}
-timer_done:
 	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 }
 
@@ -81,6 +201,8 @@ extern void* vm_captbl_op_inv(long arg1, long arg2, long arg3, long arg4);
 void
 cos_init(void)
 {
+	assert(COS_VIRT_MACH_COUNT >= 2);
+
 	printc("Hypervisor:vkernel START\n");
 	struct cos_compinfo vmbooter_info[COS_VIRT_MACH_COUNT];
 
@@ -97,25 +219,18 @@ cos_init(void)
 	vk_termthd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vk_term_fn, NULL);
 	assert(vk_termthd);
 
-	vk_timer_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, timer_fn, NULL);
-	assert(vk_timer_thd);
+/*	vk_sched_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, sched_fn, NULL);
+	assert(vk_sched_thd);
 
-	commrcv = cos_arcv_alloc(&vkern_info, vk_timer_thd, BOOT_CAPTBL_SELF_INITTCAP_BASE, vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	assert(commrcv);
+	commrcv = cos_arcv_alloc(&vkern_info, vk_sched_thd, BOOT_CAPTBL_SELF_INITTCAP_BASE, vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	assert(commrcv); */
 
 	for (id = 0; id < COS_VIRT_MACH_COUNT; id ++) {
 		printc("VM %d Initialization Start\n", id);
-		thdcap_t vmthd;
-		thdcap_t vmthd0;
-
 		captblcap_t vmct;
 		pgtblcap_t vmpt;
 		compcap_t vmcc;
 
-		tcap_t vmtcap, vmvirtcap;
-		arcvcap_t vmvirtrcv;
-		
-		asndcap_t vmvirtsnd;
 
 		printc("\tForking VM\n");
 		vm_exit_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vm_exit, (void *)id);
@@ -128,7 +243,6 @@ cos_init(void)
 		vmpt = cos_pgtbl_alloc(&vkern_info);
 		assert(vmpt);
 
-		page_range = ((int)cos_get_heap_ptr() - BOOT_MEM_VM_BASE);
 
 		vmcc = cos_comp_alloc(&vkern_info, vmct, vmpt, (vaddr_t)&cos_upcall_entry);
 		assert(vmcc);
@@ -143,7 +257,7 @@ cos_init(void)
 		assert(vm_main_thd[id]);
 		vm_main_thdid[id] = (thdid_t)cos_introspect(&vkern_info, vm_main_thd[id], 9);
 		vm_blocked[id] = 0;
-		printc("\tMain thread= cap:%x tid:%x\n", vm_main_thd[id], vm_main_thdid[id]);
+		printc("\tMain thread= cap:%x tid:%x\n", (unsigned int)vm_main_thd[id], vm_main_thdid[id]);
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITTHD_BASE, &vkern_info, vm_main_thd[id]);
 
 		/*
@@ -165,14 +279,75 @@ cos_init(void)
 		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd); 
 
 		printc("\tCreating other required initial capabilities\n");
-		vmtcap = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
-		assert(vmtcap);
-		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITTCAP_BASE, &vkern_info, vmtcap);
+		vminittcap[id] = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
+		assert(vminittcap[id]);
+		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITTCAP_BASE, &vkern_info, vminittcap[id]);
 
-		vminitrcv[id] = cos_arcv_alloc(&vkern_info, vm_main_thd[id], vmtcap, vkern_info.comp_cap, commrcv);
+		//vminitrcv[id] = cos_arcv_alloc(&vkern_info, vm_main_thd[id], vmtcap, vkern_info.comp_cap, commrcv);
+		vminitrcv[id] = cos_arcv_alloc(&vkern_info, vm_main_thd[id], vminittcap[id], vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 		assert(vminitrcv[id]);
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITRCV_BASE, &vkern_info, vminitrcv[id]);
 
+		printc("\tCreating TCap transfer capabilities (Between VKernel and VM%d)\n", id);
+		/* VKERN to VM */
+		vk_time_tcap[id] = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
+		assert(vk_time_tcap[id]);
+		vk_time_thd[id] = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vk_time_fn, (void *)id);
+		assert(vk_time_thd[id]);
+		vk_time_thdid[id] = (thdid_t)cos_introspect(&vkern_info, vk_time_thd[id], 9);
+		vk_time_blocked[id] = 0;
+		vk_time_rcv[id] = cos_arcv_alloc(&vkern_info, vk_time_thd[id], vk_time_tcap[id], vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+		assert(vk_time_rcv[id]);
+		/* VM to VKERN */		
+		vms_time_tcap[id] = cos_tcap_split(&vkern_info, vminittcap[id], 0, 0);
+		assert(vms_time_tcap[id]);
+		vms_time_thd[id] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vm_time_fn, (void *)id);
+		assert(vms_time_thd[id]);
+		vms_time_rcv[id] = cos_arcv_alloc(&vkern_info, vms_time_thd[id], vms_time_tcap[id], vmbooter_info[id].comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+		//vms_time_rcv[id] = cos_arcv_alloc(&vkern_info, vms_time_thd[id], vms_time_tcap[id], vkern_info.comp_cap, vminitrcv[id]);
+		assert(vms_time_rcv[id]);
+		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_TIMETCAP_BASE, &vkern_info, vms_time_tcap[id]);
+		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_TIMETHD_BASE, &vkern_info, vms_time_thd[id]);
+		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_TIMERCV_BASE, &vkern_info, vms_time_rcv[id]);
+
+		vk_time_asnd[id] = cos_asnd_alloc(&vkern_info, vms_time_rcv[id], vkern_info.captbl_cap);
+		assert(vk_time_asnd[id]);
+		vms_time_asnd[id] = cos_asnd_alloc(&vkern_info, vk_time_rcv[id], vkern_info.captbl_cap);
+		assert(vms_time_asnd[id]);
+		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_TIMEASND_BASE, &vkern_info, vms_time_asnd[id]);
+
+		if (id > 0) {
+			printc("\tSetting up Cross VM (between vm0 and vm%d) communication channels\n", id);
+			/* VM0 to VMid */
+			vm0_io_tcap[id-1] = cos_tcap_split(&vkern_info, vminittcap[0], 0, 0);
+			assert(vm0_io_tcap[id-1]);
+			vm0_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[0].comp_cap, vm0_io_fn, (void *)id);
+			assert(vm0_io_thd[id-1]);
+			vm0_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vm0_io_thd[id-1], vm0_io_tcap[id-1], vmbooter_info[0].comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+			assert(vm0_io_rcv[id-1]);
+			/* VMp to VM0 */		
+			vms_io_tcap[id-1] = cos_tcap_split(&vkern_info, vminittcap[id], 0, 0);
+			assert(vms_io_tcap[id-1]);
+			vms_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vmx_io_fn, (void *)id);
+			assert(vms_io_thd[id-1]);
+			vms_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vms_io_thd[id-1], vms_io_tcap[id-1], vmbooter_info[id].comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+			assert(vms_io_rcv[id-1]);
+
+			vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vms_io_rcv[id-1], vkern_info.captbl_cap);
+			assert(vm0_io_asnd[id-1]);
+			vms_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vm0_io_rcv[id-1], vkern_info.captbl_cap);
+			assert(vms_io_asnd[id-1]);
+
+			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (id-1)*CAP16B_IDSZ, &vkern_info, vm0_io_tcap[id-1]);
+			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOTHD_SET_BASE + (id-1)*CAP16B_IDSZ, &vkern_info, vm0_io_thd[id-1]);
+			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IORCV_SET_BASE + (id-1)*CAP64B_IDSZ, &vkern_info, vm0_io_rcv[id-1]);
+			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOASND_SET_BASE + (id-1)*CAP64B_IDSZ, &vkern_info, vm0_io_asnd[id-1]);
+
+			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOTCAP_BASE, &vkern_info, vms_io_tcap[id-1]);
+			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOTHD_BASE, &vkern_info, vms_io_thd[id-1]);
+			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IORCV_BASE, &vkern_info, vms_io_rcv[id-1]);
+			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOASND_BASE, &vkern_info, vms_io_asnd[id-1]);
+		}
 
 		/*
 		 * Create a new memory hole
@@ -180,6 +355,7 @@ cos_init(void)
 		 * Map untyped memory to vkernel
 		 */
 		printc("\tMapping in Booter component Virtual memory\n");
+		page_range = ((int)cos_get_heap_ptr() - BOOT_MEM_VM_BASE);
 		for (i = 0; i < page_range; i += PAGE_SIZE) {
 			// allocate page
 			vaddr_t spg = (vaddr_t) cos_page_bump_alloc(&vkern_info);
@@ -201,33 +377,17 @@ cos_init(void)
 		cos_meminfo_alloc(&vmbooter_info[id], BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ);
 
 		printc("VM %d Init DONE\n", id);
-	}
 
-	if (COS_VIRT_MACH_COUNT > 1) {
-		printc("Setting up Cross VM (between vm0 and other vms) communication channels\n");
-
-		int p, q;
-		for (p = 1; p < COS_VIRT_MACH_COUNT; p ++) {
-
-			asndcap_t ptozero, zerotop;
-			//Create ASNYC END POINT BETWEEN p & q
-			ptozero = cos_asnd_alloc(&vkern_info, vminitrcv[0], vkern_info.captbl_cap);
-			assert(ptozero);
-			cos_cap_cpy_at(&vmbooter_info[p], VM_CAPTBL_SELF_VTASND_SET_BASE, &vkern_info, ptozero);
-
-			zerotop = cos_asnd_alloc(&vkern_info, vminitrcv[p], vkern_info.captbl_cap);
-			assert(zerotop);
-			cos_cap_cpy_at(&vmbooter_info[0], VM_CAPTBL_SELF_VTASND_SET_BASE + (p - 1) * CAP64B_IDSZ, &vkern_info, zerotop);
-		}
 	}
 
 	printc("Starting Timer/Scheduler Thread\n");
-
-	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, commrcv);
+	//cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, commrcv);
+	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	printc("------------------[ Hypervisor & VMs init complete ]------------------\n");
-	while (ready_vms) cos_thd_switch(vk_timer_thd);
+	//while (ready_vms) cos_thd_switch(vk_sched_thd);
+	sched_fn();
 	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 	printc("Timer thread DONE\n");
 

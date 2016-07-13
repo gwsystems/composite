@@ -44,10 +44,6 @@ struct tcap_sched_info {
 
 #define TCAP_PRIO_MAX (1UL)
 
-typedef enum {
-	TCAP_POOL = 1
-} tcap_flags_t;
-
 struct tcap {
 	/*
 	 * The budget might be from a shared pool in which case budget
@@ -56,7 +52,6 @@ struct tcap {
 	 */
 	struct tcap 	   *pool;
 	struct thread      *arcv_ep; /* if ispool, this is the arcv endpoint */
-	tcap_flags_t       flags;
 	u32_t 		   refcnt;
 	struct tcap_budget budget; /* if we have a partitioned budget */
 	u8_t               ndelegs, curr_sched_off;
@@ -83,7 +78,8 @@ struct tcap {
 	struct tcap           *freelist;
 };
 
-int tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, capid_t srctcap_cap, int pool, int init);
+void tcap_init(void);
+int tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new);
 int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio);
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, int prio);
 int tcap_merge(struct tcap *dst, struct tcap *rm);
@@ -114,7 +110,7 @@ tcap_ref(struct tcap *t)
  * the pool is out.  Consume budget from both the local and the parent
  * budget.
  */
-static inline int
+static inline tcap_res_t
 tcap_consume(struct tcap *t, tcap_res_t cycles)
 {
 	assert(t);
@@ -122,8 +118,11 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 	if (TCAP_RES_IS_INF(t->budget.cycles)) return 0;
 	t->budget.cycles -= cycles;
 	if (t->budget.cycles <= 0) {
+		tcap_res_t left = cycles - t->budget.cycles;
+
 		t->budget.cycles = 0;
-		return 1;
+
+		return left;
 	}
 	/*
 	 * TODO: Add removal from global list of pools and declassify
@@ -139,6 +138,22 @@ tcap_expended(struct tcap *t)
 static inline struct tcap *
 tcap_current(struct cos_cpu_local_info *cos_info)
 { return (struct tcap *)(cos_info->curr_tcap); }
+
+/* Get the current tcap _and_ update its cycle count */
+static inline struct tcap *
+tcap_current_update(struct cos_cpu_local_info *cos_info)
+{
+	struct tcap *t;
+	tcap_res_t cycles, overshoot;
+
+	t                = tcap_current(cos_info);
+	cycles           = tsc();
+	overshoot        = tcap_consume(t, cycles - cos_info->cycles);
+	/* TODO: use overshoot somehow? return to caller? */
+	cos_info->cycles = cycles;
+
+	return t;
+}
 
 /*
  * Is the newly activated thread of a higher priority than the current
