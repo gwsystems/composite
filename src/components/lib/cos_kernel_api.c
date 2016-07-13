@@ -126,7 +126,7 @@ __mem_bump_alloc(struct cos_compinfo *__ci, int km, int retype)
 		syscall_op_t op = km ? CAPTBL_OP_MEM_RETYPE2KERN : CAPTBL_OP_MEM_RETYPE2USER;
 
 		if (call_cap_op(ci->pgtbl_cap, op, ret, 0, 0, 0)) {
-			printc("%s-%s:%d %x\n", __FILE__, __func__, __LINE__, ret);
+			printc("%s-%s:%d %x\n", __FILE__, __func__, __LINE__, (unsigned int)ret);
 			return 0;
 		}
 	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
@@ -483,7 +483,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 	assert(ci && comp > 0);
 
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
-	assert((size_t)init_data < sizeof(u16_t)*8);
+	assert(!(init_data & ~((1<<16)-1)));
 	/* TODO: Add cap size checking */
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
 
@@ -772,7 +772,7 @@ cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *s
 {
 	assert(dstci);
 	assert(srcci);
-	/* TODO */
+
 	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0))  BUG();
 	return 0;
 }
@@ -890,6 +890,40 @@ cos_va2pa(struct cos_compinfo *ci, void * vaddr)
         int paddr = call_cap_op(ci->pgtbl_cap, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
 	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
         return (void *)paddr;
+}
+
+int
+cos_shm_read(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int vmid)
+{
+
+	assert(ci || buff);
+	assert(ci->compid != vmid);
+
+	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
+	if (ci->compid == 0) {
+		data_vaddr += ((vmid - 1) * COS_SHM_VM_SZ);
+	}
+	
+	memcpy(buff, (void *)data_vaddr, sz);
+
+	return sz;
+}
+
+int
+cos_shm_write(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int vmid)
+{
+
+	assert(ci || buff);
+	assert(ci->compid != vmid);
+
+	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
+	if (ci->compid == 0) {
+		data_vaddr += ((vmid - 1) * COS_SHM_VM_SZ);
+	}
+	
+	memcpy((void *)data_vaddr, buff, sz);
+
+	return sz;
 }
 
 int

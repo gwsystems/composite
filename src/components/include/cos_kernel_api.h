@@ -117,4 +117,8 @@ void *cos_va2pa(struct cos_compinfo *ci, void * vaddr);
 int cos_send_data(struct cos_compinfo *ci, asndcap_t sndcap, void *buff, size_t sz, unsigned int to_vmid);
 int cos_recv_data(struct cos_compinfo *ci, arcvcap_t rcvcap, void *buff, size_t sz, unsigned int from_vmid);
 
+
+int cos_shm_read(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int vmid);
+int cos_shm_write(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int vmid);
+
 #endif /* COS_KERNEL_API_H */
