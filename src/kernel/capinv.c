@@ -512,6 +512,8 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 	struct tcap *tcap;
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
+	if (!tc && next->sw_counter > res) return -EAGAIN;
+	next->sw_counter = res;
 
 	tcap = tcap_current(cos_info);
 	if (arcv) {

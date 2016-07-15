@@ -64,6 +64,7 @@ struct thread {
 	cpuid_t cpuid;
 	unsigned int refcnt;
 	unsigned long exec;  		/* execution time */
+	unsigned int sw_counter; 	/* switch counter for user-level race-cond check */
 	struct thread *interrupted_thread;
 
 	/* rcv end-point data-structures */
@@ -213,6 +214,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
 	thd->tid          = thdid_alloc();
 	thd->refcnt       = 1;
+	thd->sw_counter   = 0;
      	thd->invstk_top   = 0;
 	thd->cpuid        = get_cpuid();
 	assert(thd->tid <= MAX_NUM_THREADS);

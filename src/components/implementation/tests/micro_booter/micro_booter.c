@@ -117,6 +117,8 @@ test_thds(void)
 {
 	thdcap_t ts[TEST_NTHDS];
 	int i;
+	unsigned int counter = 0;
+	int ret;
 
 	for (i = 0 ; i < TEST_NTHDS ; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
@@ -126,6 +128,15 @@ test_thds(void)
 		printc("switchto %d @ %x\n", (int)ts[i], cos_introspect(&booter_info, ts[i], 0));
 		cos_thd_switch(ts[i]);
 	}
+
+	printc("Thd-switch Race-cond test\n");
+	counter = 5;
+	printc("counter generated is: %u\n", counter);
+	ret = cos_thd_cntr_switch(ts[0], counter);
+	if (ret) printc("failed in 1st thread switch: %s\n", strerror(ret));
+	counter --;
+	ret = cos_thd_cntr_switch(ts[0], counter);
+	if (ret) printc("failed in 2nd thread switch: %s\n", strerror(ret));
 
 	printc("test done\n");
 }
