@@ -177,7 +177,7 @@ typedef enum {
 #define COS_VIRT_MACH_MEM_SZ (1<<26) //64MB
 
 #define COS_SHM_VM_SZ (1<<20) //4MB
-#define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
+#define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) > 0 ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
 
 /* a function instead of a struct to enable inlining + constant prop */
 static inline cap_sz_t

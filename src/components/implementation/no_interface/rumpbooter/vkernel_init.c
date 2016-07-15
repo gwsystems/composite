@@ -22,6 +22,7 @@ thdcap_t vm_main_thd[COS_VIRT_MACH_COUNT];
 thdid_t vm_main_thdid[COS_VIRT_MACH_COUNT];
 int vm_blocked[COS_VIRT_MACH_COUNT];
 arcvcap_t vminitrcv[COS_VIRT_MACH_COUNT];
+asndcap_t vksndvm[COS_VIRT_MACH_COUNT];
 
 /*
  * TCap transfer caps from VKERN <=> VM
@@ -145,40 +146,11 @@ sched_fn(void)
 
 	while (ready_vms) {
 		int j;
-		int pending;
-
-		while ((pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles)) > 0) { 
-			if (tid) break;
-		}
-		//printc("%x %d\n", tid, rcving);
-		for (j = 0; j < COS_VIRT_MACH_COUNT; j ++) {
-			if(tid) {
-				if(vm_main_thdid[j] == tid) {
-					if (!rcving) {
-						printc("tid:%x unblocked\n", tid);
-						vm_blocked[j] = 0;
-					} else {
-						printc("tid:%x blocked\n", tid);
-						vm_blocked[j] = 1;
-					}
-					break;
-				} else if (vk_time_thdid[j] == tid) {
-					if (!rcving) {
-						printc("time tid:%x unblocked\n", tid);
-						vk_time_blocked[j] = 0;
-					} else {
-						printc("time tid:%x blocked\n", tid);
-						vk_time_blocked[j] = 1;
-					}
-					break;
-				}
-			}
- 		}
-
+		int pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
 		int index = i ++ % COS_VIRT_MACH_COUNT;
 		
-		if (vm_main_thd[index] && !vm_blocked[index]) {
-			cos_thd_switch(vm_main_thd[index]);
+		if (vm_main_thd[index]) {
+			cos_asnd(vksndvm[index]);
 		}
 	}
 	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
@@ -191,7 +163,6 @@ vm_exit(void *id)
 	/* basically remove from READY list */
 	ready_vms --;
 	vm_main_thd[(int)id] = 0;
-	vm_blocked[(int)id] = 0;
 	/* do you want to spend time in printing? timer interrupt can screw with you, be careful */
 	printc("VM %d Exiting\n", (int)id);
 	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
@@ -218,12 +189,6 @@ cos_init(void)
 
 	vk_termthd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vk_term_fn, NULL);
 	assert(vk_termthd);
-
-/*	vk_sched_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, sched_fn, NULL);
-	assert(vk_sched_thd);
-
-	commrcv = cos_arcv_alloc(&vkern_info, vk_sched_thd, BOOT_CAPTBL_SELF_INITTCAP_BASE, vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	assert(commrcv); */
 
 	for (id = 0; id < COS_VIRT_MACH_COUNT; id ++) {
 		printc("VM %d Initialization Start\n", id);
@@ -256,7 +221,6 @@ cos_init(void)
 		vm_main_thd[id] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vm_init, (void *)id);
 		assert(vm_main_thd[id]);
 		vm_main_thdid[id] = (thdid_t)cos_introspect(&vkern_info, vm_main_thd[id], 9);
-		vm_blocked[id] = 0;
 		printc("\tMain thread= cap:%x tid:%x\n", (unsigned int)vm_main_thd[id], vm_main_thdid[id]);
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITTHD_BASE, &vkern_info, vm_main_thd[id]);
 
@@ -283,10 +247,15 @@ cos_init(void)
 		assert(vminittcap[id]);
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITTCAP_BASE, &vkern_info, vminittcap[id]);
 
-		//vminitrcv[id] = cos_arcv_alloc(&vkern_info, vm_main_thd[id], vmtcap, vkern_info.comp_cap, commrcv);
 		vminitrcv[id] = cos_arcv_alloc(&vkern_info, vm_main_thd[id], vminittcap[id], vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 		assert(vminitrcv[id]);
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITRCV_BASE, &vkern_info, vminitrcv[id]);
+
+		/*
+		 * Create send end-point to each VM's INITRCV end-point for scheduling.
+		 */
+		vksndvm[id] = cos_asnd_alloc(&vkern_info, vminitrcv[id], vkern_info.captbl_cap);
+		assert(vksndvm[id]);
 
 		printc("\tCreating TCap transfer capabilities (Between VKernel and VM%d)\n", id);
 		/* VKERN to VM */
@@ -304,7 +273,6 @@ cos_init(void)
 		vms_time_thd[id] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vm_time_fn, (void *)id);
 		assert(vms_time_thd[id]);
 		vms_time_rcv[id] = cos_arcv_alloc(&vkern_info, vms_time_thd[id], vms_time_tcap[id], vmbooter_info[id].comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-		//vms_time_rcv[id] = cos_arcv_alloc(&vkern_info, vms_time_thd[id], vms_time_tcap[id], vkern_info.comp_cap, vminitrcv[id]);
 		assert(vms_time_rcv[id]);
 		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_TIMETCAP_BASE, &vkern_info, vms_time_tcap[id]);
 		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_TIMETHD_BASE, &vkern_info, vms_time_thd[id]);
@@ -381,12 +349,10 @@ cos_init(void)
 	}
 
 	printc("Starting Timer/Scheduler Thread\n");
-	//cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, commrcv);
 	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	printc("------------------[ Hypervisor & VMs init complete ]------------------\n");
-	//while (ready_vms) cos_thd_switch(vk_sched_thd);
 	sched_fn();
 	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 	printc("Timer thread DONE\n");
