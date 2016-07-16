@@ -42,9 +42,9 @@ __tcap_init(struct tcap *t)
 	t->budget.cycles           = 0LL;
 	t->cpuid                   = get_cpuid();
 	t->ndelegs                 = 1;
-	t->delegations[0].prio     = TCAP_PRIO_MAX;
-	t->delegations[0].tcap_uid = *uid++;
+	t->delegations[0].tcap_uid = (*uid)++;
 	t->curr_sched_off          = 0;
+	tcap_setprio(t, TCAP_PRIO_MIN);
 	t->refcnt                  = 1;
 	t->pool                    = t;
 }

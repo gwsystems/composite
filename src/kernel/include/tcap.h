@@ -42,8 +42,6 @@ struct tcap_sched_info {
 	tcap_prio_t prio;
 };
 
-#define TCAP_PRIO_MAX (1UL)
-
 struct tcap {
 	/*
 	 * The budget might be from a shared pool in which case budget
@@ -153,6 +151,13 @@ tcap_current_update(struct cos_cpu_local_info *cos_info)
 	cos_info->cycles = cycles;
 
 	return t;
+}
+
+static inline void
+tcap_setprio(struct tcap *t, tcap_prio_t p)
+{
+	assert(t);
+	t->delegations[t->curr_sched_off].prio = p;
 }
 
 /*

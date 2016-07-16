@@ -150,7 +150,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 	if (!pgtbl_cap || !cosframe_addr) cos_throw(err, -EINVAL);
 
 	cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
-	if (cap_pt->h.type != CAP_PGTBL) cos_throw(err, -EINVAL);
+	if (!CAP_TYPECHK(cap_pt, CAP_PGTBL)) cos_throw(err, -EINVAL);
 
 	/* get the pte to the cos frame. */
 	*p_pte = pgtbl_lkup_pte(cap_pt->pgtbl, cosframe_addr, &flags);
@@ -189,10 +189,10 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 		/* set the scan flag to avoid concurrent scanning. */
 		if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS) return -ECASFAIL;
 
-		/**************************************************/
-		/* When gets here, we know quiescence has passed. and
-		 * we are holding the scan lock. */
-		/**************************************************/
+		/*
+		 * When gets here, we know quiescence has passed. and
+		 * we are holding the scan lock.
+		 */
 		if (deact_cap->lvl < CAPTBL_DEPTH - 1) {
 			ret = kmem_page_scan(page, PAGE_SIZE);
 		} else {
@@ -512,6 +512,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 
 		arcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv);
 		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
+
 		rcvt = arcv_cap->thd;
 		if (thd_rcvcap_pending(rcvt) > 0) {
 			next = rcvt;
@@ -527,6 +528,8 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 		tcap_cap = (struct cap_tcap *)captbl_lkup(ci->captbl, tc);
 		if (!CAP_TYPECHK_CORE(tcap_cap, CAP_TCAP)) return -EINVAL;
 		tcap = tcap_cap->tcap;
+
+		/* TODO: update prio and timeout */
 	}
 
 	return cap_switch_thd(regs, thd, next, tcap, ci, cos_info);
@@ -548,11 +551,14 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
 	arcv_notif = arcv_thd_notif(rcv_thd);
 	if (arcv_notif) thd_rcvcap_evt_enqueue(arcv_notif, rcv_thd);
 
-	next = rcv_thd;
 	/* The thread switch decision: */
-	/* if (tcap_higher_prio(rcv_tcap, tcap)) next = rcv_thd; */
-	/* else                                  next = thd; */
-	*tcap_next = tcap;
+	if (yield || tcap_higher_prio(rcv_tcap, tcap)) {
+		next = rcv_thd;
+		*tcap_next = rcv_tcap;
+	} else {
+		next = thd;
+		*tcap_next = tcap;
+	}
 
 	return next;
 }
@@ -707,13 +713,13 @@ composite_syscall_handler(struct pt_regs *regs)
 	struct thread *thd;
 	capid_t cap;
 	unsigned long ip, sp;
-	syscall_op_t op;
+
 	/*
 	 * We lookup this struct (which is on stack) only once, and
 	 * pass it into other functions to avoid redundant lookups.
 	 */
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
-	int ret = -ENOENT;
+	int ret        = -ENOENT;
 	int thd_switch = 0;
 
 	cap = __userregs_getcap(regs);
@@ -1305,18 +1311,18 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		}
 		case CAPTBL_OP_TCAP_DELEGATE:
 		{
-			capid_t asnd_cap  = __userregs_get1(regs);
-			long long res 	  = __userregs_get2(regs);
-			u32_t prio_higher = __userregs_get3(regs);
-			u32_t prio_lower  = __userregs_get4(regs);
-			tcap_prio_t prio;
+			capid_t   asnd_cap    = __userregs_get1(regs);
+			long long res 	      = __userregs_get2(regs);
+			u32_t     prio_higher = __userregs_get3(regs);
+			u32_t     prio_lower  = __userregs_get4(regs);
 			struct cap_tcap *tcapsrc = (struct cap_tcap *)ch;
 			struct cap_arcv *arcv;
 			struct cap_asnd *asnd;
 			struct thread   *rthd;
 			struct tcap     *tcapdst, *tcap_next;
-			int yield;
-			struct thread *n;
+			struct thread   *n;
+			tcap_prio_t      prio;
+			int              yield;
 
 			/* highest-order bit is dispatch flag */
 			yield       = prio_higher >> ((sizeof(prio_higher)*8)-1);
