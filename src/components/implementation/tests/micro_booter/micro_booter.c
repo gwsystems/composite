@@ -130,12 +130,9 @@ test_thds(void)
 	}
 
 	printc("Thd-switch Race-cond test\n");
-	counter = 5;
-	printc("counter generated is: %u\n", counter);
-	ret = cos_thd_cntr_switch(ts[0], counter);
+	ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	if (ret) printc("failed in 1st thread switch: %s\n", strerror(ret));
-	counter --;
-	ret = cos_thd_cntr_switch(ts[0], counter);
+	ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	if (ret) printc("failed in 2nd thread switch: %s\n", strerror(ret));
 
 	printc("test done\n");

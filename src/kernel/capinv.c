@@ -507,12 +507,12 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 	struct thread *next = thd_cap->t;
 	capid_t arcv        = (__userregs_get1(regs) << 16) >> 16;
 	capid_t tc          = __userregs_get1(regs) >> 16;
-	tcap_prio_t prio    = (tcap_prio_t)__userregs_get3(regs) | (tcap_prio_t)__userregs_get2(regs);
+	tcap_prio_t prio    = (tcap_prio_t)((tcap_prio_t)(__userregs_get3(regs) >> 16) << 32) | (tcap_prio_t)__userregs_get2(regs);
 	tcap_res_t res      = (tcap_res_t)__userregs_get4(regs);
+	u16_t usr_counter   = (u16_t) ((__userregs_get3(regs) << 16) >> 16);
 	struct tcap *tcap;
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
-	if (!tc && next->sw_counter > res) return -EAGAIN;
 	next->sw_counter = res;
 
 	tcap = tcap_current(cos_info);
@@ -523,6 +523,9 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 		arcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv);
 		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
 		rcvt = arcv_cap->thd;
+		/* race-condition check for user-level thread switches */
+		if (thd_rcvcap_get_counter(rcvt) > usr_counter) return -EAGAIN;
+		thd_rcvcap_set_counter(rcvt, usr_counter);
 		if (thd_rcvcap_pending(rcvt) > 0) {
 			next = rcvt;
 			/* tcap inheritance here...use the current tcap to process events */
