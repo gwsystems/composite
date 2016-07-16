@@ -182,7 +182,7 @@ cos_init(void)
 
 	printc("Hypervisor:vkernel initializing\n");
 	cos_meminfo_init(&vkern_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
-	cos_compinfo_init(&vkern_info, -1, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+	cos_compinfo_init(&vkern_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, 
 			(vaddr_t)BOOT_MEM_SHM_BASE, &vkern_info);
 
@@ -214,7 +214,7 @@ cos_init(void)
 
 		cos_meminfo_init(&vmbooter_info[id].mi, 
 				BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
-		cos_compinfo_init(&vmbooter_info[id], id, vmpt, vmct, vmcc,
+		cos_compinfo_init(&vmbooter_info[id], vmpt, vmct, vmcc,
 				(vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, 
 				(vaddr_t)BOOT_MEM_SHM_BASE, &vkern_info);
 

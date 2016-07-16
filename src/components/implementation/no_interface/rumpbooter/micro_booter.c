@@ -594,14 +594,17 @@ test_vmio(int vm)
 				vaddr_t shm_addr = BOOT_MEM_SHM_BASE + (i - 1) * COS_SHM_VM_SZ;
 				sprintf(buf, "%d:SHMEM %d to %d - %x", it, vm, i, (unsigned int)cos_va2pa(&booter_info, (void *)shm_addr));
 				PRINTVM("Sending to %d\n", i);
-				cos_send_data(&booter_info, sndcap, buf, strlen(buf) + 1, i);
+				cos_shm_write(&booter_info, buf, strlen(buf) + 1, vm, i);
+				cos_asnd(sndcap);
 				PRINTVM("Sent to %d: \"%s\" @ %x:%x\n", i, buf, (unsigned int)shm_addr, (unsigned int)cos_va2pa(&booter_info, (void *)shm_addr));
 				i ++;
 			}
 		} else {
 			int i = 0;
+			int tid, rcving, cycles;
 			PRINTVM("%d Receiving..\n", vm);
-			cos_recv_data(&booter_info, VM_CAPTBL_SELF_IORCV_BASE, buf, 50, i);
+			cos_shm_read(&booter_info, buf, 50, vm, 0);
+			cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
 			PRINTVM("Recvd: %s @ %x:%x\n", buf, (unsigned int)BOOT_MEM_SHM_BASE, (unsigned int)cos_va2pa(&booter_info, (void *)BOOT_MEM_SHM_BASE));
 		}
 		it ++;
@@ -620,12 +623,12 @@ vm_init(void *id)
 	vmid = (int)id;
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ);
 	if (id == 0) { 
-		cos_compinfo_init(&booter_info, (int)id, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+		cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 				  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE, 
 				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 	}
 	else {
-		cos_compinfo_init(&booter_info, (int)id, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+		cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 				  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, 
 				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 	}
