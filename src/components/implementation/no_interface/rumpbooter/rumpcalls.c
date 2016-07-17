@@ -8,6 +8,7 @@
 #include "rumpcalls.h"
 #include "rump_cos_alloc.h"
 #include "cos_sched.h"
+#include "cos_lock.h"
 
 //#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 
@@ -24,42 +25,9 @@ int boot_thread = 1;
 
 /* Thread id */
 capid_t cos_cur = 0;
-int cos_isr = 0;
+extern signed int cos_isr;
 
-extern int intr;
-
-int expected = 1;
-
-//void lock(char *i) {
-//	while(!__atomic_test_and_set(i, __ATOMIC_ACQUIRE));
-//}
-//
-//void lock_isr(char *i, int which) {
-//	while(!__atomic_test_and_set(i, __ATOMIC_ACQUIRE)) cos_thd_switch(cos_cur);
-//}
-//
-//
-//void unlock(char *i) {
-//	__atomic_clear(i, __ATOMIC_RELEASE);
-//}
-
-
-//  __atomic_compare_exchange_n (type *ptr, type *expected, type desired, bool weak, int success_memorder, int failure_memorder)
-//void lock(int *i)
-//{
-//	while(!__atomic_compare_exchange_n (i, &expected, 0, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-//		/* On a fail the value of i is writen into expected, we need to reset it */
-//		__atomic_exchange_n (&expected, 1, __ATOMIC_ACQ_REL);
-//	}
-//}
-//
-//// __atomic_exchange_n (type *ptr, type val, int memorder)
-//void unlock(int *i)
-//{
-//	__atomic_exchange_n (i, 1, __ATOMIC_ACQ_REL);
-//}
-
-
+void rump2cos_rcv(void);
 
 /* Mapping the functions from rumpkernel to composite */
 
@@ -93,7 +61,18 @@ cos2rump_setup(void)
 	crcalls.rump_pa2va			= cos_pa2va;
 	crcalls.rump_resume                     = cos_resume;
 	crcalls.rump_platform_exit		= cos_vm_exit;
+	crcalls.rump_rcv 			= rump2cos_rcv;
+
+	crcalls.rump_intr_enable		= intr_enable;
+	crcalls.rump_intr_disable		= intr_disable;
 	return;
+}
+
+/* send and recieve notifications */
+void
+rump2cos_rcv(void)
+{
+	
 }
 
 /* irq */
@@ -107,13 +86,16 @@ cos_irqthd_handler(void *line)
 
 	while(1) {
 		cos_rcv(irq_arcvcap[which], &tid, &rcving, &cycles);
-		//cos_isr = irq_thdcap[which];
-		/* Put which atomically into cos_isr for array look up in resume */
-		__atomic_exchange_n (&cos_isr, which, __ATOMIC_ACQ_REL);
+
+		intr_delay(irq_thdcap[which]);
 
 		bmk_isr(which);
 
-		__atomic_exchange_n (&cos_isr, 0, __ATOMIC_ACQ_REL);
+		/* 
+		 * cos_isr is set to zero when intrrupts are reenabled
+		 * If cos_isr is zero but we don't finish this function, intr_pending will
+		 * recognize this and switch back for us.
+		 */
 	}
 }
 
@@ -225,11 +207,27 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 
 void
 cos_resume()
-{
-	if (cos_isr)
-		cos_thd_switch(irq_thdcap[cos_isr]);
-	else
+{	
+	thdid_t tid;
+	int rcving;
+	cycles_t cycles;
+	int pending;
+
+	while(1) {
+		/* cos_rcv returns the number of pending messages */
+		pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+		//printc("cos_resume, pending:%d, tid:%d, rcving:%d\n", pending, tid, rcving);
+
+		/* Handle all possible interrupts */
+		if(tid && (!intr_getdisabled(cos_isr)) ) intr_pending(pending, tid, rcving);
+
 		cos_thd_switch(cos_cur);
+	}
+
+	//if (cos_isr > 0)
+	//	cos_thd_switch(cos_isr);
+	//else
+	//	cos_thd_switch(cos_cur);
 }
 
 void

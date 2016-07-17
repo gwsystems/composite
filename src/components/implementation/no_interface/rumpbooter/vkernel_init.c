@@ -17,7 +17,8 @@ thdcap_t vm_main_thd[COS_VIRT_MACH_COUNT];
 thdid_t vm_main_thdid[COS_VIRT_MACH_COUNT];
 int vm_blocked[COS_VIRT_MACH_COUNT];
 arcvcap_t vminitrcv[COS_VIRT_MACH_COUNT];
-arcvcap_t commrcv;
+asndcap_t vk_vminitasnd[COS_VIRT_MACH_COUNT];
+arcvcap_t commrcv = BOOT_CAPTBL_SELF_INITRCV_BASE;
 unsigned int ready_vms = COS_VIRT_MACH_COUNT;
 
 void
@@ -25,6 +26,8 @@ vk_term_fn(void *d)
 {
 	BUG();
 }
+
+extern int boot_done;
 
 void
 timer_fn(void) {
@@ -37,28 +40,28 @@ timer_fn(void) {
 		int j;
 		int pending;
 
-		while ((pending = cos_rcv(commrcv, &tid, &rcving, &cycles)) > 0) { 
-			if (tid) break;
-		}
-		//printc("%x %d\n", tid, rcving);
-		for (j = 0; j < COS_VIRT_MACH_COUNT; j ++) {
-			if(tid && vm_main_thdid[j] == tid) {
-				if (!rcving) {
-					printc("tid:%x unblocked\n", tid);
-					vm_blocked[j] = 0;
-				} else {
-					printc("tid:%x blocked\n", tid);
-					vm_blocked[j] = 1;
-				}
-				break;
-			}
+		pending = cos_rcv(commrcv, &tid, &rcving, &cycles);
 
- 		}
+		//printc("%x %d\n", tid, rcving);
+		//for (j = 0; j < COS_VIRT_MACH_COUNT; j ++) {
+		//	if(tid && vm_main_thdid[j] == tid) {
+		//		if (!rcving) {
+		//			printc("tid:%x unblocked\n", tid);
+		//			vm_blocked[j] = 0;
+		//		} else {
+		//			printc("tid:%x blocked\n", tid);
+		//			vm_blocked[j] = 1;
+		//		}
+		//		break;
+		//	}
+
+ 		//}
 
 		int index = i ++ % COS_VIRT_MACH_COUNT;
 		
-		if (vm_main_thd[index] && !vm_blocked[index]) {
-			cos_thd_switch(vm_main_thd[index]);
+		if (vm_main_thd[index]) {
+			cos_asnd(vk_vminitasnd[index]);
+			//cos_thd_switch(vm_main_thd[index]);
 		}
 	}
 timer_done:
@@ -98,11 +101,11 @@ cos_init(void)
 	vk_termthd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vk_term_fn, NULL);
 	assert(vk_termthd);
 
-	vk_timer_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, timer_fn, NULL);
-	assert(vk_timer_thd);
+	//vk_timer_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, timer_fn, NULL);
+	//assert(vk_timer_thd);
 
-	commrcv = cos_arcv_alloc(&vkern_info, vk_timer_thd, BOOT_CAPTBL_SELF_INITTCAP_BASE, vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	assert(commrcv);
+	//commrcv = cos_arcv_alloc(&vkern_info, vk_timer_thd, BOOT_CAPTBL_SELF_INITTCAP_BASE, vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	//assert(commrcv);
 
 	for (id = 0; id < COS_VIRT_MACH_COUNT; id ++) {
 		printc("VM %d Initialization Start\n", id);
@@ -174,6 +177,9 @@ cos_init(void)
 		assert(vminitrcv[id]);
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITRCV_BASE, &vkern_info, vminitrcv[id]);
 
+		
+		vk_vminitasnd[id] = cos_asnd_alloc(&vkern_info, vminitrcv[id], vkern_info.captbl_cap);
+		assert(vk_vminitasnd[id]);
 
 		/*
 		 * Create a new memory hole
@@ -228,7 +234,8 @@ cos_init(void)
 	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	printc("------------------[ Hypervisor & VMs init complete ]------------------\n");
-	while (ready_vms) cos_thd_switch(vk_timer_thd);
+	//while (ready_vms) cos_thd_switch(vk_timer_thd);
+	timer_fn();
 	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 	printc("Timer thread DONE\n");
 

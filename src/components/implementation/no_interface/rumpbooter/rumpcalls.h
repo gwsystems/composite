@@ -43,6 +43,9 @@ struct cos_rumpcalls
 	void*  (*rump_pa2va)(void *addr, unsigned long len);
 	void   (*rump_resume)(void);
 	void   (*rump_platform_exit)(void);
+	void   (*rump_rcv)(void);
+	void   (*rump_intr_disable)(void);
+	void   (*rump_intr_enable)(void);
 };
 
 /* Mapping the functions from rumpkernel to composite */
