@@ -23,3 +23,7 @@ modules.order
 *.img
 *.out
 transfer/
+GPATH
+GRTAGS
+GSYMS
+GTAGS

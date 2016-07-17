@@ -5,8 +5,7 @@
 #include "isr.h"
 #include "io.h"
 #include "kernel.h"
-
-#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+#include "chal/cpuid.h"
 
 /*
  * These addressess are specified as offsets from the base HPET

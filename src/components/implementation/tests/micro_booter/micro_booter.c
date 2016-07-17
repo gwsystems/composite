@@ -117,6 +117,8 @@ test_thds(void)
 {
 	thdcap_t ts[TEST_NTHDS];
 	int i;
+	unsigned int counter = 0;
+	int ret;
 
 	for (i = 0 ; i < TEST_NTHDS ; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
@@ -126,6 +128,12 @@ test_thds(void)
 		printc("switchto %d @ %x\n", (int)ts[i], cos_introspect(&booter_info, ts[i], 0));
 		cos_thd_switch(ts[i]);
 	}
+
+	printc("Thd-switch Race-cond test\n");
+	ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	if (ret) printc("failed in 1st thread switch: %s\n", strerror(ret));
+	ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	if (ret) printc("failed in 2nd thread switch: %s\n", strerror(ret));
 
 	printc("test done\n");
 }
@@ -266,7 +274,7 @@ test_async_endpoints(void)
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 	assert(tccp);
 	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
@@ -274,7 +282,7 @@ test_async_endpoints(void)
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)tcp);
 	assert(tcc);
-	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
@@ -302,7 +310,7 @@ test_async_endpoints_perf(void)
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 	assert(tccp);
 	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
@@ -310,7 +318,7 @@ test_async_endpoints_perf(void)
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void*)tcp);
 	assert(tcc);
-	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
@@ -368,7 +376,7 @@ test_tcaps(void)
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, tcap_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 	assert(tccp);
 	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
@@ -376,7 +384,7 @@ test_tcaps(void)
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, tcap_child, (void*)tcp);
 	assert(tcc);
-	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
@@ -542,6 +550,7 @@ test_run(void)
 	test_thds_perf();
 
 	test_timer();
+	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 
 	test_mem();
 
@@ -566,7 +575,7 @@ void
 cos_init(void)
 {
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
-	cos_compinfo_init(&booter_info, -1, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, 0, &booter_info);
 
 	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);

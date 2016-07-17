@@ -34,6 +34,7 @@ struct invstk_entry {
 struct rcvcap_info {
 	/* how many other arcv end-points send notifications to this one? */
 	int isbound, pending, refcnt;
+	u16_t sched_count;
 	struct tcap   *rcvcap_tcap;      /* This rcvcap's tcap */
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
 };
@@ -64,6 +65,7 @@ struct thread {
 	cpuid_t cpuid;
 	unsigned int refcnt;
 	unsigned long exec;  		/* execution time */
+	unsigned int sw_counter; 	/* switch counter for user-level race-cond check */
 	struct thread *interrupted_thread;
 
 	/* rcv end-point data-structures */
@@ -145,6 +147,7 @@ thd_rcvcap_init(struct thread *t)
 	struct rcvcap_info *rc = &t->rcvcap;
 
 	rc->isbound = rc->pending = rc->refcnt = 0;
+	rc->sched_count = 0;
 	rc->rcvcap_thd_notif = NULL;
 }
 
@@ -178,6 +181,14 @@ thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long 
 static int
 thd_rcvcap_pending(struct thread *t)
 { return t->rcvcap.pending || list_first(&t->event_head) != NULL; }
+
+static u16_t
+thd_rcvcap_get_counter(struct thread *t)
+{ return t->rcvcap.sched_count; }
+
+static void
+thd_rcvcap_set_counter(struct thread *t, u16_t cntr)
+{ t->rcvcap.sched_count = cntr; }
 
 static void
 thd_rcvcap_pending_inc(struct thread *arcvt)
@@ -323,7 +334,8 @@ thd_current_update(struct thread *next, struct tcap *tcap, struct thread *prev, 
 	prev->invstk_top     = cos_info->invstk_top;
 	cos_info->invstk_top = next->invstk_top;
 	cos_info->curr_thd   = (void *)next;
-	if (tcap) cos_info->curr_tcap = tcap;
+	assert(tcap);
+	cos_info->curr_tcap  = tcap;
 }
 
 static inline int curr_invstk_inc(struct cos_cpu_local_info *cos_info)
