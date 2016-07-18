@@ -8,6 +8,8 @@
 #include "rumpcalls.h"
 #include "cos_init.h"
 
+#define HW_ISR_LINES 32
+
 extern struct cos_compinfo booter_info;
 
 struct data {
@@ -69,9 +71,10 @@ hw_irq_alloc(void){
 	int i;
 	//cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 
-	for(i = 1; i < 32; i++){
+	for(i = 1; i < HW_ISR_LINES; i++){
 		irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, i);
-		irq_tcap[i] = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
+		irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
+		irq_tcap[i] = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
 		irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 		cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
 	}

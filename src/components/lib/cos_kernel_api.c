@@ -40,14 +40,13 @@ __compinfo_metacap(struct cos_compinfo *ci)
 { return ci->memsrc; }
 
 void
-cos_compinfo_init(struct cos_compinfo *ci, int compid, captblcap_t pgtbl_cap, pgtblcap_t captbl_cap,
+cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_t captbl_cap,
 		  compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier,
 		  vaddr_t shm_ptr, struct cos_compinfo *ci_resources)
 {
 	//printc("%s:%d - %x\n", __func__, __LINE__, (int)heap_ptr);
 	assert(ci && ci_resources);
 	assert(cap_frontier % CAPMAX_ENTRY_SZ == 0);
-	ci->compid = compid;
 
 	ci->memsrc = ci_resources;
 	assert(ci_resources->memsrc == ci_resources); /* prevent infinite data-structs */
@@ -128,7 +127,7 @@ __mem_bump_alloc(struct cos_compinfo *__ci, int km, int retype)
 		syscall_op_t op = km ? CAPTBL_OP_MEM_RETYPE2KERN : CAPTBL_OP_MEM_RETYPE2USER;
 
 		if (call_cap_op(ci->pgtbl_cap, op, ret, 0, 0, 0)) {
-			printc("%s-%s:%d %x\n", __FILE__, __func__, __LINE__, ret);
+			printc("%s-%s:%d %x\n", __FILE__, __func__, __LINE__, (unsigned int)ret);
 			return 0;
 		}
 	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
@@ -488,8 +487,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 
 	assert(ci && comp > 0);
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
-	
-	assert(((size_t)init_data  & ((1<<(sizeof(u16_t)*8))-1)) != 0);
+	assert(!(init_data & ~((1<<16)-1)));
 	/* TODO: Add cap size checking */
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
 	return cap;
@@ -584,7 +582,7 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, vaddr_t entry, vad
 	 * 	Just incase we use this API to create Compinfo struct for VM components
 	 * 	and copy/init the BOOTER capabilities like RCV, THD, HW etc in the child
 	 */
-	cos_compinfo_init(ci, -1, ptc, ctc, compc, heap_ptr, BOOT_CAPTBL_FREE, shm_ptr, ci_resources);
+	cos_compinfo_init(ci, ptc, ctc, compc, heap_ptr, BOOT_CAPTBL_FREE, shm_ptr, ci_resources);
 
 	return 0;
 }
@@ -743,7 +741,15 @@ cos_thd_switch(thdcap_t c)
 
 int
 cos_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_res_t res, arcvcap_t rcv)
-{ (void)res; return call_cap_op(c, 0, tc << 16 | rcv, (prio << 32) >> 32, prio >> 32, res); }
+{
+	/*
+	 * FIXME: This is the first draft for thread-switch race-condition check in the kernel
+	 *        This counter is just 16bits, so works well upto USHORT_MAX thread switches
+	 */
+	static u16_t counter = 0; 
+	(void)res; 
+	return call_cap_op(c, 0, tc << 16 | rcv, (prio << 32) >> 32, ((prio << 16) >> 32) | __sync_add_and_fetch(&counter, 1), res); 
+}
 
 int
 cos_asnd(asndcap_t snd)
@@ -781,7 +787,7 @@ cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *s
 {
 	assert(dstci);
 	assert(srcci);
-	/* TODO */
+
 	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0))  BUG();
 	return 0;
 }
@@ -938,6 +944,7 @@ cos_va2pa(struct cos_compinfo *ci, void * vaddr)
 }
 
 int
+<<<<<<< HEAD
 vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsize, int vmid){
 	//create rb, of size sz
 	sm_rb->head = 0;
@@ -1002,30 +1009,33 @@ vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff, size_t size){
 	return 1;
 }
 
-int
-cos_send_data(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
-{	
-	assert(ci && buff);
-
-	if(dstvm == 0){
-		vk_ringbuf_enqueue((struct cos_shm_rb *)vk_shmem_addr_send(srcvm) ,buff, sz);
-	}else{
-		vk_ringbuf_enqueue((struct cos_shm_rb *)vk_shmem_addr_recv(dstvm) ,buff, sz);
-	}
-	
-	return sz;
-}
-
-int
-cos_recv_data(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
+cos_shm_read(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
 {
+	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
+
 	assert(ci || buff);
 
-	if(srcvm == 0){
-		vk_ringbuf_dequeue((struct cos_shm_rb *)vk_shmem_addr_recv(0), buff, sz);
-	}else{	
-		vk_ringbuf_dequeue((struct cos_shm_rb *)vk_shmem_addr_send(srcvm), buff, sz);
+	if (srcvm == 0) {
+		data_vaddr += ((dstvm - 1) * COS_SHM_VM_SZ);
 	}
+	memcpy(buff, (void *)data_vaddr, sz);
 
 	return sz;
 }
+
+int
+cos_shm_write(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
+{
+	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
+
+	assert(ci || buff);
+
+	if (srcvm == 0) {
+		data_vaddr += ((dstvm - 1) * COS_SHM_VM_SZ);
+	}
+	
+	memcpy((void *)data_vaddr, buff, sz);
+
+	return sz;
+}
+
