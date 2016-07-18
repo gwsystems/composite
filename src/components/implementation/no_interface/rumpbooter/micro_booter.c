@@ -580,12 +580,6 @@ test_shmem(int vm)
 void
 test_vmio(int vm)
 {
-	PRINTVM("test_vmio: \n");
-	PRINTVM("phys addr 1: %x\n", cos_va2pa(&booter_info, vk_shmem_addr_recv(1)));
-	PRINTVM("phys addr 2: %x\n", cos_va2pa(&booter_info, vk_shmem_addr_recv(2)));
-	PRINTVM("virt addr 1: %x\n", vk_shmem_addr_recv(1));
-	PRINTVM("virt addr 2: %x\n", vk_shmem_addr_recv(2));
-	
 	if (COS_VIRT_MACH_COUNT > 1) {
 		static int it = 0;
 		char buf[50] = { '\0' };

@@ -222,7 +222,7 @@ cos_init(void)
 
 		printc("VM %d Init DONE\n", id);
 	}
-
+/*
 	printc("vk_shmem_addr_send(1): %x\n", vk_shmem_addr_send(1));
 	printc("vk_shmem_addr_recv(1): %x\n", vk_shmem_addr_recv(1));
 	printc("vk_shmem_addr_send(2): %x\n", vk_shmem_addr_send(2));
@@ -232,7 +232,7 @@ cos_init(void)
 	printc("shared mem phys addr recv 1: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_recv(1)));
 	printc("shared mem phys addr send 2: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_send(2)));
 	printc("shared mem phys addr recv 2: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_recv(2)));
-	
+*/	
 	if (COS_VIRT_MACH_COUNT > 1) {
 		printc("Setting up Cross VM (between vm0 and other vms) communication channels\n");
 

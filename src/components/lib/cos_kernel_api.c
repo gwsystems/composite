@@ -935,13 +935,23 @@ vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsi
 }
 
 int 
-vk_shmem_addr_send(int vmid){
-	return ((BOOT_MEM_SHM_BASE)+((COS_SHM_VM_SZ) * (vmid-1) ));
+vk_shmem_addr_send(int to_vmid){
+	//returns the virt addr of the ringbuf struct for sending data
+	if(to_vmid == 0){
+		return BOOT_MEM_SHM_BASE;	
+	}else{
+		return ((BOOT_MEM_SHM_BASE)+((COS_SHM_VM_SZ) * (to_vmid-1) ));
+	}
 }
 
 int 
-vk_shmem_addr_recv(int vmid){
-	return (BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (vmid-1) ) + ((COS_SHM_VM_SZ)/2) ;
+vk_shmem_addr_recv(int from_vmid){
+	//returns the virt addr of the ringbuf struct for recving data
+	if(from_vmid == 0){
+		return (BOOT_MEM_SHM_BASE) + (COS_SHM_VM_SZ/2);	
+	}else{
+		return (BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (from_vmid-1) ) + ((COS_SHM_VM_SZ)/2) ;
+	}
 }
 
 int
@@ -951,8 +961,6 @@ vk_ringbuf_isfull(struct cos_shm_rb *rb, size_t size){
 
 int
 vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
-	printc("enqueue\n");	
-
 	if(vk_ringbuf_isfull(rb, size)){
 		//TODO
 		return -1;
@@ -968,7 +976,6 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 
 int
 vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff, size_t size){
-	//printc("vk_ringbuf_dequeue: %d\n", rb->tail);
 	
 	if(rb->head == rb->tail){
 		printc("buffer is empty\n");
@@ -985,7 +992,6 @@ vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff, size_t size){
 int
 cos_send_data(struct cos_compinfo *ci, asndcap_t sndcap, void *buff, size_t sz, unsigned int to_vmid)
 {	
-	printc("%s: %d\n", __func__, to_vmid);
 	assert(ci || buff);
 	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
 
@@ -1002,7 +1008,6 @@ cos_send_data(struct cos_compinfo *ci, asndcap_t sndcap, void *buff, size_t sz, 
 int
 cos_recv_data(struct cos_compinfo *ci, arcvcap_t rcvcap, void *buff, size_t sz, unsigned int from_vmid)
 {
-	printc("%s: %d\n", __func__, ci->compid);
 	assert(ci || buff);
 
 	int pending, rcving;
@@ -1010,9 +1015,8 @@ cos_recv_data(struct cos_compinfo *ci, arcvcap_t rcvcap, void *buff, size_t sz, 
 	cycles_t cycles;
 	
 	pending = cos_rcv(rcvcap, &tid, &rcving, &cycles);
-	
 	if(from_vmid == 0){
-		vk_ringbuf_dequeue((struct cos_shm_rb *)vk_shmem_addr_recv(ci->compid), buff, sz);
+		vk_ringbuf_dequeue((struct cos_shm_rb *)vk_shmem_addr_recv(0), buff, sz);
 	}else{	
 		vk_ringbuf_dequeue((struct cos_shm_rb *)vk_shmem_addr_send(from_vmid), buff, sz);
 	}
