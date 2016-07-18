@@ -50,6 +50,24 @@ struct cos_shminfo {
 	vaddr_t shm_ptr, shm_offset, shm_size;
 };
 
+struct cos_shm_rb {
+	unsigned int head, tail; 
+	int vmid;
+	unsigned int size;
+	unsigned int mask;
+	char buf[0];
+};
+
+int vk_shmem_addr_send(int vmid);
+
+int vk_shmem_addr_recv(int vmid);
+
+int vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsize, int vmid);
+
+int vk_ringbuf_enqueue(struct cos_shm_rb * rb, void * buff, size_t size);
+
+int vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff, size_t size);
+
 int cos_mem_partition(struct cos_compinfo *ci, vaddr_t start_addr, unsigned long untyped_sz);
 
 void cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz);

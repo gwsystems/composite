@@ -103,6 +103,7 @@ cos_init(void)
 	commrcv = cos_arcv_alloc(&vkern_info, vk_timer_thd, BOOT_CAPTBL_SELF_INITTCAP_BASE, vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(commrcv);
 
+	//struct cos_shm_rb * sm_rb[COS_VIRT_MACH_COUNT];
 	for (id = 0; id < COS_VIRT_MACH_COUNT; id ++) {
 		printc("VM %d Initialization Start\n", id);
 		thdcap_t vmthd;
@@ -191,7 +192,26 @@ cos_init(void)
 
 		if (!id) {
 			printc("\tCreating shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_ALL_SZ);
+			
+			//allocating ring buffers for sending data
 			cos_shmem_alloc(&vmbooter_info[id], COS_SHM_ALL_SZ);
+			for(i = 1; i < COS_VIRT_MACH_COUNT; i++){
+				printc("\tInitializing ringbufs for sending\n");
+				struct cos_shm_rb * sm_rb;	
+				sm_rb = vk_shmem_addr_send(i);
+				vk_ringbuf_create(&vmbooter_info[id] , sm_rb, COS_SHM_VM_SZ, i);
+				printc("vk_shmem_addr pa: %d\n", cos_va2pa(&vkern_info, vk_shmem_addr_send(2)));
+			}
+
+			//allocating ring buffers for recving data
+			for(i = 1; i < COS_VIRT_MACH_COUNT; i++){
+				printc("\tInitializing ringbufs for rcving\n");
+				struct cos_shm_rb * sm_rb_r;	
+				sm_rb_r = vk_shmem_addr_recv(i);
+				vk_ringbuf_create(&vmbooter_info[id] , sm_rb_r, COS_SHM_VM_SZ, i);
+			}
+
+
 		} else {
 			printc("\tMapping shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_VM_SZ);
 			cos_shmem_map(&vmbooter_info[id], COS_SHM_VM_SZ);
@@ -203,6 +223,16 @@ cos_init(void)
 		printc("VM %d Init DONE\n", id);
 	}
 
+	printc("vk_shmem_addr_send(1): %x\n", vk_shmem_addr_send(1));
+	printc("vk_shmem_addr_recv(1): %x\n", vk_shmem_addr_recv(1));
+	printc("vk_shmem_addr_send(2): %x\n", vk_shmem_addr_send(2));
+	printc("vk_shmem_addr_recv(2): %x\n", vk_shmem_addr_recv(2));
+	struct cos_shm_rb * sm_rb = vk_shmem_addr_recv(2);	
+	printc("shared mem phys addr send 1: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_send(1)));
+	printc("shared mem phys addr recv 1: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_recv(1)));
+	printc("shared mem phys addr send 2: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_send(2)));
+	printc("shared mem phys addr recv 2: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_recv(2)));
+	
 	if (COS_VIRT_MACH_COUNT > 1) {
 		printc("Setting up Cross VM (between vm0 and other vms) communication channels\n");
 
@@ -226,6 +256,7 @@ cos_init(void)
 	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, commrcv);
 	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
+	printc("sm_rb addr: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_recv(2)));
 	printc("------------------[ Hypervisor & VMs init complete ]------------------\n");
 	while (ready_vms) cos_thd_switch(vk_timer_thd);
 	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);

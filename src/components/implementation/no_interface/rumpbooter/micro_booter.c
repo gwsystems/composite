@@ -580,6 +580,12 @@ test_shmem(int vm)
 void
 test_vmio(int vm)
 {
+	PRINTVM("test_vmio: \n");
+	PRINTVM("phys addr 1: %x\n", cos_va2pa(&booter_info, vk_shmem_addr_recv(1)));
+	PRINTVM("phys addr 2: %x\n", cos_va2pa(&booter_info, vk_shmem_addr_recv(2)));
+	PRINTVM("virt addr 1: %x\n", vk_shmem_addr_recv(1));
+	PRINTVM("virt addr 2: %x\n", vk_shmem_addr_recv(2));
+	
 	if (COS_VIRT_MACH_COUNT > 1) {
 		static int it = 0;
 		char buf[50] = { '\0' };
@@ -588,7 +594,7 @@ test_vmio(int vm)
 			while (i < COS_VIRT_MACH_COUNT) {
 				memset(buf, '\0', 50);
 				asndcap_t sndcap = VM_CAPTBL_SELF_VTASND_SET_BASE + (i - 1) * CAP64B_IDSZ;
-				vaddr_t shm_addr = BOOT_MEM_SHM_BASE + (i - 1) * COS_SHM_VM_SZ;
+				vaddr_t shm_addr = vk_shmem_addr_recv(i);
 				sprintf(buf, "%d:SHMEM %d to %d - %x", it, vm, i, cos_va2pa(&booter_info, shm_addr));
 				PRINTVM("Sending to %d\n", i);
 				cos_send_data(&booter_info, sndcap, buf, strlen(buf) + 1, i);
@@ -596,9 +602,9 @@ test_vmio(int vm)
 				i ++;
 			}
 		} else {
-			int i = 0;
+			//int i = 0;
 			PRINTVM("%d Receiving..\n", vm);
-			cos_recv_data(&booter_info, BOOT_CAPTBL_SELF_INITRCV_BASE, buf, 50, i);
+			cos_recv_data(&booter_info, BOOT_CAPTBL_SELF_INITRCV_BASE, buf, 50, 0);
 			PRINTVM("Recvd: %s @ %x:%x\n", buf, BOOT_MEM_SHM_BASE, cos_va2pa(&booter_info, BOOT_MEM_SHM_BASE));
 		}
 		it ++;
@@ -614,6 +620,7 @@ term_fn(void *d)
 void
 vm_init(void *id)
 {
+	vmid = (int)id;
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ);
 	if (!id)
 		cos_compinfo_init(&booter_info, (int)id, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
@@ -625,9 +632,8 @@ vm_init(void *id)
 				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 	test_vmio((int)id);
 
-	vmid = (int)id;
 	rump_vmid = (int)id;
-	if (vmid==2) {
+	if (vmid==1) {
 		PRINTVM("Micro Booter started.\n");
 		termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 		assert(termthd);

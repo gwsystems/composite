@@ -84,6 +84,7 @@ cos_compinfo_init(struct cos_compinfo *ci, int compid, captblcap_t pgtbl_cap, pg
 
 /**************** [Memory Capability Allocation Functions] ***************/
 
+
 static vaddr_t
 __mem_bump_alloc(struct cos_compinfo *__ci, int km, int retype)
 {
@@ -924,53 +925,97 @@ cos_va2pa(struct cos_compinfo *ci, void * vaddr)
 }
 
 int
-cos_send_data(struct cos_compinfo *ci, asndcap_t sndcap, void *buff, size_t sz, unsigned int to_vmid)
-{
-	assert(ci || buff);
-	assert(ci->compid != to_vmid);
-	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-	/* need to change a lot of this.. change from hard-coding for sure */
-	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
-//	asndcap_t sndcap = VM_CAPTBL_SELF_VTASND_SET_BASE;
-	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsize, int vmid){
+	//create rb, of size sz
+	sm_rb->head = 0;
+	sm_rb->tail = 0;
+	sm_rb->size = COS_SHM_VM_SZ/2;
+	sm_rb->mask = sm_rb->size -1; 
+	return 1;	
+}
 
-	if (ci->compid == 0) {
-	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-		data_vaddr += ((to_vmid -1) * COS_SHM_VM_SZ);
-//		sndcap += ((to_vmid - 1) * CAP64B_IDSZ);
+int 
+vk_shmem_addr_send(int vmid){
+	return ((BOOT_MEM_SHM_BASE)+((COS_SHM_VM_SZ) * (vmid-1) ));
+}
+
+int 
+vk_shmem_addr_recv(int vmid){
+	return (BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (vmid-1) ) + ((COS_SHM_VM_SZ)/2) ;
+}
+
+int
+vk_ringbuf_isfull(struct cos_shm_rb *rb, size_t size){
+	return ( ((rb->head+size) & rb->mask) == rb->tail & rb->mask );
+}
+
+int
+vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
+	printc("enqueue\n");	
+
+	if(vk_ringbuf_isfull(rb, size)){
+		//TODO
+		return -1;
 	}
 	
-	/* TODO: Ring buffer */
-	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-	memcpy((void *)data_vaddr, buff, sz);
-//	printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+	memcpy(&rb->buf[rb->head], buff, size);
+	__atomic_fetch_add(&rb->head, size, __ATOMIC_SEQ_CST);
+
+	rb->head = (rb->head) & rb->mask;
+
+	return 0;
+}
+
+int
+vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff, size_t size){
+	//printc("vk_ringbuf_dequeue: %d\n", rb->tail);
+	
+	if(rb->head == rb->tail){
+		printc("buffer is empty\n");
+		return -1;
+	}
+
+	memcpy(buff, &rb->buf[rb->tail], size);
+	__atomic_fetch_add(&rb->tail, size, __ATOMIC_SEQ_CST);
+	
+	rb->tail = rb->tail & rb->mask;
+	return 1;
+}
+
+int
+cos_send_data(struct cos_compinfo *ci, asndcap_t sndcap, void *buff, size_t sz, unsigned int to_vmid)
+{	
+	printc("%s: %d\n", __func__, to_vmid);
+	assert(ci || buff);
+	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
+
+	if(to_vmid == 0){
+		vk_ringbuf_enqueue((struct cos_shm_rb *)vk_shmem_addr_send(ci->compid) ,buff, sz);
+	}else{
+		vk_ringbuf_enqueue((struct cos_shm_rb *)vk_shmem_addr_recv(to_vmid) ,buff, sz);
+	}
+	
 	cos_asnd(sndcap);
-	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 	return sz;
 }
 
 int
 cos_recv_data(struct cos_compinfo *ci, arcvcap_t rcvcap, void *buff, size_t sz, unsigned int from_vmid)
 {
+	printc("%s: %d\n", __func__, ci->compid);
 	assert(ci || buff);
-	assert(ci->compid != from_vmid);
-	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 
 	int pending, rcving;
 	thdid_t tid;
 	cycles_t cycles;
-	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
-	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-
-	if (ci->compid == 0) {
-	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-		data_vaddr += ((from_vmid - 1) * COS_SHM_VM_SZ);
+	
+	pending = cos_rcv(rcvcap, &tid, &rcving, &cycles);
+	
+	if(from_vmid == 0){
+		vk_ringbuf_dequeue((struct cos_shm_rb *)vk_shmem_addr_recv(ci->compid), buff, sz);
+	}else{	
+		vk_ringbuf_dequeue((struct cos_shm_rb *)vk_shmem_addr_send(from_vmid), buff, sz);
 	}
 
-//	printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-	pending = cos_rcv(rcvcap, &tid, &rcving, &cycles);
-//	printc("%s-%s:%d tid: %x recving: %d cycles: %d pending: %d\n", __FILE__, __func__, __LINE__,	tid, rcving, cycles, pending);
-	memcpy(buff, (void *)data_vaddr, sz);
-	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 	return sz;
 }

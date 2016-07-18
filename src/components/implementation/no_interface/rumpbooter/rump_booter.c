@@ -87,12 +87,10 @@ rump_booter_init(void)
 	cycles_t cycles;
 	tcap_t tcc;
 
-
-	char *json_file = "";
 	//char *json_file = "{,\"blk\":{,\"source\":\"dev\",\"path\":\"/dev/paws\",\"fstype\":\"cd9660\",\"mountpoint\":\"data\",},\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"net\":{,\"if\":\"tun0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"111.111.111.0\",\"mask\":\"24\",\"gw\":\"111.111.111.0\",},\"cmdline\":\"nginx.bin\",},\0";
-	if(rump_vmid){
-		char *json_file = "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
-
+	char *json_file = "";
+	if(!rump_vmid){
+		json_file = "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
 	}
 
 
@@ -117,7 +115,7 @@ rump_booter_init(void)
 	hw_irq_alloc();
 
 	/* We pass in the json config string to the RK */
-	printc("Json File:\n%s", json_file);
+	printc("rump_vmid: %d, Json File:\n%s", rump_vmid, json_file);
 	cos_run(json_file);
 	printc("\nRumpKernel Boot done.\n");
 
