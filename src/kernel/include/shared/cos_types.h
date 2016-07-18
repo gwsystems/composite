@@ -173,7 +173,7 @@ typedef enum {
 
 #define CAPTBL_EXPAND_SZ 128
 
-#define COS_VIRT_MACH_COUNT 1
+#define COS_VIRT_MACH_COUNT 2
 #define COS_VIRT_MACH_MEM_SZ (1<<26) //64MB
 
 #define COS_SHM_VM_SZ (1<<20) //4MB

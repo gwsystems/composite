@@ -121,6 +121,7 @@ test_thds(void)
 {
 	thdcap_t ts[TEST_NTHDS];
 	int i;
+	int ret;
 
 	for (i = 0 ; i < TEST_NTHDS ; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
@@ -131,7 +132,17 @@ test_thds(void)
 		cos_thd_switch(ts[i]);
 	}
 
-	PRINTVM("test done\n");
+       PRINTVM("Thd-switch Race-cond test\n");
+       i = 0;
+       while (i ++ < ITER) {
+            ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+            if (ret) { 
+                 PRINTVM("failed in %d thread switch: %s\n", i, strerror(ret));
+                 break;
+            }
+       }
+
+       PRINTVM("test done\n");
 }
 
 #define TEST_NPAGES (1024*2) 	/* Testing with 8MB for now */
@@ -536,14 +547,10 @@ test_captbl_expand(void)
 void
 test_run(void)
 {
-
-//	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
-//	PRINTVM("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
-
 	test_thds();
 	test_thds_perf();
 
-//	test_timer();
+	test_timer();
 
 	test_mem();
 
@@ -585,39 +592,26 @@ test_vmio(int vm)
 	/* FIXME: Not tested with new end-points. need VM scheduling for it. */
 	if (COS_VIRT_MACH_COUNT > 1) {
 		static int it = 0;
-		//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 		char buf[50] = { '\0' };
 		if (!vm) {
-			//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 			int i = 1;
 			while (i < COS_VIRT_MACH_COUNT) {
-				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				memset(buf, '\0', 50);
-				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				asndcap_t sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (i - 1) * CAP64B_IDSZ;
 				vaddr_t shm_addr = BOOT_MEM_SHM_BASE + (i - 1) * COS_SHM_VM_SZ;
-				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				sprintf(buf, "%d:SHMEM %d to %d - %x", it, vm, i, (unsigned int)cos_va2pa(&booter_info, (void *)shm_addr));
-				//strcpy(shm_addr, buf);
-				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				PRINTVM("Sending to %d\n", i);
 				cos_shm_write(&booter_info, buf, strlen(buf) + 1, vm, i);
 				cos_asnd(sndcap);
-				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				PRINTVM("Sent to %d: \"%s\" @ %x:%x\n", i, buf, (unsigned int)shm_addr, (unsigned int)cos_va2pa(&booter_info, (void *)shm_addr));
 				i ++;
 			}
 		} else {
-			//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 			int i = 0;
 			int tid, rcving, cycles;
-			//PRINTVM("%d: read after delay\n", vm);
-		//		for (i = 0; i < 99000; i ++) ;
 			PRINTVM("%d Receiving..\n", vm);
 			cos_shm_read(&booter_info, buf, 50, vm, 0);
 			cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
-			//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-			//strncpy(buf, BOOT_MEM_SHM_BASE, 49);
 			PRINTVM("Recvd: %s @ %x:%x\n", buf, (unsigned int)BOOT_MEM_SHM_BASE, (unsigned int)cos_va2pa(&booter_info, (void *)BOOT_MEM_SHM_BASE));
 		}
 		it ++;

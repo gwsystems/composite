@@ -509,7 +509,8 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 	capid_t tc          = __userregs_get1(regs) >> 16;
 	tcap_prio_t prio    = (tcap_prio_t)((tcap_prio_t)(__userregs_get3(regs) >> 16) << 32) | (tcap_prio_t)__userregs_get2(regs);
 	tcap_res_t res      = (tcap_res_t)__userregs_get4(regs);
-	u16_t usr_counter   = (u16_t) ((__userregs_get3(regs) << 16) >> 16);
+	/* op holds MSB of counter */
+	u32_t usr_counter   = (((u32_t)__userregs_get3(regs) << 16) >> 16) | ((u32_t)__userregs_getop(regs) << 16);
 	struct tcap *tcap;
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
@@ -524,7 +525,10 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
 		rcvt = arcv_cap->thd;
 		/* race-condition check for user-level thread switches */
-		if (thd_rcvcap_get_counter(rcvt) > usr_counter) return -EAGAIN;
+		if (thd_rcvcap_get_counter(rcvt) > usr_counter) { 
+			printk("Counters: user: %u kern: %u\n", usr_counter, thd_rcvcap_get_counter(rcvt));
+			return -EAGAIN;
+		}
 		thd_rcvcap_set_counter(rcvt, usr_counter);
 		if (thd_rcvcap_pending(rcvt) > 0) {
 			next = rcvt;
