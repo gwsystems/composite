@@ -14,8 +14,20 @@
 #include "include/shared/cos_types.h"
 #include "include/chal/defs.h"
 
-/* FIXME: Counter per core for multi-core support */
-static tcap_uid_t tcap_uid = 0;
+struct tcap_percore {
+	struct tcap transient_tcap;
+	tcap_uid_t  tcap_uid;
+} CACHE_ALIGNED;
+
+static struct tcap_percore __tcap_percore[NUM_CPU] PAGE_ALIGNED;
+
+static inline struct tcap *
+tcap_transient_get(void)
+{ return &__tcap_percore[get_cpuid()].transient_tcap; }
+
+static inline tcap_uid_t *
+tcap_uid_get(void)
+{ return &__tcap_percore[get_cpuid()].tcap_uid; }
 
 static inline int
 tcap_ispool(struct tcap *t)
@@ -23,17 +35,18 @@ tcap_ispool(struct tcap *t)
 
 /* Fill in default "safe" values */
 static void
-tcap_init(struct tcap *t)
+__tcap_init(struct tcap *t)
 {
+	tcap_uid_t *uid = tcap_uid_get();
+
 	t->budget.cycles           = 0LL;
 	t->cpuid                   = get_cpuid();
 	t->ndelegs                 = 1;
 	t->delegations[0].prio     = TCAP_PRIO_MAX;
-	t->delegations[0].tcap_uid = tcap_uid;
+	t->delegations[0].tcap_uid = *uid++;
 	t->curr_sched_off          = 0;
-	t->refcnt                  = 0;
+	t->refcnt                  = 1;
 	t->pool                    = t;
-	tcap_uid++;
 }
 
 static int
@@ -132,12 +145,14 @@ __tcap_legal_transfer(struct tcap *dst, struct tcap *src)
 		}
 		if (d->tcap_uid == s->tcap_uid) {
 			if (d->prio < s->prio) return -1;
-			/* another option is to _degrade_ the
+			/*
+			 * another option is to _degrade_ the
 			 * destination by manually lower the
 			 * delegation's priority.  However, I think
 			 * having a more predictable check is more
 			 * important, rather than perhaps causing
-			 * transparent degradation of priority. */
+			 * transparent degradation of priority.
+			 */
 			i++;
 		}
 		/* OK so far, look at the next comparison */
@@ -155,36 +170,14 @@ tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tca
 	return __tcap_transfer(tcapdst->pool, tcapsrc->pool, cycles, prio);
 }
 
-/*
- * cycles = 0 means remove all cycles from existing tcap
- *
- * prio = 0 denotes inheriting the priority (lower values = higher priority)
- *
- * Error conditions include t->cycles < cycles, prio < t->prio
- * (ignoring values of 0).
- */
 int
-tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, capid_t srctcap_cap, int pool, int init)
+tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new)
 {
-	struct tcap *tcap_src = NULL;
-	struct cap_tcap *tc, *tc_src;
+	struct cap_tcap *tc;
 	int ret;
 
 	assert(tcap_new);
-	tcap_init(tcap_new);
-	tcap_new->flags = pool ? TCAP_POOL : 0;
-
-	if (likely(!init)) {
-		tc_src = (struct cap_tcap *)captbl_lkup(ct, srctcap_cap);
-		if (!tc_src || tc_src->h.type != CAP_TCAP) return -EINVAL;
-		if (tc_src->cpuid != get_cpuid())          return -EINVAL;
-		tcap_src = tc_src->tcap;
-		assert(tcap_src);
-
-		assert(tcap_src->pool);
-		tcap_new->pool = tcap_src->pool;
-		tcap_ref_take(tcap_new->pool);
-	}
+	__tcap_init(tcap_new);
 
 	tc = (struct cap_tcap *)__cap_capactivate_pre(ct, cap, capin, CAP_TCAP, &ret);
 	if (!tc) return ret;
@@ -199,7 +192,7 @@ tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new,
 void
 tcap_promote(struct tcap *t, struct thread *thd)
 {
-	if (tcap_ispool(t) || !(t->flags & TCAP_POOL)) return;
+	if (tcap_ispool(t)) return;
 	tcap_ref_release(t->pool);
 	t->arcv_ep = thd;
 	t->pool    = t;
@@ -282,4 +275,15 @@ tcap_merge(struct tcap *dst, struct tcap *rm)
 	    tcap_delete(rm)) return -1;
 
 	return 0;
+}
+
+void
+tcap_init(void)
+{
+	int i;
+
+	for (i = 0 ; i < NUM_CPU ; i++) {
+		__tcap_init(&__tcap_percore[i].transient_tcap);
+		__tcap_percore[i].tcap_uid = 0;
+	}
 }

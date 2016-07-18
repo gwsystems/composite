@@ -323,7 +323,8 @@ thd_current_update(struct thread *next, struct tcap *tcap, struct thread *prev, 
 	prev->invstk_top     = cos_info->invstk_top;
 	cos_info->invstk_top = next->invstk_top;
 	cos_info->curr_thd   = (void *)next;
-	if (tcap) cos_info->curr_tcap = tcap;
+	assert(tcap);
+	cos_info->curr_tcap  = tcap;
 }
 
 static inline int curr_invstk_inc(struct cos_cpu_local_info *cos_info)
