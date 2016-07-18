@@ -121,7 +121,6 @@ test_thds(void)
 {
 	thdcap_t ts[TEST_NTHDS];
 	int i;
-	unsigned int counter = 0;
 	int ret;
 
 	for (i = 0 ; i < TEST_NTHDS ; i++) {
@@ -133,13 +132,17 @@ test_thds(void)
 		cos_thd_switch(ts[i]);
 	}
 
-       printc("Thd-switch Race-cond test\n");
-       ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
-       if (ret) printc("failed in 1st thread switch: %s\n", strerror(ret));
-       ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
-       if (ret) printc("failed in 2nd thread switch: %s\n", strerror(ret));
+       PRINTVM("Thd-switch Race-cond test\n");
+       i = 0;
+       while (i ++ < ITER) {
+            ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+            if (ret) { 
+                 PRINTVM("failed in %d thread switch: %s\n", i, strerror(ret));
+                 break;
+            }
+       }
 
-	PRINTVM("test done\n");
+       PRINTVM("test done\n");
 }
 
 #define TEST_NPAGES (1024*2) 	/* Testing with 8MB for now */
@@ -546,6 +549,8 @@ test_run(void)
 {
 	test_thds();
 	test_thds_perf();
+
+	test_timer();
 
 	test_mem();
 

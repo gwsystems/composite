@@ -34,7 +34,7 @@ struct invstk_entry {
 struct rcvcap_info {
 	/* how many other arcv end-points send notifications to this one? */
 	int isbound, pending, refcnt;
-	u16_t sched_count;
+	u32_t sched_count;
 	struct tcap   *rcvcap_tcap;      /* This rcvcap's tcap */
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
 };
@@ -182,12 +182,12 @@ static int
 thd_rcvcap_pending(struct thread *t)
 { return t->rcvcap.pending || list_first(&t->event_head) != NULL; }
 
-static u16_t
+static u32_t
 thd_rcvcap_get_counter(struct thread *t)
 { return t->rcvcap.sched_count; }
 
 static void
-thd_rcvcap_set_counter(struct thread *t, u16_t cntr)
+thd_rcvcap_set_counter(struct thread *t, u32_t cntr)
 { t->rcvcap.sched_count = cntr; }
 
 static void
