@@ -10,24 +10,12 @@
 #include "cos_sched.h"
 #include "cos_lock.h"
 
-//#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
-
 extern struct cos_rumpcalls crcalls;
 int boot_thread = 1;
-//void lock(int *i) {
-//	while (!(*i)) ;
-//	*i = 0;
-//}
-//
-//void unlock(int *i) {
-//	*i = 1;
-//}
 
 /* Thread id */
-capid_t cos_cur = 0;
+volatile capid_t cos_cur = 0;
 extern signed int cos_isr;
-
-void rump2cos_rcv(void);
 
 /* Mapping the functions from rumpkernel to composite */
 
@@ -51,9 +39,9 @@ cos2rump_setup(void)
 	crcalls.rump_memcpy           		= memcpy;
 	crcalls.rump_memset			= cos_memset;
 	crcalls.rump_cpu_sched_create 		= cos_cpu_sched_create;
-	if(!crcalls.rump_cpu_sched_create){
-		printc("SCHED: rump_cpu_sched_create is set to null");
-	}
+
+	if(!crcalls.rump_cpu_sched_create) printc("SCHED: rump_cpu_sched_create is set to null");
+
 	crcalls.rump_cpu_sched_switch_viathd    = cos_cpu_sched_switch;
 	crcalls.rump_memfree			= cos_memfree;
 	crcalls.rump_tls_init 			= cos_tls_init;
@@ -61,18 +49,10 @@ cos2rump_setup(void)
 	crcalls.rump_pa2va			= cos_pa2va;
 	crcalls.rump_resume                     = cos_resume;
 	crcalls.rump_platform_exit		= cos_vm_exit;
-	crcalls.rump_rcv 			= rump2cos_rcv;
 
 	crcalls.rump_intr_enable		= intr_enable;
 	crcalls.rump_intr_disable		= intr_disable;
 	return;
-}
-
-/* send and recieve notifications */
-void
-rump2cos_rcv(void)
-{
-	
 }
 
 /* irq */
@@ -147,7 +127,6 @@ cos_memalloc(size_t nbytes, size_t align)
 }
 
 /*---- Scheduling ----*/
-//struct bmk_thread *bmk_threads[MAX_NUM_THREADS];
 extern struct cos_compinfo booter_info;
 int boot_thd = BOOT_CAPTBL_SELF_INITTHD_BASE;
 
@@ -156,12 +135,6 @@ cos_tls_init(unsigned long tp, thdcap_t tc)
 {
 	cos_thd_mod(&booter_info, tc, tp);
 }
-
-
-/* RG: For debugging / lazy purposes, we use this name global variable
- * to keep track of the name we are giving the thread we are about to create
- * It is located within sched.c on the RK side
- */
 
 void
 cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
@@ -198,7 +171,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	set_cos_thdcap(thread, newthd_cap);
 
 	/* To access the thd_id */
-	//ret = cos_thd_switch(newthd_cap);
+	printc("About to cos_switch at cos_cpu_sched_create on: %d\n", newthd_cap);
 	ret = cos_switch(newthd_cap, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	if(ret) printc("cos_cpu_sched_create cos_switch FAILED: %s\n", strerror(ret));
 }
@@ -207,7 +180,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 /* Called from RK init thread. The one in while(1) */
 
 void
-cos_resume()
+cos_resume(void)
 {	
 	thdid_t tid = 0;
 	int rcving = 0;
@@ -217,21 +190,16 @@ cos_resume()
 
 	while(1) {
 		/* cos_rcv returns the number of pending messages */
-		pending += cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
-		//printc("cos_resume, pending:%d, tid:%d, rcving:%d\n", pending, tid, rcving);
+		pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
 
 		/* 
 		 * Handle all possible interrupts when intrupts are disabled
 		 * Do we need to check every time we return here?
                  */
-		if( (!intr_getdisabled(cos_isr)) ) {
-			intr_pending(pending, tid, rcving);
-			pending = 0;
-		}
+		if( (!intr_getdisabled(cos_isr)) ) intr_pending(pending, tid, rcving);
 
-		//cos_thd_switch(cos_cur);
 		ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
-		if(ret) printc("cos_resume, cos_switch FAILED: %s\n", strerror(ret));
+		if(ret) printc("cos_resume, cos_switch FAILED: %d\n", ret);
 	}
 }
 
@@ -239,9 +207,11 @@ void
 cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 {
 	int ret;
-	cos_cur = get_cos_thdcap(next);
-	//ret = cos_thd_switch(cos_cur);
-	ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	int temp = get_cos_thdcap(next);
+	cos_cur = temp;
+
+
+	ret = cos_switch(temp, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	if(ret) printc("cos_cpu_sched_switch, cos_switch FAILED: %s\n", strerror(ret));
 }
 
@@ -265,7 +235,6 @@ cos_cpu_clock_now(void)
 	 * The last thread in the timeq has < wakeup time.
 	 */
 
-	//curtime = (long long)(tsc_now / cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE)); /* cycles to us */
 	curtime = (long long)(tsc_now / cycles_us); /* cycles to us */
 	curtime = (long long)(curtime * 1000); /* us to ns */
 
@@ -274,18 +243,11 @@ cos_cpu_clock_now(void)
 
 void *
 cos_vatpa(void * vaddr)
-{
-//        int paddr = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
-//	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
-//        return (void *)paddr;
-	return cos_va2pa(&booter_info, vaddr);
-}
+{ return cos_va2pa(&booter_info, vaddr); }
 
 void *
 cos_pa2va(void * pa, unsigned long len) 
-{
-        return (void *)cos_hw_map(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)pa, (unsigned int)len);
-}
+{ return (void *)cos_hw_map(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)pa, (unsigned int)len); }
 
 void
 cos_vm_exit(void)
