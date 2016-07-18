@@ -166,7 +166,7 @@ cos_init(void)
 		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd); 
 
 		printc("\tCreating other required initial capabilities\n");
-		vmtcap = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+		vmtcap = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 		assert(vmtcap);
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITTCAP_BASE, &vkern_info, vmtcap);
 
@@ -222,17 +222,8 @@ cos_init(void)
 
 		printc("VM %d Init DONE\n", id);
 	}
-/*
-	printc("vk_shmem_addr_send(1): %x\n", vk_shmem_addr_send(1));
-	printc("vk_shmem_addr_recv(1): %x\n", vk_shmem_addr_recv(1));
-	printc("vk_shmem_addr_send(2): %x\n", vk_shmem_addr_send(2));
-	printc("vk_shmem_addr_recv(2): %x\n", vk_shmem_addr_recv(2));
-	struct cos_shm_rb * sm_rb = vk_shmem_addr_recv(2);	
-	printc("shared mem phys addr send 1: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_send(1)));
-	printc("shared mem phys addr recv 1: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_recv(1)));
-	printc("shared mem phys addr send 2: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_send(2)));
-	printc("shared mem phys addr recv 2: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_recv(2)));
-*/	
+	
+	
 	if (COS_VIRT_MACH_COUNT > 1) {
 		printc("Setting up Cross VM (between vm0 and other vms) communication channels\n");
 

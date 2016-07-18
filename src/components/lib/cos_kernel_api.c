@@ -1003,35 +1003,28 @@ vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff, size_t size){
 }
 
 int
-cos_send_data(struct cos_compinfo *ci, asndcap_t sndcap, void *buff, size_t sz, unsigned int to_vmid)
+cos_send_data(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
 {	
-	assert(ci || buff);
-	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
+	assert(ci && buff);
 
-	if(to_vmid == 0){
-		vk_ringbuf_enqueue((struct cos_shm_rb *)vk_shmem_addr_send(ci->compid) ,buff, sz);
+	if(dstvm == 0){
+		vk_ringbuf_enqueue((struct cos_shm_rb *)vk_shmem_addr_send(srcvm) ,buff, sz);
 	}else{
-		vk_ringbuf_enqueue((struct cos_shm_rb *)vk_shmem_addr_recv(to_vmid) ,buff, sz);
+		vk_ringbuf_enqueue((struct cos_shm_rb *)vk_shmem_addr_recv(dstvm) ,buff, sz);
 	}
 	
-	cos_asnd(sndcap);
 	return sz;
 }
 
 int
-cos_recv_data(struct cos_compinfo *ci, arcvcap_t rcvcap, void *buff, size_t sz, unsigned int from_vmid)
+cos_recv_data(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
 {
 	assert(ci || buff);
 
-	int pending, rcving;
-	thdid_t tid;
-	cycles_t cycles;
-	
-	pending = cos_rcv(rcvcap, &tid, &rcving, &cycles);
-	if(from_vmid == 0){
+	if(srcvm == 0){
 		vk_ringbuf_dequeue((struct cos_shm_rb *)vk_shmem_addr_recv(0), buff, sz);
 	}else{	
-		vk_ringbuf_dequeue((struct cos_shm_rb *)vk_shmem_addr_send(from_vmid), buff, sz);
+		vk_ringbuf_dequeue((struct cos_shm_rb *)vk_shmem_addr_send(srcvm), buff, sz);
 	}
 
 	return sz;

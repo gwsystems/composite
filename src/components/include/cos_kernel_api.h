@@ -133,7 +133,7 @@ int cos_hw_cycles_per_usec(hwcap_t hwc);
 
 void *cos_va2pa(struct cos_compinfo *ci, void * vaddr);
 
-int cos_send_data(struct cos_compinfo *ci, asndcap_t sndcap, void *buff, size_t sz, unsigned int to_vmid);
-int cos_recv_data(struct cos_compinfo *ci, arcvcap_t rcvcap, void *buff, size_t sz, unsigned int from_vmid);
+int cos_send_data(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm);
+int cos_recv_data(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm);
 
 #endif /* COS_KERNEL_API_H */
