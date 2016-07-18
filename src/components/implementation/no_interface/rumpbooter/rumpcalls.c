@@ -169,15 +169,20 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void *stack_base, unsigned long stack_size)
 {
 
-	
-	//printc("thdname: %s\n", get_name(thread));
-
 	thdcap_t newthd_cap;
 	int ret;
-	struct thd_creation_protocol  info;
-	struct thd_creation_protocol *thd_meta = &info;
-	//  bmk_current is not set for the booting thread, use the booter_info thdcap_t
-	//  The isrthr needs to be created on the cos thread.
+	static int all_threads_offset = 0;
+	//struct thd_creation_protocol  info;
+	//struct thd_creation_protocol *thd_meta = &info;
+	struct thd_creation_protocol *thd_meta = &all_rkthreads[all_threads_offset];
+
+	all_threads_offset++;
+
+	if(all_threads_offset >= 200) {
+		printc("Did I tell the RK that it could have more than 200 threads?! NO. SO NO MORE THREADS FOR YOU!\n");
+		assert(0);
+	}
+
 	if(boot_thread || !strcmp(get_name(thread), "isrthr")) {
 
 		if(!strcmp(get_name(thread), "main")) boot_thread = 0;
@@ -191,15 +196,11 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 
 	newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, rump_thd_fn, thd_meta);
 	set_cos_thdcap(thread, newthd_cap);
-	// To access the thd_id
-	ret = cos_thd_switch(newthd_cap);
-	if(ret) printc("cos_thd_switch FAILED\n");
 
-	/*
-	 *  printc("\n------\nNew thread %d @ %x\n------\n\n",
-	 * 		(int)newthd_cap,
-	 * 		cos_introspect(&booter_info, newthd_cap, 0));
-	 */
+	/* To access the thd_id */
+	//ret = cos_thd_switch(newthd_cap);
+	ret = cos_switch(newthd_cap, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	if(ret) printc("cos_cpu_sched_create cos_switch FAILED: %s\n", strerror(ret));
 }
 
 
@@ -208,64 +209,40 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 void
 cos_resume()
 {	
-	thdid_t tid;
-	int rcving;
-	cycles_t cycles;
-	int pending;
+	thdid_t tid = 0;
+	int rcving = 0;
+	cycles_t cycles = 0;
+	int pending = 0;
+	int ret;
 
 	while(1) {
 		/* cos_rcv returns the number of pending messages */
-		pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+		pending += cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
 		//printc("cos_resume, pending:%d, tid:%d, rcving:%d\n", pending, tid, rcving);
 
-		/* Handle all possible interrupts */
-		if(tid && (!intr_getdisabled(cos_isr)) ) intr_pending(pending, tid, rcving);
+		/* 
+		 * Handle all possible interrupts when intrupts are disabled
+		 * Do we need to check every time we return here?
+                 */
+		if( (!intr_getdisabled(cos_isr)) ) {
+			intr_pending(pending, tid, rcving);
+			pending = 0;
+		}
 
-		cos_thd_switch(cos_cur);
+		//cos_thd_switch(cos_cur);
+		ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+		if(ret) printc("cos_resume, cos_switch FAILED: %s\n", strerror(ret));
 	}
-
-	//if (cos_isr > 0)
-	//	cos_thd_switch(cos_isr);
-	//else
-	//	cos_thd_switch(cos_cur);
 }
 
 void
 cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 {
 	int ret;
-	//capid_t tmp;
-	//struct thd_creation_protocol info;
-	//struct thd_creation_protocol *thd_meta = &info;
-
-	/* FIXME
-	 * RG: May, or may not need locks. Test 
-         */
-	//lock(&lk);
-	//printc("\tTook lock: switch\n");
 	cos_cur = get_cos_thdcap(next);
-	//tmp = cos_cur;
-	//unlock(&lk);
-	//printc("\tReleasing lock: switch\n");
-
-	//thd_meta->retcap = get_cos_thdcap(next);
-
-	/* For Debugging
-	 *
-	 *printc("------\nSwitching thread to %d @ %x\n------\n",
-	 *     	(int)(thd_meta->retcap),
-	 *     	cos_introspect(&booter_info, thd_meta->retcap, 0));
-	 */
-	 
-
-	//printc("\nprev: %s\n", get_name(prev));
-	//printc("next: %s\n\n", get_name(next));
-	//printc("retcap: %d\n\n", thd_meta->retcap);
-
-	//ret = cos_thd_switch(thd_meta->retcap);
-	ret = cos_thd_switch(cos_cur);
-	if(ret)
-		printc("thread switch failed\n");
+	//ret = cos_thd_switch(cos_cur);
+	ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	if(ret) printc("cos_cpu_sched_switch, cos_switch FAILED: %s\n", strerror(ret));
 }
 
 /* --------- Timer ----------- */

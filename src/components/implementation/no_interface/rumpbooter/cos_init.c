@@ -45,6 +45,7 @@ alloc_initmem_all(void)
 void
 cos_run(char *cmdline)
 {
+	printc("\n------------------[RK]------------------\n");
 	printc("Rump Kernel bootstrap on platform Composite\n");
 	bmk_sched_init();
 	printc("bmk_sched_init done\n");

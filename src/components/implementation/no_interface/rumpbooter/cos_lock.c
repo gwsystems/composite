@@ -4,16 +4,16 @@
 #include <cos_kernel_api.h>
 #include <cos_types.h>
 
-inline static void intr_reset(int *intr);
-inline static void intr_setcontention(int intr);
-static inline void intr_update(int irq_line, int rcving);
-static inline int intr_translate_thdid2irq(int tid);
+static void intr_reset(int *intr);
+static void intr_setcontention(int intr);
+static void intr_update(int irq_line, int rcving);
+static int intr_translate_thdid2irq(int tid);
 
 int intrs = 0; 	        /* Intrrupt bit mask */
 signed int cos_isr = 0; /* Last running isr thread */
 extern int cos_cur;     /* Last running rk thread */
 
-inline void
+void
 intr_disable(void)
 {
 	/* Set highest order bit in cos_isr to 1 */
@@ -21,48 +21,51 @@ intr_disable(void)
 	__sync_fetch_and_or(&cos_isr, 0x80000000);
 }
 
-inline void
+void
 intr_enable(void)
 {
-	int temp;
+	int temp, ret;
 
 	//printc("~~~ intr_enable ~~~\n");
 
 	/* Set highest order bit in cos_isr to 0 */
-	__sync_fetch_and_and(&cos_isr, 0x7FFFFFFF);
 	temp = cos_isr;
+	__sync_fetch_and_and(&temp, 0x7FFFFFFF);
 	/* Reset remaining bits to 0, switch to isr handler if there was contention */
 	intr_reset(&cos_isr);
 	if(temp > 0) {
 		//printc("~~~ Switching directly to isr handler ~~~~\n");
-		cos_thd_switch(temp);
+		//cos_thd_switch(temp);
+		printc("About to thd switch at intr_enable to: %d\n", temp);
+		ret = cos_switch(temp, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);	
+		if(ret) printc("intr_enable, FAILED cos_switch %s\n", strerror(ret));
 	}
 }
 
-inline static void
+static void
 intr_reset(int *intr)
 {
 	*intr = 0;
 }
 
-inline int
+int
 intr_getdisabled(int intr)
 {
 	/* Returns 1 if interupts are disabled */
 	return intr>>31;
 }
 
-static inline void
+static void
 intr_setcontention(int intr)
 {
 	/* Set first 16 bits to be the isr thread we will want to eventually switch to */
 	__sync_fetch_and_or(&cos_isr, intr);
 }
 
-inline void
+void
 intr_delay(int isrthd)
 {
-	int temp;
+	int temp, ret;
 	/* 
 	 * Called from isr handler
 	 * Check if interupts are disabled, if not return
@@ -73,18 +76,22 @@ intr_delay(int isrthd)
 		if(intr_getdisabled(temp)) {
 			if(temp == cos_isr) {
 				intr_setcontention(isrthd);
-				cos_thd_switch(cos_cur);
+				//cos_thd_switch(cos_cur);
+				printc("About to thd switch to intr_delay to: %d\n", temp);
+				ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);	
+				if(ret) printc("intr_delay, FAILED cos_switch %s\n", strerror(ret));
 			} /* else return back to top of loop */
 		} else break; 
 	}
 }
 
-inline void
+void
 intr_pending(int pending, int tid, int rcving)
 {	
         cycles_t cycles;
 	int i;
 	int irq_line;
+	int ret;
 	
 	irq_line = intr_translate_thdid2irq(tid); /* Analogous to the "which" argument in the irq_handler function */
 
@@ -111,12 +118,15 @@ intr_pending(int pending, int tid, int rcving)
 	for(; i > 0; i--) {
 		int temp = intrs;
 		if((temp>>(i-1)) & 1) {
-			cos_thd_switch(irq_thdcap[i]);
+			//cos_thd_switch(irq_thdcap[i]);
+			printc("About to thd switch in intr_pending to: %d\n", temp);
+			ret = cos_switch(temp, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);	
+			if(ret) printc("intr_pending, FAILED cos_switch %s\n", strerror(ret));
 		}
 	}
 }
 
-static inline void
+static void
 intr_update(int irq_line, int rcving)
 {
 	/* if an event for not an irq_line */
@@ -131,7 +141,7 @@ intr_update(int irq_line, int rcving)
 	}
 }
 
-static inline int
+static int
 intr_translate_thdid2irq(int tid)
 {
 	int i = 0;

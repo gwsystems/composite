@@ -17,6 +17,8 @@ struct thd_creation_protocol {
 	void *arg;
 };
 
+struct thd_creation_protocol all_rkthreads[200];
+
 /* Fetches the cos_thdid so that we know how far into bmk_threads[] to index*/
 void
 rump_thd_fn(void *param)
@@ -26,13 +28,17 @@ rump_thd_fn(void *param)
 	unsigned short int retcap = p->retcap;
 	void *arg   = p->arg;
 	void (*f)(void *) = p->f;
+	int ret;
 
 	p->thdid = &thdid;
 
 	thdid = cos_thdid();
 	//printc("thdid: %d\n", thdid);
 
-	cos_thd_switch(retcap);
+	//cos_thd_switch(retcap);
+	ret = cos_switch(retcap, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	if(ret) printc("THREAD SWITCH FAILED\n");
+
 	f(arg);
 }
 

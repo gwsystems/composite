@@ -74,7 +74,7 @@ hw_irq_alloc(void){
 	for(i = 1; i < HW_ISR_LINES; i++){
 		irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, i);
 		irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
-		irq_tcap[i] = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+		irq_tcap[i] = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 		irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 		cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
 	}
