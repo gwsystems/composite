@@ -594,7 +594,7 @@ test_vmio(int vm)
 				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				memset(buf, '\0', 50);
 				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
-				asndcap_t sndcap = VM_CAPTBL_SELF_VTASND_SET_BASE + (i - 1) * CAP64B_IDSZ;
+				asndcap_t sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (i - 1) * CAP64B_IDSZ;
 				vaddr_t shm_addr = BOOT_MEM_SHM_BASE + (i - 1) * COS_SHM_VM_SZ;
 				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				sprintf(buf, "%d:SHMEM %d to %d - %x", it, vm, i, cos_va2pa(&booter_info, shm_addr));
