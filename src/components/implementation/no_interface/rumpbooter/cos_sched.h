@@ -35,7 +35,7 @@ rump_thd_fn(void *param)
 	thdid = cos_thdid();
 
 	printc("About to cos_switch at rump_thd_fn to: %d\n", retcap);
-	ret = cos_switch(retcap, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	ret = cos_switch(retcap, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 	if(ret) printc("THREAD SWITCH FAILED\n");
 
 	f(arg);

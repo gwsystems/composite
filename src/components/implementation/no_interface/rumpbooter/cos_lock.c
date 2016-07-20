@@ -44,7 +44,7 @@ intr_enable(void)
 		 */
 
 		printc("About to thd switch at intr_enable to: %d\n", temp);
-		ret = cos_switch(temp, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);	
+		ret = cos_switch(temp, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());	
 		if(ret) printc("intr_enable, FAILED cos_switch %s\n", strerror(ret));
 	}
 }
@@ -83,7 +83,7 @@ intr_delay(int isrthd)
 			if(temp == cos_isr) {
 				intr_setcontention(isrthd);
 				printc("About to thd switch at intr_delay to: %d\n", cos_cur);
-				ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);	
+				ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());	
 				if(ret) printc("intr_delay, FAILED cos_switch %s\n", strerror(ret));
 			} /* else return back to top of loop */
 		} else break; 
@@ -119,7 +119,7 @@ intr_pending(int pending, int tid, int rcving)
 		int temp = intrs;
 		if((temp>>(i-1)) & 1) {
 			printc("About to thd switch in intr_pending to: %d\n", irq_thdcap[i]);
-			ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);	
+			ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());	
 			if(ret) printc("intr_pending, FAILED cos_switch %s\n", strerror(ret));
 		}
 	}

@@ -122,6 +122,7 @@ test_thds(void)
 	thdcap_t ts[TEST_NTHDS];
 	int i;
 	int ret;
+	sched_tok_t stok = 10;
 
 	for (i = 0 ; i < TEST_NTHDS ; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
@@ -135,7 +136,8 @@ test_thds(void)
        PRINTVM("Thd-switch Race-cond test\n");
        i = 0;
        while (i ++ < ITER) {
-            ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+            /* cos_switch should return -EAGAIN for VM > 0 */
+            ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, vmid > 0 ? stok -- : cos_sched_sync());
             if (ret) { 
                  PRINTVM("failed in %d thread switch: %s\n", i, strerror(ret));
                  break;

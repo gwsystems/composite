@@ -504,13 +504,12 @@ static int
 cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 	   struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
-	struct thread *next = thd_cap->t;
-	capid_t arcv        = (__userregs_get1(regs) << 16) >> 16;
-	capid_t tc          = __userregs_get1(regs) >> 16;
-	tcap_prio_t prio    = (tcap_prio_t)((tcap_prio_t)(__userregs_get3(regs) >> 16) << 32) | (tcap_prio_t)__userregs_get2(regs);
-	tcap_res_t res      = (tcap_res_t)__userregs_get4(regs);
-	/* op holds MSB of counter */
-	u32_t usr_counter   = (((u32_t)__userregs_get3(regs) << 16) >> 16) | ((u32_t)__userregs_getop(regs) << 16);
+	struct thread *next       = thd_cap->t;
+	capid_t arcv              = (__userregs_get1(regs) << 16) >> 16;
+	capid_t tc                = __userregs_get1(regs) >> 16;
+	tcap_prio_t prio          = (tcap_prio_t)((tcap_prio_t)(__userregs_get3(regs) >> 16) << 32) | (tcap_prio_t)__userregs_get2(regs);
+	tcap_res_t res            = (tcap_res_t)__userregs_get4(regs);
+	sched_tok_t usr_counter   = (((sched_tok_t)__userregs_get3(regs) << 16) >> 16) | ((sched_tok_t)__userregs_getop(regs) << 16); /* op holds MSB of counter */
 	struct tcap *tcap;
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;

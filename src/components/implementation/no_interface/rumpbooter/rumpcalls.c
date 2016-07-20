@@ -172,7 +172,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 
 	/* To access the thd_id */
 	printc("About to cos_switch at cos_cpu_sched_create on: %d\n", newthd_cap);
-	ret = cos_switch(newthd_cap, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	ret = cos_switch(newthd_cap, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 	if(ret) printc("cos_cpu_sched_create cos_switch FAILED: %s\n", strerror(ret));
 }
 
@@ -198,7 +198,7 @@ cos_resume(void)
                  */
 		if( (!intr_getdisabled(cos_isr)) ) intr_pending(pending, tid, rcving);
 
-		ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+		ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 		if(ret) printc("cos_resume, cos_switch FAILED: %d\n", ret);
 	}
 }
@@ -211,7 +211,7 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 	cos_cur = temp;
 
 
-	ret = cos_switch(temp, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	ret = cos_switch(temp, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 	if(ret) printc("cos_cpu_sched_switch, cos_switch FAILED: %s\n", strerror(ret));
 }
 

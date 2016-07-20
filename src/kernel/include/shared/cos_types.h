@@ -35,6 +35,7 @@ typedef s64_t cycles_t;
 typedef cycles_t tcap_res_t;
 typedef u64_t tcap_prio_t;
 typedef u64_t tcap_uid_t;
+typedef u32_t sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
 
 #define BOOT_LIVENESS_ID_BASE 2
