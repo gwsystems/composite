@@ -35,7 +35,7 @@ typedef u16_t localityid_t;
 #define PS_PAGE_SIZE   4096
 #define PS_RNDUP(v, a) (-(-(v) & -(a))) /* from blogs.oracle.com/jwadams/entry/macros_and_powers_of_two */
 
-/* 
+/*
  * How frequently do we check remote free lists when we make an
  * allocation?  This is in platform-specific code because it is
  * dependent on the hardware costs for cache-line contention on a
@@ -54,10 +54,10 @@ typedef u16_t localityid_t;
 /* Default allocation and deallocation functions */
 static inline void *
 ps_plat_alloc(size_t sz, coreid_t coreid)
-{ 
+{
 	void *m;
 	int ret;
-	(void)coreid; 
+	(void)coreid;
 
 	ret = posix_memalign(&m, PS_PAGE_SIZE, sz);
 	assert(!ret);
@@ -69,19 +69,19 @@ ps_plat_alloc(size_t sz, coreid_t coreid)
 
 static inline void
 ps_plat_free(void *s, size_t sz, coreid_t coreid)
-{ 
+{
 	(void)coreid; (void)sz;
 	free(s);
 	/* munmap(s, sz); */
 }
 
-/* 
+/*
  * We'd like an expression here so that it can be used statically, and
  * the compiler will turn it into a constant.
- * 
+ *
  * Value "v" must be an unsigned type the size of a word (e.g. unsigned long).
- * 
- * from http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2Float 
+ *
+ * from http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2Float
  */
 static inline unsigned long
 ps_rndpow2(unsigned long v)

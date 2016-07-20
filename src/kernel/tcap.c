@@ -35,7 +35,7 @@ tcap_ispool(struct tcap *t)
 
 /* Fill in default "safe" values */
 static void
-__tcap_init(struct tcap *t)
+__tcap_init(struct tcap *t, tcap_prio_t prio)
 {
 	tcap_uid_t *uid = tcap_uid_get();
 
@@ -44,9 +44,9 @@ __tcap_init(struct tcap *t)
 	t->ndelegs                 = 1;
 	t->delegations[0].tcap_uid = (*uid)++;
 	t->curr_sched_off          = 0;
-	tcap_setprio(t, TCAP_PRIO_MIN);
 	t->refcnt                  = 1;
 	t->pool                    = t;
+	tcap_setprio(t, prio);
 }
 
 static int
@@ -69,7 +69,6 @@ tcap_delete(struct tcap *tcap)
 static inline int
 __tcap_budget_xfer(struct tcap_budget *bd, struct tcap_budget *bs, tcap_res_t cycles)
 {
-	assert(cycles >= 0);
 	if (unlikely(TCAP_RES_IS_INF(cycles))) {
 		if (unlikely(!TCAP_RES_IS_INF(bs->cycles))) return -1;
 		bd->cycles = TCAP_RES_INF;
@@ -91,10 +90,10 @@ static int
 __tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio)
 {
 	assert(tcapdst && tcapsrc);
-	if (unlikely(tcapsrc->cpuid != get_cpuid()    ||
-		     tcapdst->cpuid != tcapsrc->cpuid || cycles < 0)) return -1;
-	if (!prio)   prio   = tcap_sched_info(tcapsrc)->prio;
-	if (!cycles) cycles = tcapsrc->budget.cycles;
+
+	if (unlikely(tcapsrc->cpuid != get_cpuid() || tcapdst->cpuid != tcapsrc->cpuid)) return -1;
+	if (prio == 0)   prio   = tcap_sched_info(tcapsrc)->prio;
+	if (cycles == 0) cycles = tcapsrc->budget.cycles;
 
 	if (unlikely(__tcap_budget_xfer(&tcapdst->budget, &tcapsrc->budget, cycles))) return -1;
 	tcap_sched_info(tcapdst)->prio = prio;
@@ -171,13 +170,13 @@ tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tca
 }
 
 int
-tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new)
+tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, tcap_prio_t prio)
 {
 	struct cap_tcap *tc;
 	int ret;
 
 	assert(tcap_new);
-	__tcap_init(tcap_new);
+	__tcap_init(tcap_new, prio);
 
 	tc = (struct cap_tcap *)__cap_capactivate_pre(ct, cap, capin, CAP_TCAP, &ret);
 	if (!tc) return ret;
@@ -199,7 +198,7 @@ tcap_promote(struct tcap *t, struct thread *thd)
 }
 
 int
-tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, int prio)
+tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t prio)
 {
 	/* doing this in-place is too much of a pain */
 	struct tcap_sched_info deleg_tmp[TCAP_MAX_DELEGATIONS];
@@ -212,11 +211,8 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, int prio)
 	assert(tcap_ispool(dst));
 	/* we can ignore the source priority as it is overwritten by prio */
 	src = src->pool;
-	if (unlikely(dst->ndelegs >= TCAP_MAX_DELEGATIONS)) {
-		printk("tcap %x already has max number of delgations.\n",
-			dst->delegations[0].tcap_uid);
-		return -ENOMEM;
-	}
+	if (unlikely(dst->ndelegs >= TCAP_MAX_DELEGATIONS)) return -ENOMEM;
+
 	d = tcap_sched_info(dst)->tcap_uid;
 	s = tcap_sched_info(src)->tcap_uid;
 	if (d == s) return -EINVAL;
@@ -226,13 +222,9 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, int prio)
 		struct tcap_sched_info *n, t;
 
 		/* Let the branch prediction nightmare begin... */
-		if (i == dst->ndelegs) {
-			n = &src->delegations[j++];
-		} else if (j == src->ndelegs) {
+		if (j == src->ndelegs        || dst->delegations[i].tcap_uid < src->delegations[j].tcap_uid) {
 			n = &dst->delegations[i++];
-		} else if (dst->delegations[i].tcap_uid < src->delegations[j].tcap_uid) {
-			n = &dst->delegations[i++];
-		} else if (dst->delegations[i].tcap_uid > src->delegations[j].tcap_uid) {
+		} else if (i == dst->ndelegs || dst->delegations[i].tcap_uid > src->delegations[j].tcap_uid) {
 			n = &src->delegations[j++];
 		} else {	/* same scheduler */
 			assert(dst->delegations[i].tcap_uid == src->delegations[j].tcap_uid);
@@ -249,7 +241,7 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, int prio)
 		if (d == deleg_tmp[ndelegs].tcap_uid) si = ndelegs;
 	}
 
-	if (__tcap_transfer(dst, src, cycles, 0)) return -EINVAL;
+	if (__tcap_transfer(dst, src, cycles, prio)) return -EINVAL;
 	memcpy(dst->delegations, deleg_tmp, sizeof(struct tcap_sched_info) * ndelegs);
 	/* can't delegate to yourself, thus 2 schedulers must be involved */
 	assert(ndelegs >= 2);
@@ -283,7 +275,7 @@ tcap_init(void)
 	int i;
 
 	for (i = 0 ; i < NUM_CPU ; i++) {
-		__tcap_init(&__tcap_percore[i].transient_tcap);
+		__tcap_init(&__tcap_percore[i].transient_tcap, TCAP_PRIO_MIN);
 		__tcap_percore[i].tcap_uid = 0;
 	}
 }

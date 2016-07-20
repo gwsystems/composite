@@ -570,7 +570,7 @@ __cap_asnd_to_arcv(struct cap_asnd *asnd)
 
 	if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) return NULL;
 	arcv = (struct cap_arcv *)captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid);
-	if (unlikely(!arcv || arcv->h.type != CAP_ARCV))          return NULL;
+	if (unlikely(!CAP_TYPECHK(arcv, CAP_ARCV)))               return NULL;
 	/* FIXME: check arcv epoch + liveness */
 
 	return arcv;
@@ -649,7 +649,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 	    struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
 	struct thread *next;
-	struct tcap   *tc = tcap_current(cos_info), *tc_next = tc;
+	struct tcap   *tc_next = tcap_current(cos_info);
 
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
 
@@ -672,8 +672,10 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		assert(0); 		/* need to take care of the tcap as well */
 	} else {
 		next = arcv_thd_notif(thd);
-		/* don't change the current tcap: scheduler thread inherits it */
-		/* root capability? */
+		/*
+		 * don't change the current tcap: scheduler thread
+		 * inherits it root capability?
+		 */
 		if (!next) return -EAGAIN;
 		thd_rcvcap_evt_enqueue(next, thd);
 	}
@@ -973,16 +975,19 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		}
 		case CAPTBL_OP_TCAP_ACTIVATE:
 		{
-			capid_t tcap_cap   = __userregs_get1(regs);
-			capid_t pgtbl_cap  = __userregs_get2(regs);
-			capid_t pgtbl_addr = __userregs_get3(regs);
+			capid_t tcap_cap   = __userregs_get1(regs) >> 16;
+			capid_t pgtbl_cap  = (__userregs_get1(regs) << 16) >> 16;
+			capid_t pgtbl_addr = __userregs_get2(regs);
+			u32_t prio_hi      = __userregs_get3(regs);
+			u32_t prio_lo      = __userregs_get4(regs);
+			tcap_prio_t prio   = (tcap_prio_t)prio_hi << 32 | (tcap_prio_t)prio_lo;
 			struct tcap   *tcap;
 			unsigned long *pte = NULL;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&tcap, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);
 
-			ret = tcap_activate(ct, cap, tcap_cap, tcap);
+			ret = tcap_activate(ct, cap, tcap_cap, tcap, prio);
 			if (ret) kmem_unalloc(pte);
 
 			break;
@@ -1294,27 +1299,33 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		case CAPTBL_OP_TCAP_TRANSFER:
 		{
 			capid_t tcpdst 		 = __userregs_get1(regs);
-			long long res 		 = __userregs_get2(regs);
+			tcap_res_t res 		 = __userregs_get2(regs);
 			u32_t prio_higher 	 = __userregs_get3(regs);
 			u32_t prio_lower 	 = __userregs_get4(regs);
 			tcap_prio_t prio 	 = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
 			struct cap_tcap *tcapsrc = (struct cap_tcap *)ch;
-			struct cap_tcap *tcapdst;
+			struct cap_arcv *rcv;
+			struct thread   *rthd;
+			struct tcap     *tc;
 
-			tcapdst = (struct cap_tcap *)captbl_lkup(ci->captbl, tcpdst);
-			if (!CAP_TYPECHK_CORE(tcapdst, CAP_TCAP)) cos_throw(err, -EINVAL);
+			rcv = (struct cap_arcv *)captbl_lkup(ci->captbl, tcpdst);
+			if (!CAP_TYPECHK_CORE(rcv, CAP_ARCV)) cos_throw(err, -EINVAL);
 
-			ret = tcap_transfer(tcapdst->tcap, tcapsrc->tcap, res, prio);
+			rthd = rcv->thd;
+			tc = rthd->rcvcap.rcvcap_tcap;
+			assert(rthd && tc);
+
+			ret = tcap_delegate(tc, tcapsrc->tcap, res, prio);
 			if (unlikely(ret)) cos_throw(err, -EINVAL);
 
 			break;
 		}
 		case CAPTBL_OP_TCAP_DELEGATE:
 		{
-			capid_t   asnd_cap    = __userregs_get1(regs);
-			long long res 	      = __userregs_get2(regs);
-			u32_t     prio_higher = __userregs_get3(regs);
-			u32_t     prio_lower  = __userregs_get4(regs);
+			capid_t   asnd_cap       = __userregs_get1(regs);
+			long long res 	         = __userregs_get2(regs);
+			u32_t     prio_higher    = __userregs_get3(regs);
+			u32_t     prio_lower     = __userregs_get4(regs);
 			struct cap_tcap *tcapsrc = (struct cap_tcap *)ch;
 			struct cap_arcv *arcv;
 			struct cap_asnd *asnd;
@@ -1329,14 +1340,16 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			prio_higher = (prio_higher << 1) >> 1;
 			prio        = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
 			asnd        = (struct cap_asnd *)captbl_lkup(ci->captbl, asnd_cap);
-			if (!CAP_TYPECHK(asnd, CAP_ASND)) cos_throw(err, -EINVAL);
+			if (unlikely(!CAP_TYPECHK(asnd, CAP_ASND))) cos_throw(err, -EINVAL);
 
 			arcv = __cap_asnd_to_arcv(asnd);
-			rthd = arcv->thd;
-			assert(rthd && rthd->rcvcap.rcvcap_tcap);
-			tcapdst = rthd->rcvcap.rcvcap_tcap;
+			if (unlikely(!arcv)) cos_throw(err, -EINVAL);
 
-			ret = tcap_delegate(tcapsrc->tcap, tcapdst, res, prio);
+			rthd = arcv->thd;
+			tcapdst = rthd->rcvcap.rcvcap_tcap;
+			assert(rthd && tcapdst);
+
+			ret = tcap_delegate(tcapdst, tcapsrc->tcap, res, prio);
 			if (unlikely(ret)) cos_throw(err, -EINVAL);
 
 			n = asnd_process(rthd, thd, tcapdst, tcap_current(cos_info), &tcap_next, yield);

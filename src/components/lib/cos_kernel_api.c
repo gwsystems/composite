@@ -635,23 +635,25 @@ cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 /***************** [Kernel Tcap Operations] *****************/
 
 tcap_t
-cos_tcap_alloc(struct cos_compinfo *ci)
+cos_tcap_alloc(struct cos_compinfo *ci, tcap_prio_t prio)
 {
 	vaddr_t kmem;
 	capid_t cap;
+	int prio_hi = (u32_t)(prio >> 32);
+	int prio_lo = (u32_t)((prio << 32) >> 32);
 
 	printd("cos_tcap_alloc\n");
 	assert (ci);
 
 	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, cap, ci->pgtbl_cap, kmem, 0)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (cap << 16) | ci->pgtbl_cap, kmem, prio_hi, prio_lo)) BUG();
 
 	return cap;
 }
 
 int
-cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio)
+cos_tcap_transfer(arcvcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio)
 {
 	int prio_higher = (u32_t)(prio >> 32);
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
@@ -666,7 +668,6 @@ cos_tcap_delegate(asndcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio, t
 	/* top bit is if we are dispatching or not */
 	int prio_higher = (u32_t)(prio >> 32) | (yield << ((sizeof(yield)*8)-1));
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
-	int ret = -EINVAL;
 
 	return call_cap_op(src, CAPTBL_OP_TCAP_DELEGATE, dst, res, prio_higher, prio_lower);
 }
