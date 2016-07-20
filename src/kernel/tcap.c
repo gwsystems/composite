@@ -215,7 +215,10 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t
 
 	d = tcap_sched_info(dst)->tcap_uid;
 	s = tcap_sched_info(src)->tcap_uid;
-	if (d == s) return -EINVAL;
+	if (unlikely(d == s)) {
+		tcap_sched_info(dst)->prio = prio;
+		return 0;
+	}
 	if (!prio) prio = tcap_sched_info(src)->prio;
 
 	for (i = 0, j = 0, ndelegs = 0 ; i < dst->ndelegs || j < src->ndelegs ; ndelegs++) {
