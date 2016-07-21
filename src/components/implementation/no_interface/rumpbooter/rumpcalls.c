@@ -10,11 +10,11 @@
 #include "cos_sched.h"
 #include "cos_lock.h"
 
+extern struct cos_compinfo booter_info;
 extern struct cos_rumpcalls crcalls;
-int boot_thread = 1;
 
-/* Thread id */
-volatile capid_t cos_cur = 0;
+/* Thread cap */
+volatile thdcap_t cos_cur = BOOT_CAPTBL_SELF_INITTHD_BASE;
 extern signed int cos_isr;
 
 /* Mapping the functions from rumpkernel to composite */
@@ -52,6 +52,8 @@ cos2rump_setup(void)
 
 	crcalls.rump_intr_enable		= intr_enable;
 	crcalls.rump_intr_disable		= intr_disable;
+
+	crcalls.rump_sched_yield		= cos_sched_yield;
 	return;
 }
 
@@ -65,7 +67,10 @@ cos_irqthd_handler(void *line)
 	cycles_t cycles;
 
 	while(1) {
+		/* I guess we replace this with bitmask logic? */
+		irq_isblocked[which] = 1;
 		cos_rcv(irq_arcvcap[which], &tid, &rcving, &cycles);
+		irq_isblocked[which] = 0;
 
 		intr_delay(irq_thdcap[which]);
 
@@ -127,7 +132,6 @@ cos_memalloc(size_t nbytes, size_t align)
 }
 
 /*---- Scheduling ----*/
-extern struct cos_compinfo booter_info;
 int boot_thd = BOOT_CAPTBL_SELF_INITTHD_BASE;
 
 void
@@ -144,36 +148,10 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 
 	thdcap_t newthd_cap;
 	int ret;
-	static int all_threads_offset = 0;
-	//struct thd_creation_protocol  info;
-	//struct thd_creation_protocol *thd_meta = &info;
-	struct thd_creation_protocol *thd_meta = &all_rkthreads[all_threads_offset];
 
-	all_threads_offset++;
-
-	if(all_threads_offset >= 200) {
-		printc("Did I tell the RK that it could have more than 200 threads?! NO. SO NO MORE THREADS FOR YOU!\n");
-		assert(0);
-	}
-
-	if(boot_thread || !strcmp(get_name(thread), "isrthr")) {
-
-		if(!strcmp(get_name(thread), "main")) boot_thread = 0;
-
-		thd_meta->retcap = BOOT_CAPTBL_SELF_INITTHD_BASE;
-
-	} else thd_meta->retcap = get_cos_thdcap(bmk_current);
-
-	thd_meta->f = f;
-	thd_meta->arg = arg;
-
-	newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, rump_thd_fn, thd_meta);
-	set_cos_thdcap(thread, newthd_cap);
-
-	/* To access the thd_id */
-	printc("About to cos_switch at cos_cpu_sched_create on: %d\n", newthd_cap);
-	ret = cos_switch(newthd_cap, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-	if(ret) printc("cos_cpu_sched_create cos_switch FAILED: %s\n", strerror(ret));
+	newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, f, arg);
+	assert(newthd_cap);
+	set_cos_thddata(thread, newthd_cap, cos_introspect(&booter_info, newthd_cap, 9));
 }
 
 
@@ -189,6 +167,8 @@ cos_resume(void)
 	int ret;
 
 	while(1) {
+		int i;
+
 		/* cos_rcv returns the number of pending messages */
 		pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
 
@@ -197,22 +177,51 @@ cos_resume(void)
 		 * Do we need to check every time we return here?
                  */
 		if( (!intr_getdisabled(cos_isr)) ) intr_pending(pending, tid, rcving);
+		for (i = 1; i < HW_ISR_LINES; i ++) {
+			do {
+				ret = 0;
+				/* Schedule all unblocked IRQs */
+				if (irq_isblocked[i] == 0) {
+					ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+					assert(ret == 0 || ret == -EAGAIN);
+				}
+			} while (ret == -EAGAIN);
+		}
 
-		ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-		if(ret) printc("cos_resume, cos_switch FAILED: %d\n", ret);
+		do {
+			ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			assert(ret == 0 || ret == -EAGAIN);
+		} while (ret == -EAGAIN);
 	}
 }
 
 void
 cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 {
+	sched_tok_t tok = cos_sched_sync();
+	thdcap_t temp   = get_cos_thdcap(next);
 	int ret;
-	int temp = get_cos_thdcap(next);
+
 	cos_cur = temp;
 
-
-	ret = cos_switch(temp, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-	if(ret) printc("cos_cpu_sched_switch, cos_switch FAILED: %s\n", strerror(ret));
+	do {
+		ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
+		assert(ret == 0 || ret == -EAGAIN);
+		if (ret == -EAGAIN) {
+			/*
+			 * I was preempted after getting the token and before updating cos_cur which just outdated my sched token
+			 * So get a new token and try cos_switch again
+			 * 
+			 * And cos_cur == temp, can only happen if I've updated cos_cur and there were no other RK threads switched-to after that.
+			 */
+			if (cos_cur == temp) tok = cos_sched_sync();
+			/*
+			 * cos_cur is set to 'me' by some other RK thread because I was preempted after updating cos_cur
+			 * ignore -EAGAIN in this scenario
+			 */
+			else break;
+		}
+	} while (ret == -EAGAIN);
 }
 
 /* --------- Timer ----------- */
@@ -252,3 +261,7 @@ cos_pa2va(void * pa, unsigned long len)
 void
 cos_vm_exit(void)
 { while (1) cos_thd_switch(VM_CAPTBL_SELF_EXITTHD_BASE); }
+
+void
+cos_sched_yield(void)
+{ cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }

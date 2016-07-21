@@ -524,10 +524,8 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
 		rcvt = arcv_cap->thd;
 		/* race-condition check for user-level thread switches */
-		if (thd_rcvcap_get_counter(rcvt) > usr_counter) { 
-			printk("Counters: user: %u kern: %u\n", usr_counter, thd_rcvcap_get_counter(rcvt));
-			return -EAGAIN;
-		}
+		assert(usr_counter < 0xFFFFFFFFU);
+		if (thd_rcvcap_get_counter(rcvt) > usr_counter)	return -EAGAIN;
 		thd_rcvcap_set_counter(rcvt, usr_counter);
 		if (thd_rcvcap_pending(rcvt) > 0) {
 			next = rcvt;
