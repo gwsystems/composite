@@ -8,14 +8,13 @@
 #include "rumpcalls.h"
 #include "rump_cos_alloc.h"
 #include "cos_sched.h"
-#include "cos_lock.h"
+#include "cos_sync.h"
 
 extern struct cos_rumpcalls crcalls;
 int boot_thread = 1;
 
 /* Thread id */
-volatile capid_t cos_cur = 0;
-extern signed int cos_isr;
+volatile thdcap_t cos_cur = 0;
 
 /* Mapping the functions from rumpkernel to composite */
 
@@ -67,15 +66,11 @@ cos_irqthd_handler(void *line)
 	while(1) {
 		cos_rcv(irq_arcvcap[which], &tid, &rcving, &cycles);
 
-		intr_delay(irq_thdcap[which]);
+		intr_start(irq_thdcap[which]);
 
 		bmk_isr(which);
 
-		/* 
-		 * cos_isr is set to zero when intrrupts are reenabled
-		 * If cos_isr is zero but we don't finish this function, intr_pending will
-		 * recognize this and switch back for us.
-		 */
+		intr_end();
 	}
 }
 
@@ -196,7 +191,7 @@ cos_resume(void)
 		 * Handle all possible interrupts when intrupts are disabled
 		 * Do we need to check every time we return here?
                  */
-		if( (!intr_getdisabled(cos_isr)) ) intr_pending(pending, tid, rcving);
+		if( (!intr_getdisabled(cos_isr)) ) event_process(pending, tid, rcving);
 
 		ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
 		if(ret) printc("cos_resume, cos_switch FAILED: %d\n", ret);
@@ -208,8 +203,10 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 {
 	int ret;
 	int temp = get_cos_thdcap(next);
-	cos_cur = temp;
 
+	assert(!intrs && !cos_isr);
+
+	cos_cur = temp;
 
 	ret = cos_switch(temp, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	if(ret) printc("cos_cpu_sched_switch, cos_switch FAILED: %s\n", strerror(ret));
