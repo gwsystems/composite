@@ -119,6 +119,7 @@ test_thds(void)
 	int i;
 	unsigned int counter = 0;
 	int ret;
+	sched_tok_t stok = 10;
 
 	for (i = 0 ; i < TEST_NTHDS ; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
@@ -129,11 +130,15 @@ test_thds(void)
 		cos_thd_switch(ts[i]);
 	}
 
-	printc("Thd-switch Race-cond test\n");
-	ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	if (ret) printc("failed in 1st thread switch: %s\n", strerror(ret));
-	ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	if (ret) printc("failed in 2nd thread switch: %s\n", strerror(ret));
+       printc("Thd-switch Race-cond test\n");
+       i = 0;
+       while (i ++ < ITER) {
+            ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+            if (ret) { 
+                 printc("failed in %d thread switch: %s\n", i, strerror(ret));
+                 break;
+            }
+       }
 
 	printc("test done\n");
 }
@@ -159,8 +164,7 @@ test_mem(void)
 	prev = s;
 	for (i = 0 ; i < TEST_NPAGES ; i++) {
 		t = cos_page_bump_alloc(&booter_info);
-		assert(t);// && t == prev + 4096);
-		printc("%d:%x: Page allocation\n", i, t);
+		assert(t && t == prev + 4096);
 		prev = t;
 	}
 	memset(s, 0, TEST_NPAGES * 4096);

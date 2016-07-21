@@ -738,20 +738,13 @@ int
 cos_thd_switch(thdcap_t c)
 { return call_cap_op(c, 0, 0, 0, 0, 0); }
 
+sched_tok_t
+cos_sched_sync(void)
+{ static sched_tok_t stok; return __sync_add_and_fetch(&stok, 1); }
+
 int
-cos_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_res_t res, arcvcap_t rcv)
-{
-	/*
-	 * This is the second draft for thread-switch race-condition check in the kernel
-	 * This counter is now 32bits, should work for upto UINT_MAX thread switches
-	 */
-	static u32_t counter = 0; 
-	(void)res; 
-	__sync_add_and_fetch(&counter, 1);
-	
-	/* "op" unused in thread switch api, using it for counters */
-	return call_cap_op(c, (counter >> 16), tc << 16 | rcv, (prio << 32) >> 32, ((prio << 16) >> 32) | ((counter << 16) >> 16), res); 
-}
+cos_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_res_t res, arcvcap_t rcv, sched_tok_t stok)
+{ (void)res; return call_cap_op(c, (stok >> 16), tc << 16 | rcv, (prio << 32) >> 32, ((prio << 16) >> 32) | ((stok << 16) >> 16), res); }
 
 int
 cos_asnd(asndcap_t snd)

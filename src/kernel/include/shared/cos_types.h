@@ -35,6 +35,7 @@ typedef s64_t cycles_t;
 typedef cycles_t tcap_res_t;
 typedef u64_t tcap_prio_t;
 typedef u64_t tcap_uid_t;
+typedef u32_t sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
 
 #define BOOT_LIVENESS_ID_BASE 2
@@ -874,13 +875,15 @@ typedef enum {
 	TCAP_DELEG_YIELD    = 1<<1,
 } tcap_deleg_flags_t;
 
-capid_t irq_thdcap[32];
-thdid_t irq_thdid[32];
-capid_t irq_arcvcap[32];
-capid_t irq_tcap[32];
-
 #ifndef __KERNEL_PERCPU
 #define __KERNEL_PERCPU 0
 #endif
+
+#define HW_ISR_LINES 32
+
+capid_t irq_thdcap[HW_ISR_LINES]; 
+thdid_t irq_thdid[HW_ISR_LINES];
+tcap_t irq_tcap[HW_ISR_LINES]; 
+capid_t irq_arcvcap[HW_ISR_LINES];
 
 #endif /* TYPES_H */
