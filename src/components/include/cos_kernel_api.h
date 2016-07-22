@@ -9,17 +9,6 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
-/* Types mainly used for documentation */
-typedef capid_t sinvcap_t;
-typedef capid_t sretcap_t;
-typedef capid_t asndcap_t;
-typedef capid_t arcvcap_t;
-typedef capid_t thdcap_t;
-typedef capid_t tcap_t;
-typedef capid_t compcap_t;
-typedef capid_t captblcap_t;
-typedef capid_t pgtblcap_t;
-typedef capid_t hwcap_t;
 
 /* Memory source information */
 struct cos_meminfo {

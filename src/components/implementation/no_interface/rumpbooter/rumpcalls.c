@@ -15,7 +15,6 @@ extern struct cos_rumpcalls crcalls;
 
 /* Thread cap */
 volatile thdcap_t cos_cur = BOOT_CAPTBL_SELF_INITTHD_BASE;
-extern signed int cos_isr;
 
 /* Mapping the functions from rumpkernel to composite */
 
@@ -157,14 +156,12 @@ void
 cos_resume(void)
 {	
 	thdid_t tid = 0;
-	int rcving = 0;
 	cycles_t cycles = 0;
-	int pending = 0;
-	int ret;
+	int rcving, ret, pending = 0;
+	unsigned int isdisabled;
+	thdcap_t unused;
 
 	while(1) {
-		int i;
-
 		/* cos_rcv returns the number of pending messages */
 		pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
 
@@ -172,7 +169,8 @@ cos_resume(void)
 		 * Handle all possible interrupts when intrupts are disabled
 		 * Do we need to check every time we return here?
                  */
-		if( (!intr_getdisabled(cos_isr)) ) event_process(pending, tid, rcving);
+		isr_get(cos_isr, &isdisabled, &unused);
+		if(!isdisabled) event_process(pending, tid, rcving);
 	
 		do {
 			ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
@@ -188,7 +186,8 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 	thdcap_t temp   = get_cos_thdcap(next);
 	int ret;
 
-	assert(!intrs && !cos_isr);
+	//assert(!intrs);
+	//assert(!cos_isr);
 	cos_cur = temp;
 
 	do {

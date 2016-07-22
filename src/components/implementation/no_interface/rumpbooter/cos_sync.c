@@ -4,10 +4,11 @@
 #include <cos_kernel_api.h>
 #include <cos_types.h>
 
-#include <ps_plat_linux.h>
+volatile isr_state_t cos_isr = 0; /* Last running isr thread */
+unsigned int cos_nesting = 0; 	  /* Depth to intr_disable/intr_enable */
+u32_t intrs = 0; 	          /* Intrrupt bit mask */
 
-u32_t intrs = 0; 	        /* Intrrupt bit mask */
-extern volatile thdcap_t cos_cur;     /* Last running rk thread */
+extern volatile thdcap_t cos_cur; /* Last running rk thread */
 
 /* Called from cos_irq_handler */
 
@@ -77,7 +78,7 @@ intr_start(thdcap_t thdcap)
 
 		contending = thdcap;
 		ret = isdisabled;
-		if (!isdisabled) assert(nesting == 0);
+		if (!isdisabled) assert(cos_nesting == 0);
 
 		final = isr_construct(isdisabled, contending);
 	} while (unlikely(!ps_cas(&cos_isr, tmp, final)));
@@ -85,7 +86,7 @@ intr_start(thdcap_t thdcap)
 	if (likely(!ret)) return 0;
 
 	do {
-		ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+		ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 		assert(ret == 0 || ret == -EAGAIN);
 	} while (ret == -EAGAIN);
 }
@@ -94,7 +95,7 @@ intr_start(thdcap_t thdcap)
 void
 intr_end(void)
 {
-	assert(!nesting && !(cos_isr>>31)); 
+	assert(!cos_nesting && !(cos_isr>>31)); 
 	isr_setcontention(0);
 }
 
@@ -129,7 +130,7 @@ event_process(int pending, int tid, int rcving)
 		int tmp = intrs;
 
 		if((tmp>>(i-1)) & 1) {
-			ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE);
+			ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			if(ret) printc("intr_pending, FAILED cos_switch %d\n", ret);
 		}
 	}

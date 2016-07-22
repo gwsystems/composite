@@ -31,6 +31,20 @@ typedef signed long long s64_t;
 
 #define LLONG_MAX 9223372036854775807LL
 
+/* Types mainly used for documentation */
+typedef unsigned long capid_t;
+
+typedef capid_t sinvcap_t;
+typedef capid_t sretcap_t;
+typedef capid_t asndcap_t;
+typedef capid_t arcvcap_t;
+typedef capid_t thdcap_t;
+typedef capid_t tcap_t;
+typedef capid_t compcap_t;
+typedef capid_t captblcap_t;
+typedef capid_t pgtblcap_t;
+typedef capid_t hwcap_t;
+
 typedef s64_t cycles_t;
 typedef cycles_t tcap_res_t;
 typedef u64_t tcap_prio_t;
@@ -144,8 +158,6 @@ typedef enum {
 	HW_ID31,
 	HW_ID32,
 } hwid_t;
-
-typedef unsigned long capid_t;
 
 #define QUIESCENCE_CHECK(curr, past, quiescence_period)  (((curr) - (past)) > (quiescence_period))
 
