@@ -66,10 +66,7 @@ cos_irqthd_handler(void *line)
 	cycles_t cycles;
 
 	while(1) {
-		/* I guess we replace this with bitmask logic? */
-		irq_isblocked[which] = 1;
 		cos_rcv(irq_arcvcap[which], &tid, &rcving, &cycles);
-		irq_isblocked[which] = 0;
 
 		intr_start(irq_thdcap[which]);
 

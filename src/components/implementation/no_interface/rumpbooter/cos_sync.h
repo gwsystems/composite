@@ -90,8 +90,6 @@ isr_disable(void)
 		
 	cos_nesting++;
 	assert((unsigned int)cos_nesting < (1<<16));
-
-	printc("\tEnd of isr_disable: %b and nesting: %d\n", cos_isr, cos_nesting);
 }
 
 static inline thdcap_t
@@ -119,7 +117,6 @@ isr_enable(void)
 		} while (unlikely(!ps_cas(&cos_isr, tmp, final)));
 	}
 
-	printc("\tEnd of isr_enable: %b and nesting: %d\n", cos_isr, cos_nesting);
 	return contending;
 }
 
@@ -141,11 +138,11 @@ intr_enable(void)
 		 * interrupts here as opposed to release another
 		 * cos_nesting of the interrupts
 		 */
-		ret = cos_switch(contending, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-		if (ret && ret != -EAGAIN) {
-			printc("intr_enable, FAILED cos_switch %s\n", strerror(ret));
-			assert(0);
-		}
+		do {
+
+			ret = cos_switch(contending, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			assert (ret == 0 || ret == -EAGAIN);
+		} while (ret == -EAGAIN);
 	}
 }
 

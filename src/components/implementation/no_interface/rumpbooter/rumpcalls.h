@@ -9,8 +9,6 @@ typedef __builtin_va_list va_list;
 #define va_arg             __builtin_va_arg
 #define va_end(va_arg)     __builtin_va_end(va_arg)
 
-volatile unsigned short irq_isblocked[HW_ISR_LINES];
-
 extern struct cos_rumpcalls crcalls;
 
 extern int boot_thd;

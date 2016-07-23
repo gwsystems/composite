@@ -33,7 +33,7 @@ isr_setcontention(unsigned int intr)
 static unsigned int
 intr_translate_thdid2irq(thdid_t tid)
 {
-	int i = 0;
+	int i = 1;
 
 	if(tid == 0) return -1;
 
@@ -126,12 +126,14 @@ event_process(int pending, int tid, int rcving)
 	/* TODO, see if we need to disable interupts here */
 
 	i = 32;
-	for(; i > 0 ; i--) {
+	for(; i > 1 ; i--) {
 		int tmp = intrs;
 
 		if((tmp>>(i-1)) & 1) {
-			ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-			if(ret) printc("intr_pending, FAILED cos_switch %d\n", ret);
+			do {
+				ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				assert (ret == 0 || ret == -EAGAIN);
+			} while (ret == -EAGAIN);
 		}
 	}
 }
