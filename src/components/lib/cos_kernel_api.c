@@ -751,7 +751,7 @@ cos_asnd(asndcap_t snd)
 { return call_cap_op(snd, 0, 0, 0, 0, 0); }
 
 int
-cos_rcv(arcvcap_t rcv, thdid_t *thdid, int *receiving, cycles_t *cycles)
+cos_sched_rcv(arcvcap_t rcv, thdid_t *thdid, int *receiving, cycles_t *cycles)
 {
 	unsigned long thd_state = 0;
 	unsigned long cyc = 0;
@@ -762,6 +762,20 @@ cos_rcv(arcvcap_t rcv, thdid_t *thdid, int *receiving, cycles_t *cycles)
 	*receiving = (int)(thd_state >> (sizeof(thd_state)*8-1));
 	*thdid = (thdid_t)(thd_state & ((1 << (sizeof(thdid_t)*8))-1));
 	*cycles = cyc;
+
+	return ret;
+}
+
+int
+cos_rcv(arcvcap_t rcv)
+{
+	thdid_t tid = 0;
+	int rcving;
+	cycles_t cyc;
+	int ret;
+
+	ret = cos_sched_rcv(rcv, &tid, &rcving, &cyc);
+	assert(tid == 0);
 
 	return ret;
 }
@@ -828,23 +842,25 @@ cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 /***************** [Kernel Tcap Operations] *****************/
 
 tcap_t
-cos_tcap_alloc(struct cos_compinfo *ci)
+cos_tcap_alloc(struct cos_compinfo *ci, tcap_prio_t prio)
 {
 	vaddr_t kmem;
 	capid_t cap;
+	int prio_hi = (u32_t)(prio >> 32);
+	int prio_lo = (u32_t)((prio << 32) >> 32);
 
 	printd("cos_tcap_alloc\n");
 	assert (ci);
 
 	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, cap, ci->pgtbl_cap, kmem, 0)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (cap << 16) | ci->pgtbl_cap, kmem, prio_hi, prio_lo)) BUG();
 
 	return cap;
 }
 
 int
-cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio)
+cos_tcap_transfer(arcvcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio)
 {
 	int prio_higher = (u32_t)(prio >> 32);
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
@@ -852,26 +868,13 @@ cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio)
 	return call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, dst, res, prio_higher, prio_lower);
 }
 
-tcap_t
-cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio)
-{
-	capid_t tcap;
-
-	tcap = cos_tcap_alloc(ci);
-	if (!tcap)                                   return 0;
-	if (cos_tcap_transfer(src, tcap, res, prio)) return 0;
-
-	return tcap;
-}
-
 int
-cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags)
+cos_tcap_delegate(asndcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags)
 {
 	u32_t yield     = flags & TCAP_DELEG_YIELD;
 	/* top bit is if we are dispatching or not */
 	int prio_higher = (u32_t)(prio >> 32) | (yield << ((sizeof(yield)*8)-1));
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
-	int ret = -EINVAL;
 
 	return call_cap_op(src, CAPTBL_OP_TCAP_DELEGATE, dst, res, prio_higher, prio_lower);
 }

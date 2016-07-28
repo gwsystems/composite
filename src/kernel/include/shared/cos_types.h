@@ -46,11 +46,17 @@ typedef capid_t pgtblcap_t;
 typedef capid_t hwcap_t;
 
 typedef s64_t cycles_t;
-typedef cycles_t tcap_res_t;
+typedef unsigned long tcap_res_t;
 typedef u64_t tcap_prio_t;
 typedef u64_t tcap_uid_t;
 typedef u32_t sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
+
+typedef enum {
+	TCAP_DELEG_TRANSFER = 1,
+	TCAP_DELEG_YIELD    = 1<<1,
+} tcap_deleg_flags_t;
+
 
 #define BOOT_LIVENESS_ID_BASE 2
 
@@ -158,6 +164,16 @@ typedef enum {
 	HW_ID31,
 	HW_ID32,
 } hwid_t;
+
+typedef unsigned long capid_t;
+#define TCAP_PRIO_MAX (1ULL)
+#define TCAP_PRIO_MIN (~0ULL)
+#define TCAP_RES_GRAN_ORD  16
+#define TCAP_RES_PACK(r)   (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
+#define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
+#define TCAP_RES_INF  (~0UL)
+#define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
+typedef capid_t tcap_t;
 
 #define QUIESCENCE_CHECK(curr, past, quiescence_period)  (((curr) - (past)) > (quiescence_period))
 
@@ -873,19 +889,6 @@ cos_mem_fence(void)
 #define COS_THD_INIT_REGION_SIZE (1<<8)
 // Static entries are after the dynamic allocated entries
 #define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))
-
-#define TCAP_RES_GRAN_ORD  16
-#define TCAP_RES_PACK(r)   (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
-#define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
-#define TCAP_RES_INF LLONG_MAX
-#define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
-
-typedef capid_t tcap_t;
-
-typedef enum {
-	TCAP_DELEG_TRANSFER = 1,
-	TCAP_DELEG_YIELD    = 1<<1,
-} tcap_deleg_flags_t;
 
 #ifndef __KERNEL_PERCPU
 #define __KERNEL_PERCPU 0

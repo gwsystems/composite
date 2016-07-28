@@ -61,14 +61,9 @@ void
 cos_irqthd_handler(void *line)
 {
 	int which = (int)line;
-	thdid_t tid;
-	int rcving;
-	cycles_t cycles;
 
 	while(1) {
-		cos_rcv(irq_arcvcap[which], &tid, &rcving, &cycles);
-
-		assert(!rcving);
+		int pending = cos_rcv(irq_arcvcap[which]);
 
 		intr_start(irq_thdcap[which]);
 
@@ -193,7 +188,7 @@ cos_resume(void)
 		 	 */
 
 			do {
-				pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
 				assert(pending <= 1);
 
 				irq_line = intr_translate_thdid2irq(tid);

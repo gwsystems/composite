@@ -33,7 +33,7 @@ struct cos_cpu_local_info {
 	unsigned long cpuid;
 	void *curr_thd;
 	void *curr_tcap;
-	tcap_res_t cycles;
+	cycles_t cycles;
 	/* cache the stk_top index to save a cacheline access on
 	 * inv/ret. Could use a struct here if need to cache multiple
 	 * things. (e.g. captbl, etc) */

@@ -55,8 +55,8 @@ void cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long
  */
 int cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, vaddr_t entry, vaddr_t shm_ptr, struct cos_compinfo *ci_resources);
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
-pgtblcap_t cos_pgtbl_alloc(struct cos_compinfo *ci);
-compcap_t cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry);
+pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
+compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry);
 
 typedef void (*cos_thd_fn_t)(void *);
 thdcap_t  cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
@@ -74,12 +74,16 @@ capid_t cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_
 int cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_compinfo *srcci, capid_t srccap);
 
 int cos_thd_switch(thdcap_t c);
+#define CAP_NULL 0
 sched_tok_t cos_sched_sync(void);
 int cos_switch(thdcap_t c, tcap_t t, tcap_prio_t p, tcap_res_t r, arcvcap_t rcv, sched_tok_t stok);
 int cos_thd_mod(struct cos_compinfo *ci, thdcap_t c, void *tls_addr); /* set tls addr of thd in captbl */
 
 int cos_asnd(asndcap_t snd);
-int cos_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, cycles_t *cycles);
+/* returns non-zero if there are still pending events (i.e. there have been pending snds) */
+int cos_rcv(arcvcap_t rcv);
+/* returns the same value as cos_rcv, but also information about scheduling events */
+int cos_sched_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, cycles_t *cycles);
 
 int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
 
@@ -90,9 +94,9 @@ int cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo
 int cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
 
 /* Tcap operations */
-tcap_t cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio);
-int cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio);
-int cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags);
+tcap_t cos_tcap_alloc(struct cos_compinfo *ci, tcap_prio_t prio);
+int cos_tcap_transfer(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio);
+int cos_tcap_delegate(asndcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags);
 int cos_tcap_merge(tcap_t dst, tcap_t rm);
 
 /* Hardware (interrupts) operations */
