@@ -48,18 +48,14 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	if (cos_cas((unsigned long *)&ptc->refcnt_flags, v, v + 1) != CAS_SUCCESS) return -ECASFAIL;
 
 	v = ctc->refcnt_flags;
-	if (v & CAP_MEM_FROZEN_FLAG) {
-		ret = -EINVAL;
-		goto undo_ptc;
-	}
+	if (v & CAP_MEM_FROZEN_FLAG) cos_throw(undo_ptc, -EINVAL);
 	if (cos_cas((unsigned long *)&ctc->refcnt_flags, v, v + 1) != CAS_SUCCESS) {
 		/* undo before return */
-		ret = -ECASFAIL;
-		goto undo_ptc;
+		cos_throw(undo_ptc, -ECASFAIL);
 	}
 	
 	compc = (struct cap_comp *)__cap_capactivate_pre(t, cap, capin, CAP_COMP, &ret);
-	if (!compc) goto undo_ctc;
+	if (!compc) cos_throw(undo_ctc, ret);
 
 	compc->entry_addr    = entry_addr;
 	compc->info.pgtbl    = ptc->pgtbl;
