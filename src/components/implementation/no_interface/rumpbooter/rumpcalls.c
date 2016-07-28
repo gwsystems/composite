@@ -68,6 +68,8 @@ cos_irqthd_handler(void *line)
 	while(1) {
 		cos_rcv(irq_arcvcap[which], &tid, &rcving, &cycles);
 
+		assert(!rcving);
+
 		intr_start(irq_thdcap[which]);
 
 		bmk_isr(which);
@@ -146,33 +148,80 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	set_cos_thddata(thread, newthd_cap, cos_introspect(&booter_info, newthd_cap, 9));
 }
 
+static inline void
+intr_switch(void)
+{
+	int ret, i = 32;
 
-/* Called from RK init thread. The one in while(1) */
+	/* Man this is ugly...FIXME */
+	for(; i > 1 ; i--) {
+		int tmp = intrs;
 
+		if((tmp>>(i-1)) & 1) {
+			do {
+				ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				assert (ret == 0 || ret == -EAGAIN);
+			} while (ret == -EAGAIN);
+		}
+	}
+}
+
+
+/* Called once from RK init thread. The one in while(1) */
 void
 cos_resume(void)
-{	
-	thdid_t tid = 0;
-	cycles_t cycles = 0;
-	int rcving, ret, pending = 0;
-	unsigned int isdisabled;
-	thdcap_t unused;
-
+{
 	while(1) {
-		/* cos_rcv returns the number of pending messages */
-		pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+		int ret;
+		unsigned int isdisabled;
 
-		/* 
-		 * Handle all possible interrupts when intrupts are disabled
-		 * Do we need to check every time we return here?
-                 */
-		isr_get(cos_isr, &isdisabled, &unused);
-		if(!isdisabled) event_process(pending, tid, rcving);
-	
 		do {
+			thdcap_t contending;
+			cycles_t cycles;
+			int ret, pending, tid, rcving, irq_line, first = 1;
+
+			/*
+			 * Handle all possible interrupts when
+			 * interrupts are enabled or when
+			 * a cos interrupt thread has disabled interrupts.
+			 * Otherwise a rk thread disabled them and we need to
+			 * switch back so it can enable interrupts
+			 *
+			 * Loop is neccessary incase we get preempted before a valid
+			 * interrupt finishes execuing and we requrie that it finishes
+			 * executing before returning to RK
+		 	 */
+
+			do {
+				pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+				assert(pending <= 1);
+
+				irq_line = intr_translate_thdid2irq(tid);
+				intr_update(irq_line, rcving);
+
+				if(first) {
+					isr_get(cos_isr, &isdisabled, &contending);
+					if(isdisabled && !cos_intrdisabled) goto rk_resume;
+					first = 0;
+				}
+			} while(pending);
+
+			/*
+			 * Done processing pending events
+			 * Finish any remaining interrupts
+			 */
+			intr_switch();
+
+
+		} while(intrs && (!isdisabled || cos_intrdisabled));
+
+rk_resume:
+		do {
+			if(cos_intrdisabled) break;
+			assert(!cos_intrdisabled);
 			ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0 || ret == -EAGAIN);
-		} while (ret == -EAGAIN);
+		} while(ret == -EAGAIN);
 	}
 }
 
@@ -183,8 +232,9 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 	thdcap_t temp   = get_cos_thdcap(next);
 	int ret;
 
-	//assert(!intrs);
-	//assert(!cos_isr);
+	if(intrs) printc("FIXME: An interrupt is pending while rk is switching threads...\n");
+	if(cos_isr) printc("%b\n", cos_isr);
+	assert(!cos_isr);
 	cos_cur = temp;
 
 	do {
