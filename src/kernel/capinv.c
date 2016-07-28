@@ -491,8 +491,9 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr,
 
 		assert(!(next->state & THD_STATE_PREEMPTED));
 		next->state &= ~THD_STATE_RCVING;
-		thd_state_evt_deliver(next, &a, &b);
-		__userregs_setretvals(&next->regs, thd_rcvcap_pending_dec(next), a, b);
+		if (!thd_state_evt_deliver(next, &a, &b))
+			thd_rcvcap_pending_dec(next);
+		__userregs_setretvals(&next->regs, thd_rcvcap_pending(next), a, b);
 	}
 
 	copy_all_regs(&next->regs, regs);
@@ -666,8 +667,9 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		unsigned long a = 0, b = 0;
 
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-		thd_state_evt_deliver(thd, &a, &b);
-		__userregs_setretvals(regs, thd_rcvcap_pending_dec(thd), a, b);
+		if (!thd_state_evt_deliver(thd, &a, &b))
+			thd_rcvcap_pending_dec(thd);
+		__userregs_setretvals(regs, thd_rcvcap_pending(thd), a, b);
 		return 0;
 	}
 
