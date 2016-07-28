@@ -156,7 +156,7 @@ __captbl_getleaf(struct ert_intern *a, void *accum)
 	if (likely(h->size == __captbl_cap2sz(CAP_SINV))) {
 		c   = (struct cap_header *)CT_MSK(a, __captbl_cap2sz(CAP_SINV) + CAP_SZ_OFF);
 		off = (struct cap_min*)c - (struct cap_min*)h; /* ptr math */
-		if (likely(h->amap & off)) return c;
+		if (likely(h->amap & (1<<off))) return c;
 	}
 
 	/*
