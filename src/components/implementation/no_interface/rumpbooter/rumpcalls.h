@@ -50,6 +50,7 @@ struct cos_rumpcalls
 	void   (*rump_intr_enable)(void);
 	int    (*rump_shmem_send)(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
 	int    (*rump_shmem_recv)(void * buff, unsigned int srcvm, unsigned int dstvm);
+	void   (*rump_sched_yield)(void);
 };
 
 /* Mapping the functions from rumpkernel to composite */
@@ -61,8 +62,9 @@ void cos_memfree(void *cp);
 
 void  rump_bmk_memsize_init(void);
 
-void set_cos_thdcap(struct bmk_thread *thread, capid_t value);
+void set_cos_thddata(struct bmk_thread *thread, capid_t thd, thdid_t tid);
 capid_t get_cos_thdcap(struct bmk_thread *thread);
+thdid_t get_cos_thdid(struct bmk_thread *thread);
 
 char *get_name(struct bmk_thread *thread);
 long long cos_cpu_clock_now(void);
@@ -72,6 +74,7 @@ void *cos_vatpa(void* addr);
 void *cos_pa2va(void* addr, unsigned long len);
 
 void cos_vm_exit(void);
+void cos_sched_yield(void);
 
 int cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
 int cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm);

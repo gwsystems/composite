@@ -54,7 +54,7 @@ thdcap_t termthd; 		/* switch to this to shutdown */
 /* For Div-by-zero test */
 int num = 1, den = 0;
 
-#define ITER 100000
+#define ITER 10
 #define TEST_NTHDS 5
 unsigned long tls_test[TEST_NTHDS];
 
@@ -121,6 +121,8 @@ test_thds(void)
 {
 	thdcap_t ts[TEST_NTHDS];
 	int i;
+	int ret;
+	sched_tok_t stok = 10;
 
 	for (i = 0 ; i < TEST_NTHDS ; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
@@ -131,7 +133,18 @@ test_thds(void)
 		cos_thd_switch(ts[i]);
 	}
 
-	PRINTVM("test done\n");
+       PRINTVM("Thd-switch Race-cond test\n");
+       i = 0;
+       while (i ++ < ITER) {
+            /* cos_switch should return -EAGAIN for VM > 0 */
+            ret = cos_switch(ts[0], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, vmid > 0 ? stok -- : cos_sched_sync());
+            if (ret) { 
+                 PRINTVM("failed in %d thread switch: %s\n", i, strerror(ret));
+                 break;
+            }
+       }
+
+       PRINTVM("test done\n");
 }
 
 #define TEST_NPAGES (1024*2) 	/* Testing with 8MB for now */
@@ -171,15 +184,12 @@ async_thd_fn_perf(void *thdcap)
 {
 	thdcap_t tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcc_global;
-	thdid_t tid;
-	int rcving;
-	cycles_t cycles;
 	int i;
 
-	cos_rcv(rc, &tid, &rcving, &cycles);
+	cos_rcv(rc);
 
 	for (i = 0 ; i < ITER + 1 ; i++) {
-		cos_rcv(rc, &tid, &rcving, &cycles);
+		cos_rcv(rc);
 	}
 
 	cos_thd_switch(tc);
@@ -221,12 +231,12 @@ async_thd_fn(void *thdcap)
 	cycles_t cycles;
 	int pending;
 
-	PRINTVM("Asynchronous event thread handler.\n<-- rcving...\n");
-	pending = cos_rcv(rc, &tid, &rcving, &cycles);
+	PRINTVM("Asynchronous event thread handler.\t<-- rcving...\n");
+	pending = cos_sched_rcv(rc, &tid, &rcving, &cycles);
 	PRINTVM("<-- pending %d, thdid %d, rcving %d, cycles %lld\t<-- rcving...\n", pending, tid, rcving, cycles);
-	pending = cos_rcv(rc, &tid, &rcving, &cycles);
+	pending = cos_sched_rcv(rc, &tid, &rcving, &cycles);
 	PRINTVM("<-- pending %d, thdid %d, rcving %d, cycles %lld\t<-- rcving...\n", pending, tid, rcving, cycles);
-	pending = cos_rcv(rc, &tid, &rcving, &cycles);
+	pending = cos_sched_rcv(rc, &tid, &rcving, &cycles);
 	PRINTVM("<-- Error: manually returning to snding thread.\n");
 	cos_thd_switch(tc);
 	PRINTVM("ERROR: in async thd *after* switching back to the snder.\n");
@@ -251,7 +261,7 @@ async_thd_parent(void *thdcap)
 	ret = cos_asnd(sc);
 	if (ret) PRINTVM("--> asnd returned %d.\n", ret);
 	PRINTVM("--> Back in the asnder.\t--> receiving to get notifications\n");
-	pending = cos_rcv(rc, &tid, &rcving, &cycles);
+	pending = cos_sched_rcv(rc, &tid, &rcving, &cycles);
 	PRINTVM("--> pending %d, thdid %d, rcving %d, cycles %lld\n", pending, tid, rcving, cycles);
 
 	async_test_flag = 0;
@@ -264,23 +274,29 @@ test_async_endpoints(void)
 	thdcap_t  tcp, tcc;
 	tcap_t    tccp, tccc;
 	arcvcap_t rcp, rcc;
+	int ret;
 
 	PRINTVM("Creating threads, and async end-points.\n");
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
+	tccp = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX + 2);
 	assert(tccp);
 	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
+	if ((ret = cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1))) {
+		PRINTVM("transfer failed: %d\n", ret);
+		assert(0);
+	}
 
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)tcp);
 	assert(tcc);
-	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
+	tccc = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX + 1);
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
+	if (cos_tcap_transfer(rcc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX)) assert(0);
 
 	/* make the snd channel to the child */
 	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
@@ -305,18 +321,20 @@ test_async_endpoints_perf(void)
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
+	tccp = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX + 2);
 	assert(tccp);
 	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
+	if (cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1)) assert(0);
 
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void*)tcp);
 	assert(tcc);
-	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
+	tccc = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX + 1);
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
+	if (cos_tcap_transfer(rcc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX)) assert(0);
 
 	/* make the snd channel to the child */
 	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
@@ -341,11 +359,9 @@ tcap_child(void *d)
 	arcvcap_t __tc_crc = (arcvcap_t)d;
 
 	while (1) {
-		int pending, rcving;
-		thdid_t tid;
-		cycles_t cycles;
+		int pending;
 
-		pending = cos_rcv(__tc_crc, &tid, &rcving, &cycles);
+		pending = cos_rcv(__tc_crc);
 		PRINTVM("tcap_test:rcv: pending %d\n", pending);
 	}
 }
@@ -361,39 +377,39 @@ tcap_parent(void *d)
 	}
 }
 
-static void
-test_tcaps(void)
-{
-	thdcap_t tcp, tcc;
-	tcap_t tccp, tccc;
-	arcvcap_t rcp, rcc;
+/* static void */
+/* test_tcaps(void) */
+/* { */
+/* 	thdcap_t tcp, tcc; */
+/* 	tcap_t tccp, tccc; */
+/* 	arcvcap_t rcp, rcc; */
 
-	/* parent rcv capabilities */
-	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, tcap_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
-	assert(tcp);
-	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
-	assert(tccp);
-	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	assert(rcp);
+/* 	/\* parent rcv capabilities *\/ */
+/* 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, tcap_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE); */
+/* 	assert(tcp); */
+/* 	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0); */
+/* 	assert(tccp); */
+/* 	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE); */
+/* 	assert(rcp); */
 
-	/* child rcv capabilities */
-	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, tcap_child, (void*)tcp);
-	assert(tcc);
-	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
-	assert(tccc);
-	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
-	assert(rcc);
+/* 	/\* child rcv capabilities *\/ */
+/* 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, tcap_child, (void*)tcp); */
+/* 	assert(tcc); */
+/* 	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0); */
+/* 	assert(tccc); */
+/* 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp); */
+/* 	assert(rcc); */
 
-	/* make the snd channel to the child */
-	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
-	assert(scp_global);
+/* 	/\* make the snd channel to the child *\/ */
+/* 	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap); */
+/* 	assert(scp_global); */
 
-	rcc_global = rcc;
-	rcp_global = rcp;
+/* 	rcc_global = rcc; */
+/* 	rcp_global = rcp; */
 
-	async_test_flag = 1;
-	while (async_test_flag) cos_thd_switch(tcp);
-}
+/* 	async_test_flag = 1; */
+/* 	while (async_test_flag) cos_thd_switch(tcp); */
+/* } */
 
 static void
 spinner(void *d)
@@ -414,7 +430,7 @@ test_timer(void)
 		int rcving;
 		cycles_t cycles;
 
-		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
 		cos_thd_switch(tc);
 		p = c;
 		rdtscll(c);
@@ -536,14 +552,10 @@ test_captbl_expand(void)
 void
 test_run(void)
 {
-
-//	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
-//	PRINTVM("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
-
 	test_thds();
 	test_thds_perf();
 
-//	test_timer();
+	test_timer();
 
 	test_mem();
 
@@ -585,37 +597,25 @@ test_vmio(int vm)
 	/* FIXME: Not tested with new end-points. need VM scheduling for it. */
 	if (COS_VIRT_MACH_COUNT > 1) {
 		static int it = 0;
-		//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 		char buf[50] = { '\0' };
 		if (!vm) {
-			//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 			int i = 1;
 			while (i < COS_VIRT_MACH_COUNT) {
-				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				memset(buf, '\0', 50);
-				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				asndcap_t sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (i - 1) * CAP64B_IDSZ;
 				vaddr_t shm_addr = BOOT_MEM_SHM_BASE + (i - 1) * COS_SHM_VM_SZ;
-				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				sprintf(buf, "%d:SHMEM %d to %d - %x", it, vm, i, (unsigned int)cos_va2pa(&booter_info, (void *)shm_addr));
-				//strcpy(shm_addr, buf);
-				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				PRINTVM("Sending to %d\n", i);
 				cos_shm_write(buf, strlen(buf) + 1, vm, i);
 				cos_asnd(sndcap);
-				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				PRINTVM("Sent to %d: \"%s\" @ %x:%x\n", i, buf, (unsigned int)shm_addr, (unsigned int)cos_va2pa(&booter_info, (void *)shm_addr));
 				i ++;
 			}
 		} else {
-			//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 			int i = 0;
-			int tid, rcving, cycles;
-			//PRINTVM("%d: read after delay\n", vm);
-		//		for (i = 0; i < 99000; i ++) ;
 			PRINTVM("%d Receiving..\n", vm);
 			cos_shm_read(buf, 50, vm, 0);
-			cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
+			cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
 			//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 			//strncpy(buf, BOOT_MEM_SHM_BASE, 49);
 			PRINTVM("Recvd: %s @ %x:%x\n", buf, (unsigned int)BOOT_MEM_SHM_BASE, (unsigned int)cos_va2pa(&booter_info, (void *)BOOT_MEM_SHM_BASE));

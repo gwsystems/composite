@@ -31,11 +31,32 @@ typedef signed long long s64_t;
 
 #define LLONG_MAX 9223372036854775807LL
 
+/* Types mainly used for documentation */
+typedef unsigned long capid_t;
+
+typedef capid_t sinvcap_t;
+typedef capid_t sretcap_t;
+typedef capid_t asndcap_t;
+typedef capid_t arcvcap_t;
+typedef capid_t thdcap_t;
+typedef capid_t tcap_t;
+typedef capid_t compcap_t;
+typedef capid_t captblcap_t;
+typedef capid_t pgtblcap_t;
+typedef capid_t hwcap_t;
+
 typedef s64_t cycles_t;
-typedef cycles_t tcap_res_t;
+typedef unsigned long tcap_res_t;
 typedef u64_t tcap_prio_t;
 typedef u64_t tcap_uid_t;
+typedef u32_t sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
+
+typedef enum {
+	TCAP_DELEG_TRANSFER = 1,
+	TCAP_DELEG_YIELD    = 1<<1,
+} tcap_deleg_flags_t;
+
 
 #define BOOT_LIVENESS_ID_BASE 2
 
@@ -145,6 +166,14 @@ typedef enum {
 } hwid_t;
 
 typedef unsigned long capid_t;
+#define TCAP_PRIO_MAX (1ULL)
+#define TCAP_PRIO_MIN (~0ULL)
+#define TCAP_RES_GRAN_ORD  16
+#define TCAP_RES_PACK(r)   (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
+#define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
+#define TCAP_RES_INF  (~0UL)
+#define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
+typedef capid_t tcap_t;
 
 #define QUIESCENCE_CHECK(curr, past, quiescence_period)  (((curr) - (past)) > (quiescence_period))
 
@@ -173,7 +202,11 @@ typedef enum {
 
 #define CAPTBL_EXPAND_SZ 128
 
+<<<<<<< HEAD
 #define COS_VIRT_MACH_COUNT 3
+=======
+#define COS_VIRT_MACH_COUNT 2
+>>>>>>> 24cabbf25e151c1926be9e8bfe797a00a3a928ff
 #define COS_VIRT_MACH_MEM_SZ (1<<26) //64MB
 
 #define COS_SHM_VM_SZ (1<<20) //4MB
@@ -861,26 +894,15 @@ cos_mem_fence(void)
 // Static entries are after the dynamic allocated entries
 #define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))
 
-#define TCAP_RES_GRAN_ORD  16
-#define TCAP_RES_PACK(r)   (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
-#define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
-#define TCAP_RES_INF LLONG_MAX
-#define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
-
-typedef capid_t tcap_t;
-
-typedef enum {
-	TCAP_DELEG_TRANSFER = 1,
-	TCAP_DELEG_YIELD    = 1<<1,
-} tcap_deleg_flags_t;
-
-capid_t irq_thdcap[32];
-thdid_t irq_thdid[32];
-capid_t irq_arcvcap[32];
-capid_t irq_tcap[32];
-
 #ifndef __KERNEL_PERCPU
 #define __KERNEL_PERCPU 0
 #endif
+
+#define HW_ISR_LINES 32
+
+capid_t irq_thdcap[HW_ISR_LINES]; 
+thdid_t irq_thdid[HW_ISR_LINES];
+tcap_t irq_tcap[HW_ISR_LINES]; 
+capid_t irq_arcvcap[HW_ISR_LINES];
 
 #endif /* TYPES_H */

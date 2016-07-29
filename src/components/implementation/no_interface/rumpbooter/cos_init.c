@@ -44,8 +44,9 @@ alloc_initmem_all(void)
 void
 cos_run(char *cmdline)
 {
-	extern int rump_vmid;
-	printc("cos_run, rump_vmid: %d\n", rump_vmid);
+	//extern int rump_vmid;
+	printc("\n------------------[RK]------------------\n");
+	printc("Rump Kernel bootstrap on platform Composite\n");
 	bmk_sched_init();
 	printc("bmk_sched_init done\n");
 	bmk_memalloc_init();
