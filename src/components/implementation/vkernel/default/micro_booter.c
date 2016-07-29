@@ -601,7 +601,7 @@ test_vmio(int vm)
 				//strcpy(shm_addr, buf);
 				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				PRINTVM("Sending to %d\n", i);
-				cos_shm_write(&booter_info, buf, strlen(buf) + 1, vm, i);
+				cos_shm_write(buf, strlen(buf) + 1, vm, i);
 				cos_asnd(sndcap);
 				//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 				PRINTVM("Sent to %d: \"%s\" @ %x:%x\n", i, buf, (unsigned int)shm_addr, (unsigned int)cos_va2pa(&booter_info, (void *)shm_addr));
@@ -614,7 +614,7 @@ test_vmio(int vm)
 			//PRINTVM("%d: read after delay\n", vm);
 		//		for (i = 0; i < 99000; i ++) ;
 			PRINTVM("%d Receiving..\n", vm);
-			cos_shm_read(&booter_info, buf, 50, vm, 0);
+			cos_shm_read(buf, 50, vm, 0);
 			cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
 			//	PRINTVM("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 			//strncpy(buf, BOOT_MEM_SHM_BASE, 49);

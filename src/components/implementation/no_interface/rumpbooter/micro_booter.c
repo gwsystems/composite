@@ -15,6 +15,7 @@
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
+#include <vkern_api.h>
 
 static void
 cos_llprint(char *s, int len)
@@ -590,22 +591,27 @@ test_vmio(int vm)
 		if (!vm) {
 			int i = 1;
 			while (i < COS_VIRT_MACH_COUNT) {
+				int j = 0;
 				memset(buf, '\0', 50);
 				asndcap_t sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (i - 1) * CAP64B_IDSZ;
 				vaddr_t shm_addr = BOOT_MEM_SHM_BASE + (i - 1) * COS_SHM_VM_SZ;
 				sprintf(buf, "%d:SHMEM %d to %d - %x", it, vm, i, (unsigned int)cos_va2pa(&booter_info, (void *)shm_addr));
 				PRINTVM("Sending to %d\n", i);
-				cos_shm_write(&booter_info, buf, strlen(buf) + 1, vm, i);
+				cos_shm_write(buf, strlen(buf) + 1, vm, i);
 				cos_asnd(sndcap);
 				PRINTVM("Sent to %d: \"%s\" @ %x:%x\n", i, buf, (unsigned int)shm_addr, (unsigned int)cos_va2pa(&booter_info, (void *)shm_addr));
 				i ++;
 			}
 		} else {
 			int i = 0;
+			int j;
 			int tid, rcving, cycles;
-			PRINTVM("%d Receiving..\n", vm);
-			cos_shm_read(&booter_info, buf, 50, vm, 0);
+			PRINTVM("Receiving..\n");
+			for(j = 0; j < (15*vm); j++){
+				PRINTVM("%d",j);
+			}
 			cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
+			PRINTVM("cos_shm_read returned: %d\n", cos_shm_read(buf, 0, vm));
 			PRINTVM("Recvd: %s @ %x:%x\n", buf, (unsigned int)BOOT_MEM_SHM_BASE, (unsigned int)cos_va2pa(&booter_info, (void *)BOOT_MEM_SHM_BASE));
 		}
 		it ++;
@@ -633,9 +639,9 @@ vm_init(void *id)
 				  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, 
 				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 	}
-
+	test_vmio((int)id);
 	rump_vmid = (int)id;
-	if (vmid) {
+	if (vmid == 2) {
 		PRINTVM("Micro Booter started.\n");
 		termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 		assert(termthd);

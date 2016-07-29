@@ -942,9 +942,8 @@ cos_va2pa(struct cos_compinfo *ci, void * vaddr)
 	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
         return (void *)paddr;
 }
-
+/*
 int
-<<<<<<< HEAD
 vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsize, int vmid){
 	//create rb, of size sz
 	sm_rb->head = 0;
@@ -954,29 +953,29 @@ vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsi
 	return 1;	
 }
 
-int 
+struct cos_shm_rb *
 vk_shmem_addr_send(int to_vmid){
 	//returns the virt addr of the ringbuf struct for sending data
 	if(to_vmid == 0){
-		return BOOT_MEM_SHM_BASE;	
+		return (struct cos_shm_rb *)BOOT_MEM_SHM_BASE;	
 	}else{
-		return ((BOOT_MEM_SHM_BASE)+((COS_SHM_VM_SZ) * (to_vmid-1) ));
+		return (struct cos_shm_rb *)((BOOT_MEM_SHM_BASE)+((COS_SHM_VM_SZ) * (to_vmid-1) ));
 	}
 }
 
-int 
+struct cos_shm_rb *
 vk_shmem_addr_recv(int from_vmid){
 	//returns the virt addr of the ringbuf struct for recving data
 	if(from_vmid == 0){
-		return (BOOT_MEM_SHM_BASE) + (COS_SHM_VM_SZ/2);	
+		return (struct cos_shm_rb *)((BOOT_MEM_SHM_BASE) + (COS_SHM_VM_SZ/2));	
 	}else{
-		return (BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (from_vmid-1) ) + ((COS_SHM_VM_SZ)/2) ;
+		return (struct cos_shm_rb *)((BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (from_vmid-1) ) + ((COS_SHM_VM_SZ)/2) );
 	}
 }
 
 int
 vk_ringbuf_isfull(struct cos_shm_rb *rb, size_t size){
-	return ( ((rb->head+size) & rb->mask) == rb->tail & rb->mask );
+	return (rb->head+size & rb->mask) == (rb->tail & rb->mask);
 }
 
 int
@@ -1009,33 +1008,35 @@ vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff, size_t size){
 	return 1;
 }
 
-cos_shm_read(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
+int
+cos_shm_read(void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
 {
-	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
-
-	assert(ci || buff);
+	assert(buff);
+	struct cos_shm_rb * rb;
 
 	if (srcvm == 0) {
-		data_vaddr += ((dstvm - 1) * COS_SHM_VM_SZ);
+		rb = vk_shmem_addr_recv(0);
+	}else{
+		rb = vk_shmem_addr_send(srcvm);
 	}
-	memcpy(buff, (void *)data_vaddr, sz);
+	
+	return vk_ringbuf_dequeue(rb, buff, sz);
 
-	return sz;
 }
 
 int
-cos_shm_write(struct cos_compinfo *ci, void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
+cos_shm_write(void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
 {
-	vaddr_t data_vaddr = BOOT_MEM_SHM_BASE;
 
-	assert(ci || buff);
+	assert(buff);
+	struct cos_shm_rb * rb;
 
 	if (srcvm == 0) {
-		data_vaddr += ((dstvm - 1) * COS_SHM_VM_SZ);
+		rb = vk_shmem_addr_send(srcvm);
+	}else{
+		rb = vk_shmem_addr_recv(dstvm);
 	}
-	
-	memcpy((void *)data_vaddr, buff, sz);
 
-	return sz;
+	return vk_ringbuf_enqueue((struct cos_shm_rb *)vk_shmem_addr_send(srcvm), buff, sz);
 }
-
+*/

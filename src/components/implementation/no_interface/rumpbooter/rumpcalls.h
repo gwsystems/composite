@@ -1,6 +1,8 @@
 #ifndef RUMPCALLS_H
 #define RUMPCALLS_H
 
+#include "../../../../kernel/include/shared/consts.h"
+#include "../../../../kernel/include/shared/cos_types.h"
 #include <consts.h>
 #include <cos_types.h>
 
@@ -46,6 +48,8 @@ struct cos_rumpcalls
 	void   (*rump_rcv)(void);
 	void   (*rump_intr_disable)(void);
 	void   (*rump_intr_enable)(void);
+	int    (*rump_shmem_send)(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
+	int    (*rump_shmem_recv)(void * buff, unsigned int srcvm, unsigned int dstvm);
 };
 
 /* Mapping the functions from rumpkernel to composite */
@@ -69,4 +73,6 @@ void *cos_pa2va(void* addr, unsigned long len);
 
 void cos_vm_exit(void);
 
+int cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
+int cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm);
 #endif /* RUMPCALLS_H */

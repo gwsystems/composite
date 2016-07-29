@@ -1,6 +1,7 @@
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
+#include <vkern_api.h>
 
 #define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
@@ -339,13 +340,12 @@ cos_init(void)
 			printc("\tCreating shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_ALL_SZ);
 			
 			//allocating ring buffers for sending data
-			cos_shmem_alloc(&vmbooter_info[id], COS_SHM_ALL_SZ);
+			cos_shmem_alloc(&vmbooter_info[id], COS_SHM_ALL_SZ + ((sizeof(struct cos_shm_rb *)*2)*COS_VIRT_MACH_COUNT) );
 			for(i = 1; i < COS_VIRT_MACH_COUNT; i++){
 				printc("\tInitializing ringbufs for sending\n");
 				struct cos_shm_rb * sm_rb;	
 				sm_rb = vk_shmem_addr_send(i);
 				vk_ringbuf_create(&vmbooter_info[id] , sm_rb, COS_SHM_VM_SZ, i);
-				printc("vk_shmem_addr pa: %d\n", cos_va2pa(&vkern_info, vk_shmem_addr_send(2)));
 			}
 
 			//allocating ring buffers for recving data
@@ -354,8 +354,8 @@ cos_init(void)
 				struct cos_shm_rb * sm_rb_r;	
 				sm_rb_r = vk_shmem_addr_recv(i);
 				vk_ringbuf_create(&vmbooter_info[id] , sm_rb_r, COS_SHM_VM_SZ, i);
+				printc("sm_rb_r->head: %d\n", sm_rb_r->head);
 			}
-
 
 		} else {
 			printc("\tMapping shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_VM_SZ);
@@ -373,7 +373,7 @@ cos_init(void)
 	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
-	printc("sm_rb addr: %x\n", cos_va2pa(&vkern_info, vk_shmem_addr_recv(2)));
+	printc("sm_rb addr: %x\n", vk_shmem_addr_recv(2));
 	printc("------------------[ Hypervisor & VMs init complete ]------------------\n");
 
 	sched_fn();

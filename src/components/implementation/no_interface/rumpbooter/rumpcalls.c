@@ -9,7 +9,7 @@
 #include "rump_cos_alloc.h"
 #include "cos_sched.h"
 #include "cos_lock.h"
-
+#include "vkern_api.h"
 //#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 
 extern struct cos_rumpcalls crcalls;
@@ -65,7 +65,34 @@ cos2rump_setup(void)
 
 	crcalls.rump_intr_enable		= intr_enable;
 	crcalls.rump_intr_disable		= intr_disable;
+
+	crcalls.rump_shmem_send			= cos_shmem_send;
+	crcalls.rump_shmem_recv			= cos_shmem_recv;
 	return;
+}
+
+/*rk shared mem functions*/
+int
+cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm){
+	printc("cos_shmem_send\n");
+
+	asndcap_t sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (dstvm - 1) * CAP64B_IDSZ;
+	
+	cos_shm_write(buff, size, srcvm, dstvm);	
+	
+	cos_asnd(sndcap);
+	
+	return 1;
+}
+
+int
+cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm){
+	printc("cos_shmem_recv\n");
+	int tid, rcving, cycles;	
+	
+	cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
+	
+	return cos_shm_read(buff, srcvm, curvm);
 }
 
 /* send and recieve notifications */
