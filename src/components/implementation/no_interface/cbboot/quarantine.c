@@ -110,6 +110,78 @@ void* quarantine_translate_addr(spdid_t spdid, vaddr_t addr)
 	return NULL;
 }
 
+/*
+ * Increment send-side fork counters in the capability struct of o_spd.
+ * o_spd - origin spd
+ * f_spd - fork   spd
+ * o_hdr - o_spd's section header
+ */
+int
+send_side_counters(spdid_t o_spd, spdid_t f_spd, struct cobj_header *o_hdr)
+{
+	int j;
+	struct cobj_cap *cap;
+
+	printd("Incrementing send-side fork count in source's caps, and copy fork count into f_spd's caps.\n");
+	
+	/* Increment send-side fork count in o_spd's caps, and copy fork count into f_spd's caps. */
+	for (j = 0; j < o_hdr->ncap; j++) {
+		int cnt;
+		cap = cobj_cap_get(o_hdr, j);
+		if (cobj_cap_undef(cap)) break;	
+		if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, o_spd, cap->cap_off, (1 << 8) | 0)) BUG();
+		cnt = cos_cap_cntl(COS_CAP_GET_FORK_CNT, o_spd, cap->cap_off, 0);
+		assert(cnt > 0);
+		if (cos_cap_cntl(COS_CAP_SET_FORK_CNT, f_spd, cap->cap_off, cnt)) BUG();
+		printd("Updated fork count (send-side) for cap %d from spd %d to count %d\n", j, o_spd, cnt);
+	}
+
+	return 0;
+}
+	
+/*
+ * Currently a horrible hack that routes all calls to O to F instead.
+ * Fix this before moving on to a new project or it'll just be left for the next person.
+ * On the plus side, only has two parameters, so you know, there's that.
+ */
+int 
+receive_side_counters(spdid_t o_spd, spdid_t f_spd)
+{
+	int j;
+
+	printd("Routing calls from O to F\n");
+
+	/* Find every spd that has an invocation cap to source and update the receive-side fork count. */
+	for (j = 0; cgraph_client(j) != -1; j++) {
+		int i;
+		int ncaps;
+		spdid_t spd_client, spd_server;
+		
+		if (cgraph_server(j) == o_spd) {
+			spd_client = cgraph_client(j);
+			ncaps = cos_cap_cntl(COS_CAP_GET_SPD_NCAPS, spd_client, 0, 0);
+			for (i = 0; i < ncaps; i++) {
+				spd_server = cos_cap_cntl(COS_CAP_GET_DEST_SPD, spd_client, i, 0);
+
+				if (spd_server < 0) BUG();
+				if (spd_server == o_spd) {
+					// TODO: Put this back in. DO NOT move on to another project with this hack still in place.
+					//if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, c, i, (0 << 8) | 1)) BUG();
+
+					if (cos_cap_cntl(COS_CAP_SET_DEST, spd_client, i - 1, f_spd)) BUG();
+					
+					printd("Updated fork count (receive-side) for cap %d from %d->%d to count %d\n", i, spd_client, spd_server, 1);
+
+					/* If there can be multiple capablities between the same two spds, why is this break here? */
+					//break;
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
 /* quarantine process source if spdid has permission */
 spdid_t
 quarantine_fork(spdid_t spdid, spdid_t source)
@@ -148,7 +220,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		printd("cos_vect_lookup(%d) in spd_sec_cbufs failed\n", source);
 	if (!(src_hdr = cos_vect_lookup(&spd_sect_cbufs_header, source)))
 		printd("cos_vect_lookup(%d) in spd_sec_cbufs_header failed\n", source);
-	if (!old_sect_cbufs || !src_hdr) BUG(); // happens at least once in micro_fork.sh
+	if (!old_sect_cbufs || !src_hdr) BUG();
 	
 	// helps out of critical section
 	lock_help_owners(spdid, source);
@@ -256,51 +328,12 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	printd("Setting capabilities for %d\n", d_spd);
 	if (__boot_spd_caps(src_hdr, d_spd)) BUG();
 
-
-
-	// Is there a reason we don't rip both of these out into separate methods?
-
-	/* Increment send-side fork count in source's caps, and copy fork count into d_spd's caps. */
-	for (j = 0; j < src_hdr->ncap; j++) {
-		int cnt;
-		cap = cobj_cap_get(src_hdr, j);
-		if (cobj_cap_undef(cap)) break;	
-		if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, source, cap->cap_off, (1 << 8) | 0)) BUG();
-		cnt = cos_cap_cntl(COS_CAP_GET_FORK_CNT, source, cap->cap_off, 0);
-		assert(cnt > 0);
-		if (cos_cap_cntl(COS_CAP_SET_FORK_CNT, d_spd, cap->cap_off, cnt)) BUG();
-		printd("Updated fork count (send-side) for cap %d from spd %d to count %d\n", j, source, cnt);
-	}
+	/* Fix send-side fork counters */
+	if (send_side_counters(source, d_spd, src_hdr)) BUG();
+	if (receive_side_counters(source, d_spd, src_hdr)) BUG();
 
 	struct cobj_header *check_hdr;
 	if (!(check_hdr = cos_vect_lookup(&spd_sect_cbufs_header, 13))) BUG();
-	/* Find every spd that has an invocation cap to source and update the receive-side fork count. */
-	for (j = 0; cgraph_client(j) != -1; j++) {
-		int i;
-		int ncaps;
-		spdid_t spd_client, spd_server;
-		
-		if (cgraph_server(j) == source) {
-			spd_client = cgraph_client(j);
-			ncaps = cos_cap_cntl(COS_CAP_GET_SPD_NCAPS, spd_client, 0, 0);
-			for (i = 0; i < ncaps; i++) {
-				spd_server = cos_cap_cntl(COS_CAP_GET_DEST_SPD, spd_client, i, 0);
-
-				if (spd_server < 0) BUG();
-				if (spd_server == source) {
-					// TODO: Put this back in. DO NOT move on to another project with this hack still in place.
-					//if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, c, i, (0 << 8) | 1)) BUG();
-
-					if (cos_cap_cntl(COS_CAP_SET_DEST, spd_client, i - 1, d_spd)) BUG();
-					
-					printd("Updated fork count (receive-side) for cap %d from %d->%d to count %d\n", i, spd_client, spd_server, 1);
-
-					/* If there can be multiple capablities between the same two spds, why is this break here? */
-					//break;
-				}
-			}
-		}
-	}
 
 	/* FIXME: better way to pick threads out. this will get the first
 	 * thread, preference to blocked, then search inv stk. The
