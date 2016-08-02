@@ -11,17 +11,17 @@ make  --no-print-directory -I /home/lucasbaier/research/rump2cos/Composite/src -
 |     [CC]   Creating library file cobj_format.a from cobj_format.c
 |     [CC]   Creating library file cos_kernel_api.a from cos_kernel_api.c
 cos_kernel_api.c: In function ‘cos_hw_map’:
-cos_kernel_api.c:907:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 4 has type ‘paddr_t’ [-Wformat=]
+cos_kernel_api.c:906:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 4 has type ‘paddr_t’ [-Wformat=]
   printc("%s:%d - pa: %x fva: %x len: %d.. size: %u\n", __func__, __LINE__, pa, fva, len, sz);
   ^
-cos_kernel_api.c:907:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 5 has type ‘vaddr_t’ [-Wformat=]
-cos_kernel_api.c:917:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 5 has type ‘paddr_t’ [-Wformat=]
+cos_kernel_api.c:906:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 5 has type ‘vaddr_t’ [-Wformat=]
+cos_kernel_api.c:916:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 5 has type ‘paddr_t’ [-Wformat=]
   printc("%s:%d - size: %u pa: %x\n", __func__, __LINE__, sz, pa);
   ^
-cos_kernel_api.c:930:3: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 4 has type ‘vaddr_t’ [-Wformat=]
+cos_kernel_api.c:929:3: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 4 has type ‘vaddr_t’ [-Wformat=]
    printc("%s:%d - va: %x size: %u pa: %x\n", __func__, __LINE__, va, sz, pa);
    ^
-cos_kernel_api.c:930:3: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 6 has type ‘paddr_t’ [-Wformat=]
+cos_kernel_api.c:929:3: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 6 has type ‘paddr_t’ [-Wformat=]
 |     [AS]   Compiling assembly file c_stub.S into c_stub.o
 |     [AS]   Compiling assembly file cos_asm_upcall.S into cos_asm_upcall.o
 |     [AS]   Compiling assembly file cos_asm_ainv.S into cos_asm_ainv.o
@@ -191,34 +191,56 @@ cos_init.c:41:2: warning: format ‘%x’ expects argument of type ‘unsigned i
   printc("max: %x\n", max);
   ^
 cos_init.c: In function ‘cos_run’:
-cos_init.c:64:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 2 has type ‘long unsigned int’ [-Wformat=]
+cos_init.c:65:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 2 has type ‘long unsigned int’ [-Wformat=]
   printc("first page: %x\n", min);
   ^
-cos_lock.c: In function ‘intr_pending’:
-cos_lock.c:99:3: warning: passing argument 2 of ‘cos_rcv’ from incompatible pointer type [enabled by default]
-   cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+In file included from cos_sync.c:3:0:
+cos_sync.h: In function ‘intr_update’:
+cos_sync.h:60:14: warning: comparison between signed and unsigned integer expressions [-Wsign-compare]
+  if(irq_line == -1) return;
+              ^
+cos_sync.h: In function ‘isr_disable’:
+cos_sync.h:106:3: warning: passing argument 1 of ‘ps_cas’ from incompatible pointer type [enabled by default]
+   } while (unlikely(!ps_cas(&cos_isr, tmp, final)));
    ^
-In file included from cos_lock.c:4:0:
-/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:110:5: note: expected ‘thdid_t *’ but argument is of type ‘int *’
- int cos_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, cycles_t *cycles);
-     ^
-micro_booter.c: In function ‘test_vmio’:
-micro_booter.c:613:4: warning: passing argument 2 of ‘cos_rcv’ from incompatible pointer type [enabled by default]
-    cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
+cos_sync.h:31:1: note: expected ‘long unsigned int *’ but argument is of type ‘volatile isr_state_t *’
+ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
+ ^
+cos_sync.h: In function ‘isr_enable’:
+cos_sync.h:134:3: warning: passing argument 1 of ‘ps_cas’ from incompatible pointer type [enabled by default]
+   } while (unlikely(!ps_cas(&cos_isr, tmp, final)));
+   ^
+cos_sync.h:31:1: note: expected ‘long unsigned int *’ but argument is of type ‘volatile isr_state_t *’
+ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
+ ^
+cos_sync.c: In function ‘isr_setcontention’:
+cos_sync.c:31:2: warning: passing argument 1 of ‘ps_cas’ from incompatible pointer type [enabled by default]
+  } while (unlikely(!ps_cas(&cos_isr, tmp, final)));
+  ^
+In file included from cos_sync.c:3:0:
+cos_sync.h:31:1: note: expected ‘long unsigned int *’ but argument is of type ‘volatile isr_state_t *’
+ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
+ ^
+cos_sync.c: In function ‘intr_start’:
+cos_sync.c:56:4: warning: pointer targets in passing argument 2 of ‘isr_get’ differ in signedness [-Wpointer-sign]
+    isr_get(tmp, &isdisabled, &contending);
     ^
-In file included from micro_booter.c:17:0:
-/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:110:5: note: expected ‘thdid_t *’ but argument is of type ‘int *’
- int cos_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, cycles_t *cycles);
-     ^
-micro_booter.c:613:4: warning: passing argument 4 of ‘cos_rcv’ from incompatible pointer type [enabled by default]
-    cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
+In file included from cos_sync.c:3:0:
+cos_sync.h:69:1: note: expected ‘unsigned int *’ but argument is of type ‘int *’
+ isr_get(isr_state_t tmp, unsigned int *isdisabled, thdcap_t *contending)
+ ^
+cos_sync.c:63:3: warning: passing argument 1 of ‘ps_cas’ from incompatible pointer type [enabled by default]
+   } while (unlikely(!ps_cas(&cos_isr, tmp, final)));
+   ^
+In file included from cos_sync.c:3:0:
+cos_sync.h:31:1: note: expected ‘long unsigned int *’ but argument is of type ‘volatile isr_state_t *’
+ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
+ ^
+cos_sync.c:73:4: warning: ‘return’ with a value, in function returning void [enabled by default]
+    return 0;
     ^
-In file included from micro_booter.c:17:0:
-/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:110:5: note: expected ‘cycles_t *’ but argument is of type ‘int *’
- int cos_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, cycles_t *cycles);
-     ^
 micro_booter.c: In function ‘vm_init’:
-micro_booter.c:653:3: warning: implicit declaration of function ‘rump_booter_init’ [-Wimplicit-function-declaration]
+micro_booter.c:665:3: warning: implicit declaration of function ‘rump_booter_init’ [-Wimplicit-function-declaration]
    rump_booter_init();
    ^
 In file included from rump_booter.c:8:0:
@@ -231,19 +253,11 @@ In file included from /home/lucasbaier/research/rump2cos/Composite/src//componen
  #define va_end  __builtin_va_end
  ^
 rump_booter.c: In function ‘hw_irq_alloc’:
-rump_booter.c:75:3: warning: passing argument 4 of ‘cos_thd_alloc’ makes pointer from integer without a cast [enabled by default]
+rump_booter.c:23:3: warning: passing argument 4 of ‘cos_thd_alloc’ makes pointer from integer without a cast [enabled by default]
    irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, i);
    ^
 In file included from rump_booter.c:6:0:
-/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:91:11: note: expected ‘void *’ but argument is of type ‘int’
- thdcap_t  cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
-           ^
-rump_booter.c: In function ‘rump_booter_init’:
-rump_booter.c:101:2: warning: passing argument 3 of ‘cos_thd_alloc’ from incompatible pointer type [enabled by default]
-  tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_rk_fn, NULL);
-  ^
-In file included from rump_booter.c:6:0:
-/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:91:11: note: expected ‘cos_thd_fn_t’ but argument is of type ‘void (*)(void)’
+/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:80:11: note: expected ‘void *’ but argument is of type ‘int’
  thdcap_t  cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
            ^
 In file included from rumpcalls.c:8:0:
@@ -255,76 +269,93 @@ In file included from /home/lucasbaier/research/rump2cos/Composite/src//componen
 /home/lucasbaier/research/rump2cos/Composite/src//components//lib/dietlibc-0.29/include/stdarg.h:15:0: note: this is the location of the previous definition
  #define va_end  __builtin_va_end
  ^
+In file included from rumpcalls.c:14:0:
+cos_sync.h: In function ‘intr_update’:
+cos_sync.h:60:14: warning: comparison between signed and unsigned integer expressions [-Wsign-compare]
+  if(irq_line == -1) return;
+              ^
+cos_sync.h: In function ‘isr_disable’:
+cos_sync.h:106:3: warning: passing argument 1 of ‘ps_cas’ from incompatible pointer type [enabled by default]
+   } while (unlikely(!ps_cas(&cos_isr, tmp, final)));
+   ^
+cos_sync.h:31:1: note: expected ‘long unsigned int *’ but argument is of type ‘volatile isr_state_t *’
+ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
+ ^
+cos_sync.h: In function ‘isr_enable’:
+cos_sync.h:134:3: warning: passing argument 1 of ‘ps_cas’ from incompatible pointer type [enabled by default]
+   } while (unlikely(!ps_cas(&cos_isr, tmp, final)));
+   ^
+cos_sync.h:31:1: note: expected ‘long unsigned int *’ but argument is of type ‘volatile isr_state_t *’
+ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
+ ^
 rumpcalls.c: In function ‘cos2rump_setup’:
-rumpcalls.c:43:34: warning: assignment from incompatible pointer type [enabled by default]
+rumpcalls.c:33:34: warning: assignment from incompatible pointer type [enabled by default]
   crcalls.rump_strncpy            = strncpy;
                                   ^
-rumpcalls.c:46:34: warning: assignment from incompatible pointer type [enabled by default]
+rumpcalls.c:36:34: warning: assignment from incompatible pointer type [enabled by default]
   crcalls.rump_memcalloc          = cos_memcalloc;
                                   ^
-rumpcalls.c:47:34: warning: assignment from incompatible pointer type [enabled by default]
+rumpcalls.c:37:34: warning: assignment from incompatible pointer type [enabled by default]
   crcalls.rump_memalloc           = cos_memalloc;
                                   ^
-rumpcalls.c:51:34: warning: assignment from incompatible pointer type [enabled by default]
+rumpcalls.c:41:34: warning: assignment from incompatible pointer type [enabled by default]
   crcalls.rump_memcpy             = memcpy;
                                   ^
-rumpcalls.c:52:24: warning: assignment from incompatible pointer type [enabled by default]
+rumpcalls.c:42:24: warning: assignment from incompatible pointer type [enabled by default]
   crcalls.rump_memset   = cos_memset;
                         ^
-rumpcalls.c: In function ‘cos_shmem_recv’:
-rumpcalls.c:89:2: warning: passing argument 2 of ‘cos_rcv’ from incompatible pointer type [enabled by default]
-  cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
-  ^
-In file included from rumpcalls.c:5:0:
-/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:110:5: note: expected ‘thdid_t *’ but argument is of type ‘int *’
- int cos_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, cycles_t *cycles);
-     ^
-rumpcalls.c:89:2: warning: passing argument 4 of ‘cos_rcv’ from incompatible pointer type [enabled by default]
-  cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
-  ^
-In file included from rumpcalls.c:5:0:
-/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:110:5: note: expected ‘cycles_t *’ but argument is of type ‘int *’
- int cos_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, cycles_t *cycles);
-     ^
 rumpcalls.c: In function ‘cos_irqthd_handler’:
-rumpcalls.c:114:3: warning: implicit declaration of function ‘bmk_isr’ [-Wimplicit-function-declaration]
+rumpcalls.c:107:3: warning: implicit declaration of function ‘bmk_isr’ [-Wimplicit-function-declaration]
    bmk_isr(which);
    ^
 rumpcalls.c: In function ‘cos_memfree’:
-rumpcalls.c:138:2: warning: implicit declaration of function ‘rump_cos_free’ [-Wimplicit-function-declaration]
+rumpcalls.c:127:2: warning: implicit declaration of function ‘rump_cos_free’ [-Wimplicit-function-declaration]
   rump_cos_free(cp);
   ^
 rumpcalls.c: In function ‘cos_memcalloc’:
-rumpcalls.c:154:2: warning: implicit declaration of function ‘rump_cos_calloc’ [-Wimplicit-function-declaration]
+rumpcalls.c:143:2: warning: implicit declaration of function ‘rump_cos_calloc’ [-Wimplicit-function-declaration]
   rv = rump_cos_calloc(n, size);
   ^
-rumpcalls.c:154:5: warning: assignment makes pointer from integer without a cast [enabled by default]
+rumpcalls.c:143:5: warning: assignment makes pointer from integer without a cast [enabled by default]
   rv = rump_cos_calloc(n, size);
      ^
 rumpcalls.c: In function ‘cos_memalloc’:
-rumpcalls.c:166:2: warning: implicit declaration of function ‘rump_cos_malloc’ [-Wimplicit-function-declaration]
+rumpcalls.c:155:2: warning: implicit declaration of function ‘rump_cos_malloc’ [-Wimplicit-function-declaration]
   rv = rump_cos_malloc(nbytes);
   ^
-rumpcalls.c:166:5: warning: assignment makes pointer from integer without a cast [enabled by default]
+rumpcalls.c:155:5: warning: assignment makes pointer from integer without a cast [enabled by default]
   rv = rump_cos_malloc(nbytes);
      ^
 rumpcalls.c: In function ‘cos_tls_init’:
-rumpcalls.c:179:2: warning: passing argument 3 of ‘cos_thd_mod’ makes pointer from integer without a cast [enabled by default]
+rumpcalls.c:166:2: warning: passing argument 3 of ‘cos_thd_mod’ makes pointer from integer without a cast [enabled by default]
   cos_thd_mod(&booter_info, tc, tp);
   ^
 In file included from rumpcalls.c:5:0:
-/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:107:5: note: expected ‘void *’ but argument is of type ‘long unsigned int’
+/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:98:5: note: expected ‘void *’ but argument is of type ‘long unsigned int’
  int cos_thd_mod(struct cos_compinfo *ci, thdcap_t c, void *tls_addr); /* set tls addr of thd in captbl */
      ^
+rumpcalls.c: In function ‘cos_resume’:
+rumpcalls.c:228:5: warning: passing argument 2 of ‘cos_sched_rcv’ from incompatible pointer type [enabled by default]
+     pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+     ^
+In file included from rumpcalls.c:5:0:
+/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:104:5: note: expected ‘thdid_t *’ but argument is of type ‘int *’
+ int cos_sched_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, cycles_t *cycles);
+     ^
+rumpcalls.c: In function ‘cos_cpu_sched_switch’:
+rumpcalls.c:268:2: warning: unknown conversion type character ‘b’ in format [-Wformat=]
+  if(cos_isr) printc("%b\n", cos_isr);
+  ^
+rumpcalls.c:268:2: warning: too many arguments for format [-Wformat-extra-args]
 stubs.c:3:11: warning: array ‘_DYNAMIC’ assumed to have one element [enabled by default]
  Elf64_Dyn _DYNAMIC [];
            ^
 vkernel_init.c: In function ‘cos_init’:
-vkernel_init.c:376:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 2 has type ‘struct cos_shm_rb *’ [-Wformat=]
+vkernel_init.c:392:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 2 has type ‘struct cos_shm_rb *’ [-Wformat=]
   printc("sm_rb addr: %x\n", vk_shmem_addr_recv(2));
   ^
-|     [LD]   no_interface.rumpbooter (rump_boot.o): Linking  cos_init.o cos_lock.o micro_booter.o rump_booter.o rumpcalls.o rump_cos_alloc.o stubs.o vkern_api.o vkernel_init.o inv.o
-Error: component no_interface.rumpbooter does not have stated dependencies to provide ['bmk_current', 'bmk_isr', 'bmk_mainthread', 'bmk_memalloc_init', 'bmk_memsize', 'bmk_pgalloc_loadmem', 'bmk_sched_init', 'bmk_sched_startmain', 'crcalls', 'get_cos_thdcap', 'get_name', '_GLOBAL_OFFSET_TABLE_', 'set_cos_thdcap']
+|     [LD]   no_interface.rumpbooter (rump_boot.o): Linking  cos_init.o cos_sync.o micro_booter.o rump_booter.o rumpcalls.o rump_cos_alloc.o stubs.o vkern_api.o vkernel_init.o inv.o
+Error: component no_interface.rumpbooter does not have stated dependencies to provide ['bmk_isr', 'bmk_mainthread', 'bmk_memalloc_init', 'bmk_memsize', 'bmk_pgalloc_loadmem', 'bmk_sched_init', 'bmk_sched_startmain', 'crcalls', 'get_cos_thdcap', 'set_cos_thddata']
 	Suggested Fix: add the proper interface dependency in the DEPENDENCIES list in components/implementation/no_interface/rumpbooter/Makefile.
 Less likely fixes: a) you should specify a FN_PREPEND in the Makefile for a component that wishes to invoke another component with the same interface.
 b) you should reorder dependencies within the Makefile (see FAQ).
@@ -383,15 +414,9 @@ tmem.c:430:10: warning: variable ‘s_spdid’ set but not used [-Wunused-but-se
 |     [LD]   synth_hier.shbc (sbc.o): Linking  synth_basecase.o
 |     [LD]   synth_hier.shrec (sh.o): Linking -lprintc synth_hier.o
 micro_booter.c: In function ‘test_mem’:
-micro_booter.c:155:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 2 has type ‘char *’ [-Wformat=]
+micro_booter.c:159:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 2 has type ‘char *’ [-Wformat=]
   printc("%x: Page allocation\n", p);
   ^
-micro_booter.c:163:3: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 3 has type ‘char *’ [-Wformat=]
-   printc("%d:%x: Page allocation\n", i, t);
-   ^
-micro_booter.c:146:20: warning: variable ‘prev’ set but not used [-Wunused-but-set-variable]
-  char *p, *s, *t, *prev;
-                    ^
 |     [LD]   tests.micro_booter (micro_boot.o): Linking  micro_booter.o inv.o
 |     [LD]   tests.micro_cs (microcs.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock micro_cs.o
 micro_fpu.c: In function ‘cos_init’:
@@ -530,26 +555,12 @@ translator.c:132:23: warning: variable ‘channel’ set but not used [-Wunused-
 |     [LD]   valloc.simple (va.o): Linking -lprintc -lmem_mgr -llock valloc.o
 |     [LD]   vas_mgr.simple (vm.o): Linking -lprintc -llock -lmem_mgr vas_mgr.o
 micro_booter.c: In function ‘test_vmio’:
-micro_booter.c:604:5: warning: implicit declaration of function ‘cos_shm_write’ [-Wimplicit-function-declaration]
+micro_booter.c:609:5: warning: implicit declaration of function ‘cos_shm_write’ [-Wimplicit-function-declaration]
      cos_shm_write(buf, strlen(buf) + 1, vm, i);
      ^
 micro_booter.c:617:4: warning: implicit declaration of function ‘cos_shm_read’ [-Wimplicit-function-declaration]
     cos_shm_read(buf, 50, vm, 0);
     ^
-micro_booter.c:618:4: warning: passing argument 2 of ‘cos_rcv’ from incompatible pointer type [enabled by default]
-    cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
-    ^
-In file included from micro_booter.c:17:0:
-/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:110:5: note: expected ‘thdid_t *’ but argument is of type ‘int *’
- int cos_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, cycles_t *cycles);
-     ^
-micro_booter.c:618:4: warning: passing argument 4 of ‘cos_rcv’ from incompatible pointer type [enabled by default]
-    cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
-    ^
-In file included from micro_booter.c:17:0:
-/home/lucasbaier/research/rump2cos/Composite/src//components//include/cos_kernel_api.h:110:5: note: expected ‘cycles_t *’ but argument is of type ‘int *’
- int cos_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, cycles_t *cycles);
-     ^
 |     [LD]   vkernel.default (vkernel_boot.o): Linking  micro_booter.o vkernel_init.o testinv.o
 Warning: component vkernel.default has stated it implements interface vkernel and the interface doesn't exist.
 	Suggested Fix: remove it from the INTERFACES list in components/implementation/vkernel/default/Makefile

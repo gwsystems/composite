@@ -616,20 +616,14 @@ test_vmio(int vm)
 			}
 		} else {
 			int i = 0;
-<<<<<<< HEAD
 			int j;
 			int tid, rcving, cycles;
 			PRINTVM("Receiving..\n");
 			for(j = 0; j < (15*vm); j++){
 				PRINTVM("%d",j);
 			}
-			cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, &tid, &rcving, &cycles);
-			PRINTVM("cos_shm_read returned: %d\n", cos_shm_read(buf, 0, vm));
-=======
-			PRINTVM("%d Receiving..\n", vm);
-			cos_shm_read(&booter_info, buf, 50, vm, 0);
 			cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
->>>>>>> 24cabbf25e151c1926be9e8bfe797a00a3a928ff
+			PRINTVM("cos_shm_read returned: %d\n", cos_shm_read(buf, 0, vm));
 			PRINTVM("Recvd: %s @ %x:%x\n", buf, (unsigned int)BOOT_MEM_SHM_BASE, (unsigned int)cos_va2pa(&booter_info, (void *)BOOT_MEM_SHM_BASE));
 		}
 		it ++;
@@ -659,7 +653,7 @@ vm_init(void *id)
 	}
 	test_vmio((int)id);
 	rump_vmid = (int)id;
-	if (vmid == 2) {
+	if (vmid == 1) {
 		PRINTVM("Micro Booter started.\n");
 		termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 		assert(termthd);

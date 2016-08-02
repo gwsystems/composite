@@ -4,7 +4,7 @@
 #include <cos_types.h>
 #include <cos_kernel_api.h>
 
-#define assert(node)if (unlikely(!(node))) { debug_print("assert error in @ "); while(1);}
+//#define assert(node)if (unlikely(!(node))) { debug_print("assert error in @ "); while(1);}
 
 typedef u32_t isr_state_t;
 extern volatile isr_state_t cos_isr;           /* Last running isr thread */
@@ -70,7 +70,7 @@ isr_get(isr_state_t tmp, unsigned int *isdisabled, thdcap_t *contending)
 {
 	*isdisabled = tmp >> 31;
 	*contending = (thdcap_t)(tmp & ((u32_t)(~0) >> 16));
-	assert(*contending < (1 << 16))
+	assert(*contending < (1 << 16));
 }
 
 static inline isr_state_t
