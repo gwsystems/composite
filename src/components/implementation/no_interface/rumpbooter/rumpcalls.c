@@ -167,13 +167,13 @@ void
 cos_resume(void)
 {
 	while(1) {
-		int ret;
+		int ret, first = 1;
 		unsigned int isdisabled;
 
 		do {
 			thdcap_t contending;
 			cycles_t cycles;
-			int ret, pending, tid, rcving, irq_line, first = 1;
+			int pending, tid, rcving, irq_line;
 
 			/*
 			 * Handle all possible interrupts when
@@ -207,13 +207,13 @@ cos_resume(void)
 			 */
 			intr_switch();
 
+		} while(intrs);
 
-		} while(intrs && (!isdisabled || cos_intrdisabled));
+		assert(!intrs);
 
 rk_resume:
 		do {
 			if(cos_intrdisabled) break;
-			assert(!cos_intrdisabled);
 			ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);

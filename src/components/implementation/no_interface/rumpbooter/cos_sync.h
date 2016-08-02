@@ -59,6 +59,8 @@ intr_update(unsigned int irq_line, int rcving)
 	/* if an event for not an irq_line */
 	if(irq_line == -1) return;
 
+	assert(irq_line);
+
 	/* blocked, unset intterupt to be worked on */
 	if(rcving) intrs &= ~(1<<(irq_line-1));
 	/* unblocked, set intterupt to be worked on */

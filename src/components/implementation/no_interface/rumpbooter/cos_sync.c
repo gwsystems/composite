@@ -69,7 +69,8 @@ intr_start(thdcap_t thdcap)
 			 * finish processing interrupts before going back to rk
 			 */
 			__sync_fetch_and_add(&cos_intrdisabled, 1);
-			assert(cos_intrdisabled == 1);
+			if(cos_intrdisabled > 1) printc("cos_intrdisabled: %d\n", cos_intrdisabled);
+			assert(cos_intrdisabled);
 			return 0;
 		}
 
@@ -89,7 +90,7 @@ intr_end(void)
 	assert(!cos_isr);
 
 	/* cos interrupt thread unsets special disabled variable */
-	__sync_fetch_and_add(&cos_intrdisabled, -1);
+	__sync_fetch_and_sub(&cos_intrdisabled, 1);
 	assert(!cos_intrdisabled);
 
 }
