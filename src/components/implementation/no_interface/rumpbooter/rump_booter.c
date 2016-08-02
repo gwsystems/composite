@@ -52,9 +52,9 @@ rump_booter_init(void)
 		json_file = "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
 	}
 
-	/* paws baremetal */
-	//char *json_file = "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
-
+	/* paws baremetal 
+	char *json_file = "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
+*/
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();
 	/* possibly pass in the name of the program here to see if that fixes the name bug */
