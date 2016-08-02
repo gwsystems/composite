@@ -414,11 +414,12 @@ int __mman_fork_spd(spdid_t spd, u32_t s_spd_d_spd, vaddr_t base, u32_t len)
 			if (s_addr != mman_get_page(d_spd, s_addr, m->flags)) ret = -EFAULT;
 			if (m->c) {
 				/* children mappings exist, what to do? */
-
 			}
 		} else { /* this is an alias, re-alias from p */
-			/* FIXME: shouldn't share RW memory? how to do
-			 * this sanely? maybe m->p->spdid should do it? */
+			/* 
+			 * FIXME: shouldn't share RW memory? how to do
+			 * this sanely? maybe m->p->spdid should do it? 
+			 */
 			if (s_addr != mman_alias_page(m->p->spdid, m->p->addr, d_spd, s_addr, m->flags)) ret = -EINVAL;
 		}
 #if defined(DEBUG)

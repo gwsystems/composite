@@ -106,17 +106,12 @@ struct inv_ret_struct {
  * and the least-significant byte for receive (server) side.
  */
 static inline int
-need_fork_fix(struct thread *thd, struct spd *curr_spd, struct spd *d_spd, struct invocation_cap *c)
+need_fork_fix(struct invocation_cap *c)
 {
+	// c++;
 	assert(c->fork.cnt.snd >= 0);
 	assert(c->fork.cnt.rcv >= 0);
-	int ret = (((int)c->fork.cnt.snd)<<8) | (int)c->fork.cnt.rcv;
-	int spd = spd_get_index(curr_spd);
-	if ((spd == 13 && spd_get_index(d_spd) == 12) || (spd == 12 && spd_get_index(d_spd) == 13)) {		// 12 = malloc_comp calling printc, 13 = malloc_fork calling malloc_comp. 13 is higher because it has a dependency on comp so that is loaded first
-		printk("need_fork_fix spd %d->%d snd %d rcv %d ret %d\n", spd, spd_get_index(d_spd), c->fork.cnt.snd, c->fork.cnt.rcv, ret);
-	}
-
-	return ret;
+	return (((int)c->fork.cnt.snd)<<8) | (int)c->fork.cnt.rcv;
 }
 
 static vaddr_t
@@ -211,7 +206,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	cap_entry->invocation_cnt++;
 
 	/* Check for forking */
-	fork_cnts = need_fork_fix(thd, curr_spd, d_spd, cap_entry);
+	fork_cnts = need_fork_fix(cap_entry);
 	if (unlikely(fork_cnts > 0)) {
 		/* the off-by-1 capability */
 		printk("ipc_walk_static_cap found need to fork fix thd->id: %d, with curr_spd %d, d_spd %d, with fork_cnts %d\n", thd_get_id(thd), spd_get_index(curr_spd), spd_get_index(d_spd), fork_cnts);
@@ -3075,6 +3070,10 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 		break;
 	case COS_CAP_GET_FORK_CNT:
 		ret = spd_cap_get_fork_cnt(cspd, capid);
+		break;
+	case COS_CAP_SET_DEST:
+		sspd = spd_get_by_index((spdid_t) arg2);
+		ret = spd_cap_set_dest(cspd, capid, sspd);
 		break;
 	default:
 		ret = -1;

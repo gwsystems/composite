@@ -399,9 +399,10 @@ enum {
 	COS_CAP_GET_SPD_NCAPS,
 	COS_CAP_GET_DEST_SPD,
 	COS_CAP_GET_DEST_FN,
-	COS_CAP_INC_FORK_CNT,
+	COS_CAP_INC_FORK_CNT,	/* fork counters in invocation cap for inv.c */
 	COS_CAP_SET_FORK_CNT,
-	COS_CAP_GET_FORK_CNT
+	COS_CAP_GET_FORK_CNT,
+	COS_CAP_SET_DEST	/* Set destination of spd's specified cap to dest */
 };
 
 enum {

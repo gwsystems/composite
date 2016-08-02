@@ -2,7 +2,7 @@
 #include <cos_component.h>
 #include <test_malloc_comp.h>
 
-#define NUM 10
+#define NUM 1024
 static char *mptr[NUM];
 static int flag = 0;
 
@@ -27,27 +27,29 @@ call(void)
 
 			for (j = 0; j < i; j++) {
 				mptr[i][j] = j;
+				//printc("[%d] (%x), ", mptr[i][j], &mptr[i][j]);
 			}
 
-			for (j = 0; j < i; j++) {
-				printc("[%d] ", mptr[i][j]);
-			}
-			printc("\n");
+			//printc("\n");
 			
 			//free(mptr[i]);
 		}
 	}
 	else
 	{
+		/* feel free to delete this line - I realize it might NOT be 14 but right now it is */
+		assert(cos_spd_id() == 14);
+
 		int i, j;
 		for (i = 0; i < NUM; i++) {
 			for (j = 0; j < i; j++) {
 				mptr[i][j]++;
+				//printc("[%d] ", mptr[i][j]);
 			}
-			for (j = 0; j < i; j++) {
-				printc("[%d] ", mptr[i][j]);
-			}
-			printc("\n");
+			//printc("\n");
+
+			/* might as well do this */
+			free(mptr[i]);
 		}
 	}
 

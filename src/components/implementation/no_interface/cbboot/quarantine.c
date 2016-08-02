@@ -33,7 +33,6 @@ quarantine_add_to_spd_map(int o_spd, int f_spd) {
 
 static struct spd_map_entry*
 quarantine_get_spd_map_entry(int o_spd) {
-		quarantine_fork(cos_spd_id(), 12);
 	return &spd_map[o_spd];
 }
 
@@ -225,14 +224,19 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 				printd("Avoid sharing, allocated new cbuf %d @ %x\n", new_cbm.cbid, (unsigned long)new_cbm.caddr);
 				if (!new_cbm.caddr) { printc("error 7\n"); goto error; }
 				memcpy(new_cbm.caddr, cbm.caddr, left);
+				printd("Memory being copied is [%s], from cbid %d\n", cbm.caddr, cbm.cbid);
 				cbm.caddr = new_cbm.caddr;
-				cbm.cbid = new_cbm.cbid;
+				cbm.cbid = new_cbm.cbid;	// why?
 			}
 			assert(cbm.caddr);
 			cbid = cbm.cbid;
 			new_sect_cbufs[j] = cbm;
+			printd("cbuf id doing memcpy on is %d\n", cbid);
 
-			if (d_addr != (cbuf_map_at(cos_spd_id(), cbid, d_spd, d_addr | flags))) { printc("error 8\n"); goto error;}
+			/* Probably? where we copy cbufs */
+			if (d_addr != (cbuf_map_at(cos_spd_id(), cbid, d_spd, d_addr | flags))) { printc("error 8 - could not do cbuf_map_at to d_spd\n"); goto error;}
+			printd("mapped address %p\n", d_addr);
+
 			if (sect->flags & COBJ_SECT_CINFO) {
 				/* fixup cinfo page */
 				struct cos_component_information *ci = cbm.caddr;
@@ -243,6 +247,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 			prev_map += left - PAGE_SIZE;
 			d_addr += left;
 		}
+		printd("prev_map is now %x\n", prev_map);
 	}
 
 	/* FIXME: set fault handlers and re-write caps */
@@ -251,39 +256,49 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	printd("Setting capabilities for %d\n", d_spd);
 	if (__boot_spd_caps(src_hdr, d_spd)) BUG();
 
+
+
+	// Is there a reason we don't rip both of these out into separate methods?
+
 	/* Increment send-side fork count in source's caps, and copy fork count into d_spd's caps. */
 	for (j = 0; j < src_hdr->ncap; j++) {
 		int cnt;
 		cap = cobj_cap_get(src_hdr, j);
 		if (cobj_cap_undef(cap)) break;	
-		if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, source, cap->cap_off, 1<<8 | 0)) BUG();
+		if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, source, cap->cap_off, (1 << 8) | 0)) BUG();
 		cnt = cos_cap_cntl(COS_CAP_GET_FORK_CNT, source, cap->cap_off, 0);
 		assert(cnt > 0);
 		if (cos_cap_cntl(COS_CAP_SET_FORK_CNT, d_spd, cap->cap_off, cnt)) BUG();
 		printd("Updated fork count (send-side) for cap %d from spd %d to count %d\n", j, source, cnt);
 	}
 
+	struct cobj_header *check_hdr;
+	if (!(check_hdr = cos_vect_lookup(&spd_sect_cbufs_header, 13))) BUG();
 	/* Find every spd that has an invocation cap to source and update the receive-side fork count. */
-	for (j = 0; -1 != cgraph_client(j); j++) {
+	for (j = 0; cgraph_client(j) != -1; j++) {
 		int i;
 		int ncaps;
-		spdid_t c, s;
+		spdid_t spd_client, spd_server;
 		
 		if (cgraph_server(j) == source) {
-			c = cgraph_client(j);
-			ncaps = cos_cap_cntl(COS_CAP_GET_SPD_NCAPS, c, 0, 0);
+			spd_client = cgraph_client(j);
+			ncaps = cos_cap_cntl(COS_CAP_GET_SPD_NCAPS, spd_client, 0, 0);
 			for (i = 0; i < ncaps; i++) {
-				s = cos_cap_cntl(COS_CAP_GET_DEST_SPD, c, i, 0);
+				spd_server = cos_cap_cntl(COS_CAP_GET_DEST_SPD, spd_client, i, 0);
 
-				if (s < 0) BUG();
-				printc("c = %d, s = %d\n", c, s);
-				if (s == source) {
-					if (-1 == cos_cap_cntl(COS_CAP_INC_FORK_CNT, c, i, (0 << 8) | 1)) BUG();
-					printd("Updated fork count (receive-side) for cap %d from %d->%d to count %d\n", i, c, s, (0 << 8) | 1);
-					break;
+				if (spd_server < 0) BUG();
+				if (spd_server == source) {
+					// TODO: Put this back in. DO NOT move on to another project with this hack still in place.
+					//if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, c, i, (0 << 8) | 1)) BUG();
+
+					if (cos_cap_cntl(COS_CAP_SET_DEST, spd_client, i - 1, d_spd)) BUG();
+					
+					printd("Updated fork count (receive-side) for cap %d from %d->%d to count %d\n", i, spd_client, spd_server, 1);
+
+					/* If there can be multiple capablities between the same two spds, why is this break here? */
+					//break;
 				}
 			}
-			printc("\n");
 		}
 	}
 
@@ -299,6 +314,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	d_thd = sched_get_thread_in_spd(cos_spd_id(), source, 0);
 #endif
 
+	// Is this comment accurate? What does any of this have to do with servers?
 	/* inform servers about fork. Have to let servers update
 	 * spdid-based metadata before either the source (orig) or d_spd (fork)
 	 * make invocations to the servers. This is also done lazily through
@@ -308,8 +324,9 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	if (tot > SERVICE_SIZE) tot = SERVICE_SIZE + 3 * round_up_to_pgd_page(1) - tot;
 	else tot = SERVICE_SIZE - tot;
 	
-	printd("Telling mman to fork(%d, %d, %d, %x, %d)\n", cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
+	printd("Telling mman to fork(Q %d, O %d, F %d, base %x, total %d)\n", cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
 	r = mman_fork_spd(cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
+	printd("Done with mman_fork, ret %d\n", r);
 	if (r) printc("Error (%d) in mman_fork_spd\n", r);
 
 #ifdef NIL
@@ -367,10 +384,11 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	c_spd = cspd_dspd >> 16;
 	d_spd  = cspd_dspd & 0xffff;
 
-	printd("teory: this doesn't get called\n");
+	printd("teory: this gets called to handle receive-side fork counts\n");
 	printd("quarantine.c fault_quarantine_handler %d (%d) -> %d (%d)\n", c_spd, c_fix, d_spd, d_fix);
 
 	if (d_fix) {
+		printd("We are going to do a d_fix!\n");
 		/* 
 		 * Either c_spd is a fork, or c_spd has been forked. Either way,
 		 * the server (d_spd) needs to have its metadata related to c_spd
@@ -406,13 +424,14 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
 	}
 	if (c_fix) {
-	/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
-	 * Two possible ways to fix c_spd are to (1) find the usr_cap_tbl and
-	 * add a capability for the fork directly, or (2) add a syscall to
-	 * do the same. The following uses a syscall, since after adding the
-	 * capability to the usr_cap_tbl a syscall is needed anyway to fix
-	 * the struct spd caps[], ncaps. So just do it once.
-	 */
+		printd("We are going to do a c_fix\n");
+		/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
+		 * Two possible ways to fix c_spd are to (1) find the usr_cap_tbl and
+		 * add a capability for the fork directly, or (2) add a syscall to
+		 * do the same. The following uses a syscall, since after adding the
+		 * capability to the usr_cap_tbl a syscall is needed anyway to fix
+		 * the struct spd caps[], ncaps. So just do it once.
+		 */
 		struct spd_map_entry *d = quarantine_get_spd_map_entry(d_spd);
 		if (unlikely(EMPTY_LIST(d, n, p))) {
 			printd("No forks found for %d\n", d_spd);
@@ -421,14 +440,16 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 
 		/* FIXME: which fork should be used here? This pulls the most
 		 * recent fork. */
-		f_spd = LAST_LIST(d, n, p)->fork_spd;
+		f_spd = 14; // LAST_LIST(d, n, p)->fork_spd;
 		printd("Fixing routing table after fork from %d -> %d\n",
 				d_spd, f_spd);
 
 		// TODO: add / change ucap, routing table
+		// should this do anything else???? Feel like it probably should
+		// f_spd is then never used. So that's bad.
 	}
 dont_fix_c:
-
+	printd("Who need to fix things? Not this fault handler\n");
 	/* Adjust the fork count by the observed amount. We could just set
 	 * this to zero, but what if a fork has happened since the fault
 	 * handler was invoked? Probably we want to just decrement, and let

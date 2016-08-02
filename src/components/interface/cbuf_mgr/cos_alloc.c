@@ -256,7 +256,8 @@ static void _alloc_libc_free(void *ptr)
 			cbuf_free(pointer->cbuf_id);
 		}
 		else {
-			// bug because size is invalid???		
+			// bug because size is invalid???
+			BUG();
 		}
 	}
 }

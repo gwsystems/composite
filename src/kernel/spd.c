@@ -459,6 +459,7 @@ int spd_set_fork_cnt(struct spd *spd, int n)
 	spd->fork.origin = n;
 	return 0;
 }
+
 int spd_get_fork_cnt(struct spd *spd)
 {
 	return (int)spd->fork.origin;
@@ -496,9 +497,15 @@ static struct invocation_cap *spd_get_cap(struct spd *spd, int cap)
 
 int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd)
 {
+	assert(spd);
+	assert(dspd);
 	struct invocation_cap *c = spd_get_cap(spd, cap);
-	
 	if (!c) return -1;
+	if (cap >= spd->ncaps) {
+		printd("cos: Capability out of range (valid [0,%d), cap # %d).\n",
+		       spd->ncaps, cap);
+		return NULL;
+	}
 	c->destination = dspd;
 	return 0;
 }
@@ -537,7 +544,7 @@ int spd_cap_set_sfn(struct spd *spd, int cap, vaddr_t fn)
 int spd_cap_set_fork_cnt(struct spd *spd, int cap, s8_t send, s8_t receive)
 {
 	struct invocation_cap *c = spd_get_cap(spd, cap);
-	
+
 	if (!c) return -1;
 	assert(send >= 0);
 	assert(receive >= 0);
@@ -563,8 +570,6 @@ int spd_cap_inc_fork_cnt(struct spd *spd, int cap, s8_t send, s8_t receive)
 	if (!c) return -1;
 	c->fork.cnt.snd += send;
 	c->fork.cnt.rcv += receive;
-
-	printd("spd_cap_inc_fork_cnt spd %d cap %d snd %d rcv %d\n", spd_get_index(spd), cap, c->fork.cnt.snd, c->fork.cnt.rcv);
 
 	assert(c->fork.cnt.snd >= 0);
 	assert(c->fork.cnt.rcv >= 0);
