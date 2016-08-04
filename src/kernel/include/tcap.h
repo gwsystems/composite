@@ -43,13 +43,7 @@ struct tcap_sched_info {
 };
 
 struct tcap {
-	/*
-	 * The budget might be from a shared pool in which case budget
-	 * refers to the parent tcap, or it might be segregated in
-	 * this capability in which case budget = this.
-	 */
-	struct tcap 	   *pool;
-	struct thread      *arcv_ep; /* if ispool, this is the arcv endpoint */
+	struct thread      *arcv_ep; /* the arcv endpoint this tcap is hooked into */
 	u32_t 		   refcnt;
 	struct tcap_budget budget; /* if we have a partitioned budget */
 	u8_t               ndelegs, curr_sched_off;
@@ -104,34 +98,34 @@ tcap_ref(struct tcap *t)
 
 
 /*
- * Return 0 if budget left, 1 if the tcap is out of budget, and -1 if
- * the pool is out.  Consume budget from both the local and the parent
- * budget.
+ * Return 0 if budget left, 1 if the tcap is out of budget.  Consume
+ * budget from both the local and the parent budget.
  */
 static inline tcap_res_t
 tcap_consume(struct tcap *t, tcap_res_t cycles)
 {
 	assert(t);
-	t = t->pool;
 	if (TCAP_RES_IS_INF(t->budget.cycles)) return 0;
-	t->budget.cycles -= cycles;
-	if (t->budget.cycles <= 0) {
-		tcap_res_t left = cycles - t->budget.cycles;
-
+	if (cycles >= t->budget.cycles) {
 		t->budget.cycles = 0;
 
-		return left;
+		/* TODO: Add removal from global list of active tcaps */
+
+		/* "declassify" the time by keeping only the current tcap's priority */
+		t->ndelegs = 1;
+		if (t->curr_sched_off != 0) {
+			memcpy(&t->delegations[0], tcap_sched_info(t), sizeof(struct tcap_sched_info));
+			t->curr_sched_off = 0;
+		}
+
+		return cycles - t->budget.cycles;
 	}
-	/*
-	 * TODO: Add removal from global list of pools and declassify
-	 * if we've consumed all cycles.
-	 */
 	return 0;
 }
 
 static inline int
 tcap_expended(struct tcap *t)
-{ return t->pool->budget.cycles == 0; }
+{ return t->budget.cycles == 0; }
 
 static inline struct tcap *
 tcap_current(struct cos_cpu_local_info *cos_info)
@@ -169,20 +163,9 @@ static inline int
 tcap_higher_prio(struct tcap *a, struct tcap *c)
 {
 	int i, j;
-	tcap_prio_t ap, cp, ap_pool, cp_pool;
 	int ret = 0;
 
 	if (tcap_expended(a)) return 0;
-
-	/* Use the priorities of the tcaps, but the delegations of the pool */
-	ap      = tcap_sched_info(a)->prio;
-	cp      = tcap_sched_info(c)->prio;
-	a       = a->pool;
-	c       = c->pool;
-	ap_pool = tcap_sched_info(a)->prio;
-	cp_pool = tcap_sched_info(c)->prio;
-	tcap_sched_info(a)->prio = ap;
-	tcap_sched_info(c)->prio = cp;
 
 	for (i = 0, j = 0 ; i < a->ndelegs && j < c->ndelegs ; ) {
 		/*
@@ -203,9 +186,6 @@ tcap_higher_prio(struct tcap *a, struct tcap *c)
 	}
 	ret = 1;
 fixup:
-	tcap_sched_info(a)->prio = ap_pool;
-	tcap_sched_info(c)->prio = cp_pool;
-
 	return ret;
 }
 

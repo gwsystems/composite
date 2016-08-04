@@ -14,24 +14,9 @@
 #include "include/shared/cos_types.h"
 #include "include/chal/defs.h"
 
-struct tcap_percore {
-	struct tcap transient_tcap;
-	tcap_uid_t  tcap_uid;
-} CACHE_ALIGNED;
-
-static struct tcap_percore __tcap_percore[NUM_CPU] PAGE_ALIGNED;
-
-static inline struct tcap *
-tcap_transient_get(void)
-{ return &__tcap_percore[get_cpuid()].transient_tcap; }
-
 static inline tcap_uid_t *
 tcap_uid_get(void)
-{ return &__tcap_percore[get_cpuid()].tcap_uid; }
-
-static inline int
-tcap_ispool(struct tcap *t)
-{ return t == t->pool; }
+{ return &(cos_cpu_local_info()->tcap_uid); }
 
 /* Fill in default "safe" values */
 static void
@@ -45,19 +30,21 @@ __tcap_init(struct tcap *t, tcap_prio_t prio)
 	t->delegations[0].tcap_uid = (*uid)++;
 	t->curr_sched_off          = 0;
 	t->refcnt                  = 1;
-	t->pool                    = t;
 	tcap_setprio(t, prio);
 }
+
+static inline int
+tcap_isactive(struct tcap *t)
+{ return t->arcv_ep != NULL; }
 
 static int
 tcap_delete(struct tcap *tcap)
 {
 	assert(tcap);
-	if (tcap_ref(tcap)) return -1;
+	if (tcap_ref(tcap) != 1) return -1;
 	memset(&tcap->budget, 0, sizeof(struct tcap_budget));
 	memset(tcap->delegations, 0, sizeof(struct tcap_sched_info) * TCAP_MAX_DELEGATIONS);
 	tcap->ndelegs = tcap->cpuid = tcap->curr_sched_off = 0;
-	if (tcap_ispool(tcap)) tcap_ref_release(tcap->pool);
 
 	return 0;
 }
@@ -165,8 +152,8 @@ __tcap_legal_transfer(struct tcap *dst, struct tcap *src)
 int
 tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio)
 {
-	if (__tcap_legal_transfer(tcapdst->pool, tcapsrc->pool)) return -EINVAL;
-	return __tcap_transfer(tcapdst->pool, tcapsrc->pool, cycles, prio);
+	if (__tcap_legal_transfer(tcapdst, tcapsrc)) return -EINVAL;
+	return __tcap_transfer(tcapdst, tcapsrc, cycles, prio);
 }
 
 int
@@ -191,10 +178,8 @@ tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_n
 void
 tcap_promote(struct tcap *t, struct thread *thd)
 {
-	if (tcap_ispool(t)) return;
-	tcap_ref_release(t->pool);
+	if (tcap_isactive(t)) return;
 	t->arcv_ep = thd;
-	t->pool    = t;
 }
 
 int
@@ -208,9 +193,7 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t
 	int ret = 0;
 
 	assert(dst && src);
-	assert(tcap_ispool(dst));
-	/* we can ignore the source priority as it is overwritten by prio */
-	src = src->pool;
+	assert(tcap_isactive(dst));
 	if (unlikely(dst->ndelegs >= TCAP_MAX_DELEGATIONS)) return -ENOMEM;
 
 	d = tcap_sched_info(dst)->tcap_uid;
@@ -273,12 +256,4 @@ tcap_merge(struct tcap *dst, struct tcap *rm)
 }
 
 void
-tcap_init(void)
-{
-	int i;
-
-	for (i = 0 ; i < NUM_CPU ; i++) {
-		__tcap_init(&__tcap_percore[i].transient_tcap, TCAP_PRIO_MIN);
-		__tcap_percore[i].tcap_uid = 0;
-	}
-}
+tcap_init(void) { }

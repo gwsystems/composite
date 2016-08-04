@@ -50,7 +50,7 @@ thdcap_t termthd; 		/* switch to this to shutdown */
 /* For Div-by-zero test */
 int num = 1, den = 0;
 
-#define ITER 10
+#define ITER 10000
 #define TEST_NTHDS 5
 unsigned long tls_test[TEST_NTHDS];
 
