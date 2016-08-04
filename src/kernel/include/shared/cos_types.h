@@ -226,6 +226,7 @@ static inline unsigned long captbl_idsize(cap_t c)
  * 16-17 = km pte
  * 18-19 = comp0 captbl,
  * 20-21 = comp0 pgtbl root,
+ * 22-23 = local memory pgtbl root
  * 24-27 = comp0 component,
  * 28~(20+2*NCPU) = per core alpha thd
  *
@@ -235,16 +236,17 @@ static inline unsigned long captbl_idsize(cap_t c)
  * 2GB-> = system physical memory
  */
 enum {
-	BOOT_CAPTBL_SRET       = 0,
-	BOOT_CAPTBL_SELF_CT    = 4,
-	BOOT_CAPTBL_SELF_PT    = 6,
-	BOOT_CAPTBL_SELF_COMP  = 8,
-	BOOT_CAPTBL_BOOTVM_PTE = 12,
-	BOOT_CAPTBL_PHYSM_PTE  = 14,
-	BOOT_CAPTBL_KM_PTE     = 16,
+	BOOT_CAPTBL_SRET          = 0,
+	BOOT_CAPTBL_SELF_CT       = 4,
+	BOOT_CAPTBL_SELF_PT       = 6,
+	BOOT_CAPTBL_SELF_COMP     = 8,
+	BOOT_CAPTBL_BOOTVM_PTE    = 12,
+	BOOT_CAPTBL_SELF_LOCAL_PT = 14,
+	BOOT_CAPTBL_PHYSM_PTE     = 16,
+	BOOT_CAPTBL_KM_PTE        = 18,
 
-	BOOT_CAPTBL_COMP0_CT           = 18,
-	BOOT_CAPTBL_COMP0_PT           = 20,
+	BOOT_CAPTBL_COMP0_CT           = 20,
+	BOOT_CAPTBL_COMP0_PT           = 22,
 	BOOT_CAPTBL_COMP0_COMP         = 24,
 	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
 	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,

@@ -15,14 +15,17 @@ extern u8_t *boot_comp_pgd;
 int boot_nptes(unsigned int sz) { return round_up_to_pow2(sz, PGD_RANGE)/PGD_RANGE; }
 
 int
-boot_pgtbl_mappings_add(struct captbl *ct, pgtbl_t pgtbl, capid_t ptecap, const char *label,
+boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *label,
 			void *kern_vaddr, unsigned long user_vaddr, unsigned int range, int uvm)
 {
 	int ret;
 	u8_t *ptes;
 	unsigned int nptes = 0, i;
-	struct cap_pgtbl *pte_cap;
+	struct cap_pgtbl *pte_cap, *pgd_cap;
+	pgtbl_t pgtbl;
 
+	pgd_cap = (struct cap_pgtbl*)captbl_lkup(ct, pgdcap);
+	pgtbl = (pgtbl_t)pgd_cap->pgtbl;
 	nptes = boot_nptes(range);
 	ptes = mem_boot_alloc(nptes);
 	assert(ptes);
@@ -53,7 +56,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, pgtbl_t pgtbl, capid_t ptecap, const 
 		pte_cap->pgtbl = (pgtbl_t)p;
 
 		/* hook the pte into the boot component's page tables */
-		ret = cap_cons(ct, BOOT_CAPTBL_SELF_PT, ptecap, (capid_t)(user_vaddr + i*PGD_RANGE));
+		ret = cap_cons(ct, pgdcap, ptecap, (capid_t)(user_vaddr + i*PGD_RANGE));
 		assert(!ret);
 	}
 
@@ -112,7 +115,7 @@ kern_boot_comp(void)
         struct captbl *ct;
         unsigned int i;
 	u8_t *boot_comp_captbl;
-	pgtbl_t pgtbl = (pgtbl_t)chal_va2pa(&boot_comp_pgd);
+	pgtbl_t pgtbl = (pgtbl_t)chal_va2pa(&boot_comp_pgd), local_pgd;
 	void *thd_mem, *tcap_mem;
 	u32_t hw_bitmap = 0xFFFFFFFF;
 
@@ -144,7 +147,7 @@ kern_boot_comp(void)
 
 	printk("\tCapability table and page-table created.\n");
 
-	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(),
+	ret = boot_pgtbl_mappings_add(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(),
 				      (unsigned long)mem_bootc_vaddr(), mem_bootc_end() - mem_bootc_start(), 1);
 	assert(ret == 0);
 
@@ -155,8 +158,12 @@ kern_boot_comp(void)
 	 * Need to account for the pages that will be allocated as
 	 * PTEs
 	 */
+	local_pgd = (pgtbl_t)mem_boot_alloc(1);
+	local_pgd = (pgtbl_t)chal_va2pa(local_pgd);
+        if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_LOCAL_PT, local_pgd, 0)) assert(0);
 	nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
-	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_KM_PTE, "untyped memory", mem_boot_nalloc_end(nkmemptes),
+	printk("xxxxxxxx bott %x\n", mem_boot_nalloc_end(nkmemptes));
+	ret = boot_pgtbl_mappings_add(ct, BOOT_CAPTBL_SELF_LOCAL_PT, BOOT_CAPTBL_KM_PTE, "untyped memory", mem_boot_nalloc_end(nkmemptes),
 				      BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
 	assert(ret == 0);
 	/* Shut off further bump allocations */
