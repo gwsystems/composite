@@ -443,7 +443,8 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr,
 	       struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
 	struct comp_info *next_ci   = &(next->invstk[next->invstk_top].comp_info);
-	struct tcap      *curr_tcap = tcap_current_update(cos_info);
+	tcap_res_t        expended;
+	struct tcap      *curr_tcap = tcap_current_update(cos_info, &expended);
 	int               preempt   = 0;
 
 	if (unlikely(curr == next)) {
@@ -466,7 +467,7 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr,
 		copy_all_regs(regs, &curr->regs);
 	}
 
-	thd_current_update(next, next_tcap, curr, cos_info);
+	thd_current_update(next, next_tcap, curr, expended, cos_info);
 	if (likely(ci->pgtbl != next_ci->pgtbl)) pgtbl_update(next_ci->pgtbl);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
@@ -553,11 +554,11 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
 
 	/* The thread switch decision: */
 	if (yield || tcap_higher_prio(rcv_tcap, tcap)) {
-		next = rcv_thd;
-		*tcap_next = rcv_tcap;
+		next        = rcv_thd;
+		*tcap_next  = rcv_tcap;
 	} else {
-		next = thd;
-		*tcap_next = tcap;
+		next        = thd;
+		*tcap_next  = tcap;
 	}
 
 	return next;
@@ -663,6 +664,9 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		return 0;
 	}
 
+	next = arcv_thd_notif(thd);
+	if (likely(next)) thd_rcvcap_evt_enqueue(next, thd);
+
 	/* FIXME:  for now, lets just ignore this path...need to plumb tcaps into it */
 	thd->interrupted_thread = NULL;
 	if (thd->interrupted_thread) {
@@ -670,15 +674,13 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		assert(next->state & THD_STATE_PREEMPTED);
 		thd->interrupted_thread = NULL;
 		assert(0); 		/* need to take care of the tcap as well */
-	} else {
-		next = arcv_thd_notif(thd);
-		/*
-		 * don't change the current tcap: scheduler thread
-		 * inherits it root capability?
-		 */
-		if (!next) return -EAGAIN;
-		thd_rcvcap_evt_enqueue(next, thd);
 	}
+	/*
+	 * What about the root rcv end-point?  The only thing we
+	 * really can do is error out as the root has noone to report
+	 * to.
+	 */
+	if (unlikely(!next)) return -EAGAIN;
 
 	if (likely(thd != next)) {
 		assert(!(thd->state & THD_STATE_PREEMPTED));

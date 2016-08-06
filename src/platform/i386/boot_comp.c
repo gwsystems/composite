@@ -95,7 +95,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 	tc->budget.cycles = TCAP_RES_INF; /* father time's got all the time in the world */
 	tcap_setprio(tc, 0);              /* father time gets preempted by no one! */
 	assert(!ret);
-	thd_current_update(t, tcap_mem, t, cos_cpu_local_info());
+	thd_current_update(t, tcap_mem, t, 0, cos_cpu_local_info());
 
 	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE,
 			    BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_INITTHD_BASE,

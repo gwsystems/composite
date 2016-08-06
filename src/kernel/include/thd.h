@@ -59,11 +59,11 @@ struct thread {
 	/* TODO: same cache-line as the tid */
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
 
-	thd_state_t state;
-	u32_t tls;
-	cpuid_t cpuid;
+	thd_state_t  state;
+	u32_t        tls;
+	cpuid_t      cpuid;
 	unsigned int refcnt;
-	unsigned long exec;  		/* execution time */
+	tcap_res_t   exec;   /* execution time */
 	struct thread *interrupted_thread;
 
 	/* rcv end-point data-structures */
@@ -160,6 +160,15 @@ static inline struct thread *
 thd_rcvcap_evt_dequeue(struct thread *head)
 { return list_dequeue(&head->event_head); }
 
+/*
+ * If events are going to be delivered on this thread, then we should
+ * be tracking its execution time.  Thus, we co-opt the event list as
+ * a notification trigger for tracking the thread's execution time.
+ */
+static inline int
+thd_track_exec(struct thread *t)
+{ return !list_empty(&t->event_list); }
+
 static inline int
 thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long *cycles)
 {
@@ -170,7 +179,7 @@ thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long 
 
 	*thd_state = e->tid | (e->state & THD_STATE_RCVING ? 1<<31 : 0);
 	*cycles    = e->exec;
-	e->exec = 0;		/* TODO: actual cycle accounting */
+	e->exec    = 0;
 
 	return 1;
 }
@@ -317,8 +326,10 @@ thd_current(struct cos_cpu_local_info *cos_info)
 { return (struct thread *)(cos_info->curr_thd); }
 
 static inline void
-thd_current_update(struct thread *next, struct tcap *tcap, struct thread *prev, struct cos_cpu_local_info *cos_info)
+thd_current_update(struct thread *next, struct tcap *tcap, struct thread *prev, tcap_res_t expended, struct cos_cpu_local_info *cos_info)
 {
+	if (thd_track_exec(prev)) prev->exec += expended;
+
 	/* commit the cached data */
 	prev->invstk_top     = cos_info->invstk_top;
 	cos_info->invstk_top = next->invstk_top;

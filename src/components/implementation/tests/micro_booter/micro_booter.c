@@ -215,11 +215,11 @@ async_thd_fn(void *thdcap)
 	int pending;
 
 	printc("Asynchronous event thread handler.\n<-- rcving...\n");
-	pending = cos_sched_rcv(rc, &tid, &rcving, &cycles);
-	printc("<-- pending %d, thdid %d, rcving %d, cycles %lld\n<-- rcving...\n", pending, tid, rcving, cycles);
-	pending = cos_sched_rcv(rc, &tid, &rcving, &cycles);
-	printc("<-- pending %d, thdid %d, rcving %d, cycles %lld\n<-- rcving...\n", pending, tid, rcving, cycles);
-	pending = cos_sched_rcv(rc, &tid, &rcving, &cycles);
+	pending = cos_rcv(rc);
+	printc("<-- pending %d\n<-- rcving...\n", pending);
+	pending = cos_rcv(rc);
+	printc("<-- pending %d\n<-- rcving...\n", pending);
+	pending = cos_rcv(rc);
 	printc("<-- Error: manually returning to snding thread.\n");
 	cos_thd_switch(tc);
 	printc("ERROR: in async thd *after* switching back to the snder.\n");
@@ -229,7 +229,7 @@ async_thd_fn(void *thdcap)
 static void
 async_thd_parent(void *thdcap)
 {
-	thdcap_t tc = (thdcap_t)thdcap;
+	thdcap_t  tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcp_global;
 	asndcap_t sc = scp_global;
 	int ret, pending;
@@ -254,9 +254,9 @@ async_thd_parent(void *thdcap)
 static void
 test_async_endpoints(void)
 {
-	thdcap_t  tcp, tcc;
+	thdcap_t  tcp,  tcc;
 	tcap_t    tccp, tccc;
-	arcvcap_t rcp, rcc;
+	arcvcap_t rcp,  rcc;
 	int ret;
 
 	printc("Creating threads, and async end-points.\n");

@@ -96,9 +96,9 @@ tcap_ref(struct tcap *t)
 { return t->refcnt; }
 
 
-/*
- * Return 0 if budget left, 1 if the tcap is out of budget.  Consume
- * budget from both the local and the parent budget.
+/**
+ * Expend @cycles amount of budget.
+ * Return the amount of budget is left in the tcap.
  */
 static inline tcap_res_t
 tcap_consume(struct tcap *t, tcap_res_t cycles)
@@ -116,10 +116,11 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 			memcpy(&t->delegations[0], tcap_sched_info(t), sizeof(struct tcap_sched_info));
 			t->curr_sched_off = 0;
 		}
-
-		return cycles - t->budget.cycles;
+	} else {
+		t->budget.cycles -= cycles;
 	}
-	return 0;
+
+	return t->budget.cycles;
 }
 
 static inline int
@@ -130,18 +131,18 @@ static inline struct tcap *
 tcap_current(struct cos_cpu_local_info *cos_info)
 { return (struct tcap *)(cos_info->curr_tcap); }
 
-/* Get the current tcap _and_ update its cycle count */
+/* Get the current tcap, update its cycle count, and return the cycles expended */
 static inline struct tcap *
-tcap_current_update(struct cos_cpu_local_info *cos_info)
+tcap_current_update(struct cos_cpu_local_info *cos_info, tcap_res_t *expended)
 {
 	struct tcap *t;
-	tcap_res_t cycles, overshoot;
+	tcap_res_t cycles;
 
 	t                = tcap_current(cos_info);
 	cycles           = tsc();
-	overshoot        = tcap_consume(t, cycles - cos_info->cycles);
-	/* TODO: use overshoot somehow? return to caller? */
+	*expended        = cycles - cos_info->cycles;
 	cos_info->cycles = cycles;
+	tcap_consume(t, *expended);
 
 	return t;
 }
@@ -150,7 +151,7 @@ static inline void
 tcap_setprio(struct tcap *t, tcap_prio_t p)
 {
 	assert(t);
-	t->delegations[t->curr_sched_off].prio = p;
+	tcap_sched_info(t)->prio = p;
 }
 
 /*
