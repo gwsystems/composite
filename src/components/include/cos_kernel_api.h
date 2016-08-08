@@ -25,6 +25,7 @@ typedef capid_t hwcap_t;
 struct cos_meminfo {
 	vaddr_t untyped_ptr,      umem_ptr,      kmem_ptr;
 	vaddr_t untyped_frontier, umem_frontier, kmem_frontier;
+	capid_t pgtbl_cap;
 };
 
 /* Component captbl/pgtbl allocation information */
@@ -39,16 +40,16 @@ struct cos_compinfo {
 	vaddr_t vas_frontier, vasrange_frontier;
 	/* the source of memory */
 	struct cos_compinfo *memsrc; /* might be self-referential */
-	struct cos_meminfo mi;	     /* only populated for the component with real memory */
+	struct cos_meminfo local_mi;	     /* only populated for the component with real memory */
 };
 
-void cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);
+void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);
 /*
  * This only needs be called on compinfos that are managing resources
  * (i.e. likely only one).  All of the capabilities will be relative
  * to this component's captbls.
  */
-void cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz);
+void cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz, pgtblcap_t pgtbl_cap);
 
 /*
  * This uses the next three functions to allocate a new component and
