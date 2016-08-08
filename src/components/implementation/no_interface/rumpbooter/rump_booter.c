@@ -42,26 +42,30 @@ rump_booter_init(void)
 	extern int rump_vmid;
 	
 	printc("rump_vmid: %d\n", rump_vmid);
-	/* TODO: Add clean mechanism for selecting the right json file */
+
 	/* nginx */
 	//char *json_file = "{,\"blk\":{,\"source\":\"dev\",\"path\":\"/dev/paws\",\"fstype\":\"cd9660\",\"mountpoint\":\"data\",},\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"net\":{,\"if\":\"tun0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"111.111.111.0\",\"mask\":\"24\",\"gw\":\"111.111.111.0\",},\"cmdline\":\"nginx.bin\",},\0";
 
 	/* paws in qemu */
 	char *json_file = "";
-	if(!rump_vmid){
+	if(rump_vmid == 0){
 		json_file = "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
 	}
 
 	/* paws baremetal 
 	char *json_file = "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
 */
+
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();
 	/* possibly pass in the name of the program here to see if that fixes the name bug */
 
 	printc("\nSetting up arcv for hw irq\n");
-	hw_irq_alloc();
-
+	if(rump_vmid == 0) hw_irq_alloc();
+	//RK_hw_irq
+	
+	//bmk_isr_init(ipintr, NULL, 12);
+	
 	/* We pass in the json config string to the RK */
 //	printc("rump_vmid: %d, Json File:\n%s", rump_vmid, json_file);
 	cos_run(json_file);

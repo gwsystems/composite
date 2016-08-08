@@ -653,7 +653,7 @@ vm_init(void *id)
 	}
 	test_vmio((int)id);
 	rump_vmid = (int)id;
-	if (vmid == 1) {
+	if (vmid == 2) {
 		PRINTVM("Micro Booter started.\n");
 		termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 		assert(termthd);

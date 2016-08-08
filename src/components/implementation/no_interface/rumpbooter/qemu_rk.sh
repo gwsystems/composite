@@ -18,5 +18,6 @@ MODULES=$(sh $1 | awk '/^Writing image/ { print $3; }' | tr '\n' ' ')
 sudo ip tuntap add tap0 mode tap
 sudo ip addr add 10.0.120.100/24 dev tap0
 sudo ip link set dev tap0 up
-sudo route add -net 111.111.111.0 netmask 255.255.255.0 gw 10.0.120.101
+sudo route add -net 111.111.110.0 netmask 255.255.255.0 gw 10.0.120.101 #CNIC0 located: DOM0
+sudo route add -net 222.222.222.0 netmask 255.255.255.0 gw 10.0.120.101 #CNIC1 located: VM1
 qemu-system-i386 -no-kvm -net nic,model=virtio -net tap,script=no,ifname=tap0 -nographic -m 768 -kernel kernel.img -initrd "$(echo $MODULES | tr ' ' ',')"

@@ -54,6 +54,7 @@ cos2rump_setup(void)
 
 	crcalls.rump_intr_enable		= intr_enable;
 	crcalls.rump_intr_disable		= intr_disable;
+	crcalls.rump_sched_yield		= cos_sched_yield;
 
 	crcalls.rump_shmem_send			= cos_shmem_send;
 	crcalls.rump_shmem_recv			= cos_shmem_recv;
@@ -69,8 +70,8 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 	
 	cos_shm_write(buff, size, srcvm, dstvm);	
 	
-	cos_asnd(sndcap);
-	
+	cos_asnd(sndcap);	
+	printc("post cos_asnd\n");
 	return 1;
 }
 
@@ -88,8 +89,7 @@ void
 rump2cos_rcv(void)
 {
 	
-
-	crcalls.rump_sched_yield		= cos_sched_yield;
+	printc("rump2cos_rcv");	
 	return;
 }
 
@@ -97,13 +97,16 @@ rump2cos_rcv(void)
 void
 cos_irqthd_handler(void *line)
 {
+	extern int rump_vmid;
+	printc("cos_irqthd_handler\n");
 	int which = (int)line;
-
+//	printc("which line:(actually 11) %d, vmid: %d\n", which, rump_vmid);
+	
 	while(1) {
 		int pending = cos_rcv(irq_arcvcap[which]);
 
 		intr_start(irq_thdcap[which]);
-
+		//maybe check if this packet goes to vm1
 		bmk_isr(which);
 
 		intr_end();

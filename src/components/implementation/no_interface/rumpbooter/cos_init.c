@@ -41,6 +41,7 @@ alloc_initmem_all(void)
 	printc("max: %x\n", max);
 	return max;
 }
+
 void
 cos_run(char *cmdline)
 {

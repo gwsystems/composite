@@ -84,40 +84,25 @@ vm_time_fn(void *d)
 void
 vm0_io_fn(void *d) 
 {
-	static int x = 0;
+	printc("vm0_io_fn\n");
 	arcvcap_t rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + ((int)d - 1) * CAP64B_IDSZ;
-	asndcap_t sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE * ((int)d - 1) * CAP64B_IDSZ;
 	while (1) {
 		int pending = cos_rcv(rcvcap);
 		printc("vm0: rcv'd from vm %d\n", (int)d);
-		x ++;
-
-		/* read from shared memory here */
-		/* just for test */
-		if (x % 10 == 0) {
-			/* write to shared memory here */
-			printc("vm0: snding to vm %d\n", (int)d);
-			cos_asnd(sndcap);
-		}
 	}
 }
 
 void
 vmx_io_fn(void *d)
 {
-	static int x = 0;
+	printc("vmx_io_fn\n");
 	while (1) {
 		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
 		printc("%d: rcv'd from vm0\n", (int)d);
-		x ++;
-
+		intr_start(irq_thdcap[(int)d]);
 		/* read from shared memory here */
-		/* just for test */
-		if (x % 10 == 0) {
-			/* write to shared memory here */
-			printc("%d: snding to vm0\n", (int)d);
-			cos_asnd(VM_CAPTBL_SELF_IOASND_BASE);
-		}
+		bmk_isr((int)d);
+		intr_end();
 	}
 }
 
