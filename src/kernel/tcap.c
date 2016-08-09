@@ -14,6 +14,8 @@
 #include "include/shared/cos_types.h"
 #include "include/chal/defs.h"
 
+/*** TCap Operations ***/
+
 static inline tcap_uid_t *
 tcap_uid_get(void)
 { return &(cos_cpu_local_info()->tcap_uid); }
@@ -127,7 +129,7 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t
 
 	assert(dst && src);
 	assert(tcap_isactive(dst));
-	if (unlikely(dst->ndelegs >= TCAP_MAX_DELEGATIONS)) return -ENOMEM;
+	if (unlikely(dst->ndelegs > TCAP_MAX_DELEGATIONS)) return -ENOMEM;
 
 	d = tcap_sched_info(dst)->tcap_uid;
 	s = tcap_sched_info(src)->tcap_uid;
@@ -162,7 +164,7 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t
 
 	if (__tcap_transfer(dst, src, cycles, prio)) return -EINVAL;
 	memcpy(dst->delegations, deleg_tmp, sizeof(struct tcap_sched_info) * ndelegs);
-	/* can't delegate to yourself, thus 2 schedulers must be involved */
+	/* can't get to this point by delegating to yourself, thus 2 schedulers must be involved */
 	assert(ndelegs >= 2);
 	dst->ndelegs = ndelegs;
 	assert(si != -1);
@@ -181,12 +183,32 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t
 int
 tcap_merge(struct tcap *dst, struct tcap *rm)
 {
-	if (dst == rm                                             ||
-	    tcap_delegate(dst, rm, 0, tcap_sched_info(dst)->prio) ||
-	    tcap_delete(rm)) return -1;
+	if (dst == rm)        return -1;
+	/* Don't delegate till you we know that we can delete */
+	if (tcap_ref(rm) > 1) return -1;
+	if (tcap_delegate(dst, rm, 0, tcap_sched_info(dst)->prio)) return -1;
+	if (tcap_delete(rm))  assert(0);
 
 	return 0;
 }
+
+/*** Active TCap List ***/
+
+/* void */
+/* tcap_active_enqueue(struct cos_cpu_local_info *ci, struct tcap *t) */
+/* { */
+
+/* } */
+
+/* struct tcap * */
+/* tcap_active_first(struct cos_cpu_local_info *ci,  struct tcap *t) */
+/* { */
+
+/* } */
+
+/* void */
+/* tcap_active_rem(struct tcap *t) */
+/* { list_rem(); } */
 
 void
 tcap_init(void) { }

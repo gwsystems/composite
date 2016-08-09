@@ -443,9 +443,8 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr,
 	       struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
 	struct comp_info *next_ci   = &(next->invstk[next->invstk_top].comp_info);
-	tcap_res_t        expended;
-	struct tcap      *curr_tcap = tcap_current_update(cos_info, &expended);
 	int               preempt   = 0;
+	tcap_res_t        expended;
 
 	if (unlikely(curr == next)) {
 		assert(!(curr->state & (THD_STATE_RCVING)));
@@ -467,7 +466,8 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr,
 		copy_all_regs(regs, &curr->regs);
 	}
 
-	thd_current_update(next, next_tcap, curr, expended, cos_info);
+	tcap_current_update(cos_info, next_tcap, thd_track_exec(curr), &expended);
+	thd_current_update(next, curr, cos_info, expended);
 	if (likely(ci->pgtbl != next_ci->pgtbl)) pgtbl_update(next_ci->pgtbl);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
@@ -502,11 +502,10 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 	capid_t tc          = __userregs_get1(regs) >> 16;
 	tcap_prio_t prio    = (tcap_prio_t)__userregs_get3(regs) | (tcap_prio_t)__userregs_get2(regs);
 	tcap_res_t res      = (tcap_res_t)__userregs_get4(regs);
-	struct tcap *tcap;
+	struct tcap *tcap   = tcap_current(cos_info);
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
 
-	tcap = tcap_current(cos_info);
 	if (arcv) {
 		struct cap_arcv *arcv_cap;
 		struct thread *rcvt;

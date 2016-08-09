@@ -98,7 +98,7 @@ tcap_ref(struct tcap *t)
 
 /**
  * Expend @cycles amount of budget.
- * Return the amount of budget is left in the tcap.
+ * Return the amount of budget that is left in the tcap.
  */
 static inline tcap_res_t
 tcap_consume(struct tcap *t, tcap_res_t cycles)
@@ -131,20 +131,23 @@ static inline struct tcap *
 tcap_current(struct cos_cpu_local_info *cos_info)
 { return (struct tcap *)(cos_info->curr_tcap); }
 
-/* Get the current tcap, update its cycle count, and return the cycles expended */
-static inline struct tcap *
-tcap_current_update(struct cos_cpu_local_info *cos_info, tcap_res_t *expended)
+/* Update the current tcap's cycle count, and return the cycles expended */
+static inline void
+tcap_current_update(struct cos_cpu_local_info *cos_info, struct tcap *next, int cyc_update, tcap_res_t *expended)
 {
-	struct tcap *t;
-	tcap_res_t cycles;
+	struct tcap *curr;
+	tcap_res_t   cycles;
 
-	t                = tcap_current(cos_info);
+	assert(next);
+	curr                = tcap_current(cos_info);
+	cos_info->curr_tcap = next;
+	*expended           = 0;
+	if (curr == next && !cyc_update) return;
+
 	cycles           = tsc();
 	*expended        = cycles - cos_info->cycles;
 	cos_info->cycles = cycles;
-	tcap_consume(t, *expended);
-
-	return t;
+	tcap_consume(curr, *expended);
 }
 
 static inline void

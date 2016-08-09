@@ -78,8 +78,9 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 {
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	struct thread *t = thd_mem;
-	struct tcap *tc = tcap_mem;
-	int ret;
+	struct tcap   *tc = tcap_mem;
+	tcap_res_t     expended;
+	int            ret;
 
 	assert(sizeof(struct cos_cpu_local_info) == STK_INFO_SZ);
 	memset(cos_info, 0, sizeof(struct cos_cpu_local_info));
@@ -95,7 +96,11 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 	tc->budget.cycles = TCAP_RES_INF; /* father time's got all the time in the world */
 	tcap_setprio(tc, 0);              /* father time gets preempted by no one! */
 	assert(!ret);
-	thd_current_update(t, tcap_mem, t, 0, cos_cpu_local_info());
+
+	cos_info->curr_tcap = tc;
+	cos_info->tcap_uid  = 1;
+	tcap_current_update(cos_cpu_local_info(), tc, 1, &expended);
+	thd_current_update(t, t, cos_cpu_local_info(), 0);
 
 	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE,
 			    BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_INITTHD_BASE,

@@ -37,6 +37,7 @@ struct cos_cpu_local_info {
 	void *curr_tcap;
 	tcap_uid_t  tcap_uid;
 	tcap_prio_t tcap_prio;
+	void       *tcap_active;
 	cycles_t cycles;
 	/*
 	 * cache the stk_top index to save a cacheline access on

@@ -326,16 +326,13 @@ thd_current(struct cos_cpu_local_info *cos_info)
 { return (struct thread *)(cos_info->curr_thd); }
 
 static inline void
-thd_current_update(struct thread *next, struct tcap *tcap, struct thread *prev, tcap_res_t expended, struct cos_cpu_local_info *cos_info)
+thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info, tcap_res_t expended)
 {
-	if (thd_track_exec(prev)) prev->exec += expended;
-
+	prev->exec += expended;
 	/* commit the cached data */
 	prev->invstk_top     = cos_info->invstk_top;
 	cos_info->invstk_top = next->invstk_top;
-	cos_info->curr_thd   = (void *)next;
-	assert(tcap);
-	cos_info->curr_tcap  = tcap;
+	cos_info->curr_thd   = next;
 }
 
 static inline int curr_invstk_inc(struct cos_cpu_local_info *cos_info)
