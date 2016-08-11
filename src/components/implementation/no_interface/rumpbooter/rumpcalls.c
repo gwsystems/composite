@@ -188,6 +188,8 @@ intr_switch(void)
 {
 	int ret, i = 32;
 
+	if(!intrs) return;
+
 	/* Man this is ugly...FIXME */
 	for(; i > 1 ; i--) {
 		int tmp = intrs;
@@ -294,7 +296,7 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 
 /* --------- Timer ----------- */
 
-/* Convert to us from ns to us to give us more accuracy when dividing */
+/* Get the number of cycles in a single micro second. If we do nano second we lose the fraction */
 long long cycles_us = (long long)(CPU_GHZ * 1000);
 
 /* Return monotonic time since RK initiation in nanoseconds */
@@ -302,18 +304,13 @@ long long
 cos_cpu_clock_now(void)
 {
 	uint64_t tsc_now = 0;
-	long long curtime = 0;
+	unsigned long long curtime = 0;
 
 	rdtscll(tsc_now);
 
-	/*
-	 * We divide as we have cycles and cycles per nano,
-	 * with unit analysis we need to divide to cancle cycles to just have ns
-	 * The last thread in the timeq has < wakeup time.
-	 */
-
-	curtime = (long long)(tsc_now / cycles_us); /* cycles to us */
-	curtime = (long long)(curtime * 1000); /* us to ns */
+	/* We divide as we have cycles and cycles per micro second */
+	curtime = (long long)(tsc_now / cycles_us); /* cycles to micro seconds */
+	curtime = (long long)(curtime * 1000); /* micro to nano seconds */
 
 	return curtime;
 }
