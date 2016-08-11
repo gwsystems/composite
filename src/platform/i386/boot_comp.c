@@ -28,7 +28,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	if (!pgd_cap || !CAP_TYPECHK(pgd_cap, CAP_PGTBL)) assert(0);
 	pgtbl = (pgtbl_t)pgd_cap->pgtbl;
 	nptes = boot_nptes(range);
-	ptes = mem_boot_alloc(nptes);
+	ptes  = mem_boot_alloc(nptes);
 	assert(ptes);
 	printk("\tCreating %d %s PTEs for PGD @ 0x%x from [%x,%x) to [%x,%x).\n",
 	       nptes, label, chal_pa2va((paddr_t)pgtbl),
@@ -80,10 +80,12 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 static void
 kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 {
-	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
-	struct thread *t = thd_mem;
-	struct tcap *tc = tcap_mem;
+	struct cap_pgtbl *cap_pt;
+	pgtbl_t pgtbl;
 	int ret;
+	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
+	struct thread *t                    = thd_mem;
+	struct tcap *tc                     = tcap_mem;
 
 	assert(sizeof(struct cos_cpu_local_info) == STK_INFO_SZ);
 	memset(cos_info, 0, sizeof(struct cos_cpu_local_info));
@@ -99,12 +101,21 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 	tc->budget.cycles = TCAP_RES_INF; /* father time's got all the time in the world */
 	tcap_setprio(tc, 0);              /* father time gets preempted by no one! */
 	assert(!ret);
-	thd_current_update(t, tcap_mem, t, 0, cos_cpu_local_info());
 
+	thd_current_update(t, tcap_mem, t, 0, cos_cpu_local_info());
 	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE,
 			    BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_INITTHD_BASE,
 			    BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 1);
 	assert(!ret);
+
+	/*
+	 * boot component's mapped into SELF_PT,
+	 * switching to boot component's pgd
+	 */
+	cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, BOOT_CAPTBL_SELF_PT);
+	pgtbl = cap_pt->pgtbl;
+	assert(pgtbl);
+	pgtbl_update(pgtbl);
 
 	printk("\tCreating initial threads, tcaps, and rcv end-points in boot-component.\n");
 }
@@ -116,14 +127,14 @@ kern_boot_comp(void)
         struct captbl *ct;
         unsigned int i;
 	u8_t *boot_comp_captbl;
-	pgtbl_t pgtbl = (pgtbl_t)chal_va2pa(&boot_comp_pgd), untyped_pgd;
 	void *thd_mem, *tcap_mem;
+	pgtbl_t pgtbl   = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
 	u32_t hw_bitmap = 0xFFFFFFFF;
 
 	printk("Setting up the booter component.\n");
 
 	boot_comp_captbl = mem_boot_alloc(BOOT_CAPTBL_NPAGES);
-        ct = captbl_create(boot_comp_captbl);
+        ct               = captbl_create(boot_comp_captbl);
         assert(ct);
 
         /* expand the captbl to use multiple pages. */
@@ -141,12 +152,16 @@ kern_boot_comp(void)
 	assert(thd_mem && tcap_mem);
         if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) assert(0);
         if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) assert(0);
-        if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, pgtbl, 0)) assert(0);
 
 	hw_asndcap_init();
 	if (hw_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITHW_BASE, hw_bitmap)) assert(0);
 
-	printk("\tCapability table and page-table created.\n");
+	/*
+	 * separate pgd for boot component virtual memory
+	 */
+	boot_vm_pgd = (pgtbl_t)mem_boot_alloc(1);
+	memcpy((void *)boot_vm_pgd + KERNEL_PGD_REGION_OFFSET,  (void *)(&boot_comp_pgd) + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE); 
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (pgtbl_t)chal_va2pa(boot_vm_pgd), 0)) assert(0);
 
 	ret = boot_pgtbl_mappings_add(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(),
 				      (unsigned long)mem_bootc_vaddr(), mem_bootc_end() - mem_bootc_start(), 1);
@@ -159,12 +174,14 @@ kern_boot_comp(void)
 	 * Need to account for the pages that will be allocated as
 	 * PTEs
 	 */
-	untyped_pgd = (pgtbl_t)chal_va2pa(mem_boot_alloc(1));
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_UNTYPED_PT, untyped_pgd, 0)) assert(0);
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_UNTYPED_PT, pgtbl, 0)) assert(0);
 	nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
 	ret = boot_pgtbl_mappings_add(ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory", mem_boot_nalloc_end(nkmemptes),
 				      BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
 	assert(ret == 0);
+
+	printk("\tCapability table and page-table created.\n");
+
 	/* Shut off further bump allocations */
 	glb_memlayout.allocs_avail = 0;
 

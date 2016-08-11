@@ -107,8 +107,8 @@ struct pt_regs {
 #define COS_NUM_ATOMIC_SECTIONS 10
 
 /* # of pages */
-#define COS_MAX_MEMORY    (COS_MEM_USER_PA_SZ/PAGE_SIZE)  /* # of pages */
-#define COS_MEM_BOUND     (COS_MEM_USER_PA + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
+#define COS_MAX_MEMORY    (COS_MEM_KERN_PA_SZ/PAGE_SIZE)  /* # of pages */
+#define COS_MEM_BOUND     (COS_MEM_KERN_PA + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
 
 /* These are deprecated, use the macros they reference */
 #define KERN_MEM_ORDER    (COS_MEM_KERN_PA_ORDER-PAGE_ORDER)
