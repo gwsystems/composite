@@ -48,7 +48,7 @@ intr_translate_thdid2irq(thdid_t tid)
 
 	while(tid != irq_thdid[i] && i < 32) i++;
 	/* Make sure that we are dealing with an irq thread id*/
-	assert(i < 32);
+	if(i >= 32) return -1;
 
 	return i;
 }
