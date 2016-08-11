@@ -39,6 +39,8 @@ objcopy -L __divdi3  rump_boot.o
 objcopy -L puts      rump_boot.o
 objcopy -L strtoul   rump_boot.o
 objcopy -L strerror  rump_boot.o
+objcopy -L sprintf   rump_boot.o
+objcopy -L vsprintf  rump_boot.o
 objcopy -L _exit     $prog.bin
 objcopy -L _start    $prog.bin
 
