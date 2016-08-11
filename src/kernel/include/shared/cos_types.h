@@ -268,8 +268,7 @@ enum {
 
 enum {
 	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1<<22)), /* @ 1G + 8M */
-	BOOT_MEM_KM_BASE = PAGE_SIZE, /* kernel memory @ first page, not at address 0 to avoid NULL */
-	BOOT_MEM_PM_BASE = 0x80000000, /* user memory @ 2 GB */
+	BOOT_MEM_KM_BASE = PAGE_SIZE, /* kernel & user memory @ first page, not at address 0 to avoid NULL */
 };
 
 enum {
