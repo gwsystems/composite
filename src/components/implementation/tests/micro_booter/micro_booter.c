@@ -540,11 +540,15 @@ test_run(void)
 	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
-	test_thds();
-	test_thds_perf();
-
 	test_timer();
 	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
+
+	/* 
+	 * It is ideal to ubenchmark kernel API with timer interrupt detached,
+	 * Not so much for unit-tests
+	 */
+	test_thds();
+	test_thds_perf();
 
 	test_mem();
 
