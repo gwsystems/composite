@@ -623,6 +623,26 @@ test_vmio(int vm)
 }
 
 void
+test_vmio_events(void)
+{
+	PRINTVM("Testing vmio events\n");
+	if (vmid == 0) {
+		int i;
+		asndcap_t snd = VM0_CAPTBL_SELF_IOASND_SET_BASE;
+		
+		for (i = 1; i < COS_VIRT_MACH_COUNT; i ++) {
+			snd += (i - 1) * CAP64B_IDSZ;
+			cos_asnd(snd);
+			PRINTVM("Sent to vm%d\n", i); 
+		} 
+	} else {
+		cos_asnd(VM_CAPTBL_SELF_IOASND_BASE);
+		PRINTVM("Sent to vm0\n"); 
+	}
+	PRINTVM("Test Done\n");
+}
+
+void
 term_fn(void *d)
 {
 	BUG_DIVZERO();
@@ -648,6 +668,7 @@ vm_init(void *id)
 	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 	assert(termthd);
 
+	test_vmio_events();
 	test_run();
 	PRINTVM("Micro Booter done.\n");
 

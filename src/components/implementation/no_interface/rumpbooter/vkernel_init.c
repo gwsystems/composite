@@ -83,40 +83,21 @@ vm_time_fn(void *d)
 void
 vm0_io_fn(void *d) 
 {
-	static int x = 0;
+	printc("vm0: io fn started for %d\n", (int)d);
 	arcvcap_t rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + ((int)d - 1) * CAP64B_IDSZ;
-	asndcap_t sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE * ((int)d - 1) * CAP64B_IDSZ;
 	while (1) {
 		int pending = cos_rcv(rcvcap);
 		printc("vm0: rcv'd from vm %d\n", (int)d);
-		x ++;
-
-		/* read from shared memory here */
-		/* just for test */
-		if (x % 10 == 0) {
-			/* write to shared memory here */
-			printc("vm0: snding to vm %d\n", (int)d);
-			cos_asnd(sndcap);
-		}
 	}
 }
 
 void
 vmx_io_fn(void *d)
 {
-	static int x = 0;
+	printc("vm%d: io fn started\n", (int)d);
 	while (1) {
 		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
 		printc("%d: rcv'd from vm0\n", (int)d);
-		x ++;
-
-		/* read from shared memory here */
-		/* just for test */
-		if (x % 10 == 0) {
-			/* write to shared memory here */
-			printc("%d: snding to vm0\n", (int)d);
-			cos_asnd(VM_CAPTBL_SELF_IOASND_BASE);
-		}
 	}
 }
 
@@ -199,9 +180,14 @@ cos_init(void)
 
 		cos_meminfo_init(&vmbooter_info[id].mi, 
 				BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
-		cos_compinfo_init(&vmbooter_info[id], vmpt, vmct, vmcc,
-				(vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, 
-				(vaddr_t)BOOT_MEM_SHM_BASE, &vkern_info);
+		if (id == 0) 
+			cos_compinfo_init(&vmbooter_info[id], vmpt, vmct, vmcc,
+					(vaddr_t)BOOT_MEM_VM_BASE, VM0_CAPTBL_FREE, 
+					(vaddr_t)BOOT_MEM_SHM_BASE, &vkern_info);
+		else 
+			cos_compinfo_init(&vmbooter_info[id], vmpt, vmct, vmcc,
+					(vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, 
+					(vaddr_t)BOOT_MEM_SHM_BASE, &vkern_info);
 
 		vm_main_thd[id] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vm_init, (void *)id);
 		assert(vm_main_thd[id]);
@@ -228,7 +214,6 @@ cos_init(void)
 		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd); 
 
 		printc("\tCreating other required initial capabilities\n");
-		//vminittcap[id] = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 		vminittcap[id] = cos_tcap_alloc(&vkern_info, TCAP_PRIO_MAX);
 		assert(vminittcap[id]);
 
@@ -250,7 +235,6 @@ cos_init(void)
 
 		printc("\tCreating TCap transfer capabilities (Between VKernel and VM%d)\n", id);
 		/* VKERN to VM */
-		//vk_time_tcap[id] = cos_tcap_split(&vkern_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 		vk_time_tcap[id] = cos_tcap_alloc(&vkern_info, TCAP_PRIO_MAX);
 		assert(vk_time_tcap[id]);
 		vk_time_thd[id] = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vk_time_fn, (void *)id);
@@ -266,12 +250,11 @@ cos_init(void)
 		}
 
 		/* VM to VKERN */		
-		//vms_time_tcap[id] = cos_tcap_split(&vkern_info, vminittcap[id], 0, 0);
 		vms_time_tcap[id] = cos_tcap_alloc(&vkern_info, TCAP_PRIO_MAX);
 		assert(vms_time_tcap[id]);
 		vms_time_thd[id] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vm_time_fn, (void *)id);
 		assert(vms_time_thd[id]);
-		vms_time_rcv[id] = cos_arcv_alloc(&vkern_info, vms_time_thd[id], vms_time_tcap[id], vmbooter_info[id].comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+		vms_time_rcv[id] = cos_arcv_alloc(&vkern_info, vms_time_thd[id], vms_time_tcap[id], vkern_info.comp_cap, vminitrcv[id]);
 		assert(vms_time_rcv[id]);
 
 		if ((ret = cos_tcap_transfer(vms_time_rcv[id], vminittcap[id], TCAP_RES_INF, TCAP_PRIO_MAX))) {
@@ -293,11 +276,10 @@ cos_init(void)
 			printc("\tSetting up Cross VM (between vm0 and vm%d) communication channels\n", id);
 			/* VM0 to VMid */
 			vm0_io_tcap[id-1] = cos_tcap_alloc(&vkern_info, TCAP_PRIO_MAX);
-			//vm0_io_tcap[id-1] = cos_tcap_split(&vkern_info, vminittcap[0], 0, 0);
 			assert(vm0_io_tcap[id-1]);
 			vm0_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[0].comp_cap, vm0_io_fn, (void *)id);
 			assert(vm0_io_thd[id-1]);
-			vm0_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vm0_io_thd[id-1], vm0_io_tcap[id-1], vmbooter_info[0].comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+			vm0_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vm0_io_thd[id-1], vm0_io_tcap[id-1], vkern_info.comp_cap, vminitrcv[0]);
 			assert(vm0_io_rcv[id-1]);
 
 			if ((ret = cos_tcap_transfer(vm0_io_rcv[id-1], vminittcap[0], TCAP_RES_INF, TCAP_PRIO_MAX))) {
@@ -306,12 +288,11 @@ cos_init(void)
 			}
 
 			/* VMp to VM0 */		
-			//vms_io_tcap[id-1] = cos_tcap_split(&vkern_info, vminittcap[id], 0, 0);
 			vms_io_tcap[id-1] = cos_tcap_alloc(&vkern_info, TCAP_PRIO_MAX);
 			assert(vms_io_tcap[id-1]);
 			vms_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vmx_io_fn, (void *)id);
 			assert(vms_io_thd[id-1]);
-			vms_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vms_io_thd[id-1], vms_io_tcap[id-1], vmbooter_info[id].comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+			vms_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vms_io_thd[id-1], vms_io_tcap[id-1], vkern_info.comp_cap, vminitrcv[id]);
 			assert(vms_io_rcv[id-1]);
 
 			if ((ret = cos_tcap_transfer(vms_io_rcv[id-1], vminittcap[id], TCAP_RES_INF, TCAP_PRIO_MAX))) {
@@ -340,18 +321,36 @@ cos_init(void)
 		 * Copy as much memory as vkernel has typed.. 
 		 * Map untyped memory to vkernel
 		 */
-		printc("\tMapping in Booter component Virtual memory\n");
 		page_range = ((int)cos_get_heap_ptr() - BOOT_MEM_VM_BASE);
-		for (i = 0; i < page_range; i += PAGE_SIZE) {
-			// allocate page
-			vaddr_t spg = (vaddr_t) cos_page_bump_alloc(&vkern_info);
-			// copy mem - can even do it after creating and copying all pages.
-			memcpy((void *) spg, (void *) (BOOT_MEM_VM_BASE + i), PAGE_SIZE);
-			// copy cap
-			vaddr_t dpg = cos_mem_alias(&vmbooter_info[id], &vkern_info, spg);
+		if (id != 0) {
+			/* 
+			 * Map the VM0's Virtual Memory only after I/O Comm Caps are allocated with all other VMs.
+			 * Basically, when we're done with the last VM's INIT. (we could do it outside the Loop too.)
+			 */
+			if (id == COS_VIRT_MACH_COUNT - 1) {
+				printc("\tMapping in Booter component Virtual memory to VM0, Range: %u\n", page_range);
+				for (i = 0; i < page_range; i += PAGE_SIZE) {
+					// allocate page
+					vaddr_t spg = (vaddr_t) cos_page_bump_alloc(&vkern_info);
+					// copy mem - can even do it after creating and copying all pages.
+					memcpy((void *) spg, (void *) (BOOT_MEM_VM_BASE + i), PAGE_SIZE);
+					// copy cap
+					vaddr_t dpg = cos_mem_alias(&vmbooter_info[0], &vkern_info, spg);
+				}
+
+			}
+			printc("\tMapping in Booter component Virtual memory to VM%d, Range: %u\n", id, page_range);
+			for (i = 0; i < page_range; i += PAGE_SIZE) {
+				// allocate page
+				vaddr_t spg = (vaddr_t) cos_page_bump_alloc(&vkern_info);
+				// copy mem - can even do it after creating and copying all pages.
+				memcpy((void *) spg, (void *) (BOOT_MEM_VM_BASE + i), PAGE_SIZE);
+				// copy cap
+				vaddr_t dpg = cos_mem_alias(&vmbooter_info[id], &vkern_info, spg);
+			}
 		}
 
-		if (!id) {
+		if (id == 0) {
 			printc("\tCreating shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_ALL_SZ);
 			cos_shmem_alloc(&vmbooter_info[id], COS_SHM_ALL_SZ);
 		} else {
@@ -363,7 +362,6 @@ cos_init(void)
 		cos_meminfo_alloc(&vmbooter_info[id], BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ);
 
 		printc("VM %d Init DONE\n", id);
-
 	}
 
 	printc("Starting Timer/Scheduler Thread\n");
