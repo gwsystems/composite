@@ -225,10 +225,11 @@ static inline unsigned long captbl_idsize(cap_t c)
  * 6-7 = our pgtbl root,
  * 8-11 = our component,
  * 12-13 = vm pte for booter
- * 14-15 = vm pte for physical memory
- * 16-17 = km pte
- * 18-19 = comp0 captbl,
- * 20-21 = comp0 pgtbl root,
+ * 14-15 = untyped memory pgtbl root,
+ * 16-17 = vm pte for physical memory,
+ * 18-19 = km pte,
+ * 20-21 = comp0 captbl,
+ * 22-23 = comp0 pgtbl root,
  * 24-27 = comp0 component,
  * 28~(20+2*NCPU) = per core alpha thd
  *
@@ -238,16 +239,17 @@ static inline unsigned long captbl_idsize(cap_t c)
  * 2GB-> = system physical memory
  */
 enum {
-	BOOT_CAPTBL_SRET       = 0,
-	BOOT_CAPTBL_SELF_CT    = 4,
-	BOOT_CAPTBL_SELF_PT    = 6,
-	BOOT_CAPTBL_SELF_COMP  = 8,
-	BOOT_CAPTBL_BOOTVM_PTE = 12,
-	BOOT_CAPTBL_PHYSM_PTE  = 14,
-	BOOT_CAPTBL_KM_PTE     = 16,
+	BOOT_CAPTBL_SRET            = 0,
+	BOOT_CAPTBL_SELF_CT         = 4,
+	BOOT_CAPTBL_SELF_PT         = 6,
+	BOOT_CAPTBL_SELF_COMP       = 8,
+	BOOT_CAPTBL_BOOTVM_PTE      = 12,
+	BOOT_CAPTBL_SELF_UNTYPED_PT = 14,
+	BOOT_CAPTBL_PHYSM_PTE       = 16,
+	BOOT_CAPTBL_KM_PTE          = 18,
 
-	BOOT_CAPTBL_COMP0_CT           = 18,
-	BOOT_CAPTBL_COMP0_PT           = 20,
+	BOOT_CAPTBL_COMP0_CT           = 20,
+	BOOT_CAPTBL_COMP0_PT           = 22,
 	BOOT_CAPTBL_COMP0_COMP         = 24,
 	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
 	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
@@ -266,7 +268,7 @@ enum {
 
 enum {
 	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1<<22)), /* @ 1G + 8M */
-	BOOT_MEM_KM_BASE = 0x60000000, /* kernel memory @ 1.5 GB */
+	BOOT_MEM_KM_BASE = PAGE_SIZE, /* kernel memory @ first page, not at address 0 to avoid NULL */
 	BOOT_MEM_PM_BASE = 0x80000000, /* user memory @ 2 GB */
 };
 

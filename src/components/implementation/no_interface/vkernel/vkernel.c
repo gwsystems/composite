@@ -9,7 +9,7 @@
 struct vms_info {
 	struct cos_compinfo cinfo;
 	captblcap_t ct;
-	pgtblcap_t pt;
+	pgtblcap_t pt, utpt;
 	compcap_t cc;
 	thdcap_t initthd, exitthd;
 	thdid_t inittid;
@@ -39,30 +39,30 @@ vk_terminate(void *d)
 void
 vm_exit(void *d)
 {
+	printc("%d: EXIT\n", (int)d);
 	ready_vms --;
 	vmx_info[(int)d].initthd = 0;	
 
-	printc("%d: EXIT\n", (int)d);
 	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 }
 
 void
 scheduler(void) 
 {
-	static unsigned int i = 0;
+	static unsigned int i;
+	thdid_t tid;
+	int rcving;
+	cycles_t cycles;
+	int index;
 
 	while (ready_vms) {
-		thdid_t tid;
-		int rcving;
-		cycles_t cycles;
-		int pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
-		int index   = i ++ % COS_VIRT_MACH_COUNT;
+		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+		index = i++ % COS_VIRT_MACH_COUNT;
 		
-		if (vmx_info[index].initthd) {
+		if (vmx_info[index].initthd && vk_info.vminitasnd[index]) {
 			cos_asnd(vk_info.vminitasnd[index]);
 		}
 	}
-	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 }
 
 
@@ -74,7 +74,7 @@ cos_init(void)
 	printc("vkernel: START\n");
 	assert(COS_VIRT_MACH_COUNT >= 2);
 
-	cos_meminfo_init(&vk_cinfo->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
+	cos_meminfo_init(&vk_cinfo->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(vk_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, vk_cinfo);
 
@@ -97,10 +97,13 @@ cos_init(void)
 		vm_info->pt = cos_pgtbl_alloc(vk_cinfo);
 		assert(vm_info->pt);
 
+		vm_info->utpt = cos_pgtbl_alloc(vk_cinfo);
+		assert(vm_info->utpt);
+
 		vm_info->cc = cos_comp_alloc(vk_cinfo, vm_info->ct, vm_info->pt, (vaddr_t)&cos_upcall_entry);
 		assert(vm_info->cc);
 
-		cos_meminfo_init(&vm_cinfo->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
+		cos_meminfo_init(&vm_cinfo->mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_UNTYPED_SIZE, vm_info->utpt);
 		cos_compinfo_init(vm_cinfo, vm_info->pt, vm_info->ct, vm_info->cc,
 				(vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, vk_cinfo);
 
@@ -114,9 +117,10 @@ cos_init(void)
 		assert(ret == 0);
 		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_PT, vk_cinfo, vm_info->pt);
 		assert(ret == 0);
+		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_UNTYPED_PT, vk_cinfo, vm_info->utpt);
+		assert(ret == 0);
 		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_COMP, vk_cinfo, vm_info->cc);
 		assert(ret == 0);
-		
 
 		printc("\tCreating and copying required initial capabilities\n");
 		/*
@@ -171,12 +175,15 @@ cos_init(void)
 		printc("vkernel: VM%d Init END\n", id);
 	}
 
-	printc("------------------[ VKernel & VMs init complete ]------------------\n");
 	printc("Starting Scheduler\n");
 	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+	printc("------------------[ VKernel & VMs init complete ]------------------\n");
+
 	scheduler();
+
 	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
+
 	printc("vkernel: END\n");
 	cos_thd_switch(vk_info.termthd);
 

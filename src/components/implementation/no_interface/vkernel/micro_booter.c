@@ -4,7 +4,7 @@
 #undef assert
 #ifndef assert
 /* On assert, immediately switch to the "exit" thread */
-#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_thd_switch(VM_CAPTBL_SELF_EXITTHD_BASE);} } while(0)
+#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); while (1) cos_thd_switch(VM_CAPTBL_SELF_EXITTHD_BASE);} } while(0)
 #endif
 
 #define PRINT_FN prints
@@ -567,7 +567,7 @@ vm_init(void *d)
 	vmid = (int)d;
 	PRINTVM("Micro Booter started.\n");
 
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_UNTYPED_SIZE);
+	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, &booter_info);
 

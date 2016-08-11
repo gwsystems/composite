@@ -29,10 +29,11 @@ printd(char *fmt, ...)
 #endif
 
 void
-cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz)
+cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz, pgtblcap_t pgtbl_cap)
 {
-	mi->untyped_ptr = mi->umem_ptr = mi->kmem_ptr = mi->umem_frontier = mi->kmem_frontier = untyped_ptr;
+	mi->untyped_ptr      = mi->umem_ptr = mi->kmem_ptr = mi->umem_frontier = mi->kmem_frontier = untyped_ptr;
 	mi->untyped_frontier = untyped_ptr + untyped_sz;
+	mi->pgtbl_cap        = pgtbl_cap;
 }
 
 static inline struct cos_compinfo *
@@ -40,7 +41,7 @@ __compinfo_metacap(struct cos_compinfo *ci)
 { return ci->memsrc; }
 
 void
-cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_t captbl_cap,
+cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap,
 		  compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier,
 		  struct cos_compinfo *ci_resources)
 {
@@ -108,8 +109,7 @@ __mem_bump_alloc(struct cos_compinfo *__ci, int km, int retype)
 	if (retype && (ret % RETYPE_MEM_SIZE == 0)) {
 		/* are we dealing with a kernel memory allocation? */
 		syscall_op_t op = km ? CAPTBL_OP_MEM_RETYPE2KERN : CAPTBL_OP_MEM_RETYPE2USER;
-
-		if (call_cap_op(ci->pgtbl_cap, op, ret, 0, 0, 0)) return 0;
+		if (call_cap_op(ci->mi.pgtbl_cap, op, ret, 0, 0, 0)) return 0;
 	}
 
 	*ptr += PAGE_SIZE;
@@ -149,7 +149,7 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	/* the compinfo that tracks/allocates resources */
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 	/* do we manage our own resources, or does a separate meta? */
-	int self_resources = (meta == ci);
+	int self_resources        = (meta == ci);
 	capid_t frontier;
 
 	capid_t captblcap;
@@ -207,7 +207,7 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 
 	printd("__capid_captbl_check_expand->pre-captblactivate (%d)\n", CAPTBL_OP_CAPTBLACTIVATE);
 	/* captbl internal node allocated with the resource provider's captbls */
-	if (call_cap_op(meta->captbl_cap, CAPTBL_OP_CAPTBLACTIVATE, captblcap, meta->pgtbl_cap, kmem, 1)) {
+	if (call_cap_op(meta->captbl_cap, CAPTBL_OP_CAPTBLACTIVATE, captblcap, meta->mi.pgtbl_cap, kmem, 1)) {
 		assert(0); /* race condition? */
 		return -1;
 	}
@@ -243,12 +243,12 @@ __capid_bump_alloc_generic(struct cos_compinfo *ci, capid_t *capsz_frontier, cap
 	 * this size of capability?
 	 */
 	if (*capsz_frontier % CAPMAX_ENTRY_SZ == 0) {
-		*capsz_frontier = ci->cap_frontier;
+		*capsz_frontier   = ci->cap_frontier;
 		ci->cap_frontier += CAPMAX_ENTRY_SZ;
 		if (__capid_captbl_check_expand(ci)) return 0;
 	}
 
-	ret = *capsz_frontier;
+	ret              = *capsz_frontier;
 	*capsz_frontier += sz;
 
 	return ret;
@@ -283,16 +283,14 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 /**************** [User Virtual Memory Allocation Functions] ****************/
 
 static vaddr_t
-__bump_mem_expand_range(struct cos_compinfo *ci, vaddr_t mem_ptr, unsigned long mem_sz)
+__bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
 {
+	vaddr_t addr;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
-	vaddr_t ut_vaddr          = mem_ptr;
-	unsigned long ut_frontier = ut_vaddr + mem_sz;
-	unsigned int i;
 
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
 
-	for (i = ut_vaddr; i < ut_frontier; i += PGD_RANGE) {
+	for (addr = mem_ptr; addr < round_up_to_pgd_page(mem_ptr + mem_sz); addr += PGD_RANGE) {
 		capid_t pte_cap;
 		vaddr_t ptemem_cap;
 
@@ -303,41 +301,37 @@ __bump_mem_expand_range(struct cos_compinfo *ci, vaddr_t mem_ptr, unsigned long 
 
 		/* PTE */
 		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_PGTBLACTIVATE,
-				pte_cap, meta->pgtbl_cap, ptemem_cap, 1)) {
+				pte_cap, meta->mi.pgtbl_cap, ptemem_cap, 1)) {
 			assert(0); /* race? */
-			return 0;
 		}
 
 		/* Construct pgtbl */
-		if (call_cap_op(ci->pgtbl_cap, CAPTBL_OP_CONS, pte_cap, i, 0, 0)) {
+		if (call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, addr, 0, 0)) {
 			assert(0); /* race? */
-			return 0;
 		}
 	}
-	assert(round_up_to_pgd_page(i) == round_up_to_pgd_page(ut_frontier));
+
+	/* assert(round_up_to_pgd_page(addr) == round_up_to_pgd_page(mem_ptr + mem_sz)); */
 	
-	return ut_vaddr;
+	return mem_ptr;
 }
 
 static void
 __cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz)
 {
+	vaddr_t addr;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
-	unsigned int i;
 
 	/*
-	 * FIXME: Check for PAGE ALLIGNED and PGD ALLIGNED size in untyped_sz
+	 * FIXME: untyped_ptr and untyped_sz better be PGD_RANGE aligned.
 	 */
-	untyped_sz = round_up_to_pgd_page(untyped_sz);
-	__bump_mem_expand_range(ci, untyped_ptr, untyped_sz);
+	assert(__bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz) == untyped_ptr);
 	
-	vaddr_t start_addr = meta->mi.untyped_frontier - untyped_sz - PAGE_SIZE;
-	start_addr = round_up_to_pgd_page(start_addr);
+	vaddr_t start_addr        = meta->mi.untyped_frontier - untyped_sz;
 	meta->mi.untyped_frontier = start_addr;
 
-	for (i = untyped_ptr; i < untyped_ptr + untyped_sz; i += PAGE_SIZE, start_addr += PAGE_SIZE) {
-
-		if (call_cap_op(meta->pgtbl_cap, CAPTBL_OP_MEMMOVE, start_addr, ci->pgtbl_cap, i, 0))  BUG();
+	for (addr = untyped_ptr; addr < untyped_ptr + untyped_sz; addr += PAGE_SIZE, start_addr += PAGE_SIZE) {
+		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMMOVE, start_addr, ci->mi.pgtbl_cap, addr, 0)) BUG();
 	}
 }
 
@@ -346,7 +340,7 @@ cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long un
 {
 	__cos_meminfo_alloc(ci, untyped_ptr, untyped_sz);
 
-	ci->mi.untyped_ptr = ci->mi.umem_ptr = ci->mi.kmem_ptr = ci->mi.umem_frontier = ci->mi.kmem_frontier = untyped_ptr;
+	ci->mi.untyped_ptr      = ci->mi.umem_ptr = ci->mi.kmem_ptr = ci->mi.umem_frontier = ci->mi.kmem_frontier = untyped_ptr;
 	ci->mi.untyped_frontier = untyped_ptr + untyped_sz;
 }
 
@@ -363,7 +357,7 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 
 	/* Do we need to allocate a PTE? */
 	if (heap_vaddr == *mem_frontier) {
-		__bump_mem_expand_range(ci, heap_vaddr, PGD_RANGE);
+		assert(__bump_mem_expand_range(ci, ci->pgtbl_cap, heap_vaddr, PGD_RANGE) == heap_vaddr);
 		*mem_frontier += PGD_RANGE;
 		assert(*mem_frontier == round_up_to_pgd_page(*mem_frontier));
 	}
@@ -399,7 +393,7 @@ __page_bump_alloc(struct cos_compinfo *ci)
 	if (!umem) return 0;
 
 	/* Actually map in the memory. FIXME: cleanup! */
-	if (call_cap_op(meta->pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem,
+	if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem,
 			ci->pgtbl_cap, heap_vaddr, 0)) {
 		assert(0);
 		return 0;
@@ -447,7 +441,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
 	assert(!(init_data & ~((1<<16)-1)));
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, comp)) BUG();
 
 	return cap;
 }
@@ -482,7 +476,7 @@ cos_captbl_alloc(struct cos_compinfo *ci)
 	assert(ci);
 
 	if (__alloc_mem_cap(ci, CAP_CAPTBL, &kmem, &cap)) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_CAPTBLACTIVATE, cap, ci->pgtbl_cap, kmem, 0)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_CAPTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0)) BUG();
 
 	return cap;
 }
@@ -498,7 +492,7 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 	assert(ci);
 
 	if (__alloc_mem_cap(ci, CAP_PGTBL, &kmem, &cap)) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, ci->pgtbl_cap, kmem, 0))  BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))  BUG();
 
 	return cap;
 }
@@ -772,7 +766,7 @@ cos_tcap_alloc(struct cos_compinfo *ci, tcap_prio_t prio)
 
 	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (cap << 16) | ci->pgtbl_cap, kmem, prio_hi, prio_lo)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (cap << 16) | __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, prio_hi, prio_lo)) BUG();
 
 	return cap;
 }
