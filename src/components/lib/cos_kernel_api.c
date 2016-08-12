@@ -290,7 +290,7 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
 
-	for (addr = mem_ptr; addr < round_up_to_pgd_page(mem_ptr + mem_sz); addr += PGD_RANGE) {
+	for (addr = mem_ptr; addr < mem_ptr + mem_sz; addr += PGD_RANGE) {
 		capid_t pte_cap;
 		vaddr_t ptemem_cap;
 
@@ -311,7 +311,7 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 		}
 	}
 
-	/* assert(round_up_to_pgd_page(addr) == round_up_to_pgd_page(mem_ptr + mem_sz)); */
+	assert(round_up_to_pgd_page(addr) == round_up_to_pgd_page(mem_ptr + mem_sz));
 	
 	return mem_ptr;
 }
