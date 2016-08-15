@@ -135,7 +135,7 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 	}
 	/* Nothing collected...allocate a new cbuf! */
 	if (amnt == 0) {
-		cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
+		cbid = cbuf_create(cos_spd_id(), size, cbid * -1);
 		assert(cbid != 0);
 	}
 	return cbid;

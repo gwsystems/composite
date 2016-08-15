@@ -158,7 +158,7 @@ static void
 cbuf_comp_info_init(spdid_t spdid, struct cbuf_comp_info *cci)
 {
 	void *p;
-	memset(cci, 0, sizeof(*cci));
+	memset(cci, 0, sizeof(struct cbuf_comp_info));
 	cci->spdid = spdid;
 	cvect_add(&components, cci, spdid);
 }
@@ -170,7 +170,7 @@ cbuf_comp_info_get(spdid_t spdid)
 
 	cci = cvect_lookup(&components, spdid);
 	if (!cci) {
-		cci = malloc(sizeof(*cci));
+		cci = malloc(sizeof(struct cbuf_comp_info));
 		if (!cci) return NULL;
 		cbuf_comp_info_init(spdid, cci);
 	}
@@ -381,17 +381,15 @@ cbuf_unmark_relinquish_all(struct cbuf_comp_info *cci)
 	}
 }
 
-int
-cbuf_create(spdid_t spdid, int size, long cbid)
+// make this inline (and static is not needed???)
+static inline int
+__cbuf_create(spdid_t spdid, int size, long cbid)
 {
 	struct cbuf_comp_info *cci;
 	struct cbuf_info *cbi;
 	struct cbuf_meta *meta;
 	int ret = 0;
-
-	printl("cbuf_create\n");
-	if (unlikely(cbid < 0)) return 0;
-	CBUF_TAKE();
+	
 	cci = cbuf_comp_info_get(spdid);
 	if (!cci) goto done;
 
@@ -452,13 +450,27 @@ cbuf_create(spdid_t spdid, int size, long cbid)
 	CBUF_REFCNT_ATOMIC_INC(meta);
 	ret = cbid;
 done:
-	CBUF_RELEASE();
-
 	return ret;
+
 free:
 	cmap_del(&cbufs, cbid);
 	free(cbi);
 	goto done;
+}
+
+int
+cbuf_create(spdid_t spdid, int size, long cbid)
+{
+	int ret = 0;
+
+	printl("cbuf_create\n");
+	if (unlikely(cbid < 0)) return 0;
+	CBUF_TAKE();
+	ret = __cbuf_create(spdid, size, cbid);
+done:
+	CBUF_RELEASE();
+
+	return ret;
 }
 
 vaddr_t
@@ -521,8 +533,9 @@ done:
 	return ret;
 }
 
+// feel like this method needs to be renamed but... should make it work first
 static int
-__cbuf_copy_cci(struct cbuf_comp_info *src, struct cbuf_comp_info *dst)
+__cbuf_copy_cci(spdid_t o_spd, struct cbuf_comp_info *src, spdid_t f_spd, struct cbuf_comp_info *dst)
 {
 	int i;
 	/* Should create a new shared page between cbuf_mgr and dst */
@@ -531,29 +544,65 @@ __cbuf_copy_cci(struct cbuf_comp_info *src, struct cbuf_comp_info *dst)
 	/* probably shouldn't be copying all these? but should get
 	 * to access them somehow. */
 	dst->nbin = src->nbin;
+	printd("cbuf_copy_cci: looking at an nbin of %d\n", dst->nbin);
 	for (i = 0; i < dst->nbin; i++) {
-		dst->cbufs[i] = src->cbufs[i];
+		printd("cbuf_copy_cci: taking care of O cbuf %d\n", i);
+
+		// dst->cbufs[i] = src->cbufs[i];
+		/* create new cbuf */
+		spdid_t spdid = o_spd; // ?
+		int size = src->cbufs[i].size;
+		long cbid = 0;
+		int cnt = 0;
+		do {
+			int error = 0;
+			cbid = __cbuf_create(spdid, size, cbid * -1);
+			if (unlikely(error)) goto done;
+			// Well clearly you need this line back in
+			//if (cbid < 0 && cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid*-1)) < 0) goto done;
+			/* though it's possible this is valid, it probably
+			 * indicates an error */
+			assert(cnt++ < 10);
+		} while (cbid < 0);
+		assert(cbid);
+		printd("cbuf_copy_cci: created cbid %d\n", cbid);
+
+		/* copy into cbuf */
+		/* Uh... need to get first cbuf first... wow am I bad at this */
+		//struct cbuf_meta *cm = cbuf_vect_lookup_addr(cbid);
+		//void *dst_mem_start = (void*)(CBUF_PTR(cm));
+		//void *src_mem_start = (void*)(src->cbufs[i].c->mem);
+		//memcpy(dst_mem_start, src_mem_start, size);
+		printd("cbuf_copy_cci: did memcpy and got a result we should really print here\n");
+
+		/* map cbuf */
 	}
+
+done:
+	/* what is this? */
 	/* recreate the cbuf_metas in dst? */
 	dst->cbuf_metas = src->cbuf_metas;
 }
 
-int cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd)
+int cbuf_fork_spd(spdid_t spd, spdid_t o_spd, spdid_t f_spd)
 {
-	struct cbuf_comp_info *s_cci, *d_cci;
+	struct cbuf_comp_info *o_cci, *f_cci;
 	int ret = 0;
 
-	printl("cbuf_fork_spd\n");
+	printd("cbuf_fork_spd: starting\n");
 
 	CBUF_TAKE();
-	s_cci = cbuf_comp_info_get(s_spd);
-	if (unlikely(!s_cci)) goto done;
-	d_cci = cbuf_comp_info_get(d_spd);
-	/* FIXME: This should be making copies to avoid sharing */
-	__cbuf_copy_cci(s_cci, d_cci);
+	o_cci = cbuf_comp_info_get(o_spd);
+
+	printd("o_cci == NULL: %d\n", o_cci == NULL);
+
+	if (unlikely(!o_cci)) goto done;
+	f_cci = cbuf_comp_info_get(f_spd);
+	__cbuf_copy_cci(o_spd, o_cci, f_spd, f_cci);
 
 done:
 	CBUF_RELEASE();
+	printd("cbuf_fork_spd: leaving\n");
 	return ret;
 }
 

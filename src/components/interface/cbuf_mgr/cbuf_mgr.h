@@ -24,7 +24,8 @@ int cbuf_delete(spdid_t spdid, int cbid);
 int cbuf_retrieve(spdid_t spdid, int cbid, int size);
 vaddr_t cbuf_register(spdid_t spdid, long cbid);
 
-/* Map a cbufp into another component at a given address.
+/* 
+ * Map a cbufp into another component at a given address.
  * The s_spd that calls this function should ensure the memory is not freed.
  * The d_addr must be alloced with sufficient pages to contain the cbuf.
  */
