@@ -187,9 +187,6 @@ typedef enum {
 
 #define CAPTBL_EXPAND_SZ 128
 
-#define COS_VIRT_MACH_COUNT        2
-#define COS_VIRT_MACH_UNTYPED_SIZE (1<<26) //64MB
-
 /* a function instead of a struct to enable inlining + constant prop */
 static inline cap_sz_t
 __captbl_cap2sz(cap_t c)
@@ -255,15 +252,9 @@ enum {
 	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
 	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_LAST_CAP           = round_up_to_pow2(BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ, CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE               = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
-};
-
-enum {
-	VM_CAPTBL_SELF_EXITTHD_BASE    = BOOT_CAPTBL_FREE,
-	VM_CAPTBL_LAST_CAP             = round_up_to_pow2(VM_CAPTBL_SELF_EXITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
-	VM_CAPTBL_FREE                 = round_up_to_pow2(VM_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
 };
 
 enum {

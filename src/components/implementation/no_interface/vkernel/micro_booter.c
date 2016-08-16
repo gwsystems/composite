@@ -17,6 +17,8 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 
+#include "vk_types.h"
+
 static void
 cos_llprint(char *s, int len)
 { call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0); }
@@ -567,7 +569,7 @@ vm_init(void *d)
 	vmid = (int)d;
 	PRINTVM("Micro Booter started.\n");
 
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, &booter_info);
 

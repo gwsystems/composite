@@ -2,6 +2,8 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 
+#include "vk_types.h"
+
 #undef assert
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0; } } while (0)
 #define PRINT_FN prints
@@ -17,19 +19,19 @@ struct vms_info {
 	thdid_t inittid;
 	tcap_t inittcap;
 	arcvcap_t initrcv;
-} vmx_info[COS_VIRT_MACH_COUNT];
+} vmx_info[VM_COUNT];
 
 struct vkernel_info {
 	struct cos_compinfo cinfo;
 
 	thdcap_t termthd;
-	asndcap_t vminitasnd[COS_VIRT_MACH_COUNT];
+	asndcap_t vminitasnd[VM_COUNT];
 } vk_info;
 
 extern vaddr_t cos_upcall_entry;
 extern void vm_init(void *);
 
-unsigned int ready_vms = COS_VIRT_MACH_COUNT;
+unsigned int ready_vms = VM_COUNT;
 struct cos_compinfo *vk_cinfo = (struct cos_compinfo *)&vk_info.cinfo;
 
 void
@@ -59,9 +61,10 @@ scheduler(void)
 
 	while (ready_vms) {
 		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
-		index = i++ % COS_VIRT_MACH_COUNT;
+		index = i++ % VM_COUNT;
 		
-		if (vmx_info[index].initthd && vk_info.vminitasnd[index]) {
+		if (vmx_info[index].initthd) {
+			assert(vk_info.vminitasnd[index]);
 			cos_asnd(vk_info.vminitasnd[index]);
 		}
 	}
@@ -74,7 +77,7 @@ cos_init(void)
 	int id;
 
 	printc("vkernel: START\n");
-	assert(COS_VIRT_MACH_COUNT >= 2);
+	assert(VM_COUNT >= 2);
 
 	cos_meminfo_init(&vk_cinfo->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(vk_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
@@ -83,10 +86,11 @@ cos_init(void)
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL);
 	assert(vk_info.termthd);
 
-	for (id = 0; id < COS_VIRT_MACH_COUNT; id ++) {
+	for (id = 0 ; id < VM_COUNT ; id ++) {
 		struct cos_compinfo *vm_cinfo = &vmx_info[id].cinfo;
 		struct vms_info *vm_info = &vmx_info[id];
-		int ret, vm_range, i;
+		vaddr_t vm_range, addr;
+		int ret;
 
 		printc("vkernel: VM%d Init START\n", id);
 		printc("\tForking VM\n");
@@ -105,7 +109,7 @@ cos_init(void)
 		vm_info->cc = cos_comp_alloc(vk_cinfo, vm_info->ct, vm_info->pt, (vaddr_t)&cos_upcall_entry);
 		assert(vm_info->cc);
 
-		cos_meminfo_init(&vm_cinfo->mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_UNTYPED_SIZE, vm_info->utpt);
+		cos_meminfo_init(&vm_cinfo->mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, vm_info->utpt);
 		cos_compinfo_init(vm_cinfo, vm_info->pt, vm_info->ct, vm_info->cc,
 				(vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, vk_cinfo);
 
@@ -158,21 +162,21 @@ cos_init(void)
 		/*
 		 * Create and copy booter comp virtual memory to each VM
 		 */
-		vm_range = (int)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
+		vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
 		assert(vm_range > 0);
-		printc("\tMapping in Booter component's virtual memory (range:%u)\n", vm_range);
-		for (i = 0; i < vm_range; i += PAGE_SIZE) {
+		printc("\tMapping in Booter component's virtual memory (range:%lu)\n", vm_range);
+		for (addr = 0 ; addr < vm_range ; addr += PAGE_SIZE) {
 			vaddr_t spg = (vaddr_t)cos_page_bump_alloc(vk_cinfo), dpg;
 			assert(spg);
 			
-			memcpy((void *)spg, (void *)(BOOT_MEM_VM_BASE + i), PAGE_SIZE);
+			memcpy((void *)spg, (void *)(BOOT_MEM_VM_BASE + addr), PAGE_SIZE);
 			
 			dpg = cos_mem_alias(vm_cinfo, vk_cinfo, spg);
 			assert(dpg);
 		}
 
-		printc("\tAllocating Untyped memory\n");
-		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, COS_VIRT_MACH_UNTYPED_SIZE);
+		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE);
+		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE);
 
 		printc("vkernel: VM%d Init END\n", id);
 	}

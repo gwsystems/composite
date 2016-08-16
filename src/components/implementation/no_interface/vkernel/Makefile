@@ -1,5 +1,5 @@
 C_OBJS=micro_booter.o vkernel.o
-ASM_OBJS=cos_asm_scheduler.o testinv.o
+ASM_OBJS=cos_asm_scheduler.o inv.o
 COMPONENT=vkernel_boot.o
 INTERFACES=
 DEPENDENCIES=
