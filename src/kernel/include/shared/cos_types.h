@@ -263,6 +263,21 @@ enum {
 };
 
 enum {
+	/* thread register states */
+	THD_GET_IP,
+	THD_GET_SP,
+	THD_GET_BP,
+	THD_GET_AX,
+	THD_GET_BX,
+	THD_GET_CX,
+	THD_GET_DX,
+	THD_GET_SI,
+	THD_GET_DI,
+	/* thread id */
+	THD_GET_TID,
+};
+
+enum {
 	/* cap 0-3 reserved for sret. 4-7 is the sinv cap. FIXME: make this general. */
 	SCHED_CAPTBL_ALPHATHD_BASE = 16,
 	/* we have 2 thd caps (init and alpha thds) for each core. */

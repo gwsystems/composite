@@ -115,7 +115,7 @@ cos_init(void)
 
 		vm_info->initthd = cos_thd_alloc(vk_cinfo, vm_cinfo->comp_cap, vm_init, (void *)id);
 		assert(vm_info->initthd);
-		vm_info->inittid = (thdid_t)cos_introspect(vk_cinfo, vm_info->initthd, 9);
+		vm_info->inittid = (thdid_t)cos_introspect(vk_cinfo, vm_info->initthd, THD_GET_TID);
 		printc("\tInit thread= cap:%x tid:%x\n", (unsigned int)vm_info->initthd, (unsigned int)vm_info->inittid);
 
 		printc("\tCopying pgtbl, captbl, component capabilities\n");
