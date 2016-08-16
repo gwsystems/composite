@@ -1140,6 +1140,8 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 
 			ret = cap_introspect(ctin, capin, op, &retval);
 			if (!ret) ret = retval;
+			
+			break;
 		}
 		case CAPTBL_OP_HW_ACTIVATE:
 		{

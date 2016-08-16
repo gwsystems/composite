@@ -415,15 +415,16 @@ static inline int
 thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 {
 	switch(op) {
-	case 0: *retval = t->regs.ip; break;
-	case 1: *retval = t->regs.sp; break;
-	case 2: *retval = t->regs.bp; break;
-	case 3: *retval = t->regs.ax; break;
-	case 4: *retval = t->regs.bx; break;
-	case 5: *retval = t->regs.cx; break;
-	case 6: *retval = t->regs.dx; break;
-	case 7: *retval = t->regs.si; break;
-	case 8: *retval = t->regs.di; break;
+	case THD_GET_IP : *retval = t->regs.ip; break;
+	case THD_GET_SP : *retval = t->regs.sp; break;
+	case THD_GET_BP : *retval = t->regs.bp; break;
+	case THD_GET_AX : *retval = t->regs.ax; break;
+	case THD_GET_BX : *retval = t->regs.bx; break;
+	case THD_GET_CX : *retval = t->regs.cx; break;
+	case THD_GET_DX : *retval = t->regs.dx; break;
+	case THD_GET_SI : *retval = t->regs.si; break;
+	case THD_GET_DI : *retval = t->regs.di; break;
+	case THD_GET_TID: *retval = t->tid; break;
 	default: return -EINVAL;
 	}
 	return 0;
