@@ -290,7 +290,7 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
 
-	for (addr = mem_ptr; addr < mem_ptr + mem_sz; addr += PGD_RANGE) {
+	for (addr = mem_ptr ; addr < mem_ptr + mem_sz ; addr += PGD_RANGE) {
 		capid_t pte_cap;
 		vaddr_t ptemem_cap;
 
@@ -303,11 +303,13 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_PGTBLACTIVATE,
 				pte_cap, meta->mi.pgtbl_cap, ptemem_cap, 1)) {
 			assert(0); /* race? */
+			return 0;
 		}
 
 		/* Construct pgtbl */
 		if (call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, addr, 0, 0)) {
 			assert(0); /* race? */
+			return 0;
 		}
 	}
 
@@ -317,20 +319,21 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 }
 
 static void
-__cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz)
+__cos_meminfo_populate(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz)
 {
-	vaddr_t addr;
+	vaddr_t addr, start_addr, retaddr;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 
-	/*
-	 * FIXME: untyped_ptr and untyped_sz better be PGD_RANGE aligned.
-	 */
-	assert(__bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz) == untyped_ptr);
+	assert(untyped_ptr == round_up_to_pgd_page(untyped_ptr));
+	assert(untyped_sz == round_up_to_pgd_page(untyped_sz));
+
+	retaddr = __bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz);
+	assert(retaddr == untyped_ptr);
 	
-	vaddr_t start_addr        = meta->mi.untyped_frontier - untyped_sz;
+	start_addr                = meta->mi.untyped_frontier - untyped_sz;
 	meta->mi.untyped_frontier = start_addr;
 
-	for (addr = untyped_ptr; addr < untyped_ptr + untyped_sz; addr += PAGE_SIZE, start_addr += PAGE_SIZE) {
+	for (addr = untyped_ptr ; addr < untyped_ptr + untyped_sz ; addr += PAGE_SIZE, start_addr += PAGE_SIZE) {
 		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMMOVE, start_addr, ci->mi.pgtbl_cap, addr, 0)) BUG();
 	}
 }
@@ -338,7 +341,7 @@ __cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long 
 void
 cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz)
 {
-	__cos_meminfo_alloc(ci, untyped_ptr, untyped_sz);
+	__cos_meminfo_populate(ci, untyped_ptr, untyped_sz);
 
 	ci->mi.untyped_ptr      = ci->mi.umem_ptr = ci->mi.kmem_ptr = ci->mi.umem_frontier = ci->mi.kmem_frontier = untyped_ptr;
 	ci->mi.untyped_frontier = untyped_ptr + untyped_sz;
@@ -347,7 +350,7 @@ cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long un
 static vaddr_t
 __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_frontier)
 {
-	vaddr_t heap_vaddr;
+	vaddr_t heap_vaddr, retaddr;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 
 	printd("__page_bump_alloc\n");
@@ -357,7 +360,8 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 
 	/* Do we need to allocate a PTE? */
 	if (heap_vaddr == *mem_frontier) {
-		assert(__bump_mem_expand_range(ci, ci->pgtbl_cap, heap_vaddr, PGD_RANGE) == heap_vaddr);
+		retaddr = __bump_mem_expand_range(ci, ci->pgtbl_cap, heap_vaddr, PGD_RANGE);
+		assert(retaddr == heap_vaddr);
 		*mem_frontier += PGD_RANGE;
 		assert(*mem_frontier == round_up_to_pgd_page(*mem_frontier));
 	}
@@ -818,23 +822,19 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 	sz   = round_up_to_page(len);
 
 	fva = __page_bump_valloc(ci);
+	va  = fva;
 	if (unlikely(!fva)) return NULL;
 
-	if(call_cap_op(hwc, CAPTBL_OP_HW_MAP, ci->pgtbl_cap, fva, pa, 0)) BUG();
-
-	sz -= PAGE_SIZE;
-	pa += PAGE_SIZE;
-
-	while (sz) {
-
-		va = __page_bump_valloc(ci);
-		if (unlikely(!va)) return NULL;
-
+	do {
 		if(call_cap_op(hwc, CAPTBL_OP_HW_MAP, ci->pgtbl_cap, va, pa, 0)) BUG();
 
 		sz -= PAGE_SIZE;
 		pa += PAGE_SIZE;
-	}
+
+		va = __page_bump_valloc(ci);
+		if (unlikely(!va)) return NULL;
+
+	} while (sz > 0);
 
 	return (void *)fva;
 }

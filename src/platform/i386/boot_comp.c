@@ -113,6 +113,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 	 * switching to boot component's pgd
 	 */
 	cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, BOOT_CAPTBL_SELF_PT);
+	if (!cap_pt || !CAP_TYPECHK(cap_pt, CAP_PGTBL)) assert(0);
 	pgtbl = cap_pt->pgtbl;
 	assert(pgtbl);
 	pgtbl_update(pgtbl);
@@ -160,6 +161,7 @@ kern_boot_comp(void)
 	 * separate pgd for boot component virtual memory
 	 */
 	boot_vm_pgd = (pgtbl_t)mem_boot_alloc(1);
+	assert(boot_vm_pgd);
 	memcpy((void *)boot_vm_pgd + KERNEL_PGD_REGION_OFFSET,  (void *)(&boot_comp_pgd) + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE); 
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (pgtbl_t)chal_va2pa(boot_vm_pgd), 0)) assert(0);
 
