@@ -12,25 +12,24 @@
 
 struct vms_info {
 	struct cos_compinfo cinfo;
-	captblcap_t ct;
-	pgtblcap_t pt, utpt;
-	compcap_t cc;
 	thdcap_t initthd, exitthd;
 	thdid_t inittid;
 	tcap_t inittcap;
 	arcvcap_t initrcv;
-} vmx_info[VM_COUNT];
+};
 
 struct vkernel_info {
 	struct cos_compinfo cinfo;
 
 	thdcap_t termthd;
 	asndcap_t vminitasnd[VM_COUNT];
-} vk_info;
+};
 
 extern vaddr_t cos_upcall_entry;
 extern void vm_init(void *);
 
+struct vms_info vmx_info[VM_COUNT];
+struct vkernel_info vk_info;
 unsigned int ready_vms = VM_COUNT;
 struct cos_compinfo *vk_cinfo = (struct cos_compinfo *)&vk_info.cinfo;
 
@@ -90,6 +89,9 @@ cos_init(void)
 		struct cos_compinfo *vm_cinfo = &vmx_info[id].cinfo;
 		struct vms_info *vm_info = &vmx_info[id];
 		vaddr_t vm_range, addr;
+		pgtblcap_t vmpt, vmutpt;
+		captblcap_t vmct;
+		compcap_t vmcc;
 		int ret;
 
 		printc("vkernel: VM%d Init START\n", id);
@@ -97,20 +99,20 @@ cos_init(void)
 		vm_info->exitthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vm_exit, (void *)id);
 		assert(vm_info->exitthd);
 		
-		vm_info->ct = cos_captbl_alloc(vk_cinfo);
-		assert(vm_info->ct);
+		vmct = cos_captbl_alloc(vk_cinfo);
+		assert(vmct);
 
-		vm_info->pt = cos_pgtbl_alloc(vk_cinfo);
-		assert(vm_info->pt);
+		vmpt = cos_pgtbl_alloc(vk_cinfo);
+		assert(vmpt);
 
-		vm_info->utpt = cos_pgtbl_alloc(vk_cinfo);
-		assert(vm_info->utpt);
+		vmutpt = cos_pgtbl_alloc(vk_cinfo);
+		assert(vmutpt);
 
-		vm_info->cc = cos_comp_alloc(vk_cinfo, vm_info->ct, vm_info->pt, (vaddr_t)&cos_upcall_entry);
-		assert(vm_info->cc);
+		vmcc = cos_comp_alloc(vk_cinfo, vmct, vmpt, (vaddr_t)&cos_upcall_entry);
+		assert(vmcc);
 
-		cos_meminfo_init(&vm_cinfo->mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, vm_info->utpt);
-		cos_compinfo_init(vm_cinfo, vm_info->pt, vm_info->ct, vm_info->cc,
+		cos_meminfo_init(&vm_cinfo->mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, vmutpt);
+		cos_compinfo_init(vm_cinfo, vmpt, vmct, vmcc,
 				(vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, vk_cinfo);
 
 		vm_info->initthd = cos_thd_alloc(vk_cinfo, vm_cinfo->comp_cap, vm_init, (void *)id);
@@ -119,13 +121,13 @@ cos_init(void)
 		printc("\tInit thread= cap:%x tid:%x\n", (unsigned int)vm_info->initthd, (unsigned int)vm_info->inittid);
 
 		printc("\tCopying pgtbl, captbl, component capabilities\n");
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_CT, vk_cinfo, vm_info->ct);
+		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_CT, vk_cinfo, vmct);
 		assert(ret == 0);
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_PT, vk_cinfo, vm_info->pt);
+		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_PT, vk_cinfo, vmpt);
 		assert(ret == 0);
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_UNTYPED_PT, vk_cinfo, vm_info->utpt);
+		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_UNTYPED_PT, vk_cinfo, vmutpt);
 		assert(ret == 0);
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_COMP, vk_cinfo, vm_info->cc);
+		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_COMP, vk_cinfo, vmcc);
 		assert(ret == 0);
 
 		printc("\tCreating and copying required initial capabilities\n");
@@ -166,13 +168,13 @@ cos_init(void)
 		assert(vm_range > 0);
 		printc("\tMapping in Booter component's virtual memory (range:%lu)\n", vm_range);
 		for (addr = 0 ; addr < vm_range ; addr += PAGE_SIZE) {
-			vaddr_t spg = (vaddr_t)cos_page_bump_alloc(vk_cinfo), dpg;
-			assert(spg);
+			vaddr_t src_pg = (vaddr_t)cos_page_bump_alloc(vk_cinfo), dst_pg;
+			assert(src_pg);
 			
-			memcpy((void *)spg, (void *)(BOOT_MEM_VM_BASE + addr), PAGE_SIZE);
+			memcpy((void *)src_pg, (void *)(BOOT_MEM_VM_BASE + addr), PAGE_SIZE);
 			
-			dpg = cos_mem_alias(vm_cinfo, vk_cinfo, spg);
-			assert(dpg);
+			dst_pg = cos_mem_alias(vm_cinfo, vk_cinfo, src_pg);
+			assert(dst_pg);
 		}
 
 		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE);
@@ -193,7 +195,7 @@ cos_init(void)
 	printc("vkernel: END\n");
 	cos_thd_switch(vk_info.termthd);
 
-	printc("DEAD END\n");
+	printc("vkernel: back in initial thread after switching to terminal thread. ERROR.\n");
 
 	return;
 }

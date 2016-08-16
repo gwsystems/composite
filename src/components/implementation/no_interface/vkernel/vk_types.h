@@ -9,7 +9,7 @@ enum vm_captbl_layout {
 	VM_CAPTBL_FREE                 = round_up_to_pow2(VM_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
 };
 
-#define VM_COUNT        2
-#define VM_UNTYPED_SIZE (1<<26) //64MB
+#define VM_COUNT        2	/* virtual machine count */
+#define VM_UNTYPED_SIZE (1<<26) /* untyped memory per vm = 64MB */
 
 #endif /* VK_TYPES_H */
