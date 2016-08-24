@@ -131,6 +131,7 @@ cbuf_meta_lookup(struct cbuf_comp_info *comp, u32_t cbid)
 	struct cbuf_meta_range *cmr;
 	cmr = cbuf_meta_lookup_cmr(comp, cbid);
 	if (!cmr) return NULL;
+	printd("cml: cbid %d low_id %d cbid - lowid %d\n", cbid, cmr->low_id, cbid - cmr->low_id);
 	return &cmr->m[cbid - cmr->low_id];
 }
 
@@ -406,14 +407,15 @@ __cbuf_create(spdid_t spdid, int size, long cbid)
 	
 	cci = cbuf_comp_info_get(spdid);
 	if (!cci) goto done;
-	printc("__cbuf_create sanity check spdid is %d and cci->spdid is %d\n", spdid, cci->spdid);
+
+	printd("__cbuf_create spdid %d, cbid %d\n", spdid, cbid);
 
 	/* 
 	 * Client wants to allocate a new cbuf, but the meta might not
 	 * be mapped in.
 	 */
 	if (!cbid) {
-		printc("cbuf_create: !cbid (and also spdid is %d)\n", spdid);
+		printd("create: !cbid\n");
 		struct cbuf_bin *bin;
 
  		cbi = malloc(sizeof(struct cbuf_info));
@@ -428,51 +430,46 @@ __cbuf_create(spdid_t spdid, int size, long cbid)
 		cbi->owner.spdid = spdid;
 		INIT_LIST(&cbi->owner, next, prev);
 		INIT_LIST(cbi, next, prev);
-		printd("cb_create: 1\n");
 
 		bin = cbuf_comp_info_bin_get(cci, size);
 		if (!bin) bin = cbuf_comp_info_bin_add(cci, size);
-		printd("cb_create: 2\n");
 		if (!bin) goto free;
-		printd("cb_create: 3\n");
 
 		if (cbuf_alloc_map(spdid, &(cbi->owner.addr), (void**)&(cbi->mem), size)) goto free;
-		printd("cb_create: 4\n");
 		if (bin->c) ADD_LIST(bin->c, cbi, next, prev);
 		else        bin->c = cbi;
-		printd("cb_create: 5\n");
 	} 
 	/* If the client has a cbid, then make sure we agree! */
 	else {
-		printc("cbuf_create: else\n");
+		printd("create: else\n");
 		cbi = cmap_lookup(&cbufs, cbid);
-		printc("else: cbi == 0 %d\n", cbi == 0);
+		printd("create: cmap_lookup succeeded\n");
 		if (!cbi) goto done;
-		printc("else: cbi->ownder.spd = %d, spdid = %d\n", cbi->owner.spdid, spdid);
+		printd("create: cbi found\n");
 		if (cbi->owner.spdid != spdid) goto done;
 	}
-	printd("cb_create: 5.5: cbid = %d\n", cbid);
+	printd("create: looking up meta in spd %d with cbid %d\n", cci->spdid, cbid);
 	meta = cbuf_meta_lookup(cci, cbid);
-	printd("cb_create: 6\n");
+	printd("create: cbuf_meta_lookup succeeded with cbuf_meta address %x\n", meta);
 	/* We need to map in the meta for this cbid.  Tell the client. */
 	if (!meta) {
-		printc("cbuf_create: !meta\n");
+		printd("create: !meta\n");
 		ret = cbid * -1;
 		goto done;
 	}
-	printd("cb_create: 7\n");
 	cbi->owner.m = meta;
-	printd("cb_create: 8\n");
 
 	/* 
 	 * Now we know we have a cbid, a backing structure for it, a
 	 * component structure, and the meta mapped in for the cbuf.
 	 * Update the meta with the correct addresses and flags!
 	 */
-	memset(meta, 0, sizeof(struct cbuf_meta));
-	printd("cb_create: 9\n");
+	printd("create: starting memset\n");
+	memset(meta, 0, 1); // sizeof(struct cbuf_meta));
+	printd("create: finished mem_set\n");
 	CBUF_FLAG_ADD(meta, CBUF_OWNER);
 	CBUF_PTR_SET(meta, cbi->owner.addr);
+	printd("cb_create: 9\n");
 	meta->sz = cbi->size >> PAGE_ORDER;
 	meta->cbid_tag.cbid = cbid;
 	printd("cb_create: 10\n");
@@ -607,24 +604,54 @@ __cbuf_register_map_at(spdid_t o_spd, spdid_t f_spd, long o_cbid, long f_cbid)
 	assert((u32_t)p == round_to_page(p));
 	f_cmr = cbuf_meta_add(f_cci, f_cbid, p, dest);
 	assert(f_cmr);
+	printd("cbuf_register: did a meta_add\n");
+
+	struct cbuf_meta *cm1 = cbuf_meta_lookup(o_cci, o_cbid);
+	if (!cm1) goto done;
+	printd("trying to do memset\n");
+	memset(cm1, 0, sizeof(struct cbuf_meta));
+	
+	struct cbuf_meta *cm3 = cbuf_meta_lookup(f_cci, o_cbid);
+	if (!cm3) goto done;
+	printd("trying to do memset 3\n");
+	memset(cm3, 0, sizeof(struct cbuf_meta));
+	struct cbuf_meta *cm2 = cbuf_meta_lookup(f_cci, f_cbid);
+	if (!cm2) goto done;
+	printd("trying to do memset 2\n");
+	memset(cm2, 0, sizeof(struct cbuf_meta));
+
+
 	ret = f_cmr->dest;
 done:
 	return ret;
 }
 
-// Is this poorly-designed? You could set any field but this method only does cbufid.
-// Well, given that you never finished writing it, yeah it's poorly designed
-static void
-cbuf_meta_set(struct cbuf_comp_info *dst, cbuf_t cbid_old, cbuf_t cbid_new)
+void
+test(void)
 {
-
-
+	spdid_t spd_C = 6;
+	spdid_t spd_O = 12;
+	spdid_t spd_F = 14;
+	vaddr_t dest = (vaddr_t)valloc_alloc(cos_spd_id(), spd_C, 1);
+	
+	vaddr_t dest_O = mman_alias_page(cos_spd_id(), dest, spd_O, dest, MAPPING_RW);
+	vaddr_t dest_F = mman_alias_page(cos_spd_id(), dest, spd_F, dest, MAPPING_READ);
+	
+	printd("a\n");
+	memset(&dest, 0, PAGE_SIZE);
+	printd("b\n");
+	memset(&dest_O, 0, PAGE_SIZE); 
+	printd("c\n");
+	memset(&dest_F, 0, PAGE_SIZE);
+	printd("c\n");
 }
 
 // feel like this method needs to be renamed but... should make it work first
 static int
 __cbuf_copy_cci(spdid_t o_spd, struct cbuf_comp_info *src, spdid_t f_spd, struct cbuf_comp_info *dst)
 {
+	test();
+	
 	int i;
 	/* Should create a new shared page between cbuf_mgr and dst */
 	dst->csp = src->csp;
@@ -639,24 +666,19 @@ __cbuf_copy_cci(spdid_t o_spd, struct cbuf_comp_info *src, spdid_t f_spd, struct
 		spdid_t spdid = f_spd;
 		int size = src->cbufs[i].size;
 		long cbid = 0;
-		int cnt = 0;
 
-		//__cbuf_register(spdid, src->cbufs[i].c->cbid);
-		
-		do {
-			printd("calling cbuf_create\n");
-			cbid = __cbuf_create(spdid, size, cbid * -1);
-			printd("cbid is now %d\n", cbid);
-			if (cbid < 0 && !__cbuf_register_map_at(o_spd, f_spd, src->cbufs[i].c->cbid, cbid * -1)) { printd("cbuf_register failed\n"); goto done; }
-			else {printd("cbuf id wasn't negative\n"); goto done;}
+		printd("calling cbuf_create\n");
+		cbid = __cbuf_create(spdid, size, cbid * -1);
+		if (cbid < 0 && !__cbuf_register_map_at(o_spd, f_spd, src->cbufs[i].c->cbid, cbid * -1)) { printd("cbuf_register failed\n"); goto done; }
+		cbid = __cbuf_create(spdid, size, cbid * -1);
+		if (cbid == 0) { 
+			printd("cbi didn't agree\n");
+			goto done;
+			struct cbuf_info *cbi = cmap_lookup(&cbufs, src->cbufs[i].c->cbid);
+			cbi->owner.spdid = f_spd;
+		}
+
 			
-			//if (cbid < 0) {
-			//	cbid = src->cbufs[i].c->cbid * -1; // let's try this --\_O_o_/--
-			//	cbid = __cbuf_create(spdid, size, cbid * -1);
-			//}
-			/* though it's possible this is valid, it probably indicates an error */
-			assert(cnt++ < 10);
-		} while (cbid < 0);
 		assert(cbid);
 
 		printd("copied cbuf id is %d, compared to src cbuf %d. These probably won't match, which is good because it gives us something to do next.\n", cbid, src->cbufs[i].c->cbid);
