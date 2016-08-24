@@ -113,6 +113,7 @@ cbuf_meta_lookup_cmr(struct cbuf_comp_info *comp, u32_t cbid)
 	assert(comp);
 
 	cmr = comp->cbuf_metas;
+
 	if (!cmr) return NULL;
 	do {
 		if (cmr->low_id <= cbid && CBUF_META_RANGE_HIGH(cmr) > cbid) {
@@ -128,12 +129,14 @@ static struct cbuf_meta *
 cbuf_meta_lookup(struct cbuf_comp_info *comp, u32_t cbid)
 {
 	struct cbuf_meta_range *cmr;
-
 	cmr = cbuf_meta_lookup_cmr(comp, cbid);
 	if (!cmr) return NULL;
 	return &cmr->m[cbid - cmr->low_id];
 }
 
+/*
+ * What does this do? Initializes a meta range, adds the provided meta to it.
+ */
 static struct cbuf_meta_range *
 cbuf_meta_add(struct cbuf_comp_info *comp, u32_t cbid, struct cbuf_meta *m, vaddr_t dest)
 {
@@ -178,6 +181,17 @@ cbuf_comp_info_get(spdid_t spdid)
 }
 
 static struct cbuf_bin *
+cbuf_comp_info_bin_get_by_index(struct cbuf_comp_info *cci, int index)
+{
+	int i;
+
+	assert(index >= 0);
+	assert(index < cci->nbin);
+
+	return &cci->cbufs[i];
+}
+
+static struct cbuf_bin *
 cbuf_comp_info_bin_get(struct cbuf_comp_info *cci, int sz)
 {
 	int i;
@@ -208,9 +222,8 @@ cbuf_map(spdid_t spdid, vaddr_t daddr, void *page, int size, int flags)
 	assert(page);
 	for (off = 0 ; off < size ; off += PAGE_SIZE) {
 		vaddr_t d = daddr + off;
-		if (d != (mman_alias_page(cos_spd_id(), ((vaddr_t)page) + off,
-						spdid, d, flags))) {
-			printd("couldn't alias(%d, %x, %d, %x, %d)\n", cos_spd_id(), ((vaddr_t)page) + off, spdid, d, flags);
+		if (d != (mman_alias_page(cos_spd_id(), ((vaddr_t)page) + off, spdid, d, flags))) {
+			printd("couldn't alias(%ld, %lx, %d, %x, %d)\n", cos_spd_id(), ((vaddr_t)page) + off, (int) spdid, (unsigned int) d, flags);
 			assert(0); /* TODO: roll back the aliases, etc... */
 		}
 	}
@@ -221,7 +234,7 @@ static int
 cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 {
 	void *p;
-	vaddr_t dest;
+	vaddr_t dest = 0;
 	int ret = 0;
 
 	assert(size == (int)round_to_page(size));
@@ -381,7 +394,6 @@ cbuf_unmark_relinquish_all(struct cbuf_comp_info *cci)
 	}
 }
 
-// make this inline (and static is not needed???)
 static inline int
 __cbuf_create(spdid_t spdid, int size, long cbid)
 {
@@ -390,14 +402,18 @@ __cbuf_create(spdid_t spdid, int size, long cbid)
 	struct cbuf_meta *meta;
 	int ret = 0;
 	
+	if (unlikely(cbid < 0)) return 0;
+	
 	cci = cbuf_comp_info_get(spdid);
 	if (!cci) goto done;
+	printc("__cbuf_create sanity check spdid is %d and cci->spdid is %d\n", spdid, cci->spdid);
 
 	/* 
 	 * Client wants to allocate a new cbuf, but the meta might not
 	 * be mapped in.
 	 */
 	if (!cbid) {
+		printc("cbuf_create: !cbid (and also spdid is %d)\n", spdid);
 		struct cbuf_bin *bin;
 
  		cbi = malloc(sizeof(struct cbuf_info));
@@ -412,29 +428,41 @@ __cbuf_create(spdid_t spdid, int size, long cbid)
 		cbi->owner.spdid = spdid;
 		INIT_LIST(&cbi->owner, next, prev);
 		INIT_LIST(cbi, next, prev);
+		printd("cb_create: 1\n");
 
 		bin = cbuf_comp_info_bin_get(cci, size);
 		if (!bin) bin = cbuf_comp_info_bin_add(cci, size);
+		printd("cb_create: 2\n");
 		if (!bin) goto free;
+		printd("cb_create: 3\n");
 
-		if (cbuf_alloc_map(spdid, &(cbi->owner.addr), 
-				    (void**)&(cbi->mem), size)) goto free;
+		if (cbuf_alloc_map(spdid, &(cbi->owner.addr), (void**)&(cbi->mem), size)) goto free;
+		printd("cb_create: 4\n");
 		if (bin->c) ADD_LIST(bin->c, cbi, next, prev);
 		else        bin->c = cbi;
+		printd("cb_create: 5\n");
 	} 
 	/* If the client has a cbid, then make sure we agree! */
 	else {
+		printc("cbuf_create: else\n");
 		cbi = cmap_lookup(&cbufs, cbid);
+		printc("else: cbi == 0 %d\n", cbi == 0);
 		if (!cbi) goto done;
+		printc("else: cbi->ownder.spd = %d, spdid = %d\n", cbi->owner.spdid, spdid);
 		if (cbi->owner.spdid != spdid) goto done;
 	}
+	printd("cb_create: 5.5: cbid = %d\n", cbid);
 	meta = cbuf_meta_lookup(cci, cbid);
+	printd("cb_create: 6\n");
 	/* We need to map in the meta for this cbid.  Tell the client. */
 	if (!meta) {
+		printc("cbuf_create: !meta\n");
 		ret = cbid * -1;
 		goto done;
 	}
+	printd("cb_create: 7\n");
 	cbi->owner.m = meta;
+	printd("cb_create: 8\n");
 
 	/* 
 	 * Now we know we have a cbid, a backing structure for it, a
@@ -442,13 +470,16 @@ __cbuf_create(spdid_t spdid, int size, long cbid)
 	 * Update the meta with the correct addresses and flags!
 	 */
 	memset(meta, 0, sizeof(struct cbuf_meta));
+	printd("cb_create: 9\n");
 	CBUF_FLAG_ADD(meta, CBUF_OWNER);
 	CBUF_PTR_SET(meta, cbi->owner.addr);
-	meta->sz        = cbi->size >> PAGE_ORDER;
+	meta->sz = cbi->size >> PAGE_ORDER;
 	meta->cbid_tag.cbid = cbid;
+	printd("cb_create: 10\n");
 	assert(CBUF_REFCNT(meta) < CBUF_REFCNT_MAX);
 	CBUF_REFCNT_ATOMIC_INC(meta);
 	ret = cbid;
+	printd("cb_create: 11\n");
 done:
 	return ret;
 
@@ -462,27 +493,24 @@ int
 cbuf_create(spdid_t spdid, int size, long cbid)
 {
 	int ret = 0;
-
 	printl("cbuf_create\n");
-	if (unlikely(cbid < 0)) return 0;
 	CBUF_TAKE();
 	ret = __cbuf_create(spdid, size, cbid);
-done:
 	CBUF_RELEASE();
-
 	return ret;
 }
 
+// REALLY feel like we don't need cbid and id here.
+// Can replace id with cbid - they actually ARE the same parameter.
+// Cbuf_unpack just makes sure it is an individual cbuf not an aggregate.
+// It then dumps cbid and starts using id
 vaddr_t
-cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
+__cbuf_map_at(spdid_t s_spd, cbuf_t cbid, u32_t id, spdid_t d_spd, vaddr_t d_addr)
 {
-	vaddr_t ret = (vaddr_t)NULL;
 	struct cbuf_info *cbi;
-	u32_t id;
 	int flags;
+	vaddr_t ret;
 	
-	cbuf_unpack(cbid, &id);
-	CBUF_TAKE();
 	cbi = cmap_lookup(&cbufs, id);
 	assert(cbi);
 	if (unlikely(!cbi)) goto done;
@@ -498,11 +526,27 @@ cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
 	 * accessible directly. The s_spd must maintain the necessary info
 	 * about the cbuf and its mapping in d_spd. */
 done:
-	CBUF_RELEASE();
 	return ret;
 free:
 	if (!(flags & 2)) valloc_free(s_spd, d_spd, (void*)d_addr, cbi->size);
 	goto done;
+}
+
+/*
+ * returns address this is mapped to.
+ * Why? Isn't this address provided? It CAN just return 0 on success to be more like cbuf_map
+ */
+vaddr_t
+cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
+{
+	vaddr_t ret = (vaddr_t)NULL;
+	u32_t id;
+	
+	cbuf_unpack(cbid, &id);
+	CBUF_TAKE();
+	ret = __cbuf_map_at(s_spd, cbid, id, d_spd, d_addr);
+	CBUF_RELEASE();
+	return ret;
 }
 
 int
@@ -533,6 +577,50 @@ done:
 	return ret;
 }
 
+/*
+ * Register the cbuf id with f_spd, at the same location it was registered in o_spd
+ * returns d_addr on success, 0 on failure.
+ */
+vaddr_t
+__cbuf_register_map_at(spdid_t o_spd, spdid_t f_spd, long o_cbid, long f_cbid)
+{
+	struct cbuf_comp_info  *o_cci, *f_cci;
+	struct cbuf_meta_range *o_cmr, *f_cmr;
+	void *p;
+	vaddr_t ret = 0;
+	vaddr_t dest;
+
+	o_cci = cbuf_comp_info_get(o_spd);
+	f_cci = cbuf_comp_info_get(f_spd);
+
+	if (!o_cci) goto done;
+	if (!f_cci) goto done;
+	o_cmr = cbuf_meta_lookup_cmr(o_cci, o_cbid);
+	if (!o_cmr) goto done;
+	dest = o_cmr->dest;
+	f_cmr = cbuf_meta_lookup_cmr(f_cci, f_cbid);
+	if (f_cmr) ERR_THROW(f_cmr->dest, done);
+	/* Create the mapping into the client */
+
+	printd("o_spd %d o_cbid %d f_spd %d f_cbid %d \n", o_spd, o_cbid, f_spd, f_cbid);
+	if (!__cbuf_map_at(o_spd, o_cbid, o_cbid, f_spd, dest)) goto done;
+	assert((u32_t)p == round_to_page(p));
+	f_cmr = cbuf_meta_add(f_cci, f_cbid, p, dest);
+	assert(f_cmr);
+	ret = f_cmr->dest;
+done:
+	return ret;
+}
+
+// Is this poorly-designed? You could set any field but this method only does cbufid.
+// Well, given that you never finished writing it, yeah it's poorly designed
+static void
+cbuf_meta_set(struct cbuf_comp_info *dst, cbuf_t cbid_old, cbuf_t cbid_new)
+{
+
+
+}
+
 // feel like this method needs to be renamed but... should make it work first
 static int
 __cbuf_copy_cci(spdid_t o_spd, struct cbuf_comp_info *src, spdid_t f_spd, struct cbuf_comp_info *dst)
@@ -543,45 +631,77 @@ __cbuf_copy_cci(spdid_t o_spd, struct cbuf_comp_info *src, spdid_t f_spd, struct
 	dst->dest_csp = src->dest_csp;
 	/* probably shouldn't be copying all these? but should get
 	 * to access them somehow. */
-	dst->nbin = src->nbin;
-	printd("cbuf_copy_cci: looking at an nbin of %d\n", dst->nbin);
-	for (i = 0; i < dst->nbin; i++) {
-		printd("cbuf_copy_cci: taking care of O cbuf %d\n", i);
-
-		// dst->cbufs[i] = src->cbufs[i];
-		/* create new cbuf */
-		spdid_t spdid = o_spd; // ?
+	dst->nbin = 0; // something else probably inits this. Remove?
+	printd("src->nbin is %d\n", src->nbin);
+	for (i = 0; i < src->nbin; i++) {
+		printd("cbuf_copy_cci: taking care of O's cbuf %d, which has cbufid %d\n", i, src->cbufs[i].c->cbid);
+		
+		spdid_t spdid = f_spd;
 		int size = src->cbufs[i].size;
 		long cbid = 0;
 		int cnt = 0;
+
+		//__cbuf_register(spdid, src->cbufs[i].c->cbid);
+		
 		do {
-			int error = 0;
+			printd("calling cbuf_create\n");
 			cbid = __cbuf_create(spdid, size, cbid * -1);
-			if (unlikely(error)) goto done;
-			// Well clearly you need this line back in
-			//if (cbid < 0 && cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid*-1)) < 0) goto done;
-			/* though it's possible this is valid, it probably
-			 * indicates an error */
+			printd("cbid is now %d\n", cbid);
+			if (cbid < 0 && !__cbuf_register_map_at(o_spd, f_spd, src->cbufs[i].c->cbid, cbid * -1)) { printd("cbuf_register failed\n"); goto done; }
+			else {printd("cbuf id wasn't negative\n"); goto done;}
+			
+			//if (cbid < 0) {
+			//	cbid = src->cbufs[i].c->cbid * -1; // let's try this --\_O_o_/--
+			//	cbid = __cbuf_create(spdid, size, cbid * -1);
+			//}
+			/* though it's possible this is valid, it probably indicates an error */
 			assert(cnt++ < 10);
 		} while (cbid < 0);
 		assert(cbid);
-		printd("cbuf_copy_cci: created cbid %d\n", cbid);
 
-		/* copy into cbuf */
-		/* Uh... need to get first cbuf first... wow am I bad at this */
-		//struct cbuf_meta *cm = cbuf_vect_lookup_addr(cbid);
-		//void *dst_mem_start = (void*)(CBUF_PTR(cm));
-		//void *src_mem_start = (void*)(src->cbufs[i].c->mem);
-		//memcpy(dst_mem_start, src_mem_start, size);
-		printd("cbuf_copy_cci: did memcpy and got a result we should really print here\n");
+		printd("copied cbuf id is %d, compared to src cbuf %d. These probably won't match, which is good because it gives us something to do next.\n", cbid, src->cbufs[i].c->cbid);
+
+		///* copy into cbuf */
+		//struct cbuf_meta *cm = cbuf_meta_lookup(src, cbid);
+		//char *dst_mem_start = (char*)(CBUF_PTR(cm));
+		//assert(dst_mem_start != NULL);
+		//struct cbuf_bin *bin = cbuf_comp_info_bin_get(src, size);
+		//assert(bin != NULL);
+		//struct cbuf_info *cb_info = bin->c;
+		//assert(cb_info != NULL);
+		//struct cbuf_maps owner = cb_info->owner;
+		//assert(&owner != NULL);
+		//while (owner.spdid != spdid) {
+		//	printd("a\n");
+		//	if (owner.next == NULL) BUG();
+		//	owner = *(owner.next);
+		//}
+		//char *src_mem_start = owner.addr;
+		//printd("setting an addr\n");
+		//assert(src_mem_start != NULL);
+		//printc("d %x s %x l %d\n", dst_mem_start, src_mem_start, size);
+		//void *ret = memcpy(dst_mem_start, src_mem_start, size);
+		//assert(ret == dst_mem_start);
+		//printd("cbuf_copy_cci: did memcpy and got a result we should really print here\n");
 
 		/* map cbuf */
 	}
+	printd("following everything, dst->nbin is %d\n", dst->nbin);
+	
+	for (i = 0; i < dst->nbin; i++) {
+		printd("Doing a sanity check for i = %d\n", i);
+		spdid_t spdid = f_spd;
+		struct cbuf_meta *meta = cbuf_meta_lookup(dst, src->cbufs[i].c->cbid);
+		if (meta == NULL) {
+			printd("something has already gone wrong\n");
+		}
+		else {
+			printd("yaaaay *clap-clap*\n");
+		}
+	}
 
 done:
-	/* what is this? */
-	/* recreate the cbuf_metas in dst? */
-	dst->cbuf_metas = src->cbuf_metas;
+	return 0; // wow this is random. See what it returned before, do something better.
 }
 
 int cbuf_fork_spd(spdid_t spd, spdid_t o_spd, spdid_t f_spd)
@@ -589,20 +709,16 @@ int cbuf_fork_spd(spdid_t spd, spdid_t o_spd, spdid_t f_spd)
 	struct cbuf_comp_info *o_cci, *f_cci;
 	int ret = 0;
 
-	printd("cbuf_fork_spd: starting\n");
-
 	CBUF_TAKE();
 	o_cci = cbuf_comp_info_get(o_spd);
-
-	printd("o_cci == NULL: %d\n", o_cci == NULL);
 
 	if (unlikely(!o_cci)) goto done;
 	f_cci = cbuf_comp_info_get(f_spd);
 	__cbuf_copy_cci(o_spd, o_cci, f_spd, f_cci);
+	printd("Finished copy cci\n");
 
 done:
 	CBUF_RELEASE();
-	printd("cbuf_fork_spd: leaving\n");
 	return ret;
 }
 
@@ -776,7 +892,7 @@ cbuf_retrieve(spdid_t spdid, int cbid, int size)
 
 	page = cbi->mem;
 	assert(page);
-	printd("cbuf_map(%d, %x, %x, %d, %d)\n", spdid, dest, page, size, MAPPING_RW);
+	printd("cbuf_map(%d, %x, %x, %d, %d)\n", spdid, (unsigned int) dest, (unsigned int) page, size, MAPPING_RW);
 	if (cbuf_map(spdid, dest, page, size, MAPPING_RW)) {
 		printd("cbuf_map failed\n");
 		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
@@ -795,15 +911,15 @@ free:
 }
 
 vaddr_t
-cbuf_register(spdid_t spdid, long cbid)
+__cbuf_register(spdid_t spdid, long cbid)
 {
 	struct cbuf_comp_info  *cci;
 	struct cbuf_meta_range *cmr;
 	void *p;
 	vaddr_t dest, ret = 0;
 
-	printl("cbuf_register\n");
-	CBUF_TAKE();
+	printl("__cbuf_register\n");
+	printd("__cbuf_register: spdid %d cbid %d\n", spdid, cbid);
 	cci = cbuf_comp_info_get(spdid);
 	if (!cci) goto done;
 	cmr = cbuf_meta_lookup_cmr(cci, cbid);
@@ -816,7 +932,19 @@ cbuf_register(spdid_t spdid, long cbid)
 	assert(cmr);
 	ret = cmr->dest;
 done:
+	return ret;
+}
+
+vaddr_t
+cbuf_register(spdid_t spdid, long cbid)
+{
+	vaddr_t ret = 0; 
+	printd("cbuf_register\n");
+	CBUF_TAKE();
+	ret = __cbuf_register(spdid, cbid);
 	CBUF_RELEASE();
+
+	printd("cbuf_register ret: %x\n", ret);
 	return ret;
 }
 

@@ -1,4 +1,3 @@
-
 #include "quarantine_impl.h"
 
 #if defined(DEBUG)
@@ -357,24 +356,17 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	if (tot > SERVICE_SIZE) tot = SERVICE_SIZE + 3 * round_up_to_pgd_page(1) - tot;
 	else tot = SERVICE_SIZE - tot;
 	
-//#ifdef NIL
-	printd("Telling mman to fork(Q %d, O %d, F %d, base %x, total %d)\n", cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
-	r = mman_fork_spd(cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
-	printd("Done with mman_fork, ret %d\n", r);
-	if (r) printc("Error (%d) in mman_fork_spd\n", r);
-//#endif
+	//printd("Telling mman to fork(Q %d, O %d, F %d, base %x, total %d)\n", cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
+	//r = mman_fork_spd(cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
+	//printd("Done with mman_fork, ret %d\n", r);
+	//if (r) printc("Error (%d) in mman_fork_spd\n", r);
 
-//#ifdef NIL
-	/* So... if we were to just run this, would it do the same thing that mman_fork_spd currently does? My guess: yes */
-
+	/* So... if we were to just run this, would it do the same thing that mman_fork_spd currently does? My guess: yes. Actual answer: no*/
 	printd("Telling cbuf to fork(%d, %d, %d)\n", cos_spd_id(), source, d_spd);
 	r = cbuf_fork_spd(cos_spd_id(), source, d_spd);
 	if (r) printc("Error (%d) in cbuf_fork_spd\n", r);
 
-	/* TODO: valloc */
-
 	quarantine_add_to_spd_map(source, d_spd);
-//#endif
 
 #ifdef QUARANTINE_MIGRATE_THREAD
 	quarantine_migrate(cos_spd_id(), source, d_spd, d_thd);

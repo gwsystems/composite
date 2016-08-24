@@ -22,6 +22,7 @@ typedef u32_t cbuf_t; /* should match cbuf_t, and fit in a register */
 int cbuf_create(spdid_t spdid, int size, long cbid);
 int cbuf_delete(spdid_t spdid, int cbid);
 int cbuf_retrieve(spdid_t spdid, int cbid, int size);
+vaddr_t __cbuf_register(spdid_t spdid, long cbid);
 vaddr_t cbuf_register(spdid_t spdid, long cbid);
 
 /* 

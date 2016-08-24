@@ -58,7 +58,7 @@ __cbuf_2buf_miss(int cbid, int len)
 	mc = cbuf_vect_lookup_addr(cbid);
 	/* ...have to expand the cbuf_vect */
 	if (unlikely(!mc)) {
-		if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid))) BUG();    //???
+		if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid))) BUG(); 
 		mc = cbuf_vect_lookup_addr(cbid);
 		assert(mc);
 	}
@@ -151,10 +151,10 @@ __cbuf_alloc_slow(int size, int *len, unsigned int flag)
 	cnt = cbid = 0;
 	do {
 		int error = 0;
-		if (flag & CBUF_EXACTSZ) cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
+		if (flag & CBUF_EXACTSZ) cbid = cbuf_create(cos_spd_id(), size, cbid * -1);
 		else                     cbid = __cbufp_alloc_slow(cbid, size, len, &error);
 		if (unlikely(error)) goto done;
-		if (cbid < 0 && cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid*-1)) < 0) goto done;
+		if (cbid < 0 && cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid * -1)) < 0) goto done;
 		/* though it's possible this is valid, it probably
 		 * indicates an error */
 		assert(cnt++ < 10);
