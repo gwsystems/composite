@@ -81,24 +81,29 @@ vm_time_fn(void *d)
 	}
 }
 
+//this is set 0 or 1, depending on if dom0 is rcving. 
+//only needed for ether_type hack.`
+unsigned int rump_dom0_rcv;
 void
 vm0_io_fn(void *d) 
 {
-	printc("vm0: io fn started for %d\n", (int)d);
+	//printc("vm0: io fn started for %d\n", (int)d);
 	arcvcap_t rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + ((int)d - 1) * CAP64B_IDSZ;
 	while (1) {
 		int pending = cos_rcv(rcvcap);
-		printc("vm0: rcv'd from vm %d\n", (int)d);
+		rump_dom0_rcv = 1;
+		bmk_isr(13);
 	}
 }
 
 void
 vmx_io_fn(void *d)
 {
-	printc("vm%d: io fn started\n", (int)d);
+	//printc("vm%d: io fn started\n", (int)d);
 	while (1) {
 		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
-		printc("%d: rcv'd from vm0\n", (int)d);
+		//printc("VM%d- rcv'd from DOM0\n", (int)d);
+		bmk_isr(12);
 	}
 }
 

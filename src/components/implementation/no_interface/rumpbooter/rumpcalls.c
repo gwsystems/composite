@@ -64,21 +64,17 @@ cos2rump_setup(void)
 /*rk shared mem functions*/
 int
 cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm){
-	printc("cos_shmem_send\n");
 
 	asndcap_t sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (dstvm - 1) * CAP64B_IDSZ;
 	
 	cos_shm_write(buff, size, srcvm, dstvm);	
 	
 	cos_asnd(sndcap);	
-	printc("post cos_asnd\n");
 	return 1;
 }
 
 int
 cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm){
-	printc("cos_shmem_recv\n");
-	
 	cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
 	
 	return cos_shm_read(buff, srcvm, curvm);
@@ -88,7 +84,6 @@ cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm){
 void
 rump2cos_rcv(void)
 {
-	
 	printc("rump2cos_rcv");	
 	return;
 }
@@ -97,10 +92,8 @@ rump2cos_rcv(void)
 void
 cos_irqthd_handler(void *line)
 {
-	extern int rump_vmid;
 	printc("cos_irqthd_handler\n");
 	int which = (int)line;
-//	printc("which line:(actually 11) %d, vmid: %d\n", which, rump_vmid);
 	
 	while(1) {
 		int pending = cos_rcv(irq_arcvcap[which]);

@@ -47,7 +47,6 @@ printc(char *fmt, ...)
 }
 
 int vmid = -1;
-int rump_vmid;
 #define PRINTVM(fmt, args...) printc("%d: " fmt, vmid , ##args)
 
 extern thdcap_t vm_exit_thd;
@@ -641,7 +640,7 @@ test_vmio_events(void)
 		for (i = 1; i < COS_VIRT_MACH_COUNT; i ++) {
 			snd += (i - 1) * CAP64B_IDSZ;
 			cos_asnd(snd);
-			PRINTVM("Sent to vm%d\n", i); 
+			PRINTVM("Sent to fvm%d\n", i); 
 		} 
 	} else {
 		cos_asnd(VM_CAPTBL_SELF_IOASND_BASE);
@@ -671,9 +670,9 @@ vm_init(void *id)
 				  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, 
 				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 	}
-	test_vmio_events();
+//	test_vmio_events();
 
-	if (vmid) {
+	if (vmid == (COS_VIRT_MACH_COUNT-1)) {
 		PRINTVM("Micro Booter started.\n");
 		termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 		assert(termthd);
