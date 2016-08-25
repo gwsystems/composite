@@ -124,20 +124,19 @@ thdid_alloc(void)
 }
 
 static void
-thd_rcvcap_take(struct thread *t)
-{ t->rcvcap.refcnt++; }
+thd_rcvcap_take(struct thread *t)         { t->rcvcap.refcnt++; }
 
 static void
-thd_rcvcap_release(struct thread *t)
-{ t->rcvcap.refcnt--; }
+thd_rcvcap_release(struct thread *t)      { t->rcvcap.refcnt--; }
 
 static int
-thd_rcvcap_isreferenced(struct thread *t)
-{ return t->rcvcap.refcnt > 0; }
+thd_rcvcap_isreferenced(struct thread *t) { return t->rcvcap.refcnt > 0; }
 
 static int
-thd_bound2rcvcap(struct thread *t)
-{ return t->rcvcap.isbound; }
+thd_bound2rcvcap(struct thread *t)        { return t->rcvcap.isbound; }
+
+static int
+thd_rcvcap_isroot(struct thread *t)       { return t == t->rcvcap.rcvcap_thd_notif; }
 
 static void
 thd_rcvcap_init(struct thread *t)
@@ -150,7 +149,7 @@ thd_rcvcap_init(struct thread *t)
 
 static inline void
 thd_rcvcap_evt_enqueue(struct thread *head, struct thread *t)
-{ if (list_empty(&t->event_list)) list_enqueue(&head->event_head, &t->event_list); }
+{ if (list_empty(&t->event_list) && head != t) list_enqueue(&head->event_head, &t->event_list); }
 
 static inline void
 thd_list_rem(struct thread *head, struct thread *t)

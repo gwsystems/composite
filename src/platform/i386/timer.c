@@ -54,7 +54,7 @@
 #define TN_FSB_EN_CNF	(1ll << 14)	/* 1 = deliver interrupts via FSB instead of APIC */
 #define TN_FSB_INT_DEL_CAP (1ll << 15)	/* read only, 1 = FSB delivery available */
 
-#define HPET_INT_ENABLE(n) (0x1 << n)	/* Clears the INT n for level-triggered mode. */
+#define HPET_INT_ENABLE(n) (*hpet_interrupt = (0x1 << n)) /* Clears the INT n for level-triggered mode. */
 
 static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;
@@ -148,10 +148,12 @@ periodic_handler(struct pt_regs *regs)
 
 	ack_irq(HW_PERIODIC);
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
-	*hpet_interrupt = HPET_INT_ENABLE(TIMER_PERIODIC);
+	HPET_INT_ENABLE(TIMER_PERIODIC);
 
 	return preempt;
 }
+
+extern int timer_process(struct pt_regs *regs);
 
 int
 oneshot_handler(struct pt_regs *regs)
@@ -159,8 +161,8 @@ oneshot_handler(struct pt_regs *regs)
 	int preempt = 1;
 
 	ack_irq(HW_ONESHOT);
-	preempt = cap_hw_asnd(&hw_asnd_caps[HW_ONESHOT], regs);
-	*hpet_interrupt = HPET_INT_ENABLE(TIMER_ONESHOT);
+	preempt = timer_process(regs);
+	HPET_INT_ENABLE(TIMER_ONESHOT);
 
 	return preempt;
 }
@@ -192,6 +194,14 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 
 	/* Enable timer interrupts */
 	*hpet_config |= 1;
+}
+
+/* FIXME:  This is broken. Why does setting the oneshot twice make it work? */
+void
+chal_timer_set(cycles_t cycles)
+{
+	timer_set(TIMER_ONESHOT, cycles);
+	timer_set(TIMER_ONESHOT, cycles);
 }
 
 u64_t

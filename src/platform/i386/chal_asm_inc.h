@@ -10,5 +10,5 @@
 #define SEL_UGSEG       (0x30|SEL_RPL_USR)    /* User TLS selector. */
 #define SEL_CNT         7       /* Number of segments. */
 
-#define STK_INFO_SZ     56	/* sizeof(struct cos_cpu_local_info) */
+#define STK_INFO_SZ     60	/* sizeof(struct cos_cpu_local_info) */
 #define STK_INFO_OFF    (STK_INFO_SZ + 4)	/* sizeof(struct cos_cpu_local_info) + sizeof(long) */

@@ -14,7 +14,7 @@
 #include "../../../kernel/include/asm_ipc_defs.h"
 #include "../chal_asm_inc.h"
 
-static inline tcap_res_t
+static inline cycles_t
 tsc(void)
 {
 	unsigned long long ret;
@@ -33,12 +33,11 @@ struct cos_cpu_local_info {
 	/***********************************************/
 	/* info saved in kernel stack for fast access. */
 	unsigned long cpuid;
-	void *curr_thd;
-	void *curr_tcap;
+	void       *curr_thd;
+	void       *curr_tcap;
 	tcap_uid_t  tcap_uid;
 	tcap_prio_t tcap_prio;
-	void       *tcap_active;
-	cycles_t cycles;
+	cycles_t    timeout_next, cycles;
 	/*
 	 * cache the stk_top index to save a cacheline access on
 	 * inv/ret. Could use a struct here if need to cache multiple

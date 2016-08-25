@@ -31,11 +31,37 @@ typedef signed long long s64_t;
 
 #define LLONG_MAX 9223372036854775807LL
 
-typedef s64_t cycles_t;
+typedef u64_t cycles_t;
 typedef unsigned long tcap_res_t;
+typedef unsigned long tcap_time_t;
 typedef u64_t tcap_prio_t;
 typedef u64_t tcap_uid_t;
 #define PRINT_CAP_TEMP (1 << 14)
+
+/*
+ * The assumption in the following is that cycles_t are higher
+ * fidelity than tcap_time_t:
+ *
+ *  sizeof(cycles_t) >= sizeof(tcap_time_t)
+ */
+#define TCAP_TIME_QUANTUM_ORD 12
+#define TCAP_TIME_MAX_ORD     (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
+#define TCAP_TIME_MAX_BITS(c) ((c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
+#define TCAP_TIME_NIL         0
+static inline cycles_t
+tcap_time2cyc(tcap_time_t c, cycles_t curr)
+{ return (((cycles_t)c) << TCAP_TIME_QUANTUM_ORD) | TCAP_TIME_MAX_BITS(curr); }
+static inline tcap_time_t
+tcap_cyc2time(cycles_t c) {
+	tcap_time_t t = (tcap_time_t)(c >> TCAP_TIME_QUANTUM_ORD);
+	return t == TCAP_TIME_NIL ? 1 : t;
+}
+#define CYCLES_DIFF_THRESH (1<<14)
+static inline int
+cycles_same(cycles_t a, cycles_t b)
+{ return (b < a ? a - b : b - a) <= CYCLES_DIFF_THRESH; }
+/* FIXME: if wraparound happens, we need additional logic to compensate here */
+static inline int tcap_time_lessthan(tcap_time_t a, tcap_time_t b) { return a < b; }
 
 typedef enum {
 	TCAP_DELEG_TRANSFER = 1,

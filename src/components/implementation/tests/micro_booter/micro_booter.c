@@ -403,24 +403,28 @@ test_timer(void)
 {
 	int i;
 	thdcap_t tc;
-	cycles_t c = 0, p = 0, t = 0;
+	cycles_t c = 0, p = 0, t = 0, cyc_per_usec;
 
-	printc("Starting timer test.\n");
+	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 
 	for (i = 0 ; i <= 16 ; i++) {
-		thdid_t tid;
-		int rcving;
-		cycles_t cycles;
+		thdid_t  tid;
+		int      rcving;
+		cycles_t cycles, now;
+		tcap_time_t timer;
 
-		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
-		cos_thd_switch(tc);
+		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles) != 0) ;
+		rdtscll(now);
+		timer = tcap_cyc2time(now + 1000 * cyc_per_usec);
+		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_BASE);
 		p = c;
 		rdtscll(c);
 		if (i > 0) t += c-p;
 	}
 
-	printc("\tCycles per tick (10 microseconds) = %lld\n", t/16);
+	printc("\tCycles per tick (1000 microseconds) = %lld\n", t/16);
 
 	printc("Timer test completed.\nSuccess.\n");
 }
@@ -542,9 +546,9 @@ test_run(void)
 
 	test_thds();
 	test_thds_perf();
+	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 
 	test_timer();
-	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 
 	test_mem();
 

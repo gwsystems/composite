@@ -43,9 +43,9 @@ struct tcap_sched_info {
 };
 
 struct tcap {
-	struct thread      *arcv_ep; /* the arcv endpoint this tcap is hooked into */
+	struct thread     *arcv_ep; /* the arcv endpoint this tcap is hooked into */
 	u32_t 		   refcnt;
-	struct tcap_budget budget; /* if we have a partitioned budget */
+	struct tcap_budget budget;
 	u8_t               ndelegs, curr_sched_off;
 	u16_t              cpuid;
 
@@ -123,31 +123,58 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 	return t->budget.cycles;
 }
 
+static inline tcap_res_t
+tcap_left(struct tcap *t)
+{ return t->budget.cycles; }
+
 static inline int
 tcap_expended(struct tcap *t)
-{ return t->budget.cycles == 0; }
+{ return tcap_left(t) == 0; }
 
 static inline struct tcap *
 tcap_current(struct cos_cpu_local_info *cos_info)
 { return (struct tcap *)(cos_info->curr_tcap); }
 
-/* Update the current tcap's cycle count, and return the cycles expended */
+/*
+ * Update the current tcap's (@next's) cycle count, set the next
+ * oneshot @timeout, and return the cycles @expended if they should be
+ * tracked.
+ */
 static inline void
-tcap_current_update(struct cos_cpu_local_info *cos_info, struct tcap *next, int cyc_update, tcap_res_t *expended)
+tcap_current_update(struct cos_cpu_local_info *cos_info, struct tcap *next, int cyc_update,
+		    tcap_time_t timeout, tcap_res_t *expended)
 {
 	struct tcap *curr;
-	tcap_res_t   cycles;
+	cycles_t     cycles, timer, timeout_cyc;
 
 	assert(next);
 	curr                = tcap_current(cos_info);
 	cos_info->curr_tcap = next;
 	*expended           = 0;
-	if (curr == next && !cyc_update) return;
+
+	/* avoid the cost of the tsc if possible */
+	if (curr == next && !cyc_update && timeout == TCAP_TIME_NIL) return;
 
 	cycles           = tsc();
 	*expended        = cycles - cos_info->cycles;
 	cos_info->cycles = cycles;
 	tcap_consume(curr, *expended);
+
+	/* timeout based on the tcap budget... */
+	timer       = cycles + tcap_left(next);
+	/* overflow?  especially relevant if left = TCAP_RES_INF */
+	if (unlikely(timer < cycles)) timer = ~0ULL;
+	timeout_cyc = tcap_time2cyc(timeout, cycles);
+	/* ...or explicit timeout within the bounds of the budget */
+	if (timeout != TCAP_TIME_NIL && timeout_cyc < timer) {
+		if (tcap_time_lessthan(timeout, tcap_cyc2time(cycles))) timer = cycles;
+		else                                                    timer = timeout_cyc;
+	}
+	/* avoid the large costs of setting the timer hardware if possible */
+	if (cycles_same(cos_info->timeout_next, timer)) return;
+
+	chal_timer_set(timer - cycles);
+	cos_info->timeout_next = timer;
 }
 
 static inline void

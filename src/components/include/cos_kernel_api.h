@@ -71,7 +71,7 @@ void *cos_page_bump_alloc(struct cos_compinfo *ci);
 
 int cos_thd_switch(thdcap_t c);
 #define CAP_NULL 0
-int cos_switch(thdcap_t c, tcap_t t, tcap_prio_t p, tcap_res_t r, arcvcap_t rcv);
+int cos_switch(thdcap_t c, tcap_t t, tcap_prio_t p, tcap_time_t r, arcvcap_t rcv);
 int cos_thd_mod(struct cos_compinfo *ci, thdcap_t c, void *tls_addr); /* set tls addr of thd in captbl */
 
 int cos_asnd(asndcap_t snd);

@@ -99,7 +99,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 
 	cos_info->curr_tcap = tc;
 	cos_info->tcap_uid  = 1;
-	tcap_current_update(cos_cpu_local_info(), tc, 1, &expended);
+	tcap_current_update(cos_cpu_local_info(), tc, 1, TCAP_TIME_NIL, &expended);
 	thd_current_update(t, t, cos_cpu_local_info(), 0);
 
 	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE,

@@ -120,20 +120,22 @@ tcap_promote(struct tcap *t, struct thread *thd)
 int
 tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t prio)
 {
-	/* doing this in-place is too much of a pain */
-	struct tcap_sched_info deleg_tmp[TCAP_MAX_DELEGATIONS];
 	int ndelegs, i, j;
 	tcap_uid_t d, s;
 	int si = -1;
 	int ret = 0;
+	/* doing this in-place is too much of a pain */
+	struct tcap_sched_info deleg_tmp[TCAP_MAX_DELEGATIONS];
 
 	assert(dst && src);
 	assert(tcap_isactive(dst));
+	/* check for stack overflow */
+	assert(round_to_page(&deleg_tmp[0]) == round_to_page(&deleg_tmp[TCAP_MAX_DELEGATIONS-1]));
 	if (unlikely(dst->ndelegs > TCAP_MAX_DELEGATIONS)) return -ENOMEM;
 
 	d = tcap_sched_info(dst)->tcap_uid;
 	s = tcap_sched_info(src)->tcap_uid;
-	if (unlikely(d == s)) {
+	if (unlikely(dst == src)) {
 		tcap_sched_info(dst)->prio = prio;
 		return 0;
 	}
@@ -143,9 +145,12 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t
 		struct tcap_sched_info *n, t;
 
 		/* Let the branch prediction nightmare begin... */
-		if (j == src->ndelegs        || dst->delegations[i].tcap_uid < src->delegations[j].tcap_uid) {
+		if (i == dst->ndelegs) {
+			n = &src->delegations[j++];
+		} else if (j == src->ndelegs ||
+			   dst->delegations[i].tcap_uid < src->delegations[j].tcap_uid) {
 			n = &dst->delegations[i++];
-		} else if (i == dst->ndelegs || dst->delegations[i].tcap_uid > src->delegations[j].tcap_uid) {
+		} else if (dst->delegations[i].tcap_uid > src->delegations[j].tcap_uid) {
 			n = &src->delegations[j++];
 		} else {	/* same scheduler */
 			assert(dst->delegations[i].tcap_uid == src->delegations[j].tcap_uid);
