@@ -92,7 +92,12 @@ vm0_io_fn(void *d)
 	while (1) {
 		int pending = cos_rcv(rcvcap);
 		rump_dom0_rcv = 1;
-		bmk_isr(13);
+
+		if((int)d == 1){
+			bmk_isr(13);
+		}else if((int)d == 2){
+			bmk_isr(15);
+		}
 	}
 }
 
@@ -102,7 +107,6 @@ vmx_io_fn(void *d)
 	//printc("vm%d: io fn started\n", (int)d);
 	while (1) {
 		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
-		//printc("VM%d- rcv'd from DOM0\n", (int)d);
 		bmk_isr(12);
 	}
 }
