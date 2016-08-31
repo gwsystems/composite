@@ -48,7 +48,6 @@ vk_ringbuf_isfull(struct cos_shm_rb *rb, size_t size){
 int
 vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 	if(vk_ringbuf_isfull(rb, size+1)){ return -1;} //TODO
-
 	unsigned int producer;
 	producer = rb->head;
 
@@ -81,7 +80,7 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 int
 vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
 	if(rb->head == rb->tail){ 
-		printc("rb is empty\n");
+		//printc("rb is empty\n");
 		return -1; 
 	} 
 	unsigned int consumer = rb->tail;
@@ -123,6 +122,7 @@ cos_shm_write(void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
 	}else{
 		rb = vk_shmem_addr_send(srcvm);
 	}
+
 	return vk_ringbuf_enqueue(rb,buff,sz);
 }
 

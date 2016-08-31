@@ -65,18 +65,18 @@ cos2rump_setup(void)
 int
 cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm){
 
-	asndcap_t sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (dstvm - 1) * CAP64B_IDSZ;
-	
+	asndcap_t sndcap;
+
+	if(srcvm == 0) sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (dstvm - 1) * CAP64B_IDSZ;
+	else sndcap = VM_CAPTBL_SELF_IOASND_BASE;
+
 	cos_shm_write(buff, size, srcvm, dstvm);	
-	
 	cos_asnd(sndcap);	
 	return 1;
 }
 
 int
 cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm){
-	cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
-	
 	return cos_shm_read(buff, srcvm, curvm);
 }
 
