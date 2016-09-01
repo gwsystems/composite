@@ -361,7 +361,6 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	//printd("Done with mman_fork, ret %d\n", r);
 	//if (r) printc("Error (%d) in mman_fork_spd\n", r);
 
-	/* So... if we were to just run this, would it do the same thing that mman_fork_spd currently does? My guess: yes. Actual answer: no*/
 	printd("Telling cbuf to fork(%d, %d, %d)\n", cos_spd_id(), source, d_spd);
 	r = cbuf_fork_spd(cos_spd_id(), source, d_spd);
 	if (r) printc("Error (%d) in cbuf_fork_spd\n", r);

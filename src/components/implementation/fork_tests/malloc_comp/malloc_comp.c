@@ -24,6 +24,7 @@ call(void)
 		for (i = 0; i < NUM; i++) {
 			mptr[i] = (char *)malloc((i+1) * sizeof(int));
 			assert(mptr[i]);
+			printc("in O, %x\n", mptr[i]);
 
 			for (j = 0; j < i; j++) {
 				mptr[i][j] = j;
@@ -38,17 +39,20 @@ call(void)
 		/* feel free to delete this line - I realize it might NOT be 14 but right now it is */
 		assert(cos_spd_id() == 14);
 
-		//int i, j;
-		//for (i = 0; i < NUM; i++) {
-	//		for (j = 0; j < i; j++) {
-	//			mptr[i][j]++;
-	//			printc("[%d] ", mptr[i][j]);
-	//		}
-	//		printc("\n");
+		printc("Welcome to spd 14\n");
+
+		int i, j;
+		for (i = 0; i < NUM; i++) {
+			printc("in F, %x\n", mptr[i]);
+			for (j = 0; j < i; j++) {
+//				mptr[i][j]++;
+				printc("[%d] ", mptr[i][j]);
+			}
+			printc("\n");
 
 	//		/* might as well do this */
 	//		free(mptr[i]);
-	//	}
+		}
 	}
 
 	return a++ + b++;
