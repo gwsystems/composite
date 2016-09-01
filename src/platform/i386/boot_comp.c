@@ -30,7 +30,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	nptes = boot_nptes(range);
 	ptes  = mem_boot_alloc(nptes);
 	assert(ptes);
-	memset(ptes, 0, nptes * PAGE_SIZE);
+
 	printk("\tCreating %d %s PTEs for PGD @ 0x%x from [%x,%x) to [%x,%x).\n",
 	       nptes, label, chal_pa2va((paddr_t)pgtbl),
 	       kern_vaddr, kern_vaddr+range, user_vaddr, user_vaddr+range);
@@ -137,7 +137,6 @@ kern_boot_comp(void)
 
 	boot_comp_captbl = mem_boot_alloc(BOOT_CAPTBL_NPAGES);
 	assert(boot_comp_captbl);
-	memset(boot_comp_captbl, 0, BOOT_CAPTBL_NPAGES * PAGE_SIZE);
 	ct               = captbl_create(boot_comp_captbl);
 	assert(ct);
 
@@ -154,8 +153,6 @@ kern_boot_comp(void)
 	thd_mem  = mem_boot_alloc(1);
 	tcap_mem = mem_boot_alloc(1);
 	assert(thd_mem && tcap_mem);
-	memset(thd_mem, 0, PAGE_SIZE);
-	memset(tcap_mem, 0, PAGE_SIZE);
 
 	if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) assert(0);
 	if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) assert(0);
@@ -168,7 +165,6 @@ kern_boot_comp(void)
 	 */
 	boot_vm_pgd = (pgtbl_t)mem_boot_alloc(1);
 	assert(boot_vm_pgd);
-	memset((void *)boot_vm_pgd, 0, PAGE_SIZE);
 	memcpy((void *)boot_vm_pgd + KERNEL_PGD_REGION_OFFSET,  (void *)(&boot_comp_pgd) + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE); 
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (pgtbl_t)chal_va2pa(boot_vm_pgd), 0)) assert(0);
 
