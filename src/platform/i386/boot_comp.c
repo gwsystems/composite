@@ -16,7 +16,7 @@ int boot_nptes(unsigned int sz) { return round_up_to_pow2(sz, PGD_RANGE)/PGD_RAN
 
 int
 boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *label,
-			void *kern_vaddr, unsigned long user_vaddr, unsigned int range, int uvm)
+		        void *kern_vaddr, unsigned long user_vaddr, unsigned int range, int uvm)
 {
 	int ret;
 	u8_t *ptes;
@@ -30,6 +30,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	nptes = boot_nptes(range);
 	ptes  = mem_boot_alloc(nptes);
 	assert(ptes);
+	memset(ptes, 0, nptes * PAGE_SIZE);
 	printk("\tCreating %d %s PTEs for PGD @ 0x%x from [%x,%x) to [%x,%x).\n",
 	       nptes, label, chal_pa2va((paddr_t)pgtbl),
 	       kern_vaddr, kern_vaddr+range, user_vaddr, user_vaddr+range);
@@ -68,9 +69,9 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 		paddr_t pf  = chal_va2pa(p);
 		u32_t mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
 
-                if (uvm  && pgtbl_mapping_add(pgtbl, mapat, pf, PGTBL_USER_DEF)) assert(0);
-                if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, PGTBL_COSFRAME)) assert(0);
-                assert((void*)p == pgtbl_lkup(pgtbl, user_vaddr+i*PAGE_SIZE, &flags));
+		if (uvm  && pgtbl_mapping_add(pgtbl, mapat, pf, PGTBL_USER_DEF)) assert(0);
+		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, PGTBL_COSFRAME)) assert(0);
+		assert((void*)p == pgtbl_lkup(pgtbl, user_vaddr+i*PAGE_SIZE, &flags));
 	}
 
 	return 0;
@@ -124,9 +125,9 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 void
 kern_boot_comp(void)
 {
-        int ret = 0, nkmemptes;
-        struct captbl *ct;
-        unsigned int i;
+	int ret = 0, nkmemptes;
+	struct captbl *ct;
+	unsigned int i;
 	u8_t *boot_comp_captbl;
 	void *thd_mem, *tcap_mem;
 	pgtbl_t pgtbl   = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
@@ -135,24 +136,29 @@ kern_boot_comp(void)
 	printk("Setting up the booter component.\n");
 
 	boot_comp_captbl = mem_boot_alloc(BOOT_CAPTBL_NPAGES);
-        ct               = captbl_create(boot_comp_captbl);
-        assert(ct);
+	assert(boot_comp_captbl);
+	memset(boot_comp_captbl, 0, BOOT_CAPTBL_NPAGES * PAGE_SIZE);
+	ct               = captbl_create(boot_comp_captbl);
+	assert(ct);
 
-        /* expand the captbl to use multiple pages. */
-        for (i = PAGE_SIZE ; i < BOOT_CAPTBL_NPAGES*PAGE_SIZE ; i += PAGE_SIZE) {
-                captbl_init(boot_comp_captbl + i, 1);
-                ret = captbl_expand(ct, (i - PAGE_SIZE/2)/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + i);
-                assert(!ret);
-                captbl_init(boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2, 1);
-                ret = captbl_expand(ct, i/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + i + PAGE_SIZE/2);
-                assert(!ret);
-        }
+	/* expand the captbl to use multiple pages. */
+	for (i = PAGE_SIZE ; i < BOOT_CAPTBL_NPAGES*PAGE_SIZE ; i += PAGE_SIZE) {
+		captbl_init(boot_comp_captbl + i, 1);
+		ret = captbl_expand(ct, (i - PAGE_SIZE/2)/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + i);
+		assert(!ret);
+		captbl_init(boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2, 1);
+		ret = captbl_expand(ct, i/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + i + PAGE_SIZE/2);
+		assert(!ret);
+	}
 
 	thd_mem  = mem_boot_alloc(1);
 	tcap_mem = mem_boot_alloc(1);
 	assert(thd_mem && tcap_mem);
-        if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) assert(0);
-        if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) assert(0);
+	memset(thd_mem, 0, PAGE_SIZE);
+	memset(tcap_mem, 0, PAGE_SIZE);
+
+	if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) assert(0);
+	if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) assert(0);
 
 	hw_asndcap_init();
 	if (hw_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITHW_BASE, hw_bitmap)) assert(0);
@@ -162,6 +168,7 @@ kern_boot_comp(void)
 	 */
 	boot_vm_pgd = (pgtbl_t)mem_boot_alloc(1);
 	assert(boot_vm_pgd);
+	memset((void *)boot_vm_pgd, 0, PAGE_SIZE);
 	memcpy((void *)boot_vm_pgd + KERNEL_PGD_REGION_OFFSET,  (void *)(&boot_comp_pgd) + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE); 
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (pgtbl_t)chal_va2pa(boot_vm_pgd), 0)) assert(0);
 
