@@ -623,7 +623,7 @@ cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_t srccty
 
 	assert(srcci && dstci);
 
-	dstcap = __capid_bump_alloc(srcci, srcctype);
+	dstcap = __capid_bump_alloc(dstci, srcctype);
 	if (!dstcap) return 0;
 
 	if (call_cap_op(srcci->captbl_cap, CAPTBL_OP_CPY, srccap, dstci->captbl_cap, dstcap, 0))  BUG();
