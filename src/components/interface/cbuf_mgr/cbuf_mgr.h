@@ -19,17 +19,17 @@ typedef u32_t cbuf_t; /* should match cbuf_t, and fit in a register */
  * These are more or less identical to the counterparts in cbuf_c.h,
  * so have a look at the documentation there.
  */
-int cbuf_create(spdid_t spdid, int size, long cbid);
+int cbuf_create(spdid_t spdid, unsigned long size, int cbid);
 int cbuf_delete(spdid_t spdid, int cbid);
-int cbuf_retrieve(spdid_t spdid, int cbid, int len);
-vaddr_t cbuf_register(spdid_t spdid, long cbid);
+int cbuf_retrieve(spdid_t spdid, int cbid, unsigned long len);
+vaddr_t cbuf_register(spdid_t spdid, int cbid);
 
 /* Map a cbufp into another component at a given address.
  * The s_spd that calls this function should ensure the memory is not freed.
  * The d_addr must be alloced with sufficient pages to contain the cbuf.
  */
-vaddr_t cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr);
-int cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr);
+vaddr_t cbuf_map_at(spdid_t s_spd, int cbid, spdid_t d_spd, vaddr_t d_addr);
+int cbuf_unmap_at(spdid_t s_spd, int cbid, spdid_t d_spd, vaddr_t d_addr);
 
 int cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd);
 
@@ -46,7 +46,7 @@ vaddr_t cbuf_map_collect(spdid_t spdid);
  * for the number of cbufs collected, 0 if non are available, or a
  * negative value for an error.
  */
-int cbuf_collect(spdid_t spdid, int size);
+int cbuf_collect(spdid_t spdid, unsigned long size);
 
 /* Collected cbufs are stored in a page shared between cbufp and clients.
  * A ring buffer data structure is put in the first part of the page.

@@ -76,11 +76,11 @@ struct snd_rcv_info{
 	u8_t nsent, nrecvd;
 }__attribute__((packed));
 union cbid_tag {
-	u32_t cbid;
+	int cbid;
 	unsigned int tag;
 };
 struct cbuf_meta {
-	unsigned int nfo;
+	unsigned long nfo;
 	u16_t sz;			/* # of pages */
 	struct snd_rcv_info snd_rcv;
 	struct cbuf_meta *next;    /*single circular linked list*/

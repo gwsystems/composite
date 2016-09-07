@@ -62,8 +62,8 @@ struct cbuf_maps {
 };
 
 struct cbuf_info {
-	u32_t cbid;
-	int size;
+	int cbid;
+	unsigned long size;
 	char *mem;
 	struct cbuf_maps owner;
 	struct cbuf_info *next, *prev;
@@ -73,13 +73,13 @@ struct cbuf_info {
 struct cbuf_meta_range {
 	struct cbuf_meta *m;
 	vaddr_t dest;
-	u32_t low_id;
+	int low_id;
 	struct cbuf_meta_range *next, *prev;
 };
 #define CBUF_META_RANGE_HIGH(cmr) (cmr->low_id + (PAGE_SIZE/sizeof(struct cbuf_meta)))
 
 struct cbuf_bin {
-	int size;
+	unsigned long size;
 	struct cbuf_info *c;
 };
 
@@ -107,7 +107,7 @@ CVECT_CREATE_STATIC(components);
 CMAP_CREATE_STATIC(cbufs);
 
 static struct cbuf_meta_range *
-cbuf_meta_lookup_cmr(struct cbuf_comp_info *comp, u32_t cbid)
+cbuf_meta_lookup_cmr(struct cbuf_comp_info *comp, int cbid)
 {
 	struct cbuf_meta_range *cmr;
 	assert(comp);
@@ -125,7 +125,7 @@ cbuf_meta_lookup_cmr(struct cbuf_comp_info *comp, u32_t cbid)
 }
 
 static struct cbuf_meta *
-cbuf_meta_lookup(struct cbuf_comp_info *comp, u32_t cbid)
+cbuf_meta_lookup(struct cbuf_comp_info *comp, int cbid)
 {
 	struct cbuf_meta_range *cmr;
 
@@ -135,7 +135,7 @@ cbuf_meta_lookup(struct cbuf_comp_info *comp, u32_t cbid)
 }
 
 static struct cbuf_meta_range *
-cbuf_meta_add(struct cbuf_comp_info *comp, u32_t cbid, struct cbuf_meta *m, vaddr_t dest)
+cbuf_meta_add(struct cbuf_comp_info *comp, int cbid, struct cbuf_meta *m, vaddr_t dest)
 {
 	struct cbuf_meta_range *cmr;
 
@@ -178,7 +178,7 @@ cbuf_comp_info_get(spdid_t spdid)
 }
 
 static struct cbuf_bin *
-cbuf_comp_info_bin_get(struct cbuf_comp_info *cci, int sz)
+cbuf_comp_info_bin_get(struct cbuf_comp_info *cci, unsigned long sz)
 {
 	int i;
 
@@ -190,7 +190,7 @@ cbuf_comp_info_bin_get(struct cbuf_comp_info *cci, int sz)
 }
 
 static struct cbuf_bin *
-cbuf_comp_info_bin_add(struct cbuf_comp_info *cci, int sz)
+cbuf_comp_info_bin_add(struct cbuf_comp_info *cci, unsigned long sz)
 {
 	if (sz == CBUF_MAX_NSZ) return NULL;
 	cci->cbufs[cci->nbin].size = sz;
@@ -200,10 +200,10 @@ cbuf_comp_info_bin_add(struct cbuf_comp_info *cci, int sz)
 }
 
 static int
-cbuf_map(spdid_t spdid, vaddr_t daddr, void *page, int size, int flags)
+cbuf_map(spdid_t spdid, vaddr_t daddr, void *page, unsigned long size, int flags)
 {
-	int off;
-	assert(size == (int)round_to_page(size));
+	unsigned long off;
+	assert(size == round_to_page(size));
 	assert(daddr);
 	assert(page);
 	for (off = 0 ; off < size ; off += PAGE_SIZE) {
@@ -382,7 +382,7 @@ cbuf_unmark_relinquish_all(struct cbuf_comp_info *cci)
 }
 
 int
-cbuf_create(spdid_t spdid, int size, long cbid)
+cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 {
 	struct cbuf_comp_info *cci;
 	struct cbuf_info *cbi;
@@ -462,14 +462,13 @@ free:
 }
 
 vaddr_t
-cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
+cbuf_map_at(spdid_t s_spd, int cbid, spdid_t d_spd, vaddr_t d_addr)
 {
 	vaddr_t ret = (vaddr_t)NULL;
 	struct cbuf_info *cbi;
-	u32_t id;
-	int flags;
+	int flags, id;
 	
-	cbuf_unpack(cbid, &id);
+	id = cbid;
 	CBUF_TAKE();
 	cbi = cmap_lookup(&cbufs, id);
 	assert(cbi);
@@ -494,22 +493,20 @@ free:
 }
 
 int
-cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
+cbuf_unmap_at(spdid_t s_spd, int cbid, spdid_t d_spd, vaddr_t d_addr)
 {
 	struct cbuf_info *cbi;
-	int off;
-	int ret = 0;
-	u32_t id;
-	int err = 0;
-	
-	cbuf_unpack(cbid, &id);
+	int ret = 0, id;
+	u32_t off;
+	int err;
 
+	id = cbid;
 	assert(d_addr);
 	CBUF_TAKE();
 	cbi = cmap_lookup(&cbufs, id);
 	if (unlikely(!cbi)) ERR_THROW(-EINVAL, done);
 	if (unlikely(cbi->owner.spdid != s_spd)) ERR_THROW(-EPERM, done);
-	assert(cbi->size == (int)round_to_page(cbi->size));
+	assert(cbi->size == round_to_page(cbi->size));
 	/* unmap pages in only the d_spd client */
 	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE)
 		err |= mman_release_page(d_spd, d_addr + off, 0);
@@ -618,7 +615,7 @@ done:
  * number of available cbufs.
  */
 int
-cbuf_collect(spdid_t spdid, int size)
+cbuf_collect(spdid_t spdid, unsigned long size)
 {
 	struct cbuf_info *cbi;
 	struct cbuf_comp_info *cci;
@@ -689,7 +686,7 @@ done:
  * Called by cbuf2buf to retrieve a given cbid.
  */
 int
-cbuf_retrieve(spdid_t spdid, int cbid, int size)
+cbuf_retrieve(spdid_t spdid, int cbid, unsigned long size)
 {
 	struct cbuf_comp_info *cci;
 	struct cbuf_info *cbi;
@@ -746,7 +743,7 @@ free:
 }
 
 vaddr_t
-cbuf_register(spdid_t spdid, long cbid)
+cbuf_register(spdid_t spdid, int cbid)
 {
 	struct cbuf_comp_info  *cci;
 	struct cbuf_meta_range *cmr;

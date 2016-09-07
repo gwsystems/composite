@@ -142,11 +142,10 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 }
 
 struct cbuf_meta *
-__cbuf_alloc_slow(int size, int *len, unsigned int flag)
+__cbuf_alloc_slow(unsigned long size, int *len, unsigned int flag)
 {
 	struct cbuf_meta *cm = NULL;
-	int cbid;
-	int cnt;
+	int amnt, cbid;
 
 	cnt = cbid = 0;
 	do {

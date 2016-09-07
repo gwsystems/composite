@@ -214,7 +214,7 @@ struct cbuf_agg {
 };
 
 static inline void 
-cbuf_unpack(cbuf_t cb, u32_t *cbid)
+cbuf_unpack(cbuf_t cb, int *cbid)
 {
 	cbuf_unpacked_t cu = {0};
 	cu.v  = cb;
@@ -224,7 +224,7 @@ cbuf_unpack(cbuf_t cb, u32_t *cbid)
 }
 
 static inline cbuf_t 
-cbuf_cons(u32_t cbid)
+cbuf_cons(int cbid)
 {
 	cbuf_unpacked_t cu;
 	cu.v     = 0;
@@ -235,7 +235,7 @@ cbuf_cons(u32_t cbid)
 static inline cbuf_t cbuf_null(void)      { return 0; }
 static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 
-extern struct cbuf_meta * __cbuf_alloc_slow(int size, int *len, unsigned int flag);
+extern struct cbuf_meta * __cbuf_alloc_slow(unsigned long size, int *len, unsigned int flag);
 extern int  __cbuf_2buf_miss(int cbid, int len);
 extern cvect_t meta_cbuf;
 
@@ -254,10 +254,9 @@ cbuf_vect_lookup_addr(int id)
 static inline void * 
 cbuf2buf(cbuf_t cb, int len)
 {
-	u32_t id;
 	struct cbuf_meta *cm;
 	void *ret = NULL;
-	int t;
+	int id, t;
 
 	if (unlikely(!len)) return NULL;
 	cbuf_unpack(cb, &id);
@@ -298,7 +297,7 @@ done:
 static inline void
 __cbuf_send(cbuf_t cb, int free)
 {
-	u32_t id;
+	int id;
 	struct cbuf_meta *cm;
 
 	cbuf_unpack(cb, &id);
@@ -409,15 +408,16 @@ done:
 }
 
 static inline void *
-cbuf_alloc(unsigned int sz, cbuf_t *cb)
+cbuf_alloc(unsigned long sz, cbuf_t *cb)
 {
 	return cbuf_alloc_ext(sz, cb, 0);
 }
 
 static inline void
-cbuf_free(cbuf_t cb)
+cbuf_ref(cbuf_t cb)
 {
-	u32_t id;
+	struct cbuf_meta *cm;
+	int id;
 	cbuf_unpack(cb, &id);
 	struct cbuf_meta *cm, *fl, head, new_head;
 	int owner, relinq = 0, tmem, inconsistent;
