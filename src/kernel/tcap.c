@@ -14,6 +14,9 @@
 #include "include/shared/cos_types.h"
 #include "include/chal/defs.h"
 
+/* This is jacked.  Only in here to avoid a header file circular dependency. */
+void __thd_exec_add(struct thread *t, cycles_t cycles) { t->exec += cycles; }
+
 /*** TCap Operations ***/
 
 static inline tcap_uid_t *
@@ -34,6 +37,7 @@ __tcap_init(struct tcap *t, tcap_prio_t prio)
 	t->refcnt                  = 1;
 	t->arcv_ep                 = NULL;
 	tcap_setprio(t, prio);
+	list_init(&t->active_list, t);
 }
 
 static inline int
@@ -57,17 +61,21 @@ tcap_delete(struct tcap *tcap)
  * cycles to be transferred.
  */
 static inline int
-__tcap_budget_xfer(struct tcap_budget *bd, struct tcap_budget *bs, tcap_res_t cycles)
+__tcap_budget_xfer(struct tcap *d, struct tcap *s, tcap_res_t cycles)
 {
+	struct tcap_budget *bd = &d->budget, *bs = &s->budget;
+
 	if (unlikely(TCAP_RES_IS_INF(cycles))) {
 		if (unlikely(!TCAP_RES_IS_INF(bs->cycles))) return -1;
 		bd->cycles = TCAP_RES_INF;
-
-		return 0;
+		goto done;
 	}
 	if (unlikely(cycles > bs->cycles)) return -1;
 	if (!TCAP_RES_IS_INF(bd->cycles)) bd->cycles += cycles;
 	if (!TCAP_RES_IS_INF(bs->cycles)) bs->cycles -= cycles;
+done:
+	if (tcap_is_active(s) && tcap_expended(s)) tcap_active_rem(s);
+	if (!tcap_is_active(d)) tcap_active_add_after(s, d);
 
 	return 0;
 }
@@ -85,7 +93,7 @@ __tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, t
 	if (prio == 0)   prio   = tcap_sched_info(tcapsrc)->prio;
 	if (cycles == 0) cycles = tcapsrc->budget.cycles;
 
-	if (unlikely(__tcap_budget_xfer(&tcapdst->budget, &tcapsrc->budget, cycles))) return -1;
+	if (unlikely(__tcap_budget_xfer(tcapdst, tcapsrc, cycles))) return -1;
 	tcap_sched_info(tcapdst)->prio = prio;
 
 	return 0;
@@ -197,23 +205,6 @@ tcap_merge(struct tcap *dst, struct tcap *rm)
 	return 0;
 }
 
-/*** Active TCap List ***/
-
-/* void */
-/* tcap_active_enqueue(struct cos_cpu_local_info *ci, struct tcap *t) */
-/* { */
-
-/* } */
-
-/* struct tcap * */
-/* tcap_active_first(struct cos_cpu_local_info *ci,  struct tcap *t) */
-/* { */
-
-/* } */
-
-/* void */
-/* tcap_active_rem(struct tcap *t) */
-/* { list_rem(); } */
-
 void
-tcap_init(void) { }
+tcap_active_init(struct cos_cpu_local_info *cli)
+{ list_head_init(&cli->tcaps); }

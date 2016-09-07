@@ -99,15 +99,17 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 			   thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
 	assert(!ret);
 
+	tcap_active_init(cos_info);
 	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE, tcap_mem, TCAP_PRIO_MAX);
-	tc->budget.cycles = TCAP_RES_INF; /* father time's got all the time in the world */
-	tcap_setprio(tc, 0);              /* father time gets preempted by no one! */
 	assert(!ret);
+	tc->budget.cycles = TCAP_RES_INF; /* Chronos's got all the time in the world */
+	tcap_setprio(tc, 0);              /* Chronos gets preempted by no one! */
+	list_enqueue(&cos_info->tcaps, &tc->active_list); /* Chronos on the TCap active list */
+	cos_info->tcap_uid = 1;
+	cos_info->cycles   = tsc();
+	tcap_current_set(cos_info, tc);
 
-	cos_info->curr_tcap = tc;
-	cos_info->tcap_uid  = 1;
-	tcap_current_update(cos_cpu_local_info(), tc, 1, TCAP_TIME_NIL, &expended);
-	thd_current_update(t, t, cos_cpu_local_info(), 0);
+	thd_current_update(t, t, cos_info);
 
 	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE,
 			    BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_INITTHD_BASE,

@@ -122,21 +122,33 @@ thdid_alloc(void)
 	if (unlikely(free_thd_id >= MAX_NUM_THREADS)) assert(0);
 	return cos_faa((int*)&free_thd_id, 1);
 }
-
 static void
 thd_rcvcap_take(struct thread *t)         { t->rcvcap.refcnt++; }
 
 static void
 thd_rcvcap_release(struct thread *t)      { t->rcvcap.refcnt--; }
 
-static int
+static inline int
 thd_rcvcap_isreferenced(struct thread *t) { return t->rcvcap.refcnt > 0; }
 
-static int
+static inline int
 thd_bound2rcvcap(struct thread *t)        { return t->rcvcap.isbound; }
+
+static inline int
+thd_rcvcap_is_sched(struct thread *t)     { return thd_rcvcap_isreferenced(t); }
+
+static inline struct tcap *
+thd_rcvcap_tcap(struct thread *t)         { return t->rcvcap.rcvcap_tcap; }
 
 static int
 thd_rcvcap_isroot(struct thread *t)       { return t == t->rcvcap.rcvcap_thd_notif; }
+
+static inline struct thread *
+thd_rcvcap_sched(struct thread *t)
+{
+	if (thd_rcvcap_isreferenced(t)) return t;
+	return t->rcvcap.rcvcap_thd_notif;
+}
 
 static void
 thd_rcvcap_init(struct thread *t)
@@ -152,12 +164,10 @@ thd_rcvcap_evt_enqueue(struct thread *head, struct thread *t)
 { if (list_empty(&t->event_list) && head != t) list_enqueue(&head->event_head, &t->event_list); }
 
 static inline void
-thd_list_rem(struct thread *head, struct thread *t)
-{ list_rem(&t->event_list); }
+thd_list_rem(struct thread *head, struct thread *t) { list_rem(&t->event_list); }
 
 static inline struct thread *
-thd_rcvcap_evt_dequeue(struct thread *head)
-{ return list_dequeue(&head->event_head); }
+thd_rcvcap_evt_dequeue(struct thread *head) { return list_dequeue(&head->event_head); }
 
 /*
  * If events are going to be delivered on this thread, then we should
@@ -165,8 +175,7 @@ thd_rcvcap_evt_dequeue(struct thread *head)
  * a notification trigger for tracking the thread's execution time.
  */
 static inline int
-thd_track_exec(struct thread *t)
-{ return !list_empty(&t->event_list); }
+thd_track_exec(struct thread *t) { return !list_empty(&t->event_list); }
 
 static inline int
 thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long *cycles)
@@ -325,9 +334,8 @@ thd_current(struct cos_cpu_local_info *cos_info)
 { return (struct thread *)(cos_info->curr_thd); }
 
 static inline void
-thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info, tcap_res_t expended)
+thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
 {
-	prev->exec += expended;
 	/* commit the cached data */
 	prev->invstk_top     = cos_info->invstk_top;
 	cos_info->invstk_top = next->invstk_top;

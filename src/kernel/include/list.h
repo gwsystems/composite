@@ -16,6 +16,8 @@ struct list {
 	struct list_node l;
 };
 
+/* struct list_node operations: */
+
 static inline void
 list_init(struct list_node *l, void *obj)
 {
@@ -24,23 +26,13 @@ list_init(struct list_node *l, void *obj)
 }
 
 static inline void
-list_head_init(struct list *h)
-{ list_init(&h->l, NULL); }
-
-static inline void
-list_enqueue(struct list *hd, struct list_node *l)
+list_add_after(struct list_node *l, struct list_node *new)
 {
-	struct list_node *h = &hd->l, *p = h->prev;
-
-	l->next = h;
-	l->prev = p;
-	p->next = l;
-	h->prev = l;
+	new->next     = l->next;
+	new->prev     = l;
+	l->next->prev = new;
+	l->next       = new;
 }
-
-static inline void
-list_add(struct list *hd, struct list_node *l)
-{ list_enqueue(hd, hd->l.next); }
 
 static inline void
 list_rem(struct list_node *n)
@@ -53,20 +45,37 @@ list_rem(struct list_node *n)
 static inline int
 list_empty(struct list_node *l) { return l->next == l; }
 
+/* struct list operations: */
+
+static inline void
+list_head_init(struct list *h)
+{ list_init(&h->l, NULL); }
+
+/* add to end */
+static inline void
+list_enqueue(struct list *hd, struct list_node *l)
+{ list_add_after(hd->l.prev, l); }
+
+/* add to start */
+static inline void
+list_add(struct list *hd, struct list_node *l)
+{ list_add_after(&hd->l, l); }
+
+/* dequeue from start */
 static inline void *
 list_dequeue(struct list *h)
 {
 	struct list_node *n = h->l.next;
 
-	if (list_empty(n)) return NULL;
 	list_rem(n);
 
 	return n->container;
 }
 
 /*
- * Iteration interface.  list_next == NULL when we iterate through the
- * entire list.
+ * Iteration interface.
+ *
+ * for (o = list_first(&list) ; o ; o = list_next(&o->list)) {...}
  */
 
 static inline void *
@@ -74,6 +83,7 @@ list_next(struct list_node *n)
 { return n->next->container; } 	/* return NULL if head */
 
 static inline void *
-list_first(struct list *h) { return list_next(&h->l); }
+list_first(struct list *h)
+{ return list_next(&h->l); }
 
 #endif	/* LIST_H */

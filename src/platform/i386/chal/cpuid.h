@@ -12,6 +12,7 @@
 #include "../../../kernel/include/shared/consts.h"
 #include "../../../kernel/include/shared/cos_types.h"
 #include "../../../kernel/include/asm_ipc_defs.h"
+#include "../../../kernel/include/list.h"
 #include "../chal_asm_inc.h"
 
 static inline cycles_t
@@ -35,6 +36,7 @@ struct cos_cpu_local_info {
 	unsigned long cpuid;
 	void       *curr_thd;
 	void       *curr_tcap;
+	struct list tcaps;
 	tcap_uid_t  tcap_uid;
 	tcap_prio_t tcap_prio;
 	cycles_t    timeout_next, cycles;
