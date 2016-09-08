@@ -65,6 +65,8 @@ __tcap_budget_xfer(struct tcap *d, struct tcap *s, tcap_res_t cycles)
 {
 	struct tcap_budget *bd = &d->budget, *bs = &s->budget;
 
+	if (!cycles) return 0;
+	assert(tcap_is_active(s));
 	if (unlikely(TCAP_RES_IS_INF(cycles))) {
 		if (unlikely(!TCAP_RES_IS_INF(bs->cycles))) return -1;
 		bd->cycles = TCAP_RES_INF;
@@ -74,8 +76,8 @@ __tcap_budget_xfer(struct tcap *d, struct tcap *s, tcap_res_t cycles)
 	if (!TCAP_RES_IS_INF(bd->cycles)) bd->cycles += cycles;
 	if (!TCAP_RES_IS_INF(bs->cycles)) bs->cycles -= cycles;
 done:
-	if (tcap_is_active(s) && tcap_expended(s)) tcap_active_rem(s);
 	if (!tcap_is_active(d)) tcap_active_add_after(s, d);
+	if (tcap_expended(s))   tcap_active_rem(s);
 
 	return 0;
 }

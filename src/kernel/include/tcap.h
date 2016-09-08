@@ -155,6 +155,7 @@ static inline void
 tcap_current_set(struct cos_cpu_local_info *cos_info, struct tcap *t)
 { cos_info->curr_tcap = t; }
 
+/* hack to avoid header file recursion */
 void __thd_exec_add(struct thread *t, cycles_t cycles);
 
 static inline int

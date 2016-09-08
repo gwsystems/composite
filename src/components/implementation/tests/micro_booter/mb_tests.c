@@ -336,12 +336,14 @@ static void
 spinner(void *d)
 { while (1) ; }
 
+cycles_t cyc_per_usec;
+
 static void
 test_timer(void)
 {
 	int i;
 	thdcap_t tc;
-	cycles_t c = 0, p = 0, t = 0, cyc_per_usec;
+	cycles_t c = 0, p = 0, t = 0;
 
 	PRINTC("Starting timer test.\n");
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
@@ -366,6 +368,59 @@ test_timer(void)
 	PRINTC("\tCycles per tick (1000 microseconds) = %lld\n", t/16);
 
 	PRINTC("Timer test completed.\nSuccess.\n");
+}
+
+struct exec_cluster {
+	thdcap_t  tc;
+	arcvcap_t rc;
+	tcap_t    tcc;
+};
+
+struct budget_test_data {
+	struct exec_cluster p, c;
+} bt;
+
+static void
+exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t parentc)
+{
+	e->tcc = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX + 2);
+	assert(e->tcc);
+	e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d);
+	assert(e->tc);
+	e->rc = cos_arcv_alloc(&booter_info, e->tc, e->tcc, booter_info.comp_cap, parentc);
+	assert(e->rc);
+}
+
+static void
+parent(void *d)
+{
+	struct exec_cluster *e = d;
+
+	assert(0);
+}
+
+
+static void
+test_budgets(void)
+{
+	cycles_t s, e;
+	int i;
+
+	PRINTC("Starting budget test.\n");
+
+	exec_cluster_alloc(&bt.p, parent,  &bt.p, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	exec_cluster_alloc(&bt.c, spinner, &bt.c, bt.p.rc);
+
+	PRINTC("Budget switch latencies: ");
+	for (i = 1 ; i < 10 ; i++) {
+		if (cos_tcap_transfer(bt.c.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, i * 100000, TCAP_PRIO_MAX + 2)) assert(0);
+
+		rdtscll(s);
+		if (cos_switch(bt.c.tc, bt.c.tcc, TCAP_PRIO_MAX + 2, TCAP_RES_INF, BOOT_CAPTBL_SELF_INITRCV_BASE)) assert(0);
+		rdtscll(e);
+		PRINTC("%lld,\t", e-s);
+	}
+	PRINTC("\n");
 }
 
 long long midinv_cycles = 0LL;
@@ -481,6 +536,7 @@ test_run(void)
 	timer_attach();
 	timer_detach();
 	test_timer();
+	test_budgets();
 
 	/*
 	 * It is ideal to ubenchmark kernel API with timer interrupt detached,
