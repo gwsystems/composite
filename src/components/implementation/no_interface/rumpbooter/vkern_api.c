@@ -1,43 +1,56 @@
 #include <cos_kernel_api.h>
-
-/* HACKHACKHACKHACKHACKHACK */
 #include <stdarg.h>
 #include <stdio.h>
 #include <vkern_api.h>
 
 int
-vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsize, int vmid){
-	//create rb, of size sz
+vk_recv_rb_create(struct cos_shm_rb * sm_rb, int vmid){
+	assert(vmid < (COS_VIRT_MACH_COUNT-1));
+	
+	sm_rb = vk_shmem_addr_recv(vmid);
 	sm_rb->head = 0;
 	sm_rb->tail = 0;
 	sm_rb->size = COS_SHM_VM_SZ/2 - (sizeof(struct cos_shm_rb *)*2);
-	//sm_rb->mask = sm_rb->size -1; 
+	return 1;	
+}
+
+int
+vk_send_rb_create(struct cos_shm_rb * sm_rb, int vmid){
+	assert(vmid < (COS_VIRT_MACH_COUNT-1));
+	
+	sm_rb = vk_shmem_addr_send(vmid);
+	sm_rb->head = 0;
+	sm_rb->tail = 0;
+	sm_rb->size = COS_SHM_VM_SZ/2 - (sizeof(struct cos_shm_rb *)*2);
 	return 1;	
 }
 
 struct cos_shm_rb *
 vk_shmem_addr_send(int to_vmid){
-	//returns the virt addr of the ringbuf struct for sending data
 	if(to_vmid == 0){
+		//if sending from a VM to DOM0
 		return (struct cos_shm_rb *)BOOT_MEM_SHM_BASE;	
 	}else{
+		//if sending from DOM0 to a VM
 		return (struct cos_shm_rb *)((BOOT_MEM_SHM_BASE)+((COS_SHM_VM_SZ) * (to_vmid-1) ));
 	}
 }
 
 struct cos_shm_rb *
-vk_shmem_addr_recv(int vmid){
-	//returns the virt addr of the ringbuf struct for recving data
-	if(vmid == 0){
+vk_shmem_addr_recv(int from_vmid){
+	if(from_vmid == 0){
+		//if rcving from DOM0
 		return (struct cos_shm_rb *)((BOOT_MEM_SHM_BASE) + (COS_SHM_VM_SZ/2));	
 	}else{
-		return (struct cos_shm_rb *)((BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (vmid-1) ) + ((COS_SHM_VM_SZ)/2));
+		//if DOM0 rcving from a VM
+		return (struct cos_shm_rb *)((BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (from_vmid-1) ) + ((COS_SHM_VM_SZ)/2));
 	}
 }
 
 int
 vk_ringbuf_isfull(struct cos_shm_rb *rb, size_t size){
-	if(rb->head+size+1 >= rb->tail && rb->head<rb->tail){
+	//doesn't account for wraparound, that's checked only if we need to wraparound.	
+	if(rb->head+size >= rb->tail && rb->head < rb->tail){
 		printc("rb full, rb->tail: %d, rb->head: %d\n", rb->tail, rb->head);
 		return 1;
 	}
@@ -47,7 +60,7 @@ vk_ringbuf_isfull(struct cos_shm_rb *rb, size_t size){
 
 int
 vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
-	if(vk_ringbuf_isfull(rb, size+1)){ return -1;} //TODO
+	if(vk_ringbuf_isfull(rb, size+1)){ return -1;} 
 	unsigned int producer;
 	producer = rb->head;
 
@@ -56,12 +69,13 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 	producer ++;
 
 	//check split wraparound
-	if( producer+size > (rb->size-(sizeof(rb)*2)) ){
+	if( producer+size > (rb->size) ){
 		unsigned int first, second;
 	
 		first = rb->size - producer;
 		second = size - first;
-		
+	
+		//check if ringbuf is full w/ wraparound	
 		if(rb->tail <= second) return -1; 
 
 		memcpy(&rb->buf[producer], buff, first);
@@ -80,7 +94,7 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 int
 vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
 	if(rb->head == rb->tail){ 
-		//printc("rb is empty\n");
+		printc("rb is empty\n");
 		return -1; 
 	} 
 	unsigned int consumer = rb->tail;
@@ -117,10 +131,12 @@ cos_shm_write(void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
 	assert(buff);
 	struct cos_shm_rb * rb;
 
+	//if you're DOM0, write to the rcv ringbuf of the VM you're sending to.
+	//else if you're a VM, write to your send ringbuf for DOM0 to read from
 	if (srcvm == 0) {
 		rb = vk_shmem_addr_recv(dstvm);
 	}else{
-		rb = vk_shmem_addr_send(srcvm);
+		rb = vk_shmem_addr_send(dstvm);
 	}
 
 	return vk_ringbuf_enqueue(rb,buff,sz);
@@ -131,6 +147,10 @@ cos_shm_read(void *buff, unsigned int srcvm, unsigned int curvm)
 {
 	struct cos_shm_rb * rb;
 
+       /*
+	* if you're a VM rcving from DOM0, read from your own rcv buf
+	* else if you're DOM0 rcving from a VM, read from the VM's send buf.
+	*/
 	if (srcvm == 0) {
 		rb = vk_shmem_addr_recv(0);
 	}else{

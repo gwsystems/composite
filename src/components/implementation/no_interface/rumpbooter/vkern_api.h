@@ -4,7 +4,6 @@ struct cos_shm_rb {
 	unsigned int head, tail; 
 	int vmid;
 	unsigned int size;
-	unsigned int mask;
 	char buf[0];
 };
 
@@ -12,7 +11,8 @@ struct cos_shm_rb * vk_shmem_addr_send(int vmid);
 
 struct cos_shm_rb * vk_shmem_addr_recv(int vmid);
 
-int vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsize, int vmid);
+int vk_recv_rb_create(struct cos_shm_rb * sm_rb, int vmid);
+int vk_send_rb_create(struct cos_shm_rb * sm_rb, int vmid);
 
 int vk_ringbuf_enqueue(struct cos_shm_rb * rb, void * buff, size_t size);
 
