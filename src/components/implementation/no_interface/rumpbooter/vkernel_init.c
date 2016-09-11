@@ -369,7 +369,6 @@ cos_init(void)
 				printc("\tInitializing ringbufs for sending\n");
 				struct cos_shm_rb * sm_rb;	
 				vk_send_rb_create(sm_rb, i);
-				printc("sm_rb_r: %p\n", sm_rb);
 			}
 
 			//allocating ring buffers for recving data
