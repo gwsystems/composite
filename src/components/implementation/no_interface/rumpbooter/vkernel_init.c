@@ -82,7 +82,6 @@ vm_time_fn(void *d)
 	}
 }
 
-
 void
 vm0_io_fn(void *d) 
 {
@@ -372,20 +371,17 @@ cos_init(void)
 			
 			//allocating ring buffers for sending data
 			cos_shmem_alloc(&vmbooter_info[id], COS_SHM_ALL_SZ + ((sizeof(struct cos_shm_rb *)*2)*COS_VIRT_MACH_COUNT) );
-			for(i = 1; i < COS_VIRT_MACH_COUNT; i++){
+			for(i = 1; i < (COS_VIRT_MACH_COUNT-1); i++){
 				printc("\tInitializing ringbufs for sending\n");
 				struct cos_shm_rb * sm_rb;	
-				sm_rb = vk_shmem_addr_send(i);
-				vk_ringbuf_create(&vmbooter_info[id] , sm_rb, COS_SHM_VM_SZ, i);
+				vk_send_rb_create(sm_rb, i);
 			}
 
 			//allocating ring buffers for recving data
-			for(i = 1; i < COS_VIRT_MACH_COUNT; i++){
+			for(i = 1; i < (COS_VIRT_MACH_COUNT-1); i++){
 				printc("\tInitializing ringbufs for rcving\n");
 				struct cos_shm_rb * sm_rb_r;	
-				sm_rb_r = vk_shmem_addr_recv(i);
-				vk_ringbuf_create(&vmbooter_info[id] , sm_rb_r, COS_SHM_VM_SZ, i);
-				printc("sm_rb_r->head: %d\n", sm_rb_r->head);
+				vk_recv_rb_create(sm_rb_r, i);
 			}
 
 		} else {
