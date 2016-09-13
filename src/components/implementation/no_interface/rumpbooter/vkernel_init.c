@@ -82,6 +82,8 @@ vm_time_fn(void *d)
 	}
 }
 
+extern int vmid;
+
 void
 vm0_io_fn(void *d) 
 {
@@ -112,7 +114,7 @@ vmx_io_fn(void *d)
 	while (1) {
 		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
 		intr_start(12);
-		bmk_isr(12); /* intrs irq_line 2. for DOM0 */
+		bmk_isr(12);
 		intr_end();
 	}
 }
@@ -370,6 +372,8 @@ cos_init(void)
 			printc("\tCreating shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_ALL_SZ);
 			
 			//allocating ring buffers for sending data
+
+			/* RG: Should the COS_VIRT_MACH_COUNT be -1 here? */
 			cos_shmem_alloc(&vmbooter_info[id], COS_SHM_ALL_SZ + ((sizeof(struct cos_shm_rb *)*2)*COS_VIRT_MACH_COUNT) );
 			for(i = 1; i < (COS_VIRT_MACH_COUNT-1); i++){
 				printc("\tInitializing ringbufs for sending\n");

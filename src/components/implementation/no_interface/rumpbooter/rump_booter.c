@@ -41,7 +41,7 @@ rump_booter_init(void)
 {
 	extern int vmid;
 
-//	char *json_file = "";
+	char *json_file = "";
 
 	/* nginx */
 /*	char *json_file = "";
@@ -51,18 +51,18 @@ rump_booter_init(void)
 */
 
 	/*paws in qemu*/
-	char *json_file = "";
-	if(vmid == 0){
+/*	if(vmid == 0){
 		json_file = "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
 	}
+*/
 	
 
 	/* paws baremetal */
-/*	printc("~~~~~ vmid: %d ~~~~~\n");
+	printc("~~~~~ vmid: %d ~~~~~\n");
 	if(vmid == 0) {
 		json_file = "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
 	}
-*/
+
 
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();

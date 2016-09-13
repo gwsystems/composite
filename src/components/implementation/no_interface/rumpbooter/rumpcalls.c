@@ -176,6 +176,8 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	set_cos_thddata(thread, newthd_cap, cos_introspect(&booter_info, newthd_cap, 9));
 }
 
+extern int vmid;
+
 static inline void
 intr_switch(void)
 {
@@ -189,13 +191,29 @@ intr_switch(void)
 
 		if((tmp>>(i-1)) & 1) {
 			do {
+				/* VM1  to DOM0 */
+				if(i == 1) {
+					//printc("VM1 to DOM0, context VM%d intr\n", vmid);
+					ret = cos_switch(VM0_CAPTBL_SELF_IOTHD_SET_BASE + 0*CAP_SZ_16B, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				}
 				/* DOM0 to VM1 */
-				if(i == 1) ret = cos_switch(VM0_CAPTBL_SELF_IOTHD_SET_BASE + 1*CAP_SZ_16B, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				else if(i == 2) {
+					//printc("DOM0 to VM1 intr, context VM%d\n", vmid);
+					 ret = cos_switch(VM_CAPTBL_SELF_IOTHD_BASE, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				}
+				/* VM2  to DOM0*/
+				else if(i == 7) {
+					//printc("VM2 to DOM0 intr, context VM%d\n", vmid);
+					ret = cos_switch(VM0_CAPTBL_SELF_IOTHD_SET_BASE + 1*CAP_SZ_16B, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				}
 				/* DOM0 to VM2 */
-				else if(i == 8) ret = cos_switch(VM0_CAPTBL_SELF_IOTHD_SET_BASE + 2*CAP_SZ_16B, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-				/* VM's to DOM0 */
-				else if(i == 2) ret = cos_switch(VM_CAPTBL_SELF_IOTHD_BASE + 1*CAP_SZ_16B, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-				else ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				else if(i == 8) {
+					//printc("DOM0 to VM2 intr, context VM%d\n", vmid);
+					ret = cos_switch(VM_CAPTBL_SELF_IOTHD_BASE, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				}
+				else {
+					ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				}
 				assert (ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 		}
