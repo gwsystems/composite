@@ -40,7 +40,6 @@ void
 rump_booter_init(void)
 {
 	extern int vmid;
-	printc("vmid: %d\n", vmid);
 
 	char *json_file = "";
 

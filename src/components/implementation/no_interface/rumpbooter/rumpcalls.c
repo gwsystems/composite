@@ -99,7 +99,7 @@ cos_irqthd_handler(void *line)
 		int pending = cos_rcv(irq_arcvcap[which]);
 
 		intr_start(irq_thdcap[which]);
-		//maybe check if this packet goes to vm1
+
 		bmk_isr(which);
 
 		intr_end();
@@ -184,12 +184,18 @@ intr_switch(void)
 	if(!intrs) return;
 
 	/* Man this is ugly...FIXME */
-	for(; i > 1 ; i--) {
+	for(; i > 0 ; i--) {
 		int tmp = intrs;
 
 		if((tmp>>(i-1)) & 1) {
 			do {
-				ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				/* DOM0 to VM1 */
+				if(i == 1) ret = cos_switch(VM0_CAPTBL_SELF_IOTHD_SET_BASE + 1*CAP_SZ_16B, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				/* DOM0 to VM2 */
+				else if(i == 8) ret = cos_switch(VM0_CAPTBL_SELF_IOTHD_SET_BASE + 2*CAP_SZ_16B, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				/* VM's to DOM0 */
+				else if(i == 2) ret = cos_switch(VM_CAPTBL_SELF_IOTHD_BASE + 1*CAP_SZ_16B, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				else ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 				assert (ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 		}

@@ -2,6 +2,7 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 #include <vkern_api.h>
+#include "cos_sync.h"
 
 #define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
@@ -81,33 +82,39 @@ vm_time_fn(void *d)
 	}
 }
 
-//this is set 0 or 1, depending on if dom0 is rcving. 
-//only needed for ether_type hack.`
-unsigned int rump_dom0_rcv;
+
 void
 vm0_io_fn(void *d) 
 {
-	//printc("vm0: io fn started for %d\n", (int)d);
-	arcvcap_t rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + ((int)d - 1) * CAP64B_IDSZ;
+	int line;
+	arcvcap_t rcvcap;
+
+	switch((int)d) {
+		case 1:
+			line = 13; /* intrs irq_line 1. for VM1 */
+			break;
+		case 2:
+			line = 15; /* intrs irq_line 8??. for VM2 */
+			break;
+		default: assert(0);
+	}
+	rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + ((int)d - 1) * CAP64B_IDSZ;
 	while (1) {
 		int pending = cos_rcv(rcvcap);
-		rump_dom0_rcv = 1;
-
-		if((int)d == 1){
-			bmk_isr(13);
-		}else if((int)d == 2){
-			bmk_isr(15);
-		}
+		intr_start(line);
+		bmk_isr(line);
+		intr_end();
 	}
 }
 
 void
 vmx_io_fn(void *d)
 {
-	//printc("vm%d: io fn started\n", (int)d);
 	while (1) {
 		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
-		bmk_isr(12);
+		intr_start(12);
+		bmk_isr(12); /* intrs irq_line 2. for DOM0 */
+		intr_end();
 	}
 }
 

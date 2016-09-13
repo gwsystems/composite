@@ -46,6 +46,15 @@ intr_translate_thdid2irq(thdid_t tid)
 
 	if(tid == 0) return -1;
 
+	/*
+	 * FIXME 
+	 * We should not be satisfied with hardcoding these values
+ 	 */
+	/* 12, 11 and 18 */
+	if(tid == 11) return 1;
+	if(tid == 12) return 2;
+	if(tid == 18) return 8;
+
 	while(tid != irq_thdid[i] && i < 32) i++;
 	/* Make sure that we are dealing with an irq thread id*/
 	if(i >= 32) return -1;
