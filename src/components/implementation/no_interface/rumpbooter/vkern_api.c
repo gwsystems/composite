@@ -110,7 +110,7 @@ vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
 		
 		first = rb->size - consumer;
 		second = size - first;
-	
+		
 		memcpy(buff, &rb->buf[consumer], first);
 		consumer = 0;
 		memcpy(buff+first, &rb->buf[consumer], second);
@@ -145,6 +145,7 @@ cos_shm_write(void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
 int
 cos_shm_read(void *buff, unsigned int srcvm, unsigned int curvm)
 {
+	assert(buff);
 	struct cos_shm_rb * rb;
 
        /*
