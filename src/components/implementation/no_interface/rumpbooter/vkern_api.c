@@ -8,6 +8,7 @@ vk_recv_rb_create(struct cos_shm_rb * sm_rb, int vmid){
 	assert(vmid < (COS_VIRT_MACH_COUNT-1));
 	
 	sm_rb = vk_shmem_addr_recv(vmid);
+	//printc("recv sm_rb: %p\n", sm_rb);
 	sm_rb->head = 0;
 	sm_rb->tail = 0;
 	sm_rb->size = COS_SHM_VM_SZ/2 - (sizeof(struct cos_shm_rb *)*2);
@@ -19,6 +20,7 @@ vk_send_rb_create(struct cos_shm_rb * sm_rb, int vmid){
 	assert(vmid < (COS_VIRT_MACH_COUNT-1));
 	
 	sm_rb = vk_shmem_addr_send(vmid);
+	//printc("send sm_rb: %p\n", sm_rb);
 	sm_rb->head = 0;
 	sm_rb->tail = 0;
 	sm_rb->size = COS_SHM_VM_SZ/2 - (sizeof(struct cos_shm_rb *)*2);
@@ -50,6 +52,7 @@ vk_shmem_addr_recv(int from_vmid){
 int
 vk_ringbuf_isfull(struct cos_shm_rb *rb, size_t size){
 	//doesn't account for wraparound, that's checked only if we need to wraparound.	
+	if(rb == 0x20100000)printc("vk_ringbug_isfull, rb: %p rb->head: %p rb->tail: %p\n", rb, rb->head, rb->tail);
 	if(rb->head+size >= rb->tail && rb->head < rb->tail){
 		printc("rb full, rb->tail: %d, rb->head: %d\n", rb->tail, rb->head);
 		return 1;
@@ -76,7 +79,10 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 		second = size - first;
 	
 		//check if ringbuf is full w/ wraparound	
-		if(rb->tail <= second) return -1; 
+		if(rb->tail <= second) {
+			printc("fuck a raging duck; ringbuffer wrap around\n");
+			return -1;
+		}
 
 		memcpy(&rb->buf[producer], buff, first);
 		producer = 0;

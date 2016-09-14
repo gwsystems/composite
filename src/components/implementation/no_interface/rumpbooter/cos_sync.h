@@ -42,9 +42,21 @@ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
 static unsigned int
 intr_translate_thdid2irq(thdid_t tid)
 {
-	int i = 1;
+	int i = 0;
 
 	if(tid == 0) return -1;
+
+	/*
+	 * FIXME 
+	 * We should not be satisfied with hardcoding these values
+ 	 */
+	/* 12, 11 and 17 */
+	//if(tid != 0 && tid != 33) printc("tid: %d\n", tid);
+	if(tid == 11) return 1; /* VM1 to DOM0 */
+	if(tid == 12) return 2; /* DOM0 to VM1 */
+
+	if(tid == 18) return 8; /* DOM0 to VM2 */
+	if(tid == 17) return 7; /* VM2 to DOM0*/
 
 	while(tid != irq_thdid[i] && i < 32) i++;
 	/* Make sure that we are dealing with an irq thread id*/
@@ -62,9 +74,15 @@ intr_update(unsigned int irq_line, int rcving)
 	assert(irq_line);
 
 	/* blocked, unset intterupt to be worked on */
-	if(rcving) intrs &= ~(1<<(irq_line-1));
+	if(rcving) {
+		printc("irq_line: %d off\n");
+		intrs &= ~(1<<(irq_line-1));
+	}
 	/* unblocked, set intterupt to be worked on */
-	else intrs |= 1<<(irq_line-1);
+	else {
+		printc("irq_line: %d on\n");
+		intrs |= 1<<(irq_line-1);
+	}
 }
 
 static inline void
