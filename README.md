@@ -10,6 +10,13 @@ components are composed together to form an executable system.
 Please see http://composite.seas.gwu.edu for publications and
 more information.
 
+Branches
+--------
+
+- `master` is the original system with a full user-level set of components.
+- `ppos` is the Speck kernel emphasizing scalable predictability.
+- `tcaps` has mainly been integrated into `ppos`, but a few unrelated pieces remain.
+
 Research features of _Composite_
 --------------------------------
 
