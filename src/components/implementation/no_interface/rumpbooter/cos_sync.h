@@ -65,12 +65,12 @@ intr_update(unsigned int irq_line, int rcving)
 
 	/* blocked, unset intterupt to be worked on */
 	if(rcving) {
-		printc("VM%d: %d off\n", vmid, irq_line);
+		//printc("VM%d: %d off\n", vmid, irq_line);
 		intrs &= ~(1<<(irq_line-1));
 	}
 	/* unblocked, set intterupt to be worked on */
 	else {
-		printc("VM%d: %d on\n", vmid, irq_line);
+		//printc("VM%d: %d on\n", vmid, irq_line);
 		intrs |= 1<<(irq_line-1);
 	}
 }

@@ -69,7 +69,7 @@ intr_start(thdcap_t thdcap)
 			 * finish processing interrupts before going back to rk
 			 */
 			__sync_fetch_and_add(&cos_intrdisabled, 1);
-			if(cos_intrdisabled > 1) printc("%b\n", intrs);
+			if(cos_intrdisabled > 1) printc("cos_intrdisabled: %d, intrs: %b\n", cos_intrdisabled, intrs);
 			assert(cos_intrdisabled);
 			return 0;
 		}
