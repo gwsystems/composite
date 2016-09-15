@@ -92,14 +92,14 @@ vm0_io_fn(void *d)
 
 	switch((int)d) {
 		case 1:
-			line = 13; /* intrs irq_line 1. for VM1 */
+			line = 13;
 			break;
 		case 2:
-			line = 15; /* intrs irq_line 8??. for VM2 */
+			line = 15;
 			break;
 		default: assert(0);
 	}
-	rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + ((int)d - 1) * CAP64B_IDSZ;
+	rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + (((int)d - 1) * CAP64B_IDSZ);
 	while (1) {
 		int pending = cos_rcv(rcvcap);
 		intr_start(line);
