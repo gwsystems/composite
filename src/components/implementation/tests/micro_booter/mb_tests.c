@@ -533,15 +533,9 @@ test_captbl_expand(void)
 void
 test_run(void)
 {
-	timer_attach();
-	timer_detach();
 	test_timer();
 	test_budgets();
 
-	/*
-	 * It is ideal to ubenchmark kernel API with timer interrupt detached,
-	 * Not so much for unit-tests
-	 */
 	test_thds();
 	test_thds_perf();
 

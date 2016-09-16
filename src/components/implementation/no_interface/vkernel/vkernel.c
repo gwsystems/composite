@@ -73,7 +73,7 @@ scheduler(void)
 void
 cos_init(void)
 {
-	int id;
+	int id, cycs;
 
 	printc("vkernel: START\n");
 	assert(VM_COUNT >= 2);
@@ -84,6 +84,9 @@ cos_init(void)
 
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL);
 	assert(vk_info.termthd);
+
+	while (!(cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE))) ;
+	printc("\t%d cycles per microsecond\n", cycs);
 
 	for (id = 0 ; id < VM_COUNT ; id ++) {
 		struct cos_compinfo *vm_cinfo = &vmx_info[id].cinfo;
@@ -184,13 +187,9 @@ cos_init(void)
 	}
 
 	printc("Starting Scheduler\n");
-	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 	printc("------------------[ VKernel & VMs init complete ]------------------\n");
 
 	scheduler();
-
-	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 
 	printc("vkernel: END\n");
 	cos_thd_switch(vk_info.termthd);

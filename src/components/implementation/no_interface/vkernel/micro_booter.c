@@ -40,15 +40,6 @@ int num = 1, den = 0;
 /* virtual machine id */
 int vmid;
 
-/* vkernel handles timer interrupts */
-void
-timer_attach(void)
-{ }
-
-void
-timer_detach(void)
-{ }
-
 void
 vm_init(void *d)
 {

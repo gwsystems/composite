@@ -41,25 +41,19 @@ term_fn(void *d)
 { BUG_DIVZERO(); }
 
 void
-timer_attach(void)
-{
-	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
-}
-
-void
-timer_detach(void)
-{ cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC); }
-
-void
 cos_init(void)
 {
+	int cycs;
+
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 
 	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 	assert(termthd);
+
+	while (!(cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE))) ;
+	printc("\t%d cycles per microsecond\n", cycs);
 
 	PRINTC("\nMicro Booter started.\n");
 	test_run();
