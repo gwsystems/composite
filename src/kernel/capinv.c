@@ -550,17 +550,15 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 }
 
 /**
- * Process the send event, and notify the appropriate end-points.
+ * Notify the appropriate end-points.
  * Return the thread that should be executed next.
  */
 static struct thread *
-asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
+notify_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
 	     struct tcap *tcap, struct tcap **tcap_next, int yield)
 {
 	struct thread *next;
 	struct thread *arcv_notif;
-
-	thd_rcvcap_pending_inc(rcv_thd);
 
 	arcv_notif = arcv_thd_notif(rcv_thd);
 	if (arcv_notif) thd_rcvcap_evt_enqueue(arcv_notif, rcv_thd);
@@ -575,6 +573,19 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
 	}
 
 	return next;
+}
+
+/**
+ * Process the send event, and notify the appropriate end-points.
+ * Return the thread that should be executed next.
+ */
+static struct thread *
+asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
+	     struct tcap *tcap, struct tcap **tcap_next, int yield)
+{
+	thd_rcvcap_pending_inc(rcv_thd);
+
+	return notify_process(rcv_thd, thd, rcv_tcap, tcap, tcap_next, yield);
 }
 
 static inline struct cap_arcv *
@@ -706,13 +717,16 @@ timer_process(struct pt_regs *regs)
 		}
 	}
 
-	thd_next = asnd_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
+	thd_next = notify_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
 	if (thd_next == thd_curr && tc_next == tc_curr) return 1;
 
-	thd_curr->state |= THD_STATE_PREEMPTED;
 	/* update tcaps, and timers */
 	tcap_timer_update(cos_info, tc_next, TCAP_TIME_NIL, now);
 	tcap_current_set(cos_info, tc_next);
+
+	/* update only tcap and return to curr thread */
+	if (thd_next == thd_curr) return 1;
+	thd_curr->state |= THD_STATE_PREEMPTED;
 
 	/* switch threads */
  	return cap_thd_switch(regs, thd_curr, thd_next, comp, cos_info);

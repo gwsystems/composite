@@ -355,14 +355,15 @@ test_timer(void)
 		cycles_t cycles, now;
 		tcap_time_t timer;
 
-		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles) != 0) ;
 		rdtscll(now);
 		timer = tcap_cyc2time(now + 1000 * cyc_per_usec);
 		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_BASE);
 		p = c;
 		rdtscll(c);
 		if (i > 0) t += c-p;
+
+		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles) != 0) ;
 	}
 
 	PRINTC("\tCycles per tick (1000 microseconds) = %lld\n", t/16);
@@ -413,14 +414,21 @@ test_budgets(void)
 
 	PRINTC("Budget switch latencies: ");
 	for (i = 1 ; i < 10 ; i++) {
+		thdid_t  tid;
+		int      rcving;
+		cycles_t cycles;
+
 		if (cos_tcap_transfer(bt.c.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, i * 100000, TCAP_PRIO_MAX + 2)) assert(0);
 
 		rdtscll(s);
 		if (cos_switch(bt.c.tc, bt.c.tcc, TCAP_PRIO_MAX + 2, TCAP_RES_INF, BOOT_CAPTBL_SELF_INITRCV_BASE)) assert(0);
 		rdtscll(e);
 		PRINTC("%lld,\t", e-s);
+
+		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles) != 0) ;
 	}
-	PRINTC("\n");
+	PRINTC("Done.\n");
 }
 
 long long midinv_cycles = 0LL;

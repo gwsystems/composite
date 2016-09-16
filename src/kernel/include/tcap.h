@@ -104,6 +104,10 @@ static inline int
 tcap_is_active(struct tcap *t) { return !list_empty(&t->active_list); }
 
 static inline void
+tcap_active_add_before(struct tcap *existing, struct tcap *t)
+{ list_add_before(&existing->active_list, &t->active_list); }
+
+static inline void
 tcap_active_add_after(struct tcap *existing, struct tcap *t)
 { list_add_after(&existing->active_list, &t->active_list); }
 
@@ -122,7 +126,7 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 {
 	assert(t);
 	if (TCAP_RES_IS_INF(t->budget.cycles)) return 0;
-	if (cycles >= t->budget.cycles) {
+	if (cycles >= t->budget.cycles || cycles_same(cycles, t->budget.cycles)) {
 		t->budget.cycles = 0;
 		tcap_active_rem(t); /* no longer active */
 
@@ -182,11 +186,16 @@ static inline void
 tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_time_t timeout, cycles_t now)
 {
 	cycles_t timer, timeout_cyc;
+	tcap_res_t left;
+
+	/* next == INF? no timer required. */
+	left        = tcap_left(next);
+	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) return;
 
 	/* timeout based on the tcap budget... */
-	timer       = now + tcap_left(next);
+	timer       = now + left;
 	/* overflow?  especially relevant if left = TCAP_RES_INF */
-	if (unlikely(timer < now)) timer = ~0ULL;
+	if (unlikely(timer <= now)) return;
 	timeout_cyc = tcap_time2cyc(timeout, now);
 	/* ...or explicit timeout within the bounds of the budget */
 	if (timeout != TCAP_TIME_NIL && timeout_cyc < timer) {
