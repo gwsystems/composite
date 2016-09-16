@@ -512,7 +512,9 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 	struct thread *next = thd_cap->t;
 	capid_t arcv        = (__userregs_get1(regs) << 16) >> 16;
 	capid_t tc          = __userregs_get1(regs) >> 16;
-	tcap_prio_t prio    = (tcap_prio_t)__userregs_get3(regs) | (tcap_prio_t)__userregs_get2(regs);
+	u32_t prio_higher   = __userregs_get3(regs);
+	u32_t prio_lower    = __userregs_get2(regs);
+	tcap_prio_t prio    = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
 	tcap_time_t timeout = (tcap_time_t)__userregs_get4(regs);
 	struct tcap *tcap   = tcap_current(cos_info);
 
@@ -731,7 +733,8 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 		thd_state_evt_deliver(thd, &a, &b);
-		__userregs_setretvals(regs, thd_rcvcap_pending_dec(thd), a, b);
+		thd_rcvcap_pending_dec(thd);
+		__userregs_setretvals(regs, thd_rcvcap_pending(thd), a, b);
 
 		return 0;
 	}
