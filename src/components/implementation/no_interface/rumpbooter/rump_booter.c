@@ -89,7 +89,7 @@ rump_booter_init(void)
 	
 
 	/* paws baremetal */
-	printc("~~~~~ vmid: %d ~~~~~\n");
+	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
 	if(vmid == 0) {
 		json_file = "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
 	}

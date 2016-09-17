@@ -216,7 +216,7 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	arcvc->epoch     = 0; 	  /* FIXME: get the real epoch */
 	arcvc->cpuid     = get_cpuid();
 
-	__arcv_setup(arcvc, thd, tcapc->tcap, init ? NULL : arcv_p->thd);
+	__arcv_setup(arcvc, thd, tcapc->tcap, init ? thd : arcv_p->thd);
 
 	__cap_capactivate_post(&arcvc->h, CAP_ARCV);
 

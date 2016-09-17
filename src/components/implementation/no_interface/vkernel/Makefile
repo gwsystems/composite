@@ -1,8 +1,9 @@
-IF_NAME=
-C_OBJS=micro_booter.o vkernel_init.o
-ASM_OBJS=cos_asm_scheduler.o testinv.o
+C_OBJS=mb_tests.o micro_booter.o vkernel.o
+ASM_OBJS=cos_asm_scheduler.o inv.o
 COMPONENT=vkernel_boot.o
+INTERFACES=
 DEPENDENCIES=
+IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api
 
 include ../../Makefile.subsubdir
