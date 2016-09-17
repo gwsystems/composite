@@ -76,7 +76,7 @@ __tcap_budget_xfer(struct tcap *d, struct tcap *s, tcap_res_t cycles)
 	if (!TCAP_RES_IS_INF(bd->cycles)) bd->cycles += cycles;
 	if (!TCAP_RES_IS_INF(bs->cycles)) bs->cycles -= cycles;
 done:
-	if (!tcap_is_active(d)) tcap_active_add_after(s, d);
+	if (!tcap_is_active(d)) tcap_active_add_before(s, d);
 	if (tcap_expended(s))   tcap_active_rem(s);
 
 	return 0;

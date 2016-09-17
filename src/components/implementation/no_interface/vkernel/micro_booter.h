@@ -47,7 +47,5 @@ tls_set(size_t off, unsigned long val)
 extern int prints(char *s);
 extern int printc(char *fmt, ...);
 extern void test_run(void);
-extern void timer_attach(void);
-extern void timer_detach(void);
 
 #endif /* MICRO_BOOTER_H */

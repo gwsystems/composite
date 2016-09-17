@@ -26,6 +26,15 @@ list_init(struct list_node *l, void *obj)
 }
 
 static inline void
+list_add_before(struct list_node *l, struct list_node *new)
+{
+	new->next = l;
+	new->prev = l->prev;
+	l->prev->next = new;
+	l->prev = new;
+}
+
+static inline void
 list_add_after(struct list_node *l, struct list_node *new)
 {
 	new->next     = l->next;

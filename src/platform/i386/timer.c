@@ -88,8 +88,8 @@ volatile struct hpet_timer {
 
 #define PICO_PER_MICRO           1000000UL
 #define FEMPTO_PER_PICO          1000UL
-#define TIMER_CALIBRATION_ITER   16
-#define TIMER_ERROR_BOUND_FACTOR 128
+#define TIMER_CALIBRATION_ITER   256
+#define TIMER_ERROR_BOUND_FACTOR 256
 static int timer_calibration_init = 1;
 static unsigned long timer_cycles_per_hpetcyc = TIMER_ERROR_BOUND_FACTOR;
 static unsigned long cycles_per_tick;
@@ -113,6 +113,20 @@ timer_cpu2hpet_cycles(u64_t cycles)
 }
 
 static void
+timer_disable(timer_type_t timer_type)
+{
+	/* Disable timer interrupts */
+	*hpet_config ^= ~1;
+
+	/* Disable timer interrupt of timer_type */
+	hpet_timers[timer_type].config = 0;
+	hpet_timers[timer_type].compare = 0;
+
+	/* Enable timer interrupts */
+	*hpet_config |= 1;
+}
+
+static void
 timer_calibration(void)
 {
 	static int   cnt = 0;
@@ -131,6 +145,9 @@ timer_calibration(void)
 		timer_cycles_per_hpetcyc = (TIMER_ERROR_BOUND_FACTOR * cycles_per_tick) / hpetcyc_per_tick;
 		printk("Timer calibrated:\n\tCPU cycles per HPET tick: %ld\n\tHPET ticks in %d us: %ld\n",
 		       timer_cycles_per_hpetcyc/TIMER_ERROR_BOUND_FACTOR, TIMER_DEFAULT_US_INTERARRIVAL, hpetcyc_per_tick);
+
+		timer_disable(TIMER_PERIODIC);
+		timer_disable(TIMER_PERIODIC);
 	}
 	cnt++;
 }
@@ -171,7 +188,6 @@ void
 timer_set(timer_type_t timer_type, u64_t cycles)
 {
 	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF;
-	int timer = 0;
 
 	cycles = timer_cpu2hpet_cycles(cycles);
 
@@ -181,16 +197,15 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 	/* Reset main counter */
 	if (timer_type == TIMER_ONESHOT) {
 		/* Set a static value to count up to */
-		timer = 1;
-		hpet_timers[timer].config = outconfig;
+		hpet_timers[timer_type].config = outconfig;
 		cycles += HPET_COUNTER;
 	} else {
 		/* Set a periodic value */
-		hpet_timers[timer].config = outconfig | TN_TYPE_CNF | TN_VAL_SET_CNF;
+		hpet_timers[timer_type].config = outconfig | TN_TYPE_CNF | TN_VAL_SET_CNF;
 		/* Reset main counter */
 		HPET_COUNTER = 0x00;
 	}
-	hpet_timers[timer].compare = cycles;
+	hpet_timers[timer_type].compare = cycles;
 
 	/* Enable timer interrupts */
 	*hpet_config |= 1;
