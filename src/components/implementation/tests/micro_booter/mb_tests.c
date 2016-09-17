@@ -133,7 +133,7 @@ async_thd_parent_perf(void *thdcap)
 		total_asnd_cycles, (long long) (ITER), (total_asnd_cycles / (long long)(ITER)));
 
 	async_test_flag = 0;
-	cos_thd_switch(tc);
+	while (1) cos_thd_switch(tc);
 }
 
 static void
@@ -158,7 +158,7 @@ async_thd_fn(void *thdcap)
 	PRINTC("<-- Error: manually returning to snding thread.\n");
 	cos_thd_switch(tc);
 	PRINTC("ERROR: in async thd *after* switching back to the snder.\n");
-	while (1) ;
+	while (1) cos_thd_switch(tc);
 }
 
 static void
@@ -185,7 +185,7 @@ async_thd_parent(void *thdcap)
 	PRINTC("--> pending %d, thdid %d, rcving %d, cycles %lld\n", pending, tid, rcving, cycles);
 
 	async_test_flag = 0;
-	cos_thd_switch(tc);
+	while (1) cos_thd_switch(tc);
 }
 
 static void
@@ -375,11 +375,13 @@ struct exec_cluster {
 	thdcap_t  tc;
 	arcvcap_t rc;
 	tcap_t    tcc;
+	cycles_t  cyc;
 };
 
 struct budget_test_data {
-	struct exec_cluster p, c;
-} bt;
+	/* p=parent, c=child, g=grand-child */
+	struct exec_cluster p, c, g;
+} bt, mbt;
 
 static void
 exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t parentc)
@@ -390,6 +392,8 @@ exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t p
 	assert(e->tc);
 	e->rc = cos_arcv_alloc(&booter_info, e->tc, e->tcc, booter_info.comp_cap, parentc);
 	assert(e->rc);
+
+	e->cyc = 0;
 }
 
 static void
@@ -400,20 +404,27 @@ parent(void *d)
 	assert(0);
 }
 
+static void
+spinner_cyc(void *d)
+{
+	cycles_t *p = (cycles_t *)d;
+
+	while (1) rdtscll(*p);
+}
 
 static void
-test_budgets(void)
+test_budgets_single(void)
 {
-	cycles_t s, e;
 	int i;
 
-	PRINTC("Starting budget test.\n");
+	PRINTC("Starting single-level budget test.\n");
 
 	exec_cluster_alloc(&bt.p, parent,  &bt.p, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	exec_cluster_alloc(&bt.c, spinner, &bt.c, bt.p.rc);
 
 	PRINTC("Budget switch latencies: ");
 	for (i = 1 ; i < 10 ; i++) {
+		cycles_t s, e;
 		thdid_t  tid;
 		int      rcving;
 		cycles_t cycles;
@@ -429,6 +440,53 @@ test_budgets(void)
 		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles) != 0) ;
 	}
 	PRINTC("Done.\n");
+}
+
+static void
+test_budgets_multi(void)
+{
+	int i;
+
+	PRINTC("Starting multi-level budget test.\n");
+
+	exec_cluster_alloc(&mbt.p, spinner_cyc,  &(mbt.p.cyc), BOOT_CAPTBL_SELF_INITRCV_BASE);
+	exec_cluster_alloc(&mbt.c, spinner_cyc, &(mbt.c.cyc), mbt.p.rc);
+	exec_cluster_alloc(&mbt.g, spinner_cyc, &(mbt.g.cyc), mbt.c.rc);
+
+	PRINTC("Budget switch latencies:\n");
+	for (i = 1 ; i < 10 ; i++) {
+		tcap_res_t res;
+		thdid_t  tid;
+		int      rcving;
+		cycles_t cycles, s, e;
+
+		/* test both increasing budgets and constant budgets */
+		if (i > 5) res = 1600000;
+		else res = i * 800000;
+
+		if (cos_tcap_transfer(mbt.p.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, TCAP_PRIO_MAX + 2)) assert(0);
+		if (cos_tcap_transfer(mbt.c.rc, mbt.p.tcc, res/2, TCAP_PRIO_MAX + 2)) assert(0);
+		if (cos_tcap_transfer(mbt.g.rc, mbt.c.tcc, res/4, TCAP_PRIO_MAX + 2)) assert(0);
+
+		rdtscll(s);
+		if (cos_switch(mbt.g.tc, mbt.g.tcc, TCAP_PRIO_MAX + 2, TCAP_RES_INF, BOOT_CAPTBL_SELF_INITRCV_BASE)) assert(0);
+		rdtscll(e);
+		PRINTC("g:%llu c:%llu p:%llu => %llu,\t", mbt.g.cyc - s, mbt.c.cyc - s, mbt.p.cyc - s, e - s);
+
+		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+		PRINTC("%d=%llu\n", tid, cycles);
+	}
+	PRINTC("Done.\n");
+}
+
+static void
+test_budgets(void)
+{
+	/* single-level budgets test */
+	test_budgets_single();
+
+	/* multi-level budgets test */
+	test_budgets_multi();
 }
 
 long long midinv_cycles = 0LL;
