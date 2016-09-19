@@ -483,7 +483,8 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
 		assert(!(next->state & THD_STATE_PREEMPTED));
 		next->state &= ~THD_STATE_RCVING;
 		thd_state_evt_deliver(next, &a, &b);
-		__userregs_setretvals(&next->regs, thd_rcvcap_pending_dec(next), a, b);
+		thd_rcvcap_pending_dec(next);
+		__userregs_setretvals(&next->regs, thd_rcvcap_pending(next), a, b);
 	}
 
 	copy_all_regs(&next->regs, regs);
@@ -877,6 +878,7 @@ done:
 	 * Thus the level of indirection here.
 	 */
 	if (!thd_switch) __userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
+	else return ret; /* ret from cap_switch */
 
 	return 0;
 }
@@ -1442,6 +1444,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			n = asnd_process(rthd, thd, tcapdst, tcap_current(cos_info), &tcap_next, yield);
 			if (n != thd) {
 				ret = cap_switch(regs, thd, n, tcap_next, TCAP_TIME_NIL, ci, cos_info);
+				if (unlikely(ret < 0)) cos_throw(err, ret);
 				*thd_switch = 1;
 			}
 
