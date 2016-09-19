@@ -113,7 +113,6 @@ vmx_io_fn(void *d)
 {
 	while (1) {
 		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
-//		printc("VM%d- rcv'd from DOM0\n", (int)d);
 		intr_start(12);
 		bmk_isr(12);
 		intr_end();

@@ -27,7 +27,7 @@ hw_irq_alloc(void){
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
 				break;
 			case IRQ_VM2:
-				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE * CAP_SZ_16B;
+				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE + CAP16B_IDSZ;
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
 				break;
 			default:
@@ -82,14 +82,16 @@ rump_booter_init(void)
 	}
 */
 	/*paws in qemu*/
-/*	if(vmid == 0){
+/*	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
+	if(vmid == 0){
 		json_file = "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
 	}
 */
+
 	
 
 	/* paws baremetal */
-	printc("~~~~~ vmid: %d ~~~~~\n");
+	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
 	if(vmid == 0) {
 		json_file = "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
 	}

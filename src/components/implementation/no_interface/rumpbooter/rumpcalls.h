@@ -11,7 +11,7 @@ typedef __builtin_va_list va_list;
 #define va_arg             __builtin_va_arg
 #define va_end(va_arg)     __builtin_va_end(va_arg)
 
-#define IRQ_DOM0_VM 22 /* In DOM0's message line to VM's, in VM's */
+#define IRQ_DOM0_VM 22 /* DOM0's message line to VM's, in VM's */
 #define IRQ_VM1 21     /* VM1's message line to DOM0, so in DOM0 */
 #define IRQ_VM2 27     /* VM2's message line to DOM0, so in DOM0 */
 
