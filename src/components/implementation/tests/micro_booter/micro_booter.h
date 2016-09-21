@@ -13,6 +13,7 @@
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
 #define BUG_DIVZERO() do { debug_print("Testing divide by zero fault @ "); int i = num / den; } while (0);
+#define SPIN() do { while (1) ; } while (0)
 
 #include <cos_component.h>
 #include <cobj_format.h>
@@ -43,6 +44,6 @@ tls_set(size_t off, unsigned long val)
 
 extern int prints(char *s);
 extern int printc(char *fmt, ...);
-extern void test_run(void);
+extern void test_run_mb(void);
 
 #endif /* MICRO_BOOTER_H */

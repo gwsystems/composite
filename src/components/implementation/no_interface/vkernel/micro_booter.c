@@ -49,7 +49,7 @@ vm_init(void *d)
 			  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, &booter_info);
 
 	PRINTC("Micro Booter started.\n");
-	test_run();
+	test_run_vk();
 	PRINTC("Micro Booter done.\n");
 
 	EXIT();
