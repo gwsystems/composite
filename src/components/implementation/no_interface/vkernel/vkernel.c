@@ -64,7 +64,9 @@ scheduler(void)
 		
 		if (vmx_info[index].initthd) {
 			assert(vk_info.vminitasnd[index]);
-			cos_asnd(vk_info.vminitasnd[index]);
+
+			if (cos_tcap_delegate(vk_info.vminitasnd[index], BOOT_CAPTBL_SELF_INITTCAP_BASE,
+					      TCAP_RES_INF, TCAP_PRIO_MAX, TCAP_DELEG_YIELD)) assert(0);
 		}
 	}
 }
