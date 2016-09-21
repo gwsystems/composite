@@ -9,6 +9,7 @@
 #define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
+#define SPIN() do { while (1) ; } while (0)
 
 struct vms_info {
 	struct cos_compinfo cinfo;
@@ -35,9 +36,7 @@ struct cos_compinfo *vk_cinfo = (struct cos_compinfo *)&vk_info.cinfo;
 
 void
 vk_terminate(void *d)
-{
-	BUG();
-}
+{ SPIN(); }
 
 void
 vm_exit(void *d)
@@ -59,13 +58,16 @@ scheduler(void)
 	int index;
 
 	while (ready_vms) {
-		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
 		index = i++ % VM_COUNT;
 		
 		if (vmx_info[index].initthd) {
 			assert(vk_info.vminitasnd[index]);
-			cos_asnd(vk_info.vminitasnd[index]);
+
+			if (cos_tcap_delegate(vk_info.vminitasnd[index], BOOT_CAPTBL_SELF_INITTCAP_BASE,
+					      VM_BUDGET_FIXED, VM_PRIO_FIXED, TCAP_DELEG_YIELD)) assert(0);
 		}
+
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles)) ;
 	}
 }
 
@@ -149,9 +151,6 @@ cos_init(void)
 
 		vm_info->initrcv = cos_arcv_alloc(vk_cinfo, vm_info->initthd, vm_info->inittcap, vk_cinfo->comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 		assert(vm_info->initrcv);
-
-		ret = cos_tcap_transfer(vm_info->initrcv, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX);
-		assert(ret == 0);
 
 		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_INITTCAP_BASE, vk_cinfo, vm_info->inittcap);
 		assert(ret == 0);
