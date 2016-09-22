@@ -160,11 +160,14 @@ cos_init(void)
 	printc("Hypervisor:vkernel START\n");
 	struct cos_compinfo vmbooter_info[COS_VIRT_MACH_COUNT];
 
-	int i = 0, id = 0;
+	int i = 0, id = 0, cycs;
 	int page_range = 0;
 
+	while (!(cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE))) ;
+	printc("\t%d cycles per microsecond\n", cycs);
+
 	printc("Hypervisor:vkernel initializing\n");
-	cos_meminfo_init(&vkern_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
+	cos_meminfo_init(&vkern_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&vkern_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, 
 			(vaddr_t)BOOT_MEM_SHM_BASE, &vkern_info);
@@ -176,7 +179,7 @@ cos_init(void)
 	for (id = 0; id < COS_VIRT_MACH_COUNT; id ++) {
 		printc("VM %d Initialization Start\n", id);
 		captblcap_t vmct;
-		pgtblcap_t vmpt;
+		pgtblcap_t vmpt, vmutpt;
 		compcap_t vmcc;
 		int ret;
 
@@ -192,12 +195,14 @@ cos_init(void)
 		vmpt = cos_pgtbl_alloc(&vkern_info);
 		assert(vmpt);
 
+		vmutpt = cos_pgtbl_alloc(&vkern_info);
+		assert(vmutpt);
 
 		vmcc = cos_comp_alloc(&vkern_info, vmct, vmpt, (vaddr_t)&cos_upcall_entry);
 		assert(vmcc);
 
 		cos_meminfo_init(&vmbooter_info[id].mi, 
-				BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
+				BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, vmutpt);
 		if (id == 0) 
 			cos_compinfo_init(&vmbooter_info[id], vmpt, vmct, vmcc,
 					(vaddr_t)BOOT_MEM_VM_BASE, VM0_CAPTBL_FREE, 
@@ -209,7 +214,7 @@ cos_init(void)
 
 		vm_main_thd[id] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vm_init, (void *)id);
 		assert(vm_main_thd[id]);
-		vm_main_thdid[id] = (thdid_t)cos_introspect(&vkern_info, vm_main_thd[id], 9);
+		vm_main_thdid[id] = (thdid_t)cos_introspect(&vkern_info, vm_main_thd[id], THD_GET_TID);
 		printc("\tMain thread= cap:%x tid:%x\n", (unsigned int)vm_main_thd[id], vm_main_thdid[id]);
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITTHD_BASE, &vkern_info, vm_main_thd[id]);
 
@@ -224,6 +229,7 @@ cos_init(void)
 		printc("\tCopying required capabilities\n");
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_CT, &vkern_info, vmct);
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_PT, &vkern_info, vmpt);
+		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_UNTYPED_PT, &vkern_info, vmutpt);
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_COMP, &vkern_info, vmcc);
 		/* 
 		 * TODO: We need seperate such capabilities for each VM. Can't use the BOOTER ones. 
@@ -368,7 +374,7 @@ cos_init(void)
 			}
 		}
 
-		if (id == 0) {
+/*		if (id == 0) {
 			printc("\tCreating shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_ALL_SZ);
 			
 			cos_shmem_alloc(&vmbooter_info[id], COS_SHM_ALL_SZ + ((sizeof(struct cos_shm_rb *)*2)*(COS_VIRT_MACH_COUNT-1)) );
@@ -389,7 +395,7 @@ cos_init(void)
 			printc("\tMapping shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_VM_SZ);
 			cos_shmem_map(&vmbooter_info[id], COS_SHM_VM_SZ);
 		}
-
+*/
 		printc("\tAllocating/Partitioning Untyped memory\n");
 		cos_meminfo_alloc(&vmbooter_info[id], BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ);
 
@@ -397,13 +403,10 @@ cos_init(void)
 	}
 
 	printc("Starting Timer/Scheduler Thread\n");
-	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	printc("sm_rb addr: %x\n", vk_shmem_addr_recv(2));
 	printc("------------------[ Hypervisor & VMs init complete ]------------------\n");
 	sched_fn();
-	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 	printc("Timer thread DONE\n");
 
 	printc("Hypervisor:vkernel END\n");

@@ -1,7 +1,8 @@
+#include "vk_types.h"
 #include "micro_booter.h"
 
 struct cos_compinfo booter_info;
-thdcap_t termthd; 		/* switch to this to shutdown */
+thdcap_t termthd = VM_CAPTBL_SELF_EXITTHD_BASE;	/* switch to this to shutdown */
 unsigned long tls_test[TEST_NTHDS];
 
 static void
@@ -36,31 +37,22 @@ printc(char *fmt, ...)
 /* For Div-by-zero test */
 int num = 1, den = 0;
 
-void
-term_fn(void *d)
-{ SPIN(); }
+/* virtual machine id */
+int vmid;
 
 void
-cos_init(void)
+vm_init(void *d)
 {
-	int cycs;
-
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	vmid = (int)d;
+	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, 
+			  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, 
 			  (vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 
-	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
-	assert(termthd);
+	PRINTC("Micro Booter started.\n");
+	test_run_vk();
+	PRINTC("Micro Booter done.\n");
 
-	while (!(cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE))) ;
-	printc("\t%d cycles per microsecond\n", cycs);
-
-	PRINTC("\nMicro Booter started.\n");
-	test_run_mb();
-	PRINTC("\nMicro Booter done.\n");
-
-	cos_thd_switch(termthd);
-
+	EXIT();
 	return;
 }

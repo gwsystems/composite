@@ -157,7 +157,6 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	retype_tbl_init();
 	comp_init();
 	thd_init();
-	tcap_init();
 	paging_init();
 #ifdef ENABLE_VGA
 	vga_high_init();

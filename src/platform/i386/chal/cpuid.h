@@ -12,9 +12,10 @@
 #include "../../../kernel/include/shared/consts.h"
 #include "../../../kernel/include/shared/cos_types.h"
 #include "../../../kernel/include/asm_ipc_defs.h"
+#include "../../../kernel/include/list.h"
 #include "../chal_asm_inc.h"
 
-static inline tcap_res_t
+static inline cycles_t
 tsc(void)
 {
 	unsigned long long ret;
@@ -25,24 +26,33 @@ tsc(void)
 }
 
 struct cos_cpu_local_info {
-	/* orig_sysenter_esp SHOULD be the first variable here. The
-	 * sysenter interposition path gets tss from it. */
+	/*
+	 * orig_sysenter_esp SHOULD be the first variable here. The
+	 * sysenter interposition path gets tss from it.
+	 */
 	unsigned long *orig_sysenter_esp; /* Points to the end of the tss struct in Linux. */
 	/***********************************************/
 	/* info saved in kernel stack for fast access. */
 	unsigned long cpuid;
-	void *curr_thd;
-	void *curr_tcap;
-	cycles_t cycles;
-	/* cache the stk_top index to save a cacheline access on
+	void       *curr_thd;
+	void       *curr_tcap;
+	struct list tcaps;
+	tcap_uid_t  tcap_uid;
+	tcap_prio_t tcap_prio;
+	cycles_t    timeout_next, cycles;
+	/*
+	 * cache the stk_top index to save a cacheline access on
 	 * inv/ret. Could use a struct here if need to cache multiple
-	 * things. (e.g. captbl, etc) */
+	 * things. (e.g. captbl, etc)
+	 */
 	int invstk_top;
 	unsigned long epoch;
 	/***********************************************/
-	/* Since this struct resides at the lowest address of the
+	/*
+	 * Since this struct resides at the lowest address of the
 	 * kernel stack page (along with thread_info struct of
-	 * Linux), we store 0xDEADBEEF to detect overflow. */
+	 * Linux), we store 0xDEADBEEF to detect overflow.
+	 */
 	unsigned long overflow_check;
 };
 

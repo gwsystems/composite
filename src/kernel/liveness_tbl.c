@@ -1,7 +1,5 @@
 #include "include/liveness_tbl.h"
 
-struct liveness_entry __liveness_tbl[LTBL_ENTS];
-
 void
 ltbl_init(void)
 {

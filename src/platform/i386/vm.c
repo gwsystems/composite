@@ -48,6 +48,9 @@ mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 			}
 		}
 	}
+
+	memset((void *)r, 0, npages * (PAGE_SIZE/sizeof(u8_t)));
+
 	return r;
 }
 
