@@ -490,8 +490,8 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
 
 		assert(!(next->state & THD_STATE_PREEMPTED));
 		next->state &= ~THD_STATE_RCVING;
-		if (!thd_state_evt_deliver(next, &a, &b))
-			thd_rcvcap_pending_dec(next);
+		thd_state_evt_deliver(next, &a, &b);
+		thd_rcvcap_pending_dec(next);
 		__userregs_setretvals(&next->regs, thd_rcvcap_pending(next), a, b);
 	}
 
@@ -884,13 +884,16 @@ composite_syscall_handler(struct pt_regs *regs)
 
 	/* slowpath restbl (captbl and pgtbl) operations */
 	ret = composite_syscall_slowpath(regs, &thd_switch);
+	if (ret < 0) cos_throw(done, ret);
+
+	if (thd_switch) return ret; 
 done:
 	/*
 	 * Note: we need to return ret to user-level (e.g. as a return
 	 * value), which is not the return value of this function.
 	 * Thus the level of indirection here.
 	 */
-	if (!thd_switch) __userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
+	__userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
 
 	return 0;
 }
@@ -1463,6 +1466,8 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			n = asnd_process(rthd, thd, tcapdst, tcap_current(cos_info), &tcap_next, yield);
 			if (n != thd) {
 				ret = cap_switch(regs, thd, n, tcap_next, TCAP_TIME_NIL, ci, cos_info);
+				if (unlikely(ret < 0)) cos_throw(err, ret);
+
 				*thd_switch = 1;
 			}
 

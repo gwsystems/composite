@@ -12,4 +12,7 @@ enum vm_captbl_layout {
 #define VM_COUNT        2	/* virtual machine count */
 #define VM_UNTYPED_SIZE (1<<26) /* untyped memory per vm = 64MB */
 
+#define VM_BUDGET_FIXED 400000
+#define VM_PRIO_FIXED   TCAP_PRIO_MAX
+
 #endif /* VK_TYPES_H */

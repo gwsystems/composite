@@ -847,7 +847,7 @@ cos_tcap_transfer(arcvcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio)
 int
 cos_tcap_delegate(asndcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags)
 {
-	u32_t yield     = flags & TCAP_DELEG_YIELD;
+	u32_t yield     = ((flags & TCAP_DELEG_YIELD) != 0);
 	/* top bit is if we are dispatching or not */
 	int prio_higher = (u32_t)(prio >> 32) | (yield << ((sizeof(yield)*8)-1));
 	int prio_lower  = (u32_t)((prio << 32) >> 32);

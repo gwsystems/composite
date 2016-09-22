@@ -50,7 +50,7 @@ vm_init(void *d)
 			  (vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 
 	PRINTC("Micro Booter started.\n");
-	test_run();
+	test_run_vk();
 	PRINTC("Micro Booter done.\n");
 
 	EXIT();

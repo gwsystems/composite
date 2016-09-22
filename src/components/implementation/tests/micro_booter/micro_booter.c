@@ -38,7 +38,7 @@ int num = 1, den = 0;
 
 void
 term_fn(void *d)
-{ BUG_DIVZERO(); }
+{ SPIN(); }
 
 void
 cos_init(void)
@@ -57,7 +57,7 @@ cos_init(void)
 	printc("\t%d cycles per microsecond\n", cycs);
 
 	PRINTC("\nMicro Booter started.\n");
-	test_run();
+	test_run_mb();
 	PRINTC("\nMicro Booter done.\n");
 
 	cos_thd_switch(termthd);

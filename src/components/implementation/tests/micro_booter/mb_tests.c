@@ -596,8 +596,9 @@ test_captbl_expand(void)
 	PRINTC("Captbl expand SUCCESS.\n");
 }
 
+/* Executed in micro_booter environment */
 void
-test_run(void)
+test_run_mb(void)
 {
 	test_timer();
 	test_budgets();
@@ -609,6 +610,28 @@ test_run(void)
 
 	test_async_endpoints();
 	test_async_endpoints_perf();
+
+	test_inv();
+	test_inv_perf();
+
+	test_captbl_expand();
+}
+
+/*
+ * Executed in vkernel environment:
+ *  Some of the tests are not feasible at least for now 
+ *  to run in vkernel env. (ex: tcaps related, because budgets 
+ *  in these tests are INF. 
+ *
+ * TODO: Fix those eventually.
+ */
+void
+test_run_vk(void)
+{
+	test_thds();
+	test_thds_perf();
+
+	test_mem();
 
 	test_inv();
 	test_inv_perf();
