@@ -53,7 +53,7 @@ int
 vk_ringbuf_isfull(struct cos_shm_rb *rb, size_t size){
 	//doesn't account for wraparound, that's checked only if we need to wraparound.	
 	if(rb->head+size >= rb->tail && rb->head < rb->tail){
-		printc("rb full, rb->tail: %d, rb->head: %d\n", rb->tail, rb->head);
+		//printc("rb full, rb->tail: %d, rb->head: %d\n", rb->tail, rb->head);
 		return 1;
 	}
 	return 0;
@@ -114,7 +114,6 @@ vk_dequeue_size(unsigned int srcvm, unsigned int curvm)
 int
 vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
 	if(rb->head == rb->tail){ 
-//		printc("rb is empty\n");
 		return -1; 
 	} 
 	unsigned int consumer = rb->tail;
