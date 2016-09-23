@@ -72,6 +72,7 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 
 	//check split wraparound
 	if( producer+size >= (rb->size) ){
+		printc("wrap\n");
 		unsigned int first, second;
 	
 		first = rb->size - producer;
@@ -79,6 +80,7 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 	
 		//check if ringbuf is full w/ wraparound	
 		if(rb->tail <= second) {
+			printc("rb full with wrap, rb->tail: %d, rb->head: %d\n", rb->tail, rb->head);
 			return -1;
 		}
 
@@ -96,9 +98,23 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 }
 
 int
+vk_dequeue_size(unsigned int srcvm, unsigned int curvm)
+{
+	struct cos_shm_rb * rb;
+
+	if (srcvm == 0) {
+		rb = vk_shmem_addr_recv(0);
+	}else{
+		rb = vk_shmem_addr_send(srcvm);
+	}
+	
+	return rb->buf[rb->tail];	
+}
+
+int
 vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
 	if(rb->head == rb->tail){ 
-		printc("rb is empty\n");
+//		printc("rb is empty\n");
 		return -1; 
 	} 
 	unsigned int consumer = rb->tail;
@@ -108,12 +124,20 @@ vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
 	size = rb->buf[consumer];
 	consumer++;
 	
+	//check for empty	
+	assert(size > 0);
+
 	//check for split wraparound
 	if(consumer+size >= rb->size){
 		unsigned int first, second;
 		first = rb->size - consumer;
 		second = size - first;
 		
+		if(rb->buf+second > rb->buf+rb->head){
+			printc("dequeing from an empty RB\n");	
+			return -1;
+		}
+
 		memcpy(buff, &rb->buf[consumer], first);
 		consumer = 0;
 		memcpy(buff+first, &rb->buf[consumer], second);

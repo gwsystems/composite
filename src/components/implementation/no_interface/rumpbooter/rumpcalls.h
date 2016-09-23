@@ -51,6 +51,7 @@ struct cos_rumpcalls
 	int    (*rump_shmem_send)(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
 	int    (*rump_shmem_recv)(void * buff, unsigned int srcvm, unsigned int dstvm);
 	void   (*rump_sched_yield)(void);
+	int    (*rump_dequeue_size)(unsigned int srcvm, unsigned int dstvm);
 };
 
 /* Mapping the functions from rumpkernel to composite */
@@ -78,4 +79,5 @@ void cos_sched_yield(void);
 
 int cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
 int cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm);
+int cos_dequeue_size(unsigned int srcvm, unsigned int curvm);
 #endif /* RUMPCALLS_H */

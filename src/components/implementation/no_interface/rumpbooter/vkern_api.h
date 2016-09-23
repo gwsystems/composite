@@ -14,6 +14,8 @@ struct cos_shm_rb * vk_shmem_addr_recv(int vmid);
 int vk_recv_rb_create(struct cos_shm_rb * sm_rb, int vmid);
 int vk_send_rb_create(struct cos_shm_rb * sm_rb, int vmid);
 
+int vk_dequeue_size(unsigned int srcvm, unsigned int curvm);
+
 int vk_ringbuf_enqueue(struct cos_shm_rb * rb, void * buff, size_t size);
 
 int vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff);
