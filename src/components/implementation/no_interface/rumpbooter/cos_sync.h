@@ -22,6 +22,8 @@ void intr_end(void);
 #define PS_CAS_INSTRUCTION "cmpxchg"
 #define PS_CAS_STR PS_CAS_INSTRUCTION PS_ATOMIC_POSTFIX " %2, %0; setz %1"
 
+extern int vmid;
+
 /*
  * Return values:
  * 0 on failure due to contention (*target != old)
@@ -46,18 +48,6 @@ intr_translate_thdid2irq(thdid_t tid)
 
 	if(tid == 0) return -1;
 
-	/*
-	 * FIXME 
-	 * We should not be satisfied with hardcoding these values
- 	 */
-	/* 12, 11 and 17 */
-	//if(tid != 0 && tid != 33) printc("tid: %d\n", tid);
-	if(tid == 11) return 1; /* VM1 to DOM0 */
-	if(tid == 12) return 2; /* DOM0 to VM1 */
-
-	if(tid == 18) return 8; /* DOM0 to VM2 */
-	if(tid == 17) return 7; /* VM2 to DOM0*/
-
 	while(tid != irq_thdid[i] && i < 32) i++;
 	/* Make sure that we are dealing with an irq thread id*/
 	if(i >= 32) return -1;
@@ -75,12 +65,12 @@ intr_update(unsigned int irq_line, int rcving)
 
 	/* blocked, unset intterupt to be worked on */
 	if(rcving) {
-		printc("irq_line: %d off\n");
+		//printc("VM%d: %d off\n", vmid, irq_line);
 		intrs &= ~(1<<(irq_line-1));
 	}
 	/* unblocked, set intterupt to be worked on */
 	else {
-		printc("irq_line: %d on\n");
+		//printc("VM%d: %d on\n", vmid, irq_line);
 		intrs |= 1<<(irq_line-1);
 	}
 }
