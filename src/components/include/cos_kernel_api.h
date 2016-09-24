@@ -83,7 +83,7 @@ int cos_asnd(asndcap_t snd);
 /* returns non-zero if there are still pending events (i.e. there have been pending snds) */
 int cos_rcv(arcvcap_t rcv);
 /* returns the same value as cos_rcv, but also information about scheduling events */
-int cos_sched_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, cycles_t *cycles);
+int cos_sched_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, int *pending, cycles_t *cycles);
 
 int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
 

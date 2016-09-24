@@ -167,7 +167,7 @@ async_thd_parent(void *thdcap)
 	thdcap_t  tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcp_global;
 	asndcap_t sc = scp_global;
-	int ret, pending;
+	int ret, pending, rc_pending;
 	thdid_t tid;
 	int rcving;
 	cycles_t cycles;
@@ -181,8 +181,8 @@ async_thd_parent(void *thdcap)
 	if (ret) PRINTC("--> asnd returned %d.\n", ret);
 	PRINTC("--> Back in the asnder.\n");
 	PRINTC("--> receiving to get notifications\n");
-	pending = cos_sched_rcv(rc, &tid, &rcving, &cycles);
-	PRINTC("--> pending %d, thdid %d, rcving %d, cycles %lld\n", pending, tid, rcving, cycles);
+	pending = cos_sched_rcv(rc, &tid, &rcving, &rc_pending, &cycles);
+	PRINTC("--> pending %d, thdid %d, rcving %d, has-pending %d, cycles %lld\n", pending, tid, rcving, rc_pending, cycles);
 
 	async_test_flag = 0;
 	while (1) cos_thd_switch(tc);
@@ -351,7 +351,7 @@ test_timer(void)
 
 	for (i = 0 ; i <= 16 ; i++) {
 		thdid_t  tid;
-		int      rcving;
+		int      rcving, pending;
 		cycles_t cycles, now;
 		tcap_time_t timer;
 
@@ -363,7 +363,7 @@ test_timer(void)
 		if (i > 0) t += c-p;
 
 		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles) != 0) ;
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &pending, &cycles) != 0) ;
 	}
 
 	PRINTC("\tCycles per tick (1000 microseconds) = %lld\n", t/16);
@@ -426,7 +426,7 @@ test_budgets_single(void)
 	for (i = 1 ; i < 10 ; i++) {
 		cycles_t s, e;
 		thdid_t  tid;
-		int      rcving;
+		int      rcving, pending;
 		cycles_t cycles;
 
 		if (cos_tcap_transfer(bt.c.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, i * 100000, TCAP_PRIO_MAX + 2)) assert(0);
@@ -437,7 +437,7 @@ test_budgets_single(void)
 		PRINTC("%lld,\t", e-s);
 
 		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles) != 0) ;
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &pending, &cycles) != 0) ;
 	}
 	PRINTC("Done.\n");
 }
@@ -457,7 +457,7 @@ test_budgets_multi(void)
 	for (i = 1 ; i < 10 ; i++) {
 		tcap_res_t res;
 		thdid_t  tid;
-		int      rcving;
+		int      rcving, pending;
 		cycles_t cycles, s, e;
 
 		/* test both increasing budgets and constant budgets */
@@ -473,7 +473,7 @@ test_budgets_multi(void)
 		rdtscll(e);
 		PRINTC("g:%llu c:%llu p:%llu => %llu,\t", mbt.g.cyc - s, mbt.c.cyc - s, mbt.p.cyc - s, e - s);
 
-		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &pending, &cycles);
 		PRINTC("%d=%llu\n", tid, cycles);
 	}
 	PRINTC("Done.\n");
