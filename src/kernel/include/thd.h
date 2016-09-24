@@ -180,21 +180,6 @@ thd_rcvcap_evt_dequeue(struct thread *head) { return list_dequeue(&head->event_h
 static inline int
 thd_track_exec(struct thread *t) { return !list_empty(&t->event_list); }
 
-static inline int
-thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long *cycles)
-{
-	struct thread *e = thd_rcvcap_evt_dequeue(t);
-
-	assert(thd_bound2rcvcap(t));
-	if (!e) return 0;
-
-	*thd_state = e->tid | (e->state & THD_STATE_RCVING ? 1<<31 : 0);
-	*cycles    = e->exec;
-	e->exec    = 0;
-
-	return 1;
-}
-
 static int
 thd_rcvcap_pending(struct thread *t)
 { return t->rcvcap.pending || list_first(&t->event_head) != NULL; }
@@ -220,6 +205,21 @@ thd_rcvcap_pending_dec(struct thread *arcvt)
 	arcvt->rcvcap.pending--;
 
 	return pending;
+}
+
+static inline int
+thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long *cycles)
+{
+	struct thread *e = thd_rcvcap_evt_dequeue(t);
+
+	assert(thd_bound2rcvcap(t));
+	if (!e) return 0;
+
+	*thd_state = e->tid | (e->state & THD_STATE_RCVING ? (thd_rcvcap_pending(e) ? 0 : 1<<31) : 0);
+	*cycles    = e->exec;
+	e->exec    = 0;
+
+	return 1;
 }
 
 static int
