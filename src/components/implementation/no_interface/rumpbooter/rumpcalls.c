@@ -58,7 +58,15 @@ cos2rump_setup(void)
 
 	crcalls.rump_shmem_send			= cos_shmem_send;
 	crcalls.rump_shmem_recv			= cos_shmem_recv;
+	crcalls.rump_dequeue_size		= cos_dequeue_size;
+
 	return;
+}
+
+int
+cos_dequeue_size(unsigned int srcvm, unsigned int curvm)
+{
+	return vk_dequeue_size(srcvm, curvm);
 }
 
 /*rk shared mem functions*/
@@ -96,7 +104,7 @@ rump2cos_rcv(void)
 void
 cos_irqthd_handler(void *line)
 {
-	printc("cos_irqthd_handler\n");
+//	printc("cos_irqthd_handler\n");
 	int which = (int)line;
 	
 	while(1) {
