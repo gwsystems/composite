@@ -3,6 +3,7 @@
 
 #include <cos_types.h>
 #include <cos_kernel_api.h>
+#include "rumpcalls.h"
 
 //#define assert(node)if (unlikely(!(node))) { debug_print("assert error in @ "); while(1);}
 
@@ -47,6 +48,12 @@ intr_translate_thdid2irq(thdid_t tid)
 	int i = 0;
 
 	if(tid == 0) return -1;
+
+	if (vmid) {
+		if(tid == irq_thdid[IRQ_DOM0_VM])
+			return IRQ_DOM0_VM;
+		else return -1;
+	}
 
 	while(tid != irq_thdid[i] && i < 32) i++;
 	/* Make sure that we are dealing with an irq thread id*/
@@ -165,7 +172,7 @@ intr_enable(void)
 		 * cos_nesting of the interrupts
 		 */
 		do {
-			ret = cos_switch(contending, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			ret = cos_switch(contending, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert (ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
 	}

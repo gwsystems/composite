@@ -70,13 +70,17 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 	if(srcvm == 0) sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (dstvm - 1) * CAP64B_IDSZ;
 	else sndcap = VM_CAPTBL_SELF_IOASND_BASE;
 
+	//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
 	cos_shm_write(buff, size, srcvm, dstvm);	
-	cos_asnd(sndcap);	
+	cos_asnd(sndcap);
+	//if (srcvm) cos_asnd(sndcap);
+	//else cos_tcap_delegate(sndcap, BOOT_CAPTBL_SELF_INITTCAP_BASE, VM_IO_TIMESLICE, PRIO_UNDER, TCAP_DELEG_YIELD);
 	return 1;
 }
 
 int
 cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm){
+	//printc("%s = s:%d d:%d\n", __func__, srcvm, curvm);
 	return cos_shm_read(buff, srcvm, curvm);
 }
 
@@ -100,6 +104,7 @@ cos_irqthd_handler(void *line)
 
 		intr_start(irq_thdcap[which]);
 
+		//printc("%s = %d\n", __func__, which);
 		bmk_isr(which);
 
 		intr_end();
@@ -191,7 +196,7 @@ intr_switch(void)
 
 		if((tmp>>(i-1)) & 1) {
 			do {
-				ret = cos_switch(irq_thdcap[i], 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				ret = cos_switch(irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 				assert (ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 		}
@@ -251,7 +256,7 @@ cos_resume(void)
 rk_resume:
 		do {
 			if(cos_intrdisabled) break;
-			ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
 	}
@@ -270,7 +275,7 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 	cos_cur = temp;
 
 	do {
-		ret = cos_switch(cos_cur, 0, 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
+		ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
 		assert(ret == 0 || ret == -EAGAIN);
 		if (ret == -EAGAIN) {
 			/*

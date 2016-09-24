@@ -854,7 +854,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	 */
 	ch = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
-		printk("cos: cap %d not found!\n", (int)cap);
+		printk("cos[thd:%d, ip:%x]: cap %d not found!\n", thd->tid, regs->ip, (int)cap);
 		cos_throw(done, 0);
 	}
 	/* fastpath: invocation */

@@ -59,7 +59,7 @@ vm_init(void *id)
 
 	if (vmid == (COS_VIRT_MACH_COUNT-1)) {
 		PRINTC("Micro Booter started.\n");
-		test_run();
+		test_run_vk();
 		PRINTC("Micro Booter done.\n");
 	} else {
 		PRINTC("rump_booter_init\n");
