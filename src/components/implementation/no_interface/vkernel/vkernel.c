@@ -52,10 +52,10 @@ void
 scheduler(void) 
 {
 	static unsigned int i;
-	thdid_t tid;
-	int blocked;
-	cycles_t cycles;
-	int index;
+	thdid_t             tid;
+	int                 blocked;
+	cycles_t            cycles;
+	int                 index;
 
 	while (ready_vms) {
 		index = i++ % VM_COUNT;

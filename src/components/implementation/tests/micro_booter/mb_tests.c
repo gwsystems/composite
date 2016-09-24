@@ -164,17 +164,17 @@ async_thd_parent(void *thdcap)
 	thdcap_t  tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcp_global;
 	asndcap_t sc = scp_global;
-	int ret, pending;
-	thdid_t tid;
-	int blocked;
-	cycles_t cycles;
+	int       ret, pending;
+	thdid_t   tid;
+	int       blocked;
+	cycles_t  cycles;
 
 	PRINTC("--> sending\n");
-	ret = cos_asnd(sc);
+	ret     = cos_asnd(sc);
 	if (ret) PRINTC("asnd returned %d.\n", ret);
 	PRINTC("--> Back in the asnder.\n");
 	PRINTC("--> sending\n");
-	ret = cos_asnd(sc);
+	ret     = cos_asnd(sc);
 	if (ret) PRINTC("--> asnd returned %d.\n", ret);
 	PRINTC("--> Back in the asnder.\n");
 	PRINTC("--> receiving to get notifications\n");
@@ -338,7 +338,7 @@ cycles_t cyc_per_usec;
 static void
 test_timer(void)
 {
-	int i;
+	int      i;
 	thdcap_t tc;
 	cycles_t c = 0, p = 0, t = 0;
 
@@ -347,15 +347,15 @@ test_timer(void)
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 
 	for (i = 0 ; i <= 16 ; i++) {
-		thdid_t  tid;
-		int      blocked;
-		cycles_t cycles, now;
+		thdid_t     tid;
+		int         blocked;
+		cycles_t    cycles, now;
 		tcap_time_t timer;
 
 		rdtscll(now);
 		timer = tcap_cyc2time(now + 1000 * cyc_per_usec);
 		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_BASE);
-		p = c;
+		p     = c;
 		rdtscll(c);
 		if (i > 0) t += c-p;
 
@@ -453,13 +453,13 @@ test_budgets_multi(void)
 	PRINTC("Budget switch latencies:\n");
 	for (i = 1 ; i < 10 ; i++) {
 		tcap_res_t res;
-		thdid_t  tid;
-		int      blocked;
-		cycles_t cycles, s, e;
+		thdid_t    tid;
+		int        blocked;
+		cycles_t   cycles, s, e;
 
 		/* test both increasing budgets and constant budgets */
 		if (i > 5) res = 1600000;
-		else res = i * 800000;
+		else       res = i * 800000;
 
 		if (cos_tcap_transfer(mbt.p.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, TCAP_PRIO_MAX + 2)) assert(0);
 		if (cos_tcap_transfer(mbt.c.rc, mbt.p.tcc, res/2, TCAP_PRIO_MAX + 2)) assert(0);
