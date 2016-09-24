@@ -53,7 +53,7 @@ scheduler(void)
 {
 	static unsigned int i;
 	thdid_t tid;
-	int rcving;
+	int rcving, vm_pending;
 	cycles_t cycles;
 	int index;
 
@@ -67,7 +67,7 @@ scheduler(void)
 					      VM_BUDGET_FIXED, VM_PRIO_FIXED, TCAP_DELEG_YIELD)) assert(0);
 		}
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles)) ;
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &vm_pending, &cycles)) ;
 	}
 }
 
