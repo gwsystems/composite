@@ -52,10 +52,10 @@ void
 scheduler(void) 
 {
 	static unsigned int i;
-	thdid_t tid;
-	int rcving;
-	cycles_t cycles;
-	int index;
+	thdid_t             tid;
+	int                 blocked;
+	cycles_t            cycles;
+	int                 index;
 
 	while (ready_vms) {
 		index = i++ % VM_COUNT;
@@ -67,7 +67,7 @@ scheduler(void)
 					      VM_BUDGET_FIXED, VM_PRIO_FIXED, TCAP_DELEG_YIELD)) assert(0);
 		}
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles)) ;
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) ;
 	}
 }
 

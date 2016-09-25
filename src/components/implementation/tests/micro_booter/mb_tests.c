@@ -141,9 +141,6 @@ async_thd_fn(void *thdcap)
 {
 	thdcap_t tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcc_global;
-	thdid_t tid;
-	int rcving;
-	cycles_t cycles;
 	int pending;
 
 	PRINTC("Asynchronous event thread handler.\n");
@@ -167,22 +164,22 @@ async_thd_parent(void *thdcap)
 	thdcap_t  tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcp_global;
 	asndcap_t sc = scp_global;
-	int ret, pending;
-	thdid_t tid;
-	int rcving;
-	cycles_t cycles;
+	int       ret, pending;
+	thdid_t   tid;
+	int       blocked;
+	cycles_t  cycles;
 
 	PRINTC("--> sending\n");
-	ret = cos_asnd(sc);
+	ret     = cos_asnd(sc);
 	if (ret) PRINTC("asnd returned %d.\n", ret);
 	PRINTC("--> Back in the asnder.\n");
 	PRINTC("--> sending\n");
-	ret = cos_asnd(sc);
+	ret     = cos_asnd(sc);
 	if (ret) PRINTC("--> asnd returned %d.\n", ret);
 	PRINTC("--> Back in the asnder.\n");
 	PRINTC("--> receiving to get notifications\n");
-	pending = cos_sched_rcv(rc, &tid, &rcving, &cycles);
-	PRINTC("--> pending %d, thdid %d, rcving %d, cycles %lld\n", pending, tid, rcving, cycles);
+	pending = cos_sched_rcv(rc, &tid, &blocked, &cycles);
+	PRINTC("--> pending %d, thdid %d, blocked %d, cycles %lld\n", pending, tid, blocked, cycles);
 
 	async_test_flag = 0;
 	while (1) cos_thd_switch(tc);
@@ -341,7 +338,7 @@ cycles_t cyc_per_usec;
 static void
 test_timer(void)
 {
-	int i;
+	int      i;
 	thdcap_t tc;
 	cycles_t c = 0, p = 0, t = 0;
 
@@ -350,20 +347,20 @@ test_timer(void)
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 
 	for (i = 0 ; i <= 16 ; i++) {
-		thdid_t  tid;
-		int      rcving;
-		cycles_t cycles, now;
+		thdid_t     tid;
+		int         blocked;
+		cycles_t    cycles, now;
 		tcap_time_t timer;
 
 		rdtscll(now);
 		timer = tcap_cyc2time(now + 1000 * cyc_per_usec);
 		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_BASE);
-		p = c;
+		p     = c;
 		rdtscll(c);
 		if (i > 0) t += c-p;
 
 		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles) != 0) ;
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
 	}
 
 	PRINTC("\tCycles per tick (1000 microseconds) = %lld\n", t/16);
@@ -426,7 +423,7 @@ test_budgets_single(void)
 	for (i = 1 ; i < 10 ; i++) {
 		cycles_t s, e;
 		thdid_t  tid;
-		int      rcving;
+		int      blocked;
 		cycles_t cycles;
 
 		if (cos_tcap_transfer(bt.c.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, i * 100000, TCAP_PRIO_MAX + 2)) assert(0);
@@ -437,7 +434,7 @@ test_budgets_single(void)
 		PRINTC("%lld,\t", e-s);
 
 		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles) != 0) ;
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
 	}
 	PRINTC("Done.\n");
 }
@@ -456,13 +453,13 @@ test_budgets_multi(void)
 	PRINTC("Budget switch latencies:\n");
 	for (i = 1 ; i < 10 ; i++) {
 		tcap_res_t res;
-		thdid_t  tid;
-		int      rcving;
-		cycles_t cycles, s, e;
+		thdid_t    tid;
+		int        blocked;
+		cycles_t   cycles, s, e;
 
 		/* test both increasing budgets and constant budgets */
 		if (i > 5) res = 1600000;
-		else res = i * 800000;
+		else       res = i * 800000;
 
 		if (cos_tcap_transfer(mbt.p.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, TCAP_PRIO_MAX + 2)) assert(0);
 		if (cos_tcap_transfer(mbt.c.rc, mbt.p.tcc, res/2, TCAP_PRIO_MAX + 2)) assert(0);
@@ -473,7 +470,7 @@ test_budgets_multi(void)
 		rdtscll(e);
 		PRINTC("g:%llu c:%llu p:%llu => %llu,\t", mbt.g.cyc - s, mbt.c.cyc - s, mbt.p.cyc - s, e - s);
 
-		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles);
 		PRINTC("%d=%llu\n", tid, cycles);
 	}
 	PRINTC("Done.\n");
