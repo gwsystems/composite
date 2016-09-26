@@ -184,16 +184,16 @@ fillup_budgets(void)
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
 #elif defined __SIMPLE_XEN_LIKE_TCAPS__
 	vmbudget[0] = TCAP_RES_INF;
-	vmprio[0] = PRIO_UNDER;
+	vmprio[0] = PRIO_BOOST;
 	vm_cr_reset[0] = 1;
-	//vm_deletenode(&vms_under, &vmnode[0]);
-	//vm_insertnode(&vms_boost, &vmnode[0]);
+	vm_deletenode(&vms_under, &vmnode[0]);
+	vm_insertnode(&vms_boost, &vmnode[0]);
 	
 	vmbudget[1] = vmcredits[1];
-	vmprio[1] = PRIO_UNDER;
+	vmprio[1] = PRIO_BOOST;
 	vm_cr_reset[1] = 1;
-	//vm_deletenode(&vms_under, &vmnode[1]);
-	//vm_insertnode(&vms_boost, &vmnode[1]);
+	vm_deletenode(&vms_under, &vmnode[1]);
+	vm_insertnode(&vms_boost, &vmnode[1]);
 
 	for (i = 2 ; i < COS_VIRT_MACH_COUNT ; i ++) {
 #endif
