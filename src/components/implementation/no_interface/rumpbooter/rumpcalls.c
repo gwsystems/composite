@@ -223,7 +223,7 @@ cos_resume(void)
 		do {
 			thdcap_t contending;
 			cycles_t cycles;
-			int pending, tid, rcving, irq_line;
+			int pending, tid, blocked, irq_line;
 
 			/*
 			 * Handle all possible interrupts when
@@ -238,11 +238,11 @@ cos_resume(void)
 		 	 */
 
 			do {
-				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles);
 				assert(pending <= 1);
 
 				irq_line = intr_translate_thdid2irq(tid);
-				intr_update(irq_line, rcving);
+				intr_update(irq_line, blocked);
 
 				if(first) {
 					isr_get(cos_isr, &isdisabled, &contending);

@@ -3,12 +3,12 @@
 #include <cos_kernel_api.h>
 #include <vkern_api.h>
 #include "cos_sync.h"
+#include "vk_api.h"
 
 #define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
 
-thdcap_t vm_exit_thd; /* exit thread created for each forked component, for graceful exit */
 thdcap_t vk_termthd; /* switch to this to shutdown */
 thdcap_t vk_sched_thd; /* sched thread - simple round-robin scheduler */
 extern void vm_init(void *);
@@ -20,12 +20,13 @@ unsigned int ready_vms = COS_VIRT_MACH_COUNT;
  * Init caps for each VM
  */
 tcap_t vminittcap[COS_VIRT_MACH_COUNT];
+int vm_cr_reset[COS_VIRT_MACH_COUNT];
 thdcap_t vm_main_thd[COS_VIRT_MACH_COUNT];
+thdcap_t vm_exit_thd[COS_VIRT_MACH_COUNT];
 thdid_t vm_main_thdid[COS_VIRT_MACH_COUNT];
-int vm_blocked[COS_VIRT_MACH_COUNT];
 arcvcap_t vminitrcv[COS_VIRT_MACH_COUNT];
 asndcap_t vksndvm[COS_VIRT_MACH_COUNT];
-int vmcredits[COS_VIRT_MACH_COUNT];
+tcap_res_t vmcredits[COS_VIRT_MACH_COUNT];
 tcap_prio_t vmprio[COS_VIRT_MACH_COUNT];
 tcap_res_t vmbudget[COS_VIRT_MACH_COUNT];
 int vmstatus[COS_VIRT_MACH_COUNT];
@@ -134,7 +135,7 @@ vmx_io_fn(void *d)
 }
 
 void
-refill_credits(void)
+setup_credits(void)
 {
 	int i;
 
@@ -142,16 +143,16 @@ refill_credits(void)
 		if (vmstatus[i] != VM_EXITED) {
 			switch (i) {
 				case 0:
-					vmcredits[i] = DOM0_CREDITS;
+					vmcredits[i] = TCAP_RES_INF;
 					break;
 				case 1:
-					vmcredits[i] = VM1_CREDITS;
+					vmcredits[i] = (VM1_CREDITS * VM_TIMESLICE);
 					break;
 				case 2:
-					vmcredits[i] = VM2_CREDITS;
+					vmcredits[i] = (VM2_CREDITS * VM_TIMESLICE);
 					break;
 				default:
-					vmcredits[i] = 0;
+					vmcredits[i] = VM_TIMESLICE;
 					break;
 			}
 		} 
@@ -159,80 +160,125 @@ refill_credits(void)
 }
 
 void
-sched_fn(void) 
+reset_credits(void)
+{
+	struct vm_node *vm;
+
+	printc("%s:%d\n", __func__, __LINE__);
+	while ((vm = vm_next(&vms_over)) != NULL) {
+		vm_deletenode(&vms_over, vm);
+		vm_insertnode(&vms_under, vm);
+		//printc("%s:%d - %d\n", __func__, __LINE__, vm->id);
+		vmbudget[vm->id] = vmcredits[vm->id];
+		vmprio[vm->id] = PRIO_UNDER;
+		vm_cr_reset[vm->id] = 1;
+	}
+}
+
+void
+fillup_budgets(void)
+{
+	int i;
+
+#ifdef __INTELLIGENT_TCAPS__
+	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+#elif defined __SIMPLE_XEN_LIKE_TCAPS__
+	vmbudget[0] = TCAP_RES_INF;
+	vmprio[0] = PRIO_UNDER;
+	vm_cr_reset[0] = 1;
+	//vm_deletenode(&vms_under, &vmnode[0]);
+	//vm_insertnode(&vms_boost, &vmnode[0]);
+	
+	vmbudget[1] = vmcredits[1];
+	vmprio[1] = PRIO_UNDER;
+	vm_cr_reset[1] = 1;
+	//vm_deletenode(&vms_under, &vmnode[1]);
+	//vm_insertnode(&vms_boost, &vmnode[1]);
+
+	for (i = 2 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+#endif
+		vmbudget[i] = vmcredits[i];
+		vmprio[i]   = PRIO_UNDER;
+		vm_cr_reset[i] = 1;
+	}
+}
+
+void
+sched_fn(void)
 {
 	static unsigned int i = 0;
 	thdid_t tid;
-	int rcving;
+	int blocked;
 	cycles_t cycles;
 	int index;
+	tcap_res_t budget;
 
-	/* Just run microbooter for now.. before moving forward to Real VMs.. */
-	index = COS_VIRT_MACH_COUNT - 1;
-	while (vmstatus[index] != VM_EXITED)
-		cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD);
+	/* ditch micro_booter for now. */
+	cos_thd_switch(vm_exit_thd[COS_VIRT_MACH_COUNT - 1]);
 
 	printc("Scheduling VMs(Rumpkernel contexts)....\n");
 
-#ifdef __SIMPLE_XEN_LIKE_TCAPS__
-	/* if dom0 should have inf budget.. */
-	index = 0;
-	if (TCAP_RES_IS_INF(vmbudget[index]) && cos_tcap_transfer(vminitrcv[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index])) assert(0);
-#endif
-
 	while (ready_vms) {
-		int j;
-		int count_vms = 0;
+		struct vm_node *x, *y;
+		int count_over = 0;
 
-		assert (vmstatus[0] != VM_EXITED); /* yeah, dom0 better be available always */
-		
-		index = i ++ % (COS_VIRT_MACH_COUNT - 1);
+		while ((x = vm_next(&vms_boost)) != NULL) { /* if there is at least one element in boost prio.. */
+			int index = x->id;
 
-		while (index && (!vmcredits[index] || vmstatus[index] == VM_EXITED)) {
-			index = i ++ % (COS_VIRT_MACH_COUNT - 1);
-			count_vms ++;
-
-#ifdef __INTELLIGENT_TCAPS__
-			if (count_vms == ready_vms) { /* TODO: For all VMs including DOM0.. */
-#elif defined __SIMPLE_XEN_LIKE_TCAPS__
-			if (count_vms == ready_vms - 2) { /* DOM0 not credit-based, VM(n-1) is microbooter and should have exited.. */
-#endif
-				//printc("%s:%d\n", __func__, __LINE__);
-				refill_credits();
+			if (unlikely(vmstatus[index] == VM_EXITED)) {
+				vm_deletenode(&vms_boost, x); 
+				vm_insertnode(&vms_exit, x);
+				continue;
 			}
-		}
-		
-		//printc("%s: %d - %d\n", __func__, index, vmcredits[index]);
-		assert (vmstatus[index] != VM_EXITED);
-		/* need special handling for VM_BLOCKED. Because vkernel is a potential notifier for vms.. */
-		//printc("Scheduling:%d ", index);
-#ifdef __INTELLIGENT_TCAPS__
-		{ /* delegate for all VMS, including dom0.. */
-#elif defined __SIMPLE_XEN_LIKE_TCAPS__
-		if (index == 0) {
-			cos_asnd(vksndvm[index]);
-		} else {
-#endif
-			if(index) vmcredits[index] --;
-			//cycles_t start, end, total;
-
-			//rdtscll(start);
+			/* TODO: if boosted prio, do I care about the budgets, credits etc? */
+			//printc("%s:%d - %d\n", __func__, __LINE__, index);
 			cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD);
-			//rdtscll(end);
-
-			//total = end - start;
-			//if (index && !cycles_same(total, vmbudget[index])) {
-			//	if (total < VM_TIMESLICE) vmbudget[index] = VM_TIMESLICE - total;
-			//	else vmbudget[index] = VM_TIMESLICE;
-			//}
-			//printc("consumed: %llu, delegated: %llu\n", end - start, vmbudget[index]);
+			while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) ;
 		}
-		/* TODO: */
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles)) /* handle blocked/unblocked events */;
+		while ((x = vm_next(&vms_under)) != NULL) {
+			int index = x->id;
+			tcap_res_t budget = 0;
+
+			if (unlikely(vmstatus[index] == VM_EXITED)) {
+				vm_deletenode(&vms_under, x); 
+				vm_insertnode(&vms_exit, x);
+				continue;
+			}
+			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
+			//printc("%s:%d - %d: %lu %lu %lu\n", __func__, __LINE__, index, budget, vmbudget[index], vmcredits[index]);
+			if (index && (cycles_same(budget, 0) && !vm_cr_reset[index])) {
+				vmprio[index] = PRIO_OVER;
+				vm_deletenode(&vms_under, &vmnode[index]);
+				vm_insertnode(&vms_over, &vmnode[index]);
+				count_over ++;
+
+				if (count_over == ready_vms - 1) {
+					reset_credits();
+					count_over = 0;
+				}
+
+				continue;
+			} 
+
+			if (!TCAP_RES_IS_INF(budget)) {
+				/* 
+				 * if it has high enough accumulated budget already.. just giving it a bit..
+				 * because delegate with 0 res, gives all of src->budget
+                                 * essentially promoting it to have INF budget in this case.. 
+				 */ 
+				if (budget > vmcredits[index]) vmbudget[index] = VM_MIN_TIMESLICE; 
+				else vmbudget[index] = vmcredits[index] - budget;
+
+				if (vmbudget[index] == 0) vmbudget[index] = VM_MIN_TIMESLICE;
+			}
+
+			//printc("%s:%d - %d: %lu %lu\n", __func__, __LINE__, index, budget, vmbudget[index]);
+			cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD);
+
+			while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) ;
+		}
 	}
-
-	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 }
 
 /* switch to vkernl booter thd */
@@ -247,27 +293,6 @@ vm_exit(void *id)
 	/* do you want to spend time in printing? timer interrupt can screw with you, be careful */
 	printc("VM %d Exiting\n", (int)id);
 	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
-}
-
-void
-setup_budgets(void)
-{
-	int i;
-
-#ifdef __INTELLIGENT_TCAPS__
-	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-#elif defined __SIMPLE_XEN_LIKE_TCAPS__
-	vmbudget[0] = TCAP_RES_INF;
-	vmprio[0] = PRIO_BOOST;
-	
-	vmbudget[1] = VM_TIMESLICE;
-	vmprio[1] = PRIO_BOOST;
-
-	for (i = 2 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-#endif
-		vmbudget[i] = VM_TIMESLICE;
-		vmprio[i]   = PRIO_UNDER;
-	}
 }
 
 void
@@ -294,8 +319,13 @@ cos_init(void)
 	vk_termthd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vk_term_fn, NULL);
 	assert(vk_termthd);
 
-	setup_budgets();
-	refill_credits();
+	printc("%s:%d\n", __func__, __LINE__);
+	vm_list_init();
+	printc("%s:%d\n", __func__, __LINE__);
+	setup_credits();
+	printc("%s:%d\n", __func__, __LINE__);
+	fillup_budgets();
+	printc("%s:%d\n", __func__, __LINE__);
 
 	for (id = 0; id < COS_VIRT_MACH_COUNT; id ++) {
 		printc("VM %d Initialization Start\n", id);
@@ -305,8 +335,8 @@ cos_init(void)
 		int ret;
 
 		printc("\tForking VM\n");
-		vm_exit_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vm_exit, (void *)id);
-		assert(vm_exit_thd);
+		vm_exit_thd[id] = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vm_exit, (void *)id);
+		assert(vm_exit_thd[id]);
 
 
 		vmct = cos_captbl_alloc(&vkern_info);
@@ -356,7 +386,7 @@ cos_init(void)
 		 * TODO: We need seperate such capabilities for each VM. Can't use the BOOTER ones. 
 		 */
 		cos_cap_cpy_at(&vmbooter_info[id], BOOT_CAPTBL_SELF_INITHW_BASE, &vkern_info, BOOT_CAPTBL_SELF_INITHW_BASE); 
-		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd); 
+		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd[id]); 
 
 		printc("\tCreating other required initial capabilities\n");
 		vminittcap[id] = cos_tcap_alloc(&vkern_info, TCAP_PRIO_MAX);

@@ -70,6 +70,7 @@ intr_update(unsigned int irq_line, int rcving)
 
 	assert(irq_line);
 
+	//printc("%s:%d - %d: %u %d\n", __func__, __LINE__, vmid, irq_line, rcving);
 	/* blocked, unset intterupt to be worked on */
 	if(rcving) {
 		//printc("VM%d: %d off\n", vmid, irq_line);
