@@ -319,6 +319,11 @@ enum {
 	THD_GET_TID,
 };
 
+/* Tcap info */
+enum {
+	TCAP_GET_BUDGET,
+};
+
 enum {
 	/* cap 0-3 reserved for sret. 4-7 is the sinv cap. FIXME: make this general. */
 	SCHED_CAPTBL_ALPHATHD_BASE = 16,

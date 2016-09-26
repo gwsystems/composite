@@ -125,6 +125,7 @@ static inline tcap_res_t
 tcap_consume(struct tcap *t, tcap_res_t cycles)
 {
 	assert(t);
+	//printk("%s:%d - %lu: %lu\n", __func__, __LINE__, cycles, t->budget.cycles);
 	if (TCAP_RES_IS_INF(t->budget.cycles)) return 0;
 	if (cycles >= t->budget.cycles || cycles_same(cycles, t->budget.cycles)) {
 		t->budget.cycles = 0;
@@ -190,7 +191,13 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 
 	/* next == INF? no timer required. */
 	left        = tcap_left(next);
-	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) return;
+	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) {
+		if (cos_info->timeout_next == 0) return;
+
+		chal_timer_disable();
+		cos_info->timeout_next = 0;
+		return;
+	}
 
 	/* timeout based on the tcap budget... */
 	timer       = now + left;
@@ -249,6 +256,17 @@ tcap_higher_prio(struct tcap *a, struct tcap *c)
 	ret = 1;
 fixup:
 	return ret;
+}
+
+static inline int
+tcap_introspect(struct tcap *t, unsigned long op, unsigned long *retval)
+{
+	switch(op) {
+	case TCAP_GET_BUDGET: *retval = t->budget.cycles; break;
+	default: return -EINVAL;
+	}
+	//printk("%s:%d - %lu\n", __func__, __LINE__, *retval);
+	return 0;
 }
 
 #endif	/* TCAP_H */

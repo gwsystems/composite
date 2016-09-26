@@ -795,7 +795,8 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 	if (unlikely(!ch)) return -EINVAL;
 
 	switch(ch->type) {
-	case CAP_THD: return thd_introspect(((struct cap_thd*)ch)->t, op, retval);
+	case CAP_THD:  return thd_introspect(((struct cap_thd*)ch)->t, op, retval);
+	case CAP_TCAP: return tcap_introspect(((struct cap_tcap*)ch)->tcap, op, retval);
 	}
 	return -EINVAL;
 }
@@ -854,7 +855,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	 */
 	ch = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
-		printk("cos[thd:%d, ip:%x]: cap %d not found!\n", thd->tid, regs->ip, (int)cap);
+		printk("cos[thd:%d, ip:%x, op: %d]: cap %d not found!\n", thd->tid, regs->ip, __userregs_getop(regs), (int)cap);
 		cos_throw(done, 0);
 	}
 	/* fastpath: invocation */

@@ -215,8 +215,17 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 void
 chal_timer_set(cycles_t cycles)
 {
+//	printk("set:%llu\n", cycles);
 	timer_set(TIMER_ONESHOT, cycles);
 	timer_set(TIMER_ONESHOT, cycles);
+}
+
+void
+chal_timer_disable(void)
+{
+//	printk("disable\n");
+	timer_disable(TIMER_ONESHOT);
+	timer_disable(TIMER_ONESHOT);
 }
 
 u64_t
