@@ -17,13 +17,10 @@
 #define LAPIC_PERIODIC_MODE    (0x01 << 17)
 #define LAPIC_ONESHOT_MODE     (0x00 << 17)
 #define LAPIC_TSCDEADLINE_MODE (0x02 << 17)
-
 #define LAPIC_MASK (1<<15)
 
-#define IA32_MSR_TSC		0x00000010
 #define IA32_MSR_TSC_DEADLINE	0x000006e0
 
-#define TEST_DEADLINE 3400000
 #define RETRY_ITERS   3
 
 extern int timer_process(struct pt_regs *regs);
@@ -77,22 +74,15 @@ lapic_find_localaddr(void *l)
 
 static void
 lapic_write_reg(u32_t off, u32_t val)
-{
-	*(u32_t *)(lapic + off) = val;
-}
+{ *(u32_t *)(lapic + off) = val; }
 
 static void
 lapic_ack(void)
-{
-	if (lapic) 
-		lapic_write_reg(LAPIC_EOI_REG, 0);
-}
+{ if (lapic) lapic_write_reg(LAPIC_EOI_REG, 0); }
 
 static u32_t
 lapic_read_reg(u32_t off)
-{
-	return *(u32_t *)(lapic + off);
-}
+{ return *(u32_t *)(lapic + off); }
 
 void
 lapic_set_timer(int timer_type, cycles_t deadline)
@@ -109,8 +99,10 @@ retry:
 	writemsr(IA32_MSR_TSC_DEADLINE, (u32_t) ((deadline << 32) >> 32), (u32_t)(deadline >> 32));
 	readmsr(IA32_MSR_TSC_DEADLINE, &low, &high);
 	if (!low && !high) {
-		if (retries -- > 0)
+		retries --;
+		if (retries > 0) {
 			goto retry;
+		}
 		else {
 			printk("Something wrong.. Cannot program TSC-DEADLINE\n");
 			assert(0);
@@ -144,7 +136,7 @@ lapic_tscdeadline_supported(void)
 	u32_t a, b, c, d;
 
 	chal_cpuid(6, &a, &b, &c, &d);
-	if (a & (1 << 1)) printk("APIC Timer runs at Constant Rate!!\n");	
+	if (a & (1 << 1)) printk("LAPIC Timer runs at Constant Rate!!\n");	
 
 	chal_cpuid(1, &a, &b, &c, &d);
 	if (c & (1 << 24)) return 1;
