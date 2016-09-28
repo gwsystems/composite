@@ -43,6 +43,7 @@ enum lapic_timer_div_by_config {
 };
 
 static volatile void *lapic = (void *)APIC_DEFAULT_PHYS;
+static unsigned int lapic_timer_mode = TSC_DEADLINE;
 
 u32_t
 lapic_find_localaddr(void *l)
@@ -86,26 +87,35 @@ lapic_read_reg(u32_t off)
 
 void
 lapic_set_timer(int timer_type, cycles_t deadline)
-{	
-	u32_t high, low;
-	int retries = RETRY_ITERS;
+{
+	u64_t now;
 
-	if (timer_type != TSC_DEADLINE) {
-		printk("Mode not supported\n");
-		assert(0);
-	}
+	assert (timer_type != PERIODIC);
+
+	rdtscll(now);
+	if (deadline <= now) return;
+
+	if (timer_type == ONESHOT) {
+
+		lapic_write_reg(LAPIC_INIT_COUNT_REG, (u32_t)(deadline - now));
+
+	} else {
+
+		u32_t high, low;
+		int retries = RETRY_ITERS;
 
 retry:	
-	writemsr(IA32_MSR_TSC_DEADLINE, (u32_t) ((deadline << 32) >> 32), (u32_t)(deadline >> 32));
-	readmsr(IA32_MSR_TSC_DEADLINE, &low, &high);
-	if (!low && !high) {
-		retries --;
-		if (retries > 0) {
-			goto retry;
-		}
-		else {
-			printk("Something wrong.. Cannot program TSC-DEADLINE\n");
-			assert(0);
+		writemsr(IA32_MSR_TSC_DEADLINE, (u32_t) ((deadline << 32) >> 32), (u32_t)(deadline >> 32));
+		readmsr(IA32_MSR_TSC_DEADLINE, &low, &high);
+		if (!low && !high) {
+			retries --;
+			if (retries > 0) {
+				goto retry;
+			}
+			else {
+				printk("Something wrong.. Cannot program TSC-DEADLINE\n");
+				assert(0);
+			}
 		}
 	}
 }
@@ -146,7 +156,7 @@ lapic_tscdeadline_supported(void)
 
 void
 chal_timer_set(cycles_t cycles)
-{ lapic_set_timer(TSC_DEADLINE, cycles); }
+{ lapic_set_timer(lapic_timer_mode, cycles); }
 
 void
 lapic_timer_init(void)
@@ -154,14 +164,19 @@ lapic_timer_init(void)
 	u32_t low, high;
 
 	if (!lapic_tscdeadline_supported()) {
-		printk("can't do LAPIC TSC-DEADLINE Mode\n");
+		printk("LAPIC: TSC-Deadline Mode not supported! Configuring Oneshot Mode!\n");
 
-		/* TODO: perhaps fallback to ONESHOT?? */
-		assert(0);
-	}
+		/* Set the mode and vector */
+		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_ONESHOT_MODE);
+		lapic_timer_mode = ONESHOT;
+	} else {
+		printk("LAPIC: Configuring TSC-Deadline Mode!\n");
 	
-	/* Set the mode and vector */
-	lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_TSCDEADLINE_MODE);
+		/* Set the mode and vector */
+		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_TSCDEADLINE_MODE);
+		lapic_timer_mode = TSC_DEADLINE;
+	}
+
 	/* Set the divisor */
 	lapic_write_reg(LAPIC_DIV_CONF_REG, DIV_BY_1);
 }
