@@ -107,6 +107,34 @@ acpi_find_timer(void)
 	return NULL;
 }
 
+void *
+acpi_find_apic(void)
+{
+	size_t i;
+
+	for (i = 0; i < (rsdt->length - sizeof(struct rsdt)) / sizeof(struct rsdt*); i++) {
+		struct rsdt *e = (struct rsdt*)pa2va(rsdt->entry[i]);
+		if (!strncmp(e->signature, "APIC", 4)) {
+			unsigned char *check = (unsigned char*)e;
+			unsigned char sum = 0;
+			u32_t j;
+
+			for (j = 0; j < e->length; j++) {
+				sum += check[j];
+			}
+
+			if (sum != 0) {
+				printk("\tChecksum of APIC @ %p failed (got %d)\n", e, sum % 255);
+				continue;
+			}
+
+			printk("\tFound good APIC @ %p\n", e);
+			return e;
+		}
+	}
+
+	return NULL;
+}
 
 void
 acpi_set_rsdt_page(u32_t page)

@@ -159,7 +159,7 @@ chal_cyc_usec(void)
 int
 periodic_handler(struct pt_regs *regs)
 {
-	int preempt;
+	int preempt = 1;
 
 	if (unlikely(timer_calibration_init)) timer_calibration();
 
@@ -212,12 +212,12 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 }
 
 /* FIXME:  This is broken. Why does setting the oneshot twice make it work? */
-void
+/*void
 chal_timer_set(cycles_t cycles)
 {
 	timer_set(TIMER_ONESHOT, cycles);
 	timer_set(TIMER_ONESHOT, cycles);
-}
+}*/
 
 u64_t
 timer_find_hpet(void *timer)
