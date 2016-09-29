@@ -68,9 +68,11 @@ extern void sysenter_entry(void);
 
 static inline void
 writemsr(u32_t reg, u32_t low, u32_t high)
-{
-	__asm__("wrmsr" : : "c"(reg), "a"(low), "d"(high));
-}
+{ __asm__("wrmsr" : : "c"(reg), "a"(low), "d"(high)); }
+
+static inline void
+readmsr(u32_t reg, u32_t *low, u32_t *high)
+{ __asm__("rdmsr" : "=a"(*low), "=d"(*high) : "c"(reg)); }
 
 static void
 chal_cpu_init(void)
@@ -108,5 +110,8 @@ chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)
 
 void chal_timer_thd_init(struct thread *t);
 
+static inline void
+chal_cpuid(int code, u32_t *a, u32_t *b, u32_t *c, u32_t *d)
+{ asm volatile("cpuid" : "=a"(*a), "=b"(*b), "=c"(*c), "=d"(*d) : "0"(code)); }
 
 #endif /* CHAL_CPU_H */

@@ -131,15 +131,32 @@ timer_calibration(void)
 {
 	static int   cnt = 0;
 	static u64_t cycle = 0, tot = 0, prev;
+	static u32_t apic_curr = 0, apic_tot = 0, apic_prev;
 
 	prev = cycle;
+	apic_prev = apic_curr;
 	rdtscll(cycle);
-	if (cnt) tot += cycle-prev;
+	apic_curr = lapic_get_ccr();
+	
+	if (cnt) {
+		tot += cycle-prev;
+		apic_tot += (apic_prev - apic_curr);
+	}
 	if (cnt >= TIMER_CALIBRATION_ITER) {
 		assert(hpetcyc_per_tick);
 		timer_calibration_init   = 0;
 		cycles_per_tick          = (unsigned long)(tot / TIMER_CALIBRATION_ITER);
 		assert(cycles_per_tick > hpetcyc_per_tick);
+
+		if (lapic_timer_calib_init) {
+			u32_t cycs_to_apic_ratio = 0, apic_cycs_per_tick = 0;
+
+			apic_cycs_per_tick = apic_tot / TIMER_CALIBRATION_ITER;
+			assert (apic_cycs_per_tick);
+
+			cycs_to_apic_ratio = cycles_per_tick / apic_cycs_per_tick;
+			lapic_timer_calibration(cycs_to_apic_ratio);
+		}
 
 		/* Possibly significant rounding error here.  Bound by the factor */
 		timer_cycles_per_hpetcyc = (TIMER_ERROR_BOUND_FACTOR * cycles_per_tick) / hpetcyc_per_tick;
@@ -159,7 +176,7 @@ chal_cyc_usec(void)
 int
 periodic_handler(struct pt_regs *regs)
 {
-	int preempt;
+	int preempt = 1;
 
 	if (unlikely(timer_calibration_init)) timer_calibration();
 
@@ -212,12 +229,12 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 }
 
 /* FIXME:  This is broken. Why does setting the oneshot twice make it work? */
-void
+/*void
 chal_timer_set(cycles_t cycles)
 {
 	timer_set(TIMER_ONESHOT, cycles);
 	timer_set(TIMER_ONESHOT, cycles);
-}
+}*/
 
 u64_t
 timer_find_hpet(void *timer)

@@ -163,6 +163,7 @@ IRQ_ID(60)
 IRQ_ID(61)
 IRQ_ID(62)
 IRQ_ID(63)
+IRQ(lapic_timer)
 
 /*
  * Loads the IDT into the processor

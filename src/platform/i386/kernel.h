@@ -50,6 +50,15 @@ void *acpi_find_timer(void);
 void acpi_set_rsdt_page(u32_t);
 void kern_paging_map_init(void *pa);
 
+void *acpi_find_apic(void);
+u32_t lapic_find_localaddr(void *l);
+void lapic_set_page(u32_t page);
+void lapic_timer_init(void);
+void lapic_set_timer(int timer_type, cycles_t deadline);
+u32_t lapic_get_ccr(void);
+void lapic_timer_calibration(u32_t ratio);
+extern u32_t lapic_timer_calib_init;
+
 void tls_update(u32_t addr);
 
 //void printk(const char *fmt, ...);
