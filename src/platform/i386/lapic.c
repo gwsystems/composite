@@ -17,11 +17,13 @@
 #define LAPIC_PERIODIC_MODE    (0x01 << 17)
 #define LAPIC_ONESHOT_MODE     (0x00 << 17)
 #define LAPIC_TSCDEADLINE_MODE (0x02 << 17)
-#define LAPIC_MASK (1<<15)
+#define LAPIC_INT_MASK         (1<<15)
 
-#define IA32_MSR_TSC_DEADLINE	0x000006e0
+#define LAPIC_TIMER_CALIB_VAL  0xffffffff
 
-#define RETRY_ITERS   3
+#define IA32_MSR_TSC_DEADLINE  0x000006e0
+
+#define RETRY_ITERS            3
 
 extern int timer_process(struct pt_regs *regs);
 
@@ -44,6 +46,46 @@ enum lapic_timer_div_by_config {
 
 static volatile void *lapic = (void *)APIC_DEFAULT_PHYS;
 static unsigned int lapic_timer_mode = LAPIC_TSC_DEADLINE;
+
+static u32_t lapic_cpu_to_timer_ratio = 0;
+u32_t lapic_timer_calib_init = 0;
+
+static void
+lapic_write_reg(u32_t off, u32_t val)
+{ *(u32_t *)(lapic + off) = val; }
+
+static void
+lapic_ack(void)
+{ if (lapic) lapic_write_reg(LAPIC_EOI_REG, 0); }
+
+static u32_t
+lapic_read_reg(u32_t off)
+{ return *(u32_t *)(lapic + off); }
+
+static int
+lapic_tscdeadline_supported(void)
+{
+	u32_t a, b, c, d;
+
+	chal_cpuid(6, &a, &b, &c, &d);
+	if (a & (1 << 1)) printk("LAPIC Timer runs at Constant Rate!!\n");	
+
+	chal_cpuid(1, &a, &b, &c, &d);
+	if (c & (1 << 24)) return 1;
+
+	return 0;
+}
+
+static inline u32_t
+lapic_cycles_to_timer(u32_t cycles)
+{
+	assert(lapic_cpu_to_timer_ratio);
+
+	/* convert from (relative) CPU cycles to APIC counter */
+	cycles = (cycles / lapic_cpu_to_timer_ratio);
+
+	return cycles;
+}
 
 u32_t
 lapic_find_localaddr(void *l)
@@ -73,18 +115,6 @@ lapic_find_localaddr(void *l)
 	return 0;
 }
 
-static void
-lapic_write_reg(u32_t off, u32_t val)
-{ *(u32_t *)(lapic + off) = val; }
-
-static void
-lapic_ack(void)
-{ if (lapic) lapic_write_reg(LAPIC_EOI_REG, 0); }
-
-static u32_t
-lapic_read_reg(u32_t off)
-{ return *(u32_t *)(lapic + off); }
-
 void
 lapic_set_timer(int timer_type, cycles_t deadline)
 {
@@ -94,13 +124,17 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 	if (deadline <= now) return;
 
 	if (timer_type == LAPIC_ONESHOT) {
-		/* FIXME: Programming ONESHOT with Processor Bus Speed */
-		lapic_write_reg(LAPIC_INIT_COUNT_REG, (u32_t)(deadline - now));
+		u32_t counter;
+
+		counter = lapic_cycles_to_timer((u32_t)(deadline - now));
+		if (counter == 0) return;
+
+		lapic_write_reg(LAPIC_INIT_COUNT_REG, counter);
 	} else if (timer_type == LAPIC_TSC_DEADLINE) {
 		u32_t high, low;
 		int retries = RETRY_ITERS;
 
-retry:	
+retry:
 		writemsr(IA32_MSR_TSC_DEADLINE, (u32_t) ((deadline << 32) >> 32), (u32_t)(deadline >> 32));
 		readmsr(IA32_MSR_TSC_DEADLINE, &low, &high);
 		if (!low && !high) {
@@ -139,18 +173,23 @@ lapic_timer_handler(struct pt_regs *regs)
 	return preempt;
 }
 
-static int
-lapic_tscdeadline_supported(void)
+u32_t
+lapic_get_ccr(void)
+{ return lapic_read_reg(LAPIC_CURR_COUNT_REG); }
+
+void
+lapic_timer_calibration(u32_t ratio)
 {
-	u32_t a, b, c, d;
+	assert(ratio && lapic_timer_calib_init);
 
-	chal_cpuid(6, &a, &b, &c, &d);
-	if (a & (1 << 1)) printk("LAPIC Timer runs at Constant Rate!!\n");	
+	lapic_timer_calib_init   = 0;
+	lapic_cpu_to_timer_ratio = ratio;
 
-	chal_cpuid(1, &a, &b, &c, &d);
-	if (c & (1 << 24)) return 1;
+	/* reset INIT counter, and unmask timer */
+	lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
+	lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) & ~LAPIC_INT_MASK);
 
-	return 0;
+	printk("LAPIC: Timer calibrated - CPU Cycles to APIC Timer Ratio is %u\n", lapic_cpu_to_timer_ratio); 
 }
 
 void
@@ -168,6 +207,11 @@ lapic_timer_init(void)
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_ONESHOT_MODE);
 		lapic_timer_mode = LAPIC_ONESHOT;
+
+		/* Set the timer and mask it, so timer interrupt is not fired - for timer calibration through HPET */
+		lapic_write_reg(LAPIC_INIT_COUNT_REG, LAPIC_TIMER_CALIB_VAL);
+		lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) | LAPIC_INT_MASK);
+		lapic_timer_calib_init = 1;
 	} else {
 		printk("LAPIC: Configuring TSC-Deadline Mode!\n");
 	
