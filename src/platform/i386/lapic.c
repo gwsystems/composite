@@ -26,24 +26,24 @@
 extern int timer_process(struct pt_regs *regs);
 
 enum lapic_timer_type {
-	ONESHOT = 0,
-	PERIODIC,
-	TSC_DEADLINE,
+	LAPIC_ONESHOT = 0,
+	LAPIC_PERIODIC,
+	LAPIC_TSC_DEADLINE,
 };
 
 enum lapic_timer_div_by_config {
-	DIV_BY_2 = 0,
-	DIV_BY_4,
-	DIV_BY_8,
-	DIV_BY_16,
-	DIV_BY_32,
-	DIV_BY_64,
-	DIV_BY_128,
-	DIV_BY_1,
+	LAPIC_DIV_BY_2 = 0,
+	LAPIC_DIV_BY_4,
+	LAPIC_DIV_BY_8,
+	LAPIC_DIV_BY_16,
+	LAPIC_DIV_BY_32,
+	LAPIC_DIV_BY_64,
+	LAPIC_DIV_BY_128,
+	LAPIC_DIV_BY_1,
 };
 
 static volatile void *lapic = (void *)APIC_DEFAULT_PHYS;
-static unsigned int lapic_timer_mode = TSC_DEADLINE;
+static unsigned int lapic_timer_mode = LAPIC_TSC_DEADLINE;
 
 u32_t
 lapic_find_localaddr(void *l)
@@ -90,17 +90,13 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 {
 	u64_t now;
 
-	assert (timer_type != PERIODIC);
-
 	rdtscll(now);
 	if (deadline <= now) return;
 
-	if (timer_type == ONESHOT) {
-
+	if (timer_type == LAPIC_ONESHOT) {
+		/* FIXME: Programming ONESHOT with Processor Bus Speed */
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, (u32_t)(deadline - now));
-
-	} else {
-
+	} else if (timer_type == LAPIC_TSC_DEADLINE) {
 		u32_t high, low;
 		int retries = RETRY_ITERS;
 
@@ -117,6 +113,9 @@ retry:
 				assert(0);
 			}
 		}
+	} else {
+		printk("Mode (%d) not supported\n", timer_type);
+		assert(0);
 	}
 }
 
@@ -168,15 +167,15 @@ lapic_timer_init(void)
 
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_ONESHOT_MODE);
-		lapic_timer_mode = ONESHOT;
+		lapic_timer_mode = LAPIC_ONESHOT;
 	} else {
 		printk("LAPIC: Configuring TSC-Deadline Mode!\n");
 	
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_TSCDEADLINE_MODE);
-		lapic_timer_mode = TSC_DEADLINE;
+		lapic_timer_mode = LAPIC_TSC_DEADLINE;
 	}
 
 	/* Set the divisor */
-	lapic_write_reg(LAPIC_DIV_CONF_REG, DIV_BY_1);
+	lapic_write_reg(LAPIC_DIV_CONF_REG, LAPIC_DIV_BY_1);
 }
