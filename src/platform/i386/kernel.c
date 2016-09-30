@@ -164,6 +164,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 
 	kern_boot_comp();
 	timer_init();
+	lapic_timer_init();
 	kern_boot_upcall();
 	/* should not get here... */
 	khalt();

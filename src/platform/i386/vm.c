@@ -91,6 +91,15 @@ kern_setup_image(void)
 			timer_set_hpet_page(j);
 			j++;
 		}
+
+		/* lapic memory map */
+		u32_t lapic = lapic_find_localaddr(acpi_find_apic());
+		if (lapic) {
+			page = round_up_to_pgd_page(lapic & 0xffffffff) - (1 << 22);
+			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
+			lapic_set_page(j);
+			j ++;
+		}
 	}
 
 	for ( ; j < PAGE_SIZE/sizeof(unsigned int) ; i += PGD_RANGE, j++) {

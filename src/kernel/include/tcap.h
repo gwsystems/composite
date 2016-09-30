@@ -212,7 +212,7 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 	/* avoid the large costs of setting the timer hardware if possible */
 	if (cycles_same(cos_info->timeout_next, timer)) return;
 
-	chal_timer_set(timer - now);
+	chal_timer_set(timer);
 	cos_info->timeout_next = timer;
 }
 
