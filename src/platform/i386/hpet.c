@@ -237,13 +237,13 @@ chal_timer_set(cycles_t cycles)
 	timer_set(TIMER_ONESHOT, cycles);
 }*/
 
-void
+/*void
 chal_timer_disable(void)
 {
 //	printk("disable\n");
 	timer_disable(TIMER_ONESHOT);
 	timer_disable(TIMER_ONESHOT);
-}
+}*/
 
 u64_t
 timer_find_hpet(void *timer)
