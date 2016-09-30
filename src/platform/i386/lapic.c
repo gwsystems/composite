@@ -23,8 +23,6 @@
 
 #define IA32_MSR_TSC_DEADLINE  0x000006e0
 
-#define RETRY_ITERS            3
-
 extern int timer_process(struct pt_regs *regs);
 
 enum lapic_timer_type {
