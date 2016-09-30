@@ -164,7 +164,6 @@ reset_credits(void)
 {
 	struct vm_node *vm;
 
-	printc("%s:%d\n", __func__, __LINE__);
 	while ((vm = vm_next(&vms_over)) != NULL) {
 		vm_deletenode(&vms_over, vm);
 		vm_insertnode(&vms_under, vm);
@@ -178,25 +177,26 @@ reset_credits(void)
 void
 fillup_budgets(void)
 {
-	int i;
+	int i = 0;
 
 #ifdef __INTELLIGENT_TCAPS__
-	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++)
 #elif defined __SIMPLE_XEN_LIKE_TCAPS__
 	vmbudget[0] = TCAP_RES_INF;
-	vmprio[0] = PRIO_BOOST;
+	vmprio[0] = PRIO_UNDER;
 	vm_cr_reset[0] = 1;
-	vm_deletenode(&vms_under, &vmnode[0]);
-	vm_insertnode(&vms_boost, &vmnode[0]);
+	//vm_deletenode(&vms_under, &vmnode[0]);
+	//vm_insertnode(&vms_boost, &vmnode[0]);
 	
 	vmbudget[1] = vmcredits[1];
-	vmprio[1] = PRIO_BOOST;
+	vmprio[1] = PRIO_UNDER;
 	vm_cr_reset[1] = 1;
-	vm_deletenode(&vms_under, &vmnode[1]);
-	vm_insertnode(&vms_boost, &vmnode[1]);
+	//vm_deletenode(&vms_under, &vmnode[1]);
+	//vm_insertnode(&vms_boost, &vmnode[1]);
 
-	for (i = 2 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+	for (i = 2 ; i < COS_VIRT_MACH_COUNT ; i ++)
 #endif
+	{
 		vmbudget[i] = vmcredits[i];
 		vmprio[i]   = PRIO_UNDER;
 		vm_cr_reset[i] = 1;
@@ -319,13 +319,9 @@ cos_init(void)
 	vk_termthd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vk_term_fn, NULL);
 	assert(vk_termthd);
 
-	printc("%s:%d\n", __func__, __LINE__);
 	vm_list_init();
-	printc("%s:%d\n", __func__, __LINE__);
 	setup_credits();
-	printc("%s:%d\n", __func__, __LINE__);
 	fillup_budgets();
-	printc("%s:%d\n", __func__, __LINE__);
 
 	for (id = 0; id < COS_VIRT_MACH_COUNT; id ++) {
 		printc("VM %d Initialization Start\n", id);
