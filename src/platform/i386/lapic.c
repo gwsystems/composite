@@ -23,8 +23,6 @@
 
 #define IA32_MSR_TSC_DEADLINE  0x000006e0
 
-#define RETRY_ITERS            3
-
 extern int timer_process(struct pt_regs *regs);
 
 enum lapic_timer_type {
@@ -131,22 +129,7 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, counter);
 	} else if (timer_type == LAPIC_TSC_DEADLINE) {
-		u32_t high, low;
-		int retries = RETRY_ITERS;
-
-retry:
 		writemsr(IA32_MSR_TSC_DEADLINE, (u32_t) ((deadline << 32) >> 32), (u32_t)(deadline >> 32));
-		readmsr(IA32_MSR_TSC_DEADLINE, &low, &high);
-		if (!low && !high) {
-			retries --;
-			if (retries > 0) {
-				goto retry;
-			}
-			else {
-				printk("Something wrong.. Cannot program TSC-DEADLINE\n");
-				assert(0);
-			}
-		}
 	} else {
 		printk("Mode (%d) not supported\n", timer_type);
 		assert(0);
