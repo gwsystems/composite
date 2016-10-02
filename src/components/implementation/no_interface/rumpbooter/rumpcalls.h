@@ -5,6 +5,7 @@
 #include "../../../../kernel/include/shared/cos_types.h"
 #include <consts.h>
 #include <cos_types.h>
+#include "vk_types.h"
 
 typedef __builtin_va_list va_list;
 #define va_start(v,l)      __builtin_va_start((v),l)

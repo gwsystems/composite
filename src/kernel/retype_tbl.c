@@ -132,7 +132,6 @@ retypetbl_retype2user(void *pa)
 int
 retypetbl_retype2kern(void *pa)
 {
-	//if ((unsigned long)pa >= COS_MEM_USER_PA) return -EINVAL;
 	return mod_mem_type(pa, RETYPETBL_KERN);
 }
 

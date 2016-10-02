@@ -662,7 +662,7 @@ frame_init(void)
 	}
 
 	/* Detecting all the frames. */
-	n_pmem = frame_boot(BOOT_MEM_PM_BASE, &frame_ns);
+	n_pmem = frame_boot(BOOT_MEM_KM_BASE, &frame_ns);
 
 	return;
 }

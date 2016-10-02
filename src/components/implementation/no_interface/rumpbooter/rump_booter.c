@@ -15,8 +15,11 @@ void
 hw_irq_alloc(void){
 
 	int i, ret;
-	/* timer interrupt handling is from VKERN */
-	irq_thdcap[0] = irq_thdid[0] = irq_tcap[0] = irq_arcvcap[0] = 0;
+
+	memset(irq_thdcap, 0, sizeof(thdcap_t) * 32);
+	memset(irq_thdid, 0, sizeof(thdid_t) * 32);
+	memset(irq_arcvcap, 0, sizeof(arcvcap_t) * 32);
+	memset(irq_tcap, 0, sizeof(tcap_t) * 32);
 
 	for(i = 1; i < HW_ISR_LINES; i++){
 
@@ -31,13 +34,15 @@ hw_irq_alloc(void){
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
 				break;
 			default:
-				irq_tcap[i] = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX);
-				assert(irq_tcap[i]);
 				irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, i);
 				assert(irq_thdcap[i]);
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
 				assert(irq_thdid[i]);
 
+#ifdef __INTELLIGENT_TCAPS__
+				/* TODO: This path of tcap_transfer */
+				irq_tcap[i] = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX);
+				assert(irq_tcap[i]);
 				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 				assert(irq_arcvcap[i]);
 
@@ -45,7 +50,10 @@ hw_irq_alloc(void){
 					printc("Irq %d Tcap transfer failed %d\n", i, ret);
 					assert(0);
 				}
-
+#elif defined __SIMPLE_XEN_LIKE_TCAPS__
+				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+				assert(irq_arcvcap[i]);
+#endif
 				cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
 				break;
 			}
@@ -56,46 +64,39 @@ hw_irq_alloc(void){
 					irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
 					break;
 				default: 
-					irq_thdcap[i] = 0;
 					break;
 			}
 		}
 	}
 }
+
 void
 rump_booter_init(void)
 {
 	extern int vmid;
 
 	char *json_file = "";
+#define JSON_PAWS_BAREMETAL 0
+#define JSON_PAWS_QEMU 1
+#define JSON_NGINX_BAREMETAL 2
+#define JSON_NGINX_QEMU 3
 
-	/* nginx */
-/*	char *json_file = "";
-	if(vmid == 0) {
-		json_file = "{,\"blk\":{,\"source\":\"dev\",\"path\":\"/dev/paws\",\"fstype\":\"cd9660\",\"mountpoint\":\"data\",},\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"nginx.bin\",},\0";
-	}
-*/	
-	/* nginx baretmetal*/
-/*	char *json_file = "";
-	if(vmid == 0) {
-		json_file = "{,\"blk\":{,\"source\":\"dev\",\"path\":\"/dev/paws\",\"fstype\":\"cd9660\",\"mountpoint\":\"data\",},\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"nginx.bin\",},\0";
-	}
-*/
-	/*paws in qemu*/
-/*	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
-	if(vmid == 0){
-		json_file = "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
-	}
-*/
+/* json config string fixed at compile-time */
+#define JSON_CONF_TYPE JSON_PAWS_BAREMETAL 
 
-	
-
-	/* paws baremetal */
 	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
 	if(vmid == 0) {
-		json_file = "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
-	}
 
+#if JSON_CONF_TYPE == JSON_NGINX_QEMU
+		json_file = "{,\"blk\":{,\"source\":\"dev\",\"path\":\"/dev/paws\",\"fstype\":\"cd9660\",\"mountpoint\":\"data\",},\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"nginx.bin\",},\0";
+#elif JSON_CONF_TYPE == JSON_NGINX_BAREMETAL
+		json_file = "{,\"blk\":{,\"source\":\"dev\",\"path\":\"/dev/paws\",\"fstype\":\"cd9660\",\"mountpoint\":\"data\",},\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"nginx.bin\",},\0";
+#elif JSON_CONF_TYPE == JSON_PAWS_QEMU
+		json_file = "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
+#else /* JSON_CONF == JSON_PAWS_BAREMETAL */
+		json_file = "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
+#endif
+	}
 
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();

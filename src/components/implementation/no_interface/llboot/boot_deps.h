@@ -249,7 +249,7 @@ vaddr_t get_kmem_cap(void) {
 	return ret;
 }
 
-static vaddr_t pmem_heap = BOOT_MEM_PM_BASE;
+static vaddr_t pmem_heap = BOOT_MEM_KM_BASE;
 
 /* Only called by the init core. No lock / atomic op required. */
 vaddr_t get_pmem_cap(void) {
@@ -542,7 +542,7 @@ boot_comp_mm_init(void)
 	n_frames = 0;
 	/* Grant the rest of the memory to the mem_mgr component. */
 	while ((memcap = get_pmem_cap())) {
-		mm_memcap = BOOT_MEM_PM_BASE + n_frames*PAGE_SIZE;
+		mm_memcap = BOOT_MEM_KM_BASE + n_frames*PAGE_SIZE;
 		if ((n_frames % (PAGE_SIZE/sizeof(void*))) == 0) {
 			/* Need to expand PTE. */
 			pte_cap  = alloc_capid(CAP_PGTBL);

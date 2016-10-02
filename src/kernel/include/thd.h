@@ -60,11 +60,11 @@ struct thread {
 	/* TODO: same cache-line as the tid */
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
 
-	thd_state_t state;
-	u32_t tls;
-	cpuid_t cpuid;
+	thd_state_t  state;
+	u32_t        tls;
+	cpuid_t      cpuid;
 	unsigned int refcnt;
-	unsigned long exec;  		/* execution time */
+	tcap_res_t   exec;   /* execution time */
 	unsigned int sw_counter; 	/* switch counter for user-level race-cond check */
 	struct thread *interrupted_thread;
 
@@ -124,22 +124,33 @@ thdid_alloc(void)
 	if (unlikely(free_thd_id >= MAX_NUM_THREADS)) assert(0);
 	return cos_faa((int*)&free_thd_id, 1);
 }
+static void
+thd_rcvcap_take(struct thread *t)         { t->rcvcap.refcnt++; }
 
 static void
-thd_rcvcap_take(struct thread *t)
-{ t->rcvcap.refcnt++; }
+thd_rcvcap_release(struct thread *t)      { t->rcvcap.refcnt--; }
 
-static void
-thd_rcvcap_release(struct thread *t)
-{ t->rcvcap.refcnt--; }
+static inline int
+thd_rcvcap_isreferenced(struct thread *t) { return t->rcvcap.refcnt > 0; }
+
+static inline int
+thd_bound2rcvcap(struct thread *t)        { return t->rcvcap.isbound; }
+
+static inline int
+thd_rcvcap_is_sched(struct thread *t)     { return thd_rcvcap_isreferenced(t); }
+
+static inline struct tcap *
+thd_rcvcap_tcap(struct thread *t)         { return t->rcvcap.rcvcap_tcap; }
 
 static int
-thd_rcvcap_isreferenced(struct thread *t)
-{ return t->rcvcap.refcnt > 0; }
+thd_rcvcap_isroot(struct thread *t)       { return t == t->rcvcap.rcvcap_thd_notif; }
 
-static int
-thd_bound2rcvcap(struct thread *t)
-{ return t->rcvcap.isbound; }
+static inline struct thread *
+thd_rcvcap_sched(struct thread *t)
+{
+	if (thd_rcvcap_isreferenced(t)) return t;
+	return t->rcvcap.rcvcap_thd_notif;
+}
 
 static void
 thd_rcvcap_init(struct thread *t)
@@ -153,30 +164,21 @@ thd_rcvcap_init(struct thread *t)
 
 static inline void
 thd_rcvcap_evt_enqueue(struct thread *head, struct thread *t)
-{ if (list_empty(&t->event_list)) list_enqueue(&head->event_head, &t->event_list); }
+{ if (list_empty(&t->event_list) && head != t) list_enqueue(&head->event_head, &t->event_list); }
 
 static inline void
-thd_list_rem(struct thread *head, struct thread *t)
-{ list_rem(&t->event_list); }
+thd_list_rem(struct thread *head, struct thread *t) { list_rem(&t->event_list); }
 
 static inline struct thread *
-thd_rcvcap_evt_dequeue(struct thread *head)
-{ return list_dequeue(&head->event_head); }
+thd_rcvcap_evt_dequeue(struct thread *head) { return list_dequeue(&head->event_head); }
 
+/*
+ * If events are going to be delivered on this thread, then we should
+ * be tracking its execution time.  Thus, we co-opt the event list as
+ * a notification trigger for tracking the thread's execution time.
+ */
 static inline int
-thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long *cycles)
-{
-	struct thread *e = thd_rcvcap_evt_dequeue(t);
-
-	assert(thd_bound2rcvcap(t));
-	if (!e) return 0;
-
-	*thd_state = e->tid | (e->state & THD_STATE_RCVING ? 1<<31 : 0);
-	*cycles    = e->exec;
-	e->exec = 0;		/* TODO: actual cycle accounting */
-
-	return 1;
-}
+thd_track_exec(struct thread *t) { return !list_empty(&t->event_list); }
 
 static int
 thd_rcvcap_pending(struct thread *t)
@@ -203,6 +205,21 @@ thd_rcvcap_pending_dec(struct thread *arcvt)
 	arcvt->rcvcap.pending--;
 
 	return pending;
+}
+
+static inline int
+thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long *cycles)
+{
+	struct thread *e = thd_rcvcap_evt_dequeue(t);
+
+	assert(thd_bound2rcvcap(t));
+	if (!e) return 0;
+
+	*thd_state = e->tid | (e->state & THD_STATE_RCVING ? (thd_rcvcap_pending(e) ? 0 : 1<<31) : 0);
+	*cycles    = e->exec;
+	e->exec    = 0;
+
+	return 1;
 }
 
 static int
@@ -328,14 +345,12 @@ thd_current(struct cos_cpu_local_info *cos_info)
 { return (struct thread *)(cos_info->curr_thd); }
 
 static inline void
-thd_current_update(struct thread *next, struct tcap *tcap, struct thread *prev, struct cos_cpu_local_info *cos_info)
+thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
 {
 	/* commit the cached data */
 	prev->invstk_top     = cos_info->invstk_top;
 	cos_info->invstk_top = next->invstk_top;
-	cos_info->curr_thd   = (void *)next;
-	assert(tcap);
-	cos_info->curr_tcap  = tcap;
+	cos_info->curr_thd   = next;
 }
 
 static inline int curr_invstk_inc(struct cos_cpu_local_info *cos_info)
@@ -415,16 +430,16 @@ static inline int
 thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 {
 	switch(op) {
-	case 0: *retval = t->regs.ip; break;
-	case 1: *retval = t->regs.sp; break;
-	case 2: *retval = t->regs.bp; break;
-	case 3: *retval = t->regs.ax; break;
-	case 4: *retval = t->regs.bx; break;
-	case 5: *retval = t->regs.cx; break;
-	case 6: *retval = t->regs.dx; break;
-	case 7: *retval = t->regs.si; break;
-	case 8: *retval = t->regs.di; break;
-	case 9: *retval = t->tid; break;
+	case THD_GET_IP : *retval = t->regs.ip; break;
+	case THD_GET_SP : *retval = t->regs.sp; break;
+	case THD_GET_BP : *retval = t->regs.bp; break;
+	case THD_GET_AX : *retval = t->regs.ax; break;
+	case THD_GET_BX : *retval = t->regs.bx; break;
+	case THD_GET_CX : *retval = t->regs.cx; break;
+	case THD_GET_DX : *retval = t->regs.dx; break;
+	case THD_GET_SI : *retval = t->regs.si; break;
+	case THD_GET_DI : *retval = t->regs.di; break;
+	case THD_GET_TID: *retval = t->tid; break;
 	default: return -EINVAL;
 	}
 	return 0;

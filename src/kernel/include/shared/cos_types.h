@@ -45,12 +45,38 @@ typedef capid_t captblcap_t;
 typedef capid_t pgtblcap_t;
 typedef capid_t hwcap_t;
 
-typedef s64_t cycles_t;
+typedef u64_t cycles_t;
 typedef unsigned long tcap_res_t;
+typedef unsigned long tcap_time_t;
 typedef u64_t tcap_prio_t;
 typedef u64_t tcap_uid_t;
 typedef u32_t sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
+
+/*
+ * The assumption in the following is that cycles_t are higher
+ * fidelity than tcap_time_t:
+ *
+ *  sizeof(cycles_t) >= sizeof(tcap_time_t)
+ */
+#define TCAP_TIME_QUANTUM_ORD 12
+#define TCAP_TIME_MAX_ORD     (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
+#define TCAP_TIME_MAX_BITS(c) ((c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
+#define TCAP_TIME_NIL         0
+static inline cycles_t
+tcap_time2cyc(tcap_time_t c, cycles_t curr)
+{ return (((cycles_t)c) << TCAP_TIME_QUANTUM_ORD) | TCAP_TIME_MAX_BITS(curr); }
+static inline tcap_time_t
+tcap_cyc2time(cycles_t c) {
+	tcap_time_t t = (tcap_time_t)(c >> TCAP_TIME_QUANTUM_ORD);
+	return t == TCAP_TIME_NIL ? 1 : t;
+}
+#define CYCLES_DIFF_THRESH (1<<14)
+static inline int
+cycles_same(cycles_t a, cycles_t b)
+{ return (b < a ? a - b : b - a) <= CYCLES_DIFF_THRESH; }
+/* FIXME: if wraparound happens, we need additional logic to compensate here */
+static inline int tcap_time_lessthan(tcap_time_t a, tcap_time_t b) { return a < b; }
 
 typedef enum {
 	TCAP_DELEG_TRANSFER = 1,
@@ -163,6 +189,7 @@ typedef enum {
 	HW_ID30,
 	HW_ID31,
 	HW_ID32,
+	HW_LAPIC_TIMER = 255,  /* Local APIC TSC-DEADLINE mode - Timer interrupts */
 } hwid_t;
 
 typedef unsigned long capid_t;
@@ -202,12 +229,6 @@ typedef enum {
 
 #define CAPTBL_EXPAND_SZ 128
 
-#define COS_VIRT_MACH_COUNT 4
-#define COS_VIRT_MACH_MEM_SZ (1<<26) //64MB
-
-#define COS_SHM_VM_SZ (1<<20) //4MB
-#define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) > 0 ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
-
 /* a function instead of a struct to enable inlining + constant prop */
 static inline cap_sz_t
 __captbl_cap2sz(cap_t c)
@@ -243,10 +264,11 @@ static inline unsigned long captbl_idsize(cap_t c)
  * 6-7 = our pgtbl root,
  * 8-11 = our component,
  * 12-13 = vm pte for booter
- * 14-15 = vm pte for physical memory
- * 16-17 = km pte
- * 18-19 = comp0 captbl,
- * 20-21 = comp0 pgtbl root,
+ * 14-15 = untyped memory pgtbl root,
+ * 16-17 = vm pte for physical memory,
+ * 18-19 = km pte,
+ * 20-21 = comp0 captbl,
+ * 22-23 = comp0 pgtbl root,
  * 24-27 = comp0 component,
  * 28~(20+2*NCPU) = per core alpha thd
  *
@@ -256,16 +278,17 @@ static inline unsigned long captbl_idsize(cap_t c)
  * 2GB-> = system physical memory
  */
 enum {
-	BOOT_CAPTBL_SRET       = 0,
-	BOOT_CAPTBL_SELF_CT    = 4,
-	BOOT_CAPTBL_SELF_PT    = 6,
-	BOOT_CAPTBL_SELF_COMP  = 8,
-	BOOT_CAPTBL_BOOTVM_PTE = 12,
-	BOOT_CAPTBL_PHYSM_PTE  = 14,
-	BOOT_CAPTBL_KM_PTE     = 16,
+	BOOT_CAPTBL_SRET            = 0,
+	BOOT_CAPTBL_SELF_CT         = 4,
+	BOOT_CAPTBL_SELF_PT         = 6,
+	BOOT_CAPTBL_SELF_COMP       = 8,
+	BOOT_CAPTBL_BOOTVM_PTE      = 12,
+	BOOT_CAPTBL_SELF_UNTYPED_PT = 14,
+	BOOT_CAPTBL_PHYSM_PTE       = 16,
+	BOOT_CAPTBL_KM_PTE          = 18,
 
-	BOOT_CAPTBL_COMP0_CT           = 18,
-	BOOT_CAPTBL_COMP0_PT           = 20,
+	BOOT_CAPTBL_COMP0_CT           = 20,
+	BOOT_CAPTBL_COMP0_PT           = 22,
 	BOOT_CAPTBL_COMP0_COMP         = 24,
 	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
 	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
@@ -277,33 +300,29 @@ enum {
 };
 
 enum {
-	VM_CAPTBL_SELF_EXITTHD_BASE    = BOOT_CAPTBL_FREE,
-	VM_CAPTBL_SELF_TIMETHD_BASE    = round_up_to_pow2(VM_CAPTBL_SELF_EXITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ), 
-	VM_CAPTBL_SELF_TIMETCAP_BASE   = round_up_to_pow2(VM_CAPTBL_SELF_TIMETHD_BASE + CAP16B_IDSZ, CAPMAX_ENTRY_SZ), 
-	VM_CAPTBL_SELF_TIMERCV_BASE    = round_up_to_pow2(VM_CAPTBL_SELF_TIMETCAP_BASE + CAP16B_IDSZ, CAPMAX_ENTRY_SZ), 
-	VM_CAPTBL_SELF_TIMEASND_BASE   = round_up_to_pow2(VM_CAPTBL_SELF_TIMERCV_BASE + CAP64B_IDSZ, CAPMAX_ENTRY_SZ), 
-	VM_CAPTBL_SELF_IOTHD_BASE      = round_up_to_pow2(VM_CAPTBL_SELF_TIMEASND_BASE + CAP64B_IDSZ, CAPMAX_ENTRY_SZ), 
-	VM_CAPTBL_SELF_IOTCAP_BASE     = round_up_to_pow2(VM_CAPTBL_SELF_IOTHD_BASE + CAP16B_IDSZ, CAPMAX_ENTRY_SZ), 
-	VM_CAPTBL_SELF_IORCV_BASE      = round_up_to_pow2(VM_CAPTBL_SELF_IOTCAP_BASE + CAP16B_IDSZ, CAPMAX_ENTRY_SZ), 
-	VM_CAPTBL_SELF_IOASND_BASE     = round_up_to_pow2(VM_CAPTBL_SELF_IORCV_BASE + CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
-	VM_CAPTBL_LAST_CAP             = round_up_to_pow2(VM_CAPTBL_SELF_IOASND_BASE + CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
-	VM_CAPTBL_FREE                 = round_up_to_pow2(VM_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
-};
-
-enum {
-	VM0_CAPTBL_SELF_IOTHD_SET_BASE      = VM_CAPTBL_SELF_IOTHD_BASE, 
-	VM0_CAPTBL_SELF_IOTCAP_SET_BASE     = round_up_to_pow2(VM0_CAPTBL_SELF_IOTHD_SET_BASE + CAP16B_IDSZ*(COS_VIRT_MACH_COUNT-1), CAPMAX_ENTRY_SZ), 
-	VM0_CAPTBL_SELF_IORCV_SET_BASE      = round_up_to_pow2(VM0_CAPTBL_SELF_IOTCAP_SET_BASE + CAP16B_IDSZ*(COS_VIRT_MACH_COUNT-1), CAPMAX_ENTRY_SZ), 
-	VM0_CAPTBL_SELF_IOASND_SET_BASE     = round_up_to_pow2(VM0_CAPTBL_SELF_IORCV_SET_BASE + CAP64B_IDSZ*(COS_VIRT_MACH_COUNT-1), CAPMAX_ENTRY_SZ),
-	VM0_CAPTBL_LAST_CAP                 = round_up_to_pow2(VM0_CAPTBL_SELF_IOASND_SET_BASE + CAP64B_IDSZ*(COS_VIRT_MACH_COUNT-1), CAPMAX_ENTRY_SZ),
-	VM0_CAPTBL_FREE                     = round_up_to_pow2(VM0_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
-};
-
-enum {
 	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1<<22)), /* @ 1G + 8M */
-	BOOT_MEM_SHM_BASE = 0x20000000, /* shared memory region @ 512MB */
-	BOOT_MEM_KM_BASE = 0x60000000, /* kernel/user memory @ 1.5 GB */
-	BOOT_MEM_PM_BASE = 0x80000000, /* TODO: unused. needs cleanup */
+	BOOT_MEM_SHM_BASE = 0x80000000, /* shared memory region @ 512MB */
+	BOOT_MEM_KM_BASE = PGD_SIZE, /* kernel & user memory @ 4M, pgd aligned start address */
+};
+
+enum {
+	/* thread register states */
+	THD_GET_IP,
+	THD_GET_SP,
+	THD_GET_BP,
+	THD_GET_AX,
+	THD_GET_BX,
+	THD_GET_CX,
+	THD_GET_DX,
+	THD_GET_SI,
+	THD_GET_DI,
+	/* thread id */
+	THD_GET_TID,
+};
+
+/* Tcap info */
+enum {
+	TCAP_GET_BUDGET,
 };
 
 enum {
@@ -883,8 +902,7 @@ static inline void
 cos_mem_fence(void)
 { __asm__ __volatile__("mfence" ::: "memory"); }
 
-// ncpu * 16 (or max 256) entries. can be increased if necessary.
-//#define COS_THD_INIT_REGION_SIZE (((NUM_CPU*16) > (1<<8)) ? (1<<8) : (NUM_CPU*16))
+/* 256 entries. can be increased if necessary */
 #define COS_THD_INIT_REGION_SIZE (1<<8)
 // Static entries are after the dynamic allocated entries
 #define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))

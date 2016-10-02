@@ -875,7 +875,7 @@ void retype_test(void)
 	last_tick = printc("FLUSH!!");
 	for (i = 0; i < ITER; i++) {
 		s = tsc_start();
-#define RETYPE_ADDR (BOOT_MEM_PM_BASE + COS_MAX_MEMORY*PAGE_SIZE - RETYPE_MEM_SIZE)
+#define RETYPE_ADDR (BOOT_MEM_KM_BASE + COS_MAX_MEMORY*PAGE_SIZE - RETYPE_MEM_SIZE)
 		ret = call_cap_op(PING_ROOTPGTBL, CAPTBL_OP_MEM_RETYPE2USER,
 				  RETYPE_ADDR, 0, 0, 0);
 		rdtscll(e);

@@ -48,6 +48,9 @@ mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 			}
 		}
 	}
+
+	memset((void *)r, 0, npages * (PAGE_SIZE/sizeof(u8_t)));
+
 	return r;
 }
 
@@ -87,6 +90,15 @@ kern_setup_image(void)
 			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
 			timer_set_hpet_page(j);
 			j++;
+		}
+
+		/* lapic memory map */
+		u32_t lapic = lapic_find_localaddr(acpi_find_apic());
+		if (lapic) {
+			page = round_up_to_pgd_page(lapic & 0xffffffff) - (1 << 22);
+			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
+			lapic_set_page(j);
+			j ++;
 		}
 	}
 
