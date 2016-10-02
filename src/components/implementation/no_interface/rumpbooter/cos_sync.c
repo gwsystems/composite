@@ -11,11 +11,12 @@ u32_t intrs = 0; 	           /* Intrrupt bit mask */
 extern volatile thdcap_t cos_cur; /* Last running rk thread */
 volatile unsigned int cos_intrdisabled = 0; /* Variable to detect if cos interrupt threads disabled interrupts */
 
-/* Called from cos_irq_handler */
+/* Called from cos_irqthd_handler */
 
 static inline void 
 isr_setcontention(unsigned int intr) 
 { 
+	/* intr is a thdcap_t */
 	isr_state_t tmp, final;
 
 	do {
@@ -56,6 +57,7 @@ intr_start(thdcap_t thdcap)
 			isr_get(tmp, &isdisabled, &contending);
 
 			contending = thdcap;
+
 			ret = isdisabled;
 			if (!isdisabled) assert(cos_nesting == 0);
 

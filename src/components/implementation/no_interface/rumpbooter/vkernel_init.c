@@ -102,6 +102,7 @@ vm0_io_fn(void *d)
 {
 	int line;
 	arcvcap_t rcvcap;
+	thdcap_t thdcap;
 
 	switch((int)d) {
 		case 1:
@@ -113,10 +114,10 @@ vm0_io_fn(void *d)
 		default: assert(0);
 	}
 	rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + (((int)d - 1) * CAP64B_IDSZ);
+	thdcap = VM0_CAPTBL_SELF_IOTHD_SET_BASE + (((int)d - 1) * CAP16B_IDSZ);
 	while (1) {
 		int pending = cos_rcv(rcvcap);
-		intr_start(line);
-	//	printc("%s = %d\n", __func__, (int)d);
+		intr_start(thdcap);
 		bmk_isr(line);
 		intr_end();
 	}
@@ -127,8 +128,7 @@ vmx_io_fn(void *d)
 {
 	while (1) {
 		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
-		intr_start(12);
-	//	printc("%s = %d\n", __func__, (int)d);
+		intr_start(VM_CAPTBL_SELF_IOTHD_BASE);
 		bmk_isr(12);
 		intr_end();
 	}

@@ -104,15 +104,15 @@ rump2cos_rcv(void)
 void
 cos_irqthd_handler(void *line)
 {
-//	printc("cos_irqthd_handler\n");
 	int which = (int)line;
+	thdcap_t thdcap = irq_thdcap[which];
+	arcvcap_t arcvcap = irq_arcvcap[which];
 	
 	while(1) {
-		int pending = cos_rcv(irq_arcvcap[which]);
+		int pending = cos_rcv(arcvcap);
 
-		intr_start(irq_thdcap[which]);
+		intr_start(thdcap);
 
-		//printc("%s = %d\n", __func__, which);
 		bmk_isr(which);
 
 		intr_end();
