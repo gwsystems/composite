@@ -47,6 +47,7 @@ printc(char *fmt, ...)
 }
 
 int vmid = -1;
+int rumpns_vmid;
 #define PRINTVM(fmt, args...) printc("%d: " fmt, vmid , ##args)
 
 extern thdcap_t vm_exit_thd;
@@ -659,6 +660,7 @@ void
 vm_init(void *id)
 {
 	vmid = (int)id;
+	rumpns_vmid = vmid;
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ);
 	if (id == 0) { 
 		cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
