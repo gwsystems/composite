@@ -22,7 +22,7 @@ capid_t irq_thdcap[HW_ISR_LINES];
 thdid_t irq_thdid[HW_ISR_LINES];
 tcap_t irq_tcap[HW_ISR_LINES]; 
 capid_t irq_arcvcap[HW_ISR_LINES];
-
+tcap_prio_t irq_prio[HW_ISR_LINES];
 
 enum vm_prio {
 #if defined(__INTELLIGENT_TCAPS__)
@@ -39,16 +39,17 @@ enum vm_prio {
 
 
 #if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-#define RIO_PRIO    PRIO_MID
-#define VIO_PRIO    PRIO_HIGH
-#define RK_THD_PRIO PRIO_LOW
+#define RIO_PRIO    PRIO_MID /* REAL I/O Priority */
+#define VIO_PRIO    PRIO_HIGH /* Virtual I/O Priority */
+#define RK_THD_PRIO PRIO_LOW /* Rumpkernel thread priority */
 
-#define IO_BOUND_VM  1
-#define CPU_BOUND_VM 2
+#define IO_BOUND_VM  1  /* VM that is I/O Bound */
+#define CPU_BOUND_VM (COS_VIRT_MACH_COUNT  + 1) /* VM that is CPU Bound: Set to a val beyond number of VMs, so no CPU BOUND VM */ 
 
-#define VIO_BUDGET_THR (VM_TIMESLICE)
-#define VIO_BUDGET_MAX (2*VM_TIMESLICE)
-#define VIO_BUDGET_APPROX (VM_MIN_TIMESLICE * 1000) // 1ms
+#define VIO_BUDGET_MAX (VM_TIMESLICE) /* Maximum a I/O Tcap in DOM0 should have */
+#define VIO_BUDGET_THR (VM_MIN_TIMESLICE * 1000) /* minimum excess budget with I/O tcap to transfer/delegate back to VM */
+
+#define VIO_BUDGET_APPROX (VM_MIN_TIMESLICE * 1000) /* Hack: budget transfered from I/O Tcap to DOM0's Tcap */
 #endif
 
 enum vm_status {

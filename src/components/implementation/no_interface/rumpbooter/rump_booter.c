@@ -25,6 +25,7 @@ hw_irq_alloc(void){
 	memset(irq_thdid, 0, sizeof(thdid_t) * 32);
 	memset(irq_arcvcap, 0, sizeof(arcvcap_t) * 32);
 	memset(irq_tcap, 0, sizeof(tcap_t) * 32);
+	memset(irq_prio, 0, sizeof(tcap_prio_t) * 32);
 
 	for(i = 1; i < HW_ISR_LINES; i++){
 
@@ -33,16 +34,31 @@ hw_irq_alloc(void){
 			case IRQ_VM1:
 				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE;
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+				irq_prio[i]  = VIO_PRIO;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				irq_prio[i] = TCAP_PRIO_MAX;
+#endif
 				break;
 			case IRQ_VM2:
 				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE + CAP16B_IDSZ;
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+				irq_prio[i]  = VIO_PRIO;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				irq_prio[i] = TCAP_PRIO_MAX;
+#endif
 				break;
 			default:
 				irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, (void *)i);
 				assert(irq_thdcap[i]);
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
 				assert(irq_thdid[i]);
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+				irq_prio[i] = RIO_PRIO;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				irq_prio[i] = TCAP_PRIO_MAX;
+#endif
 
 #if defined(__INTELLIGENT_TCAPS__)
 				/* TODO: This path of tcap_transfer */
@@ -67,6 +83,11 @@ hw_irq_alloc(void){
 				case IRQ_DOM0_VM:
 					irq_thdcap[i] = VM_CAPTBL_SELF_IOTHD_BASE;
 					irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+					irq_prio[i]  = VIO_PRIO;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+					irq_prio[i] = TCAP_PRIO_MAX;
+#endif
 					break;
 				default: 
 					break;

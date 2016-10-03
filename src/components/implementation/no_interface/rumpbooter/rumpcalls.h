@@ -27,6 +27,7 @@ extern int boot_thd;
 struct bmk_thread;
 extern __thread struct bmk_thread *bmk_current;
 extern tcap_res_t vms_budget_track[];
+extern tcap_prio_t rk_thd_prio;
 
 struct bmk_tcb *tcb;
 extern void bmk_isr(int which);

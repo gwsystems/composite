@@ -77,7 +77,7 @@ intr_start(thdcap_t thdcap)
 		}
 
 		do {
-			ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0 || ret == -EAGAIN);
 		} while (ret == -EAGAIN);
 	}

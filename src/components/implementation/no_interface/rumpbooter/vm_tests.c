@@ -1,5 +1,6 @@
 #include "micro_booter.h"
 #include "vk_types.h"
+#include "vkern_api.h"
 
 void
 test_shmem(int vm)

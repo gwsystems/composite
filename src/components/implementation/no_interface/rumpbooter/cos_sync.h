@@ -42,6 +42,26 @@ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
         return (int)z;
 }
 
+static inline int
+intr_translate_thdcap2irq(thdcap_t tc)
+{
+	int i = 0;
+
+	if (tc == 0) return -1;
+
+	if (vmid) {
+		if (tc == irq_thdcap[IRQ_DOM0_VM])
+			return IRQ_DOM0_VM;
+		return -1;
+	}
+
+	while (tc != irq_thdcap[i] && i < HW_ISR_LINES) i ++;
+
+	if (i >= HW_ISR_LINES) return -1;
+
+	return i;
+}
+
 static unsigned int
 intr_translate_thdid2irq(thdid_t tid)
 {
@@ -55,9 +75,9 @@ intr_translate_thdid2irq(thdid_t tid)
 		else return -1;
 	}
 
-	while(tid != irq_thdid[i] && i < 32) i++;
+	while(tid != irq_thdid[i] && i < HW_ISR_LINES) i++;
 	/* Make sure that we are dealing with an irq thread id*/
-	if(i >= 32) return -1;
+	if(i >= HW_ISR_LINES) return -1;
 
 	return i;
 }
@@ -160,17 +180,22 @@ static inline void
 intr_enable(void)
 {
 	thdcap_t contending;
+	tcap_prio_t prio;
 	int ret;
 
 	contending = isr_enable();
 	if (unlikely(contending && !cos_intrdisabled)) {
+		int irq = intr_translate_thdcap2irq(contending);
+
+		assert (irq >= 0);
+		prio = irq_prio[irq];
 		/*
 		 * Assumption here: we have actually re-enabled
 		 * interrupts here as opposed to release another
 		 * cos_nesting of the interrupts
 		 */
 		do {
-			ret = cos_switch(contending, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			ret = cos_switch(contending, BOOT_CAPTBL_SELF_INITTCAP_BASE, prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert (ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
 	}

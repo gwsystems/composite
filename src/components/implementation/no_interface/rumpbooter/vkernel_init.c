@@ -244,6 +244,7 @@ sched_fn(void)
 		while ((x = vm_next(&vms_runqueue)) != NULL) {
 			int index = x->id;
 			tcap_res_t budget = 0;
+			int send = 0;
 
 			if (unlikely(vmstatus[index] == VM_EXITED)) {
 				vm_deletenode(&vms_runqueue, x); 
@@ -253,28 +254,36 @@ sched_fn(void)
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 
 			if (!TCAP_RES_IS_INF(budget)) {
-				/* 
-				 * if it has high enough accumulated budget already.. just giving it a bit..
-				 * because delegate with 0 res, gives all of src->budget
-                                 * essentially promoting it to have INF budget in this case.. 
-				 */ 
-				if (budget > vmcredits[index]) vmbudget[index] = (VM_MIN_TIMESLICE * cycs_per_usec); 
-				else vmbudget[index] = vmcredits[index] - budget;
-
-				/* TODO: should I just asnd to this? */
-				if (vmbudget[index] == 0) vmbudget[index] = (VM_MIN_TIMESLICE * cycs_per_usec);
+				if (budget < vmcredits[index]) vmbudget[index] = vmcredits[index] - budget;
+				else send = 1;
 			}
 
-			//printc("%s:%d - %d: %lu %lu\n", __func__, __LINE__, index, budget, vmbudget[index]);
-			cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD);
+			if (!send) {
+				if (cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+			} else { 
+				if (cos_asnd(vksndvm[index])) assert(0);
+			}
 
-			while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) ;
+			while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) {
+				/* if a VM is blocked.. just move it to the end of the queue..*/
+				if (tid && blocked) {
+					int i;
+	
+					for (i = 0 ; i < COS_VIRT_MACH_COUNT - 1 ; i ++) {
+						if (vm_main_thdid[i] == tid && x->prev != &vmnode[i]) {
+							/* push it to the end of the queue.. */
+							vm_deletenode(&vms_runqueue, &vmnode[i]);
+							vm_insertnode(&vms_runqueue, &vmnode[i]);	
+						}
+					}
+				} 
+			}
 		}
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	while (ready_vms) {
 		struct vm_node *x, *y;
-		int count_over = 0;
+		unsigned int count_over = 0;
 
 		while ((x = vm_next(&vms_boost)) != NULL) { /* if there is at least one element in boost prio.. */
 			int index = x->id;

@@ -18,6 +18,11 @@ extern struct cos_rumpcalls crcalls;
 
 /* Thread cap */
 volatile thdcap_t cos_cur = BOOT_CAPTBL_SELF_INITTHD_BASE;
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+tcap_prio_t rk_thd_prio = RK_THD_PRIO;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+tcap_prio_t rk_thd_prio = TCAP_PRIO_MAX;
+#endif
 
 /* Mapping the functions from rumpkernel to composite */
 
@@ -83,6 +88,7 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	/* DOM0 just sends out the packets.. */
+	/* DO I need to check if its I/O BOUND VM here? */
 	if (!srcvm) {
 		tcap_t tcp = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (dstvm - 1) * CAP16B_IDSZ;
 		tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, tcp, TCAP_GET_BUDGET);
@@ -92,16 +98,26 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 
 			vms_budget_track[dstvm - 1] = 0;
 		} else {
+			/* I should stop this at some point.. What's that? When this reaches INF?? */
 			vms_budget_track[dstvm - 1] += (VIO_BUDGET_APPROX * cycs_per_usec);
+			/* Stop sending packets to VM when it reaches a certain threshold */
 		}
 
 		/* TODO: Before sending a event to the VM, first see if we can account for the time spent in i/o  processing */
-		cos_asnd(sndcap);
+		if(cos_asnd(sndcap)) assert(0);
 	}
 	/* VMs send out the packet and time to process the packet - All remaining budget in Tcap */
-	else cos_tcap_delegate(sndcap, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, VIO_PRIO, TCAP_DELEG_YIELD);
+	else {
+		tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
+		tcap_res_t res;
+
+		if (budget >= (VIO_BUDGET_APPROX * cycs_per_usec)) res = budget / 2; /* 50% budget */
+		else res = 0; /* 0 = 100% budget */
+
+		if(cos_tcap_delegate(sndcap, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, VIO_PRIO, TCAP_DELEG_YIELD)) assert(0);
+	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	cos_asnd(sndcap);
+	if(cos_asnd(sndcap)) assert(0);
 #endif
 	return 1;
 }
@@ -224,7 +240,7 @@ intr_switch(void)
 
 		if((tmp>>(i-1)) & 1) {
 			do {
-				ret = cos_switch(irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				ret = cos_switch(irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 				assert (ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 		}
@@ -258,10 +274,15 @@ check_vio_budgets(void)
 		/*
 		 * If I was not able to account for the budget after I/O processing.. do it now..
 		 */
-		if (vms_budget_track[i - 1] && budget >= vms_budget_track[i - 1]) {
-			if (cos_tcap_transfer(BOOT_CAPTBL_SELF_INITRCV_BASE, tcp, vms_budget_track[i - 1], RIO_PRIO)) assert(0);
-			budget -= vms_budget_track[i - 1];
-			vms_budget_track[i - 1] = 0;
+		if (vms_budget_track[i - 1]) {
+			tcap_res_t res;
+
+			if (budget >= vms_budget_track[i - 1]) res = vms_budget_track[i - 1];
+			else res = budget; 
+			
+			if (cos_tcap_transfer(BOOT_CAPTBL_SELF_INITRCV_BASE, tcp, res, RIO_PRIO)) assert(0);
+			budget -= res;
+			vms_budget_track[i - 1] -= res;
 		}
 		/*
 		 * I've more than required budget and I've enough to transfer,
@@ -279,10 +300,51 @@ check_vio_budgets(void)
 #endif
 }
 
+static void
+cpu_bound_thd_fn(void *d)
+{
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+
+	while (1) {
+		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	}
+}
+
+static void
+cpu_bound_test(void)
+{
+#if defined (__SIMPLE_DISTRIBUTED_TCAPS__)
+#define BOUND_TEST_ITERS 100000
+	thdcap_t ts;
+
+	if (vmid != CPU_BOUND_VM) return;
+	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, cpu_bound_thd_fn, NULL);
+	assert(ts);
+	cos_thd_switch(ts);
+
+	while (1) {
+		int i;
+		thdid_t tid;
+		int  blocked;
+		cycles_t cycles;
+
+		for (i = 0 ; i < BOUND_TEST_ITERS ; i++) {
+			cos_thd_switch(ts);
+		}
+
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles));
+	}
+#endif
+	return;
+}
+
 /* Called once from RK init thread. The one in while(1) */
 void
 cos_resume(void)
 {
+	/* this will not return if this vm is set to be CPU bound */
+	cpu_bound_test();
+
 	while(1) {
 		int ret, first = 1;
 		unsigned int isdisabled;
@@ -290,7 +352,8 @@ cos_resume(void)
 		do {
 			thdcap_t contending;
 			cycles_t cycles;
-			int pending, tid, blocked, irq_line;
+			int pending, blocked, irq_line;
+			thdid_t tid;
 
 			/*
 			 * Handle all possible interrupts when
@@ -305,7 +368,7 @@ cos_resume(void)
 		 	 */
 
 			do {
-				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, (thdid_t *)&tid, &blocked, &cycles);
+				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles);
 				assert(pending <= 1);
 
 				irq_line = intr_translate_thdid2irq(tid);
@@ -331,7 +394,7 @@ cos_resume(void)
 rk_resume:
 		do {
 			if(cos_intrdisabled) break;
-			ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
 
@@ -352,7 +415,7 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 	cos_cur = temp;
 
 	do {
-		ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
+		ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
 		assert(ret == 0 || ret == -EAGAIN);
 		if (ret == -EAGAIN) {
 			/*
