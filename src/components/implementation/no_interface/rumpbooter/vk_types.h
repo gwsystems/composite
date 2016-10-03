@@ -16,6 +16,12 @@
 #define __SIMPLE_DISTRIBUTED_TCAPS__
 #undef __INTELLIGENT_TCAPS__
 
+#define HW_ISR_LINES 32
+
+capid_t irq_thdcap[HW_ISR_LINES]; 
+thdid_t irq_thdid[HW_ISR_LINES];
+tcap_t irq_tcap[HW_ISR_LINES]; 
+capid_t irq_arcvcap[HW_ISR_LINES];
 
 
 enum vm_prio {

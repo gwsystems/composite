@@ -39,7 +39,7 @@ hw_irq_alloc(void){
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
 				break;
 			default:
-				irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, i);
+				irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, (void *)i);
 				assert(irq_thdcap[i]);
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
 				assert(irq_thdid[i]);

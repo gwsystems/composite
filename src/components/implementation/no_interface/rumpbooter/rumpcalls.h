@@ -8,6 +8,9 @@
 #include "vk_types.h"
 
 typedef __builtin_va_list va_list;
+#undef va_start
+#undef va_arg
+#undef va_end
 #define va_start(v,l)      __builtin_va_start((v),l)
 #define va_arg             __builtin_va_arg
 #define va_end(va_arg)     __builtin_va_end(va_arg)
@@ -26,7 +29,11 @@ extern __thread struct bmk_thread *bmk_current;
 extern tcap_res_t vms_budget_track[];
 
 struct bmk_tcb *tcb;
+extern void bmk_isr(int which);
 
+void* rump_cos_malloc(size_t size);
+void* rump_cos_calloc(size_t nmemb, size_t _size);
+void rump_cos_free(void *ptr);
 
 struct cos_rumpcalls
 {
@@ -35,14 +42,14 @@ struct cos_rumpcalls
 	int    (*rump_vsnprintf)(char* str, size_t size, const char *format, va_list arg_ptr);
 	void   (*rump_cos_print)(char s[], int ret);
 	int    (*rump_strcmp)(const char *a, const char *b);
-	char*  (*rump_strncpy)(char *d, const char *s, unsigned long n);
-	void*  (*rump_memcalloc)(unsigned long n, unsigned long size);
-	void*  (*rump_memalloc)(unsigned long nbytes, unsigned long align);
+	char*  (*rump_strncpy)(char *d, const char *s, size_t n);
+	void*  (*rump_memcalloc)(size_t n, size_t size);
+	void*  (*rump_memalloc)(size_t nbytes, size_t align);
 	void*  (*rump_pgalloc)(void);
 	void   (*rump_memfree)(void *cp);
-	void   (*rump_memset)(void *b, int c, unsigned long n); //testing
+	void*  (*rump_memset)(void *b, int c, size_t n); //testing
 	u16_t  (*rump_cos_thdid)(void);
-	void*  (*rump_memcpy)(void *d, const void *src, unsigned long n);
+	void*  (*rump_memcpy)(void *d, const void *src, size_t n);
 	void   (*rump_cpu_sched_create)(struct bmk_thread *thread, struct bmk_tcb *tcb,
 			void (*f)(void *), void *arg,
 			void *stack_base, unsigned long stack_size);

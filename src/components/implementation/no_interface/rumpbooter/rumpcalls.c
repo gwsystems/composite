@@ -192,7 +192,7 @@ int boot_thd = BOOT_CAPTBL_SELF_INITTHD_BASE;
 void
 cos_tls_init(unsigned long tp, thdcap_t tc)
 {
-	cos_thd_mod(&booter_info, tc, tp);
+	cos_thd_mod(&booter_info, tc, (void *)tp);
 }
 
 void
@@ -305,7 +305,7 @@ cos_resume(void)
 		 	 */
 
 			do {
-				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles);
+				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, (thdid_t *)&tid, &blocked, &cycles);
 				assert(pending <= 1);
 
 				irq_line = intr_translate_thdid2irq(tid);
@@ -347,7 +347,7 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 	int ret;
 
 	if(intrs) printc("FIXME: An interrupt is pending while rk is switching threads...\n");
-	if(cos_isr) printc("%b\n", cos_isr);
+	if(cos_isr) printc("%x\n", (unsigned int)cos_isr);
 	assert(!cos_isr);
 	cos_cur = temp;
 

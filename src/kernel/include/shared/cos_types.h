@@ -911,11 +911,4 @@ cos_mem_fence(void)
 #define __KERNEL_PERCPU 0
 #endif
 
-#define HW_ISR_LINES 32
-
-capid_t irq_thdcap[HW_ISR_LINES]; 
-thdid_t irq_thdid[HW_ISR_LINES];
-tcap_t irq_tcap[HW_ISR_LINES]; 
-capid_t irq_arcvcap[HW_ISR_LINES];
-
 #endif /* TYPES_H */

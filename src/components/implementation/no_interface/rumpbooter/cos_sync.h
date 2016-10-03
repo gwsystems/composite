@@ -66,7 +66,7 @@ static inline void
 intr_update(unsigned int irq_line, int rcving)
 {
 	/* if an event for not an irq_line */
-	if(irq_line == -1) return;
+	if((int)irq_line == -1) return;
 
 	assert(irq_line);
 
@@ -118,7 +118,7 @@ isr_disable(void)
 			assert(!isdisabled);
 			assert(!cos_nesting);
 			final = isr_construct(1, contending);
-		} while (unlikely(!ps_cas(&cos_isr, tmp, final)));
+		} while (unlikely(!ps_cas((unsigned long *)&cos_isr, tmp, final)));
 	}
 		
 	cos_nesting++;
@@ -146,7 +146,7 @@ isr_enable(void)
 			/* no more cos_nesting, actually "reenable" interrupts */
 			final = isr_construct(0, 0);
 
-		} while (unlikely(!ps_cas(&cos_isr, tmp, final)));
+		} while (unlikely(!ps_cas((unsigned long *)&cos_isr, tmp, final)));
 	}
 
 	return contending;
