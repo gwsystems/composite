@@ -23,6 +23,7 @@ extern int boot_thd;
 
 struct bmk_thread;
 extern __thread struct bmk_thread *bmk_current;
+extern tcap_res_t vms_budget_track[];
 
 struct bmk_tcb *tcb;
 

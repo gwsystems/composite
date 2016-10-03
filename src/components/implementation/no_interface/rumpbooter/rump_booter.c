@@ -11,10 +11,15 @@
 extern struct cos_compinfo booter_info;
 extern int vmid;
 
+tcap_res_t vms_budget_track[COS_VIRT_MACH_COUNT - 1];
+
 void
 hw_irq_alloc(void){
 
 	int i, ret;
+
+	for (i = 0 ; i < COS_VIRT_MACH_COUNT - 1 ; i ++)
+		vms_budget_track[i] = 0;
 
 	memset(irq_thdcap, 0, sizeof(thdcap_t) * 32);
 	memset(irq_thdid, 0, sizeof(thdid_t) * 32);
@@ -39,7 +44,7 @@ hw_irq_alloc(void){
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
 				assert(irq_thdid[i]);
 
-#ifdef __INTELLIGENT_TCAPS__
+#if defined(__INTELLIGENT_TCAPS__)
 				/* TODO: This path of tcap_transfer */
 				irq_tcap[i] = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX);
 				assert(irq_tcap[i]);
@@ -50,7 +55,7 @@ hw_irq_alloc(void){
 					printc("Irq %d Tcap transfer failed %d\n", i, ret);
 					assert(0);
 				}
-#elif defined __SIMPLE_XEN_LIKE_TCAPS__
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 				assert(irq_arcvcap[i]);
 #endif

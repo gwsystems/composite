@@ -80,9 +80,29 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 
 	//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
 	cos_shm_write(buff, size, srcvm, dstvm);	
+
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+	/* DOM0 just sends out the packets.. */
+	if (!srcvm) {
+		tcap_t tcp = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (dstvm - 1) * CAP16B_IDSZ;
+		tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, tcp, TCAP_GET_BUDGET);
+	
+		if (budget >= (VIO_BUDGET_APPROX * cycs_per_usec)) {
+			if (cos_tcap_transfer(BOOT_CAPTBL_SELF_INITRCV_BASE, tcp, (VIO_BUDGET_APPROX * cycs_per_usec), RIO_PRIO)) assert(0);
+
+			vms_budget_track[dstvm - 1] = 0;
+		} else {
+			vms_budget_track[dstvm - 1] += (VIO_BUDGET_APPROX * cycs_per_usec);
+		}
+
+		/* TODO: Before sending a event to the VM, first see if we can account for the time spent in i/o  processing */
+		cos_asnd(sndcap);
+	}
+	/* VMs send out the packet and time to process the packet - All remaining budget in Tcap */
+	else cos_tcap_delegate(sndcap, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, VIO_PRIO, TCAP_DELEG_YIELD);
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	cos_asnd(sndcap);
-	//if (srcvm) cos_asnd(sndcap);
-	//else cos_tcap_delegate(sndcap, BOOT_CAPTBL_SELF_INITTCAP_BASE, VM_IO_TIMESLICE, PRIO_UNDER, TCAP_DELEG_YIELD);
+#endif
 	return 1;
 }
 
@@ -211,6 +231,53 @@ intr_switch(void)
 	}
 }
 
+#define CHECK_ITER 20
+static inline void
+check_vio_budgets(void)
+{
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+	int i;
+	static int iters;
+
+	if (vmid) return;
+
+	iters ++;
+	if (iters != CHECK_ITER) return;
+	iters = 0;
+
+	for ( i = 1 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+		tcap_res_t budget;
+		tcap_t tcp;
+		asndcap_t snd;
+		tcap_res_t budg_max = VIO_BUDGET_MAX * cycs_per_usec;
+		tcap_res_t budg_thr = VIO_BUDGET_THR * cycs_per_usec;
+
+		tcp = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + ((i - 1) * CAP16B_IDSZ);
+		budget = (tcap_res_t)cos_introspect(&booter_info, tcp, TCAP_GET_BUDGET);
+
+		/*
+		 * If I was not able to account for the budget after I/O processing.. do it now..
+		 */
+		if (vms_budget_track[i - 1] && budget >= vms_budget_track[i - 1]) {
+			if (cos_tcap_transfer(BOOT_CAPTBL_SELF_INITRCV_BASE, tcp, vms_budget_track[i - 1], RIO_PRIO)) assert(0);
+			budget -= vms_budget_track[i - 1];
+			vms_budget_track[i - 1] = 0;
+		}
+		/*
+		 * I've more than required budget and I've enough to transfer,
+		 * If I don't have this check, I might be trasferring in very small chunks.. 
+		 */
+		if (budget >= budg_max && ((budget - budg_max) >= budg_thr)) {
+			tcap_res_t bud = (budget - budg_max);			
+
+			snd = VM0_CAPTBL_SELF_IOASND_SET_BASE + ((i - 1) * CAP64B_IDSZ);
+			if (cos_tcap_delegate(snd, tcp, bud, VIO_PRIO, TCAP_DELEG_YIELD)) assert(0);
+		} 
+	}
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+	return;
+#endif
+}
 
 /* Called once from RK init thread. The one in while(1) */
 void
@@ -267,6 +334,8 @@ rk_resume:
 			ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
+
+		check_vio_budgets();
 	}
 }
 
