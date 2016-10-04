@@ -598,7 +598,7 @@ void
 test_run_mb(void)
 {
 	test_timer();
-	test_budgets();
+//	test_budgets();
 
 	test_thds();
 	test_thds_perf();
@@ -616,9 +616,9 @@ test_run_mb(void)
 
 /*
  * Executed in vkernel environment:
- *  Some of the tests are not feasible at least for now 
- *  to run in vkernel env. (ex: tcaps related, because budgets 
- *  in these tests are INF. 
+ *  Some of the tests are not feasible at least for now
+ *  to run in vkernel env. (ex: tcaps related, because budgets
+ *  in these tests are INF.
  *
  * TODO: Fix those eventually.
  */
