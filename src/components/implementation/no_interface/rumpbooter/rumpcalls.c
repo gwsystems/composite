@@ -18,6 +18,7 @@ extern struct cos_rumpcalls crcalls;
 
 /* Thread cap */
 volatile thdcap_t cos_cur = BOOT_CAPTBL_SELF_INITTHD_BASE;
+volatile tcap_t cos_cur_tcap = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 tcap_prio_t rk_thd_prio = RK_THD_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
@@ -79,6 +80,7 @@ int
 cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm){
 
 	asndcap_t sndcap;
+	int ret;
 
 	if(srcvm == 0) sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (dstvm - 1) * CAP64B_IDSZ;
 	else sndcap = VM_CAPTBL_SELF_IOASND_BASE;
@@ -88,21 +90,38 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	/* DOM0 just sends out the packets.. */
-	/* DO I need to check if its I/O BOUND VM here? */
 	if (!srcvm) {
+		tcap_res_t res = (VIO_BUDGET_APPROX * cycs_per_usec);
+		tcap_res_t min_slice = (VM_MIN_TIMESLICE * cycs_per_usec);
+
+		vms_budget_track[dstvm - 1] += res;
+		if (TCAP_RES_IS_INF(vms_budget_track[dstvm - 1])) vms_budget_track[dstvm - 1] -= min_slice;
+		
+		/*
+		 * FIXME: It's probably not a good idea to transfer back budget at every packet..
+		 *        Instead, let DOM0's Time (threshold) management take care of it, 
+		 * 	  which runs periodically..
+		 */
+#if 0
 		tcap_t tcp = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (dstvm - 1) * CAP16B_IDSZ;
+		tcap_res_t res = (VIO_BUDGET_APPROX * cycs_per_usec);
+		tcap_res_t thr = (VIO_BUDGET_THR * cycs_per_usec);
 		tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, tcp, TCAP_GET_BUDGET);
 	
-		if (budget >= (VIO_BUDGET_APPROX * cycs_per_usec)) {
-			if (cos_tcap_transfer(BOOT_CAPTBL_SELF_INITRCV_BASE, tcp, (VIO_BUDGET_APPROX * cycs_per_usec), RIO_PRIO)) assert(0);
+		if (cycles_same(budget, (res + thr)) || budget < (res + thr)) {
+			vms_budget_track[dstvm - 1] += (VIO_BUDGET_APPROX * cycs_per_usec);
+			if (TCAP_RES_IS_INF(vms_budget_track[dstvm - 1])) vms_budget_track[dstvm - 1] -= ((VM_MIN_TIMESLICE * cycs_per_usec));
+			/* Stop sending packets to VM when it reaches a certain threshold ?? */
+		} else {
+
+			if ((ret = cos_tcap_transfer(intr_real_irq_rcv(), tcp, res, RIO_PRIO))) {
+				printc("transfer failed: %d\n", ret);
+				assert(0);
+			}
 
 			vms_budget_track[dstvm - 1] = 0;
-		} else {
-			/* I should stop this at some point.. What's that? When this reaches INF?? */
-			vms_budget_track[dstvm - 1] += (VIO_BUDGET_APPROX * cycs_per_usec);
-			/* Stop sending packets to VM when it reaches a certain threshold */
 		}
-
+#endif
 		/* TODO: Before sending a event to the VM, first see if we can account for the time spent in i/o  processing */
 		if(cos_asnd(sndcap)) assert(0);
 	}
@@ -240,7 +259,7 @@ intr_switch(void)
 
 		if((tmp>>(i-1)) & 1) {
 			do {
-				ret = cos_switch(irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(irq_thdcap[i]), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 				assert (ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 		}
@@ -274,15 +293,23 @@ check_vio_budgets(void)
 		/*
 		 * If I was not able to account for the budget after I/O processing.. do it now..
 		 */
-		if (vms_budget_track[i - 1]) {
+		if (vms_budget_track[i - 1] > budg_thr && !cycles_same(vms_budget_track[i - 1], budget)) {
 			tcap_res_t res;
 
-			if (budget >= vms_budget_track[i - 1]) res = vms_budget_track[i - 1];
-			else res = budget; 
+			if (budget > (vms_budget_track[i - 1] + budg_thr)) {
+				res = vms_budget_track[i - 1];
+				budget -= res;
+				vms_budget_track[i - 1] -= res;
+				if (cos_tcap_transfer(intr_real_irq_rcv(), tcp, res, RIO_PRIO)) assert(0);
+			}
+			else {
+				continue;
+				/* TODO: don't think it's the right move to take everything away from vio */
+				/* res = 0;
+				budget = 0;
+				vms_budget_track[i - 1] -= budget; */
+			}
 			
-			if (cos_tcap_transfer(BOOT_CAPTBL_SELF_INITRCV_BASE, tcp, res, RIO_PRIO)) assert(0);
-			budget -= res;
-			vms_budget_track[i - 1] -= res;
 		}
 		/*
 		 * I've more than required budget and I've enough to transfer,
@@ -291,7 +318,8 @@ check_vio_budgets(void)
 		if (budget >= budg_max && ((budget - budg_max) >= budg_thr)) {
 			tcap_res_t bud = (budget - budg_max);			
 
-			snd = VM0_CAPTBL_SELF_IOASND_SET_BASE + ((i - 1) * CAP64B_IDSZ);
+			snd = VM0_CAPTBL_SELF_INITASND_SET_BASE + ((i - 1) * CAP64B_IDSZ);
+
 			if (cos_tcap_delegate(snd, tcp, bud, VIO_PRIO, TCAP_DELEG_YIELD)) assert(0);
 		} 
 	}
@@ -394,7 +422,8 @@ cos_resume(void)
 rk_resume:
 		do {
 			if(cos_intrdisabled) break;
-			ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			/* TODO: decide which TCAP to use for rest of RK processing for I/O and do deficit accounting */
+			ret = cos_switch(cos_cur, cos_cur_tcap, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
 
@@ -415,7 +444,7 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 	cos_cur = temp;
 
 	do {
-		ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
+		ret = cos_switch(cos_cur, cos_cur_tcap, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
 		assert(ret == 0 || ret == -EAGAIN);
 		if (ret == -EAGAIN) {
 			/*

@@ -144,7 +144,7 @@ setup_credits(void)
 		if (vmstatus[i] != VM_EXITED) {
 			switch (i) {
 				case 0:
-#if defined(__INTELLIGENT_TCAPS__) || defined(_SIMPLE_DISTRIBUTED_TCAPS__)
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 					vmcredits[i] = (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 					vmcredits[i] = TCAP_RES_INF;
@@ -161,6 +161,7 @@ setup_credits(void)
 					break;
 			}
 		} 
+		printc("i:%d credits: %lu\n", i, vmcredits[i]);
 	}
 }
 
@@ -259,8 +260,10 @@ sched_fn(void)
 			}
 
 			if (!send) {
+				//printc("$%d:%lu:%lu-", index, budget, vmbudget[index]);
 				if (cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD)) assert(0);
 			} else { 
+				//printc("#%d:%lu-", index, budget);
 				if (cos_asnd(vksndvm[index])) assert(0);
 			}
 
@@ -375,6 +378,12 @@ cos_init(void)
 
 	cycs_per_usec = (unsigned int)cycs;
 
+	printc("cycles_per_usec: %lu, TIME QUANTUM: %lu, RES_INF: %lu\n", (unsigned long)cycs_per_usec, (unsigned long)(VM_TIMESLICE*cycs_per_usec), TCAP_RES_INF);
+
+	vm_list_init();
+	setup_credits();
+	fillup_budgets();
+
 	printc("Hypervisor:vkernel initializing\n");
 	cos_meminfo_init(&vkern_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&vkern_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
@@ -385,9 +394,16 @@ cos_init(void)
 	vk_termthd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vk_term_fn, NULL);
 	assert(vk_termthd);
 
-	vm_list_init();
-	setup_credits();
-	fillup_budgets();
+#if defined(__INTELLIGENT_TCAPS__)
+	printc("TODO: Intelligent TCAPS INFRA.. OOPS!\n");
+	assert(0);
+#elif defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+	printc("DISTRIBUTED TCAPS INFRA\n");
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+	printc("TCAPS INFRA to SIMULATE XEN ENV\n");
+#else
+	assert(0);
+#endif
 
 	for (id = 0; id < COS_VIRT_MACH_COUNT; id ++) {
 		printc("VM %d Initialization Start\n", id);
@@ -517,6 +533,10 @@ cos_init(void)
 #endif
 
 		if (id > 0) {
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+			/* DOM0 to have capability to delegate time to VM */
+			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_INITASND_SET_BASE + (id-1)*CAP64B_IDSZ, &vkern_info, vksndvm[id]);
+#endif
 			printc("\tSetting up Cross VM (between vm0 and vm%d) communication channels\n", id);
 			/* VM0 to VMid */
 			vm0_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[0].comp_cap, vm0_io_fn, (void *)id);
@@ -553,7 +573,7 @@ cos_init(void)
 			assert(vm0_io_rcv[id-1]);
 
 			/* for VM1: Transfer 50% budget from VM to DOM0 IO TCAP */
-			if (id == IO_BOUND_VM && (ret = cos_tcap_transfer(vm0_io_rcv[id-1], vminittcap[id], (vmbudget[id] / 2), VIO_PRIO))) {
+			if ((ret = cos_tcap_transfer(vm0_io_rcv[id-1], vminittcap[id], (vmbudget[id] / 2), VIO_PRIO))) {
 				printc("\tTcap transfer failed %d\n", ret);
 				assert(0);
 			}
