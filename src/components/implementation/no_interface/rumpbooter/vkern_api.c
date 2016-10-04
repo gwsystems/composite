@@ -65,8 +65,10 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 	producer = rb->head;
 
 	//store size of entry
-	rb->buf[producer] = size;
-	producer ++;
+	//rb->buf[producer] = size;
+	memcpy(&rb->buf[producer], &size, sizeof(size_t));
+	/* FIXME we can wrap wrong */
+	producer += sizeof(size_t);
 
 	//check split wraparound
 	if( producer+size >= (rb->size) ){
@@ -98,6 +100,7 @@ int
 vk_dequeue_size(unsigned int srcvm, unsigned int curvm)
 {
 	struct cos_shm_rb * rb;
+	int ret;
 
 	if (srcvm == 0) {
 		rb = vk_shmem_addr_recv(0);
@@ -105,7 +108,9 @@ vk_dequeue_size(unsigned int srcvm, unsigned int curvm)
 		rb = vk_shmem_addr_send(srcvm);
 	}
 	
-	return rb->buf[rb->tail];	
+	//return rb->buf[rb->tail];	
+	memcpy(&ret, &rb->buf[rb->tail], sizeof(size_t));
+	return ret;
 }
 
 int
@@ -117,8 +122,10 @@ vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
 	size_t size;
 
 	//get size of entry	
-	size = rb->buf[consumer];
-	consumer++;
+	//size = rb->buf[consumer];
+	memcpy(&size, &rb->buf[consumer], sizeof(size_t));
+	/* FIXME wrap issue */
+	consumer += sizeof(size_t);
 	
 	//check for empty	
 	assert(size > 0);
