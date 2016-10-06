@@ -44,6 +44,20 @@ vm_next(struct vm_list *l)
 }
 
 static struct vm_node *
+vm_prev(struct vm_list *l)
+{
+	struct vm_node *p;
+	assert(l);
+
+	p = l->s;
+	if (p == NULL) return NULL;
+	if (p->next == l->s) return p;
+	l->s = p->prev;
+
+	return p;
+}
+
+static struct vm_node *
 vm_deletenode(struct vm_list *l, struct vm_node *n)
 {
 	assert(l && n);

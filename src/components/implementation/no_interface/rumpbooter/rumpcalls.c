@@ -280,7 +280,7 @@ check_vio_budgets(void)
 	if (iters != CHECK_ITER) return;
 	iters = 0;
 
-	for ( i = 1 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+	for ( i = 1 ; i < COS_VIRT_MACH_COUNT - 1; i ++) {
 		tcap_res_t budget;
 		tcap_t tcp;
 		asndcap_t snd;
@@ -297,10 +297,10 @@ check_vio_budgets(void)
 			tcap_res_t res;
 
 			if (budget > (vms_budget_track[i - 1] + budg_thr)) {
-				res = vms_budget_track[i - 1];
+			/*	res = vms_budget_track[i - 1];
 				budget -= res;
 				vms_budget_track[i - 1] -= res;
-				if (cos_tcap_transfer(intr_real_irq_rcv(), tcp, res, RIO_PRIO)) assert(0);
+				if (cos_tcap_transfer(intr_real_irq_rcv(), tcp, res, RIO_PRIO)) assert(0); */
 			}
 			else {
 				continue;
@@ -320,7 +320,7 @@ check_vio_budgets(void)
 
 			snd = VM0_CAPTBL_SELF_INITASND_SET_BASE + ((i - 1) * CAP64B_IDSZ);
 
-			if (cos_tcap_delegate(snd, tcp, bud, VIO_PRIO, TCAP_DELEG_YIELD)) assert(0);
+			if (cos_tcap_delegate(snd, tcp, bud, PRIO_LOW, 0)) assert(0);
 		} 
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
