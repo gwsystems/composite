@@ -498,4 +498,8 @@ cos_vm_exit(void)
 
 void
 cos_sched_yield(void)
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+{ if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 { cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
+#endif

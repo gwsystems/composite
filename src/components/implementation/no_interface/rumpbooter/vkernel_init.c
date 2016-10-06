@@ -250,7 +250,7 @@ sched_fn(void *x)
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	while (ready_vms) {
-		tcap_res_t budget;
+		tcap_res_t vm_budget, sched_budget;
 		struct vm_node *x, *y;
 		int count_over = 0;
 
@@ -264,25 +264,34 @@ sched_fn(void *x)
 				continue;
 			}
 
-		//	budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
+			vm_budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
+			sched_budget = (tcap_res_t)cos_introspect(&vkern_info, sched_tcap, TCAP_GET_BUDGET);
 /*
 			if (!TCAP_RES_IS_INF(budget)) {
 				if (budget < vmcredits[index]) vmbudget[index] = vmcredits[index] - budget;
 				else send = 1;
 			}
+*/
+
+			if (!TCAP_RES_IS_INF(vm_budget) && (sched_budget > (VM_MIN_TIMESLICE * cycs_per_usec))) {
+				if (cycles_same(vmcredits[index], vm_budget) || vm_budget > vmcredits[index]) send = 1;
+				else vmbudget[index] = 0;
+			} else {
+				send = 1;
+			}
 
 			if (!send) {
 				//printc("$%d:%lu:%lu-", index, budget, vmbudget[index]);
-				if (cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+				if (cos_tcap_delegate(vksndvm[index], sched_tcap, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD)) assert(0);
 			} else { 
 				//printc("#%d:%lu-", index, budget);
 				if (cos_asnd(vksndvm[index])) assert(0);
 			}
-*/
+
 
 			/* FIXME: Hoping I don't need YIELD flag for now */
 		//	printc("Scheduling:%d:%lu-", index, budget);
-			if (cos_asnd(vksndvm[index])) assert(0);
+		//	if (cos_asnd(vksndvm[index])) assert(0);
 
 			while (cos_sched_rcv(sched_rcv, &tid, &blocked, &cycles)) {
 				/* if a VM is blocked.. just move it to the end of the queue..*/
@@ -692,6 +701,8 @@ cos_init(void)
 		vms_time_asnd[id] = cos_asnd_alloc(&vkern_info, vk_time_rcv[id], vkern_info.captbl_cap);
 		assert(vms_time_asnd[id]);
 		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_TIMEASND_BASE, &vkern_info, vms_time_asnd[id]);
+#elif defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_VKASND_BASE, &vkern_info, chtoshsnd);
 #endif
 
 		if (id > 0) {
