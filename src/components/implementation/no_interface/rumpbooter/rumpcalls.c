@@ -312,7 +312,6 @@ long long cycles_us = (long long)(CPU_GHZ * 1000);
 long long
 cos_vm_clock_now(void)
 {
-	assert(vmid <= 1);
 	uint64_t tsc_now = 0;
 	extern uint64_t t_vm_cycs;
 	extern uint64_t t_dom_cycs;

@@ -218,9 +218,6 @@ sched_fn(void)
 	int index;
 	tcap_res_t budget;
 
-	/* ditch micro_booter for now. */
-	cos_thd_switch(vm_exit_thd[COS_VIRT_MACH_COUNT - 1]);
-
 	printc("Scheduling VMs(Rumpkernel contexts)....\n");
 
 	while (ready_vms) {
@@ -563,14 +560,14 @@ cos_init(void)
 			printc("\tCreating shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_ALL_SZ);
 			
 			cos_shmem_alloc(&vmbooter_info[id], COS_SHM_ALL_SZ + ((sizeof(struct cos_shm_rb *)*2)*(COS_VIRT_MACH_COUNT-1)) );
-			for(i = 1; i < (COS_VIRT_MACH_COUNT-1); i++){
+			for(i = 1; i < (COS_VIRT_MACH_COUNT); i++){
 				printc("\tInitializing ringbufs for sending\n");
 				struct cos_shm_rb * sm_rb;	
 				vk_send_rb_create(sm_rb, i);
 			}
 
 			//allocating ring buffers for recving data
-			for(i = 1; i < (COS_VIRT_MACH_COUNT-1); i++){
+			for(i = 1; i < (COS_VIRT_MACH_COUNT); i++){
 				printc("\tInitializing ringbufs for rcving\n");
 				struct cos_shm_rb * sm_rb_r;	
 				vk_recv_rb_create(sm_rb_r, i);

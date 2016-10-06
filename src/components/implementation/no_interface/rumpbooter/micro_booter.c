@@ -58,14 +58,8 @@ vm_init(void *id)
 				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 	}
 
-	if (vmid == (COS_VIRT_MACH_COUNT-1)) {
-		PRINTC("Micro Booter started.\n");
-		test_run_vk();
-		PRINTC("Micro Booter done.\n");
-	} else {
-		PRINTC("rump_booter_init\n");
-		rump_booter_init();
-	}
+	PRINTC("rump_booter_init\n");
+	rump_booter_init();
 
 	EXIT();
 	return;
