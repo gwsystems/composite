@@ -289,13 +289,18 @@ sched_fn(void)
 			uint64_t start = 0;
 			uint64_t end = 0;
 
-			rdtscll(start);
+			//rdtscll(start);
 			if (send) cos_asnd(vksndvm[index]);
 			else cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD);
-			rdtscll(end);
+			//rdtscll(end);
 
-			if(index == 0) t_dom_cycs += (end-start);
-			else if(index == 1) t_vm_cycs += (end-start);
+			if (index == 0) {
+				//printc("t_dom_cycs: %llu\n", end-start);
+				t_dom_cycs += (end-start);
+			} else if(index == 1) {
+				//printc("t_vm_cycs: %llu\n", end-start);
+				t_vm_cycs += (end-start);
+			}
 
 			while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) ;
 		}
