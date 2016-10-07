@@ -5,7 +5,6 @@
 
 int
 vk_recv_rb_create(struct cos_shm_rb * sm_rb, int vmid){
-	assert(vmid < (COS_VIRT_MACH_COUNT-1));
 	
 	sm_rb = vk_shmem_addr_recv(vmid);
 	sm_rb->head = 0;
@@ -16,7 +15,6 @@ vk_recv_rb_create(struct cos_shm_rb * sm_rb, int vmid){
 
 int
 vk_send_rb_create(struct cos_shm_rb * sm_rb, int vmid){
-	assert(vmid < (COS_VIRT_MACH_COUNT-1));
 	
 	sm_rb = vk_shmem_addr_send(vmid);
 	sm_rb->head = 0;
