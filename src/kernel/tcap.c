@@ -72,12 +72,21 @@ __tcap_budget_xfer(struct tcap *d, struct tcap *s, tcap_res_t cycles)
 		bd->cycles = TCAP_RES_INF;
 		goto done;
 	}
+
+	//if (unlikely(cycles > bs->cycles)) cycles = bs->cycles;
 	if (unlikely(cycles > bs->cycles)) return -1;
-	if (!TCAP_RES_IS_INF(bd->cycles)) bd->cycles += cycles;
+
+	if (!TCAP_RES_IS_INF(bd->cycles)) {
+		tcap_res_t bd_cycs = bd->cycles + cycles;
+
+		if (unlikely((bd_cycs < bd->cycles) || TCAP_RES_IS_INF(bd_cycs))) bd->cycles = TCAP_RES_MAX;
+		else bd->cycles += cycles;
+	}
 	if (!TCAP_RES_IS_INF(bs->cycles)) bs->cycles -= cycles;
 done:
 	if (!tcap_is_active(d)) tcap_active_add_before(s, d);
 	if (tcap_expended(s))   tcap_active_rem(s);
+	/* TODO: what if this is the current tcap? we should set a small timeout, so it gets switched away from */
 
 	return 0;
 }

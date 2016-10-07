@@ -199,6 +199,7 @@ typedef unsigned long capid_t;
 #define TCAP_RES_PACK(r)   (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
 #define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
 #define TCAP_RES_INF  (~0UL)
+#define TCAP_RES_MAX  (TCAP_RES_INF - 1)
 #define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
 typedef capid_t tcap_t;
 

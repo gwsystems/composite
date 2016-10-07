@@ -11,6 +11,9 @@
 
 #define VM_TIMESLICE (1000*10) //10*1000*cycs_per_usec = 10ms
 #define VM_MIN_TIMESLICE (1) //1us
+#define SCHED_MIN_TIMESLICE (10)
+#define SCHED_QUANTUM (VM_TIMESLICE * 100)
+//#define SCHED_QUANTUM (30)
 
 #undef __SIMPLE_XEN_LIKE_TCAPS__
 #define __SIMPLE_DISTRIBUTED_TCAPS__
@@ -40,17 +43,17 @@ enum vm_prio {
 
 
 #if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-#define RIO_PRIO    PRIO_MID /* REAL I/O Priority */
-#define VIO_PRIO    PRIO_HIGH /* Virtual I/O Priority */
+#define RIO_PRIO    PRIO_HIGH /* REAL I/O Priority */
+#define VIO_PRIO    PRIO_MID /* Virtual I/O Priority */
 #define RK_THD_PRIO PRIO_LOW /* Rumpkernel thread priority */
 
 #define IO_BOUND_VM  1  /* VM that is I/O Bound */
 #define CPU_BOUND_VM (COS_VIRT_MACH_COUNT  + 1) /* VM that is CPU Bound: Set to a val beyond number of VMs, so no CPU BOUND VM */ 
 
 #define VIO_BUDGET_MAX (VM_TIMESLICE) /* Maximum a I/O Tcap in DOM0 should have */
-#define VIO_BUDGET_THR (VM_MIN_TIMESLICE * 1000) /* minimum excess budget with I/O tcap to transfer/delegate back to VM */
+#define VIO_BUDGET_THR (VM_MIN_TIMESLICE * 10) /* minimum excess budget with I/O tcap to transfer/delegate back to VM */
 
-#define VIO_BUDGET_APPROX (VM_MIN_TIMESLICE * 1000) /* Hack: budget transfered from I/O Tcap to DOM0's Tcap */
+#define VIO_BUDGET_APPROX (VM_MIN_TIMESLICE * 10) /* Hack: budget transfered from I/O Tcap to DOM0's Tcap */
 #endif
 
 enum vm_status {
@@ -61,7 +64,7 @@ enum vm_status {
 
 enum vm_credits {
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	DOM0_CREDITS = 1,
+	DOM0_CREDITS = 2,
 	VM1_CREDITS  = 1,
 	VM2_CREDITS  = 1,
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)

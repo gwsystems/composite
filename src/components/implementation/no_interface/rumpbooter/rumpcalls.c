@@ -297,10 +297,10 @@ check_vio_budgets(void)
 			tcap_res_t res;
 
 			if (budget > (vms_budget_track[i - 1] + budg_thr)) {
-			/*	res = vms_budget_track[i - 1];
+				res = vms_budget_track[i - 1];
 				budget -= res;
 				vms_budget_track[i - 1] -= res;
-				if (cos_tcap_transfer(intr_real_irq_rcv(), tcp, res, RIO_PRIO)) assert(0); */
+				if (cos_tcap_transfer(intr_real_irq_rcv(), tcp, res, RIO_PRIO)) assert(0); 
 			}
 			else {
 				continue;
@@ -428,6 +428,7 @@ rk_resume:
 		} while(ret == -EAGAIN);
 
 		check_vio_budgets();
+		//cos_sched_yield();
 	}
 }
 

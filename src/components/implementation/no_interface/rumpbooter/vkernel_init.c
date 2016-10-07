@@ -250,6 +250,7 @@ sched_fn(void *x)
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	while (ready_vms) {
+		tcap_res_t min_budget = SCHED_MIN_TIMESLICE * cycs_per_usec;
 		tcap_res_t vm_budget, sched_budget;
 		struct vm_node *x, *y;
 		int count_over = 0;
@@ -266,32 +267,25 @@ sched_fn(void *x)
 
 			vm_budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 			sched_budget = (tcap_res_t)cos_introspect(&vkern_info, sched_tcap, TCAP_GET_BUDGET);
-/*
-			if (!TCAP_RES_IS_INF(budget)) {
-				if (budget < vmcredits[index]) vmbudget[index] = vmcredits[index] - budget;
-				else send = 1;
-			}
-*/
 
-			if (!TCAP_RES_IS_INF(vm_budget) && (sched_budget > (VM_MIN_TIMESLICE * cycs_per_usec))) {
-				if (cycles_same(vmcredits[index], vm_budget) || vm_budget > vmcredits[index]) send = 1;
-				else vmbudget[index] = 0;
+			if (!TCAP_RES_IS_INF(vm_budget)) {
+				if (vm_budget < vmcredits[index]) vmbudget[index] = vmcredits[index] - vm_budget;
+				else send = 1;
 			} else {
 				send = 1;
 			}
 
+			if (sched_budget <= (vmbudget[index] + min_budget)) vmbudget[index] = 0;
+			if (sched_budget == 0) send = 1;
+
 			if (!send) {
-				//printc("$%d:%lu:%lu-", index, budget, vmbudget[index]);
-				if (cos_tcap_delegate(vksndvm[index], sched_tcap, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+				if (cos_tcap_delegate(vksndvm[index], sched_tcap, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD)) {
+					printc("%s:%d to:%d sched:%lu req:%lu\n", __func__, __LINE__, index, sched_budget, vmbudget[index]);
+					assert(0);
+				}
 			} else { 
-				//printc("#%d:%lu-", index, budget);
 				if (cos_asnd(vksndvm[index])) assert(0);
 			}
-
-
-			/* FIXME: Hoping I don't need YIELD flag for now */
-		//	printc("Scheduling:%d:%lu-", index, budget);
-		//	if (cos_asnd(vksndvm[index])) assert(0);
 
 			while (cos_sched_rcv(sched_rcv, &tid, &blocked, &cycles)) {
 				/* if a VM is blocked.. just move it to the end of the queue..*/
@@ -376,11 +370,17 @@ sched_fn(void *x)
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 cycles_t dom0_sla_act_cyc = 0;
-tcap_res_t dom0_sla_budget = 0;
+
+thdcap_t dummy_thd = 0;
+arcvcap_t dummy_rcv = 0;
+void
+dummy_fn(void *x)
+{ while (1) cos_rcv(dummy_rcv); } 
 
 void
 dom0_sla_fn(void *x)
 {
+	//static cycles_t prev = 0;
 	int vmid = 0;
 	struct cos_compinfo btr_info;
 
@@ -391,100 +391,71 @@ dom0_sla_fn(void *x)
 			(vaddr_t)BOOT_MEM_SHM_BASE, &btr_info);
 
 	while (1) {
+		tcap_res_t sla_budget;
 		thdid_t tid;
 		int blocked;
-		cycles_t cycles;
+		cycles_t cycles;//, now = 0, act = 0;
 		asndcap_t vm_snd;
-		int i = 0;
+		//int i = 0;
 		
-		cos_sched_rcv(VM0_CAPTBL_SELF_SLARCV_BASE, &tid, &blocked, &cycles);
-		//printc("DOM0 SLA Thd Activated\n");
+		//cos_sched_rcv(VM0_CAPTBL_SELF_SLARCV_BASE, &tid, &blocked, &cycles);
+		sla_budget = (tcap_res_t)cos_introspect(&btr_info, VM0_CAPTBL_SELF_SLATCAP_BASE, TCAP_GET_BUDGET);
+		//rdtscll(now);
+		//act = (now - prev);
+		//prev = now;
+		
 		rdtscll(dom0_sla_act_cyc);
-		dom0_sla_budget = (tcap_res_t)cos_introspect(&btr_info, VM0_CAPTBL_SELF_SLATCAP_BASE, TCAP_GET_BUDGET);
-		//printc("%s:%d - %lu\n", __func__, __LINE__, dom0_sla_budget);
-		assert(dom0_sla_budget);
+		//printc("DOM0 SLA Activated: %llu : %lu : %llu\n", act, sla_budget, dom0_sla_act_cyc);
 
-		vm_snd = VM0_CAPTBL_SELF_INITASND_SET_BASE;
-		while (i < COS_VIRT_MACH_COUNT - 2) {
-		//	printc("%s:%d - %d\n", __func__, __LINE__, i);
-			/* microbooter tests being the last vm not included.. ugly hack.. */
-			tcap_res_t vm_budget = vmcredits[i + 1];
-			tcap_prio_t vm_prio = vmprio[i + 1];
-			//tcap_res_t vm_budget = VM_TIMESLICE;
-			//tcap_prio_t vm_prio = PRIO_LOW;
-		
-			/* TODO: vmcredits and vmprio arrays, hoping are accessible within DOM0 and are not modified after initialization */	
-			if (cos_tcap_delegate(vm_snd, VM0_CAPTBL_SELF_SLATCAP_BASE, vm_budget, vm_prio, 0)) assert(0);
-
-			/* next in line */
-			i ++;
-			vm_snd = VM0_CAPTBL_SELF_INITASND_SET_BASE + (i * CAP64B_IDSZ);
-		}
-
-		//printc("%s:%d\n", __func__, __LINE__);
-		if (cos_tcap_delegate(VM0_CAPTBL_SELF_SLASND_BASE, VM0_CAPTBL_SELF_SLATCAP_BASE, 0, vmprio[0], TCAP_DELEG_YIELD)) assert(0);
-		/* give the remaining to DOM0 INIT, this should yield back to Chronos */
-		//if ((cos_tcap_transfer(BOOT_CAPTBL_SELF_INITRCV_BASE, VM0_CAPTBL_SELF_SLATCAP_BASE, 0, vmprio[0]))) assert(0);
-		//printc("%s:%d\n", __func__, __LINE__);
+		//if(sla_budget) if (cos_tcap_delegate(VM0_CAPTBL_SELF_SLASND_BASE, VM0_CAPTBL_SELF_SLATCAP_BASE, 0, vmprio[0], 0)) assert(0);
+		if(sla_budget) if (cos_tcap_transfer(BOOT_CAPTBL_SELF_INITRCV_BASE, VM0_CAPTBL_SELF_SLATCAP_BASE, 0, vmprio[0])) assert(0);
 	}
 }
 
 void
 chronos_fn(void *x)
 {
+	//static cycles_t prev = 0;
+
 	while (1) {
-		tcap_res_t total_budget = 0;
+		tcap_res_t total_budget = SCHED_QUANTUM * cycs_per_usec;
+		tcap_res_t sla_slice = VM_TIMESLICE * cycs_per_usec;
 		thdid_t tid;
 		int blocked;
-		cycles_t cycles, st, end;
+		cycles_t cycles;//, now = 0, act = 0;
 		struct vm_node *x, *y;
 
-		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles);
-		//printc("Chronos activated\n");
+		//cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles);
+		//tcap_res_t sched_budget = (tcap_res_t)cos_introspect(&vkern_info, sched_tcap, TCAP_GET_BUDGET);
+		//tcap_res_t sla_budget = (tcap_res_t)cos_introspect(&vkern_info, dom0_sla_tcap, TCAP_GET_BUDGET);
+		//rdtscll(now);
+		//act = (now - prev);
+		//prev = now;
 		
-		y = vm_next(&vms_runqueue);
+/*		y = vm_next(&vms_runqueue);
 		assert(y != NULL);
 
 		x = y;
 		do {
 			int index = x->id;
-			int ret;
-			tcap_res_t minbudget = VM_MIN_TIMESLICE * cycs_per_usec;
 
 			total_budget += vmcredits[index];
 			x = vm_next(&vms_runqueue);
 
-			//printc("%d: %lu\n", index, (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET));
-			if (cos_tcap_transfer(vminitrcv[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, minbudget, vmprio[index])) assert(0);
-
 		} while (x != y);
-
-		/* just so scheduler doesn't skip a vm */
 		vm_prev(&vms_runqueue);
+*/
+		//total_budget *= SCHED_QUANTUM;
+		//printc("Chronos activated :%llu: %lu:%lu-%lu:%lu-%d\n", act, sched_budget, total_budget, sla_budget, sla_slice, SCHED_QUANTUM);
 
-		/* insert at the end of the queue, dom0.. */
-		//vm_deletenode(&vms_runqueue, &vmnode[0]);
-		//vm_insertnode(&vms_runqueue, &vmnode[0]);
-
-		rdtscll(st);
-		if (cos_tcap_delegate(vktoslasnd, BOOT_CAPTBL_SELF_INITTCAP_BASE, total_budget, PRIO_HIGH, TCAP_DELEG_YIELD)) assert(0);
-		rdtscll(end);
+		//if (cos_tcap_delegate(vktoslasnd, BOOT_CAPTBL_SELF_INITTCAP_BASE, sla_slice, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0);
+		if (cos_tcap_transfer(dom0_sla_rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE, sla_slice, PRIO_LOW)) assert(0);
 		//printc("%s:%d\n", __func__, __LINE__);
+		/* additional cycles so vk doesn't allocate less budget to one of the vms.. */
+		if (cos_tcap_delegate(chtoshsnd, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_MAX, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0);
+		//rdtscll(act);
+		//printc("%llu:%llu:%llu\n", now, act, act - now);
 
-#if 0
-		/* if it's here because DOM0 SLA yielded, let scheduler run */
-		if (!cycles_same((end - st), total_budget) || (end - st) < total_budget) { /* run scheduler ?? */ 
-
-			//tcap_res_t budget = (tcap_res_t)cos_introspect(&vkern_info, sched_tcap, TCAP_GET_BUDGET);
-
-			//if (!budget) {
-				/* give the remaining to DOM0 INIT, this should yield back to Chronos */
-			//	if ((cos_tcap_transfer(sched_rcv, BOOT_CAPTBL_SELF_INITRCV_BASE, cycs_per_usec, PRIO_LOW))) assert(0);
-				//if (cos_tcap_delegate(chtoshsnd, BOOT_CAPTBL_SELF_INITTCAP_BASE, VM_MIN_TIMESLICE * cycs_per_usec, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0);
-			//}
-			cos_switch(sched_thd, sched_tcap, PRIO_LOW, TCAP_TIME_NIL, 0, cos_sched_sync());
-		}
-#endif
 	}	
 }
 #endif
@@ -644,11 +615,11 @@ cos_init(void)
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 		if (id == 0) {
 			printc("\tCreating Time Management System Capabilities in DOM0\n");
-			dom0_sla_tcap = cos_tcap_alloc(&vkern_info, PRIO_HIGH);
+			dom0_sla_tcap = cos_tcap_alloc(&vkern_info, PRIO_LOW);
 			assert(dom0_sla_tcap);
 			dom0_sla_thd = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, dom0_sla_fn, (void *)id);
 			assert(dom0_sla_thd);
-			dom0_sla_rcv = cos_arcv_alloc(&vkern_info, dom0_sla_thd, dom0_sla_tcap, vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+			dom0_sla_rcv = cos_arcv_alloc(&vkern_info, dom0_sla_thd, dom0_sla_tcap, vkern_info.comp_cap, vminitrcv[id]);
 			assert(dom0_sla_rcv);
 
 			if (cos_cap_cpy_at(&vmbooter_info[id], VM0_CAPTBL_SELF_SLATCAP_BASE, &vkern_info, dom0_sla_tcap)) assert(0);
@@ -659,6 +630,11 @@ cos_init(void)
 			vktoslasnd = cos_asnd_alloc(&vkern_info, dom0_sla_rcv, vkern_info.captbl_cap);
 			assert(vktoslasnd);
 			if (cos_cap_cpy_at(&vmbooter_info[id], VM0_CAPTBL_SELF_SLASND_BASE, &vkern_info, dom0_sla_snd)) assert(0);
+
+			dummy_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, dummy_fn, (void *)id);
+			assert(dummy_thd);
+			dummy_rcv = cos_arcv_alloc(&vkern_info, dummy_thd, dom0_sla_tcap, vkern_info.comp_cap, dom0_sla_rcv);
+			assert(dummy_rcv);
 		}
 #endif
 
