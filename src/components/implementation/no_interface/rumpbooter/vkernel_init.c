@@ -259,6 +259,8 @@ sched_fn(void *x)
 		while ((x = vm_next(&vms_runqueue)) != NULL) {
 			int index = x->id;
 			int send = 0;
+			uint64_t start = 0;
+			uint64_t end = 0;
 
 			if (unlikely(vmstatus[index] == VM_EXITED)) {
 				vm_deletenode(&vms_runqueue, x); 
@@ -279,6 +281,7 @@ sched_fn(void *x)
 			if (sched_budget <= (vmbudget[index] + min_budget)) vmbudget[index] = 0;
 			if (sched_budget == 0) send = 1;
 
+			rdtscll(start);
 			if (!send) {
 				if (cos_tcap_delegate(vksndvm[index], sched_tcap, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD)) {
 					printc("%s:%d to:%d sched:%lu req:%lu\n", __func__, __LINE__, index, sched_budget, vmbudget[index]);
@@ -287,13 +290,17 @@ sched_fn(void *x)
 			} else { 
 				if (cos_asnd(vksndvm[index])) assert(0);
 			}
+			rdtscll(end);
+
+			if(index == 0) t_dom_cycs += (end-start);
+			else if(index == 1) t_vm_cycs += (end-start);
 
 			while (cos_sched_rcv(sched_rcv, &tid, &blocked, &cycles)) {
 				/* if a VM is blocked.. just move it to the end of the queue..*/
 				if (tid && blocked) {
 					int i;
 	
-					for (i = 0 ; i < COS_VIRT_MACH_COUNT - 1 ; i ++) {
+					for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
 						if (vm_main_thdid[i] == tid && x->prev != &vmnode[i]) {
 							/* push it to the end of the queue.. */
 							vm_deletenode(&vms_runqueue, &vmnode[i]);

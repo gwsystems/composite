@@ -102,7 +102,7 @@ vm_list_init(void)
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	vms_runqueue.s = vms_exit.s = NULL;
-	for (i = 0 ; i < COS_VIRT_MACH_COUNT - 1 ; i ++) {
+	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
 		vmnode[i].id = i;
 		vmnode[i].prev = vmnode[i].next = &vmnode[i];
 		vm_insertnode(&vms_runqueue, &vmnode[i]); 

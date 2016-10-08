@@ -281,7 +281,7 @@ check_vio_budgets(void)
 	if (iters != CHECK_ITER) return;
 	iters = 0;
 
-	for ( i = 1 ; i < COS_VIRT_MACH_COUNT - 1; i ++) {
+	for ( i = 1 ; i < COS_VIRT_MACH_COUNT; i ++) {
 		tcap_res_t budget;
 		tcap_t tcp;
 		asndcap_t snd;
