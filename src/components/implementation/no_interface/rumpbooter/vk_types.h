@@ -31,10 +31,10 @@ enum vm_credits {
 #ifdef __INTELLIGENT_TCAPS__
 	DOM0_CREDITS = 5,
 #elif defined __SIMPLE_XEN_LIKE_TCAPS__
-	DOM0_CREDITS = 0, // 0 to not have credit based execution.. 
+	DOM0_CREDITS = 5, // 0 to not have credit based execution.. 
 #endif
-	VM1_CREDITS = 1,
-	VM2_CREDITS = 4,
+	VM1_CREDITS = 5,
+	VM2_CREDITS = 1,
 };
 
 enum {

@@ -185,7 +185,7 @@ fillup_budgets(void)
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++)
 #elif defined __SIMPLE_XEN_LIKE_TCAPS__
 	vmbudget[0] = TCAP_RES_INF;
-	vmprio[0] = PRIO_UNDER;
+	vmprio[0] = PRIO_BOOST;
 	vm_cr_reset[0] = 1;
 	//vm_deletenode(&vms_under, &vmnode[0]);
 	//vm_insertnode(&vms_boost, &vmnode[0]);
@@ -250,7 +250,7 @@ sched_fn(void)
 			}
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 			//printc("%s:%d - %d: %lu %lu %lu\n", __func__, __LINE__, index, budget, vmbudget[index], vmcredits[index]);
-			if (index && (cycles_same(budget, 0) && !vm_cr_reset[index])) {
+			/*if (index && (cycles_same(budget, 0) && !vm_cr_reset[index])) {
 				vmprio[index] = PRIO_OVER;
 				vm_deletenode(&vms_under, &vmnode[index]);
 				vm_insertnode(&vms_over, &vmnode[index]);
@@ -263,7 +263,7 @@ sched_fn(void)
 
 				continue;
 			} 
-
+			*/
 			if (!TCAP_RES_IS_INF(budget)) {
 				/* 
 				 * if it has high enough accumulated budget already.. just giving it a bit..
@@ -406,7 +406,8 @@ cos_init(void)
 		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd[id]); 
 
 		printc("\tCreating other required initial capabilities\n");
-		vminittcap[id] = cos_tcap_alloc(&vkern_info, TCAP_PRIO_MAX);
+		if(id == 0) vminittcap[id] = cos_tcap_alloc(&vkern_info, PRIO_BOOST);
+		else vminittcap[id] = cos_tcap_alloc(&vkern_info, PRIO_UNDER);
 		assert(vminittcap[id]);
 
 		vminitrcv[id] = cos_arcv_alloc(&vkern_info, vm_main_thd[id], vminittcap[id], vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
