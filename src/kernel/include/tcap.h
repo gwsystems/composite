@@ -49,6 +49,7 @@ struct tcap {
 	struct tcap_budget budget;
 	u8_t               ndelegs, curr_sched_off;
 	u16_t              cpuid;
+	tcap_prio_t        perm_prio;
 
 	/*
 	 * Which chain of temporal capabilities resulted in this
@@ -151,13 +152,26 @@ static inline int
 tcap_expended(struct tcap *t)
 { return tcap_left(t) == 0; }
 
+static inline void
+tcap_setprio(struct tcap *t, tcap_prio_t p)
+{
+	assert(t);
+	tcap_sched_info(t)->prio = p;
+}
+
 static inline struct tcap *
 tcap_current(struct cos_cpu_local_info *cos_info)
 { return (struct tcap *)(cos_info->curr_tcap); }
 
 static inline void
 tcap_current_set(struct cos_cpu_local_info *cos_info, struct tcap *t)
-{ cos_info->curr_tcap = t; }
+{
+	struct tcap *curr = tcap_current(cos_info);
+
+	/* remove transient prio on current tcap before switching to a new tcap */
+	if(curr != t && curr->perm_prio != tcap_sched_info(curr)->prio) tcap_setprio(curr, curr->perm_prio);
+	cos_info->curr_tcap = t;
+}
 
 /* hack to avoid header file recursion */
 void __thd_exec_add(struct thread *t, cycles_t cycles);
@@ -207,13 +221,6 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 
 	chal_timer_set(timer);
 	cos_info->timeout_next = timer;
-}
-
-static inline void
-tcap_setprio(struct tcap *t, tcap_prio_t p)
-{
-	assert(t);
-	tcap_sched_info(t)->prio = p;
 }
 
 /*

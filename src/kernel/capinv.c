@@ -544,7 +544,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 		if (!CAP_TYPECHK_CORE(tcap_cap, CAP_TCAP)) return -EINVAL;
 		tcap = tcap_cap->tcap;
 
-		/* TODO: update prio and timeout */
+		tcap_setprio(tcap, prio);
 	}
 
 	return cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);

@@ -36,6 +36,7 @@ __tcap_init(struct tcap *t, tcap_prio_t prio)
 	t->curr_sched_off          = 0;
 	t->refcnt                  = 1;
 	t->arcv_ep                 = NULL;
+	t->perm_prio               = prio;
 	tcap_setprio(t, prio);
 	list_init(&t->active_list, t);
 }
@@ -51,7 +52,7 @@ tcap_delete(struct tcap *tcap)
 	if (tcap_ref(tcap) != 1) return -1;
 	memset(&tcap->budget, 0, sizeof(struct tcap_budget));
 	memset(tcap->delegations, 0, sizeof(struct tcap_sched_info) * TCAP_MAX_DELEGATIONS);
-	tcap->ndelegs = tcap->cpuid = tcap->curr_sched_off = 0;
+	tcap->ndelegs = tcap->cpuid = tcap->curr_sched_off = tcap->perm_prio = 0;
 
 	return 0;
 }
@@ -97,6 +98,7 @@ __tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, t
 
 	if (unlikely(__tcap_budget_xfer(tcapdst, tcapsrc, cycles))) return -1;
 	tcap_sched_info(tcapdst)->prio = prio;
+	tcapdst->perm_prio             = prio;
 
 	return 0;
 }
@@ -147,6 +149,7 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t
 	s = tcap_sched_info(src)->tcap_uid;
 	if (unlikely(dst == src)) {
 		tcap_sched_info(dst)->prio = prio;
+		dst->perm_prio             = prio;
 		return 0;
 	}
 	if (!prio) prio = tcap_sched_info(src)->prio;
