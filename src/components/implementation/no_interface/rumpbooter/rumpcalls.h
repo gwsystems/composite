@@ -67,6 +67,7 @@ struct cos_rumpcalls
 	int    (*rump_shmem_send)(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
 	int    (*rump_shmem_recv)(void * buff, unsigned int srcvm, unsigned int dstvm);
 	void   (*rump_sched_yield)(void);
+	void   (*rump_vm_yield)(void);
 	int    (*rump_dequeue_size)(unsigned int srcvm, unsigned int dstvm);
 };
 
@@ -94,6 +95,7 @@ void *cos_pa2va(void* addr, unsigned long len);
 
 void cos_vm_exit(void);
 void cos_sched_yield(void);
+void cos_vm_yield(void);
 
 int cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
 int cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm);

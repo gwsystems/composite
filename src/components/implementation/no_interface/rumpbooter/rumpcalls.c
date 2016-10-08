@@ -62,6 +62,7 @@ cos2rump_setup(void)
 	crcalls.rump_intr_enable		= intr_enable;
 	crcalls.rump_intr_disable		= intr_disable;
 	crcalls.rump_sched_yield		= cos_sched_yield;
+	crcalls.rump_vm_yield			= cos_vm_yield;
 
 	crcalls.rump_shmem_send			= cos_shmem_send;
 	crcalls.rump_shmem_recv			= cos_shmem_recv;
@@ -468,21 +469,22 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 /* --------- Timer ----------- */
 
 /* Get the number of cycles in a single micro second. If we do nano second we lose the fraction */
-long long cycles_us = (long long)(CPU_GHZ * 1000);
+//long long cycles_us = (long long)(CPU_GHZ * 1000);
 
 /* Return monotonic time since RK per VM initiation in nanoseconds */
+extern uint64_t t_vm_cycs;
+extern uint64_t t_dom_cycs;
 long long
 cos_vm_clock_now(void)
 {
 	uint64_t tsc_now = 0;
-	extern uint64_t t_vm_cycs;
-	extern uint64_t t_dom_cycs;
 	unsigned long long curtime = 0;
         
-	if(vmid == 0)      tsc_now = t_dom_cycs;
-	else if(vmid == 1) tsc_now = t_vm_cycs;
+	assert(vmid <= 1);
+	if (vmid == 0)      tsc_now = t_dom_cycs;
+	else if (vmid == 1) tsc_now = t_vm_cycs;
 	
-	curtime = (long long)(tsc_now / cycles_us); /* cycles to micro seconds */
+	curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
         curtime = (long long)(curtime * 1000); /* micro to nano seconds */
 
 	return curtime;
@@ -497,7 +499,7 @@ cos_cpu_clock_now(void)
         rdtscll(tsc_now);
 
        	/* We divide as we have cycles and cycles per micro second */
-        curtime = (long long)(tsc_now / cycles_us); /* cycles to micro seconds */
+        curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
         curtime = (long long)(curtime * 1000); /* micro to nano seconds */
       
 
@@ -522,4 +524,12 @@ cos_sched_yield(void)
 { if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 { cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
+#endif
+
+void
+cos_vm_yield(void)
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+{ if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+{ cos_asnd(VM_CAPTBL_SELF_VKASND_BASE); }
 #endif
