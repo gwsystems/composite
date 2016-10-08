@@ -106,13 +106,22 @@ vk_dequeue_size(unsigned int srcvm, unsigned int curvm)
 		rb = vk_shmem_addr_send(srcvm);
 	}
 	
-	//return rb->buf[rb->tail];	
+
 	memcpy(&ret, &rb->buf[rb->tail], sizeof(size_t));
+
+	/* 
+	 * If ret is a garbage value because RB is empty, return 0
+	 * FIXME we should do something better than this, there is the chance that a
+ 	 * garbage value is in the valid range, then we waste time doing a malloc and imediately free after
+	 * in cos_pktq_dequeue
+	 */
+	if (ret <= 0 || ret > 1500) ret = 0;
 	return ret;
 }
 
 int
 vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
+
 	if(rb->head == rb->tail){ 
 		return -1; 
 	} 
@@ -135,7 +144,7 @@ vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
 		second = size - first;
 		
 		if(rb->buf+second > rb->buf+rb->head){
-			printc("rb empty\n");	
+			printc("wrap rb empty\n");
 			return -1;
 		}
 
