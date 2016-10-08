@@ -40,6 +40,7 @@ struct cos_rumpcalls
 {
 	unsigned short int (*rump_cos_get_thd_id)(void);
 	long long (*rump_cpu_clock_now)(void);
+	long long (*rump_vm_clock_now)(void);
 	int    (*rump_vsnprintf)(char* str, size_t size, const char *format, va_list arg_ptr);
 	void   (*rump_cos_print)(char s[], int ret);
 	int    (*rump_strcmp)(const char *a, const char *b);
@@ -84,6 +85,8 @@ thdid_t get_cos_thdid(struct bmk_thread *thread);
 
 char *get_name(struct bmk_thread *thread);
 long long cos_cpu_clock_now(void);
+long long cos_vm_clock_now(void);
+
 void cos_irqthd_handler(void *line);
 
 void *cos_vatpa(void* addr);

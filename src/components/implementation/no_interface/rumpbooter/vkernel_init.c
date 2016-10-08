@@ -16,6 +16,7 @@ struct cos_compinfo vkern_info;
 unsigned int ready_vms = COS_VIRT_MACH_COUNT;
 
 unsigned int cycs_per_usec;
+
 /*
  * Init caps for each VM
  */
@@ -234,6 +235,9 @@ fillup_budgets(void)
 #endif
 }
 
+uint64_t t_vm_cycs  = 0;
+uint64_t t_dom_cycs = 0;
+
 void
 sched_fn(void *x)
 {
@@ -242,9 +246,6 @@ sched_fn(void *x)
 	int blocked;
 	cycles_t cycles;
 	int index;
-
-	/* ditch micro_booter for now. */
-	cos_thd_switch(vm_exit_thd[COS_VIRT_MACH_COUNT - 1]);
 
 	printc("Scheduling VMs(Rumpkernel contexts)....\n");
 
@@ -325,6 +326,7 @@ sched_fn(void *x)
 		while ((x = vm_next(&vms_under)) != NULL) {
 			int index = x->id;
 			tcap_res_t budget = 0;
+			int send = 1;
 
 			if (unlikely(vmstatus[index] == VM_EXITED)) {
 				vm_deletenode(&vms_under, x); 
@@ -353,14 +355,29 @@ sched_fn(void *x)
 				 * because delegate with 0 res, gives all of src->budget
                                  * essentially promoting it to have INF budget in this case.. 
 				 */ 
-				if (budget > vmcredits[index]) vmbudget[index] = (VM_MIN_TIMESLICE * cycs_per_usec); 
+				/*
+				if (budget > vmcredits[index]) vmbudget[index] = VM_MIN_TIMESLICE; 
 				else vmbudget[index] = vmcredits[index] - budget;
 
-				if (vmbudget[index] == 0) vmbudget[index] = VM_MIN_TIMESLICE * cycs_per_usec;
+				if (vmbudget[index] == 0) vmbudget[index] = VM_MIN_TIMESLICE;
+				*/
+				if (budget < vmcredits[index]) {
+					vmbudget[index] = vmcredits[index] - budget;
+					send = 0;
+				}
 			}
 
 			//printc("%s:%d - %d: %lu %lu\n", __func__, __LINE__, index, budget, vmbudget[index]);
-			cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD);
+			uint64_t start = 0;
+			uint64_t end = 0;
+
+			rdtscll(start);
+			if (send) cos_asnd(vksndvm[index]);
+			else cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD);
+			rdtscll(end);
+
+			if(index == 0) t_dom_cycs += (end-start);
+			else if(index == 1) t_vm_cycs += (end-start);
 
 			while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) ;
 		}
@@ -474,6 +491,7 @@ vm_exit(void *id)
 	//while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	while (1) cos_thd_switch(sched_thd);
 }
+
 
 void
 cos_init(void)
@@ -788,14 +806,14 @@ cos_init(void)
 			printc("\tCreating shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_ALL_SZ);
 			
 			cos_shmem_alloc(&vmbooter_info[id], COS_SHM_ALL_SZ + ((sizeof(struct cos_shm_rb *)*2)*(COS_VIRT_MACH_COUNT-1)) );
-			for(i = 1; i < (COS_VIRT_MACH_COUNT-1); i++){
+			for(i = 1; i < (COS_VIRT_MACH_COUNT); i++){
 				printc("\tInitializing ringbufs for sending\n");
 				struct cos_shm_rb *sm_rb = NULL;	
 				vk_send_rb_create(sm_rb, i);
 			}
 
 			//allocating ring buffers for recving data
-			for(i = 1; i < (COS_VIRT_MACH_COUNT-1); i++){
+			for(i = 1; i < (COS_VIRT_MACH_COUNT); i++){
 				printc("\tInitializing ringbufs for rcving\n");
 				struct cos_shm_rb *sm_rb_r = NULL;	
 				vk_recv_rb_create(sm_rb_r, i);

@@ -33,6 +33,7 @@ cos2rump_setup(void)
 	rump_bmk_memsize_init();
 
 	crcalls.rump_cpu_clock_now 		= cos_cpu_clock_now;
+	crcalls.rump_vm_clock_now 		= cos_vm_clock_now;
 	crcalls.rump_cos_print 	      		= cos_print;
 	crcalls.rump_vsnprintf        		= vsnprintf;
 	crcalls.rump_strcmp           		= strcmp;
@@ -469,18 +470,36 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 /* Get the number of cycles in a single micro second. If we do nano second we lose the fraction */
 long long cycles_us = (long long)(CPU_GHZ * 1000);
 
+/* Return monotonic time since RK per VM initiation in nanoseconds */
+long long
+cos_vm_clock_now(void)
+{
+	uint64_t tsc_now = 0;
+	extern uint64_t t_vm_cycs;
+	extern uint64_t t_dom_cycs;
+	unsigned long long curtime = 0;
+        
+	if(vmid == 0)      tsc_now = t_dom_cycs;
+	else if(vmid == 1) tsc_now = t_vm_cycs;
+	
+	curtime = (long long)(tsc_now / cycles_us); /* cycles to micro seconds */
+        curtime = (long long)(curtime * 1000); /* micro to nano seconds */
+
+	return curtime;
+}
+
 /* Return monotonic time since RK initiation in nanoseconds */
 long long
 cos_cpu_clock_now(void)
 {
 	uint64_t tsc_now = 0;
 	unsigned long long curtime = 0;
+        rdtscll(tsc_now);
 
-	rdtscll(tsc_now);
-
-	/* We divide as we have cycles and cycles per micro second */
-	curtime = (long long)(tsc_now / cycles_us); /* cycles to micro seconds */
-	curtime = (long long)(curtime * 1000); /* micro to nano seconds */
+       	/* We divide as we have cycles and cycles per micro second */
+        curtime = (long long)(tsc_now / cycles_us); /* cycles to micro seconds */
+        curtime = (long long)(curtime * 1000); /* micro to nano seconds */
+      
 
 	return curtime;
 }

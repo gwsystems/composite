@@ -27,7 +27,7 @@ struct vm_list vms_runqueue, vms_exit;
 struct vm_list vms_under, vms_over, vms_boost, vms_wait, vms_exit;
 #endif
 
-struct vm_node vmnode[COS_VIRT_MACH_COUNT - 1];
+struct vm_node vmnode[COS_VIRT_MACH_COUNT];
 
 static struct vm_node *
 vm_next(struct vm_list *l)
@@ -109,7 +109,7 @@ vm_list_init(void)
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	vms_under.s = vms_over.s = vms_boost.s = vms_wait.s = vms_exit.s = NULL;
-	for (i = 0 ; i < COS_VIRT_MACH_COUNT - 1 ; i ++) {
+	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
 		vmnode[i].id = i;
 		vmnode[i].prev = vmnode[i].next = &vmnode[i];
 		vm_insertnode(&vms_under, &vmnode[i]); 
