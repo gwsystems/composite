@@ -19,7 +19,13 @@ struct vm_node {
 
 struct vm_list {
 	struct vm_node *s;
-} vms_under, vms_over, vms_boost, vms_wait, vms_exit;
+}; 
+
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+struct vm_list vms_runqueue, vms_exit;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+struct vm_list vms_under, vms_over, vms_boost, vms_wait, vms_exit;
+#endif
 
 struct vm_node vmnode[COS_VIRT_MACH_COUNT];
 
@@ -33,6 +39,20 @@ vm_next(struct vm_list *l)
 	if (p == NULL) return NULL;
 	if (p->next == l->s) return p;
 	l->s = p->next;
+
+	return p;
+}
+
+static struct vm_node *
+vm_prev(struct vm_list *l)
+{
+	struct vm_node *p;
+	assert(l);
+
+	p = l->s;
+	if (p == NULL) return NULL;
+	if (p->next == l->s) return p;
+	l->s = p->prev;
 
 	return p;
 }
@@ -80,12 +100,21 @@ vm_list_init(void)
 {
 	int i;
 
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+	vms_runqueue.s = vms_exit.s = NULL;
+	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+		vmnode[i].id = i;
+		vmnode[i].prev = vmnode[i].next = &vmnode[i];
+		vm_insertnode(&vms_runqueue, &vmnode[i]); 
+	}
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	vms_under.s = vms_over.s = vms_boost.s = vms_wait.s = vms_exit.s = NULL;
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
 		vmnode[i].id = i;
 		vmnode[i].prev = vmnode[i].next = &vmnode[i];
 		vm_insertnode(&vms_under, &vmnode[i]); 
 	}
+#endif
 
 }
 

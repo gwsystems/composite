@@ -38,7 +38,7 @@ alloc_initmem_all(void)
 	if(count < max_rk) printc("Did not allocate desired amount of mem for RK! Ran out of mem first\n");
 
 	unsigned long max = (unsigned long)curpage;
-	printc("max: %x\n", max);
+	printc("max: %p\n", (void *)max);
 	return max;
 }
 
@@ -62,7 +62,7 @@ cos_run(char *cmdline)
 
 	unsigned long min = (unsigned long)minptr;
 
-	printc("first page: %x\n", min);
+	printc("first page: %p\n", (void *)min);
 	unsigned long max = alloc_initmem_all();
 
 	// bmk_pgalloc_loadmem is needed to get the memory area from Composite
