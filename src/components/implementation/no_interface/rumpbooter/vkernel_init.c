@@ -74,13 +74,12 @@ thdcap_t sched_thd;
 tcap_t sched_tcap;
 arcvcap_t sched_rcv;
 
+asndcap_t chtoshsnd;
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 thdcap_t dom0_sla_thd;
 tcap_t dom0_sla_tcap;
 arcvcap_t dom0_sla_rcv;
 asndcap_t dom0_sla_snd, vktoslasnd;
-
-asndcap_t chtoshsnd;
 #endif
 
 void
@@ -551,15 +550,14 @@ cos_init(void)
 	assert(sched_thd);
 	sched_rcv = cos_arcv_alloc(&vkern_info, sched_thd, sched_tcap, vkern_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(sched_rcv);
-
-	chtoshsnd = cos_asnd_alloc(&vkern_info, sched_rcv, vkern_info.captbl_cap);
-	assert(chtoshsnd);
-
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	sched_tcap = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 	sched_thd = BOOT_CAPTBL_SELF_INITTHD_BASE;
 	sched_rcv = BOOT_CAPTBL_SELF_INITRCV_BASE;
 #endif
+
+	chtoshsnd = cos_asnd_alloc(&vkern_info, sched_rcv, vkern_info.captbl_cap);
+	assert(chtoshsnd);
 
 	for (id = 0; id < COS_VIRT_MACH_COUNT; id ++) {
 		printc("VM %d Initialization Start\n", id);
@@ -702,7 +700,7 @@ cos_init(void)
 		vms_time_asnd[id] = cos_asnd_alloc(&vkern_info, vk_time_rcv[id], vkern_info.captbl_cap);
 		assert(vms_time_asnd[id]);
 		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_TIMEASND_BASE, &vkern_info, vms_time_asnd[id]);
-#elif defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+#elif defined(__SIMPLE_DISTRIBUTED_TCAPS__) || defined(__SIMPLE_XEN_LIKE_TCAPS__)
 		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_VKASND_BASE, &vkern_info, chtoshsnd);
 #endif
 
