@@ -11,46 +11,85 @@
 extern struct cos_compinfo booter_info;
 extern int vmid;
 
+tcap_res_t vms_budget_track[COS_VIRT_MACH_COUNT - 1];
+
 void
 hw_irq_alloc(void){
 
+	tcap_res_t budget;
 	int i, ret;
+	int first = 1, id = HW_ISR_FIRST;
+
+	memset(vms_budget_track, 0, sizeof(tcap_res_t) * (COS_VIRT_MACH_COUNT - 1));
 
 	memset(irq_thdcap, 0, sizeof(thdcap_t) * 32);
 	memset(irq_thdid, 0, sizeof(thdid_t) * 32);
 	memset(irq_arcvcap, 0, sizeof(arcvcap_t) * 32);
 	memset(irq_tcap, 0, sizeof(tcap_t) * 32);
+	memset(irq_prio, 0, sizeof(tcap_prio_t) * 32);
 
-	for(i = 1; i < HW_ISR_LINES; i++){
+	for(i = HW_ISR_FIRST; i < HW_ISR_LINES; i++){
 
 		if (vmid == 0) {
 			switch(i) {
 			case IRQ_VM1:
 				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE;
-				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
+				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
+				irq_arcvcap[i] = VM0_CAPTBL_SELF_IORCV_SET_BASE;
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+				irq_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE;
+				irq_prio[i]  = VIO_PRIO;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+				irq_prio[i] = TCAP_PRIO_MAX;
+#endif
 				break;
 			case IRQ_VM2:
 				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE + CAP16B_IDSZ;
-				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
+				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
+				irq_arcvcap[i] = VM0_CAPTBL_SELF_IORCV_SET_BASE + CAP64B_IDSZ;
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+				irq_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + CAP16B_IDSZ;
+				irq_prio[i]  = VIO_PRIO;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+				irq_prio[i] = TCAP_PRIO_MAX;
+#endif
 				break;
 			default:
-				irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, i);
+				irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, (void *)i);
 				assert(irq_thdcap[i]);
-				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
+				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
 				assert(irq_thdid[i]);
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+				irq_prio[i] = RIO_PRIO;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				irq_prio[i] = TCAP_PRIO_MAX;
+#endif
 
-#ifdef __INTELLIGENT_TCAPS__
-				/* TODO: This path of tcap_transfer */
-				irq_tcap[i] = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX);
-				assert(irq_tcap[i]);
-				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-				assert(irq_arcvcap[i]);
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+				if (first) {
+					/* TODO: This path of tcap_transfer */
+					irq_tcap[i] = cos_tcap_alloc(&booter_info, irq_prio[i]);
+					assert(irq_tcap[i]);
+					irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+					assert(irq_arcvcap[i]);
 
-				if ((ret = cos_tcap_transfer(irq_arcvcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX))) {
-					printc("Irq %d Tcap transfer failed %d\n", i, ret);
-					assert(0);
+					budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
+					if ((ret = cos_tcap_transfer(irq_arcvcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, budget / 2, irq_prio[i]))) {
+						printc("Irq %d Tcap transfer failed %d\n", i, ret);
+						assert(0);
+					}
+					first = 0;
+					id = i;
+				} else {
+					irq_tcap[i] = irq_tcap[id];
+
+					irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+					assert(irq_arcvcap[i]);
 				}
-#elif defined __SIMPLE_XEN_LIKE_TCAPS__
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 				assert(irq_arcvcap[i]);
 #endif
@@ -61,7 +100,15 @@ hw_irq_alloc(void){
 			switch(i) {
 				case IRQ_DOM0_VM:
 					irq_thdcap[i] = VM_CAPTBL_SELF_IOTHD_BASE;
-					irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], 9);
+					irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
+					irq_arcvcap[i] = VM_CAPTBL_SELF_IORCV_BASE;
+					/* VMs use only 1 tcap - INITTCAP for all execution */
+					irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+					irq_prio[i]  = VIO_PRIO;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+					irq_prio[i] = TCAP_PRIO_MAX;
+#endif
 					break;
 				default: 
 					break;

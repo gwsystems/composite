@@ -8,6 +8,9 @@
 #include "vk_types.h"
 
 typedef __builtin_va_list va_list;
+#undef va_start
+#undef va_arg
+#undef va_end
 #define va_start(v,l)      __builtin_va_start((v),l)
 #define va_arg             __builtin_va_arg
 #define va_end(va_arg)     __builtin_va_end(va_arg)
@@ -23,9 +26,15 @@ extern int boot_thd;
 
 struct bmk_thread;
 extern __thread struct bmk_thread *bmk_current;
+extern tcap_res_t vms_budget_track[];
+extern tcap_prio_t rk_thd_prio;
 
 struct bmk_tcb *tcb;
+extern void bmk_isr(int which);
 
+void* rump_cos_malloc(size_t size);
+void* rump_cos_calloc(size_t nmemb, size_t _size);
+void rump_cos_free(void *ptr);
 
 struct cos_rumpcalls
 {
@@ -35,14 +44,14 @@ struct cos_rumpcalls
 	int    (*rump_vsnprintf)(char* str, size_t size, const char *format, va_list arg_ptr);
 	void   (*rump_cos_print)(char s[], int ret);
 	int    (*rump_strcmp)(const char *a, const char *b);
-	char*  (*rump_strncpy)(char *d, const char *s, unsigned long n);
-	void*  (*rump_memcalloc)(unsigned long n, unsigned long size);
-	void*  (*rump_memalloc)(unsigned long nbytes, unsigned long align);
+	char*  (*rump_strncpy)(char *d, const char *s, size_t n);
+	void*  (*rump_memcalloc)(size_t n, size_t size);
+	void*  (*rump_memalloc)(size_t nbytes, size_t align);
 	void*  (*rump_pgalloc)(void);
 	void   (*rump_memfree)(void *cp);
-	void   (*rump_memset)(void *b, int c, unsigned long n); //testing
+	void*  (*rump_memset)(void *b, int c, size_t n); //testing
 	u16_t  (*rump_cos_thdid)(void);
-	void*  (*rump_memcpy)(void *d, const void *src, unsigned long n);
+	void*  (*rump_memcpy)(void *d, const void *src, size_t n);
 	void   (*rump_cpu_sched_create)(struct bmk_thread *thread, struct bmk_tcb *tcb,
 			void (*f)(void *), void *arg,
 			void *stack_base, unsigned long stack_size);
@@ -58,6 +67,7 @@ struct cos_rumpcalls
 	int    (*rump_shmem_send)(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
 	int    (*rump_shmem_recv)(void * buff, unsigned int srcvm, unsigned int dstvm);
 	void   (*rump_sched_yield)(void);
+	void   (*rump_vm_yield)(void);
 	int    (*rump_dequeue_size)(unsigned int srcvm, unsigned int dstvm);
 };
 
@@ -85,6 +95,7 @@ void *cos_pa2va(void* addr, unsigned long len);
 
 void cos_vm_exit(void);
 void cos_sched_yield(void);
+void cos_vm_yield(void);
 
 int cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
 int cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm);

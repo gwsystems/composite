@@ -29,7 +29,7 @@ isr_setcontention(unsigned int intr)
 		contending = intr;
 		
 		final = isr_construct(isdisabled, contending);
-	} while (unlikely(!ps_cas(&cos_isr, tmp, final)));
+	} while (unlikely(!ps_cas((unsigned long *)&cos_isr, tmp, final)));
 }
 
 
@@ -50,7 +50,7 @@ intr_start(thdcap_t thdcap)
 	 */
 	while(1) {
 		do {
-			int isdisabled;
+			unsigned int isdisabled;
 			thdcap_t contending;
 
 			tmp = cos_isr;
@@ -58,11 +58,11 @@ intr_start(thdcap_t thdcap)
 
 			contending = thdcap;
 
-			ret = isdisabled;
+			ret = (int)isdisabled;
 			if (!isdisabled) assert(cos_nesting == 0);
 
 			final = isr_construct(isdisabled, contending);
-		} while (unlikely(!ps_cas(&cos_isr, tmp, final)));
+		} while (unlikely(!ps_cas((unsigned long *)&cos_isr, tmp, final)));
 
 		if (likely(!ret)) {
 			/*
@@ -71,13 +71,13 @@ intr_start(thdcap_t thdcap)
 			 * finish processing interrupts before going back to rk
 			 */
 			__sync_fetch_and_add(&cos_intrdisabled, 1);
-			if(cos_intrdisabled > 1) printc("cos_intrdisabled: %d, intrs: %b\n", cos_intrdisabled, intrs);
+			if(cos_intrdisabled > 1) printc("cos_intrdisabled: %d, intrs: %x\n", cos_intrdisabled, (unsigned int)intrs);
 			assert(cos_intrdisabled);
-			return 0;
+			return;
 		}
 
 		do {
-			ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			ret = cos_switch(cos_cur, cos_cur_tcap, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0 || ret == -EAGAIN);
 		} while (ret == -EAGAIN);
 	}

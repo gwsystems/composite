@@ -18,6 +18,12 @@ extern struct cos_rumpcalls crcalls;
 
 /* Thread cap */
 volatile thdcap_t cos_cur = BOOT_CAPTBL_SELF_INITTHD_BASE;
+volatile tcap_t cos_cur_tcap = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+tcap_prio_t rk_thd_prio = RK_THD_PRIO;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+tcap_prio_t rk_thd_prio = TCAP_PRIO_MAX;
+#endif
 
 /* Mapping the functions from rumpkernel to composite */
 
@@ -56,6 +62,7 @@ cos2rump_setup(void)
 	crcalls.rump_intr_enable		= intr_enable;
 	crcalls.rump_intr_disable		= intr_disable;
 	crcalls.rump_sched_yield		= cos_sched_yield;
+	crcalls.rump_vm_yield			= cos_vm_yield;
 
 	crcalls.rump_shmem_send			= cos_shmem_send;
 	crcalls.rump_shmem_recv			= cos_shmem_recv;
@@ -75,15 +82,64 @@ int
 cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm){
 
 	asndcap_t sndcap;
+	int ret;
 
 	if(srcvm == 0) sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (dstvm - 1) * CAP64B_IDSZ;
 	else sndcap = VM_CAPTBL_SELF_IOASND_BASE;
 
 	//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
 	cos_shm_write(buff, size, srcvm, dstvm);	
-	cos_asnd(sndcap);
-	//if (srcvm) cos_asnd(sndcap);
-	//else cos_tcap_delegate(sndcap, BOOT_CAPTBL_SELF_INITTCAP_BASE, VM_IO_TIMESLICE, PRIO_UNDER, TCAP_DELEG_YIELD);
+
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+	/* DOM0 just sends out the packets.. */
+	if (!srcvm) {
+		tcap_res_t res = (VIO_BUDGET_APPROX * cycs_per_usec);
+		tcap_res_t min_slice = (VM_MIN_TIMESLICE * cycs_per_usec);
+
+		vms_budget_track[dstvm - 1] += res;
+		if (TCAP_RES_IS_INF(vms_budget_track[dstvm - 1])) vms_budget_track[dstvm - 1] -= min_slice;
+		
+		/*
+		 * FIXME: It's probably not a good idea to transfer back budget at every packet..
+		 *        Instead, let DOM0's Time (threshold) management take care of it, 
+		 * 	  which runs periodically..
+		 */
+#if 0
+		tcap_t tcp = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (dstvm - 1) * CAP16B_IDSZ;
+		tcap_res_t res = (VIO_BUDGET_APPROX * cycs_per_usec);
+		tcap_res_t thr = (VIO_BUDGET_THR * cycs_per_usec);
+		tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, tcp, TCAP_GET_BUDGET);
+	
+		if (cycles_same(budget, (res + thr)) || budget < (res + thr)) {
+			vms_budget_track[dstvm - 1] += (VIO_BUDGET_APPROX * cycs_per_usec);
+			if (TCAP_RES_IS_INF(vms_budget_track[dstvm - 1])) vms_budget_track[dstvm - 1] -= ((VM_MIN_TIMESLICE * cycs_per_usec));
+			/* Stop sending packets to VM when it reaches a certain threshold ?? */
+		} else {
+
+			if ((ret = cos_tcap_transfer(intr_real_irq_rcv(), tcp, res, RIO_PRIO))) {
+				printc("transfer failed: %d\n", ret);
+				assert(0);
+			}
+
+			vms_budget_track[dstvm - 1] = 0;
+		}
+#endif
+		/* TODO: Before sending a event to the VM, first see if we can account for the time spent in i/o  processing */
+		if(cos_asnd(sndcap)) assert(0);
+	}
+	/* VMs send out the packet and time to process the packet - All remaining budget in Tcap */
+	else {
+		tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
+		tcap_res_t res;
+
+		if (budget >= (VIO_BUDGET_APPROX * cycs_per_usec)) res = budget / 2; /* 50% budget */
+		else res = 0; /* 0 = 100% budget */
+
+		if(cos_tcap_delegate(sndcap, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, VIO_PRIO, TCAP_DELEG_YIELD)) assert(0);
+	}
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+	if(cos_asnd(sndcap)) assert(0);
+#endif
 	return 1;
 }
 
@@ -173,7 +229,7 @@ int boot_thd = BOOT_CAPTBL_SELF_INITTHD_BASE;
 void
 cos_tls_init(unsigned long tp, thdcap_t tc)
 {
-	cos_thd_mod(&booter_info, tc, tp);
+	cos_thd_mod(&booter_info, tc, (void *)tp);
 }
 
 void
@@ -205,18 +261,120 @@ intr_switch(void)
 
 		if((tmp>>(i-1)) & 1) {
 			do {
-				ret = cos_switch(irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(irq_thdcap[i]), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 				assert (ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 		}
 	}
 }
 
+#define CHECK_ITER 20
+static inline void
+check_vio_budgets(void)
+{
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+	int i;
+	static int iters;
+
+	if (vmid) return;
+
+	iters ++;
+	if (iters != CHECK_ITER) return;
+	iters = 0;
+
+	for ( i = 1 ; i < COS_VIRT_MACH_COUNT; i ++) {
+		tcap_res_t budget;
+		tcap_t tcp;
+		asndcap_t snd;
+		tcap_res_t budg_max = VIO_BUDGET_MAX * cycs_per_usec;
+		tcap_res_t budg_thr = VIO_BUDGET_THR * cycs_per_usec;
+
+		tcp = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + ((i - 1) * CAP16B_IDSZ);
+		budget = (tcap_res_t)cos_introspect(&booter_info, tcp, TCAP_GET_BUDGET);
+
+		/*
+		 * If I was not able to account for the budget after I/O processing.. do it now..
+		 */
+		if (vms_budget_track[i - 1] > budg_thr && !cycles_same(vms_budget_track[i - 1], budget)) {
+			tcap_res_t res;
+
+			if (budget > (vms_budget_track[i - 1] + budg_thr)) {
+				res = vms_budget_track[i - 1];
+				budget -= res;
+				vms_budget_track[i - 1] -= res;
+				if (cos_tcap_transfer(intr_real_irq_rcv(), tcp, res, RIO_PRIO)) assert(0); 
+			}
+			else {
+				continue;
+				/* TODO: don't think it's the right move to take everything away from vio */
+				/* res = 0;
+				budget = 0;
+				vms_budget_track[i - 1] -= budget; */
+			}
+			
+		}
+		/*
+		 * I've more than required budget and I've enough to transfer,
+		 * If I don't have this check, I might be trasferring in very small chunks.. 
+		 */
+		if (budget >= budg_max && ((budget - budg_max) >= budg_thr)) {
+			tcap_res_t bud = (budget - budg_max);			
+
+			snd = VM0_CAPTBL_SELF_INITASND_SET_BASE + ((i - 1) * CAP64B_IDSZ);
+
+			if (cos_tcap_delegate(snd, tcp, bud, PRIO_LOW, 0)) assert(0);
+		} 
+	}
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+	return;
+#endif
+}
+
+static void
+cpu_bound_thd_fn(void *d)
+{
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+
+	while (1) {
+		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	}
+}
+
+static void
+cpu_bound_test(void)
+{
+#if defined (__SIMPLE_DISTRIBUTED_TCAPS__)
+#define BOUND_TEST_ITERS 100000
+	thdcap_t ts;
+
+	if (vmid != CPU_BOUND_VM) return;
+	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, cpu_bound_thd_fn, NULL);
+	assert(ts);
+	cos_thd_switch(ts);
+
+	while (1) {
+		int i;
+		thdid_t tid;
+		int  blocked;
+		cycles_t cycles;
+
+		for (i = 0 ; i < BOUND_TEST_ITERS ; i++) {
+			cos_thd_switch(ts);
+		}
+
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles));
+	}
+#endif
+	return;
+}
 
 /* Called once from RK init thread. The one in while(1) */
 void
 cos_resume(void)
 {
+	/* this will not return if this vm is set to be CPU bound */
+	cpu_bound_test();
+
 	while(1) {
 		int ret, first = 1;
 		unsigned int isdisabled;
@@ -224,7 +382,8 @@ cos_resume(void)
 		do {
 			thdcap_t contending;
 			cycles_t cycles;
-			int pending, tid, blocked, irq_line;
+			int pending, blocked, irq_line;
+			thdid_t tid;
 
 			/*
 			 * Handle all possible interrupts when
@@ -265,9 +424,13 @@ cos_resume(void)
 rk_resume:
 		do {
 			if(cos_intrdisabled) break;
-			ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			/* TODO: decide which TCAP to use for rest of RK processing for I/O and do deficit accounting */
+			ret = cos_switch(cos_cur, cos_cur_tcap, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
+
+		check_vio_budgets();
+		//cos_sched_yield();
 	}
 }
 
@@ -279,12 +442,12 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 	int ret;
 
 	if(intrs) printc("FIXME: An interrupt is pending while rk is switching threads...\n");
-	if(cos_isr) printc("%b\n", cos_isr);
+	if(cos_isr) printc("%x\n", (unsigned int)cos_isr);
 	assert(!cos_isr);
 	cos_cur = temp;
 
 	do {
-		ret = cos_switch(cos_cur, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
+		ret = cos_switch(cos_cur, cos_cur_tcap, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
 		assert(ret == 0 || ret == -EAGAIN);
 		if (ret == -EAGAIN) {
 			/*
@@ -306,21 +469,22 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 /* --------- Timer ----------- */
 
 /* Get the number of cycles in a single micro second. If we do nano second we lose the fraction */
-long long cycles_us = (long long)(CPU_GHZ * 1000);
+//long long cycles_us = (long long)(CPU_GHZ * 1000);
 
 /* Return monotonic time since RK per VM initiation in nanoseconds */
+extern uint64_t t_vm_cycs;
+extern uint64_t t_dom_cycs;
 long long
 cos_vm_clock_now(void)
 {
 	uint64_t tsc_now = 0;
-	extern uint64_t t_vm_cycs;
-	extern uint64_t t_dom_cycs;
 	unsigned long long curtime = 0;
         
-	if(vmid == 0)      tsc_now = t_dom_cycs;
-	else if(vmid == 1) tsc_now = t_vm_cycs;
+	assert(vmid <= 1);
+	if (vmid == 0)      tsc_now = t_dom_cycs;
+	else if (vmid == 1) tsc_now = t_vm_cycs;
 	
-	curtime = (long long)(tsc_now / cycles_us); /* cycles to micro seconds */
+	curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
         curtime = (long long)(curtime * 1000); /* micro to nano seconds */
 
 	return curtime;
@@ -335,7 +499,7 @@ cos_cpu_clock_now(void)
         rdtscll(tsc_now);
 
        	/* We divide as we have cycles and cycles per micro second */
-        curtime = (long long)(tsc_now / cycles_us); /* cycles to micro seconds */
+        curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
         curtime = (long long)(curtime * 1000); /* micro to nano seconds */
       
 
@@ -356,4 +520,16 @@ cos_vm_exit(void)
 
 void
 cos_sched_yield(void)
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+{ if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 { cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
+#endif
+
+void
+cos_vm_yield(void)
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+{ if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+{ cos_asnd(VM_CAPTBL_SELF_VKASND_BASE); }
+#endif
