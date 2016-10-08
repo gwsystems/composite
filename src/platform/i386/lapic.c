@@ -17,7 +17,7 @@
 #define LAPIC_PERIODIC_MODE    (0x01 << 17)
 #define LAPIC_ONESHOT_MODE     (0x00 << 17)
 #define LAPIC_TSCDEADLINE_MODE (0x02 << 17)
-#define LAPIC_INT_MASK         (1<<15)
+#define LAPIC_INT_MASK         (1<<16)
 
 #define LAPIC_TIMER_CALIB_VAL  0xffffffff
 
