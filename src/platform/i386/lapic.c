@@ -118,6 +118,19 @@ lapic_find_localaddr(void *l)
 }
 
 void
+lapic_disable_timer(int timer_type)
+{
+	if (timer_type == LAPIC_ONESHOT) {
+		lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
+	} else if (timer_type == LAPIC_TSC_DEADLINE) {
+		writemsr(IA32_MSR_TSC_DEADLINE, 0, 0);
+	} else {
+		printk("Mode (%d) not supported\n", timer_type);
+		assert(0);
+	}
+}
+
+void
 lapic_set_timer(int timer_type, cycles_t deadline)
 {
 	u64_t now;
@@ -182,6 +195,10 @@ lapic_timer_calibration(u32_t ratio)
 void
 chal_timer_set(cycles_t cycles)
 { lapic_set_timer(lapic_timer_mode, cycles); }
+
+void
+chal_timer_disable(void)
+{ lapic_disable_timer(lapic_timer_mode); }
 
 void
 lapic_timer_init(void)

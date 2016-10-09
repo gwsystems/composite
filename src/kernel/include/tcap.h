@@ -204,7 +204,14 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 
 	/* next == INF? no timer required. */
 	left        = tcap_left(next);
-	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) return;
+	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) {
+		if (cos_info->timeout_next) {
+			chal_timer_disable();
+			cos_info->timeout_next = 0;
+		}
+
+		return;
+	} 
 
 	/* timeout based on the tcap budget... */
 	timer       = now + left;

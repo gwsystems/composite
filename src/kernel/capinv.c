@@ -492,18 +492,96 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
 	return preempt;
 }
 
+/**
+ * Notify the appropriate end-points.
+ * Return the thread that should be executed next.
+ */
+static struct thread *
+notify_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
+	     struct tcap *tcap, struct tcap **tcap_next, int yield)
+{
+	struct thread *next;
+	struct thread *arcv_notif;
+
+	arcv_notif = arcv_thd_notif(rcv_thd);
+	if (arcv_notif) thd_rcvcap_evt_enqueue(arcv_notif, rcv_thd);
+
+	/* The thread switch decision: */
+	if (yield || tcap_higher_prio(rcv_tcap, tcap)) {
+		next        = rcv_thd;
+		*tcap_next  = rcv_tcap;
+	} else {
+		next        = thd;
+		*tcap_next  = tcap;
+	}
+
+	return next;
+}
+
+/**
+ * Process the send event, and notify the appropriate end-points.
+ * Return the thread that should be executed next.
+ */
+static struct thread *
+asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
+	     struct tcap *tcap, struct tcap **tcap_next, int yield)
+{
+	thd_rcvcap_pending_inc(rcv_thd);
+
+	return notify_process(rcv_thd, thd, rcv_tcap, tcap, tcap_next, yield);
+}
+
+static int
+cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_next, struct tcap *tc_curr, struct tcap *tc_next,
+           tcap_time_t timeout, struct comp_info *ci, struct cos_cpu_local_info *cos_info, int intr_context)
+{
+	struct thread *thc, *thn;
+	struct tcap *tc, *tn;
+	cycles_t now;
+	int switch_away = 0;
+
+	/* which tcap should we use?  is the current expended? */
+	if (tcap_budgets_update(cos_info, thd_curr, tc_curr, &now)) {
+		assert(!tcap_is_active(tc_curr) && tcap_expended(tc_curr));
+
+		if (intr_context) tc_next = thd_rcvcap_tcap(thd_next);
+
+		/* how about the scheduler's tcap? */
+		if (tcap_expended(tc_next)) {
+			/* finally...the active list */
+			tc_next  = tcap_active_next(cos_info);
+			/* in active list?...better have budget */
+			assert(tc_next && !tcap_expended(tc_next));
+			/* and the next thread should be the scheduler of this tcap */
+			thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_next));
+			switch_away = 1;
+		}
+	}
+
+	if (intr_context || switch_away) {
+		thd_next = notify_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
+		if (thd_next == thd_curr && tc_next == tc_curr) return (intr_context ? 1 : 0);
+	}
+
+	/* update tcaps, and timers */
+	tcap_timer_update(cos_info, tc_next, timeout, now);
+	tcap_current_set(cos_info, tc_next);
+
+	if (intr_context) { 
+		/* update only tcap and return to curr thread */
+		if (thd_next == thd_curr) return 1;
+		thd_curr->state |= THD_STATE_PREEMPTED;
+	}
+
+	/* switch threads */
+ 	return cap_thd_switch(regs, thd_curr, thd_next, ci, cos_info);
+}
+
 static int
 cap_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struct tcap *next_tcap, tcap_time_t timeout,
 	   struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
-	cycles_t now;
-
-	/* tcap switch first */
-	tcap_budgets_update(cos_info, curr, next_tcap, &now);
-	tcap_timer_update(cos_info, next_tcap, timeout, now);
-	tcap_current_set(cos_info, next_tcap);
-
-	return cap_thd_switch(regs, curr, next, ci, cos_info);
+	return cap_update(regs, curr, next, tcap_current(cos_info), next_tcap, timeout, ci, cos_info, 0);
 }
 
 static int
@@ -548,45 +626,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 	}
 
 	return cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
-}
-
-/**
- * Notify the appropriate end-points.
- * Return the thread that should be executed next.
- */
-static struct thread *
-notify_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
-	     struct tcap *tcap, struct tcap **tcap_next, int yield)
-{
-	struct thread *next;
-	struct thread *arcv_notif;
-
-	arcv_notif = arcv_thd_notif(rcv_thd);
-	if (arcv_notif) thd_rcvcap_evt_enqueue(arcv_notif, rcv_thd);
-
-	/* The thread switch decision: */
-	if (yield || tcap_higher_prio(rcv_tcap, tcap)) {
-		next        = rcv_thd;
-		*tcap_next  = rcv_tcap;
-	} else {
-		next        = thd;
-		*tcap_next  = tcap;
-	}
-
-	return next;
-}
-
-/**
- * Process the send event, and notify the appropriate end-points.
- * Return the thread that should be executed next.
- */
-static struct thread *
-asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
-	     struct tcap *tcap, struct tcap **tcap_next, int yield)
-{
-	thd_rcvcap_pending_inc(rcv_thd);
-
-	return notify_process(rcv_thd, thd, rcv_tcap, tcap, tcap_next, yield);
 }
 
 static inline struct cap_arcv *
@@ -702,35 +741,7 @@ timer_process(struct pt_regs *regs)
 	thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
 	assert(thd_next && thd_bound2rcvcap(thd_next) && thd_rcvcap_isreferenced(thd_next));
 
-	/* which tcap should we use?  is the current expended? */
-	if (tcap_budgets_update(cos_info, thd_curr, tc_curr, &now)) {
-		assert(!tcap_is_active(tc_curr) && tcap_expended(tc_curr));
-
-		tc_next  = thd_rcvcap_tcap(thd_next);
-		/* how about the scheduler's tcap? */
-		if (tcap_expended(tc_next)) {
-			/* finally...the active list */
-			tc_next  = tcap_active_next(cos_info);
-			/* in active list?...better have budget */
-			assert(tc_next && !tcap_expended(tc_next));
-			/* and the next thread should be the scheduler of this tcap */
-			thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_next));
-		}
-	}
-
-	thd_next = notify_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
-	if (thd_next == thd_curr && tc_next == tc_curr) return 1;
-
-	/* update tcaps, and timers */
-	tcap_timer_update(cos_info, tc_next, TCAP_TIME_NIL, now);
-	tcap_current_set(cos_info, tc_next);
-
-	/* update only tcap and return to curr thread */
-	if (thd_next == thd_curr) return 1;
-	thd_curr->state |= THD_STATE_PREEMPTED;
-
-	/* switch threads */
- 	return cap_thd_switch(regs, thd_curr, thd_next, comp, cos_info);
+	return cap_update(regs, thd_curr, thd_next, tc_curr, tc_next, TCAP_TIME_NIL, comp, cos_info, 1);
 }
 
 static int
