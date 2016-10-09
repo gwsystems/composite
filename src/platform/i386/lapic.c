@@ -23,6 +23,9 @@
 
 #define IA32_MSR_TSC_DEADLINE  0x000006e0
 
+#define LAPIC_TIMER_MIN        (1<<12)
+#define LAPIC_COUNTER_MIN      (1<<3)
+
 extern int timer_process(struct pt_regs *regs);
 
 enum lapic_timer_type {
@@ -81,6 +84,7 @@ lapic_cycles_to_timer(u32_t cycles)
 
 	/* convert from (relative) CPU cycles to APIC counter */
 	cycles = (cycles / lapic_cpu_to_timer_ratio);
+	if (cycles == 0) cycles = (LAPIC_TIMER_MIN / lapic_cpu_to_timer_ratio);
 
 	return cycles;
 }
@@ -119,13 +123,13 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 	u64_t now;
 
 	rdtscll(now);
-	if (deadline <= now) return;
+	if (deadline < now || (deadline - now) < LAPIC_TIMER_MIN) deadline = now + LAPIC_TIMER_MIN;
 
 	if (timer_type == LAPIC_ONESHOT) {
 		u32_t counter;
 
 		counter = lapic_cycles_to_timer((u32_t)(deadline - now));
-		if (counter == 0) return;
+		if (counter == 0) counter = LAPIC_COUNTER_MIN; 
 
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, counter);
 	} else if (timer_type == LAPIC_TSC_DEADLINE) {

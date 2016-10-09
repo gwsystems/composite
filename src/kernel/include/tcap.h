@@ -208,16 +208,12 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 
 	/* timeout based on the tcap budget... */
 	timer       = now + left;
-	/* overflow?  especially relevant if left = TCAP_RES_INF */
-	if (unlikely(timer <= now)) return;
 	timeout_cyc = tcap_time2cyc(timeout, now);
 	/* ...or explicit timeout within the bounds of the budget */
 	if (timeout != TCAP_TIME_NIL && timeout_cyc < timer) {
 		if (tcap_time_lessthan(timeout, tcap_cyc2time(now))) timer = now;
 		else                                                 timer = timeout_cyc;
 	}
-	/* avoid the large costs of setting the timer hardware if possible */
-	if (cycles_same(cos_info->timeout_next, timer)) return;
 
 	chal_timer_set(timer);
 	cos_info->timeout_next = timer;
