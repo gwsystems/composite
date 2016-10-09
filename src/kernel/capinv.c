@@ -1420,6 +1420,21 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			ret = tcap_delegate(tc, tcapsrc->tcap, res, prio);
 			if (unlikely(ret)) cos_throw(err, -EINVAL);
 
+			if(tcap_expended(tcap_current(cos_info))) {
+				struct thread *thd_next;
+				struct tcap *tc_curr, *tc_next;
+
+				tc_curr = tc_next = tcap_current(cos_info);
+				/* get the scheduler thread */
+				thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
+				assert(thd_next && thd_bound2rcvcap(thd_next) && thd_rcvcap_isreferenced(thd_next));
+
+				ret = cap_update(regs, thd, thd_next, tc_curr, tc_next, TCAP_TIME_NIL, ci, cos_info, 0);
+				if (unlikely(ret < 0)) cos_throw(err, ret);
+
+				*thd_switch = 1;
+			}
+
 			break;
 		}
 		case CAPTBL_OP_TCAP_DELEGATE:
@@ -1457,6 +1472,19 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			n = asnd_process(rthd, thd, tcapdst, tcap_current(cos_info), &tcap_next, yield);
 			if (n != thd) {
 				ret = cap_switch(regs, thd, n, tcap_next, TCAP_TIME_NIL, ci, cos_info);
+				if (unlikely(ret < 0)) cos_throw(err, ret);
+
+				*thd_switch = 1;
+			} else if(tcap_expended(tcap_current(cos_info))) {
+				struct thread *thd_next;
+				struct tcap *tc_curr, *tc_next;
+
+				tc_curr = tc_next = tcap_current(cos_info);
+				/* get the scheduler thread */
+				thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
+				assert(thd_next && thd_bound2rcvcap(thd_next) && thd_rcvcap_isreferenced(thd_next));
+
+				ret = cap_update(regs, thd, thd_next, tc_curr, tc_next, TCAP_TIME_NIL, ci, cos_info, 0);
 				if (unlikely(ret < 0)) cos_throw(err, ret);
 
 				*thd_switch = 1;
