@@ -42,7 +42,7 @@ test_vmio(int vm)
 				sprintf(buf, "%d:SHMEM %d to %d - %x", it, vm, i, (unsigned int)cos_va2pa(&booter_info, (void *)shm_addr));
 				PRINTC("Sending to %d\n", i);
 				cos_shm_write(buf, strlen(buf) + 1, vm, i);
-				cos_asnd(sndcap);
+				cos_asnd(sndcap, 1);
 				PRINTC("Sent to %d: \"%s\" @ %x:%x\n", i, buf, (unsigned int)shm_addr, (unsigned int)cos_va2pa(&booter_info, (void *)shm_addr));
 				i ++;
 			}
@@ -72,11 +72,11 @@ test_vmio_events(void)
 		
 		for (i = 1; i < COS_VIRT_MACH_COUNT; i ++) {
 			snd += (i - 1) * CAP64B_IDSZ;
-			cos_asnd(snd);
+			cos_asnd(snd, 1);
 			PRINTC("Sent to fvm%d\n", i); 
 		} 
 	} else {
-		cos_asnd(VM_CAPTBL_SELF_IOASND_BASE);
+		cos_asnd(VM_CAPTBL_SELF_IOASND_BASE, 1);
 		PRINTC("Sent to vm0\n"); 
 	}
 	PRINTC("Test Done\n");
