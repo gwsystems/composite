@@ -711,6 +711,21 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	return cap_switch(regs, thd, next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
 }
 
+int
+expended_process(struct pt_regs *regs, struct thread *thd_curr, struct comp_info *ci, struct cos_cpu_local_info *cos_info, int intr_context)
+{
+	struct thread *thd_next;
+	struct tcap *tc_curr, *tc_next;
+
+	tc_curr  = tc_next = tcap_current(cos_info);
+	assert(tc_curr);
+	/* get the scheduler thread */
+	thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
+	assert(thd_next && thd_bound2rcvcap(thd_next) && thd_rcvcap_isreferenced(thd_next));
+
+	return cap_update(regs, thd_curr, thd_next, tc_curr, tc_next, TCAP_TIME_NIL, ci, cos_info, intr_context);
+}
+
 /**
  * This is the main function for maintaining time, budgets, expiring
  * tcaps, and sending timer notifications to scheduler threads.
@@ -726,8 +741,7 @@ int
 timer_process(struct pt_regs *regs)
 {
 	struct cos_cpu_local_info *cos_info;
-	struct tcap      *tc_curr,  *tc_next;
-	struct thread    *thd_curr, *thd_next;
+	struct thread    *thd_curr;
 	struct comp_info *comp;
 	unsigned long     ip, sp;
 	cycles_t          now;
@@ -735,16 +749,11 @@ timer_process(struct pt_regs *regs)
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
 	thd_curr = thd_current(cos_info);
-	tc_curr  = tc_next = tcap_current(cos_info);
 	assert(thd_curr);
 	comp     = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
 	assert(comp);
 
-	/* get the scheduler thread */
-	thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
-	assert(thd_next && thd_bound2rcvcap(thd_next) && thd_rcvcap_isreferenced(thd_next));
-
-	return cap_update(regs, thd_curr, thd_next, tc_curr, tc_next, TCAP_TIME_NIL, comp, cos_info, 1);
+	return expended_process(regs, thd_curr, comp, cos_info, 1);
 }
 
 static int
@@ -1424,15 +1433,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			if (unlikely(ret)) cos_throw(err, -EINVAL);
 
 			if(tcap_expended(tcap_current(cos_info))) {
-				struct thread *thd_next;
-				struct tcap *tc_curr, *tc_next;
-
-				tc_curr = tc_next = tcap_current(cos_info);
-				/* get the scheduler thread */
-				thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
-				assert(thd_next && thd_bound2rcvcap(thd_next) && thd_rcvcap_isreferenced(thd_next));
-
-				ret = cap_update(regs, thd, thd_next, tc_curr, tc_next, TCAP_TIME_NIL, ci, cos_info, 0);
+				ret = expended_process(regs, thd, ci, cos_info, 0);
 				if (unlikely(ret < 0)) cos_throw(err, ret);
 
 				*thd_switch = 1;
@@ -1479,15 +1480,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 
 				*thd_switch = 1;
 			} else if(tcap_expended(tcap_current(cos_info))) {
-				struct thread *thd_next;
-				struct tcap *tc_curr, *tc_next;
-
-				tc_curr = tc_next = tcap_current(cos_info);
-				/* get the scheduler thread */
-				thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
-				assert(thd_next && thd_bound2rcvcap(thd_next) && thd_rcvcap_isreferenced(thd_next));
-
-				ret = cap_update(regs, thd, thd_next, tc_curr, tc_next, TCAP_TIME_NIL, ci, cos_info, 0);
+				ret = expended_process(regs, thd, ci, cos_info, 0);
 				if (unlikely(ret < 0)) cos_throw(err, ret);
 
 				*thd_switch = 1;
