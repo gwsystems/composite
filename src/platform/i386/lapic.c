@@ -47,6 +47,7 @@ enum lapic_timer_div_by_config {
 
 static volatile void *lapic = (void *)APIC_DEFAULT_PHYS;
 static unsigned int lapic_timer_mode = LAPIC_TSC_DEADLINE;
+static unsigned int lapic_is_disabled = 1;
 
 static u32_t lapic_cpu_to_timer_ratio = 0;
 u32_t lapic_timer_calib_init = 0;
@@ -120,6 +121,8 @@ lapic_find_localaddr(void *l)
 void
 lapic_disable_timer(int timer_type)
 {
+	if (lapic_is_disabled) return;
+
 	if (timer_type == LAPIC_ONESHOT) {
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
 	} else if (timer_type == LAPIC_TSC_DEADLINE) {
@@ -128,6 +131,8 @@ lapic_disable_timer(int timer_type)
 		printk("Mode (%d) not supported\n", timer_type);
 		assert(0);
 	}
+
+	lapic_is_disabled = 1;
 }
 
 void
@@ -151,6 +156,8 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 		printk("Mode (%d) not supported\n", timer_type);
 		assert(0);
 	}
+
+	lapic_is_disabled = 0;
 }
 
 void
@@ -188,6 +195,7 @@ lapic_timer_calibration(u32_t ratio)
 	/* reset INIT counter, and unmask timer */
 	lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
 	lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) & ~LAPIC_INT_MASK);
+	lapic_is_disabled = 1;
 
 	printk("LAPIC: Timer calibrated - CPU Cycles to APIC Timer Ratio is %u\n", lapic_cpu_to_timer_ratio); 
 }
