@@ -169,7 +169,7 @@ tcap_current_set(struct cos_cpu_local_info *cos_info, struct tcap *t)
 	struct tcap *curr = tcap_current(cos_info);
 
 	/* remove transient prio on current tcap before switching to a new tcap */
-	if(curr != t && curr->perm_prio != tcap_sched_info(curr)->prio) tcap_setprio(curr, curr->perm_prio);
+	if(curr->perm_prio != tcap_sched_info(curr)->prio) tcap_setprio(curr, curr->perm_prio);
 	cos_info->curr_tcap = t;
 }
 

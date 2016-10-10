@@ -596,6 +596,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 	tcap_prio_t prio    = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
 	tcap_time_t timeout = (tcap_time_t)__userregs_get4(regs);
 	struct tcap *tcap   = tcap_current(cos_info);
+	int ret;
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
 
@@ -621,11 +622,12 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 		tcap_cap = (struct cap_tcap *)captbl_lkup(ci->captbl, tc);
 		if (!CAP_TYPECHK_CORE(tcap_cap, CAP_TCAP)) return -EINVAL;
 		tcap = tcap_cap->tcap;
-
-		tcap_setprio(tcap, prio);
 	}
 
-	return cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
+	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
+	if (tc && tcap_current(cos_info) == tcap) tcap_setprio(tcap, prio);
+
+	return ret;
 }
 
 static inline struct cap_arcv *
