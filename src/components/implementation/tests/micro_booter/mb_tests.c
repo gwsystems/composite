@@ -120,11 +120,11 @@ async_thd_parent_perf(void *thdcap)
 	long long start_asnd_cycles = 0, end_arcv_cycles = 0;
 	int i;
 
-	cos_asnd(sc);
+	cos_asnd(sc, 1);
 
 	rdtscll(start_asnd_cycles);
 	for (i = 0 ; i < ITER ; i++) {
-		cos_asnd(sc);
+		cos_asnd(sc, 1);
 	}
 	rdtscll(end_arcv_cycles);
 	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
@@ -170,11 +170,11 @@ async_thd_parent(void *thdcap)
 	cycles_t  cycles;
 
 	PRINTC("--> sending\n");
-	ret     = cos_asnd(sc);
+	ret     = cos_asnd(sc, 0);
 	if (ret) PRINTC("asnd returned %d.\n", ret);
 	PRINTC("--> Back in the asnder.\n");
 	PRINTC("--> sending\n");
-	ret     = cos_asnd(sc);
+	ret     = cos_asnd(sc, 1);
 	if (ret) PRINTC("--> asnd returned %d.\n", ret);
 	PRINTC("--> Back in the asnder.\n");
 	PRINTC("--> receiving to get notifications\n");
@@ -291,7 +291,7 @@ tcap_parent(void *d)
 	asndcap_t __tc_sc = (asndcap_t)d;
 
 	for (i = 0 ; i < ITER ; i++) {
-		cos_asnd(__tc_sc);
+		cos_asnd(__tc_sc, 0);
 	}
 }
 

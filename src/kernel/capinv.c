@@ -648,6 +648,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	    struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
 	int curr_cpu = get_cpuid();
+	int yield    = __userregs_get1(regs);
 	struct cap_arcv *arcv;
 	struct thread *rcv_thd, *next;
 	struct tcap *rcv_tcap, *tcap, *tcap_next;
@@ -663,7 +664,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
 
-	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0);
+	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, yield);
 
 	return cap_switch(regs, thd, next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
 }
