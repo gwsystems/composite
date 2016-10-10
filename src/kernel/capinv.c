@@ -445,7 +445,8 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
 	int               preempt   = 0;
 
 	if (unlikely(curr == next)) {
-		assert(!(curr->state & (THD_STATE_RCVING)) && !(curr->state & THD_STATE_PREEMPTED));
+		if (!(curr->state & THD_STATE_SUSPENDED))
+			assert(!(curr->state & (THD_STATE_RCVING)) && !(curr->state & THD_STATE_PREEMPTED));
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 		return 0;
 	}
@@ -486,6 +487,9 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
 		thd_rcvcap_pending_dec(next);
 		__userregs_setretvals(&next->regs, thd_rcvcap_pending(next), a, b);
 	}
+
+	/* if it was suspended for budget expiration, clear it */
+	next->state &= ~THD_STATE_SUSPENDED;
 
 	copy_all_regs(&next->regs, regs);
 
@@ -571,6 +575,8 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		/* update only tcap and return to curr thread */
 		if (thd_next == thd_curr) return 1;
 		thd_curr->state |= THD_STATE_PREEMPTED;
+	} else if (switch_away) {
+		thd_curr->state |= THD_STATE_SUSPENDED;
 	}
 
 	/* switch threads */
@@ -699,7 +705,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	assert(thd);
 	ci       = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci  && ci->captbl);
-	assert(!thd->state & THD_STATE_PREEMPTED);
+	assert(!(thd->state & THD_STATE_PREEMPTED));
 	rcv_thd  = arcv->thd;
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);

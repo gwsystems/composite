@@ -41,6 +41,7 @@ struct rcvcap_info {
 typedef enum {
 	THD_STATE_PREEMPTED   = 1,
 	THD_STATE_RCVING      = 1<<1, /* report to parent rcvcap that we're receiving */
+	THD_STATE_SUSPENDED   = 1<<2,
 } thd_state_t;
 
 /**
