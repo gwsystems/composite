@@ -203,6 +203,8 @@ typedef unsigned long capid_t;
 #define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
 typedef capid_t tcap_t;
 
+#define ARCV_NOTIF_DEPTH 8
+
 #define QUIESCENCE_CHECK(curr, past, quiescence_period)  (((curr) - (past)) > (quiescence_period))
 
 /*
