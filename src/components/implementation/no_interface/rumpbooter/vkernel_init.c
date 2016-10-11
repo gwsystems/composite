@@ -287,7 +287,7 @@ sched_fn(void *x)
 					assert(0);
 				}
 			} else { 
-				if (cos_asnd(vksndvm[index]), 1) assert(0);
+				if (cos_asnd(vksndvm[index], 1)) assert(0);
 			}
 			rdtscll(end);
 
