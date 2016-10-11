@@ -22,7 +22,7 @@ volatile tcap_t cos_cur_tcap = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 tcap_prio_t rk_thd_prio = RK_THD_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-tcap_prio_t rk_thd_prio = TCAP_PRIO_MAX;
+tcap_prio_t rk_thd_prio = PRIO_UNDER;
 #endif
 
 /* Mapping the functions from rumpkernel to composite */

@@ -214,7 +214,7 @@ fillup_budgets(void)
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	vmbudget[0] = TCAP_RES_INF;
-	vmprio[0] = PRIO_UNDER;
+	vmprio[0] = PRIO_BOOST;
 	vm_cr_reset[0] = 1;
 	//vm_deletenode(&vms_under, &vmnode[0]);
 	//vm_insertnode(&vms_boost, &vmnode[0]);
@@ -341,7 +341,7 @@ sched_fn(void *x)
 			}
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 			//printc("%s:%d - %d: %lu %lu %lu\n", __func__, __LINE__, index, budget, vmbudget[index], vmcredits[index]);
-			if (index && (cycles_same(budget, 0) && !vm_cr_reset[index])) {
+			/*if (index && (cycles_same(budget, 0) && !vm_cr_reset[index])) {
 				vmprio[index] = PRIO_OVER;
 				vm_deletenode(&vms_under, &vmnode[index]);
 				vm_insertnode(&vms_over, &vmnode[index]);
@@ -353,7 +353,7 @@ sched_fn(void *x)
 				}
 
 				continue;
-			} 
+			}*/
 
 			if (!TCAP_RES_IS_INF(budget)) {
 				/* 
@@ -378,8 +378,8 @@ sched_fn(void *x)
 			uint64_t end = 0;
 
 			//rdtscll(start);
-			if (send) cos_asnd(vksndvm[index], 1);
-			else cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD);
+			if (send) { if (cos_asnd(vksndvm[index], 1)) assert(0); }
+			else { if (cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD)) assert(0); }
 			//rdtscll(end);
 
 			if (index == 0) {
