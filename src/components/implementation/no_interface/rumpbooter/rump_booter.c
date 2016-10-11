@@ -29,7 +29,6 @@ hw_irq_alloc(void){
 	memset(irq_prio, 0, sizeof(tcap_prio_t) * 32);
 
 	for(i = HW_ISR_FIRST; i < HW_ISR_LINES; i++){
-
 		if (vmid == 0) {
 			switch(i) {
 			case IRQ_VM1:

@@ -48,6 +48,7 @@ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
 static inline tcap_t
 intr_translate_thdcap2irqtcap(thdcap_t tc)
 {
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	int i = HW_ISR_FIRST;
 
 	if (tc == 0) return 0;
@@ -63,6 +64,9 @@ intr_translate_thdcap2irqtcap(thdcap_t tc)
 	if (i >= HW_ISR_LINES) return 0;
 
 	return irq_tcap[i];
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+	return BOOT_CAPTBL_SELF_INITTCAP_BASE;
+#endif
 }
 
 static inline int
@@ -123,6 +127,7 @@ intr_real_irq_rcv(void)
 static inline tcap_t
 intr_eligible_tcap(thdcap_t irqtc)
 {
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	tcap_res_t irqbudget, initbudget;
 	tcap_t tc;
 	int irqline, ret;
@@ -161,6 +166,9 @@ intr_eligible_tcap(thdcap_t irqtc)
 	}
 	
 	return tc;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+	return BOOT_CAPTBL_SELF_INITTCAP_BASE;
+#endif
 }
 
 static inline void
@@ -266,10 +274,15 @@ intr_enable(void)
 
 	contending = isr_enable();
 	if (unlikely(contending && !cos_intrdisabled)) {
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 		int irq = intr_translate_thdcap2irq(contending);
 
 		assert (irq >= 0);
 		prio = irq_prio[irq];
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+		if(vmid == 0) prio = irq_prio[HW_ISR_FIRST];
+		else          prio = irq_prio[IRQ_DOM0_VM];
+#endif
 		/*
 		 * Assumption here: we have actually re-enabled
 		 * interrupts here as opposed to release another

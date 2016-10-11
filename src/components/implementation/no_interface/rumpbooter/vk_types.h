@@ -116,6 +116,5 @@ enum {
 extern unsigned int cycs_per_usec;
 
 extern cycles_t dom0_sla_act_cyc;
-extern tcap_res_t dom0_sla_budget;
 
 #endif /* VK_TYPES_H */
