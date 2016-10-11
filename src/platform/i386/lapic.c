@@ -17,11 +17,14 @@
 #define LAPIC_PERIODIC_MODE    (0x01 << 17)
 #define LAPIC_ONESHOT_MODE     (0x00 << 17)
 #define LAPIC_TSCDEADLINE_MODE (0x02 << 17)
-#define LAPIC_INT_MASK         (1<<15)
+#define LAPIC_INT_MASK         (1<<16)
 
 #define LAPIC_TIMER_CALIB_VAL  0xffffffff
 
 #define IA32_MSR_TSC_DEADLINE  0x000006e0
+
+#define LAPIC_TIMER_MIN        (1<<12)
+#define LAPIC_COUNTER_MIN      (1<<3)
 
 extern int timer_process(struct pt_regs *regs);
 
@@ -44,6 +47,7 @@ enum lapic_timer_div_by_config {
 
 static volatile void *lapic = (void *)APIC_DEFAULT_PHYS;
 static unsigned int lapic_timer_mode = LAPIC_TSC_DEADLINE;
+static unsigned int lapic_is_disabled = 1;
 
 static u32_t lapic_cpu_to_timer_ratio = 0;
 u32_t lapic_timer_calib_init = 0;
@@ -81,6 +85,7 @@ lapic_cycles_to_timer(u32_t cycles)
 
 	/* convert from (relative) CPU cycles to APIC counter */
 	cycles = (cycles / lapic_cpu_to_timer_ratio);
+	if (cycles == 0) cycles = (LAPIC_TIMER_MIN / lapic_cpu_to_timer_ratio);
 
 	return cycles;
 }
@@ -114,18 +119,35 @@ lapic_find_localaddr(void *l)
 }
 
 void
+lapic_disable_timer(int timer_type)
+{
+	if (lapic_is_disabled) return;
+
+	if (timer_type == LAPIC_ONESHOT) {
+		lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
+	} else if (timer_type == LAPIC_TSC_DEADLINE) {
+		writemsr(IA32_MSR_TSC_DEADLINE, 0, 0);
+	} else {
+		printk("Mode (%d) not supported\n", timer_type);
+		assert(0);
+	}
+
+	lapic_is_disabled = 1;
+}
+
+void
 lapic_set_timer(int timer_type, cycles_t deadline)
 {
 	u64_t now;
 
 	rdtscll(now);
-	if (deadline <= now) return;
+	if (deadline < now || (deadline - now) < LAPIC_TIMER_MIN) deadline = now + LAPIC_TIMER_MIN;
 
 	if (timer_type == LAPIC_ONESHOT) {
 		u32_t counter;
 
 		counter = lapic_cycles_to_timer((u32_t)(deadline - now));
-		if (counter == 0) return;
+		if (counter == 0) counter = LAPIC_COUNTER_MIN; 
 
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, counter);
 	} else if (timer_type == LAPIC_TSC_DEADLINE) {
@@ -134,6 +156,8 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 		printk("Mode (%d) not supported\n", timer_type);
 		assert(0);
 	}
+
+	lapic_is_disabled = 0;
 }
 
 void
@@ -171,6 +195,7 @@ lapic_timer_calibration(u32_t ratio)
 	/* reset INIT counter, and unmask timer */
 	lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
 	lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) & ~LAPIC_INT_MASK);
+	lapic_is_disabled = 1;
 
 	printk("LAPIC: Timer calibrated - CPU Cycles to APIC Timer Ratio is %u\n", lapic_cpu_to_timer_ratio); 
 }
@@ -178,6 +203,10 @@ lapic_timer_calibration(u32_t ratio)
 void
 chal_timer_set(cycles_t cycles)
 { lapic_set_timer(lapic_timer_mode, cycles); }
+
+void
+chal_timer_disable(void)
+{ lapic_disable_timer(lapic_timer_mode); }
 
 void
 lapic_timer_init(void)

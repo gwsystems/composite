@@ -79,7 +79,7 @@ int cos_thd_switch(thdcap_t c);
 int cos_switch(thdcap_t c, tcap_t t, tcap_prio_t p, tcap_time_t r, arcvcap_t rcv);
 int cos_thd_mod(struct cos_compinfo *ci, thdcap_t c, void *tls_addr); /* set tls addr of thd in captbl */
 
-int cos_asnd(asndcap_t snd);
+int cos_asnd(asndcap_t snd, int yield);
 /* returns non-zero if there are still pending events (i.e. there have been pending snds) */
 int cos_rcv(arcvcap_t rcv);
 /* returns the same value as cos_rcv, but also information about scheduling events */
