@@ -496,6 +496,29 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
 	return preempt;
 }
 
+static struct thread *
+notify_parent(struct thread *rcv_thd)
+{
+	struct thread *curr_notif = NULL, *prev_notif = NULL, *arcv_notif = NULL;
+	int depth = 0;
+
+	/* hierarchical notifications - upto init (bounded by ARCV_NOTIF_DEPTH) */
+	prev_notif = rcv_thd;
+	curr_notif = arcv_notif = arcv_thd_notif(prev_notif);
+	while (curr_notif && curr_notif != prev_notif) {
+		assert(depth < ARCV_NOTIF_DEPTH);
+
+		thd_rcvcap_evt_enqueue(curr_notif, prev_notif);
+		if (!(curr_notif->state & THD_STATE_RCVING)) break;
+
+		prev_notif = curr_notif;
+		curr_notif = arcv_thd_notif(prev_notif);
+		depth ++;
+	}
+
+	return arcv_notif;
+}
+
 /**
  * Notify the appropriate end-points.
  * Return the thread that should be executed next.
@@ -505,10 +528,8 @@ notify_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap
 	     struct tcap *tcap, struct tcap **tcap_next, int yield)
 {
 	struct thread *next;
-	struct thread *arcv_notif;
-
-	arcv_notif = arcv_thd_notif(rcv_thd);
-	if (arcv_notif) thd_rcvcap_evt_enqueue(arcv_notif, rcv_thd);
+	
+	notify_parent(rcv_thd);
 
 	/* The thread switch decision: */
 	if (yield || tcap_higher_prio(rcv_tcap, tcap)) {
@@ -783,8 +804,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		return 0;
 	}
 
-	next = arcv_thd_notif(thd);
-	if (likely(next)) thd_rcvcap_evt_enqueue(next, thd);
+	next = notify_parent(thd);
 
 	/* FIXME:  for now, lets just ignore this path...need to plumb tcaps into it */
 	thd->interrupted_thread = NULL;
