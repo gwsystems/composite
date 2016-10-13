@@ -266,17 +266,13 @@ intr_enable(void)
 
 	contending = isr_enable();
 	if (unlikely(contending && !cos_intrdisabled)) {
-		int irq = intr_translate_thdcap2irq(contending);
-
-		assert (irq >= 0);
-		prio = irq_prio[irq];
 		/*
 		 * Assumption here: we have actually re-enabled
 		 * interrupts here as opposed to release another
 		 * cos_nesting of the interrupts
 		 */
 		do {
-			ret = cos_switch(contending, intr_eligible_tcap(contending), prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			ret = cos_switch(contending, cos_cur_tcap, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert (ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
 	}

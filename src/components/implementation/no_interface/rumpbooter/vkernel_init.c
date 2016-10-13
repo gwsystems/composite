@@ -180,6 +180,7 @@ setup_credits(void)
 void
 reset_credits(void)
 {
+	assert(0);
 	struct vm_node *vm;
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
@@ -214,7 +215,7 @@ fillup_budgets(void)
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	vmbudget[0] = TCAP_RES_INF;
-	vmprio[0] = PRIO_UNDER;
+	vmprio[0] = PRIO_BOOST;
 	vm_cr_reset[0] = 1;
 	//vm_deletenode(&vms_under, &vmnode[0]);
 	//vm_insertnode(&vms_boost, &vmnode[0]);
@@ -341,19 +342,20 @@ sched_fn(void *x)
 			}
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 			//printc("%s:%d - %d: %lu %lu %lu\n", __func__, __LINE__, index, budget, vmbudget[index], vmcredits[index]);
-			if (index && (cycles_same(budget, 0) && !vm_cr_reset[index])) {
-				vmprio[index] = PRIO_OVER;
-				vm_deletenode(&vms_under, &vmnode[index]);
-				vm_insertnode(&vms_over, &vmnode[index]);
-				count_over ++;
 
-				if (count_over == ready_vms - 1) {
-					reset_credits();
-					count_over = 0;
-				}
+			//if (index && (cycles_same(budget, 0) && !vm_cr_reset[index])) {
+			//	vmprio[index] = PRIO_OVER;
+			//	vm_deletenode(&vms_under, &vmnode[index]);
+			//	vm_insertnode(&vms_over, &vmnode[index]);
+			//	count_over ++;
 
-				continue;
-			} 
+			//	if (count_over == ready_vms - 1) {
+			//		reset_credits();
+			//		count_over = 0;
+			//	}
+
+			//	continue;
+			//} 
 
 			if (!TCAP_RES_IS_INF(budget)) {
 				/* 
@@ -374,21 +376,21 @@ sched_fn(void *x)
 			}
 
 			//printc("%s:%d - %d: %lu %lu\n", __func__, __LINE__, index, budget, vmbudget[index]);
-			uint64_t start = 0;
-			uint64_t end = 0;
+			//uint64_t start = 0;
+			//uint64_t end = 0;
 
 			//rdtscll(start);
 			if (send) cos_asnd(vksndvm[index]);
 			else cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD);
 			//rdtscll(end);
 
-			if (index == 0) {
-				//printc("t_dom_cycs: %llu\n", end-start);
-				t_dom_cycs += (end-start);
-			} else if(index == 1) {
-				//printc("t_vm_cycs: %llu\n", end-start);
-				t_vm_cycs += (end-start);
-			}
+		//	if (index == 0) {
+		//		//printc("t_dom_cycs: %llu\n", end-start);
+		//		t_dom_cycs += (end-start);
+		//	} else if(index == 1) {
+		//		//printc("t_vm_cycs: %llu\n", end-start);
+		//		t_vm_cycs += (end-start);
+		//	}
 
 			while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) ;
 		}
@@ -813,6 +815,7 @@ cos_init(void)
 		}
 
 		if (id == 0) {
+
 			printc("\tCreating shared memory region from %x size %x\n", BOOT_MEM_SHM_BASE, COS_SHM_ALL_SZ);
 			
 			cos_shmem_alloc(&vmbooter_info[id], COS_SHM_ALL_SZ + ((sizeof(struct cos_shm_rb *)*2)*(COS_VIRT_MACH_COUNT-1)) );

@@ -26,7 +26,6 @@ tcap_prio_t rk_thd_prio = TCAP_PRIO_MAX;
 #endif
 
 /* Mapping the functions from rumpkernel to composite */
-
 void
 cos2rump_setup(void)
 {
@@ -253,15 +252,15 @@ intr_switch(void)
 {
 	int ret, i = 32;
 
-	if(!intrs) return;
+	if (!intrs) return;
 
 	/* Man this is ugly...FIXME */
-	for(; i > 0 ; i--) {
+	for (; i > 0 ; i--) {
 		int tmp = intrs;
 
-		if((tmp>>(i-1)) & 1) {
+		if ((tmp>>(i-1)) & 1) {
 			do {
-				ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(irq_thdcap[i]), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				ret = cos_switch(irq_thdcap[i], cos_cur_tcap, irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 				assert (ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 		}
@@ -430,7 +429,6 @@ rk_resume:
 		} while(ret == -EAGAIN);
 
 		check_vio_budgets();
-		//cos_sched_yield();
 	}
 }
 
@@ -523,7 +521,9 @@ cos_sched_yield(void)
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 { if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-{ cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
+{ 
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+}
 #endif
 
 void
@@ -531,5 +531,7 @@ cos_vm_yield(void)
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 { if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-{ cos_asnd(VM_CAPTBL_SELF_VKASND_BASE); }
+{ 
+	cos_asnd(VM_CAPTBL_SELF_VKASND_BASE); 
+}
 #endif

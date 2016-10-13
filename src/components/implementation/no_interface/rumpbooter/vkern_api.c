@@ -88,7 +88,7 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 		rb->head = producer+second;	
 	}else{
 		memcpy(&rb->buf[producer], buff, size);
-		__atomic_fetch_add(&rb->head, size+1, __ATOMIC_SEQ_CST);
+		__atomic_fetch_add(&rb->head, size+sizeof(size_t), __ATOMIC_SEQ_CST);
 	}
 
 	return 1;
@@ -155,7 +155,7 @@ vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
 		rb->tail=consumer+second;
 	}else{
 		memcpy(buff, &rb->buf[consumer], size);
-		__atomic_fetch_add(&rb->tail, size+1, __ATOMIC_SEQ_CST);
+		__atomic_fetch_add(&rb->tail, size+sizeof(size_t), __ATOMIC_SEQ_CST);
 	}
 
 	assert(buff != NULL);
