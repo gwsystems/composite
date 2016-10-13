@@ -41,7 +41,7 @@ hw_irq_alloc(void){
 				irq_prio[i]  = VIO_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-				irq_prio[i] = TCAP_PRIO_MAX;
+				irq_prio[i] = PRIO_BOOST;
 #endif
 				break;
 			case IRQ_VM2:
@@ -53,7 +53,7 @@ hw_irq_alloc(void){
 				irq_prio[i]  = VIO_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-				irq_prio[i] = TCAP_PRIO_MAX;
+				irq_prio[i] = PRIO_BOOST;
 #endif
 				break;
 			default:
@@ -64,7 +64,7 @@ hw_irq_alloc(void){
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 				irq_prio[i] = RIO_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-				irq_prio[i] = TCAP_PRIO_MAX;
+				irq_prio[i] = PRIO_BOOST;
 #endif
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
@@ -105,9 +105,9 @@ hw_irq_alloc(void){
 					/* VMs use only 1 tcap - INITTCAP for all execution */
 					irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-					irq_prio[i]  = VIO_PRIO;
+					irq_prio[i] = VIO_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-					irq_prio[i] = TCAP_PRIO_MAX;
+					irq_prio[i] = PRIO_UNDER;
 #endif
 					break;
 				default: 
@@ -152,6 +152,10 @@ rump_booter_init(void)
 		json_file = "{,\"blk\":{,\"source\":\"dev\",\"path\":\"/dev/paws\",\"fstype\":\"cd9660\",\"mountpoint\":\"/data\",},\"cmdline\":\"paws.bin\",},\0";
 #endif
 	}
+
+#if defined(__SIMPLE_XEN_LIKE_TCAPS__)
+	rk_thd_prio = (vmid == 0) ? PRIO_BOOST : PRIO_UNDER;
+#endif
 
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();

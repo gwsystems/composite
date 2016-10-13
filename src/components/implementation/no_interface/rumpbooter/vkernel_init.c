@@ -287,7 +287,7 @@ sched_fn(void *x)
 					assert(0);
 				}
 			} else { 
-				if (cos_asnd(vksndvm[index]), 1) assert(0);
+				if (cos_asnd(vksndvm[index], 1)) assert(0);
 			}
 			rdtscll(end);
 
@@ -378,8 +378,8 @@ sched_fn(void *x)
 			uint64_t end = 0;
 
 			//rdtscll(start);
-			if (send) cos_asnd(vksndvm[index], 1);
-			else cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD);
+			if (send) { if (cos_asnd(vksndvm[index], 1)) assert(0); }
+			else { if (cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD)) assert(0); }
 			//rdtscll(end);
 
 			if (index == 0) {
