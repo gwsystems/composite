@@ -261,7 +261,7 @@ intr_switch(void)
 
 		if((tmp>>(i-1)) & 1) {
 			do {
-				ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(irq_thdcap[i]), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				ret = cos_switch(irq_thdcap[i], cos_cur_tcap, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 				assert (ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 		}

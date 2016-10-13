@@ -3,10 +3,10 @@
 
 #include <cos_types.h>
 
-#define COS_VIRT_MACH_COUNT 3
+#define COS_VIRT_MACH_COUNT 2
 #define COS_VIRT_MACH_MEM_SZ (1<<27) //128MB
 
-#define COS_SHM_VM_SZ (1<<20) //4MB
+#define COS_SHM_VM_SZ (1<<20) //2MB
 #define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) > 0 ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
 
 #define VM_TIMESLICE (1000*10) //10*1000*cycs_per_usec = 10ms
@@ -63,22 +63,15 @@ enum vm_status {
 };
 
 enum vm_credits {
-#ifdef __INTELLIGENT_TCAPS__
-	DOM0_CREDITS = 5,
-#elif defined __SIMPLE_XEN_LIKE_TCAPS__
-	DOM0_CREDITS = 5, // 0 to not have credit based execution.. 
-#endif
-	VM1_CREDITS = 5,
-	VM2_CREDITS = 1,
-/*#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	DOM0_CREDITS = 2,
 	VM1_CREDITS  = 1,
 	VM2_CREDITS  = 1,
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	DOM0_CREDITS = 0, // 0 to not have credit based execution.. 
-	VM1_CREDITS  = 1,
+	VM1_CREDITS  = 3,
 	VM2_CREDITS  = 4,
-#endif*/
+#endif
 };
 
 enum {
