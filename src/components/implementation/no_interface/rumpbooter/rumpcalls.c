@@ -124,7 +124,7 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 		}
 #endif
 		/* TODO: Before sending a event to the VM, first see if we can account for the time spent in i/o  processing */
-		if(cos_asnd(sndcap)) assert(0);
+		if(cos_asnd(sndcap, 0)) assert(0);
 	}
 	/* VMs send out the packet and time to process the packet - All remaining budget in Tcap */
 	else {
@@ -137,7 +137,7 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 		if(cos_tcap_delegate(sndcap, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, VIO_PRIO, TCAP_DELEG_YIELD)) assert(0);
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	if(cos_asnd(sndcap)) assert(0);
+	if(cos_asnd(sndcap, 0)) assert(0);
 #endif
 	return 1;
 }
@@ -260,7 +260,7 @@ intr_switch(void)
 
 		if ((tmp>>(i-1)) & 1) {
 			do {
-				ret = cos_switch(irq_thdcap[i], cos_cur_tcap, irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				ret = cos_switch(irq_thdcap[i], cos_cur_tcap, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 				assert (ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 		}
@@ -531,7 +531,5 @@ cos_vm_yield(void)
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 { if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-{ 
-	cos_asnd(VM_CAPTBL_SELF_VKASND_BASE); 
-}
+{ cos_asnd(VM_CAPTBL_SELF_VKASND_BASE, 1); }
 #endif

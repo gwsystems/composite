@@ -47,37 +47,51 @@ vk_shmem_addr_recv(int from_vmid){
 
 int
 vk_ringbuf_isfull(struct cos_shm_rb *rb, size_t size){
+
 	/* doesn't account for wraparound, that's checked only if we need to wraparound. */
 	if(rb->head+size >= rb->tail && rb->head < rb->tail){
 		printc("rb full\n");
 		return 1;
 	}
+
 	return 0;
 }
 
 
 int
 vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
-	if(vk_ringbuf_isfull(rb, size+1)){ return -1;} 
+	
 	unsigned int producer;
+
+	assert(size > 0);
+
+	if (vk_ringbuf_isfull(rb, size+sizeof(size_t))) return -1;
+
+	/* Assumption: if head == tail rb is empty */
+
+	/* If there is not enough space at the end to store size goto start and skip last 4 bytes */
+	if ((rb->size - rb->head) < 4)	{
+		/* Check to see if ringbuffer is full if we add from start of rb */
+		if (size+sizeof(size_t) >= rb->tail) return -1;
+		/* skip the last few bytes at the end of rb */
+		rb->head = 0;
+	}
+
 	producer = rb->head;
 
-	//store size of entry
-	//rb->buf[producer] = size;
 	memcpy(&rb->buf[producer], &size, sizeof(size_t));
-	/* FIXME we can wrap wrong */
 	producer += sizeof(size_t);
 
-	//check split wraparound
-	if( producer+size >= (rb->size) ){
+	/* check split wraparound */
+	if (unlikely(producer+size >= (rb->size))) {
 		unsigned int first, second;
 	
 		first = rb->size - producer;
 		second = size - first;
 	
-		//check if ringbuf is full w/ wraparound	
-		if(rb->tail <= second) {
-			printc("rb full wrap\n");
+		/* check if ringbuf is full w/ wraparound */
+		if (second >= rb->tail) {
+			printc("wrap around, rb is full no enqueue");
 			return -1;
 		}
 
@@ -86,7 +100,8 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 		memcpy(&rb->buf[producer], first+buff, second);
 	
 		rb->head = producer+second;	
-	}else{
+	} else {
+		/* Normal case */
 		memcpy(&rb->buf[producer], buff, size);
 		__atomic_fetch_add(&rb->head, size+sizeof(size_t), __ATOMIC_SEQ_CST);
 	}
@@ -102,7 +117,7 @@ vk_dequeue_size(unsigned int srcvm, unsigned int curvm)
 
 	if (srcvm == 0) {
 		rb = vk_shmem_addr_recv(0);
-	}else{
+	} else {
 		rb = vk_shmem_addr_send(srcvm);
 	}
 	
@@ -122,38 +137,49 @@ vk_dequeue_size(unsigned int srcvm, unsigned int curvm)
 int
 vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
 
-	if(rb->head == rb->tail){ 
-		return -1; 
-	} 
-	unsigned int consumer = rb->tail;
+	unsigned int consumer;
 	size_t size;
 
-	//get size of entry	
-	//size = rb->buf[consumer];
+	/* Assumption: if head == tail rb is empty */
+
+	if (rb->head == rb->tail) { 
+		//printc("rb empty");
+		return -1; 
+	} 
+
+	/* If there is not enough space at the end to store size goto start and skip last 4 bytes */
+	if ((rb->size - rb->tail) < 4)	{
+		/* skip the last few bytes at the end of rb */
+		rb->tail = 0;
+		assert(rb->tail != rb->head);
+	}
+
+	consumer = rb->tail;
+
+	/* get size of entry */
 	memcpy(&size, &rb->buf[consumer], sizeof(size_t));
-	/* FIXME wrap issue */
 	consumer += sizeof(size_t);
 	
-	//check for empty	
+	/* check for empty */
 	assert(size > 0);
 
-	//check for split wraparound
-	if(consumer+size >= rb->size){
+	/* check for split wraparound */
+	if (consumer+size >= rb->size) {
 		unsigned int first, second;
-		first = rb->size - consumer;
+
+		first  = rb->size - consumer;
 		second = size - first;
-		
-		if(rb->buf+second > rb->buf+rb->head){
-			printc("wrap rb empty\n");
-			return -1;
-		}
+
+		/* tail is following head, it should only evert catch up at most */	
+		assert(second <= rb->head);
 
 		memcpy(buff, &rb->buf[consumer], first);
 		consumer = 0;
 		memcpy(buff+first, &rb->buf[consumer], second);
 		
 		rb->tail=consumer+second;
-	}else{
+	} else {
+		/* Normal case */
 		memcpy(buff, &rb->buf[consumer], size);
 		__atomic_fetch_add(&rb->tail, size+sizeof(size_t), __ATOMIC_SEQ_CST);
 	}
@@ -167,9 +193,8 @@ cos_shm_write(void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
 {
 	assert(buff);
 	struct cos_shm_rb * rb;
-
-	//if you're DOM0, write to the rcv ringbuf of the VM you're sending to.
-	//else if you're a VM, write to your send ringbuf for DOM0 to read from
+	/* if you're DOM0, write to the rcv ringbuf of the VM you're sending to */
+	/* else if you're a VM, write to your send ringbuf for DOM0 to read from */
 	if (srcvm == 0) {
 		rb = vk_shmem_addr_recv(dstvm);
 	}else{

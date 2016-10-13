@@ -288,7 +288,7 @@ sched_fn(void *x)
 					assert(0);
 				}
 			} else { 
-				if (cos_asnd(vksndvm[index])) assert(0);
+				if (cos_asnd(vksndvm[index]), 1) assert(0);
 			}
 			rdtscll(end);
 
@@ -343,20 +343,20 @@ sched_fn(void *x)
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 			//printc("%s:%d - %d: %lu %lu %lu\n", __func__, __LINE__, index, budget, vmbudget[index], vmcredits[index]);
 
-			//if (index && (cycles_same(budget, 0) && !vm_cr_reset[index])) {
-			//	vmprio[index] = PRIO_OVER;
-			//	vm_deletenode(&vms_under, &vmnode[index]);
-			//	vm_insertnode(&vms_over, &vmnode[index]);
-			//	count_over ++;
+			/*if (index && (cycles_same(budget, 0) && !vm_cr_reset[index])) {
+				vmprio[index] = PRIO_OVER;
+				vm_deletenode(&vms_under, &vmnode[index]);
+				vm_insertnode(&vms_over, &vmnode[index]);
+				count_over ++;
 
-			//	if (count_over == ready_vms - 1) {
-			//		reset_credits();
-			//		count_over = 0;
-			//	}
+				if (count_over == ready_vms - 1) {
+					reset_credits();
+					count_over = 0;
+				}
 
-			//	continue;
-			//} 
-
+				continue;
+			} 
+			*/
 			if (!TCAP_RES_IS_INF(budget)) {
 				/* 
 				 * if it has high enough accumulated budget already.. just giving it a bit..
@@ -380,7 +380,7 @@ sched_fn(void *x)
 			//uint64_t end = 0;
 
 			//rdtscll(start);
-			if (send) cos_asnd(vksndvm[index]);
+			if (send) cos_asnd(vksndvm[index], 1);
 			else cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD);
 			//rdtscll(end);
 
@@ -628,7 +628,8 @@ cos_init(void)
 		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd[id]); 
 
 		printc("\tCreating other required initial capabilities\n");
-		vminittcap[id] = cos_tcap_alloc(&vkern_info, vmprio[id]);
+		if(id == 0) vminittcap[id] = cos_tcap_alloc(&vkern_info, PRIO_BOOST);
+		else vminittcap[id] = cos_tcap_alloc(&vkern_info, PRIO_UNDER);
 		assert(vminittcap[id]);
 
 		vminitrcv[id] = cos_arcv_alloc(&vkern_info, vm_main_thd[id], vminittcap[id], vkern_info.comp_cap, sched_rcv);

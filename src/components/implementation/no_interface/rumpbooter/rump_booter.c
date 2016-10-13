@@ -130,6 +130,7 @@ rump_booter_init(void)
 
 /* json config string fixed at compile-time */
 #define JSON_CONF_TYPE JSON_NGINX_BAREMETAL
+//#define JSON_CONF_TYPE JSON_PAWS_BAREMETAL
 
 	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
 	if(vmid == 0) {

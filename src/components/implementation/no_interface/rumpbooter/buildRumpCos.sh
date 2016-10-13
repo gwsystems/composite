@@ -49,3 +49,8 @@ ld -melf_i386 -r -o rumpcos.o $prog.bin rump_boot.o
 
 cp rumpcos.o ../../../../../transfer/
 cp qemu_rk.sh ../../../../../transfer/
+
+cd ../../../../../transfer/
+./geniso.sh rumpkernboot.sh
+sudo dd bs=8M if=composite.iso of=/dev/sdb
+sync
