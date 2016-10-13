@@ -11,8 +11,6 @@
 extern struct cos_compinfo booter_info;
 extern int vmid;
 
-tcap_res_t vms_budget_track[COS_VIRT_MACH_COUNT - 1];
-
 void
 hw_irq_alloc(void){
 
@@ -20,13 +18,11 @@ hw_irq_alloc(void){
 	int i, ret;
 	int first = 1, id = HW_ISR_FIRST;
 
-	memset(vms_budget_track, 0, sizeof(tcap_res_t) * (COS_VIRT_MACH_COUNT - 1));
-
-	memset(irq_thdcap, 0, sizeof(thdcap_t) * 32);
-	memset(irq_thdid, 0, sizeof(thdid_t) * 32);
-	memset(irq_arcvcap, 0, sizeof(arcvcap_t) * 32);
-	memset(irq_tcap, 0, sizeof(tcap_t) * 32);
-	memset(irq_prio, 0, sizeof(tcap_prio_t) * 32);
+	memset(irq_thdcap, 0, sizeof(irq_thdcap));
+	memset(irq_thdid, 0, sizeof(irq_thdid));
+	memset(irq_arcvcap, 0, sizeof(irq_arcvcap));
+	memset(irq_tcap, 0, sizeof(irq_tcap));
+	memset(irq_prio, 0, sizeof(irq_prio));
 
 	for(i = HW_ISR_FIRST; i < HW_ISR_LINES; i++){
 		if (vmid == 0) {
@@ -114,6 +110,24 @@ hw_irq_alloc(void){
 			}
 		}
 	}
+
+#if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+	memset(vio_tcap, 0, sizeof(vio_tcap));
+	memset(vio_rcv, 0, sizeof(vio_rcv));
+	memset(vio_prio, 0, sizeof(vio_prio));
+	memset(vio_deficit, 0, sizeof(vio_deficit));
+
+	if (vmid == 0) {
+		for (i = 0 ; i < COS_VIRT_MACH_COUNT - 1; i ++) {
+			vio_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (i * CAP16B_IDSZ);
+			vio_rcv[i]  = VM0_CAPTBL_SELF_IORCV_SET_BASE + (i * CAP64B_IDSZ);
+			vio_prio[i] = VIO_PRIO;
+		}
+
+		cos_cur_tcap = (unsigned int)vio_tcap[0];
+	}
+#endif
+
 }
 
 void

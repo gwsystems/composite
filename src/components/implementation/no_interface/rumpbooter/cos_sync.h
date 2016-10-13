@@ -14,8 +14,6 @@ extern u32_t intrs; 	                       /* Intrrupt bit mask */
 extern volatile unsigned int cos_intrdisabled; /* Variable to detect if cos interrupt threads disabled interrupts */
 extern struct cos_compinfo booter_info;
 
-extern volatile tcap_t cos_cur_tcap;
-
 int __attribute__((format(printf,1,2))) printc(char *fmt, ...);
 
 int  intr_getdisabled(int intr);
@@ -128,8 +126,9 @@ static inline tcap_t
 intr_eligible_tcap(thdcap_t irqtc)
 {
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+	tcap_res_t res = (VIO_BUDGET_APPROX * cycs_per_usec);
+	tcap_res_t min_slice = (VM_MIN_TIMESLICE * cycs_per_usec);
 	tcap_res_t irqbudget, initbudget;
-	tcap_t tc;
 	int irqline, ret;
 
 	assert (irqtc);
@@ -140,32 +139,15 @@ intr_eligible_tcap(thdcap_t irqtc)
 		assert(0);
 	}
 
-	tc = intr_translate_thdcap2irqtcap(irqtc);
-	assert(tc);
 	irqline = intr_translate_thdcap2irq(irqtc);
 	assert(irqline >= 0);
 
-	irqbudget = (tcap_res_t)cos_introspect(&booter_info, tc, TCAP_GET_BUDGET);
+	irqbudget = (tcap_res_t)cos_introspect(&booter_info, irq_tcap[irqline], TCAP_GET_BUDGET);
 	if (irqbudget == 0) {
-		if (irqline == IRQ_VM1 || irqline == IRQ_VM2) {
-			//assert(0);
-			printc("-%d", irqline);
-/*			initbudget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);	
-			if ((ret = cos_tcap_transfer(irq_arcvcap[irqline], BOOT_CAPTBL_SELF_INITTCAP_BASE, initbudget / 2, irq_prio[irqline]))) {
-				printc("Irq %d Tcap transfer failed %d\n", irqline, ret);
-				assert(0);
-			}
-*/
-		} else {
-			initbudget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
-			if ((ret = cos_tcap_transfer(irq_arcvcap[irqline], BOOT_CAPTBL_SELF_INITTCAP_BASE, initbudget / 2, irq_prio[irqline]))) {
-				printc("Irq %d Tcap transfer failed %d\n", irqline, ret);
-				assert(0);
-			}
-		}
+		cos_dom02io_transfer(irqline, irq_tcap[irqline], irq_arcvcap[irqline], irq_prio[irqline]); 
 	}
 	
-	return tc;
+	return irq_tcap[irqline];
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	return BOOT_CAPTBL_SELF_INITTCAP_BASE;
 #endif

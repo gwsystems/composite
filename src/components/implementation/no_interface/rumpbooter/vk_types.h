@@ -3,7 +3,7 @@
 
 #include <cos_types.h>
 
-#define COS_VIRT_MACH_COUNT 2
+#define COS_VIRT_MACH_COUNT 3
 #define COS_VIRT_MACH_MEM_SZ (1<<27) //128MB
 
 #define COS_SHM_VM_SZ (1<<20) //4MB
@@ -54,6 +54,20 @@ enum vm_prio {
 #define VIO_BUDGET_THR (VM_MIN_TIMESLICE * 10) /* minimum excess budget with I/O tcap to transfer/delegate back to VM */
 
 #define VIO_BUDGET_APPROX (VM_MIN_TIMESLICE * 10) /* Hack: budget transfered from I/O Tcap to DOM0's Tcap */
+
+tcap_t vio_tcap[COS_VIRT_MACH_COUNT - 1]; /* tcap array for dom0 */
+arcvcap_t vio_rcv[COS_VIRT_MACH_COUNT - 1];
+tcap_res_t vio_prio[COS_VIRT_MACH_COUNT - 1];
+
+/*
+ * TODOOOOOOOOOOOOOO:
+ * deficit accounting - by number of packets sent or received.
+ * vio_deficit[i][j] - deficit in vmio-i for a packet processed for vmio-j
+ * vio_deficit[0][i] - if both tcaps ran out of budget, dom0 transfers budget
+ *                     to not stall the processing. so deficit in dom0 for a
+ *                     packet processed for vm-i.
+ */
+int vio_deficit[COS_VIRT_MACH_COUNT][COS_VIRT_MACH_COUNT]; 
 #endif
 
 enum vm_status {
@@ -115,6 +129,8 @@ enum {
 
 extern unsigned int cycs_per_usec;
 
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 extern cycles_t dom0_sla_act_cyc;
+#endif
 
 #endif /* VK_TYPES_H */
