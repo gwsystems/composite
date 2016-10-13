@@ -626,8 +626,7 @@ cos_init(void)
 		cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd[id]); 
 
 		printc("\tCreating other required initial capabilities\n");
-		if(id == 0) vminittcap[id] = cos_tcap_alloc(&vkern_info, PRIO_BOOST);
-		else vminittcap[id] = cos_tcap_alloc(&vkern_info, PRIO_UNDER);
+		vminittcap[id] = cos_tcap_alloc(&vkern_info, vmprio[id]);
 		assert(vminittcap[id]);
 
 		vminitrcv[id] = cos_arcv_alloc(&vkern_info, vm_main_thd[id], vminittcap[id], vkern_info.comp_cap, sched_rcv);
