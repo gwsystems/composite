@@ -376,7 +376,8 @@ cos_resume(void)
 
 	while(1) {
 		int ret, first = 1;
-		unsigned int isdisabled;
+		unsigned int rk_disabled;
+		unsigned int intr_disabled;
 
 		do {
 			thdcap_t contending;
@@ -404,8 +405,8 @@ cos_resume(void)
 				intr_update(irq_line, blocked);
 
 				if(first) {
-					isr_get(cos_isr, &isdisabled, &contending);
-					if(isdisabled && !cos_intrdisabled) goto rk_resume;
+					isr_get(cos_isr, &rk_disabled, &intr_disabled, &contending);
+					if(rk_disabled && !intr_disabled) goto rk_resume;
 					first = 0;
 				}
 			} while(pending);
@@ -422,7 +423,7 @@ cos_resume(void)
 
 rk_resume:
 		do {
-			if(cos_intrdisabled) break;
+			if(intr_disabled) break;
 			/* TODO: decide which TCAP to use for rest of RK processing for I/O and do deficit accounting */
 			ret = cos_switch(cos_cur, cos_cur_tcap, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0 || ret == -EAGAIN);
@@ -518,13 +519,7 @@ cos_vm_exit(void)
 
 void
 cos_sched_yield(void)
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-{ if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-{ 
-	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
-}
-#endif
+{ cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
 
 void
 cos_vm_yield(void)

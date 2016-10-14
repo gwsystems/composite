@@ -70,7 +70,7 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 	/* Assumption: if head == tail rb is empty */
 
 	/* If there is not enough space at the end to store size goto start and skip last 4 bytes */
-	if ((rb->size - rb->head) < 4)	{
+	if ((rb->size - rb->head) < sizeof(size_t))	{
 		/* Check to see if ringbuffer is full if we add from start of rb */
 		if (size+sizeof(size_t) >= rb->tail) return -1;
 		/* skip the last few bytes at the end of rb */
@@ -88,10 +88,11 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 	
 		first = rb->size - producer;
 		second = size - first;
+
 	
 		/* check if ringbuf is full w/ wraparound */
 		if (second >= rb->tail) {
-			printc("wrap around, rb is full no enqueue");
+			printc("wrap around, rb is full no enqueue\n");
 			return -1;
 		}
 
@@ -122,7 +123,13 @@ vk_dequeue_size(unsigned int srcvm, unsigned int curvm)
 	}
 	
 
-	memcpy(&ret, &rb->buf[rb->tail], sizeof(size_t));
+	if ((rb->size - rb->tail) < sizeof(size_t)) {
+		/* Get the size from the head of the rb, skip last 4 bytes */
+		memcpy(&ret, &rb->buf[0], sizeof(size_t));
+	} else {
+		/* Normal case */
+		memcpy(&ret, &rb->buf[rb->tail], sizeof(size_t));
+	}
 
 	/* 
 	 * If ret is a garbage value because RB is empty, return 0
@@ -143,12 +150,11 @@ vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
 	/* Assumption: if head == tail rb is empty */
 
 	if (rb->head == rb->tail) { 
-		//printc("rb empty");
 		return -1; 
 	} 
 
 	/* If there is not enough space at the end to store size goto start and skip last 4 bytes */
-	if ((rb->size - rb->tail) < 4)	{
+	if ((rb->size - rb->tail) < sizeof(size_t))	{
 		/* skip the last few bytes at the end of rb */
 		rb->tail = 0;
 		assert(rb->tail != rb->head);
@@ -164,11 +170,12 @@ vk_ringbuf_dequeue(struct cos_shm_rb *rb, void * buff){
 	assert(size > 0);
 
 	/* check for split wraparound */
-	if (consumer+size >= rb->size) {
+	if (unlikely(consumer+size >= rb->size)) {
 		unsigned int first, second;
 
 		first  = rb->size - consumer;
 		second = size - first;
+
 
 		/* tail is following head, it should only evert catch up at most */	
 		assert(second <= rb->head);

@@ -74,11 +74,7 @@ enum vm_credits {
 	VM2_CREDITS  = 1,
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	DOM0_CREDITS = 0, // 0 to not have credit based execution.. 
-<<<<<<< Updated upstream
-	VM1_CREDITS  = 3,
-=======
-	VM1_CREDITS  = 10,
->>>>>>> Stashed changes
+	VM1_CREDITS  = 5,
 	VM2_CREDITS  = 4,
 #endif
 };

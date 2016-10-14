@@ -182,18 +182,19 @@ intr_update(unsigned int irq_line, int rcving)
 }
 
 static inline void
-isr_get(isr_state_t tmp, unsigned int *isdisabled, thdcap_t *contending)
+isr_get(isr_state_t tmp, unsigned int *rk_disabled, unsigned int *intr_disabled, thdcap_t *contending)
 {
-	*isdisabled = tmp >> 31;
+	*rk_disabled = tmp >> 31;
+	*intr_disabled = (tmp >> 30) & 1;
 	*contending = (thdcap_t)(tmp & ((u32_t)(~0) >> 16));
 	assert(*contending < (1 << 16));
 }
 
 static inline isr_state_t
-isr_construct(unsigned int isdisabled, thdcap_t contending)
+isr_construct(unsigned int rk_disabled, unsigned int intr_disabled, thdcap_t contending)
 {
-	assert(isdisabled <= 1 && contending < (1 << 16));
-	return (u32_t)isdisabled << 31 | (u32_t)contending;
+	assert(rk_disabled <= 1 && intr_disabled <= 1 && contending < (1 << 16));
+	return (u32_t)rk_disabled << 31 | (u32_t)intr_disabled << 30 | (u32_t)contending;
 }
 
 /* Set highest order bit in cos_isr to 1 or increment cos_nesting count and return */
@@ -205,31 +206,35 @@ isr_disable(void)
 	/* Isr is currently enabled, disable for first time */
 	if(!cos_nesting) {
 		do {
-			unsigned int isdisabled;
+			unsigned int rk_disabled;
+			unsigned int intr_disabled;
 			thdcap_t contending;
 
 			tmp = cos_isr;
-			isr_get(tmp, &isdisabled, &contending);	
+			isr_get(tmp, &rk_disabled, &intr_disabled, &contending);	
 			/*
 			 * Intrrupts must be enabled and cos_nesting must be 0
 			 * Cannot have enabled and contentended.  This would imply
 			 * that a non-interrupt thread has preempted an interrupt
 			 * thread.
 			 */
-			assert(!isdisabled);
+			assert(!rk_disabled);
 			assert(!cos_nesting);
-			final = isr_construct(1, contending);
+			final = isr_construct(1, intr_disabled, contending);
 		} while (unlikely(!ps_cas((unsigned long *)&cos_isr, tmp, final)));
 	}
 		
 	cos_nesting++;
 }
 
+static int isintr;
+
 static inline thdcap_t
 isr_enable(void)
 {
 	isr_state_t tmp, final;
 	thdcap_t contending = 0;
+	unsigned int intr_disabled = 0;
 
 	/* We better have disabled before calling enable */
 	assert(cos_nesting);
@@ -238,18 +243,18 @@ isr_enable(void)
 	/* Actually enable interrupts */
 	if(!cos_nesting) {
 		do {
-			unsigned int isdisabled;
-
+			unsigned int rk_disabled;
 			tmp = cos_isr;
-			isr_get(tmp, &isdisabled, &contending);
-			assert(isdisabled);
+
+			isr_get(tmp, &rk_disabled, &intr_disabled, &contending);
 
 			/* no more cos_nesting, actually "reenable" interrupts */
-			final = isr_construct(0, 0);
+			final = isr_construct(0, intr_disabled, contending);
 
 		} while (unlikely(!ps_cas((unsigned long *)&cos_isr, tmp, final)));
 	}
 
+	isintr = intr_disabled;
 	return contending;
 }
 
@@ -261,11 +266,11 @@ static inline void
 intr_enable(void)
 {
 	thdcap_t contending;
-	tcap_prio_t prio;
 	int ret;
 
+	/* FIXME we don't want to switch if intr_disabled is set, get that info */
 	contending = isr_enable();
-	if (unlikely(contending && !cos_intrdisabled)) {
+	if (unlikely(contending) && !isintr) {
 		/*
 		 * Assumption here: we have actually re-enabled
 		 * interrupts here as opposed to release another

@@ -9,7 +9,6 @@ unsigned int cos_nesting = 0; 	   /* Depth to intr_disable/intr_enable */
 u32_t intrs = 0; 	           /* Intrrupt bit mask */
 
 extern volatile thdcap_t cos_cur; /* Last running rk thread */
-volatile unsigned int cos_intrdisabled = 0; /* Variable to detect if cos interrupt threads disabled interrupts */
 
 /* Called from cos_irqthd_handler */
 
@@ -20,17 +19,20 @@ isr_setcontention(unsigned int intr)
 	isr_state_t tmp, final;
 
 	do {
-		unsigned int isdisabled;
+		unsigned int rk_disabled;
+		unsigned int intr_disabled;
 		thdcap_t contending;
 
 		tmp = cos_isr;
-		isr_get(tmp, &isdisabled, &contending);	
+		isr_get(tmp, &rk_disabled, &intr_disabled, &contending);	
 
 		contending = intr;
 		
-		final = isr_construct(isdisabled, contending);
+		final = isr_construct(rk_disabled, intr_disabled, contending);
 	} while (unlikely(!ps_cas((unsigned long *)&cos_isr, tmp, final)));
 }
+
+/* cos_intrdisabled should be the second bit highest bit in cos_isr*/
 
 
 
@@ -43,77 +45,77 @@ intr_start(thdcap_t thdcap)
 	assert(thdcap);
 
 	/*
-	 * 1. if cos isr thread disabled interrupts goto contending (last cos_isr thread)
-	 * 2. check disabled
-	 * 3. set contended 	
-	 * 4a. if rk disabled goto cos_cur and retry when we return
-	 * 4c. if enabled  return and process intrerrupt
+	 * 1. Get current cos_isr
+         * 2. Check if intr_disabled is set (another isr thread is unblocked)
+	 *    YES: switch main thread, after goto 1, recheck
+	 * 3. Set contention to us / set intr_disabled
+	 * 4. Check if rk_disabled
+	 *    YES: switch to last running rk thread
+	 *    NO : Run interrupt
 	 */
 	while (1) {
+
+		unsigned int rk_disabled;
+		unsigned int intr_disabled;
+		thdcap_t contending;
+
 		do {
-			unsigned int isdisabled;
-			thdcap_t contending;
-
+			/* 1. */
+again:
 			tmp = cos_isr;
-			isr_get(tmp, &isdisabled, &contending);
+			isr_get(tmp, &rk_disabled, &intr_disabled, &contending);
+			//printc("%d 1. ", thdcap);
 
-			/*
-			 * Check if we are disabled from cos isr thread and if contending is set
-			 * or check rare case where contention has not yet been set, but contending has AND
-			 * we know a rk has not enabled interrupts
-			 * Rare case can happen if cos isr thread is prempted below in cos_intrdisabled cas loop
-			 */
-			if (cos_intrdisabled || (contending && !(int)isdisabled)) {
-				/* If a cos isr thread disabled interrupts we better have contending set */
+			/* 2. */
+			if (intr_disabled) {
+				//printc("%d 2. intr_disabled ", thdcap);
 				assert(contending);
+				assert(contending != thdcap); /* Make sure we are not trying to switch to ourself */
+				/* Switch to contending isr thread */
 				do {
-					/* FIXME this should not use the cos_cur_tcap */
-					ret = cos_switch(contending, cos_cur_tcap, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-					assert(ret == 0 || ret == -EAGAIN);
-				} while (ret == -EAGAIN);
+                        		ret = cos_switch(contending, cos_cur_tcap, rk_thd_prio, 
+							TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, 
+							cos_sched_sync());
+                        		assert (ret == 0 || ret == -EAGAIN);
+                		} while(ret == -EAGAIN);
+				goto again;
 			}
 
+			//printc("%d 3. ", thdcap);
+			/* 3. */
 			contending = thdcap;
+			intr_disabled = 1;
 
-			ret = (int)isdisabled;
-			if (!isdisabled) assert(cos_nesting == 0);
-
-			final = isr_construct(isdisabled, contending);
+			final = isr_construct(rk_disabled, intr_disabled, contending);
 		} while (unlikely(!ps_cas((unsigned long *)&cos_isr, tmp, final)));
+		
 
-		/* If interrupts are disabled lets run this interrupt */
-		if (likely(!ret)) {
-			/*
-			 * Cos interrupt thread sets special disabled variable
-			 * After setting cos_intrdisabled, we are commiting to
-			 * finish processing interrupts before going back to rk
-			 */
-			int first = 1;
+		/* Comitting to only one isr thread running now, we have set intr_disabled */
+
+		/* 4. */
+		//printc("%d 4. ", thdcap);
+		if (unlikely(rk_disabled)) {
+			/* Unset intr_disabled so we can let the rk run */
+			cos_isr = isr_construct(rk_disabled, 0, contending);
+			//printc("going to rk ");
 			do {
-
-				if (first) {
-					tmp = cos_intrdisabled;
-					final = tmp + 1;
-				} else {
-					printc("goto again\n");
-					goto again;
-				}
-				first = 0;
-
-			} while (unlikely(!ps_cas((unsigned long *)&cos_intrdisabled, tmp, final)));
-
-			/* We should not be here with another interrupt having set cos_intrdisabled */
-			if (cos_intrdisabled > 1) assert(0);
-			return;
+				/* Switch back to RK thread */
+				ret = cos_switch(cos_cur, cos_cur_tcap,
+						rk_thd_prio, TCAP_TIME_NIL,
+						BOOT_CAPTBL_SELF_INITRCV_BASE,
+						cos_sched_sync());
+				assert(ret == 0 || ret == -EAGAIN);
+			} while (ret == -EAGAIN);
+			goto again;
 		}
 
-		/* Switch back to RK thread */
-		do {
-			ret = cos_switch(cos_cur, cos_cur_tcap, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-			assert(ret == 0 || ret == -EAGAIN);
-		} while (ret == -EAGAIN);
+		/* Ready to run interrupt, better make sure that interrupts are enabled by now */
+		assert(!cos_nesting);
+		assert(!(cos_isr>>31));
+		assert(((cos_isr>>30) & 1));
 
-again: /* Loop again */ ;
+		//printc("\n");
+		return;
 	}
 }
 
@@ -121,12 +123,9 @@ again: /* Loop again */ ;
 void
 intr_end(void)
 {
-	/* cos interrupt thread unsets special disabled variable */
-	assert(cos_intrdisabled);
-	__sync_fetch_and_sub(&cos_intrdisabled, 1);
-
-	assert(!cos_nesting && !(cos_isr>>31)); 
-	isr_setcontention(0);
+	assert(!cos_nesting); 
+	assert(!(cos_isr>>31));
+	assert(((cos_isr>>30) & 1));
+	cos_isr = isr_construct(0, 0, 0);
 	assert(!cos_isr);
-
 }
