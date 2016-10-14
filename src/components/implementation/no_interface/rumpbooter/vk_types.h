@@ -29,8 +29,7 @@ capid_t irq_arcvcap[HW_ISR_LINES];
 tcap_prio_t irq_prio[HW_ISR_LINES];
 
 enum vm_prio {
-#if defined(__INTELLIGENT_TCAPS__)
-#elif defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	PRIO_HIGH  = TCAP_PRIO_MAX,
 	PRIO_LOW   = TCAP_PRIO_MAX + 100,
 	PRIO_MID   = TCAP_PRIO_MAX + 50,
@@ -42,7 +41,7 @@ enum vm_prio {
 };
 
 
-#if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 #define RIO_PRIO    PRIO_HIGH /* REAL I/O Priority */
 #define VIO_PRIO    PRIO_MID /* Virtual I/O Priority */
 #define RK_THD_PRIO PRIO_LOW /* Rumpkernel thread priority */
@@ -60,14 +59,16 @@ arcvcap_t vio_rcv[COS_VIRT_MACH_COUNT - 1];
 tcap_res_t vio_prio[COS_VIRT_MACH_COUNT - 1];
 
 /*
- * TODOOOOOOOOOOOOOO:
  * deficit accounting - by number of packets sent or received.
  * vio_deficit[i][j] - deficit in vmio-i for a packet processed for vmio-j
- * vio_deficit[0][i] - if both tcaps ran out of budget, dom0 transfers budget
+ */
+unsigned int vio_deficit[COS_VIRT_MACH_COUNT - 1][COS_VIRT_MACH_COUNT - 1];
+/*
+ * dom0_vio_deficit[i] - if both tcaps ran out of budget, dom0 transfers budget
  *                     to not stall the processing. so deficit in dom0 for a
  *                     packet processed for vm-i.
  */
-int vio_deficit[COS_VIRT_MACH_COUNT][COS_VIRT_MACH_COUNT]; 
+unsigned int dom0_vio_deficit[COS_VIRT_MACH_COUNT - 1]; 
 #endif
 
 enum vm_status {
