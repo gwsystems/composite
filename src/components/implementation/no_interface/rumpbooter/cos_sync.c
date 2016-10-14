@@ -64,11 +64,9 @@ intr_start(thdcap_t thdcap)
 again:
 			tmp = cos_isr;
 			isr_get(tmp, &rk_disabled, &intr_disabled, &contending);
-			//printc("%d 1. ", thdcap);
 
 			/* 2. */
 			if (intr_disabled) {
-				//printc("%d 2. intr_disabled ", thdcap);
 				assert(contending);
 				assert(contending != thdcap); /* Make sure we are not trying to switch to ourself */
 				/* Switch to contending isr thread */
@@ -81,7 +79,6 @@ again:
 				goto again;
 			}
 
-			//printc("%d 3. ", thdcap);
 			/* 3. */
 			contending = thdcap;
 			intr_disabled = 1;
@@ -93,14 +90,12 @@ again:
 		/* Comitting to only one isr thread running now, we have set intr_disabled */
 
 		/* 4. */
-		//printc("%d 4. ", thdcap);
 		if (unlikely(rk_disabled)) {
 			/* Unset intr_disabled so we can let the rk run */
 			cos_isr = isr_construct(rk_disabled, 0, contending);
-			//printc("going to rk ");
 			do {
 				/* Switch back to RK thread */
-				ret = cos_switch(cos_cur, cos_cur_tcap,
+				ret = cos_switch(cos_cur, COS_CUR_TCAP,
 						rk_thd_prio, TCAP_TIME_NIL,
 						BOOT_CAPTBL_SELF_INITRCV_BASE,
 						cos_sched_sync());
@@ -114,7 +109,6 @@ again:
 		assert(!(cos_isr>>31));
 		assert(((cos_isr>>30) & 1));
 
-		//printc("\n");
 		return;
 	}
 }

@@ -429,7 +429,7 @@ test_budgets_single(void)
 		if (cos_tcap_transfer(bt.c.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, i * 100000, TCAP_PRIO_MAX + 2)) assert(0);
 
 		rdtscll(s);
-		if (cos_switch(bt.c.tc, bt.c.tcc, TCAP_PRIO_MAX + 2, TCAP_RES_INF, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync())) assert(0);
+		if (cos_switch(bt.c.tc, bt.c.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync())) assert(0);
 		rdtscll(e);
 		PRINTC("%lld,\t", e-s);
 
@@ -466,7 +466,7 @@ test_budgets_multi(void)
 		if (cos_tcap_transfer(mbt.g.rc, mbt.c.tcc, res/4, TCAP_PRIO_MAX + 2)) assert(0);
 
 		rdtscll(s);
-		if (cos_switch(mbt.g.tc, mbt.g.tcc, TCAP_PRIO_MAX + 2, TCAP_RES_INF, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync())) assert(0);
+		if (cos_switch(mbt.g.tc, mbt.g.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync())) assert(0);
 		rdtscll(e);
 		PRINTC("g:%llu c:%llu p:%llu => %llu,\t", mbt.g.cyc - s, mbt.c.cyc - s, mbt.p.cyc - s, e - s);
 
@@ -616,9 +616,9 @@ test_run_mb(void)
 
 /*
  * Executed in vkernel environment:
- *  Some of the tests are not feasible at least for now 
- *  to run in vkernel env. (ex: tcaps related, because budgets 
- *  in these tests are INF. 
+ *  Some of the tests are not feasible at least for now
+ *  to run in vkernel env. (ex: tcaps related, because budgets
+ *  in these tests are INF.
  *
  * TODO: Fix those eventually.
  */

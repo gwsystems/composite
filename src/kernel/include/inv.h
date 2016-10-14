@@ -46,6 +46,7 @@ struct cap_arcv {
 	cpuid_t cpuid;
 	/* The thread to receive events, and the one to send events to (i.e. scheduler) */
 	struct thread *thd, *event_notif;
+	u8_t depth;
 } __attribute__((packed));
 
 static int
@@ -187,6 +188,7 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	struct cap_tcap *tcapc;
 	struct cap_arcv *arcv_p, *arcvc; /* parent and new capability */
 	struct thread   *thd;
+	u8_t             depth = 0;
 	int ret;
 
 	/* Find the constituent capability structures */
@@ -206,6 +208,9 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	if (!init) {
 	        arcv_p = (struct cap_arcv *)captbl_lkup(t, arcv_cap);
 	        if (unlikely(!CAP_TYPECHK_CORE(arcv_p, CAP_ARCV))) return -EINVAL;
+
+		depth = arcv_p->depth + 1;
+		if (depth >= ARCV_NOTIF_DEPTH) return -EINVAL;
 	}
 
 	arcvc = (struct cap_arcv *)__cap_capactivate_pre(t, cap, capin, CAP_ARCV, &ret);
@@ -215,6 +220,7 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 
 	arcvc->epoch     = 0; 	  /* FIXME: get the real epoch */
 	arcvc->cpuid     = get_cpuid();
+	arcvc->depth     = depth;
 
 	__arcv_setup(arcvc, thd, tcapc->tcap, init ? thd : arcv_p->thd);
 

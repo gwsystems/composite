@@ -26,8 +26,9 @@ extern int boot_thd;
 
 struct bmk_thread;
 extern __thread struct bmk_thread *bmk_current;
-extern tcap_res_t vms_budget_track[];
 extern tcap_prio_t rk_thd_prio;
+extern volatile unsigned int cos_cur_tcap;
+#define COS_CUR_TCAP ((tcap_t)((cos_cur_tcap << 16) >> 16))
 
 struct bmk_tcb *tcb;
 extern void bmk_isr(int which);
@@ -100,4 +101,9 @@ void cos_vm_yield(void);
 int cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
 int cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm);
 int cos_dequeue_size(unsigned int srcvm, unsigned int curvm);
+
+void cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_prio_t prio);
+void cos_vio_tcap_update(unsigned int dst);
+tcap_t cos_find_vio_tcap(void);
+
 #endif /* RUMPCALLS_H */
