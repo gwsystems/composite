@@ -62,7 +62,6 @@ intr_start(thdcap_t thdcap)
 
 		do {
 			/* 1. */
-again:
 			tmp = cos_isr;
 			isr_get(tmp, &rk_disabled, &intr_disabled, &contending);
 
@@ -80,7 +79,8 @@ again:
 							cos_sched_sync());
                         		assert (ret == 0 || ret == -EAGAIN);
                 		} while(ret == -EAGAIN);
-				goto again;
+
+				continue;
 			}
 
 			/* 3. */
@@ -105,7 +105,8 @@ again:
 						cos_sched_sync());
 				assert(ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
-			goto again;
+
+			continue;
 		}
 
 		/* Ready to run interrupt, better make sure that interrupts are enabled by now */
