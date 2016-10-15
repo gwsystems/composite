@@ -21,7 +21,7 @@ isr_setcontention(unsigned int intr)
 	do {
 		unsigned int rk_disabled;
 		unsigned int intr_disabled;
-		thdcap_t contending;
+		unsigned int contending;
 
 		tmp = cos_isr;
 		isr_get(tmp, &rk_disabled, &intr_disabled, &contending);	
@@ -41,6 +41,7 @@ intr_start(thdcap_t thdcap)
 {
 	isr_state_t tmp, final;
 	int ret;
+	unsigned int irqline = intr_translate_thdcap2irq(thdcap);
 
 	assert(thdcap);
 
@@ -57,7 +58,7 @@ intr_start(thdcap_t thdcap)
 
 		unsigned int rk_disabled;
 		unsigned int intr_disabled;
-		thdcap_t contending;
+		unsigned int contending;
 
 		do {
 			/* 1. */
@@ -69,22 +70,12 @@ again:
 			if (intr_disabled) {
 				tcap_prio_t prio;	
 
-				assert(contending);
-				assert(contending != thdcap); /* Make sure we are not trying to switch to ourself */
-
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-				int irq = intr_translate_thdcap2irq(contending);
-
-				assert (irq >= 0);
-				prio = irq_prio[irq];
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-				if(vmid == 0) prio = irq_prio[HW_ISR_FIRST];
-				else          prio = irq_prio[IRQ_DOM0_VM];
-#endif
+				assert(contending >= HW_ISR_FIRST);
+				assert(contending != irqline); /* Make sure we are not trying to switch to ourself */
 
 				/* Switch to contending isr thread */
 				do {
-                        		ret = cos_switch(contending, intr_eligible_tcap(contending), prio, 
+                        		ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending), irq_prio[contending], 
 							TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, 
 							cos_sched_sync());
                         		assert (ret == 0 || ret == -EAGAIN);
@@ -93,7 +84,7 @@ again:
 			}
 
 			/* 3. */
-			contending = thdcap;
+			contending = irqline;
 			intr_disabled = 1;
 
 			final = isr_construct(rk_disabled, intr_disabled, contending);

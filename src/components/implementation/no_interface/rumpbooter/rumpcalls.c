@@ -233,7 +233,7 @@ intr_switch(void)
 
 		if ((tmp>>(i-1)) & 1) {
 			do {
-				ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(irq_thdcap[i]), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(i), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 				assert (ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 		}
@@ -359,7 +359,7 @@ cos_resume(void)
 		unsigned int intr_disabled;
 
 		do {
-			thdcap_t contending;
+			unsigned int contending;
 			cycles_t cycles;
 			int pending, blocked, irq_line;
 			thdid_t tid;
