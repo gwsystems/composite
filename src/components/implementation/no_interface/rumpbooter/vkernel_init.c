@@ -132,6 +132,7 @@ vm0_io_fn(void *d)
 		int pending = cos_rcv(rcvcap);
 		intr_start(thdcap);
 		bmk_isr(line);
+		cos_vio_tcap_set((int)d);
 		intr_end();
 	}
 }
@@ -448,7 +449,7 @@ chronos_fn(void *x)
 	//static cycles_t prev = 0;
 
 	while (1) {
-		tcap_res_t total_budget = SCHED_QUANTUM * cycs_per_usec;
+		tcap_res_t total_budget = TCAP_RES_MAX;
 		tcap_res_t sla_slice = VM_TIMESLICE * cycs_per_usec;
 		thdid_t tid;
 		int blocked;
@@ -482,7 +483,7 @@ chronos_fn(void *x)
 		if (cos_tcap_transfer(dom0_sla_rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE, sla_slice, PRIO_LOW)) assert(0);
 		//printc("%s:%d\n", __func__, __LINE__);
 		/* additional cycles so vk doesn't allocate less budget to one of the vms.. */
-		if (cos_tcap_delegate(chtoshsnd, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_MAX, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0);
+		if (cos_tcap_delegate(chtoshsnd, BOOT_CAPTBL_SELF_INITTCAP_BASE, total_budget, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0);
 		//rdtscll(act);
 		//printc("%llu:%llu:%llu\n", now, act, act - now);
 

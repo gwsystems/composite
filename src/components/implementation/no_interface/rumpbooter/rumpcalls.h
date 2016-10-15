@@ -104,6 +104,7 @@ int cos_dequeue_size(unsigned int srcvm, unsigned int curvm);
 
 void cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_prio_t prio);
 void cos_vio_tcap_update(unsigned int dst);
+void cos_vio_tcap_set(unsigned int src);
 tcap_t cos_find_vio_tcap(void);
 
 #endif /* RUMPCALLS_H */
