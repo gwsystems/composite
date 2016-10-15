@@ -4,13 +4,7 @@
 #include <cos_types.h>
 
 #define COS_VIRT_MACH_COUNT 2 
-//#define COS_VIRT_MACH_MEM_SZ (1<<27) //128MB
-//#define COS_VIRT_MACH_MEM_SZ (1<<27) + (1<<26) // 192
-//#define COS_VIRT_MACH_MEM_SZ (1<<27) + (1<<26) + (1<<25) // 224 
-//#define COS_VIRT_MACH_MEM_SZ (1<<27) + (1<<26) + (1<<25) + (1<<24)// 240
-//#define COS_VIRT_MACH_MEM_SZ (1<<27) + (1<<26) + (1<<25) + (1<<24) + (1<<23)// 248
-#define COS_VIRT_MACH_MEM_SZ (1<<27) + (1<<26) + (1<<25) + (1<<24) + (1<<22)
-
+#define COS_VIRT_MACH_MEM_SZ (1<<27) //128MB
 #define COS_SHM_VM_SZ (1<<20) //2MB
 #define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) > 0 ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
 

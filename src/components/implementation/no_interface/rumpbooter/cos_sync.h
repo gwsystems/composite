@@ -254,6 +254,7 @@ static inline void
 intr_enable(void)
 {
 	thdcap_t contending;
+        tcap_prio_t prio;	
 	int ret;
 
 	contending = isr_enable();
