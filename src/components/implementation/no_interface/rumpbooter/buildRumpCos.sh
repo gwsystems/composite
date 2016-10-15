@@ -52,5 +52,12 @@ cp qemu_rk.sh ../../../../../transfer/
 
 cd ../../../../../transfer/
 ./geniso.sh rumpkernboot.sh
-sudo dd bs=8M if=composite.iso of=/dev/sdb
-sync
+USB_DEV=`stat --format "%F" /dev/sdb`
+
+if [ "$USB_DEV" = "block special file" ]; then
+	echo "WRITIING ISO IMAGE to /dev/sdb: $USB_DEV"
+	sudo dd bs=8M if=composite.iso of=/dev/sdb
+	sync
+else
+	echo "CANNOT WRITE ISO IMAGE TO /dev/sdb: $USB_DEV"
+fi

@@ -67,11 +67,24 @@ again:
 
 			/* 2. */
 			if (intr_disabled) {
+				tcap_prio_t prio;	
+
 				assert(contending);
 				assert(contending != thdcap); /* Make sure we are not trying to switch to ourself */
+
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+				int irq = intr_translate_thdcap2irq(contending);
+
+				assert (irq >= 0);
+				prio = irq_prio[irq];
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				if(vmid == 0) prio = irq_prio[HW_ISR_FIRST];
+				else          prio = irq_prio[IRQ_DOM0_VM];
+#endif
+
 				/* Switch to contending isr thread */
 				do {
-                        		ret = cos_switch(contending, cos_cur_tcap, rk_thd_prio, 
+                        		ret = cos_switch(contending, intr_eligible_tcap(contending), prio, 
 							TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, 
 							cos_sched_sync());
                         		assert (ret == 0 || ret == -EAGAIN);
