@@ -3,7 +3,7 @@
 
 #include <cos_types.h>
 
-#define COS_VIRT_MACH_COUNT 2 
+#define COS_VIRT_MACH_COUNT 2
 #define COS_VIRT_MACH_MEM_SZ (1<<27) //128MB
 #define COS_SHM_VM_SZ (1<<20) //2MB
 #define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) > 0 ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
@@ -16,8 +16,10 @@
 #undef PRINT_CPU_USAGE 
 #define MIN_CYCS (1<<12)
 
-#define __SIMPLE_XEN_LIKE_TCAPS__
-#undef __SIMPLE_DISTRIBUTED_TCAPS__
+#define BOOTUP_ITERS 100 
+
+#undef __SIMPLE_XEN_LIKE_TCAPS__
+#define __SIMPLE_DISTRIBUTED_TCAPS__
 #undef __INTELLIGENT_TCAPS__
 
 #define HW_ISR_LINES 32

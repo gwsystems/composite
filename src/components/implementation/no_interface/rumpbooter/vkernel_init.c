@@ -22,6 +22,7 @@ unsigned int cycs_per_usec;
  */
 tcap_t vminittcap[COS_VIRT_MACH_COUNT];
 int vm_cr_reset[COS_VIRT_MACH_COUNT];
+int vm_bootup[COS_VIRT_MACH_COUNT];
 thdcap_t vm_main_thd[COS_VIRT_MACH_COUNT];
 thdcap_t vm_exit_thd[COS_VIRT_MACH_COUNT];
 thdid_t vm_main_thdid[COS_VIRT_MACH_COUNT];
@@ -237,6 +238,42 @@ fillup_budgets(void)
 #endif
 }
 
+/*
+ * Avoiding credit based budgets at bootup.
+ * Can be disabled by just setting this value to 0.
+ *
+ * A Vm1 with x budget > y of another vm2 slows down
+ * bootup sequence because vm1 continuously blocks once
+ * it's done with it's bootup..
+ * Can see that visually.. This is just to fix that.
+ * Credits at bootup shouldn't matter..!!
+ */
+int
+bootup_sched_fn(int index, tcap_res_t budget)
+{
+	if (vm_bootup[index] < BOOTUP_ITERS) {
+		tcap_res_t timeslice = VM_TIMESLICE * cycs_per_usec;
+
+		vm_bootup[index] ++;
+		if (budget >= timeslice) {
+			if (cos_asnd(vksndvm[index], 1)) assert(0);
+		} else {
+			if (TCAP_RES_IS_INF(vmcredits[index])) {
+				if (cos_tcap_delegate(vksndvm[index], sched_tcap, 0, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+			} else {
+				if (cos_tcap_delegate(vksndvm[index], sched_tcap, timeslice - budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+			}
+		}
+
+		return 0;
+	} else if (vm_bootup[index] == BOOTUP_ITERS) {
+		vm_bootup[index] ++;
+		printc("VM%d Bootup complete\n", index);
+	}
+
+	return 1;
+}
+
 uint64_t t_vm_cycs  = 0;
 uint64_t t_dom_cycs = 0;
 
@@ -266,6 +303,7 @@ sched_fn(void *x)
 	(void)cycs;
 
 	printc("Scheduling VMs(Rumpkernel contexts)....\n");
+	memset(vm_bootup, 0, sizeof(vm_bootup));
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	while (ready_vms) {
@@ -287,6 +325,8 @@ sched_fn(void *x)
 
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 			sched_budget = (tcap_res_t)cos_introspect(&vkern_info, sched_tcap, TCAP_GET_BUDGET);
+			
+			if (!bootup_sched_fn(index, budget)) continue;
 
 			if (cycles_same(budget, 0) && !vm_cr_reset[index]) {
 				vm_deletenode(&vms_runqueue, &vmnode[index]);
@@ -319,7 +359,7 @@ sched_fn(void *x)
 				if (cos_asnd(vksndvm[index], 1)) assert(0);
 			}
 			else {
-				if (cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+				if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
 			}
 			rdtscll(end);
 
@@ -392,6 +432,8 @@ sched_fn(void *x)
 
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 
+			if (!bootup_sched_fn(index, budget)) continue;
+
 			if (index && cycles_same(budget, 0) && !vm_cr_reset[index]) {
 				vm_deletenode(&vms_under, &vmnode[index]);
 				vm_insertnode(&vms_over, &vmnode[index]);
@@ -416,7 +458,7 @@ sched_fn(void *x)
 				if (cos_asnd(vksndvm[index], 1)) assert(0);
 			}
 			else {
-				if (cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmcredits[index], vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+				if (cos_tcap_delegate(vksndvm[index], sched_tcap, vmcredits[index], vmprio[index], TCAP_DELEG_YIELD)) assert(0);
 			}
 			rdtscll(end);
 
@@ -438,7 +480,7 @@ sched_fn(void *x)
 			}
 #endif
 
-			while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) ;
+			while (cos_sched_rcv(sched_rcv, &tid, &blocked, &cycles)) ;
 		}
 	}
 #endif
