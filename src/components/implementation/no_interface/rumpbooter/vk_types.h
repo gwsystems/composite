@@ -12,7 +12,6 @@
 #define VM_MIN_TIMESLICE (1) //1us
 #define SCHED_MIN_TIMESLICE (10)
 #define SCHED_QUANTUM (VM_TIMESLICE * 100)
-//#define SCHED_QUANTUM (30)
 
 #undef PRINT_CPU_USAGE 
 #define MIN_CYCS (1<<12)
@@ -81,13 +80,13 @@ enum vm_status {
 
 enum vm_credits {
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	DOM0_CREDITS = 2,
-	VM1_CREDITS  = 1,
+	DOM0_CREDITS = 5,
+	VM1_CREDITS  = 4,
 	VM2_CREDITS  = 1,
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	DOM0_CREDITS = 0, // 0 to not have credit based execution.. 
-	VM1_CREDITS  = 5,
-	VM2_CREDITS  = 4,
+	VM1_CREDITS  = 4,
+	VM2_CREDITS  = 1,
 #endif
 };
 

@@ -419,7 +419,6 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 	thdcap_t temp   = get_cos_thdcap(next);
 	int ret;
 
-	if(intrs) printc("FIXME: An interrupt is pending while rk is switching threads...\n");
 	if(cos_isr) printc("%x\n", (unsigned int)cos_isr);
 	assert(!cos_isr);
 	cos_cur = temp;

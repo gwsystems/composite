@@ -176,29 +176,28 @@ setup_credits(void)
 					break;
 			}
 		} 
-		printc("i:%d credits: %lu\n", i, vmcredits[i]);
 	}
 }
 
 void
 reset_credits(void)
 {
-	assert(0);
 	struct vm_node *vm;
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	while ((vm = vm_next(&vms_runqueue)) != NULL) {
+	while ((vm = vm_next(&vms_expended)) != NULL) {
+		vm_deletenode(&vms_expended, vm);
+		vm_insertnode(&vms_runqueue, vm);
 		vmbudget[vm->id] = vmcredits[vm->id];
-		vmprio[vm->id] = PRIO_LOW;
+		//vmprio[vm->id] = PRIO_LOW;
 		vm_cr_reset[vm->id] = 1;
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	while ((vm = vm_next(&vms_over)) != NULL) {
 		vm_deletenode(&vms_over, vm);
 		vm_insertnode(&vms_under, vm);
-		//printc("%s:%d - %d\n", __func__, __LINE__, vm->id);
 		vmbudget[vm->id] = vmcredits[vm->id];
-		vmprio[vm->id] = PRIO_UNDER;
+		//vmprio[vm->id] = PRIO_UNDER;
 		vm_cr_reset[vm->id] = 1;
 	}
 #endif
@@ -271,13 +270,14 @@ sched_fn(void *x)
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	while (ready_vms) {
 		struct vm_node *x, *y;
-		tcap_res_t vm_budget, sched_budget;
-		tcap_res_t min_budget              = SCHED_MIN_TIMESLICE * cycs_per_usec;
-		int count_over                     = 0;
+		unsigned int count_over = 0;
 
 		while ((x = vm_next(&vms_runqueue)) != NULL) {
-			int index       = x->id;
-			int send        = 0;
+			int index         = x->id;
+			tcap_res_t budget = 0;
+			int send          = 1;
+			tcap_res_t sched_budget = 0, transfer_budget = 0;
+			tcap_res_t min_budget = VM_MIN_TIMESLICE * cycs_per_usec;
 
 			if (unlikely(vmstatus[index] == VM_EXITED)) {
 				vm_deletenode(&vms_runqueue, x); 
@@ -285,43 +285,41 @@ sched_fn(void *x)
 				continue;
 			}
 
-			vm_budget    = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
+			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 			sched_budget = (tcap_res_t)cos_introspect(&vkern_info, sched_tcap, TCAP_GET_BUDGET);
 
-			if (!TCAP_RES_IS_INF(vm_budget)) {
-				if (vm_budget < vmcredits[index]) {
-					vmbudget[index] = vmcredits[index] - vm_budget;
-					cycs            = vmcredits[index];
-				}
-				else {
-					send            = 1;
-					cycs            = vm_budget;
-				}
-			} else {
-				assert(0);
-				cycs = 0;
-				send = 1;
-			}
+			if (cycles_same(budget, 0) && !vm_cr_reset[index]) {
+				vm_deletenode(&vms_runqueue, &vmnode[index]);
+				vm_insertnode(&vms_expended, &vmnode[index]);
+				count_over ++;
 
-			if (send == 0) {
-				if (sched_budget <= (vmbudget[index] + min_budget)) {
-					cycs            = vm_budget + sched_budget;
-					vmbudget[index] = 0;
+				if (count_over == ready_vms) {
+					reset_credits();
+					count_over = 0;
+				} else {
+					continue;
 				}
-				if (sched_budget == 0) {
-					cycs            = vm_budget;
-					send            = 1;
+			} 
+
+			if (vm_cr_reset[index]) {
+				send = 0;
+
+				transfer_budget = vmcredits[index];
+				if (sched_budget <= (transfer_budget + min_budget)) {
+					transfer_budget = 0;
 				}
+
+				if (sched_budget == 0) send = 1;
+				else                   vm_cr_reset[index] = 0;
 			}
+			if (TCAP_RES_IS_INF(budget)) send = 1;
 
 			rdtscll(start);
-			if (!send) {
-				if (cos_tcap_delegate(vksndvm[index], sched_tcap, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD)) {
-					printc("%s:%d to:%d sched:%lu req:%lu\n", __func__, __LINE__, index, sched_budget, vmbudget[index]);
-					assert(0);
-				}
-			} else { 
+			if (send) {
 				if (cos_asnd(vksndvm[index], 1)) assert(0);
+			}
+			else {
+				if (cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
 			}
 			rdtscll(end);
 
@@ -342,9 +340,6 @@ sched_fn(void *x)
 				counter ++;
 			}
 #endif
-
-			if(index == 0) t_dom_cycs += (end-start);
-			else if(index == 1) t_vm_cycs += (end-start);
 
 			while (cos_sched_rcv(sched_rcv, &tid, &blocked, &cycles)) {
 				/* if a VM is blocked.. just move it to the end of the queue..*/
@@ -360,6 +355,7 @@ sched_fn(void *x)
 					}
 				} 
 			}
+
 		}
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
@@ -367,6 +363,7 @@ sched_fn(void *x)
 		struct vm_node *x, *y;
 		unsigned int count_over = 0;
 
+#if 0
 		while ((x = vm_next(&vms_boost)) != NULL) { /* if there is at least one element in boost prio.. */
 			int index = x->id;
 
@@ -377,9 +374,10 @@ sched_fn(void *x)
 			}
 			/* TODO: if boosted prio, do I care about the budgets, credits etc? */
 			//printc("%s:%d - %d\n", __func__, __LINE__, index);
-			cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD);
+			cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmcredits[index], vmprio[index], TCAP_DELEG_YIELD);
 			while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) ;
 		}
+#endif
 
 		while ((x = vm_next(&vms_under)) != NULL) {
 			int index         = x->id;
@@ -393,10 +391,8 @@ sched_fn(void *x)
 			}
 
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
-			//printc("%s:%d - %d: %lu %lu %lu\n", __func__, __LINE__, index, budget, vmbudget[index], vmcredits[index]);
 
-			/*if (index && (cycles_same(budget, 0) && !vm_cr_reset[index])) {
-				vmprio[index] = PRIO_OVER;
+			if (index && cycles_same(budget, 0) && !vm_cr_reset[index]) {
 				vm_deletenode(&vms_under, &vmnode[index]);
 				vm_insertnode(&vms_over, &vmnode[index]);
 				count_over ++;
@@ -404,45 +400,23 @@ sched_fn(void *x)
 				if (count_over == ready_vms - 1) {
 					reset_credits();
 					count_over = 0;
-				}
-
-				continue;
-			} 
-			*/
-			if (!TCAP_RES_IS_INF(budget)) {
-				/* 
-				 * if it has high enough accumulated budget already.. just giving it a bit..
-				 * because delegate with 0 res, gives all of src->budget
-                                 * essentially promoting it to have INF budget in this case.. 
-				 */ 
-				/*
-				if (budget > vmcredits[index]) vmbudget[index] = VM_MIN_TIMESLICE; 
-				else vmbudget[index] = vmcredits[index] - budget;
-
-				if (vmbudget[index] == 0) vmbudget[index] = VM_MIN_TIMESLICE;
-				*/
-				if (budget < vmcredits[index]) {
-					vmbudget[index] = vmcredits[index] - budget;
-					send            = 0;
-					if (!TCAP_RES_IS_INF(vmcredits[index])) cycs = vmcredits[index];
-					else                                   cycs = (5 * VM_TIMESLICE * cycs_per_usec);
 				} else {
-					cycs            = budget;
+					continue;
 				}
-			} else {
-				cycs = (5 * VM_TIMESLICE * cycs_per_usec);
-			}
+			} 
 
-			//printc("%s:%d - %d: %lu %lu\n", __func__, __LINE__, index, budget, vmbudget[index]);
-			//uint64_t start = 0;
-			//uint64_t end = 0;
+			if (vm_cr_reset[index]) {
+				send = 0;
+				vm_cr_reset[index] = 0;
+			}
+			if (TCAP_RES_IS_INF(budget)) send = 1;
 
 			rdtscll(start);
 			if (send) {
 				if (cos_asnd(vksndvm[index], 1)) assert(0);
 			}
 			else {
-				if (cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmbudget[index], vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+				if (cos_tcap_delegate(vksndvm[index], BOOT_CAPTBL_SELF_INITTCAP_BASE, vmcredits[index], vmprio[index], TCAP_DELEG_YIELD)) assert(0);
 			}
 			rdtscll(end);
 
@@ -463,14 +437,6 @@ sched_fn(void *x)
 				counter ++;
 			}
 #endif
-
-		//	if (index == 0) {
-		//		//printc("t_dom_cycs: %llu\n", end-start);
-		//		t_dom_cycs += (end-start);
-		//	} else if(index == 1) {
-		//		//printc("t_vm_cycs: %llu\n", end-start);
-		//		t_vm_cycs += (end-start);
-		//	}
 
 			while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) ;
 		}
