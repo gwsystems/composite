@@ -17,7 +17,7 @@ extern struct cos_compinfo booter_info;
 int __attribute__((format(printf,1,2))) printc(char *fmt, ...);
 
 int  intr_getdisabled(int intr);
-void intr_start(thdcap_t tid);
+void intr_start(unsigned int irqline);
 void intr_end(void);
 
 #define PS_ATOMIC_POSTFIX "l" /* x86-32 */
@@ -43,49 +43,6 @@ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
         return (int)z;
 }
 
-static inline tcap_t
-intr_translate_thdcap2irqtcap(thdcap_t tc)
-{
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	int i = HW_ISR_FIRST;
-
-	if (tc == 0) return 0;
-
-	if (vmid) {
-		if (tc == irq_thdcap[IRQ_DOM0_VM])
-			return irq_tcap[IRQ_DOM0_VM]; /* which is BOOT_CAPTBL_SELF_INITTCAP_BASE */
-		return 0;
-	}
-
-	while (tc != irq_thdcap[i] && i < HW_ISR_LINES) i ++;
-
-	if (i >= HW_ISR_LINES) return 0;
-
-	return irq_tcap[i];
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	return BOOT_CAPTBL_SELF_INITTCAP_BASE;
-#endif
-}
-
-static inline int
-intr_translate_thdcap2irq(thdcap_t tc)
-{
-	int i = HW_ISR_FIRST;
-
-	if (tc == 0) return -1;
-
-	if (vmid) {
-		if (tc == irq_thdcap[IRQ_DOM0_VM])
-			return IRQ_DOM0_VM;
-		return -1;
-	}
-
-	while (tc != irq_thdcap[i] && i < HW_ISR_LINES) i ++;
-
-	if (i >= HW_ISR_LINES) return -1;
-
-	return i;
-}
 static unsigned int intr_translate_thdid2irq(thdid_t tid)
 {
 	int i = HW_ISR_FIRST;
@@ -106,21 +63,6 @@ static unsigned int intr_translate_thdid2irq(thdid_t tid)
 }
 
 static inline tcap_t
-intr_real_irq_rcv(void)
-{
-	int i = HW_ISR_FIRST;
-
-	/* only in DOM0 */
-	assert(vmid == 0);
-
-	/* should not be executed unless vm1 or vm2 is using line 1 */
-	while (i == IRQ_VM1 || i == IRQ_VM2) i ++;
-	assert(i < HW_ISR_LINES);
-	/* for now all real I/O use same tcap */
-	return irq_arcvcap[i];
-}
-
-static inline tcap_t
 intr_eligible_tcap(unsigned int irqline)
 {
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
@@ -128,7 +70,7 @@ intr_eligible_tcap(unsigned int irqline)
 	tcap_res_t min_slice = (VM_MIN_TIMESLICE * cycs_per_usec);
 	tcap_res_t irqbudget, initbudget;
 
-	assert (irqline >= HW_ISR_FIRST);
+	assert (irqline >= HW_ISR_FIRST && irqline < HW_ISR_LINES);
 
 	if (vmid) {
 		if (irqline == IRQ_DOM0_VM)
@@ -261,7 +203,8 @@ intr_enable(void)
 		 * cos_nesting of the interrupts
 		 */
 		do {
-			ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending), irq_prio[contending], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending), irq_prio[contending], 
+					 TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert (ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
 	}

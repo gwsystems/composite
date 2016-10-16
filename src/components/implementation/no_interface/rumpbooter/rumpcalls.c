@@ -134,13 +134,12 @@ void
 cos_irqthd_handler(void *line)
 {
 	int which = (int)line;
-	thdcap_t thdcap = irq_thdcap[which];
 	arcvcap_t arcvcap = irq_arcvcap[which];
 	
 	while(1) {
 		int pending = cos_rcv(arcvcap);
 
-		intr_start(thdcap);
+		intr_start(which);
 
 		bmk_isr(which);
 

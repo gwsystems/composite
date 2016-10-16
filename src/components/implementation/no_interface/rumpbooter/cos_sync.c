@@ -15,7 +15,7 @@ extern volatile thdcap_t cos_cur; /* Last running rk thread */
 static inline void 
 isr_setcontention(unsigned int intr) 
 { 
-	/* intr is a thdcap_t */
+	/* intr is a irq line number */
 	isr_state_t tmp, final;
 
 	do {
@@ -34,17 +34,14 @@ isr_setcontention(unsigned int intr)
 
 /* cos_intrdisabled should be the second bit highest bit in cos_isr*/
 
-
-
 void
-intr_start(thdcap_t thdcap)
+intr_start(unsigned int irqline)
 {
 	isr_state_t tmp, final;
 	int ret;
-	unsigned int irqline = intr_translate_thdcap2irq(thdcap);
 
-	assert(thdcap);
-
+	assert(irqline >= HW_ISR_FIRST && irqline < HW_ISR_LINES);
+	if (vmid) assert(irqline == IRQ_DOM0_VM);
 	/*
 	 * 1. Get current cos_isr
          * 2. Check if intr_disabled is set (another isr thread is unblocked)
@@ -69,14 +66,14 @@ intr_start(thdcap_t thdcap)
 			if (intr_disabled) {
 				tcap_prio_t prio;	
 
-				assert(contending >= HW_ISR_FIRST);
+				assert(contending >= HW_ISR_FIRST && contending < HW_ISR_LINES);
 				assert(contending != irqline); /* Make sure we are not trying to switch to ourself */
 
 				/* Switch to contending isr thread */
 				do {
-                        		ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending), irq_prio[contending], 
-							TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, 
-							cos_sched_sync());
+                        		ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending), 
+							 irq_prio[contending], TCAP_TIME_NIL, 
+							 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
                         		assert (ret == 0 || ret == -EAGAIN);
                 		} while(ret == -EAGAIN);
 
@@ -99,10 +96,8 @@ intr_start(thdcap_t thdcap)
 			cos_isr = isr_construct(rk_disabled, 0, contending);
 			do {
 				/* Switch back to RK thread */
-				ret = cos_switch(cos_cur, COS_CUR_TCAP,
-						rk_thd_prio, TCAP_TIME_NIL,
-						BOOT_CAPTBL_SELF_INITRCV_BASE,
-						cos_sched_sync());
+				ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL,
+						 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 				assert(ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 

@@ -114,23 +114,25 @@ void
 vm0_io_fn(void *d) 
 {
 	int line;
+	unsigned int irqline;
 	arcvcap_t rcvcap;
-	thdcap_t thdcap;
 
 	switch((int)d) {
 		case 1:
 			line = 13;
+			irqline = IRQ_VM1;
 			break;
 		case 2:
 			line = 15;
+			irqline = IRQ_VM2;
 			break;
 		default: assert(0);
 	}
+
 	rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + (((int)d - 1) * CAP64B_IDSZ);
-	thdcap = VM0_CAPTBL_SELF_IOTHD_SET_BASE + (((int)d - 1) * CAP16B_IDSZ);
 	while (1) {
 		int pending = cos_rcv(rcvcap);
-		intr_start(thdcap);
+		intr_start(irqline);
 		bmk_isr(line);
 		cos_vio_tcap_set((int)d);
 		intr_end();
@@ -142,7 +144,7 @@ vmx_io_fn(void *d)
 {
 	while (1) {
 		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
-		intr_start(VM_CAPTBL_SELF_IOTHD_BASE);
+		intr_start(IRQ_DOM0_VM);
 		bmk_isr(12);
 		intr_end();
 	}
@@ -526,7 +528,7 @@ chronos_fn(void *x)
 	//static cycles_t prev = 0;
 
 	while (1) {
-		tcap_res_t total_budget = TCAP_RES_MAX;
+		tcap_res_t total_budget = TCAP_RES_INF;
 		tcap_res_t sla_slice = VM_TIMESLICE * cycs_per_usec;
 		thdid_t tid;
 		int blocked;
