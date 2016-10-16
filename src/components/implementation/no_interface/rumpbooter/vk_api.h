@@ -22,7 +22,7 @@ struct vm_list {
 }; 
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-struct vm_list vms_runqueue, vms_exit;
+struct vm_list vms_runqueue, vms_expended, vms_exit;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 struct vm_list vms_under, vms_over, vms_boost, vms_wait, vms_exit;
 #endif

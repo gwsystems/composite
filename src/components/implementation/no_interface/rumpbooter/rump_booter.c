@@ -111,11 +111,12 @@ hw_irq_alloc(void){
 		}
 	}
 
-#if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	memset(vio_tcap, 0, sizeof(vio_tcap));
 	memset(vio_rcv, 0, sizeof(vio_rcv));
 	memset(vio_prio, 0, sizeof(vio_prio));
 	memset(vio_deficit, 0, sizeof(vio_deficit));
+	memset(dom0_vio_deficit, 0, sizeof(dom0_vio_deficit));
 
 	if (vmid == 0) {
 		for (i = 0 ; i < COS_VIRT_MACH_COUNT - 1; i ++) {
@@ -143,6 +144,7 @@ rump_booter_init(void)
 
 /* json config string fixed at compile-time */
 #define JSON_CONF_TYPE JSON_NGINX_BAREMETAL
+//#define JSON_CONF_TYPE JSON_PAWS_BAREMETAL
 
 	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
 	if(vmid == 0) {

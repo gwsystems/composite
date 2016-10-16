@@ -17,7 +17,7 @@ extern struct cos_compinfo booter_info;
 int __attribute__((format(printf,1,2))) printc(char *fmt, ...);
 
 int  intr_getdisabled(int intr);
-void intr_start(thdcap_t tid);
+void intr_start(unsigned int irqline);
 void intr_end(void);
 
 #define PS_ATOMIC_POSTFIX "l" /* x86-32 */
@@ -43,52 +43,7 @@ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
         return (int)z;
 }
 
-static inline tcap_t
-intr_translate_thdcap2irqtcap(thdcap_t tc)
-{
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	int i = HW_ISR_FIRST;
-
-	if (tc == 0) return 0;
-
-	if (vmid) {
-		if (tc == irq_thdcap[IRQ_DOM0_VM])
-			return irq_tcap[IRQ_DOM0_VM]; /* which is BOOT_CAPTBL_SELF_INITTCAP_BASE */
-		return 0;
-	}
-
-	while (tc != irq_thdcap[i] && i < HW_ISR_LINES) i ++;
-
-	if (i >= HW_ISR_LINES) return 0;
-
-	return irq_tcap[i];
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	return BOOT_CAPTBL_SELF_INITTCAP_BASE;
-#endif
-}
-
-static inline int
-intr_translate_thdcap2irq(thdcap_t tc)
-{
-	int i = HW_ISR_FIRST;
-
-	if (tc == 0) return -1;
-
-	if (vmid) {
-		if (tc == irq_thdcap[IRQ_DOM0_VM])
-			return IRQ_DOM0_VM;
-		return -1;
-	}
-
-	while (tc != irq_thdcap[i] && i < HW_ISR_LINES) i ++;
-
-	if (i >= HW_ISR_LINES) return -1;
-
-	return i;
-}
-
-static unsigned int
-intr_translate_thdid2irq(thdid_t tid)
+static unsigned int intr_translate_thdid2irq(thdid_t tid)
 {
 	int i = HW_ISR_FIRST;
 
@@ -108,39 +63,20 @@ intr_translate_thdid2irq(thdid_t tid)
 }
 
 static inline tcap_t
-intr_real_irq_rcv(void)
-{
-	int i = HW_ISR_FIRST;
-
-	/* only in DOM0 */
-	assert(vmid == 0);
-
-	/* should not be executed unless vm1 or vm2 is using line 1 */
-	while (i == IRQ_VM1 || i == IRQ_VM2) i ++;
-	assert(i < HW_ISR_LINES);
-	/* for now all real I/O use same tcap */
-	return irq_arcvcap[i];
-}
-
-static inline tcap_t
-intr_eligible_tcap(thdcap_t irqtc)
+intr_eligible_tcap(unsigned int irqline)
 {
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	tcap_res_t res = (VIO_BUDGET_APPROX * cycs_per_usec);
 	tcap_res_t min_slice = (VM_MIN_TIMESLICE * cycs_per_usec);
 	tcap_res_t irqbudget, initbudget;
-	int irqline, ret;
 
-	assert (irqtc);
+	assert (irqline >= HW_ISR_FIRST && irqline < HW_ISR_LINES);
 
 	if (vmid) {
-		if (irqtc == irq_thdcap[IRQ_DOM0_VM])
+		if (irqline == IRQ_DOM0_VM)
 			return irq_tcap[IRQ_DOM0_VM];
 		assert(0);
 	}
-
-	irqline = intr_translate_thdcap2irq(irqtc);
-	assert(irqline >= 0);
 
 	irqbudget = (tcap_res_t)cos_introspect(&booter_info, irq_tcap[irqline], TCAP_GET_BUDGET);
 	if (irqbudget == 0) {
@@ -172,18 +108,19 @@ intr_update(unsigned int irq_line, int rcving)
 }
 
 static inline void
-isr_get(isr_state_t tmp, unsigned int *isdisabled, thdcap_t *contending)
+isr_get(isr_state_t tmp, unsigned int *rk_disabled, unsigned int *intr_disabled, unsigned int *contending)
 {
-	*isdisabled = tmp >> 31;
-	*contending = (thdcap_t)(tmp & ((u32_t)(~0) >> 16));
+	*rk_disabled = tmp >> 31;
+	*intr_disabled = (tmp >> 30) & 1;
+	*contending = (unsigned int)(tmp & ((u32_t)(~0) >> 16));
 	assert(*contending < (1 << 16));
 }
 
 static inline isr_state_t
-isr_construct(unsigned int isdisabled, thdcap_t contending)
+isr_construct(unsigned int rk_disabled, unsigned int intr_disabled, unsigned int contending)
 {
-	assert(isdisabled <= 1 && contending < (1 << 16));
-	return (u32_t)isdisabled << 31 | (u32_t)contending;
+	assert(rk_disabled <= 1 && intr_disabled <= 1 && contending < (1 << 16));
+	return (u32_t)rk_disabled << 31 | (u32_t)intr_disabled << 30 | (u32_t)contending;
 }
 
 /* Set highest order bit in cos_isr to 1 or increment cos_nesting count and return */
@@ -195,31 +132,35 @@ isr_disable(void)
 	/* Isr is currently enabled, disable for first time */
 	if(!cos_nesting) {
 		do {
-			unsigned int isdisabled;
-			thdcap_t contending;
+			unsigned int rk_disabled;
+			unsigned int intr_disabled;
+			unsigned int contending;
 
 			tmp = cos_isr;
-			isr_get(tmp, &isdisabled, &contending);	
+			isr_get(tmp, &rk_disabled, &intr_disabled, &contending);	
 			/*
 			 * Intrrupts must be enabled and cos_nesting must be 0
 			 * Cannot have enabled and contentended.  This would imply
 			 * that a non-interrupt thread has preempted an interrupt
 			 * thread.
 			 */
-			assert(!isdisabled);
+			assert(!rk_disabled);
 			assert(!cos_nesting);
-			final = isr_construct(1, contending);
+			final = isr_construct(1, intr_disabled, contending);
 		} while (unlikely(!ps_cas((unsigned long *)&cos_isr, tmp, final)));
 	}
 		
 	cos_nesting++;
 }
 
-static inline thdcap_t
+static int isintr;
+
+static inline unsigned int
 isr_enable(void)
 {
 	isr_state_t tmp, final;
-	thdcap_t contending = 0;
+	unsigned int contending = 0;
+	unsigned int intr_disabled = 0;
 
 	/* We better have disabled before calling enable */
 	assert(cos_nesting);
@@ -228,18 +169,18 @@ isr_enable(void)
 	/* Actually enable interrupts */
 	if(!cos_nesting) {
 		do {
-			unsigned int isdisabled;
-
+			unsigned int rk_disabled;
 			tmp = cos_isr;
-			isr_get(tmp, &isdisabled, &contending);
-			assert(isdisabled);
+
+			isr_get(tmp, &rk_disabled, &intr_disabled, &contending);
 
 			/* no more cos_nesting, actually "reenable" interrupts */
-			final = isr_construct(0, 0);
+			final = isr_construct(0, intr_disabled, contending);
 
 		} while (unlikely(!ps_cas((unsigned long *)&cos_isr, tmp, final)));
 	}
 
+	isintr = intr_disabled;
 	return contending;
 }
 
@@ -250,28 +191,20 @@ intr_disable(void)
 static inline void
 intr_enable(void)
 {
-	thdcap_t contending;
-	tcap_prio_t prio;
+	unsigned int contending;
+        tcap_prio_t prio;	
 	int ret;
 
 	contending = isr_enable();
-	if (unlikely(contending && !cos_intrdisabled)) {
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-		int irq = intr_translate_thdcap2irq(contending);
-
-		assert (irq >= 0);
-		prio = irq_prio[irq];
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-		if(vmid == 0) prio = irq_prio[HW_ISR_FIRST];
-		else          prio = irq_prio[IRQ_DOM0_VM];
-#endif
+	if (unlikely(contending && !isintr)) {
 		/*
 		 * Assumption here: we have actually re-enabled
 		 * interrupts here as opposed to release another
 		 * cos_nesting of the interrupts
 		 */
 		do {
-			ret = cos_switch(contending, intr_eligible_tcap(contending), prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending), irq_prio[contending], 
+					 TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert (ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
 	}

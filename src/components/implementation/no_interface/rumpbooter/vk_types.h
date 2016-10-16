@@ -3,9 +3,8 @@
 
 #include <cos_types.h>
 
-#define COS_VIRT_MACH_COUNT 3
+#define COS_VIRT_MACH_COUNT 2 
 #define COS_VIRT_MACH_MEM_SZ (1<<27) //128MB
-
 #define COS_SHM_VM_SZ (1<<20) //2MB
 #define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) > 0 ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
 
@@ -13,7 +12,9 @@
 #define VM_MIN_TIMESLICE (1) //1us
 #define SCHED_MIN_TIMESLICE (10)
 #define SCHED_QUANTUM (VM_TIMESLICE * 100)
-//#define SCHED_QUANTUM (30)
+
+#undef PRINT_CPU_USAGE 
+#define MIN_CYCS (1<<12)
 
 #define __SIMPLE_XEN_LIKE_TCAPS__
 #undef __SIMPLE_DISTRIBUTED_TCAPS__
@@ -29,8 +30,7 @@ capid_t irq_arcvcap[HW_ISR_LINES];
 tcap_prio_t irq_prio[HW_ISR_LINES];
 
 enum vm_prio {
-#if defined(__INTELLIGENT_TCAPS__)
-#elif defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	PRIO_HIGH  = TCAP_PRIO_MAX,
 	PRIO_LOW   = TCAP_PRIO_MAX + 100,
 	PRIO_MID   = TCAP_PRIO_MAX + 50,
@@ -42,7 +42,7 @@ enum vm_prio {
 };
 
 
-#if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 #define RIO_PRIO    PRIO_HIGH /* REAL I/O Priority */
 #define VIO_PRIO    PRIO_MID /* Virtual I/O Priority */
 #define RK_THD_PRIO PRIO_LOW /* Rumpkernel thread priority */
@@ -60,14 +60,16 @@ arcvcap_t vio_rcv[COS_VIRT_MACH_COUNT - 1];
 tcap_res_t vio_prio[COS_VIRT_MACH_COUNT - 1];
 
 /*
- * TODOOOOOOOOOOOOOO:
  * deficit accounting - by number of packets sent or received.
  * vio_deficit[i][j] - deficit in vmio-i for a packet processed for vmio-j
- * vio_deficit[0][i] - if both tcaps ran out of budget, dom0 transfers budget
+ */
+unsigned int vio_deficit[COS_VIRT_MACH_COUNT - 1][COS_VIRT_MACH_COUNT - 1];
+/*
+ * dom0_vio_deficit[i] - if both tcaps ran out of budget, dom0 transfers budget
  *                     to not stall the processing. so deficit in dom0 for a
  *                     packet processed for vm-i.
  */
-int vio_deficit[COS_VIRT_MACH_COUNT][COS_VIRT_MACH_COUNT]; 
+unsigned int dom0_vio_deficit[COS_VIRT_MACH_COUNT - 1]; 
 #endif
 
 enum vm_status {
@@ -78,13 +80,13 @@ enum vm_status {
 
 enum vm_credits {
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	DOM0_CREDITS = 2,
-	VM1_CREDITS  = 1,
+	DOM0_CREDITS = 5,
+	VM1_CREDITS  = 4,
 	VM2_CREDITS  = 1,
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	DOM0_CREDITS = 0, // 0 to not have credit based execution.. 
-	VM1_CREDITS  = 3,
-	VM2_CREDITS  = 4,
+	VM1_CREDITS  = 4,
+	VM2_CREDITS  = 1,
 #endif
 };
 
