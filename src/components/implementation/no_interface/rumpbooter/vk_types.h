@@ -18,8 +18,8 @@
 
 #define BOOTUP_ITERS 100 
 
-#undef __SIMPLE_XEN_LIKE_TCAPS__
-#define __SIMPLE_DISTRIBUTED_TCAPS__
+#define __SIMPLE_XEN_LIKE_TCAPS__
+#undef __SIMPLE_DISTRIBUTED_TCAPS__
 #undef __INTELLIGENT_TCAPS__
 
 #define HW_ISR_LINES 32
@@ -86,7 +86,7 @@ enum vm_credits {
 	VM1_CREDITS  = 4,
 	VM2_CREDITS  = 1,
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	DOM0_CREDITS = 0, // 0 to not have credit based execution.. 
+	DOM0_CREDITS = 5, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%) 
 	VM1_CREDITS  = 4,
 	VM2_CREDITS  = 1,
 #endif

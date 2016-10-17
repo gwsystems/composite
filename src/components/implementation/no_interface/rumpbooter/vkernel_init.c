@@ -20,6 +20,7 @@ unsigned int cycs_per_usec;
 /*
  * Init caps for each VM
  */
+cycles_t total_credits;
 tcap_t vminittcap[COS_VIRT_MACH_COUNT];
 int vm_cr_reset[COS_VIRT_MACH_COUNT];
 int vm_bootup[COS_VIRT_MACH_COUNT];
@@ -30,7 +31,6 @@ arcvcap_t vminitrcv[COS_VIRT_MACH_COUNT];
 asndcap_t vksndvm[COS_VIRT_MACH_COUNT];
 tcap_res_t vmcredits[COS_VIRT_MACH_COUNT];
 tcap_prio_t vmprio[COS_VIRT_MACH_COUNT];
-tcap_res_t vmbudget[COS_VIRT_MACH_COUNT];
 int vmstatus[COS_VIRT_MACH_COUNT];
 
 #if defined(__INTELLIGENT_TCAPS__)
@@ -155,6 +155,8 @@ void
 setup_credits(void)
 {
 	int i;
+	
+	total_credits = 0;
 
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
 		if (vmstatus[i] != VM_EXITED) {
@@ -162,15 +164,19 @@ setup_credits(void)
 				case 0:
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 					vmcredits[i] = (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					total_credits += vmcredits[i];
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 					vmcredits[i] = TCAP_RES_INF;
+					total_credits += (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
 #endif
 					break;
 				case 1:
 					vmcredits[i] = (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					total_credits += vmcredits[i];
 					break;
 				case 2:
 					vmcredits[i] = (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					total_credits += vmcredits[i];
 					break;
 				default:
 					vmcredits[i] = VM_TIMESLICE;
@@ -184,22 +190,20 @@ void
 reset_credits(void)
 {
 	struct vm_node *vm;
+	int i;
+
+	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++)
+		vm_cr_reset[i] = 1;
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	while ((vm = vm_next(&vms_expended)) != NULL) {
 		vm_deletenode(&vms_expended, vm);
 		vm_insertnode(&vms_runqueue, vm);
-		vmbudget[vm->id] = vmcredits[vm->id];
-		//vmprio[vm->id] = PRIO_LOW;
-		vm_cr_reset[vm->id] = 1;
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	while ((vm = vm_next(&vms_over)) != NULL) {
 		vm_deletenode(&vms_over, vm);
 		vm_insertnode(&vms_under, vm);
-		vmbudget[vm->id] = vmcredits[vm->id];
-		//vmprio[vm->id] = PRIO_UNDER;
-		vm_cr_reset[vm->id] = 1;
 	}
 #endif
 }
@@ -212,18 +216,15 @@ fillup_budgets(void)
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++)
 	{
-		vmbudget[i] = vmcredits[i];
 		vmprio[i]   = PRIO_LOW;
 		vm_cr_reset[i] = 1;
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	vmbudget[0] = TCAP_RES_INF;
 	vmprio[0] = PRIO_BOOST;
 	vm_cr_reset[0] = 1;
 	//vm_deletenode(&vms_under, &vmnode[0]);
 	//vm_insertnode(&vms_boost, &vmnode[0]);
 	
-	vmbudget[1] = vmcredits[1];
 	vmprio[1] = PRIO_UNDER;
 	vm_cr_reset[1] = 1;
 	//vm_deletenode(&vms_under, &vmnode[1]);
@@ -231,7 +232,6 @@ fillup_budgets(void)
 
 	for (i = 2 ; i < COS_VIRT_MACH_COUNT ; i ++)
 	{
-		vmbudget[i] = vmcredits[i];
 		vmprio[i]   = PRIO_UNDER;
 		vm_cr_reset[i] = 1;
 	}
@@ -285,9 +285,13 @@ sched_fn(void *x)
 	cycles_t cycles;
 	int index, j;
 	tcap_res_t cycs;
+	cycles_t total_cycles = 0;
+	int no_vms = 0;
 #if defined(PRINT_CPU_USAGE)
 	cycles_t cpu_usage[COS_VIRT_MACH_COUNT];
 	cycles_t cpu_cycs[COS_VIRT_MACH_COUNT];
+	unsigned int usage[COS_VIRT_MACH_COUNT];
+	unsigned int count[COS_VIRT_MACH_COUNT];
 	cycles_t cycs_per_sec                   = cycs_per_usec * 1000 * 1000;
 	cycles_t total_cycs                     = 0;
 	unsigned int counter                    = 0;
@@ -298,6 +302,7 @@ sched_fn(void *x)
 #if defined(PRINT_CPU_USAGE)
 	for (j = 0 ; j < COS_VIRT_MACH_COUNT ; j ++) {
 		cpu_usage[j] = cpu_cycs[j] = 0;
+		usage[j] = count[j] = 0;
 	}
 #endif
 	(void)cycs;
@@ -336,6 +341,7 @@ sched_fn(void *x)
 				if (count_over == ready_vms) {
 					reset_credits();
 					count_over = 0;
+					no_vms = 0;
 				} else {
 					continue;
 				}
@@ -344,38 +350,65 @@ sched_fn(void *x)
 			if (vm_cr_reset[index]) {
 				send = 0;
 
-				transfer_budget = vmcredits[index];
+				transfer_budget = vmcredits[index] - budget;
 				if (sched_budget <= (transfer_budget + min_budget)) {
 					transfer_budget = 0;
 				}
 
-				if (sched_budget == 0) send = 1;
-				else                   vm_cr_reset[index] = 0;
+				if (sched_budget == 0) { 
+					send = 1;
+				} else {
+					no_vms ++;
+					vm_cr_reset[index] = 0;
+				}
 			}
 			if (TCAP_RES_IS_INF(budget)) send = 1;
 
 			rdtscll(start);
 			if (send) {
 				if (cos_asnd(vksndvm[index], 1)) assert(0);
-			}
-			else {
+			} else {
 				if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
 			}
 			rdtscll(end);
 
+			if (no_vms == COS_VIRT_MACH_COUNT) total_cycles += (end - start);
+			if (total_cycles >= total_credits) {
+				reset_credits();
+				count_over = 0;
+				no_vms = 0;
+				total_cycles = 0;
+			}
+
 #if defined(PRINT_CPU_USAGE)
-			cpu_cycs[index]  += cycs;
-			cpu_usage[index] += (end - start);
+			unsigned int usg;
+
+			usg = budget;
+			if (!send) usg += transfer_budget;
+			if (usg) usg = (((end - start) * 100) / usg);
+
+			usage[index] += usg;
+			count[index] ++;
+
+			cpu_cycs[index]  = (send ? budget : budget + transfer_budget);
+			cpu_usage[index] = (end - start);
 			total_cycs       += (end - start);
 
 			if (total_cycs >= cycs_per_sec) {
 				for (j = 0 ; j < COS_VIRT_MACH_COUNT ; j ++) {
-					//if (cpu_cycs[j])
-						printc("vm%d:%llu:%llu ", j, cpu_usage[j], cpu_cycs[j]);
-						//printc("vm%d:%u%% ", j, (unsigned int)((cpu_usage[j] * 100) / cpu_cycs[j]));
+					if (cpu_cycs[j])
+						printc("vm%d:%u%% ", j, (unsigned int)((cpu_usage[j] * 100) / cpu_cycs[j]));
+						//printc("vm%d:%llu:%llu ", j, cpu_usage[j], cpu_cycs[j]);
+
+					if (count[index]) {
+						printc("%d:%u%% ", j, (usage[j] / count[j]));
+					}
+
 					cpu_usage[j] = cpu_cycs[j] = 0;
+					usage[j] = 0;
+					count[j] = 0;
 				}
-				printc("/ %usecs-%u\n", (unsigned int)(total_cycs/cycs_per_sec), counter);
+				printc("/ %ums @%u\n", (unsigned int)((total_cycs * 1000)/cycs_per_sec), counter);
 				total_cycs = 0;
 				counter ++;
 			}
@@ -402,6 +435,7 @@ sched_fn(void *x)
 	while (ready_vms) {
 		struct vm_node *x, *y;
 		unsigned int count_over = 0;
+		tcap_res_t dom0_max = DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec;
 
 #if 0
 		while ((x = vm_next(&vms_boost)) != NULL) { /* if there is at least one element in boost prio.. */
@@ -421,7 +455,7 @@ sched_fn(void *x)
 
 		while ((x = vm_next(&vms_under)) != NULL) {
 			int index         = x->id;
-			tcap_res_t budget = 0;
+			tcap_res_t budget = 0, transfer_budget = 0;
 			int send          = 1;
 
 			if (unlikely(vmstatus[index] == VM_EXITED)) {
@@ -442,6 +476,7 @@ sched_fn(void *x)
 				if (count_over == ready_vms - 1) {
 					reset_credits();
 					count_over = 0;
+					no_vms = 0;
 				} else {
 					continue;
 				}
@@ -449,30 +484,61 @@ sched_fn(void *x)
 
 			if (vm_cr_reset[index]) {
 				send = 0;
+				no_vms ++;
 				vm_cr_reset[index] = 0;
+
+				transfer_budget = vmcredits[index] - budget;
 			}
 			if (TCAP_RES_IS_INF(budget)) send = 1;
 
 			rdtscll(start);
 			if (send) {
 				if (cos_asnd(vksndvm[index], 1)) assert(0);
-			}
-			else {
-				if (cos_tcap_delegate(vksndvm[index], sched_tcap, vmcredits[index], vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+			} else {
+				if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
 			}
 			rdtscll(end);
 
+			if (no_vms == COS_VIRT_MACH_COUNT - 1) total_cycles += (end - start);
+			if (total_cycles >= total_credits) {
+				reset_credits();
+				count_over = 0;
+				no_vms = 0;
+				total_cycles = 0;
+			}
+
 #if defined(PRINT_CPU_USAGE)
-			cpu_cycs[index]  += cycs;
-			cpu_usage[index] += (end - start);
-			total_cycs       += (end - start);
+			unsigned int usg;
+
+			if (index) {
+				usg = budget;
+				if (!send) usg += transfer_budget;
+			} else {
+				usg = dom0_max;
+			}
+			usg = ((end - start) * 100) / usg;
+
+			usage[index] += usg;
+			count[index] ++;
+
+			if (index) cpu_cycs[index] = send ? budget : (budget + transfer_budget);
+			else       cpu_cycs[index] = dom0_max;
+			cpu_usage[index] = (end - start);
+			total_cycs      += (end - start);
 
 			if (total_cycs >= cycs_per_sec) {
 				for (j = 0 ; j < COS_VIRT_MACH_COUNT ; j ++) {
 					//if (cpu_cycs[j])
-						printc("vm%d:%llu:%llu ", j, cpu_usage[j], cpu_cycs[j]);
-						//printc("vm%d:%u%% ", j, (unsigned int)((cpu_usage[j] * 100) / cpu_cycs[j]));
+					//	printc("vm%d:%u%% ", j, (unsigned int)((cpu_usage[j] * 100) / cpu_cycs[j]));
+						//printc("vm%d:%llu:%llu ", j, cpu_usage[j], cpu_cycs[j]);
+
+					if (count[index]) {
+						printc("%d:%u%% ", j, (usage[j] / count[j]));
+					}
+
 					cpu_usage[j] = cpu_cycs[j] = 0;
+					usage[j] = 0;
+					count[j] = 0;
 				}
 				printc("/ %usecs-%u\n", (unsigned int)(total_cycs/cycs_per_sec), counter);
 				total_cycs = 0;
@@ -536,7 +602,7 @@ chronos_fn(void *x)
 	//static cycles_t prev = 0;
 
 	while (1) {
-		tcap_res_t total_budget = TCAP_RES_INF;
+		tcap_res_t total_budget = TCAP_RES_MAX;
 		tcap_res_t sla_slice = VM_TIMESLICE * cycs_per_usec;
 		thdid_t tid;
 		int blocked;
@@ -839,11 +905,6 @@ cos_init(void)
 			vm0_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vm0_io_thd[id-1], vm0_io_tcap[id-1], vkern_info.comp_cap, vminitrcv[0]);
 			assert(vm0_io_rcv[id-1]);
 
-			/* for VM1: Transfer 50% budget from VM to DOM0 IO TCAP */
-			/* if ((ret = cos_tcap_transfer(vm0_io_rcv[id-1], vminittcap[id], (vmbudget[id] / 2), VIO_PRIO))) {
-				printc("\tTcap transfer failed %d\n", ret);
-				assert(0);
-			} */
 			vms_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vms_io_thd[id-1], vminittcap[id], vkern_info.comp_cap, vminitrcv[id]);
 			assert(vms_io_rcv[id-1]);
 			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (id-1)*CAP16B_IDSZ, &vkern_info, vm0_io_tcap[id-1]);

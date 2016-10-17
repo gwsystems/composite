@@ -101,7 +101,7 @@ vm_list_init(void)
 	int i;
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	vms_runqueue.s = vms_exit.s = NULL;
+	vms_runqueue.s = vms_exit.s = vms_expended.s = NULL;
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
 		vmnode[i].id = i;
 		vmnode[i].prev = vmnode[i].next = &vmnode[i];
