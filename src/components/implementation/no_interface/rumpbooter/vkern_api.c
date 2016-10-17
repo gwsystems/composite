@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <vkern_api.h>
+void rumpns_m_copydata(struct mbuf *m, int off, int len, void *vp);
 
 int
 vk_recv_rb_create(struct cos_shm_rb * sm_rb, int vmid){
@@ -59,7 +60,7 @@ vk_ringbuf_isfull(struct cos_shm_rb *rb, size_t size){
 
 
 int
-vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
+vk_ringbuf_enqueue(struct cos_shm_rb *rb, void *buff, size_t size){
 	
 	unsigned int producer;
 
@@ -96,14 +97,14 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void * buff, size_t size){
 			return -1;
 		}
 
-		memcpy(&rb->buf[producer], buff, first);
+		rumpns_m_copydata((struct mbuf *)buff, 0, first, &rb->buf[producer]);
 		producer = 0;
-		memcpy(&rb->buf[producer], first+buff, second);
+		rumpns_m_copydata((struct mbuf *)buff, first, second, &rb->buf[producer]);
 	
 		rb->head = producer+second;	
 	} else {
 		/* Normal case */
-		memcpy(&rb->buf[producer], buff, size);
+		rumpns_m_copydata((struct mbuf *)buff, 0, size, &rb->buf[producer]);
 		__atomic_fetch_add(&rb->head, size+sizeof(size_t), __ATOMIC_SEQ_CST);
 	}
 
@@ -211,12 +212,12 @@ cos_shm_write(void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
 	return vk_ringbuf_enqueue(rb,buff,sz);
 }
 
+
 int
 cos_shm_read(void *buff, unsigned int srcvm, unsigned int curvm)
 {
 	assert(buff);
 	struct cos_shm_rb * rb;
-
        /*
 	* if you're a VM rcving from DOM0, read from your own rcv buf
 	* else if you're DOM0 rcving from a VM, read from the VM's send buf.
