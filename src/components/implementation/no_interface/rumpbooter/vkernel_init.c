@@ -327,7 +327,7 @@ sched_fn(void *x)
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 			sched_budget = (tcap_res_t)cos_introspect(&vkern_info, sched_tcap, TCAP_GET_BUDGET);
 			
-			//if (!bootup_sched_fn(index, budget)) continue;
+			if (!bootup_sched_fn(index, budget)) continue;
 
 			if (cycles_same(budget, 0) && !vm_cr_reset[index]) {
 				vm_deletenode(&vms_runqueue, &vmnode[index]);
