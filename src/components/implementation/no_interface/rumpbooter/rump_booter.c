@@ -125,7 +125,8 @@ hw_irq_alloc(void){
 			vio_prio[i] = VIO_PRIO;
 		}
 
-		cos_cur_tcap = (unsigned int)vio_tcap[0];
+		assert(IO_BOUND_VM >= 1 && IO_BOUND_VM <= COS_VIRT_MACH_COUNT);
+		cos_cur_tcap = (unsigned int)((vio_tcap[IO_BOUND_VM - 1] << 16) >> 16);
 	}
 #endif
 
@@ -168,7 +169,9 @@ rump_booter_init(void)
 #endif
 	}
 
-#if defined(__SIMPLE_XEN_LIKE_TCAPS__)
+#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+	rk_thd_prio = PRIO_LOW;
+#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	rk_thd_prio = (vmid == 0) ? PRIO_BOOST : PRIO_UNDER;
 #endif
 

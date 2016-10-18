@@ -71,7 +71,7 @@ tcap_cyc2time(cycles_t c) {
 	tcap_time_t t = (tcap_time_t)(c >> TCAP_TIME_QUANTUM_ORD);
 	return t == TCAP_TIME_NIL ? 1 : t;
 }
-#define CYCLES_DIFF_THRESH (1<<14)
+#define CYCLES_DIFF_THRESH (1<<10)
 static inline int
 cycles_same(cycles_t a, cycles_t b)
 { return (b < a ? a - b : b - a) <= CYCLES_DIFF_THRESH; }

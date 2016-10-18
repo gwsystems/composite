@@ -66,8 +66,6 @@ static inline tcap_t
 intr_eligible_tcap(unsigned int irqline)
 {
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	tcap_res_t res = (VIO_BUDGET_APPROX * cycs_per_usec);
-	tcap_res_t min_slice = (VM_MIN_TIMESLICE * cycs_per_usec);
 	tcap_res_t irqbudget, initbudget;
 
 	assert (irqline >= HW_ISR_FIRST && irqline < HW_ISR_LINES);
