@@ -323,7 +323,6 @@ cpu_bound_thd_fn(void *d)
 static void
 cpu_bound_test(void)
 {
-#if defined (__SIMPLE_DISTRIBUTED_TCAPS__)
 #define BOUND_TEST_ITERS (1<<30)
 	thdcap_t ts;
 	int i = BOUND_TEST_ITERS;
@@ -337,7 +336,6 @@ cpu_bound_test(void)
 		printc(".");
 	}
 	assert(0);
-#endif
 	return;
 }
 
@@ -535,9 +533,13 @@ cos_sched_yield(void)
 void
 cos_vm_yield(void)
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-{ if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
+{ cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
+//{ if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-{ cos_asnd(VM_CAPTBL_SELF_VKASND_BASE, 1); }
+{
+	if (vmid) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	else  cos_asnd(VM_CAPTBL_SELF_VKASND_BASE, 1);
+}
 #endif
 
 void

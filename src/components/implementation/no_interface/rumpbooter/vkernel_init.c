@@ -30,6 +30,7 @@ thdid_t vm_main_thdid[COS_VIRT_MACH_COUNT];
 arcvcap_t vminitrcv[COS_VIRT_MACH_COUNT];
 asndcap_t vksndvm[COS_VIRT_MACH_COUNT];
 tcap_res_t vmcredits[COS_VIRT_MACH_COUNT];
+tcap_res_t dom0_credits, iovm_credits, cpuvm_credits;
 tcap_prio_t vmprio[COS_VIRT_MACH_COUNT];
 int vmstatus[COS_VIRT_MACH_COUNT];
 
@@ -151,6 +152,8 @@ vmx_io_fn(void *d)
 	}
 }
 
+#define INF_VMS 1
+
 void
 setup_credits(void)
 {
@@ -159,31 +162,43 @@ setup_credits(void)
 	total_credits = 0;
 
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+		int credits = 0;
 		if (vmstatus[i] != VM_EXITED) {
 			switch (i) {
 				case 0:
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 					vmcredits[i] = (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
-					total_credits += vmcredits[i];
+					total_credits += (cycles_t)vmcredits[i];
+					dom0_credits = vmcredits[i];
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+					//vmcredits[i] = (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					vmcredits[i] = TCAP_RES_INF;
-					total_credits += (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					total_credits += (cycles_t)(DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					dom0_credits = (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
 #endif
+					credits = DOM0_CREDITS;
 					break;
 				case 1:
+					//vmcredits[i] = TCAP_RES_INF;
 					vmcredits[i] = (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
-					total_credits += vmcredits[i];
+					iovm_credits = (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					total_credits += (cycles_t)(iovm_credits);
+					credits = VM1_CREDITS;
 					break;
 				case 2:
 					vmcredits[i] = (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
-					total_credits += vmcredits[i];
+					total_credits += (cycles_t)vmcredits[i];
+					cpuvm_credits = (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec); 
+					credits = VM2_CREDITS;
 					break;
 				default:
 					vmcredits[i] = VM_TIMESLICE;
 					break;
 			}
-		} 
+		}
+		printc("%d: %lu %llu\n", i, vmcredits[i], (cycles_t)((credits * VM_TIMESLICE * (cycles_t)cycs_per_usec))); 
 	}
+	printc("%llu\n", total_credits);
 }
 
 void
@@ -225,7 +240,7 @@ fillup_budgets(void)
 	//vm_deletenode(&vms_under, &vmnode[0]);
 	//vm_insertnode(&vms_boost, &vmnode[0]);
 	
-	vmprio[1] = PRIO_UNDER;
+	vmprio[1] = PRIO_BOOST;
 	vm_cr_reset[1] = 1;
 	//vm_deletenode(&vms_under, &vmnode[1]);
 	//vm_insertnode(&vms_boost, &vmnode[1]);
@@ -249,13 +264,13 @@ fillup_budgets(void)
  * Credits at bootup shouldn't matter..!!
  */
 int
-bootup_sched_fn(int index, tcap_res_t budget)
+bootup_sched_fn(int index, tcap_res_t budget, tcap_res_t sched_budget)
 {
 	if (vm_bootup[index] < BOOTUP_ITERS) {
 		tcap_res_t timeslice = VM_TIMESLICE * cycs_per_usec;
 
 		vm_bootup[index] ++;
-		if (budget >= timeslice) {
+		if (budget >= timeslice || sched_budget == 0) {
 			if (cos_asnd(vksndvm[index], 1)) assert(0);
 		} else {
 			if (TCAP_RES_IS_INF(vmcredits[index])) {
@@ -267,6 +282,7 @@ bootup_sched_fn(int index, tcap_res_t budget)
 
 		return 0;
 	} else if (vm_bootup[index] == BOOTUP_ITERS) {
+		reset_credits();
 		vm_bootup[index] ++;
 		printc("VM%d Bootup complete\n", index);
 	}
@@ -278,6 +294,51 @@ uint64_t t_vm_cycs  = 0;
 uint64_t t_dom_cycs = 0;
 
 #define YIELD_CYCS 10000
+
+/* assumption, this is only called at and right before refreshing budgets in the system. */
+void
+costop(void)
+{
+#if defined(PRINT_CPU_USAGE)
+	cycles_t cycs_per_sec = ((cycles_t)(cycs_per_usec)) * 1000 * 1000;
+	static cycles_t curr_tsc = 0, prev_tsc = 0, total_tsc = 0;
+	cycles_t elapsed_tsc = 0;
+	tcap_res_t cpuvm_curr = 0, cpuvm_last_used = 0;
+	static cycles_t cpuvm_total = 0, cpuvm_used = 0;
+	static cycles_t dom0_iovm_total = 0, dom0_iovm_used = 0;
+	
+	cpuvm_curr = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[CPU_BOUND_VM], TCAP_GET_BUDGET);
+	rdtscll(curr_tsc);
+	if (prev_tsc) {
+		cpuvm_total += (cycles_t)cpuvm_credits;
+		dom0_iovm_total += ((cycles_t)iovm_credits + (cycles_t)dom0_credits);
+
+		elapsed_tsc = (curr_tsc - prev_tsc);
+		total_tsc += elapsed_tsc;
+		//elapsed_tsc -= ((elapsed_tsc * 3)/ 10); /* lets say, 30% of total cycles - lost in translation */
+		cpuvm_last_used = (cpuvm_credits - cpuvm_curr);
+
+		cpuvm_used += ((cycles_t)cpuvm_last_used);
+		/* Amount of time in DOM0 and VM1 is the amount of time that VM2 was not running for */
+		dom0_iovm_used += (elapsed_tsc - (cycles_t)cpuvm_last_used);
+
+		if (total_tsc >= cycs_per_sec) {
+			/* print top and clear vals */
+			int i = 0;
+			cycles_t total_credit_cycs = dom0_iovm_total + cpuvm_total;
+			if (dom0_iovm_total) printc("dom0+vm1:%u%% ", (unsigned int)((dom0_iovm_used * 100) / total_credit_cycs));
+			if (cpuvm_total) printc("vm2:%u%% ", (unsigned int)((cpuvm_used * 100) / total_credit_cycs));
+			printc(" %ums\n", (unsigned int)((total_tsc * 1000) / cycs_per_sec));
+
+			total_tsc = 0;
+			cpuvm_total = cpuvm_used = dom0_iovm_total = dom0_iovm_used = 0;
+		}
+	}
+	prev_tsc = curr_tsc;
+#endif
+	return;
+}
+
 void
 sched_fn(void *x)
 {
@@ -285,24 +346,12 @@ sched_fn(void *x)
 	int blocked;
 	cycles_t cycles;
 	int index, j;
-	tcap_res_t cycs;
 	cycles_t total_cycles = 0;
 	int no_vms = 0;
-	int done_printing = 0;
-	cycles_t cpu_usage[COS_VIRT_MACH_COUNT];
-	cycles_t cpu_cycs[COS_VIRT_MACH_COUNT];
-	unsigned int usage[COS_VIRT_MACH_COUNT];
-	unsigned int count[COS_VIRT_MACH_COUNT];
-	cycles_t cycs_per_sec                   = cycs_per_usec * 1000 * 1000;
-	cycles_t total_cycs                     = 0;
-	unsigned int counter                    = 0;
-	cycles_t start                          = 0;
-	cycles_t end                            = 0;
+	cycles_t cycs_per_sec = (cycles_t)(((cycles_t) (cycs_per_usec)) * 1000 * 1000);
+	cycles_t total_cycs = 0, curr_cycs = 0, prev_cycs = 0;
 
-	memset(cpu_usage, 0, sizeof(cpu_usage));
-	memset(cpu_cycs, 0, sizeof(cpu_cycs));
-	(void)cycs;
-
+	rdtscll(prev_cycs);
 	printc("Scheduling VMs(Rumpkernel contexts)....\n");
 	memset(vm_bootup, 0, sizeof(vm_bootup));
 
@@ -327,22 +376,19 @@ sched_fn(void *x)
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 			sched_budget = (tcap_res_t)cos_introspect(&vkern_info, sched_tcap, TCAP_GET_BUDGET);
 			
-			if (!bootup_sched_fn(index, budget)) continue;
+			//if (!bootup_sched_fn(index, budget, sched_budget)) continue;
 
-			if (cycles_same(budget, 0) && !vm_cr_reset[index]) {
+			if (budget == 0 && !vm_cr_reset[index]) {
 				vm_deletenode(&vms_runqueue, &vmnode[index]);
 				vm_insertnode(&vms_expended, &vmnode[index]);
 				count_over ++;
 
 				if (count_over == ready_vms) {
+					costop();
 					reset_credits();
 					count_over = 0;
 					no_vms = 0;
-					if (done_printing) {
-						memset(cpu_cycs, 0, sizeof(cpu_cycs));
-						memset(cpu_usage, 0, sizeof(cpu_usage));
-						done_printing = 0;
-					}
+					total_cycles = 0;
 				} else {
 					continue;
 				}
@@ -359,74 +405,29 @@ sched_fn(void *x)
 				if (sched_budget == 0) { 
 					send = 1;
 				} else {
-					no_vms ++;
+					//no_vms ++;
 					vm_cr_reset[index] = 0;
 				}
 			}
 			if (TCAP_RES_IS_INF(budget)) send = 1;
 
-			rdtscll(start);
 			if (send) {
 				if (cos_asnd(vksndvm[index], 1)) assert(0);
 			} else {
-				//printc("%d b:%lu t:%lu\n", index, budget, transfer_budget);
-				/*if (index == IO_BOUND_VM || index == 0) cpu_cycs[IO_BOUND_VM] += vmcredits[index];
-				else*/ cpu_cycs[index] += vmcredits[index];
+				no_vms = 1;
 				if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
 			}
-			rdtscll(end);
-
-#if defined(PRINT_CPU_USAGE)
-			tcap_res_t cpu_bound_usage = 0;
-			tcap_res_t total_usage = (end - start);
-
-			if (index == CPU_BOUND_VM) {
-				tcap_res_t now;
-
-				now = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
-				if (now != 0) {
-					printc("%lu\n", now); assert(0);
-				}
-				cpu_bound_usage = (transfer_budget + budget - now); /* get used amount of budget in cycles */
-				cpu_usage[index] += cpu_bound_usage;
-
-				cpu_usage[IO_BOUND_VM] += (total_usage - cpu_bound_usage); /* get time spent outside cpu bound vm */
-			} else {
-				if (index == 0 && total_usage < YIELD_CYCS)
-					cpu_usage[index] += total_usage;
-				else
-					cpu_usage[IO_BOUND_VM] += total_usage;
+			rdtscll(curr_cycs);
+			if (no_vms == 1) {
+				total_cycles += (curr_cycs - prev_cycs);
 			}
-			total_cycs += total_usage;
-
-			if (total_cycs >= cycs_per_sec) {
-				int i;
-
-				//assert(cpu_cycs[0] == 0 && cpu_usage[0] == 0);
-
-				for (i = 1 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-					unsigned int vm_usage = (unsigned int)((cpu_usage[i] * 100) / cpu_cycs[i]);
-					if (cpu_cycs[i]) printc("vm%d:%u%% ", i, vm_usage);
-				}
-				printc(" / %us\n", (unsigned int)((total_cycs) / cycs_per_sec));
-				total_cycs = 0;
-				
-				done_printing = 1;
-			}
-#endif
-
-			if (no_vms == COS_VIRT_MACH_COUNT) total_cycles += (end - start);
+			prev_cycs = curr_cycs;
 			if (total_cycles >= total_credits) {
+				costop();
 				reset_credits();
 				count_over = 0;
 				no_vms = 0;
 				total_cycles = 0;
-
-				if (done_printing) {
-					memset(cpu_cycs, 0, sizeof(cpu_cycs));
-					memset(cpu_usage, 0, sizeof(cpu_usage));
-					done_printing = 0;
-				}
 			}
 
 			while (cos_sched_rcv(sched_rcv, &tid, &blocked, &cycles)) {
@@ -471,6 +472,7 @@ sched_fn(void *x)
 		while ((x = vm_next(&vms_under)) != NULL) {
 			int index         = x->id;
 			tcap_res_t budget = 0, transfer_budget = 0;
+			tcap_res_t boost_credits = IO_BOOST_CREDITS * VM_TIMESLICE * cycs_per_usec;
 			int send          = 1;
 
 			if (unlikely(vmstatus[index] == VM_EXITED)) {
@@ -481,17 +483,20 @@ sched_fn(void *x)
 
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 
-			if (!bootup_sched_fn(index, budget)) continue;
+			//if (!bootup_sched_fn(index, budget, TCAP_RES_INF)) continue;
 
-			if (index && cycles_same(budget, 0) && !vm_cr_reset[index]) {
+			if (budget == 0 && !vm_cr_reset[index]) {
 				vm_deletenode(&vms_under, &vmnode[index]);
 				vm_insertnode(&vms_over, &vmnode[index]);
 				count_over ++;
 
-				if (count_over == ready_vms - 1) {
+				/* if dom0 has finite budget, don't do -1 */
+				if (count_over == ready_vms - INF_VMS) {
+					costop();
 					reset_credits();
 					count_over = 0;
 					no_vms = 0;
+					total_cycles = 0;
 				} else {
 					continue;
 				}
@@ -499,67 +504,37 @@ sched_fn(void *x)
 
 			if (vm_cr_reset[index]) {
 				send = 0;
-				no_vms ++;
+				//no_vms ++;
 				vm_cr_reset[index] = 0;
 
-				transfer_budget = vmcredits[index] - budget;
+				if (index == IO_BOUND_VM) {
+					transfer_budget = (vmcredits[index] + boost_credits - budget);
+				} else {
+					transfer_budget = vmcredits[index] - budget;
+				}
 			}
 			if (TCAP_RES_IS_INF(budget)) send = 1;
 
-			rdtscll(start);
 			if (send) {
 				if (cos_asnd(vksndvm[index], 1)) assert(0);
 			} else {
+				no_vms = 1;
 				if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
 			}
-			rdtscll(end);
 
-			if (no_vms == COS_VIRT_MACH_COUNT - 1) total_cycles += (end - start);
+			rdtscll(curr_cycs);
+			/* not if dom0 has finite budget!!! don't do -1 */
+			if (no_vms == 1) {
+				total_cycles += (curr_cycs - prev_cycs);
+			}
+			prev_cycs = curr_cycs;
 			if (total_cycles >= total_credits) {
+				costop();
 				reset_credits();
 				count_over = 0;
 				no_vms = 0;
 				total_cycles = 0;
 			}
-
-#if defined(PRINT_CPU_USAGE)
-			unsigned int usg;
-
-			if (index) {
-				usg = budget;
-				if (!send) usg += transfer_budget;
-			} else {
-				usg = dom0_max;
-			}
-			usg = ((end - start) * 100) / usg;
-
-			usage[index] += usg;
-			count[index] ++;
-
-			if (index) cpu_cycs[index] = send ? budget : (budget + transfer_budget);
-			else       cpu_cycs[index] = dom0_max;
-			cpu_usage[index] = (end - start);
-			total_cycs      += (end - start);
-
-			if (total_cycs >= cycs_per_sec) {
-				for (j = 0 ; j < COS_VIRT_MACH_COUNT ; j ++) {
-					//if (cpu_cycs[j])
-					//	printc("vm%d:%u%% ", j, (unsigned int)((cpu_usage[j] * 100) / cpu_cycs[j]));
-						//printc("vm%d:%llu:%llu ", j, cpu_usage[j], cpu_cycs[j]);
-
-					if (count[index]) {
-						printc("%d:%u%% ", j, (usage[j] / count[j]));
-					}
-
-					cpu_usage[j] = cpu_cycs[j] = 0;
-					usage[j] = 0;
-					count[j] = 0;
-				}
-				printc("/ %usecs-%u\n", (unsigned int)(total_cycs/cycs_per_sec), counter);
-				total_cycs = 0;
-				counter ++;
-			}
-#endif
 
 			while (cos_sched_rcv(sched_rcv, &tid, &blocked, &cycles)) ;
 		}
