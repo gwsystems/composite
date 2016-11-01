@@ -18,7 +18,6 @@
 #define  CBUF_H
 
 #include <cos_component.h>
-#include <util.h>
 #include <cos_debug.h>
 #include <cbuf_meta.h>
 #include <cbuf_mgr.h>
