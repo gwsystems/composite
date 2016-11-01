@@ -114,7 +114,7 @@ int valloc_alloc_at(spdid_t spdid, spdid_t dest, void *addr, unsigned long npage
 		    !(trac = cos_vect_lookup(&spd_vect, dest))) goto done;
 	}
 
-	if (unlikely(npages > MAP_MAX * sizeof(u32_t))) {
+	if (unlikely(npages > MAP_MAX * 32)) {
 		printc("valloc: cannot alloc more than %u bytes in one time!\n", 32 * WORDS_PER_PAGE * PAGE_SIZE);
 		goto done;
 	}
@@ -127,7 +127,7 @@ int valloc_alloc_at(spdid_t spdid, spdid_t dest, void *addr, unsigned long npage
 		/* the address is in the range of an existing extent */
 		occ = trac->extents[i].map;
 		off = ((char*)addr - (char*)trac->extents[i].start) / PAGE_SIZE;
-		assert(off + npages < MAP_MAX * sizeof(u32_t));
+		assert(off + npages < MAP_MAX * 32);
 		ret = bitmap_extent_set_at(&occ->pgd_occupied[0], off, npages, MAP_MAX);
 		goto done;
 	}
@@ -166,7 +166,7 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 		    !(trac = cos_vect_lookup(&spd_vect, dest))) goto done;
 	}
 
-	if (unlikely(npages > MAP_MAX * sizeof(u32_t))) {
+	if (unlikely(npages > MAP_MAX * 32)) {
 		printc("valloc: cannot alloc more than %u bytes in one time!\n", 32 * WORDS_PER_PAGE * PAGE_SIZE);
 		goto done;
 	}
@@ -182,13 +182,13 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 		goto done;
 	}
 
-	ext_size = round_up_to_pgd_page(npages * PAGE_SIZE);
+	ext_size = round_up_to_pow2(npages, PGD_SIZE/PAGE_SIZE);
 	trac->extents[i].map = alloc_page();
 	occ = trac->extents[i].map;
 	assert(occ);
-	trac->extents[i].start = (void*)vas_mgr_expand(spdid, dest, ext_size);
-	trac->extents[i].end = (void *)(trac->extents[i].start + ext_size);
-	bitmap_set_contig(&occ->pgd_occupied[0], 0, ext_size / PAGE_SIZE, 1);
+	trac->extents[i].start = (void*)vas_mgr_expand(spdid, dest, ext_size * PAGE_SIZE);
+	trac->extents[i].end = (void *)(trac->extents[i].start + ext_size * PAGE_SIZE);
+	bitmap_set_contig(&occ->pgd_occupied[0], 0, ext_size, 1);
 	bitmap_set_contig(&occ->pgd_occupied[0], 0, npages, 0);
 	ret = trac->extents[i].start;
 done:
@@ -209,13 +209,13 @@ int valloc_free(spdid_t spdid, spdid_t dest, void *addr, unsigned long npages)
 
 	int i = 0;
 	/* locate the address to be freed in which range (extents) */
-	while (addr < trac->extents[i].start || addr > trac->extents[i].end) {
+	while (addr < trac->extents[i].start || addr >= trac->extents[i].end) {
 		if (++i == MAX_SPD_VAS_LOCATIONS) goto done;
 	}
 	occ = trac->extents[i].map;
 	assert(occ);
 	off = ((char *)addr - (char *)trac->extents[i].start) / PAGE_SIZE;
-	assert(off + npages < MAP_MAX * sizeof(u32_t));
+	assert(off + npages < MAP_MAX * 32);
 	bitmap_set_contig(&occ->pgd_occupied[0], off, npages, 1);
 	ret = 0;
 done:	
