@@ -64,6 +64,7 @@ cbuf_tests(void)
 		szs[i] = sz;
 		assert(bufs[i]);
 		bufs[i][0] = '_';
+		cbuf_send(cbs[i]);
 		unit_cbuf(cbs[i], sz);
 		printv("UNIT TEST cbuf2buf %d\n", sz);
 	}
@@ -71,6 +72,7 @@ cbuf_tests(void)
 	
 	for (i = 0 ; i < MAX_CBUFS ; i++) {
 		bufs[i][0] = '_';
+		cbuf_send(cbs[i]);
 		unit_cbuf(cbs[i], szs[i]);
 		printv("UNIT TEST cbuf2buf %d\n", szs[i]);
 	}
