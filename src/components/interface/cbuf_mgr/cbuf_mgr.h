@@ -13,18 +13,23 @@
 #include <cos_component.h>
 #include <ck_ring_cos.h>
 
-typedef u32_t cbuf_t; /* should match cbuf_t, and fit in a register */
-
 /* 
- * These are more or less identical to the counterparts in cbuf_c.h,
- * so have a look at the documentation there.
+ * cbuf_create and cbuf_retrieve:
+ * cbid is complicated --
+ * 0: we don't know the cbuf id we want to create
+ * n > 0: we want to initialize the cbuf_meta structure and get the cbuf addr
+ *
+ * The return value is negative (-c) if we need to create a new level
+ * in the cbuf_meta vector for c.  This is expanded by calling
+ * cbuf_register.  We expect that we will call this function again
+ * with c to get the cbuf's address via a populated cbuf_meta.
  */
 int cbuf_create(spdid_t spdid, unsigned long size, int cbid);
 int cbuf_delete(spdid_t spdid, int cbid);
 int cbuf_retrieve(spdid_t spdid, int cbid, unsigned long len);
 vaddr_t cbuf_register(spdid_t spdid, int cbid);
 
-/* Map a cbufp into another component at a given address.
+/* Map a cbuf into another component at a given address.
  * The s_spd that calls this function should ensure the memory is not freed.
  * The d_addr must be alloced with sufficient pages to contain the cbuf.
  */
@@ -34,14 +39,14 @@ int cbuf_unmap_at(spdid_t s_spd, int cbid, spdid_t d_spd, vaddr_t d_addr);
 int cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd);
 
 /*
- * Before the first call to cbufp_collect, the client component must
- * call cbufp_map_collect in order to map the shared page used to
+ * Before the first call to cbuf_collect, the client component must
+ * call cbuf_map_collect in order to map the shared page used to
  * return the list of garbage-collected cbufs.
  */
 vaddr_t cbuf_map_collect(spdid_t spdid);
 
 /* 
- * When we have no more cbufps of a specific size, lets try and
+ * When we have no more cbufs of a specific size, lets try and
  * collect the ones we've given away. This function returns a positive value
  * for the number of cbufs collected, 0 if non are available, or a
  * negative value for an error.
@@ -71,10 +76,5 @@ struct cbuf_shared_page {
 #define CSP_BUFFER_SIZE ((PAGE_SIZE>>1)/sizeof(struct cbuf_ring_element))
 	struct cbuf_ring_element buffer[CSP_BUFFER_SIZE];
 };
-
-/* GAP #include <cbuf_vect.h> */
-/* #include <mem_mgr_large.h> */
-/* /\* Included mainly for struct cbuf_meta: *\/ */
-/* #include "../cbuf_c/tmem_conf.h" */
 
 #endif 	    /* !CBUF_MGR_H */
