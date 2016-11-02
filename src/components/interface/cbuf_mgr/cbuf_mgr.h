@@ -48,6 +48,10 @@ vaddr_t cbuf_map_collect(spdid_t spdid);
  */
 int cbuf_collect(spdid_t spdid, unsigned long size);
 
+/*set limit size of cbuf in component spdid to target_size*/
+void cbuf_mempool_resize(spdid_t spdid, unsigned long target_size);
+unsigned long cbuf_memory_target_get(spdid_t spdid);
+
 /* Collected cbufs are stored in a page shared between cbufp and clients.
  * A ring buffer data structure is put in the first part of the page.
  * The rest of the page contains the buffer of collected cbuf_t identifiers,

@@ -17,3 +17,6 @@ cos_asm_server_stub_spdid(cbuf_unmap_at)
 cos_asm_server_stub_spdid(cbuf_map_collect)
 cos_asm_server_stub_spdid(cbuf_fork_spd)
 cos_asm_server_stub_spdid(cbuf_collect)
+cos_asm_server_stub(cbuf_mempool_resize)
+cos_asm_server_stub(cbuf_memory_target_get)
+

@@ -19,6 +19,8 @@
 
 #include <stkmgr.h>
 
+#define INIT_TARGET_SIZE 4096*2048
+
 /** 
  * The main data-structures tracked in this component.
  * 
@@ -97,6 +99,7 @@ struct cbuf_comp_info {
 	int nbin;
 	struct cbuf_bin cbufs[CBUF_MAX_NSZ];
 	struct cbuf_meta_range *cbuf_metas;
+	unsigned long target_size, allocated_size;
 	int num_blocked_thds;
 	struct blocked_thd bthd_list;
 };
@@ -169,6 +172,7 @@ cbuf_comp_info_init(spdid_t spdid, struct cbuf_comp_info *cci)
 	void *p;
 	memset(cci, 0, sizeof(*cci));
 	cci->spdid = spdid;
+	cci->target_size = INIT_TARGET_SIZE;
 	INIT_LIST(&cci->bthd_list, next, prev);
 	cvect_add(&components, cci, spdid);
 }
@@ -448,6 +452,8 @@ cbuf_thd_wake_up(struct cbuf_comp_info *cci, unsigned long sz)
 	if (cci->num_blocked_thds == 0) cbuf_unmark_relinquish_all(cci);
 }
 
+static void cbuf_shrink(struct cbuf_comp_info *cci, int diff);
+
 int
 cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 {
@@ -467,8 +473,10 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	 * be mapped in.
 	 */
 	if (!cbid) {
-		struct cbuf_bin *bin;
+		/* TODO: check if have enough free memory: ask mem manager */
+		/*memory usage exceeds the target, block this thread*/
 		if (size + cci->allocated_size > cci->target_size) {
+			cbuf_shrink(cci, size);
 			if (size + cci->allocated_size > cci->target_size) {
 				cbuf_thread_block(cci, size);
 				return 0;
@@ -523,6 +531,7 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	meta->cbid_tag.cbid = cbid;
 	assert(CBUF_REFCNT(meta) < CBUF_REFCNT_MAX);
 	CBUF_REFCNT_ATOMIC_INC(meta);
+	cci->allocated_size += size;
 	ret = cbid;
 done:
 	CBUF_RELEASE();
@@ -701,6 +710,7 @@ cbuf_collect(spdid_t spdid, unsigned long size)
 	CBUF_TAKE();
 	cci = cbuf_comp_info_get(spdid);
 	if (unlikely(!cci)) ERR_THROW(-ENOMEM, done);
+	if (size + cci->allocated_size <= cci->target_size) goto done;
 	csp = cci->csp;
 	if (unlikely(!csp)) ERR_THROW(-EINVAL, done);
 
@@ -846,6 +856,75 @@ cbuf_register(spdid_t spdid, int cbid)
 	cmr = cbuf_meta_add(cci, cbid, p, dest);
 	assert(cmr);
 	ret = cmr->dest;
+done:
+
+static void
+cbuf_shrink(struct cbuf_comp_info *cci, int diff)
+{
+	int i, sz;
+	struct cbuf_bin *bin;
+	struct cbuf_info *cbi, *next, *head;
+
+	for(i=cci->nbin-1; i>=0; i--) {
+		bin = &cci->cbufs[i];
+		sz = (int)bin->size;
+		if (!bin->c) continue;
+		cbi = FIRST_LIST(bin->c, next, prev);
+		int i = 0;
+		while (cbi != bin->c) {
+			next = FIRST_LIST(cbi, next, prev);
+			if (!cbuf_free_unmap(cci, cbi)) {
+				diff -= sz;
+				if (diff <= 0) return;
+			}
+			cbi = next;
+		}
+		if (!cbuf_free_unmap(cci, cbi)) {
+			diff -= sz;
+			if (diff <= 0) return;
+		}
+	}
+	if (diff > 0) cbuf_mark_relinquish_all(cci);
+}
+
+static inline void
+cbuf_expand(struct cbuf_comp_info *cci, int diff)
+{
+	if (cci->allocated_size < cci->target_size) {
+		cbuf_thd_wake_up(cci, cci->target_size - cci->allocated_size);
+	}
+}
+
+/* target_size is an absolute size */
+void
+cbuf_mempool_resize(spdid_t spdid, unsigned long target_size)
+{
+	struct cbuf_comp_info *cci;
+	int diff;
+
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(spdid);
+	if (unlikely(!cci)) goto done;
+	target_size = round_up_to_page(target_size);
+	diff = (int)(target_size - cci->target_size);
+	cci->target_size = target_size;
+	if (diff < 0 && cci->allocated_size > cci->target_size) {
+		cbuf_shrink(cci, cci->allocated_size - cci->target_size);
+	}
+	if (diff > 0) cbuf_expand(cci, diff);
+done:
+	CBUF_RELEASE();
+}
+
+unsigned long
+cbuf_memory_target_get(spdid_t spdid)
+{
+	struct cbuf_comp_info *cci;
+	int ret;
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(spdid);
+	if (unlikely(!cci)) ERR_THROW(-ENOMEM, done);
+	ret = cci->target_size;
 done:
 	CBUF_RELEASE();
 	return ret;
