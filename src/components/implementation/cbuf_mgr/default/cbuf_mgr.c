@@ -19,6 +19,13 @@
 
 #include <stkmgr.h>
 
+/* debug helper */
+#define OP_NUM 10
+/* 0-create 1-collect 2-delete */
+/* 3-retrieve 4-register */
+/* 56-reserve 7-cbuf_alloc_map */
+int op_nums[OP_NUM];
+unsigned long long per_total[OP_NUM];
 #define INIT_TARGET_SIZE 4096*2048
 
 /** 
@@ -102,6 +109,9 @@ struct cbuf_comp_info {
 	unsigned long target_size, allocated_size;
 	int num_blocked_thds;
 	struct blocked_thd bthd_list;
+	unsigned long long gc_tot, gc_max;
+	unsigned long long blk_tot, blk_max;
+	int gc_num;
 };
 
 #define printl(s) //printc(s)
@@ -238,6 +248,8 @@ cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 	vaddr_t dest;
 	int ret = 0;
 
+	u64_t start, end;
+	rdtscll(start);
 	assert(size == (int)round_to_page(size));
 	p = page_alloc(size/PAGE_SIZE);
 	if (!p) goto done;
@@ -257,6 +269,9 @@ free:
 done:
 	*page  = p;
 	*daddr = dest;
+	rdtscll(end);
+	op_nums[7]++;
+	per_total[7] += (end-start);
 	return ret;
 }
 
@@ -465,6 +480,10 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	printl("cbuf_create\n");
 	if (unlikely(cbid < 0)) return 0;
 	CBUF_TAKE();
+
+	u64_t start, end;
+	rdtscll(start);
+
 	cci = cbuf_comp_info_get(spdid);
 	if (!cci) goto done;
 
@@ -534,6 +553,9 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	cci->allocated_size += size;
 	ret = cbid;
 done:
+	rdtscll(end);
+	op_nums[0]++;
+	per_total[0] += (end-start);
 	CBUF_RELEASE();
 
 	return ret;
@@ -708,6 +730,8 @@ cbuf_collect(spdid_t spdid, unsigned long size)
 	printl("cbuf_collect\n");
 
 	CBUF_TAKE();
+	u64_t start, end;
+	rdtscll(start);
 	cci = cbuf_comp_info_get(spdid);
 	if (unlikely(!cci)) ERR_THROW(-ENOMEM, done);
 	if (size + cci->allocated_size <= cci->target_size) goto done;
@@ -738,6 +762,12 @@ cbuf_collect(spdid_t spdid, unsigned long size)
 	if (ret) cbuf_thd_wake_up(cci, ret*size);
 
 done:
+	rdtscll(end);
+	op_nums[1]++;
+	cci->gc_num++;
+	per_total[1] = (end-start)+900;
+	cci->gc_tot += per_total[1];
+	if (per_total[1] > cci->gc_max) cci->gc_max = per_total[1];
 	CBUF_RELEASE();
 	return ret;
 }
@@ -755,6 +785,9 @@ cbuf_delete(spdid_t spdid, int cbid)
 	printl("cbuf_delete\n");
 	assert(0);
 	CBUF_TAKE();
+
+	u64_t start, end;
+	rdtscll(start);
 	cci = cbuf_comp_info_get(spdid);
 	if (!cci) goto done;
 	cbi = cmap_lookup(&cbufs, cbid);
@@ -766,6 +799,9 @@ cbuf_delete(spdid_t spdid, int cbid)
 	}
 	ret = 0;
 done:
+	rdtscll(end);
+	op_nums[2]++;
+	per_total[2] += (end-start);
 	CBUF_RELEASE();
 	return ret;
 }
@@ -787,6 +823,10 @@ cbuf_retrieve(spdid_t spdid, int cbid, unsigned long size)
 	printl("cbuf_retrieve\n");
 
 	CBUF_TAKE();
+
+	u64_t start, end;
+	rdtscll(start);
+
 	cci        = cbuf_comp_info_get(spdid);
 	if (!cci) {printd("no cci\n"); goto done; }
 	cbi        = cmap_lookup(&cbufs, cbid);
@@ -828,6 +868,10 @@ cbuf_retrieve(spdid_t spdid, int cbid, unsigned long size)
 	if (CBUF_RELINQ(own_meta)) CBUF_FLAG_ADD(meta, CBUF_RELINQ);
 	ret                 = 0;
 done:
+	rdtscll(end);
+	op_nums[3]++;
+	per_total[3] += (end-start);
+
 	CBUF_RELEASE();
 	return ret;
 free:
@@ -845,6 +889,9 @@ cbuf_register(spdid_t spdid, int cbid)
 
 	printl("cbuf_register\n");
 	CBUF_TAKE();
+	u64_t start, end;
+	rdtscll(start);
+
 	cci = cbuf_comp_info_get(spdid);
 	if (!cci) goto done;
 	cmr = cbuf_meta_lookup_cmr(cci, cbid);
@@ -857,6 +904,9 @@ cbuf_register(spdid_t spdid, int cbid)
 	assert(cmr);
 	ret = cmr->dest;
 done:
+	rdtscll(end);
+	op_nums[4]++;
+	per_total[4] += (end-start);
 
 static void
 cbuf_shrink(struct cbuf_comp_info *cci, int diff)
@@ -977,4 +1027,116 @@ cos_init(void)
 	CBUF_LOCK_INIT();
 	cmap_init_static(&cbufs);
 	cbid = cmap_add(&cbufs, NULL);
+
+	/* debug */
+	memset(op_nums, 0, sizeof(op_nums));
+	memset(per_total, 0, sizeof(per_total));
+
+/* Debug helper functions */
+static int __debug_reference(struct cbuf_info * cbi)
+{
+	struct cbuf_maps *m = &cbi->owner;
+	int sent = 0, recvd = 0;
+	do {
+		struct cbuf_meta *meta = m->m;
+		if (CBUF_REFCNT(meta)) return 1;
+		sent  += meta->snd_rcv.nsent;
+		recvd += meta->snd_rcv.nrecvd;
+		m   = FIRST_LIST(m, next, prev);
+	} while (m != &cbi->owner);
+	if (sent != recvd) return 1;
+	return 0;
+}
+
+unsigned long cbuf_debug_cbuf_info(spdid_t spdid, int index, int p)
+{
+	unsigned long ret[20], sz;
+	struct cbuf_comp_info *cci;
+	struct cbuf_bin *bin;
+	struct cbuf_info *cbi, *next, *head;
+	struct cbuf_meta *meta;
+	struct blocked_thd *bthd;
+	unsigned long long cur;
+	int i;
+
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(spdid);
+	if (unlikely(!cci)) assert(0);
+	memset(ret, 0, sizeof(ret));
+
+	ret[0] = cci->target_size;
+	ret[1] = cci->allocated_size;
+	if(p == 1) printc("target %lu %lu allocate %lu %lu\n", ret[0], ret[0]/PAGE_SIZE, ret[1], ret[1]/PAGE_SIZE);
+
+	for(i=cci->nbin-1; i>=0; i--) {
+		bin = &cci->cbufs[i];
+		sz = bin->size;
+		if (!bin->c) continue;
+		cbi = bin->c;
+		do {
+			if (__debug_reference(cbi)) ret[2] += sz;
+			else                        ret[3] += sz;
+			meta = cbi->owner.m;
+			if (CBUF_RELINQ(meta)) ret[4]++;
+			cbi = FIRST_LIST(cbi, next, prev);
+		} while(cbi != bin->c);
+	}
+	if(p == 1) printc("using %lu %lu garbage %lu %lu relinq %lu\n", ret[2], ret[2]/PAGE_SIZE, ret[3], ret[3]/PAGE_SIZE, ret[4]);
+	assert(ret[2]+ret[3] == ret[1]);
+	ret[5] = cci->num_blocked_thds;
+	if (ret[5]) {
+		rdtscll(cur);
+		bthd = cci->bthd_list.next;
+		while (bthd != &cci->bthd_list) {
+			cci->blk_tot += (cur-bthd->blk_start);
+			ret[6] += bthd->request_size;
+			bthd->blk_start = cur;
+			bthd = FIRST_LIST(bthd, next, prev);
+		}
+	}
+	if(p == 1) printc("spd %d %lu thd blocked request %d pages %d\n", spdid, ret[5], ret[6], ret[6]/PAGE_SIZE);
+	ret[7] = (unsigned long)cci->blk_tot;
+	ret[8] = (unsigned long)cci->blk_max;
+	ret[9] = (unsigned long)cci->gc_tot;
+	ret[10] = (unsigned long)cci->gc_max;
+	if (p == 1) printc("spd %d blk_tot %lu blk_max %lu gc_tot %lu gc_max %lu\n", spdid, ret[7], ret[8], ret[9], ret[10]);
+	if (p == 2) {
+		cci->blk_tot = cci->blk_max = cci->gc_tot = cci->gc_max = 0;
+		cci->gc_num = 0;
+	}
+
+	CBUF_RELEASE();
+	return ret[index];
+}
+
+void cbuf_debug_cbiddump(int cbid)
+{
+	struct cbuf_info *cbi;
+	struct cbuf_maps *m;
+	printc("mgr dump cbid %d\n", cbid);
+	cbi = cmap_lookup(&cbufs, cbid);
+	assert(cbi);
+	printc("cbid %d cbi: id %d sz %lu mem %p\n", cbid, cbi->cbid, cbi->size, cbi->mem);
+	m   = &cbi->owner;
+	do {
+		struct cbuf_meta *meta = m->m;
+		printc("map: spd %d addr %lux meta %p\n", m->spdid, m->addr, m->m);
+		printc("meta: nfo %lux addr %lux cbid %d\n", meta->nfo, CBUF_PTR(meta), meta->cbid_tag.cbid);
+		cos_mmap_cntl(55, MAPPING_RW, m->spdid, CBUF_PTR(meta), 0);
+		m = FIRST_LIST(m, next, prev);
+	} while(m != &cbi->owner);
+}
+
+void cbuf_debug_profile(int p)
+{
+	if (p) {
+		if (op_nums[0] != 0) printc("create %d avg %llu\n", op_nums[0], per_total[0]/op_nums[0]);
+		if (op_nums[1] != 0) printc("collect %d avg %llu\n", op_nums[1], per_total[1]/op_nums[1]);
+		if (op_nums[2] != 0) printc("delete %d avg %llu\n", op_nums[2], per_total[2]/op_nums[2]);
+		if (op_nums[3] != 0) printc("retrieve %d avg %llu\n", op_nums[3], per_total[3]/op_nums[3]);
+		if (op_nums[4] != 0) printc("register %d avg %llu\n", op_nums[4], per_total[4]/op_nums[4]);
+		if (op_nums[7] != 0) printc("alloc map %d avg %llu\n", op_nums[7], per_total[7]/op_nums[7]);
+	}
+	memset(op_nums, 0, sizeof(op_nums));
+	memset(per_total, 0, sizeof(per_total));
 }
