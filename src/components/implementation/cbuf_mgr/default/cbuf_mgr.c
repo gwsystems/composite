@@ -83,6 +83,13 @@ struct cbuf_bin {
 	struct cbuf_info *c;
 };
 
+struct blocked_thd {
+	unsigned short int thd_id;
+	unsigned long request_size;
+	struct blocked_thd *next, *prev;
+	unsigned long long blk_start;
+};
+
 struct cbuf_comp_info {
 	spdid_t spdid;
 	struct cbuf_shared_page *csp;
@@ -90,6 +97,8 @@ struct cbuf_comp_info {
 	int nbin;
 	struct cbuf_bin cbufs[CBUF_MAX_NSZ];
 	struct cbuf_meta_range *cbuf_metas;
+	int num_blocked_thds;
+	struct blocked_thd bthd_list;
 };
 
 #define printl(s) //printc(s)
@@ -160,6 +169,7 @@ cbuf_comp_info_init(spdid_t spdid, struct cbuf_comp_info *cci)
 	void *p;
 	memset(cci, 0, sizeof(*cci));
 	cci->spdid = spdid;
+	INIT_LIST(&cci->bthd_list, next, prev);
 	cvect_add(&components, cci, spdid);
 }
 
@@ -381,6 +391,50 @@ cbuf_unmark_relinquish_all(struct cbuf_comp_info *cci)
 	}
 }
 
+static inline void
+cbuf_thread_block(struct cbuf_comp_info *cci, unsigned long request_size)
+{
+	struct blocked_thd bthd;
+
+	bthd.thd_id       = cos_get_thd_id();
+	bthd.request_size = request_size;
+	rdtscll(bthd.blk_start);
+	ADD_LIST(&cci->bthd_list, &bthd, next, prev);
+	cci->num_blocked_thds++;
+	cbuf_mark_relinquish_all(cci);
+	CBUF_RELEASE();
+	sched_block(cos_spd_id(), 0);
+}
+
+/* wake up all blocked threads whose request size smaller than or equal to available size */
+static void
+cbuf_thd_wake_up(struct cbuf_comp_info *cci, unsigned long sz)
+{
+	struct blocked_thd *bthd, *next;
+	unsigned long long cur, tot;
+
+	assert(cci->num_blocked_thds >= 0);
+	/* Cannot wake up thd when in shrink */
+	assert(cci->target_size >= cci->allocated_size);
+
+	if (cci->num_blocked_thds == 0) return;
+	bthd = cci->bthd_list.next;
+	while (bthd != &cci->bthd_list) {
+		next = FIRST_LIST(bthd, next, prev);
+		if (bthd->request_size <= sz) {
+			REM_LIST(bthd, next, prev);
+			cci->num_blocked_thds--;
+			rdtscll(cur);
+			tot = cur-bthd->blk_start;
+			cci->blk_tot += tot;
+			if (tot > cci->blk_max) cci->blk_max = tot;
+			sched_wakeup(cos_spd_id(), bthd->thd_id);
+		}
+		bthd = next;
+	}
+	if (cci->num_blocked_thds == 0) cbuf_unmark_relinquish_all(cci);
+}
+
 int
 cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 {
@@ -401,6 +455,12 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	 */
 	if (!cbid) {
 		struct cbuf_bin *bin;
+		if (size + cci->allocated_size > cci->target_size) {
+			if (size + cci->allocated_size > cci->target_size) {
+				cbuf_thread_block(cci, size);
+				return 0;
+			}
+		}
 
  		cbi = malloc(sizeof(struct cbuf_info));
 		if (!cbi) goto done;
@@ -652,6 +712,8 @@ cbuf_collect(spdid_t spdid, unsigned long size)
 		}
 		cbi = FIRST_LIST(cbi, next, prev);
 	} while (cbi != bin->c);
+	if (ret) cbuf_thd_wake_up(cci, ret*size);
+
 done:
 	CBUF_RELEASE();
 	return ret;
@@ -676,6 +738,9 @@ cbuf_delete(spdid_t spdid, int cbid)
 	if (!cbi) goto done;
 	
 	cbuf_free_unmap(spdid, cbi);
+	if (cci->allocated_size < cci->target_size) {
+		cbuf_thd_wake_up(cci, cci->target_size - cci->allocated_size);
+	}
 	ret = 0;
 done:
 	CBUF_RELEASE();
