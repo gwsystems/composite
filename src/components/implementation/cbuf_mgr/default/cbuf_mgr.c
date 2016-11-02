@@ -364,29 +364,42 @@ cbuf_mark_relinquish_all(struct cbuf_comp_info *cci)
 	int i;
 	struct cbuf_bin *bin;
 	struct cbuf_info *cbi;
+	struct cbuf_maps *m;
 
 	for(i=cci->nbin-1; i>=0; --i) {
 		bin = &cci->cbufs[i];
 		cbi = bin->c;
 		do {
-			CBUF_FLAG_ADD(cbi->owner.m, CBUF_RELINQ);
-			cbi = FIRST_LIST(cbi, next, prev);
+			if (!cbi) break;
+			m = &cbi->owner;
+			do {
+				CBUF_FLAG_ATOMIC_ADD(m->m, CBUF_RELINQ);
+				m  = FIRST_LIST(m, next, prev);
+			} while(m != &cbi->owner);
+			cbi   = FIRST_LIST(cbi, next, prev);
 		} while (cbi != bin->c);
 	}
 }
+
 static inline void
 cbuf_unmark_relinquish_all(struct cbuf_comp_info *cci)
 {
 	int i;
 	struct cbuf_bin *bin;
 	struct cbuf_info *cbi;
+	struct cbuf_maps *m;
 
 	for(i=cci->nbin-1; i>=0; --i) {
 		bin = &cci->cbufs[i];
 		cbi = bin->c;
 		do {
-			CBUF_FLAG_REM(cbi->owner.m, CBUF_RELINQ);
-			cbi = FIRST_LIST(cbi, next, prev);
+			if (!cbi) break;
+			m = &cbi->owner;
+			do {
+				CBUF_FLAG_ATOMIC_REM(m->m, CBUF_RELINQ);
+				m  = FIRST_LIST(m, next, prev);
+			} while(m != &cbi->owner);
+			cbi   = FIRST_LIST(cbi, next, prev);
 		} while (cbi != bin->c);
 	}
 }
@@ -799,6 +812,11 @@ cbuf_retrieve(spdid_t spdid, int cbid, unsigned long size)
 	meta->sz        = cbi->size >> PAGE_ORDER;
 	meta->cbid_tag.cbid = cbid;
 	ret             = 0;
+	/* We need to inherit the relinquish bit from the sender. 
+	 * Otherwise, this cbuf cannot be returned to the manager. */
+	own_meta            = cbuf_meta_lookup(own, cbid);
+	if (CBUF_RELINQ(own_meta)) CBUF_FLAG_ADD(meta, CBUF_RELINQ);
+	ret                 = 0;
 done:
 	CBUF_RELEASE();
 	return ret;

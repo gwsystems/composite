@@ -444,6 +444,12 @@ cbuf_ref(cbuf_t cb)
 		fl       = __cbuf_freelist_get(cm->sz << PAGE_ORDER);
 		cm->next = fl->next;
 		cos_mem_fence();
+		/* Does the manager want the memory back? */
+		/* Always delete exact size cbuf */
+		if (CBUF_RELINQ(cm) || CBUF_EXACTSZ(cm)) {
+			cbuf_delete(cos_spd_id(), id);	
+			return ;
+		}
 		CBUF_REFCNT_ATOMIC_DEC(cm);
 		cos_mem_fence();
 		target        = (unsigned long long *)(&fl->next);
