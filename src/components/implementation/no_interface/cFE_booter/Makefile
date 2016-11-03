@@ -1,9 +1,10 @@
-C_OBJS=cFE_booter.o core-composite.o
+C_OBJS=cFE_stub.o
 ASM_OBJS=
-COMPONENT=cFE_boot.o
+COMPONENT=cFE_booter.o
 INTERFACES=
 DEPENDENCIES=
-IF_LIB=
+IF_LIB=./composite_cFE.o
 ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api
 
 include ../../Makefile.subsubdir
+MANDITORY_LIB=simple_stklib.o

@@ -34,9 +34,3 @@ printc(char *fmt, ...)
 
 	  return ret;
 }
-
-
-void cos_init(void)
-{
-    prints("We live!");
-}
