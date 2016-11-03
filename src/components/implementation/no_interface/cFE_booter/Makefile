@@ -1,4 +1,4 @@
-C_OBJS=cFE_booter.o
+C_OBJS=cFE_booter.o core-composite.o
 ASM_OBJS=
 COMPONENT=cFE_boot.o
 INTERFACES=
