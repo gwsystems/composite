@@ -620,7 +620,8 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 	capid_t tc          = __userregs_get1(regs) >> 16;
 	u32_t prio_higher   = __userregs_get3(regs);
 	u32_t prio_lower    = __userregs_get2(regs);
-	tcap_prio_t prio    = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
+	tcap_prio_t prio    = (tcap_prio_t)(prio_higher >> 16) << 32 | (tcap_prio_t)prio_lower;
+	sched_tok_t usr_counter   = (((sched_tok_t)__userregs_get3(regs) << 16) >> 16) | ((sched_tok_t)__userregs_getop(regs) << 16); /* op holds MSB of counter */
 	tcap_time_t timeout = (tcap_time_t)__userregs_get4(regs);
 	struct tcap *tcap   = tcap_current(cos_info);
 	int ret;
@@ -635,6 +636,10 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
 
 		rcvt = arcv_cap->thd;
+		/* race-condition check for user-level thread switches */
+		assert(usr_counter < ~0U);
+		if (thd_rcvcap_get_counter(rcvt) > usr_counter)	return -EAGAIN;
+		thd_rcvcap_set_counter(rcvt, usr_counter);
 		if (thd_rcvcap_pending(rcvt) > 0) {
 			next = rcvt;
 			/* tcap inheritance here...use the current tcap to process events */

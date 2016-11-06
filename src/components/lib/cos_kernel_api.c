@@ -649,9 +649,13 @@ int
 cos_thd_switch(thdcap_t c)
 { return call_cap_op(c, 0, 0, 0, 0, 0); }
 
+sched_tok_t
+cos_sched_sync(void)
+{ static sched_tok_t stok; return __sync_add_and_fetch(&stok, 1); }
+
 int
-cos_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_time_t timeout, arcvcap_t rcv)
-{ return call_cap_op(c, 0, tc << 16 | rcv, (prio << 32) >> 32, prio >> 32, timeout); }
+cos_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_time_t timeout, arcvcap_t rcv, sched_tok_t stok)
+{ return call_cap_op(c, (stok >> 16), tc << 16 | rcv, (prio << 32) >> 32, ((prio << 16) >> 32) | ((stok << 16) >> 16), timeout); }
 
 int
 cos_asnd(asndcap_t snd, int yield)

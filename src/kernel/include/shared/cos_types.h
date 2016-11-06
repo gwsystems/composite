@@ -36,6 +36,7 @@ typedef unsigned long tcap_res_t;
 typedef unsigned long tcap_time_t;
 typedef u64_t tcap_prio_t;
 typedef u64_t tcap_uid_t;
+typedef u32_t sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
 
 /*
@@ -179,7 +180,7 @@ typedef enum {
 
 typedef unsigned long capid_t;
 #define TCAP_PRIO_MAX (1ULL)
-#define TCAP_PRIO_MIN (~0ULL)
+#define TCAP_PRIO_MIN ((~0ULL) >> 16) /* 48bit value */
 #define TCAP_RES_GRAN_ORD  16
 #define TCAP_RES_PACK(r)   (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
 #define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
