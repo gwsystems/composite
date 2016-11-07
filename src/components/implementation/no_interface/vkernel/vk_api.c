@@ -168,3 +168,7 @@ dom0_vio_rcvcap(unsigned int vmid)
 asndcap_t
 dom0_vio_asndcap(unsigned int vmid)
 { return DOM0_CAPTBL_SELF_IOASND_SET_BASE + (CAP64B_IDSZ * (vmid-1)); }
+
+vaddr_t
+dom0_vio_shm_base(unsigned int vmid)
+{ return VK_VM_SHM_BASE + (VM_SHM_SZ * vmid); }
