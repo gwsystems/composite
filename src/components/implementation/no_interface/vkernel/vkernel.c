@@ -3,6 +3,7 @@
 #include <cos_kernel_api.h>
 
 #include "vk_types.h"
+#include "vk_api.h"
 
 #undef assert
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0; } } while (0)
@@ -10,21 +11,6 @@
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
 #define SPIN() do { while (1) ; } while (0)
-
-struct vms_info {
-	struct cos_compinfo cinfo;
-	thdcap_t initthd, exitthd;
-	thdid_t inittid;
-	tcap_t inittcap;
-	arcvcap_t initrcv;
-};
-
-struct vkernel_info {
-	struct cos_compinfo cinfo;
-
-	thdcap_t termthd;
-	asndcap_t vminitasnd[VM_COUNT];
-};
 
 extern vaddr_t cos_upcall_entry;
 extern void vm_init(void *);
@@ -83,6 +69,13 @@ cos_init(void)
 	cos_meminfo_init(&vk_cinfo->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(vk_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, vk_cinfo);
+	/*
+	 * TODO: If there is any captbl modification, this could mess up a bit. 
+	 *       Care to be taken not to use this for captbl mod api
+	 *       Or use some offset into the future in CAPTBL_FREE
+	 */
+	cos_compinfo_init(&vk_info.shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+			(vaddr_t)VK_VM_SHM_BASE, BOOT_CAPTBL_FREE, vk_cinfo);
 
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL);
 	assert(vk_info.termthd);
@@ -100,6 +93,8 @@ cos_init(void)
 		int ret;
 
 		printc("vkernel: VM%d Init START\n", id);
+		vm_info->id = id;
+
 		printc("\tForking VM\n");
 		vm_info->exitthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vm_exit, (void *)id);
 		assert(vm_info->exitthd);
@@ -119,6 +114,8 @@ cos_init(void)
 		cos_meminfo_init(&vm_cinfo->mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, vmutpt);
 		cos_compinfo_init(vm_cinfo, vmpt, vmct, vmcc,
 				(vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, vk_cinfo);
+		cos_compinfo_init(&vm_info->shm_cinfo, vmpt, vmct, vmcc,
+				(vaddr_t)VK_VM_SHM_BASE, VM_CAPTBL_FREE, vk_cinfo);
 
 		vm_info->initthd = cos_thd_alloc(vk_cinfo, vm_cinfo->comp_cap, vm_init, (void *)id);
 		assert(vm_info->initthd);
@@ -181,6 +178,14 @@ cos_init(void)
 
 		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE);
 		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE);
+
+		if (id == 0) {
+			printc("\tAllocating shared-memory (size: %lu)\n", (unsigned long)VM_SHM_ALL_SZ);
+			vk_shmem_alloc(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_ALL_SZ);
+		} else {
+			printc("\tMapping in shared-memory (size: %lu)\n", (unsigned long)VM_SHM_SZ);
+			vk_shmem_map(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_SZ);
+		}
 
 		printc("vkernel: VM%d Init END\n", id);
 	}
