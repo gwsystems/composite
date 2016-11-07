@@ -16,6 +16,8 @@ extern vaddr_t cos_upcall_entry;
 extern void vm_init(void *);
 
 struct vms_info vmx_info[VM_COUNT];
+struct dom0_io_info dom0ioinfo;
+struct vm_io_info vmioinfo[VM_COUNT-1];
 struct vkernel_info vk_info;
 unsigned int ready_vms = VM_COUNT;
 struct cos_compinfo *vk_cinfo = (struct cos_compinfo *)&vk_info.cinfo;
@@ -125,13 +127,6 @@ cos_init(void)
 		assert(ret == 0);
 
 		vk_initcaps_init(vm_info, &vk_info);
-		/*
-		 * Create and copy booter comp virtual memory to each VM
-		 */
-		vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
-		assert(vm_range > 0);
-		printc("\tMapping in Booter component's virtual memory (range:%lu)\n", vm_range);
-		vk_virtmem_alloc(vm_info, &vk_info, BOOT_MEM_VM_BASE, vm_range);
 
 		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE);
 		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE);
@@ -139,9 +134,33 @@ cos_init(void)
 		if (id == 0) {
 			printc("\tAllocating shared-memory (size: %lu)\n", (unsigned long)VM_SHM_ALL_SZ);
 			vk_shmem_alloc(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_ALL_SZ);
+
+			vm_info->dom0io = &dom0ioinfo;
 		} else {
 			printc("\tMapping in shared-memory (size: %lu)\n", (unsigned long)VM_SHM_SZ);
 			vk_shmem_map(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_SZ);
+
+			vm_info->vmio = &vmioinfo[id - 1];
+		}
+
+		if (id > 0) {
+			printc("\tSetting up Cross-VM (between DOM0 and VM%d) communication capabilities\n", id);
+			vk_iocaps_init(vm_info, &vmx_info[0], &vk_info);
+
+			/*
+			 * Create and copy booter comp virtual memory to each VM
+			 */
+			vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
+			assert(vm_range > 0);
+			printc("\tMapping in Booter component's virtual memory (range:%lu)\n", vm_range);
+			vk_virtmem_alloc(vm_info, &vk_info, BOOT_MEM_VM_BASE, vm_range);
+
+			/*
+			 * Copy DOM0 only after all VMs are initialized
+			 */
+			if (id == VM_COUNT - 1) {
+				vk_virtmem_alloc(&vmx_info[0], &vk_info, BOOT_MEM_VM_BASE, vm_range);
+			}
 		}
 
 		printc("vkernel: VM%d Init END\n", id);

@@ -7,9 +7,10 @@ vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	struct cos_compinfo *vkcinfo = &vkinfo->cinfo;
 	int ret;
 
+	assert(vminfo && vkinfo);	
+
 	vminfo->exitthd = cos_thd_alloc(vkcinfo, vkcinfo->comp_cap, vm_exit, (void *)vminfo->id);
 	assert(vminfo->exitthd);
-
 
 	vminfo->initthd = cos_thd_alloc(vkcinfo, vmcinfo->comp_cap, vm_init, (void *)vminfo->id);
 	assert(vminfo->initthd);
@@ -46,10 +47,59 @@ vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 }
 
 void
+vk_iocaps_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkernel_info *vkinfo)
+{
+	struct cos_compinfo *vmcinfo = &vminfo->cinfo;
+	struct cos_compinfo *d0cinfo = &dom0info->cinfo;
+	struct cos_compinfo *vkcinfo = &vkinfo->cinfo;
+	struct dom0_io_info *d0io    = dom0info->dom0io;
+	struct vm_io_info   *vio     = vminfo->vmio;
+	int vmidx                    = vminfo->id - 1;
+	int ret;
+
+	assert(vminfo && dom0info && vkinfo);	
+	assert(vminfo->id && !dom0info->id);
+	assert(vmidx >= 0 && vmidx <= VM_COUNT - 1);
+
+	d0io->iothds[vmidx] = cos_thd_alloc(vkcinfo, d0cinfo->comp_cap, dom0_io_fn, (void *)vminfo->id);
+	assert(d0io->iothds[vmidx]);
+	d0io->iotcaps[vmidx] = cos_tcap_alloc(vkcinfo, VM_PRIO_FIXED);
+	assert(d0io->iotcaps[vmidx]);
+	d0io->iorcvs[vmidx] = cos_arcv_alloc(vkcinfo, d0io->iothds[vmidx], d0io->iotcaps[vmidx], vkcinfo->comp_cap, dom0info->initrcv);
+	assert(d0io->iorcvs[vmidx]);
+	ret = cos_cap_cpy_at(d0cinfo, dom0_vio_thdcap(vminfo->id), vkcinfo, d0io->iothds[vmidx]);
+	assert(ret == 0);
+	ret = cos_cap_cpy_at(d0cinfo, dom0_vio_tcap(vminfo->id), vkcinfo, d0io->iotcaps[vmidx]);
+	assert(ret == 0);
+	ret = cos_cap_cpy_at(d0cinfo, dom0_vio_rcvcap(vminfo->id), vkcinfo, d0io->iorcvs[vmidx]);
+	assert(ret == 0);
+
+	vio->iothd = cos_thd_alloc(vkcinfo, vmcinfo->comp_cap, vm_io_fn, (void *)vminfo->id);
+	assert(vio->iothd);
+	vio->iorcv = cos_arcv_alloc(vkcinfo, vio->iothd, vminfo->inittcap, vkcinfo->comp_cap, vminfo->initrcv);
+	assert(vio->iorcv);
+	ret = cos_cap_cpy_at(vmcinfo, VM_CAPTBL_SELF_IOTHD_BASE, vkcinfo, vio->iothd);
+	assert(ret == 0);
+	ret = cos_cap_cpy_at(vmcinfo, VM_CAPTBL_SELF_IORCV_BASE, vkcinfo, vio->iorcv);
+	assert(ret == 0);
+
+	d0io->ioasnds[vmidx] = cos_asnd_alloc(vkcinfo, vio->iorcv, vkcinfo->captbl_cap);
+	assert(d0io->ioasnds[vmidx]);
+	vio->ioasnd = cos_asnd_alloc(vkcinfo, d0io->iorcvs[vmidx], vkcinfo->captbl_cap);
+	assert(vio->ioasnd);
+	ret = cos_cap_cpy_at(d0cinfo, dom0_vio_asndcap(vminfo->id), vkcinfo, d0io->ioasnds[vmidx]);
+	assert(ret == 0);
+	ret = cos_cap_cpy_at(vmcinfo, VM_CAPTBL_SELF_IOASND_BASE, vkcinfo, vio->ioasnd);
+	assert(ret == 0);
+}
+
+void
 vk_virtmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 		 unsigned long start_ptr, unsigned long range)
 {
 	vaddr_t addr;
+
+	assert(vminfo && vkinfo);	
 
 	for (addr = 0 ; addr < range ; addr += PAGE_SIZE) {
 		vaddr_t src_pg = (vaddr_t)cos_page_bump_alloc(&vkinfo->cinfo), dst_pg;
@@ -68,7 +118,7 @@ vk_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 {
 	vaddr_t src_pg = (shm_sz * vminfo->id) + shm_ptr, dst_pg, addr;
 
-	assert(vminfo && vminfo->id == 0);
+	assert(vminfo && vminfo->id == 0 && vkinfo);
 	assert(shm_ptr == round_up_to_pgd_page(shm_ptr));
 
 	for (addr = shm_ptr ; addr < (shm_ptr + shm_sz) ; addr += PAGE_SIZE, src_pg += PAGE_SIZE) {
@@ -89,7 +139,7 @@ vk_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 {
 	vaddr_t src_pg = (shm_sz * vminfo->id) + shm_ptr, dst_pg, addr;
 
-	assert(vminfo && vminfo->id);
+	assert(vminfo && vminfo->id && vkinfo);
 	assert(shm_ptr == round_up_to_pgd_page(shm_ptr));
 
 	for (addr = shm_ptr ; addr < (shm_ptr + shm_sz) ; addr += PAGE_SIZE, src_pg += PAGE_SIZE) {
@@ -103,3 +153,18 @@ vk_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 	return;
 }
 
+thdcap_t
+dom0_vio_thdcap(unsigned int vmid)
+{ return DOM0_CAPTBL_SELF_IOTHD_SET_BASE + (CAP16B_IDSZ * (vmid-1)); }
+
+tcap_t
+dom0_vio_tcap(unsigned int vmid)
+{ return DOM0_CAPTBL_SELF_IOTCAP_SET_BASE + (CAP16B_IDSZ * (vmid-1)); }
+
+arcvcap_t
+dom0_vio_rcvcap(unsigned int vmid)
+{ return DOM0_CAPTBL_SELF_IORCV_SET_BASE + (CAP64B_IDSZ * (vmid-1)); }
+
+asndcap_t
+dom0_vio_asndcap(unsigned int vmid)
+{ return DOM0_CAPTBL_SELF_IOASND_SET_BASE + (CAP64B_IDSZ * (vmid-1)); }
