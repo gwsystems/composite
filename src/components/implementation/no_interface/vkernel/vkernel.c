@@ -96,9 +96,6 @@ cos_init(void)
 		vm_info->id = id;
 
 		printc("\tForking VM\n");
-		vm_info->exitthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vm_exit, (void *)id);
-		assert(vm_info->exitthd);
-		
 		vmct = cos_captbl_alloc(vk_cinfo);
 		assert(vmct);
 
@@ -117,11 +114,6 @@ cos_init(void)
 		cos_compinfo_init(&vm_info->shm_cinfo, vmpt, vmct, vmcc,
 				(vaddr_t)VK_VM_SHM_BASE, VM_CAPTBL_FREE, vk_cinfo);
 
-		vm_info->initthd = cos_thd_alloc(vk_cinfo, vm_cinfo->comp_cap, vm_init, (void *)id);
-		assert(vm_info->initthd);
-		vm_info->inittid = (thdid_t)cos_introspect(vk_cinfo, vm_info->initthd, THD_GET_TID);
-		printc("\tInit thread= cap:%x tid:%x\n", (unsigned int)vm_info->initthd, (unsigned int)vm_info->inittid);
-
 		printc("\tCopying pgtbl, captbl, component capabilities\n");
 		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_CT, vk_cinfo, vmct);
 		assert(ret == 0);
@@ -132,49 +124,14 @@ cos_init(void)
 		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_COMP, vk_cinfo, vmcc);
 		assert(ret == 0);
 
-		printc("\tCreating and copying required initial capabilities\n");
-		/*
-		 * TODO: Multi-core support to create INITIAL Capabilities per core
-		 */
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_INITTHD_BASE, vk_cinfo, vm_info->initthd);
-		assert(ret == 0);
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_INITHW_BASE, vk_cinfo, BOOT_CAPTBL_SELF_INITHW_BASE);
-		assert(ret == 0);
-		ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_EXITTHD_BASE, vk_cinfo, vm_info->exitthd);
-		assert(ret == 0);
-		
-		vm_info->inittcap = cos_tcap_alloc(vk_cinfo, TCAP_PRIO_MAX);
-		assert(vm_info->inittcap);
-
-		vm_info->initrcv = cos_arcv_alloc(vk_cinfo, vm_info->initthd, vm_info->inittcap, vk_cinfo->comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-		assert(vm_info->initrcv);
-
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_INITTCAP_BASE, vk_cinfo, vm_info->inittcap);
-		assert(ret == 0);
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_INITRCV_BASE, vk_cinfo, vm_info->initrcv);
-		assert(ret == 0);
-
-		/*
-		 * Create send end-point in VKernel to each VM's INITRCV end-point
-		 */
-		vk_info.vminitasnd[id] = cos_asnd_alloc(vk_cinfo, vm_info->initrcv, vk_cinfo->captbl_cap);
-		assert(vk_info.vminitasnd[id]);
-
+		vk_initcaps_init(vm_info, &vk_info);
 		/*
 		 * Create and copy booter comp virtual memory to each VM
 		 */
 		vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
 		assert(vm_range > 0);
 		printc("\tMapping in Booter component's virtual memory (range:%lu)\n", vm_range);
-		for (addr = 0 ; addr < vm_range ; addr += PAGE_SIZE) {
-			vaddr_t src_pg = (vaddr_t)cos_page_bump_alloc(vk_cinfo), dst_pg;
-			assert(src_pg);
-			
-			memcpy((void *)src_pg, (void *)(BOOT_MEM_VM_BASE + addr), PAGE_SIZE);
-			
-			dst_pg = cos_mem_alias(vm_cinfo, vk_cinfo, src_pg);
-			assert(dst_pg);
-		}
+		vk_virtmem_alloc(vm_info, &vk_info, BOOT_MEM_VM_BASE, vm_range);
 
 		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE);
 		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE);
