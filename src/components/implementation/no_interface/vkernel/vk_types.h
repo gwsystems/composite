@@ -20,10 +20,16 @@ enum vm_captbl_layout {
 	VM_CAPTBL_FREE                 = round_up_to_pow2(VM_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
 };
 
+enum vm_state {
+	VM_RUNNING = 0,	
+	VM_EXITED  = 1,
+};
+
 struct vms_info {
 	unsigned int id;
 	struct cos_compinfo cinfo, shm_cinfo;
 
+	unsigned int state;
 	thdcap_t initthd, exitthd;
 	thdid_t inittid;
 	tcap_t inittcap;

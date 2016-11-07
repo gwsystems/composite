@@ -29,7 +29,7 @@ vm_exit(void *d)
 {
 	printc("%d: EXIT\n", (int)d);
 	ready_vms --;
-	vmx_info[(int)d].initthd = 0;	
+	vmx_info[(int)d].state = VM_EXITED;	
 
 	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 }
@@ -46,7 +46,7 @@ scheduler(void)
 	while (ready_vms) {
 		index = i++ % VM_COUNT;
 		
-		if (vmx_info[index].initthd) {
+		if (vmx_info[index].state == VM_RUNNING) {
 			assert(vk_info.vminitasnd[index]);
 
 			if (cos_tcap_delegate(vk_info.vminitasnd[index], BOOT_CAPTBL_SELF_INITTCAP_BASE,
@@ -188,6 +188,7 @@ cos_init(void)
 		}
 
 		printc("vkernel: VM%d Init END\n", id);
+		vm_info->state = VM_RUNNING;
 	}
 
 	printc("Starting Scheduler\n");
