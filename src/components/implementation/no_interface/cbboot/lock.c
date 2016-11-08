@@ -183,7 +183,7 @@ static inline void __lock_help(struct meta_lock *l, int smp)
 	do {
 		prev_val.v         = l->lock_addr->v;
 		owner              = prev_val.c.owner;
-		assert(owner); /* from lock_help_owner, this must be true */
+		if (!owner) continue;
 		result.c.owner = owner;
 		result.c.contested = 1;
 	} while (unlikely(!__cos_cas((unsigned long *)&l->lock_addr->v, prev_val.v, result.v, smp)));

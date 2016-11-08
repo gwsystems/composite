@@ -9,15 +9,25 @@
 
 #include <cos_component.h>
 #include <mem_mgr_large.h>
-#include <cbuf.h>
+#include <cbuf_meta.h>
 #include <cbuf_mgr.h>
 #include <cos_synchronization.h>
 #include <valloc.h>
+#include <sched.h>
 #include <cos_alloc.h>
 #include <cmap.h>
 #include <cos_list.h>
 
 #include <stkmgr.h>
+
+#define DEBUG
+#if defined(DEBUG)
+int op_cnts[OP_NUM];
+unsigned long long tsc_start[OP_NUM];
+unsigned long long total_tsc_per_op[OP_NUM];
+#endif
+
+#define CB_DEF_POOL_SZ 4096*2048
 
 /** 
  * The main data-structures tracked in this component.
@@ -62,8 +72,8 @@ struct cbuf_maps {
 };
 
 struct cbuf_info {
-	u32_t cbid;
-	int size;
+	int cbid;
+	unsigned long size;
 	char *mem;
 	struct cbuf_maps owner;
 	struct cbuf_info *next, *prev;
@@ -73,14 +83,27 @@ struct cbuf_info {
 struct cbuf_meta_range {
 	struct cbuf_meta *m;
 	vaddr_t dest;
-	u32_t low_id;
+	int low_id;
 	struct cbuf_meta_range *next, *prev;
 };
-#define CBUF_META_RANGE_HIGH(cmr) (cmr->low_id + (PAGE_SIZE/sizeof(struct cbuf_meta)))
+#define CBUF_META_RANGE_HIGH(cmr) (cmr->low_id + (int)(PAGE_SIZE/sizeof(struct cbuf_meta)))
 
 struct cbuf_bin {
-	int size;
+	unsigned long size;
 	struct cbuf_info *c;
+};
+
+struct blocked_thd {
+	unsigned short int thd_id;
+	unsigned long request_size;
+	struct blocked_thd *next, *prev;
+	unsigned long long blk_start;
+};
+
+struct cbuf_tracking {
+	unsigned long long gc_tot, gc_max, gc_start;
+	unsigned long long blk_tot, blk_max;
+	int gc_num;
 };
 
 struct cbuf_comp_info {
@@ -90,6 +113,10 @@ struct cbuf_comp_info {
 	int nbin;
 	struct cbuf_bin cbufs[CBUF_MAX_NSZ];
 	struct cbuf_meta_range *cbuf_metas;
+	unsigned long target_size, allocated_size;
+	int num_blocked_thds;
+	struct blocked_thd bthd_list;
+	struct cbuf_tracking track;
 };
 
 #define printl(s) //printc(s)
@@ -106,8 +133,50 @@ cos_lock_t cbuf_lock;
 CVECT_CREATE_STATIC(components);
 CMAP_CREATE_STATIC(cbufs);
 
+static inline void
+tracking_init(void)
+{
+#if defined(DEBUG)
+	memset(op_cnts, 0, sizeof(op_cnts));
+	memset(total_tsc_per_op, 0, sizeof(total_tsc_per_op));
+#endif
+	return ;
+}
+
+static inline void
+tracking_start(struct cbuf_tracking *t, cbuf_debug_t index)
+{
+#if defined(DEBUG)
+	rdtscll(tsc_start[index]);
+#endif
+
+	if (t && index == CBUF_COLLECT) rdtscll(t->gc_start);
+	return ;
+}
+
+static inline void
+tracking_end(struct cbuf_tracking *t, cbuf_debug_t index)
+{
+	u64_t end, r;
+
+	rdtscll(end);
+
+#if defined(DEBUG)
+	op_cnts[index]++;
+	total_tsc_per_op[index] += (end-tsc_start[index]);
+#endif
+
+	if (t && index == CBUF_COLLECT) {
+		t->gc_num++;
+		r = end-t->gc_start;
+		t->gc_tot += r;
+		if (r > t->gc_max) t->gc_max = r;
+	}
+	return ;
+}
+
 static struct cbuf_meta_range *
-cbuf_meta_lookup_cmr(struct cbuf_comp_info *comp, u32_t cbid)
+cbuf_meta_lookup_cmr(struct cbuf_comp_info *comp, int cbid)
 {
 	struct cbuf_meta_range *cmr;
 	assert(comp);
@@ -125,7 +194,7 @@ cbuf_meta_lookup_cmr(struct cbuf_comp_info *comp, u32_t cbid)
 }
 
 static struct cbuf_meta *
-cbuf_meta_lookup(struct cbuf_comp_info *comp, u32_t cbid)
+cbuf_meta_lookup(struct cbuf_comp_info *comp, int cbid)
 {
 	struct cbuf_meta_range *cmr;
 
@@ -135,18 +204,17 @@ cbuf_meta_lookup(struct cbuf_comp_info *comp, u32_t cbid)
 }
 
 static struct cbuf_meta_range *
-cbuf_meta_add(struct cbuf_comp_info *comp, u32_t cbid, struct cbuf_meta *m, vaddr_t dest)
+cbuf_meta_add(struct cbuf_comp_info *comp, int cbid, struct cbuf_meta *m, vaddr_t dest)
 {
 	struct cbuf_meta_range *cmr;
 
 	if (cbuf_meta_lookup(comp, cbid)) return NULL;
 	cmr = malloc(sizeof(struct cbuf_meta_range));
-	if (!cmr) return NULL;
+	if (unlikely(!cmr)) return NULL;
 	INIT_LIST(cmr, next, prev);
 	cmr->m      = m;
 	cmr->dest   = dest;
-	/* must be power of 2: */
-	cmr->low_id = (cbid & ~((PAGE_SIZE/sizeof(struct cbuf_meta))-1));
+	cmr->low_id = round_to_pow2(cbid, PAGE_SIZE/sizeof(struct cbuf_meta));
 
 	if (comp->cbuf_metas) ADD_LIST(comp->cbuf_metas, cmr, next, prev);
 	else                  comp->cbuf_metas = cmr;
@@ -158,8 +226,11 @@ static void
 cbuf_comp_info_init(spdid_t spdid, struct cbuf_comp_info *cci)
 {
 	void *p;
+
 	memset(cci, 0, sizeof(*cci));
-	cci->spdid = spdid;
+	cci->spdid       = spdid;
+	cci->target_size = CB_DEF_POOL_SZ;
+	INIT_LIST(&cci->bthd_list, next, prev);
 	cvect_add(&components, cci, spdid);
 }
 
@@ -178,7 +249,7 @@ cbuf_comp_info_get(spdid_t spdid)
 }
 
 static struct cbuf_bin *
-cbuf_comp_info_bin_get(struct cbuf_comp_info *cci, int sz)
+cbuf_comp_info_bin_get(struct cbuf_comp_info *cci, unsigned long sz)
 {
 	int i;
 
@@ -190,9 +261,8 @@ cbuf_comp_info_bin_get(struct cbuf_comp_info *cci, int sz)
 }
 
 static struct cbuf_bin *
-cbuf_comp_info_bin_add(struct cbuf_comp_info *cci, int sz)
+cbuf_comp_info_bin_add(struct cbuf_comp_info *cci, unsigned long sz)
 {
-	if (sz == CBUF_MAX_NSZ) return NULL;
 	cci->cbufs[cci->nbin].size = sz;
 	cci->nbin++;
 
@@ -200,76 +270,139 @@ cbuf_comp_info_bin_add(struct cbuf_comp_info *cci, int sz)
 }
 
 static int
-cbuf_map(spdid_t spdid, vaddr_t daddr, void *page, int size, int flags)
+cbuf_map(spdid_t spdid, vaddr_t daddr, void *page, unsigned long size, int flags)
 {
-	int off;
-	assert(size == (int)round_to_page(size));
+	unsigned long off;
+	assert(size == round_to_page(size));
 	assert(daddr);
 	assert(page);
 	for (off = 0 ; off < size ; off += PAGE_SIZE) {
 		vaddr_t d = daddr + off;
-		if (d != (mman_alias_page(cos_spd_id(), ((vaddr_t)page) + off,
-						spdid, d, flags))) {
-			printd("couldn't alias(%d, %x, %d, %x, %d)\n", cos_spd_id(), ((vaddr_t)page) + off, spdid, d, flags);
-			assert(0); /* TODO: roll back the aliases, etc... */
+		if (unlikely(d != (mman_alias_page(cos_spd_id(), ((vaddr_t)page) + off,
+						   spdid, d, flags)))) {
+			for (d = daddr + off - PAGE_SIZE ; d >= daddr ; d -= PAGE_SIZE) {
+				mman_revoke_page(spdid, d, 0);
+			}
+			return -ENOMEM;
 		}
 	}
 	return 0;
 }
 
+/* 
+ * map the memory from address p and size sz to the component spdid with 
+ * permission flags. if p is NULL allocate a piece of new memory
+ * return spdid's address to daddr, manager's virtual address to page
+ */
 static int
-cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
+cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, void *p, unsigned long sz, int flags)
 {
-	void *p;
 	vaddr_t dest;
 	int ret = 0;
+	void *new_p;
 
-	assert(size == (int)round_to_page(size));
-	p = page_alloc(size/PAGE_SIZE);
-	if (!p) goto done;
-	memset(p, 0, size);
+	tracking_start(NULL, CBUF_MAP);
 
-	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
-	if (!dest) goto free;
+	assert(sz == round_to_page(sz));
+	if (!p) {
+		new_p = page_alloc(sz/PAGE_SIZE);
+		assert(new_p);
+		memset(new_p, 0, sz);
+	} else {
+		new_p = p;
+	}
 
-	if (!cbuf_map(spdid, dest, p, size, MAPPING_RW)) goto done;
+	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, sz/PAGE_SIZE);
+	if (unlikely(!dest)) goto free;
+	if (!cbuf_map(spdid, dest, new_p, sz, flags)) goto done;
 
-free:
+free: 
 	if (dest) valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
-	dest = 0;
-	page_free(p, size/PAGE_SIZE);
-	p = 0;
+	if (!p) page_free(new_p, sz/PAGE_SIZE);
 	ret = -1;
-done:
-	*page  = p;
+
+done:	
+	if (page) *page  = new_p;
 	*daddr = dest;
+	tracking_end(NULL, CBUF_MAP);
 	return ret;
 }
 
-/* Do any components have a reference to the cbuf? */
+/* 
+ * Do any components have a reference to the cbuf? 
+ * key function coordinates manager and client.
+ * When this returns 1, this cbuf may or may not be used by some components.
+ * When this returns 0, it guarantees: 
+ * If all clients use the protocol correctly, there is no reference 
+ * to the cbuf and no one will receive the cbuf after this. Furthermore, 
+ * if the cbuf is in some free list, its inconsistent bit is already set.
+ * That is to say, the manager can safely collect or re-balance this cbuf.
+ *
+ * Proof: 1. If a component gets the cbuf from free-list, it will 
+ * simply discard this cbuf as its inconsistent bit is set.
+ * 2. Assume component c sends the cbuf. 
+ * It is impossible to send the cbuf after we check c's refcnt, since c 
+ * has no reference to this cbuf.
+ * If this send happens before we check c's refcnt, because the sum of 
+ * nsent is equal to the sum of nrecv, this send has been received and 
+ * no further receive will happen.
+ * 3. No one will call cbuf2buf to receive this cbuf after this function, 
+ * as all sends have been received and no more sends will occur during this function
+ *
+ * However, if clients do not use protocol correctly, this function 
+ * provides no guarantee. cbuf_unmap_prepare takes care of this case.
+ */
 static int
 cbuf_referenced(struct cbuf_info *cbi)
 {
 	struct cbuf_maps *m = &cbi->owner;
-	int sent, recvd;
+	int sent, recvd, ret = 1;
+	unsigned long old_nfo, new_nfo;
+	unsigned long long old;
+	struct cbuf_meta *mt, *own_mt = m->m;
 
+	old_nfo = own_mt->nfo;
+	new_nfo = old_nfo | CBUF_INCONSISENT;
+	if (unlikely(!cos_cas(&own_mt->nfo, old_nfo, new_nfo))) goto done;
+
+	mt   = (struct cbuf_meta *)(&old);
 	sent = recvd = 0;
 	do {
 		struct cbuf_meta *meta = m->m;
 
-		if (meta) {
-			if (CBUF_REFCNT(meta)) return 1;
-			sent  += meta->snd_rcv.nsent;
-			recvd += meta->snd_rcv.nrecvd;
-		}
-
-		m = FIRST_LIST(m, next, prev);
+		/* 
+		 * Guarantee atomically read the two words (refcnt and nsent/nrecv).
+		 * Consider this case, c0 sends a cbuf to c1 and frees this 
+		 * this cbuf, but before c1 receives it, the manager comes in 
+		 * and checks c1's refcnt. Now it is zero. But before the manager 
+		 * checks c1's nsent/nrecv, it is preempted by c1. c1 receives 
+		 * this cbuf--increment refcnt and nsent/nrecv. After this, we 
+		 * switch back the manager, who will continues to check c1's 
+		 * nsent/nrecv, now it is 1, which is equal to c0's nsent/nrecv. 
+		 * Thus the manager can collect or unmap this cbuf.
+		 */
+		memcpy(&old, meta, sizeof(unsigned long long));
+		if (unlikely(!cos_dcas(&old, old, old))) goto unset;
+		if (CBUF_REFCNT(mt)) goto unset;		
+		/* 
+		 * TODO: add per-mapping counter of sent and recv in the manager
+		 * each time atomic clear those counter in the meta
+		 */
+		sent  += mt->snd_rcv.nsent;
+		recvd += mt->snd_rcv.nrecvd;
+		m      = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
-	if (sent != recvd) return 1;
-	
-	return 0;
+	if (sent != recvd) goto unset;
+	ret = 0;
+	if (CBUF_IS_IN_FREELIST(own_mt)) goto done;
+
+unset:
+	CBUF_FLAG_ATOMIC_REM(own_mt, CBUF_INCONSISENT);
+done:
+	return ret;
 }
 
+/* TODO: Incorporate this into cbuf_referenced */
 static void
 cbuf_references_clear(struct cbuf_info *cbi)
 {
@@ -278,40 +411,63 @@ cbuf_references_clear(struct cbuf_info *cbi)
 	do {
 		struct cbuf_meta *meta = m->m;
 
-		if (meta) {
-			meta->snd_rcv.nsent = meta->snd_rcv.nrecvd = 0;
-		}
+		if (meta) meta->snd_rcv.nsent = meta->snd_rcv.nrecvd = 0;
 		m = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
 
 	return;
 }
 
-static void
-cbuf_free_unmap(spdid_t spdid, struct cbuf_info *cbi)
+/* 
+ * Before actually unmap cbuf from a component, we need to atomically
+ * clear the page pointer in the meta, which guarantees that clients 
+ * do not have seg fault. Clients have to check NULL when receive cbuf
+ */
+static int
+cbuf_unmap_prepare(struct cbuf_info *cbi)
 {
 	struct cbuf_maps *m = &cbi->owner;
-	struct cbuf_bin *bin;
-	struct cbuf_meta *in_free;
-	void *ptr = cbi->mem;
-	int off;
-	struct cbuf_comp_info *cci;
+	unsigned long old_nfo, new_nfo;
 
-	if (cbuf_referenced(cbi)) return;
+	if (cbuf_referenced(cbi)) return 1;
 	cbuf_references_clear(cbi);
-	in_free = m->m->next;
-	do {
-		assert(m->m);
-		assert(!CBUF_REFCNT(m->m));
-		/* TODO: fix race here with atomic instruction */
-		memset(m->m, 0, sizeof(struct cbuf_meta));
 
-		m = FIRST_LIST(m, next, prev);
+	/* 
+	 * We need to clear out the meta. Consider here manager removes a
+	 * cbuf from component c0 and allocates that cbuf to component c1,  
+	 * but c1 sends the cbuf back to c0. If c0 sees the old meta, it may 
+	 * be confused. However, we have to leave the inconsistent bit here
+	 */
+	do {
+		old_nfo = m->m->nfo;
+		if (old_nfo & CBUF_REFCNT_MAX) return 1;
+		new_nfo = old_nfo & CBUF_INCONSISENT;
+		if (unlikely(!cos_cas(&m->m->nfo, old_nfo, new_nfo))) return 1;
+		m   = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
-	/*this cbuf is in freelist, set it as inconsistent*/
-	if (in_free) CBUF_FLAG_ADD(cbi->owner.m, CBUF_INCONSISTENT);
+
+	return 0;
+}
+
+/* 
+ * As clients maybe malicious or don't use protocol correctly, we cannot 
+ * simply unmap memory here. We guarantee that fault can only happen within 
+ * the malicious component, but for other components, they either receive a 
+ * NULL pointer from cbuf2buf or see wrong data. No fault happen in other 
+ * components. See details in cbuf_unmap_prepare
+ */
+static int
+cbuf_free_unmap(struct cbuf_comp_info *cci, struct cbuf_info *cbi)
+{
+	struct cbuf_maps *m = &cbi->owner, *next;
+	struct cbuf_bin *bin;
+	void *ptr = cbi->mem;
+	unsigned long off, size = cbi->size;
+
+	if (cbuf_unmap_prepare(cbi)) return 1;
+
 	/* Unmap all of the pages from the clients */
-	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE) {
+	for (off = 0 ; off < size ; off += PAGE_SIZE) {
 		mman_revoke_page(cos_spd_id(), (vaddr_t)ptr + off, 0);
 	}
 
@@ -321,31 +477,28 @@ cbuf_free_unmap(spdid_t spdid, struct cbuf_info *cbi)
 	 */
 	m = FIRST_LIST(&cbi->owner, next, prev);
 	while (m != &cbi->owner) {
-		struct cbuf_maps *next;
-
 		next = FIRST_LIST(m, next, prev);
 		REM_LIST(m, next, prev);
-		valloc_free(cos_spd_id(), m->spdid, (void*)m->addr, cbi->size/PAGE_SIZE);
+		valloc_free(cos_spd_id(), m->spdid, (void*)m->addr, size/PAGE_SIZE);
 		free(m);
 		m = next;
 	}
-	valloc_free(cos_spd_id(), m->spdid, (void*)m->addr, cbi->size/PAGE_SIZE);
+	valloc_free(cos_spd_id(), m->spdid, (void*)m->addr, size/PAGE_SIZE);
 
 	/* deallocate/unlink our data-structures */
-	page_free(ptr, cbi->size/PAGE_SIZE);
+	page_free(ptr, size/PAGE_SIZE);
 	cmap_del(&cbufs, cbi->cbid);
-	cci = cbuf_comp_info_get(spdid);
-	if (unlikely(!cci)) return ;
-	bin = cbuf_comp_info_bin_get(cci, cbi->size);
+	cci->allocated_size -= size;
+	bin = cbuf_comp_info_bin_get(cci, size);
 	if (EMPTY_LIST(cbi, next, prev)) {
 		bin->c = NULL;
-		cci->nbin--;
-	}
-	else {
+	} else {
 		if (bin->c == cbi) bin->c = cbi->next;
 		REM_LIST(cbi, next, prev);
 	}
 	free(cbi);
+
+	return 0;
 }
 
 static inline void
@@ -354,59 +507,134 @@ cbuf_mark_relinquish_all(struct cbuf_comp_info *cci)
 	int i;
 	struct cbuf_bin *bin;
 	struct cbuf_info *cbi;
+	struct cbuf_maps *m;
 
-	for(i=cci->nbin-1; i>=0; --i) {
+	for (i = cci->nbin-1 ; i >= 0 ; i--) {
 		bin = &cci->cbufs[i];
 		cbi = bin->c;
 		do {
-			CBUF_FLAG_ADD(cbi->owner.m, CBUF_RELINQ);
-			cbi = FIRST_LIST(cbi, next, prev);
+			if (!cbi) break;
+			m = &cbi->owner;
+			do {
+				CBUF_FLAG_ATOMIC_ADD(m->m, CBUF_RELINQ);
+				m  = FIRST_LIST(m, next, prev);
+			} while(m != &cbi->owner);
+			cbi   = FIRST_LIST(cbi, next, prev);
 		} while (cbi != bin->c);
 	}
 }
+
 static inline void
 cbuf_unmark_relinquish_all(struct cbuf_comp_info *cci)
 {
 	int i;
 	struct cbuf_bin *bin;
 	struct cbuf_info *cbi;
+	struct cbuf_maps *m;
 
 	for(i=cci->nbin-1; i>=0; --i) {
 		bin = &cci->cbufs[i];
 		cbi = bin->c;
 		do {
-			CBUF_FLAG_REM(cbi->owner.m, CBUF_RELINQ);
-			cbi = FIRST_LIST(cbi, next, prev);
+			if (!cbi) break;
+			m = &cbi->owner;
+			do {
+				CBUF_FLAG_ATOMIC_REM(m->m, CBUF_RELINQ);
+				m  = FIRST_LIST(m, next, prev);
+			} while(m != &cbi->owner);
+			cbi   = FIRST_LIST(cbi, next, prev);
 		} while (cbi != bin->c);
 	}
 }
 
+static inline void
+cbuf_thread_block(struct cbuf_comp_info *cci, unsigned long request_size)
+{
+	struct blocked_thd bthd;
+
+	bthd.thd_id       = cos_get_thd_id();
+	bthd.request_size = request_size;
+	rdtscll(bthd.blk_start);
+	ADD_LIST(&cci->bthd_list, &bthd, next, prev);
+	cci->num_blocked_thds++;
+	cbuf_mark_relinquish_all(cci);
+	CBUF_RELEASE();
+	sched_block(cos_spd_id(), 0);
+}
+
+/* wake up all blocked threads whose request size smaller than or equal to available size */
+static void
+cbuf_thd_wake_up(struct cbuf_comp_info *cci, unsigned long sz)
+{
+	struct blocked_thd *bthd, *next;
+	unsigned long long cur, tot;
+
+	assert(cci->num_blocked_thds >= 0);
+	/* Cannot wake up thd when in shrink */
+	assert(cci->target_size >= cci->allocated_size);
+
+	if (cci->num_blocked_thds == 0) return;
+	bthd = cci->bthd_list.next;
+	while (bthd != &cci->bthd_list) {
+		next = FIRST_LIST(bthd, next, prev);
+		if (bthd->request_size <= sz) {
+			REM_LIST(bthd, next, prev);
+			cci->num_blocked_thds--;
+			rdtscll(cur);
+			tot = cur-bthd->blk_start;
+			cci->track.blk_tot += tot;
+			if (tot > cci->track.blk_max) cci->track.blk_max = tot;
+			sched_wakeup(cos_spd_id(), bthd->thd_id);
+		}
+		bthd = next;
+	}
+	if (cci->num_blocked_thds == 0) cbuf_unmark_relinquish_all(cci);
+}
+
+static void cbuf_shrink(struct cbuf_comp_info *cci, int diff);
+
 int
-cbuf_create(spdid_t spdid, int size, long cbid)
+cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 {
 	struct cbuf_comp_info *cci;
 	struct cbuf_info *cbi;
 	struct cbuf_meta *meta;
+	struct cbuf_bin *bin;
 	int ret = 0;
 
 	printl("cbuf_create\n");
 	if (unlikely(cbid < 0)) return 0;
 	CBUF_TAKE();
+	tracking_start(NULL, CBUF_CRT);
+
 	cci = cbuf_comp_info_get(spdid);
-	if (!cci) goto done;
+	if (unlikely(!cci)) goto done;
 
 	/* 
 	 * Client wants to allocate a new cbuf, but the meta might not
 	 * be mapped in.
 	 */
 	if (!cbid) {
-		struct cbuf_bin *bin;
+		/* TODO: check if have enough free memory: ask mem manager */
+		/*memory usage exceeds the target, block this thread*/
+		if (size + cci->allocated_size > cci->target_size) {
+			cbuf_shrink(cci, size);
+			if (size + cci->allocated_size > cci->target_size) {
+				cbuf_thread_block(cci, size);
+				return 0;
+			}
+		}
 
  		cbi = malloc(sizeof(struct cbuf_info));
-		if (!cbi) goto done;
 
-		/* Allocate and map in the cbuf. */
-		cbid = cmap_add(&cbufs, cbi);
+		if (unlikely(!cbi)) goto done;
+		/* Allocate and map in the cbuf. Discard inconsistent cbufs */
+		/* TODO: Find a better way to manage those inconsistent cbufs */
+		do {
+			cbid = cmap_add(&cbufs, cbi);
+			meta = cbuf_meta_lookup(cci, cbid);
+		} while(meta && CBUF_INCONSISENT(meta));
+
 		cbi->cbid        = cbid;
 		size             = round_up_to_page(size);
 		cbi->size        = size;
@@ -414,44 +642,59 @@ cbuf_create(spdid_t spdid, int size, long cbid)
 		cbi->owner.spdid = spdid;
 		INIT_LIST(&cbi->owner, next, prev);
 		INIT_LIST(cbi, next, prev);
-
-		bin = cbuf_comp_info_bin_get(cci, size);
-		if (!bin) bin = cbuf_comp_info_bin_add(cci, size);
-		if (!bin) goto free;
-
 		if (cbuf_alloc_map(spdid, &(cbi->owner.addr), 
-				    (void**)&(cbi->mem), size)) goto free;
-		if (bin->c) ADD_LIST(bin->c, cbi, next, prev);
-		else        bin->c = cbi;
+				   (void**)&(cbi->mem), NULL, size, MAPPING_RW)) {
+			goto free;
+		}
 	} 
 	/* If the client has a cbid, then make sure we agree! */
 	else {
 		cbi = cmap_lookup(&cbufs, cbid);
-		if (!cbi) goto done;
-		if (cbi->owner.spdid != spdid) goto done;
+		if (unlikely(!cbi)) goto done;
+		if (unlikely(cbi->owner.spdid != spdid)) goto done;
 	}
 	meta = cbuf_meta_lookup(cci, cbid);
+
 	/* We need to map in the meta for this cbid.  Tell the client. */
 	if (!meta) {
 		ret = cbid * -1;
 		goto done;
 	}
-	cbi->owner.m = meta;
-
+	
 	/* 
 	 * Now we know we have a cbid, a backing structure for it, a
 	 * component structure, and the meta mapped in for the cbuf.
 	 * Update the meta with the correct addresses and flags!
 	 */
 	memset(meta, 0, sizeof(struct cbuf_meta));
+	meta->sz            = cbi->size >> PAGE_ORDER;
+	meta->cbid_tag.cbid = cbid;
 	CBUF_FLAG_ADD(meta, CBUF_OWNER);
 	CBUF_PTR_SET(meta, cbi->owner.addr);
-	meta->sz        = cbi->size >> PAGE_ORDER;
-	meta->cbid_tag.cbid = cbid;
-	assert(CBUF_REFCNT(meta) < CBUF_REFCNT_MAX);
-	CBUF_REFCNT_ATOMIC_INC(meta);
+	CBUF_REFCNT_INC(meta);
+
+	/*
+	 * When creates a new cbuf, the manager should be the only
+	 * one who can access the meta
+	 */
+	/* TODO: malicious client may trigger this assertion, just for debug */
+	assert(CBUF_REFCNT(meta) == 1);
+	assert(CBUF_PTR(meta));
+	cbi->owner.m = meta;
+
+	/*
+	 * Install cbi last. If not, after return a negative cbid, 
+	 * collection may happen and get a dangle cbi
+	 */
+	bin = cbuf_comp_info_bin_get(cci, size);
+	if (!bin) bin = cbuf_comp_info_bin_add(cci, size);
+	if (unlikely(!bin)) goto free;
+	if (bin->c) ADD_LIST(bin->c, cbi, next, prev);
+	else        bin->c   = cbi;
+	cci->allocated_size += size;
 	ret = cbid;
 done:
+	tracking_end(NULL, CBUF_CRT);
 	CBUF_RELEASE();
 
 	return ret;
@@ -462,29 +705,32 @@ free:
 }
 
 vaddr_t
-cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
+cbuf_map_at(spdid_t s_spd, int cbid, spdid_t d_spd, vaddr_t d_addr)
 {
 	vaddr_t ret = (vaddr_t)NULL;
 	struct cbuf_info *cbi;
-	u32_t id;
-	int flags;
+	int flags, id;
 	
-	cbuf_unpack(cbid, &id);
+	id = cbid;
 	CBUF_TAKE();
 	cbi = cmap_lookup(&cbufs, id);
 	assert(cbi);
 	if (unlikely(!cbi)) goto done;
 	assert(cbi->owner.spdid == s_spd);
-	// the low-order bits of the d_addr are packed with the MAPPING flags (0/1)
-	// and a flag (2) set if valloc should not be used.
+	/*
+	 * the low-order bits of the d_addr are packed with the MAPPING flags (0/1)
+	 * and a flag (2) set if valloc should not be used.
+	 */
 	flags = d_addr & 0x3;
 	d_addr &= ~0x3;
 	if (!(flags & 2) && valloc_alloc_at(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE)) goto done;
 	if (cbuf_map(d_spd, d_addr, cbi->mem, cbi->size, flags & (MAPPING_READ|MAPPING_RW))) goto free;
 	ret = d_addr;
-	/* do not add d_spd to the meta list because the cbuf is not
+	/*
+	 * do not add d_spd to the meta list because the cbuf is not
 	 * accessible directly. The s_spd must maintain the necessary info
-	 * about the cbuf and its mapping in d_spd. */
+	 * about the cbuf and its mapping in d_spd.
+	 */
 done:
 	CBUF_RELEASE();
 	return ret;
@@ -494,22 +740,20 @@ free:
 }
 
 int
-cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
+cbuf_unmap_at(spdid_t s_spd, int cbid, spdid_t d_spd, vaddr_t d_addr)
 {
 	struct cbuf_info *cbi;
-	int off;
-	int ret = 0;
-	u32_t id;
-	int err = 0;
-	
-	cbuf_unpack(cbid, &id);
+	int ret = 0, id;
+	u32_t off;
+	int err;
 
+	id = cbid;
 	assert(d_addr);
 	CBUF_TAKE();
 	cbi = cmap_lookup(&cbufs, id);
 	if (unlikely(!cbi)) ERR_THROW(-EINVAL, done);
 	if (unlikely(cbi->owner.spdid != s_spd)) ERR_THROW(-EPERM, done);
-	assert(cbi->size == (int)round_to_page(cbi->size));
+	assert(cbi->size == round_to_page(cbi->size));
 	/* unmap pages in only the d_spd client */
 	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE)
 		err |= mman_release_page(d_spd, d_addr + off, 0);
@@ -528,14 +772,17 @@ __cbuf_copy_cci(struct cbuf_comp_info *src, struct cbuf_comp_info *dst)
 	/* Should create a new shared page between cbuf_mgr and dst */
 	dst->csp = src->csp;
 	dst->dest_csp = src->dest_csp;
-	/* probably shouldn't be copying all these? but should get
-	 * to access them somehow. */
+	/*
+	 * probably shouldn't be copying all these? but should get
+	 * to access them somehow.
+	 */
 	dst->nbin = src->nbin;
 	for (i = 0; i < dst->nbin; i++) {
 		dst->cbufs[i] = src->cbufs[i];
 	}
 	/* recreate the cbuf_metas in dst? */
 	dst->cbuf_metas = src->cbuf_metas;
+	return 0;
 }
 
 int cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd)
@@ -591,7 +838,9 @@ cbuf_map_collect(spdid_t spdid)
 
 	assert(sizeof(struct cbuf_shared_page) <= PAGE_SIZE);
 	/* alloc/map is leaked. Where should it be freed/unmapped? */
-	if (cbuf_alloc_map(spdid, &cci->dest_csp, (void**)&cci->csp, PAGE_SIZE)) goto done;
+	if (cbuf_alloc_map(spdid, &cci->dest_csp, (void**)&cci->csp, NULL, PAGE_SIZE, MAPPING_RW)) {
+		goto done;
+	}
 	ret = cci->dest_csp;
 
 	/* initialize a continuous ck ring */
@@ -604,21 +853,19 @@ done:
 }
 
 /*
- * For a certain principal, collect any unreferenced persistent cbufs
- * so that they can be reused.  This is the garbage-collection
- * mechanism.
+ * For a certain principal, collect any unreferenced and not_in 
+ * free list cbufs so that they can be reused.  This is the 
+ * garbage-collection mechanism.
  *
- * Collect cbufs and add them onto the component's freelist.
+ * Collect cbufs and add them onto the shared component's ring buffer.
  *
- * This function is semantically complicated.  It can block if no
- * cbufs are available, and the component is not supposed to allocate
- * any more.  It can return no cbufs even if they are available to
- * force the pool of cbufs to be expanded (the client will call
- * cbuf_create in this case).  Or, the common case: it can return a
- * number of available cbufs.
+ * This function is semantically complicated. It can return no cbufs 
+ * even if they are available to force the pool of cbufs to be
+ * expanded (the client will call cbuf_create in this case). 
+ * Or, the common case: it can return a number of available cbufs.
  */
 int
-cbuf_collect(spdid_t spdid, int size)
+cbuf_collect(spdid_t spdid, unsigned long size)
 {
 	struct cbuf_info *cbi;
 	struct cbuf_comp_info *cci;
@@ -629,33 +876,69 @@ cbuf_collect(spdid_t spdid, int size)
 	printl("cbuf_collect\n");
 
 	CBUF_TAKE();
-	cci = cbuf_comp_info_get(spdid);
+	cci  = cbuf_comp_info_get(spdid);
+	tracking_start(&cci->track, CBUF_COLLECT);
 	if (unlikely(!cci)) ERR_THROW(-ENOMEM, done);
-	csp = cci->csp;
+	if (size + cci->allocated_size <= cci->target_size) goto done;
+
+	csp  = cci->csp;
 	if (unlikely(!csp)) ERR_THROW(-EINVAL, done);
 
 	assert(csp->ring.size == CSP_BUFFER_SIZE);
+	ret = CK_RING_SIZE(cbuf_ring, &csp->ring);
+	if (ret != 0) goto done;
 	/* 
 	 * Go through all cbufs we own, and report all of them that
 	 * have no current references to them.  Unfortunately, this is
 	 * O(N*M), N = min(num cbufs, PAGE_SIZE/sizeof(int)), and M =
 	 * num components.
 	 */
-	bin = cbuf_comp_info_bin_get(cci, round_up_to_page(size));
+	size = round_up_to_page(size);
+	bin  = cbuf_comp_info_bin_get(cci, size);
 	if (!bin) ERR_THROW(0, done);
-	cbi = bin->c;
+	cbi  = bin->c;
 	do {
 		if (!cbi) break;
-		/*skip cbufs which are in freelist*/
-		if (!CBUF_IS_IN_FREELiST(cbi->owner.m) && !cbuf_referenced(cbi)) {
+		/*
+		 * skip cbufs which are in freelist. Coordinates with cbuf_free to 
+		 * detect such cbufs correctly. 
+		 * We must check refcnt first and then next pointer.
+		 *
+		 * If do not check refcnt: the manager may check "next" before cbuf_free 
+		 * (when it is NULL), then switch to client who calls cbuf_free to set 
+		 * "next", decrease refcnt and add cbuf to freelist. Then switch back to 
+		 * manager, but now it will collect this in-freelist cbuf.
+		 * 
+		 * Furthermore we must check refcnt before the "next" pointer: 
+		 * If not, similar to above case, the manager maybe preempted by client 
+		 * between the manager checks "next" and refcnt. Therefore the manager 
+		 * finds the "next" is null and refcnt is 0, and collect this cbuf.
+		 * Short-circuit can prevent reordering. 
+		 */
+		assert(cbi->owner.m);
+		if (!CBUF_REFCNT(cbi->owner.m) && !CBUF_IS_IN_FREELIST(cbi->owner.m)
+                 		    && !cbuf_referenced(cbi)) {
 			struct cbuf_ring_element el = { .cbid = cbi->cbid };
 			cbuf_references_clear(cbi);
 			if (!CK_RING_ENQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) break;
+			/*
+			 * Prevent other collection collecting those cbufs.
+			 * The manager checks if the shared ring buffer is empty upon 
+			 * the entry, if not, it just returns. This is not enough to 
+			 * prevent double-collection. The corner case is: 
+			 * after the last one in ring buffer is dequeued and 
+			 * before it is added to the free-list, the manager  
+			 * appears. It may collect the last one again.
+			 */
+			cbi->owner.m->next = (struct cbuf_meta *)1;
 			if (++ret == CSP_BUFFER_SIZE) break;
 		}
 		cbi = FIRST_LIST(cbi, next, prev);
 	} while (cbi != bin->c);
+	if (ret) cbuf_thd_wake_up(cci, ret*size);
+
 done:
+	tracking_end(&cci->track, CBUF_COLLECT);
 	CBUF_RELEASE();
 	return ret;
 }
@@ -668,19 +951,36 @@ cbuf_delete(spdid_t spdid, int cbid)
 {
 	struct cbuf_comp_info *cci;
 	struct cbuf_info *cbi;
-	int ret = -EINVAL;
+	struct cbuf_meta *meta;
+	int ret = -EINVAL, sz;
 
 	printl("cbuf_delete\n");
-	assert(0);
 	CBUF_TAKE();
-	cci = cbuf_comp_info_get(spdid);
-	if (!cci) goto done;
-	cbi = cmap_lookup(&cbufs, cbid);
-	if (!cbi) goto done;
-	
-	cbuf_free_unmap(spdid, cbi);
+	tracking_start(NULL, CBUF_DEL);
+
+	cci  = cbuf_comp_info_get(spdid);
+	if (unlikely(!cci)) goto done;
+	cbi  = cmap_lookup(&cbufs, cbid);
+	if (unlikely(!cbi)) goto done;
+	meta = cbuf_meta_lookup(cci, cbid);
+
+	/*
+	 * Other threads can access the meta data simultaneously. For
+	 * example, others call cbuf2buf which increase the refcnt.
+	 */
+	CBUF_REFCNT_ATOMIC_DEC(meta);
+	/* Find the owner of this cbuf */
+	if (cbi->owner.spdid != spdid) {
+		cci = cbuf_comp_info_get(cbi->owner.spdid);
+		if (unlikely(!cci)) goto done;
+	}
+	if (cbuf_free_unmap(cci, cbi)) 	goto done;
+	if (cci->allocated_size < cci->target_size) {
+		cbuf_thd_wake_up(cci, cci->target_size - cci->allocated_size);
+	}
 	ret = 0;
 done:
+	tracking_end(NULL, CBUF_DEL);
 	CBUF_RELEASE();
 	return ret;
 }
@@ -689,11 +989,11 @@ done:
  * Called by cbuf2buf to retrieve a given cbid.
  */
 int
-cbuf_retrieve(spdid_t spdid, int cbid, int size)
+cbuf_retrieve(spdid_t spdid, int cbid, unsigned long size)
 {
-	struct cbuf_comp_info *cci;
+	struct cbuf_comp_info *cci, *own;
 	struct cbuf_info *cbi;
-	struct cbuf_meta *meta;
+	struct cbuf_meta *meta, *own_meta;
 	struct cbuf_maps *map;
 	vaddr_t dest;
 	void *page;
@@ -702,42 +1002,51 @@ cbuf_retrieve(spdid_t spdid, int cbid, int size)
 	printl("cbuf_retrieve\n");
 
 	CBUF_TAKE();
+	tracking_start(NULL, CBUF_RETRV);
+
 	cci        = cbuf_comp_info_get(spdid);
 	if (!cci) {printd("no cci\n"); goto done; }
 	cbi        = cmap_lookup(&cbufs, cbid);
 	if (!cbi) {printd("no cbi\n"); goto done; }
 	/* shouldn't cbuf2buf your own buffer! */
-	if (cbi->owner.spdid == spdid) {printd("owner\n"); goto done;}
+	if (cbi->owner.spdid == spdid) {
+		printd("owner\n"); 
+		goto done;
+	}
 	meta       = cbuf_meta_lookup(cci, cbid);
 	if (!meta) {printd("no meta\n"); goto done; }
+	assert(!(meta->nfo & ~CBUF_INCONSISENT));
 
 	map        = malloc(sizeof(struct cbuf_maps));
 	if (!map) {printd("no map\n"); ERR_THROW(-ENOMEM, done); }
 	if (size > cbi->size) {printd("too big\n"); goto done; }
-	assert((int)round_to_page(cbi->size) == cbi->size);
+	assert(round_to_page(cbi->size) == cbi->size);
 	size       = cbi->size;
-	dest       = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
-	if (!dest) {printd("no valloc\n"); goto free; }
+	/* TODO: change to MAPPING_READ */
+	if (cbuf_alloc_map(spdid, &map->addr, NULL, cbi->mem, size, MAPPING_RW)) {
+		printc("cbuf mgr map fail spd %d mem %p sz %d cbid %d\n", spdid, cbi->mem, size, cbid);
+		goto free;
+	}
 
-	map->spdid = spdid;
-	map->m     = meta;
-	map->addr  = dest;
 	INIT_LIST(map, next, prev);
 	ADD_LIST(&cbi->owner, map, next, prev);
-
-	page = cbi->mem;
-	assert(page);
-	printd("cbuf_map(%d, %x, %x, %d, %d)\n", spdid, dest, page, size, MAPPING_RW);
-	if (cbuf_map(spdid, dest, page, size, MAPPING_RW)) {
-		printd("cbuf_map failed\n");
-		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
-	}
-	memset(meta, 0, sizeof(struct cbuf_meta));
 	CBUF_PTR_SET(meta, map->addr);
-	meta->sz        = cbi->size >> PAGE_ORDER;
+	map->spdid          = spdid;
+	map->m              = meta;
+	meta->sz            = cbi->size >> PAGE_ORDER;
 	meta->cbid_tag.cbid = cbid;
-	ret             = 0;
+	own                 = cbuf_comp_info_get(cbi->owner.spdid);
+	if (unlikely(!own)) goto done;
+	/*
+	 * We need to inherit the relinquish bit from the sender. 
+	 * Otherwise, this cbuf cannot be returned to the manager. 
+	 */
+	own_meta            = cbuf_meta_lookup(own, cbid);
+	if (CBUF_RELINQ(own_meta)) CBUF_FLAG_ADD(meta, CBUF_RELINQ);
+	ret                 = 0;
 done:
+	tracking_end(NULL, CBUF_RETRV);
+
 	CBUF_RELEASE();
 	return ret;
 free:
@@ -746,7 +1055,7 @@ free:
 }
 
 vaddr_t
-cbuf_register(spdid_t spdid, long cbid)
+cbuf_register(spdid_t spdid, int cbid)
 {
 	struct cbuf_comp_info  *cci;
 	struct cbuf_meta_range *cmr;
@@ -755,17 +1064,92 @@ cbuf_register(spdid_t spdid, long cbid)
 
 	printl("cbuf_register\n");
 	CBUF_TAKE();
+	tracking_start(NULL, CBUF_REG);
+
 	cci = cbuf_comp_info_get(spdid);
-	if (!cci) goto done;
+	if (unlikely(!cci)) goto done;
 	cmr = cbuf_meta_lookup_cmr(cci, cbid);
 	if (cmr) ERR_THROW(cmr->dest, done);
 
 	/* Create the mapping into the client */
-	if (cbuf_alloc_map(spdid, &dest, &p, PAGE_SIZE)) goto done;
-	assert((u32_t)p == round_to_page(p));
+	if (cbuf_alloc_map(spdid, &dest, &p, NULL, PAGE_SIZE, MAPPING_RW)) goto done;
+	assert((unsigned int)p == round_to_page(p));
 	cmr = cbuf_meta_add(cci, cbid, p, dest);
 	assert(cmr);
 	ret = cmr->dest;
+done:
+	tracking_end(NULL, CBUF_REG);
+
+	CBUF_RELEASE();
+	return ret;
+}
+
+static void
+cbuf_shrink(struct cbuf_comp_info *cci, int diff)
+{
+	int i, sz;
+	struct cbuf_bin *bin;
+	struct cbuf_info *cbi, *next, *head;
+
+	for (i = cci->nbin-1 ; i >= 0 ; i--) {
+		bin = &cci->cbufs[i];
+		sz = (int)bin->size;
+		if (!bin->c) continue;
+		cbi = FIRST_LIST(bin->c, next, prev);
+		while (cbi != bin->c) {
+			next = FIRST_LIST(cbi, next, prev);
+			if (!cbuf_free_unmap(cci, cbi)) {
+				diff -= sz;
+				if (diff <= 0) return;
+			}
+			cbi = next;
+		}
+		if (!cbuf_free_unmap(cci, cbi)) {
+			diff -= sz;
+			if (diff <= 0) return;
+		}
+	}
+	if (diff > 0) cbuf_mark_relinquish_all(cci);
+}
+
+static inline void
+cbuf_expand(struct cbuf_comp_info *cci, int diff)
+{
+	if (cci->allocated_size < cci->target_size) {
+		cbuf_thd_wake_up(cci, cci->target_size - cci->allocated_size);
+	}
+}
+
+/* target_size is an absolute size */
+void
+cbuf_mempool_resize(spdid_t spdid, unsigned long target_size)
+{
+	struct cbuf_comp_info *cci;
+	int diff;
+
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(spdid);
+	if (unlikely(!cci)) goto done;
+	target_size = round_up_to_page(target_size);
+	diff = (int)(target_size - cci->target_size);
+	cci->target_size = target_size;
+	if (diff < 0 && cci->allocated_size > cci->target_size) {
+		cbuf_shrink(cci, cci->allocated_size - cci->target_size);
+	}
+	if (diff > 0) cbuf_expand(cci, diff);
+done:
+	CBUF_RELEASE();
+}
+
+unsigned long
+cbuf_memory_target_get(spdid_t spdid)
+{
+	struct cbuf_comp_info *cci;
+	int ret;
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(spdid);
+	if (unlikely(!cci)) ERR_THROW(-ENOMEM, done);
+	ret = cci->target_size;
 done:
 	CBUF_RELEASE();
 	return ret;
@@ -802,7 +1186,7 @@ stkmgr_grant_stack(spdid_t d_spdid)
 	cci = cbuf_comp_info_get(d_spdid);
 	if (!cci) goto done;
 
-	if (cbuf_alloc_map(d_spdid, &d_addr, (void**)&p, PAGE_SIZE)) goto done;
+	if (cbuf_alloc_map(d_spdid, &d_addr, (void**)&p, NULL, PAGE_SIZE, MAPPING_RW)) goto done;
 	ret = (void*)D_COS_STK_ADDR(d_addr);
 
 done:
@@ -810,12 +1194,159 @@ done:
 	return ret;
 }
 
-
 void
 cos_init(void)
 {
-	long cbid;
 	CBUF_LOCK_INIT();
 	cmap_init_static(&cbufs);
-	cbid = cmap_add(&cbufs, NULL);
+	cmap_add(&cbufs, NULL);
+
+	tracking_init();
+}
+
+
+/* Debug helper functions */
+static int 
+__debug_reference(struct cbuf_info * cbi)
+{
+	struct cbuf_maps *m = &cbi->owner;
+	int sent = 0, recvd = 0;
+
+	do {
+		struct cbuf_meta *meta = m->m;
+
+		if (CBUF_REFCNT(meta)) return 1;
+		sent  += meta->snd_rcv.nsent;
+		recvd += meta->snd_rcv.nrecvd;
+		m      = FIRST_LIST(m, next, prev);
+	} while (m != &cbi->owner);
+	if (sent != recvd) return 1;
+
+	return 0;
+}
+
+unsigned long
+cbuf_debug_cbuf_info(spdid_t spdid, int index, int p)
+{
+	unsigned long ret[20], sz;
+	struct cbuf_comp_info *cci;
+	struct cbuf_bin *bin;
+	struct cbuf_info *cbi, *next, *head;
+	struct cbuf_meta *meta;
+	struct blocked_thd *bthd;
+	unsigned long long cur;
+	int i;
+
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(spdid);
+	if (unlikely(!cci)) assert(0);
+	memset(ret, 0, sizeof(ret));
+
+	ret[CBUF_TARGET] = cci->target_size;
+	ret[CBUF_ALLOC] = cci->allocated_size;
+
+	for (i = cci->nbin-1 ; i >= 0 ; i--) {
+		bin = &cci->cbufs[i];
+		sz = bin->size;
+		if (!bin->c) continue;
+		cbi = bin->c;
+		do {
+			if (__debug_reference(cbi)) ret[CBUF_USE] += sz;
+			else                        ret[CBUF_GARBAGE] += sz;
+			meta = cbi->owner.m;
+			if (CBUF_RELINQ(meta)) ret[CBUF_RELINQ_NUM]++;
+			cbi = FIRST_LIST(cbi, next, prev);
+		} while(cbi != bin->c);
+	}
+	assert(ret[CBUF_USE]+ret[CBUF_GARBAGE] == ret[CBUF_ALLOC]);
+
+	ret[BLK_THD_NUM] = cci->num_blocked_thds;
+	if (ret[BLK_THD_NUM]) {
+		rdtscll(cur);
+		bthd = cci->bthd_list.next;
+		while (bthd != &cci->bthd_list) {
+			cci->track.blk_tot += (cur-bthd->blk_start);
+			ret[CBUF_BLK] += bthd->request_size;
+			bthd->blk_start = cur;
+			bthd = FIRST_LIST(bthd, next, prev);
+		}
+	}
+
+	ret[TOT_BLK_TSC] = (unsigned long)cci->track.blk_tot;
+	ret[MAX_BLK_TSC] = (unsigned long)cci->track.blk_max;
+	ret[TOT_GC_TSC]  = (unsigned long)cci->track.gc_tot;
+	ret[MAX_GC_TSC]  = (unsigned long)cci->track.gc_max;
+	if (p == 1) {
+		printc("target %lu %lu allocate %lu %lu\n", 
+			ret[CBUF_TARGET], ret[CBUF_TARGET]/PAGE_SIZE, ret[CBUF_ALLOC], ret[CBUF_ALLOC]/PAGE_SIZE);
+		printc("using %lu %lu garbage %lu %lu relinq %lu\n", ret[CBUF_USE], ret[CBUF_USE]/PAGE_SIZE, 
+			ret[CBUF_GARBAGE], ret[CBUF_GARBAGE]/PAGE_SIZE, ret[CBUF_RELINQ_NUM]);
+		printc("spd %d %lu thd blocked request %d pages %d\n", 
+			spdid, ret[BLK_THD_NUM], ret[CBUF_BLK], ret[CBUF_BLK]/PAGE_SIZE);
+		printc("spd %d blk_tot %lu blk_max %lu gc_tot %lu gc_max %lu\n", spdid, ret[TOT_BLK_TSC], 
+			ret[MAX_BLK_TSC], ret[TOT_GC_TSC], ret[MAX_GC_TSC]);
+	}
+	if (p == 2) {
+		cci->track.blk_tot = cci->track.blk_max = cci->track.gc_tot = cci->track.gc_max = 0;
+		cci->track.gc_num = 0;
+	}
+
+	CBUF_RELEASE();
+	return ret[index];
+}
+
+void cbuf_debug_cbiddump(int cbid)
+{
+	struct cbuf_info *cbi;
+	struct cbuf_maps *m;
+
+	printc("mgr dump cbid %d\n", cbid);
+	cbi = cmap_lookup(&cbufs, cbid);
+	assert(cbi);
+	printc("cbid %d cbi: id %d sz %lu mem %p\n", cbid, cbi->cbid, cbi->size, cbi->mem);
+	m = &cbi->owner;
+	do {
+		struct cbuf_meta *meta = m->m;
+		printc("map: spd %d addr %lux meta %p\n", m->spdid, m->addr, m->m);
+		printc("meta: nfo %lux addr %lux cbid %d\n", meta->nfo, CBUF_PTR(meta), meta->cbid_tag.cbid);
+		m = FIRST_LIST(m, next, prev);
+	} while(m != &cbi->owner);
+}
+
+void
+cbuf_debug_profile(int p)
+{
+#if defined(DEBUG)
+	int i;
+
+	if (p) {
+		for (i = 0 ; i < OP_NUM ; i++) {
+			if (!op_cnts[i]) continue;
+			switch(i) {
+			case CBUF_CRT:
+				printc("create %d avg %llu\n", op_cnts[i], total_tsc_per_op[i]/op_cnts[i]);
+				break;
+			case CBUF_COLLECT:
+				printc("collect %d avg %llu\n", op_cnts[i], total_tsc_per_op[i]/op_cnts[i]);
+				break;
+			case CBUF_DEL:
+				printc("delete %d avg %llu\n", op_cnts[i], total_tsc_per_op[i]/op_cnts[i]);
+				break;
+			case CBUF_RETRV:
+				printc("retrieve %d avg %llu\n", op_cnts[i], total_tsc_per_op[i]/op_cnts[i]);
+				break;
+			case CBUF_REG:
+				printc("register %d avg %llu\n", op_cnts[i], total_tsc_per_op[i]/op_cnts[i]);
+				break;
+			case CBUF_MAP:
+				printc("alloc map %d avg %llu\n", op_cnts[i], total_tsc_per_op[i]/op_cnts[i]);
+				break;
+			default:
+				break;
+			}
+		}
+	}
+	tracking_init();
+#endif
+	return ;
 }

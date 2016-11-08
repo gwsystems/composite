@@ -21,7 +21,7 @@ cbboot.o-print.o|fprr.o|mm.o|boot.o|cbuf.o|[parent_]llboot.o;\
 vm.o-fprr.o|print.o|mm.o|l.o|boot.o|llboot.o;\
 va.o-fprr.o|print.o|mm.o|l.o|boot.o|vm.o|llboot.o;\
 ucbuf1.o-fprr.o|ucbuf2.o|ucbufptf.o|print.o|mm.o|va.o|cbuf.o|cbboot.o;\
-ucbuf2.o-print.o|mm.o|va.o|cbuf.o|cbboot.o;\
+ucbuf2.o-fprr.o|print.o|mm.o|va.o|cbuf.o|cbboot.o;\
 ucbufptf.o-fprr.o|print.o|mm.o|va.o|cbuf.o|te.o|cbboot.o\
 " ./gen_client_stub
 

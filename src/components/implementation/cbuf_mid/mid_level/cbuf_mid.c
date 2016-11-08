@@ -29,9 +29,8 @@ void cbuf_call(char c)
 	printc("\n****** MID: thread %d in spd %ld ******\n",cos_get_thd_id(), cos_spd_id());
 
 	/* cbuf_t cb = cbuf_null(); */
-	u32_t id;
 	/* u64_t start, end; */
-	int i;
+	int i, id;
 
 	cbuf_t cbt[iter];
 	void *mt[iter];

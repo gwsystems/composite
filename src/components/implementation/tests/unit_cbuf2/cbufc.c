@@ -19,4 +19,5 @@ void unit_cbuf(cbuf_t cbuf, int sz)
 
 	addr = cbuf_alloc_ext(sz, &cb, CBUF_TMEM);
 	cbuf_free(cb);
+	cbuf_free(cbuf);
 }
