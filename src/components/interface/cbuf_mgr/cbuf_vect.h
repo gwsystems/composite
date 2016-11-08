@@ -27,7 +27,7 @@ __cbuf_vect_expand_rec(struct cvect_intern *vi, const int id, const int depth)
 	struct cvect_intern *new;
 
 	if (depth > 1) {
-		int n = id >> (CVECT_SHIFT * (depth-1));
+		unsigned int n = id >> (CVECT_SHIFT * (depth-1));
 		if (vi[n & CVECT_MASK].c.next == NULL) {
 			new = (struct cvect_intern *)cbuf_register(cos_spd_id(), meta_to_cbid_idx(id));			
 			if (!new) return -1;

@@ -743,6 +743,7 @@ __cbuf_copy_cci(struct cbuf_comp_info *src, struct cbuf_comp_info *dst)
 	}
 	/* recreate the cbuf_metas in dst? */
 	dst->cbuf_metas = src->cbuf_metas;
+	return 0;
 }
 
 int cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd)
@@ -996,7 +997,7 @@ cbuf_retrieve(spdid_t spdid, int cbid, unsigned long size)
 	size       = cbi->size;
 	/* TODO: change to MAPPING_READ */
 	if (cbuf_alloc_map(spdid, &map->addr, NULL, cbi->mem, size, MAPPING_RW)) {
-		printc("cbuf mgr map fail spd %d mem %x sz %d cbid %d\n", spdid, cbi->mem, size, cbid);
+		printc("cbuf mgr map fail spd %d mem %p sz %d cbid %d\n", spdid, cbi->mem, size, cbid);
 		goto free;
 	}
 
@@ -1073,7 +1074,6 @@ cbuf_shrink(struct cbuf_comp_info *cci, int diff)
 		sz = (int)bin->size;
 		if (!bin->c) continue;
 		cbi = FIRST_LIST(bin->c, next, prev);
-		int i = 0;
 		while (cbi != bin->c) {
 			next = FIRST_LIST(cbi, next, prev);
 			if (!cbuf_free_unmap(cci, cbi)) {
