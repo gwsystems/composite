@@ -1,3 +1,5 @@
+#include "cFE_util.h"
+
 #include "gen/osapi.h"
 #include "gen/common_types.h"
 
@@ -6,7 +8,7 @@
 */
 int32 OS_API_Init(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -18,7 +20,7 @@ int32 OS_API_Init(void)
 */
 void OS_IdleLoop(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 
 /*
@@ -28,7 +30,7 @@ void OS_IdleLoop(void)
 */
 void OS_DeleteAllObjects(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 
 /*
@@ -39,7 +41,7 @@ void OS_DeleteAllObjects(void)
 */
 void OS_ApplicationShutdown(uint8 flag)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 
 
@@ -53,59 +55,59 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
                     uint32 stack_size,
                     uint32 priority, uint32 flags)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_TaskDelete(uint32 task_id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 void OS_TaskExit(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 
 int32 OS_TaskInstallDeleteHandler(osal_task_entry function_pointer){
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_TaskDelay(uint32 millisecond)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_TaskRegister(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 uint32 OS_TaskGetId(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_TaskGetIdByName(uint32 *task_id, const char *task_name)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -119,39 +121,39 @@ int32 OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop)
 int32 OS_QueueCreate(uint32 *queue_id, const char *queue_name,
                      uint32 queue_depth, uint32 data_size, uint32 flags)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_QueueDelete(uint32 queue_id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_QueueGet(uint32 queue_id, void *data, uint32 size,
                   uint32 *size_copied, int32 timeout)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_QueuePut(uint32 queue_id, const void *data, uint32 size,
                   uint32 flags)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_QueueGetIdByName(uint32 *queue_id, const char *queue_name)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_QueueGetInfo(uint32 queue_id, OS_queue_prop_t *queue_prop)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -162,92 +164,92 @@ int32 OS_QueueGetInfo(uint32 queue_id, OS_queue_prop_t *queue_prop)
 int32 OS_BinSemCreate(uint32 *sem_id, const char *sem_name,
                       uint32 sem_initial_value, uint32 options)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_BinSemFlush(uint32 sem_id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_BinSemGive(uint32 sem_id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_BinSemTake(uint32 sem_id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_BinSemTimedWait(uint32 sem_id, uint32 msecs)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_BinSemDelete(uint32 sem_id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_BinSemGetIdByName(uint32 *sem_id, const char *sem_name)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_BinSemGetInfo(uint32 sem_id, OS_bin_sem_prop_t *bin_prop)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_CountSemCreate(uint32 *sem_id, const char *sem_name,
                         uint32 sem_initial_value, uint32 options)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_CountSemGive(uint32 sem_id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_CountSemTake(uint32 sem_id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_CountSemTimedWait(uint32 sem_id, uint32 msecs)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_CountSemDelete(uint32 sem_id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_CountSemGetIdByName(uint32 *sem_id, const char *sem_name)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_CountSemGetInfo(uint32 sem_id, OS_count_sem_prop_t *count_prop)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -257,37 +259,37 @@ int32 OS_CountSemGetInfo(uint32 sem_id, OS_count_sem_prop_t *count_prop)
 
 int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_MutSemGive(uint32 sem_id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_MutSemTake(uint32 sem_id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_MutSemDelete(uint32 sem_id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_MutSemGetIdByName(uint32 *sem_id, const char *sem_name)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_MutSemGetInfo(uint32 sem_id, OS_mut_sem_prop_t *mut_prop)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -297,25 +299,25 @@ int32 OS_MutSemGetInfo(uint32 sem_id, OS_mut_sem_prop_t *mut_prop)
 
 int32 OS_Milli2Ticks(uint32 milli_seconds)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_Tick2Micros(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32  OS_GetLocalTime(OS_time_t *time_struct)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32  OS_SetLocalTime(OS_time_t *time_struct)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -327,20 +329,20 @@ int32 OS_ExcAttachHandler(uint32 ExceptionNumber,
                           void (*ExceptionHandler)(uint32, const void *,uint32),
                           int32 parameter)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 
 int32 OS_ExcEnable             (int32 ExceptionNumber)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_ExcDisable            (int32 ExceptionNumber)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -351,31 +353,31 @@ int32 OS_ExcDisable            (int32 ExceptionNumber)
 int32 OS_FPUExcAttachHandler(uint32 ExceptionNumber, void * ExceptionHandler,
                              int32 parameter)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_FPUExcEnable(int32 ExceptionNumber)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_FPUExcDisable(int32 ExceptionNumber)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_FPUExcSetMask(uint32 mask)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_FPUExcGetMask(uint32 *mask)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -384,49 +386,49 @@ int32 OS_FPUExcGetMask(uint32 *mask)
 */
 int32 OS_IntAttachHandler(uint32 InterruptNumber, osal_task_entry InterruptHandler, int32 parameter)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_IntUnlock(int32 IntLevel)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_IntLock(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_IntEnable(int32 Level)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_IntDisable(int32 Level)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_IntSetMask(uint32 mask)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_IntGetMask(uint32 *mask)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_IntAck(int32 InterruptNumber)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -435,37 +437,37 @@ int32 OS_IntAck(int32 InterruptNumber)
 */
 int32 OS_ShMemInit(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_ShMemCreate(uint32 *Id, uint32 NBytes, const char* SegName)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_ShMemSemTake(uint32 Id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_ShMemSemGive(uint32 Id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_ShMemAttach(cpuaddr * Address, uint32 Id)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 OS_ShMemGetIdByName(uint32 *ShMemId, const char *SegName )
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -474,7 +476,7 @@ int32 OS_ShMemGetIdByName(uint32 *ShMemId, const char *SegName )
 */
 int32 OS_HeapGetInfo(OS_heap_prop_t *heap_prop)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -483,7 +485,7 @@ int32 OS_HeapGetInfo(OS_heap_prop_t *heap_prop)
 */
 int32 OS_GetErrorName(int32 error_num, os_err_name_t* err_name)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -492,17 +494,17 @@ int32 OS_GetErrorName(int32 error_num, os_err_name_t* err_name)
 ** Abstraction for printf statements
 */
 void OS_printf( const char *string, ...) {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 
 void OS_printf_disable(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 
 void OS_printf_enable(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 
 /*
@@ -512,5 +514,5 @@ void OS_printf_enable(void)
 */
 void OS_ApplicationExit(int32 Status)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }

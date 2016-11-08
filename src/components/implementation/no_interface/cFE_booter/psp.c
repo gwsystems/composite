@@ -1,3 +1,5 @@
+#include "cFE_util.h"
+
 #include "gen/cfe_psp.h"
 
 /*
@@ -9,7 +11,7 @@
 */
 void CFE_PSP_Main(uint32 ModeId, char *StartupFilePath)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 
 /*
@@ -21,7 +23,7 @@ void CFE_PSP_Main(uint32 ModeId, char *StartupFilePath)
 
 void CFE_PSP_GetTime(OS_time_t *LocalTime)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 /* This call gets the local time from the hardware on the Vxworks system
  * on the mcp750s
@@ -30,7 +32,7 @@ void CFE_PSP_GetTime(OS_time_t *LocalTime)
 
 void CFE_PSP_Restart(uint32 resetType)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 /*
 ** CFE_PSP_Restart is the entry point back to the BSP to restart the processor.
@@ -40,7 +42,7 @@ void CFE_PSP_Restart(uint32 resetType)
 
 uint32 CFE_PSP_GetRestartType(uint32 *restartSubType )
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -58,7 +60,7 @@ void CFE_PSP_FlushCaches(uint32 type, cpuaddr address, uint32 size);
 
 uint32 CFE_PSP_GetProcessorId(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -69,7 +71,7 @@ uint32 CFE_PSP_GetProcessorId(void)
 
 uint32 CFE_PSP_GetSpacecraftId(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -79,7 +81,7 @@ uint32 CFE_PSP_GetSpacecraftId(void)
 
 uint32 CFE_PSP_Get_Timer_Tick(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -89,7 +91,7 @@ uint32 CFE_PSP_Get_Timer_Tick(void)
 
 uint32 CFE_PSP_GetTimerTicksPerSecond(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -101,7 +103,7 @@ uint32 CFE_PSP_GetTimerTicksPerSecond(void)
 
 uint32 CFE_PSP_GetTimerLow32Rollover(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -114,7 +116,7 @@ uint32 CFE_PSP_GetTimerLow32Rollover(void)
 
 void CFE_PSP_Get_Timebase(uint32 *Tbu, uint32 *Tbl)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 /*
 ** CFE_PSP_Get_Timebase
@@ -122,7 +124,7 @@ void CFE_PSP_Get_Timebase(uint32 *Tbu, uint32 *Tbl)
 
 uint32 CFE_PSP_Get_Dec(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -132,7 +134,7 @@ uint32 CFE_PSP_Get_Dec(void)
 
 int32 CFE_PSP_InitProcessorReservedMemory(uint32 RestartType )
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -145,7 +147,7 @@ int32 CFE_PSP_InitProcessorReservedMemory(uint32 RestartType )
 
 int32 CFE_PSP_GetCDSSize(uint32 *SizeOfCDS)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -154,7 +156,7 @@ int32 CFE_PSP_GetCDSSize(uint32 *SizeOfCDS)
 
 int32 CFE_PSP_WriteToCDS(void *PtrToDataToWrite, uint32 CDSOffset, uint32 NumBytes)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -163,7 +165,7 @@ int32 CFE_PSP_WriteToCDS(void *PtrToDataToWrite, uint32 CDSOffset, uint32 NumByt
 
 int32 CFE_PSP_ReadFromCDS(void *PtrToDataToRead, uint32 CDSOffset, uint32 NumBytes)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -172,7 +174,7 @@ int32 CFE_PSP_ReadFromCDS(void *PtrToDataToRead, uint32 CDSOffset, uint32 NumByt
 
 int32 CFE_PSP_GetResetArea (cpuaddr *PtrToResetArea, uint32 *SizeOfResetArea)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -183,7 +185,7 @@ int32 CFE_PSP_GetResetArea (cpuaddr *PtrToResetArea, uint32 *SizeOfResetArea)
 
 int32 CFE_PSP_GetUserReservedArea(cpuaddr *PtrToUserArea, uint32 *SizeOfUserArea )
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -193,7 +195,7 @@ int32 CFE_PSP_GetUserReservedArea(cpuaddr *PtrToUserArea, uint32 *SizeOfUserArea
 
 int32 CFE_PSP_GetVolatileDiskMem(cpuaddr *PtrToVolDisk, uint32 *SizeOfVolDisk )
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -203,7 +205,7 @@ int32 CFE_PSP_GetVolatileDiskMem(cpuaddr *PtrToVolDisk, uint32 *SizeOfVolDisk )
 
 int32 CFE_PSP_GetKernelTextSegmentInfo(cpuaddr *PtrToKernelSegment, uint32 *SizeOfKernelSegment)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -212,7 +214,7 @@ int32 CFE_PSP_GetKernelTextSegmentInfo(cpuaddr *PtrToKernelSegment, uint32 *Size
 
 int32 CFE_PSP_GetCFETextSegmentInfo(cpuaddr *PtrToCFESegment, uint32 *SizeOfCFESegment)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -221,7 +223,7 @@ int32 CFE_PSP_GetCFETextSegmentInfo(cpuaddr *PtrToCFESegment, uint32 *SizeOfCFES
 
 void CFE_PSP_WatchdogInit(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 /*
 ** CFE_PSP_WatchdogInit configures the watchdog timer.
@@ -229,7 +231,7 @@ void CFE_PSP_WatchdogInit(void)
 
 void CFE_PSP_WatchdogEnable(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 /*
 ** CFE_PSP_WatchdogEnable enables the watchdog timer.
@@ -237,7 +239,7 @@ void CFE_PSP_WatchdogEnable(void)
 
 void CFE_PSP_WatchdogDisable(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 /*
 ** CFE_PSP_WatchdogDisable disables the watchdog timer.
@@ -245,7 +247,7 @@ void CFE_PSP_WatchdogDisable(void)
 
 void CFE_PSP_WatchdogService(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 /*
 ** CFE_PSP_WatchdogService services the watchdog timer according to the
@@ -254,7 +256,7 @@ void CFE_PSP_WatchdogService(void)
 
 uint32 CFE_PSP_WatchdogGet(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -263,7 +265,7 @@ uint32 CFE_PSP_WatchdogGet(void)
 
 void CFE_PSP_WatchdogSet(uint32 WatchdogValue)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 /*
 ** CFE_PSP_WatchdogSet sets the watchdog time in milliseconds
@@ -271,7 +273,7 @@ void CFE_PSP_WatchdogSet(uint32 WatchdogValue)
 
 void CFE_PSP_Panic(int32 ErrorCode)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 /*
 ** CFE_PSP_Panic is called by the cFE Core startup code when it needs to abort the
@@ -280,7 +282,7 @@ void CFE_PSP_Panic(int32 ErrorCode)
 
 int32 CFE_PSP_InitSSR(uint32 bus, uint32 device, char *DeviceName)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -289,7 +291,7 @@ int32 CFE_PSP_InitSSR(uint32 bus, uint32 device, char *DeviceName)
 
 int32 CFE_PSP_Decompress( char * srcFileName, char * dstFileName)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -300,7 +302,7 @@ int32 CFE_PSP_Decompress( char * srcFileName, char * dstFileName)
 
 void CFE_PSP_AttachExceptions(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 /*
 ** CFE_PSP_AttachExceptions will setup the exception environment for the chosen platform
@@ -311,8 +313,7 @@ void CFE_PSP_AttachExceptions(void)
 
 void CFE_PSP_SetDefaultExceptionEnvironment(void)
 {
-    // TODO: Implement me!
-    return 0;
+    panic("Unimplemented method!"); // TODO: Implement me!
 }
 /*
 **
@@ -328,37 +329,37 @@ void CFE_PSP_SetDefaultExceptionEnvironment(void)
 */
 int32 CFE_PSP_PortRead8(cpuaddr PortAddress, uint8 *ByteValue)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_PortWrite8(cpuaddr PortAddress, uint8 ByteValue)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_PortRead16(cpuaddr PortAddress, uint16 *uint16Value)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_PortWrite16(cpuaddr PortAddress, uint16 uint16Value)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_PortRead32(cpuaddr PortAddress, uint32 *uint32Value)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_PortWrite32(cpuaddr PortAddress, uint32 uint32Value)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -367,116 +368,116 @@ int32 CFE_PSP_PortWrite32(cpuaddr PortAddress, uint32 uint32Value)
 */
 int32 CFE_PSP_MemRead8(cpuaddr MemoryAddress, uint8 *ByteValue)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_MemWrite8(cpuaddr MemoryAddress, uint8 ByteValue)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_MemRead16(cpuaddr MemoryAddress, uint16 *uint16Value)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_MemWrite16(cpuaddr MemoryAddress, uint16 uint16Value)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_MemRead32(cpuaddr MemoryAddress, uint32 *uint32Value)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_MemWrite32(cpuaddr MemoryAddress, uint32 uint32Value)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_MemCpy(void *dest, void *src, uint32 n)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_MemSet(void *dest, uint8 value, uint32 n)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_MemValidateRange(cpuaddr Address, uint32 Size, uint32 MemoryType)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 uint32 CFE_PSP_MemRanges(void)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32  CFE_PSP_MemRangeSet(uint32 RangeNum, uint32 MemoryType, cpuaddr StartAddr,
                            uint32 Size, uint32 WordSize, uint32 Attributes)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_MemRangeGet (uint32 RangeNum, uint32 *MemoryType, cpuaddr *StartAddr,
                            uint32 *Size,    uint32 *WordSize,   uint32 *Attributes)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_EepromWrite8(cpuaddr MemoryAddress, uint8 ByteValue)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_EepromWrite16(cpuaddr MemoryAddress, uint16 uint16Value)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_EepromWrite32(cpuaddr MemoryAddress, uint32 uint32Value)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_EepromWriteEnable(uint32 Bank)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_EepromWriteDisable(uint32 Bank)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_EepromPowerUp(uint32 Bank)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
 int32 CFE_PSP_EepromPowerDown(uint32 Bank)
 {
-    // TODO: Implement me!
+    panic("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }

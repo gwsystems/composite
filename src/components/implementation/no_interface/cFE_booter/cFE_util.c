@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 #include <cos_component.h>
 #include <cos_kernel_api.h>
@@ -33,4 +34,13 @@ printc(char *fmt, ...)
 	  cos_llprint(s, ret);
 
 	  return ret;
+}
+
+void panic(char* message){
+	printc("cFE panic: %s", message);
+	assert(0);
+}
+
+void __isoc99_sscanf(void){
+	panic("__isoc99_sscanf not implemented!");
 }
