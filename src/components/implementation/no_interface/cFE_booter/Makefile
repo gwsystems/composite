@@ -1,4 +1,4 @@
-C_OBJS=cFE_stub.o osapi.o osfiles.o osloader.o ostimer.o osnetwork.o psp.o
+C_OBJS=cFE_stub.o osapi.o osfiles.o osloader.o osqueue.o ostask.o ostimer.o osnetwork.o psp.o
 ASM_OBJS=
 COMPONENT=cFE_booter.o
 INTERFACES=
