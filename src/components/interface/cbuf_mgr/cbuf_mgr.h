@@ -77,4 +77,28 @@ struct cbuf_shared_page {
 	struct cbuf_ring_element buffer[CSP_BUFFER_SIZE];
 };
 
+#define OP_NUM 10
+typedef enum {
+	CBUF_CRT = 0,
+	CBUF_COLLECT,
+	CBUF_DEL,
+	CBUF_RETRV,
+	CBUF_REG,
+	CBUF_MAP
+} cbuf_debug_t;
+
+typedef enum {
+	CBUF_TARGET = 0,
+	CBUF_ALLOC,
+	CBUF_USE,
+	CBUF_GARBAGE,
+	CBUF_BLK,
+	CBUF_RELINQ_NUM,
+	BLK_THD_NUM,
+	TOT_BLK_TSC,
+	MAX_BLK_TSC,
+	TOT_GC_TSC,
+	MAX_GC_TSC
+} cbuf_policy_t;
+
 #endif 	    /* !CBUF_MGR_H */
