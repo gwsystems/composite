@@ -243,9 +243,11 @@ cbuf_map(spdid_t spdid, vaddr_t daddr, void *page, unsigned long size, int flags
 	return 0;
 }
 
-/* map the memory from address p and size sz to the component spdid with 
+/* 
+ * map the memory from address p and size sz to the component spdid with 
  * permission flags. if p is NULL allocate a piece of new memory
- * return spdid's address to daddr, manager's virtual address to page*/
+ * return spdid's address to daddr, manager's virtual address to page
+ */
 static int
 cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, void *p, unsigned long sz, int flags)
 {
@@ -283,7 +285,8 @@ done:
 	return ret;
 }
 
-/* Do any components have a reference to the cbuf? 
+/* 
+ * Do any components have a reference to the cbuf? 
  * key function coordinates manager and client.
  * When this returns 1, this cbuf may or may not be used by some components.
  * When this returns 0, it guarantees: 
@@ -326,7 +329,8 @@ cbuf_referenced(struct cbuf_info *cbi)
 	do {
 		struct cbuf_meta *meta = m->m;
 
-		/* Guarantee atomically read the two words (refcnt and nsent/nrecv).
+		/* 
+		 * Guarantee atomically read the two words (refcnt and nsent/nrecv).
 		 * Consider this case, c0 sends a cbuf to c1 and frees this 
 		 * this cbuf, but before c1 receives it, the manager comes in 
 		 * and checks c1's refcnt. Now it is zero. But before the manager 
@@ -334,14 +338,17 @@ cbuf_referenced(struct cbuf_info *cbi)
 		 * this cbuf--increment refcnt and nsent/nrecv. After this, we 
 		 * switch back the manager, who will continues to check c1's 
 		 * nsent/nrecv, now it is 1, which is equal to c0's nsent/nrecv. 
-		 * Thus the manager can collect or unmap this cbuf.*/
+		 * Thus the manager can collect or unmap this cbuf.
+		 */
 		old = *(unsigned long long *)meta;
 		if (unlikely(!cos_dcas(&old, old, old))) {
 			goto unset;
 		}
 		if (CBUF_REFCNT(mt)) goto unset;		
-		/* TODO: add per-mapping counter of sent and recv in the manager */
-		/* each time atomic clear those counter in the meta */
+		/* 
+		 * TODO: add per-mapping counter of sent and recv in the manager
+		 * each time atomic clear those counter in the meta
+		 */
 		sent  += mt->snd_rcv.nsent;
 		recvd += mt->snd_rcv.nrecvd;
 		m      = FIRST_LIST(m, next, prev);
@@ -374,9 +381,11 @@ cbuf_references_clear(struct cbuf_info *cbi)
 	return;
 }
 
-/* Before actually unmap cbuf from a component, we need to atomically
+/* 
+ * Before actually unmap cbuf from a component, we need to atomically
  * clear the page pointer in the meta, which guarantees that clients 
- * do not have seg fault. Clients have to check NULL when receive cbuf */
+ * do not have seg fault. Clients have to check NULL when receive cbuf
+ */
 static int
 cbuf_unmap_prepare(struct cbuf_info *cbi)
 {
@@ -386,10 +395,12 @@ cbuf_unmap_prepare(struct cbuf_info *cbi)
 	if (cbuf_referenced(cbi)) return 1;
 	cbuf_references_clear(cbi);
 
-	/* We need to clear out the meta. Consider here manager removes a
+	/* 
+	 * We need to clear out the meta. Consider here manager removes a
 	 * cbuf from component c0 and allocates that cbuf to component c1,  
 	 * but c1 sends the cbuf back to c0. If c0 sees the old meta, it may 
-	 * be confused. However, we have to leave the inconsistent bit here */
+	 * be confused. However, we have to leave the inconsistent bit here
+	 */
 	do {
 		old_nfo = m->m->nfo;
 		if (old_nfo & CBUF_REFCNT_MAX) return 1;
@@ -403,11 +414,13 @@ cbuf_unmap_prepare(struct cbuf_info *cbi)
 	return 0;
 }
 
-/* As clients maybe malicious or don't use protocol correctly, we cannot 
+/* 
+ * As clients maybe malicious or don't use protocol correctly, we cannot 
  * simply unmap memory here. We guarantee that fault can only happen within 
  * the malicious component, but for other components, they either receive a 
  * NULL pointer from cbuf2buf or see wrong data. No fault happen in other 
- * components. See details in cbuf_unmap_prepare  */
+ * components. See details in cbuf_unmap_prepare
+ */
 static int
 cbuf_free_unmap(struct cbuf_comp_info *cci, struct cbuf_info *cbi)
 {
@@ -626,14 +639,20 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	CBUF_FLAG_ADD(meta, CBUF_OWNER);
 	CBUF_PTR_SET(meta, cbi->owner.addr);
 	CBUF_REFCNT_INC(meta);
-	/* When creates a new cbuf, the manager should be the only
-	 * one who can access the meta */
+
+	/*
+	 * When creates a new cbuf, the manager should be the only
+	 * one who can access the meta
+	 */
 	/* TODO: malicious client may trigger this assertion, just for debug */
 	assert(CBUF_REFCNT(meta) == 1);
 	assert(CBUF_PTR(meta));
 	cbi->owner.m = meta;
-	/* Install cbi last. If not, after return a negative cbid, 
-	 * collection may happen and get a dangle cbi */
+
+	/*
+	 * Install cbi last. If not, after return a negative cbid, 
+	 * collection may happen and get a dangle cbi
+	 */
 	bin = cbuf_comp_info_bin_get(cci, size);
 	if (!bin) bin = cbuf_comp_info_bin_add(cci, size);
 	if (unlikely(!bin)) goto free;
@@ -667,16 +686,20 @@ cbuf_map_at(spdid_t s_spd, int cbid, spdid_t d_spd, vaddr_t d_addr)
 	assert(cbi);
 	if (unlikely(!cbi)) goto done;
 	assert(cbi->owner.spdid == s_spd);
-	// the low-order bits of the d_addr are packed with the MAPPING flags (0/1)
-	// and a flag (2) set if valloc should not be used.
+	/*
+	 * the low-order bits of the d_addr are packed with the MAPPING flags (0/1)
+	 * and a flag (2) set if valloc should not be used.
+	 */
 	flags = d_addr & 0x3;
 	d_addr &= ~0x3;
 	if (!(flags & 2) && valloc_alloc_at(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE)) goto done;
 	if (cbuf_map(d_spd, d_addr, cbi->mem, cbi->size, flags & (MAPPING_READ|MAPPING_RW))) goto free;
 	ret = d_addr;
-	/* do not add d_spd to the meta list because the cbuf is not
+	/*
+	 * do not add d_spd to the meta list because the cbuf is not
 	 * accessible directly. The s_spd must maintain the necessary info
-	 * about the cbuf and its mapping in d_spd. */
+	 * about the cbuf and its mapping in d_spd.
+	 */
 done:
 	CBUF_RELEASE();
 	return ret;
@@ -718,8 +741,10 @@ __cbuf_copy_cci(struct cbuf_comp_info *src, struct cbuf_comp_info *dst)
 	/* Should create a new shared page between cbuf_mgr and dst */
 	dst->csp = src->csp;
 	dst->dest_csp = src->dest_csp;
-	/* probably shouldn't be copying all these? but should get
-	 * to access them somehow. */
+	/*
+	 * probably shouldn't be copying all these? but should get
+	 * to access them somehow.
+	 */
 	dst->nbin = src->nbin;
 	for (i = 0; i < dst->nbin; i++) {
 		dst->cbufs[i] = src->cbufs[i];
@@ -843,7 +868,8 @@ cbuf_collect(spdid_t spdid, unsigned long size)
 	cbi  = bin->c;
 	do {
 		if (!cbi) break;
-		/* skip cbufs which are in freelist. Coordinates with cbuf_free to 
+		/*
+		 * skip cbufs which are in freelist. Coordinates with cbuf_free to 
 		 * detect such cbufs correctly. 
 		 * We must check refcnt first and then next pointer.
 		 *
@@ -856,20 +882,23 @@ cbuf_collect(spdid_t spdid, unsigned long size)
 		 * If not, similar to above case, the manager maybe preempted by client 
 		 * between the manager checks "next" and refcnt. Therefore the manager 
 		 * finds the "next" is null and refcnt is 0, and collect this cbuf.
-		 * Short-circuit can prevent reordering. */
+		 * Short-circuit can prevent reordering. 
+		 */
 		assert(cbi->owner.m);
 		if (!CBUF_REFCNT(cbi->owner.m) && !CBUF_IS_IN_FREELIST(cbi->owner.m)
                  		    && !cbuf_referenced(cbi)) {
 			struct cbuf_ring_element el = { .cbid = cbi->cbid };
 			cbuf_references_clear(cbi);
 			if (!CK_RING_ENQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) break;
-			/* Prevent other collection collecting those cbufs.
+			/*
+			 * Prevent other collection collecting those cbufs.
 			 * The manager checks if the shared ring buffer is empty upon 
 			 * the entry, if not, it just returns. This is not enough to 
 			 * prevent double-collection. The corner case is: 
 			 * after the last one in ring buffer is dequeued and 
 			 * before it is added to the free-list, the manager  
-			 * appears. It may collect the last one again. */
+			 * appears. It may collect the last one again.
+			 */
 			cbi->owner.m->next = (struct cbuf_meta *)1;
 			if (++ret == CSP_BUFFER_SIZE) break;
 		}
@@ -910,8 +939,11 @@ cbuf_delete(spdid_t spdid, int cbid)
 	cbi  = cmap_lookup(&cbufs, cbid);
 	if (unlikely(!cbi)) goto done;
 	meta = cbuf_meta_lookup(cci, cbid);
-	/* Other threads can access the meta data simultaneously. For
-	 * example, others call cbuf2buf which increase the refcnt. */
+
+	/*
+	 * Other threads can access the meta data simultaneously. For
+	 * example, others call cbuf2buf which increase the refcnt.
+	 */
 	CBUF_REFCNT_ATOMIC_DEC(meta);
 	/* Find the owner of this cbuf */
 	if (cbi->owner.spdid != spdid) {
@@ -982,8 +1014,10 @@ cbuf_retrieve(spdid_t spdid, int cbid, unsigned long size)
 	meta->cbid_tag.cbid = cbid;
 	own                 = cbuf_comp_info_get(cbi->owner.spdid);
 	if (unlikely(!own)) goto done;
-	/* We need to inherit the relinquish bit from the sender. 
-	 * Otherwise, this cbuf cannot be returned to the manager. */
+	/*
+	 * We need to inherit the relinquish bit from the sender. 
+	 * Otherwise, this cbuf cannot be returned to the manager. 
+	 */
 	own_meta            = cbuf_meta_lookup(own, cbid);
 	if (CBUF_RELINQ(own_meta)) CBUF_FLAG_ADD(meta, CBUF_RELINQ);
 	ret                 = 0;

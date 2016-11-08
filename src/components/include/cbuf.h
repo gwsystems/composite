@@ -271,11 +271,13 @@ again:
 	if (unlikely((len >> PAGE_ORDER) > cm->sz)) goto done;
 	assert(!CBUF_TMEM(cm));
 
-	/* The order here is important. But as x86 does reorder stores, we only 
+	/* 
+	 * The order here is important. But as x86 does reorder stores, we only 
 	 * need compiler barrier. If the nrecv counter is increased first, the 
 	 * manager will find nsent = nreced, and both components' refcnt is 0. 
 	 * Thus it may remove this cbuf. In addition atomic instruction is 
-	 * also needed, because multiple threads can concurrently execute this code*/
+	 * also needed, because multiple threads can concurrently execute this code
+	 */
 	CBUF_REFCNT_ATOMIC_INC(cm);
 	cos_compiler_barrier();
 	CBUF_NRCV_ATOMIC_INC(cm);
@@ -364,7 +366,8 @@ __cbuf_freelist_get(int size)
 	return m;
 }
 
-/* Precondition: "next" pointer is not NULL. 
+/*
+ * Precondition: "next" pointer is not NULL. 
  * We can reuse a cbuf from two source.
  * 1. from local freelist
  * 2. from garbage collection
@@ -375,7 +378,8 @@ __cbuf_freelist_get(int size)
  * As other clients or threads have no reference to this 
  * cbuf, they will not access the meta concurrently.
  * But the manager may modify the meta at the same time.
- * So those atomic instructions are necessary*/
+ * So those atomic instructions are necessary
+ */
 static inline int 
 __cbuf_try_take(struct cbuf_meta *cm, unsigned int flag)
 {
@@ -387,9 +391,11 @@ __cbuf_try_take(struct cbuf_meta *cm, unsigned int flag)
 
 	inconsistent = old_nfo & CBUF_INCONSISENT;
 	if (unlikely(inconsistent)) {
-		/* It has been or is going to be taken away by the 
+		/*
+		 * It has been or is going to be taken away by the 
 		 * manager. We will not leak cbuf here.
-		 * Do not modify other fields! */
+		 * Do not modify other fields! 
+		 */
 		CBUF_FLAG_REM(cm, CBUF_INCONSISENT);
 		goto ret;
 	}
@@ -398,20 +404,24 @@ __cbuf_try_take(struct cbuf_meta *cm, unsigned int flag)
 	if (unlikely(flag & CBUF_TMEM)) new_nfo |= CBUF_TMEM;
 	else new_nfo &= ~CBUF_TMEM;
 	if (unlikely(!cos_cas(&cm->nfo, old_nfo, new_nfo))) {
-		/* This failure maybe because:
+		/* 
+		 * This failure maybe because:
 		 * 1. manager tries to take this cbuf away, set inconsistent
 		 * 2. manager set/unset relinq bit.
 		 * For case 2, this cbuf can be collected later.
-		 * No cbuf leak */
+		 * No cbuf leak 
+		 */
 		if (CBUF_INCONSISENT(cm)) CBUF_FLAG_REM(cm, CBUF_INCONSISENT);
 		goto ret;
 	}
 	r = 1;
-	/* guarantee the order between CAS and set "next".
+	/* 
+	 * guarantee the order between CAS and set "next".
 	 * If the next is set to NULL before increment refcnt, the
-	 * manager may think this cbuf is garbage and collect it. */
-	/* But there is dependency between those two, we do not 
-	 * need explicit barrier. */
+	 * manager may think this cbuf is garbage and collect it. 
+	 * But there is dependency between those two, we do not 
+	 * need explicit barrier. 
+	 */
 ret:
 	cm->next = NULL;
 	return r;
@@ -446,8 +456,10 @@ __cbuf_freelist_pop(unsigned long sz, unsigned int flag)
 	nfake = (unsigned long *)&update;
 	fl = __cbuf_freelist_get(sz);
 again:
-	/* This is a lock-free stack implementation. Add a 
-	 * tag to solve "ABA" problem. */
+	/*
+	 * This is a lock-free stack implementation. Add a 
+	 * tag to solve "ABA" problem. 
+	 */
 	target = (unsigned long long *)(&fl->next);
 	do {
 		old      = *(volatile unsigned long long *)target;
@@ -528,13 +540,15 @@ cbuf_free(cbuf_t cb)
 
 		if (CBUF_TMEM(cm)) {
 			assert(CBUF_OWNER(cm));
-			/* non-null next pointer can prevent the manager 
+			/* 
+			 * non-null next pointer can prevent the manager 
 			 * to collect this cbuf. Again, we have to 
 			 * guarantee such order. If we first decrease 
 			 * the refcnt, the manager may collect this 
 			 * and give it to another thread who will put 
 			 * it in the free-list. Thus we may put the 
-			 * same cbuf on the free-list twice. */
+			 * same cbuf on the free-list twice. 
+			 */
 			cm->next = (struct cbuf_meta *)1;
 			cos_compiler_barrier();
 			CBUF_REFCNT_ATOMIC_DEC(cm);

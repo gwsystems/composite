@@ -70,7 +70,8 @@ __cbuf_2buf_miss(int cbid, int len)
 	return 0;
 }
 
-/* Return the first one to client and put the rest to the 
+/*
+ * Return the first one to client and put the rest to the 
  * free-list. csp is the shared page between this client and manager. 
  *
  * Synchronization around this shared ring buffer.  This is a single
@@ -98,8 +99,10 @@ __cbuf_get_collect(struct cbuf_shared_page *csp, unsigned long size, unsigned in
 		}
 	} while(!__cbuf_try_take(ret_cm, flag));
 
-	/* ...add the rest back into freelists. construct a temporary freelist 
-	 * first, then add this temporal list to freelist atomically*/
+	/* 
+	 * ...add the rest back into freelists. construct a temporary freelist 
+	 * first, then add this temporal list to freelist atomically
+	 */
 	if (CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) {
 		head = tail = cbuf_vect_lookup_addr(el.cbid);
 		assert(head && head->cbid_tag.cbid == el.cbid);
