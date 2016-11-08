@@ -51,13 +51,15 @@ cp rumpcos.o ../../../../../transfer/
 cp qemu_rk.sh ../../../../../transfer/
 
 cd ../../../../../transfer/
-./geniso.sh rumpkernboot.sh
-USB_DEV=`stat --format "%F" /dev/sdb`
 
-if [ "$USB_DEV" = "block special file" ]; then
-	echo "WRITIING ISO IMAGE to /dev/sdb: $USB_DEV"
-	sudo dd bs=8M if=composite.iso of=/dev/sdb
-	sync
-else
-	echo "CANNOT WRITE ISO IMAGE TO /dev/sdb: $USB_DEV"
-fi
+# Uncomment to copy to USB to boot on hw
+#./geniso.sh rumpkernboot.sh
+#USB_DEV=`stat --format "%F" /dev/sdb`
+#
+#if [ "$USB_DEV" = "block special file" ]; then
+#	echo "WRITIING ISO IMAGE to /dev/sdb: $USB_DEV"
+#	sudo dd bs=8M if=composite.iso of=/dev/sdb
+#	sync
+#else
+#	echo "CANNOT WRITE ISO IMAGE TO /dev/sdb: $USB_DEV"
+#fi

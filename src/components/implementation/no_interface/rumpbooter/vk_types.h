@@ -3,7 +3,7 @@
 
 #include <cos_types.h>
 
-#define COS_VIRT_MACH_COUNT 3
+#define COS_VIRT_MACH_COUNT 2
 #define COS_VIRT_MACH_MEM_SZ (1<<27) //128MB
 #define COS_SHM_VM_SZ (1<<20) //2MB
 #define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) > 0 ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
@@ -13,9 +13,7 @@
 #define SCHED_MIN_TIMESLICE (10)
 #define SCHED_QUANTUM (VM_TIMESLICE * 100)
 
-#define PRINT_CPU_USAGE 
-
-#define BOOTUP_ITERS 100 
+#define BOOTUP_ITERS 100
 
 #define __SIMPLE_XEN_LIKE_TCAPS__
 #undef __SIMPLE_DISTRIBUTED_TCAPS__
@@ -24,9 +22,9 @@
 #define HW_ISR_LINES 32
 #define HW_ISR_FIRST 1
 
-capid_t irq_thdcap[HW_ISR_LINES]; 
+capid_t irq_thdcap[HW_ISR_LINES];
 thdid_t irq_thdid[HW_ISR_LINES];
-tcap_t irq_tcap[HW_ISR_LINES]; 
+tcap_t irq_tcap[HW_ISR_LINES];
 capid_t irq_arcvcap[HW_ISR_LINES];
 tcap_prio_t irq_prio[HW_ISR_LINES];
 
@@ -43,7 +41,7 @@ enum vm_prio {
 };
 
 #define IO_BOUND_VM  1  /* VM that is I/O Bound */
-#define CPU_BOUND_VM 2 /* VM that is CPU Bound: Set to a val beyond number of VMs, so no CPU BOUND VM */ 
+#define CPU_BOUND_VM 2 /* VM that is CPU Bound: Set to a val beyond number of VMs, so no CPU BOUND VM */
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 #define RIO_PRIO    PRIO_HIGH /* REAL I/O Priority */
@@ -69,7 +67,7 @@ unsigned int vio_deficit[COS_VIRT_MACH_COUNT - 1][COS_VIRT_MACH_COUNT - 1];
  *                     to not stall the processing. so deficit in dom0 for a
  *                     packet processed for vm-i.
  */
-unsigned int dom0_vio_deficit[COS_VIRT_MACH_COUNT - 1]; 
+unsigned int dom0_vio_deficit[COS_VIRT_MACH_COUNT - 1];
 #endif
 
 enum vm_status {
@@ -81,13 +79,13 @@ enum vm_status {
 enum vm_credits {
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	DOM0_CREDITS = 1,
-	VM1_CREDITS  = 4,
-	VM2_CREDITS  = 5,
+	VM1_CREDITS  = 1,
+	VM2_CREDITS  = 8,
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	DOM0_CREDITS = 0, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%) 
+	DOM0_CREDITS = 1, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%)
 	VM1_CREDITS  = 4,
-	IO_BOOST_CREDITS = 1,
-	VM2_CREDITS  = 4,
+	IO_BOOST_CREDITS = 0,
+	VM2_CREDITS  = 5,
 #endif
 };
 
