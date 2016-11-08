@@ -234,7 +234,7 @@ cbuf_map(spdid_t spdid, vaddr_t daddr, void *page, unsigned long size, int flags
 		vaddr_t d = daddr + off;
 		if (unlikely(d != (mman_alias_page(cos_spd_id(), ((vaddr_t)page) + off,
 						   spdid, d, flags)))) {
-			for(d = daddr+off-PAGE_SIZE; d >= daddr; d -= PAGE_SIZE) {
+			for (d = daddr + off - PAGE_SIZE ; d >= daddr ; d -= PAGE_SIZE) {
 				mman_revoke_page(spdid, d, 0);
 			}
 			return -ENOMEM;
@@ -461,7 +461,7 @@ cbuf_mark_relinquish_all(struct cbuf_comp_info *cci)
 	struct cbuf_info *cbi;
 	struct cbuf_maps *m;
 
-	for(i=cci->nbin-1; i>=0; --i) {
+	for (i = cci->nbin-1 ; i >= 0 ; i--) {
 		bin = &cci->cbufs[i];
 		cbi = bin->c;
 		do {
@@ -1039,7 +1039,7 @@ cbuf_shrink(struct cbuf_comp_info *cci, int diff)
 	struct cbuf_bin *bin;
 	struct cbuf_info *cbi, *next, *head;
 
-	for(i=cci->nbin-1; i>=0; i--) {
+	for (i = cci->nbin-1 ; i >= 0 ; i--) {
 		bin = &cci->cbufs[i];
 		sz = (int)bin->size;
 		if (!bin->c) continue;
@@ -1161,14 +1161,17 @@ static int __debug_reference(struct cbuf_info * cbi)
 {
 	struct cbuf_maps *m = &cbi->owner;
 	int sent = 0, recvd = 0;
+
 	do {
 		struct cbuf_meta *meta = m->m;
+
 		if (CBUF_REFCNT(meta)) return 1;
 		sent  += meta->snd_rcv.nsent;
 		recvd += meta->snd_rcv.nrecvd;
-		m   = FIRST_LIST(m, next, prev);
+		m      = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
 	if (sent != recvd) return 1;
+
 	return 0;
 }
 
@@ -1192,7 +1195,7 @@ unsigned long cbuf_debug_cbuf_info(spdid_t spdid, int index, int p)
 	ret[1] = cci->allocated_size;
 	if(p == 1) printc("target %lu %lu allocate %lu %lu\n", ret[0], ret[0]/PAGE_SIZE, ret[1], ret[1]/PAGE_SIZE);
 
-	for(i=cci->nbin-1; i>=0; i--) {
+	for (i = cci->nbin-1 ; i >= 0 ; i--) {
 		bin = &cci->cbufs[i];
 		sz = bin->size;
 		if (!bin->c) continue;
@@ -1241,7 +1244,7 @@ void cbuf_debug_cbiddump(int cbid)
 	cbi = cmap_lookup(&cbufs, cbid);
 	assert(cbi);
 	printc("cbid %d cbi: id %d sz %lu mem %p\n", cbid, cbi->cbid, cbi->size, cbi->mem);
-	m   = &cbi->owner;
+	m = &cbi->owner;
 	do {
 		struct cbuf_meta *meta = m->m;
 		printc("map: spd %d addr %lux meta %p\n", m->spdid, m->addr, m->m);

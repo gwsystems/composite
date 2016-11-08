@@ -169,7 +169,7 @@ cbuf_init(void)
 	struct cbuf_freelist *fl = PERCPU_GET(cbuf_alloc_freelists);
 	struct cbuf_meta *m;
 	int i;
-	for(i=0; i<CBUF_MAX_NSZ; i++) {
+	for (i = 0 ; i < CBUF_MAX_NSZ ; i++) {
 		m = &(fl->freelist_head[i]);
 		m->next = m;
 	}

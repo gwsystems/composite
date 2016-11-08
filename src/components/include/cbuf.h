@@ -560,6 +560,7 @@ static int cbuf_debug_freelist_num(unsigned long sz)
 {
 	struct cbuf_meta *cm, *fl;
 	int ret = 0;
+
 	sz = nlepow2(round_up_to_page(sz));
 	fl = __cbuf_freelist_get(sz);
 	cm = fl->next;
@@ -573,18 +574,22 @@ static int cbuf_debug_freelist_num(unsigned long sz)
 static void cbuf_debug_clear_freelist(unsigned long sz)
 {
 	cbuf_t cb;
+
 	sz = nlepow2(round_up_to_page(sz));
 	cbuf_mempool_resize(cos_spd_id(), 0);
 	assert(0 == cbuf_debug_cbuf_info(cos_spd_id(), 2, 0));
+
 	/* all cbufs in free list should be inconsistent */
 	cbuf_map_collect(cos_spd_id());
 	assert(0 == cbuf_collect(cos_spd_id(), sz));
 	cbuf_mempool_resize(cos_spd_id(), sz);
+
 	/* discard all inconsistent ones in free list */
 	cbuf_alloc(sz, &cb);
 	cbuf_vect_lookup_addr(cb);
 	assert(0 == cbuf_collect(cos_spd_id(), sz));
 	cbuf_free(cb);
+
 	cbuf_mempool_resize(cos_spd_id(), 0);
 	assert(0 == cbuf_collect(cos_spd_id(), sz));
 	assert(0 == cbuf_debug_freelist_num(sz));
