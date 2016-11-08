@@ -138,9 +138,11 @@ again:
 	if (!(flag & CBUF_EXACTSZ)) {
 		ret_cm = __cbuf_get_collect(csp, size, flag);
 		if (ret_cm) goto done;
-		amnt = cbuf_collect(cos_spd_id(), size);
+
+		amnt   = cbuf_collect(cos_spd_id(), size);
 		if (unlikely(amnt < 0)) goto done;
 		assert((unsigned)amnt <= CSP_BUFFER_SIZE);
+
 		ret_cm = __cbuf_get_collect(csp, size, flag);
 		if (!ret_cm) ret_cm = __cbuf_freelist_pop(size, flag);
 		else 	assert(ret_cm && CBUF_PTR(ret_cm));
@@ -150,8 +152,9 @@ again:
 	if (!ret_cm) {
 		cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
 		/* We return from being blocked */
-		if (cbid == 0) goto again;
-		else if (cbid < 0 ) {
+		if (cbid == 0) {
+			goto again;
+		} else if (cbid < 0 ) {
 			if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid*-1)) < 0) goto done;
 			cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
 		}

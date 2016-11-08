@@ -320,9 +320,7 @@ cbuf_referenced(struct cbuf_info *cbi)
 
 	old_nfo = own_mt->nfo;
 	new_nfo = old_nfo | CBUF_INCONSISENT;
-	if (unlikely(!cos_cas(&own_mt->nfo, old_nfo, new_nfo))) {
-		goto done;
-	}
+	if (unlikely(!cos_cas(&own_mt->nfo, old_nfo, new_nfo))) goto done;
 
 	mt   = (struct cbuf_meta *)(&old);
 	sent = recvd = 0;
@@ -340,10 +338,8 @@ cbuf_referenced(struct cbuf_info *cbi)
 		 * nsent/nrecv, now it is 1, which is equal to c0's nsent/nrecv. 
 		 * Thus the manager can collect or unmap this cbuf.
 		 */
-		old = *(unsigned long long *)meta;
-		if (unlikely(!cos_dcas(&old, old, old))) {
-			goto unset;
-		}
+		memcpy(&old, meta, sizeof(unsigned long long));
+		if (unlikely(!cos_dcas(&old, old, old))) goto unset;
 		if (CBUF_REFCNT(mt)) goto unset;		
 		/* 
 		 * TODO: add per-mapping counter of sent and recv in the manager
@@ -372,9 +368,7 @@ cbuf_references_clear(struct cbuf_info *cbi)
 	do {
 		struct cbuf_meta *meta = m->m;
 
-		if (meta) {
-			meta->snd_rcv.nsent = meta->snd_rcv.nrecvd = 0;
-		}
+		if (meta) meta->snd_rcv.nsent = meta->snd_rcv.nrecvd = 0;
 		m = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
 
@@ -405,9 +399,7 @@ cbuf_unmap_prepare(struct cbuf_info *cbi)
 		old_nfo = m->m->nfo;
 		if (old_nfo & CBUF_REFCNT_MAX) return 1;
 		new_nfo = old_nfo & CBUF_INCONSISENT;
-		if (unlikely(!cos_cas(&m->m->nfo, old_nfo, new_nfo))) {
-			return 1;
-		}
+		if (unlikely(!cos_cas(&m->m->nfo, old_nfo, new_nfo))) return 1;
 		m   = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
 
@@ -989,7 +981,10 @@ cbuf_retrieve(spdid_t spdid, int cbid, unsigned long size)
 	cbi        = cmap_lookup(&cbufs, cbid);
 	if (!cbi) {printd("no cbi\n"); goto done; }
 	/* shouldn't cbuf2buf your own buffer! */
-	if (cbi->owner.spdid == spdid) {printd("owner\n"); goto done;}
+	if (cbi->owner.spdid == spdid) {
+		printd("owner\n"); 
+		goto done;
+	}
 	meta       = cbuf_meta_lookup(cci, cbid);
 	if (!meta) {printd("no meta\n"); goto done; }
 	assert(!(meta->nfo & ~CBUF_INCONSISENT));
@@ -1191,7 +1186,8 @@ cos_init(void)
 
 
 /* Debug helper functions */
-static int __debug_reference(struct cbuf_info * cbi)
+static int 
+__debug_reference(struct cbuf_info * cbi)
 {
 	struct cbuf_maps *m = &cbi->owner;
 	int sent = 0, recvd = 0;
@@ -1209,7 +1205,8 @@ static int __debug_reference(struct cbuf_info * cbi)
 	return 0;
 }
 
-unsigned long cbuf_debug_cbuf_info(spdid_t spdid, int index, int p)
+unsigned long
+cbuf_debug_cbuf_info(spdid_t spdid, int index, int p)
 {
 	unsigned long ret[20], sz;
 	struct cbuf_comp_info *cci;
@@ -1288,7 +1285,8 @@ void cbuf_debug_cbiddump(int cbid)
 	} while(m != &cbi->owner);
 }
 
-void cbuf_debug_profile(int p)
+void
+cbuf_debug_profile(int p)
 {
 	if (p) {
 		if (op_nums[0] != 0) printc("create %d avg %llu\n", op_nums[0], per_total[0]/op_nums[0]);

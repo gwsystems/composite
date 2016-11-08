@@ -318,7 +318,10 @@ __cbuf_send(cbuf_t cb, int free)
 
 	int old = cm->snd_rcv.nsent;
 	CBUF_NSND_ATOMIC_INC(cm);
-	if (!(cm->snd_rcv.nsent > old)) printc("spd %d thd %d cb %d sent %d old %d\n", cos_spd_id(), cos_get_thd_id(), cb, cm->snd_rcv.nsent, old);
+	if (!(cm->snd_rcv.nsent > old)) {
+		printc("spd %d thd %d cb %d sent %d old %d\n", 
+			cos_spd_id(), cos_get_thd_id(), cb, cm->snd_rcv.nsent, old);
+	}
 	assert(cm->snd_rcv.nsent > old);
 	if (free) cbuf_free(cb);
 }
@@ -385,6 +388,7 @@ __cbuf_try_take(struct cbuf_meta *cm, unsigned int flag)
 {
 	int inconsistent, r = 0;
 	unsigned long old_nfo, new_nfo;
+
 	assert(cm && cm->next);
 	old_nfo = cm->nfo;
 	assert(!(old_nfo & CBUF_REFCNT_MAX));
@@ -570,7 +574,8 @@ cbuf_is_cbuf(void *buf)
 
 
 /*===== Debug functions ======*/
-static int cbuf_debug_freelist_num(unsigned long sz)
+static int
+cbuf_debug_freelist_num(unsigned long sz)
 {
 	struct cbuf_meta *cm, *fl;
 	int ret = 0;
@@ -585,7 +590,8 @@ static int cbuf_debug_freelist_num(unsigned long sz)
 	return ret;
 }
 
-static void cbuf_debug_clear_freelist(unsigned long sz)
+static void
+cbuf_debug_clear_freelist(unsigned long sz)
 {
 	cbuf_t cb;
 
