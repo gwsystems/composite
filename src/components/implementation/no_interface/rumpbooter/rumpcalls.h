@@ -50,7 +50,7 @@ struct cos_rumpcalls
 	void*  (*rump_memalloc)(size_t nbytes, size_t align);
 	void*  (*rump_pgalloc)(void);
 	void   (*rump_memfree)(void *cp);
-	void*  (*rump_memset)(void *b, int c, size_t n); //testing
+	void*  (*rump_memset)(void *b, int c, size_t n);
 	u16_t  (*rump_cos_thdid)(void);
 	void*  (*rump_memcpy)(void *d, const void *src, size_t n);
 	void   (*rump_cpu_sched_create)(struct bmk_thread *thread, struct bmk_tcb *tcb,
@@ -70,6 +70,7 @@ struct cos_rumpcalls
 	void   (*rump_sched_yield)(void);
 	void   (*rump_vm_yield)(void);
 	int    (*rump_dequeue_size)(unsigned int srcvm, unsigned int dstvm);
+	void   (*rump_fs_test)(void);
 };
 
 /* Mapping the functions from rumpkernel to composite */
@@ -106,5 +107,7 @@ void cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_pr
 void cos_vio_tcap_update(unsigned int dst);
 void cos_vio_tcap_set(unsigned int src);
 tcap_t cos_find_vio_tcap(void);
+
+void cos_fs_test(void);
 
 #endif /* RUMPCALLS_H */

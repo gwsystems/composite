@@ -32,28 +32,28 @@ cos2rump_setup(void)
 {
 	rump_bmk_memsize_init();
 
-	crcalls.rump_cpu_clock_now 		= cos_cpu_clock_now;
-	crcalls.rump_vm_clock_now 		= cos_vm_clock_now;
-	crcalls.rump_cos_print 	      		= cos_print;
-	crcalls.rump_vsnprintf        		= vsnprintf;
-	crcalls.rump_strcmp           		= strcmp;
-	crcalls.rump_strncpy          		= strncpy;
+	crcalls.rump_cpu_clock_now		= cos_cpu_clock_now;
+	crcalls.rump_vm_clock_now		= cos_vm_clock_now;
+	crcalls.rump_cos_print			= cos_print;
+	crcalls.rump_vsnprintf			= vsnprintf;
+	crcalls.rump_strcmp			= strcmp;
+	crcalls.rump_strncpy			= strncpy;
 
 	/* These should be removed, confirm that they are never used */
-	crcalls.rump_memcalloc        		= cos_memcalloc;
-	crcalls.rump_memalloc         		= cos_memalloc;
+	crcalls.rump_memcalloc			= cos_memcalloc;
+	crcalls.rump_memalloc			= cos_memalloc;
 
 
-	crcalls.rump_cos_thdid        		= cos_thdid;
-	crcalls.rump_memcpy           		= memcpy;
+	crcalls.rump_cos_thdid			= cos_thdid;
+	crcalls.rump_memcpy			= memcpy;
 	crcalls.rump_memset			= cos_memset;
-	crcalls.rump_cpu_sched_create 		= cos_cpu_sched_create;
+	crcalls.rump_cpu_sched_create		= cos_cpu_sched_create;
 
 	if(!crcalls.rump_cpu_sched_create) printc("SCHED: rump_cpu_sched_create is set to null");
 
 	crcalls.rump_cpu_sched_switch_viathd    = cos_cpu_sched_switch;
 	crcalls.rump_memfree			= cos_memfree;
-	crcalls.rump_tls_init 			= cos_tls_init;
+	crcalls.rump_tls_init			= cos_tls_init;
 	crcalls.rump_va2pa			= cos_vatpa;
 	crcalls.rump_pa2va			= cos_pa2va;
 	crcalls.rump_resume                     = cos_resume;
@@ -68,7 +68,36 @@ cos2rump_setup(void)
 	crcalls.rump_shmem_recv			= cos_shmem_recv;
 	crcalls.rump_dequeue_size		= cos_dequeue_size;
 
+	crcalls.rump_fs_test			= cos_fs_test;
+
 	return;
+}
+
+static void
+test_entry(void)
+{ return; }
+
+void
+cos_fs_test(void)
+{
+	sinvcap_t sinv;
+	printc("Running cos fs test\n");
+
+	/*
+	 * TODO
+	 * Need a sinvcap_t, use cos_sinv_alloc(srcci, dstcomp, entry addr)
+	 * Set up entry address as a place where we can get a new stack
+	 * Add syscall for sycronous invocations in cos_kernel_api.c with CAP_SINV
+	 * Call into other component
+	 */
+
+	/* For the time being, just switch to ourselves */
+	sinv = cos_sinv_alloc(&booter_info, booter_info.comp_cap, (vaddr_t)test_entry);
+	assert(sinv > 0);
+
+	cos_sinv(sinv);
+
+	printc("Done running cos fs test\n\n");
 }
 
 int
@@ -88,7 +117,7 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 	else sndcap = VM_CAPTBL_SELF_IOASND_BASE;
 
 	//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
-	cos_shm_write(buff, size, srcvm, dstvm);	
+	cos_shm_write(buff, size, srcvm, dstvm);
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	/* DOM0 just sends out the packets.. */
@@ -355,7 +384,7 @@ print_cycles(void)
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 		if (vmid == IO_BOUND_VM) {
 			mainbud = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
-			
+
 			printc("vm%d: %lu\n", vmid, mainbud);
 		} else if (vmid == 0) {
 			mainbud = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
@@ -403,7 +432,7 @@ cos_resume(void)
 			 * Loop is neccessary incase we get preempted before a valid
 			 * interrupt finishes execuing and we requrie that it finishes
 			 * executing before returning to RK
-		 	 */
+			 */
 
 			do {
 				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles);

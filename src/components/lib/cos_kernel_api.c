@@ -570,6 +570,10 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 	return cap;
 }
 
+int
+cos_sinv(sinvcap_t sinv)
+{ return call_cap_op(sinv, 0, 0, 0, 0, 0); }
+
 /*
  * Arguments:
  * thdcap:  the thread to activate on snds to the rcv endpoint.

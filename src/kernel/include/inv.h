@@ -267,6 +267,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	 * this path (to avoid serialization in the store buffer), and
 	 * optimize the static branch prediction.
 	 */
+	printk("\nsinv_call\n\n");
 	if (unlikely(!ltbl_isalive(&(sinvc->comp_info.liveness)))) {
 		printk("cos: sinv comp (liveness %d) doesn't exist!\n", sinvc->comp_info.liveness.id);
 		//FIXME: add fault handling here.
