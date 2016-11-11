@@ -87,7 +87,7 @@ struct snd_rcv_info{
 }__attribute__((packed));
 
 union cbid_tag {
-	int cbid;
+	unsigned int cbid;
 	unsigned int tag;
 };
 

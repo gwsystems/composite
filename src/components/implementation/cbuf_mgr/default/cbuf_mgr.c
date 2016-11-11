@@ -72,7 +72,7 @@ struct cbuf_maps {
 };
 
 struct cbuf_info {
-	int cbid;
+	unsigned int cbid;
 	unsigned long size;
 	char *mem;
 	struct cbuf_maps owner;
@@ -83,7 +83,7 @@ struct cbuf_info {
 struct cbuf_meta_range {
 	struct cbuf_meta *m;
 	vaddr_t dest;
-	int low_id;
+	unsigned int low_id;
 	struct cbuf_meta_range *next, *prev;
 };
 #define CBUF_META_RANGE_HIGH(cmr) (cmr->low_id + (int)(PAGE_SIZE/sizeof(struct cbuf_meta)))
@@ -176,7 +176,7 @@ tracking_end(struct cbuf_tracking *t, cbuf_debug_t index)
 }
 
 static struct cbuf_meta_range *
-cbuf_meta_lookup_cmr(struct cbuf_comp_info *comp, int cbid)
+cbuf_meta_lookup_cmr(struct cbuf_comp_info *comp, unsigned int cbid)
 {
 	struct cbuf_meta_range *cmr;
 	assert(comp);
@@ -194,7 +194,7 @@ cbuf_meta_lookup_cmr(struct cbuf_comp_info *comp, int cbid)
 }
 
 static struct cbuf_meta *
-cbuf_meta_lookup(struct cbuf_comp_info *comp, int cbid)
+cbuf_meta_lookup(struct cbuf_comp_info *comp, unsigned int cbid)
 {
 	struct cbuf_meta_range *cmr;
 
@@ -204,7 +204,7 @@ cbuf_meta_lookup(struct cbuf_comp_info *comp, int cbid)
 }
 
 static struct cbuf_meta_range *
-cbuf_meta_add(struct cbuf_comp_info *comp, int cbid, struct cbuf_meta *m, vaddr_t dest)
+cbuf_meta_add(struct cbuf_comp_info *comp, unsigned int cbid, struct cbuf_meta *m, vaddr_t dest)
 {
 	struct cbuf_meta_range *cmr;
 
@@ -601,6 +601,7 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	struct cbuf_meta *meta;
 	struct cbuf_bin *bin;
 	int ret = 0;
+	unsigned int id = (unsigned int)cbid;
 
 	printl("cbuf_create\n");
 	if (unlikely(cbid < 0)) return 0;
@@ -631,11 +632,11 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 		/* Allocate and map in the cbuf. Discard inconsistent cbufs */
 		/* TODO: Find a better way to manage those inconsistent cbufs */
 		do {
-			cbid = cmap_add(&cbufs, cbi);
-			meta = cbuf_meta_lookup(cci, cbid);
+			id   = cmap_add(&cbufs, cbi);
+			meta = cbuf_meta_lookup(cci, id);
 		} while(meta && CBUF_INCONSISENT(meta));
 
-		cbi->cbid        = cbid;
+		cbi->cbid        = id;
 		size             = round_up_to_page(size);
 		cbi->size        = size;
 		cbi->owner.m     = NULL;
@@ -649,15 +650,15 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	} 
 	/* If the client has a cbid, then make sure we agree! */
 	else {
-		cbi = cmap_lookup(&cbufs, cbid);
+		cbi = cmap_lookup(&cbufs, id);
 		if (unlikely(!cbi)) goto done;
 		if (unlikely(cbi->owner.spdid != spdid)) goto done;
 	}
-	meta = cbuf_meta_lookup(cci, cbid);
+	meta = cbuf_meta_lookup(cci, id);
 
 	/* We need to map in the meta for this cbid.  Tell the client. */
 	if (!meta) {
-		ret = cbid * -1;
+		ret = (int)id * -1;
 		goto done;
 	}
 	
@@ -668,7 +669,7 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	 */
 	memset(meta, 0, sizeof(struct cbuf_meta));
 	meta->sz            = cbi->size >> PAGE_ORDER;
-	meta->cbid_tag.cbid = cbid;
+	meta->cbid_tag.cbid = id;
 	CBUF_FLAG_ADD(meta, CBUF_OWNER);
 	CBUF_PTR_SET(meta, cbi->owner.addr);
 	CBUF_REFCNT_INC(meta);
@@ -692,28 +693,27 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	if (bin->c) ADD_LIST(bin->c, cbi, next, prev);
 	else        bin->c   = cbi;
 	cci->allocated_size += size;
-	ret = cbid;
+	ret = (int)id;
 done:
 	tracking_end(NULL, CBUF_CRT);
 	CBUF_RELEASE();
 
 	return ret;
 free:
-	cmap_del(&cbufs, cbid);
+	cmap_del(&cbufs, id);
 	free(cbi);
 	goto done;
 }
 
 vaddr_t
-cbuf_map_at(spdid_t s_spd, int cbid, spdid_t d_spd, vaddr_t d_addr)
+cbuf_map_at(spdid_t s_spd, unsigned int cbid, spdid_t d_spd, vaddr_t d_addr)
 {
 	vaddr_t ret = (vaddr_t)NULL;
 	struct cbuf_info *cbi;
-	int flags, id;
+	int flags;
 	
-	id = cbid;
 	CBUF_TAKE();
-	cbi = cmap_lookup(&cbufs, id);
+	cbi = cmap_lookup(&cbufs, cbid);
 	assert(cbi);
 	if (unlikely(!cbi)) goto done;
 	assert(cbi->owner.spdid == s_spd);
@@ -740,17 +740,15 @@ free:
 }
 
 int
-cbuf_unmap_at(spdid_t s_spd, int cbid, spdid_t d_spd, vaddr_t d_addr)
+cbuf_unmap_at(spdid_t s_spd, unsigned int cbid, spdid_t d_spd, vaddr_t d_addr)
 {
 	struct cbuf_info *cbi;
-	int ret = 0, id;
+	int ret = 0, err = 0;
 	u32_t off;
-	int err;
 
-	id = cbid;
 	assert(d_addr);
 	CBUF_TAKE();
-	cbi = cmap_lookup(&cbufs, id);
+	cbi = cmap_lookup(&cbufs, cbid);
 	if (unlikely(!cbi)) ERR_THROW(-EINVAL, done);
 	if (unlikely(cbi->owner.spdid != s_spd)) ERR_THROW(-EPERM, done);
 	assert(cbi->size == round_to_page(cbi->size));
@@ -947,7 +945,7 @@ done:
  * Called by cbuf_deref.
  */
 int
-cbuf_delete(spdid_t spdid, int cbid)
+cbuf_delete(spdid_t spdid, unsigned int cbid)
 {
 	struct cbuf_comp_info *cci;
 	struct cbuf_info *cbi;
@@ -989,7 +987,7 @@ done:
  * Called by cbuf2buf to retrieve a given cbid.
  */
 int
-cbuf_retrieve(spdid_t spdid, int cbid, unsigned long size)
+cbuf_retrieve(spdid_t spdid, unsigned int cbid, unsigned long size)
 {
 	struct cbuf_comp_info *cci, *own;
 	struct cbuf_info *cbi;
@@ -1024,7 +1022,7 @@ cbuf_retrieve(spdid_t spdid, int cbid, unsigned long size)
 	size       = cbi->size;
 	/* TODO: change to MAPPING_READ */
 	if (cbuf_alloc_map(spdid, &map->addr, NULL, cbi->mem, size, MAPPING_RW)) {
-		printc("cbuf mgr map fail spd %d mem %p sz %d cbid %d\n", spdid, cbi->mem, size, cbid);
+		printc("cbuf mgr map fail spd %d mem %p sz %lu cbid %u\n", spdid, cbi->mem, size, cbid);
 		goto free;
 	}
 
@@ -1055,7 +1053,7 @@ free:
 }
 
 vaddr_t
-cbuf_register(spdid_t spdid, int cbid)
+cbuf_register(spdid_t spdid, unsigned int cbid)
 {
 	struct cbuf_comp_info  *cci;
 	struct cbuf_meta_range *cmr;
@@ -1295,20 +1293,20 @@ cbuf_debug_cbuf_info(spdid_t spdid, int index, int p)
 	return ret[index];
 }
 
-void cbuf_debug_cbiddump(int cbid)
+void cbuf_debug_cbiddump(unsigned int cbid)
 {
 	struct cbuf_info *cbi;
 	struct cbuf_maps *m;
 
-	printc("mgr dump cbid %d\n", cbid);
+	printc("mgr dump cbid %u\n", cbid);
 	cbi = cmap_lookup(&cbufs, cbid);
 	assert(cbi);
-	printc("cbid %d cbi: id %d sz %lu mem %p\n", cbid, cbi->cbid, cbi->size, cbi->mem);
+	printc("cbid %u cbi: id %d sz %lu mem %p\n", cbid, cbi->cbid, cbi->size, cbi->mem);
 	m = &cbi->owner;
 	do {
 		struct cbuf_meta *meta = m->m;
 		printc("map: spd %d addr %lux meta %p\n", m->spdid, m->addr, m->m);
-		printc("meta: nfo %lux addr %lux cbid %d\n", meta->nfo, CBUF_PTR(meta), meta->cbid_tag.cbid);
+		printc("meta: nfo %lux addr %lux cbid %u\n", meta->nfo, CBUF_PTR(meta), meta->cbid_tag.cbid);
 		m = FIRST_LIST(m, next, prev);
 	} while(m != &cbi->owner);
 }

@@ -41,7 +41,7 @@ PERCPU_VAR(cbuf_alloc_freelists);
  * had a miss.
  */
 int 
-__cbuf_2buf_miss(int cbid, int len)
+__cbuf_2buf_miss(unsigned int cbid, int len)
 {
 	struct cbuf_meta *mc;
 	int ret;
@@ -159,7 +159,7 @@ again:
 			cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
 		}
 		assert(cbid > 0);
-		ret_cm = cbuf_vect_lookup_addr(cbid);
+		ret_cm = cbuf_vect_lookup_addr((unsigned int)cbid);
 		if (unlikely(flag)) CBUF_FLAG_ADD(ret_cm, flag);
 	}
 	assert(ret_cm && CBUF_PTR(ret_cm));

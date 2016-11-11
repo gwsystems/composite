@@ -19,7 +19,7 @@
 #endif
 #include <cvect.h>
 
-vaddr_t cbuf_register(spdid_t spdid, int cbid);
+vaddr_t cbuf_register(spdid_t spdid, unsigned int cbid);
 extern cvect_t meta_cbuf;
 static inline int
 __cbuf_vect_expand_rec(struct cvect_intern *vi, const int id, const int depth)
