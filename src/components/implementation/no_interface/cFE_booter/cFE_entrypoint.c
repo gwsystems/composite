@@ -92,5 +92,5 @@ void cos_init(void) {
     */
     OS_IdleLoop();
 
-    panic("Application was shutdown!");
+    PANIC("Application was shutdown!");
 }

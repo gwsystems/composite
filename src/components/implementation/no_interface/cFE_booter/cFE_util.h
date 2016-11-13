@@ -13,7 +13,9 @@ prints(char *s);
 
 int __attribute__((format(printf,1,2))) printc(char *fmt, ...);
 
-void panic(char* message);
+#define PANIC(a) panic_impl(__func__, a)
+
+void panic_impl(const char* function, char* message);
 
 void __isoc99_sscanf(void);
 

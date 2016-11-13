@@ -13,7 +13,7 @@
 
 int32 OS_FS_Init(void)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -22,7 +22,7 @@ int32 OS_FS_Init(void)
 */
 int32 OS_creat(const char *path, int32  access)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -31,7 +31,7 @@ int32 OS_creat(const char *path, int32  access)
 */
 int32 OS_open(const char *path,  int32 access,  uint32 mode)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -40,7 +40,7 @@ int32 OS_open(const char *path,  int32 access,  uint32 mode)
 */
 int32 OS_close(int32  filedes)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -49,7 +49,7 @@ int32 OS_close(int32  filedes)
 */
 int32 OS_read(int32  filedes, void *buffer, uint32 nbytes)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -58,7 +58,7 @@ int32 OS_read(int32  filedes, void *buffer, uint32 nbytes)
 */
 int32 OS_write(int32  filedes, void *buffer, uint32 nbytes)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -67,7 +67,7 @@ int32 OS_write(int32  filedes, void *buffer, uint32 nbytes)
 */
 int32 OS_chmod(const char *path, uint32 access)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -76,7 +76,7 @@ int32 OS_chmod(const char *path, uint32 access)
 */
 int32 OS_stat(const char *path, os_fstat_t  *filestats)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -85,7 +85,7 @@ int32 OS_stat(const char *path, os_fstat_t  *filestats)
 */
 int32 OS_lseek(int32  filedes, int32 offset, uint32 whence)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -94,7 +94,7 @@ int32 OS_lseek(int32  filedes, int32 offset, uint32 whence)
 */
 int32 OS_remove(const char *path)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -103,7 +103,7 @@ int32 OS_remove(const char *path)
 */
 int32 OS_rename(const char *old_filename, const char *new_filename)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -112,7 +112,7 @@ int32 OS_rename(const char *old_filename, const char *new_filename)
 */
 int32 OS_cp(const char *src, const char *dest)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -121,7 +121,7 @@ int32 OS_cp(const char *src, const char *dest)
 */
 int32 OS_mv(const char *src, const char *dest)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -130,7 +130,7 @@ int32 OS_mv(const char *src, const char *dest)
 */
 int32 OS_FDGetInfo(int32 filedes, OS_FDTableEntry *fd_prop)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -139,7 +139,7 @@ int32 OS_FDGetInfo(int32 filedes, OS_FDTableEntry *fd_prop)
 */
 int32 OS_FileOpenCheck(char *Filename)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -148,7 +148,7 @@ int32 OS_FileOpenCheck(char *Filename)
 */
 int32 OS_CloseAllFiles(void)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -157,7 +157,7 @@ int32 OS_CloseAllFiles(void)
 */
 int32 OS_CloseFileByName(char *Filename)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -171,7 +171,7 @@ int32 OS_CloseFileByName(char *Filename)
 */
 int32 OS_mkdir(const char *path, uint32 access)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -180,7 +180,7 @@ int32 OS_mkdir(const char *path, uint32 access)
 */
 os_dirp_t OS_opendir(const char *path)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -189,7 +189,7 @@ os_dirp_t OS_opendir(const char *path)
 */
 int32 OS_closedir(os_dirp_t directory)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -198,7 +198,7 @@ int32 OS_closedir(os_dirp_t directory)
 */
 void OS_rewinddir(os_dirp_t directory)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
 }
 
 /*
@@ -206,7 +206,7 @@ void OS_rewinddir(os_dirp_t directory)
 */
 os_dirent_t * OS_readdir(os_dirp_t directory)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -215,7 +215,7 @@ os_dirent_t * OS_readdir(os_dirp_t directory)
 */
 int32 OS_rmdir(const char *path)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -228,7 +228,7 @@ int32 OS_rmdir(const char *path)
 int32 OS_mkfs(char *address,char *devname, char *volname,
                                 uint32 blocksize, uint32 numblocks)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 /*
@@ -236,7 +236,7 @@ int32 OS_mkfs(char *address,char *devname, char *volname,
 */
 int32 OS_mount(const char *devname, char *mountpoint)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -245,7 +245,7 @@ int32 OS_mount(const char *devname, char *mountpoint)
 */
 int32 OS_initfs(char *address,char *devname, char *volname, uint32 blocksize, uint32 numblocks)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -254,7 +254,7 @@ int32 OS_initfs(char *address,char *devname, char *volname, uint32 blocksize, ui
 */
 int32 OS_rmfs(char *devname)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -263,7 +263,7 @@ int32 OS_rmfs(char *devname)
 */
 int32 OS_unmount(const char *mountpoint)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -272,7 +272,7 @@ int32 OS_unmount(const char *mountpoint)
 */
 int32 OS_fsBlocksFree(const char *name)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -283,7 +283,7 @@ int32 OS_fsBlocksFree(const char *name)
 */
 int32 OS_fsBytesFree(const char *name, uint64 *bytes_free)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -292,7 +292,7 @@ int32 OS_fsBytesFree(const char *name, uint64 *bytes_free)
 */
 os_fshealth_t OS_chkfs(const char *name, boolean repair)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -301,7 +301,7 @@ os_fshealth_t OS_chkfs(const char *name, boolean repair)
 */
 int32 OS_FS_GetPhysDriveName(char * PhysDriveName, char * MountPoint)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -310,7 +310,7 @@ int32 OS_FS_GetPhysDriveName(char * PhysDriveName, char * MountPoint)
 */
 int32 OS_TranslatePath(const char *VirtualPath, char *LocalPath)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -319,7 +319,7 @@ int32 OS_TranslatePath(const char *VirtualPath, char *LocalPath)
 */
 int32 OS_GetFsInfo(os_fsinfo_t  *filesys_info)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
 
@@ -331,6 +331,6 @@ int32 OS_GetFsInfo(os_fsinfo_t  *filesys_info)
  * command to the file specified by the given OSAPI file descriptor */
 int32 OS_ShellOutputToFile(char* Cmd, int32 OS_fd)
 {
-    panic("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }

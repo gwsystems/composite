@@ -6,6 +6,8 @@
 #include <cos_kernel_api.h>
 #include <cobj_format.h>
 
+#include "cFE_util.h"
+
 static void
 cos_llprint(char *s, int len)
 { call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0); }
@@ -36,11 +38,11 @@ printc(char *fmt, ...)
 	  return ret;
 }
 
-void panic(char* message){
-	printc("cFE panic: %s", message);
+void panic_impl(const char* function, char* message){
+	printc("cFE panic in %s: %s", function, message);
 	assert(0);
 }
 
 void __isoc99_sscanf(void){
-	panic("__isoc99_sscanf not implemented!");
+	PANIC("__isoc99_sscanf not implemented!");
 }
