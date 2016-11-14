@@ -174,7 +174,7 @@ static int lock_is_thd_blocked(struct meta_lock *ml, unsigned short int thd)
 	return 0;
 }
 
-static inline void __lock_help(struct meta_lock *l, int smp)							// what is smp? Why is it always zero???
+static inline void __lock_help(struct meta_lock *l, int smp)
 {
 	union cos_lock_atomic_struct result, prev_val;
 	u16_t owner;

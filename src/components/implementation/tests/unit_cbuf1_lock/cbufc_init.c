@@ -25,7 +25,7 @@ void cos_init(void)
 	RELEASE();
 	//new_spd = quarantine_fork(cos_spd_id(), cos_spd_id());
 	TAKE();
-	cbufp_tests();
+	//cbufp_tests();
 	printc("UNIT TEST (CBUF & CBUFP) ALL PASSED\n");
 	RELEASE();
 	printc("Done in spd %d\n", cos_spd_id());

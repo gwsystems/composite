@@ -239,12 +239,13 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	if (cos_spd_cntl(COS_SPD_SET_FORK_ORIGIN, d_spd, source, 0)) { printc("error 3\n"); goto error; }
 	printd("Set fork origin to %d\n", source);
 
+	// This doesn't happen for at least this experiment, so ignore that
 	for (j = 0 ; j < (int)src_hdr->nsect ; j++) {
 		tot += cobj_sect_size(src_hdr, j);
 	}
 	if (tot > SERVICE_SIZE) {
-		if (cos_vas_cntl(COS_VAS_SPD_EXPAND, d_spd, sect->vaddr + SERVICE_SIZE, 
-				 3 * round_up_to_pgd_page(1))) {
+		printc("We are going to do VAS_SPD_EXPAND\n");
+		if (cos_vas_cntl(COS_VAS_SPD_EXPAND, d_spd, sect->vaddr + SERVICE_SIZE, 3 * round_up_to_pgd_page(1))) {
 			printc("error 4 cbboot: could not expand VAS for component %d\n", d_spd);
 			goto error;
 		}
@@ -289,24 +290,23 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 			cbm = old_sect_cbufs[j];
 			/* if RW, don't want to share, need new mem */
-			if (flags & MAPPING_RW) {
-				struct cbid_caddr new_cbm;
-				new_cbm.caddr = cbuf_alloc_ext(left, &new_cbm.cbid, CBUF_EXACTSZ);
-				printd("Avoid sharing, allocated new cbuf %d @ %x\n", new_cbm.cbid, (unsigned long)new_cbm.caddr);
-				if (!new_cbm.caddr) { printc("error 7\n"); goto error; }
-				memcpy(new_cbm.caddr, cbm.caddr, left);
-				printd("Memory being copied is [%s], from cbid %d\n", cbm.caddr, cbm.cbid);
-				cbm.caddr = new_cbm.caddr;
-				cbm.cbid = new_cbm.cbid;	// why?
-			}
-			assert(cbm.caddr);
-			cbid = cbm.cbid;
-			new_sect_cbufs[j] = cbm;
-			printd("cbuf id doing memcpy on is %d\n", cbid);
+//			if (flags & MAPPING_RW) {
+//				struct cbid_caddr new_cbm;
+//				new_cbm.caddr = cbuf_alloc_ext(left, &new_cbm.cbid, CBUF_EXACTSZ);
+//				printd("Avoid sharing, allocated new cbuf %u @ %x\n", new_cbm.cbid / 4, (unsigned long)new_cbm.caddr);
+//				if (!new_cbm.caddr) { printc("error 7\n"); goto error; }
+//				memcpy(new_cbm.caddr, cbm.caddr, left);
+//				printd("Memory being copied is [%s], from cbid %d\n", cbm.caddr, cbm.cbid);
+//				cbm.caddr = new_cbm.caddr;
+//				cbm.cbid = new_cbm.cbid;	// why?
+//			}
+//			assert(cbm.caddr);
+//			cbid = cbm.cbid;
+//			new_sect_cbufs[j] = cbm;
+//			printd("cbuf id doing memcpy on is %d\n", cbid);
 
-			/* Probably? where we copy cbufs */
-			if (d_addr != (cbuf_map_at(cos_spd_id(), cbid, d_spd, d_addr | flags))) { printc("error 8 - could not do cbuf_map_at to d_spd\n"); goto error;}
-			printd("mapped address %p\n", d_addr);
+//			if (d_addr != (cbuf_map_at(cos_spd_id(), cbid, d_spd, d_addr | flags))) { printc("error 8 - could not do cbuf_map_at to d_spd\n"); goto error;}
+//			printd("mapped address %p\n", d_addr);
 
 			if (sect->flags & COBJ_SECT_CINFO) {
 				/* fixup cinfo page */
@@ -321,18 +321,13 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		printd("prev_map is now %x\n", prev_map);
 	}
 
-	/* FIXME: set fault handlers and re-write caps */
-	printd("Activating %d\n", d_spd);
-	if (cos_spd_cntl(COS_SPD_ACTIVATE, d_spd, src_hdr->ncap, 0)) BUG();
-	printd("Setting capabilities for %d\n", d_spd);
-	if (__boot_spd_caps(src_hdr, d_spd)) BUG();
+	
+	
+	
 
-	/* Fix send-side fork counters */
-	if (send_side_counters(source, d_spd, src_hdr)) BUG();
-	if (receive_side_counters(source, d_spd)) BUG();
-
-	struct cobj_header *check_hdr;
-	if (!(check_hdr = cos_vect_lookup(&spd_sect_cbufs_header, 13))) BUG();
+	// wait what is this?
+	//struct cobj_header *check_hdr;
+	//if (!(check_hdr = cos_vect_lookup(&spd_sect_cbufs_header, 13))) BUG();
 
 	/* FIXME: better way to pick threads out. this will get the first
 	 * thread, preference to blocked, then search inv stk. The
@@ -360,10 +355,24 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	//r = mman_fork_spd(cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
 	//printd("Done with mman_fork, ret %d\n", r);
 	//if (r) printc("Error (%d) in mman_fork_spd\n", r);
-
+	
 	printd("Telling cbuf to fork(%d, %d, %d)\n", cos_spd_id(), source, d_spd);
 	r = cbuf_fork_spd(cos_spd_id(), source, d_spd);
 	if (r) printc("Error (%d) in cbuf_fork_spd\n", r);
+	
+	
+	/* 
+	 * FIXME: set fault handlers and re-write caps 
+	 * Also a note that activate should come after cbuf_fork, since it expects memory to be copied over.
+	 */
+	printd("Activating %d\n", d_spd);
+	if (cos_spd_cntl(COS_SPD_ACTIVATE, d_spd, src_hdr->ncap, 0)) BUG();
+	printd("Setting capabilities for %d\n", d_spd);
+	if (__boot_spd_caps(src_hdr, d_spd)) BUG();
+	
+	/* Fix send-side fork counters */
+	if (send_side_counters(source, d_spd, src_hdr)) BUG();
+	if (receive_side_counters(source, d_spd)) BUG();
 
 	quarantine_add_to_spd_map(source, d_spd);
 

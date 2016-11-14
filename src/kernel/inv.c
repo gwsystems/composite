@@ -209,7 +209,6 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	fork_cnts = need_fork_fix(cap_entry);
 	if (unlikely(fork_cnts > 0)) {
 		/* the off-by-1 capability */
-		printk("ipc_walk_static_cap found need to fork fix thd->id: %d, with curr_spd %d, d_spd %d, with fork_cnts %d\n", thd_get_id(thd), spd_get_index(curr_spd), spd_get_index(d_spd), fork_cnts);
 		return thd_quarantine_fault(thd, curr_spd, d_spd, ((capability-1)<<16) | fork_cnts, COS_FLT_QUARANTINE, ret);
 	}
 
@@ -400,19 +399,16 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	d_spd = spd_get_index(dest_spd);
 	packed_spds = (vaddr_t)((c_spd<<16)|d_spd);
 
-	printk("in thd_quarantine_fault c_spd is %d and d_spd is %d\n", c_spd, d_spd);
 	printk("cos: thd_quarantine_fault from kernel/inv.c %d (%d) -> %d (%d) with cap %d\n", c_spd, c_cnt, d_spd, d_cnt, capid);
 
 	/* GB: use curr_spd->fault_handler[], or dest_spd?
 	 * has to be dest_spd, otherwise static_ipc_walk fails, but
 	 * how do we fix-up the curr_spd then? */
 	if (unlikely(!__fault_ipc_invoke(thd, packed_spds, packed_counts, &thd->regs, fault_num, dest_spd))) return (vaddr_t)NULL;
-	printk("cos: fault thd reg args: si = %d, di = %d, ip = %lu\n", thd->regs.si, thd->regs.di, thd->regs.ip);
 	ret->si = thd->regs.si;
 	ret->di = thd->regs.di;
 	ret->bp = thd->regs.bp;
 
-	printk("thd->id: %d, thd->regs.ip %lu\n", ret->thd_id, thd->regs.ip);
 	return thd->regs.ip;
 }
 
@@ -624,7 +620,6 @@ cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 				if (arg2 == 0) return i;
 				else {
 					struct spd *d = spd_get_by_index(arg2);
-					printk("cos: quarantine thread %d from %d (%p) -> %ld (%p)\n", thd_get_id(thd), spd_get_index(tif->spd), tif->current_composite_spd, arg2, d->composite_spd);
 					tif->spd = d;
 					tif->current_composite_spd = d->composite_spd;
 					spd_mpd_ipc_take((struct composite_spd *)d->composite_spd);
@@ -892,7 +887,6 @@ switch_thread_update_flags(struct cos_sched_data_area *da, unsigned short int *f
 		*flags |= COS_SCHED_CHILD_EVT;
 }
 
- // print out on switch_thread errors???
 #ifdef NIL
 #define goto_err(label, format, args...)			\
 	do {							\

@@ -229,6 +229,7 @@ cbuf_cons(u32_t cbid)
 	cbuf_unpacked_t cu;
 	cu.v     = 0;
 	cu.c.id  = cbid;
+	printc("cbid %u cu.v %u\n", cbid, cu.v);
 	return cu.v; 
 }
 
@@ -362,6 +363,7 @@ cbuf_alloc_ext(unsigned int sz, cbuf_t *cb, unsigned int flag)
 	if (unlikely(flag & CBUF_EXACTSZ)) {
 		cm   = __cbuf_alloc_slow(sz, &len, flag);
 		assert(cm);
+		printc("going to done\n");
 		goto done;
 	}
 
@@ -403,6 +405,7 @@ done:
 	ret = (void *)(CBUF_PTR(cm));
 	cbid = cm->cbid_tag.cbid;
 	*cb = cbuf_cons(cbid);
+	printc("cbuf_alloc_ext returns *cb %u but has cbid %u (does *cb = cons(cbid))\n", *cb, cbid);
 	return ret;
 }
 
