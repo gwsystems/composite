@@ -132,9 +132,10 @@ uint32 CFE_PSP_Get_Dec(void)
 */
 
 
-int32 CFE_PSP_InitProcessorReservedMemory(uint32 RestartType )
+int32 CFE_PSP_InitProcessorReservedMemory(uint32 RestartType)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    // Since all operations on reserved memory are unimplemented, it's safe to
+    // do nothing here
     return 0;
 }
 /*

@@ -70,6 +70,31 @@ int32 OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop)
     return 0;
 }
 
+/*
+** Main thread waiting API
+*/
+
+/*
+** OS-specific background thread implementation - waits forever for events to occur.
+**
+** This should be called from the BSP main routine / initial thread after all other
+** board / application initialization has taken place and all other tasks are running.
+*/
+void OS_IdleLoop(void)
+{
+    PANIC("Unimplemented method!"); // TODO: Implement me!
+}
+
+/*
+** OS_ApplicationShutdown() provides a means for a user-created thread to request the orderly
+** shutdown of the whole system, such as part of a user-commanded reset command.
+** This is preferred over e.g. ApplicationExit() which exits immediately and does not
+** provide for any means to clean up first.
+*/
+void OS_ApplicationShutdown(uint8 flag)
+{
+    PANIC("Unimplemented method!"); // TODO: Implement me!
+}
 
 /*
 ** Mutex API

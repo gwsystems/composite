@@ -8,8 +8,7 @@
 #ifndef _cFE_util_
 #define _cFE_util_
 
-int
-prints(char *s);
+void llprint(const char *s, int len);
 
 int __attribute__((format(printf,1,2))) printc(char *fmt, ...);
 

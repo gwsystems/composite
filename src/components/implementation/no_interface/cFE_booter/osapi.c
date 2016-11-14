@@ -8,19 +8,7 @@
 */
 int32 OS_API_Init(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-/*
-** OS-specific background thread implementation - waits forever for events to occur.
-**
-** This should be called from the BSP main routine / initial thread after all other
-** board / application initialization has taken place and all other tasks are running.
-*/
-void OS_IdleLoop(void)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    // It's safe for this method to do nothing for now
 }
 
 /*
@@ -30,19 +18,10 @@ void OS_IdleLoop(void)
 */
 void OS_DeleteAllObjects(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    // It's safe for this method to do nothing for now
 }
 
-/*
-** OS_ApplicationShutdown() provides a means for a user-created thread to request the orderly
-** shutdown of the whole system, such as part of a user-commanded reset command.
-** This is preferred over e.g. ApplicationExit() which exits immediately and does not
-** provide for any means to clean up first.
-*/
-void OS_ApplicationShutdown(uint8 flag)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-}
+
 
 /*
 ** OS Time/Tick related API
@@ -234,28 +213,108 @@ int32 OS_HeapGetInfo(OS_heap_prop_t *heap_prop)
 /*
 ** API for useful debugging function
 */
+
+// Implementation stolen from the posix os api
 int32 OS_GetErrorName(int32 error_num, os_err_name_t* err_name)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    /*
+     * Implementation note for developers:
+     *
+     * The size of the string literals below (including the terminating null)
+     * must fit into os_err_name_t.  Always check the string length when
+     * adding or modifying strings in this function.  If changing os_err_name_t
+     * then confirm these strings will fit.
+     */
+
+    os_err_name_t local_name;
+    uint32        return_code = OS_SUCCESS;
+
+    if ( err_name == NULL )
+    {
+       return(OS_INVALID_POINTER);
+    }
+
+    switch (error_num)
+    {
+        case OS_SUCCESS:
+            strcpy(local_name,"OS_SUCCESS"); break;
+        case OS_ERROR:
+            strcpy(local_name,"OS_ERROR"); break;
+        case OS_INVALID_POINTER:
+            strcpy(local_name,"OS_INVALID_POINTER"); break;
+        case OS_ERROR_ADDRESS_MISALIGNED:
+            strcpy(local_name,"OS_ADDRESS_MISALIGNED"); break;
+        case OS_ERROR_TIMEOUT:
+            strcpy(local_name,"OS_ERROR_TIMEOUT"); break;
+        case OS_INVALID_INT_NUM:
+            strcpy(local_name,"OS_INVALID_INT_NUM"); break;
+        case OS_SEM_FAILURE:
+            strcpy(local_name,"OS_SEM_FAILURE"); break;
+        case OS_SEM_TIMEOUT:
+            strcpy(local_name,"OS_SEM_TIMEOUT"); break;
+        case OS_QUEUE_EMPTY:
+            strcpy(local_name,"OS_QUEUE_EMPTY"); break;
+        case OS_QUEUE_FULL:
+            strcpy(local_name,"OS_QUEUE_FULL"); break;
+        case OS_QUEUE_TIMEOUT:
+            strcpy(local_name,"OS_QUEUE_TIMEOUT"); break;
+        case OS_QUEUE_INVALID_SIZE:
+            strcpy(local_name,"OS_QUEUE_INVALID_SIZE"); break;
+        case OS_QUEUE_ID_ERROR:
+            strcpy(local_name,"OS_QUEUE_ID_ERROR"); break;
+        case OS_ERR_NAME_TOO_LONG:
+            strcpy(local_name,"OS_ERR_NAME_TOO_LONG"); break;
+        case OS_ERR_NO_FREE_IDS:
+            strcpy(local_name,"OS_ERR_NO_FREE_IDS"); break;
+        case OS_ERR_NAME_TAKEN:
+            strcpy(local_name,"OS_ERR_NAME_TAKEN"); break;
+        case OS_ERR_INVALID_ID:
+            strcpy(local_name,"OS_ERR_INVALID_ID"); break;
+        case OS_ERR_NAME_NOT_FOUND:
+            strcpy(local_name,"OS_ERR_NAME_NOT_FOUND"); break;
+        case OS_ERR_SEM_NOT_FULL:
+            strcpy(local_name,"OS_ERR_SEM_NOT_FULL"); break;
+        case OS_ERR_INVALID_PRIORITY:
+            strcpy(local_name,"OS_ERR_INVALID_PRIORITY"); break;
+
+        default: strcpy(local_name,"ERROR_UNKNOWN");
+                 return_code = OS_ERROR;
+    }
+
+    strcpy((char*) err_name, local_name);
+
+    return return_code;
 }
 
 
 /*
 ** Abstraction for printf statements
 */
-void OS_printf( const char *string, ...) {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+int is_printf_enabled = TRUE;
+
+void OS_printf(const char *string, ...)
+{
+    if(is_printf_enabled) {
+        char s[OS_BUFFER_SIZE];
+        va_list arg_ptr;
+        int ret, len = OS_BUFFER_SIZE;
+
+        va_start(arg_ptr, string);
+        ret = vsnprintf(s, len, string, arg_ptr);
+        va_end(arg_ptr);
+        llprint(s, ret);
+    }
 }
+
 
 void OS_printf_disable(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    is_printf_enabled = FALSE;
 }
 
 void OS_printf_enable(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    is_printf_enabled = TRUE;
 }
 
 /*
@@ -265,5 +324,5 @@ void OS_printf_enable(void)
 */
 void OS_ApplicationExit(int32 Status)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Application exit invoked!");
 }

@@ -80,6 +80,26 @@ void cos_init(void) {
     }
 
     /*
+    ** Initialize the OS API
+    */
+    OS_API_Init();
+
+    /*
+    ** Initialize the statically linked modules (if any)
+    ** This is only applicable to CMake build - classic build
+    ** does not have the logic to selectively include/exclude modules
+    **
+    ** This is useless until we support cmake
+    */
+    CFE_PSP_ModuleInit();
+
+    /*
+    ** Initialize the reserved memory
+    */
+    CFE_PSP_InitProcessorReservedMemory(reset_type);
+
+
+    /*
     ** Call cFE entry point.
     */
     CFE_ES_MAIN_FUNCTION(reset_type, args.SubType, 1, CFE_ES_NONVOL_STARTUP_FILE);
