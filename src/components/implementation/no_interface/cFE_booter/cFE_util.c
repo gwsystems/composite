@@ -13,6 +13,13 @@ void llprint(const char *s, int len)
 	call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0);
 }
 
+int prints(char *s)
+{
+	int len  = strlen(s);
+	llprint(s, len);
+	return len;
+}
+
 int __attribute__((format(printf,1,2)))
 printc(char *fmt, ...)
 {

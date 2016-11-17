@@ -32,7 +32,10 @@ void CFE_PSP_ModuleInit(void)
 {
 }
 
-// Mandatory defines
+// If RUN_TESTING_CODE is defined, testing code will be run
+// #define RUN_TESTING_CODE
+
+// "Magic" constants
 #define CFE_PSP_CPU_NAME_LENGTH  32
 #define CFE_PSP_RESET_NAME_LENGTH 10
 
@@ -98,7 +101,9 @@ void cos_init(void) {
     */
     CFE_PSP_InitProcessorReservedMemory(reset_type);
 
-
+    #ifdef RUN_TESTING_CODE
+    // Testing code goes here
+    #else
     /*
     ** Call cFE entry point.
     */
@@ -111,6 +116,7 @@ void cos_init(void) {
     ** someone calls OS_ApplicationShutdown(TRUE)
     */
     OS_IdleLoop();
+    #endif
 
     PANIC("Application was shutdown!");
 }

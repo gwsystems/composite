@@ -10,6 +10,9 @@
 
 void llprint(const char *s, int len);
 
+// I'm not sure why we even have to reimplement prints...
+int prints(char *s);
+
 int __attribute__((format(printf,1,2))) printc(char *fmt, ...);
 
 #define PANIC(a) panic_impl(__func__, a)
