@@ -221,7 +221,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		printd("cos_vect_lookup(%d) in spd_sec_cbufs_header failed\n", source);
 	if (!old_sect_cbufs || !src_hdr) BUG();
 	
-	// helps out of critical section
+	/* helps O out of critical section */
 	lock_help_owners(spdid, source);
 
 	/* The following, copied partly from booter.c,  */
