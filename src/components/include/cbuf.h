@@ -10,15 +10,10 @@
  * Updated to add persistent cbufs, Gabe Parmer, 2012
  */
 
-/* 
- * You'll require dependencies on both cbuf_c and cbufp.
- */
-
 #ifndef  CBUF_H
 #define  CBUF_H
 
 #include <cos_component.h>
-#include <util.h>
 #include <cos_debug.h>
 #include <cbuf_meta.h>
 #include <cbuf_mgr.h>
@@ -34,45 +29,32 @@
 #define CVECT_FREE(x) free_page(x)
 #include <cvect.h>
 
-#define CBUF_MAX_NSZ 64
-
 /* 
- * The lifetime of tmem cbufs is determined by the cbuf_alloc and
- * cbuf_free of the calling component.  The called component uses
- * cbuf2buf to retrieve the buffer.  
- *
- * API for sender of transient memory cbufs:
- *     void *cbuf_alloc(int size, cbuf_t *id)
- *     void cbuf_free(void *)
- * API for the receiver of transient memory cbufs:
- *     void *cbuf2buf(cbuf_t cb, int len)
- * 
- * Persistent cbufs are reference counted, so their lifetime needs to
- * be explicitly managed by calls to access and free the buffer, both
+ * Cbufs are reference counted, so their lifetime needs to be
+ * explicitly managed by calls to access and free the buffer, both
  * in the sender and receiver.  In the sender, alloc references it,
- * send tracks the liveness, and deref releases the buffer.
- * send_deref both sends and dereferences it.  The receiver of the
- * persistent cbuf references the cbuf via cbuf2buf.  The receiver
- * must use send an d deref just as the sender if it is also going to
- * send the buffer.
+ * send tracks the liveness, and free releases the buffer. send_free
+ * both sends and dereferences it.  The receiver of the cbuf 
+ * references the cbuf via cbuf2buf.  The receiver must use send and 
+ * free just as the sender if it is also going to send the buffer.
  *
- * API for sender of persistent cbufs:
- *     void *cbufp_alloc(unsigned int sz, cbufp_t *cb)
- *     void cbufp_send(cbufp_t cb)
- *     void cbufp_deref(cbufp_t cbid) 
- *     void cbufp_send_deref(cbufp_t cb) // combine the previous ops
+ * API for sender of cbufs:
+ *     void *cbuf_alloc(unsigned int sz, cbuf_t *cb)
+ *     void cbuf_send(cbuf_t cb)
+ *     void cbuf_free(cbuf_t cbid) 
+ *     void cbuf_send_free(cbuf_t cb) // combine the previous ops
  * API for the receiver of persistent cbufs;
- *     void *cbufp2buf(cbufp_t cb, int len)
- *     void cbufp_deref(cbufp_t cbid) 
+ *     void *cbuf2buf(cbuf_t cb, int len)
+ *     void cbuf_free(cbuf_t cbid) 
  * Note that receiver might take the role of the sender.
- */
-
-/* 
- * Naming scheme: The cbuf_* functions are transient memory
- * allocations -- their lifetime must match an invocation.  The
- * cbufp_* functions are persistent cbufs that can have any lifetime
- * (but that don't come with a guarantee about bounded access, thus
- * predictable sharing of the buffer).
+ * Extended api for cbuf_alloc
+ *     void *cbuf_alloc_ext(unsigned long sz, cbuf_t *cb, unsigned int flag)
+ * currently it supports two extended flags:
+ * CBUF_TMEM: Those cbufs will be managed by cbuf's owner instead of 
+ * cbuf manager. After owner free a cbuf, it can reuse it immediately.
+ * CBUF_EXACTSZ: The size of thus cbuf will not be round to power-of-2. 
+ * But it is still multiple times of PAGE_SIZE. Those cbufs will be 
+ * immediately returned to cbuf manager when it is freed.
  */
 
 /* 
@@ -119,7 +101,9 @@
  * appropriate referenced cbuf_meta structure, and it also fits in 32
  * bits so that it can be held directly in the index structure (it's
  * lookup structure).  It holds a) a pointer to the page in this
- * component, and b) the size of objects held in this page.
+ * component, b) some flag bits, c) reference counter and two additional 
+ * counters for send/receive, d) the size of objects held in this page.
+ * e) "next" pointer of the embedded freelist, and f) its cbuf id.
  *
  * 3) Any references to buffers via interface invocations pass both
  * the cbuf_t, and the length of the allocation, if it is less than
@@ -141,16 +125,19 @@
 /***
  * Concurrency invariants:
  * 
- * 1) While the cbuf lock is taken, only this thread will access the
- * slab and set the USED bits in the meta structure.  Keep in mind
- * that many of the functions that call the cbuf manager interface
- * functions do drop this lock, thus requiring us to re-check the
- * state of these data-structures.
+ * 1) At client side, each thread use atomic instructions to 
+ * manipulate the meta data, and most of them are wait-free.
+ * The exception is the implementation of lock-free freelist.
+ * It needs a double-cas loop for both add and remove operation.
  *
- * 2) While the USED bit is set in a meta entry, the cbuf manager will
- * not remove the cbuf from us and from the meta-entry.  Therefore,
- * setting the USED bit acts as a form of a lock between this
- * component and the manager.
+ * 2) However at manager side, it still a big lock to protect 
+ * the whole component. Every interface of the manager has to 
+ * require the lock first, and release it when return.
+ *
+ * 3) While the reference counter is not zero in a meta entry, 
+ * the cbuf manager will not remove the cbuf from us and from 
+ * the meta-entry. Therefore, increasing the reference counter 
+ * acts as a form of a lock between this component and the manager.
  */
 
 /***
@@ -158,47 +145,56 @@
  *
  * The cbuf_meta data-structure is shared between manager and client,
  * and is one-to-one mapped with the cbufs themselves.  These are
- * indexed by the cbuf id.  The cbuf_alloc_descs are a client-local
- * data-structure tracking the cbuf allocations (and caching them).
- * These are indexed by the address of the cbuf (to enable cbuf_free),
- * and stored in local free-lists.
+ * indexed by the cbuf id.
  *
- * When the USED bit is not set in the cbuf_meta structure (i.e. it is
+ * When the reference counter is zero in the cbuf_meta structure and 
+ * all potential receivers have received this cbuf (i.e. it is
  * in the common case on a free-list in the client), the manager can
- * remove it at any time.  This means that free-list entries can exist
- * that don't actually refer to a cbuf.  We call these stale free-list
- * entries (see __cbuf_alloc_meta_inconsistent for the check to see if
- * this is the case) that must be cleaned up.
+ * remove it at any time. This means that free-list entries can exist
+ * that don't actually refer to a cbuf. We call these stale free-list
+ * entries that must be cleaned up.
  *
- * The more difficult case is this: 1) the manager removes a cbuf from
- * the client (but the free-list entry still remains), 2) a thread t_0
- * attempts to allocate a cbuf and must ask the manager for a new cbuf
- * which is then mapped into the client and added to the cbuf_meta
- * structure (with the USED bit set) at the same address of the old
- * cbuf that was removed, and 3) before it can return, another thread
- * t_1 enters the cbuf code and finds the stale free-list entry.  The
- * question here is this: How does t_1 know that the free-list entry is
- * stale, and that it should be deallocated?  Answer: If a cbuf is
- * marked as USED when it is seen to be on the free-list, we know this
- * case has been triggered.  
+ * The manager never collect cbufs which are on free-list. Such cbufs
+ * are reachable from client, so they are not garbage. Thus a 
+ * non-null next pointer can prevent a cbuf from being collected.
+ * Whenever the manager removes a cbuf, it will check if it is on a 
+ * free-list (check the "next" pointer in meta data). If it is, the 
+ * manager will set the inconsistent bit in the meta data.
  *
- * Similar to this latter case, when a thread allocates a new cbuf
- * (cbuf_c_create), it should check to see if a freelist descriptor
- * exists before allocating a new one to avoid two descriptors
- * existing for one cbuf.
+ * When a thread gets a cbuf from its free-list, it must check the 
+ * inconsistent bit first. It this is a valid entry then increase the 
+ * refcnt with CAS to detect concurrent modification from the manager.
+ * If CAS fails, it just discards this cbuf and tries to take next 
+ * one. If this is not a valid entry, the client needs to clear the 
+ * inconsistent bit and gets next one.
  *
- * Luckily, the correct way to fix all these inconsistencies is the
- * same: deallocate the allocation free-list descriptor.
+ * Some edge cases:
+ * 1) Before the stale entry is dropped, another thread on different 
+ * core may asks the manager for new cbuf. The manager should avoid to 
+ * allocate the same cbuf id as the invalid entry. To achieve this, 
+ * in cbuf_create the manager always checks if there is invalid meta 
+ * data associated the id in the calling component.
+ * 
+ * 2) a) the manager removes a cbuf with id K from the component c0 (but 
+ * the free-list entry still remains), b) another component c1 creates 
+ * new cbuf. The manager also assigns id K to the new cbuf. c) c1 sends 
+ * this cbuf back to the c0. Does it matter for c0 to receive this cbuf?
+ * No. In cbuf2buf, there is no need to touch free-list and to check 
+ * inconsistent bit. So it can receive this cbuf as normal with those 
+ * flags intact. Later on, when c0 alloc cbuf, it can find the invalid 
+ * entry and skip it. This also implies when discard invalid entry, we 
+ * can only unset the inconsistent bit without modifying other fields.
  */
 
+typedef u32_t cbuf_t; /* fit in a register. */
 typedef union {
 	cbuf_t v;
 	struct {
 		/* 
-		 * cbuf id, aggregate = 1 if this cbuf holds an array of other
-		 * cbufs, tm = 1 if this cbuf is transient (non-persistent)
+		 * cbuf id, aggregate = 1 if this cbuf 
+		 * holds an array of other cbufs
 		 */
-		u32_t aggregate: 1, tm: 1, id:30;
+		u32_t id:31, aggregate: 1;
 	} __attribute__((packed)) c;
 } cbuf_unpacked_t;
 
@@ -214,7 +210,7 @@ struct cbuf_agg {
 };
 
 static inline void 
-cbuf_unpack(cbuf_t cb, u32_t *cbid)
+cbuf_unpack(cbuf_t cb, unsigned int *cbid)
 {
 	cbuf_unpacked_t cu = {0};
 	cu.v  = cb;
@@ -224,7 +220,7 @@ cbuf_unpack(cbuf_t cb, u32_t *cbid)
 }
 
 static inline cbuf_t 
-cbuf_cons(u32_t cbid)
+cbuf_cons(unsigned int cbid)
 {
 	cbuf_unpacked_t cu;
 	cu.v     = 0;
@@ -235,70 +231,83 @@ cbuf_cons(u32_t cbid)
 static inline cbuf_t cbuf_null(void)      { return 0; }
 static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 
-extern struct cbuf_meta * __cbuf_alloc_slow(int size, int *len, unsigned int flag);
-extern int  __cbuf_2buf_miss(int cbid, int len);
+extern struct cbuf_meta * __cbuf_alloc_slow(unsigned long size, int *len, unsigned int flag);
+extern int  __cbuf_2buf_miss(unsigned int cbid, int len);
 extern cvect_t meta_cbuf;
+static inline void cbuf_free(cbuf_t cb);
 
 static inline struct cbuf_meta *
-cbuf_vect_lookup_addr(int id)
+cbuf_vect_lookup_addr(unsigned int id)
 {
-	return cvect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(id));
+	return (struct cbuf_meta *)cvect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(id));
 }
 
 /* 
  * Common case.  This is the most optimized path.  Every component
  * that wishes to access a cbuf created by another component must use
  * this function to map the cbuf_t to the actual buffer. This function
- * returns an error (NULL) if called by the owner of the cbuf_t.
+ * returns an error (NULL) if called by the owner of the cbuf_t or this 
+ * cbuf is not exist.
  */
 static inline void * 
 cbuf2buf(cbuf_t cb, int len)
 {
-	u32_t id;
 	struct cbuf_meta *cm;
 	void *ret = NULL;
-	int t;
+	unsigned int id, t;
 
-	if (unlikely(!len)) return NULL;
+	if (unlikely(len <= 0)) return NULL;
 	cbuf_unpack(cb, &id);
 again:
-	do {
-		cm = cbuf_vect_lookup_addr(id);
-		if (unlikely(!cm || CBUF_PTR(cm) == 0)) {
-			printc("no cm for %d!\n", id);
-			if (__cbuf_2buf_miss(id, len)) {printc("miss\n"); goto done;}
-			goto again;
-		}
-	} while (unlikely(!cm->nfo));
+	cm = cbuf_vect_lookup_addr(id);
+	if (unlikely(!cm || !CBUF_PTR(cm))) {
+		if (__cbuf_2buf_miss(id, len)) goto done;
+		goto again;
+	}
+	assert(cm->nfo);
 	/* shouldn't cbuf2buf your own buffer! */
 	assert(cm->cbid_tag.cbid == id);
-	if (unlikely(CBUF_OWNER(cm))) {printc("owner\n"); goto done;}
-	if (unlikely((len >> PAGE_ORDER) > cm->sz)) {printc("too big\n"); goto done;}
-	assert(CBUF_REFCNT(cm) < CBUF_REFCNT_MAX);
+	if (unlikely(CBUF_OWNER(cm))) goto done;
+	if (unlikely((len >> PAGE_ORDER) > cm->sz)) goto done;
+	assert(!CBUF_TMEM(cm));
+
+	/* 
+	 * The order here is important. But as x86 does reorder stores, we only 
+	 * need compiler barrier. If the nrecv counter is increased first, the 
+	 * manager will find nsent = nreced, and both components' refcnt is 0. 
+	 * Thus it may remove this cbuf. In addition atomic instruction is 
+	 * also needed, because multiple threads can concurrently execute this code
+	 */
 	CBUF_REFCNT_ATOMIC_INC(cm);
-	assert(cm->snd_rcv.nrecvd < CBUF_SENDRECV_MAX);
-	CBUF_NRCV_INC(cm);      //need to be atomic???
-	ret = ((void*)CBUF_PTR(cm));
+	cos_compiler_barrier();
+	CBUF_NRCV_ATOMIC_INC(cm);
+
+	/* TODO: Issue #120. As we use faa to increase the counter, check overflow 
+	 * before increment is useless, but after increment the overflow is happen. */
+	assert(CBUF_REFCNT(cm) > (unsigned int)(CBUF_REFCNT(cm)-1));
+	assert(cm->snd_rcv.nrecvd > (unsigned int)(cm->snd_rcv.nrecvd-1));
+	ret = (void*)CBUF_PTR(cm);
+	assert(ret);
 done:	
 	return ret;
 }
 
 /* 
- * This is only called for permanent cbufs.  This is called every time
- * we wish to send the cbuf to another component.  For each cbufp2buf,
- * it should be called one or more times (i.e. for each component it
- * sends the cbuf to.  If the component is instead done with the cbuf,
- * and does not want to send it anywhere, it should cbufp_free it
- * instead.  So to be more precise:
+ * This is called every time we wish to send the cbuf to another 
+ * component. For each cbuf2buf, it should be called one or more 
+ * times (i.e. for each component it sends the cbuf to. If the 
+ * component is instead done with the cbuf, and does not want to 
+ * send it anywhere, it should cbuf_free it instead.
+ * So to be more precise:
  *
- * A component that cbuf2bufs a cbuf can cbufp_send it one or more
+ * A component that cbuf2bufs a cbuf can cbuf_send it one or more
  * times to other components.  The last time we send the cbuf, free=1,
- * or the component can call cbufp_free.
+ * or the component can call cbuf_free.
  */
 static inline void
 __cbuf_send(cbuf_t cb, int free)
 {
-	u32_t id;
+	unsigned int id;
 	struct cbuf_meta *cm;
 
 	cbuf_unpack(cb, &id);
@@ -306,12 +315,15 @@ __cbuf_send(cbuf_t cb, int free)
 	cm = cbuf_vect_lookup_addr(id);
 	assert(cm && cm->nfo);
 	assert(CBUF_REFCNT(cm));
-	assert(cm->snd_rcv.nsent < CBUF_SENDRECV_MAX);
 
-	CBUF_NSND_INC(cm);
-	if (free) CBUF_REFCNT_ATOMIC_DEC(cm);
-	/* really should deal with this case correctly */
-	assert(!CBUF_RELINQ(cm));     //???
+	int old = cm->snd_rcv.nsent;
+	CBUF_NSND_ATOMIC_INC(cm);
+	if (!(cm->snd_rcv.nsent > old)) {
+		printc("spd %d thd %d cb %d sent %d old %d\n", 
+			cos_spd_id(), cos_get_thd_id(), cb, cm->snd_rcv.nsent, old);
+	}
+	assert(cm->snd_rcv.nsent > old);
+	if (free) cbuf_free(cb);
 }
 
 static inline void
@@ -323,14 +335,14 @@ cbuf_send(cbuf_t cb)
 { __cbuf_send(cb, 0); }
 
 struct cbuf_freelist {
-	struct cbuf_meta freelist_head[64];    //???
+	struct cbuf_meta freelist_head[CBUF_MAX_NSZ];
 };
 PERCPU_DECL(struct cbuf_freelist, cbuf_alloc_freelists);
 PERCPU_EXTERN(cbuf_alloc_freelists);
 /* 
  * Simple power-of-two allocator.  Later we can investigate going to
  * something with more precision, or a slab.  We are currently leaving
- * CBUFP_MAX_NSZ - (WORD_SIZE - PAGE_ORDER) = 64 - (32-12) = 44 unused
+ * CBUF_MAX_NSZ - (WORD_SIZE - PAGE_ORDER) = 64 - (32-12) = 44 unused
  * sizes that could be expanded for both of these uses.
  *
  * TODO: it appears that the compiler is not able to statically
@@ -343,121 +355,213 @@ PERCPU_EXTERN(cbuf_alloc_freelists);
 static inline struct cbuf_meta *
 __cbuf_freelist_get(int size)
 {
+	/* We have per-core, per-component, per-size free-list */
 	struct cbuf_freelist *fl = PERCPU_GET(cbuf_alloc_freelists);
 	int order = ones(size-1) - PAGE_ORDER;
 	struct cbuf_meta *m;
+	if (!(pow2(size) && size >= PAGE_SIZE)) {
+		printc("cbuf free size %d spd %d\n", size, cos_spd_id());
+	}
 	assert(pow2(size) && size >= PAGE_SIZE);
 	assert(order >= 0 && order < WORD_SIZE-PAGE_ORDER);
 	m = &(fl->freelist_head[order]);
-	if (unlikely(!m->next)) m->next = m;
+	assert(m->next);
 	return m;
 }
 
-static inline void *
-cbuf_alloc_ext(unsigned int sz, cbuf_t *cb, unsigned int flag)
+/*
+ * Precondition: "next" pointer is not NULL. 
+ * We can reuse a cbuf from two source.
+ * 1. from local freelist
+ * 2. from garbage collection
+ * The manager guarantees the precondition for case 2.
+ *
+ * Before next pointer is set to NULL, manager will not 
+ * collect it. See cbuf_collect for details.
+ * As other clients or threads have no reference to this 
+ * cbuf, they will not access the meta concurrently.
+ * But the manager may modify the meta at the same time.
+ * So those atomic instructions are necessary
+ */
+static inline int 
+__cbuf_try_take(struct cbuf_meta *cm, unsigned int flag)
 {
-	void *ret;
-	int cbid, len, already_used, inconsistent, mapped_in, flags;
-	struct cbuf_meta *cm, *fl, old_head, new_head;
-	unsigned long long *target, *old, *update;
+	int inconsistent, r = 0;
+	unsigned long old_nfo, new_nfo;
 
-	if (unlikely(flag & CBUF_EXACTSZ)) {
-		cm   = __cbuf_alloc_slow(sz, &len, flag);
-		assert(cm);
-		goto done;
+	assert(cm && cm->next);
+	old_nfo = cm->nfo;
+	assert(!(old_nfo & CBUF_REFCNT_MAX));
+
+	inconsistent = old_nfo & CBUF_INCONSISENT;
+	if (unlikely(inconsistent)) {
+		/*
+		 * It has been or is going to be taken away by the 
+		 * manager. We will not leak cbuf here.
+		 * Do not modify other fields! 
+		 */
+		CBUF_FLAG_REM(cm, CBUF_INCONSISENT);
+		goto ret;
 	}
 
-	sz = nlepow2(round_up_to_page(sz));
+	new_nfo = old_nfo+1;
+	if (unlikely(flag & CBUF_TMEM)) new_nfo |= CBUF_TMEM;
+	else new_nfo &= ~CBUF_TMEM;
+	if (unlikely(!cos_cas(&cm->nfo, old_nfo, new_nfo))) {
+		/* 
+		 * This failure maybe because:
+		 * 1. manager tries to take this cbuf away, set inconsistent
+		 * 2. manager set/unset relinq bit.
+		 * For case 2, this cbuf can be collected later.
+		 * No cbuf leak 
+		 */
+		if (CBUF_INCONSISENT(cm)) CBUF_FLAG_REM(cm, CBUF_INCONSISENT);
+		goto ret;
+	}
+	r = 1;
+	/* 
+	 * guarantee the order between CAS and set "next".
+	 * If the next is set to NULL before increment refcnt, the
+	 * manager may think this cbuf is garbage and collect it. 
+	 * But there is dependency between those two, we do not 
+	 * need explicit barrier. 
+	 */
+ret:
+	cm->next = NULL;
+	return r;
+}
+
+static inline void 
+__cbuf_freelist_push(unsigned long sz, struct cbuf_meta *h, struct cbuf_meta *t)
+{
+	struct cbuf_meta *fl;
+	unsigned long long *target, old, update;
+	unsigned long *ofake = (unsigned long *)&old;
+	unsigned long *nfake = (unsigned long *)&update;
+
+	fl       = __cbuf_freelist_get(sz);
+	target   = (unsigned long long *)(&fl->next);
+	nfake[0] = (unsigned long)h;
+	do {
+		old      = *(volatile unsigned long long *)target;
+		t ->next = (struct cbuf_meta *)ofake[0];
+		nfake[1] = ofake[1]+1;
+	} while(unlikely(!cos_dcas(target, old, update)));
+}
+
+static inline struct cbuf_meta *
+__cbuf_freelist_pop(unsigned long sz, unsigned int flag)
+{
+	struct cbuf_meta *cm, *fl;
+	unsigned long long *target, old, update;
+	unsigned long *ofake, *nfake;
+
+	ofake = (unsigned long *)&old;
+	nfake = (unsigned long *)&update;
 	fl = __cbuf_freelist_get(sz);
 again:
+	/*
+	 * This is a lock-free stack implementation. Add a 
+	 * tag to solve "ABA" problem. 
+	 */
 	target = (unsigned long long *)(&fl->next);
-	old    = (unsigned long long *)(&old_head.next);
-	update = (unsigned long long *)(&new_head.next);
 	do {
-		*old                   = *target;
-		cm		       = fl->next;
-		new_head.next          = cm->next;
-		new_head.cbid_tag.tag  = fl->cbid_tag.tag+1;
-	} while(unlikely(!cos_dcas(target, *old, *update)));
-	if (unlikely(cm == cm->next)) {
-		cm   = __cbuf_alloc_slow(sz, &len, flag);
-		assert(cm);
-		goto done;
-	}
-	already_used = CBUF_REFCNT(cm);
-	assert(!already_used);
-	inconsistent = CBUF_INCONSISTENT(cm);
-	if (unlikely(inconsistent)) {
-		cm->next = NULL;
-		goto again;
-	}
-	unsigned int p, n;
-	p = cm->nfo;
-	n = p+CBUF_INC_UNIT;
-	if (unlikely(!cos_cas((unsigned long *)&cm->nfo, p, n))) {
-		cm->next = NULL;
-		goto again;
-	}
-	cm->next = NULL;
-	cm->snd_rcv.nsent = cm->snd_rcv.nrecvd = 0;
-done:
-	if (unlikely(flag & CBUF_TMEM)) CBUF_FLAG_ADD(cm, CBUF_TMEM);
-	ret = (void *)(CBUF_PTR(cm));
-	cbid = cm->cbid_tag.cbid;
-	*cb = cbuf_cons(cbid);
-	return ret;
+		old      = *(volatile unsigned long long *)target;
+		cm       = (struct cbuf_meta *)ofake[0];
+		nfake[0] = (unsigned long)cm->next;
+		nfake[1] = ofake[1]+1;
+	} while(unlikely(!cos_dcas(target, old, update)));
+
+	if (unlikely(cm == fl)) return NULL;
+	if (unlikely(!__cbuf_try_take(cm, flag))) goto again;
+	return cm;
 }
 
 static inline void *
-cbuf_alloc(unsigned int sz, cbuf_t *cb)
+cbuf_alloc_ext(unsigned long sz, cbuf_t *cb, unsigned int flag)
+{
+	void *ret;
+	unsigned int cbid;
+	int len;
+	struct cbuf_meta *cm = NULL;
+
+	if (unlikely(flag & CBUF_EXACTSZ)) goto create;
+
+	sz = nlepow2(round_up_to_page(sz));
+	cm = __cbuf_freelist_pop(sz, flag);
+	if (unlikely(!cm)) goto create;
+
+done:
+	ret  = (void *)(CBUF_PTR(cm));
+	cbid = cm->cbid_tag.cbid;
+	*cb  = cbuf_cons(cbid);
+	return ret;
+create:
+	/* TODO: Why use len? */
+	cm   = __cbuf_alloc_slow(sz, &len, flag);
+	assert(cm);
+	goto done;
+}
+
+static inline void *
+cbuf_alloc(unsigned long sz, cbuf_t *cb)
 {
 	return cbuf_alloc_ext(sz, cb, 0);
 }
 
 static inline void
+cbuf_ref(cbuf_t cb)
+{
+	struct cbuf_meta *cm;
+	unsigned int id;
+
+	cbuf_unpack(cb, &id);
+	cm = cbuf_vect_lookup_addr(id);
+	assert(cm && CBUF_REFCNT(cm));
+	CBUF_REFCNT_ATOMIC_INC(cm);
+}
+
+static inline void
 cbuf_free(cbuf_t cb)
 {
-	u32_t id;
-	cbuf_unpack(cb, &id);
-	struct cbuf_meta *cm, *fl, head, new_head;
-	int owner, relinq = 0, tmem, inconsistent;
-	unsigned long long *target, *old, *update;
+	struct cbuf_meta *cm, *fl;
+	int flag = CBUF_RELINQ | CBUF_TMEM | CBUF_EXACTSZ;
+	unsigned int id;
 
+	cbuf_unpack(cb, &id);
 	cm = cbuf_vect_lookup_addr(id);
 	/* 
 	 * If this assertion triggers, one possibility is that you did
-	 * not successfully map it in (cbufp2buf or cbufp_alloc).
+	 * not successfully map it in (cbuf2buf or cbuf_alloc).
 	 */
-	assert(CBUF_REFCNT(cm));
-	owner = CBUF_OWNER(cm);
-	tmem = CBUF_TMEM(cm);
-	inconsistent = CBUF_INCONSISTENT(cm);
-	assert(!inconsistent);
-	relinq = CBUF_RELINQ(cm);
-	/* Does the manager want the memory back? */
-	if (unlikely(relinq)) {
+	assert(cm && CBUF_REFCNT(cm));
+
+	if (unlikely(cm->nfo & flag)) {
+		/* Does the manager want the memory back? */
+		/* Always delete exact size cbuf */
+		if (CBUF_RELINQ(cm) || CBUF_EXACTSZ(cm)) {
+			cbuf_delete(cos_spd_id(), id);	
+			return ;
+		}
+
+		if (CBUF_TMEM(cm)) {
+			assert(CBUF_OWNER(cm));
+			/* 
+			 * non-null next pointer can prevent the manager 
+			 * to collect this cbuf. Again, we have to 
+			 * guarantee such order. If we first decrease 
+			 * the refcnt, the manager may collect this 
+			 * and give it to another thread who will put 
+			 * it in the free-list. Thus we may put the 
+			 * same cbuf on the free-list twice. 
+			 */
+			cm->next = (struct cbuf_meta *)1;
+			cos_compiler_barrier();
+			CBUF_REFCNT_ATOMIC_DEC(cm);
+			__cbuf_freelist_push(cm->sz << PAGE_ORDER, cm, cm);
+		} 
+	} else {
 		CBUF_REFCNT_ATOMIC_DEC(cm);
-		cbuf_delete(cos_spd_id(), id);	
-		return ;
-	}
-	if (tmem) {
-		assert(owner);
-		fl       = __cbuf_freelist_get(cm->sz << PAGE_ORDER);
-		cm->next = fl->next;
-		cos_mem_fence();
-		CBUF_REFCNT_ATOMIC_DEC(cm);
-		cos_mem_fence();
-		target        = (unsigned long long *)(&fl->next);
-		old           = (unsigned long long *)(&head.next);
-		update        = (unsigned long long *)(&new_head.next);
-		new_head.next = cm;
-		do {
-			*old                   = *target;
-			new_head.cbid_tag.tag  = fl->cbid_tag.tag+1;
-		} while(unlikely(!cos_dcas(target, *old, *update)));
-	}
-	else {
-		CBUF_REFCNT_ATOMIC_DEC(cm);      
 	}
 	return;
 }
@@ -466,7 +570,51 @@ cbuf_free(cbuf_t cb)
 static inline int 
 cbuf_is_cbuf(void *buf)
 {
-	return false;   //???
+	/* TODO: After using cbuf to back all memory, this is true */
+	return false;
+}
+
+
+/*===== Debug functions ======*/
+static int
+cbuf_debug_freelist_num(unsigned long sz)
+{
+	struct cbuf_meta *cm, *fl;
+	int ret = 0;
+
+	sz = nlepow2(round_up_to_page(sz));
+	fl = __cbuf_freelist_get(sz);
+	cm = fl->next;
+	while (cm != fl) {
+		ret++;
+		cm = cm->next;
+	}
+	return ret;
+}
+
+static void
+cbuf_debug_clear_freelist(unsigned long sz)
+{
+	cbuf_t cb;
+
+	sz = nlepow2(round_up_to_page(sz));
+	cbuf_mempool_resize(cos_spd_id(), 0);
+	assert(0 == cbuf_debug_cbuf_info(cos_spd_id(), 2, 0));
+
+	/* all cbufs in free list should be inconsistent */
+	cbuf_map_collect(cos_spd_id());
+	assert(0 == cbuf_collect(cos_spd_id(), sz));
+	cbuf_mempool_resize(cos_spd_id(), sz);
+
+	/* discard all inconsistent ones in free list */
+	cbuf_alloc(sz, &cb);
+	cbuf_vect_lookup_addr(cb);
+	assert(0 == cbuf_collect(cos_spd_id(), sz));
+	cbuf_free(cb);
+
+	cbuf_mempool_resize(cos_spd_id(), 0);
+	assert(0 == cbuf_collect(cos_spd_id(), sz));
+	assert(0 == cbuf_debug_freelist_num(sz));
 }
 
 #endif /* CBUF_H */

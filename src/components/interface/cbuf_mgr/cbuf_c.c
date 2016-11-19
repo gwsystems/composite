@@ -27,8 +27,9 @@
  * so try and use structures that by default are initialized as all
  * zero. 
  */
-extern struct cos_component_information cos_comp_info;
 
+#define CBUF_RING_TAKE()      do { if (sched_component_take(cos_spd_id()))    BUG(); } while(0)
+#define CBUF_RING_RELEASE()   do { if (sched_component_release(cos_spd_id())) BUG(); } while(0)
 CVECT_CREATE_STATIC(meta_cbuf);
 PERCPU_VAR(cbuf_alloc_freelists);
 
@@ -40,7 +41,7 @@ PERCPU_VAR(cbuf_alloc_freelists);
  * had a miss.
  */
 int 
-__cbuf_2buf_miss(int cbid, int len)
+__cbuf_2buf_miss(unsigned int cbid, int len)
 {
 	struct cbuf_meta *mc;
 	int ret;
@@ -58,121 +59,126 @@ __cbuf_2buf_miss(int cbid, int len)
 	mc = cbuf_vect_lookup_addr(cbid);
 	/* ...have to expand the cbuf_vect */
 	if (unlikely(!mc)) {
-		if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid))) BUG();    //???
+		if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid))) BUG();
 		mc = cbuf_vect_lookup_addr(cbid);
 		assert(mc);
 	}
-	ret = cbuf_retrieve(cos_spd_id(), cbid, len);
+	ret = cbuf_retrieve(cos_spd_id(), cbid, (unsigned long)len);
 	if (unlikely(ret < 0 || mc->sz < (len >> PAGE_ORDER))) return -1;
 	assert(CBUF_PTR(mc));
 
 	return 0;
 }
 
-static inline int
-__cbufp_alloc_slow(int cbid, int size, int *len, int *error)
+/*
+ * Return the first one to client and put the rest to the 
+ * free-list. csp is the shared page between this client and manager. 
+ *
+ * Synchronization around this shared ring buffer.  This is a single
+ * consumer single producer ring buffer. To protect this ring buffer, 
+ * I just simply use a lock.
+ */
+static struct cbuf_meta *
+__cbuf_get_collect(struct cbuf_shared_page *csp, unsigned long size, unsigned int flag)
 {
-	int amnt = 0, i;
-	static struct cbuf_shared_page *csp = NULL;
+	struct cbuf_ring_element el;
+	struct cbuf_meta *ret_cm, *cm;
+	struct cbuf_meta *tail, *head;
 
-	assert(cbid <= 0);
-	if (cbid == 0) {
-		struct cbuf_meta *cm;
-		struct cbuf_ring_element el;
-		if (!csp) csp = (struct cbuf_shared_page*)cbuf_map_collect(cos_spd_id());
-		/* Do a garbage collection */
-		amnt = cbuf_collect(cos_spd_id(), size);
-		if (amnt < 0) {
-			*error = 1;
-			return -1;
-		}
-		assert((unsigned)amnt <= CSP_BUFFER_SIZE);
+	assert(csp);
 
-		if (amnt > 0) {
-			if (CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) {
-				cbid = el.cbid;
-				/* own the cbuf we just collected */
-				cm = cbuf_vect_lookup_addr(cbid);
-				assert(cm);
-				assert(cm->cbid_tag.cbid == (unsigned)cbid);
-				assert(CBUF_REFCNT(cm) < CBUF_REFCNT_MAX);
-				CBUF_REFCNT_ATOMIC_INC(cm);
-			} else {
-				/* Someone stole the cbufs I collected! */
-				amnt = 0;
-			}
-		}
-
-		/* ...add the rest back into freelists. construct a temporary freelist 
-		 * first, then add this temporal list to freelist atomically*/
-		struct cbuf_meta *meta, *tail, *head, old_head, new_head;
-		int cb;
+	CBUF_RING_TAKE();
+	do {
+		ret_cm = NULL;
 		if (CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) {
-			cb = el.cbid;
-			head = tail = cbuf_vect_lookup_addr(cb);
-			assert(!tail->next);
-			for(i = 2; i < amnt; ++i) {
-				if (!CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) break;
-				cb = el.cbid;
-				meta = cbuf_vect_lookup_addr(cb);
-				assert(!meta->next);
-				meta->next = head;
-				head = meta;
-			}
-
-			unsigned long long *target, *old, *update;
-			meta = __cbuf_freelist_get(size);
-			tail->next = meta->next;
-			target = (unsigned long long *)(&meta->next);
-			old    = (unsigned long long *)(&old_head.next);
-			update = (unsigned long long *)(&new_head.next);
-			new_head.next = head;
-			do {
-				*old = *target;
-				new_head.cbid_tag.tag = meta->cbid_tag.tag+1;
-			} while(unlikely(!cos_dcas(target, *old, *update)));
+			/* own the cbuf we just collected */
+			ret_cm = cbuf_vect_lookup_addr(el.cbid);
+			assert(ret_cm && ret_cm->cbid_tag.cbid == el.cbid);
+		} else {
+			break;
 		}
+	} while(!__cbuf_try_take(ret_cm, flag));
+
+	/* 
+	 * ...add the rest back into freelists. construct a temporary freelist 
+	 * first, then add this temporal list to freelist atomically
+	 */
+	if (CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) {
+		head = tail = cbuf_vect_lookup_addr(el.cbid);
+		assert(head && head->cbid_tag.cbid == el.cbid);
+
+		while(CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) {
+			cm       = cbuf_vect_lookup_addr(el.cbid);
+			assert(cm && cm->cbid_tag.cbid == el.cbid);
+			cm->next = head;
+			head     = cm;	
+		}
+		CBUF_RING_RELEASE();
+		__cbuf_freelist_push(size, head, tail);
+	} else {
+		CBUF_RING_RELEASE();;
 	}
-	/* Nothing collected...allocate a new cbuf! */
-	if (amnt == 0) {
-		cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
-		assert(cbid != 0);
-	}
-	return cbid;
+
+	return ret_cm;
 }
 
 struct cbuf_meta *
-__cbuf_alloc_slow(int size, int *len, unsigned int flag)
+__cbuf_alloc_slow(unsigned long size, int *len, unsigned int flag)
 {
-	struct cbuf_meta *cm = NULL;
-	int cbid;
-	int cnt;
+	int amnt, cbid;
+	struct cbuf_meta *ret_cm;
+	static struct cbuf_shared_page *csp = NULL;
 
-	cnt = cbid = 0;
-	do {
-		int error = 0;
-		if (flag & CBUF_EXACTSZ) cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
-		else                     cbid = __cbufp_alloc_slow(cbid, size, len, &error);
-		if (unlikely(error)) goto done;
-		if (cbid < 0 && cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid*-1)) < 0) goto done;
-		/* though it's possible this is valid, it probably
-		 * indicates an error */
-		assert(cnt++ < 10);
-	} while (cbid < 0);
-	assert(cbid);
-	cm   = cbuf_vect_lookup_addr(cbid);
-	assert(cm && CBUF_PTR(cm));
-	assert(cm && CBUF_REFCNT(cm));
+	csp = (struct cbuf_shared_page*)cbuf_map_collect(cos_spd_id());
+again:
+	ret_cm = NULL;
+	cbid = 0;
+
+	/* Do a garbage collection if this not an exact size cbuf*/
+	if (!(flag & CBUF_EXACTSZ)) {
+		ret_cm = __cbuf_get_collect(csp, size, flag);
+		if (ret_cm) goto done;
+
+		amnt   = cbuf_collect(cos_spd_id(), size);
+		if (unlikely(amnt < 0)) goto done;
+		assert((unsigned)amnt <= CSP_BUFFER_SIZE);
+
+		ret_cm = __cbuf_get_collect(csp, size, flag);
+		if (!ret_cm) ret_cm = __cbuf_freelist_pop(size, flag);
+		else 	assert(ret_cm && CBUF_PTR(ret_cm));
+	}
+	
+	/* Nothing collected...allocate a new cbuf! */
+	if (!ret_cm) {
+		cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
+		/* We return from being blocked */
+		if (cbid == 0) {
+			goto again;
+		} else if (cbid < 0 ) {
+			if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid*-1)) < 0) goto done;
+			cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
+		}
+		assert(cbid > 0);
+		ret_cm = cbuf_vect_lookup_addr((unsigned int)cbid);
+		if (unlikely(flag)) CBUF_FLAG_ADD(ret_cm, flag);
+	}
+	assert(ret_cm && CBUF_PTR(ret_cm));
+done:   
 	/* TODO update correctly */
 	*len = 1;
-done:   
-	return cm;
+	return ret_cm;
 }
 
 CCTOR static void
 cbuf_init(void)
 {
-	//initialize freelist head
-	return ;  //???
+	struct cbuf_freelist *fl = PERCPU_GET(cbuf_alloc_freelists);
+	struct cbuf_meta *m;
+	int i;
+	for (i = 0 ; i < CBUF_MAX_NSZ ; i++) {
+		m = &(fl->freelist_head[i]);
+		m->next = m;
+	}
+	return ;  
 }
 
