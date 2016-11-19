@@ -34,6 +34,7 @@ struct invstk_entry {
 struct rcvcap_info {
 	/* how many other arcv end-points send notifications to this one? */
 	int isbound, pending, refcnt;
+	sched_tok_t sched_count;
 	struct tcap   *rcvcap_tcap;      /* This rcvcap's tcap */
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
 };
@@ -41,6 +42,7 @@ struct rcvcap_info {
 typedef enum {
 	THD_STATE_PREEMPTED   = 1,
 	THD_STATE_RCVING      = 1<<1, /* report to parent rcvcap that we're receiving */
+	THD_STATE_SUSPENDED   = 1<<2,
 } thd_state_t;
 
 /**
@@ -156,6 +158,7 @@ thd_rcvcap_init(struct thread *t)
 	struct rcvcap_info *rc = &t->rcvcap;
 
 	rc->isbound = rc->pending = rc->refcnt = 0;
+	rc->sched_count = 0;
 	rc->rcvcap_thd_notif = NULL;
 }
 
@@ -180,6 +183,14 @@ thd_track_exec(struct thread *t) { return !list_empty(&t->event_list); }
 static int
 thd_rcvcap_pending(struct thread *t)
 { return t->rcvcap.pending || list_first(&t->event_head) != NULL; }
+
+static sched_tok_t
+thd_rcvcap_get_counter(struct thread *t)
+{ return t->rcvcap.sched_count; }
+
+static void
+thd_rcvcap_set_counter(struct thread *t, sched_tok_t cntr)
+{ t->rcvcap.sched_count = cntr; }
 
 static void
 thd_rcvcap_pending_inc(struct thread *arcvt)

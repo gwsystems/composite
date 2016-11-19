@@ -445,7 +445,8 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
 	int               preempt   = 0;
 
 	if (unlikely(curr == next)) {
-		assert(!(curr->state & (THD_STATE_RCVING)) && !(curr->state & THD_STATE_PREEMPTED));
+		if (!(curr->state & THD_STATE_SUSPENDED))
+			assert(!(curr->state & (THD_STATE_RCVING)) && !(curr->state & THD_STATE_PREEMPTED));
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 		return 0;
 	}
@@ -487,67 +488,35 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
 		__userregs_setretvals(&next->regs, thd_rcvcap_pending(next), a, b);
 	}
 
+	/* if it was suspended for budget expiration, clear it */
+	next->state &= ~THD_STATE_SUSPENDED;
+
 	copy_all_regs(&next->regs, regs);
 
 	return preempt;
 }
 
-static int
-cap_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struct tcap *next_tcap, tcap_time_t timeout,
-	   struct comp_info *ci, struct cos_cpu_local_info *cos_info)
+static struct thread *
+notify_parent(struct thread *rcv_thd)
 {
-	cycles_t now;
+	struct thread *curr_notif = NULL, *prev_notif = NULL, *arcv_notif = NULL;
+	int depth = 0;
 
-	/* tcap switch first */
-	tcap_budgets_update(cos_info, curr, next_tcap, &now);
-	tcap_timer_update(cos_info, next_tcap, timeout, now);
-	tcap_current_set(cos_info, next_tcap);
+	/* hierarchical notifications - upto init (bounded by ARCV_NOTIF_DEPTH) */
+	prev_notif = rcv_thd;
+	curr_notif = arcv_notif = arcv_thd_notif(prev_notif);
+	while (curr_notif && curr_notif != prev_notif) {
+		assert(depth < ARCV_NOTIF_DEPTH);
 
-	return cap_thd_switch(regs, curr, next, ci, cos_info);
-}
+		thd_rcvcap_evt_enqueue(curr_notif, prev_notif);
+		if (!(curr_notif->state & THD_STATE_RCVING)) break;
 
-static int
-cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
-	   struct comp_info *ci, struct cos_cpu_local_info *cos_info)
-{
-	struct thread *next = thd_cap->t;
-	capid_t arcv        = (__userregs_get1(regs) << 16) >> 16;
-	capid_t tc          = __userregs_get1(regs) >> 16;
-	u32_t prio_higher   = __userregs_get3(regs);
-	u32_t prio_lower    = __userregs_get2(regs);
-	tcap_prio_t prio    = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
-	tcap_time_t timeout = (tcap_time_t)__userregs_get4(regs);
-	struct tcap *tcap   = tcap_current(cos_info);
-
-	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
-
-	if (arcv) {
-		struct cap_arcv *arcv_cap;
-		struct thread *rcvt;
-
-		arcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv);
-		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
-
-		rcvt = arcv_cap->thd;
-		if (thd_rcvcap_pending(rcvt) > 0) {
-			next = rcvt;
-			/* tcap inheritance here...use the current tcap to process events */
-			tc      = 0;
-			timeout = TCAP_TIME_NIL;
-		}
+		prev_notif = curr_notif;
+		curr_notif = arcv_thd_notif(prev_notif);
+		depth ++;
 	}
 
-	if (tc) {
-		struct cap_tcap *tcap_cap;
-
-		tcap_cap = (struct cap_tcap *)captbl_lkup(ci->captbl, tc);
-		if (!CAP_TYPECHK_CORE(tcap_cap, CAP_TCAP)) return -EINVAL;
-		tcap = tcap_cap->tcap;
-
-		/* TODO: update prio and timeout */
-	}
-
-	return cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
+	return arcv_notif;
 }
 
 /**
@@ -559,10 +528,8 @@ notify_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap
 	     struct tcap *tcap, struct tcap **tcap_next, int yield)
 {
 	struct thread *next;
-	struct thread *arcv_notif;
-
-	arcv_notif = arcv_thd_notif(rcv_thd);
-	if (arcv_notif) thd_rcvcap_evt_enqueue(arcv_notif, rcv_thd);
+	
+	notify_parent(rcv_thd);
 
 	/* The thread switch decision: */
 	if (yield || tcap_higher_prio(rcv_tcap, tcap)) {
@@ -589,6 +556,112 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
 	return notify_process(rcv_thd, thd, rcv_tcap, tcap, tcap_next, yield);
 }
 
+static int
+cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_next, struct tcap *tc_curr, struct tcap *tc_next,
+           tcap_time_t timeout, struct comp_info *ci, struct cos_cpu_local_info *cos_info, int intr_context)
+{
+	struct thread *thc, *thn;
+	struct tcap *tc, *tn;
+	cycles_t now;
+	int switch_away = 0;
+
+	/* which tcap should we use?  is the current expended? */
+	if (tcap_budgets_update(cos_info, thd_curr, tc_curr, &now)) {
+		assert(!tcap_is_active(tc_curr) && tcap_expended(tc_curr));
+
+		if (intr_context) tc_next = thd_rcvcap_tcap(thd_next);
+
+		/* how about the scheduler's tcap? */
+		if (tcap_expended(tc_next)) {
+			/* finally...the active list */
+			tc_next  = tcap_active_next(cos_info);
+			/* in active list?...better have budget */
+			assert(tc_next && !tcap_expended(tc_next));
+			/* and the next thread should be the scheduler of this tcap */
+			thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_next));
+			switch_away = 1;
+		}
+	}
+
+	if (intr_context || switch_away) {
+		thd_next = notify_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
+		if (thd_next == thd_curr && tc_next == tc_curr) return (intr_context ? 1 : 0);
+	}
+
+	/* update tcaps, and timers */
+	tcap_timer_update(cos_info, tc_next, timeout, now);
+	tcap_current_set(cos_info, tc_next);
+
+	if (intr_context) { 
+		/* update only tcap and return to curr thread */
+		if (thd_next == thd_curr) return 1;
+		thd_curr->state |= THD_STATE_PREEMPTED;
+	} else if (switch_away) {
+		thd_curr->state |= THD_STATE_SUSPENDED;
+	}
+
+	/* switch threads */
+ 	return cap_thd_switch(regs, thd_curr, thd_next, ci, cos_info);
+}
+
+static int
+cap_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struct tcap *next_tcap, tcap_time_t timeout,
+	   struct comp_info *ci, struct cos_cpu_local_info *cos_info)
+{
+	return cap_update(regs, curr, next, tcap_current(cos_info), next_tcap, timeout, ci, cos_info, 0);
+}
+
+static int
+cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
+	   struct comp_info *ci, struct cos_cpu_local_info *cos_info)
+{
+	struct thread *next = thd_cap->t;
+	capid_t arcv        = (__userregs_get1(regs) << 16) >> 16;
+	capid_t tc          = __userregs_get1(regs) >> 16;
+	u32_t prio_higher   = __userregs_get3(regs);
+	u32_t prio_lower    = __userregs_get2(regs);
+	tcap_prio_t prio    = (tcap_prio_t)(prio_higher >> 16) << 32 | (tcap_prio_t)prio_lower;
+	sched_tok_t usr_counter   = (((sched_tok_t)__userregs_get3(regs) << 16) >> 16) | ((sched_tok_t)__userregs_getop(regs) << 16); /* op holds MSB of counter */
+	tcap_time_t timeout = (tcap_time_t)__userregs_get4(regs);
+	struct tcap *tcap   = tcap_current(cos_info);
+	int ret;
+
+	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
+
+	if (arcv) {
+		struct cap_arcv *arcv_cap;
+		struct thread *rcvt;
+
+		arcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv);
+		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
+
+		rcvt = arcv_cap->thd;
+		/* race-condition check for user-level thread switches */
+		assert(usr_counter < ~0U);
+		if (thd_rcvcap_get_counter(rcvt) > usr_counter)	return -EAGAIN;
+		thd_rcvcap_set_counter(rcvt, usr_counter);
+		if (thd_rcvcap_pending(rcvt) > 0) {
+			next = rcvt;
+			/* tcap inheritance here...use the current tcap to process events */
+			tc      = 0;
+			timeout = TCAP_TIME_NIL;
+		}
+	}
+
+	if (tc) {
+		struct cap_tcap *tcap_cap;
+
+		tcap_cap = (struct cap_tcap *)captbl_lkup(ci->captbl, tc);
+		if (!CAP_TYPECHK_CORE(tcap_cap, CAP_TCAP)) return -EINVAL;
+		tcap = tcap_cap->tcap;
+	}
+
+	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
+	if (tc && tcap_current(cos_info) == tcap) tcap_setprio(tcap, prio);
+
+	return ret;
+}
+
 static inline struct cap_arcv *
 __cap_asnd_to_arcv(struct cap_asnd *asnd)
 {
@@ -607,6 +680,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	    struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
 	int curr_cpu = get_cpuid();
+	int yield    = __userregs_get1(regs);
 	struct cap_arcv *arcv;
 	struct thread *rcv_thd, *next;
 	struct tcap *rcv_tcap, *tcap, *tcap_next;
@@ -622,7 +696,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
 
-	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0);
+	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, yield);
 
 	return cap_switch(regs, thd, next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
 }
@@ -657,7 +731,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	assert(thd);
 	ci       = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci  && ci->captbl);
-	assert(!thd->state & THD_STATE_PREEMPTED);
+	assert(!(thd->state & THD_STATE_PREEMPTED));
 	rcv_thd  = arcv->thd;
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
@@ -667,6 +741,21 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	thd->state |= THD_STATE_PREEMPTED;
 
 	return cap_switch(regs, thd, next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
+}
+
+int
+expended_process(struct pt_regs *regs, struct thread *thd_curr, struct comp_info *ci, struct cos_cpu_local_info *cos_info, int intr_context)
+{
+	struct thread *thd_next;
+	struct tcap *tc_curr, *tc_next;
+
+	tc_curr  = tc_next = tcap_current(cos_info);
+	assert(tc_curr);
+	/* get the scheduler thread */
+	thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
+	assert(thd_next && thd_bound2rcvcap(thd_next) && thd_rcvcap_isreferenced(thd_next));
+
+	return cap_update(regs, thd_curr, thd_next, tc_curr, tc_next, TCAP_TIME_NIL, ci, cos_info, intr_context);
 }
 
 /**
@@ -684,8 +773,7 @@ int
 timer_process(struct pt_regs *regs)
 {
 	struct cos_cpu_local_info *cos_info;
-	struct tcap      *tc_curr,  *tc_next;
-	struct thread    *thd_curr, *thd_next;
+	struct thread    *thd_curr;
 	struct comp_info *comp;
 	unsigned long     ip, sp;
 	cycles_t          now;
@@ -693,44 +781,11 @@ timer_process(struct pt_regs *regs)
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
 	thd_curr = thd_current(cos_info);
-	tc_curr  = tc_next = tcap_current(cos_info);
 	assert(thd_curr);
 	comp     = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
 	assert(comp);
 
-	/* get the scheduler thread */
-	thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
-	assert(thd_next && thd_bound2rcvcap(thd_next) && thd_rcvcap_isreferenced(thd_next));
-
-	/* which tcap should we use?  is the current expended? */
-	if (tcap_budgets_update(cos_info, thd_curr, tc_curr, &now)) {
-		assert(!tcap_is_active(tc_curr) && tcap_expended(tc_curr));
-
-		tc_next  = thd_rcvcap_tcap(thd_next);
-		/* how about the scheduler's tcap? */
-		if (tcap_expended(tc_next)) {
-			/* finally...the active list */
-			tc_next  = tcap_active_next(cos_info);
-			/* in active list?...better have budget */
-			assert(tc_next && !tcap_expended(tc_next));
-			/* and the next thread should be the scheduler of this tcap */
-			thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_next));
-		}
-	}
-
-	thd_next = notify_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
-	if (thd_next == thd_curr && tc_next == tc_curr) return 1;
-
-	/* update tcaps, and timers */
-	tcap_timer_update(cos_info, tc_next, TCAP_TIME_NIL, now);
-	tcap_current_set(cos_info, tc_next);
-
-	/* update only tcap and return to curr thread */
-	if (thd_next == thd_curr) return 1;
-	thd_curr->state |= THD_STATE_PREEMPTED;
-
-	/* switch threads */
- 	return cap_thd_switch(regs, thd_curr, thd_next, comp, cos_info);
+	return expended_process(regs, thd_curr, comp, cos_info, 1);
 }
 
 static int
@@ -754,8 +809,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		return 0;
 	}
 
-	next = arcv_thd_notif(thd);
-	if (likely(next)) thd_rcvcap_evt_enqueue(next, thd);
+	next = notify_parent(thd);
 
 	/* FIXME:  for now, lets just ignore this path...need to plumb tcaps into it */
 	thd->interrupted_thread = NULL;
@@ -1409,6 +1463,13 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			ret = tcap_delegate(tc, tcapsrc->tcap, res, prio);
 			if (unlikely(ret)) cos_throw(err, -EINVAL);
 
+			if(tcap_expended(tcap_current(cos_info))) {
+				ret = expended_process(regs, thd, ci, cos_info, 0);
+				if (unlikely(ret < 0)) cos_throw(err, ret);
+
+				*thd_switch = 1;
+			}
+
 			break;
 		}
 		case CAPTBL_OP_TCAP_DELEGATE:
@@ -1446,6 +1507,11 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			n = asnd_process(rthd, thd, tcapdst, tcap_current(cos_info), &tcap_next, yield);
 			if (n != thd) {
 				ret = cap_switch(regs, thd, n, tcap_next, TCAP_TIME_NIL, ci, cos_info);
+				if (unlikely(ret < 0)) cos_throw(err, ret);
+
+				*thd_switch = 1;
+			} else if(tcap_expended(tcap_current(cos_info))) {
+				ret = expended_process(regs, thd, ci, cos_info, 0);
 				if (unlikely(ret < 0)) cos_throw(err, ret);
 
 				*thd_switch = 1;

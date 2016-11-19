@@ -13,6 +13,7 @@
 .fn_exports
 .exported_interfaces
 composite_new
+*.out
 tags
 src/kernel/include/shared/cpu_ghz.h
 src/Makefile.cosconfig

@@ -49,6 +49,7 @@ struct tcap {
 	struct tcap_budget budget;
 	u8_t               ndelegs, curr_sched_off;
 	u16_t              cpuid;
+	tcap_prio_t        perm_prio;
 
 	/*
 	 * Which chain of temporal capabilities resulted in this
@@ -151,13 +152,26 @@ static inline int
 tcap_expended(struct tcap *t)
 { return tcap_left(t) == 0; }
 
+static inline void
+tcap_setprio(struct tcap *t, tcap_prio_t p)
+{
+	assert(t);
+	tcap_sched_info(t)->prio = p;
+}
+
 static inline struct tcap *
 tcap_current(struct cos_cpu_local_info *cos_info)
 { return (struct tcap *)(cos_info->curr_tcap); }
 
 static inline void
 tcap_current_set(struct cos_cpu_local_info *cos_info, struct tcap *t)
-{ cos_info->curr_tcap = t; }
+{
+	struct tcap *curr = tcap_current(cos_info);
+
+	/* remove transient prio on current tcap before switching to a new tcap */
+	if(curr->perm_prio != tcap_sched_info(curr)->prio) tcap_setprio(curr, curr->perm_prio);
+	cos_info->curr_tcap = t;
+}
 
 /* hack to avoid header file recursion */
 void __thd_exec_add(struct thread *t, cycles_t cycles);
@@ -190,30 +204,21 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 
 	/* next == INF? no timer required. */
 	left        = tcap_left(next);
-	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) return;
+	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) {
+		chal_timer_disable();
+		return;
+	} 
 
 	/* timeout based on the tcap budget... */
 	timer       = now + left;
-	/* overflow?  especially relevant if left = TCAP_RES_INF */
-	if (unlikely(timer <= now)) return;
 	timeout_cyc = tcap_time2cyc(timeout, now);
 	/* ...or explicit timeout within the bounds of the budget */
 	if (timeout != TCAP_TIME_NIL && timeout_cyc < timer) {
 		if (tcap_time_lessthan(timeout, tcap_cyc2time(now))) timer = now;
 		else                                                 timer = timeout_cyc;
 	}
-	/* avoid the large costs of setting the timer hardware if possible */
-	if (cycles_same(cos_info->timeout_next, timer)) return;
 
 	chal_timer_set(timer);
-	cos_info->timeout_next = timer;
-}
-
-static inline void
-tcap_setprio(struct tcap *t, tcap_prio_t p)
-{
-	assert(t);
-	tcap_sched_info(t)->prio = p;
 }
 
 /*
