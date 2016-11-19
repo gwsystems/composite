@@ -82,11 +82,14 @@ void cos_init(void) {
         OS_printf("CFE_PSP: Starting the cFE with a POWER ON reset.\n");
     }
 
+    OS_printf("CFE_PSP: Initializing the OS API...\n");
     /*
     ** Initialize the OS API
     */
     OS_API_Init();
+    OS_printf("CFE_PSP: The the OS API was successfully initialized!\n");
 
+    OS_printf("CFE_PSP: Doing PSP setup...\n");
     /*
     ** Initialize the statically linked modules (if any)
     ** This is only applicable to CMake build - classic build
@@ -101,14 +104,23 @@ void cos_init(void) {
     */
     CFE_PSP_InitProcessorReservedMemory(reset_type);
 
+    OS_printf("CFE_PSP: PSP setup successful!\n");
+
+
     #ifdef RUN_TESTING_CODE
     // Testing code goes here
+    OS_printf("CFE_PSP: Running testing code...\n");
+    
+    OS_printf("CFE_PSP: Running testing code completed\n");
     #else
+
+    OS_printf("CFE_PSP: Starting the cFE proper...\n");
     /*
     ** Call cFE entry point.
     */
     CFE_ES_MAIN_FUNCTION(reset_type, args.SubType, 1, CFE_ES_NONVOL_STARTUP_FILE);
 
+    OS_printf("CFE_PSP: cFE started, main thread sleeping\n");
     /*
     ** Let the main thread sleep.
     **
