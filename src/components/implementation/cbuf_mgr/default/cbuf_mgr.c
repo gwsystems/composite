@@ -241,11 +241,13 @@ cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size, vaddr_t exa
 	memset(p, 0, size);
 
 	if (exact_dest) {
+		printc(">cb alloc_map 1\n");
 		int tmp = valloc_alloc_at(cos_spd_id(), spdid, (void *) exact_dest, size/PAGE_SIZE);
 		assert(!tmp);
 		dest = exact_dest;
 	}
 	else {
+		printc(">cb alloc_map 2\n");
 		dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
 	}
 	if (!dest) goto free;
@@ -665,14 +667,18 @@ __cbuf_register_map_at(spdid_t o_spd, spdid_t f_spd, long o_cbid, long f_cbid)
 	o_cci = cbuf_comp_info_get(o_spd);
 	f_cci = cbuf_comp_info_get(f_spd);
 	if (!o_cci) goto done;
+	printc("cb reg at: 1\n");
 	if (!f_cci) goto done;
 	o_cmr = cbuf_meta_lookup_cmr(o_cci, o_cbid);
+	printc("cb reg at: 2\n");
 	if (!o_cmr) goto done;
 	f_cmr = cbuf_meta_lookup_cmr(f_cci, f_cbid);
 	if (f_cmr) ERR_THROW(f_cmr->dest, done);
+	printc("cb reg at: 3\n");
 	
 	/* Create the mapping into the client */
 	if (cbuf_alloc_map(f_spd, &dest, &p, PAGE_SIZE, o_cmr->dest)) goto done;
+	printc("cb reg at: 4\n");
 	assert((u32_t)p == round_to_page(p));
 	f_cmr = cbuf_meta_add(f_cci, f_cbid, p, dest);
 	assert(f_cmr);
@@ -683,7 +689,7 @@ done:
 }
 
 int
-__fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd)
+__cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd)
 {
 	struct cbuf_info *cbi;
 	unsigned int size;
@@ -708,7 +714,7 @@ __fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd)
 	cbid = __cbuf_create(spdid, size, 0, dest);
 	printd("cbid after first create is %d. Should be negative because there is no map\n", cbid);
 	if (cbid < 0) { // only do these steps if initial create failed because of lack of map
-		if (cbi->owner.addr != __cbuf_register_map_at(o_spd, f_spd, cbi->cbid, cbid * -1)) { printd("cbuf_register failed\n"); goto done; }
+		if (dest != __cbuf_register_map_at(o_spd, f_spd, cbi->cbid, cbid * -1)) { printd("cbuf_register failed\n"); goto done; }
 		cbid = __cbuf_create(spdid, size, cbid * -1, dest);
 		printd("cbid after second create is %d. Should be good now\n", cbid);
 	}
@@ -806,7 +812,7 @@ __cbuf_copy_cci(spdid_t o_spd, struct cbuf_comp_info *src, spdid_t f_spd, struct
 			/* This is for if O is the owner */
 			/* This just universally forks everything to a new cbuf. If it was just a mapping shouldn't we just make another mapping??? */
 			printc("About to try copying this mapping of cbid %d \n", cbi->cbid);
-			if (__fork_cbuf(o_spd, cbi->cbid, f_spd)) BUG();
+			if (__cbuf_fork_cbuf(o_spd, cbi->cbid, f_spd)) BUG();
 		}
 		else {
 			do {
@@ -814,7 +820,7 @@ __cbuf_copy_cci(spdid_t o_spd, struct cbuf_comp_info *src, spdid_t f_spd, struct
 				if (m->spdid == o_spd) {
 					/* This just universally forks everything to a new cbuf. If it was just a mapping shouldn't we just make another mapping??? */
 					printc("About to try copying this mapping of cbid %d \n", cbi->cbid);
-					if (__fork_cbuf(o_spd, cbi->cbid, f_spd)) printc("A bug has occurred but we will continue just for experiment's sake\n");
+					if (__cbuf_fork_cbuf(o_spd, cbi->cbid, f_spd)) printc("A bug has occurred but we will continue just for experiment's sake\n");
 				}
 
 				m = FIRST_LIST(m, next, prev);
