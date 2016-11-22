@@ -224,11 +224,10 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	/* helps O out of critical section */
 	lock_help_owners(spdid, source);
 
-	/* The following, copied partly from booter.c,  */
+	/* The following, copied partly from booter.c */
 	d_spd = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0);
 	if (d_spd > MAX_NUM_SPDS) { printc("error 1\n"); goto error; }
 
-	// So this is before step 1?
 	printd("Created new spd: %d\n", d_spd);
 
 	sect = cobj_sect_get(src_hdr, 0);
@@ -293,25 +292,25 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 //			if (flags & MAPPING_RW) {
 //				struct cbid_caddr new_cbm;
 //				new_cbm.caddr = cbuf_alloc_ext(left, &new_cbm.cbid, CBUF_EXACTSZ);
-//				printd("Avoid sharing, allocated new cbuf %u @ %x\n", new_cbm.cbid / 4, (unsigned long)new_cbm.caddr);
 //				if (!new_cbm.caddr) { printc("error 7\n"); goto error; }
 //				memcpy(new_cbm.caddr, cbm.caddr, left);
-//				printd("Memory being copied is [%s], from cbid %d\n", cbm.caddr, cbm.cbid);
+//				if (sect->flags & COBJ_SECT_CINFO) printc("Used to be %x now %x\n", cbm.caddr, new_cbm.caddr);
 //				cbm.caddr = new_cbm.caddr;
-//				cbm.cbid = new_cbm.cbid;	// why?
+//				cbm.cbid = new_cbm.cbid;
 //			}
 //			assert(cbm.caddr);
 //			cbid = cbm.cbid;
 //			new_sect_cbufs[j] = cbm;
-//			printd("cbuf id doing memcpy on is %d\n", cbid);
 
 //			if (d_addr != (cbuf_map_at(cos_spd_id(), cbid, d_spd, d_addr | flags))) { printc("error 8 - could not do cbuf_map_at to d_spd\n"); goto error;}
 //			printd("mapped address %p\n", d_addr);
 
 			if (sect->flags & COBJ_SECT_CINFO) {
 				/* fixup cinfo page */
-				struct cos_component_information *ci = cbm.caddr;
+				printc("doin' stuff, setting ci to %x\n", cbm.caddr);
+				struct cos_component_information *ci = 0x4b4fc000;
 				ci->cos_this_spd_id = d_spd;
+				printc("calling set_symbs with header %x spd %d comp info %x\n", src_hdr, d_spd, ci);
 				__boot_spd_set_symbs(src_hdr, d_spd, ci);
 				__boot_deps_save_hp(d_spd, ci->cos_heap_ptr);
 			}
@@ -323,11 +322,6 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 	
 	
-	
-
-	// wait what is this?
-	//struct cobj_header *check_hdr;
-	//if (!(check_hdr = cos_vect_lookup(&spd_sect_cbufs_header, 13))) BUG();
 
 	/* FIXME: better way to pick threads out. this will get the first
 	 * thread, preference to blocked, then search inv stk. The
@@ -365,7 +359,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	 * FIXME: set fault handlers and re-write caps 
 	 * Also a note that activate should come after cbuf_fork, since it expects memory to be copied over.
 	 */
-	printd("Activating %d\n", d_spd);
+	printd("Activating %d with ncap %x\n", d_spd, src_hdr->ncap);
 	if (cos_spd_cntl(COS_SPD_ACTIVATE, d_spd, src_hdr->ncap, 0)) BUG();
 	printd("Setting capabilities for %d\n", d_spd);
 	if (__boot_spd_caps(src_hdr, d_spd)) BUG();

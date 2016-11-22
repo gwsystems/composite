@@ -3208,6 +3208,7 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 			break;
 		}
 		/* Is the ucap tbl mapped in? */
+		printk("SPD_ACTIV 1\n");
 		kaddr = chal_pgtbl_vaddr2kaddr(spd->spd_info.pg_tbl, (vaddr_t)spd->user_vaddr_cap_tbl);
 		if (0 == kaddr) {
 			ret = -1;
@@ -3215,6 +3216,7 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		}
 		spd->user_cap_tbl = (struct usr_inv_cap*)kaddr;
 		spd_add_static_cap(spd, 0, spd, 0);
+		printk("SPD_ACTIV 2\n");
 
 		cspd = spd_alloc_mpd();
 		if (!cspd) {

@@ -62,7 +62,10 @@ chal_pgtbl_vaddr2kaddr(paddr_t pgtbl, unsigned long addr)
 	pte_t *pte = pgtbl_lookup_address(pgtbl, addr);
 	unsigned long kaddr;
 
+	printk("pgtbl %x addr %x pte %x\n", pgtbl, addr, pte);
+
 	if (!pte || !(pte_val(*pte) & _PAGE_PRESENT)) {
+		printk("ww :(\n");
 		return 0;
 	}
 	
