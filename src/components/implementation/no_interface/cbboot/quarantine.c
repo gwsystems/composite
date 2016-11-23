@@ -152,6 +152,7 @@ receive_side_counters(spdid_t o_spd, spdid_t f_spd)
 
 	/* Find every spd that has an invocation cap to source and update the receive-side fork count. */
 	for (j = 0; cgraph_client(j) != -1; j++) {
+		printd("iterating over cgraph index %d\n", j);
 		int i;
 		int ncaps;
 		spdid_t spd_client, spd_server;
@@ -160,6 +161,7 @@ receive_side_counters(spdid_t o_spd, spdid_t f_spd)
 			spd_client = cgraph_client(j);
 			ncaps = cos_cap_cntl(COS_CAP_GET_SPD_NCAPS, spd_client, 0, 0);
 			for (i = 0; i < ncaps; i++) {
+				printd(">>>iterating over ncap %d\n", i);
 				spd_server = cos_cap_cntl(COS_CAP_GET_DEST_SPD, spd_client, i, 0);
 
 				if (spd_server < 0) BUG();
@@ -308,7 +310,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 			if (sect->flags & COBJ_SECT_CINFO) {
 				/* fixup cinfo page */
 				printc("doin' stuff, setting ci to %x\n", cbm.caddr);
-				struct cos_component_information *ci = 0x4b4fc000;
+				struct cos_component_information *ci = cbm.caddr;
 				ci->cos_this_spd_id = d_spd;
 				printc("calling set_symbs with header %x spd %d comp info %x\n", src_hdr, d_spd, ci);
 				__boot_spd_set_symbs(src_hdr, d_spd, ci);
@@ -352,8 +354,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	
 	printd("Telling cbuf to fork(%d, %d, %d)\n", cos_spd_id(), source, d_spd);
 	r = cbuf_fork_spd(cos_spd_id(), source, d_spd);
-	if (r) printc("Error (%d) in cbuf_fork_spd\n", r);
-	
+	if (r) { printc("Error (%d) in cbuf_fork_spd\n", r); BUG(); }
 	
 	/* 
 	 * FIXME: set fault handlers and re-write caps 
@@ -379,7 +380,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 	/* TODO: should creation of boot threads be controlled by policy? */
 	printd("Creating boot threads in fork: %d\n", d_spd);
-	__boot_spd_thd(d_spd);
+	if (__boot_spd_thd(d_spd)) BUG();
 	
 	int reset;
 	reset = sched_curr_set_priority(p);

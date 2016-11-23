@@ -20,7 +20,7 @@
 #include <stkmgr.h>
 
 /** 
-* The main data-structures tracked in this component.
+ * The main data-structures tracked in this component.
  * 
  * cbuf_comp_info is the per-component data-structure that tracks the
  * page shared with the component to return garbage-collected cbufs, the
@@ -241,8 +241,8 @@ cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size, vaddr_t exa
 	memset(p, 0, size);
 
 	if (exact_dest) {
-		int tmp = valloc_alloc_at(cos_spd_id(), spdid, (void *) exact_dest, size/PAGE_SIZE);
-		assert(!tmp);
+		//int tmp = valloc_alloc_at(cos_spd_id(), spdid, (void *) exact_dest, size/PAGE_SIZE);
+		//assert(!tmp);
 		dest = exact_dest;
 	}
 	else {
@@ -507,7 +507,7 @@ cbuf_create(spdid_t spdid, int size, long cbid)
 }
 
 int
-__map_and_meta(spdid_t spdid, int cbid, int size)
+__map_and_meta(spdid_t spdid, int cbid, int size, vaddr_t daddr)
 {
 	struct cbuf_comp_info *cci;
 	struct cbuf_info *cbi;
@@ -530,8 +530,16 @@ __map_and_meta(spdid_t spdid, int cbid, int size)
 	if (size > cbi->size) {printd("too big\n"); goto done; }
 	assert((int)round_to_page(cbi->size) == cbi->size);
 	size       = cbi->size;
-	dest       = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
-	if (!dest) {printd("no valloc\n"); goto free; }
+	
+	if (!daddr) {
+//		dest       = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
+//		if (!dest) {printd("no valloc\n"); goto free; }
+	}
+	else {
+//		int tmp = valloc_alloc_at(cos_spd_id(), spdid, daddr, size/PAGE_SIZE);
+//		assert(!tmp);
+		dest = daddr;
+	}
 
 	map->spdid = spdid;
 	map->m     = NULL;
@@ -541,12 +549,14 @@ __map_and_meta(spdid_t spdid, int cbid, int size)
 
 	page = cbi->mem;
 	assert(page);
-if (spdid == 12) printc(">>>3 about to call cbuf map to spd %d daddr %lx\n", spdid, dest);
-	printd("cbuf_map(%d, %lx, %x, %d, %d)\n", spdid, dest, (unsigned int) page, size, MAPPING_RW);
-	if (cbuf_map(spdid, dest, page, size, MAPPING_RW)) {
-		printd("cbuf_map failed\n");
-		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
-	}
+
+	// this can probably be pulled out of the helper method.
+//if (spdid == 12) printc(">>>3 about to call cbuf map to spd %d daddr %lx\n", spdid, dest);
+//	printd("cbuf_map(%d, %lx, %x, %d, %d)\n", spdid, dest, (unsigned int) page, size, MAPPING_RW);
+//	if (cbuf_map(spdid, dest, page, size, MAPPING_RW)) {
+//		printd("cbuf_map failed\n");
+//		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
+//	}
 	ret = 0;
 done:
 	return ret;
@@ -592,9 +602,7 @@ if (d_spd == 12) printc(">>>2 about to call cbuf map to spd %d daddr %lx and fla
 	 * about the cbuf and its mapping in d_spd. 
 	 */
 	
-	
-	// Does this go here??? I'm just guessing
-	__map_and_meta(d_spd, id, cbi->size);
+	__map_and_meta(d_spd, id, cbi->size, d_addr);
 done:
 	if (d_spd == 12) printc(">>>ret: %x\n", ret);
 	return ret;
@@ -813,7 +821,7 @@ __cbuf_copy_cci(spdid_t o_spd, struct cbuf_comp_info *src, spdid_t f_spd, struct
 		else {
 			do {
 				/* This is if O isn't the owner but has the cbuf mapped in. */
-				if (m->spdid == o_spd) {
+				if (m->spdid == o_spd && cbi->cbid >= 3) {
 					/* This just universally forks everything to a new cbuf. If it was just a mapping shouldn't we just make another mapping??? */
 					printc("About to try forking this mapping of cbid %d \n", cbi->cbid);
 					if (__cbuf_fork_cbuf(o_spd, cbi->cbid, f_spd)) printc("A bug has occurred but we will continue just for experiment's sake\n");
