@@ -10,8 +10,8 @@
 	pushl %ecx;		\
 	pushl %ebx
 
-#define SAVE_REGS_ALL 		\
-	subl $40, %esp; 	\
+#define SAVE_REGS_ALL		\
+	subl $40, %esp;		\
 	SAVE_REGS_GENERAL
 
 /* When return to user: ecx => sp, edx => ip. */
@@ -25,11 +25,11 @@
 	popl %eax
 
 #define RESTORE_REGS_ALL	\
-	RESTORE_REGS_GENERAL; 	\
+	RESTORE_REGS_GENERAL;	\
 	addl $40, %esp
 
 #define RET_TO_USER \
-	sti; 	    \
+	sti;	    \
 	sysexit
 
 /* The entire IPC path should be in __ipc_entry section. */
@@ -38,7 +38,6 @@
 .globl sysenter_entry
 sysenter_entry:
 	SAVE_REGS_ALL
-
 	pushl %esp /* pt_reg */
 	call composite_syscall_handler
 	addl $4, %esp

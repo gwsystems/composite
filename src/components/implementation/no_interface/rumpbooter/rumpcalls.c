@@ -4,6 +4,7 @@
 #include <cos_alloc.h>
 #include <cos_kernel_api.h>
 #include <cos_types.h>
+#include <cos_asm_simple_stacks.h>
 
 #include "rumpcalls.h"
 #include "rump_cos_alloc.h"
@@ -25,6 +26,8 @@ tcap_prio_t rk_thd_prio = RK_THD_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 tcap_prio_t rk_thd_prio = PRIO_UNDER;
 #endif
+
+extern void *__inv_test_entry(int a, int b, int c);
 
 /* Mapping the functions from rumpkernel to composite */
 void
@@ -73,31 +76,36 @@ cos2rump_setup(void)
 	return;
 }
 
-static void
+int
 test_entry(void)
-{ return; }
+{
+	return 1;
+}
 
 void
 cos_fs_test(void)
 {
 	sinvcap_t sinv;
+	compcap_t cc;
+	int sinv_ret;
 	printc("Running cos fs test\n");
 
 	/*
 	 * TODO
-	 * Need a sinvcap_t, use cos_sinv_alloc(srcci, dstcomp, entry addr)
 	 * Set up entry address as a place where we can get a new stack
 	 * Add syscall for sycronous invocations in cos_kernel_api.c with CAP_SINV
 	 * Call into other component
 	 */
 
-	/* For the time being, just switch to ourselves */
-	sinv = cos_sinv_alloc(&booter_info, booter_info.comp_cap, (vaddr_t)test_entry);
+	/* For the time being, just switch to ourselves, might not need to use a new component allocation, but eh */
+	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
+	assert(cc > 0);
+	sinv = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_entry);
 	assert(sinv > 0);
 
-	cos_sinv(sinv);
+	sinv_ret = cos_sinv(sinv);
 
-	printc("Done running cos fs test\n\n");
+	printc("Done running cos fs test, ret: %d\n\n", sinv_ret);
 }
 
 int
