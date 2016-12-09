@@ -1005,6 +1005,7 @@ cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr,
 		      int ecode, struct pt_regs *regs)
 {
 	cos_record_fault_regs(thd, fault_addr, ecode, regs);
+	printk("page fault\n");
 	fault_ipc_invoke(thd, fault_addr, 0, regs, COS_FLT_PGFLT);
 		
 	return 0;

@@ -22,6 +22,7 @@ cobj_sect_get(struct cobj_header *h, unsigned int sect_id)
 
 	if (h->nsect <= sect_id) return NULL;
 	s = (struct cobj_sect*)((u32_t)h + sizeof(struct cobj_header));
+	//s = (struct cobj_sect*)&h[1];
 
 	return &s[sect_id];
 }
@@ -34,6 +35,7 @@ cobj_symb_get(struct cobj_header *h, unsigned int symb_id)
 	if (symb_id >= h->nsymb) return NULL;
 	s = (struct cobj_symb*)((u32_t)h + sizeof(struct cobj_header) + 
 				sizeof(struct cobj_sect) * h->nsect);
+//	s = (struct cobj_symb*)&(cobj_sect_get(h, h->nsect-1)[1]);
 	
 	return &s[symb_id];
 }
@@ -106,7 +108,7 @@ cobj_sect_size(struct cobj_header *h, unsigned int sect_id)
 	struct cobj_sect *s;
 
 	s = cobj_sect_get(h, sect_id);
-	if (!s || s->flags & COBJ_SECT_UNINIT) return 0;				// or is this a bug? 
+	if (!s || s->flags & COBJ_SECT_UNINIT) return 0; 
 
 	return s->bytes;
 }

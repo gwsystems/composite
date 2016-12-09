@@ -48,6 +48,7 @@ struct spd *virtual_namespace_query(unsigned long addr)
 
 int virtual_namespace_free(struct spd *spd, unsigned long addr, unsigned int size)
 {
+	unsigned long a;
 	unsigned long addr_from_idx = addr>>HPAGE_SHIFT;
 	/* FIXME: this should be rounding up not down */
 	unsigned int addr_to_idx = addr_from_idx + (size>>HPAGE_SHIFT);
@@ -365,7 +366,7 @@ int spd_set_location(struct spd *spd, unsigned long lowest_addr,
 	    || uaddr + sizeof(struct usr_inv_cap) * spd->ncaps > lowest_addr + size
 	    || !user_struct_fits_on_page((unsigned long)spd->user_vaddr_cap_tbl, 
 					 sizeof(struct usr_inv_cap) * spd->ncaps)) {
-		printk("cos: user capability table @ %x does not fit into spd, or onto a single page\n", 
+		printk("cos: spd user capability table @ %x does not fit into spd, or onto a single page\n", 
 		       (unsigned int)spd->user_vaddr_cap_tbl);
 		return -1;
 	}
@@ -459,7 +460,6 @@ int spd_set_fork_cnt(struct spd *spd, int n)
 	spd->fork.origin = n;
 	return 0;
 }
-
 int spd_get_fork_cnt(struct spd *spd)
 {
 	return (int)spd->fork.origin;
@@ -497,15 +497,10 @@ static struct invocation_cap *spd_get_cap(struct spd *spd, int cap)
 
 int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd)
 {
-	assert(spd);
-	assert(dspd);
 	struct invocation_cap *c = spd_get_cap(spd, cap);
+	
 	if (!c) return -1;
-	if (cap >= spd->ncaps) {
-		printd("cos: Capability out of range (valid [0,%d), cap # %d).\n",
-		       spd->ncaps, cap);
-		return NULL;
-	}
+
 	c->destination = dspd;
 	return 0;
 }
@@ -544,7 +539,7 @@ int spd_cap_set_sfn(struct spd *spd, int cap, vaddr_t fn)
 int spd_cap_set_fork_cnt(struct spd *spd, int cap, s8_t send, s8_t receive)
 {
 	struct invocation_cap *c = spd_get_cap(spd, cap);
-
+	
 	if (!c) return -1;
 	assert(send >= 0);
 	assert(receive >= 0);
@@ -570,7 +565,6 @@ int spd_cap_inc_fork_cnt(struct spd *spd, int cap, s8_t send, s8_t receive)
 	if (!c) return -1;
 	c->fork.cnt.snd += send;
 	c->fork.cnt.rcv += receive;
-
 	assert(c->fork.cnt.snd >= 0);
 	assert(c->fork.cnt.rcv >= 0);
 	return 0;

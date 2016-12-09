@@ -10,7 +10,7 @@
 
 #include <consts.h>
 #include <cos_types.h>
-#include <util.h>
+#include <atomic_sync.h>
 #include <errno.h>
 
 /**
@@ -299,19 +299,6 @@ static inline long cos_cmpxchg(volatile void *memory, long anticipated, long res
 		: "cc", "memory");
 
 	return ret;
-}
-
-static inline int 
-cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated)
-{
-	char z;
-	__asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"
-			     : "+m" (*target),
-			       "=a" (z)
-			     : "q"  (updated),
-			       "a"  (cmp)
-			     : "memory", "cc");
-	return (int)z;
 }
 
 /* A uni-processor variant with less overhead but that doesn't

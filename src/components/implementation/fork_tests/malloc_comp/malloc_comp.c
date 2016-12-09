@@ -1,6 +1,7 @@
 #include <print.h>
 #include <cos_component.h>
 #include <test_malloc_comp.h>
+#include <cbuf.h>
 
 #define NUM 10
 static char *mptr[NUM];
@@ -24,11 +25,9 @@ call(void)
 		for (i = 0; i < NUM; i++) {
 			mptr[i] = (char *)malloc((i+1) * sizeof(int));
 			assert(mptr[i]);
-			printc("in O, %x\n", mptr[i]);
-
 			for (j = 0; j < i; j++) {
 				mptr[i][j] = j;
-				printc("[%d] ", mptr[i][j]);
+				printc("%d ", mptr[i][j]);
 			}
 
 			printc("\n");
@@ -41,16 +40,22 @@ call(void)
 		printc("Welcome to spd 14\n");
 
 		for (i = 0; i < NUM; i++) {
-			printc("in F, %x\n", mptr[i]);
 			for (j = 0; j < i; j++) {
-//				mptr[i][j]++;
-//				printc("[%d] ", mptr[i][j]);
+				mptr[i][j]++;
+				printc("%d ", mptr[i][j]);
 			}
 			printc("\n");
 
-	//		/* might as well do this */
-	//		free(mptr[i]);
+			/* might as well do this */
+//			free(mptr[i]);
 		}
+
+		printc("part 2 of F\n");
+		cbuf_t cb;
+		char *mem = cbuf_alloc(100, &cb);
+		printc("cbuf_alloc succeeded\n");
+		strcpy(mem, "abc");
+		printc("mem: [%s]\n", mem);
 	}
 
 	return a++ + b++;

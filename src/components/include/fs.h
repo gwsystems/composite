@@ -48,7 +48,7 @@ struct fsobj {
 	fsobj_type_t type;
 	u32_t size, allocated, refcnt;
 	int flags; 		/* only defined in client code */
-	void *data;
+	char *data;
 	struct fsobj *next, *prev;
 	struct fsobj *child, *parent; 	/* child != NULL iff type = dir */
 };

@@ -42,6 +42,7 @@ boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_in
 {
 	int i;
 
+	printc("set symbs: spd %d, ci->cos_user_caps %x\n", spdid, ci->cos_user_caps);
 	if (cos_spd_cntl(COS_SPD_UCAP_TBL, spdid, ci->cos_user_caps, 0)) BUG();
 	if (cos_spd_cntl(COS_SPD_UPCALL_ADDR, spdid, ci->cos_upcall_entry, 0)) BUG();
 	if (cos_spd_cntl(COS_SPD_ASYNC_INV_ADDR, spdid, ci->cos_async_inv_entry, 0)) BUG();
@@ -487,12 +488,6 @@ cgraph_client(int iter)
 {
 	if (iter >= ndeps || iter < 0) return -1;
 	return deps[iter].client;
-}
-
-int 
-cgraph_ndeps(void)
-{
-	return ndeps;
 }
 
 int

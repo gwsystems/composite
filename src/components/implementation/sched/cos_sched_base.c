@@ -1168,8 +1168,8 @@ int sched_get_thread_in_spd(spdid_t spdid, spdid_t target, int index)
 	/* do we need to worry about child/parent schedulers? */
 
 	/* iterate blocked threads */
-	for (t = FIRST_LIST(&sched_base->blocked, prio_next, prio_prev); 
-	     t != &sched_base->blocked;
+	for (t = FIRST_LIST(&sched_base->blocked, prio_next, prio_prev) ; 
+	     t != &sched_base->blocked ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) >= 0)
 			if (cnt++ == index) return t->id;
@@ -1185,7 +1185,6 @@ int sched_get_thread_in_spd(spdid_t spdid, spdid_t target, int index)
 		return t->id;
 	}
 
-	printc("cannot find thread id. Could be issue later on\n");
 	return 0;
 }
 
@@ -1240,7 +1239,9 @@ __sched_quarantine_thread_running(spdid_t src, spdid_t dst, struct sched_thd *t)
 			printc("sched_quarantine: error moving %d from %d -> %d\n", t->id, src, dst);
 			goto done;
 		}
+
 	}
+	
 
 done:
 	return ret;
@@ -2189,6 +2190,9 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		break;
 	case COS_UPCALL_ACAP_COMPLETE:
 		fp_event_completion(sched_get_current());
+		break;
+	case COS_UPCALL_QUARANTINE:
+		printc("quarantine stuff\n");
 		break;
 	default:
 		printc("fp_rr: cos_upcall_fn error - type %x, arg1 %d, arg2 %d\n", 

@@ -167,9 +167,9 @@ static inline void REGPARM(2) __small_free(void*_ptr,size_t _size) {
 
 static void* do_cbuf_alloc(size_t size, cbuf_t *cbid)
 {
-	if (!size) { return NULL; }
+    if (!size) { return NULL; }
 
-	return cbuf_alloc(size, cbid);
+    return cbuf_alloc(size, cbid);
 }
 
 static inline void* REGPARM(1) __small_malloc(size_t _size) {
@@ -214,8 +214,7 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 						cos_spd_id(), ptr, size, idx, __small_mem[idx]);
 #endif
 			return start;
-		}
-		
+		} 
 		next = ptr->next;
 	} while (unlikely(cos_cmpxchg(&__small_mem[idx], (long)ptr, (long)next) != (long)next));
 	ptr->next=0;
@@ -241,7 +240,7 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 
 static void do_cbuf_free(cbuf_t cbid)
 {
-	cbuf_free(cbid);
+    cbuf_free(cbid);
 }
 
 static void _alloc_libc_free(void *ptr) 
@@ -250,14 +249,11 @@ static void _alloc_libc_free(void *ptr)
 		__alloc_t *pointer = BLOCK_START(ptr);
 		size_t size = pointer->size;
 
-		if (size && size <= __MAX_SMALL_SIZE) {
+		assert(size);
+		if (size <= __MAX_SMALL_SIZE) {
 			__small_free(ptr, size);
-		} else if (size) {
+		} else {
 			cbuf_free(pointer->cbuf_id);
-		}
-		else {
-			// bug because size is invalid???
-			BUG();
 		}
 	}
 }
@@ -269,31 +265,31 @@ static __alloc_t zeromem[2];
 #endif
 
 static void* _alloc_libc_malloc(size_t size) {
-	__alloc_t* ptr;
-	size_t need;
+  __alloc_t* ptr;
+  size_t need;
 #ifdef WANT_MALLOC_ZERO
-	if (!size) return BLOCK_RET(zeromem);
+  if (!size) return BLOCK_RET(zeromem);
 #else
-	if (!size) goto err_out;
+  if (!size) goto err_out;
 #endif
-	size+=sizeof(__alloc_t);
-	if (unlikely(size<sizeof(__alloc_t))) goto err_out;
+  size+=sizeof(__alloc_t);
+  if (unlikely(size<sizeof(__alloc_t))) goto err_out;
 
-	if (size<=__MAX_SMALL_SIZE) {
-		need=GET_SIZE(size);
-		ptr=__small_malloc(need);
-	} 
-	else {
-		need=PAGE_ALIGN(size);
-		cbuf_t cbid;
-		ptr = need ? do_cbuf_alloc(need, &cbid) : MAP_FAILED;
-		ptr->cbuf_id = cbid;
-	}
-	if (ptr==MAP_FAILED) goto err_out;
-	ptr->size=need;
-	return BLOCK_RET(ptr);
+  if (size<=__MAX_SMALL_SIZE) {
+    need=GET_SIZE(size);
+    ptr=__small_malloc(need);
+  } 
+  else {
+    need=PAGE_ALIGN(size);
+    cbuf_t cbid;
+    ptr = need ? do_cbuf_alloc(need, &cbid) : MAP_FAILED;
+    ptr->cbuf_id = cbid;
+  }
+  if (ptr==MAP_FAILED) goto err_out;
+  ptr->size=need;
+  return BLOCK_RET(ptr);
 err_out:
-	return 0;
+  return 0;
 }
 
 void* malloc(size_t size) __attribute__((alias("_alloc_libc_malloc")));

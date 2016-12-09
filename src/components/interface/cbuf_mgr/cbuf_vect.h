@@ -12,7 +12,6 @@
 #include <cos_component.h>
 
 #include <cos_alloc.h>
-#include <print.h>
 
 #ifndef CVECT_ALLOC
 #define CVECT_ALLOC() alloc_page()
@@ -20,15 +19,15 @@
 #endif
 #include <cvect.h>
 
-vaddr_t cbuf_register(spdid_t spdid, long cbid);
+vaddr_t cbuf_register(spdid_t spdid, unsigned int cbid);
 extern cvect_t meta_cbuf;
 static inline int
-__cbuf_vect_expand_rec(struct cvect_intern *vi, const long id, const int depth)
+__cbuf_vect_expand_rec(struct cvect_intern *vi, const int id, const int depth)
 {
 	struct cvect_intern *new;
 
 	if (depth > 1) {
-		long n = id >> (CVECT_SHIFT * (depth-1));
+		unsigned int n = id >> (CVECT_SHIFT * (depth-1));
 		if (vi[n & CVECT_MASK].c.next == NULL) {
 			new = (struct cvect_intern *)cbuf_register(cos_spd_id(), meta_to_cbid_idx(id));			
 			if (!new) return -1;
@@ -40,10 +39,9 @@ __cbuf_vect_expand_rec(struct cvect_intern *vi, const long id, const int depth)
 }
 
 static inline int 
-cbuf_vect_expand(cvect_t *v, long id)
+cbuf_vect_expand(cvect_t *v, int id)
 {
 	return __cbuf_vect_expand_rec(v->vect, id, CVECT_DEPTH);
 }
-
 
 #endif /* CBUF_VECT_H */

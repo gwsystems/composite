@@ -185,6 +185,5 @@ void cos_init(void *arg)
 		init();
 	} else {
 		prints("vas_mgr: not expecting more than one bootstrap.");
-		BUG(); // ??? Any reason why not? No one will pay attention to the prints.
 	}
 }

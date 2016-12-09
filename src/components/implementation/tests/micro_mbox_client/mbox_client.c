@@ -66,7 +66,7 @@ void cos_init(void *arg)
 		cbuf_send(cb1);
 		rdtscll(end);
 		((u64_t *)d)[0] = end;
-		ret = twritep(cos_spd_id(), serv, cb1, 0, sz);
+		ret = twritep(cos_spd_id(), serv, cb1, sz);
 		cbuf_free(cb1); 
 	}
 	printc("Client snd %d times %llu\n", j-1, (end-start)/(j-1));
@@ -88,7 +88,7 @@ void cos_init(void *arg)
 			re_cbuf = re_cbuf+(end-start);
 			rdtscll(end);
 			((u64_t *)d)[0] = end;
-			ret = twritep(cos_spd_id(), serv, cb1, 0, i*sz);
+			ret = twritep(cos_spd_id(), serv, cb1, i*sz);
 		}
 		periodic_wake_wait(cos_spd_id());
 	}

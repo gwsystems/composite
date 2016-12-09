@@ -24,6 +24,7 @@ void cos_init(void)
 	ret = call();
 	printc("call() returned %d\n", ret);
 
+	printc("about to call fork\n");
 	f = quarantine_fork(cos_spd_id(), comp2fork);
 	if (f == 0) printc("Error: initial fork failed\n");
 

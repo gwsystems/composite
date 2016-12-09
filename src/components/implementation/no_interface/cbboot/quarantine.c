@@ -121,8 +121,6 @@ send_side_counters(spdid_t o_spd, spdid_t f_spd, struct cobj_header *o_hdr)
 	int j;
 	struct cobj_cap *cap;
 
-	printd("Incrementing send-side fork count in source's caps, and copy fork count into f_spd's caps.\n");
-	
 	/* Increment send-side fork count in o_spd's caps, and copy fork count into f_spd's caps. */
 	for (j = 0; j < o_hdr->ncap; j++) {
 		int cnt;
@@ -148,11 +146,10 @@ receive_side_counters(spdid_t o_spd, spdid_t f_spd)
 {
 	int j;
 
-	printd("Routing calls from O to F\n");
+	printd("Routing calls from O (%d) to F (%d)\n", o_spd, f_spd);
 
 	/* Find every spd that has an invocation cap to source and update the receive-side fork count. */
 	for (j = 0; cgraph_client(j) != -1; j++) {
-		printd("iterating over cgraph index %d\n", j);
 		int i;
 		int ncaps;
 		spdid_t spd_client, spd_server;
@@ -161,7 +158,6 @@ receive_side_counters(spdid_t o_spd, spdid_t f_spd)
 			spd_client = cgraph_client(j);
 			ncaps = cos_cap_cntl(COS_CAP_GET_SPD_NCAPS, spd_client, 0, 0);
 			for (i = 0; i < ncaps; i++) {
-				printd(">>>iterating over ncap %d\n", i);
 				spd_server = cos_cap_cntl(COS_CAP_GET_DEST_SPD, spd_client, i, 0);
 
 				if (spd_server < 0) BUG();
@@ -172,6 +168,9 @@ receive_side_counters(spdid_t o_spd, spdid_t f_spd)
 					if (cos_cap_cntl(COS_CAP_SET_DEST, spd_client, i - 1, f_spd)) BUG();
 					
 					printd("Updated fork count (receive-side) for cap %d from %d->%d to count %d\n", i, spd_client, spd_server, 1);
+	
+					int check = cos_cap_cntl(COS_CAP_GET_DEST_SPD, spd_client, i, 0);
+					printc("Now %d should invoke %d\n", spd_client, check);
 
 					/* If there can be multiple capablities between the same two spds, why is this break here? */
 					//break;
@@ -280,7 +279,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 			left -= (prev_map + PAGE_SIZE - d_addr);
 			d_addr = prev_map + PAGE_SIZE;
 		}
-		printd("Mapping section %d @ %x with %d bytes\n", j, (unsigned long)d_addr, left);
+//		printd("Mapping section %d @ %x with %d bytes\n", j, (unsigned long)d_addr, left);
 		if (left > 0) {
 			left = round_up_to_page(left);
 			prev_map = d_addr;
@@ -309,21 +308,17 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 			if (sect->flags & COBJ_SECT_CINFO) {
 				/* fixup cinfo page */
-				printc("doin' stuff, setting ci to %x\n", cbm.caddr);
 				struct cos_component_information *ci = cbm.caddr;
 				ci->cos_this_spd_id = d_spd;
-				printc("calling set_symbs with header %x spd %d comp info %x\n", src_hdr, d_spd, ci);
-				__boot_spd_set_symbs(src_hdr, d_spd, ci);
+//				printc("calling boot functions %x\n", cbm.caddr);
+				//__boot_spd_set_symbs(src_hdr, d_spd, ci);
 				__boot_deps_save_hp(d_spd, ci->cos_heap_ptr);
 			}
 			prev_map += left - PAGE_SIZE;
 			d_addr += left;
 		}
-		printd("prev_map is now %x\n", prev_map);
+//		printd("prev_map is now %x\n", prev_map);
 	}
-
-	
-	
 
 	/* FIXME: better way to pick threads out. this will get the first
 	 * thread, preference to blocked, then search inv stk. The
@@ -353,20 +348,26 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	//if (r) printc("Error (%d) in mman_fork_spd\n", r);
 	
 	printd("Telling cbuf to fork(%d, %d, %d)\n", cos_spd_id(), source, d_spd);
-	r = cbuf_fork_spd(cos_spd_id(), source, d_spd);
-	if (r) { printc("Error (%d) in cbuf_fork_spd\n", r); BUG(); }
+	vaddr_t cinfo_addr = cbuf_fork_spd(cos_spd_id(), source, d_spd);
+	printc("After all that forking, the cinfo should be at %x, in F, which should also be mapped here\n", cinfo_addr);
+	/* fixup cinfo page */
+	struct cos_component_information *ci = (struct cos_component_information*) cinfo_addr;
+	ci->cos_this_spd_id = d_spd;
+	__boot_spd_set_symbs(src_hdr, d_spd, ci);
+	__boot_deps_save_hp(d_spd, ci->cos_heap_ptr);
 	
 	/* 
 	 * FIXME: set fault handlers and re-write caps 
 	 * Also a note that activate should come after cbuf_fork, since it expects memory to be copied over.
 	 */
-	printd("Activating %d with ncap %x\n", d_spd, src_hdr->ncap);
 	if (cos_spd_cntl(COS_SPD_ACTIVATE, d_spd, src_hdr->ncap, 0)) BUG();
-	printd("Setting capabilities for %d\n", d_spd);
+	printc("Setting capabilities for %d\n", d_spd);
 	if (__boot_spd_caps(src_hdr, d_spd)) BUG();
+	printc("Setting capabilities done\n", d_spd);
 	
 	/* Fix send-side fork counters */
 	if (send_side_counters(source, d_spd, src_hdr)) BUG();
+	printc("b\n", d_spd);
 	if (receive_side_counters(source, d_spd)) BUG();
 
 	quarantine_add_to_spd_map(source, d_spd);

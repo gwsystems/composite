@@ -2,8 +2,6 @@
 #include <pong.h>
 #include <quarantine.h>
 
-void call(void) 
-{ 
-	printc("0123456789ABCDEF spdid %ld.\n", cos_spd_id()); 
-	return; 
-}
+//volatile int f;
+//void call(void) { f = *(int*)NULL; return; }
+void call(void) { return; }

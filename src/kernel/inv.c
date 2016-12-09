@@ -106,9 +106,8 @@ struct inv_ret_struct {
  * and the least-significant byte for receive (server) side.
  */
 static inline int
-need_fork_fix(struct invocation_cap *c)
+need_fork_fix(struct thread *thd, struct spd *curr_spd, struct invocation_cap *c)
 {
-	// c++;
 	assert(c->fork.cnt.snd >= 0);
 	assert(c->fork.cnt.rcv >= 0);
 	return (((int)c->fork.cnt.snd)<<8) | (int)c->fork.cnt.rcv;
@@ -128,7 +127,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 		    vaddr_t ip, struct inv_ret_struct *ret)
 {
 	struct thd_invocation_frame *curr_frame;
-	struct spd *curr_spd, *d_spd;
+	struct spd *curr_spd, *dest_spd;
 	struct invocation_cap *cap_entry;
 	struct thread *thd = core_get_curr_thd_id(get_cpuid_fast());
 	int fork_cnts = 0;
@@ -155,11 +154,11 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 
 	/* what spd are we in (what stack frame)? */
 	curr_frame = &thd->stack_base[thd->stack_ptr];
-	d_spd = cap_entry->destination;
+	dest_spd = cap_entry->destination;
 
-	/* printk("cos: d_spd %d, address %x\n", spd_get_index(d_spd), cap_entry->dest_entry_instruction); */
+	/* printk("cos: dest_spd %d, address %x\n", spd_get_index(dest_spd), cap_entry->dest_entry_instruction); */
 
-	if (unlikely(!d_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
+	if (unlikely(!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
 		printk("cos: Attempted use of unallocated capability.\n");
 		return 0;
 	}
@@ -191,25 +190,25 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	/* now we are committing to the invocation */
 	cos_meas_event(COS_MEAS_INVOCATIONS);
 
-	open_close_spd(d_spd->composite_spd, curr_spd->composite_spd);
+	open_close_spd(dest_spd->composite_spd, curr_spd->composite_spd);
 
 	/* Updating current spd: not used for now. */
-	/* core_put_curr_spd(&(d_spd->spd_info)); */
+	/* core_put_curr_spd(&(dest_spd->spd_info)); */
 
 	ret->thd_id = thd->thread_id | (get_cpuid_fast() << 16);
 	ret->spd_id = spd_get_index(curr_spd);
-	
-	spd_mpd_ipc_take((struct composite_spd *)d_spd->composite_spd);
+
+	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
 	/* add a new stack frame for the spd we are invoking (we're committed) */
 	thd_invocation_push(thd, cap_entry->destination, sp, ip);
 	cap_entry->invocation_cnt++;
 
 	/* Check for forking */
-	fork_cnts = need_fork_fix(cap_entry);
+	fork_cnts = need_fork_fix(thd, curr_spd, cap_entry);
 	if (unlikely(fork_cnts > 0)) {
 		/* the off-by-1 capability */
-		return thd_quarantine_fault(thd, curr_spd, d_spd, ((capability-1)<<16) | fork_cnts, COS_FLT_QUARANTINE, ret);
+		return thd_quarantine_fault(thd, curr_spd, dest_spd, ((capability-1)<<16) | fork_cnts, COS_FLT_QUARANTINE, ret);
 	}
 
 	return cap_entry->dest_entry_instruction;
@@ -361,8 +360,6 @@ __fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
 	a = ipc_walk_static_cap(fault_cap<<20, 0, 0, &r); /* GB: sp, ip? */
 
-	/* printk("cos: got fault handler @ %x for fault_num %d (with cap %d)\n", a, fault_num, fault_cap); */
-
 	/* setup the registers for the fault handler invocation */
 	regs->ax = r.thd_id;
 	regs->bx = regs->cx = r.spd_id;
@@ -381,6 +378,7 @@ __fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_
 int 
 fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
 {
+	printk("fault @%x\n", fault_addr);
 	return __fault_ipc_invoke(thd, fault_addr, flags, regs, fault_num, NULL);
 }
 
@@ -390,6 +388,11 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	int c_spd, d_spd, c_cnt, d_cnt, capid;
 	vaddr_t packed_spds;
 
+	/*
+	c_cnt = spd_get_fork_cnt(curr_spd);
+	d_cnt = spd_get_fork_cnt(dest_spd);
+	packed_counts = (c_cnt<<16)|d_cnt;
+	*/
 	/* for debug purposes */
 	capid = packed_counts>>16;
 	c_cnt = (packed_counts>>8)&0xff;
@@ -398,17 +401,17 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	c_spd = spd_get_index(curr_spd);
 	d_spd = spd_get_index(dest_spd);
 	packed_spds = (vaddr_t)((c_spd<<16)|d_spd);
-
-	printk("cos: thd_quarantine_fault from kernel/inv.c %d (%d) -> %d (%d) with cap %d\n", c_spd, c_cnt, d_spd, d_cnt, capid);
+	
+	printk("cos: thd_quarantine_fault %d (%d) -> %d (%d) with cap %d\n", c_spd, c_cnt, d_spd, d_cnt, capid);
 
 	/* GB: use curr_spd->fault_handler[], or dest_spd?
 	 * has to be dest_spd, otherwise static_ipc_walk fails, but
 	 * how do we fix-up the curr_spd then? */
 	if (unlikely(!__fault_ipc_invoke(thd, packed_spds, packed_counts, &thd->regs, fault_num, dest_spd))) return (vaddr_t)NULL;
+	printk("cos: fault thd reg args: si = %d, di = %d, ip = %x\n", thd->regs.si, thd->regs.di, thd->regs.ip);
 	ret->si = thd->regs.si;
 	ret->di = thd->regs.di;
 	ret->bp = thd->regs.bp;
-
 	return thd->regs.ip;
 }
 
@@ -620,6 +623,7 @@ cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 				if (arg2 == 0) return i;
 				else {
 					struct spd *d = spd_get_by_index(arg2);
+					printk("cos: quarantine thread %d from %d (%p) -> %ld (%p)\n", thd_get_id(thd), spd_get_index(tif->spd), tif->current_composite_spd, arg2, d->composite_spd);
 					tif->spd = d;
 					tif->current_composite_spd = d->composite_spd;
 					spd_mpd_ipc_take((struct composite_spd *)d->composite_spd);
@@ -887,6 +891,7 @@ switch_thread_update_flags(struct cos_sched_data_area *da, unsigned short int *f
 		*flags |= COS_SCHED_CHILD_EVT;
 }
 
+ // print out on switch_thread errors???
 #ifdef NIL
 #define goto_err(label, format, args...)			\
 	do {							\
@@ -3162,6 +3167,7 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 	{
 		if (spd->user_vaddr_cap_tbl) {
 			ret = -1;
+			printk("something invalid\n");
 			break;
 		}
 		/* arg1 = vaddr of ucap tbl */
@@ -3202,13 +3208,11 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		    (unsigned int)spd->user_vaddr_cap_tbl + sizeof(struct usr_inv_cap) * spd->ncaps > 
 		    spd->location[0].lowest_addr + spd->location[0].size || 
 		    !user_struct_fits_on_page((unsigned int)spd->user_vaddr_cap_tbl, sizeof(struct usr_inv_cap) * spd->ncaps)) {
-			printk("cos: user capability table @ %x does not fit into spd, or onto a single page\n", 
-			       (unsigned int)spd->user_vaddr_cap_tbl);
+			printk("cos: inv: user capability table @ %x does not fit into spd, or onto a single page\n", (unsigned int)spd->user_vaddr_cap_tbl);
 			ret = -1;
 			break;
 		}
 		/* Is the ucap tbl mapped in? */
-		printk("SPD_ACTIV 1\n");
 		kaddr = chal_pgtbl_vaddr2kaddr(spd->spd_info.pg_tbl, (vaddr_t)spd->user_vaddr_cap_tbl);
 		if (0 == kaddr) {
 			ret = -1;
@@ -3216,7 +3220,6 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		}
 		spd->user_cap_tbl = (struct usr_inv_cap*)kaddr;
 		spd_add_static_cap(spd, 0, spd, 0);
-		printk("SPD_ACTIV 2\n");
 
 		cspd = spd_alloc_mpd();
 		if (!cspd) {
