@@ -19,7 +19,7 @@
 
 struct invstk_entry {
 	struct comp_info comp_info;
-	unsigned long sp, ip; 	/* to return to */
+	unsigned long sp, ip;	/* to return to */
 } HALF_CACHE_ALIGNED;
 
 #define THD_INVSTK_MAXSZ 32

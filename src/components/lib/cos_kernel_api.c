@@ -289,7 +289,7 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 	return __capid_bump_alloc_generic(ci, frontier, sz);
 }
 
-/* 
+/*
  * need to make this a generic function to be called even from __page_bump_valloc()
  */
 static vaddr_t
@@ -324,7 +324,7 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 	}
 
 	assert(round_up_to_pgd_page(addr) == round_up_to_pgd_page(mem_ptr + mem_sz));
-	
+
 	return mem_ptr;
 }
 
@@ -572,7 +572,7 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 
 int
 cos_sinv(sinvcap_t sinv)
-{ return call_cap_op(sinv, 0, 0, 0, 0, 0); }
+{ return call_cap_asm(sinv, 0, 0, 0, 0, 0); }
 
 /*
  * Arguments:

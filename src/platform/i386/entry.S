@@ -1,7 +1,7 @@
 #include "chal_asm_inc.h"
 
 /* Composite pt_regs save/restore */
-#define SAVE_REGS_GENERAL 	\
+#define SAVE_REGS_GENERAL	\
 	pushl %eax;		\
 	pushl %ebp;		\
 	pushl %edi;		\

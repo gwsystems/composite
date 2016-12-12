@@ -1,5 +1,6 @@
 #include "cos_init.h"
 #include "rump_cos_alloc.h"
+#include <vk_types.h>
 
 #include <cos_kernel_api.h>
 
@@ -11,7 +12,7 @@ extern struct cos_compinfo booter_info;
 static unsigned long
 alloc_initmem_all(void)
 {
- 	/* RG:
+	/* RG:
 	 * 1 increment is 1 page, we start at 1 as the first page is fetched
 	 * from cos_run.
 	 */
@@ -42,9 +43,12 @@ alloc_initmem_all(void)
 	return max;
 }
 
+extern int vmid;
+
 void
 cos_run(char *cmdline)
 {
+
 	printc("\n------------------[RK]------------------\n");
 	printc("Rump Kernel bootstrap on platform Composite\n");
 	bmk_sched_init();

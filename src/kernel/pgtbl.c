@@ -113,7 +113,7 @@ pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t
 {
 	struct cap_pgtbl *pt;
 	int ret;
-	
+
 	pt = (struct cap_pgtbl *)__cap_capactivate_pre(t, cap, capin, CAP_PGTBL, &ret);
 	if (unlikely(!pt)) return ret;
 	pt->pgtbl  = pgtbl;

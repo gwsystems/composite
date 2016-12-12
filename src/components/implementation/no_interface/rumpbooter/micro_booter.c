@@ -5,6 +5,8 @@ struct cos_compinfo booter_info;
 thdcap_t termthd = VM_CAPTBL_SELF_EXITTHD_BASE;	/* switch to this to shutdown */
 unsigned long tls_test[TEST_NTHDS];
 
+void cos_fs_test(void);
+
 static void
 cos_llprint(char *s, int len)
 { call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0); }
@@ -46,21 +48,22 @@ vm_init(void *id)
 {
 	vmid = (int)id;
 	rumpns_vmid = vmid;
+
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	if (id == 0) { 
-		cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-				  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE, 
-				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
-	}
-	else {
-		cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-				  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, 
-				(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
-	}
+	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+			  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE,
+			(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 
-	PRINTC("rump_booter_init\n");
-	rump_booter_init();
 
-	EXIT();
-	return;
+	printc("************ Userspace *************\n");
+
+	cos_fs_test();
+
+
+	/* Done, just spin */
+	printc("************ Done ************\n");
+	while (1);
+	/* TODO add back in terminating thread */
+	//EXIT();
+	//return;
 }

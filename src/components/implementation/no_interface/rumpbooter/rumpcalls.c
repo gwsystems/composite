@@ -28,6 +28,8 @@ tcap_prio_t rk_thd_prio = PRIO_UNDER;
 #endif
 
 extern void *__inv_test_entry(int a, int b, int c);
+extern int vmid;
+extern thdcap_t vm_main_thd;
 
 /* Mapping the functions from rumpkernel to composite */
 void
@@ -76,36 +78,57 @@ cos2rump_setup(void)
 	return;
 }
 
+int paws_tests(void);
+
+static void
+swap(int *a, int *b) {
+
+	int temp;
+
+	temp = *a;
+	*a = *b;
+	*b = temp;
+}
+
+extern int booting;
+
 int
 test_entry(void)
 {
-	return 1;
+	int a,b;
+
+	a = 5;
+	b = 4;
+	printc("\nswapping: VM%d\n", vmid);
+	swap(&a, &b);
+	printc("\ndone swapping: VM%d\n", vmid);
+
+	printc("Running paws test: VM%d\n", vmid);
+	paws_tests();
+
+	return a;
+}
+
+static void
+get_sinv(sinvcap_t *sinv) {
+	*sinv = VM0_CAPTBL_SELF_IOSINV_BASE;
 }
 
 void
 cos_fs_test(void)
 {
-	sinvcap_t sinv;
+	sinvcap_t sinv = 0;
 	compcap_t cc;
-	int sinv_ret;
-	printc("Running cos fs test\n");
+	int sinv_ret = 0;
+	printc("Running cos fs test: VM%d\n", vmid);
 
-	/*
-	 * TODO
-	 * Set up entry address as a place where we can get a new stack
-	 * Add syscall for sycronous invocations in cos_kernel_api.c with CAP_SINV
-	 * Call into other component
-	 */
-
-	/* For the time being, just switch to ourselves, might not need to use a new component allocation, but eh */
-	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
-	assert(cc > 0);
-	sinv = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_entry);
-	assert(sinv > 0);
+	/* This sinv cap is allocated and found within vkernel_init.c */
+	/* Get sinv */
+	get_sinv(&sinv);
 
 	sinv_ret = cos_sinv(sinv);
 
-	printc("Done running cos fs test, ret: %d\n\n", sinv_ret);
+	printc("Done running cos fs test VM%d, ret: %d\n\n", vmid, sinv_ret);
 }
 
 int
@@ -143,7 +166,7 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 		tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
 		tcap_res_t res;
 
-		if (budget >= min) res = budget / 2; /* x cycles */ 
+		if (budget >= min) res = budget / 2; /* x cycles */
 		else res = 0; /* 0 = 100% budget */
 
 		if(cos_tcap_delegate(sndcap, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, VIO_PRIO, 0)) assert(0);
@@ -251,7 +274,14 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	thdcap_t newthd_cap;
 	int ret;
 
-	newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, f, arg);
+	printc("cos_cpu_sched_create: thread->bt_name = %s\n", thread->bt_name);
+	if (!strcmp(thread->bt_name, "user_lwp")) {
+		/* Return userlevel thread cap that is set up in vkernel_init */
+		printc("Match, returning vm_main_thd: %x\n", (unsigned int)vm_main_thd);
+		newthd_cap = vm_main_thd;
+	} else {
+		newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, f, arg);
+	}
 	assert(newthd_cap);
 	set_cos_thddata(thread, newthd_cap, cos_introspect(&booter_info, newthd_cap, 9));
 }
@@ -522,17 +552,17 @@ extern uint64_t t_dom_cycs;
 long long
 cos_vm_clock_now(void)
 {
-	uint64_t tsc_now = 0;
-	unsigned long long curtime = 0;
-        
-	assert(vmid <= 1);
-	if (vmid == 0)      tsc_now = t_dom_cycs;
-	else if (vmid == 1) tsc_now = t_vm_cycs;
-	
-	curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
-        curtime = (long long)(curtime * 1000); /* micro to nano seconds */
+       uint64_t tsc_now = 0;
+       unsigned long long curtime = 0;
 
-	return curtime;
+       assert(vmid <= 1);
+       if (vmid == 0)      tsc_now = t_dom_cycs;
+       else if (vmid == 1) tsc_now = t_vm_cycs;
+
+       curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
+       curtime = (long long)(curtime * 1000); /* micro to nano seconds */
+
+       return curtime;
 }
 
 /* Return monotonic time since RK initiation in nanoseconds */
@@ -543,10 +573,10 @@ cos_cpu_clock_now(void)
 	unsigned long long curtime = 0;
         rdtscll(tsc_now);
 
-       	/* We divide as we have cycles and cycles per micro second */
+	/* We divide as we have cycles and cycles per micro second */
         curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
         curtime = (long long)(curtime * 1000); /* micro to nano seconds */
-      
+
 
 	return curtime;
 }
@@ -556,7 +586,7 @@ cos_vatpa(void * vaddr)
 { return cos_va2pa(&booter_info, vaddr); }
 
 void *
-cos_pa2va(void * pa, unsigned long len) 
+cos_pa2va(void * pa, unsigned long len)
 { return (void *)cos_hw_map(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)pa, (unsigned int)len); }
 
 void
@@ -692,7 +722,7 @@ cos_find_vio_tcap(void)
 		i ++;
 	}
 */
-	
+
 	if (!irqbudget) { // && (i == (COS_VIRT_MACH_COUNT - 1))) {
 		cos_dom02io_transfer(use == 0 ? IRQ_VM1 : IRQ_VM2, vio_tcap[use], vio_rcv[use], vio_prio[use]); 
 	}

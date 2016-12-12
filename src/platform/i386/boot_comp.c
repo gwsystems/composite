@@ -27,6 +27,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	pgd_cap = (struct cap_pgtbl*)captbl_lkup(ct, pgdcap);
 	if (!pgd_cap || !CAP_TYPECHK(pgd_cap, CAP_PGTBL)) assert(0);
 	pgtbl = (pgtbl_t)pgd_cap->pgtbl;
+	printk("range: %d\n", range);
 	nptes = boot_nptes(range);
 	ptes  = mem_boot_alloc(nptes);
 	assert(ptes);

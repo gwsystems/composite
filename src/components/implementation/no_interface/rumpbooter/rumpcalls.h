@@ -15,16 +15,58 @@ typedef __builtin_va_list va_list;
 #define va_arg             __builtin_va_arg
 #define va_end(va_arg)     __builtin_va_end(va_arg)
 
+#undef _TAILQ_ENTRY
+#undef TAILQ_ENTRY
+#define _TAILQ_ENTRY(type, qual)                                        \
+struct {                                                                \
+        qual type *tqe_next;            /* next element */              \
+        qual type *qual *tqe_prev;      /* address of previous next element */\
+}
+#define TAILQ_ENTRY(type)       _TAILQ_ENTRY(struct type,)
+
 #define IRQ_DOM0_VM 22 /* DOM0's message line to VM's, in VM's */
 #define IRQ_VM1 21     /* VM1's message line to DOM0, so in DOM0 */
 #define IRQ_VM2 27     /* VM2's message line to DOM0, so in DOM0 */
 
+#define NAME_MAXLEN 16
 
 extern struct cos_rumpcalls crcalls;
 
 extern int boot_thd;
 
-struct bmk_thread;
+struct bmk_tcb {
+        unsigned long btcb_sp;          /* stack pointer        */
+        unsigned long btcb_ip;          /* program counter      */
+
+        unsigned long btcb_tp;          /* tls pointer          */
+        unsigned long btcb_tpsize;      /* tls area length      */
+};
+
+struct bmk_thread {
+        char bt_name[NAME_MAXLEN];
+
+        long long bt_wakeup_time;
+
+        int bt_flags;
+        int bt_errno;
+
+        void *bt_stackbase;
+
+        void *bt_cookie;
+
+        /* MD thread control block */
+        struct bmk_tcb bt_tcb;
+
+        TAILQ_ENTRY(bmk_thread) bt_schedq;
+        TAILQ_ENTRY(bmk_thread) bt_threadq;
+
+        /* RG additions */
+        capid_t cos_thdcap;
+        thdid_t cos_tid;
+        long long runtime_start;
+        long long runtime_end;
+};
+
 extern __thread struct bmk_thread *bmk_current;
 extern tcap_prio_t rk_thd_prio;
 extern volatile unsigned int cos_cur_tcap;

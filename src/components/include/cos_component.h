@@ -42,6 +42,7 @@ int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3), "d" (arg4) \
 		: "memory", "cc");
 
+
 	return ret;
 }
 

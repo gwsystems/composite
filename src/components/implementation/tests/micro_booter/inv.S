@@ -24,14 +24,10 @@ __inv_test_serverfn:
 .type  __inv_test_entry, @function
 __inv_test_entry:
 	COS_ASM_GET_STACK
-	pushl %ebp
-	xor %ebp, %ebp
-        pushl %edi
-        pushl %esi
-        pushl %ebx
+
         call test_entry
-        addl $16, %esp
+
+	COS_ASM_RET_STACK
         movl %eax, %ecx
         movl $RET_CAP, %eax
-	COS_ASM_RET_STACK
         sysenter;
