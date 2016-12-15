@@ -9,6 +9,7 @@
 /* HACKHACKHACKHACKHACKHACK */
 #include <stdarg.h>
 #include <stdio.h>
+#include <cos_types.h>
 #ifdef NIL
 static int __attribute__((format(printf,1,2)))
 printd(char *fmt, ...)
@@ -571,8 +572,8 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 }
 
 int
-cos_sinv(sinvcap_t sinv)
-{ return call_cap_asm(sinv, 0, 0, 0, 0, 0); }
+cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
+{ return call_cap_asm(sinv, 0, arg1, arg2, arg3, arg4); }
 
 /*
  * Arguments:

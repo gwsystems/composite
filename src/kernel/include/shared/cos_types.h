@@ -31,6 +31,8 @@ typedef signed long long s64_t;
 
 #define LLONG_MAX 9223372036854775807LL
 
+typedef unsigned long word_t;
+
 /* Types mainly used for documentation */
 typedef unsigned long capid_t;
 

@@ -93,12 +93,14 @@ swap(int *a, int *b) {
 extern int booting;
 
 int
-test_entry(void)
+test_entry(int arg1, int arg2, int arg3, int arg4)
 {
 	int a,b;
 
-	a = 5;
-	b = 4;
+	printc("Let's see what's our arguments are: %d, %d, %d, %d\n", arg1, arg2, arg3, arg4);
+
+	a = arg1;
+	b = arg2;
 	printc("\nswapping: VM%d\n", vmid);
 	swap(&a, &b);
 	printc("\ndone swapping: VM%d\n", vmid);
@@ -126,7 +128,7 @@ cos_fs_test(void)
 	/* Get sinv */
 	get_sinv(&sinv);
 
-	sinv_ret = cos_sinv(sinv);
+	sinv_ret = cos_sinv(sinv, 1, 2, 3, 4);
 
 	printc("Done running cos fs test VM%d, ret: %d\n\n", vmid, sinv_ret);
 }

@@ -66,7 +66,7 @@ struct thread {
 	cpuid_t      cpuid;
 	unsigned int refcnt;
 	tcap_res_t   exec;   /* execution time */
-	unsigned int sw_counter; 	/* switch counter for user-level race-cond check */
+	unsigned int sw_counter;	/* switch counter for user-level race-cond check */
 	struct thread *interrupted_thread;
 
 	/* rcv end-point data-structures */
