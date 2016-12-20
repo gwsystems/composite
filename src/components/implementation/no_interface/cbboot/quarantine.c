@@ -198,6 +198,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	vaddr_t init_daddr;
 	long tot = 0;
 	int j, r;
+	unsigned long cinfo_cbid = 0;
 
 	// how to fix this? Can quarantine have an init method
 	/* FIXME: initialization hack. */
@@ -279,7 +280,6 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 			left -= (prev_map + PAGE_SIZE - d_addr);
 			d_addr = prev_map + PAGE_SIZE;
 		}
-//		printd("Mapping section %d @ %x with %d bytes\n", j, (unsigned long)d_addr, left);
 		if (left > 0) {
 			left = round_up_to_page(left);
 			prev_map = d_addr;
@@ -287,37 +287,18 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 			if (sect->flags & COBJ_SECT_WRITE) flags = MAPPING_RW;
 			else flags = MAPPING_READ;
 			flags |= 2; /* no valloc */
-
 			cbm = old_sect_cbufs[j];
-			/* if RW, don't want to share, need new mem */
-//			if (flags & MAPPING_RW) {
-//				struct cbid_caddr new_cbm;
-//				new_cbm.caddr = cbuf_alloc_ext(left, &new_cbm.cbid, CBUF_EXACTSZ);
-//				if (!new_cbm.caddr) { printc("error 7\n"); goto error; }
-//				memcpy(new_cbm.caddr, cbm.caddr, left);
-//				if (sect->flags & COBJ_SECT_CINFO) printc("Used to be %x now %x\n", cbm.caddr, new_cbm.caddr);
-//				cbm.caddr = new_cbm.caddr;
-//				cbm.cbid = new_cbm.cbid;
-//			}
-//			assert(cbm.caddr);
-//			cbid = cbm.cbid;
-//			new_sect_cbufs[j] = cbm;
-
-//			if (d_addr != (cbuf_map_at(cos_spd_id(), cbid, d_spd, d_addr | flags))) { printc("error 8 - could not do cbuf_map_at to d_spd\n"); goto error;}
-//			printd("mapped address %p\n", d_addr);
 
 			if (sect->flags & COBJ_SECT_CINFO) {
 				/* fixup cinfo page */
 				struct cos_component_information *ci = cbm.caddr;
+				cinfo_cbid = cbm.cbid;
 				ci->cos_this_spd_id = d_spd;
-//				printc("calling boot functions %x\n", cbm.caddr);
-				//__boot_spd_set_symbs(src_hdr, d_spd, ci);
 				__boot_deps_save_hp(d_spd, ci->cos_heap_ptr);
 			}
 			prev_map += left - PAGE_SIZE;
 			d_addr += left;
 		}
-//		printd("prev_map is now %x\n", prev_map);
 	}
 
 	/* FIXME: better way to pick threads out. this will get the first
@@ -342,14 +323,9 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	if (tot > SERVICE_SIZE) tot = SERVICE_SIZE + 3 * round_up_to_pgd_page(1) - tot;
 	else tot = SERVICE_SIZE - tot;
 	
-	//printd("Telling mman to fork(Q %d, O %d, F %d, base %x, total %d)\n", cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
-	//r = mman_fork_spd(cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
-	//printd("Done with mman_fork, ret %d\n", r);
-	//if (r) printc("Error (%d) in mman_fork_spd\n", r);
-	
 	printd("Telling cbuf to fork(%d, %d, %d)\n", cos_spd_id(), source, d_spd);
-	vaddr_t cinfo_addr = cbuf_fork_spd(cos_spd_id(), source, d_spd);
-	printc("After all that forking, the cinfo should be at %x, in F, which should also be mapped here\n", cinfo_addr);
+	vaddr_t cinfo_addr = cbuf_fork_spd(cos_spd_id(), source, d_spd, cinfo_cbid);
+	
 	/* fixup cinfo page */
 	struct cos_component_information *ci = (struct cos_component_information*) cinfo_addr;
 	ci->cos_this_spd_id = d_spd;
@@ -380,8 +356,8 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 #endif
 
 	/* TODO: should creation of boot threads be controlled by policy? */
-	printd("Creating boot threads in fork: %d\n", d_spd);
-	if (__boot_spd_thd(d_spd)) BUG();
+	//printd("Creating boot threads in fork: %d\n", d_spd);
+	//if (__boot_spd_thd(d_spd)) BUG();
 	
 	int reset;
 	reset = sched_curr_set_priority(p);

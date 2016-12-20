@@ -234,7 +234,7 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 
 	capid = cap_ccnt_dcnt>>16;
 	d_fix = (cap_ccnt_dcnt>>8)&0xff; /* fix the d (server) if snd != 0 */
-	c_fix = cap_ccnt_dcnt&0xff; /* fix the c (client) if rcv != 0 */
+	c_fix = cap_ccnt_dcnt&0xff;      /* fix the c (client) if rcv != 0 */
 	c_spd = cspd_dspd>>16;
 	d_spd = cspd_dspd&0xffff;
 
@@ -242,8 +242,6 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 #define printd(...) printc("llboot: "__VA_ARGS__)
 	printd("llboot args: %d\t%d\n", cspd_dspd, cap_ccnt_dcnt);
 	printd("llboot (%d) fault_quarantine_handler %d (%d) -> %d (%d)\n", spdid, c_spd, c_fix, d_spd, d_fix);
-
-	printd("Hiiiiiiiiii!\n");
 
 	if (d_fix) {
 		/* FIXME: how to get the f_spd? see quarantine.c.

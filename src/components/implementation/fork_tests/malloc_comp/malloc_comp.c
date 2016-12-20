@@ -6,6 +6,8 @@
 #define NUM 10
 static char *mptr[NUM];
 static int flag = 0;
+static cbuf_t cb;
+static void* mem;
 
 int 
 call(void)
@@ -32,6 +34,9 @@ call(void)
 
 			printc("\n");
 		}
+
+		//mem = cbuf_alloc(1024, &cb);
+		//printc("Allocated cbuf %d\n", cb);
 	}
 	else
 	{
@@ -51,10 +56,23 @@ call(void)
 		}
 
 		printc("part 2 of F\n");
-		cbuf_t cb;
-		char *mem = cbuf_alloc(100, &cb);
-		printc("cbuf_alloc succeeded\n");
-		strcpy(mem, "abc");
+
+		//printc("Try to cbuf2cbuf cbuf\n");
+		//mem = cbuf2buf(cb, 1024);
+
+		/* This has to happen eventually - let's try here */
+		//printc("Try to free cbuf\n");
+		//cbuf_free(29); // the fork of 18	
+		
+		printc("Trying to call cbuf alloc again -- first time\n");
+		cbuf_t cb2;
+		void *mem2 = cbuf_alloc_ext(20, &cb2, CBUF_EXACTSZ);
+		//printc("Allocated cbuf %d\n", cb2);
+
+		printc("Trying to call cbuf alloc again -- second time\n");
+		mem = cbuf_alloc_ext(20, &cb2, CBUF_EXACTSZ);
+
+		memcpy(mem, "abc_123!", 8);
 		printc("mem: [%s]\n", mem);
 	}
 

@@ -609,6 +609,7 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 	struct cbuf_bin *bin;
 	int ret = 0;
 	unsigned int id = (unsigned int) cbid;
+	printc("cbuf_mgr: create a\n");
 	if (unlikely(cbid < 0)) return 0;
 
 	tracking_start(NULL, CBUF_CRT);
@@ -633,7 +634,7 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 
  		cbi = malloc(sizeof(struct cbuf_info));
 
-		if (unlikely(!cbi)) goto done;
+		if (unlikely(!cbi)) { printd("malloc for cbuf failed\n"); goto done; }
 		/* Allocate and map in the cbuf. Discard inconsistent cbufs */
 		/* TODO: Find a better way to manage those inconsistent cbufs */
 		do {
@@ -673,6 +674,7 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 		if (unlikely(cbi->owner.spdid != spdid)) goto done;
 	}
 	meta = cbuf_meta_lookup(cci, id);
+	printc("cbuf_mgr: create b\n");
 
 	/* We need to map in the meta for this cbid.  Tell the client. */
 	if (!meta) {
@@ -712,6 +714,7 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 	else        bin->c   = cbi;
 	cci->allocated_size += size;
 	ret = (int)id;
+	printc("cbuf_mgr: Successfully created cbuf id %d\n", ret);
 done:
 	tracking_end(NULL, CBUF_CRT);
 	return ret;
@@ -727,10 +730,15 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	int ret = 0;
 	unsigned int id = (unsigned int)cbid;
 
+	printc("cb_create 1\n");
+
 	printl("cbuf_create\n");
 	CBUF_TAKE();
+	printc("cb_create 2\n");
 	ret = __cbuf_create(spdid, size, cbid, 0);
+	printc("cb_create 3\n");
 	CBUF_RELEASE();
+	printc("cb_create 4\n");
 	return ret;
 }
 
@@ -882,8 +890,8 @@ done:
 	return ret;
 }
 
-int
-__cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd)
+vaddr_t
+__cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cinfo)
 {
 	struct cbuf_info *cbi;
 	unsigned int sz;
@@ -891,6 +899,10 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd)
 	vaddr_t dest;
 	int ret = -1;
 	int f_cbid;
+	int flags;
+	struct cbuf_info *f_cbi;
+	void *memcpy_ret;
+	struct cbuf_maps *c;	/* c for current because we love one letter names */
 
 	cbi        = cmap_lookup(&cbufs, s_cbid);
 	if (!cbi) BUG();
@@ -898,10 +910,10 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd)
 	printc("forking cbuf %d from spdid %d to spdid %d, with size %x\n", s_cbid, o_spd, f_spd, sz);
 
 	/* cmap_lookup returns original owner so need to recurse through mappings until we find the one with spdid O */
-	struct cbuf_maps *current = &cbi->owner;
-	while (current->spdid != o_spd) current = current->next; // what about infinite loops???
-	assert(current->spdid == o_spd);
-	dest = current->addr;
+	c = &cbi->owner;
+	while (c->spdid != o_spd) c = c->next; // what about infinite loops???
+	assert(c->spdid == o_spd);
+	dest = c->addr;
 
 	/* create cbuf */
 	f_cbid = __cbuf_create(spdid, sz, 0, dest);
@@ -920,37 +932,26 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd)
 	assert(f_cbid);
 
 	/* copy into cbuf */
-	char *src_mem = cbi->mem;
-	assert(src_mem);
-	struct cbuf_info *f_cbi = cmap_lookup(&cbufs, f_cbid);
-	if (!f_cbi) BUG();
-	char *dst_mem = f_cbi->mem;	
-	assert(dst_mem);
-	void *memcpy_ret = memcpy(dst_mem, src_mem, sz);
-	assert(memcpy_ret == dst_mem);
+	assert(cbi->mem);
+	f_cbi = cmap_lookup(&cbufs, f_cbid);
+	if (!f_cbi) BUG(); 				/* we literally just made this in cbuf_create so if it's not there, something is very wrong */
+	assert(f_cbi->mem);				/* assert this too, why not */
+	memcpy_ret = memcpy(f_cbi->mem, cbi->mem, sz);
+	assert(memcpy_ret == f_cbi->mem);
 
 	/* Do a sanity check and REMOVE THIS once we're kinda confident stuff works */
-	int check = memcmp(dst_mem, src_mem, sz);
-	if (check) { printc("cbufs do not actually match. Womp womp :(\n"); BUG(); }
+	if (memcmp(f_cbi->mem, cbi->mem, sz)) { printc("cbufs do not actually match. Womp womp :(\n"); BUG(); }
+	
 	ret = 0;
 
-	if (s_cbid == 4) {
+	if (copy_cinfo) {
 		printc("About to try mapping cinfo cbuf into Q\n");
-
 		vaddr_t q_daddr = (vaddr_t)valloc_alloc(cos_spd_id(), 11, sz/PAGE_SIZE);
-		if (unlikely(!dest)) {
-			printc("ww :(\n");
-			return -1;
-		}
-		int flags = MAPPING_RW;
+		if (unlikely(!dest)) return -1;
+		flags = MAPPING_RW;
 		flags |= 2; // WHY DO WE KEEP HARDCODING 2 everywhere?!
-		if (q_daddr != __cbuf_map_at(f_spd, f_cbid, 11, q_daddr | flags)) {
-			printc("cbuf map at failed\n");
-			return -1;
-		}
+		if (q_daddr != __cbuf_map_at(f_spd, f_cbid, 11, q_daddr | flags)) return -1;
 		ret = q_daddr;
-		struct cos_component_information *ci = (struct cos_component_information*) q_daddr;
-		printc("ci %x\n", ci);
 	}
 
 done:
@@ -996,36 +997,42 @@ __get_nfo(struct cbuf_comp_info *cci)
 	printc("Done iterating over global cbuf list\n");
 }
 
-static int
-__cbuf_copy_cci(spdid_t o_spd, struct cbuf_comp_info *src, spdid_t f_spd, struct cbuf_comp_info *dst)
+/* This is internal so the real core of the function doesn't take a lock */
+static vaddr_t
+__cbuf_fork_spd(spdid_t o_spd, spdid_t f_spd, int cinfo_cbid)
 {
+	struct cbuf_comp_info *src, *dst;
+	struct cbuf_info *current;
+	int i;
+	vaddr_t ret = (vaddr_t) NULL;		/* address of cinfo page */
+	
+	src = cbuf_comp_info_get(o_spd);
+	dst = cbuf_comp_info_get(f_spd);
 	__get_nfo(src);
 
-	int i;
 	/* Should create a new shared page between cbuf_mgr and dst */
 	dst->csp = src->csp;
 	dst->dest_csp = src->dest_csp;
 	
-	struct cbuf_info *current = cbi_head;
-	vaddr_t cinfo_addr = NULL;
+	current = cbi_head;
 	vaddr_t r_addr;
 	do {
 		// The cbuf_info list we made is actually crap because it copies the pointers so if the structure is updated it is no longer valid (how to fix???)
 		// instead, re-get the cbi from the cbuf_id which we assume is constant
 		struct cbuf_info *cbi = cmap_lookup(&cbufs, current->cbid);
 		struct cbuf_maps *m = &cbi->owner;
-		
+	
 		if (m->spdid == o_spd) {
 			/* This is for if O is the owner */
 			/* This just universally forks everything to a new cbuf. */
-			__cbuf_fork_cbuf(o_spd, cbi->cbid, f_spd);
+			__cbuf_fork_cbuf(o_spd, cbi->cbid, f_spd, 0);
 		}
 		else {
 			do {
 				/* This is if O isn't the owner but has the cbuf mapped in. */
 				if (m->spdid == o_spd) {
-					r_addr = __cbuf_fork_cbuf(o_spd, cbi->cbid, f_spd);
-					if (!cinfo_addr) cinfo_addr = r_addr;			// Remember to make this assignment less stupid later
+					r_addr = __cbuf_fork_cbuf(o_spd, cbi->cbid, f_spd, cinfo_cbid == cbi->cbid);
+					if (cinfo_cbid == cbi->cbid) ret = r_addr;			// Remember to make this assignment less stupid later
 				}
 
 				m = FIRST_LIST(m, next, prev);
@@ -1038,35 +1045,28 @@ __cbuf_copy_cci(spdid_t o_spd, struct cbuf_comp_info *src, spdid_t f_spd, struct
 	__get_nfo(dst);
 
 done:
-	return cinfo_addr;
+	return ret;
 }
 
-vaddr_t cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd)
+vaddr_t
+cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd, int cinfo_cbid)
 {
-	struct cbuf_comp_info *s_cci, *d_cci;
 	vaddr_t ret = (vaddr_t) NULL;
-
 	printl("cbuf_fork_spd\n");
 
 	CBUF_TAKE();
-	s_cci = cbuf_comp_info_get(s_spd);
-	if (unlikely(!s_cci)) goto done;
-	d_cci = cbuf_comp_info_get(d_spd);
-	/* FIXME: This should be making copies to avoid sharing */
-	printc("calling cbuf_copy_cci\n");
-	ret = __cbuf_copy_cci(s_spd, s_cci, d_spd, d_cci);
+	ret = __cbuf_fork_spd(s_spd, d_spd, cinfo_cbid);
 
 done:
 	CBUF_RELEASE();
 	return ret;
 }
 
-void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
+void 
+cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
 {
-	int r;
-
-	printd("cbuf: cos_fix_spdid_metadata for %d -> %d\n", o_spd, f_spd);
-	printd("Actually not doing anything here. What's needed?\n");
+	printd("cos_fix_spdid_metadata for %d -> %d\n", o_spd, f_spd);
+	printd("Actually not doing anything here. TODO: do stuff here if needed.\n");
 }
 
 /*
