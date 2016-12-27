@@ -32,7 +32,7 @@ cos_thd_create(void *fn, void *data, u32_t sched_param0, u32_t sched_param1, u32
 
 	if (!fn) return 0;
 
-	idx = __init_data_alloc(fn, data);
+	idx = __init_data_alloc(fn, THD_NORMAL, 0, data);
 	assert(idx);
 	return sched_create_thd(idx << 16 | spdid, sched_param0, sched_param1, sched_param2);
 }
