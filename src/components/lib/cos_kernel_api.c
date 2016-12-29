@@ -467,7 +467,7 @@ cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *da
 
 thdcap_t
 cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp)
-{ return __cos_thd_alloc(ci, comp, 1); }
+{ return __cos_thd_alloc(ci, comp, 0); }
 
 captblcap_t
 cos_captbl_alloc(struct cos_compinfo *ci)
