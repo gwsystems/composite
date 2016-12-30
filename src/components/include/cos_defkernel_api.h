@@ -4,8 +4,8 @@
  * This uses a two clause BSD License.
  */
 
-#ifndef COS_DEFCOMPINFO_API_H
-#define COS_DEFCOMPINFO_API_H
+#ifndef COS_DEFKERNEL_API_H
+#define COS_DEFKERNEL_API_H
 
 #include <cos_kernel_api.h>
 
@@ -74,4 +74,4 @@ int cos_aep_tcap_alloc(struct cos_aep_info *aep, tcap_t tc, cos_aepthd_fn_t fn, 
  */
 int cos_defswitch(thdcap_t c, tcap_prio_t p, tcap_time_t r, sched_tok_t stok);
 
-#endif /* COS_DEFCOMPINFO_API_H */
+#endif /* COS_DEFKERNEL_API_H */

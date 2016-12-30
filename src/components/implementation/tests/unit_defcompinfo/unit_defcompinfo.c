@@ -8,7 +8,7 @@
 #include <string.h>
 #include <cos_component.h>
 #include <cobj_format.h>
-#include <cos_defcompinfo_api.h>
+#include <cos_defkernel_api.h>
 
 #undef assert
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0; } } while (0)
@@ -74,16 +74,16 @@ aep_thd_fn(arcvcap_t rcv, void *data)
 static void
 test_aeps(void)
 {
-	int                     i, ret;
-	int                     blocked;
-	cycles_t                cycs;
-	thdid_t                 tid;
-	struct cos_compinfo    *ci    = cos_compinfo_get(cos_defcompinfo_curr_get());
+	int                  i, ret;
+	int                  blocked;
+	cycles_t             cycs;
+	thdid_t              tid;
+	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 	memset(&test_aep, 0, sizeof(struct cos_aep_info) * TEST_NAEPS);
 
 	printc("Test creating AEPS\n");
-	for (i = 0 ; i < TEST_NAEPS ; i ++) {
+	for (i = 0 ; i < TEST_NAEPS ; i ++ ) {
 		asndcap_t snd;
 
 		printc("\tCreating AEP [%d]\n", i);
@@ -108,7 +108,7 @@ test_childcomps(void)
 	int id, ret;
 
 	printc("Test switching to new components\n");
-	for (id = 0 ; id < CHILD_COMP_COUNT ; id ++) {
+	for (id = 0 ; id < CHILD_COMP_COUNT ; id ++ ) {
 		int      blocked;
 		cycles_t cycs;
 		thdid_t  tid;
@@ -152,11 +152,11 @@ cos_init(void)
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_defcompinfo_init();
 
-		for (id = 0 ; id < CHILD_COMP_COUNT ; id ++) {
+		for (id = 0 ; id < CHILD_COMP_COUNT ; id ++ ) {
 			vaddr_t              vm_range, addr;
 			pgtblcap_t           child_utpt;
-			int                  is_sched       = ((id == CHILD_SCHED_ID) ? 1 : 0);
-			struct cos_compinfo *child_ci       = cos_compinfo_get(&child_defci[id]);
+			int                  is_sched = ((id == CHILD_SCHED_ID) ? 1 : 0);
+			struct cos_compinfo *child_ci = cos_compinfo_get(&child_defci[id]);
 
 			printc("\tCreating new %s component [%d]\n", is_sched ? "scheduler" : "simple", id);
 			child_utpt = cos_pgtbl_alloc(ci);

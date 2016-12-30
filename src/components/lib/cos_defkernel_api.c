@@ -4,7 +4,7 @@
  * This uses a two clause BSD License.
  */
 
-#include <cos_defcompinfo_api.h>
+#include <cos_defkernel_api.h>
 
 static struct cos_defcompinfo curr_defci;
 
