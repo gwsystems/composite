@@ -527,8 +527,10 @@ struct cos_array { char *mem; int sz; }; /* TODO: remove */
 #endif
 
 struct __thd_init_data {
-	void *fn;
-	void *data;
+	int     type;
+	void   *fn;
+	capid_t rcv;
+	void   *data;
 };
 
 #endif

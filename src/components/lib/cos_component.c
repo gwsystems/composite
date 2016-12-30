@@ -46,16 +46,29 @@ struct __thd_init_data __thd_init_data[COS_THD_INIT_REGION_SIZE] CACHE_ALIGNED;
 static void
 cos_thd_entry_exec(u32_t idx)
 {
-	void (*fn)(void *);
-	void *data;
+	void  (*fn_normal)(void *);
+	void  (*fn_aep)(capid_t, void *);
+	int     type = THD_NONE;
+	capid_t rcv;
+	void   *data;
 
-	fn   = __thd_init_data[idx].fn;
 	data = __thd_init_data[idx].data;
-	/* and release the entry... might need a barrier here. */
-	__thd_init_data[idx].data = NULL;
-	__thd_init_data[idx].fn = NULL;
+	type = __thd_init_data[idx].type;
+	if (type == THD_AEP) {
+		rcv       = __thd_init_data[idx].rcv;
+		fn_aep    = __thd_init_data[idx].fn;
+	} else {
+		fn_normal = __thd_init_data[idx].fn;
+	}
 
-	(fn)(data);
+	/* and release the entry... might need a barrier here. */
+	__thd_init_data[idx].type = THD_NONE;
+	__thd_init_data[idx].data = NULL;
+	__thd_init_data[idx].fn   = NULL;
+	__thd_init_data[idx].rcv  = 0;
+
+	if (type == THD_NORMAL) (fn_normal)(data);
+	else                    (fn_aep)(rcv, data);
 }
 
 CWEAKSYMB void

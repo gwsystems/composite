@@ -178,6 +178,12 @@ typedef enum {
 	HW_LAPIC_TIMER = 255,  /* Local APIC TSC-DEADLINE mode - Timer interrupts */
 } hwid_t;
 
+typedef enum {
+	THD_NONE = 0,
+	THD_NORMAL,
+	THD_AEP,
+} thd_type_t;
+
 typedef unsigned long capid_t;
 #define TCAP_PRIO_MAX (1ULL)
 #define TCAP_PRIO_MIN ((~0ULL) >> 16) /* 48bit value */

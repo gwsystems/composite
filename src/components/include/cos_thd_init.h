@@ -7,7 +7,7 @@
 extern struct __thd_init_data __thd_init_data[COS_THD_INIT_REGION_SIZE];
 
 static inline int
-__init_data_alloc(void *fn, void *data) {
+__init_data_alloc(void *fn, thd_type_t type, capid_t rcv, void *data) {
 	int i, ret, tried = 0;
 
 	assert(fn);
@@ -20,6 +20,14 @@ again:
 
 			assert(__thd_init_data[i].fn == fn);
 			__thd_init_data[i].data = data;
+			__thd_init_data[i].type = type;
+			if (type == THD_AEP) {
+				__thd_init_data[i].rcv = rcv;
+			} else {
+				assert(type == THD_NORMAL && rcv == 0);
+				__thd_init_data[i].rcv = 0;
+			}
+
 			/* Here we offset the idx by 1 as we use 0 for bootstrap */
 			return i + 1;
 		}
@@ -40,7 +48,9 @@ __clear_thd_init_data(int idx) {
 	assert(idx > 0 && idx <= COS_THD_INIT_REGION_SIZE && __thd_init_data[idx].fn);
 	idx--; 	/* See comments in __init_data_alloc*/
 	__thd_init_data[idx].data = NULL;
-	__thd_init_data[idx].fn = NULL;
+	__thd_init_data[idx].fn   = NULL;
+	__thd_init_data[idx].type = THD_NONE;
+	__thd_init_data[idx].rcv  = 0;
 
 	return;
 }
@@ -49,7 +59,7 @@ __clear_thd_init_data(int idx) {
 static int
 cos_thd_init_alloc(void *fn, void *data) {
 	if (!fn) return -1;
-	return __init_data_alloc(fn, data);
+	return __init_data_alloc(fn, THD_NORMAL, 0, data);
 }
 
 /*
