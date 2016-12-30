@@ -1,11 +1,11 @@
-#ifndef COS_DEFCOMPINFO_API_H
-#define COS_DEFCOMPINFO_API_H
-
 /*
  * Copyright 2016, Phani Gadepalli and Gabriel Parmer, GWU, gparmer@gwu.edu.
  *
  * This uses a two clause BSD License.
  */
+
+#ifndef COS_DEFCOMPINFO_API_H
+#define COS_DEFCOMPINFO_API_H
 
 #include <cos_kernel_api.h>
 
@@ -30,7 +30,7 @@ struct cos_defcompinfo {
 };
 
 /*
- * cos_defcompinfo_get: returns the current component's cos_defcompinfo.
+ * cos_defcompinfo_curr_get: returns the current component's cos_defcompinfo.
  */
 struct cos_defcompinfo *cos_defcompinfo_curr_get(void);
 /*

@@ -39,6 +39,7 @@ cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rc
 			 captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci        = cos_compinfo_get(defci);
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 
 	sched_aep->tc   = sched_tc;
@@ -47,8 +48,7 @@ cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rc
 	sched_aep->fn   = NULL;
 	sched_aep->data = NULL;
 
-	cos_compinfo_init(cos_compinfo_get(defci), pgtbl_cap, captbl_cap, comp_cap, heap_ptr, 
-			  cap_frontier, cos_compinfo_get(defci));
+	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, comp_cap, heap_ptr, cap_frontier, ci);
 }
 
 int
@@ -121,9 +121,7 @@ cos_aep_tcap_alloc(struct cos_aep_info *aep, tcap_t tc, cos_aepthd_fn_t fn, void
 	aep->thd  = cos_thd_alloc(ci, ci->comp_cap, __aepthd_fn, (void *)aep);
 	assert(aep->thd);
 
-	aep->tc   = cos_tcap_alloc(ci, TCAP_PRIO_MAX);
-	assert(aep->tc);
-
+	aep->tc   = tc;
 	aep->rcv  = cos_arcv_alloc(ci, aep->thd, aep->tc, ci->comp_cap, sched_aep->rcv);
 	assert(aep->rcv);
 

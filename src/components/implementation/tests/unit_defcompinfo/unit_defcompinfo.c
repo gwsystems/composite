@@ -23,6 +23,11 @@
 #define CHILD_SCHED_CYCS   TCAP_RES_INF 
 #define CHILD_SCHED_PRIO   TCAP_PRIO_MAX
 
+int is_booter = 1;
+extern vaddr_t cos_upcall_entry;
+struct cos_defcompinfo child_defci[CHILD_COMP_COUNT];
+static cycles_t cycs_per_usec;
+
 static void
 cos_llprint(char *s, int len)
 { call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0); }
@@ -52,15 +57,10 @@ printc(char *fmt, ...)
 	  return ret;
 }
 
-int is_booter = 1;
-extern vaddr_t cos_upcall_entry;
-struct cos_defcompinfo child_defci[CHILD_COMP_COUNT];
-static cycles_t cycs_per_usec;
-
-#define TEST_AEPS_N   3
+#define TEST_NAEPS    3
 #define TEST_AEP_CYCS 400000
 #define TEST_AEP_PRIO TCAP_PRIO_MAX
-struct cos_aep_info test_aep[TEST_AEPS_N];
+struct cos_aep_info test_aep[TEST_NAEPS];
 
 static void
 aep_thd_fn(arcvcap_t rcv, void *data)
@@ -80,10 +80,10 @@ test_aeps(void)
 	thdid_t                 tid;
 	struct cos_compinfo    *ci    = cos_compinfo_get(cos_defcompinfo_curr_get());
 
-	memset(&test_aep, 0, sizeof(struct cos_aep_info) * TEST_AEPS_N);
+	memset(&test_aep, 0, sizeof(struct cos_aep_info) * TEST_NAEPS);
 
 	printc("Test creating AEPS\n");
-	for (i = 0 ; i < TEST_AEPS_N ; i ++) {
+	for (i = 0 ; i < TEST_NAEPS ; i ++) {
 		asndcap_t snd;
 
 		printc("\tCreating AEP [%d]\n", i);
@@ -139,7 +139,7 @@ cos_init(void)
 {
 	int cycs;
 
-	while (!(cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE))) ;
+	while (!(cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE)));
 	cycs_per_usec = (cycles_t)cycs;
 
 	if (is_booter) {
@@ -187,7 +187,8 @@ cos_init(void)
 				ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_INITRCV_BASE, ci, child_defci[id].sched_aep.rcv);
 				assert(ret == 0);
 
-				if (cos_tcap_transfer(child_defci[id].sched_aep.rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE, CHILD_SCHED_CYCS, CHILD_SCHED_PRIO)) assert(0);
+				ret = cos_tcap_transfer(child_defci[id].sched_aep.rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE, CHILD_SCHED_CYCS, CHILD_SCHED_PRIO);
+				assert(ret == 0);
 			}
 
 			printc("\t\tMapping in the booter address space\n");
@@ -219,8 +220,8 @@ cos_init(void)
 
 		SPIN();
 	} else {
-		struct cos_defcompinfo *defci           = cos_defcompinfo_curr_get();
-		struct cos_compinfo    *ci              = cos_compinfo_get(defci);
+		struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+		struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
 		printc("Component started\n");
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, CHILD_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
