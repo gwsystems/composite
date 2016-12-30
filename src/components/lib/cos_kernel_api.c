@@ -762,19 +762,17 @@ cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 /***************** [Kernel Tcap Operations] *****************/
 
 tcap_t
-cos_tcap_alloc(struct cos_compinfo *ci, tcap_prio_t prio)
+cos_tcap_alloc(struct cos_compinfo *ci)
 {
 	vaddr_t kmem;
 	capid_t cap;
-	int prio_hi = (u32_t)(prio >> 32);
-	int prio_lo = (u32_t)((prio << 32) >> 32);
 
 	printd("cos_tcap_alloc\n");
 	assert (ci);
 
 	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (cap << 16) | __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, prio_hi, prio_lo)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (cap << 16) | __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0, 0)) BUG();
 
 	return cap;
 }

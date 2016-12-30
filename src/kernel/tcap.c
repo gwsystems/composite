@@ -25,7 +25,7 @@ tcap_uid_get(void)
 
 /* Fill in default "safe" values */
 static void
-__tcap_init(struct tcap *t, tcap_prio_t prio)
+__tcap_init(struct tcap *t)
 {
 	tcap_uid_t *uid = tcap_uid_get();
 
@@ -36,8 +36,8 @@ __tcap_init(struct tcap *t, tcap_prio_t prio)
 	t->curr_sched_off          = 0;
 	t->refcnt                  = 1;
 	t->arcv_ep                 = NULL;
-	t->perm_prio               = prio;
-	tcap_setprio(t, prio);
+	t->perm_prio               = 0;
+	tcap_setprio(t, 0);
 	list_init(&t->active_list, t);
 }
 
@@ -109,13 +109,13 @@ __tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, t
 }
 
 int
-tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, tcap_prio_t prio)
+tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new)
 {
 	struct cap_tcap *tc;
 	int ret;
 
 	assert(tcap_new);
-	__tcap_init(tcap_new, prio);
+	__tcap_init(tcap_new);
 
 	tc = (struct cap_tcap *)__cap_capactivate_pre(ct, cap, capin, CAP_TCAP, &ret);
 	if (!tc) return ret;

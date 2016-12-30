@@ -69,8 +69,7 @@ cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, 
 	assert(child_aep->thd);
 
 	if (is_sched) {
-		/* TODO: this prio is useless without transfer/delegate */
-		child_aep->tc  = cos_tcap_alloc(ci, TCAP_PRIO_MAX); 
+		child_aep->tc  = cos_tcap_alloc(ci); 
 		assert(child_aep->tc);
 
 		child_aep->rcv = cos_arcv_alloc(ci, child_aep->thd, child_aep->tc,
@@ -103,7 +102,7 @@ cos_aep_alloc(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data)
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci        = cos_compinfo_get(defci);
 	
-	tcap_t tc = cos_tcap_alloc(ci, TCAP_PRIO_MAX);
+	tcap_t tc = cos_tcap_alloc(ci);
 	assert(tc);
 
 	return cos_aep_tcap_alloc(aep, tc, fn, data);

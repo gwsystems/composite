@@ -1122,16 +1122,13 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			capid_t tcap_cap   = __userregs_get1(regs) >> 16;
 			capid_t pgtbl_cap  = (__userregs_get1(regs) << 16) >> 16;
 			capid_t pgtbl_addr = __userregs_get2(regs);
-			u32_t prio_hi      = __userregs_get3(regs);
-			u32_t prio_lo      = __userregs_get4(regs);
-			tcap_prio_t prio   = (tcap_prio_t)prio_hi << 32 | (tcap_prio_t)prio_lo;
 			struct tcap   *tcap;
 			unsigned long *pte = NULL;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&tcap, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);
 
-			ret = tcap_activate(ct, cap, tcap_cap, tcap, prio);
+			ret = tcap_activate(ct, cap, tcap_cap, tcap);
 			if (ret) kmem_unalloc(pte);
 
 			break;

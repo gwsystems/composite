@@ -72,7 +72,7 @@ struct tcap {
 };
 
 void tcap_active_init(struct cos_cpu_local_info *cli);
-int tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, tcap_prio_t prio);
+int tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new);
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio);
 int tcap_merge(struct tcap *dst, struct tcap *rm);
 void tcap_promote(struct tcap *t, struct thread *thd);
