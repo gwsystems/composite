@@ -137,10 +137,7 @@ test_childcomps(void)
 void
 cos_init(void)
 {
-	int cycs;
-
-	while (!(cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE)));
-	cycs_per_usec = (cycles_t)cycs;
+	cycs_per_usec = (cycles_t)cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	if (is_booter) {
 		int                     id, ret;
