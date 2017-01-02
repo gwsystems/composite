@@ -363,7 +363,8 @@ test_timer(void)
 		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
 	}
 
-	PRINTC("\tCycles per tick (1000 microseconds) = %lld\n", t/16);
+	PRINTC("\tCycles per tick (1000 microseconds) = %lld, cycles threshold = %u\n",
+	       t/16, (unsigned int)cos_hw_cycles_thresh(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	PRINTC("Timer test completed.\nSuccess.\n");
 }
