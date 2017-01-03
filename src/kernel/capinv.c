@@ -1589,6 +1589,11 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			ret = chal_cyc_usec();
 			break;
 		}
+		case CAPTBL_OP_HW_CYC_THRESH:
+		{
+			ret = (int)chal_cyc_thresh();
+			break;
+		}
 		default: goto err;
 		}
 		break;
