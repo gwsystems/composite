@@ -528,7 +528,7 @@ notify_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap
 	     struct tcap *tcap, struct tcap **tcap_next, int yield)
 {
 	struct thread *next;
-	
+
 	notify_parent(rcv_thd);
 
 	/* The thread switch decision: */
@@ -592,7 +592,7 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 	tcap_timer_update(cos_info, tc_next, timeout, now);
 	tcap_current_set(cos_info, tc_next);
 
-	if (intr_context) { 
+	if (intr_context) {
 		/* update only tcap and return to curr thread */
 		if (thd_next == thd_curr) return 1;
 		thd_curr->state |= THD_STATE_PREEMPTED;
@@ -927,7 +927,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	ret = composite_syscall_slowpath(regs, &thd_switch);
 	if (ret < 0) cos_throw(done, ret);
 
-	if (thd_switch) return ret; 
+	if (thd_switch) return ret;
 done:
 	/*
 	 * Note: we need to return ret to user-level (e.g. as a return
