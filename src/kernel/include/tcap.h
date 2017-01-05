@@ -76,6 +76,7 @@ int tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tc
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio);
 int tcap_merge(struct tcap *dst, struct tcap *rm);
 void tcap_promote(struct tcap *t, struct thread *thd);
+int tcap_wakeup(struct tcap *tc, tcap_prio_t prio, struct thread *thd, struct cos_cpu_local_info *cli);
 
 struct thread *tcap_tick_handler(void);
 void tcap_timer_choose(int c);

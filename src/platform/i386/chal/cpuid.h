@@ -36,6 +36,7 @@ struct cos_cpu_local_info {
 	unsigned long cpuid;
 	void       *curr_thd;
 	void       *curr_tcap;
+	void       *next_ti; /* next_thdinfo: thread can be a preempted or woken up thread, or NULL */
 	struct list tcaps;
 	tcap_uid_t  tcap_uid;
 	tcap_prio_t tcap_prio;

@@ -39,6 +39,19 @@ struct rcvcap_info {
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
 };
 
+/*
+ * This is the data structure embedded in the cos_cpu_local_info that
+ * contains information for the thread that was either preempted or woken up
+ * and is waiting to be scheduled instead of the current thread's scheduler
+ * upon RCV syscall. This is mainly to reduce the number of context switches
+ * to schedule the thread that is deemed eligible by the scheduler. 
+ */
+struct next_thdinfo {
+	struct tcap   *tc;
+	struct thread *thd;
+	tcap_prio_t    prio;
+} per_core_nextti[NUM_CPU_COS];
+
 typedef enum {
 	THD_STATE_PREEMPTED   = 1,
 	THD_STATE_RCVING      = 1<<1, /* report to parent rcvcap that we're receiving */
@@ -150,6 +163,17 @@ thd_rcvcap_sched(struct thread *t)
 {
 	if (thd_rcvcap_isreferenced(t)) return t;
 	return t->rcvcap.rcvcap_thd_notif;
+}
+
+static void
+thd_next_thdinfo_update(struct cos_cpu_local_info *cli, struct thread *thd, 
+			struct tcap *tc, tcap_prio_t prio)
+{
+	struct next_thdinfo *nti = (struct next_thdinfo *)cli->next_ti;
+
+	nti->thd  = thd;
+	nti->tc   = tc;
+	nti->prio = prio;
 }
 
 static void
