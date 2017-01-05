@@ -197,7 +197,7 @@ test_async_endpoints(void)
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	tccp = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX + 2);
+	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
 	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
@@ -209,7 +209,7 @@ test_async_endpoints(void)
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)tcp);
 	assert(tcc);
-	tccc = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX + 1);
+	tccc = cos_tcap_alloc(&booter_info);
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
@@ -239,7 +239,7 @@ test_async_endpoints_perf(void)
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	tccp = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX + 2);
+	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
 	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
@@ -248,7 +248,7 @@ test_async_endpoints_perf(void)
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void*)tcp);
 	assert(tcc);
-	tccc = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX + 1);
+	tccc = cos_tcap_alloc(&booter_info);
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
@@ -363,7 +363,8 @@ test_timer(void)
 		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
 	}
 
-	PRINTC("\tCycles per tick (1000 microseconds) = %lld\n", t/16);
+	PRINTC("\tCycles per tick (1000 microseconds) = %lld, cycles threshold = %u\n",
+	       t/16, (unsigned int)cos_hw_cycles_thresh(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	PRINTC("Timer test completed.\nSuccess.\n");
 }
@@ -383,7 +384,7 @@ struct budget_test_data {
 static void
 exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t parentc)
 {
-	e->tcc = cos_tcap_alloc(&booter_info, TCAP_PRIO_MAX + 2);
+	e->tcc = cos_tcap_alloc(&booter_info);
 	assert(e->tcc);
 	e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d);
 	assert(e->tc);

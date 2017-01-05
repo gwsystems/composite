@@ -3,28 +3,31 @@
 #include "chal_cpu.h"
 #include "isr.h"
 
-#define APIC_DEFAULT_PHYS      0xfee00000
-#define APIC_HDR_LEN_OFF       0x04
-#define APIC_CNTRLR_ADDR_OFF   0x24
+#define APIC_DEFAULT_PHYS        0xfee00000
+#define APIC_HDR_LEN_OFF         0x04
+#define APIC_CNTRLR_ADDR_OFF     0x24
 
-#define LAPIC_SVI_REG          0x0F0
-#define LAPIC_EOI_REG          0x0B0
-#define LAPIC_TIMER_LVT_REG    0x320
-#define LAPIC_DIV_CONF_REG     0x3e0
-#define LAPIC_INIT_COUNT_REG   0x380
-#define LAPIC_CURR_COUNT_REG   0x390
+#define LAPIC_SVI_REG            0x0F0
+#define LAPIC_EOI_REG            0x0B0
+#define LAPIC_TIMER_LVT_REG      0x320
+#define LAPIC_DIV_CONF_REG       0x3e0
+#define LAPIC_INIT_COUNT_REG     0x380
+#define LAPIC_CURR_COUNT_REG     0x390
 
-#define LAPIC_PERIODIC_MODE    (0x01 << 17)
-#define LAPIC_ONESHOT_MODE     (0x00 << 17)
-#define LAPIC_TSCDEADLINE_MODE (0x02 << 17)
-#define LAPIC_INT_MASK         (1<<16)
+#define LAPIC_PERIODIC_MODE      (0x01 << 17)
+#define LAPIC_ONESHOT_MODE       (0x00 << 17)
+#define LAPIC_TSCDEADLINE_MODE   (0x02 << 17)
+#define LAPIC_INT_MASK           (1<<16)
 
-#define LAPIC_TIMER_CALIB_VAL  0xffffffff
+#define LAPIC_TIMER_CALIB_VAL    0xffffffff
 
-#define IA32_MSR_TSC_DEADLINE  0x000006e0
+#define IA32_MSR_TSC_DEADLINE    0x000006e0
 
-#define LAPIC_TIMER_MIN        (1<<12)
-#define LAPIC_COUNTER_MIN      (1<<3)
+#define LAPIC_TIMER_MIN          (1<<12)
+#define LAPIC_COUNTER_MIN        (1<<3)
+
+#define LAPIC_ONESHOT_THRESH     (1<<12)
+#define LAPIC_TSCDEADLINE_THRESH 0
 
 extern int timer_process(struct pt_regs *regs);
 
@@ -49,6 +52,7 @@ static volatile void *lapic = (void *)APIC_DEFAULT_PHYS;
 static unsigned int lapic_timer_mode = LAPIC_TSC_DEADLINE;
 static unsigned int lapic_is_disabled = 1;
 
+static unsigned int lapic_cycs_thresh = 0;
 static u32_t lapic_cpu_to_timer_ratio = 0;
 u32_t lapic_timer_calib_init = 0;
 
@@ -208,6 +212,10 @@ void
 chal_timer_disable(void)
 { lapic_disable_timer(lapic_timer_mode); }
 
+unsigned int
+chal_cyc_thresh(void)
+{ return lapic_cycs_thresh; }
+
 void
 lapic_timer_init(void)
 {
@@ -218,18 +226,20 @@ lapic_timer_init(void)
 
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_ONESHOT_MODE);
-		lapic_timer_mode = LAPIC_ONESHOT;
+		lapic_timer_mode        = LAPIC_ONESHOT;
 
 		/* Set the timer and mask it, so timer interrupt is not fired - for timer calibration through HPET */
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, LAPIC_TIMER_CALIB_VAL);
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) | LAPIC_INT_MASK);
-		lapic_timer_calib_init = 1;
+		lapic_timer_calib_init  = 1;
+		lapic_cycs_thresh       = LAPIC_ONESHOT_THRESH;
 	} else {
 		printk("LAPIC: Configuring TSC-Deadline Mode!\n");
 	
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_TSCDEADLINE_MODE);
-		lapic_timer_mode = LAPIC_TSC_DEADLINE;
+		lapic_timer_mode        = LAPIC_TSC_DEADLINE;
+		lapic_cycs_thresh       = LAPIC_TSCDEADLINE_THRESH;
 	}
 
 	/* Set the divisor */

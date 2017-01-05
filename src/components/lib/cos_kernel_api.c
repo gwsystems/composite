@@ -467,7 +467,7 @@ cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *da
 
 thdcap_t
 cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp)
-{ return __cos_thd_alloc(ci, comp, 1); }
+{ return __cos_thd_alloc(ci, comp, 0); }
 
 captblcap_t
 cos_captbl_alloc(struct cos_compinfo *ci)
@@ -762,19 +762,17 @@ cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 /***************** [Kernel Tcap Operations] *****************/
 
 tcap_t
-cos_tcap_alloc(struct cos_compinfo *ci, tcap_prio_t prio)
+cos_tcap_alloc(struct cos_compinfo *ci)
 {
 	vaddr_t kmem;
 	capid_t cap;
-	int prio_hi = (u32_t)(prio >> 32);
-	int prio_lo = (u32_t)((prio << 32) >> 32);
 
 	printd("cos_tcap_alloc\n");
 	assert (ci);
 
 	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (cap << 16) | __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, prio_hi, prio_lo)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (cap << 16) | __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0, 0)) BUG();
 
 	return cap;
 }
@@ -813,7 +811,16 @@ cos_hw_detach(hwcap_t hwc, hwid_t hwid)
 
 int
 cos_hw_cycles_per_usec(hwcap_t hwc)
-{ return call_cap_op(hwc, CAPTBL_OP_HW_CYC_USEC, 0, 0, 0, 0); }
+{
+	static int cycs = 0;
+
+	while (!cycs) cycs = call_cap_op(hwc, CAPTBL_OP_HW_CYC_USEC, 0, 0, 0, 0);
+	return cycs;
+}
+
+int
+cos_hw_cycles_thresh(hwcap_t hwc)
+{ return call_cap_op(hwc, CAPTBL_OP_HW_CYC_THRESH, 0, 0, 0, 0); }
 
 void *
 cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)

@@ -95,7 +95,7 @@ int cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo
 int cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
 
 /* Tcap operations */
-tcap_t cos_tcap_alloc(struct cos_compinfo *ci, tcap_prio_t prio);
+tcap_t cos_tcap_alloc(struct cos_compinfo *ci);
 int cos_tcap_transfer(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio);
 int cos_tcap_delegate(asndcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags);
 int cos_tcap_merge(tcap_t dst, tcap_t rm);
@@ -106,6 +106,6 @@ int cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t rcvcap);
 int cos_hw_detach(hwcap_t hwc, hwid_t hwid);
 void *cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
 int cos_hw_cycles_per_usec(hwcap_t hwc);
-
+int cos_hw_cycles_thresh(hwcap_t hwc);
 
 #endif /* COS_KERNEL_API_H */
