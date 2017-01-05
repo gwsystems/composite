@@ -215,6 +215,32 @@ tcap_merge(struct tcap *dst, struct tcap *rm)
 	return 0;
 }
 
+int
+tcap_wakeup(struct tcap *tc, tcap_prio_t prio, struct thread *thd, struct cos_cpu_local_info *cli)
+{
+	int ret;
+	struct next_thdinfo *nti = (struct next_thdinfo *)(cli->next_ti);
+	tcap_prio_t tmpprio      = tcap_sched_info(tc)->prio;
+
+	if (!nti->tc) {
+		assert(!nti->thd);
+		goto fixup;
+	}
+
+	if (tc == nti->tc && prio >= nti->prio) {
+		goto fixup;
+	}
+
+	tcap_setprio(tc, prio);
+	ret = tcap_higher_prio(tc, nti->tc);
+	tcap_setprio(tc, tmpprio);
+	if (!ret) return 0;
+
+fixup:
+	thd_next_thdinfo_update(cli, thd, tc, prio);
+	return 0;
+}
+
 void
 tcap_active_init(struct cos_cpu_local_info *cli)
 { list_head_init(&cli->tcaps); }
