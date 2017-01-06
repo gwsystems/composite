@@ -25,6 +25,20 @@ tsc(void)
 	return ret;
 }
 
+/*
+ * This is the data structure embedded in the cos_cpu_local_info (next_ti) that
+ * contains information for the thread that was either preempted or woken up
+ * and is eligible to be scheduled instead of the current thread's scheduler
+ * upon RCV syscall. This is mainly to reduce the number of context switches
+ * to schedule the thread that is deemed eligible by the scheduler. 
+ */
+struct next_thdinfo {
+	void       *thd;
+	void       *tc;
+	tcap_prio_t prio;
+	tcap_res_t  budget;
+};
+
 struct cos_cpu_local_info {
 	/*
 	 * orig_sysenter_esp SHOULD be the first variable here. The
@@ -54,6 +68,8 @@ struct cos_cpu_local_info {
 	 * Linux), we store 0xDEADBEEF to detect overflow.
 	 */
 	unsigned long overflow_check;
+	/* next - preempted/awoken thread information */
+	struct next_thdinfo next_ti;
 };
 
 static inline struct cos_cpu_local_info *

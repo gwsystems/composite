@@ -649,6 +649,10 @@ int
 cos_thd_switch(thdcap_t c)
 { return call_cap_op(c, 0, 0, 0, 0, 0); }
 
+int
+cos_thd_wakeup(thdcap_t thd, tcap_t tc, tcap_prio_t prio, tcap_res_t res)
+{ return call_cap_op(tc, CAPTBL_OP_TCAP_WAKEUP, thd, (prio << 32) >> 32, prio >> 32, res); }
+
 sched_tok_t
 cos_sched_sync(void)
 { static sched_tok_t stok; return __sync_add_and_fetch(&stok, 1); }
