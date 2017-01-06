@@ -492,15 +492,27 @@ test_budgets(void)
 	test_budgets_multi();
 }
 
+#define TEST_PRIO_HIGH     (TCAP_PRIO_MAX)
+#define TEST_PRIO_MED      (TCAP_PRIO_MAX+1)
+#define TEST_PRIO_LOW      (TCAP_PRIO_MAX+2)
+#define TEST_WAKEUP_BUDGET 400000
+
 struct activation_test_data {
 	/* p = preempted, s = scheduler, i = interrupt, w = worker */
 	struct exec_cluster p, s, i, w;
 } wat, pat;
 
+int wakeup_test_start = 0;
+int wakeup_budget_test = 0;
 int active_seq = 0;
+int final_seq = 2;
 
 static void
-seq_check(struct exec_cluster *e)
+seq_expected_order_set(struct exec_cluster *e, int seq)
+{ e->xseq = seq; }
+
+static void
+seq_order_check(struct exec_cluster *e)
 {
 	assert(e->xseq >= 0);
 	assert(e->xseq == active_seq);
@@ -515,8 +527,13 @@ worker_thd(void *d)
 	struct exec_cluster *e = &(((struct activation_test_data *)d)->w);
 
 	while (1) {
-		seq_check(e);
-		cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0, 0, 0);
+		seq_order_check(e);
+		if (wakeup_budget_test) {
+			rdtscll(e->cyc);
+			while (1) ;
+		} else {
+			cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0, 0, 0);
+		}
 	}
 }
 
@@ -529,8 +546,8 @@ intr_thd(void *d)
 	
 	while (1) {
 		cos_rcv(e->rc);
-		seq_check(e);
-		cos_thd_wakeup(w->tc, w->tcc, w->prio, 0);
+		seq_order_check(e);
+		cos_thd_wakeup(w->tc, w->tcc, w->prio, wakeup_budget_test ? TEST_WAKEUP_BUDGET : 0);
 	}
 }
 
@@ -545,11 +562,16 @@ intr_sched_thd(void *d)
 
 	while (1) {
 		cos_sched_rcv(e->rc, &tid, &blocked, &cycs);
-		seq_check(e);
+		seq_order_check(e);
+		if (wakeup_budget_test) {
+			struct exec_cluster *w = &(((struct activation_test_data *)d)->w);
+			rdtscll(e->cyc);
+			printc(" | preempted worker @ %llu, budget: %lu=%lu |", e->cyc, 
+			       (unsigned long)TEST_WAKEUP_BUDGET, (unsigned long)(e->cyc - w->cyc));
+		}
 	}
 }
 
-int wakeup_test_start = 0;
 /* this is preempted thread because, send with yield adds it to preempted */
 static void
 preempted_thd(void *d)
@@ -563,7 +585,7 @@ preempted_thd(void *d)
 		cos_asnd(i->sc, 1);
 
 		if (!wakeup_test_start) {
-			seq_check(e);
+			seq_order_check(e);
 			cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0, 0, 0);
 		}
 	}
@@ -575,24 +597,21 @@ test_wakeup_case(struct activation_test_data *at, tcap_prio_t pprio, tcap_prio_t
 {
 	active_seq = 0;
 	at->i.prio = iprio;
-	at->i.xseq = iseq;
+	seq_expected_order_set(&at->i, iseq);
 	at->w.prio = wprio;
-	at->w.xseq = wseq;
+	seq_expected_order_set(&at->w, wseq);
 	at->p.prio = pprio;
-	at->p.xseq = pseq;
+	seq_expected_order_set(&at->p, pseq);
+
 	if (cos_tcap_transfer(at->p.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->p.prio)) assert(0);
 	if (cos_tcap_transfer(at->i.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->i.prio)) assert(0);
 	if (cos_tcap_transfer(at->w.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->w.prio)) assert(0);
 	wakeup_test_start = 1;
 	cos_switch(at->p.tc, at->p.tcc, at->p.prio, TCAP_TIME_NIL, 0, 0);
 
-	assert(active_seq == 2);
+	assert(active_seq == final_seq);
 	PRINTC(" - SUCCESS.\n");
 }
-
-#define TEST_PRIO_HIGH (TCAP_PRIO_MAX)
-#define TEST_PRIO_MED  (TCAP_PRIO_MAX+1)
-#define TEST_PRIO_LOW  (TCAP_PRIO_MAX+2)
 
 static void
 test_wakeup(void)
@@ -603,8 +622,9 @@ test_wakeup(void)
 	exec_cluster_alloc(&wat.i, intr_thd, &wat, wat.s.rc);
 	exec_cluster_alloc(&wat.w, worker_thd, &wat, wat.s.rc);
 	wat.s.prio = TEST_PRIO_HIGH; /* scheduler's prio doesn't matter */
-	wat.s.xseq = -1; /* should not be activated */
+	seq_expected_order_set(&wat.s, -1); /* scheduler should not be activated */
 	if (cos_tcap_transfer(wat.s.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, wat.s.prio)) assert(0);
+	final_seq = 2;
 
 	/*
 	 * test case 1: intr_thd = H, worker_thd = M, preempted_thd = L
@@ -633,6 +653,20 @@ test_wakeup(void)
 	PRINTC(" Test - Intr = H, Preempted = M, Worker = L");
 	test_wakeup_case(&wat, TEST_PRIO_MED, TEST_PRIO_HIGH, TEST_PRIO_LOW, 1, 0, -1);
 
+	/*
+	 * test case 4: intr_thd = H, worker_thd = M, preempted_thd = L
+	 * 		(+ budget with cos_thd_wakeup)
+	 * expected result:
+	 * - cos_thd_wakeup should invalidate preempted_thd and add worker_thd there.
+	 * - cos_rcv from intr_thd should activate worker_thd.
+	 * - worker thread should be preempted after (budget==timeout) and that should activate it's scheduler.
+	 */
+	PRINTC(" Test Wakeup with Budget -");
+	wakeup_budget_test = 1;
+	seq_expected_order_set(&wat.s, 2); /* scheduler should be activated for worker timeout */
+	final_seq = 3;
+	test_wakeup_case(&wat, TEST_PRIO_LOW, TEST_PRIO_HIGH, TEST_PRIO_MED, -1, 0, 1);
+
 	wakeup_test_start = 0;
 	PRINTC("Done.\n");
 }
@@ -644,7 +678,7 @@ receiver_thd(void *d)
 
 	while (1) {
 		cos_rcv(e->rc);
-		seq_check(e);
+		seq_order_check(e);
 	}
 }
 
@@ -656,7 +690,7 @@ sender_thd(void *d)
 
 	while (1) {
 		cos_asnd(r->sc, 0);
-		seq_check(e);
+		seq_order_check(e);
 		cos_rcv(e->rc);
 	}
 }
@@ -666,15 +700,17 @@ test_preemption_case(struct activation_test_data *at, tcap_prio_t iprio, tcap_pr
 		     int iseq, int wseq)
 {
 	active_seq = 0;
+	final_seq = 2;
 	at->i.prio = iprio;
-	at->i.xseq = iseq;
+	seq_expected_order_set(&at->i, iseq);
 	at->w.prio = wprio;
-	at->w.xseq = wseq;
+	seq_expected_order_set(&at->w, wseq);
+
 	if (cos_tcap_transfer(at->i.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->i.prio)) assert(0);
 	if (cos_tcap_transfer(at->w.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->w.prio)) assert(0);
 	cos_switch(at->i.tc, at->i.tcc, at->i.prio, TCAP_TIME_NIL, 0, 0);
 
-	assert(active_seq == 2);
+	assert(active_seq == final_seq);
 	PRINTC(" - SUCCESS.\n");
 }
 
