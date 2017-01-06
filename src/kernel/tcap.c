@@ -55,7 +55,7 @@ tcap_delete(struct tcap *tcap)
 	memset(&tcap->budget, 0, sizeof(struct tcap_budget));
 	memset(tcap->delegations, 0, sizeof(struct tcap_sched_info) * TCAP_MAX_DELEGATIONS);
 	tcap->ndelegs = tcap->cpuid = tcap->curr_sched_off = tcap->perm_prio = 0;
-	if (cli->next_ti.tc == tcap) thd_next_thdinfo_update(cli, 0, 0, 0);
+	if (cli->next_ti.tc == tcap) thd_next_thdinfo_update(cli, 0, 0, 0, 0);
 
 	return 0;
 }
@@ -219,7 +219,8 @@ tcap_merge(struct tcap *dst, struct tcap *rm)
 }
 
 int
-tcap_wakeup(struct tcap *tc, tcap_prio_t prio, struct thread *thd, struct cos_cpu_local_info *cli)
+tcap_wakeup(struct tcap *tc, tcap_prio_t prio, tcap_res_t budget, 
+	    struct thread *thd, struct cos_cpu_local_info *cli)
 {
 	int ret;
 	struct next_thdinfo *nti = &cli->next_ti;
@@ -238,7 +239,7 @@ tcap_wakeup(struct tcap *tc, tcap_prio_t prio, struct thread *thd, struct cos_cp
 	if (!ret) return 0;
 
 fixup:
-	thd_next_thdinfo_update(cli, thd, tc, prio);
+	thd_next_thdinfo_update(cli, thd, tc, prio, budget);
 	return 0;
 }
 

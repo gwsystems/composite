@@ -109,7 +109,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 	cos_info->tcap_uid  = 1;
 	cos_info->cycles    = tsc();
 	cos_info->curr_tcap = tc;
-	thd_next_thdinfo_update(cos_info, 0, 0, 0); 
+	thd_next_thdinfo_update(cos_info, 0, 0, 0, 0); 
 
 	thd_current_update(t, t, cos_info);
 

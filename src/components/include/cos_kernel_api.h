@@ -75,7 +75,7 @@ capid_t cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_
 int cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_compinfo *srcci, capid_t srccap);
 
 int cos_thd_switch(thdcap_t c);
-int cos_thd_wakeup(thdcap_t thd, tcap_t tc, tcap_prio_t prio);
+int cos_thd_wakeup(thdcap_t thd, tcap_t tc, tcap_prio_t prio, tcap_res_t res);
 #define CAP_NULL 0
 sched_tok_t cos_sched_sync(void);
 int cos_switch(thdcap_t c, tcap_t t, tcap_prio_t p, tcap_time_t r, arcvcap_t rcv, sched_tok_t stok);

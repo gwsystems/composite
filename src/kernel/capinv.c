@@ -492,7 +492,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
 	/* if it was suspended for budget expiration, clear it */
 	next->state &= ~THD_STATE_SUSPENDED;
 	/* if switching to the preempted/awoken thread clear cpu local next_thdinfo */
-	if (nti->thd && nti->thd == next) thd_next_thdinfo_update(cos_info, 0, 0, 0);
+	if (nti->thd && nti->thd == next) thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
 
 	copy_all_regs(&next->regs, regs);
 
@@ -559,8 +559,8 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
 	thd_rcvcap_pending_inc(rcv_thd);
 	next = notify_process(rcv_thd, thd, rcv_tcap, tcap, tcap_next, yield);
 
-	if (next == thd) tcap_wakeup(rcv_tcap, tcap_sched_info(rcv_tcap)->prio, rcv_thd, cos_info);
-	else             thd_next_thdinfo_update(cos_info, thd, tcap, tcap_sched_info(tcap)->prio);
+	if (next == thd) tcap_wakeup(rcv_tcap, tcap_sched_info(rcv_tcap)->prio, 0, rcv_thd, cos_info);
+	else             thd_next_thdinfo_update(cos_info, thd, tcap, tcap_sched_info(tcap)->prio, 0);
 
 	return next;
 }
@@ -805,6 +805,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 	struct thread *next;
 	struct tcap   *tc_next   = tcap_current(cos_info);
 	struct next_thdinfo *nti = &cos_info->next_ti;
+	tcap_time_t timeout      = TCAP_TIME_NIL;
 
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
 
@@ -828,7 +829,13 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		next = nti->thd;
 		tc_next = nti->tc;
 		tcap_setprio(nti->tc, nti->prio);
-		thd_next_thdinfo_update(cos_info, 0, 0, 0);
+		if (nti->budget) {
+			/* convert budget to timeout */
+			cycles_t now;
+			rdtscll(now);
+			timeout = tcap_cyc2time(now + nti->budget);
+		}
+		thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
 	}
 
 	/* FIXME:  for now, lets just ignore this path...need to plumb tcaps into it */
@@ -845,7 +852,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		thd->state |= THD_STATE_RCVING;
 	}
 
-	return cap_switch(regs, thd, next, tc_next, TCAP_TIME_NIL, ci, cos_info);
+	return cap_switch(regs, thd, next, tc_next, timeout, ci, cos_info);
 }
 
 static int
@@ -1558,11 +1565,12 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			u32_t prio_higher 	  = __userregs_get2(regs);
 			u32_t prio_lower 	  = __userregs_get3(regs);
 			tcap_prio_t prio          = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
+			tcap_res_t budget         = __userregs_get4(regs);
 
 			thdwkup = (struct cap_thd *)captbl_lkup(ci->captbl, thdcap);
 			if (!CAP_TYPECHK_CORE(thdwkup, CAP_THD)) return -EINVAL;
 
-			ret = tcap_wakeup(tcapwkup->tcap, prio, thdwkup->t, cos_info);
+			ret = tcap_wakeup(tcapwkup->tcap, prio, budget, thdwkup->t, cos_info);
 			if (unlikely(ret)) cos_throw(err, -EINVAL);
 
 			break;

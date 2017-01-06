@@ -528,7 +528,7 @@ intr_thd(void *d)
 	while (1) {
 		cos_rcv(e->rc);
 		seq_check(e);
-		cos_thd_wakeup(w->tc, w->tcc, w->prio);
+		cos_thd_wakeup(w->tc, w->tcc, w->prio, 0);
 	}
 }
 

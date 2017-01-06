@@ -36,6 +36,7 @@ struct next_thdinfo {
 	void       *thd;
 	void       *tc;
 	tcap_prio_t prio;
+	tcap_res_t  budget;
 };
 
 struct cos_cpu_local_info {
