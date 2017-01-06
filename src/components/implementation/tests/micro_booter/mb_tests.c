@@ -498,11 +498,13 @@ struct activation_test_data {
 } wat, pat;
 
 int active_seq = 0;
+
 static void
 seq_check(struct exec_cluster *e)
 {
-	if (e->xseq < 0) assert(0);
+	assert(e->xseq >= 0);
 	assert(e->xseq == active_seq);
+
 	active_seq ++;
 }
 
