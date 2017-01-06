@@ -48,11 +48,14 @@ tcap_isactive(struct tcap *t)
 static int
 tcap_delete(struct tcap *tcap)
 {
+	struct cos_cpu_local_info *cli = cos_cpu_local_info();
+
 	assert(tcap);
 	if (tcap_ref(tcap) != 1) return -1;
 	memset(&tcap->budget, 0, sizeof(struct tcap_budget));
 	memset(tcap->delegations, 0, sizeof(struct tcap_sched_info) * TCAP_MAX_DELEGATIONS);
 	tcap->ndelegs = tcap->cpuid = tcap->curr_sched_off = tcap->perm_prio = 0;
+	if (cli->next_ti.tc == tcap) thd_next_thdinfo_update(cli, 0, 0, 0);
 
 	return 0;
 }
@@ -219,7 +222,7 @@ int
 tcap_wakeup(struct tcap *tc, tcap_prio_t prio, struct thread *thd, struct cos_cpu_local_info *cli)
 {
 	int ret;
-	struct next_thdinfo *nti = (struct next_thdinfo *)(cli->next_ti);
+	struct next_thdinfo *nti = &cli->next_ti;
 	tcap_prio_t tmpprio      = tcap_sched_info(tc)->prio;
 
 	if (!nti->tc) {
@@ -227,9 +230,7 @@ tcap_wakeup(struct tcap *tc, tcap_prio_t prio, struct thread *thd, struct cos_cp
 		goto fixup;
 	}
 
-	if (tc == nti->tc && prio >= nti->prio) {
-		goto fixup;
-	}
+	if (tc == nti->tc && prio >= nti->prio) goto fixup;
 
 	tcap_setprio(tc, prio);
 	ret = tcap_higher_prio(tc, nti->tc);

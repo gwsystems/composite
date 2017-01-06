@@ -99,7 +99,6 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 			   thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
 	assert(!ret);
 
-	memset(per_core_nextti, 0, sizeof(struct next_thdinfo) * NUM_CPU_COS);
 	tcap_active_init(cos_info);
 	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE, tcap_mem);
 	assert(!ret);
@@ -110,7 +109,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 	cos_info->tcap_uid  = 1;
 	cos_info->cycles    = tsc();
 	cos_info->curr_tcap = tc;
-	cos_info->next_ti   = &per_core_nextti[get_cpuid()];
+	thd_next_thdinfo_update(cos_info, 0, 0, 0); 
 
 	thd_current_update(t, t, cos_info);
 

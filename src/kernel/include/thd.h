@@ -39,19 +39,6 @@ struct rcvcap_info {
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
 };
 
-/*
- * This is the data structure embedded in the cos_cpu_local_info that
- * contains information for the thread that was either preempted or woken up
- * and is waiting to be scheduled instead of the current thread's scheduler
- * upon RCV syscall. This is mainly to reduce the number of context switches
- * to schedule the thread that is deemed eligible by the scheduler. 
- */
-struct next_thdinfo {
-	struct tcap   *tc;
-	struct thread *thd;
-	tcap_prio_t    prio;
-} per_core_nextti[NUM_CPU_COS];
-
 typedef enum {
 	THD_STATE_PREEMPTED   = 1,
 	THD_STATE_RCVING      = 1<<1, /* report to parent rcvcap that we're receiving */
@@ -169,7 +156,7 @@ static void
 thd_next_thdinfo_update(struct cos_cpu_local_info *cli, struct thread *thd, 
 			struct tcap *tc, tcap_prio_t prio)
 {
-	struct next_thdinfo *nti = (struct next_thdinfo *)cli->next_ti;
+	struct next_thdinfo *nti = &cli->next_ti;
 
 	nti->thd  = thd;
 	nti->tc   = tc;
@@ -287,6 +274,7 @@ static int
 thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin,
 	       livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 {
+	struct cos_cpu_local_info *cli = cos_cpu_local_info();
 	struct cap_header *thd_header;
 	struct thread *thd;
 	unsigned long old_v = 0, *pte = NULL;
@@ -328,6 +316,8 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 	thd->refcnt--;
 	/* deactivation success */
 	if (thd->refcnt == 0) {
+		if (cli->next_ti.thd == thd) thd_next_thdinfo_update(cli, 0, 0, 0);
+
 		/* move the kmem for the thread to a location
 		 * in a pagetable as COSFRAME */
 		ret = kmem_deact_post(pte, old_v);

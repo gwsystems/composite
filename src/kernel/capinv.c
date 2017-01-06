@@ -441,9 +441,9 @@ static int
 cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
 	       struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
-	struct next_thdinfo *nti    = (struct next_thdinfo *)cos_info->next_ti;
-	struct comp_info *next_ci   = &(next->invstk[next->invstk_top].comp_info);
-	int               preempt   = 0;
+	struct next_thdinfo *nti  = &cos_info->next_ti;
+	struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
+	int               preempt = 0;
 
 	if (unlikely(curr == next)) {
 		if (!(curr->state & THD_STATE_SUSPENDED))
@@ -804,7 +804,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 {
 	struct thread *next;
 	struct tcap   *tc_next   = tcap_current(cos_info);
-	struct next_thdinfo *nti = (struct next_thdinfo *)cos_info->next_ti;
+	struct next_thdinfo *nti = &cos_info->next_ti;
 
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
 
@@ -1552,11 +1552,15 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		}
 		case CAPTBL_OP_TCAP_WAKEUP:
 		{
+			struct cap_thd *thdwkup;
 			struct cap_tcap *tcapwkup = (struct cap_tcap *)ch;
-			struct cap_thd *thdwkup   = (struct cap_thd *)__userregs_get1(regs);
+			capid_t thdcap            = __userregs_get1(regs);
 			u32_t prio_higher 	  = __userregs_get2(regs);
 			u32_t prio_lower 	  = __userregs_get3(regs);
 			tcap_prio_t prio          = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
+
+			thdwkup = (struct cap_thd *)captbl_lkup(ci->captbl, thdcap);
+			if (!CAP_TYPECHK_CORE(thdwkup, CAP_THD)) return -EINVAL;
 
 			ret = tcap_wakeup(tcapwkup->tcap, prio, thdwkup->t, cos_info);
 			if (unlikely(ret)) cos_throw(err, -EINVAL);
