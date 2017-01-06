@@ -374,6 +374,8 @@ struct exec_cluster {
 	arcvcap_t rc;
 	tcap_t    tcc;
 	cycles_t  cyc;
+	asndcap_t sc; /*send-cap to send to rc */
+	tcap_prio_t prio;
 };
 
 struct budget_test_data {
@@ -390,6 +392,8 @@ exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t p
 	assert(e->tc);
 	e->rc = cos_arcv_alloc(&booter_info, e->tc, e->tcc, booter_info.comp_cap, parentc);
 	assert(e->rc);
+	e->sc = cos_asnd_alloc(&booter_info, e->rc, booter_info.captbl_cap);
+	assert(e->sc);
 
 	e->cyc = 0;
 }
@@ -485,6 +489,197 @@ test_budgets(void)
 
 	/* multi-level budgets test */
 	test_budgets_multi();
+}
+
+struct activation_test_data {
+	/* p = preempted, s = scheduler, i = interrupt, w = worker */
+	struct exec_cluster p, s, i, w;
+} wat, pat;
+
+
+/* worker thread thats awoken by intr_thd */
+static void
+worker_thd(void *d)
+{
+	struct exec_cluster *e = &(((struct activation_test_data *)d)->w);
+
+	while (1) {
+		PRINTC("\tWorker: activated\n");
+		cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0, 0, 0);
+	}
+}
+
+/* intr thread - interrupt thread */
+static void
+intr_thd(void *d)
+{
+	struct exec_cluster *e = &(((struct activation_test_data *)d)->i);
+	struct exec_cluster *w = &(((struct activation_test_data *)d)->w);
+	
+	while (1) {
+		cos_rcv(e->rc);
+		PRINTC("\tIntr: activated, waking up Worker\n");
+		cos_thd_wakeup(w->tc, w->tcc, w->prio);
+	}
+}
+
+/* scheduler of the intr_thd */
+static void
+intr_sched_thd(void *d)
+{
+	struct exec_cluster *e = &(((struct activation_test_data *)d)->s);
+	cycles_t cycs;
+	int blocked;
+	thdid_t tid;
+
+	while (1) {
+		cos_sched_rcv(e->rc, &tid, &blocked, &cycs);
+		PRINTC("\tSched: activated - tid:%d blocked:%d cycs:%llu\n", tid, blocked, cycs);
+	}
+}
+
+int wakeup_test_start = 0;
+/* this is preempted thread because, send with yield adds it to preempted */
+static void
+preempted_thd(void *d)
+{
+	struct exec_cluster *e = &(((struct activation_test_data *)d)->p);
+	struct exec_cluster *i = &(((struct activation_test_data *)d)->i);
+
+	while (1) {
+		PRINTC("\tPreempted: activating Intr\n");
+		if (wakeup_test_start) wakeup_test_start = 0;
+
+		cos_asnd(i->sc, 1);
+
+		if (!wakeup_test_start) {
+			PRINTC("\tPreempted: activated\n");
+			cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0, 0, 0);
+		}
+	}
+}
+
+static void
+test_wakeup_case(struct activation_test_data *at, tcap_prio_t pprio, tcap_prio_t iprio, tcap_prio_t wprio)
+{
+	at->i.prio = iprio;
+	at->w.prio = wprio;
+	at->p.prio = pprio;
+	if (cos_tcap_transfer(at->p.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->p.prio)) assert(0);
+	if (cos_tcap_transfer(at->i.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->i.prio)) assert(0);
+	if (cos_tcap_transfer(at->w.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->w.prio)) assert(0);
+	wakeup_test_start = 1;
+	cos_switch(at->p.tc, at->p.tcc, at->p.prio, TCAP_TIME_NIL, 0, 0);
+}
+
+#define TEST_PRIO_HIGH (TCAP_PRIO_MAX)
+#define TEST_PRIO_MED  (TCAP_PRIO_MAX+1)
+#define TEST_PRIO_LOW  (TCAP_PRIO_MAX+2)
+
+static void
+test_wakeup(void)
+{
+	PRINTC("Testing Wakeup\n");
+	exec_cluster_alloc(&wat.s, intr_sched_thd, &wat, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	exec_cluster_alloc(&wat.p, preempted_thd, &wat, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	exec_cluster_alloc(&wat.i, intr_thd, &wat, wat.s.rc);
+	exec_cluster_alloc(&wat.w, worker_thd, &wat, wat.s.rc);
+	wat.s.prio = TEST_PRIO_HIGH; /* scheduler's prio doesn't matter */
+	if (cos_tcap_transfer(wat.s.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, wat.s.prio)) assert(0);
+
+	/*
+	 * test case 1: intr_thd = H, worker_thd = M, preempted_thd = L
+	 * expected result:
+	 * - cos_thd_wakeup should invalidate preempted_thd and add worker_thd there.
+	 * - cos_rcv from intr_thd should activate worker_thd.
+	 */
+	PRINTC(" Test - Intr = H, Worker = M, Preempted = L\n");
+	test_wakeup_case(&wat, TEST_PRIO_LOW, TEST_PRIO_HIGH, TEST_PRIO_MED);
+
+	/*
+	 * test case 2: worker_thd = H, intr_thd = M, preempted_thd = L
+	 * expected result:
+	 * - cos_thd_wakeup should invalidate preempted_thd and add worker_thd there.
+	 * - cos_rcv from intr_thd should activate worker_thd.
+	 */
+	PRINTC(" Test - Worker = H, Intr = M, Preempted = L\n");
+	test_wakeup_case(&wat, TEST_PRIO_LOW, TEST_PRIO_MED, TEST_PRIO_HIGH);
+
+	/*
+	 * test case 3: intr_thd = H, preempted_thd = M, worker_thd = L
+	 * expected result:
+	 * - cos_thd_wakeup should not invalidate preempted_thd.
+	 * - cos_rcv from intr_thd should activate preempted_thd.
+	 */
+	PRINTC(" Test - Intr = H, Preempted = M, Worker = L\n");
+	test_wakeup_case(&wat, TEST_PRIO_MED, TEST_PRIO_HIGH, TEST_PRIO_LOW);
+
+	wakeup_test_start = 0;
+	PRINTC("Done.\n");
+}
+
+static void
+receiver_thd(void *d)
+{
+	struct exec_cluster *e = &(((struct activation_test_data *)d)->w);
+
+	while (1) {
+		cos_rcv(e->rc);
+		PRINTC("\tReceiver: activated\n");
+	}
+}
+
+static void
+sender_thd(void *d)
+{
+	struct exec_cluster *e = &(((struct activation_test_data *)d)->i);
+	struct exec_cluster *r = &(((struct activation_test_data *)d)->w);
+
+	while (1) {
+		cos_asnd(r->sc, 0);
+		PRINTC("\tSender: activated\n");
+		cos_rcv(e->rc);
+	}
+}
+
+static void
+test_preemption_case(struct activation_test_data *at, tcap_prio_t iprio, tcap_prio_t wprio)
+{
+	at->i.prio = iprio;
+	at->w.prio = wprio;
+	if (cos_tcap_transfer(at->i.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->i.prio)) assert(0);
+	if (cos_tcap_transfer(at->w.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->w.prio)) assert(0);
+	cos_switch(at->i.tc, at->i.tcc, at->i.prio, TCAP_TIME_NIL, 0, 0);
+}
+
+static void
+test_preemption(void)
+{
+	PRINTC("Testing Preemption\n");
+	exec_cluster_alloc(&pat.i, sender_thd, &pat, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	exec_cluster_alloc(&pat.w, receiver_thd, &pat, BOOT_CAPTBL_SELF_INITRCV_BASE);
+
+	/*
+	 * test case 1: Sender = H, Receiver: L 
+	 * - scheduler here is initthd (this thd)
+	 * expected result:
+	 * - cos_asnd from sender should add receiver as wakeup thread.
+	 * - cos_rcv from sender should activate receiver thread.
+	 */
+	PRINTC(" Test - Sender = H, Receiver = L\n");
+	test_preemption_case(&pat, TEST_PRIO_HIGH, TEST_PRIO_LOW);
+
+	/*
+	 * test case 2: Sender = L, Receiver: H 
+	 * - scheduler here is initthd (this thd)
+	 * expected result:
+	 * - cos_asnd from sender should trigger receiver activation and add sender as wakeup thread.
+	 * - cos_rcv from receiver should activate sender thread.
+	 */
+	PRINTC(" Test - Sender = L, Receiver = H\n");
+	test_preemption_case(&pat, TEST_PRIO_LOW, TEST_PRIO_HIGH);
+
+	PRINTC("Done.\n");
 }
 
 long long midinv_cycles = 0LL;
@@ -613,6 +808,9 @@ test_run_mb(void)
 	test_inv_perf();
 
 	test_captbl_expand();
+
+	test_wakeup();
+	test_preemption();
 }
 
 /*
