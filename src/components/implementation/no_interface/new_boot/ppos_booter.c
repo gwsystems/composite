@@ -1,8 +1,3 @@
-/*
- *TODO:
- *	Test Scheduling Array for dependencies 
- */
-
 #include <stdio.h>
 #include <string.h>
 
@@ -10,12 +5,6 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 #include <boot_deps.h>
-
-/*Assembly function for sinv from new component*/
-extern void *__inv_test_entry(int a, int b, int c);
-struct cos_compinfo boot_info;	
-
-struct cobj_header *hs[MAX_NUM_SPDS+1];
 
 struct deps {
 	short int client, server;
@@ -103,12 +92,12 @@ boot_spd_end(struct cobj_header *h)
 	return sect->vaddr + round_up_to_page(sect->bytes);
 }
 
-static int
+int
 boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info)
 {
-//	printc("boot_spd_symbs: %d \n", h->nsymb);
 	int i = 0;
-	for(i = 0; i < h->nsymb; i++) {
+
+	for (i = 0 ; i < h->nsymb ; i++) {
 		struct cobj_symb *symb;
 
 		symb = cobj_symb_get(h, i);
@@ -117,14 +106,12 @@ boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info)
 
 		switch (symb->type) {
 		case COBJ_SYMB_COMP_INFO:
-			printc("Found comp_info\n");
 			*comp_info = symb->vaddr;
 			break;
 		default:
 			printc("boot: Unknown symbol type %d\n", symb->type);
 			break;
 		}
-
 	}
 	return 0;
 }
@@ -173,7 +160,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 	vaddr_t prev_daddr, init_daddr;
 	struct cos_component_information *ci;
 
-	start_addr = (char *)(comp_cap_info[spdid].vaddr_mapped_in_booter);
+	start_addr = (char *)(new_comp_cap_info[spdid].vaddr_mapped_in_booter);
 	init_daddr = cobj_sect_get(h, 0)->vaddr;
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
@@ -204,39 +191,34 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 			assert(comp_info == dest_daddr);
 			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info-init_daddr), comp_info);
 			ci = (struct cos_component_information*)(start_addr + (comp_info-init_daddr));
-			comp_cap_info[h->id].upcall_entry = ci->cos_upcall_entry;
+			new_comp_cap_info[h->id].upcall_entry = ci->cos_upcall_entry;
 			
 			vaddr_t begin =start_addr + ((ci->cos_upcall_entry) - init_daddr); 
 		}
-	
 	}
 
 	return 0;
 }
 
-static int
+int
 boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, pgtblcap_t pt)
 {
 	boot_comp_map_memory(h, spdid, pt);
 	boot_comp_map_populate(h, spdid, comp_info, 1);
 	return 0;
 }
-
+			
 static void
 boot_create_cap_system(void)
 {
 	unsigned int i;
 
-
-	for(i = 0; hs[i] != NULL; i++){
-		
+	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		struct cobj_sect *sect;
 		captblcap_t ct;
 		pgtblcap_t pt;
-		compcap_t cc;
 		spdid_t spdid;
-		capid_t pte_cap;
 		vaddr_t ci = 0;
 		
 		h = hs[i];
@@ -244,66 +226,44 @@ boot_create_cap_system(void)
 		printc("Initializing Comp: %s\n", h->name);	
 		
 		sect = cobj_sect_get(h, 0);
-		comp_cap_info[spdid].addr_start = sect->vaddr;
-		
-		ct = cos_captbl_alloc(&boot_info);
-		assert(ct);	
-		pt = cos_pgtbl_alloc(&boot_info);
-		assert(pt);	
-		
-		/*The comp_cap is not alloc'd yet, due to hack for upcall_fn*/
-		cos_compinfo_init(&comp_cap_info[spdid].cos_compinfo, pt, ct, 0, 
-				  (vaddr_t)sect->vaddr, 4, &boot_info);
-		
+		new_comp_cap_info[spdid].addr_start = sect->vaddr;
+
+		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);	
+
 		if (boot_spd_symbs(h, spdid, &ci)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt))   BUG();
-	        	
-		cc = cos_comp_alloc(&boot_info, ct, pt, (vaddr_t)comp_cap_info[spdid].upcall_entry);
-		assert(cc);	
-		comp_cap_info[spdid].cos_compinfo.comp_cap = cc;
-	
-		/* Create sinv capability from Userspace to Booter components */
-		/* Need id 1 because we need to wait for id 0 to finish initializing */
-		sinvcap_t sinv;
 
-		sinv = cos_sinv_alloc(&boot_info, boot_info.comp_cap, (vaddr_t)__inv_test_entry);
-		assert(sinv > 0);
-		printc("sinv: %d\n", sinv);
-
-		/* Copy into vm0 capability table at a known location */
-		cos_cap_cpy_at(&comp_cap_info[spdid].cos_compinfo, BOOT_SINV_CAP, &boot_info, sinv);
-
-		printc("Comp %d (%s) activated @ %x!\n", h->id, h->name, sect->vaddr);
+		boot_newcomp_create(spdid, ct, pt);
 		
-		thdcap_t main_thd = cos_initthd_alloc(&boot_info, cc);
-		assert(main_thd);
-		
-		i = 0;
-		while(schedule[i] != NULL){
-			i++;
-		}
-		schedule[i] = main_thd;
+		printc("Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
 	}
 
 	return;
 }
 			
+void
+boot_init_ndeps(void)
+{
+	int i;
+
+	for (i = 0 ; deps[i].server ; i++) ;
+	ndeps = i;
+}
+
 void 
 cos_init(void)
 {
-
-	printc("Booter for new kernel\n");
-
  	struct cobj_header *h;
 	int num_cobj, i;
+
+	printc("Booter for new kernel\n");
 
 	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj  = (int)cos_comp_info.cos_poly[1];
 
 	deps      = (struct deps *)cos_comp_info.cos_poly[2];
-	for (i = 0 ; deps[i].server ; i++) ;
-	ndeps     = i;
-	
+	boot_init_ndeps();
+
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
 	init_args++;
 
@@ -311,13 +271,9 @@ cos_init(void)
 	
 	boot_find_cobjs(h, num_cobj);
 
-	cos_meminfo_init(&boot_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	
-	cos_compinfo_init(&boot_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 
-			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &boot_info);
+	boot_bootcomp_init();
 
 	boot_create_cap_system();
-	printc("booter: done creating system.\n");
 
+	boot_done();
 }
-

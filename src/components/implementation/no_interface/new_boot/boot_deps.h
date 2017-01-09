@@ -7,19 +7,29 @@
 #include <cobj_format.h>
 #include <cos_types.h>
 
-/*the booter uses this to keep track of each comp*/
+/* Assembly function for sinv from new component */
+extern void *__inv_test_entry(int a, int b, int c);
+
+struct cobj_header *hs[MAX_NUM_SPDS+1];
+
+/* The booter uses this to keep track of each comp */
 struct comp_cap_info {
-	struct cos_compinfo cos_compinfo;
+	struct cos_compinfo *compinfo;
 	vaddr_t addr_start;
 	vaddr_t vaddr_mapped_in_booter;
 	vaddr_t upcall_entry;
-};
-struct comp_cap_info comp_cap_info[MAX_NUM_SPDS+1];
+}new_comp_cap_info[MAX_NUM_SPDS+1];
 
 struct cos_compinfo boot_info;
+struct cos_compinfo new_compinfo[MAX_NUM_SPDS+1];
 
 thdcap_t schedule[MAX_NUM_SPDS+1];
-unsigned int cur_sched;
+unsigned int sched_cur;
+
+/* Macro for sinv back to booter from new component */
+enum {
+	BOOT_SINV_CAP = round_up_to_pow2(BOOT_CAPTBL_FREE + CAP32B_IDSZ, CAPMAX_ENTRY_SZ)
+};
 
 static int
 boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
@@ -28,24 +38,24 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 	int flag;
 	vaddr_t dest_daddr, prev_map = 0;
 	int tot = 0, n_pte = 1;	
-	
 	struct cobj_sect *sect = cobj_sect_get(h, 0);
 	
-	/*Expand Page table, could do this faster*/
-	for(j = 0; j < (int)h->nsect; j++){
+	/* Expand Page table, could do this faster */
+	for (j = 0 ; j < (int)h->nsect ; j++) {
 		tot += cobj_sect_size(h, j);
 	}
-	printc("tot: %d\n", tot);
+	
 	if (tot > SERVICE_SIZE) {
 		n_pte = tot / SERVICE_SIZE;
-		if(tot % SERVICE_SIZE) n_pte++;
+		if (tot % SERVICE_SIZE) n_pte++;
 	}	
-	for(j = 0; j < n_pte; j++){
-		if (!__bump_mem_expand_range(&boot_info, pt, sect->vaddr, SERVICE_SIZE)) BUG();
+
+	for (j = 0 ; j < n_pte ; j++) {
+		if (!cos_pgtbl_intern_alloc(&boot_info, pt, sect->vaddr, SERVICE_SIZE)) BUG();
 	}
 
 	/* We'll map the component into booter's heap. */
-	comp_cap_info[spdid].vaddr_mapped_in_booter = (vaddr_t)cos_get_heap_ptr();
+	new_comp_cap_info[spdid].vaddr_mapped_in_booter = (vaddr_t)cos_get_heap_ptr();
 	
 	for (i = 0 ; i < h->nsect ; i++) {
 		int left;
@@ -69,7 +79,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 			vaddr_t addr = cos_page_bump_alloc(&boot_info);
 			assert(addr);
 			
-			if (cos_mem_alias_at(&comp_cap_info[spdid].cos_compinfo, dest_daddr, &boot_info, addr)) BUG();
+			if (cos_mem_alias_at(new_comp_cap_info[spdid].compinfo, dest_daddr, &boot_info, addr)) BUG();
 			prev_map = dest_daddr;
 			dest_daddr += PAGE_SIZE;
 			left       -= PAGE_SIZE;
@@ -79,65 +89,80 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 	return 0;
 }
 
-void
-cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
+/* Initialize just the captblcap and pgtblcap, due to hack for upcall_fn addr */
+static void
+boot_compinfo_init(int spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 {
-	static int first = 1;
-	int i;
-	
-	printc("core %ld: <<cos_upcall_fn thd %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n",
-	       cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_THD_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT);
-
-	if (first) {
-		first = 0;
-		for(i = 0; i < MAX_NUM_SPDS; i++){
-			schedule[i] = NULL;
-		}
-		__alloc_libc_initilize();
-		constructors_execute();
-		cur_sched = 0;
-	}
-
-	switch (t) {
-	case COS_UPCALL_THD_CREATE:
-	{
-		/* arg1 is the thread init data. 0 means
-		 * bootstrap. */
-		if (arg1 == 0) {
-			cos_init(NULL);
-		}
-	
-		cos_thd_switch(schedule[cur_sched]);
-	
-		return;
-	}
-	default:
-		/* fault! */
-		*(int*)NULL = 0;
-		return;
-	}
-	
-	return;
+	*ct = cos_captbl_alloc(&boot_info);
+	assert(*ct);
+	*pt = cos_pgtbl_alloc(&boot_info);
+	assert(*pt);
+	new_comp_cap_info[spdid].compinfo = &new_compinfo[spdid];
+	cos_compinfo_init(new_comp_cap_info[spdid].compinfo, *pt, *ct, 0, 
+				  (vaddr_t)vaddr, 4, &boot_info);
 }
 
-#define CAP_ID_32B_FREE BOOT_CAPTBL_FREE            // goes up
-capid_t capid_32b_free = CAP_ID_32B_FREE;
+static void
+boot_newcomp_create(int spdid, captblcap_t ct, pgtblcap_t pt)
+{
+		compcap_t cc;
+		sinvcap_t sinv;
+		thdcap_t main_thd;
+		int i = 0;
+			
+		cc = cos_comp_alloc(&boot_info, ct, pt, (vaddr_t)new_comp_cap_info[spdid].upcall_entry);
+		assert(cc);	
+		new_comp_cap_info[spdid].compinfo->comp_cap = cc;
+	
+		/* Create sinv capability from Userspace to Booter components */
+		sinv = cos_sinv_alloc(&boot_info, boot_info.comp_cap, (vaddr_t)__inv_test_entry);
+		assert(sinv > 0);
+		
+		/* Copy sinv into new comp's capability table at a known location (BOOT_SINV_CAP) */
+		cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_SINV_CAP, &boot_info, sinv);
 
-/*Macro for sinv back to booter from new component*/
-enum{
-       	BOOT_SINV_CAP = round_up_to_pow2(CAP_ID_32B_FREE + CAP32B_IDSZ, CAPMAX_ENTRY_SZ)
-};
+		main_thd = cos_initthd_alloc(&boot_info, cc);
+		assert(main_thd);
 
+		/* Add created component to "scheduling" array */		
+		while (schedule[i] != NULL) i++;
+		schedule[i] = main_thd;
+}
+
+static void
+boot_init_sched(void)
+{
+	int i;
+	
+	for (i = 0 ; i < MAX_NUM_SPDS ; i++) schedule[i] = NULL;
+	sched_cur = 0;
+}
+
+static void
+boot_bootcomp_init(void)
+{
+	cos_meminfo_init(&boot_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	
+	cos_compinfo_init(&boot_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 
+			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &boot_info);
+}
+
+static void
+boot_done(void)
+{
+	printc("Booter: done creating system.\n");
+	cos_thd_switch(schedule[sched_cur]);
+}
 
 void
 boot_thd_done(void)
 {
 	printc("\nWelcome back to the booter!\n");
-	cur_sched++;
+	sched_cur++;
 
-	if (schedule[cur_sched] != NULL) {
-		printc("Initializing comp: %d\n", cur_sched);
-	       	cos_thd_switch(schedule[cur_sched]);
+	if (schedule[sched_cur] != NULL) {
+		printc("Initializing comp: %d\n", sched_cur);
+	       	cos_thd_switch(schedule[sched_cur]);
 	} else {
 	       	printc("Done Initializing\n");
 	}
