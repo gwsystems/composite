@@ -80,6 +80,61 @@ boot_find_cobjs(struct cobj_header *h, int n)
 	       hs[n-1]->name, hs[n-1]->id, hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);
 }
 
+static int
+boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
+{
+	int i, j;
+	int flag;
+	vaddr_t dest_daddr, prev_map = 0;
+	int tot = 0, n_pte = 1;	
+	struct cobj_sect *sect = cobj_sect_get(h, 0);
+	
+	/* Expand Page table, could do this faster */
+	for (j = 0 ; j < (int)h->nsect ; j++) {
+		tot += cobj_sect_size(h, j);
+	}
+	
+	if (tot > SERVICE_SIZE) {
+		n_pte = tot / SERVICE_SIZE;
+		if (tot % SERVICE_SIZE) n_pte++;
+	}	
+	
+	boot_comp_pgtbl_expand(n_pte, pt, sect->vaddr);
+
+	/* We'll map the component into booter's heap. */
+	new_comp_cap_info[spdid].vaddr_mapped_in_booter = (vaddr_t)cos_get_heap_ptr();
+	
+	for (i = 0 ; i < h->nsect ; i++) {
+		int left;
+
+		sect = cobj_sect_get(h, i);
+		flag = MAPPING_RW;
+		if (sect->flags & COBJ_SECT_KMEM) {
+			flag |= MAPPING_KMEM;
+		}
+
+		dest_daddr = sect->vaddr;
+		left       = cobj_sect_size(h, i);
+		
+		/* previous section overlaps with this one, don't remap! */
+		if (round_to_page(dest_daddr) == prev_map) {
+			left -= (prev_map + PAGE_SIZE - dest_daddr);
+			dest_daddr = prev_map + PAGE_SIZE;
+		}
+
+		while (left > 0) {
+			boot_comp_mmap(spdid, dest_daddr);
+
+			prev_map = dest_daddr;
+			dest_daddr += PAGE_SIZE;
+			left       -= PAGE_SIZE;
+		}
+	}
+
+	return 0;
+}
+
+			
 static vaddr_t
 boot_spd_end(struct cobj_header *h)
 {
@@ -240,6 +295,16 @@ boot_create_cap_system(void)
 
 	return;
 }
+
+static void
+boot_init_sched(void)
+{
+	int i;
+	
+	for (i = 0 ; i < MAX_NUM_SPDS ; i++) schedule[i] = NULL;
+	sched_cur = 0;
+}
+
 			
 void
 boot_init_ndeps(void)
