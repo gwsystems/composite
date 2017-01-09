@@ -27,6 +27,8 @@ unsigned long long tsc_start[OP_NUM];
 unsigned long long total_tsc_per_op[OP_NUM];
 #endif
 
+int loop_counter = 0;
+
 #define CB_DEF_POOL_SZ 4096*2048
 
 /** 
@@ -282,6 +284,7 @@ cbuf_map(spdid_t spdid, vaddr_t daddr, void *page, unsigned long size, int flags
 		vaddr_t d = daddr + off;
 		if (unlikely(d != (mman_alias_page(cos_spd_id(), ((vaddr_t)page) + off,
 						   spdid, d, flags)))) {
+			printc("Something went wrong with cbuf_map\n");
 			for (d = daddr + off - PAGE_SIZE ; d >= daddr ; d -= PAGE_SIZE) {
 				mman_revoke_page(spdid, d, 0);
 			}
@@ -319,9 +322,10 @@ cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, void *p, unsigned lon
 	}
 	else {
 		dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, sz/PAGE_SIZE);
+		if (!dest) printc("ww :'(\n");
 	}
 	if (unlikely(!dest)) goto free;
-	if (!cbuf_map(spdid, dest, new_p, sz, flags)) goto done;
+	if (!cbuf_map(spdid, dest, new_p, sz, flags)) { printc("Map succeeded :)\n"); goto done; }
 
 free: 
 	if (dest) valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
@@ -369,7 +373,7 @@ cbuf_referenced(struct cbuf_info *cbi)
 	struct cbuf_meta *mt, *own_mt = m->m;
 
 	old_nfo = own_mt->nfo;
-	new_nfo = old_nfo | CBUF_INCONSISENT;
+	new_nfo = old_nfo | CBUF_INCONSISTENT;
 	if (unlikely(!cos_cas(&own_mt->nfo, old_nfo, new_nfo))) goto done;
 
 	mt   = (struct cbuf_meta *)(&old);
@@ -404,7 +408,7 @@ cbuf_referenced(struct cbuf_info *cbi)
 	if (CBUF_IS_IN_FREELIST(own_mt)) goto done;
 
 unset:
-	CBUF_FLAG_ATOMIC_REM(own_mt, CBUF_INCONSISENT);
+	CBUF_FLAG_ATOMIC_REM(own_mt, CBUF_INCONSISTENT);
 done:
 	return ret;
 }
@@ -448,7 +452,7 @@ cbuf_unmap_prepare(struct cbuf_info *cbi)
 	do {
 		old_nfo = m->m->nfo;
 		if (old_nfo & CBUF_REFCNT_MAX) return 1;
-		new_nfo = old_nfo & CBUF_INCONSISENT;
+		new_nfo = old_nfo & CBUF_INCONSISTENT;
 		if (unlikely(!cos_cas(&m->m->nfo, old_nfo, new_nfo))) return 1;
 		m   = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
@@ -609,13 +613,12 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 	struct cbuf_bin *bin;
 	int ret = 0;
 	unsigned int id = (unsigned int) cbid;
-	printc("cbuf_mgr: create a\n");
 	if (unlikely(cbid < 0)) return 0;
 
 	tracking_start(NULL, CBUF_CRT);
 
 	cci = cbuf_comp_info_get(spdid);
-	if (unlikely(!cci)) goto done;
+	if (unlikely(!cci)) { printc("No cci!\n"); goto done; }
 
 	/* 
 	 * Client wants to allocate a new cbuf, but the meta might not
@@ -628,6 +631,7 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 			cbuf_shrink(cci, size);
 			if (size + cci->allocated_size > cci->target_size) {
 				cbuf_thread_block(cci, size);
+				printc("Some shrinks stuff what is this?\n");
 				return 0;
 			}
 		}
@@ -640,7 +644,7 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 		do {
 			id   = cmap_add(&cbufs, cbi);
 			meta = cbuf_meta_lookup(cci, id);
-		} while(meta && CBUF_INCONSISENT(meta));
+		} while(meta && CBUF_INCONSISTENT(meta));
 
 		cbi->cbid        = id;
 		size             = round_up_to_page(size);
@@ -664,17 +668,17 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 		}
 		if (cbuf_alloc_map(spdid, &(cbi->owner.addr), 
 				   (void**)&(cbi->mem), NULL, size, MAPPING_RW, dest)) {
+			printc("alloc map failed\n");
 			goto free;
 		}
 	} 
 	/* If the client has a cbid, then make sure we agree! */
 	else {
 		cbi = cmap_lookup(&cbufs, id);
-		if (unlikely(!cbi)) goto done;
-		if (unlikely(cbi->owner.spdid != spdid)) goto done;
+		if (unlikely(!cbi)) { printc("Now we don't have a cbi???\n"); goto done; }
+		if (unlikely(cbi->owner.spdid != spdid)) { printc("We have a cbi but it's messed up\n"); goto done; }
 	}
 	meta = cbuf_meta_lookup(cci, id);
-	printc("cbuf_mgr: create b\n");
 
 	/* We need to map in the meta for this cbid.  Tell the client. */
 	if (!meta) {
@@ -730,15 +734,15 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	int ret = 0;
 	unsigned int id = (unsigned int)cbid;
 
-	printc("cb_create 1\n");
+	loop_counter++;
+	if (loop_counter > 40) assert(0);
 
 	printl("cbuf_create\n");
 	CBUF_TAKE();
-	printc("cb_create 2\n");
 	ret = __cbuf_create(spdid, size, cbid, 0);
-	printc("cb_create 3\n");
 	CBUF_RELEASE();
-	printc("cb_create 4\n");
+
+	printc("cb create ret %d\n", ret);
 	return ret;
 }
 
@@ -802,7 +806,7 @@ __cbuf_map_at(spdid_t s_spd, unsigned int cbid, spdid_t d_spd, vaddr_t d_addr)
 	 */
 	flags = d_addr & 0x3;
 	d_addr &= ~0x3;
-	if (!(flags & 2) && valloc_alloc_at(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE)) goto done;
+	if (!(flags & MAPPING_NO_VALLOC) && valloc_alloc_at(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE)) goto done;
 	if (cbuf_map(d_spd, d_addr, cbi->mem, cbi->size, flags & (MAPPING_READ|MAPPING_RW))) goto free;
 	ret = d_addr;
 	/*
@@ -815,7 +819,7 @@ __cbuf_map_at(spdid_t s_spd, unsigned int cbid, spdid_t d_spd, vaddr_t d_addr)
 done:
 	return ret;
 free:
-	if (!(flags & 2)) valloc_free(s_spd, d_spd, (void*)d_addr, cbi->size);
+	if (!(flags & MAPPING_NO_VALLOC)) valloc_free(s_spd, d_spd, (void*)d_addr, cbi->size);
 	goto done;
 
 }
@@ -949,7 +953,7 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 		vaddr_t q_daddr = (vaddr_t)valloc_alloc(cos_spd_id(), 11, sz/PAGE_SIZE);
 		if (unlikely(!dest)) return -1;
 		flags = MAPPING_RW;
-		flags |= 2; // WHY DO WE KEEP HARDCODING 2 everywhere?!
+		flags |= MAPPING_NO_VALLOC;
 		if (q_daddr != __cbuf_map_at(f_spd, f_cbid, 11, q_daddr | flags)) return -1;
 		ret = q_daddr;
 	}
@@ -982,12 +986,21 @@ __get_nfo(struct cbuf_comp_info *cci)
 		if (cbi) { /* presumably the cbuf could have been deleted but this is unlikely */
 			printc("cbuf #%2u with size %x, mem start %x, and maps ", cbi->cbid, cbi->size, cbi->mem);
 			struct cbuf_maps *m = &cbi->owner;
+			struct cbuf_meta *cm = m->m;		/* Use this after loop */
 
 			do {
 				printc("[%d:%x] ", m->spdid, m->addr);
 				m = FIRST_LIST(m, next, prev);
 			} while (m != &cbi->owner);
 
+			printc("\n\tnfo: [ex %d|ow %d|t %d|in %d|re %d] page pointer %x",
+									CBUF_EXACTSZ(cm)      >> 11,
+									CBUF_OWNER(cm)        >> 10,
+									CBUF_TMEM(cm)         >>  9,
+									CBUF_INCONSISTENT(cm) >>  8,
+									CBUF_RELINQ(cm)       >>  7,
+									CBUF_PTR(cm));
+			
 			printc("\n");
 		}
 
@@ -1078,6 +1091,7 @@ cbuf_map_collect(spdid_t spdid)
 	struct cbuf_comp_info *cci;
 	vaddr_t ret = (vaddr_t)NULL;
 
+	printc("In cbuf_map_collect\n");
 	printl("cbuf_map_collect\n");
 
 	CBUF_TAKE();
@@ -1269,7 +1283,7 @@ cbuf_retrieve(spdid_t spdid, unsigned int cbid, unsigned long size)
 	}
 	meta       = cbuf_meta_lookup(cci, cbid);
 	if (!meta) {printd("no meta\n"); goto done; }
-	assert(!(meta->nfo & ~CBUF_INCONSISENT));
+	assert(!(meta->nfo & ~CBUF_INCONSISTENT));
 
 	map        = malloc(sizeof(struct cbuf_maps));
 	if (!map) {printd("no map\n"); ERR_THROW(-ENOMEM, done); }

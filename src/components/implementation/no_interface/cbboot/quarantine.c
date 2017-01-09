@@ -195,7 +195,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	struct cobj_header *src_hdr;
 	struct cobj_sect *sect;
 	struct cobj_cap *cap;
-	vaddr_t init_daddr;
+	vaddr_t init_daddr, cinfo_addr;				/* Important to remember cinfo is in the address space of d_spd. I think. Verify. */
 	long tot = 0;
 	int j, r;
 	unsigned long cinfo_cbid = 0;
@@ -286,7 +286,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 			if (sect->flags & COBJ_SECT_WRITE) flags = MAPPING_RW;
 			else flags = MAPPING_READ;
-			flags |= 2; /* no valloc */
+			flags |= MAPPING_NO_VALLOC;
 			cbm = old_sect_cbufs[j];
 
 			if (sect->flags & COBJ_SECT_CINFO) {
@@ -324,7 +324,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	else tot = SERVICE_SIZE - tot;
 	
 	printd("Telling cbuf to fork(%d, %d, %d)\n", cos_spd_id(), source, d_spd);
-	vaddr_t cinfo_addr = cbuf_fork_spd(cos_spd_id(), source, d_spd, cinfo_cbid);
+	cinfo_addr = cbuf_fork_spd(cos_spd_id(), source, d_spd, cinfo_cbid);
 	
 	/* fixup cinfo page */
 	struct cos_component_information *ci = (struct cos_component_information*) cinfo_addr;
@@ -343,7 +343,6 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	
 	/* Fix send-side fork counters */
 	if (send_side_counters(source, d_spd, src_hdr)) BUG();
-	printc("b\n", d_spd);
 	if (receive_side_counters(source, d_spd)) BUG();
 
 	quarantine_add_to_spd_map(source, d_spd);

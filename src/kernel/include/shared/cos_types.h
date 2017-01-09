@@ -497,7 +497,8 @@ enum {
 
 enum {
 	MAPPING_READ  = 0,
-	MAPPING_RW    = 1
+	MAPPING_RW    = 1,
+	MAPPING_NO_VALLOC = 2
 };
 
 enum {

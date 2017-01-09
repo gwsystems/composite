@@ -128,13 +128,16 @@ __cbuf_alloc_slow(unsigned long size, int *len, unsigned int flag)
 	int amnt, cbid;
 	struct cbuf_meta *ret_cm;
 	static struct cbuf_shared_page *csp = NULL;
+	int count = 0; /* This is CURRENTLY a hack, but should probably be present in general to avoid an infinite loop */
 
 	csp = (struct cbuf_shared_page*)cbuf_map_collect(cos_spd_id());
 again:
 	ret_cm = NULL;
 	cbid = 0;
 
-	/* Do a garbage collection if this not an exact size cbuf*/
+	if (count > 10) goto done;
+
+	/* Attempt garbage collection if this is not an exact size cbuf */
 	if (!(flag & CBUF_EXACTSZ)) {
 		ret_cm = __cbuf_get_collect(csp, size, flag);
 		if (ret_cm) goto done;
@@ -153,6 +156,7 @@ again:
 		cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
 		/* We return from being blocked */
 		if (cbid == 0) {
+			count++;
 			goto again;
 		} else if (cbid < 0 ) {
 			if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid*-1)) < 0) goto done;

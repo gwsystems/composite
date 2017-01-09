@@ -393,14 +393,14 @@ __cbuf_try_take(struct cbuf_meta *cm, unsigned int flag)
 	old_nfo = cm->nfo;
 	assert(!(old_nfo & CBUF_REFCNT_MAX));
 
-	inconsistent = old_nfo & CBUF_INCONSISENT;
+	inconsistent = old_nfo & CBUF_INCONSISTENT;
 	if (unlikely(inconsistent)) {
 		/*
 		 * It has been or is going to be taken away by the 
 		 * manager. We will not leak cbuf here.
 		 * Do not modify other fields! 
 		 */
-		CBUF_FLAG_REM(cm, CBUF_INCONSISENT);
+		CBUF_FLAG_REM(cm, CBUF_INCONSISTENT);
 		goto ret;
 	}
 
@@ -415,7 +415,7 @@ __cbuf_try_take(struct cbuf_meta *cm, unsigned int flag)
 		 * For case 2, this cbuf can be collected later.
 		 * No cbuf leak 
 		 */
-		if (CBUF_INCONSISENT(cm)) CBUF_FLAG_REM(cm, CBUF_INCONSISENT);
+		if (CBUF_INCONSISTENT(cm)) CBUF_FLAG_REM(cm, CBUF_INCONSISTENT);
 		goto ret;
 	}
 	r = 1;
@@ -499,7 +499,7 @@ done:
 create:
 	/* TODO: Why use len? */
 	cm   = __cbuf_alloc_slow(sz, &len, flag);
-	assert(cm);
+	if (!cm) return NULL;
 	goto done;
 }
 
@@ -532,7 +532,7 @@ cbuf_free(cbuf_t cb)
 	cm = cbuf_vect_lookup_addr(id);
 	/* 
 	 * If this assertion triggers, one possibility is that you did
-	 * not successfully map it in (cbuf2buf or cbuf_alloc).
+	 * not successfully map the cbuf in (cbuf2buf or cbuf_alloc).
 	 */
 	assert(cm && CBUF_REFCNT(cm));
 

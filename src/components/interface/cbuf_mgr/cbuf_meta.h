@@ -21,7 +21,7 @@
 #define CBUF_RELINQ(meta)             ((meta)->nfo & CBUF_RELINQ)
 #define CBUF_OWNER(meta)              ((meta)->nfo & CBUF_OWNER)
 #define CBUF_TMEM(meta)               ((meta)->nfo & CBUF_TMEM)
-#define CBUF_INCONSISENT(meta)        ((meta)->nfo & CBUF_INCONSISENT)
+#define CBUF_INCONSISTENT(meta)        ((meta)->nfo & CBUF_INCONSISTENT)
 #define CBUF_EXACTSZ(meta)            ((meta)->nfo & CBUF_EXACTSZ)
 /*set flags*/
 #define CBUF_FLAG_ADD(meta, v)        ((meta)->nfo |= (v))
@@ -50,9 +50,9 @@
  *                                                        
  * structure of nfo in meta data as follows:              
  *
- * +-------20-----+----------------5---------------------+---7----+ 
- * | page pointer | exact|owner|tmem|inconsistent|relinq | refcnt |
- * +--------------+--------------------------------------+--------+ 
+ * +-------20-----+------------------5---------------------+---7----+ 
+ * | page pointer | exactsz|owner|tmem|inconsistent|relinq | refcnt |
+ * +--------------+----------------------------------------+--------+ 
  *
  * Shared page between the target component, and us */
 typedef struct spd_cbvect_range shared_component_info;
@@ -67,7 +67,7 @@ typedef enum {
 	 * Is this cbuf inconsistent between 
 	 * manager and client?
 	 */
-	CBUF_INCONSISENT = 1<< (CBUF_REFCNT_SZ+1),
+	CBUF_INCONSISTENT = 1<< (CBUF_REFCNT_SZ+1),
 	/* 
 	 * Is this a transient memory allocation? 
 	 */

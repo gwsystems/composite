@@ -67,14 +67,21 @@ call(void)
 		printc("Trying to call cbuf alloc again -- first time\n");
 		cbuf_t cb2;
 		void *mem2 = cbuf_alloc_ext(20, &cb2, CBUF_EXACTSZ);
-		//printc("Allocated cbuf %d\n", cb2);
+		printc("Allocated cbuf %d\n", cb2);
 
+/* This still fails. Why? valloc? */
 		printc("Trying to call cbuf alloc again -- second time\n");
 		mem = cbuf_alloc_ext(20, &cb2, CBUF_EXACTSZ);
+
+		if (!mem) {
+			printc("Cbuf_mgr could not grant cbuf due to \"unknown\" circumstances\n");
+			goto done;
+		}
 
 		memcpy(mem, "abc_123!", 8);
 		printc("mem: [%s]\n", mem);
 	}
 
+done:
 	return a++ + b++;
 }
