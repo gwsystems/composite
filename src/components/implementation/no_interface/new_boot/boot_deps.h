@@ -32,7 +32,7 @@ enum {
 };
 
 static vaddr_t
-boot_comp_mmap(int spdid, vaddr_t dest_daddr)
+boot_deps_map_sect(int spdid, vaddr_t dest_daddr)
 {
 	vaddr_t addr = cos_page_bump_alloc(&boot_info);
 	assert(addr);
@@ -43,14 +43,24 @@ boot_comp_mmap(int spdid, vaddr_t dest_daddr)
 }
 
 static void
-boot_comp_pgtbl_expand(int n_pte, pgtblcap_t pt, vaddr_t vaddr)
+boot_comp_pgtbl_expand(int n_pte, pgtblcap_t pt, vaddr_t vaddr, struct cobj_header *h)
 {
 	int j;	
+	int tot = 0;	
+	/* Expand Page table, could do this faster */
+	for (j = 0 ; j < (int)h->nsect ; j++) {
+		tot += cobj_sect_size(h, j);
+	}
+	
+	if (tot > SERVICE_SIZE) {
+		n_pte = tot / SERVICE_SIZE;
+		if (tot % SERVICE_SIZE) n_pte++;
+	}
+
 	for (j = 0 ; j < n_pte ; j++) {
 		if (!cos_pgtbl_intern_alloc(&boot_info, pt, vaddr, SERVICE_SIZE)) BUG();
 	}
 }
-
 
 /* Initialize just the captblcap and pgtblcap, due to hack for upcall_fn addr */
 static void
@@ -60,6 +70,7 @@ boot_compinfo_init(int spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 	assert(*ct);
 	*pt = cos_pgtbl_alloc(&boot_info);
 	assert(*pt);
+
 	new_comp_cap_info[spdid].compinfo = &new_compinfo[spdid];
 	cos_compinfo_init(new_comp_cap_info[spdid].compinfo, *pt, *ct, 0, 
 				  (vaddr_t)vaddr, 4, &boot_info);
