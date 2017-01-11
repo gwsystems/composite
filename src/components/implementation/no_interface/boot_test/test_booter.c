@@ -9,5 +9,5 @@ cos_init(void)
 	prints(" Wecome to test_boot component!\n");
 	prints("|*****************************|\n");
 	
-	cos_sinv(BOOT_SINV_CAP);
+	cos_sinv(BOOT_SINV_CAP, 1, 2, 3, 4);
 }
