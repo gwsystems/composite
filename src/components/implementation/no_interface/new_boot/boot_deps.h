@@ -1,11 +1,10 @@
-#include <print.h>
-
 #undef assert
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0;} } while(0)
 
 #include <cos_alloc.h>
 #include <cobj_format.h>
 #include <cos_types.h>
+#include <llprint.h>
 
 /* Assembly function for sinv from new component */
 extern void *__inv_test_entry(int a, int b, int c);
@@ -45,11 +44,11 @@ boot_deps_map_sect(int spdid, vaddr_t dest_daddr)
 static void
 boot_comp_pgtbl_expand(int n_pte, pgtblcap_t pt, vaddr_t vaddr, struct cobj_header *h)
 {
-	int j;	
+	int i;	
 	int tot = 0;	
 	/* Expand Page table, could do this faster */
-	for (j = 0 ; j < (int)h->nsect ; j++) {
-		tot += cobj_sect_size(h, j);
+	for (i = 0 ; i < (int)h->nsect ; i++) {
+		tot += cobj_sect_size(h, i);
 	}
 	
 	if (tot > SERVICE_SIZE) {
@@ -57,7 +56,7 @@ boot_comp_pgtbl_expand(int n_pte, pgtblcap_t pt, vaddr_t vaddr, struct cobj_head
 		if (tot % SERVICE_SIZE) n_pte++;
 	}
 
-	for (j = 0 ; j < n_pte ; j++) {
+	for (i = 0 ; i < n_pte ; i++) {
 		if (!cos_pgtbl_intern_alloc(&boot_info, pt, vaddr, SERVICE_SIZE)) BUG();
 	}
 }
@@ -77,9 +76,11 @@ boot_compinfo_init(int spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 }
 
 static void
-boot_newcomp_create(int spdid, captblcap_t ct, pgtblcap_t pt)
+boot_newcomp_create(int spdid, struct comp_cap_info *comp_info)
 {
-		compcap_t cc;
+		compcap_t   cc;
+		captblcap_t ct = new_comp_cap_info[spdid].compinfo->captbl_cap;
+		pgtblcap_t  pt = new_comp_cap_info[spdid].compinfo->pgtbl_cap;
 		sinvcap_t sinv;
 		thdcap_t main_thd;
 		int i = 0;
@@ -119,10 +120,10 @@ boot_done(void)
 	cos_thd_switch(schedule[sched_cur]);
 }
 
+/* Run after a componenet is done init execution, via sinv() into booter */
 void
 boot_thd_done(void)
 {
-	printc("\nWelcome back to the booter!\n");
 	sched_cur++;
 
 	if (schedule[sched_cur] != NULL) {
@@ -132,6 +133,5 @@ boot_thd_done(void)
 	       	printc("Done Initializing\n");
 	}
 
-	printc("What to do now... hm..\n");
 }
 

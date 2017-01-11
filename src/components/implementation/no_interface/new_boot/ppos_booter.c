@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <string.h>
-
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
@@ -11,33 +8,6 @@ struct deps {
 };
 struct deps *deps;
 int ndeps;
-
-static void
-cos_llprint(char *s, int len)
-{ call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0); }
-
-int
-prints(char *s)
-{
-		int len = strlen(s);
-		cos_llprint(s, len);
-		return len;
-}
-
-int __attribute__((format(printf,1,2)))
-printc(char *fmt, ...)
-{
-	  char s[128];
-  	  va_list arg_ptr;
-  	  int ret, len = 128;
-
-  	  va_start(arg_ptr, fmt);
-  	  ret = vsnprintf(s, len, fmt, arg_ptr);
-  	  va_end(arg_ptr);
-	  cos_llprint(s, ret);
-
-	  return ret;
-}
 
 /*Component init info*/
 #define INIT_STR_SZ 52
@@ -108,7 +78,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 		
 		/* previous section overlaps with this one, don't remap! */
 		if (round_to_page(dest_daddr) == prev_map) {
-			left -= (prev_map + PAGE_SIZE - dest_daddr);
+			left 	  -= (prev_map + PAGE_SIZE - dest_daddr);
 			dest_daddr = prev_map + PAGE_SIZE;
 		}
 
@@ -287,7 +257,7 @@ boot_create_cap_system(void)
 		if (boot_spd_symbs(h, spdid, &ci)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt))   BUG();
 
-		boot_newcomp_create(spdid, ct, pt);
+		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo);
 		
 		printc("Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
 	}
@@ -325,9 +295,7 @@ cos_init(void)
 	boot_init_sched();
 	
 	boot_find_cobjs(h, num_cobj);
-
 	boot_bootcomp_init();
-
 	boot_create_cap_system();
 
 	boot_done();
