@@ -18,6 +18,7 @@
 #include <cos_debug.h>
 #include <cos_alloc.h>
 #include <valloc.h>
+#include <sched.h>
 
 /* 
  * All of the structures that must be compiled (only once) into each
@@ -28,7 +29,7 @@
  * zero. 
  */
 
-#define CBUF_RING_TAKE()      do { if (sched_component_take(cos_spd_id()))    BUG(); } while(0)
+#define CBUF_RING_TAKE()      do { if (sched_component_take(cos_spd_id())) { printc("BUG!\n");   BUG();} } while(0)
 #define CBUF_RING_RELEASE()   do { if (sched_component_release(cos_spd_id())) BUG(); } while(0)
 CVECT_CREATE_STATIC(meta_cbuf);
 PERCPU_VAR(cbuf_alloc_freelists);
@@ -89,6 +90,7 @@ __cbuf_get_collect(struct cbuf_shared_page *csp, unsigned long size, unsigned in
 
 	CBUF_RING_TAKE();
 	do {
+		assert(&csp->ring);
 		ret_cm = NULL;
 		if (CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) {
 			/* own the cbuf we just collected */
@@ -135,7 +137,7 @@ again:
 	ret_cm = NULL;
 	cbid = 0;
 
-	if (count > 10) goto done;
+	//if (count > 5) goto done;
 
 	/* Attempt garbage collection if this is not an exact size cbuf */
 	if (!(flag & CBUF_EXACTSZ)) {
@@ -157,6 +159,7 @@ again:
 		/* We return from being blocked */
 		if (cbid == 0) {
 			count++;
+			printc("Going to again\n\n");
 			goto again;
 		} else if (cbid < 0 ) {
 			if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid*-1)) < 0) goto done;
@@ -164,6 +167,7 @@ again:
 		}
 		assert(cbid > 0);
 		ret_cm = cbuf_vect_lookup_addr((unsigned int)cbid);
+		printc("cbid %d ret_cm %x\n", cbid, ret_cm);
 		if (unlikely(flag)) CBUF_FLAG_ADD(ret_cm, flag);
 	}
 	assert(ret_cm && CBUF_PTR(ret_cm));

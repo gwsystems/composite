@@ -322,10 +322,9 @@ cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, void *p, unsigned lon
 	}
 	else {
 		dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, sz/PAGE_SIZE);
-		if (!dest) printc("ww :'(\n");
 	}
 	if (unlikely(!dest)) goto free;
-	if (!cbuf_map(spdid, dest, new_p, sz, flags)) { printc("Map succeeded :)\n"); goto done; }
+	if (!cbuf_map(spdid, dest, new_p, sz, flags)) goto done;
 
 free: 
 	if (dest) valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
@@ -718,7 +717,6 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 	else        bin->c   = cbi;
 	cci->allocated_size += size;
 	ret = (int)id;
-	printc("cbuf_mgr: Successfully created cbuf id %d\n", ret);
 done:
 	tracking_end(NULL, CBUF_CRT);
 	return ret;
@@ -742,7 +740,6 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	ret = __cbuf_create(spdid, size, cbid, 0);
 	CBUF_RELEASE();
 
-	printc("cb create ret %d\n", ret);
 	return ret;
 }
 
@@ -1018,14 +1015,18 @@ __cbuf_fork_spd(spdid_t o_spd, spdid_t f_spd, int cinfo_cbid)
 	struct cbuf_info *current;
 	int i;
 	vaddr_t ret = (vaddr_t) NULL;		/* address of cinfo page */
+
+	printc("starting valloc_fork_spd from %d to %d\n", o_spd, f_spd);
+	int r = valloc_fork_spd(cos_spd_id(), o_spd, f_spd);
+	printc("finished valloc_fork_spd with ret %d\n", r);
 	
 	src = cbuf_comp_info_get(o_spd);
 	dst = cbuf_comp_info_get(f_spd);
 	__get_nfo(src);
 
 	/* Should create a new shared page between cbuf_mgr and dst */
-	dst->csp = src->csp;
-	dst->dest_csp = src->dest_csp;
+	dst->csp = NULL;
+	//dst->dest_csp = src->dest_csp;
 	
 	current = cbi_head;
 	vaddr_t r_addr;
@@ -1069,7 +1070,6 @@ cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd, int cinfo_cbid)
 
 	CBUF_TAKE();
 	ret = __cbuf_fork_spd(s_spd, d_spd, cinfo_cbid);
-
 done:
 	CBUF_RELEASE();
 	return ret;
@@ -1091,9 +1091,7 @@ cbuf_map_collect(spdid_t spdid)
 	struct cbuf_comp_info *cci;
 	vaddr_t ret = (vaddr_t)NULL;
 
-	printc("In cbuf_map_collect\n");
 	printl("cbuf_map_collect\n");
-
 	CBUF_TAKE();
 	cci = cbuf_comp_info_get(spdid);
 	if (unlikely(!cci)) goto done;

@@ -281,7 +281,7 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to, int fl
 
 	assert(!p || p->f == f);
 	assert(dest && to);
-
+	
 	/* no vas structure for this spd yet... */
 	if (!cv) {
 		cv = cvas_alloc(dest);
@@ -290,13 +290,13 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to, int fl
 	}
 	assert(cv->pages);
 	if (cvect_lookup(cv->pages, idx)) goto collision;
-
+	
 	cvas_ref(cv);
 	m = cslab_alloc_mapping();
 	if (!m) goto collision;
 
 	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, dest, to, frame_index(f))) {
-		printc("mem_man naive: could not grant at %x:%d\n", dest, (int)to);
+		printc("mem_man naive: could not grant at %x:%x\n", dest, to);
 		goto no_mapping;
 	}
 	mapping_init(m, dest, to, p, f, flags);

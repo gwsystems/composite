@@ -1,6 +1,9 @@
 #ifndef   	VALLOC_H
 #define   	VALLOC_H
 
+/* Forking attempt */
+int valloc_fork_spd(spdid_t spdid, spdid_t o_spd, spdid_t f_spd);
+
 /* Virtual address space allocation for a component */
 
 void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages);
