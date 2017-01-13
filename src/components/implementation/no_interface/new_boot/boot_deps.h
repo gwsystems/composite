@@ -78,30 +78,30 @@ boot_compinfo_init(int spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 static void
 boot_newcomp_create(int spdid, struct comp_cap_info *comp_info)
 {
-		compcap_t   cc;
-		captblcap_t ct = new_comp_cap_info[spdid].compinfo->captbl_cap;
-		pgtblcap_t  pt = new_comp_cap_info[spdid].compinfo->pgtbl_cap;
-		sinvcap_t sinv;
-		thdcap_t main_thd;
-		int i = 0;
-			
-		cc = cos_comp_alloc(&boot_info, ct, pt, (vaddr_t)new_comp_cap_info[spdid].upcall_entry);
-		assert(cc);	
-		new_comp_cap_info[spdid].compinfo->comp_cap = cc;
-	
-		/* Create sinv capability from Userspace to Booter components */
-		sinv = cos_sinv_alloc(&boot_info, boot_info.comp_cap, (vaddr_t)__inv_test_entry);
-		assert(sinv > 0);
+	compcap_t   cc;
+	captblcap_t ct = new_comp_cap_info[spdid].compinfo->captbl_cap;
+	pgtblcap_t  pt = new_comp_cap_info[spdid].compinfo->pgtbl_cap;
+	sinvcap_t sinv;
+	thdcap_t main_thd;
+	int i = 0;
 		
-		/* Copy sinv into new comp's capability table at a known location (BOOT_SINV_CAP) */
-		cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_SINV_CAP, &boot_info, sinv);
+	cc = cos_comp_alloc(&boot_info, ct, pt, (vaddr_t)new_comp_cap_info[spdid].upcall_entry);
+	assert(cc);	
+	new_comp_cap_info[spdid].compinfo->comp_cap = cc;
 
-		main_thd = cos_initthd_alloc(&boot_info, cc);
-		assert(main_thd);
+	/* Create sinv capability from Userspace to Booter components */
+	sinv = cos_sinv_alloc(&boot_info, boot_info.comp_cap, (vaddr_t)__inv_test_entry);
+	assert(sinv > 0);
+	
+	/* Copy sinv into new comp's capability table at a known location (BOOT_SINV_CAP) */
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_SINV_CAP, &boot_info, sinv);
 
-		/* Add created component to "scheduling" array */		
-		while (schedule[i] != NULL) i++;
-		schedule[i] = main_thd;
+	main_thd = cos_initthd_alloc(&boot_info, cc);
+	assert(main_thd);
+
+	/* Add created component to "scheduling" array */		
+	while (schedule[i] != NULL) i++;
+	schedule[i] = main_thd;
 }
 
 static void
