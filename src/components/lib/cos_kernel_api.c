@@ -9,6 +9,8 @@
 /* HACKHACKHACKHACKHACKHACK */
 #include <stdarg.h>
 #include <stdio.h>
+#include <cos_types.h>
+
 #ifdef NIL
 static int __attribute__((format(printf,1,2)))
 printd(char *fmt, ...)
@@ -282,6 +284,7 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 
 /**************** [User Virtual Memory Allocation Functions] ****************/
 
+
 static vaddr_t
 __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
 {
@@ -316,6 +319,12 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 	assert(round_up_to_pgd_page(addr) == round_up_to_pgd_page(mem_ptr + mem_sz));
 	
 	return mem_ptr;
+}
+
+vaddr_t
+cos_pgtbl_intern_alloc(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
+{
+	return __bump_mem_expand_range(ci, cipgtbl, mem_ptr, mem_sz);
 }
 
 static void
@@ -555,6 +564,10 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 
 	return cap;
 }
+
+int
+cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
+{ return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4); }
 
 /*
  * Arguments:
