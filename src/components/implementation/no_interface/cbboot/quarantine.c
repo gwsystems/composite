@@ -262,7 +262,6 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		printd("Added %d to sect_cbufs\n", d_spd);
 	}
 
-	// step 1?
 	vaddr_t prev_map = 0;
 	for (j = 0 ; j < (int)src_hdr->nsect ; j++) {
 		vaddr_t d_addr;

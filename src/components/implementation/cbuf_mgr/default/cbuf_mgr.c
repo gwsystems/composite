@@ -1078,8 +1078,7 @@ done:
 void 
 cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
 {
-	printd("cos_fix_spdid_metadata for %d -> %d\n", o_spd, f_spd);
-	printd("Actually not doing anything here. TODO: do stuff here if needed.\n");
+	printd("cos_fix_spdid_metadata for %d -> %d (currently by doing nothing)\n", o_spd, f_spd);
 }
 
 /*

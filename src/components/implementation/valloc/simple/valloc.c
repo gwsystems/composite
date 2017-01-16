@@ -165,8 +165,8 @@ int valloc_alloc_at(spdid_t spdid, spdid_t dest, void *addr, unsigned long npage
 		    !(trac = cos_vect_lookup(&spd_vect, dest))) goto done;
 	}
 
-	if (unlikely(npages > MAP_MAX * 32)) {
-		printc("valloc: cannot alloc more than %u bytes in one time!\n", 32 * WORDS_PER_PAGE * PAGE_SIZE);
+	if (unlikely(npages > MAP_MAX * sizeof(u32_t))) {
+		printc("valloc: cannot alloc more than %u bytes in one time!\n", sizeof(u32_t) * WORDS_PER_PAGE * PAGE_SIZE);
 		goto done;
 	}
 
@@ -178,7 +178,7 @@ int valloc_alloc_at(spdid_t spdid, spdid_t dest, void *addr, unsigned long npage
 		/* the address is in the range of an existing extent */
 		occ = trac->extents[i].map;
 		off = ((char*)addr - (char*)trac->extents[i].start) / PAGE_SIZE;
-		assert(off + npages < MAP_MAX * 32);
+		assert(off + npages < MAP_MAX * sizeof(u32_t));
 		ret = bitmap_extent_set_at(&occ->pgd_occupied[0], off, npages, MAP_MAX);
 		goto done;
 	}
@@ -217,8 +217,8 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 		    !(trac = cos_vect_lookup(&spd_vect, dest))) goto done;
 	}
 
-	if (unlikely(npages > MAP_MAX * 32)) {
-		printc("valloc: cannot alloc more than %u bytes in one time!\n", 32 * WORDS_PER_PAGE * PAGE_SIZE);
+	if (unlikely(npages > MAP_MAX * sizeof(u32_t))) {
+		printc("valloc: cannot alloc more than %u bytes in one time!\n", sizeof(u32_t) * WORDS_PER_PAGE * PAGE_SIZE);
 		goto done;
 	}
 
@@ -266,7 +266,7 @@ int valloc_free(spdid_t spdid, spdid_t dest, void *addr, unsigned long npages)
 	occ = trac->extents[i].map;
 	assert(occ);
 	off = ((char *)addr - (char *)trac->extents[i].start) / PAGE_SIZE;
-	assert(off + npages < MAP_MAX * 32);
+	assert(off + npages < MAP_MAX * sizeof(u32_t));
 	bitmap_set_contig(&occ->pgd_occupied[0], off, npages, 1);
 	ret = 0;
 done:	
