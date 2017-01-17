@@ -245,7 +245,6 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		tot += cobj_sect_size(src_hdr, j);
 	}
 	if (tot > SERVICE_SIZE) {
-		printc("We are going to do VAS_SPD_EXPAND\n");
 		if (cos_vas_cntl(COS_VAS_SPD_EXPAND, d_spd, sect->vaddr + SERVICE_SIZE, 3 * round_up_to_pgd_page(1))) {
 			printc("error 4 cbboot: could not expand VAS for component %d\n", d_spd);
 			goto error;

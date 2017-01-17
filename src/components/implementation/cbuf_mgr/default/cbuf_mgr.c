@@ -282,7 +282,6 @@ cbuf_map(spdid_t spdid, vaddr_t daddr, void *page, unsigned long size, int flags
 		vaddr_t d = daddr + off;
 		if (unlikely(d != (mman_alias_page(cos_spd_id(), ((vaddr_t)page) + off,
 						   spdid, d, flags)))) {
-			printc("Something went wrong with cbuf_map\n");
 			for (d = daddr + off - PAGE_SIZE ; d >= daddr ; d -= PAGE_SIZE) {
 				mman_revoke_page(spdid, d, 0);
 			}
@@ -615,7 +614,7 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 	tracking_start(NULL, CBUF_CRT);
 
 	cci = cbuf_comp_info_get(spdid);
-	if (unlikely(!cci)) { printc("No cci!\n"); goto done; }
+	if (unlikely(!cci)) goto done;
 
 	/* 
 	 * Client wants to allocate a new cbuf, but the meta might not
@@ -628,14 +627,13 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 			cbuf_shrink(cci, size);
 			if (size + cci->allocated_size > cci->target_size) {
 				cbuf_thread_block(cci, size);
-				printc("Some shrinks stuff what is this?\n");
 				return 0;
 			}
 		}
 
  		cbi = malloc(sizeof(struct cbuf_info));
 
-		if (unlikely(!cbi)) { printd("malloc for cbuf failed\n"); goto done; }
+		if (unlikely(!cbi)) goto done;
 		/* Allocate and map in the cbuf. Discard inconsistent cbufs */
 		/* TODO: Find a better way to manage those inconsistent cbufs */
 		do {
@@ -665,15 +663,14 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 		}
 		if (cbuf_alloc_map(spdid, &(cbi->owner.addr), 
 				   (void**)&(cbi->mem), NULL, size, MAPPING_RW, dest)) {
-			printc("alloc map failed\n");
 			goto free;
 		}
 	} 
 	/* If the client has a cbid, then make sure we agree! */
 	else {
 		cbi = cmap_lookup(&cbufs, id);
-		if (unlikely(!cbi)) { printc("Now we don't have a cbi???\n"); goto done; }
-		if (unlikely(cbi->owner.spdid != spdid)) { printc("We have a cbi but it's messed up\n"); goto done; }
+		if (unlikely(!cbi)) goto done;
+		if (unlikely(cbi->owner.spdid != spdid)) goto done;
 	}
 	meta = cbuf_meta_lookup(cci, id);
 

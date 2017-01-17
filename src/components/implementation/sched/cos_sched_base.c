@@ -2192,7 +2192,6 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		fp_event_completion(sched_get_current());
 		break;
 	case COS_UPCALL_QUARANTINE:
-		printc("quarantine stuff\n");
 		break;
 	default:
 		printc("fp_rr: cos_upcall_fn error - type %x, arg1 %d, arg2 %d\n", 
