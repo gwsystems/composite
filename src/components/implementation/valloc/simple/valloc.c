@@ -178,7 +178,7 @@ int valloc_alloc_at(spdid_t spdid, spdid_t dest, void *addr, unsigned long npage
 		/* the address is in the range of an existing extent */
 		occ = trac->extents[i].map;
 		off = ((char*)addr - (char*)trac->extents[i].start) / PAGE_SIZE;
-		assert(off + npages < MAP_MAX * sizeof(u32_t));
+		assert(off + npages < MAP_MAX * 32);
 		ret = bitmap_extent_set_at(&occ->pgd_occupied[0], off, npages, MAP_MAX);
 		goto done;
 	}
@@ -266,7 +266,7 @@ int valloc_free(spdid_t spdid, spdid_t dest, void *addr, unsigned long npages)
 	occ = trac->extents[i].map;
 	assert(occ);
 	off = ((char *)addr - (char *)trac->extents[i].start) / PAGE_SIZE;
-	assert(off + npages < MAP_MAX * sizeof(u32_t));
+	assert(off + npages < MAP_MAX * 32);
 	bitmap_set_contig(&occ->pgd_occupied[0], off, npages, 1);
 	ret = 0;
 done:	

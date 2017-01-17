@@ -29,7 +29,7 @@
  * zero. 
  */
 
-#define CBUF_RING_TAKE()      do { if (sched_component_take(cos_spd_id())) { printc("BUG!\n");   BUG();} } while(0)
+#define CBUF_RING_TAKE()      do { if (sched_component_take(cos_spd_id()))    BUG(); } while(0)
 #define CBUF_RING_RELEASE()   do { if (sched_component_release(cos_spd_id())) BUG(); } while(0)
 CVECT_CREATE_STATIC(meta_cbuf);
 PERCPU_VAR(cbuf_alloc_freelists);
@@ -130,14 +130,11 @@ __cbuf_alloc_slow(unsigned long size, int *len, unsigned int flag)
 	int amnt, cbid;
 	struct cbuf_meta *ret_cm;
 	static struct cbuf_shared_page *csp = NULL;
-	int count = 0; /* This is CURRENTLY a hack, but should probably be present in general to avoid an infinite loop */
 
 	csp = (struct cbuf_shared_page*)cbuf_map_collect(cos_spd_id());
 again:
 	ret_cm = NULL;
 	cbid = 0;
-
-	//if (count > 5) goto done;
 
 	/* Attempt garbage collection if this is not an exact size cbuf */
 	if (!(flag & CBUF_EXACTSZ)) {
@@ -158,8 +155,6 @@ again:
 		cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
 		/* We return from being blocked */
 		if (cbid == 0) {
-			count++;
-			printc("Going to again\n\n");
 			goto again;
 		} else if (cbid < 0 ) {
 			if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid*-1)) < 0) goto done;
@@ -167,7 +162,6 @@ again:
 		}
 		assert(cbid > 0);
 		ret_cm = cbuf_vect_lookup_addr((unsigned int)cbid);
-		printc("cbid %d ret_cm %x\n", cbid, ret_cm);
 		if (unlikely(flag)) CBUF_FLAG_ADD(ret_cm, flag);
 	}
 	assert(ret_cm && CBUF_PTR(ret_cm));

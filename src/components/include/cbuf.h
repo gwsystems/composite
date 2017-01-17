@@ -499,7 +499,7 @@ done:
 create:
 	/* TODO: Why use len? */
 	cm   = __cbuf_alloc_slow(sz, &len, flag);
-	if (!cm) return NULL;
+	assert(cm);
 	goto done;
 }
 
