@@ -27,8 +27,6 @@ unsigned long long tsc_start[OP_NUM];
 unsigned long long total_tsc_per_op[OP_NUM];
 #endif
 
-int loop_counter = 0;
-
 #define CB_DEF_POOL_SZ 4096*2048
 
 /** 
@@ -732,9 +730,6 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 	int ret = 0;
 	unsigned int id = (unsigned int)cbid;
 
-	loop_counter++;
-	if (loop_counter > 40) assert(0);
-
 	printl("cbuf_create\n");
 	CBUF_TAKE();
 	ret = __cbuf_create(spdid, size, cbid, 0);
@@ -896,7 +891,7 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 {
 	struct cbuf_info *cbi;
 	unsigned int sz;
-	spdid_t spdid = f_spd; // try to get rid of this crap parameter
+	spdid_t spdid = f_spd;
 	vaddr_t dest;
 	int ret = -1;
 	int f_cbid;
@@ -920,7 +915,6 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 	f_cbid = __cbuf_create(spdid, sz, 0, dest);
 	if (f_cbid < 0) { // only do these steps if initial create failed because of lack of map
 		if (!__cbuf_register_map_at(o_spd, f_spd, cbi->cbid, f_cbid * -1)) { 
-			printd("cbuf_register failed. Is this expected or isn't it???\n"); 
 			//goto done; 
 		}
 		f_cbid = __cbuf_create(spdid, sz, f_cbid * -1, dest);
@@ -936,7 +930,7 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 	assert(cbi->mem);
 	f_cbi = cmap_lookup(&cbufs, f_cbid);
 	if (!f_cbi) BUG(); 				/* we literally just made this in cbuf_create so if it's not there, something is very wrong */
-	assert(f_cbi->mem);				/* assert this too, why not */
+	assert(f_cbi->mem);
 	memcpy_ret = memcpy(f_cbi->mem, cbi->mem, sz);
 	assert(memcpy_ret == f_cbi->mem);
 
