@@ -151,12 +151,6 @@ void thread_remove(struct sched_thd *t)
 	REM_LIST(t, sched_next, sched_prev);
 }
 
-void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
-{
-	printc("fprr: cos_fix_spdid_metadata for %d -> %d\n", o_spd, f_spd);
-	printc("Actually not doing anything here. What's needed?\n");
-}
-
 void time_elapsed(struct sched_thd *t, u32_t processing_time)
 {
 	struct sched_accounting *sa;

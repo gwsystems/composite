@@ -649,18 +649,15 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 		INIT_LIST(&cbi->owner, next, prev);
 		INIT_LIST(cbi, next, prev);
 	
+		struct cbuf_info *cbi_new = (struct cbuf_info *) malloc(sizeof(struct cbuf_info));
+		cbi_new->cbid = id;
 		if (cbi_head) {
-			struct cbuf_info *cbi_new = (struct cbuf_info *) malloc(sizeof(struct cbuf_info));
-			cbi_new->cbid = id;
-
 			ADD_END_LIST(cbi_head, cbi_new, next, prev);
-		}
-		else {
-			cbi_head = (struct cbuf_info *) malloc(sizeof(struct cbuf_info));
-			cbi_head->cbid = id;
-			
+		} else {
+			cbi_head = cbi_new;
 			INIT_LIST(cbi_head, next, prev);
 		}
+		
 		if (cbuf_alloc_map(spdid, &(cbi->owner.addr), 
 				   (void**)&(cbi->mem), NULL, size, MAPPING_RW, dest)) {
 			goto free;
@@ -746,21 +743,19 @@ __map_and_meta(spdid_t spdid, int cbid, int size, vaddr_t daddr)
 	int ret = -EINVAL;
 
 	cci        = cbuf_comp_info_get(spdid);
-	if (!cci) {printd("no cci\n"); goto done; }
+	if (!cci) goto done;
 	cbi        = cmap_lookup(&cbufs, cbid);
-	if (!cbi) {printd("no cbi\n"); goto done; }
+	if (!cbi) goto done;
 	/* shouldn't cbuf2buf your own buffer! */
-	if (cbi->owner.spdid == spdid) {printd("owner\n"); goto done;}
+	if (cbi->owner.spdid == spdid) goto done;
 
 	map        = malloc(sizeof(struct cbuf_maps));
-	if (!map) {printd("no map\n"); ERR_THROW(-ENOMEM, done); }
-	if (size > cbi->size) {printd("too big\n"); goto done; }
+	if (!map) ERR_THROW(-ENOMEM, done);
+	if (size > cbi->size) goto done;
 	assert((int)round_to_page(cbi->size) == cbi->size);
 	size       = cbi->size;
 	
-	if (daddr) {
-		dest = daddr;
-	}
+	if (daddr) dest = daddr;
 
 	map->spdid = spdid;
 	map->m     = NULL;
@@ -863,8 +858,8 @@ __cbuf_register_map_at(spdid_t o_spd, spdid_t f_spd, long o_cbid, long f_cbid)
 	vaddr_t dest;
 
 	o_cci = cbuf_comp_info_get(o_spd);
-	f_cci = cbuf_comp_info_get(f_spd);
 	if (!o_cci) goto done;
+	f_cci = cbuf_comp_info_get(f_spd);
 	if (!f_cci) goto done;
 	o_cmr = cbuf_meta_lookup_cmr(o_cci, o_cbid);
 	if (!o_cmr) goto done;
@@ -872,7 +867,6 @@ __cbuf_register_map_at(spdid_t o_spd, spdid_t f_spd, long o_cbid, long f_cbid)
 	if (f_cmr) ERR_THROW(f_cmr->dest, done);
 	
 	/* Create the mapping into the client */
-	printc("Calling alloc map\n");
 	if (cbuf_alloc_map(f_spd, &dest, &p, NULL, PAGE_SIZE, MAPPING_RW, o_cmr->dest)) goto done;
 	assert((u32_t)p == round_to_page(p));
 	f_cmr = cbuf_meta_add(f_cci, f_cbid, p, dest);
@@ -1064,12 +1058,6 @@ cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd, int cinfo_cbid)
 done:
 	CBUF_RELEASE();
 	return ret;
-}
-
-void 
-cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
-{
-	printd("cos_fix_spdid_metadata for %d -> %d (currently by doing nothing)\n", o_spd, f_spd);
 }
 
 /*
