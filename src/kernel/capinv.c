@@ -846,7 +846,8 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 static int
 composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch);
 
-/* regparm does not work on other architectures, so we need to manually pass these parameters */
+/* regparm does not work on other architectures, so we need to manually pass these parameters. For
+ * ARM architecturewe just pass the stack frame by a pointer located in r0. */
 /* COS_SYSCALL __attribute__((section("__ipc_entry"))) */
 int
 composite_syscall_handler(/*struct pt_regs *regs*/)
@@ -858,6 +859,7 @@ composite_syscall_handler(/*struct pt_regs *regs*/)
 	capid_t cap;
 	unsigned long ip, sp;
 
+	/* The whole stack frame's pointer is in r0. Now the parameter passing is correct */
 	__asm__ __volatile__(
 			            "str r0,%[_regs] \n"
 			            ::[_regs]"m"(regs):"memory"
