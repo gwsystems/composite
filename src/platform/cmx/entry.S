@@ -71,7 +71,7 @@ sysenter_entry:
 
 /* .section .after_vectors */
 /* .align 4 */
-/* .globl SVC_Handler */
+/* .globl SVC_Handler This is not currently used */
 SVC_Handler:
     nop
     nop

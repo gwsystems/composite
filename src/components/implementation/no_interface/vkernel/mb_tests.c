@@ -1,1 +1,0 @@
-../../tests/micro_booter/mb_tests.c
