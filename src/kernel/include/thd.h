@@ -90,6 +90,7 @@ struct cap_thd {
 static void
 thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
 {
+	/*
 	struct pt_regs *r = &thd->regs;
 
 	r->cx = option;
@@ -102,6 +103,7 @@ thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int
 	r->ax = thd->tid | (get_cpuid() << 16); // thd id + cpu id
 
 	return;
+	*/
 }
 
 /*
@@ -150,18 +152,6 @@ thd_rcvcap_sched(struct thread *t)
 {
 	if (thd_rcvcap_isreferenced(t)) return t;
 	return t->rcvcap.rcvcap_thd_notif;
-}
-
-static void
-thd_next_thdinfo_update(struct cos_cpu_local_info *cli, struct thread *thd, 
-			struct tcap *tc, tcap_prio_t prio, tcap_res_t budget)
-{
-	struct next_thdinfo *nti = &cli->next_ti;
-
-	nti->thd    = thd;
-	nti->tc     = tc;
-	nti->prio   = prio;
-	nti->budget = budget;
 }
 
 static void
@@ -275,7 +265,6 @@ static int
 thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin,
 	       livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 {
-	struct cos_cpu_local_info *cli = cos_cpu_local_info();
 	struct cap_header *thd_header;
 	struct thread *thd;
 	unsigned long old_v = 0, *pte = NULL;
@@ -317,8 +306,6 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 	thd->refcnt--;
 	/* deactivation success */
 	if (thd->refcnt == 0) {
-		if (cli->next_ti.thd == thd) thd_next_thdinfo_update(cli, 0, 0, 0, 0);
-
 		/* move the kmem for the thread to a location
 		 * in a pagetable as COSFRAME */
 		ret = kmem_deact_post(pte, old_v);
@@ -444,6 +431,7 @@ thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_
 static inline int
 thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 {
+	/*
 	switch(op) {
 	case THD_GET_IP : *retval = t->regs.ip; break;
 	case THD_GET_SP : *retval = t->regs.sp; break;
@@ -456,7 +444,7 @@ thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 	case THD_GET_DI : *retval = t->regs.di; break;
 	case THD_GET_TID: *retval = t->tid; break;
 	default: return -EINVAL;
-	}
+	}*/
 	return 0;
 }
 
