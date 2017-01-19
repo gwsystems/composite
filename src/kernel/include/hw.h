@@ -10,7 +10,7 @@
 
 #include "component.h"
 #include "thd.h"
-#include "chal/call_convention.h"
+/* #include "chal/call_convention.h" */
 #include "inv.h"
 
 #define HW_IRQ_TOTAL        256

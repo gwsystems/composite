@@ -38,6 +38,7 @@ static inline int fpu_check_fxsr(void);
 static inline int
 fpu_get_info(void)
 {
+	/*
         int cpu_info;
 
         asm volatile("mov $1, %%eax\n\t"
@@ -46,7 +47,7 @@ fpu_get_info(void)
                      : "=m" (cpu_info) 
 		     : 
 		     : "eax", "ebx", "ecx", "edx");
-
+*/
 	/* printk("cpu %d cpuid_edx %x\n", get_cpuid(), cpu_info); */
 
         return cpu_info;
@@ -194,7 +195,7 @@ static inline unsigned long
 fpu_read_cr0(void)
 {
         unsigned long val;
-        asm volatile("mov %%cr0, %0" : "=r" (val));
+        //asm volatile("mov %%cr0, %0" : "=r" (val));
 
         return val;
 }
@@ -206,7 +207,7 @@ fpu_set(int status)
 
         cr0 = fpu_read_cr0();
         val = status ?  (cr0 & ~FPU_DISABLED_MASK) : (cr0 | FPU_DISABLED_MASK); // ENABLE(status == 1) : DISABLE(status == 0)
-        asm volatile("mov %0, %%cr0" : : "r" (val));
+        //asm volatile("mov %0, %%cr0" : : "r" (val));
 
         return;
 }
@@ -215,9 +216,9 @@ static inline void
 fxsave(struct thread *thd)
 {
 #if FPU_SUPPORT_FXSR > 0
-	asm volatile("fxsave %0" : "=m" (thd->fpu));
+	//asm volatile("fxsave %0" : "=m" (thd->fpu));
 #else
-	asm volatile("fsave %0" : "=m" (thd->fpu));
+	//asm volatile("fsave %0" : "=m" (thd->fpu));
 #endif
         thd->fpu.saved_fpu = 1;
 
@@ -228,9 +229,9 @@ static inline void
 fxrstor(struct thread *thd)
 {
 #if FPU_SUPPORT_FXSR > 0
-	asm volatile("fxrstor %0" : : "m" (thd->fpu));
+	//asm volatile("fxrstor %0" : : "m" (thd->fpu));
 #else
-	asm volatile("frstor %0" : : "m" (thd->fpu));
+	//asm volatile("frstor %0" : : "m" (thd->fpu));
 #endif
         return;
 }
