@@ -23,20 +23,29 @@
  * it is the PA of the kernel.  If you change this, update the kernel
  * linker script (.ld) as well.
  */
+/*
 #define COS_MEM_KERN_PA (0x00100000)
-#define COS_MEM_KERN_PA_ORDER (29)
+#define COS_MEM_KERN_PA_ORDER (29)*/
+#define COS_MEM_KERN_PA (0x00001000)
+#define COS_MEM_KERN_PA_ORDER (19)
 #define COS_MEM_KERN_PA_SZ    (1<<COS_MEM_KERN_PA_ORDER)
 
-#define COS_MEM_COMP_START_VA ((1<<30) + (1<<22)) /* 1GB + 4MB (a relic) */
+/*
+#define COS_MEM_COMP_START_VA ((1<<30) + (1<<22))*/ /* 1GB + 4MB (a relic) */
+#define COS_MEM_COMP_START_VA ((1<<10)) /* 1GB + 4MB (a relic) */
+
 #define COS_MEM_KERN_START_VA (0xc0000000) //COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
 
-#define COS_MEM_KERN_VA_SZ (1<<24) /* 16 MB from KERN_START_VA + end of kernel image onward */
+/*
+#define COS_MEM_KERN_VA_SZ (1<<24)*/ /* 16 MB from KERN_START_VA + end of kernel image onward */
+#define COS_MEM_KERN_VA_SZ (1<<14) /* 16 kB from KERN_START_VA + end of kernel image onward */
 
 /* To get more memory, we need many PTE caps in the captbl. So give
  * multiple pages to it. 5 is enough for 512 MBs.*/
 #define BOOT_CAPTBL_NPAGES 1
 
-#define BOOT_COMP_MAX_SZ   (1<<24) /* 16 MB for the booter component */
+#define BOOT_COMP_MAX_SZ   (1<<14) /* 16 kB for the booter component */
+/* #define BOOT_COMP_MAX_SZ   (1<<24) */ /* 16 MB for the booter component */
 
 #define NUM_CPU                1
 
@@ -100,7 +109,8 @@
 /**
  * Configuration to enable/disable functionality in Kernel.
  */
+/*
 #define ENABLE_VGA
-#define ENABLE_SERIAL
+#define ENABLE_SERIAL*/
 
 #endif /* COS_CONFIG_H */

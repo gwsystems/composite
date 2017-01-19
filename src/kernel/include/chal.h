@@ -84,7 +84,6 @@ PERCPU_DECL(struct cap_arcv *, cos_timer_arcv);
  *******************/
 
 int chal_cyc_usec(void);
-unsigned int chal_cyc_thresh(void);
 
 int chal_attempt_arcv(struct cap_arcv *arcv);
 int chal_attempt_ainv(struct async_cap *acap);

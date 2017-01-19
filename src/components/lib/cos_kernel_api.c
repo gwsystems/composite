@@ -9,8 +9,6 @@
 /* HACKHACKHACKHACKHACKHACK */
 #include <stdarg.h>
 #include <stdio.h>
-#include <cos_types.h>
-
 #ifdef NIL
 static int __attribute__((format(printf,1,2)))
 printd(char *fmt, ...)
@@ -284,7 +282,6 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 
 /**************** [User Virtual Memory Allocation Functions] ****************/
 
-
 static vaddr_t
 __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
 {
@@ -319,12 +316,6 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 	assert(round_up_to_pgd_page(addr) == round_up_to_pgd_page(mem_ptr + mem_sz));
 	
 	return mem_ptr;
-}
-
-vaddr_t
-cos_pgtbl_intern_alloc(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
-{
-	return __bump_mem_expand_range(ci, cipgtbl, mem_ptr, mem_sz);
 }
 
 static void
@@ -476,7 +467,7 @@ cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *da
 
 thdcap_t
 cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp)
-{ return __cos_thd_alloc(ci, comp, 0); }
+{ return __cos_thd_alloc(ci, comp, 1); }
 
 captblcap_t
 cos_captbl_alloc(struct cos_compinfo *ci)
@@ -564,10 +555,6 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 
 	return cap;
 }
-
-int
-cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
-{ return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4); }
 
 /*
  * Arguments:
@@ -661,10 +648,6 @@ cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_compinfo *
 int
 cos_thd_switch(thdcap_t c)
 { return call_cap_op(c, 0, 0, 0, 0, 0); }
-
-int
-cos_thd_wakeup(thdcap_t thd, tcap_t tc, tcap_prio_t prio, tcap_res_t res)
-{ return call_cap_op(tc, CAPTBL_OP_TCAP_WAKEUP, thd, (prio << 32) >> 32, prio >> 32, res); }
 
 sched_tok_t
 cos_sched_sync(void)
@@ -779,17 +762,19 @@ cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 /***************** [Kernel Tcap Operations] *****************/
 
 tcap_t
-cos_tcap_alloc(struct cos_compinfo *ci)
+cos_tcap_alloc(struct cos_compinfo *ci, tcap_prio_t prio)
 {
 	vaddr_t kmem;
 	capid_t cap;
+	int prio_hi = (u32_t)(prio >> 32);
+	int prio_lo = (u32_t)((prio << 32) >> 32);
 
 	printd("cos_tcap_alloc\n");
 	assert (ci);
 
 	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (cap << 16) | __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0, 0)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (cap << 16) | __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, prio_hi, prio_lo)) BUG();
 
 	return cap;
 }
@@ -828,16 +813,7 @@ cos_hw_detach(hwcap_t hwc, hwid_t hwid)
 
 int
 cos_hw_cycles_per_usec(hwcap_t hwc)
-{
-	static int cycs = 0;
-
-	while (!cycs) cycs = call_cap_op(hwc, CAPTBL_OP_HW_CYC_USEC, 0, 0, 0, 0);
-	return cycs;
-}
-
-int
-cos_hw_cycles_thresh(hwcap_t hwc)
-{ return call_cap_op(hwc, CAPTBL_OP_HW_CYC_THRESH, 0, 0, 0, 0); }
+{ return call_cap_op(hwc, CAPTBL_OP_HW_CYC_USEC, 0, 0, 0, 0); }
 
 void *
 cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
