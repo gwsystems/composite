@@ -501,7 +501,7 @@ extern unsigned long __cr3_contents;
 
 static inline void
 pgtbl_update(pgtbl_t pt)
-{ asm volatile("mov %0, %%cr3" : : "r"(pt)); }
+{ /*asm volatile("mov %0, %%cr3" : : "r"(pt));*/ }
 
 /* vaddr -> kaddr */
 static vaddr_t

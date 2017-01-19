@@ -17,12 +17,31 @@
 static inline
 int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 {
-        long fault = 0;
+    long fault = 0;
 	int ret;
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
+	/* Put all these into registers */
+	/* Make the system call, using pendsv */
+	/* Return the value needed */
+    __asm__ __volatile__( \
+    		        "ldr r0,%[_cap_no]  \n\t" \
+					"ldr r1,%[_arg1] \n\t" \
+					"ldr r10,%[_arg2] \n\t" \
+					"ldr r11,%[_arg3] \n\t" \
+					"ldr r3,%[_arg4] \n\t" \
+					"svc 0\n\t" \
+    		        /*"ldr r5,=0xE000ED04    \n\t" \
+                    "ldr r6,=0x10000000    \n\t" \
+    		        "str r6,[r5] \n\t" \*/
+					"mov %[_ret],r4 \n\t" \
+					"mov %[_fault],r7 \n\t"
+    				: [_ret]"=r"(ret),[_fault]"=r"(fault) \
+				    : [_cap_no]"m"(cap_no), [_arg1]"m"(arg1), [_arg2]"m"(arg2), [_arg3]"m"(arg3), [_arg4]"m"(arg4) \
+    				: "memory", "r4", "r7", "cc");
+	/*
 	__asm__ __volatile__( \
 		"pushl %%ebp\n\t" \
 		"movl %%esp, %%ebp\n\t" \
@@ -40,7 +59,7 @@ int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 		"popl %%ebp" \
 		: "=a" (ret), "=c" (fault)
 		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3), "d" (arg4) \
-		: "memory", "cc");
+		: "memory", "cc");*/
 
 	return ret;
 }

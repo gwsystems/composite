@@ -14,7 +14,7 @@
 
 #include "component.h"
 #include "thd.h"
-#include "chal/call_convention.h"
+/* #include "chal/call_convention.h" */
 
 struct cap_sinv {
 	struct cap_header h;
@@ -309,9 +309,6 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	}
 
 	pgtbl_update(ci->pgtbl);
-	/* Set 2/3 return values into esi and edi */
-	__userregs_setretvals(regs, 0, thd->tid, 0);
-	/* Set return sp and ip and function return value in eax */
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);
 }
 

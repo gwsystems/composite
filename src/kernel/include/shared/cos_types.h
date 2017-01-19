@@ -31,7 +31,6 @@ typedef signed long long s64_t;
 
 #define LLONG_MAX 9223372036854775807LL
 
-typedef unsigned long word_t;
 typedef u64_t cycles_t;
 typedef unsigned long tcap_res_t;
 typedef unsigned long tcap_time_t;
@@ -39,7 +38,6 @@ typedef u64_t tcap_prio_t;
 typedef u64_t tcap_uid_t;
 typedef u32_t sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
-
 /*
  * The assumption in the following is that cycles_t are higher
  * fidelity than tcap_time_t:
@@ -58,9 +56,10 @@ tcap_cyc2time(cycles_t c) {
 	tcap_time_t t = (tcap_time_t)(c >> TCAP_TIME_QUANTUM_ORD);
 	return t == TCAP_TIME_NIL ? 1 : t;
 }
+#define CYCLES_DIFF_THRESH (1<<14)
 static inline int
-cycles_same(cycles_t a, cycles_t b, cycles_t diff_thresh)
-{ return (b < a ? a - b : b - a) <= diff_thresh; }
+cycles_same(cycles_t a, cycles_t b)
+{ return (b < a ? a - b : b - a) <= CYCLES_DIFF_THRESH; }
 /* FIXME: if wraparound happens, we need additional logic to compensate here */
 static inline int tcap_time_lessthan(tcap_time_t a, tcap_time_t b) { return a < b; }
 
@@ -111,15 +110,13 @@ typedef enum {
 	CAPTBL_OP_TCAP_TRANSFER,
 	CAPTBL_OP_TCAP_DELEGATE,
 	CAPTBL_OP_TCAP_MERGE,
-	CAPTBL_OP_TCAP_WAKEUP,
 
 	CAPTBL_OP_HW_ACTIVATE,
 	CAPTBL_OP_HW_DEACTIVATE,
 	CAPTBL_OP_HW_ATTACH,
 	CAPTBL_OP_HW_DETACH,
 	CAPTBL_OP_HW_MAP,
-	CAPTBL_OP_HW_CYC_USEC,
-	CAPTBL_OP_HW_CYC_THRESH,
+	CAPTBL_OP_HW_CYC_USEC
 } syscall_op_t;
 
 typedef enum {
@@ -876,16 +873,16 @@ typedef struct { volatile unsigned int counter; } atomic_t;
 
 static inline void
 atomic_inc(atomic_t *v)
-{ asm volatile(LOCK_PREFIX "incl %0" : "+m" (v->counter)); }
+{ /*asm volatile(LOCK_PREFIX "incl %0" : "+m" (v->counter));*/ }
 
 static inline void
 atomic_dec(atomic_t *v)
-{ asm volatile(LOCK_PREFIX "decl %0" : "+m" (v->counter)); }
+{ /*asm volatile(LOCK_PREFIX "decl %0" : "+m" (v->counter));*/ }
 #endif /* __KERNEL__ */
 
 static inline void
 cos_mem_fence(void)
-{ __asm__ __volatile__("mfence" ::: "memory"); }
+{ /*__asm__ __volatile__("mfence" ::: "memory");*/ }
 
 /* 256 entries. can be increased if necessary */
 #define COS_THD_INIT_REGION_SIZE (1<<8)
