@@ -72,11 +72,10 @@ struct tcap {
 };
 
 void tcap_active_init(struct cos_cpu_local_info *cli);
-int tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new);
+int tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, tcap_prio_t prio);
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio);
 int tcap_merge(struct tcap *dst, struct tcap *rm);
 void tcap_promote(struct tcap *t, struct thread *thd);
-int tcap_wakeup(struct tcap *tc, tcap_prio_t prio, tcap_res_t budget, struct thread *thd, struct cos_cpu_local_info *cli);
 
 struct thread *tcap_tick_handler(void);
 void tcap_timer_choose(int c);
@@ -119,10 +118,6 @@ tcap_active_next(struct cos_cpu_local_info *cli) { return (struct tcap *)list_fi
 static inline void
 tcap_active_rem(struct tcap *t) { list_rem(&t->active_list); }
 
-static unsigned int
-tcap_cycles_same(cycles_t a, cycles_t b)
-{ return cycles_same(a, b, (cycles_t)chal_cyc_thresh()); }
-
 /**
  * Expend @cycles amount of budget.
  * Return the amount of budget that is left in the tcap.
@@ -132,7 +127,7 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 {
 	assert(t);
 	if (TCAP_RES_IS_INF(t->budget.cycles)) return 0;
-	if (cycles >= t->budget.cycles || tcap_cycles_same(cycles, t->budget.cycles)) {
+	if (cycles >= t->budget.cycles || cycles_same(cycles, t->budget.cycles)) {
 		t->budget.cycles = 0;
 		tcap_active_rem(t); /* no longer active */
 
