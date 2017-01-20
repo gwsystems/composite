@@ -115,8 +115,8 @@ void* quarantine_translate_addr(spdid_t spdid, vaddr_t addr)
  * f_spd - fork   spd
  * o_hdr - o_spd's section header
  */
-int
-send_side_counters(spdid_t o_spd, spdid_t f_spd, struct cobj_header *o_hdr)
+static int
+fix_send_side_counters(spdid_t o_spd, spdid_t f_spd, struct cobj_header *o_hdr)
 {
 	int j;
 	struct cobj_cap *cap;
@@ -141,17 +141,18 @@ send_side_counters(spdid_t o_spd, spdid_t f_spd, struct cobj_header *o_hdr)
  * Fix this before moving on to a new project or it'll just be left for the next person.
  * On the plus side, only has two parameters, so you know, there's that.
  */
-int 
-receive_side_counters(spdid_t o_spd, spdid_t f_spd)
+static int
+fix_receive_side_counters(spdid_t o_spd, spdid_t f_spd)
 {
 	int j;
+	int i;
+	int ncaps;
+	int check;
 
 	printd("Routing calls from O (%d) to F (%d)\n", o_spd, f_spd);
 
 	/* Find every spd that has an invocation cap to source and update the receive-side fork count. */
 	for (j = 0; cgraph_client(j) != -1; j++) {
-		int i;
-		int ncaps;
 		spdid_t spd_client, spd_server;
 		
 		if (cgraph_server(j) == o_spd) {
@@ -162,18 +163,17 @@ receive_side_counters(spdid_t o_spd, spdid_t f_spd)
 
 				if (spd_server < 0) BUG();
 				if (spd_server == o_spd) {
-					// TODO: Put this back in. DO NOT move on to another project with this hack still in place.
-					//if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, c, i, (0 << 8) | 1)) BUG();
+					/* 
+					 * TODO: Put this back in. DO NOT move on to another project with this hack still in place.
+					 * if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, c, i, (0 << 8) | 1)) BUG();
+					 */
 
 					if (cos_cap_cntl(COS_CAP_SET_DEST, spd_client, i - 1, f_spd)) BUG();
 					
 					printd("Updated fork count (receive-side) for cap %d from %d->%d to count %d\n", i, spd_client, spd_server, 1);
 	
-					int check = cos_cap_cntl(COS_CAP_GET_DEST_SPD, spd_client, i, 0);
+					check = cos_cap_cntl(COS_CAP_GET_DEST_SPD, spd_client, i, 0);
 					printc("Now %d should invoke %d\n", spd_client, check);
-
-					/* If there can be multiple capablities between the same two spds, why is this break here? */
-					//break;
 				}
 			}
 		}
@@ -199,6 +199,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	long tot = 0;
 	int j, r;
 	unsigned long cinfo_cbid = 0;
+	int reset;
 
 	// how to fix this? Can quarantine have an init method
 	/* FIXME: initialization hack. */
@@ -228,16 +229,16 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 	/* The following, copied partly from booter.c */
 	d_spd = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0);
-	if (d_spd > MAX_NUM_SPDS) { printc("error 1\n"); goto error; }
+	if (d_spd > MAX_NUM_SPDS) goto error;
 
 	printd("Created new spd: %d\n", d_spd);
 
 	sect = cobj_sect_get(src_hdr, 0);
 	init_daddr = sect->vaddr;
-	if (cos_spd_cntl(COS_SPD_LOCATION, d_spd, sect->vaddr, SERVICE_SIZE)) { printc("error 2\n"); goto error; }
+	if (cos_spd_cntl(COS_SPD_LOCATION, d_spd, sect->vaddr, SERVICE_SIZE)) goto error;
 	printd("Set location to %x\n", (unsigned long)sect->vaddr);
 	
-	if (cos_spd_cntl(COS_SPD_SET_FORK_ORIGIN, d_spd, source, 0)) { printc("error 3\n"); goto error; }
+	if (cos_spd_cntl(COS_SPD_SET_FORK_ORIGIN, d_spd, source, 0)) goto error;
 	printd("Set fork origin to %d\n", source);
 
 	// This doesn't happen for at least this experiment, so ignore that
@@ -246,7 +247,6 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	}
 	if (tot > SERVICE_SIZE) {
 		if (cos_vas_cntl(COS_VAS_SPD_EXPAND, d_spd, sect->vaddr + SERVICE_SIZE, 3 * round_up_to_pgd_page(1))) {
-			printc("error 4 cbboot: could not expand VAS for component %d\n", d_spd);
 			goto error;
 		}
 	}
@@ -256,8 +256,8 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		new_sect_cbufs = &all_spd_sect_cbufs[all_cbufs_index];
 		all_cbufs_index += src_hdr->nsect;
 		assert(all_cbufs_index < CBUFS_PER_PAGE * SECT_CBUF_PAGES);
-		if (cos_vect_add_id(&spd_sect_cbufs, new_sect_cbufs, d_spd) < 0) { printc("error 5\n"); goto error; }
-		if (cos_vect_add_id(&spd_sect_cbufs_header, src_hdr, d_spd) < 0) { printc("error 6\n"); goto error; }
+		if (cos_vect_add_id(&spd_sect_cbufs, new_sect_cbufs, d_spd) < 0) goto error;
+		if (cos_vect_add_id(&spd_sect_cbufs_header, src_hdr, d_spd) < 0) goto error;
 		printd("Added %d to sect_cbufs\n", d_spd);
 	}
 
@@ -311,13 +311,12 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	d_thd = sched_get_thread_in_spd(cos_spd_id(), source, 0);
 #endif
 
-	// Is this comment accurate? What does any of this have to do with servers?
-	/* inform servers about fork. Have to let servers update
-	 * spdid-based metadata before either the source (orig) or d_spd (fork)
+	/* 
+	 * Inform servers about fork. Have to let servers update
+	 * spdid-based metadata before either the source (o) or d_spd (fork)
 	 * make invocations to the servers. This is also done lazily through
-	 * the upcall mechanism in the fault handling path. */
-	/* should iterate the forked spd's deps and inform each? */
-	/* mman: have to do this now so the memory maps are available. */
+	 * the upcall mechanism in the fault handling path. 
+	 */
 	if (tot > SERVICE_SIZE) tot = SERVICE_SIZE + 3 * round_up_to_pgd_page(1) - tot;
 	else tot = SERVICE_SIZE - tot;
 	
@@ -335,13 +334,11 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	 * Also a note that activate should come after cbuf_fork, since it expects memory to be copied over.
 	 */
 	if (cos_spd_cntl(COS_SPD_ACTIVATE, d_spd, src_hdr->ncap, 0)) BUG();
-	printc("Setting capabilities for %d\n", d_spd);
 	if (__boot_spd_caps(src_hdr, d_spd)) BUG();
-	printc("Setting capabilities done\n", d_spd);
 	
 	/* Fix send-side fork counters */
-	if (send_side_counters(source, d_spd, src_hdr)) BUG();
-	if (receive_side_counters(source, d_spd)) BUG();
+	if (fix_send_side_counters(source, d_spd, src_hdr)) BUG();
+	if (fix_receive_side_counters(source, d_spd)) BUG();
 
 	quarantine_add_to_spd_map(source, d_spd);
 
@@ -356,14 +353,13 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	//printd("Creating boot threads in fork: %d\n", d_spd);
 	//if (__boot_spd_thd(d_spd)) BUG();
 	
-	int reset;
 	reset = sched_curr_set_priority(p);
 	assert(0 == reset);
 	printd("Forked %d -> %d\n", source, d_spd);
 	return d_spd;
 
 error:
-	do { printc("Found an error\n"); } while (0);
+	printc("Found an error\n");
 	d_spd = 0;
 	return d_spd;
 }

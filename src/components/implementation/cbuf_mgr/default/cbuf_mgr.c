@@ -133,7 +133,7 @@ cos_lock_t cbuf_lock;
 CVECT_CREATE_STATIC(components);
 CMAP_CREATE_STATIC(cbufs);
 
-struct cbuf_info *cbi_head;
+static struct cbuf_info *cbi_head;
 
 static inline void
 tracking_init(void)
@@ -790,7 +790,8 @@ __cbuf_map_at(spdid_t s_spd, unsigned int cbid, spdid_t d_spd, vaddr_t d_addr)
 	 */
 	flags = d_addr & 0x3;
 	d_addr &= ~0x3;
-	if (!(flags & MAPPING_NO_VALLOC) && valloc_alloc_at(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE)) goto done;
+	if (!(flags & MAPPING_NO_VALLOC) && 
+	    valloc_alloc_at(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE)) goto done;
 	if (cbuf_map(d_spd, d_addr, cbi->mem, cbi->size, flags & (MAPPING_READ|MAPPING_RW))) goto free;
 	ret = d_addr;
 	/*
@@ -894,10 +895,14 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 	cbi        = cmap_lookup(&cbufs, s_cbid);
 	if (!cbi) BUG();
 	sz = cbi->size;
-	printc("forking cbuf %d from spdid %d to spdid %d, with size %x\n", s_cbid, o_spd, f_spd, sz);
+	printc("forking cbuf %d from spdid %d to spdid %d\n", s_cbid, o_spd, f_spd);
 
-	/* cmap_lookup returns original owner so need to recurse through mappings until we find the one with spdid O */
+	/* 
+	 * cmap_lookup returns original owner so need to recurse 
+	 * through mappings until we find the one with spdid O 
+	 */
 	c = &cbi->owner;
+	assert(c);
 	while (c->spdid != o_spd) c = c->next; // what about infinite loops???
 	assert(c->spdid == o_spd);
 	dest = c->addr;
@@ -911,10 +916,7 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 		f_cbid = __cbuf_create(spdid, sz, f_cbid * -1, dest);
 	}
 
-	if (f_cbid <= 0) { 
-		printd("cbi didn't agree\n");
-		goto done;
-	}
+	if (f_cbid <= 0) goto done;
 	assert(f_cbid);
 
 	/* copy into cbuf */
@@ -931,9 +933,8 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 	ret = 0;
 
 	if (copy_cinfo) {
-		printc("About to try mapping cinfo cbuf into Q\n");
 		vaddr_t q_daddr = (vaddr_t)valloc_alloc(cos_spd_id(), 11, sz/PAGE_SIZE);
-		if (unlikely(!dest)) return -1;
+		if (unlikely(!q_daddr)) return -1;
 		flags = MAPPING_RW;
 		flags |= MAPPING_NO_VALLOC;
 		if (q_daddr != __cbuf_map_at(f_spd, f_cbid, 11, q_daddr | flags)) return -1;
@@ -1016,8 +1017,10 @@ __cbuf_fork_spd(spdid_t o_spd, spdid_t f_spd, int cinfo_cbid)
 	current = cbi_head;
 	vaddr_t r_addr;
 	do {
-		// The cbuf_info list we made is actually crap because it copies the pointers so if the structure is updated it is no longer valid (how to fix???)
-		// instead, re-get the cbi from the cbuf_id which we assume is constant
+		/* 
+		 * The cbuf_info list we made is actually crap because it copies the pointers so if the structure is updated it is no longer valid (how to fix???)
+		 * instead, re-get the cbi from the cbuf_id which we assume is constant
+		 */
 		struct cbuf_info *cbi = cmap_lookup(&cbufs, current->cbid);
 		struct cbuf_maps *m = &cbi->owner;
 	
@@ -1030,8 +1033,9 @@ __cbuf_fork_spd(spdid_t o_spd, spdid_t f_spd, int cinfo_cbid)
 			do {
 				/* This is if O isn't the owner but has the cbuf mapped in. */
 				if (m->spdid == o_spd) {
-					r_addr = __cbuf_fork_cbuf(o_spd, cbi->cbid, f_spd, cinfo_cbid == cbi->cbid);
-					if (cinfo_cbid == cbi->cbid) ret = r_addr;			// Remember to make this assignment less stupid later
+					r_addr = __cbuf_fork_cbuf(o_spd, cbi->cbid, 
+					                          f_spd, cinfo_cbid == cbi->cbid);
+					if (cinfo_cbid == cbi->cbid) ret = r_addr;
 				}
 
 				m = FIRST_LIST(m, next, prev);
@@ -1305,7 +1309,7 @@ __cbuf_register(spdid_t spdid, long cbid)
 	struct cbuf_meta_range *cmr;
 	void *p;
 	vaddr_t dest, ret = 0;
-	
+
 	printl("cbuf_register\n");
 	tracking_start(NULL, CBUF_REG);
 
