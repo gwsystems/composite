@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# malloc_comp which is getting forked is hard-coded to be spdid 14. 
+# Bear that in mind if changing this
+
 ./cos_loader \
 "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;\
 !cbuf.o,a5;!va.o, a2;!l.o,a1;!mpool.o, a3;!vm.o, a1;\

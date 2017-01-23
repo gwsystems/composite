@@ -378,7 +378,6 @@ __fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_
 int 
 fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
 {
-	printk("fault @%x\n", fault_addr);
 	return __fault_ipc_invoke(thd, fault_addr, flags, regs, fault_num, NULL);
 }
 
@@ -3167,7 +3166,6 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 	{
 		if (spd->user_vaddr_cap_tbl) {
 			ret = -1;
-			printk("something invalid\n");
 			break;
 		}
 		/* arg1 = vaddr of ucap tbl */

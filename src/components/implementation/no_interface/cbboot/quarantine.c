@@ -441,7 +441,7 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 
 		/* FIXME: which fork should be used here? This pulls the most
 		 * recent fork. */
-		f_spd = 14; // LAST_LIST(d, n, p)->fork_spd;
+		f_spd = LAST_LIST(d, n, p)->fork_spd;
 		printd("Fixing routing table after fork from %d -> %d\n",
 				d_spd, f_spd);
 

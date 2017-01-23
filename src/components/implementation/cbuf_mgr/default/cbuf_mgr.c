@@ -911,7 +911,7 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 	f_cbid = __cbuf_create(spdid, sz, 0, dest);
 	if (f_cbid < 0) { // only do these steps if initial create failed because of lack of map
 		if (!__cbuf_register_map_at(o_spd, f_spd, cbi->cbid, f_cbid * -1)) { 
-			//goto done; 
+			goto done; 
 		}
 		f_cbid = __cbuf_create(spdid, sz, f_cbid * -1, dest);
 	}
@@ -927,8 +927,10 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 	memcpy_ret = memcpy(f_cbi->mem, cbi->mem, sz);
 	assert(memcpy_ret == f_cbi->mem);
 
+#ifdef COS_DEBUG
 	/* Do a sanity check and REMOVE THIS once we're kinda confident stuff works */
 	if (memcmp(f_cbi->mem, cbi->mem, sz)) { printc("cbufs do not actually match. Womp womp :(\n"); BUG(); }
+#endif
 	
 	ret = 0;
 
