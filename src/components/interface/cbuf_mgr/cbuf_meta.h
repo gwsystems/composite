@@ -21,7 +21,7 @@
 #define CBUF_RELINQ(meta)             ((meta)->nfo & CBUF_RELINQ)
 #define CBUF_OWNER(meta)              ((meta)->nfo & CBUF_OWNER)
 #define CBUF_TMEM(meta)               ((meta)->nfo & CBUF_TMEM)
-#define CBUF_INCONSISTENT(meta)        ((meta)->nfo & CBUF_INCONSISTENT)
+#define CBUF_INCONSISENT(meta)        ((meta)->nfo & CBUF_INCONSISENT)
 #define CBUF_EXACTSZ(meta)            ((meta)->nfo & CBUF_EXACTSZ)
 /*set flags*/
 #define CBUF_FLAG_ADD(meta, v)        ((meta)->nfo |= (v))
@@ -67,7 +67,7 @@ typedef enum {
 	 * Is this cbuf inconsistent between 
 	 * manager and client?
 	 */
-	CBUF_INCONSISTENT = 1<< (CBUF_REFCNT_SZ+1),
+	CBUF_INCONSISENT = 1<< (CBUF_REFCNT_SZ+1),
 	/* 
 	 * Is this a transient memory allocation? 
 	 */
