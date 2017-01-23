@@ -128,11 +128,11 @@ cmap_add(cmap_t *m, void *val)
 		/* Add the new values to the free list */
 		while (lower != upper) {
 			int idx = cmap_to_vect_freeid(lower);
-			if (cvect_add(m->data, (void*)(lower+1), idx)) { assert(0); }
+			if (cvect_add(m->data, (void*)(lower+1), idx)) assert(0);
 			lower++;
 		}
 		/* The end of the freelist */
-		if (__cvect_set(m->data, cmap_to_vect_freeid(upper-1), (void*)-1)) { assert(0); }
+		if (__cvect_set(m->data, cmap_to_vect_freeid(upper-1), (void*)-1)) assert(0);
 	}
 
 	is = __cvect_lookup(m->data, cmap_to_vect_id(free));
