@@ -385,11 +385,9 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	c_spd = cspd_dspd >> 16;
 	d_spd  = cspd_dspd & 0xffff;
 
-	printd("teory: this gets called to handle receive-side fork counts\n");
 	printd("quarantine.c fault_quarantine_handler %d (%d) -> %d (%d)\n", c_spd, c_fix, d_spd, d_fix);
 
 	if (d_fix) {
-		printd("We are going to do a d_fix!\n");
 		/* 
 		 * Either c_spd is a fork, or c_spd has been forked. Either way,
 		 * the server (d_spd) needs to have its metadata related to c_spd
@@ -425,7 +423,6 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
 	}
 	if (c_fix) {
-		printd("We are going to do a c_fix\n");
 		/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
 		 * Two possible ways to fix c_spd are to (1) find the usr_cap_tbl and
 		 * add a capability for the fork directly, or (2) add a syscall to
@@ -450,7 +447,6 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 		// f_spd is then never used. So that's bad.
 	}
 dont_fix_c:
-	printd("Who need to fix things? Not this fault handler\n");
 	/* Adjust the fork count by the observed amount. We could just set
 	 * this to zero, but what if a fork has happened since the fault
 	 * handler was invoked? Probably we want to just decrement, and let
