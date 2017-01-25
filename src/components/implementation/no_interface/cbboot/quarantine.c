@@ -173,7 +173,6 @@ fix_receive_side_counters(spdid_t o_spd, spdid_t f_spd)
 					printd("Updated fork count (receive-side) for cap %d from %d->%d to count %d\n", i, spd_client, spd_server, 1);
 	
 					check = cos_cap_cntl(COS_CAP_GET_DEST_SPD, spd_client, i, 0);
-					printc("Now %d should invoke %d\n", spd_client, check);
 				}
 			}
 		}
@@ -320,7 +319,6 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	if (tot > SERVICE_SIZE) tot = SERVICE_SIZE + 3 * round_up_to_pgd_page(1) - tot;
 	else tot = SERVICE_SIZE - tot;
 	
-	printd("Telling cbuf to fork(%d, %d, %d)\n", cos_spd_id(), source, d_spd);
 	cinfo_addr = cbuf_fork_spd(cos_spd_id(), source, d_spd, cinfo_cbid);
 	
 	/* fixup cinfo page */

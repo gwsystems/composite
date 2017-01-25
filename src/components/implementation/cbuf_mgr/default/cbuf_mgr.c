@@ -730,7 +730,7 @@ cbuf_create(spdid_t spdid, unsigned long size, int cbid)
 }
 
 static inline struct cbuf_maps*
-cbuf_maps_create(spdid_t spdid, int cbid, int size, vaddr_t daddr)
+__cbuf_maps_create(spdid_t spdid, int cbid, int size, vaddr_t daddr)
 {
 	struct cbuf_comp_info *cci;
 	struct cbuf_info *cbi; 
@@ -748,7 +748,6 @@ cbuf_maps_create(spdid_t spdid, int cbid, int size, vaddr_t daddr)
 
 	map        = malloc(sizeof(struct cbuf_maps));
 	if (!map) ERR_THROW(-ENOMEM, done);
-	printc("5\n");
 	
 	if (daddr) dest = daddr;
 
@@ -760,7 +759,6 @@ cbuf_maps_create(spdid_t spdid, int cbid, int size, vaddr_t daddr)
 
 	page = cbi->mem;
 	assert(page);
-	printc("6: %x\n", cbi);
 
 done:
 	return map;
@@ -796,7 +794,7 @@ __cbuf_map_at(spdid_t s_spd, unsigned int cbid, spdid_t d_spd, vaddr_t d_addr)
 	 * about the cbuf and its mapping in d_spd.
 	 */
 
-	if (!cbuf_maps_create(d_spd, cbid, cbi->size, d_addr)) goto done;
+	if (!__cbuf_maps_create(d_spd, cbid, cbi->size, d_addr)) goto done;
 done:
 	return ret;
 free:
@@ -906,9 +904,7 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 	/* create cbuf */
 	f_cbid = __cbuf_create(spdid, sz, 0, dest);
 	if (f_cbid < 0) { // only do these steps if initial create failed because of lack of map
-		if (!__cbuf_register_map_at(o_spd, f_spd, cbi->cbid, f_cbid * -1)) { 
-			goto done; 
-		}
+		if (!__cbuf_register_map_at(o_spd, f_spd, cbi->cbid, f_cbid * -1)) goto done; 
 		f_cbid = __cbuf_create(spdid, sz, f_cbid * -1, dest);
 	}
 
@@ -925,7 +921,7 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 
 #ifdef COS_DEBUG
 	/* Do a sanity check and REMOVE THIS once we're kinda confident stuff works */
-	if (memcmp(f_cbi->mem, cbi->mem, sz)) { printc("cbufs do not actually match. Womp womp :(\n"); BUG(); }
+	if (memcmp(f_cbi->mem, cbi->mem, sz)) { printd("cbufs do not actually match. :(\n"); BUG(); }
 #endif
 	
 	ret = 0;
@@ -1000,9 +996,7 @@ __cbuf_fork_spd(spdid_t o_spd, spdid_t f_spd, int cinfo_cbid)
 	int i;
 	vaddr_t ret = (vaddr_t) NULL;		/* address of cinfo page */
 
-	printc("starting valloc_fork_spd from %d to %d\n", o_spd, f_spd);
 	int r = valloc_fork_spd(cos_spd_id(), o_spd, f_spd);
-	printc("finished valloc_fork_spd with ret %d\n", r);
 	
 	src = cbuf_comp_info_get(o_spd);
 	dst = cbuf_comp_info_get(f_spd);
@@ -1256,13 +1250,10 @@ cbuf_retrieve(spdid_t spdid, unsigned int cbid, unsigned long size)
 	meta       = cbuf_meta_lookup(cci, cbid);
 	if (!meta) goto done;
 	assert(!(meta->nfo & ~CBUF_INCONSISENT));
-	map = cbuf_maps_create(spdid, cbid, size, NULL);
+	map = __cbuf_maps_create(spdid, cbid, size, NULL);
 	if (!map) goto done;
 	
-	printc("c\n");
-
 	/* TODO: change to MAPPING_READ */
-	printc("cbi->mem %x\n", cbi->mem);
 	if (size > cbi->size) goto done;
 	assert((int)round_to_page(cbi->size) == cbi->size);
 	size       = cbi->size;
@@ -1270,13 +1261,11 @@ cbuf_retrieve(spdid_t spdid, unsigned int cbid, unsigned long size)
 		printc("cbuf mgr map fail spd %d mem %p sz %lu cbid %u\n", spdid, cbi->mem, size, cbid);
 		goto free;
 	}
-	printc("d\n");
 	CBUF_PTR_SET(meta, map->addr);
 	meta->sz            = cbi->size >> PAGE_ORDER;
 	meta->cbid_tag.cbid = cbid;
 	own                 = cbuf_comp_info_get(cbi->owner.spdid);
 	if (unlikely(!own)) goto done;
-	printc("e\n");
 	
 	/*
 	 * We need to inherit the relinquish bit from the sender. 
