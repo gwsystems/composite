@@ -8,13 +8,13 @@ updated when new tests are created or existing tests become deprecated.
 
 **lfpu.sh, lmicro_fpu.sh** -- tests for floating-point unit. Composite should run with highest priority.
 
-**lposix.sh** -- test for libc functions and corresponding system call warpers.
+**lposix.sh** -- test for libc functions and corresponding system call warpers. Currently broken due to lack of munmap post cbuf-malloc implementation.
 
 **unit_torrent.sh** -- test for basic torrent interface.
 
 **unit_cbuf.sh, micro_cbuf.sh** -- cbuf tests.
 
-**unit_cbboot_cbuf.sh, unit_cbboot_pp.sh** -- cbboot tests
+**unit_cbboot_cbuf.sh, unit_cbboot_pp.sh, unit_cbboot_cbuf_fork_lock.sh** -- cbboot tests
 
 **lcbufMalloc.sh** -- test with malloc using cbufs. Fairly rudimentary, but has already discovered one bug.
 

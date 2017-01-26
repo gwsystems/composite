@@ -50,9 +50,9 @@
  *                                                        
  * structure of nfo in meta data as follows:              
  *
- * +-------20-----+----------------5---------------------+---7----+ 
- * | page pointer | exact|owner|tmem|inconsistent|relinq | refcnt |
- * +--------------+--------------------------------------+--------+ 
+ * +-------20-----+------------------5---------------------+---7----+ 
+ * | page pointer | exactsz|owner|tmem|inconsistent|relinq | refcnt |
+ * +--------------+----------------------------------------+--------+ 
  *
  * Shared page between the target component, and us */
 typedef struct spd_cbvect_range shared_component_info;

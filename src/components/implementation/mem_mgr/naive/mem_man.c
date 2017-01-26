@@ -296,7 +296,7 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to, int fl
 	if (!m) goto collision;
 
 	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, dest, to, frame_index(f))) {
-		printc("mem_man: could not grant at %x:%d\n", dest, (int)to);
+		printc("mem_man naive: could not grant at %x:%x\n", dest, to);
 		goto no_mapping;
 	}
 	mapping_init(m, dest, to, p, f, flags);

@@ -234,7 +234,7 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 
 	capid = cap_ccnt_dcnt>>16;
 	d_fix = (cap_ccnt_dcnt>>8)&0xff; /* fix the d (server) if snd != 0 */
-	c_fix = cap_ccnt_dcnt&0xff; /* fix the c (client) if rcv != 0 */
+	c_fix = cap_ccnt_dcnt&0xff;      /* fix the c (client) if rcv != 0 */
 	c_spd = cspd_dspd>>16;
 	d_spd = cspd_dspd&0xffff;
 
@@ -272,8 +272,10 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	}
 	/* adjust the fork count */
 	inc_val = (((u8_t)-d_fix)<<8U) | ((u8_t)(-c_fix));
-	printd("Incrementing fork count by %u in spd %d for cap %d\n", inc_val, c_spd, capid);
+	printd("Incrementing fork count by %u (which works out to d %d and c %d) in spd %d for cap %d\n", inc_val, -d_fix, -c_fix, c_spd, capid);
 	cos_cap_cntl(COS_CAP_INC_FORK_CNT, c_spd, capid, inc_val);
+	int new_count = cos_cap_cntl(COS_CAP_GET_FORK_CNT, c_spd, capid, 0);
+	printd("Fork count now at %d\n", new_count);
 
 	printd("Done fixing, returning to invocation frame\n");
 

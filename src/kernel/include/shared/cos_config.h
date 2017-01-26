@@ -10,7 +10,7 @@
 
 // After how many seconds should schedulers print out their information?
 #define SCHED_PRINTOUT_PERIOD  30
-//#define COMPONENT_ASSERTIONS   1 // activate assertions in components?
+#define COMPONENT_ASSERTIONS   1 // activate assertions in components?
 
 //#define LINUX_ON_IDLE          1 // should Linux be activated on Composite idle
 
