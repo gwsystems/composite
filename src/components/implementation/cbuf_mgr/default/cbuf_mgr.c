@@ -366,7 +366,7 @@ cbuf_referenced(struct cbuf_info *cbi)
 	struct cbuf_meta *mt, *own_mt = m->m;
 
 	old_nfo = own_mt->nfo;
-	new_nfo = old_nfo | CBUF_INCONSISENT;
+	new_nfo = old_nfo | CBUF_INCONSISTENT;
 	if (unlikely(!cos_cas(&own_mt->nfo, old_nfo, new_nfo))) goto done;
 
 	mt   = (struct cbuf_meta *)(&old);
@@ -401,7 +401,7 @@ cbuf_referenced(struct cbuf_info *cbi)
 	if (CBUF_IS_IN_FREELIST(own_mt)) goto done;
 
 unset:
-	CBUF_FLAG_ATOMIC_REM(own_mt, CBUF_INCONSISENT);
+	CBUF_FLAG_ATOMIC_REM(own_mt, CBUF_INCONSISTENT);
 done:
 	return ret;
 }
@@ -445,7 +445,7 @@ cbuf_unmap_prepare(struct cbuf_info *cbi)
 	do {
 		old_nfo = m->m->nfo;
 		if (old_nfo & CBUF_REFCNT_MAX) return 1;
-		new_nfo = old_nfo & CBUF_INCONSISENT;
+		new_nfo = old_nfo & CBUF_INCONSISTENT;
 		if (unlikely(!cos_cas(&m->m->nfo, old_nfo, new_nfo))) return 1;
 		m   = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
@@ -636,7 +636,7 @@ __cbuf_create(spdid_t spdid, unsigned long size, int cbid, vaddr_t dest)
 		do {
 			id   = cmap_add(&cbufs, cbi);
 			meta = cbuf_meta_lookup(cci, id);
-		} while(meta && CBUF_INCONSISENT(meta));
+		} while(meta && CBUF_INCONSISTENT(meta));
 
 		cbi->cbid        = id;
 		size             = round_up_to_page(size);
@@ -974,7 +974,7 @@ __get_nfo(struct cbuf_comp_info *cci)
 									CBUF_EXACTSZ(cm)      >> 11,
 									CBUF_OWNER(cm)        >> 10,
 									CBUF_TMEM(cm)         >>  9,
-									CBUF_INCONSISENT(cm) >>  8,
+									CBUF_INCONSISTENT(cm) >>  8,
 									CBUF_RELINQ(cm)       >>  7,
 									CBUF_PTR(cm));
 			
@@ -1249,7 +1249,7 @@ cbuf_retrieve(spdid_t spdid, unsigned int cbid, unsigned long size)
 	if (!cbi) goto done;
 	meta       = cbuf_meta_lookup(cci, cbid);
 	if (!meta) goto done;
-	assert(!(meta->nfo & ~CBUF_INCONSISENT));
+	assert(!(meta->nfo & ~CBUF_INCONSISTENT));
 	map = __cbuf_maps_create(spdid, cbid, size, NULL);
 	if (!map) goto done;
 	
