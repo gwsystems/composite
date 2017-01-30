@@ -360,8 +360,6 @@ __fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
 	a = ipc_walk_static_cap(fault_cap<<20, 0, 0, &r); /* GB: sp, ip? */
 
-	/* printk("cos: got fault handler @ %x for fault_num %d (with cap %d)\n", a, fault_num, fault_cap); */
-
 	/* setup the registers for the fault handler invocation */
 	regs->ax = r.thd_id;
 	regs->bx = regs->cx = r.spd_id;
@@ -380,6 +378,7 @@ __fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_
 int 
 fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
 {
+	printk("fault @%x\n", fault_addr);
 	return __fault_ipc_invoke(thd, fault_addr, flags, regs, fault_num, NULL);
 }
 
@@ -3071,6 +3070,10 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 	case COS_CAP_GET_FORK_CNT:
 		ret = spd_cap_get_fork_cnt(cspd, capid);
 		break;
+	case COS_CAP_SET_DEST:
+		sspd = spd_get_by_index((spdid_t) arg2);
+		ret = spd_cap_set_dest(cspd, capid, sspd);
+		break;
 	default:
 		ret = -1;
 		break;
@@ -3164,6 +3167,7 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 	{
 		if (spd->user_vaddr_cap_tbl) {
 			ret = -1;
+			printk("something invalid\n");
 			break;
 		}
 		/* arg1 = vaddr of ucap tbl */
@@ -3204,8 +3208,7 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		    (unsigned int)spd->user_vaddr_cap_tbl + sizeof(struct usr_inv_cap) * spd->ncaps > 
 		    spd->location[0].lowest_addr + spd->location[0].size || 
 		    !user_struct_fits_on_page((unsigned int)spd->user_vaddr_cap_tbl, sizeof(struct usr_inv_cap) * spd->ncaps)) {
-			printk("cos: user capability table @ %x does not fit into spd, or onto a single page\n", 
-			       (unsigned int)spd->user_vaddr_cap_tbl);
+			printk("cos: inv: user capability table @ %x does not fit into spd, or onto a single page\n", (unsigned int)spd->user_vaddr_cap_tbl);
 			ret = -1;
 			break;
 		}

@@ -62,7 +62,7 @@ boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages
 
 	if (sect->flags & COBJ_SECT_WRITE) flags = MAPPING_RW;
 	else flags = MAPPING_READ;
-	flags |= 2; /* no valloc */
+	flags |= MAPPING_NO_VALLOC;
 
 	assert(pages > 0);
 	cbm.caddr = cbuf_alloc_ext(pages * PAGE_SIZE, &cbm.cbid, CBUF_EXACTSZ);

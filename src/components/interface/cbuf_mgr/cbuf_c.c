@@ -18,6 +18,7 @@
 #include <cos_debug.h>
 #include <cos_alloc.h>
 #include <valloc.h>
+#include <sched.h>
 
 /* 
  * All of the structures that must be compiled (only once) into each
@@ -89,6 +90,7 @@ __cbuf_get_collect(struct cbuf_shared_page *csp, unsigned long size, unsigned in
 
 	CBUF_RING_TAKE();
 	do {
+		assert(&csp->ring);
 		ret_cm = NULL;
 		if (CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) {
 			/* own the cbuf we just collected */
@@ -134,7 +136,7 @@ again:
 	ret_cm = NULL;
 	cbid = 0;
 
-	/* Do a garbage collection if this not an exact size cbuf*/
+	/* Attempt garbage collection if this is not an exact size cbuf */
 	if (!(flag & CBUF_EXACTSZ)) {
 		ret_cm = __cbuf_get_collect(csp, size, flag);
 		if (ret_cm) goto done;

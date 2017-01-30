@@ -36,7 +36,7 @@ vaddr_t cbuf_register(spdid_t spdid, unsigned int cbid);
 vaddr_t cbuf_map_at(spdid_t s_spd, unsigned int cbid, spdid_t d_spd, vaddr_t d_addr);
 int cbuf_unmap_at(spdid_t s_spd, unsigned int cbid, spdid_t d_spd, vaddr_t d_addr);
 
-int cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd);
+vaddr_t cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd, int cinfo_cbid);
 
 /*
  * Before the first call to cbuf_collect, the client component must

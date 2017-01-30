@@ -366,7 +366,7 @@ int spd_set_location(struct spd *spd, unsigned long lowest_addr,
 	    || uaddr + sizeof(struct usr_inv_cap) * spd->ncaps > lowest_addr + size
 	    || !user_struct_fits_on_page((unsigned long)spd->user_vaddr_cap_tbl, 
 					 sizeof(struct usr_inv_cap) * spd->ncaps)) {
-		printk("cos: user capability table @ %x does not fit into spd, or onto a single page\n", 
+		printk("cos: spd user capability table @ %x does not fit into spd, or onto a single page\n", 
 		       (unsigned int)spd->user_vaddr_cap_tbl);
 		return -1;
 	}
@@ -500,6 +500,7 @@ int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd)
 	struct invocation_cap *c = spd_get_cap(spd, cap);
 	
 	if (!c) return -1;
+
 	c->destination = dspd;
 	return 0;
 }
