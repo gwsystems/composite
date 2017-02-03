@@ -1,4 +1,4 @@
-/* 
+/*
  * GPL v2, copyright Gabriel Parmer, 2013
  */
 
@@ -16,7 +16,7 @@ struct clist {
 	struct clist *n, *p;
 };
 
-/* 
+/*
  * This is a separate type to 1) provide guidance on how to use the
  * API, and 2) to prevent developers from comparing pointers that
  * should not be compared.
@@ -60,7 +60,7 @@ clist_ll_rem(struct clist *l)
 	l->p = l->n = l;
 }
 
-/* 
+/*
  * Get a pointer to the object containing *l, of a type shared with
  * *o.  Importantly, "o" is not accessed here, and is _only_ used for
  * its type.  It will typically be the iterator/cursor working through
@@ -75,7 +75,7 @@ clist_ll_rem(struct clist *l)
  * own (typed) structures.
  */
 
-/* 
+/*
  * If iterating through the list, this will tell you if the object you
  * retrieve is the head.  For example, you must:
  *
@@ -101,7 +101,7 @@ clist_ll_rem(struct clist *l)
 #define clist_head_add_l(lh, o, lname) clist_ll_add((&(lh)->l), &(o)->lname)
 #define clist_head_append_l(lh, o, lname) clist_ll_add(((&(lh)->l)->p), &(o)->lname)
 
-/* 
+/*
  * For these functions, "o" must be a pointer to a pointer to a struct
  * of the type that populates the linked list.  The pointer will get
  * set to the first (last) object in the list.  "o" is typically a

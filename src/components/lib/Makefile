@@ -39,6 +39,7 @@ clean:
 
 distclean:
 	make -C dietlibc-0.29 clean
+	make -C ps clean
 #	make -C lwip/cos clean
 #	make -C lua/cos clean
 # keep the following commands in one line. make executes each line
@@ -52,7 +53,7 @@ thirdparty:
 	make -C dietlibc-0.29
 	make -C dietlibc-0.29 i386
 	cd ck; ./configure; cd ..
-
+	cd ps; ./configure linux x86; cd ..; make -C ps
 
 init: clean distclean thirdparty all
 #	make -C lwip/cos

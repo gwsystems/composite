@@ -32,6 +32,7 @@ typedef signed long long s64_t;
 #define LLONG_MAX 9223372036854775807LL
 
 typedef u64_t cycles_t;
+typedef u64_t microsec_t;
 typedef unsigned long tcap_res_t;
 typedef unsigned long tcap_time_t;
 typedef u64_t tcap_prio_t;
