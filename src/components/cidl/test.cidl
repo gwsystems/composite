@@ -1,0 +1,11 @@
+import cos_component;
+import cbuf_c;
+import cbuf;
+import evt;
+import torrent_t;
+
+int tsplit(spdid_t spdid, td_t tid, char *param, int len, tor_flags_t tflags, long evtid);
+void trelease(spdid_t spdid, td_t tid);
+int tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len);
+int tread(spdid_t spdid, td_t td, int cbid, int sz);
+int twrite(spdid_t spdid, td_t td, int cbid, int sz);

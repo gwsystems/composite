@@ -1,0 +1,61 @@
+include Makefile.src Makefile.comp
+
+STUB_DIR=stubs
+S_CSTUBS=$(wildcard $(STUB_DIR)/s_*.c)
+S_SSTUBS=$(wildcard $(STUB_DIR)/s_*.S)
+S_STUB_OBJS=$(S_CSTUBS:%.c=%.o) $(S_SSTUBS:%.S=%.o)
+C_CSTUBS=$(wildcard $(STUB_DIR)/c_*.c)
+C_STUB_OBJS=$(C_CSTUBS:%.c=%.o)
+IDL_FILES=$(wildcard *.cidl)
+IDL_HEADERS=$(IDL_FILES:%.cidl=%.h)
+STUBS=$(ASM_STUBS) 
+IFNAME=$(lastword $(subst /, ,$(shell pwd)))
+INCLUDES= $(CINC) $(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
+DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
+
+EXPDEP_GEN=../../cidl/if_exported.sh
+FNEXP_FILE=.fn_exports
+
+.PHONY: all
+all: $(LIBS) stubs expgen
+
+expgen:
+	@sh $(EXPDEP_GEN) > $(FNEXP_FILE)
+
+# we have to compile these without dietlibc so that there are not
+# symbol conflicts and this is why we have the %.a here and don't
+# output a .a file.
+%.a:%.o
+#	$(info |     [AR]   Creating library file lib$(IFNAME).a from $<)
+#	$(info |     [AR]   lib$(IFNAME).a: create library $<)
+	@$(AR) cr lib$(IFNAME).a $<
+
+%.o:%.c
+#	$(info |     [CC]   Compiling c file $^ into $@)
+	@$(CC) $(CFLAGS) $(INCLUDES) $(CINC) $(DEP_INC) -c -o $(@) $<
+
+%.o:%.S
+#	$(info |     [AS]   Compiling assembly file $^ into $@)
+	@$(AS) $(ASFLAGS) -c -o $@ $^
+
+server_stubs: $(S_STUB_OBJS)
+#	$(if $(S_STUB_OBJS), $(info |     [LD]   Creating server stubs for $(IFNAME)))
+	@$(if $(S_STUB_OBJS), $(LD) $(LDFLAGS) -r -o $(SERVER_STUB) $^)
+
+client_stubs: $(C_STUB_OBJS)
+#	$(if $(C_STUB_OBJS), $(info |     [LD]   Creating client stubs from $(IFNAME)))
+	@$(if $(C_STUB_OBJS), $(LD) $(LDFLAGS) -r -o $(CLIENT_STUB) $^)
+
+stubs: server_stubs client_stubs
+
+clean:
+#	$(info |     [RM]   Cleaning up interface directory for $(IFNAME))
+	@$(RM) -f a.out *.o *.a *.d *~ $(STUB_DIR)/*.o $(FNEXP_FILE)
+
+fresh: clean all
+
+%.h:%.cidl
+	$(PONY) $^ > $@
+
+idl: $(IDL_HEADERS)
+
