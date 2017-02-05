@@ -90,20 +90,18 @@ struct cap_thd {
 static void
 thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
 {
-	/*
 	struct pt_regs *r = &thd->regs;
 
-	r->cx = option;
+	r->r2 = option;
 
-	r->bx = arg1;
-	r->di = arg2;
-	r->si = arg3;
+	r->r1 = arg1;
+	r->r10 = arg2;
+	r->r11 = arg3;
 
-	r->ip = r->dx = entry_addr;
-	r->ax = thd->tid | (get_cpuid() << 16); // thd id + cpu id
+	r->r15_pc = r->r3 = entry_addr;
+	r->r0 = thd->tid | (get_cpuid() << 16); // thd id + cpu id
 
 	return;
-	*/
 }
 
 /*

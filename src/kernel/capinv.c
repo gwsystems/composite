@@ -5,7 +5,7 @@
  * Public License v2.
  */
 
-#include "include/shared/cos_types.h"
+#include "include/chal/cos_types.h"
 #include "include/captbl.h"
 #include "include/thd.h"
 #include "include/chal/call_convention.h"
@@ -846,24 +846,17 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 static int
 composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch);
 
-/* regparm does not work on other architectures, so we need to manually pass these parameters. For
- * ARM architecturewe just pass the stack frame by a pointer located in r0. */
-/* COS_SYSCALL __attribute__((section("__ipc_entry"))) */
-int
-composite_syscall_handler(/*struct pt_regs *regs*/)
+int COS_SYSCALL
+composite_syscall_handler(struct pt_regs *regs)
 {
-	struct pt_regs* regs;
+	/* struct pt_regs* regs; */
 	struct cap_header *ch;
 	struct comp_info *ci;
 	struct thread *thd;
 	capid_t cap;
 	unsigned long ip, sp;
 
-	/* The whole stack frame's pointer is in r0. Now the parameter passing is correct */
-	__asm__ __volatile__(
-			            "str r0,%[_regs] \n"
-			            ::[_regs]"m"(regs):"memory"
-			            );
+	COS_SYSCALL_PASS_PARAM();
 
 	/*
 	 * We lookup this struct (which is on stack) only once, and
@@ -876,7 +869,7 @@ composite_syscall_handler(/*struct pt_regs *regs*/)
 	cap = __userregs_getcap(regs);
 	thd = thd_current(cos_info);
 
-	/* printk("thd %d calling cap %d (ip %x, sp %x), operation %d: %x, %x, %x, %x\n", thd->tid, cap, */
+	 /* printk("thd %d calling cap %d (ip %x, sp %x), operation %d: %x, %x, %x, %x\n", thd->tid, cap, */
 	/*        __userregs_getip(regs), __userregs_getsp(regs), __userregs_getop(regs), */
 	/*        __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
 
@@ -1544,7 +1537,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		}
 		default: goto err;
 		}
-
+/* no break here? */
 	}
 	case CAP_HW:
 	{

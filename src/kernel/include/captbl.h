@@ -12,10 +12,10 @@
 #define CAPTBL_H
 
 #include "shared/cos_errno.h"
-#include "shared/cos_types.h"
+#include "chal/cos_types.h"
 #include "ertrie.h"
 #include "liveness_tbl.h"
-#include "shared/util.h"
+#include "chal/util.h"
 
 #ifndef CACHELINE_SIZE
 #define CACHELINE_SIZE  64
@@ -176,7 +176,7 @@ __captbl_getleaf(struct ert_intern *a, void *accum)
 static inline int __captbl_setleaf(struct ert_intern *a, void *v)
 { (void)a; (void)v; assert(0); return -1; }
 
-static inline /*CFORCEINLINE*/ struct ert_intern *
+static inline CFORCEINLINE struct ert_intern *
 __captbl_get(struct ert_intern *a, void *accum, int leaf)
 { (void)accum; (void)leaf; return a->next; }
 

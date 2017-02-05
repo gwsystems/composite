@@ -1,4 +1,4 @@
-/* Segment selectors for the GDT */
+/* Segment selectors for the GDT - useless for CM7 */
 #define SEL_RPL_USR     0x3
 
 #define SEL_NULL	0x00
@@ -11,4 +11,4 @@
 #define SEL_CNT         7       /* Number of segments. */
 
 #define STK_INFO_SZ     64	/* sizeof(struct cos_cpu_local_info) */
-#define STK_INFO_OFF    (STK_INFO_SZ + 4)	/* sizeof(struct cos_cpu_local_info) + sizeof(long) */
+#define STK_INFO_OFF    (STK_INFO_SZ + 2048)	/* sizeof(struct cos_cpu_local_info) + make it larger to avoid flushing stack return address on CM7 sizeof(long) */

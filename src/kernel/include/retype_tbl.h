@@ -9,9 +9,9 @@
 #ifndef RETYPE_TBL_H
 #define RETYPE_TBL_H
 
-#include "shared/cos_types.h"
-#include "shared/cos_config.h"
-#include "shared/util.h"
+#include "chal/cos_types.h"
+#include "chal/cos_config.h"
+#include "chal/util.h"
 #include "chal/cpuid.h"
 #include "chal.h"
 

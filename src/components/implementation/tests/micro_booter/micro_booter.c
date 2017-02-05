@@ -21,6 +21,7 @@ prints(char *s)
 int __attribute__((format(printf,1,2)))
 printc(char *fmt, ...)
 {
+	/*
 	  char s[128];
 	  va_list arg_ptr;
 	  int ret, len = 128;
@@ -30,7 +31,8 @@ printc(char *fmt, ...)
 	  va_end(arg_ptr);
 	  cos_llprint(s, ret);
 
-	  return ret;
+	  return ret; */
+	return 0;
 }
 
 /* For Div-by-zero test */
@@ -49,8 +51,8 @@ cos_init(void)
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 
-	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
-	assert(termthd);
+	//termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
+	//assert(termthd);
 
 	while (!(cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE))) ;
 	printc("\t%d cycles per microsecond\n", cycs);
@@ -59,7 +61,7 @@ cos_init(void)
 	test_run_mb();
 	PRINTC("\nMicro Booter done.\n");
 
-	cos_thd_switch(termthd);
+	//cos_thd_switch(termthd);
 
 	return;
 }

@@ -20,7 +20,7 @@
 #ifndef CHAL_H
 #define CHAL_H
 
-#include "shared/cos_types.h"
+#include "chal/cos_types.h"
 
 /*
  * Namespacing in the cHAL: chal_<family>_<operation>(...).  <family>

@@ -15,7 +15,7 @@
 #define BUG_DIVZERO() do { debug_print("Testing divide by zero fault @ "); int i = num / den; } while (0);
 #define SPIN() do { while (1) ; } while (0)
 
-#include <cos_component.h>
+#include <chal/cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 
@@ -33,14 +33,14 @@ tls_get(size_t off)
 {
 	unsigned long val;
 
-	__asm__ __volatile__("movl %%gs:(%1), %0" : "=r" (val) : "r" (off) : );
+	/* __asm__ __volatile__("movl %%gs:(%1), %0" : "=r" (val) : "r" (off) : ); */
 
 	return val;
 }
 
 static void
 tls_set(size_t off, unsigned long val)
-{ __asm__ __volatile__("movl %0, %%gs:(%1)" : : "r" (val), "r" (off) : "memory"); }
+{ /* __asm__ __volatile__("movl %0, %%gs:(%1)" : : "r" (val), "r" (off) : "memory"); */ }
 
 extern int prints(char *s);
 extern int printc(char *fmt, ...);

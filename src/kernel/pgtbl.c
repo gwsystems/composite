@@ -1,4 +1,4 @@
-#include "include/shared/cos_types.h"
+#include "include/chal/cos_types.h"
 #include "include/captbl.h"
 #include "include/pgtbl.h"
 #include "include/cap_ops.h"
@@ -48,7 +48,7 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long *
 }
 
 /* Return 1 if quiescent past since input timestamp. 0 if not. */
-int 
+int
 tlb_quiescence_check(u64_t timestamp)
 {
 	int i, quiescent = 1;

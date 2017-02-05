@@ -10,7 +10,7 @@
 
 #include "shared/cos_errno.h"
 #include "ertrie.h"
-#include "shared/util.h"
+#include "chal/util.h"
 #include "captbl.h"
 #include "retype_tbl.h"
 #include "liveness_tbl.h"
@@ -47,6 +47,19 @@ typedef enum {
 #define PGTBL_FRAME_MASK    (~PGTBL_FLAG_MASK)
 #define PGTBL_DEPTH         2
 #define PGTBL_ORD           10
+
+
+/* The page table implementation for CM3: the page table is always 64 slots, and the mappings are fixed, so as if there is no mapping.
+ * The only bit that is useful is the bit "PGTBL_PRESENT". The effective bits are always 6 bits for each frame.
+ * Cache:4-way set associative, 32 bytes per line */
+/*
+#define PGTBL_PAGEIDX_SHIFT (26)
+#define PGTBL_FRAME_BITS    (32 - PGTBL_PAGEIDX_SHIFT)
+#define PGTBL_FLAG_MASK     ((1<<PGTBL_PAGEIDX_SHIFT)-1)
+#define PGTBL_FRAME_MASK    (~PGTBL_FLAG_MASK)
+#define PGTBL_DEPTH         1
+#define PGTBL_ORD           64
+*/
 
 struct tlb_quiescence {
 	/* Updated by timer. */
@@ -237,23 +250,6 @@ int tlb_quiescence_check(u64_t timestamp);
 static inline int
 pgtbl_quie_check(u32_t orig_v)
 {
-	livenessid_t lid;
-	u64_t ts;
-
-	if (orig_v & PGTBL_QUIESCENCE) {
-		lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
-		/* An unmap happened at this vaddr before. We need to
-		 * make sure that all cores have done tlb flush before
-		 * creating new mapping. */
-		assert(lid < LTBL_ENTS);
-
-		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
-		if (!tlb_quiescence_check(ts))    {
-			printk("kern tsc %llu, lid %d, last flush %llu\n", ts, lid, tlb_quiescence[get_cpuid()].last_periodic_flush);
-			return -EQUIESCENCE;
-		}
-	}
-
 	return 0;
 }
 

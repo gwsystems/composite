@@ -17,9 +17,11 @@ chal_cpu_fault_ip(struct pt_regs *r) { return r->r15_pc; }
 static inline void
 chal_user_upcall(void *ip, u16_t tid)
 {
-	/* Now we switch the execution to user space, and begin to use the PSP */
+	/* Now we switch the execution to user space, and begin to use the PSP stack pointer */
 	__asm__ __volatile__( \
 					    "ldr r0,=comp1_stack \n\t" \
+						"add r0,#0x3000 \n\t" \
+						/*"mov r0,msp \n\t" \ */
 						"msr psp,r0 \n\t" \
 						"mov r0,#0x02 \n\t" \
 						"msr control,r0 \n\t"

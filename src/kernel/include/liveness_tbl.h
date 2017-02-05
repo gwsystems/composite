@@ -10,8 +10,8 @@
 #ifndef LIVENESS_TBL_H
 #define LIVENESS_TBL_H
 
-#include "shared/cos_types.h"
-#include "shared/util.h"
+#include "chal/cos_types.h"
+#include "chal/util.h"
 #include "ertrie.h"
 
 /*

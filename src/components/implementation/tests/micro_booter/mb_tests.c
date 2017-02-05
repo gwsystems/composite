@@ -39,7 +39,7 @@ thd_fn(void *d)
 {
 	PRINTC("\tNew thread %d with argument %d, capid %ld\n", cos_thdid(), (int)d, tls_test[(int)d]);
 	/* Test the TLS support! */
-	assert(tls_get(0) == tls_test[(int)d]);
+	//assert(tls_get(0) == tls_test[(int)d]);
 	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	PRINTC("Error, shouldn't get here!\n");
 }
@@ -52,10 +52,10 @@ test_thds(void)
 
 	for (i = 0 ; i < TEST_NTHDS ; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
-		assert(ts[i]);
+		//assert(ts[i]);
 		tls_test[i] = i;
 		cos_thd_mod(&booter_info, ts[i], &tls_test[i]);
-		PRINTC("switchto %d @ %x\n", (int)ts[i], cos_introspect(&booter_info, ts[i], THD_GET_IP));
+		//PRINTC("switchto %d @ %x\n", (int)ts[i], cos_introspect(&booter_info, ts[i], THD_GET_IP));
 		cos_thd_switch(ts[i]);
 	}
 
@@ -509,7 +509,7 @@ int call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
 	 * conventions.
 	 */
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
-
+/*
 	__asm__ __volatile__( \
 		"pushl %%ebp\n\t" \
 		"movl %%esp, %%ebp\n\t" \
@@ -521,7 +521,7 @@ int call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
 		: "=a" (ret)
 		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3) \
 		: "memory", "cc", "ecx", "edx");
-
+*/
 	return ret;
 }
 
@@ -534,7 +534,7 @@ test_inv(void)
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc > 0);
-	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
+	/* ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn); */ ic=0;
 	assert(ic > 0);
 
 	r = call_cap_mb(ic, 1, 2, 3);
@@ -554,7 +554,7 @@ test_inv_perf(void)
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc > 0);
-	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
+	/*ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn); */ ic=0;
 	assert(ic > 0);
 	ret = call_cap_mb(ic, 1, 2, 3);
 	assert(ret == 0xDEADBEEF);
@@ -587,7 +587,7 @@ test_captbl_expand(void)
 	for (i = 0 ; i < 1024 ; i++) {
 		sinvcap_t ic;
 
-		ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
+		/*ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);*/ ic=0;
 		assert(ic > 0);
 	}
 	PRINTC("Captbl expand SUCCESS.\n");

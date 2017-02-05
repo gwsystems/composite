@@ -1,7 +1,7 @@
 #ifndef COS_DEBUG_H
 
-#include <cos_component.h>
-#include <cos_config.h>
+#include <chal/cos_component.h>
+#include <chal/cos_config.h>
 
 #ifdef COMPONENT_ASSERTIONS
 #define DEBUG

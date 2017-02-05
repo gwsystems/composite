@@ -4,7 +4,8 @@
 
 #include "kernel.h"
 #include "string.h"
-//#include "chal_cpu.h"
+#include "chal_cpu.h"
+#include "mem_layout.h"
 
 struct tlb_quiescence tlb_quiescence[NUM_CPU]   CACHE_ALIGNED;
 struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED;
@@ -18,24 +19,13 @@ u32_t boot_comp_pgd[PAGE_SIZE/sizeof(u32_t)] PAGE_ALIGNED = {
 void
 kern_retype_initial(void)
 {
+	u8_t *k;
 
-}
-
-u8_t *
-mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
-{
-	return 0;
-}
-
-int
-kern_setup_image(void)
-{
-	chal_cpu_init();
-	chal_cpu_pgtbl_activate((pgtbl_t)chal_va2pa(boot_comp_pgd));
-
-	kern_retype_initial();
-
-	return 0;
+	assert((int)mem_bootc_start() % RETYPE_MEM_NPAGES == 0);
+	assert((int)mem_bootc_end()   % RETYPE_MEM_NPAGES == 0);
+	for (k = mem_bootc_start() ; k < mem_bootc_end() ; k += PAGE_SIZE * RETYPE_MEM_NPAGES) {
+		if (retypetbl_retype2user((void*)(chal_va2pa(k)))) assert(0);
+	}
 }
 
 void
@@ -57,14 +47,25 @@ kern_paging_map_init(void *pa)
 	}
 }
 
-
-void
-paging_init(void)
+u8_t *
+mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 {
-	int ret;
+	u8_t *r = glb_memlayout.kern_boot_heap;
+	unsigned long i;
 
-	printk("Initializing virtual memory\n");
-	if ((ret = kern_setup_image())) {
-		die("Could not set up kernel image, errno %d.\n", ret);
+	assert(glb_memlayout.allocs_avail);
+
+	glb_memlayout.kern_boot_heap += npages * (PAGE_SIZE/sizeof(u8_t));
+	assert(glb_memlayout.kern_boot_heap <= mem_kmem_end());
+	for (i = (unsigned long)r ; i < (unsigned long)glb_memlayout.kern_boot_heap ; i += PAGE_SIZE) {
+		if ((unsigned long)i % RETYPE_MEM_NPAGES == 0) {
+			if (retypetbl_retype2kern((void*)chal_va2pa((void*)i))) {
+				die("Retyping to kernel on boot-time heap allocation failed @ 0x%x.\n", i);
+			}
+		}
 	}
+
+	memset((void *)r, 0, npages * (PAGE_SIZE/sizeof(u8_t)));
+
+	return r;
 }

@@ -11,7 +11,7 @@
 #ifndef   	COBJ_FORMAT_H
 #define   	COBJ_FORMAT_H
 
-#include <cos_types.h>
+#include <chal/cos_types.h>
 
 /* 
  * Layout: 

@@ -10,14 +10,36 @@
 #include "core_cm7.h"
 #include "boot_comp.h"
 
+#include "chal/cos_component.h"
+#include "mem_layout.h"
+
+struct mem_layout glb_memlayout;
 int var=0;
 
-u32_t Test_Array[1024] __attribute__((aligned(0x1000)));
+unsigned long Memory_Used[32768] __attribute__((aligned(0x10000)));
+extern void cos_init(void);
 
 void
 kern_memory_setup(void)
 {
 	/* Some memory initialization with fixed parameters */
+	/* This is the whole RAM range of the MCU */
+	glb_memlayout.kern_end=COS_MEM_KERN_PA+COS_MEM_KERN_PA_SZ/*COS_MEM_COMP_START_VA-0x1000*/;
+	/* Currently we dont have any modules, mod_end unused */
+	glb_memlayout.mod_end=glb_memlayout.mod_start=0x20030000;
+	glb_memlayout.bootc_entry=glb_memlayout.bootc_vaddr=cos_init;
+	glb_memlayout.kern_boot_heap=Memory_Used,
+	glb_memlayout.kmem_end=0x207FFFFF;
+	glb_memlayout.allocs_avail=1;
+
+	/* Validate the memory layout. */
+	assert(mem_boot_start()  >= mem_kmem_start());
+	assert(mem_kmem_start()  == mem_bootc_start());
+	assert(mem_kmem_end()    >= mem_boot_end());
+	assert(mem_utmem_start() >= mem_kmem_start());
+	assert(mem_utmem_start() >= mem_boot_end());
+	assert(mem_utmem_end()   <= mem_kmem_end());
+	assert(mem_bootc_entry() - mem_bootc_vaddr() <= mem_bootc_end() - mem_bootc_start());
 }
 
 void
@@ -55,11 +77,11 @@ u8_t MPU_Set_Protection(u32_t baseaddr,u32_t size,u32_t rnum,u32_t ap)
 	HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);			        //Enable the MPU
     return 0;
 }
-
+/*
 void
 mpu_init(void)
 {
-	MPU_Set_Protection((u32_t)Test_Array, MPU_REGION_SIZE_1KB,MPU_REGION_NUMBER0,MPU_REGION_FULL_ACCESS);//MPU_REGION_PRIV_RO_URO
+	MPU_Set_Protection((u32_t)Test_Array, MPU_REGION_SIZE_1KB,MPU_REGION_NUMBER0,MPU_REGION_PRIV_RO_URO);//MPU_REGION_PRIV_RO_URO MPU_REGION_FULL_ACCESS
 	Test_Array[0]=0;
 	Test_Array[1]=1;
 }
@@ -72,24 +94,12 @@ void MemManage_Handler(void)
 void SysTick_Handler(void)
 {
 	var=1;
-}
-
-extern void cos_init(void);
+}*/
 
 void
 main(void)
 {
-	cos_init();
-	/* Currently these are fixed for cortex-Mx */
-	//timer_init();
-    mpu_init();
-	/* Test the timer */
-	/*while(1)
-	{
-		if(var==1)
-			var=0;
-	}*/
-
+	kern_paging_map_init(COS_MEM_KERN_PA+COS_MEM_KERN_PA_SZ);
 	kern_memory_setup();
 
 	chal_init();
@@ -98,7 +108,6 @@ main(void)
 	retype_tbl_init();
 	comp_init();
 	thd_init();
-	//paging_init();
 
 	kern_boot_comp();
 	kern_boot_upcall();

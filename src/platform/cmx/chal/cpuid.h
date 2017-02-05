@@ -9,8 +9,8 @@
 #ifndef CPUID_H
 #define CPUID_H
 
-#include "../../../kernel/include/shared/consts.h"
-#include "../../../kernel/include/shared/cos_types.h"
+#include "../../../kernel/include/chal/consts.h"
+#include "../../../kernel/include/chal/cos_types.h"
 #include "../../../kernel/include/asm_ipc_defs.h"
 #include "../../../kernel/include/list.h"
 #include "../chal_asm_inc.h"
@@ -30,9 +30,9 @@ struct cos_cpu_local_info {
 	 * orig_sysenter_esp SHOULD be the first variable here. The
 	 * sysenter interposition path gets tss from it.
 	 */
-	unsigned long *orig_sysenter_esp; /* Points to the end of the tss struct in Linux. */
+	unsigned long *orig_sysenter_esp; /* 4Points to the end of the tss struct in Linux. This is not used when we port to CMX, just here for compatibility */
 	/***********************************************/
-	/* info saved in kernel stack for fast access. */
+	/* info saved in kernel stack for fast access. 4+4+4+12+8+8+8+4+4+4*/
 	unsigned long cpuid;
 	void       *curr_thd;
 	void       *curr_tcap;
@@ -54,7 +54,7 @@ struct cos_cpu_local_info {
 	 * Linux), we store 0xDEADBEEF to detect overflow.
 	 */
 	unsigned long overflow_check;
-};
+} __attribute__((packed));
 
 static inline struct cos_cpu_local_info *
 cos_cpu_local_info(void)

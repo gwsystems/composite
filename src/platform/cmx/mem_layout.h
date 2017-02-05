@@ -1,9 +1,9 @@
 #ifndef MEM_LAYOUT_H
 #define MEM_LAYOUT_H
 
-#include <shared/cos_types.h>
-#include <shared/consts.h>
-#include <shared/cos_config.h>
+#include <chal/cos_types.h>
+#include <chal/consts.h>
+#include <chal/cos_config.h>
 #include <retype_tbl.h>
 
 /*
@@ -36,14 +36,15 @@ struct mem_layout {
 	int allocs_avail;
 };
 extern struct mem_layout glb_memlayout;
+extern unsigned long Memory_Used[32768];
 
-static inline u8_t *mem_kern_start(void)    { return (void*)(COS_MEM_KERN_START_VA+COS_MEM_KERN_PA); }
-static inline u8_t *mem_kern_end(void)      { return glb_memlayout.kern_end; }
+static inline u8_t *mem_kern_start(void)    { return (void*)(COS_MEM_KERN_START_VA); }
+static inline u8_t *mem_kern_end(void)      { return COS_MEM_COMP_START_VA;}
 static inline u8_t *mem_bootc_start(void)   { return glb_memlayout.mod_start; }
 static inline u8_t *mem_bootc_end(void)     { return glb_memlayout.mod_end; }
 static inline u8_t *mem_bootc_entry(void)   { return glb_memlayout.bootc_entry; }
 static inline u8_t *mem_bootc_vaddr(void)   { return glb_memlayout.bootc_vaddr; }
-static inline u8_t *mem_boot_start(void)    { return (u8_t*)round_up_to_pow2(mem_bootc_end(), RETYPE_MEM_NPAGES * PAGE_SIZE); }
+static inline u8_t *mem_boot_start(void)    { return Memory_Used;/*(u8_t*)round_up_to_pow2(mem_bootc_end(), RETYPE_MEM_NPAGES * PAGE_SIZE);*/ }
 static inline u8_t *mem_boot_end(void)      { return (u8_t*)round_up_to_pow2(glb_memlayout.kern_boot_heap, RETYPE_MEM_NPAGES * PAGE_SIZE); }
 /* what will the end be _after_ n allocations? */
 static inline u8_t *mem_boot_nalloc_end(int n) { return (u8_t*)round_up_to_pow2(glb_memlayout.kern_boot_heap + n*PAGE_SIZE, RETYPE_MEM_NPAGES * PAGE_SIZE); }

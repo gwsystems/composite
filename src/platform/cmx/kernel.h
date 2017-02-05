@@ -1,8 +1,8 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#include "shared/cos_config.h"
-#include "shared/cos_types.h"
+#include "chal/cos_config.h"
+#include "chal/cos_types.h"
 #include "chal.h"
 
 #include "chal_asm_inc.h"
