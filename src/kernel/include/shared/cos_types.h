@@ -876,11 +876,11 @@ typedef struct { volatile unsigned int counter; } atomic_t;
 
 static inline void
 atomic_inc(atomic_t *v)
-{ asm volatile(LOCK_PREFIX "incl %0" : "+m" (v->counter)); }
+{ __asm__ __volatile__(LOCK_PREFIX "incl %0" : "+m" (v->counter)); }
 
 static inline void
 atomic_dec(atomic_t *v)
-{ asm volatile(LOCK_PREFIX "decl %0" : "+m" (v->counter)); }
+{ __asm__ __volatile__(LOCK_PREFIX "decl %0" : "+m" (v->counter)); }
 #endif /* __KERNEL__ */
 
 static inline void

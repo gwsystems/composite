@@ -7,6 +7,9 @@ MAND=$(MANDITORY_LIB)
 SIMPLE_STACKS=c_stub.o cos_asm_upcall_simple_stacks.o cos_asm_ainv.o cos_component.o
 SIMPLE_STKLIB=simple_stklib.o
 
+CINC_ENV=$(CINC)
+export CINC_ENV
+
 .PHONY: all
 all: $(LIBS) $(MAND) $(SIMPLE_STKLIB)
 
@@ -53,7 +56,7 @@ thirdparty:
 	make -C dietlibc-0.29
 	make -C dietlibc-0.29 i386
 	cd ck; ./configure; cd ..
-	cd ps; ./configure linux x86; cd ..; make -C ps
+	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
 
 init: clean distclean thirdparty all
 #	make -C lwip/cos
