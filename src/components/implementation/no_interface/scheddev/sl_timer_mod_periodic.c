@@ -1,5 +1,6 @@
 #include <sl.h>
 #include <sl_consts.h>
+#include <sl_plugins.h>
 
 void
 sl_timeout_mod_expended(microsec_t now, microsec_t oldtimeout)

@@ -33,106 +33,29 @@
 #include <cos_defkernel_api.h>
 #include <ps.h>
 #include <res_spec.h>
-
-typedef enum {
-	SL_THD_FREE = 0,
-	SL_THD_BLOCKED,
-	SL_THD_WOKEN, 		/* if a race causes a wakeup before the inevitable block */
-	SL_THD_RUNNABLE,
-	SL_THD_DYING,
-} sl_thd_state;
-
-struct sl_thd {
-	sl_thd_state   state;
-	thdid_t        thdid;
-	thdcap_t       thdcap;
-	tcap_t         tcap;
-	tcap_prio_t    prio;
-	struct sl_thd *dependency;
-};
-
-/*
- * The build system has to add in the appropriate backends for the
- * system.  We rely on the linker to hook up all of these function
- * call instead of function pointers so that we can statically analyze
- * stack consumption and execution paths (e.g. for WCET) which are
- * prohibited by function pointers.  Additionally, significant work
- * (by Daniel Lohmann's group) has shown that a statically configured
- * system is more naturally fault resilient.  A minor benefit is the
- * performance of not using function pointers, but that is secondary.
- */
-typedef struct sl_thd *sl_thd_alloc_fn_t(int comp_boot, struct cos_defcompinfo *ci, cos_thd_fn_t fn, void *data);
-typedef void sl_thd_free_fn_t(struct sl_thd *);
-
-typedef void sl_thd_index_add_fn_t(struct sl_thd *);
-typedef void sl_thd_index_rem_fn_t(struct sl_thd *);
-typedef struct sl_thd *sl_thd_lookup_fn_t(thdid_t);
-
-sl_thd_alloc_fn_t     sl_thd_alloc_backend;
-sl_thd_free_fn_t      sl_thd_free_backend;
-sl_thd_index_add_fn_t sl_thd_index_add_backend;
-sl_thd_index_rem_fn_t sl_thd_index_rem_backend;
-sl_thd_lookup_fn_t    sl_thd_lookup_backend;
-
-
-/*
- * Each scheduler policy must implement the following API.  See above
- * for why this is not a function-pointer-based API.
- *
- * Scheduler modules (policies) should define the following
- */
-struct sl_thd_policy;
-static inline struct sl_thd *sl_mod_thd_get(struct sl_thd_policy *tp);
-static inline struct sl_thd_policy *sl_mod_thd_policy_get(struct sl_thd *t);
-
-typedef void sl_mod_execution_fn_t(struct sl_thd_policy *t, cycles_t cycles);
-typedef struct sl_thd_policy *sl_mod_schedule_fn_t(void);
-
-typedef void sl_mod_block_fn_t(struct sl_thd_policy *t);
-typedef void sl_mod_wakeup_fn_t(struct sl_thd_policy *t);
-
-typedef void sl_mod_thd_create_fn_t(struct sl_thd_policy *t);
-typedef void sl_mod_thd_delete_fn_t(struct sl_thd_policy *t);
-typedef void sl_mod_thd_param_set_t(struct sl_thd_policy *t, sched_param_type_t type, unsigned int val);
-typedef void sl_mod_init_fn_t(void);
-
-sl_mod_execution_fn_t  sl_mod_execution;
-sl_mod_schedule_fn_t   sl_mod_schedule;
-sl_mod_block_fn_t      sl_mod_block;
-sl_mod_wakeup_fn_t     sl_mod_wakeup;
-sl_mod_thd_create_fn_t sl_mod_thd_create;
-sl_mod_thd_delete_fn_t sl_mod_thd_delete;
-sl_mod_thd_param_set_t sl_mod_thd_param_set;
-sl_mod_init_fn_t       sl_mod_init;
-
-
-/* API for handling timer management */
-typedef void sl_timeout_mod_expended_fn_t(cycles_t now, cycles_t oldtimeout);
-typedef void sl_timeout_mod_init_fn_t(void);
-
-sl_timeout_mod_expended_fn_t sl_timeout_mod_expended;
-sl_timeout_mod_init_fn_t     sl_timeout_mod_init;
+#include <sl_mod_policy.h>
+#include <sl_plugins.h>
 
 /* Critical section (cs) API to protect scheduler data-structures */
 struct sl_cs {
 	union sl_cs_intern {
 		struct {
-			thdcap_t owner;
-			unsigned short int contention;
-		} s;
+			thdcap_t owner      :31;
+			u32_t    contention :1;
+		} PS_PACKED s;
 		unsigned long v;
 	} u;
 };
 
 struct sl_global {
-	struct sl_thd *curr;
 	struct sl_cs   lock;
-	thdcap_t       sched_thd;
-	tcap_t         sched_tcap;
-	arcvcap_t      rcv;
+
+	thdcap_t       sched_thdcap;
+	struct sl_thd *sched_thd;
+	struct sl_thd *idle_thd;
+
 	int            cyc_per_usec;
 	cycles_t       period;
-	struct sl_thd *idle_thd;
 	cycles_t       timer_next;
 };
 
@@ -148,11 +71,11 @@ sl_thd_setprio(struct sl_thd *t, tcap_prio_t p)
 
 static inline struct sl_thd *
 sl_thd_lkup(thdid_t tid)
-{ return sl_thd_lookup_backend(tid); }
+{ return sl_mod_thd_get(sl_thd_lookup_backend(tid)); }
 
 static inline struct sl_thd *
 sl_thd_curr(void)
-{ return sl__globals()->curr; }
+{ return sl_thd_lkup(cos_thdid()); }
 
 /* are we the owner of the critical section? */
 static inline int
@@ -171,6 +94,7 @@ sl_cs_enter(void)
 	struct sl_thd     *t = sl_thd_curr();
 	sched_tok_t        tok;
 
+	assert(t);
 retry:
 	tok      = cos_sched_sync();
 	csi.v    = sl__globals()->lock.u.v;
@@ -245,7 +169,6 @@ sl_cs_exit_schedule_nospin(void)
 	struct sl_thd        *t;
 	struct sl_global     *globals = sl__globals();
 	thdcap_t       thdcap;
-	tcap_t         tcap;
 	tcap_prio_t    prio;
 	sched_tok_t    tok;
 	cycles_t       now;
@@ -269,12 +192,12 @@ sl_cs_exit_schedule_nospin(void)
 	if (unlikely(!pt)) t = sl__globals()->idle_thd;
 	else               t = sl_mod_thd_get(pt);
 	thdcap = t->thdcap;
-	tcap   = t->tcap;
 	prio   = t->prio;
 
 	sl_cs_exit();
 
-	return cos_switch(thdcap, tcap, prio, sl__globals()->timer_next, sl__globals()->rcv, tok);
+	/* TODO: enable per-thread tcaps for interrupt threads */
+	return cos_defswitch(thdcap, prio, sl__globals()->timer_next, tok);
 }
 
 static inline void
@@ -290,6 +213,7 @@ sl_cs_exit_schedule(void)
 void sl_thd_block(thdid_t tid);
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);
+void sl_thd_yield(thdid_t tid);
 
 /* The entire thread allocation and free API */
 struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);

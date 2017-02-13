@@ -7,38 +7,9 @@
 
 #include <ps.h>
 #include <sl.h>
-#include <sl_policy.h>
-#include <assert.h>
+#include <sl_mod_policy.h>
+#include <cos_debug.h>
 #include <cos_kernel_api.h>
-
-/* Default implementations of backend functions */
-__attribute__((weak)) struct sl_thd *
-sl_thd_alloc_backend(int comp_boot, struct cos_defcompinfo *ci, cos_thd_fn_t fn, void *data)
-{
-	assert(0);
-
-	return NULL;
-}
-
-__attribute__((weak)) void
-sl_thd_free_backend(struct sl_thd *t)
-{ assert(0); }
-
-__attribute__((weak)) void
-sl_thd_index_add_backend(struct sl_thd *t)
-{ assert(0); }
-
-__attribute__((weak)) void
-sl_thd_index_rem_backend(struct sl_thd *t)
-{ assert(0); }
-
-__attribute__((weak)) struct sl_thd *
-sl_thd_lookup_backend(thdid_t tid)
-{
-	assert(0);
-
-	return NULL;
-}
 
 struct sl_global sl_global_data;
 
@@ -49,8 +20,8 @@ struct sl_global sl_global_data;
 void
 sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok)
 {
-	struct sl_thd *t = sl_thd_curr();
-	struct sl_global *g = sl__globals();
+	struct sl_thd *t           = sl_thd_curr();
+	struct sl_global *g        = sl__globals();
 
 	/* recursive locks are not allowed */
 	assert(csi->s.owner != t->thdcap);
@@ -59,7 +30,7 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 		if (!ps_cas(&g->lock.u.v, cached->v, csi->v)) return;
 	}
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	cos_switch(csi->s.owner, t->tcap, t->prio, g->timer_next, g->rcv, tok);
+	cos_defswitch(csi->s.owner, t->prio, g->timer_next, tok);
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
 }
 
@@ -67,12 +38,12 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 int
 sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched_tok_t tok)
 {
-	struct sl_thd    *t = sl_thd_curr();
-	struct sl_global *g = sl__globals();
+	struct sl_thd    *t        = sl_thd_curr();
+	struct sl_global *g        = sl__globals();
 
 	if (!ps_cas(&g->lock.u.v, cached->v, 0)) return 1;
 	/* let the scheduler thread decide which thread to run next, inheriting our budget/priority */
-	cos_switch(g->sched_thd, g->curr->tcap, g->curr->prio, g->timer_next, g->rcv, tok);
+	cos_defswitch(g->sched_thdcap, t->prio, g->timer_next, tok);
 
 	return 0;
 }
@@ -86,7 +57,7 @@ sl_thd_block(thdid_t tid)
 	assert(!tid);
 
 	sl_cs_enter();
-	t = sl__globals()->curr;
+	t = sl_thd_curr();
 	if (unlikely(t->state == SL_THD_WOKEN)) {
 		t->state = SL_THD_RUNNABLE;
 		sl_cs_exit();
@@ -129,19 +100,58 @@ done:
 	return;
 }
 
+void
+sl_thd_yield(thdid_t tid)
+{
+	struct sl_thd *t = sl_thd_curr();
+
+	/* directed yields not yet supported! */
+	assert(!tid);
+
+	sl_cs_enter();
+	sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
+	sl_cs_exit_schedule();
+
+	return;
+}
+
+static struct sl_thd *
+sl_thd_alloc_init(thdid_t tid, thdcap_t thdcap)
+{
+	struct sl_thd_policy   *tp  = NULL;
+	struct sl_thd          *t   = NULL;
+
+	tp = sl_thd_alloc_backend(tid);
+	if (!tp) goto done;
+	t = sl_mod_thd_get(tp);
+
+	t->thdid  = tid;
+	t->thdcap = thdcap;
+	t->state  = SL_THD_RUNNABLE;
+	sl_thd_index_add_backend(sl_mod_thd_policy_get(t));
+
+done:
+	return t;
+}
+
 /* boot_thd = 1 if you want to create a boot-up thread in a separate component */
 static struct sl_thd *
 sl_thd_alloc_intern(cos_thd_fn_t fn, void *data, struct cos_defcompinfo *comp, int boot_thd)
 {
-	struct cos_defcompinfo *ci = cos_defcompinfo_curr_get();
-	struct sl_thd          *t  = NULL;
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = &dci->ci;
+	struct sl_thd          *t   = NULL;
+	thdcap_t thdcap;
+	thdid_t  tid;
 
-	t = sl_thd_alloc_backend(boot_thd, comp, fn, data);
-	if (!t) goto done;
+	if (!boot_thd) thdcap = cos_thd_alloc(ci, ci->comp_cap, fn, data);
+	else           thdcap = cos_initthd_alloc(ci, comp->ci.comp_cap);
+	if (!thdcap) goto done;
 
-	t->tcap  = ci->sched_aep.tc;
-	t->state = SL_THD_RUNNABLE;
-	sl_thd_index_add_backend(t);
+	tid = cos_introspect(ci, thdcap, THD_GET_TID);
+	assert(tid);
+	t = sl_thd_alloc_init(tid, thdcap);
+	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 done:
 	return t;
 }
@@ -158,10 +168,10 @@ sl_thd_comp_alloc(struct cos_defcompinfo *comp)
 void
 sl_thd_free(struct sl_thd *t)
 {
-	sl_thd_index_rem_backend(t);
+	sl_thd_index_rem_backend(sl_mod_thd_policy_get(t));
 	t->state = SL_THD_FREE;
 	/* TODO: add logic for the graveyard to delay this deallocation if t == current */
-	sl_thd_free_backend(t);
+	sl_thd_free_backend(sl_mod_thd_policy_get(t));
 }
 
 void
@@ -191,17 +201,25 @@ sl_idle(void *d)
 void
 sl_init(void)
 {
-	struct sl_global *g = sl__globals();
+	struct sl_global       *g  = sl__globals();
+	struct cos_defcompinfo *ci = cos_defcompinfo_curr_get();
 
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
 
 	g->cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	g->lock.u.v     = 0;
 
+	sl_thd_init_backend();
 	sl_mod_init();
 	sl_timeout_mod_init();
 
-	g->idle_thd = sl_thd_alloc(sl_idle, NULL);
+	/* Create the scheduler thread for us */
+	g->sched_thd    = sl_thd_alloc_init(cos_thdid(), BOOT_CAPTBL_SELF_INITTHD_BASE);
+	assert(g->sched_thd);
+	g->sched_thdcap = BOOT_CAPTBL_SELF_INITTHD_BASE;
+
+	g->idle_thd     = sl_thd_alloc(sl_idle, NULL);
 	assert(g->idle_thd);
 
 	return;

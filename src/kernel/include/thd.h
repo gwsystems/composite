@@ -153,7 +153,7 @@ thd_rcvcap_sched(struct thread *t)
 }
 
 static void
-thd_next_thdinfo_update(struct cos_cpu_local_info *cli, struct thread *thd, 
+thd_next_thdinfo_update(struct cos_cpu_local_info *cli, struct thread *thd,
 			struct tcap *tc, tcap_prio_t prio, tcap_res_t budget)
 {
 	struct next_thdinfo *nti = &cli->next_ti;
