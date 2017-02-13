@@ -65,6 +65,7 @@ static inline struct sl_global *
 sl__globals(void)
 { return &sl_global_data; }
 
+/* FIXME: integrate with param_set */
 static inline void
 sl_thd_setprio(struct sl_thd *t, tcap_prio_t p)
 { t->prio = p; }
