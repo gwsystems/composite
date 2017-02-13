@@ -33,7 +33,7 @@ enum {
 static vaddr_t
 boot_deps_map_sect(int spdid, vaddr_t dest_daddr)
 {
-	vaddr_t addr = cos_page_bump_alloc(&boot_info);
+	vaddr_t addr = (vaddr_t) cos_page_bump_alloc(&boot_info);
 	assert(addr);
 			
 	if (cos_mem_alias_at(new_comp_cap_info[spdid].compinfo, dest_daddr, &boot_info, addr)) BUG();
@@ -76,7 +76,7 @@ boot_compinfo_init(int spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 }
 
 static void
-boot_newcomp_create(int spdid, struct comp_cap_info *comp_info)
+boot_newcomp_create(int spdid, struct cos_compinfo *comp_info)
 {
 	compcap_t   cc;
 	captblcap_t ct = new_comp_cap_info[spdid].compinfo->captbl_cap;
@@ -100,7 +100,7 @@ boot_newcomp_create(int spdid, struct comp_cap_info *comp_info)
 	assert(main_thd);
 
 	/* Add created component to "scheduling" array */		
-	while (schedule[i] != NULL) i++;
+	while (schedule[i] != 0) i++;
 	schedule[i] = main_thd;
 }
 
@@ -126,7 +126,7 @@ boot_thd_done(void)
 {
 	sched_cur++;
 
-	if (schedule[sched_cur] != NULL) {
+	if (schedule[sched_cur] != 0) {
 		printc("Initializing comp: %d\n", sched_cur);
 	       	cos_thd_switch(schedule[sched_cur]);
 	} else {
