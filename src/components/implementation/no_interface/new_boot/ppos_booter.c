@@ -64,7 +64,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 	/* We'll map the component into booter's heap. */
 	new_comp_cap_info[spdid].vaddr_mapped_in_booter = (vaddr_t)cos_get_heap_ptr();
 	
-	for (i = 0 ; i < h->nsect ; i++) {
+	for (i = 0 ; i < (int)h->nsect ; i++) {
 		int left;
 
 		sect = cobj_sect_get(h, i);
@@ -112,7 +112,7 @@ boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info)
 {
 	int i = 0;
 
-	for (i = 0 ; i < h->nsymb ; i++) {
+	for (i = 0 ; i < (int)h->nsymb ; i++) {
 		struct cobj_symb *symb;
 
 		symb = cobj_symb_get(h, i);
@@ -208,7 +208,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 			ci = (struct cos_component_information*)(start_addr + (comp_info-init_daddr));
 			new_comp_cap_info[h->id].upcall_entry = ci->cos_upcall_entry;
 			
-			vaddr_t begin =start_addr + ((ci->cos_upcall_entry) - init_daddr); 
+			vaddr_t begin = (vaddr_t) start_addr + ((ci->cos_upcall_entry) - init_daddr); 
 		}
 	}
 
@@ -228,7 +228,7 @@ boot_init_sched(void)
 {
 	int i;
 	
-	for (i = 0 ; i < MAX_NUM_SPDS ; i++) schedule[i] = NULL;
+	for (i = 0 ; i < MAX_NUM_SPDS ; i++) schedule[i] = 0;
 	sched_cur = 0;
 }
 						
