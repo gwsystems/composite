@@ -1,7 +1,7 @@
 # What
 
 The is the *Speck* version of the scheduler library.
-It encodes some default behaviors (i.e. fixed capability offsets for rcv, tcap, initial thread), and handles most of the esoteric synchronization required by the interaction between user and kernel
+It encodes some default behaviors (i.e. fixed capability offsets for rcv, tcap, initial thread), and handles most of the esoteric synchronization required by the interaction between user and kernel.
 It has a plugin infrastructure with three main parts:
 
 - *Scheduling policy* - encoded in `sl_mod_<name>.c` and `sl_mod_policy.h`.
@@ -63,3 +63,4 @@ We don't hide the internal, fine-grained unit to avoid costly translation betwee
 - `aep` endpoints: asynchronous rcv + tcap + thread tuples with asynchronous activations; most of this should already work, but we need an API for this
 - schedule not just threads, but also aep endpoints to enable hierarchical scheduling, and in doing so, integrate with APIs for tcap transfer (i.e. period-based?, larger?)
 - a separate API to virtually "disable interrupts" might be necessary to support the likes of the rump kernel
+- idle processing should be wrapped into the `sl_sched_loop` processing, so that when idle, `rcv` can be called, thus switching to a parent scheduler.  `rcv`ing on the root rcv end-point should likely idle the processor, which could get complicated.  In the mean time, returning immediately would help.  To make this work, 1. the sched loop needs to disambiguate between different types of activations, and 2. the `cos_sched_rcv` should have a flag to allow it to be called in blocking (idle) or non-blocking (scheduler event retrieval) modes.
