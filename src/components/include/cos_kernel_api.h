@@ -10,6 +10,18 @@
 #include <cos_component.h>
 #include <cos_debug.h>
 
+/* Types mainly used for documentation */
+typedef capid_t sinvcap_t;
+typedef capid_t sretcap_t;
+typedef capid_t asndcap_t;
+typedef capid_t arcvcap_t;
+typedef capid_t thdcap_t;
+typedef capid_t tcap_t;
+typedef capid_t compcap_t;
+typedef capid_t captblcap_t;
+typedef capid_t pgtblcap_t;
+typedef capid_t hwcap_t;
+
 /* Memory source information */
 struct cos_meminfo {
 	vaddr_t untyped_ptr,      umem_ptr,      kmem_ptr;
@@ -46,6 +58,7 @@ void cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_
  */
 void cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz, pgtblcap_t pgtbl_cap);
 void cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz);
+vaddr_t cos_pgtbl_intern_alloc(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz);
 
 /*
  * This uses the next three functions to allocate a new component and
@@ -75,6 +88,7 @@ capid_t cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_
 int cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_compinfo *srcci, capid_t srccap);
 
 int cos_thd_switch(thdcap_t c);
+int cos_thd_wakeup(thdcap_t thd, tcap_t tc, tcap_prio_t prio, tcap_res_t res);
 #define CAP_NULL 0
 sched_tok_t cos_sched_sync(void);
 int cos_switch(thdcap_t c, tcap_t t, tcap_prio_t p, tcap_time_t r, arcvcap_t rcv, sched_tok_t stok);
@@ -88,6 +102,8 @@ int cos_sched_rcv(arcvcap_t rcv, thdid_t *thdid, int *blocked, cycles_t *cycles)
 
 int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
 
+int cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4);
+
 vaddr_t cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
 int cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);
 vaddr_t cos_mem_move(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
@@ -95,7 +111,7 @@ int cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo
 int cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
 
 /* Tcap operations */
-tcap_t cos_tcap_alloc(struct cos_compinfo *ci, tcap_prio_t prio);
+tcap_t cos_tcap_alloc(struct cos_compinfo *ci);
 int cos_tcap_transfer(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio);
 int cos_tcap_delegate(asndcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags);
 int cos_tcap_merge(tcap_t dst, tcap_t rm);
@@ -106,8 +122,6 @@ int cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t rcvcap);
 int cos_hw_detach(hwcap_t hwc, hwid_t hwid);
 void *cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
 int cos_hw_cycles_per_usec(hwcap_t hwc);
-
-void *cos_va2pa(struct cos_compinfo *ci, void * vaddr);
-
+int cos_hw_cycles_thresh(hwcap_t hwc);
 
 #endif /* COS_KERNEL_API_H */

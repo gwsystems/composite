@@ -3,6 +3,7 @@
 #include <cos_kernel_api.h>
 
 #include "vk_types.h"
+#include "vk_api.h"
 
 #undef assert
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0; } } while (0)
@@ -11,25 +12,12 @@
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
 #define SPIN() do { while (1) ; } while (0)
 
-struct vms_info {
-	struct cos_compinfo cinfo;
-	thdcap_t initthd, exitthd;
-	thdid_t inittid;
-	tcap_t inittcap;
-	arcvcap_t initrcv;
-};
-
-struct vkernel_info {
-	struct cos_compinfo cinfo;
-
-	thdcap_t termthd;
-	asndcap_t vminitasnd[VM_COUNT];
-};
-
 extern vaddr_t cos_upcall_entry;
 extern void vm_init(void *);
 
 struct vms_info vmx_info[VM_COUNT];
+struct dom0_io_info dom0ioinfo;
+struct vm_io_info vmioinfo[VM_COUNT-1];
 struct vkernel_info vk_info;
 unsigned int ready_vms = VM_COUNT;
 struct cos_compinfo *vk_cinfo = (struct cos_compinfo *)&vk_info.cinfo;
@@ -43,7 +31,7 @@ vm_exit(void *d)
 {
 	printc("%d: EXIT\n", (int)d);
 	ready_vms --;
-	vmx_info[(int)d].initthd = 0;	
+	vmx_info[(int)d].state = VM_EXITED;	
 
 	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 }
@@ -60,7 +48,7 @@ scheduler(void)
 	while (ready_vms) {
 		index = i++ % VM_COUNT;
 		
-		if (vmx_info[index].initthd) {
+		if (vmx_info[index].state == VM_RUNNING) {
 			assert(vk_info.vminitasnd[index]);
 
 			if (cos_tcap_delegate(vk_info.vminitasnd[index], BOOT_CAPTBL_SELF_INITTCAP_BASE,
@@ -82,13 +70,19 @@ cos_init(void)
 
 	cos_meminfo_init(&vk_cinfo->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(vk_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, 
-			(vaddr_t)BOOT_MEM_SHM_BASE, vk_cinfo);
+			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, vk_cinfo);
+	/*
+	 * TODO: If there is any captbl modification, this could mess up a bit. 
+	 *       Care to be taken not to use this for captbl mod api
+	 *       Or use some offset into the future in CAPTBL_FREE
+	 */
+	cos_compinfo_init(&vk_info.shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+			(vaddr_t)VK_VM_SHM_BASE, BOOT_CAPTBL_FREE, vk_cinfo);
 
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL);
 	assert(vk_info.termthd);
 
-	while (!(cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE))) ;
+	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	printc("\t%d cycles per microsecond\n", cycs);
 
 	for (id = 0 ; id < VM_COUNT ; id ++) {
@@ -101,10 +95,9 @@ cos_init(void)
 		int ret;
 
 		printc("vkernel: VM%d Init START\n", id);
+		vm_info->id = id;
+
 		printc("\tForking VM\n");
-		vm_info->exitthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vm_exit, (void *)id);
-		assert(vm_info->exitthd);
-		
 		vmct = cos_captbl_alloc(vk_cinfo);
 		assert(vmct);
 
@@ -119,13 +112,9 @@ cos_init(void)
 
 		cos_meminfo_init(&vm_cinfo->mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, vmutpt);
 		cos_compinfo_init(vm_cinfo, vmpt, vmct, vmcc,
-				(vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, 
-				(vaddr_t)BOOT_MEM_SHM_BASE, vk_cinfo);
-
-		vm_info->initthd = cos_thd_alloc(vk_cinfo, vm_cinfo->comp_cap, vm_init, (void *)id);
-		assert(vm_info->initthd);
-		vm_info->inittid = (thdid_t)cos_introspect(vk_cinfo, vm_info->initthd, THD_GET_TID);
-		printc("\tInit thread= cap:%x tid:%x\n", (unsigned int)vm_info->initthd, (unsigned int)vm_info->inittid);
+				(vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, vk_cinfo);
+		cos_compinfo_init(&vm_info->shm_cinfo, vmpt, vmct, vmcc,
+				(vaddr_t)VK_VM_SHM_BASE, VM_CAPTBL_FREE, vk_cinfo);
 
 		printc("\tCopying pgtbl, captbl, component capabilities\n");
 		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_CT, vk_cinfo, vmct);
@@ -137,54 +126,45 @@ cos_init(void)
 		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_COMP, vk_cinfo, vmcc);
 		assert(ret == 0);
 
-		printc("\tCreating and copying required initial capabilities\n");
-		/*
-		 * TODO: Multi-core support to create INITIAL Capabilities per core
-		 */
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_INITTHD_BASE, vk_cinfo, vm_info->initthd);
-		assert(ret == 0);
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_INITHW_BASE, vk_cinfo, BOOT_CAPTBL_SELF_INITHW_BASE);
-		assert(ret == 0);
-		ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_EXITTHD_BASE, vk_cinfo, vm_info->exitthd);
-		assert(ret == 0);
-		
-		vm_info->inittcap = cos_tcap_alloc(vk_cinfo, TCAP_PRIO_MAX);
-		assert(vm_info->inittcap);
-
-		vm_info->initrcv = cos_arcv_alloc(vk_cinfo, vm_info->initthd, vm_info->inittcap, vk_cinfo->comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-		assert(vm_info->initrcv);
-
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_INITTCAP_BASE, vk_cinfo, vm_info->inittcap);
-		assert(ret == 0);
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_INITRCV_BASE, vk_cinfo, vm_info->initrcv);
-		assert(ret == 0);
-
-		/*
-		 * Create send end-point in VKernel to each VM's INITRCV end-point
-		 */
-		vk_info.vminitasnd[id] = cos_asnd_alloc(vk_cinfo, vm_info->initrcv, vk_cinfo->captbl_cap);
-		assert(vk_info.vminitasnd[id]);
-
-		/*
-		 * Create and copy booter comp virtual memory to each VM
-		 */
-		vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
-		assert(vm_range > 0);
-		printc("\tMapping in Booter component's virtual memory (range:%lu)\n", vm_range);
-		for (addr = 0 ; addr < vm_range ; addr += PAGE_SIZE) {
-			vaddr_t src_pg = (vaddr_t)cos_page_bump_alloc(vk_cinfo), dst_pg;
-			assert(src_pg);
-			
-			memcpy((void *)src_pg, (void *)(BOOT_MEM_VM_BASE + addr), PAGE_SIZE);
-			
-			dst_pg = cos_mem_alias(vm_cinfo, vk_cinfo, src_pg);
-			assert(dst_pg);
-		}
+		vk_initcaps_init(vm_info, &vk_info);
 
 		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE);
 		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE);
 
+		if (id == 0) {
+			printc("\tAllocating shared-memory (size: %lu)\n", (unsigned long)VM_SHM_ALL_SZ);
+			vk_shmem_alloc(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_ALL_SZ);
+
+			vm_info->dom0io = &dom0ioinfo;
+		} else {
+			printc("\tMapping in shared-memory (size: %lu)\n", (unsigned long)VM_SHM_SZ);
+			vk_shmem_map(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_SZ);
+
+			vm_info->vmio = &vmioinfo[id - 1];
+		}
+
+		if (id > 0) {
+			printc("\tSetting up Cross-VM (between DOM0 and VM%d) communication capabilities\n", id);
+			vk_iocaps_init(vm_info, &vmx_info[0], &vk_info);
+
+			/*
+			 * Create and copy booter comp virtual memory to each VM
+			 */
+			vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
+			assert(vm_range > 0);
+			printc("\tMapping in Booter component's virtual memory (range:%lu)\n", vm_range);
+			vk_virtmem_alloc(vm_info, &vk_info, BOOT_MEM_VM_BASE, vm_range);
+
+			/*
+			 * Copy DOM0 only after all VMs are initialized
+			 */
+			if (id == VM_COUNT - 1) {
+				vk_virtmem_alloc(&vmx_info[0], &vk_info, BOOT_MEM_VM_BASE, vm_range);
+			}
+		}
+
 		printc("vkernel: VM%d Init END\n", id);
+		vm_info->state = VM_RUNNING;
 	}
 
 	printc("Starting Scheduler\n");

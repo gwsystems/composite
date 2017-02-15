@@ -25,7 +25,7 @@ tcap_uid_get(void)
 
 /* Fill in default "safe" values */
 static void
-__tcap_init(struct tcap *t, tcap_prio_t prio)
+__tcap_init(struct tcap *t)
 {
 	tcap_uid_t *uid = tcap_uid_get();
 
@@ -36,8 +36,8 @@ __tcap_init(struct tcap *t, tcap_prio_t prio)
 	t->curr_sched_off          = 0;
 	t->refcnt                  = 1;
 	t->arcv_ep                 = NULL;
-	t->perm_prio               = prio;
-	tcap_setprio(t, prio);
+	t->perm_prio               = 0;
+	tcap_setprio(t, 0);
 	list_init(&t->active_list, t);
 }
 
@@ -48,11 +48,14 @@ tcap_isactive(struct tcap *t)
 static int
 tcap_delete(struct tcap *tcap)
 {
+	struct cos_cpu_local_info *cli = cos_cpu_local_info();
+
 	assert(tcap);
 	if (tcap_ref(tcap) != 1) return -1;
 	memset(&tcap->budget, 0, sizeof(struct tcap_budget));
 	memset(tcap->delegations, 0, sizeof(struct tcap_sched_info) * TCAP_MAX_DELEGATIONS);
 	tcap->ndelegs = tcap->cpuid = tcap->curr_sched_off = tcap->perm_prio = 0;
+	if (cli->next_ti.tc == tcap) thd_next_thdinfo_update(cli, 0, 0, 0, 0);
 
 	return 0;
 }
@@ -110,13 +113,13 @@ __tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, t
 }
 
 int
-tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, tcap_prio_t prio)
+tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new)
 {
 	struct cap_tcap *tc;
 	int ret;
 
 	assert(tcap_new);
-	__tcap_init(tcap_new, prio);
+	__tcap_init(tcap_new);
 
 	tc = (struct cap_tcap *)__cap_capactivate_pre(ct, cap, capin, CAP_TCAP, &ret);
 	if (!tc) return ret;
@@ -213,6 +216,31 @@ tcap_merge(struct tcap *dst, struct tcap *rm)
 	if (tcap_delegate(dst, rm, 0, tcap_sched_info(dst)->prio)) return -1;
 	if (tcap_delete(rm))  assert(0);
 
+	return 0;
+}
+
+int
+tcap_wakeup(struct tcap *tc, tcap_prio_t prio, tcap_res_t budget, 
+	    struct thread *thd, struct cos_cpu_local_info *cli)
+{
+	int ret;
+	struct next_thdinfo *nti = &cli->next_ti;
+	tcap_prio_t tmpprio      = tcap_sched_info(tc)->prio;
+
+	if (!nti->tc) {
+		assert(!nti->thd);
+		goto fixup;
+	}
+
+	if (tc == nti->tc && prio >= nti->prio) goto fixup;
+
+	tcap_setprio(tc, prio);
+	ret = tcap_higher_prio(tc, nti->tc);
+	tcap_setprio(tc, tmpprio);
+	if (!ret) return 0;
+
+fixup:
+	thd_next_thdinfo_update(cli, thd, tc, prio, budget);
 	return 0;
 }
 

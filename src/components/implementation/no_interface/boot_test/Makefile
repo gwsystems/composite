@@ -1,6 +1,6 @@
-C_OBJS=mb_tests.o micro_booter.o vkernel.o vk_api.o
-ASM_OBJS=cos_asm_scheduler.o inv.o
-COMPONENT=vkernel_boot.o
+C_OBJS=test_booter.o
+ASM_OBJS=
+COMPONENT=test_boot.o
 INTERFACES=
 DEPENDENCIES=
 IF_LIB=
