@@ -889,7 +889,7 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 	cbi        = cmap_lookup(&cbufs, s_cbid);
 	if (!cbi) BUG();
 	sz = cbi->size;
-	printc("forking cbuf %d from spdid %d to spdid %d\n", s_cbid, o_spd, f_spd);
+	printc("forking cbuf %d from spdid %d to spdid %d, with cinfo copy %d\n", s_cbid, o_spd, f_spd, copy_cinfo);
 
 	/* 
 	 * cmap_lookup returns original owner so need to recurse 
@@ -963,21 +963,12 @@ __get_nfo(struct cbuf_comp_info *cci)
 		if (cbi) { /* presumably the cbuf could have been deleted but this is unlikely */
 			printc("cbuf #%2u with size %x, mem start %x, and maps ", cbi->cbid, cbi->size, cbi->mem);
 			struct cbuf_maps *m = &cbi->owner;
-			struct cbuf_meta *cm = m->m;		/* Use this after loop */
 
 			do {
 				printc("[%d:%x] ", m->spdid, m->addr);
 				m = FIRST_LIST(m, next, prev);
 			} while (m != &cbi->owner);
 
-			printc("\n\tnfo: [ex %d|ow %d|t %d|in %d|re %d] page pointer %x",
-									CBUF_EXACTSZ(cm)      >> 11,
-									CBUF_OWNER(cm)        >> 10,
-									CBUF_TMEM(cm)         >>  9,
-									CBUF_INCONSISTENT(cm) >>  8,
-									CBUF_RELINQ(cm)       >>  7,
-									CBUF_PTR(cm));
-			
 			printc("\n");
 		}
 
@@ -997,14 +988,13 @@ __cbuf_fork_spd(spdid_t o_spd, spdid_t f_spd, int cinfo_cbid)
 	vaddr_t ret = (vaddr_t) NULL;		/* address of cinfo page */
 
 	int r = valloc_fork_spd(cos_spd_id(), o_spd, f_spd);
-	
+
+	printc("forking all cbufs from %d to %d with cinfo spdid %d\n", o_spd, f_spd, cinfo_cbid);	
 	src = cbuf_comp_info_get(o_spd);
 	dst = cbuf_comp_info_get(f_spd);
-	__get_nfo(src);
 
 	/* Should create a new shared page between cbuf_mgr and dst */
 	dst->csp = NULL;
-	//dst->dest_csp = src->dest_csp;
 	
 	current = cbi_head;
 	vaddr_t r_addr;

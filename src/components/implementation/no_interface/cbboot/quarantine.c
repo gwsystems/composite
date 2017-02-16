@@ -69,6 +69,7 @@ quarantine_spd_caps(struct cobj_header *h, spdid_t spdid)
 		if (cobj_cap_undef(cap)) break;
 		/* ignore fault handlers */
 		if (cap->fault_num < COS_FLT_MAX) continue;
+		printc("qm: incfc\n");
 		if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, spdid, cap->cap_off, 1)) BUG();
 	}
 	return 0;
@@ -126,6 +127,7 @@ fix_send_side_counters(spdid_t o_spd, spdid_t f_spd, struct cobj_header *o_hdr)
 		int cnt;
 		cap = cobj_cap_get(o_hdr, j);
 		if (cobj_cap_undef(cap)) break;	
+		printc("qm: incfc\n");
 		if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, o_spd, cap->cap_off, (1 << 8) | 0)) BUG();
 		cnt = cos_cap_cntl(COS_CAP_GET_FORK_CNT, o_spd, cap->cap_off, 0);
 		assert(cnt > 0);
@@ -348,8 +350,8 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 #endif
 
 	/* TODO: should creation of boot threads be controlled by policy? */
-	//printd("Creating boot threads in fork: %d\n", d_spd);
-	//if (__boot_spd_thd(d_spd)) BUG();
+	printd("Creating boot threads in fork: %d\n", d_spd);
+	if (__boot_spd_thd(d_spd)) BUG();
 	
 	reset = sched_curr_set_priority(p);
 	assert(0 == reset);
@@ -375,6 +377,7 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	int c_spd, d_spd;
 	int f_spd;
 	int inc_val;
+	int fork_count;
 
 	// unpack
 	capid = cap_ccnt_dcnt >> 16;
@@ -402,6 +405,7 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 		/* 
 		 *Assuming c_spd is the forked component, so find the orig 
 		 */
+		printc("qfh dfix\n");
 		struct spd_map_entry *c_map_entry = quarantine_get_spd_map_entry(c_spd);
 		if (EMPTY_LIST(c_map_entry, n, p)) {
 			/* no forks for c_spd, it must be the fork, and its
@@ -417,10 +421,14 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 		}
 		
 		printd("Fixing server %d's metadata for spd %d after fork to %d\n", d_spd, f_spd, c_spd);
+
+		int fork_count = cos_cap_cntl(COS_CAP_GET_FORK_CNT, c_spd, capid, 0);
+		printc("Fork count at %d\n", fork_count);
 	
 		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
 	}
 	if (c_fix) {
+		printc("qfh cfix\n");
 		/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
 		 * Two possible ways to fix c_spd are to (1) find the usr_cap_tbl and
 		 * add a capability for the fork directly, or (2) add a syscall to
@@ -451,9 +459,22 @@ dont_fix_c:
 	 * the fault happen again in this (unlikely) case. */
 	/* FIXME: What, if anything, can we do about other caps between
 	 * c_spd and d_spd? */
+
+	// This is a terrible hack to cover up for another hack. Fix the other hack instead. Clearly the d_fix/c_fix are wrong. Find out why and fix that.
+	fork_count = cos_cap_cntl(COS_CAP_GET_FORK_CNT, c_spd, capid, 0);
+	printc("Fork count at %d\n", fork_count);
+	int cur_d, cur_c;
+	cur_d = (fork_count >> 8) & 0xff;
+	cur_c = fork_count & 0xff;
+	if (cur_d - d_fix < 0) d_fix = -cur_d;
+	if (cur_c - c_fix < 0) c_fix = -cur_c;
+	
 	inc_val = (((u8_t)-d_fix)<<8U) | ((u8_t)(-c_fix));
-	printd("Incrementing fork count by %d in spd %d for cap %d\n", inc_val, c_spd, capid);
+	printd("Incrementing fork count by %d (which works out to d %d and c %d) in spd %d for cap %d\n", inc_val, -d_fix, -c_fix, c_spd, capid);
 	cos_cap_cntl(COS_CAP_INC_FORK_CNT, c_spd, capid, inc_val);
+	
+	fork_count = cos_cap_cntl(COS_CAP_GET_FORK_CNT, c_spd, capid, 0);
+	printc("Fork count at %d\n", fork_count);
 
 	/* remove from the invocation stack the faulting component! */
 	assert(!cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0));

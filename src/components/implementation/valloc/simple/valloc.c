@@ -68,8 +68,6 @@ int valloc_fork_spd(spdid_t spdid, spdid_t o_spdid, spdid_t f_spdid)
 	void *o_hp;
 	int i;
 
-	printc("starting valloc_fork_spd call from %d of %d to %d\n", spdid, o_spdid, f_spdid);
-
 	if (!cos_vect_lookup(&spd_vect, o_spdid)) goto done;
 	o_trac = cos_vect_lookup(&spd_vect, o_spdid);
 	if (!o_trac) goto done;
@@ -87,7 +85,6 @@ int valloc_fork_spd(spdid_t spdid, spdid_t o_spdid, spdid_t f_spdid)
 
 	for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
 		if (o_trac->extents[i].start != 0) {		/* naively simple way to make sure we don't copy empty tracs */
-			printc("adding trac starting at %x to %x with map %x\n", o_trac->extents[i].start, o_trac->extents[i].end, o_trac->extents[i].map);
 		        f_trac->extents[i].start = o_trac->extents[i].start;
         		f_trac->extents[i].end   = o_trac->extents[i].end;
         		f_trac->extents[i].map   = o_trac->extents[i].map;
