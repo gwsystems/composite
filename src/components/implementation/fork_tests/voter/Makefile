@@ -1,8 +1,8 @@
-C_OBJS=fork_voter.o
+C_OBJS=voter.o
 ASM_OBJS=
 COMPONENT=forkvoter.o
 INTERFACES=voter
-DEPENDENCIES=sched printc quarantine cbuf_mgr valloc #test_malloc_comp
+DEPENDENCIES=sched printc quarantine cbuf_mgr valloc
 IF_LIB=
 
 include ../../Makefile.subsubdir

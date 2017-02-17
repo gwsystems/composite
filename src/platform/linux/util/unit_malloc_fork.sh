@@ -20,5 +20,5 @@ cbuf.o-fprr.o|print.o|l.o|mm.o|va.o|llboot.o;\
 cbboot.o-print.o|fprr.o|mm.o|boot.o|cbuf.o|[parent_]llboot.o;\
 forkpong.o-fprr.o|cbuf.o|va.o|forkvoter.o|print.o|cbboot.o;\
 forkping.o-fprr.o|cbuf.o|va.o|forkvoter.o|print.o|cbboot.o;\
-forkvoter.o-fprr.o|cbuf.o|print.o|cbboot.o\
+forkvoter.o-fprr.o|cbuf.o|va.o|print.o|cbboot.o\
 " ./gen_client_stub

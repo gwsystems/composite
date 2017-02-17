@@ -64,20 +64,5 @@ done:
 }
 
 void cos_init(void) {
-	if (!confirm_flag) {
-		printc("malloc_comp_init\n");
-		confirm_flag = 1;
-		call();
-
-		confirm(cos_spd_id());
-		
-		// to ignore fork for now
-		printc("calling ping\n");
-		int pingc = ping(cos_spd_id(), 0);
-		printc("ping returned %d\n", pingc);
-	} else {
-		printc("calling ping\n");
-		int pingc = ping(cos_spd_id(), 0);
-		printc("ping returned %d\n", pingc);
-	}
+	call();
 }

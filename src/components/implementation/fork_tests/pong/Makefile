@@ -1,6 +1,6 @@
-C_OBJS=fork_ping.o
+C_OBJS=pong.o
 ASM_OBJS=
-COMPONENT=forkping.o
+COMPONENT=forkpong.o
 INTERFACES=
 DEPENDENCIES=printc quarantine qfault cbuf_mgr valloc voter 
 IF_LIB=

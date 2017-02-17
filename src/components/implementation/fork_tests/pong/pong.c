@@ -12,13 +12,15 @@ void cos_init(void) {
 		printc("pong init\n");
 		confirm_flag = 1;
 
-		confirm(cos_spd_id());
+		confirm(cos_spd_id(), pong);
 		
 		// to ignore fork for now
 		printc("calling read\n");
 		int readc = nread(cos_spd_id(), 0, 0);
 		printc("read returned %d\n", readc);
 		readc++;
+
+		printc("----second iteration pong----\n");
 		readc = nwrite(cos_spd_id(), 0, readc);
 		printc("write returned %d\n", readc);
 	} else {
