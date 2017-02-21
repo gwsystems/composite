@@ -2,7 +2,8 @@
 #define VOTER_H
 
 typedef enum {
-	ping = 0, 
+	none = 0,
+	ping, 
 	pong
 } replica_type;
 

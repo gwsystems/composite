@@ -36,12 +36,40 @@ struct nmod_comp components[2];
 
 void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd) { }
 
+struct nmod_comp *get_component(spdid_t spdid) {
+	replica_type type = map[spdid];
+	int i;
+
+	if (type == none) return NULL;
+
+	if (type == ping) {
+		for (i = 0; i < components[0].nreplicas; i++) {
+			if (components[0].replicas[i].spdid == spdid) {
+				return &components[0];
+			}
+		}
+		return NULL;
+	}
+	else if (type == pong) {
+		for (i = 0; i < components[1].nreplicas; i++) {
+			if (components[1].replicas[i].spdid == spdid) {
+				return &components[1];
+			}
+		}
+		return NULL;
+	}
+	else {
+		return NULL;
+	}
+}
+
 struct replica_info *get_replica(spdid_t spdid) {
 	struct nmod_comp *component = NULL;
 	int i;
 	replica_type type = map[spdid];
-	component = &components[type];
+	if (type == none) return NULL;
 
+	component = get_component(spdid);
 	if (!component) return NULL;
 
 	for (i = 0; i < component->nreplicas; i++) {
@@ -57,7 +85,7 @@ int nwrite(spdid_t spdid, int to, int data) {
 	printc("write got called from %d to %d with data %d\n", spdid, to, data);
 	struct replica_info *replica = get_replica(spdid);
 	struct replica_info *receiver;
-	struct nmod_comp *component = &components[map[spdid]];
+	struct nmod_comp *component = get_component(spdid);
 	struct nmod_comp *receiver_comp;
 	int ret;
 	int i, j;
@@ -116,8 +144,8 @@ int nread(spdid_t spdid, int from, int data) {
 	printc("read got called from %d from %d with data %d\n", spdid, from, data);
 
 	struct replica_info *replica = get_replica(spdid);
-	struct replica_info *recv_replica = get_replica(spdid);
-	struct nmod_comp *component = &components[map[spdid]];
+	struct replica_info *recv_replica;
+	struct nmod_comp *component = get_component(spdid);
 	struct nmod_comp *receiver_comp;
 	int ret, j;
 	int i;
@@ -161,14 +189,15 @@ int nread(spdid_t spdid, int from, int data) {
 }
 
 int confirm(spdid_t spdid, replica_type type) {
-	printc("Starting a pseudo-voter\n");
+	printc("Confirming readiness of spdid %d\n", spdid);
 	
 	int ret;
 	int i;
-	struct replica_info *replicas = components[type].replicas;
-			
 	
-	for (i = 0; i < components[type].nreplicas; i++) {
+	int t = (type == ping) ? 0 : 1;	
+	struct replica_info *replicas = components[t].replicas;
+	
+	for (i = 0; i < components[t].nreplicas; i++) {
 		if (replicas[i].spdid == 0) {
 			printc("creating replica for spdid %d in slot %d\n", spdid, i);
 			replicas[i].spdid = spdid;
@@ -180,7 +209,6 @@ int confirm(spdid_t spdid, replica_type type) {
 			replicas[i].have_data = 0;
 			replicas[i].thread_id = 0;
 
-			
 			map[spdid] = type;
 			return 0;
 		}
@@ -206,6 +234,10 @@ void cos_init(void)
 			components[i].replicas[j].spdid = 0;
 			components[i].replicas[j].blocked = 0;
 		}
+	}
+
+	for (i = 0; i < 250; i++) {
+		map[i] = none;
 	}
 	
 	// wrong - nmod comp should know who its receiver is tho. Replica can't specify because not trusted
