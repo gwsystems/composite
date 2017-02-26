@@ -33,21 +33,8 @@ typedef signed long long s64_t;
 
 typedef unsigned long word_t;
 
-/* Types mainly used for documentation */
-typedef unsigned long capid_t;
-
-typedef capid_t sinvcap_t;
-typedef capid_t sretcap_t;
-typedef capid_t asndcap_t;
-typedef capid_t arcvcap_t;
-typedef capid_t thdcap_t;
-typedef capid_t tcap_t;
-typedef capid_t compcap_t;
-typedef capid_t captblcap_t;
-typedef capid_t pgtblcap_t;
-typedef capid_t hwcap_t;
-
 typedef u64_t cycles_t;
+typedef u64_t microsec_t;
 typedef unsigned long tcap_res_t;
 typedef unsigned long tcap_time_t;
 typedef u64_t tcap_prio_t;
@@ -73,10 +60,12 @@ tcap_cyc2time(cycles_t c) {
 	tcap_time_t t = (tcap_time_t)(c >> TCAP_TIME_QUANTUM_ORD);
 	return t == TCAP_TIME_NIL ? 1 : t;
 }
-#define CYCLES_DIFF_THRESH (1<<10)
+
+// #define CYCLES_DIFF_THRESH (1<<10)
+
 static inline int
-cycles_same(cycles_t a, cycles_t b)
-{ return (b < a ? a - b : b - a) <= CYCLES_DIFF_THRESH; }
+cycles_same(cycles_t a, cycles_t b, cycles_t diff_thresh)
+{ return (b < a ? a - b : b - a) <= diff_thresh; }
 /* FIXME: if wraparound happens, we need additional logic to compensate here */
 static inline int tcap_time_lessthan(tcap_time_t a, tcap_time_t b) { return a < b; }
 
@@ -127,13 +116,15 @@ typedef enum {
 	CAPTBL_OP_TCAP_TRANSFER,
 	CAPTBL_OP_TCAP_DELEGATE,
 	CAPTBL_OP_TCAP_MERGE,
+	CAPTBL_OP_TCAP_WAKEUP,
 
 	CAPTBL_OP_HW_ACTIVATE,
 	CAPTBL_OP_HW_DEACTIVATE,
 	CAPTBL_OP_HW_ATTACH,
 	CAPTBL_OP_HW_DETACH,
 	CAPTBL_OP_HW_MAP,
-	CAPTBL_OP_HW_CYC_USEC
+	CAPTBL_OP_HW_CYC_USEC,
+	CAPTBL_OP_HW_CYC_THRESH,
 } syscall_op_t;
 
 typedef enum {
@@ -196,7 +187,7 @@ typedef enum {
 
 typedef unsigned long capid_t;
 #define TCAP_PRIO_MAX (1ULL)
-#define TCAP_PRIO_MIN (~0ULL)
+#define TCAP_PRIO_MIN ((~0ULL) >> 16) /* 48bit value */
 #define TCAP_RES_GRAN_ORD  16
 #define TCAP_RES_PACK(r)   (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
 #define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
@@ -896,11 +887,11 @@ typedef struct { volatile unsigned int counter; } atomic_t;
 
 static inline void
 atomic_inc(atomic_t *v)
-{ asm volatile(LOCK_PREFIX "incl %0" : "+m" (v->counter)); }
+{ __asm__ __volatile__(LOCK_PREFIX "incl %0" : "+m" (v->counter)); }
 
 static inline void
 atomic_dec(atomic_t *v)
-{ asm volatile(LOCK_PREFIX "decl %0" : "+m" (v->counter)); }
+{ __asm__ __volatile__(LOCK_PREFIX "decl %0" : "+m" (v->counter)); }
 #endif /* __KERNEL__ */
 
 static inline void

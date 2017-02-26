@@ -229,27 +229,27 @@ cos_syscall_asm                                      \
 cos_syscall_clobber                                  \
 }
 
-cos_syscall_0(1,  int, stats);
+cos_syscall_0(1,  int, stats)
 //cos_syscall_2(2,  int, print, char*, str, int, len);
-cos_syscall_3(3,  int, create_thread, int, dest_spd_id, int, a, int, b);
-cos_syscall_2(4,  int, __switch_thread, int, thd_id, int, flags);
-cos_syscall_3(5, int, __async_cap_cntl, int, operation, int, arg1, long, arg2);
-cos_syscall_1(6, int, areceive, int, acap_id);
-cos_syscall_1(7, int, asend, int, acap_id);
-cos_syscall_2(8,  int, upcall, int, spd_id, int, init_data);
-cos_syscall_3(9,  int, sched_cntl, int, operation, int, thd_id, long, option);
-cos_syscall_3(10, int, mpd_cntl, int, operation, spdid_t, composite_spd, spdid_t, composite_dest);
-cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, vaddr_t, daddr, unsigned long, mem_id);
-cos_syscall_3(12, int, acap_wire, long, thd_id, long, option, long, data);
-cos_syscall_3(13, long, __cap_cntl, int, option, u32_t, arg1, long, arg2);
-cos_syscall_3(14, int, __buff_mgmt, void *, addr, int, thd_id, int, len_option);
-cos_syscall_3(15, int, __thd_cntl, int, op_thdid, long, arg1, long, arg2);
-cos_syscall_0(16, int, idle);
-cos_syscall_3(17, int, __spd_cntl, int, op_spdid, long, arg1, long, arg2);
-cos_syscall_3(18, int, __vas_cntl, int, op_spdid, long, arg1, long, arg2);
-cos_syscall_3(19, int, __trans_cntl, unsigned long, op_ch, unsigned long, addr, int, off);
-cos_syscall_3(20, int, __pfn_cntl, unsigned long, op_spd, unsigned long, mem_id, int, extent);
-cos_syscall_0(31,  int, null);
+cos_syscall_3(3,  int, create_thread, int, dest_spd_id, int, a, int, b)
+cos_syscall_2(4,  int, __switch_thread, int, thd_id, int, flags)
+cos_syscall_3(5, int, __async_cap_cntl, int, operation, int, arg1, long, arg2)
+cos_syscall_1(6, int, areceive, int, acap_id)
+cos_syscall_1(7, int, asend, int, acap_id)
+cos_syscall_2(8,  int, upcall, int, spd_id, int, init_data)
+cos_syscall_3(9,  int, sched_cntl, int, operation, int, thd_id, long, option)
+cos_syscall_3(10, int, mpd_cntl, int, operation, spdid_t, composite_spd, spdid_t, composite_dest)
+cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, vaddr_t, daddr, unsigned long, mem_id)
+cos_syscall_3(12, int, acap_wire, long, thd_id, long, option, long, data)
+cos_syscall_3(13, long, __cap_cntl, int, option, u32_t, arg1, long, arg2)
+cos_syscall_3(14, int, __buff_mgmt, void *, addr, int, thd_id, int, len_option)
+cos_syscall_3(15, int, __thd_cntl, int, op_thdid, long, arg1, long, arg2)
+cos_syscall_0(16, int, idle)
+cos_syscall_3(17, int, __spd_cntl, int, op_spdid, long, arg1, long, arg2)
+cos_syscall_3(18, int, __vas_cntl, int, op_spdid, long, arg1, long, arg2)
+cos_syscall_3(19, int, __trans_cntl, unsigned long, op_ch, unsigned long, addr, int, off)
+cos_syscall_3(20, int, __pfn_cntl, unsigned long, op_spd, unsigned long, mem_id, int, extent)
+cos_syscall_0(31,  int, null)
 
 static inline int cos_mmap_cntl(short int op, short int flags, short int dest_spd,
 				vaddr_t dest_addr, unsigned long mem_id) {
@@ -312,7 +312,7 @@ static inline long get_stk_data(int offset)
 {
 	unsigned long curr_stk_pointer;
 
-	asm ("movl %%esp, %0;" : "=r" (curr_stk_pointer));
+	__asm__ ("movl %%esp, %0;" : "=r" (curr_stk_pointer));
 	/*
 	 * We save the CPU_ID and thread id in the stack for fast
 	 * access.  We want to find the struct cos_stk (see the stkmgr

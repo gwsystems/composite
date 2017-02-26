@@ -1,7 +1,7 @@
 MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
-all: comps $(shell cat PLATFORM)
+all: comps $(shell cat platform_info)
 
 comps:
 	$(info )
@@ -46,7 +46,10 @@ init:
 	$(MAKE) $(MAKEFLAGS) -C components init
 	$(MAKE) $(MAKEFLAGS) -C platform init
 
-config-gen:
+update:
+	git submodule update --init --recursive
+
+config-gen: update
 	@echo "Configuring the system with clock speed and directory structure."
 	@echo "Please view Makefile.cosconfig and kernel/include/shared/cpu_ghz.h to make sure they're accurate."
 	@echo "Do _not_ 'git add' either of these files."
@@ -66,13 +69,13 @@ config-linux: config-gen
 	@echo "#define COS_PLATFORM LINUX" >> ./kernel/include/shared/cpu_ghz.h
 	@echo "#define COS_LINUX" >> ./kernel/include/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/linux/module/chal/ chal
-	@echo "linux" > PLATFORM
+	@echo "linux" > platform_info
 
 # override the default linux chal link
 config-i386: config-gen
 	@echo "#define COS_PLATFORM I386" >> ./kernel/include/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/i386/chal/ chal
-	@echo "i386" > PLATFORM
+	@echo "i386" > platform_info
 
 idl:
 	$(MAKE) $(MAKEFLAGS) -C components idl

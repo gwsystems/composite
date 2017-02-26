@@ -51,8 +51,7 @@ vm_init(void *id)
 
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE,
-			(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
+			  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE, &booter_info);
 
 
 	printc("************ Userspace *************\n");

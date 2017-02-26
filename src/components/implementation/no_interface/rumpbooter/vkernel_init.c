@@ -32,7 +32,7 @@ cos_init(void)
 	int page_range = 0;
 
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+	cos_compinfo_init_OLD(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE,
 			(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 
@@ -62,7 +62,7 @@ cos_init(void)
 	cos_meminfo_init(&userspace.mi,
 			BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, vmutpt);
 
-	cos_compinfo_init(&userspace, vmpt, vmct, vmcc,
+	cos_compinfo_init_OLD(&userspace, vmpt, vmct, vmcc,
 			(vaddr_t)BOOT_MEM_VM_BASE, VM0_CAPTBL_FREE,
 			(vaddr_t)BOOT_MEM_SHM_BASE, &booter_info);
 
