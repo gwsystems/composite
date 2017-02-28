@@ -7,7 +7,7 @@
 #include <periodic_wake.h>
 
 #define N_COMPS 2			// number of components
-#define N_CHANNELS 1			// number of channels between components
+#define N_CHANNELS 2			// number of channels between components
 #define N_MAP_SZ 250			// number of spid's in the system. Super arbitrary
 
 struct replica_info {
@@ -26,10 +26,9 @@ struct nmod_comp {
 };
 
 struct channel {
-	struct nmod_comp *A, *B;
+	struct nmod_comp *snd, *rcv;
 	u64_t start;
-	int A2B_data, have_A2B_data;	// make these arrays
-	int B2A_data, have_B2A_data;
+	int data, have_data;	// make these arrays
 };
 
 struct map_entry {
@@ -47,7 +46,6 @@ int period = 100;
 void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd) { }
 
 struct nmod_comp *get_component(spdid_t spdid) {
-	printc("New type of map\n");
 	return map[spdid].component;
 }
 
@@ -55,14 +53,12 @@ struct replica_info *get_replica(spdid_t spdid) {
 	return map[spdid].replica;
 }
 
-struct channel *get_channel(struct nmod_comp *A, struct nmod_comp *B) {
-	// can we simplify this? Always order to and from in increasing order?
+struct channel *get_channel(struct nmod_comp *snd, struct nmod_comp *rcv) {
 	int i;
-	if (A == NULL || B == NULL) return NULL;
+	if (snd == NULL || rcv == NULL) return NULL;
 
 	for (i = 0; i < N_CHANNELS; i++) {
-		if ((channels[i].A == A && channels[i].B == B) ||
-		    (channels[i].A == B && channels[i].B == A)) {
+		if (channels[i].snd == snd && channels[i].rcv == rcv) {
 			return &channels[i];
 		}
 	}
@@ -86,40 +82,20 @@ int nwrite(spdid_t spdid, replica_type to, int data) {
 	int i, j;
 	if (!replica) BUG();
 	if (!c) BUG();
+	printc("New write format\n");
 
-	if (component == c->A) {
-		if (c->have_A2B_data) {
-			printc("This replica has already sent some data down the channel\n");
-			return -1; // whatever, shouldn't happen if blocked
-		}
-		else {
-			c->have_A2B_data = 1;
-			c->A2B_data = data;
-			rdtscll(c->start);							// set start time
-			ret = block_replica(replica);
-			if (ret < 0) printc("Error\n");
-			/* On wakeup */	
-			return 0;
-		}
-	}
-	else if (component == c->B) {
-		if (c->have_B2A_data) {
-			printc("This replica has already sent some data down the channel\n");
-			return -1; // whatever, shouldn't happen if blocked
-		}
-		else {
-			c->have_B2A_data = 1;
-			c->B2A_data = data;
-			rdtscll(c->start);							// set start time
-			ret = block_replica(replica);
-			if (ret < 0) printc("Error\n");
-			/* On wakeup */	
-			return 0;
-		}
+	if (c->have_data) {
+		printc("This replica has already sent some data down the channel\n");
+		return -1; // whatever, shouldn't happen if blocked
 	}
 	else {
-		BUG();
-		return -1; // shut up compiler
+		c->have_data = 1;
+		c->data = data;
+		rdtscll(c->start);							// set start time
+		ret = block_replica(replica);
+		if (ret < 0) printc("Error\n");
+		/* On wakeup */	
+		return 0;
 	}
 }
 
@@ -127,42 +103,22 @@ int nread(spdid_t spdid, replica_type from, int data) {
 	struct replica_info *replica = get_replica(spdid);
 	struct nmod_comp *component = get_component(spdid);
 	struct nmod_comp *from_comp = (from == ping) ? &components[0] : (from == pong) ? & components[1] : NULL;
-	struct channel *c = get_channel(component, from_comp);
+	struct channel *c = get_channel(from_comp, component);
 	int ret;
 	if (!replica) BUG();
 	if (!c) BUG();
 
-	if (component == c->A) {
-		if (c->have_B2A_data) {
-			c->have_B2A_data = 0;
-			return c->B2A_data;
-		}
-		else {
-			ret = block_replica(replica);
-			if (ret < 0) printc("Error");
-			/* On wakeup */	
-			assert(c->have_B2A_data);
-			c->have_B2A_data = 0; // well this is wrong because maybe other replicas still need to read
-			return c->B2A_data;
-		}
-	}
-	else if (component == c->B) {
-		if (c->have_A2B_data) {
-			c->have_A2B_data = 0;
-			return c->A2B_data;
-		}
-		else {
-			ret = block_replica(replica);
-			if (ret < 0) printc("Error");
-			/* On wakeup */	
-			assert(c->have_A2B_data);
-			c->have_A2B_data = 0;
-			return c->A2B_data;
-		}
+	if (c->have_data) {
+		c->have_data = 0;
+		return c->data;
 	}
 	else {
-		BUG();
-		return -1; /* Jus to shut up the compiler; control should never reach here anyway */
+		ret = block_replica(replica);
+		if (ret < 0) printc("Error");
+		/* On wakeup */	
+		assert(c->have_data);
+		c->have_data = 0; // well this is wrong because maybe other replicas still need to read
+		return c->data;
 	}
 }
 
@@ -206,19 +162,14 @@ void monitor(void) {
 	u64_t time;
 
 	for (i = 0; i < N_CHANNELS; i++) {
-		printc("Examing channel %d between nmodcomps with replicas %d and %d \n", i, channels[i].A->replicas[0].spdid, channels[i].B->replicas[0].spdid);
+		printc("Examing channel %d between nmodcomps with replicas %d and %d \n", i, channels[i].snd->replicas[0].spdid, channels[i].rcv->replicas[0].spdid);
 
-		printc("channel A2B_data present %d (%d)\n", channels[i].have_A2B_data, channels[i].A2B_data);
-		printc("channel B2A_data present %d (%d)\n", channels[i].have_B2A_data, channels[i].B2A_data);
+		printc("channel data present %d (%d)\n", channels[i].have_data, channels[i].data);
 
-		if (channels[i].have_A2B_data) {
-			rcv_comp = channels[i].B;
+		if (channels[i].have_data) {
+			rcv_comp = channels[i].rcv;
 			found = 1;
 		}
-		if (channels[i].have_B2A_data) {
-			rcv_comp = channels[i].A;
-			found = 1;
-		} // this will only wake up for the last found. Need both
 
 		if (!found) continue;
 		rdtscll(time);
@@ -257,8 +208,10 @@ void cos_init(void)
 		}
 	}
 
-	channels[0].A = &components[0];
-	channels[0].B = &components[1];
+	channels[0].snd = &components[0];
+	channels[0].rcv = &components[1];
+	channels[1].snd = &components[1];
+	channels[1].rcv = &components[0];
 
 	for (i = 0; i < N_MAP_SZ; i++) {
 		map[i].type = none;
