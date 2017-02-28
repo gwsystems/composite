@@ -6,6 +6,10 @@
 #include <voter.h>
 #include <periodic_wake.h>
 
+#define N_COMPS 2			// number of components
+#define N_CHANNELS 1			// number of channels between components
+#define N_MAP_SZ 250			// number of spid's in the system. Super arbitrary
+
 struct replica_info {
 	spdid_t spdid;
 	cbuf_t read_buffer;
@@ -22,65 +26,33 @@ struct nmod_comp {
 };
 
 struct channel {
-	struct nmod_comp *A, *B;	// come up with better terms, they're symmetric
-	int timer; // is this an int, figure it out later
+	struct nmod_comp *A, *B;
+	u64_t start;
 	int A2B_data, have_A2B_data;	// make these arrays
 	int B2A_data, have_B2A_data;
 };
 
-/* number of components and component array */
-int n_comps = 2;
-struct nmod_comp components[2];
+struct map_entry {
+	replica_type type;
+	struct replica_info *replica;
+	struct nmod_comp *component;
+};
 
-/* number of channels and channels array. Symmetric. */
-int n_channels = 1;
-struct channel channels[1];
+struct nmod_comp components[N_COMPS];
+struct channel channels[N_CHANNELS];
+struct map_entry map[N_MAP_SZ];
 
 int period = 100;
-
-/* map of spd to replica type */
-replica_type map[250];
 
 void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd) { }
 
 struct nmod_comp *get_component(spdid_t spdid) {
-	replica_type type = map[spdid];
-	int i;
-
-	if (type == none) return NULL;
-
-	// there is definitely a less stupid way to do this...
-	if (type == ping) {
-		for (i = 0; i < components[0].nreplicas; i++) {
-			if (components[0].replicas[i].spdid == spdid) return &components[0];
-		}
-		return NULL;
-	}
-	else if (type == pong) {
-		for (i = 0; i < components[1].nreplicas; i++) {
-			if (components[1].replicas[i].spdid == spdid) return &components[1];
-		}
-		return NULL;
-	}
-	else {
-		return NULL;
-	}
+	printc("New type of map\n");
+	return map[spdid].component;
 }
 
 struct replica_info *get_replica(spdid_t spdid) {
-	struct nmod_comp *component = NULL;
-	int i;
-	replica_type type = map[spdid];
-	if (type == none) return NULL;
-
-	component = get_component(spdid);
-	if (!component) return NULL;
-
-	for (i = 0; i < component->nreplicas; i++) {
-		if (component->replicas[i].spdid == spdid) return &component->replicas[i];
-	}
-
-	return NULL;
+	return map[spdid].replica;
 }
 
 struct channel *get_channel(struct nmod_comp *A, struct nmod_comp *B) {
@@ -88,7 +60,7 @@ struct channel *get_channel(struct nmod_comp *A, struct nmod_comp *B) {
 	int i;
 	if (A == NULL || B == NULL) return NULL;
 
-	for (i = 0; i < n_channels; i++) {
+	for (i = 0; i < N_CHANNELS; i++) {
 		if ((channels[i].A == A && channels[i].B == B) ||
 		    (channels[i].A == B && channels[i].B == A)) {
 			return &channels[i];
@@ -123,6 +95,7 @@ int nwrite(spdid_t spdid, replica_type to, int data) {
 		else {
 			c->have_A2B_data = 1;
 			c->A2B_data = data;
+			rdtscll(c->start);							// set start time
 			ret = block_replica(replica);
 			if (ret < 0) printc("Error\n");
 			/* On wakeup */	
@@ -137,6 +110,7 @@ int nwrite(spdid_t spdid, replica_type to, int data) {
 		else {
 			c->have_B2A_data = 1;
 			c->B2A_data = data;
+			rdtscll(c->start);							// set start time
 			ret = block_replica(replica);
 			if (ret < 0) printc("Error\n");
 			/* On wakeup */	
@@ -188,7 +162,7 @@ int nread(spdid_t spdid, replica_type from, int data) {
 	}
 	else {
 		BUG();
-		return -1; // shut up compiler
+		return -1; /* Jus to shut up the compiler; control should never reach here anyway */
 	}
 }
 
@@ -212,7 +186,9 @@ int confirm(spdid_t spdid, replica_type type) {
 			replicas[i].blocked = 0;
 			replicas[i].thread_id = cos_get_thd_id();
 
-			map[spdid] = type;
+			map[spdid].type = type;
+			map[spdid].replica = &replicas[i];
+			map[spdid].component = &components[t];
 			return 0;
 		}
 		else {
@@ -227,8 +203,9 @@ void monitor(void) {
 	struct replica_info *rcv_replica;
 	int i, j;
 	int found = 0;
+	u64_t time;
 
-	for (i = 0; i < n_channels; i++) {
+	for (i = 0; i < N_CHANNELS; i++) {
 		printc("Examing channel %d between nmodcomps with replicas %d and %d \n", i, channels[i].A->replicas[0].spdid, channels[i].B->replicas[0].spdid);
 
 		printc("channel A2B_data present %d (%d)\n", channels[i].have_A2B_data, channels[i].A2B_data);
@@ -238,26 +215,29 @@ void monitor(void) {
 			rcv_comp = channels[i].B;
 			found = 1;
 		}
-		else if (channels[i].have_B2A_data) {
+		if (channels[i].have_B2A_data) {
 			rcv_comp = channels[i].A;
 			found = 1;
-		}
+		} // this will only wake up for the last found. Need both
 
-		if (found) {
-			printc("Examining receiving comp with replicas %d\n", rcv_comp->nreplicas);
+		if (!found) continue;
+		rdtscll(time);
 
-			for (j = 0; j < rcv_comp->nreplicas; j++) {
-				rcv_replica = &rcv_comp->replicas[j];
+		printc("time: %lu\n", time - channels[i].start);
 
-				printc("Looking at replica %d\n", rcv_replica->spdid);
+		printc("Examining receiving comp with replicas %d\n", rcv_comp->nreplicas);
 
-				if (!rcv_replica->thread_id) BUG();
+		for (j = 0; j < rcv_comp->nreplicas; j++) {
+			rcv_replica = &rcv_comp->replicas[j];
 
-				if (rcv_replica->blocked) {
-					rcv_replica->blocked = 0;
-					printc("waking up thread %d\n", rcv_replica->thread_id);
-					sched_wakeup(cos_spd_id(), rcv_replica->thread_id);
-				}
+			printc("Looking at replica %d\n", rcv_replica->spdid);
+
+			if (!rcv_replica->thread_id) BUG();
+
+			if (rcv_replica->blocked) {
+				rcv_replica->blocked = 0;
+				printc("waking up thread %d\n", rcv_replica->thread_id);
+				sched_wakeup(cos_spd_id(), rcv_replica->thread_id);
 			}
 		}
 	}
@@ -266,7 +246,7 @@ void monitor(void) {
 void cos_init(void)
 {
 	int i, j;
-	for (i = 0; i < n_comps; i++) {
+	for (i = 0; i < N_COMPS; i++) {
 		printc("Setting up nmod component %d\n", i);
 		components[i].nreplicas = 1; // for now, no fork
 		components[i].replicas = (struct replica_info*) malloc(sizeof(struct replica_info) * components[i].nreplicas);
@@ -280,7 +260,11 @@ void cos_init(void)
 	channels[0].A = &components[0];
 	channels[0].B = &components[1];
 
-	for (i = 0; i < 250; i++) map[i] = none;
+	for (i = 0; i < N_MAP_SZ; i++) {
+		map[i].type = none;
+		map[i].replica = NULL;
+		map[i].component = NULL;
+	}
 
 	periodic_wake_create(cos_spd_id(), period);
 	do {
