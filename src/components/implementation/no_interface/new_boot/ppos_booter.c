@@ -44,7 +44,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 		hs[i] = h = (struct cobj_header*)end;
 		start = end;
 	}
-	
+
 	hs[n] = NULL;
 	printc("cobj %s:%d found at %p -> %x\n",
 	       hs[n-1]->name, hs[n-1]->id, hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);
@@ -56,14 +56,14 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 	int i, j;
 	int flag;
 	vaddr_t dest_daddr, prev_map = 0;
-	int tot = 0, n_pte = 1;	
+	int tot = 0, n_pte = 1;
 	struct cobj_sect *sect = cobj_sect_get(h, 0);
-	
+
 	boot_comp_pgtbl_expand(n_pte, pt, sect->vaddr, h);
 
 	/* We'll map the component into booter's heap. */
 	new_comp_cap_info[spdid].vaddr_mapped_in_booter = (vaddr_t)cos_get_heap_ptr();
-	
+
 	for (i = 0 ; i < (int)h->nsect ; i++) {
 		int left;
 
@@ -75,10 +75,10 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 
 		dest_daddr = sect->vaddr;
 		left       = cobj_sect_size(h, i);
-		
+
 		/* previous section overlaps with this one, don't remap! */
 		if (round_to_page(dest_daddr) == prev_map) {
-			left 	  -= (prev_map + PAGE_SIZE - dest_daddr);
+			left	  -= (prev_map + PAGE_SIZE - dest_daddr);
 			dest_daddr = prev_map + PAGE_SIZE;
 		}
 
@@ -94,7 +94,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 	return 0;
 }
 
-			
+
 static vaddr_t
 boot_spd_end(struct cobj_header *h)
 {
@@ -142,10 +142,10 @@ boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val,
 	ci = (struct cos_component_information*)(mem);
 
 	if (!ci->cos_heap_ptr) ci->cos_heap_ptr = heap_val;
-	
+
 	ci->cos_this_spd_id = spdid;
 	ci->init_string[0]  = '\0';
-	
+
 	for (i = 0 ; init_args[i].spdid ; i++) {
 		char *start, *end;
 		int len;
@@ -195,7 +195,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 		if (!(sect->flags & COBJ_SECT_KMEM) &&
 		    (first_time || !(sect->flags & COBJ_SECT_INITONCE))) {
 			if (sect->flags & COBJ_SECT_ZEROS) {
-      				memset(start_addr + (dest_daddr - init_daddr), 0, left);
+				memset(start_addr + (dest_daddr - init_daddr), 0, left);
 			} else {
 				memcpy(start_addr + (dest_daddr - init_daddr), lsrc, left);
 			}
@@ -207,8 +207,8 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info-init_daddr), comp_info);
 			ci = (struct cos_component_information*)(start_addr + (comp_info-init_daddr));
 			new_comp_cap_info[h->id].upcall_entry = ci->cos_upcall_entry;
-			
-			vaddr_t begin = (vaddr_t) start_addr + ((ci->cos_upcall_entry) - init_daddr); 
+
+			vaddr_t begin = (vaddr_t) start_addr + ((ci->cos_upcall_entry) - init_daddr);
 		}
 	}
 
@@ -227,16 +227,16 @@ static void
 boot_init_sched(void)
 {
 	int i;
-	
+
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) schedule[i] = 0;
 	sched_cur = 0;
 }
-						
+
 static void
 boot_create_cap_system(void)
 {
 	unsigned int i;
-	
+
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		struct cobj_sect *sect;
@@ -244,21 +244,21 @@ boot_create_cap_system(void)
 		pgtblcap_t pt;
 		spdid_t spdid;
 		vaddr_t ci = 0;
-		
+
 		h = hs[i];
 		spdid = h->id;
-		printc("Initializing Comp: %s\n", h->name);	
-		
+		printc("Initializing Comp: %s\n", h->name);
+
 		sect = cobj_sect_get(h, 0);
 		new_comp_cap_info[spdid].addr_start = sect->vaddr;
 
-		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);	
+		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);
 
 		if (boot_spd_symbs(h, spdid, &ci)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt))   BUG();
 
 		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo);
-		
+
 		printc("Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
 	}
 
@@ -274,10 +274,10 @@ boot_init_ndeps(void)
 	ndeps = i;
 }
 
-void 
+void
 cos_init(void)
 {
- 	struct cobj_header *h;
+	struct cobj_header *h;
 	int num_cobj, i;
 
 	printc("Booter for new kernel\n");
@@ -290,10 +290,10 @@ cos_init(void)
 
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
 	init_args++;
-	
+
 	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
 	boot_init_sched();
-	
+
 	boot_find_cobjs(h, num_cobj);
 	boot_bootcomp_init();
 	boot_create_cap_system();
