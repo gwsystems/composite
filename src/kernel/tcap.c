@@ -37,6 +37,7 @@ __tcap_init(struct tcap *t)
 	t->refcnt                  = 1;
 	t->arcv_ep                 = NULL;
 	t->perm_prio               = 0;
+	t->intbmp                  = 0;
 	tcap_setprio(t, 0);
 	list_init(&t->active_list, t);
 }
@@ -85,8 +86,14 @@ __tcap_budget_xfer(struct tcap *d, struct tcap *s, tcap_res_t cycles)
 	}
 	if (!TCAP_RES_IS_INF(bs->cycles)) bs->cycles -= cycles;
 done:
-	if (!tcap_is_active(d)) tcap_active_add_before(s, d);
-	if (tcap_expended(s))   tcap_active_rem(s);
+	if (!tcap_is_active(d)) {
+		tcap_active_add_before(s, d);
+		if (d->intbmp) chal_unmask_irqbmp(d->intbmp);
+	}
+	if (tcap_expended(s)) {
+		tcap_active_rem(s);
+		if (s->intbmp) chal_mask_irqbmp(s->intbmp);
+	}
 
 	return 0;
 }

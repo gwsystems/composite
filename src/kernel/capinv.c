@@ -672,19 +672,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 	return ret;
 }
 
-static inline struct cap_arcv *
-__cap_asnd_to_arcv(struct cap_asnd *asnd)
-{
-	struct cap_arcv *arcv;
-
-	if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) return NULL;
-	arcv = (struct cap_arcv *)captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid);
-	if (unlikely(!CAP_TYPECHK(arcv, CAP_ARCV)))               return NULL;
-	/* FIXME: check arcv epoch + liveness */
-
-	return arcv;
-}
-
 static int
 cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	    struct comp_info *ci, struct cos_cpu_local_info *cos_info)
@@ -698,7 +685,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	assert(asnd->arcv_capid);
 	/* IPI notification to another core */
 	if (asnd->arcv_cpuid != curr_cpu) return cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
-	arcv = __cap_asnd_to_arcv(asnd);
+	arcv = asnd_to_arcv(asnd);
 	if (unlikely(!arcv)) return -EINVAL;
 
 	rcv_thd  = arcv->thd;
@@ -731,7 +718,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 		return 1;
 	}
 
-	arcv     = __cap_asnd_to_arcv(asnd);
+	arcv     = asnd_to_arcv(asnd);
 	if (unlikely(!arcv)) return 1;
 
 	cos_info = cos_cpu_local_info();
@@ -1518,7 +1505,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			asnd        = (struct cap_asnd *)captbl_lkup(ci->captbl, asnd_cap);
 			if (unlikely(!CAP_TYPECHK(asnd, CAP_ASND))) cos_throw(err, -EINVAL);
 
-			arcv = __cap_asnd_to_arcv(asnd);
+			arcv = asnd_to_arcv(asnd);
 			if (unlikely(!arcv)) cos_throw(err, -EINVAL);
 
 			rthd = arcv->thd;

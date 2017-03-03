@@ -50,6 +50,11 @@ struct tcap {
 	u8_t               ndelegs, curr_sched_off;
 	u16_t              cpuid;
 	tcap_prio_t        perm_prio;
+	/*
+	 * HACK: Tcap to Rcvcap is a 1:n association. 
+	 * Need this bitmap to enable/disable interrupts on budget expiry or transfers
+	 */
+	u32_t		   intbmp;
 
 	/*
 	 * Which chain of temporal capabilities resulted in this
@@ -100,6 +105,14 @@ tcap_ref(struct tcap *t)
 static inline struct thread *
 tcap_rcvcap_thd(struct tcap *tc) { return tc->arcv_ep; }
 
+static inline void
+tcap_intbmp_set(struct tcap *tc, int line)
+{ tc->intbmp |= (1<<line); }
+
+static inline void
+tcap_intbmp_reset(struct tcap *tc, int line)
+{ tc->intbmp &= ~(1<<line); }
+
 /*** Active TCap list ***/
 
 static inline int
@@ -135,6 +148,7 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 	if (cycles >= t->budget.cycles || tcap_cycles_same(cycles, t->budget.cycles)) {
 		t->budget.cycles = 0;
 		tcap_active_rem(t); /* no longer active */
+		if (t->intbmp) chal_mask_irqbmp(t->intbmp);
 
 		/* "declassify" the time by keeping only the current tcap's priority */
 		t->ndelegs = 1;

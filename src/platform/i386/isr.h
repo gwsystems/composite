@@ -82,11 +82,71 @@ extern void handler_hw_62(struct pt_regs *);
 extern void handler_hw_63(struct pt_regs *);
 extern void lapic_timer_irq(struct pt_regs *);
 
+static u32_t irq_mask;
+
 static void
 ack_irq(int n)
 {
 	if (n >= 40) outb(0xA0, 0x20); /* Send reset signal to slave */
 	outb(0x20, 0x20);
+}
+
+static u32_t
+__find_irq_port(u32_t *n)
+{
+	*n -= 32;
+	if (*n < 8) {
+		return 0x21;
+	} else {
+		*n -= 8;
+		return 0xA1;
+	}
+}
+
+/* TODO: PCI shared irq line */
+static void
+mask_irq(int n)
+{
+	u32_t port, value, _n;
+
+	_n = (u32_t)n;
+	port = __find_irq_port(&_n);
+	value = inb(port) | (1<<_n);
+	outb(port, value);
+	irq_mask |= (1 << (((u32_t)n)-32));
+}
+
+static void
+unmask_irq(int n)
+{
+	u32_t port, value, _n;
+
+	_n = (u32_t)n;
+	port = __find_irq_port(&_n);
+	value = inb(port) | ~(1<<_n);
+	outb(port, value);
+	irq_mask &= ~(1 << (((u32_t)n)-32));
+}
+
+/* TODO: Can I disable/enable multiple line in one-shot? */
+static void
+mask_irqbmp(u32_t bmp)
+{
+	int i;
+
+	for (i = 0; i < 32; i ++) {
+		if (bmp | (1 << i)) mask_irq(i + 32);
+	}
+}
+
+static void
+unmask_irqbmp(u32_t bmp)
+{
+	int i;
+
+	for (i = 0; i < 32; i ++) {
+		if (bmp | (1 << i)) unmask_irq(i + 32);
+	}
 }
 
 #endif /* ISR_H */
