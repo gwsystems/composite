@@ -1,11 +1,14 @@
 include Makefile.src Makefile.comp
 
-LIB_OBJS=heap.o cobj_format.o cos_kernel_api.o
+LIB_OBJS=heap.o cobj_format.o cos_kernel_api.o cos_defkernel_api.o
 LIBS=$(LIB_OBJS:%.o=%.a)
 MANDITORY=c_stub.o cos_asm_upcall.o cos_asm_ainv.o cos_component.o
 MAND=$(MANDITORY_LIB)
 SIMPLE_STACKS=c_stub.o cos_asm_upcall_simple_stacks.o cos_asm_ainv.o cos_component.o
 SIMPLE_STKLIB=simple_stklib.o
+
+CINC_ENV=$(CINC)
+export CINC_ENV
 
 .PHONY: all
 all: $(LIBS) $(MAND) $(SIMPLE_STKLIB)
@@ -39,6 +42,7 @@ clean:
 
 distclean:
 	make -C dietlibc-0.29 clean
+	make -C ps clean
 #	make -C lwip/cos clean
 #	make -C lua/cos clean
 # keep the following commands in one line. make executes each line
@@ -52,7 +56,7 @@ thirdparty:
 	make -C dietlibc-0.29
 	make -C dietlibc-0.29 i386
 	cd ck; ./configure; cd ..
-
+	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
 
 init: clean distclean thirdparty all
 #	make -C lwip/cos

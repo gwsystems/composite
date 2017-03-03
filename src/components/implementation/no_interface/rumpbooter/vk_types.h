@@ -13,6 +13,8 @@
 #define SCHED_MIN_TIMESLICE (10)
 #define SCHED_QUANTUM (VM_TIMESLICE * 100)
 
+#define VK_CYCS_DIFF_THRESH (1<<8)
+
 #undef PRINT_CPU_USAGE 
 #define MIN_CYCS (1<<12)
 

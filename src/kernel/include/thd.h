@@ -154,6 +154,18 @@ thd_rcvcap_sched(struct thread *t)
 }
 
 static void
+thd_next_thdinfo_update(struct cos_cpu_local_info *cli, struct thread *thd,
+			struct tcap *tc, tcap_prio_t prio, tcap_res_t budget)
+{
+	struct next_thdinfo *nti = &cli->next_ti;
+
+	nti->thd    = thd;
+	nti->tc     = tc;
+	nti->prio   = prio;
+	nti->budget = budget;
+}
+
+static void
 thd_rcvcap_init(struct thread *t)
 {
 	struct rcvcap_info *rc = &t->rcvcap;
@@ -264,6 +276,7 @@ static int
 thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin,
 	       livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 {
+	struct cos_cpu_local_info *cli = cos_cpu_local_info();
 	struct cap_header *thd_header;
 	struct thread *thd;
 	unsigned long old_v = 0, *pte = NULL;
@@ -305,6 +318,8 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 	thd->refcnt--;
 	/* deactivation success */
 	if (thd->refcnt == 0) {
+		if (cli->next_ti.thd == thd) thd_next_thdinfo_update(cli, 0, 0, 0, 0);
+
 		/* move the kmem for the thread to a location
 		 * in a pagetable as COSFRAME */
 		ret = kmem_deact_post(pte, old_v);

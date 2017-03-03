@@ -46,7 +46,10 @@ init:
 	$(MAKE) $(MAKEFLAGS) -C components init
 	$(MAKE) $(MAKEFLAGS) -C platform init
 
-config-gen:
+update:
+	git submodule update --init --recursive
+
+config-gen: update
 	@echo "Configuring the system with clock speed and directory structure."
 	@echo "Please view Makefile.cosconfig and kernel/include/shared/cpu_ghz.h to make sure they're accurate."
 	@echo "Do _not_ 'git add' either of these files."

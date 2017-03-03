@@ -65,7 +65,7 @@ hw_irq_alloc(void){
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 				if (first) {
 					/* TODO: This path of tcap_transfer */
-					irq_tcap[i] = cos_tcap_alloc(&booter_info, irq_prio[i]);
+					irq_tcap[i] = cos_tcap_alloc(&booter_info);
 					assert(irq_tcap[i]);
 					irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 					assert(irq_arcvcap[i]);
