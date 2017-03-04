@@ -105,7 +105,7 @@ timer_cpu2hpet_cycles(u64_t cycles)
 	cyc    = (unsigned long)cycles;
 	if (unlikely((u64_t)cyc < cycles)) cyc = ULONG_MAX;
 	/* convert from CPU cycles to HPET cycles */
-	cyc    = (cyc / timer_cycles_per_hpetcyc) * TIMER_ERROR_BOUND_FACTOR;
+	cyc    = (cyc * TIMER_ERROR_BOUND_FACTOR) / timer_cycles_per_hpetcyc;//) * TIMER_ERROR_BOUND_FACTOR;
 	/* promote the precision to interact with the hardware correctly */
 	cycles = cyc;
 
@@ -206,7 +206,7 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 {
 	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF;
 
-	cycles = timer_cpu2hpet_cycles(cycles);
+	//cycles = timer_cpu2hpet_cycles(cycles);
 
 	/* Disable timer interrupts */
 	*hpet_config ^= ~1;
@@ -228,13 +228,24 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 	*hpet_config |= 1;
 }
 
-/* FIXME:  This is broken. Why does setting the oneshot twice make it work? */
-/*void
-chal_timer_set(cycles_t cycles)
+void
+chal_hpet_periodic_set(unsigned long us_period)
 {
-	timer_set(TIMER_ONESHOT, cycles);
-	timer_set(TIMER_ONESHOT, cycles);
-}*/
+	unsigned long pico_per_hpetcyc, hpetcyc_per_period;
+
+	assert(timer_calibration_init == 0);
+	pico_per_hpetcyc = hpet_capabilities[1]/FEMPTO_PER_PICO; /* bits 32-63 are # of femptoseconds per HPET clock tick */
+	hpetcyc_per_period = (us_period * PICO_PER_MICRO) / pico_per_hpetcyc;
+
+	timer_set(TIMER_PERIODIC, hpetcyc_per_period);
+}
+
+void
+chal_hpet_disable(void)
+{
+	timer_disable(0);
+	timer_disable(0);
+}
 
 u64_t
 timer_find_hpet(void *timer)
