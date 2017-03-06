@@ -30,7 +30,7 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 		if (!ps_cas(&g->lock.u.v, cached->v, csi->v)) return;
 	}
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	cos_defswitch(csi->s.owner, t->prio, g->timer_next, tok);
+	cos_defswitch(csi->s.owner, t->prio, g->timeout_next, tok);
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
 }
 
@@ -43,7 +43,7 @@ sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched
 
 	if (!ps_cas(&g->lock.u.v, cached->v, 0)) return 1;
 	/* let the scheduler thread decide which thread to run next, inheriting our budget/priority */
-	cos_defswitch(g->sched_thdcap, t->prio, g->timer_next, tok);
+	cos_defswitch(g->sched_thdcap, t->prio, g->timeout_next, tok);
 
 	return 0;
 }
