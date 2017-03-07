@@ -228,26 +228,33 @@ sl_init(void)
 void
 sl_sched_loop(void)
 {
-	thdid_t  tid;
-	int      blocked;
-	cycles_t cycles;
-
 	while (1) {
-		struct sl_thd *t;
-		sched_tok_t    tok;
+		int pending;
 
 		sl_cs_enter();
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) {
-			struct sl_thd *t = sl_thd_lkup(tid);
+		do {
+			thdid_t  tid;
+			int      blocked;
+			cycles_t cycles;
 
-			assert(t);
-			/* don't report the idle thread */
-			if (unlikely(t == sl__globals()->idle_thd)) continue;
-			sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
-			if (blocked) sl_mod_block(sl_mod_thd_policy_get(t));
-			else         sl_mod_wakeup(sl_mod_thd_policy_get(t));
-		}
+			/*
+			 * a child scheduler may receive both scheduling notifications (block/unblock 
+			 * states of it's child threads) and normal notifications (mainly activations from
+			 * it's parent scheduler).
+			 */
+			pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles);
+			if (tid) {
+				struct sl_thd *t = sl_thd_lkup(tid);
+
+				assert(t);
+				/* don't report the idle thread */
+				if (unlikely(t == sl__globals()->idle_thd)) continue;
+				sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
+				if (blocked) sl_mod_block(sl_mod_thd_policy_get(t));
+				else         sl_mod_wakeup(sl_mod_thd_policy_get(t));
+			}
+		} while (pending);
 
 		/* If switch returns an inconsistency, we retry anyway */
 		sl_cs_exit_schedule_nospin();
