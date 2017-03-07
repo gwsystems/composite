@@ -38,11 +38,11 @@ enum lapic_timer_type {
 };
 
 enum lapic_timer_div_by_config {
-	LAPIC_DIV_BY_2 = 0,
+	LAPIC_DIV_BY_2  = 0,
 	LAPIC_DIV_BY_4,
 	LAPIC_DIV_BY_8,
 	LAPIC_DIV_BY_16,
-	LAPIC_DIV_BY_32,
+	LAPIC_DIV_BY_32 = 8,
 	LAPIC_DIV_BY_64,
 	LAPIC_DIV_BY_128,
 	LAPIC_DIV_BY_1,
