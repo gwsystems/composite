@@ -105,7 +105,7 @@ timer_cpu2hpet_cycles(u64_t cycles)
 	cyc    = (unsigned long)cycles;
 	if (unlikely((u64_t)cyc < cycles)) cyc = ULONG_MAX;
 	/* convert from CPU cycles to HPET cycles */
-	cyc    = (cyc * TIMER_ERROR_BOUND_FACTOR) / timer_cycles_per_hpetcyc;//) * TIMER_ERROR_BOUND_FACTOR;
+	cyc    = (cyc / timer_cycles_per_hpetcyc) * TIMER_ERROR_BOUND_FACTOR;
 	/* promote the precision to interact with the hardware correctly */
 	cycles = cyc;
 
@@ -116,14 +116,15 @@ static void
 timer_disable(timer_type_t timer_type)
 {
 	/* Disable timer interrupts */
-	*hpet_config ^= ~1;
+	*hpet_config                   &= ~1;
 
 	/* Disable timer interrupt of timer_type */
-	hpet_timers[timer_type].config = 0;
+	hpet_timers[timer_type].config  = 0;
+	HPET_COUNTER                    = 0x00;
 	hpet_timers[timer_type].compare = 0;
 
 	/* Enable timer interrupts */
-	*hpet_config |= 1;
+	*hpet_config                   |= 1;
 }
 
 static void
@@ -202,17 +203,32 @@ oneshot_handler(struct pt_regs *regs)
 }
 
 void
+spin_cycs(cycles_t cycs)
+{
+	cycles_t now, prev, total;
+
+	now = prev = total = 0;
+
+	do {
+		rdtscll(now);
+		if (prev) total += (now - prev);
+		prev = now;
+	} while (total < cycs);
+}
+
+void
 timer_set(timer_type_t timer_type, u64_t cycles)
 {
+	
 	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF;
 
-	//cycles = timer_cpu2hpet_cycles(cycles);
-
 	/* Disable timer interrupts */
-	*hpet_config ^= ~1;
+	*hpet_config &= ~1;
 
 	/* Reset main counter */
 	if (timer_type == TIMER_ONESHOT) {
+		cycles = timer_cpu2hpet_cycles(cycles);
+
 		/* Set a static value to count up to */
 		hpet_timers[timer_type].config = outconfig;
 		cycles += HPET_COUNTER;
@@ -297,7 +313,7 @@ timer_init(void)
 
 	printk("Enabling timer @ %p with tick granularity %ld picoseconds\n", hpet, pico_per_hpetcyc);
 	/* Enable legacy interrupt routing */
-	*hpet_config |= (1ll);
+	*hpet_config |= (HPET_LEG_RT_CNF);
 
 	/*
 	 * Set the timer as specified.  This assumes that the cycle
