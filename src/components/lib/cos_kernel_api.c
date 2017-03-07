@@ -718,8 +718,9 @@ cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t sr
 	dst = __page_bump_valloc(dstci);
 	if (unlikely(!dst)) return 0;
 
-	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0))  BUG();
-
+	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) {
+		BUG();
+	}
 	return dst;
 }
 
@@ -865,4 +866,14 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 	} while (sz > 0);
 
 	return (void *)fva;
+}
+
+void *
+cos_va2pa(struct cos_compinfo *ci, void * vaddr)
+{
+	assert(ci || vaddr);
+
+        int paddr = call_cap_op(ci->pgtbl_cap, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
+	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
+        return (void *)paddr;
 }
