@@ -91,52 +91,64 @@ ack_irq(int n)
 	outb(0x20, 0x20);
 }
 
-static u32_t
-__find_irq_port(u32_t *n)
+static int 
+__find_irq_port(int n, u16_t *p, u8_t *v)
 {
-	*n -= 32;
-	if (*n < 8) {
-		return 0x21;
+	/*
+	 * TODO:
+	 * PIC1-IRQ2 (n == 32) is for cascading PIC2 IRQs.
+	 * PIC1 + PIC2 = 15. (n >= 48 cannot be handled here?)
+	 * n < 32 = CPU Exceptions.
+	 */
+	if (n >= 48 || n == 34 || n < 32) return -EINVAL;
+	if (n >= 40) {
+		*p = 0xA1;
+		*v = n - 40;
 	} else {
-		*n -= 8;
-		return 0xA1;
+		*p = 0x21;
+		*v = n - 32;
 	}
+
+	return 0;
 }
 
 /* TODO: PCI shared irq line */
 static void
 mask_irq(int n)
 {
-	u32_t port, value, _n;
+	u8_t val, ival;
+	u16_t port;
 
-	_n = (u32_t)n;
-	port = __find_irq_port(&_n);
-	value = inb(port) | (1<<_n);
-	outb(port, value);
-	irq_mask |= (1 << (((u32_t)n)-32));
+	if (__find_irq_port(n, &port, &val)) return;
+
+	ival = inb(port);
+	ival |= (1 << val);
+	outb(port, ival);
+	irq_mask |= (1 << ((u32_t)n - 32));
 }
 
 static void
 unmask_irq(int n)
 {
-	u32_t port, value, _n;
+	u8_t val, ival;
+	u16_t port;
 
-	_n = (u32_t)n;
-	port = __find_irq_port(&_n);
-	value = inb(port) | ~(1<<_n);
-	outb(port, value);
-	irq_mask &= ~(1 << (((u32_t)n)-32));
+	if (__find_irq_port(n, &port, &val)) return;
+
+	ival = inb(port);
+	ival &= ~(1 << val);
+	outb(port, ival);
+	irq_mask &= ~(1 << ((u32_t)n - 32));
 }
 
-/* TODO: Can I disable/enable multiple line in one-shot? */
+/* TODO: Can I disable/enable multiple lines in one-shot? */
 static void
 mask_irqbmp(u32_t bmp)
 {
 	int i;
 
-	for (i = 0; i < 32; i ++) {
-		if (bmp | (1 << i)) mask_irq(i + 32);
-	}
+	for (i = 0; i < 32; i ++)
+		if (bmp & (1 << i)) mask_irq(i + 32);
 }
 
 static void
@@ -144,9 +156,8 @@ unmask_irqbmp(u32_t bmp)
 {
 	int i;
 
-	for (i = 0; i < 32; i ++) {
-		if (bmp | (1 << i)) unmask_irq(i + 32);
-	}
+	for (i = 0; i < 32; i ++)
+		if (bmp & (1 << i)) unmask_irq(i + 32);
 }
 
 #endif /* ISR_H */

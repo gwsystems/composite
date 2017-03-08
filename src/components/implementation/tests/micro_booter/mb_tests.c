@@ -265,6 +265,38 @@ test_async_endpoints_perf(void)
 	while (async_test_flag) cos_thd_switch(tcp);
 }
 
+struct exec_cluster {
+	thdcap_t  tc;
+	arcvcap_t rc;
+	tcap_t    tcc;
+	cycles_t  cyc;
+	asndcap_t sc; /*send-cap to send to rc */
+	tcap_prio_t prio;
+	int xseq; /* expected activation sequence number for this thread */
+};
+
+struct budget_test_data {
+	/* p=parent, c=child, g=grand-child */
+	struct exec_cluster p, c, g;
+} bt, mbt;
+
+static void
+exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t parentc)
+{
+	e->tcc = cos_tcap_alloc(&booter_info);
+	assert(e->tcc);
+	e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d);
+	assert(e->tc);
+	e->rc = cos_arcv_alloc(&booter_info, e->tc, e->tcc, booter_info.comp_cap, parentc);
+	assert(e->rc);
+	e->sc = cos_asnd_alloc(&booter_info, e->rc, booter_info.captbl_cap);
+	assert(e->sc);
+
+	e->cyc = 0;
+}
+
+
+
 #define TCAP_NLAYERS 3
 static volatile int child_activated[TCAP_NLAYERS][2];
 /* tcap child/parent receive capabilities, and the send capability */
@@ -334,7 +366,7 @@ spinner(void *d)
 { while (1) ; }
 
 cycles_t cyc_per_usec;
-#define TEST_USEC_INTERVAL 1000 /* in microseconds */
+#define TEST_USEC_INTERVAL 100 /* in microseconds */
 #define TEST_HPET_ITERS    100
 cycles_t iat_vals[TEST_HPET_ITERS - 1];
 
@@ -377,6 +409,70 @@ test_hpet_timer(void)
 	//PRINTC("Timer test completed.\nSuccess.\n");
 }
 
+struct exec_cluster hpetec;
+int hpet_int_test = 1;
+
+#define HPET_LOOPITERS 100000
+#define HPET_TESTITERS 100
+#define HPET_BUDGET    50 
+static void
+hpet_thdfn(void *e)
+{
+	cycles_t prev, now;
+	int iters = 0;
+	arcvcap_t rcv = ((struct exec_cluster *)e)->rc;
+	tcap_t    tc  = ((struct exec_cluster *)e)->tcc;
+
+	prev = now = 0;
+	while (1) {
+		int pending;
+		int loop = 0;
+
+		pending = cos_rcv(rcv);
+		rdtscll(now);
+		if (prev) { PRINTC("%llu ", now - prev); }
+		prev = now;	
+		while (loop < HPET_LOOPITERS) loop ++;
+		iters ++;
+		if (iters >= HPET_TESTITERS) break;
+	}
+	
+	hpet_int_test = 0;
+	while (1) { cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0, 0, cos_sched_sync()); }
+}
+
+static void
+test_hpet_int(void)
+{
+	int      i;
+	thdcap_t tc;
+	cycles_t c = 0, p = 0, t = 0;
+
+	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	PRINTC("Starting hpet int test...\n");
+	exec_cluster_alloc(&hpetec, hpet_thdfn, &hpetec, BOOT_CAPTBL_SELF_INITRCV_BASE);
+
+	hpetec.prio = TCAP_PRIO_MAX;
+	if (cos_tcap_transfer(hpetec.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, HPET_BUDGET * TEST_USEC_INTERVAL * cyc_per_usec, hpetec.prio)) assert(0);
+
+	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, hpetec.rc, TEST_USEC_INTERVAL);
+
+	while (hpet_int_test) {
+		rdtscll(c);
+		if (p) { t += (c - p); }
+		p = c;
+
+		if (t >= TEST_USEC_INTERVAL * cyc_per_usec * HPET_BUDGET * 10) {
+			t = 0;
+			if (cos_tcap_transfer(hpetec.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, HPET_BUDGET * TEST_USEC_INTERVAL * cyc_per_usec, hpetec.prio)) assert(0);
+		}
+	}
+
+	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
+	PRINTC("\nDone.\n");
+}
+
+
 static void
 test_timer(void)
 {
@@ -409,36 +505,6 @@ test_timer(void)
 	       t/16, (unsigned int)cos_hw_cycles_thresh(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	PRINTC("Timer test completed.\nSuccess.\n");
-}
-
-struct exec_cluster {
-	thdcap_t  tc;
-	arcvcap_t rc;
-	tcap_t    tcc;
-	cycles_t  cyc;
-	asndcap_t sc; /*send-cap to send to rc */
-	tcap_prio_t prio;
-	int xseq; /* expected activation sequence number for this thread */
-};
-
-struct budget_test_data {
-	/* p=parent, c=child, g=grand-child */
-	struct exec_cluster p, c, g;
-} bt, mbt;
-
-static void
-exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t parentc)
-{
-	e->tcc = cos_tcap_alloc(&booter_info);
-	assert(e->tcc);
-	e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d);
-	assert(e->tc);
-	e->rc = cos_arcv_alloc(&booter_info, e->tc, e->tcc, booter_info.comp_cap, parentc);
-	assert(e->rc);
-	e->sc = cos_asnd_alloc(&booter_info, e->rc, booter_info.captbl_cap);
-	assert(e->sc);
-
-	e->cyc = 0;
 }
 
 static void
@@ -897,7 +963,9 @@ test_captbl_expand(void)
 void
 test_run_mb(void)
 {
-	test_hpet_timer();
+//	test_hpet_timer();
+	test_hpet_int();
+
 //	test_timer();
 //	test_budgets();
 //
