@@ -19,19 +19,24 @@ test_thds_perf(void)
 	long long start_swt_cycles = 0, end_swt_cycles = 0;
 	int i;
 
+	perfdata_init();
+
 	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL);
 	assert(ts);
 	cos_thd_switch(ts);
 
-	rdtscll(start_swt_cycles);
 	for (i = 0 ; i < ITER ; i++) {
+	rdtscll(start_swt_cycles);
 		cos_thd_switch(ts);
-	}
 	rdtscll(end_swt_cycles);
-	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
+	perfdata_add((double)((end_swt_cycles - start_swt_cycles)/2LL));
+	total_swt_cycles += ((end_swt_cycles - start_swt_cycles) / 2LL);
+	}
 
 	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
 		total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));
+	perfdata_calc();
+	perfdata_print();
 }
 
 static void
@@ -964,13 +969,13 @@ void
 test_run_mb(void)
 {
 //	test_hpet_timer();
-	test_hpet_int();
+//	test_hpet_int();
 
 //	test_timer();
 //	test_budgets();
 //
 //	test_thds();
-//	test_thds_perf();
+	test_thds_perf();
 //
 //	test_mem();
 //
