@@ -56,9 +56,10 @@ vm_init(void *id)
 				  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, &booter_info);
 	}
 
-	PRINTC("rump_booter_init\n");
-	rump_booter_init();
 
+	PRINTC("rump_booter_init\n");
+	if (id == 0 || id == 1) rump_booter_init();
+	
 	EXIT();
 	return;
 }
