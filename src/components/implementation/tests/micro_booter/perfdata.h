@@ -1,9 +1,18 @@
+/*
+ * Copyright 2017, Phani Gadepalli
+ *
+ * This uses a two clause BSD License.
+ */
 #ifndef PERFDATA_H
 #define PERFDATA_H
 
-/* For now, not re-entrant */
+/* Unoptimized by far!!!! */
 
-#define PERF_VAL_RANGE 1000
+#define PERF_VAL_RANGE     100000
+#define PERF_DATA_NAME     32
+#define PERF_DATA_PTILE_SZ 3
+
+#define PERF_DATA_DEBUG
 
 enum ptile_id {
 	PTILE_90 = 0,
@@ -12,38 +21,38 @@ enum ptile_id {
 };
 
 struct perfdata {
+	char   name[PERF_DATA_NAME];
 	double values[PERF_VAL_RANGE];
 	double min, max, avg;
 	double sd, var;
-	double ptiles[3]; /* 90, 95, 99 */
-} pd;
+	double ptiles[PERF_DATA_PTILE_SZ]; /* 90, 95, 99 */
+};
 
 static void
-perfdata_init(void)
+perfdata_init(struct perfdata *pd, const char *nm)
 {
-	memset(&pd, 0, sizeof(pd));
+	memset(pd, 0, sizeof(struct perfdata));
+	strncpy(pd->name, nm, PERF_DATA_NAME-1);
 }
 
-static struct perfdata *
-perfdata_pd(void)
-{ return &pd; }
-
 static void
-__print_values(void)
+__print_values(struct perfdata *pd)
 {
+#ifdef PERF_DATA_DEBUG
 	int i;
 
-	for (i = 0; i < PERF_VAL_RANGE; i ++) printc("%f\n", pd.values[i]);
+	for (i = 0; i < PERF_VAL_RANGE; i ++) printc("%.2f\n", pd->values[i]);
+#endif
 }
 
 static int
-perfdata_add(double val)
+perfdata_add(struct perfdata *pd, double val)
 {
 	static int i = 0;
 
-	if (i >= PERF_VAL_RANGE) return -ENOSPC;
+	if (unlikely(i >= PERF_VAL_RANGE)) return -ENOSPC;
 
-	pd.values[i ++] = val;
+	pd->values[i ++] = val;
 
 	return 0;
 }
@@ -67,7 +76,7 @@ __sqroot(double n)
 }
 
 static void
-__bubble_sort(void)
+__pd_bubble_sort(struct perfdata *pd)
 {
 	int i;
 
@@ -75,74 +84,73 @@ __bubble_sort(void)
 		int j;
 
 		for (j = 0 ; j < PERF_VAL_RANGE - i - 1 ; j ++) {
-			if (pd.values[j] > pd.values[j + 1]) {
-				double tmp = pd.values[j];
+			if (pd->values[j] > pd->values[j + 1]) {
+				double tmp = pd->values[j];
 
-				pd.values[j]     = pd.values[j + 1];
-				pd.values[j + 1] = tmp;
+				pd->values[j]     = pd->values[j + 1];
+				pd->values[j + 1] = tmp;
 			}
 		}
 	}
 }
 
 static void
-perfdata_calc(void)
+perfdata_calc(struct perfdata *pd)
 {
 	int i, j;
 
-//	__print_values();
-	__bubble_sort();
-	__print_values();
+	__pd_bubble_sort(pd);
+//	__print_values(pd);
 
-	pd.min = pd.values[0];
-	pd.max = pd.values[PERF_VAL_RANGE - 1];
+	pd->min = pd->values[0];
+	pd->max = pd->values[PERF_VAL_RANGE - 1];
 
-	for (i = 0 ; i < PERF_VAL_RANGE ; i ++) pd.avg += pd.values[i];	
-	pd.avg /= PERF_VAL_RANGE;
+	for (i = 0 ; i < PERF_VAL_RANGE ; i ++) pd->avg += pd->values[i];	
+	pd->avg /= PERF_VAL_RANGE;
 
-	for (i = 0 ; i < PERF_VAL_RANGE ; i ++) pd.var += (pd.values[i] - pd.avg) * (pd.values[i] - pd.avg);
-	pd.var /= PERF_VAL_RANGE;
+	for (i = 0 ; i < PERF_VAL_RANGE ; i ++) pd->var += (pd->values[i] - pd->avg) * (pd->values[i] - pd->avg);
+	pd->var /= PERF_VAL_RANGE;
 
-	pd.sd = __sqroot(pd.var);
+	pd->sd = __sqroot(pd->var);
 
-	pd.ptiles[PTILE_90] = pd.values[(int)((PERF_VAL_RANGE * 90) / 100) - 1];
-	pd.ptiles[PTILE_95] = pd.values[(int)((PERF_VAL_RANGE * 95) / 100) - 1];
-	pd.ptiles[PTILE_99] = pd.values[(int)((PERF_VAL_RANGE * 99) / 100) - 1];
+	pd->ptiles[PTILE_90] = pd->values[(int)((PERF_VAL_RANGE * 90) / 100) - 1];
+	pd->ptiles[PTILE_95] = pd->values[(int)((PERF_VAL_RANGE * 95) / 100) - 1];
+	pd->ptiles[PTILE_99] = pd->values[(int)((PERF_VAL_RANGE * 99) / 100) - 1];
 }
 
 static double
-perfdata_min(void)
-{ return pd.min; }
+perfdata_min(struct perfdata *pd)
+{ return pd->min; }
 
 static double
-perfdata_max(void)
-{ return pd.max; }
+perfdata_max(struct perfdata *pd)
+{ return pd->max; }
 
 static double
-perfdata_avg(void)
-{ return pd.avg; }
+perfdata_avg(struct perfdata *pd)
+{ return pd->avg; }
 
 static double
-perfdata_sd(void)
-{ return pd.sd; }
+perfdata_sd(struct perfdata *pd)
+{ return pd->sd; }
 
 static double
-perfdata_90ptile(void)
-{ return pd.ptiles[PTILE_90]; }
+perfdata_90ptile(struct perfdata *pd)
+{ return pd->ptiles[PTILE_90]; }
 
 static double
-perfdata_95ptile(void)
-{ return pd.ptiles[PTILE_95]; }
+perfdata_95ptile(struct perfdata *pd)
+{ return pd->ptiles[PTILE_95]; }
 
 static double
-perfdata_99ptile(void)
-{ return pd.ptiles[PTILE_99]; }
+perfdata_99ptile(struct perfdata *pd)
+{ return pd->ptiles[PTILE_99]; }
 
 static void
-perfdata_print(void)
+perfdata_print(struct perfdata *pd)
 {
-	printc("Size-%d\nS.D-%f\nAvg-%f\nmin-%f\nmax-%f\n99%%tile-%f\n95%%tile-%f\n90%%tile-%f\n",
-		PERF_VAL_RANGE, pd.sd, pd.avg, pd.min, pd.max, pd.ptiles[PTILE_99], pd.ptiles[PTILE_95], pd.ptiles[PTILE_90]);
+	printc("PD:%s-sz:%d,SD:%.2f,Mean:%.2f,99%%:%.2f\n", 
+		pd->name, PERF_VAL_RANGE, pd->sd, pd->avg, pd->ptiles[PTILE_99]);
 }
 
 #endif /* PERFDATA_H */

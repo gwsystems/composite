@@ -1,4 +1,7 @@
 #include "micro_booter.h"
+#include "perfdata.h"
+
+struct perfdata pd;
 
 static void
 thd_fn_perf(void *d)
@@ -19,7 +22,7 @@ test_thds_perf(void)
 	long long start_swt_cycles = 0, end_swt_cycles = 0;
 	int i;
 
-	perfdata_init();
+	perfdata_init(&pd, "Thd_Swtch");
 
 	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL);
 	assert(ts);
@@ -29,14 +32,14 @@ test_thds_perf(void)
 	rdtscll(start_swt_cycles);
 		cos_thd_switch(ts);
 	rdtscll(end_swt_cycles);
-	perfdata_add((double)((end_swt_cycles - start_swt_cycles)/2LL));
+	perfdata_add(&pd, (double)((end_swt_cycles - start_swt_cycles)/2LL));
 	total_swt_cycles += ((end_swt_cycles - start_swt_cycles) / 2LL);
 	}
 
-	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
-		total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));
-	perfdata_calc();
-	perfdata_print();
+//	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
+//		total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));
+	perfdata_calc(&pd);
+	perfdata_print(&pd);
 }
 
 static void
@@ -372,7 +375,7 @@ spinner(void *d)
 
 cycles_t cyc_per_usec;
 #define TEST_USEC_INTERVAL 100 /* in microseconds */
-#define TEST_HPET_ITERS    100
+#define TEST_HPET_ITERS    PERF_VAL_RANGE
 cycles_t iat_vals[TEST_HPET_ITERS - 1];
 
 static void
@@ -381,6 +384,7 @@ test_hpet_timer(void)
 	int      i;
 	thdcap_t tc;
 	cycles_t c = 0, p = 0, t = 0;
+	perfdata_init(&pd, "HPET_IAT_Perf");
 
 //	PRINTC("Starting HPET timer test.\n");
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
@@ -396,17 +400,21 @@ test_hpet_timer(void)
 		p     = c;
 		rdtscll(c);
 		if (i > 0) {
-			t += c-p;
-			iat_vals[i - 1] = c - p;
+//			t += c-p;
+//			iat_vals[i - 1] = c - p;
+			perfdata_add(&pd, c-p);
 		}
 
 		//while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
 	}
 
 	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
-	for (i = 0 ; i < TEST_HPET_ITERS ; i += 10) {
-		PRINTC("%llu ", iat_vals[i]);
-	}
+
+	perfdata_calc(&pd);
+	perfdata_print(&pd);
+//	for (i = 0 ; i < TEST_HPET_ITERS ; i += 10) {
+//		PRINTC("%llu ", iat_vals[i]);
+//	}
 
 //	PRINTC("\nAverage inter-arrival time (%d microseconds) = %lld\n",
 //	       TEST_USEC_INTERVAL, t/TEST_HPET_ITERS);
@@ -430,10 +438,9 @@ hpet_thdfn(void *e)
 
 	prev = now = 0;
 	while (1) {
-		int pending;
 		int loop = 0;
 
-		pending = cos_rcv(rcv);
+		cos_rcv(rcv);
 		rdtscll(now);
 		if (prev) { PRINTC("%llu ", now - prev); }
 		prev = now;	
@@ -968,14 +975,14 @@ test_captbl_expand(void)
 void
 test_run_mb(void)
 {
-//	test_hpet_timer();
+	test_hpet_timer();
 //	test_hpet_int();
 
 //	test_timer();
 //	test_budgets();
 //
 //	test_thds();
-	test_thds_perf();
+//	test_thds_perf();
 //
 //	test_mem();
 //
