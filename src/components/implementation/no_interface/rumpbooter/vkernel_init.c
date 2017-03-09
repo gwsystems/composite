@@ -699,7 +699,7 @@ void
 vkold_shmem_map(struct cos_compinfo *vmci, unsigned int id, unsigned long shm_sz)
 {
 	unsigned long shm_ptr = BOOT_MEM_SHM_BASE;
-	vaddr_t src_pg = (shm_sz * id) + shm_ptr, dst_pg, addr;
+	vaddr_t src_pg = (shm_sz * (id-1)) + shm_ptr, dst_pg, addr;
 
 	assert(vmci);
 	assert(shm_ptr == round_up_to_pgd_page(shm_ptr));
