@@ -63,6 +63,22 @@ idt_set_gate(u8_t num, u32_t base, u16_t sel, u8_t flags)
 	// The OR is used for ring once we get usermode up and running
 }
 
+void
+chal_mask_irq(int n)
+{ mask_irq(n); }
+
+void
+chal_unmask_irq(int n)
+{ unmask_irq(n); }
+
+void
+chal_mask_irqbmp(u32_t bmp)
+{ mask_irqbmp(bmp); }
+
+void
+chal_unmask_irqbmp(u32_t bmp)
+{ unmask_irqbmp(bmp); }
+
 int
 hw_handler(struct pt_regs *regs)
 {
