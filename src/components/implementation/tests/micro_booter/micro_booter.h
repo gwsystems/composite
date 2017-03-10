@@ -23,7 +23,7 @@
 #include "perfdata.h"
 
 #define PRINTC     printc
-#define ITER       PERF_VAL_RANGE
+#define ITER       PERF_VAL_MAX_SZ
 #define TEST_NTHDS 5
 
 extern struct cos_compinfo booter_info;

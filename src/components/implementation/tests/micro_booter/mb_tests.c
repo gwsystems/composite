@@ -375,7 +375,7 @@ spinner(void *d)
 
 cycles_t cyc_per_usec;
 #define TEST_USEC_INTERVAL 100 /* in microseconds */
-#define TEST_HPET_ITERS    PERF_VAL_RANGE
+#define TEST_HPET_ITERS   ITER 
 cycles_t iat_vals[TEST_HPET_ITERS - 1];
 
 static void
