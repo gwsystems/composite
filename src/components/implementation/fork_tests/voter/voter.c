@@ -18,6 +18,7 @@ struct replica_info {
 	void *buf_write;
 	unsigned short int thread_id;
 	int blocked;
+	void *destination;		// NULL if this replica hasn't written
 };
 
 struct nmod_comp {
@@ -27,7 +28,9 @@ struct nmod_comp {
 
 struct channel {
 	struct nmod_comp *snd, *rcv;
-	int data, have_data;	// make these arrays
+	int have_data;
+	cbuf_t data_cbid;
+	void *data_buf;
 	u64_t start;			// set each time the replica is woken up. Accurate?
 };
 
@@ -40,6 +43,7 @@ struct map_entry {
 struct nmod_comp components[N_COMPS];
 struct channel channels[N_CHANNELS];
 struct map_entry map[N_MAP_SZ];
+int matches[9];
 
 int period = 100;
 
@@ -73,24 +77,21 @@ int block_replica(struct replica_info *replica) {
 	return sched_block(cos_spd_id(), 0);
 }
 
-int nwrite(spdid_t spdid, replica_type to, int data) {
+int nwrite(spdid_t spdid, replica_type to, size_t sz) {
 	struct replica_info *replica = get_replica(spdid);
-	struct nmod_comp *component = get_component(spdid);
 	struct nmod_comp *to_comp = (to == ping) ? &components[0] : (to == pong) ? & components[1] : NULL;
-	struct channel *c = get_channel(component, to_comp);
 	int ret;
-	int i, j;
+	long i;
 	if (!replica) BUG();
-	if (!c) BUG();
-	printc("New write format\n");
 
-	if (c->have_data) {
+	if (replica->destination) {
 		printc("This replica has already sent some data down the channel\n");
 		return -1; // whatever, shouldn't happen if blocked
 	}
 	else {
-		c->have_data = 1;
-		c->data = data;
+		replica->destination = to_comp;
+		printc("resplica destination set to %x\n", replica->destination);
+		assert(replica->buf_write);
 		ret = block_replica(replica);
 		if (ret < 0) printc("Error\n");
 		/* On wakeup */	
@@ -98,7 +99,7 @@ int nwrite(spdid_t spdid, replica_type to, int data) {
 	}
 }
 
-int nread(spdid_t spdid, replica_type from, int data) {
+int nread(spdid_t spdid, replica_type from, size_t sz) {
 	struct replica_info *replica = get_replica(spdid);
 	struct nmod_comp *component = get_component(spdid);
 	struct nmod_comp *from_comp = (from == ping) ? &components[0] : (from == pong) ? & components[1] : NULL;
@@ -109,15 +110,17 @@ int nread(spdid_t spdid, replica_type from, int data) {
 
 	if (c->have_data) {
 		c->have_data = 0;
-		return c->data;
+		printc("returning from read\n");
+		return 0;
 	}
 	else {
 		ret = block_replica(replica);
 		if (ret < 0) printc("Error");
 		/* On wakeup */	
 		assert(c->have_data);
+		printc("returning from read\n");
 		c->have_data = 0; // well this is wrong because maybe other replicas still need to read
-		return c->data;
+		return 0;
 	}
 }
 
@@ -126,12 +129,14 @@ void restart_comp(struct replica_info *replica) {
 }
 
 void monitor(void) {
-	struct nmod_comp *rcv_comp;
+	struct nmod_comp *rcv_comp, *snd_comp;
 	struct channel *channel;
 	struct replica_info *rcv_replica;
-	int i, j;
+	int i, j, k;
 	int found = 0;
 	u64_t time;
+	int majority_index;
+	int majority;
 
 	/* Let's do waking up and restarting in a separate loop */
 	for (i = 0; i < N_CHANNELS; i++) {
@@ -145,24 +150,59 @@ void monitor(void) {
 			}
 		}
 	}
-	
+
 	for (i = 0; i < N_CHANNELS; i++) {
 		printc("Examing channel %d between nmodcomps with replicas %d and %d \n", i, channels[i].snd->replicas[0].spdid, channels[i].rcv->replicas[0].spdid);
-
-		printc("channel data present %d (%d)\n", channels[i].have_data, channels[i].data);
 		rdtscll(channels[i].start);
 
-		if (channels[i].have_data) {
-			rcv_comp = channels[i].rcv;
-			found = 1;
+		found = 0;
+		snd_comp = channels[i].snd;
+		for (j = 0; j < snd_comp->nreplicas; j++) {
+			if (snd_comp->replicas[j].destination) {
+				printc("Found some data\n");
+				found++;
+			}
 		}
 
-		if (!found) continue;
+		if (found != snd_comp->nreplicas) continue;
+		rcv_comp = channels[i].rcv;
 
-		printc("Examining receiving comp with replicas %d\n", rcv_comp->nreplicas);
+		for (j = 0; j < 9; j++) matches[j] = 0;
+		majority = 0;
+
+		/* now vote */
+		for (j = 0; j < snd_comp->nreplicas; j++) {
+			snd_comp->replicas[j].destination = NULL;
+			matches[j]++;						// for our own match. Is this how voting works? Do we even know anymore...
+			for (k = j + 1; k < snd_comp->nreplicas; k++) {
+				/* compare j to k  */
+				if (memcmp(snd_comp->replicas[j].buf_write, snd_comp->replicas[k].buf_write, 1) == 0) {
+					matches[j]++;
+					matches[k]++;
+				}
+			}
+			if (matches[j] > majority) {
+				majority = matches[j];
+				majority_index = j;
+			}
+		}
+
+		for (j = 0; j < 9; j++) printc("[%d] ", matches[j]);
+		printc("\n");
+
+		/* Now put the majority index's data into the channel */
+		assert(channels[i].data_buf);
+		channels[i].have_data = 1;
+		printc("Majority index %d\n", majority_index);
+		printc("starting copy to %x from %x\n", channels[i].data_buf, snd_comp->replicas[majority_index].buf_write);
+		memcpy(channels[i].data_buf, snd_comp->replicas[majority_index].buf_write, 1);
+		printc("finished copy\n");
+
+		// also unblock writes!
 
 		for (j = 0; j < rcv_comp->nreplicas; j++) {
 			rcv_replica = &rcv_comp->replicas[j];
+			memcpy(rcv_replica->buf_read, channels[i].data_buf, 1);
 
 			printc("Looking at replica %d\n", rcv_replica->spdid);
 
@@ -176,36 +216,58 @@ void monitor(void) {
 	}
 }
 
+cbuf_t get_read_buf(spdid_t spdid) {
+	if (!map[spdid].replica) return NULL;
+	return map[spdid].replica->read_buffer;
+}
+
+cbuf_t get_write_buf(spdid_t spdid) {
+	if (!map[spdid].replica) return NULL;
+	return map[spdid].replica->write_buffer;
+}
+
 int confirm(spdid_t spdid, replica_type type) {
 	printc("Confirming readiness of spdid %d\n", spdid);
-	
 	int ret;
 	int i;
-	
 	int t = (type == ping) ? 0 : 1;	
 	struct replica_info *replicas = components[t].replicas;
-	
+	vaddr_t dest;
+
 	for (i = 0; i < components[t].nreplicas; i++) {
 		if (replicas[i].spdid == 0) {
 			printc("creating replica for spdid %d in slot %d\n", spdid, i);
 			replicas[i].spdid = spdid;
 			//replicas[i].spdid = quarantine_fork(cos_spd_id(), comp2fork);
 			//if (replicas[i].spdid == 0) printc("Error: f1 fork failed\n");
+			replicas[i].thread_id = cos_get_thd_id();
+			replicas[i].destination = NULL;
 			replicas[i].buf_read = cbuf_alloc(1024, &replicas[i].read_buffer); 
 			replicas[i].buf_write = cbuf_alloc(1024, &replicas[i].write_buffer);
-			replicas[i].blocked = 0;
-			replicas[i].thread_id = cos_get_thd_id();
+			assert(replicas[i].buf_read);
+			assert(replicas[i].buf_write);
+			assert(replicas[i].read_buffer > 0);
+			assert(replicas[i].write_buffer > 0);
+			printc("created write buf %d, read buf %d\n", replicas[i].write_buffer, replicas[i].read_buffer);
 
+			/* Send this information back to the replica */
+			cbuf_send(replicas[i].read_buffer);
+			cbuf_send(replicas[i].write_buffer);
+
+			/* Set map entries for this replica */
 			map[spdid].type = type;
 			map[spdid].replica = &replicas[i];
 			map[spdid].component = &components[t];
+			
 			return 0;
 		}
 		else {
 			printc("replica for spdid %d already exists\n", replicas[i].spdid);
 		}
 	}
-	return 0;
+
+	/* We couldn't find a free slot */
+	return -1;
 }
 
 void cos_init(void)
@@ -225,6 +287,10 @@ void cos_init(void)
 	channels[0].rcv = &components[1];
 	channels[1].snd = &components[1];
 	channels[1].rcv = &components[0];
+	channels[0].data_buf = cbuf_alloc(1024, &channels[0].data_cbid); 
+	assert(channels[0].data_buf);
+	channels[1].data_buf = cbuf_alloc(1024, &channels[1].data_cbid); 
+	assert(channels[1].data_buf);
 
 	for (i = 0; i < N_MAP_SZ; i++) {
 		map[i].type = none;

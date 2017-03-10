@@ -8,8 +8,12 @@ typedef enum {
 } replica_type;
 
 // to be fleshed out at a later time - long term solution is to have data in cbufs
-int nread(spdid_t spdid, replica_type from, int data);
-int nwrite(spdid_t spdid, replica_type to, int data);
+int nread(spdid_t spdid, replica_type from, size_t sz);
+int nwrite(spdid_t spdid, replica_type to, size_t sz);
 int confirm(spdid_t spdid, replica_type type);
+
+// Todo: make this not look like shitty java getter code
+cbuf_t get_write_buf(spdid_t spdid);
+cbuf_t get_read_buf(spdid_t spdid);
 
 #endif /* !VOTER_H */
