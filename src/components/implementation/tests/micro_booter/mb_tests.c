@@ -29,11 +29,11 @@ test_thds_perf(void)
 	cos_thd_switch(ts);
 
 	for (i = 0 ; i < ITER ; i++) {
-	rdtscll(start_swt_cycles);
+		rdtscll(start_swt_cycles);
 		cos_thd_switch(ts);
-	rdtscll(end_swt_cycles);
-	perfdata_add(&pd, (double)((end_swt_cycles - start_swt_cycles)/2LL));
-	total_swt_cycles += ((end_swt_cycles - start_swt_cycles) / 2LL);
+		rdtscll(end_swt_cycles);
+		perfdata_add(&pd, (double)((end_swt_cycles - start_swt_cycles)/2LL));
+		total_swt_cycles += ((end_swt_cycles - start_swt_cycles) / 2LL);
 	}
 
 //	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
@@ -128,19 +128,25 @@ async_thd_parent_perf(void *thdcap)
 	long long start_asnd_cycles = 0, end_arcv_cycles = 0;
 	int i;
 
+	perfdata_init(&pd, "ASND/RCV");
 	cos_asnd(sc, 1);
 
-	rdtscll(start_asnd_cycles);
 	for (i = 0 ; i < ITER ; i++) {
+		rdtscll(start_asnd_cycles);
 		cos_asnd(sc, 1);
-	}
-	rdtscll(end_arcv_cycles);
-	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
+		rdtscll(end_arcv_cycles);
+		total_asnd_cycles += (end_arcv_cycles - start_asnd_cycles) / 2;
+		perfdata_add(&pd, (end_arcv_cycles - start_asnd_cycles) / 2);
 
-	PRINTC("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n",
-		total_asnd_cycles, (long long) (ITER), (total_asnd_cycles / (long long)(ITER)));
+	}
+
+//	PRINTC("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n",
+//		total_asnd_cycles, (long long) (ITER), (total_asnd_cycles / (long long)(ITER)));
 
 	async_test_flag = 0;
+	perfdata_calc(&pd);
+	perfdata_print(&pd);
+
 	while (1) cos_thd_switch(tc);
 }
 
@@ -930,6 +936,7 @@ test_inv_perf(void)
 	long long total_inv_cycles = 0LL, total_ret_cycles = 0LL;
 	unsigned int ret;
 
+	perfdata_init(&pd, "SINV");
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc > 0);
 	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
@@ -945,11 +952,14 @@ test_inv_perf(void)
 		call_cap_mb(ic, 1, 2, 3);
 		rdtscll(end_cycles);
 		total_inv_cycles += (midinv_cycles - start_cycles);
+		perfdata_add(&pd, (midinv_cycles - start_cycles));
 		total_ret_cycles += (end_cycles - midinv_cycles);
 	}
 
-	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n",
-		total_inv_cycles, (long long) (ITER), (total_inv_cycles / (long long)(ITER)));
+	perfdata_calc(&pd);
+	perfdata_print(&pd);
+//	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n",
+//		total_inv_cycles, (long long) (ITER), (total_inv_cycles / (long long)(ITER)));
 	PRINTC("Average SRET (Total: %lld / Iterations: %lld ): %lld\n",
 		total_ret_cycles, (long long) (ITER), (total_ret_cycles / (long long)(ITER)));
 }
@@ -977,20 +987,20 @@ test_run_mb(void)
 {
 	test_hpet_timer();
 //	test_hpet_int();
-
+//
 //	test_timer();
 //	test_budgets();
 //
 //	test_thds();
-//	test_thds_perf();
+	test_thds_perf();
 //
 //	test_mem();
 //
 //	test_async_endpoints();
-//	test_async_endpoints_perf();
+	test_async_endpoints_perf();
 //
 //	test_inv();
-//	test_inv_perf();
+	test_inv_perf();
 //
 //	test_captbl_expand();
 //
