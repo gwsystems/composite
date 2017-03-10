@@ -3,7 +3,7 @@
 
 /* feel free to comment some of these out to reduce code size */
 
-#define WANT_FLOATING_POINT_IN_PRINTF
+//#define WANT_FLOATING_POINT_IN_PRINTF
 //#define WANT_FLOATING_POINT_IN_SCANF
 //#define WANT_CHARACTER_CLASSES_IN_SCANF
  #define WANT_NULL_PRINTF
