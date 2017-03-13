@@ -54,10 +54,10 @@ printc(char *fmt, ...)
 void
 test_thd_fn(void *data)
 {
-	int workiters = WORKITERS * ((int)data);
 	while (1) {
-		SPIN(workiters);
+		int workiters = WORKITERS * ((int)data);
 
+		SPIN(workiters);
 		sl_thd_yield(0);
 	}
 }
