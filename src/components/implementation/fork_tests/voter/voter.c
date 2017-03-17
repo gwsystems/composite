@@ -16,6 +16,8 @@ struct replica_info {
 	cbuf_t write_buffer;
 	void *buf_read;
 	void *buf_write;
+	size_t sz_read;
+	size_t sz_write;
 	unsigned short int thread_id;
 	int blocked;
 	void *destination;		// NULL if this replica hasn't written
@@ -29,6 +31,7 @@ struct nmod_comp {
 struct channel {
 	struct nmod_comp *snd, *rcv;
 	int have_data;
+	size_t sz_data; 		// or can just merge with have_data?
 	cbuf_t data_cbid;
 	void *data_buf;
 	u64_t start;			// set each time the replica is woken up. Accurate?
@@ -89,9 +92,12 @@ int nwrite(spdid_t spdid, replica_type to, size_t sz) {
 		return -1; // whatever, shouldn't happen if blocked
 	}
 	else {
-		replica->destination = to_comp;
-		printc("resplica destination set to %x\n", replica->destination);
 		assert(replica->buf_write);
+		assert(sz <= 1024);
+		
+		replica->destination = to_comp;
+		replica->sz_write = sz;
+		printc("resplica destination set to %x\n", replica->destination);
 		ret = block_replica(replica);
 		if (ret < 0) printc("Error\n");
 		/* On wakeup */	
@@ -99,7 +105,7 @@ int nwrite(spdid_t spdid, replica_type to, size_t sz) {
 	}
 }
 
-int nread(spdid_t spdid, replica_type from, size_t sz) {
+size_t nread(spdid_t spdid, replica_type from, size_t sz) {
 	struct replica_info *replica = get_replica(spdid);
 	struct nmod_comp *component = get_component(spdid);
 	struct nmod_comp *from_comp = (from == ping) ? &components[0] : (from == pong) ? & components[1] : NULL;
@@ -111,7 +117,7 @@ int nread(spdid_t spdid, replica_type from, size_t sz) {
 	if (c->have_data) {
 		c->have_data = 0;
 		printc("returning from read\n");
-		return 0;
+		return c->sz_data;
 	}
 	else {
 		ret = block_replica(replica);
@@ -120,7 +126,7 @@ int nread(spdid_t spdid, replica_type from, size_t sz) {
 		assert(c->have_data);
 		printc("returning from read\n");
 		c->have_data = 0; // well this is wrong because maybe other replicas still need to read
-		return 0;
+		return c->sz_data;
 	}
 }
 
@@ -176,7 +182,7 @@ void monitor(void) {
 			matches[j]++;						// for our own match. Is this how voting works? Do we even know anymore...
 			for (k = j + 1; k < snd_comp->nreplicas; k++) {
 				/* compare j to k  */
-				if (memcmp(snd_comp->replicas[j].buf_write, snd_comp->replicas[k].buf_write, 1) == 0) {
+				if (snd_comp->replicas[j].sz_write == snd_comp->replicas[k].sz_write && memcmp(snd_comp->replicas[j].buf_write, snd_comp->replicas[k].buf_write, snd_comp->replicas[j].sz_write) == 0) {
 					matches[j]++;
 					matches[k]++;
 				}
@@ -192,17 +198,19 @@ void monitor(void) {
 
 		/* Now put the majority index's data into the channel */
 		assert(channels[i].data_buf);
+		assert(snd_comp->replicas[majority_index].sz_write <= 1024);
 		channels[i].have_data = 1;
+		channels[i].sz_data = snd_comp->replicas[majority_index].sz_write;
 		printc("Majority index %d\n", majority_index);
 		printc("starting copy to %x from %x\n", channels[i].data_buf, snd_comp->replicas[majority_index].buf_write);
-		memcpy(channels[i].data_buf, snd_comp->replicas[majority_index].buf_write, 1);
+		memcpy(channels[i].data_buf, snd_comp->replicas[majority_index].buf_write, snd_comp->replicas[majority_index].sz_write);
 		printc("finished copy\n");
 
 		// also unblock writes!
 
 		for (j = 0; j < rcv_comp->nreplicas; j++) {
 			rcv_replica = &rcv_comp->replicas[j];
-			memcpy(rcv_replica->buf_read, channels[i].data_buf, 1);
+			memcpy(rcv_replica->buf_read, channels[i].data_buf, channels[i].sz_data);
 
 			printc("Looking at replica %d\n", rcv_replica->spdid);
 

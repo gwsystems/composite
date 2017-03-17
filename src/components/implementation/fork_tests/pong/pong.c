@@ -25,8 +25,8 @@ void cos_init(void) {
 		
 		// to ignore fork for now
 		printc("calling read\n");
-		int ret = nread(cos_spd_id(), ping, 3);
-		printc("read returned %d and now we have data [%c]\n", ret, *((char*) buf_read));
+		int ret = nread(cos_spd_id(), ping, 4);
+		printc("read returned %d and now we have data [%s]\n", ret, ((char*) buf_read));
 
 		//printc("----second iteration pong----\n");
 		//int r = nwrite(cos_spd_id(), ping, "opq", 3);

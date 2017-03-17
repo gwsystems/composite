@@ -8,7 +8,7 @@ typedef enum {
 } replica_type;
 
 // to be fleshed out at a later time - long term solution is to have data in cbufs
-int nread(spdid_t spdid, replica_type from, size_t sz);
+size_t nread(spdid_t spdid, replica_type from, size_t sz);
 int nwrite(spdid_t spdid, replica_type to, size_t sz);
 int confirm(spdid_t spdid, replica_type type);
 

@@ -24,8 +24,8 @@ void cos_init(void) {
 		
 		/* Start sending data */
 		printc("calling write\n");
-		memcpy(buf_write, "abc", 3);
-		int writec = nwrite(cos_spd_id(), pong, 3);
+		memcpy(buf_write, "abc\0", 4);
+		int writec = nwrite(cos_spd_id(), pong, 4);
 		printc("write returned %d\n", writec);
 
 		//printc("----second iteration ping----\n");
