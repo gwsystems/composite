@@ -1,4 +1,7 @@
 #include "micro_booter.h"
+#include "perfdata.h"
+
+struct perfdata pd;
 
 static void
 thd_fn_perf(void *d)
@@ -19,19 +22,24 @@ test_thds_perf(void)
 	long long start_swt_cycles = 0, end_swt_cycles = 0;
 	int i;
 
+	perfdata_init(&pd, "Thd_Swtch");
+
 	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL);
 	assert(ts);
 	cos_thd_switch(ts);
 
-	rdtscll(start_swt_cycles);
 	for (i = 0 ; i < ITER ; i++) {
+		rdtscll(start_swt_cycles);
 		cos_thd_switch(ts);
+		rdtscll(end_swt_cycles);
+		perfdata_add(&pd, (double)((end_swt_cycles - start_swt_cycles)/2LL));
+		total_swt_cycles += ((end_swt_cycles - start_swt_cycles) / 2LL);
 	}
-	rdtscll(end_swt_cycles);
-	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
 
-	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
-		total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));
+//	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
+//		total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));
+	perfdata_calc(&pd);
+	perfdata_print(&pd);
 }
 
 static void
@@ -120,19 +128,25 @@ async_thd_parent_perf(void *thdcap)
 	long long start_asnd_cycles = 0, end_arcv_cycles = 0;
 	int i;
 
+	perfdata_init(&pd, "ASND/RCV");
 	cos_asnd(sc, 1);
 
-	rdtscll(start_asnd_cycles);
 	for (i = 0 ; i < ITER ; i++) {
+		rdtscll(start_asnd_cycles);
 		cos_asnd(sc, 1);
-	}
-	rdtscll(end_arcv_cycles);
-	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
+		rdtscll(end_arcv_cycles);
+		total_asnd_cycles += (end_arcv_cycles - start_asnd_cycles) / 2;
+		perfdata_add(&pd, (end_arcv_cycles - start_asnd_cycles) / 2);
 
-	PRINTC("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n",
-		total_asnd_cycles, (long long) (ITER), (total_asnd_cycles / (long long)(ITER)));
+	}
+
+//	PRINTC("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n",
+//		total_asnd_cycles, (long long) (ITER), (total_asnd_cycles / (long long)(ITER)));
 
 	async_test_flag = 0;
+	perfdata_calc(&pd);
+	perfdata_print(&pd);
+
 	while (1) cos_thd_switch(tc);
 }
 
@@ -265,6 +279,38 @@ test_async_endpoints_perf(void)
 	while (async_test_flag) cos_thd_switch(tcp);
 }
 
+struct exec_cluster {
+	thdcap_t  tc;
+	arcvcap_t rc;
+	tcap_t    tcc;
+	cycles_t  cyc;
+	asndcap_t sc; /*send-cap to send to rc */
+	tcap_prio_t prio;
+	int xseq; /* expected activation sequence number for this thread */
+};
+
+struct budget_test_data {
+	/* p=parent, c=child, g=grand-child */
+	struct exec_cluster p, c, g;
+} bt, mbt;
+
+static void
+exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t parentc)
+{
+	e->tcc = cos_tcap_alloc(&booter_info);
+	assert(e->tcc);
+	e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d);
+	assert(e->tc);
+	e->rc = cos_arcv_alloc(&booter_info, e->tc, e->tcc, booter_info.comp_cap, parentc);
+	assert(e->rc);
+	e->sc = cos_asnd_alloc(&booter_info, e->rc, booter_info.captbl_cap);
+	assert(e->sc);
+
+	e->cyc = 0;
+}
+
+
+
 #define TCAP_NLAYERS 3
 static volatile int child_activated[TCAP_NLAYERS][2];
 /* tcap child/parent receive capabilities, and the send capability */
@@ -334,6 +380,116 @@ spinner(void *d)
 { while (1) ; }
 
 cycles_t cyc_per_usec;
+#define TEST_USEC_INTERVAL 100 /* in microseconds */
+#define TEST_HPET_ITERS   ITER 
+cycles_t iat_vals[TEST_HPET_ITERS - 1];
+
+static void
+test_hpet_timer(void)
+{
+	int      i;
+	thdcap_t tc;
+	cycles_t c = 0, p = 0, t = 0;
+	perfdata_init(&pd, "HPET_IAT_Perf");
+
+//	PRINTC("Starting HPET timer test.\n");
+	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
+	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, BOOT_CAPTBL_SELF_INITRCV_BASE, TEST_USEC_INTERVAL);
+
+	for (i = 0 ; i <= TEST_HPET_ITERS ; i++) {
+		thdid_t     tid;
+		int         blocked;
+		cycles_t    cycles;
+
+		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, TCAP_TIME_NIL, 0, cos_sched_sync());
+		p     = c;
+		rdtscll(c);
+		if (i > 0) {
+//			t += c-p;
+//			iat_vals[i - 1] = c - p;
+			perfdata_add(&pd, c-p);
+		}
+
+		//while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
+	}
+
+	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
+
+	perfdata_calc(&pd);
+	perfdata_print(&pd);
+//	for (i = 0 ; i < TEST_HPET_ITERS ; i += 10) {
+//		PRINTC("%llu ", iat_vals[i]);
+//	}
+
+//	PRINTC("\nAverage inter-arrival time (%d microseconds) = %lld\n",
+//	       TEST_USEC_INTERVAL, t/TEST_HPET_ITERS);
+
+	//PRINTC("Timer test completed.\nSuccess.\n");
+}
+
+struct exec_cluster hpetec;
+int hpet_int_test = 1;
+
+#define HPET_LOOPITERS 100000
+#define HPET_TESTITERS 100
+#define HPET_BUDGET    50 
+static void
+hpet_thdfn(void *e)
+{
+	cycles_t prev, now;
+	int iters = 0;
+	arcvcap_t rcv = ((struct exec_cluster *)e)->rc;
+	tcap_t    tc  = ((struct exec_cluster *)e)->tcc;
+
+	prev = now = 0;
+	while (1) {
+		int loop = 0;
+
+		cos_rcv(rcv);
+		rdtscll(now);
+		if (prev) { PRINTC("%llu ", now - prev); }
+		prev = now;	
+		while (loop < HPET_LOOPITERS) loop ++;
+		iters ++;
+		if (iters >= HPET_TESTITERS) break;
+	}
+	
+	hpet_int_test = 0;
+	while (1) { cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0, 0, cos_sched_sync()); }
+}
+
+static void
+test_hpet_int(void)
+{
+	int      i;
+	thdcap_t tc;
+	cycles_t c = 0, p = 0, t = 0;
+
+	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	PRINTC("Starting hpet int test...\n");
+	exec_cluster_alloc(&hpetec, hpet_thdfn, &hpetec, BOOT_CAPTBL_SELF_INITRCV_BASE);
+
+	hpetec.prio = TCAP_PRIO_MAX;
+	if (cos_tcap_transfer(hpetec.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, HPET_BUDGET * TEST_USEC_INTERVAL * cyc_per_usec, hpetec.prio)) assert(0);
+
+	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, hpetec.rc, TEST_USEC_INTERVAL);
+
+	while (hpet_int_test) {
+		rdtscll(c);
+		if (p) { t += (c - p); }
+		p = c;
+
+		if (t >= TEST_USEC_INTERVAL * cyc_per_usec * HPET_BUDGET * 10) {
+			t = 0;
+			if (cos_tcap_transfer(hpetec.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, HPET_BUDGET * TEST_USEC_INTERVAL * cyc_per_usec, hpetec.prio)) assert(0);
+		}
+	}
+
+	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
+	PRINTC("\nDone.\n");
+}
+
 
 static void
 test_timer(void)
@@ -367,36 +523,6 @@ test_timer(void)
 	       t/16, (unsigned int)cos_hw_cycles_thresh(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	PRINTC("Timer test completed.\nSuccess.\n");
-}
-
-struct exec_cluster {
-	thdcap_t  tc;
-	arcvcap_t rc;
-	tcap_t    tcc;
-	cycles_t  cyc;
-	asndcap_t sc; /*send-cap to send to rc */
-	tcap_prio_t prio;
-	int xseq; /* expected activation sequence number for this thread */
-};
-
-struct budget_test_data {
-	/* p=parent, c=child, g=grand-child */
-	struct exec_cluster p, c, g;
-} bt, mbt;
-
-static void
-exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t parentc)
-{
-	e->tcc = cos_tcap_alloc(&booter_info);
-	assert(e->tcc);
-	e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d);
-	assert(e->tc);
-	e->rc = cos_arcv_alloc(&booter_info, e->tc, e->tcc, booter_info.comp_cap, parentc);
-	assert(e->rc);
-	e->sc = cos_asnd_alloc(&booter_info, e->rc, booter_info.captbl_cap);
-	assert(e->sc);
-
-	e->cyc = 0;
 }
 
 static void
@@ -810,6 +936,7 @@ test_inv_perf(void)
 	long long total_inv_cycles = 0LL, total_ret_cycles = 0LL;
 	unsigned int ret;
 
+	perfdata_init(&pd, "SINV");
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc > 0);
 	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
@@ -825,11 +952,14 @@ test_inv_perf(void)
 		call_cap_mb(ic, 1, 2, 3);
 		rdtscll(end_cycles);
 		total_inv_cycles += (midinv_cycles - start_cycles);
+		perfdata_add(&pd, (midinv_cycles - start_cycles));
 		total_ret_cycles += (end_cycles - midinv_cycles);
 	}
 
-	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n",
-		total_inv_cycles, (long long) (ITER), (total_inv_cycles / (long long)(ITER)));
+	perfdata_calc(&pd);
+	perfdata_print(&pd);
+//	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n",
+//		total_inv_cycles, (long long) (ITER), (total_inv_cycles / (long long)(ITER)));
 	PRINTC("Average SRET (Total: %lld / Iterations: %lld ): %lld\n",
 		total_ret_cycles, (long long) (ITER), (total_ret_cycles / (long long)(ITER)));
 }
@@ -855,24 +985,27 @@ test_captbl_expand(void)
 void
 test_run_mb(void)
 {
-	test_timer();
-	test_budgets();
-
-	test_thds();
+	test_hpet_timer();
+//	test_hpet_int();
+//
+//	test_timer();
+//	test_budgets();
+//
+//	test_thds();
 	test_thds_perf();
-
-	test_mem();
-
-	test_async_endpoints();
+//
+//	test_mem();
+//
+//	test_async_endpoints();
 	test_async_endpoints_perf();
-
-	test_inv();
+//
+//	test_inv();
 	test_inv_perf();
-
-	test_captbl_expand();
-
-	test_wakeup();
-	test_preemption();
+//
+//	test_captbl_expand();
+//
+//	test_wakeup();
+//	test_preemption();
 }
 
 /*

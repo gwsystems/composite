@@ -823,6 +823,10 @@ cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t arcv)
 { return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, hwid, arcv, 0, 0); }
 
 int
+cos_hw_periodic_attach(hwcap_t hwc, arcvcap_t arcv, unsigned int period)
+{ return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, HW_PERIODIC, arcv, period, 0); }
+
+int
 cos_hw_detach(hwcap_t hwc, hwid_t hwid)
 { return call_cap_op(hwc, CAPTBL_OP_HW_DETACH, hwid, 0, 0, 0); }
 

@@ -138,6 +138,19 @@ static int
 asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 { return cap_capdeactivate(t, capin, CAP_ASND, lid); }
 
+static inline struct cap_arcv *
+asnd_to_arcv(struct cap_asnd *asnd)
+{
+        struct cap_arcv *arcv;
+
+        if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) return NULL;
+        arcv = (struct cap_arcv *)captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid);
+        if (unlikely(!CAP_TYPECHK(arcv, CAP_ARCV)))               return NULL;
+        /* FIXME: check arcv epoch + liveness */
+
+        return arcv;
+}
+
 /* send to a receive end-point within an interrupt */
 int cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs);
 
@@ -179,6 +192,10 @@ __arcv_teardown(struct cap_arcv *arcv, struct thread *thd)
 static struct thread *
 arcv_thd_notif(struct thread *arcvt)
 { return arcvt->rcvcap.rcvcap_thd_notif; }
+
+static struct tcap *
+arcv_tcap(struct cap_arcv *arcv)
+{ return arcv->thd->rcvcap.rcvcap_tcap; }
 
 static int
 arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap, capid_t tcap_cap, capid_t arcv_cap, int init)

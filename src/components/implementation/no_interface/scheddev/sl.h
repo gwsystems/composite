@@ -57,6 +57,7 @@ struct sl_global {
 	int            cyc_per_usec;
 	cycles_t       period;
 	cycles_t       timer_next;
+	tcap_time_t    timeout_next;
 };
 
 extern struct sl_global sl_global_data;
@@ -198,7 +199,7 @@ sl_cs_exit_schedule_nospin(void)
 	sl_cs_exit();
 
 	/* TODO: enable per-thread tcaps for interrupt threads */
-	return cos_defswitch(thdcap, prio, sl__globals()->timer_next, tok);
+	return cos_defswitch(thdcap, prio, sl__globals()->timeout_next, tok);
 }
 
 static inline void
@@ -241,7 +242,10 @@ sl_timeout_period_get(void)
 
 static inline void
 sl_timeout_oneshot(cycles_t absolute_us)
-{ sl__globals()->timer_next = absolute_us; }
+{
+	sl__globals()->timer_next   = absolute_us;
+	sl__globals()->timeout_next = tcap_cyc2time(absolute_us);
+}
 
 static inline void
 sl_timeout_relative(cycles_t offset)

@@ -96,6 +96,8 @@ void chal_send_ipi(int cpuid);
 void chal_idle(void);
 void chal_timer_set(cycles_t cycles);
 void chal_timer_disable(void);
+void chal_hpet_periodic_set(unsigned long);
+void chal_hpet_disable(void);
 
 void chal_init(void);
 
@@ -108,5 +110,11 @@ void chal_init(void);
 
 extern void printk(const char *fmt, ...);
 void chal_khalt(void);
+
+/* Interrupt handling */
+void chal_mask_irq(int);
+void chal_unmask_irq(int);
+void chal_mask_irqbmp(u32_t);
+void chal_unmask_irqbmp(u32_t);
 
 #endif	/* CHAL_H */
