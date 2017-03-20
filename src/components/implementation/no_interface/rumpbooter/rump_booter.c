@@ -26,6 +26,7 @@ hw_irq_alloc(void){
 
 	for(i = HW_ISR_FIRST; i < HW_ISR_LINES; i++){
 		if (vmid == 0) {
+			printc("i:%d\n", i);
 			switch(i) {
 			case IRQ_VM1:
 				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE;
@@ -51,6 +52,10 @@ hw_irq_alloc(void){
 				irq_prio[i] = PRIO_BOOST;
 #endif
 				break;
+			case IRQ_DL:
+				printc("dlvm irq\n");
+				break;
+
 			default:
 				irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, (void *)i);
 				assert(irq_thdcap[i]);
@@ -144,7 +149,7 @@ rump_booter_init(void)
 #define JSON_NGINX_QEMU 3
 
 /* json config string fixed at compile-time */
-#define JSON_CONF_TYPE JSON_NGINX_BAREMETAL
+#define JSON_CONF_TYPE JSON_NGINX_QEMU
 //#define JSON_CONF_TYPE JSON_PAWS_BAREMETAL
 
 	printc("~~~~~ vmid: %d ~~~~~\n", vmid);

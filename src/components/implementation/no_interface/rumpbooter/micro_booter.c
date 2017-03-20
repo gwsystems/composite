@@ -57,9 +57,9 @@ vm_init(void *id)
 	}
 
 
-	PRINTC("rump_booter_init\n");
-	if (id == 0 || id == 1) rump_booter_init();
-	
+	if (id == 0) rump_booter_init();
+	else dl_booter_init();
+
 	EXIT();
 	return;
 }
