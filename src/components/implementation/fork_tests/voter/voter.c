@@ -65,6 +65,7 @@ struct channel *get_channel(struct nmod_comp *snd, struct nmod_comp *rcv) {
 	if (snd == NULL || rcv == NULL) return NULL;
 
 	for (i = 0; i < N_CHANNELS; i++) {
+		printc("%x and %x compared to %x and %x\n", channels[i].snd, channels[i].rcv, snd, rcv);
 		if (channels[i].snd == snd && channels[i].rcv == rcv) {
 			return &channels[i];
 		}
@@ -108,9 +109,10 @@ int nwrite(spdid_t spdid, replica_type to, size_t sz) {
 size_t nread(spdid_t spdid, replica_type from, size_t sz) {
 	struct replica_info *replica = get_replica(spdid);
 	struct nmod_comp *component = get_component(spdid);
-	struct nmod_comp *from_comp = (from == ping) ? &components[0] : (from == pong) ? & components[1] : NULL;
+	struct nmod_comp *from_comp = (from == ping) ? &components[0] : (from == pong) ? &components[1] : NULL;
 	struct channel *c = get_channel(from_comp, component);
 	int ret;
+	printc("read spdid %d from %d component %x from_comp %x\n", spdid, from, component, from_comp);
 	if (!replica) BUG();
 	if (!c) BUG();
 
