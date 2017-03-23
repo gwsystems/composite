@@ -18,6 +18,9 @@ unsigned int ready_vms = COS_VIRT_MACH_COUNT;
 
 unsigned int cycs_per_usec;
 
+/*worker thds for dlvm*/
+extern void dl_work_one(void *);
+
 /*
  * Init caps for each VM
  */
@@ -980,12 +983,17 @@ cos_init(void)
 			assert(vms_io_rcv[id-1]);
 #endif
 
-			//vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vms_io_rcv[id-1], vkern_info.captbl_cap);
-			//assert(vm0_io_asnd[id-1]);
+			
 			/* Changing to init thd of dl_vm */
-			vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vminitrcv[id], vkern_info.captbl_cap);
-			assert(vm0_io_asnd[id-1]);
+			if (id == DL_VM) {
+				vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vminitrcv[id], vkern_info.captbl_cap);
+				assert(vm0_io_asnd[id-1]);
+			} 
+			else {
+				vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vms_io_rcv[id-1], vkern_info.captbl_cap);
+				assert(vm0_io_asnd[id-1]);
 
+			}
 			vms_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vm0_io_rcv[id-1], vkern_info.captbl_cap);
 			assert(vms_io_asnd[id-1]);
 

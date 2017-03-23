@@ -144,8 +144,6 @@ cos_irqthd_handler(void *line)
 		intr_start(which);
 
 		if ((int)line == 0) {
-			
-			//sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + 0 * CAP64B_IDSZ;
 			sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE;
 			if(cos_asnd(sndcap, 0)) assert(0);
 			//printc("line: %d \n", (int)line);
