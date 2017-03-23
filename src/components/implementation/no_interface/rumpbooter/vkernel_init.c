@@ -115,6 +115,7 @@ extern int vmid;
 void
 vm0_io_fn(void *d) 
 {
+	printc("vm0_io_fn\n");
 	int line;
 	unsigned int irqline;
 	arcvcap_t rcvcap;
@@ -134,6 +135,7 @@ vm0_io_fn(void *d)
 	rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + (((int)d - 1) * CAP64B_IDSZ);
 	while (1) {
 		int pending = cos_rcv(rcvcap);
+		printc("vm0\n");
 		intr_start(irqline);
 		bmk_isr(line);
 		cos_vio_tcap_set((int)d);
@@ -144,6 +146,7 @@ vm0_io_fn(void *d)
 void
 vmx_io_fn(void *d)
 {
+	printc("vmx\n");
 	while (1) {
 		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
 		intr_start(IRQ_DOM0_VM);
@@ -936,6 +939,8 @@ cos_init(void)
 			assert(vm0_io_thd[id-1]);
 			vms_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vmx_io_fn, (void *)id);
 			assert(vms_io_thd[id-1]);
+			/*VM0 to dlvm*/
+			
 #if defined(__INTELLIGENT_TCAPS__)
 			vm0_io_tcap[id-1] = cos_tcap_alloc(&vkern_info);
 			assert(vm0_io_tcap[id-1]);
@@ -975,8 +980,12 @@ cos_init(void)
 			assert(vms_io_rcv[id-1]);
 #endif
 
-			vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vms_io_rcv[id-1], vkern_info.captbl_cap);
+			//vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vms_io_rcv[id-1], vkern_info.captbl_cap);
+			//assert(vm0_io_asnd[id-1]);
+			/* Changing to init thd of dl_vm */
+			vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vminitrcv[id], vkern_info.captbl_cap);
 			assert(vm0_io_asnd[id-1]);
+
 			vms_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vm0_io_rcv[id-1], vkern_info.captbl_cap);
 			assert(vms_io_asnd[id-1]);
 

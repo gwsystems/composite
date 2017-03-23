@@ -135,16 +135,24 @@ rump2cos_rcv(void)
 void
 cos_irqthd_handler(void *line)
 {
+	asndcap_t sndcap;
 	int which = (int)line;
 	arcvcap_t arcvcap = irq_arcvcap[which];
 	
 	while(1) {
 		int pending = cos_rcv(arcvcap);
-
 		intr_start(which);
 
-		bmk_isr(which);
-
+		if ((int)line == 0) {
+			
+			//sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + 0 * CAP64B_IDSZ;
+			sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE;
+			if(cos_asnd(sndcap, 0)) assert(0);
+			//printc("line: %d \n", (int)line);
+		
+		}else {
+			bmk_isr(which);
+		}
 		intr_end();
 	}
 }

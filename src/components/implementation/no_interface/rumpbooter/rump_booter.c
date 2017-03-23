@@ -26,7 +26,6 @@ hw_irq_alloc(void){
 
 	for(i = HW_ISR_FIRST; i < HW_ISR_LINES; i++){
 		if (vmid == 0) {
-			printc("i:%d\n", i);
 			switch(i) {
 			case IRQ_VM1:
 				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE;
@@ -51,9 +50,6 @@ hw_irq_alloc(void){
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 				irq_prio[i] = PRIO_BOOST;
 #endif
-				break;
-			case IRQ_DL:
-				printc("dlvm irq\n");
 				break;
 
 			default:
@@ -93,7 +89,12 @@ hw_irq_alloc(void){
 				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 				assert(irq_arcvcap[i]);
 #endif
-				cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
+				if (i == 0) {
+					printc("cos_periodic_attach\n");
+					cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, irq_arcvcap[i], 1000);
+				}else {
+					cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
+				}
 				break;
 			}
 		} else {
@@ -191,9 +192,22 @@ rump_booter_init(void)
 	//bmk_isr_init(ipintr, NULL, 12);
 	
 	/* We pass in the json config string to the RK */
-	cos_run(json_file);
-	printc("\nRumpKernel Boot done.\n");
+//	cos_run(json_file);
 
+	printc("\nRumpKernel Boot done.\n");
+	int i = 0;
+	int ret;
+	tcap_res_t budget;	
+	while(1) {
+			i++;
+			if (i%10000 == 0) {
+					budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
+					if ((ret = cos_tcap_transfer(irq_arcvcap[0], BOOT_CAPTBL_SELF_INITTCAP_BASE, budget / 2, irq_prio[0]))) {
+						printc("Irq 0 Tcap transfer failed %d\n", ret);
+						assert(0);
+					}
+			}
+	}
 	cos_vm_exit();
 	return;
 }

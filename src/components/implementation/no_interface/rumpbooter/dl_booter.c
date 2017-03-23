@@ -14,6 +14,13 @@ extern int vmid;
 void 
 dl_booter_init(void)
 {
-	printc("\nSetting up arcv for hw irq\n");
 	printc("DL_BOOTER_INIT: %d\n", vmid);
+	while(1) {
+		cos_rcv(VM0_CAPTBL_SELF_IORCV_SET_BASE);
+		printc("intr recieved \n");
+		int i;
+		for(i = 0; i < 10; i ++) {
+			
+		}
+	}
 }	
