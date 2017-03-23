@@ -52,6 +52,10 @@ int period = 100;
 
 void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd) { }
 
+int voter_setup(void) {
+	return components[0].replicas[0].spdid != 0 && components[1].replicas[0].spdid != 0;
+}
+
 struct nmod_comp *get_component(spdid_t spdid) {
 	return map[spdid].component;
 }
@@ -81,12 +85,107 @@ int block_replica(struct replica_info *replica) {
 	return sched_block(cos_spd_id(), 0);
 }
 
+int inspect_channel(struct channel *c) {
+	printc("in inspect\n");
+	int i, k;
+	int found;
+	int majority, majority_index;
+	struct replica_info *replica;
+
+	/* Check receive replicas. Currently doing nothing with this
+	 * but later on, need all n to have initiated a read
+	 */ 
+	for (i = 0; i < c->rcv->nreplicas; i++) {
+		replica = &c->rcv->replicas[i];
+		printc("inspecting rcv replica with spid %d\n", replica->spdid);
+	}
+	
+	/*
+	 * Check snd replicas. All need to have written.
+	 */
+	found = 0;
+	for (i = 0; i < c->snd->nreplicas; i++) {
+		replica = &c->snd->replicas[i];
+		printc("inspecting rcv replica with spid %d\n", replica->spdid);
+
+		if (replica->destination) {
+			printc("Found some data\n");
+			found++;
+		}
+	}
+	
+	if (found != c->snd->nreplicas) {
+		printc("Found only %d written replicas when we need %d to continue\n", found, c->snd->nreplicas);
+		sched_block(cos_spd_id(), 0);
+		/* return success once we are unblocked */
+		return 0;
+	}
+	printc("We have enough data to send\n");
+		
+	for (i = 0; i < 9; i++) matches[i] = 0;
+	majority = 0;
+
+	/* now vote */
+	for (i = 0; i < c->snd->nreplicas; i++) {
+		c->snd->replicas[i].destination = NULL;
+		matches[i]++;						// for our own match. Is this how voting works? Do we even know anymore...
+		for (k = i + 1; k < c->snd->nreplicas; k++) {
+			/* compare j to k  */
+			if (c->snd->replicas[i].sz_write == c->snd->replicas[k].sz_write && memcmp(c->snd->replicas[i].buf_write, c->snd->replicas[k].buf_write, c->snd->replicas[i].sz_write) == 0) {
+				matches[i]++;
+				matches[k]++;
+			}
+		}
+		if (matches[i] > majority) {
+			majority = matches[i];
+			majority_index = i;
+		}
+	}
+
+	for (i = 0; i < 9; i++) printc("[%d] ", matches[i]);
+	printc("\n");
+
+	/* Now put the majority index's data into the channel */
+	assert(c->data_buf);
+	assert(c->snd->replicas[majority_index].sz_write <= 1024);
+	c->have_data = 1;
+	c->sz_data = c->snd->replicas[majority_index].sz_write;
+	printc("Majority index %d\n", majority_index);
+	printc("starting copy to %x from %x\n", c->data_buf, c->snd->replicas[majority_index].buf_write);
+	memcpy(c->data_buf, c->snd->replicas[majority_index].buf_write, c->snd->replicas[majority_index].sz_write);
+	printc("finished copy\n");
+
+	// also unblock writes!
+
+	for (i = 0; i < c->rcv->nreplicas; i++) {
+		replica = &c->rcv->replicas[i];
+		memcpy(replica->buf_read, c->data_buf, c->sz_data);
+
+		printc("Looking at replica %d\n", replica->spdid);
+
+		if (replica->blocked) {
+			replica->blocked = 0;
+			if (!replica->thread_id) BUG();
+			printc("waking up thread %d\n", replica->thread_id);
+			sched_wakeup(cos_spd_id(), replica->thread_id);
+		}
+	}
+
+	return 0;	
+}
+
 int nwrite(spdid_t spdid, replica_type to, size_t sz) {
 	struct replica_info *replica = get_replica(spdid);
-	struct nmod_comp *to_comp = (to == ping) ? &components[0] : (to == pong) ? & components[1] : NULL;
+	struct nmod_comp *component = get_component(spdid);
+	struct nmod_comp *to_comp = (to == pong) ? &components[0] : (to == ping) ? & components[1] : NULL;
+	struct channel *c = get_channel(component, to_comp);
 	int ret;
 	long i;
 	if (!replica) BUG();
+	
+	if (!c) {
+		block_replica(replica);
+	}
 
 	if (replica->destination) {
 		printc("This replica has already sent some data down the channel\n");
@@ -95,41 +194,68 @@ int nwrite(spdid_t spdid, replica_type to, size_t sz) {
 	else {
 		assert(replica->buf_write);
 		assert(sz <= 1024);
-		
 		replica->destination = to_comp;
 		replica->sz_write = sz;
-		printc("resplica destination set to %x\n", replica->destination);
-		ret = block_replica(replica);
-		if (ret < 0) printc("Error\n");
-		/* On wakeup */	
-		return 0;
 	}
+
+	ret = inspect_channel(c);
+	return ret;
+
+	//if (replica->destination) {
+	//	printc("This replica has already sent some data down the channel\n");
+	//	return -1; // whatever, shouldn't happen if blocked
+	//}
+	//else {
+	//	assert(replica->buf_write);
+	//	assert(sz <= 1024);
+		
+	//	replica->destination = to_comp;
+	//	replica->sz_write = sz;
+	//	printc("resplica destination set to %x\n", replica->destination);
+	//	ret = block_replica(replica);
+	//	if (ret < 0) printc("Error\n");
+		/* On wakeup */	
+	//	return 0;
+	//}
 }
 
 size_t nread(spdid_t spdid, replica_type from, size_t sz) {
 	struct replica_info *replica = get_replica(spdid);
 	struct nmod_comp *component = get_component(spdid);
-	struct nmod_comp *from_comp = (from == ping) ? &components[0] : (from == pong) ? &components[1] : NULL;
-	struct channel *c = get_channel(from_comp, component);
+	struct nmod_comp *from_comp = (from == ping) ? &components[1] : (from == pong) ? &components[0] : NULL;
+	struct channel *c;
 	int ret;
-	printc("read spdid %d from %d component %x from_comp %x\n", spdid, from, component, from_comp);
-	if (!replica) BUG();
-	if (!c) BUG();
 
-	if (c->have_data) {
-		c->have_data = 0;
-		printc("returning from read\n");
-		return c->sz_data;
+	printc("comp %x reading from %x\n", component, from_comp);
+
+	c = get_channel(from_comp, component);
+
+	if (!replica) BUG();
+	if (!c) {
+		printc("Blocking read because no channel\n");
+		block_replica(replica);
 	}
-	else {
-		ret = block_replica(replica);
-		if (ret < 0) printc("Error");
+
+	printc("read spdid %d from %d component %x from_comp %x\n", spdid, from, component, from_comp);
+	ret = inspect_channel(c);
+	return c->sz_data;
+
+	//if (!c) BUG();
+
+	//if (c->have_data) {
+	//	c->have_data = 0;
+	//	printc("returning from read\n");
+	//	return c->sz_data;
+	//}
+	//else {
+	//	ret = block_replica(replica);
+	//	if (ret < 0) printc("Error");
 		/* On wakeup */	
-		assert(c->have_data);
-		printc("returning from read\n");
-		c->have_data = 0; // well this is wrong because maybe other replicas still need to read
-		return c->sz_data;
-	}
+	//	assert(c->have_data);
+	//	printc("returning from read\n");
+	//	c->have_data = 0; // well this is wrong because maybe other replicas still need to read
+	//	return c->sz_data;
+	//}
 }
 
 void restart_comp(struct replica_info *replica) {
@@ -155,72 +281,6 @@ void monitor(void) {
 			printc("time: %lu\n", time - channel->start);
 			if (time > 500) {					// this is waaaaaay too small of a timeout. How many cycles are 10 seconds???
 				restart_comp(&channel->rcv->replicas[i]);
-			}
-		}
-	}
-
-	for (i = 0; i < N_CHANNELS; i++) {
-		printc("Examing channel %d between nmodcomps with replicas %d and %d \n", i, channels[i].snd->replicas[0].spdid, channels[i].rcv->replicas[0].spdid);
-		rdtscll(channels[i].start);
-
-		found = 0;
-		snd_comp = channels[i].snd;
-		for (j = 0; j < snd_comp->nreplicas; j++) {
-			if (snd_comp->replicas[j].destination) {
-				printc("Found some data\n");
-				found++;
-			}
-		}
-
-		if (found != snd_comp->nreplicas) continue;
-		rcv_comp = channels[i].rcv;
-
-		for (j = 0; j < 9; j++) matches[j] = 0;
-		majority = 0;
-
-		/* now vote */
-		for (j = 0; j < snd_comp->nreplicas; j++) {
-			snd_comp->replicas[j].destination = NULL;
-			matches[j]++;						// for our own match. Is this how voting works? Do we even know anymore...
-			for (k = j + 1; k < snd_comp->nreplicas; k++) {
-				/* compare j to k  */
-				if (snd_comp->replicas[j].sz_write == snd_comp->replicas[k].sz_write && memcmp(snd_comp->replicas[j].buf_write, snd_comp->replicas[k].buf_write, snd_comp->replicas[j].sz_write) == 0) {
-					matches[j]++;
-					matches[k]++;
-				}
-			}
-			if (matches[j] > majority) {
-				majority = matches[j];
-				majority_index = j;
-			}
-		}
-
-		for (j = 0; j < 9; j++) printc("[%d] ", matches[j]);
-		printc("\n");
-
-		/* Now put the majority index's data into the channel */
-		assert(channels[i].data_buf);
-		assert(snd_comp->replicas[majority_index].sz_write <= 1024);
-		channels[i].have_data = 1;
-		channels[i].sz_data = snd_comp->replicas[majority_index].sz_write;
-		printc("Majority index %d\n", majority_index);
-		printc("starting copy to %x from %x\n", channels[i].data_buf, snd_comp->replicas[majority_index].buf_write);
-		memcpy(channels[i].data_buf, snd_comp->replicas[majority_index].buf_write, snd_comp->replicas[majority_index].sz_write);
-		printc("finished copy\n");
-
-		// also unblock writes!
-
-		for (j = 0; j < rcv_comp->nreplicas; j++) {
-			rcv_replica = &rcv_comp->replicas[j];
-			memcpy(rcv_replica->buf_read, channels[i].data_buf, channels[i].sz_data);
-
-			printc("Looking at replica %d\n", rcv_replica->spdid);
-
-			if (rcv_replica->blocked) {
-				rcv_replica->blocked = 0;
-				if (!rcv_replica->thread_id) BUG();
-				printc("waking up thread %d\n", rcv_replica->thread_id);
-				sched_wakeup(cos_spd_id(), rcv_replica->thread_id);
 			}
 		}
 	}
@@ -308,9 +368,11 @@ void cos_init(void)
 		map[i].component = NULL;
 	}
 
-	periodic_wake_create(cos_spd_id(), period);
-	do {
-		periodic_wake_wait(cos_spd_id());
-		monitor();
-	} while (i++ < 2000);
+	printc("Setup done channel 0 snd (%x) rcv (%x), 1 snd (%x) rcv (%x)\n", channels[0].snd, channels[0].rcv, channels[1].snd, channels[1].rcv);
+
+	//periodic_wake_create(cos_spd_id(), period);
+	//do {
+	//	periodic_wake_wait(cos_spd_id());
+		//monitor();
+	//} while (i++ < 2000);
 }

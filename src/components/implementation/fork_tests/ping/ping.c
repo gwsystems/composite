@@ -20,7 +20,7 @@ void cos_init(void) {
 	buf_read = cbuf2buf(read_buffer, 1024);
 	buf_write = cbuf2buf(write_buffer, 1024);
 	printc("ping confirmed with buffers read (%d) and write(%d)\n", read_buffer, write_buffer);
-	
+
 	/* Start sending data */
 	while (i < 10) {
 		printc("ping calling write\n");
