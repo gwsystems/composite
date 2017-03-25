@@ -59,6 +59,57 @@ struct spd_vas_tracker {
 	struct spd_vas_occupied *map; 
 };
 
+int valloc_fork_spd(spdid_t spdid, spdid_t o_spdid, spdid_t f_spdid) 
+{
+	int ret = -1;
+	struct spd_vas_tracker *f_trac, *o_trac;
+	struct spd_vas_occupied *f_occ;
+	unsigned long page_off;
+	void *o_hp;
+	int i;
+
+	printc("starting valloc_fork_spd call from %d of %d to %d\n", spdid, o_spdid, f_spdid);
+
+	if (!cos_vect_lookup(&spd_vect, o_spdid)) goto done;
+	o_trac = cos_vect_lookup(&spd_vect, o_spdid);
+	if (!o_trac) goto done;
+	f_trac = malloc(sizeof(struct spd_vas_tracker));
+	if (!f_trac) goto done;
+
+	f_occ = alloc_page();
+	if (!f_occ) goto err_free1;
+	
+	o_hp = cinfo_get_heap_pointer(cos_spd_id(), f_spdid);
+	if (!o_hp) goto err_free2;
+
+        f_trac->spdid            = f_spdid;
+        f_trac->map              = f_occ;
+
+	for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
+		if (o_trac->extents[i].start != 0) {		/* naively simple way to make sure we don't copy empty tracs */
+			printc("adding trac starting at %x to %x with map %x\n", o_trac->extents[i].start, o_trac->extents[i].end, o_trac->extents[i].map);
+		        f_trac->extents[i].start = o_trac->extents[i].start;
+        		f_trac->extents[i].end   = o_trac->extents[i].end;
+        		f_trac->extents[i].map   = o_trac->extents[i].map;
+		}
+	}
+        page_off = ((unsigned long)o_hp - (unsigned long)round_to_pgd_page(o_hp))/PAGE_SIZE; // also not
+        bitmap_set_contig(&f_occ->pgd_occupied[0], page_off, (PGD_SIZE/PAGE_SIZE)-page_off, 1);
+        bitmap_set_contig(&f_occ->pgd_occupied[0], 0, page_off, 0);
+
+	cos_vect_add_id(&spd_vect, f_trac, f_spdid);
+	assert(cos_vect_lookup(&spd_vect, f_spdid));
+success:
+	ret = 0;
+done:
+	return ret;
+err_free2:
+	free_page(f_occ);
+err_free1:
+	free(f_trac);
+	goto done;
+}
+
 static int __valloc_init(spdid_t spdid)
 {
 	int ret = -1;

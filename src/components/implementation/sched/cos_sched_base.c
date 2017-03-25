@@ -2191,6 +2191,8 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	case COS_UPCALL_ACAP_COMPLETE:
 		fp_event_completion(sched_get_current());
 		break;
+	case COS_UPCALL_QUARANTINE:
+		break;
 	default:
 		printc("fp_rr: cos_upcall_fn error - type %x, arg1 %d, arg2 %d\n", 
 		      (unsigned int)t, (unsigned int)arg1, (unsigned int)arg2);

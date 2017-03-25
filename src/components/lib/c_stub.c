@@ -26,9 +26,9 @@ __attribute__((regparm(1))) int
 SS_ipc_client_marshal_args(struct usr_inv_cap *uc, long p0, long p1, long p2, long p3)
 {
 	int ret, done;
-redo:
-	CSTUB_INVOKE(ret, done, uc, 4, p0, p1, p2, p3);
-	if (unlikely(!done)) goto redo;
+	do {
+		CSTUB_INVOKE(ret, done, uc, 4, p0, p1, p2, p3);
+	} while (unlikely(done != 1));
 	return ret;
 }
 #undef assert
