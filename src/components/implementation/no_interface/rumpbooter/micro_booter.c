@@ -1,11 +1,9 @@
-#include "vk_types.h"
 #include "micro_booter.h"
+#include "rumpcalls.h"
 
 struct cos_compinfo booter_info;
 thdcap_t termthd = VM_CAPTBL_SELF_EXITTHD_BASE;	/* switch to this to shutdown */
 unsigned long tls_test[TEST_NTHDS];
-
-void cos_fs_test(void);
 
 static void
 cos_llprint(char *s, int len)
@@ -54,15 +52,29 @@ vm_init(void *id)
 			  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE, &booter_info);
 
 
-	printc("************ Userspace *************\n");
+	printc("\n************ USERSPACE *************\n");
 
+	printc("Running fs test\n");
 	cos_fs_test();
+	printc("Done\n");
 
+	//printc("\nRunning shared memory test\n");
+	//cos_shmem_test();
+	//printc("Done\n");
 
 	/* Done, just spin */
-	printc("************ Done ************\n");
+	printc("\n************ USERSPACE DONE ************\n");
 	while (1);
-	/* TODO add back in terminating thread */
-	//EXIT();
-	//return;
+}
+
+void
+kernel_init(void)
+{
+	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+			  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE, &booter_info);
+
+	printc("\n************ KERNEL *************\n");
+	rump_booter_init();
+	printc("\n************ KERNEL DONE ************\n");
 }

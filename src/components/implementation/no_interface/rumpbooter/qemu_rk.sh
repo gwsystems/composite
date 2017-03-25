@@ -16,6 +16,8 @@ MODULES=$(sh $1 | awk '/^Writing image/ { print $3; }' | tr '\n' ' ')
 #qemu-system-i386 -no-kvm -net nic,model=virtio -net tap,script=no,ifname=tap0 -nographic -m 128 -kernel kernel.img -initrd "$(echo $MODULES | tr ' ' ',')"
 #qemu-system-i386 -no-kvm -net nic,model=e1000 -nographic -m 768 -kernel kernel.img -initrd "$(echo $MODULES | tr ' ' ',')"
 
+clear
+
 sudo ip tuntap add tap0 mode tap
 sudo ip addr add 10.0.120.100/24 dev tap0
 sudo ip link set dev tap0 up

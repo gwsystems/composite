@@ -5,7 +5,6 @@
 #include "../../../../kernel/include/shared/cos_types.h"
 #include <consts.h>
 #include <cos_types.h>
-#include "vk_types.h"
 
 typedef __builtin_va_list va_list;
 #undef va_start
@@ -145,11 +144,13 @@ int cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned 
 int cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm);
 int cos_dequeue_size(unsigned int srcvm, unsigned int curvm);
 
-void cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_prio_t prio);
+/* Zombie functions */
+/* void cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_prio_t prio); */
 void cos_vio_tcap_update(unsigned int dst);
 void cos_vio_tcap_set(unsigned int src);
 tcap_t cos_find_vio_tcap(void);
 
 void cos_fs_test(void);
+void cos_shmem_test(void);
 
 #endif /* RUMPCALLS_H */

@@ -11,7 +11,7 @@ extern void *__inv_test_entry(int a, int b, int c);
 
 struct cobj_header *hs[MAX_NUM_SPDS+1];
 
-/* The booter uses this to keep track of each comp */
+/* The booter uses this to keep track of each new component */
 struct comp_cap_info {
 	struct cos_compinfo *compinfo;
 	vaddr_t addr_start;
@@ -71,7 +71,7 @@ boot_compinfo_init(int spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 	assert(*pt);
 
 	new_comp_cap_info[spdid].compinfo = &new_compinfo[spdid];
-	cos_compinfo_init(new_comp_cap_info[spdid].compinfo, *pt, *ct, 0, 
+	cos_compinfo_init(new_comp_cap_info[spdid].compinfo, *pt, *ct, 0,
 				  (vaddr_t)vaddr, 4, &boot_info);
 }
 

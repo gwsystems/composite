@@ -1,5 +1,5 @@
 #include "micro_booter.h"
-#include "vk_types.h"
+#include "vk_types_old.h"
 #include "vkern_api.h"
 
 void

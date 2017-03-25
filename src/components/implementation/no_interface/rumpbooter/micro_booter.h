@@ -18,7 +18,7 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 
-#include "vk_types.h"
+#include "vk_types_old.h"
 
 #define PRINTC(fmt, args...) printc("%d: " fmt, vmid , ##args)
 #define ITER       10000

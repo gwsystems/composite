@@ -4,13 +4,14 @@
 #include <cos_types.h>
 #include <cos_kernel_api.h>
 #include "rumpcalls.h"
+#include "vk_types_old.h"
 
 //#define assert(node)if (unlikely(!(node))) { debug_print("assert error in @ "); while(1);}
 
 typedef u32_t isr_state_t;
 extern volatile isr_state_t cos_isr;           /* Last running isr thread */
 extern unsigned int cos_nesting;               /* Depth to intr_disable/intr_enable */
-extern u32_t intrs; 	                       /* Intrrupt bit mask */
+extern u32_t intrs;	                       /* Intrrupt bit mask */
 extern volatile unsigned int cos_intrdisabled; /* Variable to detect if cos interrupt threads disabled interrupts */
 extern struct cos_compinfo booter_info;
 
@@ -190,7 +191,7 @@ static inline void
 intr_enable(void)
 {
 	unsigned int contending;
-        tcap_prio_t prio;	
+        tcap_prio_t prio;
 	int ret;
 
 	contending = isr_enable();
@@ -201,8 +202,9 @@ intr_enable(void)
 		 * cos_nesting of the interrupts
 		 */
 		do {
-			ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending), irq_prio[contending], 
-					 TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			//ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending), irq_prio[contending],
+			//		 TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			ret = cos_thd_switch(irq_thdcap[contending]);
 			assert (ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
 	}

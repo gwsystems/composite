@@ -1,5 +1,5 @@
 //header for shared mem ring buf
-#include "vk_types.h"
+#include "vk_types_old.h"
 
 struct cos_shm_rb {
 	unsigned int head, tail; 

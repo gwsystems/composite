@@ -1,5 +1,58 @@
 #include "vk_api.h"
 
+extern thdcap_t vm_main_thd;
+extern thdid_t  vm_main_thdid;
+
+/* rk_initcaps_init usues different entry functions for the entry thread */
+void
+rk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
+{
+	struct cos_compinfo *vmcinfo = &vminfo->cinfo;
+	struct cos_compinfo *vkcinfo = &vkinfo->cinfo;
+	int ret;
+
+	assert(vminfo && vkinfo);
+
+	printc("\tAllocating exit thread, vkcinfo: %p, vkcinfo->comp_cap: %p\n", vkcinfo, vkcinfo->comp_cap);
+	vminfo->exitthd = cos_thd_alloc(vkcinfo, vkcinfo->comp_cap, vm_exit, (void *)vminfo->id);
+	printc("\texit thread: %p\n", vminfo->exitthd);
+	assert(vminfo->exitthd);
+
+	printc("\tAllocating init thread, function: kernel_init\n");
+	vminfo->initthd = cos_thd_alloc(vkcinfo, vmcinfo->comp_cap, kernel_init, NULL);
+	printc("\tinit thread: %p\n", vminfo->exitthd);
+	assert(vminfo->initthd);
+	vminfo->inittid = (thdid_t)cos_introspect(vkcinfo, vminfo->initthd, THD_GET_TID);
+	printc("\tInit thread= cap:%x tid:%x\n", (unsigned int)vminfo->initthd, (unsigned int)vminfo->inittid);
+
+	printc("\tCreating and copying required initial capabilities\n");
+	/*
+	 * TODO: Multi-core support to create INITIAL Capabilities per core
+	 */
+	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITTHD_BASE, vkcinfo, vminfo->initthd);
+	assert(ret == 0);
+	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITHW_BASE, vkcinfo, BOOT_CAPTBL_SELF_INITHW_BASE);
+	assert(ret == 0);
+	ret = cos_cap_cpy_at(vmcinfo, VM_CAPTBL_SELF_EXITTHD_BASE, vkcinfo, vminfo->exitthd);
+	assert(ret == 0);
+
+	vminfo->inittcap = cos_tcap_alloc(vkcinfo);
+	assert(vminfo->inittcap);
+
+	vminfo->initrcv = cos_arcv_alloc(vkcinfo, vminfo->initthd, vminfo->inittcap, vkcinfo->comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	assert(vminfo->initrcv);
+
+	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITTCAP_BASE, vkcinfo, vminfo->inittcap);
+	assert(ret == 0);
+	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITRCV_BASE, vkcinfo, vminfo->initrcv);
+	assert(ret == 0);
+
+	/*
+	 * Create send end-point in VKernel to each VM's INITRCV end-point
+	 */
+	vkinfo->vminitasnd[vminfo->id] = cos_asnd_alloc(vkcinfo, vminfo->initrcv, vkcinfo->captbl_cap);
+	assert(vkinfo->vminitasnd[vminfo->id]);
+}
 void
 vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 {
@@ -7,14 +60,22 @@ vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	struct cos_compinfo *vkcinfo = &vkinfo->cinfo;
 	int ret;
 
-	assert(vminfo && vkinfo);	
+	assert(vminfo && vkinfo);
 
+	printc("\tAllocating exit thread, vkcinfo: %p, vkcinfo->comp_cap: %p\n", vkcinfo, vkcinfo->comp_cap);
 	vminfo->exitthd = cos_thd_alloc(vkcinfo, vkcinfo->comp_cap, vm_exit, (void *)vminfo->id);
+	printc("\texit thread: %p\n", vminfo->exitthd);
 	assert(vminfo->exitthd);
 
+	printc("\tAllocating init thread, function: vm_init \n");
 	vminfo->initthd = cos_thd_alloc(vkcinfo, vmcinfo->comp_cap, vm_init, (void *)vminfo->id);
+	printc("\tinit thread: %p\n", vminfo->initthd);
 	assert(vminfo->initthd);
+	printc("Set vm_main_thd to this thd cap\n");
+	vm_main_thd = BOOT_CAPTBL_USERSPACE_THD;
 	vminfo->inittid = (thdid_t)cos_introspect(vkcinfo, vminfo->initthd, THD_GET_TID);
+	printc("Set vm_main_thdid to this thd id\n");
+	vm_main_thdid = vminfo->inittid;
 	printc("\tInit thread= cap:%x tid:%x\n", (unsigned int)vminfo->initthd, (unsigned int)vminfo->inittid);
 
 	printc("\tCreating and copying required initial capabilities\n");
@@ -57,7 +118,7 @@ vk_iocaps_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkerne
 	int vmidx                    = vminfo->id - 1;
 	int ret;
 
-	assert(vminfo && dom0info && vkinfo);	
+	assert(vminfo && dom0info && vkinfo);
 	assert(vminfo->id && !dom0info->id);
 	assert(vmidx >= 0 && vmidx <= VM_COUNT - 1);
 
@@ -99,7 +160,7 @@ vk_virtmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 {
 	vaddr_t addr;
 
-	assert(vminfo && vkinfo);	
+	assert(vminfo && vkinfo);
 
 	for (addr = 0 ; addr < range ; addr += PAGE_SIZE) {
 		vaddr_t src_pg = (vaddr_t)cos_page_bump_alloc(&vkinfo->cinfo), dst_pg;
@@ -113,7 +174,7 @@ vk_virtmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 }
 
 void
-vk_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, 
+vk_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 	       unsigned long shm_ptr, unsigned long shm_sz)
 {
 	vaddr_t src_pg = (shm_sz * vminfo->id) + shm_ptr, dst_pg, addr;
@@ -128,13 +189,13 @@ vk_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 
 		dst_pg = cos_mem_alias(&vminfo->shm_cinfo, &vkinfo->shm_cinfo, src_pg);
 		assert(dst_pg && dst_pg == addr);
-	}	
+	}
 
 	return;
 }
 
 void
-vk_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo, 
+vk_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 	     unsigned long shm_ptr, unsigned long shm_sz)
 {
 	vaddr_t src_pg = (shm_sz * vminfo->id) + shm_ptr, dst_pg, addr;
@@ -148,7 +209,7 @@ vk_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 
 		dst_pg = cos_mem_alias(&vminfo->shm_cinfo, &vkinfo->shm_cinfo, src_pg);
 		assert(dst_pg && dst_pg == addr);
-	}	
+	}
 
 	return;
 }

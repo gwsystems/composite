@@ -7,6 +7,7 @@
 
 #include "rumpcalls.h"
 #include "cos_init.h"
+#include "vk_types_old.h"
 
 extern struct cos_compinfo booter_info;
 extern int vmid;
@@ -71,7 +72,7 @@ rump_booter_init(void)
 #define JSON_NGINX_QEMU 3
 
 /* json config string fixed at compile-time */
-#define JSON_CONF_TYPE -1
+#define JSON_CONF_TYPE JSON_PAWS_QEMU
 
 	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
 	if(vmid == 0) {
@@ -82,8 +83,9 @@ rump_booter_init(void)
 #elif JSON_CONF_TYPE == JSON_NGINX_BAREMETAL
 		json_file = "{,\"blk\":{,\"source\":\"dev\",\"path\":\"/dev/paws\",\"fstype\":\"cd9660\",\"mountpoint\":\"/data\",},\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"nginx.bin\",},\0";
 #elif JSON_CONF_TYPE == JSON_PAWS_QEMU
+		json_file = "";
 		//json_file = "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
-		json_file = "{,\"blk\":{,\"source\":\"dev\",\"path\":\"/dev/paws\",\"fstype\":\"cd9660\",\"mountpoint\":\"/data\",},\"cmdline\":\"paws.bin\",},\0";
+		//json_file = "{,\"blk\":{,\"source\":\"dev\",\"path\":\"/dev/paws\",\"fstype\":\"cd9660\",\"mountpoint\":\"/data\",},\"cmdline\":\"paws.bin\",},\0";
 
 #else /* JSON_CONF == JSON_PAWS_BAREMETAL */
 		json_file = "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";

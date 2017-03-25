@@ -3,6 +3,7 @@
 #include "cos_sync.h"
 #include <cos_kernel_api.h>
 #include <cos_types.h>
+#include "vk_types_old.h"
 
 volatile isr_state_t cos_isr = 0;  /* Last running isr thread */
 unsigned int cos_nesting = 0; 	   /* Depth to intr_disable/intr_enable */
@@ -64,18 +65,19 @@ intr_start(unsigned int irqline)
 
 			/* 2. */
 			if (intr_disabled) {
-				tcap_prio_t prio;	
+				tcap_prio_t prio;
 
 				assert(contending >= HW_ISR_FIRST && contending < HW_ISR_LINES);
 				assert(contending != irqline); /* Make sure we are not trying to switch to ourself */
 
 				/* Switch to contending isr thread */
 				do {
-                        		ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending), 
-							 irq_prio[contending], TCAP_TIME_NIL, 
-							 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-                        		assert (ret == 0 || ret == -EAGAIN);
-                		} while(ret == -EAGAIN);
+					//ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending),
+					//		 irq_prio[contending], TCAP_TIME_NIL,
+					//		 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+					ret = cos_thd_switch(irq_thdcap[contending]);
+					assert (ret == 0 || ret == -EAGAIN);
+				} while(ret == -EAGAIN);
 
 				continue;
 			}
@@ -86,7 +88,6 @@ intr_start(unsigned int irqline)
 
 			final = isr_construct(rk_disabled, intr_disabled, contending);
 		} while (unlikely(!ps_cas((unsigned long *)&cos_isr, tmp, final)));
-		
 
 		/* Comitting to only one isr thread running now, we have set intr_disabled */
 
@@ -96,8 +97,9 @@ intr_start(unsigned int irqline)
 			cos_isr = isr_construct(rk_disabled, 0, contending);
 			do {
 				/* Switch back to RK thread */
-				ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL,
-						 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				//ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL,
+				//		 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				ret = cos_thd_switch(cos_cur);
 				assert(ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 

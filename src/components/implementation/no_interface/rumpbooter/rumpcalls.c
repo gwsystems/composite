@@ -80,57 +80,11 @@ cos2rump_setup(void)
 
 int paws_tests(void);
 
-static void
-swap(int *a, int *b) {
-
-	int temp;
-
-	temp = *a;
-	*a = *b;
-	*b = temp;
-}
-
 extern int booting;
-
-int
-test_entry(int arg1, int arg2, int arg3, int arg4)
-{
-	int a,b;
-
-	printc("Let's see what's our arguments are: %d, %d, %d, %d\n", arg1, arg2, arg3, arg4);
-
-	a = arg1;
-	b = arg2;
-	printc("\nswapping: VM%d\n", vmid);
-	swap(&a, &b);
-	printc("\ndone swapping: VM%d\n", vmid);
-
-	printc("Running paws test: VM%d\n", vmid);
-	paws_tests();
-
-	return a;
-}
 
 static void
 get_sinv(sinvcap_t *sinv) {
 	*sinv = VM0_CAPTBL_SELF_IOSINV_BASE;
-}
-
-void
-cos_fs_test(void)
-{
-	sinvcap_t sinv = 0;
-	compcap_t cc;
-	int sinv_ret = 0;
-	printc("Running cos fs test: VM%d\n", vmid);
-
-	/* This sinv cap is allocated and found within vkernel_init.c */
-	/* Get sinv */
-	get_sinv(&sinv);
-
-	sinv_ret = cos_sinv(sinv, 1, 2, 3, 4);
-
-	printc("Done running cos fs test VM%d, ret: %d\n\n", vmid, sinv_ret);
 }
 
 int
@@ -276,13 +230,14 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	thdcap_t newthd_cap;
 	int ret;
 
-	printc("cos_cpu_sched_create: thread->bt_name = %s\n", thread->bt_name);
+	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p", thread->bt_name, f);
 	if (!strcmp(thread->bt_name, "user_lwp")) {
 		/* Return userlevel thread cap that is set up in vkernel_init */
-		printc("Match, returning vm_main_thd: %x\n", (unsigned int)vm_main_thd);
+		printc("\nMatch, returning vm_main_thd: %x\n", (unsigned int)vm_main_thd);
 		newthd_cap = vm_main_thd;
 	} else {
 		newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, f, arg);
+		printc(" thdcap: %d\n", newthd_cap);
 	}
 	assert(newthd_cap);
 	set_cos_thddata(thread, newthd_cap, cos_introspect(&booter_info, newthd_cap, 9));
@@ -297,13 +252,14 @@ intr_switch(void)
 
 	if (!intrs) return;
 
-	/* Man this is ugly...FIXME */
+	/* Man this is ugly...FIXME? */
 	for (; i > 0 ; i--) {
 		int tmp = intrs;
 
 		if ((tmp>>(i-1)) & 1) {
 			do {
-				ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(i), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				//ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(i), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				ret = cos_thd_switch(irq_thdcap[i]);
 				assert (ret == 0 || ret == -EAGAIN);
 			} while (ret == -EAGAIN);
 		}
@@ -448,6 +404,13 @@ print_cycles(void)
 void
 cos_resume(void)
 {
+	/* FIXME, All cos_switch have been replaced with cos_thd_switch. Not dealing with tcaps */
+	/* This removes the ability to handle interrupts */
+	while (1) {
+		printc("cos_resume switching to cap: %d\n", cos_cur);
+		cos_thd_switch(cos_cur);
+	}
+
 	/* this will not return if this vm is set to be CPU bound */
 	cpu_bound_test();
 
@@ -503,7 +466,8 @@ rk_resume:
 			if(intr_disabled) break;
 			cos_find_vio_tcap();
 			/* TODO: decide which TCAP to use for rest of RK processing for I/O and do deficit accounting */
-			ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			//ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			ret = cos_thd_switch(cos_cur);
 			assert(ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
 
@@ -524,7 +488,9 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 	cos_cur = temp;
 
 	do {
-		ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
+		//ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
+		ret = cos_thd_switch(cos_cur);
+
 		assert(ret == 0 || ret == -EAGAIN);
 		if (ret == -EAGAIN) {
 			/*
@@ -611,38 +577,40 @@ cos_vm_yield(void)
 }
 #endif
 
-void
-cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_prio_t prio)
-{
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	tcap_res_t res = (VIO_BUDGET_APPROX * cycs_per_usec);
-	tcap_res_t min_slice = (VM_MIN_TIMESLICE * cycs_per_usec);
-	tcap_res_t initbudget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);	
-	tcap_res_t irqbudget;
-	int ret;
 
-	assert (vmid == 0);
-
-	if (irqline == IRQ_VM1 || irqline == IRQ_VM2) {
-		if (initbudget >= res + min_slice) irqbudget = res;
-		else                               irqbudget = 0;
-	} else {
-		if (initbudget >= res + min_slice) irqbudget = initbudget / 2;
-		else                               irqbudget = 0;
-	}
-	if ((ret = cos_tcap_transfer(rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, irqbudget, prio))) {
-		printc("vio %d Tcap transfer failed %d\n", irqline, ret);
-		assert(0);
-	}
-
-	switch(irqline) {
-	case IRQ_VM1: dom0_vio_deficit[0] ++; break;
-	case IRQ_VM2: dom0_vio_deficit[1] ++; break;
-
-	default: break;
-	}
-#endif
-}
+/* Zombie Function */
+//void
+//cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_prio_t prio)
+//{
+//#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+//	tcap_res_t res = (VIO_BUDGET_APPROX * cycs_per_usec);
+//	tcap_res_t min_slice = (VM_MIN_TIMESLICE * cycs_per_usec);
+//	tcap_res_t initbudget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);	
+//	tcap_res_t irqbudget;
+//	int ret;
+//
+//	assert (vmid == 0);
+//
+//	if (irqline == IRQ_VM1 || irqline == IRQ_VM2) {
+//		if (initbudget >= res + min_slice) irqbudget = res;
+//		else                               irqbudget = 0;
+//	} else {
+//		if (initbudget >= res + min_slice) irqbudget = initbudget / 2;
+//		else                               irqbudget = 0;
+//	}
+//	if ((ret = cos_tcap_transfer(rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, irqbudget, prio))) {
+//		printc("vio %d Tcap transfer failed %d\n", irqline, ret);
+//		assert(0);
+//	}
+//
+//	switch(irqline) {
+//	case IRQ_VM1: dom0_vio_deficit[0] ++; break;
+//	case IRQ_VM2: dom0_vio_deficit[1] ++; break;
+//
+//	default: break;
+//	}
+//#endif
+//}
 
 void
 cos_vio_tcap_set(unsigned int src)
@@ -726,7 +694,7 @@ cos_find_vio_tcap(void)
 */
 
 	if (!irqbudget) { // && (i == (COS_VIRT_MACH_COUNT - 1))) {
-		cos_dom02io_transfer(use == 0 ? IRQ_VM1 : IRQ_VM2, vio_tcap[use], vio_rcv[use], vio_prio[use]); 
+		cos_dom02io_transfer(use == 0 ? IRQ_VM1 : IRQ_VM2, vio_tcap[use], vio_rcv[use], vio_prio[use]);
 	}
 
 	if (using != use || tcuse != vio_tcap[use]) {
@@ -742,4 +710,77 @@ cos_find_vio_tcap(void)
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	return BOOT_CAPTBL_SELF_INITTCAP_BASE;
 #endif
+}
+
+/* "Kernel" Component Functions */
+
+/* System Call Handler */
+/* FIXME Rename function */
+/* TODO Have multiple "test_entry" functions for each different system call */
+
+/* For sending to userspace */
+extern struct cos_shm_rb *sm_rb;
+/* For recieving from user space */
+extern struct cos_shm_rb *sm_rb_r;
+
+int
+test_entry(int arg1, int arg2, int arg3, int arg4)
+{
+	int ret = 0;
+
+	printc("*** KERNEL COMPONENT ***\n\tArguments: %d, %d, %d, %d\n", arg1, arg2, arg3, arg4);
+
+	switch (arg1) {
+		case 0:
+			/* FS Test */
+			printc("Running paws test: VM%d\n", vmid);
+			paws_tests();
+			break;
+		case 1:
+			/* Shared Memory Test */
+			printc("\n\tSENDING RB SHOULD BE EMPTY: %d\n", vk_ringbuf_isfull(sm_rb, 1));
+			assert(vk_ringbuf_isfull(sm_rb, 1) == 0);
+			printc("\n\tRECIEVING RB SHOULD BE EMPTY: %d\n", vk_ringbuf_isfull(sm_rb_r, 1));
+			assert(vk_ringbuf_isfull(sm_rb_r, 1) == 0);
+			break;
+		default:
+			printc("SYSTEM CALL NOT RECOGNIZABLE, RETURNING\n");
+	};
+
+	printc("*** KERNEL COMPONENT RETURNING ***\n");
+
+	return ret;
+}
+
+/* System Calls */
+void
+cos_fs_test(void)
+{
+	sinvcap_t sinv = 0;
+	int sinv_ret = -1;
+	printc("Running cos fs test: VM%d\n", vmid);
+
+	/* This sinv cap is allocated and found within vkernel_init.c */
+	get_sinv(&sinv);
+
+	sinv_ret = cos_sinv(sinv, 0, 0, 0, 0);
+
+	printc("Ret from fs test: %d\n", sinv_ret);
+}
+
+void
+cos_shmem_test(void)
+{
+	/* TODO */
+	/* Implement another system call for passing information down into */
+	sinvcap_t sinv = 0;
+	int sinv_ret = -1;
+	printc("Running cos shmem test: VM%d\n", vmid);
+
+	/* This sinv cap is allocated and found within vkernel_init.c */
+	get_sinv(&sinv);
+
+	sinv_ret = cos_sinv(sinv, 1, 0, 0, 0);
+
+	printc("Ret from shmem test: %d\n", sinv_ret);
 }
