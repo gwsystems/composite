@@ -38,6 +38,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include "cmsis_device.h"
+#include "stm32f7xx_hal_conf.h"
 
 extern unsigned int __vectors_start;
 extern unsigned int _estack;
@@ -47,11 +48,53 @@ extern unsigned int _edata;
 extern unsigned int __bss_start__;
 extern unsigned int __bss_end__;
 
+extern unsigned int _c1_sidata;
+extern unsigned int _c1_sdata;
+extern unsigned int _c1_edata;
+extern unsigned int __c1_bss_start__;
+extern unsigned int __c1_bss_end__;
+
 /* newlib; main function defined as int main(void) */
 extern void __initialize_args (void);
 extern int main (void);
 
-void __attribute__ ((section(".after_vectors"),noreturn,weak))
+/* Initialize the clock for STM32. code derived from Alientek */
+void Stm32_Clock_Init(unsigned int plln,unsigned int pllm,unsigned int pllp,unsigned int pllq)
+{
+    HAL_StatusTypeDef ret = HAL_OK;
+    RCC_OscInitTypeDef RCC_OscInitStructure;
+    RCC_ClkInitTypeDef RCC_ClkInitStructure;
+
+    __HAL_RCC_PWR_CLK_ENABLE(); //Ê¹ÄÜPWRÊ±ÖÓ
+
+    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);//ÉèÖÃµ÷Ñ¹Æ÷Êä³öµçÑ¹¼¶±ð£¬ÒÔ±ãÔÚÆ÷¼þÎ´ÒÔ×î´óÆµÂÊ¹¤×÷
+
+    RCC_OscInitStructure.OscillatorType=RCC_OSCILLATORTYPE_HSE;    //Ê±ÖÓÔ´ÎªHSE
+    RCC_OscInitStructure.HSEState=RCC_HSE_ON;                      //´ò¿ªHSE
+    RCC_OscInitStructure.PLL.PLLState=RCC_PLL_ON;				   //´ò¿ªPLL
+    RCC_OscInitStructure.PLL.PLLSource=RCC_PLLSOURCE_HSE;          //PLLÊ±ÖÓÔ´Ñ¡ÔñHSE
+    RCC_OscInitStructure.PLL.PLLM=pllm;	//Ö÷PLLºÍÒôÆµPLL·ÖÆµÏµÊý(PLLÖ®Ç°µÄ·ÖÆµ)
+    RCC_OscInitStructure.PLL.PLLN=plln; //Ö÷PLL±¶ÆµÏµÊý(PLL±¶Æµ)
+    RCC_OscInitStructure.PLL.PLLP=pllp; //ÏµÍ³Ê±ÖÓµÄÖ÷PLL·ÖÆµÏµÊý(PLLÖ®ºóµÄ·ÖÆµ)
+    RCC_OscInitStructure.PLL.PLLQ=pllq; //USB/SDIO/Ëæ»úÊý²úÉúÆ÷µÈµÄÖ÷PLL·ÖÆµÏµÊý(PLLÖ®ºóµÄ·ÖÆµ)
+    ret=HAL_RCC_OscConfig(&RCC_OscInitStructure);//³õÊ¼»¯
+    if(ret!=HAL_OK) while(1);
+
+    ret=HAL_PWREx_EnableOverDrive(); //¿ªÆôOver-Driver¹¦ÄÜ
+    if(ret!=HAL_OK) while(1);
+
+    //Ñ¡ÖÐPLL×÷ÎªÏµÍ³Ê±ÖÓÔ´²¢ÇÒÅäÖÃHCLK,PCLK1ºÍPCLK2
+    RCC_ClkInitStructure.ClockType=(RCC_CLOCKTYPE_SYSCLK|RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2);
+    RCC_ClkInitStructure.SYSCLKSource=RCC_SYSCLKSOURCE_PLLCLK;//ÉèÖÃÏµÍ³Ê±ÖÓÊ±ÖÓÔ´ÎªPLL
+    RCC_ClkInitStructure.AHBCLKDivider=RCC_SYSCLK_DIV1;//AHB·ÖÆµÏµÊýÎª1
+    RCC_ClkInitStructure.APB1CLKDivider=RCC_HCLK_DIV4;//APB1·ÖÆµÏµÊýÎª4
+    RCC_ClkInitStructure.APB2CLKDivider=RCC_HCLK_DIV2;//APB2·ÖÆµÏµÊýÎª2
+
+    ret=HAL_RCC_ClockConfig(&RCC_ClkInitStructure,FLASH_LATENCY_7);//Í¬Ê±ÉèÖÃFLASHÑÓÊ±ÖÜÆÚÎª7WS£¬Ò²¾ÍÊÇ8¸öCPUÖÜÆÚ¡£
+    if(ret!=HAL_OK) while(1);
+}
+
+void __attribute__ ((section(".after_vectors"),noreturn))
 _start (void)
 {
 	unsigned int* src;
@@ -70,11 +113,25 @@ _start (void)
 	for(ptr=&__bss_start__;ptr<&__bss_end__;ptr++)
 		*ptr=0;
 
+	/* This is for component 1 */
+	/* data section initialization */
+	for(ptr=&_c1_sdata,src=&_c1_sidata;ptr<&_c1_edata;ptr++,src++)
+		*ptr=*src;
+	/* bss section initialization */
+	for(ptr=&__c1_bss_start__;ptr<&__c1_bss_end__;ptr++)
+		*ptr=0;
+
 	/* fpu enabled? */
 	/* SCB->CPACR |= (0xF << 20); */
-
-	/* set the system clock freq */
+	Stm32_Clock_Init(432,25,2,9);
 	SystemCoreClockUpdate();
+
+	/* Enable cache */
+	SCB_EnableICache();
+	SCB_EnableDCache();
+	/* Force write through or we may encounter errors */
+	SCB->CACR|=1<<2;
+
 	/* call into main and never return */
   	main();
   	/* reset the machine if main quit */
@@ -141,57 +198,70 @@ BusFault_Handler (void)
 	while(1);
 }
 
-
 void __attribute__ ((section(".after_vectors"),weak))
 UsageFault_Handler (void)
 {
-
+	while(1);
 }
 
-void __attribute__ ((section(".after_vectors"),weak))
+void __attribute__ ((section(".after_vectors"),naked))
 SVC_Handler (void)
 {
+	/* Here, the stack of the Cortex-M3 should be xplained. this will require modification of this
+	 * code to make the thd switch actually work.
+	 * dditionally, this will require modifications on the parameter passing to make sure it works.
+	 * regs are saved on the user stack, so r0-r3 still cannot be used as retvals. modification of the r15_pc is impossible too. */
     __asm__ __volatile__(
     		            "push {lr} \n"
-						"push {r0} \n"
-						"push {r0} \n"
-						"push {r0} \n"
-						"push {r0} \n"
-						"push {r12} \n"
-						"push {r11} \n"
-						"push {r10} \n"
-						"push {r9} \n"
-						"push {r8} \n"
-						"push {r7} \n"
-						"push {r6} \n"
-						"push {r5} \n"
+
+    		            "push {r0} \n"
+    					"push {r1} \n"
+						"push {r2} \n"
+						"push {r3} \n"
 						"push {r4} \n"
-            			"push {r3} \n"
-            			"push {r2} \n"
-    		            "push {r1} \n"
-            			"push {r0} \n"
-    		            "push {r4} \n"
+						"push {r5} \n"
+    		            "push {r6} \n"
+            			"push {r7} \n"
+            			"push {r8} \n"
+            			"push {r9} \n"
+						"push {r10} \n"
+						"push {r11} \n"
+						"push {r12} \n"
+
+    					"mrs r0,psp \n"
+    					"push {r0} \n"
+    		            "push {lr} \n"
+    					"mov r0,pc \n"
+    		            "push {r0} \n"
+    		            "mrs r0,xpsr \n"
+    					"push {r0} \n"
     		            "mov  r0,sp \n"
+
 						"bl composite_syscall_handler \n"
-						"pop {r0} \n"
-						"pop {r0} \n"
-						"pop {r1} \n"
-						"pop {r2} \n"
-						"pop {r3} \n"
-						"pop {r4} \n"
-						"pop {r5} \n"
-						"pop {r6} \n"
-						"pop {r7} \n"
-						"pop {r8} \n"
-						"pop {r9} \n"
-						"pop {r10} \n"
-						"pop {r11} \n"
+
+						"pop {r0} \n"   /* xpsr */
+    		            /* "msr xpsr,r0 \n" */
+						"pop {r0} \n"   /* pc */
+    					"pop {r0} \n"   /* lr */
+    					"pop {r0} \n"   /* psp */
+    		            "msr psp,r0 \n"
+
 						"pop {r12} \n"
+						"pop {r11} \n"
+						"pop {r10} \n"
+						"pop {r9} \n"
+						"pop {r8} \n"
+						"pop {r7} \n"
+						"pop {r6} \n"
+						"pop {r5} \n"
+						"pop {r4} \n"
+						"pop {r3} \n"
+						"pop {r2} \n"
+						"pop {r1} \n"
 						"pop {r0} \n"
-						"pop {r0} \n"
-						"pop {r0} \n"
-						"pop {r0} \n"
+
     		            "pop {lr} \n"
+    		            "bx lr \n"
 						:::);
 }
 

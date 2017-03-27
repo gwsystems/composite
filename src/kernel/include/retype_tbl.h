@@ -76,7 +76,7 @@ extern struct retype_info_glb glb_retype_tbl[N_MEM_SETS];
 
 /* physical address boundary check */
 #define PA_BOUNDARY_CHECK() do { if (unlikely(!(((u32_t)pa >= COS_MEM_START) && ((u32_t)pa < COS_MEM_BOUND)) && \
-					      !(((u32_t)pa >= chal_kernel_mem_pa) && ((u32_t)pa < COS_KMEM_BOUND)))) return -EINVAL; } while (0)
+					      !(((u32_t)pa >= chal_kernel_mem_pa) && ((u32_t)pa < COS_KMEM_BOUND)))) return -EINVAL; } while (0);
 
 /* get the index of the memory set. */
 #define GET_MEM_IDX(pa) (((u32_t)pa >= COS_MEM_START) ? (((u32_t)(pa) - COS_MEM_START) / RETYPE_MEM_SIZE) \

@@ -1,0 +1,2707 @@
+Archive member included to satisfy reference by file (symbol)
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_addsubdf3.o)
+                              ./src/platform/cmx/lcd.o (__aeabi_i2d)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_muldivdf3.o)
+                              ./src/platform/cmx/lcd.o (__aeabi_dmul)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_fixunsdfsi.o)
+                              ./src/platform/cmx/lcd.o (__aeabi_d2uiz)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_aeabi_ldivmod.o)
+                              ./src/components/implementation/tests/micro_booter/mb_tests.o (__aeabi_ldivmod)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_ctors.o)
+                              ./src/components/lib/cos_component.o (__CTOR_LIST__)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_udivmoddi4.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_aeabi_ldivmod.o) (__udivmoddi4)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_dvmd_tls.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_aeabi_ldivmod.o) (__aeabi_ldiv0)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memcpy-stub.o)
+                              ./src/platform/cmx/boot_comp.o (memcpy)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memset.o)
+                              ./src/platform/cmx/boot_comp.o (memset)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sprintf.o)
+                              ./src/components/implementation/tests/micro_booter/mb_tests.o (sprintf)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-strlen.o)
+                              ./src/components/implementation/tests/micro_booter/micro_booter.o (strlen)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-impure.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sprintf.o) (_impure_ptr)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sprintf.o) (_svfprintf_r)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-vfprintf_i.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o) (_printf_i)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memchr.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o) (memchr)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memmove.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o) (memmove)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-freer.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o) (_free_r)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-mallocr.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o) (_malloc_r)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-reallocr.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o) (_realloc_r)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sbrkr.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-mallocr.o) (_sbrk_r)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-mlock.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-freer.o) (__malloc_lock)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-msizer.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-reallocr.o) (_malloc_usable_size_r)
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-reent.o)
+                              /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sbrkr.o) (errno)
+
+Allocating common symbols
+Common symbol       size              file
+
+glb_retype_tbl      0x1080            ./src/kernel/retype_tbl.o
+errno               0x4               /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-reent.o)
+ltdc_framebuf       0x8               ./src/platform/cmx/ltdc.o
+tlb_quiescence      0x40              ./src/platform/cmx/vm.o
+termthd             0x4               ./src/components/implementation/tests/micro_booter/micro_booter.o
+Stack_Mem           0xa000            ./src/platform/cmx/kernel.o
+uwTick              0x4               ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+temp                0x1000            ./src/components/lib/cos_component.o
+booter_info         0x48              ./src/components/implementation/tests/micro_booter/micro_booter.o
+mbt                 0x48              ./src/components/implementation/tests/micro_booter/mb_tests.o
+intime              0x8               ./src/kernel/capinv.o
+hw_asnd_caps        0x3800            ./src/platform/cmx/boot_comp.o
+LTDC_Handler        0xa8              ./src/platform/cmx/ltdc.o
+IPI_cap_dest        0x300             ./src/kernel/capinv.o
+timer_detector      0x1000            ./src/platform/cmx/chal.o
+rcp_global          0x4               ./src/components/implementation/tests/micro_booter/mb_tests.o
+rcc_global          0x4               ./src/components/implementation/tests/micro_booter/mb_tests.o
+tls_test            0x14              ./src/components/implementation/tests/micro_booter/micro_booter.o
+DMA2D_Handler       0x58              ./src/platform/cmx/ltdc.o
+glb_memlayout       0x20              ./src/platform/cmx/kernel.o
+bt                  0x48              ./src/components/implementation/tests/micro_booter/mb_tests.o
+lcddev              0xe               ./src/platform/cmx/lcd.o
+retype_tbl          0x440             ./src/kernel/retype_tbl.o
+__liveness_tbl      0x4000            ./src/platform/cmx/vm.o
+Memory_Used         0x40000           ./src/platform/cmx/kernel.o
+chal_kernel_mem_pa  0x4               ./src/platform/cmx/chal.o
+SRAM_Handler        0x4c              ./src/platform/cmx/lcd.o
+lcdltdc             0x20              ./src/platform/cmx/ltdc.o
+SDRAM_Handler       0x34              ./src/platform/cmx/sdram.o
+cyc_per_usec        0x8               ./src/components/implementation/tests/micro_booter/mb_tests.o
+__thd_init_data     0x800             ./src/components/lib/cos_component.o
+comp1_stack         0xfa0             ./src/platform/cmx/boot_comp.o
+scp_global          0x4               ./src/components/implementation/tests/micro_booter/mb_tests.o
+
+Discarded input sections
+
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_MspInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_MspDeInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_DeInit
+                0x00000000       0x2c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_Init
+                0x00000000       0x24 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_IncTick
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_Delay
+                0x00000000       0x1c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_SuspendTick
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_ResumeTick
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_GetHalVersion
+                0x00000000        0x8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_GetREVID
+                0x00000000        0xc ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_GetDEVID
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_DBGMCU_EnableDBGSleepMode
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_DBGMCU_DisableDBGSleepMode
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_DBGMCU_EnableDBGStopMode
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_DBGMCU_DisableDBGStopMode
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_DBGMCU_EnableDBGStandbyMode
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_DBGMCU_DisableDBGStandbyMode
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_EnableCompensationCell
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_DisableCompensationCell
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_EnableFMCMemorySwapping
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_DisableFMCMemorySwapping
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_EnableMemorySwappingBank
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text.HAL_DisableMemorySwappingBank
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_NVIC_SetPriorityGrouping
+                0x00000000       0x38 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_NVIC_EnableIRQ
+                0x00000000       0x2c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_NVIC_DisableIRQ
+                0x00000000       0x30 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_NVIC_SystemReset
+                0x00000000       0x24 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_MPU_ConfigRegion
+                0x00000000      0x110 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_NVIC_GetPriorityGrouping
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_NVIC_GetPriority
+                0x00000000       0x78 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_NVIC_SetPendingIRQ
+                0x00000000       0x30 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_NVIC_GetPendingIRQ
+                0x00000000       0x30 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_NVIC_ClearPendingIRQ
+                0x00000000       0x30 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_NVIC_GetActive
+                0x00000000       0x30 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_SYSTICK_Callback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text.HAL_SYSTICK_IRQHandler
+                0x00000000        0x8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text.HAL_DMA_Init
+                0x00000000      0x34c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text.HAL_DMA_DeInit
+                0x00000000       0x78 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text.HAL_DMA_Start
+                0x00000000       0x7c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text.HAL_DMA_Start_IT
+                0x00000000       0xac ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text.HAL_DMA_Abort
+                0x00000000       0x90 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text.HAL_DMA_Abort_IT
+                0x00000000       0x28 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text.HAL_DMA_PollForTransfer
+                0x00000000      0x224 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text.HAL_DMA_IRQHandler
+                0x00000000      0x1a8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text.HAL_DMA_RegisterCallback
+                0x00000000       0x60 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text.HAL_DMA_UnRegisterCallback
+                0x00000000       0x70 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text.HAL_DMA_GetState
+                0x00000000        0x8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text.HAL_DMA_GetError
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .rodata.flagBitshiftOffset.7964
+                0x00000000        0x8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .rodata.str1.4
+                0x00000000       0x38 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .debug_info    0x00000000      0xc6e ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .debug_abbrev  0x00000000      0x31e ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .debug_loc     0x00000000      0x901 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .debug_aranges
+                0x00000000       0x78 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .debug_ranges  0x00000000      0x148 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .debug_line    0x00000000      0x71c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .debug_str     0x00000000      0x7a1 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .comment       0x00000000       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .debug_frame   0x00000000      0x170 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .ARM.attributes
+                0x00000000       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_MspInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_Init
+                0x00000000       0xe4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_MspDeInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_DeInit
+                0x00000000      0x108 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_Start
+                0x00000000      0x100 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_Start_IT
+                0x00000000      0x108 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_BlendingStart
+                0x00000000      0x104 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_BlendingStart_IT
+                0x00000000      0x10c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_Abort
+                0x00000000       0x60 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_Suspend
+                0x00000000       0x64 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_Resume
+                0x00000000       0x20 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_EnableCLUT
+                0x00000000       0x50 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_CLUTLoad
+                0x00000000       0xe4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_CLUTLoad_IT
+                0x00000000       0xf4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_CLUTLoading_Abort
+                0x00000000       0x64 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_CLUTLoading_Suspend
+                0x00000000       0x68 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_CLUTLoading_Resume
+                0x00000000       0x34 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_PollForTransfer
+                0x00000000      0x12c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_LineEventCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_CLUTLoadingCpltCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_IRQHandler
+                0x00000000      0x138 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_ConfigLayer
+                0x00000000      0x170 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_ConfigCLUT
+                0x00000000       0xd8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_ProgramLineEvent
+                0x00000000       0x4c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_EnableDeadTime
+                0x00000000       0x30 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_DisableDeadTime
+                0x00000000       0x34 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_ConfigDeadTime
+                0x00000000       0x44 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_GetState
+                0x00000000        0x8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text.HAL_DMA2D_GetError
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .rodata.str1.4
+                0x00000000       0x3a ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .debug_info    0x00000000     0x1940 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .debug_abbrev  0x00000000      0x31f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .debug_loc     0x00000000     0x22d1 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .debug_aranges
+                0x00000000       0xe8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .debug_ranges  0x00000000      0x398 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .debug_line    0x00000000      0xd1e ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .debug_str     0x00000000      0x8fe ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .comment       0x00000000       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .debug_frame   0x00000000      0x378 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .ARM.attributes
+                0x00000000       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .text.HAL_DMAEx_MultiBufferStart
+                0x00000000       0x90 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .text.HAL_DMAEx_MultiBufferStart_IT
+                0x00000000      0x44c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .text.HAL_DMAEx_ChangeMemory
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .rodata.str1.4
+                0x00000000       0x3b ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .debug_info    0x00000000      0x5be ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .debug_abbrev  0x00000000      0x193 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .debug_loc     0x00000000      0x336 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .debug_aranges
+                0x00000000       0x30 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .debug_ranges  0x00000000       0x60 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .debug_line    0x00000000      0x4c4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .debug_str     0x00000000      0x586 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .comment       0x00000000       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .debug_frame   0x00000000       0x68 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .ARM.attributes
+                0x00000000       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .text.HAL_GPIO_DeInit
+                0x00000000      0x1f0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .text.HAL_GPIO_TogglePin
+                0x00000000       0x20 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .text.HAL_GPIO_LockPin
+                0x00000000       0x44 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .text.HAL_GPIO_EXTI_Callback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .text.HAL_GPIO_EXTI_IRQHandler
+                0x00000000       0x18 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_MspInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_MspDeInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_DeInit
+                0x00000000       0x1c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_ErrorCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_LineEventCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_ReloadEventCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_IRQHandler
+                0x00000000       0xd0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_ConfigColorKeying
+                0x00000000       0x60 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_ConfigCLUT
+                0x00000000       0xac ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_EnableColorKeying
+                0x00000000       0x54 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_DisableColorKeying
+                0x00000000       0x54 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_EnableCLUT
+                0x00000000       0x54 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_DisableCLUT
+                0x00000000       0x54 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_EnableDither
+                0x00000000       0x38 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_DisableDither
+                0x00000000       0x38 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_SetPixelFormat
+                0x00000000      0x1a4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_SetAlpha
+                0x00000000      0x1a4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_SetAddress
+                0x00000000      0x18c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_SetPitch
+                0x00000000       0xb4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_ProgramLineEvent
+                0x00000000       0x54 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_Reload
+                0x00000000       0x48 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_ConfigLayer_NoReload
+                0x00000000      0x2d0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_SetWindowSize_NoReload
+                0x00000000      0x240 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_SetWindowPosition_NoReload
+                0x00000000      0x210 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_SetPixelFormat_NoReload
+                0x00000000      0x1a0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_SetAlpha_NoReload
+                0x00000000      0x1a0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_SetAddress_NoReload
+                0x00000000      0x188 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_SetPitch_NoReload
+                0x00000000       0x9c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_ConfigColorKeying_NoReload
+                0x00000000       0x58 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_EnableColorKeying_NoReload
+                0x00000000       0x50 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_DisableColorKeying_NoReload
+                0x00000000       0x50 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_EnableCLUT_NoReload
+                0x00000000       0x50 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_DisableCLUT_NoReload
+                0x00000000       0x50 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_GetState
+                0x00000000        0x8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text.HAL_LTDC_GetError
+                0x00000000        0x8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_MspInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Init
+                0x00000000       0x54 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_MspDeInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_DeInit
+                0x00000000       0x20 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_ITCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_IRQHandler
+                0x00000000       0x64 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Read_ID
+                0x00000000       0xa8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Reset
+                0x00000000       0x40 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Read_Page_8b
+                0x00000000      0x134 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Read_Page_16b
+                0x00000000      0x110 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Write_Page_8b
+                0x00000000      0x170 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Write_Page_16b
+                0x00000000      0x140 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Read_SpareArea_8b
+                0x00000000      0x110 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Read_SpareArea_16b
+                0x00000000      0x110 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Write_SpareArea_8b
+                0x00000000      0x13c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Write_SpareArea_16b
+                0x00000000      0x13c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Erase_Block
+                0x00000000       0xc8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Read_Status
+                0x00000000       0x20 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_Address_Inc
+                0x00000000       0x4c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_ECC_Enable
+                0x00000000       0x28 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_ECC_Disable
+                0x00000000       0x28 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_GetECC
+                0x00000000       0x2c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text.HAL_NAND_GetState
+                0x00000000        0x8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .debug_info    0x00000000     0x136b ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .debug_abbrev  0x00000000      0x27d ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .debug_loc     0x00000000     0x158f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .debug_aranges
+                0x00000000       0xc0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .debug_ranges  0x00000000       0xb0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .debug_line    0x00000000      0xbe0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .debug_str     0x00000000      0x80b ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .comment       0x00000000       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .debug_frame   0x00000000      0x32c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .ARM.attributes
+                0x00000000       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_MspInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_Init
+                0x00000000       0x6c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_MspDeInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_DeInit
+                0x00000000       0x20 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_MspWait
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_Read_ID
+                0x00000000      0x108 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_ReturnToReadMode
+                0x00000000       0x54 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_Read
+                0x00000000       0xdc ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_Program
+                0x00000000       0xe0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_ReadBuffer
+                0x00000000       0xec ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_ProgramBuffer
+                0x00000000      0x130 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_Erase_Block
+                0x00000000      0x114 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_Erase_Chip
+                0x00000000      0x10c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_Read_CFI
+                0x00000000       0xdc ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_WriteOperation_Enable
+                0x00000000       0x2c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_WriteOperation_Disable
+                0x00000000       0x34 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_GetState
+                0x00000000        0x8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text.HAL_NOR_GetStatus
+                0x00000000       0xa4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .bss.uwNORMemoryDataWidth
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .debug_info    0x00000000      0xc77 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .debug_abbrev  0x00000000      0x20c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .debug_loc     0x00000000      0xa33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .debug_aranges
+                0x00000000       0xa0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .debug_ranges  0x00000000       0x90 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .debug_line    0x00000000      0x7c4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .debug_str     0x00000000      0x853 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .comment       0x00000000       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .debug_frame   0x00000000      0x268 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .ARM.attributes
+                0x00000000       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_DeInit
+                0x00000000       0x18 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_EnableBkUpAccess
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_DisableBkUpAccess
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_ConfigPVD
+                0x00000000       0xb8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_EnablePVD
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_DisablePVD
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_EnableWakeUpPin
+                0x00000000       0x6c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_DisableWakeUpPin
+                0x00000000       0x60 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_EnterSLEEPMode
+                0x00000000       0x50 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_EnterSTOPMode
+                0x00000000       0x78 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_EnterSTANDBYMode
+                0x00000000       0x20 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_PVDCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_PVD_IRQHandler
+                0x00000000       0x1c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_EnableSleepOnExit
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_DisableSleepOnExit
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_EnableSEVOnPend
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text.HAL_PWR_DisableSEVOnPend
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .rodata.str1.4
+                0x00000000       0x38 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .debug_info    0x00000000      0xa56 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .debug_abbrev  0x00000000      0x1c8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .debug_loc     0x00000000      0x146 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .debug_aranges
+                0x00000000       0xa0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .debug_ranges  0x00000000       0x90 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .debug_line    0x00000000      0x39f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .debug_str     0x00000000      0x66e ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .comment       0x00000000       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .debug_frame   0x00000000      0x158 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .ARM.attributes
+                0x00000000       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text.HAL_PWREx_EnableBkUpReg
+                0x00000000       0x3c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text.HAL_PWREx_DisableBkUpReg
+                0x00000000       0x3c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text.HAL_PWREx_EnableFlashPowerDown
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text.HAL_PWREx_DisableFlashPowerDown
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text.HAL_PWREx_EnableMainRegulatorLowVoltage
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text.HAL_PWREx_DisableMainRegulatorLowVoltage
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text.HAL_PWREx_EnableLowRegulatorLowVoltage
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text.HAL_PWREx_DisableLowRegulatorLowVoltage
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text.HAL_PWREx_DisableOverDrive
+                0x00000000       0x78 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text.HAL_PWREx_EnterUnderDriveSTOPMode
+                0x00000000       0xc8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text.HAL_PWREx_GetVoltageRange
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text.HAL_PWREx_ControlVoltageScaling
+                0x00000000       0xd4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .rodata.str1.4
+                0x00000000       0x3b ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_DeInit
+                0x00000000       0x60 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_OscConfig
+                0x00000000      0x4c4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_MCOConfig
+                0x00000000       0xf4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_EnableCSS
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_DisableCSS
+                0x00000000       0x10 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_GetSysClockFreq
+                0x00000000       0x9c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_GetHCLKFreq
+                0x00000000        0xc ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_GetPCLK1Freq
+                0x00000000       0x30 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_GetPCLK2Freq
+                0x00000000       0x30 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_GetOscConfig
+                0x00000000       0xd4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_GetClockConfig
+                0x00000000       0x40 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_CSSCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text.HAL_RCC_NMI_IRQHandler
+                0x00000000       0x20 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .text.HAL_RCCEx_GetPeriphCLKConfig
+                0x00000000      0x204 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .text.HAL_RCCEx_GetPeriphCLKFreq
+                0x00000000       0xf8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_DMA_XferErrorCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_DMA_XferCpltCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_MspInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_MspDeInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_DeInit
+                0x00000000       0x20 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_RefreshErrorCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_IRQHandler
+                0x00000000       0x20 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_Read_8b
+                0x00000000       0x48 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_Write_8b
+                0x00000000       0x48 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_Read_16b
+                0x00000000       0x44 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_Write_16b
+                0x00000000       0x44 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_Read_32b
+                0x00000000       0x44 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_Write_32b
+                0x00000000       0x44 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_Read_DMA
+                0x00000000       0x48 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_Write_DMA
+                0x00000000       0x50 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_WriteProtection_Enable
+                0x00000000       0x28 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_WriteProtection_Disable
+                0x00000000       0x28 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_SetAutoRefreshNumber
+                0x00000000       0x28 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_GetModeStatus
+                0x00000000        0x8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text.HAL_SDRAM_GetState
+                0x00000000        0x8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_DMA_XferErrorCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_DMA_XferCpltCallback
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_MspInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_Init
+                0x00000000       0x58 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_MspDeInit
+                0x00000000        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_DeInit
+                0x00000000       0x20 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_Read_8b
+                0x00000000       0x44 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_Write_8b
+                0x00000000       0x54 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_Read_16b
+                0x00000000       0x40 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_Write_16b
+                0x00000000       0x50 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_Read_32b
+                0x00000000       0x40 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_Write_32b
+                0x00000000       0x50 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_Read_DMA
+                0x00000000       0x40 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_Write_DMA
+                0x00000000       0x58 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_WriteOperation_Enable
+                0x00000000       0x2c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_WriteOperation_Disable
+                0x00000000       0x34 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text.HAL_SRAM_GetState
+                0x00000000        0x8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .debug_info    0x00000000      0xb02 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .debug_abbrev  0x00000000      0x1ff ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .debug_loc     0x00000000      0x905 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .debug_aranges
+                0x00000000       0x88 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .debug_ranges  0x00000000       0x78 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .debug_line    0x00000000      0x52f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .debug_str     0x00000000      0x8d9 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .comment       0x00000000       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .debug_frame   0x00000000      0x200 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .ARM.attributes
+                0x00000000       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NORSRAM_Init
+                0x00000000      0x1cc ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NORSRAM_DeInit
+                0x00000000       0x80 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NORSRAM_Timing_Init
+                0x00000000      0x11c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NORSRAM_Extended_Timing_Init
+                0x00000000      0x110 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NORSRAM_WriteOperation_Enable
+                0x00000000       0x3c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NORSRAM_WriteOperation_Disable
+                0x00000000       0x3c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NAND_Init
+                0x00000000       0xe0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NAND_CommonSpace_Timing_Init
+                0x00000000       0xa0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NAND_AttributeSpace_Timing_Init
+                0x00000000       0xa0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NAND_DeInit
+                0x00000000       0x4c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NAND_ECC_Enable
+                0x00000000       0x3c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NAND_ECC_Disable
+                0x00000000       0x3c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_NAND_GetECC
+                0x00000000       0x60 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_SDRAM_DeInit
+                0x00000000       0x4c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_SDRAM_WriteProtection_Enable
+                0x00000000       0x3c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_SDRAM_WriteProtection_Disable
+                0x00000000       0x3c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_SDRAM_SetAutoRefreshNumber
+                0x00000000       0x3c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text.FMC_SDRAM_GetModeStatus
+                0x00000000       0x44 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .text._exit    0x00000000        0x8 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .text._kill    0x00000000        0x8 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .text._getpid  0x00000000        0x8 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .text          0x00000000        0x0 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .data          0x00000000        0x0 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .rodata.APBPrescTable
+                0x00000000        0x8 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .text          0x00000000        0x0 ./src/platform/cmx/boot_comp.o
+ .data          0x00000000        0x0 ./src/platform/cmx/boot_comp.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/boot_comp.o
+ .text.__captbl_allocfn
+                0x00000000       0x40 ./src/platform/cmx/boot_comp.o
+ .text.boot_nptes
+                0x00000000        0xc ./src/platform/cmx/boot_comp.o
+ .text.boot_pgtbl_mappings_add
+                0x00000000      0x680 ./src/platform/cmx/boot_comp.o
+ .rodata.__func__.6493
+                0x00000000       0x11 ./src/platform/cmx/boot_comp.o
+ .text          0x00000000        0x0 ./src/platform/cmx/chal.o
+ .data          0x00000000        0x0 ./src/platform/cmx/chal.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/chal.o
+ .text.chal_alloc_kern_mem
+                0x00000000        0xc ./src/platform/cmx/chal.o
+ .text.chal_free_kern_mem
+                0x00000000        0x4 ./src/platform/cmx/chal.o
+ .text.chal_attempt_arcv
+                0x00000000        0x4 ./src/platform/cmx/chal.o
+ .text.chal_send_ipi
+                0x00000000        0x4 ./src/platform/cmx/chal.o
+ .text          0x00000000    0x10008 ./src/platform/cmx/entry.o
+ .data          0x00000000        0x0 ./src/platform/cmx/entry.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/entry.o
+ .debug_line    0x00000000       0x5d ./src/platform/cmx/entry.o
+ .debug_info    0x00000000       0x63 ./src/platform/cmx/entry.o
+ .debug_abbrev  0x00000000       0x14 ./src/platform/cmx/entry.o
+ .debug_aranges
+                0x00000000       0x20 ./src/platform/cmx/entry.o
+ .ARM.attributes
+                0x00000000       0x21 ./src/platform/cmx/entry.o
+ .text          0x00000000        0x0 ./src/platform/cmx/kernel.o
+ .data          0x00000000        0x0 ./src/platform/cmx/kernel.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/kernel.o
+ .text.MPU_Set_Protection
+                0x00000000       0x68 ./src/platform/cmx/kernel.o
+ .text.chal_tls_update
+                0x00000000        0x4 ./src/platform/cmx/kernel.o
+ .text.chal_timer_set
+                0x00000000        0x4 ./src/platform/cmx/kernel.o
+ .text.chal_timer_disable
+                0x00000000        0x4 ./src/platform/cmx/kernel.o
+ .text.chal_cyc_usec
+                0x00000000        0x4 ./src/platform/cmx/kernel.o
+ .text          0x00000000        0x0 ./src/platform/cmx/lcd.o
+ .data          0x00000000        0x0 ./src/platform/cmx/lcd.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/lcd.o
+ .text.LCD_WR_REG
+                0x00000000       0x24 ./src/platform/cmx/lcd.o
+ .text.LCD_WR_DATA
+                0x00000000       0x24 ./src/platform/cmx/lcd.o
+ .text.LCD_RD_DATA
+                0x00000000       0x1c ./src/platform/cmx/lcd.o
+ .text.LCD_WriteReg
+                0x00000000        0xc ./src/platform/cmx/lcd.o
+ .text.LCD_ReadReg
+                0x00000000       0x28 ./src/platform/cmx/lcd.o
+ .text.LCD_WriteRAM_Prepare
+                0x00000000       0x14 ./src/platform/cmx/lcd.o
+ .text.LCD_WriteRAM
+                0x00000000        0xc ./src/platform/cmx/lcd.o
+ .text.LCD_BGR2RGB
+                0x00000000       0x10 ./src/platform/cmx/lcd.o
+ .text.opt_delay
+                0x00000000        0x4 ./src/platform/cmx/lcd.o
+ .text.LCD_ReadPoint
+                0x00000000      0x1b0 ./src/platform/cmx/lcd.o
+ .text.LCD_DisplayOn
+                0x00000000       0x54 ./src/platform/cmx/lcd.o
+ .text.LCD_DisplayOff
+                0x00000000       0x54 ./src/platform/cmx/lcd.o
+ .text.LCD_DrawPoint
+                0x00000000       0xfc ./src/platform/cmx/lcd.o
+ .text.LCD_SSD_BackLightSet
+                0x00000000       0x44 ./src/platform/cmx/lcd.o
+ .text.LCD_Display_Dir
+                0x00000000      0x2d0 ./src/platform/cmx/lcd.o
+ .text.LCD_Set_Window
+                0x00000000      0x13c ./src/platform/cmx/lcd.o
+ .text.LCD_MPU_Config
+                0x00000000       0x70 ./src/platform/cmx/lcd.o
+ .text.HAL_SRAM_MspInit
+                0x00000000       0x78 ./src/platform/cmx/lcd.o
+ .text.LCD_Fill
+                0x00000000      0x1b4 ./src/platform/cmx/lcd.o
+ .text.LCD_Color_Fill
+                0x00000000       0x90 ./src/platform/cmx/lcd.o
+ .text.LCD_DrawLine
+                0x00000000      0x1bc ./src/platform/cmx/lcd.o
+ .text.LCD_DrawRectangle
+                0x00000000      0x248 ./src/platform/cmx/lcd.o
+ .text.LCD_Draw_Circle
+                0x00000000      0x208 ./src/platform/cmx/lcd.o
+ .text.LCD_ShowChar
+                0x00000000      0x258 ./src/platform/cmx/lcd.o
+ .text.LCD_Pow  0x00000000       0x18 ./src/platform/cmx/lcd.o
+ .text.LCD_ShowNum
+                0x00000000       0x9c ./src/platform/cmx/lcd.o
+ .text.LCD_ShowxNum
+                0x00000000       0xc0 ./src/platform/cmx/lcd.o
+ .text          0x00000000        0x0 ./src/platform/cmx/ltdc.o
+ .data          0x00000000        0x0 ./src/platform/cmx/ltdc.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/ltdc.o
+ .text.LTDC_Switch
+                0x00000000       0x28 ./src/platform/cmx/ltdc.o
+ .text.LTDC_Layer_Switch
+                0x00000000       0x44 ./src/platform/cmx/ltdc.o
+ .text.LTDC_Select_Layer
+                0x00000000        0xc ./src/platform/cmx/ltdc.o
+ .text.LTDC_Read_Point
+                0x00000000       0x4c ./src/platform/cmx/ltdc.o
+ .text.LTDC_Color_Fill
+                0x00000000       0xc4 ./src/platform/cmx/ltdc.o
+ .text.LTDC_Clk_Set
+                0x00000000       0x20 ./src/platform/cmx/ltdc.o
+ .text.LTDC_Layer_Window_Config
+                0x00000000       0x2c ./src/platform/cmx/ltdc.o
+ .text.LTDC_Layer_Parameter_Config
+                0x00000000       0x60 ./src/platform/cmx/ltdc.o
+ .text          0x00000000        0x0 ./src/platform/cmx/sdram.o
+ .data          0x00000000        0x0 ./src/platform/cmx/sdram.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/sdram.o
+ .text.SDRAM_Initialization_Sequence
+                0x00000000       0x88 ./src/platform/cmx/sdram.o
+ .text.SDRAM_Send_Cmd
+                0x00000000       0x38 ./src/platform/cmx/sdram.o
+ .text.FMC_SDRAM_WriteBuffer
+                0x00000000       0x1c ./src/platform/cmx/sdram.o
+ .text.FMC_SDRAM_ReadBuffer
+                0x00000000       0x1c ./src/platform/cmx/sdram.o
+ .text          0x00000000        0x0 ./src/platform/cmx/vm.o
+ .data          0x00000000        0x0 ./src/platform/cmx/vm.o
+ .bss           0x00000000        0x0 ./src/platform/cmx/vm.o
+ .text.kern_retype_initial
+                0x00000000       0x5c ./src/platform/cmx/vm.o
+ .rodata.__func__.8377
+                0x00000000       0x14 ./src/platform/cmx/vm.o
+ .text          0x00000000        0x0 ./src/kernel/capinv.o
+ .data          0x00000000        0x0 ./src/kernel/capinv.o
+ .bss           0x00000000        0x0 ./src/kernel/capinv.o
+ .text.__captbl_allocfn
+                0x00000000       0x40 ./src/kernel/capinv.o
+ .text.__pgtbl_a
+                0x00000000       0x40 ./src/kernel/capinv.o
+ .text.notify_parent
+                0x00000000       0x90 ./src/kernel/capinv.o
+ .text.printfn  0x00000000       0x94 ./src/kernel/capinv.o
+ .text.unlikely.__pgtbl_set
+                0x00000000       0x60 ./src/kernel/capinv.o
+ .text.kmem_unalloc
+                0x00000000       0x48 ./src/kernel/capinv.o
+ .text.unlikely.__ltbl_lkupan.constprop.66
+                0x00000000       0x7c ./src/kernel/capinv.o
+ .text.__pgtbl_lkupan.constprop.55
+                0x00000000       0xa0 ./src/kernel/capinv.o
+ .text.pgtbl_get_cosframe
+                0x00000000       0x50 ./src/kernel/capinv.o
+ .text.__captbl_lkupani.constprop.64
+                0x00000000       0xb0 ./src/kernel/capinv.o
+ .text.captbl_del
+                0x00000000      0x16c ./src/kernel/capinv.o
+ .text.__cap_capactivate_pre
+                0x00000000      0x3e4 ./src/kernel/capinv.o
+ .text.cap_kmem_activate.constprop.54
+                0x00000000       0xe0 ./src/kernel/capinv.o
+ .text.cap_update.isra.47
+                0x00000000      0x66c ./src/kernel/capinv.o
+ .text.cap_decons
+                0x00000000      0x558 ./src/kernel/capinv.o
+ .text.cap_cons
+                0x00000000      0x32c ./src/kernel/capinv.o
+ .text.cap_cpy  0x00000000      0x3c0 ./src/kernel/capinv.o
+ .text.tlb_mandatory_flush
+                0x00000000       0x10 ./src/kernel/capinv.o
+ .text.cos_cap_ipi_handling
+                0x00000000      0x23c ./src/kernel/capinv.o
+ .text.kmem_deact_pre
+                0x00000000      0x3cc ./src/kernel/capinv.o
+ .text.thd_deactivate
+                0x00000000      0x35c ./src/kernel/capinv.o
+ .text.kmem_deact_post
+                0x00000000       0x70 ./src/kernel/capinv.o
+ .text.cap_hw_asnd
+                0x00000000      0x374 ./src/kernel/capinv.o
+ .text.expended_process
+                0x00000000       0x9c ./src/kernel/capinv.o
+ .text.composite_syscall_slowpath
+                0x00000000     0x1754 ./src/kernel/capinv.o
+ .text.timer_process
+                0x00000000      0x10c ./src/kernel/capinv.o
+ .text.composite_syscall_handler
+                0x00000000      0xa38 ./src/kernel/capinv.o
+ .rodata.__func__.6452
+                0x00000000       0x13 ./src/kernel/capinv.o
+ .rodata.__func__.7541
+                0x00000000       0x16 ./src/kernel/capinv.o
+ .rodata.__func__.4459
+                0x00000000        0xd ./src/kernel/capinv.o
+ .bss.syscallnum
+                0x00000000        0x8 ./src/kernel/capinv.o
+ .rodata.__func__.8132
+                0x00000000        0xc ./src/kernel/capinv.o
+ .rodata.__func__.7185
+                0x00000000       0x12 ./src/kernel/capinv.o
+ .rodata.__func__.8193
+                0x00000000       0x1a ./src/kernel/capinv.o
+ .rodata.__func__.7553
+                0x00000000        0xd ./src/kernel/capinv.o
+ .rodata.__func__.6651
+                0x00000000        0xb ./src/kernel/capinv.o
+ .rodata.__func__.7855
+                0x00000000       0x10 ./src/kernel/capinv.o
+ .rodata.__func__.6679
+                0x00000000        0xe ./src/kernel/capinv.o
+ .rodata.__func__.8143
+                0x00000000       0x11 ./src/kernel/capinv.o
+ .rodata.__func__.7374
+                0x00000000        0xd ./src/kernel/capinv.o
+ .rodata.__func__.7198
+                0x00000000        0x9 ./src/kernel/capinv.o
+ .rodata.__func__.4491
+                0x00000000        0xd ./src/kernel/capinv.o
+ .rodata.__func__.8153
+                0x00000000        0xe ./src/kernel/capinv.o
+ .rodata.__func__.7569
+                0x00000000        0xf ./src/kernel/capinv.o
+ .rodata.__func__.7385
+                0x00000000        0xd ./src/kernel/capinv.o
+ .rodata.__func__.7938
+                0x00000000        0xd ./src/kernel/capinv.o
+ .rodata.__func__.6493
+                0x00000000       0x11 ./src/kernel/capinv.o
+ .rodata.__func__.7578
+                0x00000000        0xc ./src/kernel/capinv.o
+ .rodata.__func__.8165
+                0x00000000        0xc ./src/kernel/capinv.o
+ .rodata.__func__.8115
+                0x00000000        0xc ./src/kernel/capinv.o
+ .rodata.str1.4
+                0x00000000      0x729 ./src/kernel/capinv.o
+ .rodata.__func__.7953
+                0x00000000        0xf ./src/kernel/capinv.o
+ .rodata.__func__.8213
+                0x00000000       0x1b ./src/kernel/capinv.o
+ .rodata.__func__.7774
+                0x00000000        0xd ./src/kernel/capinv.o
+ .rodata.__func__.6855
+                0x00000000        0xa ./src/kernel/capinv.o
+ .rodata.__func__.7781
+                0x00000000       0x10 ./src/kernel/capinv.o
+ .rodata.__func__.7136
+                0x00000000       0x13 ./src/kernel/capinv.o
+ .rodata.CSWTCH.246
+                0x00000000        0x3 ./src/kernel/capinv.o
+ .rodata.__func__.6890
+                0x00000000        0xc ./src/kernel/capinv.o
+ .rodata.__func__.7475
+                0x00000000        0xc ./src/kernel/capinv.o
+ .rodata.__func__.7056
+                0x00000000       0x12 ./src/kernel/capinv.o
+ .rodata.__func__.8017
+                0x00000000        0xf ./src/kernel/capinv.o
+ .rodata.__func__.7015
+                0x00000000       0x12 ./src/kernel/capinv.o
+ .rodata.__func__.8027
+                0x00000000        0xe ./src/kernel/capinv.o
+ .rodata.__func__.8065
+                0x00000000        0xb ./src/kernel/capinv.o
+ .rodata.__func__.8094
+                0x00000000        0xb ./src/kernel/capinv.o
+ .rodata.__func__.7803
+                0x00000000        0xe ./src/kernel/capinv.o
+ .rodata.__func__.6630
+                0x00000000        0xb ./src/kernel/capinv.o
+ .rodata.__func__.6446
+                0x00000000        0x9 ./src/kernel/capinv.o
+ .debug_info    0x00000000    0x139e5 ./src/kernel/capinv.o
+ .debug_abbrev  0x00000000      0x666 ./src/kernel/capinv.o
+ .debug_loc     0x00000000    0x18b4f ./src/kernel/capinv.o
+ .debug_aranges
+                0x00000000       0xf0 ./src/kernel/capinv.o
+ .debug_ranges  0x00000000     0x27d0 ./src/kernel/capinv.o
+ .debug_line    0x00000000     0x26ea ./src/kernel/capinv.o
+ .debug_str     0x00000000     0x23a0 ./src/kernel/capinv.o
+ .comment       0x00000000       0x6f ./src/kernel/capinv.o
+ .debug_frame   0x00000000      0x4f8 ./src/kernel/capinv.o
+ .ARM.attributes
+                0x00000000       0x33 ./src/kernel/capinv.o
+ COMMON         0x00000000      0x340 ./src/kernel/capinv.o
+ .text          0x00000000        0x0 ./src/kernel/captbl.o
+ .data          0x00000000        0x0 ./src/kernel/captbl.o
+ .bss           0x00000000        0x0 ./src/kernel/captbl.o
+ .text.captbl_leaflvl_scan
+                0x00000000      0x278 ./src/kernel/captbl.o
+ .text.captbl_activate
+                0x00000000      0x4d0 ./src/kernel/captbl.o
+ .text.captbl_deactivate
+                0x00000000      0x320 ./src/kernel/captbl.o
+ .text.captbl_kmem_scan
+                0x00000000       0x4c ./src/kernel/captbl.o
+ .rodata.__func__.7309
+                0x00000000       0x14 ./src/kernel/captbl.o
+ .rodata.__func__.7321
+                0x00000000       0x11 ./src/kernel/captbl.o
+ .rodata.__func__.7285
+                0x00000000       0x12 ./src/kernel/captbl.o
+ .rodata.__func__.6651
+                0x00000000        0xb ./src/kernel/captbl.o
+ .text          0x00000000        0x0 ./src/kernel/liveness_tbl.o
+ .data          0x00000000        0x0 ./src/kernel/liveness_tbl.o
+ .bss           0x00000000        0x0 ./src/kernel/liveness_tbl.o
+ .text          0x00000000        0x0 ./src/kernel/pgtbl.o
+ .data          0x00000000        0x0 ./src/kernel/pgtbl.o
+ .bss           0x00000000        0x0 ./src/kernel/pgtbl.o
+ .text.pgtbl_kmem_act
+                0x00000000      0x128 ./src/kernel/pgtbl.o
+ .text.tlb_quiescence_check
+                0x00000000       0x58 ./src/kernel/pgtbl.o
+ .text.cap_memactivate
+                0x00000000      0x1d8 ./src/kernel/pgtbl.o
+ .text.pgtbl_deactivate
+                0x00000000      0x318 ./src/kernel/pgtbl.o
+ .rodata.__func__.7315
+                0x00000000       0x11 ./src/kernel/pgtbl.o
+ .rodata.__func__.7288
+                0x00000000       0x10 ./src/kernel/pgtbl.o
+ .rodata.__func__.7015
+                0x00000000       0x12 ./src/kernel/pgtbl.o
+ .rodata.__func__.6651
+                0x00000000        0xb ./src/kernel/pgtbl.o
+ .rodata.__func__.7263
+                0x00000000        0xf ./src/kernel/pgtbl.o
+ .text          0x00000000        0x0 ./src/kernel/retype_tbl.o
+ .data          0x00000000        0x0 ./src/kernel/retype_tbl.o
+ .bss           0x00000000        0x0 ./src/kernel/retype_tbl.o
+ .text.retypetbl_kern_ref
+                0x00000000       0xbc ./src/kernel/retype_tbl.o
+ .text.retypetbl_retype2frame
+                0x00000000      0x1d4 ./src/kernel/retype_tbl.o
+ .rodata.__func__.6284
+                0x00000000       0x17 ./src/kernel/retype_tbl.o
+ .text          0x00000000        0x0 ./src/kernel/tcap.o
+ .data          0x00000000        0x0 ./src/kernel/tcap.o
+ .bss           0x00000000        0x0 ./src/kernel/tcap.o
+ .text.__thd_exec_add
+                0x00000000        0xc ./src/kernel/tcap.o
+ .text.tcap_delegate
+                0x00000000      0x3d4 ./src/kernel/tcap.o
+ .text.tcap_merge
+                0x00000000       0x90 ./src/kernel/tcap.o
+ .rodata.__func__.7710
+                0x00000000        0xb ./src/kernel/tcap.o
+ .rodata.__func__.7662
+                0x00000000       0x13 ./src/kernel/tcap.o
+ .rodata.__func__.7671
+                0x00000000       0x10 ./src/kernel/tcap.o
+ .rodata.__func__.7700
+                0x00000000        0xe ./src/kernel/tcap.o
+ .text          0x00000000        0x0 ./src/components/lib/cos_component.o
+ .data          0x00000000        0x0 ./src/components/lib/cos_component.o
+ .bss           0x00000000        0x0 ./src/components/lib/cos_component.o
+ .text.startup.main
+                0x00000000        0x4 ./src/components/lib/cos_component.o
+ .text.cos_init
+                0x00000000        0x8 ./src/components/lib/cos_component.o
+ .text.cos_upcall_exec
+                0x00000000        0x4 ./src/components/lib/cos_component.o
+ .text.cos_async_inv
+                0x00000000        0x4 ./src/components/lib/cos_component.o
+ .text.cos_get_vas_page
+                0x00000000       0x14 ./src/components/lib/cos_component.o
+ .text.cos_release_vas_page
+                0x00000000        0x4 ./src/components/lib/cos_component.o
+ .data.cos_comp_info
+                0x00000000     0x1000 ./src/components/lib/cos_component.o
+ .bss.cos_sched_notifications
+                0x00000000        0x4 ./src/components/lib/cos_component.o
+ .bss.ST_user_caps
+                0x00000000        0x4 ./src/components/lib/cos_component.o
+ .text          0x00000000        0x0 ./src/components/lib/cos_kernel_api.o
+ .data          0x00000000        0x0 ./src/components/lib/cos_kernel_api.o
+ .bss           0x00000000        0x0 ./src/components/lib/cos_kernel_api.o
+ .text.__capid_bump_alloc
+                0x00000000      0x120 ./src/components/lib/cos_kernel_api.o
+ .text.__bump_mem_expand_range.isra.5
+                0x00000000      0x1a8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_meminfo_init
+                0x00000000       0x14 ./src/components/lib/cos_kernel_api.o
+ .text.cos_compinfo_init
+                0x00000000       0x88 ./src/components/lib/cos_kernel_api.o
+ .text.cos_meminfo_alloc
+                0x00000000       0x88 ./src/components/lib/cos_kernel_api.o
+ .text.cos_thd_alloc
+                0x00000000      0x10c ./src/components/lib/cos_kernel_api.o
+ .text.cos_initthd_alloc
+                0x00000000      0x14c ./src/components/lib/cos_kernel_api.o
+ .text.cos_captbl_alloc
+                0x00000000      0x144 ./src/components/lib/cos_kernel_api.o
+ .text.cos_pgtbl_alloc
+                0x00000000      0x144 ./src/components/lib/cos_kernel_api.o
+ .text.cos_comp_alloc
+                0x00000000      0x104 ./src/components/lib/cos_kernel_api.o
+ .text.cos_compinfo_alloc
+                0x00000000      0x33c ./src/components/lib/cos_kernel_api.o
+ .text.cos_sinv_alloc
+                0x00000000       0xf8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_arcv_alloc
+                0x00000000       0xf8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_asnd_alloc
+                0x00000000       0xfc ./src/components/lib/cos_kernel_api.o
+ .text.cos_hw_alloc
+                0x00000000       0xf4 ./src/components/lib/cos_kernel_api.o
+ .text.cos_page_bump_alloc
+                0x00000000       0xcc ./src/components/lib/cos_kernel_api.o
+ .text.cos_cap_cpy
+                0x00000000      0x140 ./src/components/lib/cos_kernel_api.o
+ .text.cos_cap_cpy_at
+                0x00000000       0x20 ./src/components/lib/cos_kernel_api.o
+ .text.cos_thd_switch
+                0x00000000        0x8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_sched_sync
+                0x00000000       0x20 ./src/components/lib/cos_kernel_api.o
+ .text.cos_switch
+                0x00000000        0x8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_asnd
+                0x00000000        0x8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_sched_rcv
+                0x00000000       0x58 ./src/components/lib/cos_kernel_api.o
+ .text.cos_rcv  0x00000000       0x34 ./src/components/lib/cos_kernel_api.o
+ .text.cos_mem_alias
+                0x00000000       0x98 ./src/components/lib/cos_kernel_api.o
+ .text.cos_mem_alias_at
+                0x00000000       0x20 ./src/components/lib/cos_kernel_api.o
+ .text.cos_mem_remove
+                0x00000000       0x14 ./src/components/lib/cos_kernel_api.o
+ .text.cos_mem_move
+                0x00000000       0x98 ./src/components/lib/cos_kernel_api.o
+ .text.cos_mem_move_at
+                0x00000000       0x20 ./src/components/lib/cos_kernel_api.o
+ .text.cos_thd_mod
+                0x00000000        0x8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_introspect
+                0x00000000        0x8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_tcap_alloc
+                0x00000000      0x144 ./src/components/lib/cos_kernel_api.o
+ .text.cos_tcap_transfer
+                0x00000000        0x8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_tcap_delegate
+                0x00000000        0x8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_tcap_merge
+                0x00000000        0x8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_hw_attach
+                0x00000000        0x8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_hw_detach
+                0x00000000        0x8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_hw_cycles_per_usec
+                0x00000000        0x8 ./src/components/lib/cos_kernel_api.o
+ .text.cos_hw_map
+                0x00000000      0x12c ./src/components/lib/cos_kernel_api.o
+ .bss.stok.7941
+                0x00000000        0x4 ./src/components/lib/cos_kernel_api.o
+ .rodata.str1.4
+                0x00000000      0xb0a ./src/components/lib/cos_kernel_api.o
+ .data.livenessid_frontier
+                0x00000000        0x4 ./src/components/lib/cos_kernel_api.o
+ .debug_info    0x00000000     0x74d6 ./src/components/lib/cos_kernel_api.o
+ .debug_abbrev  0x00000000      0x49f ./src/components/lib/cos_kernel_api.o
+ .debug_loc     0x00000000     0x8010 ./src/components/lib/cos_kernel_api.o
+ .debug_aranges
+                0x00000000      0x148 ./src/components/lib/cos_kernel_api.o
+ .debug_ranges  0x00000000      0xbb0 ./src/components/lib/cos_kernel_api.o
+ .debug_line    0x00000000      0xfe6 ./src/components/lib/cos_kernel_api.o
+ .debug_str     0x00000000     0x11a1 ./src/components/lib/cos_kernel_api.o
+ .comment       0x00000000       0x6f ./src/components/lib/cos_kernel_api.o
+ .debug_frame   0x00000000      0x40c ./src/components/lib/cos_kernel_api.o
+ .ARM.attributes
+                0x00000000       0x33 ./src/components/lib/cos_kernel_api.o
+ .text          0x00000000        0x0 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .data          0x00000000        0x0 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .bss           0x00000000        0x0 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .text.thd_fn_perf
+                0x00000000        0xc ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .text.thd_fn   0x00000000       0x28 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .text.test_thds_perf
+                0x00000000       0xd4 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .text.test_serverfn
+                0x00000000       0x34 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .text.test_captbl_expand
+                0x00000000       0x30 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .text.test_run_mb
+                0x00000000        0x8 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .text.test_run_vk
+                0x00000000       0x4c ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .bss.tc_sc     0x00000000       0x24 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .bss.tc_crc    0x00000000       0x18 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .bss.child_activated
+                0x00000000       0x18 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .rodata.str1.4
+                0x00000000      0x15b ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .bss.midinv_cycles
+                0x00000000        0x8 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .bss.tc_prc    0x00000000       0x18 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .bss.async_test_flag
+                0x00000000        0x4 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .debug_info    0x00000000      0xc17 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .debug_abbrev  0x00000000      0x36b ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .debug_loc     0x00000000      0x23c ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .debug_aranges
+                0x00000000       0x50 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .debug_ranges  0x00000000       0x90 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .debug_line    0x00000000      0x31d ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .debug_str     0x00000000      0x90c ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .comment       0x00000000       0x6f ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .debug_frame   0x00000000       0xc8 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .ARM.attributes
+                0x00000000       0x33 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ COMMON         0x00000000       0xa4 ./src/components/implementation/tests/micro_booter/mb_tests.o
+ .text          0x00000000        0x0 ./src/components/implementation/tests/micro_booter/micro_booter.o
+ .data          0x00000000        0x0 ./src/components/implementation/tests/micro_booter/micro_booter.o
+ .bss           0x00000000        0x0 ./src/components/implementation/tests/micro_booter/micro_booter.o
+ .text.prints   0x00000000        0xc ./src/components/implementation/tests/micro_booter/micro_booter.o
+ .text.printc   0x00000000        0x8 ./src/components/implementation/tests/micro_booter/micro_booter.o
+ .text.term_fn  0x00000000        0x4 ./src/components/implementation/tests/micro_booter/micro_booter.o
+ .bss.den       0x00000000        0x4 ./src/components/implementation/tests/micro_booter/micro_booter.o
+ .data.num      0x00000000        0x4 ./src/components/implementation/tests/micro_booter/micro_booter.o
+ COMMON         0x00000000       0x60 ./src/components/implementation/tests/micro_booter/micro_booter.o
+ .text          0x00000000      0x370 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_addsubdf3.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_addsubdf3.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_addsubdf3.o)
+ .ARM.attributes
+                0x00000000       0x1e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_addsubdf3.o)
+ .text          0x00000000      0x424 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_muldivdf3.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_muldivdf3.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_muldivdf3.o)
+ .ARM.attributes
+                0x00000000       0x1e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_muldivdf3.o)
+ .text          0x00000000       0x40 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_fixunsdfsi.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_fixunsdfsi.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_fixunsdfsi.o)
+ .ARM.attributes
+                0x00000000       0x1e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_arm_fixunsdfsi.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_aeabi_ldivmod.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_aeabi_ldivmod.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_ctors.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_ctors.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_udivmoddi4.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_udivmoddi4.o)
+ .ARM.extab     0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_udivmoddi4.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_dvmd_tls.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_dvmd_tls.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memcpy-stub.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memcpy-stub.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memcpy-stub.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memset.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memset.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memset.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sprintf.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sprintf.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sprintf.o)
+ .text._sprintf_r
+                0x00000000       0x40 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sprintf.o)
+ .text          0x00000000       0x10 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-strlen.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-strlen.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-strlen.o)
+ .ARM.attributes
+                0x00000000       0x17 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-strlen.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-impure.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-impure.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-impure.o)
+ .rodata._global_impure_ptr
+                0x00000000        0x4 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-impure.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o)
+ .text.__ssprint_r
+                0x00000000       0xfe /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-vfprintf_i.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-vfprintf_i.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-vfprintf_i.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memchr.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memchr.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memmove.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memmove.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memmove.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-freer.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-freer.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-freer.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-mallocr.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-mallocr.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-mallocr.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-reallocr.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-reallocr.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-reallocr.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sbrkr.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sbrkr.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sbrkr.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-mlock.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-mlock.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-mlock.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-msizer.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-msizer.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-msizer.o)
+ .text          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-reent.o)
+ .data          0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-reent.o)
+ .bss           0x00000000        0x0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-reent.o)
+ .text.cleanup_glue
+                0x00000000       0x1a /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-reent.o)
+ .text._reclaim_reent
+                0x00000000       0xb4 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-reent.o)
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+RAM              0x20000000         0x00080000         xrw
+CCMRAM           0x10000000         0x00000000         xrw
+FLASH            0x08000000         0x00100000         xr
+FLASHB1          0x00000000         0x00000000         xr
+EXTMEMB0         0x00000000         0x00000000         xr
+EXTMEMB1         0x00000000         0x00000000         xr
+EXTMEMB2         0x00000000         0x00000000         xr
+EXTMEMB3         0x00000000         0x00000000         xr
+SDRAM            0xc0000000         0x02000000         rw
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma2d.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_dma_ex.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nand.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_nor.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sram.o
+LOAD ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+LOAD ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+LOAD ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+LOAD ./src/platform/cmx/boot_comp.o
+LOAD ./src/platform/cmx/chal.o
+LOAD ./src/platform/cmx/entry.o
+LOAD ./src/platform/cmx/kernel.o
+LOAD ./src/platform/cmx/lcd.o
+LOAD ./src/platform/cmx/ltdc.o
+LOAD ./src/platform/cmx/sdram.o
+LOAD ./src/platform/cmx/vm.o
+LOAD ./src/kernel/capinv.o
+LOAD ./src/kernel/captbl.o
+LOAD ./src/kernel/liveness_tbl.o
+LOAD ./src/kernel/pgtbl.o
+LOAD ./src/kernel/retype_tbl.o
+LOAD ./src/kernel/tcap.o
+LOAD ./src/components/lib/cos_component.o
+LOAD ./src/components/lib/cos_kernel_api.o
+LOAD ./src/components/implementation/tests/micro_booter/mb_tests.o
+LOAD ./src/components/implementation/tests/micro_booter/micro_booter.o
+LOAD /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libstdc++_nano.a
+LOAD /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libm.a
+START GROUP
+LOAD /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a
+LOAD /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a
+LOAD /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libc_nano.a
+END GROUP
+START GROUP
+LOAD /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a
+LOAD /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libc_nano.a
+END GROUP
+                0x20080000                __stack = (ORIGIN (RAM) + LENGTH (RAM))
+                0x20080000                _estack = __stack
+                0x00000400                __Main_Stack_Size = 0x400
+                [!provide]                PROVIDE (_Main_Stack_Size, __Main_Stack_Size)
+                0x2007fc00                __Main_Stack_Limit = (__stack - __Main_Stack_Size)
+                [!provide]                PROVIDE (_Main_Stack_Limit, __Main_Stack_Limit)
+                0x00000100                _Minimum_Stack_Size = 0x100
+                [!provide]                PROVIDE (_Heap_Begin, _end_noinit)
+                0x2007fc00                PROVIDE (_Heap_Limit, (__stack - __Main_Stack_Size))
+
+.isr_vector     0x08000000      0x324
+ FILL mask 0xff
+                0x08000000                __vectors_start = ABSOLUTE (.)
+                0x08000000                __vectors_start__ = ABSOLUTE (.)
+ *(.isr_vector)
+ .isr_vector    0x08000000      0x1f8 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+                0x08000000                __isr_vectors
+ *(.cfmconfig)
+ *(.after_vectors .after_vectors.*)
+ .after_vectors
+                0x080001f8      0x12c ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+                0x080001f8                NMI_Handler
+                0x080001fc                HardFault_Handler
+                0x08000200                MemManage_Handler
+                0x08000204                BusFault_Handler
+                0x08000208                UsageFault_Handler
+                0x0800020c                SVC_Handler
+                0x08000210                DebugMon_Handler
+                0x08000214                PendSV_Handler
+                0x0800021c                RTC_Alarm_IRQHandler
+                0x0800021c                EXTI2_IRQHandler
+                0x0800021c                TIM8_CC_IRQHandler
+                0x0800021c                UART8_IRQHandler
+                0x0800021c                SPI4_IRQHandler
+                0x0800021c                TIM1_CC_IRQHandler
+                0x0800021c                DMA2_Stream5_IRQHandler
+                0x0800021c                JPEG_IRQHandler
+                0x0800021c                DMA1_Stream5_IRQHandler
+                0x0800021c                CAN3_RX1_IRQHandler
+                0x0800021c                PVD_IRQHandler
+                0x0800021c                TAMP_STAMP_IRQHandler
+                0x0800021c                CAN2_RX1_IRQHandler
+                0x0800021c                EXTI3_IRQHandler
+                0x0800021c                TIM8_TRG_COM_TIM14_IRQHandler
+                0x0800021c                DFSDM1_FLT1_IRQHandler
+                0x0800021c                TIM1_UP_TIM10_IRQHandler
+                0x0800021c                TIM8_UP_TIM13_IRQHandler
+                0x0800021c                I2C3_ER_IRQHandler
+                0x0800021c                DFSDM1_FLT2_IRQHandler
+                0x0800021c                EXTI0_IRQHandler
+                0x0800021c                I2C2_EV_IRQHandler
+                0x0800021c                DMA1_Stream2_IRQHandler
+                0x0800021c                CAN1_RX0_IRQHandler
+                0x0800021c                FPU_IRQHandler
+                0x0800021c                OTG_HS_WKUP_IRQHandler
+                0x0800021c                CAN3_SCE_IRQHandler
+                0x0800021c                LTDC_ER_IRQHandler
+                0x0800021c                CAN2_SCE_IRQHandler
+                0x0800021c                DMA2_Stream2_IRQHandler
+                0x0800021c                SPI1_IRQHandler
+                0x0800021c                TIM6_DAC_IRQHandler
+                0x0800021c                TIM1_BRK_TIM9_IRQHandler
+                0x0800021c                DCMI_IRQHandler
+                0x0800021c                CAN2_RX0_IRQHandler
+                0x0800021c                DMA2_Stream3_IRQHandler
+                0x0800021c                SAI2_IRQHandler
+                0x0800021c                DFSDM1_FLT3_IRQHandler
+                0x0800021c                USART6_IRQHandler
+                0x0800021c                CAN3_RX0_IRQHandler
+                0x0800021c                USART3_IRQHandler
+                0x0800021c                CAN1_RX1_IRQHandler
+                0x0800021c                UART5_IRQHandler
+                0x0800021c                DMA2_Stream0_IRQHandler
+                0x0800021c                TIM4_IRQHandler
+                0x0800021c                QUADSPI_IRQHandler
+                0x0800021c                I2C1_EV_IRQHandler
+                0x0800021c                DMA1_Stream6_IRQHandler
+                0x0800021c                DMA1_Stream1_IRQHandler
+                0x0800021c                UART4_IRQHandler
+                0x0800021c                TIM3_IRQHandler
+                0x0800021c                RCC_IRQHandler
+                0x0800021c                TIM8_BRK_TIM12_IRQHandler
+                0x0800021c                Default_Handler
+                0x0800021c                CEC_IRQHandler
+                0x0800021c                EXTI15_10_IRQHandler
+                0x0800021c                ADC_IRQHandler
+                0x0800021c                DMA1_Stream7_IRQHandler
+                0x0800021c                SPI5_IRQHandler
+                0x0800021c                TIM7_IRQHandler
+                0x0800021c                SDMMC1_IRQHandler
+                0x0800021c                CAN2_TX_IRQHandler
+                0x0800021c                TIM5_IRQHandler
+                0x0800021c                DMA2_Stream7_IRQHandler
+                0x0800021c                I2C3_EV_IRQHandler
+                0x0800021c                EXTI9_5_IRQHandler
+                0x0800021c                RTC_WKUP_IRQHandler
+                0x0800021c                LTDC_IRQHandler
+                0x0800021c                ETH_WKUP_IRQHandler
+                0x0800021c                SPDIF_RX_IRQHandler
+                0x0800021c                SPI2_IRQHandler
+                0x0800021c                OTG_HS_EP1_IN_IRQHandler
+                0x0800021c                DMA1_Stream0_IRQHandler
+                0x0800021c                CAN1_TX_IRQHandler
+                0x0800021c                EXTI4_IRQHandler
+                0x0800021c                RNG_IRQHandler
+                0x0800021c                ETH_IRQHandler
+                0x0800021c                OTG_HS_EP1_OUT_IRQHandler
+                0x0800021c                WWDG_IRQHandler
+                0x0800021c                SPI6_IRQHandler
+                0x0800021c                I2C4_EV_IRQHandler
+                0x0800021c                MDIOS_IRQHandler
+                0x0800021c                CAN3_TX_IRQHandler
+                0x0800021c                TIM2_IRQHandler
+                0x0800021c                OTG_FS_WKUP_IRQHandler
+                0x0800021c                TIM1_TRG_COM_TIM11_IRQHandler
+                0x0800021c                OTG_HS_IRQHandler
+                0x0800021c                DMA2D_IRQHandler
+                0x0800021c                EXTI1_IRQHandler
+                0x0800021c                SDMMC2_IRQHandler
+                0x0800021c                UART7_IRQHandler
+                0x0800021c                USART2_IRQHandler
+                0x0800021c                DFSDM1_FLT0_IRQHandler
+                0x0800021c                I2C2_ER_IRQHandler
+                0x0800021c                DMA2_Stream1_IRQHandler
+                0x0800021c                CAN1_SCE_IRQHandler
+                0x0800021c                FLASH_IRQHandler
+                0x0800021c                DMA2_Stream4_IRQHandler
+                0x0800021c                USART1_IRQHandler
+                0x0800021c                OTG_FS_IRQHandler
+                0x0800021c                SPI3_IRQHandler
+                0x0800021c                DMA1_Stream4_IRQHandler
+                0x0800021c                I2C1_ER_IRQHandler
+                0x0800021c                FMC_IRQHandler
+                0x0800021c                LPTIM1_IRQHandler
+                0x0800021c                I2C4_ER_IRQHandler
+                0x0800021c                DMA2_Stream6_IRQHandler
+                0x0800021c                SAI1_IRQHandler
+                0x0800021c                DMA1_Stream3_IRQHandler
+                0x08000220                _start
+                0x0800031c                Reset_Handler
+
+.inits          0x08000324       0x28
+                0x08000324                __data_regions_array_start = .
+                0x08000324        0x4 LONG 0x800d0b4 LOADADDR (.data)
+                0x08000328        0x4 LONG 0x20000000 ADDR (.data)
+                0x0800032c        0x4 LONG 0x20002068 (ADDR (.data) + SIZEOF (.data))
+                0x08000330        0x4 LONG 0x800d0b4 LOADADDR (.data_CCMRAM)
+                0x08000334        0x4 LONG 0x10000000 ADDR (.data_CCMRAM)
+                0x08000338        0x4 LONG 0x10000000 (ADDR (.data_CCMRAM) + SIZEOF (.data_CCMRAM))
+                0x0800033c                __data_regions_array_end = .
+                0x0800033c                __bss_regions_array_start = .
+                0x0800033c        0x4 LONG 0x20010000 ADDR (.bss)
+                0x08000340        0x4 LONG 0x20077804 (ADDR (.bss) + SIZEOF (.bss))
+                0x08000344        0x4 LONG 0x10000000 ADDR (.bss_CCMRAM)
+                0x08000348        0x4 LONG 0x10000000 (ADDR (.bss_CCMRAM) + SIZEOF (.bss_CCMRAM))
+                0x0800034c                __bss_regions_array_end = .
+ *(.init)
+ *(.fini)
+                0x0800034c                . = ALIGN (0x4)
+                [!provide]                PROVIDE (__preinit_array_start, .)
+ *(.preinit_array_sysinit .preinit_array_sysinit.*)
+ *(.preinit_array_platform .preinit_array_platform.*)
+ *(.preinit_array .preinit_array.*)
+                [!provide]                PROVIDE (__preinit_array_end, .)
+                0x0800034c                . = ALIGN (0x4)
+                [!provide]                PROVIDE (__init_array_start, .)
+ *(SORT(.init_array.*))
+ *(.init_array)
+                [!provide]                PROVIDE (__init_array_end, .)
+                0x0800034c                . = ALIGN (0x4)
+                [!provide]                PROVIDE (__fini_array_start, .)
+ *(SORT(.fini_array.*))
+ *(.fini_array)
+                [!provide]                PROVIDE (__fini_array_end, .)
+
+.flashtext
+ *(.flashtext .flashtext.*)
+
+.text           0x08000350     0xcd5b
+ *(.text .text.*)
+ .text.HAL_InitTick
+                0x08000350       0x2c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+                0x08000350                HAL_InitTick
+ .text.HAL_GetTick
+                0x0800037c        0xc ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+                0x0800037c                HAL_GetTick
+ .text.HAL_NVIC_SetPriority
+                0x08000388       0x98 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+                0x08000388                HAL_NVIC_SetPriority
+ .text.HAL_SYSTICK_Config
+                0x08000420       0x30 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+                0x08000420                HAL_SYSTICK_Config
+ .text.HAL_SYSTICK_CLKSourceConfig
+                0x08000450       0x38 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+                0x08000450                HAL_SYSTICK_CLKSourceConfig
+ .text.HAL_GPIO_Init
+                0x08000488      0x314 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+                0x08000488                HAL_GPIO_Init
+ .text.HAL_GPIO_ReadPin
+                0x0800079c       0x24 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+                0x0800079c                HAL_GPIO_ReadPin
+ .text.HAL_GPIO_WritePin
+                0x080007c0       0x38 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+                0x080007c0                HAL_GPIO_WritePin
+ .text.HAL_LTDC_Init
+                0x080007f8      0x27c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+                0x080007f8                HAL_LTDC_Init
+ .text.HAL_LTDC_ConfigLayer
+                0x08000a74      0x2d8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+                0x08000a74                HAL_LTDC_ConfigLayer
+ .text.HAL_LTDC_SetWindowSize
+                0x08000d4c      0x244 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+                0x08000d4c                HAL_LTDC_SetWindowSize
+ .text.HAL_LTDC_SetWindowPosition
+                0x08000f90      0x218 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+                0x08000f90                HAL_LTDC_SetWindowPosition
+ .text.HAL_PWREx_EnableOverDrive
+                0x080011a8       0x78 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+                0x080011a8                HAL_PWREx_EnableOverDrive
+ .text.HAL_RCC_ClockConfig
+                0x08001220      0x2e4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+                0x08001220                HAL_RCC_ClockConfig
+ .text.HAL_RCCEx_PeriphCLKConfig
+                0x08001504      0xbf0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+                0x08001504                HAL_RCCEx_PeriphCLKConfig
+ .text.HAL_RCC_OscConfig
+                0x080020f4      0x4f0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+                0x080020f4                HAL_RCC_OscConfig
+ .text.HAL_SDRAM_Init
+                0x080025e4       0x44 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+                0x080025e4                HAL_SDRAM_Init
+ .text.HAL_SDRAM_SendCommand
+                0x08002628       0x34 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+                0x08002628                HAL_SDRAM_SendCommand
+ .text.HAL_SDRAM_ProgramRefreshRate
+                0x0800265c       0x28 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+                0x0800265c                HAL_SDRAM_ProgramRefreshRate
+ .text.FMC_SDRAM_Init
+                0x08002684      0x168 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+                0x08002684                FMC_SDRAM_Init
+ .text.FMC_SDRAM_Timing_Init
+                0x080027ec      0x154 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+                0x080027ec                FMC_SDRAM_Timing_Init
+ .text.FMC_SDRAM_SendCommand
+                0x08002940       0xc0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+                0x08002940                FMC_SDRAM_SendCommand
+ .text.FMC_SDRAM_ProgramRefreshRate
+                0x08002a00       0x3c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+                0x08002a00                FMC_SDRAM_ProgramRefreshRate
+ .text.NVIC_SystemReset
+                0x08002a3c       0x24 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .text.Stm32_Clock_Init
+                0x08002a60       0x8c ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+                0x08002a60                Stm32_Clock_Init
+ .text._sbrk    0x08002aec        0x8 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+                0x08002aec                _sbrk
+ .text.SystemInit
+                0x08002af4       0x44 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+                0x08002af4                SystemInit
+ .text.SystemCoreClockUpdate
+                0x08002b38       0x84 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+                0x08002b38                SystemCoreClockUpdate
+ .text.__captbl_lkupani.constprop.29
+                0x08002bbc       0xb0 ./src/platform/cmx/boot_comp.o
+ .text.pgtbl_cosframe_add.constprop.23
+                0x08002c6c       0xd0 ./src/platform/cmx/boot_comp.o
+ .text.pgtbl_mapping_add.constprop.24
+                0x08002d3c       0xdc ./src/platform/cmx/boot_comp.o
+ .text.__cap_capactivate_pre.constprop.22
+                0x08002e18      0x3e4 ./src/platform/cmx/boot_comp.o
+ .text.kern_boot_comp
+                0x080031fc     0x1570 ./src/platform/cmx/boot_comp.o
+                0x080031fc                kern_boot_comp
+ .text.kern_boot_upcall
+                0x0800476c       0x6c ./src/platform/cmx/boot_comp.o
+                0x0800476c                kern_boot_upcall
+ .text.chal_pa2va
+                0x080047d8        0x4 ./src/platform/cmx/chal.o
+                0x080047d8                chal_pa2va
+ .text.chal_va2pa
+                0x080047dc        0x4 ./src/platform/cmx/chal.o
+                0x080047dc                chal_va2pa
+ .text.chal_khalt
+                0x080047e0        0x4 ./src/platform/cmx/chal.o
+                0x080047e0                chal_khalt
+ .text.chal_init
+                0x080047e4       0x14 ./src/platform/cmx/chal.o
+                0x080047e4                chal_init
+ .text.kentryfn
+                0x080047f8       0x24 ./src/platform/cmx/kernel.o
+                0x080047f8                kentryfn
+ .text.kern_memory_setup
+                0x0800481c       0xac ./src/platform/cmx/kernel.o
+                0x0800481c                kern_memory_setup
+ .text.timer_init
+                0x080048c8       0x34 ./src/platform/cmx/kernel.o
+                0x080048c8                timer_init
+ .text.SysTick_Handler
+                0x080048fc       0x18 ./src/platform/cmx/kernel.o
+                0x080048fc                SysTick_Handler
+ .text.delay_us
+                0x08004914       0x74 ./src/platform/cmx/kernel.o
+                0x08004914                delay_us
+ .text.startup.main
+                0x08004988       0x64 ./src/platform/cmx/kernel.o
+                0x08004988                main
+ .text.khalt    0x080049ec        0x4 ./src/platform/cmx/kernel.o
+                0x080049ec                khalt
+ .text.printk   0x080049f0        0x8 ./src/platform/cmx/kernel.o
+                0x080049f0                printk
+ .text.assert_failed
+                0x080049f8        0x4 ./src/platform/cmx/kernel.o
+                0x080049f8                assert_failed
+ .text.LCD_SetCursor
+                0x080049fc       0xd0 ./src/platform/cmx/lcd.o
+                0x080049fc                LCD_SetCursor
+ .text.LCD_Scan_Dir
+                0x08004acc      0x228 ./src/platform/cmx/lcd.o
+                0x08004acc                LCD_Scan_Dir
+ .text.LCD_Fast_DrawPoint
+                0x08004cf4       0xd8 ./src/platform/cmx/lcd.o
+                0x08004cf4                LCD_Fast_DrawPoint
+ .text.LCD_ShowChar.constprop.1
+                0x08004dcc      0x24c ./src/platform/cmx/lcd.o
+ .text.LCD_Init
+                0x08005018       0xfc ./src/platform/cmx/lcd.o
+                0x08005018                LCD_Init
+ .text.LCD_Clear
+                0x08005114       0xf0 ./src/platform/cmx/lcd.o
+                0x08005114                LCD_Clear
+ .text.LCD_ShowString
+                0x08005204       0x60 ./src/platform/cmx/lcd.o
+                0x08005204                LCD_ShowString
+ .text.LTDC_Display_Dir
+                0x08005264       0x24 ./src/platform/cmx/ltdc.o
+                0x08005264                LTDC_Display_Dir
+ .text.LTDC_Draw_Point
+                0x08005288       0x4c ./src/platform/cmx/ltdc.o
+                0x08005288                LTDC_Draw_Point
+ .text.LTDC_Fill
+                0x080052d4       0xbc ./src/platform/cmx/ltdc.o
+                0x080052d4                LTDC_Fill
+ .text.LTDC_Clear
+                0x08005390       0x28 ./src/platform/cmx/ltdc.o
+                0x08005390                LTDC_Clear
+ .text.LTDC_PanelID_Read
+                0x080053b8       0xb4 ./src/platform/cmx/ltdc.o
+                0x080053b8                LTDC_PanelID_Read
+ .text.LTDC_Init
+                0x0800546c      0x290 ./src/platform/cmx/ltdc.o
+                0x0800546c                LTDC_Init
+ .text.HAL_LTDC_MspInit
+                0x080056fc       0xf8 ./src/platform/cmx/ltdc.o
+                0x080056fc                HAL_LTDC_MspInit
+ .text.SDRAM_Init
+                0x080057f4       0xf0 ./src/platform/cmx/sdram.o
+                0x080057f4                SDRAM_Init
+ .text.HAL_SDRAM_MspInit
+                0x080058e4       0xe0 ./src/platform/cmx/sdram.o
+                0x080058e4                HAL_SDRAM_MspInit
+ .text.mem_boot_alloc
+                0x080059c4       0xb0 ./src/platform/cmx/vm.o
+                0x080059c4                mem_boot_alloc
+ .text.captbl_activate_boot
+                0x08005a74      0x450 ./src/kernel/captbl.o
+                0x08005a74                captbl_activate_boot
+ .text.captbl_cons
+                0x08005ec4      0x19c ./src/kernel/captbl.o
+                0x08005ec4                captbl_cons
+ .text.ltbl_init
+                0x08006060       0x3c ./src/kernel/liveness_tbl.o
+                0x08006060                ltbl_init
+ .text.pgtbl_activate
+                0x0800609c      0x4cc ./src/kernel/pgtbl.o
+                0x0800609c                pgtbl_activate
+ .text.retypetbl_ref
+                0x08006568       0xb4 ./src/kernel/retype_tbl.o
+                0x08006568                retypetbl_ref
+ .text.retypetbl_deref
+                0x0800661c       0xb4 ./src/kernel/retype_tbl.o
+                0x0800661c                retypetbl_deref
+ .text.retypetbl_retype2user
+                0x080066d0      0x110 ./src/kernel/retype_tbl.o
+                0x080066d0                retypetbl_retype2user
+ .text.retypetbl_retype2kern
+                0x080067e0      0x128 ./src/kernel/retype_tbl.o
+                0x080067e0                retypetbl_retype2kern
+ .text.retype_tbl_init
+                0x08006908       0x48 ./src/kernel/retype_tbl.o
+                0x08006908                retype_tbl_init
+ .text.tcap_activate
+                0x08006950      0x45c ./src/kernel/tcap.o
+                0x08006950                tcap_activate
+ .text.tcap_promote
+                0x08006dac        0xc ./src/kernel/tcap.o
+                0x08006dac                tcap_promote
+ .text.tcap_active_init
+                0x08006db8       0x10 ./src/kernel/tcap.o
+                0x08006db8                tcap_active_init
+ .text.__alloc_libc_initilize
+                0x08006dc8        0x4 ./src/components/lib/cos_component.o
+                0x08006dc8                __alloc_libc_initilize
+ .text.cos_thd_entry_static
+                0x08006dcc        0x8 ./src/components/lib/cos_component.o
+                0x08006dcc                cos_thd_entry_static
+ .text.cos_upcall_fn
+                0x08006dd4       0x88 ./src/components/lib/cos_component.o
+                0x08006dd4                cos_upcall_fn
+ .text.cos_init
+                0x08006e5c       0x78 ./src/components/implementation/tests/micro_booter/micro_booter.o
+                0x08006e5c                cos_init
+ .text          0x08006ed4       0xa0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_aeabi_ldivmod.o)
+                0x08006ed4                __aeabi_ldivmod
+ .text          0x08006f74      0x2e4 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_udivmoddi4.o)
+                0x08006f74                __udivmoddi4
+ .text          0x08007258        0x4 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_dvmd_tls.o)
+                0x08007258                __aeabi_ldiv0
+                0x08007258                __aeabi_idiv0
+ .text.memcpy   0x0800725c       0x16 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memcpy-stub.o)
+                0x0800725c                memcpy
+ .text.memset   0x08007272       0x10 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memset.o)
+                0x08007272                memset
+ *fill*         0x08007282        0x2 
+ .text.sprintf  0x08007284       0x48 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sprintf.o)
+                0x08007284                sprintf
+                0x08007284                siprintf
+ .text.__ssputs_r
+                0x080072cc       0xb2 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o)
+                0x080072cc                __ssputs_r
+ *fill*         0x0800737e        0x2 
+ .text._svfprintf_r
+                0x08007380      0x1e8 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o)
+                0x08007380                _svfprintf_r
+                0x08007380                _svfiprintf_r
+ .text._printf_common
+                0x08007568       0xec /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-vfprintf_i.o)
+                0x08007568                _printf_common
+ .text._printf_i
+                0x08007654      0x24c /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-vfprintf_i.o)
+                0x08007654                _printf_i
+ .text          0x080078a0       0xa0 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memchr.o)
+                0x080078a0                memchr
+ .text.memmove  0x08007940       0x36 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memmove.o)
+                0x08007940                memmove
+ *fill*         0x08007976        0x2 
+ .text._free_r  0x08007978       0x9c /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-freer.o)
+                0x08007978                _free_r
+ .text._malloc_r
+                0x08007a14       0xbc /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-mallocr.o)
+                0x08007a14                _malloc_r
+ .text._realloc_r
+                0x08007ad0       0x4c /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-reallocr.o)
+                0x08007ad0                _realloc_r
+ .text._sbrk_r  0x08007b1c       0x20 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sbrkr.o)
+                0x08007b1c                _sbrk_r
+ .text.__malloc_lock
+                0x08007b3c        0x2 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-mlock.o)
+                0x08007b3c                __malloc_lock
+ .text.__malloc_unlock
+                0x08007b3e        0x2 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-mlock.o)
+                0x08007b3e                __malloc_unlock
+ .text._malloc_usable_size_r
+                0x08007b40       0x14 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-msizer.o)
+                0x08007b40                _malloc_usable_size_r
+ *(.rodata .rodata.* .constdata .constdata.*)
+ .rodata.str1.4
+                0x08007b54       0x3b ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ *fill*         0x08007b8f        0x1 
+ .rodata.str1.4
+                0x08007b90       0x39 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ *fill*         0x08007bc9        0x3 
+ .rodata.str1.4
+                0x08007bcc       0x39 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ *fill*         0x08007c05        0x3 
+ .rodata.str1.4
+                0x08007c08       0x38 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .rodata.str1.4
+                0x08007c40       0x3b ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ *fill*         0x08007c7b        0x1 
+ .rodata.str1.4
+                0x08007c7c       0x37 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ *fill*         0x08007cb3        0x1 
+ .rodata.AHBPrescTable
+                0x08007cb4       0x10 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+                0x08007cb4                AHBPrescTable
+ .rodata.__func__.8434
+                0x08007cc4        0xf ./src/platform/cmx/boot_comp.o
+ *fill*         0x08007cd3        0x1 
+ .rodata.__func__.7774
+                0x08007cd4        0xd ./src/platform/cmx/boot_comp.o
+ *fill*         0x08007ce1        0x3 
+ .rodata.__func__.6332
+                0x08007ce4        0xd ./src/platform/cmx/boot_comp.o
+ *fill*         0x08007cf1        0x3 
+ .rodata.__func__.8444
+                0x08007cf4       0x11 ./src/platform/cmx/boot_comp.o
+ *fill*         0x08007d05        0x3 
+ .rodata.__func__.6452
+                0x08007d08       0x13 ./src/platform/cmx/boot_comp.o
+ *fill*         0x08007d1b        0x1 
+ .rodata.__func__.7803
+                0x08007d1c        0xe ./src/platform/cmx/boot_comp.o
+ *fill*         0x08007d2a        0x2 
+ .rodata.__func__.6679
+                0x08007d2c        0xe ./src/platform/cmx/boot_comp.o
+ *fill*         0x08007d3a        0x2 
+ .rodata.str1.4
+                0x08007d3c      0x5aa ./src/platform/cmx/boot_comp.o
+                                0x5ae (size before relaxing)
+ *fill*         0x080082e6        0x2 
+ .rodata.__func__.6630
+                0x080082e8        0xb ./src/platform/cmx/boot_comp.o
+ *fill*         0x080082f3        0x1 
+ .rodata.__func__.7015
+                0x080082f4       0x12 ./src/platform/cmx/boot_comp.o
+ *fill*         0x08008306        0x2 
+ .rodata.__func__.6300
+                0x08008308        0xd ./src/platform/cmx/boot_comp.o
+ *fill*         0x08008315        0x3 
+ .rodata.__func__.8395
+                0x08008318       0x18 ./src/platform/cmx/boot_comp.o
+ .rodata.CSWTCH.125
+                0x08008330        0x3 ./src/platform/cmx/boot_comp.o
+ *fill*         0x08008333        0x1 
+ .rodata.__func__.7553
+                0x08008334        0xd ./src/platform/cmx/boot_comp.o
+ *fill*         0x08008341        0x3 
+ .rodata.__func__.8420
+                0x08008344        0xe ./src/platform/cmx/boot_comp.o
+ *fill*         0x08008352        0x2 
+ .rodata.__func__.7198
+                0x08008354        0x9 ./src/platform/cmx/boot_comp.o
+ *fill*         0x0800835d        0x3 
+ .rodata.__func__.7475
+                0x08008360        0xc ./src/platform/cmx/boot_comp.o
+ .rodata.__func__.7036
+                0x0800836c       0x13 ./src/platform/cmx/boot_comp.o
+ *fill*         0x0800837f        0x1 
+ .rodata.SVC_Stack
+                0x08008380       0x40 ./src/platform/cmx/kernel.o
+                0x08008380                SVC_Stack
+ .rodata.asc2_2412
+                0x080083c0      0xd5c ./src/platform/cmx/lcd.o
+                0x080083c0                asc2_2412
+ .rodata.CSWTCH.45
+                0x0800911c        0xe ./src/platform/cmx/lcd.o
+ *fill*         0x0800912a        0x2 
+ .rodata.asc2_1206
+                0x0800912c      0x474 ./src/platform/cmx/lcd.o
+                0x0800912c                asc2_1206
+ .rodata.asc2_3216
+                0x080095a0     0x2f80 ./src/platform/cmx/lcd.o
+                0x080095a0                asc2_3216
+ .rodata.asc2_1608
+                0x0800c520      0x5f0 ./src/platform/cmx/lcd.o
+                0x0800c520                asc2_1608
+ .rodata.__func__.8386
+                0x0800cb10        0xf ./src/platform/cmx/vm.o
+ *fill*         0x0800cb1f        0x1 
+ .rodata.str1.4
+                0x0800cb20       0xa8 ./src/platform/cmx/vm.o
+                                 0xd8 (size before relaxing)
+ .rodata.__func__.6452
+                0x0800cbc8       0x13 ./src/kernel/captbl.o
+ *fill*         0x0800cbdb        0x1 
+ .rodata.__func__.4459
+                0x0800cbdc        0xd ./src/kernel/captbl.o
+ *fill*         0x0800cbe9        0x3 
+ .rodata.str1.4
+                0x0800cbec      0x12d ./src/kernel/captbl.o
+                                0x1bd (size before relaxing)
+ *fill*         0x0800cd19        0x3 
+ .rodata.__func__.6630
+                0x0800cd1c        0xb ./src/kernel/captbl.o
+ *fill*         0x0800cd27        0x1 
+ .rodata.__func__.4491
+                0x0800cd28        0xd ./src/kernel/captbl.o
+ *fill*         0x0800cd35        0x3 
+ .rodata.__func__.6452
+                0x0800cd38       0x13 ./src/kernel/pgtbl.o
+ *fill*         0x0800cd4b        0x1 
+ .rodata.__func__.4459
+                0x0800cd4c        0xd ./src/kernel/pgtbl.o
+ *fill*         0x0800cd59        0x3 
+ .rodata.str1.4
+                0x0800cd5c       0xd7 ./src/kernel/pgtbl.o
+                                0x1f1 (size before relaxing)
+ *fill*         0x0800ce33        0x1 
+ .rodata.__func__.6630
+                0x0800ce34        0xb ./src/kernel/pgtbl.o
+ *fill*         0x0800ce3f        0x1 
+ .rodata.__func__.6241
+                0x0800ce40        0xc ./src/kernel/retype_tbl.o
+ .rodata.str1.4
+                0x0800ce4c       0xa3 ./src/kernel/retype_tbl.o
+                                 0xcf (size before relaxing)
+ *fill*         0x0800ceef        0x1 
+ .rodata.__func__.6260
+                0x0800cef0        0xd ./src/kernel/retype_tbl.o
+ *fill*         0x0800cefd        0x3 
+ .rodata.__func__.6452
+                0x0800cf00       0x13 ./src/kernel/tcap.o
+ *fill*         0x0800cf13        0x1 
+ .rodata.__func__.7681
+                0x0800cf14        0xe ./src/kernel/tcap.o
+ *fill*         0x0800cf22        0x2 
+ .rodata.str1.4
+                0x0800cf24      0x119 ./src/kernel/tcap.o
+                                0x216 (size before relaxing)
+ *fill*         0x0800d03d        0x3 
+ .rodata.__func__.6630
+                0x0800d040        0xb ./src/kernel/tcap.o
+ *fill*         0x0800d04b        0x1 
+ .rodata.__func__.6300
+                0x0800d04c        0xd ./src/kernel/tcap.o
+ *fill*         0x0800d059        0x3 
+ .rodata.str1.4
+                0x0800d05c       0x1c ./src/components/implementation/tests/micro_booter/micro_booter.o
+                                 0x1b (size before relaxing)
+ .rodata.str1.1
+                0x0800d078       0x11 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o)
+ .rodata.str1.1
+                0x0800d089       0x22 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-vfprintf_i.o)
+ *(vtable)
+ *(.eh_frame*)
+ *(.glue_7)
+ .glue_7        0x0800d0ab        0x0 linker stubs
+ *(.glue_7t)
+ .glue_7t       0x0800d0ab        0x0 linker stubs
+
+.vfp11_veneer   0x0800d0ac        0x0
+ .vfp11_veneer  0x0800d0ac        0x0 linker stubs
+
+.v4_bx          0x0800d0ac        0x0
+ .v4_bx         0x0800d0ac        0x0 linker stubs
+
+.iplt           0x0800d0ac        0x0
+ .iplt          0x0800d0ac        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+
+.ARM.extab
+ *(.ARM.extab* .gnu.linkonce.armextab.*)
+                0x0800d0ac                . = ALIGN (0x4)
+                0x0800d0ac                __exidx_start = .
+
+.ARM.exidx      0x0800d0ac        0x8
+ *(.ARM.exidx* .gnu.linkonce.armexidx.*)
+ .ARM.exidx     0x0800d0ac        0x8 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_udivmoddi4.o)
+                0x0800d0b4                __exidx_end = .
+
+.rel.dyn        0x0800d0b4        0x0
+ .rel.iplt      0x0800d0b4        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+                0x0800d0b4                . = ALIGN (0x4)
+                0x0800d0b4                _etext = .
+                0x0800d0b4                __etext = .
+
+.data_CCMRAM    0x10000000        0x0 load address 0x0800d0b4
+ FILL mask 0xff
+ *(.data.CCMRAM .data.CCMRAM.*)
+                0x10000000                . = ALIGN (0x4)
+                0x0800d0b4                _sidata = LOADADDR (.data)
+
+.data           0x20000000     0x2068 load address 0x0800d0b4
+ FILL mask 0xff
+                0x20000000                _sdata = .
+                0x20000000                __data_start__ = .
+ *(.data_begin .data_begin.*)
+ *(.data .data.*)
+ .data.SystemCoreClock
+                0x20000000        0x4 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+                0x20000000                SystemCoreClock
+ .data.free_thd_id
+                0x20000004        0x4 ./src/platform/cmx/chal.o
+                0x20000004                free_thd_id
+ .data.rdtsc_sim
+                0x20000008        0x8 ./src/platform/cmx/kernel.o
+                0x20000008                rdtsc_sim
+ .data.POINT_COLOR
+                0x20000010        0x4 ./src/platform/cmx/lcd.o
+                0x20000010                POINT_COLOR
+ .data.BACK_COLOR
+                0x20000014        0x4 ./src/platform/cmx/lcd.o
+                0x20000014                BACK_COLOR
+ *fill*         0x20000018      0xfe8 ff
+ .data.boot_comp_pgd
+                0x20001000     0x1000 ./src/platform/cmx/vm.o
+                0x20001000                boot_comp_pgd
+ .data.first.6573
+                0x20002000        0x4 ./src/components/lib/cos_component.o
+ .data.impure_data
+                0x20002004       0x60 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-impure.o)
+ .data._impure_ptr
+                0x20002064        0x4 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-impure.o)
+                0x20002064                _impure_ptr
+ *(.data_end .data_end.*)
+                0x20002068                . = ALIGN (0x4)
+                0x20002068                _edata = .
+                0x20002068                __data_end__ = .
+
+.igot.plt       0x20002068        0x0 load address 0x0800f11c
+ .igot.plt      0x20002068        0x0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+
+.bss_CCMRAM     0x10000000        0x0
+ *(.bss.CCMRAM .bss.CCMRAM.*)
+
+.bss            0x20010000    0x67804
+                0x20010000                __bss_start__ = .
+                0x20010000                _sbss = .
+ *(.bss_begin .bss_begin.*)
+ *(.bss .bss.*)
+ .bss           0x20010000       0x10 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_ctors.o)
+                0x20010000                __DTOR_LIST__
+                0x20010008                __CTOR_LIST__
+ .bss.__malloc_sbrk_start
+                0x20010010        0x4 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-mallocr.o)
+                0x20010010                __malloc_sbrk_start
+ .bss.__malloc_free_list
+                0x20010014        0x4 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-mallocr.o)
+                0x20010014                __malloc_free_list
+ *(COMMON)
+ COMMON         0x20010018        0x4 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+                0x20010018                uwTick
+ COMMON         0x2001001c     0x47a0 ./src/platform/cmx/boot_comp.o
+                0x2001001c                hw_asnd_caps
+                0x2001381c                comp1_stack
+ *fill*         0x200147bc      0x844 
+ COMMON         0x20015000     0x1004 ./src/platform/cmx/chal.o
+                0x20015000                timer_detector
+                0x20016000                chal_kernel_mem_pa
+ *fill*         0x20016004     0x9ffc 
+ COMMON         0x20020000    0x50000 ./src/platform/cmx/kernel.o
+                0x20020000                Stack_Mem
+                0x2002a000                glb_memlayout
+                0x20030000                Memory_Used
+ COMMON         0x20070000       0x5c ./src/platform/cmx/lcd.o
+                0x20070000                lcddev
+                0x20070010                SRAM_Handler
+ COMMON         0x2007005c      0x128 ./src/platform/cmx/ltdc.o
+                0x2007005c                ltdc_framebuf
+                0x20070064                LTDC_Handler
+                0x2007010c                DMA2D_Handler
+                0x20070164                lcdltdc
+ COMMON         0x20070184       0x34 ./src/platform/cmx/sdram.o
+                0x20070184                SDRAM_Handler
+ *fill*         0x200701b8        0x8 
+ COMMON         0x200701c0     0x4040 ./src/platform/cmx/vm.o
+                0x200701c0                tlb_quiescence
+                0x20070200                __liveness_tbl
+ COMMON         0x20074200     0x14c0 ./src/kernel/retype_tbl.o
+                0x20074200                glb_retype_tbl
+                0x20075280                retype_tbl
+ *fill*         0x200756c0      0x940 
+ COMMON         0x20076000     0x1800 ./src/components/lib/cos_component.o
+                0x20076000                temp
+                0x20077000                __thd_init_data
+ COMMON         0x20077800        0x4 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-reent.o)
+                0x20077800                errno
+ *(.bss_end .bss_end.*)
+                0x20077804                . = ALIGN (0x4)
+                0x20077804                __bss_end__ = .
+                0x20077804                _ebss = .
+
+.noinit_CCMRAM
+ *(.noinit.CCMRAM .noinit.CCMRAM.*)
+
+.noinit         0x20077804        0x0
+                0x20077804                _noinit = .
+ *(.noinit .noinit.*)
+                0x20077804                . = ALIGN (0x4)
+                0x20077804                _end_noinit = .
+                [!provide]                PROVIDE (end, _end_noinit)
+                [!provide]                PROVIDE (_end, _end_noinit)
+                [!provide]                PROVIDE (__end, _end_noinit)
+                [!provide]                PROVIDE (__end__, _end_noinit)
+
+._check_stack   0x20077804      0x100
+                0x20077904                . = (. + _Minimum_Stack_Size)
+ *fill*         0x20077804      0x100 
+
+.b1text
+ *(.b1text)
+ *(.b1rodata)
+ *(.b1rodata.*)
+
+.eb0text
+ *(.eb0text)
+ *(.eb0rodata)
+ *(.eb0rodata.*)
+
+.eb1text
+ *(.eb1text)
+ *(.eb1rodata)
+ *(.eb1rodata.*)
+
+.eb2text
+ *(.eb2text)
+ *(.eb2rodata)
+ *(.eb2rodata.*)
+
+.eb3text
+ *(.eb3text)
+ *(.eb3rodata)
+ *(.eb3rodata.*)
+
+.sdram          0xc0000000   0x1f4000
+ *(.sdramtext)
+ *(.sdramrodata)
+ *(.sdramrodata.*)
+ *(.sdramrwdata)
+ .sdramrwdata   0xc0000000   0x1f4000 ./src/platform/cmx/ltdc.o
+                0xc0000000                ltdc_lcd_framebuf
+ *(.sdramrwdata.*)
+
+.stab
+ *(.stab)
+
+.stabstr
+ *(.stabstr)
+
+.stab.excl
+ *(.stab.excl)
+
+.stab.exclstr
+ *(.stab.exclstr)
+
+.stab.index
+ *(.stab.index)
+
+.stab.indexstr
+ *(.stab.indexstr)
+
+.comment        0x00000000       0x6e
+ *(.comment)
+ .comment       0x00000000       0x6e ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+                                 0x6f (size before relaxing)
+ .comment       0x0000006e       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/boot_comp.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/chal.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/kernel.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/lcd.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/ltdc.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/sdram.o
+ .comment       0x0000006e       0x6f ./src/platform/cmx/vm.o
+ .comment       0x0000006e       0x6f ./src/kernel/captbl.o
+ .comment       0x0000006e       0x6f ./src/kernel/liveness_tbl.o
+ .comment       0x0000006e       0x6f ./src/kernel/pgtbl.o
+ .comment       0x0000006e       0x6f ./src/kernel/retype_tbl.o
+ .comment       0x0000006e       0x6f ./src/kernel/tcap.o
+ .comment       0x0000006e       0x6f ./src/components/lib/cos_component.o
+ .comment       0x0000006e       0x6f ./src/components/implementation/tests/micro_booter/micro_booter.o
+
+.ARM.attributes
+                0x00000000       0x31
+ .ARM.attributes
+                0x00000000       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .ARM.attributes
+                0x00000033       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .ARM.attributes
+                0x00000066       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .ARM.attributes
+                0x00000099       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .ARM.attributes
+                0x000000cc       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .ARM.attributes
+                0x000000ff       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .ARM.attributes
+                0x00000132       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .ARM.attributes
+                0x00000165       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .ARM.attributes
+                0x00000198       0x33 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .ARM.attributes
+                0x000001cb       0x33 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .ARM.attributes
+                0x000001fe       0x33 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .ARM.attributes
+                0x00000231       0x33 ./src/platform/cmx/boot_comp.o
+ .ARM.attributes
+                0x00000264       0x33 ./src/platform/cmx/chal.o
+ .ARM.attributes
+                0x00000297       0x33 ./src/platform/cmx/kernel.o
+ .ARM.attributes
+                0x000002ca       0x33 ./src/platform/cmx/lcd.o
+ .ARM.attributes
+                0x000002fd       0x33 ./src/platform/cmx/ltdc.o
+ .ARM.attributes
+                0x00000330       0x33 ./src/platform/cmx/sdram.o
+ .ARM.attributes
+                0x00000363       0x33 ./src/platform/cmx/vm.o
+ .ARM.attributes
+                0x00000396       0x33 ./src/kernel/captbl.o
+ .ARM.attributes
+                0x000003c9       0x33 ./src/kernel/liveness_tbl.o
+ .ARM.attributes
+                0x000003fc       0x33 ./src/kernel/pgtbl.o
+ .ARM.attributes
+                0x0000042f       0x33 ./src/kernel/retype_tbl.o
+ .ARM.attributes
+                0x00000462       0x33 ./src/kernel/tcap.o
+ .ARM.attributes
+                0x00000495       0x33 ./src/components/lib/cos_component.o
+ .ARM.attributes
+                0x000004c8       0x33 ./src/components/implementation/tests/micro_booter/micro_booter.o
+ .ARM.attributes
+                0x000004fb       0x1e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_aeabi_ldivmod.o)
+ .ARM.attributes
+                0x00000519       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_ctors.o)
+ .ARM.attributes
+                0x00000547       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_udivmoddi4.o)
+ .ARM.attributes
+                0x00000575       0x1e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_dvmd_tls.o)
+ .ARM.attributes
+                0x00000593       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memcpy-stub.o)
+ .ARM.attributes
+                0x000005c1       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memset.o)
+ .ARM.attributes
+                0x000005ef       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sprintf.o)
+ .ARM.attributes
+                0x0000061d       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-impure.o)
+ .ARM.attributes
+                0x0000064b       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o)
+ .ARM.attributes
+                0x00000679       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-vfprintf_i.o)
+ .ARM.attributes
+                0x000006a7       0x1c /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memchr.o)
+ .ARM.attributes
+                0x000006c3       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memmove.o)
+ .ARM.attributes
+                0x000006f1       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-freer.o)
+ .ARM.attributes
+                0x0000071f       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-mallocr.o)
+ .ARM.attributes
+                0x0000074d       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-reallocr.o)
+ .ARM.attributes
+                0x0000077b       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sbrkr.o)
+ .ARM.attributes
+                0x000007a9       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-mlock.o)
+ .ARM.attributes
+                0x000007d7       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-msizer.o)
+ .ARM.attributes
+                0x00000805       0x2e /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-reent.o)
+
+.debug
+ *(.debug)
+
+.line
+ *(.line)
+
+.debug_srcinfo
+ *(.debug_srcinfo)
+
+.debug_sfnames
+ *(.debug_sfnames)
+
+.debug_aranges  0x00000000      0xbb8
+ *(.debug_aranges)
+ .debug_aranges
+                0x00000000       0xd8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .debug_aranges
+                0x000000d8       0x98 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .debug_aranges
+                0x00000170       0x58 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .debug_aranges
+                0x000001c8      0x130 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .debug_aranges
+                0x000002f8       0x80 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .debug_aranges
+                0x00000378       0x88 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .debug_aranges
+                0x00000400       0x38 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .debug_aranges
+                0x00000438       0xb0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .debug_aranges
+                0x000004e8       0xc8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .debug_aranges
+                0x000005b0       0xa8 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .debug_aranges
+                0x00000658       0x28 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .debug_aranges
+                0x00000680       0x60 ./src/platform/cmx/boot_comp.o
+ .debug_aranges
+                0x000006e0       0x58 ./src/platform/cmx/chal.o
+ .debug_aranges
+                0x00000738       0x88 ./src/platform/cmx/kernel.o
+ .debug_aranges
+                0x000007c0      0x128 ./src/platform/cmx/lcd.o
+ .debug_aranges
+                0x000008e8       0x90 ./src/platform/cmx/ltdc.o
+ .debug_aranges
+                0x00000978       0x48 ./src/platform/cmx/sdram.o
+ .debug_aranges
+                0x000009c0       0x28 ./src/platform/cmx/vm.o
+ .debug_aranges
+                0x000009e8       0x48 ./src/kernel/captbl.o
+ .debug_aranges
+                0x00000a30       0x20 ./src/kernel/liveness_tbl.o
+ .debug_aranges
+                0x00000a50       0x40 ./src/kernel/pgtbl.o
+ .debug_aranges
+                0x00000a90       0x50 ./src/kernel/retype_tbl.o
+ .debug_aranges
+                0x00000ae0       0x48 ./src/kernel/tcap.o
+ .debug_aranges
+                0x00000b28       0x58 ./src/components/lib/cos_component.o
+ .debug_aranges
+                0x00000b80       0x38 ./src/components/implementation/tests/micro_booter/micro_booter.o
+
+.debug_pubnames
+ *(.debug_pubnames)
+
+.debug_info     0x00000000    0x2c5b7
+ *(.debug_info .gnu.linkonce.wi.*)
+ .debug_info    0x00000000      0x9af ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .debug_info    0x000009af     0x1350 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .debug_info    0x00001cff      0x898 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .debug_info    0x00002597     0x1d98 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .debug_info    0x0000432f      0xa12 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .debug_info    0x00004d41     0x1073 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .debug_info    0x00005db4     0x187a ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .debug_info    0x0000762e      0xce1 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .debug_info    0x0000830f     0x18cc ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .debug_info    0x00009bdb      0xca6 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .debug_info    0x0000a881      0x6c4 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .debug_info    0x0000af45     0xa1df ./src/platform/cmx/boot_comp.o
+ .debug_info    0x00015124      0xc47 ./src/platform/cmx/chal.o
+ .debug_info    0x00015d6b     0x179f ./src/platform/cmx/kernel.o
+ .debug_info    0x0001750a     0x521a ./src/platform/cmx/lcd.o
+ .debug_info    0x0001c724     0x19d9 ./src/platform/cmx/ltdc.o
+ .debug_info    0x0001e0fd     0x1006 ./src/platform/cmx/sdram.o
+ .debug_info    0x0001f103      0x9cc ./src/platform/cmx/vm.o
+ .debug_info    0x0001facf     0x4229 ./src/kernel/captbl.o
+ .debug_info    0x00023cf8      0x105 ./src/kernel/liveness_tbl.o
+ .debug_info    0x00023dfd     0x36d6 ./src/kernel/pgtbl.o
+ .debug_info    0x000274d3     0x1678 ./src/kernel/retype_tbl.o
+ .debug_info    0x00028b4b     0x2a89 ./src/kernel/tcap.o
+ .debug_info    0x0002b5d4      0x743 ./src/components/lib/cos_component.o
+ .debug_info    0x0002bd17      0x8a0 ./src/components/implementation/tests/micro_booter/micro_booter.o
+
+.debug_abbrev   0x00000000     0x49fa
+ *(.debug_abbrev)
+ .debug_abbrev  0x00000000      0x1e2 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .debug_abbrev  0x000001e2      0x359 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .debug_abbrev  0x0000053b      0x1ff ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .debug_abbrev  0x0000073a      0x282 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .debug_abbrev  0x000009bc      0x21e ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .debug_abbrev  0x00000bda      0x2fa ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .debug_abbrev  0x00000ed4      0x281 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .debug_abbrev  0x00001155      0x236 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .debug_abbrev  0x0000138b      0x197 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .debug_abbrev  0x00001522      0x2f4 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .debug_abbrev  0x00001816      0x11d ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .debug_abbrev  0x00001933      0x53c ./src/platform/cmx/boot_comp.o
+ .debug_abbrev  0x00001e6f      0x2d1 ./src/platform/cmx/chal.o
+ .debug_abbrev  0x00002140      0x484 ./src/platform/cmx/kernel.o
+ .debug_abbrev  0x000025c4      0x4fe ./src/platform/cmx/lcd.o
+ .debug_abbrev  0x00002ac2      0x3ca ./src/platform/cmx/ltdc.o
+ .debug_abbrev  0x00002e8c      0x286 ./src/platform/cmx/sdram.o
+ .debug_abbrev  0x00003112      0x268 ./src/platform/cmx/vm.o
+ .debug_abbrev  0x0000337a      0x40e ./src/kernel/captbl.o
+ .debug_abbrev  0x00003788       0xb9 ./src/kernel/liveness_tbl.o
+ .debug_abbrev  0x00003841      0x3cd ./src/kernel/pgtbl.o
+ .debug_abbrev  0x00003c0e      0x347 ./src/kernel/retype_tbl.o
+ .debug_abbrev  0x00003f55      0x481 ./src/kernel/tcap.o
+ .debug_abbrev  0x000043d6      0x33a ./src/components/lib/cos_component.o
+ .debug_abbrev  0x00004710      0x2ea ./src/components/implementation/tests/micro_booter/micro_booter.o
+
+.debug_line     0x00000000     0x9c2a
+ *(.debug_line)
+ .debug_line    0x00000000      0x34d ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .debug_line    0x0000034d      0x455 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .debug_line    0x000007a2      0x494 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .debug_line    0x00000c36     0x1287 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .debug_line    0x00001ebd      0x367 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .debug_line    0x00002224      0x78d ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .debug_line    0x000029b1      0x9bb ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .debug_line    0x0000336c      0x51a ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .debug_line    0x00003886      0x7ab ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .debug_line    0x00004031      0x32a ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .debug_line    0x0000435b      0x162 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .debug_line    0x000044bd     0x1294 ./src/platform/cmx/boot_comp.o
+ .debug_line    0x00005751      0x2f6 ./src/platform/cmx/chal.o
+ .debug_line    0x00005a47      0x47a ./src/platform/cmx/kernel.o
+ .debug_line    0x00005ec1     0x123f ./src/platform/cmx/lcd.o
+ .debug_line    0x00007100      0x593 ./src/platform/cmx/ltdc.o
+ .debug_line    0x00007693      0x308 ./src/platform/cmx/sdram.o
+ .debug_line    0x0000799b      0x297 ./src/platform/cmx/vm.o
+ .debug_line    0x00007c32      0x8a2 ./src/kernel/captbl.o
+ .debug_line    0x000084d4      0x176 ./src/kernel/liveness_tbl.o
+ .debug_line    0x0000864a      0x6c4 ./src/kernel/pgtbl.o
+ .debug_line    0x00008d0e      0x4eb ./src/kernel/retype_tbl.o
+ .debug_line    0x000091f9      0x58d ./src/kernel/tcap.o
+ .debug_line    0x00009786      0x1f8 ./src/components/lib/cos_component.o
+ .debug_line    0x0000997e      0x2ac ./src/components/implementation/tests/micro_booter/micro_booter.o
+
+.debug_frame    0x00000000     0x2aac
+ *(.debug_frame)
+ .debug_frame   0x00000000      0x1c8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .debug_frame   0x000001c8      0x190 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .debug_frame   0x00000358      0x108 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .debug_frame   0x00000460      0x6a0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .debug_frame   0x00000b00      0x160 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .debug_frame   0x00000c60      0x188 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .debug_frame   0x00000de8       0xb0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .debug_frame   0x00000e98      0x280 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .debug_frame   0x00001118      0x29c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .debug_frame   0x000013b4      0x15c ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .debug_frame   0x00001510       0x4c ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .debug_frame   0x0000155c      0x170 ./src/platform/cmx/boot_comp.o
+ .debug_frame   0x000016cc       0x90 ./src/platform/cmx/chal.o
+ .debug_frame   0x0000175c      0x160 ./src/platform/cmx/kernel.o
+ .debug_frame   0x000018bc      0x498 ./src/platform/cmx/lcd.o
+ .debug_frame   0x00001d54      0x1f0 ./src/platform/cmx/ltdc.o
+ .debug_frame   0x00001f44       0xe0 ./src/platform/cmx/sdram.o
+ .debug_frame   0x00002024       0x5c ./src/platform/cmx/vm.o
+ .debug_frame   0x00002080      0x19c ./src/kernel/captbl.o
+ .debug_frame   0x0000221c       0x2c ./src/kernel/liveness_tbl.o
+ .debug_frame   0x00002248      0x138 ./src/kernel/pgtbl.o
+ .debug_frame   0x00002380      0x144 ./src/kernel/retype_tbl.o
+ .debug_frame   0x000024c4       0xe4 ./src/kernel/tcap.o
+ .debug_frame   0x000025a8       0xc4 ./src/components/lib/cos_component.o
+ .debug_frame   0x0000266c       0x80 ./src/components/implementation/tests/micro_booter/micro_booter.o
+ .debug_frame   0x000026ec       0x44 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_aeabi_ldivmod.o)
+ .debug_frame   0x00002730       0x34 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/armv7e-m/libgcc.a(_udivmoddi4.o)
+ .debug_frame   0x00002764       0x28 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memcpy-stub.o)
+ .debug_frame   0x0000278c       0x20 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memset.o)
+ .debug_frame   0x000027ac       0x70 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sprintf.o)
+ .debug_frame   0x0000281c       0x90 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-svfprintf.o)
+ .debug_frame   0x000028ac       0x60 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-vfprintf_i.o)
+ .debug_frame   0x0000290c       0x28 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-memmove.o)
+ .debug_frame   0x00002934       0x38 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-freer.o)
+ .debug_frame   0x0000296c       0x2c /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-mallocr.o)
+ .debug_frame   0x00002998       0x3c /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-reallocr.o)
+ .debug_frame   0x000029d4       0x2c /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-sbrkr.o)
+ .debug_frame   0x00002a00       0x30 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-mlock.o)
+ .debug_frame   0x00002a30       0x20 /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-nano-msizer.o)
+ .debug_frame   0x00002a50       0x5c /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/bin/../lib/gcc/arm-none-eabi/5.4.1/../../../../arm-none-eabi/lib/armv7e-m/libg_nano.a(lib_a-reent.o)
+
+.debug_str      0x00000000     0x564b
+ *(.debug_str)
+ .debug_str     0x00000000      0xc2b ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+                                0xc85 (size before relaxing)
+ .debug_str     0x00000c2b      0x46f ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+                                0xe26 (size before relaxing)
+ .debug_str     0x0000109a      0x1a7 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+                                0x51d (size before relaxing)
+ .debug_str     0x00001241      0x705 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+                                0x979 (size before relaxing)
+ .debug_str     0x00001946      0x21a ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+                                0x683 (size before relaxing)
+ .debug_str     0x00001b60      0x2e8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+                                0x703 (size before relaxing)
+ .debug_str     0x00001e48      0x395 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+                                0x7c1 (size before relaxing)
+ .debug_str     0x000021dd      0x74e ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+                                0x9f4 (size before relaxing)
+ .debug_str     0x0000292b      0x3cb ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+                                0x8d9 (size before relaxing)
+ .debug_str     0x00002cf6      0x20a ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+                                0x7ad (size before relaxing)
+ .debug_str     0x00002f00       0x3b ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+                                0x48a (size before relaxing)
+ .debug_str     0x00002f3b     0x1240 ./src/platform/cmx/boot_comp.o
+                               0x154c (size before relaxing)
+ .debug_str     0x0000417b       0xa5 ./src/platform/cmx/chal.o
+                                0x8bd (size before relaxing)
+ .debug_str     0x00004220      0x33a ./src/platform/cmx/kernel.o
+                               0x135d (size before relaxing)
+ .debug_str     0x0000455a      0x474 ./src/platform/cmx/lcd.o
+                                0xe78 (size before relaxing)
+ .debug_str     0x000049ce      0x2f7 ./src/platform/cmx/ltdc.o
+                                0xe0a (size before relaxing)
+ .debug_str     0x00004cc5       0xd6 ./src/platform/cmx/sdram.o
+                                0x97d (size before relaxing)
+ .debug_str     0x00004d9b       0x82 ./src/platform/cmx/vm.o
+                                0x7a9 (size before relaxing)
+ .debug_str     0x00004e1d      0x114 ./src/kernel/captbl.o
+                                0x8ce (size before relaxing)
+ .debug_str     0x00004f31       0x1d ./src/kernel/liveness_tbl.o
+                                0x1ff (size before relaxing)
+ .debug_str     0x00004f4e       0xc4 ./src/kernel/pgtbl.o
+                                0xa33 (size before relaxing)
+ .debug_str     0x00005012      0x142 ./src/kernel/retype_tbl.o
+                                0x4a6 (size before relaxing)
+ .debug_str     0x00005154      0x147 ./src/kernel/tcap.o
+                                0xc75 (size before relaxing)
+ .debug_str     0x0000529b      0x1de ./src/components/lib/cos_component.o
+                                0x613 (size before relaxing)
+ .debug_str     0x00005479      0x1d2 ./src/components/implementation/tests/micro_booter/micro_booter.o
+                                0x792 (size before relaxing)
+
+.debug_loc      0x00000000    0x23eeb
+ *(.debug_loc)
+ .debug_loc     0x00000000       0x6a ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .debug_loc     0x0000006a      0x77b ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .debug_loc     0x000007e5      0x612 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .debug_loc     0x00000df7     0x316c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .debug_loc     0x00003f63      0x292 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .debug_loc     0x000041f5      0x6d5 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .debug_loc     0x000048ca      0xd1b ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .debug_loc     0x000055e5      0xb17 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .debug_loc     0x000060fc      0xc9c ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .debug_loc     0x00006d98      0x1bd ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .debug_loc     0x00006f55      0x162 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .debug_loc     0x000070b7     0xc6e2 ./src/platform/cmx/boot_comp.o
+ .debug_loc     0x00013799       0x42 ./src/platform/cmx/chal.o
+ .debug_loc     0x000137db      0x243 ./src/platform/cmx/kernel.o
+ .debug_loc     0x00013a1e     0x4bf2 ./src/platform/cmx/lcd.o
+ .debug_loc     0x00018610      0x945 ./src/platform/cmx/ltdc.o
+ .debug_loc     0x00018f55      0x514 ./src/platform/cmx/sdram.o
+ .debug_loc     0x00019469       0xdc ./src/platform/cmx/vm.o
+ .debug_loc     0x00019545     0x42c9 ./src/kernel/captbl.o
+ .debug_loc     0x0001d80e       0x1f ./src/kernel/liveness_tbl.o
+ .debug_loc     0x0001d82d     0x367f ./src/kernel/pgtbl.o
+ .debug_loc     0x00020eac      0xf4e ./src/kernel/retype_tbl.o
+ .debug_loc     0x00021dfa     0x1e56 ./src/kernel/tcap.o
+ .debug_loc     0x00023c50      0x219 ./src/components/lib/cos_component.o
+ .debug_loc     0x00023e69       0x82 ./src/components/implementation/tests/micro_booter/micro_booter.o
+
+.debug_macinfo
+ *(.debug_macinfo)
+
+.debug_weaknames
+ *(.debug_weaknames)
+
+.debug_funcnames
+ *(.debug_funcnames)
+
+.debug_typenames
+ *(.debug_typenames)
+
+.debug_varnames
+ *(.debug_varnames)
+OUTPUT(test.elf elf32-littlearm)
+
+.debug_ranges   0x00000000     0x4428
+ .debug_ranges  0x00000000       0xc8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal.o
+ .debug_ranges  0x000000c8      0x148 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_cortex.o
+ .debug_ranges  0x00000210       0x88 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_gpio.o
+ .debug_ranges  0x00000298      0x458 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_ltdc.o
+ .debug_ranges  0x000006f0      0x108 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_pwr_ex.o
+ .debug_ranges  0x000007f8      0x288 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc.o
+ .debug_ranges  0x00000a80      0x3e0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_rcc_ex.o
+ .debug_ranges  0x00000e60       0xa0 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_hal_sdram.o
+ .debug_ranges  0x00000f00       0xb8 ./src/platform/cmx/src/stm32f7-hal/stm32f7xx_ll_fmc.o
+ .debug_ranges  0x00000fb8       0xf0 ./src/platform/cmx/src/cmsis/startup_stm32f767.o
+ .debug_ranges  0x000010a8       0x18 ./src/platform/cmx/src/cmsis/system_stm32f7xx.o
+ .debug_ranges  0x000010c0     0x1440 ./src/platform/cmx/boot_comp.o
+ .debug_ranges  0x00002500       0x48 ./src/platform/cmx/chal.o
+ .debug_ranges  0x00002548      0x100 ./src/platform/cmx/kernel.o
+ .debug_ranges  0x00002648      0xc90 ./src/platform/cmx/lcd.o
+ .debug_ranges  0x000032d8      0x1f8 ./src/platform/cmx/ltdc.o
+ .debug_ranges  0x000034d0       0xc8 ./src/platform/cmx/sdram.o
+ .debug_ranges  0x00003598       0x30 ./src/platform/cmx/vm.o
+ .debug_ranges  0x000035c8      0x520 ./src/kernel/captbl.o
+ .debug_ranges  0x00003ae8       0x10 ./src/kernel/liveness_tbl.o
+ .debug_ranges  0x00003af8      0x400 ./src/kernel/pgtbl.o
+ .debug_ranges  0x00003ef8      0x1c0 ./src/kernel/retype_tbl.o
+ .debug_ranges  0x000040b8      0x278 ./src/kernel/tcap.o
+ .debug_ranges  0x00004330       0x98 ./src/components/lib/cos_component.o
+ .debug_ranges  0x000043c8       0x60 ./src/components/implementation/tests/micro_booter/micro_booter.o

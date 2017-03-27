@@ -13,9 +13,36 @@
 #include <errno.h>
 #include <chal/util.h>
 
+extern volatile unsigned long long calltime;
+
 /* temporary */
 static inline
 int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
+{
+    long fault = 0;
+	int ret=-1;
+
+	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
+	cap_no += op;
+
+	/* put all these into registers and make the system call, using svc. after this, return the value needed */
+	__asm__ __volatile__("ldr r0,%[_cap_no]  \n\t" \
+						"ldr r1,%[_arg1] \n\t" \
+						"ldr r2,%[_arg2] \n\t" \
+						"ldr r3,%[_arg3] \n\t" \
+						"ldr r4,%[_arg4] \n\t" \
+						"svc 0\n\t" \
+						"mov %[_ret],r5 \n\t" \
+						"mov %[_fault],r6 \n\t" \
+						: [_ret]"=r"(ret),[_fault]"=r"(fault) \
+						: [_cap_no]"m"(cap_no), [_arg1]"m"(arg1), [_arg2]"m"(arg2), [_arg3]"m"(arg3), [_arg4]"m"(arg4) \
+						: "memory", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "cc");
+	return ret;
+}
+
+static inline
+int call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
+			 unsigned long *r1, unsigned long *r2)
 {
     long fault = 0;
 	int ret;
@@ -27,49 +54,17 @@ int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	__asm__ __volatile__(".syntax unified \n\t" \
 						"ldr r0,%[_cap_no]  \n\t" \
 						"ldr r1,%[_arg1] \n\t" \
-						"ldr r10,%[_arg2] \n\t" \
-						"ldr r11,%[_arg3] \n\t" \
-						"ldr r3,%[_arg4] \n\t" \
+						"ldr r2,%[_arg2] \n\t" \
+						"ldr r3,%[_arg3] \n\t" \
+						"ldr r4,%[_arg4] \n\t" \
 						"svc 0\n\t" \
-						"mov %[_ret],r4 \n\t" \
-						"mov %[_fault],r7 \n\t"
-						: [_ret]"=r"(ret),[_fault]"=r"(fault) \
+						"mov %[_ret],r5 \n\t" \
+						"mov %[_fault],r6 \n\t"
+						"mov %[_r1],r7 \n\t"
+						"mov %[_r2],r8 \n\t"
+						: [_ret]"=r"(ret),[_fault]"=r"(fault), [_r1]"=r"(r1), [_r2]"=r"(r2) \
 						: [_cap_no]"m"(cap_no), [_arg1]"m"(arg1), [_arg2]"m"(arg2), [_arg3]"m"(arg3), [_arg4]"m"(arg4) \
-						: "memory", "r0", "r1", "r3", "r4", "r7", "r10", "r11", "cc");
-	return ret;
-}
-
-static inline
-int call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
-			 unsigned long *r1, unsigned long *r2)
-{
-        long fault = 0;
-	int ret;
-
-	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
-	cap_no += op;
-/*
-	__asm__ __volatile__( \
-		"pushl %%ebp\n\t" \
-		"movl %%esp, %%ebp\n\t" \
-		"movl $1f, %%ecx\n\t" \
-		"sysenter\n\t" \
-		".align 8\n\t" \
-		"jmp 2f\n\t" \
-		".align 8\n\t" \
-		"1:\n\t" \
-		"movl $0, %%ecx\n\t" \
-		"jmp 3f\n\t" \
-		"2:\n\t" \
-		"movl $1, %%ecx\n\t" \
-		"3:\n\t" \
-		"popl %%ebp\n\t" \
-	        "movl %%esi, %%ebx\n\t" \
-	        "movl %%edi, %%edx\n\t" \
-		: "=a" (ret), "=c" (fault), "=b" (*r1), "=d" (*r2)
-		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3), "d" (arg4) \
-		: "memory", "cc");
-*/
+						: "memory", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "cc");
 	return ret;
 }
 
@@ -495,7 +490,7 @@ recoveryfns_execute(void)
 
 struct cos_array { char *mem; int sz; }; /* TODO: remove */
 #define prevent_tail_call(ret) /*__asm__ ("" : "=r" (ret) : "m" (ret)) */
-#define rdtscll(val) /* __asm__ __volatile__("rdtsc" : "=A" (val)) */
+#define rdtscll(val) {extern unsigned long long rdtsc_sim; val=((rdtsc_sim<<24)-SysTick->VAL);};
 
 #ifndef STR
 #define STRX(x) #x

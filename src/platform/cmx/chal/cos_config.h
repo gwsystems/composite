@@ -21,9 +21,9 @@
  * it is the PA of the kernel.  If you change this, update the kernel
  * linker script (.ld) as well.
  */
-#define COS_MEM_KERN_PA       (0x20030000) /* Let this be the start address of the kernel memory, we ignore the code section once and for all */
+#define COS_MEM_KERN_PA       (0x20030000) /* Start address of memory that might be typed as Kmem */
 //#define COS_MEM_KERN_PA_ORDER (14)         /* 1MB : the memory range of the flash */
-#define COS_MEM_KERN_PA_SZ    (0x00100000-0x10000) /* (1<<COS_MEM_KERN_PA_ORDER) */
+#define COS_MEM_KERN_PA_SZ    (0x00020000) /* (1<<COS_MEM_KERN_PA_ORDER) */
 
 #define COS_MEM_COMP_START_VA  COS_MEM_KERN_PA+COS_MEM_KERN_PA_SZ /* just directly behind the PA of the kernel */
 
@@ -37,11 +37,8 @@
 #define BOOT_CAPTBL_NPAGES 1
 
 #define BOOT_COMP_MAX_SZ   (1<<14) /* 16 kB for the booter component */
-
 #define NUM_CPU                1
-
 #define CPU_TIMER_FREQ         100 // set in your linux .config
-
 #define RUNTIME                3 // seconds
 
 /* The kernel quiescence period = WCET in Kernel + WCET of a CAS. */

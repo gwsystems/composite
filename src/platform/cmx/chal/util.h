@@ -59,7 +59,7 @@ cos_inst_bar(void)
 }
 
 #ifndef rdtscll
-#define rdtscll(val) //__asm__ __volatile__("rdtsc" : "=A" (val))
+#define rdtscll(val) {extern volatile unsigned long long rdtsc_sim; val=((rdtsc_sim<<24)-SysTick->VAL);};
 #endif
 
 #endif

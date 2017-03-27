@@ -11,6 +11,8 @@ thd_fn_perf(void *d)
 	PRINTC("Error, shouldn't get here!\n");
 }
 
+char str[100];
+
 static void
 test_thds_perf(void)
 {
@@ -30,8 +32,15 @@ test_thds_perf(void)
 	rdtscll(end_swt_cycles);
 	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
 
+	sprintf(str,"THD(Total:%d/Iter:%d ):%d\n",
+			(int)total_swt_cycles, (int)ITER, (int)(total_swt_cycles / ITER));
+
+	LCD_ShowString(10,40,260,32,12,str);
+
+	/*
 	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
-		total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));
+		total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));*/
+	while(1);
 }
 
 static void
@@ -40,7 +49,8 @@ thd_fn(void *d)
 	PRINTC("\tNew thread %d with argument %d, capid %ld\n", cos_thdid(), (int)d, tls_test[(int)d]);
 	/* Test the TLS support! */
 	//assert(tls_get(0) == tls_test[(int)d]);
-	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	while (1)
+		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	PRINTC("Error, shouldn't get here!\n");
 }
 
@@ -62,7 +72,7 @@ test_thds(void)
 	PRINTC("test done\n");
 }
 
-#define TEST_NPAGES (1024*2) 	/* Testing with 8MB for now */
+#define TEST_NPAGES (2) 	/* Testing with 4kB for now - 8MB 2 large for M4 */
 
 static void
 test_mem(void)
@@ -495,12 +505,48 @@ test_serverfn(int a, int b, int c)
 	return 0xDEADBEEF;
 }
 
-extern void *__inv_test_serverfn(int a, int b, int c);
+//#define RET_CAP (1<<16)
+u32_t Sinv_Stack[MAX_STACK_SZ];
+void __attribute__((naked)) __inv_test_serverfn(void)
+{
+	/* SINV tries to pass arguments. However, the ARM architecture does not allow
+	 * parameter passing in r0-r3 because they will be overwritten anyway. we gonna pass
+	 * the arguments in r4,r6,r7,r8. No stack passing is used because we are just doing a single-thread test.
+	 */
+	/* Just pass the arguments to the test serverfn, and need to grab a stack */
+	/* Simply find a stack to get into */
+	__asm__ __volatile__("ldr r0,=Sinv_Stack \n\t"
+			            "add r0,#0x100 \n\t"
+						"mov sp,r0 \n\t"
+						"mov r0,r6 \n\t"/* Pass arguments */
+						"mov r1,r7 \n\t"
+						"mov r2,r8 \n\t"
+						//"mov r3,r8 \n\t"
+						"bl test_serverfn \n\t"
+			            "mov r1,r0 \n\t"
+						"mov r0,#0x10000 \n\t"
+			            "svc 0 \n\t"
+						:::"memory","cc");
+	while(1);
+}
+
+/* The temporary stack used for returning */
+unsigned long const SINV_Stack[16]={0,   /* R0 */
+		                     0,   /* R1 */
+							 0,   /* R2 */
+							 0,   /* R3 */
+							 0,   /* R12 */
+							 0xFFFFFFFD, /* LR, return to thread mode */
+							 __inv_test_serverfn, /* Kernel function entry */
+							 0x01000200, /* xPSR */
+							 0,0,0,0,0,0,0,0 /* Padding for safe */
+							 };
 
 static inline
 int call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
 {
-	int ret;
+	long fault = 0;
+	int ret=-1;
 
 	/*
 	 * Which stack should we use for this invocation?  Simple, use
@@ -509,19 +555,17 @@ int call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
 	 * conventions.
 	 */
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
-/*
-	__asm__ __volatile__( \
-		"pushl %%ebp\n\t" \
-		"movl %%esp, %%ebp\n\t" \
-		"movl %%esp, %%edx\n\t" \
-		"movl $1f, %%ecx\n\t" \
-		"sysenter\n\t" \
-		"1:\n\t" \
-		"popl %%ebp" \
-		: "=a" (ret)
-		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3) \
-		: "memory", "cc", "ecx", "edx");
-*/
+	/* put all these into registers and make the system call, using svc. after this, return the value needed */
+	__asm__ __volatile__("ldr r0,%[_cap_no]  \n\t" \
+						"ldr r1,%[_arg1] \n\t" \
+						"ldr r2,%[_arg2] \n\t" \
+						"ldr r3,%[_arg3] \n\t" \
+						"svc 0\n\t" \
+						"mov %[_ret],r5 \n\t" \
+						"mov %[_fault],r6 \n\t" \
+						: [_ret]"=r"(ret),[_fault]"=r"(fault) \
+						: [_cap_no]"m"(cap_no), [_arg1]"m"(arg1), [_arg2]"m"(arg2), [_arg3]"m"(arg3) \
+						: "memory", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "cc");
 	return ret;
 }
 
@@ -534,7 +578,7 @@ test_inv(void)
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc > 0);
-	/* ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn); */ ic=0;
+	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
 	assert(ic > 0);
 
 	r = call_cap_mb(ic, 1, 2, 3);
@@ -542,7 +586,7 @@ test_inv(void)
 	PRINTC("Test done.\n");
 }
 
-static void
+static void /* __attribute__((optimize("O0"))) */
 test_inv_perf(void)
 {
 	compcap_t cc;
@@ -550,30 +594,41 @@ test_inv_perf(void)
 	int i;
 	long long total_cycles = 0LL;
 	long long total_inv_cycles = 0LL, total_ret_cycles = 0LL;
+	long long start_cycles = 0LL, end_cycles = 0LL;
 	unsigned int ret;
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc > 0);
-	/*ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn); */ ic=0;
+	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
 	assert(ic > 0);
 	ret = call_cap_mb(ic, 1, 2, 3);
 	assert(ret == 0xDEADBEEF);
 
 	for (i = 0 ; i < ITER ; i++) {
-		long long start_cycles = 0LL, end_cycles = 0LL;
-
+		start_cycles = 0LL;
+		end_cycles = 0LL;
 		midinv_cycles = 0LL;
 		rdtscll(start_cycles);
-		call_cap_mb(ic, 1, 2, 3);
+		ret = call_cap_mb(ic, 1, 2, 3);
+		assert(ret == 0xDEADBEEF);
 		rdtscll(end_cycles);
 		total_inv_cycles += (midinv_cycles - start_cycles);
 		total_ret_cycles += (end_cycles - midinv_cycles);
 	}
 
+	sprintf(str,"Average SINV(Total:%d/Iter:%d ):%d\n",
+			(int)total_inv_cycles, (int) (ITER), (total_inv_cycles / (int)(ITER)));
+
+	/*sprintf(str,"Average SRET(Total:%d/Iter:%d ):%d\n",
+			(int)total_ret_cycles, (int) (ITER), (total_ret_cycles / (int)(ITER)));*/
+
+	LCD_ShowString(10,40,260,32,12,str);
+	while(1);
+/*
 	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n",
 		total_inv_cycles, (long long) (ITER), (total_inv_cycles / (long long)(ITER)));
 	PRINTC("Average SRET (Total: %lld / Iterations: %lld ): %lld\n",
-		total_ret_cycles, (long long) (ITER), (total_ret_cycles / (long long)(ITER)));
+		total_ret_cycles, (long long) (ITER), (total_ret_cycles / (long long)(ITER)));*/
 }
 
 void
@@ -586,8 +641,7 @@ test_captbl_expand(void)
 	assert(cc);
 	for (i = 0 ; i < 1024 ; i++) {
 		sinvcap_t ic;
-
-		/*ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);*/ ic=0;
+		ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
 		assert(ic > 0);
 	}
 	PRINTC("Captbl expand SUCCESS.\n");
@@ -597,21 +651,22 @@ test_captbl_expand(void)
 void
 test_run_mb(void)
 {
-	test_timer();
-	test_budgets();
+	/* TODO:run each test one by one */
+	//test_timer();
+	//test_budgets();
 
-	test_thds();
-	test_thds_perf();
+	//test_thds();
+    //test_thds_perf();
 
-	test_mem();
+	//test_mem();
 
-	test_async_endpoints();
-	test_async_endpoints_perf();
+	//test_async_endpoints();
+	//test_async_endpoints_perf();
 
-	test_inv();
+	//test_inv();
 	test_inv_perf();
 
-	test_captbl_expand();
+	//test_captbl_expand();
 }
 
 /*

@@ -79,7 +79,7 @@ tlb_quiescence_check(u64_t timestamp)
 	return quiescent;
 }
 
-int
+int //__attribute__((optimize("O0")))
 cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr)
 {
 	unsigned long *pte, cosframe, orig_v;
@@ -108,7 +108,7 @@ cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capi
 	return ret;
 }
 
-int
+int //__attribute__((optimize("O0")))
 pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl)
 {
 	struct cap_pgtbl *pt;

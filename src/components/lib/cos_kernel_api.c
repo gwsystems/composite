@@ -378,7 +378,7 @@ __page_bump_valloc(struct cos_compinfo *ci)
 	return __page_bump_mem_alloc(ci, &ci->vas_frontier, &ci->vasrange_frontier);
 }
 
-static vaddr_t
+static vaddr_t //__attribute__((optimize("O0")))
 __page_bump_alloc(struct cos_compinfo *ci)
 {
 	struct cos_compinfo *meta = __compinfo_metacap(ci);

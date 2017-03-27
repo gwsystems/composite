@@ -69,8 +69,10 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 		paddr_t pf  = chal_va2pa(p);
 		u32_t mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
 
-		if (uvm  && pgtbl_mapping_add(pgtbl, mapat, pf, PGTBL_USER_DEF)) assert(0);
-		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, PGTBL_COSFRAME)) assert(0);
+		if (uvm  && pgtbl_mapping_add(pgtbl, mapat, pf, PGTBL_USER_DEF))
+			assert(0);
+		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, PGTBL_COSFRAME))
+			assert(0);
 		assert((void*)p == pgtbl_lkup(pgtbl, user_vaddr+i*PAGE_SIZE, &flags));
 	}
 
@@ -175,9 +177,9 @@ kern_boot_comp(void)
 	assert(boot_vm_pgd);
 	memcpy((void *)boot_vm_pgd + KERNEL_PGD_REGION_OFFSET,  (void *)(&boot_comp_pgd) + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (pgtbl_t)chal_va2pa(boot_vm_pgd), 0)) assert(0);
-/*
+	/* May do some wierd mapping from flash to RAM. Ignore */
 	ret = boot_pgtbl_mappings_add(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(),
-				      (unsigned long)mem_bootc_vaddr(), mem_bootc_end() - mem_bootc_start(), 1);*/
+				     /* (unsigned long)mem_bootc_vaddr() */mem_bootc_start(), mem_bootc_end() - mem_bootc_start(), 1);
 	assert(ret == 0);
 
 	/*
@@ -188,10 +190,11 @@ kern_boot_comp(void)
 	 * PTEs
 	 */
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_UNTYPED_PT, pgtbl, 0)) assert(0);
-/*	nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
+	nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
+	/* This will do identical mapping now */
 	ret = boot_pgtbl_mappings_add(ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory", mem_boot_nalloc_end(nkmemptes),
-				      BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
-	assert(ret == 0);*/
+				      /*BOOT_MEM_KM_BASE*/ mem_boot_nalloc_end(nkmemptes), mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
+	assert(ret == 0);
 
 	printk("\tCapability table and page-table created.\n");
 

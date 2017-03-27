@@ -286,14 +286,11 @@ enum {
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE               = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
-/*
+
 enum {
 	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA),
 	BOOT_MEM_KM_BASE = (COS_MEM_KERN_START_VA),
-};*/
-
-#define BOOT_MEM_VM_BASE (COS_MEM_COMP_START_VA)
-#define BOOT_MEM_KM_BASE (COS_MEM_KERN_START_VA)
+};
 
 enum {
 	/* thread register states */
@@ -377,7 +374,8 @@ attr struct __##name##_percore_decl name[NUM_CPU]
 
 #define CFORCEINLINE /* __attribute__((always_inline)) */
 #define COS_SYSCALL /* __attribute__((regparm(0))) __attribute__((section("__ipc_entry"))) */
-#define COS_SYSCALL_PASS_PARAM() __asm__ __volatile__("str r0,%[_regs] \n"::[_regs]"m"(regs):"memory") /* The whole stack frame's pointer is in r0. Now the parameter passing is correct */
+/* The whole stack frame's pointer is in r5. Now the parameter passing is correct */
+#define COS_SYSCALL_PASS_PARAM() __asm__ __volatile__("str r0,%[_regs] \n"::[_regs]"m"(regs):"memory")
 
 struct shared_user_data {
 	unsigned int current_thread;

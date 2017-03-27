@@ -24,7 +24,9 @@ cos_init(void *arg)
 
 CWEAKSYMB void
 __alloc_libc_initilize(void)
-{ return; }
+{
+	return;
+}
 
 CWEAKSYMB void
 cos_upcall_exec(void *arg)
@@ -58,24 +60,13 @@ cos_thd_entry_exec(u32_t idx)
 	(fn)(data);
 }
 
-<<<<<<< HEAD
-__attribute__ ((weak))
-void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
-{
-	return;
-}
-	
-__attribute__ ((weak))
-void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
-=======
 CWEAKSYMB void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
->>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 {
+	/* This is causing the problem - libc initialization. How to do it only once ? */
 	static int first = 1;
 
-	if (first) {
-		first = 0;
+	if(first){
 		__alloc_libc_initilize();
 		constructors_execute();
 	}
@@ -102,9 +93,6 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		}
 		return;
 	}
-	case COS_UPCALL_QUARANTINE:
-		cos_fix_spdid_metadata((spdid_t)((int)arg1>>16), (spdid_t)((int)arg1&0xffff));
-		return;
 	default:
 		/* fault! */
 		*(int*)NULL = 0;
@@ -146,10 +134,10 @@ CWEAKSYMB vaddr_t ST_user_caps;
  * Much of this is either initialized at load time, or passed to the
  * loader though this structure.
  */
-struct cos_component_information cos_comp_info __attribute__((section(".cinfo"))) = {
+struct cos_component_information cos_comp_info /*__attribute__((section(".cinfo")))*/ = {
 	.cos_this_spd_id = 0,
-	.cos_heap_ptr = 0,
-	.cos_heap_limit = 0,
+	.cos_heap_ptr = 0x2004c000,
+	.cos_heap_limit = 0x20070000,
 	.cos_stacks.freelists[0] = {.freelist = 0, .thd_id = 0},
 	.cos_upcall_entry = 0,//(vaddr_t)&cos_upcall_entry,
 	.cos_async_inv_entry = 0,//(vaddr_t)&cos_ainv_entry,

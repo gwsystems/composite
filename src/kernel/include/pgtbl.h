@@ -257,7 +257,7 @@ pgtbl_quie_check(u32_t orig_v)
  * this works on both kmem and regular user memory: the retypetbl_ref
  * works on both.
  */
-static int
+static int //__attribute__((optimize("O0")))
 pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
 	int ret = 0;

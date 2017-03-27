@@ -41,7 +41,7 @@ struct pt_regs {
         long sp; r13_sp
         long ss; r9
 };*/
-
+/*
 struct pt_regs {
         int orig_r4;
         int r0;
@@ -61,7 +61,28 @@ struct pt_regs {
         int r14_lr;
         int r15_pc;
         int flags;
+};*/
+struct pt_regs
+{
+	int flags_xpsr;
+	int r15_pc;
+	int r14_lr;
+	int r13_sp;
+	int r12;
+	int r11;
+	int r10;
+	int r9;
+	int r8;
+	int r7;
+	int r6;
+	int r5;
+	int r4;
+	int r3;
+	int r2;
+	int r1;
+	int r0;
 };
+
 //struct pt_regs { int dummy[16]; };
 #endif
 #endif
@@ -71,7 +92,7 @@ struct pt_regs {
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS 200
+#define MAX_NUM_THREADS 10
 /* Stacks are 2 * page_size (expressed in words) */
 #define MAX_STACK_SZ    (PAGE_SIZE/4) /* a page */
 #define COS_STACK_SZ    (MAX_STACK_SZ*4)

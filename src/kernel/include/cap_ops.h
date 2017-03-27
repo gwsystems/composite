@@ -91,7 +91,9 @@ cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned lo
  * from separate capability/page-table trees that are subtrees for
  * different levels.
  */
-
+/*
+ *
+ */
 static inline int
 cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 {

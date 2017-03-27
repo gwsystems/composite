@@ -36,6 +36,7 @@ struct cos_fpu {
                 u32_t             sw_reserved[12];
         };
         int status;
+        int saved_fpu;
 #endif
 } __attribute__((aligned(16)));
 

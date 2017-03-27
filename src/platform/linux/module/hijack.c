@@ -1002,6 +1002,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				spd_free(spd);
 				return -1;
 			}
+			assert(spd == virtual_namespace_query(spd_info.lowest_addr+PAGE_SIZE));
 
 			copy_pgd_range(mm, current->mm, spd_info.lowest_addr, spd_info.size);
 
@@ -1322,7 +1323,7 @@ cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs,
 	 */
 	
 	/* 1 */
-	origin = NULL;
+	origin = virtual_namespace_query(ucap_addr);
 	if (unlikely(NULL == origin)) return 0;
 	/* up-to-date pd */
 	curr = origin->composite_spd;
@@ -1418,13 +1419,8 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 
 void hijack_syscall_monitor(int num)
 {
-<<<<<<< HEAD
-	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpuid()].cos_thd == current)) {
-		printk("Warning: making a Linux system call (#%d) in Composite. Ignore once.\n", num);
-=======
 	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpuid()].cos_thd == current && num != 54)) {
 		printk("FAILURE: core %d making a Linux system call (#%d) in Composite.\n", get_cpuid(), num);
->>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 	}
 }
 
@@ -2028,7 +2024,6 @@ done:
 }
 
 void chal_send_ipi(int cpuid) {
-#if defined(CONFIG_X86_LOCAL_APIC)
 	/* lowest-level IPI sending. the __default_send function is in
 	 * arch/x86/include/asm/ipi.h */
 
@@ -2038,11 +2033,10 @@ void chal_send_ipi(int cpuid) {
 	__default_send_IPI_dest_field(
 		apic->cpu_to_logical_apicid(cpu), COS_IPI_VECTOR,
 		apic->dest_logical);
-#elif defined(CONFIG_BIGSMP)
+
 	/* If BIGSMP is set, use following implementation! above is a
 	 * shortcut. */
 	/* apic->send_IPI_mask(cpumask_of(cpuid), COS_IPI_VECTOR); */
-#endif
 }
 
 PERCPU_VAR(cos_timer_acap);

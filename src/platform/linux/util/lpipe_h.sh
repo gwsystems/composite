@@ -3,7 +3,7 @@
 ./cos_loader \
 "c0.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o,a2;schedconf.o, ;cg.o,a1;bc.o, ;st.o, ;\
 \
-!mpd.o,a5;\
+!sm.o,a1;!mpd.o,a5;\
 \
 (*fprrc2.o=fprr.o),a6;(*fprrc3.o=fprr.o),a4;(*fprrc4.o=fprr.o),a4;\
 \
@@ -20,14 +20,14 @@ schedconf.o-print.o;\
 bc.o-print.o;\
 cg.o-fprr.o;\
 boot.o-print.o|fprr.o|mm.o|cg.o;\
+sm.o-print.o|fprr.o|mm.o|boot.o;\
+mpd.o-sm.o|fprr.o|print.o|te.o|mm.o|cg.o;\
 \
-mpd.o-cbuf.o|fprr.o|print.o|te.o|mm.o|cg.o;\
-\
-l.o-cbuf.o|fprr.o|mm.o|print.o|te.o;\
-te.o-cbuf.o|print.o|fprr.o|mm.o;\
-e.o-cbuf.o|fprr.o|print.o|mm.o|l.o|st.o;\
-p.o-cbuf.o|print.o|te.o|fprrc4.o|e.o;\
-p1.o-cbuf.o|print.o|te.o|fprr.o|e.o\
+l.o-sm.o|fprr.o|mm.o|print.o|te.o;\
+te.o-sm.o|print.o|fprr.o|mm.o;\
+e.o-sm.o|fprr.o|print.o|mm.o|l.o|st.o;\
+p.o-sm.o|print.o|te.o|fprrc4.o|e.o;\
+p1.o-sm.o|print.o|te.o|fprr.o|e.o\
 " ./gen_client_stub
 
 

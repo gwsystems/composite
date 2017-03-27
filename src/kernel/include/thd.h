@@ -87,19 +87,23 @@ struct cap_thd {
 	cpuid_t cpuid;
 } __attribute__((packed));
 
+/* Hack to forge the SVC stack */
+extern unsigned long const SVC_Stack[16];
 static void
 thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
 {
 	struct pt_regs *r = &thd->regs;
+	/* HACKHACKHACKHACKHACK */
+	r->r13_sp=&(SVC_Stack[0]);
 
-	r->r2 = option;
+	r->r4 = thd->tid | (get_cpuid() << 16); // thd id + cpu id
+	r->r5 = option;
 
-	r->r1 = arg1;
-	r->r10 = arg2;
-	r->r11 = arg3;
+	r->r6 = arg1;
+	r->r7 = arg2;
+	r->r8 = arg3;
 
-	r->r15_pc = r->r3 = entry_addr;
-	r->r0 = thd->tid | (get_cpuid() << 16); // thd id + cpu id
+	r->r15_pc = r->r9 = entry_addr;
 
 	return;
 }

@@ -6,34 +6,34 @@
 ./cos_loader \
 "c0.o, ;*fprr.o, ;mpd.o,a4;l.o,a8;mm.o, ;print.o, ;te.o,a3;net.o,a6;e.o,a3;fd.o,a8;conn.o,a9;http.o,a8;\
 stat.o,a25;st.o, ;cm.o,a7;sc.o,a6;if.o,a5;ip.o, ;ainv.o,a6;fn.o, ;cgi.o,a9;port.o, ;schedconf.o, ;\
-bc.o, ;(fd2.o=fd.o),a8;(fd3.o=fd.o),a8;(cgi2.o=cgi.o),a9;(ainv2.o=ainv.o),a6;cbuf.o,a1:\
+bc.o, ;(fd2.o=fd.o),a8;(fd3.o=fd.o),a8;(cgi2.o=cgi.o),a9;(ainv2.o=ainv.o),a6;sm.o,a1:\
 \
-net.o-cbuf.o|fprr.o|mm.o|print.o|l.o|te.o|e.o|ip.o|port.o;\
-c0.o-cbuf.o|fprr.o|print.o;\
+net.o-sm.o|fprr.o|mm.o|print.o|l.o|te.o|e.o|ip.o|port.o;\
+c0.o-sm.o|fprr.o|print.o;\
 fprr.o-print.o|mm.o|st.o|schedconf.o|[parent_]bc.o;\
-mpd.o-cbuf.o|fprr.o|print.o|te.o|mm.o;\
-l.o-cbuf.o|fprr.o|mm.o|print.o|te.o;\
-te.o-cbuf.o|print.o|fprr.o|mm.o;\
+mpd.o-sm.o|fprr.o|print.o|te.o|mm.o;\
+l.o-sm.o|fprr.o|mm.o|print.o|te.o;\
+te.o-sm.o|print.o|fprr.o|mm.o;\
 mm.o-print.o;\
-e.o-cbuf.o|fprr.o|print.o|mm.o|l.o|st.o;\
-fd.o-cbuf.o|print.o|e.o|net.o|l.o|fprr.o|http.o|mm.o;\
-conn.o-cbuf.o|fd.o|print.o|mm.o|fprr.o;\
-http.o-cbuf.o|mm.o|print.o|fprr.o|cm.o|te.o;\
-stat.o-cbuf.o|te.o|fprr.o|l.o|print.o|e.o;\
+e.o-sm.o|fprr.o|print.o|mm.o|l.o|st.o;\
+fd.o-sm.o|print.o|e.o|net.o|l.o|fprr.o|http.o|mm.o;\
+conn.o-sm.o|fd.o|print.o|mm.o|fprr.o;\
+http.o-sm.o|mm.o|print.o|fprr.o|cm.o|te.o;\
+stat.o-sm.o|te.o|fprr.o|l.o|print.o|e.o;\
 st.o-print.o;\
-ip.o-cbuf.o|if.o;\
-port.o-cbuf.o|l.o;\
-cm.o-cbuf.o|print.o|mm.o|sc.o|fprr.o|ainv.o|[alt_]ainv2.o;\
-sc.o-cbuf.o|print.o|mm.o|e.o|fprr.o;\
-if.o-cbuf.o|print.o|mm.o|l.o|fprr.o;\
-fn.o-cbuf.o|fprr.o;\
-fd2.o-cbuf.o|fn.o|ainv.o|print.o|mm.o|fprr.o|e.o|l.o;\
-ainv.o-cbuf.o|mm.o|print.o|fprr.o|l.o|e.o;\
-cgi.o-cbuf.o|fd2.o|fprr.o|print.o;\
-fd3.o-cbuf.o|fn.o|ainv2.o|print.o|mm.o|fprr.o|e.o|l.o;\
-ainv2.o-cbuf.o|mm.o|print.o|fprr.o|l.o|e.o;\
-cgi2.o-cbuf.o|fd3.o|fprr.o|print.o;\
+ip.o-sm.o|if.o;\
+port.o-sm.o|l.o;\
+cm.o-sm.o|print.o|mm.o|sc.o|fprr.o|ainv.o|[alt_]ainv2.o;\
+sc.o-sm.o|print.o|mm.o|e.o|fprr.o;\
+if.o-sm.o|print.o|mm.o|l.o|fprr.o;\
+fn.o-sm.o|fprr.o;\
+fd2.o-sm.o|fn.o|ainv.o|print.o|mm.o|fprr.o|e.o|l.o;\
+ainv.o-sm.o|mm.o|print.o|fprr.o|l.o|e.o;\
+cgi.o-sm.o|fd2.o|fprr.o|print.o;\
+fd3.o-sm.o|fn.o|ainv2.o|print.o|mm.o|fprr.o|e.o|l.o;\
+ainv2.o-sm.o|mm.o|print.o|fprr.o|l.o|e.o;\
+cgi2.o-sm.o|fd3.o|fprr.o|print.o;\
 schedconf.o-print.o;\
-\
+sm.o-fprr.o|mm.o|print.o;\
 bc.o-print.o\
 " ./gen_client_stub

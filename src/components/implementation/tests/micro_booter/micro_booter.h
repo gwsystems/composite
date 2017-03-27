@@ -6,7 +6,7 @@
 #undef assert
 #ifndef assert
 /* On assert, immediately switch to the "exit" thread */
-#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_thd_switch(termthd);} } while(0)
+#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); while(1); /* cos_thd_switch(termthd);*/} } while(0)
 #endif
 
 #define PRINT_FN prints

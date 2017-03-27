@@ -846,6 +846,11 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 static int
 composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch);
 
+extern volatile unsigned long long calltime;
+volatile unsigned long long intime;
+extern volatile unsigned long long totaltime;
+volatile unsigned long long syscallnum=0;
+
 int COS_SYSCALL
 composite_syscall_handler(struct pt_regs *regs)
 {
