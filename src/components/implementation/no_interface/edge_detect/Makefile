@@ -6,9 +6,12 @@ DEPENDENCIES=sched printc timed_blk torrent cbuf_mgr evt valloc lock
 IF_LIB=./cos_libccv.a 
 OBJLIBS += $(POSIX_LIB)
 
-pre: first all
-first:
-	$(info |     [CP]   copying cos_libccv.a from libccv)
-	@cp $(CCVOBJ) .
+cp:
+clean:
 
-include ../../Makefile.subsubdir
+# pre: first all
+# first:
+# 	$(info |     [CP]   copying cos_libccv.a from libccv)
+# 	@cp $(CCVOBJ) .
+
+# include ../../Makefile.subsubdir

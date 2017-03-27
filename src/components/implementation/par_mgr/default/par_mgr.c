@@ -16,30 +16,33 @@
 #include <par_mgr.h>
 #include <bitmap.h>
 
-//#define PAR_CREATION_SPIN
-//#define PAR_BARRIER_SPIN
+#define SPIN
+
+#ifdef SPIN
+#define PAR_CREATION_SPIN
+#define PAR_BARRIER_SPIN
+#endif
 
 /* Use unicast for spin. */
 /* and multicast for IPI. */
-#ifdef PAR_CREATION_SPIN
+#ifdef SPIN
 #undef MULTICAST
 #else
 #define MULTICAST
 #endif
 
-/* master thread should be on the first core. */
+/* Assumption: master thread should be on the first core in the array. */
 int assign[NUM_CPU_COS + 10] = {0, 1, -1};
-
-/* int assign[NUM_CPU_COS + 10] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, -1,//ten cores on socket 0 */
-/* 				1, 5, 9, 13, 17, 21, 25, 29, 33, 37, */
-/* 				2, 6, 10, 14, 18, 22, 26, 30, 34, 38, */
-/* 				3, 7, 11, 15, 19, 23, 27, 31, 35, -1}; */
+/* int assign[50] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, */
+/* 		  1, 5, 9, 13, 17, 21, 25, 29, 33, 37, */
+/* 		  2, 6, 10, 14, 18, 22, 26, 30, 34, 38, */
+/* 		  3, 7, 11, 15, 19, 23, 27, 31, 35, -1}; */
 
 struct srv_thd_info { 
 	/* information of handling thread */
 	int cli_spd_id;
 	int srv_spd_id;
-	int srv_acap; /* the server side acap that we do ainv_wait on. */
+	int srv_acap; /* the server side acap that we do areceive on. */
 	vaddr_t srv_ring;
 	vaddr_t mgr_ring;
 	int cli_thd;
@@ -474,44 +477,44 @@ assign_unicast(struct intra_comp *thd_comp)
 	return 0;
 }
 
-static inline int 
-assign_unicast_bestcase(struct intra_comp *thd_comp)
-{
-	int i, j, curr_socket, assigned = 0, n_acap = thd_comp->n_cpu - 1;
-	thd_comp->n_acap = n_acap;
+/* static inline int  */
+/* assign_unicast_bestcase(struct intra_comp *thd_comp) */
+/* { */
+/* 	int i, j, curr_socket, assigned = 0, n_acap = thd_comp->n_cpu - 1; */
+/* 	thd_comp->n_acap = n_acap; */
 
-	if (n_acap == 0) return 0;
+/* 	if (n_acap == 0) return 0; */
 
-	thd_comp->cpus = malloc(sizeof(int) * n_acap);
-	if (unlikely(thd_comp->cpus == NULL)) return -1;
+/* 	thd_comp->cpus = malloc(sizeof(int) * n_acap); */
+/* 	if (unlikely(thd_comp->cpus == NULL)) return -1; */
 
-	//TODO: ask policy!
-	curr_socket = cos_cpuid() % NUM_CPU_SOCKETS; //get current socket
-	for (j = curr_socket; j < NUM_CPU_COS; j += NUM_CPU_SOCKETS) {// assign curr socket first
-		if (j == cos_cpuid()) continue;
-		/* printc("core %ld thd %d: got cpu %d\n", */
-		/*        cos_cpuid(), cos_get_thd_id(), i); */
-		thd_comp->cpus[assigned++] = j;
-		if (assigned == n_acap) break;
-	}
-	for (i = 0; i < NUM_CPU_SOCKETS; i++) { // other sockets
-		if (assigned == n_acap) break;
-		if (i == curr_socket) continue;
-		for (j = i; j < NUM_CPU_COS; j += NUM_CPU_SOCKETS) {
-			if (j == cos_cpuid()) continue;
-			/* printc("core %ld thd %d: got cpu %d\n", */
-			/*        cos_cpuid(), cos_get_thd_id(), i); */
-			thd_comp->cpus[assigned++] = j;
-			if (assigned == n_acap) break;
-		}
-	}
-	assert(assigned == n_acap);
+/* 	//TODO: ask policy! */
+/* 	curr_socket = cos_cpuid() % NUM_CPU_SOCKETS; //get current socket */
+/* 	for (j = curr_socket; j < NUM_CPU_COS; j += NUM_CPU_SOCKETS) {// assign curr socket first */
+/* 		if (j == cos_cpuid()) continue; */
+/* 		/\* printc("core %ld thd %d: got cpu %d\n", *\/ */
+/* 		/\*        cos_cpuid(), cos_get_thd_id(), i); *\/ */
+/* 		thd_comp->cpus[assigned++] = j; */
+/* 		if (assigned == n_acap) break; */
+/* 	} */
+/* 	for (i = 0; i < NUM_CPU_SOCKETS; i++) { // other sockets */
+/* 		if (assigned == n_acap) break; */
+/* 		if (i == curr_socket) continue; */
+/* 		for (j = i; j < NUM_CPU_COS; j += NUM_CPU_SOCKETS) { */
+/* 			if (j == cos_cpuid()) continue; */
+/* 			/\* printc("core %ld thd %d: got cpu %d\n", *\/ */
+/* 			/\*        cos_cpuid(), cos_get_thd_id(), i); *\/ */
+/* 			thd_comp->cpus[assigned++] = j; */
+/* 			if (assigned == n_acap) break; */
+/* 		} */
+/* 	} */
+/* 	assert(assigned == n_acap); */
 
-	thd_comp->inter_socket = 0;
-	thd_comp->dist_thd_idx = 0;
+/* 	thd_comp->inter_socket = 0; */
+/* 	thd_comp->dist_thd_idx = 0; */
 
-	return 0;
-}
+/* 	return 0; */
+/* } */
 
 /* An assumption here, the core ids are assigned in a way that iterates
  * sockets first. */
@@ -574,55 +577,55 @@ err_mem:
 
 /* An assumption here, the core ids are assigned in a way that iterates
  * sockets first. */
-static inline int 
-assign_multicast_bestcase(struct intra_comp *thd_comp)
-{
-	int i, curr_socket, inter_socket, n_acap, n_cpu = thd_comp->n_cpu, cpu_idx = 0;
-	/* Multi-cast */
-	inter_socket = n_cpu / NUM_CORE_PER_SOCKET;
-	if (n_cpu % NUM_CORE_PER_SOCKET == 0) inter_socket--;
+/* static inline int  */
+/* assign_multicast_bestcase(struct intra_comp *thd_comp) */
+/* { */
+/* 	int i, curr_socket, inter_socket, n_acap, n_cpu = thd_comp->n_cpu, cpu_idx = 0; */
+/* 	/\* Multi-cast *\/ */
+/* 	inter_socket = n_cpu / NUM_CORE_PER_SOCKET; */
+/* 	if (n_cpu % NUM_CORE_PER_SOCKET == 0) inter_socket--; */
 
-	if (inter_socket > 0) {
-		/* The number of acaps we need for the master:
-		 * inter-socket acaps + intra-socket acaps. */
-		n_acap = inter_socket + NUM_CORE_PER_SOCKET - 1;
-	} else {
-		/* No inter-socket acaps. Same as unicast. */
-		return assign_unicast_bestcase(thd_comp);
-	}
-	thd_comp->n_acap = n_acap;
+/* 	if (inter_socket > 0) { */
+/* 		/\* The number of acaps we need for the master: */
+/* 		 * inter-socket acaps + intra-socket acaps. *\/ */
+/* 		n_acap = inter_socket + NUM_CORE_PER_SOCKET - 1; */
+/* 	} else { */
+/* 		/\* No inter-socket acaps. Same as unicast. *\/ */
+/* 		return assign_unicast_bestcase(thd_comp); */
+/* 	} */
+/* 	thd_comp->n_acap = n_acap; */
 
-	if (n_acap == 0) return 0;
+/* 	if (n_acap == 0) return 0; */
 
-	thd_comp->cpus = malloc(sizeof(int) * n_acap);
-	if (unlikely(thd_comp->cpus == NULL)) return -1;
-	thd_comp->inter_socket = inter_socket;
-	thd_comp->dist_thd_idx = 0;
+/* 	thd_comp->cpus = malloc(sizeof(int) * n_acap); */
+/* 	if (unlikely(thd_comp->cpus == NULL)) return -1; */
+/* 	thd_comp->inter_socket = inter_socket; */
+/* 	thd_comp->dist_thd_idx = 0; */
 
-	curr_socket = cos_cpuid() % NUM_CPU_SOCKETS; 
-	/* printc("doing multicasting, curr socket %d\n", curr_socket); */
-	for (i = 0; i < NUM_CPU_SOCKETS; i++) {
-		if (i == curr_socket) continue;
+/* 	curr_socket = cos_cpuid() % NUM_CPU_SOCKETS;  */
+/* 	/\* printc("doing multicasting, curr socket %d\n", curr_socket); *\/ */
+/* 	for (i = 0; i < NUM_CPU_SOCKETS; i++) { */
+/* 		if (i == curr_socket) continue; */
 
-		thd_comp->cpus[cpu_idx++] = i;
-		if (cpu_idx == inter_socket) break;
-	}
-	assert(cpu_idx == inter_socket);
+/* 		thd_comp->cpus[cpu_idx++] = i; */
+/* 		if (cpu_idx == inter_socket) break; */
+/* 	} */
+/* 	assert(cpu_idx == inter_socket); */
 
-	//TODO: ask policy!
-	/* Assign to the current socket. Here we already know we are
-	 * going to use all the cores in the current socket. */
-	for (i = curr_socket; i < NUM_CPU_COS; i += NUM_CPU_SOCKETS) {
-		if (i == cos_cpuid()) continue;
-		printc("core %ld thd %d: master got local socket cpu %d\n",
-		       cos_cpuid(), cos_get_thd_id(), i);
-		thd_comp->cpus[cpu_idx++] = i;
-	}
+/* 	//TODO: ask policy! */
+/* 	/\* Assign to the current socket. Here we already know we are */
+/* 	 * going to use all the cores in the current socket. *\/ */
+/* 	for (i = curr_socket; i < NUM_CPU_COS; i += NUM_CPU_SOCKETS) { */
+/* 		if (i == cos_cpuid()) continue; */
+/* 		printc("core %ld thd %d: master got local socket cpu %d\n", */
+/* 		       cos_cpuid(), cos_get_thd_id(), i); */
+/* 		thd_comp->cpus[cpu_idx++] = i; */
+/* 	} */
 
-	assert(cpu_idx == n_acap);
+/* 	assert(cpu_idx == n_acap); */
 
-	return 0;
-}
+/* 	return 0; */
+/* } */
 
 /* Uni-cast approach: master sends individual requests to each core. */
 /* Return the number of acaps (which is the number of cpus in
@@ -664,7 +667,10 @@ par_create(int spdid, int n_request)
 		// TODO: policy should make the decision here. Look up a table?
 		int ncpu = 0;
 		assert(assign[0] == cos_cpuid()); // master thread should be on the first core!
-		while (assign[ncpu] >= 0) ncpu++;
+		while (assign[ncpu] >= 0) {
+			assert(assign[ncpu] < NUM_CPU_COS);
+			ncpu++;
+		}
 		printc("par_mgr: OMP thread %d getting %d cores\n", curr, ncpu);
 		assert(ncpu <= NUM_CPU_COS);
 		thd_comp->n_cpu = ncpu;
@@ -791,7 +797,7 @@ intra_acap_setup(struct intra_comp *comp, int nest_level, int i, const int spin,
 	thd_id = comp->thdid;
 
 	assert(comp->cpus);
-	if (comp->dist_thd_idx == 0) assert(i < comp->n_cpu); // true for non-distribution thread.
+	if (comp->dist_thd_idx == 0) { assert(i < comp->n_cpu); }// true for non-distribution thread.
 
 	cpu = comp->cpus[i];
 	par_team = &comp->nested_par[nest_level];
@@ -917,57 +923,57 @@ err_mem:
 	return -1;
 }
 
-static inline int dist_thread_create_bestcase(int dist_thd_id, int spdid, int n) 
-{
-	int i, n_acap, socket, cpu_idx = 0;
-	struct thd_intra_comp *dist_thd_comps;
-	struct intra_comp *dist_thd, *parent;
+/* static inline int dist_thread_create_bestcase(int dist_thd_id, int spdid, int n)  */
+/* { */
+/* 	int i, n_acap, socket, cpu_idx = 0; */
+/* 	struct thd_intra_comp *dist_thd_comps; */
+/* 	struct intra_comp *dist_thd, *parent; */
 	
-	thd_intra_comp[dist_thd_id] = malloc(sizeof(struct thd_intra_comp));
-	if (unlikely(thd_intra_comp[dist_thd_id] == NULL)) goto err_mem;
-	dist_thd_comps = thd_intra_comp[dist_thd_id];
+/* 	thd_intra_comp[dist_thd_id] = malloc(sizeof(struct thd_intra_comp)); */
+/* 	if (unlikely(thd_intra_comp[dist_thd_id] == NULL)) goto err_mem; */
+/* 	dist_thd_comps = thd_intra_comp[dist_thd_id]; */
 
-	dist_thd_comps->comp[spdid] = malloc(sizeof(struct intra_comp));
-	if (unlikely(dist_thd_comps->comp[spdid] == NULL)) goto err_mem;
-	dist_thd = dist_thd_comps->comp[spdid];
-	dist_thd->spdid = spdid;
-	dist_thd->thdid = dist_thd_id;
+/* 	dist_thd_comps->comp[spdid] = malloc(sizeof(struct intra_comp)); */
+/* 	if (unlikely(dist_thd_comps->comp[spdid] == NULL)) goto err_mem; */
+/* 	dist_thd = dist_thd_comps->comp[spdid]; */
+/* 	dist_thd->spdid = spdid; */
+/* 	dist_thd->thdid = dist_thd_id; */
 
-	dist_thd->dist_thd_idx = n + 1;   /* means it's the (n+1)th dist thread */
-	dist_thd->inter_socket = -1;     /* meaningless for dist thd. Sanity check only */
-	dist_thd->n_cpu = -1;       
+/* 	dist_thd->dist_thd_idx = n + 1;   /\* means it's the (n+1)th dist thread *\/ */
+/* 	dist_thd->inter_socket = -1;     /\* meaningless for dist thd. Sanity check only *\/ */
+/* 	dist_thd->n_cpu = -1;        */
 
-	parent = thd_intra_comp[cos_get_thd_id()]->comp[spdid];
-	assert(n < parent->inter_socket);
+/* 	parent = thd_intra_comp[cos_get_thd_id()]->comp[spdid]; */
+/* 	assert(n < parent->inter_socket); */
 
-	if (n == parent->inter_socket - 1) {
-		/* means the last socket the parent has. */
-		if (parent->n_cpu % NUM_CORE_PER_SOCKET == 0)
-			dist_thd->n_acap = NUM_CORE_PER_SOCKET;
-		else 
-			dist_thd->n_acap = parent->n_cpu % NUM_CORE_PER_SOCKET;
-	} else {
-		/* we have all cores in this socket. */
-		dist_thd->n_acap = NUM_CORE_PER_SOCKET;
-	}
-	n_acap = dist_thd->n_acap;
-	assert(n_acap);
+/* 	if (n == parent->inter_socket - 1) { */
+/* 		/\* means the last socket the parent has. *\/ */
+/* 		if (parent->n_cpu % NUM_CORE_PER_SOCKET == 0) */
+/* 			dist_thd->n_acap = NUM_CORE_PER_SOCKET; */
+/* 		else  */
+/* 			dist_thd->n_acap = parent->n_cpu % NUM_CORE_PER_SOCKET; */
+/* 	} else { */
+/* 		/\* we have all cores in this socket. *\/ */
+/* 		dist_thd->n_acap = NUM_CORE_PER_SOCKET; */
+/* 	} */
+/* 	n_acap = dist_thd->n_acap; */
+/* 	assert(n_acap); */
 
-	dist_thd->cpus = malloc(sizeof(int) * n_acap);
-	if (unlikely(dist_thd->cpus == NULL)) return -1;
+/* 	dist_thd->cpus = malloc(sizeof(int) * n_acap); */
+/* 	if (unlikely(dist_thd->cpus == NULL)) return -1; */
 
-	socket = parent->cpus[n]; 
-	for (i = socket; i < socket + n_acap * NUM_CPU_SOCKETS; i += NUM_CPU_SOCKETS) {
-		assert(i <= NUM_CPU_COS);
-		dist_thd->cpus[cpu_idx++] = i;
-		assert(cpu_idx <= n_acap);
-	}
+/* 	socket = parent->cpus[n];  */
+/* 	for (i = socket; i < socket + n_acap * NUM_CPU_SOCKETS; i += NUM_CPU_SOCKETS) { */
+/* 		assert(i <= NUM_CPU_COS); */
+/* 		dist_thd->cpus[cpu_idx++] = i; */
+/* 		assert(cpu_idx <= n_acap); */
+/* 	} */
 
-	return 0;
-err_mem:
-	printc("par_mgr %ld: Cannot allocate memory for thd %d.\n", cos_spd_id(), cos_get_thd_id());
-	return -1;
-}
+/* 	return 0; */
+/* err_mem: */
+/* 	printc("par_mgr %ld: Cannot allocate memory for thd %d.\n", cos_spd_id(), cos_get_thd_id()); */
+/* 	return -1; */
+/* } */
 
 #define IPI_DIST_PRIO 2
 

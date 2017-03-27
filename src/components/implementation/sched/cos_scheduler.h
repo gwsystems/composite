@@ -267,6 +267,9 @@ static inline void sched_set_thd_urgency(struct sched_thd *t, u16_t urgency)
 {
 	if (t->evt_id) {
 		cos_sched_set_evt_urgency(t->evt_id, urgency);
+	} else {
+		/* Maybe assert here? */
+		printc("Warning: core %ld, scheduler setting thread (id %d) urgency without event id\n", cos_cpuid(), t->id);
 	}
 	sched_get_metric(t)->urgency = urgency;
 }

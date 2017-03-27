@@ -9,7 +9,7 @@
 //volatile int f;
 //void call(void) { f = *(int*)NULL; return; }
 int call(int a, int b, int c, int d) { 
-	printc("core %ld, spd %ld: doing call in pong with params %d %d %d %d\n", 
+	printc("core %ld, spd %ld: doing call in pong with params %d %d %d %d\n",
 	       cos_cpuid(), cos_spd_id(), a,b,c,d);
 	return a+b+c+d; 
 }
@@ -55,8 +55,8 @@ int cos_ainv_handling(void) {
 		CLEAR_SERVER_ACTIVE(shared_struct); // clear active early to avoid race (and atomic instruction)
 		if (CK_RING_DEQUEUE_SPSC(inv_ring, ring, &inv) == false) {
 			printc("thread %d waiting on acap %d\n", cos_get_thd_id(), acap);
-			cos_ainv_wait(acap);
-			printc("thread %d up from ainv_wait\n", cos_get_thd_id());
+			cos_areceive(acap);
+			printc("thread %d up from areceive\n", cos_get_thd_id());
 		} else {
 			SET_SERVER_ACTIVE(shared_struct); /* setting us active */
 			printc("core %ld: got inv for cap %d, param %d, %d, %d, %d\n",

@@ -5,61 +5,47 @@
  * Public License v2.
  */
 
-#include <cos_component.h>
-
-//long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
+#include <chal/cos_component.h>
 
 /* FIXME: we want to get rid of this page, which was used for the
  * cos_sched_data_area. But for some reason the system won't load if
  * we remove this page. */
 char temp[4096] __attribute__((aligned(4096)));
 
-int cos_sched_notifications __attribute__((weak));
+CWEAKSYMB int cos_sched_notifications;
 
-__attribute__ ((weak))
-int main(void)
-{
-	return 0;
-}
+CWEAKSYMB int
+main(void)
+{ return 0; }
 
-__attribute__ ((weak))
-void cos_init(void *arg)
-{
-	main();
-}
+CWEAKSYMB void
+cos_init(void *arg)
+{ main(); }
 
-__attribute__ ((weak))
-void __alloc_libc_initilize(void)
-{
-	return;
-}
+CWEAKSYMB void
+__alloc_libc_initilize(void)
+{ return; }
 
-__attribute__ ((weak))
-void cos_upcall_exec(void *arg)
-{
-	return;
-}
+CWEAKSYMB void
+cos_upcall_exec(void *arg)
+{ return; }
 
-__attribute__ ((weak))
-int cos_async_inv(struct usr_inv_cap *ucap, int *params) 
-{
-	return 0;
-}
+CWEAKSYMB int
+cos_async_inv(struct usr_inv_cap *ucap, int *params)
+{ return 0; }
 
-__attribute__ ((weak))
-int cos_thd_entry_static(u32_t idx)
-{
-	*(int*)NULL = 0;
+CWEAKSYMB int
+cos_thd_entry_static(u32_t idx)
+{ *(int*)NULL = 0; return 0; }
 
-	return 0;
-}
-
-/* 
+/*
  * Cos thread creation data structures.
  */
 struct __thd_init_data __thd_init_data[COS_THD_INIT_REGION_SIZE] CACHE_ALIGNED;
 
-static void cos_thd_entry_exec(u32_t idx) {
+static void
+cos_thd_entry_exec(u32_t idx)
+{
 	void (*fn)(void *);
 	void *data;
 
@@ -72,6 +58,7 @@ static void cos_thd_entry_exec(u32_t idx) {
 	(fn)(data);
 }
 
+<<<<<<< HEAD
 __attribute__ ((weak))
 void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
 {
@@ -80,11 +67,16 @@ void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
 	
 __attribute__ ((weak))
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
+=======
+CWEAKSYMB void
+cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 {
 	static int first = 1;
-	if (first) { 
-		first = 0; 
-		__alloc_libc_initilize(); 
+
+	if (first) {
+		first = 0;
+		__alloc_libc_initilize();
 		constructors_execute();
 	}
 
@@ -93,9 +85,10 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	/* New thread creation method passes in this type. */
 	{
 		/* A new thread is created in this comp. */
+
+		/* arg1 is the thread init data. 0 means
+		 * bootstrap. */
 		if (arg1 == 0) {
-			/* arg1 is the thread init data. 0 means
-			 * bootstrap. */
 			cos_init(NULL);
 		} else {
 			u32_t idx = (int)arg1 - 1;
@@ -120,8 +113,8 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	return;
 }
 
-__attribute__((weak)) 
-void *cos_get_vas_page(void)
+CWEAKSYMB void *
+cos_get_vas_page(void)
 {
 	char *h;
 	long r;
@@ -132,24 +125,24 @@ void *cos_get_vas_page(void)
 	return h;
 }
 
-__attribute__((weak)) 
-void cos_release_vas_page(void *p)
+CWEAKSYMB void
+cos_release_vas_page(void *p)
 {
 	cos_set_heap_ptr_conditional(p + PAGE_SIZE, p);
 }
 
-extern const vaddr_t cos_atomic_cmpxchg, cos_atomic_cmpxchg_end, 
-	cos_atomic_user1, cos_atomic_user1_end, 
-	cos_atomic_user2, cos_atomic_user2_end, 
-	cos_atomic_user3, cos_atomic_user3_end, 
+extern const vaddr_t cos_atomic_cmpxchg, cos_atomic_cmpxchg_end,
+	cos_atomic_user1, cos_atomic_user1_end,
+	cos_atomic_user2, cos_atomic_user2_end,
+	cos_atomic_user3, cos_atomic_user3_end,
 	cos_atomic_user4, cos_atomic_user4_end;
 extern const vaddr_t cos_upcall_entry;
 
 extern const vaddr_t cos_ainv_entry;
 
-__attribute__((weak)) vaddr_t ST_user_caps;
+CWEAKSYMB vaddr_t ST_user_caps;
 
-/* 
+/*
  * Much of this is either initialized at load time, or passed to the
  * loader though this structure.
  */
@@ -158,13 +151,13 @@ struct cos_component_information cos_comp_info __attribute__((section(".cinfo"))
 	.cos_heap_ptr = 0,
 	.cos_heap_limit = 0,
 	.cos_stacks.freelists[0] = {.freelist = 0, .thd_id = 0},
-	.cos_upcall_entry = (vaddr_t)&cos_upcall_entry,
-	.cos_async_inv_entry = (vaddr_t)&cos_ainv_entry,
+	.cos_upcall_entry = 0,//(vaddr_t)&cos_upcall_entry,
+	.cos_async_inv_entry = 0,//(vaddr_t)&cos_ainv_entry,
 	.cos_user_caps = (vaddr_t)&ST_user_caps,
-	.cos_ras = {{.start = (vaddr_t)&cos_atomic_cmpxchg, .end = (vaddr_t)&cos_atomic_cmpxchg_end}, 
+	.cos_ras = {{.start=0,.end=0},}/*{{.start = (vaddr_t)&cos_atomic_cmpxchg, .end = (vaddr_t)&cos_atomic_cmpxchg_end},
 		    {.start = (vaddr_t)&cos_atomic_user1, .end = (vaddr_t)&cos_atomic_user1_end},
 		    {.start = (vaddr_t)&cos_atomic_user2, .end = (vaddr_t)&cos_atomic_user2_end},
 		    {.start = (vaddr_t)&cos_atomic_user3, .end = (vaddr_t)&cos_atomic_user3_end},
-		    {.start = (vaddr_t)&cos_atomic_user4, .end = (vaddr_t)&cos_atomic_user4_end}},
+		    {.start = (vaddr_t)&cos_atomic_user4, .end = (vaddr_t)&cos_atomic_user4_end}}*/,
 	.cos_poly = {0, }
 };

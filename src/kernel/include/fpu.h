@@ -43,6 +43,7 @@ static inline int fpu_check_sse(void);
 static inline int
 fpu_get_info(void)
 {
+<<<<<<< HEAD
 	static int cpu_info = 0;
 
 	if (unlikely(cpu_info == 0)) {
@@ -53,6 +54,18 @@ fpu_get_info(void)
 			     :
 			     : "eax", "ebx", "ecx", "edx");
 	} 
+=======
+	/*
+        int cpu_info;
+
+        asm volatile("mov $1, %%eax\n\t"
+                     "cpuid\n\t"
+                     "movl %%edx, %0"
+                     : "=m" (cpu_info) 
+		     : 
+		     : "eax", "ebx", "ecx", "edx");
+*/
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 	/* printk("cpu %d cpuid_edx %x\n", get_cpuid(), cpu_info); */
 
 	return cpu_info;
@@ -86,10 +99,10 @@ fpu_check_sse(void)
 static inline int
 fpu_init(void)
 {
+#if FPU_SUPPORT_FXSR > 0
 	int fxsr = fpu_check_fxsr();
 	int fsse = fpu_check_sse();
 
-#if FPU_SUPPORT_FXSR > 0
 	if (fxsr == 0) {
 		printk("Core %d: FPU doesn't support fxsave/fxrstor. Need to use fsave/frstr instead. Check FPU_SUPPORT_FXSR in cos_config.\n", get_cpuid());
 		return -1;
@@ -117,7 +130,11 @@ fpu_disabled_exception_handler(void)
 {
 	struct thread *curr_thd;
 
+<<<<<<< HEAD
 	if ((curr_thd = core_get_curr_thd()) == NULL) return 1;
+=======
+        if ((curr_thd = cos_get_curr_thd()) == NULL) return 1;
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 
 	assert(fpu_is_disabled());
 
@@ -214,8 +231,13 @@ fpu_thread_uses_fp(struct thread *thd)
 static inline unsigned long
 fpu_read_cr0(void)
 {
+<<<<<<< HEAD
 	unsigned long val;
 	asm volatile("mov %%cr0, %0" : "=r" (val));
+=======
+        unsigned long val;
+        //asm volatile("mov %%cr0, %0" : "=r" (val));
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 
 	return val;
 }
@@ -225,9 +247,15 @@ fpu_set(int status)
 {
 	unsigned long val, cr0;
 
+<<<<<<< HEAD
 	cr0 = fpu_read_cr0();
 	val = status ?  (cr0 & ~FPU_DISABLED_MASK) : (cr0 | FPU_DISABLED_MASK); // ENABLE(status == 1) : DISABLE(status == 0)
 	asm volatile("mov %0, %%cr0" : : "r" (val));
+=======
+        cr0 = fpu_read_cr0();
+        val = status ?  (cr0 & ~FPU_DISABLED_MASK) : (cr0 | FPU_DISABLED_MASK); // ENABLE(status == 1) : DISABLE(status == 0)
+        //asm volatile("mov %0, %%cr0" : : "r" (val));
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 
 	return;
 }
@@ -236,9 +264,9 @@ static inline void
 fxsave(struct thread *thd)
 {
 #if FPU_SUPPORT_FXSR > 0
-	asm volatile("fxsave %0" : "=m" (thd->fpu));
+	//asm volatile("fxsave %0" : "=m" (thd->fpu));
 #else
-	asm volatile("fsave %0" : "=m" (thd->fpu));
+	//asm volatile("fsave %0" : "=m" (thd->fpu));
 #endif
 	return;
 }
@@ -247,9 +275,9 @@ static inline void
 fxrstor(struct thread *thd)
 {
 #if FPU_SUPPORT_FXSR > 0
-	asm volatile("fxrstor %0" : : "m" (thd->fpu));
+	//asm volatile("fxrstor %0" : : "m" (thd->fpu));
 #else
-	asm volatile("frstor %0" : : "m" (thd->fpu));
+	//asm volatile("frstor %0" : : "m" (thd->fpu));
 #endif
 	return;
 }

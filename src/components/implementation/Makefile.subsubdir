@@ -49,7 +49,7 @@ SOURCE_DEPENDENCIES=$(SOURCES:%.c=%.d)
 
 COMP_LD_SCRIPT=$(IMPLDIR)/comp.ld
 
-FNDEP_DIR=../../../cidl
+FNDEP_DIR=$(CDIR)/cidl
 FNDEP_GEN=$(FNDEP_DIR)/comp_undef.py
 FNDEP_VERIFY=$(FNDEP_DIR)/verify_completeness.py
 IFEXP_GEN=$(FNDEP_DIR)/exp_ifs.py
@@ -67,6 +67,7 @@ fndeps:
 
 # Jumping through hoops: want to link to our libraries first so that
 # symbols there are used, thus the gcc, and the ld, but then (and only
+<<<<<<< HEAD
 # then) do we want to use musllibc's functions
 $(COMPONENT): $(OBJS) 
 #	$(info |     [LD]   $@: Loading stubs and cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
@@ -75,16 +76,25 @@ $(COMPONENT): $(OBJS)
 #	$(info |     [MUSL] Linking with musllibc to produce $@)
 	@$(MUSLCC) $@.$(TMP_STR) $(MUSLCFLAGS) -Xlinker -r -o $@.$(TMP_STR2)
 	@$(LD) -r -T $(COMP_LD_SCRIPT) -o $@ $@.$(TMP_STR2)
+=======
+# then) do we want to use dietlibc's functions
+$(COMPONENT): $(OBJS)
+#	$(info |     [LD]   $@: Loading stubs and cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
+	$(info |     [LD]   $(COMPNAME) ($@): Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $^)
+	@$(LD) $(LDFLAGS) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(IF_CLIENT_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
+	@$(DIETCC) $(DIETCFLAGS) -fno-pic -Xlinker -r -o $@.$(TMP_STR2) $@.$(TMP_STR)
+	@$(LD) $(LDFLAGS) -r -T $(COMP_LD_SCRIPT) -o $@ $@.$(TMP_STR2)
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 	@rm $@.$(TMP_STR) $@.$(TMP_STR2)
 	@cp $@ c.o
 
 %.o:%.c
-	$(info |     [CC]   $<: Compiling)
+#	$(info |     [CC]   $<: Compiling)
 	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
 
 %.o:%.S
 #	$(info |     [AS]   Compiling assembly file $^ into $@)
-	$(info |     [AS]   $<: Compiling)
+#	$(info |     [AS]   $<: Compiling)
 	@$(AS) $(INCLUDE) $(ASFLAGS) -c -o $@ $^
 
 # see the make manual: create the .d dependencies from include
@@ -98,16 +108,21 @@ $(COMPONENT): $(OBJS)
 
 .PHONY: cp
 cp:
+<<<<<<< HEAD
 #	$(info |     [CP]   Copying $(COMPONENT) to $(TRANS_DIR))
 	-@cp $(COMPONENT) $(TRANS_DIR)
 	-@cp c.o $(TRANS_DIR)/$(COMPNAME).o
+=======
+	$(info |     [CP]   Copying $(COMPONENT) to $(TRANS_DIR))
+	@cp $(COMPONENT) $(TRANS_DIR)
+	@cp c.o $(TRANS_DIR)/$(COMPNAME).o
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 
 .PHONY: clean
 clean:
-#	$(info |     [RM]   Cleaning up implementation directory for component $(COMPNAME))
+	$(info |     [RM]   Cleaning up implementation directory for component $(COMPNAME))
 	@rm -f a.out *.o *.a *.d *.d.* *~ $(FNDEP_FILE) $(IFEXP_FILE)
 
 fresh: clean all
 
 -include $(SOURCE_DEPENDENCIES)
-

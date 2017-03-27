@@ -3,12 +3,13 @@
 #include <sched_hier.h>
 
 int nothing = 0, ret = 0;
+volatile int mem = 0;
 
 int spd0_main(void)
 {
-	sched_init();
-	nothing = ret + 1;
-	//prevent_tail_call(ret);
+	call_cap(4, 0, 0, 0, 0);
+
+	if (mem) sched_init(); // we need to link the cap!
 
 	return ret;
 }

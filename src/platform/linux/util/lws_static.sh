@@ -7,7 +7,11 @@
 !mpool.o, ;!cbuf.o, ;!va.o, ;!mpd.o,a5;!tif.o,a5;!tip.o, ;!vm.o, a1;\
 !port.o, ;!l.o,a4;!te.o,a3;!tnet.o, ;!eg.o,a5;!\
 !stconnmt.o, '10:10:200:/bind:0:%d/listen:255';\
+<<<<<<< HEAD
 !httpt.o,a8;!rotar.o,a7;!initfs.o,a3:\
+=======
+!bufp.o,a5;!pfs.o, ;!httpt.o,a8;!rotar.o,a7;!initfs.o,a3:\
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 \
 c0.o-llboot.o;\
 fprr.o-print.o|[parent_]mm.o|[faulthndlr_]llboot.o;\

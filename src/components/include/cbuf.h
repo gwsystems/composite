@@ -253,16 +253,42 @@ static inline void *
 cbuf2buf(cbuf_t cb, int len)
 {
 	struct cbuf_meta *cm;
+<<<<<<< HEAD
+=======
+	//union cbufm_info ci;//, ci_new;
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 	void *ret = NULL;
 	unsigned int id, t;
 
 	if (unlikely(len <= 0)) return NULL;
 	cbuf_unpack(cb, &id);
 again:
+<<<<<<< HEAD
 	cm = cbuf_vect_lookup_addr(id);
 	if (unlikely(!cm || !CBUF_PTR(cm))) {
 		if (__cbuf_2buf_miss(id, len)) goto done;
 		goto again;
+=======
+	do {
+		cm = cbuf_vect_lookup_addr(cbidx, tmem);
+		if (unlikely(!cm || cm->nfo.v == 0)) {
+			if (__cbuf_2buf_miss(id, len, tmem)) goto done;
+			goto again;
+		}
+	} while (unlikely(!cm->nfo.v));
+	//ci.v = cm->nfo.v;
+
+	if (!tmem) {
+		if (unlikely(cm->nfo.c.flags & CBUFM_TMEM)) goto done;
+		if (unlikely((len >> PAGE_ORDER) > cm->sz)) goto done;
+		assert(cm->nfo.c.refcnt != CBUFP_REFCNT_MAX);
+		cm->nfo.c.refcnt++;
+		assert(cm->owner_nfo.c.nrecvd < TMEM_SENDRECV_MAX);
+		cm->owner_nfo.c.nrecvd++;
+	} else {
+		if (unlikely(!(cm->nfo.c.flags & CBUFM_TMEM))) goto done;
+		if (unlikely(len > PAGE_SIZE)) goto done;
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 	}
 	assert(cm->nfo);
 	/* shouldn't cbuf2buf your own buffer! */
@@ -400,9 +426,27 @@ __cbuf_try_take(struct cbuf_meta *cm, unsigned int flag)
 		 * manager. We will not leak cbuf here.
 		 * Do not modify other fields! 
 		 */
+<<<<<<< HEAD
 		CBUF_FLAG_REM(cm, CBUF_INCONSISENT);
 		goto ret;
 	}
+=======
+	} 
+	REM_LIST(d, next, prev);
+	assert(EMPTY_LIST(d, next, prev));
+	cbid  = d->cbid;
+	assert(cbid);
+	cbidx            = cbid_to_meta_idx(cbid);
+	cm               = cbuf_vect_lookup_addr(cbidx, tmem);
+
+	mapped_in        = cbufm_is_mapped(cm);
+	already_used     = cm->nfo.c.refcnt;
+	flags            = CBUFM_TOUCHED;
+	if (tmem) flags |= CBUFM_TMEM;
+	cm->nfo.c.flags |= flags;
+	assert(cm->nfo.c.refcnt != CBUFP_REFCNT_MAX);
+	cm->nfo.c.refcnt++;
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 
 	new_nfo = old_nfo+1;
 	if (unlikely(flag & CBUF_TMEM)) new_nfo |= CBUF_TMEM;

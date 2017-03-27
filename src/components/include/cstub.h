@@ -52,6 +52,74 @@
 		".align 8\n\t" \
 		"1:\n\t" \
 		"movl $1, %%ecx\n\t" \
+<<<<<<< HEAD
+=======
+		"3:" \
+		: "=a" (ret), "=c" (fault)
+
+#define CSTUB_PRE(type, name)			\
+{					\
+        long fault = 0; \
+	type ret;	\
+                        \
+	/* \
+	 * cap#    -> eax \
+	 * sp      -> ebp \
+	 * ip      -> ecx \
+	 * 1st arg -> ebx \
+	 * 2nd arg -> esi \
+	 * 3rd arg -> edi \
+	 * 4th arg -> edx \
+	 *
+	 * the CSTUB_ASM define has edx as the 4th input operand, as
+	 * ebp is not allowed to use as input in inline assembly.
+	 */
+
+#define CSTUB_POST \
+ \
+	return ret; \
+}
+
+#define CSTUB_ASM_0(name) \
+        	CSTUB_ASM_PRE(name)	   \
+                : "a" (uc->cap_no) \
+		: "ebx", "edx", "esi", "edi", "memory", "cc");
+
+#define CSTUB_ASM_1(name, first)		   \
+        	CSTUB_ASM_PRE(name)	   \
+		: "a" (uc->cap_no), "b" (first)		\
+		: "edx", "esi", "edi", "memory", "cc");
+
+#define CSTUB_ASM_2(name, first, second)   \
+        	CSTUB_ASM_PRE(name)	   \
+		: "a" (uc->cap_no), "b" (first), "S" (second)	\
+		: "edx", "edi", "memory", "cc");
+
+#define CSTUB_ASM_3(name, first, second, third)	\
+        	CSTUB_ASM_PRE(name)	   \
+		: "a" (uc->cap_no), "b" (first), "S" (second), "D" (third) \
+		: "edx", "memory", "cc");
+
+#define CSTUB_ASM_4(name, first, second, third, fourth)	\
+        	CSTUB_ASM_PRE(name)	   \
+		: "a" (uc->cap_no), "b" (first), "S" (second), "D" (third), "d" (fourth) \
+		: "memory", "cc");
+
+#define CSTUB_ASM_RET_PRE(ret1, ret2)		\
+	__asm__ __volatile__( \
+		"pushl %%ebp\n\t" \
+		"movl %%esp, %%ebp\n\t" \
+		"movl $1f, %%ecx\n\t" \
+		"sysenter\n\t" \
+		".align 8\n\t" \
+		"jmp 2f\n\t" \
+		".align 8\n\t" \
+		"1:\n\t" \
+		"popl %%ebp\n\t" \
+		"movl $0, %%ecx\n\t" \
+	        "movl %%esi, %%ebx\n\t" \
+	        "movl %%edi, %%edx\n\t" \
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 		"jmp 3f\n\t" \
 		"2:\n\t" \
 		"call SS_ipc_client_fault\n\t" \

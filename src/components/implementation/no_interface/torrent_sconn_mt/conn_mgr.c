@@ -269,31 +269,6 @@ close:
 char *create_str;
 int   __port, __prio, hpthd;
 
-static void init(char *init_str)
-{
-	int nthds;
-
-	cvect_init_static(&evts);
-	cvect_init_static(&tor_from);
-	cvect_init_static(&tor_to);
-	lock_static_init(&sc_lock);
-		
-	sscanf(init_str, "%d:%d:%d", &nthds, &__prio, &__port);
-	printc("nthds:%d, prio:%d, port %d\n", nthds, __prio, __port);
-	create_str = strstr(init_str, "/");
-	assert(create_str);
-
-	for (; nthds > 0 ; nthds--) {
-		union sched_param sp;
-		int thdid;
-		
-		sp.c.type  = SCHEDP_PRIO;
-		sp.c.value = __prio++;
-		thdid = sched_create_thd(cos_spd_id(), sp.v, 0, 0);
-		if (!hpthd) hpthd = thdid;
-	}
-}
-
 u64_t meas, avg, total = 0, vartot;
 int meascnt = 0, varcnt;
 
@@ -311,23 +286,15 @@ meas_record(u64_t meas)
 	}
 }
 
-void
-cos_init(void *arg)
+void event_handling(void)
 {
 	int c, accept_fd, ret;
 	long eid;
-	char *init_str = cos_init_args();
 	char __create_str[128];
-	static volatile int first = 1, off = 0;
+	static volatile int off = 0;
 	int port;
 	u64_t start, end;
 
-	if (first) {
-		first = 0;
-		init(init_str);
-		return;
-	}
-	
 	printc("Thread %d, port %d\n", cos_get_thd_id(), __port+off);
 	port = off++;
 	port += __port;
@@ -371,8 +338,48 @@ cos_init(void *arg)
 			assert(tc.from > 0);
 			to_data_new(&tc);
 		}
+	}
+}
 
-		cos_mpd_update();
+static void init(char *init_str)
+{
+	int nthds;
+
+	cvect_init_static(&evts);
+	cvect_init_static(&tor_from);
+	cvect_init_static(&tor_to);
+	lock_static_init(&sc_lock);
+		
+	sscanf(init_str, "%d:%d:%d", &nthds, &__prio, &__port);
+	printc("nthds:%d, prio:%d, port %d\n", nthds, __prio, __port);
+	create_str = strstr(init_str, "/");
+	assert(create_str);
+
+	for (; nthds > 0 ; nthds--) {
+		union sched_param sp;
+		int thdid;
+		
+		sp.c.type  = SCHEDP_PRIO;
+		sp.c.value = __prio++;
+
+		thdid = cos_thd_create(&event_handling, NULL, sp.v, 0, 0);
+		if (!hpthd) hpthd = thdid;
+	}
+}
+
+void
+cos_init(void *arg)
+{
+	char *init_str = cos_init_args();
+	static volatile int first = 1;
+
+	if (first) {
+		first = 0;
+		init(init_str);
+		return;
+	} else {
+		printc("Error: conn_mgr %ld receives multiple inits!\n", cos_spd_id());
+		return;
 	}
 }
 

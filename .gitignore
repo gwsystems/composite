@@ -13,9 +13,20 @@
 .fn_exports
 .exported_interfaces
 composite_new
+*.out
 tags
 src/kernel/include/shared/cpu_ghz.h
 src/Makefile.cosconfig
+src/PLATFORM
 modules.order
 .depend
+<<<<<<< HEAD
 .vagrant
+=======
+*.img
+transfer/
+GPATH
+GRTAGS
+GSYMS
+GTAGS
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27

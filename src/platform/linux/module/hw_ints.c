@@ -9,7 +9,10 @@
 
 #include <asm/desc.h>
 #include <linux/kernel.h>
+#include <linux/sched.h>
 #include "../../../kernel/include/shared/cos_config.h"
+#include "../../../kernel/include/asm_ipc_defs.h"
+#include "../../../kernel/include/chal/cpuid.h"
 
 /*
  * The Linux provided descriptor structure is crap, probably due to
@@ -61,6 +64,7 @@ extern void *cos_default_page_fault_handler;
 void *cos_realloc_page_fault_handler;
 extern void *cos_default_div_fault_handler;
 extern void *cos_default_reg_save_handler;
+extern void *cos_default_timer_handler;
 #ifdef FPU_ENABLED
 extern void *cos_default_fpu_not_available_handler;
 #endif
@@ -86,8 +90,14 @@ int cos_idt_sz;
 
 void *cos_default_sysenter_addr;
 
-
 #include "cos_irq_vectors.h"
+
+extern void ipi_handler(void);
+extern void reg_save_interposition(void);
+
+#ifndef LOCAL_TIMER_VECTOR
+#define LOCAL_TIMER_VECTOR         0xef
+#endif
 
 void
 hw_int_init(void)
@@ -121,8 +131,11 @@ hw_int_init(void)
 		case 14:
 			cos_default_page_fault_handler = did->handler;
 			break;
-		case 0xe9:
+		case COS_REG_SAVE_VECTOR:
 			cos_default_reg_save_handler   = did->handler;
+			break;
+		case LOCAL_TIMER_VECTOR:
+			cos_default_timer_handler      = did->handler;
 			break;
 #ifdef FPU_ENABLED
                 case 7:
@@ -139,18 +152,52 @@ hw_int_init(void)
 
 /* reset hardware entry points  */
 void
-hw_int_reset(void)
+hw_int_reset(void *tss)
 {
 	memcpy((void*)default_idt, saved_idt, default_idt_desc.idt_limit);
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)cos_default_sysenter_addr, 0);
+	/* Linux has esp points to TSS struct. */
+	wrmsr(MSR_IA32_SYSENTER_ESP, (int)tss, 0);
 }
 
 void
-hw_int_override_sysenter(void *handler)
+cos_kern_stk_init(void)
 {
+	struct cos_cpu_local_info *cos_info;
+	struct thread_info *linux_thread_info = (struct thread_info *)get_linux_thread_info();
+
+	cos_info = cos_cpu_local_info();
+	/* No Linux thread/process migration allowed. */
+	cos_info->cpuid = linux_thread_info->cpu;
+	/* Init the cached data */
+	cos_info->invstk_top = 0;
+	/* value to detect stack overflow */
+	cos_info->overflow_check = 0xDEADBEEF;
+}
+
+void
+hw_int_override_sysenter(void *handler, void *tss_end)
+{
+	struct tss_struct *tss;
+	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
+	void *sp0;
+
+	/* Store the tss_end in cos info struct. */
+	cos_info->orig_sysenter_esp = tss_end;
+	tss = tss_end - sizeof(struct tss_struct);
+	/* We only uses 1 page stack. No need to touch 2 pages. */
+	sp0 = (void *)tss->x86_tss.sp0 - PAGE_SIZE;
+
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)handler, 0);
-	printk("CPU %d: Overriding sysenter handler (%p) with %p\n",
-	       get_cpu(), cos_default_sysenter_addr, handler);
+	wrmsr(MSR_IA32_SYSENTER_ESP, (int)sp0, 0);
+	/* Now we have sysenter_esp points to actual sp0. No need to
+	 * touch TSS page on Composite path! */
+}
+
+void
+hw_int_override_timer(void *handler)
+{
+	cos_set_idt_entry(LOCAL_TIMER_VECTOR, 0, 0, handler, default_idt);
 }
 
 void
@@ -233,9 +280,6 @@ hw_int_override_pagefault(void *handler)
 	
 	cos_set_idt_entry(14, default_idt_entry[14].dpl, default_idt_entry[14].ints_enabled, 
 			  cos_realloc_page_fault_handler, default_idt);
-	printk("CPU %d: Overriding page_fault handler (%p, dpl %d, int %d) with %p (via trampoline %p)\n",
-	       get_cpu(), default_idt_entry[14].handler, default_idt_entry[14].dpl,
-	       default_idt_entry[14].ints_enabled, handler, cos_realloc_page_fault_handler);
 
 	return 0;
 }
@@ -257,11 +301,6 @@ hw_int_override_idt(int fault_num, void *handler, int ints_enabled, int dpl)
 	 * translation from include/asm-i386/fixmap.h
 	 */
 	cos_set_idt_entry(fault_num, dpl, ints_enabled, handler, default_idt);
-	printk("CPU %d: Overriding %d IDT handler (%p, dpl %d, int %d) with %p, dpl %d, int %d\n",
-	       get_cpu(), fault_num, default_idt_entry[fault_num].handler, default_idt_entry[fault_num].dpl,
-	       default_idt_entry[fault_num].ints_enabled, handler, dpl, ints_enabled);
 
 	return 0;
 }
-
-

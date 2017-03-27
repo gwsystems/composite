@@ -161,6 +161,7 @@ CSTUB_FN(int, twmeta)(struct usr_inv_cap *uc,
 	int sz = sizeof(struct __sg_twmeta_data) + klen + vlen + 1;
 	struct __sg_twmeta_data *d;
 
+<<<<<<< HEAD
 	assert(key && val && klen > 0 && vlen > 0);
 	assert(key[klen] == '\0' && val[vlen] == '\0' && sz <= PAGE_SIZE);
 
@@ -173,6 +174,10 @@ CSTUB_FN(int, twmeta)(struct usr_inv_cap *uc,
 	memcpy(&d->data[0], key, klen + 1);
 	memcpy(&d->data[klen + 1], val, vlen + 1);
 	cbuf_send(cb);
+=======
+        d = cbuf_alloc(sz, &cb);
+        assert(d); //if (!d) assert(0); //return -1;
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 
 	CSTUB_INVOKE(ret, fault, uc, 3, spdid, cb, sz);
 

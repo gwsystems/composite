@@ -6,7 +6,7 @@
  * gparmer@gwu.edu, 2012
  */
 
-/* 
+/*
  * The Composite Hardware Abstraction Layer, or Hijack Abstraction
  * Layer (cHAL) is the layer that defines the platform-specific
  * functionality that requires specific implementations not only for
@@ -20,9 +20,9 @@
 #ifndef CHAL_H
 #define CHAL_H
 
-#include "shared/cos_types.h"
+#include "chal/cos_types.h"
 
-/* 
+/*
  * Namespacing in the cHAL: chal_<family>_<operation>(...).  <family>
  * is the family of operations such as pgtbl or addr operations, and
  * <operation> is the operation to perform on that family of
@@ -32,22 +32,6 @@
 /*************************************
  * Platform page-table manipulations *
  *************************************/
-
-/* 
- * Switch to the specified page-tables.  This will not only switch the
- * loaded page tables on the current cpu, but also any backing
- * data-structures that are tracked in the platform code.
- * 
- * This function must be specified in the chal_plat.h file.
- */
-static inline void chal_pgtbl_switch(paddr_t pt);
-/* 
- * Switch any backing data-structures for the "current" page-table,
- * but _not_ the actual loaded page-tables.
- * 
- * This function must be specified in the chal_plat.h file.
- */
-static inline void __chal_pgtbl_switch(paddr_t pt);
 
 /* Add a page to pgtbl at address. 0 on success */
 int     chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr, int flags);
@@ -70,27 +54,38 @@ int chal_pgtbl_rem_middledir(paddr_t pt, unsigned long vaddr);
 int chal_pgtbl_rem_middledir_range(paddr_t pt, unsigned long vaddr, long size);
 int chal_pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size);
 
+void chal_tls_update(vaddr_t tlsaddr);
+
+void chal_cycles_per_period(u64_t cycles);
+
 /*********************************
  * Address translation functions *
  *********************************/
 
-void *chal_va2pa(void *va);
-void *chal_pa2va(void *pa);
+paddr_t chal_va2pa(void *va);
+void *chal_pa2va(paddr_t pa);
+extern paddr_t chal_kernel_mem_pa;
 
 /************************************
  * Page allocation and deallocation *
  ************************************/
 
 void *chal_alloc_page(void);
+void *chal_alloc_kern_mem(int order);
 void chal_free_page(void *page);
+void chal_free_kern_mem(void *mem, int order);
 
 /* Per core ACAPs for timer events */
 PERCPU_DECL(struct async_cap *, cos_timer_acap);
+PERCPU_DECL(struct cap_arcv *, cos_timer_arcv);
 
 /*******************
  * Other functions *
  *******************/
 
+int chal_cyc_usec(void);
+
+int chal_attempt_arcv(struct cap_arcv *arcv);
 int chal_attempt_ainv(struct async_cap *acap);
 
 /* IPI sending */
@@ -98,6 +93,10 @@ void chal_send_ipi(int cpuid);
 
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 void chal_idle(void);
+void chal_timer_set(cycles_t cycles);
+void chal_timer_disable(void);
+
+void chal_init(void);
 
 /* int cos_syscall_idle(void); */
 /* int cos_syscall_switch_thread(void); */
@@ -105,5 +104,8 @@ void chal_idle(void);
 /* void cos_syscall_upcall(void); */
 
 #include "../../platform/include/chal_plat.h"
+
+extern void printk(const char *fmt, ...);
+void chal_khalt(void);
 
 #endif	/* CHAL_H */

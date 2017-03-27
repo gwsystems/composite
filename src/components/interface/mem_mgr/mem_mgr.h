@@ -18,6 +18,8 @@ mman_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd, vaddr_t base, u32_t len
 
 /* Map a physical frame into a component. */
 vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags);
+vaddr_t mman_valloc(spdid_t compid, spdid_t dest, unsigned long npages);
+
 /* 
  * remove this single mapping _and_ all descendents.  FIXME: this can
  * be called with the spdid of a dependent component.  We should also

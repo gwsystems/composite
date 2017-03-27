@@ -88,7 +88,7 @@ Washington, DC
 
 %\input{planning}
 
-  
+
 \begin{abstract}
   This document should be seen as a rough guide first to explain the
   coding conventions and style in
@@ -172,7 +172,7 @@ you can better understand why the following conventions exist.
   relationships between them, than they are about algorithmic
   complexity.  Data-structures often include quite a bit of
   information about the concurrency and locking structures of the
-  program.  
+  program.
 
   When reading systems code, {\em it is of the utmost importance to
     seek to understand the data-structures and how they are related to
@@ -303,7 +303,7 @@ to say that any of them are unimportant.
 
 \head{Convention 1.} Function names should use a noun-first naming
 scheme when possible.  This borrows from object oriented programming.
-%(see Section~\ref{s:oo} for more OO in C information).  
+%(see Section~\ref{s:oo} for more OO in C information).
 
 \subsection{Naming Requirement 1 Justification}
 \label{ss:variables}
@@ -361,7 +361,7 @@ int request_handle(char *request_txt)
     request_process(&req);
     request_formulate_resp(&req, &resp);
     request_send_resp(&req, &resp);
-}        
+}
       \end{lstlisting}
     \end{minipage}
 
@@ -443,7 +443,7 @@ model.
 As you will hopefully see in this section, the following two
 conventions are motivated by
 \begin{inparaenum}[(i)]
-\item keeping the common-case code compact and easy to read, and 
+\item keeping the common-case code compact and easy to read, and
 \item avoiding redundancy in code, especially error handling code.
 \end{inparaenum}
 
@@ -465,13 +465,13 @@ checking.
 
 Find the bug in the following example of code that take a struct and a
 list, and make two copies of the struct, adding both into the list.
-Assume the list is protected by a lock.  
+Assume the list is protected by a lock.
 
     \begin{minipage}{3in}
       \footnotesize
       \lstset{language=C}
       \begin{lstlisting}
-int list_copy_and_dup(struct bar *b, struct list *l) 
+int list_copy_and_dup(struct bar *b, struct list *l)
 {
     if (b) {
         if (l) {
@@ -503,7 +503,7 @@ int list_copy_and_dup(struct bar *b, struct list *l)
     } else {
         return -EINVAL;
     }
-}        
+}
       \end{lstlisting}
     \end{minipage}
 
@@ -513,10 +513,10 @@ piece of code.
 
 Did you find the bug?  If you ran the program on a low-memory system,
 you quickly would.  But you have to ask yourself how often you test in
-those circumstances.  We forgot to 
+those circumstances.  We forgot to
 \begin{inparaenum}[(i)]
 \item free {\tt b2} if {\tt malloc} returned {\tt NULL} when attempting
-to allocate {\tt b3}, and 
+to allocate {\tt b3}, and
 \item release the lock if either {\tt malloc} was unsuccessful.
 \end{inparaenum}
 It is {\em very} easy to make these mistakes.  This is the reason that
@@ -524,7 +524,7 @@ languages such as {\tt go}, {\tt D}, and {\tt C++} provide facilities
 such as {\tt defer}, {\tt scope}, and {\tt RAII} with automatic
 destruction, respectively.  You can have something similar in C, but
 you'll have to wait for the second convention.  First, lets reformat
-the code under the first convention.  
+the code under the first convention.
 
 Following this convention, all error handling is dealt with using
 conditionals that trigger on error.
@@ -533,7 +533,7 @@ conditionals that trigger on error.
       \footnotesize
       \lstset{language=C}
       \begin{lstlisting}
-int list_copy_and_dup(struct bar *b, struct list *l) 
+int list_copy_and_dup(struct bar *b, struct list *l)
 {
     struct bar *b2, *b3;
 
@@ -560,11 +560,11 @@ int list_copy_and_dup(struct bar *b, struct list *l)
 
     memcpy(b3, b, sizeof(struct bar));
     list_add(l, b3);
-    
+
     list_lock_release(l);
 
     return 0;
-}        
+}
       \end{lstlisting}
     \end{minipage}
 
@@ -599,7 +599,7 @@ in other languages such as {\tt go}, {\tt D}, and {\tt C++}).
       \footnotesize
       \lstset{language=C}
       \begin{lstlisting}
-int list_copy_and_dup(struct bar *b, struct list *l) 
+int list_copy_and_dup(struct bar *b, struct list *l)
 {
     int ret = -EINVAL; // default error case.
     struct bar *b2, *b3;
@@ -633,7 +633,7 @@ err_free:
     free(b2);
 err:
     goto done;
-}        
+}
       \end{lstlisting}
     \end{minipage}
 
@@ -657,7 +657,7 @@ A few things have happened here:
     duplicate that code anywhere}.  Notice how if there is an error
   allocating {\tt b3}, we free {\tt b2}, and also execute the error
   handlers for everything else (in this case, this simply jumps to
-  {\tt done} which releases the lock).  
+  {\tt done} which releases the lock).
 \item The return value for each of the error cases is computed at the
   code location where we know what the error was caused by.  This
   enables the error description to still be as detailed as we want
@@ -793,7 +793,7 @@ return value;
     as in {\tt value.array}?  As one programming in C usually assumes
     that they can "see" everything that's going on, hiding information
     is not in keeping with consistent C programming.
-    
+
 \subsection{{\tt typedef} Convention 2 Justification}
 
 Using a {\tt typedef} to make a synonym to a pointer type makes code
@@ -859,7 +859,7 @@ int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
       \end{lstlisting}
     \end{minipage}
 
-    with 
+    with
 
     \begin{minipage}{3in}
       \footnotesize
@@ -966,9 +966,9 @@ Compare:
       \footnotesize
       \lstset{language=C}
       \begin{lstlisting}
-#define THD_RUNNING 1        
-#define THD_KILLED  2        
-#define THD_BLOCKED 3        
+#define THD_RUNNING 1
+#define THD_KILLED  2
+#define THD_BLOCKED 3
       \end{lstlisting}
     \end{minipage}
 
@@ -986,7 +986,7 @@ enum {
       \end{lstlisting}
     \end{minipage}
 
-Even better, compare these with 
+Even better, compare these with
 
     \begin{minipage}{3in}
       \footnotesize
@@ -1025,7 +1025,7 @@ or
       \footnotesize
       \lstset{language=C}
       \begin{lstlisting}
-#define LOWEST_KERNEL_ADDRESS 0xc0000000        
+#define LOWEST_KERNEL_ADDRESS 0xc0000000
       \end{lstlisting}
     \end{minipage}
 
@@ -1056,7 +1056,7 @@ formatting can still aid their reading.
 declarations inline with code, as opposed to at the top of blocks (as
 in C++ and most other languages).  Though the original purpose of
 variables being declared at the top of blocks, was likely due to
-old, constrained C compilers.  
+old, constrained C compilers.
 
 There are arguments that can go either way:
 \begin{enumerate}[itemsep=0pt,topsep=1pt,parsep=1pt,leftmargin=2.5em]
@@ -1136,7 +1136,7 @@ void *malloc(int sz)
       \end{lstlisting}
     \end{minipage}
 
-instead of 
+instead of
 
     \begin{minipage}{3in}
       \footnotesize
@@ -1170,6 +1170,8 @@ These include:
 \begin{enumerate}[itemsep=0pt,topsep=1pt,parsep=1pt,leftmargin=2.5em]
 \item After the variable declarations at the top of a block, always
   insert a line-break.
+\item Before the final return statement in a function, always insert a
+  line-break.
 \item After clusters of error checking, insert a line break.
 \item Put open brackets on a separate line after function prototypes,
   but not on a separate line after conditionals and loops.
@@ -1422,7 +1424,7 @@ and what modifiers to use?  Lets go through the conditions:
   You must really know what you're doing with this implementation
   style.  If you implement functions in this style indiscriminately,
   you can end up using quite a bit of memory because when functions
-  are inlined, their contents are duplicated at all call-points. 
+  are inlined, their contents are duplicated at all call-points.
 \item {\tt static} and {\tt *.c}: By default, this should be the way
   that you implement functions.  Most functions are not called so
   frequently from outside of their object that they should be in
@@ -1465,7 +1467,8 @@ and what modifiers to use?  Lets go through the conditions:
 
 %% \ref{s:naming}.
 
-\section{Appendix}
+\newpage
+\section{Appendix: Style Rules for Systems@GWU}
 \label{s:appendix}
 
 A summary of the coding rules in \composite\ follows.  I don't provide
@@ -1552,6 +1555,19 @@ Return values and qualifiers/attributes are on a separate line, and
 function names are always at the same level of indentation so they are
 easy for the eye to find.
 
+The only exception to this for functions whose body is a single
+statement:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+static int
+sched_block(spdid_t spdid)
+{ /* single statement */ }
+      \end{lstlisting}
+    \end{minipage}
+
 Function prototypes can take a less stringent form if they can fit
 onto a single line:
 
@@ -1594,7 +1610,8 @@ for (exprinit ; exprsentinel ; exprincr) {
 
 Use a space after these keywords: {\tt if, switch, case, for, do,
   while}, but not with {\tt sizeof, typeof, alignof,
-  \_\_attribute\_\_}.
+  \_\_attribute\_\_}.  Note the space before {\em and} after the {\tt
+  ;}.  This is to visually emphasize the transition between sections.
 
 The only exception to this spacing, for both conditionals and loops is
 when the contents can fit onto the same line as the conditional or
@@ -1638,6 +1655,40 @@ if (expr0) {
     \end{minipage}
 
 
+\head{Expression spacing.}  Binary operators should always be
+separated by a space from their operands.  For example:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+a = b + c;
+      \end{lstlisting}
+    \end{minipage}
+
+Unary operators should not be separated by a space from their
+operand.  For example:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+a = -(int)b;
+      \end{lstlisting}
+    \end{minipage}
+
+\head{Function invocation spacing.} When invoking a function, no space
+should be placed between the function name and the parenthesis, nor
+between the parenthesis and the parameters.
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+a(b);
+      \end{lstlisting}
+    \end{minipage}
+
 \head{Breaking up lines.}  If the expressions constituting the
 proposition in a conditional do not fit well on a single line, then
 break them up appropriately onto separate lines, and make sure that
@@ -1674,7 +1725,7 @@ It is especially relevant for assignments.
 
 \head{Example.}  Many of the above rules can be seen below.
 
-    \begin{minipage}{3in}
+    \begin{minipage}{4in}
       \footnotesize
       \lstset{language=C}
       \begin{lstlisting}
@@ -1699,10 +1750,27 @@ if (!bin) goto free;
 
 if (bin->c) ADD_LIST(bin->c, cbi, next, prev);
 else        bin->c = cbi;
-if (cbufp_alloc_map(spdid, &(cbi->owner.addr), 
+if (cbufp_alloc_map(spdid, &(cbi->owner.addr),
 		    (void**)&(cbi->mem), size)) goto free;
       \end{lstlisting}
     \end{minipage}
+
+\head{Empty lines.}  It is necessary to use blank lines to break up
+different ``thoughts'' in your code, just as we use paragraphs in
+text.  As your function transitions between different phases (error
+checking, setting up the environment, changing state in structure A,
+then structure B, and preparing to return), use blank lines to
+visually denote the change.  The following blank lines are mandatory:
+\begin{itemize}
+\item After your variable declarations in a block.
+\item After clusters of error checking, insert a line break.
+\item Before the return statement at the end of the function.
+\end{itemize}
+
+\head{{\tt goto} labels.} {\tt goto} labels should be on a line on
+their own.  They should often be named either {\tt done}, {\tt err},
+or {\tt retry}, depending on their function.  {\tt retry} labels
+should be used very infrequently.
 
 \subsection{Error Conditions}
 
@@ -1769,13 +1837,13 @@ See examples of this in the last example in
 Section~\ref{ss:exceptions}.
 
 Given this is a common pattern, you can instead use the {\tt
-  ERR\_THROW(ret\_val, label)} macro defined in {\tt cos\_component.h}.
+  cos\_throw(ret\_val, label)} macro defined in {\tt cos\_component.h}.
 
     \begin{minipage}{3in}
       \footnotesize
       \lstset{language=C}
       \begin{lstlisting}
-if (fn(a) < 0) ERR_THROW(-EINVAL, done);
+if (fn(a) < 0) cos_throw(-EINVAL, done);
       \end{lstlisting}
     \end{minipage}
 
@@ -1791,7 +1859,7 @@ For multi-statement macros, wrap them in an enclosing {\tt do \{ ... \}
 #define FOO(a, b) do {              \
         something((a));             \
         something_else((b));        \
-} while (0) 
+} while (0)
       \end{lstlisting}
     \end{minipage}
 
@@ -1807,13 +1875,42 @@ in inter-component interfaces.  {\tt subject} in this case is the
 namespace of the family of functions.  You have more leeway in naming
 {\tt static} functions as they are only visible in the current file.
 All functions that are intended to be used only in this file
-(e.g. helper functions) must be static.  
+(e.g. helper functions) must be static.
 
 \head{Variables.} Within a function, do not mix your declarations with
 code.  Declare all the function's variables at the head of the
 function.  If a variable is only used in an enclosing scope, then you
 can define it there.  It is important for a reader to be able to find
 type declarations easily, and this rule aids that.
+
+Place the declaration of a variable in the most restricted set of {\tt
+  \{...\}}.  If the variable can be declared at the start of a
+conditional/loop block, do so.
+
+The cases within {\tt switch} statements often want to contain local
+variables.  In such cases, adding braces is appropriate.  For example:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+switch(var) {
+case VAR_CASE1:
+        return 0;
+case VAR_CASE2:
+{
+        int used_locally;
+
+        used_locally = blah();
+        /* ... */
+
+        return used_locally;
+}
+default:
+        return -EINVAL;
+}
+      \end{lstlisting}
+    \end{minipage}
 
 When a pointer is declared, the {\tt *} should bind to the variable
 name, not the type as in:
@@ -1857,6 +1954,58 @@ typedef enum {ONE, TWO} enumtype_t;
 Naming in many cases is dependent on taste, so I'm not going to
 include huge numbers of rules here.
 
+\subsection{Constant instantiation.}  Favor hex-decimal
+representations for values that are not primarily thought of as digit
+values.  For power-of-two values, favor using shifted constants to
+make it explicit which bit is set.  For example, here is a typical
+flag (bit-field) definition:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+typedef enum {
+        THD_PREEMPTED = 1,
+        THD_RUNNING   = 1<<1,
+        THD_WAITING   = 1<<2,
+} thd_flags_t;
+      \end{lstlisting}
+    \end{minipage}
+
+For a set of constant values from which only a single value can be
+used at a time, rely on {\tt enum} naming, unless the specific values
+are important.  Always use a {\tt \_MAX}, or {\tt \_MAXVAL} enum value
+to designate the maximum possible value for boundary checking.
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+typedef enum {
+        THD_KERNEL,
+        THD_USER,
+        THD_MN,
+        THD_MAXVAL
+} thd_type_t;
+      \end{lstlisting}
+    \end{minipage}
+
+...and later...
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+void
+foo(thd_type_t t)
+{
+        if (t >= THD_MAXVAL) return -EINVAL;
+        ...
+}
+     \end{lstlisting}
+    \end{minipage}
+
+
 \subsection{Parenthesis}
 
 If there is any ambiguity amongst the associativity of operators, just
@@ -1873,6 +2022,32 @@ compile unit's API.  Files that must be {\tt inline}d can be defined
 within the include file (as {\tt static inline}).  Very few functions
 require this; keep this in mind.
 
+\subsection{Visibility}
+
+Visibility of global variables, and functions should be restricted to
+the smallest possible unit.  Helper functions within a {\tt .c} file
+should always be marked as {\tt static}, as with global variables.
+Additionally, helper functions should often begin with {\tt \_\_} to
+visually make explicit that this function is not part of the public
+API (e.g. {\tt \_\_thread\_enqueue(...)}).
+
+The ideal is that the function prototypes and {\tt static inline}
+functions in the {\tt .h} file exactly match the symbols that are
+visible in the {\tt .c}'s object (i.e. as seen with {\tt nm}).
+
+Global variables should always be {\tt static} local variables if they
+are only used within a single function.  This is rare.
+
+The use of {\tt extern} should be minimized, but there are good
+reasons to use it.  They often revolve around the desire in complicated
+programs to split the logic into units, often in separate {\tt .c}
+files.  It is sometimes cleaner for two {\tt .c} files to have direct
+access to a global variable.  Given enough time and a willingness to
+generalize the functionality, this usage can be hidden by a dedicated
+{\tt .c/.h} file pair to manage the data-structure, but this is not
+always the right thing to do.
+
+\newpage
 \section{Document History}
 \label{s:hist}
 
@@ -1896,6 +2071,9 @@ require this; keep this in mind.
   visibility, location, and modifiers, Section~\ref{s:visibility}.
 \item \lsthead{version 0.2}, 3/6/13 -- added appendix section that
   summarizes many of the coding style rules
+  (Section~\ref{s:appendix}).
+\item \lsthead{version 0.21}, 9/10/15 -- added to/edited the appendix
+  section that summarizes many of the coding style rules
   (Section~\ref{s:appendix}).
 \end{itemize}
 

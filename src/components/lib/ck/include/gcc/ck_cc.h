@@ -1,5 +1,6 @@
 /*
- * Copyright 2009-2013 Samy Al Bahra.
+ * Copyright 2009-2014 Samy Al Bahra.
+ * Copyright 2014 Paul Khuong.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,10 +34,18 @@
 #define CK_CC_UNUSED
 #define CK_CC_USED
 #define CK_CC_IMM
+#define CK_CC_IMM_U32
 #else
 #define CK_CC_UNUSED __attribute__((unused))
 #define CK_CC_USED   __attribute__((used))
 #define CK_CC_IMM "i"
+#if defined(__x86_64__) || defined(__x86__)
+#define CK_CC_IMM_U32 "Z"
+#define CK_CC_IMM_S32 "e"
+#else
+#define CK_CC_IMM_U32 CK_CC_IMM
+#define CK_CC_IMM_S32 CK_CC_IMM
+#endif /* __x86_64__ || __x86__ */
 #endif
 
 /*
@@ -88,5 +97,43 @@
  */
 #define CK_CC_ALIASED __attribute__((__may_alias__))
 
-#endif /* _CK_GCC_CC_H */
+/*
+ * Portability wrappers for bitwise ops.
+ */
 
+#define CK_F_CC_FFS
+#define CK_F_CC_CLZ
+#define CK_F_CC_CTZ
+#define CK_F_CC_POPCOUNT
+
+CK_CC_INLINE static int
+ck_cc_ffs(unsigned int x)
+{
+
+	return __builtin_ffs(x);
+}
+
+CK_CC_INLINE static int
+ck_cc_clz(unsigned int x)
+{
+
+	return __builtin_clz(x);
+}
+
+CK_CC_INLINE static int
+ck_cc_ctz(unsigned int x)
+{
+
+	return __builtin_ctz(x);
+}
+
+CK_CC_INLINE static int
+ck_cc_popcount(unsigned int x)
+{
+	(void)x;
+	int fault_to_avoid_using_GLOBAL_OFFSET_TABLE_inclusion = *(int*)0;
+	return fault_to_avoid_using_GLOBAL_OFFSET_TABLE_inclusion;
+//	return __builtin_popcount(x);
+}
+
+#endif /* _CK_GCC_CC_H */

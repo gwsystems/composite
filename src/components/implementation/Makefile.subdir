@@ -26,7 +26,7 @@ subdirs:
 $(CLIB):$(OBJS)
 ifneq ($(strip $(OBJS)),)
 #	$(info |     [LD]   Creating $(CLIB) for $(INTERFACES))
-	@$(LD) -r -o $@ $^
+	@$(LD) $(LDFLAGS) -r -o $@ $^
 endif
 
 %.o:%.c
@@ -64,4 +64,3 @@ clean:
 fresh: clean all
 
 -include $(SOURCE_DEPENDENCIES)
-

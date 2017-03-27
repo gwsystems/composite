@@ -321,6 +321,7 @@ struct service_section {
 struct service_symbs {
 	char *obj, *init_str;
 	unsigned long lower_addr, size, allocated, heap_top;
+	unsigned long mem_size; /* memory used */
 	
 	struct service_section sections[SERV_SECT_NUM];
 
@@ -1720,6 +1721,7 @@ static void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *servic
 	return;
 }
 
+static u32_t llboot_mem;
 /*
  * Load into the current address space all of the services.  
  *
@@ -1733,20 +1735,24 @@ static void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *servic
 static int load_all_services(struct service_symbs *services)
 {
 	unsigned long service_addr = BASE_SERVICE_ADDRESS;
+	int n_regions;
 	long sz;
 
-//	service_addr += DEFAULT_SERVICE_SIZE;
-
 	while (services) {
-		sz = load_service(services, service_addr, DEFAULT_SERVICE_SIZE);
+		sz = services->mem_size = load_service(services, service_addr, DEFAULT_SERVICE_SIZE);
 		if (!sz) return -1;
+
+		if (strstr(services->obj, LLBOOT_COMP)) llboot_mem = sz;
 
 		service_addr += DEFAULT_SERVICE_SIZE;
 		/* note this works for the llbooter and root memory manager too */
-		if (strstr(services->obj, BOOT_COMP) || strstr(services->obj, LLBOOT_COMP)) { // Booter needs larger VAS
-			service_addr += 15*DEFAULT_SERVICE_SIZE;
-		} else if (strstr(services->obj, INITMM) || sz > DEFAULT_SERVICE_SIZE) {
-			service_addr += 3*DEFAULT_SERVICE_SIZE;
+		if (strstr(services->obj, BOOT_COMP) || strstr(services->obj, INITMM) ||
+		    strstr(services->obj, LLBOOT_COMP)) {
+			// Give Booter and MM larger VAS
+			service_addr += (BOOTER_NREGIONS-1)*DEFAULT_SERVICE_SIZE;
+		} else if (sz > DEFAULT_SERVICE_SIZE) {
+			n_regions = (sz / DEFAULT_SERVICE_SIZE) + 1;
+			service_addr += (n_regions-1) * DEFAULT_SERVICE_SIZE;
 		}
 
 		printl(PRINT_DEBUG, "\n");
@@ -1876,6 +1882,7 @@ int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_
 			break;
 		}
 	}
+
 	if (i == st->num_symbs) {
 		printl(PRINT_DEBUG, "Could not find the undefined symbol %s in %s.\n", 
 		       server_fn, from_obj->obj);
@@ -2632,6 +2639,7 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 
 	ci->cos_poly[3] = ((unsigned int)*heap_ptr);
 	make_spd_config_comp(boot, all);
+	llboot_mem = (unsigned int)*heap_ptr - boot->lower_addr;
 }
 
 static void format_config_info(struct service_symbs *ss, struct component_init_str *data)
@@ -2729,7 +2737,7 @@ static void setup_kernel(struct service_symbs *services)
 {
 	struct service_symbs /* *m, */ *s;
 	struct service_symbs *init = NULL;
-	struct spd_info *init_spd = NULL;
+	struct spd_info *init_spd = NULL, *llboot_spd;
 	struct cos_thread_info thd;
 
 	pid_t pid;
@@ -2754,6 +2762,10 @@ static void setup_kernel(struct service_symbs *services)
 			} else {
 				t_spd = create_spd(cntl_fd, t, t->lower_addr, t->size);
 			}
+			if (strstr(s->obj, LLBOOT_COMP)) {
+				llboot_spd = t_spd;
+			}
+
 			if (!t_spd) {
 				fprintf(stderr, "\tCould not find service object.\n");
 				exit(-1);
@@ -2769,12 +2781,14 @@ static void setup_kernel(struct service_symbs *services)
 				fprintf(stderr, "\tCould not find all stubs.\n");
 				exit(-1);
 			}
+
 		} 
 
 		s = s->next;
 	}
 	printl(PRINT_DEBUG, "\n");
 
+<<<<<<< HEAD
 	/* if ((m = find_obj_by_name(services, INITMM)) == NULL) { */
 	/* 	fprintf(stderr, "Could not find initial memory manager %s\n", INITMM); */
 	/* 	exit(-1); */
@@ -2789,6 +2803,8 @@ static void setup_kernel(struct service_symbs *services)
 	/* assert(!is_loaded_by_llboot(s)); */
 	/* thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle; */
 
+=======
+>>>>>>> 30617db6d411a37cacea71d2cc806cfb300d9c27
 	spd_assign_ids(services);
 
 	if ((s = find_obj_by_name(services, BOOT_COMP))) {
@@ -2804,42 +2820,43 @@ static void setup_kernel(struct service_symbs *services)
 		make_spd_llboot(s, services);
 		make_spd_scheduler(cntl_fd, s, NULL);
 	} 
+
 	fflush(stdout);
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;
-
-	/* if ((s = find_obj_by_name(services, MPD_MGR))) { */
-	/* 	make_spd_mpd_mgr(s, services); */
-	/* } */
-	/* fflush(stdout); */
-
-	/* if ((s = find_obj_by_name(services, INIT_FILE))) { */
-	/* 	make_spd_init_file(s, INIT_FILE_NAME); */
-	/* } */
-	/* fflush(stdout); */
-
-	/* if ((s = find_obj_by_name(services, CONFIG_COMP))) { */
-	/* 	make_spd_config_comp(s, services); */
-	/* } */
 
 	if ((s = find_obj_by_name(services, INIT_COMP)) == NULL) {
 		fprintf(stderr, "Could not find initial component\n");
 		exit(-1);
 	}
 	thd.spd_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd0->spd_handle;
+	var = *((int *)SERVICE_START);
 
 	/* This will hopefully avoid hugely annoying fsck runs */
 	sync();
 
 	/* Access comp0 to make sure it is present in the page tables */
-	var = *((int *)SERVICE_START);
+	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
+
 	ret = cos_create_thd(cntl_fd, &thd);
 	assert(ret == 0);
-	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
+
+	assert(llboot_mem);
+	llboot_spd->mem_size = llboot_mem;
+	if (cos_init_booter(cntl_fd, llboot_spd)) {
+		printf("Boot component init failed!\n");
+		exit(-1);
+	}
+	if  (cos_create_init_thd(cntl_fd)) {
+		printf("Creating init threads failed!\n");
+		exit(-1);
+	}
+
+	assert(fn);
 	/* We call fn to init the low level booter first! Init
 	 * function will return to here and create processes for other
 	 * cores. */
-	assert(fn);
 	fn();
+
 	pid = getpid();
 	for (i = 1; i < NUM_CPU_COS; i++) {
 		printf("Parent(pid %d): forking for core %d.\n", getpid(), i);
@@ -2850,42 +2867,40 @@ static void setup_kernel(struct service_symbs *services)
 		printf("Created pid %d for core %d.\n", pid, i);
 	}
 
-	if (pid == 0) { /* child process: set own affinity */ 
+	if (pid) {
+                /* Parent process should give other processes a chance
+		 * to run. They need to migrate to their cores. */
+		sleep(1);
+	} else { /* child process: set own affinity first */ 
 		set_curr_affinity(cpuid);
 #ifdef HIGHEST_PRIO
 		set_prio();
 #endif
-		/* 
-		 * Access comp0 to make sure it is present in the page
-		 * tables
-		 */
-		var = *((int *)SERVICE_START);
+		sleep(1);
 		ret = cos_create_thd(cntl_fd, &thd);
 		assert(ret == 0);
-	} else { /* The parent should give other processes a chance to
-		  * run. They need to migrate to their cores. */
-		sleep(1);
+		ret = cos_create_init_thd(cntl_fd);
+		assert(ret == 0);
 	}
 
 	printl(PRINT_HIGH, "\n Pid %d: OK, good to go, calling component 0's main\n\n", getpid());
 	fflush(stdout);
 
-#define ITER 1
-#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
-
 	aed_disable_syscalls(cntl_fd);
 
+#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 	rdtscll(start);
 	ret = fn();
 	rdtscll(end);
 
 	aed_enable_syscalls(cntl_fd);
 
-	if (pid > 0) {
+	cos_restore_hw_entry(cntl_fd);
+
+	if (pid > 0 && NUM_CPU_COS > 1) {
 		int child_status;
 		while (wait(&child_status) > 0) ;
 	} else {
-		/* printf("Child %d back in cos_loader.\n", getpid()); */
 		exit(getpid());
 	}
 
@@ -2948,8 +2963,8 @@ static void call_getrlimit(int id, char *name)
 		perror("getrlimit: "); printl(PRINT_HIGH, "\n");
 		exit(-1);
 	}		
-	printl(PRINT_HIGH, "rlimit for %s is %d:%d (inf %d)\n", 
-	       name, (int)rl.rlim_cur, (int)rl.rlim_max, (int)RLIM_INFINITY);
+	/* printl(PRINT_HIGH, "rlimit for %s is %d:%d (inf %d)\n",  */
+	/*        name, (int)rl.rlim_cur, (int)rl.rlim_max, (int)RLIM_INFINITY); */
 }
 
 static void call_setrlimit(int id, rlim_t c, rlim_t m)
@@ -3013,9 +3028,7 @@ void setup_thread(void)
 	sigaction(SIGSEGV, &sa, NULL);
 #endif
 
-//#if (NUM_CPU > 1)
 	set_smp_affinity();
-//#endif
 
 #ifdef HIGHEST_PRIO
 	set_prio();
