@@ -11,7 +11,7 @@
 #include "cc.h"
 
 #ifndef TYPES_H
-#include "chal/cos_types.h"
+#include "user/cos_types.h"
 #endif
 
 #ifndef COS_COMPONENT_H

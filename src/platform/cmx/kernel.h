@@ -2,7 +2,7 @@
 #define KERNEL_H
 
 #include "chal/cos_config.h"
-#include "chal/cos_types.h"
+#include "user/cos_types.h"
 #include "chal.h"
 
 #include "chal_asm_inc.h"

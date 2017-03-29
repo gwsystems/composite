@@ -10,7 +10,7 @@
 #define CPUID_H
 
 #include "../../../kernel/include/chal/consts.h"
-#include "../../../kernel/include/chal/cos_types.h"
+#include "../../../kernel/include/user/cos_types.h"
 #include "../../../kernel/include/asm_ipc_defs.h"
 #include "../../../kernel/include/list.h"
 #include "../chal_asm_inc.h"

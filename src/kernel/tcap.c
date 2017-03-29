@@ -11,7 +11,7 @@
 
 #include "include/tcap.h"
 #include "include/thd.h"
-#include "include/chal/cos_types.h"
+#include "include/user/cos_types.h"
 #include "include/chal/defs.h"
 
 /* This is jacked.  Only in here to avoid a header file circular dependency. */

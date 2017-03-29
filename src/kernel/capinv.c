@@ -5,7 +5,7 @@
  * Public License v2.
  */
 
-#include "include/chal/cos_types.h"
+#include "include/user/cos_types.h"
 #include "include/captbl.h"
 #include "include/thd.h"
 #include "include/chal/call_convention.h"

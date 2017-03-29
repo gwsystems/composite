@@ -19,7 +19,7 @@ extern unsigned int _c1_edata;
 extern unsigned int __c1_bss_start__;
 extern unsigned int __c1_bss_end__;
 
-static inline void
+static inline void __attribute__((optimize("O3")))
 chal_user_upcall(void *ip, u16_t tid)
 {
 	long long total_swt_cycles = 0;
@@ -33,28 +33,31 @@ chal_user_upcall(void *ip, u16_t tid)
 //	for (i = 0 ; i < 10000 ; i++)
 //	{
 //		/* Try to do some arbitrary programming to MPU */
-//		__asm__ __volatile__("push {r0-r9}; \n\t"
+//		__asm__ __volatile__(//"push {r0-r9}; \n\t"
 //				             "ldr r1,=0x20000000 \n\t" \
 //				             "ldr r0,=0xE000ED9C \n\t" \
-//				             "ldm r1,{r2-r9}; \n\t" \
-//							 "stm r0,{r2-r9}; \n\t" \
-//							 "ldm r1,{r2-r9}; \n\t" \
-//							 "stm r0,{r2-r9}; \n\t" \
-//							 "pop {r0-r9}; \n\t"
+//				             "ldm r1!,{r2-r9}; \n\t" \
+//							 "stm r0!,{r2-r9}; \n\t" \
+//							 "ldm r1!,{r2-r9}; \n\t" \
+//							 "stm r0!,{r2-r9}; \n\t" \
+//							 //"pop {r0-r9}; \n\t"
 //							 "dsb \n\t"
 //							 :
 //							 :
-//							 : "memory", "cc");
+//							 : "r0","r1","r2","r3","r4","r5","r6","r7","r8","r9","memory", "cc");
 //	}
 //	rdtscll(end_swt_cycles);
-//	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
+//	total_swt_cycles = (end_swt_cycles - start_swt_cycles);
 //
 //	sprintf(str,"MPU(Total:%d/Iter:%d ):%d\n",
 //			(int)total_swt_cycles, (int)10000, (int)(total_swt_cycles / 10000));
 //
 //	LCD_ShowString(10,40,260,32,12,str);
 //	while(1);
-
+//
+//	rdtscll(start_swt_cycles);
+//	for (i = 0 ; i < 10000 ; i++)
+//	{
 	/* TODO:Preliminary MPU tests, merge into pgtbl operations later */
 	MPU_Region_InitTypeDef MPU_Initure;
 	HAL_MPU_Disable();								           //Disable MPU before configuring it and enable it after the configuration
@@ -98,6 +101,15 @@ chal_user_upcall(void *ip, u16_t tid)
 	HAL_MPU_ConfigRegion(&MPU_Initure);                        //Initialize the MPU
 
 	HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);			           //Enable the MPU without 2820 with 2733
+//	}
+//	rdtscll(end_swt_cycles);
+//    total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
+//
+//	sprintf(str,"MPU(Total:%d/Iter:%d ):%d\n",
+//			(int)total_swt_cycles, (int)10000, (int)(total_swt_cycles / 10000));
+//
+//	LCD_ShowString(10,40,260,32,12,str);
+//	while(1);
 
 	/* Now we switch the execution to user space, and begin to use the PSP stack pointer */
 	__asm__ __volatile__( \

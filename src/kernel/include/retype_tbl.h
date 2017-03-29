@@ -9,7 +9,7 @@
 #ifndef RETYPE_TBL_H
 #define RETYPE_TBL_H
 
-#include "chal/cos_types.h"
+#include "user/cos_types.h"
 #include "chal/cos_config.h"
 #include "chal/util.h"
 #include "chal/cpuid.h"

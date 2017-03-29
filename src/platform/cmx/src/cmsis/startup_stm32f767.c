@@ -211,58 +211,31 @@ SVC_Handler (void)
 	 * code to make the thd switch actually work.
 	 * dditionally, this will require modifications on the parameter passing to make sure it works.
 	 * regs are saved on the user stack, so r0-r3 still cannot be used as retvals. modification of the r15_pc is impossible too. */
-    __asm__ __volatile__(
-    		            "push {lr} \n"
+        __asm__ __volatile__("push {lr} \n"
+                             "push {r0-r12} \n"
 
-    		            "push {r0} \n"
-    					"push {r1} \n"
-						"push {r2} \n"
-						"push {r3} \n"
-						"push {r4} \n"
-						"push {r5} \n"
-    		            "push {r6} \n"
-            			"push {r7} \n"
-            			"push {r8} \n"
-            			"push {r9} \n"
-						"push {r10} \n"
-						"push {r11} \n"
-						"push {r12} \n"
+    			     "mrs r0,psp \n"
+    			     "push {r0} \n"
+			     "push {lr} \n"
+    			     "mov r0,pc \n"
+			     "push {r0} \n"
+			     "mrs r0,xpsr \n"
+			     "push {r0} \n"
+			     "mov  r0,sp \n"
 
-    					"mrs r0,psp \n"
-    					"push {r0} \n"
-    		            "push {lr} \n"
-    					"mov r0,pc \n"
-    		            "push {r0} \n"
-    		            "mrs r0,xpsr \n"
-    					"push {r0} \n"
-    		            "mov  r0,sp \n"
+			     "bl composite_syscall_handler \n"
 
-						"bl composite_syscall_handler \n"
+			     "pop {r0} \n"   /* xpsr */
+    		             /* "msr xpsr,r0 \n" */
+			     "pop {r0} \n"   /* pc */
+    			     "pop {r0} \n"   /* lr */
+    			     "pop {r0} \n"   /* psp */
+			     "msr psp,r0 \n"
 
-						"pop {r0} \n"   /* xpsr */
-    		            /* "msr xpsr,r0 \n" */
-						"pop {r0} \n"   /* pc */
-    					"pop {r0} \n"   /* lr */
-    					"pop {r0} \n"   /* psp */
-    		            "msr psp,r0 \n"
-
-						"pop {r12} \n"
-						"pop {r11} \n"
-						"pop {r10} \n"
-						"pop {r9} \n"
-						"pop {r8} \n"
-						"pop {r7} \n"
-						"pop {r6} \n"
-						"pop {r5} \n"
-						"pop {r4} \n"
-						"pop {r3} \n"
-						"pop {r2} \n"
-						"pop {r1} \n"
-						"pop {r0} \n"
-
-    		            "pop {lr} \n"
-    		            "bx lr \n"
-						:::);
+			     "pop {r0-r12} \n"
+			     "pop {lr} \n"
+			     "bx lr \n"
+			     :::);
 }
 
 void __attribute__ ((section(".after_vectors"),weak))

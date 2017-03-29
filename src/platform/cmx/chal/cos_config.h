@@ -101,4 +101,10 @@
 #define ENABLE_VGA
 #define ENABLE_SERIAL*/
 
+
+#define CFORCEINLINE /* __attribute__((always_inline)) */
+#define COS_SYSCALL /* __attribute__((regparm(0))) __attribute__((section("__ipc_entry"))) */
+/* The whole stack frame's pointer is in r5. Now the parameter passing is correct */
+#define COS_SYSCALL_PASS_PARAM() __asm__ __volatile__("str r0,%[_regs] \n"::[_regs]"m"(regs):"memory")
+
 #endif /* COS_CONFIG_H */

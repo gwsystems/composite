@@ -12,7 +12,7 @@
 #define CAPTBL_H
 
 #include "shared/cos_errno.h"
-#include "chal/cos_types.h"
+#include "user/cos_types.h"
 #include "ertrie.h"
 #include "liveness_tbl.h"
 #include "chal/util.h"

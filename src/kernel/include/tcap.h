@@ -12,7 +12,7 @@
 #ifndef TCAP_H
 #define TCAP_H
 
-#include "chal/cos_types.h"
+#include "user/cos_types.h"
 #include "component.h"
 #include "thd.h"
 #include "list.h"

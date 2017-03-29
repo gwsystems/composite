@@ -11,7 +11,7 @@
 
 #include "chal.h"
 #include "inv.h" /* need access to cap_asnd/arcv*/
-#include "chal/cos_types.h"
+#include "user/cos_types.h"
 
 /*
  * Ring size should be power of 2

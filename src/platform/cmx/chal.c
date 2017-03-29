@@ -1,5 +1,5 @@
 #include <chal.h>
-#include <chal/cos_types.h>
+#include <user/cos_types.h>
 #include "kernel.h"
 #include "mem_layout.h"
 

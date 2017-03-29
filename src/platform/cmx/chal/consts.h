@@ -20,70 +20,7 @@
 #ifdef __KERNEL__
 #include <linux/thread_info.h> /* for PAGE_SIZE */
 #else
-/* Modified to accomodate CMX */
-/*
-struct pt_regs {
-        long bx; r1
-        long cx; r2
-        long dx; r3
-        long si; r10
-        long di; r11
-        long bp; r12
-        long ax; r0
-        long ds; r4
-        long es; r5
-        long fs; r6
-        long gs; r7
-        long orig_ax;
-        long ip; r15_pc
-        long cs; r8
-        long flags;
-        long sp; r13_sp
-        long ss; r9
-};*/
-/*
-struct pt_regs {
-        int orig_r4;
-        int r0;
-        int r1;
-        int r2;
-        int r3;
-        int r4;
-        int r5;
-        int r6;
-        int r7;
-        int r8;
-        int r9;
-        int r10;
-        int r11;
-        int r12;
-        int r13_sp;
-        int r14_lr;
-        int r15_pc;
-        int flags;
-};*/
-struct pt_regs
-{
-	int flags_xpsr;
-	int r15_pc;
-	int r14_lr;
-	int r13_sp;
-	int r12;
-	int r11;
-	int r10;
-	int r9;
-	int r8;
-	int r7;
-	int r6;
-	int r5;
-	int r4;
-	int r3;
-	int r2;
-	int r1;
-	int r0;
-};
-
-//struct pt_regs { int dummy[16]; };
+/* Register definition moved to other places */
 #endif
 #endif
 #define PAGE_ORDER 12

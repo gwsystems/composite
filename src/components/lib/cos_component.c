@@ -5,7 +5,7 @@
  * Public License v2.
  */
 
-#include <chal/cos_component.h>
+#include <user/cos_component.h>
 
 /* FIXME: we want to get rid of this page, which was used for the
  * cos_sched_data_area. But for some reason the system won't load if

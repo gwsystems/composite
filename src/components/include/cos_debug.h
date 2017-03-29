@@ -1,6 +1,6 @@
 #ifndef COS_DEBUG_H
 
-#include <chal/cos_component.h>
+#include <user/cos_component.h>
 #include <chal/cos_config.h>
 
 #ifdef COMPONENT_ASSERTIONS

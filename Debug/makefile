@@ -63,7 +63,7 @@ test.elf: $(OBJS) $(USER_OBJS) $(MODULES)
 	@echo $(MODULES)
 	@echo 'Building target: $@'
 	@echo 'Invoking: Cross ARM C++ Linker'
-	arm-none-eabi-g++ -mcpu=cortex-m7 -mthumb -mfloat-abi=soft -Og -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -ffreestanding -fno-move-loop-invariants  -g3 -T sections.ld -nostartfiles -Xlinker --gc-sections -L"../ldscripts" -Wl,-Map,"test.map" --specs=nano.specs -o "test.elf" $(OBJS) $(USER_OBJS) $(MODULES) $(LIBS)
+	arm-none-eabi-g++ -mcpu=cortex-m7 -mthumb -mfloat-abi=soft -Og -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -ffreestanding -fno-move-loop-invariants  -g3 -T sections.ld -nostartfiles -Xlinker --gc-sections -L"../src/platform/cmx/ldscripts" -Wl,-Map,"test.map" --specs=nano.specs -o "test.elf" $(OBJS) $(USER_OBJS) $(MODULES) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 

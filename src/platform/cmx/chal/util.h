@@ -59,7 +59,7 @@ cos_inst_bar(void)
 }
 
 #ifndef rdtscll
-#define rdtscll(val) {extern volatile unsigned long long rdtsc_sim; val=((rdtsc_sim<<24)-SysTick->VAL);};
+#define rdtscll(val) {extern volatile unsigned long long rdtsc_sim; val=((rdtsc_sim<<24)-(volatile unsigned long long)(SysTick->VAL));};
 #endif
 
 #endif

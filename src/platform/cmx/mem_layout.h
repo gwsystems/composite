@@ -1,7 +1,7 @@
 #ifndef MEM_LAYOUT_H
 #define MEM_LAYOUT_H
 
-#include <chal/cos_types.h>
+#include <user/cos_types.h>
 #include <chal/consts.h>
 #include <chal/cos_config.h>
 #include <retype_tbl.h>

@@ -10,7 +10,7 @@
 #include "core_cm7.h"
 #include "boot_comp.h"
 
-#include "chal/cos_component.h"
+#include "user/cos_component.h"
 #include "mem_layout.h"
 
 #include "lcd.h"

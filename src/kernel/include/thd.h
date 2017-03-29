@@ -16,6 +16,7 @@
 #include "retype_tbl.h"
 #include "tcap.h"
 #include "list.h"
+#include "chal/call_convention.h"
 
 struct invstk_entry {
 	struct comp_info comp_info;

@@ -1,4 +1,4 @@
-#include "include/chal/cos_types.h"
+#include "include/user/cos_types.h"
 #include "include/captbl.h"
 #include "include/pgtbl.h"
 #include "include/cap_ops.h"

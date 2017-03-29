@@ -15,7 +15,7 @@
 #define BUG_DIVZERO() do { debug_print("Testing divide by zero fault @ "); int i = num / den; } while (0);
 #define SPIN() do { while (1) ; } while (0)
 
-#include <chal/cos_component.h>
+#include <user/cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 

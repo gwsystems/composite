@@ -7,7 +7,7 @@
  * This uses a two clause BSD License.
  */
 
-#include <chal/cos_component.h>
+#include <user/cos_component.h>
 #include <cos_debug.h>
 /* Types mainly used for documentation */
 typedef capid_t sinvcap_t;
