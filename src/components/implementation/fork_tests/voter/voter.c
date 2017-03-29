@@ -90,14 +90,6 @@ int inspect_channel(struct channel *c) {
 	int majority, majority_index;
 	struct replica_info *replica;
 
-	/* Check receive replicas. Currently doing nothing with this
-	 * but later on, need all n to have initiated a read
-	 */ 
-	for (i = 0; i < c->rcv->nreplicas; i++) {
-		replica = &c->rcv->replicas[i];
-		printc("inspecting rcv replica with spid %d\n", replica->spdid);
-	}
-	
 	/*
 	 * Check snd replicas. All need to have written.
 	 */
@@ -118,7 +110,8 @@ int inspect_channel(struct channel *c) {
 		return -1;
 	}
 	printc("We have enough data to send\n");
-		
+	
+	/* Reset the matches array  - get rid of that 9 at some point*/	
 	for (i = 0; i < 9; i++) matches[i] = 0;
 	majority = 0;
 
@@ -149,8 +142,22 @@ int inspect_channel(struct channel *c) {
 	c->sz_data = c->snd->replicas[majority_index].sz_write;
 	memcpy(c->data_buf, c->snd->replicas[majority_index].buf_write, c->snd->replicas[majority_index].sz_write);
 
-	// also unblock writes!
+	/* Unblocking writes */
+	for (i = 0; i < c->snd->nreplicas; i++) {
+		replica = &c->snd->replicas[i];
+		if (replica->blocked) {
+			replica->blocked = 0;
+			if (!replica->thread_id) BUG();
+			printc("waking up write thread %d\n", replica->thread_id);
+			sched_wakeup(cos_spd_id(), replica->thread_id);
+		}
+		else {
+			printc("This replica is not blocked. It better be us!\n");
+			assert(replica->thread_id == cos_get_thd_id());
+		}
+	}
 
+	/* Unblocking reads */
 	for (i = 0; i < c->rcv->nreplicas; i++) {
 		replica = &c->rcv->replicas[i];
 		memcpy(replica->buf_read, c->data_buf, c->sz_data);
@@ -162,6 +169,9 @@ int inspect_channel(struct channel *c) {
 			if (!replica->thread_id) BUG();
 			printc("waking up thread %d\n", replica->thread_id);
 			sched_wakeup(cos_spd_id(), replica->thread_id);
+		}
+		else {
+			printc("This data did not initiate a read, or at least did not get blocked. Probably an error in the future.\n");
 		}
 	}
 

@@ -30,7 +30,7 @@ void cos_init(void) {
 
 		printc("\nping calling read\n");
 		ret = nread(cos_spd_id(), 1, 4);
-		printc("read returned %d and now we have data [%s] - expected \n\n", ret, ((char*) buf_read));
+		printc("read returned %d and now we have data [%s] - expected abc\n\n", ret, ((char*) buf_read));
 
 		i++;
 	}
