@@ -6,9 +6,10 @@
 #include <voter.h>
 #include <periodic_wake.h>
 
-#define N_COMPS 2			// number of components
-#define N_CHANNELS 2			// number of channels between components
-#define N_MAP_SZ 250			// number of spid's in the system. Super arbitrary
+#define N_COMPS 2				// number of components
+#define N_CHANNELS 2				// number of channels between components
+#define N_MAP_SZ 250				// number of spid's in the system. Super arbitrary
+#define N_MAX 9
 
 struct replica_info {
 	spdid_t spdid;
@@ -20,21 +21,21 @@ struct replica_info {
 	size_t sz_write;
 	unsigned short int thread_id;
 	int blocked;
-	void *destination;		// NULL if this replica hasn't written
+	void *destination;			// NULL if this replica hasn't written
 };
 
 struct nmod_comp {
-	struct replica_info replicas[9];// let's call this max
+	struct replica_info replicas[N_MAX];	// let's call this max
 	int nreplicas;
 };
 
 struct channel {
 	struct nmod_comp *snd, *rcv;
 	int have_data;
-	size_t sz_data; 		// or can just merge with have_data?
+	size_t sz_data;		 		// or can just merge with have_data?
 	cbuf_t data_cbid;
 	void *data_buf;
-	u64_t start;			// set each time the replica is woken up. Accurate?
+	u64_t start;				// set each time the replica is woken up. Accurate?
 };
 
 struct map_entry {
@@ -45,7 +46,7 @@ struct map_entry {
 struct nmod_comp components[N_COMPS];
 struct channel channels[N_CHANNELS];
 struct map_entry map[N_MAP_SZ];
-int matches[9];
+int matches[N_MAX];
 
 int period = 100;
 
@@ -90,57 +91,62 @@ int inspect_channel(struct channel *c) {
 	int majority, majority_index;
 	struct replica_info *replica;
 
-	/*
-	 * Check snd replicas. All need to have written.
-	 */
-	found = 0;
-	for (i = 0; i < c->snd->nreplicas; i++) {
-		replica = &c->snd->replicas[i];
-		printc("inspecting rcv replica with spid %d\n", replica->spdid);
-
-		if (replica->destination) {
-			printc("Found some data\n");
-			found++;
-		}
+	/* Check rcv replicas. If they're not ready, we can just error out */
+	for (i = 0; i < c->rcv->nreplicas; i++) {
+		replica = &c->rcv->replicas[i];
+		if (!replica->spdid) return -1; 	/* We can write but read replicas haven't been confirmed yet */
 	}
-	
-	if (found != c->snd->nreplicas) {
-		printc("Found only %d written replicas when we need %d to continue\n", found, c->snd->nreplicas);
-		/* return success once we are unblocked */
-		return -1;
-	}
-	printc("We have enough data to send\n");
-	
-	/* Reset the matches array  - get rid of that 9 at some point*/	
-	for (i = 0; i < 9; i++) matches[i] = 0;
-	majority = 0;
 
-	/* now vote */
-	for (i = 0; i < c->snd->nreplicas; i++) {
-		c->snd->replicas[i].destination = NULL;
-		matches[i]++;						// for our own match. Is this how voting works? Do we even know anymore...
-		for (k = i + 1; k < c->snd->nreplicas; k++) {
-			/* compare j to k  */
-			if (c->snd->replicas[i].sz_write == c->snd->replicas[k].sz_write && memcmp(c->snd->replicas[i].buf_write, c->snd->replicas[k].buf_write, c->snd->replicas[i].sz_write) == 0) {
-				matches[i]++;
-				matches[k]++;
+	// See if we can make a separate function fo r this
+	if (!c->have_data) {
+		/* Check snd replicas. All need to have written. */
+		found = 0;
+		for (i = 0; i < c->snd->nreplicas; i++) {
+			replica = &c->snd->replicas[i];
+			if (replica->destination) {
+				found++;
 			}
 		}
-		if (matches[i] > majority) {
-			majority = matches[i];
-			majority_index = i;
+
+		if (found != c->snd->nreplicas) {
+			printc("Found only %d written replicas when we need %d to continue\n", found, c->snd->nreplicas);
+			/* return success once we are unblocked */
+			return -1;
 		}
+		printc("We have enough data to send\n");
+		
+		/* Reset the matches array */	
+		for (i = 0; i < N_MAX; i++) matches[i] = 0;
+		majority = 0;
+
+		/* now vote */
+		for (i = 0; i < c->snd->nreplicas; i++) {
+			c->snd->replicas[i].destination = NULL;
+			matches[i]++;						// for our own match. Is this how voting works? Do we even know anymore...
+			for (k = i + 1; k < c->snd->nreplicas; k++) {
+				/* compare j to k  */
+				if (c->snd->replicas[i].sz_write == c->snd->replicas[k].sz_write && memcmp(c->snd->replicas[i].buf_write, c->snd->replicas[k].buf_write, c->snd->replicas[i].sz_write) == 0) {
+					matches[i]++;
+					matches[k]++;
+				}
+			}
+			if (matches[i] > majority) {
+				majority = matches[i];
+				majority_index = i;
+			}
+		}
+
+		// just for debugging - delete
+		for (i = 0; i < N_MAX; i++) printc("[%d] ", matches[i]);
+		printc("\n");
+
+		/* Now put the majority index's data into the channel */
+		assert(c->data_buf);
+		assert(c->snd->replicas[majority_index].sz_write <= 1024);
+		c->have_data = 1;
+		c->sz_data = c->snd->replicas[majority_index].sz_write;
+		memcpy(c->data_buf, c->snd->replicas[majority_index].buf_write, c->snd->replicas[majority_index].sz_write);
 	}
-
-	for (i = 0; i < 9; i++) printc("[%d] ", matches[i]);
-	printc("\n");
-
-	/* Now put the majority index's data into the channel */
-	assert(c->data_buf);
-	assert(c->snd->replicas[majority_index].sz_write <= 1024);
-	c->have_data = 1;
-	c->sz_data = c->snd->replicas[majority_index].sz_write;
-	memcpy(c->data_buf, c->snd->replicas[majority_index].buf_write, c->snd->replicas[majority_index].sz_write);
 
 	/* Unblocking writes */
 	for (i = 0; i < c->snd->nreplicas; i++) {
@@ -170,8 +176,8 @@ int inspect_channel(struct channel *c) {
 			printc("waking up thread %d\n", replica->thread_id);
 			sched_wakeup(cos_spd_id(), replica->thread_id);
 		}
-		else {
-			printc("This data did not initiate a read, or at least did not get blocked. Probably an error in the future.\n");
+		else if (replica->thread_id != cos_get_thd_id()) {	/* The replica could also be this thread */
+			printc("This replica did not initiate a read, or at least did not get blocked. Probably an error in the future.\n");
 		}
 	}
 
@@ -201,7 +207,10 @@ int nwrite(spdid_t spdid, channel_id to, size_t sz) {
 	replica->sz_write = sz;
 
 	ret = inspect_channel(c);
-	return ret;
+	if (ret) block_replica(replica);
+
+	/* One wakeup */	
+	return 0;
 }
 
 size_t nread(spdid_t spdid, channel_id from, size_t sz) {
@@ -219,6 +228,7 @@ size_t nread(spdid_t spdid, channel_id from, size_t sz) {
 
 	if (ret) block_replica(replica);
 
+	c->have_data = 0;
 	return c->sz_data;
 }
 
