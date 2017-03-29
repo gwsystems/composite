@@ -12,7 +12,7 @@ void cos_init(void) {
 	cbuf_t read_buffer, write_buffer;
 	
 	printc("pong init\n");
-	if (confirm(cos_spd_id(), pong)) BUG();
+	if (confirm(cos_spd_id())) BUG();
 
 	/* Get our buffers*/
 	write_buffer = get_write_buf(cos_spd_id());
@@ -21,13 +21,14 @@ void cos_init(void) {
 	buf_write = cbuf2buf(write_buffer, 1024);
 	printc("pong confirmed with buffers read (%d) and write(%d)\n", read_buffer, write_buffer);
 	
-	while (i < 10) {	
-		printc("pong calling read\n");
-		data = nread(cos_spd_id(), pong, 4);
-		printc("read returned %d and now we have data [%s]\n\n", ret, ((char*) buf_read));
+	while (i < 3) {	
+		printc("\npong calling read\n");
+		data = nread(cos_spd_id(), 0, 4);
+		printc("read returned %d and now we have data [%s] - expected abc\n\n", ret, ((char*) buf_read));
 
-		printc("pong calling write\n");
-		ret = nwrite(cos_spd_id(), pong, 4);
+		printc("\npong calling write\n");
+		memcpy(buf_write, "abc\0", 4);
+		ret = nwrite(cos_spd_id(), 1, 4);
 		printc("write returned %d\n\n", ret);
 
 		i++;

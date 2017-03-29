@@ -38,7 +38,6 @@ struct channel {
 };
 
 struct map_entry {
-	replica_type type;
 	struct replica_info *replica;
 	struct nmod_comp *component;
 };
@@ -86,7 +85,6 @@ int block_replica(struct replica_info *replica) {
 }
 
 int inspect_channel(struct channel *c) {
-	printc("in inspect\n");
 	int i, k;
 	int found;
 	int majority, majority_index;
@@ -116,9 +114,8 @@ int inspect_channel(struct channel *c) {
 	
 	if (found != c->snd->nreplicas) {
 		printc("Found only %d written replicas when we need %d to continue\n", found, c->snd->nreplicas);
-		sched_block(cos_spd_id(), 0);
 		/* return success once we are unblocked */
-		return 0;
+		return -1;
 	}
 	printc("We have enough data to send\n");
 		
@@ -150,10 +147,7 @@ int inspect_channel(struct channel *c) {
 	assert(c->snd->replicas[majority_index].sz_write <= 1024);
 	c->have_data = 1;
 	c->sz_data = c->snd->replicas[majority_index].sz_write;
-	printc("Majority index %d\n", majority_index);
-	printc("starting copy to %x from %x\n", c->data_buf, c->snd->replicas[majority_index].buf_write);
 	memcpy(c->data_buf, c->snd->replicas[majority_index].buf_write, c->snd->replicas[majority_index].sz_write);
-	printc("finished copy\n");
 
 	// also unblock writes!
 
@@ -174,88 +168,48 @@ int inspect_channel(struct channel *c) {
 	return 0;	
 }
 
-int nwrite(spdid_t spdid, replica_type to, size_t sz) {
+int nwrite(spdid_t spdid, channel_id to, size_t sz) {
 	struct replica_info *replica = get_replica(spdid);
 	struct nmod_comp *component = get_component(spdid);
-	struct nmod_comp *to_comp = (to == pong) ? &components[0] : (to == ping) ? & components[1] : NULL;
-	struct channel *c = get_channel(component, to_comp);
+	struct channel *c;
 	int ret;
 	long i;
 	if (!replica) BUG();
 	
-	if (!c) {
-		block_replica(replica);
-	}
+	if (to >= N_CHANNELS) BUG();
+
+	c = &channels[to];
 
 	if (replica->destination) {
 		printc("This replica has already sent some data down the channel\n");
 		return -1; // whatever, shouldn't happen if blocked
 	}
-	else {
-		assert(replica->buf_write);
-		assert(sz <= 1024);
-		replica->destination = to_comp;
-		replica->sz_write = sz;
-	}
+	
+	assert(replica->buf_write);
+	assert(sz <= 1024);
+	replica->destination = c->rcv;
+	replica->sz_write = sz;
 
 	ret = inspect_channel(c);
 	return ret;
-
-	//if (replica->destination) {
-	//	printc("This replica has already sent some data down the channel\n");
-	//	return -1; // whatever, shouldn't happen if blocked
-	//}
-	//else {
-	//	assert(replica->buf_write);
-	//	assert(sz <= 1024);
-		
-	//	replica->destination = to_comp;
-	//	replica->sz_write = sz;
-	//	printc("resplica destination set to %x\n", replica->destination);
-	//	ret = block_replica(replica);
-	//	if (ret < 0) printc("Error\n");
-		/* On wakeup */	
-	//	return 0;
-	//}
 }
 
-size_t nread(spdid_t spdid, replica_type from, size_t sz) {
+size_t nread(spdid_t spdid, channel_id from, size_t sz) {
 	struct replica_info *replica = get_replica(spdid);
 	struct nmod_comp *component = get_component(spdid);
-	struct nmod_comp *from_comp = (from == ping) ? &components[1] : (from == pong) ? &components[0] : NULL;
 	struct channel *c;
 	int ret;
 
-	printc("comp %x reading from %x\n", component, from_comp);
-
-	c = get_channel(from_comp, component);
-
+	if (from >= N_CHANNELS) BUG();
 	if (!replica) BUG();
-	if (!c) {
-		printc("Blocking read because no channel\n");
-		block_replica(replica);
-	}
 
-	printc("read spdid %d from %d component %x from_comp %x\n", spdid, from, component, from_comp);
+	c = &channels[from];
+
 	ret = inspect_channel(c);
+
+	if (ret) block_replica(replica);
+
 	return c->sz_data;
-
-	//if (!c) BUG();
-
-	//if (c->have_data) {
-	//	c->have_data = 0;
-	//	printc("returning from read\n");
-	//	return c->sz_data;
-	//}
-	//else {
-	//	ret = block_replica(replica);
-	//	if (ret < 0) printc("Error");
-		/* On wakeup */	
-	//	assert(c->have_data);
-	//	printc("returning from read\n");
-	//	c->have_data = 0; // well this is wrong because maybe other replicas still need to read
-	//	return c->sz_data;
-	//}
 }
 
 void restart_comp(struct replica_info *replica) {
@@ -296,20 +250,27 @@ cbuf_t get_write_buf(spdid_t spdid) {
 	return map[spdid].replica->write_buffer;
 }
 
-int confirm(spdid_t spdid, replica_type type) {
+int confirm(spdid_t spdid) {
 	printc("Confirming readiness of spdid %d\n", spdid);
 	int ret;
 	int i;
-	int t = (type == ping) ? 0 : 1;	
+	int t = (spdid == 14) ? 0 : 1;	
 	struct replica_info *replicas = components[t].replicas;
 	vaddr_t dest;
+	spdid_t comp2fork = 14;		// ping
 
 	for (i = 0; i < components[t].nreplicas; i++) {
 		if (replicas[i].spdid == 0) {
 			printc("creating replica for spdid %d in slot %d\n", spdid, i);
-			replicas[i].spdid = spdid;
-			//replicas[i].spdid = quarantine_fork(cos_spd_id(), comp2fork);
-			//if (replicas[i].spdid == 0) printc("Error: f1 fork failed\n");
+			
+			//if (t == 1) {
+				replicas[i].spdid = spdid;
+			//} WAIT AND i!= 0
+			//else if (t == 0 && spdid == 14) {	// extra check, this will all go away very soon
+			//	replicas[i].spdid = quarantine_fork(cos_spd_id(), comp2fork);
+			//	if (replicas[i].spdid == 0) printc("Error: f%d fork failed\n", i);
+			//}
+
 			replicas[i].thread_id = cos_get_thd_id();
 			replicas[i].destination = NULL;
 			replicas[i].buf_read = cbuf_alloc(1024, &replicas[i].read_buffer); 
@@ -325,7 +286,6 @@ int confirm(spdid_t spdid, replica_type type) {
 			cbuf_send(replicas[i].write_buffer);
 
 			/* Set map entries for this replica */
-			map[spdid].type = type;
 			map[spdid].replica = &replicas[i];
 			map[spdid].component = &components[t];
 			
@@ -363,7 +323,6 @@ void cos_init(void)
 	assert(channels[1].data_buf);
 
 	for (i = 0; i < N_MAP_SZ; i++) {
-		map[i].type = none;
 		map[i].replica = NULL;
 		map[i].component = NULL;
 	}
