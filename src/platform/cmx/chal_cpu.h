@@ -112,15 +112,14 @@ chal_user_upcall(void *ip, u16_t tid)
 //	while(1);
 
 	/* Now we switch the execution to user space, and begin to use the PSP stack pointer */
-	__asm__ __volatile__( \
-					    "ldr r0,=comp1_stack \n\t"
-						"add r0,#0x1000 \n\t"
-						"msr psp,r0 \n\t"
-						"mov r0,#0x02 \n\t"
-						"msr control,r0 \n\t"
-						"mov r0,#0x00 \n\t"
-						"mov r1,#0x00 \n\t"
-	    				::: "memory", "cc");
+	__asm__ __volatile__("ldr r0,=comp1_stack \n\t"
+			     "add r0,#0x1000 \n\t"
+			     "msr psp,r0 \n\t"
+			     "mov r0,#0x02 \n\t"
+			     "msr control,r0 \n\t"
+			     "mov r0,#0x00 \n\t"
+			     "mov r1,#0x00 \n\t"
+	    		     ::: "memory", "cc");
 
     void(*ptr)(void)=(void(*)(void))(ip);
     /* Just call the component, and never returns */
