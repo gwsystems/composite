@@ -105,12 +105,16 @@ sl_thd_yield(thdid_t tid)
 {
 	struct sl_thd *t = sl_thd_curr();
 
-	/* directed yields not yet supported! */
-	assert(!tid);
-
 	sl_cs_enter();
-	sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
-	sl_cs_exit_schedule();
+	if (tid) {
+		struct sl_thd *to = sl_thd_lkup(tid);
+
+		assert(to);
+		sl_cs_exit_switchto(to);
+	} else {
+		sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
+		sl_cs_exit_schedule();
+	}
 
 	return;
 }
@@ -240,7 +244,7 @@ sl_sched_loop(void)
 			struct sl_thd *t;
 
 			/*
-			 * a child scheduler may receive both scheduling notifications (block/unblock 
+			 * a child scheduler may receive both scheduling notifications (block/unblock
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */

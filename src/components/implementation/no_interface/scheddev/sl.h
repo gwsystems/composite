@@ -165,7 +165,7 @@ sl_now(void)
  * dispatch.
  */
 static inline int
-sl_cs_exit_schedule_nospin(void)
+sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 {
 	struct sl_thd_policy *pt;
 	struct sl_thd        *t;
@@ -176,6 +176,7 @@ sl_cs_exit_schedule_nospin(void)
 	cycles_t       now;
 	s64_t          offset;
 
+	/* Don't abuse this, it is only to enable the tight loop around this function for races... */
 	if (unlikely(!sl_cs_owner())) sl_cs_enter();
 
 	tok    = cos_sched_sync();
@@ -190,9 +191,15 @@ sl_cs_exit_schedule_nospin(void)
 	 * catch it.  This is a little twitchy and subtle, so lets put
 	 * it in a function, here.
 	 */
-	pt     = sl_mod_schedule();
-	if (unlikely(!pt)) t = sl__globals()->idle_thd;
-	else               t = sl_mod_thd_get(pt);
+	if (unlikely(to)) {
+		t  = to;
+		if (t->state != SL_THD_RUNNABLE) to = NULL;
+	}
+	if (likely(!to)) {
+		pt = sl_mod_schedule();
+		if (unlikely(!pt)) t = sl__globals()->idle_thd;
+		else               t = sl_mod_thd_get(pt);
+	}
 	thdcap = t->thdcap;
 	prio   = t->prio;
 
@@ -202,9 +209,27 @@ sl_cs_exit_schedule_nospin(void)
 	return cos_defswitch(thdcap, prio, sl__globals()->timeout_next, tok);
 }
 
+static inline int
+sl_cs_exit_schedule_nospin(void)
+{ return sl_cs_exit_schedule_nospin_arg(NULL); }
+
 static inline void
 sl_cs_exit_schedule(void)
 { while (sl_cs_exit_schedule_nospin()) ; }
+
+static inline void
+sl_cs_exit_switchto(struct sl_thd *to)
+{
+	/*
+	 * We only try once, so it is possible that we don't end up
+	 * switching to the desired thread.  However, this is always a
+	 * case that the caller has to consider if the current thread
+	 * has a higher priority than the "to" thread.
+	 */
+	if (sl_cs_exit_schedule_nospin_arg(to)) {
+		sl_cs_exit_schedule();
+	}
+}
 
 /*
  * if tid == 0, just block the current thread; otherwise, create a
