@@ -118,16 +118,19 @@ extern int vmid;
 void
 vm0_io_fn(void *d) 
 {
-	printc("vm0_io_fn\n");
 	int line;
 	unsigned int irqline;
 	arcvcap_t rcvcap;
 
 	switch((int)d) {
 		case 1:
+			printc("CASE 0\n");
+			line = 0;
+			break;
+	/*	case 1:
 			line = 13;
 			irqline = IRQ_VM1;
-			break;
+			break;*/
 		case 2:
 			line = 15;
 			irqline = IRQ_VM2;
@@ -138,7 +141,7 @@ vm0_io_fn(void *d)
 	rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + (((int)d - 1) * CAP64B_IDSZ);
 	while (1) {
 		int pending = cos_rcv(rcvcap);
-		printc("vm0\n");
+		if (line == 0) continue;
 		intr_start(irqline);
 		bmk_isr(line);
 		cos_vio_tcap_set((int)d);
@@ -942,7 +945,6 @@ cos_init(void)
 			assert(vm0_io_thd[id-1]);
 			vms_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vmx_io_fn, (void *)id);
 			assert(vms_io_thd[id-1]);
-			/*VM0 to dlvm*/
 			
 #if defined(__INTELLIGENT_TCAPS__)
 			vm0_io_tcap[id-1] = cos_tcap_alloc(&vkern_info);
@@ -968,8 +970,15 @@ cos_init(void)
 			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (id-1)*CAP16B_IDSZ, &vkern_info, vm0_io_tcap[id-1]);
 			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOTCAP_BASE, &vkern_info, vms_io_tcap[id-1]);
 #elif defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-			vm0_io_tcap[id-1] = cos_tcap_alloc(&vkern_info);
-			assert(vm0_io_tcap[id-1]);
+			
+			if (id == DL_VM) {	
+				/* The HPET tcap in dom0 (used for vmio and hpet irq */	
+				vm0_io_tcap[id-1] = cos_tcap_alloc(&vkern_info);
+				assert(vm0_io_tcap[id-1]);
+			} else {
+				vm0_io_tcap[id-1] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+				assert(vm0_io_tcap[id-1]);
+			}
 			vm0_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vm0_io_thd[id-1], vm0_io_tcap[id-1], vkern_info.comp_cap, vminitrcv[0]);
 			assert(vm0_io_rcv[id-1]);
 
@@ -984,7 +993,9 @@ cos_init(void)
 #endif
 
 			
-			/* Changing to init thd of dl_vm */
+			/* Changing to init thd of dl_vm
+			 * DOM0 -> DL_VM asnd
+			 */
 			if (id == DL_VM) {
 				vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vminitrcv[id], vkern_info.captbl_cap);
 				assert(vm0_io_asnd[id-1]);
@@ -992,8 +1003,8 @@ cos_init(void)
 			else {
 				vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vms_io_rcv[id-1], vkern_info.captbl_cap);
 				assert(vm0_io_asnd[id-1]);
-
 			}
+
 			vms_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vm0_io_rcv[id-1], vkern_info.captbl_cap);
 			assert(vms_io_asnd[id-1]);
 
