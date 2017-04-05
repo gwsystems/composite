@@ -86,9 +86,9 @@ enum vm_status {
 
 enum vm_credits {
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	DOM0_CREDITS = 8,
-	VM1_CREDITS  = 1,
-	VM2_CREDITS  = 1,
+	DOM0_CREDITS = 1,
+	VM1_CREDITS  = 5,
+	VM2_CREDITS  = 4,
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	DOM0_CREDITS = 5, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%) 
 	VM1_CREDITS  = 4,

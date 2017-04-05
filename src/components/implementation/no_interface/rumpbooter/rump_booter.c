@@ -117,7 +117,7 @@ hw_irq_alloc(void){
 
 	if (vmid == 0) {
 		for (i = 0 ; i < COS_VIRT_MACH_COUNT - 1; i ++) {
-			if ( (i-1) == DL_VM ) {
+			if ( i == (DL_VM-1) ) {
 				vio_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (i * CAP16B_IDSZ);
 				vio_rcv[i]  = VM0_CAPTBL_SELF_IORCV_SET_BASE + (i * CAP64B_IDSZ);
 				vio_prio[i] = VIO_PRIO;

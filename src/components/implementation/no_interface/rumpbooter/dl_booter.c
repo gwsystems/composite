@@ -13,6 +13,7 @@ extern int vmid;
 extern unsigned int cycs_per_usec;
 
 int dls_missed = 0;
+int dls_made = 0;
 
 static inline void
 spin_usecs(microsec_t usecs)
@@ -47,9 +48,7 @@ void
 dl_work_two(void * ignore)
 {
 	while(1) {
-		int i;
-		for(i = 0; i < 10; i ++) {
-		}
+		spin_usecs(20);
 		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	}
 }
@@ -57,16 +56,47 @@ dl_work_two(void * ignore)
 void
 dl_work_one(void * ignore)
 {
-	cycles_t now, deadline;
-
 	while(1) {
-		rdtscll(now);
-		deadline = now + (cycs_per_usec * 100);
-		
-		dls_missed += spin_usecs_dl(80, deadline );
-		
+		spin_usecs(20);
 		cos_thd_switch( *((thdcap_t *)ignore) );
 	}
+}
+
+int
+test_deadline(thdcap_t dl_wrk_thd1, thdcap_t dl_wrk_thd2) {
+	cycles_t now, deadline;
+	rdtscll(now);
+	deadline = now + (cycs_per_usec * 100);
+	
+	cos_thd_switch(dl_wrk_thd1);
+
+	rdtscll(now);
+
+	if (now > deadline) dls_missed++;
+	else dls_made++;
+}
+
+cycles_t last;
+
+void
+check_delegate(void) {
+		cycles_t now;
+		rdtscll(now);
+		
+		tcap_res_t min = 1296 * 10;
+		
+		if ((last - now) > min) {
+			rdtscll(last);
+
+			tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
+			tcap_res_t res;
+
+			if (budget >= min) res = min; 
+			else res = 0; /* 0 = 100% budget */
+
+			//printc("delegating: %d\n", res);
+			if(cos_tcap_delegate(VM_CAPTBL_SELF_IOASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, VIO_PRIO, 0)) assert(0);
+		}
 }
 
 void 
@@ -86,38 +116,27 @@ dl_booter_init(void)
 	dl_wrk_thdid2 = (thdid_t) cos_introspect(&booter_info, dl_wrk_thd2, THD_GET_TID);
 
 	printc("\tDL worker thread= cap:%d tid:%d\n", (unsigned int)dl_wrk_thd1, dl_wrk_thdid);
+	rdtscll(last);
 	
 	while(1) {
 		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE);
-		
-		cos_thd_switch(dl_wrk_thd1);
-		
-		periods++;
-		if (periods%100 == 0) {
-			printc("dl_missed: %d\n", dls_missed);
-			tcap_res_t min     = VIO_BUDGET_APPROX * cycs_per_usec;
-			tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
-			tcap_res_t res;
 
-			if (budget >= min) res = budget / 2; /* x cycles */ 
-			else res = 0; /* 0 = 100% budget */
-			printc("delegating: %d\n", res);
-			if(cos_tcap_delegate(VM_CAPTBL_SELF_IOASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, VIO_PRIO, 0)) assert(0);
-		}
+		test_deadline(dl_wrk_thd1, dl_wrk_thd2);	
+		periods++;
+		if (periods%10000 == 0) printc("dl_missed: %d   dl_made: %d\n", dls_missed, dls_made);
+		
+		check_delegate();
 	}
 }
 
+		//if (periods%100 == 0) {
+		//	//if (periods%1000 == 0) printc("dl_missed: %d   dl_made: %d\n", dls_missed, dls_made);
+		//	tcap_res_t min     = VIO_BUDGET_APPROX * cycs_per_usec;
+		//	tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
+		//	tcap_res_t res;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+		//	if (budget >= min) res = budget / 2; /* x cycles */ 
+		//	else res = 0; /* 0 = 100% budget */
+		//	//printc("delegating: %d\n", res);
+		//	if(cos_tcap_delegate(VM_CAPTBL_SELF_IOASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, VIO_PRIO, 0)) assert(0);
+		//}

@@ -121,6 +121,7 @@ vm0_io_fn(void *d)
 	int line;
 	unsigned int irqline;
 	arcvcap_t rcvcap;
+	tcap_res_t budget;
 
 	switch((int)d) {
 		case 1:
@@ -141,6 +142,10 @@ vm0_io_fn(void *d)
 	rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + (((int)d - 1) * CAP64B_IDSZ);
 	while (1) {
 		int pending = cos_rcv(rcvcap);
+
+		budget = (tcap_res_t)cos_introspect(&vkern_info, vm0_io_tcap[((int)d)-1], TCAP_GET_BUDGET);
+		//if(budget < 1000) printc("budget left: %lu\n", budget);
+
 		if (line == 0) continue;
 		intr_start(irqline);
 		bmk_isr(line);
@@ -226,6 +231,7 @@ fillup_budgets(void)
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++)
 	{
+		if (i == DL_VM) vmprio[i] = PRIO_HIGH;
 		vmprio[i]   = PRIO_LOW;
 		vm_cr_reset[i] = 1;
 	}
@@ -320,6 +326,7 @@ sched_fn(void *x)
 	while (ready_vms) {
 		struct vm_node *x, *y;
 		unsigned int count_over = 0;
+		int ret;
 
 		while ((x = vm_next(&vms_runqueue)) != NULL) {
 			int index         = x->id;
@@ -377,12 +384,29 @@ sched_fn(void *x)
 
 			rdtscll(start);
 			if (send) {
-				if (cos_asnd(vksndvm[index], 1)) assert(0);
+				if (index == DL_VM) {
+					ret = cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+					assert(ret == 0);
+				}
+				else if (cos_asnd(vksndvm[index], 1)) {
+					 assert(0);
+				}
 			} else {
 				//printc("%d b:%lu t:%lu\n", index, budget, transfer_budget);
 				/*if (index == IO_BOUND_VM || index == 0) cpu_cycs[IO_BOUND_VM] += vmcredits[index];
 				else*/ cpu_cycs[index] += vmcredits[index];
-				if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+				
+				/* IF DL_VM, just do transfer, not delegate. 
+				 * make sure prio is set to PRIO_HIGH
+				 * */
+				if (index == DL_VM) {
+					if ((ret = cos_tcap_transfer(vminitrcv[index], sched_tcap, transfer_budget, vmprio[index]))) {
+						printc("\tTcap transfer failed %d\n", ret);
+						assert(0);
+					}
+				}else {
+					if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+				}
 			}
 			rdtscll(end);
 
@@ -445,13 +469,25 @@ sched_fn(void *x)
 					int i;
 	
 					for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-						if (vm_main_thdid[i] == tid && x->prev != &vmnode[i]) {
-							/* push it to the end of the queue.. */
-							vm_deletenode(&vms_runqueue, &vmnode[i]);
-							vm_insertnode(&vms_runqueue, &vmnode[i]);	
+						if (vm_main_thdid[i] == tid) {
+							if (i == DL_VM) {
+								vm_deletenode(&vms_runqueue, &vmnode[i]);
+								continue;
+							}
+							if (x->prev != &vmnode[i]) {
+								/* push it to the end of the queue.. */
+								vm_deletenode(&vms_runqueue, &vmnode[i]);
+								vm_insertnode(&vms_runqueue, &vmnode[i]);
+							}	
 						}
 					}
-				} 
+				} else if (tid && !blocked) {
+					if (vm_main_thdid[DL_VM] == tid) {
+						printc("%d\n", DL_VM);
+						vm_insertnode(&vms_runqueue, &vmnode[DL_VM]);	
+						continue;
+					}
+				}	
 			}
 
 		}
@@ -518,6 +554,9 @@ sched_fn(void *x)
 
 			rdtscll(start);
 			if (send) {
+				if (index == DL_VM) {
+					cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+				}
 				if (cos_asnd(vksndvm[index], 1)) assert(0);
 			} else {
 				if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
