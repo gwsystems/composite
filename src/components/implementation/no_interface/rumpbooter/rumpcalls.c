@@ -135,29 +135,21 @@ rump2cos_rcv(void)
 void
 cos_irqthd_handler(void *line)
 {
-	cycles_t now;
-	cycles_t done;
-	cycles_t wcet = 0;
 	asndcap_t sndcap;
 	int which = (int)line;
 	arcvcap_t arcvcap = irq_arcvcap[which];
 	
 	while(1) {
 		int pending = cos_rcv(arcvcap);
-		rdtscll(now);
-		intr_start(which);
 
 		if ((int)line == 0) {
 			sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE;
-			rdtscll(done);
-		//	printc("tot time: %lu \n", (done - now));
-			
 			if(cos_asnd(sndcap, 0)) assert(0);
-		
 		}else {
+			intr_start(which);
 			bmk_isr(which);
+			intr_end();
 		}
-		intr_end();
 	}
 }
 
@@ -394,7 +386,7 @@ void
 cos_resume(void)
 {
 	/* this will not return if this vm is set to be CPU bound */
-	cpu_bound_test();
+	//cpu_bound_test();
 
 	while(1) {
 		int ret, first = 1;
@@ -424,6 +416,8 @@ cos_resume(void)
 				assert(pending <= 1);
 
 				irq_line = intr_translate_thdid2irq(tid);
+				if ((int)irq_line == 0) continue;
+
 				intr_update(irq_line, blocked);
 
 				if(first) {

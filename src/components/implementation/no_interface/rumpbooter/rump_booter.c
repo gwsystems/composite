@@ -65,7 +65,7 @@ hw_irq_alloc(void){
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 				
-				if (i == DL_VM) {
+				if (i == 0) {
 					irq_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + ((DL_VM-1) * CAP16B_IDSZ);
 				} else {
 					irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
@@ -81,7 +81,7 @@ hw_irq_alloc(void){
 #endif
 				if (i == 0) {
 					printc("cos_periodic_attach\n");
-					cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, irq_arcvcap[i], 100);
+					cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, irq_arcvcap[i], 1000);
 				}else {
 					cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
 				}
@@ -148,6 +148,7 @@ rump_booter_init(void)
 
 /* json config string fixed at compile-time */
 #define JSON_CONF_TYPE JSON_NGINX_QEMU
+//#define JSON_CONF_TYPE JSON_NGINX_BAREMETAL
 //#define JSON_CONF_TYPE JSON_PAWS_BAREMETAL
 
 	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
@@ -192,12 +193,8 @@ rump_booter_init(void)
 //	cos_run(json_file);
 
 	printc("\nRumpKernel Boot done.\n");
-	int i = 0;
-	int ret;
-	tcap_res_t budget;	
-	
-	while(1) {
-	}
+	while(1){
+	}	
 	cos_vm_exit();
 	return;
 }

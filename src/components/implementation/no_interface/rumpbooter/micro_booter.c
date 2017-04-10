@@ -57,8 +57,8 @@ vm_init(void *id)
 	}
 
 
-	if (id == 0) rump_booter_init();
-	else dl_booter_init();
+	if(id == DL_VM) dl_booter_init();
+	else rump_booter_init();
 
 	EXIT();
 	return;

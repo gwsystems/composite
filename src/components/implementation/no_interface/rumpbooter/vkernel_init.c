@@ -121,31 +121,29 @@ vm0_io_fn(void *d)
 	int line;
 	unsigned int irqline;
 	arcvcap_t rcvcap;
-	tcap_res_t budget;
-
+	printc("d: %d\n", (int)d);
 	switch((int)d) {
-		case 1:
-			printc("CASE 0\n");
+		case DL_VM:
 			line = 0;
 			break;
-	/*	case 1:
+		case 1:
 			line = 13;
 			irqline = IRQ_VM1;
-			break;*/
-		case 2:
+			break;
+		/*case 2:
 			line = 15;
 			irqline = IRQ_VM2;
-			break;
+			break;*/
 		default: assert(0);
 	}
 
 	rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + (((int)d - 1) * CAP64B_IDSZ);
+	printc("---------------------------rcvcap %d\n", (int)rcvcap);
 	while (1) {
 		int pending = cos_rcv(rcvcap);
-
-		budget = (tcap_res_t)cos_introspect(&vkern_info, vm0_io_tcap[((int)d)-1], TCAP_GET_BUDGET);
-		//if(budget < 1000) printc("budget left: %lu\n", budget);
-
+		tcap_res_t budget = (tcap_res_t)cos_introspect(&vkern_info, vm0_io_tcap[DL_VM-1], TCAP_GET_BUDGET);
+	        if(budget < 60000) printc("budget: %lu\n", budget);
+	//	printc("line %d\n", (int)line);
 		if (line == 0) continue;
 		intr_start(irqline);
 		bmk_isr(line);
@@ -404,6 +402,7 @@ sched_fn(void *x)
 						printc("\tTcap transfer failed %d\n", ret);
 						assert(0);
 					}
+					cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
 				}else {
 					if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
 				}
@@ -483,8 +482,11 @@ sched_fn(void *x)
 					}
 				} else if (tid && !blocked) {
 					if (vm_main_thdid[DL_VM] == tid) {
-						printc("%d\n", DL_VM);
-						vm_insertnode(&vms_runqueue, &vmnode[DL_VM]);	
+						if (vm_container(&vmnode[DL_VM]) == &vms_runqueue) {
+						//	printc("reinsert %d\n", DL_VM);
+							vm_cleannode(&vmnode[DL_VM]);
+							vm_insertnode(&vms_runqueue, &vmnode[DL_VM]);	
+						}
 						continue;
 					}
 				}	
@@ -557,9 +559,17 @@ sched_fn(void *x)
 				if (index == DL_VM) {
 					cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
 				}
-				if (cos_asnd(vksndvm[index], 1)) assert(0);
+				else if (cos_asnd(vksndvm[index], 1)) assert(0);
 			} else {
-				if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+				if (index == DL_VM) {
+					if ((ret = cos_tcap_transfer(vminitrcv[index], sched_tcap, transfer_budget, vmprio[index]))) {
+						printc("\tTcap transfer failed %d\n", ret);
+						assert(0);
+					}
+					cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+				} else if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) {
+					assert(0);
+				}
 			}
 			rdtscll(end);
 
@@ -1051,6 +1061,7 @@ cos_init(void)
 			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IORCV_SET_BASE + (id-1)*CAP64B_IDSZ, &vkern_info, vm0_io_rcv[id-1]);
 			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOASND_SET_BASE + (id-1)*CAP64B_IDSZ, &vkern_info, vm0_io_asnd[id-1]);
 
+			printc("VM_CAPTBL_SELF_IOASND_BASE%d\n", VM_CAPTBL_SELF_IOASND_BASE);
 			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOTHD_BASE, &vkern_info, vms_io_thd[id-1]);
 			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IORCV_BASE, &vkern_info, vms_io_rcv[id-1]);
 			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOASND_BASE, &vkern_info, vms_io_asnd[id-1]);

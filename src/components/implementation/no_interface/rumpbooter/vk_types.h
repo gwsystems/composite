@@ -3,12 +3,12 @@
 
 #include <cos_types.h>
 
-#define COS_VIRT_MACH_COUNT 2
+#define COS_VIRT_MACH_COUNT 3
 #define COS_VIRT_MACH_MEM_SZ (1<<27) //128MB
 #define COS_SHM_VM_SZ (1<<20) //2MB
 #define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) > 0 ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
 
-#define DL_VM 1
+#define DL_VM 2
 
 #define VM_TIMESLICE (1000*10) //10*1000*cycs_per_usec = 10ms
 #define VM_MIN_TIMESLICE (10) //1us
