@@ -260,6 +260,11 @@ void monitor(void) {
 	}
 }
 
+void confirm_fork(spdid_t spdid) {
+	printc("Starting fork\n");
+	quarantine_fork(cos_spd_id(), spdid);
+}
+
 cbuf_t get_read_buf(spdid_t spdid) {
 	if (!map[spdid].replica) return NULL;
 	return map[spdid].replica->read_buffer;

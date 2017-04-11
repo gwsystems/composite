@@ -21,6 +21,8 @@ void cos_init(void) {
 	buf_write = cbuf2buf(write_buffer, 1024);
 	printc("ping confirmed with buffers read (%d) and write(%d)\n", read_buffer, write_buffer);
 
+	confirm_fork(cos_spd_id());
+
 	/* Start sending data */
 	while (i < 3) {
 		printc("\nping calling write\n");

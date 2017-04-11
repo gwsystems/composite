@@ -12,4 +12,6 @@ int confirm(spdid_t spdid);
 cbuf_t get_write_buf(spdid_t spdid);
 cbuf_t get_read_buf(spdid_t spdid);
 
+void confirm_fork(spdid_t spdid);
+
 #endif /* !VOTER_H */
