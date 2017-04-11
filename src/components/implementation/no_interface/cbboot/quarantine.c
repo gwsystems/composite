@@ -69,7 +69,6 @@ quarantine_spd_caps(struct cobj_header *h, spdid_t spdid)
 		if (cobj_cap_undef(cap)) break;
 		/* ignore fault handlers */
 		if (cap->fault_num < COS_FLT_MAX) continue;
-		printc("qm: incfc\n");
 		if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, spdid, cap->cap_off, 1)) BUG();
 	}
 	return 0;
