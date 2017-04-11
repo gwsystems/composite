@@ -146,6 +146,7 @@ cos_irqthd_handler(void *line)
 			sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE;
 			if(cos_asnd(sndcap, 0)) assert(0);
 		}else {
+			printc("irq?\n");
 			intr_start(which);
 			bmk_isr(which);
 			intr_end();

@@ -133,7 +133,7 @@ dl_booter_init(void)
 		//printc("w\n");
 		test_deadline(dl_wrk_thd1, dl_wrk_thd2);	
 		periods++;
-		if (periods > 100000) printc("dl_missed: %d   dl_made: %d\n", dls_missed, dls_made);
+		if (periods % 500 == 0) printc("dl_missed: %d   dl_made: %d\n", dls_missed, dls_made);
 		
 		check_delegate();
 	}
