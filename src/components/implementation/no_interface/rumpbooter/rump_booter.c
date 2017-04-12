@@ -193,7 +193,8 @@ rump_booter_init(void)
 	cos_run(json_file);
 
 	printc("\nRumpKernel Boot done.\n");
-	
+
+//	while(1);		
 	cos_vm_exit();
 	return;
 }

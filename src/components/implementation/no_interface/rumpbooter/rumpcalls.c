@@ -94,13 +94,15 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 	/* DOM0 just sends out the packets.. */
 	if (!srcvm) {
 		/* TODO: Before sending a event to the VM, first see if we can account for the time spent in i/o  processing */
-		if(cos_asnd(sndcap, 0)) assert(0);
+		//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
+		if(cos_asnd(sndcap, 1)) assert(0);
 
 		/* deficit accounting.. for now: round robin between tcaps */
 		cos_vio_tcap_update(dstvm);
 	}
 	/* VMs send out the packet and time to process the packet - All remaining budget in Tcap */
 	else {
+	//	printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
 		tcap_res_t quantum = VM_TIMESLICE * cycs_per_usec;
 		tcap_res_t min     = VIO_BUDGET_APPROX * cycs_per_usec;
 		tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
@@ -138,15 +140,14 @@ cos_irqthd_handler(void *line)
 	asndcap_t sndcap;
 	int which = (int)line;
 	arcvcap_t arcvcap = irq_arcvcap[which];
-	
+
 	while(1) {
 		int pending = cos_rcv(arcvcap);
 
 		if ((int)line == 0) {
-			sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE;
+			sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (DL_VM - 1) * CAP64B_IDSZ;
 			if(cos_asnd(sndcap, 0)) assert(0);
 		}else {
-			printc("irq?\n");
 			intr_start(which);
 			bmk_isr(which);
 			intr_end();

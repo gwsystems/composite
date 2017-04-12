@@ -141,8 +141,8 @@ vm0_io_fn(void *d)
 	printc("---------------------------rcvcap %d\n", (int)rcvcap);
 	while (1) {
 		int pending = cos_rcv(rcvcap);
-		tcap_res_t budget = (tcap_res_t)cos_introspect(&vkern_info, vm0_io_tcap[DL_VM-1], TCAP_GET_BUDGET);
-	        if(budget < 60000) printc("budget: %lu\n", budget);
+	//	tcap_res_t budget = (tcap_res_t)cos_introspect(&vkern_info, vm0_io_tcap[DL_VM-1], TCAP_GET_BUDGET);
+	//       if(budget < 60000) printc("budget: %lu\n", budget);
 	//	printc("line %d\n", (int)line);
 		if (line == 0) continue;
 		intr_start(irqline);
@@ -156,8 +156,10 @@ void
 vmx_io_fn(void *d)
 {
 	printc("vmx\n");
+	assert((int)d != DL_VM);
 	while (1) {
 		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
+		//continue;
 		intr_start(IRQ_DOM0_VM);
 		bmk_isr(12);
 		intr_end();
@@ -334,6 +336,10 @@ sched_fn(void *x)
 			tcap_res_t min_budget = VM_MIN_TIMESLICE * cycs_per_usec;
 
 			if (unlikely(vmstatus[index] == VM_EXITED)) {
+				if (index == 1) {
+				       	printc("exiting VM%d\n", index);
+					while(1);
+				}
 				vm_deletenode(&vms_runqueue, x); 
 				vm_insertnode(&vms_exit, x);
 				continue;
@@ -386,8 +392,12 @@ sched_fn(void *x)
 					ret = cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
 					assert(ret == 0);
 				}
-				else if (cos_asnd(vksndvm[index], 1)) {
-					 assert(0);
+				else {
+					if (index == 1) {
+					       	//printc("delegating to VM%d\n", index);
+						//while(1);
+					}
+					if (cos_asnd(vksndvm[index], 0)) assert(0);
 				}
 			} else {
 				//printc("%d b:%lu t:%lu\n", index, budget, transfer_budget);
@@ -404,6 +414,10 @@ sched_fn(void *x)
 					}
 					cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
 				}else {
+					if (index == 1) {
+					       	//printc("delegating to VM%d\n", index);
+					//	while(1);
+					}
 					if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
 				}
 			}
@@ -470,13 +484,17 @@ sched_fn(void *x)
 					for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
 						if (vm_main_thdid[i] == tid) {
 							if (i == DL_VM) {
-								vm_deletenode(&vms_runqueue, &vmnode[i]);
+								
+								if (vm_container(&vmnode[i]) == &vms_runqueue) {
+									//printc("deleting runqueue\n");
+									vm_deletenode(&vms_runqueue, &vmnode[i]);
+								}
 								continue;
 							}
 							if (x->prev != &vmnode[i]) {
 								/* push it to the end of the queue.. */
-								vm_deletenode(&vms_runqueue, &vmnode[i]);
-								vm_insertnode(&vms_runqueue, &vmnode[i]);
+								//vm_deletenode(&vms_runqueue, &vmnode[i]);
+								//vm_insertnode(&vms_runqueue, &vmnode[i]);
 							}	
 						}
 					}
@@ -1025,7 +1043,7 @@ cos_init(void)
 				vm0_io_tcap[id-1] = cos_tcap_alloc(&vkern_info);
 				assert(vm0_io_tcap[id-1]);
 			} else {
-				vm0_io_tcap[id-1] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+				vm0_io_tcap[id-1] = vminittcap[0];
 				assert(vm0_io_tcap[id-1]);
 			}
 			vm0_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vm0_io_thd[id-1], vm0_io_tcap[id-1], vkern_info.comp_cap, vminitrcv[0]);

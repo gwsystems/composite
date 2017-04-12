@@ -48,7 +48,7 @@ void
 dl_work_two(void * ignore)
 {
 	while(1) {
-		spin_usecs(300);
+		spin_usecs(400);
 		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	}
 }
@@ -91,16 +91,17 @@ check_delegate(void) {
 		rdtscll(now);
 		
 		//tcap_res_t min = VIO_BUDGET_APPROX * cycs_per_usec;
-		tcap_res_t min = 1000 * 10;
+		tcap_res_t min = 1000 * 5;
 
-		if ((last - now) > min) {
+		if ((last - now) > 1000*10) {
 
 			rdtscll(last);
 			tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
 			tcap_res_t res;
 			
-			if (budget >= min) res = 1000 * 10; 
+			if (budget >= min) res = min; 
 			else res = 0; /* 0 = 100% budget */
+
 			if(res == 0) printc("res = 0 %lu\n", budget);
 			if(cos_tcap_delegate(VM_CAPTBL_SELF_IOASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, VIO_PRIO, 0)) assert(0);
 		}
@@ -133,7 +134,7 @@ dl_booter_init(void)
 		//printc("w\n");
 		test_deadline(dl_wrk_thd1, dl_wrk_thd2);	
 		periods++;
-		if (periods % 500 == 0) printc("dl_missed: %d   dl_made: %d\n", dls_missed, dls_made);
+		if (periods % 2000 == 0) printc("dl_missed: %d   dl_made: %d\n", dls_missed, dls_made);
 		
 		check_delegate();
 	}
