@@ -236,19 +236,19 @@ fillup_budgets(void)
 		vm_cr_reset[i] = 1;
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	vmprio[0] = PRIO_OVER;
+	vmprio[0] = DOM0_PRIO;
 	vm_cr_reset[0] = 1;
 	//vm_deletenode(&vms_under, &vmnode[0]);
 	//vm_insertnode(&vms_boost, &vmnode[0]);
 	
-	vmprio[1] = PRIO_UNDER;
+	vmprio[1] = NWVM_PRIO;
 	vm_cr_reset[1] = 1;
 	//vm_deletenode(&vms_under, &vmnode[1]);
 	//vm_insertnode(&vms_boost, &vmnode[1]);
 
 	for (i = 2 ; i < COS_VIRT_MACH_COUNT ; i ++)
 	{
-		vmprio[i]   = PRIO_BOOST;
+		vmprio[i]   = DLVM_PRIO;
 		vm_cr_reset[i] = 1;
 	}
 #endif

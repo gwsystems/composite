@@ -107,7 +107,7 @@ check_delegate(void) {
 			//printc("delegating to hpet, periods passed: %lu\n", budget/2);
 
 			/*Use HPET PRIO*/
-			if(cos_tcap_delegate(VM_CAPTBL_SELF_IOASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, VIO_PRIO, 0)) assert(0);
+			if(cos_tcap_delegate(VM_CAPTBL_SELF_IOASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, HPET_PRIO, 0)) assert(0);
 		}
 #endif
 }
@@ -133,7 +133,7 @@ dl_booter_init(void)
 	//do delegate to hpet	
 #if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	/*Use HPET PRIO*/
-	if(cos_tcap_delegate(VM_CAPTBL_SELF_IOASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 10000, VIO_PRIO, 0)) assert(0);
+	if(cos_tcap_delegate(VM_CAPTBL_SELF_IOASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 10000, HPET_PRIO, 0)) assert(0);
 #endif	
 	while(1) {
 		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE);

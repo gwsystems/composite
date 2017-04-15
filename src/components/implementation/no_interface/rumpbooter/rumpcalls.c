@@ -23,7 +23,7 @@ volatile unsigned int cos_cur_tcap = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 tcap_prio_t rk_thd_prio = RK_THD_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-tcap_prio_t rk_thd_prio = PRIO_UNDER;
+tcap_prio_t rk_thd_prio = PRIO_MID;
 #endif
 
 /* Mapping the functions from rumpkernel to composite */
@@ -111,7 +111,7 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 		if (budget >= min) res = budget / 2; /* x cycles */ 
 		else res = 0; /* 0 = 100% budget */
 
-		if(cos_tcap_delegate(sndcap, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, VIO_PRIO, 0)) assert(0);
+		if(cos_tcap_delegate(sndcap, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, NWVM_PRIO, 0)) assert(0);
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	if(cos_asnd(sndcap, 0)) assert(0);
