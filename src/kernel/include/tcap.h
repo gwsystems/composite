@@ -57,6 +57,7 @@ struct tcap {
 	 * Need this bitmap to enable/disable interrupts on budget expiry or transfers
 	 */
 	u32_t		   intbmp;
+	u8_t               masked;
 
 	/*
 	 * Which chain of temporal capabilities resulted in this
@@ -151,7 +152,11 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 	if (cycles >= t->budget.cycles || tcap_cycles_same(cycles, t->budget.cycles)) {
 		t->budget.cycles = 0;
 		tcap_active_rem(t); /* no longer active */
-		if (t->intbmp) chal_mask_irqbmp(t->intbmp);
+		if (t->intbmp && t->masked == 0) {
+			if (t->intbmp == 1) printk("HPET TCAP CONSUMED\n");
+			chal_mask_irqbmp(t->intbmp);
+			t->masked = 1;
+		}
 
 		/* "declassify" the time by keeping only the current tcap's priority */
 		t->ndelegs = 1;
