@@ -98,6 +98,7 @@ void chal_timer_set(cycles_t cycles);
 void chal_timer_disable(void);
 void chal_hpet_periodic_set(unsigned long);
 void chal_hpet_disable(void);
+cycles_t chal_hpet_first_period(void);
 
 void chal_init(void);
 

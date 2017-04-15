@@ -48,5 +48,7 @@ extern int prints(char *s);
 extern int printc(char *fmt, ...);
 extern void rump_booter_init(void);
 extern void test_run_vk(void);
+/* blocks for first period! */
+extern cycles_t hpet_first_period(void);
 
 #endif /* MICRO_BOOTER_H */

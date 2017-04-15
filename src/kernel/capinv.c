@@ -864,6 +864,19 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 	return -EINVAL;
 }
 
+static int
+cap_introspect64(struct cos_cpu_local_info *cos_info, struct captbl *ct, capid_t capid, u32_t op, u64_t *retval)
+{
+	struct cap_header *ch = captbl_lkup(ct, capid);
+
+	if (unlikely(!ch)) return -EINVAL;
+
+	switch(ch->type) {
+	case CAP_HW:   return hw_introspect64(cos_info, (struct cap_hw*)ch, op, retval);
+	}
+	return -EINVAL;
+}
+
 #define ENABLE_KERNEL_PRINT
 
 static int
@@ -1301,6 +1314,19 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 
 			ret = cap_introspect(ctin, capin, op, &retval);
 			if (!ret) ret = retval;
+
+			break;
+		}
+		case CAPTBL_OP_INTROSPECT64:
+		{
+			struct captbl *ctin  = op_cap->captbl;
+			unsigned long retval = 0;
+			u32_t op             = __userregs_get2(regs);
+			u64_t val            = 0;
+			assert(ctin);
+
+			ret = cap_introspect64(cos_info, ctin, capin, op, &val);
+			__userregs_setretvals(regs, ret, (unsigned long)(val>>32), (unsigned long)((val<<32)>>32));
 
 			break;
 		}

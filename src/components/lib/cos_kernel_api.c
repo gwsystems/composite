@@ -776,6 +776,20 @@ int
 cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 { return call_cap_op(ci->captbl_cap, CAPTBL_OP_INTROSPECT, cap, (int)op, 0, 0); }
 
+int
+cos_introspect64(struct cos_compinfo *ci, capid_t cap, unsigned long op, u64_t *value)
+{
+	int ret;
+	unsigned long a, b;
+	
+	ret = call_cap_retvals_asm(ci->captbl_cap, CAPTBL_OP_INTROSPECT64, cap, (int)op, 0, 0, &a, &b);
+	if (!ret) {
+		*value = ((u64_t)a) << 32 | ((u64_t)b);
+	}
+
+	return ret;
+}
+
 /***************** [Kernel Tcap Operations] *****************/
 
 tcap_t

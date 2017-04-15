@@ -41,6 +41,18 @@ int num = 1, den = 0;
 int vmid;
 int rumpns_vmid;
 
+cycles_t
+hpet_first_period(void)
+{
+	int ret;
+	cycles_t start_period = 0;
+
+	while ((ret = cos_introspect64(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_GET_FIRSTPERIOD, &start_period)) == -EAGAIN) ;
+	if (ret) assert(0);
+
+	return start_period;
+}
+
 void
 vm_init(void *id)
 {
