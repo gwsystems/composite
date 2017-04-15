@@ -48,7 +48,7 @@ void
 dl_work_two(void * ignore)
 {
 	while(1) {
-		spin_usecs(400);
+		spin_usecs(300);
 		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	}
 }
@@ -84,27 +84,32 @@ test_deadline(thdcap_t dl_wrk_thd1, thdcap_t dl_wrk_thd2) {
 	}
 }
 
-
+int periods = 0;
 void
 check_delegate(void) {
+#if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 		cycles_t now;
 		rdtscll(now);
-		
 		//tcap_res_t min = VIO_BUDGET_APPROX * cycs_per_usec;
-		tcap_res_t min = 1000 * 5;
+		tcap_res_t min = 1000 * 10;
 
-		if ((last - now) > 1000*10) {
+		if (periods % 1 == 0) {
 
 			rdtscll(last);
 			tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
 			tcap_res_t res;
 			
-			if (budget >= min) res = min; 
-			else res = 0; /* 0 = 100% budget */
+			if (budget >= min) { res = budget/2; }
+			else {
+				printc("DL_VM budget too low\n");
+				return; /* 0 = 100% budget */
+			}
+			//printc("delegating to hpet, periods passed: %lu\n", budget/2);
 
-			if(res == 0) printc("res = 0 %lu\n", budget);
+			/*Use HPET PRIO*/
 			if(cos_tcap_delegate(VM_CAPTBL_SELF_IOASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, VIO_PRIO, 0)) assert(0);
 		}
+#endif
 }
 
 void 
@@ -113,7 +118,6 @@ dl_booter_init(void)
 	printc("DL_BOOTER_INIT: %d\n", vmid);
 	thdcap_t dl_wrk_thd1, dl_wrk_thd2;
 	thdid_t  dl_wrk_thdid, dl_wrk_thdid2;
-	static int periods = 0;
 
 	dl_wrk_thd1 = cos_thd_alloc(&booter_info, booter_info.comp_cap, dl_work_one, (thdcap_t *) &dl_wrk_thd2);
 	assert(dl_wrk_thd1);
@@ -127,16 +131,20 @@ dl_booter_init(void)
 	rdtscll(last);
 	
 	//do delegate to hpet	
+#if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+	/*Use HPET PRIO*/
 	if(cos_tcap_delegate(VM_CAPTBL_SELF_IOASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 10000, VIO_PRIO, 0)) assert(0);
-	
+#endif	
 	while(1) {
 		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE);
 		//printc("w\n");
 		test_deadline(dl_wrk_thd1, dl_wrk_thd2);	
 		periods++;
-		if (periods % 2000 == 0) printc("dl_missed: %d   dl_made: %d\n", dls_missed, dls_made);
+		if (periods > 25000) printc("dl_missed: %d   dl_made: %d\n", dls_missed, dls_made);
 		
+#if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 		check_delegate();
+#endif	
 	}
 }
 

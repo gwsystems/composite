@@ -19,7 +19,7 @@ unsigned int ready_vms = COS_VIRT_MACH_COUNT;
 unsigned int cycs_per_usec;
 
 /*worker thds for dlvm*/
-extern void dl_work_one(void *);
+//extern void dl_work_one(void *);
 
 /*
  * Init caps for each VM
@@ -236,7 +236,7 @@ fillup_budgets(void)
 		vm_cr_reset[i] = 1;
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	vmprio[0] = PRIO_BOOST;
+	vmprio[0] = PRIO_OVER;
 	vm_cr_reset[0] = 1;
 	//vm_deletenode(&vms_under, &vmnode[0]);
 	//vm_insertnode(&vms_boost, &vmnode[0]);
@@ -248,7 +248,7 @@ fillup_budgets(void)
 
 	for (i = 2 ; i < COS_VIRT_MACH_COUNT ; i ++)
 	{
-		vmprio[i]   = PRIO_UNDER;
+		vmprio[i]   = PRIO_BOOST;
 		vm_cr_reset[i] = 1;
 	}
 #endif
@@ -288,6 +288,38 @@ bootup_sched_fn(int index, tcap_res_t budget)
 	}
 
 	return 1;
+}
+
+int
+boot_dlvm_sched_fn(int index, tcap_res_t budget)
+{
+	static int first = 0;
+	if (first == 1) return 1;
+	else first = 1;
+
+	tcap_res_t timeslice = VM_TIMESLICE * cycs_per_usec;
+
+	vm_bootup[index] ++;
+	if (budget >= timeslice) {
+		//if (cos_asnd(vksndvm[index], 1)) assert(0);
+	//	if ((cos_tcap_transfer(vminitrcv[index], sched_tcap, timeslice-budget, vmprio[index]))) {
+	//		printc("\tTcap transfer failed \n");
+	//		assert(0);
+	//	}
+		// ideal case
+		cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+	} else {
+			printc("DLVM BOOT SCHED\n");
+			if ((cos_tcap_transfer(vminitrcv[index], sched_tcap, timeslice-budget, vmprio[index]))) {
+				printc("\tTcap transfer failed \n");
+				assert(0);
+			}
+			// ideal case
+			cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+			printc("back in vk from dlvm\n");
+	}
+
+	return 0;
 }
 
 uint64_t t_vm_cycs  = 0;
@@ -348,7 +380,8 @@ sched_fn(void *x)
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 			sched_budget = (tcap_res_t)cos_introspect(&vkern_info, sched_tcap, TCAP_GET_BUDGET);
 			
-			if (!bootup_sched_fn(index, budget)) continue;
+			if (index != DL_VM && !bootup_sched_fn(index, budget)) continue;
+			else if (!boot_dlvm_sched_fn(index, budget)) continue;
 
 			if (cycles_same(budget, 0, VK_CYCS_DIFF_THRESH) && !vm_cr_reset[index]) {
 				vm_deletenode(&vms_runqueue, &vmnode[index]);
@@ -389,30 +422,29 @@ sched_fn(void *x)
 			rdtscll(start);
 			if (send) {
 				if (index == DL_VM) {
-					ret = cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
-					assert(ret == 0);
+				// ideal case
+			//		ret = cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+					//assert(ret == 0);
 				}
 				else {
-					if (index == 1) {
-					       	//printc("delegating to VM%d\n", index);
-						//while(1);
-					}
-					if (cos_asnd(vksndvm[index], 0)) assert(0);
+					if (cos_asnd(vksndvm[index], 1)) assert(0);
 				}
 			} else {
 				//printc("%d b:%lu t:%lu\n", index, budget, transfer_budget);
 				/*if (index == IO_BOUND_VM || index == 0) cpu_cycs[IO_BOUND_VM] += vmcredits[index];
 				else*/ cpu_cycs[index] += vmcredits[index];
 				
-				/* IF DL_VM, just do transfer, not delegate. 
-				 * make sure prio is set to PRIO_HIGH
+				/* IF DL_VM, just do transfer 
+				 * 
 				 * */
 				if (index == DL_VM) {
+					printc("transfering\n");
 					if ((ret = cos_tcap_transfer(vminitrcv[index], sched_tcap, transfer_budget, vmprio[index]))) {
 						printc("\tTcap transfer failed %d\n", ret);
 						assert(0);
 					}
-					cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+					// ideal case
+					// cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
 				}else {
 					if (index == 1) {
 					       	//printc("delegating to VM%d\n", index);
@@ -580,6 +612,7 @@ sched_fn(void *x)
 				else if (cos_asnd(vksndvm[index], 1)) assert(0);
 			} else {
 				if (index == DL_VM) {
+					int ret;
 					if ((ret = cos_tcap_transfer(vminitrcv[index], sched_tcap, transfer_budget, vmprio[index]))) {
 						printc("\tTcap transfer failed %d\n", ret);
 						assert(0);
@@ -1155,7 +1188,8 @@ cos_init(void)
 	/* should I switch to scheduler ?? */
 //	cos_switch(sched_thd, BOOT_CAPTBL_SELF_INITTCAP_BASE, PRIO_LOW, TCAP_TIME_NIL, 0, cos_sched_sync());
 
-	chronos_fn(NULL);
+//	chronos_fn(NULL);
+	sched_fn(NULL);
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	printc("Starting Timer/Scheduler Thread\n");
 	sched_fn(NULL);

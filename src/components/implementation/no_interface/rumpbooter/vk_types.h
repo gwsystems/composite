@@ -22,8 +22,8 @@
 
 #define BOOTUP_ITERS 100 
 
-#undef __SIMPLE_XEN_LIKE_TCAPS__
-#define __SIMPLE_DISTRIBUTED_TCAPS__
+#define __SIMPLE_XEN_LIKE_TCAPS__
+#undef __SIMPLE_DISTRIBUTED_TCAPS__
 #undef __INTELLIGENT_TCAPS__
 
 #define HW_ISR_LINES 32
@@ -38,12 +38,12 @@ tcap_prio_t irq_prio[HW_ISR_LINES];
 enum vm_prio {
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	PRIO_HIGH  = TCAP_PRIO_MAX,
-	PRIO_LOW   = TCAP_PRIO_MAX,
-	PRIO_MID   = TCAP_PRIO_MAX,
+	PRIO_LOW   = TCAP_PRIO_MAX+2,
+	PRIO_MID   = TCAP_PRIO_MAX+1,
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	PRIO_BOOST = TCAP_PRIO_MAX,
-	PRIO_OVER  = TCAP_PRIO_MAX,
-	PRIO_UNDER = TCAP_PRIO_MAX,
+	PRIO_OVER  = TCAP_PRIO_MAX+2,
+	PRIO_UNDER = TCAP_PRIO_MAX+1,
 #endif
 };
 
@@ -87,12 +87,12 @@ enum vm_status {
 enum vm_credits {
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	DOM0_CREDITS = 1,
-	VM1_CREDITS  = 5,
-	VM2_CREDITS  = 5,
+	VM1_CREDITS  = 2,
+	VM2_CREDITS  = 8,
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	DOM0_CREDITS = 5, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%) 
-	VM1_CREDITS  = 4,
-	VM2_CREDITS  = 1,
+	VM1_CREDITS  = 2,
+	VM2_CREDITS  = 8,
 #endif
 };
 

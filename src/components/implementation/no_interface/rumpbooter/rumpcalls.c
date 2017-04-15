@@ -145,9 +145,13 @@ cos_irqthd_handler(void *line)
 		int pending = cos_rcv(arcvcap);
 
 		if ((int)line == 0) {
+		//	tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (DL_VM-1)*CAP16B_IDSZ, TCAP_GET_BUDGET);
+		//	if (budget < 1000) printc("HPET budget out: %lu \n", budget);
 			sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (DL_VM - 1) * CAP64B_IDSZ;
 			if(cos_asnd(sndcap, 0)) assert(0);
 		}else {
+			//tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
+			//if (budget < 1000) printc("budget: %lu \n", budget);
 			intr_start(which);
 			bmk_isr(which);
 			intr_end();

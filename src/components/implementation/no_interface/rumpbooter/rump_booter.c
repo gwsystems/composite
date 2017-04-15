@@ -35,6 +35,7 @@ hw_irq_alloc(void){
 				irq_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE;
 				irq_prio[i]  = VIO_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				/* DOM0 PRIO */
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 				irq_prio[i] = PRIO_BOOST;
 #endif
@@ -58,8 +59,10 @@ hw_irq_alloc(void){
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
 				assert(irq_thdid[i]);
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+				/*DOM0 PRIO*/
 				irq_prio[i] = RIO_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				/*DOM0 PRIO*/
 				irq_prio[i] = PRIO_BOOST;
 #endif
 
@@ -117,6 +120,7 @@ hw_irq_alloc(void){
 
 	if (vmid == 0) {
 		for (i = 0 ; i < COS_VIRT_MACH_COUNT - 1; i ++) {
+			/*DOM0 PRIO*/
 			if ( i == (DL_VM-1) ) {
 				vio_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (i * CAP16B_IDSZ);
 				vio_rcv[i]  = VM0_CAPTBL_SELF_IORCV_SET_BASE + (i * CAP64B_IDSZ);
@@ -174,8 +178,10 @@ rump_booter_init(void)
 	}
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+	/*rk_thd_prio = (vmid == 0) ? DOM0_PRIO : NWVM_PRIO;*/
 	rk_thd_prio = PRIO_LOW;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+	/*rk_thd_prio = (vmid == 0) ? DOM0_PRIO : NWVM_PRIO;*/
 	rk_thd_prio = (vmid == 0) ? PRIO_BOOST : PRIO_UNDER;
 #endif
 
