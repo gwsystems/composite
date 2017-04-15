@@ -18,6 +18,9 @@ unsigned int ready_vms = COS_VIRT_MACH_COUNT;
 
 unsigned int cycs_per_usec;
 
+/*worker thds for dlvm*/
+//extern void dl_work_one(void *);
+
 /*
  * Init caps for each VM
  */
@@ -118,22 +121,30 @@ vm0_io_fn(void *d)
 	int line;
 	unsigned int irqline;
 	arcvcap_t rcvcap;
-
+	printc("d: %d\n", (int)d);
 	switch((int)d) {
+		case DL_VM:
+			line = 0;
+			break;
 		case 1:
 			line = 13;
 			irqline = IRQ_VM1;
 			break;
-		case 2:
+		/*case 2:
 			line = 15;
 			irqline = IRQ_VM2;
-			break;
+			break;*/
 		default: assert(0);
 	}
 
 	rcvcap = VM0_CAPTBL_SELF_IORCV_SET_BASE + (((int)d - 1) * CAP64B_IDSZ);
+	printc("---------------------------rcvcap %d\n", (int)rcvcap);
 	while (1) {
 		int pending = cos_rcv(rcvcap);
+	//	tcap_res_t budget = (tcap_res_t)cos_introspect(&vkern_info, vm0_io_tcap[DL_VM-1], TCAP_GET_BUDGET);
+	//       if(budget < 60000) printc("budget: %lu\n", budget);
+	//	printc("line %d\n", (int)line);
+		if (line == 0) continue;
 		intr_start(irqline);
 		bmk_isr(line);
 		cos_vio_tcap_set((int)d);
@@ -144,8 +155,11 @@ vm0_io_fn(void *d)
 void
 vmx_io_fn(void *d)
 {
+	printc("vmx\n");
+	assert((int)d != DL_VM);
 	while (1) {
 		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE);
+		//continue;
 		intr_start(IRQ_DOM0_VM);
 		bmk_isr(12);
 		intr_end();
@@ -217,11 +231,12 @@ fillup_budgets(void)
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++)
 	{
+		if (i == DL_VM) vmprio[i] = PRIO_HIGH;
 		vmprio[i]   = PRIO_LOW;
 		vm_cr_reset[i] = 1;
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	vmprio[0] = PRIO_BOOST;
+	vmprio[0] = PRIO_OVER;
 	vm_cr_reset[0] = 1;
 	//vm_deletenode(&vms_under, &vmnode[0]);
 	//vm_insertnode(&vms_boost, &vmnode[0]);
@@ -233,7 +248,7 @@ fillup_budgets(void)
 
 	for (i = 2 ; i < COS_VIRT_MACH_COUNT ; i ++)
 	{
-		vmprio[i]   = PRIO_UNDER;
+		vmprio[i]   = PRIO_BOOST;
 		vm_cr_reset[i] = 1;
 	}
 #endif
@@ -275,6 +290,38 @@ bootup_sched_fn(int index, tcap_res_t budget)
 	return 1;
 }
 
+int
+boot_dlvm_sched_fn(int index, tcap_res_t budget)
+{
+	static int first = 0;
+	if (first == 1) return 1;
+	else first = 1;
+
+	tcap_res_t timeslice = VM_TIMESLICE * cycs_per_usec;
+
+	vm_bootup[index] ++;
+	if (budget >= timeslice) {
+		//if (cos_asnd(vksndvm[index], 1)) assert(0);
+	//	if ((cos_tcap_transfer(vminitrcv[index], sched_tcap, timeslice-budget, vmprio[index]))) {
+	//		printc("\tTcap transfer failed \n");
+	//		assert(0);
+	//	}
+		// ideal case
+		cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+	} else {
+			printc("DLVM BOOT SCHED\n");
+			if ((cos_tcap_transfer(vminitrcv[index], sched_tcap, timeslice-budget, vmprio[index]))) {
+				printc("\tTcap transfer failed \n");
+				assert(0);
+			}
+			// ideal case
+			cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+			printc("back in vk from dlvm\n");
+	}
+
+	return 0;
+}
+
 uint64_t t_vm_cycs  = 0;
 uint64_t t_dom_cycs = 0;
 
@@ -311,6 +358,7 @@ sched_fn(void *x)
 	while (ready_vms) {
 		struct vm_node *x, *y;
 		unsigned int count_over = 0;
+		int ret;
 
 		while ((x = vm_next(&vms_runqueue)) != NULL) {
 			int index         = x->id;
@@ -320,6 +368,10 @@ sched_fn(void *x)
 			tcap_res_t min_budget = VM_MIN_TIMESLICE * cycs_per_usec;
 
 			if (unlikely(vmstatus[index] == VM_EXITED)) {
+				if (index == 1) {
+				       	printc("exiting VM%d\n", index);
+					while(1);
+				}
 				vm_deletenode(&vms_runqueue, x); 
 				vm_insertnode(&vms_exit, x);
 				continue;
@@ -328,7 +380,8 @@ sched_fn(void *x)
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
 			sched_budget = (tcap_res_t)cos_introspect(&vkern_info, sched_tcap, TCAP_GET_BUDGET);
 			
-			if (!bootup_sched_fn(index, budget)) continue;
+			if (index != DL_VM && !bootup_sched_fn(index, budget)) continue;
+			else if (!boot_dlvm_sched_fn(index, budget)) continue;
 
 			if (cycles_same(budget, 0, VK_CYCS_DIFF_THRESH) && !vm_cr_reset[index]) {
 				vm_deletenode(&vms_runqueue, &vmnode[index]);
@@ -368,12 +421,37 @@ sched_fn(void *x)
 
 			rdtscll(start);
 			if (send) {
-				if (cos_asnd(vksndvm[index], 1)) assert(0);
+				if (index == DL_VM) {
+				// ideal case
+			//		ret = cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+					//assert(ret == 0);
+				}
+				else {
+					if (cos_asnd(vksndvm[index], 1)) assert(0);
+				}
 			} else {
 				//printc("%d b:%lu t:%lu\n", index, budget, transfer_budget);
 				/*if (index == IO_BOUND_VM || index == 0) cpu_cycs[IO_BOUND_VM] += vmcredits[index];
 				else*/ cpu_cycs[index] += vmcredits[index];
-				if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+				
+				/* IF DL_VM, just do transfer 
+				 * 
+				 * */
+				if (index == DL_VM) {
+					printc("transfering\n");
+					if ((ret = cos_tcap_transfer(vminitrcv[index], sched_tcap, transfer_budget, vmprio[index]))) {
+						printc("\tTcap transfer failed %d\n", ret);
+						assert(0);
+					}
+					// ideal case
+					// cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+				}else {
+					if (index == 1) {
+					       	//printc("delegating to VM%d\n", index);
+					//	while(1);
+					}
+					if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+				}
 			}
 			rdtscll(end);
 
@@ -436,13 +514,32 @@ sched_fn(void *x)
 					int i;
 	
 					for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-						if (vm_main_thdid[i] == tid && x->prev != &vmnode[i]) {
-							/* push it to the end of the queue.. */
-							vm_deletenode(&vms_runqueue, &vmnode[i]);
-							vm_insertnode(&vms_runqueue, &vmnode[i]);	
+						if (vm_main_thdid[i] == tid) {
+							if (i == DL_VM) {
+								
+								if (vm_container(&vmnode[i]) == &vms_runqueue) {
+									//printc("deleting runqueue\n");
+									vm_deletenode(&vms_runqueue, &vmnode[i]);
+								}
+								continue;
+							}
+							if (x->prev != &vmnode[i]) {
+								/* push it to the end of the queue.. */
+								//vm_deletenode(&vms_runqueue, &vmnode[i]);
+								//vm_insertnode(&vms_runqueue, &vmnode[i]);
+							}	
 						}
 					}
-				} 
+				} else if (tid && !blocked) {
+					if (vm_main_thdid[DL_VM] == tid) {
+						if (vm_container(&vmnode[DL_VM]) == &vms_runqueue) {
+						//	printc("reinsert %d\n", DL_VM);
+							vm_cleannode(&vmnode[DL_VM]);
+							vm_insertnode(&vms_runqueue, &vmnode[DL_VM]);	
+						}
+						continue;
+					}
+				}	
 			}
 
 		}
@@ -509,9 +606,21 @@ sched_fn(void *x)
 
 			rdtscll(start);
 			if (send) {
-				if (cos_asnd(vksndvm[index], 1)) assert(0);
+				if (index == DL_VM) {
+					cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+				}
+				else if (cos_asnd(vksndvm[index], 1)) assert(0);
 			} else {
-				if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) assert(0);
+				if (index == DL_VM) {
+					int ret;
+					if ((ret = cos_tcap_transfer(vminitrcv[index], sched_tcap, transfer_budget, vmprio[index]))) {
+						printc("\tTcap transfer failed %d\n", ret);
+						assert(0);
+					}
+					cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
+				} else if (cos_tcap_delegate(vksndvm[index], sched_tcap, transfer_budget, vmprio[index], TCAP_DELEG_YIELD)) {
+					assert(0);
+				}
 			}
 			rdtscll(end);
 
@@ -936,6 +1045,7 @@ cos_init(void)
 			assert(vm0_io_thd[id-1]);
 			vms_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vmx_io_fn, (void *)id);
 			assert(vms_io_thd[id-1]);
+			
 #if defined(__INTELLIGENT_TCAPS__)
 			vm0_io_tcap[id-1] = cos_tcap_alloc(&vkern_info);
 			assert(vm0_io_tcap[id-1]);
@@ -960,8 +1070,15 @@ cos_init(void)
 			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (id-1)*CAP16B_IDSZ, &vkern_info, vm0_io_tcap[id-1]);
 			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOTCAP_BASE, &vkern_info, vms_io_tcap[id-1]);
 #elif defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-			vm0_io_tcap[id-1] = cos_tcap_alloc(&vkern_info);
-			assert(vm0_io_tcap[id-1]);
+			
+			if (id == DL_VM) {	
+				/* The HPET tcap in dom0 (used for vmio and hpet irq */	
+				vm0_io_tcap[id-1] = cos_tcap_alloc(&vkern_info);
+				assert(vm0_io_tcap[id-1]);
+			} else {
+				vm0_io_tcap[id-1] = vminittcap[0];
+				assert(vm0_io_tcap[id-1]);
+			}
 			vm0_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vm0_io_thd[id-1], vm0_io_tcap[id-1], vkern_info.comp_cap, vminitrcv[0]);
 			assert(vm0_io_rcv[id-1]);
 
@@ -975,8 +1092,19 @@ cos_init(void)
 			assert(vms_io_rcv[id-1]);
 #endif
 
-			vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vms_io_rcv[id-1], vkern_info.captbl_cap);
-			assert(vm0_io_asnd[id-1]);
+			
+			/* Changing to init thd of dl_vm
+			 * DOM0 -> DL_VM asnd
+			 */
+			if (id == DL_VM) {
+				vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vminitrcv[id], vkern_info.captbl_cap);
+				assert(vm0_io_asnd[id-1]);
+			} 
+			else {
+				vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vms_io_rcv[id-1], vkern_info.captbl_cap);
+				assert(vm0_io_asnd[id-1]);
+			}
+
 			vms_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vm0_io_rcv[id-1], vkern_info.captbl_cap);
 			assert(vms_io_asnd[id-1]);
 
@@ -984,6 +1112,7 @@ cos_init(void)
 			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IORCV_SET_BASE + (id-1)*CAP64B_IDSZ, &vkern_info, vm0_io_rcv[id-1]);
 			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOASND_SET_BASE + (id-1)*CAP64B_IDSZ, &vkern_info, vm0_io_asnd[id-1]);
 
+			printc("VM_CAPTBL_SELF_IOASND_BASE%d\n", VM_CAPTBL_SELF_IOASND_BASE);
 			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOTHD_BASE, &vkern_info, vms_io_thd[id-1]);
 			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IORCV_BASE, &vkern_info, vms_io_rcv[id-1]);
 			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOASND_BASE, &vkern_info, vms_io_asnd[id-1]);
@@ -1059,7 +1188,8 @@ cos_init(void)
 	/* should I switch to scheduler ?? */
 //	cos_switch(sched_thd, BOOT_CAPTBL_SELF_INITTCAP_BASE, PRIO_LOW, TCAP_TIME_NIL, 0, cos_sched_sync());
 
-	chronos_fn(NULL);
+//	chronos_fn(NULL);
+	sched_fn(NULL);
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	printc("Starting Timer/Scheduler Thread\n");
 	sched_fn(NULL);

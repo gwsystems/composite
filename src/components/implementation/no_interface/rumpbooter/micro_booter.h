@@ -50,5 +50,6 @@ extern void rump_booter_init(void);
 extern void test_run_vk(void);
 /* blocks for first period! */
 extern cycles_t hpet_first_period(void);
+extern void dl_booter_init(void);
 
 #endif /* MICRO_BOOTER_H */

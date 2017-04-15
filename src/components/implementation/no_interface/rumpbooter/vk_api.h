@@ -15,6 +15,8 @@
 struct vm_node {
 	int id;
 	struct vm_node *next, *prev;
+
+	struct vm_list *container;
 };
 
 struct vm_list {
@@ -62,6 +64,8 @@ vm_deletenode(struct vm_list *l, struct vm_node *n)
 {
 	assert(l && n);
 
+	assert(n->container == l);
+	n->container = NULL;
 	if (l->s == n && n->next == n) {
 		l->s = NULL;
 		return n;
@@ -75,6 +79,24 @@ vm_deletenode(struct vm_list *l, struct vm_node *n)
 	return n;
 }
 
+static struct vm_list *
+vm_container(struct vm_node *n)
+{
+	assert(n);
+	return n->container;
+}
+
+static void
+vm_cleannode(struct vm_node *n)
+{
+	assert(n);
+	
+	if (n->container == NULL) return;
+
+	vm_deletenode(n->container, n);
+
+}
+
 static void
 vm_insertnode(struct vm_list *l, struct vm_node *n)
 {
@@ -82,6 +104,8 @@ vm_insertnode(struct vm_list *l, struct vm_node *n)
 
 	assert(l && n);
 
+	assert(n->container == NULL);
+	n->container = l;
 	if (l->s == NULL) {
 		l->s = n;
 		return ;
@@ -105,6 +129,7 @@ vm_list_init(void)
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
 		vmnode[i].id = i;
 		vmnode[i].prev = vmnode[i].next = &vmnode[i];
+		vmnode[i].container = NULL;
 		vm_insertnode(&vms_runqueue, &vmnode[i]); 
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
@@ -112,6 +137,7 @@ vm_list_init(void)
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
 		vmnode[i].id = i;
 		vmnode[i].prev = vmnode[i].next = &vmnode[i];
+		vmnode[i].container = NULL;
 		vm_insertnode(&vms_under, &vmnode[i]); 
 	}
 #endif

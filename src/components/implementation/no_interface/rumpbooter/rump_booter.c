@@ -35,6 +35,7 @@ hw_irq_alloc(void){
 				irq_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE;
 				irq_prio[i]  = VIO_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				/* DOM0 PRIO */
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 				irq_prio[i] = PRIO_BOOST;
 #endif
@@ -51,44 +52,43 @@ hw_irq_alloc(void){
 				irq_prio[i] = PRIO_BOOST;
 #endif
 				break;
+
 			default:
 				irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, (void *)i);
 				assert(irq_thdcap[i]);
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
 				assert(irq_thdid[i]);
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+				/*DOM0 PRIO*/
 				irq_prio[i] = RIO_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				/*DOM0 PRIO*/
 				irq_prio[i] = PRIO_BOOST;
 #endif
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-				if (first) {
-					/* TODO: This path of tcap_transfer */
-					irq_tcap[i] = cos_tcap_alloc(&booter_info);
-					assert(irq_tcap[i]);
-					irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-					assert(irq_arcvcap[i]);
-
-					budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
-					if ((ret = cos_tcap_transfer(irq_arcvcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, budget / 2, irq_prio[i]))) {
-						printc("Irq %d Tcap transfer failed %d\n", i, ret);
-						assert(0);
-					}
-					first = 0;
-					id = i;
+				
+				if (i == 0) {
+					irq_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + ((DL_VM-1) * CAP16B_IDSZ);
 				} else {
-					irq_tcap[i] = irq_tcap[id];
-
-					irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-					assert(irq_arcvcap[i]);
+					irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 				}
+				//irq_tcap[i] = irq_tcap[id];
+				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+				assert(irq_arcvcap[i]);
+
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 				assert(irq_arcvcap[i]);
 #endif
-				cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
+				if (i == 0) {
+					printc("cos_periodic_attach\n");
+					cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, irq_arcvcap[i], 1000);
+				}else {
+					cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
+				}
+
 				break;
 			}
 		} else {
@@ -120,9 +120,16 @@ hw_irq_alloc(void){
 
 	if (vmid == 0) {
 		for (i = 0 ; i < COS_VIRT_MACH_COUNT - 1; i ++) {
-			vio_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (i * CAP16B_IDSZ);
-			vio_rcv[i]  = VM0_CAPTBL_SELF_IORCV_SET_BASE + (i * CAP64B_IDSZ);
-			vio_prio[i] = VIO_PRIO;
+			/*DOM0 PRIO*/
+			if ( i == (DL_VM-1) ) {
+				vio_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (i * CAP16B_IDSZ);
+				vio_rcv[i]  = VM0_CAPTBL_SELF_IORCV_SET_BASE + (i * CAP64B_IDSZ);
+				vio_prio[i] = VIO_PRIO;
+			} else {
+				vio_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+				vio_rcv[i]  = VM0_CAPTBL_SELF_IORCV_SET_BASE + (i * CAP64B_IDSZ);
+				vio_prio[i] = VIO_PRIO;
+			}
 		}
 
 		assert(IO_BOUND_VM >= 1 && IO_BOUND_VM <= COS_VIRT_MACH_COUNT);
@@ -144,6 +151,7 @@ rump_booter_init(void)
 #define JSON_NGINX_QEMU 3
 
 /* json config string fixed at compile-time */
+//#define JSON_CONF_TYPE JSON_NGINX_QEMU
 #define JSON_CONF_TYPE JSON_NGINX_BAREMETAL
 //#define JSON_CONF_TYPE JSON_PAWS_BAREMETAL
 
@@ -170,8 +178,10 @@ rump_booter_init(void)
 	}
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
+	/*rk_thd_prio = (vmid == 0) ? DOM0_PRIO : NWVM_PRIO;*/
 	rk_thd_prio = PRIO_LOW;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+	/*rk_thd_prio = (vmid == 0) ? DOM0_PRIO : NWVM_PRIO;*/
 	rk_thd_prio = (vmid == 0) ? PRIO_BOOST : PRIO_UNDER;
 #endif
 
@@ -187,8 +197,10 @@ rump_booter_init(void)
 	
 	/* We pass in the json config string to the RK */
 	cos_run(json_file);
+
 	printc("\nRumpKernel Boot done.\n");
 
+//	while(1);		
 	cos_vm_exit();
 	return;
 }
