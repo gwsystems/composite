@@ -94,6 +94,8 @@ static int timer_calibration_init = 1;
 static unsigned long timer_cycles_per_hpetcyc = TIMER_ERROR_BOUND_FACTOR;
 static unsigned long cycles_per_tick;
 static unsigned long hpetcyc_per_tick;
+static unsigned long periodicity_curr = 0;
+static cycles_t first_hpet_period = 0;
 #define ULONG_MAX 4294967295UL
 
 static inline u64_t
@@ -182,6 +184,9 @@ periodic_handler(struct pt_regs *regs)
 	if (unlikely(timer_calibration_init)) timer_calibration();
 
 	ack_irq(HW_PERIODIC);
+	if (periodicity_curr && !first_hpet_period) {
+		rdtscll(first_hpet_period);
+	}
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
 	HPET_INT_ENABLE(TIMER_PERIODIC);
 
@@ -230,25 +235,6 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 	*hpet_config |= HPET_ENABLE_CNF;
 }
 
-void
-chal_hpet_periodic_set(unsigned long us_period)
-{
-	unsigned long pico_per_hpetcyc, hpetcyc_per_period;
-
-	assert(timer_calibration_init == 0);
-	pico_per_hpetcyc = hpet_capabilities[1]/FEMPTO_PER_PICO; /* bits 32-63 are # of femptoseconds per HPET clock tick */
-	hpetcyc_per_period = (us_period * PICO_PER_MICRO) / pico_per_hpetcyc;
-
-	timer_set(TIMER_PERIODIC, hpetcyc_per_period);
-}
-
-void
-chal_hpet_disable(void)
-{
-	timer_disable(0);
-	timer_disable(0);
-}
-
 u64_t
 timer_find_hpet(void *timer)
 {
@@ -274,6 +260,43 @@ timer_find_hpet(void *timer)
 
 	printk("\tInvalid checksum (%d)\n", sum);
 	return 0;
+}
+
+void
+chal_hpet_periodic_set(unsigned long usecs_period)
+{
+	if (periodicity_curr != usecs_period) {
+		timer_disable(0);
+		timer_disable(0);
+
+		periodicity_curr = 0;
+	}
+
+	if (periodicity_curr == 0) {
+		unsigned long tick_multiple;
+		cycles_t hpetcyc_per_period;
+
+		assert(timer_calibration_init == 0);
+		assert((usecs_period >= TIMER_DEFAULT_US_INTERARRIVAL) && (usecs_period % TIMER_DEFAULT_US_INTERARRIVAL == 0));
+
+		tick_multiple = usecs_period / TIMER_DEFAULT_US_INTERARRIVAL;
+		hpetcyc_per_period = hpetcyc_per_tick * tick_multiple;
+		periodicity_curr = usecs_period;
+		timer_set(TIMER_PERIODIC, hpetcyc_per_period);
+		first_hpet_period = 0;
+		printk("Setting HPET Periodicity:%lu hpetcyc_per_period:%llu\n", usecs_period, hpetcyc_per_period);
+	}
+}
+
+cycles_t
+chal_hpet_first_period(void)
+{ return first_hpet_period; }
+
+void
+chal_hpet_disable(void)
+{
+	timer_disable(0);
+	timer_disable(0);
 }
 
 void

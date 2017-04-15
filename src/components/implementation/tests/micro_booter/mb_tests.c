@@ -380,7 +380,7 @@ spinner(void *d)
 { while (1) ; }
 
 cycles_t cyc_per_usec;
-#define TEST_USEC_INTERVAL 100 /* in microseconds */
+#define TEST_USEC_INTERVAL 1000 /* in microseconds */
 #define TEST_HPET_ITERS   ITER 
 cycles_t iat_vals[TEST_HPET_ITERS - 1];
 
@@ -396,6 +396,7 @@ test_hpet_timer(void)
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, BOOT_CAPTBL_SELF_INITRCV_BASE, TEST_USEC_INTERVAL);
+
 
 	for (i = 0 ; i <= TEST_HPET_ITERS ; i++) {
 		thdid_t     tid;
@@ -413,6 +414,7 @@ test_hpet_timer(void)
 
 		//while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
 	}
+	printc("FIRST HPET PERIOD: %llu\n", hpet_first_period());
 
 	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 

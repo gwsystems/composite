@@ -78,6 +78,7 @@ int cos_rcv(arcvcap_t rcv);
 int cos_sched_rcv(arcvcap_t rcv, thdid_t *thdid, int *blocked, cycles_t *cycles);
 
 int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
+int cos_introspect64(struct cos_compinfo *ci, capid_t cap, unsigned long op, u64_t *value);
 
 int cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4);
 
