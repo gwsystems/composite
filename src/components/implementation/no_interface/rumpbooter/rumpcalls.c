@@ -13,6 +13,7 @@
 //#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 #include "cos_sync.h"
 
+extern int vmid;
 extern struct cos_compinfo booter_info;
 extern struct cos_rumpcalls crcalls;
 
@@ -23,7 +24,7 @@ volatile unsigned int cos_cur_tcap = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 tcap_prio_t rk_thd_prio = RK_THD_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-tcap_prio_t rk_thd_prio = PRIO_MID;
+tcap_prio_t rk_thd_prio = NWVM_PRIO;
 #endif
 
 /* Mapping the functions from rumpkernel to composite */
@@ -140,13 +141,19 @@ cos_irqthd_handler(void *line)
 	asndcap_t sndcap;
 	int which = (int)line;
 	arcvcap_t arcvcap = irq_arcvcap[which];
+	static cycles_t prev = 0;
+	cycles_t now = 0;
 
 	while(1) {
 		int pending = cos_rcv(arcvcap);
 
 		if ((int)line == 0) {
-		//	tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (DL_VM-1)*CAP16B_IDSZ, TCAP_GET_BUDGET);
-		//	if (budget < 1000) printc("HPET budget out: %lu \n", budget);
+			rdtscll(now);
+		//	if (prev && !cycles_same(now-prev, PERIOD*cycs_per_usec, (1<<12))) {
+		//		printc("OVER by %llu! ", (now - prev) / (cycs_per_usec));
+		//	}
+			prev = now;
+			
 			sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (DL_VM - 1) * CAP64B_IDSZ;
 			if(cos_asnd(sndcap, 0)) assert(0);
 		}else {
@@ -229,7 +236,6 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	set_cos_thddata(thread, newthd_cap, cos_introspect(&booter_info, newthd_cap, 9));
 }
 
-extern int vmid;
 
 static inline void
 intr_switch(void)

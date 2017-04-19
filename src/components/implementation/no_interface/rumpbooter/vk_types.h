@@ -10,7 +10,7 @@
 
 #define DL_VM 2
 
-#define VM_TIMESLICE (1000*10) //10*1000*cycs_per_usec = 10ms
+#define VM_TIMESLICE 10*1000//*cycs_per_usec = 10ms
 #define VM_MIN_TIMESLICE (10) //1us
 #define SCHED_MIN_TIMESLICE (10)
 #define SCHED_QUANTUM (VM_TIMESLICE * 100)
@@ -47,9 +47,11 @@ enum vm_prio {
 #endif
 };
 
-#define DLVM_PRIO PRIO_HIGH
-#define NWVM_PRIO PRIO_MID
-#define DOM0_PRIO PRIO_LOW
+#define PERIOD 10000
+
+#define DLVM_PRIO PRIO_MID
+#define NWVM_PRIO PRIO_LOW
+#define DOM0_PRIO PRIO_HIGH
 #define HPET_PRIO PRIO_HIGH
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
@@ -94,9 +96,9 @@ enum vm_credits {
 	VM1_CREDITS  = 2,
 	VM2_CREDITS  = 8,
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	DOM0_CREDITS = 5, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%) 
-	VM1_CREDITS  = 2,
-	VM2_CREDITS  = 8,
+	DOM0_CREDITS = 1, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%) 
+	VM1_CREDITS  = 1,
+	VM2_CREDITS  = 1,
 #endif
 };
 

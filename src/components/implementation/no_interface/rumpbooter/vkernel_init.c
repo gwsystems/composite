@@ -16,7 +16,7 @@ struct cos_compinfo vkern_info;
 struct cos_compinfo vkern_shminfo;
 unsigned int ready_vms = COS_VIRT_MACH_COUNT;
 
-unsigned int cycs_per_usec;
+unsigned int cycs_per_usec = 0;
 
 /*worker thds for dlvm*/
 //extern void dl_work_one(void *);
@@ -190,7 +190,8 @@ setup_credits(void)
 					total_credits += vmcredits[i];
 					break;
 				case 2:
-					vmcredits[i] = (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					//vmcredits[i] = (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					vmcredits[i] = TCAP_RES_INF;
 					total_credits += vmcredits[i];
 					break;
 				default:
@@ -307,16 +308,16 @@ boot_dlvm_sched_fn(int index, tcap_res_t budget)
 	//		assert(0);
 	//	}
 		// ideal case
+		printc("DLVM BOOT SCHED\n");
 		cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
 	} else {
-			printc("DLVM BOOT SCHED\n");
+			//printc("DLVM BOOT TRANSFER\n");
 			if ((cos_tcap_transfer(vminitrcv[index], sched_tcap, timeslice-budget, vmprio[index]))) {
 				printc("\tTcap transfer failed \n");
 				assert(0);
 			}
 			// ideal case
 			cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
-			printc("back in vk from dlvm\n");
 	}
 
 	return 0;
@@ -565,11 +566,15 @@ sched_fn(void *x)
 			while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) ;
 		}
 #endif
-
+		tcap_res_t budget = 0;
+		budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[2], TCAP_GET_BUDGET);
+		
+		boot_dlvm_sched_fn(2, budget);
 		while ((x = vm_next(&vms_under)) != NULL) {
 			int index         = x->id;
-			tcap_res_t budget = 0, transfer_budget = 0;
+			tcap_res_t transfer_budget = 0;
 			int send          = 1;
+			budget = 0;
 
 			if (unlikely(vmstatus[index] == VM_EXITED)) {
 				vm_deletenode(&vms_under, x); 
@@ -578,27 +583,32 @@ sched_fn(void *x)
 			}
 
 			budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[index], TCAP_GET_BUDGET);
+	//		if (budget != 0 && index == DL_VM) continue;
+	//		if (index != DL_VM && !bootup_sched_fn(index, budget)) continue;
+	//		else {
+	//			boot_dlvm_sched_fn(index, budget);
+	//		}
 
-			if (!bootup_sched_fn(index, budget)) continue;
+			/* deleting credit elements of schedulign */
+		//	if (index && cycles_same(budget, 0, VK_CYCS_DIFF_THRESH) && !vm_cr_reset[index]) {
+		//		vm_deletenode(&vms_under, &vmnode[index]);
+		//		vm_insertnode(&vms_over, &vmnode[index]);
+		//		count_over ++;
 
-			if (index && cycles_same(budget, 0, VK_CYCS_DIFF_THRESH) && !vm_cr_reset[index]) {
-				vm_deletenode(&vms_under, &vmnode[index]);
-				vm_insertnode(&vms_over, &vmnode[index]);
-				count_over ++;
+		//		if (count_over == ready_vms - 1) {
+		//			reset_credits();
+		//			count_over = 0;
+		//			no_vms = 0;
+		//		} else {
+		//			continue;
+		//		}
+		//	} 
 
-				if (count_over == ready_vms - 1) {
-					reset_credits();
-					count_over = 0;
-					no_vms = 0;
-				} else {
-					continue;
-				}
-			} 
-
-			if (vm_cr_reset[index]) {
+			//if (vm_cr_reset[index]) {
+			if (budget == 0) {
 				send = 0;
 				no_vms ++;
-				vm_cr_reset[index] = 0;
+				//vm_cr_reset[index] = 0;
 
 				transfer_budget = vmcredits[index] - budget;
 			}
@@ -607,6 +617,7 @@ sched_fn(void *x)
 			rdtscll(start);
 			if (send) {
 				if (index == DL_VM) {
+					//printc("cos_switch to dl_vm\n");
 					cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
 				}
 				else if (cos_asnd(vksndvm[index], 1)) assert(0);
@@ -671,7 +682,25 @@ sched_fn(void *x)
 			}
 #endif
 
-			while (cos_sched_rcv(sched_rcv, &tid, &blocked, &cycles)) ;
+			while (cos_sched_rcv(sched_rcv, &tid, &blocked, &cycles)) {
+				/* if a VM is blocked.. just move it to the end of the queue..*/
+				if (tid && blocked) {
+						if (vm_main_thdid[DL_VM] == tid) {
+							if (vm_container(&vmnode[DL_VM]) == &vms_under) {
+								vm_deletenode(&vms_under, &vmnode[DL_VM]);
+								vm_insertnode(&vms_over, &vmnode[DL_VM]);
+							}
+						}
+				} else if (tid && !blocked) {
+					if (vm_main_thdid[DL_VM] == tid) {
+						if (vm_container(&vmnode[DL_VM]) == &vms_over) {
+						//	printc("reinsert %d\n", DL_VM);
+							vm_cleannode(&vmnode[DL_VM]);
+							vm_insertnode(&vms_under, &vmnode[DL_VM]);	
+						}
+					}
+				}	
+			}
 		}
 	}
 #endif

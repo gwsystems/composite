@@ -63,7 +63,7 @@ hw_irq_alloc(void){
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 				/*DOM0 PRIO*/
 				//irq_prio[i] = RIO_PRIO;
-				irq_prio[i] = DOM0_PRIO;
+				irq_prio[i] = HPET_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 				/*DOM0 PRIO*/
 				irq_prio[i] = DOM0_PRIO;
@@ -82,13 +82,14 @@ hw_irq_alloc(void){
 				assert(irq_arcvcap[i]);
 
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
+				/* Simple case: use the same TCAP for all DOM0 execution */
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 				assert(irq_arcvcap[i]);
 #endif
 				if (i == 0) {
 					printc("cos_periodic_attach\n");
-					cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, irq_arcvcap[i], 1000);
+					cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, irq_arcvcap[i], PERIOD);
 				}else {
 					cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
 				}
@@ -108,7 +109,7 @@ hw_irq_alloc(void){
 					irq_prio[i] = NWVM_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 					//irq_prio[i] = PRIO_UNDER;
-					irq_prio[i] = NWVM_PRIO;
+					irq_prio[i] = DOM0_PRIO;
 #endif
 					break;
 				default: 
