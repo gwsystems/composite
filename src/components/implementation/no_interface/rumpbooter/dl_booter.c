@@ -17,6 +17,19 @@ int dls_missed = 0;
 int dls_made = 0;
 int periods = 0;
 
+static inline void spin_usecs_iters(microsec_t usecs) __attribute__((optimize("O0")));
+static inline void spin_usecs(microsec_t usecs) __attribute__((optimize("O0")));
+static inline int spin_usecs_dl(microsec_t usecs, cycles_t dl) __attribute__((optimize("O0")));
+
+static inline void
+spin_usecs_iters(microsec_t usecs)
+{
+	u64_t total_iters = usecs * iters_per_usec;
+	u64_t iters = 0;
+
+	while (iters < total_iters) iters ++;
+}
+
 static inline void
 spin_usecs(microsec_t usecs)
 {
@@ -55,7 +68,7 @@ void
 dl_work_two(void * ignore)
 {
 	while(1) {
-		spin_usecs(4000);
+		spin_usecs(6000);
 		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	}
 }
@@ -64,7 +77,7 @@ void
 dl_work_one(void * ignore)
 {
 	while(1) {
-		spin_usecs(2000);
+		spin_usecs(3000);
 		cos_thd_switch( *((thdcap_t *)ignore) );
 	}
 }
@@ -101,38 +114,12 @@ test_deadline(thdcap_t dl_wrk_thd1, thdcap_t dl_wrk_thd2) {
 
 	if (now > deadline) {
 	       	dls_missed++;
+	//	printc("missed dl, spun: %llu \n", (now - then)/cycs_per_usec );
 		//if (periods % 100 == 0) printc("dl: %llu  \nno: %llu \n", deadline, now);
 	} else { 
 		dls_made++;
 		//if (periods % 1000 == 0) printc("dl: %llu  \nno: %llu \n", deadline, now);
 	}
-}
-
-void
-check_delegate(void) {
-#if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-		cycles_t now;
-		rdtscll(now);
-		//tcap_res_t min = VIO_BUDGET_APPROX * cycs_per_usec;
-		tcap_res_t min = PERIOD * 10;
-
-		if (periods % 1 == 0) {
-
-			rdtscll(last);
-			tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
-			tcap_res_t res;
-			
-			if (budget >= min) { res = budget/2; }
-			else {
-				printc("DL_VM budget too low\n");
-				return; /* 0 = 100% budget */
-			}
-			
-			if (periods == 1) printc("delegating to hpet, periods passed: %lu\n", budget/2);
-
-			if(cos_tcap_delegate(VM_CAPTBL_SELF_IOASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, HPET_PRIO, 0)) assert(0);
-		}
-#endif
 }
 
 void 
@@ -148,23 +135,18 @@ dl_booter_init(void)
 	dl_wrk_thd2 = cos_thd_alloc(&booter_info, booter_info.comp_cap, dl_work_two, NULL);
 	assert(dl_wrk_thd2);
 	
-#if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	rdtscll(last);
-	/*Use HPET PRIO*/
-	if(cos_tcap_delegate(VM_CAPTBL_SELF_IOASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 10000, HPET_PRIO, 0)) assert(0);
-#endif	
-
+	int ret = 0;
 	while(1) {
-		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE);
-		//printc("w\n");
+		ret = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE);
 		test_deadline(dl_wrk_thd1, dl_wrk_thd2);	
+		
+		//printc("pending: %d\n", ret);
+	
 		periods++;
-		if (periods % 2000 == 0) {
-			printc("dl_missed: %d   dl_made: %d, dl: %llu \n", dls_missed, dls_made, deadline);
+		if (periods % 1000 == 0) {
+		//	printc("dl_missed: %d   dl_made: %d, dl: %llu \n", dls_missed, dls_made, deadline);
+			printc("periods: %d\n", periods);
 		}
-#if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-		check_delegate();
-#endif	
 	}
 }
 

@@ -141,19 +141,14 @@ cos_irqthd_handler(void *line)
 	asndcap_t sndcap;
 	int which = (int)line;
 	arcvcap_t arcvcap = irq_arcvcap[which];
-	static cycles_t prev = 0;
-	cycles_t now = 0;
+	static int prev = 0;
 
 	while(1) {
 		int pending = cos_rcv(arcvcap);
 
 		if ((int)line == 0) {
-			rdtscll(now);
-		//	if (prev && !cycles_same(now-prev, PERIOD*cycs_per_usec, (1<<12))) {
-		//		printc("OVER by %llu! ", (now - prev) / (cycs_per_usec));
-		//	}
-			prev = now;
-			
+			prev++;
+			if (prev % 1000 == 0) printc("hpet: %d\n", prev);	
 			sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (DL_VM - 1) * CAP64B_IDSZ;
 			if(cos_asnd(sndcap, 0)) assert(0);
 		}else {

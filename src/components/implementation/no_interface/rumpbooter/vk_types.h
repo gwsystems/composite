@@ -52,7 +52,7 @@ enum vm_prio {
 #define DLVM_PRIO PRIO_MID
 #define NWVM_PRIO PRIO_LOW
 #define DOM0_PRIO PRIO_HIGH
-#define HPET_PRIO PRIO_HIGH
+#define HPET_PRIO PRIO_LOW
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 #define RIO_PRIO    PRIO_HIGH /* REAL I/O Priority */
@@ -87,6 +87,7 @@ unsigned int dom0_vio_deficit[COS_VIRT_MACH_COUNT - 1];
 enum vm_status {
 	VM_RUNNING,
 	VM_BLOCKED,
+	VM_EXPENDED,
 	VM_EXITED,
 };
 
@@ -142,6 +143,7 @@ enum {
 };
 
 extern unsigned int cycs_per_usec;
+extern u64_t iters_per_usec;
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 extern cycles_t dom0_sla_act_cyc;

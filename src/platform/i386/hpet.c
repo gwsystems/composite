@@ -179,6 +179,8 @@ chal_cyc_usec(void)
 int
 periodic_handler(struct pt_regs *regs)
 {
+	cycles_t now;
+	static cycles_t prev = 0;
 	int preempt = 1;
 
 	if (unlikely(timer_calibration_init)) timer_calibration();
@@ -187,6 +189,10 @@ periodic_handler(struct pt_regs *regs)
 	if (periodicity_curr && !first_hpet_period) {
 		rdtscll(first_hpet_period);
 	}
+//	rdtscll(now);
+//	if (prev) printk(" %llu ", now - prev);
+//	prev = now;
+
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
 	HPET_INT_ENABLE(TIMER_PERIODIC);
 

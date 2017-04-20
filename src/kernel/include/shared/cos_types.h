@@ -325,6 +325,8 @@ enum {
 	THD_GET_DI,
 	/* thread id */
 	THD_GET_TID,
+	/* thd blocked/unblocked */
+	THD_GET_BLOCKED,
 };
 
 /* Tcap info */

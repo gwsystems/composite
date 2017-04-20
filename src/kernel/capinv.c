@@ -702,6 +702,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	assert(rcv_tcap && tcap);
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, yield, cos_info);
+	if (rcv_thd->tid == 10 && next == rcv_thd) printk("Yielding to DLVM\n");
 
 	return cap_switch(regs, thd, next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
 }
@@ -816,8 +817,10 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		return 0;
 	}
 
+	__userregs_setretvals(regs, 0, 0, 0);
 	next = notify_parent(thd);
 	/* if preempted/awoken thread is waiting, switch to that */
+	thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
 	if (nti->thd) {
 		assert(nti->tc);
 

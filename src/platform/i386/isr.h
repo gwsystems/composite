@@ -116,29 +116,29 @@ __find_irq_port(int n, u16_t *p, u8_t *v)
 static void
 mask_irq(int n)
 {
-	u8_t val, ival;
-	u16_t port;
-
-	if (__find_irq_port(n, &port, &val)) return;
-
-	ival = inb(port);
-	ival |= (1 << val);
-	outb(port, ival);
-	irq_mask |= (1 << ((u32_t)n - 32));
+//	u8_t val, ival;
+//	u16_t port;
+//
+//	if (__find_irq_port(n, &port, &val)) return;
+//
+//	ival = inb(port);
+//	ival |= (1 << val);
+//	outb(port, ival);
+//	irq_mask |= (1 << ((u32_t)n - 32));
 }
 
 static void
 unmask_irq(int n)
 {
-	u8_t val, ival;
-	u16_t port;
-
-	if (__find_irq_port(n, &port, &val)) return;
-
-	ival = inb(port);
-	ival &= ~(1 << val);
-	outb(port, ival);
-	irq_mask &= ~(1 << ((u32_t)n - 32));
+//	u8_t val, ival;
+//	u16_t port;
+//
+//	if (__find_irq_port(n, &port, &val)) return;
+//
+//	ival = inb(port);
+//	ival &= ~(1 << val);
+//	outb(port, ival);
+//	irq_mask &= ~(1 << ((u32_t)n - 32));
 }
 
 /* TODO: Can I disable/enable multiple lines in one-shot? */

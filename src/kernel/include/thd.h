@@ -177,7 +177,15 @@ thd_rcvcap_init(struct thread *t)
 
 static inline void
 thd_rcvcap_evt_enqueue(struct thread *head, struct thread *t)
-{ if (list_empty(&t->event_list) && head != t) list_enqueue(&head->event_head, &t->event_list); }
+{
+	if (list_empty(&t->event_list) && head != t) 
+		list_enqueue(&head->event_head, &t->event_list);
+
+//	if (t->tid == 10) {
+//		printk("enqueue to %u, thd :%u state:%d pending:%d\n", head->tid, t->tid, t->state, t->rcvcap.pending);
+//	}
+	
+}
 
 static inline void
 thd_list_rem(struct thread *head, struct thread *t) { list_rem(&t->event_list); }
@@ -456,6 +464,13 @@ thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 	case THD_GET_SI : *retval = t->regs.si; break;
 	case THD_GET_DI : *retval = t->regs.di; break;
 	case THD_GET_TID: *retval = t->tid; break;
+	case THD_GET_BLOCKED:
+	{
+		assert(t->rcvcap.isbound); 
+		*retval = (t->state & THD_STATE_RCVING ? (thd_rcvcap_pending(t) ? 0 : 1) : 0); 
+		
+		break;
+	}
 	default: return -EINVAL;
 	}
 	return 0;
