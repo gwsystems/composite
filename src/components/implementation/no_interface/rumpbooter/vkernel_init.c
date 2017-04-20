@@ -266,72 +266,32 @@ sched_fn(void *x)
 	thdid_t tid;
 	int blocked;
 	cycles_t cycles;
-	int index, j;
-	tcap_res_t cycs;
-	cycles_t total_cycles = 0;
-	int no_vms = 0;
-	int done_printing = 0;
-	cycles_t cpu_usage[COS_VIRT_MACH_COUNT];
-	cycles_t cpu_cycs[COS_VIRT_MACH_COUNT];
-	unsigned int usage[COS_VIRT_MACH_COUNT];
-	unsigned int count[COS_VIRT_MACH_COUNT];
-	cycles_t cycs_per_sec                   = cycs_per_usec * 1000 * 1000;
-	cycles_t total_cycs                     = 0;
-	unsigned int counter                    = 0;
-	cycles_t start                          = 0;
-	cycles_t end                            = 0;
-
-	memset(cpu_usage, 0, sizeof(cpu_usage));
-	memset(cpu_cycs, 0, sizeof(cpu_cycs));
-	(void)cycs;
-
 	printc("Scheduling VMs(Rumpkernel contexts)....\n");
-	memset(vm_bootup, 0, sizeof(vm_bootup));
 
 	while (ready_vms) {
 		int send = 1;
 		tcap_res_t transfer_budget = TCAP_RES_INF, budget = 0;
-		struct vm_node *x, *y;
 		unsigned int count_over = 0;
 		tcap_res_t dom0_max = DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec;
 		int index = 0;
 		int ret;
+		int pending = 0;
 
 		index = sched_index;
 		sched_index ++;
 		sched_index %= COS_VIRT_MACH_COUNT;
 
-		while (cos_sched_rcv(sched_rcv, &tid, &blocked, &cycles));
-//		while (cos_sched_rcv(sched_rcv, &tid, &blocked, &cycles)) {
-//			/* if a VM is blocked.. just move it to the end of the queue..*/
-//			if (tid == vm_main_thdid[DL_VM]) {
-//				assert(vmstatus[DL_VM] != VM_EXPENDED); //inf budget
-//				//printc("DLVM event!\n");
-//				if (blocked && vmstatus[DL_VM] != VM_BLOCKED) {
-//					printc("DLVM Blocked!\n");
-//					vmstatus[DL_VM] = VM_BLOCKED;
-//					while (1) ;
-//				} else if (blocked == 0 && vmstatus[DL_VM] != VM_RUNNING) {
-//					printc("DLVM Unblocked!\n");
-//					vmstatus[DL_VM] = VM_RUNNING;
-//				}
-//			}
-//		}
-		if (vm_cr_reset[DL_VM] == 0) {
-			if (cos_introspect(&vkern_info, vm_main_thd[DL_VM], THD_GET_BLOCKED)) {
-				vmstatus[DL_VM] = VM_BLOCKED;
-			} else {
-				vmstatus[DL_VM] = VM_RUNNING;
-			}
-		}
+		do {
+			pending = cos_sched_rcv(sched_rcv, &tid, &blocked, &cycles);
+			if (!tid || tid != vm_main_thdid[DL_VM]) continue;
 
-		if (vmstatus[index] != VM_RUNNING) {
-			continue;
-		}
+			if (blocked) vmstatus[DL_VM] = VM_BLOCKED;
+			else         vmstatus[DL_VM] = VM_RUNNING;
+		} while (pending);
 
-		//if (index == DL_VM && vm_cr_reset[index] == 0) continue;
+		if (vmstatus[index] != VM_RUNNING) continue;
+
 		if (vm_cr_reset[index]) {
-			printc("%d\n", index);
 			send = 0;
 			vm_cr_reset[index] = 0;
 			transfer_budget = vmcredits[index];
