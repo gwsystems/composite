@@ -187,7 +187,7 @@ cos_irqthd_handler(void *line)
 
 		//	prev++;
 		//	if (prev % 1000 == 0) {
-		//		printc("first:%llu time:%llu num:%llu\n", first, now - first, (now - first) / (PERIOD * cycs_per_usec));
+		//		printc("first:%llu time:%llu num:%llu\n", first, now - first, (now - first) / (HPET_PERIOD_US * cycs_per_usec));
 		//		printc("hpet: %d\n", prev);
 		//	}
 			if(cos_asnd(sndcap, 0)) assert(0);

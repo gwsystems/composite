@@ -97,40 +97,14 @@ void
 test_deadline(thdcap_t dl_wrk_thd1, thdcap_t dl_wrk_thd2) {
 	cycles_t now;
 	cycles_t then;
+
 	rdtscll(then);
-
 	cos_thd_switch(dl_wrk_thd1);
-//	spin_usecs(4500);
-
 	rdtscll(now);
 	prev_exec = now;
 	
-	static cycles_t now_f, then_f, dl_f;
-	if (periods == 0) {
-		now_f = now;
-		then_f = then;
-		dl_f = deadline;
-	}
-	//if( !cycles_same(now-then, 2000*cycs_per_usec, (1<<10) ) ) printc("%llu \n", now - then);
-	if (now <= deadline || cycles_same(now, deadline, 1<<10)) {
-		dls_made ++;
-	} else {
-		dls_missed ++;
-	}
-
-//	if (now > deadline) {
-//	       	dls_missed++;
-//	//	printc("missed dl, spun: %llu \n", (now - then)/cycs_per_usec );
-//		//if (periods % 100 == 0) printc("dl: %llu  \nno: %llu \n", deadline, now);
-//	} else { 
-//		dls_made++;
-//		//if (periods % 1000 == 0) printc("dl: %llu  \nno: %llu \n", deadline, now);
-//	}
-//	if (periods % 2000 == 0) {
-//		if (periods == 2000) printc("first hpet: %llu \ndl: %llu now: %llu then: %llu spun: %llu \n", hpet_first_period(), dl_f, now_f, then_f, (now_f - then_f)/cycs_per_usec );
-//		printc("first hpet: %llu \ndl: %llu now: %llu then: %llu spun: %llu \n", hpet_first_period(), deadline, now, then, (now - then)/cycs_per_usec );
-////		while(1);
-//	}
+	if (now <= deadline || cycles_same(now, deadline, 1<<10)) dls_made ++;
+	else							  dls_missed ++;
 }
 
 void 
@@ -138,11 +112,12 @@ dl_booter_init(void)
 {
 	cycles_t first_period = 0, first_start, first_dl;
 	tcap_res_t budget = 0;
-
 	cycles_t activation = 0;
-	printc("DL_BOOTER_INIT: %d\n", vmid);
-	assert(cycs_per_usec);
+	int ret = 0;
 	thdcap_t dl_wrk_thd1, dl_wrk_thd2;
+
+	printc("DL_BOOTER_INIT: %d\n", vmid);
+	assert(cycs_per_usec && cycs_per_msec);
 
 	dl_wrk_thd1 = cos_thd_alloc(&booter_info, booter_info.comp_cap, dl_work_one, (thdcap_t *) &dl_wrk_thd2);
 	assert(dl_wrk_thd1);
@@ -150,7 +125,6 @@ dl_booter_init(void)
 	dl_wrk_thd2 = cos_thd_alloc(&booter_info, booter_info.comp_cap, dl_work_two, NULL);
 	assert(dl_wrk_thd2);
 	
-	int ret = 0;
 	while(1) {
 		cycles_t now;
 
@@ -168,28 +142,18 @@ dl_booter_init(void)
 
 		if (deadline == 0) {
 			rdtscll(first_start);
-			deadline = hpet_first_period() + (PERIOD*cycs_per_usec);
+			deadline = hpet_first_period() + (HPET_PERIOD_MS*cycs_per_msec);
 			first_dl = deadline;
 			first_period = hpet_first_period();
 			
 		} else {
-			deadline = deadline + (PERIOD*cycs_per_usec);
+			deadline = deadline + (HPET_PERIOD_MS*cycs_per_msec);
 		}
-
-//		if (periods == 500) { // hpet period if 20ms * 500 = 10secs
-//			/* reset deadlines.. all vms bootup maybe complete now.. */
-//
-//			deadline = hpet_first_period() + ((periods + 1) * PERIOD * cycs_per_usec);
-//		}
 
 		test_deadline(dl_wrk_thd1, dl_wrk_thd2);	
 		
 		periods++;
-		if (periods % 1000 == 0) {
-			//if (periods == 1000) printc("first: start:%llu dl:%llu period:%llu\n", first_start, first_dl, first_period);
-			printc("periods:%d, dl_missed:%d, dl_made:%d\n", periods, dls_missed, dls_made);
-		}
-//		if (dls_missed == 20) while (1);
+		if (periods % 1000 == 0) printc("periods:%d, dl_missed:%d, dl_made:%d\n", periods, dls_missed, dls_made);
 	}
 }
 

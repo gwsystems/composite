@@ -49,7 +49,8 @@ enum vm_prio {
 #endif
 };
 
-#define PERIOD 10000
+#define HPET_PERIOD_MS 10
+#define HPET_PERIOD_US (HPET_PERIOD_MS*1000)
 
 #define DLVM_PRIO PRIO_MID
 #define NWVM_PRIO PRIO_LOW

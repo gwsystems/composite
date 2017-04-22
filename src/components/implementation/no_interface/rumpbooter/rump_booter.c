@@ -89,7 +89,7 @@ hw_irq_alloc(void){
 #endif
 				if (i == 0) {
 					printc("cos_periodic_attach\n");
-					cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, irq_arcvcap[i], PERIOD);
+					cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, irq_arcvcap[i], HPET_PERIOD_US);
 				}else {
 					cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
 				}
