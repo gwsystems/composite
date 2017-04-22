@@ -85,6 +85,7 @@ void  rump_bmk_memsize_init(void);
 void set_cos_thddata(struct bmk_thread *thread, capid_t thd, thdid_t tid);
 capid_t get_cos_thdcap(struct bmk_thread *thread);
 thdid_t get_cos_thdid(struct bmk_thread *thread);
+long long bmk_runq_empty(void);
 
 char *get_name(struct bmk_thread *thread);
 long long cos_cpu_clock_now(void);
@@ -98,6 +99,7 @@ void *cos_pa2va(void* addr, unsigned long len);
 void cos_vm_exit(void);
 void cos_sched_yield(void);
 void cos_vm_yield(void);
+void cos_vm_print(char s[], int ret);
 
 int cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
 int cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm);

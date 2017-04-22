@@ -56,6 +56,8 @@
 
 #define HPET_INT_ENABLE(n) (*hpet_interrupt = (0x1 << n)) /* Clears the INT n for level-triggered mode. */
 
+#define __USECS_CEIL__(n, m) (n+(m-(n%m)))
+
 static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;
 static volatile u64_t *hpet_interrupt;
@@ -174,26 +176,50 @@ timer_calibration(void)
 
 int
 chal_cyc_usec(void)
-{ return cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL; }
+{
+	if (cycles_per_tick) return __USECS_CEIL__(cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL, 100);
+	else                 return 0;
+}
+
+int
+chal_cyc_msec(void)
+{
+	assert(TIMER_DEFAULT_US_INTERARRIVAL == 1000);
+	return cycles_per_tick;
+}
 
 int
 periodic_handler(struct pt_regs *regs)
 {
+	static int count = 0;
 	cycles_t now;
 	static cycles_t prev = 0;
 	int preempt = 1;
 
 	if (unlikely(timer_calibration_init)) timer_calibration();
 
+	rdtscll(now);
 	ack_irq(HW_PERIODIC);
-	if (periodicity_curr && !first_hpet_period) {
-		rdtscll(first_hpet_period);
+	if (periodicity_curr) {
+		count ++;
+		//if (prev && count < 200) { printk("act..%llu..", now - prev); }
+		//prev = now;
+	//	if (count % 1000 == 0) printk("h=%d..\n", count);
+		//if (count < 200) goto done;
+		//if (count >= 400) while (1);
+		//if (count == 2500) while (1) ;
+		if (!first_hpet_period) {
+			rdtscll(first_hpet_period);
+		//	printk("f=%llu..\n", first_hpet_period);
+		}
 	}
+	//printk("p");
 //	rdtscll(now);
 //	if (prev) printk(" %llu ", now - prev);
 //	prev = now;
 
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
+//done:
 	HPET_INT_ENABLE(TIMER_PERIODIC);
 
 	return preempt;
@@ -296,7 +322,10 @@ chal_hpet_periodic_set(unsigned long usecs_period)
 
 cycles_t
 chal_hpet_first_period(void)
-{ return first_hpet_period; }
+{
+//	printk("f=%llu..\n", first_hpet_period); 
+	return first_hpet_period; 
+}
 
 void
 chal_hpet_disable(void)

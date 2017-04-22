@@ -33,7 +33,7 @@ struct invstk_entry {
  */
 struct rcvcap_info {
 	/* how many other arcv end-points send notifications to this one? */
-	int isbound, pending, refcnt;
+	int isbound, pending, refcnt, isall;
 	sched_tok_t sched_count;
 	struct tcap   *rcvcap_tcap;      /* This rcvcap's tcap */
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
@@ -170,7 +170,7 @@ thd_rcvcap_init(struct thread *t)
 {
 	struct rcvcap_info *rc = &t->rcvcap;
 
-	rc->isbound = rc->pending = rc->refcnt = 0;
+	rc->isbound = rc->pending = rc->refcnt = rc->isall = 0;
 	rc->sched_count = 0;
 	rc->rcvcap_thd_notif = NULL;
 }
@@ -180,11 +180,6 @@ thd_rcvcap_evt_enqueue(struct thread *head, struct thread *t)
 {
 	if (list_empty(&t->event_list) && head != t) 
 		list_enqueue(&head->event_head, &t->event_list);
-
-//	if (t->tid == 10) {
-//		printk("enqueue to %u, thd :%u state:%d pending:%d\n", head->tid, t->tid, t->state, t->rcvcap.pending);
-//	}
-	
 }
 
 static inline void
@@ -225,6 +220,15 @@ thd_rcvcap_pending_dec(struct thread *arcvt)
 	if (pending == 0) return 0;
 	arcvt->rcvcap.pending--;
 
+	return pending;
+}
+
+static int
+thd_rcvcap_pending_all(struct thread *arcvt)
+{
+	int pending = arcvt->rcvcap.pending;
+
+	arcvt->rcvcap.pending = 0;
 	return pending;
 }
 

@@ -12,6 +12,7 @@
 #include "vkern_api.h"
 //#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 #include "cos_sync.h"
+#include "micro_booter.h"
 
 extern int vmid;
 extern struct cos_compinfo booter_info;
@@ -35,7 +36,7 @@ cos2rump_setup(void)
 
 	crcalls.rump_cpu_clock_now 		= cos_cpu_clock_now;
 	crcalls.rump_vm_clock_now 		= cos_vm_clock_now;
-	crcalls.rump_cos_print 	      		= cos_print;
+	crcalls.rump_cos_print 	      		= cos_vm_print;
 	crcalls.rump_vsnprintf        		= vsnprintf;
 	crcalls.rump_strcmp           		= strcmp;
 	crcalls.rump_strncpy          		= strncpy;
@@ -70,6 +71,22 @@ cos2rump_setup(void)
 	crcalls.rump_dequeue_size		= cos_dequeue_size;
 
 	return;
+}
+
+void
+cos_vm_print(char s[], int ret)
+{
+	int len = strlen(s);
+	int index = len;
+
+	if (len >= 125) {
+		index = 125;
+	}
+	s[index] = ':';
+	s[index + 1] = vmid - 40;
+	s[index + 2] = '\0';
+
+	cos_print(s, ret);
 }
 
 int
@@ -134,26 +151,47 @@ rump2cos_rcv(void)
 	return;
 }
 
+void
+cos_irq_ack(void)
+{
+	/*
+         * ACK interrupts on PIC
+         */
+        __asm__ __volatile(
+            "movb $0x20, %%al\n"
+            "outb %%al, $0xa0\n"
+            "outb %%al, $0x20\n"
+            ::: "al");
+}
+
 /* irq */
 void
 cos_irqthd_handler(void *line)
 {
+	cycles_t first = 0;
 	asndcap_t sndcap;
 	int which = (int)line;
 	arcvcap_t arcvcap = irq_arcvcap[which];
 	static int prev = 0;
 
+	if (line == 0) sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (DL_VM - 1) * CAP64B_IDSZ;
+
 	while(1) {
 		int pending = cos_rcv(arcvcap);
 
 		if ((int)line == 0) {
-			prev++;
-			if (prev % 1000 == 0) printc("hpet: %d\n", prev);	
-			sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (DL_VM - 1) * CAP64B_IDSZ;
+			cycles_t now;
+
+			rdtscll(now);
+			if (!first) first = hpet_first_period();
+
+		//	prev++;
+		//	if (prev % 1000 == 0) {
+		//		printc("first:%llu time:%llu num:%llu\n", first, now - first, (now - first) / (PERIOD * cycs_per_usec));
+		//		printc("hpet: %d\n", prev);
+		//	}
 			if(cos_asnd(sndcap, 0)) assert(0);
 		}else {
-			//tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
-			//if (budget < 1000) printc("budget: %lu \n", budget);
 			intr_start(which);
 			bmk_isr(which);
 			intr_end();
@@ -392,14 +430,21 @@ print_cycles(void)
 void
 cos_resume(void)
 {
+	static int hpet_irq_blocked = 1;
+	static u64_t r1 = 0, r2 = 0, r3 = 0, r4 = 0;
 	/* this will not return if this vm is set to be CPU bound */
 	//cpu_bound_test();
 
 	while(1) {
 		int ret, first = 1;
-		unsigned int rk_disabled;
-		unsigned int intr_disabled;
+		unsigned int rk_disabled = 0;
+		unsigned int intr_disabled = 0;
+		long long until = 0, curr_time = 0;
 
+//		if (r2 % 10000 == 0 || r4 % 10000 == 0) {
+//			printc("%d: r1:%llu r2:%llu r3:%llu r4:%llu\n", vmid, r1, r2, r3, r4);
+//		}
+		r1 ++;
 		do {
 			unsigned int contending;
 			cycles_t cycles;
@@ -418,14 +463,16 @@ cos_resume(void)
 			 * executing before returning to RK
 		 	 */
 
+			r2 ++;
 			do {
-				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles);
+				r3 ++;
+				int rcvd;
+				pending = cos_sched_rcv_all(BOOT_CAPTBL_SELF_INITRCV_BASE, &rcvd, &tid, &blocked, &cycles);
 				assert(pending <= 1);
 
 				irq_line = intr_translate_thdid2irq(tid);
-				if ((int)irq_line == 0) continue;
-
-				intr_update(irq_line, blocked);
+				if (irq_line == 0) hpet_irq_blocked = blocked;
+				else intr_update(irq_line, blocked);
 
 				if(first) {
 					isr_get(cos_isr, &rk_disabled, &intr_disabled, &contending);
@@ -438,18 +485,45 @@ cos_resume(void)
 			 * Done processing pending events
 			 * Finish any remaining interrupts
 			 */
+			if (!hpet_irq_blocked) {
+				do {
+					ret = cos_switch(irq_thdcap[0], irq_tcap[0], irq_prio[0], 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+					assert(ret == 0 || ret == -EAGAIN);
+				} while (ret == -EAGAIN);
+			}
 			intr_switch();
 
-		} while(intrs);
+		} while(intrs || !hpet_irq_blocked);
 
-		assert(!intrs);
+		assert(!intrs && hpet_irq_blocked);
 
 rk_resume:
+		/*
+		 * Check if BMK Runq has something to RUN!
+		 * Return value indicates how long to wait before timing out, 0 if it's not running bmk_platform_block..
+		 * This is a check in bmk_platform_block(). 
+		 * This upcall should make things faster in idle/block time processing in RK threads.
+		 */
+		if ((until = bmk_runq_empty())) {
+			curr_time = cos_cpu_clock_now();
+			if(until > curr_time) {
+				//printc("%d: %lld %lld..", vmid, until, curr_time);
+				continue;
+			}
+		}
 		do {
+			cycles_t now, then;
+
+			r4 ++;
 			if(intr_disabled) break;
 			cos_find_vio_tcap();
+
+			rdtscll(then);
 			/* TODO: decide which TCAP to use for rest of RK processing for I/O and do deficit accounting */
 			ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			rdtscll(now);
+	//		if (now - then > VM_TIMESLICE * 3 * cycs_per_usec) printc("vm:%d rk:%llu cycs\n", vmid, now - then);
+			
 			assert(ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
 

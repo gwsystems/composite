@@ -493,8 +493,14 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
 		assert(!(next->state & THD_STATE_PREEMPTED));
 		next->state &= ~THD_STATE_RCVING;
 		thd_state_evt_deliver(next, &a, &b);
-		thd_rcvcap_pending_dec(next);
-		__userregs_setretvals(&next->regs, thd_rcvcap_pending(next), a, b);
+		if (!next->rcvcap.isall) {
+			thd_rcvcap_pending_dec(next);
+			__userregs_setretvals(&next->regs, thd_rcvcap_pending(next), a, b);
+		} else {
+			int pending = thd_rcvcap_pending_all(next);
+			__userregs_setretvals(&next->regs, pending << 1 | thd_rcvcap_pending(next), a, b);
+			next->rcvcap.isall = 0;
+		}
 	}
 
 	/* if it was suspended for budget expiration, clear it */
@@ -702,7 +708,6 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	assert(rcv_tcap && tcap);
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, yield, cos_info);
-	if (rcv_thd->tid == 10 && next == rcv_thd) printk("Yielding to DLVM\n");
 
 	return cap_switch(regs, thd, next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
 }
@@ -743,6 +748,10 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	assert(rcv_tcap && tcap);
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0, cos_info);
+	if (regs->orig_ax == HW_PERIODIC) {
+		if (next != rcv_thd) assert(0);
+		//if (rcv_thd->rcvcap.pending >= 100) printk("pending:%lu\n", rcv_thd->rcvcap.pending);
+	}
 	if (next == thd) return 1;
 	thd->state |= THD_STATE_PREEMPTED;
 
@@ -802,6 +811,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 	struct tcap   *tc_next   = tcap_current(cos_info);
 	struct next_thdinfo *nti = &cos_info->next_ti;
 	tcap_time_t timeout      = TCAP_TIME_NIL;
+	int isall = __userregs_getop(regs);
 
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
 
@@ -811,16 +821,20 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 		thd_state_evt_deliver(thd, &a, &b);
-		thd_rcvcap_pending_dec(thd);
-		__userregs_setretvals(regs, thd_rcvcap_pending(thd), a, b);
+		if (!isall) {
+			thd_rcvcap_pending_dec(thd);
+			__userregs_setretvals(regs, thd_rcvcap_pending(thd), a, b);
+		} else {
+			int pending = thd_rcvcap_pending_all(thd);
 
+			__userregs_setretvals(regs, pending << 1 | thd_rcvcap_pending(thd), a, b);
+		}
 		return 0;
 	}
+	thd->rcvcap.isall = isall;
 
-	__userregs_setretvals(regs, 0, 0, 0);
 	next = notify_parent(thd);
 	/* if preempted/awoken thread is waiting, switch to that */
-	thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
 	if (nti->thd) {
 		assert(nti->tc);
 
@@ -1666,6 +1680,11 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		case CAPTBL_OP_HW_CYC_USEC:
 		{
 			ret = chal_cyc_usec();
+			break;
+		}
+		case CAPTBL_OP_HW_CYC_MSEC:
+		{
+			ret = chal_cyc_msec();
 			break;
 		}
 		case CAPTBL_OP_HW_CYC_THRESH:

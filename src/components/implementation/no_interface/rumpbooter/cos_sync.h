@@ -125,7 +125,7 @@ isr_construct(unsigned int rk_disabled, unsigned int intr_disabled, unsigned int
 static inline void
 isr_disable(void)
 {
-	isr_state_t tmp, final;
+	isr_state_t tmp = 0, final = 0;
 
 	/* Isr is currently enabled, disable for first time */
 	if(!cos_nesting) {

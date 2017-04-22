@@ -45,11 +45,14 @@ cycles_t
 hpet_first_period(void)
 {
 	int ret;
-	cycles_t start_period = 0;
+	static cycles_t start_period = 0;
+
+	if (start_period) return start_period;
 
 	while ((ret = cos_introspect64(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_GET_FIRSTPERIOD, &start_period)) == -EAGAIN) ;
 	if (ret) assert(0);
 
+//	printc("sp:%llu\n", start_period);
 	return start_period;
 }
 

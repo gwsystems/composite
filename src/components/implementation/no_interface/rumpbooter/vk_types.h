@@ -10,12 +10,14 @@
 
 #define DL_VM 2
 
-#define VM_TIMESLICE 10*1000//*cycs_per_usec = 10ms
+#define VM_TIMESLICE 1*1000//*cycs_per_usec = 1ms
 #define VM_MIN_TIMESLICE (10) //1us
 #define SCHED_MIN_TIMESLICE (10)
 #define SCHED_QUANTUM (VM_TIMESLICE * 100)
 
 #define VK_CYCS_DIFF_THRESH (1<<8)
+
+#define VM_MS_TIMESLICE 1
 
 #undef PRINT_CPU_USAGE 
 #define MIN_CYCS (1<<12)
@@ -52,7 +54,7 @@ enum vm_prio {
 #define DLVM_PRIO PRIO_MID
 #define NWVM_PRIO PRIO_LOW
 #define DOM0_PRIO PRIO_HIGH
-#define HPET_PRIO PRIO_LOW
+#define HPET_PRIO PRIO_HIGH
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 #define RIO_PRIO    PRIO_HIGH /* REAL I/O Priority */
@@ -85,10 +87,10 @@ unsigned int dom0_vio_deficit[COS_VIRT_MACH_COUNT - 1];
 #endif
 
 enum vm_status {
-	VM_RUNNING,
-	VM_BLOCKED,
-	VM_EXPENDED,
-	VM_EXITED,
+	VM_RUNNING = 0,
+	VM_BLOCKED = 1,
+	VM_EXPENDED = 2,
+	VM_EXITED = 3,
 };
 
 enum vm_credits {
@@ -97,9 +99,9 @@ enum vm_credits {
 	VM1_CREDITS  = 2,
 	VM2_CREDITS  = 8,
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	DOM0_CREDITS = 1, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%) 
-	VM1_CREDITS  = 1,
-	VM2_CREDITS  = 1,
+	DOM0_CREDITS = 0, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%) 
+	VM1_CREDITS  = 5,
+	VM2_CREDITS  = 5,
 #endif
 };
 
@@ -143,6 +145,7 @@ enum {
 };
 
 extern unsigned int cycs_per_usec;
+extern unsigned int cycs_per_msec;
 extern u64_t iters_per_usec;
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)

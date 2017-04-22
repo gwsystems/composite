@@ -20,6 +20,9 @@ int periods = 0;
 static inline void spin_usecs_iters(microsec_t usecs) __attribute__((optimize("O0")));
 static inline void spin_usecs(microsec_t usecs) __attribute__((optimize("O0")));
 static inline int spin_usecs_dl(microsec_t usecs, cycles_t dl) __attribute__((optimize("O0")));
+void dl_work_one(void *) __attribute__((optimize("O0")));
+void dl_work_two(void *) __attribute__((optimize("O0")));
+void test_deadline(thdcap_t, thdcap_t) __attribute__((optimize("O0")));
 
 static inline void
 spin_usecs_iters(microsec_t usecs)
@@ -43,7 +46,10 @@ spin_usecs(microsec_t usecs)
 
 	cycs += now;
 	
-	while (now < cycs) rdtscll(now);
+	while (now < cycs) {
+		rdtscll(now);
+		assert(now > now2);
+	}
 //	if(periods == 2000) printc("c:%llu n1:%llu n2:%llu \n", cycs, now, now2, (now2 - cycs)/cycs_per_usec);
 }
 
@@ -68,7 +74,7 @@ void
 dl_work_two(void * ignore)
 {
 	while(1) {
-		spin_usecs(6000);
+		spin_usecs(2200);
 		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	}
 }
@@ -77,7 +83,7 @@ void
 dl_work_one(void * ignore)
 {
 	while(1) {
-		spin_usecs(3000);
+		spin_usecs(2800);
 		cos_thd_switch( *((thdcap_t *)ignore) );
 	}
 }
@@ -85,6 +91,7 @@ dl_work_one(void * ignore)
 cycles_t last;
 cycles_t first = 0;
 cycles_t deadline = 0;
+cycles_t prev_exec = 0;
 
 void
 test_deadline(thdcap_t dl_wrk_thd1, thdcap_t dl_wrk_thd2) {
@@ -93,38 +100,46 @@ test_deadline(thdcap_t dl_wrk_thd1, thdcap_t dl_wrk_thd2) {
 	rdtscll(then);
 
 	cos_thd_switch(dl_wrk_thd1);
+//	spin_usecs(4500);
 
 	rdtscll(now);
+	prev_exec = now;
 	
-	if (deadline == 0) deadline = hpet_first_period() + (PERIOD*cycs_per_usec);
-	else deadline = deadline + (PERIOD*cycs_per_usec);
-
 	static cycles_t now_f, then_f, dl_f;
 	if (periods == 0) {
 		now_f = now;
 		then_f = then;
 		dl_f = deadline;
 	}
-	if (periods == 2000) {
-		printc("first hpet: %llu \ndl: %llu now: %llu then: %llu spun: %llu \n", hpet_first_period(), dl_f, now_f, then_f, (now_f - then_f)/cycs_per_usec );
-		printc("first hpet: %llu \ndl: %llu now: %llu then: %llu spun: %llu \n", hpet_first_period(), deadline, now, then, (now - then)/cycs_per_usec );
-//		while(1);
-	}
 	//if( !cycles_same(now-then, 2000*cycs_per_usec, (1<<10) ) ) printc("%llu \n", now - then);
-
-	if (now > deadline) {
-	       	dls_missed++;
-	//	printc("missed dl, spun: %llu \n", (now - then)/cycs_per_usec );
-		//if (periods % 100 == 0) printc("dl: %llu  \nno: %llu \n", deadline, now);
-	} else { 
-		dls_made++;
-		//if (periods % 1000 == 0) printc("dl: %llu  \nno: %llu \n", deadline, now);
+	if (now <= deadline || cycles_same(now, deadline, 1<<10)) {
+		dls_made ++;
+	} else {
+		dls_missed ++;
 	}
+
+//	if (now > deadline) {
+//	       	dls_missed++;
+//	//	printc("missed dl, spun: %llu \n", (now - then)/cycs_per_usec );
+//		//if (periods % 100 == 0) printc("dl: %llu  \nno: %llu \n", deadline, now);
+//	} else { 
+//		dls_made++;
+//		//if (periods % 1000 == 0) printc("dl: %llu  \nno: %llu \n", deadline, now);
+//	}
+//	if (periods % 2000 == 0) {
+//		if (periods == 2000) printc("first hpet: %llu \ndl: %llu now: %llu then: %llu spun: %llu \n", hpet_first_period(), dl_f, now_f, then_f, (now_f - then_f)/cycs_per_usec );
+//		printc("first hpet: %llu \ndl: %llu now: %llu then: %llu spun: %llu \n", hpet_first_period(), deadline, now, then, (now - then)/cycs_per_usec );
+////		while(1);
+//	}
 }
 
 void 
 dl_booter_init(void)
 {
+	cycles_t first_period = 0, first_start, first_dl;
+	tcap_res_t budget = 0;
+
+	cycles_t activation = 0;
 	printc("DL_BOOTER_INIT: %d\n", vmid);
 	assert(cycs_per_usec);
 	thdcap_t dl_wrk_thd1, dl_wrk_thd2;
@@ -137,16 +152,44 @@ dl_booter_init(void)
 	
 	int ret = 0;
 	while(1) {
+		cycles_t now;
+
 		ret = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE);
+//		if (!TCAP_RES_IS_INF(budget))
+//			budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET); 
+//		rdtscll(now);
+//		if (activation == 0) activation = now;
+//		else {
+//			if (dls_missed && dls_missed < 10)
+//				printc("p%d act:%llu, now:%llu, pdl:%llu:%llu, budget:%lu\n", periods, now - activation, now, deadline, prev_exec, budget);
+//			activation = now;
+//			if (dls_missed == 10) while (1) ;
+//		}
+
+		if (deadline == 0) {
+			rdtscll(first_start);
+			deadline = hpet_first_period() + (PERIOD*cycs_per_usec);
+			first_dl = deadline;
+			first_period = hpet_first_period();
+			
+		} else {
+			deadline = deadline + (PERIOD*cycs_per_usec);
+		}
+
+//		if (periods == 500) { // hpet period if 20ms * 500 = 10secs
+//			/* reset deadlines.. all vms bootup maybe complete now.. */
+//
+//			deadline = hpet_first_period() + ((periods + 1) * PERIOD * cycs_per_usec);
+//		}
+
 		test_deadline(dl_wrk_thd1, dl_wrk_thd2);	
 		
-		//printc("pending: %d\n", ret);
-	
 		periods++;
 		if (periods % 1000 == 0) {
-		//	printc("dl_missed: %d   dl_made: %d, dl: %llu \n", dls_missed, dls_made, deadline);
-			printc("periods: %d\n", periods);
+			//if (periods == 1000) printc("first: start:%llu dl:%llu period:%llu\n", first_start, first_dl, first_period);
+			printc("periods:%d, dl_missed:%d, dl_made:%d\n", periods, dls_missed, dls_made);
 		}
+//		if (dls_missed == 20) while (1);
 	}
 }
 
