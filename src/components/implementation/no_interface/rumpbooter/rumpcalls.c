@@ -467,7 +467,7 @@ cos_resume(void)
 			do {
 				r3 ++;
 				int rcvd;
-				pending = cos_sched_rcv_all(BOOT_CAPTBL_SELF_INITRCV_BASE, &rcvd, &tid, &blocked, &cycles);
+				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles);
 				assert(pending <= 1);
 
 				irq_line = intr_translate_thdid2irq(tid);
@@ -485,14 +485,13 @@ cos_resume(void)
 			 * Done processing pending events
 			 * Finish any remaining interrupts
 			 */
+			intr_switch();
 			if (!hpet_irq_blocked) {
 				do {
 					ret = cos_switch(irq_thdcap[0], irq_tcap[0], irq_prio[0], 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 					assert(ret == 0 || ret == -EAGAIN);
 				} while (ret == -EAGAIN);
 			}
-			intr_switch();
-
 		} while(intrs || !hpet_irq_blocked);
 
 		assert(!intrs && hpet_irq_blocked);
@@ -504,13 +503,13 @@ rk_resume:
 		 * This is a check in bmk_platform_block(). 
 		 * This upcall should make things faster in idle/block time processing in RK threads.
 		 */
-		if ((until = bmk_runq_empty())) {
-			curr_time = cos_cpu_clock_now();
-			if(until > curr_time) {
-				//printc("%d: %lld %lld..", vmid, until, curr_time);
-				continue;
-			}
-		}
+//		if ((until = bmk_runq_empty())) {
+//			curr_time = cos_cpu_clock_now();
+//			if(until > curr_time) {
+//				//printc("%d: %lld %lld..", vmid, until, curr_time);
+//				continue;
+//			}
+//		}
 		do {
 			cycles_t now, then;
 

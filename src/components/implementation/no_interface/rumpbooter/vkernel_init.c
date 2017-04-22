@@ -4,6 +4,7 @@
 #include <vkern_api.h>
 #include "cos_sync.h"
 #include "vk_api.h"
+#include "spin.h"
 
 #define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
@@ -19,6 +20,9 @@ unsigned int ready_vms = COS_VIRT_MACH_COUNT;
 u64_t iters_per_usec = 0ULL;
 unsigned int cycs_per_usec = 0;
 unsigned int cycs_per_msec = 0;
+u64_t cycs_per_spin = 0;
+unsigned int spin_iters = 0;
+unsigned int usecs_per_spin = 0;
 
 /*worker thds for dlvm*/
 //extern void dl_work_one(void *);
@@ -181,85 +185,6 @@ fillup_budgets(void)
 	vmruncount[2] = 0;
 }
 
-volatile cycles_t start = 0, end = 0;
-
-
-static inline u64_t spin_cycs(u64_t) __attribute__((optimize("O0")));
-static inline u64_t spin_iters(u64_t) __attribute__((optimize("O0")));
-static inline void spin_iters_per_usec(void) __attribute__((optimize("O0")));
-#define CALIB_ITERS 1024
-static inline u64_t
-spin_iters(u64_t total_iters)
-{
-	volatile u64_t *s, *e, iters = 0;
-
-	s = &start;
-	e = &end;
-
-	rdtscll(*s);
-	do {
-		iters ++;
-	} while (iters < total_iters);
-	rdtscll(*e);
-
-	return *e - *s;
-}
-
-static inline u64_t 
-spin_cycs(u64_t cycs)
-{
-	volatile u64_t *s, *e, iters = 0;
-
-	s = &start;
-	e = &end;
-	rdtscll(*e);
-	*e += cycs;
-
-	do {
-		iters ++;
-		rdtscll(*s);
-	} while (*s < *e);
-
-	return iters;
-}
-/*
- * Calibrates iters_per_usec.
- * Caution: Call this at the bootup phase for the first time. 
- *	    Call to this any other time, can make it inaccurate with preemptions, etc!
- */
-static inline void 
-spin_iters_per_usec(void)
-{
-	int iter = 0;
-	u64_t max_iters = (1ULL<<((sizeof(u64_t)*8)-1));
-	u64_t avg_iters = 0ULL, total_iters = 0ULL;
-	cycles_t calib = 1000;
-	cycles_t cycs = cycs_per_usec * calib; /* cycs per usec */
-	//u64_t this_iters[CALIB_ITERS] = { 0ULL };
-
-	assert(cycs_per_usec);
-	if (iters_per_usec) return;
-
-	while (iter < CALIB_ITERS) {
-		u64_t this_iters = 0ULL;
-
-		this_iters = spin_cycs(cycs);
-
-		assert (this_iters < max_iters);
-		total_iters += this_iters;
-		iter ++;
-	}
-
-	assert (total_iters < max_iters);
-	avg_iters = total_iters / CALIB_ITERS;
-	assert (avg_iters < max_iters);
-	iters_per_usec = avg_iters / calib;
-//	for (iter = 0 ; iter < CALIB_ITERS ; iter ++) {
-//		printc("Iter%d: %llu\n", iter, this_iters[iter]);
-//	}
-	printc("%d Total:%llu, Average:%llu, LIMIT:%llu\n", CALIB_ITERS, total_iters, avg_iters, max_iters);
-}
-
 /* call this for non-budget accounting case. */
 static tcap_res_t 
 check_vm_budget(int index)
@@ -300,7 +225,7 @@ static void
 wakeup_vms(unsigned x)
 {
 	static cycles_t last_wakeup = 0;
-	cycles_t wakeupslice = VM_TIMESLICE * x * cycs_per_usec;
+	cycles_t wakeupslice = VM_MS_TIMESLICE * x * cycs_per_msec;
 	cycles_t now;
 	
 	rdtscll(now);
@@ -452,18 +377,44 @@ vkold_shmem_map(struct cos_compinfo *vmci, unsigned int id, unsigned long shm_sz
 	return;
 }
 
+#define TEST_SPIN_N 5
+static void
+test_spinlib(void)
+{
+	int i;
+	cycles_t start, end;
+	u64_t usecs[TEST_SPIN_N] = { 1000, 10000, 5000, 4000, 8500 };
+	u64_t cycs_usecs[TEST_SPIN_N] = { 1000, 10000, 5000, 4000, 8500 };
+
+	for (i = 0 ; i < TEST_SPIN_N ; i++) {
+		rdtscll(start);
+		spin_usecs(usecs[i]);
+		rdtscll(end);
+
+		printc("%d = Spun (%llu us): %llu cycs, %llu usecs\n", i, usecs[i], end-start, (end-start)/cycs_per_usec);
+	}
+
+	for (i = 0 ; i < TEST_SPIN_N ; i++) {
+		rdtscll(start);
+		spin_cycles((cycs_usecs[i] * cycs_per_usec));
+		rdtscll(end);
+
+		printc("%d = Spun (%llu cycs): %llu cycs, %llu usecs\n", i, cycs_usecs[i], end-start, (end-start)/cycs_per_usec);
+	}
+
+}
+
 void
 cos_init(void)
 {
 	struct cos_compinfo vmbooter_info[COS_VIRT_MACH_COUNT];
 	struct cos_compinfo vmbooter_shminfo[COS_VIRT_MACH_COUNT];
+	int i = 0, id = 0, cycs;
+	int page_range = 0;
+
 	assert(COS_VIRT_MACH_COUNT >= 2);
 
 	printc("Hypervisor:vkernel START\n");
-
-	int i = 0, id = 0, cycs;
-	int page_range = 0;
-	u64_t test_iters, test_total_iters, diff;
 
 	while (!(cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE))) ;
 	printc("\t%d cycles per microsecond\n", cycs);
@@ -472,16 +423,16 @@ cos_init(void)
 	while (!(cycs = cos_hw_cycles_per_msec(BOOT_CAPTBL_SELF_INITHW_BASE))) ;
 	printc("\t%d cycles per millisecond\n", cycs);
 	cycs_per_msec = (unsigned int)cycs;
-
-	//spin_iters_per_usec();
-
-	//test_iters = iters_per_usec * 1000;
-	//diff = spin_iters(test_iters);
-	//printc("Spun for %llu iters = %llu cycs = %llu usecs\n", test_iters, diff, (diff)/cycs_per_usec);
-	//printc("Iterations per us:%lu\n", iters_per_usec);
 	
 	printc("Timeslice in ms(%lu):%lu\n", (unsigned long)cycs_per_msec, (unsigned long)(VM_MS_TIMESLICE * cycs_per_msec));
 	printc("Timeslice in us(%lu):%lu\n", (unsigned long)cycs_per_usec, (unsigned long)(VM_TIMESLICE * cycs_per_usec));
+
+	cycs_per_spin = spin_calib();
+	printc("%llu microseconds per %d iterations\n", cycs_per_spin/cycs_per_usec, ITERS_SPIN);
+
+	test_spinlib();
+	
+	while (1);
 
 	vm_list_init();
 	setup_credits();

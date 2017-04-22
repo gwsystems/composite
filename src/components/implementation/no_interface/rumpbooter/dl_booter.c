@@ -25,15 +25,6 @@ void dl_work_two(void *) __attribute__((optimize("O0")));
 void test_deadline(thdcap_t, thdcap_t) __attribute__((optimize("O0")));
 
 static inline void
-spin_usecs_iters(microsec_t usecs)
-{
-	u64_t total_iters = usecs * iters_per_usec;
-	u64_t iters = 0;
-
-	while (iters < total_iters) iters ++;
-}
-
-static inline void
 spin_usecs(microsec_t usecs)
 {
 	cycles_t cycs = cycs_per_usec * usecs;
