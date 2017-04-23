@@ -83,6 +83,7 @@ int
 hw_handler(struct pt_regs *regs)
 {
 	int preempt = 1;
+	u32_t count = 0;
 
 	//printk("%d", regs->orig_ax);
 
@@ -90,6 +91,8 @@ hw_handler(struct pt_regs *regs)
 	 * TODO: ack here? or
 	 *       after user-level interrupt(rcv event) processing?
 	 */
+	count ++;
+//	if (count % 1000 == 0) printk("..n%lu..", count);
 	//ack_irq(regs->orig_ax);
 	preempt = cap_hw_asnd(&hw_asnd_caps[regs->orig_ax], regs);
 

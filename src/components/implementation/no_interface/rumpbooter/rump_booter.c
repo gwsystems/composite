@@ -12,8 +12,8 @@ extern struct cos_compinfo booter_info;
 extern int vmid;
 
 void
-hw_irq_alloc(void){
-
+hw_irq_alloc(void)
+{
 	tcap_res_t budget;
 	int i, ret;
 	int first = 1, id = HW_ISR_FIRST;
@@ -26,33 +26,20 @@ hw_irq_alloc(void){
 
 	for(i = HW_ISR_FIRST; i < HW_ISR_LINES; i++){
 		if (vmid == 0) {
+			/* Simple case: use the same TCAP for all DOM0 execution */
+			irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+			irq_prio[i] = DOM0_PRIO;
 			switch(i) {
 			case IRQ_VM1:
 				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE;
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
 				irq_arcvcap[i] = VM0_CAPTBL_SELF_IORCV_SET_BASE;
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-				irq_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE;
-				//irq_prio[i]  = VIO_PRIO;
-				irq_prio[i] = DOM0_PRIO;
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-				/* DOM0 PRIO */
-				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-				//irq_prio[i] = PRIO_BOOST;
-				irq_prio[i] = DOM0_PRIO;
-#endif
 				break;
 			case IRQ_VM2:
-				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE + CAP16B_IDSZ;
-				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
-				irq_arcvcap[i] = VM0_CAPTBL_SELF_IORCV_SET_BASE + CAP64B_IDSZ;
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-				irq_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + CAP16B_IDSZ;
-				irq_prio[i]  = VIO_PRIO;
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-				irq_prio[i] = DOM0_PRIO;
-#endif
+				/* no thread caps created in simple case between dlvm and dom0 */
+//				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE + CAP16B_IDSZ;
+//				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
+//				irq_arcvcap[i] = VM0_CAPTBL_SELF_IORCV_SET_BASE + CAP64B_IDSZ;
 				break;
 
 			default:
@@ -60,43 +47,20 @@ hw_irq_alloc(void){
 				assert(irq_thdcap[i]);
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
 				assert(irq_thdid[i]);
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-				/*DOM0 PRIO*/
-				//irq_prio[i] = RIO_PRIO;
-				irq_prio[i] = HPET_PRIO;
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-				/*DOM0 PRIO*/
-				irq_prio[i] = DOM0_PRIO;
-				//irq_prio[i] = RIO_PRIO;
-#endif
 
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-				
-				if (i == 0) {
-					irq_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + ((DL_VM-1) * CAP16B_IDSZ);
-				} else {
-					irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-				}
-				//irq_tcap[i] = irq_tcap[id];
-				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-				assert(irq_arcvcap[i]);
-
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-				/* Simple case: use the same TCAP for all DOM0 execution */
-				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 				assert(irq_arcvcap[i]);
-#endif
 				if (i == 0) {
 					printc("cos_periodic_attach\n");
 					cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, irq_arcvcap[i], HPET_PERIOD_US);
-				}else {
+				} else {
 					cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
 				}
 
 				break;
 			}
 		} else {
+			assert(vmid != DL_VM);
 			switch(i) {
 				case IRQ_DOM0_VM:
 					irq_thdcap[i] = VM_CAPTBL_SELF_IOTHD_BASE;
@@ -104,46 +68,13 @@ hw_irq_alloc(void){
 					irq_arcvcap[i] = VM_CAPTBL_SELF_IORCV_BASE;
 					/* VMs use only 1 tcap - INITTCAP for all execution */
 					irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-					//irq_prio[i] = VIO_PRIO;
-					irq_prio[i] = NWVM_PRIO;
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-					//irq_prio[i] = PRIO_UNDER;
-					irq_prio[i] = DOM0_PRIO;
-#endif
+					irq_tcap[i] = NWVM_PRIO;
 					break;
 				default: 
 					break;
 			}
 		}
 	}
-
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	memset(vio_tcap, 0, sizeof(vio_tcap));
-	memset(vio_rcv, 0, sizeof(vio_rcv));
-	memset(vio_prio, 0, sizeof(vio_prio));
-	memset(vio_deficit, 0, sizeof(vio_deficit));
-	memset(dom0_vio_deficit, 0, sizeof(dom0_vio_deficit));
-
-	if (vmid == 0) {
-		for (i = 0 ; i < COS_VIRT_MACH_COUNT - 1; i ++) {
-			/*DOM0 PRIO*/
-			if ( i == (DL_VM-1) ) {
-				vio_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (i * CAP16B_IDSZ);
-				vio_rcv[i]  = VM0_CAPTBL_SELF_IORCV_SET_BASE + (i * CAP64B_IDSZ);
-				vio_prio[i] = DOM0_PRIO;
-			} else {
-				vio_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-				vio_rcv[i]  = VM0_CAPTBL_SELF_IORCV_SET_BASE + (i * CAP64B_IDSZ);
-				vio_prio[i] = DOM0_PRIO;
-			}
-		}
-
-		assert(IO_BOUND_VM >= 1 && IO_BOUND_VM <= COS_VIRT_MACH_COUNT);
-		cos_cur_tcap = (unsigned int)((vio_tcap[IO_BOUND_VM - 1] << 16) >> 16);
-	}
-#endif
-
 }
 
 void
@@ -184,13 +115,7 @@ rump_booter_init(void)
 #endif
 	}
 
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	rk_thd_prio = (vmid == 0) ? DOM0_PRIO : NWVM_PRIO;
-	//rk_thd_prio = PRIO_LOW;
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	rk_thd_prio = (vmid == 0) ? DOM0_PRIO : NWVM_PRIO;
-	//rk_thd_prio = (vmid == 0) ? DOM0_PRIO : PRIO_UNDER;
-#endif
 
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();

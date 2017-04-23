@@ -4,13 +4,24 @@
 
 u64_t cycs_per_spin_iters = 0;
 u64_t usecs_per_spin_iters = 0;
-u64_t spin_calib(void) __attribute__((optimize("O0")));
+
+void spin_calib(void) __attribute__((optimize("O0")));
 void spin_usecs(cycles_t usecs) __attribute__((optimize("O0")));
 void spin_cycles(cycles_t cycs) __attribute__((optimize("O0")));
 void spin_std_iters(void) __attribute__((optimize("O0")));
 
+void
+spin_std_iters(void)
+{
+	unsigned int i;
+
+	for (i = 0 ; i < ITERS_SPIN ; i++) {
+		__asm__ __volatile__("nop": : :"memory");
+	}
+}
+
 /* time taken in that loop */
-u64_t
+void
 spin_calib(void)
 {
 	cycles_t total_cycs = 0;
@@ -18,10 +29,9 @@ spin_calib(void)
 
 	while (iters < CALIB) {
 		cycles_t start, end;
-		u64_t spin = 0;
 
 		rdtscll(start);
-		while (spin < (u64_t)ITERS_SPIN) spin ++;
+		spin_std_iters();
 		rdtscll(end);
 
 		total_cycs += (end - start);
@@ -31,7 +41,8 @@ spin_calib(void)
 	cycs_per_spin_iters = total_cycs / CALIB;
 	usecs_per_spin_iters = cycs_per_spin_iters / cycs_per_usec;
 
-	return cycs_per_spin_iters;
+	printc("Spin calibration: ITERS:%u Cycs/ITERS:%llu usecs/ITERS:%llu\n", 
+	       ITERS_SPIN, cycs_per_spin_iters, usecs_per_spin_iters);
 }
 
 u64_t
@@ -47,22 +58,14 @@ std_spin_iters(void)
 { return (unsigned)ITERS_SPIN; }
 
 void
-spin_std_iters(void)
-{
-	unsigned int i = 0;
-
-	while (i < ITERS_SPIN) i ++;
-}
-
-void
 spin_cycles(cycles_t cycs)
 {
 	unsigned int i = 0;
 	unsigned int iters = cycs / cycs_per_spin_iters;
 	unsigned int left = cycs % cycs_per_spin_iters;
 
-	if (cycs < cycs_per_spin_iters) return;
-	//assert(cycs >= cycs_per_spin_iters);
+	assert(cycs >= cycs_per_spin_iters);
+
 	/* round off to next cycs/spin */
 	if (left >= (cycs_per_spin_iters / 2)) iters ++;
 
@@ -79,8 +82,8 @@ spin_usecs(cycles_t usecs)
 	unsigned int iters = usecs / usecs_per_spin_iters;
 	unsigned int left = usecs % usecs_per_spin_iters;
 
-	if (usecs < usecs_per_spin_iters) return;
-	//assert(usecs >= usecs_per_spin_iters);
+	assert(usecs >= usecs_per_spin_iters);
+
 	/* round off to next usec */
 	if (left >= (usecs_per_spin_iters / 2)) iters ++;
 

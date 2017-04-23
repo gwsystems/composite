@@ -65,26 +65,7 @@ static unsigned int intr_translate_thdid2irq(thdid_t tid)
 static inline tcap_t
 intr_eligible_tcap(unsigned int irqline)
 {
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	tcap_res_t irqbudget, initbudget;
-
-	assert (irqline >= HW_ISR_FIRST && irqline < HW_ISR_LINES);
-
-	if (vmid) {
-		if (irqline == IRQ_DOM0_VM)
-			return irq_tcap[IRQ_DOM0_VM];
-		assert(0);
-	}
-
-	irqbudget = (tcap_res_t)cos_introspect(&booter_info, irq_tcap[irqline], TCAP_GET_BUDGET);
-	if (irqbudget == 0) {
-		cos_dom02io_transfer(irqline, irq_tcap[irqline], irq_arcvcap[irqline], irq_prio[irqline]); 
-	}
-	
-	return irq_tcap[irqline];
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	return BOOT_CAPTBL_SELF_INITTCAP_BASE;
-#endif
 }
 
 static inline void

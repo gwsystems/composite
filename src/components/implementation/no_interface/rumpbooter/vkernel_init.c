@@ -17,12 +17,8 @@ struct cos_compinfo vkern_info;
 struct cos_compinfo vkern_shminfo;
 unsigned int ready_vms = COS_VIRT_MACH_COUNT;
 
-u64_t iters_per_usec = 0ULL;
 unsigned int cycs_per_usec = 0;
 unsigned int cycs_per_msec = 0;
-u64_t cycs_per_spin = 0;
-unsigned int spin_iters = 0;
-unsigned int usecs_per_spin = 0;
 
 /*worker thds for dlvm*/
 //extern void dl_work_one(void *);
@@ -145,6 +141,7 @@ setup_credits(void)
 					break;
 				case 2: assert(i == DL_VM);
 					vmcredits[i] = (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					vmcredits[i] += (4 * VM_TIMESLICE * cycs_per_usec);
 					//vmcredits[i] = TCAP_RES_INF;
 					total_credits += (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
@@ -427,12 +424,8 @@ cos_init(void)
 	printc("Timeslice in ms(%lu):%lu\n", (unsigned long)cycs_per_msec, (unsigned long)(VM_MS_TIMESLICE * cycs_per_msec));
 	printc("Timeslice in us(%lu):%lu\n", (unsigned long)cycs_per_usec, (unsigned long)(VM_TIMESLICE * cycs_per_usec));
 
-	cycs_per_spin = spin_calib();
-	printc("%llu microseconds per %d iterations\n", cycs_per_spin/cycs_per_usec, ITERS_SPIN);
-
+	spin_calib();
 	test_spinlib();
-	
-	while (1);
 
 	vm_list_init();
 	setup_credits();
@@ -541,41 +534,48 @@ cos_init(void)
 		assert(vksndvm[id]);
 
 		if (id > 0) {
-			printc("\tSetting up Cross VM (between vm0 and vm%d) communication channels\n", id);
-			/* VM0 to VMid */
-			vm0_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[0].comp_cap, vm0_io_fn, (void *)id);
-			assert(vm0_io_thd[id-1]);
-			vms_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vmx_io_fn, (void *)id);
-			assert(vms_io_thd[id-1]);
-			
-			vm0_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vm0_io_thd[id-1], vminittcap[0], vkern_info.comp_cap, vminitrcv[0]);
-			assert(vm0_io_rcv[id-1]);
-			vms_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vms_io_thd[id-1], vminittcap[id], vkern_info.comp_cap, vminitrcv[id]);
-			assert(vms_io_rcv[id-1]);
+			assert(DL_VM == COS_VIRT_MACH_COUNT-1);
 
-			/* Changing to init thd of dl_vm
-			 * DOM0 -> DL_VM asnd
-			 */
-			if (id == DL_VM) {
+			printc("\tSetting up Cross VM (between vm0 and vm%d) communication channels\n", id);
+			if (id != DL_VM) {
+				/* VM0 to VMid */
+				vm0_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[0].comp_cap, vm0_io_fn, (void *)id);
+				assert(vm0_io_thd[id-1]);
+				vms_io_thd[id-1] = cos_thd_alloc(&vkern_info, vmbooter_info[id].comp_cap, vmx_io_fn, (void *)id);
+				assert(vms_io_thd[id-1]);
+
+				vm0_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vm0_io_thd[id-1], vminittcap[0], vkern_info.comp_cap, vminitrcv[0]);
+				assert(vm0_io_rcv[id-1]);
+				vms_io_rcv[id-1] = cos_arcv_alloc(&vkern_info, vms_io_thd[id-1], vminittcap[id], vkern_info.comp_cap, vminitrcv[id]);
+				assert(vms_io_rcv[id-1]);
+
+				/* Changing to init thd of dl_vm
+				 * DOM0 -> DL_VM asnd
+				 */
+				if (id == DL_VM) {
+					vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vminitrcv[id], vkern_info.captbl_cap);
+					assert(vm0_io_asnd[id-1]);
+				} 
+				else {
+					vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vms_io_rcv[id-1], vkern_info.captbl_cap);
+					assert(vm0_io_asnd[id-1]);
+				}
+
+				vms_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vm0_io_rcv[id-1], vkern_info.captbl_cap);
+				assert(vms_io_asnd[id-1]);
+
+				cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOTHD_SET_BASE + (id-1)*CAP16B_IDSZ, &vkern_info, vm0_io_thd[id-1]);
+				cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IORCV_SET_BASE + (id-1)*CAP64B_IDSZ, &vkern_info, vm0_io_rcv[id-1]);
+				cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOASND_SET_BASE + (id-1)*CAP64B_IDSZ, &vkern_info, vm0_io_asnd[id-1]);
+
+				cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOTHD_BASE, &vkern_info, vms_io_thd[id-1]);
+				cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IORCV_BASE, &vkern_info, vms_io_rcv[id-1]);
+				cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOASND_BASE, &vkern_info, vms_io_asnd[id-1]);
+			} else {
 				vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vminitrcv[id], vkern_info.captbl_cap);
 				assert(vm0_io_asnd[id-1]);
-			} 
-			else {
-				vm0_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vms_io_rcv[id-1], vkern_info.captbl_cap);
-				assert(vm0_io_asnd[id-1]);
+				cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOASND_SET_BASE + (id-1)*CAP64B_IDSZ, &vkern_info, vm0_io_asnd[id-1]);
 			}
-
-			vms_io_asnd[id-1] = cos_asnd_alloc(&vkern_info, vm0_io_rcv[id-1], vkern_info.captbl_cap);
-			assert(vms_io_asnd[id-1]);
-
-			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOTHD_SET_BASE + (id-1)*CAP16B_IDSZ, &vkern_info, vm0_io_thd[id-1]);
-			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IORCV_SET_BASE + (id-1)*CAP64B_IDSZ, &vkern_info, vm0_io_rcv[id-1]);
-			cos_cap_cpy_at(&vmbooter_info[0], VM0_CAPTBL_SELF_IOASND_SET_BASE + (id-1)*CAP64B_IDSZ, &vkern_info, vm0_io_asnd[id-1]);
-
-			printc("VM_CAPTBL_SELF_IOASND_BASE%d\n", VM_CAPTBL_SELF_IOASND_BASE);
-			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOTHD_BASE, &vkern_info, vms_io_thd[id-1]);
-			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IORCV_BASE, &vkern_info, vms_io_rcv[id-1]);
-			cos_cap_cpy_at(&vmbooter_info[id], VM_CAPTBL_SELF_IOASND_BASE, &vkern_info, vms_io_asnd[id-1]);
 		}
 
 		/*

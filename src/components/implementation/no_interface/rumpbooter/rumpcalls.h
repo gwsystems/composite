@@ -20,7 +20,6 @@ typedef __builtin_va_list va_list;
 #define IRQ_VM2 27     /* VM2's message line to DOM0, so in DOM0 */
 #define IRQ_DL 32     /* DLVMs IRQ line*/
 
-
 extern struct cos_rumpcalls crcalls;
 
 extern int boot_thd;
@@ -70,6 +69,7 @@ struct cos_rumpcalls
 	int    (*rump_shmem_recv)(void * buff, unsigned int srcvm, unsigned int dstvm);
 	void   (*rump_sched_yield)(void);
 	void   (*rump_vm_yield)(void);
+	void   (*rump_cpu_intr_ack)(void);
 	int    (*rump_dequeue_size)(unsigned int srcvm, unsigned int dstvm);
 };
 
@@ -82,6 +82,7 @@ void cos_memfree(void *cp);
 
 void  rump_bmk_memsize_init(void);
 
+void cos_cpu_intr_ack(void);
 void set_cos_thddata(struct bmk_thread *thread, capid_t thd, thdid_t tid);
 capid_t get_cos_thdcap(struct bmk_thread *thread);
 thdid_t get_cos_thdid(struct bmk_thread *thread);

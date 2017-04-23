@@ -57,7 +57,7 @@
 #define HPET_INT_ENABLE(n) (*hpet_interrupt = (0x1 << n)) /* Clears the INT n for level-triggered mode. */
 
 #define __USECS_CEIL__(n, m) (n+(m-(n%m)))
-#define __IGNORE_FIRST_X__  0
+#define __IGNORE_FIRST_X__  1000
 
 static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;
@@ -192,7 +192,7 @@ chal_cyc_msec(void)
 int
 periodic_handler(struct pt_regs *regs)
 {
-	static u64_t count = 0;
+	static u32_t count = 0;
 	cycles_t now;
 	static cycles_t prev = 0;
 	int preempt = 1;
@@ -205,8 +205,8 @@ periodic_handler(struct pt_regs *regs)
 		count ++;
 		//if (prev && count < 200) { printk("act..%llu..", now - prev); }
 		//prev = now;
-	//	if (count % 1000 == 0) printk("h=%d..\n", count);
-		if (count < __IGNORE_FIRST_X__) goto done;
+		//if (count % 1000 == 0) printk("..h=%lu..", count);
+		if (unlikely(count < __IGNORE_FIRST_X__)) goto done;
 		//if (count >= 400) while (1);
 		//if (count == 2500) while (1) ;
 		if (!first_hpet_period) {

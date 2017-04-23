@@ -573,8 +573,12 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
 	thd_rcvcap_pending_inc(rcv_thd);
 	next = notify_process(rcv_thd, thd, rcv_tcap, tcap, tcap_next, yield);
 
-	if (next == thd) tcap_wakeup(rcv_tcap, tcap_sched_info(rcv_tcap)->prio, 0, rcv_thd, cos_info);
-	else             thd_next_thdinfo_update(cos_info, thd, tcap, tcap_sched_info(tcap)->prio, 0);
+	if (!yield) {
+		if (next == thd) tcap_wakeup(rcv_tcap, tcap_sched_info(rcv_tcap)->prio, 0, rcv_thd, cos_info);
+		else             thd_next_thdinfo_update(cos_info, thd, tcap, tcap_sched_info(tcap)->prio, 0);
+	} else {
+		thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
+	}
 
 	return next;
 }
@@ -748,10 +752,6 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	assert(rcv_tcap && tcap);
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0, cos_info);
-	if (regs->orig_ax == HW_PERIODIC) {
-		if (next != rcv_thd) assert(0);
-		//if (rcv_thd->rcvcap.pending >= 100) printk("pending:%lu\n", rcv_thd->rcvcap.pending);
-	}
 	if (next == thd) return 1;
 	thd->state |= THD_STATE_PREEMPTED;
 
