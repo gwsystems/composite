@@ -43,7 +43,7 @@ dl_work_two(void * ignore)
 
 		spin_usecs(WORKLOAD2);
 		if (!ps_cas(&run, c, n)) assert(0);
-		while (run == 0) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	}
 }
 
@@ -57,7 +57,7 @@ dl_work_one(void * ignore)
 
 		spin_usecs(WORKLOAD1);
 		if (!ps_cas(&run, c, n)) assert(0);
-		while (run == 2) cos_thd_switch(w2);
+		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	}
 }
 
@@ -68,11 +68,11 @@ test_deadline(void) {
 
 	rdtscll(then);
 	run = 1;
-	//spin_usecs(5000);
 	while (run > 0) {
 		int ret;
 		thdcap_t t = (run == 1) ? w1 : (run == 2 ? w2 : 0);
 
+		assert(run > 0);
 		assert((t == w1 && run == 1) || (t == w2 && run == 2));
 		cos_thd_switch(t);
 	}
