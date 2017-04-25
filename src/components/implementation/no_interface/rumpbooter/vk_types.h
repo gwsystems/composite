@@ -62,6 +62,8 @@ enum vm_prio {
 
 #define HPET_PRIO DOM0_PRIO
 
+#define DLVM_ADD_WORK 0
+
 enum vm_status {
 	VM_RUNNING = 0,
 	VM_BLOCKED = 1,

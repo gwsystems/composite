@@ -57,7 +57,7 @@
 #define HPET_INT_ENABLE(n) (*hpet_interrupt = (0x1 << n)) /* Clears the INT n for level-triggered mode. */
 
 #define __USECS_CEIL__(n, m) (n+(m-(n%m)))
-#define __IGNORE_FIRST_X__  1000
+#define __IGNORE_FIRST_X__  2000
 
 static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;

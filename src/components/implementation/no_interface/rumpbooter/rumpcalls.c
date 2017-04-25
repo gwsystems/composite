@@ -23,6 +23,7 @@ volatile thdcap_t cos_cur = BOOT_CAPTBL_SELF_INITTHD_BASE;
 volatile unsigned int cos_cur_tcap = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 
 tcap_prio_t rk_thd_prio = PRIO_LOW;
+static cycles_t nw_start = 0, nw_end = 0;
 
 /* Mapping the functions from rumpkernel to composite */
 void
@@ -157,6 +158,14 @@ cos_cpu_intr_ack(void)
 	static int count = 0;
 
 	if (vmid) return;
+
+	rdtscll(nw_end);
+	assert(nw_end > nw_start);
+	count ++;
+	
+	//if (nw_end - nw_start > cycs_per_msec) {
+	//	printc("%d:%llu ms..", count, (nw_end - nw_start)/cycs_per_msec);
+	//}
 	/*
          * ACK interrupts on PIC
          */
@@ -165,7 +174,6 @@ cos_cpu_intr_ack(void)
             "outb %%al, $0xa0\n"
             "outb %%al, $0x20\n"
             ::: "al");
-	count ++;
 //	if (count % 1000 == 0) printc("..%d:ack:%d..", vmid, count);
 }
 
@@ -190,6 +198,7 @@ cos_irqthd_handler(void *line)
 
 			if(cos_asnd(sndcap, 0)) assert(0);
 		} else {
+			rdtscll(nw_start);
 			intr_start(which);
 			bmk_isr(which);
 			prev ++;
@@ -411,13 +420,13 @@ rk_resume:
 		 * This is a check in bmk_platform_block(). 
 		 * This upcall should make things faster in idle/block time processing in RK threads.
 		 */
-		if ((until = bmk_runq_empty())) {
-			curr_time = cos_cpu_clock_now();
-			if(until > curr_time) {
-		//		printc("%d: %lld %lld..", vmid, until, curr_time);
-				continue;
-			}
-		}
+//		if ((until = bmk_runq_empty())) {
+//			curr_time = cos_cpu_clock_now();
+//			if(until > curr_time) {
+//		//		printc("%d: %lld %lld..", vmid, until, curr_time);
+//				continue;
+//			}
+//		}
 		do {
 			cycles_t now, then;
 

@@ -38,6 +38,7 @@ asndcap_t vksndvm[COS_VIRT_MACH_COUNT];
 tcap_res_t vmcredits[COS_VIRT_MACH_COUNT];
 tcap_prio_t vmprio[COS_VIRT_MACH_COUNT];
 int vmstatus[COS_VIRT_MACH_COUNT];
+int runqueue[COS_VIRT_MACH_COUNT];
 
 u64_t vmruncount[COS_VIRT_MACH_COUNT];
 
@@ -141,7 +142,7 @@ setup_credits(void)
 					break;
 				case 2: assert(i == DL_VM);
 					vmcredits[i] = (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
-					vmcredits[i] += (4 * VM_TIMESLICE * cycs_per_usec);
+					vmcredits[i] += (DLVM_ADD_WORK * VM_TIMESLICE * cycs_per_usec);
 					//vmcredits[i] = TCAP_RES_INF;
 					total_credits += (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
@@ -169,17 +170,34 @@ reset_credits(void)
 void
 fillup_budgets(void)
 {
-	vmprio[0] = DOM0_PRIO;
-	vm_cr_reset[0] = 1;
-	vmruncount[0] = 0;
-	
-	vmprio[1] = NWVM_PRIO;
-	vm_cr_reset[1] = 1;
-	vmruncount[1] = 0;
+	int i;
 
-	vmprio[2]   = DLVM_PRIO;
-	vm_cr_reset[2] = 1;
-	vmruncount[2] = 0;
+	vmprio[0] = DOM0_PRIO;
+	vmprio[1] = NWVM_PRIO;
+	vmprio[2] = DLVM_PRIO;
+
+	assert(COS_VIRT_MACH_COUNT == 3);
+	assert(vmprio[0] != vmprio[1] && vmprio[1] != vmprio[2] && vmprio[2] != vmprio[0]);
+	assert(vmprio[0] == PRIO_HIGH || vmprio[0] == PRIO_MID || vmprio[0] == PRIO_LOW);
+	assert(vmprio[1] == PRIO_HIGH || vmprio[1] == PRIO_MID || vmprio[1] == PRIO_LOW);
+	assert(vmprio[2] == PRIO_HIGH || vmprio[2] == PRIO_MID || vmprio[2] == PRIO_LOW);
+
+//	runqueue[0] = 0;
+//	runqueue[1] = DL_VM;
+//	runqueue[2] = 1;
+
+	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i++) {
+		vm_cr_reset[0] = 1;
+		vmruncount[0] = 0;
+
+		/*
+		 * this relies on the fact that there are only 3vms.. and they all have
+		 * different priorities..
+		 */
+		if (vmprio[i] == PRIO_HIGH) runqueue[0] = i;
+		else if (vmprio[i] == PRIO_MID) runqueue[1] = i;
+		else if (vmprio[i] == PRIO_LOW) runqueue[2] = i;
+	}
 }
 
 /* call this for non-budget accounting case. */
@@ -238,6 +256,36 @@ wakeup_vms(unsigned x)
 	}
 }
 
+#define DOM0_BOOTUP 60
+#undef JUST_RR
+
+static int
+sched_vm(void)
+{
+#ifdef JUST_RR
+	static int sched_index = DL_VM;
+	int index = sched_index;
+
+	sched_index ++;
+	sched_index %= COS_VIRT_MACH_COUNT;
+
+	return index;
+#else
+	static last = 0;
+	int i;
+
+	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i++) {
+//		if (runqueue[i] == 0 && i == 0) {
+//			if (!last && vmruncount[i] == DOM0_BOOTUP) { last = 1; printc("Scheduling DOM0 for the last time..!\n"); }
+//			if (vmruncount[i] > DOM0_BOOTUP) continue;
+//		}
+		if (vmstatus[runqueue[i]] == VM_RUNNING) return runqueue[i];
+	}
+
+	return -1;
+#endif
+}
+
 uint64_t t_vm_cycs  = 0;
 uint64_t t_dom_cycs = 0;
 
@@ -264,10 +312,9 @@ sched_fn(void *x)
 		int ret;
 		int pending = 0;
 
-		index = sched_index;
-		sched_index ++;
-		sched_index %= COS_VIRT_MACH_COUNT;
-
+		//index = sched_index;
+		//sched_index ++;
+		//sched_index %= COS_VIRT_MACH_COUNT;
 		/* wakeup eligible vms.. every 1 timeslice */
 		wakeup_vms(1);
 		do {
@@ -291,7 +338,15 @@ sched_fn(void *x)
 		} while (pending);
 
 		check_replenish_budgets();
+
+		index = sched_vm();
+		if (index < 0) continue;
+
+#ifdef JUST_RR
 		if (vmstatus[index] != VM_RUNNING) continue;
+#else
+		assert(vmstatus[index] == VM_RUNNING);
+#endif
 		//budget = check_vm_budget(index);
 		//assert(budget);
 		//if (vmstatus[DL_VM] == VM_RUNNING) index = DL_VM;

@@ -51,7 +51,7 @@ vk_ringbuf_isfull(struct cos_shm_rb *rb, size_t size){
 
 	/* doesn't account for wraparound, that's checked only if we need to wraparound. */
 	if(rb->head+size >= rb->tail && rb->head < rb->tail){
-		printc("rb full\n");
+//		printc("rb full\n");
 		return 1;
 	}
 
@@ -93,7 +93,7 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void *buff, size_t size){
 	
 		/* check if ringbuf is full w/ wraparound */
 		if (second >= rb->tail) {
-			printc("wrap around, rb is full no enqueue\n");
+			//printc("wrap around, rb is full no enqueue\n");
 			return -1;
 		}
 
