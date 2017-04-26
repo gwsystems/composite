@@ -173,10 +173,14 @@ int32 CFE_PSP_ReadFromCDS(void *PtrToDataToRead, uint32 CDSOffset, uint32 NumByt
 ** CFE_PSP_ReadFromCDS reads from the CDS Block
 */
 
+#define RESET_AREA_SIZE 4096
+char RESET_AREA[RESET_AREA_SIZE];
+
 int32 CFE_PSP_GetResetArea (cpuaddr *PtrToResetArea, uint32 *SizeOfResetArea)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    *PtrToResetArea = RESET_AREA;
+    *SizeOfResetArea = RESET_AREA_SIZE;
+    return OS_SUCCESS;
 }
 /*
 ** CFE_PSP_GetResetArea returns the location and size of the ES Reset information area.
