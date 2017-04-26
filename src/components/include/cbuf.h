@@ -478,6 +478,20 @@ again:
 }
 
 static inline void *
+cbuf_set_fork(cbuf_t cb, int flag)
+{
+	unsigned int id;
+	struct cbuf_meta *cm;
+
+	cbuf_unpack(cb, &id);
+
+	cm = cbuf_vect_lookup_addr(id);
+	assert(cm);
+	cm->cbid_tag.tag = flag;
+	return;
+}
+
+static inline void *
 cbuf_alloc_ext(unsigned long sz, cbuf_t *cb, unsigned int flag)
 {
 	void *ret;

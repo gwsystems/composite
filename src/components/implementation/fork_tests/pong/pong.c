@@ -21,8 +21,10 @@ void cos_init(void) {
 	buf_write = cbuf2buf(write_buffer, 1024);
 	printc("pong confirmed with buffers read (%d) and write(%d)\n", read_buffer, write_buffer);
 	
+	confirm_fork(cos_spd_id());
+	
 	while (i < 3) {	
-		printc("\npong calling read\n");
+		printc("\npong calling read from spdid %d\n", cos_spd_id());
 		data = nread(cos_spd_id(), 0, 4);
 		printc("read returned %d and now we have data [%s] - expected abc\n\n", ret, ((char*) buf_read));
 

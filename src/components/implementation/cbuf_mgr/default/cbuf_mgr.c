@@ -889,7 +889,6 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 	cbi        = cmap_lookup(&cbufs, s_cbid);
 	if (!cbi) BUG();
 	sz = cbi->size;
-	printc("forking cbuf %d from spdid %d to spdid %d, with cinfo copy %d\n", s_cbid, o_spd, f_spd, copy_cinfo);
 
 	/* 
 	 * cmap_lookup returns original owner so need to recurse 
@@ -1013,8 +1012,9 @@ __cbuf_fork_spd(spdid_t cbb_spd, spdid_t o_spd, spdid_t f_spd, int cinfo_cbid)
 		}
 		else {
 			do {
+				struct cbuf_meta *meta = m->m;
 				/* This is if O isn't the owner but has the cbuf mapped in. */
-				if (m->spdid == o_spd) {
+				if (m->spdid == o_spd && !(meta && meta->cbid_tag.tag == 0)) {
 					r_addr = __cbuf_fork_cbuf(o_spd, cbi->cbid, 
 					                          f_spd, cinfo_cbid == cbi->cbid, cbb_spd);
 					if (cinfo_cbid == cbi->cbid) ret = r_addr;

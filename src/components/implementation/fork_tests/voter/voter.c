@@ -64,12 +64,32 @@ struct replica_info *get_replica(spdid_t spdid) {
 	return map[spdid].replica;
 }
 
+void get_channel_info(struct channel *channel) {
+	struct nmod_comp *snd, *rcv;
+	int i;
+	printc(" [channel %x (data %d) between\n", channel, channel->have_data);
+	printc(" %x (", channel->snd);
+	for (i = 0; i < channel->snd->nreplicas; i++) {
+		printc("%x (%d) ", &channel->snd->replicas[i], channel->snd->replicas[i].spdid);
+	}
+	printc(")\n and\n %x (", channel->rcv);
+	for (i = 0; i < channel->rcv->nreplicas; i++) {
+		printc("%x (%d) ", &channel->rcv->replicas[i], channel->rcv->replicas[i].spdid);
+	}
+	printc(")\n");
+}
+
+void get_replica_info(struct replica_info *replica) {
+	printc(" [This is replica %x with spdid %d\n read buf %d (%x) write buf %d (%x)\n thd id %d, block status %d]\n",
+		replica, replica->spdid, replica->read_buffer, replica->buf_read, replica->write_buffer, replica->buf_write,
+		replica->thread_id, replica->blocked);	
+}
+
 struct channel *get_channel(struct nmod_comp *snd, struct nmod_comp *rcv) {
 	int i;
 	if (snd == NULL || rcv == NULL) return NULL;
 
 	for (i = 0; i < N_CHANNELS; i++) {
-		printc("%x and %x compared to %x and %x\n", channels[i].snd, channels[i].rcv, snd, rcv);
 		if (channels[i].snd == snd && channels[i].rcv == rcv) {
 			return &channels[i];
 		}
@@ -79,6 +99,7 @@ struct channel *get_channel(struct nmod_comp *snd, struct nmod_comp *rcv) {
 }
 
 int block_replica(struct replica_info *replica) {
+	printc("block_replica being called with spdid %d\n", replica->spdid);
 	if (!replica->thread_id) BUG();
 	printc("Blocking thread %d\n", replica->thread_id);
 	replica->blocked = 1;
@@ -90,6 +111,8 @@ int inspect_channel(struct channel *c) {
 	int found;
 	int majority, majority_index;
 	struct replica_info *replica;
+
+	get_channel_info(c);
 
 	/* Check rcv replicas. If they're not ready, we can just error out */
 	for (i = 0; i < c->rcv->nreplicas; i++) {
@@ -191,6 +214,10 @@ int nwrite(spdid_t spdid, channel_id to, size_t sz) {
 	int ret;
 	long i;
 	if (!replica) BUG();
+
+	printc("Write called by spdid %d\n", spdid);
+	if (!replica->thread_id) replica->thread_id = cos_get_thd_id();
+	get_replica_info(replica);
 	
 	if (to >= N_CHANNELS) BUG();
 
@@ -223,11 +250,8 @@ size_t nread(spdid_t spdid, channel_id from, size_t sz) {
 	if (!replica) BUG();
 
 	c = &channels[from];
-
 	ret = inspect_channel(c);
-
 	if (ret) block_replica(replica);
-
 	c->have_data = 0;
 	return c->sz_data;
 }
@@ -260,9 +284,59 @@ void monitor(void) {
 	}
 }
 
+int confirm_thd_id(spdid_t spdid, int thd_id) {
+	//if (!map[spdid].replica) BUG();
+	//if (map[spdid].replica->thread_id) return 0;	// this is actually ok because it means a regular replica is calling BUT THEN HOW DO WE TELL IF THEY'RE NOT?!
+	//map[spdid].replica->thread_id = thd_id;
+	//printc("Set thread id for spdid %d\n", spdid);
+	return 0;
+}
+
 void confirm_fork(spdid_t spdid) {
-	printc("Starting fork\n");
-	quarantine_fork(cos_spd_id(), spdid);
+	int i;
+	struct nmod_comp *component;
+	struct replica_info *replicas;
+	
+	component  = map[spdid].component;
+	if (!component) BUG();
+	replicas = component->replicas;
+	printc("Starting fork for component designed to have %d replicas\n", component->nreplicas);
+
+	for (i = 0; i < component->nreplicas; i++) {
+		if (replicas[i].spdid == 0) {
+			printc("creating replica for spdid %d in slot %d\n", spdid, i);
+			
+			replicas[i].spdid = quarantine_fork(cos_spd_id(), spdid);
+			if (!replicas[i].spdid) BUG();
+
+			printc("Forking succeeded - now back to bookkeeping!\n");
+			replicas[i].thread_id = 0;
+			replicas[i].destination = NULL;
+			replicas[i].buf_read = cbuf_alloc(1024, &replicas[i].read_buffer); 
+			replicas[i].buf_write = cbuf_alloc(1024, &replicas[i].write_buffer);
+			assert(replicas[i].buf_read);
+			assert(replicas[i].buf_write);
+			assert(replicas[i].read_buffer > 0);
+			assert(replicas[i].write_buffer > 0);
+			printc("created write buf %d, read buf %d\n", replicas[i].write_buffer, replicas[i].read_buffer);
+
+			/* Send this information back to the replica */
+			cbuf_send(replicas[i].read_buffer);
+			cbuf_send(replicas[i].write_buffer);
+
+			/* Set map entries for this replica */
+			map[replicas[i].spdid].replica = &replicas[i];
+			map[replicas[i].spdid].component = component;
+
+			printc("Done with all things\n");
+			return;
+		}
+		else {
+			printc("replica for spdid %d already exists\n", replicas[i].spdid);
+		}
+	}
+
+	printc("For whatever reason, no forking was done\n");
 }
 
 cbuf_t get_read_buf(spdid_t spdid) {
@@ -288,14 +362,7 @@ int confirm(spdid_t spdid) {
 		if (replicas[i].spdid == 0) {
 			printc("creating replica for spdid %d in slot %d\n", spdid, i);
 			
-			//if (t == 1) {
-				replicas[i].spdid = spdid;
-			//} WAIT AND i!= 0
-			//else if (t == 0 && spdid == 14) {	// extra check, this will all go away very soon
-			//	replicas[i].spdid = quarantine_fork(cos_spd_id(), comp2fork);
-			//	if (replicas[i].spdid == 0) printc("Error: f%d fork failed\n", i);
-			//}
-
+			replicas[i].spdid = spdid;
 			replicas[i].thread_id = cos_get_thd_id();
 			replicas[i].destination = NULL;
 			replicas[i].buf_read = cbuf_alloc(1024, &replicas[i].read_buffer); 
@@ -304,6 +371,8 @@ int confirm(spdid_t spdid) {
 			assert(replicas[i].buf_write);
 			assert(replicas[i].read_buffer > 0);
 			assert(replicas[i].write_buffer > 0);
+			cbuf_set_fork(replicas[i].read_buffer, 0);
+			cbuf_set_fork(replicas[i].write_buffer, 0);
 			printc("created write buf %d, read buf %d\n", replicas[i].write_buffer, replicas[i].read_buffer);
 
 			/* Send this information back to the replica */
@@ -330,7 +399,10 @@ void cos_init(void)
 	int i, j;
 	for (i = 0; i < N_COMPS; i++) {
 		printc("Setting up nmod component %d\n", i);
-		components[i].nreplicas = 1; // for now, no fork
+	
+		/* This is an ugly if-statement, get rid of it */	
+		if (i == 0) components[i].nreplicas = 2;
+		else components[i].nreplicas = 1; // for now, no fork
 	
 		for (j = 0; j < components[i].nreplicas; j++) {
 			components[i].replicas[j].spdid = 0;
@@ -351,8 +423,6 @@ void cos_init(void)
 		map[i].replica = NULL;
 		map[i].component = NULL;
 	}
-
-	printc("Setup done channel 0 snd (%x) rcv (%x), 1 snd (%x) rcv (%x)\n", channels[0].snd, channels[0].rcv, channels[1].snd, channels[1].rcv);
 
 	//periodic_wake_create(cos_spd_id(), period);
 	//do {
