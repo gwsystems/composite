@@ -131,12 +131,13 @@ setup_credits(void)
 		if (vmstatus[i] != VM_EXITED) {
 			switch (i) {
 				case 0:
-					//vmcredits[i] = (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
-					vmcredits[i] = TCAP_RES_INF;
+					vmcredits[i] = (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					//vmcredits[i] = TCAP_RES_INF;
 					//total_credits += (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
 				case 1:
-					vmcredits[i] = (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					//vmcredits[i] = (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					vmcredits[i] = TCAP_RES_INF;
 					//vmcredits[i] = TCAP_RES_INF;
 					total_credits += (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
@@ -152,6 +153,7 @@ setup_credits(void)
 			}
 		} 
 	}
+	total_credits = 10;
 }
 
 void
@@ -229,7 +231,13 @@ check_replenish_budgets(void)
 			tcap_res_t budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[i], TCAP_GET_BUDGET);
 			tcap_res_t transfer_budget = vmcredits[i] - budget;
 
+		//	if (i != DL_VM && vmstatus[i] == VM_BLOCKED) {
+		//		vmstatus[i] = VM_RUNNING;	
+		//	}
+
 			if (TCAP_RES_IS_INF(budget) || budget >= vmcredits[i]) continue;
+	
+			
 			if (cos_tcap_transfer(vminitrcv[i], sched_tcap, transfer_budget, vmprio[i])) assert(0);
 		}
 	}
@@ -316,7 +324,7 @@ sched_fn(void *x)
 		//sched_index ++;
 		//sched_index %= COS_VIRT_MACH_COUNT;
 		/* wakeup eligible vms.. every 1 timeslice */
-		wakeup_vms(1);
+		wakeup_vms(8);
 		do {
 			int i;
 			int rcvd = 0;

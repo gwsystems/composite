@@ -30,8 +30,8 @@ void dl_work_one(void *) __attribute__((optimize("O0")));
 void dl_work_two(void *) __attribute__((optimize("O0")));
 void dl_deadline_test(void) __attribute__((optimize("O0")));
 
-#define WORKLOAD1 ((u64_t)2900)
-#define WORKLOAD2 ((u64_t)2000)
+#define WORKLOAD1 ((u64_t)200)
+#define WORKLOAD2 ((u64_t)300)
 
 void
 dl_work_two(void * ignore)
@@ -121,7 +121,7 @@ dl_booter_init(void)
 		test_deadline();	
 		
 		periods++;
-		if (periods % 1000 == 0) printc("periods:%d, dl_missed:%d, dl_made:%d\n", periods, dls_missed, dls_made);
+		if (periods % 5000 == 0) printc("periods:%d, dl_missed:%d, dl_made:%d\n", periods, dls_missed, dls_made);
 	}
 }
 

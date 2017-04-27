@@ -72,9 +72,9 @@ enum vm_status {
 };
 
 enum vm_credits {
-	DOM0_CREDITS = 0, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%) 
-	VM1_CREDITS  = 5,
-	VM2_CREDITS  = 5,
+	DOM0_CREDITS = 7, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%) 
+	VM1_CREDITS  = 2,
+	VM2_CREDITS  = 1,
 };
 
 enum {
