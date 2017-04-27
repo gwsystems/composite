@@ -596,16 +596,16 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 
 		budget_expiry = 1;
 		if (timer_intr_context) tc_next = thd_rcvcap_tcap(thd_next);
+	}
 
-		/* how about the scheduler's tcap? */
-		if (tcap_expended(tc_next)) {
-			/* finally...the active list */
-			tc_next  = tcap_active_next(cos_info);
-			/* in active list?...better have budget */
-			assert(tc_next && !tcap_expended(tc_next));
-			/* and the next thread should be the scheduler of this tcap */
-			thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_next));
-		}
+	/* how about the scheduler's tcap? */
+	if (tcap_expended(tc_next)) {
+		/* finally...the active list */
+		tc_next  = tcap_active_next(cos_info);
+		/* in active list?...better have budget */
+		assert(tc_next && !tcap_expended(tc_next));
+		/* and the next thread should be the scheduler of this tcap */
+		thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_next));
 	}
 
 	/*
