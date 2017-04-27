@@ -39,6 +39,8 @@ tcap_res_t vmcredits[COS_VIRT_MACH_COUNT];
 tcap_prio_t vmprio[COS_VIRT_MACH_COUNT];
 int vmstatus[COS_VIRT_MACH_COUNT];
 int runqueue[COS_VIRT_MACH_COUNT];
+cycles_t vmperiod[COS_VIRT_MACH_COUNT];
+cycles_t vmlastperiod[COS_VIRT_MACH_COUNT];
 
 u64_t vmruncount[COS_VIRT_MACH_COUNT];
 
@@ -125,9 +127,11 @@ setup_credits(void)
 {
 	int i;
 	
-	total_credits = 0;
+	//total_credits = 0;
 
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+		vmperiod[i] = 0;
+		vmlastperiod[i] = 0;
 		if (vmstatus[i] != VM_EXITED) {
 			switch (i) {
 				case 0:
@@ -137,33 +141,22 @@ setup_credits(void)
 					break;
 				case 1:
 					vmcredits[i] = (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					vmperiod[i] = (VM1_PERIOD * VM_MS_TIMESLICE * cycs_per_msec);
 					//vmcredits[i] = TCAP_RES_INF;
-					total_credits += (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					//total_credits += (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
 				case 2: assert(i == DL_VM);
 					vmcredits[i] = (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					vmcredits[i] += (DLVM_ADD_WORK * VM_TIMESLICE * cycs_per_usec);
+					vmperiod[i] = (VM2_PERIOD * VM_MS_TIMESLICE * cycs_per_msec);
 					//vmcredits[i] = TCAP_RES_INF;
-					total_credits += (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					//total_credits += (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
 				default: assert(0);
 					vmcredits[i] = VM_TIMESLICE;
 					break;
 			}
 		} 
-	}
-}
-
-void
-reset_credits(void)
-{
-	struct vm_node *vm;
-	int i;
-
-	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-		vm_cr_reset[i] = 1;
-		if (vmstatus[i] == VM_EXPENDED) 
-			vmstatus[i] = VM_RUNNING;
 	}
 }
 
@@ -213,10 +206,31 @@ check_vm_budget(int index)
 	return transfer_budget;
 }
 
+#define VARIABLE_PERIODS
 /* for budget accounting case */
 static void
 check_replenish_budgets(void)
 {
+#ifdef VARIABLE_PERIODS
+	cycles_t now;
+	int i;
+
+	rdtscll(now);
+
+	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+		if (!vmperiod[i] && vmlastperiod[i]) continue; /* perhaps has inf! and was replenished once */
+
+		if (vmlastperiod[i] == 0 || (now - vmlastperiod[i] >= vmperiod[i])) {
+			tcap_res_t budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[i], TCAP_GET_BUDGET);
+			tcap_res_t transfer_budget = vmcredits[i] - budget;
+
+			vmlastperiod[i] = now;
+			if (TCAP_RES_IS_INF(budget) || budget >= vmcredits[i]) continue;
+			if (cos_tcap_transfer(vminitrcv[i], sched_tcap, transfer_budget, vmprio[i])) assert(0);
+		}
+	}
+
+#else
 	static cycles_t last_replenishment = 0;
 	cycles_t now;
 	int i;
@@ -233,6 +247,7 @@ check_replenish_budgets(void)
 			if (cos_tcap_transfer(vminitrcv[i], sched_tcap, transfer_budget, vmprio[i])) assert(0);
 		}
 	}
+#endif
 }
 
 /* wakeup API: wakes up blocked vms every x timeslices. */

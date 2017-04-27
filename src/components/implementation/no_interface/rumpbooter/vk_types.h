@@ -8,6 +8,7 @@
 #define COS_SHM_VM_SZ (1<<20) //2MB
 #define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) > 0 ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
 
+#define CPU_VM 1
 #define DL_VM 2
 
 #define VM_MS_TIMESLICE 1
@@ -73,8 +74,11 @@ enum vm_status {
 
 enum vm_credits {
 	DOM0_CREDITS = 0, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%) 
+	DOM0_PERIOD  = 0,
 	VM1_CREDITS  = 5,
+	VM1_PERIOD   = 10,
 	VM2_CREDITS  = 5,
+	VM2_PERIOD   = 10,
 };
 
 enum {
