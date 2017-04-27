@@ -140,7 +140,8 @@ setup_credits(void)
 					//total_credits += (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
 				case 1:
-					vmcredits[i] = (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					if (CPU_VM < COS_VIRT_MACH_COUNT) assert(CPU_VM == 1);
+					vmcredits[i] = (VM1_CREDITS * VM_MS_TIMESLICE * cycs_per_msec);
 					vmperiod[i] = (VM1_PERIOD * VM_MS_TIMESLICE * cycs_per_msec);
 					//vmcredits[i] = TCAP_RES_INF;
 					//total_credits += (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
@@ -225,6 +226,8 @@ check_replenish_budgets(void)
 			tcap_res_t transfer_budget = vmcredits[i] - budget;
 
 			vmlastperiod[i] = now;
+			/* cpu vm is only unblocked on replenishment */
+			if (i == CPU_VM && vmstatus[i] != VM_EXITED) vmstatus[i] = VM_RUNNING;
 			if (TCAP_RES_IS_INF(budget) || budget >= vmcredits[i]) continue;
 			if (cos_tcap_transfer(vminitrcv[i], sched_tcap, transfer_budget, vmprio[i])) assert(0);
 		}
@@ -264,7 +267,7 @@ wakeup_vms(unsigned x)
 
 		last_wakeup = now;
 		for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-			if (i == DL_VM) continue;
+			if (i == DL_VM || i == CPU_VM) continue;
 
 			vmstatus[i] = VM_RUNNING;
 		}
@@ -339,6 +342,10 @@ sched_fn(void *x)
 			pending = cos_sched_rcv_all(sched_rcv, &rcvd, &tid, &blocked, &cycles);
 			if (!tid) continue;
 
+			if (CPU_VM < COS_VIRT_MACH_COUNT && tid == vm_main_thdid[CPU_VM] && cycles) {
+				vmstatus[CPU_VM] = VM_EXPENDED;
+				continue;
+			}
 			for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i++) {
 				if (tid == vm_main_thdid[i]) {
 					vmstatus[i] = blocked;
@@ -354,6 +361,9 @@ sched_fn(void *x)
 
 		check_replenish_budgets();
 
+		/* do not run cpu-bound vm for until dom0 is booted up */
+		if (vmruncount[0] < DOM0_BOOTUP && CPU_VM < COS_VIRT_MACH_COUNT) vmstatus[CPU_VM] = VM_BLOCKED;
+
 		index = sched_vm();
 		if (index < 0) continue;
 
@@ -367,7 +377,7 @@ sched_fn(void *x)
 		//if (vmstatus[DL_VM] == VM_RUNNING) index = DL_VM;
 
 		vmruncount[index] ++;
-		if (index == DL_VM) {
+		if (index == DL_VM || index == CPU_VM) {
 			//if (vmruncount[index] % 100 == 0) printc("%d:%llu\n", index, vmruncount[index]);
 			do {
 				ret = cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
