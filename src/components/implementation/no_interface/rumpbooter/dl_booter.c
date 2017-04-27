@@ -121,7 +121,7 @@ dl_booter_init(void)
 		test_deadline();	
 		
 		periods++;
-		if (periods % 5000 == 0) printc("periods:%d, dl_missed:%d, dl_made:%d\n", periods, dls_missed, dls_made);
+		if (periods % 1000 == 0) printc("periods:%d, dl_missed:%d, dl_made:%d\n", periods, dls_missed, dls_made);
 	}
 }
 
