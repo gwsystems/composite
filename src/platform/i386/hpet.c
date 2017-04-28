@@ -205,8 +205,10 @@ periodic_handler(struct pt_regs *regs)
 		count ++;
 		//if (prev && count < 200) { printk("act..%llu..", now - prev); }
 		//prev = now;
-		//if (count % 1000 == 0) printk("..h=%lu..", count);
-		if (unlikely(count < __IGNORE_FIRST_X__)) goto done;
+		if (unlikely(count < __IGNORE_FIRST_X__)) {
+			if (count % 999 == 0) printk(".h=%lu.", count);
+			goto done;
+		}
 		//if (count >= 400) while (1);
 		//if (count == 2500) while (1) ;
 		if (!first_hpet_period) {

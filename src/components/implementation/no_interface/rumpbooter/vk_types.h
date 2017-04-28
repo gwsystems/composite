@@ -8,7 +8,7 @@
 #define COS_SHM_VM_SZ (1<<20) //2MB
 #define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) > 0 ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
 
-#define CPU_VM 1
+#define CPU_VM 9
 #define DL_VM 2
 
 #define VM_MS_TIMESLICE 1
@@ -33,7 +33,7 @@ enum vm_prio {
 #define HPET_PERIOD_US (HPET_PERIOD_MS*1000)
 
 #undef __SIMPLE_DOM0_HIGH__
-#define  __SIMPLE_DOM0_LOW__
+#define __SIMPLE_DOM0_LOW__
 
 #if defined(__SIMPLE_DOM0_HIGH__)
 
