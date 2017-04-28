@@ -73,7 +73,7 @@ enum vm_status {
 
 enum vm_credits {
 	DOM0_CREDITS = 1, 
-	VM1_CREDITS  = 8,
+	VM1_CREDITS  = 4,
 	VM2_CREDITS  = 1,
 };
 

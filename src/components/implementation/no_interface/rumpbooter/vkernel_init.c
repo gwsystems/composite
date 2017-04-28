@@ -131,8 +131,8 @@ setup_credits(void)
 		if (vmstatus[i] != VM_EXITED) {
 			switch (i) {
 				case 0:
-					//vmcredits[i] = (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
-					vmcredits[i] = TCAP_RES_INF;
+					vmcredits[i] = (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
+				//	vmcredits[i] = TCAP_RES_INF;
 					//total_credits += (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
 				case 1:
@@ -237,9 +237,6 @@ check_replenish_budgets(void)
 
 			if (TCAP_RES_IS_INF(budget) || budget >= vmcredits[i]) continue;
 
-			if (i == 0) {
-				//printc("dom0 budget: %llu \n", budget);
-			}
 
 			if (cos_tcap_transfer(vminitrcv[i], sched_tcap, transfer_budget, vmprio[i])) assert(0);
 		}
