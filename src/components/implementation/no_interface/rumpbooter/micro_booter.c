@@ -57,9 +57,18 @@ hpet_first_period(void)
 }
 
 void
+spin_forever(void)
+{
+	printc("CPU-BOUND VM..SPINNING FOREVER\n");
+	
+	while (1) ;
+}
+
+void
 vm_init(void *id)
 {
 	vmid = (int)id;
+	assert(vmid < COS_VIRT_MACH_COUNT);
 	rumpns_vmid = vmid;
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	if (id == 0) { 
@@ -73,6 +82,7 @@ vm_init(void *id)
 
 
 	if(id == DL_VM) dl_booter_init();
+	else if (id == CPU_VM) spin_forever();
 	else rump_booter_init();
 
 	EXIT();

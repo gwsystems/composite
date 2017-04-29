@@ -595,11 +595,17 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		assert(!tcap_is_active(tc_curr) && tcap_expended(tc_curr));
 
 		budget_expiry = 1;
-		if (timer_intr_context) tc_next = thd_rcvcap_tcap(thd_next);
+		/* how about the scheduler's tcap? */
+		if (timer_intr_context || tc_curr == tc_next) tc_next = thd_rcvcap_tcap(thd_next);
 	}
-
-	/* how about the scheduler's tcap? */
-	if (tcap_expended(tc_next)) {
+	
+	/* 
+	 * TODO: for non sched thd_next, will need to use sched_thd from cos_switch..
+	 *       for preemption stack code, rethink about this..
+	 * if either next thread (in thread switch context), is not a scheduler(no rcvcap) or
+	 * if the tcap has expended
+	 */
+	if (!tc_next  || tcap_expended(tc_next)) {
 		/* finally...the active list */
 		tc_next  = tcap_active_next(cos_info);
 		/* in active list?...better have budget */
@@ -607,6 +613,7 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		/* and the next thread should be the scheduler of this tcap */
 		thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_next));
 	}
+
 
 	/*
 	 * FIXME: if switching away to a active tcap or timer_intr_context..
@@ -836,6 +843,13 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 	thd->rcvcap.isall = isall;
 
 	next = notify_parent(thd);
+	/* 
+	 * if it's not either bound to the current endpoint or to the parent.. then
+	 * it is with a child tcap somewhere up in the hierarchy
+	 * we should probably not use that tcap to run parent..
+	 */
+	if (thd_rcvcap_tcap(thd) != tc_next && thd_rcvcap_tcap(next) != tc_next) tc_next = thd_rcvcap_tcap(thd);
+
 	/* if preempted/awoken thread is waiting, switch to that */
 	if (nti->thd) {
 		assert(nti->tc);

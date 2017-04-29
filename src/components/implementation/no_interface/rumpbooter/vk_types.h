@@ -8,22 +8,11 @@
 #define COS_SHM_VM_SZ (1<<20) //2MB
 #define COS_SHM_ALL_SZ (((COS_VIRT_MACH_COUNT - 1) > 0 ? (COS_VIRT_MACH_COUNT - 1) : 1) * COS_SHM_VM_SZ) //shared regions with VM 0
 
+#define CPU_VM 9
 #define DL_VM 2
 
 #define VM_MS_TIMESLICE 1
-#define VM_TIMESLICE 1*1000//*cycs_per_usec = 1ms
-#define VM_MIN_TIMESLICE (10) //1us
-#define SCHED_MIN_TIMESLICE (10)
-#define SCHED_QUANTUM (VM_TIMESLICE * 100)
-
-#define VK_CYCS_DIFF_THRESH (1<<8)
-
-#undef PRINT_CPU_USAGE 
-#define MIN_CYCS (1<<12)
-
-#define BOOTUP_ITERS 100 
-
-#define __SIMPLE_XEN_LIKE_TCAPS__
+#define VM_TIMESLICE (VM_MS_TIMESLICE*1000) //*cycs_per_usec = 1ms
 
 #define HW_ISR_LINES 32
 #define HW_ISR_FIRST 0
@@ -43,8 +32,8 @@ enum vm_prio {
 #define HPET_PERIOD_MS 10
 #define HPET_PERIOD_US (HPET_PERIOD_MS*1000)
 
-#define __SIMPLE_DOM0_HIGH__
-#undef  __SIMPLE_DOM0_LOW__
+#undef __SIMPLE_DOM0_HIGH__
+#define __SIMPLE_DOM0_LOW__
 
 #if defined(__SIMPLE_DOM0_HIGH__)
 
@@ -72,9 +61,12 @@ enum vm_status {
 };
 
 enum vm_credits {
-	DOM0_CREDITS = 1, 
+	DOM0_CREDITS = 0,
+	DOM0_PERIOD  = 0,
 	VM1_CREDITS  = 4,
-	VM2_CREDITS  = 1,
+	VM1_PERIOD   = 10,
+	VM2_CREDITS  = 5,
+	VM2_PERIOD   = 10,
 };
 
 enum {

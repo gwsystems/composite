@@ -39,6 +39,8 @@ tcap_res_t vmcredits[COS_VIRT_MACH_COUNT];
 tcap_prio_t vmprio[COS_VIRT_MACH_COUNT];
 int vmstatus[COS_VIRT_MACH_COUNT];
 int runqueue[COS_VIRT_MACH_COUNT];
+cycles_t vmperiod[COS_VIRT_MACH_COUNT];
+cycles_t vmlastperiod[COS_VIRT_MACH_COUNT];
 
 u64_t vmruncount[COS_VIRT_MACH_COUNT];
 
@@ -125,9 +127,11 @@ setup_credits(void)
 {
 	int i;
 	
-	total_credits = 0;
+	//total_credits = 0;
 
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+		vmperiod[i] = 0;
+		vmlastperiod[i] = 0;
 		if (vmstatus[i] != VM_EXITED) {
 			switch (i) {
 				case 0:
@@ -136,16 +140,18 @@ setup_credits(void)
 					//total_credits += (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
 				case 1:
-					vmcredits[i] = (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					if (CPU_VM < COS_VIRT_MACH_COUNT) assert(CPU_VM == 1);
+					vmcredits[i] = (VM1_CREDITS * VM_MS_TIMESLICE * cycs_per_msec);
+					vmperiod[i] = (VM1_PERIOD * VM_MS_TIMESLICE * cycs_per_msec);
 					//vmcredits[i] = TCAP_RES_INF;
-					//vmcredits[i] = TCAP_RES_INF;
-					total_credits += (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					//total_credits += (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
 				case 2: assert(i == DL_VM);
 					vmcredits[i] = (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
-		//			vmcredits[i] += (DLVM_ADD_WORK * VM_TIMESLICE * cycs_per_usec);
+					vmcredits[i] += (DLVM_ADD_WORK * VM_TIMESLICE * cycs_per_usec);
+					vmperiod[i] = (VM2_PERIOD * VM_MS_TIMESLICE * cycs_per_msec);
 					//vmcredits[i] = TCAP_RES_INF;
-					total_credits += (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					//total_credits += (VM2_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
 				default: assert(0);
 					vmcredits[i] = VM_TIMESLICE;
@@ -154,19 +160,6 @@ setup_credits(void)
 		} 
 	}
 	total_credits = (10 * cycs_per_msec);
-}
-
-void
-reset_credits(void)
-{
-	struct vm_node *vm;
-	int i;
-
-	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-		vm_cr_reset[i] = 1;
-		if (vmstatus[i] == VM_EXPENDED) 
-			vmstatus[i] = VM_RUNNING;
-	}
 }
 
 void
@@ -215,10 +208,33 @@ check_vm_budget(int index)
 	return transfer_budget;
 }
 
+#define VARIABLE_PERIODS
 /* for budget accounting case */
 static void
 check_replenish_budgets(void)
 {
+#ifdef VARIABLE_PERIODS
+	cycles_t now;
+	int i;
+
+	rdtscll(now);
+
+	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+		if (!vmperiod[i] && vmlastperiod[i]) continue; /* perhaps has inf! and was replenished once */
+
+		if (vmlastperiod[i] == 0 || (now - vmlastperiod[i] >= vmperiod[i])) {
+			tcap_res_t budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[i], TCAP_GET_BUDGET);
+			tcap_res_t transfer_budget = vmcredits[i] - budget;
+
+			vmlastperiod[i] = now;
+			/* cpu vm is only unblocked on replenishment */
+			if (i == CPU_VM && vmstatus[i] != VM_EXITED) vmstatus[i] = VM_RUNNING;
+			if (TCAP_RES_IS_INF(budget) || budget >= vmcredits[i]) continue;
+			if (cos_tcap_transfer(vminitrcv[i], sched_tcap, transfer_budget, vmprio[i])) assert(0);
+		}
+	}
+
+#else
 	static cycles_t last_replenishment = 0;
 	cycles_t now;
 	int i;
@@ -241,6 +257,7 @@ check_replenish_budgets(void)
 			if (cos_tcap_transfer(vminitrcv[i], sched_tcap, transfer_budget, vmprio[i])) assert(0);
 		}
 	}
+#endif
 }
 
 /* wakeup API: wakes up blocked vms every x timeslices. */
@@ -257,7 +274,7 @@ wakeup_vms(unsigned x)
 
 		last_wakeup = now;
 		for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-			if (i == DL_VM) continue;
+			if (i == DL_VM || i == CPU_VM) continue;
 
 			vmstatus[i] = VM_RUNNING;
 		}
@@ -332,6 +349,10 @@ sched_fn(void *x)
 			pending = cos_sched_rcv_all(sched_rcv, &rcvd, &tid, &blocked, &cycles);
 			if (!tid) continue;
 
+			if (CPU_VM < COS_VIRT_MACH_COUNT && tid == vm_main_thdid[CPU_VM] && cycles) {
+				vmstatus[CPU_VM] = VM_EXPENDED;
+				continue;
+			}
 			for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i++) {
 				if (tid == vm_main_thdid[i]) {
 					vmstatus[i] = blocked;
@@ -342,6 +363,9 @@ sched_fn(void *x)
 		} while (pending);
 
 		check_replenish_budgets();
+
+		/* do not run cpu-bound vm for until dom0 is booted up */
+		if (vmruncount[0] < DOM0_BOOTUP && CPU_VM < COS_VIRT_MACH_COUNT) vmstatus[CPU_VM] = VM_BLOCKED;
 
 		index = sched_vm();
 		if (index < 0) continue;
@@ -356,7 +380,7 @@ sched_fn(void *x)
 		//if (vmstatus[DL_VM] == VM_RUNNING) index = DL_VM;
 
 		vmruncount[index] ++;
-		if (index == DL_VM) {
+		if (index == DL_VM || index == CPU_VM) {
 			//if (vmruncount[index] % 100 == 0) printc("%d:%llu\n", index, vmruncount[index]);
 			do {
 				ret = cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
