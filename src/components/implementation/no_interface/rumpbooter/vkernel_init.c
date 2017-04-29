@@ -208,7 +208,7 @@ check_vm_budget(int index)
 	return transfer_budget;
 }
 
-#define VARIABLE_PERIODS
+#undef VARIABLE_PERIODS
 /* for budget accounting case */
 static void
 check_replenish_budgets(void)
@@ -250,6 +250,7 @@ check_replenish_budgets(void)
 		//	if (i != DL_VM && vmstatus[i] == VM_BLOCKED) {
 		//		vmstatus[i] = VM_RUNNING;	
 		//	}
+			if (i != DL_VM && vmstatus[i] == VM_EXPENDED) vmstatus[i] = VM_RUNNING;
 
 			if (TCAP_RES_IS_INF(budget) || budget >= vmcredits[i]) continue;
 
@@ -274,7 +275,8 @@ wakeup_vms(unsigned x)
 
 		last_wakeup = now;
 		for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-			if (i == DL_VM || i == CPU_VM) continue;
+			if (i == DL_VM || i == CPU_VM || vmstatus[i] == VM_EXITED) continue;
+			if (vmstatus[i] == VM_EXPENDED) continue;
 
 			vmstatus[i] = VM_RUNNING;
 		}
@@ -355,7 +357,8 @@ sched_fn(void *x)
 			}
 			for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i++) {
 				if (tid == vm_main_thdid[i]) {
-					vmstatus[i] = blocked;
+					if (!cycles) vmstatus[i] = blocked;
+					else         vmstatus[i] = VM_EXPENDED;
 					break;
 				}
 			}

@@ -30,8 +30,8 @@ void dl_work_one(void *) __attribute__((optimize("O0")));
 void dl_work_two(void *) __attribute__((optimize("O0")));
 void dl_deadline_test(void) __attribute__((optimize("O0")));
 
-#define WORKLOAD1 ((u64_t)200)
-#define WORKLOAD2 ((u64_t)300)
+#define WORKLOAD1 ((u64_t)2000)
+#define WORKLOAD2 ((u64_t)2800)
 
 void
 dl_work_two(void * ignore)
