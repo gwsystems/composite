@@ -32,7 +32,7 @@ enum vm_prio {
 #define HPET_PERIOD_MS 10
 #define HPET_PERIOD_US (HPET_PERIOD_MS*1000)
 
-#undef __SIMPLE_DOM0_HIGH__
+//#define __SIMPLE_DOM0_HIGH__
 #define __SIMPLE_DOM0_LOW__
 
 #if defined(__SIMPLE_DOM0_HIGH__)
