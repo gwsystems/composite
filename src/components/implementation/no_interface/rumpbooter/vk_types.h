@@ -61,10 +61,12 @@ enum vm_status {
 };
 
 enum vm_credits {
-	DOM0_CREDITS = 0,
-	DOM0_PERIOD  = 0,
-	VM1_CREDITS  = 4,
+	DOM0_CREDITS = 5,
+	DOM0_PERIOD  = 10,
+	DOM0_WKUP_PERIOD = 5,
+	VM1_CREDITS  = 2,
 	VM1_PERIOD   = 10,
+	VM1_WKUP_PERIOD = 10,
 	VM2_CREDITS  = 5,
 	VM2_PERIOD   = 10,
 };
