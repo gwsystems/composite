@@ -140,9 +140,9 @@ setup_credits(void)
 		if (vmstatus[i] != VM_EXITED) {
 			switch (i) {
 				case 0:
-					vmcredits[i] = (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
+					vmcredits[i] = ((DOM0_CREDITS) * VM_TIMESLICE * cycs_per_usec);
 					vmperiod[i] = (DOM0_PERIOD * VM_MS_TIMESLICE * cycs_per_msec);
-					vmwakeup[i] = (DOM0_WKUP_PERIOD * VM_MS_TIMESLICE * cycs_per_msec);
+					vmwakeup[i] = ((DOM0_WKUP_PERIOD) * VM_MS_TIMESLICE * cycs_per_msec);
 					//vmcredits[i] = TCAP_RES_INF;
 					//total_credits += (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
@@ -270,6 +270,7 @@ check_replenish_budgets(void)
 }
 
 #define WAKEUP_FIXED_PERIOD 1
+#define VARIABLE_WAKEUP
 
 /* wakeup API: wakes up blocked vms every x timeslices. */
 static void
