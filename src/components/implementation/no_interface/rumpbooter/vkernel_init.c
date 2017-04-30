@@ -41,6 +41,8 @@ int vmstatus[COS_VIRT_MACH_COUNT];
 int runqueue[COS_VIRT_MACH_COUNT];
 cycles_t vmperiod[COS_VIRT_MACH_COUNT];
 cycles_t vmlastperiod[COS_VIRT_MACH_COUNT];
+cycles_t vmwakeup[COS_VIRT_MACH_COUNT];
+cycles_t vmlastwakeup[COS_VIRT_MACH_COUNT];
 
 u64_t vmruncount[COS_VIRT_MACH_COUNT];
 
@@ -130,19 +132,25 @@ setup_credits(void)
 	//total_credits = 0;
 
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+		vmwakeup[i] = 0;
+		vmlastwakeup[i] = 0;
+		vmcredits[i] = 0;
 		vmperiod[i] = 0;
 		vmlastperiod[i] = 0;
 		if (vmstatus[i] != VM_EXITED) {
 			switch (i) {
 				case 0:
 					vmcredits[i] = (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
-				//	vmcredits[i] = TCAP_RES_INF;
+					vmperiod[i] = (DOM0_PERIOD * VM_MS_TIMESLICE * cycs_per_msec);
+					vmwakeup[i] = (DOM0_WKUP_PERIOD * VM_MS_TIMESLICE * cycs_per_msec);
+					//vmcredits[i] = TCAP_RES_INF;
 					//total_credits += (DOM0_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
 				case 1:
 					if (CPU_VM < COS_VIRT_MACH_COUNT) assert(CPU_VM == 1);
 					vmcredits[i] = (VM1_CREDITS * VM_MS_TIMESLICE * cycs_per_msec);
 					vmperiod[i] = (VM1_PERIOD * VM_MS_TIMESLICE * cycs_per_msec);
+					vmwakeup[i] = (VM1_WKUP_PERIOD * VM_MS_TIMESLICE * cycs_per_msec);
 					//vmcredits[i] = TCAP_RES_INF;
 					//total_credits += (VM1_CREDITS * VM_TIMESLICE * cycs_per_usec);
 					break;
@@ -220,7 +228,7 @@ check_replenish_budgets(void)
 	rdtscll(now);
 
 	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-		if (!vmperiod[i] && vmlastperiod[i]) continue; /* perhaps has inf! and was replenished once */
+		if (!vmcredits[i] || (!vmperiod[i] && vmlastperiod[i])) continue; /* perhaps has inf! and was replenished once */
 
 		if (vmlastperiod[i] == 0 || (now - vmlastperiod[i] >= vmperiod[i])) {
 			tcap_res_t budget = (tcap_res_t)cos_introspect(&vkern_info, vminittcap[i], TCAP_GET_BUDGET);
@@ -261,12 +269,28 @@ check_replenish_budgets(void)
 #endif
 }
 
+#define WAKEUP_FIXED_PERIOD 1
+
 /* wakeup API: wakes up blocked vms every x timeslices. */
 static void
-wakeup_vms(unsigned x)
+wakeup_vms(void)
 {
+#ifdef VARIABLE_WAKEUP
+	cycles_t now;
+	int i;
+	
+	rdtscll(now);
+	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+		if (i == DL_VM || i == CPU_VM || vmstatus[i] == VM_EXITED) continue;
+
+		if (vmlastwakeup[i] == 0 || (now - vmlastwakeup[i] >= vmwakeup[i])) {
+			vmlastwakeup[i] = now;
+			vmstatus[i] = VM_RUNNING;
+		}
+	}
+#else
 	static cycles_t last_wakeup = 0;
-	cycles_t wakeupslice = VM_MS_TIMESLICE * x * cycs_per_msec;
+	cycles_t wakeupslice = VM_MS_TIMESLICE * WAKEUP_FIXED_PERIOD * cycs_per_msec;
 	cycles_t now;
 	
 	rdtscll(now);
@@ -281,6 +305,7 @@ wakeup_vms(unsigned x)
 			vmstatus[i] = VM_RUNNING;
 		}
 	}
+#endif
 }
 
 #define DOM0_BOOTUP 60
@@ -342,8 +367,8 @@ sched_fn(void *x)
 		//index = sched_index;
 		//sched_index ++;
 		//sched_index %= COS_VIRT_MACH_COUNT;
-		/* wakeup eligible vms.. every 1 timeslice */
-		wakeup_vms(1);
+		/* wakeup eligible vms.. */
+		wakeup_vms();
 		do {
 			int i;
 			int rcvd = 0;

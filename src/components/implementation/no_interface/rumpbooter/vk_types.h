@@ -32,8 +32,8 @@ enum vm_prio {
 #define HPET_PERIOD_MS 10
 #define HPET_PERIOD_US (HPET_PERIOD_MS*1000)
 
-#define __SIMPLE_DOM0_HIGH__
-#undef __SIMPLE_DOM0_LOW__
+//#define __SIMPLE_DOM0_HIGH__
+#define __SIMPLE_DOM0_LOW__
 
 #if defined(__SIMPLE_DOM0_HIGH__)
 
@@ -61,11 +61,15 @@ enum vm_status {
 };
 
 enum vm_credits {
-	DOM0_CREDITS = 4,
+	DOM0_CREDITS = 5,
 	DOM0_PERIOD  = 10,
-	VM1_CREDITS  = 4,
+	DOM0_WKUP_PERIOD = 5,
+	
+	VM1_CREDITS  = 2,
 	VM1_PERIOD   = 10,
-	VM2_CREDITS  = 6,
+	VM1_WKUP_PERIOD = 10,
+	
+	VM2_CREDITS  = 5,
 	VM2_PERIOD   = 10,
 };
 
