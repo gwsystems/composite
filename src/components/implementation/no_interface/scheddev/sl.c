@@ -89,7 +89,7 @@ sl_thd_wakeup(thdid_t tid)
 		goto done;
 	}
 
-	assert(t->state = SL_THD_BLOCKED);
+	assert(t->state == SL_THD_BLOCKED);
 	t->state = SL_THD_RUNNABLE;
 	sl_mod_wakeup(sl_mod_thd_policy_get(t));
 	sl_cs_exit_schedule();
