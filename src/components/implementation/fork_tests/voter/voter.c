@@ -64,6 +64,7 @@ struct replica_info *get_replica(spdid_t spdid) {
 	return map[spdid].replica;
 }
 
+/* Helper function */
 void get_channel_info(struct channel *channel) {
 	struct nmod_comp *snd, *rcv;
 	int i;
@@ -79,6 +80,7 @@ void get_channel_info(struct channel *channel) {
 	printc(")\n");
 }
 
+/* Another helper function */
 void get_replica_info(struct replica_info *replica) {
 	printc(" [This is replica %x with spdid %d\n read buf %d (%x) write buf %d (%x)\n thd id %d, block status %d]\n",
 		replica, replica->spdid, replica->read_buffer, replica->buf_read, replica->write_buffer, replica->buf_write,
@@ -99,8 +101,8 @@ struct channel *get_channel(struct nmod_comp *snd, struct nmod_comp *rcv) {
 }
 
 int block_replica(struct replica_info *replica) {
-	printc("block_replica being called with spdid %d\n", replica->spdid);
 	if (!replica->thread_id) BUG();
+	if (cos_get_thd_id() != replica->thread_id) BUG();
 	printc("Blocking thread %d\n", replica->thread_id);
 	replica->blocked = 1;
 	return sched_block(cos_spd_id(), 0);
@@ -111,8 +113,6 @@ int inspect_channel(struct channel *c) {
 	int found;
 	int majority, majority_index;
 	struct replica_info *replica;
-
-	get_channel_info(c);
 
 	/* Check rcv replicas. If they're not ready, we can just error out */
 	for (i = 0; i < c->rcv->nreplicas; i++) {
@@ -166,12 +166,30 @@ int inspect_channel(struct channel *c) {
 		/* Now put the majority index's data into the channel */
 		assert(c->data_buf);
 		assert(c->snd->replicas[majority_index].sz_write <= 1024);
-		c->have_data = 1;
+		c->have_data = c->snd->nreplicas;
 		c->sz_data = c->snd->replicas[majority_index].sz_write;
 		memcpy(c->data_buf, c->snd->replicas[majority_index].buf_write, c->snd->replicas[majority_index].sz_write);
 	}
 
+	/* Unblocking reads */
+	printc("Thread %d unblocking reads\n", cos_get_thd_id());
+	for (i = 0; i < c->rcv->nreplicas; i++) {
+		replica = &c->rcv->replicas[i];
+		memcpy(replica->buf_read, c->data_buf, c->sz_data);
+
+		if (replica->blocked) {
+			replica->blocked = 0;
+			if (!replica->thread_id) BUG();
+			printc("thread %d waking up read thread %d\n", cos_get_thd_id(), replica->thread_id);
+			sched_wakeup(cos_spd_id(), replica->thread_id);
+		}
+		else if (replica->thread_id != cos_get_thd_id()) {	/* The replica could also be this thread */
+			printc("The replica for thread %d did not initiate a read, or at least did not get blocked. Probably an error in the future.\n", replica->spdid);
+		}
+	}
+	
 	/* Unblocking writes */
+	printc("Thread %d unblocking writes\n", cos_get_thd_id());
 	for (i = 0; i < c->snd->nreplicas; i++) {
 		replica = &c->snd->replicas[i];
 		if (replica->blocked) {
@@ -181,26 +199,9 @@ int inspect_channel(struct channel *c) {
 			sched_wakeup(cos_spd_id(), replica->thread_id);
 		}
 		else {
-			printc("This replica is not blocked. It better be us!\n");
-			assert(replica->thread_id == cos_get_thd_id());
-		}
-	}
-
-	/* Unblocking reads */
-	for (i = 0; i < c->rcv->nreplicas; i++) {
-		replica = &c->rcv->replicas[i];
-		memcpy(replica->buf_read, c->data_buf, c->sz_data);
-
-		printc("Looking at replica %d\n", replica->spdid);
-
-		if (replica->blocked) {
-			replica->blocked = 0;
-			if (!replica->thread_id) BUG();
-			printc("waking up thread %d\n", replica->thread_id);
-			sched_wakeup(cos_spd_id(), replica->thread_id);
-		}
-		else if (replica->thread_id != cos_get_thd_id()) {	/* The replica could also be this thread */
-			printc("This replica did not initiate a read, or at least did not get blocked. Probably an error in the future.\n");
+			printc("The replica for spd %d is not blocked. It better be us!\n", replica->spdid);
+			printc("But actually it might not be due to how the system is now running\n");
+			//assert(replica->thread_id == cos_get_thd_id());
 		}
 	}
 
@@ -217,7 +218,6 @@ int nwrite(spdid_t spdid, channel_id to, size_t sz) {
 
 	printc("Write called by spdid %d\n", spdid);
 	if (!replica->thread_id) replica->thread_id = cos_get_thd_id();
-	get_replica_info(replica);
 	
 	if (to >= N_CHANNELS) BUG();
 
@@ -252,7 +252,7 @@ size_t nread(spdid_t spdid, channel_id from, size_t sz) {
 	c = &channels[from];
 	ret = inspect_channel(c);
 	if (ret) block_replica(replica);
-	c->have_data = 0;
+	c->have_data--;
 	return c->sz_data;
 }
 
