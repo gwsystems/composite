@@ -11,6 +11,7 @@ void cos_init(void) {
 	static void *buf_read, *buf_write;
 	cbuf_t read_buffer, write_buffer;
 	static int flag = 0;
+	int n_pings = 7;
 
 	printc("Calling ping from spdid %d\n", cos_spd_id());
 
@@ -31,15 +32,15 @@ void cos_init(void) {
 
 		/* Start sending data */
 		i = 0;
-		while (i < 3) {
-			printc("\nping calling write with spdid %d and thd id %d\n", cos_spd_id(), cos_get_thd_id());
+		while (i < n_pings) {
+			printc("\ni = %d, ping calling write with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());
 			memcpy(buf_write, "abc\0", 4);
 			ret = nwrite(cos_spd_id(), 0, 4);
 			printc("Thread %d: write returned %d\n\n", cos_get_thd_id(), ret);
 
-			printc("\nping calling read with spdid %d and thd id %d\n", cos_spd_id(), cos_get_thd_id());
+			printc("\ni = %d, ping calling read with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());
 			ret = nread(cos_spd_id(), 1, 4);
-			printc("Thread %d: read returned %d and now we have data [%s] - expected abc\n\n", cos_get_thd_id(), ret, ((char*) buf_read));
+			printc("Thread %d: read returned %d and now we have data [%s] - expected xyz\n\n", cos_get_thd_id(), ret, ((char*) buf_read));
 
 			i++;
 		}
@@ -53,13 +54,13 @@ void cos_init(void) {
 		printc("ping (%d) confirmed with buffers read (%d) and write(%d)\n", cos_spd_id(), read_buffer, write_buffer);
 		
 		i = 0;
-		while (i < 3) {
-			printc("\nping calling write with spdid %d and thd id %d\n", cos_spd_id(), cos_get_thd_id());
+		while (i < n_pings) {
+			printc("\ni = %d, ping calling write with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());
 			memcpy(buf_write, "abc\0", 4);
 			ret = nwrite(cos_spd_id(), 0, 4);
 			printc("Thread %d: write returned %d\n\n", cos_get_thd_id(), ret);
 
-			printc("\nping calling read with spdid %d and thd id %d\n", cos_spd_id(), cos_get_thd_id());
+			printc("\ni = %d, ping calling read with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());
 			ret = nread(cos_spd_id(), 1, 4);
 			printc("Thead %d: read returned %d and now we have data [%s] - expected abc\n\n", cos_get_thd_id(), ret, ((char*) buf_read));
 
@@ -67,4 +68,5 @@ void cos_init(void) {
 		}
 	}
 
+	printc("Spdid %d finished.\n", cos_spd_id());
 }

@@ -23,16 +23,18 @@ void cos_init(void) {
 	
 	confirm_fork(cos_spd_id());
 	
-	while (i < 3) {	
-		printc("\npong calling read from spdid %d\n", cos_spd_id());
+	while (i < 7) {	
+		printc("\ni = %d, pong calling read from spdid %d\n", i, cos_spd_id());
 		data = nread(cos_spd_id(), 0, 4);
 		printc("Thread %d: read returned %d and now we have data [%s] - expected abc\n\n", cos_get_thd_id(), ret, ((char*) buf_read));
 
-		printc("\npong calling write\n");
+		printc("\ni = %d, pong calling write\n", i);
 		memcpy(buf_write, "xyz\0", 4);
 		ret = nwrite(cos_spd_id(), 1, 4);
 		printc("Thread %d: write returned %d\n\n", cos_get_thd_id(), ret);
 
 		i++;
 	}
+	
+	printc("Spdid %d finished.\n", cos_spd_id());
 }
