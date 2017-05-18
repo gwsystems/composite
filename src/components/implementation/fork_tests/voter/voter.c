@@ -14,17 +14,16 @@
 #define printd(...)
 #endif
 
-#define N_COMPS 2				// number of components
-#define N_CHANNELS 2				// number of channels between components
-#define N_MAP_SZ 250				// number of spid's in the system. Super arbitrary
-#define N_MAX 9
+#define N_COMPS 2				/* number of nMR components - symbolizes an encapsulated redundant component 	*/
+#define N_CHANNELS 2				/* number of channels between components. One-directional 			*/
+#define N_MAP_SZ 250				/* max number of spid's in the system. Super arbitrary				*/
+#define N_MAX 9					/* max number of components in an nMR component. Also arbitrary.		*/
 
 struct replica_info {
 	spdid_t spdid;
 	unsigned short int thread_id;
 	int blocked;
-	void *destination;			// NULL if this replica hasn't written
-	void *source;				// NULL if replica isn't requesting a read
+	void *destination;			/* NULL if this replica hasn't written */
 	unsigned int epoch[N_CHANNELS];
 	unsigned int last_awake;
 	
@@ -38,17 +37,16 @@ struct replica_info {
 };
 
 struct nmod_comp {
-	struct replica_info replicas[N_MAX];	// let's call this max
+	struct replica_info replicas[N_MAX];
 	int nreplicas;
 };
 
 struct channel {
 	struct nmod_comp *snd, *rcv;
 	int have_data;
-	size_t sz_data;		 		// or can just merge with have_data?
+	size_t sz_data;
 	cbuf_t data_cbid;
 	void *data_buf;
-	u64_t start;				// set each time the replica is woken up. Accurate?
 	unsigned int epoch;
 };
 
@@ -60,9 +58,7 @@ struct map_entry {
 struct nmod_comp components[N_COMPS];
 struct channel channels[N_CHANNELS];
 struct map_entry map[N_MAP_SZ];
-int matches[N_MAX];
-
-int period = 100;
+int matches[N_MAX];				/* To keep track of voting. Not in nmod_comp because it can be reused - we're only ever voting on one thing at a time */
 
 void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd) { }
 
@@ -78,21 +74,21 @@ struct replica_info *get_replica(spdid_t spdid) {
 void get_channel_info(struct channel *channel) {
 	struct nmod_comp *snd, *rcv;
 	int i;
-	printc(" [channel %x (data %d) between\n", channel, channel->have_data);
-	printc(" %x (", channel->snd);
+	printd(" [channel %x (data %d) between\n", channel, channel->have_data);
+	printd(" %x (", channel->snd);
 	for (i = 0; i < channel->snd->nreplicas; i++) {
-		printc("%x (%d) ", &channel->snd->replicas[i], channel->snd->replicas[i].spdid);
+		printd("%x (%d) ", &channel->snd->replicas[i], channel->snd->replicas[i].spdid);
 	}
-	printc(")\n and\n %x (", channel->rcv);
+	printd(")\n and\n %x (", channel->rcv);
 	for (i = 0; i < channel->rcv->nreplicas; i++) {
-		printc("%x (%d) ", &channel->rcv->replicas[i], channel->rcv->replicas[i].spdid);
+		printd("%x (%d) ", &channel->rcv->replicas[i], channel->rcv->replicas[i].spdid);
 	}
-	printc(")\n");
+	printd(")\n");
 }
 
 /* Another helper function */
 void get_replica_info(struct replica_info *replica) {
-	printc(" [This is replica %x with spdid %d\n read buf %d (%x) write buf %d (%x)\n thd id %d, block status %d]\n",
+	printd(" [This is replica %x with spdid %d\n read buf %d (%x) write buf %d (%x)\n thd id %d, block status %d]\n",
 		replica, replica->spdid, replica->read_buffer, replica->buf_read, replica->write_buffer, replica->buf_write,
 		replica->thread_id, replica->blocked);	
 }
@@ -106,24 +102,68 @@ struct channel *get_channel(struct nmod_comp *snd, struct nmod_comp *rcv) {
 	return NULL;
 }
 
+int wakeup_replica(struct replica_info * replica) {
+	printc("Thread %d: Waking up replica with spdid %d, thread %d\n", cos_get_thd_id(), replica->spdid, replica->thread_id);
+	assert(replica->thread_id);
+	replica->blocked = 0;
+	rdtscll(replica->last_awake);
+	sched_wakeup(cos_spd_id(), replica->thread_id);
+	printc("Replica was woken up\n");
+	return 0;
+}
+
 int block_replica(struct replica_info *replica) {
 	int i, j;
 	int n = 0;
+	struct replica_info *oldest = NULL;
+	unsigned long max = 0;
+	unsigned long time;
+
+	rdtscll(time);
 	for (i = 0; i < N_COMPS; i++) {
 		for (j = 0; j < components[i].nreplicas; j++) {
 			if (components[i].replicas[j].blocked == 0 && components[i].replicas[j].spdid != replica->spdid) {
 				n++;
 			}
+			else if (components[i].replicas[j].blocked == 1 && components[i].replicas[j].spdid != replica->spdid) {
+				if (time - components[i].replicas[j].last_awake > max) {
+					max = time - components[i].replicas[j].last_awake;
+					oldest = &components[i].replicas[j];
+				}
+			}
 		}
 	}
-	printc("After this block, %d replicas will be awake\n", n);
+	printc("Thread %d: After this block, %d replicas will be awake\n", cos_get_thd_id(), n);
 
-	if (!replica->thread_id) BUG();
-	if (cos_get_thd_id() != replica->thread_id) BUG();
-	printc("Blocking thread %d\n", replica->thread_id);
-	replica->blocked = 1;
-	rdtscll(replica->last_awake);
-	return sched_block(cos_spd_id(), 0);
+	/*
+	 * Only put to sleep if someone will still be awake afterwards.
+	 * Otherwise find some other replica and wake it
+	 */
+	if (n > 0) {
+		if (!replica->thread_id) BUG();
+		if (cos_get_thd_id() != replica->thread_id) BUG();
+		printc("Thread %d: Blocking thread %d\n", cos_get_thd_id(), replica->thread_id);
+		replica->blocked = 1;
+		rdtscll(replica->last_awake);
+		sched_block(cos_spd_id(), 0);
+		return 0;
+	}
+	else if (oldest) {
+		wakeup_replica(oldest);
+		// block anyway
+		if (!replica->thread_id) BUG();
+		if (cos_get_thd_id() != replica->thread_id) BUG();
+		printc("Thread %d: Blocking thread %d anyway\n", cos_get_thd_id(), replica->thread_id);
+		replica->blocked = 1;
+		rdtscll(replica->last_awake);
+		sched_block(cos_spd_id(), 0);
+		return 0;
+	}
+	else {
+		printc("At no point should all replicas be asleep despite not having run yet\n");
+		assert(0);
+		return 0;
+	}
 }
 
 /*
@@ -139,7 +179,7 @@ int wakeup_writer(struct channel *c) {
 	struct nmod_comp *snd;
 	struct replica_info *replica, *target;
 	snd = c->snd;
-	printd("Thread %d: Attempting to find a writer to wakeup\n", cos_get_thd_id());
+	printc("Thread %d: Attempting to find a writer to wakeup\n", cos_get_thd_id());
 	rdtscll(time);
 	for (i = 0; i < snd->nreplicas; i++) {
 		replica = &snd->replicas[i];
@@ -153,13 +193,7 @@ int wakeup_writer(struct channel *c) {
 		}
 	}
 
-	if (max) {
-		printc("Thread %d: found replica with spdid %d to wakeup\n", cos_get_thd_id(), target->spdid);
-		target->blocked = 0;
-		assert(target->thread_id);
-		sched_wakeup(cos_spd_id(), target->thread_id);
-		return 0;
-	}
+	if (max) return wakeup_replica(target);
 
 	printd("Thread %d: Did not find any replica suitable for wakeup\n", cos_get_thd_id());
 	return -1;
@@ -185,13 +219,7 @@ int wakeup_reader(struct channel *c, unsigned int target_epoch) {
 		}
 	}
 	
-	if (max) {
-		printc("Thread %d: found replica with spdid %d to wakeup\n", cos_get_thd_id(), target->spdid);
-		target->blocked = 0;
-		assert(target->thread_id);
-		sched_wakeup(cos_spd_id(), target->thread_id);
-		return 0;
-	}
+	if (max) return wakeup_replica(target);
 
 	printd("Thread %d: Did not find any replica suitable for wakeup\n", cos_get_thd_id());
 	return -1;
@@ -199,7 +227,7 @@ int wakeup_reader(struct channel *c, unsigned int target_epoch) {
 
 static inline int
 check_writes(struct channel *c) {
-	int found; 
+	int found = 0; 
 	int i;
 	struct replica_info *replica;
 
@@ -207,8 +235,11 @@ check_writes(struct channel *c) {
 	found = 0;
 	for (i = 0; i < c->snd->nreplicas; i++) {
 		replica = &c->snd->replicas[i];
+		if (!replica->spdid) continue;
+		printc("(%d->%x)", replica->spdid, replica->destination);
 		if (replica->destination) found++;
 	}
+	printc("\n");
 	if (found != c->snd->nreplicas) return 0;
 
 	printc("Thread %d: We have enough data to send\n", cos_get_thd_id());
@@ -237,8 +268,11 @@ int inspect_channel(struct channel *c) {
 		if (!replica->spdid) return -1; 	/* We can write but read replicas haven't been confirmed yet */
 	}
 
-	if (!c->have_data && !check_writes(c)) return -1;
+	printc("Thread %d: Checking have_data\n", cos_get_thd_id());
+	if (!check_writes(c)) return -1;
+	printc("Thread %d: Passed have_data check\n", cos_get_thd_id());
 
+	// Can optimize so that voting is only done once... wait it might only be done once now. */
 	/* Reset the matches array */	
 	for (i = 0; i < N_MAX; i++) matches[i] = 0;
 	majority = 0;
@@ -273,29 +307,20 @@ int inspect_channel(struct channel *c) {
 	memcpy(c->data_buf, c->snd->replicas[majority_index].buf_write, c->snd->replicas[majority_index].sz_write);
 
 	/* Unblocking reads */
-	printd("Thread %d: unblocking reads\n", cos_get_thd_id());
+	printc("Thread %d: unblocking reads\n", cos_get_thd_id());
 	for (i = 0; i < c->rcv->nreplicas; i++) {
 		replica = &c->rcv->replicas[i];
 		memcpy(replica->buf_read, c->data_buf, c->sz_data);
 
-		if (replica->blocked) {
-			if (!replica->thread_id) BUG();
-			printc("Thread %d: waking up read thread %d\n", cos_get_thd_id(), replica->thread_id);
-			replica->blocked = 0;
-			sched_wakeup(cos_spd_id(), replica->thread_id);
-		}
+		printc("read wakeup i = %d\n", i);
+		if (replica->blocked) wakeup_replica(replica);
 	}
 	
 	/* Unblocking writes */
-	printd("Thread %d: unblocking writes\n", cos_get_thd_id());
+	printc("Thread %d: unblocking writes\n", cos_get_thd_id());
 	for (i = 0; i < c->snd->nreplicas; i++) {
 		replica = &c->snd->replicas[i];
-		if (replica->blocked) {
-			if (!replica->thread_id) BUG();
-			printc("Thread %d: waking up write thread %d\n", cos_get_thd_id(), replica->thread_id);
-			replica->blocked = 0;
-			sched_wakeup(cos_spd_id(), replica->thread_id);
-		}
+		if (replica->blocked) wakeup_replica(replica); 
 	}
 
 	return 0;	
@@ -303,39 +328,34 @@ int inspect_channel(struct channel *c) {
 
 int nwrite(spdid_t spdid, channel_id to, size_t sz) {
 	struct replica_info *replica = get_replica(spdid);
-	struct nmod_comp *component = get_component(spdid);
 	struct channel *c;
 	int ret;
-	long i;
+
 	if (!replica) BUG();
-
-	printd("Thread %d: Write called by spdid %d\n", cos_get_thd_id(), spdid);
-	if (!replica->thread_id) replica->thread_id = cos_get_thd_id();
-	
+	if (!replica->thread_id) replica->thread_id = cos_get_thd_id();				/* for a fork that couldn't be assigned a thread id yet */
 	if (to >= N_CHANNELS) BUG();
-
-	c = &channels[to];
-
 	if (replica->destination) {
-		printc("This replica has already sent some data down the channel\n");
-		return -1; // whatever, shouldn't happen if blocked
+		printd("This replica has already sent some data down the channel\n");
+		return -1; // debug this a lot more thoroughly
 	}
-	
 	assert(replica->buf_write);
 	assert(sz <= 1024);
+
+	c = &channels[to];
+	printc("Thread %d: Setting destination for replica with spdid %d to %x\n", cos_get_thd_id(), replica->spdid, c->rcv);
 	replica->destination = c->rcv;
 	replica->sz_write = sz;
-
-	//if (replica->epoch[to] != c->epoch) block_replica(replica);
-
-	ret = inspect_channel(c);
-	if (ret) block_replica(replica);
+	while (inspect_channel(c)) block_replica(replica);
 
 	/* One wakeup */
 	printd("Thread %d: Incrementing write epoch\n", cos_get_thd_id());
 	replica->epoch[to]++;
-	
-	while (c->have_data && wakeup_reader(c, replica->epoch)) block_replica(replica);	// only return once all readers have returned
+
+	/* We may have enough data to send (inspect_channel passes) BUT not everyone has read yet */	
+	while (c->have_data && wakeup_reader(c, replica->epoch)) {
+		printc("Thread %d: not everyone has read yet, also our destination is %x\n", cos_get_thd_id(), replica->destination);
+		block_replica(replica);
+	}
 		
 	replica->destination = NULL;
 	return 0;
@@ -347,28 +367,22 @@ size_t nread(spdid_t spdid, channel_id from, size_t sz) {
 	struct channel *c;
 	int ret;
 
-	printd("Thread %d: Read called by spdid %d\n", cos_get_thd_id(), spdid);
 	if (from >= N_CHANNELS) BUG();
 	if (!replica) BUG();
+	if (!replica->thread_id) replica->thread_id = cos_get_thd_id();				/* for a fork that couldn't be assigned a thread id yet */
 
 	c = &channels[from];
-	//if (replica->epoch[from] != c->epoch) block_replica(replica);
 	ret = inspect_channel(c);
 	if (ret) block_replica(replica);
 
-	printd("Thread %d: Waking up in read, channel %d\n", cos_get_thd_id(), from);
+	/* Unfortunately we may get woken up by someone other than a writer - true? */
 	while (!c->have_data && wakeup_writer(c)) block_replica(replica);
-	assert(c->have_data > 0);
+	assert(c->have_data);
 	c->have_data--;
-	if (c->have_data == 0) {
-		printd("Thread %d: Incrementing channel epoch\n", cos_get_thd_id());
-		c->epoch++;
-	}
-
-	printd("Thread %d: Incrementing read epoch\n", cos_get_thd_id());
+	if (c->have_data == 0) c->epoch++;
 	replica->epoch[from]++;
 	printd("Thread %d: Returning from read with have_data now at %d\n", cos_get_thd_id(), c->have_data);
-	return c->sz_data;
+	return c->sz_data;	// race condiditon?
 }
 
 void restart_comp(struct replica_info *replica) {
@@ -376,31 +390,6 @@ void restart_comp(struct replica_info *replica) {
 }
 
 void monitor(void) {
-	struct nmod_comp *rcv_comp, *snd_comp;
-	struct channel *channel;
-	struct replica_info *rcv_replica;
-	int i, j, k;
-	int found = 0;
-	u64_t time;
-	int majority_index;
-	int majority;
-
-	/* Let's do waking up and restarting in a separate loop */
-	for (i = 0; i < N_CHANNELS; i++) {
-		channel = &channels[i];
-
-		for (j = 0; j < channel->rcv->nreplicas; j++) {
-			rdtscll(time);
-			printd("time: %lu\n", time - channel->start);
-			if (time > 500) {					// this is waaaaaay too small of a timeout. How many cycles are 10 seconds???
-				restart_comp(&channel->rcv->replicas[i]);
-			}
-		}
-	}
-}
-
-int confirm_thd_id(spdid_t spdid, int thd_id) {
-	return 0;
 }
 
 void confirm_fork(spdid_t spdid) {
@@ -411,7 +400,7 @@ void confirm_fork(spdid_t spdid) {
 	component  = map[spdid].component;
 	if (!component) BUG();
 	replicas = component->replicas;
-	printc("Starting fork for component designed to have %d replicas\n", component->nreplicas);
+	printd("Starting fork for component designed to have %d replicas\n", component->nreplicas);
 
 	for (i = 0; i < component->nreplicas; i++) {
 		if (replicas[i].spdid == 0) {
@@ -421,9 +410,8 @@ void confirm_fork(spdid_t spdid) {
 			if (!replicas[i].spdid) BUG();
 
 			printd("Forking succeeded - now back to bookkeeping!\n");
-			replicas[i].thread_id = 0;
+			replicas[i].thread_id = 0;					/* This will get set the first time read/write are called */
 			replicas[i].destination = NULL;
-			replicas[i].source = NULL;
 			replicas[i].buf_read = cbuf_alloc(1024, &replicas[i].read_buffer); 
 			replicas[i].buf_write = cbuf_alloc(1024, &replicas[i].write_buffer);
 			assert(replicas[i].buf_read);
@@ -462,7 +450,6 @@ cbuf_t get_write_buf(spdid_t spdid) {
 }
 
 int confirm(spdid_t spdid) {
-	printc("Confirming readiness of spdid %d\n", spdid);
 	int ret;
 	int i;
 	int t = (spdid == 14) ? 0 : 1;	
@@ -482,9 +469,8 @@ int confirm(spdid_t spdid) {
 			assert(replicas[i].buf_write);
 			assert(replicas[i].read_buffer > 0);
 			assert(replicas[i].write_buffer > 0);
-			cbuf_set_fork(replicas[i].read_buffer, 0);
+			cbuf_set_fork(replicas[i].read_buffer, 0);				/* Mildly hackish */
 			cbuf_set_fork(replicas[i].write_buffer, 0);
-			printd("created write buf %d, read buf %d\n", replicas[i].write_buffer, replicas[i].read_buffer);
 
 			/* Send this information back to the replica */
 			cbuf_send(replicas[i].read_buffer);
@@ -501,7 +487,7 @@ int confirm(spdid_t spdid) {
 		}
 	}
 
-	/* We couldn't find a free slot */
+	/* We couldn't find a free slot - is intended to happen if n = 1*/
 	return -1;
 }
 
@@ -513,13 +499,12 @@ void cos_init(void)
 	
 		/* This is an ugly if-statement, get rid of it */	
 		if (i == 0) components[i].nreplicas = 2;
-		else components[i].nreplicas = 1; // for now, no fork
+		else components[i].nreplicas = 1;
 	
 		for (j = 0; j < components[i].nreplicas; j++) {
 			components[i].replicas[j].spdid = 0;
 			components[i].replicas[j].blocked = 0;
 			components[i].replicas[j].destination = NULL;
-			components[i].replicas[j].source = NULL;
 		}
 	}
 

@@ -12,7 +12,11 @@ int confirm(spdid_t spdid);
 cbuf_t get_write_buf(spdid_t spdid);
 cbuf_t get_read_buf(spdid_t spdid);
 
+/* 
+ * Confirm to the voter that we are ready to be forked 
+ * Needed because we must have created a cbuf_meta_range for forking to succeed
+ * Order has to be confirm(), get_write/read_buf, confirm_fork
+ */
 void confirm_fork(spdid_t spdid);
-int confirm_thd_id(spdid_t spdid, int thd_id);
 
 #endif /* !VOTER_H */

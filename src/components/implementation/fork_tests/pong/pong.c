@@ -25,12 +25,14 @@ void cos_init(void) {
 	
 	while (i < 7) {	
 		printc("\ni = %d, pong calling read from spdid %d\n", i, cos_spd_id());
-		data = nread(cos_spd_id(), 0, 4);
+		ret = nread(cos_spd_id(), 0, 4);
+		assert(ret);
 		printc("Thread %d: read returned %d and now we have data [%s] - expected abc\n\n", cos_get_thd_id(), ret, ((char*) buf_read));
 
 		printc("\ni = %d, pong calling write\n", i);
 		memcpy(buf_write, "xyz\0", 4);
 		ret = nwrite(cos_spd_id(), 1, 4);
+		assert(!ret);
 		printc("Thread %d: write returned %d\n\n", cos_get_thd_id(), ret);
 
 		i++;
