@@ -243,7 +243,7 @@ int inspect_channel(struct channel *c) {
 
 	/* now vote */
 	for (i = 0; i < c->snd->nreplicas; i++) {
-		//c->snd->replicas[i].destination = NULL; Oh god no
+		c->snd->replicas[i].destination = NULL;
 		matches[i]++;						// for our own match. Is this how voting works? Do we even know anymore...
 		for (k = i + 1; k < c->snd->nreplicas; k++) {
 			/* 
@@ -329,7 +329,6 @@ int nwrite(spdid_t spdid, channel_id to, size_t sz) {
 	printd("Thread %d: Incrementing write epoch\n", cos_get_thd_id());
 	replica->epoch[to]++;
 		
-	replica->destination = NULL;
 	return 0;
 }
 
@@ -344,14 +343,21 @@ size_t nread(spdid_t spdid, channel_id from, size_t sz) {
 	if (!replica->thread_id) replica->thread_id = cos_get_thd_id();				/* for a fork that couldn't be assigned a thread id yet */
 
 	c = &channels[from];
-	ret = inspect_channel(c);
-	if (ret) {
-		block_replica(replica);
+	
+	printc("Thread %d: replica epoch %d channel epoch %d, have_data %d\n", cos_get_thd_id(), replica->epoch[from], c->epoch, c->have_data);
+	if (c->epoch == replica->epoch[from] && c->have_data) {
+		/* We actually don't NEED to inspect the channel */
 	}
+	else {
+		ret = inspect_channel(c);
+		if (ret) {
+			block_replica(replica);
+		}
 
-	/* Unfortunately we may get woken up by someone other than a writer - true? */
-	while (!c->have_data && wakeup_writer(c)) block_replica(replica);
-	assert(c->have_data);
+		/* Unfortunately we may get woken up by someone other than a writer - true? */
+		while (!c->have_data && wakeup_writer(c)) block_replica(replica);
+		assert(c->have_data);
+	}
 	c->have_data--;
 	if (c->have_data == 0) c->epoch++;
 	replica->epoch[from]++;
