@@ -74,7 +74,7 @@ lapic_tscdeadline_supported(void)
 	u32_t a, b, c, d;
 
 	chal_cpuid(6, &a, &b, &c, &d);
-	if (a & (1 << 1)) printk("LAPIC Timer runs at Constant Rate!!\n");	
+	if (a & (1 << 1)) printk("LAPIC Timer runs at Constant Rate!!\n");
 
 	chal_cpuid(1, &a, &b, &c, &d);
 	if (c & (1 << 24)) return 1;
@@ -101,6 +101,7 @@ lapic_find_localaddr(void *l)
 	unsigned char sum = 0;
 	unsigned char *lapicaddr = l;
 	u32_t length = *(u32_t *)(lapicaddr + APIC_HDR_LEN_OFF);
+	u32_t addr;
 
 	printk("Initializing LAPIC @ %p\n", lapicaddr);
 
@@ -108,18 +109,18 @@ lapic_find_localaddr(void *l)
 		sum += lapicaddr[i];
 	}
 
-	if (sum == 0) {
-		u32_t addr = *(u32_t *)(lapicaddr + APIC_CNTRLR_ADDR_OFF);
-
-		printk("\tChecksum is OK\n");
-		lapic = (void *)(addr);
-		printk("\tlapic: %p\n", lapic); 
-
-		return addr;
+	if (sum != 0) {
+		printk("\tInvalid checksum (%d)\n", sum);
+		return 0;
 	}
 
-	printk("\tInvalid checksum (%d)\n", sum);
-	return 0;
+	addr = *(u32_t *)(lapicaddr + APIC_CNTRLR_ADDR_OFF);
+
+	printk("\tChecksum is OK\n");
+	lapic = (void *)(addr);
+	printk("\tlapic: %p\n", lapic);
+
+	return addr;
 }
 
 void
@@ -151,7 +152,7 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 		u32_t counter;
 
 		counter = lapic_cycles_to_timer((u32_t)(deadline - now));
-		if (counter == 0) counter = LAPIC_COUNTER_MIN; 
+		if (counter == 0) counter = LAPIC_COUNTER_MIN;
 
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, counter);
 	} else if (timer_type == LAPIC_TSC_DEADLINE) {
@@ -175,7 +176,7 @@ lapic_set_page(u32_t page)
 int
 lapic_timer_handler(struct pt_regs *regs)
 {
-	int preempt = 1; 
+	int preempt = 1;
 
 	lapic_ack();
 
@@ -201,7 +202,7 @@ lapic_timer_calibration(u32_t ratio)
 	lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) & ~LAPIC_INT_MASK);
 	lapic_is_disabled = 1;
 
-	printk("LAPIC: Timer calibrated - CPU Cycles to APIC Timer Ratio is %u\n", lapic_cpu_to_timer_ratio); 
+	printk("LAPIC: Timer calibrated - CPU Cycles to APIC Timer Ratio is %u\n", lapic_cpu_to_timer_ratio);
 }
 
 void
@@ -235,7 +236,7 @@ lapic_timer_init(void)
 		lapic_cycs_thresh       = LAPIC_ONESHOT_THRESH;
 	} else {
 		printk("LAPIC: Configuring TSC-Deadline Mode!\n");
-	
+
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_TSCDEADLINE_MODE);
 		lapic_timer_mode        = LAPIC_TSC_DEADLINE;

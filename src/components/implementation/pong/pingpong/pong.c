@@ -1,5 +1,5 @@
-#include <cos_component.h>
-#include <print.h>
+/* #include <cos_component.h> */
+/* #include <print.h> */
 #include <pong.h>
 
 //volatile int f;
