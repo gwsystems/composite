@@ -2,14 +2,13 @@
 #include "vk_types_old.h"
 
 struct cos_shm_rb {
-	unsigned int head, tail; 
+	unsigned int head, tail;
 	int vmid;
 	unsigned int size;
 	char buf[0];
 };
 
 struct cos_shm_rb * vk_shmem_addr_send(int vmid);
-
 struct cos_shm_rb * vk_shmem_addr_recv(int vmid);
 
 int vk_recv_rb_create(struct cos_shm_rb * sm_rb, int vmid);

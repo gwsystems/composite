@@ -1,7 +1,7 @@
-/* 
+/*
  * Memory management routines shamelessly ripped from dietlibc.  A
  * non-contiguous, multiple-free-list worst case n/2 internal
- * fragmentation allocator (for sizes > 16 bytes).  
+ * fragmentation allocator (for sizes > 16 bytes).
  *
  * Ported to the Composite OS, and lock-free synchronization added by
  * Gabriel Parmer, gparmer@gwu.edu.

@@ -9,10 +9,8 @@
 #include "rumpcalls.h"
 #include "rump_cos_alloc.h"
 #include "cos_sched.h"
-//#include "cos_lock.h"
-#include "vkern_api.h"
-//#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 #include "cos_sync.h"
+#include "vkern_api.h"
 
 extern struct cos_compinfo booter_info;
 extern struct cos_rumpcalls crcalls;
@@ -27,7 +25,6 @@ tcap_prio_t rk_thd_prio = RK_THD_PRIO;
 tcap_prio_t rk_thd_prio = PRIO_UNDER;
 #endif
 
-extern void *__inv_test_entry(int a, int b, int c);
 extern int vmid;
 extern thdcap_t vm_main_thd;
 
@@ -68,23 +65,13 @@ cos2rump_setup(void)
 	crcalls.rump_intr_disable		= intr_disable;
 	crcalls.rump_sched_yield		= cos_sched_yield;
 	crcalls.rump_vm_yield			= cos_vm_yield;
-
-	crcalls.rump_shmem_send			= cos_shmem_send;
+crcalls.rump_shmem_send			= cos_shmem_send;
 	crcalls.rump_shmem_recv			= cos_shmem_recv;
 	crcalls.rump_dequeue_size		= cos_dequeue_size;
 
 	crcalls.rump_fs_test			= cos_fs_test;
 
 	return;
-}
-
-int paws_tests(void);
-
-extern int booting;
-
-static void
-get_sinv(sinvcap_t *sinv) {
-	*sinv = VM0_CAPTBL_SELF_IOSINV_BASE;
 }
 
 int
@@ -135,7 +122,7 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 
 int
 cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm){
-	//printc("%s = s:%d d:%d\n", __func__, srcvm, curvm);
+	printc("%s = s:%d d:%d\n", __func__, srcvm, curvm);
 	return cos_shm_read(buff, srcvm, curvm);
 }
 
@@ -143,7 +130,7 @@ cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm){
 void
 rump2cos_rcv(void)
 {
-	printc("rump2cos_rcv");	
+	printc("rump2cos_rcv");
 	return;
 }
 
@@ -153,7 +140,7 @@ cos_irqthd_handler(void *line)
 {
 	int which = (int)line;
 	arcvcap_t arcvcap = irq_arcvcap[which];
-	
+
 	while(1) {
 		int pending = cos_rcv(arcvcap);
 
@@ -215,10 +202,10 @@ cos_memalloc(size_t nbytes, size_t align)
 /*---- Scheduling ----*/
 int boot_thd = BOOT_CAPTBL_SELF_INITTHD_BASE;
 
-void
+int
 cos_tls_init(unsigned long tp, thdcap_t tc)
 {
-	cos_thd_mod(&booter_info, tc, (void *)tp);
+	return cos_thd_mod(&booter_info, tc, (void *)tp);
 }
 
 void
@@ -233,7 +220,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p", thread->bt_name, f);
 	if (!strcmp(thread->bt_name, "user_lwp")) {
 		/* Return userlevel thread cap that is set up in vkernel_init */
-		printc("\nMatch, returning vm_main_thd: %x\n", (unsigned int)vm_main_thd);
+		printc("\nMatch, returning vm_main_thd: %d\n", (unsigned int)vm_main_thd);
 		newthd_cap = vm_main_thd;
 	} else {
 		newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, f, arg);
@@ -712,47 +699,13 @@ cos_find_vio_tcap(void)
 #endif
 }
 
-/* "Kernel" Component Functions */
-
-/* System Call Handler */
-/* FIXME Rename function */
-/* TODO Have multiple "test_entry" functions for each different system call */
-
-/* For sending to userspace */
-extern struct cos_shm_rb *sm_rb;
-/* For recieving from user space */
-extern struct cos_shm_rb *sm_rb_r;
-
-int
-test_entry(int arg1, int arg2, int arg3, int arg4)
-{
-	int ret = 0;
-
-	printc("*** KERNEL COMPONENT ***\n\tArguments: %d, %d, %d, %d\n", arg1, arg2, arg3, arg4);
-
-	switch (arg1) {
-		case 0:
-			/* FS Test */
-			printc("Running paws test: VM%d\n", vmid);
-			paws_tests();
-			break;
-		case 1:
-			/* Shared Memory Test */
-			printc("\n\tSENDING RB SHOULD BE EMPTY: %d\n", vk_ringbuf_isfull(sm_rb, 1));
-			assert(vk_ringbuf_isfull(sm_rb, 1) == 0);
-			printc("\n\tRECIEVING RB SHOULD BE EMPTY: %d\n", vk_ringbuf_isfull(sm_rb_r, 1));
-			assert(vk_ringbuf_isfull(sm_rb_r, 1) == 0);
-			break;
-		default:
-			printc("SYSTEM CALL NOT RECOGNIZABLE, RETURNING\n");
-	};
-
-	printc("*** KERNEL COMPONENT RETURNING ***\n");
-
-	return ret;
-}
 
 /* System Calls */
+static void
+get_sinv(sinvcap_t *sinv) {
+	*sinv = VM0_CAPTBL_SELF_IOSINV_BASE;
+}
+
 void
 cos_fs_test(void)
 {
@@ -773,14 +726,26 @@ cos_shmem_test(void)
 {
 	/* TODO */
 	/* Implement another system call for passing information down into */
-	sinvcap_t sinv = 0;
-	int sinv_ret = -1;
-	printc("Running cos shmem test: VM%d\n", vmid);
+	//sinvcap_t sinv = 0;
+	//int sinv_ret = -1;
+	//char buff[100];
+	//int read = -1;
 
-	/* This sinv cap is allocated and found within vkernel_init.c */
-	get_sinv(&sinv);
+	//printc("Running cos shmem test: VM%d\n", vmid);
 
-	sinv_ret = cos_sinv(sinv, 1, 0, 0, 0);
+	///* This sinv cap is allocated and found within vkernel_init.c */
+	//get_sinv(&sinv);
 
-	printc("Ret from shmem test: %d\n", sinv_ret);
+	//sinv_ret = cos_sinv(sinv, 1, 0, 0, 0);
+
+	//if (sinv_ret == 0) {
+	//	printc("Nothing written from kernel up to userpsace\n");
+	//	return;
+	//}
+
+	//printc("You have mail!\n");
+	//printc("We have %d bytes to read!\n", sinv_ret);
+	//read = cos_shm_read(buff, 0, 1);
+	//printc("Amount read: %d\n", read);
+	//printc("%s\n", buff);
 }

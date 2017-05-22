@@ -35,3 +35,20 @@ __inv_test_entry:
 	COS_ASM_RET_STACK
         movl $RET_CAP, %eax
         sysenter;
+
+.text
+.globl __inv_test_fs
+.type  __inv_test_fs, @function
+__inv_test_fs:
+	COS_ASM_GET_STACK
+
+        pushl %ebp /* arg 4 */
+        pushl %edi /* arg 3 */
+        pushl %esi /* arg 2 */
+        pushl %ebx /* arg 1 */
+        call test_fs
+        movl %eax, %ecx
+
+	COS_ASM_RET_STACK
+        movl $RET_CAP, %eax
+        sysenter;

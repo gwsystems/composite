@@ -71,8 +71,10 @@ vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	vminfo->initthd = cos_thd_alloc(vkcinfo, vmcinfo->comp_cap, vm_init, (void *)vminfo->id);
 	printc("\tinit thread: %p\n", vminfo->initthd);
 	assert(vminfo->initthd);
+
 	printc("Set vm_main_thd to this thd cap\n");
 	vm_main_thd = BOOT_CAPTBL_USERSPACE_THD;
+
 	vminfo->inittid = (thdid_t)cos_introspect(vkcinfo, vminfo->initthd, THD_GET_TID);
 	printc("Set vm_main_thdid to this thd id\n");
 	vm_main_thdid = vminfo->inittid;

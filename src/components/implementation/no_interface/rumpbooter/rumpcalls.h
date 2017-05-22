@@ -98,7 +98,7 @@ struct cos_rumpcalls
 			void (*f)(void *), void *arg,
 			void *stack_base, unsigned long stack_size);
 	void   (*rump_cpu_sched_switch_viathd)(struct bmk_thread *prev, struct bmk_thread *next);
-	void   (*rump_tls_init)(unsigned long tp, capid_t tc); /* thdcap_t == capid_t*/
+	int    (*rump_tls_init)(unsigned long tp, capid_t tc); /* thdcap_t == capid_t*/
 	void*  (*rump_va2pa)(void *addr);
 	void*  (*rump_pa2va)(void *addr, unsigned long len);
 	void   (*rump_resume)(void);
@@ -152,5 +152,7 @@ tcap_t cos_find_vio_tcap(void);
 
 void cos_fs_test(void);
 void cos_shmem_test(void);
+
+int paws_tests(void);
 
 #endif /* RUMPCALLS_H */

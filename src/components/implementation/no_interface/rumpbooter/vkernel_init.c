@@ -3,6 +3,7 @@
 #include <cos_kernel_api.h>
 #include <vkern_api.h>
 #include <vk_api.h>
+#include <sinv_calls.h>
 #include "cos_sync.h"
 #include "vk_types.h"
 
@@ -14,7 +15,6 @@ extern thdcap_t cos_cur;
 extern void vm_init(void *);
 extern void kernel_init(void);
 extern vaddr_t cos_upcall_entry;
-extern void *__inv_test_entry(int a, int b, int c);
 uint64_t t_vm_cycs  = 0;
 uint64_t t_dom_cycs = 0;
 
@@ -22,9 +22,6 @@ unsigned int cycs_per_usec;
 
 thdcap_t vm_main_thd;
 thdid_t  vm_main_thdid;
-
-struct cos_shm_rb *sm_rb = NULL;
-struct cos_shm_rb *sm_rb_r = NULL;
 
 struct vkernel_info vk_info;
 struct cos_compinfo *vk_cinfo = (struct cos_compinfo *)&vk_info.cinfo;
@@ -140,15 +137,37 @@ cos_init(void)
 		if (id == 0) kernel_info = vm_info;
 		/* Set up shared memory */
 		if (id == 0) {
+			struct cos_shm_rb *sm_rb;
+			struct cos_shm_rb *sm_rb_r;
 
 			printc("\tAllocating shared-memory (size: %lu)\n", (unsigned long) VM_SHM_ALL_SZ);
 			vk_shmem_alloc(&vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_ALL_SZ);
+
+			printc("\tInitializing shared memory ringbuffers\n");
+		        printc("\tFor recieving from Kernel...");
+		        ret = vk_recv_rb_create(sm_rb_r, 1);
+		        assert(ret);
+		        printc("done\n");
+
+		        printc("\tFor sending to Kernel...");
+		        ret = vk_send_rb_create(sm_rb, 1);
+		        assert(ret);
+		        printc("done\n");
 		} else {
 			printc("\tMapping in shared-memory (size: %lu)\n", (unsigned long)VM_SHM_SZ);
 			vk_shmem_map(&vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_SZ);
 		}
 
 		if (id > 0) {
+			sinvcap_t sinv;
+			printc("\tSetting up sinv capability from kernel component to user component\n");
+			sinv = cos_sinv_alloc(vk_cinfo, kernel_cinfo->comp_cap, (vaddr_t)__inv_test_fs);
+			assert(sinv > 0);
+			/* Copy into user capability table at a known location */
+			ret = cos_cap_cpy_at(vm_cinfo, VM0_CAPTBL_SELF_IOSINV_BASE, vk_cinfo, sinv);
+			assert(ret == 0);
+			printc("Done setting up sinv\n");
+
 			/* Create and copy booter comp virtual memory to each VM */
 			vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
 			assert(vm_range > 0);
