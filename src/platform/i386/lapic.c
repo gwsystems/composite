@@ -3,9 +3,39 @@
 #include "chal_cpu.h"
 #include "isr.h"
 
-#define APIC_DEFAULT_PHYS        0xfee00000
-#define APIC_HDR_LEN_OFF         0x04
-#define APIC_CNTRLR_ADDR_OFF     0x24
+#define APIC_DEFAULT_PHYS     0xfee00000
+#define APIC_HDR_LEN_OFF      0x04
+#define APIC_CNTRLR_ADDR_OFF  0x24
+#define APIC_CNTRLR_FLAGS_OFF 0x28
+#define APIC_CNTR_ARR_OFF     0x2C
+
+/* See 5.2.12 in the ACPI 5.0 Spec */
+enum {
+	APIC_CNTL_LAPIC = 0,
+	APIC_CNTL_IOAPIC = 1,
+};
+
+struct int_cntl_head {
+	u8_t  type;
+	u8_t  len;
+} __attribute__((packed));
+
+struct lapic_cntl {
+	/* type == APIC_CNTL_LAPIC */
+	struct int_cntl_head header;
+	u8_t  proc_id;
+	u8_t  apic_id;
+	u32_t flags;		/* 0 = dead processor */
+} __attribute__((packed));
+
+struct ioapic_cntl {
+	/* type == APIC_CNTL_IOAPIC */
+	struct int_cntl_head header;
+	u8_t  ioapic_id;
+	u8_t  reserved;
+	u32_t ioapic_phys_addr;
+	u32_t glb_int_num_off;	/* I/O APIC's interrupt base number offset  */
+} __attribute__((packed));
 
 #define LAPIC_SVI_REG            0x0F0
 #define LAPIC_EOI_REG            0x0B0
@@ -94,6 +124,46 @@ lapic_cycles_to_timer(u32_t cycles)
 	return cycles;
 }
 
+void
+lapic_intsrc_iter(unsigned char *madt)
+{
+	struct int_cntl_head *h = (struct int_cntl_head *)(madt + APIC_CNTR_ARR_OFF);
+	u32_t len = *(u32_t *)(madt + APIC_HDR_LEN_OFF);
+	struct int_cntl_head *end = (struct int_cntl_head *)(madt + len);
+
+	printk("\tMADT length %d (base struct %d)\n", len, APIC_CNTR_ARR_OFF);
+	assert(h <= end);
+	for ( ; h < end ; h = (struct int_cntl_head *)((char *)h + h->len)) {
+		/* termination condition */
+		assert(h->len >= sizeof(struct int_cntl_head));
+		switch (h->type) {
+		case APIC_CNTL_LAPIC:
+		{
+			struct lapic_cntl *l = (struct lapic_cntl *)h
+;
+
+			assert(l->header.len == sizeof(struct lapic_cntl));
+			printk("\tLAPIC found: coreid %d, apicid %d\n",
+			       l->proc_id, l->apic_id);
+			break;
+		}
+		case APIC_CNTL_IOAPIC:
+		{
+			struct ioapic_cntl *io = (struct ioapic_cntl *)h;
+
+			assert(io->header.len == sizeof(struct ioapic_cntl));
+			printk("\tI/O APIC found: ioapicid %d, addr %x, int offset %d\n",
+			       io->ioapic_id, io->ioapic_phys_addr, io->glb_int_num_off);
+			break;
+		}
+		default:
+			/* See 5.2.12 in the ACPI 5.0 Spec */
+			printk("\tInterrupt controller type %d: ignoring\n", h->type);
+			break;
+		}
+	}
+}
+
 u32_t
 lapic_find_localaddr(void *l)
 {
@@ -101,7 +171,7 @@ lapic_find_localaddr(void *l)
 	unsigned char sum = 0;
 	unsigned char *lapicaddr = l;
 	u32_t length = *(u32_t *)(lapicaddr + APIC_HDR_LEN_OFF);
-	u32_t addr;
+	u32_t addr, apic_flags;
 
 	printk("Initializing LAPIC @ %p\n", lapicaddr);
 
@@ -115,6 +185,9 @@ lapic_find_localaddr(void *l)
 	}
 
 	addr = *(u32_t *)(lapicaddr + APIC_CNTRLR_ADDR_OFF);
+	apic_flags = *(u32_t *)(lapicaddr + APIC_CNTRLR_FLAGS_OFF);
+	assert(apic_flags == 1); /* we're assuming the PIC exists */
+	lapic_intsrc_iter(lapicaddr);
 
 	printk("\tChecksum is OK\n");
 	lapic = (void *)(addr);
