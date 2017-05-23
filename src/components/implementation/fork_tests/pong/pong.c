@@ -12,7 +12,7 @@ void cos_init(void) {
 	cbuf_t read_buffer, write_buffer;
 	
 	printc("pong init\n");
-	if (confirm(cos_spd_id())) BUG();
+	if (replica_confirm(cos_spd_id())) BUG();
 
 	/* Get our buffers*/
 	write_buffer = get_write_buf(cos_spd_id());

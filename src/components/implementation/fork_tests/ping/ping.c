@@ -18,7 +18,7 @@ void cos_init(void) {
 	if (!flag) {
 		flag = 1;
 		printc("ping init - spdid %d and thd id %d\n", cos_spd_id(), cos_get_thd_id());
-		if (confirm(cos_spd_id())) BUG();
+		if (replica_confirm(cos_spd_id())) BUG();
 
 		/* Get our buffers*/
 		write_buffer = get_write_buf(cos_spd_id());
@@ -66,7 +66,7 @@ void cos_init(void) {
 			printc("\ni = %d, ping calling read with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());
 			ret = nread(cos_spd_id(), 1, 4);
 			assert(ret);
-			printc("Thead %d: read returned %d and now we have data [%s] - expected abc\n\n", cos_get_thd_id(), ret, ((char*) buf_read));
+			printc("Thead %d: read returned %d and now we have data [%s] - expected xyz\n\n", cos_get_thd_id(), ret, ((char*) buf_read));
 
 			i++;
 		}

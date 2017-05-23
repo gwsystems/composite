@@ -12,7 +12,7 @@
 
 cos_asm_server_stub(nwrite)
 cos_asm_server_stub(nread)
-cos_asm_server_stub(confirm)
+cos_asm_server_stub(replica_confirm)
 cos_asm_server_stub(get_read_buf)
 cos_asm_server_stub(get_write_buf)
 cos_asm_server_stub(confirm_fork)
