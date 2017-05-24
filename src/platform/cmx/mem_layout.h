@@ -4,7 +4,7 @@
 #include <user/cos_types.h>
 #include <chal/consts.h>
 #include <chal/cos_config.h>
-#include <retype_tbl.h>
+//#include <retype_tbl.h>
 
 /*
  * Virtual memory layout of the system.  Physical addresses can be

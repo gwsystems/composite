@@ -19,7 +19,7 @@ extern unsigned int _c1_edata;
 extern unsigned int __c1_bss_start__;
 extern unsigned int __c1_bss_end__;
 
-static inline void __attribute__((optimize("O3")))
+static inline void //__attribute__((optimize("O3")))
 chal_user_upcall(void *ip, u16_t tid)
 {
 	long long total_swt_cycles = 0;
@@ -58,7 +58,7 @@ chal_user_upcall(void *ip, u16_t tid)
 //	rdtscll(start_swt_cycles);
 //	for (i = 0 ; i < 10000 ; i++)
 //	{
-	/* TODO:Preliminary MPU tests, merge into pgtbl operations later */
+	/* TODO:Preliminary MPU tests, merge into pgtbl operations later
 	MPU_Region_InitTypeDef MPU_Initure;
 	HAL_MPU_Disable();								           //Disable MPU before configuring it and enable it after the configuration
 	MPU_Initure.Enable=MPU_REGION_ENABLE;			           //Enable this area
@@ -109,7 +109,7 @@ chal_user_upcall(void *ip, u16_t tid)
 //			(int)total_swt_cycles, (int)10000, (int)(total_swt_cycles / 10000));
 //
 //	LCD_ShowString(10,40,260,32,12,str);
-//	while(1);
+//	while(1);*/
 
 	/* Now we switch the execution to user space, and begin to use the PSP stack pointer */
 	__asm__ __volatile__("ldr r0,=comp1_stack \n\t"

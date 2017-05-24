@@ -26,6 +26,7 @@ extern unsigned long Memory_Used[65536];
 extern void cos_init(void);
 extern void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3);
 
+extern unsigned int __utmem_end__;
 void
 kern_memory_setup(void)
 {
@@ -38,7 +39,7 @@ kern_memory_setup(void)
 	glb_memlayout.mod_end=((unsigned long)Memory_Used)+0x00010000;
 	glb_memlayout.bootc_entry=glb_memlayout.bootc_vaddr=cos_upcall_fn;//cos_init;
 	glb_memlayout.kern_boot_heap=((unsigned long)Memory_Used)+0x00020000;
-	glb_memlayout.kmem_end=0x2007FFFF;
+	glb_memlayout.kmem_end=&__utmem_end__;//0x2007FFFF;
 	glb_memlayout.allocs_avail=1;
 
 	/* Validate the memory layout. */
@@ -51,6 +52,61 @@ kern_memory_setup(void)
 	assert(mem_bootc_entry() - mem_bootc_vaddr() <= mem_bootc_end() - mem_bootc_start());
 }
 
+TIM_HandleTypeDef TIM3_Handler;
+void TIM3_Init(u16 Time)
+{
+	/* General purpose timer 3 */
+    TIM3_Handler.Instance=TIM3;
+    /* Prescaler value 1 */
+    TIM3_Handler.Init.Prescaler=1;
+    /* Counting up */
+    TIM3_Handler.Init.CounterMode=TIM_COUNTERMODE_UP;
+    /* Autoreload value */
+    TIM3_Handler.Init.Period=Time;
+    /* Clock division factor - 1. This TIM3 is mounted on HCLK/2 clock tree, thus works at SYSCLK/2 speed */
+    TIM3_Handler.Init.ClockDivision=TIM_CLOCKDIVISION_DIV1;
+    /* Low-level init and enable interrupts */
+    HAL_TIM_Base_Init(&TIM3_Handler);
+    HAL_TIM_Base_Start_IT(&TIM3_Handler);
+}
+
+/* The low-level driver which will be called by HAL_TIM_Base_Init to set the interrupt priority */
+void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim)
+{
+    if(htim->Instance==TIM3)
+	{
+    	/* Enable timer 3 clock */
+		__HAL_RCC_TIM3_CLK_ENABLE();
+		/* Set the interrupt priority */
+		HAL_NVIC_SetPriority(TIM3_IRQn,1,3);
+		/* Enable timer 3 interrupt */
+		HAL_NVIC_EnableIRQ(TIM3_IRQn);
+	}
+}
+
+/* The actual tim3 handler */
+struct pt_regs* timer_regs;
+void tim3irqhandler(struct pt_regs* regs)
+{
+	timer_regs=regs;
+    HAL_TIM_IRQHandler(&TIM3_Handler);
+}
+
+extern int timer_process(struct pt_regs *regs);
+
+/* The call-back function */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if(htim==(&TIM3_Handler))
+    {
+    	/* We are using one-shot, so disable the timer now */
+    	chal_timer_disable();
+    	timer_process(timer_regs);
+    }
+}
+
+
+/* Systick is used to simulate the rdtsc. do not touch */
 void
 timer_init(void)
 {
@@ -146,11 +202,15 @@ chal_tls_update(vaddr_t vaddr)
 
 void
 chal_timer_set(cycles_t cycles)
-{  }
+{
+	TIM3_Init(cycles/2);
+}
 
 void
 chal_timer_disable(void)
-{  }
+{
+    HAL_TIM_Base_Stop_IT(&TIM3_Handler);
+}
 
 int
 chal_cyc_usec(void)

@@ -13,7 +13,7 @@
 extern u8_t *boot_comp_pgd;
 
 int boot_nptes(unsigned int sz) { return round_up_to_pow2(sz, PGD_RANGE)/PGD_RANGE; }
-
+/* The mapping started from 44000 */
 int
 boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *label,
 		        void *kern_vaddr, unsigned long user_vaddr, unsigned int range, int uvm)
@@ -177,7 +177,7 @@ kern_boot_comp(void)
 	assert(boot_vm_pgd);
 	memcpy((void *)boot_vm_pgd + KERNEL_PGD_REGION_OFFSET,  (void *)(&boot_comp_pgd) + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (pgtbl_t)chal_va2pa(boot_vm_pgd), 0)) assert(0);
-	/* May do some wierd mapping from flash to RAM. Ignore */
+	/* May do some weird mapping from flash to RAM. Ignore */
 	ret = boot_pgtbl_mappings_add(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(),
 				     /* (unsigned long)mem_bootc_vaddr() */mem_bootc_start(), mem_bootc_end() - mem_bootc_start(), 1);
 	assert(ret == 0);

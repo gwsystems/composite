@@ -23,7 +23,7 @@ int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	return ret;
 }
 
-static inline
+static inline __attribute__((optimize("Og")))
 int call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
 			 unsigned long *r1, unsigned long *r2)
 {
@@ -33,7 +33,6 @@ int call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, i
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	/* put all these into registers and make the system call, using svc. after this, return the value needed */
 	__asm__ __volatile__(".syntax unified \n\t" \
 			     "ldr r0,%[_cap_no]  \n\t" \
 			     "ldr r1,%[_arg1] \n\t" \

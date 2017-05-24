@@ -292,7 +292,7 @@ void EINT_HANDLER TIM1_UP_TIM10_IRQHandler(void);          /* TIM1 Update and TI
 void EINT_HANDLER TIM1_TRG_COM_TIM11_IRQHandler(void);     /* TIM1 Trigger and Commutation and TIM11 */
 void EINT_HANDLER TIM1_CC_IRQHandler(void);                /* TIM1 Capture Compare */
 void EINT_HANDLER TIM2_IRQHandler(void);                   /* TIM2 */
-void EINT_HANDLER TIM3_IRQHandler(void);                   /* TIM3 */
+//void EINT_HANDLER TIM3_IRQHandler(void);                   /* TIM3 */
 void EINT_HANDLER TIM4_IRQHandler(void);                   /* TIM4 */
 void EINT_HANDLER I2C1_EV_IRQHandler(void);                /* I2C1 Event */
 void EINT_HANDLER I2C1_ER_IRQHandler(void);                /* I2C1 Error */
@@ -371,6 +371,38 @@ void EINT_HANDLER CAN3_RX1_IRQHandler(void);               /* CAN3 RX1 */
 void EINT_HANDLER CAN3_SCE_IRQHandler(void);               /* CAN3 SCE */
 void EINT_HANDLER JPEG_IRQHandler(void);                   /* JPEG */
 void EINT_HANDLER MDIOS_IRQHandler(void);                  /* MDIOS */
+
+/* This is the real tim3 handler */
+void __attribute__ ((section(".after_vectors"),naked))
+TIM3_IRQHandler(void)
+{
+	/* The assembly is similar with the svc call */
+	__asm__ __volatile__("push {lr} \n"
+	                             "push {r0-r12} \n"
+
+	    			     "mrs r0,psp \n"
+	    			     "push {r0} \n"
+				     "push {lr} \n"
+	    			     "mov r0,pc \n"
+				     "push {r0} \n"
+				     "mrs r0,xpsr \n"
+				     "push {r0} \n"
+				     "mov  r0,sp \n"
+
+				     "bl tim3irqhandler \n"
+
+				     "pop {r0} \n"   /* xpsr */
+	    		             /* "msr xpsr,r0 \n" */
+				     "pop {r0} \n"   /* pc */
+	    			     "pop {r0} \n"   /* lr */
+	    			     "pop {r0} \n"   /* psp */
+				     "msr psp,r0 \n"
+
+				     "pop {r0-r12} \n"
+				     "pop {lr} \n"
+				     "bx lr \n"
+				     :::);
+}
 
 /* stm32f767 vector table */
 __attribute__ ((section(".isr_vector"),used))

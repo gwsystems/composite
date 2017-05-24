@@ -19,7 +19,7 @@ static inline cycles_t
 tsc(void)
 {
 	unsigned long long ret;
-
+	rdtscll(ret);
 	//__asm__ __volatile__("rdtsc" : "=A" (ret));
 
 	return ret;
