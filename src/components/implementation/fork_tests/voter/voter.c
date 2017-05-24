@@ -340,7 +340,7 @@ confirm_fork(spdid_t spdid) {
 	replicas = component->replicas;
 
 	for (i = 0; i < component->nreplicas; i++) {
-		if (replicas[i].spdid == 0) {
+		if (replicas[i].state == REPLICA_ST_UNINIT) {
 			fork_spd = quarantine_fork(cos_spd_id(), spdid);
 			if (!fork_spd) BUG();
 			replica_init(&replicas[i], fork_spd, component);
@@ -370,7 +370,7 @@ replica_confirm(spdid_t spdid) {
 	struct replica *replicas = components[t].replicas;
 
 	for (i = 0; i < components[t].nreplicas; i++) {
-		if (replicas[i].spdid == 0) {
+		if (replicas[i].state == REPLICA_ST_UNINIT) {
 			printd("creating replica for spdid %d in slot %d\n", spdid, i);
 			replica_init(&replicas[i], spdid, &components[t]);
 			replicas[i].thread_id = cos_get_thd_id();				/* We can override this now */	
