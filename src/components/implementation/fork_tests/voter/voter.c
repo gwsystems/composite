@@ -20,7 +20,7 @@
 #define N_MAX 9					/* max number of components in an nMR component. Also arbitrary.		*/
 
 typedef enum {
-	REPLICA_ST_UNINIT,			/* beginning state, should move away from this quickly				*/
+	REPLICA_ST_UNINIT = 0,			/* beginning state, should move away from this quickly				*/
 	REPLICA_ST_PROCESSING,			/* has RETURNED or not initiated a read or write yet				*/
 	REPLICA_ST_READ,			/* has issued a read. May or may not be blocked (but probably blocked)		*/
 	REPLICA_ST_WRITE			/* has issued a write. May or may not be blocked (but probably blocked)		*/ 
@@ -66,6 +66,12 @@ struct channel channels[N_CHANNELS];
 struct map_entry map[N_MAP_SZ];
 int matches[N_MAX];				/* To keep track of voting. Not in nmodcomp because it can be reused - we're only ever voting on one thing at a time */
 
+struct channel *
+channel_get(channel_id cid) {
+	assert(cid >= 0 && cid < N_CHANNELS);
+	return &channels[cid];
+}
+
 struct nmodcomp *
 component_get(spdid_t spdid) {
 	return map[spdid].component;
@@ -77,7 +83,7 @@ replica_get(spdid_t spdid) {
 }
 
 int
-replica_wakeup(struct replica * replica) {
+replica_wakeup(struct replica *replica) {
 	printd("Thread %d: Waking up replica with spdid %d, thread %d\n", cos_get_thd_id(), replica->spdid, replica->thread_id);
 	assert(replica->thread_id);
 	replica->blocked = 0;
@@ -85,6 +91,7 @@ replica_wakeup(struct replica * replica) {
 	return 0;
 }
 
+/* TODO: this entire function is kind of a mess */
 int
 replica_block(struct replica *replica) {
 	int i, j;
@@ -92,9 +99,7 @@ replica_block(struct replica *replica) {
 
 	for (i = 0; i < N_COMPS; i++) {
 		for (j = 0; j < components[i].nreplicas; j++) {
-			if (components[i].replicas[j].blocked == 0 && components[i].replicas[j].spdid != replica->spdid) {
-				n++;
-			}
+			if (components[i].replicas[j].blocked == 0 && components[i].replicas[j].spdid != replica->spdid) n++;
 		}
 	}
 
@@ -109,7 +114,6 @@ replica_block(struct replica *replica) {
 		sched_block(cos_spd_id(), 0);
 		return 0;
 	} else {
-		// caller should wake something up
 		return -1;
 	}
 }
@@ -145,26 +149,26 @@ wakeup_reader(struct channel *c, unsigned int target_epoch) {
 	rcv = c->rcv;
 	for (i = 0; i < rcv->nreplicas; i++) {
 		replica = &rcv->replicas[i];
-		if (replica->blocked) target = replica;			// should also check here
+		/* TODO: Should probably explain why this doesn't check state */
+		if (replica->blocked) target = replica;
 	}
 	
 	if (target) return replica_wakeup(target);
-
 	return -1;
 }
 
 static inline int
-comp_writes_complete(struct channel *c) {
+comp_writes_complete(channel_id cid) {
 	int found = 0; 
 	int i;
 	struct replica *replica;
+	struct channel *c = channel_get(cid);
 
-	/* Check snd replicas. All need to have written. */
-	found = 0;
+	/* Check snd replicas. All need to have written FOR THIS EPOCH. */
 	for (i = 0; i < c->snd->nreplicas; i++) {
 		replica = &c->snd->replicas[i];
-		if (!replica->spdid) continue;
-		if (replica->state == REPLICA_ST_WRITE) found++;
+		if (replica->state != REPLICA_ST_WRITE || replica->epoch[cid] != c->epoch) return 0;
+		found++;
 	}
 	if (found != c->snd->nreplicas) return 0;
 	
@@ -181,34 +185,23 @@ comp_writes_complete(struct channel *c) {
  * on the system, if it determines that something has timed out or crashed.
  */
 int
-inspect_channel(struct channel *c) {
+inspect_channel(channel_id cid) {
 	int i, k;
 	int majority, majority_index;
 	struct replica *replica;
+	struct channel *c = &channels[cid];
 
-	/* Check rcv replicas. If they're not ready, we can just error out */
-	for (i = 0; i < c->rcv->nreplicas; i++) {
-		replica = &c->rcv->replicas[i];
-		if (!replica->spdid) return -1; 	/* We can write but read replicas haven't been confirmed yet */
-	}
+	if (!comp_writes_complete(cid)) return -1;
 
-	if (!comp_writes_complete(c)) return -1;
-
-	// Can optimize so that voting is only done once... wait it might only be done once now. */
 	/* Reset the matches array */	
 	for (i = 0; i < N_MAX; i++) matches[i] = 0;
 	majority = 0;
+	majority_index = -1;
 
 	/* now vote */
 	for (i = 0; i < c->snd->nreplicas; i++) {
-		c->snd->replicas[i].state = REPLICA_ST_PROCESSING;
-		matches[i]++;						// for our own match. Is this how voting works? Do we even know anymore...
+		matches[i]++;
 		for (k = i + 1; k < c->snd->nreplicas; k++) {
-			/* 
-			 * compare j to k
-			 * This SEEMS ridiculously messy and it is but all it really does is compare sz_write of j and k 
-			 * and then the contents of the data if size matches
-			 */
 			if (c->snd->replicas[i].sz_write == c->snd->replicas[k].sz_write && 
 			    memcmp(c->snd->replicas[i].buf_write, c->snd->replicas[k].buf_write, c->snd->replicas[i].sz_write) == 0) {
 				matches[i]++;
@@ -226,21 +219,26 @@ inspect_channel(struct channel *c) {
 	assert(c->snd->replicas[majority_index].sz_write <= 1024);
 	c->have_data = c->rcv->nreplicas;
 	
-	/* Possible optimization: skip this and just note the majority index */
+	/* TODO: Possible optimization: skip this and just note the majority index */
 	c->sz_data = c->snd->replicas[majority_index].sz_write;
 	memcpy(c->data_buf, c->snd->replicas[majority_index].buf_write, c->snd->replicas[majority_index].sz_write);
 
-	/* Unblocking reads */
-	printd("Thread %d: unblocking reads\n", cos_get_thd_id());
+	/* 
+	 * Copy data into read replica buffers. 
+	 * Since waking up a replica can set it running, let's do all of this at once and THEN start waking up readers
+	 */
 	for (i = 0; i < c->rcv->nreplicas; i++) {
 		replica = &c->rcv->replicas[i];
 		memcpy(replica->buf_read, c->data_buf, c->sz_data);
+	}
 
+	/* Unblocking reads */
+	for (i = 0; i < c->rcv->nreplicas; i++) {
+		replica = &c->rcv->replicas[i];
 		if (replica->blocked) replica_wakeup(replica);
 	}
 	
 	/* Unblocking writes */
-	printd("Thread %d: unblocking writes\n", cos_get_thd_id());
 	for (i = 0; i < c->snd->nreplicas; i++) {
 		replica = &c->snd->replicas[i];
 		if (replica->blocked) replica_wakeup(replica); 
@@ -253,32 +251,28 @@ int
 nwrite(spdid_t spdid, channel_id to, size_t sz) {
 	struct replica *replica = replica_get(spdid);
 	struct channel *c;
-	int ret;
 
 	if (!replica) BUG();
 	if (!replica->thread_id) replica->thread_id = cos_get_thd_id();				/* for a fork that couldn't be assigned a thread id yet */
-	if (to >= N_CHANNELS) BUG();
-	if (replica->state == REPLICA_ST_WRITE) return -1; // debug this a lot more thoroughly
+	if (replica->state != REPLICA_ST_PROCESSING) BUG();
 	assert(replica->buf_write);
 	assert(sz <= 1024);
 
-	c = &channels[to];
+	c = channel_get(to);
 	replica->state = REPLICA_ST_WRITE;
 	replica->sz_write = sz;
-	while (inspect_channel(c)) {
-		ret = replica_block(replica);
-		if (ret) wakeup_writer(c);
+	while (inspect_channel(to)) {
+		if (replica_block(replica)) wakeup_writer(c);
 		if (c->epoch > replica->epoch[to]) break;
 	}
 
-	/* One wakeup */
 	/* We may have enough data to send (inspect_channel passes) BUT not everyone has read yet */	
 	while (c->have_data) {
-		ret = replica_block(replica);
-		if (ret) wakeup_reader(c, c->epoch);
+		if (replica_block(replica)) wakeup_reader(c, c->epoch);
 	}
 	
 	replica->epoch[to]++;
+	replica->state = REPLICA_ST_PROCESSING;
 		
 	return 0;
 }
@@ -287,28 +281,26 @@ size_t
 nread(spdid_t spdid, channel_id from, size_t sz) {
 	struct replica *replica = replica_get(spdid);
 	struct channel *c;
-	int ret;
 
-	if (from >= N_CHANNELS) BUG();
 	if (!replica) BUG();
 	if (!replica->thread_id) replica->thread_id = cos_get_thd_id();				/* for a fork that couldn't be assigned a thread id yet */
+	if (replica->state != REPLICA_ST_PROCESSING) BUG(); 
 
-	c = &channels[from];
+	c = channel_get(from);
+	replica->state = REPLICA_ST_READ;
 	
-	if (c->epoch == replica->epoch[from] && c->have_data) {
-		/* We actually don't NEED to inspect the channel */
-	} else {
-		ret = inspect_channel(c);
-		if (ret) replica_block(replica);
+	if (!(c->epoch == replica->epoch[from] && c->have_data)) {
+		if (inspect_channel(from)) replica_block(replica);
 
-		/* Unfortunately we may get woken up by someone other than a writer - true? */
+		/* Unfortunately we may get woken up by someone other than a writer - TODO: true? */
 		while (!c->have_data && wakeup_writer(c)) replica_block(replica);
 		assert(c->have_data);
 	}
 	c->have_data--;
 	if (c->have_data == 0) c->epoch++;
 	replica->epoch[from]++;
-	return c->sz_data;	// race condiditon?
+	replica->state = REPLICA_ST_PROCESSING;
+	return c->sz_data;
 }
 
 void
@@ -334,7 +326,6 @@ replica_init(struct replica *replica, spdid_t spdid, struct nmodcomp *comp) {
 	/* Set map entries for this replica */
 	map[replica->spdid].replica = replica;
 	map[replica->spdid].component = comp;
-
 }
 
 void
@@ -352,9 +343,9 @@ confirm_fork(spdid_t spdid) {
 		if (replicas[i].spdid == 0) {
 			fork_spd = quarantine_fork(cos_spd_id(), spdid);
 			if (!fork_spd) BUG();
-			replica_init(&replicas[i], fork_spd, &component);
+			replica_init(&replicas[i], fork_spd, component);
 			
-			return;		// actually probably don't
+			return;		/* TODO: actually probably don't */
 		}
 	}
 }
@@ -375,7 +366,7 @@ int
 replica_confirm(spdid_t spdid) {
 	int ret;
 	int i;
-	int t = (spdid == 14) ? 0 : 1;		/* Ok, this is hackish but we shouldn't let the replicas TELL US what component they belong in */
+	int t = (spdid == 14) ? 0 : 1;		/* TODO: Ok, this is hackish but we shouldn't let the replicas TELL US what component they belong in */
 	struct replica *replicas = components[t].replicas;
 
 	for (i = 0; i < components[t].nreplicas; i++) {
@@ -394,13 +385,12 @@ replica_confirm(spdid_t spdid) {
 	return -1;
 }
 
-/* Not really an "init" - just set everything to NULL or most appropriate "just created" value */
+/* Just set everything to NULL or most appropriate "just created" value */
 void
 replica_clear(struct replica *replica) {
 	replica->spdid = 0;
 	replica->blocked = 0;
 	replica->state = REPLICA_ST_UNINIT;
-
 }
 
 void
@@ -410,7 +400,7 @@ cos_init(void)
 	for (i = 0; i < N_COMPS; i++) {
 		printd("Setting up nmod component %d\n", i);
 	
-		/* This is an ugly if-statement, get rid of it */	
+		/* TODO: This is an ugly if-statement, get rid of it */	
 		if (i == 0) components[i].nreplicas = 2;
 		else components[i].nreplicas = 1;
 	
