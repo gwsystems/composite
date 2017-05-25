@@ -19,17 +19,20 @@
 #define N_MAP_SZ 250				/* max number of spid's in the system. Super arbitrary				*/
 #define N_MAX 9					/* max number of components in an nMR component. Also arbitrary.		*/
 
+/*
+ * TODO: verify this - anything else is a bug
+ * Note: a state of READ or WRITE means we are DEFINITELY blocked.
+ */
 typedef enum {
 	REPLICA_ST_UNINIT = 0,			/* beginning state, should move away from this quickly				*/
 	REPLICA_ST_PROCESSING,			/* has RETURNED or not initiated a read or write yet				*/
-	REPLICA_ST_READ,			/* has issued a read. May or may not be blocked (but probably blocked)		*/
-	REPLICA_ST_WRITE			/* has issued a write. May or may not be blocked (but probably blocked)		*/ 
+	REPLICA_ST_READ,			/* has issued a read and has now been blocked					*/
+	REPLICA_ST_WRITE			/* has issued a write and has now been blocked					*/ 
 } replica_state_t;
 
 struct replica {
 	spdid_t spdid;				/* A value of 0 means this replica hasn't even been initialized yet 		*/
 	unsigned short int thread_id;
-	int blocked;
 	replica_state_t state;			/* NULL if this replica hasn't written 						*/
 	unsigned int epoch[N_CHANNELS];		/* Epoch per channel 								*/
 	
@@ -84,22 +87,23 @@ replica_get(spdid_t spdid) {
 
 int
 replica_wakeup(struct replica *replica) {
-	printd("Thread %d: Waking up replica with spdid %d, thread %d\n", cos_get_thd_id(), replica->spdid, replica->thread_id);
 	assert(replica->thread_id);
-	replica->blocked = 0;
+	if (replica->thread_id == cos_get_thd_id()) return 1;	/* We are already awake */
+	printd("Thread %d: Waking up replica with spdid %d, thread %d\n", cos_get_thd_id(), replica->spdid, replica->thread_id);
 	sched_wakeup(cos_spd_id(), replica->thread_id);
 	return 0;
 }
 
 /* TODO: this entire function is kind of a mess */
 int
-replica_block(struct replica *replica) {
+replica_block(struct replica *replica, replica_state_t transition) {
 	int i, j;
 	int n = 0;
 
 	for (i = 0; i < N_COMPS; i++) {
 		for (j = 0; j < components[i].nreplicas; j++) {
-			if (components[i].replicas[j].blocked == 0 && components[i].replicas[j].spdid != replica->spdid) n++;
+			if ((components[i].replicas[j].state == REPLICA_ST_PROCESSING || components[i].replicas[j].state == REPLICA_ST_UNINIT ) && 
+				components[i].replicas[j].spdid != replica->spdid) n++;
 		}
 	}
 
@@ -110,7 +114,7 @@ replica_block(struct replica *replica) {
 	if (n > 0) {
 		if (!replica->thread_id) BUG();
 		if (cos_get_thd_id() != replica->thread_id) BUG();
-		replica->blocked = 1;
+		replica->state = transition;
 		sched_block(cos_spd_id(), 0);
 		return 0;
 	} else {
@@ -125,15 +129,16 @@ replica_block(struct replica *replica) {
  * woken up but it STILL has no data.
  */
 int
-wakeup_writer(struct channel *c) {
+wakeup_writer(channel_id cid) {
 	int i;
 	struct nmodcomp *snd;
 	struct replica *replica, *target;
+	struct channel *c = channel_get(cid);
 	target = NULL;
 	snd = c->snd;
 	for (i = 0; i < snd->nreplicas; i++) {
 		replica = &snd->replicas[i];
-		if (replica->blocked && replica->state != REPLICA_ST_WRITE) target = replica;
+		if (replica->epoch[cid] <= c->epoch) target = replica;
 	}
 
 	if (target) return replica_wakeup(target);
@@ -149,8 +154,7 @@ wakeup_reader(struct channel *c, unsigned int target_epoch) {
 	rcv = c->rcv;
 	for (i = 0; i < rcv->nreplicas; i++) {
 		replica = &rcv->replicas[i];
-		/* TODO: Should probably explain why this doesn't check state */
-		if (replica->blocked) target = replica;
+		target = replica;
 	}
 	
 	if (target) return replica_wakeup(target);
@@ -167,7 +171,7 @@ comp_writes_complete(channel_id cid) {
 	/* Check snd replicas. All need to have written FOR THIS EPOCH. */
 	for (i = 0; i < c->snd->nreplicas; i++) {
 		replica = &c->snd->replicas[i];
-		if (replica->state != REPLICA_ST_WRITE || replica->epoch[cid] != c->epoch) return 0;
+		if (replica->epoch[cid] != c->epoch + 1) return 0;
 		found++;
 	}
 	if (found != c->snd->nreplicas) return 0;
@@ -233,15 +237,17 @@ inspect_channel(channel_id cid) {
 	}
 
 	/* Unblocking reads */
+	printd("Thread %d: Unblocking reads\n", cos_get_thd_id());
 	for (i = 0; i < c->rcv->nreplicas; i++) {
 		replica = &c->rcv->replicas[i];
-		if (replica->blocked) replica_wakeup(replica);
+		if (replica->state == REPLICA_ST_READ) replica_wakeup(replica);
 	}
 	
 	/* Unblocking writes */
+	printd("Thread %d: Unblocking writes\n", cos_get_thd_id());
 	for (i = 0; i < c->snd->nreplicas; i++) {
 		replica = &c->snd->replicas[i];
-		if (replica->blocked) replica_wakeup(replica); 
+		if (replica->state == REPLICA_ST_WRITE) replica_wakeup(replica); 
 	}
 
 	return 0;	
@@ -259,19 +265,18 @@ nwrite(spdid_t spdid, channel_id to, size_t sz) {
 	assert(sz <= 1024);
 
 	c = channel_get(to);
-	replica->state = REPLICA_ST_WRITE;
 	replica->sz_write = sz;
+	replica->epoch[to]++;
 	while (inspect_channel(to)) {
-		if (replica_block(replica)) wakeup_writer(c);
-		if (c->epoch > replica->epoch[to]) break;
+		if (replica_block(replica, REPLICA_ST_WRITE)) wakeup_writer(to);
+		if (c->epoch + 1 >= replica->epoch[to]) break;
 	}
 
 	/* We may have enough data to send (inspect_channel passes) BUT not everyone has read yet */	
 	while (c->have_data) {
-		if (replica_block(replica)) wakeup_reader(c, c->epoch);
+		if (replica_block(replica, REPLICA_ST_WRITE)) wakeup_reader(c, c->epoch);
 	}
 	
-	replica->epoch[to]++;
 	replica->state = REPLICA_ST_PROCESSING;
 		
 	return 0;
@@ -287,18 +292,18 @@ nread(spdid_t spdid, channel_id from, size_t sz) {
 	if (replica->state != REPLICA_ST_PROCESSING) BUG(); 
 
 	c = channel_get(from);
-	replica->state = REPLICA_ST_READ;
-	
-	if (!(c->epoch == replica->epoch[from] && c->have_data)) {
-		if (inspect_channel(from)) replica_block(replica);
+	//replica->state = REPLICA_ST_READ;
+	replica->epoch[from]++;
+
+	if (!(c->epoch + 1 == replica->epoch[from] && c->have_data)) {
+		if (inspect_channel(from)) replica_block(replica, REPLICA_ST_READ);
 
 		/* Unfortunately we may get woken up by someone other than a writer - TODO: true? */
-		while (!c->have_data && wakeup_writer(c)) replica_block(replica);
+		while (!c->have_data && wakeup_writer(from)) replica_block(replica, REPLICA_ST_READ);
 		assert(c->have_data);
 	}
 	c->have_data--;
 	if (c->have_data == 0) c->epoch++;
-	replica->epoch[from]++;
 	replica->state = REPLICA_ST_PROCESSING;
 	return c->sz_data;
 }
@@ -389,7 +394,6 @@ replica_confirm(spdid_t spdid) {
 void
 replica_clear(struct replica *replica) {
 	replica->spdid = 0;
-	replica->blocked = 0;
 	replica->state = REPLICA_ST_UNINIT;
 }
 

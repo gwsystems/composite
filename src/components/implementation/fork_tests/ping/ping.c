@@ -7,7 +7,7 @@
 void cos_init(void) {
 	int i = 0;
 	int ret;
-	void *data;
+	int data = 1;
 	static void *buf_read, *buf_write;
 	cbuf_t read_buffer, write_buffer;
 	static int flag = 0;
@@ -34,15 +34,16 @@ void cos_init(void) {
 		i = 0;
 		while (i < n_pings) {
 			printc("\ni = %d, ping calling write with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());
-			memcpy(buf_write, "abc\0", 4);
-			ret = nwrite(cos_spd_id(), 0, 4);
+			memcpy(buf_write, (void*)&data, 1);
+			ret = nwrite(cos_spd_id(), 0, 1);
 			assert(!ret);
 			printc("Thread %d: write returned %d\n\n", cos_get_thd_id(), ret);
 
 			printc("\ni = %d, ping calling read with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());
-			ret = nread(cos_spd_id(), 1, 4);
+			ret = nread(cos_spd_id(), 1, 1);
 			assert(ret);
-			printc("Thread %d: read returned %d and now we have data [%s] - expected xyz\n\n", cos_get_thd_id(), ret, ((char*) buf_read));
+			data = *((int*) buf_read);
+			printc("Thread %d: read returned %d and now we have data [%d]\n\n", cos_get_thd_id(), ret, data++);
 
 			i++;
 		}
@@ -58,15 +59,16 @@ void cos_init(void) {
 		i = 0;
 		while (i < n_pings) {
 			printc("\ni = %d, ping calling write with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());
-			memcpy(buf_write, "abc\0", 4);
-			ret = nwrite(cos_spd_id(), 0, 4);
+			memcpy(buf_write, (void*)&data, 1);
+			ret = nwrite(cos_spd_id(), 0, 1);
 			assert(!ret);
 			printc("Thread %d: write returned %d\n\n", cos_get_thd_id(), ret);
 
 			printc("\ni = %d, ping calling read with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());
 			ret = nread(cos_spd_id(), 1, 4);
 			assert(ret);
-			printc("Thead %d: read returned %d and now we have data [%s] - expected xyz\n\n", cos_get_thd_id(), ret, ((char*) buf_read));
+			data = *((int*) buf_read);
+			printc("Thead %d: read returned %d and now we have data [%d]\n\n", cos_get_thd_id(), ret, data++);
 
 			i++;
 		}

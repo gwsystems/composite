@@ -4,10 +4,12 @@
 #include <cbuf_mgr.h>
 #include <voter.h>
 
+#define N_ROUNDS 7
+
 void cos_init(void) {
 	int i = 0;
 	int ret;
-	void *data;
+	int data;
 	void *buf_read, *buf_write;
 	cbuf_t read_buffer, write_buffer;
 	
@@ -23,20 +25,25 @@ void cos_init(void) {
 	
 	confirm_fork(cos_spd_id());
 	
-	while (i < 7) {	
+	while (i < N_ROUNDS) {	
 		printc("\ni = %d, pong calling read from spdid %d\n", i, cos_spd_id());
-		ret = nread(cos_spd_id(), 0, 4);
+		ret = nread(cos_spd_id(), 0, 1);
 		assert(ret);
-		printc("Thread %d: read returned %d and now we have data [%s] - expected abc\n\n", cos_get_thd_id(), ret, ((char*) buf_read));
+		data = *((int *) buf_read);
+		printc("Thread %d: read returned %d and now we have data [%d]\n\n", cos_get_thd_id(), ret, data++);
 
 		printc("\ni = %d, pong calling write\n", i);
-		memcpy(buf_write, "xyz\0", 4);
-		ret = nwrite(cos_spd_id(), 1, 4);
+		memcpy(buf_write, (void*)&data, 1);
+		ret = nwrite(cos_spd_id(), 1, 1);
 		assert(!ret);
 		printc("Thread %d: write returned %d\n\n", cos_get_thd_id(), ret);
 
 		i++;
 	}
-	
+
+	/* 
+	 * This will actually never execute because this thread was put to sleep and once the last spd returns and exits, nothing is there to wake it up
+	 * (minor edge case, voter_monitor would be the ideal place to fix 
+	 */	
 	printc("Spdid %d finished.\n", cos_spd_id());
 }
