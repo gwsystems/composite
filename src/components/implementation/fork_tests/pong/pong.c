@@ -4,7 +4,7 @@
 #include <cbuf_mgr.h>
 #include <voter.h>
 
-#define N_ROUNDS 7
+#define N_ROUNDS 100
 
 void cos_init(void) {
 	int i = 0;
@@ -35,7 +35,7 @@ void cos_init(void) {
 		printc("\ni = %d, pong calling write\n", i);
 		memcpy(buf_write, (void*)&data, 1);
 		ret = nwrite(cos_spd_id(), 1, 1);
-		assert(!ret);
+		assert(ret);
 		printc("Thread %d: write returned %d\n\n", cos_get_thd_id(), ret);
 
 		i++;

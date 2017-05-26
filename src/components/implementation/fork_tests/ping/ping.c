@@ -4,6 +4,8 @@
 #include <cbuf_mgr.h>
 #include <voter.h>
 
+#define N_ROUNDS 100
+
 void cos_init(void) {
 	int i = 0;
 	int ret;
@@ -11,7 +13,6 @@ void cos_init(void) {
 	static void *buf_read, *buf_write;
 	cbuf_t read_buffer, write_buffer;
 	static int flag = 0;
-	int n_pings = 7;
 
 	printc("Calling ping from spdid %d\n", cos_spd_id());
 
@@ -32,11 +33,11 @@ void cos_init(void) {
 
 		/* Start sending data */
 		i = 0;
-		while (i < n_pings) {
+		while (i < N_ROUNDS) {
 			printc("\ni = %d, ping calling write with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());
 			memcpy(buf_write, (void*)&data, 1);
 			ret = nwrite(cos_spd_id(), 0, 1);
-			assert(!ret);
+			assert(ret);
 			printc("Thread %d: write returned %d\n\n", cos_get_thd_id(), ret);
 
 			printc("\ni = %d, ping calling read with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());
@@ -57,11 +58,11 @@ void cos_init(void) {
 		printc("ping (%d) confirmed with buffers read (%d) and write(%d)\n", cos_spd_id(), read_buffer, write_buffer);
 		
 		i = 0;
-		while (i < n_pings) {
+		while (i < N_ROUNDS) {
 			printc("\ni = %d, ping calling write with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());
 			memcpy(buf_write, (void*)&data, 1);
 			ret = nwrite(cos_spd_id(), 0, 1);
-			assert(!ret);
+			assert(ret);
 			printc("Thread %d: write returned %d\n\n", cos_get_thd_id(), ret);
 
 			printc("\ni = %d, ping calling read with spdid %d and thd id %d\n", i, cos_spd_id(), cos_get_thd_id());

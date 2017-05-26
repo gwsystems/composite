@@ -278,8 +278,7 @@ nwrite(spdid_t spdid, channel_id to, size_t sz) {
 	}
 	
 	replica->state = REPLICA_ST_PROCESSING;
-		
-	return 0;
+	return c->sz_data;
 }
 
 size_t
@@ -292,14 +291,15 @@ nread(spdid_t spdid, channel_id from, size_t sz) {
 	if (replica->state != REPLICA_ST_PROCESSING) BUG(); 
 
 	c = channel_get(from);
-	//replica->state = REPLICA_ST_READ;
 	replica->epoch[from]++;
 
 	if (!(c->epoch + 1 == replica->epoch[from] && c->have_data)) {
-		if (inspect_channel(from)) replica_block(replica, REPLICA_ST_READ);
+		while (!c->have_data) {
+			if (replica_block(replica, REPLICA_ST_READ)) wakeup_writer(from);
+		}
 
 		/* Unfortunately we may get woken up by someone other than a writer - TODO: true? */
-		while (!c->have_data && wakeup_writer(from)) replica_block(replica, REPLICA_ST_READ);
+		//while (!c->have_data && wakeup_writer(from)) replica_block(replica, REPLICA_ST_READ);
 		assert(c->have_data);
 	}
 	c->have_data--;
