@@ -19,10 +19,7 @@
 #define N_MAP_SZ 250				/* max number of spid's in the system. Super arbitrary				*/
 #define N_MAX 9					/* max number of components in an nMR component. Also arbitrary.		*/
 
-/*
- * TODO: verify this - anything else is a bug
- * Note: a state of READ or WRITE means we are DEFINITELY blocked.
- */
+/* Note: a state of READ or WRITE means we are DEFINITELY blocked. */
 typedef enum {
 	REPLICA_ST_UNINIT = 0,			/* beginning state, should move away from this quickly				*/
 	REPLICA_ST_PROCESSING,			/* has RETURNED or not initiated a read or write yet				*/
@@ -85,6 +82,12 @@ replica_get(spdid_t spdid) {
 	return map[spdid].replica;
 }
 
+static inline void 
+replica_transition(struct replica *replica, replica_state_t transition) {
+	if (transition == REPLICA_ST_READ || transition == REPLICA_ST_WRITE) assert(replica->state != transition);
+	replica->state = transition;
+}
+
 int
 replica_wakeup(struct replica *replica) {
 	assert(replica->thread_id);
@@ -114,7 +117,7 @@ replica_block(struct replica *replica, replica_state_t transition) {
 	if (n > 0) {
 		if (!replica->thread_id) BUG();
 		if (cos_get_thd_id() != replica->thread_id) BUG();
-		replica->state = transition;
+		replica_transition(replica, transition);
 		sched_block(cos_spd_id(), 0);
 		return 0;
 	} else {
@@ -263,7 +266,7 @@ nwrite(spdid_t spdid, channel_id to, size_t sz) {
 		if (replica_block(replica, REPLICA_ST_WRITE)) wakeup_reader(c, c->epoch);
 	}
 	
-	replica->state = REPLICA_ST_PROCESSING;
+	replica_transition(replica, REPLICA_ST_PROCESSING);
 	return c->sz_data;
 }
 
@@ -290,7 +293,7 @@ nread(spdid_t spdid, channel_id from, size_t sz) {
 	}
 	c->have_data--;
 	if (c->have_data == 0) c->epoch++;
-	replica->state = REPLICA_ST_PROCESSING;
+	replica_transition(replica, REPLICA_ST_PROCESSING);
 	return c->sz_data;
 }
 
@@ -302,7 +305,7 @@ void
 replica_init(struct replica *replica, spdid_t spdid, struct nmodcomp *comp) {
 	replica->spdid = spdid;
 	replica->thread_id = 0;					/* This will get set the first time read/write are called */
-	replica->state = REPLICA_ST_PROCESSING;
+	replica_transition(replica, REPLICA_ST_PROCESSING);
 	replica->buf_read = cbuf_alloc(1024, &replica->read_buffer); 
 	replica->buf_write = cbuf_alloc(1024, &replica->write_buffer);
 	assert(replica->buf_read);
@@ -380,7 +383,7 @@ replica_confirm(spdid_t spdid) {
 void
 replica_clear(struct replica *replica) {
 	replica->spdid = 0;
-	replica->state = REPLICA_ST_UNINIT;
+	replica_transition(replica, REPLICA_ST_UNINIT);
 }
 
 void
