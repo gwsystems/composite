@@ -236,20 +236,6 @@ inspect_channel(channel_id cid) {
 		memcpy(replica->buf_read, c->data_buf, c->sz_data);
 	}
 
-	/* Unblocking reads */
-	printd("Thread %d: Unblocking reads\n", cos_get_thd_id());
-	for (i = 0; i < c->rcv->nreplicas; i++) {
-		replica = &c->rcv->replicas[i];
-		if (replica->state == REPLICA_ST_READ) replica_wakeup(replica);
-	}
-	
-	/* Unblocking writes */
-	printd("Thread %d: Unblocking writes\n", cos_get_thd_id());
-	for (i = 0; i < c->snd->nreplicas; i++) {
-		replica = &c->snd->replicas[i];
-		if (replica->state == REPLICA_ST_WRITE) replica_wakeup(replica); 
-	}
-
 	return 0;	
 }
 
