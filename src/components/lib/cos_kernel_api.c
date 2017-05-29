@@ -317,7 +317,7 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 	}
 
 	assert(round_up_to_pgd_page(addr) == round_up_to_pgd_page(mem_ptr + mem_sz));
-	
+
 	return mem_ptr;
 }
 
@@ -338,7 +338,7 @@ __cos_meminfo_populate(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned lo
 
 	retaddr = __bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz);
 	assert(retaddr == untyped_ptr);
-	
+
 	start_addr                = meta->mi.untyped_frontier - untyped_sz;
 	meta->mi.untyped_frontier = start_addr;
 

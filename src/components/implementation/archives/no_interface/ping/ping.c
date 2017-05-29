@@ -1,8 +1,8 @@
 #include <cos_component.h>
-#include <print.h>
+//#include <print.h>
 
 #include <pong.h>
- 
+
 #define ITER (1024)
 u64_t meas[ITER];
 
@@ -35,8 +35,8 @@ void cos_init(void)
 	printc("avg w/o %d outliers %lld\n", ITER-j, tot/j);
 
 	for (i = 0 ; i < ITER ; i++) {
-		u64_t diff = (meas[i] > avg) ? 
-			meas[i] - avg : 
+		u64_t diff = (meas[i] > avg) ?
+			meas[i] - avg :
 			avg - meas[i];
 		dev += (diff*diff);
 	}

@@ -79,12 +79,15 @@ kern_setup_image(void)
 	printk("ACPI initialization\n");
 	void *rsdt = acpi_find_rsdt();
 	if (rsdt) {
-        	u32_t page = round_up_to_pgd_page(rsdt) - (1 << 22);
+		u32_t lapic, page;
+		u64_t hpet;
+
+		page = round_up_to_pgd_page(rsdt) - (1 << 22);
 		boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
 		acpi_set_rsdt_page(j);
 		j++;
 
-		u64_t hpet = timer_find_hpet(acpi_find_timer());
+		hpet = timer_find_hpet(acpi_find_timer());
 		if (hpet) {
 			page = round_up_to_pgd_page(hpet & 0xffffffff) - (1 << 22);
 			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
@@ -93,7 +96,7 @@ kern_setup_image(void)
 		}
 
 		/* lapic memory map */
-		u32_t lapic = lapic_find_localaddr(acpi_find_apic());
+		lapic = lapic_find_localaddr(acpi_find_apic());
 		if (lapic) {
 			page = round_up_to_pgd_page(lapic & 0xffffffff) - (1 << 22);
 			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
