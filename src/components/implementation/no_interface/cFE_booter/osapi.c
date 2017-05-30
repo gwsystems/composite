@@ -1,3 +1,5 @@
+#include <time.h>
+
 #include "cFE_util.h"
 
 #include "gen/osapi.h"
@@ -47,17 +49,18 @@ int32 OS_Tick2Micros(void)
     return 0;
 }
 
-int32  OS_GetLocalTime(OS_time_t *time_struct)
+int32 OS_GetLocalTime(OS_time_t *time_struct)
 {
     PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
-}
 
-int32  OS_SetLocalTime(OS_time_t *time_struct)
+}/* end OS_GetLocalTime */
+
+int32 OS_SetLocalTime(OS_time_t *time_struct)
 {
     PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
-}
+} /*end OS_SetLocalTime */
 
 /*
 ** Exception API

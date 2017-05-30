@@ -2,6 +2,7 @@
 
 #include "cFE_util.h"
 
+#include "gen/osapi.h"
 #include "gen/cfe_psp.h"
 
 /*
@@ -25,7 +26,7 @@ void CFE_PSP_Main(uint32 ModeId, char *StartupFilePath)
 
 void CFE_PSP_GetTime(OS_time_t *LocalTime)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    OS_GetLocalTime(LocalTime);
 }
 /* This call gets the local time from the hardware on the Vxworks system
  * on the mcp750s
@@ -96,6 +97,7 @@ uint32 CFE_PSP_GetTimerTicksPerSecond(void)
     PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
+
 /*
 ** CFE_PSP_GetTimerTicksPerSecond provides the resolution of the least significant
 ** 32 bits of the 64 bit time stamp returned by CFE_PSP_Get_Timebase in timer
