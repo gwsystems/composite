@@ -164,6 +164,25 @@ wakeup_reader(struct channel *c, unsigned int target_epoch) {
 	return -1;
 }
 
+int
+channel_get_awake(struct channel *c) {
+	unsigned int awake = 0;
+	struct replica *replica;
+	int i;
+
+	for (i = 0; i < c->snd->nreplicas; i++) {
+		replica = &c->snd->replicas[i];
+		if (replica->state == REPLICA_ST_PROCESSING || replica->state == REPLICA_ST_UNINIT) awake++;
+	}
+	
+	for (i = 0; i < c->rcv->nreplicas; i++) {
+		replica = &c->rcv->replicas[i];
+		if (replica->state == REPLICA_ST_PROCESSING || replica->state == REPLICA_ST_UNINIT) awake++;
+	}
+
+	return awake;
+}
+
 static inline int
 comp_writes_complete(channel_id cid) {
 	int found = 0; 
@@ -257,13 +276,16 @@ nwrite(spdid_t spdid, channel_id to, size_t sz) {
 	replica->sz_write = sz;
 	replica->epoch[to]++;
 	while (channel_inspect(to)) {
-		if (replica_block(replica, REPLICA_ST_WRITE)) wakeup_writer(to);
+		if (channel_get_awake(c) > 1) replica_block(replica, REPLICA_ST_WRITE);
+		else wakeup_writer(to);
+		
 		if (c->epoch + 1 >= replica->epoch[to]) break;
 	}
 
 	/* We may have enough data to send (channel_inspect passes) BUT not everyone has read yet */	
 	while (c->have_data) {
-		if (replica_block(replica, REPLICA_ST_WRITE)) wakeup_reader(c, c->epoch);
+		if (channel_get_awake(c) > 1) replica_block(replica, REPLICA_ST_WRITE);
+		else wakeup_reader(c, c->epoch);
 	}
 	
 	replica_transition(replica, REPLICA_ST_PROCESSING);
@@ -284,7 +306,8 @@ nread(spdid_t spdid, channel_id from, size_t sz) {
 
 	if (!(c->epoch + 1 == replica->epoch[from] && c->have_data)) {
 		while (!c->have_data) {
-			if (replica_block(replica, REPLICA_ST_READ)) wakeup_writer(from);
+			if (channel_get_awake(c) > 1) replica_block(replica, REPLICA_ST_READ);
+			else wakeup_writer(from);
 		}
 
 		assert(c->have_data);
