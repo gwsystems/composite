@@ -30,7 +30,7 @@ typedef enum {
 struct replica {
 	spdid_t spdid;				/* A value of 0 means this replica hasn't even been initialized yet 		*/
 	unsigned short int thread_id;
-	replica_state_t state;			/* NULL if this replica hasn't written 						*/
+	replica_state_t state;
 	unsigned int epoch[N_CHANNELS];		/* Epoch per channel 								*/
 	
 	/* Buffers */
@@ -192,7 +192,7 @@ comp_writes_complete(channel_id cid) {
  * on the system, if it determines that something has timed out or crashed.
  */
 int
-inspect_channel(channel_id cid) {
+channel_inspect(channel_id cid) {
 	int i, k;
 	int majority, majority_index;
 	struct replica *replica;
@@ -256,12 +256,12 @@ nwrite(spdid_t spdid, channel_id to, size_t sz) {
 	c = channel_get(to);
 	replica->sz_write = sz;
 	replica->epoch[to]++;
-	while (inspect_channel(to)) {
+	while (channel_inspect(to)) {
 		if (replica_block(replica, REPLICA_ST_WRITE)) wakeup_writer(to);
 		if (c->epoch + 1 >= replica->epoch[to]) break;
 	}
 
-	/* We may have enough data to send (inspect_channel passes) BUT not everyone has read yet */	
+	/* We may have enough data to send (channel_inspect passes) BUT not everyone has read yet */	
 	while (c->have_data) {
 		if (replica_block(replica, REPLICA_ST_WRITE)) wakeup_reader(c, c->epoch);
 	}
@@ -287,8 +287,6 @@ nread(spdid_t spdid, channel_id from, size_t sz) {
 			if (replica_block(replica, REPLICA_ST_READ)) wakeup_writer(from);
 		}
 
-		/* Unfortunately we may get woken up by someone other than a writer - TODO: true? */
-		//while (!c->have_data && wakeup_writer(from)) replica_block(replica, REPLICA_ST_READ);
 		assert(c->have_data);
 	}
 	c->have_data--;
