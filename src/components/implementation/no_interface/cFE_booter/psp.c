@@ -2,6 +2,8 @@
 
 #include "cFE_util.h"
 
+#include "sl.h"
+
 #include "gen/osapi.h"
 #include "gen/cfe_psp.h"
 
@@ -94,8 +96,8 @@ uint32 CFE_PSP_Get_Timer_Tick(void)
 
 uint32 CFE_PSP_GetTimerTicksPerSecond(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    // TODO: Check that cycles and ticks are the same here
+    return (uint32) sl__globals()->cyc_per_usec * 1000000;
 }
 
 /*
@@ -107,8 +109,9 @@ uint32 CFE_PSP_GetTimerTicksPerSecond(void)
 
 uint32 CFE_PSP_GetTimerLow32Rollover(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    // This is a pessimistic assumption
+    // TODO: Figure out if we can be more optimistic
+    return 1000000;
 }
 /*
 ** CFE_PSP_GetTimerLow32Rollover provides the number that the least significant
@@ -202,10 +205,24 @@ int32 CFE_PSP_GetUserReservedArea(cpuaddr *PtrToUserArea, uint32 *SizeOfUserArea
 ** User reserved area.
 */
 
+
 int32 CFE_PSP_GetVolatileDiskMem(cpuaddr *PtrToVolDisk, uint32 *SizeOfVolDisk )
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+   int32 return_code;
+
+   if ( SizeOfVolDisk == NULL )
+   {
+      return_code = CFE_PSP_ERROR;
+   }
+   else
+   {
+      *PtrToVolDisk = 0;
+      *SizeOfVolDisk = 0;
+      return_code = CFE_PSP_SUCCESS;
+   }
+
+   return(return_code);
+
 }
 /*
 ** CFE_PSP_GetVolatileDiskMem returns the location and size of the memory used for the cFE
@@ -413,8 +430,8 @@ int32 CFE_PSP_MemWrite32(cpuaddr MemoryAddress, uint32 uint32Value)
 
 int32 CFE_PSP_MemCpy(void *dest, void *src, uint32 n)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    memcpy(dest, src, n);
+    return OS_SUCCESS;
 }
 
 int32 CFE_PSP_MemSet(void *dest, uint8 value, uint32 n)

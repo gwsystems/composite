@@ -3,7 +3,9 @@
 #include "cFE_util.h"
 
 #include "gen/osapi.h"
+#include "gen/cfe_psp.h"
 #include "gen/common_types.h"
+
 
 #include <cos_component.h>
 #include <cos_defkernel_api.h>
@@ -39,27 +41,32 @@ void OS_DeleteAllObjects(void)
 
 int32 OS_Milli2Ticks(uint32 milli_seconds)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return (int32) (CFE_PSP_GetTimerTicksPerSecond() / 1000) * milli_seconds;
 }
 
 int32 OS_Tick2Micros(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    // TODO: Redo this using integer arithmetic
+    // seconds/tick = 1 / (tick / seconds)
+    double seconds_per_tick  = 1.0 / CFE_PSP_GetTimerTicksPerSecond();
+    // seconds / tick * microseconds / second = microseconds / tick
+    return (int32) seconds_per_tick * 1000000;
 }
+
+// TODO: Fix this awful hack
+OS_time_t local_time;
 
 int32 OS_GetLocalTime(OS_time_t *time_struct)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    *time_struct = local_time;
+    return OS_SUCCESS;
 
 }/* end OS_GetLocalTime */
 
 int32 OS_SetLocalTime(OS_time_t *time_struct)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    local_time = *time_struct;
+    return OS_SUCCESS;
 } /*end OS_SetLocalTime */
 
 /*
