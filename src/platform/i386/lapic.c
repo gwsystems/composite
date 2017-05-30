@@ -294,6 +294,10 @@ void
 lapic_timer_init(void)
 {
 	u32_t low, high;
+	u32_t a, b, c, d;
+
+	chal_cpuid(1, &a, &b, &c, &d);
+	if (c & (1<<21)) printk("LAPIC:  processor supports x2APIC, IGNORED.\n");
 
 	if (!lapic_tscdeadline_supported()) {
 		printk("LAPIC: TSC-Deadline Mode not supported! Configuring Oneshot Mode!\n");

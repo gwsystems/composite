@@ -2,6 +2,7 @@
 #include <shared/cos_types.h>
 #include "kernel.h"
 #include "mem_layout.h"
+#include "chal_cpu.h"
 
 u32_t free_thd_id = 1;
 char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
@@ -35,4 +36,50 @@ chal_khalt(void)
 
 void
 chal_init(void)
-{ chal_kernel_mem_pa = chal_va2pa(mem_kmem_start()); }
+{
+	u32_t a, b, c, d;
+	u32_t vendor[4];
+	char *v = (char *)&vendor[0];
+
+	printk("Processor information:\n");
+	chal_cpuid(0, &a, &b, &c, &d);
+	vendor[0] = b;
+	vendor[1] = d;
+	vendor[2] = c;
+	vendor[3] = 0;
+	printk("\tVendor: %s\n", (char *)vendor);
+
+	chal_cpuid(0x80000000, &a, &b, &c, &d);
+	/* processor brand string is supported? */
+	if (a > 0x80000004) {
+		u32_t name[13];
+
+		chal_cpuid(0x80000002, &name[0], &name[1], &name[2], &name[3]);
+		chal_cpuid(0x80000003, &name[4], &name[5], &name[6], &name[7]);
+		chal_cpuid(0x80000004, &name[8], &name[9], &name[10], &name[11]);
+		name[12] = 0;
+
+		printk("\tBrand string %s\n", (char *)name);
+	}
+
+	printk("\tFeatures [");
+	chal_cpuid(1, &a, &b, &c, &d);
+	if (d & (1<<4))  printk("rdtsc ");
+	if (d & (1<<0))  printk("fpu ");
+	if (d & (1<<3))  printk("superpages ");
+	if (d & (1<<11)) printk("sysenter/exit ");
+	if (d & (1<<19)) printk("clflush ");
+	if (d & (1<<22)) printk("acpi ");
+	if (d & (1<<9))  printk("apic ");
+	if (c & (1<<21)) printk("x2apic ");
+	chal_cpuid(0x80000001, &a, &b, &c, &d);
+	if (d & (1<<27)) printk("rdtscp ");
+	chal_cpuid(0x80000007, &a, &b, &c, &d);
+	if (d & (1<<8))  printk("invariant_tsc ");
+	printk("]\n");
+
+	readmsr(MSR_PLATFORM_INFO, &a, &b);
+	printk("\tFrequency: %d (* 100Mz)\n", (a >> 8) & ((1<<7)-1));
+
+	chal_kernel_mem_pa = chal_va2pa(mem_kmem_start());
+}
