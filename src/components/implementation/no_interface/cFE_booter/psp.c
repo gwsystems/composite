@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "cFE_util.h"
 
 #include "gen/cfe_psp.h"
@@ -173,7 +175,7 @@ int32 CFE_PSP_ReadFromCDS(void *PtrToDataToRead, uint32 CDSOffset, uint32 NumByt
 ** CFE_PSP_ReadFromCDS reads from the CDS Block
 */
 
-#define RESET_AREA_SIZE 4096
+#define RESET_AREA_SIZE 132000
 char RESET_AREA[RESET_AREA_SIZE];
 
 int32 CFE_PSP_GetResetArea (cpuaddr *PtrToResetArea, uint32 *SizeOfResetArea)
@@ -415,8 +417,8 @@ int32 CFE_PSP_MemCpy(void *dest, void *src, uint32 n)
 
 int32 CFE_PSP_MemSet(void *dest, uint8 value, uint32 n)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    memset(dest, value, n);
+    return OS_SUCCESS;
 }
 
 int32 CFE_PSP_MemValidateRange(cpuaddr Address, uint32 Size, uint32 MemoryType)

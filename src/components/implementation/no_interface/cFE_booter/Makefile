@@ -1,10 +1,10 @@
-C_OBJS=cFE_entrypoint.o cFE_stub.o osapi.o osfiles.o osloader.o osqueue.o ostask.o ostimer.o osnetwork.o psp.o
+# C_OBJS=cFE_entrypoint.o cFE_stub.o osapi.o osfiles.o osloader.o osqueue.o ostask.o ostimer.o osnetwork.o psp.o scheddev/sl.c scheddev/sl_mod_fprr.c
 ASM_OBJS=
 COMPONENT=cFE_booter.o
 INTERFACES=
 DEPENDENCIES=
 IF_LIB=./composite_cFE.o
-ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api
+ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_defkernel_api
 
 include ../../Makefile.subsubdir
 CFLAGS += -I./gen

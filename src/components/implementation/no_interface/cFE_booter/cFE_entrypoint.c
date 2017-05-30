@@ -1,6 +1,8 @@
 #include <string.h>
 
 #include "cFE_util.h"
+#include "ostask.h"
+
 #include "gen/cfe_psp.h"
 #include "gen/common_types.h"
 #include "gen/osapi.h"
@@ -32,9 +34,6 @@ void CFE_PSP_ModuleInit(void)
 {
 }
 
-// If RUN_TESTING_CODE is defined, testing code will be run
-// #define RUN_TESTING_CODE
-
 // "Magic" constants
 #define CFE_PSP_CPU_NAME_LENGTH  32
 #define CFE_PSP_RESET_NAME_LENGTH 10
@@ -62,33 +61,13 @@ void command_line_set_defaults(struct CFE_PSP_CommandData_t* args) {
     args->SpacecraftId = CFE_SPACECRAFT_ID;
 }
 
-void cos_init(void) {
-    struct CFE_PSP_CommandData_t args;
+// This must be global so that cos_init_delegate can read it
+// TODO: Consider passing cos_init_delegate this data instead
+uint32 reset_type;
+struct CFE_PSP_CommandData_t args;
 
-    command_line_set_defaults(&args);
-
-    /*
-    ** Set the reset type
-    */
-    uint32 reset_type;
-    if (strncmp("PR", args.ResetType, 2 ) == 0)
-    {
-        reset_type = CFE_PSP_RST_TYPE_PROCESSOR;
-        OS_printf("CFE_PSP: Starting the cFE with a PROCESSOR reset.\n");
-    }
-    else
-    {
-        reset_type = CFE_PSP_RST_TYPE_POWERON;
-        OS_printf("CFE_PSP: Starting the cFE with a POWER ON reset.\n");
-    }
-
-    OS_printf("CFE_PSP: Initializing the OS API...\n");
-    /*
-    ** Initialize the OS API
-    */
-    OS_API_Init();
-    OS_printf("CFE_PSP: The the OS API was successfully initialized!\n");
-
+// This is the delegate function called by the scheduler
+void cos_init_delegate(void* data) {
     OS_printf("CFE_PSP: Doing PSP setup...\n");
     /*
     ** Initialize the statically linked modules (if any)
@@ -106,14 +85,6 @@ void cos_init(void) {
 
     OS_printf("CFE_PSP: PSP setup successful!\n");
 
-
-    #ifdef RUN_TESTING_CODE
-    // Testing code goes here
-    OS_printf("CFE_PSP: Running testing code...\n");
-    
-    OS_printf("CFE_PSP: Running testing code completed\n");
-    #else
-
     OS_printf("CFE_PSP: Starting the cFE proper...\n");
     /*
     ** Call cFE entry point.
@@ -121,6 +92,7 @@ void cos_init(void) {
     CFE_ES_MAIN_FUNCTION(reset_type, args.SubType, 1, CFE_ES_NONVOL_STARTUP_FILE);
 
     OS_printf("CFE_PSP: cFE started, main thread sleeping\n");
+
     /*
     ** Let the main thread sleep.
     **
@@ -128,7 +100,34 @@ void cos_init(void) {
     ** someone calls OS_ApplicationShutdown(TRUE)
     */
     OS_IdleLoop();
-    #endif
 
     PANIC("Application was shutdown!");
+}
+
+void cos_init(void) {
+    command_line_set_defaults(&args);
+
+    /*
+    ** Set the reset type
+    */
+    if (strncmp("PR", args.ResetType, 2 ) == 0)
+    {
+        reset_type = CFE_PSP_RST_TYPE_PROCESSOR;
+        OS_printf("CFE_PSP: Starting the cFE with a PROCESSOR reset.\n");
+    }
+    else
+    {
+        reset_type = CFE_PSP_RST_TYPE_POWERON;
+        OS_printf("CFE_PSP: Starting the cFE with a POWER ON reset.\n");
+    }
+
+    /*
+    ** Initialize the OS API
+    */
+    OS_printf("CFE_PSP: Initializing the OS API...\n");
+    OS_API_Init();
+    OS_printf("CFE_PSP: The the OS API was successfully initialized!\n");
+
+    OS_printf("CFE_PSP: Delegating to scheduler setup... \n");
+    OS_SchedulerStart(&cos_init_delegate);
 }
