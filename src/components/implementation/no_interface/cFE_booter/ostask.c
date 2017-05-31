@@ -55,6 +55,8 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
                     uint32 stack_size,
                     uint32 priority, uint32 flags)
 {
+    sl_cs_enter();
+
     if(task_name == NULL || stack_pointer == NULL){
         return OS_INVALID_POINTER;
     }
@@ -97,11 +99,15 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
 
     *task_id = selected_task_id;
 
+    sl_cs_exit();
+
     return OS_SUCCESS;
 }
 
 int32 OS_TaskDelete(uint32 task_id)
 {
+    sl_cs_enter();
+
     if(task_id > OS_MAX_TASKS || !tasks[task_id].non_empty) {
         return OS_ERR_INVALID_ID;
     }
@@ -115,19 +121,27 @@ int32 OS_TaskDelete(uint32 task_id)
     }
     sl_thd_free(thd);
 
+    sl_cs_exit();
+
     return OS_SUCCESS;
 }
 
 uint32 OS_TaskGetId(void)
 {
+    sl_cs_enter();
+
     struct sl_thd* thd = sl_thd_curr();
     thdid_t t = thd->thdid;
     int i;
     for(i = 0; i < OS_MAX_TASKS; i++) {
         if(tasks[i].thdid == t) {
+            sl_cs_exit();
             return i;
         }
     }
+
+    sl_cs_exit();
+
 
     PANIC("Broken invariant, should be unreacheable!");
     return 0;
@@ -155,6 +169,8 @@ int32 OS_TaskDelay(uint32 millisecond)
 
 int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
 {
+    sl_cs_enter();
+
     if(task_id > OS_MAX_TASKS || !tasks[task_id].non_empty) {
         return OS_ERR_INVALID_ID;
     }
@@ -165,6 +181,8 @@ int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
 
     union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = new_priority}};
     sl_thd_param_set(sl_thd_lkup(tasks[task_id].thdid), sp.v);
+
+    sl_cs_exit();
 
     return OS_SUCCESS;
 }
@@ -178,6 +196,8 @@ int32 OS_TaskRegister(void)
 
 int32 OS_TaskGetIdByName(uint32 *task_id, const char *task_name)
 {
+    sl_cs_enter();
+
     if(!task_name) {
         return OS_INVALID_POINTER;
     }
@@ -193,6 +213,8 @@ int32 OS_TaskGetIdByName(uint32 *task_id, const char *task_name)
             return OS_SUCCESS;
         }
     }
+
+    sl_cs_exit();
 
     return OS_ERR_NAME_NOT_FOUND;
 }
