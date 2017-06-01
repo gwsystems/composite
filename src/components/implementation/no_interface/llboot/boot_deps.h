@@ -240,7 +240,6 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 
 #undef printd
 #define printd(...) printc("llboot: "__VA_ARGS__)
-	printd("llboot args: %d\t%d\n", cspd_dspd, cap_ccnt_dcnt);
 	printd("llboot (%d) fault_quarantine_handler %d (%d) -> %d (%d)\n", spdid, c_spd, c_fix, d_spd, d_fix);
 
 	if (d_fix) {
@@ -252,7 +251,6 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 		 *    the o_spd->id in half of the f_spd->id.
 		 */
 		f_spd = cos_spd_cntl(COS_SPD_GET_FORK_ORIGIN, c_spd, 0, 0);
-		printd("Fixing server %d metadata for spd %d after fork to %d\n", d_spd, f_spd, c_spd);
 		/* TODO: upcall here? */
 		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
 	}
@@ -265,8 +263,6 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	 * the struct spd caps[], ncaps. So just do it once.
 	 */
 		/* TODO: get the f_spd? */
-		printd("Fixing routing table in %d after fork from %d\n", c_spd,d_spd);
-
 		// TODO: add / change ucap, routing table
 
 	}
@@ -274,8 +270,6 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	inc_val = (((u8_t)-d_fix)<<8U) | ((u8_t)(-c_fix));
 	printd("Incrementing fork count by %u (which works out to d %d and c %d) in spd %d for cap %d\n", inc_val, -d_fix, -c_fix, c_spd, capid);
 	cos_cap_cntl(COS_CAP_INC_FORK_CNT, c_spd, capid, inc_val);
-	int new_count = cos_cap_cntl(COS_CAP_GET_FORK_CNT, c_spd, capid, 0);
-	printd("Fork count now at %d\n", new_count);
 
 	printd("Done fixing, returning to invocation frame\n");
 

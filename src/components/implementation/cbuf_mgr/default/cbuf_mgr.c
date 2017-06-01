@@ -873,7 +873,7 @@ done:
 }
 
 vaddr_t
-__cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cinfo)
+__cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cinfo, spdid_t cbb_spd)
 {
 	struct cbuf_info *cbi;
 	unsigned int sz;
@@ -889,7 +889,6 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 	cbi        = cmap_lookup(&cbufs, s_cbid);
 	if (!cbi) BUG();
 	sz = cbi->size;
-	printc("forking cbuf %d from spdid %d to spdid %d\n", s_cbid, o_spd, f_spd);
 
 	/* 
 	 * cmap_lookup returns original owner so need to recurse 
@@ -927,11 +926,11 @@ __cbuf_fork_cbuf(spdid_t o_spd, unsigned int s_cbid, spdid_t f_spd, int copy_cin
 	ret = 0;
 
 	if (copy_cinfo) {
-		vaddr_t q_daddr = (vaddr_t)valloc_alloc(cos_spd_id(), 11, sz/PAGE_SIZE);
+		vaddr_t q_daddr = (vaddr_t)valloc_alloc(cos_spd_id(), cbb_spd, sz/PAGE_SIZE);
 		if (unlikely(!q_daddr)) return -1;
 		flags = MAPPING_RW;
 		flags |= MAPPING_NO_VALLOC;
-		if (q_daddr != __cbuf_map_at(f_spd, f_cbid, 11, q_daddr | flags)) return -1;
+		if (q_daddr != __cbuf_map_at(f_spd, f_cbid, cbb_spd, q_daddr | flags)) return -1;
 		ret = q_daddr;
 	}
 
@@ -963,21 +962,12 @@ __get_nfo(struct cbuf_comp_info *cci)
 		if (cbi) { /* presumably the cbuf could have been deleted but this is unlikely */
 			printc("cbuf #%2u with size %x, mem start %x, and maps ", cbi->cbid, cbi->size, cbi->mem);
 			struct cbuf_maps *m = &cbi->owner;
-			struct cbuf_meta *cm = m->m;		/* Use this after loop */
 
 			do {
 				printc("[%d:%x] ", m->spdid, m->addr);
 				m = FIRST_LIST(m, next, prev);
 			} while (m != &cbi->owner);
 
-			printc("\n\tnfo: [ex %d|ow %d|t %d|in %d|re %d] page pointer %x",
-									CBUF_EXACTSZ(cm)      >> 11,
-									CBUF_OWNER(cm)        >> 10,
-									CBUF_TMEM(cm)         >>  9,
-									CBUF_INCONSISTENT(cm) >>  8,
-									CBUF_RELINQ(cm)       >>  7,
-									CBUF_PTR(cm));
-			
 			printc("\n");
 		}
 
@@ -989,7 +979,7 @@ __get_nfo(struct cbuf_comp_info *cci)
 
 /* This is internal so the real core of the function doesn't take a lock */
 static vaddr_t
-__cbuf_fork_spd(spdid_t o_spd, spdid_t f_spd, int cinfo_cbid)
+__cbuf_fork_spd(spdid_t cbb_spd, spdid_t o_spd, spdid_t f_spd, int cinfo_cbid)
 {
 	struct cbuf_comp_info *src, *dst;
 	struct cbuf_info *current;
@@ -997,14 +987,13 @@ __cbuf_fork_spd(spdid_t o_spd, spdid_t f_spd, int cinfo_cbid)
 	vaddr_t ret = (vaddr_t) NULL;		/* address of cinfo page */
 
 	int r = valloc_fork_spd(cos_spd_id(), o_spd, f_spd);
-	
+
+	printc("forking all cbufs from %d to %d with cinfo spdid %d\n", o_spd, f_spd, cinfo_cbid);	
 	src = cbuf_comp_info_get(o_spd);
 	dst = cbuf_comp_info_get(f_spd);
-	__get_nfo(src);
 
 	/* Should create a new shared page between cbuf_mgr and dst */
 	dst->csp = NULL;
-	//dst->dest_csp = src->dest_csp;
 	
 	current = cbi_head;
 	vaddr_t r_addr;
@@ -1019,14 +1008,15 @@ __cbuf_fork_spd(spdid_t o_spd, spdid_t f_spd, int cinfo_cbid)
 		if (m->spdid == o_spd) {
 			/* This is for if O is the owner */
 			/* This just universally forks everything to a new cbuf. */
-			__cbuf_fork_cbuf(o_spd, cbi->cbid, f_spd, 0);
+			__cbuf_fork_cbuf(o_spd, cbi->cbid, f_spd, 0, 0);
 		}
 		else {
 			do {
+				struct cbuf_meta *meta = m->m;
 				/* This is if O isn't the owner but has the cbuf mapped in. */
-				if (m->spdid == o_spd) {
+				if (m->spdid == o_spd && !(meta && meta->cbid_tag.tag == 0)) {
 					r_addr = __cbuf_fork_cbuf(o_spd, cbi->cbid, 
-					                          f_spd, cinfo_cbid == cbi->cbid);
+					                          f_spd, cinfo_cbid == cbi->cbid, cbb_spd);
 					if (cinfo_cbid == cbi->cbid) ret = r_addr;
 				}
 
@@ -1050,8 +1040,11 @@ cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd, int cinfo_cbid)
 	printl("cbuf_fork_spd\n");
 
 	CBUF_TAKE();
-	ret = __cbuf_fork_spd(s_spd, d_spd, cinfo_cbid);
-done:
+	/* 
+	 * This assumes the calling component is part of the CBBOOTER. 
+	 * That seems reasonable for now. Likely won't be forever. 
+	 */
+	ret = __cbuf_fork_spd(spd, s_spd, d_spd, cinfo_cbid);
 	CBUF_RELEASE();
 	return ret;
 }

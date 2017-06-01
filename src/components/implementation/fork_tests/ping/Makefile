@@ -1,7 +1,7 @@
-C_OBJS=malloc_comp.o
+C_OBJS=ping.o
 ASM_OBJS=
-COMPONENT=malloccomp.o
-INTERFACES=test_malloc_comp
+COMPONENT=forkping.o
+INTERFACES=
 DEPENDENCIES=printc quarantine qfault cbuf_mgr valloc voter 
 IF_LIB=
 
