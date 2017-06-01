@@ -803,6 +803,9 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 	}
 
 	next = notify_parent(thd);
+	/* TODO: should we continue tcap-inheritence policy in this case? */
+	if (unlikely(tc_next != thd_rcvcap_tcap(thd))) tc_next = thd_rcvcap_tcap(thd);
+
 	/* if preempted/awoken thread is waiting, switch to that */
 	if (nti->thd) {
 		assert(nti->tc);
