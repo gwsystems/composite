@@ -253,6 +253,11 @@ enum {
 	THD_GET_TID,
 };
 
+enum {
+	/* tcap budget */
+	TCAP_GET_BUDGET,
+};
+
 typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */
 
 /* Macro used to define per core variables */
