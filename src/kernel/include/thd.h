@@ -12,6 +12,7 @@
 #include "cap_ops.h"
 #include "fpu_regs.h"
 #include "chal/cpuid.h"
+#include "chal/call_convention.h"
 #include "pgtbl.h"
 #include "retype_tbl.h"
 #include "tcap.h"
@@ -42,7 +43,6 @@ struct rcvcap_info {
 typedef enum {
 	THD_STATE_PREEMPTED   = 1,
 	THD_STATE_RCVING      = 1<<1, /* report to parent rcvcap that we're receiving */
-	THD_STATE_SUSPENDED   = 1<<2,
 } thd_state_t;
 
 /**
@@ -439,6 +439,32 @@ thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_
 	curr->state             |= THD_STATE_PREEMPTED;
 	next->interrupted_thread = curr;
 	memcpy(&curr->regs, regs, sizeof(struct pt_regs));
+}
+
+static int
+thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
+{
+	int preempt = 0;
+
+	/* TODO: check FPU */
+	/* fpu_save(thd); */
+	if (thd->state & THD_STATE_PREEMPTED) {
+		assert(!(thd->state & THD_STATE_RCVING));
+		thd->state &= ~THD_STATE_PREEMPTED;
+		preempt = 1;
+	} else if (thd->state & THD_STATE_RCVING) {
+		unsigned long a = 0, b = 0;
+
+		assert(!(thd->state & THD_STATE_PREEMPTED));
+		thd->state &= ~THD_STATE_RCVING;
+		thd_state_evt_deliver(thd, &a, &b);
+		thd_rcvcap_pending_dec(thd);
+		__userregs_setretvals(regs, thd_rcvcap_pending(thd), a, b);
+	} else if (issame) {
+		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
+	}
+
+	return preempt;
 }
 
 static inline int

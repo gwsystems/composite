@@ -438,21 +438,16 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to,
 }
 
 static int
-cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
+cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next,
 	       struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
 	struct next_thdinfo *nti  = &cos_info->next_ti;
 	struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
 	int               preempt = 0;
 
-	if (unlikely(curr == next)) {
-		if (!(curr->state & THD_STATE_SUSPENDED))
-			assert(!(curr->state & (THD_STATE_RCVING)) && !(curr->state & THD_STATE_PREEMPTED));
-		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-		return 0;
-	}
-
 	assert(next_ci && curr && next);
+	if (unlikely(curr == next)) return thd_switch_update(curr, regs, 1);
+
 	/* FIXME: trigger fault for the next thread, for now, return error */
 	if (unlikely(!ltbl_isalive(&next_ci->liveness))) {
 		assert(!(curr->state & THD_STATE_PREEMPTED));
@@ -473,24 +468,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread  *next,
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
 	if (next->tls != curr->tls) chal_tls_update(next->tls);
 
-	/* TODO: check FPU */
-	/* fpu_save(thd); */
-	if (next->state & THD_STATE_PREEMPTED) {
-		assert(!(next->state & THD_STATE_RCVING));
-		next->state &= ~THD_STATE_PREEMPTED;
-		preempt = 1;
-	} else if (next->state & THD_STATE_RCVING) {
-		unsigned long a = 0, b = 0;
-
-		assert(!(next->state & THD_STATE_PREEMPTED));
-		next->state &= ~THD_STATE_RCVING;
-		thd_state_evt_deliver(next, &a, &b);
-		thd_rcvcap_pending_dec(next);
-		__userregs_setretvals(&next->regs, thd_rcvcap_pending(next), a, b);
-	}
-
-	/* if it was suspended for budget expiration, clear it */
-	next->state &= ~THD_STATE_SUSPENDED;
+	preempt = thd_switch_update(next, &next->regs, 0);
 	/* if switching to the preempted/awoken thread clear cpu local next_thdinfo */
 	if (nti->thd && nti->thd == next) thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
 
@@ -605,8 +583,6 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		/* update only tcap and return to curr thread */
 		if (thd_next == thd_curr) return 1;
 		thd_curr->state |= THD_STATE_PREEMPTED;
-	} else if (switch_away) {
-		thd_curr->state |= THD_STATE_SUSPENDED;
 	}
 
 	/* switch threads */
