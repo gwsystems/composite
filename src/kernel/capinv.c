@@ -668,6 +668,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 		if (!CAP_TYPECHK_CORE(tcap_cap, CAP_TCAP)) return -EINVAL;
 		tcap     = tcap_cap->tcap;
 		if (!tcap_rcvcap_thd(tcap)) return -EINVAL;
+		if (unlikely(!tcap_is_active(tcap))) return -EPERM;
 	}
 
 	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
