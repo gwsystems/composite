@@ -240,7 +240,7 @@ sl_sched_loop(void)
 
 		do {
 			thdid_t        tid;
-			int            blocked;
+			int            blocked, rcvd;
 			cycles_t       cycles;
 			struct sl_thd *t;
 
@@ -249,7 +249,8 @@ sl_sched_loop(void)
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles);
+			pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING,
+						&rcvd, &tid, &blocked, &cycles);
 			if (!tid) continue;
 
 			t = sl_thd_lkup(tid);

@@ -67,7 +67,7 @@ aep_thd_fn(arcvcap_t rcv, void *data)
 {
 	printc("\tSwitched to aep %d\n", (int)data);
 	while (1) {
-		cos_rcv(rcv);
+		cos_rcv(rcv, 0, NULL);
 	}
 }
 
@@ -96,7 +96,7 @@ test_aeps(void)
 		ret = cos_tcap_delegate(snd, BOOT_CAPTBL_SELF_INITTCAP_BASE, TEST_AEP_CYCS, TEST_AEP_PRIO, TCAP_DELEG_YIELD);
 		assert(ret == 0);
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycs));
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycs));
 	}
 
 	printc("Done.\n");
@@ -113,7 +113,7 @@ test_childcomps(void)
 		cycles_t cycs;
 		thdid_t  tid;
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycs));
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycs));
 		printc("\tSwitching to [%d] component\n", id);
 		if (id == CHILD_SCHED_ID) {
 			ret = cos_switch(child_defci[id].sched_aep.thd, child_defci[id].sched_aep.tc, CHILD_SCHED_PRIO, TCAP_TIME_NIL, 
@@ -226,7 +226,7 @@ cos_init(void)
 
 		/* TEST BLOCKING */
 		/* TODO: Challenge - how does a component know at runtime if can call cos_rcv or not? - It does not at runtime. */
-		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE);
+		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL);
 		printc("\tThis is a simple component\n");
 
 		SPIN();

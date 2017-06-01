@@ -34,7 +34,7 @@ struct invstk_entry {
  */
 struct rcvcap_info {
 	/* how many other arcv end-points send notifications to this one? */
-	int isbound, pending, refcnt;
+	int isbound, pending, refcnt, is_all_pending;
 	sched_tok_t sched_count;
 	struct tcap   *rcvcap_tcap;      /* This rcvcap's tcap */
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
@@ -170,6 +170,7 @@ thd_rcvcap_init(struct thread *t)
 	struct rcvcap_info *rc = &t->rcvcap;
 
 	rc->isbound = rc->pending = rc->refcnt = 0;
+	rc->is_all_pending = 0;
 	rc->sched_count = 0;
 	rc->rcvcap_thd_notif = NULL;
 }
@@ -191,6 +192,26 @@ thd_rcvcap_evt_dequeue(struct thread *head) { return list_dequeue(&head->event_h
  */
 static inline int
 thd_track_exec(struct thread *t) { return !list_empty(&t->event_list); }
+
+static void
+thd_rcvcap_all_pending_set(struct thread *t, int val)
+{ t->rcvcap.is_all_pending = val; }
+
+static int
+thd_rcvcap_all_pending_get(struct thread *t)
+{ return t->rcvcap.is_all_pending; }
+
+static int
+thd_rcvcap_all_pending(struct thread *t)
+{
+	int pending = t->rcvcap.pending;
+
+	/* receive all pending */
+	t->rcvcap.pending = 0;
+	thd_rcvcap_all_pending_set(t, 0);
+
+	return ((pending<<1) | (list_first(&t->event_head) != NULL));
+}
 
 static int
 thd_rcvcap_pending(struct thread *t)
@@ -444,6 +465,20 @@ thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_
 	memcpy(&curr->regs, regs, sizeof(struct pt_regs));
 }
 
+static inline void 
+thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs) {
+	unsigned long a = 0, b = 0;
+	int all_pending = thd_rcvcap_all_pending_get(thd);
+
+	thd_state_evt_deliver(thd, &a, &b);
+	if (all_pending) {
+		__userregs_setretvals(regs, thd_rcvcap_all_pending(thd), a, b);
+	} else {
+		thd_rcvcap_pending_dec(thd);
+		__userregs_setretvals(regs, thd_rcvcap_pending(thd), a, b);
+	}
+}
+
 static int
 thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 {
@@ -456,13 +491,9 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		thd->state &= ~THD_STATE_PREEMPTED;
 		preempt = 1;
 	} else if (thd->state & THD_STATE_RCVING) {
-		unsigned long a = 0, b = 0;
-
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state &= ~THD_STATE_RCVING;
-		thd_state_evt_deliver(thd, &a, &b);
-		thd_rcvcap_pending_dec(thd);
-		__userregs_setretvals(regs, thd_rcvcap_pending(thd), a, b);
+		thd_rcvcap_pending_deliver(thd, regs);
 	} else if (issame) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 	}

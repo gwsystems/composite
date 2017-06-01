@@ -55,7 +55,7 @@ scheduler(void)
 					      VM_BUDGET_FIXED, VM_PRIO_FIXED, TCAP_DELEG_YIELD)) assert(0);
 		}
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles)) ;
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycles)) ;
 	}
 }
 

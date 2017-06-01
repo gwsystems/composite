@@ -788,18 +788,22 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 	struct thread *next;
 	struct tcap   *tc_next   = tcap_current(cos_info);
 	struct next_thdinfo *nti = &cos_info->next_ti;
+	rcv_flags_t rflags       = __userregs_get1(regs);
 	tcap_time_t timeout      = TCAP_TIME_NIL;
+	int all_pending          = (!!(rflags & RCV_ALL_PENDING));
 
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
 
 	/* deliver pending notifications? */
 	if (thd_rcvcap_pending(thd)) {
-		unsigned long a = 0, b = 0;
-
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-		thd_state_evt_deliver(thd, &a, &b);
-		thd_rcvcap_pending_dec(thd);
-		__userregs_setretvals(regs, thd_rcvcap_pending(thd), a, b);
+		thd_rcvcap_all_pending_set(thd, all_pending);
+		thd_rcvcap_pending_deliver(thd, regs);
+
+		return 0;
+	} else if (rflags & RCV_NON_BLOCKING) {
+		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
+		__userregs_setretvals(regs, -EAGAIN, 0, 0);
 
 		return 0;
 	}
@@ -836,6 +840,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 	if (likely(thd != next)) {
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state |= THD_STATE_RCVING;
+		thd_rcvcap_all_pending_set(thd, all_pending);
 	}
 
 	return cap_switch(regs, thd, next, tc_next, timeout, ci, cos_info);

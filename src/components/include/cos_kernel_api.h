@@ -91,9 +91,9 @@ int cos_thd_mod(struct cos_compinfo *ci, thdcap_t c, void *tls_addr); /* set tls
 
 int cos_asnd(asndcap_t snd, int yield);
 /* returns non-zero if there are still pending events (i.e. there have been pending snds) */
-int cos_rcv(arcvcap_t rcv);
+int cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd);
 /* returns the same value as cos_rcv, but also information about scheduling events */
-int cos_sched_rcv(arcvcap_t rcv, thdid_t *thdid, int *blocked, cycles_t *cycles);
+int cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd, thdid_t *thdid, int *blocked, cycles_t *cycles);
 
 int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
 
