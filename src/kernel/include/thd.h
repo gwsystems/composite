@@ -194,7 +194,10 @@ thd_track_exec(struct thread *t) { return !list_empty(&t->event_list); }
 
 static int
 thd_rcvcap_pending(struct thread *t)
-{ return t->rcvcap.pending || list_first(&t->event_head) != NULL; }
+{
+	if (t->rcvcap.pending) return t->rcvcap.pending;
+	return list_first(&t->event_head) != NULL;
+}
 
 static sched_tok_t
 thd_rcvcap_get_counter(struct thread *t)
