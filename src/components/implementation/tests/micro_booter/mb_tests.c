@@ -55,7 +55,7 @@ test_thds(void)
 		assert(ts[i]);
 		tls_test[i] = i;
 		cos_thd_mod(&booter_info, ts[i], &tls_test[i]);
-		PRINTC("switchto %d @ %x\n", (int)ts[i], cos_introspect(&booter_info, ts[i], THD_GET_IP));
+		PRINTC("switchto %d\n", (int)ts[i]);
 		cos_thd_switch(ts[i]);
 	}
 
