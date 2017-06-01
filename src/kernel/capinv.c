@@ -545,18 +545,19 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap,
 
 static int
 cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_next, struct tcap *tc_curr, struct tcap *tc_next,
-           tcap_time_t timeout, struct comp_info *ci, struct cos_cpu_local_info *cos_info, int intr_context)
+           tcap_time_t timeout, struct comp_info *ci, struct cos_cpu_local_info *cos_info, int timer_intr_context)
 {
 	struct thread *thc, *thn;
 	struct tcap *tc, *tn;
 	cycles_t now;
-	int switch_away = 0;
+	int budget_expired = 0, switch_away = 0;
 
 	/* which tcap should we use?  is the current expended? */
 	if (tcap_budgets_update(cos_info, thd_curr, tc_curr, &now)) {
 		assert(!tcap_is_active(tc_curr) && tcap_expended(tc_curr));
 
-		if (intr_context) tc_next = thd_rcvcap_tcap(thd_next);
+		budget_expired = 1;
+		if (timer_intr_context) tc_next = thd_rcvcap_tcap(thd_next);
 
 		/* how about the scheduler's tcap? */
 		if (tcap_expended(tc_next)) {
@@ -570,16 +571,17 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		}
 	}
 
-	if (intr_context || switch_away) {
+	if (budget_expired) notify_parent(tcap_rcvcap_thd(tc_curr));
+	if (timer_intr_context || switch_away) {
 		thd_next = notify_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
-		if (thd_next == thd_curr && tc_next == tc_curr) return (intr_context ? 1 : 0);
+		if (thd_next == thd_curr && tc_next == tc_curr) return (timer_intr_context ? 1 : 0);
 	}
 
 	/* update tcaps, and timers */
 	tcap_timer_update(cos_info, tc_next, timeout, now);
 	tcap_current_set(cos_info, tc_next);
 
-	if (intr_context) {
+	if (timer_intr_context) {
 		/* update only tcap and return to curr thread */
 		if (thd_next == thd_curr) return 1;
 		thd_curr->state |= THD_STATE_PREEMPTED;
@@ -735,7 +737,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 }
 
 int
-expended_process(struct pt_regs *regs, struct thread *thd_curr, struct comp_info *ci, struct cos_cpu_local_info *cos_info, int intr_context)
+expended_process(struct pt_regs *regs, struct thread *thd_curr, struct comp_info *ci, struct cos_cpu_local_info *cos_info, int timer_intr_context)
 {
 	struct thread *thd_next;
 	struct tcap *tc_curr, *tc_next;
@@ -746,7 +748,7 @@ expended_process(struct pt_regs *regs, struct thread *thd_curr, struct comp_info
 	thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
 	assert(thd_next && thd_bound2rcvcap(thd_next) && thd_rcvcap_isreferenced(thd_next));
 
-	return cap_update(regs, thd_curr, thd_next, tc_curr, tc_next, TCAP_TIME_NIL, ci, cos_info, intr_context);
+	return cap_update(regs, thd_curr, thd_next, tc_curr, tc_next, TCAP_TIME_NIL, ci, cos_info, timer_intr_context);
 }
 
 /**
