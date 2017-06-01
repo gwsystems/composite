@@ -85,32 +85,48 @@ sl_cs_owner(void)
 { return sl__globals()->lock.u.s.owner == sl_thd_curr()->thdcap; }
 
 /* ...not part of the public API */
-void sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok);
+int sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok);
 int sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched_tok_t tok);
 
 /* Enter into the scheduler critical section */
-static inline void
-sl_cs_enter(void)
+static inline int
+sl_cs_enter_nospin(void)
 {
 	union sl_cs_intern csi, cached;
 	struct sl_thd     *t = sl_thd_curr();
 	sched_tok_t        tok;
 
 	assert(t);
-retry:
 	tok      = cos_sched_sync();
 	csi.v    = sl__globals()->lock.u.v;
 	cached.v = csi.v;
 
 	if (unlikely(csi.s.owner)) {
-		sl_cs_enter_contention(&csi, &cached, t->thdcap, tok);
-		goto retry;
+		return sl_cs_enter_contention(&csi, &cached, t->thdcap, tok);
 	}
 
 	csi.s.owner = t->thdcap;
-	if (!ps_cas(&sl__globals()->lock.u.v, cached.v, csi.v)) goto retry;
+	if (!ps_cas(&sl__globals()->lock.u.v, cached.v, csi.v)) return 1;
 
-	return;
+	return 0;
+}
+
+/* Enter into scheduler cs from a non-sched thread context */
+static inline void
+sl_cs_enter(void)
+{ while (sl_cs_enter_nospin()) ; }
+
+/* Enter into scheduler cs from scheduler thread context */
+static inline int
+sl_cs_enter_sched(void)
+{
+	int ret;
+
+	while ((ret = sl_cs_enter_nospin())) {
+		if (ret == -EBUSY) break;
+	}
+
+	return ret;
 }
 
 /*

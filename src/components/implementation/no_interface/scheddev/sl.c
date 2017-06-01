@@ -17,21 +17,24 @@ struct sl_global sl_global_data;
  * These functions are removed from the inlined fast-paths of the
  * critical section (cs) code to save on code size/locality
  */
-void
+int
 sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok)
 {
 	struct sl_thd *t           = sl_thd_curr();
 	struct sl_global *g        = sl__globals();
+	int ret;
 
 	/* recursive locks are not allowed */
 	assert(csi->s.owner != t->thdcap);
 	if (!csi->s.contention) {
 		csi->s.contention = 1;
-		if (!ps_cas(&g->lock.u.v, cached->v, csi->v)) return;
+		if (!ps_cas(&g->lock.u.v, cached->v, csi->v)) return 1;
 	}
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	cos_defswitch(csi->s.owner, t->prio, g->timeout_next, tok);
+	if ((ret = cos_defswitch(csi->s.owner, t->prio, g->timeout_next, tok))) return ret;
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
+
+	return 1;
 }
 
 /* Return 1 if we need a retry, 0 otherwise */
@@ -233,9 +236,7 @@ void
 sl_sched_loop(void)
 {
 	while (1) {
-		int pending;
-
-		sl_cs_enter();
+		int pending, ret;
 
 		do {
 			thdid_t        tid;
@@ -255,11 +256,16 @@ sl_sched_loop(void)
 			assert(t);
 			/* don't report the idle thread */
 			if (unlikely(t == sl__globals()->idle_thd)) continue;
+
+			if ((ret = sl_cs_enter_sched()) == -EBUSY) continue;
 			sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
 			if (blocked) sl_mod_block(sl_mod_thd_policy_get(t));
 			else         sl_mod_wakeup(sl_mod_thd_policy_get(t));
+
+			sl_cs_exit();
 		} while (pending);
 
+		if ((ret = sl_cs_enter_sched()) == -EBUSY) continue;
 		/* If switch returns an inconsistency, we retry anyway */
 		sl_cs_exit_schedule_nospin();
 	}
