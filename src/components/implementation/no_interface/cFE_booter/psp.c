@@ -3,6 +3,7 @@
 #include "cFE_util.h"
 
 #include "sl.h"
+#include "sl_consts.h"
 
 #include "gen/osapi.h"
 #include "gen/cfe_psp.h"
@@ -96,8 +97,8 @@ uint32 CFE_PSP_Get_Timer_Tick(void)
 
 uint32 CFE_PSP_GetTimerTicksPerSecond(void)
 {
-    // TODO: Check that cycles and ticks are the same here
-    return (uint32) sl__globals()->cyc_per_usec * 1000000;
+    // (usec / sec) / (usec / tick)
+    return 1000000 / SL_PERIOD_US;
 }
 
 /*

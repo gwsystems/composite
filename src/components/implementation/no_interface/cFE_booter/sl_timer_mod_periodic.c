@@ -5,10 +5,13 @@
 void
 sl_timeout_mod_expended(microsec_t now, microsec_t oldtimeout)
 {
+	cycles_t offset;
+
 	assert(now >= oldtimeout);
 
 	/* in virtual environments, or with very small periods, we might miss more than one period */
-	sl_timeout_oneshot(now + (now-oldtimeout) % sl_timeout_period_get());
+	offset = (now - oldtimeout) % sl_timeout_period_get();
+	sl_timeout_oneshot(now + sl_timeout_period_get() - offset);
 }
 
 void

@@ -2,6 +2,8 @@
 
 #include "cFE_util.h"
 
+#include "sl_consts.h"
+
 #include "gen/osapi.h"
 #include "gen/cfe_psp.h"
 #include "gen/common_types.h"
@@ -21,6 +23,8 @@ int32 OS_API_Init(void)
 
     cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
     cos_defcompinfo_init();
+    
+    return OS_SUCCESS;
 }
 
 /*
@@ -41,16 +45,12 @@ void OS_DeleteAllObjects(void)
 
 int32 OS_Milli2Ticks(uint32 milli_seconds)
 {
-    return (int32) (CFE_PSP_GetTimerTicksPerSecond() / 1000) * milli_seconds;
+    return (int32) (CFE_PSP_GetTimerTicksPerSecond() * milli_seconds) / 1000;
 }
 
 int32 OS_Tick2Micros(void)
 {
-    // TODO: Redo this using integer arithmetic
-    // seconds/tick = 1 / (tick / seconds)
-    double seconds_per_tick  = 1.0 / CFE_PSP_GetTimerTicksPerSecond();
-    // seconds / tick * microseconds / second = microseconds / tick
-    return (int32) seconds_per_tick * 1000000;
+    return SL_PERIOD_US;
 }
 
 // TODO: Fix this awful hack
