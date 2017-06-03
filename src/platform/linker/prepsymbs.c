@@ -25,7 +25,7 @@ inline void add_kexport(struct service_symbs *ss, const char *name)
         return;
 }
 
-/* 
+/*
  * Assume that these are added LAST.  The last NUM_KERN_SYMBS are
  * ignored for most purposes so they must be the actual kern_syms.
  *
@@ -100,7 +100,7 @@ int for_each_symb_type(bfd *obj, int symb_type, observer_t o, void *obs_data)
         number_of_symbols = bfd_canonicalize_symtab(obj, symbol_table);
 
         for (i = 0; i < number_of_symbols; i++) {
-                /* 
+                /*
                  * Invoke the observer if we are interested in a type,
                  * and the symbol is of that type where type is either
                  * undefined or exported, currently
@@ -243,7 +243,7 @@ struct service_symbs *alloc_service_symbs(char *obj)
 }
 
 
-/* 
+/*
  * Obtain the list of undefined and exported symbols for a collection
  * of services.
  *
@@ -262,9 +262,9 @@ struct service_symbs *prepare_service_symbs(char *services)
 	const char *init_delim = ",", *serv_delim = ";";
 	char *tok, *init_str;
 	int len;
-	
+
 	printl(PRINT_DEBUG, "Prepare the list of components.\n");
-	
+
 	tok = strtok(services, init_delim);
 	first = str = alloc_service_symbs(tok);
 	init_str = strtok(NULL, serv_delim);
@@ -276,7 +276,7 @@ struct service_symbs *prepare_service_symbs(char *services)
 	do {
 		if (obj_serialize_symbols(str->obj, EXPORTED_SYMB_TYPE, str) ||
 		    obj_serialize_symbols(str->obj, UNDEF_SYMB_TYPE, str)) {
-			printl(PRINT_DEBUG, "Could not operate on object %s: error.\n", tok);
+			printl(PRINT_DEBUG, "Could not open/operate on object %s: error.\n", tok);
 			return NULL;
 		}
 		add_kernel_exports(str);
@@ -292,6 +292,6 @@ struct service_symbs *prepare_service_symbs(char *services)
 			memcpy(str->init_str, init_str, len);
 		}
 	} while (tok);
-		
+
 	return first;
 }

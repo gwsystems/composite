@@ -1,7 +1,7 @@
 MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
-all: comps $(shell cat PLATFORM_ID)
+all: comps plat
 
 comps:
 	$(info )
@@ -11,21 +11,13 @@ comps:
 	$(info )
 	$(MAKE) $(MAKEFLAGS) -C components
 
-linux:
+plat:
 	$(info )
 	$(info ***********************************************)
-	$(info ***** Building Linux Platform and Kernel ******)
+	$(info ***** Building $(shell cat PLATFORM_ID) Platform and Kernel *******)
 	$(info ***********************************************)
 	$(info )
-	$(MAKE) $(MAKEFLAGS) PLATFORM=linux -C platform
-
-i386:
-	$(info )
-	$(info ***********************************************)
-	$(info ***** Building i386 Platform and Kernel *******)
-	$(info ***********************************************)
-	$(info )
-	$(MAKE) $(MAKEFLAGS) PLATFORM=i386 -C platform
+	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform
 
 cpplat:
 	$(MAKE) $(MAKEFLAGS) -C platform cp
