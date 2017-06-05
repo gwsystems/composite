@@ -8,13 +8,6 @@
 
 #include <cos_kernel_api.h>
 
-// TODO: sl_policy thread
-struct os_task {
-    int non_empty;
-    thdid_t thdid;
-    char name[OS_MAX_API_NAME];
-};
-struct os_task tasks[OS_MAX_TASKS];
 
 /*
 ** Internal Task helper functions
@@ -25,7 +18,6 @@ void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
     struct sl_thd* main_delegate_thread = sl_thd_alloc(main_delegate, NULL);
     union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = 1}};
     sl_thd_param_set(main_delegate_thread, sp.v);
-
 
     sl_sched_loop();
 }
@@ -44,11 +36,24 @@ int is_valid_name(const char* name) {
     return FALSE;
 }
 
+// TODO: Figure out how to check if names are taken
+int is_name_taken(const char* name) {
+    // for(int i = 0; i < num_tasks; i++) {
+    //     thdid_t task_id = task_ids[i];
+    //     struct sl_thd_policy* task = sl_mod_thd_policy_get(sl_thd_lkup(task_id));
+    //
+    //     if(strcmp(task->name, name) == 0) {
+    //         return TRUE;
+    //     }
+    // }
+    return FALSE;
+}
+
 /*
 ** Task API
 */
-// FIXME: Put all these within a critical section...
 
+// TODO: Implement flags
 int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
                     osal_task_entry function_pointer,
                     uint32 *stack_pointer,
@@ -66,38 +71,26 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
         return OS_ERR_NAME_TOO_LONG;
     }
 
+    if(is_name_taken(task_name)) {
+        return OS_ERR_NAME_TAKEN;
+    }
+
     if(priority > 255 || priority < 1) {
         return OS_ERR_INVALID_PRIORITY;
     }
-
-    int i;
-    int selected_task_id = -1;
-    for(i = 0; i < OS_MAX_TASKS; i++) {
-        if(tasks[i].non_empty) {
-            if(strcmp(tasks[i].name, task_name) == 0) {
-                return OS_ERR_NAME_TAKEN;
-            }
-        }else if(selected_task_id == -1){
-            selected_task_id = i;
-        }
-    }
-    if(selected_task_id == -1) {
-        return OS_ERR_NO_FREE_IDS;
-    }
-
 
     struct sl_thd* thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
     union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = priority}};
     sl_thd_param_set(thd, sp.v);
 
+    struct sl_thd_policy* policy = sl_mod_thd_policy_get(thd);
+    strcpy(policy->osal_task_prop.name, task_name);
+    policy->osal_task_prop.creator = OS_TaskGetId();
+    policy->osal_task_prop.stack_size = stack_size;
+    policy->osal_task_prop.priority = priority;
+    policy->osal_task_prop.OStask_id = (uint32) thd->thdid;
 
-    tasks[selected_task_id] = (struct os_task) {
-        .non_empty = TRUE,
-        .thdid = thd->thdid
-    };
-    strcpy(tasks[selected_task_id].name, task_name);
-
-    *task_id = selected_task_id;
+    *task_id = (uint32) thd->thdid;
 
     sl_cs_exit();
 
@@ -108,17 +101,18 @@ int32 OS_TaskDelete(uint32 task_id)
 {
     sl_cs_enter();
 
-    if(task_id > OS_MAX_TASKS || !tasks[task_id].non_empty) {
+    struct sl_thd* thd = sl_thd_lkup(task_id);
+    if(!thd) {
         return OS_ERR_INVALID_ID;
     }
 
-    int delete_id = tasks[task_id].thdid;
-    tasks[task_id].non_empty = FALSE;
+    struct sl_thd_policy* thd_policy =  sl_mod_thd_policy_get(thd);
 
-    struct sl_thd* thd = sl_thd_lkup(delete_id);
-    if(!thd) {
-        return OS_ERROR;
+    osal_task_entry delete_handler = thd_policy->delete_handler;
+    if(delete_handler) {
+        delete_handler();
     }
+
     sl_thd_free(thd);
 
     sl_cs_exit();
@@ -128,23 +122,11 @@ int32 OS_TaskDelete(uint32 task_id)
 
 uint32 OS_TaskGetId(void)
 {
-    sl_cs_enter();
-
     struct sl_thd* thd = sl_thd_curr();
-    thdid_t t = thd->thdid;
-    int i;
-    for(i = 0; i < OS_MAX_TASKS; i++) {
-        if(tasks[i].thdid == t) {
-            sl_cs_exit();
-            return i;
-        }
+    if(!thd) {
+        PANIC("Could not get the current thread!");
     }
-
-    sl_cs_exit();
-
-
-    PANIC("Broken invariant, should be unreacheable!");
-    return 0;
+    return thd->thdid;
 }
 
 void OS_TaskExit(void)
@@ -154,35 +136,27 @@ void OS_TaskExit(void)
     PANIC("Broken invariant, should be unreacheable!");
 }
 
-int32 OS_TaskInstallDeleteHandler(osal_task_entry function_pointer){
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+int32 OS_TaskInstallDeleteHandler(osal_task_entry function_pointer)
+{
+    sl_mod_thd_policy_get(sl_thd_lkup(OS_TaskGetId()))->delete_handler = function_pointer;
+    return OS_SUCCESS;
 }
 
 int32 OS_TaskDelay(uint32 millisecond)
 {
     // TODO: Use Phanis extension
-    // Meanwhile: Busy loop yielding
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    cycles_t start_time = sl_now();
+
+    while(sl_cyc2usec(sl_now() - start_time) / 1000 < millisecond)  {
+        sl_thd_yield(0);
+    }
+    return OS_SUCCESS;
 }
 
 int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
 {
-    sl_cs_enter();
-
-    if(task_id > OS_MAX_TASKS || !tasks[task_id].non_empty) {
-        return OS_ERR_INVALID_ID;
-    }
-
-    if(new_priority < 1 || new_priority > 255) {
-        return OS_ERR_INVALID_PRIORITY;
-    }
-
     union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = new_priority}};
-    sl_thd_param_set(sl_thd_lkup(tasks[task_id].thdid), sp.v);
-
-    sl_cs_exit();
+    sl_thd_param_set(sl_thd_lkup(task_id), sp.v);
 
     return OS_SUCCESS;
 }
@@ -196,33 +170,15 @@ int32 OS_TaskRegister(void)
 
 int32 OS_TaskGetIdByName(uint32 *task_id, const char *task_name)
 {
-    sl_cs_enter();
-
-    if(!task_name) {
-        return OS_INVALID_POINTER;
-    }
-
-    if(!is_valid_name(task_name)) {
-        return OS_ERR_NAME_TOO_LONG;
-    }
-
-    int i;
-    for(i = 0; i < OS_MAX_TASKS; i++) {
-        if(tasks[i].non_empty && strcmp(tasks[i].name, task_name) == 0) {
-            *task_id = i;
-            return OS_SUCCESS;
-        }
-    }
-
-    sl_cs_exit();
-
-    return OS_ERR_NAME_NOT_FOUND;
+    PANIC("Unimplemented method!"); // TODO: Implement me!
+    return 0;
 }
 
 int32 OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    // TODO: Consider moving this sequence of calls to a helper function
+    *task_prop = sl_mod_thd_policy_get(sl_thd_lkup(OS_TaskGetId()))->osal_task_prop;
+    return OS_SUCCESS;
 }
 
 /*
@@ -343,6 +299,8 @@ int32 OS_BinSemGetInfo(uint32 sem_id, OS_bin_sem_prop_t *bin_prop)
     PANIC("Unimplemented method!"); // TODO: Implement me!
     return 0;
 }
+
+
 
 int32 OS_CountSemCreate(uint32 *sem_id, const char *sem_name,
                         uint32 sem_initial_value, uint32 options)
