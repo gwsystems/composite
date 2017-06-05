@@ -210,14 +210,14 @@ thd_rcvcap_all_pending(struct thread *t)
 	t->rcvcap.pending = 0;
 	thd_rcvcap_all_pending_set(t, 0);
 
-	return ((pending<<1) | (list_first(&t->event_head) != NULL));
+	return ((pending << 1) | !list_isempty(&t->event_head));
 }
 
 static int
 thd_rcvcap_pending(struct thread *t)
 {
 	if (t->rcvcap.pending) return t->rcvcap.pending;
-	return list_first(&t->event_head) != NULL;
+	return !list_isempty(&t->event_head);;
 }
 
 static sched_tok_t
@@ -479,7 +479,7 @@ thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs) {
 	}
 }
 
-static int
+static inline int
 thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 {
 	int preempt = 0;
@@ -506,7 +506,7 @@ thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 {
 	switch(op) {
 	case THD_GET_TID: *retval = t->tid; break;
-	default: return -EINVAL;
+	default:          return -EINVAL;
 	}
 	return 0;
 }

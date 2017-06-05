@@ -574,7 +574,7 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 	if (budget_expired) notify_parent(tcap_rcvcap_thd(tc_curr));
 	if (timer_intr_context || switch_away) {
 		thd_next = notify_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
-		if (thd_next == thd_curr && tc_next == tc_curr) return (timer_intr_context ? 1 : 0);
+		if (thd_next == thd_curr && tc_next == tc_curr) return timer_intr_context;
 	}
 
 	/* update tcaps, and timers */

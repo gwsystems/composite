@@ -274,7 +274,7 @@ tcap_introspect(struct tcap *t, unsigned long op, unsigned long *retval)
 {
 	switch(op) {
 	case TCAP_GET_BUDGET: *retval = t->budget.cycles; break;
-	default: return -EINVAL;
+	default:              return -EINVAL;
 	}
 	return 0;
 }

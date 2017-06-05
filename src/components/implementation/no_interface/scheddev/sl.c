@@ -236,7 +236,7 @@ void
 sl_sched_loop(void)
 {
 	while (1) {
-		int pending, ret;
+		int pending;
 
 		do {
 			thdid_t        tid;
@@ -258,7 +258,14 @@ sl_sched_loop(void)
 			/* don't report the idle thread */
 			if (unlikely(t == sl__globals()->idle_thd)) continue;
 
-			if ((ret = sl_cs_enter_sched()) == -EBUSY) continue;
+			/*
+			 * receiving scheduler notifications is not in critical section mainly for 
+			 * 1. scheduler thread can often be blocked in rcv, which can add to 
+			 *    interrupt execution or even AEP thread execution overheads.
+			 * 2. scheduler events are not acting on the sl_thd or the policy structures, so
+			 *    having finer grained locks around the code that modifies sl_thd states is better.
+			 */
+			if (sl_cs_enter_sched()) continue;
 			sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
 			if (blocked) sl_mod_block(sl_mod_thd_policy_get(t));
 			else         sl_mod_wakeup(sl_mod_thd_policy_get(t));
@@ -266,7 +273,7 @@ sl_sched_loop(void)
 			sl_cs_exit();
 		} while (pending);
 
-		if ((ret = sl_cs_enter_sched()) == -EBUSY) continue;
+		if (sl_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
 		sl_cs_exit_schedule_nospin();
 	}
