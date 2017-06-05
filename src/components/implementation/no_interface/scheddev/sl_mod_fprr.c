@@ -1,6 +1,6 @@
 #include <sl.h>
 #include <sl_consts.h>
-#include <sl_policy.h>
+#include <sl_mod_policy.h>
 #include <sl_plugins.h>
 
 #define SL_FPRR_NPRIOS  32

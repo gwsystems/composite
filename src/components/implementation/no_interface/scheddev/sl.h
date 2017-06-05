@@ -85,32 +85,70 @@ sl_cs_owner(void)
 { return sl__globals()->lock.u.s.owner == sl_thd_curr()->thdcap; }
 
 /* ...not part of the public API */
-void sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok);
+/*
+ * @csi: current critical section value
+ * @cached: a cached copy of @csi
+ * @curr: currently executing thread
+ * @tok: scheduler synchronization token for cos_defswitch
+ *
+ * @ret:
+ *     (Caller of this function should retry for a non-zero return value.)
+ *     1 for cas failure or after successful thread switch to thread that owns the lock.
+ *     -ve from cos_defswitch failure, allowing caller for ex: the scheduler thread to 
+ *     check if it was -EBUSY to first recieve pending notifications before retrying lock.
+ */
+int sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok);
+/*
+ * @csi: current critical section value
+ * @cached: a cached copy of @csi
+ * @tok: scheduler synchronization token for cos_defswitch
+ *
+ * @ret: returns 1 if we need a retry, 0 otherwise
+ */
 int sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched_tok_t tok);
 
 /* Enter into the scheduler critical section */
-static inline void
-sl_cs_enter(void)
+static inline int
+sl_cs_enter_nospin(void)
 {
 	union sl_cs_intern csi, cached;
 	struct sl_thd     *t = sl_thd_curr();
 	sched_tok_t        tok;
 
 	assert(t);
-retry:
 	tok      = cos_sched_sync();
 	csi.v    = sl__globals()->lock.u.v;
 	cached.v = csi.v;
 
 	if (unlikely(csi.s.owner)) {
-		sl_cs_enter_contention(&csi, &cached, t->thdcap, tok);
-		goto retry;
+		return sl_cs_enter_contention(&csi, &cached, t->thdcap, tok);
 	}
 
 	csi.s.owner = t->thdcap;
-	if (!ps_cas(&sl__globals()->lock.u.v, cached.v, csi.v)) goto retry;
+	if (!ps_cas(&sl__globals()->lock.u.v, cached.v, csi.v)) return 1;
 
-	return;
+	return 0;
+}
+
+/* Enter into scheduler cs from a non-sched thread context */
+static inline void
+sl_cs_enter(void)
+{ while (sl_cs_enter_nospin()) ; }
+
+/*
+ * Enter into scheduler cs from scheduler thread context
+ * @ret: returns -EBUSY if sched thread has events to process and cannot switch threads, 0 otherwise.
+ */
+static inline int
+sl_cs_enter_sched(void)
+{
+	int ret;
+
+	while ((ret = sl_cs_enter_nospin())) {
+		if (ret == -EBUSY) break;
+	}
+
+	return ret;
 }
 
 /*
