@@ -178,9 +178,10 @@ BaseType_t xPortRaisePrivilege( void ) __attribute__(( naked ));
 /*
  * Standard FreeRTOS exception handlers.
  */
-void xPortPendSVHandler( void ) __attribute__ (( naked )) PRIVILEGED_FUNCTION;
-void xPortSysTickHandler( void )  __attribute__ ((optimize("3"))) PRIVILEGED_FUNCTION;
-void vPortSVCHandler( void ) __attribute__ (( naked )) PRIVILEGED_FUNCTION;
+/* COSMOD:remove attributes - they cause faults */
+void xPortPendSVHandler( void ) /*__attribute__ (( naked ))*/ PRIVILEGED_FUNCTION;
+void xPortSysTickHandler( void ) /* __attribute__ ((optimize("3"))) */ PRIVILEGED_FUNCTION;
+void vPortSVCHandler( void ) /* __attribute__ (( naked )) */ PRIVILEGED_FUNCTION;
 
 /*
  * Starts the scheduler by restoring the context of the first task to run.
@@ -247,88 +248,88 @@ StackType_t *pxPortInitialiseStack( StackType_t *pxTopOfStack, TaskFunction_t px
 }
 /*-----------------------------------------------------------*/
 
-void __attribute__((weak)) vPortSVCHandler( void )
-{
-	/* Assumes psp was in use. */
-	__asm volatile
-	(
-		#ifndef USE_PROCESS_STACK	/* Code should not be required if a main() is using the process stack. */
-			"	tst lr, #4						\n"
-			"	ite eq							\n"
-			"	mrseq r0, msp					\n"
-			"	mrsne r0, psp					\n"
-		#else
-			"	mrs r0, psp						\n"
-		#endif
-			"	b %0							\n"
-			::"i"(prvSVCHandler):"r0"
-	);
-}
+//void __attribute__((weak)) vPortSVCHandler( void )
+//{
+//	/* Assumes psp was in use. */
+//	__asm volatile
+//	(
+//		#ifndef USE_PROCESS_STACK	/* Code should not be required if a main() is using the process stack. */
+//			"	tst lr, #4						\n"
+//			"	ite eq							\n"
+//			"	mrseq r0, msp					\n"
+//			"	mrsne r0, psp					\n"
+//		#else
+//			"	mrs r0, psp						\n"
+//		#endif
+//			"	b %0							\n"
+//			::"i"(prvSVCHandler):"r0"
+//	);
+//}
 /*-----------------------------------------------------------*/
 
-static void prvSVCHandler(	uint32_t *pulParam )
-{
-uint8_t ucSVCNumber;
-
-	/* The stack contains: r0, r1, r2, r3, r12, r14, the return address and
-	xPSR.  The first argument (r0) is pulParam[ 0 ]. */
-	ucSVCNumber = ( ( uint8_t * ) pulParam[ portOFFSET_TO_PC ] )[ -2 ];
-	switch( ucSVCNumber )
-	{
-		case portSVC_START_SCHEDULER	:	portNVIC_SYSPRI1_REG |= portNVIC_SVC_PRI;
-											prvRestoreContextOfFirstTask();
-											break;
-
-		case portSVC_YIELD				:	portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;
-											/* Barriers are normally not required
-											but do ensure the code is completely
-											within the specified behaviour for the
-											architecture. */
-											__asm volatile( "dsb" );
-											__asm volatile( "isb" );
-
-											break;
-
-		case portSVC_RAISE_PRIVILEGE	:	__asm volatile
-											(
-												"	mrs r1, control		\n" /* Obtain current control value. */
-												"	bic r1, #1			\n" /* Set privilege bit. */
-												"	msr control, r1		\n" /* Write back new control value. */
-												:::"r1"
-											);
-											break;
-
-		default							:	/* Unknown SVC call. */
-											break;
-	}
-}
+//static void prvSVCHandler(	uint32_t *pulParam )
+//{
+//uint8_t ucSVCNumber;
+//
+//	/* The stack contains: r0, r1, r2, r3, r12, r14, the return address and
+//	xPSR.  The first argument (r0) is pulParam[ 0 ]. */
+//	ucSVCNumber = ( ( uint8_t * ) pulParam[ portOFFSET_TO_PC ] )[ -2 ];
+//	switch( ucSVCNumber )
+//	{
+//		case portSVC_START_SCHEDULER	:	portNVIC_SYSPRI1_REG |= portNVIC_SVC_PRI;
+//											prvRestoreContextOfFirstTask();
+//											break;
+//
+//		case portSVC_YIELD				:	portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;
+//											/* Barriers are normally not required
+//											but do ensure the code is completely
+//											within the specified behaviour for the
+//											architecture. */
+//											__asm volatile( "dsb" );
+//											__asm volatile( "isb" );
+//
+//											break;
+//
+//		case portSVC_RAISE_PRIVILEGE	:	__asm volatile
+//											(
+//												"	mrs r1, control		\n" /* Obtain current control value. */
+//												"	bic r1, #1			\n" /* Set privilege bit. */
+//												"	msr control, r1		\n" /* Write back new control value. */
+//												:::"r1"
+//											);
+//											break;
+//
+//		default							:	/* Unknown SVC call. */
+//											break;
+//	}
+//}
 /*-----------------------------------------------------------*/
 
 static void prvRestoreContextOfFirstTask( void )
 {
-	__asm volatile
-	(
-		"	ldr r0, =0xE000ED08				\n" /* Use the NVIC offset register to locate the stack. */
-		"	ldr r0, [r0]					\n"
-		"	ldr r0, [r0]					\n"
-		"	msr msp, r0						\n" /* Set the msp back to the start of the stack. */
-		"	ldr	r3, pxCurrentTCBConst2		\n" /* Restore the context. */
-		"	ldr r1, [r3]					\n"
-		"	ldr r0, [r1]					\n" /* The first item in the TCB is the task top of stack. */
-		"	add r1, r1, #4					\n" /* Move onto the second item in the TCB... */
-		"	ldr r2, =0xe000ed9c				\n" /* Region Base Address register. */
-		"	ldmia r1!, {r4-r11}				\n" /* Read 4 sets of MPU registers. */
-		"	stmia r2!, {r4-r11}				\n" /* Write 4 sets of MPU registers. */
-		"	ldmia r0!, {r3-r11, r14}		\n" /* Pop the registers that are not automatically saved on exception entry. */
-		"	msr control, r3					\n"
-		"	msr psp, r0						\n" /* Restore the task stack pointer. */
-		"	mov r0, #0						\n"
-		"	msr	basepri, r0					\n"
-		"	bx r14							\n"
-		"									\n"
-		"	.align 4						\n"
-		"pxCurrentTCBConst2: .word pxCurrentTCB	\n"
-	);
+//	__asm volatile
+//	(
+//		"	ldr r0, =0xE000ED08				\n" /* Use the NVIC offset register to locate the stack. */
+//		"	ldr r0, [r0]					\n"
+//		"	ldr r0, [r0]					\n"
+//		"	msr msp, r0						\n" /* Set the msp back to the start of the stack. */
+//		"	ldr	r3, pxCurrentTCBConst2		\n" /* Restore the context. */
+//		"	ldr r1, [r3]					\n"
+//		"	ldr r0, [r1]					\n" /* The first item in the TCB is the task top of stack. */
+//		"	add r1, r1, #4					\n" /* Move onto the second item in the TCB... */
+//		"	ldr r2, =0xe000ed9c				\n" /* Region Base Address register. */
+//		"	ldmia r1!, {r4-r11}				\n" /* Read 4 sets of MPU registers. */
+//		"	stmia r2!, {r4-r11}				\n" /* Write 4 sets of MPU registers. */
+//		"	ldmia r0!, {r3-r11, r14}		\n" /* Pop the registers that are not automatically saved on exception entry. */
+//		"	msr control, r3					\n"
+//		"	msr psp, r0						\n" /* Restore the task stack pointer. */
+//		"	mov r0, #0						\n"
+//		"	msr	basepri, r0					\n"
+//		"	bx r14							\n"
+//		"									\n"
+//		"	.align 4						\n"
+//		"pxCurrentTCBConst2: .word pxCurrentTCB	\n"
+//	);
 }
 /*-----------------------------------------------------------*/
 
@@ -336,7 +337,42 @@ static void prvRestoreContextOfFirstTask( void )
  * See header file for description.
  */
 /* COSMOD */
-extern int cur_tcb_thdid(void);
+extern int
+cur_tcb_thdid(void);
+
+int cos_ctx_switch=0;
+cycles_t systick_sim;
+void
+start_first_task(void)
+{
+	/* COSMOD: If we are back here, it means that our time budget have been expended */
+	thdcap_t tc;
+	cycles_t c = 0, p = 0;
+	cycles_t cyc_per_usec;
+
+	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+
+	while(1)
+	{
+		thdid_t     tid;
+		int         blocked;
+		cycles_t    cycles, now;
+		tcap_time_t timer;
+
+		/* Transfer some resources to this tcap */
+		rdtscll(systick_sim);
+		systick_sim+=1000*cyc_per_usec;
+		timer = tcap_cyc2time(systick_sim);
+		cos_switch(cur_tcb_thdid(), BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+
+		/* We have switched back. timer interrupt */
+		xPortSysTickHandler();
+
+		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
+	}
+}
+
 BaseType_t xPortStartScheduler( void )
 {
 	/* configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to 0.  See
@@ -387,31 +423,33 @@ BaseType_t xPortStartScheduler( void )
 	}
 	#endif /* conifgASSERT_DEFINED */
 
-	/* Make PendSV and SysTick the same priority as the kernel, and the SVC
-	handler higher priority so it can be used to exit a critical section (where
-	lower priorities are masked). */
-	portNVIC_SYSPRI2_REG |= portNVIC_PENDSV_PRI;
-	portNVIC_SYSPRI2_REG |= portNVIC_SYSTICK_PRI;
+	/* COSMOD: do not set these priorities. These are monitored by composite */
+//	/* Make PendSV and SysTick the same priority as the kernel, and the SVC
+//	handler higher priority so it can be used to exit a critical section (where
+//	lower priorities are masked). */
+//	portNVIC_SYSPRI2_REG |= portNVIC_PENDSV_PRI;
+//	portNVIC_SYSPRI2_REG |= portNVIC_SYSTICK_PRI;
 
-	/* Configure the regions in the MPU that are common to all tasks. */
-	prvSetupMPU();
+	/* COSMOD:running without MPU */
+//	/* Configure the regions in the MPU that are common to all tasks. */
+//	prvSetupMPU();
 
-	/* Start the timer that generates the tick ISR.  Interrupts are disabled
-	here already. */
-	prvSetupTimerInterrupt();
+	/* COSMOD:does not allow frt to operate hw directly */
+//	/* Start the timer that generates the tick ISR.  Interrupts are disabled
+//	here already. */
+//	prvSetupTimerInterrupt();
 
 	/* Initialise the critical nesting count ready for the first task. */
 	uxCriticalNesting = 0;
 
-	/* Ensure the VFP is enabled - it should be anyway. */
-	vPortEnableVFP();
-
-	/* Lazy save always. */
-	*( portFPCCR ) |= portASPEN_AND_LSPEN_BITS;
+//	/* Ensure the VFP is enabled - it should be anyway. */
+//	vPortEnableVFP();
+//
+//	/* Lazy save always. */
+//	*( portFPCCR ) |= portASPEN_AND_LSPEN_BITS;
 
 	/* Start the first task. */
-	/* COSMOD:Use cos_dispatch to dispatch to the task that we created. Simple switch. */
-	cos_thd_switch(cur_tcb_thdid());
+	start_first_task();
 
 //	__asm volatile(
 //					" ldr r0, =0xE000ED08 	\n" /* Use the NVIC offset register to locate the stack. */
@@ -438,34 +476,35 @@ void vPortEndScheduler( void )
 	configASSERT( uxCriticalNesting == 1000UL );
 }
 /*-----------------------------------------------------------*/
-
+/* COSMOD:empty function */
 void vPortEnterCritical( void )
 {
-BaseType_t xRunningPrivileged = xPortRaisePrivilege();
-
-	portDISABLE_INTERRUPTS();
-	uxCriticalNesting++;
-
-	vPortResetPrivilege( xRunningPrivileged );
+//BaseType_t xRunningPrivileged = xPortRaisePrivilege();
+//
+//	portDISABLE_INTERRUPTS();
+//	uxCriticalNesting++;
+//
+//	vPortResetPrivilege( xRunningPrivileged );
 }
 /*-----------------------------------------------------------*/
-
+/* COSMOD:empty function */
 void vPortExitCritical( void )
 {
-BaseType_t xRunningPrivileged = xPortRaisePrivilege();
-
-	configASSERT( uxCriticalNesting );
-	uxCriticalNesting--;
-	if( uxCriticalNesting == 0 )
-	{
-		portENABLE_INTERRUPTS();
-	}
-	vPortResetPrivilege( xRunningPrivileged );
+//BaseType_t xRunningPrivileged = xPortRaisePrivilege();
+//
+//	configASSERT( uxCriticalNesting );
+//	uxCriticalNesting--;
+//	if( uxCriticalNesting == 0 )
+//	{
+//		portENABLE_INTERRUPTS();
+//	}
+//	vPortResetPrivilege( xRunningPrivileged );
 }
 /*-----------------------------------------------------------*/
-
+cycles_t cur_time;
 void xPortPendSVHandler( void )
 {
+	tcap_time_t timer;
 	/* This is a naked function. */
 	/* COSMOD: pendsv to be replaced by a cos thread switch */
 	/* Get the location of current TCB */
@@ -474,9 +513,17 @@ void xPortPendSVHandler( void )
 
 	/* Pick the next task to run */
 	vTaskSwitchContext();
-	/* COSMOD:Use cos_dispatch to dispatch to the task that we created. Simple switch. */
-	cos_thd_switch(cur_tcb_thdid());
+	/* COSMOD:Use cos_dispatch to dispatch to the task that we created.
+	 * can't use this simple switch, because we need to take care of tcaps. */
+	rdtscll(cur_time);
 
+	if((systick_sim-cur_time)<4096)
+		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	else
+	{
+		timer = tcap_cyc2time(systick_sim);
+		cos_switch(cur_tcb_thdid(), BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+	}
 	/* Restore all the registers, and the top of the stack */
 	/* Is the task using FPU or other co-processors? If so, restore their context */
 
@@ -528,21 +575,42 @@ void xPortPendSVHandler( void )
 }
 /*-----------------------------------------------------------*/
 
+/* COSMOD:call this from a interrupt. We may need a asnd endpoint in the timer interrupt, and arcv in one of
+ * the thread that actually monitors this. We will create one thread for this, sure. But what about tcaps?
+ * we just delegate tcaps to this subsystem, and all that happens in this subsystem is xxx. */
+/* We start the thread of test with tcaps. after some time, we go back, and xxx */
 void __attribute__((weak)) xPortSysTickHandler( void )
 {
-uint32_t ulDummy;
+	/* we do not need to raise this silly thing */
+//uint32_t ulDummy;
 
-	ulDummy = portSET_INTERRUPT_MASK_FROM_ISR();
-	{
-		/* Increment the RTOS tick. */
+	//ulDummy = portSET_INTERRUPT_MASK_FROM_ISR();
+	//{
+		/* Increment the RTOS tick */
 		if( xTaskIncrementTick() != pdFALSE )
 		{
-			/* Pend a context switch. */
-			portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;
+			/* We do a context switch with tcaps associated */
+			vTaskSwitchContext();
 		}
-	}
-	portCLEAR_INTERRUPT_MASK_FROM_ISR( ulDummy );
+	//}
+	//portCLEAR_INTERRUPT_MASK_FROM_ISR( ulDummy );
 }
+
+//void __attribute__((weak)) xPortSysTickHandler( void )
+//{
+//uint32_t ulDummy;
+//
+//	ulDummy = portSET_INTERRUPT_MASK_FROM_ISR();
+//	{
+//		/* Increment the RTOS tick. */
+//		if( xTaskIncrementTick() != pdFALSE )
+//		{
+//			/* Pend a context switch. */
+//			portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;
+//		}
+//	}
+//	portCLEAR_INTERRUPT_MASK_FROM_ISR( ulDummy );
+//}
 /*-----------------------------------------------------------*/
 
 /*
@@ -551,87 +619,88 @@ uint32_t ulDummy;
  */
 static void prvSetupTimerInterrupt( void )
 {
-	/* Configure SysTick to interrupt at the requested rate. */
-	portNVIC_SYSTICK_LOAD_REG = ( configCPU_CLOCK_HZ / configTICK_RATE_HZ ) - 1UL;
-	portNVIC_SYSTICK_CTRL_REG = portNVIC_SYSTICK_CLK | portNVIC_SYSTICK_INT | portNVIC_SYSTICK_ENABLE;
+	/* COSMOD:does not allow hw operations */
+//	/* Configure SysTick to interrupt at the requested rate. */
+//	portNVIC_SYSTICK_LOAD_REG = ( configCPU_CLOCK_HZ / configTICK_RATE_HZ ) - 1UL;
+//	portNVIC_SYSTICK_CTRL_REG = portNVIC_SYSTICK_CLK | portNVIC_SYSTICK_INT | portNVIC_SYSTICK_ENABLE;
 }
 /*-----------------------------------------------------------*/
 
 /* This is a naked function. */
 static void vPortEnableVFP( void )
 {
-	__asm volatile
-	(
-		"	ldr.w r0, =0xE000ED88		\n" /* The FPU enable bits are in the CPACR. */
-		"	ldr r1, [r0]				\n"
-		"								\n"
-		"	orr r1, r1, #( 0xf << 20 )	\n" /* Enable CP10 and CP11 coprocessors, then save back. */
-		"	str r1, [r0]				\n"
-		"	bx r14						"
-	);
+//	__asm volatile
+//	(
+//		"	ldr.w r0, =0xE000ED88		\n" /* The FPU enable bits are in the CPACR. */
+//		"	ldr r1, [r0]				\n"
+//		"								\n"
+//		"	orr r1, r1, #( 0xf << 20 )	\n" /* Enable CP10 and CP11 coprocessors, then save back. */
+//		"	str r1, [r0]				\n"
+//		"	bx r14						"
+//	);
 }
 /*-----------------------------------------------------------*/
-
+/* COSMOD:without MPU */
 static void prvSetupMPU( void )
 {
-extern uint32_t __privileged_functions_end__[];
-extern uint32_t __FLASH_segment_start__[];
-extern uint32_t __FLASH_segment_end__[];
-extern uint32_t __privileged_data_start__[];
-extern uint32_t __privileged_data_end__[];
-
-	/* Check the expected MPU is present. */
-	if( portMPU_TYPE_REG == portEXPECTED_MPU_TYPE_VALUE )
-	{
-		/* First setup the entire flash for unprivileged read only access. */
-		portMPU_REGION_BASE_ADDRESS_REG =	( ( uint32_t ) __FLASH_segment_start__ ) | /* Base address. */
-											( portMPU_REGION_VALID ) |
-											( portUNPRIVILEGED_FLASH_REGION );
-
-		portMPU_REGION_ATTRIBUTE_REG =	( portMPU_REGION_READ_ONLY ) |
-										( portMPU_REGION_CACHEABLE_BUFFERABLE ) |
-										( prvGetMPURegionSizeSetting( ( uint32_t ) __FLASH_segment_end__ - ( uint32_t ) __FLASH_segment_start__ ) ) |
-										( portMPU_REGION_ENABLE );
-
-		/* Setup the first 16K for privileged only access (even though less
-		than 10K is actually being used).  This is where the kernel code is
-		placed. */
-		portMPU_REGION_BASE_ADDRESS_REG =	( ( uint32_t ) __FLASH_segment_start__ ) | /* Base address. */
-											( portMPU_REGION_VALID ) |
-											( portPRIVILEGED_FLASH_REGION );
-
-		portMPU_REGION_ATTRIBUTE_REG =	( portMPU_REGION_PRIVILEGED_READ_ONLY ) |
-										( portMPU_REGION_CACHEABLE_BUFFERABLE ) |
-										( prvGetMPURegionSizeSetting( ( uint32_t ) __privileged_functions_end__ - ( uint32_t ) __FLASH_segment_start__ ) ) |
-										( portMPU_REGION_ENABLE );
-
-		/* Setup the privileged data RAM region.  This is where the kernel data
-		is placed. */
-		portMPU_REGION_BASE_ADDRESS_REG =	( ( uint32_t ) __privileged_data_start__ ) | /* Base address. */
-											( portMPU_REGION_VALID ) |
-											( portPRIVILEGED_RAM_REGION );
-
-		portMPU_REGION_ATTRIBUTE_REG =	( portMPU_REGION_PRIVILEGED_READ_WRITE ) |
-										( portMPU_REGION_CACHEABLE_BUFFERABLE ) |
-										prvGetMPURegionSizeSetting( ( uint32_t ) __privileged_data_end__ - ( uint32_t ) __privileged_data_start__ ) |
-										( portMPU_REGION_ENABLE );
-
-		/* By default allow everything to access the general peripherals.  The
-		system peripherals and registers are protected. */
-		portMPU_REGION_BASE_ADDRESS_REG =	( portPERIPHERALS_START_ADDRESS ) |
-											( portMPU_REGION_VALID ) |
-											( portGENERAL_PERIPHERALS_REGION );
-
-		portMPU_REGION_ATTRIBUTE_REG =	( portMPU_REGION_READ_WRITE | portMPU_REGION_EXECUTE_NEVER ) |
-										( prvGetMPURegionSizeSetting( portPERIPHERALS_END_ADDRESS - portPERIPHERALS_START_ADDRESS ) ) |
-										( portMPU_REGION_ENABLE );
-
-		/* Enable the memory fault exception. */
-		portNVIC_SYS_CTRL_STATE_REG |= portNVIC_MEM_FAULT_ENABLE;
-
-		/* Enable the MPU with the background region configured. */
-		portMPU_CTRL_REG |= ( portMPU_ENABLE | portMPU_BACKGROUND_ENABLE );
-	}
+//extern uint32_t __privileged_functions_end__[];
+//extern uint32_t __FLASH_segment_start__[];
+//extern uint32_t __FLASH_segment_end__[];
+//extern uint32_t __privileged_data_start__[];
+//extern uint32_t __privileged_data_end__[];
+//
+//	/* Check the expected MPU is present. */
+//	if( portMPU_TYPE_REG == portEXPECTED_MPU_TYPE_VALUE )
+//	{
+//		/* First setup the entire flash for unprivileged read only access. */
+//		portMPU_REGION_BASE_ADDRESS_REG =	( ( uint32_t ) __FLASH_segment_start__ ) | /* Base address. */
+//											( portMPU_REGION_VALID ) |
+//											( portUNPRIVILEGED_FLASH_REGION );
+//
+//		portMPU_REGION_ATTRIBUTE_REG =	( portMPU_REGION_READ_ONLY ) |
+//										( portMPU_REGION_CACHEABLE_BUFFERABLE ) |
+//										( prvGetMPURegionSizeSetting( ( uint32_t ) __FLASH_segment_end__ - ( uint32_t ) __FLASH_segment_start__ ) ) |
+//										( portMPU_REGION_ENABLE );
+//
+//		/* Setup the first 16K for privileged only access (even though less
+//		than 10K is actually being used).  This is where the kernel code is
+//		placed. */
+//		portMPU_REGION_BASE_ADDRESS_REG =	( ( uint32_t ) __FLASH_segment_start__ ) | /* Base address. */
+//											( portMPU_REGION_VALID ) |
+//											( portPRIVILEGED_FLASH_REGION );
+//
+//		portMPU_REGION_ATTRIBUTE_REG =	( portMPU_REGION_PRIVILEGED_READ_ONLY ) |
+//										( portMPU_REGION_CACHEABLE_BUFFERABLE ) |
+//										( prvGetMPURegionSizeSetting( ( uint32_t ) __privileged_functions_end__ - ( uint32_t ) __FLASH_segment_start__ ) ) |
+//										( portMPU_REGION_ENABLE );
+//
+//		/* Setup the privileged data RAM region.  This is where the kernel data
+//		is placed. */
+//		portMPU_REGION_BASE_ADDRESS_REG =	( ( uint32_t ) __privileged_data_start__ ) | /* Base address. */
+//											( portMPU_REGION_VALID ) |
+//											( portPRIVILEGED_RAM_REGION );
+//
+//		portMPU_REGION_ATTRIBUTE_REG =	( portMPU_REGION_PRIVILEGED_READ_WRITE ) |
+//										( portMPU_REGION_CACHEABLE_BUFFERABLE ) |
+//										prvGetMPURegionSizeSetting( ( uint32_t ) __privileged_data_end__ - ( uint32_t ) __privileged_data_start__ ) |
+//										( portMPU_REGION_ENABLE );
+//
+//		/* By default allow everything to access the general peripherals.  The
+//		system peripherals and registers are protected. */
+//		portMPU_REGION_BASE_ADDRESS_REG =	( portPERIPHERALS_START_ADDRESS ) |
+//											( portMPU_REGION_VALID ) |
+//											( portGENERAL_PERIPHERALS_REGION );
+//
+//		portMPU_REGION_ATTRIBUTE_REG =	( portMPU_REGION_READ_WRITE | portMPU_REGION_EXECUTE_NEVER ) |
+//										( prvGetMPURegionSizeSetting( portPERIPHERALS_END_ADDRESS - portPERIPHERALS_START_ADDRESS ) ) |
+//										( portMPU_REGION_ENABLE );
+//
+//		/* Enable the memory fault exception. */
+//		portNVIC_SYS_CTRL_STATE_REG |= portNVIC_MEM_FAULT_ENABLE;
+//
+//		/* Enable the MPU with the background region configured. */
+//		portMPU_CTRL_REG |= ( portMPU_ENABLE | portMPU_BACKGROUND_ENABLE );
+//	}
 }
 /*-----------------------------------------------------------*/
 
@@ -678,100 +747,100 @@ BaseType_t xPortRaisePrivilege( void )
 //	return 0;
 }
 /*-----------------------------------------------------------*/
-
+/* COSMOD: without MPU */
 void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xMPUSettings, const struct xMEMORY_REGION * const xRegions, StackType_t *pxBottomOfStack, uint32_t ulStackDepth )
 {
-extern uint32_t __SRAM_segment_start__[];
-extern uint32_t __SRAM_segment_end__[];
-extern uint32_t __privileged_data_start__[];
-extern uint32_t __privileged_data_end__[];
-int32_t lIndex;
-uint32_t ul;
-
-	if( xRegions == NULL )
-	{
-		/* No MPU regions are specified so allow access to all RAM. */
-		xMPUSettings->xRegion[ 0 ].ulRegionBaseAddress =
-				( ( uint32_t ) __SRAM_segment_start__ ) | /* Base address. */
-				( portMPU_REGION_VALID ) |
-				( portSTACK_REGION );
-
-		xMPUSettings->xRegion[ 0 ].ulRegionAttribute =
-				( portMPU_REGION_READ_WRITE ) |
-				( portMPU_REGION_CACHEABLE_BUFFERABLE ) |
-				( prvGetMPURegionSizeSetting( ( uint32_t ) __SRAM_segment_end__ - ( uint32_t ) __SRAM_segment_start__ ) ) |
-				( portMPU_REGION_ENABLE );
-
-		/* Re-instate the privileged only RAM region as xRegion[ 0 ] will have
-		just removed the privileged only parameters. */
-		xMPUSettings->xRegion[ 1 ].ulRegionBaseAddress =
-				( ( uint32_t ) __privileged_data_start__ ) | /* Base address. */
-				( portMPU_REGION_VALID ) |
-				( portSTACK_REGION + 1 );
-
-		xMPUSettings->xRegion[ 1 ].ulRegionAttribute =
-				( portMPU_REGION_PRIVILEGED_READ_WRITE ) |
-				( portMPU_REGION_CACHEABLE_BUFFERABLE ) |
-				prvGetMPURegionSizeSetting( ( uint32_t ) __privileged_data_end__ - ( uint32_t ) __privileged_data_start__ ) |
-				( portMPU_REGION_ENABLE );
-
-		/* Invalidate all other regions. */
-		for( ul = 2; ul <= portNUM_CONFIGURABLE_REGIONS; ul++ )
-		{
-			xMPUSettings->xRegion[ ul ].ulRegionBaseAddress = ( portSTACK_REGION + ul ) | portMPU_REGION_VALID;
-			xMPUSettings->xRegion[ ul ].ulRegionAttribute = 0UL;
-		}
-	}
-	else
-	{
-		/* This function is called automatically when the task is created - in
-		which case the stack region parameters will be valid.  At all other
-		times the stack parameters will not be valid and it is assumed that the
-		stack region has already been configured. */
-		if( ulStackDepth > 0 )
-		{
-			/* Define the region that allows access to the stack. */
-			xMPUSettings->xRegion[ 0 ].ulRegionBaseAddress =
-					( ( uint32_t ) pxBottomOfStack ) |
-					( portMPU_REGION_VALID ) |
-					( portSTACK_REGION ); /* Region number. */
-
-			xMPUSettings->xRegion[ 0 ].ulRegionAttribute =
-					( portMPU_REGION_READ_WRITE ) | /* Read and write. */
-					( prvGetMPURegionSizeSetting( ulStackDepth * ( uint32_t ) sizeof( StackType_t ) ) ) |
-					( portMPU_REGION_CACHEABLE_BUFFERABLE ) |
-					( portMPU_REGION_ENABLE );
-		}
-
-		lIndex = 0;
-
-		for( ul = 1; ul <= portNUM_CONFIGURABLE_REGIONS; ul++ )
-		{
-			if( ( xRegions[ lIndex ] ).ulLengthInBytes > 0UL )
-			{
-				/* Translate the generic region definition contained in
-				xRegions into the CM3 specific MPU settings that are then
-				stored in xMPUSettings. */
-				xMPUSettings->xRegion[ ul ].ulRegionBaseAddress =
-						( ( uint32_t ) xRegions[ lIndex ].pvBaseAddress ) |
-						( portMPU_REGION_VALID ) |
-						( portSTACK_REGION + ul ); /* Region number. */
-
-				xMPUSettings->xRegion[ ul ].ulRegionAttribute =
-						( prvGetMPURegionSizeSetting( xRegions[ lIndex ].ulLengthInBytes ) ) |
-						( xRegions[ lIndex ].ulParameters ) |
-						( portMPU_REGION_ENABLE );
-			}
-			else
-			{
-				/* Invalidate the region. */
-				xMPUSettings->xRegion[ ul ].ulRegionBaseAddress = ( portSTACK_REGION + ul ) | portMPU_REGION_VALID;
-				xMPUSettings->xRegion[ ul ].ulRegionAttribute = 0UL;
-			}
-
-			lIndex++;
-		}
-	}
+//extern uint32_t __SRAM_segment_start__[];
+//extern uint32_t __SRAM_segment_end__[];
+//extern uint32_t __privileged_data_start__[];
+//extern uint32_t __privileged_data_end__[];
+//int32_t lIndex;
+//uint32_t ul;
+//
+//	if( xRegions == NULL )
+//	{
+//		/* No MPU regions are specified so allow access to all RAM. */
+//		xMPUSettings->xRegion[ 0 ].ulRegionBaseAddress =
+//				( ( uint32_t ) __SRAM_segment_start__ ) | /* Base address. */
+//				( portMPU_REGION_VALID ) |
+//				( portSTACK_REGION );
+//
+//		xMPUSettings->xRegion[ 0 ].ulRegionAttribute =
+//				( portMPU_REGION_READ_WRITE ) |
+//				( portMPU_REGION_CACHEABLE_BUFFERABLE ) |
+//				( prvGetMPURegionSizeSetting( ( uint32_t ) __SRAM_segment_end__ - ( uint32_t ) __SRAM_segment_start__ ) ) |
+//				( portMPU_REGION_ENABLE );
+//
+//		/* Re-instate the privileged only RAM region as xRegion[ 0 ] will have
+//		just removed the privileged only parameters. */
+//		xMPUSettings->xRegion[ 1 ].ulRegionBaseAddress =
+//				( ( uint32_t ) __privileged_data_start__ ) | /* Base address. */
+//				( portMPU_REGION_VALID ) |
+//				( portSTACK_REGION + 1 );
+//
+//		xMPUSettings->xRegion[ 1 ].ulRegionAttribute =
+//				( portMPU_REGION_PRIVILEGED_READ_WRITE ) |
+//				( portMPU_REGION_CACHEABLE_BUFFERABLE ) |
+//				prvGetMPURegionSizeSetting( ( uint32_t ) __privileged_data_end__ - ( uint32_t ) __privileged_data_start__ ) |
+//				( portMPU_REGION_ENABLE );
+//
+//		/* Invalidate all other regions. */
+//		for( ul = 2; ul <= portNUM_CONFIGURABLE_REGIONS; ul++ )
+//		{
+//			xMPUSettings->xRegion[ ul ].ulRegionBaseAddress = ( portSTACK_REGION + ul ) | portMPU_REGION_VALID;
+//			xMPUSettings->xRegion[ ul ].ulRegionAttribute = 0UL;
+//		}
+//	}
+//	else
+//	{
+//		/* This function is called automatically when the task is created - in
+//		which case the stack region parameters will be valid.  At all other
+//		times the stack parameters will not be valid and it is assumed that the
+//		stack region has already been configured. */
+//		if( ulStackDepth > 0 )
+//		{
+//			/* Define the region that allows access to the stack. */
+//			xMPUSettings->xRegion[ 0 ].ulRegionBaseAddress =
+//					( ( uint32_t ) pxBottomOfStack ) |
+//					( portMPU_REGION_VALID ) |
+//					( portSTACK_REGION ); /* Region number. */
+//
+//			xMPUSettings->xRegion[ 0 ].ulRegionAttribute =
+//					( portMPU_REGION_READ_WRITE ) | /* Read and write. */
+//					( prvGetMPURegionSizeSetting( ulStackDepth * ( uint32_t ) sizeof( StackType_t ) ) ) |
+//					( portMPU_REGION_CACHEABLE_BUFFERABLE ) |
+//					( portMPU_REGION_ENABLE );
+//		}
+//
+//		lIndex = 0;
+//
+//		for( ul = 1; ul <= portNUM_CONFIGURABLE_REGIONS; ul++ )
+//		{
+//			if( ( xRegions[ lIndex ] ).ulLengthInBytes > 0UL )
+//			{
+//				/* Translate the generic region definition contained in
+//				xRegions into the CM3 specific MPU settings that are then
+//				stored in xMPUSettings. */
+//				xMPUSettings->xRegion[ ul ].ulRegionBaseAddress =
+//						( ( uint32_t ) xRegions[ lIndex ].pvBaseAddress ) |
+//						( portMPU_REGION_VALID ) |
+//						( portSTACK_REGION + ul ); /* Region number. */
+//
+//				xMPUSettings->xRegion[ ul ].ulRegionAttribute =
+//						( prvGetMPURegionSizeSetting( xRegions[ lIndex ].ulLengthInBytes ) ) |
+//						( xRegions[ lIndex ].ulParameters ) |
+//						( portMPU_REGION_ENABLE );
+//			}
+//			else
+//			{
+//				/* Invalidate the region. */
+//				xMPUSettings->xRegion[ ul ].ulRegionBaseAddress = ( portSTACK_REGION + ul ) | portMPU_REGION_VALID;
+//				xMPUSettings->xRegion[ ul ].ulRegionAttribute = 0UL;
+//			}
+//
+//			lIndex++;
+//		}
+//	}
 }
 /*-----------------------------------------------------------*/
 
