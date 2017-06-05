@@ -72,7 +72,7 @@ main(int argc, char *argv[])
 	 * after that invocation
 	 */
 	if (!strstr(argv[1], delim)) {
-		printl(PRINT_HIGH, "No %s separating the component list from the dependencies\n", delim);
+		printl(PRINT_HIGH, "No %s separating the component list from the dependencies in %s\n", delim, argv[1]);
 		return 1;
 	}
 
