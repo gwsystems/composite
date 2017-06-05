@@ -2,6 +2,7 @@
 
 #include "cFE_util.h"
 
+#include "sl.h"
 #include "sl_consts.h"
 
 #include "gen/osapi.h"
@@ -23,7 +24,7 @@ int32 OS_API_Init(void)
 
     cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
     cos_defcompinfo_init();
-    
+
     return OS_SUCCESS;
 }
 
@@ -53,12 +54,45 @@ int32 OS_Tick2Micros(void)
     return SL_PERIOD_US;
 }
 
-// TODO: Fix this awful hack
 OS_time_t local_time;
+cycles_t old_cycle_count;
+
+OS_time_t OS_AdvanceTime(OS_time_t initial_time, microsec_t usec) {
+    microsec_t old_seconds = (microsec_t) initial_time.seconds;
+    microsec_t old_additional_usec = (microsec_t) initial_time.microsecs;
+
+    microsec_t old_usec = old_seconds * (1000 * 1000) + old_additional_usec;
+    microsec_t new_usec = old_usec + usec;
+
+    microsec_t new_seconds = new_usec / (1000 * 1000);
+    microsec_t new_additional_usec = new_usec % (1000 * 1000);
+
+    return (OS_time_t) {
+        .seconds = new_seconds,
+        .microsecs = new_additional_usec
+    };
+}
 
 int32 OS_GetLocalTime(OS_time_t *time_struct)
 {
+    if(old_cycle_count == 0) {
+        local_time = (OS_time_t) {
+            .seconds = 1181683060,
+            .microsecs = 0
+        };
+        old_cycle_count = sl_now();
+    } else {
+        cycles_t new_cycle_count = sl_now();
+        cycles_t elapsed_cycles = new_cycle_count - old_cycle_count;
+
+        microsec_t elapsed_usec = sl_cyc2usec(elapsed_cycles);
+
+        local_time = OS_AdvanceTime(local_time, elapsed_usec);
+        old_cycle_count = new_cycle_count;
+    }
+
     *time_struct = local_time;
+
     return OS_SUCCESS;
 
 }/* end OS_GetLocalTime */
@@ -66,6 +100,8 @@ int32 OS_GetLocalTime(OS_time_t *time_struct)
 int32 OS_SetLocalTime(OS_time_t *time_struct)
 {
     local_time = *time_struct;
+    old_cycle_count = sl_now();
+
     return OS_SUCCESS;
 } /*end OS_SetLocalTime */
 

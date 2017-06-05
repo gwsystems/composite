@@ -186,7 +186,7 @@ char RESET_AREA[RESET_AREA_SIZE];
 
 int32 CFE_PSP_GetResetArea (cpuaddr *PtrToResetArea, uint32 *SizeOfResetArea)
 {
-    *PtrToResetArea = RESET_AREA;
+    *PtrToResetArea = (cpuaddr) RESET_AREA;
     *SizeOfResetArea = RESET_AREA_SIZE;
     return OS_SUCCESS;
 }
