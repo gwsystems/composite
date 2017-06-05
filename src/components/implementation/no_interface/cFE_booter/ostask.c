@@ -211,34 +211,164 @@ void OS_ApplicationShutdown(uint8 flag)
 ** Mutex API
 */
 
+struct mutex {
+    uint32 used;
+
+    uint32 held;
+    thdid_t holder;
+    char name[OS_MAX_API_NAME];
+};
+
+struct mutex mutexes[OS_MAX_BIN_SEMAPHORES];
+
+
 int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    int32 result = OS_SUCCESS;
+
+    sl_cs_enter();
+
+    if(sem_id == NULL || sem_name == NULL) {
+        result = OS_INVALID_POINTER;
+        goto exit;
+    }
+
+    if(!is_valid_name(sem_name)) {
+        result = OS_ERR_NAME_TOO_LONG;
+        goto exit;
+    }
+
+    int id;
+    for(id = 0; id < OS_MAX_MUTEXES; id++) {
+        if(!mutexes[id].used) {
+            break;
+        }
+    }
+    if(mutexes[id].used) {
+        result = OS_ERR_NO_FREE_IDS;
+        goto exit;
+    }
+
+    mutexes[id].used = TRUE;
+    mutexes[id].held = FALSE;
+    strcpy(mutexes[id].name, sem_name);
+
+exit:
+    sl_cs_exit();
+    return result;
 }
 
 int32 OS_MutSemGive(uint32 sem_id)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    int32 result = OS_SUCCESS;
+
+    sl_cs_enter();
+
+    if (sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    if (!mutexes[sem_id].held || mutexes[sem_id].holder != sl_thd_curr()->thdid) {
+        result = OS_SEM_FAILURE;
+        goto exit;
+    }
+
+    mutexes[sem_id].held = FALSE;
+
+exit:
+    sl_cs_exit();
+
+    return result;
 }
 
 int32 OS_MutSemTake(uint32 sem_id)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    int32 result = OS_SUCCESS;
+
+    sl_cs_enter();
+
+    if (sem_id >= OS_MAX_MUTEXES) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    while (mutexes[sem_id].held && mutexes[sem_id].used) {
+        int holder = mutexes[sem_id].holder;
+
+        /*
+         * If we are preempted after the exit, and the holder is no longer holding
+         * the critical section, then we will yield to them and possibly waste a
+         * time-slice.  This will be fixed the next iteration, as we will see an
+         * updated value of the holder, but we essentially lose a timeslice in the
+         * worst case.  From a real-time perspective, this is bad, but we're erring
+         * on simplicity here.
+         */
+        sl_cs_exit();
+        sl_thd_yield(holder);
+        sl_cs_enter();
+    }
+
+    if(!mutexes[sem_id].used) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    mutexes[sem_id].held   = TRUE;
+    mutexes[sem_id].holder = sl_thd_curr()->thdid;
+
+exit:
+    sl_cs_exit();
+
+    return result;
 }
 
 int32 OS_MutSemDelete(uint32 sem_id)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    int32 result = OS_SUCCESS;
+    sl_cs_enter();
+
+    if(sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    if(mutexes[sem_id].held) {
+        result = OS_SEM_FAILURE;
+        goto exit;
+    }
+
+    mutexes[sem_id].used = FALSE;
+
+    exit:
+    sl_cs_exit();
+
+    return result;
 }
 
 int32 OS_MutSemGetIdByName(uint32 *sem_id, const char *sem_name)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+
+    if(sem_id == NULL || sem_name == NULL) {
+        return OS_INVALID_POINTER;
+    }
+
+    if(strlen(sem_name) >= OS_MAX_API_NAME) {
+        return OS_ERR_NAME_TOO_LONG;
+    }
+
+    int i;
+    for(i = 0; i < OS_MAX_MUTEXES; i++) {
+        if (mutexes[i].used && (strcmp (mutexes[i].name, (char*) sem_name) == 0)) {
+            *sem_id = i;
+            return OS_SUCCESS;
+        }
+    }
+
+    /* The name was not found in the table,
+     *  or it was, and the sem_id isn't valid anymore */
+
+    return OS_ERR_NAME_NOT_FOUND;
 }
 
 int32 OS_MutSemGetInfo(uint32 sem_id, OS_mut_sem_prop_t *mut_prop)
