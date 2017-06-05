@@ -95,4 +95,9 @@ static inline void *
 list_first(struct list *h)
 { return list_next(&h->l); }
 
+/* is list empty */
+static inline int
+list_isempty(struct list *h)
+{ return list_first(h) == NULL; }
+
 #endif	/* LIST_H */

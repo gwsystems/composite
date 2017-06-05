@@ -59,6 +59,11 @@ typedef enum {
 	TCAP_DELEG_YIELD    = 1<<1,
 } tcap_deleg_flags_t;
 
+typedef enum {
+	RCV_NON_BLOCKING = 1,
+	RCV_ALL_PENDING  = 1<<1,
+} rcv_flags_t;
+
 #define BOOT_LIVENESS_ID_BASE 2
 
 typedef enum {
@@ -251,6 +256,11 @@ enum {
 enum {
 	/* thread id */
 	THD_GET_TID,
+};
+
+enum {
+	/* tcap budget */
+	TCAP_GET_BUDGET,
 };
 
 typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */

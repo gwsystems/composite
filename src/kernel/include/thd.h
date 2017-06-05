@@ -12,6 +12,7 @@
 #include "cap_ops.h"
 #include "fpu_regs.h"
 #include "chal/cpuid.h"
+#include "chal/call_convention.h"
 #include "pgtbl.h"
 #include "retype_tbl.h"
 #include "tcap.h"
@@ -33,7 +34,7 @@ struct invstk_entry {
  */
 struct rcvcap_info {
 	/* how many other arcv end-points send notifications to this one? */
-	int isbound, pending, refcnt;
+	int isbound, pending, refcnt, is_all_pending;
 	sched_tok_t sched_count;
 	struct tcap   *rcvcap_tcap;      /* This rcvcap's tcap */
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
@@ -42,7 +43,6 @@ struct rcvcap_info {
 typedef enum {
 	THD_STATE_PREEMPTED   = 1,
 	THD_STATE_RCVING      = 1<<1, /* report to parent rcvcap that we're receiving */
-	THD_STATE_SUSPENDED   = 1<<2,
 } thd_state_t;
 
 /**
@@ -170,6 +170,7 @@ thd_rcvcap_init(struct thread *t)
 	struct rcvcap_info *rc = &t->rcvcap;
 
 	rc->isbound = rc->pending = rc->refcnt = 0;
+	rc->is_all_pending = 0;
 	rc->sched_count = 0;
 	rc->rcvcap_thd_notif = NULL;
 }
@@ -192,9 +193,32 @@ thd_rcvcap_evt_dequeue(struct thread *head) { return list_dequeue(&head->event_h
 static inline int
 thd_track_exec(struct thread *t) { return !list_empty(&t->event_list); }
 
+static void
+thd_rcvcap_all_pending_set(struct thread *t, int val)
+{ t->rcvcap.is_all_pending = val; }
+
+static int
+thd_rcvcap_all_pending_get(struct thread *t)
+{ return t->rcvcap.is_all_pending; }
+
+static int
+thd_rcvcap_all_pending(struct thread *t)
+{
+	int pending = t->rcvcap.pending;
+
+	/* receive all pending */
+	t->rcvcap.pending = 0;
+	thd_rcvcap_all_pending_set(t, 0);
+
+	return ((pending << 1) | !list_isempty(&t->event_head));
+}
+
 static int
 thd_rcvcap_pending(struct thread *t)
-{ return t->rcvcap.pending || list_first(&t->event_head) != NULL; }
+{
+	if (t->rcvcap.pending) return t->rcvcap.pending;
+	return !list_isempty(&t->event_head);;
+}
 
 static sched_tok_t
 thd_rcvcap_get_counter(struct thread *t)
@@ -441,12 +465,48 @@ thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_
 	memcpy(&curr->regs, regs, sizeof(struct pt_regs));
 }
 
+static inline void 
+thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs) {
+	unsigned long a = 0, b = 0;
+	int all_pending = thd_rcvcap_all_pending_get(thd);
+
+	thd_state_evt_deliver(thd, &a, &b);
+	if (all_pending) {
+		__userregs_setretvals(regs, thd_rcvcap_all_pending(thd), a, b);
+	} else {
+		thd_rcvcap_pending_dec(thd);
+		__userregs_setretvals(regs, thd_rcvcap_pending(thd), a, b);
+	}
+}
+
+static inline int
+thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
+{
+	int preempt = 0;
+
+	/* TODO: check FPU */
+	/* fpu_save(thd); */
+	if (thd->state & THD_STATE_PREEMPTED) {
+		assert(!(thd->state & THD_STATE_RCVING));
+		thd->state &= ~THD_STATE_PREEMPTED;
+		preempt = 1;
+	} else if (thd->state & THD_STATE_RCVING) {
+		assert(!(thd->state & THD_STATE_PREEMPTED));
+		thd->state &= ~THD_STATE_RCVING;
+		thd_rcvcap_pending_deliver(thd, regs);
+	} else if (issame) {
+		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
+	}
+
+	return preempt;
+}
+
 static inline int
 thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 {
 	switch(op) {
 	case THD_GET_TID: *retval = t->tid; break;
-	default: return -EINVAL;
+	default:          return -EINVAL;
 	}
 	return 0;
 }
