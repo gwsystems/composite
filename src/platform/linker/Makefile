@@ -7,6 +7,7 @@ LDFLAGS=-m elf_i386
 PRODUCTS=cos_linker gen_client_stub
 
 default: $(PRODUCTS)
+	@echo
 
 %.o: %.c
 	@$(CC) $(CFLAGS) -I$(CDIR)/include/ -c -o $@ $^

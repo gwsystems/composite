@@ -1,5 +1,5 @@
-#ifndef SL_POLICY_H
-#define SL_POLICY_H
+#ifndef SL_MOD_POLICY_H
+#define SL_MOD_POLICY_H
 
 #include <sl_thd.h>
 #include <ps_list.h>
@@ -20,4 +20,4 @@ static inline struct sl_thd_policy *
 sl_mod_thd_policy_get(struct sl_thd *t)
 { return ps_container(t, struct sl_thd_policy, thd); }
 
-#endif /* SL_POLICY_H */
+#endif /* SL_MOD_POLICY_H */

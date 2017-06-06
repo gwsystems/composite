@@ -186,7 +186,7 @@ char RESET_AREA[RESET_AREA_SIZE];
 
 int32 CFE_PSP_GetResetArea (cpuaddr *PtrToResetArea, uint32 *SizeOfResetArea)
 {
-    *PtrToResetArea = RESET_AREA;
+    *PtrToResetArea = (cpuaddr) RESET_AREA;
     *SizeOfResetArea = RESET_AREA_SIZE;
     return OS_SUCCESS;
 }
@@ -329,7 +329,8 @@ int32 CFE_PSP_Decompress( char * srcFileName, char * dstFileName)
 
 void CFE_PSP_AttachExceptions(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    // For now it is safe for this to do nothing
+    // TODO: Actually implement exception handling
 }
 /*
 ** CFE_PSP_AttachExceptions will setup the exception environment for the chosen platform

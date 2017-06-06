@@ -1,8 +1,11 @@
-#ifndef SL_POLICY_H
-#define SL_POLICY_H
+#ifndef SL_MOD_POLICY_H
+#define SL_MOD_POLICY_H
 
 #include <sl_thd.h>
 #include <ps_list.h>
+
+#include "gen/osapi.h"
+#include "gen/common_types.h"
 
 struct sl_thd_policy {
 	struct sl_thd  thd;
@@ -10,6 +13,10 @@ struct sl_thd_policy {
 	microsec_t     period_usec;
 	cycles_t       period;
 	struct ps_list list;
+
+	// cFE specific fields
+	OS_task_prop_t osal_task_prop;
+	osal_task_entry delete_handler;
 };
 
 static inline struct sl_thd *
@@ -20,4 +27,4 @@ static inline struct sl_thd_policy *
 sl_mod_thd_policy_get(struct sl_thd *t)
 { return ps_container(t, struct sl_thd_policy, thd); }
 
-#endif /* SL_POLICY_H */
+#endif /* SL_MOD_POLICY_H */

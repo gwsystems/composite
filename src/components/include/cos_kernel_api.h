@@ -79,14 +79,21 @@ int cos_thd_switch(thdcap_t c);
 int cos_thd_wakeup(thdcap_t thd, tcap_t tc, tcap_prio_t prio, tcap_res_t res);
 #define CAP_NULL 0
 sched_tok_t cos_sched_sync(void);
+/*
+ * returns 0 on success and errno on failure:
+ * -EBUSY: if rcv has pending notifications and if current thread is the thread associated with rcv.
+ * -EAGAIN: if stok is outdated
+ * -EPERM: if tcap is not active (has no budget left)
+ * -EINVAL: any other error
+ */
 int cos_switch(thdcap_t c, tcap_t t, tcap_prio_t p, tcap_time_t r, arcvcap_t rcv, sched_tok_t stok);
 int cos_thd_mod(struct cos_compinfo *ci, thdcap_t c, void *tls_addr); /* set tls addr of thd in captbl */
 
 int cos_asnd(asndcap_t snd, int yield);
 /* returns non-zero if there are still pending events (i.e. there have been pending snds) */
-int cos_rcv(arcvcap_t rcv);
+int cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd);
 /* returns the same value as cos_rcv, but also information about scheduling events */
-int cos_sched_rcv(arcvcap_t rcv, thdid_t *thdid, int *blocked, cycles_t *cycles);
+int cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd, thdid_t *thdid, int *blocked, cycles_t *cycles);
 
 int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
 
@@ -100,7 +107,17 @@ int cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
 
 /* Tcap operations */
 tcap_t cos_tcap_alloc(struct cos_compinfo *ci);
+/*
+ * returns 0 on success and errno on failure:
+ * -EPERM: if src tcap is not active (has no budget left)
+ * -EINVAL: any other error
+ */
 int cos_tcap_transfer(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio);
+/*
+ * returns 0 on success and errno on failure:
+ * -EPERM: if src tcap is not active (has no budget left)
+ * -EINVAL: any other error
+ */
 int cos_tcap_delegate(asndcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags);
 int cos_tcap_merge(tcap_t dst, tcap_t rm);
 

@@ -269,4 +269,14 @@ fixup:
 	return ret;
 }
 
+static inline int
+tcap_introspect(struct tcap *t, unsigned long op, unsigned long *retval)
+{
+	switch(op) {
+	case TCAP_GET_BUDGET: *retval = t->budget.cycles; break;
+	default:              return -EINVAL;
+	}
+	return 0;
+}
+
 #endif	/* TCAP_H */
