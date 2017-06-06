@@ -23,7 +23,7 @@ int32 OS_API_Init(void)
 
     cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
     cos_defcompinfo_init();
-    
+
     return OS_SUCCESS;
 }
 
@@ -324,6 +324,17 @@ void OS_printf(const char *string, ...)
     }
 }
 
+void OS_sprintf(char *str, const char *format, ...)
+{
+    if(is_printf_enabled) {
+        va_list arg_ptr;
+        int ret, len = OS_BUFFER_SIZE;
+
+        va_start(arg_ptr, format);
+        ret = vsprintf(str, format, arg_ptr);
+        va_end(arg_ptr);
+    }
+}
 
 void OS_printf_disable(void)
 {
