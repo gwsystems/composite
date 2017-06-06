@@ -414,6 +414,7 @@ struct semaphore {
     int used;
 
     uint32 count;
+    int epoch;
     uint32 creator;
     char name[OS_MAX_API_NAME];
 };
@@ -462,6 +463,26 @@ exit:
     return result;
 }
 
+int32 OS_SemaphoreFlush(struct semaphore* semaphores, uint32 max_semaphores, uint32 sem_id)
+{
+
+    int32 result = OS_SUCCESS;
+
+    sl_cs_enter();
+
+    if (sem_id >= max_semaphores || !semaphores[sem_id].used) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    semaphores[sem_id].epoch += 1;
+
+exit:
+    sl_cs_exit();
+    return result;
+}
+
+
 int32 OS_SemaphoreGive(struct semaphore* semaphores, uint32 max_semaphores, uint32 sem_id)
 {
     int32 result = OS_SUCCESS;
@@ -493,7 +514,12 @@ int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint
         goto exit;
     }
 
+    int starting_epoch = semaphores[sem_id].epoch;
+
     while (semaphores[sem_id].used && semaphores[sem_id].count == 0) {
+        if(semaphores[sem_id].epoch != starting_epoch) {
+            goto exit;
+        }
         sl_cs_exit();
         // FIXME: Do an actually sensible yield here!
         sl_thd_yield(0);
@@ -623,8 +649,7 @@ int32 OS_BinSemCreate(uint32 *sem_id, const char *sem_name,
 
 int32 OS_BinSemFlush(uint32 sem_id)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreFlush(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id);
 }
 
 int32 OS_BinSemGive(uint32 sem_id)
