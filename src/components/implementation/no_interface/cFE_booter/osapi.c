@@ -362,7 +362,6 @@ void OS_sprintf(char *str, const char *format, ...)
 {
     if(is_printf_enabled) {
         va_list arg_ptr;
-        int ret, len = OS_BUFFER_SIZE;
 
         va_start(arg_ptr, format);
         ret = vsprintf(str, format, arg_ptr);
