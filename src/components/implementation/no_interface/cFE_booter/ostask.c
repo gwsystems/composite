@@ -99,12 +99,21 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
 
 int32 OS_TaskDelete(uint32 task_id)
 {
+    int32 result = OS_SUCCESS;
+
     sl_cs_enter();
+
+    if (task_id >= OS_MAX_TASKS) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
 
     struct sl_thd* thd = sl_thd_lkup(task_id);
     if(!thd) {
-        return OS_ERR_INVALID_ID;
+        result = OS_ERR_INVALID_ID;
+        goto exit;
     }
+
 
     struct sl_thd_policy* thd_policy =  sl_mod_thd_policy_get(thd);
 
@@ -115,9 +124,10 @@ int32 OS_TaskDelete(uint32 task_id)
 
     sl_thd_free(thd);
 
+exit:
     sl_cs_exit();
 
-    return OS_SUCCESS;
+    return result;
 }
 
 uint32 OS_TaskGetId(void)
@@ -155,8 +165,17 @@ int32 OS_TaskDelay(uint32 millisecond)
 
 int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
 {
+    if (task_id >= OS_MAX_TASKS) {
+        return OS_ERR_INVALID_ID;
+    }
+
+    struct sl_thd* thd = sl_thd_lkup(task_id);
+    if(!thd) {
+        return OS_ERR_INVALID_ID;
+    }
+
     union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = new_priority}};
-    sl_thd_param_set(sl_thd_lkup(task_id), sp.v);
+    sl_thd_param_set(thd, sp.v);
 
     return OS_SUCCESS;
 }
@@ -177,7 +196,7 @@ int32 OS_TaskGetIdByName(uint32 *task_id, const char *task_name)
 int32 OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop)
 {
     // TODO: Consider moving this sequence of calls to a helper function
-    *task_prop = sl_mod_thd_policy_get(sl_thd_lkup(OS_TaskGetId()))->osal_task_prop;
+    *task_prop = sl_mod_thd_policy_get(sl_thd_lkup(task_id))->osal_task_prop;
     return OS_SUCCESS;
 }
 
