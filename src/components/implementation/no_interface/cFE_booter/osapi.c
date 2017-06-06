@@ -1,5 +1,3 @@
-#include <time.h>
-
 #include "cFE_util.h"
 
 #include "sl.h"

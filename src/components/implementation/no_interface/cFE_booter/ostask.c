@@ -212,7 +212,7 @@ void OS_ApplicationShutdown(uint8 flag)
 */
 
 struct mutex {
-    uint32 used;
+    int used;
 
     uint32 held;
     thdid_t holder;
@@ -228,23 +228,23 @@ int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 
     sl_cs_enter();
 
-    if(sem_id == NULL || sem_name == NULL) {
+    if (sem_id == NULL || sem_name == NULL) {
         result = OS_INVALID_POINTER;
         goto exit;
     }
 
-    if(!is_valid_name(sem_name)) {
+    if (!is_valid_name(sem_name)) {
         result = OS_ERR_NAME_TOO_LONG;
         goto exit;
     }
 
     int id;
-    for(id = 0; id < OS_MAX_MUTEXES; id++) {
+    for (id = 0; id < OS_MAX_MUTEXES; id++) {
         if(!mutexes[id].used) {
             break;
         }
     }
-    if(mutexes[id].used) {
+    if (mutexes[id].used) {
         result = OS_ERR_NO_FREE_IDS;
         goto exit;
     }
@@ -309,7 +309,7 @@ int32 OS_MutSemTake(uint32 sem_id)
         sl_cs_enter();
     }
 
-    if(!mutexes[sem_id].used) {
+    if (!mutexes[sem_id].used) {
         result = OS_ERR_INVALID_ID;
         goto exit;
     }
@@ -328,12 +328,12 @@ int32 OS_MutSemDelete(uint32 sem_id)
     int32 result = OS_SUCCESS;
     sl_cs_enter();
 
-    if(sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
+    if (sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
         result = OS_ERR_INVALID_ID;
         goto exit;
     }
 
-    if(mutexes[sem_id].held) {
+    if (mutexes[sem_id].held) {
         result = OS_SEM_FAILURE;
         goto exit;
     }
@@ -348,27 +348,33 @@ int32 OS_MutSemDelete(uint32 sem_id)
 
 int32 OS_MutSemGetIdByName(uint32 *sem_id, const char *sem_name)
 {
+    int32 result = OS_SUCCESS;
 
-    if(sem_id == NULL || sem_name == NULL) {
-        return OS_INVALID_POINTER;
+    sl_cs_enter();
+
+    if (sem_id == NULL || sem_name == NULL) {
+        result = OS_INVALID_POINTER;
+        goto exit;
     }
 
-    if(strlen(sem_name) >= OS_MAX_API_NAME) {
-        return OS_ERR_NAME_TOO_LONG;
+    if (strlen(sem_name) >= OS_MAX_API_NAME) {
+        result = OS_ERR_NAME_TOO_LONG;
+        goto exit;
     }
 
     int i;
-    for(i = 0; i < OS_MAX_MUTEXES; i++) {
+    for (i = 0; i < OS_MAX_MUTEXES; i++) {
         if (mutexes[i].used && (strcmp (mutexes[i].name, (char*) sem_name) == 0)) {
             *sem_id = i;
-            return OS_SUCCESS;
+            goto exit;
         }
     }
 
     /* The name was not found in the table,
      *  or it was, and the sem_id isn't valid anymore */
-
-    return OS_ERR_NAME_NOT_FOUND;
+exit:
+    sl_cs_exit();
+    return result;
 }
 
 int32 OS_MutSemGetInfo(uint32 sem_id, OS_mut_sem_prop_t *mut_prop)
@@ -381,11 +387,213 @@ int32 OS_MutSemGetInfo(uint32 sem_id, OS_mut_sem_prop_t *mut_prop)
 ** Semaphore API
 */
 
+struct semaphore {
+    int used;
+
+    uint32 count;
+    char name[OS_MAX_API_NAME];
+};
+
+
+struct semaphore binary_semaphores[OS_MAX_BIN_SEMAPHORES];
+
+struct semaphore counting_semaphores[OS_MAX_COUNT_SEMAPHORES];
+
+// Generic semaphore methods
+int32 OS_SemaphoreCreate(struct semaphore* semaphores, uint32 max_semaphores,
+                         uint32 *sem_id, const char *sem_name,
+                         uint32 sem_initial_value, uint32 options)
+{
+    int32 result = OS_SUCCESS;
+    sl_cs_enter();
+
+    if (sem_id == NULL || sem_name == NULL) {
+        result = OS_INVALID_POINTER;
+        goto exit;
+    }
+
+    if (!is_valid_name(sem_name)) {
+        result = OS_ERR_NAME_TOO_LONG;
+        goto exit;
+    }
+
+    uint32 id;
+    for (id = 0; id < max_semaphores; id++) {
+        if(!semaphores[id].used) {
+            break;
+        }
+    }
+    if (semaphores[id].used) {
+        result = OS_ERR_NO_FREE_IDS;
+        goto exit;
+    }
+
+    semaphores[id].used = TRUE;
+    semaphores[id].count = sem_initial_value;
+    strcpy(semaphores[id].name, sem_name);
+
+exit:
+    sl_cs_exit();
+    return result;
+}
+
+int32 OS_SemaphoreGive(struct semaphore* semaphores, uint32 max_semaphores, uint32 sem_id)
+{
+    int32 result = OS_SUCCESS;
+
+    sl_cs_enter();
+
+    if (sem_id >= max_semaphores || !semaphores[sem_id].used) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    // FIXME: Add some checks that the semaphore was actually taken by this thread
+    semaphores[sem_id].count += 1;
+
+exit:
+    sl_cs_exit();
+    return result;
+
+}
+
+int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint32 sem_id)
+{
+    int32 result = OS_SUCCESS;
+
+    sl_cs_enter();
+
+    if (sem_id >= max_semaphores) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    while (semaphores[sem_id].used && semaphores[sem_id].count == 0) {
+        sl_cs_exit();
+        // FIXME: Do an actually sensible yield here!
+        sl_thd_yield(0);
+        sl_cs_enter();
+    }
+
+    if (!semaphores[sem_id].used) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    semaphores[sem_id].count -= 1;
+
+exit:
+    sl_cs_exit();
+
+    return result;
+}
+
+int32 OS_SemaphoreTimedWait(struct semaphore* semaphores, uint32 max_semaphores,
+                            uint32 sem_id, uint32 msecs)
+{
+    int32 result = OS_SUCCESS;
+    cycles_t start_cycles = sl_now();
+    microsec_t max_wait = msecs * 1000;
+
+    sl_cs_enter();
+
+    if (sem_id >= max_semaphores) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    while (semaphores[sem_id].used
+            && semaphores[sem_id].count == 0
+            && sl_cyc2usec(sl_now() - start_cycles) < max_wait) {
+        sl_cs_exit();
+        // FIXME: Do an actually sensible yield here!
+        sl_thd_yield(0);
+        sl_cs_enter();
+    }
+
+    if (!semaphores[sem_id].used) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    if (semaphores[sem_id].count == 0) {
+        result = OS_SEM_TIMEOUT;
+        goto exit;
+    }
+
+    semaphores[sem_id].count -= 1;
+
+exit:
+    sl_cs_exit();
+
+    return result;
+}
+
+int32 OS_SemaphoreDelete(struct semaphore* semaphores, uint32 max_semaphores,
+                         uint32 sem_id)
+{
+    int32 result = OS_SUCCESS;
+    sl_cs_enter();
+
+    if (sem_id >= max_semaphores || !semaphores[sem_id].used) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    // FIXME: Add smarter checking than this
+    if (semaphores[sem_id].count == 0) {
+        result = OS_SEM_FAILURE;
+        goto exit;
+    }
+
+    semaphores[sem_id].used = FALSE;
+
+    exit:
+    sl_cs_exit();
+
+    return result;
+}
+
+int32 OS_SemaphoreGetIdByName(struct semaphore* semaphores, uint32 max_semaphores,
+                              uint32 *sem_id, const char *sem_name)
+{
+    int32 result = OS_SUCCESS;
+
+    sl_cs_enter();
+
+    if (sem_id == NULL || sem_name == NULL) {
+        result = OS_INVALID_POINTER;
+        goto exit;
+    }
+
+    if (!is_valid_name(sem_name)) {
+        result = OS_ERR_NAME_TOO_LONG;
+        goto exit;
+    }
+
+    uint32 i;
+    for (i = 0; i < max_semaphores; i++) {
+        if (semaphores[i].used && (strcmp(semaphores[i].name, (char*) sem_name) == 0)) {
+            *sem_id = i;
+            goto exit;
+        }
+    }
+
+    /* The name was not found in the table,
+     *  or it was, and the sem_id isn't valid anymore */
+exit:
+    sl_cs_exit();
+    return result;
+}
+
+
+
+// Binary semaphore methods
 int32 OS_BinSemCreate(uint32 *sem_id, const char *sem_name,
                       uint32 sem_initial_value, uint32 options)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreCreate(binary_semaphores, OS_MAX_BIN_SEMAPHORES,
+                              sem_id, sem_name, sem_initial_value, options);
 }
 
 int32 OS_BinSemFlush(uint32 sem_id)
@@ -396,32 +604,28 @@ int32 OS_BinSemFlush(uint32 sem_id)
 
 int32 OS_BinSemGive(uint32 sem_id)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreGive(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id);
 }
 
 int32 OS_BinSemTake(uint32 sem_id)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreTake(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id);
 }
 
 int32 OS_BinSemTimedWait(uint32 sem_id, uint32 msecs)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreTimedWait(binary_semaphores, OS_MAX_BIN_SEMAPHORES,
+                                 sem_id, msecs);
 }
 
 int32 OS_BinSemDelete(uint32 sem_id)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreDelete(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id);
 }
 
 int32 OS_BinSemGetIdByName(uint32 *sem_id, const char *sem_name)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreGetIdByName(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id, sem_name);
 }
 
 int32 OS_BinSemGetInfo(uint32 sem_id, OS_bin_sem_prop_t *bin_prop)
@@ -431,42 +635,38 @@ int32 OS_BinSemGetInfo(uint32 sem_id, OS_bin_sem_prop_t *bin_prop)
 }
 
 
-
 int32 OS_CountSemCreate(uint32 *sem_id, const char *sem_name,
                         uint32 sem_initial_value, uint32 options)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreCreate(counting_semaphores, OS_MAX_COUNT_SEMAPHORES,
+                              sem_id, sem_name, sem_initial_value, options);
 }
 
 int32 OS_CountSemGive(uint32 sem_id)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreGive(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id);
 }
 
 int32 OS_CountSemTake(uint32 sem_id)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreTake(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id);
 }
 
 int32 OS_CountSemTimedWait(uint32 sem_id, uint32 msecs)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreTimedWait(counting_semaphores, OS_MAX_COUNT_SEMAPHORES,
+                                 sem_id, msecs);
 }
 
 int32 OS_CountSemDelete(uint32 sem_id)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreDelete(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id);
 }
 
 int32 OS_CountSemGetIdByName(uint32 *sem_id, const char *sem_name)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_SemaphoreGetIdByName(counting_semaphores, OS_MAX_COUNT_SEMAPHORES,
+                                  sem_id, sem_name);
 }
 
 int32 OS_CountSemGetInfo(uint32 sem_id, OS_count_sem_prop_t *count_prop)
