@@ -214,6 +214,7 @@ void OS_ApplicationShutdown(uint8 flag)
 struct mutex {
     int used;
 
+    uint32 creator;
     uint32 held;
     thdid_t holder;
     char name[OS_MAX_API_NAME];
@@ -251,6 +252,7 @@ int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 
     mutexes[id].used = TRUE;
     mutexes[id].held = FALSE;
+    mutexes[id].creator = sl_thd_curr()->thdid;
     strcpy(mutexes[id].name, sem_name);
 
 exit:
@@ -379,8 +381,29 @@ exit:
 
 int32 OS_MutSemGetInfo(uint32 sem_id, OS_mut_sem_prop_t *mut_prop)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    int32 result = OS_SUCCESS;
+    sl_cs_enter();
+
+    if(!mut_prop)
+    {
+        result = OS_INVALID_POINTER;
+        goto exit;
+    }
+
+    if (sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    *mut_prop = (OS_mut_sem_prop_t) {
+        .creator = mutexes[sem_id].creator,
+    };
+
+    strcpy(mut_prop->name, mutexes[sem_id].name);
+
+exit:
+    sl_cs_exit();
+    return result;
 }
 
 /*
@@ -391,6 +414,7 @@ struct semaphore {
     int used;
 
     uint32 count;
+    uint32 creator;
     char name[OS_MAX_API_NAME];
 };
 
@@ -429,6 +453,7 @@ int32 OS_SemaphoreCreate(struct semaphore* semaphores, uint32 max_semaphores,
     }
 
     semaphores[id].used = TRUE;
+    semaphores[id].creator = sl_thd_curr()->thdid;
     semaphores[id].count = sem_initial_value;
     strcpy(semaphores[id].name, sem_name);
 
@@ -630,8 +655,30 @@ int32 OS_BinSemGetIdByName(uint32 *sem_id, const char *sem_name)
 
 int32 OS_BinSemGetInfo(uint32 sem_id, OS_bin_sem_prop_t *bin_prop)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    int32 result = OS_SUCCESS;
+    sl_cs_enter();
+
+    if(!bin_prop)
+    {
+        result = OS_INVALID_POINTER;
+        goto exit;
+    }
+
+    if (sem_id >= OS_MAX_BIN_SEMAPHORES || !binary_semaphores[sem_id].used) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    *bin_prop = (OS_bin_sem_prop_t) {
+        .creator = binary_semaphores[sem_id].creator,
+        .value = binary_semaphores[sem_id].count
+    };
+
+    strcpy(bin_prop->name, binary_semaphores[sem_id].name);
+
+exit:
+    sl_cs_exit();
+    return result;
 }
 
 
@@ -671,6 +718,28 @@ int32 OS_CountSemGetIdByName(uint32 *sem_id, const char *sem_name)
 
 int32 OS_CountSemGetInfo(uint32 sem_id, OS_count_sem_prop_t *count_prop)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    int32 result = OS_SUCCESS;
+    sl_cs_enter();
+
+    if(!count_prop)
+    {
+        result = OS_INVALID_POINTER;
+        goto exit;
+    }
+
+    if (sem_id >= OS_MAX_COUNT_SEMAPHORES || !counting_semaphores[sem_id].used) {
+        result = OS_ERR_INVALID_ID;
+        goto exit;
+    }
+
+    *count_prop = (OS_count_sem_prop_t) {
+        .creator = counting_semaphores[sem_id].creator,
+        .value = counting_semaphores[sem_id].count
+    };
+
+    strcpy(count_prop->name, counting_semaphores[sem_id].name);
+
+exit:
+    sl_cs_exit();
+    return result;
 }
