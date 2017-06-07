@@ -352,7 +352,7 @@ void OS_printf(const char *string, ...)
         int ret, len = OS_BUFFER_SIZE;
 
         va_start(arg_ptr, string);
-        vsnprintf(s, len, string, arg_ptr);
+        ret = vsnprintf(s, len, string, arg_ptr);
         va_end(arg_ptr);
         llprint(s, ret);
     }
