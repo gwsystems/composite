@@ -12,3 +12,5 @@
 
 #define STK_INFO_SZ     92	/* sizeof(struct cos_cpu_local_info) */
 #define STK_INFO_OFF    (STK_INFO_SZ + 4)	/* sizeof(struct cos_cpu_local_info) + sizeof(long) */
+
+#define SMP_BOOT_PATCH_ADDR  0x70000

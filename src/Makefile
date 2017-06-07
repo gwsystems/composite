@@ -20,13 +20,13 @@ plat:
 	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform
 
 cpplat:
-	$(MAKE) $(MAKEFLAGS) -C platform cp
+	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform cp
 
 cp: cpplat
 	$(MAKE) $(MAKEFLAGS) -C components cp
 
 clean:
-	$(MAKE) $(MAKEFLAGS) -C platform clean
+	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform clean
 	$(MAKE) $(MAKEFLAGS) -C components clean
 
 
@@ -36,7 +36,7 @@ distclean: clean
 
 init:
 	$(MAKE) $(MAKEFLAGS) -C components init
-	$(MAKE) $(MAKEFLAGS) -C platform init
+	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform init
 
 update:
 	git submodule update --init --recursive

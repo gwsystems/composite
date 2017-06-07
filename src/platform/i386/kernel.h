@@ -1,8 +1,8 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#include "shared/cos_config.h"
-#include "shared/cos_types.h"
+#include <shared/cos_config.h>
+#include <shared/cos_types.h>
 #include "chal.h"
 #include "multiboot.h"
 
@@ -58,6 +58,8 @@ void lapic_set_timer(int timer_type, cycles_t deadline);
 u32_t lapic_get_ccr(void);
 void lapic_timer_calibration(u32_t ratio);
 extern u32_t lapic_timer_calib_init;
+
+void smp_init(void);
 
 void tls_update(u32_t addr);
 
