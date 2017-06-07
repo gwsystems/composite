@@ -7,6 +7,8 @@
 #include "gen/common_types.h"
 #include "gen/osapi.h"
 
+#include "test/oscore-test/ut_oscore_test.h"
+
 // This is based on an old build technique, so we can ignore this warning.
 // But I'm leaving it in, just in case we ever switch to cmake
 /*
@@ -127,6 +129,11 @@ void cos_init(void) {
     OS_printf("CFE_PSP: Initializing the OS API...\n");
     OS_API_Init();
     OS_printf("CFE_PSP: The the OS API was successfully initialized!\n");
+
+    OS_printf("Beginning unit tests\n");
+    /* Their method name is misleading -- this begins the unit tests */
+    OS_Application_Startup();
+    OS_printf("End unit tests\n");
 
     OS_printf("CFE_PSP: Delegating to scheduler setup... \n");
     OS_SchedulerStart(&cos_init_delegate);

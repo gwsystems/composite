@@ -358,6 +358,16 @@ void OS_printf(const char *string, ...)
     }
 }
 
+void OS_sprintf(char *str, const char *format, ...)
+{
+    if(is_printf_enabled) {
+        va_list arg_ptr;
+
+        va_start(arg_ptr, format);
+        ret = vsprintf(str, format, arg_ptr);
+        va_end(arg_ptr);
+    }
+}
 
 void OS_printf_disable(void)
 {

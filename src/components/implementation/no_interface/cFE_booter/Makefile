@@ -3,10 +3,10 @@ ASM_OBJS=
 COMPONENT=cFE_booter.o
 INTERFACES=
 DEPENDENCIES=
-IF_LIB=./composite_cFE.o
+IF_LIB:=./composite_cFE.o $(wildcard test/*.o)
 ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_defkernel_api
 
 include ../../Makefile.subsubdir
-CFLAGS += -I./gen
+CFLAGS += -I./gen -I ./test/shared
 
 MANDITORY_LIB=simple_stklib.o
