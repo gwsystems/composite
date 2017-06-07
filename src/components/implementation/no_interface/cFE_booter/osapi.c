@@ -364,7 +364,7 @@ void OS_sprintf(char *str, const char *format, ...)
         va_list arg_ptr;
 
         va_start(arg_ptr, format);
-        ret = vsprintf(str, format, arg_ptr);
+        vsprintf(str, format, arg_ptr);
         va_end(arg_ptr);
     }
 }
