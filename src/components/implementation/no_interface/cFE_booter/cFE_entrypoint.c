@@ -71,6 +71,14 @@ struct CFE_PSP_CommandData_t args;
 // This is the delegate function called by the scheduler
 void cos_init_delegate(void* data) {
     OS_printf("CFE_PSP: Doing PSP setup...\n");
+
+#ifdef UNIT_TESTS
+    OS_printf("Beginning unit tests\n");
+    /* Their method name is misleading -- this begins the unit tests, not application */
+    OS_Application_Startup();
+    OS_printf("End unit tests\n");
+#endif
+
     /*
     ** Initialize the statically linked modules (if any)
     ** This is only applicable to CMake build - classic build
@@ -129,11 +137,6 @@ void cos_init(void) {
     OS_printf("CFE_PSP: Initializing the OS API...\n");
     OS_API_Init();
     OS_printf("CFE_PSP: The the OS API was successfully initialized!\n");
-
-    OS_printf("Beginning unit tests\n");
-    /* Their method name is misleading -- this begins the unit tests */
-    OS_Application_Startup();
-    OS_printf("End unit tests\n");
 
     OS_printf("CFE_PSP: Delegating to scheduler setup... \n");
     OS_SchedulerStart(&cos_init_delegate);

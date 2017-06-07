@@ -7,6 +7,6 @@ IF_LIB:=./composite_cFE.o $(wildcard test/*.o)
 ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_defkernel_api
 
 include ../../Makefile.subsubdir
-CFLAGS += -I./gen -I ./test/shared
+CFLAGS += -I./gen -I ./test/shared $(CPPFLAGS)
 
 MANDITORY_LIB=simple_stklib.o
