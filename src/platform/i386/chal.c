@@ -40,6 +40,7 @@ chal_init(void)
 	u32_t a, b, c, d;
 	u32_t vendor[4];
 	char *v = (char *)&vendor[0];
+	int apicid;
 
 	printk("Processor information:\n");
 	chal_cpuid(0, &a, &b, &c, &d);

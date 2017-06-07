@@ -37,6 +37,9 @@ struct ioapic_cntl {
 	u32_t glb_int_num_off;	/* I/O APIC's interrupt base number offset  */
 } __attribute__((packed));
 
+int ncpus = 1;
+int cpus[NUM_CPU];
+
 #define LAPIC_SVI_REG            0x0F0
 #define LAPIC_EOI_REG            0x0B0
 #define LAPIC_TIMER_LVT_REG      0x320
@@ -124,13 +127,25 @@ lapic_cycles_to_timer(u32_t cycles)
 	return cycles;
 }
 
+static int
+lapic_apicid(void)
+{
+	u32_t a, b, c, d;
+
+	chal_cpuid(1, &a, &b, &c, &d);
+
+	return (int)(b >> 24); 	/* Vol 2, 3-205: high byte is apicid */
+}
+
 void
 lapic_intsrc_iter(unsigned char *madt)
 {
 	struct int_cntl_head *h = (struct int_cntl_head *)(madt + APIC_CNTR_ARR_OFF);
 	u32_t len = *(u32_t *)(madt + APIC_HDR_LEN_OFF);
 	struct int_cntl_head *end = (struct int_cntl_head *)(madt + len);
+	int us = lapic_apicid(), off = 1;
 
+	cpus[0] = us;
 	printk("\tMADT length %d (base struct %d)\n", len, APIC_CNTR_ARR_OFF);
 	assert(h <= end);
 	for ( ; h < end ; h = (struct int_cntl_head *)((char *)h + h->len)) {
@@ -145,6 +160,12 @@ lapic_intsrc_iter(unsigned char *madt)
 			assert(l->header.len == sizeof(struct lapic_cntl));
 			printk("\tLAPIC found: coreid %d, apicid %d\n",
 			       l->proc_id, l->apic_id);
+
+			if (l->proc_id != us && NUM_CPU > 1) {
+				cpus[off++] = l->proc_id;
+				ncpus++;
+			}
+
 			break;
 		}
 		case APIC_CNTL_IOAPIC:
@@ -162,6 +183,7 @@ lapic_intsrc_iter(unsigned char *madt)
 			break;
 		}
 	}
+	printk("\tAPICs processed, %d cores\n", ncpus);
 }
 
 u32_t
@@ -322,4 +344,12 @@ lapic_timer_init(void)
 
 	/* Set the divisor */
 	lapic_write_reg(LAPIC_DIV_CONF_REG, LAPIC_DIV_BY_1);
+}
+
+void
+smp_init(void)
+{
+	int apicid = lapic_apicid();
+
+
 }
