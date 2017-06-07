@@ -1,7 +1,7 @@
 MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
-all: comps $(shell cat PLATFORM)
+all: comps plat
 
 comps:
 	$(info )
@@ -11,21 +11,13 @@ comps:
 	$(info )
 	$(MAKE) $(MAKEFLAGS) -C components
 
-linux:
+plat:
 	$(info )
 	$(info ***********************************************)
-	$(info ***** Building Linux Platform and Kernel ******)
+	$(info ***** Building $(shell cat PLATFORM_ID) Platform and Kernel *******)
 	$(info ***********************************************)
 	$(info )
-	$(MAKE) $(MAKEFLAGS) PLATFORM=linux -C platform
-
-i386:
-	$(info )
-	$(info ***********************************************)
-	$(info ***** Building i386 Platform and Kernel *******)
-	$(info ***********************************************)
-	$(info )
-	$(MAKE) $(MAKEFLAGS) PLATFORM=i386 -C platform
+	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform
 
 cpplat:
 	$(MAKE) $(MAKEFLAGS) -C platform cp
@@ -69,13 +61,13 @@ config-linux: config-gen
 	@echo "#define COS_PLATFORM LINUX" >> ./kernel/include/shared/cpu_ghz.h
 	@echo "#define COS_LINUX" >> ./kernel/include/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/linux/module/chal/ chal
-	@echo "linux" > PLATFORM
+	@echo "linux" > PLATFORM_ID
 
 # override the default linux chal link
 config-i386: config-gen
 	@echo "#define COS_PLATFORM I386" >> ./kernel/include/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/i386/chal/ chal
-	@echo "i386" > PLATFORM
+	@echo "i386" > PLATFORM_ID
 
 idl:
 	$(MAKE) $(MAKEFLAGS) -C components idl

@@ -3,7 +3,7 @@ SUBDIRS=$(wildcard */)
 MAKEFLAGS=-I$(shell pwd)
 
 .PHONY: all
-all: 
+all:
 	$(info ***********************************************)
 	$(info *********[ Building Implementations ]**********)
 	$(info ***********************************************)
@@ -26,4 +26,4 @@ clean:
 	done
 
 .PHONY: init
-init: clean all
+init: clean
