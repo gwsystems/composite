@@ -3,7 +3,7 @@
 #include <sl_mod_policy.h>
 #include <sl_plugins.h>
 
-#define SL_FPRR_NPRIOS  32
+#define SL_FPRR_NPRIOS  256
 #define SL_FPRR_HIGHEST 0
 #define SL_FPRR_LOWEST  (SL_FPRR_NPRIOS-1)
 
