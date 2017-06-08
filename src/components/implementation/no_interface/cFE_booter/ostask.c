@@ -103,11 +103,6 @@ int32 OS_TaskDelete(uint32 task_id)
 
     sl_cs_enter();
 
-    if (task_id >= OS_MAX_TASKS) {
-        result = OS_ERR_INVALID_ID;
-        goto exit;
-    }
-
     struct sl_thd* thd = sl_thd_lkup(task_id);
     if(!thd) {
         result = OS_ERR_INVALID_ID;
@@ -165,10 +160,6 @@ int32 OS_TaskDelay(uint32 millisecond)
 
 int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
 {
-    if (task_id >= OS_MAX_TASKS) {
-        return OS_ERR_INVALID_ID;
-    }
-
     struct sl_thd* thd = sl_thd_lkup(task_id);
     if(!thd) {
         return OS_ERR_INVALID_ID;

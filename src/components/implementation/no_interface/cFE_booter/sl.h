@@ -73,11 +73,18 @@ sl_thd_setprio(struct sl_thd *t, tcap_prio_t p)
 
 static inline struct sl_thd *
 sl_thd_lkup(thdid_t tid)
-{ return sl_mod_thd_get(sl_thd_lookup_backend(tid)); }
+{
+	assert(tid < MAX_NUM_THREADS);
+	return sl_mod_thd_get(sl_thd_lookup_backend(tid));
+}
 
 static inline struct sl_thd *
 sl_thd_curr(void)
-{ return sl_thd_lkup(cos_thdid()); }
+{
+	thdid_t tid = cos_thdid();
+	assert(tid < MAX_NUM_THREADS);
+	return sl_thd_lkup(tid);
+}
 
 /* are we the owner of the critical section? */
 static inline int
@@ -94,7 +101,7 @@ sl_cs_owner(void)
  * @ret:
  *     (Caller of this function should retry for a non-zero return value.)
  *     1 for cas failure or after successful thread switch to thread that owns the lock.
- *     -ve from cos_defswitch failure, allowing caller for ex: the scheduler thread to 
+ *     -ve from cos_defswitch failure, allowing caller for ex: the scheduler thread to
  *     check if it was -EBUSY to first recieve pending notifications before retrying lock.
  */
 int sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok);
