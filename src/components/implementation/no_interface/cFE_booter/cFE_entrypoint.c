@@ -7,7 +7,9 @@
 #include "gen/common_types.h"
 #include "gen/osapi.h"
 
+#ifdef UNIT_TESTS
 #include "test/oscore-test/ut_oscore_test.h"
+#endif
 
 // This is based on an old build technique, so we can ignore this warning.
 // But I'm leaving it in, just in case we ever switch to cmake
