@@ -1,8 +1,4 @@
-#include "cFE_util.h"
-
-#include "gen/osapi.h"
-#include "gen/common_types.h"
-
+#include "osfilesys.h"
 
 /******************************************************************************
 ** Standard File system API
@@ -13,8 +9,7 @@
 
 int32 OS_FS_Init(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_FS_SUCCESS;
 }
 
 /*
@@ -22,7 +17,7 @@ int32 OS_FS_Init(void)
 */
 int32 OS_creat(const char *path, int32  access)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Read Only Filesystem");
     return 0;
 }
 
@@ -31,26 +26,26 @@ int32 OS_creat(const char *path, int32  access)
 */
 int32 OS_open(const char *path,  int32 access,  uint32 mode)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    if (access != OS_READ_ONLY) PANIC("Read Only Filesystem!");
+    if (!path) return OS_FS_ERR_INVALID_POINTER;
+    if (strlen(path) > OS_MAX_PATH_LEN) return OS_FS_ERR_PATH_TOO_LONG;
+    return open(path);
 }
 
 /*
  * Closes an open file.
 */
-int32 OS_close(int32  filedes)
+int32 OS_close(int32 filedes)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return close(filedes);
 }
 
 /*
  * Reads nbytes bytes from file into buffer
 */
-int32 OS_read(int32  filedes, void *buffer, uint32 nbytes)
+int32 OS_read(int32 filedes, void *buffer, uint32 nbytes)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return read(filedes, buffer, nbytes);
 }
 
 /*
@@ -58,7 +53,7 @@ int32 OS_read(int32  filedes, void *buffer, uint32 nbytes)
 */
 int32 OS_write(int32  filedes, void *buffer, uint32 nbytes)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Read Only Filesystem!");
     return 0;
 }
 
@@ -67,7 +62,7 @@ int32 OS_write(int32  filedes, void *buffer, uint32 nbytes)
 */
 int32 OS_chmod(const char *path, uint32 access)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Read Only Filesystem!");
     return 0;
 }
 
@@ -94,7 +89,7 @@ int32 OS_lseek(int32  filedes, int32 offset, uint32 whence)
 */
 int32 OS_remove(const char *path)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Read Only Filesystem!");
     return 0;
 }
 
@@ -103,7 +98,7 @@ int32 OS_remove(const char *path)
 */
 int32 OS_rename(const char *old_filename, const char *new_filename)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Read Only Filesystem!");
     return 0;
 }
 
@@ -112,7 +107,7 @@ int32 OS_rename(const char *old_filename, const char *new_filename)
 */
 int32 OS_cp(const char *src, const char *dest)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Read Only Filesystem!");
     return 0;
 }
 
@@ -121,7 +116,7 @@ int32 OS_cp(const char *src, const char *dest)
 */
 int32 OS_mv(const char *src, const char *dest)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Read Only Filesystem!");
     return 0;
 }
 
@@ -171,7 +166,7 @@ int32 OS_CloseFileByName(char *Filename)
 */
 int32 OS_mkdir(const char *path, uint32 access)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Read Only Filesystem!");
     return 0;
 }
 
@@ -228,25 +223,36 @@ int32 OS_rmdir(const char *path)
 int32 OS_mkfs(char *address,char *devname, char *volname,
                                 uint32 blocksize, uint32 numblocks)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    uint32 ret = 0;
+    if (address)                return OS_FS_ERR_INVALID_POINTER;
+    if (!devname || !volname)   return OS_FS_ERR_INVALID_POINTER;
+    if (strlen(devname) >= OS_FS_DEV_NAME_LEN || strlen(volname) >= OS_FS_VOL_NAME_LEN)
+                                return OS_FS_ERROR;
+    ret = newfs_init(devname, volname, blocksize, numblocks);
+    if (ret != OS_FS_SUCCESS)   return ret;
+    ret = tar_parse();
+    if (ret != OS_FS_SUCCESS)   return ret;
+    return OS_FS_SUCCESS;
 }
 /*
  * Mounts a file system
 */
 int32 OS_mount(const char *devname, char *mountpoint)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    if (!devname || !mountpoint) return OS_FS_ERR_INVALID_POINTER;
+    return mount(devname, mountpoint);
 }
 
 /*
- * Initializes an existing file system
+ * Initializes an existing filesystem
+ * address will be null if wants to initialize an empty fs, non-null to load an fs from memory
+ * we could easily load a tar from memory but if an application wants to load a filesystem it
+ * is safer to panic as we do not know what format the application is attempting to load
 */
-int32 OS_initfs(char *address,char *devname, char *volname, uint32 blocksize, uint32 numblocks)
+int32 OS_initfs(char *address, char *devname, char *volname, uint32 blocksize, uint32 numblocks)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    if (address) PANIC("No support for loading a filesystem from arbitrary memory");
+    return OS_FS_SUCCESS;
 }
 
 /*
@@ -254,7 +260,7 @@ int32 OS_initfs(char *address,char *devname, char *volname, uint32 blocksize, ui
 */
 int32 OS_rmfs(char *devname)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Read Only Filesystem!"); // TODO: Implement me!
     return 0;
 }
 
@@ -263,8 +269,8 @@ int32 OS_rmfs(char *devname)
 */
 int32 OS_unmount(const char *mountpoint)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    if (!mountpoint) return OS_FS_ERR_INVALID_POINTER;
+    return unmount(mountpoint);
 }
 
 /*
@@ -288,6 +294,7 @@ int32 OS_fsBytesFree(const char *name, uint64 *bytes_free)
 }
 
 /*
+ *
  * Checks the health of a file system and repairs it if neccesary
 */
 os_fshealth_t OS_chkfs(const char *name, boolean repair)
@@ -306,12 +313,13 @@ int32 OS_FS_GetPhysDriveName(char * PhysDriveName, char * MountPoint)
 }
 
 /*
-** Translates a OSAL Virtual file system path to a host Local path
+ * This is currently not used by osal
+ * Translates a OSAL Virtual file system path to a host Local path
 */
 int32 OS_TranslatePath(const char *VirtualPath, char *LocalPath)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    strcpy(LocalPath, VirtualPath);
+    return OS_FS_SUCCESS;
 }
 
 /*
@@ -331,6 +339,6 @@ int32 OS_GetFsInfo(os_fsinfo_t  *filesys_info)
  * command to the file specified by the given OSAPI file descriptor */
 int32 OS_ShellOutputToFile(char* Cmd, int32 OS_fd)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    PANIC("Read Only Filesystem!"); // TODO: Implement me!
     return 0;
 }
