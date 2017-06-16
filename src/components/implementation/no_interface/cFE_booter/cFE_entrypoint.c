@@ -8,7 +8,7 @@
 #include "gen/osapi.h"
 
 #ifdef UNIT_TESTS
-#include "test/oscore-test/ut_oscore_test.h"
+#include "test/shared/ut_main_composite.h"
 #endif
 
 // This is based on an old build technique, so we can ignore this warning.
@@ -76,8 +76,12 @@ void cos_init_delegate(void* data) {
 
 #ifdef UNIT_TESTS
     OS_printf("Beginning unit tests\n");
-    /* Their method name is misleading -- this begins the unit tests, not application */
-    OS_Application_Startup();
+    Composite_UT_oscore();
+    Composite_UT_osfile();
+    Composite_UT_osfilesys();
+    Composite_UT_osloader();
+    Composite_UT_osnetwork();
+    Composite_UT_ostimer();
     OS_printf("End unit tests\n");
 #endif
 
