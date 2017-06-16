@@ -62,7 +62,7 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
 {
     sl_cs_enter();
 
-    if(task_name == NULL || stack_pointer == NULL){
+    if(task_id == NULL || task_name == NULL || stack_pointer == NULL){
         return OS_INVALID_POINTER;
     }
 
@@ -80,6 +80,7 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
     }
 
     struct sl_thd* thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
+    assert(thd);
     union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = priority}};
     sl_thd_param_set(thd, sp.v);
 
@@ -153,7 +154,8 @@ int32 OS_TaskDelay(uint32 millisecond)
     cycles_t start_time = sl_now();
 
     while(sl_cyc2usec(sl_now() - start_time) / 1000 < millisecond)  {
-        sl_thd_yield(0);
+        // FIXME: This is broken, busy loop for now
+        // sl_thd_yield(0);
     }
     return OS_SUCCESS;
 }

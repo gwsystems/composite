@@ -15,13 +15,18 @@
 /*
 ** Initialization of API
 */
+int have_initialized = 0;
+
 int32 OS_API_Init(void)
 {
-    struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-    struct cos_compinfo    *ci    = cos_compinfo_get(defci);
+    if(!have_initialized) {
+        struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+        struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
-    cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-    cos_defcompinfo_init();
+        cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+        cos_defcompinfo_init();
+        have_initialized = 1;
+    }
 
     return OS_SUCCESS;
 }
