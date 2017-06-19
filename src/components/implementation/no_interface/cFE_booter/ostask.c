@@ -65,7 +65,7 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
 
     sl_cs_enter();
 
-    if(task_id == NULL || task_name == NULL || stack_pointer == NULL){
+    if(task_id == NULL || task_name == NULL || stack_pointer == NULL || function_pointer == NULL){
         result = OS_INVALID_POINTER;
         goto exit;
     }
@@ -254,7 +254,7 @@ struct mutex {
     char name[OS_MAX_API_NAME];
 };
 
-struct mutex mutexes[OS_MAX_BIN_SEMAPHORES];
+struct mutex mutexes[OS_MAX_MUTEXES];
 
 
 int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
@@ -273,7 +273,14 @@ int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
         goto exit;
     }
 
-    int id;
+    uint32 id;
+    for (id = 0; id < OS_MAX_MUTEXES; id++) {
+        if (mutexes[id].used && strcmp(sem_name, mutexes[id].name) == 0) {
+            result = OS_ERR_NAME_TAKEN;
+            goto exit;
+        }
+    }
+
     for (id = 0; id < OS_MAX_MUTEXES; id++) {
         if(!mutexes[id].used) {
             break;
@@ -284,6 +291,7 @@ int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
         goto exit;
     }
 
+    *sem_id = id;
     mutexes[id].used = TRUE;
     mutexes[id].held = FALSE;
     mutexes[id].creator = sl_thd_curr()->thdid;
@@ -408,6 +416,7 @@ int32 OS_MutSemGetIdByName(uint32 *sem_id, const char *sem_name)
 
     /* The name was not found in the table,
      *  or it was, and the sem_id isn't valid anymore */
+    result = OS_ERR_NAME_NOT_FOUND;
 exit:
     sl_cs_exit();
     return result;
@@ -478,6 +487,13 @@ int32 OS_SemaphoreCreate(struct semaphore* semaphores, uint32 max_semaphores,
 
     uint32 id;
     for (id = 0; id < max_semaphores; id++) {
+        if (semaphores[id].used && strcmp(sem_name, semaphores[id].name) == 0) {
+            result = OS_ERR_NAME_TAKEN;
+            goto exit;
+        }
+    }
+
+    for (id = 0; id < max_semaphores; id++) {
         if(!semaphores[id].used) {
             break;
         }
@@ -487,6 +503,7 @@ int32 OS_SemaphoreCreate(struct semaphore* semaphores, uint32 max_semaphores,
         goto exit;
     }
 
+    *sem_id = id;
     semaphores[id].used = TRUE;
     semaphores[id].creator = sl_thd_curr()->thdid;
     semaphores[id].count = sem_initial_value;
@@ -556,7 +573,7 @@ int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint
         }
         sl_cs_exit();
         // FIXME: Do an actually sensible yield here!
-        sl_thd_yield(0);
+        // sl_thd_yield(0);
         sl_cs_enter();
     }
 
@@ -592,7 +609,7 @@ int32 OS_SemaphoreTimedWait(struct semaphore* semaphores, uint32 max_semaphores,
             && sl_cyc2usec(sl_now() - start_cycles) < max_wait) {
         sl_cs_exit();
         // FIXME: Do an actually sensible yield here!
-        sl_thd_yield(0);
+        // sl_thd_yield(0);
         sl_cs_enter();
     }
 
@@ -622,12 +639,6 @@ int32 OS_SemaphoreDelete(struct semaphore* semaphores, uint32 max_semaphores,
 
     if (sem_id >= max_semaphores || !semaphores[sem_id].used) {
         result = OS_ERR_INVALID_ID;
-        goto exit;
-    }
-
-    // FIXME: Add smarter checking than this
-    if (semaphores[sem_id].count == 0) {
-        result = OS_SEM_FAILURE;
         goto exit;
     }
 
@@ -666,6 +677,7 @@ int32 OS_SemaphoreGetIdByName(struct semaphore* semaphores, uint32 max_semaphore
 
     /* The name was not found in the table,
      *  or it was, and the sem_id isn't valid anymore */
+     result = OS_ERR_NAME_NOT_FOUND;
 exit:
     sl_cs_exit();
     return result;

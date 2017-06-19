@@ -79,6 +79,9 @@ OS_QueueCreate(uint32* queue_id, const char* queue_name, uint32 queue_depth, uin
 
 int32
 OS_QueueDelete(uint32 queue_id) {
+        if (queue_id > OS_MAX_QUEUES) {
+                return OS_ERR_INVALID_ID;
+        }
         /* Check if there is a queue to be deleted at the ID. */
         if (queues[queue_id].free == TRUE) {
                 return OS_ERR_INVALID_ID;
@@ -100,6 +103,10 @@ OS_QueueDelete(uint32 queue_id) {
 int32
 OS_QueueGet(uint32 queue_id, void* data, uint32 size, uint32* size_copied, int32 timeout)
 {
+        if (queue_id > OS_MAX_QUEUES) {
+                return OS_ERR_INVALID_ID;
+        }
+
         uint32 i;
 
         /* Check if the requested queue exists. */
@@ -108,7 +115,7 @@ OS_QueueGet(uint32 queue_id, void* data, uint32 size, uint32* size_copied, int32
         }
 
         /* Check for a NULL pointer. */
-        if (data == NULL) {
+        if (data == NULL || size_copied == NULL) {
                 return OS_INVALID_POINTER;
         }
 
@@ -138,6 +145,10 @@ OS_QueueGet(uint32 queue_id, void* data, uint32 size, uint32* size_copied, int32
 int32
 OS_QueuePut(uint32 queue_id, const void* data, uint32 size, uint32 flags)
 {
+        if (queue_id > OS_MAX_QUEUES) {
+                return OS_ERR_INVALID_ID;
+        }
+
         uint32 i;
 
         /* Check if the requested queue exists. */
@@ -202,6 +213,10 @@ OS_QueueGetIdByName(uint32* queue_id, const char* queue_name)
 int32
 OS_QueueGetInfo(uint32 queue_id, OS_queue_prop_t* queue_prop)
 {
+        if (queue_id > OS_MAX_QUEUES) {
+                return OS_ERR_INVALID_ID;
+        }
+
         if (queue_prop == NULL) {
                 return OS_INVALID_POINTER;
         }

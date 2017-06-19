@@ -38,7 +38,41 @@ int32 OS_API_Init(void)
 */
 void OS_DeleteAllObjects(void)
 {
-    // It's safe for this method to do nothing for now
+    uint32 i;
+
+    // FIXME: Add deleting tasks when we have a way of iterating through them
+    // for (i = 0; i < OS_MAX_TASKS; ++i)
+    // {
+    //     OS_TaskDelete(i);
+    // }
+    for (i = 0; i < OS_MAX_QUEUES; ++i)
+    {
+        OS_QueueDelete(i);
+    }
+    for (i = 0; i < OS_MAX_MUTEXES; ++i)
+    {
+        OS_MutSemDelete(i);
+    }
+    for (i = 0; i < OS_MAX_COUNT_SEMAPHORES; ++i)
+    {
+        OS_CountSemDelete(i);
+    }
+    for (i = 0; i < OS_MAX_BIN_SEMAPHORES; ++i)
+    {
+        OS_BinSemDelete(i);
+    }
+    // for (i = 0; i < OS_MAX_TIMERS; ++i)
+    // {
+    //     OS_TimerDelete(i);
+    // }
+    // for (i = 0; i < OS_MAX_MODULES; ++i)
+    // {
+    //     OS_ModuleUnload(i);
+    // }
+    for (i = 0; i < OS_MAX_NUM_OPEN_FILES; ++i)
+    {
+        OS_close(i);
+    }
 }
 
 
