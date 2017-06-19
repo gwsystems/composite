@@ -78,6 +78,10 @@ OS_time_t OS_AdvanceTime(OS_time_t initial_time, microsec_t usec) {
 
 int32 OS_GetLocalTime(OS_time_t *time_struct)
 {
+    if(!time_struct) {
+        return OS_INVALID_POINTER;
+    }
+
     if(old_cycle_count == 0) {
         local_time = (OS_time_t) {
             .seconds = 1181683060,
@@ -102,6 +106,10 @@ int32 OS_GetLocalTime(OS_time_t *time_struct)
 
 int32 OS_SetLocalTime(OS_time_t *time_struct)
 {
+    if(!time_struct) {
+        return OS_INVALID_POINTER;
+    }
+
     local_time = *time_struct;
     old_cycle_count = sl_now();
 
@@ -263,8 +271,8 @@ int32 OS_ShMemGetIdByName(uint32 *ShMemId, const char *SegName )
 */
 int32 OS_HeapGetInfo(OS_heap_prop_t *heap_prop)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    // FIXME: Implement me!
+    return OS_ERR_NOT_IMPLEMENTED;
 }
 
 /*
