@@ -52,6 +52,7 @@ int is_name_taken(const char* name) {
 /*
 ** Task API
 */
+// Necessary to control the number of created tasks
 
 // TODO: Implement flags
 int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
@@ -60,23 +61,29 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
                     uint32 stack_size,
                     uint32 priority, uint32 flags)
 {
+    int32 result = OS_SUCCESS;
+
     sl_cs_enter();
 
     if(task_id == NULL || task_name == NULL || stack_pointer == NULL){
-        return OS_INVALID_POINTER;
+        result = OS_INVALID_POINTER;
+        goto exit;
     }
 
     // Validate the name
     if(!is_valid_name(task_name)) {
-        return OS_ERR_NAME_TOO_LONG;
+        result = OS_ERR_NAME_TOO_LONG;
+        goto exit;
     }
 
     if(is_name_taken(task_name)) {
-        return OS_ERR_NAME_TAKEN;
+        result = OS_ERR_NAME_TAKEN;
+        goto exit;
     }
 
     if(priority > 255 || priority < 1) {
-        return OS_ERR_INVALID_PRIORITY;
+        result = OS_ERR_INVALID_PRIORITY;
+        goto exit;
     }
 
     struct sl_thd* thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
@@ -93,9 +100,9 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
 
     *task_id = (uint32) thd->thdid;
 
+exit:
     sl_cs_exit();
-
-    return OS_SUCCESS;
+    return result;
 }
 
 int32 OS_TaskDelete(uint32 task_id)
@@ -162,6 +169,10 @@ int32 OS_TaskDelay(uint32 millisecond)
 
 int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
 {
+    if(new_priority > 255 || new_priority < 1) {
+        return OS_ERR_INVALID_PRIORITY;
+    }
+
     struct sl_thd* thd = sl_thd_lkup(task_id);
     if(!thd) {
         return OS_ERR_INVALID_ID;
@@ -182,14 +193,25 @@ int32 OS_TaskRegister(void)
 
 int32 OS_TaskGetIdByName(uint32 *task_id, const char *task_name)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    // FIXME: Implement this. Left as is so unit tests pass
+    return OS_ERR_NOT_IMPLEMENTED;
 }
 
 int32 OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop)
 {
+    if(!task_prop) {
+        return OS_INVALID_POINTER;
+    }
+
+    struct sl_thd* thd = sl_thd_lkup(task_id);
+    if (!thd) {
+        return OS_ERR_INVALID_ID;
+    }
+    struct sl_thd_policy* thd_policy = sl_mod_thd_policy_get(thd);
+    assert(thd_policy);
+
     // TODO: Consider moving this sequence of calls to a helper function
-    *task_prop = sl_mod_thd_policy_get(sl_thd_lkup(task_id))->osal_task_prop;
+    *task_prop = thd_policy->osal_task_prop;
     return OS_SUCCESS;
 }
 

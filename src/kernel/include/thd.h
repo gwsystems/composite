@@ -121,7 +121,7 @@ static u32_t
 thdid_alloc(void)
 {
         /* FIXME: thd id address space management. */
-	if (unlikely(free_thd_id >= MAX_NUM_THREADS)) assert(0);
+//	if (unlikely(free_thd_id >= MAX_NUM_THREADS)) assert(0);
 	return cos_faa((int*)&free_thd_id, 1);
 }
 static void
@@ -277,9 +277,8 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
 	thd->tid          = thdid_alloc();
 	thd->refcnt       = 1;
-     	thd->invstk_top   = 0;
+	thd->invstk_top   = 0;
 	thd->cpuid        = get_cpuid();
-	assert(thd->tid <= MAX_NUM_THREADS);
 
 	thd_rcvcap_init(thd);
 	list_head_init(&thd->event_head);
@@ -465,7 +464,7 @@ thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_
 	memcpy(&curr->regs, regs, sizeof(struct pt_regs));
 }
 
-static inline void 
+static inline void
 thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs) {
 	unsigned long a = 0, b = 0;
 	int all_pending = thd_rcvcap_all_pending_get(thd);
