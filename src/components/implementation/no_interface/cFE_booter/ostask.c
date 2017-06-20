@@ -286,7 +286,7 @@ int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
             break;
         }
     }
-    if (mutexes[id].used) {
+    if (id >= OS_MAX_MUTEXES || mutexes[id].used) {
         result = OS_ERR_NO_FREE_IDS;
         goto exit;
     }
@@ -473,6 +473,7 @@ int32 OS_SemaphoreCreate(struct semaphore* semaphores, uint32 max_semaphores,
                          uint32 sem_initial_value, uint32 options)
 {
     int32 result = OS_SUCCESS;
+
     sl_cs_enter();
 
     if (sem_id == NULL || sem_name == NULL) {
@@ -498,7 +499,8 @@ int32 OS_SemaphoreCreate(struct semaphore* semaphores, uint32 max_semaphores,
             break;
         }
     }
-    if (semaphores[id].used) {
+
+    if (id >= max_semaphores || semaphores[id].used) {
         result = OS_ERR_NO_FREE_IDS;
         goto exit;
     }
