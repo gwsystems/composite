@@ -48,6 +48,7 @@ sl_mod_wakeup(struct sl_thd_policy *t)
 void
 sl_mod_yield(struct sl_thd_policy *t, struct sl_thd_policy *yield_to)
 {
+	assert(t);
 	assert(t->priority <= SL_FPRR_LOWEST);
 
 	ps_list_rem_d(t);

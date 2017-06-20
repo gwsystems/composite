@@ -74,6 +74,7 @@ sl_thd_setprio(struct sl_thd *t, tcap_prio_t p)
 static inline struct sl_thd *
 sl_thd_lkup(thdid_t tid)
 {
+	assert(tid != 0);
 	if (!(tid < MAX_NUM_THREADS)) {
 		return NULL;
 	}
@@ -84,6 +85,7 @@ static inline struct sl_thd *
 sl_thd_curr(void)
 {
 	thdid_t tid = cos_thdid();
+	assert(tid != 0);
 	assert(tid < MAX_NUM_THREADS);
 	return sl_thd_lkup(tid);
 }
