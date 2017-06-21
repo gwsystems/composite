@@ -252,7 +252,7 @@ arcv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
  * between the thread structure and the cached contents to be achieved
  * on context switches.
  */
-
+extern unsigned long const SINV_Stack[16];
 static inline void
 sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, struct cos_cpu_local_info *cos_info)
 {
@@ -284,7 +284,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	/* TODO: test this before pgtbl update...pre- vs. post-serialization */
 	__userregs_sinvupdate(regs);
 	__userregs_set(regs, thd->tid | (get_cpuid() << 16),
-		       0 /* FIXME: add calling component id */, sinvc->entry_addr);
+		       /*0*/ /* FIXME: add calling component id *//* We should put the stack here */ &(SINV_Stack[0]), sinvc->entry_addr);
 
 	return;
 }
@@ -309,9 +309,6 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	}
 
 	pgtbl_update(ci->pgtbl);
-	/* Set 2/3 return values into esi and edi */
-	__userregs_setretvals(regs, 0, thd->tid, 0);
-	/* Set return sp and ip and function return value in eax */
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);
 }
 

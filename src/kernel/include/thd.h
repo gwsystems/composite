@@ -12,11 +12,11 @@
 #include "cap_ops.h"
 #include "fpu_regs.h"
 #include "chal/cpuid.h"
-#include "chal/call_convention.h"
 #include "pgtbl.h"
 #include "retype_tbl.h"
 #include "tcap.h"
 #include "list.h"
+#include "chal/call_convention.h"
 
 struct invstk_entry {
 	struct comp_info comp_info;
@@ -34,7 +34,7 @@ struct invstk_entry {
  */
 struct rcvcap_info {
 	/* how many other arcv end-points send notifications to this one? */
-	int isbound, pending, refcnt, is_all_pending;
+	int isbound, pending, refcnt;
 	sched_tok_t sched_count;
 	struct tcap   *rcvcap_tcap;      /* This rcvcap's tcap */
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
@@ -43,6 +43,7 @@ struct rcvcap_info {
 typedef enum {
 	THD_STATE_PREEMPTED   = 1,
 	THD_STATE_RCVING      = 1<<1, /* report to parent rcvcap that we're receiving */
+	THD_STATE_SUSPENDED   = 1<<2,
 } thd_state_t;
 
 /**
@@ -87,19 +88,23 @@ struct cap_thd {
 	cpuid_t cpuid;
 } __attribute__((packed));
 
+/* Hack to forge the SVC stack */
+extern unsigned long const SVC_Stack[16];
 static void
 thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
 {
 	struct pt_regs *r = &thd->regs;
+	/* HACKHACKHACKHACKHACK */
+	r->r13_sp=&(SVC_Stack[0]);
 
-	r->cx = option;
+	r->r4 = thd->tid | (get_cpuid() << 16); // thd id + cpu id
+	r->r5 = option;
 
-	r->bx = arg1;
-	r->di = arg2;
-	r->si = arg3;
+	r->r6 = arg1;
+	r->r7 = arg2;
+	r->r8 = arg3;
 
-	r->ip = r->dx = entry_addr;
-	r->ax = thd->tid | (get_cpuid() << 16); // thd id + cpu id
+	r->r15_pc = r->r9 = entry_addr;
 
 	return;
 }
@@ -153,24 +158,11 @@ thd_rcvcap_sched(struct thread *t)
 }
 
 static void
-thd_next_thdinfo_update(struct cos_cpu_local_info *cli, struct thread *thd,
-			struct tcap *tc, tcap_prio_t prio, tcap_res_t budget)
-{
-	struct next_thdinfo *nti = &cli->next_ti;
-
-	nti->thd    = thd;
-	nti->tc     = tc;
-	nti->prio   = prio;
-	nti->budget = budget;
-}
-
-static void
 thd_rcvcap_init(struct thread *t)
 {
 	struct rcvcap_info *rc = &t->rcvcap;
 
 	rc->isbound = rc->pending = rc->refcnt = 0;
-	rc->is_all_pending = 0;
 	rc->sched_count = 0;
 	rc->rcvcap_thd_notif = NULL;
 }
@@ -193,32 +185,9 @@ thd_rcvcap_evt_dequeue(struct thread *head) { return list_dequeue(&head->event_h
 static inline int
 thd_track_exec(struct thread *t) { return !list_empty(&t->event_list); }
 
-static void
-thd_rcvcap_all_pending_set(struct thread *t, int val)
-{ t->rcvcap.is_all_pending = val; }
-
-static int
-thd_rcvcap_all_pending_get(struct thread *t)
-{ return t->rcvcap.is_all_pending; }
-
-static int
-thd_rcvcap_all_pending(struct thread *t)
-{
-	int pending = t->rcvcap.pending;
-
-	/* receive all pending */
-	t->rcvcap.pending = 0;
-	thd_rcvcap_all_pending_set(t, 0);
-
-	return ((pending << 1) | !list_isempty(&t->event_head));
-}
-
 static int
 thd_rcvcap_pending(struct thread *t)
-{
-	if (t->rcvcap.pending) return t->rcvcap.pending;
-	return !list_isempty(&t->event_head);;
-}
+{ return t->rcvcap.pending || list_first(&t->event_head) != NULL; }
 
 static sched_tok_t
 thd_rcvcap_get_counter(struct thread *t)
@@ -299,7 +268,6 @@ static int
 thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin,
 	       livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 {
-	struct cos_cpu_local_info *cli = cos_cpu_local_info();
 	struct cap_header *thd_header;
 	struct thread *thd;
 	unsigned long old_v = 0, *pte = NULL;
@@ -341,8 +309,6 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 	thd->refcnt--;
 	/* deactivation success */
 	if (thd->refcnt == 0) {
-		if (cli->next_ti.thd == thd) thd_next_thdinfo_update(cli, 0, 0, 0, 0);
-
 		/* move the kmem for the thread to a location
 		 * in a pagetable as COSFRAME */
 		ret = kmem_deact_post(pte, old_v);
@@ -465,49 +431,23 @@ thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_
 	memcpy(&curr->regs, regs, sizeof(struct pt_regs));
 }
 
-static inline void 
-thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs) {
-	unsigned long a = 0, b = 0;
-	int all_pending = thd_rcvcap_all_pending_get(thd);
-
-	thd_state_evt_deliver(thd, &a, &b);
-	if (all_pending) {
-		__userregs_setretvals(regs, thd_rcvcap_all_pending(thd), a, b);
-	} else {
-		thd_rcvcap_pending_dec(thd);
-		__userregs_setretvals(regs, thd_rcvcap_pending(thd), a, b);
-	}
-}
-
-static inline int
-thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
-{
-	int preempt = 0;
-
-	/* TODO: check FPU */
-	/* fpu_save(thd); */
-	if (thd->state & THD_STATE_PREEMPTED) {
-		assert(!(thd->state & THD_STATE_RCVING));
-		thd->state &= ~THD_STATE_PREEMPTED;
-		preempt = 1;
-	} else if (thd->state & THD_STATE_RCVING) {
-		assert(!(thd->state & THD_STATE_PREEMPTED));
-		thd->state &= ~THD_STATE_RCVING;
-		thd_rcvcap_pending_deliver(thd, regs);
-	} else if (issame) {
-		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-	}
-
-	return preempt;
-}
-
 static inline int
 thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 {
+	/*
 	switch(op) {
+	case THD_GET_IP : *retval = t->regs.ip; break;
+	case THD_GET_SP : *retval = t->regs.sp; break;
+	case THD_GET_BP : *retval = t->regs.bp; break;
+	case THD_GET_AX : *retval = t->regs.ax; break;
+	case THD_GET_BX : *retval = t->regs.bx; break;
+	case THD_GET_CX : *retval = t->regs.cx; break;
+	case THD_GET_DX : *retval = t->regs.dx; break;
+	case THD_GET_SI : *retval = t->regs.si; break;
+	case THD_GET_DI : *retval = t->regs.di; break;
 	case THD_GET_TID: *retval = t->tid; break;
-	default:          return -EINVAL;
-	}
+	default: return -EINVAL;
+	}*/
 	return 0;
 }
 
