@@ -13,28 +13,25 @@ int32  OS_TimerAPIInit(void)
     return 0;
 }
 
+// TODO: Verify this API really insn't necessary
 int32 OS_TimeBaseCreate(uint32 *timer_id, const char *timebase_name, OS_TimerSync_t external_sync)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_ERR_NOT_IMPLEMENTED;
 }
 
 int32 OS_TimeBaseSet(uint32 timer_id, uint32 start_time, uint32 interval_time)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_ERR_NOT_IMPLEMENTED;
 }
 
 int32 OS_TimeBaseDelete(uint32 timer_id)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_ERR_NOT_IMPLEMENTED;
 }
 
-int32 OS_TimeBaseGetIdByName(uint32 *timer_id, const char *timebase_name)
+int32 OS_TimeBaseGetIdByName (uint32 *timer_id, const char *timebase_name)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return OS_ERR_NOT_IMPLEMENTED;
 }
 
 

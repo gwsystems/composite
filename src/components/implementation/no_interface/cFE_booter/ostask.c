@@ -54,6 +54,7 @@ int is_name_taken(const char* name) {
 */
 // Necessary to control the number of created tasks
 
+// FIXME: All tasks have the same priority!
 // TODO: Implement flags
 int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
                     osal_task_entry function_pointer,
@@ -136,11 +137,9 @@ exit:
 
 uint32 OS_TaskGetId(void)
 {
-    struct sl_thd* thd = sl_thd_curr();
-    if(!thd) {
-        PANIC("Could not get the current thread!");
-    }
-    return thd->thdid;
+    thdid_t thdid = cos_thdid();
+    assert(thdid != 0);
+    return thdid;
 }
 
 void OS_TaskExit(void)
@@ -226,7 +225,7 @@ int32 OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop)
 */
 void OS_IdleLoop(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    sl_thd_block(0);
 }
 
 /*

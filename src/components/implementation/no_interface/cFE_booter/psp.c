@@ -264,8 +264,8 @@ int32 CFE_PSP_GetVolatileDiskMem(cpuaddr *PtrToVolDisk, uint32 *SizeOfVolDisk )
 
 int32 CFE_PSP_GetKernelTextSegmentInfo(cpuaddr *PtrToKernelSegment, uint32 *SizeOfKernelSegment)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    // TODO: Verify this is ok to remain unimplemented
+    return CFE_PSP_ERROR_NOT_IMPLEMENTED;
 }
 /*
 ** CFE_PSP_GetKernelTextSegmentInfo returns the location and size of the kernel memory.
@@ -273,8 +273,8 @@ int32 CFE_PSP_GetKernelTextSegmentInfo(cpuaddr *PtrToKernelSegment, uint32 *Size
 
 int32 CFE_PSP_GetCFETextSegmentInfo(cpuaddr *PtrToCFESegment, uint32 *SizeOfCFESegment)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    // TODO: Verify this is ok to remain unimplemented
+    return CFE_PSP_ERROR_NOT_IMPLEMENTED;
 }
 /*
 ** CFE_PSP_GetCFETextSegmentInfo returns the location and size of the kernel memory.
