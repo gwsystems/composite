@@ -30,10 +30,7 @@ _Composite_ system support
 --------------------------
 
 - x86-32
-- booting using Linux 2.6.33 or 2.6.36 (see Hijack support for booting
-  information)
-- networking using Linux drivers and a modified tun/tap driver to
-  communicate with _Composite_
+- Qemu with 32 bit, x86 support 
 
 Important note
 --------------
@@ -45,7 +42,7 @@ Important note
 Licensing
 ---------
 
-This code is licensed under the GPL version 2.0:
+This code is licensed under the GPL version 2.0 unless otherwise noted (significant portions of user-level are BSD):
 
 ```
 The Composite Component-Based OS
