@@ -2,7 +2,6 @@
 #define COS_THD_INIT_H
 
 #include <cos_debug.h>
-#include <ck_pr.h>
 
 extern struct __thd_init_data __thd_init_data[COS_THD_INIT_REGION_SIZE];
 

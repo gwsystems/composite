@@ -10,6 +10,12 @@
 #ifndef   	MEM_MGR_H
 #define   	MEM_MGR_H
 
+int __mman_fork_spd(spdid_t spd, u32_t s_spd_d_spd, vaddr_t base, u32_t len);
+static inline int
+mman_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd, vaddr_t base, u32_t len) {
+	return __mman_fork_spd(spd, ((u32_t)s_spd<<16)|d_spd, base, len);
+}
+
 /* Map a physical frame into a component. */
 vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags);
 vaddr_t mman_valloc(spdid_t compid, spdid_t dest, unsigned long npages);

@@ -19,7 +19,7 @@
 #include <ck_ring.h>
 #define MBOX_BUFFER_SIZE 256
 struct cbuf_info {
-	cbufp_t cb;
+	cbuf_t cb;
 	int sz, off;
 };
 CK_RING_PROTOTYPE(cb_buffer, cbuf_info);
@@ -43,30 +43,30 @@ struct as_conn_root {
 	struct as_conn cs; /* client initiated, but not yet accepted connections */
 };
 
-static void 
+static void
 __mbox_remove_cbufp(struct as_conn *ac)
 {
 	int i;
-	
+
 	for (i = 0 ; i < 2 ; i++) {
 		struct cbuf_info cbi;
 		void *addr;
 
-		while (CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[i], ac->buffer[i],&cbi)) {
-			addr = cbufp2buf(cbi.cb, cbi.sz);
+		while (CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[i], &cbi)) {
+			addr = cbuf2buf(cbi.cb, cbi.sz);
 			assert(addr);
-			cbufp_deref(cbi.cb);
+			cbuf_free(cbi.cb);
 		}
 	}
-	
+
 }
 
-static void 
+static void
 free_as_conn_root(void *d)
 {
 	struct as_conn_root *acr = d;
 	struct as_conn *i;
-	
+
 	for (i = FIRST_LIST(&acr->cs, next, prev) ;
 	     i != &acr->cs ;
 	     i = FIRST_LIST(i, next, prev)) {
@@ -93,7 +93,7 @@ struct fsobj root;
 #define MAX_DATA_SZ (MAX_ALLOC_SZ - sizeof(struct __cringbuf))
 
 static struct fsobj *
-mbox_create_addr(spdid_t spdid, struct torrent *t, struct fsobj *parent, 
+mbox_create_addr(spdid_t spdid, struct torrent *t, struct fsobj *parent,
 		 char *subpath, tor_flags_t tflags, int *_ret)
 {
 	int ret = 0;
@@ -112,7 +112,7 @@ mbox_create_addr(spdid_t spdid, struct torrent *t, struct fsobj *parent,
 	acr->t = t;
 	INIT_LIST(&acr->cs, next, prev);
 	fsc->data     = (void*)acr;
-		
+
 	fsc->allocated = fsc->size = 0;
 done:
 	*_ret = ret;
@@ -123,10 +123,10 @@ free:
 	goto done;
 }
 
-/* 
+/*
  * Create an end-point for this specific mail-box.
  */
-static int 
+static int
 mbox_create_server(struct torrent *t, struct as_conn_root *acr)
 {
 	int ret = 0;
@@ -145,13 +145,13 @@ mbox_create_server(struct torrent *t, struct as_conn_root *acr)
 	return ret;
 }
 
-static int 
+static int
 mbox_create_client(struct torrent *t, struct as_conn_root *acr)
 {
 	struct as_conn *ac;
 	int i, ret = 0;
 	assert(!t->data);
-	
+
 	ac = malloc(sizeof(struct as_conn));
 	if (!ac) return -ENOMEM;
 	ac->status = 0;
@@ -169,7 +169,7 @@ mbox_create_client(struct torrent *t, struct as_conn_root *acr)
 }
 
 static int
-mbox_put(struct torrent *t, cbufp_t cb, int sz, int off, int ep)
+mbox_put(struct torrent *t, cbuf_t cb, int sz, int off, int ep)
 {
 	struct as_conn *ac;
 	int other_ep = !ep;
@@ -194,7 +194,7 @@ mbox_get(struct torrent *t, int *sz, int *off, int ep)
 	struct as_conn *ac;
 	struct cbuf_info cbi;
 	int other_ep = !ep;
-	cbufp_t cb;
+	cbuf_t cb;
 
 	ac  = t->data;
 	if (!CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[other_ep], ac->buffer[ep], &cbi)) {
@@ -207,7 +207,7 @@ mbox_get(struct torrent *t, int *sz, int *off, int ep)
 	return cb;
 }
 
-/* 
+/*
  * Protocol for use of this component:
  *
  * 1) server of data, c_s issues a tsplit with the identifying string,
@@ -232,9 +232,9 @@ mbox_get(struct torrent *t, int *sz, int *off, int ep)
  * the descriptor, -EPIPE will be sent to the other
  */
 
-td_t 
-tsplit(spdid_t spdid, td_t td, char *param, 
-       int len, tor_flags_t tflags, long evtid) 
+td_t
+tsplit(spdid_t spdid, td_t td, char *param,
+       int len, tor_flags_t tflags, long evtid)
 {
 	td_t ret = -1;
 	struct torrent *t, *nt;
@@ -263,7 +263,7 @@ tsplit(spdid_t spdid, td_t td, char *param,
 		/* Case 2: a client attempt to connect to a server*/
 	        if (len>0)      ret = (td_t)mbox_create_client(nt, acr);
 		/* Case 3: a server create a connection to a client*/
-	        else            ret = (td_t)mbox_create_server(nt, acr); 
+	        else            ret = (td_t)mbox_create_server(nt, acr);
 	        if (ret < 0) goto free;
 	        nt->flags = tflags & TOR_RW;
 	}
@@ -276,12 +276,12 @@ free:
 	goto done;
 }
 
-int 
+int
 tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len)
 {
 	return -ENOTSUP;
 }
-int 
+int
 twrite(spdid_t spdid, td_t td, int cbid, int sz)
 {
 	return -ENOTSUP;
@@ -300,7 +300,7 @@ trelease(spdid_t spdid, td_t td)
 	/* TODO: add TOR_NONPERSIST: on release, remove from the
 	 * namespace (if no existing references to the resource) */
 
-	if (t->flags & TOR_SPLIT) { 
+	if (t->flags & TOR_SPLIT) {
 		struct fsobj *fsc;
 		fsc = (struct fsobj *)t->data;
 		fsobj_rem(fsc, fsc->parent);
@@ -341,16 +341,16 @@ done:
 	return;
 }
 
-int 
+int
 tread(spdid_t spdid, td_t td, int cbid, int sz)
 {
 	return -ENOTSUP;
 }
 
-int 
+int
 treadp(spdid_t spdid, td_t td, int *off, int *sz)
 {
-	cbufp_t ret;
+	cbuf_t ret;
 	struct torrent *t;
 	struct as_conn *ac;
 
@@ -366,18 +366,18 @@ treadp(spdid_t spdid, td_t td, int *off, int *sz)
 	ret = mbox_get(t, sz, off, ac->owner != spdid);
 	if ((int)ret < 0) goto done;
 	t->offset += ret;
-done:	
+done:
 	UNLOCK();
 	return ret;
 }
 
-int 
+int
 twritep(spdid_t spdid, td_t td, int cbid, int sz)
 {
 	int ret = -1;
 	struct torrent *t;
 	struct as_conn *ac;
-	cbufp_t cb = cbid;
+	cbuf_t cb = cbid;
 
 	if (tor_isnull(td)) return -EINVAL;
 	LOCK();
@@ -389,7 +389,7 @@ twritep(spdid_t spdid, td_t td, int cbid, int sz)
 	ret = mbox_put(t, cb, sz, 0, ac->owner != spdid);
 	if (ret < 0) goto done;
 	t->offset += ret;
-done:	
+done:
 	UNLOCK();
 	return ret;
 }

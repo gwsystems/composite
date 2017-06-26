@@ -132,10 +132,6 @@ boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val,
 		ci->init_string[len] = '\0';
 	}
 
-	/* save the address of this page for later retrieval
-	 * (e.g. to manipulate the stack pointer) */
-	/* comp_info_record(h, spdid, ci); */
-
 	return 1;
 }
 
@@ -152,7 +148,7 @@ boot_spd_end(struct cobj_header *h)
 }
 
 static int
-boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
+boot_spd_alloc_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
 	unsigned int i;
 	vaddr_t dest_daddr, prev_map = 0;
@@ -163,16 +159,50 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	local_md[spdid].h          = h;
 	local_md[spdid].page_start = cos_get_heap_ptr();
 	local_md[spdid].comp_info  = comp_info;
+
+	/* save the address of the heap for later retrieval */
+	boot_deps_save_hp(spdid, (void*)boot_spd_end(h));
+
+	for (i = 0 ; i < h->nsect ; i++) {
+		struct cobj_sect *sect = cobj_sect_get(h, i);
+		int left = cobj_sect_size(h, i);
+		sect = cobj_sect_get(h, i);
+		dest_daddr = sect->vaddr;
+		if (round_to_page(dest_daddr) == prev_map) {
+			left -= (prev_map + PAGE_SIZE - dest_daddr);
+			dest_daddr = prev_map + PAGE_SIZE;
+		}
+
+		while (left > 0) {
+			dsrc = cos_get_vas_page();
+			if ( i == 0 && left == (int)cobj_sect_size(h, 0) )
+				assert(dsrc == local_md[spdid].page_start);
+			left -= PAGE_SIZE;
+			prev_map = dest_daddr;
+			dest_daddr += PAGE_SIZE;
+		}
+	}
+	local_md[spdid].page_end = dsrc + PAGE_SIZE;
+	return 0;
+}
+
+static int
+boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
+{
+	unsigned int i, use_kmem;
+	vaddr_t dest_daddr, prev_map = 0;
+	char *dsrc;
+
+
+	dsrc = local_md[spdid].page_start;
+
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
 		int left;
 
-		sect = cobj_sect_get(h, i);
-		flag = MAPPING_RW;
-		if (sect->flags & COBJ_SECT_KMEM) {
-			flag |= MAPPING_KMEM;
-		}
-
+		use_kmem   = 0;
+		sect       = cobj_sect_get(h, i);
+		if (sect->flags & COBJ_SECT_KMEM) use_kmem = 1;
 		dest_daddr = sect->vaddr;
 		left       = cobj_sect_size(h, i);
 		/* previous section overlaps with this one, don't remap! */
@@ -180,18 +210,16 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 			left -= (prev_map + PAGE_SIZE - dest_daddr);
 			dest_daddr = prev_map + PAGE_SIZE;
 		}
-		while (left > 0) {
-			dsrc = cos_get_vas_page();
-
-			if ((vaddr_t)dsrc != __local_mman_get_page(cos_spd_id(), (vaddr_t)dsrc, flag)) BUG();
-			if (dest_daddr != __local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, flag)) BUG();
-
+		if (left > 0) {
+			left = round_up_to_page(left);
 			prev_map = dest_daddr;
-			dest_daddr += PAGE_SIZE;
-			left       -= PAGE_SIZE;
+			boot_deps_map_sect(spdid, dsrc, dest_daddr, left/PAGE_SIZE, h, i);
+			prev_map += left - PAGE_SIZE;
+			dest_daddr += left;
+			dsrc += left;
 		}
 	}
-	local_md[spdid].page_end = dsrc + PAGE_SIZE;
+	assert(local_md[spdid].page_end == dsrc);
 
 	return 0;
 }
@@ -232,9 +260,12 @@ boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, i
 		}
 
 		if (sect->flags & COBJ_SECT_CINFO) {
+			struct cos_component_information *ci;
 			assert(left == PAGE_SIZE);
 			assert(comp_info == dest_daddr);
-			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info-init_daddr), comp_info);
+			ci = (struct cos_component_information *)(start_addr + (comp_info - init_daddr));
+			boot_process_cinfo(h, spdid, boot_spd_end(h), (void*)ci, comp_info);
+			if (first_time) boot_spd_set_symbs(h, spdid, ci);
 		}
 	}
 
@@ -344,11 +375,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 static void
 boot_create_system(void)
 {
-	unsigned int i, min = ~0;
-
-	for (i = 0 ; hs[i] != NULL ; i++) {
-		if (hs[i]->id < min) min = hs[i]->id;
-	}
+	unsigned int i;
 
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
@@ -384,8 +411,17 @@ boot_create_system(void)
 			}
 		}
 		if (boot_spd_symbs(h, spdid, &comp_info))        BUG();
-		if (boot_spd_map(h, spdid, comp_info))           BUG();
-		if (cos_spd_cntl(COS_SPD_ACTIVATE, spdid, h->ncap, 0)) BUG();
+		if (boot_spd_alloc_memory(h, spdid, comp_info)) BUG();
+	}
+
+	boot_deps_save_hp(cos_spd_id(), cos_get_heap_ptr());
+	printc("booter: heap pointer now at %p\n", cos_get_heap_ptr());
+
+	for (i = 0 ; hs[i] != NULL ; i++) {
+		struct cobj_header *h = hs[i];
+		vaddr_t comp_info = local_md[h->id].comp_info;
+		if (boot_spd_map(h, h->id, comp_info))           BUG();
+		if (cos_spd_cntl(COS_SPD_ACTIVATE, h->id, h->ncap, 0)) BUG();
 	}
 
 	for (i = 0 ; hs[i] != NULL ; i++) {
@@ -437,8 +473,9 @@ failure_notif_fail(spdid_t caller, spdid_t failed)
 	UNLOCK();
 }
 
+#define MAX_DEP (PAGE_SIZE/sizeof(struct deps))
 struct deps { short int client, server; };
-struct deps *deps;
+struct deps deps[MAX_DEP];
 int ndeps;
 
 int
@@ -455,7 +492,6 @@ cgraph_client(int iter)
 	return deps[iter].client;
 }
 
-#define MAX_DEP (PAGE_SIZE/sizeof(struct deps))
 int
 cgraph_add(int serv, int client)
 {
@@ -738,7 +774,7 @@ void cos_init(void)
 	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj  = (int)cos_comp_info.cos_poly[1];
 
-	deps      = (struct deps *)cos_comp_info.cos_poly[2];
+	memcpy(deps, (struct deps *)cos_comp_info.cos_poly[2], PAGE_SIZE);
 	for (i = 0 ; deps[i].server ; i++) ;
 	ndeps     = i;
 

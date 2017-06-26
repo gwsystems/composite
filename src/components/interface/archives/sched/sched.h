@@ -12,6 +12,8 @@ unsigned long sched_cyc_per_tick(void);
 unsigned long sched_timestamp(void);
 unsigned long sched_timer_stopclock(void);
 int sched_priority(unsigned short int tid);
+/* This function is not safe. */
+int sched_curr_set_priority(unsigned short int prio);
 
 /* This function is deprecated...use sched_create_thd instead. */
 int sched_create_thread(spdid_t spdid, struct cos_array *data);
@@ -24,6 +26,10 @@ int sched_create_net_acap(spdid_t spdid, int acap_id, unsigned short int port);
 
 int sched_component_take(spdid_t spdid);
 int sched_component_release(spdid_t spdid);
+
+int sched_get_thread_in_spd(spdid_t spdid, spdid_t target, int index);
+int sched_quarantine_thread(spdid_t spdid, spdid_t src, spdid_t dst, int tid);
+int sched_quarantine_wakeup(spdid_t spdid, int tid);
 
 #include "cos_thd_creation.h"
 

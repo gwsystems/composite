@@ -83,14 +83,14 @@ extern void fpu_not_available_interposition(void);
 extern void ipi_handler(void);
 extern void timer_interposition(void);
 
-/* 
+/*
  * This variable exists for the assembly code for temporary
  * storage...want it close to sysenter_addr for cache locality
  * purposes. -> Replaced by the per_cpu variable x86_tss.
  */
-extern unsigned long temp_esp_storage; 
+extern unsigned long temp_esp_storage;
 
-/* 
+/*
  * This variable is the page table entry that links to all of the
  * shared region data including the read-only information page and the
  * data region for passing arguments and holding persistent data.
@@ -103,7 +103,7 @@ struct per_core_cos_thd cos_thd_per_core[NUM_CPU];
 //Should this be per core? >>
 struct mm_struct *composite_union_mm = NULL;
 
-/* 
+/*
  * These are really a per-thread resource (per CPU if we assume hijack
  * only runs one thread per CPU).  These data structures have been
  * taken out of the task struct to improve locality, and so that we
@@ -114,17 +114,17 @@ struct mm_struct *composite_union_mm = NULL;
 struct mm_struct *trusted_mm = NULL;
 
 #define MAX_ALLOC_MM 64
-struct mm_struct *guest_mms[MAX_ALLOC_MM]; 
+struct mm_struct *guest_mms[MAX_ALLOC_MM];
 //Should the above be per core? <<
 
 DEFINE_PER_CPU(unsigned long, x86_tss) = { 0 };
 
-/* 
+/*
  * This function gets the TSS pointer from Linux.
  * We read it from Linux only once. After that, use the
- * get_TSS function below for efficiency. 
+ * get_TSS function below for efficiency.
  */
-static inline void 
+static inline void
 load_per_core_TSS(void)
 {
 	unsigned long *cpu_x86_tss;
@@ -142,16 +142,16 @@ load_per_core_TSS(void)
 	put_cpu_var(x86_tss);
 }
 
-/* 
+/*
  * This function gets the TSS pointer of current CPU.
  * We load the TSS to a per CPU variable x86_tss when
  * we try getting it the first time. After that, we
- * can just load it from that variable. 
+ * can just load it from that variable.
  */
 void get_TSS(struct pt_regs *rs)
 {
-	/* We pass the esp to this function from assembly. 
-	 * In the assembly code, we do SAVE_ALL before call 
+	/* We pass the esp to this function from assembly.
+	 * In the assembly code, we do SAVE_ALL before call
 	 * this function. We also reserve a position in the stack
 	 * before SAVE_ALL to receive the TSS from this function.
 	 * So here, the orig_ax points right to that position.*/
@@ -198,7 +198,7 @@ static inline struct mm_struct *aed_get_mm(int mm_handle)
 	return guest_mms[mm_handle];
 }
 
-/* 
+/*
  * This is needed when we are copying a current mm.  The copy process
  * cannot copy the current mm _to_ a given mm, only create a new copy
  * mm, and we want to replace the old stale mm with the new copy.  See
@@ -235,7 +235,7 @@ static int aed_allocate_mm(void)
 	//init_MUTEX(&mm->context.sem);
 	mutex_init(&mm->context.lock);
 	mm->context.size = 0;
-	
+
 	arch_pick_mmap_layout(mm);
 
 	mm_handle = aed_find_empty_mm_handle();
@@ -299,7 +299,7 @@ int spd_free_mm(struct spd *spd)
 static void remove_all_guest_mms(void)
 {
 	int i;
-	
+
 	for (i = 0 ; i < MAX_ALLOC_MM ; i++) {
 		if (guest_mms[i] == NULL) continue;
 
@@ -312,7 +312,7 @@ static void remove_all_guest_mms(void)
 #ifdef DEBUG
 #define printkd(str,args...) printk(str, ## args)
 #else
-#define printkd(str,args...) 
+#define printkd(str,args...)
 #endif
 
 /* return a ptr to the register structure referring to the user-level regs */
@@ -320,15 +320,15 @@ static inline struct pt_regs* get_user_regs(void)
 {
 	/*
 	Following calculations deduced from:
-	   
+
 	in entry.S:
-	
+
 	pushl %esp
 	call gp_print_esp
 	popl %esp
-	
+
 	and elsewhere
-	
+
 	void gp_print_esp(unsigned int esp)
 	{
 	        printk("cosesp is %x; esp0 is %x; sizeof pt_regs %x.\n",
@@ -339,9 +339,9 @@ static inline struct pt_regs* get_user_regs(void)
 
 	return (struct pt_regs*)((int)current->thread.sp0 - sizeof(struct pt_regs));
 
-	/* 
+	/*
 	 * This is complicated because the user registers can be in
-	 * one of three places.  
+	 * one of three places.
 	 *
 	 * 1) User-level code was executing when an interrupt
 	 * happened.  When we wish to retrieve the user-level
@@ -395,7 +395,7 @@ static inline struct pt_regs* get_user_regs(void)
 	 *    the normal offset from esp0 method should work
 	 *
 	 * Complication: eax is not set till syscall returns...
-	 * 
+	 *
 	 * a) Because of the complexity of this solution (#3), I am
 	 * going to self-impose a restriction against making Linux
 	 * syscalls for experiments using Composite.  Linux system
@@ -418,7 +418,7 @@ static inline struct pt_regs* get_user_regs(void)
 	 *
 	 * A sidenote:
 	 * -----------
-	 * 
+	 *
 	 * Case (1) is affected by possible nested interrupts as well,
 	 * and it is possible that we will be in a softirq that
 	 * interrupted the saving/restoring of the user registers on
@@ -444,7 +444,7 @@ static inline int write_regs_to_user(struct pt_regs * __user user_regs_area)
 		//printk("cosWriting registers to user-level failed.\n");
 		return -EFAULT;
 	}
-	
+
 	return 0;
 }
 
@@ -456,7 +456,7 @@ static inline int save_user_regs_to_kern(struct pt_regs * __user user_regs_area,
 		//printk("cos");
 		return -EFAULT;
 	}
-	
+
 	return 0;
 }
 
@@ -505,7 +505,7 @@ static inline void copy_pgd_range(struct mm_struct *to_mm, struct mm_struct *fro
 
 #ifdef NIL
 	if (!(pgd_val(*fpgd) & PGTBL_PRESENT)) {
-		printk("cos: BUG: nothing to copy in mm %p's pgd @ %x.\n", 
+		printk("cos: BUG: nothing to copy in mm %p's pgd @ %x.\n",
 		       from_mm, (unsigned int)lower_addr);
 	}
 #endif
@@ -536,7 +536,7 @@ struct thread *ready_boot_thread(struct spd *init)
 		printk("cos: Could not allocate boot thread.\n");
 		return NULL;
 	}
-	/* 
+	/*
 	 * Create the spd_poly with a pointer to the page tables for
 	 * each Linux process to return to, so that when the separate
 	 * core's cos threads return to comp0 (thus the cos_loader and
@@ -551,7 +551,7 @@ struct thread *ready_boot_thread(struct spd *init)
 	frame                        = thd_invstk_top(thd);
 	assert(thd->stack_ptr == 0);
 	frame->current_composite_spd = this_pgtbl;
-	
+
 	assert(init->location[0].lowest_addr == SERVICE_START);
 	assert(thd_spd_in_composite(this_pgtbl, init));
 
@@ -606,7 +606,7 @@ static void hw_reset(void *data)
 
 u8_t init_thds[THD_SIZE * NUM_CPU] PAGE_ALIGNED;
 /* Reserve 5 pages for llboot captbl. */
-u8_t boot_comp_captbl[PAGE_SIZE*BOOT_CAPTBL_NPAGES] PAGE_ALIGNED; 
+u8_t boot_comp_captbl[PAGE_SIZE*BOOT_CAPTBL_NPAGES] PAGE_ALIGNED;
 u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 
 u8_t *boot_comp_pgd;
@@ -662,7 +662,7 @@ kern_boot_comp(struct spd_info *spd_info)
 	assert(ct);
 
 	/* expand the captbl to use multiple pages. */
-	for (i = 1; i < BOOT_CAPTBL_NPAGES; i++) { 
+	for (i = 1; i < BOOT_CAPTBL_NPAGES; i++) {
 		captbl_init(boot_comp_captbl + i * PAGE_SIZE, 1);
 		ret = captbl_expand(ct, (PAGE_SIZE*i - PAGE_SIZE/2)/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE*i);
 		assert(!ret);
@@ -710,7 +710,7 @@ kern_boot_comp(struct spd_info *spd_info)
 		pte_cap->pgtbl = (pgtbl_t)boot_comp_pte_vm;
 
 		/* construct the page tables */
-		if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, 
+		if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE,
 			     BOOT_MEM_VM_BASE + i*n_pte_entry*PAGE_SIZE)) { printk("failed i %d\n", i);cos_throw(err, -1);}
 	}
 
@@ -727,7 +727,7 @@ kern_boot_comp(struct spd_info *spd_info)
 		printk("no enough bootkmem, want %d\n", n_pte);
 		cos_throw(err, -1);
 	}
-	for (i = 0; i < NBOOTKMEM; i++) 
+	for (i = 0; i < NBOOTKMEM; i++)
 		bootkmem[i] = NULL;
 
 	/* Get PTE */
@@ -756,7 +756,7 @@ kern_boot_comp(struct spd_info *spd_info)
 		/* Again, a hack for bootstrap. */
 		pte_cap->pgtbl = (pgtbl_t)boot_comp_pte_pm;
 
-		if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE, 
+		if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE,
 			     BOOT_MEM_PM_BASE + i*n_pte_entry*PAGE_SIZE)) cos_throw(err, -1);
 	}
 
@@ -787,7 +787,7 @@ kern_boot_comp(struct spd_info *spd_info)
 		if (pgtbl_mapping_add(pt, BOOT_MEM_VM_BASE + i*PAGE_SIZE, addr, PGTBL_USER_DEF)) {
 			printk("Mapping llbooter %x failed!\n", addr);
 			cos_throw(err, -1);
-		} 
+		}
 		assert(chal_pa2va((paddr_t)addr) == pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
 #else
 		u32_t addr = (u32_t)chal_va2pa(bootkmem[i+bootkmem_used]);
@@ -814,7 +814,7 @@ kern_boot_comp(struct spd_info *spd_info)
 	for (i = 0; i < (COS_KERNEL_MEMORY - (cos_kmem - cos_kmem_base)/PAGE_SIZE); i++) {
 		u32_t addr = (u32_t)((void *)chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 
-		if (pgtbl_cosframe_add(pt, BOOT_MEM_KM_BASE + i*PAGE_SIZE, 
+		if (pgtbl_cosframe_add(pt, BOOT_MEM_KM_BASE + i*PAGE_SIZE,
 				       addr, PGTBL_COSFRAME)) cos_throw(err, -1);
 	}
 	printk("cos: %d kernel accessible pages @ %x\n", i, BOOT_MEM_KM_BASE);
@@ -828,8 +828,8 @@ kern_boot_comp(struct spd_info *spd_info)
 	/* add the system's physical memory at address 2GB */
 	for (i = 0 ; i < N_PHYMEM_PAGES ; i++) {
 		u32_t addr = COS_MEM_START + i*PAGE_SIZE;
-		
-		if (pgtbl_cosframe_add(pt, BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
+
+		if (pgtbl_cosframe_add(pt, BOOT_MEM_PM_BASE + i*PAGE_SIZE,
 				       addr, PGTBL_COSFRAME)) { printk ("%d failed\n", i);break;}//cos_throw(err, -1);
 	}
 	printk("cos: %d user frames @ %x\n", i, BOOT_MEM_PM_BASE);
@@ -843,13 +843,13 @@ kern_boot_comp(struct spd_info *spd_info)
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_PT, pt0, 0)) cos_throw(err, -1);
 
 	assert(spd_info->upcall_entry);
-	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 
+	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0, spd_info->upcall_entry, NULL)) cos_throw(err, -1);
-	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_COMP, 
+	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_COMP,
 			  BOOT_CAPTBL_COMP0_CT, BOOT_CAPTBL_COMP0_PT, 0, 0, NULL)) cos_throw(err, -1);
-	/* 
+	/*
 	 * Only capability for the comp0 is 4: the synchronous
-	 * invocation capability.  
+	 * invocation capability.
 	 */
 	assert(boot_sinv_entry);
 
@@ -875,12 +875,12 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		cos_kern_stk_init();
 		save_per_core_cos_thd();
 
-		/* 
+		/*
 		 * Create a thread in comp0.
 		 */
 		rdtscll(s);
-		while (thd_activate(boot_captbl, BOOT_CAPTBL_SELF_CT, 
-				    BOOT_CAPTBL_SELF_INITTHD_BASE + get_cpuid() * captbl_idsize(CAP_THD), 
+		while (thd_activate(boot_captbl, BOOT_CAPTBL_SELF_CT,
+				    BOOT_CAPTBL_SELF_INITTHD_BASE + get_cpuid() * captbl_idsize(CAP_THD),
 				    thd, BOOT_CAPTBL_COMP0_COMP, 0)) {
 			/* CAS could fail on init. */
 			rdtscll(e);
@@ -902,7 +902,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	{
 		struct spd_info spd_info;
 
-		if (copy_from_user(&spd_info, (void*)arg, 
+		if (copy_from_user(&spd_info, (void*)arg,
 				   sizeof(struct spd_info))) {
 			printk("cos: Error copying spd_info from user.\n");
 			return -EFAULT;
@@ -942,19 +942,19 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		struct spd *spd;
 		int i;
 
-		if (copy_from_user(&spd_info, (void*)arg, 
+		if (copy_from_user(&spd_info, (void*)arg,
 				   sizeof(struct spd_info))) {
 			printk("cos: Error copying spd_info from user.\n");
 			return -EFAULT;
 		}
 
-		if (!spd_info.ucap_tbl || 
+		if (!spd_info.ucap_tbl ||
 		    !access_ok(VERIFY_WRITE, spd_info.ucap_tbl, spd_info.num_caps)) {
 			return -EINVAL;
-		} 
+		}
 
-		spd = spd_alloc(spd_info.num_caps, 
-				(struct usr_inv_cap *)spd_info.ucap_tbl, 
+		spd = spd_alloc(spd_info.num_caps,
+				(struct usr_inv_cap *)spd_info.ucap_tbl,
 				spd_info.upcall_entry);
 
 		if (!spd) {
@@ -965,7 +965,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		for (i = 0 ; i < COS_NUM_ATOMIC_SECTIONS ; i++) {
 			spd->atomic_sections[i] = spd_info.atomic_regions[i];
 		}
-		
+
 		/* This is a special case where the component should
 		 * share the address space of the configuring process,
 		 * thus have access to all component's memory.  This
@@ -988,7 +988,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			 */
 			struct mm_struct *mm;
 			struct composite_spd *cspd;
-			
+
 			spd->local_mmaps = aed_allocate_mm();
 			if (spd->local_mmaps < 0) {
 				spd_free(spd);
@@ -1002,7 +1002,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				spd_free(spd);
 				return -1;
 			}
-			assert(spd == virtual_namespace_query(spd_info.lowest_addr+PAGE_SIZE));
 
 			copy_pgd_range(mm, current->mm, spd_info.lowest_addr, spd_info.size);
 
@@ -1036,7 +1035,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		struct spd *owner, *dest;
 		int cap_no;
 
-		if (copy_from_user(&cap_info, (void*)arg, 
+		if (copy_from_user(&cap_info, (void*)arg,
 				   sizeof(struct cap_info))) {
 			printk("cos: Error copying cap_info from user.\n");
 			return -EFAULT;
@@ -1054,7 +1053,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EINVAL;
 		}
 
-		cap_no = spd_add_static_cap_extended(owner, dest, cap_info.rel_offset, 
+		cap_no = spd_add_static_cap_extended(owner, dest, cap_info.rel_offset,
 						     cap_info.ST_serv_entry, cap_info.AT_cli_stub, cap_info.AT_serv_stub,
 						     cap_info.SD_cli_stub, cap_info.SD_serv_stub, cap_info.il, cap_info.flags);
 
@@ -1079,7 +1078,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		save_per_core_cos_thd();
 
-		if (copy_from_user(&thread_info, (void*)arg, 
+		if (copy_from_user(&thread_info, (void*)arg,
 				   sizeof(struct cos_thread_info))) {
 			//printk("cos: Error copying thread_info from user.\n");
 			return -EFAULT;
@@ -1126,22 +1125,22 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		struct cap_info cap_info;
 		struct spd *spd;
 
-		if (copy_from_user(&cap_info, (void*)arg, 
+		if (copy_from_user(&cap_info, (void*)arg,
 				   sizeof(struct cap_info))) {
 			//printk("cos: Error copying cap_info from user.\n");
 			return -EFAULT;
 		}
 
 		spd = spd_get_by_index(cap_info.owner_spd_handle);
-		
+
 		if (cap_is_free(spd, cap_info.cap_handle)) {
 			return -EINVAL;
-		}			
+		}
 
 		if (cap_info.il > MAX_ISOLATION_LVL_VAL) {
 			return -EINVAL;
 		}
-		
+
 		prev_lvl = cap_change_isolation(spd, cap_info.cap_handle, cap_info.il, cap_info.flags);
 
 		return prev_lvl;
@@ -1151,7 +1150,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		struct spd_sched_info sched_info;
 		struct spd *sched;
 
-		if (copy_from_user(&sched_info, (void*)arg, 
+		if (copy_from_user(&sched_info, (void*)arg,
 				   sizeof(struct spd_sched_info))) {
 			printk("cos: Error copying spd scheduler info from user-level.\n");
 			return -EFAULT;
@@ -1160,15 +1159,15 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (sched_info.spd_sched_handle > MAX_NUM_SPDS ||
 		    sched_info.spd_sched_handle < 0 ||
 		    sched_info.spd_parent_handle > MAX_NUM_SPDS) {
-			printk("cos: spd handle out of range %d and %d.\n", 
+			printk("cos: spd handle out of range %d and %d.\n",
 			       sched_info.spd_sched_handle, sched_info.spd_parent_handle);
 			return -EINVAL;
 		}
 
 		if (spd_is_free(sched_info.spd_sched_handle) ||
-		    (sched_info.spd_parent_handle >= 0 && 
+		    (sched_info.spd_parent_handle >= 0 &&
 		     spd_is_free(sched_info.spd_parent_handle))) {
-			printk("cos: spd is already free %d and %d.\n", 
+			printk("cos: spd is already free %d and %d.\n",
 			       sched_info.spd_sched_handle, sched_info.spd_parent_handle);
 			return -EINVAL;
 		}
@@ -1179,7 +1178,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		} else {
 			struct spd *p = spd_get_by_index(sched_info.spd_parent_handle);
 			int parent_sdepth = p->sched_depth;
-			
+
 			if (parent_sdepth == MAX_SCHED_HIER_DEPTH || parent_sdepth == -1) {
 				printk("cos: max scheduler hierarchy depth over- or under-run.\n");
 				return -EINVAL;
@@ -1188,7 +1187,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			sched->parent_sched = p;
 			sched->sched_depth = p->sched_depth + 1;
 		}
-			
+
 		return 0;
 	}
 	case AED_EMULATE_PREEMPT:
@@ -1223,7 +1222,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		return 0;
 	}
-	default: 
+	default:
 		ret = -EINVAL;
 	}
 
@@ -1272,14 +1271,14 @@ static void cos_report_fault(struct thread *t, vaddr_t fault_addr, int ecode, st
 #define SHARED_DATA_PAGE_SIZE PAGE_SIZE
 extern unsigned int shared_region_page[1024], shared_data_page[1024];
 
-/* 
+/*
  * FIXME: this logic should be in inv.c or platform independent code
- * 
+ *
  * Before we look for the Linux vma, lets check if we should look at
  * all, or if Composite can fix up the fault on its own.
  */
-static int 
-cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs, 
+static int
+cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs,
 			       vaddr_t fault_addr)
 {
 	struct spd_poly *active = thd_get_thd_spdpoly(thd), *curr;
@@ -1287,11 +1286,11 @@ cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs,
 	vaddr_t ucap_addr = regs->ax;
 	struct spd *origin;
 	struct pt_regs *regs_save;
-	
+
 	/* FIXME: the Composite path doesn't work right now. This
 	 * still accesses spd struct. */
 
-	/* 
+	/*
 	 * If we are in the most up-to-date version of the
 	 * page-tables, then there is no fixing up to do, and we
 	 * should just return.  Check for this case.
@@ -1300,16 +1299,16 @@ cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs,
 	cspd = (struct composite_spd *)active;
 	assert(cspd);
 	if (!(spd_mpd_is_depricated(cspd) ||
-	      (spd_mpd_is_subordinate(cspd) && 
+	      (spd_mpd_is_subordinate(cspd) &&
 	       spd_mpd_is_depricated(cspd->master_spd)))) return 0;
 	assert(active->flags & SPD_COMPOSITE);
 
-	/* 
+	/*
 	 * We are going to perform these checks in order:
 	 *
 	 * Assume: regs->eax (thus ucap_addr) contains the address of
 	 * the user-level capability structure.
-	 * 
+	 *
 	 * 1) lookup the origin of the invocation (via the user-cap)
 	 *
 	 * 2) verify that the user-capability is valid (within bounds
@@ -1318,12 +1317,12 @@ cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs,
 	 * 3) verify that the faulted pud is not in the active pd
 	 *
 	 * 4) check that it is present in the current pd config.
-	 * 
+	 *
 	 * 5) map that entry into the active page tables.
 	 */
-	
+
 	/* 1 */
-	origin = virtual_namespace_query(ucap_addr);
+	origin = NULL;
 	if (unlikely(NULL == origin)) return 0;
 	/* up-to-date pd */
 	curr = origin->composite_spd;
@@ -1336,7 +1335,7 @@ cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs,
 
 	/* 4 */
 	if (unlikely(chal_pgtbl_entry_absent(curr->pg_tbl, fault_addr))) return 0;
-	
+
 	/* 5
 	 *
 	 * Extend the current protection domain to include mappings of
@@ -1344,8 +1343,8 @@ cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs,
 	 * consistent.
 	 */
 	chal_pgtbl_copy_range(active->pg_tbl, curr->pg_tbl, fault_addr, HPAGE_SIZE);
-	
-	/* 
+
+	/*
 	 * NOTE: perhaps a better way to do this would be to look up
 	 * the spds associated with both addresses (ucap, and fault),
 	 * and check to make sure that their ->composite_spd is the
@@ -1357,13 +1356,13 @@ cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs,
 
 	regs_save = &((struct pt_regs*)(((char*)shared_data_page)+SHARED_DATA_PAGE_SIZE))[-1];
 	memcpy(regs_save, regs, sizeof(struct pt_regs));
-	
+
 	return 1;
 }
 
 static void
 cos_record_fault_regs(struct thread *t, vaddr_t fault_addr, int ecode, struct pt_regs *rs)
-{	
+{
 	memcpy(&t->regs, rs, sizeof(struct pt_regs));
 	cos_report_fault(t, fault_addr, ecode, rs);
 }
@@ -1373,13 +1372,13 @@ extern void
 fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num);
 
 /* the composite specific page fault handler */
-static int 
-cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr, 
+static int
+cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr,
 		      int ecode, struct pt_regs *regs)
 {
 	cos_record_fault_regs(thd, fault_addr, ecode, regs);
 	fault_ipc_invoke(thd, fault_addr, 0, regs, COS_FLT_PGFLT);
-		
+
 	return 0;
 }
 
@@ -1393,7 +1392,7 @@ cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr,
  * COS - things to check:
  * 1) are we faulting in the shared region
  * 2) are we faulting in a component for which linux defines a mapping
- * 3) are we faulting in a component which has no mapping 
+ * 3) are we faulting in a component which has no mapping
  * 4) if we are legally faulting on a function call to a server that
  *    used to be isolated via ST, but is now SDT (thus the page fault)
  *
@@ -1419,8 +1418,8 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 
 void hijack_syscall_monitor(int num)
 {
-	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpuid()].cos_thd == current && num != 54)) {
-		printk("FAILURE: core %d making a Linux system call (#%d) in Composite.\n", get_cpuid(), num);
+	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpuid()].cos_thd == current)) {
+		printk("Warning: making a Linux system call (#%d) in Composite. Ignore once.\n", num);
 	}
 }
 
@@ -1428,7 +1427,7 @@ void hijack_syscall_monitor(int num)
  * This function will be called upon a hardware page fault.  Return 0
  * if you want the linux page fault to be run, !0 otherwise.
  */
-__attribute__((regparm(3))) 
+__attribute__((regparm(3)))
 int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 {
 	struct vm_area_struct *vma;
@@ -1439,10 +1438,10 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	int ret = 1;
 
 	fault_addr = read_cr2();
-	
+
 	if (fault_addr > KERN_BASE_ADDR) goto linux_handler;
 
-	/* 
+	/*
 	 * Composite doesn't know how to handle kernel faults, and
 	 * they should be sent by the assembly to the default linux
 	 * handler.
@@ -1455,13 +1454,13 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 * spd's boundaries or there is not a linux mapping for the
 	 * address.
 	 */
-	
+
 	if (cos_thd_per_core[get_cpuid()].cos_thd != current) goto linux_handler;
 	if (fault_addr == (unsigned long)&page_fault_interposition) goto linux_handler;
 	curr_mm = get_task_mm(current);
 
 	if (!down_read_trylock(&curr_mm->mmap_sem)) {
-		/* 
+		/*
 		 * The semaphore can only be taken while code is
 		 * executing in the kernel.  If a page fault occurs in
 		 * the kernel, then we shouldn't be dealing with it in
@@ -1472,7 +1471,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 		goto linux_handler_put;
 	}
 
-	/* 
+	/*
 	 * The composite current thread will only be null if we have
 	 * not completely initialized composite yet, but we need to
 	 * check for this.
@@ -1496,7 +1495,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 #ifdef FAULT_DEBUG
 	fault_addrs[BUCKET_HASH(fault_addr)]++;
 #endif
-	if (PF_ABSENT(error_code) && PF_READ(error_code) && 
+	if (PF_ABSENT(error_code) && PF_READ(error_code) &&
 	    cos_prelinux_handle_page_fault(thd, rs, fault_addr)) {
 		ret = 0;
 		goto linux_handler_release;
@@ -1507,14 +1506,14 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 		cos_meas_event(COS_LINUX_PG_FAULT);
 		goto linux_handler_release;
 	}
-	/* 
+	/*
 	 * If we're handling a cos fault, we don't need to the
-	 * vma anymore 
+	 * vma anymore
 	 */
 	up_read(&curr_mm->mmap_sem);
 	mmput(curr_mm);
 	cos_meas_event(COS_PG_FAULT);
-	
+
 //	if (get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd) != rs) printk("Nested page fault!\n");
 	if (fault_update_mpd_pgtbl(thd, rs, fault_addr)) ret = 0;
 	else ret = cos_handle_page_fault(thd, fault_addr, error_code, rs);
@@ -1525,14 +1524,14 @@ linux_handler_release:
 linux_handler_put:
 	mmput(curr_mm);
 linux_handler:
-	return ret; 
+	return ret;
 }
 
 /*
  * This function will be called upon a hardware div fault.  Return 0
  * if you want the linux fault handler to be run, !0 otherwise.
  */
-__attribute__((regparm(3))) 
+__attribute__((regparm(3)))
 int main_div_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 {
 	struct thread *t;
@@ -1576,7 +1575,7 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 void cos_ipi_handling(void);
 void cos_cap_ipi_handling(void);
 
-int 
+int
 cos_ipi_ring_enqueue(u32_t dest, u32_t data);
 
 u64_t sum = 0, ii = 0;
@@ -1587,7 +1586,7 @@ main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 
 	/* ack the ipi first. */
 	ack_APIC_irq();
-	
+
 //	rdtscll(s);
 	cos_cap_ipi_handling();
 //	rdtscll(e);
@@ -1602,20 +1601,20 @@ main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 
         return;
 }
-	
+
 /*
  * Memory semaphore already held.
  */
 struct mm_struct* module_page_fault(unsigned long address)
 {
 	/* In the executive!, the executive's software mappings. */
-	if (test_thread_flag(TIF_HIJACK_ENV) && //trusted_mm && 
+	if (test_thread_flag(TIF_HIJACK_ENV) && //trusted_mm &&
 	    !test_thread_flag(TIF_VIRTUAL_SYSCALL) &&
 	    find_vma(trusted_mm, address)) {
 		printk("cos: fault in executive: %x\n", (unsigned int)address);
 		return trusted_mm;
 	}
-	
+
 	return current->mm;
 }
 
@@ -1633,9 +1632,9 @@ int kern_handle;
 void *chal_alloc_page(void)
 {
 	void *page = (void*)__get_free_pages(GFP_KERNEL, 0);
-	
+
 	memset(page, 0, PAGE_SIZE);
-	
+
 	return page;
 }
 
@@ -1667,12 +1666,12 @@ void chal_free_kern_mem(void *mem, int order)
  * using them both in the composite world and in the Linux world.  We
  * should just use them in the composite world and be done with it.
  */
-paddr_t chal_va2pa(void *va) 
+paddr_t chal_va2pa(void *va)
 {
 	return (paddr_t)__pa(va);
 }
 
-void *chal_pa2va(paddr_t pa) 
+void *chal_pa2va(paddr_t pa)
 {
 	if (pa >= COS_MEM_START) return NULL;
 
@@ -1681,7 +1680,7 @@ void *chal_pa2va(paddr_t pa)
 
 /***** begin timer/net handling *****/
 
-/* 
+/*
  * Our composite emulated timer interrupt executed from a Linux
  * softirq
  */
@@ -1709,9 +1708,9 @@ EXPORT_SYMBOL(cos_trans_upcall);
 
 #define NUM_NET_ACAPS 2 /* keep consistent with inv.c */
 
-CACHE_ALIGNED static int in_syscall[NUM_CPU] = { 0 }; 
+CACHE_ALIGNED static int in_syscall[NUM_CPU] = { 0 };
 
-int host_in_syscall(void) 
+int host_in_syscall(void)
 {
 	return in_syscall[get_cpuid()];
 }
@@ -1728,7 +1727,7 @@ void host_end_syscall(void)
 }
 EXPORT_SYMBOL(host_end_syscall);
 
-/* 
+/*
  * If we are asleep in idle, or are waking, that is an indicator that
  * the registers aren't arranged in pt_regs formation at the top of
  * the thread's stack.
@@ -1760,7 +1759,7 @@ static inline void cli(void)
 	__asm__("cli");
 }
 
-void 
+void
 chal_idle(void)
 {
 	/* set state must be before in_idle=1 to avert race */
@@ -1782,7 +1781,7 @@ chal_idle(void)
 	event_record("coming out of idle", thd_get_id(cos_get_curr_thd()), 0);
 }
 
-static void 
+static void
 host_idle_wakeup(void)
 {
 	assert(host_in_idle());
@@ -1938,7 +1937,7 @@ int chal_attempt_ainv(struct async_cap *acap)
 				regs->sp = next->regs.sp;
 
 				//cos_meas_event(COS_MEAS_ACAP_UC);
-			} 
+			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 
 			event_record("normal (non-syscall/idle interrupting) upcall processed",
@@ -1949,7 +1948,7 @@ int chal_attempt_ainv(struct async_cap *acap)
 	}
 done:
 	local_irq_restore(flags);
-		
+
 	return 0;
 }
 
@@ -1967,7 +1966,7 @@ int chal_attempt_arcv(struct cap_arcv *arcv)
 		thd = arcv->thd;
 		if (thd->flags & THD_STATE_ACTIVE_UPCALL) {
 			/* handling thread is active. */
-			arcv->pending++; 
+			arcv->pending++;
 			goto done;
 		}
 
@@ -2012,18 +2011,19 @@ int chal_attempt_arcv(struct cap_arcv *arcv)
 
 				thd_current_update(next, cos_current, cos_info);
 				//cos_meas_event(COS_MEAS_ACAP_UC);
-			} 
+			}
 
 		}
 
 	}
 done:
 	local_irq_restore(flags);
-		
+
 	return 0;
 }
 
 void chal_send_ipi(int cpuid) {
+#if defined(CONFIG_X86_LOCAL_APIC)
 	/* lowest-level IPI sending. the __default_send function is in
 	 * arch/x86/include/asm/ipi.h */
 
@@ -2033,10 +2033,11 @@ void chal_send_ipi(int cpuid) {
 	__default_send_IPI_dest_field(
 		apic->cpu_to_logical_apicid(cpu), COS_IPI_VECTOR,
 		apic->dest_logical);
-
+#elif defined(CONFIG_BIGSMP)
 	/* If BIGSMP is set, use following implementation! above is a
 	 * shortcut. */
 	/* apic->send_IPI_mask(cpumask_of(cpuid), COS_IPI_VECTOR); */
+#endif
 }
 
 PERCPU_VAR(cos_timer_acap);
@@ -2046,14 +2047,14 @@ char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 
 struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
 
-__attribute__((regparm(3))) 
-int main_timer_interposition(struct pt_regs *rs, unsigned int error_code) 
+__attribute__((regparm(3)))
+int main_timer_interposition(struct pt_regs *rs, unsigned int error_code)
 {
 	struct async_cap *acap = *PERCPU_GET(cos_timer_acap);
 	int curr_cpu = get_cpuid();
 
 	u32_t *ticks = (u32_t *)&timer_detector[curr_cpu * CACHE_LINE];
-	
+
 	/* TLB quiescence period. */
 	chal_flush_tlb();
 
@@ -2078,7 +2079,7 @@ int main_timer_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	/* return 0; */
 LINUX_HANDLER:
-	return 1; 
+	return 1;
 }
 
 /***** end timer handling *****/
@@ -2099,7 +2100,7 @@ void thd_publish_data_page(struct thread *thd, vaddr_t page)
 
 static int open_checks(void)
 {
-	/* 
+	/*
 	 * All of the volatiles are thrown in here because gcc is
 	 * getting too get for its own good, and when testing
 	 * consistency across different regions in shared memory, we
@@ -2113,7 +2114,7 @@ static int open_checks(void)
 
 	kern_data = chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), (unsigned long)shared_data_page);
 	modval  = (paddr_t)chal_va2pa((void *)kern_data);
-	userval = (paddr_t)chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
+	userval = (paddr_t)chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd),
 								     (unsigned long)COS_INFO_REGION_ADDR));
 	if (modval != userval) {
 		printk("shared data page error: %x != %x\n", (unsigned int)modval, (unsigned int)userval);
@@ -2134,7 +2135,7 @@ static int open_checks(void)
 	return 0;
 }
 
-static 
+static
 void init_globals(void)
 {
 	int cpuid;
@@ -2172,12 +2173,12 @@ static int aed_open(struct inode *inode, struct file *file)
 		printk("cos (CPU %d): Composite subsystem already used by %d (%p).\n", get_cpuid(), cos_thd_per_core[get_cpuid()].cos_thd->pid, cos_thd_per_core[get_cpuid()].cos_thd);
 		return -EBUSY;
 	}
-	
+
 	/* We assume this in one page. */
 	assert(sizeof(struct cos_component_information) <= PAGE_SIZE);
 
 	/* Sanity check. These defines should match info from Linux. */
-	if ((THREAD_SIZE != THREAD_SIZE_LINUX) || 
+	if ((THREAD_SIZE != THREAD_SIZE_LINUX) ||
 	    (CPUID_OFFSET_IN_THREAD_INFO != offsetof(struct thread_info, cpu)) ||
 	    (LINUX_THREAD_INFO_RESERVE < sizeof(struct thread_info))) {
 		printk("cos: Please check THREAD_SIZE in Linux or thread_info struct.\n");
@@ -2220,7 +2221,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	 * being horrible instead.
 	 */
 
-	shared_region_pte = (pte_t *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
+	shared_region_pte = (pte_t *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd),
 							  (unsigned long)shared_region_page);
 	if (((unsigned long)shared_region_pte & ~PAGE_MASK) != 0) {
 		printk("Allocated page for shared region not page aligned.\n");
@@ -2229,14 +2230,14 @@ static int aed_open(struct inode *inode, struct file *file)
 	memset(shared_region_pte, 0, PAGE_SIZE);
 
 	/* hook in the data page */
-	data_page = (void *)chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
+	data_page = (void *)chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd),
 							   (unsigned long)shared_data_page));
 	shared_region_pte[0].pte_low = (unsigned long)(data_page) |
 		(PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_USER | PGTBL_ACCESSED);
 	/* hook up the actual virtual memory pages to the pte
 	 * protection mapping equivalent to PAGE_SHARED */
-/*	for (i = 0 ; i < MAX_NUM_THREADS+1 ; i++) { 
-		shared_region_pte[i].pte_low = (unsigned long)(__pa(pages_ptr+(PAGE_SIZE*i))) | 
+/*	for (i = 0 ; i < MAX_NUM_THREADS+1 ; i++) {
+		shared_region_pte[i].pte_low = (unsigned long)(__pa(pages_ptr+(PAGE_SIZE*i))) |
 			(PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_USER | PGTBL_ACCESSED);
 	}
 */
@@ -2250,7 +2251,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	/* hook up the pte to the pgd */
 	pgd->pgd = (unsigned long)(__pa(shared_region_pte)) | _PAGE_TABLE;
 
-	/* 
+	/*
 	 * This is used to copy valid (linux) kernel mappings into a
 	 * new mpd.  Copy shared region too.
 	 */
@@ -2261,7 +2262,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	}
 	pgd->pgd = (unsigned long)(__pa(shared_region_pte)) | _PAGE_TABLE;
 
-	printk("cos: info region @ %d(%x)\n", 
+	printk("cos: info region @ %d(%x)\n",
 	       COS_INFO_REGION_ADDR, COS_INFO_REGION_ADDR);
 
 	if (open_checks()) return -EFAULT;
@@ -2286,7 +2287,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	int j, k;
 #endif
 
-	/* 
+	/*
 	 * when the aed control file descriptor is closed, lets get
 	 * rid of all resources the aed environment was using, but
 	 * only if something was promoted in the first place.
@@ -2299,7 +2300,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	if (test_thread_flag(TIF_HIJACK_ENV)) {
 		clear_ti_thread_flag(current_thread_info(), TIF_HIJACK_ENV);
 
-		current->mm = trusted_mm;	
+		current->mm = trusted_mm;
 		current->active_mm = trusted_mm;
 
 		/* Let another process create a asym environment */
@@ -2338,7 +2339,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	/* reset the address space to the original process */
 	composite_union_mm->pgd = union_pgd;
 
-	/* 
+	/*
 	 * free the shared region...
 	 * FIXME: should also kill the actual pages of shared memory
 	 */
@@ -2350,7 +2351,7 @@ static int aed_release(struct inode *inode, struct file *file)
 		in_syscall[i] = 0;
 	}
 
-	/* 
+	/*
 	 * Keep the mm_struct around till we have gotten rid of our
 	 * cos-specific mappings.  This is required as in do_exit, mm
 	 * is dropped before files and fs (thus current->mm should not
@@ -2361,7 +2362,7 @@ static int aed_release(struct inode *inode, struct file *file)
 
 #ifdef FAULT_DEBUG
 	printk("cos: Page fault information:\n");
-	printk("cos: Number of buckets %d, bucket mask %x.\n", 
+	printk("cos: Number of buckets %d, bucket mask %x.\n",
 	       (int)NUM_BUCKETS, (unsigned int)BUCKET_MASK);
 	#define PER_ROW 8
 	for (i = 0, k = 0 ; i < NUM_BUCKETS/PER_ROW ; i++) {
@@ -2383,23 +2384,23 @@ static int aed_release(struct inode *inode, struct file *file)
 				       "eip %10x, esp %10x, eax %10x, ebx %10x, ecx %10x,\ncos:\t\t"
 				       "edx %10x, edi %10x, esi %10x, ebp %10x,\n"
 				       "cos:\t\tcs  %10x, ss  %10x, flags %10x\n",
-				       fi->spdid, fi->thdid, 
-				       (unsigned int)fi->addr, 
+				       fi->spdid, fi->thdid,
+				       (unsigned int)fi->addr,
 				       fi->err_code,
-				       fi->timestamp, 
-				       fi->cspd_flags, 
-				       fi->cspd_master_flags, 
-				       (unsigned int)fi->regs.ip, 
-				       (unsigned int)fi->regs.sp, 
-				       (unsigned int)fi->regs.ax, 
-				       (unsigned int)fi->regs.bx, 
-				       (unsigned int)fi->regs.cx, 
-				       (unsigned int)fi->regs.dx, 
-				       (unsigned int)fi->regs.di, 
-				       (unsigned int)fi->regs.si, 
+				       fi->timestamp,
+				       fi->cspd_flags,
+				       fi->cspd_master_flags,
+				       (unsigned int)fi->regs.ip,
+				       (unsigned int)fi->regs.sp,
+				       (unsigned int)fi->regs.ax,
+				       (unsigned int)fi->regs.bx,
+				       (unsigned int)fi->regs.cx,
+				       (unsigned int)fi->regs.dx,
+				       (unsigned int)fi->regs.di,
+				       (unsigned int)fi->regs.si,
 				       (unsigned int)fi->regs.bp,
-				       (unsigned int)fi->regs.cs, 
-				       (unsigned int)fi->regs.ss, 
+				       (unsigned int)fi->regs.cs,
+				       (unsigned int)fi->regs.ss,
 				       (unsigned int)fi->regs.flags);
 				fi->thdid = 0; /* reset */
 			}
@@ -2415,8 +2416,8 @@ static int aed_release(struct inode *inode, struct file *file)
 }
 
 static struct file_operations proc_aed_fops = {
-	.owner          = THIS_MODULE, 
-	.unlocked_ioctl = aed_ioctl, 
+	.owner          = THIS_MODULE,
+	.unlocked_ioctl = aed_ioctl,
 	.open           = aed_open,
 	.release        = aed_release,
 };

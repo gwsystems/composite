@@ -41,10 +41,9 @@ clean:
 	@rm -f a.out *.o *.a *.d *~
 
 distclean:
-	make -C dietlibc-0.29 clean
-	make -C ps clean
-#	make -C lwip/cos clean
-#	make -C lua/cos clean
+	make -C musl-1.1.11 distclean
+	make -C lwip/cos clean
+	make -C lua/cos clean
 # keep the following commands in one line. make executes each line
 # with a new shell.
 #	cd ck; ./configure; cd ..
@@ -52,13 +51,18 @@ distclean:
 #	make -C posix clean
 #	make -C libccv clean
 
-thirdparty:
-	make -C dietlibc-0.29
-	make -C dietlibc-0.29 i386
+musl:
+	cd musl-1.1.11; ./configure --disable-shared; cd ..
+	make -C musl-1.1.11
+	make -C musl-1.1.11 install
+
+init: clean distclean musl all
+#	make -C lwip/cos
+#	make -C lua/cos
+# keep the following commands in one line. Same as above.
 	cd ck; ./configure; cd ..
 	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
 
-init: clean distclean thirdparty all
 #	make -C lwip/cos
 #	make -C lua/cos
 # keep the following commands in one line. Same as above.

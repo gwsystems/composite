@@ -2,8 +2,8 @@ C_OBJS=canny.o
 ASM_OBJS=
 COMPONENT=edge_detect.o
 INTERFACES=
-DEPENDENCIES=sched printc timed_blk torrent cbufp cbuf_c evt mem_mgr_large valloc lock
-IF_LIB=./cos_libccv.a $(DIETDIR)/bin-i386/libm.a
+DEPENDENCIES=sched printc timed_blk torrent cbuf_mgr evt valloc lock
+IF_LIB=./cos_libccv.a 
 OBJLIBS += $(POSIX_LIB)
 
 cp:

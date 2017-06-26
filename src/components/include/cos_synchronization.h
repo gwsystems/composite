@@ -32,7 +32,7 @@ typedef struct __attribute__((packed)) {
 } cos_lock_t;
 
 /* Provided by the synchronization primitive component */
-extern unsigned long lock_component_alloc(spdid_t spdid);
+extern unsigned long lock_component_alloc(spdid_t spdid, vaddr_t lock_addr);
 extern void lock_component_free(spdid_t spdid, unsigned long lock_id);
 
 int lock_release_contention(cos_lock_t *l, union cos_lock_atomic_struct *prev_val);
@@ -125,9 +125,9 @@ static unsigned int
 lock_contested(cos_lock_t *l) { return l->atom.c.owner; }
 
 static inline unsigned long 
-lock_id_alloc(void)
+lock_id_alloc(cos_lock_t *l)
 {
-	return lock_component_alloc(cos_spd_id());
+	return lock_component_alloc(cos_spd_id(), (vaddr_t)l);
 }
 
 #define NCACHED_LOCK_IDS 32
@@ -143,9 +143,9 @@ lock_id_put(u32_t lid)
 }
 
 static inline u32_t 
-lock_id_get(void)
+lock_id_get(cos_lock_t *l)
 {
-	if (__lid_top == 0) return lock_id_alloc();
+	if (__lid_top == 0) return lock_id_alloc(l);
 	else                return __lid_cache[--__lid_top];
 }
 
@@ -162,7 +162,7 @@ static inline unsigned long
 lock_static_init(cos_lock_t *l)
 {
 	lock_init(l);
-	l->lock_id = lock_id_get();
+	l->lock_id = lock_id_get(l);
 
 	return l->lock_id;
 }

@@ -4,6 +4,7 @@ int print_null(char *s) { return 0; }
 #include <cos_component.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include <cbuf.h>
 #include <torrent.h>
@@ -32,13 +33,13 @@ int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 
 	if (!tor) tor = printt_init();
 
-	s = cbuf_alloc(4096, &cb);
+	s = cbuf_alloc_ext(4096, &cb, CBUF_TMEM);
 	assert(s);
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, 4096, fmt, arg_ptr);
 	va_end(arg_ptr);
 	print_twrite(cos_spd_id(), tor, cb, ret);
-	cbuf_free(s);
+	cbuf_free(cb);
 
 	return ret;
 }

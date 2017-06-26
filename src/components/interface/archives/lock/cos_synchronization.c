@@ -67,7 +67,7 @@ lock_release_contention(cos_lock_t *l, union cos_lock_atomic_struct *prev_val)
  * the lock component for each lock we create.
  */
 u32_t __lid_cache[NCACHED_LOCK_IDS] = {};
-int   __lid_top;
+int   __lid_top = 0;
 
 #ifndef STATIC_ALLOC
 cos_lock_t *lock_alloc(void)

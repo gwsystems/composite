@@ -183,14 +183,14 @@ from_data_new(struct tor_conn *tc)
 {
 	int from, to, amnt;
 	char *buf;
+	cbuf_t cb;
 
 	from = tc->from;
 	to   = tc->to;
 	while (1) {
 		int ret;
-		cbuf_t cb;
 
-		buf = cbuf_alloc(BUFF_SZ, &cb);
+		buf = cbuf_alloc_ext(BUFF_SZ, &cb, CBUF_TMEM);
 		assert(buf);
 		amnt = from_tread(cos_spd_id(), from, cb, BUFF_SZ-1);
 		if (0 == amnt) break;
@@ -206,10 +206,10 @@ from_data_new(struct tor_conn *tc)
 			goto close;
 
 		}
-		cbuf_free(buf);
+		cbuf_free(cb);
 	}
 done:
-	cbuf_free(buf);
+	cbuf_free(cb);
 	return;
 close:
 	mapping_remove(from, to, tc->feid, tc->teid);
@@ -226,14 +226,14 @@ to_data_new(struct tor_conn *tc)
 {
 	int from, to, amnt;
 	char *buf;
+	cbuf_t cb;
 
 	from = tc->from;
 	to   = tc->to;
 	while (1) {
 		int ret;
-		cbuf_t cb;
 
-		if (!(buf = cbuf_alloc(BUFF_SZ, &cb))) BUG();
+		if (!(buf = cbuf_alloc_ext(BUFF_SZ, &cb, CBUF_TMEM))) BUG();
 		amnt = tread(cos_spd_id(), to, cb, BUFF_SZ-1);
 		if (0 == amnt) break;
 		else if (-EPIPE == amnt) {
@@ -248,10 +248,10 @@ to_data_new(struct tor_conn *tc)
 			       ret, amnt, to);
 			goto close;
 		}
-		cbuf_free(buf);
+		cbuf_free(cb);
 	}
 done:
-	cbuf_free(buf);
+	cbuf_free(cb);
 	return;
 close:
 	mapping_remove(from, to, tc->feid, tc->teid);

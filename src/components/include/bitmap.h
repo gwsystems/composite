@@ -211,8 +211,8 @@ bitmap_contiguous_ones(u32_t *x, int off, int extent, int max)
 {
 	int i, prev, start;
 
-	prev = start = 0;
-	for (i = 0 ; i < (int)(max*sizeof(u32_t)) ; i++) {
+	prev = start = off;
+	for (i = off ; i < (int)(max*sizeof(u32_t)*8) ; i++) {
 		prev = i;
 		i = bitmap_one_offset(x, i, max);
 		/* end of bitmap? */
@@ -220,7 +220,7 @@ bitmap_contiguous_ones(u32_t *x, int off, int extent, int max)
 		/* uncontiguous? */
 		else if (i != prev) start = i;
 		/* found an appropriate extent? */
-		else if (i-start == extent) return start;
+		else if (i-start+1 >= extent) return start;
 	}
 	return -1;
 }
@@ -234,6 +234,15 @@ bitmap_extent_find_set(u32_t *x, int off, int extent, int max)
 	bitmap_set_contig(x, r, extent, 0);
 
 	return r;
+}
+
+static inline int
+bitmap_extent_set_at(u32_t *x, int off, int extent, int max)
+{
+	int r = bitmap_one_offset(x, off, max);
+	if (r != off) return -1;
+	bitmap_set_contig(x, r, extent, 0);
+	return 0;
 }
 
 #endif /* BITMAP_H */
