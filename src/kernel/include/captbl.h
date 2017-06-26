@@ -12,10 +12,10 @@
 #define CAPTBL_H
 
 #include "shared/cos_errno.h"
-#include "shared/cos_types.h"
+#include "user/cos_types.h"
 #include "ertrie.h"
 #include "liveness_tbl.h"
-#include "shared/util.h"
+#include "chal/util.h"
 
 #ifndef CACHELINE_SIZE
 #define CACHELINE_SIZE  64
@@ -461,9 +461,10 @@ int captbl_kmem_scan (struct cap_captbl *cap);
 static void
 cap_init(void) {
 	assert(sizeof(struct cap_captbl) <= __captbl_cap2bytes(CAP_CAPTBL));
-	assert(((1<<CAPTBL_LEAF_ORD) * CAPTBL_LEAFSZ +
-		CAPTBL_INTERNSZ * (1<<CAPTBL_INTERN_ORD)) == PAGE_SIZE);
-	assert(CAPTBL_EXPAND_SZ == 1<<CAPTBL_LEAF_ORD);
+	/* PRY:These two assertions are not used */
+//	assert(((1<<CAPTBL_LEAF_ORD) * CAPTBL_LEAFSZ +
+//		CAPTBL_INTERNSZ * (1<<CAPTBL_INTERN_ORD)) == PAGE_SIZE);
+//	assert(CAPTBL_EXPAND_SZ == 1<<CAPTBL_LEAF_ORD);
 }
 
 #endif /* CAPTBL_H */

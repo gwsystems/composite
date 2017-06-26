@@ -20,7 +20,31 @@
 #ifndef CHAL_H
 #define CHAL_H
 
-#include "shared/cos_types.h"
+#include "user/cos_types.h"
+
+/* MPU related bits */
+
+#include "user/cos_types.h"
+
+/* MPU related bits */
+
+#include "user/cos_types.h"
+
+/* MPU related bits */
+/* Extract address for/from MPU */
+#define CMX_MPU_ADDR(X)          ((X)&0xFFFFFFE0)
+/* Get info from MPU */
+#define CMX_MPU_SZORD(X)         (((X)>>1)-2)
+
+#define CMX_MPU_VALID            (1<<4)
+#define CMX_MPU_SRDCLR           (0x0000FF00)
+#define CMX_MPU_XN               (1<<28)
+#define CMX_MPU_RO               (2<<24)
+#define CMX_MPU_RW               (3<<24)
+#define CMX_MPU_CACHEABLE        (1<<17)
+#define CMX_MPU_BUFFERABLE       (1<<16)
+#define CMX_MPU_REGIONSIZE(SZORD,NUMORD)    (((SZORD)+(NUMORD)-1)<<1)
+#define CMX_MPU_SZENABLE         (1)
 
 /*
  * Namespacing in the cHAL: chal_<family>_<operation>(...).  <family>
@@ -84,7 +108,6 @@ PERCPU_DECL(struct cap_arcv *, cos_timer_arcv);
  *******************/
 
 int chal_cyc_usec(void);
-unsigned int chal_cyc_thresh(void);
 
 int chal_attempt_arcv(struct cap_arcv *arcv);
 int chal_attempt_ainv(struct async_cap *acap);
