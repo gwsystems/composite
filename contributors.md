@@ -11,8 +11,8 @@ The current primary contributors to _Composite_
 - **Gabriel Parmer** -- Initial developer and ongoing designer and contributor
 - **Yuxin Ren** -- PhD student at GWU working on parallelism and memory management
 - **Phani Kishore Gadepalli** -- PhD student at GWU working on the Speck kernel, and low-level support
-- **Robert Gifford** -- Undergraduate student at GWU working to provide rump kernel support
-- **Lucas Baier** -- Undergraduate at GWU who is working to provide Rump Kernel support
+- **Runyu Pan** -- MS student working on Cortex-M support
+- **Robert Gifford and Lucas Baier** -- Undergraduate student at GWU working to provide rump kernel and TCap support
 - **Gregor Peach, Joseph Espy, Zach Day** -- Undergraduates working Satellite software (cFE)
 
 Significant past contributors
