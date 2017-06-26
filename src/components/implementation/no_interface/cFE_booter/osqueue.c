@@ -10,7 +10,7 @@
 // The main queue data structure.
 struct queue {
         // Whether or not the index of this queue is already taken.
-        int32 free;
+        int32 used;
 
         // The number of elements allowed in the queue.
         uint32 depth;
@@ -49,27 +49,27 @@ OS_QueueCreate(uint32* queue_id, const char* queue_name, uint32 queue_depth, uin
 
         // Check to see if the name is already taken.
         for (i = 0 ; i < OS_MAX_QUEUES ; i++) {
-                if ((queues[i].free == FALSE) && strcmp((char*)queue_name, queues[i].name) == 0) {
+                if ((queues[i].used == TRUE) && strcmp((char*)queue_name, queues[i].name) == 0) {
                         return OS_ERR_NAME_TAKEN;
                 }
         }
 
         // Calculate the queue ID.
         for (qid = 0 ; qid < OS_MAX_QUEUES ; qid++) {
-                if (queues[qid].free == TRUE) {
+                if (queues[qid].used == FALSE) {
                         break;
                 }
         }
 
         // Fail if there are too many queues.
-        if (qid >= OS_MAX_QUEUES || queues[qid].free != TRUE) {
+        if (qid >= OS_MAX_QUEUES || queues[qid].used == TRUE) {
                 return OS_ERR_NO_FREE_IDS;
         }
 
         // OS_ERROR may also be returned in the event that an OS call fails, but none are used here.
 
-        *queue_id                       = qid;
-        queues[*queue_id].free           = FALSE;
+        *queue_id                        = qid;
+        queues[*queue_id].used           = TRUE;
         queues[*queue_id].depth          = queue_depth;
         queues[*queue_id].data_size      = data_size;
         strcpy(queues[*queue_id].name, queue_name);
@@ -83,12 +83,12 @@ OS_QueueDelete(uint32 queue_id) {
                 return OS_ERR_INVALID_ID;
         }
         // Check if there is a queue to be deleted at the ID.
-        if (queues[queue_id].free == TRUE) {
+        if (queues[queue_id].used == FALSE) {
                 return OS_ERR_INVALID_ID;
         }
 
         // Reset all values in the queue.
-        queues[queue_id].free           = TRUE;
+        queues[queue_id].used           = FALSE;
         queues[queue_id].depth          = 0;
         queues[queue_id].data_size      = 0;
         strcpy(queues[queue_id].name, "");
@@ -106,7 +106,7 @@ OS_QueueGet(uint32 queue_id, void* data, uint32 size, uint32* size_copied, int32
         uint32 i;
 
         // Check if the requested queue exists.
-        if (queue_id > OS_MAX_QUEUES || queues[queue_id].free == TRUE) {
+        if (queue_id > OS_MAX_QUEUES || queues[queue_id].used == FALSE) {
                 return OS_ERR_INVALID_ID;
         }
 
@@ -154,7 +154,7 @@ OS_QueuePut(uint32 queue_id, const void* data, uint32 size, uint32 flags)
         uint32 i;
 
         // Check if the requested queue exists.
-        if (queues[queue_id].free == TRUE) {
+        if (queues[queue_id].used == FALSE) {
                 return OS_ERR_INVALID_ID;
         }
 
@@ -223,7 +223,7 @@ OS_QueueGetInfo(uint32 queue_id, OS_queue_prop_t* queue_prop)
                 return OS_INVALID_POINTER;
         }
 
-        if (queues[queue_id].free == TRUE) {
+        if (queues[queue_id].used == FALSE) {
                 return OS_ERR_INVALID_ID;
         }
 
