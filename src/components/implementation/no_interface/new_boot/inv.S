@@ -1,8 +1,9 @@
 /* Use the passed in stack in arg4 */
 
+#define __ASM__
+#include <consts.h>
 #include <cos_asm_simple_stacks.h>
 
-#define RET_CAP (1 << 16)
 .text
 .globl __inv_test_entry
 .type  __inv_test_entry, @function

@@ -5,11 +5,11 @@ default:
 	$(MAKE) -C linker
 
 cp:
-	$(MAKE) -C i386 cp
+	$(MAKE) -C $(PLATFORM) cp
 	$(MAKE) -C linker cp
 
 clean:
-	$(MAKE) -C i386 clean
+	$(MAKE) -C $(PLATFORM) clean
 	$(MAKE) -C linker clean
 
 init: clean

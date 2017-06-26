@@ -30,7 +30,7 @@ LUADIR=$(LUABASE)/lua-5.2.1
 LUAOBJ=$(LUABASE)/cos/lua_lang.o
 LUAINC=-I$(LUADIR)/src -I$(LUABASE)/cos/include
 
-INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/
+INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/ -I$(SHAREDINC)
 # FIXME: dietlibc is now compiled with fno merge constants which is
 # probably ballooning its size.  Fix this need for no merge constants
 # in cos_loader.

@@ -30,7 +30,7 @@ tsc(void)
  * contains information for the thread that was either preempted or woken up
  * and is eligible to be scheduled instead of the current thread's scheduler
  * upon RCV syscall. This is mainly to reduce the number of context switches
- * to schedule the thread that is deemed eligible by the scheduler. 
+ * to schedule the thread that is deemed eligible by the scheduler.
  */
 struct next_thdinfo {
 	void       *thd;
@@ -84,9 +84,10 @@ cos_cpu_local_info(void)
 static inline int
 get_cpuid(void)
 {
-#if NUM_CPU > 1
-#error "Baremetal does not support > 0 cpus yet."
-#endif
+	if (NUM_CPU > 1) {
+		return cos_cpu_local_info()->cpuid;
+	}
+
 	return 0;
 }
 

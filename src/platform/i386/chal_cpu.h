@@ -63,6 +63,8 @@ chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 #define IA32_SYSENTER_CS  0x174
 #define IA32_SYSENTER_ESP 0x175
 #define IA32_SYSENTER_EIP 0x176
+#define MSR_PLATFORM_INFO 0x000000ce
+#define MSR_TSC_AUX       0xc0000103
 
 extern void sysenter_entry(void);
 
@@ -74,13 +76,17 @@ static inline void
 readmsr(u32_t reg, u32_t *low, u32_t *high)
 { __asm__("rdmsr" : "=a"(*low), "=d"(*high) : "c"(reg)); }
 
+static inline void
+chal_cpuid(int code, u32_t *a, u32_t *b, u32_t *c, u32_t *d)
+{ asm volatile("cpuid" : "=a"(*a), "=b"(*b), "=c"(*c), "=d"(*d) : "a" (code)); }
+
 static void
 chal_cpu_init(void)
 {
 	u32_t cr4 = chal_cpu_cr4_get();
 
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
-	writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
+	writemsr(IA32_SYSENTER_CS,  SEL_KCSEG, 0);
 	writemsr(IA32_SYSENTER_ESP, (u32_t)tss.esp0, 0);
 	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, 0);
 	chal_cpu_eflags_init();
@@ -109,9 +115,5 @@ chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)
 }
 
 void chal_timer_thd_init(struct thread *t);
-
-static inline void
-chal_cpuid(int code, u32_t *a, u32_t *b, u32_t *c, u32_t *d)
-{ asm volatile("cpuid" : "=a"(*a), "=b"(*b), "=c"(*c), "=d"(*d) : "0"(code)); }
 
 #endif /* CHAL_CPU_H */
