@@ -24,7 +24,6 @@ int32 OS_ModuleTableInit(void)
         module_table[i].free = TRUE;
         module_table[i].entry_point = 0;
         module_table[i].host_module_id = 0;
-        module_table[i].addr.valid = FALSE;
         strcpy(module_table[i].name, "");
         strcpy(module_table[i].filename, "");
     }
@@ -121,8 +120,8 @@ int32 OS_ModuleInfo(uint32 module_id, OS_module_prop_t *module_info)
 
     module_info->entry_point = module_table[module_id].entry_point;
     module_info->host_module_id = module_table[module_id].host_module_id;
-    strncpy(module_info->filename, module_table[module_id].filename);
-    strncpy(module_info->name, module_info[module_id].name);
+    strncpy(module_info->filename, module_table[module_id].filename, OS_MAX_API_NAME);
+    strncpy(module_info->name, module_info[module_id].name, OS_MAX_API_NAME);
 
     /* TODO: Address info? */
 

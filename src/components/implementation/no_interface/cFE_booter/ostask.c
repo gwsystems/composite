@@ -145,7 +145,7 @@ uint32 OS_TaskGetId(void)
 
 void OS_TaskExit(void)
 {
-    return OS_ERR_NOT_IMPLEMENTED;
+    PANIC("Unimplemented method!");
 }
 
 int32 OS_TaskInstallDeleteHandler(osal_task_entry function_pointer)
