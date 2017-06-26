@@ -5,7 +5,8 @@
  * Public License v2.
  */
 
-
+#define __ASM__
+#include <consts.h>
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text
@@ -22,5 +23,5 @@ cos_asm_server_stub(stkmgr_detect_suspension)
 cos_asm_server_stub(stkmgr_set_over_quota_limit)
 cos_asm_server_stub(stkmgr_set_suspension_limit)
 cos_asm_server_stub(stkmgr_get_allocated)
-	
+
 cos_asm_server_stub_spdid(stkmgr_stack_introspect)
