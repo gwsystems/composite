@@ -16,7 +16,7 @@ void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
     sl_init();
 
     struct sl_thd* main_delegate_thread = sl_thd_alloc(main_delegate, NULL);
-    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = 1}};
+    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = 255}};
     sl_thd_param_set(main_delegate_thread, sp.v);
 
     sl_sched_loop();
@@ -65,7 +65,8 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
 
     sl_cs_enter();
 
-    if(task_id == NULL || task_name == NULL || stack_pointer == NULL || function_pointer == NULL){
+    // Stack pointers can sometimes be null and that's ok for us
+    if(task_id == NULL || task_name == NULL || function_pointer == NULL){
         result = OS_INVALID_POINTER;
         goto exit;
     }
@@ -88,7 +89,7 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
 
     struct sl_thd* thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
     assert(thd);
-    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = priority}};
+    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = 255}};
     sl_thd_param_set(thd, sp.v);
 
     struct sl_thd_policy* policy = sl_mod_thd_policy_get(thd);
@@ -144,9 +145,7 @@ uint32 OS_TaskGetId(void)
 
 void OS_TaskExit(void)
 {
-    OS_TaskDelete(OS_TaskGetId());
-    // TODO: Figure out if this is the right thing to do in case of failure
-    PANIC("Broken invariant, should be unreacheable!");
+    return OS_ERR_NOT_IMPLEMENTED;
 }
 
 int32 OS_TaskInstallDeleteHandler(osal_task_entry function_pointer)
@@ -161,8 +160,8 @@ int32 OS_TaskDelay(uint32 millisecond)
     cycles_t start_time = sl_now();
 
     while(sl_cyc2usec(sl_now() - start_time) / 1000 < millisecond)  {
-        // FIXME: This is broken, busy loop for now
-        // sl_thd_yield(0);
+        // FIXME: Use an actual timeout once we have that
+        sl_thd_yield(0);
     }
     return OS_SUCCESS;
 }
@@ -178,7 +177,7 @@ int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
         return OS_ERR_INVALID_ID;
     }
 
-    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = new_priority}};
+    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = 255}};
     sl_thd_param_set(thd, sp.v);
 
     return OS_SUCCESS;
@@ -575,7 +574,7 @@ int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint
         }
         sl_cs_exit();
         // FIXME: Do an actually sensible yield here!
-        // sl_thd_yield(0);
+        sl_thd_yield(0);
         sl_cs_enter();
     }
 
@@ -611,7 +610,7 @@ int32 OS_SemaphoreTimedWait(struct semaphore* semaphores, uint32 max_semaphores,
             && sl_cyc2usec(sl_now() - start_cycles) < max_wait) {
         sl_cs_exit();
         // FIXME: Do an actually sensible yield here!
-        // sl_thd_yield(0);
+        sl_thd_yield(0);
         sl_cs_enter();
     }
 
