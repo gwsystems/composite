@@ -6,6 +6,7 @@
 #include <cos_kernel_api.h>
 #include <cobj_format.h>
 
+#include "gen/osapi.h"
 #include "cFE_util.h"
 
 void llprint(const char *s, int len)
@@ -38,6 +39,12 @@ printc(char *fmt, ...)
 void panic_impl(const char* function, char* message){
 	printc("cFE panic in %s: %s", function, message);
 	assert(0);
+}
+
+void print_with_error_name(char* message, int32 error) {
+	os_err_name_t local_name;
+	OS_GetErrorName(error, &local_name);
+	printc("%s, error %s\n", message, local_name);
 }
 
 void __isoc99_sscanf(void){

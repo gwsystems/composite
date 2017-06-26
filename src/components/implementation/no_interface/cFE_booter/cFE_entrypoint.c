@@ -137,6 +137,8 @@ void cos_init(void) {
         OS_printf("CFE_PSP: Starting the cFE with a POWER ON reset.\n");
     }
 
+    CFE_PSP_SpacecraftId = args.SpacecraftId;
+    CFE_PSP_CpuId = args.CpuId;
     /*
     ** Initialize the OS API
     */

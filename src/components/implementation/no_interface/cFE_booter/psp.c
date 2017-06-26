@@ -91,8 +91,7 @@ void CFE_PSP_FlushCaches(uint32 type, cpuaddr address, uint32 size);
 
 uint32 CFE_PSP_GetProcessorId(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return CFE_PSP_CpuId;
 }
 /*
 ** CFE_PSP_GetProcessorId returns the CPU ID as defined by the specific board
@@ -102,8 +101,7 @@ uint32 CFE_PSP_GetProcessorId(void)
 
 uint32 CFE_PSP_GetSpacecraftId(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    return CFE_PSP_SpacecraftId;
 }
 /*
 ** CFE_PSP_GetSpacecraftId retuns the Spacecraft ID (if any )
@@ -376,7 +374,7 @@ void CFE_PSP_AttachExceptions(void)
 
 void CFE_PSP_SetDefaultExceptionEnvironment(void)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    // TODO: Figure out if it is safe for us to just do nothing here
 }
 /*
 **
