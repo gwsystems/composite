@@ -8,6 +8,31 @@
 #include "gen/osapi.h"
 #include "gen/cfe_psp.h"
 
+
+#ifdef _ENHANCED_BUILD_
+
+#include <target_config.h>
+
+/*
+ * Define the PSP-supported capacities to be the maximum allowed,
+ * (since the PC-linux PSP has the advantage of abundant disk space to hold this)
+ */
+#define CFE_PSP_CDS_SIZE            (GLOBAL_CONFIGDATA.CfeConfig->CdsSize)
+#define CFE_PSP_RESET_AREA_SIZE     (GLOBAL_CONFIGDATA.CfeConfig->ResetAreaSize)
+#define CFE_PSP_USER_RESERVED_SIZE  (GLOBAL_CONFIGDATA.CfeConfig->UserReservedSize)
+
+#else
+
+#include "gen/cfe_es.h"            /* For memory sizes */
+#include "gen/cfe_platform_cfg.h"  /* for processor ID */
+
+#define CFE_PSP_CDS_SIZE            (CFE_ES_CDS_SIZE + 1024)
+#define CFE_PSP_RESET_AREA_SIZE     CFE_ES_RESET_AREA_SIZE
+#define CFE_PSP_USER_RESERVED_SIZE  CFE_ES_USER_RESERVED_SIZE
+
+#endif
+
+
 /*
 ** Function prototypes
 */
@@ -154,10 +179,15 @@ int32 CFE_PSP_InitProcessorReservedMemory(uint32 RestartType)
 ** ( cleared ) on a Power On reset, and preserved during a processor reset.
 */
 
+char CDS_MEMORY[CFE_ES_CDS_SIZE];
+
 int32 CFE_PSP_GetCDSSize(uint32 *SizeOfCDS)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    if (!SizeOfCDS) {
+        return CFE_PSP_ERROR;
+    }
+    *SizeOfCDS = CFE_ES_CDS_SIZE;
+    return CFE_PSP_SUCCESS;
 }
 /*
 ** CFE_PSP_GetCDSSize fetches the size of the OS Critical Data Store area.
@@ -165,8 +195,13 @@ int32 CFE_PSP_GetCDSSize(uint32 *SizeOfCDS)
 
 int32 CFE_PSP_WriteToCDS(void *PtrToDataToWrite, uint32 CDSOffset, uint32 NumBytes)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    if (!PtrToDataToWrite) {
+        return CFE_PSP_ERROR;
+    }
+    sl_cs_enter();
+    memcpy(CDS_MEMORY + CDSOffset, PtrToDataToWrite, NumBytes);
+    sl_cs_exit();
+    return CFE_PSP_SUCCESS;
 }
 /*
 ** CFE_PSP_WriteToCDS writes to the CDS Block.
@@ -174,21 +209,29 @@ int32 CFE_PSP_WriteToCDS(void *PtrToDataToWrite, uint32 CDSOffset, uint32 NumByt
 
 int32 CFE_PSP_ReadFromCDS(void *PtrToDataToRead, uint32 CDSOffset, uint32 NumBytes)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
+    if (!PtrToDataToRead) {
+        return CFE_PSP_ERROR;
+    }
+    sl_cs_enter();
+    memcpy(PtrToDataToRead, CDS_MEMORY + CDSOffset, NumBytes);
+    sl_cs_exit();
+    return CFE_PSP_SUCCESS;
 }
 /*
 ** CFE_PSP_ReadFromCDS reads from the CDS Block
 */
 
-#define RESET_AREA_SIZE 132000
-char RESET_AREA[RESET_AREA_SIZE];
+// TODO: Make this dynamic based on constants
+char RESET_AREA[CFE_PSP_CDS_SIZE];
 
 int32 CFE_PSP_GetResetArea (cpuaddr *PtrToResetArea, uint32 *SizeOfResetArea)
 {
+    if (!PtrToResetArea || !SizeOfResetArea) {
+        return CFE_PSP_ERROR;
+    }
     *PtrToResetArea = (cpuaddr) RESET_AREA;
-    *SizeOfResetArea = RESET_AREA_SIZE;
-    return OS_SUCCESS;
+    *SizeOfResetArea = CFE_PSP_CDS_SIZE;
+    return CFE_PSP_SUCCESS;
 }
 /*
 ** CFE_PSP_GetResetArea returns the location and size of the ES Reset information area.
@@ -209,21 +252,12 @@ int32 CFE_PSP_GetUserReservedArea(cpuaddr *PtrToUserArea, uint32 *SizeOfUserArea
 
 int32 CFE_PSP_GetVolatileDiskMem(cpuaddr *PtrToVolDisk, uint32 *SizeOfVolDisk )
 {
-   int32 return_code;
-
-   if ( SizeOfVolDisk == NULL )
-   {
-      return_code = CFE_PSP_ERROR;
-   }
-   else
-   {
-      *PtrToVolDisk = 0;
-      *SizeOfVolDisk = 0;
-      return_code = CFE_PSP_SUCCESS;
-   }
-
-   return(return_code);
-
+    if (!PtrToVolDisk || !SizeOfVolDisk) {
+        return CFE_PSP_ERROR;
+    }
+    *PtrToVolDisk = 0;
+    *SizeOfVolDisk = 0;
+    return CFE_PSP_SUCCESS;
 }
 /*
 ** CFE_PSP_GetVolatileDiskMem returns the location and size of the memory used for the cFE
@@ -300,7 +334,8 @@ void CFE_PSP_WatchdogSet(uint32 WatchdogValue)
 
 void CFE_PSP_Panic(int32 ErrorCode)
 {
-    PANIC("Unimplemented method!"); // TODO: Implement me!
+    printc("Error code is %d\n", (int) ErrorCode);
+    PANIC("PANICKING!");
 }
 /*
 ** CFE_PSP_Panic is called by the cFE Core startup code when it needs to abort the
@@ -350,162 +385,3 @@ void CFE_PSP_SetDefaultExceptionEnvironment(void)
 **   Notes: The exception environment is local to each task Therefore this must be
 **          called for each task that that wants to do floating point and catch exceptions
 */
-
-
-/*
-** I/O Port API
-*/
-int32 CFE_PSP_PortRead8(cpuaddr PortAddress, uint8 *ByteValue)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_PortWrite8(cpuaddr PortAddress, uint8 ByteValue)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_PortRead16(cpuaddr PortAddress, uint16 *uint16Value)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_PortWrite16(cpuaddr PortAddress, uint16 uint16Value)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_PortRead32(cpuaddr PortAddress, uint32 *uint32Value)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_PortWrite32(cpuaddr PortAddress, uint32 uint32Value)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-/*
-** Memory API
-*/
-int32 CFE_PSP_MemRead8(cpuaddr MemoryAddress, uint8 *ByteValue)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_MemWrite8(cpuaddr MemoryAddress, uint8 ByteValue)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_MemRead16(cpuaddr MemoryAddress, uint16 *uint16Value)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_MemWrite16(cpuaddr MemoryAddress, uint16 uint16Value)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_MemRead32(cpuaddr MemoryAddress, uint32 *uint32Value)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_MemWrite32(cpuaddr MemoryAddress, uint32 uint32Value)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_MemCpy(void *dest, void *src, uint32 n)
-{
-    memcpy(dest, src, n);
-    return OS_SUCCESS;
-}
-
-int32 CFE_PSP_MemSet(void *dest, uint8 value, uint32 n)
-{
-    memset(dest, value, n);
-    return OS_SUCCESS;
-}
-
-int32 CFE_PSP_MemValidateRange(cpuaddr Address, uint32 Size, uint32 MemoryType)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-uint32 CFE_PSP_MemRanges(void)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32  CFE_PSP_MemRangeSet(uint32 RangeNum, uint32 MemoryType, cpuaddr StartAddr,
-                           uint32 Size, uint32 WordSize, uint32 Attributes)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_MemRangeGet (uint32 RangeNum, uint32 *MemoryType, cpuaddr *StartAddr,
-                           uint32 *Size,    uint32 *WordSize,   uint32 *Attributes)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_EepromWrite8(cpuaddr MemoryAddress, uint8 ByteValue)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_EepromWrite16(cpuaddr MemoryAddress, uint16 uint16Value)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_EepromWrite32(cpuaddr MemoryAddress, uint32 uint32Value)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_EepromWriteEnable(uint32 Bank)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_EepromWriteDisable(uint32 Bank)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_EepromPowerUp(uint32 Bank)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
-
-int32 CFE_PSP_EepromPowerDown(uint32 Bank)
-{
-    PANIC("Unimplemented method!"); // TODO: Implement me!
-    return 0;
-}
