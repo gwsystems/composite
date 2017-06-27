@@ -2,12 +2,12 @@
 ** File   :	cfe_pep_memport.c
 **
 **
-**      Copyright (c) 2004-2011, United States Government as represented by 
-**      Administrator for The National Aeronautics and Space Administration. 
+**      Copyright (c) 2004-2011, United States Government as represented by
+**      Administrator for The National Aeronautics and Space Administration.
 **      All Rights Reserved.
 **
 **      This is governed by the NASA Open Source Agreement and may be used,
-**      distributed and modified only pursuant to the terms of that agreement. 
+**      distributed and modified only pursuant to the terms of that agreement.
 **
 ** Author :	Ezra Yeheskeli
 **
@@ -23,7 +23,7 @@
 /*
 ** Include section
 */
-
+#include <string.h>
 #include "cfe_psp.h"
 
 
@@ -229,4 +229,3 @@ int32 CFE_PSP_PortWrite32 ( cpuaddr PortAddress, uint32 uint32Value )
 	return(CFE_PSP_SUCCESS) ;
 
 }
-

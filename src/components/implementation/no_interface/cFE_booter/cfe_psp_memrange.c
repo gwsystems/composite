@@ -2,12 +2,12 @@
 ** File   :	cfe_psp_memrange.c
 **
 **
-**      Copyright (c) 2004-2011, United States Government as represented by 
-**      Administrator for The National Aeronautics and Space Administration. 
+**      Copyright (c) 2004-2011, United States Government as represented by
+**      Administrator for The National Aeronautics and Space Administration.
 **      All Rights Reserved.
 **
 **      This is governed by the NASA Open Source Agreement and may be used,
-**      distributed and modified only pursuant to the terms of that agreement. 
+**      distributed and modified only pursuant to the terms of that agreement.
 **
 ** Author :	Alan Cudmore
 **
@@ -21,6 +21,8 @@
 /*
 ** Include section
 */
+
+#include <string.h>
 
 #include "cfe_psp.h"
 
@@ -50,7 +52,7 @@ extern CFE_PSP_MemTable_t CFE_PSP_MemoryTable[CFE_PSP_MEM_TABLE_SIZE];
 **
 ** Assumptions and Notes:
 **
-** Parameters: 
+** Parameters:
 **    Address -- A 32 bit starting address of the memory range
 **    Size    -- A 32 bit size of the memory range ( Address + Size = End Address )
 **    MemoryType -- The memory type to validate, including but not limited to:
@@ -77,7 +79,7 @@ int32 CFE_PSP_MemValidateRange(cpuaddr Address, uint32 Size, uint32 MemoryType)
    uint32 TypeInTable;
    int32  ReturnCode = CFE_PSP_INVALID_MEM_ADDR;
    uint32 i;
-   
+
    /*
    ** Before searching table, do a preliminary parameter validation
    */
@@ -85,12 +87,12 @@ int32 CFE_PSP_MemValidateRange(cpuaddr Address, uint32 Size, uint32 MemoryType)
    {
       return(CFE_PSP_INVALID_MEM_TYPE);
    }
- 
+
    if ( EndAddressToTest < StartAddressToTest )
    {
       return(CFE_PSP_INVALID_MEM_RANGE);
    }
-   
+
    for ( i = 0; i < CFE_PSP_MEM_TABLE_SIZE; i++ )
    {
       /*
@@ -101,7 +103,7 @@ int32 CFE_PSP_MemValidateRange(cpuaddr Address, uint32 Size, uint32 MemoryType)
          StartAddressInTable = CFE_PSP_MemoryTable[i].StartAddr;
          EndAddressInTable   = CFE_PSP_MemoryTable[i].StartAddr + CFE_PSP_MemoryTable[i].Size - 1;
          TypeInTable         = CFE_PSP_MemoryTable[i].MemoryType;
-      
+
          /*
          ** Step 1: Get the Address to Fit within the range
          */
@@ -127,7 +129,7 @@ int32 CFE_PSP_MemValidateRange(cpuaddr Address, uint32 Size, uint32 MemoryType)
                {
                   ReturnCode = CFE_PSP_SUCCESS;
                   break; /* The range is valid, break out of the loop */
-               }   
+               }
                else if ( MemoryType == CFE_PSP_MEM_EEPROM && TypeInTable == CFE_PSP_MEM_EEPROM )
                {
                   ReturnCode = CFE_PSP_SUCCESS;
@@ -151,7 +153,7 @@ int32 CFE_PSP_MemValidateRange(cpuaddr Address, uint32 Size, uint32 MemoryType)
             /* The range is not valid, move to the next entry */
          }
       } /* End if MemoryType != CFE_PSP_MEM_INVALID */
-      
+
    } /* End for */
    return(ReturnCode);
 }
@@ -164,7 +166,7 @@ int32 CFE_PSP_MemValidateRange(cpuaddr Address, uint32 Size, uint32 MemoryType)
 **
 ** Assumptions and Notes:
 **
-** Parameters: 
+** Parameters:
 **    None
 **
 ** Global Inputs: None
@@ -188,9 +190,9 @@ uint32 CFE_PSP_MemRanges(void)
 **
 ** Assumptions and Notes:
 **    Because the table is fixed size, the entries are set by using the integer index.
-**    No validation is done with the address or size. 
+**    No validation is done with the address or size.
 **
-** Parameters: 
+** Parameters:
 **    RangeNum --   A 32 bit integer ( starting with 0 ) specifying the MemoryTable entry.
 **    MemoryType -- The memory type to validate, including but not limited to:
 **              CFE_PSP_MEM_RAM, CFE_PSP_MEM_EEPROM, or CFE_PSP_MEM_ANY
@@ -229,19 +231,19 @@ int32  CFE_PSP_MemRangeSet      (uint32 RangeNum, uint32 MemoryType, cpuaddr Sta
    {
        return(CFE_PSP_INVALID_MEM_TYPE);
    }
-   
+
    if ( ( WordSize != CFE_PSP_MEM_SIZE_BYTE ) && ( WordSize != CFE_PSP_MEM_SIZE_WORD ) &&
         ( WordSize != CFE_PSP_MEM_SIZE_DWORD ) )
    {
        return(CFE_PSP_INVALID_MEM_WORDSIZE);
    }
-   
+
    if ( ( Attributes != CFE_PSP_MEM_ATTR_READ ) && ( Attributes != CFE_PSP_MEM_ATTR_WRITE ) &&
         ( Attributes != CFE_PSP_MEM_ATTR_READWRITE ))
    {
       return(CFE_PSP_INVALID_MEM_ATTR);
    }
-   
+
    /*
    ** Parameters check out, add the range
    */
@@ -250,7 +252,7 @@ int32  CFE_PSP_MemRangeSet      (uint32 RangeNum, uint32 MemoryType, cpuaddr Sta
    CFE_PSP_MemoryTable[RangeNum].Size = Size;
    CFE_PSP_MemoryTable[RangeNum].WordSize = WordSize;
    CFE_PSP_MemoryTable[RangeNum].Attributes = Attributes;
-   
+
 	return(CFE_PSP_SUCCESS) ;
 }
 
@@ -263,13 +265,13 @@ int32  CFE_PSP_MemRangeSet      (uint32 RangeNum, uint32 MemoryType, cpuaddr Sta
 ** Assumptions and Notes:
 **    Becasue the table is fixed size, the entries are accessed by using the integer index.
 **
-** Parameters: 
+** Parameters:
 **    RangeNum --   A 32 bit integer ( starting with 0 ) specifying the MemoryTable entry.
 **    *MemoryType -- A pointer to the 32 bit integer where the Memory Type is stored.
 **                   Any defined CFE_PSP_MEM_* enumeration can be specified
 **    *Address --    A pointer to the 32 bit integer where the 32 bit starting address of the memory range
 **                   is stored.
-**    *Size    --    A pointer to the 32 bit integer where the 32 bit size of the memory range 
+**    *Size    --    A pointer to the 32 bit integer where the 32 bit size of the memory range
 **                   is stored.
 **    *WordSize --   A pointer to the 32 bit integer where the the minimum addressable size of the range:
 **                     ( CFE_PSP_MEM_SIZE_BYTE, CFE_PSP_MEM_SIZE_WORD, CFE_PSP_MEM_SIZE_DWORD )
@@ -293,17 +295,17 @@ int32  CFE_PSP_MemRangeGet      (uint32 RangeNum, uint32 *MemoryType, cpuaddr *S
    {
        return(CFE_PSP_INVALID_POINTER);
    }
-   
+
    if ( RangeNum >= CFE_PSP_MEM_TABLE_SIZE )
    {
        return(CFE_PSP_INVALID_MEM_RANGE);
    }
-   
+
    *MemoryType = CFE_PSP_MemoryTable[RangeNum].MemoryType;
    *StartAddr  = CFE_PSP_MemoryTable[RangeNum].StartAddr;
    *Size       = CFE_PSP_MemoryTable[RangeNum].Size;
    *WordSize   = CFE_PSP_MemoryTable[RangeNum].WordSize;
    *Attributes = CFE_PSP_MemoryTable[RangeNum].Attributes;
-   
+
 	return(CFE_PSP_SUCCESS) ;
 }

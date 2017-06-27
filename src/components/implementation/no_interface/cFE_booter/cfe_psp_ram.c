@@ -2,12 +2,12 @@
 ** File   :	cfe_psp_memram.c
 **
 **
-**      Copyright (c) 2004-2011, United States Government as represented by 
-**      Administrator for The National Aeronautics and Space Administration. 
+**      Copyright (c) 2004-2011, United States Government as represented by
+**      Administrator for The National Aeronautics and Space Administration.
 **      All Rights Reserved.
 **
 **      This is governed by the NASA Open Source Agreement and may be used,
-**      distributed and modified only pursuant to the terms of that agreement. 
+**      distributed and modified only pursuant to the terms of that agreement.
 **
 ** Author :	Ezra Yeheskeli
 **
@@ -23,7 +23,7 @@
 /*
 ** Include section
 */
-
+#include <string.h>
 #include "cfe_psp.h"
 
 
@@ -52,9 +52,9 @@
  */
 int32 CFE_PSP_MemRead8( cpuaddr MemoryAddress, uint8 *ByteValue )
 {
-    
+
 	(*ByteValue) = *((uint8 *)MemoryAddress) ;
-    
+
 	return(CFE_PSP_SUCCESS) ;
 }
 
@@ -82,7 +82,7 @@ int32 CFE_PSP_MemWrite8 ( cpuaddr MemoryAddress, uint8 ByteValue )
 {
     *((uint8 *)MemoryAddress) = ByteValue;
 	return(CFE_PSP_SUCCESS) ;
-    
+
 }
 
 /*
@@ -117,7 +117,7 @@ int32 CFE_PSP_MemRead16( cpuaddr MemoryAddress, uint16 *uint16Value )
 	}
 	(*uint16Value) = *((uint16 *)MemoryAddress) ;
    return(CFE_PSP_SUCCESS) ;
-    
+
 }
 /*
  ** Name: CFE_PSP_MemWrite16
@@ -176,14 +176,14 @@ int32 CFE_PSP_MemWrite16 ( cpuaddr MemoryAddress, uint16 uint16Value )
  **      addressing scheme.
  */
 int32 CFE_PSP_MemRead32( cpuaddr MemoryAddress, uint32 *uint32Value )
-{    
+{
 	/* check 32 bit alignment  */
 	if( MemoryAddress & 0x00000003)
 	{
 		return(CFE_PSP_ERROR_ADDRESS_MISALIGNED) ;
 	}
 	(*uint32Value) = *((uint32 *)MemoryAddress) ;
-    
+
 	return(CFE_PSP_SUCCESS) ;
 }
 
@@ -212,7 +212,7 @@ int32 CFE_PSP_MemRead32( cpuaddr MemoryAddress, uint32 *uint32Value )
  */
 int32 CFE_PSP_MemWrite32 ( cpuaddr MemoryAddress, uint32 uint32Value )
 {
-    
+
 	/* check 32 bit alignment  */
 	if( MemoryAddress & 0x00000003)
 	{
@@ -223,6 +223,3 @@ int32 CFE_PSP_MemWrite32 ( cpuaddr MemoryAddress, uint32 uint32Value )
 
 	return(CFE_PSP_SUCCESS) ;
 }
-
-
-

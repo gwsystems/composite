@@ -20,6 +20,7 @@
 ** Includes
 */
 
+#include <string.h>
 #include "common_types.h"
 #include "osapi.h"
 #include "cfe_psp.h"
