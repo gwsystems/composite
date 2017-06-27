@@ -73,11 +73,29 @@ sl_thd_setprio(struct sl_thd *t, tcap_prio_t p)
 
 static inline struct sl_thd *
 sl_thd_lkup(thdid_t tid)
-{ return sl_mod_thd_get(sl_thd_lookup_backend(tid)); }
+{
+	assert(tid != 0);
+	if (tid > MAX_NUM_THREADS) {
+		return NULL;
+	}
+	return sl_mod_thd_get(sl_thd_lookup_backend(tid));
+}
+
+static inline thdid_t
+sl_thd_curr_id(void)
+{
+	thdid_t tid = cos_thdid();
+	assert(tid != 0);
+	assert(tid < MAX_NUM_THREADS);
+	return tid;
+}
+
 
 static inline struct sl_thd *
 sl_thd_curr(void)
-{ return sl_thd_lkup(cos_thdid()); }
+{
+	return sl_thd_lkup(sl_thd_curr_id());
+}
 
 /* are we the owner of the critical section? */
 static inline int
@@ -94,7 +112,7 @@ sl_cs_owner(void)
  * @ret:
  *     (Caller of this function should retry for a non-zero return value.)
  *     1 for cas failure or after successful thread switch to thread that owns the lock.
- *     -ve from cos_defswitch failure, allowing caller for ex: the scheduler thread to 
+ *     -ve from cos_defswitch failure, allowing caller for ex: the scheduler thread to
  *     check if it was -EBUSY to first recieve pending notifications before retrying lock.
  */
 int sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok);
@@ -174,9 +192,22 @@ retry:
 	if (!ps_cas(&sl__globals()->lock.u.v, cached.v, 0))    goto retry;
 }
 
+static inline microsec_t
+sl_cyc2usec(cycles_t cyc)
+{ return cyc / sl__globals()->cyc_per_usec; }
+
+static inline microsec_t
+sl_usec2cyc(microsec_t usec)
+{ return usec * sl__globals()->cyc_per_usec; }
+
 static inline cycles_t
 sl_now(void)
 { return ps_tsc(); }
+
+static inline microsec_t
+sl_now_usec(void)
+{ return sl_cyc2usec(sl_now()); }
+
 
 /*
  * Do a few things: 1. take the critical section if it isn't already
@@ -313,14 +344,6 @@ sl_timeout_oneshot(cycles_t absolute_us)
 static inline void
 sl_timeout_relative(cycles_t offset)
 { sl_timeout_oneshot(sl_now() + offset); }
-
-static inline microsec_t
-sl_cyc2usec(cycles_t cyc)
-{ return cyc / sl__globals()->cyc_per_usec; }
-
-static inline microsec_t
-sl_usec2cyc(microsec_t usec)
-{ return usec * sl__globals()->cyc_per_usec; }
 
 void sl_thd_param_set(struct sl_thd *t, sched_param_t sp);
 
