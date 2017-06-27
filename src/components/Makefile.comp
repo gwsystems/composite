@@ -30,7 +30,7 @@ LUADIR=$(LUABASE)/lua-5.2.1
 LUAOBJ=$(LUABASE)/cos/lua_lang.o
 LUAINC=-I$(LUADIR)/src -I$(LUABASE)/cos/include
 
-INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/
+INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/ -I$(SHAREDINC)
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic
 OPT= -g
 #OPT= -O3

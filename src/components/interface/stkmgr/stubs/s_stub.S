@@ -5,11 +5,11 @@
  * Public License v2.
  */
 
-
+#define __ASM__
+#include <consts.h>
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text
 
 cos_asm_server_stub_spdid(stkmgr_grant_stack)
 cos_asm_server_stub_spdid(stkmgr_return_stack)
-
