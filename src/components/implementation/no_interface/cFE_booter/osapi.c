@@ -92,7 +92,7 @@ int32 OS_Tick2Micros(void)
 }
 
 OS_time_t local_time;
-cycles_t old_cycle_count;
+microsec_t last_time_check;
 
 OS_time_t OS_AdvanceTime(OS_time_t initial_time, microsec_t usec) {
     microsec_t old_seconds = (microsec_t) initial_time.seconds;
@@ -116,20 +116,18 @@ int32 OS_GetLocalTime(OS_time_t *time_struct)
         return OS_INVALID_POINTER;
     }
 
-    if(old_cycle_count == 0) {
+    if(last_time_check == 0) {
         local_time = (OS_time_t) {
             .seconds = 1181683060,
             .microsecs = 0
         };
-        old_cycle_count = sl_now();
+        last_time_check = sl_now_usec();
     } else {
-        cycles_t new_cycle_count = sl_now();
-        cycles_t elapsed_cycles = new_cycle_count - old_cycle_count;
-
-        microsec_t elapsed_usec = sl_cyc2usec(elapsed_cycles);
+        microsec_t current_time = sl_now_usec();
+        microsec_t elapsed_usec = current_time - last_time_check;
 
         local_time = OS_AdvanceTime(local_time, elapsed_usec);
-        old_cycle_count = new_cycle_count;
+        last_time_check = current_time;
     }
 
     *time_struct = local_time;
@@ -145,7 +143,7 @@ int32 OS_SetLocalTime(OS_time_t *time_struct)
     }
 
     local_time = *time_struct;
-    old_cycle_count = sl_now();
+    last_time_check = sl_now_usec();
 
     return OS_SUCCESS;
 } /*end OS_SetLocalTime */
