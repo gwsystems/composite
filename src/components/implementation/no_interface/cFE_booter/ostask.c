@@ -5,6 +5,7 @@
 #include "gen/common_types.h"
 
 #include "sl.h"
+#include "sl_lock.h"
 
 #include <cos_kernel_api.h>
 
@@ -12,12 +13,17 @@
 /*
 ** Internal Task helper functions
 */
+// We need to keep track of this
+thdid_t main_delegate_thread_id;
+
 void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
     sl_init();
 
     struct sl_thd* main_delegate_thread = sl_thd_alloc(main_delegate, NULL);
     union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = 255}};
     sl_thd_param_set(main_delegate_thread, sp.v);
+
+    main_delegate_thread_id = main_delegate_thread->thdid;
 
     sl_sched_loop();
 }
@@ -37,7 +43,7 @@ int is_valid_name(const char* name) {
 }
 
 // TODO: Figure out how to check if names are taken
-int is_name_taken(const char* name) {
+int is_thread_name_taken(const char* name) {
     // for(int i = 0; i < num_tasks; i++) {
     //     thdid_t task_id = task_ids[i];
     //     struct sl_thd_policy* task = sl_mod_thd_policy_get(sl_thd_lkup(task_id));
@@ -78,7 +84,7 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
         goto exit;
     }
 
-    if(is_name_taken(task_name)) {
+    if(is_thread_name_taken(task_name)) {
         result = OS_ERR_NAME_TAKEN;
         goto exit;
     }
@@ -137,9 +143,7 @@ exit:
 
 uint32 OS_TaskGetId(void)
 {
-    thdid_t thdid = cos_thdid();
-    assert(thdid != 0);
-    return thdid;
+    return sl_thd_curr_id();
 }
 
 void OS_TaskExit(void)
@@ -149,16 +153,19 @@ void OS_TaskExit(void)
 
 int32 OS_TaskInstallDeleteHandler(osal_task_entry function_pointer)
 {
-    sl_mod_thd_policy_get(sl_thd_lkup(OS_TaskGetId()))->delete_handler = function_pointer;
+    if(OS_TaskGetId() == main_delegate_thread_id) {
+        return OS_ERR_INVALID_ID;
+    }
+    sl_mod_thd_policy_get(sl_thd_curr())->delete_handler = function_pointer;
     return OS_SUCCESS;
 }
 
 int32 OS_TaskDelay(uint32 millisecond)
 {
     // TODO: Use Phanis extension
-    cycles_t start_time = sl_now();
+    microsec_t start_time = sl_now_usec();
 
-    while(sl_cyc2usec(sl_now() - start_time) / 1000 < millisecond)  {
+    while((sl_now_usec() - start_time) / 1000 < millisecond)  {
         // FIXME: Use an actual timeout once we have that
         sl_thd_yield(0);
     }
@@ -184,6 +191,10 @@ int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
 
 int32 OS_TaskRegister(void)
 {
+    if(OS_TaskGetId() == main_delegate_thread_id) {
+        return OS_ERR_INVALID_ID;
+    }
+
     // Think it is safe for this to do nothing
     return OS_SUCCESS;
 }
@@ -245,11 +256,8 @@ void OS_ApplicationShutdown(uint8 flag)
 
 struct mutex {
     int used;
-
-    uint32 creator;
-    uint32 held;
-    thdid_t holder;
-    char name[OS_MAX_API_NAME];
+    struct sl_lock lock;
+    OS_mut_sem_prop_t prop;
 };
 
 struct mutex mutexes[OS_MAX_MUTEXES];
@@ -273,7 +281,7 @@ int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 
     uint32 id;
     for (id = 0; id < OS_MAX_MUTEXES; id++) {
-        if (mutexes[id].used && strcmp(sem_name, mutexes[id].name) == 0) {
+        if (mutexes[id].used && strcmp(sem_name, mutexes[id].prop.name) == 0) {
             result = OS_ERR_NAME_TAKEN;
             goto exit;
         }
@@ -290,10 +298,11 @@ int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
     }
 
     *sem_id = id;
+
     mutexes[id].used = TRUE;
-    mutexes[id].held = FALSE;
-    mutexes[id].creator = sl_thd_curr()->thdid;
-    strcpy(mutexes[id].name, sem_name);
+    sl_lock_init(&mutexes[id].lock);
+    mutexes[id].prop.creator = sl_thd_curr_id();
+    strcpy(mutexes[id].prop.name, sem_name);
 
 exit:
     sl_cs_exit();
@@ -311,12 +320,7 @@ int32 OS_MutSemGive(uint32 sem_id)
         goto exit;
     }
 
-    if (!mutexes[sem_id].held || mutexes[sem_id].holder != sl_thd_curr()->thdid) {
-        result = OS_SEM_FAILURE;
-        goto exit;
-    }
-
-    mutexes[sem_id].held = FALSE;
+    sl_lock_unlock_no_cs(&mutexes[sem_id].lock);
 
 exit:
     sl_cs_exit();
@@ -330,34 +334,12 @@ int32 OS_MutSemTake(uint32 sem_id)
 
     sl_cs_enter();
 
-    if (sem_id >= OS_MAX_MUTEXES) {
+    if (sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
         result = OS_ERR_INVALID_ID;
         goto exit;
     }
 
-    while (mutexes[sem_id].held && mutexes[sem_id].used) {
-        int holder = mutexes[sem_id].holder;
-
-        /*
-         * If we are preempted after the exit, and the holder is no longer holding
-         * the critical section, then we will yield to them and possibly waste a
-         * time-slice.  This will be fixed the next iteration, as we will see an
-         * updated value of the holder, but we essentially lose a timeslice in the
-         * worst case.  From a real-time perspective, this is bad, but we're erring
-         * on simplicity here.
-         */
-        sl_cs_exit();
-        sl_thd_yield(holder);
-        sl_cs_enter();
-    }
-
-    if (!mutexes[sem_id].used) {
-        result = OS_ERR_INVALID_ID;
-        goto exit;
-    }
-
-    mutexes[sem_id].held   = TRUE;
-    mutexes[sem_id].holder = sl_thd_curr()->thdid;
+    sl_lock_lock_no_cs(&mutexes[sem_id].lock);
 
 exit:
     sl_cs_exit();
@@ -375,7 +357,7 @@ int32 OS_MutSemDelete(uint32 sem_id)
         goto exit;
     }
 
-    if (mutexes[sem_id].held) {
+    if (sl_lock_holder(&mutexes[sem_id].lock) != 0) {
         result = OS_SEM_FAILURE;
         goto exit;
     }
@@ -406,7 +388,7 @@ int32 OS_MutSemGetIdByName(uint32 *sem_id, const char *sem_name)
 
     int i;
     for (i = 0; i < OS_MAX_MUTEXES; i++) {
-        if (mutexes[i].used && (strcmp (mutexes[i].name, (char*) sem_name) == 0)) {
+        if (mutexes[i].used && (strcmp (mutexes[i].prop.name, (char*) sem_name) == 0)) {
             *sem_id = i;
             goto exit;
         }
@@ -436,11 +418,7 @@ int32 OS_MutSemGetInfo(uint32 sem_id, OS_mut_sem_prop_t *mut_prop)
         goto exit;
     }
 
-    *mut_prop = (OS_mut_sem_prop_t) {
-        .creator = mutexes[sem_id].creator,
-    };
-
-    strcpy(mut_prop->name, mutexes[sem_id].name);
+    *mut_prop = mutexes[sem_id].prop;
 
 exit:
     sl_cs_exit();
@@ -505,7 +483,7 @@ int32 OS_SemaphoreCreate(struct semaphore* semaphores, uint32 max_semaphores,
 
     *sem_id = id;
     semaphores[id].used = TRUE;
-    semaphores[id].creator = sl_thd_curr()->thdid;
+    semaphores[id].creator = sl_thd_curr_id();
     semaphores[id].count = sem_initial_value;
     strcpy(semaphores[id].name, sem_name);
 
@@ -594,7 +572,7 @@ int32 OS_SemaphoreTimedWait(struct semaphore* semaphores, uint32 max_semaphores,
                             uint32 sem_id, uint32 msecs)
 {
     int32 result = OS_SUCCESS;
-    cycles_t start_cycles = sl_now();
+    microsec_t start_time = sl_now();
     microsec_t max_wait = msecs * 1000;
 
     sl_cs_enter();
@@ -606,7 +584,7 @@ int32 OS_SemaphoreTimedWait(struct semaphore* semaphores, uint32 max_semaphores,
 
     while (semaphores[sem_id].used
             && semaphores[sem_id].count == 0
-            && sl_cyc2usec(sl_now() - start_cycles) < max_wait) {
+            && (sl_now_usec() - start_time) < max_wait) {
         sl_cs_exit();
         // FIXME: Do an actually sensible yield here!
         sl_thd_yield(0);
