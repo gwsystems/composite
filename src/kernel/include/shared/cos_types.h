@@ -18,7 +18,9 @@
 #include "./cos_config.h"
 #include "./chal_config.h"
 
+#ifndef LLONG_MAX
 #define LLONG_MAX 9223372036854775807LL
+#endif
 
 typedef unsigned long word_t;
 typedef u64_t cycles_t;
@@ -375,7 +377,8 @@ typedef enum {
 	COS_UPCALL_THD_CREATE,
 	COS_UPCALL_ACAP_COMPLETE,
 	COS_UPCALL_DESTROY,
-	COS_UPCALL_UNHANDLED_FAULT
+	COS_UPCALL_UNHANDLED_FAULT,
+	COS_UPCALL_QUARANTINE
 } upcall_type_t;
 
 enum {
@@ -399,6 +402,7 @@ typedef enum {
 	COS_FLT_LINUX,
 	COS_FLT_SAVE_REGS,
 	COS_FLT_FLT_NOTIF,
+	COS_FLT_QUARANTINE,
 	COS_FLT_MAX
 } cos_flt_off; /* <- this indexes into cos_flt_handlers in the loader */
 

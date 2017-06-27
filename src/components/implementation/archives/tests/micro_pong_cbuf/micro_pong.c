@@ -11,7 +11,7 @@
 #define printv(fmt,...) 
 #endif
 
-#define ITER 2000
+#define ITER 1/*2000*/
 
 void call(void)
 {
@@ -31,9 +31,6 @@ int call_buf2buf(u32_t cb, int len)
 		assert(b);
 	}
 	rdtscll(end);
-
-        printc("%d cbuf2buf %llu cycs\n", ITER, (end-start)/ITER);
-	memset(b, 's', len);
 	
 	return 0;
 }
@@ -48,9 +45,9 @@ int simple_call_buf2buf(u32_t cb, int len)
 int call_cbufp2buf(u32_t cb, int len)
 {
 	char *b;
-	b = cbufp2buf(cb, len);
+	b = cbuf2buf(cb, len);
 	assert(b);
-	cbufp_deref(cb);
+	cbuf_free(cb);
 	return 0;
 }
 

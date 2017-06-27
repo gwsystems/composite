@@ -44,14 +44,16 @@ tread_pack(spdid_t spdid, td_t td, char *data, int len)
 	d = cbuf_alloc(len, &cb);
 	if (!d) return -1;
 
+	cbuf_send(cb);
 	ret = tread(spdid, td, cb, len);
-        if (ret < 0) goto free;
-        if (ret > len) {
-                ret = len; /* FIXME: this is broken, and we should figure out a better solution */
-        }
+	if (ret < 0) goto free;
+	if (ret > len) {
+		ret = len; /* FIXME: this is broken, and we should figure out a better solution */
+	}
 	memcpy(data, d, ret);
 free:
-	cbuf_free(d);	
+	cbuf_free(cb);
+
 	return ret;
 }
 
@@ -66,8 +68,9 @@ twrite_pack(spdid_t spdid, td_t td, char *data, int len)
 	if (!d) return -1;
 
 	memcpy(d, data, len);
+	cbuf_send(cb);
 	ret = twrite(spdid, td, cb, len);
-	cbuf_free(d);
+	cbuf_free(cb);
 	
 	return ret;
 }

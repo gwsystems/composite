@@ -28,7 +28,7 @@
  * Modified by Qi Wang, interwq@gwu.edu, 2014
  */
 
-/* 
+/*
  * FIXME: locking!
  */
 
@@ -82,7 +82,7 @@ struct frame *kern_freelist;
 
 static inline int  frame_index(struct frame *f) {
 	if (IS_USER_FRAME(f))
-		return f-frames; 
+		return f-frames;
 	else
 		return f-kern_frames;
 }
@@ -115,11 +115,19 @@ kern_frame_alloc(void)
 	return f;
 }
 
-static inline void 
+static inline void
+frame_free(struct frame *f)
+{
+	assert(f->nmaps == 0);
+	f->c.free = freelist;
+	freelist  = f;
+}
+
+static inline void
 frame_deref(struct frame *f)
-{ 
+{
 	assert(f->nmaps > 0);
-	f->nmaps--; 
+	f->nmaps--;
 	if (f->nmaps == 0) {
 		if (IS_USER_FRAME(f)) {
 			f->c.free = freelist;
@@ -194,10 +202,10 @@ mm_init(void)
 	printc("core %ld: mm init as thread %d\n", cos_cpuid(), cos_get_thd_id());
 
 	/* Expanding VAS. */
-	printc("mm expanding %lu MBs @ %p\n", (NREGIONS-1) * round_up_to_pgd_page(1) / 1024 / 1024, 
+	printc("mm expanding %lu MBs @ %p\n", (NREGIONS-1) * round_up_to_pgd_page(1) / 1024 / 1024,
 	       (void *)round_up_to_pgd_page((unsigned long)&cos_comp_info.cos_poly[1]));
-	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 
-			 round_up_to_pgd_page((unsigned long)&cos_comp_info.cos_poly[1]), 
+	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(),
+			 round_up_to_pgd_page((unsigned long)&cos_comp_info.cos_poly[1]),
 			 (NREGIONS-1) * round_up_to_pgd_page(1))) {
 		printc("MM could not expand VAS\n");
 		BUG();
@@ -283,7 +291,7 @@ cvas_ref(struct comp_vas *cv)
 	cv->nmaps++;
 }
 
-static void 
+static void
 cvas_deref(struct comp_vas *cv)
 {
 	assert(cv && cv->nmaps > 0);
@@ -311,15 +319,16 @@ struct mapping {
 CSLAB_CREATE(mapping, sizeof(struct mapping));
 
 static void
-mapping_init(struct mapping *m, spdid_t spdid, vaddr_t a, struct mapping *p, struct frame *f)
+mapping_init(struct mapping *m, spdid_t spdid, vaddr_t a, struct mapping *p, struct frame *f, int flags)
 {
 	assert(m && f);
 	INIT_LIST(m, _s, s_);
 	m->f     = f;
-	m->flags = 0;
+	m->flags = flags;
 	m->spdid = spdid;
 	m->addr  = a;
 	m->p     = p;
+	m->c     = NULL;
 	if (p) {
 		m->flags = p->flags;
 		if (!p->c) p->c = m;
@@ -360,10 +369,10 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to, int fl
 	if (!m) goto collision;
 
 	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, dest, to, frame_index(f))) {
-		printc("mem_man: could not grant at %x:%d\n", dest, (int)to);
+		printc("mem_man naive: could not grant at %x:%x\n", dest, to);
 		goto no_mapping;
 	}
-	mapping_init(m, dest, to, p, f);
+	mapping_init(m, dest, to, p, f, flags);
 	assert(!p || frame_nrefs(f) > 0);
 	frame_ref(f);
 	assert(frame_nrefs(f) > 0);
@@ -457,12 +466,48 @@ mapping_del(struct mapping *m)
 /*** Public interface functions ***/
 /**********************************/
 
+int __mman_fork_spd(spdid_t spd, u32_t s_spd_d_spd, vaddr_t base, u32_t len)
+{
+	struct mapping *m, *n;
+	int ret = 0;
+	spdid_t s_spd, d_spd;
+	vaddr_t s_addr;
+
+	s_spd = s_spd_d_spd >> 16;
+	d_spd = s_spd_d_spd & 0xFFFF;
+
+	/* do we need locking? what if m gets revoked after lookup? */
+	/* note: children mappings stay with s_spd, but what if they
+	 * are needed in a dependent of d_spd? */
+
+	for ( s_addr = base ; !ret && s_addr < s_addr + len; s_addr += PAGE_SIZE ) {
+		if (!(m = mapping_lookup(s_spd, s_addr))) continue;
+		if ((n = mapping_lookup(d_spd, s_addr))) continue;
+		if (!m->p) { /* no parent, create a new mapping */
+			if (s_addr != mman_get_page(d_spd, s_addr, m->flags)) ret = -EFAULT;
+			if (m->c) {
+				/* children mappings exist, what to do? */
+
+			}
+		} else { /* this is an alias, re-alias from p */
+			/* FIXME: shouldn't share RW memory? how to do
+			 * this sanely? maybe m->p->spdid should do it? */
+			if (s_addr != mman_alias_page(m->p->spdid, m->p->addr, d_spd, s_addr, m->flags)) ret = -EINVAL;
+		}
+#if defined(DEBUG)
+		//printc("mman_fork: recreated mapping in %d at %x\n", d_spd, s_addr);
+#endif
+	}
+
+	return ret;
+}
+
 vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	struct frame *f;
 	struct mapping *m = NULL;
-	vaddr_t ret = -1;
-	
+	vaddr_t ret = 0;
+
 	LOCK();
 	if (flags & MAPPING_KMEM)
 		f = kern_frame_alloc();
@@ -482,7 +527,7 @@ done:
 	UNLOCK();
 	return ret;
 dealloc:
-	frame_deref(f);
+	frame_free(f);
 	goto done;		/* -EINVAL */
 }
 
@@ -585,8 +630,8 @@ extern void parent_sched_exit(void);
 
 PERCPU_ATTR(static volatile, int, initialized_core); /* record the cores that still depend on us */
 
-void 
-sched_exit(void)   
+void
+sched_exit(void)
 {
 	if (cos_cpuid() == INIT_CORE) {
 		int i;
@@ -594,7 +639,7 @@ sched_exit(void)
 		for (i = 0; i < NUM_CPU ; i++)
 			if (*PERCPU_GET_TARGET(initialized_core, i)) i = 0;
 		/* Don't delete the memory until all cores exit */
-		mman_release_all(); 
+		mman_release_all();
 		*PERCPU_GET(initialized_core) = 0;
 	} else {
 		/* No one should exit before all cores are done. We'll
@@ -608,13 +653,13 @@ sched_exit(void)
 
 int sched_isroot(void) { return 1; }
 
-int 
+int
 sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff) { BUG(); return 0; }
 
 extern int parent_sched_child_cntl_thd(spdid_t spdid);
 
-int 
-sched_child_cntl_thd(spdid_t spdid) 
+int
+sched_child_cntl_thd(spdid_t spdid)
 {
 	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();
 	if (cos_sched_cntl(COS_SCHED_PROMOTE_CHLD, 0, spdid)) BUG();
@@ -623,7 +668,7 @@ sched_child_cntl_thd(spdid_t spdid)
 	return 0;
 }
 
-int 
+int
 sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd) { BUG(); return 0; }
 
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
@@ -636,7 +681,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 			int i;
 			for (i = 0; i < NUM_CPU; i++)
 				*PERCPU_GET_TARGET(initialized_core, i) = 0;
-			mm_init(); 
+			mm_init();
 		} else {
 			/* Make sure that the initializing core does
 			 * the initialization before any other core
@@ -644,7 +689,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 			while (*PERCPU_GET_TARGET(initialized_core, INIT_CORE) == 0) ;
 		}
 		*PERCPU_GET(initialized_core) = 1;
-		break;			
+		break;
 	default:
 		BUG(); return;
 	}

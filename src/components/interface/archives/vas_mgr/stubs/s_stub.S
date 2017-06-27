@@ -13,3 +13,4 @@
 
 cos_asm_server_stub_spdid(vas_mgr_expand)
 cos_asm_server_stub_spdid(vas_mgr_contract)
+cos_asm_server_stub_spdid(vas_mgr_take)

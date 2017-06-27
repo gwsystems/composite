@@ -32,43 +32,52 @@
 COS_VECT_CREATE_STATIC(spd_info_addresses);
 
 int
-cinfo_map(spdid_t spdid, vaddr_t map_addr, spdid_t target)
+cinfo_add_heap_pointer(spdid_t spdid, spdid_t target, void *heap_pointer)
 {
-	vaddr_t cinfo_addr;
-
-	cinfo_addr = (vaddr_t)cos_vect_lookup(&spd_info_addresses, target);
-	if (0 == cinfo_addr) return -1;
-	if (map_addr != 
-	    (__local_mman_alias_page(cos_spd_id(), cinfo_addr, spdid, map_addr, MAPPING_RW))) {
-		return -1;
-	}
-
-	return 0;
+	cos_vect_del(&spd_info_addresses, target);
+	return cos_vect_add_id(&spd_info_addresses, heap_pointer, target);
 }
 
-spdid_t
-cinfo_get_spdid(int iter)
+void*
+cinfo_get_heap_pointer(spdid_t spdid, spdid_t target)
 {
-	if (iter > MAX_NUM_SPDS) return 0;
-	if (hs[iter] == NULL) return 0;
-
-	return hs[iter]->id;
-}
-
-static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci);
-static void
-comp_info_record(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci)
-{
-	if (!cos_vect_lookup(&spd_info_addresses, spdid)) {
-		boot_spd_set_symbs(h, spdid, ci);
-		cos_vect_add_id(&spd_info_addresses, (void*)round_to_page(ci), spdid);
-	}
+	return cos_vect_lookup(&spd_info_addresses, target);
 }
 
 static void
 boot_deps_init(void)
 {
 	cos_vect_init_static(&spd_info_addresses);
+}
+
+static void
+boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages, struct cobj_header *h, unsigned int sect_id)
+{
+	char *dsrc = src_start;
+	vaddr_t dest_daddr = dest_start;
+	struct cobj_sect *sect;
+	int flags;
+	
+	sect = cobj_sect_get(h, sect_id);
+	if (sect->flags & COBJ_SECT_WRITE) flags = MAPPING_RW;
+	else flags = MAPPING_READ;
+	
+	assert(pages > 0);
+	while (pages-- > 0) {
+		/* TODO: if use_kmem, we should allocate
+		 * kernel-accessible memory, rather than
+		 * normal user-memory */
+		if ((vaddr_t)dsrc != __local_mman_get_page(cos_spd_id(), (vaddr_t)dsrc, MAPPING_RW)) BUG();
+		if (dest_daddr != (__local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, flags))) BUG();
+		dsrc += PAGE_SIZE;
+		dest_daddr += PAGE_SIZE;
+	}
+}
+
+static void
+boot_deps_save_hp(spdid_t spdid, void *hp)
+{
+	cinfo_add_heap_pointer(cos_spd_id(), spdid, hp);
 }
 
 static void

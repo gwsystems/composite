@@ -1,31 +1,21 @@
 #include <cos_component.h>
 #include <print.h>
 
-#include <pgfault.h>
 #include <sched.h>
 
-int bar(void)
-{
-	int v;
-	v = *((int *)0);
-	return v;
-}
+#include <unit_pgfault.h>
 
 int foo(void) 
 {
-	return bar();
+	return unit_pgfault_page_fault(cos_spd_id());
 }
 
 void cos_init(void)
 {
+	int status;
 	printc("Starting page fault test...\n");
-	foo();
+	status = foo();
+	assert(status == -EFAULT);
 	printc("... and successfully finishing page fault test.\n");
 }
-
-/* void bin (void) */
-/* { */
-/* 	fault_page_fault_handler(cos_spd_id(), NULL, 0, NULL); */
-/* 	sched_block(cos_spd_id(), 0); */
-/* } */
 

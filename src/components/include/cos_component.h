@@ -302,13 +302,17 @@ static void
 constructors_execute(void)
 {
 	extern long __CTOR_LIST__;
+	extern long __INIT_ARRAY_LIST__;
 	section_fnptrs_execute(&__CTOR_LIST__);
+	section_fnptrs_execute(&__INIT_ARRAY_LIST__);
 }
 static void
 destructors_execute(void)
 {
 	extern long __DTOR_LIST__;
+	extern long __FINI_ARRAY_LIST__;
 	section_fnptrs_execute(&__DTOR_LIST__);
+	section_fnptrs_execute(&__FINI_ARRAY_LIST__);
 }
 static void
 recoveryfns_execute(void)

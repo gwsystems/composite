@@ -1,6 +1,6 @@
 COMPONENT=tasc.o
 INTERFACES=torrent
-DEPENDENCIES=cbufp cbuf_c printc lock sched valloc evt mem_mgr_large
+DEPENDENCIES=cbuf_mgr printc lock sched valloc evt
 
 include ../../Makefile.subsubdir
 

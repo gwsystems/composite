@@ -29,15 +29,14 @@ void cbuf_call(char c)
 	printc("\n****** MID: thread %d in spd %ld ******\n",cos_get_thd_id(), cos_spd_id());
 
 	/* cbuf_t cb = cbuf_null(); */
-	u32_t id;
 	/* u64_t start, end; */
-	int i;
+	int i, id;
 
 	cbuf_t cbt[iter];
 	void *mt[iter];
 	for (i = 0; i < iter ; i++){
 		cbt[i] = cbuf_null();
-		mt[i] = cbuf_alloc(SZ, &cbt[i]);
+		mt[i] = cbuf_alloc_ext(SZ, &cbt[i], CBUF_TMEM);
 		cbuf_unpack(cbt[i], &id);
 		printc("thread %d Now @ %p, memid %x\n", cos_get_thd_id(), mt[i], id);
 		assert(mt[i]);
@@ -59,7 +58,7 @@ void cbuf_call(char c)
 	printc("\n****** MID free: thread %d in spd %ld ******\n",cos_get_thd_id(), cos_spd_id());
 
 	for (i = 0; i < iter ; i++){
-		cbuf_free(mt[i]);
+		cbuf_free(cbt[i]);
 	}
 
 	delay(DELAY);

@@ -20,7 +20,7 @@
 #define CHILD_COMP_COUNT   2
 #define CHILD_UNTYPED_SIZE (1<<24)
 #define CHILD_SCHED_ID     0
-#define CHILD_SCHED_CYCS   TCAP_RES_INF 
+#define CHILD_SCHED_CYCS   TCAP_RES_INF
 #define CHILD_SCHED_PRIO   TCAP_PRIO_MAX
 
 int is_booter = 1;
@@ -28,34 +28,7 @@ extern vaddr_t cos_upcall_entry;
 struct cos_defcompinfo child_defci[CHILD_COMP_COUNT];
 static cycles_t cycs_per_usec;
 
-static void
-cos_llprint(char *s, int len)
-{ call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0); }
-
-int
-prints(char *s)
-{
-	int len = strlen(s);
-
-	cos_llprint(s, len);
-
-	return len;
-}
-
-int __attribute__((format(printf,1,2)))
-printc(char *fmt, ...)
-{
-	  char s[128];
-	  va_list arg_ptr;
-	  int ret, len = 128;
-
-	  va_start(arg_ptr, fmt);
-	  ret = vsnprintf(s, len, fmt, arg_ptr);
-	  va_end(arg_ptr);
-	  cos_llprint(s, ret);
-
-	  return ret;
-}
+#include <llprint.h>
 
 #define TEST_NAEPS    3
 #define TEST_AEP_CYCS 400000
@@ -92,7 +65,7 @@ test_aeps(void)
 
 		snd = cos_asnd_alloc(ci, test_aep[i].rcv, ci->captbl_cap);
 		assert(snd);
-			
+
 		ret = cos_tcap_delegate(snd, BOOT_CAPTBL_SELF_INITTCAP_BASE, TEST_AEP_CYCS, TEST_AEP_PRIO, TCAP_DELEG_YIELD);
 		assert(ret == 0);
 
@@ -116,7 +89,7 @@ test_childcomps(void)
 		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycs));
 		printc("\tSwitching to [%d] component\n", id);
 		if (id == CHILD_SCHED_ID) {
-			ret = cos_switch(child_defci[id].sched_aep.thd, child_defci[id].sched_aep.tc, CHILD_SCHED_PRIO, TCAP_TIME_NIL, 
+			ret = cos_switch(child_defci[id].sched_aep.thd, child_defci[id].sched_aep.tc, CHILD_SCHED_PRIO, TCAP_TIME_NIL,
 					BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0);
 		} else {
@@ -143,7 +116,7 @@ cos_init(void)
 		int                     id, ret;
 		struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 		struct cos_compinfo    *ci    = cos_compinfo_get(defci);
-		
+
 		is_booter = 0;
 		printc("Unit-test for defcompinfo API\n");
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);

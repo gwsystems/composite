@@ -42,6 +42,7 @@
         movl (%eax), %esp;                      \
 	COMP_INFO_CMPXCHG;                      \
         jnz 8b;					\
+5:                                              \
 						\
 	/* now we have the stack */		\
         movl  %eax, %esp;                       \
@@ -80,9 +81,7 @@
         call stkmgr_grant_stack;                \
         addl $4, %esp;                          \
                                                 \
-        /* addl $0x4, %eax; */                  \
-                                                \
-        /*restore stack */                      \
+        /* restore regs */                      \
 	popl %edx;				\
         popl %ecx;                              \
         popl %ebx;                              \
@@ -90,12 +89,11 @@
         popl %esi;                              \
         popl %ebp;                              \
 						\
-        /* movl  %eax, %esp; */                 \
-	/* restore Thd_id in eax */		\
-	/* movl $THD_ID_SHARED_PAGE, %edx; */	\
-        /* movl (%edx), %eax; */		\
-	movl %edx, %eax;			\
-	jmp  1b;                                
+	/* Check for NULL stack return */	\
+        testl %eax, %eax;                       \
+        je    8b;                               \
+	/* Got a stack in eax */		\
+	jmp   5b;                                
 
 #define COS_ASM_RET_STACK                       \
                                                 \
