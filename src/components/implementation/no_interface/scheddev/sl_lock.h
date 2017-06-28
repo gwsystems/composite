@@ -8,17 +8,16 @@ struct sl_lock {
     thdid_t holder;
 };
 
+#define SL_LOCK_STATIC_INIT() (struct sl_lock) { .holder = 0 }
+
 void sl_lock_init(struct sl_lock *lock);
 
 thdid_t sl_lock_holder(struct sl_lock *lock);
 
 void sl_lock_lock(struct sl_lock *lock);
-void sl_lock_lock_no_cs(struct sl_lock *lock);
 
-int sl_lock_timed_lock(struct sl_lock *lock, microsec_t timeout);
-int sl_lock_timed_lock_no_cs(struct sl_lock *lock, microsec_t timeout);
+int sl_lock_timed_lock(struct sl_lock *lock, microsec_t max_wait_time);
 
 void sl_lock_unlock(struct sl_lock *lock);
-void sl_lock_unlock_no_cs(struct sl_lock *lock);
 
 #endif

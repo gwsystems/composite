@@ -104,11 +104,10 @@ done:
 }
 
 void
-sl_thd_yield(thdid_t tid)
+sl_thd_yield_cs_exit(thdid_t tid)
 {
 	struct sl_thd *t = sl_thd_curr();
 
-	sl_cs_enter();
 	if (tid) {
 		struct sl_thd *to = sl_thd_lkup(tid);
 
@@ -118,8 +117,13 @@ sl_thd_yield(thdid_t tid)
 		sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
 		sl_cs_exit_schedule();
 	}
+}
 
-	return;
+void
+sl_thd_yield(thdid_t tid)
+{
+	sl_cs_enter();
+	sl_thd_yield_cs_exit(tid);
 }
 
 static struct sl_thd *
