@@ -27,4 +27,6 @@ void panic_impl(const char* function, char* message);
 
 void print_with_error_name(char* message, int32 error);
 
+int __isoc99_sscanf(const char *str, const char *format, ...);
+
 #endif

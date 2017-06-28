@@ -48,10 +48,20 @@ void print_with_error_name(char* message, int32 error) {
 }
 
 void free(void* ptr) {
-	PANIC("Unimplemented method!");
+	PANIC("No free implementation!");
 }
 
-void* realloc(void *ptr, size_t new_size) {
-	PANIC("Unimplemented method!");
+void* realloc(void* ptr, size_t new_size) {
+	PANIC("No realloc implementation!");
 	return NULL;
+}
+
+int __isoc99_sscanf(const char *buf, const char *fmt, ...) {
+	int count;
+	va_list ap;
+
+	va_start(ap, fmt);
+	count = vsscanf(buf, fmt, ap);
+	va_end(ap);
+	return count;
 }
