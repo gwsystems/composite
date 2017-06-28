@@ -75,7 +75,7 @@ static inline struct sl_thd *
 sl_thd_lkup(thdid_t tid)
 {
 	assert(tid != 0);
-	if (!(tid < MAX_NUM_THREADS)) {
+	if (tid > MAX_NUM_THREADS) {
 		return NULL;
 	}
 	return sl_mod_thd_get(sl_thd_lookup_backend(tid));

@@ -47,6 +47,11 @@ void print_with_error_name(char* message, int32 error) {
 	printc("%s, error %s\n", message, local_name);
 }
 
-void __isoc99_sscanf(void){
-	PANIC("__isoc99_sscanf not implemented!");
+void free(void* ptr) {
+	PANIC("Unimplemented method!");
+}
+
+void* realloc(void *ptr, size_t new_size) {
+	PANIC("Unimplemented method!");
+	return NULL;
 }
