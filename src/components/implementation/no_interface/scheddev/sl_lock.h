@@ -1,11 +1,11 @@
 #ifndef SL_LOCK_H
 #define SL_LOCK_H
 
-#include <cos_defkernel_api.h>
+#include <cos_kernel_api.h>
 
 struct sl_lock {
     // will be 0 if no one holds the lock
-    thdid_t holder;
+    volatile thdid_t holder;
 };
 
 #define SL_LOCK_STATIC_INIT() (struct sl_lock) { .holder = 0 }

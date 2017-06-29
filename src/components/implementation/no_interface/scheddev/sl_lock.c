@@ -1,6 +1,5 @@
-#include "sl_lock.h"
-
 #include "sl.h"
+#include "sl_lock.h"
 
 void
 sl_lock_init(struct sl_lock *lock)
@@ -35,11 +34,11 @@ int
 sl_lock_timed_lock(struct sl_lock *lock, microsec_t max_wait_time)
 {
     int result;
+    cycles_t deadline = sl_now() + sl_usec2cyc(max_wait_time);
 
     assert(lock);
 
     sl_cs_enter();
-    cycles_t deadline = sl_now() + sl_usec2cyc(max_wait_time);
     while (lock->holder != 0 && sl_now() < deadline) {
         sl_thd_yield_cs_exit(lock->holder);
         sl_cs_enter();
