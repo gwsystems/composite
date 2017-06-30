@@ -5,6 +5,39 @@
  * Copyright 2015, Qi Wang and Gabriel Parmer, GWU, gparmer@gwu.edu.
  *
  * This uses a two clause BSD License.
+ *
+ * This library is a very light wrapper around the system call API.
+ * As there is only a single system call (capability invocation), this
+ * provides structure to the system calls.  Second, it abstracts one
+ * of the most mundane aspects of the system: the management of
+ * retyping memory, and of construction of resource tables
+ * (page-tables and capability-tables).  It manages the capability and
+ * virtual address name-spaces, and assumes that all untyped memory is
+ * at a given range of addresses.
+ *
+ * This library is designed to provide the most functionality without
+ * maintaining any fine-grained data-structures (no lists, no arrays,
+ * etc...).  Instead, cos_compinfos are created for each component
+ * (one for us), and all of the namespaces are tracked within that
+ * (statically-sized) structure.  Additionally, a cos_meminfo holds
+ * all of the information necessary to allocate memory (of all types).
+ * It is likely that we will use the cos_meminfo associated with the
+ * cos_compinfo for us (as we have all of the memory), while most
+ * other components (i.e. that we load) do *not* have access to
+ * memory, thus we shouldn't look in their page-table for memory to
+ * use for allocations.
+ *
+ * For this library to use only static data-structures, we use
+ * bump-pointers for managing allocation of each of the namespaces.
+ * This means that we *never* deallocate resources (capabilities,
+ * kernel resources, virtual addresses, etc...), thus never reuse
+ * resources.  Thus this is quite limited in applicability.  However,
+ * most embedded systems avoid dynamic allocation, making the
+ * simplicity of this abstraction ideally suited to those systems.  It
+ * can also be seen as a backend for allocation to layer other
+ * allocators on top (that support deallocation).
+ *
+ * See the micro_booter for an examples of using this API.
  */
 
 #include <cos_component.h>

@@ -5,27 +5,14 @@
  */
 
 #include <cos_kernel_api.h>
-
-/* HACKHACKHACKHACKHACKHACK */
-#include <stdarg.h>
-#include <stdio.h>
 #include <cos_types.h>
 
+#include <stdarg.h>
+#include <stdio.h>
+
 #ifdef NIL
-static int __attribute__((format(printf,1,2)))
-printd(char *fmt, ...)
-{
-	char s[128];
-	va_list arg_ptr;
-	int ret, len = 128;
-
-	va_start(arg_ptr, fmt);
-	ret = vsnprintf(s, len, fmt, arg_ptr);
-	va_end(arg_ptr);
-	cos_print(s, ret);
-
-	return ret;
-}
+#include <llprint.h>
+#define printd(...) printc(__VA_ARGS__)
 #else
 #define printd(...)
 #endif
