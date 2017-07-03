@@ -11,7 +11,7 @@
 #include "cc.h"
 
 #ifndef TYPES_H
-#include "shared/cos_types.h"
+#include "chal/shared/cos_types.h"
 #endif
 
 #ifndef COS_COMPONENT_H
@@ -20,7 +20,7 @@
 #include <assert.h>
 #endif
 
-#define CFORCEINLINE __attribute__((always_inline))
+
 
 /*
  * TODO:

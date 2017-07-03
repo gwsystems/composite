@@ -11,7 +11,7 @@
 
 #include "include/tcap.h"
 #include "include/thd.h"
-#include "include/shared/cos_types.h"
+#include "include/chal/shared/cos_types.h"
 #include "include/chal/defs.h"
 
 /* This is jacked.  Only in here to avoid a header file circular dependency. */
@@ -25,7 +25,7 @@ tcap_uid_get(void)
 
 /* Fill in default "safe" values */
 static void
-__tcap_init(struct tcap *t)
+__tcap_init(struct tcap *t, tcap_prio_t prio)
 {
 	tcap_uid_t *uid = tcap_uid_get();
 
@@ -36,8 +36,8 @@ __tcap_init(struct tcap *t)
 	t->curr_sched_off          = 0;
 	t->refcnt                  = 1;
 	t->arcv_ep                 = NULL;
-	t->perm_prio               = 0;
-	tcap_setprio(t, 0);
+	t->perm_prio               = prio;
+	tcap_setprio(t, prio);
 	list_init(&t->active_list, t);
 }
 
@@ -48,14 +48,11 @@ tcap_isactive(struct tcap *t)
 static int
 tcap_delete(struct tcap *tcap)
 {
-	struct cos_cpu_local_info *cli = cos_cpu_local_info();
-
 	assert(tcap);
 	if (tcap_ref(tcap) != 1) return -1;
 	memset(&tcap->budget, 0, sizeof(struct tcap_budget));
 	memset(tcap->delegations, 0, sizeof(struct tcap_sched_info) * TCAP_MAX_DELEGATIONS);
 	tcap->ndelegs = tcap->cpuid = tcap->curr_sched_off = tcap->perm_prio = 0;
-	if (cli->next_ti.tc == tcap) thd_next_thdinfo_update(cli, 0, 0, 0, 0);
 
 	return 0;
 }
@@ -67,15 +64,10 @@ tcap_delete(struct tcap *tcap)
 static inline int
 __tcap_budget_xfer(struct tcap *d, struct tcap *s, tcap_res_t cycles)
 {
-	struct tcap_budget *bd, *bs;
+	struct tcap_budget *bd = &d->budget, *bs = &s->budget;
 
-	assert(s && d);
+	if (!cycles) return 0;
 	assert(tcap_is_active(s));
-	if (unlikely(s->cpuid != get_cpuid() || d->cpuid != s->cpuid)) return -1;
-
-	bd = &d->budget; 
-	bs = &s->budget;
-	if (cycles == 0) cycles = s->budget.cycles;
 	if (unlikely(TCAP_RES_IS_INF(cycles))) {
 		if (unlikely(!TCAP_RES_IS_INF(bs->cycles))) return -1;
 		bd->cycles = TCAP_RES_INF;
@@ -96,14 +88,34 @@ done:
 	return 0;
 }
 
+/*
+ * This all makes the assumption that the first entry in the delegate
+ * array for the tcap is the root capability.
+ */
+static int
+__tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio)
+{
+	assert(tcapdst && tcapsrc);
+
+	if (unlikely(tcapsrc->cpuid != get_cpuid() || tcapdst->cpuid != tcapsrc->cpuid)) return -1;
+	if (prio == 0)   prio   = tcap_sched_info(tcapsrc)->prio;
+	if (cycles == 0) cycles = tcapsrc->budget.cycles;
+
+	if (unlikely(__tcap_budget_xfer(tcapdst, tcapsrc, cycles))) return -1;
+	tcap_sched_info(tcapdst)->prio = prio;
+	tcapdst->perm_prio             = prio;
+
+	return 0;
+}
+
 int
-tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new)
+tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, tcap_prio_t prio)
 {
 	struct cap_tcap *tc;
 	int ret;
 
 	assert(tcap_new);
-	__tcap_init(tcap_new);
+	__tcap_init(tcap_new, prio);
 
 	tc = (struct cap_tcap *)__cap_capactivate_pre(ct, cap, capin, CAP_TCAP, &ret);
 	if (!tc) return ret;
@@ -137,8 +149,6 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t
 	/* check for stack overflow */
 	assert(round_to_page(&deleg_tmp[0]) == round_to_page(&deleg_tmp[TCAP_MAX_DELEGATIONS-1]));
 	if (unlikely(dst->ndelegs > TCAP_MAX_DELEGATIONS)) return -ENOMEM;
-	if (unlikely(src->cpuid != get_cpuid() || dst->cpuid != src->cpuid)) return -EINVAL;
-	if (unlikely(!tcap_is_active(src))) return -EPERM;
 
 	d = tcap_sched_info(dst)->tcap_uid;
 	s = tcap_sched_info(src)->tcap_uid;
@@ -175,26 +185,20 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t
 		if (d == deleg_tmp[ndelegs].tcap_uid) si = ndelegs;
 	}
 
+	if (__tcap_transfer(dst, src, cycles, prio)) return -EINVAL;
+	memcpy(dst->delegations, deleg_tmp, sizeof(struct tcap_sched_info) * ndelegs);
+	/* can't get to this point by delegating to yourself, thus 2 schedulers must be involved */
+	assert(ndelegs >= 2);
+	dst->ndelegs = ndelegs;
+	assert(si != -1);
+	dst->curr_sched_off = si;
+
 	/*
 	 * If the component is not already a listed root, add it.
 	 * Otherwise add it to the front of the list (the current tcap
 	 * has permissions to execute now, so that should be
 	 * transitively granted to this scheduler.
 	 */
-	if (__tcap_budget_xfer(dst, src, cycles)) return -EINVAL;
-	memcpy(dst->delegations, deleg_tmp, sizeof(struct tcap_sched_info) * ndelegs);
-	/* can't get to this point by delegating to yourself, thus 2 schedulers must be involved */
-	assert(ndelegs >= 2);
-	dst->ndelegs               = ndelegs;
-	assert(si != -1);
-	dst->curr_sched_off        = si;
-	dst->perm_prio             = prio;
-	tcap_sched_info(dst)->prio = prio;
-	/*
-	 * TODO: Logic to differentiate between scheduler and non-scheduler tcaps!
-	 *       non-scheduler tcaps to have curr_sched_off set to their schedulers and no dedicated uids.
-	 */
-
 	//TODO: Add root tcap logic.
 	return 0;
 }
@@ -208,31 +212,6 @@ tcap_merge(struct tcap *dst, struct tcap *rm)
 	if (tcap_delegate(dst, rm, 0, tcap_sched_info(dst)->prio)) return -1;
 	if (tcap_delete(rm))  assert(0);
 
-	return 0;
-}
-
-int
-tcap_wakeup(struct tcap *tc, tcap_prio_t prio, tcap_res_t budget, 
-	    struct thread *thd, struct cos_cpu_local_info *cli)
-{
-	int ret;
-	struct next_thdinfo *nti = &cli->next_ti;
-	tcap_prio_t tmpprio      = tcap_sched_info(tc)->prio;
-
-	if (!nti->tc) {
-		assert(!nti->thd);
-		goto fixup;
-	}
-
-	if (tc == nti->tc && prio >= nti->prio) goto fixup;
-
-	tcap_setprio(tc, prio);
-	ret = tcap_higher_prio(tc, nti->tc);
-	tcap_setprio(tc, tmpprio);
-	if (!ret) return 0;
-
-fixup:
-	thd_next_thdinfo_update(cli, thd, tc, prio, budget);
 	return 0;
 }
 

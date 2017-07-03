@@ -9,9 +9,9 @@
 #ifndef RETYPE_TBL_H
 #define RETYPE_TBL_H
 
-#include "shared/cos_types.h"
-#include "shared/cos_config.h"
-#include "shared/util.h"
+#include "chal/shared/cos_types.h"
+#include "chal/shared/cos_config.h"
+#include "chal/util.h"
 #include "chal/cpuid.h"
 #include "chal.h"
 
@@ -81,6 +81,7 @@ extern struct retype_info_glb glb_retype_tbl[N_MEM_SETS];
 /* get the index of the memory set. */
 #define GET_MEM_IDX(pa) (((u32_t)pa >= COS_MEM_START) ? (((u32_t)(pa) - COS_MEM_START) / RETYPE_MEM_SIZE) \
 			 : (((u32_t)(pa) - chal_kernel_mem_pa) / RETYPE_MEM_SIZE + N_USER_MEM_SETS))
+
 /* get the memory set struct of the current cpu */
 #define GET_RETYPE_ENTRY(idx) ((&(retype_tbl[get_cpuid()].mem_set[idx])))
 /* get the global memory set struct (used for retyping only). */

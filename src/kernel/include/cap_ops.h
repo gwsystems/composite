@@ -18,6 +18,7 @@ __cap_capactivate_pre(struct captbl *t, capid_t cap, capid_t capin, cap_t type, 
 	int ret;
 
 	ct = (struct cap_captbl *)captbl_lkup(t, cap);
+	/* Add level check here */
 	if (unlikely(!ct || ct->h.type != CAP_CAPTBL)) cos_throw(err, -EINVAL);
 	if (unlikely(ct->refcnt_flags & CAP_MEM_FROZEN_FLAG)) cos_throw(err, -EINVAL);
 
@@ -80,8 +81,9 @@ cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned lo
 	pgtblc = (struct cap_pgtbl *)captbl_lkup(t, cap);
 
 	if (unlikely(!pgtblc)) return -ENOENT;
-	if (unlikely(pgtblc->h.type != CAP_PGTBL || pgtblc->lvl != 0)) return -EINVAL;
-	if ((ret = pgtbl_kmem_act(pgtblc->pgtbl, addr & PGTBL_FRAME_MASK, (unsigned long *)kern_addr, pte_ret))) return ret;
+
+	if (unlikely(pgtblc->h.type != CAP_PGTBL )) return -EINVAL;
+	if ((ret = pgtbl_kmem_act(&(pgtblc->pgtbl), addr & PGTBL_FRAME_MASK, (unsigned long *)kern_addr, pte_ret))) return ret;
 
 	return 0;
 }
@@ -91,7 +93,10 @@ cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned lo
  * from separate capability/page-table trees that are subtrees for
  * different levels.
  */
-
+/*
+ *
+ */
+/* PRY: this is dedicated to captbls */
 static inline int
 cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 {
@@ -100,7 +105,7 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	 * identical layout to cap_pgtbl.
 	 */
 	struct cap_captbl *ct, *ctsub;
-	unsigned long *intern;
+	u32_t *intern;
 	u32_t depth;
 	cap_t cap_type;
 	int ret = 0;
@@ -121,33 +126,119 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	if (cap_type == CAP_CAPTBL) {
 		ret = captbl_cons(ct, ctsub, expandid);
 	} else {
-		/* FIXME: we need to ensure TLB quiescence for pgtbl cons/decons! */
-		u32_t flags = 0, old_pte, new_pte, old_v, refcnt_flags;
+		ret = 0;
+	}
 
-		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
+	return ret;
+}
+
+/* PRY:this is dedicated to pgtbls */
+extern u32_t chal_mpu_update(struct pgtbl* table, u32_t op_flag);
+static inline int
+pgtbl_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
+{
+	/*
+	 * Note: here we're relying on the fact that cap_captbl has an
+	 * identical layout to cap_pgtbl.
+	 */
+	struct cap_captbl *ct, *ctsub;
+	u32_t *intern;
+	u32_t depth;
+	cap_t cap_type;
+	int ret = 0;
+
+	if (unlikely(capto == capsub)) return -EINVAL;
+	ct = (struct cap_captbl *)captbl_lkup(t, capto);
+	if (unlikely(!ct))             return -ENOENT;
+	cap_type = ct->h.type;
+	if (unlikely(cap_type != CAP_PGTBL)) return -EINVAL;
+	ctsub = (struct cap_captbl *)captbl_lkup(t, capsub);
+	if (unlikely(!ctsub))                    return -ENOENT;
+	if (unlikely(ctsub->h.type != cap_type)) return -EINVAL;
+
+	/* PRY: no need to care about cons/decons */
+	/* FIXME: we need to ensure TLB quiescence for pgtbl cons/decons! */
+	u32_t flags = 0, old_pte, new_pte, old_v, refcnt_flags;
+	u32_t old_flags;
+	u32_t size_order;
+	struct cap_pgtbl *cpsub=(struct cap_pgtbl *)ctsub;
+	struct cap_pgtbl *cp=(struct cap_pgtbl *)ct;
+
+	/* look up the position to add this to. If this is the top-level, we ignore that expandid and start direct insertion */
+	if(((cp->pgtbl.type_addr)&COS_PGTBL_INTERN)==0) {
+		/* Do we have a lower level? */
+		intern = (u32_t*)&(cp->pgtbl.type_addr);
+		/* For top-level MPU metadata nodes, this field is organized as
+		 * [31 Ptr 2][1 Intern 0]. Must be 0 to make sure that
+		 * the lower level are not constructed into it */
+		if((cp->pgtbl.type_addr)!=0)
+			return -EPERM;
+		old_pte = *intern;
+	}
+	else {
+		/* Only do this if we are not cons'ing into the higher levels */
+		intern = pgtbl_lkup_leaf(&(cp->pgtbl),expandid,&size_order,&old_flags);
 		if (!intern)                  return -ENOENT;
 		old_pte = *intern;
 		if (pgtbl_ispresent(old_pte)) return -EPERM;
-
-		old_v = refcnt_flags = ((struct cap_pgtbl *)ctsub)->refcnt_flags;
-		if (refcnt_flags & CAP_MEM_FROZEN_FLAG) return -EINVAL;
-		if ((refcnt_flags & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
-
-		refcnt_flags++;
-		ret = cos_cas((unsigned long *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
-		if (ret != CAS_SUCCESS) return -ECASFAIL;
-
-		new_pte = (u32_t)chal_va2pa((void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK)) | PGTBL_INTERN_DEF;
-
-		ret = cos_cas(intern, old_pte, new_pte);
-		if (ret != CAS_SUCCESS) {
-			/* decrement to restore the refcnt on failure. */
-			cos_faa((int *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), -1);
-			return -ECASFAIL;
-		} else {
-			ret = 0;
-		}
 	}
+
+	old_v = refcnt_flags = cpsub->refcnt_flags;
+	if (refcnt_flags & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+	if ((refcnt_flags & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
+
+	refcnt_flags++;
+	ret = cos_cas((unsigned long *)&(cpsub->refcnt_flags), old_v, refcnt_flags);
+	if (ret != CAS_SUCCESS) return -ECASFAIL;
+
+	/* TODO:Check if it is allowed to put the pte here, start address checking */
+	/* Does the child already have a ultimate top-level, or itself is a designated top-level? if yes, we cannot cons. */
+
+	if(((cpsub->pgtbl.type_addr)&COS_PGTBL_INTERN)==0)
+		return -EPERM;
+	else if(cpsub->pgtbl.data.pgt[9]!=0)
+		return -EPERM;
+
+	/* PRY : See if the parent table is a designated the top-level */
+	if(((cp->pgtbl.type_addr)&COS_PGTBL_INTERN)==0) {
+		/* Yes, this is the top-level. don't perform checks, always allow CONS */
+	}
+	else {
+		/* See if the this table have a ultimate top-level. If this field is zero then
+		 * it means that it does not have a ultimate top-level, we allow the cons, or
+		 * we do not allow the cons */
+		if((cp->pgtbl.data.pgt[9])==0)
+			 return -EPERM;
+
+		/* Check if the parameters passed in is allowed, within range */
+		if((COS_PGTBL_NODE_ADDR(cp->pgtbl.type_addr)+(1<<COS_PGTBL_SIZEORDER(cp->pgtbl.type_addr))*expandid)>
+		   COS_PGTBL_NODE_ADDR(cpsub->pgtbl.type_addr))
+			return -EPERM;
+
+		if((COS_PGTBL_NODE_ADDR(cp->pgtbl.type_addr)+(1<<COS_PGTBL_SIZEORDER(cp->pgtbl.type_addr))*(expandid+1))<=
+		   COS_PGTBL_NODE_ADDR(cpsub->pgtbl.type_addr))
+			return -EPERM;
+	}
+
+	/* PRY:Check complete, can do the mapping, and register the parent */
+	if(((cp->pgtbl.type_addr)&COS_PGTBL_INTERN)==0)
+		new_pte = COS_PGTBL_CHILD(&(cpsub->pgtbl),0);
+	else
+		new_pte = COS_PGTBL_CHILD(&(cpsub->pgtbl),PGTBL_INTERN_DEF);
+
+	cpsub->pgtbl.data.pgt[9]=(u32_t)&(cp->pgtbl);
+
+	ret = cos_cas((unsigned long *)intern, old_pte, new_pte);
+	if (ret != CAS_SUCCESS) {
+		/* decrement to restore the refcnt on failure. */
+		cos_faa((int *)&(cpsub->refcnt_flags), -1);
+		return -ECASFAIL;
+	} else {
+		ret = 0;
+	}
+
+	/* PRY: update the MPU metadata eagerly */
+	chal_mpu_update(&(cpsub->pgtbl),1);
 
 	return ret;
 }
@@ -157,13 +248,14 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
  * the inner node of the captbl/pgtbl so that we can maintain proper
  * reference counting.
  */
+/* PRY:This function may not work for CM7, may need more work */
 static inline int
 cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsigned long lvl)
 {
 	/* capsub is the cap_cap for sub level to be pruned. We need
 	 * to decrement ref_cnt correctly for the kernel page. */
 	struct cap_header *head, *sub;
-	unsigned long *intern, old_v;
+	u32_t *intern, old_v;
 
 	head = (struct cap_header *)captbl_lkup(t, cap);
 	sub  = (struct cap_header *)captbl_lkup(t, capsub);
@@ -177,9 +269,9 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 		intern = captbl_lkup_lvl(ct->captbl, pruneid, ct->lvl, lvl);
 	} else if (head->type == CAP_PGTBL) {
 		struct cap_pgtbl *pt = (struct cap_pgtbl *)head;
-		u32_t flags;
-		if (lvl <= pt->lvl) return -EINVAL;
-		intern = pgtbl_lkup_lvl(pt->pgtbl, pruneid, &flags, pt->lvl, lvl);
+		u32_t size_order;
+		u32_t old_flags;
+		intern = (u32_t*)pgtbl_lkup_leaf(&(pt->pgtbl), pruneid, &size_order, &old_flags);
 	} else {
 		return -EINVAL;
 	}
@@ -189,7 +281,7 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 
 	if (old_v == 0) return 0; /* return an error here? */
 	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
-	if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
+	if (cos_cas((unsigned long *)intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
 
 	if (head->type == CAP_CAPTBL) {
 		/* FIXME: we are removing two half pages for captbl. */
@@ -201,7 +293,7 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 		old_v = *intern;
 		if (old_v == 0) return 0; /* return an error here? */
 		/* commit; note that 0 is "no entry" in both pgtbl and captbl */
-		if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
+		if (cos_cas((unsigned long *)intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
 	}
 
 	/* decrement the refcnt */

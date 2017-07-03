@@ -8,7 +8,7 @@
 
 #include "include/retype_tbl.h"
 #include "include/chal.h"
-#include "include/shared/cos_types.h"
+#include "include/chal/shared/cos_types.h"
 #include "include/shared/cos_errno.h"
 #include "cc.h"
 #include <assert.h>
@@ -79,6 +79,13 @@ mod_mem_type(void *pa, const mem_type_t type)
 	struct retype_info_glb *glb_retype_info;
 
 	assert(pa); 	/* cannot be NULL: kernel image takes that space */
+	/*do
+	{
+		if (unlikely(!(((u32_t)pa >= COS_MEM_START) && ((u32_t)pa < COS_MEM_BOUND)) &&
+                     !(((u32_t)pa >= chal_kernel_mem_pa) && ((u32_t)pa < COS_KMEM_BOUND))))
+			return -EINVAL;
+	}
+	while (0);*/
 	PA_BOUNDARY_CHECK();
 
 	idx = GET_MEM_IDX(pa);

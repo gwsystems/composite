@@ -12,21 +12,21 @@
 #define CAPTBL_H
 
 #include "shared/cos_errno.h"
-#include "shared/cos_types.h"
+#include "chal/shared/cos_types.h"
 #include "ertrie.h"
 #include "liveness_tbl.h"
-#include "shared/util.h"
+#include "chal/util.h"
 
 #ifndef CACHELINE_SIZE
 #define CACHELINE_SIZE  64
 #define CACHELINE_ORDER 6
 #endif
 
-#define CAPTBL_DEPTH      2
-#define CAPTBL_INTERNSZ   (sizeof(int*))
-#define CAPTBL_INTERN_ORD 9 /* log(PAGE_SIZE/(2*(CAPTBL_DEPTH-1)*CAPTBL_INTERNSZ)) */
-#define CAPTBL_LEAFSZ     (sizeof(struct cap_min))
-#define CAPTBL_LEAF_ORD   7 /* log(PAGE_SIZE/(2*CAPTBL_LEAFSZ)) */
+#define CAPTBL_DEPTH        2
+#define CAPTBL_INTERNSZ     (sizeof(int*))
+#define CAPTBL_INTERN_ORD   9 /* log(PAGE_SIZE/(2*(CAPTBL_DEPTH-1)*CAPTBL_INTERNSZ)) */
+#define CAPTBL_LEAFSZ       (sizeof(struct cap_min))
+#define CAPTBL_LEAF_ORD     7 /* log(PAGE_SIZE/(2*CAPTBL_LEAFSZ)) */
 
 #ifdef CAP_FREE
 #undef CAP_FREE
