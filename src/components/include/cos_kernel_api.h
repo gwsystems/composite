@@ -84,7 +84,19 @@ void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_
  */
 void cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz, pgtblcap_t pgtbl_cap);
 void cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz);
+/* expand *only* the pgtbl-internal nodes */
 vaddr_t cos_pgtbl_intern_alloc(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz);
+/*
+ * Expand the page-table with a node at lvl, and return the pgtbl
+ * capability to that node.  This also adjusts the frontier, so it
+ * should be set to round_to_pgd_page(mem_ptr) before being called.
+ */
+pgtblcap_t cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int lvl);
+/*
+ * Use a given pgtbl internal node to expand ci's page-table.  Adjusts
+ * frontier as above.
+ */
+int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem);
 
 /*
  * This uses the next three functions to allocate a new component and
