@@ -271,19 +271,16 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 
 /**************** [User Virtual Memory Allocation Functions] ****************/
 
-
-static vaddr_t
-__bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
+static pgtblcap_t
+__bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, pgtblcap_t intern)
 {
-	vaddr_t addr;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
+	capid_t pte_cap;
+	vaddr_t ptemem_cap;
 
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
 
-	for (addr = mem_ptr ; addr < mem_ptr + mem_sz ; addr += PGD_RANGE) {
-		capid_t pte_cap;
-		vaddr_t ptemem_cap;
-
+	if (!intern) {
 		pte_cap    = __capid_bump_alloc(meta, CAP_PGTBL);
 		ptemem_cap = __kmem_bump_alloc(meta);
 		/* TODO: handle the case of running out of memory */
@@ -295,12 +292,27 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 			assert(0); /* race? */
 			return 0;
 		}
+	} else {
+		pte_cap = intern;
+	}
 
-		/* Construct pgtbl */
-		if (call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, addr, 0, 0)) {
-			assert(0); /* race? */
-			return 0;
-		}
+	/* Construct pgtbl */
+	if (call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, mem_ptr, 0, 0)) {
+		assert(0); /* race? */
+		return 0;
+	}
+
+	return pte_cap;
+}
+
+static vaddr_t
+__bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
+{
+	vaddr_t addr;
+
+	for (addr = mem_ptr ; addr < mem_ptr + mem_sz ; addr += PGD_RANGE) {
+		/* TODO: back out of changes already made where possible */
+		if (!__bump_mem_expand_intern(ci, cipgtbl, addr, 0)) return 0;
 	}
 
 	assert(round_up_to_pgd_page(addr) == round_up_to_pgd_page(mem_ptr + mem_sz));
@@ -310,8 +322,35 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 
 vaddr_t
 cos_pgtbl_intern_alloc(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
+{ return __bump_mem_expand_range(ci, cipgtbl, mem_ptr, mem_sz); }
+
+pgtblcap_t
+cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int lvl)
 {
-	return __bump_mem_expand_range(ci, cipgtbl, mem_ptr, mem_sz);
+	pgtblcap_t cap;
+
+	assert(lvl > 0);
+
+	if (ci->vasrange_frontier != round_to_pgd_page(mem_ptr)) return 0;
+
+	cap = __bump_mem_expand_intern(ci, ci->pgtbl_cap, mem_ptr, 0);
+	if (!cap) return 0;
+	/* TODO: atomic */
+	ci->vasrange_frontier += PGD_RANGE;
+
+	return cap;
+}
+
+int
+cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem)
+{
+	if (ci->vasrange_frontier != round_to_pgd_page(mem)) return 0;
+
+	if (__bump_mem_expand_intern(ci, ci->pgtbl_cap, mem, intern) != intern) return 1;
+	/* TODO: atomic */
+	ci->vasrange_frontier += PGD_RANGE;
+
+	return 0;
 }
 
 static void
