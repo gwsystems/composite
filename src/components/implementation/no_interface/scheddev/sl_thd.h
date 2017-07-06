@@ -24,7 +24,7 @@ struct sl_thd {
 	struct sl_thd *dependency;
 
 	cycles_t       period, wakeup_cycs;
-	int            wakeup_idx;
+	int            wakeup_idx; /* wakeup heap index, used in timeout module */
 };
 
 #ifndef assert

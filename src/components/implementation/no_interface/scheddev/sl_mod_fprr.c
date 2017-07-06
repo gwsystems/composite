@@ -8,7 +8,6 @@
 #define SL_FPRR_LOWEST  (SL_FPRR_NPRIOS-1)
 
 #define SL_FPRR_US_MIN  1000
-#define SL_FPRR_US_MAX  1000000
 
 struct ps_list_head threads[SL_FPRR_NPRIOS];
 
@@ -38,7 +37,6 @@ void
 sl_mod_block(struct sl_thd_policy *t)
 {
 	ps_list_rem_d(t);
-	sl_timeout_mod_block(sl_mod_thd_get(t), 0);
 }
 
 void
@@ -89,7 +87,7 @@ sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned 
 	{
 		struct sl_thd *td = sl_mod_thd_get(t);
 
-		assert(v >= SL_FPRR_US_MIN && v <= SL_FPRR_US_MAX);
+		assert(v >= SL_FPRR_US_MIN);
 		t->period_usec  = v;
 		t->period       = sl_usec2cyc(v);
 		td->wakeup_cycs = sl_now();

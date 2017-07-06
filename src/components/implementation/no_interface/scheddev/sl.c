@@ -69,6 +69,7 @@ sl_thd_block(thdid_t tid)
 
 	assert(t->state == SL_THD_RUNNABLE);
 	t->state = SL_THD_BLOCKED;
+	sl_timeout_mod_block(t, 0); /* implicit timeout - using task period */
 	sl_mod_block(sl_mod_thd_policy_get(t));
 	sl_cs_exit_schedule();
 
