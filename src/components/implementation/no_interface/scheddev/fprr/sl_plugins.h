@@ -48,4 +48,8 @@ void sl_mod_init(void);
 void sl_timeout_mod_expended(cycles_t now, cycles_t oldtimeout);
 void sl_timeout_mod_init(void);
 
+/* API for thread wakeup using timeout module */
+void sl_timeout_mod_block(struct sl_thd *t, cycles_t wakeup);
+void sl_timeout_mod_wakeup_expired(cycles_t now);
+
 #endif	/* SL_PLUGINS_H */

@@ -22,6 +22,9 @@ struct sl_thd {
 	thdcap_t       thdcap;
 	tcap_prio_t    prio;
 	struct sl_thd *dependency;
+
+	cycles_t       period, wakeup_cycs;
+	int            wakeup_idx;
 };
 
 #ifndef assert

@@ -75,26 +75,39 @@ sl_thd_block(thdid_t tid)
 	return;
 }
 
+/*
+ * @return: 1 if it's already RUNNABLE.
+ *          0 if it was woken up in this call
+ */
+int
+sl_thd_wakeup_no_cs(struct sl_thd *t)
+{
+	assert(t);
+
+	if (unlikely(t->state == SL_THD_RUNNABLE)) {
+		t->state = SL_THD_WOKEN;
+		return 1;
+	}
+
+	/* TODO: for AEP threads, wakeup events from kernel could be level-triggered. */
+	assert(t->state == SL_THD_BLOCKED);
+	t->state = SL_THD_RUNNABLE;
+	sl_mod_wakeup(sl_mod_thd_policy_get(t));
+
+	return 0;
+}
+
 void
 sl_thd_wakeup(thdid_t tid)
 {
 	struct sl_thd *t;
-	thdcap_t       thdcap;
 	tcap_t         tcap;
 	tcap_prio_t    prio;
 
 	sl_cs_enter();
 	t = sl_thd_lkup(tid);
-	if (unlikely(!t)) goto done;
+	if (unlikely(!t) || sl_thd_wakeup_no_cs(t)) goto done;
 
-	if (unlikely(t->state == SL_THD_RUNNABLE)) {
-		t->state = SL_THD_WOKEN;
-		goto done;
-	}
-
-	assert(t->state == SL_THD_BLOCKED);
-	t->state = SL_THD_RUNNABLE;
-	sl_mod_wakeup(sl_mod_thd_policy_get(t));
 	sl_cs_exit_schedule();
 
 	return;
@@ -125,17 +138,21 @@ sl_thd_yield(thdid_t tid)
 static struct sl_thd *
 sl_thd_alloc_init(thdid_t tid, thdcap_t thdcap)
 {
-	struct sl_thd_policy   *tp  = NULL;
-	struct sl_thd          *t   = NULL;
+	struct sl_thd_policy *tp = NULL;
+	struct sl_thd        *t  = NULL;
 
-	tp = sl_thd_alloc_backend(tid);
+	tp            = sl_thd_alloc_backend(tid);
 	if (!tp) goto done;
-	t = sl_mod_thd_get(tp);
+	t             = sl_mod_thd_get(tp);
 
-	t->thdid  = tid;
-	t->thdcap = thdcap;
-	t->state  = SL_THD_RUNNABLE;
+	t->thdid      = tid;
+	t->thdcap     = thdcap;
+	t->state      = SL_THD_RUNNABLE;
 	sl_thd_index_add_backend(sl_mod_thd_policy_get(t));
+
+	t->period     = t->wakeup_cycs = 0;
+	t->wakeup_idx = -1;
+	t->prio       = TCAP_PRIO_MIN;
 
 done:
 	return t;

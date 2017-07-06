@@ -7,6 +7,9 @@
 #define SL_FPRR_HIGHEST 0
 #define SL_FPRR_LOWEST  (SL_FPRR_NPRIOS-1)
 
+#define SL_FPRR_US_MIN  1000
+#define SL_FPRR_US_MAX  1000000
+
 struct ps_list_head threads[SL_FPRR_NPRIOS];
 
 /* No RR yet */
@@ -35,6 +38,7 @@ void
 sl_mod_block(struct sl_thd_policy *t)
 {
 	ps_list_rem_d(t);
+	sl_timeout_mod_block(sl_mod_thd_get(t), 0);
 }
 
 void
@@ -70,10 +74,32 @@ sl_mod_thd_delete(struct sl_thd_policy *t)
 void
 sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned int v)
 {
-	assert(type == SCHEDP_PRIO && v < SL_FPRR_NPRIOS);
-	ps_list_rem_d(t); 	/* if we're already on a list, and we're updating priority */
-	t->priority = v;
-	ps_list_head_append_d(&threads[t->priority], t);
+	switch (type) {
+	case SCHEDP_PRIO:
+	{
+		assert(v < SL_FPRR_NPRIOS);
+		ps_list_rem_d(t); 	/* if we're already on a list, and we're updating priority */
+		t->priority = v;
+		ps_list_head_append_d(&threads[t->priority], t);
+		sl_thd_setprio(sl_mod_thd_get(t), t->priority);
+
+		break;
+	}
+	case SCHEDP_WINDOW:
+	{
+		struct sl_thd *td = sl_mod_thd_get(t);
+
+		assert(v >= SL_FPRR_US_MIN && v <= SL_FPRR_US_MAX);
+		t->period_usec  = v;
+		t->period       = sl_usec2cyc(v);
+		td->wakeup_cycs = sl_now();
+		td->period      = t->period;
+		/* FIXME: synchronize periods for all tasks */
+
+		break;
+	}
+	default: assert(0);
+	}
 }
 
 void

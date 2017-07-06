@@ -164,12 +164,15 @@ heap_init(struct heap *h, int max_sz, cmp_fn_t c, update_fn_t u)
 struct heap *
 heap_alloc(int max_sz, cmp_fn_t c, update_fn_t u)
 {
-	struct heap *h;
+	struct heap *h = NULL;
 
+#ifdef LINUX
 	h = malloc(sizeof(struct heap) + (max_sz * sizeof(void*)) + 1);
 	if (NULL == h) return NULL;
 
 	heap_init(h, max_sz, c, u);
+#endif
+
 	return h;
 }
 
@@ -177,7 +180,10 @@ void
 heap_destroy(struct heap *h)
 {
 	assert(h && h->data);
+
+#ifdef LINUX
 	free(h);
+#endif
 }
 
 int

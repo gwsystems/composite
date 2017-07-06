@@ -66,7 +66,6 @@ static inline struct sl_global *
 sl__globals(void)
 { return &sl_global_data; }
 
-/* FIXME: integrate with param_set */
 static inline void
 sl_thd_setprio(struct sl_thd *t, tcap_prio_t p)
 { t->prio = p; }
@@ -221,6 +220,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	now    = sl_now();
 	offset = (s64_t)(globals->timer_next - now);
 	if (globals->timer_next && offset <= 0) sl_timeout_mod_expended(now, globals->timer_next);
+	sl_timeout_mod_wakeup_expired(now);
 
 	/*
 	 * Once we exit, we can't trust t's memory as it could be
@@ -278,6 +278,7 @@ sl_cs_exit_switchto(struct sl_thd *to)
 void sl_thd_block(thdid_t tid);
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);
+int  sl_thd_wakeup_no_cs(struct sl_thd *t);
 void sl_thd_yield(thdid_t tid);
 
 /* The entire thread allocation and free API */
