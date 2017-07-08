@@ -90,8 +90,6 @@ sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned 
 		assert(v >= SL_FPRR_US_MIN);
 		t->period_usec    = v;
 		t->period         = sl_usec2cyc(v);
-		td->periodic_cycs = sl_now();
-		td->period        = t->period;
 		/* FIXME: synchronize periods for all tasks */
 
 		break;

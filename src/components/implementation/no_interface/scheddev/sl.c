@@ -278,6 +278,17 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 	unsigned int       value;
 
 	sched_param_get(sp, &type, &value);
+
+	switch (type) {
+	case SCHEDP_WINDOW:
+	{
+		t->period = sl_usec2cyc(value);
+		t->periodic_cycs = sl_now(); /* TODO: synchronize for all tasks */
+		break;
+	}
+	default: break;
+	}
+
 	sl_mod_thd_param_set(sl_mod_thd_policy_get(t), type, value);
 }
 
