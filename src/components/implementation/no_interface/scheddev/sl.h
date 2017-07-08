@@ -276,6 +276,9 @@ sl_cs_exit_switchto(struct sl_thd *to)
  * instead (note that "dependency" is transitive).
  */
 void sl_thd_block(thdid_t tid);
+/* if abs_timeout == 0, uses periodic wakeup and not block forever */
+void sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
+int  sl_thd_block_no_cs(struct sl_thd *t);
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);
 int  sl_thd_wakeup_no_cs(struct sl_thd *t);
@@ -337,6 +340,5 @@ void sl_thd_param_set(struct sl_thd *t, sched_param_t sp);
  */
 void sl_init(void);
 void sl_sched_loop(void);
-
 
 #endif	/* SL_H */

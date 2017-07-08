@@ -4,12 +4,12 @@
 #include <heap.h>
 
 #define SL_TIMEOUT_MOD_MAX_THDS MAX_NUM_THREADS
-#define SL_TIMEOUT_HEAP()       (&wakeup_heap.h)
+#define SL_TIMEOUT_HEAP()       (&timeout_heap.h)
 
-struct wakeup_heap {
+struct timeout_heap {
 	struct heap  h;
 	void        *data[SL_TIMEOUT_MOD_MAX_THDS];
-} wakeup_heap;
+} timeout_heap;
 
 /* wakeup any blocked threads! */
 void
@@ -24,27 +24,30 @@ sl_timeout_mod_wakeup_expired(cycles_t now)
 		assert(tp);
 
 		/* FIXME: logic for wraparound in current tsc */
-		if (tp->wakeup_cycs > now) break;
+		if (tp->timeout_cycs > now) break;
 
 		th = heap_highest(SL_TIMEOUT_HEAP());
 		assert(th && th == tp);
-		th->wakeup_idx = -1;
+		th->timeout_idx = -1;
 
 		sl_thd_wakeup_no_cs(th);
 	} while (heap_size(SL_TIMEOUT_HEAP()));
 }
 
 void
-sl_timeout_mod_block(struct sl_thd *t, cycles_t wakeup)
+sl_timeout_mod_block(struct sl_thd *t, cycles_t timeout)
 {
-	assert(t && t->wakeup_idx == -1); /* not already in heap */
+	assert(t && t->timeout_idx == -1); /* not already in heap */
 	assert(heap_size(SL_TIMEOUT_HEAP()) < SL_TIMEOUT_MOD_MAX_THDS);
 
-	if (!wakeup) {
+	if (!timeout) {
+		cycles_t tmp = t->timeout_cycs;
+
 		assert(t->period);
-		t->wakeup_cycs += t->period; /* implicit wakeup = task period */
+		t->timeout_cycs += t->period; /* implicit timeout = task period */
+		assert(tmp < t->timeout_cycs); /* wraparound check */
 	} else {
-		t->wakeup_cycs  = wakeup;
+		t->timeout_cycs  = timeout;
 	}
 
 	heap_add(SL_TIMEOUT_HEAP(), t);
@@ -65,13 +68,13 @@ sl_timeout_mod_expended(microsec_t now, microsec_t oldtimeout)
 static int
 __compare_min(void *a, void *b)
 {
-	/* FIXME: logic for wraparound in either wakeup_cycs */
-	return ((struct sl_thd *)a)->wakeup_cycs <= ((struct sl_thd *)b)->wakeup_cycs;
+	/* FIXME: logic for wraparound in either timeout_cycs */
+	return ((struct sl_thd *)a)->timeout_cycs <= ((struct sl_thd *)b)->timeout_cycs;
 }
 
 static void
 __update_idx(void *e, int pos)
-{ ((struct sl_thd *)e)->wakeup_idx = pos; }
+{ ((struct sl_thd *)e)->timeout_idx = pos; }
 
 void
 sl_timeout_mod_init(void)

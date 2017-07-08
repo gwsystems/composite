@@ -51,6 +51,28 @@ sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched
 	return 0;
 }
 
+/*
+ * @return: 1 if it's already WOKEN.
+ *	    0 if it successfully blocked in this call.
+ */
+int
+sl_thd_block_no_cs(struct sl_thd *t)
+{
+	assert(t);
+
+	if (unlikely(t->state == SL_THD_WOKEN)) {
+		t->state = SL_THD_RUNNABLE;
+		sl_cs_exit();
+		return 1;
+	}
+
+	assert(t->state == SL_THD_RUNNABLE);
+	t->state = SL_THD_BLOCKED;
+	sl_mod_block(sl_mod_thd_policy_get(t));
+
+	return 0;
+}
+
 void
 sl_thd_block(thdid_t tid)
 {
@@ -61,16 +83,30 @@ sl_thd_block(thdid_t tid)
 
 	sl_cs_enter();
 	t = sl_thd_curr();
-	if (unlikely(t->state == SL_THD_WOKEN)) {
-		t->state = SL_THD_RUNNABLE;
+	if (sl_thd_block_no_cs(t)) {
 		sl_cs_exit();
 		return;
 	}
+	sl_cs_exit_schedule();
 
-	assert(t->state == SL_THD_RUNNABLE);
-	t->state = SL_THD_BLOCKED;
-	sl_timeout_mod_block(t, 0); /* implicit timeout - using task period */
-	sl_mod_block(sl_mod_thd_policy_get(t));
+	return;
+}
+
+void
+sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout)
+{
+	struct sl_thd *t;
+
+	/* TODO: dependencies not yet supported */
+	assert(!tid);
+
+	sl_cs_enter();
+	t = sl_thd_curr();
+	if (sl_thd_block_no_cs(t)) {
+		sl_cs_exit();
+		return;
+	}
+	sl_timeout_mod_block(t, abs_timeout); 
 	sl_cs_exit_schedule();
 
 	return;
@@ -142,17 +178,17 @@ sl_thd_alloc_init(thdid_t tid, thdcap_t thdcap)
 	struct sl_thd_policy *tp = NULL;
 	struct sl_thd        *t  = NULL;
 
-	tp            = sl_thd_alloc_backend(tid);
+	tp             = sl_thd_alloc_backend(tid);
 	if (!tp) goto done;
-	t             = sl_mod_thd_get(tp);
+	t              = sl_mod_thd_get(tp);
 
-	t->thdid      = tid;
-	t->thdcap     = thdcap;
-	t->state      = SL_THD_RUNNABLE;
+	t->thdid       = tid;
+	t->thdcap      = thdcap;
+	t->state       = SL_THD_RUNNABLE;
 	sl_thd_index_add_backend(sl_mod_thd_policy_get(t));
 
-	t->period     = t->wakeup_cycs = 0;
-	t->wakeup_idx = -1;
+	t->period      = t->timeout_cycs = 0;
+	t->timeout_idx = -1;
 	t->prio       = TCAP_PRIO_MIN;
 
 done:

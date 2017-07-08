@@ -90,8 +90,9 @@ test_high_wakeup(void *data)
 	struct sl_thd *t = data;
 
 	while (1) {
+		cycles_t timeout = sl_now() + sl_usec2cyc(500);
 		printc("h");
-		sl_thd_block(0);
+		sl_thd_block_timeout(0, timeout);
 	}
 }
 

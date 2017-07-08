@@ -23,8 +23,8 @@ struct sl_thd {
 	tcap_prio_t    prio;
 	struct sl_thd *dependency;
 
-	cycles_t       period, wakeup_cycs;
-	int            wakeup_idx; /* wakeup heap index, used in timeout module */
+	cycles_t       period, timeout_cycs;
+	int            timeout_idx; /* timeout heap index, used in timeout module */
 };
 
 #ifndef assert
