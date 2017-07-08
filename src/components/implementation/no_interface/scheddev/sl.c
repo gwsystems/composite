@@ -106,7 +106,7 @@ sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout)
 		sl_cs_exit();
 		return;
 	}
-	sl_timeout_mod_block(t, abs_timeout); 
+	sl_timeout_block(t, abs_timeout); 
 	sl_cs_exit_schedule();
 
 	return;
@@ -273,7 +273,7 @@ sl_init(void)
 
 	sl_thd_init_backend();
 	sl_mod_init();
-	sl_timeout_mod_init();
+	sl_timeout_init();
 
 	/* Create the scheduler thread for us */
 	g->sched_thd    = sl_thd_alloc_init(cos_thdid(), BOOT_CAPTBL_SELF_INITTHD_BASE);

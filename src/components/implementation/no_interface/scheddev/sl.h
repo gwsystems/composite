@@ -35,6 +35,8 @@
 #include <res_spec.h>
 #include <sl_mod_policy.h>
 #include <sl_plugins.h>
+#include <sl_consts.h>
+#include <heap.h>
 
 /* Critical section (cs) API to protect scheduler data-structures */
 struct sl_cs {
@@ -173,9 +175,148 @@ retry:
 	if (!ps_cas(&sl__globals()->lock.u.v, cached.v, 0))    goto retry;
 }
 
+/*
+ * if tid == 0, just block the current thread; otherwise, create a
+ * dependency from this thread on the target tid (i.e. when the
+ * scheduler chooses to run this thread, we will run the dependency
+ * instead (note that "dependency" is transitive).
+ */
+void sl_thd_block(thdid_t tid);
+/* if abs_timeout == 0, uses periodic wakeup and not block forever */
+void sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
+int  sl_thd_block_no_cs(struct sl_thd *t);
+/* wakeup a thread that has (or soon will) block */
+void sl_thd_wakeup(thdid_t tid);
+int  sl_thd_wakeup_no_cs(struct sl_thd *t);
+void sl_thd_yield(thdid_t tid);
+
+/* The entire thread allocation and free API */
+struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
+struct sl_thd *sl_thd_comp_alloc(struct cos_defcompinfo *comp);
+void sl_thd_free(struct sl_thd *t);
+
+void sl_thd_param_set(struct sl_thd *t, sched_param_t sp);
+
 static inline cycles_t
 sl_now(void)
 { return ps_tsc(); }
+
+/*
+ * Time and timeout API.
+ *
+ * This can be used by the scheduler policy module *and* by the
+ * surrounding component code.  To avoid race conditions between
+ * reading the time, and setting a timeout, we avoid relative time
+ * measurements.  sl_now gives the current cycle count that is on an
+ * absolute timeline.  The periodic function sets a period that can be
+ * used when a timeout has happened, the relative function sets a
+ * timeout relative to now, and the oneshot timeout sets a timeout on
+ * the same absolute timeline as returned by sl_now.
+ */
+void sl_timeout_period(cycles_t period);
+
+static inline cycles_t
+sl_timeout_period_get(void)
+{ return sl__globals()->period; }
+
+static inline void
+sl_timeout_oneshot(cycles_t absolute_us)
+{
+	sl__globals()->timer_next   = absolute_us;
+	sl__globals()->timeout_next = tcap_cyc2time(absolute_us);
+}
+
+static inline void
+sl_timeout_relative(cycles_t offset)
+{ sl_timeout_oneshot(sl_now() + offset); }
+
+static inline microsec_t
+sl_cyc2usec(cycles_t cyc)
+{ return cyc / sl__globals()->cyc_per_usec; }
+
+static inline microsec_t
+sl_usec2cyc(microsec_t usec)
+{ return usec * sl__globals()->cyc_per_usec; }
+
+/* Timeout and wakeup functionality */
+#define SL_TIMEOUT_HEAP()       (&timeout_heap.h)
+
+struct timeout_heap {
+	struct heap  h;
+	void        *data[SL_MAX_NUM_THDS];
+} timeout_heap;
+
+/* wakeup any blocked threads! */
+static void
+sl_timeout_wakeup_expired(cycles_t now)
+{
+	if (!heap_size(SL_TIMEOUT_HEAP())) return;
+
+	do {
+		struct sl_thd *tp, *th;
+
+		tp = heap_peek(SL_TIMEOUT_HEAP());
+		assert(tp);
+
+		/* FIXME: logic for wraparound in current tsc */
+		if (tp->timeout_cycs > now) break;
+
+		th = heap_highest(SL_TIMEOUT_HEAP());
+		assert(th && th == tp);
+		th->timeout_idx = -1;
+
+		sl_thd_wakeup_no_cs(th);
+	} while (heap_size(SL_TIMEOUT_HEAP()));
+}
+
+static inline void
+sl_timeout_block(struct sl_thd *t, cycles_t timeout)
+{
+	assert(t && t->timeout_idx == -1); /* not already in heap */
+	assert(heap_size(SL_TIMEOUT_HEAP()) < SL_MAX_NUM_THDS);
+
+	if (!timeout) {
+		cycles_t tmp = t->timeout_cycs;
+
+		assert(t->period);
+		t->timeout_cycs += t->period; /* implicit timeout = task period */
+		assert(tmp < t->timeout_cycs); /* wraparound check */
+	} else {
+		t->timeout_cycs  = timeout;
+	}
+
+	heap_add(SL_TIMEOUT_HEAP(), t);
+}
+
+static inline void
+sl_timeout_expended(microsec_t now, microsec_t oldtimeout)
+{
+	cycles_t offset;
+
+	assert(now >= oldtimeout);
+
+	/* in virtual environments, or with very small periods, we might miss more than one period */
+	offset = (now - oldtimeout) % sl_timeout_period_get();
+	sl_timeout_oneshot(now + sl_timeout_period_get() - offset);
+}
+
+static inline int
+__sl_timeout_compare_min(void *a, void *b)
+{
+	/* FIXME: logic for wraparound in either timeout_cycs */
+	return ((struct sl_thd *)a)->timeout_cycs <= ((struct sl_thd *)b)->timeout_cycs;
+}
+
+static inline void
+__sl_timeout_update_idx(void *e, int pos)
+{ ((struct sl_thd *)e)->timeout_idx = pos; }
+
+static inline void
+sl_timeout_init(void)
+{
+	sl_timeout_period(SL_PERIOD_US);
+	heap_init(SL_TIMEOUT_HEAP(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
+}
 
 /*
  * Do a few things: 1. take the critical section if it isn't already
@@ -219,8 +360,8 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	tok    = cos_sched_sync();
 	now    = sl_now();
 	offset = (s64_t)(globals->timer_next - now);
-	if (globals->timer_next && offset <= 0) sl_timeout_mod_expended(now, globals->timer_next);
-	sl_timeout_mod_wakeup_expired(now);
+	if (globals->timer_next && offset <= 0) sl_timeout_expended(now, globals->timer_next);
+	sl_timeout_wakeup_expired(now);
 
 	/*
 	 * Once we exit, we can't trust t's memory as it could be
@@ -268,65 +409,6 @@ sl_cs_exit_switchto(struct sl_thd *to)
 		sl_cs_exit_schedule();
 	}
 }
-
-/*
- * if tid == 0, just block the current thread; otherwise, create a
- * dependency from this thread on the target tid (i.e. when the
- * scheduler chooses to run this thread, we will run the dependency
- * instead (note that "dependency" is transitive).
- */
-void sl_thd_block(thdid_t tid);
-/* if abs_timeout == 0, uses periodic wakeup and not block forever */
-void sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
-int  sl_thd_block_no_cs(struct sl_thd *t);
-/* wakeup a thread that has (or soon will) block */
-void sl_thd_wakeup(thdid_t tid);
-int  sl_thd_wakeup_no_cs(struct sl_thd *t);
-void sl_thd_yield(thdid_t tid);
-
-/* The entire thread allocation and free API */
-struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
-struct sl_thd *sl_thd_comp_alloc(struct cos_defcompinfo *comp);
-void sl_thd_free(struct sl_thd *t);
-
-/*
- * Time and timeout API.
- *
- * This can be used by the scheduler policy module *and* by the
- * surrounding component code.  To avoid race conditions between
- * reading the time, and setting a timeout, we avoid relative time
- * measurements.  sl_now gives the current cycle count that is on an
- * absolute timeline.  The periodic function sets a period that can be
- * used when a timeout has happened, the relative function sets a
- * timeout relative to now, and the oneshot timeout sets a timeout on
- * the same absolute timeline as returned by sl_now.
- */
-void sl_timeout_period(cycles_t period);
-
-static inline cycles_t
-sl_timeout_period_get(void)
-{ return sl__globals()->period; }
-
-static inline void
-sl_timeout_oneshot(cycles_t absolute_us)
-{
-	sl__globals()->timer_next   = absolute_us;
-	sl__globals()->timeout_next = tcap_cyc2time(absolute_us);
-}
-
-static inline void
-sl_timeout_relative(cycles_t offset)
-{ sl_timeout_oneshot(sl_now() + offset); }
-
-static inline microsec_t
-sl_cyc2usec(cycles_t cyc)
-{ return cyc / sl__globals()->cyc_per_usec; }
-
-static inline microsec_t
-sl_usec2cyc(microsec_t usec)
-{ return usec * sl__globals()->cyc_per_usec; }
-
-void sl_thd_param_set(struct sl_thd *t, sched_param_t sp);
 
 /*
  * Initialization protocol in cos_init: initialization of
