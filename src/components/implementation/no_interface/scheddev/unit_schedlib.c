@@ -87,12 +87,16 @@ test_blocking_directed_yield(void)
 void
 test_high_wakeup(void *data)
 {
+	unsigned toggle  = 0;
 	struct sl_thd *t = data;
 
 	while (1) {
-		cycles_t timeout = sl_now() + sl_usec2cyc(500);
-		printc("h");
-		sl_thd_block_timeout(0, timeout);
+		cycles_t timeout = sl_now() + sl_usec2cyc(100);
+
+		if (toggle % 10 == 0) printc(".h:%llums.", sl_cyc2usec(sl_thd_block_timeout(0, timeout)));
+		else                  printc(".h:%up.", sl_thd_block_periodic(0));
+
+		toggle ++;
 	}
 }
 

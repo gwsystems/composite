@@ -182,9 +182,22 @@ retry:
  * instead (note that "dependency" is transitive).
  */
 void sl_thd_block(thdid_t tid);
-/* if abs_timeout == 0, uses periodic wakeup and not block forever */
-void sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
-int  sl_thd_block_no_cs(struct sl_thd *t);
+/*
+ * if abs_timeout == 0, block forever = sl_thd_block()
+ *
+ * @returns: 0 if the thread is woken up by external events before timeout.
+ *	     +ve - number of cycles elapsed from abs_timeout before the thread
+ *		   was woken up by Timeout module.
+ */
+cycles_t sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
+/*
+ * blocks for on periodic wakeup based on task period.
+ *
+ * @returns: 0 if the thread is woken up by external events before timeout.
+ *           +ve - number of periods elapsed. (1 if it wokeup exactly at timeout = next period)
+ */
+unsigned sl_thd_block_periodic(thdid_t tid);
+int  sl_thd_block_no_cs(struct sl_thd *t, int is_timeout);
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);
 int  sl_thd_wakeup_no_cs(struct sl_thd *t);
@@ -265,6 +278,8 @@ sl_timeout_wakeup_expired(cycles_t now)
 		assert(th && th == tp);
 		th->timeout_idx = -1;
 
+		assert(th->wakeup_cycs == 0);
+		th->wakeup_cycs = now;
 		sl_thd_wakeup_no_cs(th);
 	} while (heap_size(SL_TIMEOUT_HEAP()));
 }
@@ -276,16 +291,28 @@ sl_timeout_block(struct sl_thd *t, cycles_t timeout)
 	assert(heap_size(SL_TIMEOUT_HEAP()) < SL_MAX_NUM_THDS);
 
 	if (!timeout) {
-		cycles_t tmp = t->timeout_cycs;
+		cycles_t tmp = t->periodic_cycs;
 
 		assert(t->period);
-		t->timeout_cycs += t->period; /* implicit timeout = task period */
-		assert(tmp < t->timeout_cycs); /* wraparound check */
+		t->periodic_cycs += t->period; /* implicit timeout = task period */
+		assert(tmp < t->periodic_cycs); /* wraparound check */
+		t->timeout_cycs   = t->periodic_cycs;
 	} else {
-		t->timeout_cycs  = timeout;
+		t->timeout_cycs   = timeout;
 	}
 
+	t->wakeup_cycs = 0;
 	heap_add(SL_TIMEOUT_HEAP(), t);
+}
+
+static inline void
+sl_timeout_remove(struct sl_thd *t)
+{
+	assert(t && t->timeout_idx > 0);
+	assert(heap_size(SL_TIMEOUT_HEAP())); 
+
+	heap_remove(SL_TIMEOUT_HEAP(), t->timeout_idx);
+	t->timeout_idx = -1;
 }
 
 static inline void
