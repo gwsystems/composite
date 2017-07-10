@@ -16,8 +16,6 @@ thdid_t sl_lock_holder(struct sl_lock *lock);
 
 static inline void sl_lock_take(struct sl_lock *lock)
 {
-    assert(lock);
-
     sl_cs_enter();
     while (lock->holder != 0) {
         sl_thd_yield_cs_exit(lock->holder);
@@ -31,8 +29,6 @@ int sl_lock_timed_take(struct sl_lock *lock, microsec_t max_wait_time);
 
 static inline void sl_lock_release(struct sl_lock *lock)
 {
-    assert(lock);
-
     sl_cs_enter();
     assert(lock->holder == sl_thdid());
     lock->holder = 0;

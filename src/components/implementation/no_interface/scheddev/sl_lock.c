@@ -4,14 +4,12 @@
 void
 sl_lock_init(struct sl_lock *lock)
 {
-    assert(lock);
     *lock = SL_LOCK_STATIC_INIT();
 }
 
 thdid_t
 sl_lock_holder(struct sl_lock *lock)
 {
-    assert(lock);
     return lock->holder;
 }
 
@@ -20,8 +18,6 @@ sl_lock_timed_take(struct sl_lock *lock, microsec_t max_wait_time)
 {
     int result;
     cycles_t deadline = sl_now() + sl_usec2cyc(max_wait_time);
-
-    assert(lock);
 
     sl_cs_enter();
     while (lock->holder != 0 && sl_now() < deadline) {
