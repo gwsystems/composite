@@ -104,11 +104,10 @@ done:
 }
 
 void
-sl_thd_yield(thdid_t tid)
+sl_thd_yield_cs_exit(thdid_t tid)
 {
 	struct sl_thd *t = sl_thd_curr();
 
-	sl_cs_enter();
 	if (tid) {
 		struct sl_thd *to = sl_thd_lkup(tid);
 
@@ -118,8 +117,13 @@ sl_thd_yield(thdid_t tid)
 		sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
 		sl_cs_exit_schedule();
 	}
+}
 
-	return;
+void
+sl_thd_yield(thdid_t tid)
+{
+	sl_cs_enter();
+	sl_thd_yield_cs_exit(tid);
 }
 
 static struct sl_thd *
@@ -259,8 +263,8 @@ sl_sched_loop(void)
 			if (unlikely(t == sl__globals()->idle_thd)) continue;
 
 			/*
-			 * receiving scheduler notifications is not in critical section mainly for 
-			 * 1. scheduler thread can often be blocked in rcv, which can add to 
+			 * receiving scheduler notifications is not in critical section mainly for
+			 * 1. scheduler thread can often be blocked in rcv, which can add to
 			 *    interrupt execution or even AEP thread execution overheads.
 			 * 2. scheduler events are not acting on the sl_thd or the policy structures, so
 			 *    having finer grained locks around the code that modifies sl_thd states is better.
