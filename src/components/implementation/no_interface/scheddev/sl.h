@@ -83,8 +83,10 @@ static inline thdid_t
 sl_thdid(void)
 {
 	thdid_t tid = cos_thdid();
+
 	assert(tid != 0);
 	assert(tid < MAX_NUM_THREADS);
+	
 	return tid;
 }
 
