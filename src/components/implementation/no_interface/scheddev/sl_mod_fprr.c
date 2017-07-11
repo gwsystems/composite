@@ -3,11 +3,11 @@
 #include <sl_mod_policy.h>
 #include <sl_plugins.h>
 
-#define SL_FPRR_NPRIOS  32
-#define SL_FPRR_HIGHEST 0
-#define SL_FPRR_LOWEST  (SL_FPRR_NPRIOS-1)
+#define SL_FPRR_NPRIOS         32
+#define SL_FPRR_PRIO_HIGHEST   0
+#define SL_FPRR_PRIO_LOWEST    (SL_FPRR_NPRIOS-1)
 
-#define SL_FPRR_US_MIN  1000
+#define SL_FPRR_PERIOD_US_MIN  SL_PERIOD_US
 
 struct ps_list_head threads[SL_FPRR_NPRIOS];
 
@@ -42,7 +42,7 @@ sl_mod_block(struct sl_thd_policy *t)
 void
 sl_mod_wakeup(struct sl_thd_policy *t)
 {
-	assert(t->priority <= SL_FPRR_LOWEST && ps_list_singleton_d(t));
+	assert(t->priority <= SL_FPRR_PRIO_LOWEST && ps_list_singleton_d(t));
 
 	ps_list_head_append_d(&threads[t->priority], t);
 }
@@ -50,7 +50,7 @@ sl_mod_wakeup(struct sl_thd_policy *t)
 void
 sl_mod_yield(struct sl_thd_policy *t, struct sl_thd_policy *yield_to)
 {
-	assert(t->priority <= SL_FPRR_LOWEST);
+	assert(t->priority <= SL_FPRR_PRIO_LOWEST);
 
 	ps_list_rem_d(t);
 	ps_list_head_append_d(&threads[t->priority], t);
@@ -59,7 +59,7 @@ sl_mod_yield(struct sl_thd_policy *t, struct sl_thd_policy *yield_to)
 void
 sl_mod_thd_create(struct sl_thd_policy *t)
 {
-	t->priority    = SL_FPRR_LOWEST;
+	t->priority    = SL_FPRR_PRIO_LOWEST;
 	t->period      = 0;
 	t->period_usec = 0;
 	ps_list_init_d(t);
@@ -87,7 +87,7 @@ sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned 
 	{
 		struct sl_thd *td = sl_mod_thd_get(t);
 
-		assert(v >= SL_FPRR_US_MIN);
+		assert(v >= SL_FPRR_PERIOD_US_MIN);
 		t->period_usec    = v;
 		t->period         = sl_usec2cyc(v);
 		/* FIXME: synchronize periods for all tasks */

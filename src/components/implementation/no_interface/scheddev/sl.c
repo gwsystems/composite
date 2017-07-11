@@ -56,18 +56,18 @@ sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched
  *	    0 if it successfully blocked in this call.
  */
 int
-sl_thd_block_no_cs(struct sl_thd *t, int is_timeout)
+sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type)
 {
 	assert(t);
+	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
 
 	if (unlikely(t->state == SL_THD_WOKEN)) {
 		t->state = SL_THD_RUNNABLE;
-		sl_cs_exit();
 		return 1;
 	}
 
 	assert(t->state == SL_THD_RUNNABLE);
-	t->state = is_timeout ? SL_THD_BLOCKED_TIMEOUT : SL_THD_BLOCKED;
+	t->state = block_type;
 	sl_mod_block(sl_mod_thd_policy_get(t));
 
 	return 0;
@@ -83,7 +83,7 @@ sl_thd_block(thdid_t tid)
 
 	sl_cs_enter();
 	t = sl_thd_curr();
-	if (sl_thd_block_no_cs(t, 0)) {
+	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED)) {
 		sl_cs_exit();
 		return;
 	}
@@ -92,54 +92,66 @@ sl_thd_block(thdid_t tid)
 	return;
 }
 
+/*
+ * if timeout == 0, blocks on timeout = task period
+ * @return: 0 if blocked in this call. 1 if already WOKEN!
+ */
+static inline int 
+sl_thd_block_timeout_intern(thdid_t tid, cycles_t timeout)
+{
+	struct sl_thd *t;
+
+	sl_cs_enter();
+	t = sl_thd_curr();
+
+	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT)) {
+		sl_cs_exit();
+		return 1;
+	}
+
+	assert(timeout || t->period);
+	sl_timeout_block(t, timeout);
+	sl_cs_exit_schedule();
+
+	return 0;
+}
+
 cycles_t
 sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout)
 {
-	cycles_t jitter = 0;
-	struct sl_thd *t;
-	int is_timeout = abs_timeout ? 1 : 0;
+	cycles_t jitter  = 0;
+	struct sl_thd *t = sl_thd_curr();
 
 	/* TODO: dependencies not yet supported */
 	assert(!tid);
 
-	sl_cs_enter();
-	t = sl_thd_curr();
-	if (sl_thd_block_no_cs(t, is_timeout)) {
-		sl_cs_exit();
-		return 0;
+	if (unlikely(!abs_timeout)) {
+		sl_thd_block(tid);
+		goto done;
 	}
-	if (is_timeout) sl_timeout_block(t, abs_timeout);
-	sl_cs_exit_schedule();
 
+	if (sl_thd_block_timeout_intern(tid, abs_timeout)) goto done;
 	/* FIXME: possible race around these accesses */
 	if (t->wakeup_cycs > t->timeout_cycs) jitter = t->wakeup_cycs - t->timeout_cycs;
 
+done:
 	return jitter;
 }
 
-unsigned
+unsigned int
 sl_thd_block_periodic(thdid_t tid)
 {
-	unsigned jitter = 0;
-	struct sl_thd *t;
+	unsigned int jitter = 0;
+	struct sl_thd *t    = sl_thd_curr();
 
 	/* TODO: dependencies not yet supported */
 	assert(!tid);
 
-	sl_cs_enter();
-	t = sl_thd_curr();
-
-	assert(t->period);
-	if (sl_thd_block_no_cs(t, 1)) {
-		sl_cs_exit();
-		return 0;
-	}
-	sl_timeout_block(t, 0); 
-	sl_cs_exit_schedule();
-
+	if (sl_thd_block_timeout_intern(tid, 0)) goto done;
 	/* FIXME: possible race around these accesses */
-	if (t->wakeup_cycs > t->periodic_cycs) jitter = ((unsigned)((t->wakeup_cycs - t->periodic_cycs) / t->period)) + 1;
+	if (t->wakeup_cycs > t->periodic_cycs) jitter = ((unsigned int)((t->wakeup_cycs - t->periodic_cycs) / t->period)) + 1;
 
+done:
 	return jitter;
 }
 
@@ -303,6 +315,24 @@ sl_timeout_period(microsec_t period)
 
 	sl__globals()->period = p;
 	sl_timeout_relative(p);
+}
+
+static int
+__sl_timeout_compare_min(void *a, void *b)
+{
+	/* FIXME: logic for wraparound in either timeout_cycs */
+	return ((struct sl_thd *)a)->timeout_cycs <= ((struct sl_thd *)b)->timeout_cycs;
+}
+
+static void
+__sl_timeout_update_idx(void *e, int pos)
+{ ((struct sl_thd *)e)->timeout_idx = pos; }
+
+static void
+sl_timeout_init(void)
+{
+	sl_timeout_period(SL_PERIOD_US);
+	heap_init(SL_TIMEOUT_HEAP(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
 }
 
 /* engage space heater mode */

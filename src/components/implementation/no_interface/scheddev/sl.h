@@ -178,6 +178,8 @@ sl_cs_exit(void)
 	union sl_cs_intern csi, cached;
 	sched_tok_t tok;
 
+	assert(sl_cs_owner());
+
 retry:
 	tok      = cos_sched_sync();
 	csi.v    = sl__globals()->lock.u.v;
@@ -212,8 +214,8 @@ cycles_t sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
  * @returns: 0 if the thread is woken up by external events before timeout.
  *           +ve - number of periods elapsed. (1 if it wokeup exactly at timeout = next period)
  */
-unsigned sl_thd_block_periodic(thdid_t tid);
-int  sl_thd_block_no_cs(struct sl_thd *t, int is_timeout);
+unsigned int sl_thd_block_periodic(thdid_t tid);
+int  sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type);
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);
 int  sl_thd_wakeup_no_cs(struct sl_thd *t);
@@ -281,7 +283,7 @@ struct timeout_heap {
 } timeout_heap;
 
 /* wakeup any blocked threads! */
-static void
+static inline void
 sl_timeout_wakeup_expired(cycles_t now)
 {
 	if (!heap_size(SL_TIMEOUT_HEAP())) return;
@@ -293,7 +295,7 @@ sl_timeout_wakeup_expired(cycles_t now)
 		assert(tp);
 
 		/* FIXME: logic for wraparound in current tsc */
-		if (tp->timeout_cycs > now) break;
+		if (likely(tp->timeout_cycs > now)) break;
 
 		th = heap_highest(SL_TIMEOUT_HEAP());
 		assert(th && th == tp);
@@ -346,24 +348,6 @@ sl_timeout_expended(microsec_t now, microsec_t oldtimeout)
 	/* in virtual environments, or with very small periods, we might miss more than one period */
 	offset = (now - oldtimeout) % sl_timeout_period_get();
 	sl_timeout_oneshot(now + sl_timeout_period_get() - offset);
-}
-
-static inline int
-__sl_timeout_compare_min(void *a, void *b)
-{
-	/* FIXME: logic for wraparound in either timeout_cycs */
-	return ((struct sl_thd *)a)->timeout_cycs <= ((struct sl_thd *)b)->timeout_cycs;
-}
-
-static inline void
-__sl_timeout_update_idx(void *e, int pos)
-{ ((struct sl_thd *)e)->timeout_idx = pos; }
-
-static inline void
-sl_timeout_init(void)
-{
-	sl_timeout_period(SL_PERIOD_US);
-	heap_init(SL_TIMEOUT_HEAP(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
 }
 
 /*
