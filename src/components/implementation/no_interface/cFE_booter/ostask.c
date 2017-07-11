@@ -13,7 +13,7 @@
 /*
 ** Internal Task helper functions
 */
-// We need to keep track of this
+// We need to keep track of this to check if register or delete handler calls are invalid
 thdid_t main_delegate_thread_id;
 
 void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
@@ -143,7 +143,7 @@ exit:
 
 uint32 OS_TaskGetId(void)
 {
-    return sl_thd_curr_id();
+    return sl_thdid();
 }
 
 void OS_TaskExit(void)
@@ -260,6 +260,7 @@ struct mutex {
     OS_mut_sem_prop_t prop;
 };
 
+struct sl_lock mutex_data_lock = SL_LOCK_STATIC_INIT();
 struct mutex mutexes[OS_MAX_MUTEXES];
 
 
@@ -267,7 +268,7 @@ int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 {
     int32 result = OS_SUCCESS;
 
-    sl_cs_enter();
+    sl_lock_take(&mutex_data_lock);
 
     if (sem_id == NULL || sem_name == NULL) {
         result = OS_INVALID_POINTER;
@@ -301,11 +302,11 @@ int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 
     mutexes[id].used = TRUE;
     sl_lock_init(&mutexes[id].lock);
-    mutexes[id].prop.creator = sl_thd_curr_id();
+    mutexes[id].prop.creator = sl_thdid();
     strcpy(mutexes[id].prop.name, sem_name);
 
 exit:
-    sl_cs_exit();
+    sl_lock_release(&mutex_data_lock);
     return result;
 }
 
@@ -313,17 +314,17 @@ int32 OS_MutSemGive(uint32 sem_id)
 {
     int32 result = OS_SUCCESS;
 
-    sl_cs_enter();
+    sl_lock_take(&mutex_data_lock);
 
     if (sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
         result = OS_ERR_INVALID_ID;
         goto exit;
     }
 
-    sl_lock_unlock_no_cs(&mutexes[sem_id].lock);
+    sl_lock_release(&mutexes[sem_id].lock);
 
 exit:
-    sl_cs_exit();
+    sl_lock_release(&mutex_data_lock);
 
     return result;
 }
@@ -332,17 +333,17 @@ int32 OS_MutSemTake(uint32 sem_id)
 {
     int32 result = OS_SUCCESS;
 
-    sl_cs_enter();
+    sl_lock_take(&mutex_data_lock);
 
     if (sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
         result = OS_ERR_INVALID_ID;
         goto exit;
     }
 
-    sl_lock_lock_no_cs(&mutexes[sem_id].lock);
+    sl_lock_take(&mutexes[sem_id].lock);
 
 exit:
-    sl_cs_exit();
+    sl_lock_release(&mutex_data_lock);
 
     return result;
 }
@@ -350,7 +351,7 @@ exit:
 int32 OS_MutSemDelete(uint32 sem_id)
 {
     int32 result = OS_SUCCESS;
-    sl_cs_enter();
+    sl_lock_take(&mutex_data_lock);
 
     if (sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
         result = OS_ERR_INVALID_ID;
@@ -365,8 +366,7 @@ int32 OS_MutSemDelete(uint32 sem_id)
     mutexes[sem_id].used = FALSE;
 
     exit:
-    sl_cs_exit();
-
+    sl_lock_release(&mutex_data_lock);
     return result;
 }
 
@@ -374,7 +374,7 @@ int32 OS_MutSemGetIdByName(uint32 *sem_id, const char *sem_name)
 {
     int32 result = OS_SUCCESS;
 
-    sl_cs_enter();
+    sl_lock_take(&mutex_data_lock);
 
     if (sem_id == NULL || sem_name == NULL) {
         result = OS_INVALID_POINTER;
@@ -398,14 +398,14 @@ int32 OS_MutSemGetIdByName(uint32 *sem_id, const char *sem_name)
      *  or it was, and the sem_id isn't valid anymore */
     result = OS_ERR_NAME_NOT_FOUND;
 exit:
-    sl_cs_exit();
+    sl_lock_release(&mutex_data_lock);
     return result;
 }
 
 int32 OS_MutSemGetInfo(uint32 sem_id, OS_mut_sem_prop_t *mut_prop)
 {
     int32 result = OS_SUCCESS;
-    sl_cs_enter();
+    sl_lock_take(&mutex_data_lock);
 
     if(!mut_prop)
     {
@@ -421,7 +421,7 @@ int32 OS_MutSemGetInfo(uint32 sem_id, OS_mut_sem_prop_t *mut_prop)
     *mut_prop = mutexes[sem_id].prop;
 
 exit:
-    sl_cs_exit();
+    sl_lock_release(&mutex_data_lock);
     return result;
 }
 
@@ -438,7 +438,7 @@ struct semaphore {
     char name[OS_MAX_API_NAME];
 };
 
-
+struct sl_lock semaphore_data_lock = SL_LOCK_STATIC_INIT();
 struct semaphore binary_semaphores[OS_MAX_BIN_SEMAPHORES];
 
 struct semaphore counting_semaphores[OS_MAX_COUNT_SEMAPHORES];
@@ -450,7 +450,7 @@ int32 OS_SemaphoreCreate(struct semaphore* semaphores, uint32 max_semaphores,
 {
     int32 result = OS_SUCCESS;
 
-    sl_cs_enter();
+    sl_lock_take(&semaphore_data_lock);
 
     if (sem_id == NULL || sem_name == NULL) {
         result = OS_INVALID_POINTER;
@@ -483,12 +483,12 @@ int32 OS_SemaphoreCreate(struct semaphore* semaphores, uint32 max_semaphores,
 
     *sem_id = id;
     semaphores[id].used = TRUE;
-    semaphores[id].creator = sl_thd_curr_id();
+    semaphores[id].creator = sl_thdid();
     semaphores[id].count = sem_initial_value;
     strcpy(semaphores[id].name, sem_name);
 
 exit:
-    sl_cs_exit();
+    sl_lock_release(&semaphore_data_lock);
     return result;
 }
 
@@ -497,7 +497,7 @@ int32 OS_SemaphoreFlush(struct semaphore* semaphores, uint32 max_semaphores, uin
 
     int32 result = OS_SUCCESS;
 
-    sl_cs_enter();
+    sl_lock_take(&semaphore_data_lock);
 
     if (sem_id >= max_semaphores || !semaphores[sem_id].used) {
         result = OS_ERR_INVALID_ID;
@@ -507,7 +507,7 @@ int32 OS_SemaphoreFlush(struct semaphore* semaphores, uint32 max_semaphores, uin
     semaphores[sem_id].epoch += 1;
 
 exit:
-    sl_cs_exit();
+    sl_lock_release(&semaphore_data_lock);
     return result;
 }
 
@@ -516,7 +516,7 @@ int32 OS_SemaphoreGive(struct semaphore* semaphores, uint32 max_semaphores, uint
 {
     int32 result = OS_SUCCESS;
 
-    sl_cs_enter();
+    sl_lock_take(&semaphore_data_lock);
 
     if (sem_id >= max_semaphores || !semaphores[sem_id].used) {
         result = OS_ERR_INVALID_ID;
@@ -527,7 +527,7 @@ int32 OS_SemaphoreGive(struct semaphore* semaphores, uint32 max_semaphores, uint
     semaphores[sem_id].count += 1;
 
 exit:
-    sl_cs_exit();
+    sl_lock_release(&semaphore_data_lock);
     return result;
 
 }
@@ -536,7 +536,7 @@ int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint
 {
     int32 result = OS_SUCCESS;
 
-    sl_cs_enter();
+    sl_lock_take(&semaphore_data_lock);
 
     if (sem_id >= max_semaphores) {
         result = OS_ERR_INVALID_ID;
@@ -549,10 +549,11 @@ int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint
         if(semaphores[sem_id].epoch != starting_epoch) {
             goto exit;
         }
-        sl_cs_exit();
+        sl_lock_release(&semaphore_data_lock);
+
         // FIXME: Do an actually sensible yield here!
         sl_thd_yield(0);
-        sl_cs_enter();
+        sl_lock_take(&semaphore_data_lock);
     }
 
     if (!semaphores[sem_id].used) {
@@ -563,7 +564,7 @@ int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint
     semaphores[sem_id].count -= 1;
 
 exit:
-    sl_cs_exit();
+    sl_lock_release(&semaphore_data_lock);
 
     return result;
 }
@@ -575,7 +576,7 @@ int32 OS_SemaphoreTimedWait(struct semaphore* semaphores, uint32 max_semaphores,
     microsec_t start_time = sl_now();
     microsec_t max_wait = msecs * 1000;
 
-    sl_cs_enter();
+    sl_lock_take(&semaphore_data_lock);
 
     if (sem_id >= max_semaphores) {
         result = OS_ERR_INVALID_ID;
@@ -585,10 +586,10 @@ int32 OS_SemaphoreTimedWait(struct semaphore* semaphores, uint32 max_semaphores,
     while (semaphores[sem_id].used
             && semaphores[sem_id].count == 0
             && (sl_now_usec() - start_time) < max_wait) {
-        sl_cs_exit();
+        sl_lock_release(&semaphore_data_lock);
         // FIXME: Do an actually sensible yield here!
         sl_thd_yield(0);
-        sl_cs_enter();
+        sl_lock_take(&semaphore_data_lock);
     }
 
     if (!semaphores[sem_id].used) {
@@ -604,7 +605,7 @@ int32 OS_SemaphoreTimedWait(struct semaphore* semaphores, uint32 max_semaphores,
     semaphores[sem_id].count -= 1;
 
 exit:
-    sl_cs_exit();
+    sl_lock_release(&semaphore_data_lock);
 
     return result;
 }
@@ -613,7 +614,7 @@ int32 OS_SemaphoreDelete(struct semaphore* semaphores, uint32 max_semaphores,
                          uint32 sem_id)
 {
     int32 result = OS_SUCCESS;
-    sl_cs_enter();
+    sl_lock_take(&semaphore_data_lock);
 
     if (sem_id >= max_semaphores || !semaphores[sem_id].used) {
         result = OS_ERR_INVALID_ID;
@@ -623,7 +624,7 @@ int32 OS_SemaphoreDelete(struct semaphore* semaphores, uint32 max_semaphores,
     semaphores[sem_id].used = FALSE;
 
     exit:
-    sl_cs_exit();
+    sl_lock_release(&semaphore_data_lock);
 
     return result;
 }
@@ -633,7 +634,7 @@ int32 OS_SemaphoreGetIdByName(struct semaphore* semaphores, uint32 max_semaphore
 {
     int32 result = OS_SUCCESS;
 
-    sl_cs_enter();
+    sl_lock_take(&semaphore_data_lock);
 
     if (sem_id == NULL || sem_name == NULL) {
         result = OS_INVALID_POINTER;
@@ -657,7 +658,7 @@ int32 OS_SemaphoreGetIdByName(struct semaphore* semaphores, uint32 max_semaphore
      *  or it was, and the sem_id isn't valid anymore */
      result = OS_ERR_NAME_NOT_FOUND;
 exit:
-    sl_cs_exit();
+    sl_lock_release(&semaphore_data_lock);
     return result;
 }
 
@@ -705,7 +706,7 @@ int32 OS_BinSemGetIdByName(uint32 *sem_id, const char *sem_name)
 int32 OS_BinSemGetInfo(uint32 sem_id, OS_bin_sem_prop_t *bin_prop)
 {
     int32 result = OS_SUCCESS;
-    sl_cs_enter();
+    sl_lock_take(&semaphore_data_lock);
 
     if(!bin_prop)
     {
@@ -726,7 +727,7 @@ int32 OS_BinSemGetInfo(uint32 sem_id, OS_bin_sem_prop_t *bin_prop)
     strcpy(bin_prop->name, binary_semaphores[sem_id].name);
 
 exit:
-    sl_cs_exit();
+    sl_lock_release(&semaphore_data_lock);
     return result;
 }
 
@@ -768,7 +769,7 @@ int32 OS_CountSemGetIdByName(uint32 *sem_id, const char *sem_name)
 int32 OS_CountSemGetInfo(uint32 sem_id, OS_count_sem_prop_t *count_prop)
 {
     int32 result = OS_SUCCESS;
-    sl_cs_enter();
+    sl_lock_take(&semaphore_data_lock);
 
     if(!count_prop)
     {
@@ -789,6 +790,7 @@ int32 OS_CountSemGetInfo(uint32 sem_id, OS_count_sem_prop_t *count_prop)
     strcpy(count_prop->name, counting_semaphores[sem_id].name);
 
 exit:
-    sl_cs_exit();
+    sl_lock_release(&semaphore_data_lock);
+    
     return result;
 }

@@ -75,27 +75,25 @@ static inline struct sl_thd *
 sl_thd_lkup(thdid_t tid)
 {
 	assert(tid != 0);
-	if (tid > MAX_NUM_THREADS) {
-		return NULL;
-	}
+	if (unlikely(tid > MAX_NUM_THREADS)) return NULL;
 	return sl_mod_thd_get(sl_thd_lookup_backend(tid));
 }
 
 static inline thdid_t
-sl_thd_curr_id(void)
+sl_thdid(void)
 {
 	thdid_t tid = cos_thdid();
+
 	assert(tid != 0);
 	assert(tid < MAX_NUM_THREADS);
+	
 	return tid;
 }
 
 
 static inline struct sl_thd *
 sl_thd_curr(void)
-{
-	return sl_thd_lkup(sl_thd_curr_id());
-}
+{ return sl_thd_lkup(sl_thdid()); }
 
 /* are we the owner of the critical section? */
 static inline int
@@ -310,6 +308,7 @@ void sl_thd_block(thdid_t tid);
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);
 void sl_thd_yield(thdid_t tid);
+void sl_thd_yield_cs_exit(thdid_t tid);
 
 /* The entire thread allocation and free API */
 struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
