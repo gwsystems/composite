@@ -358,7 +358,7 @@ cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t 
 {
 	if (ci->vasrange_frontier != round_to_pgd_page(mem)) return -1;
 
-	if (ps_faa(&ci->vasrange_frontier, PGD_RANGE) > round_to_pgd_page(mem)) return -1;
+	if ((unsigned long)ps_faa(&ci->vasrange_frontier, PGD_RANGE) > round_to_pgd_page(mem)) return -1;
 
 	if (__bump_mem_expand_intern(ci, ci->pgtbl_cap, mem, intern) != intern) return 1;
 

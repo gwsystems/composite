@@ -23,6 +23,7 @@ void *heap_peek(struct heap *h);
 int heap_add(struct heap *h, void *new);
 void heap_destroy(struct heap *h);
 struct heap *heap_alloc(int max_sz, cmp_fn_t c, update_fn_t u);
+void heap_init(struct heap *h, int max_sz, cmp_fn_t c, update_fn_t u);
 int heap_size(struct heap *h);
 static inline int heap_empty(struct heap *h) { return heap_size(h) == 0; }
 
