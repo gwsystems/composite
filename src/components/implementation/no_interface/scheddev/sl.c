@@ -51,6 +51,73 @@ sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched
 	return 0;
 }
 
+/* Timeout and wakeup functionality */
+/*
+ * TODO: 
+ * (comments from Gabe)
+ * We likely want to replace all of this with rb-tree with nodes internal to the threads.
+ * This heap is fast, but the static memory allocation is not great.
+ */
+struct timeout_heap {
+	struct heap  h;
+	void        *data[SL_MAX_NUM_THDS];
+};
+
+static struct timeout_heap timeout_heap;
+
+struct heap *
+sl_timeout_heap(void)
+{ return &timeout_heap.h; }
+
+static inline void
+sl_timeout_block(struct sl_thd *t, cycles_t timeout)
+{
+	assert(t && t->timeout_idx == -1); /* not already in heap */
+	assert(heap_size(sl_timeout_heap()) < SL_MAX_NUM_THDS);
+
+	if (!timeout) {
+		cycles_t tmp = t->periodic_cycs;
+
+		assert(t->period);
+		t->periodic_cycs += t->period; /* implicit timeout = task period */
+		assert(tmp < t->periodic_cycs); /* wraparound check */
+		t->timeout_cycs   = t->periodic_cycs;
+	} else {
+		t->timeout_cycs   = timeout;
+	}
+
+	t->wakeup_cycs = 0;
+	heap_add(sl_timeout_heap(), t);
+}
+
+static inline void
+sl_timeout_remove(struct sl_thd *t)
+{
+	assert(t && t->timeout_idx > 0);
+	assert(heap_size(sl_timeout_heap())); 
+
+	heap_remove(sl_timeout_heap(), t->timeout_idx);
+	t->timeout_idx = -1;
+}
+
+static int
+__sl_timeout_compare_min(void *a, void *b)
+{
+	/* FIXME: logic for wraparound in either timeout_cycs */
+	return ((struct sl_thd *)a)->timeout_cycs <= ((struct sl_thd *)b)->timeout_cycs;
+}
+
+static void
+__sl_timeout_update_idx(void *e, int pos)
+{ ((struct sl_thd *)e)->timeout_idx = pos; }
+
+static void
+sl_timeout_init(void)
+{
+	sl_timeout_period(SL_PERIOD_US);
+	heap_init(sl_timeout_heap(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
+}
+
 /*
  * @return: 1 if it's already WOKEN.
  *	    0 if it successfully blocked in this call.
@@ -93,7 +160,7 @@ sl_thd_block(thdid_t tid)
 }
 
 /*
- * if timeout == 0, blocks on timeout = task period
+ * if timeout == 0, blocks on timeout = last periodic wakeup + task period
  * @return: 0 if blocked in this call. 1 if already WOKEN!
  */
 static inline int 
@@ -119,7 +186,7 @@ sl_thd_block_timeout_intern(thdid_t tid, cycles_t timeout)
 cycles_t
 sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout)
 {
-	cycles_t jitter  = 0;
+	cycles_t jitter  = 0, wcycs, tcycs;
 	struct sl_thd *t = sl_thd_curr();
 
 	/* TODO: dependencies not yet supported */
@@ -131,8 +198,9 @@ sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout)
 	}
 
 	if (sl_thd_block_timeout_intern(tid, abs_timeout)) goto done;
-	/* FIXME: possible race around these accesses */
-	if (t->wakeup_cycs > t->timeout_cycs) jitter = t->wakeup_cycs - t->timeout_cycs;
+	wcycs = t->wakeup_cycs;
+	tcycs = t->timeout_cycs;
+	if (wcycs > tcycs) jitter = wcycs - tcycs;
 
 done:
 	return jitter;
@@ -141,6 +209,7 @@ done:
 unsigned int
 sl_thd_block_periodic(thdid_t tid)
 {
+	cycles_t wcycs, pcycs;
 	unsigned int jitter = 0;
 	struct sl_thd *t    = sl_thd_curr();
 
@@ -148,8 +217,9 @@ sl_thd_block_periodic(thdid_t tid)
 	assert(!tid);
 
 	if (sl_thd_block_timeout_intern(tid, 0)) goto done;
-	/* FIXME: possible race around these accesses */
-	if (t->wakeup_cycs > t->periodic_cycs) jitter = ((unsigned int)((t->wakeup_cycs - t->periodic_cycs) / t->period)) + 1;
+	wcycs = t->wakeup_cycs;
+	pcycs = t->periodic_cycs;
+	if (wcycs > pcycs) jitter = ((unsigned int)((wcycs - pcycs) / t->period)) + 1;
 
 done:
 	return jitter;
@@ -183,15 +253,13 @@ sl_thd_wakeup(thdid_t tid)
 	struct sl_thd *t;
 	tcap_t         tcap;
 	tcap_prio_t    prio;
-	sl_thd_state   prev_state;
 
 	sl_cs_enter();
 	t = sl_thd_lkup(tid);
 	if (unlikely(!t)) goto done;
 
-	prev_state = t->state;
+	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
 	if(sl_thd_wakeup_no_cs(t)) goto done;
-	if (prev_state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
 	sl_cs_exit_schedule();
 
 	return;
@@ -315,24 +383,6 @@ sl_timeout_period(microsec_t period)
 
 	sl__globals()->period = p;
 	sl_timeout_relative(p);
-}
-
-static int
-__sl_timeout_compare_min(void *a, void *b)
-{
-	/* FIXME: logic for wraparound in either timeout_cycs */
-	return ((struct sl_thd *)a)->timeout_cycs <= ((struct sl_thd *)b)->timeout_cycs;
-}
-
-static void
-__sl_timeout_update_idx(void *e, int pos)
-{ ((struct sl_thd *)e)->timeout_idx = pos; }
-
-static void
-sl_timeout_init(void)
-{
-	sl_timeout_period(SL_PERIOD_US);
-	heap_init(SL_TIMEOUT_HEAP(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
 }
 
 /* engage space heater mode */

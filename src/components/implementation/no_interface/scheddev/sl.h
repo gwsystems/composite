@@ -201,7 +201,8 @@ retry:
  */
 void sl_thd_block(thdid_t tid);
 /*
- * if abs_timeout == 0, block forever = sl_thd_block()
+ * @abs_timeout: absolute timeout at which thread should be woken-up.
+ *               if abs_timeout == 0, block forever = sl_thd_block()
  *
  * @returns: 0 if the thread is woken up by external events before timeout.
  *	     +ve - number of cycles elapsed from abs_timeout before the thread
@@ -209,16 +210,22 @@ void sl_thd_block(thdid_t tid);
  */
 cycles_t sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
 /*
- * blocks for on periodic wakeup based on task period.
+ * blocks for a timeout = next replenishment period of the task.
+ * Note: care should be taken to not interleave this with sl_thd_block_timeout().
+ *       It may be required to interleave, in such cases, timeout values in
+ *       sl_thd_block_timeout() should not be greater than or equal to 
+ *       the task's next replenishment period.
  *
  * @returns: 0 if the thread is woken up by external events before timeout.
  *           +ve - number of periods elapsed. (1 if it wokeup exactly at timeout = next period)
  */
 unsigned int sl_thd_block_periodic(thdid_t tid);
 int  sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type);
+
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);
 int  sl_thd_wakeup_no_cs(struct sl_thd *t);
+
 void sl_thd_yield(thdid_t tid);
 void sl_thd_yield_cs_exit(thdid_t tid);
 
@@ -274,70 +281,6 @@ static inline void
 sl_timeout_relative(cycles_t offset)
 { sl_timeout_oneshot(sl_now() + offset); }
 
-/* Timeout and wakeup functionality */
-#define SL_TIMEOUT_HEAP()       (&timeout_heap.h)
-
-struct timeout_heap {
-	struct heap  h;
-	void        *data[SL_MAX_NUM_THDS];
-} timeout_heap;
-
-/* wakeup any blocked threads! */
-static inline void
-sl_timeout_wakeup_expired(cycles_t now)
-{
-	if (!heap_size(SL_TIMEOUT_HEAP())) return;
-
-	do {
-		struct sl_thd *tp, *th;
-
-		tp = heap_peek(SL_TIMEOUT_HEAP());
-		assert(tp);
-
-		/* FIXME: logic for wraparound in current tsc */
-		if (likely(tp->timeout_cycs > now)) break;
-
-		th = heap_highest(SL_TIMEOUT_HEAP());
-		assert(th && th == tp);
-		th->timeout_idx = -1;
-
-		assert(th->wakeup_cycs == 0);
-		th->wakeup_cycs = now;
-		sl_thd_wakeup_no_cs(th);
-	} while (heap_size(SL_TIMEOUT_HEAP()));
-}
-
-static inline void
-sl_timeout_block(struct sl_thd *t, cycles_t timeout)
-{
-	assert(t && t->timeout_idx == -1); /* not already in heap */
-	assert(heap_size(SL_TIMEOUT_HEAP()) < SL_MAX_NUM_THDS);
-
-	if (!timeout) {
-		cycles_t tmp = t->periodic_cycs;
-
-		assert(t->period);
-		t->periodic_cycs += t->period; /* implicit timeout = task period */
-		assert(tmp < t->periodic_cycs); /* wraparound check */
-		t->timeout_cycs   = t->periodic_cycs;
-	} else {
-		t->timeout_cycs   = timeout;
-	}
-
-	t->wakeup_cycs = 0;
-	heap_add(SL_TIMEOUT_HEAP(), t);
-}
-
-static inline void
-sl_timeout_remove(struct sl_thd *t)
-{
-	assert(t && t->timeout_idx > 0);
-	assert(heap_size(SL_TIMEOUT_HEAP())); 
-
-	heap_remove(SL_TIMEOUT_HEAP(), t->timeout_idx);
-	t->timeout_idx = -1;
-}
-
 static inline void
 sl_timeout_expended(microsec_t now, microsec_t oldtimeout)
 {
@@ -348,6 +291,34 @@ sl_timeout_expended(microsec_t now, microsec_t oldtimeout)
 	/* in virtual environments, or with very small periods, we might miss more than one period */
 	offset = (now - oldtimeout) % sl_timeout_period_get();
 	sl_timeout_oneshot(now + sl_timeout_period_get() - offset);
+}
+
+/* to get timeout heap. not a public api */
+struct heap *sl_timeout_heap(void);
+
+/* wakeup any blocked threads! */
+static inline void
+sl_timeout_wakeup_expired(cycles_t now)
+{
+	if (!heap_size(sl_timeout_heap())) return;
+
+	do {
+		struct sl_thd *tp, *th;
+
+		tp = heap_peek(sl_timeout_heap());
+		assert(tp);
+
+		/* FIXME: logic for wraparound in current tsc */
+		if (likely(tp->timeout_cycs > now)) break;
+
+		th = heap_highest(sl_timeout_heap());
+		assert(th && th == tp);
+		th->timeout_idx = -1;
+
+		assert(th->wakeup_cycs == 0);
+		th->wakeup_cycs = now;
+		sl_thd_wakeup_no_cs(th);
+	} while (heap_size(sl_timeout_heap()));
 }
 
 /*
