@@ -51,6 +51,28 @@ sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched
 	return 0;
 }
 
+/*
+ * @return: 1 if it's already WOKEN.
+ *	    0 if it successfully blocked in this call.
+ */
+int
+sl_thd_block_no_cs(struct sl_thd *t, int is_timeout)
+{
+	assert(t);
+
+	if (unlikely(t->state == SL_THD_WOKEN)) {
+		t->state = SL_THD_RUNNABLE;
+		sl_cs_exit();
+		return 1;
+	}
+
+	assert(t->state == SL_THD_RUNNABLE);
+	t->state = is_timeout ? SL_THD_BLOCKED_TIMEOUT : SL_THD_BLOCKED;
+	sl_mod_block(sl_mod_thd_policy_get(t));
+
+	return 0;
+}
+
 void
 sl_thd_block(thdid_t tid)
 {
@@ -61,40 +83,103 @@ sl_thd_block(thdid_t tid)
 
 	sl_cs_enter();
 	t = sl_thd_curr();
-	if (unlikely(t->state == SL_THD_WOKEN)) {
-		t->state = SL_THD_RUNNABLE;
+	if (sl_thd_block_no_cs(t, 0)) {
 		sl_cs_exit();
 		return;
 	}
-
-	assert(t->state == SL_THD_RUNNABLE);
-	t->state = SL_THD_BLOCKED;
-	sl_mod_block(sl_mod_thd_policy_get(t));
 	sl_cs_exit_schedule();
 
 	return;
+}
+
+cycles_t
+sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout)
+{
+	cycles_t jitter = 0;
+	struct sl_thd *t;
+	int is_timeout = abs_timeout ? 1 : 0;
+
+	/* TODO: dependencies not yet supported */
+	assert(!tid);
+
+	sl_cs_enter();
+	t = sl_thd_curr();
+	if (sl_thd_block_no_cs(t, is_timeout)) {
+		sl_cs_exit();
+		return 0;
+	}
+	if (is_timeout) sl_timeout_block(t, abs_timeout);
+	sl_cs_exit_schedule();
+
+	/* FIXME: possible race around these accesses */
+	if (t->wakeup_cycs > t->timeout_cycs) jitter = t->wakeup_cycs - t->timeout_cycs;
+
+	return jitter;
+}
+
+unsigned
+sl_thd_block_periodic(thdid_t tid)
+{
+	unsigned jitter = 0;
+	struct sl_thd *t;
+
+	/* TODO: dependencies not yet supported */
+	assert(!tid);
+
+	sl_cs_enter();
+	t = sl_thd_curr();
+
+	assert(t->period);
+	if (sl_thd_block_no_cs(t, 1)) {
+		sl_cs_exit();
+		return 0;
+	}
+	sl_timeout_block(t, 0); 
+	sl_cs_exit_schedule();
+
+	/* FIXME: possible race around these accesses */
+	if (t->wakeup_cycs > t->periodic_cycs) jitter = ((unsigned)((t->wakeup_cycs - t->periodic_cycs) / t->period)) + 1;
+
+	return jitter;
+}
+
+/*
+ * @return: 1 if it's already RUNNABLE.
+ *          0 if it was woken up in this call
+ */
+int
+sl_thd_wakeup_no_cs(struct sl_thd *t)
+{
+	assert(t);
+
+	if (unlikely(t->state == SL_THD_RUNNABLE)) {
+		t->state = SL_THD_WOKEN;
+		return 1;
+	}
+
+	/* TODO: for AEP threads, wakeup events from kernel could be level-triggered. */
+	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
+	t->state = SL_THD_RUNNABLE;
+	sl_mod_wakeup(sl_mod_thd_policy_get(t));
+
+	return 0;
 }
 
 void
 sl_thd_wakeup(thdid_t tid)
 {
 	struct sl_thd *t;
-	thdcap_t       thdcap;
 	tcap_t         tcap;
 	tcap_prio_t    prio;
+	sl_thd_state   prev_state;
 
 	sl_cs_enter();
 	t = sl_thd_lkup(tid);
 	if (unlikely(!t)) goto done;
 
-	if (unlikely(t->state == SL_THD_RUNNABLE)) {
-		t->state = SL_THD_WOKEN;
-		goto done;
-	}
-
-	assert(t->state == SL_THD_BLOCKED);
-	t->state = SL_THD_RUNNABLE;
-	sl_mod_wakeup(sl_mod_thd_policy_get(t));
+	prev_state = t->state;
+	if(sl_thd_wakeup_no_cs(t)) goto done;
+	if (prev_state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
 	sl_cs_exit_schedule();
 
 	return;
@@ -129,17 +214,22 @@ sl_thd_yield(thdid_t tid)
 static struct sl_thd *
 sl_thd_alloc_init(thdid_t tid, thdcap_t thdcap)
 {
-	struct sl_thd_policy   *tp  = NULL;
-	struct sl_thd          *t   = NULL;
+	struct sl_thd_policy *tp = NULL;
+	struct sl_thd        *t  = NULL;
 
-	tp = sl_thd_alloc_backend(tid);
+	tp             = sl_thd_alloc_backend(tid);
 	if (!tp) goto done;
-	t = sl_mod_thd_get(tp);
+	t              = sl_mod_thd_get(tp);
 
-	t->thdid  = tid;
-	t->thdcap = thdcap;
-	t->state  = SL_THD_RUNNABLE;
+	t->thdid       = tid;
+	t->thdcap      = thdcap;
+	t->state       = SL_THD_RUNNABLE;
 	sl_thd_index_add_backend(sl_mod_thd_policy_get(t));
+
+	t->period      = t->timeout_cycs = t->periodic_cycs = 0;
+	t->wakeup_cycs = 0;
+	t->timeout_idx = -1;
+	t->prio        = TCAP_PRIO_MIN;
 
 done:
 	return t;
@@ -192,6 +282,17 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 	unsigned int       value;
 
 	sched_param_get(sp, &type, &value);
+
+	switch (type) {
+	case SCHEDP_WINDOW:
+	{
+		t->period = sl_usec2cyc(value);
+		t->periodic_cycs = sl_now(); /* TODO: synchronize for all tasks */
+		break;
+	}
+	default: break;
+	}
+
 	sl_mod_thd_param_set(sl_mod_thd_policy_get(t), type, value);
 }
 
@@ -223,7 +324,7 @@ sl_init(void)
 
 	sl_thd_init_backend();
 	sl_mod_init();
-	sl_timeout_mod_init();
+	sl_timeout_init();
 
 	/* Create the scheduler thread for us */
 	g->sched_thd    = sl_thd_alloc_init(cos_thdid(), BOOT_CAPTBL_SELF_INITTHD_BASE);

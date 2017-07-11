@@ -85,6 +85,39 @@ test_blocking_directed_yield(void)
 }
 
 void
+test_high_wakeup(void *data)
+{
+	unsigned toggle  = 0;
+	struct sl_thd *t = data;
+
+	while (1) {
+		cycles_t timeout = sl_now() + sl_usec2cyc(100);
+
+		if (toggle % 10 == 0) printc(".h:%llums.", sl_cyc2usec(sl_thd_block_timeout(0, timeout)));
+		else                  printc(".h:%up.", sl_thd_block_periodic(0));
+
+		toggle ++;
+	}
+}
+
+void
+test_timeout_wakeup(void)
+{
+	struct sl_thd          *low, *high;
+	union sched_param       sph = {.c = {.type = SCHEDP_PRIO, .value = 5}};
+	union sched_param       spl = {.c = {.type = SCHEDP_PRIO, .value = 10}};
+	union sched_param       spw = {.c = {.type = SCHEDP_WINDOW, .value = 1000}};
+
+	low  = sl_thd_alloc(test_low, NULL);
+	sl_thd_param_set(low, spl.v);
+	sl_thd_param_set(low, spw.v);
+
+	high = sl_thd_alloc(test_high_wakeup, NULL);
+	sl_thd_param_set(high, sph.v);
+	sl_thd_param_set(high, spw.v);
+}
+
+void
 cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
@@ -96,7 +129,8 @@ cos_init(void)
 	sl_init();
 
 //	test_yields();
-	test_blocking_directed_yield();
+//	test_blocking_directed_yield();
+	test_timeout_wakeup();
 
 	sl_sched_loop();
 

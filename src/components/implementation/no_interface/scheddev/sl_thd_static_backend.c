@@ -10,13 +10,13 @@
 #include <ps.h>
 #include <cos_kernel_api.h>
 
-static struct sl_thd_policy sl_threads[MAX_NUM_THREADS];
+static struct sl_thd_policy sl_threads[SL_MAX_NUM_THDS];
 
 /* Default implementations of backend functions */
 struct sl_thd_policy *
 sl_thd_alloc_backend(thdid_t tid)
 {
-	assert(tid < MAX_NUM_THREADS);
+	assert(tid < SL_MAX_NUM_THDS);
 	return &sl_threads[tid];
 }
 
@@ -35,10 +35,10 @@ sl_thd_index_rem_backend(struct sl_thd_policy *t)
 struct sl_thd_policy *
 sl_thd_lookup_backend(thdid_t tid)
 {
-	assert(tid < MAX_NUM_THREADS);
+	assert(tid < SL_MAX_NUM_THDS);
 	return &sl_threads[tid];
 }
 
 void
 sl_thd_init_backend(void)
-{ }
+{ assert(SL_MAX_NUM_THDS <= MAX_NUM_THREADS); }
