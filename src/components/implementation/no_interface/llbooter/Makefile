@@ -1,6 +1,6 @@
-C_OBJS=ppos_booter.o
+COMPONENT=llbooter.o
 ASM_OBJS=inv.o
-COMPONENT=ppos_boot.o
+COMPONENT=llboot_test.o
 INTERFACES=
 DEPENDENCIES=
 IF_LIB=
