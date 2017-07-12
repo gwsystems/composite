@@ -11,6 +11,7 @@
 typedef enum {
 	SL_THD_FREE = 0,
 	SL_THD_BLOCKED,
+	SL_THD_BLOCKED_TIMEOUT,
 	SL_THD_WOKEN, 		/* if a race causes a wakeup before the inevitable block */
 	SL_THD_RUNNABLE,
 	SL_THD_DYING,
@@ -22,6 +23,12 @@ struct sl_thd {
 	thdcap_t       thdcap;
 	tcap_prio_t    prio;
 	struct sl_thd *dependency;
+
+	cycles_t       period;
+	cycles_t       periodic_cycs; /* for implicit periodic timeouts */
+	cycles_t       timeout_cycs;  /* next timeout - used in timeout API */
+	cycles_t       wakeup_cycs;   /* actual last wakeup - used in timeout API for jitter information, etc */
+	int            timeout_idx; /* timeout heap index, used in timeout API */
 };
 
 #ifndef assert

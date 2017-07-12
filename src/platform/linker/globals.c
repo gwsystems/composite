@@ -25,7 +25,7 @@ const char *LLBOOT_COMP    = "llboot.o";
 const char *INIT_FILE      = "initfs.o";
 const char *INIT_FILE_NAME = "init.tar";
 
-const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
+const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] =
 { "cos_atomic_cmpxchg",
   "cos_atomic_cmpxchg_end",
   "cos_atomic_user1",
@@ -39,13 +39,13 @@ const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] =
 
 const char *SCHED_CREATE_FN = "sched_init";
 
-/* 
+/*
  * See cos_types.h for the numerical identifiers of each of these
  * fault handlers.
  */
 const char *
 cos_flt_handlers[COS_FLT_MAX] = {
-	"fault_page_fault_handler", 
+	"fault_page_fault_handler",
 	"fault_div_zero_handler",
 	"fault_brkpt_handler",
 	"fault_overflow_handler",
@@ -79,6 +79,18 @@ struct cos_sections section_info[MAXSEC_S+1] = {
 		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
 		.coalesce   = 1,
 		.sname      = ".dtors",
+	},
+ 	{
+		.secid      = INIT_ARRAY_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+		.coalesce   = 1,
+		.sname      = ".init_array",
+	},
+	{
+		.secid      = FINI_ARRAY_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+		.coalesce   = 1,
+		.sname      = ".fini_array",
 	},
 	{
 		.secid      = CRECOV_S,

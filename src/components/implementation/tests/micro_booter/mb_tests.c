@@ -62,7 +62,7 @@ test_thds(void)
 	PRINTC("test done\n");
 }
 
-#define TEST_NPAGES (1024*2) 	/* Testing with 8MB for now */
+#define TEST_NPAGES (1024 * 2) 	/* Testing with 8MB for now */
 
 static void
 test_mem(void)
@@ -83,11 +83,16 @@ test_mem(void)
 	prev = s;
 	for (i = 0 ; i < TEST_NPAGES ; i++) {
 		t = cos_page_bump_alloc(&booter_info);
-		assert(t && t == prev + 4096);
+		assert(t && t == prev + PAGE_SIZE);
 		prev = t;
 	}
-	memset(s, 0, TEST_NPAGES * 4096);
+	memset(s, 0, TEST_NPAGES * PAGE_SIZE);
 	PRINTC("SUCCESS: Allocated and zeroed %d pages.\n", TEST_NPAGES);
+
+	t = cos_page_bump_allocn(&booter_info, TEST_NPAGES * PAGE_SIZE);
+	assert(t);
+	memset(t, 0, TEST_NPAGES * PAGE_SIZE);
+	PRINTC("SUCCESS: Atomically allocated and zeroed %d pages.\n", TEST_NPAGES);
 }
 
 volatile arcvcap_t rcc_global, rcp_global;
@@ -579,7 +584,7 @@ intr_thd(void *d)
 {
 	struct exec_cluster *e = &(((struct activation_test_data *)d)->i);
 	struct exec_cluster *w = &(((struct activation_test_data *)d)->w);
-	
+
 	while (1) {
 		cos_rcv(e->rc, 0, NULL);
 		seq_order_check(e);
@@ -602,7 +607,7 @@ intr_sched_thd(void *d)
 		if (wakeup_budget_test) {
 			struct exec_cluster *w = &(((struct activation_test_data *)d)->w);
 			rdtscll(e->cyc);
-			printc(" | preempted worker @ %llu, budget: %lu=%lu |", e->cyc, 
+			printc(" | preempted worker @ %llu, budget: %lu=%lu |", e->cyc,
 			       (unsigned long)TEST_WAKEUP_BUDGET, (unsigned long)(e->cyc - w->cyc));
 		}
 	}
@@ -758,7 +763,7 @@ test_preemption(void)
 	exec_cluster_alloc(&pat.w, receiver_thd, &pat, BOOT_CAPTBL_SELF_INITRCV_BASE);
 
 	/*
-	 * test case 1: Sender = H, Receiver: L 
+	 * test case 1: Sender = H, Receiver: L
 	 * - scheduler here is initthd (this thd)
 	 * expected result:
 	 * - cos_asnd from sender should add receiver as wakeup thread.
@@ -768,7 +773,7 @@ test_preemption(void)
 	test_preemption_case(&pat, TEST_PRIO_HIGH, TEST_PRIO_LOW, 0, 1);
 
 	/*
-	 * test case 2: Sender = L, Receiver: H 
+	 * test case 2: Sender = L, Receiver: H
 	 * - scheduler here is initthd (this thd)
 	 * expected result:
 	 * - cos_asnd from sender should trigger receiver activation and add sender as wakeup thread.

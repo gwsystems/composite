@@ -2,6 +2,21 @@
  * Copyright 2016, Phani Gadepalli and Gabriel Parmer, GWU, gparmer@gwu.edu.
  *
  * This uses a two clause BSD License.
+ *
+ * This API is layered on top of the cos_kernel_api and simply makes
+ * some assumptions about capability setup, but provides a much
+ * simpler API to use for creating and using asynchronous end-points.
+ *
+ * The main assumptions this API makes are: the initial tcap provided
+ * in the bootup protocol is used along with the initial thread as the
+ * parent tcap that schedules all others.  The asynchronous receive
+ * end-points are created as a package of receive end-point, thread to
+ * receive from the end-point, and tcap (which can be provided as a
+ * separate argument).
+ *
+ * This API provides a wrapper structure around the cos_compinfo
+ * (cos_definfo) to include the information about the root scheduling
+ * thread and tcap.
  */
 
 #ifndef COS_DEFKERNEL_API_H
@@ -59,12 +74,12 @@ void cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sch
 int cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, vaddr_t heap_ptr, capid_t cap_frontier, int is_sched);
 
 /*
- * cos_aep_alloc: creates a new async activation end-point which includes thread, tcap and rcv capabilities. 
+ * cos_aep_alloc: creates a new async activation end-point which includes thread, tcap and rcv capabilities.
  *                struct cos_aep_info passed in, must not be stack allocated.
  */
 int cos_aep_alloc(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data);
 /*
- * cos_aep_alloc: creates a new async activation end-point, using an existing tcap. 
+ * cos_aep_alloc: creates a new async activation end-point, using an existing tcap.
  *                struct cos_aep_info passed in, must not be stack allocated.
  */
 int cos_aep_tcap_alloc(struct cos_aep_info *aep, tcap_t tc, cos_aepthd_fn_t fn, void *data);

@@ -314,6 +314,7 @@ typedef unsigned long vaddr_t;	/* virtual address */
 typedef unsigned int page_index_t;
 
 typedef unsigned short int spdid_t;
+typedef unsigned short int compid_t;
 typedef unsigned short int thdid_t;
 
 struct restartable_atomic_sequence {

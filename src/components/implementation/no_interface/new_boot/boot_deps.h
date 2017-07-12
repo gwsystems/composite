@@ -23,7 +23,7 @@ struct cos_compinfo boot_info;
 struct cos_compinfo new_compinfo[MAX_NUM_SPDS+1];
 
 thdcap_t schedule[MAX_NUM_SPDS+1];
-unsigned int sched_cur;
+volatile unsigned int sched_cur;
 
 /* Macro for sinv back to booter from new component */
 enum {
@@ -35,7 +35,7 @@ boot_deps_map_sect(int spdid, vaddr_t dest_daddr)
 {
 	vaddr_t addr = (vaddr_t) cos_page_bump_alloc(&boot_info);
 	assert(addr);
-			
+
 	if (cos_mem_alias_at(new_comp_cap_info[spdid].compinfo, dest_daddr, &boot_info, addr)) BUG();
 
 	return addr;
@@ -44,13 +44,13 @@ boot_deps_map_sect(int spdid, vaddr_t dest_daddr)
 static void
 boot_comp_pgtbl_expand(int n_pte, pgtblcap_t pt, vaddr_t vaddr, struct cobj_header *h)
 {
-	int i;	
-	int tot = 0;	
+	int i;
+	int tot = 0;
 	/* Expand Page table, could do this faster */
 	for (i = 0 ; i < (int)h->nsect ; i++) {
 		tot += cobj_sect_size(h, i);
 	}
-	
+
 	if (tot > SERVICE_SIZE) {
 		n_pte = tot / SERVICE_SIZE;
 		if (tot % SERVICE_SIZE) n_pte++;
@@ -71,7 +71,7 @@ boot_compinfo_init(int spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 	assert(*pt);
 
 	new_comp_cap_info[spdid].compinfo = &new_compinfo[spdid];
-	cos_compinfo_init(new_comp_cap_info[spdid].compinfo, *pt, *ct, 0, 
+	cos_compinfo_init(new_comp_cap_info[spdid].compinfo, *pt, *ct, 0,
 				  (vaddr_t)vaddr, 4, &boot_info);
 }
 
@@ -84,22 +84,22 @@ boot_newcomp_create(int spdid, struct cos_compinfo *comp_info)
 	sinvcap_t sinv;
 	thdcap_t main_thd;
 	int i = 0;
-		
+
 	cc = cos_comp_alloc(&boot_info, ct, pt, (vaddr_t)new_comp_cap_info[spdid].upcall_entry);
-	assert(cc);	
+	assert(cc);
 	new_comp_cap_info[spdid].compinfo->comp_cap = cc;
 
 	/* Create sinv capability from Userspace to Booter components */
 	sinv = cos_sinv_alloc(&boot_info, boot_info.comp_cap, (vaddr_t)__inv_test_entry);
 	assert(sinv > 0);
-	
+
 	/* Copy sinv into new comp's capability table at a known location (BOOT_SINV_CAP) */
 	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_SINV_CAP, &boot_info, sinv);
 
 	main_thd = cos_initthd_alloc(&boot_info, cc);
 	assert(main_thd);
 
-	/* Add created component to "scheduling" array */		
+	/* Add created component to "scheduling" array */
 	while (schedule[i] != 0) i++;
 	schedule[i] = main_thd;
 }
@@ -108,8 +108,8 @@ static void
 boot_bootcomp_init(void)
 {
 	cos_meminfo_init(&boot_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	
-	cos_compinfo_init(&boot_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 
+
+	cos_compinfo_init(&boot_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &boot_info);
 }
 
@@ -132,6 +132,4 @@ boot_thd_done(void)
 	} else {
 	       	printc("Done Initializing\n");
 	}
-
 }
-

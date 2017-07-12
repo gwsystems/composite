@@ -92,6 +92,7 @@ The others are *mostly* correct, but if they allude to Linux in any way, then ig
   + `components/include/` is the include directory automatically imported by all components
   + `components/implementation/` is the directory that includes the implementation of all components
     - each sub-directory corresponds to an API, and each sub-sub-directory is a component
+    - `tests` is a set of tests including both unit tests and micro-benchmarks
     - `no_interface` is a set of components that don't export an interface elsewhere...you'll focus mainly on these
 
 ## Libraries and the kernel API

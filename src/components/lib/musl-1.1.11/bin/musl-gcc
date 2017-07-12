@@ -1,2 +1,0 @@
-#!/bin/sh
-exec "${REALGCC:-gcc}" "$@" -specs "/home/vagrant/cFE2cos/composite/src/components/lib/musl-1.1.11/lib/musl-gcc.specs"
