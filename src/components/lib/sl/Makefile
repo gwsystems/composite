@@ -5,12 +5,12 @@ LIBS=$(LIB_OBJS:%.o=%.a)
 
 .PHONY: all clean
 all: $(LIBS)
+	@cp *.a ../
 
 %.a:%.c
 	$(info |     [CC]   Creating library file $@ from $^)
 	@$(CC) $(CFLAGS) $(CINC) -o $(@:%.a=%.o) -c $<
 	@$(AR) cr lib$@ $(@:%.a=%.o)
-	@cp *.a ../
 
 clean:
 	@rm -f *.o *.a *.d
