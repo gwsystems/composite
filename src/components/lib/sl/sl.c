@@ -259,7 +259,7 @@ sl_thd_wakeup(thdid_t tid)
 	if (unlikely(!t)) goto done;
 
 	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
-	if(sl_thd_wakeup_no_cs(t)) goto done;
+	if (sl_thd_wakeup_no_cs(t)) goto done;
 	sl_cs_exit_schedule();
 
 	return;

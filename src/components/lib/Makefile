@@ -10,8 +10,8 @@ SIMPLE_STKLIB=simple_stklib.o
 CINC_ENV=$(CINC)
 export CINC_ENV
 
-.PHONY: all
-all: $(LIBS) $(MAND) $(SIMPLE_STKLIB)
+.PHONY: all sl
+all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl 
 
 # we have to compile these without dietlibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't
@@ -24,9 +24,11 @@ all: $(LIBS) $(MAND) $(SIMPLE_STKLIB)
 $(MAND): $(MANDITORY)
 	@$(LD) $(LDFLAGS) -r -o $@ $^
 
-
 $(SIMPLE_STKLIB): $(SIMPLE_STACKS)
 	@$(LD) $(LDFLAGS) -r -o $@ $^
+
+sl:
+	make $(MAKEFLAGS) -C sl
 
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)
@@ -39,6 +41,7 @@ $(SIMPLE_STKLIB): $(SIMPLE_STACKS)
 clean:
 	$(info |     [RM]   Cleaning up directory)
 	@rm -f a.out *.o *.a *.d *~
+	make -C sl clean
 
 distclean:
 	make -C musl-1.1.11 distclean
