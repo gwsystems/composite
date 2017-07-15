@@ -18,9 +18,10 @@ rk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	printc("\texit thread: %p\n", vminfo->exitthd);
 	assert(vminfo->exitthd);
 
-	printc("\tAllocating init thread, function: kernel_init\n");
-	vminfo->initthd = cos_thd_alloc(vkcinfo, vmcinfo->comp_cap, kernel_init, NULL);
-	printc("\tinit thread: %p\n", vminfo->exitthd);
+	printc("\tAllocating init thread, function: kernel_init, comp_cap: %d\n", vmcinfo->comp_cap);
+	vminfo->initthd = cos_thd_alloc(vkcinfo, vmcinfo->comp_cap, kernel_init, (void *)vminfo->id);
+	printc("\tinit thread: %p\n", vminfo->initthd);
+	printc("\tid for kernel component: %d\n", vminfo->id);
 	assert(vminfo->initthd);
 	vminfo->inittid = (thdid_t)cos_introspect(vkcinfo, vminfo->initthd, THD_GET_TID);
 	printc("\tInit thread= cap:%x tid:%x\n", (unsigned int)vminfo->initthd, (unsigned int)vminfo->inittid);
@@ -217,21 +218,21 @@ vk_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 }
 
 thdcap_t
-dom0_vio_thdcap(unsigned int vmid)
-{ return DOM0_CAPTBL_SELF_IOTHD_SET_BASE + (CAP16B_IDSZ * (vmid-1)); }
+dom0_vio_thdcap(unsigned int spdid)
+{ return DOM0_CAPTBL_SELF_IOTHD_SET_BASE + (CAP16B_IDSZ * (spdid-1)); }
 
 tcap_t
-dom0_vio_tcap(unsigned int vmid)
-{ return DOM0_CAPTBL_SELF_IOTCAP_SET_BASE + (CAP16B_IDSZ * (vmid-1)); }
+dom0_vio_tcap(unsigned int spdid)
+{ return DOM0_CAPTBL_SELF_IOTCAP_SET_BASE + (CAP16B_IDSZ * (spdid-1)); }
 
 arcvcap_t
-dom0_vio_rcvcap(unsigned int vmid)
-{ return DOM0_CAPTBL_SELF_IORCV_SET_BASE + (CAP64B_IDSZ * (vmid-1)); }
+dom0_vio_rcvcap(unsigned int spdid)
+{ return DOM0_CAPTBL_SELF_IORCV_SET_BASE + (CAP64B_IDSZ * (spdid-1)); }
 
 asndcap_t
-dom0_vio_asndcap(unsigned int vmid)
-{ return DOM0_CAPTBL_SELF_IOASND_SET_BASE + (CAP64B_IDSZ * (vmid-1)); }
+dom0_vio_asndcap(unsigned int spdid)
+{ return DOM0_CAPTBL_SELF_IOASND_SET_BASE + (CAP64B_IDSZ * (spdid-1)); }
 
 vaddr_t
-dom0_vio_shm_base(unsigned int vmid)
-{ return VK_VM_SHM_BASE + (VM_SHM_SZ * vmid); }
+dom0_vio_shm_base(unsigned int spdid)
+{ return VK_VM_SHM_BASE + (VM_SHM_SZ * spdid); }

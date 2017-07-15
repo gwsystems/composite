@@ -20,7 +20,8 @@
 
 #include "vk_types.h"
 
-#define PRINTC(fmt, args...) printc("%d: " fmt, vmid , ##args)
+/* vmid is no longer continued, see rumpcalls.h The call to cos_spdid_get should be in different api */
+#define PRINTC(fmt, args...) printc("%d: " fmt, -1 , ##args)
 #define ITER       10000
 #define TEST_NTHDS 5
 
@@ -28,7 +29,6 @@ extern struct cos_compinfo booter_info;
 extern thdcap_t termthd; 		/* switch to this to shutdown */
 extern unsigned long tls_test[TEST_NTHDS];
 extern int num, den;
-extern int vmid;
 
 static unsigned long
 tls_get(size_t off)

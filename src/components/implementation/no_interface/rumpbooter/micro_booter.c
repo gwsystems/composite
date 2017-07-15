@@ -39,7 +39,6 @@ printc(char *fmt, ...)
 int num = 1, den = 0;
 
 /* virtual machine id */
-int vmid;
 int rumpns_vmid;
 
 void
@@ -48,8 +47,12 @@ vm_init(void *id)
 	int ret;
 	struct cos_shm_rb *sm_rb;
 	struct cos_shm_rb *sm_rb_r;
-	vmid = (int)id;
-	rumpns_vmid = vmid;
+
+	cos_spdid_set((int)id);
+	/* FIXME remove rumpns_vmid, replace with cos_spdid_get() calls */
+	rumpns_vmid = (int)id;
+
+	printc("vm_init, setting spdid for user component to: %d\n", cos_spdid_get());
 
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
@@ -83,17 +86,39 @@ vm_init(void *id)
 }
 
 void
-kernel_init(void)
+kernel_init(void *id)
 {
 	int ret;
 	struct cos_shm_rb *sm_rb;
 	struct cos_shm_rb *sm_rb_r;
 
+	cos_spdid_set((int)id);
+	printc("vm_init: &booter_info: %p\n", &booter_info);
+
+	printc("Kernel_init, setting spdid for kernel component to: %d\n", cos_spdid_get());
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE, &booter_info);
 
 	printc("\n************ KERNEL *************\n");
+
+	printc("Before booting rk, test sinv capabilities down to booter for shdmem api\n");
+	// 12 tests
+	shmem_allocate_invoke();
+	shmem_allocate_invoke();
+	shmem_allocate_invoke();
+	shmem_allocate_invoke();
+	shmem_allocate_invoke();
+	shmem_allocate_invoke();
+	shmem_allocate_invoke();
+	shmem_allocate_invoke();
+	shmem_allocate_invoke();
+	shmem_allocate_invoke();
+	shmem_allocate_invoke();
+	shmem_allocate_invoke();
+	shmem_deallocate_invoke();
+	shmem_map_invoke();
+	printc("\nDone\n");
 
 	rump_booter_init();
 

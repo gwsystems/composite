@@ -6,7 +6,7 @@
 #include <vk_shmem_api.h>
 
 int
-vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsize, int vmid){
+vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsize, int spdid){
 	//create rb, of size sz
 	sm_rb->head = 0;
 	sm_rb->tail = 0;
@@ -16,22 +16,22 @@ vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsi
 }
 
 int 
-vk_shmem_addr_send(int to_vmid){
+vk_shmem_addr_send(int to_spdid){
 	//returns the virt addr of the ringbuf struct for sending data
-	if(to_vmid == 0){
+	if(to_spdid == 0){
 		return BOOT_MEM_SHM_BASE;	
 	}else{
-		return ((BOOT_MEM_SHM_BASE)+((COS_SHM_VM_SZ) * (to_vmid-1) ));
+		return ((BOOT_MEM_SHM_BASE)+((COS_SHM_VM_SZ) * (to_spdid-1) ));
 	}
 }
 
 int 
-vk_shmem_addr_recv(int from_vmid){
+vk_shmem_addr_recv(int from_spdid){
 	//returns the virt addr of the ringbuf struct for recving data
-	if(from_vmid == 0){
+	if(from_spdid == 0){
 		return (BOOT_MEM_SHM_BASE) + (COS_SHM_VM_SZ/2);	
 	}else{
-		return (BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (from_vmid-1) ) + ((COS_SHM_VM_SZ)/2) ;
+		return (BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (from_spdid-1) ) + ((COS_SHM_VM_SZ)/2) ;
 	}
 }
 

@@ -152,7 +152,16 @@ tcap_t cos_find_vio_tcap(void);
 
 void cos_fs_test(void);
 void cos_shmem_test(void);
+void shmem_allocate_invoke(void);
+void shmem_deallocate_invoke(void);
+void shmem_map_invoke(void);
 
 int paws_tests(void);
+
+/* FIXME Should these be in a different api? Yes, but where? This is pretty central info so maybe cos_kernel_api?*/
+/* The spdid for each component is set in vm_init or kernel_init respectivly */
+extern int _spdid;
+void cos_spdid_set(unsigned int spdid);
+unsigned int cos_spdid_get(void);
 
 #endif /* RUMPCALLS_H */

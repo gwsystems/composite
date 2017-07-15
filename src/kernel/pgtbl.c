@@ -127,9 +127,9 @@ pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t
 }
 
 int
-pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
+pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin,
 		 livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
-{ 
+{
 	struct cap_header *deact_header;
 	struct cap_pgtbl *deact_cap, *parent;
 

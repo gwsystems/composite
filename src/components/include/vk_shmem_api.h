@@ -1,18 +1,18 @@
 //header for shared mem ring buf
 
 struct cos_shm_rb {
-	unsigned int head, tail; 
-	int vmid;
+	unsigned int head, tail;
+	int spdid;
 	unsigned int size;
 	unsigned int mask;
 	char buf[0];
 };
 
-struct cos_shm_rb * vk_shmem_addr_send(int vmid);
+struct cos_shm_rb * vk_shmem_addr_send(int spdid);
 
-struct cos_shm_rb * vk_shmem_addr_recv(int vmid);
+struct cos_shm_rb * vk_shmem_addr_recv(int spdid);
 
-int vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsize, int vmid);
+int vk_ringbuf_create(struct cos_compinfo *ci, struct cos_shm_rb * sm_rb, size_t tsize, int spdid);
 
 int vk_ringbuf_enqueue(struct cos_shm_rb * rb, void * buff, size_t size);
 

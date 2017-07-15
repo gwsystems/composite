@@ -25,7 +25,6 @@ tcap_prio_t rk_thd_prio = RK_THD_PRIO;
 tcap_prio_t rk_thd_prio = PRIO_UNDER;
 #endif
 
-extern int vmid;
 extern thdcap_t vm_main_thd;
 
 /* Mapping the functions from rumpkernel to composite */
@@ -230,8 +229,6 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	set_cos_thddata(thread, newthd_cap, cos_introspect(&booter_info, newthd_cap, 9));
 }
 
-extern int vmid;
-
 static inline void
 intr_switch(void)
 {
@@ -261,7 +258,7 @@ check_vio_budgets(void)
 	int i;
 	static int iters;
 
-	if (vmid) return;
+	if (cos_spdid_get()) return;
 
 	iters ++;
 	if (iters != CHECK_ITER) return;
@@ -339,7 +336,7 @@ cpu_bound_test(void)
 	thdcap_t ts;
 	int i = BOUND_TEST_ITERS;
 
-	if (vmid != CPU_BOUND_VM) return;
+	if (cos_spdid_get() != CPU_BOUND_VM) return;
 
 	printc("I'm A CPU BOUND VM..Just SPINNING and printing \".\" every %d iters\n", BOUND_TEST_ITERS);
 	while (1) {
@@ -365,11 +362,11 @@ print_cycles(void)
 
 	if (total_cycles >= cycs_per_sec) {
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-		if (vmid == IO_BOUND_VM) {
+		if (cos_spdid_get() == IO_BOUND_VM) {
 			mainbud = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
 
-			printc("vm%d: %lu\n", vmid, mainbud);
-		} else if (vmid == 0) {
+			printc("vm%d: %lu\n", cos_spdid_get(), mainbud);
+		} else if (cos_spdid_get() == 0) {
 			mainbud = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
 			isrbud  = (tcap_res_t)cos_introspect(&booter_info, irq_tcap[HW_ISR_FIRST], TCAP_GET_BUDGET);
 			viobud  = (tcap_res_t)cos_introspect(&booter_info, vio_tcap[IO_BOUND_VM - 1], TCAP_GET_BUDGET);
@@ -380,7 +377,7 @@ print_cycles(void)
 		}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 		mainbud = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
-		printc("vm%d: %lu\n", vmid, mainbud);
+		printc("vm%d: %lu\n", cos_spdid_get(), mainbud);
 #endif
 
 		total_cycles = 0;
@@ -510,9 +507,9 @@ cos_vm_clock_now(void)
        uint64_t tsc_now = 0;
        unsigned long long curtime = 0;
 
-       assert(vmid <= 1);
-       if (vmid == 0)      tsc_now = t_dom_cycs;
-       else if (vmid == 1) tsc_now = t_vm_cycs;
+       assert(cos_spdid_get() <= 1);
+       if (cos_spdid_get() == 0)      tsc_now = t_dom_cycs;
+       else if (cos_spdid_get() == 1) tsc_now = t_vm_cycs;
 
        curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
        curtime = (long long)(curtime * 1000); /* micro to nano seconds */
@@ -559,7 +556,7 @@ cos_vm_yield(void)
 //{ if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 {
-	if (vmid) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	if (cos_spdid_get()) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	else  cos_asnd(VM_CAPTBL_SELF_VKASND_BASE, 1);
 }
 #endif
@@ -572,11 +569,11 @@ cos_vm_yield(void)
 //#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 //	tcap_res_t res = (VIO_BUDGET_APPROX * cycs_per_usec);
 //	tcap_res_t min_slice = (VM_MIN_TIMESLICE * cycs_per_usec);
-//	tcap_res_t initbudget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);	
+//	tcap_res_t initbudget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
 //	tcap_res_t irqbudget;
 //	int ret;
 //
-//	assert (vmid == 0);
+//	assert (cos_spdid_get() == 0);
 //
 //	if (irqline == IRQ_VM1 || irqline == IRQ_VM2) {
 //		if (initbudget >= res + min_slice) irqbudget = res;
@@ -606,7 +603,7 @@ cos_vio_tcap_set(unsigned int src)
 	unsigned int use = (unsigned int) (cos_cur_tcap >> 16);
 	unsigned int final, tmp;
 
-	if (vmid) return;
+	if (cos_spdid_get()) return;
 
 	assert ((use < (COS_VIRT_MACH_COUNT-1)) && (src > 0 && src < COS_VIRT_MACH_COUNT));
 	if (use != (src - 1)) {
@@ -634,7 +631,7 @@ cos_vio_tcap_update(unsigned int dst)
 	unsigned int final, tmp;
 	static unsigned int counter = 0;
 
-	if (vmid) return;
+	if (cos_spdid_get()) return;
 
 	assert ((use < (COS_VIRT_MACH_COUNT-1)) && (dst > 0 && dst < COS_VIRT_MACH_COUNT));
 	if (use != (dst - 1)) {
@@ -664,7 +661,7 @@ cos_find_vio_tcap(void)
 	unsigned int use, using;
 	tcap_t tcuse;
 
-	if (vmid) return irq_tcap[IRQ_DOM0_VM];
+	if (cos_spdid_get()) return irq_tcap[IRQ_DOM0_VM];
 
 	use = using = cos_cur_tcap >> 16;
 	tcuse = (cos_cur_tcap << 16) >> 16;
@@ -701,20 +698,14 @@ cos_find_vio_tcap(void)
 
 
 /* System Calls */
-static void
-get_sinv(sinvcap_t *sinv) {
-	*sinv = VM0_CAPTBL_SELF_IOSINV_BASE;
-}
-
 void
 cos_fs_test(void)
 {
-	sinvcap_t sinv = 0;
-	int sinv_ret = -1;
-	printc("Running cos fs test: VM%d\n", vmid);
-
 	/* This sinv cap is allocated and found within vkernel_init.c */
-	get_sinv(&sinv);
+	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_BASE;
+	int sinv_ret = -1;
+
+	printc("Running cos fs test: VM%d\n", cos_spdid_get());
 
 	sinv_ret = cos_sinv(sinv, 0, 0, 0, 0);
 
@@ -731,7 +722,7 @@ cos_shmem_test(void)
 	//char buff[100];
 	//int read = -1;
 
-	//printc("Running cos shmem test: VM%d\n", vmid);
+	//printc("Running cos shmem test: VM%d\n", cos_spdid_get());
 
 	///* This sinv cap is allocated and found within vkernel_init.c */
 	//get_sinv(&sinv);
@@ -749,3 +740,66 @@ cos_shmem_test(void)
 	//printc("Amount read: %d\n", read);
 	//printc("%s\n", buff);
 }
+
+void
+shmem_allocate_invoke()
+{
+	/* This sinv cap is allocated and found within vkernel_init.c */
+	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_ALLOC;
+	vaddr_t sinv_ret;
+
+	printc("Invoking shmem_allocate: VM%d\n", cos_spdid_get());
+
+	sinv_ret = cos_sinv(sinv, cos_spdid_get(), 1, 0, 0);
+
+	printc("Ret from shmem_allocate_invoke: %p\n", (vaddr_t)sinv_ret);
+
+	printc("\t\nRunning TEST\n");
+	printc("\tReading a byte from returned page in kernel space\n");
+	char ret_char = *((char *)sinv_ret);
+	printc("\tDone, %c was read\n\n", ret_char);
+}
+
+void
+shmem_deallocate_invoke()
+{
+	/* This sinv cap is allocated and found within vkernel_init.c */
+	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_DEALLOC;
+	int sinv_ret = -1;
+
+	printc("Invoking shmem_deallocate: VM%d\n", cos_spdid_get());
+
+	sinv_ret = cos_sinv(sinv, 0, 0, 0, 0);
+
+	printc("Ret from shmem_deallocate_invoke: %d\n", sinv_ret);
+}
+
+void
+shmem_map_invoke()
+{
+	/* This sinv cap is allocated and found within vkernel_init.c */
+	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_MAP;
+	int sinv_ret = -1;
+
+	printc("Invoking shmem_map: VM%d\n", cos_spdid_get());
+
+	sinv_ret = cos_sinv(sinv, 0, 0, 0, 0);
+
+	printc("Ret from shmem_map_invoke: %d\n", sinv_ret);
+}
+
+int _spdid = -1;
+
+void
+cos_spdid_set(unsigned int spdid)
+{
+	/* Try and have some sort of sanity check that it is only being set once... */
+	printc("\t!!!!!Calling cos_spdid_set, _spdid: %d\n", spdid);
+	assert(_spdid < 0);
+
+	_spdid = spdid;
+}
+
+unsigned int
+cos_spdid_get(void)
+{ return _spdid; }

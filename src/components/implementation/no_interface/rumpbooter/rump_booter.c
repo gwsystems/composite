@@ -10,10 +10,10 @@
 #include "vk_types_old.h"
 
 extern struct cos_compinfo booter_info;
-extern int vmid;
 
 void
-hw_irq_alloc(void){
+hw_irq_alloc(void)
+{
 
 	tcap_res_t budget;
 	int i, ret;
@@ -23,8 +23,9 @@ hw_irq_alloc(void){
 	memset(irq_thdid, 0, sizeof(irq_thdid));
 	memset(irq_arcvcap, 0, sizeof(irq_arcvcap));
 
+
 	for(i = HW_ISR_FIRST; i < HW_ISR_LINES; i++){
-		if (vmid == 0) {
+		if (cos_spdid_get() == 0) {
 			switch(i) {
 			case IRQ_VM1:
 				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE;
@@ -63,8 +64,6 @@ hw_irq_alloc(void){
 void
 rump_booter_init(void)
 {
-	extern int vmid;
-
 	char *json_file = "";
 #define JSON_PAWS_BAREMETAL 0
 #define JSON_PAWS_QEMU 1
@@ -74,8 +73,8 @@ rump_booter_init(void)
 /* json config string fixed at compile-time */
 #define JSON_CONF_TYPE JSON_PAWS_QEMU
 
-	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
-	if(vmid == 0) {
+	printc("~~~~~ spdid: %d ~~~~~\n", cos_spdid_get());
+	if(cos_spdid_get() == 0) {
 
 #if JSON_CONF_TYPE == JSON_NGINX_QEMU
 		json_file = "{,\"blk\":{,\"source\":\"dev\",\"path\":\"/dev/paws\",\"fstype\":\"cd9660\",\"mountpoint\":\"/data\",},\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"nginx.bin\",},\0";
@@ -101,7 +100,7 @@ rump_booter_init(void)
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	rk_thd_prio = PRIO_LOW;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	rk_thd_prio = (vmid == 0) ? PRIO_BOOST : PRIO_UNDER;
+	rk_thd_prio = (cos_spdid_get() == 0) ? PRIO_BOOST : PRIO_UNDER;
 #endif
 
 	printc("\nRumpKernel Boot Start.\n");

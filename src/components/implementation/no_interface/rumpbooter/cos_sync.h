@@ -25,8 +25,6 @@ void intr_end(void);
 #define PS_CAS_INSTRUCTION "cmpxchg"
 #define PS_CAS_STR PS_CAS_INSTRUCTION PS_ATOMIC_POSTFIX " %2, %0; setz %1"
 
-extern int vmid;
-
 /*
  * Return values:
  * 0 on failure due to contention (*target != old)
@@ -50,7 +48,7 @@ static unsigned int intr_translate_thdid2irq(thdid_t tid)
 
 	if(tid == 0) return -1;
 
-	if (vmid) {
+	if (cos_spdid_get()) {
 		if(tid == irq_thdid[IRQ_DOM0_VM])
 			return IRQ_DOM0_VM;
 		else return -1;
@@ -71,7 +69,7 @@ intr_eligible_tcap(unsigned int irqline)
 
 	assert (irqline >= HW_ISR_FIRST && irqline < HW_ISR_LINES);
 
-	if (vmid) {
+	if (cos_spdid_get()) {
 		if (irqline == IRQ_DOM0_VM)
 			return irq_tcap[IRQ_DOM0_VM];
 		assert(0);

@@ -4,18 +4,19 @@
 #include <cos_kernel_api.h>
 #include <cos_types.h>
 #include "vk_types_old.h"
+#include "rumpcalls.h"
 
 volatile isr_state_t cos_isr = 0;  /* Last running isr thread */
-unsigned int cos_nesting = 0; 	   /* Depth to intr_disable/intr_enable */
-u32_t intrs = 0; 	           /* Intrrupt bit mask */
+unsigned int cos_nesting = 0;	   /* Depth to intr_disable/intr_enable */
+u32_t intrs = 0;	           /* Intrrupt bit mask */
 
 extern volatile thdcap_t cos_cur; /* Last running rk thread */
 
 /* Called from cos_irqthd_handler */
 
-static inline void 
-isr_setcontention(unsigned int intr) 
-{ 
+static inline void
+isr_setcontention(unsigned int intr)
+{
 	/* intr is a irq line number */
 	isr_state_t tmp, final;
 
@@ -25,10 +26,10 @@ isr_setcontention(unsigned int intr)
 		unsigned int contending;
 
 		tmp = cos_isr;
-		isr_get(tmp, &rk_disabled, &intr_disabled, &contending);	
+		isr_get(tmp, &rk_disabled, &intr_disabled, &contending);
 
 		contending = intr;
-		
+
 		final = isr_construct(rk_disabled, intr_disabled, contending);
 	} while (unlikely(!ps_cas((unsigned long *)&cos_isr, tmp, final)));
 }
@@ -42,7 +43,7 @@ intr_start(unsigned int irqline)
 	int ret;
 
 	assert(irqline >= HW_ISR_FIRST && irqline < HW_ISR_LINES);
-	if (vmid) assert(irqline == IRQ_DOM0_VM);
+	if (cos_spdid_get()) assert(irqline == IRQ_DOM0_VM);
 	/*
 	 * 1. Get current cos_isr
          * 2. Check if intr_disabled is set (another isr thread is unblocked)

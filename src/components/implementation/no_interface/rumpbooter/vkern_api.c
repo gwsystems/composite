@@ -5,10 +5,10 @@
 void rumpns_m_copydata(struct mbuf *m, int off, int len, void *vp);
 
 int
-vk_recv_rb_create(struct cos_shm_rb * sm_rb, int vmid)
+vk_recv_rb_create(struct cos_shm_rb * sm_rb, int spdid)
 {
 
-	sm_rb = vk_shmem_addr_recv(vmid);
+	sm_rb = vk_shmem_addr_recv(spdid);
 	sm_rb->head = 0;
 	sm_rb->tail = 0;
 	sm_rb->size = COS_SHM_VM_SZ/2 - (sizeof(struct cos_shm_rb));
@@ -17,10 +17,10 @@ vk_recv_rb_create(struct cos_shm_rb * sm_rb, int vmid)
 }
 
 int
-vk_send_rb_create(struct cos_shm_rb * sm_rb, int vmid)
+vk_send_rb_create(struct cos_shm_rb * sm_rb, int spdid)
 {
 
-	sm_rb = vk_shmem_addr_send(vmid);
+	sm_rb = vk_shmem_addr_send(spdid);
 	sm_rb->head = 0;
 	sm_rb->tail = 0;
 	sm_rb->size = COS_SHM_VM_SZ/2 - (sizeof(struct cos_shm_rb));
@@ -29,22 +29,22 @@ vk_send_rb_create(struct cos_shm_rb * sm_rb, int vmid)
 }
 
 struct cos_shm_rb *
-vk_shmem_addr_send(int to_vmid)
+vk_shmem_addr_send(int to_spdid)
 {
-	if(to_vmid == 0) {
+	if(to_spdid == 0) {
 		return (struct cos_shm_rb *)BOOT_MEM_SHM_BASE;
 	} else {
-		return (struct cos_shm_rb *)((BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (to_vmid) ));
+		return (struct cos_shm_rb *)((BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (to_spdid) ));
 	}
 }
 
 struct cos_shm_rb *
-vk_shmem_addr_recv(int from_vmid)
+vk_shmem_addr_recv(int from_spdid)
 {
-	if(from_vmid == 0){
+	if(from_spdid == 0){
 		return (struct cos_shm_rb *)((BOOT_MEM_SHM_BASE) + (COS_SHM_VM_SZ/2));
 	} else {
-		return (struct cos_shm_rb *)((BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (from_vmid) ) + ((COS_SHM_VM_SZ)/2));
+		return (struct cos_shm_rb *)((BOOT_MEM_SHM_BASE)+( (COS_SHM_VM_SZ) * (from_spdid) ) + ((COS_SHM_VM_SZ)/2));
 	}
 }
 

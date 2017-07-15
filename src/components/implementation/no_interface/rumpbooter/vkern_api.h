@@ -3,16 +3,16 @@
 
 struct cos_shm_rb {
 	unsigned int head, tail;
-	int vmid;
+	int spdid;
 	unsigned int size;
 	char buf[0];
 };
 
-struct cos_shm_rb * vk_shmem_addr_send(int vmid);
-struct cos_shm_rb * vk_shmem_addr_recv(int vmid);
+struct cos_shm_rb * vk_shmem_addr_send(int spdid);
+struct cos_shm_rb * vk_shmem_addr_recv(int spdid);
 
-int vk_recv_rb_create(struct cos_shm_rb * sm_rb, int vmid);
-int vk_send_rb_create(struct cos_shm_rb * sm_rb, int vmid);
+int vk_recv_rb_create(struct cos_shm_rb * sm_rb, int spdid);
+int vk_send_rb_create(struct cos_shm_rb * sm_rb, int spdid);
 
 int vk_dequeue_size(unsigned int srcvm, unsigned int curvm);
 

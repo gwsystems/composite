@@ -4,6 +4,7 @@
 #include <vkern_api.h>
 #include <vk_api.h>
 #include <sinv_calls.h>
+#include <shdmem.h>
 #include "cos_sync.h"
 #include "vk_types.h"
 
@@ -13,7 +14,7 @@
 
 extern thdcap_t cos_cur;
 extern void vm_init(void *);
-extern void kernel_init(void);
+extern void kernel_init(void *);
 extern vaddr_t cos_upcall_entry;
 uint64_t t_vm_cycs  = 0;
 uint64_t t_dom_cycs = 0;
@@ -25,6 +26,12 @@ thdid_t  vm_main_thdid;
 
 struct vkernel_info vk_info;
 struct cos_compinfo *vk_cinfo = (struct cos_compinfo *)&vk_info.cinfo;
+
+struct vms_info user_info;
+struct cos_compinfo *user_cinfo = (struct cos_compinfo *)&user_info.cinfo;
+
+struct vms_info kernel_info;
+struct cos_compinfo *kernel_cinfo = (struct cos_compinfo *)&kernel_info.cinfo;
 
 /* Unused Zombie Stubs */
 void
@@ -47,8 +54,6 @@ cos_init(void)
 
 	int i = 0, id = 0, cycs;
 	int page_range = 0;
-	struct vms_info kernel_info;
-	struct cos_compinfo *kernel_cinfo = &kernel_info.cinfo;
 
 
 	/* Initialize kernel component */
@@ -60,26 +65,29 @@ cos_init(void)
 			(vaddr_t)VK_VM_SHM_BASE, BOOT_CAPTBL_FREE, vk_cinfo);
 
 
-	printc("BOOT_CAPTBL_SELF_INITTCAP_BASE: %d\n", BOOT_CAPTBL_SELF_INITTCAP_BASE);
-	printc("BOOT_CAPTBL_SELF_INITRCV_BASE: %d\n", BOOT_CAPTBL_SELF_INITRCV_BASE);
-	printc("BOOT_CAPTBL_SELF_INITHW_BASE: %d\n", BOOT_CAPTBL_SELF_INITHW_BASE);
-	printc("BOOT_CAPTBL_USERSPACE_THD: %d\n", BOOT_CAPTBL_USERSPACE_THD);
-	printc("BOOT_CAPTBL_LAST_CAP: %d\n", BOOT_CAPTBL_LAST_CAP);
-	printc("BOOT_CAPTBL_FREE: %d\n", BOOT_CAPTBL_FREE);
-
 	while (!(cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE)));
 	printc("\t%d cycles per microsecond\n", cycs);
 	cycs_per_usec = (unsigned int)cycs;
 
 	/*
+	 * NOTE:
 	 * Fork kernel and user components
 	 * kernel component has id = 0
 	 * user component has id = 1
 	 */
+	printc("user_cinfo: %p, kernel_cinfo: %p\n", user_cinfo, kernel_cinfo);
+
 	/* Save temp struct cos_compinfo for copying kernel component virtual memory below */
 	for (id = 0 ; id < 2 ; id++) {
-		struct vms_info vm_info;
-		struct cos_compinfo *vm_cinfo = &vm_info.cinfo;
+		struct vms_info *vm_info;
+		struct cos_compinfo *vm_cinfo;
+                if (id == 0) {
+			vm_info = &kernel_info;
+			vm_cinfo = kernel_cinfo;
+		} else if (id == 1) {
+			vm_info = &user_info;
+			vm_cinfo = user_cinfo;
+		}
 		vaddr_t vm_range, addr;
 		pgtblcap_t vmpt, vmutpt;
 		captblcap_t vmct;
@@ -87,7 +95,13 @@ cos_init(void)
 		int ret;
 
 		printc("booter: VM%d Init START\n", id);
-		vm_info.id = id;
+		vm_info->id = id;
+
+		/* Array of all components for use in the shdmem api that is handled by this booter component */
+		assert(vm_cinfo);
+                printc("vm_cinfo for spdid %d: %p\n", vm_info->id, vm_cinfo);
+		shm_infos[id].cinfo = vm_cinfo;
+		shm_infos[id].shm_frontier = 0x80000000; /* 2Gb */
 
 		printc("\tForking booter\n");
 		vmct = cos_captbl_alloc(vk_cinfo);
@@ -105,7 +119,7 @@ cos_init(void)
 		cos_meminfo_init(&vm_cinfo->mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, vmutpt);
 		cos_compinfo_init(vm_cinfo, vmpt, vmct, vmcc,
 			(vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, vk_cinfo);
-		cos_compinfo_init(&vm_info.shm_cinfo, vmpt, vmct, vmcc,
+		cos_compinfo_init(&vm_info->shm_cinfo, vmpt, vmct, vmcc,
 			(vaddr_t)VK_VM_SHM_BASE, VM_CAPTBL_FREE, vk_cinfo);
 
 		printc("\tCopying pgtbl, captbl, component capabilities\n");
@@ -120,9 +134,14 @@ cos_init(void)
 		printc("\tDone copying capabilities\n");
 
 		printc("\tInitializing capabilities\n");
-		if (id == 0) rk_initcaps_init(&vm_info, &vk_info);
-		if (id > 0)  {
-			vk_initcaps_init(&vm_info, &vk_info);
+		/* We have different initialization functions for kernel and user components */
+		/* FIXME change vk_initcaps_init to user and rk to kernel */
+		if (id == 0) {
+			printc("kernel_info: %p, kernel_cinfo: %p, &kernel_info.cinfo: %p\n", &kernel_info, kernel_cinfo, &kernel_info.cinfo);
+			printc("vm_info: %p, vm_cinfo: %p, &vm_info->cinfo: %p\n", vm_info, vm_cinfo, &vm_info->cinfo);
+			rk_initcaps_init(vm_info, &vk_info);
+		} else if (id > 0)  {
+			vk_initcaps_init(vm_info, &vk_info);
 			printc("\tCoppying in vm_main_thd capability into Kernel component\n");
 			ret = cos_cap_cpy_at(kernel_cinfo, BOOT_CAPTBL_USERSPACE_THD,
 					     vm_cinfo, BOOT_CAPTBL_SELF_INITTHD_BASE);
@@ -131,48 +150,42 @@ cos_init(void)
 		printc("\tDone Initializing capabilities\n");
 
 		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE);
-		printc("\tBOOT_MEM_KM_BASE: %d\n", BOOT_MEM_KM_BASE);
+		/* BOOT_MEM_KM_BASE = PGD_SIZE = 1 << 22 = 0x00400000 = 4MB */
+		/* VM_UNTYPED_SIZE = 1<<27 which is 124 MB */
 		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE);
-
-		if (id == 0) kernel_info = vm_info;
-		/* Set up shared memory */
-		if (id == 0) {
-			struct cos_shm_rb *sm_rb;
-			struct cos_shm_rb *sm_rb_r;
-
-			printc("\tAllocating shared-memory (size: %lu)\n", (unsigned long) VM_SHM_ALL_SZ);
-			vk_shmem_alloc(&vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_ALL_SZ);
-
-			printc("\tInitializing shared memory ringbuffers\n");
-		        printc("\tFor recieving from Kernel...");
-		        ret = vk_recv_rb_create(sm_rb_r, 1);
-		        assert(ret);
-		        printc("done\n");
-
-		        printc("\tFor sending to Kernel...");
-		        ret = vk_send_rb_create(sm_rb, 1);
-		        assert(ret);
-		        printc("done\n");
-		} else {
-			printc("\tMapping in shared-memory (size: %lu)\n", (unsigned long)VM_SHM_SZ);
-			vk_shmem_map(&vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_SZ);
-		}
 
 		if (id > 0) {
 			sinvcap_t sinv;
-			printc("\tSetting up sinv capability from kernel component to user component\n");
+			printc("\tSetting up sinv capability from user component to kernel component\n");
 			sinv = cos_sinv_alloc(vk_cinfo, kernel_cinfo->comp_cap, (vaddr_t)__inv_test_fs);
 			assert(sinv > 0);
 			/* Copy into user capability table at a known location */
 			ret = cos_cap_cpy_at(vm_cinfo, VM0_CAPTBL_SELF_IOSINV_BASE, vk_cinfo, sinv);
 			assert(ret == 0);
-			printc("Done setting up sinv\n");
+
+			printc("\tSetting up sinv capabilities from kernel component to booter component\n");
+			sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_shdmem_allocate);
+			assert(sinv > 0);
+			ret = cos_cap_cpy_at(kernel_cinfo, VM0_CAPTBL_SELF_IOSINV_ALLOC, vk_cinfo, sinv);
+			assert(ret == 0);
+
+			sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_shdmem_deallocate);
+			assert(sinv > 0);
+			ret = cos_cap_cpy_at(kernel_cinfo, VM0_CAPTBL_SELF_IOSINV_DEALLOC, vk_cinfo, sinv);
+			assert(ret == 0);
+
+			sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_shdmem_map);
+			assert(sinv > 0);
+			ret = cos_cap_cpy_at(kernel_cinfo, VM0_CAPTBL_SELF_IOSINV_MAP, vk_cinfo, sinv);
+			assert(ret == 0);
+
+			printc("\tDone setting up sinvs\n");
 
 			/* Create and copy booter comp virtual memory to each VM */
 			vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
 			assert(vm_range > 0);
 			printc("\tMapping in Booter component's virtual memory (range:%lu)\n", vm_range);
-			vk_virtmem_alloc(&vm_info, &vk_info, BOOT_MEM_VM_BASE, vm_range);
+			vk_virtmem_alloc(vm_info, &vk_info, BOOT_MEM_VM_BASE, vm_range);
 
 			/* Copy Kernel component after userspace component is initialized */
 			if (id == 1) {
@@ -181,14 +194,18 @@ cos_init(void)
 		}
 
 		printc("booter: VM%d Init END\n", id);
-		vm_info.state = VM_RUNNING;
+		vm_info->state = VM_RUNNING;
 	}
 
 	printc("------------------[ Booter & VMs init complete ]------------------\n");
 
+	printc("\nRechecking the untyped memory in the booter...\n");
+	printc("booter's untyped_frontier is: %p, untyped_ptr is: %p\n", vk_cinfo->mi.untyped_frontier, vk_cinfo->mi.untyped_ptr);
+	printc("kernel's untyped_frontier is: %p, untyped_ptr is: %p\n", kernel_cinfo->mi.untyped_frontier, kernel_cinfo->mi.untyped_ptr);
+
 	printc("\n------------------[ Starting Kernel ]--------------------\n");
 
-	while (1) cos_thd_switch(kernel_info.initthd);
+	cos_thd_switch(kernel_info.initthd);
 
 	printc("BACK IN BOOTER COMPONENT, DEAD END!\n");
 

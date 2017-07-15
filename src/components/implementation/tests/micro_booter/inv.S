@@ -52,3 +52,54 @@ __inv_test_fs:
 	COS_ASM_RET_STACK
         movl $RET_CAP, %eax
         sysenter;
+
+.text
+.globl __inv_shdmem_allocate
+.type  __inv_shdmem_allocate, @function
+__inv_shdmem_allocate:
+	COS_ASM_GET_STACK
+
+        pushl %ebp /* arg 4 */
+        pushl %edi /* arg 3 */
+        pushl %esi /* arg 2 */
+        pushl %ebx /* arg 1 */
+        call shdmem_allocate
+        movl %eax, %ecx
+
+	COS_ASM_RET_STACK
+        movl $RET_CAP, %eax
+        sysenter;
+
+.text
+.globl __inv_shdmem_deallocate
+.type  __inv_shdmem_deallocate, @function
+__inv_shdmem_deallocate:
+	COS_ASM_GET_STACK
+
+        pushl %ebp /* arg 4 */
+        pushl %edi /* arg 3 */
+        pushl %esi /* arg 2 */
+        pushl %ebx /* arg 1 */
+        call shdmem_deallocate
+        movl %eax, %ecx
+
+	COS_ASM_RET_STACK
+        movl $RET_CAP, %eax
+        sysenter;
+
+.text
+.globl __inv_shdmem_map
+.type  __inv_shdmem_map, @function
+__inv_shdmem_map:
+	COS_ASM_GET_STACK
+
+        pushl %ebp /* arg 4 */
+        pushl %edi /* arg 3 */
+        pushl %esi /* arg 2 */
+        pushl %ebx /* arg 1 */
+        call shdmem_map
+        movl %eax, %ecx
+
+	COS_ASM_RET_STACK
+        movl $RET_CAP, %eax
+        sysenter;

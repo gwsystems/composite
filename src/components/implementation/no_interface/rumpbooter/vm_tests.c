@@ -1,6 +1,7 @@
 #include "micro_booter.h"
 #include "vk_types_old.h"
 #include "vkern_api.h"
+#include "rumpcalls.h"
 
 void
 test_shmem(int vm)
@@ -66,18 +67,18 @@ void
 test_vmio_events(void)
 {
 	PRINTC("Testing vmio events\n");
-	if (vmid == 0) {
+	if (cos_spdid_get() == 0) {
 		int i;
 		asndcap_t snd = VM0_CAPTBL_SELF_IOASND_SET_BASE;
-		
+
 		for (i = 1; i < COS_VIRT_MACH_COUNT; i ++) {
 			snd += (i - 1) * CAP64B_IDSZ;
 			cos_asnd(snd, 1);
-			PRINTC("Sent to fvm%d\n", i); 
-		} 
+			PRINTC("Sent to fvm%d\n", i);
+		}
 	} else {
 		cos_asnd(VM_CAPTBL_SELF_IOASND_BASE, 1);
-		PRINTC("Sent to vm0\n"); 
+		PRINTC("Sent to vm0\n");
 	}
 	PRINTC("Test Done\n");
 }

@@ -43,8 +43,6 @@ alloc_initmem_all(void)
 	return max;
 }
 
-extern int vmid;
-
 void
 cos_run(char *cmdline)
 {
@@ -56,11 +54,11 @@ cos_run(char *cmdline)
 	bmk_memalloc_init();
 	printc("bmk_memalloc_init done\n");
 
-	// Before bmk_pgalloc_loadmem is called, I need to alloc memory till we have enough or till failure
-	// the start and end locations in memory to bmk_pgalloc
-	//
-	// Change the alloc method to cos_kern_page
-	void* minptr = cos_page_bump_alloc(&booter_info);
+	/*
+	 * Before bmk_pgalloc_loadmem is called, I need to alloc memory till we have enough or till failure
+	 * the start and end locations in memory to bmk_pgalloc
+	 */
+	void *minptr = cos_page_bump_alloc(&booter_info);
 	int *mintest = (int *)minptr;
 	*mintest = 1;
 

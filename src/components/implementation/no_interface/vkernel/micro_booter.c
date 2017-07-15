@@ -38,16 +38,16 @@ printc(char *fmt, ...)
 /* For Div-by-zero test */
 int num = 1, den = 0;
 
-/* virtual machine id */
-int vmid;
+
 
 void
 vm_init(void *d)
 {
-	vmid = (int)d;
+	/* FIXME vmid is no longer continued, see rumpcalls.h The call to cos_spdid_get should be in different api */
+	int vmid_discontinued = -1;
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			  (vaddr_t)cos_get_heap_ptr(), vmid == 0 ? DOM0_CAPTBL_FREE : VM_CAPTBL_FREE, &booter_info);
+			  (vaddr_t)cos_get_heap_ptr(), vmid_discontinued ? DOM0_CAPTBL_FREE : VM_CAPTBL_FREE, &booter_info);
 
 	PRINTC("Micro Booter started.\n");
 	test_run_vk();
