@@ -22,7 +22,6 @@ void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
     struct sl_thd* main_delegate_thread = sl_thd_alloc(main_delegate, NULL);
     union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = 255}};
     sl_thd_param_set(main_delegate_thread, sp.v);
-
     main_delegate_thread_id = main_delegate_thread->thdid;
 
     sl_sched_loop();
@@ -60,7 +59,6 @@ int is_thread_name_taken(const char* name) {
 */
 // Necessary to control the number of created tasks
 
-// FIXME: All tasks have the same priority!
 // TODO: Implement flags
 int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
                     osal_task_entry function_pointer,
@@ -96,7 +94,7 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
 
     struct sl_thd* thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
     assert(thd);
-    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = 255}};
+    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = priority}};
     sl_thd_param_set(thd, sp.v);
 
     struct sl_thd_policy* policy = sl_mod_thd_policy_get(thd);
@@ -115,14 +113,9 @@ exit:
 
 int32 OS_TaskDelete(uint32 task_id)
 {
-    int32 result = OS_SUCCESS;
-
-    sl_cs_enter();
-
     struct sl_thd* thd = sl_thd_lkup(task_id);
     if(!thd) {
-        result = OS_ERR_INVALID_ID;
-        goto exit;
+        return OS_ERR_INVALID_ID;
     }
 
 
@@ -135,10 +128,7 @@ int32 OS_TaskDelete(uint32 task_id)
 
     sl_thd_free(thd);
 
-exit:
-    sl_cs_exit();
-
-    return result;
+    return OS_SUCCESS;
 }
 
 uint32 OS_TaskGetId(void)
@@ -162,13 +152,8 @@ int32 OS_TaskInstallDeleteHandler(osal_task_entry function_pointer)
 
 int32 OS_TaskDelay(uint32 millisecond)
 {
-    // TODO: Use Phanis extension
-    microsec_t start_time = sl_now_usec();
-
-    while((sl_now_usec() - start_time) / 1000 < millisecond)  {
-        // FIXME: Use an actual timeout once we have that
-        sl_thd_yield(0);
-    }
+    cycles_t wakeup = sl_now() + sl_usec2cyc(millisecond * 1000);
+    sl_thd_block_timeout(0, wakeup);
     return OS_SUCCESS;
 }
 
@@ -183,7 +168,7 @@ int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
         return OS_ERR_INVALID_ID;
     }
 
-    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = 255}};
+    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = new_priority}};
     sl_thd_param_set(thd, sp.v);
 
     return OS_SUCCESS;
@@ -551,8 +536,9 @@ int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint
         }
         sl_lock_release(&semaphore_data_lock);
 
-        // FIXME: Do an actually sensible yield here!
-        sl_thd_yield(0);
+        // TODO: Do something smarter than blocking for 10 milliseconds
+        cycles_t timeout = sl_now() + sl_usec2cyc(10000);
+        sl_thd_block_timeout(0, timeout);
         sl_lock_take(&semaphore_data_lock);
     }
 
@@ -587,8 +573,9 @@ int32 OS_SemaphoreTimedWait(struct semaphore* semaphores, uint32 max_semaphores,
             && semaphores[sem_id].count == 0
             && (sl_now_usec() - start_time) < max_wait) {
         sl_lock_release(&semaphore_data_lock);
-        // FIXME: Do an actually sensible yield here!
-        sl_thd_yield(0);
+        // TODO: Do something smarter than blocking for 2 milliseconds
+        cycles_t timeout = sl_now() + sl_usec2cyc(2000);
+        sl_thd_block_timeout(0, timeout);
         sl_lock_take(&semaphore_data_lock);
     }
 
@@ -791,6 +778,6 @@ int32 OS_CountSemGetInfo(uint32 sem_id, OS_count_sem_prop_t *count_prop)
 
 exit:
     sl_lock_release(&semaphore_data_lock);
-    
+
     return result;
 }
