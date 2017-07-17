@@ -44,8 +44,4 @@ void sl_mod_thd_delete(struct sl_thd_policy *t);
 void sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned int val);
 void sl_mod_init(void);
 
-/* API for handling timer management */
-void sl_timeout_mod_expended(cycles_t now, cycles_t oldtimeout);
-void sl_timeout_mod_init(void);
-
 #endif	/* SL_PLUGINS_H */
