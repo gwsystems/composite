@@ -193,12 +193,13 @@ cobj_sect_init(struct cobj_header *h, unsigned int sect_idx, u32_t flags, u32_t 
 }
 
 int
-cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, u32_t type, u32_t vaddr)
+cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, const char *name, u32_t type, u32_t vaddr)
 {
 	struct cobj_symb *s;
 
 	s = cobj_symb_get(h, symb_idx);
 	if (!s) return -1;
+        strcpy(s->name, name);
 	s->type = type;
 	s->vaddr = vaddr;
 
