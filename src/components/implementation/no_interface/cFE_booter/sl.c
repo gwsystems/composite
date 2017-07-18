@@ -152,13 +152,12 @@ sl_thd_block(thdid_t tid)
 
 	sl_cs_enter();
 	t = sl_thd_curr();
-	if (t->state == SL_THD_FREE) goto done;
+
 	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED)) {
 		sl_cs_exit();
 		return;
 	}
 
-done:
 	sl_cs_exit_schedule();
 
 	return;
@@ -176,7 +175,6 @@ sl_thd_block_timeout_intern(thdid_t tid, cycles_t timeout)
 	sl_cs_enter();
 	t = sl_thd_curr();
 
-	if (t->state == SL_THD_FREE) goto done;
 	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT)) {
 		sl_cs_exit();
 		return 1;
@@ -186,7 +184,6 @@ sl_thd_block_timeout_intern(thdid_t tid, cycles_t timeout)
 	assert(timeout || t->period);
 	sl_timeout_block(t, timeout);
 
-done:
 	sl_cs_exit_schedule();
 
 	return 0;

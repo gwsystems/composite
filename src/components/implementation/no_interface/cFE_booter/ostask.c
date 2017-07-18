@@ -106,8 +106,6 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
 
     *task_id = (uint32) thd->thdid;
 
-    printc("created task with id %d\n", (int) *task_id);
-
 exit:
     sl_cs_exit();
     return result;
@@ -115,8 +113,6 @@ exit:
 
 int32 OS_TaskDelete(uint32 task_id)
 {
-    printc("Deleting task %d\n", (int) task_id);
-
     struct sl_thd* thd = sl_thd_lkup(task_id);
     if(!thd) {
         return OS_ERR_INVALID_ID;
@@ -131,7 +127,6 @@ int32 OS_TaskDelete(uint32 task_id)
     }
 
     sl_thd_free(thd);
-    printc("successfully deleted task %d\n", (int) task_id);
 
     return OS_SUCCESS;
 }
@@ -191,8 +186,6 @@ int32 OS_TaskRegister(void)
     if(OS_TaskGetId() == main_delegate_thread_id) {
         return OS_ERR_INVALID_ID;
     }
-
-    printc("registering task %d\n", (int) sl_thdid());
 
     // Think it is safe for this to do nothing
     return OS_SUCCESS;
@@ -515,8 +508,6 @@ int32 OS_SemaphoreGive(struct semaphore* semaphores, uint32 max_semaphores, uint
 {
     int32 result = OS_SUCCESS;
 
-    printc("giving semaphore %d\n", (int) sem_id);
-
     sl_lock_take(&semaphore_data_lock);
 
     if (sem_id >= max_semaphores || !semaphores[sem_id].used) {
@@ -529,15 +520,12 @@ int32 OS_SemaphoreGive(struct semaphore* semaphores, uint32 max_semaphores, uint
 
 exit:
     sl_lock_release(&semaphore_data_lock);
-    printc("gave semaphore %d\n", (int) sem_id);
     return result;
 
 }
 
 int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint32 sem_id)
 {
-    printc("taking semaphore %d\n", (int) sem_id);
-
     int32 result = OS_SUCCESS;
 
     sl_lock_take(&semaphore_data_lock);
@@ -555,11 +543,10 @@ int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint
         }
         sl_lock_release(&semaphore_data_lock);
 
-        printc("blocking on take\n");
         // TODO: Do something smarter than blocking for 3 millisecond
         cycles_t timeout = sl_now() + sl_usec2cyc(3 * 1000);
         sl_thd_block_timeout(0, timeout);
-        printc("unblocked on take\n");
+
         sl_lock_take(&semaphore_data_lock);
     }
 
@@ -572,9 +559,6 @@ int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint
 
 exit:
     sl_lock_release(&semaphore_data_lock);
-
-    printc("took semaphore %d\n", (int) sem_id);
-
     return result;
 }
 
