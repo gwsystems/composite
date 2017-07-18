@@ -715,32 +715,12 @@ cos_fs_test(void)
 void
 cos_shmem_test(void)
 {
-	/* TODO */
-	/* Implement another system call for passing information down into */
-	//sinvcap_t sinv = 0;
-	//int sinv_ret = -1;
-	//char buff[100];
-	//int read = -1;
+	printc("Running cos shmem test: VM%d\n", cos_spdid_get());
 
-	//printc("Running cos shmem test: VM%d\n", cos_spdid_get());
-
-	///* This sinv cap is allocated and found within vkernel_init.c */
-	//get_sinv(&sinv);
-
-	//sinv_ret = cos_sinv(sinv, 1, 0, 0, 0);
-
-	//if (sinv_ret == 0) {
-	//	printc("Nothing written from kernel up to userpsace\n");
-	//	return;
-	//}
-
-	//printc("You have mail!\n");
-	//printc("We have %d bytes to read!\n", sinv_ret);
-	//read = cos_shm_read(buff, 0, 1);
-	//printc("Amount read: %d\n", read);
-	//printc("%s\n", buff);
+	//shmem_map_invoke();
 }
 
+/* TODO separate the testing code from the shmem_*_invoke abastraction */
 void
 shmem_allocate_invoke()
 {
@@ -778,14 +758,23 @@ void
 shmem_map_invoke()
 {
 	/* This sinv cap is allocated and found within vkernel_init.c */
-	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_MAP;
-	int sinv_ret = -1;
-
-	printc("Invoking shmem_map: VM%d\n", cos_spdid_get());
-
-	sinv_ret = cos_sinv(sinv, 0, 0, 0, 0);
-
-	printc("Ret from shmem_map_invoke: %d\n", sinv_ret);
+//	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_MAP;
+//	vaddr_t sinv_ret;
+//
+//	printc("Invoking shmem_map: VM%d\n", cos_spdid_get());
+//
+//	/*
+//	 * TODO implement the next two paramtets. Add system calls to kernel component to get:
+//	 *	 kernel's spdid and page to map in, pass these things into shmem_map_invoke
+//	 */
+//	sinv_ret = cos_sinv(sinv, cos_spdid_get(), 0, 0, 0);
+//
+//	printc("Ret from shmem_map_invoke: %p\n", (vaddr_t)sinv_ret);
+//
+//	printc("\t\nRunning TEST\n");
+//	printc("\tReading a byte from returned page in user space\n");
+//	char ret_char = *((char *)sinv_ret);
+//	printc("\tDone, %c was read\n\n", ret_char);
 }
 
 int _spdid = -1;

@@ -35,7 +35,7 @@ test_fs(int arg1, int arg2, int arg3, int arg4)
 }
 
 /* TODO Rename this dumb conevention from a function to a system call  */
-vaddr_t
+int
 shdmem_allocate(int arg1, int arg2, int arg3, int arg4)
 { return shm_allocate((unsigned int)arg1, arg2, arg3, arg4); }
 

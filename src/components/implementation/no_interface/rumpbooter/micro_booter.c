@@ -65,17 +65,6 @@ vm_init(void *id)
 	cos_fs_test();
 	printc("Done\n");
 
-//	printc("\nInitializing shared memory ringbuffers in userspace\n");
-//	printc("\tFor recieving from kernel component...");
-//	ret = vk_recv_rb_create(sm_rb_r, 0);
-//	assert(ret);
-//	printc("done\n");
-//
-//	printc("\tFor sending to kernel component...");
-//	ret = vk_send_rb_create(sm_rb, 0);
-//	assert(ret);
-//	printc("done\n");
-
 	printc("Running shared memory test\n");
 	cos_shmem_test();
 	printc("Done\n");
