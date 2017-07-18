@@ -135,11 +135,6 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type)
 		return 1;
 	}
 
-
-	if (t->state != SL_THD_RUNNABLE) {
-		printc("state = %d\n", (int) t->state);
-	}
-
 	assert(t->state == SL_THD_RUNNABLE);
 	t->state = block_type;
 	sl_mod_block(sl_mod_thd_policy_get(t));
@@ -253,9 +248,6 @@ sl_thd_wakeup_no_cs(struct sl_thd *t)
 		return 1;
 	}
 
-	if (! (t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT)) {
-		printc("state = %d", (int) t->state);
-	}
 	/* TODO: for AEP threads, wakeup events from kernel could be level-triggered. */
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	t->state = SL_THD_RUNNABLE;
@@ -376,6 +368,8 @@ sl_thd_free(struct sl_thd *t)
                 sl_timeout_remove(t);
         }
 
+		sl_mod_thd_delete(sl_mod_thd_policy_get(t));
+
         sl_thd_index_rem_backend(sl_mod_thd_policy_get(t));
         t->state = SL_THD_FREE;
         /* TODO: add logic for the graveyard to delay this deallocation if t == current */
@@ -423,7 +417,7 @@ sl_timeout_period(microsec_t period)
 /* engage space heater mode */
 void
 sl_idle(void *d)
-{ while (1) ; }
+{ while (1) sl_thd_yield(0); }
 
 void
 sl_init(void)

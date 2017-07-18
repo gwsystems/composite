@@ -379,11 +379,17 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	}
 	if (likely(!to)) {
 		pt = sl_mod_schedule();
-		if (unlikely(!pt)) t = sl__globals()->idle_thd;
+
+		if (unlikely(!pt)) {
+			t = sl__globals()->idle_thd;
+		}
 		else               t = sl_mod_thd_get(pt);
 	}
 	thdcap = t->thdcap;
 	prio   = t->prio;
+
+
+	assert(t->state != SL_THD_FREE);
 
 	sl_cs_exit();
 

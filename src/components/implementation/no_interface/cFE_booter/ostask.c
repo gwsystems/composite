@@ -41,7 +41,7 @@ int is_valid_name(const char* name) {
     return FALSE;
 }
 
-// TODO: Figure out how to check if names are taken
+// TODO: Figure out how to check if thread names are taken
 int is_thread_name_taken(const char* name) {
     // for(int i = 0; i < num_tasks; i++) {
     //     thdid_t task_id = task_ids[i];
@@ -106,6 +106,8 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
 
     *task_id = (uint32) thd->thdid;
 
+    printc("created task with id %d\n", (int) *task_id);
+
 exit:
     sl_cs_exit();
     return result;
@@ -113,6 +115,8 @@ exit:
 
 int32 OS_TaskDelete(uint32 task_id)
 {
+    printc("Deleting task %d\n", (int) task_id);
+
     struct sl_thd* thd = sl_thd_lkup(task_id);
     if(!thd) {
         return OS_ERR_INVALID_ID;
@@ -127,6 +131,7 @@ int32 OS_TaskDelete(uint32 task_id)
     }
 
     sl_thd_free(thd);
+    printc("successfully deleted task %d\n", (int) task_id);
 
     return OS_SUCCESS;
 }
@@ -138,7 +143,14 @@ uint32 OS_TaskGetId(void)
 
 void OS_TaskExit(void)
 {
-    PANIC("Unimplemented method!");
+    sl_thd_free(sl_thd_curr());
+
+    // TODO: Fix yield so that I can yield here, not do this weird hack
+    // Have to use this hack, since we can't yield from a free thread
+    sl_cs_enter();
+    sl_cs_exit_schedule();
+
+    PANIC("Should be unreachable!");
 }
 
 int32 OS_TaskInstallDeleteHandler(osal_task_entry function_pointer)
@@ -180,6 +192,8 @@ int32 OS_TaskRegister(void)
         return OS_ERR_INVALID_ID;
     }
 
+    printc("registering task %d\n", (int) sl_thdid());
+
     // Think it is safe for this to do nothing
     return OS_SUCCESS;
 }
@@ -198,13 +212,13 @@ int32 OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop)
     }
 
     struct sl_thd* thd = sl_thd_lkup(task_id);
-    if (!thd) {
+    // TODO: Fix this ugly workaround
+    if (!thd || thd->state == SL_THD_FREE) {
         return OS_ERR_INVALID_ID;
     }
     struct sl_thd_policy* thd_policy = sl_mod_thd_policy_get(thd);
     assert(thd_policy);
 
-    // TODO: Consider moving this sequence of calls to a helper function
     *task_prop = thd_policy->osal_task_prop;
     return OS_SUCCESS;
 }
@@ -501,6 +515,8 @@ int32 OS_SemaphoreGive(struct semaphore* semaphores, uint32 max_semaphores, uint
 {
     int32 result = OS_SUCCESS;
 
+    printc("giving semaphore %d\n", (int) sem_id);
+
     sl_lock_take(&semaphore_data_lock);
 
     if (sem_id >= max_semaphores || !semaphores[sem_id].used) {
@@ -513,12 +529,15 @@ int32 OS_SemaphoreGive(struct semaphore* semaphores, uint32 max_semaphores, uint
 
 exit:
     sl_lock_release(&semaphore_data_lock);
+    printc("gave semaphore %d\n", (int) sem_id);
     return result;
 
 }
 
 int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint32 sem_id)
 {
+    printc("taking semaphore %d\n", (int) sem_id);
+
     int32 result = OS_SUCCESS;
 
     sl_lock_take(&semaphore_data_lock);
@@ -536,9 +555,11 @@ int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint
         }
         sl_lock_release(&semaphore_data_lock);
 
-        // TODO: Do something smarter than blocking for 10 milliseconds
-        cycles_t timeout = sl_now() + sl_usec2cyc(10000);
+        printc("blocking on take\n");
+        // TODO: Do something smarter than blocking for 3 millisecond
+        cycles_t timeout = sl_now() + sl_usec2cyc(3 * 1000);
         sl_thd_block_timeout(0, timeout);
+        printc("unblocked on take\n");
         sl_lock_take(&semaphore_data_lock);
     }
 
@@ -551,6 +572,8 @@ int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint
 
 exit:
     sl_lock_release(&semaphore_data_lock);
+
+    printc("took semaphore %d\n", (int) sem_id);
 
     return result;
 }
@@ -573,8 +596,8 @@ int32 OS_SemaphoreTimedWait(struct semaphore* semaphores, uint32 max_semaphores,
             && semaphores[sem_id].count == 0
             && (sl_now_usec() - start_time) < max_wait) {
         sl_lock_release(&semaphore_data_lock);
-        // TODO: Do something smarter than blocking for 2 milliseconds
-        cycles_t timeout = sl_now() + sl_usec2cyc(2000);
+        // TODO: Do something smarter than blocking for 3 milliseconds
+        cycles_t timeout = sl_now() + sl_usec2cyc(3 * 1000);
         sl_thd_block_timeout(0, timeout);
         sl_lock_take(&semaphore_data_lock);
     }
