@@ -25,7 +25,9 @@ int32 OS_API_Init(void)
 
         cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
         cos_defcompinfo_init();
+
         OS_FS_Init();
+
         have_initialized = 1;
     }
 
