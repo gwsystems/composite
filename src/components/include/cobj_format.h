@@ -70,6 +70,8 @@ enum {
 };
 
 struct cobj_symb {
+        /* TODO: this is a big ol' waste of space */
+        char name[64];
 	u32_t type;
 	u32_t vaddr;
 } __attribute__((packed));
@@ -88,7 +90,7 @@ struct cobj_header *cobj_create(u32_t id, char *name, u32_t nsect,
 				char *space, unsigned int sz, u32_t flags);
 
 int cobj_sect_init(struct cobj_header *h, unsigned int sect_idx, u32_t flags, u32_t vaddr, u32_t size);
-int cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, u32_t type, u32_t vaddr);
+int cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, const char *name, u32_t type, u32_t vaddr);
 int cobj_cap_init(struct cobj_header *h, unsigned int cap_idx, u32_t cap_off, 
 		  u32_t dest_id, u32_t sfn, u32_t cstub, u32_t sstub, u32_t fault_num);
 
