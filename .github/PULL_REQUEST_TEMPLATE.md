@@ -9,6 +9,10 @@ Choose one (Mandatory):
 - [ ] This PR is for a code-review and is intended to get feedback, but not to be pulled yet.
 - [ ] This PR is mature, and ready to be integrated into the repo.
 
+### Reviewers (Mandatory):
+(Specify @<github.com username(s)> of the reviewers. Ex: @user1, @user2)
+
+
 ### Code Quality
 
 As part of this pull request, I've considered the following:
