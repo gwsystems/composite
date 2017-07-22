@@ -84,11 +84,14 @@ test_blocking_directed_yield(void)
 	sl_thd_param_set(high, sph.v);
 }
 
+#define TEST_ITERS 1000
+
 void
 test_high_wakeup(void *data)
 {
-	unsigned toggle  = 0;
-	struct sl_thd *t = data;
+	unsigned int toggle = 0, iters = 0;
+	struct sl_thd *t    = data;
+	cycles_t start      = sl_now();
 
 	while (1) {
 		cycles_t timeout = sl_now() + sl_usec2cyc(100);
@@ -97,6 +100,17 @@ test_high_wakeup(void *data)
 		else                  printc(".h:%up.", sl_thd_block_periodic(0));
 
 		toggle ++;
+		iters ++;
+
+		if (iters == TEST_ITERS) {
+			printc("\nTest done! (Duration: %llu ms)\n", sl_cyc2usec(sl_now() - start)/1000);
+			printc("Deleting all threads. Idle thread should take over!\n");
+			sl_thd_free(t);
+			sl_thd_free(sl_thd_curr());
+
+			/* should not be scheduled. */
+			assert(0);
+		}
 	}
 }
 
@@ -112,7 +126,7 @@ test_timeout_wakeup(void)
 	sl_thd_param_set(low, spl.v);
 	sl_thd_param_set(low, spw.v);
 
-	high = sl_thd_alloc(test_high_wakeup, NULL);
+	high = sl_thd_alloc(test_high_wakeup, low);
 	sl_thd_param_set(high, sph.v);
 	sl_thd_param_set(high, spw.v);
 }

@@ -28,7 +28,6 @@ sl_mod_schedule(void)
 
 		return t;
 	}
-	assert(0);
 
 	return NULL;
 }
