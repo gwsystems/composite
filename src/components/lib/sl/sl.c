@@ -374,6 +374,7 @@ sl_thd_free(struct sl_thd *t)
 	sl_thd_index_rem_backend(sl_mod_thd_policy_get(t));
 	sl_mod_thd_delete(sl_mod_thd_policy_get(t));
 	t->state = SL_THD_FREE;
+	/* TODO: add logic for the graveyard to delay this deallocation if t == current */
 	sl_thd_free_backend(sl_mod_thd_policy_get(t));
 
 	/* thread should not continue to run if it deletes itself. */
