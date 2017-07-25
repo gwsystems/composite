@@ -43,7 +43,7 @@
 #ifndef _ALLOCATOR_H
 #define _ALLOCATOR_H 1
 
-#include <bits/c++allocator.h> // Define the base class to std::allocator.
+#include <bits/new_allocator_base.h> // Define the base class to std::allocator.
 #include <bits/memoryfwd.h>
 #if __cplusplus >= 201103L
 #include <type_traits>

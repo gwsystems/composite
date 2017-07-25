@@ -26,7 +26,7 @@
 // ISO C++ 14882: 27.8  File-based streams
 //
 
-#include <bits/basic_file.h>
+#include <bits/basic_file_stdio.h>
 #include <fcntl.h>
 #include <errno.h>
 
