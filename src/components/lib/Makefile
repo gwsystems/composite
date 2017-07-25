@@ -51,7 +51,7 @@ distclean:
 # with a new shell.
 #	cd ck; ./configure; cd ..
 #	make -C ck distclean
-#	make -C posix clean
+	make -C posix clean
 #	make -C libccv clean
 
 musl:
@@ -65,6 +65,7 @@ init: clean distclean musl all
 # keep the following commands in one line. Same as above.
 	cd ck; ./configure; cd ..
 	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
+	make -C posix
 
 #	make -C lwip/cos
 #	make -C lua/cos
