@@ -52,6 +52,7 @@ distclean:
 #	cd ck; ./configure; cd ..
 #	make -C ck distclean
 	make -C posix clean
+	make -C libcxx clean
 #	make -C libccv clean
 
 musl:
@@ -66,6 +67,7 @@ init: clean distclean musl all
 	cd ck; ./configure; cd ..
 	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
 	make -C posix
+	make -C libcxx
 
 #	make -C lwip/cos
 #	make -C lua/cos
