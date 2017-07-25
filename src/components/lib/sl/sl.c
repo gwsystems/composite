@@ -53,7 +53,7 @@ sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched
 
 /* Timeout and wakeup functionality */
 /*
- * TODO: 
+ * TODO:
  * (comments from Gabe)
  * We likely want to replace all of this with rb-tree with nodes internal to the threads.
  * This heap is fast, but the static memory allocation is not great.
@@ -94,7 +94,7 @@ static inline void
 sl_timeout_remove(struct sl_thd *t)
 {
 	assert(t && t->timeout_idx > 0);
-	assert(heap_size(sl_timeout_heap())); 
+	assert(heap_size(sl_timeout_heap()));
 
 	heap_remove(sl_timeout_heap(), t->timeout_idx);
 	t->timeout_idx = -1;
@@ -163,7 +163,7 @@ sl_thd_block(thdid_t tid)
  * if timeout == 0, blocks on timeout = last periodic wakeup + task period
  * @return: 0 if blocked in this call. 1 if already WOKEN!
  */
-static inline int 
+static inline int
 sl_thd_block_timeout_intern(thdid_t tid, cycles_t timeout)
 {
 	struct sl_thd *t;
@@ -367,9 +367,12 @@ sl_thd_free(struct sl_thd *t)
 {
 	struct sl_thd *ct = sl_thd_curr();
 
+	if (t->state == SL_THD_FREE) {
+		return;
+	}
+
 	sl_cs_enter();
 
-	assert(t->state != SL_THD_FREE);
 	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
 	sl_thd_index_rem_backend(sl_mod_thd_policy_get(t));
 	sl_mod_thd_delete(sl_mod_thd_policy_get(t));

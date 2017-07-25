@@ -66,30 +66,24 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
                     uint32 stack_size,
                     uint32 priority, uint32 flags)
 {
-    int32 result = OS_SUCCESS;
-
-    sl_cs_enter();
+    // TODO: Verify that we don't need to take the cs here
 
     // Stack pointers can sometimes be null and that's ok for us
     if(task_id == NULL || task_name == NULL || function_pointer == NULL){
-        result = OS_INVALID_POINTER;
-        goto exit;
+        return OS_INVALID_POINTER;
     }
 
     // Validate the name
     if(!is_valid_name(task_name)) {
-        result = OS_ERR_NAME_TOO_LONG;
-        goto exit;
+        return OS_ERR_NAME_TOO_LONG;
     }
 
     if(is_thread_name_taken(task_name)) {
-        result = OS_ERR_NAME_TAKEN;
-        goto exit;
+        return OS_ERR_NAME_TAKEN;
     }
 
     if(priority > 255 || priority < 1) {
-        result = OS_ERR_INVALID_PRIORITY;
-        goto exit;
+        return OS_ERR_INVALID_PRIORITY;
     }
 
     struct sl_thd* thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
@@ -106,9 +100,7 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
 
     *task_id = (uint32) thd->thdid;
 
-exit:
-    sl_cs_exit();
-    return result;
+    return OS_SUCCESS;
 }
 
 int32 OS_TaskDelete(uint32 task_id)
@@ -139,12 +131,6 @@ uint32 OS_TaskGetId(void)
 void OS_TaskExit(void)
 {
     sl_thd_free(sl_thd_curr());
-
-    // TODO: Fix yield so that I can yield here, not do this weird hack
-    // Have to use this hack, since we can't yield from a free thread
-    sl_cs_enter();
-    sl_cs_exit_schedule();
-
     PANIC("Should be unreachable!");
 }
 
