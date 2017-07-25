@@ -34,7 +34,7 @@
 #include <streambuf>
 #include <unistd.h>
 #include <cstdio>
-#include <bits/c++io.h>  // For __c_file
+#include <bits/c_io_stdio.h>  // For __c_file
 
 #ifdef _GLIBCXX_USE_WCHAR_T
 #include <cwchar>

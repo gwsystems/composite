@@ -37,7 +37,7 @@
 #pragma GCC system_header
 
 #include <bits/c++config.h>
-#include <bits/c++io.h>  // for __c_lock and __c_file
+#include <bits/c_io_stdio.h>  // for __c_lock and __c_file
 #include <ios>
 
 namespace std _GLIBCXX_VISIBILITY(default)

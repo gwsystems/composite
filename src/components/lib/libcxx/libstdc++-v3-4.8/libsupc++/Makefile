@@ -1,5 +1,5 @@
 BUILDDIR := ../../build/libsupc++
-INCLUDE := -I../../build/include
+INCLUDE := -I../../include
 MUSLFLAG := -isystem ../../../musl-1.1.11/include 
 include ../Makefile.inc
 
@@ -21,7 +21,7 @@ clean:
 	rm -rf $(BUILDDIR) ../../libsupc++.a *.o
 
 $(OBJ_CC) $(OBJ_CC_GCC48):%.o:%.cc
-	@$(CXX) $< -o $@ -c $(CXXFLAGS)
+	$(CXX) $< -o $@ -c $(CXXFLAGS)
 
 libsupc++.a:$(OBJ_CC) $(OBJ_CC_GCC48) 
 	@$(AR) rcs $@ $^

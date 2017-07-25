@@ -37,7 +37,7 @@
 #pragma GCC system_header
 
 #include <bits/c++config.h>
-#include <bits/c++locale.h>  // Defines __c_locale, config-specific include
+#include <bits/c_locale.h>  // Defines __c_locale, config-specific include
 #include <iosfwd>            // For ostreambuf_iterator, istreambuf_iterator
 #include <cctype>
 
