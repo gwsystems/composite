@@ -3,8 +3,6 @@
 #include <sl_mod_policy.h>
 #include <sl_plugins.h>
 
-#include "cFE_util.h"
-
 #define SL_FPRR_NPRIOS         257
 #define SL_FPRR_PRIO_HIGHEST   0
 #define SL_FPRR_PRIO_LOWEST    (SL_FPRR_NPRIOS-1)
@@ -31,7 +29,6 @@ sl_mod_schedule(void)
 		return t;
 	}
 
-	printc("Found nothing to schedule...\n");
 	return NULL;
 }
 
