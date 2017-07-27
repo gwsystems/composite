@@ -1,56 +1,66 @@
 #!/bin/bash
 
-prog=$1
+PROG=$1
+SRCOBJ=rump_boot.o
+DSTOBJ=$PROG.bin
+FINALOBJ=rumpcos.o
+QEMURK=qemu_rk.sh
+RUMPAPPDIR=../../../../../../apps
+TRANSFERDIR=../../../../../transfer/
 
-if [ "$prog" == "" ]; then
+localizesymsrc=(			\	
+		"__fpclassifyl"	
+		"memset"
+		"memcpy"
+		"memchr"
+		"__umoddi3"
+		"__udivdi3"
+		"strlen"
+		"strcmp"
+		"strncpy"
+		"strcpy"
+		"__divdi3"
+		"strerror"	
+		"sprintf"	
+		"vsprintf"	
+		"vfprintf"	
+		"fwrite"	
+		"wcrtomb"	
+		)
+localizesymdst=( 	\
+		"_start"
+		"exit"
+		)
+
+if [ "$PROG" == "" ]; then
 	echo Please input an application name;
 	exit;
 fi
 
-if [ "$prog" == "hello" ]; then
-	cp ../../../../../../apps/hello/hello.bin .
+if [ ! -d $RUMPAPPDIR ]; then
+	echo "Woops! $RUMPAPPDIR doesn't exist"
+	exit
 fi
 
-if [ "$prog" = "paws" ]; then
-	cp ../../../../../../apps/paws/paws.bin .
-fi
-
-if [ "$prog" = "nginx" ]; then
-	cp ../../../../../../apps/nginx/nginx.bin .
-fi
-
-if [ "$prog" = "snake" ]; then
-	cp ../../../../../../apps/snake/snake.bin .
-fi
+cp $RUMPAPPDIR/$PROG/$DSTOBJ .
 
 # Defined in both cos and rk, localize one of them.
-objcopy -L memmove   rump_boot.o
-objcopy -L munmap    rump_boot.o
-objcopy -L memset    rump_boot.o
-objcopy -L memcpy    rump_boot.o
-objcopy -L __umoddi3 rump_boot.o
-objcopy -L __udivdi3 rump_boot.o
-objcopy -L strtol    rump_boot.o
-objcopy -L strlen    rump_boot.o
-objcopy -L strcmp    rump_boot.o
-objcopy -L strncpy   rump_boot.o
-objcopy -L strcpy    rump_boot.o
-objcopy -L __divdi3  rump_boot.o
-objcopy -L puts      rump_boot.o
-objcopy -L strtoul   rump_boot.o
-objcopy -L strerror  rump_boot.o
-objcopy -L sprintf   rump_boot.o
-objcopy -L vsprintf  rump_boot.o
-objcopy -L _exit     $prog.bin
-objcopy -L _start    $prog.bin
+for sym in "${localizesymsrc[@]}"
+do
+	objcopy -L $sym $SRCOBJ
+done
 
+for sym in "${localizesymdst[@]}"
+do
+	objcopy -L $sym $DSTOBJ
+done
 
-ld -melf_i386 -r -o rumpcos.o $prog.bin rump_boot.o
+ld -melf_i386 -r -o $FINALOBJ $DSTOBJ $SRCOBJ
 
-cp rumpcos.o ../../../../../transfer/
-cp qemu_rk.sh ../../../../../transfer/
+cp $FINALOBJ $TRANSFERDIR 
+cp $QEMURK $TRANSFERDIR
 
-cd ../../../../../transfer/
+cd $TRANSFERDIR
 ./geniso.sh rumpkernboot.sh
 USB_DEV=`stat --format "%F" /dev/sdb`
 

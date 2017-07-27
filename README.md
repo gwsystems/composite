@@ -10,6 +10,13 @@ components are composed together to form an executable system.
 Please see http://composite.seas.gwu.edu for publications and
 more information.
 
+Branches
+--------
+
+- `master` is the original system with a full user-level set of components.
+- `ppos` is the Speck kernel emphasizing scalable predictability.
+- `tcaps` has mainly been integrated into `ppos`, but a few unrelated pieces remain.
+
 Research features of _Composite_
 --------------------------------
 
@@ -18,10 +25,10 @@ See a summary of the research directions of _Composite_ at http://composite.seas
 Where to start -- a tour of the source code
 -------------------------------------------
 
-- Please read the doc/ directory for more information on how the code
-  is organized
+- Please read the _Composite_ [posts](http://www.seas.gwu.edu/~gparmer/posts.html).
 
-- Join the compositeos@googlegroups.com mailing list
+- Join the compositeos@googlegroups.com mailing list.
+    We use a #slack for our internal development, so this is exceedingly low throughput (1 email every 6 months).
 
 - To run *Composite*, you start by reading the installation and usage
   summary in `docs/installation_usage_summary.md`.
@@ -30,10 +37,7 @@ _Composite_ system support
 --------------------------
 
 - x86-32
-- booting using Linux 2.6.33 or 2.6.36 (see Hijack support for booting
-  information)
-- networking using Linux drivers and a modified tun/tap driver to
-  communicate with _Composite_
+- Qemu with 32 bit, x86 support
 
 Important note
 --------------
@@ -45,7 +49,7 @@ Important note
 Licensing
 ---------
 
-This code is licensed under the GPL version 2.0:
+This code is licensed under the GPL version 2.0 with the class path exception unless otherwise noted (significant portions of user-level are BSD):
 
 ```
 The Composite Component-Based OS
@@ -60,6 +64,23 @@ This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
+
+Linking this library statically or dynamically with other
+modules is making a combined work based on this library. Thus,
+the terms and conditions of the GNU General Public License
+cover the whole combination.
+
+As a special exception, the copyright holders of this library
+give you permission to link this library with independent modules
+to produce an executable, regardless of the license terms of
+these independent modules, and to copy and distribute the resulting
+executable under terms of your choice, provided that you also meet,
+for each linked independent module, the terms and conditions of
+the license of that module. An independent module is a module which
+is not derived from or based on this library. If you modify this
+library, you may extend this exception to your version of the
+library, but you are not obligated to do so. If you do not wish to
+do so, delete this exception statement from your version.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software

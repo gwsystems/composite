@@ -1,121 +1,30 @@
-/*
- *
- * Simple vm list.. static alloc of nodes.. O(1) insert, delete..
- * + O(1) insert any, delete any : Interesting data structure??? 
- *    nodes are allocated from a static array.. 
- *    so I know what I want to insert or delete: by indexing, and
- *    therefore, inserting or deleting any node, is O(1)
- */
-
 #ifndef VK_API_H
 #define VK_API_H
 
-#include "vk_types.h"
+#include "vk_x_types.h"
+#include "cos2rk_types.h"
 
-struct vm_node {
-	int id;
-	struct vm_node *next, *prev;
-};
+/* extern functions */
+extern void vm_exit(void *);
+extern void vm_init(void *);
+extern void dom0_io_fn(void *);
+extern void vm_io_fn(void *);
 
-struct vm_list {
-	struct vm_node *s;
-}; 
+extern void scheduler(void);
 
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-struct vm_list vms_runqueue, vms_expended, vms_exit;
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-struct vm_list vms_under, vms_over, vms_boost, vms_wait, vms_exit;
-#endif
+/* api */
+void vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo);
+void vk_iocaps_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkernel_info *vkinfo);
 
-struct vm_node vmnode[COS_VIRT_MACH_COUNT];
+void vk_virtmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long start_ptr, unsigned long range);
+void vk_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long shm_ptr, unsigned long shm_sz);
+void vk_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long shm_ptr, unsigned long shm_sz);
 
-static struct vm_node *
-vm_next(struct vm_list *l)
-{
-	struct vm_node *p;
-	assert(l);
+thdcap_t dom0_vio_thdcap(unsigned int vmid);
+tcap_t dom0_vio_tcap(unsigned int vmid);
+arcvcap_t dom0_vio_rcvcap(unsigned int vmid);
+asndcap_t dom0_vio_asndcap(unsigned int vmid);
 
-	p = l->s;
-	if (p == NULL) return NULL;
-	if (p->next == l->s) return p;
-	l->s = p->next;
-
-	return p;
-}
-
-static struct vm_node *
-vm_prev(struct vm_list *l)
-{
-	struct vm_node *p;
-	assert(l);
-
-	p = l->s;
-	if (p == NULL) return NULL;
-	if (p->next == l->s) return p;
-	l->s = p->prev;
-
-	return p;
-}
-
-static struct vm_node *
-vm_deletenode(struct vm_list *l, struct vm_node *n)
-{
-	assert(l && n);
-
-	if (l->s == n && n->next == n) {
-		l->s = NULL;
-		return n;
-	}
-	if (l->s == n) l->s = n->next;
-
-	n->prev->next = n->next;
-	n->next->prev = n->prev;
-	n->next = n->prev = n;
-
-	return n;
-}
-
-static void
-vm_insertnode(struct vm_list *l, struct vm_node *n)
-{
-	struct vm_node *p;
-
-	assert(l && n);
-
-	if (l->s == NULL) {
-		l->s = n;
-		return ;
-	}
-
-	p = l->s;
-	n->next = p;
-	n->prev = p->prev;
-
-	p->prev->next = n;
-	p->prev = n;
-}
-
-static void
-vm_list_init(void)
-{
-	int i;
-
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	vms_runqueue.s = vms_exit.s = vms_expended.s = NULL;
-	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-		vmnode[i].id = i;
-		vmnode[i].prev = vmnode[i].next = &vmnode[i];
-		vm_insertnode(&vms_runqueue, &vmnode[i]); 
-	}
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-	vms_under.s = vms_over.s = vms_boost.s = vms_wait.s = vms_exit.s = NULL;
-	for (i = 0 ; i < COS_VIRT_MACH_COUNT ; i ++) {
-		vmnode[i].id = i;
-		vmnode[i].prev = vmnode[i].next = &vmnode[i];
-		vm_insertnode(&vms_under, &vmnode[i]); 
-	}
-#endif
-
-}
+vaddr_t dom0_vio_shm_base(unsigned int vmid);
 
 #endif /* VK_API_H */

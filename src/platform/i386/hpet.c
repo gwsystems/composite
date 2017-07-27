@@ -116,14 +116,14 @@ static void
 timer_disable(timer_type_t timer_type)
 {
 	/* Disable timer interrupts */
-	*hpet_config ^= ~1;
+	*hpet_config &= ~HPET_ENABLE_CNF;
 
 	/* Disable timer interrupt of timer_type */
 	hpet_timers[timer_type].config = 0;
 	hpet_timers[timer_type].compare = 0;
 
 	/* Enable timer interrupts */
-	*hpet_config |= 1;
+	*hpet_config |= HPET_ENABLE_CNF;
 }
 
 static void
@@ -206,13 +206,13 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 {
 	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF;
 
-	cycles = timer_cpu2hpet_cycles(cycles);
-
 	/* Disable timer interrupts */
-	*hpet_config ^= ~1;
+	*hpet_config &= ~HPET_ENABLE_CNF;
 
 	/* Reset main counter */
 	if (timer_type == TIMER_ONESHOT) {
+		cycles = timer_cpu2hpet_cycles(cycles);
+
 		/* Set a static value to count up to */
 		hpet_timers[timer_type].config = outconfig;
 		cycles += HPET_COUNTER;
@@ -225,25 +225,8 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 	hpet_timers[timer_type].compare = cycles;
 
 	/* Enable timer interrupts */
-	*hpet_config |= 1;
+	*hpet_config |= HPET_ENABLE_CNF;
 }
-
-/* FIXME:  This is broken. Why does setting the oneshot twice make it work? */
-/*void
-chal_timer_set(cycles_t cycles)
-{
-//	printk("set:%llu\n", cycles);
-	timer_set(TIMER_ONESHOT, cycles);
-	timer_set(TIMER_ONESHOT, cycles);
-}*/
-
-/*void
-chal_timer_disable(void)
-{
-//	printk("disable\n");
-	timer_disable(TIMER_ONESHOT);
-	timer_disable(TIMER_ONESHOT);
-}*/
 
 u64_t
 timer_find_hpet(void *timer)
@@ -295,7 +278,7 @@ timer_init(void)
 
 	printk("Enabling timer @ %p with tick granularity %ld picoseconds\n", hpet, pico_per_hpetcyc);
 	/* Enable legacy interrupt routing */
-	*hpet_config |= (1ll);
+	*hpet_config |= HPET_LEG_RT_CNF;
 
 	/*
 	 * Set the timer as specified.  This assumes that the cycle

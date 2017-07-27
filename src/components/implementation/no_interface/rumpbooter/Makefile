@@ -1,5 +1,4 @@
-C_OBJS=rump_booter.o rumpcalls.o rump_cos_alloc.o cos_init.o micro_booter.o mb_tests.o vm_tests.o vkernel_init.o cos_sync.o stubs.o
-ASM_OBJS=cos_asm_scheduler.o inv.o
+ASM_OBJS=cos_asm_scheduler.o inv.o start.o
 COMPONENT=rump_boot.o
 INTERFACES=
 DEPENDENCIES=

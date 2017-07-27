@@ -28,11 +28,11 @@ hw_irq_alloc(void){
 		if (vmid == 0) {
 			switch(i) {
 			case IRQ_VM1:
-				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE;
+				irq_thdcap[i] = DOM0_CAPTBL_SELF_IOTHD_SET_BASE;
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
-				irq_arcvcap[i] = VM0_CAPTBL_SELF_IORCV_SET_BASE;
+				irq_arcvcap[i] = DOM0_CAPTBL_SELF_IORCV_SET_BASE;
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-				irq_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE;
+				irq_tcap[i] = DOM0_CAPTBL_SELF_IOTCAP_SET_BASE;
 				irq_prio[i]  = VIO_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
@@ -40,11 +40,11 @@ hw_irq_alloc(void){
 #endif
 				break;
 			case IRQ_VM2:
-				irq_thdcap[i] = VM0_CAPTBL_SELF_IOTHD_SET_BASE + CAP16B_IDSZ;
+				irq_thdcap[i] = DOM0_CAPTBL_SELF_IOTHD_SET_BASE + CAP16B_IDSZ;
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
-				irq_arcvcap[i] = VM0_CAPTBL_SELF_IORCV_SET_BASE + CAP64B_IDSZ;
+				irq_arcvcap[i] = DOM0_CAPTBL_SELF_IORCV_SET_BASE + CAP64B_IDSZ;
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-				irq_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + CAP16B_IDSZ;
+				irq_tcap[i] = DOM0_CAPTBL_SELF_IOTCAP_SET_BASE + CAP16B_IDSZ;
 				irq_prio[i]  = VIO_PRIO;
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
@@ -65,7 +65,7 @@ hw_irq_alloc(void){
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 				if (first) {
 					/* TODO: This path of tcap_transfer */
-					irq_tcap[i] = cos_tcap_alloc(&booter_info, irq_prio[i]);
+					irq_tcap[i] = cos_tcap_alloc(&booter_info);
 					assert(irq_tcap[i]);
 					irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 					assert(irq_arcvcap[i]);
@@ -120,8 +120,8 @@ hw_irq_alloc(void){
 
 	if (vmid == 0) {
 		for (i = 0 ; i < COS_VIRT_MACH_COUNT - 1; i ++) {
-			vio_tcap[i] = VM0_CAPTBL_SELF_IOTCAP_SET_BASE + (i * CAP16B_IDSZ);
-			vio_rcv[i]  = VM0_CAPTBL_SELF_IORCV_SET_BASE + (i * CAP64B_IDSZ);
+			vio_tcap[i] = DOM0_CAPTBL_SELF_IOTCAP_SET_BASE + (i * CAP16B_IDSZ);
+			vio_rcv[i]  = DOM0_CAPTBL_SELF_IORCV_SET_BASE + (i * CAP64B_IDSZ);
 			vio_prio[i] = VIO_PRIO;
 		}
 

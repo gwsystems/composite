@@ -21,6 +21,8 @@
 #define TCAP_MAX_DELEGATIONS 16
 #endif
 
+#define TCAP_TIMER_DIFF      (1<<9)
+
 struct cap_tcap {
 	struct cap_header h;
 	struct tcap *tcap;
@@ -72,10 +74,11 @@ struct tcap {
 };
 
 void tcap_active_init(struct cos_cpu_local_info *cli);
-int tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, tcap_prio_t prio);
+int tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new);
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio);
 int tcap_merge(struct tcap *dst, struct tcap *rm);
 void tcap_promote(struct tcap *t, struct thread *thd);
+int tcap_wakeup(struct tcap *tc, tcap_prio_t prio, tcap_res_t budget, struct thread *thd, struct cos_cpu_local_info *cli);
 
 struct thread *tcap_tick_handler(void);
 void tcap_timer_choose(int c);
@@ -118,6 +121,10 @@ tcap_active_next(struct cos_cpu_local_info *cli) { return (struct tcap *)list_fi
 static inline void
 tcap_active_rem(struct tcap *t) { list_rem(&t->active_list); }
 
+static unsigned int
+tcap_cycles_same(cycles_t a, cycles_t b)
+{ return cycles_same(a, b, (cycles_t)chal_cyc_thresh()); }
+
 /**
  * Expend @cycles amount of budget.
  * Return the amount of budget that is left in the tcap.
@@ -128,7 +135,7 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 	assert(t);
 	//printk("%s:%d - %lu: %lu\n", __func__, __LINE__, cycles, t->budget.cycles);
 	if (TCAP_RES_IS_INF(t->budget.cycles)) return 0;
-	if (cycles >= t->budget.cycles) {
+	if (cycles >= t->budget.cycles || tcap_cycles_same(cycles, t->budget.cycles)) {
 		t->budget.cycles = 0;
 		tcap_active_rem(t); /* no longer active */
 
@@ -206,6 +213,7 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 	/* next == INF? no timer required. */
 	left        = tcap_left(next);
 	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) {
+		cos_info->next_timer = 0;
 		chal_timer_disable();
 		return;
 	} 
@@ -219,6 +227,11 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 		else                                                 timer = timeout_cyc;
 	}
 
+	if (cycles_same(now, timer, TCAP_TIMER_DIFF)) timer = now + TCAP_TIMER_DIFF;
+	if (cycles_same(cos_info->next_timer, timer, TCAP_TIMER_DIFF) && cos_info->next_timer) return;
+
+	assert(timer); /* TODO: wraparound check when timer == 0 */
+	cos_info->next_timer = timer;
 	chal_timer_set(timer);
 }
 
@@ -262,9 +275,8 @@ tcap_introspect(struct tcap *t, unsigned long op, unsigned long *retval)
 {
 	switch(op) {
 	case TCAP_GET_BUDGET: *retval = t->budget.cycles; break;
-	default: return -EINVAL;
+	default:              return -EINVAL;
 	}
-	//printk("%s:%d - %lu\n", __func__, __LINE__, *retval);
 	return 0;
 }
 

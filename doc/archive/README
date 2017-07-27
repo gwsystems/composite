@@ -1,0 +1,32 @@
+The files in this directory follow:
+
+- composite_dev_manual.{html|org}: If you want to understand at the
+  surface level some of the system calls and interfaces to important
+  components, start here.
+
+- build_system.txt: Discusses the build system, how to compile and
+  execute the system.
+
+- directory_hierarchy.txt: An overview of how files are laid out in
+  the source code.  This is where to look for to find files of a
+  specific type (kernel, component, platform, etc..).
+
+- setting_up_on_new_system.txt: If you aren't using a provided VM or vagrant,
+  you will need to read this to set up Composite on your system.
+
+- Vagrant.md: How to use Vagrant and VirtualBox for Composite development.
+
+- terminology.txt: The source code is out of date compared to the
+  terminology used in papers and conversationally.  This file provides
+  the mapping.
+
+- executing_composite.txt: How to run the system!
+
+- create_an_interface.txt: How to create an interface to be
+  implemented by components.
+
+- create_a_component.txt: How to create a component for a specific
+  interface, common functions, includes, etc...
+
+- debugging.txt: When you run the system and it fails, what do you do?
+  How do you debug the system.

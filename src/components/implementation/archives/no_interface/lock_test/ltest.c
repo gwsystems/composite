@@ -15,7 +15,7 @@
 unsigned long lock;
 #define LOCK_TAKE()    lock_component_take(cos_spd_id(), lock, 0, TIMER_EVENT_INF)
 #define LOCK_RELEASE() lock_component_release(cos_spd_id(), lock)
-#define LOCK_INIT() do { lock = lock_component_alloc(cos_spd_id()); } while(0)
+#define LOCK_INIT() do { lock = lock_component_alloc(cos_spd_id(), 0); } while(0)
 #else
 #include <cos_synchronization.h>
 cos_lock_t lock;

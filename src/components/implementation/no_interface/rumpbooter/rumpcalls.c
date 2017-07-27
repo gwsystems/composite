@@ -9,7 +9,7 @@
 #include "rump_cos_alloc.h"
 #include "cos_sched.h"
 //#include "cos_lock.h"
-#include "vkern_api.h"
+#include "cos2rk_rb_api.h"
 //#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 #include "cos_sync.h"
 
@@ -74,7 +74,7 @@ cos2rump_setup(void)
 int
 cos_dequeue_size(unsigned int srcvm, unsigned int curvm)
 {
-	return vk_dequeue_size(srcvm, curvm);
+	return cos2rk_dequeue_size(srcvm, curvm);
 }
 
 /*rk shared mem functions*/
@@ -84,11 +84,11 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 	asndcap_t sndcap;
 	int ret;
 
-	if(srcvm == 0) sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (dstvm - 1) * CAP64B_IDSZ;
+	if(srcvm == 0) sndcap = DOM0_CAPTBL_SELF_IOASND_SET_BASE + (dstvm - 1) * CAP64B_IDSZ;
 	else sndcap = VM_CAPTBL_SELF_IOASND_BASE;
 
 	//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
-	cos_shm_write(buff, size, srcvm, dstvm);	
+	cos2rk_shm_write(buff, size, srcvm, dstvm);	
 
 #if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
 	/* DOM0 just sends out the packets.. */
@@ -120,7 +120,7 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 int
 cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm){
 	//printc("%s = s:%d d:%d\n", __func__, srcvm, curvm);
-	return cos_shm_read(buff, srcvm, curvm);
+	return cos2rk_shm_read(buff, srcvm, curvm);
 }
 
 /* send and recieve notifications */
@@ -139,7 +139,7 @@ cos_irqthd_handler(void *line)
 	arcvcap_t arcvcap = irq_arcvcap[which];
 	
 	while(1) {
-		int pending = cos_rcv(arcvcap);
+		int pending = cos_rcv(arcvcap, 0, NULL);
 
 		intr_start(which);
 
@@ -155,7 +155,7 @@ void
 rump_bmk_memsize_init(void)
 {
 	/* (1<<20) == 1 MG */
-	bmk_memsize = COS_VIRT_MACH_MEM_SZ - ((1<<20)*2);
+	bmk_memsize = COS2RK_VIRT_MACH_MEM_SZ - ((1<<20)*2);
 	printc("FIX ME: ");
 	printc("bmk_memsize: %lu\n", bmk_memsize);
 }
@@ -255,7 +255,7 @@ check_vio_budgets(void)
 	if (iters != CHECK_ITER) return;
 	iters = 0;
 
-	for ( i = 1 ; i < COS_VIRT_MACH_COUNT ; i ++) {
+	for ( i = 1 ; i < COS2RK_VIRT_MACH_COUNT ; i ++) {
 		tcap_res_t budget;
 		tcap_t tcp;
 		asndcap_t snd;
@@ -270,15 +270,15 @@ check_vio_budgets(void)
 		 * 	Only deficit checks between vms.. 
 		 * 	DOM0 deficit accounting - TODO
 		 */
-		for (j = i + 1 ; j < COS_VIRT_MACH_COUNT ; j ++) {
+		for (j = i + 1 ; j < COS2RK_VIRT_MACH_COUNT ; j ++) {
 			unsigned int num = 0;
 			int from, to;
 			unsigned int fval, tval;
 
 			from = i - 1;
 			to = j - 1;
-			assert (from < (COS_VIRT_MACH_COUNT - 1));
-			assert (to < (COS_VIRT_MACH_COUNT - 1));
+			assert (from < (COS2RK_VIRT_MACH_COUNT - 1));
+			assert (to < (COS2RK_VIRT_MACH_COUNT - 1));
 			fval = vio_deficit[from][to];
 			tval = vio_deficit[to][from];
 
@@ -300,7 +300,7 @@ check_vio_budgets(void)
 		if (budget >= budg_max && ((budget - budg_max) >= budg_thr)) {
 			tcap_res_t bud = (budget - budg_max);			
 
-			snd = VM0_CAPTBL_SELF_INITASND_SET_BASE + ((i - 1) * CAP64B_IDSZ);
+			snd = DOM0_CAPTBL_SELF_INITASND_SET_BASE + ((i - 1) * CAP64B_IDSZ);
 
 			if (cos_tcap_delegate(snd, tcp, bud, PRIO_LOW, 0)) assert(0);
 		} 
@@ -408,7 +408,7 @@ cos_resume(void)
 		 	 */
 
 			do {
-				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles);
+				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycles);
 				assert(pending <= 1);
 
 				irq_line = intr_translate_thdid2irq(tid);
@@ -482,12 +482,12 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 //long long cycles_us = (long long)(CPU_GHZ * 1000);
 
 /* Return monotonic time since RK per VM initiation in nanoseconds */
-extern uint64_t t_vm_cycs;
-extern uint64_t t_dom_cycs;
+extern u64_t t_vm_cycs;
+extern u64_t t_dom_cycs;
 long long
 cos_vm_clock_now(void)
 {
-	uint64_t tsc_now = 0;
+	u64_t tsc_now = 0;
 	unsigned long long curtime = 0;
         
 	assert(vmid <= 1);
@@ -504,7 +504,7 @@ cos_vm_clock_now(void)
 long long
 cos_cpu_clock_now(void)
 {
-	uint64_t tsc_now = 0;
+	u64_t tsc_now = 0;
 	unsigned long long curtime = 0;
         rdtscll(tsc_now);
 
@@ -582,7 +582,7 @@ cos_vio_tcap_set(unsigned int src)
 
 	if (vmid) return;
 
-	assert ((use < (COS_VIRT_MACH_COUNT-1)) && (src > 0 && src < COS_VIRT_MACH_COUNT));
+	assert ((use < (COS2RK_VIRT_MACH_COUNT-1)) && (src > 0 && src < COS2RK_VIRT_MACH_COUNT));
 	if (use != (src - 1)) {
 		printc("%s:%d - use:%d src:%d\n", __func__, __LINE__, use, src - 1);
 		/*
@@ -610,7 +610,7 @@ cos_vio_tcap_update(unsigned int dst)
 
 	if (vmid) return;
 
-	assert ((use < (COS_VIRT_MACH_COUNT-1)) && (dst > 0 && dst < COS_VIRT_MACH_COUNT));
+	assert ((use < (COS2RK_VIRT_MACH_COUNT-1)) && (dst > 0 && dst < COS2RK_VIRT_MACH_COUNT));
 	if (use != (dst - 1)) {
 		printc("%s:%d - use:%d dst:%d\n", __func__, __LINE__, use, dst - 1);
 		__sync_fetch_and_add(&(vio_deficit[use][dst-1]), 1);
@@ -618,7 +618,7 @@ cos_vio_tcap_update(unsigned int dst)
 		if (vio_deficit[use][dst - 1] < vio_deficit[dst - 1][use]) return;
 
 		use ++;
-		use %= (COS_VIRT_MACH_COUNT - 1);
+		use %= (COS2RK_VIRT_MACH_COUNT - 1);
 		do {
 			tmp = cos_cur_tcap;
 			final = (use << 16) | ((vio_tcap[use] << 16) >> 16);
@@ -642,19 +642,19 @@ cos_find_vio_tcap(void)
 
 	use = using = cos_cur_tcap >> 16;
 	tcuse = (cos_cur_tcap << 16) >> 16;
-	assert (use < (COS_VIRT_MACH_COUNT-1));
+	assert (use < (COS2RK_VIRT_MACH_COUNT-1));
 
 	irqbudget = (tcap_res_t)cos_introspect(&booter_info, vio_tcap[use], TCAP_GET_BUDGET);
 /*	while (!irqbudget) {
 		use ++;
-		use %= (COS_VIRT_MACH_COUNT - 1);
+		use %= (COS2RK_VIRT_MACH_COUNT - 1);
 		irqbudget = (tcap_res_t)cos_introspect(&booter_info, vio_tcap[use], TCAP_GET_BUDGET);
-		if (i == (COS_VIRT_MACH_COUNT - 1)) break;
+		if (i == (COS2RK_VIRT_MACH_COUNT - 1)) break;
 		i ++;
 	}
 */
 	
-	if (!irqbudget) { // && (i == (COS_VIRT_MACH_COUNT - 1))) {
+	if (!irqbudget) { // && (i == (COS2RK_VIRT_MACH_COUNT - 1))) {
 		cos_dom02io_transfer(use == 0 ? IRQ_VM1 : IRQ_VM2, vio_tcap[use], vio_rcv[use], vio_prio[use]); 
 	}
 
