@@ -8,8 +8,7 @@ QEMURK=qemu_rk.sh
 RUMPAPPDIR=../../../../../../apps
 TRANSFERDIR=../../../../../transfer/
 
-localizesymsrc=(			\	
-		"__fpclassifyl"	
+localizesymsrc=( "__fpclassifyl"	
 		"memset"
 		"memcpy"
 		"memchr"
@@ -27,8 +26,7 @@ localizesymsrc=(			\
 		"fwrite"	
 		"wcrtomb"	
 		)
-localizesymdst=( 	\
-		"_start"
+localizesymdst=( "_start"
 		"exit"
 		)
 

@@ -33,7 +33,7 @@ cos2rk_shmem_addr_send(int to_vmid){
 		return (struct cos2rk_shm_rb *)COS2RK_MEM_SHM_BASE;	
 	}else{
 		/* if sending from DOM0 to a VM */
-		return (struct cos2rk_shm_rb *)((COS2RK_MEM_SHM_BASE)+((COS2RK_SHM_VM_SZ) * (to_vmid-1) ));
+		return (struct cos2rk_shm_rb *)((COS2RK_MEM_SHM_BASE)+((COS2RK_SHM_VM_SZ) * (to_vmid) ));
 	}
 }
 
@@ -44,7 +44,7 @@ cos2rk_shmem_addr_recv(int from_vmid){
 		return (struct cos2rk_shm_rb *)((COS2RK_MEM_SHM_BASE) + (COS2RK_SHM_VM_SZ/2));	
 	}else{
 		/* if DOM0 rcving from a VM */
-		return (struct cos2rk_shm_rb *)((COS2RK_MEM_SHM_BASE)+( (COS2RK_SHM_VM_SZ) * (from_vmid-1) ) + ((COS2RK_SHM_VM_SZ)/2));
+		return (struct cos2rk_shm_rb *)((COS2RK_MEM_SHM_BASE)+( (COS2RK_SHM_VM_SZ) * (from_vmid) ) + ((COS2RK_SHM_VM_SZ)/2));
 	}
 }
 

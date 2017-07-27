@@ -20,11 +20,7 @@ extern struct cos_rumpcalls crcalls;
 volatile thdcap_t cos_cur = BOOT_CAPTBL_SELF_INITTHD_BASE;
 volatile unsigned int cos_cur_tcap = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-tcap_prio_t rk_thd_prio = RK_THD_PRIO;
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 tcap_prio_t rk_thd_prio = PRIO_UNDER;
-#endif
 
 /* Mapping the functions from rumpkernel to composite */
 void
@@ -90,30 +86,7 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 	//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
 	cos2rk_shm_write(buff, size, srcvm, dstvm);	
 
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	/* DOM0 just sends out the packets.. */
-	if (!srcvm) {
-		/* TODO: Before sending a event to the VM, first see if we can account for the time spent in i/o  processing */
-		if(cos_asnd(sndcap, 0)) assert(0);
-
-		/* deficit accounting.. for now: round robin between tcaps */
-		cos_vio_tcap_update(dstvm);
-	}
-	/* VMs send out the packet and time to process the packet - All remaining budget in Tcap */
-	else {
-		tcap_res_t quantum = VM_TIMESLICE * cycs_per_usec;
-		tcap_res_t min     = VIO_BUDGET_APPROX * cycs_per_usec;
-		tcap_res_t budget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
-		tcap_res_t res;
-
-		if (budget >= min) res = budget / 2; /* x cycles */ 
-		else res = 0; /* 0 = 100% budget */
-
-		if(cos_tcap_delegate(sndcap, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, VIO_PRIO, 0)) assert(0);
-	}
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	if(cos_asnd(sndcap, 0)) assert(0);
-#endif
 	return 1;
 }
 
@@ -235,7 +208,7 @@ intr_switch(void)
 		if ((tmp>>(i-1)) & 1) {
 			do {
 				ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(i), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-				assert (ret == 0 || ret == -EAGAIN);
+				assert (ret == 0 || ret == -EAGAIN || ret == -EBUSY);
 			} while (ret == -EAGAIN);
 		}
 	}
@@ -245,69 +218,7 @@ intr_switch(void)
 static inline void
 check_vio_budgets(void)
 {
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	int i;
-	static int iters;
-
-	if (vmid) return;
-
-	iters ++;
-	if (iters != CHECK_ITER) return;
-	iters = 0;
-
-	for ( i = 1 ; i < COS2RK_VIRT_MACH_COUNT ; i ++) {
-		tcap_res_t budget;
-		tcap_t tcp;
-		asndcap_t snd;
-		int j;
-		tcap_res_t budg_max = VIO_BUDGET_MAX * cycs_per_usec;
-		tcap_res_t budg_thr = VIO_BUDGET_THR * cycs_per_usec;
-		tcp = vio_tcap[i - 1];
-
-		if (i == CPU_BOUND_VM) continue;
-		/*
-		 * Deficit correction:
-		 * 	Only deficit checks between vms.. 
-		 * 	DOM0 deficit accounting - TODO
-		 */
-		for (j = i + 1 ; j < COS2RK_VIRT_MACH_COUNT ; j ++) {
-			unsigned int num = 0;
-			int from, to;
-			unsigned int fval, tval;
-
-			from = i - 1;
-			to = j - 1;
-			assert (from < (COS2RK_VIRT_MACH_COUNT - 1));
-			assert (to < (COS2RK_VIRT_MACH_COUNT - 1));
-			fval = vio_deficit[from][to];
-			tval = vio_deficit[to][from];
-
-			num = (fval >= tval ? fval - tval : tval - fval);
-			__sync_fetch_and_sub(&(vio_deficit[from][to]), fval);
-			__sync_fetch_and_sub(&(vio_deficit[to][from]), tval);
-			if (fval >= tval) {
-				__sync_fetch_and_add(&(vio_deficit[from][to]), num);
-			} else {
-				__sync_fetch_and_add(&(vio_deficit[to][from]), num);
-			}
-		}
-
-		/*
-		 * I've more than required budget and I've enough to transfer,
-		 * If I don't have this check, I might be trasferring in very small chunks.. 
-		 */
-		budget = (tcap_res_t)cos_introspect(&booter_info, tcp, TCAP_GET_BUDGET);
-		if (budget >= budg_max && ((budget - budg_max) >= budg_thr)) {
-			tcap_res_t bud = (budget - budg_max);			
-
-			snd = DOM0_CAPTBL_SELF_INITASND_SET_BASE + ((i - 1) * CAP64B_IDSZ);
-
-			if (cos_tcap_delegate(snd, tcp, bud, PRIO_LOW, 0)) assert(0);
-		} 
-	}
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	return;
-#endif
 }
 
 static void
@@ -323,21 +234,6 @@ cpu_bound_thd_fn(void *d)
 static void
 cpu_bound_test(void)
 {
-#if defined (__SIMPLE_DISTRIBUTED_TCAPS__)
-#define BOUND_TEST_ITERS (1<<30)
-	thdcap_t ts;
-	int i = BOUND_TEST_ITERS;
-
-	if (vmid != CPU_BOUND_VM) return;
-
-	printc("I'm A CPU BOUND VM..Just SPINNING and printing \".\" every %d iters\n", BOUND_TEST_ITERS);
-	while (1) {
-		i = BOUND_TEST_ITERS;
-		while (i > 0) i --;
-		printc(".");
-	}
-	assert(0);
-#endif
 	return;
 }
 
@@ -354,25 +250,8 @@ print_cycles(void)
 	prev = curr;
 
 	if (total_cycles >= cycs_per_sec) {
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-		if (vmid == IO_BOUND_VM) {
-			mainbud = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
-			
-			printc("vm%d: %lu\n", vmid, mainbud);
-		} else if (vmid == 0) {
-			mainbud = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
-			isrbud  = (tcap_res_t)cos_introspect(&booter_info, irq_tcap[HW_ISR_FIRST], TCAP_GET_BUDGET);
-			viobud  = (tcap_res_t)cos_introspect(&booter_info, vio_tcap[IO_BOUND_VM - 1], TCAP_GET_BUDGET);
-			printc("dom0: %lu\n", mainbud + isrbud + viobud);
-			printc("dom0: %lu\n", mainbud);
-		} else {
-			assert(0);
-		}
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 		mainbud = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
 		printc("vm%d: %lu\n", vmid, mainbud);
-#endif
-
 		total_cycles = 0;
 	}
 }
@@ -409,7 +288,7 @@ cos_resume(void)
 
 			do {
 				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycles);
-				assert(pending <= 1);
+				//assert(pending <= 1);
 
 				irq_line = intr_translate_thdid2irq(tid);
 				intr_update(irq_line, blocked);
@@ -437,7 +316,7 @@ rk_resume:
 			cos_find_vio_tcap();
 			/* TODO: decide which TCAP to use for rest of RK processing for I/O and do deficit accounting */
 			ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-			assert(ret == 0 || ret == -EAGAIN);
+			assert(ret == 0 || ret == -EAGAIN || ret == -EBUSY);
 		} while(ret == -EAGAIN);
 
 		check_vio_budgets();
@@ -458,7 +337,7 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 
 	do {
 		ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
-		assert(ret == 0 || ret == -EAGAIN);
+		assert(ret == 0 || ret == -EAGAIN || ret == -EBUSY);
 		if (ret == -EAGAIN) {
 			/*
 			 * I was preempted after getting the token and before updating cos_cur which just outdated my sched token
@@ -534,141 +413,25 @@ cos_sched_yield(void)
 
 void
 cos_vm_yield(void)
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-{ if(cos_tcap_delegate(VM_CAPTBL_SELF_VKASND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, PRIO_LOW, TCAP_DELEG_YIELD)) assert(0); }
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
-{ cos_asnd(VM_CAPTBL_SELF_VKASND_BASE, 1); }
-#endif
+{ cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
 
 void
 cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_prio_t prio)
 {
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	tcap_res_t res = (VIO_BUDGET_APPROX * cycs_per_usec);
-	tcap_res_t min_slice = (VM_MIN_TIMESLICE * cycs_per_usec);
-	tcap_res_t initbudget = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);	
-	tcap_res_t irqbudget;
-	int ret;
-
-	assert (vmid == 0);
-
-	if (irqline == IRQ_VM1 || irqline == IRQ_VM2) {
-		if (initbudget >= res + min_slice) irqbudget = res;
-		else                               irqbudget = 0;
-	} else {
-		if (initbudget >= res + min_slice) irqbudget = initbudget / 2;
-		else                               irqbudget = 0;
-	}
-	if ((ret = cos_tcap_transfer(rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, irqbudget, prio))) {
-		printc("vio %d Tcap transfer failed %d\n", irqline, ret);
-		assert(0);
-	}
-
-	switch(irqline) {
-	case IRQ_VM1: dom0_vio_deficit[0] ++; break;
-	case IRQ_VM2: dom0_vio_deficit[1] ++; break;
-
-	default: break;
-	}
-#endif
 }
 
 void
 cos_vio_tcap_set(unsigned int src)
 {
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	unsigned int use = (unsigned int) (cos_cur_tcap >> 16);
-	unsigned int final, tmp;
-
-	if (vmid) return;
-
-	assert ((use < (COS2RK_VIRT_MACH_COUNT-1)) && (src > 0 && src < COS2RK_VIRT_MACH_COUNT));
-	if (use != (src - 1)) {
-		printc("%s:%d - use:%d src:%d\n", __func__, __LINE__, use, src - 1);
-		/*
-		 * if src is in deficit due to use.. then let use continue.
-		 */
-		if (vio_deficit[use][src - 1] < vio_deficit[src - 1][use]) return;
-
-		use = src - 1;
-		do {
-			tmp = cos_cur_tcap;
-			final = (use << 16) | ((vio_tcap[use] << 16) >> 16);
-
-		} while (unlikely(!ps_cas((unsigned long *)&cos_cur_tcap, tmp, final)));
-	}
-#endif
 }
 
 void
 cos_vio_tcap_update(unsigned int dst)
 {
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	unsigned int use = (unsigned int) (cos_cur_tcap >> 16);
-	unsigned int final, tmp;
-	static unsigned int counter = 0;
-
-	if (vmid) return;
-
-	assert ((use < (COS2RK_VIRT_MACH_COUNT-1)) && (dst > 0 && dst < COS2RK_VIRT_MACH_COUNT));
-	if (use != (dst - 1)) {
-		printc("%s:%d - use:%d dst:%d\n", __func__, __LINE__, use, dst - 1);
-		__sync_fetch_and_add(&(vio_deficit[use][dst-1]), 1);
-
-		if (vio_deficit[use][dst - 1] < vio_deficit[dst - 1][use]) return;
-
-		use ++;
-		use %= (COS2RK_VIRT_MACH_COUNT - 1);
-		do {
-			tmp = cos_cur_tcap;
-			final = (use << 16) | ((vio_tcap[use] << 16) >> 16);
-
-		} while (unlikely(!ps_cas((unsigned long *)&cos_cur_tcap, tmp, final)));
-	}
-#endif
 }
 
 tcap_t
 cos_find_vio_tcap(void)
 {
-#if defined(__INTELLIGENT_TCAPS__) || defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	tcap_res_t irqbudget, initbudget;
-	int i = 0, ret;
-	unsigned int tmp, final;
-	unsigned int use, using;
-	tcap_t tcuse;
-
-	if (vmid) return irq_tcap[IRQ_DOM0_VM];
-
-	use = using = cos_cur_tcap >> 16;
-	tcuse = (cos_cur_tcap << 16) >> 16;
-	assert (use < (COS2RK_VIRT_MACH_COUNT-1));
-
-	irqbudget = (tcap_res_t)cos_introspect(&booter_info, vio_tcap[use], TCAP_GET_BUDGET);
-/*	while (!irqbudget) {
-		use ++;
-		use %= (COS2RK_VIRT_MACH_COUNT - 1);
-		irqbudget = (tcap_res_t)cos_introspect(&booter_info, vio_tcap[use], TCAP_GET_BUDGET);
-		if (i == (COS2RK_VIRT_MACH_COUNT - 1)) break;
-		i ++;
-	}
-*/
-	
-	if (!irqbudget) { // && (i == (COS2RK_VIRT_MACH_COUNT - 1))) {
-		cos_dom02io_transfer(use == 0 ? IRQ_VM1 : IRQ_VM2, vio_tcap[use], vio_rcv[use], vio_prio[use]); 
-	}
-
-	if (using != use || tcuse != vio_tcap[use]) {
-		printc("%s:%d - use:%d using:%d\n", __func__, __LINE__, use, using);
-		do {
-			tmp = cos_cur_tcap;
-			final = (use << 16) | ((vio_tcap[use] << 16) >> 16);
-
-		} while (unlikely(!ps_cas((unsigned long *)&cos_cur_tcap, tmp, final)));
-	}
-
-	return COS_CUR_TCAP;
-#elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	return BOOT_CAPTBL_SELF_INITTCAP_BASE;
-#endif
 }

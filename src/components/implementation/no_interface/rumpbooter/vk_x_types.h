@@ -12,7 +12,6 @@ struct vm_io_info {
 
 struct dom0_io_info {
         thdcap_t iothds[VM_COUNT-1];
-        tcap_t iotcaps[VM_COUNT-1];
         arcvcap_t iorcvs[VM_COUNT-1];
         asndcap_t ioasnds[VM_COUNT-1];
 };

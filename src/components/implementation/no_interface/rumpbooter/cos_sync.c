@@ -74,7 +74,7 @@ intr_start(unsigned int irqline)
                         		ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending), 
 							 irq_prio[contending], TCAP_TIME_NIL, 
 							 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-                        		assert (ret == 0 || ret == -EAGAIN);
+                        		assert (ret == 0 || ret == -EAGAIN || ret == -EBUSY);
                 		} while(ret == -EAGAIN);
 
 				continue;
@@ -98,7 +98,7 @@ intr_start(unsigned int irqline)
 				/* Switch back to RK thread */
 				ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL,
 						 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-				assert(ret == 0 || ret == -EAGAIN);
+				assert(ret == 0 || ret == -EAGAIN || ret == -EBUSY);
 			} while (ret == -EAGAIN);
 
 			continue;

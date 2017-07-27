@@ -42,26 +42,6 @@ vm_init(void *id)
 	return;
 }
 
-#if defined(__INTELLIGENT_TCAPS__)
-void
-vk_time_fn(void *d) 
-{
-	while (1) {
-		int pending = cos_rcv(vk_time_rcv[(int)d], 0, NULL);
-		printc("vkernel: rcv'd from vm %d\n", (int)d);
-	}
-}
-
-void
-vm_time_fn(void *d)
-{
-	while (1) {
-		int pending = cos_rcv(VM_CAPTBL_SELF_TIMERCV_BASE, 0, NULL);
-		printc("%d: rcv'd from vkernel\n", (int)d);
-	}
-}
-#endif
-
 extern int vmid;
 
 void

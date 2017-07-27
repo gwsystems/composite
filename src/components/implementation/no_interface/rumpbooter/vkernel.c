@@ -130,6 +130,7 @@ cos_init(void)
 		if (id > 0) {
 			printc("\tSetting up Cross-VM (between DOM0 and VM%d) communication capabilities\n", id);
 			vk_iocaps_init(vm_info, &vmx_info[0], &vk_info);
+			printc("HERE");
 
 			/*
 			 * Create and copy booter comp virtual memory to each VM

@@ -4,7 +4,7 @@
 #include <cos_types.h>
 
 #define VM_COUNT        2	/* virtual machine count */
-#define VM_UNTYPED_SIZE (1<<26) /* untyped memory per vm = 64MB */
+#define VM_UNTYPED_SIZE (1<<27) /* untyped memory per vm = 128MB */
 
 #define VK_VM_SHM_BASE  0x80000000      /* shared memory region */
 #define VM_SHM_SZ       (1<<20)	        /* Shared memory mapping for each vm = 4MB */

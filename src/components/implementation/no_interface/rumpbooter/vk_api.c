@@ -63,13 +63,9 @@ vk_iocaps_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkerne
 
 	d0io->iothds[vmidx] = cos_thd_alloc(vkcinfo, d0cinfo->comp_cap, dom0_io_fn, (void *)vminfo->id);
 	assert(d0io->iothds[vmidx]);
-	d0io->iotcaps[vmidx] = cos_tcap_alloc(vkcinfo);
-	assert(d0io->iotcaps[vmidx]);
-	d0io->iorcvs[vmidx] = cos_arcv_alloc(vkcinfo, d0io->iothds[vmidx], d0io->iotcaps[vmidx], vkcinfo->comp_cap, dom0info->initrcv);
+	d0io->iorcvs[vmidx] = cos_arcv_alloc(vkcinfo, d0io->iothds[vmidx], dom0info->inittcap, vkcinfo->comp_cap, dom0info->initrcv);
 	assert(d0io->iorcvs[vmidx]);
 	ret = cos_cap_cpy_at(d0cinfo, dom0_vio_thdcap(vminfo->id), vkcinfo, d0io->iothds[vmidx]);
-	assert(ret == 0);
-	ret = cos_cap_cpy_at(d0cinfo, dom0_vio_tcap(vminfo->id), vkcinfo, d0io->iotcaps[vmidx]);
 	assert(ret == 0);
 	ret = cos_cap_cpy_at(d0cinfo, dom0_vio_rcvcap(vminfo->id), vkcinfo, d0io->iorcvs[vmidx]);
 	assert(ret == 0);
@@ -160,11 +156,7 @@ dom0_vio_thdcap(unsigned int vmid)
 tcap_t
 dom0_vio_tcap(unsigned int vmid)
 {
-#if defined(__SIMPLE_DISTRIBUTED_TCAPS__)
-	return DOM0_CAPTBL_SELF_IOTCAP_SET_BASE + (CAP16B_IDSZ * (vmid-1));
-#elif defined (__SIMPLE_XEN_LIKE_TCAPS__)
 	return BOOT_CAPTBL_SELF_INITTCAP_BASE;
-#endif
 }
 
 arcvcap_t
