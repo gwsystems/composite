@@ -19,7 +19,7 @@
 		}						\
 	}
 
-#define NUM_ATOMIC_SYMBS 10 
+#define NUM_ATOMIC_SYMBS 10
 #define NUM_KERN_SYMBS   1
 
 #define CAP_CLIENT_STUB_DEFAULT "SS_ipc_client_marshal_args"
@@ -35,7 +35,7 @@
 
 #define UNDEF_SYMB_TYPE 0x1
 #define EXPORTED_SYMB_TYPE 0x2
-#define MAX_SYMBOLS 1024
+#define MAX_SYMBOLS (64 * 1024)
 #define MAX_TRUSTED 32
 #define MAX_SYMB_LEN 256
 
