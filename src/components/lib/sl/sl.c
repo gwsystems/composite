@@ -339,20 +339,51 @@ done:
 
 struct sl_thd *
 sl_thd_alloc(cos_thd_fn_t fn, void *data)
-{ return sl_thd_alloc_intern(fn, data, NULL, 0); }
+{
+	struct sl_thd *t;
+
+	sl_cs_enter();
+	t = sl_thd_alloc_intern(fn, data, NULL, 0);
+	sl_cs_exit();
+
+	return t;
+}
 
 /* Allocate a thread that executes in the specified component */
 struct sl_thd *
 sl_thd_comp_alloc(struct cos_defcompinfo *comp)
-{ return sl_thd_alloc_intern(NULL, NULL, comp, 1); }
+{
+	struct sl_thd *t;
+
+	sl_cs_enter();
+	t = sl_thd_alloc_intern(NULL, NULL, comp, 1);
+	sl_cs_exit();
+
+	return t;
+}
 
 void
 sl_thd_free(struct sl_thd *t)
 {
+	struct sl_thd *ct = sl_thd_curr();
+
+	sl_cs_enter();
+
+	assert(t->state != SL_THD_FREE);
+	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
 	sl_thd_index_rem_backend(sl_mod_thd_policy_get(t));
+	sl_mod_thd_delete(sl_mod_thd_policy_get(t));
 	t->state = SL_THD_FREE;
 	/* TODO: add logic for the graveyard to delay this deallocation if t == current */
 	sl_thd_free_backend(sl_mod_thd_policy_get(t));
+
+	/* thread should not continue to run if it deletes itself. */
+	if (unlikely(t == ct)) {
+		sl_cs_exit_schedule();
+		/* should never get here */
+		assert(0);
+	}
+	sl_cs_exit();
 }
 
 void

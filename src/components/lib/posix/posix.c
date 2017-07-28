@@ -1,26 +1,31 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "../../interface/torrent/torrent.h"
-#include "../../include/cos_component.h"
-#include "../../include/print.h"
-#include "../musl-1.1.11/include/syscall.h"
 #include <sys/uio.h>
 #include <sys/mman.h>
+#include <cos_defkernel_api.h>
+#include <llprint.h>
+#include <syscall.h>
 
 #define SYSCALLS_NUM 378
 
-extern void *do_mmap(size_t);
-extern int do_munmap(void*, size_t);
+extern struct cos_compinfo parent_cinfo;
 
 typedef long (*cos_syscall_t)(long a, long b, long c, long d, long e, long f);
 cos_syscall_t cos_syscalls[SYSCALLS_NUM];
+
+typedef enum { false, true } bool;
 
 __attribute__((regparm(1))) long
 __cos_syscall(int syscall_num, long a, long b, long c, long d, long e, long f)
 {
 	assert(syscall_num <= SYSCALLS_NUM);
 
-	return cos_syscalls[syscall_num](a, b, c, d, e, f);
+	if (!cos_syscalls[syscall_num]){
+		printc("WARNING: Component %ld calling unimplemented system call %d\n", cos_spd_id(), syscall_num);
+		return 0;
+	} else {
+		return cos_syscalls[syscall_num](a, b, c, d, e, f);
+	}
 }
 
 static void
@@ -34,46 +39,29 @@ libc_syscall_override(cos_syscall_t fn, int syscall_num)
 int
 cos_open(const char *pathname, int flags, int mode)
 {
-	/* mode param is only for O_CREAT in flags */
-	td_t td;
-	long evt;
-	evt = evt_split(cos_spd_id(), 0, 0);
-	assert(evt > 0);
-	td = tsplit(cos_spd_id(), td_root, (char *)pathname, strlen(pathname), TOR_ALL, evt);
-
-	if (td <= 0) {
-		printc("open() failed!\n");
-		assert(0);
-	}
-
-	return td + 3; /* fd number adjust for reserved fd 0, 1 and 2 */
+	printc("open not implemented\n");
+	return 0;
 }
 
 int
 cos_close(int fd)
 {
-	trelease(cos_spd_id(), fd - 3); /* return void, use tor_lookup? */
-
-	return 0; /* return -1 if failed */
+	printc("close not implemented\n");
+	return 0;
 }
 
 ssize_t
 cos_read(int fd, void *buf, size_t count)
 {
-	int ret = tread_pack(cos_spd_id(), fd - 3, buf, count);
-
-	return ret;
+	printc("read not implemented\n");
+	return 0;
 }
 
 ssize_t
 cos_readv(int fd, const struct iovec *iov, int iovcnt)
 {
-	int i;
-	ssize_t ret = 0;
-	for(i=0; i<iovcnt; i++) {
-		ret += cos_read(fd, (const void *)iov[i].iov_base, iov[i].iov_len);
-	}
-	return ret;
+	printc("readv not implemented\n");
+	return 0;
 }
 
 ssize_t
@@ -88,9 +76,8 @@ cos_write(int fd, const void *buf, size_t count)
 		for(i=0; i<count; i++) printc("%c", d[i]);
 		return count;
 	} else {
-		int td = fd - 3;
-		int ret = twrite_pack(cos_spd_id(), td, (char *)buf, count);
-		return ret;
+		printc("fd: %d not supported!\n", fd);
+		assert(0);
 	}
 }
 
@@ -108,6 +95,7 @@ cos_writev(int fd, const struct iovec *iov, int iovcnt)
 long
 cos_ioctl(int fd, void *unuse1, void *unuse2)
 {
+	printc("ioctl not implemented\n");
 	/* musl libc does some ioctls to stdout, so just allow these to silently go through */
 	if (fd == 1 || fd == 2) return 0;
 	assert(0);
@@ -117,6 +105,7 @@ cos_ioctl(int fd, void *unuse1, void *unuse2)
 ssize_t
 cos_brk(void *addr)
 {
+	printc("brk not implemented\n");
 	/* musl libc tries to use brk to expand heap in malloc. But if brk fails, it 
 	   turns to mmap. So this fake brk always fails, force musl libc to use mmap */
 	return 0;
@@ -125,6 +114,9 @@ cos_brk(void *addr)
 void *
 cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
+	void *ret=0;
+
+	printc("mmap\n");
 	if (addr != NULL) {
 		printc("parameter void *addr is not supported!\n");
 		assert(0);
@@ -134,9 +126,14 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		assert(0);
 	}
 
-	void *ret = do_mmap(length);
+	addr = (void *)cos_page_bump_allocn(&parent_cinfo, length);
+	if (!addr){
+		ret = (void *) -1;
+	} else {
+		ret = addr;
+	}
 
-	if (ret == (void *)-1) { /* return value comes from man page */
+	if (ret == (void *)-1) {  //return value comes from man page
 		printc("mmap() failed!\n");
 		assert(0);
 	}
@@ -147,15 +144,14 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 int
 cos_munmap(void *start, size_t length)
 {
-	int ret = do_munmap(start, length);
-	assert(!ret);
-
-	return ret;
+	printc("munmap not implemented\n");
+	return 0;
 }
 
 int
 cos_madvise(void *start, size_t length, int advice)
 {
+	printc("madvise not implemented\n");
 	/* musl libc use madvise in free. Again allow these to silently go through */
 	return 0;
 }
@@ -163,63 +159,21 @@ cos_madvise(void *start, size_t length, int advice)
 void *
 cos_mremap(void *old_address, size_t old_size, size_t new_size, int flags)
 {
-	size_t sz = old_size;
-	void *ret = do_mmap(new_size);
-
-	if (ret == (void *)-1) { /* return value comes from man page */
-		printc("mremap() failed!\n");
-		assert(0);
-	}
-	if (new_size < sz) sz = new_size;
-	memcpy(ret, old_address, sz);
-	do_munmap(old_address, old_size);
-
-	return ret;
+	printc("mremap not implemented\n");
+	return 0;
 }
 
 off_t
 cos_lseek(int fd, off_t offset, int whence)
 {
-	/* TODO: we can use a simpler twmeta_pack(td_t td, const char *key, const char *val) */
-	char val[8]; /* TODO: length number need to be selected */
-	int ret = -1;
-	int td = fd - 3;
-
-	if (whence == SEEK_SET) {
-		snprintf(val, 8, "%ld", offset);
-		ret = twmeta(cos_spd_id(), td, "offset", strlen("offset"), val, strlen(val));
-		assert(ret == 0);
-	} else if (whence == SEEK_CUR) {
-		/* TODO: return value not checked */
-		char offset_curr[8];
-		trmeta(cos_spd_id(), td, "offset", strlen("offset"), offset_curr, 8);
-		snprintf(val, 8, "%ld", atol(offset_curr) + offset);
-		ret = twmeta(cos_spd_id(), td, "offset", strlen("offset"), val, strlen(val));
-		assert(ret == 0);
-	} else if (whence == SEEK_END) {
-		printc("lseek::SEEK_END not implemented !\n");
-		assert(0);
-		/* TODO: how to get the length of the file? */
-	}
-
-	if   (ret != -1) return atoi(val);
-	else             return ret;
+	printc("lseek not implemented\n");
+	return 0;
 }
-
-/*int*/
-/*cos_fstat(int fd, struct stat *buf)*/
-/*{*/
-	/*printf("syscall: fstat\n");*/
-        
-	/*return 0;*/
-/*}*/
 
 int
 default_syscall(void)
 {
-	int syscall_num;
-	asm volatile("movl %%eax,%0" : "=r" (syscall_num));
-	printc("WARNING: Component %ld calling undifined system call %d\n", cos_spd_id(), syscall_num);
+	printc("WARNING: Syscall not implemented\n");
 
 	return 0;
 }
@@ -228,8 +182,9 @@ CCTOR static void
 posix_init(void)
 {
 	int i;
+	printc("posix init\n");
 	for (i = 0; i < SYSCALLS_NUM; i++) {
-		cos_syscalls[i] = (cos_syscall_t)default_syscall;
+		cos_syscalls[i] = 0/*(cos_syscall_t)default_syscall*/;
 	}
 
 	libc_syscall_override((cos_syscall_t)cos_open, __NR_open);
