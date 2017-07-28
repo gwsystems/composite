@@ -8,6 +8,8 @@
 #ifndef SL_THD_H
 #define SL_THD_H
 
+#include <cos_kernel_api.h>
+
 typedef enum {
 	SL_THD_FREE = 0,
 	SL_THD_BLOCKED,

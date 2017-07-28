@@ -18,6 +18,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#include <errno.h>
 #include <sys/mman.h>
 
 unsigned long getsym(bfd *obj, char* symbol)
@@ -182,12 +183,15 @@ void emit_section(FILE *fp, char *sec)
 
 void run_linker(char *input_obj, char *output_exe, char *script)
 {
-        char linker_cmd[256];
+        char linker_cmd[512];
         sprintf(linker_cmd, LINKER_BIN " -m elf_i386 -T %s -o %s %s", script, output_exe,
                 input_obj);
         printl(PRINT_DEBUG, "%s\n", linker_cmd);
         fflush(stdout);
-        system(linker_cmd);
+        int i = system(linker_cmd);
+        if (i) {
+            printl(PRINT_HIGH, "Linker command failed %d, errno %d\n", i, errno);
+        }
 }
 
 
@@ -272,11 +276,14 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
          * locations.
          */
         genscript(0, tmp_exec, script);
+        printl(PRINT_DEBUG, "genscript(0, %s, %s)\n", tmp_exec, script);
+
+        printl(PRINT_DEBUG, "run_linker(%s, %s, %s)\n", service_name, tmp_exec, script);
         run_linker(service_name, tmp_exec, script);
 
         obj = bfd_openr(tmp_exec, "elf32-i386");
         if(!obj){
-                bfd_perror("object open failure");
+                bfd_perror("object open failure (loadall 279)");
                 return -1;
         }
         if(!bfd_check_format(obj, bfd_object)){
@@ -395,7 +402,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
                 ret_data->cobj = h;
                 assert(obj_size == h->size);
         }
-        unlink(tmp_exec);
+        // unlink(tmp_exec);
 
         /*
          * Second Phase: Now we know the memory layout of the object,
@@ -407,10 +414,10 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
          */
         genscript(1, tmp_exec, script);
         run_linker(service_name, tmp_exec, script);
-	unlink(script);
+	    // unlink(script);
         objout = bfd_openr(tmp_exec, "elf32-i386");
         if(!objout){
-                bfd_perror("Object open failure\n");
+                bfd_perror("Object open failure (loadall 413)\n");
                 return -1;
         }
         if(!bfd_check_format(objout, bfd_object)){
@@ -470,7 +477,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 
         printl(PRINT_NORMAL, "Object %s processed as %s with script %s.\n",
                service_name, tmp_exec, script);
-        unlink(tmp_exec);
+        // unlink(tmp_exec);
 
         return tot_static_mem;
 }

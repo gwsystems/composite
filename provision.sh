@@ -27,5 +27,16 @@ sudo apt-get -y install systemtap
 sudo apt-get -y install git
 sudo apt-get -y install ntp
 
+# Tools nessesary for Rust on composite
+# Rustup:
+curl https://sh.rustup.rs -sSf > ./rustup_setup
+chmod +x ./rustup_setup
+./rustup_setup -y --default-toolchain nightly
+rm ./rustup_setup
+rustup component add rust-src
+# Xargo:
+cargo install xargo
+
+
 # Link .bash_aliases to the cFE2cos script
-ln -s /home/vagrant/cFE2cos/cFE2cos.sh /home/vagrant/.bash_aliases
+# ln -s /home/vagrant/cFE2cos/cFE2cos.sh /home/vagrant/.bash_aliases

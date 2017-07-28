@@ -3,7 +3,7 @@ Vagrant.configure(2) do |config|
 
     config.vm.provider "virtualbox" do |v|
         v.name = "composite_dev"
-        v.memory = 2048
+        v.memory = 3000
         v.cpus = 3
 
         v.customize ["modifyvm", :id, "--paravirtprovider", "kvm"]

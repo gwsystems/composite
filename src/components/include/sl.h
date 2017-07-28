@@ -35,6 +35,7 @@
 #include <res_spec.h>
 #include <sl_mod_policy.h>
 #include <sl_plugins.h>
+#include <sl_thd.h>
 #include <sl_consts.h>
 #include <heap.h>
 
@@ -87,7 +88,7 @@ sl_thdid(void)
 
 	assert(tid != 0);
 	assert(tid < MAX_NUM_THREADS);
-	
+
 	return tid;
 }
 
@@ -213,7 +214,7 @@ cycles_t sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
  * blocks for a timeout = next replenishment period of the task.
  * Note: care should be taken to not interleave this with sl_thd_block_timeout().
  *       It may be required to interleave, in such cases, timeout values in
- *       sl_thd_block_timeout() should not be greater than or equal to 
+ *       sl_thd_block_timeout() should not be greater than or equal to
  *       the task's next replenishment period.
  *
  * @returns: 0 if the thread is woken up by external events before timeout.
@@ -240,7 +241,7 @@ static inline microsec_t
 sl_cyc2usec(cycles_t cyc)
 { return cyc / sl__globals()->cyc_per_usec; }
 
-static inline microsec_t
+static inline cycles_t
 sl_usec2cyc(microsec_t usec)
 { return usec * sl__globals()->cyc_per_usec; }
 

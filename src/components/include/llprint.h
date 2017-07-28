@@ -1,6 +1,7 @@
 #ifndef LLPRINT_H
 #define LLPRINT_H
 
+#include <cos_component.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>

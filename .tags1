@@ -4,25 +4,3 @@
 !_TAG_PROGRAM_NAME	Exuberant Ctags	//
 !_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
 !_TAG_PROGRAM_VERSION	5.8	//
-CL_MACROS_H	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define CL_MACROS_H$/;"	macro	line:12
-printl	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define printl(/;"	macro	line:14
-NUM_ATOMIC_SYMBS	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define NUM_ATOMIC_SYMBS /;"	macro	line:22
-NUM_KERN_SYMBS	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define NUM_KERN_SYMBS /;"	macro	line:23
-CAP_CLIENT_STUB_DEFAULT	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define CAP_CLIENT_STUB_DEFAULT /;"	macro	line:25
-CAP_CLIENT_STUB_POSTPEND	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define CAP_CLIENT_STUB_POSTPEND /;"	macro	line:26
-CAP_SERVER_STUB_POSTPEND	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define CAP_SERVER_STUB_POSTPEND /;"	macro	line:27
-BASE_SERVICE_ADDRESS	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define BASE_SERVICE_ADDRESS /;"	macro	line:29
-DEFAULT_SERVICE_SIZE	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define DEFAULT_SERVICE_SIZE /;"	macro	line:30
-LINKER_BIN	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define LINKER_BIN /;"	macro	line:32
-STRIP_BIN	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define STRIP_BIN /;"	macro	line:33
-GCC_BIN	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define GCC_BIN /;"	macro	line:34
-UNDEF_SYMB_TYPE	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define UNDEF_SYMB_TYPE /;"	macro	line:36
-EXPORTED_SYMB_TYPE	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define EXPORTED_SYMB_TYPE /;"	macro	line:37
-MAX_SYMBOLS	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define MAX_SYMBOLS /;"	macro	line:38
-MAX_TRUSTED	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define MAX_TRUSTED /;"	macro	line:39
-MAX_SYMB_LEN	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define MAX_SYMB_LEN /;"	macro	line:40
-bfd_sect_size	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define bfd_sect_size(/;"	macro	line:42
-INIT_STR_SZ	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define INIT_STR_SZ /;"	macro	line:48
-ADDR2VADDR	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define ADDR2VADDR(/;"	macro	line:50
-MAX_SCHEDULERS	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define MAX_SCHEDULERS /;"	macro	line:52
-STUB_PROG_LEN	/Users/peachg/Projects/composite/src/platform/linker/cl_macros.h	/^#define STUB_PROG_LEN /;"	macro	line:54

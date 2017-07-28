@@ -14,7 +14,7 @@
  * user-level static capability structures, and loads the services
  * into the current address space which will be used as a template for
  * the run-time system for creating each service protection domain
- * (ie. copying the entries in the pgd to new address spaces.  
+ * (ie. copying the entries in the pgd to new address spaces.
  *
  * This is trusted code, and any mistakes here compromise the entire
  * system.  Essentially, control flow is restricted/created here.
@@ -39,7 +39,7 @@ extern const char *BOOT_COMP;
 extern const char *LLBOOT_COMP;
 extern const char *INIT_FILE;
 extern const char *INIT_FILE_NAME;
-extern const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS]; 
+extern const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS];
 extern const char *SCHED_CREATE_FN;
 extern const char *cos_flt_handlers[COS_FLT_MAX];
 
