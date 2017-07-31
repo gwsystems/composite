@@ -64,7 +64,7 @@ cos2rump_setup(void)
 	crcalls.rump_intr_disable		= intr_disable;
 	crcalls.rump_sched_yield		= cos_sched_yield;
 	crcalls.rump_vm_yield			= cos_vm_yield;
-crcalls.rump_shmem_send			= cos_shmem_send;
+	crcalls.rump_shmem_send			= cos_shmem_send;
 	crcalls.rump_shmem_recv			= cos_shmem_recv;
 	crcalls.rump_dequeue_size		= cos_dequeue_size;
 
@@ -303,16 +303,16 @@ check_vio_budgets(void)
 
 		/*
 		 * I've more than required budget and I've enough to transfer,
-		 * If I don't have this check, I might be trasferring in very small chunks.. 
+		 * If I don't have this check, I might be trasferring in very small chunks..
 		 */
 		budget = (tcap_res_t)cos_introspect(&booter_info, tcp, TCAP_GET_BUDGET);
 		if (budget >= budg_max && ((budget - budg_max) >= budg_thr)) {
-			tcap_res_t bud = (budget - budg_max);			
+			tcap_res_t bud = (budget - budg_max);
 
 			snd = VM0_CAPTBL_SELF_INITASND_SET_BASE + ((i - 1) * CAP64B_IDSZ);
 
 			if (cos_tcap_delegate(snd, tcp, bud, PRIO_LOW, 0)) assert(0);
-		} 
+		}
 	}
 #elif defined(__SIMPLE_XEN_LIKE_TCAPS__)
 	return;
@@ -712,73 +712,78 @@ cos_fs_test(void)
 	printc("Ret from fs test: %d\n", sinv_ret);
 }
 
+/* FIXME rename two tests below */
 void
 cos_shmem_test(void)
 {
-	printc("Running cos shmem test: VM%d\n", cos_spdid_get());
+	sinvcap_t sinv;
+	int shm_id;
+	vaddr_t my_page;
 
-	//shmem_map_invoke();
+	/* Test is from User component to Kernel Component only */
+	assert(cos_spdid_get() == 1);
+
+	/* Allocate user component a shared page to use */
+	shm_id = shmem_allocate_invoke();
+
+	/* Get vaddr for that shm_id and write 'a' to it */
+	my_page = shmem_get_vaddr_invoke(shm_id);
+	assert(my_page);
+	printc("User component shared mem vaddr: %p\n", (void *)my_page);
+	*(char *)my_page = 'a';
+
+	/* Go to kernel, map in shared mem page, read 'a', write 'b' */
+	sinv = VM0_CAPTBL_SELF_IOSINV_TEST;
+	cos_sinv(sinv, shm_id, 0, 0, 0);
+
+	/* Read 'b' in our page */
+	printc("Return from kernel component, reading %p + 1: %c\n", \
+		(void *)my_page, *((char *)my_page + 1));
 }
 
-/* TODO separate the testing code from the shmem_*_invoke abastraction */
-void
-shmem_allocate_invoke()
+vaddr_t
+shmem_get_vaddr_invoke(int id)
 {
-	/* This sinv cap is allocated and found within vkernel_init.c */
-	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_ALLOC;
-	vaddr_t sinv_ret;
+	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_VADDR_GET;
+	int sinv_ret;
 
-	printc("Invoking shmem_allocate: VM%d\n", cos_spdid_get());
+	sinv_ret = cos_sinv(sinv, cos_spdid_get(), id, 0 , 0);
+}
+
+int
+shmem_allocate_invoke(void)
+{
+	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_ALLOC;
+	int sinv_ret;
 
 	sinv_ret = cos_sinv(sinv, cos_spdid_get(), 1, 0, 0);
 
-	printc("Ret from shmem_allocate_invoke: %p\n", (vaddr_t)sinv_ret);
-
-	printc("\t\nRunning TEST\n");
-	printc("\tReading a byte from returned page in kernel space\n");
-	char ret_char = *((char *)sinv_ret);
-	printc("\tDone, %c was read\n\n", ret_char);
+	return sinv_ret;
 }
 
-void
-shmem_deallocate_invoke()
+int
+shmem_deallocate_invoke(void)
 {
-	/* This sinv cap is allocated and found within vkernel_init.c */
 	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_DEALLOC;
 	int sinv_ret = -1;
 
-	printc("Invoking shmem_deallocate: VM%d\n", cos_spdid_get());
-
 	sinv_ret = cos_sinv(sinv, 0, 0, 0, 0);
 
-	printc("Ret from shmem_deallocate_invoke: %d\n", sinv_ret);
+	return sinv_ret;
 }
 
-void
-shmem_map_invoke()
+int
+shmem_map_invoke(int id)
 {
-	/* This sinv cap is allocated and found within vkernel_init.c */
-//	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_MAP;
-//	vaddr_t sinv_ret;
-//
-//	printc("Invoking shmem_map: VM%d\n", cos_spdid_get());
-//
-//	/*
-//	 * TODO implement the next two paramtets. Add system calls to kernel component to get:
-//	 *	 kernel's spdid and page to map in, pass these things into shmem_map_invoke
-//	 */
-//	sinv_ret = cos_sinv(sinv, cos_spdid_get(), 0, 0, 0);
-//
-//	printc("Ret from shmem_map_invoke: %p\n", (vaddr_t)sinv_ret);
-//
-//	printc("\t\nRunning TEST\n");
-//	printc("\tReading a byte from returned page in user space\n");
-//	char ret_char = *((char *)sinv_ret);
-//	printc("\tDone, %c was read\n\n", ret_char);
+	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_MAP;
+	int sinv_ret;
+
+	sinv_ret = cos_sinv(sinv, cos_spdid_get(), id, 0, 0);
+
+	return sinv_ret;
 }
 
 int _spdid = -1;
-
 void
 cos_spdid_set(unsigned int spdid)
 {

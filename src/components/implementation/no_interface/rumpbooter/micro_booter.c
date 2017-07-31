@@ -61,11 +61,11 @@ vm_init(void *id)
 
 	printc("\n************ USERSPACE *************\n");
 
-	printc("Running fs test\n");
-	cos_fs_test();
-	printc("Done\n");
+	//printc("Running fs test\n");
+	//cos_fs_test();
+	//printc("Done\n");
 
-	printc("Running shared memory test\n");
+	printc("Running shared memory tests\n");
 	cos_shmem_test();
 	printc("Done\n");
 
@@ -90,24 +90,6 @@ kernel_init(void *id)
 			  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE, &booter_info);
 
 	printc("\n************ KERNEL *************\n");
-
-	printc("Before booting rk, test sinv capabilities down to booter for shdmem api\n");
-	// 12 tests
-	shmem_allocate_invoke();
-	shmem_allocate_invoke();
-	shmem_allocate_invoke();
-	shmem_allocate_invoke();
-	shmem_allocate_invoke();
-	shmem_allocate_invoke();
-	shmem_allocate_invoke();
-	shmem_allocate_invoke();
-	shmem_allocate_invoke();
-	shmem_allocate_invoke();
-	shmem_allocate_invoke();
-	shmem_allocate_invoke();
-	shmem_deallocate_invoke();
-	shmem_map_invoke();
-	printc("\nDone\n");
 
 	rump_booter_init();
 

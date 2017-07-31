@@ -152,9 +152,11 @@ tcap_t cos_find_vio_tcap(void);
 
 void cos_fs_test(void);
 void cos_shmem_test(void);
-void shmem_allocate_invoke(void);
-void shmem_deallocate_invoke(void);
-void shmem_map_invoke(void);
+
+vaddr_t shmem_get_vaddr_invoke(int id);
+int shmem_allocate_invoke(void);
+int shmem_deallocate_invoke(void);
+int shmem_map_invoke(int id);
 
 int paws_tests(void);
 

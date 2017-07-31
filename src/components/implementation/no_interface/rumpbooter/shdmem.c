@@ -5,6 +5,9 @@ static vaddr_t shm_master_regions[SHM_MAX_REGIONS];
 /* Until we have to implement the deallocate, just increment this */
 static unsigned int shm_master_idx = 0;
 
+/* cos_compinfo for the booter component when using vkernel_init.c for the booter */
+extern struct cos_compinfo *vk_cinfo;
+
 static void
 __shm_infos_init(unsigned int spdid)
 {
@@ -18,7 +21,7 @@ __shm_infos_init(unsigned int spdid)
 
 	/* Set all region idxs to -1 */
 	for (i = 0 ; i < SHM_MAX_REGIONS ; i++ ) {
-		shm_infos[spdid].my_region_idxs[i] = -1;
+		shm_infos[spdid].my_regions[i] = -1;
 	}
 
 	shm_infos[spdid].init = 1;
@@ -30,19 +33,28 @@ __print_region_idxs(unsigned int spdid)
 	unsigned int count = 0;
 
 	printc("\tPrinting regions for the shm_info, spdid: %d\n", spdid);
-	while (count < shm_infos[spdid].my_idx) {
-		printc("\t\tidx: %d, master region: %d\n", count, shm_infos[spdid].my_region_idxs[count]);
+	while (count < SHM_MAX_REGIONS) {
+		if (shm_infos[spdid].my_regions[count]) {
+			printc("\t\tidx: %d, master region: %d\n", count, shm_infos[spdid].my_regions[count]);
+		}
 		count++;
 	}
 }
 
+vaddr_t
+shm_get_vaddr(unsigned int spdid, unsigned int id, int arg3, int arg4)
+{
+	assert(id < SHM_MAX_REGIONS && shm_infos[spdid].cinfo && shm_infos[spdid].shm_frontier);
+
+	return shm_infos[spdid].my_regions[id];
+}
+
 int
-shm_allocate(unsigned int spdid, int num_pages, int shmem_id, int arg4)
+shm_allocate(unsigned int spdid, unsigned int num_pages, int arg3, int arg4)
 {
 	vaddr_t src_pg, dst_pg, unused;
+	struct shm_info *comp_shm_info;
 	int ret, idx;
-	/* cos_compinfo for the booter component when using vkernel_init.c for the booter */
-	extern struct cos_compinfo *vk_cinfo;
 
 	/* FIXME, this function is a critial section, syncronize this sh*t */
 
@@ -55,6 +67,8 @@ shm_allocate(unsigned int spdid, int num_pages, int shmem_id, int arg4)
 	/* Initialize the shm_info for this spdid if it has not been initialized yet */
 	if (!shm_infos[spdid].init) { __shm_infos_init(spdid); }
 
+	comp_shm_info = &shm_infos[spdid];
+
 	src_pg = (vaddr_t)cos_page_bump_alloc(vk_cinfo);
 	assert(src_pg);
 	/* Source Page comes from component managing shared memory, this is the page we keep in shm_master_regions*/
@@ -62,31 +76,17 @@ shm_allocate(unsigned int spdid, int num_pages, int shmem_id, int arg4)
 	shm_master_regions[shm_master_idx] = src_pg;
 
 	/* Get address to map into */
-	dst_pg = shm_infos[spdid].shm_frontier;
-	idx = shm_infos[spdid].my_idx;
-	assert(idx < SHM_MAX_REGIONS);
-	/* Keep track of the regions we have been provided */
-	shm_infos[spdid].my_region_idxs[idx] = shm_master_idx;
+	idx = shm_master_idx;
+	dst_pg = comp_shm_info->shm_frontier;
+        comp_shm_info->my_regions[idx] = dst_pg;
 
 	shm_master_idx++;
-	shm_infos[spdid].my_idx++;
 
-	__print_region_idxs(spdid);
-
-	ret = cos_mem_alias_at(shm_infos[spdid].cinfo, shm_infos[spdid].shm_frontier, vk_cinfo, src_pg);
+	ret = cos_mem_alias_at(comp_shm_info->cinfo, comp_shm_info->shm_frontier, vk_cinfo, src_pg);
 	assert(dst_pg && !ret);
-	shm_infos[spdid].shm_frontier += PAGE_SIZE;
+	comp_shm_info->shm_frontier += PAGE_SIZE;
 
-	printc("\n");
-
-	printc("\tRunning TEST\n");
-	printc("\tWriting a byte to page in booter...\n");
-	*((char *)src_pg) = 'a';
-	printc("\tDone, 'a' was written, 'a' is %d as an int\n", (int)'a');
-
-	printc("\n");
-
-	return dst_pg;
+	return idx;
 }
 
 int
@@ -109,11 +109,30 @@ shm_deallocate(int arg1, int arg2, int arg3, int arg4)
 }
 
 int
-shm_map(int arg1, int arg2, int arg3, int arg4)
+shm_map(unsigned int spdid, unsigned int id, int arg3, int arg4)
 {
-	/*
-	 * arg1 - spdid_t spdid of the new component to map in
-	 * arg2 - long cbid of the page that was already alloced
-	 */
-	return 0;
+	vaddr_t src_pg, dst_pg;
+	int ret;
+	struct shm_info *comp_shm_info;
+
+	assert(id < SHM_MAX_REGIONS && \
+		shm_infos[spdid].shm_frontier && \
+		shm_infos[spdid].cinfo);
+
+	comp_shm_info = &shm_infos[spdid];
+
+	/* Initialize the shm_info for this spdid if it has not been initialized yet */
+	if (!comp_shm_info->init) { __shm_infos_init(spdid); }
+
+	src_pg = shm_master_regions[id];
+	printc("shm_map, src_pg: %p\n", src_pg);
+
+	dst_pg = comp_shm_info->shm_frontier;
+	comp_shm_info->my_regions[id] = dst_pg;
+
+	ret = cos_mem_alias_at(comp_shm_info->cinfo, comp_shm_info->shm_frontier, vk_cinfo, src_pg);
+	assert(dst_pg && !ret);
+	comp_shm_info->shm_frontier += PAGE_SIZE;
+
+	return id;
 }

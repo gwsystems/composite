@@ -154,6 +154,7 @@ cos_init(void)
 		/* VM_UNTYPED_SIZE = 1<<27 which is 124 MB */
 		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE);
 
+		/* User component must be initializing and kernel component must be done, wait for id > 0 */
 		if (id > 0) {
 			sinvcap_t sinv;
 			printc("\tSetting up sinv capability from user component to kernel component\n");
@@ -163,20 +164,40 @@ cos_init(void)
 			ret = cos_cap_cpy_at(vm_cinfo, VM0_CAPTBL_SELF_IOSINV_BASE, vk_cinfo, sinv);
 			assert(ret == 0);
 
-			printc("\tSetting up sinv capabilities from kernel component to booter component\n");
+			/* Testing shared memory from user component to kernel component  */
+			sinv = cos_sinv_alloc(vk_cinfo, kernel_cinfo->comp_cap, (vaddr_t)__inv_test_shdmem);
+			ret = cos_cap_cpy_at(vm_cinfo, VM0_CAPTBL_SELF_IOSINV_TEST, vk_cinfo, sinv);
+			assert(ret == 0);
+
+			printc("\tSetting up sinv capabilities from kernel and user component to booter component\n");
+			/* TODO: change enum name from VM0_... either VM or nothing */
+			/* Shmem Syncronous Invocations */
+			sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_shdmem_get_vaddr);
+			assert(sinv > 0);
+			ret = cos_cap_cpy_at(kernel_cinfo, VM0_CAPTBL_SELF_IOSINV_VADDR_GET, vk_cinfo, sinv);
+			assert(ret == 0);
+			ret = cos_cap_cpy_at(vm_cinfo, VM0_CAPTBL_SELF_IOSINV_VADDR_GET, vk_cinfo, sinv);
+			assert(ret == 0);
+
 			sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_shdmem_allocate);
 			assert(sinv > 0);
 			ret = cos_cap_cpy_at(kernel_cinfo, VM0_CAPTBL_SELF_IOSINV_ALLOC, vk_cinfo, sinv);
+			assert(ret == 0);
+			ret = cos_cap_cpy_at(vm_cinfo, VM0_CAPTBL_SELF_IOSINV_ALLOC, vk_cinfo, sinv);
 			assert(ret == 0);
 
 			sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_shdmem_deallocate);
 			assert(sinv > 0);
 			ret = cos_cap_cpy_at(kernel_cinfo, VM0_CAPTBL_SELF_IOSINV_DEALLOC, vk_cinfo, sinv);
 			assert(ret == 0);
+			ret = cos_cap_cpy_at(vm_cinfo, VM0_CAPTBL_SELF_IOSINV_DEALLOC, vk_cinfo, sinv);
+			assert(ret == 0);
 
 			sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_shdmem_map);
 			assert(sinv > 0);
 			ret = cos_cap_cpy_at(kernel_cinfo, VM0_CAPTBL_SELF_IOSINV_MAP, vk_cinfo, sinv);
+			assert(ret == 0);
+			ret = cos_cap_cpy_at(vm_cinfo, VM0_CAPTBL_SELF_IOSINV_MAP, vk_cinfo, sinv);
 			assert(ret == 0);
 
 			printc("\tDone setting up sinvs\n");
