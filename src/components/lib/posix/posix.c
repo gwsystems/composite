@@ -6,10 +6,9 @@
 #include <llprint.h>
 #include <syscall.h>
 #include <stdbool.h>
+#include <errno.h>
 
 #define SYSCALLS_NUM 378
-
-extern struct cos_compinfo parent_cinfo;
 
 typedef long (*cos_syscall_t)(long a, long b, long c, long d, long e, long f);
 cos_syscall_t cos_syscalls[SYSCALLS_NUM];
@@ -21,7 +20,7 @@ __cos_syscall(int syscall_num, long a, long b, long c, long d, long e, long f)
 
 	if (!cos_syscalls[syscall_num]) {
 		printc("WARNING: Component %ld calling unimplemented system call %d\n", cos_spd_id(), syscall_num);
-		return 0;
+		return -ENOTSUP;
 	} else {
 		return cos_syscalls[syscall_num](a, b, c, d, e, f);
 	}
@@ -70,7 +69,7 @@ cos_write(int fd, const void *buf, size_t count)
 		printc("stdin is not supported!\n");
 		return -ENOTSUP;
 	} else if (fd == 1 || fd == 2) {
-		int i;
+		unsigned int i;
 		char *d = (char *)buf;
 		for(i=0; i<count; i++) printc("%c", d[i]);
 		return count;
@@ -114,26 +113,24 @@ cos_brk(void *addr)
 void *
 cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
-	void *ret = 0;
-
 	if (addr != NULL) {
 		printc("parameter void *addr is not supported!\n");
-		assert(0);
+		errno = ENOTSUP;
+		return MAP_FAILED;
 	}
 	if (fd != -1) {
 		printc("file mapping is not supported!\n");
-		assert(0);
+		errno = ENOTSUP;
+		return MAP_FAILED;
 	}
-
-	addr = (void *)cos_page_bump_allocn(&parent_cinfo, length);
+	
+	addr = (void *)cos_page_bump_allocn(&cos_defcompinfo_curr_get()->ci, length);
 	if (!addr) {
 		/*the return value comes from man page*/
-		ret = (void *)-1;
+		return MAP_FAILED;
 	} else {
-		ret = addr;
+		return addr;
 	}
-
-	return ret;
 }
 
 int
@@ -154,7 +151,7 @@ void *
 cos_mremap(void *old_address, size_t old_size, size_t new_size, int flags)
 {
 	printc("mremap not implemented!\n");
-	return -ENOTSUP;
+	return MAP_FAILED;
 }
 
 off_t

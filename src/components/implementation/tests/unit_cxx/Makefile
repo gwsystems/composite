@@ -4,7 +4,7 @@ INTERFACES=
 DEPENDENCIES=
 IF_LIB=
 OBJLIBS += $(POSIX_LIB)
-ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lstdc++ -lsupc++
+ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_defkernel_api -lstdc++ -lsupc++
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o

@@ -1,7 +1,7 @@
 #include "cxx.h"
 
 extern "C" {
-#include "init.h"
+#include <cos_defkernel_api.h>
 }
 
 #include <typeinfo> /*for 'typeid'*/
@@ -149,7 +149,14 @@ Global_bar bar;
 extern "C" void 
 cos_init(void *args)
 {
-	init_cinfo();
+	struct cos_defcompinfo *defci;
+	struct cos_compinfo *cinfo;
+
+	defci = cos_defcompinfo_curr_get();
+	cinfo = cos_compinfo_get(defci);
+	cos_meminfo_init(&cinfo->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_defcompinfo_init();
+
 	cout << "=========CXX TEST=========" << endl;
 	basic_test();
 	template_test();
