@@ -83,7 +83,7 @@ uint32 tar_parse()
             o->ino = 0;
             return OS_FS_SUCCESS;
         }
-        if (tar_cphdr(offset, o))           return OS_FS_ERR_DRIVE_NOT_CREATED;
+        if (tar_hdr_read(offset, o))           return OS_FS_ERR_DRIVE_NOT_CREATED;
         if (file_insert(o, offset + tar_start)) return OS_FS_ERR_DRIVE_NOT_CREATED;
 
         /*
@@ -101,7 +101,7 @@ uint32 tar_parse()
  * Copies information from a tar file header to a fsobj
  * TODO: change name of this function and make it cast to tar hdr struct
  */
-uint32 tar_cphdr(uint32 tar_offset, struct fsobj *file)
+uint32 tar_hdr_read(uint32 tar_offset, struct fsobj *file)
 {
     assert(tar_offset < tar_size);
     assert(file->ino > 0);
