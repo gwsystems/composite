@@ -478,7 +478,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next,
 }
 
 static struct thread *
-notify_parent(struct thread *rcv_thd)
+notify_parent(struct thread *rcv_thd, int send)
 {
 	struct thread *curr_notif = NULL, *prev_notif = NULL, *arcv_notif = NULL;
 	int depth = 0;
@@ -486,6 +486,17 @@ notify_parent(struct thread *rcv_thd)
 	/* hierarchical notifications - upto init (bounded by ARCV_NOTIF_DEPTH) */
 	prev_notif = rcv_thd;
 	curr_notif = arcv_notif = arcv_thd_notif(prev_notif);
+
+	/*
+	 * Enqueue send sched event only if it's the first one after the thread
+	 * state changed to THD_STATE_RCVING.
+	 * This is to avoid duplicate wakeup events at user-level scheduling.
+	 * Basically changing to Edge-triggered wakeup notification from 
+	 * some form of level-triggered.
+	 */ 
+	if (send && (!(rcv_thd->state & THD_STATE_RCVING) || 
+	    (rcv_thd->state & THD_STATE_RCVING && thd_rcvcap_pending(rcv_thd)))) goto done;
+
 	while (curr_notif && curr_notif != prev_notif) {
 		assert(depth < ARCV_NOTIF_DEPTH);
 
@@ -497,6 +508,7 @@ notify_parent(struct thread *rcv_thd)
 		depth ++;
 	}
 
+done:
 	return arcv_notif;
 }
 
@@ -510,7 +522,7 @@ notify_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap
 {
 	struct thread *next;
 
-	notify_parent(rcv_thd);
+	notify_parent(rcv_thd, 1);
 
 	/* The thread switch decision: */
 	if (yield || tcap_higher_prio(rcv_tcap, tcap)) {
@@ -571,7 +583,7 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		}
 	}
 
-	if (budget_expired) notify_parent(tcap_rcvcap_thd(tc_curr));
+	if (budget_expired) notify_parent(tcap_rcvcap_thd(tc_curr), 1);
 	if (timer_intr_context || switch_away) {
 		thd_next = notify_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
 		if (thd_next == thd_curr && tc_next == tc_curr) return timer_intr_context;
@@ -808,7 +820,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		return 0;
 	}
 
-	next = notify_parent(thd);
+	next = notify_parent(thd, 0);
 	/* TODO: should we continue tcap-inheritence policy in this case? */
 	if (unlikely(tc_next != thd_rcvcap_tcap(thd))) tc_next = thd_rcvcap_tcap(thd);
 
