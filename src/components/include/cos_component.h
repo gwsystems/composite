@@ -211,7 +211,7 @@ static inline void *cos_get_prealloc_page(void)
 	char *h;
 	long r;
 	do {
-		h = (void*)cos_comp_info.cos_heap_alloc_extent;
+		h = (char*)cos_comp_info.cos_heap_alloc_extent;
 		if (!h || (char*)cos_comp_info.cos_heap_allocated >= h) return NULL;
 		r = (long)h+PAGE_SIZE;
 	} while (cos_cmpxchg(&cos_comp_info.cos_heap_allocated, (long)h, r) != r);
