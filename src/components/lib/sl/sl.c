@@ -25,7 +25,7 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 	int ret;
 
 	/* recursive locks are not allowed */
-	assert(csi->s.owner != t->thdcap);
+	assert(csi->s.owner != sl_thd_thdcap(t));
 	if (!csi->s.contention) {
 		csi->s.contention = 1;
 		if (!ps_cas(&g->lock.u.v, cached->v, csi->v)) return 1;
@@ -291,48 +291,119 @@ sl_thd_yield(thdid_t tid)
 	sl_thd_yield_cs_exit(tid);
 }
 
+static void
+sl_thd_aepinfo_caps_init(struct sl_thd *t, thdcap_t thd, arcvcap_t rcv, tcap_t tc)
+{
+	assert(t);
+
+	sl_thd_aepinfo(t)->thd = thd;
+	sl_thd_aepinfo(t)->rcv = rcv;
+	sl_thd_aepinfo(t)->tc  = tc;
+}
+
 static struct sl_thd *
-sl_thd_alloc_init(thdid_t tid, thdcap_t thdcap)
+sl_thd_alloc_init(thdid_t tid, thdcap_t thdcap, arcvcap_t rcvcap, tcap_t tcap,
+		  asndcap_t sndcap, sl_thd_type type)
 {
 	struct sl_thd_policy *tp = NULL;
 	struct sl_thd        *t  = NULL;
 
-	tp             = sl_thd_alloc_backend(tid);
+	tp = sl_thd_alloc_backend(tid);
 	if (!tp) goto done;
-	t              = sl_mod_thd_get(tp);
-
-	t->thdid       = tid;
-	t->thdcap      = thdcap;
-	t->state       = SL_THD_RUNNABLE;
+	t  = sl_mod_thd_get(tp);
+	
+	t->thdid          = tid;
+	t->type           = type;
+	sl_thd_aepinfo_caps_init(t, thdcap, rcvcap, tcap);
+	t->sndcap         = sndcap;
+	t->state          = SL_THD_RUNNABLE;
 	sl_thd_index_add_backend(sl_mod_thd_policy_get(t));
 
-	t->period      = t->timeout_cycs = t->periodic_cycs = 0;
-	t->wakeup_cycs = 0;
-	t->timeout_idx = -1;
-	t->prio        = TCAP_PRIO_MIN;
+	t->budget         = 0;
+	t->last_replenish = 0;
+	t->period         = t->timeout_cycs = t->periodic_cycs = 0;
+	t->wakeup_cycs    = 0;
+	t->timeout_idx    = -1;
+	t->prio           = TCAP_PRIO_MIN;
 
 done:
 	return t;
 }
 
-/* boot_thd = 1 if you want to create a boot-up thread in a separate component */
 static struct sl_thd *
-sl_thd_alloc_intern(cos_thd_fn_t fn, void *data, struct cos_defcompinfo *comp, int boot_thd)
+sl_thd_alloc_intern(cos_thd_fn_t fn, void *data)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
 	struct sl_thd          *t   = NULL;
 	thdcap_t thdcap;
-	thdid_t  tid;
+	thdid_t tid;
 
-	if (!boot_thd) thdcap = cos_thd_alloc(ci, ci->comp_cap, fn, data);
-	else           thdcap = cos_initthd_alloc(ci, comp->ci.comp_cap);
+	thdcap = cos_thd_alloc(ci, ci->comp_cap, fn, data);
 	if (!thdcap) goto done;
 
 	tid = cos_introspect(ci, thdcap, THD_GET_TID);
 	assert(tid);
-	t = sl_thd_alloc_init(tid, thdcap);
+	t = sl_thd_alloc_init(tid, thdcap, 0, 0, 0, SL_THD_THD);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
+
+done:
+	return t;
+}
+
+static struct sl_thd *
+sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *comp, sl_thd_type type)
+{
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = &dci->ci;
+	struct sl_thd          *t   = NULL;
+	asndcap_t               snd = 0;
+	struct cos_aep_info     aep;
+	thdid_t                 tid;
+	int                     ret;
+	
+	switch(type) {
+	case SL_THD_AEP:
+	{
+		ret = cos_aep_tcap_alloc(&aep, sl_thd_aepinfo(sl__globals()->sched_thd)->tc, fn, data);
+		if (ret) goto done;
+		break;
+	}
+	case SL_THD_AEP_TCAP:
+	{
+		ret = cos_aep_alloc(&aep, fn, data);
+		if (ret) goto done;
+		break;
+	}
+	case SL_THD_COMP:
+	case SL_THD_COMP_TCAP:
+	{
+		struct cos_aep_info *sa;
+
+		assert(comp);
+		sa = cos_sched_aep_get(comp);
+
+		/* FIXME: inefficient.. find a zerocopy way! */
+		aep.tc  = sa->tc;
+		aep.thd = sa->thd;
+		aep.rcv = sa->rcv;
+
+		snd = cos_asnd_alloc(ci, aep.rcv, ci->captbl_cap);
+		assert(snd);
+		break;
+	}
+	default:
+	{
+		assert(0);
+		break;
+	}
+	}
+
+	tid = cos_introspect(ci, aep.thd, THD_GET_TID);
+	assert(tid);
+	t = sl_thd_alloc_init(tid, aep.thd, aep.rcv, aep.tc, snd, type);
+	sl_mod_thd_create(sl_mod_thd_policy_get(t));
+
 done:
 	return t;
 }
@@ -343,20 +414,38 @@ sl_thd_alloc(cos_thd_fn_t fn, void *data)
 	struct sl_thd *t;
 
 	sl_cs_enter();
-	t = sl_thd_alloc_intern(fn, data, NULL, 0);
+	t = sl_thd_alloc_intern(fn, data);
 	sl_cs_exit();
 
 	return t;
 }
 
-/* Allocate a thread that executes in the specified component */
 struct sl_thd *
-sl_thd_comp_alloc(struct cos_defcompinfo *comp)
+sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, sl_thd_type type)
 {
 	struct sl_thd *t;
 
+	assert(type == SL_THD_AEP || type == SL_THD_AEP_TCAP);
+
 	sl_cs_enter();
-	t = sl_thd_alloc_intern(NULL, NULL, comp, 1);
+	t = sl_thd_aep_alloc_intern(fn, data, NULL, type);
+	sl_cs_exit();
+
+	return t;
+}
+
+/* sl object for inithd in the child comp */
+struct sl_thd *
+sl_thd_comp_init(struct cos_defcompinfo *comp, sl_thd_type type)
+{
+	struct sl_thd *t;
+
+	assert(comp);
+	assert(type == SL_THD_COMP || type == SL_THD_COMP_TCAP);
+	if (type == SL_THD_COMP) assert(cos_sched_aep_get(comp)->tc == sl_thd_tcap(sl__globals()->sched_thd));
+
+	sl_cs_enter();
+	t = sl_thd_aep_alloc_intern(NULL, NULL, comp, type);
 	sl_cs_exit();
 
 	return t;
@@ -380,6 +469,7 @@ sl_thd_free(struct sl_thd *t)
 	/* thread should not continue to run if it deletes itself. */
 	if (unlikely(t == ct)) {
 		sl_cs_exit_schedule();
+
 		/* should never get here */
 		assert(0);
 	}
@@ -399,6 +489,11 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 	{
 		t->period = sl_usec2cyc(value);
 		t->periodic_cycs = sl_now(); /* TODO: synchronize for all tasks */
+		break;
+	}
+	case SCHEDP_BUDGET:
+	{
+		t->budget = sl_usec2cyc(value);
 		break;
 	}
 	default: break;
@@ -430,19 +525,23 @@ sl_init(void)
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
 
-	g->cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-	g->lock.u.v     = 0;
+	g->cyc_per_usec    = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	g->lock.u.v        = 0;
 
 	sl_thd_init_backend();
 	sl_mod_init();
 	sl_timeout_init();
 
 	/* Create the scheduler thread for us */
-	g->sched_thd    = sl_thd_alloc_init(cos_thdid(), BOOT_CAPTBL_SELF_INITTHD_BASE);
+	g->sched_thd       = sl_thd_alloc_init(cos_thdid(), BOOT_CAPTBL_SELF_INITTHD_BASE, 
+					    BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, SL_THD_THD);
 	assert(g->sched_thd);
-	g->sched_thdcap = BOOT_CAPTBL_SELF_INITTHD_BASE;
+	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_BASE;
+	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+	g->sched_rcv       = BOOT_CAPTBL_SELF_INITRCV_BASE;
+	g->sched_thd->prio = 0;
 
-	g->idle_thd     = sl_thd_alloc(sl_idle, NULL);
+	g->idle_thd        = sl_thd_alloc(sl_idle, NULL);
 	assert(g->idle_thd);
 
 	return;
@@ -465,7 +564,7 @@ sl_sched_loop(void)
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING,
+			pending = cos_sched_rcv(sl__globals()->sched_rcv, RCV_ALL_PENDING,
 						&rcvd, &tid, &blocked, &cycles);
 			if (!tid) continue;
 
@@ -483,8 +582,8 @@ sl_sched_loop(void)
 			 */
 			if (sl_cs_enter_sched()) continue;
 			sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
-			if (blocked) sl_mod_block(sl_mod_thd_policy_get(t));
-			else         sl_mod_wakeup(sl_mod_thd_policy_get(t));
+			//if (blocked) sl_mod_block(sl_mod_thd_policy_get(t));
+			//else         sl_mod_wakeup(sl_mod_thd_policy_get(t));
 
 			sl_cs_exit();
 		} while (pending);
