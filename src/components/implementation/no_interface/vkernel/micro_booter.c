@@ -17,17 +17,21 @@ int vmid;
 void
 vm_init(void *d)
 {
+	int rcvd, blocked;
+	cycles_t cycles;
+	thdid_t tid;
+
 	vmid = (int)d;
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			  (vaddr_t)cos_get_heap_ptr(), vmid == 0 ? DOM0_CAPTBL_FREE : VM_CAPTBL_FREE, &booter_info);
+			(vaddr_t)cos_get_heap_ptr(), vmid == 0 ? DOM0_CAPTBL_FREE : VM_CAPTBL_FREE, &booter_info);
 
 	PRINTC("Micro Booter started.\n");
 	test_run_vk();
 	PRINTC("Micro Booter done.\n");
 
-	EXIT();
-	return;
+	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_NON_BLOCKING | RCV_ALL_PENDING, 
+			     &rcvd, &tid, &blocked, &cycles) > 0) ;	
 }
 
 void

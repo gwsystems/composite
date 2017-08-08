@@ -582,8 +582,8 @@ sl_sched_loop(void)
 			 */
 			if (sl_cs_enter_sched()) continue;
 			sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
-			//if (blocked) sl_mod_block(sl_mod_thd_policy_get(t));
-			//else         sl_mod_wakeup(sl_mod_thd_policy_get(t));
+			if (blocked) sl_mod_block(sl_mod_thd_policy_get(t));
+			else         sl_mod_wakeup(sl_mod_thd_policy_get(t));
 
 			sl_cs_exit();
 		} while (pending);

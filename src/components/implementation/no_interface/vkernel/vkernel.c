@@ -4,6 +4,7 @@
 
 #include "vk_types.h"
 #include "vk_api.h"
+#include <sl.h>
 
 #undef assert
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0; } } while (0)
@@ -19,8 +20,7 @@ struct vms_info vmx_info[VM_COUNT];
 struct dom0_io_info dom0ioinfo;
 struct vm_io_info vmioinfo[VM_COUNT-1];
 struct vkernel_info vk_info;
-unsigned int ready_vms = VM_COUNT;
-struct cos_compinfo *vk_cinfo = (struct cos_compinfo *)&vk_info.cinfo;
+struct cos_compinfo *vk_cinfo;
 
 void
 vk_terminate(void *d)
@@ -29,102 +29,71 @@ vk_terminate(void *d)
 void
 vm_exit(void *d)
 {
+	sl_thd_free(vmx_info[(int)d].inithd);
 	printc("%d: EXIT\n", (int)d);
-	ready_vms --;
-	vmx_info[(int)d].state = VM_EXITED;	
+	sl_thd_free(vmx_info[(int)d].exithd);
 
-	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	assert(0);
 }
-
-void
-scheduler(void) 
-{
-	static unsigned int i;
-	thdid_t             tid;
-	int                 blocked;
-	cycles_t            cycles;
-	int                 index;
-
-	while (ready_vms) {
-		index = i++ % VM_COUNT;
-		
-		if (vmx_info[index].state == VM_RUNNING) {
-			assert(vk_info.vminitasnd[index]);
-
-			if (cos_tcap_delegate(vk_info.vminitasnd[index], BOOT_CAPTBL_SELF_INITTCAP_BASE,
-					      VM_BUDGET_FIXED, VM_PRIO_FIXED, TCAP_DELEG_YIELD)) assert(0);
-		}
-
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycles)) ;
-	}
-}
-
 
 void
 cos_init(void)
 {
+	static int is_booter = 1;
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
 	int id, cycs;
+
+	if (is_booter == 0) {
+		int ret;
+
+		vm_init(NULL);
+
+		do {
+			ret = cos_switch(VM_CAPTBL_SELF_EXITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE,
+					 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+
+		} while (ret == -EBUSY || ret == -EAGAIN || ret == -EPERM);
+
+		/*
+		 * FIXME: It could get here if there is budget in the TCap and 
+		 *        the kernel mechanism chose a TCap having this as the scheduler.
+		 *        HOPE ITS A FINITE TCAP or A TIMEOUT IS SPECIFIED FOR THIS RUN!
+		 */
+		SPIN();
+	}
+	is_booter = 0;
 
 	printc("vkernel: START\n");
 	assert(VM_COUNT >= 2);
 
-	cos_meminfo_init(&vk_cinfo->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_compinfo_init(vk_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, vk_cinfo);
+	vk_cinfo = ci;
+	cos_meminfo_init(&ci->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_defcompinfo_init();
+	
 	/*
 	 * TODO: If there is any captbl modification, this could mess up a bit. 
 	 *       Care to be taken not to use this for captbl mod api
 	 *       Or use some offset into the future in CAPTBL_FREE
 	 */
 	cos_compinfo_init(&vk_info.shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			(vaddr_t)VK_VM_SHM_BASE, BOOT_CAPTBL_FREE, vk_cinfo);
+			(vaddr_t)VK_VM_SHM_BASE, BOOT_CAPTBL_FREE, ci);
 
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL);
 	assert(vk_info.termthd);
 
 	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	printc("\t%d cycles per microsecond\n", cycs);
+	sl_init();
 
 	for (id = 0 ; id < VM_COUNT ; id ++) {
-		struct cos_compinfo *vm_cinfo = &vmx_info[id].cinfo;
+		struct cos_compinfo *vm_cinfo = cos_compinfo_get(&(vmx_info[id].dci));
 		struct vms_info *vm_info = &vmx_info[id];
 		vaddr_t vm_range, addr;
-		pgtblcap_t vmpt, vmutpt;
-		captblcap_t vmct;
-		compcap_t vmcc;
 		int ret;
 
 		printc("vkernel: VM%d Init START\n", id);
 		vm_info->id = id;
-
-		printc("\tForking VM\n");
-		vmct = cos_captbl_alloc(vk_cinfo);
-		assert(vmct);
-
-		vmpt = cos_pgtbl_alloc(vk_cinfo);
-		assert(vmpt);
-
-		vmutpt = cos_pgtbl_alloc(vk_cinfo);
-		assert(vmutpt);
-
-		vmcc = cos_comp_alloc(vk_cinfo, vmct, vmpt, (vaddr_t)&cos_upcall_entry);
-		assert(vmcc);
-
-		cos_meminfo_init(&vm_cinfo->mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, vmutpt);
-		cos_compinfo_init(vm_cinfo, vmpt, vmct, vmcc,
-				(vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, vk_cinfo);
-		cos_compinfo_init(&vm_info->shm_cinfo, vmpt, vmct, vmcc,
-				(vaddr_t)VK_VM_SHM_BASE, VM_CAPTBL_FREE, vk_cinfo);
-
-		printc("\tCopying pgtbl, captbl, component capabilities\n");
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_CT, vk_cinfo, vmct);
-		assert(ret == 0);
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_PT, vk_cinfo, vmpt);
-		assert(ret == 0);
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_UNTYPED_PT, vk_cinfo, vmutpt);
-		assert(ret == 0);
-		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_COMP, vk_cinfo, vmcc);
-		assert(ret == 0);
 
 		vk_initcaps_init(vm_info, &vk_info);
 
@@ -163,14 +132,15 @@ cos_init(void)
 			}
 		}
 
+		vk_sl_thd_init(vm_info);
 		printc("vkernel: VM%d Init END\n", id);
-		vm_info->state = VM_RUNNING;
 	}
 
 	printc("Starting Scheduler\n");
 	printc("------------------[ VKernel & VMs init complete ]------------------\n");
 
-	scheduler();
+	//scheduler();
+	sl_sched_loop();
 
 	printc("vkernel: END\n");
 	cos_thd_switch(vk_info.termthd);
