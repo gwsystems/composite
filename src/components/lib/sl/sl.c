@@ -582,8 +582,9 @@ sl_sched_loop(void)
 			 */
 			if (sl_cs_enter_sched()) continue;
 			sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
-			if (blocked) sl_mod_block(sl_mod_thd_policy_get(t));
-			else         sl_mod_wakeup(sl_mod_thd_policy_get(t));
+
+			if (blocked) sl_thd_block_no_cs(t, SL_THD_BLOCKED); /* TODO: use absolute timeouts by the child AEP/COMP! */
+			else         sl_thd_wakeup_no_cs(t);
 
 			sl_cs_exit();
 		} while (pending);
