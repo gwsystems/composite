@@ -17,9 +17,10 @@ int vmid;
 void
 vm_init(void *d)
 {
-	int rcvd, blocked;
-	cycles_t cycles;
-	thdid_t tid;
+	int         rcvd, blocked;
+	cycles_t    cycles;
+	thdid_t     tid;
+	tcap_time_t timeout = 0, thd_timeout;
 
 	vmid = (int)d;
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
@@ -30,8 +31,8 @@ vm_init(void *d)
 	test_run_vk();
 	PRINTC("Micro Booter done.\n");
 
-	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_NON_BLOCKING | RCV_ALL_PENDING, 
-			     &rcvd, &tid, &blocked, &cycles) > 0) ;	
+	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_NON_BLOCKING | RCV_ALL_PENDING, timeout,
+			     &rcvd, &tid, &blocked, &cycles, &thd_timeout) > 0) ;	
 }
 
 void
@@ -39,7 +40,7 @@ dom0_io_fn(void *id)
 {
 	arcvcap_t rcvcap = dom0_vio_rcvcap((unsigned int)id);
 	while (1) {
-		cos_rcv(rcvcap, 0, NULL);
+		cos_rcv(rcvcap, 0, 0, NULL);
 	}
 }
 
@@ -48,6 +49,6 @@ vm_io_fn(void *id)
 {
 	arcvcap_t rcvcap = VM_CAPTBL_SELF_IORCV_BASE;
 	while (1) {
-		cos_rcv(rcvcap, 0, NULL);
+		cos_rcv(rcvcap, 0, 0, NULL);
 	}
 }

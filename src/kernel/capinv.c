@@ -583,7 +583,7 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		}
 	}
 
-	if (budget_expired) notify_parent(tcap_rcvcap_thd(tc_curr), 1);
+	if (budget_expired) notify_parent(tcap_rcvcap_thd(tc_curr), 0);
 	if (timer_intr_context || switch_away) {
 		thd_next = notify_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
 		if (thd_next == thd_curr && tc_next == tc_curr) return timer_intr_context;
@@ -801,7 +801,8 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 	struct tcap   *tc_next   = tcap_current(cos_info);
 	struct next_thdinfo *nti = &cos_info->next_ti;
 	rcv_flags_t rflags       = __userregs_get1(regs);
-	tcap_time_t timeout      = TCAP_TIME_NIL;
+	tcap_time_t swtimeout    = TCAP_TIME_NIL;
+	tcap_time_t timeout      = __userregs_get2(regs);
 	int all_pending          = (!!(rflags & RCV_ALL_PENDING));
 
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
@@ -815,7 +816,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		return 0;
 	} else if (rflags & RCV_NON_BLOCKING) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-		__userregs_setretvals(regs, -EAGAIN, 0, 0);
+		__userregs_setretvals(regs, -EAGAIN, 0, 0, 0);
 
 		return 0;
 	}
@@ -835,7 +836,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 			/* convert budget to timeout */
 			cycles_t now;
 			rdtscll(now);
-			timeout = tcap_cyc2time(now + nti->budget);
+			swtimeout = tcap_cyc2time(now + nti->budget);
 		}
 		thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
 	}
@@ -853,9 +854,10 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state |= THD_STATE_RCVING;
 		thd_rcvcap_all_pending_set(thd, all_pending);
+		thd->timeout = timeout;
 	}
 
-	return cap_switch(regs, thd, next, tc_next, timeout, ci, cos_info);
+	return cap_switch(regs, thd, next, tc_next, swtimeout, ci, cos_info);
 }
 
 static int

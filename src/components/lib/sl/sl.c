@@ -565,6 +565,7 @@ sl_sched_loop(void)
 			thdid_t        tid;
 			int            blocked, rcvd;
 			cycles_t       cycles;
+			tcap_time_t    timeout = 0, thd_timeout;
 			struct sl_thd *t;
 
 			/*
@@ -572,8 +573,8 @@ sl_sched_loop(void)
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			pending = cos_sched_rcv(sl__globals()->sched_rcv, RCV_ALL_PENDING,
-						&rcvd, &tid, &blocked, &cycles);
+			pending = cos_sched_rcv(sl__globals()->sched_rcv, RCV_ALL_PENDING, timeout,
+						&rcvd, &tid, &blocked, &cycles, &thd_timeout);
 			if (!tid) continue;
 
 			t = sl_thd_lkup(tid);
@@ -591,8 +592,8 @@ sl_sched_loop(void)
 			if (sl_cs_enter_sched()) continue;
 			sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
 
-			if (blocked) sl_thd_block_no_cs(t, SL_THD_BLOCKED); /* TODO: use absolute timeouts by the child AEP/COMP! */
-			else         sl_thd_wakeup_no_cs(t);
+			if (blocked)      sl_thd_block_no_cs(t, SL_THD_BLOCKED); /* TODO: use absolute timeouts by the child AEP/COMP! */
+			else if (!cycles) sl_thd_wakeup_no_cs(t); /* ignore if this is a budget expiry notification */
 
 			sl_cs_exit();
 		} while (pending);
