@@ -133,6 +133,14 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type)
 		return 1;
 	}
 
+	if (unlikely(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT)) {
+		/*
+		 * If an AEP/a child COMP was blocked and an interrupt caused it to wakeup and run
+		 * but blocks itself before the scheduler could see the wakeup event.. Scheduler
+		 * will only see a BLOCKED event from the kernel.
+		 */
+		return 0;
+	}
 	assert(t->state == SL_THD_RUNNABLE);
 	t->state = block_type;
 	sl_mod_block(sl_mod_thd_policy_get(t));
