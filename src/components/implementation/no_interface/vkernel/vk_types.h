@@ -16,12 +16,13 @@
 
 #define VM_FIXED_PERIOD_MS 10
 #define VM_FIXED_BUDGET_MS 5
+#define VM_FIXED_PRIO      1
 
 enum vm_captbl_layout {
-	VM_CAPTBL_SELF_EXITTHD_BASE    = BOOT_CAPTBL_FREE,
+	VM_CAPTBL_SELF_SINV_BASE       = BOOT_CAPTBL_FREE,
 
 	/* VM1~ I/O Capabilities layout */
-        VM_CAPTBL_SELF_IOTHD_BASE      = round_up_to_pow2(VM_CAPTBL_SELF_EXITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
+        VM_CAPTBL_SELF_IOTHD_BASE      = round_up_to_pow2(VM_CAPTBL_SELF_SINV_BASE + NUM_CPU_COS*CAP32B_IDSZ, CAPMAX_ENTRY_SZ),
         VM_CAPTBL_SELF_IORCV_BASE      = round_up_to_pow2(VM_CAPTBL_SELF_IOTHD_BASE + CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
         VM_CAPTBL_SELF_IOASND_BASE     = round_up_to_pow2(VM_CAPTBL_SELF_IORCV_BASE + CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
         VM_CAPTBL_SELF_LAST_CAP        = VM_CAPTBL_SELF_IOASND_BASE + CAP64B_IDSZ,
@@ -62,8 +63,6 @@ struct vms_info {
 	struct cos_compinfo shm_cinfo;
 	struct sl_thd *inithd;
 
-	struct sl_thd *exithd;
-
 	union { /* for clarity */
 		struct vm_io_info *vmio;
 		struct dom0_io_info *dom0io;
@@ -73,8 +72,19 @@ struct vms_info {
 struct vkernel_info {
 	struct cos_compinfo shm_cinfo;
 
-	thdcap_t termthd;
+	thdcap_t  termthd;
+	sinvcap_t sinv;
 	asndcap_t vminitasnd[VM_COUNT];
 };
+
+enum vkernel_server_option {
+	VK_SERV_VM_ID = 0,
+	VK_SERV_VM_EXIT,
+};
+
+extern struct vms_info vmx_info[];
+extern struct dom0_io_info dom0ioinfo;
+extern struct vm_io_info vmioinfo[];
+extern struct vkernel_info vk_info;
 
 #endif /* VK_TYPES_H */

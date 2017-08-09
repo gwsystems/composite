@@ -51,6 +51,9 @@ vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	assert(ret == 0);
 	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITRCV_BASE, vk_cinfo, initaep->rcv);
 	assert(ret == 0);
+
+	ret = cos_cap_cpy_at(vmcinfo, VM_CAPTBL_SELF_SINV_BASE, vk_cinfo, vkinfo->sinv); 
+	assert(ret == 0);
 }
 
 void
@@ -59,28 +62,20 @@ vk_sl_thd_init(struct vms_info *vminfo)
 	struct cos_compinfo *vk_cinfo = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct cos_defcompinfo *vmdci = &(vminfo->dci);
 	struct cos_compinfo *vmcinfo  = cos_compinfo_get(vmdci);
-	union sched_param spsameprio  = {.c = {.type = SCHEDP_PRIO, .value = 0}};
+	union sched_param spsameprio  = {.c = {.type = SCHEDP_PRIO, .value = VM_FIXED_PRIO}};
 	union sched_param spsameC     = {.c = {.type = SCHEDP_BUDGET, .value = (VM_FIXED_BUDGET_MS * 1000)}}; 
 	union sched_param spsameT     = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
-	static unsigned int prio      = 1;
 	int ret;
 
 	vminfo->inithd = sl_thd_comp_init(vmdci, SL_THD_COMP_TCAP);
 	assert(vminfo->inithd);
 
-	spsameprio.c.value = prio; prio ++;
 	sl_thd_param_set(vminfo->inithd, spsameprio.v);
 	sl_thd_param_set(vminfo->inithd, spsameC.v);
 	sl_thd_param_set(vminfo->inithd, spsameT.v);
 
 	printc("\tsl_thd 0x%x created for thread = cap:%x, id=%u\n", (unsigned int)(vminfo->inithd),
 	       (unsigned int)sl_thd_thdcap(vminfo->inithd), (vminfo->inithd)->thdid);
-
-	vminfo->exithd = sl_thd_alloc(vm_exit, (void *)vminfo->id);
-	assert(vminfo->exithd);
-
-	ret = cos_cap_cpy_at(vmcinfo, VM_CAPTBL_SELF_EXITTHD_BASE, vk_cinfo, sl_thd_thdcap(vminfo->exithd));
-	assert(ret == 0);
 }
 
 void

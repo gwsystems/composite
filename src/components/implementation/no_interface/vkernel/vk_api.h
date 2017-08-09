@@ -4,10 +4,10 @@
 #include "vk_types.h"
 
 /* extern functions */
-extern void vm_exit(void *);
 extern void vm_init(void *);
 extern void dom0_io_fn(void *);
 extern void vm_io_fn(void *);
+extern void *__inv_vkernel_serverfn(int a, int b, int c);
 
 /* api */
 void vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo);

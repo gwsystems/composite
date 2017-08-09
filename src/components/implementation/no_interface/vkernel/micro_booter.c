@@ -3,7 +3,7 @@
 #include "vk_api.h"
 
 struct cos_compinfo booter_info;
-thdcap_t termthd = VM_CAPTBL_SELF_EXITTHD_BASE;	/* switch to this to shutdown */
+thdcap_t termthd = BOOT_CAPTBL_SELF_INITTHD_BASE;	/* no exit thread for now */
 unsigned long tls_test[TEST_NTHDS];
 
 #include <llprint.h>
@@ -22,7 +22,8 @@ vm_init(void *d)
 	thdid_t     tid;
 	tcap_time_t timeout = 0, thd_timeout;
 
-	vmid = (int)d;
+	vmid = cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_ID << 16 | cos_thdid(), 0, 0, 0);
+
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			(vaddr_t)cos_get_heap_ptr(), vmid == 0 ? DOM0_CAPTBL_FREE : VM_CAPTBL_FREE, &booter_info);
@@ -31,8 +32,8 @@ vm_init(void *d)
 	test_run_vk();
 	PRINTC("Micro Booter done.\n");
 
-	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_NON_BLOCKING | RCV_ALL_PENDING, timeout,
-			     &rcvd, &tid, &blocked, &cycles, &thd_timeout) > 0) ;	
+	cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_EXIT << 16 | cos_thdid(), 0, 0, 0);
+	/* should not be scheduled. but tcap budget is a bitch! */
 }
 
 void

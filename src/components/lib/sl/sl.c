@@ -72,7 +72,7 @@ sl_timeout_heap(void)
 static inline void
 sl_timeout_block(struct sl_thd *t, cycles_t timeout)
 {
-	assert(t);
+	assert(t && t->timeout_idx == -1);
 	assert(heap_size(sl_timeout_heap()) < SL_MAX_NUM_THDS);
 
 	if (!timeout) {
@@ -87,11 +87,6 @@ sl_timeout_block(struct sl_thd *t, cycles_t timeout)
 	}
 
 	t->wakeup_cycs = 0;
-	/* if updating the timeout on blocked thread */
-	if (t->timeout_idx > 0) {
-		heap_remove(sl_timeout_heap(), t->timeout_idx);
-		t->timeout_idx = -1;
-	}
 	heap_add(sl_timeout_heap(), t);
 }
 
@@ -144,8 +139,11 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type, cycles_t timeout)
 	 * will only see a BLOCKED event from the kernel.
 	 * Only update the timeout if it already exists in the TIMEOUT QUEUE.
 	 */
-	if (unlikely(t->state == SL_THD_BLOCKED))              goto done;
-	else if (unlikely(t->state == SL_THD_BLOCKED_TIMEOUT)) goto timeout;
+	if (unlikely(t->state == SL_THD_BLOCKED_TIMEOUT || t->state == SL_THD_BLOCKED)) {
+		if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
+		if (block_type == SL_THD_BLOCKED_TIMEOUT) goto timeout;
+		else                                      goto done;
+	}
 
 	assert(t->state == SL_THD_RUNNABLE);
 	t->state = block_type;
@@ -485,10 +483,8 @@ sl_thd_free(struct sl_thd *t)
 
 	/* thread should not continue to run if it deletes itself. */
 	if (unlikely(t == ct)) {
-		sl_cs_exit_schedule();
-
-		/* should never get here */
-		assert(0);
+		while (1) sl_cs_exit_schedule();
+		/* FIXME: should never get here, but tcap mechanism can let a child scheduler run! */
 	}
 	sl_cs_exit();
 }

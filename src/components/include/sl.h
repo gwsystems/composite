@@ -423,6 +423,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			if (cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals()->sched_tcap, t->budget, t->prio)) assert(0);
 		}
 	}
+	assert(t->state == SL_THD_RUNNABLE);
 	sl_cs_exit();
 
 	/* TODO: enable per-thread tcaps for interrupt threads */

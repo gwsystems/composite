@@ -27,16 +27,6 @@ vk_terminate(void *d)
 { SPIN(); }
 
 void
-vm_exit(void *d)
-{
-	sl_thd_free(vmx_info[(int)d].inithd);
-	printc("%d: EXIT\n", (int)d);
-	sl_thd_free(vmx_info[(int)d].exithd);
-
-	assert(0);
-}
-
-void
 cos_init(void)
 {
 	static int is_booter = 1;
@@ -45,21 +35,7 @@ cos_init(void)
 	int id, cycs;
 
 	if (is_booter == 0) {
-		int ret;
-
 		vm_init(NULL);
-
-		do {
-			ret = cos_switch(VM_CAPTBL_SELF_EXITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE,
-					 0, 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-
-		} while (ret == -EBUSY || ret == -EAGAIN || ret == -EPERM);
-
-		/*
-		 * FIXME: It could get here if there is budget in the TCap and 
-		 *        the kernel mechanism chose a TCap having this as the scheduler.
-		 *        HOPE ITS A FINITE TCAP or A TIMEOUT IS SPECIFIED FOR THIS RUN!
-		 */
 		SPIN();
 	}
 	is_booter = 0;
@@ -81,6 +57,9 @@ cos_init(void)
 
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL);
 	assert(vk_info.termthd);
+
+	vk_info.sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_vkernel_serverfn);
+	assert(vk_info.sinv);
 
 	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	printc("\t%d cycles per microsecond\n", cycs);
