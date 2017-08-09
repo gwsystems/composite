@@ -876,17 +876,35 @@ test_run_mb(void)
  * TODO: Fix those eventually.
  */
 void
+__block_vm(void)
+{
+	int blocked, rcvd;
+	cycles_t cycles, now;
+	tcap_time_t timeout, thd_timeout;
+	thdid_t tid;
+
+	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING, 0, &rcvd, &tid, &blocked, &cycles, &thd_timeout) > 0); 
+
+	rdtscll(now);
+	now += (1000 * cyc_per_usec);
+	timeout = tcap_cyc2time(now);
+	cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING, timeout, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
+}
+
+void
 test_run_vk(void)
 {
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	test_thds();
 	test_thds_perf();
+	__block_vm();
 
 	test_mem();
 
 	test_inv();
 	test_inv_perf();
+	__block_vm();
 
 	test_captbl_expand();
 }

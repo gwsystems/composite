@@ -16,7 +16,6 @@
 
 #define VM_FIXED_PERIOD_MS 10
 #define VM_FIXED_BUDGET_MS 5
-#define VM_FIXED_PRIO      1
 
 enum vm_captbl_layout {
 	VM_CAPTBL_SELF_SINV_BASE       = BOOT_CAPTBL_FREE,

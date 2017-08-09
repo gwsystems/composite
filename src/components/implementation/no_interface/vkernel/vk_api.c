@@ -62,7 +62,7 @@ vk_sl_thd_init(struct vms_info *vminfo)
 	struct cos_compinfo *vk_cinfo = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct cos_defcompinfo *vmdci = &(vminfo->dci);
 	struct cos_compinfo *vmcinfo  = cos_compinfo_get(vmdci);
-	union sched_param spsameprio  = {.c = {.type = SCHEDP_PRIO, .value = VM_FIXED_PRIO}};
+	union sched_param spsameprio  = {.c = {.type = SCHEDP_PRIO, .value = (vminfo->id + 1)}};
 	union sched_param spsameC     = {.c = {.type = SCHEDP_BUDGET, .value = (VM_FIXED_BUDGET_MS * 1000)}}; 
 	union sched_param spsameT     = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
 	int ret;
