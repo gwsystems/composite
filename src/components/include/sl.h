@@ -222,7 +222,7 @@ cycles_t sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
  *           +ve - number of periods elapsed. (1 if it wokeup exactly at timeout = next period)
  */
 unsigned int sl_thd_block_periodic(thdid_t tid);
-int  sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type);
+int sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type, cycles_t abs_timeout);
 
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);

@@ -72,7 +72,7 @@ sl_timeout_heap(void)
 static inline void
 sl_timeout_block(struct sl_thd *t, cycles_t timeout)
 {
-	assert(t && t->timeout_idx == -1); /* not already in heap */
+	assert(t);
 	assert(heap_size(sl_timeout_heap()) < SL_MAX_NUM_THDS);
 
 	if (!timeout) {
@@ -87,6 +87,11 @@ sl_timeout_block(struct sl_thd *t, cycles_t timeout)
 	}
 
 	t->wakeup_cycs = 0;
+	/* if updating the timeout on blocked thread */
+	if (t->timeout_idx > 0) {
+		heap_remove(sl_timeout_heap(), t->timeout_idx);
+		t->timeout_idx = -1;
+	}
 	heap_add(sl_timeout_heap(), t);
 }
 
@@ -123,7 +128,7 @@ sl_timeout_init(void)
  *	    0 if it successfully blocked in this call.
  */
 int
-sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type)
+sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type, cycles_t timeout)
 {
 	assert(t);
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
@@ -133,18 +138,23 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type)
 		return 1;
 	}
 
-	if (unlikely(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT)) {
-		/*
-		 * If an AEP/a child COMP was blocked and an interrupt caused it to wakeup and run
-		 * but blocks itself before the scheduler could see the wakeup event.. Scheduler
-		 * will only see a BLOCKED event from the kernel.
-		 */
-		return 0;
-	}
+	/*
+	 * If an AEP/a child COMP was blocked and an interrupt caused it to wakeup and run
+	 * but blocks itself before the scheduler could see the wakeup event.. Scheduler
+	 * will only see a BLOCKED event from the kernel.
+	 * Only update the timeout if it already exists in the TIMEOUT QUEUE.
+	 */
+	if (unlikely(t->state == SL_THD_BLOCKED))              goto done;
+	else if (unlikely(t->state == SL_THD_BLOCKED_TIMEOUT)) goto timeout;
+
 	assert(t->state == SL_THD_RUNNABLE);
 	t->state = block_type;
 	sl_mod_block(sl_mod_thd_policy_get(t));
 
+timeout:
+	sl_timeout_block(t, timeout);
+
+done:
 	return 0;
 }
 
@@ -158,7 +168,7 @@ sl_thd_block(thdid_t tid)
 
 	sl_cs_enter();
 	t = sl_thd_curr();
-	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED)) {
+	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0)) {
 		sl_cs_exit();
 		return;
 	}
@@ -179,13 +189,11 @@ sl_thd_block_timeout_intern(thdid_t tid, cycles_t timeout)
 	sl_cs_enter();
 	t = sl_thd_curr();
 
-	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT)) {
+	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, timeout)) {
 		sl_cs_exit();
 		return 1;
 	}
 
-	assert(timeout || t->period);
-	sl_timeout_block(t, timeout);
 	sl_cs_exit_schedule();
 
 	return 0;
@@ -224,6 +232,7 @@ sl_thd_block_periodic(thdid_t tid)
 	/* TODO: dependencies not yet supported */
 	assert(!tid);
 
+	assert(t->period);
 	if (sl_thd_block_timeout_intern(tid, 0)) goto done;
 	wcycs = t->wakeup_cycs;
 	pcycs = t->periodic_cycs;
@@ -592,8 +601,18 @@ sl_sched_loop(void)
 			if (sl_cs_enter_sched()) continue;
 			sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
 
-			if (blocked)      sl_thd_block_no_cs(t, SL_THD_BLOCKED); /* TODO: use absolute timeouts by the child AEP/COMP! */
-			else if (!cycles) sl_thd_wakeup_no_cs(t); /* ignore if this is a budget expiry notification */
+			if (blocked) {
+				sl_thd_state state   = SL_THD_BLOCKED;
+				cycles_t abs_timeout = 0;
+
+				if (thd_timeout) {
+					state       = SL_THD_BLOCKED_TIMEOUT;
+					abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
+				}
+				sl_thd_block_no_cs(t, state, abs_timeout);
+			} else if (!cycles) { /* ignore if this is a budget expiry notification */
+				sl_thd_wakeup_no_cs(t);
+			}
 
 			sl_cs_exit();
 		} while (pending);
