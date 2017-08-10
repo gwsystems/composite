@@ -112,7 +112,7 @@ cos_irqthd_handler(void *line)
 	arcvcap_t arcvcap = irq_arcvcap[which];
 	
 	while(1) {
-		int pending = cos_rcv(arcvcap, 0, NULL);
+		int pending = cos_rcv(arcvcap, 0, 0, NULL);
 
 		intr_start(which);
 
@@ -273,6 +273,7 @@ cos_resume(void)
 			cycles_t cycles;
 			int pending, blocked, irq_line;
 			thdid_t tid;
+			tcap_time_t timeout = 0, thd_timeout;
 
 			/*
 			 * Handle all possible interrupts when
@@ -287,8 +288,8 @@ cos_resume(void)
 		 	 */
 
 			do {
-				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycles);
-				//assert(pending <= 1);
+				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, timeout, 
+						        NULL, &tid, &blocked, &cycles, &thd_timeout);
 
 				irq_line = intr_translate_thdid2irq(tid);
 				intr_update(irq_line, blocked);

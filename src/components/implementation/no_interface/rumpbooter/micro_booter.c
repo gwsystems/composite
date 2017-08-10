@@ -65,7 +65,7 @@ dom0_io_fn(void *d)
 
 	rcvcap = DOM0_CAPTBL_SELF_IORCV_SET_BASE + (((int)d - 1) * CAP64B_IDSZ);
 	while (1) {
-		int pending = cos_rcv(rcvcap, 0, NULL);
+		int pending = cos_rcv(rcvcap, 0, 0, NULL);
 		intr_start(irqline);
 		bmk_isr(line);
 		cos_vio_tcap_set((int)d);
@@ -77,7 +77,7 @@ void
 vm_io_fn(void *d)
 {
 	while (1) {
-		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, 0, NULL);
+		int pending = cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, 0, 0, NULL);
 		intr_start(IRQ_DOM0_VM);
 		bmk_isr(12);
 		intr_end();

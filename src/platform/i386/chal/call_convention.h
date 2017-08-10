@@ -33,11 +33,12 @@ __userregs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsign
 	regs->ip = regs->dx = ip;
 }
 static inline void
-__userregs_setretvals(struct pt_regs *regs, unsigned long ret, unsigned long ret1, unsigned long ret2)
+__userregs_setretvals(struct pt_regs *regs, unsigned long ret, unsigned long ret1, unsigned long ret2, unsigned long ret3)
 {
 	regs->ax = ret;
 	regs->si = ret1;
 	regs->di = ret2;
+	regs->bx = ret3;
 }
 static inline void
 __userregs_sinvupdate(struct pt_regs *regs)

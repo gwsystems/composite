@@ -38,7 +38,7 @@ int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 		"movl $1, %%ecx\n\t" \
 		"3:\n\t" \
 		"popl %%ebp" \
-		: "=a" (ret), "=c" (fault)
+		: "=a" (ret), "=c" (fault) \
 		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3), "d" (arg4) \
 		: "memory", "cc");
 
@@ -47,7 +47,7 @@ int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 
 static inline
 int call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
-			 unsigned long *r1, unsigned long *r2)
+			 unsigned long *r1, unsigned long *r2, unsigned long *r3)
 {
         long fault = 0;
 	int ret;
@@ -70,9 +70,7 @@ int call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, i
 		"movl $1, %%ecx\n\t" \
 		"3:\n\t" \
 		"popl %%ebp\n\t" \
-	        "movl %%esi, %%ebx\n\t" \
-	        "movl %%edi, %%edx\n\t" \
-		: "=a" (ret), "=c" (fault), "=b" (*r1), "=d" (*r2)
+		: "=a" (ret), "=c" (fault), "=S" (*r1), "=D" (*r2), "=b" (*r3) \
 		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3), "d" (arg4) \
 		: "memory", "cc");
 
@@ -211,7 +209,7 @@ static inline void *cos_get_prealloc_page(void)
 	char *h;
 	long r;
 	do {
-		h = (void*)cos_comp_info.cos_heap_alloc_extent;
+		h = (char*)cos_comp_info.cos_heap_alloc_extent;
 		if (!h || (char*)cos_comp_info.cos_heap_allocated >= h) return NULL;
 		r = (long)h+PAGE_SIZE;
 	} while (cos_cmpxchg(&cos_comp_info.cos_heap_allocated, (long)h, r) != r);

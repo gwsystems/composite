@@ -17,19 +17,51 @@ typedef enum {
 	SL_THD_DYING,
 } sl_thd_state;
 
-struct sl_thd {
-	sl_thd_state   state;
-	thdid_t        thdid;
-	thdcap_t       thdcap;
-	tcap_prio_t    prio;
-	struct sl_thd *dependency;
+typedef enum {
+	SL_THD_THD = 0,
+	SL_THD_AEP,
+	SL_THD_AEP_TCAP,
+	SL_THD_COMP,
+	SL_THD_COMP_TCAP,
+} sl_thd_type;
 
-	cycles_t       period;
-	cycles_t       periodic_cycs; /* for implicit periodic timeouts */
-	cycles_t       timeout_cycs;  /* next timeout - used in timeout API */
-	cycles_t       wakeup_cycs;   /* actual last wakeup - used in timeout API for jitter information, etc */
-	int            timeout_idx; /* timeout heap index, used in timeout API */
+struct sl_thd {
+	sl_thd_state        state;
+	sl_thd_type         type;
+	thdid_t             thdid;
+	struct cos_aep_info aepinfo;
+	asndcap_t           sndcap;
+	tcap_prio_t         prio;
+	struct sl_thd      *dependency;
+
+	tcap_res_t          budget;        /* budget if this thread has it's own tcap */
+	cycles_t            last_replenish;
+	cycles_t            period;
+	cycles_t            periodic_cycs; /* for implicit periodic timeouts */
+	cycles_t            timeout_cycs;  /* next timeout - used in timeout API */
+	cycles_t            wakeup_cycs;   /* actual last wakeup - used in timeout API for jitter information, etc */
+	int                 timeout_idx;   /* timeout heap index, used in timeout API */
 };
+
+static inline struct cos_aep_info *
+sl_thd_aepinfo(struct sl_thd *t)
+{ return &(t->aepinfo); }
+
+static inline thdcap_t
+sl_thd_thdcap(struct sl_thd *t)
+{ return sl_thd_aepinfo(t)->thd; }
+
+static inline tcap_t
+sl_thd_tcap(struct sl_thd *t)
+{ return sl_thd_aepinfo(t)->tc; }
+
+static inline arcvcap_t
+sl_thd_rcvcap(struct sl_thd *t)
+{ return sl_thd_aepinfo(t)->rcv; }
+
+static inline asndcap_t
+sl_thd_asndcap(struct sl_thd *t)
+{ return t->sndcap; }
 
 #ifndef assert
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0; } } while (0)
