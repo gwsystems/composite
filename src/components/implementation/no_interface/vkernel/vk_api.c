@@ -31,8 +31,8 @@ vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	vminfo->inittcap = cos_tcap_alloc(vkcinfo);
 	assert(vminfo->inittcap);
 
-	vminfo->initrcv =
-	  cos_arcv_alloc(vkcinfo, vminfo->initthd, vminfo->inittcap, vkcinfo->comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	vminfo->initrcv = cos_arcv_alloc(vkcinfo, vminfo->initthd, vminfo->inittcap, vkcinfo->comp_cap,
+	                                 BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(vminfo->initrcv);
 
 	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITTCAP_BASE, vkcinfo, vminfo->inittcap);
@@ -66,8 +66,8 @@ vk_iocaps_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkerne
 	assert(d0io->iothds[vmidx]);
 	d0io->iotcaps[vmidx] = cos_tcap_alloc(vkcinfo);
 	assert(d0io->iotcaps[vmidx]);
-	d0io->iorcvs[vmidx] =
-	  cos_arcv_alloc(vkcinfo, d0io->iothds[vmidx], d0io->iotcaps[vmidx], vkcinfo->comp_cap, dom0info->initrcv);
+	d0io->iorcvs[vmidx] = cos_arcv_alloc(vkcinfo, d0io->iothds[vmidx], d0io->iotcaps[vmidx], vkcinfo->comp_cap,
+	                                     dom0info->initrcv);
 	assert(d0io->iorcvs[vmidx]);
 	ret = cos_cap_cpy_at(d0cinfo, dom0_vio_thdcap(vminfo->id), vkcinfo, d0io->iothds[vmidx]);
 	assert(ret == 0);

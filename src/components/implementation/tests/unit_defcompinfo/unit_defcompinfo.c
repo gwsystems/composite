@@ -163,8 +163,8 @@ cos_init(void)
 			ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_COMP, ci, child_ci->comp_cap);
 			assert(ret == 0);
 
-			ret =
-			  cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_INITTHD_BASE, ci, child_defci[id].sched_aep.thd);
+			ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_INITTHD_BASE, ci,
+			                     child_defci[id].sched_aep.thd);
 			assert(ret == 0);
 			ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_INITHW_BASE, ci, BOOT_CAPTBL_SELF_INITHW_BASE);
 			assert(ret == 0);

@@ -44,8 +44,7 @@ skip_atoi(const char **s)
 {
 	int i = 0;
 
-	while (is_digit(**s))
-		i = i * 10 + *((*s)++) - '0';
+	while (is_digit(**s)) i = i * 10 + *((*s)++) - '0';
 	return i;
 }
 
@@ -93,13 +92,11 @@ number(void (*tx_byte)(unsigned char byte), unsigned long long num, int base, in
 	if (num == 0)
 		tmp[i++] = '0';
 	else
-		while (num != 0)
-			tmp[i++] = digits[do_div(num, base)];
+		while (num != 0) tmp[i++] = digits[do_div(num, base)];
 	if (i > precision) precision = i;
 	size -= precision;
 	if (!(type & (ZEROPAD + LEFT)))
-		while (size-- > 0)
-			tx_byte(' '), count++;
+		while (size-- > 0) tx_byte(' '), count++;
 	if (sign) tx_byte(sign), count++;
 	if (type & SPECIAL) {
 		if (base == 8)
@@ -110,14 +107,10 @@ number(void (*tx_byte)(unsigned char byte), unsigned long long num, int base, in
 		}
 	}
 	if (!(type & LEFT))
-		while (size-- > 0)
-			tx_byte(c), count++;
-	while (i < precision--)
-		tx_byte('0'), count++;
-	while (i-- > 0)
-		tx_byte(tmp[i]), count++;
-	while (size-- > 0)
-		tx_byte(' '), count++;
+		while (size-- > 0) tx_byte(c), count++;
+	while (i < precision--) tx_byte('0'), count++;
+	while (i-- > 0) tx_byte(tmp[i]), count++;
+	while (size-- > 0) tx_byte(' '), count++;
 	return count;
 }
 
@@ -217,11 +210,9 @@ vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
 		switch (*fmt) {
 		case 'c':
 			if (!(flags & LEFT))
-				while (--field_width > 0)
-					tx_byte(' '), count++;
+				while (--field_width > 0) tx_byte(' '), count++;
 			tx_byte((unsigned char)va_arg(args, int)), count++;
-			while (--field_width > 0)
-				tx_byte(' '), count++;
+			while (--field_width > 0) tx_byte(' '), count++;
 			continue;
 
 		case 's':
@@ -231,12 +222,9 @@ vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
 			len = strnlen(s, precision);
 
 			if (!(flags & LEFT))
-				while (len < field_width--)
-					tx_byte(' '), count++;
-			for (i = 0; i < len; ++i)
-				tx_byte(*s++), count++;
-			while (len < field_width--)
-				tx_byte(' '), count++;
+				while (len < field_width--) tx_byte(' '), count++;
+			for (i = 0; i < len; ++i) tx_byte(*s++), count++;
+			while (len < field_width--) tx_byte(' '), count++;
 			continue;
 
 		case 'p':
@@ -244,8 +232,8 @@ vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
 				field_width = 2 * sizeof(void *);
 				flags |= ZEROPAD;
 			}
-			count +=
-			  number(tx_byte, (unsigned long)va_arg(args, void *), 16, field_width, precision, flags);
+			count += number(tx_byte, (unsigned long)va_arg(args, void *), 16, field_width, precision,
+			                flags);
 			continue;
 
 

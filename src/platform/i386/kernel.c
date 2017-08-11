@@ -144,8 +144,8 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	vga_init();
 #endif
 
-	max =
-	  MAX((unsigned long)mboot->mods_addr, MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
+	max = MAX((unsigned long)mboot->mods_addr,
+	          MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
 	kern_paging_map_init((void *)(max + PGD_SIZE));
 	kern_memory_setup(mboot, mboot_magic);
 

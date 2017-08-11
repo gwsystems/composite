@@ -49,8 +49,7 @@ wmemset(void *dst, int c, size_t count)
 {
 	unsigned short *tmp = (unsigned short *)dst;
 
-	for (; count != 0; count--)
-		*tmp++ = c;
+	for (; count != 0; count--) *tmp++ = c;
 }
 
 static inline u8_t
@@ -78,8 +77,7 @@ scroll(void)
 
 	if (cursor_y < LINES) return;
 
-	for (i = 0; i < (LINES - 1) * COLUMNS; i++)
-		video_mem[i] = video_mem[i + COLUMNS];
+	for (i = 0; i < (LINES - 1) * COLUMNS; i++) video_mem[i] = video_mem[i + COLUMNS];
 
 	wmemset(video_mem + ((LINES - 1) * COLUMNS), blank, COLUMNS);
 	cursor_y = LINES - 1;
@@ -119,8 +117,7 @@ vga_putch(char c)
 void
 vga_puts(const char *s)
 {
-	for (; *s != '\0'; s++)
-		vga_putch(*s);
+	for (; *s != '\0'; s++) vga_putch(*s);
 }
 
 void

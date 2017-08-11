@@ -119,8 +119,7 @@ __cvect_init(cvect_t *v)
 	assert(v);
 	/* should be optimized away by the compiler: */
 	assert(__cvect_power_2(CVECT_BASE));
-	for (i = 0; i < (int)CVECT_BASE; i++)
-		v->vect[i].c.next = NULL;
+	for (i = 0; i < (int)CVECT_BASE; i++) v->vect[i].c.next = NULL;
 
 	return 0;
 }

@@ -106,8 +106,7 @@ boot_newcomp_create(int spdid, struct cos_compinfo *comp_info)
 	assert(main_thd);
 
 	/* Add created component to "scheduling" array */
-	while (schedule[i] != 0)
-		i++;
+	while (schedule[i] != 0) i++;
 	schedule[i] = main_thd;
 }
 

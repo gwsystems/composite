@@ -226,8 +226,7 @@ boot_init_sched(void)
 {
 	int i;
 
-	for (i = 0; i < MAX_NUM_SPDS; i++)
-		schedule[i] = 0;
+	for (i = 0; i < MAX_NUM_SPDS; i++) schedule[i] = 0;
 	sched_cur = 0;
 }
 

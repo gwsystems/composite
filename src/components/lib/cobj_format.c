@@ -131,10 +131,10 @@ cobj_create(u32_t        id,
             unsigned int sz,
             u32_t        flags)
 {
-	struct cobj_header *h      = (struct cobj_header *)space;
-	u32_t               tot_sz = 0;
-	const unsigned int  sect_symb_cap_sz =
-	  nsect * sizeof(struct cobj_sect) + nsymb * sizeof(struct cobj_symb) + ncap * sizeof(struct cobj_cap);
+	struct cobj_header *h                = (struct cobj_header *)space;
+	u32_t               tot_sz           = 0;
+	const unsigned int  sect_symb_cap_sz = nsect * sizeof(struct cobj_sect) + nsymb * sizeof(struct cobj_symb)
+	                                      + ncap * sizeof(struct cobj_cap);
 
 	if (!space) return NULL;
 	tot_sz = sect_sz + sizeof(struct cobj_header) + sect_symb_cap_sz;

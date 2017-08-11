@@ -24,8 +24,7 @@ static inline void
 __cringbuf_zeros(char *buf, int amnt)
 {
 	int i;
-	for (i = 0; i < amnt; i++)
-		assert(buf[i] == 0);
+	for (i = 0; i < amnt; i++) assert(buf[i] == 0);
 }
 #else
 #define memsetd(a, b, c)

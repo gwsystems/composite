@@ -397,8 +397,8 @@ make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all)
 		return;
 	}
 	heap_ptr_val = *heap_ptr;
-	g =
-	  mmap((void *)heap_ptr_val, PAGE_SIZE, PROT_WRITE | PROT_READ, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+	g = mmap((void *)heap_ptr_val, PAGE_SIZE, PROT_WRITE | PROT_READ, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0,
+	         0);
 	if (MAP_FAILED == g) {
 		perror("Couldn't map the graph into the address space");
 		return;
@@ -669,8 +669,8 @@ make_spd_config_comp(struct service_symbs *c, struct service_symbs *all)
 		return;
 	}
 	heap_ptr_val = *heap_ptr;
-	info =
-	  mmap((void *)heap_ptr_val, PAGE_SIZE, PROT_WRITE | PROT_READ, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+	info = mmap((void *)heap_ptr_val, PAGE_SIZE, PROT_WRITE | PROT_READ, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0,
+	            0);
 	if (MAP_FAILED == info) {
 		perror("Couldn't map the configuration info into the address space");
 		return;

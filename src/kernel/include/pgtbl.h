@@ -193,8 +193,7 @@ pgtbl_init_pte(void *pte)
 	int            i;
 	unsigned long *vals = pte;
 
-	for (i = 0; i < (1 << PGTBL_ORD); i++)
-		vals[i] = 0;
+	for (i = 0; i < (1 << PGTBL_ORD); i++) vals[i] = 0;
 }
 
 static int

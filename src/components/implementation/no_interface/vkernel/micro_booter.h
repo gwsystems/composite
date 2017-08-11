@@ -22,10 +22,9 @@
 		debug_print("Testing divide by zero fault @ "); \
 		int i = num / den;                              \
 	} while (0)
-#define EXIT()                                   \
-	do {                                     \
-		while (1)                        \
-			cos_thd_switch(termthd); \
+#define EXIT()                                     \
+	do {                                       \
+		while (1) cos_thd_switch(termthd); \
 	} while (0);
 
 #include <cos_component.h>

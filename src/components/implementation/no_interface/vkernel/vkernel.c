@@ -49,8 +49,7 @@ vm_exit(void *d)
 	ready_vms--;
 	vmx_info[(int)d].state = VM_EXITED;
 
-	while (1)
-		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 }
 
 void

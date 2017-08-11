@@ -951,8 +951,7 @@ cos_hw_cycles_per_usec(hwcap_t hwc)
 {
 	static int cycs = 0;
 
-	while (!cycs)
-		cycs = call_cap_op(hwc, CAPTBL_OP_HW_CYC_USEC, 0, 0, 0, 0);
+	while (!cycs) cycs = call_cap_op(hwc, CAPTBL_OP_HW_CYC_USEC, 0, 0, 0, 0);
 	return cycs;
 }
 

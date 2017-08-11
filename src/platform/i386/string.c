@@ -9,8 +9,7 @@ memcpy(void *dst, const void *src, size_t count)
 	const u8_t *s = (const u8_t *)src;
 	u8_t *      d = (u8_t *)dst;
 
-	for (; count != 0; count--)
-		*d++ = *s++;
+	for (; count != 0; count--) *d++ = *s++;
 
 	return dst;
 }
@@ -20,8 +19,7 @@ memset(void *dst, int c, size_t count)
 {
 	char *p = (char *)dst;
 
-	for (; count != 0; count--)
-		*p++ = c;
+	for (; count != 0; count--) *p++ = c;
 
 	return dst;
 }
@@ -31,8 +29,7 @@ strnlen(const char *str, size_t max)
 {
 	size_t ret;
 
-	for (ret = 0; *str != '\0' && ret < max; str++)
-		ret++;
+	for (ret = 0; *str != '\0' && ret < max; str++) ret++;
 
 	return ret;
 }

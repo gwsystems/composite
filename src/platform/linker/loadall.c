@@ -308,9 +308,9 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 			vaddr_t align_diff;
 
 			if (csg(i)->srcobj.s->alignment_power) {
-				align_diff =
-				  round_up_to_pow2(csg(i)->start_addr, 1 << (csg(i)->srcobj.s->alignment_power))
-				  - csg(i)->start_addr;
+				align_diff = round_up_to_pow2(csg(i)->start_addr,
+				                              1 << (csg(i)->srcobj.s->alignment_power))
+				             - csg(i)->start_addr;
 				offset += align_diff;
 				csg(i)->start_addr += align_diff;
 			}
@@ -462,9 +462,9 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 
 	ret_data->lower_addr = lower_addr;
 	ret_data->size       = size;
-	ret_data->allocated =
-	  round_up_to_page((csg(MAXSEC_S - 1)->start_addr - csg(0)->start_addr) + csg(MAXSEC_S - 1)->len);
-	ret_data->heap_top = csg(0)->start_addr + ret_data->allocated;
+	ret_data->allocated  = round_up_to_page((csg(MAXSEC_S - 1)->start_addr - csg(0)->start_addr)
+                                               + csg(MAXSEC_S - 1)->len);
+	ret_data->heap_top   = csg(0)->start_addr + ret_data->allocated;
 
 	if (is_booter_loaded(ret_data)) {
 		if (make_cobj_symbols(ret_data, h)) {

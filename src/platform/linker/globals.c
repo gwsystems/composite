@@ -49,49 +49,48 @@ const char *cos_flt_handlers[COS_FLT_MAX] = { "fault_page_fault_handler", "fault
 	                                      "fault_linux_handler",      "fault_save_regs_handler",
 	                                      "fault_flt_notif_handler" };
 
-struct cos_sections section_info[MAXSEC_S + 1] = {
-	{ .secid = TEXT_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE, .sname = ".text" },
-	{ .secid = RODATA_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE, .coalesce = 1, .sname = ".rodata" },
-	{
-	  .secid      = CTORS_S,
-	  .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
-	  .coalesce   = 1,
-	  .sname      = ".ctors",
-	},
-	{
-	  .secid      = DTORS_S,
-	  .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
-	  .coalesce   = 1,
-	  .sname      = ".dtors",
-	},
-	{
-	  .secid      = INIT_ARRAY_S,
-	  .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
-	  .coalesce   = 1,
-	  .sname      = ".init_array",
-	},
-	{
-	  .secid      = FINI_ARRAY_S,
-	  .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
-	  .coalesce   = 1,
-	  .sname      = ".fini_array",
-	},
-	{
-	  .secid      = CRECOV_S,
-	  .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
-	  .coalesce   = 1,
-	  .sname      = ".crecov",
-	},
-	{ .secid = KMEM_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_KMEM, .sname = ".kmem" },
-	{ .secid = CINFO_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_CINFO, .sname = ".cinfo" },
-	{ .secid = DATA_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE, .sname = ".data" },
-	{ .secid = BSS_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS, .sname = ".bss" },
-	{ .secid      = INITONCE_S,
-	  .cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS | COBJ_SECT_INITONCE,
-	  .sname      = ".initonce" },
-	{ .secid = INITFILE_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE, .sname = ".initfile" },
-	{ .secid = MAXSEC_S, .sname = NULL }
-};
+struct cos_sections section_info[MAXSEC_S + 1] =
+  { { .secid = TEXT_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE, .sname = ".text" },
+    { .secid = RODATA_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE, .coalesce = 1, .sname = ".rodata" },
+    {
+      .secid      = CTORS_S,
+      .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+      .coalesce   = 1,
+      .sname      = ".ctors",
+    },
+    {
+      .secid      = DTORS_S,
+      .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+      .coalesce   = 1,
+      .sname      = ".dtors",
+    },
+    {
+      .secid      = INIT_ARRAY_S,
+      .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+      .coalesce   = 1,
+      .sname      = ".init_array",
+    },
+    {
+      .secid      = FINI_ARRAY_S,
+      .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+      .coalesce   = 1,
+      .sname      = ".fini_array",
+    },
+    {
+      .secid      = CRECOV_S,
+      .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+      .coalesce   = 1,
+      .sname      = ".crecov",
+    },
+    { .secid = KMEM_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_KMEM, .sname = ".kmem" },
+    { .secid = CINFO_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_CINFO, .sname = ".cinfo" },
+    { .secid = DATA_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE, .sname = ".data" },
+    { .secid = BSS_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS, .sname = ".bss" },
+    { .secid      = INITONCE_S,
+      .cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS | COBJ_SECT_INITONCE,
+      .sname      = ".initonce" },
+    { .secid = INITFILE_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE, .sname = ".initfile" },
+    { .secid = MAXSEC_S, .sname = NULL } };
 
 int          spdid_inc = -1;
 u32_t        llboot_mem;

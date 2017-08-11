@@ -196,10 +196,10 @@ __cslab_mem_alloc(struct cslab_freelist *fl, int obj_sz, int max_objs)
  * all of the code for allocation and deallocation in the macro due to
  * maintenance and readability.
  */
-#define CSLAB_CREATE_DATA(name, size)                                    \
-	struct cslab_freelist slab_##name##_freelist = { .list = NULL }; \
-	static const int      slab_##name##_max_objs =                   \
-	  ((CSLAB_MEM_ALLOC_SZ - CSLAB_FIRST_OFF) / (round_up_to_pow2(size, WORD_SIZE)))
+#define CSLAB_CREATE_DATA(name, size)                                                          \
+	struct cslab_freelist slab_##name##_freelist = { .list = NULL };                       \
+	static const int      slab_##name##_max_objs = ((CSLAB_MEM_ALLOC_SZ - CSLAB_FIRST_OFF) \
+                                                   / (round_up_to_pow2(size, WORD_SIZE)))
 
 #define CSLAB_CREATE_FNS(name, size)                                                                     \
 	static inline void *cslab_alloc_##name(void)                                                     \

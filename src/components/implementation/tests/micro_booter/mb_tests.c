@@ -40,8 +40,7 @@ thd_fn(void *d)
 	PRINTC("\tNew thread %d with argument %d, capid %ld\n", cos_thdid(), (int)d, tls_test[(int)d]);
 	/* Test the TLS support! */
 	assert(tls_get(0) == tls_test[(int)d]);
-	while (1)
-		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	PRINTC("Error, shouldn't get here!\n");
 }
 
@@ -139,8 +138,7 @@ async_thd_parent_perf(void *thdcap)
 	       (total_asnd_cycles / (long long)(ITER)));
 
 	async_test_flag = 0;
-	while (1)
-		cos_thd_switch(tc);
+	while (1) cos_thd_switch(tc);
 }
 
 static void
@@ -181,8 +179,7 @@ async_thd_fn(void *thdcap)
 
 	cos_thd_switch(tc);
 	PRINTC("ERROR: in async thd *after* switching back to the snder.\n");
-	while (1)
-		cos_thd_switch(tc);
+	while (1) cos_thd_switch(tc);
 }
 
 static void
@@ -226,8 +223,7 @@ async_thd_parent(void *thdcap)
 	PRINTC("--> pending %d, thdid %d, blocked %d, cycles %lld\n", pending, tid, blocked, cycles);
 
 	async_test_flag = 0;
-	while (1)
-		cos_thd_switch(tc);
+	while (1) cos_thd_switch(tc);
 }
 
 static void
@@ -240,8 +236,8 @@ test_async_endpoints(void)
 
 	PRINTC("Creating threads, and async end-points.\n");
 	/* parent rcv capabilities */
-	tcp =
-	  cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void *)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent,
+	                    (void *)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
 	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
@@ -269,8 +265,7 @@ test_async_endpoints(void)
 	rcp_global = rcp;
 
 	async_test_flag = 1;
-	while (async_test_flag)
-		cos_thd_switch(tcp);
+	while (async_test_flag) cos_thd_switch(tcp);
 
 	PRINTC("Async end-point test successful.\n");
 	PRINTC("Test done.\n");
@@ -310,8 +305,7 @@ test_async_endpoints_perf(void)
 	rcp_global = rcp;
 
 	async_test_flag = 1;
-	while (async_test_flag)
-		cos_thd_switch(tcp);
+	while (async_test_flag) cos_thd_switch(tcp);
 }
 
 #define TCAP_NLAYERS 3
@@ -466,8 +460,7 @@ spinner_cyc(void *d)
 {
 	cycles_t *p = (cycles_t *)d;
 
-	while (1)
-		rdtscll(*p);
+	while (1) rdtscll(*p);
 }
 
 static void

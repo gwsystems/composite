@@ -19,8 +19,8 @@ enum vm_captbl_layout
 	VM_CAPTBL_SELF_EXITTHD_BASE = BOOT_CAPTBL_FREE,
 
 	/* VM1~ I/O Capabilities layout */
-	VM_CAPTBL_SELF_IOTHD_BASE =
-	  round_up_to_pow2(VM_CAPTBL_SELF_EXITTHD_BASE + NUM_CPU_COS * CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
+	VM_CAPTBL_SELF_IOTHD_BASE  = round_up_to_pow2(VM_CAPTBL_SELF_EXITTHD_BASE + NUM_CPU_COS * CAP16B_IDSZ,
+                                                     CAPMAX_ENTRY_SZ),
 	VM_CAPTBL_SELF_IORCV_BASE  = round_up_to_pow2(VM_CAPTBL_SELF_IOTHD_BASE + CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
 	VM_CAPTBL_SELF_IOASND_BASE = round_up_to_pow2(VM_CAPTBL_SELF_IORCV_BASE + CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
 	VM_CAPTBL_SELF_LAST_CAP    = VM_CAPTBL_SELF_IOASND_BASE + CAP64B_IDSZ,
@@ -30,18 +30,18 @@ enum vm_captbl_layout
 enum dom0_captbl_layout
 {
 	/* DOM0 I/O Capabilities layout */
-	DOM0_CAPTBL_SELF_IOTHD_SET_BASE = VM_CAPTBL_SELF_IOTHD_BASE,
-	DOM0_CAPTBL_SELF_IOTCAP_SET_BASE =
-	  round_up_to_pow2(DOM0_CAPTBL_SELF_IOTHD_SET_BASE + CAP16B_IDSZ * ((VM_COUNT > 1 ? VM_COUNT - 1 : 1)),
-	                   CAPMAX_ENTRY_SZ),
-	DOM0_CAPTBL_SELF_IORCV_SET_BASE =
-	  round_up_to_pow2(DOM0_CAPTBL_SELF_IOTCAP_SET_BASE + CAP16B_IDSZ * ((VM_COUNT > 1 ? VM_COUNT - 1 : 1)),
-	                   CAPMAX_ENTRY_SZ),
-	DOM0_CAPTBL_SELF_IOASND_SET_BASE =
-	  round_up_to_pow2(DOM0_CAPTBL_SELF_IORCV_SET_BASE + CAP64B_IDSZ * ((VM_COUNT > 1 ? VM_COUNT - 1 : 1)),
-	                   CAPMAX_ENTRY_SZ),
-	DOM0_CAPTBL_SELF_LAST_CAP =
-	  DOM0_CAPTBL_SELF_IOASND_SET_BASE + CAP64B_IDSZ * ((VM_COUNT > 1 ? VM_COUNT - 1 : 1)),
+	DOM0_CAPTBL_SELF_IOTHD_SET_BASE  = VM_CAPTBL_SELF_IOTHD_BASE,
+	DOM0_CAPTBL_SELF_IOTCAP_SET_BASE = round_up_to_pow2(DOM0_CAPTBL_SELF_IOTHD_SET_BASE
+	                                                      + CAP16B_IDSZ * ((VM_COUNT > 1 ? VM_COUNT - 1 : 1)),
+	                                                    CAPMAX_ENTRY_SZ),
+	DOM0_CAPTBL_SELF_IORCV_SET_BASE  = round_up_to_pow2(DOM0_CAPTBL_SELF_IOTCAP_SET_BASE
+                                                             + CAP16B_IDSZ * ((VM_COUNT > 1 ? VM_COUNT - 1 : 1)),
+                                                           CAPMAX_ENTRY_SZ),
+	DOM0_CAPTBL_SELF_IOASND_SET_BASE = round_up_to_pow2(DOM0_CAPTBL_SELF_IORCV_SET_BASE
+	                                                      + CAP64B_IDSZ * ((VM_COUNT > 1 ? VM_COUNT - 1 : 1)),
+	                                                    CAPMAX_ENTRY_SZ),
+	DOM0_CAPTBL_SELF_LAST_CAP        = DOM0_CAPTBL_SELF_IOASND_SET_BASE
+	                            + CAP64B_IDSZ * ((VM_COUNT > 1 ? VM_COUNT - 1 : 1)),
 	DOM0_CAPTBL_FREE = round_up_to_pow2(DOM0_CAPTBL_SELF_LAST_CAP, CAPMAX_ENTRY_SZ),
 };
 

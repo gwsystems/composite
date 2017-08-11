@@ -310,8 +310,7 @@ fsobj_path2obj(char *path, int len, struct fsobj *root, struct fsobj **parent, c
 
 	*parent = NULL;
 	do {
-		while (*path == '/')
-			path++;
+		while (*path == '/') path++;
 		*subpath = path;
 		if (*path == '\0') break;
 

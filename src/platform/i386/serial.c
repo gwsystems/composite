@@ -34,8 +34,7 @@ serial_send(char out)
 void
 serial_puts(const char *s)
 {
-	for (; *s != '\0'; s++)
-		serial_send(*s);
+	for (; *s != '\0'; s++) serial_send(*s);
 }
 
 int

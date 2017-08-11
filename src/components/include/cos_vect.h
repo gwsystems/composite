@@ -208,8 +208,7 @@ __cos_vect_expand(cos_vect_t *v, long id)
 
 		is = COS_VECT_ALLOC(COS_VECT_BASE * sizeof(struct cos_vect_intern_struct));
 		if (NULL == is) return -1;
-		for (i = 0; i < (int)COS_VECT_BASE; i++)
-			is[i].val = NULL;
+		for (i = 0; i < (int)COS_VECT_BASE; i++) is[i].val = NULL;
 		is->val = v->vect;
 		v->depth++;
 		v->vect = is;
@@ -221,8 +220,7 @@ __cos_vect_expand(cos_vect_t *v, long id)
 
 	is = COS_VECT_ALLOC(COS_VECT_BASE * sizeof(struct cos_vect_intern_struct));
 	if (NULL == is) return -1;
-	for (i = 0; i < (int)COS_VECT_BASE; i++)
-		is[i].val = (void *)COS_VECT_INIT_VAL;
+	for (i = 0; i < (int)COS_VECT_BASE; i++) is[i].val = (void *)COS_VECT_INIT_VAL;
 
 	root = &v->vect[(id >> COS_VECT_SHIFT) & COS_VECT_MASK];
 	assert(NULL == root->val);

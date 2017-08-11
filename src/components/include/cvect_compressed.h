@@ -279,8 +279,7 @@ static inline struct cvcleaf *
 __cvectc_lookup_leaf(struct cvcentry *e, u32_t id)
 {
 	assert(e);
-	while (!__cvc_isleaf(e))
-		e = __cvectc_next_lvl(__cvc_dir(e), id);
+	while (!__cvc_isleaf(e)) e = __cvectc_next_lvl(__cvc_dir(e), id);
 	return __cvc_leaf(e);
 }
 
@@ -408,8 +407,7 @@ __cvectc_level_compress(struct cvcdir *p, u32_t id)
 	n   = CVECTC_ALLOC(sizeof(struct cvcentry) * nsz);
 	if (!n) return -1;
 	cvectc_stats_node(nsz);
-	for (i = 0; i < nsz; i++)
-		__cvectc_leaf_init_empty(&n[i], id);
+	for (i = 0; i < nsz; i++) __cvectc_leaf_init_empty(&n[i], id);
 
 	/* t = __cvectc_next_lvl(p, id); */
 	/* t = __cvectc_next_lvl(__cvc_dir(t), id); */

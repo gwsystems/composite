@@ -229,8 +229,8 @@ fpu_set(int status)
 	unsigned long val, cr0;
 
 	cr0 = fpu_read_cr0();
-	val =
-	  status ? (cr0 & ~FPU_DISABLED_MASK) : (cr0 | FPU_DISABLED_MASK); // ENABLE(status == 1) : DISABLE(status == 0)
+	val = status ? (cr0 & ~FPU_DISABLED_MASK)
+	             : (cr0 | FPU_DISABLED_MASK); // ENABLE(status == 1) : DISABLE(status == 0)
 	asm volatile("mov %0, %%cr0" : : "r"(val));
 
 	return;

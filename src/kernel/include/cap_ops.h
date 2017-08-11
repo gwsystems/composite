@@ -138,9 +138,9 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 		ret = cos_cas((unsigned long *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
 		if (ret != CAS_SUCCESS) return -ECASFAIL;
 
-		new_pte =
-		  (u32_t)chal_va2pa((void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK))
-		  | PGTBL_INTERN_DEF;
+		new_pte = (u32_t)chal_va2pa(
+		            (void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK))
+		          | PGTBL_INTERN_DEF;
 
 		ret = cos_cas(intern, old_pte, new_pte);
 		if (ret != CAS_SUCCESS) {

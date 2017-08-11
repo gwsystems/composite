@@ -276,8 +276,8 @@ timer_init(void)
 	unsigned long pico_per_hpetcyc;
 
 	assert(hpet_capabilities);
-	pico_per_hpetcyc =
-	  hpet_capabilities[1] / FEMPTO_PER_PICO; /* bits 32-63 are # of femptoseconds per HPET clock tick */
+	pico_per_hpetcyc = hpet_capabilities[1]
+	                   / FEMPTO_PER_PICO; /* bits 32-63 are # of femptoseconds per HPET clock tick */
 	hpetcyc_per_tick = (TIMER_DEFAULT_US_INTERARRIVAL * PICO_PER_MICRO) / pico_per_hpetcyc;
 
 	printk("Enabling timer @ %p with tick granularity %ld picoseconds\n", hpet, pico_per_hpetcyc);

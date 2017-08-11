@@ -14,8 +14,8 @@ __init_data_alloc(void *fn, void *data)
 again:
 	for (i = 0; i < COS_THD_INIT_REGION_SIZE; i++) {
 		if (__thd_init_data[i].fn == NULL) {
-			ret =
-			  cos_cas((unsigned long *)&(__thd_init_data[i].fn), (unsigned long)NULL, (unsigned long)fn);
+			ret = cos_cas((unsigned long *)&(__thd_init_data[i].fn), (unsigned long)NULL,
+			              (unsigned long)fn);
 			if (!ret) continue;
 
 			assert(__thd_init_data[i].fn == fn);
