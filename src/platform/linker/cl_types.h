@@ -19,7 +19,7 @@ typedef enum { LLBOOT_COMPN, LLBOOT_SCHED, LLBOOT_MM, LLBOOT_PRINT, LLBOOT_BOOT 
 
 struct sec_info {
 	asection *s;
-	int offset;
+	int       offset;
 };
 
 typedef enum {
@@ -45,11 +45,11 @@ typedef enum {
  * this hard-coding crap.
  */
 struct cos_sections {
-	sec_type_t secid;
-	int cobj_flags, coalesce; /* should this section be output with the previous? */
-	char *sname, *ld_output;
+	sec_type_t      secid;
+	int             cobj_flags, coalesce; /* should this section be output with the previous? */
+	char *          sname, *ld_output;
 	struct sec_info srcobj, ldobj;
-	unsigned long start_addr, len;
+	unsigned long   start_addr, len;
 };
 
 typedef int (*observer_t)(asymbol *, void *data);
@@ -58,15 +58,15 @@ struct service_symbs;
 struct dependency;
 
 struct symb {
-	char *name;
-	int modifier_offset;
-	vaddr_t addr;
+	char *                name;
+	int                   modifier_offset;
+	vaddr_t               addr;
 	struct service_symbs *exporter;
-	struct symb *exported_symb;
+	struct symb *         exported_symb;
 };
 
 struct symb_type {
-	int num_symbs;
+	int         num_symbs;
 	struct symb symbs[MAX_SYMBOLS];
 
 	struct service_symbs *parent;
@@ -74,8 +74,8 @@ struct symb_type {
 
 struct dependency {
 	struct service_symbs *dep;
-	char *modifier;
-	int mod_len;
+	char *                modifier;
+	int                   mod_len;
 	/* has a capability been created for this dependency */
 	int resolved;
 };
@@ -84,28 +84,28 @@ typedef enum { SERV_SECT_RO, SERV_SECT_DATA, SERV_SECT_BSS, SERV_SECT_INITONCE, 
 
 struct service_section {
 	unsigned long offset;
-	int size;
+	int           size;
 };
 
 struct service_symbs {
-	char *obj, *init_str;
+	char *        obj, *init_str;
 	unsigned long lower_addr, size, allocated, heap_top;
 	unsigned long mem_size; /* memory used */
 
 	struct service_section sections[SERV_SECT_NUM];
 
-	int is_composite_loaded, already_loaded;
+	int                 is_composite_loaded, already_loaded;
 	struct cobj_header *cobj;
 
-	int is_scheduler;
+	int                   is_scheduler;
 	struct service_symbs *scheduler;
 
-	struct spd *spd;
-	struct symb_type exported, undef;
-	int num_dependencies;
-	struct dependency dependencies[MAX_TRUSTED];
+	struct spd *          spd;
+	struct symb_type      exported, undef;
+	int                   num_dependencies;
+	struct dependency     dependencies[MAX_TRUSTED];
 	struct service_symbs *next;
-	int depth;
+	int                   depth;
 
 	void *extern_info;
 };
@@ -113,9 +113,9 @@ struct service_symbs {
 typedef enum { TRANS_CAP_NIL = 0, TRANS_CAP_FAULT, TRANS_CAP_SCHED } trans_cap_t;
 
 struct cap_ret_info {
-	struct symb *csymb, *ssymbfn, *cstub, *sstub;
+	struct symb *         csymb, *ssymbfn, *cstub, *sstub;
 	struct service_symbs *serv;
-	u32_t fault_handler;
+	u32_t                 fault_handler;
 };
 
 /* Edge description of components.  Mirrored in mpd_mgr.c */
@@ -126,8 +126,8 @@ struct comp_graph {
 /* struct is 64 bytes, so we can have 64 entries in a page. */
 struct component_init_str {
 	unsigned int spdid, schedid;
-	int startup;
-	char init_str[INIT_STR_SZ];
+	int          startup;
+	char         init_str[INIT_STR_SZ];
 } __attribute__((packed));
 
 struct component_traits {
@@ -135,23 +135,23 @@ struct component_traits {
 };
 
 struct spd_info {
-	int spd_handle, num_caps;
-	vaddr_t ucap_tbl;
+	int           spd_handle, num_caps;
+	vaddr_t       ucap_tbl;
 	unsigned long lowest_addr;
 	unsigned long size;
 	unsigned long mem_size;
-	vaddr_t upcall_entry;
-	vaddr_t atomic_regions[10];
+	vaddr_t       upcall_entry;
+	vaddr_t       atomic_regions[10];
 };
 
 struct cap_info {
-	int cap_handle, rel_offset;
-	int owner_spd_handle, dest_spd_handle;
+	int               cap_handle, rel_offset;
+	int               owner_spd_handle, dest_spd_handle;
 	isolation_level_t il;
-	int flags;
-	vaddr_t ST_serv_entry;
-	vaddr_t SD_cli_stub, SD_serv_stub;
-	vaddr_t AT_cli_stub, AT_serv_stub;
+	int               flags;
+	vaddr_t           ST_serv_entry;
+	vaddr_t           SD_cli_stub, SD_serv_stub;
+	vaddr_t           AT_cli_stub, AT_serv_stub;
 };
 
 

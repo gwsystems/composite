@@ -9,7 +9,7 @@ int
 pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
 	struct ert_intern *pte;
-	u32_t orig_v, new_v, accum = 0;
+	u32_t              orig_v, new_v, accum = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & addr) == 0);
@@ -86,10 +86,10 @@ tlb_quiescence_check(u64_t timestamp)
 int
 cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr)
 {
-	unsigned long *pte, cosframe, orig_v;
+	unsigned long *    pte, cosframe, orig_v;
 	struct cap_header *dest_pt_h;
-	u32_t flags;
-	int ret;
+	u32_t              flags;
+	int                ret;
 
 	if (unlikely(pt->lvl || (pt->refcnt_flags & CAP_MEM_FROZEN_FLAG))) return -EINVAL;
 
@@ -115,7 +115,7 @@ int
 pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl)
 {
 	struct cap_pgtbl *pt;
-	int ret;
+	int               ret;
 
 	pt = (struct cap_pgtbl *)__cap_capactivate_pre(t, cap, capin, CAP_PGTBL, &ret);
 	if (unlikely(!pt)) return ret;
@@ -130,19 +130,19 @@ pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t
 }
 
 int
-pgtbl_deactivate(struct captbl *t,
+pgtbl_deactivate(struct captbl *    t,
                  struct cap_captbl *dest_ct_cap,
-                 unsigned long capin,
-                 livenessid_t lid,
-                 capid_t pgtbl_cap,
-                 capid_t cosframe_addr,
-                 const int root)
+                 unsigned long      capin,
+                 livenessid_t       lid,
+                 capid_t            pgtbl_cap,
+                 capid_t            cosframe_addr,
+                 const int          root)
 {
 	struct cap_header *deact_header;
-	struct cap_pgtbl *deact_cap, *parent;
+	struct cap_pgtbl * deact_cap, *parent;
 
 	unsigned long l, old_v = 0, *pte = NULL;
-	int ret;
+	int           ret;
 
 	deact_header = captbl_lkup(dest_ct_cap->captbl, capin);
 	if (!deact_header || deact_header->type != CAP_PGTBL) cos_throw(err, -EINVAL);

@@ -62,8 +62,8 @@
 
 /* The header for a slab. */
 struct cslab {
-	u16_t obj_sz, nfree;
-	u32_t bitmap[CSLAB_BITMAP_SIZE];
+	u16_t         obj_sz, nfree;
+	u32_t         bitmap[CSLAB_BITMAP_SIZE];
 	struct cslab *next, *prev; /* freelist next */
 } __attribute__((packed));
 
@@ -115,7 +115,7 @@ static inline void
 __cslab_mem_free(void *buf, struct cslab_freelist *fl, int obj_sz, int max_objs)
 {
 	struct cslab *s = __cslab_lookup(buf);
-	int idx, off;
+	int           idx, off;
 	assert(s && fl && buf);
 
 	off = (int)((u32_t)buf - (u32_t)__cslab_mem_first(s));
@@ -160,9 +160,9 @@ static inline void *
 __cslab_mem_alloc(struct cslab_freelist *fl, int obj_sz, int max_objs)
 {
 	struct cslab *s;
-	int idx;
-	u32_t *bm;
-	void *mem;
+	int           idx;
+	u32_t *       bm;
+	void *        mem;
 
 	s = fl->list;
 	if (unlikely(!s)) {
@@ -198,7 +198,7 @@ __cslab_mem_alloc(struct cslab_freelist *fl, int obj_sz, int max_objs)
  */
 #define CSLAB_CREATE_DATA(name, size)                                    \
 	struct cslab_freelist slab_##name##_freelist = { .list = NULL }; \
-	static const int slab_##name##_max_objs =                        \
+	static const int      slab_##name##_max_objs =                   \
 	  ((CSLAB_MEM_ALLOC_SZ - CSLAB_FIRST_OFF) / (round_up_to_pow2(size, WORD_SIZE)))
 
 #define CSLAB_CREATE_FNS(name, size)                                                                        \

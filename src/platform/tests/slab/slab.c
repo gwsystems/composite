@@ -40,9 +40,9 @@ chk(char *c, int sz, char val)
 int
 main(void)
 {
-	struct small *s[ITER];
-	struct larger *l[ITER];
-	int i, j;
+	struct small *     s[ITER];
+	struct larger *    l[ITER];
+	int                i, j;
 	unsigned long long start, end;
 
 	printf("small per slab %d, large %d\n", slab_s_max_objs, slab_l_max_objs);

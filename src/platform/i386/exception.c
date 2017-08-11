@@ -138,9 +138,9 @@ gen_protect_fault_handler(struct pt_regs *regs)
 int
 page_fault_handler(struct pt_regs *regs)
 {
-	u32_t fault_addr, errcode = 0, eip = 0;
-	struct cos_cpu_local_info *ci = cos_cpu_local_info();
-	thdid_t thdid                 = thd_current(ci)->tid;
+	u32_t                      fault_addr, errcode = 0, eip = 0;
+	struct cos_cpu_local_info *ci    = cos_cpu_local_info();
+	thdid_t                    thdid = thd_current(ci)->tid;
 
 	print_regs_state(regs);
 	fault_addr = chal_cpu_fault_vaddr(regs);

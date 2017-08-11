@@ -15,7 +15,7 @@ __cap_capactivate_pre(struct captbl *t, capid_t cap, capid_t capin, cap_t type, 
 {
 	struct cap_captbl *ct;
 	struct cap_header *h = NULL;
-	int ret;
+	int                ret;
 
 	ct = (struct cap_captbl *)captbl_lkup(t, cap);
 	if (unlikely(!ct || ct->h.type != CAP_CAPTBL)) cos_throw(err, -EINVAL);
@@ -73,7 +73,7 @@ cap_capdeactivate(struct cap_captbl *ct, capid_t capin, cap_t type, livenessid_t
 static inline int
 cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
-	int ret;
+	int               ret;
 	struct cap_pgtbl *pgtblc;
 
 	assert(t);
@@ -101,10 +101,10 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	 * identical layout to cap_pgtbl.
 	 */
 	struct cap_captbl *ct, *ctsub;
-	unsigned long *intern;
-	u32_t depth;
-	cap_t cap_type;
-	int ret = 0;
+	unsigned long *    intern;
+	u32_t              depth;
+	cap_t              cap_type;
+	int                ret = 0;
 
 	if (unlikely(capto == capsub)) return -EINVAL;
 	ct = (struct cap_captbl *)captbl_lkup(t, capto);
@@ -166,7 +166,7 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 	/* capsub is the cap_cap for sub level to be pruned. We need
 	 * to decrement ref_cnt correctly for the kernel page. */
 	struct cap_header *head, *sub;
-	unsigned long *intern, old_v;
+	unsigned long *    intern, old_v;
 
 	head = (struct cap_header *)captbl_lkup(t, cap);
 	sub  = (struct cap_header *)captbl_lkup(t, capsub);
@@ -180,7 +180,7 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 		intern = captbl_lkup_lvl(ct->captbl, pruneid, ct->lvl, lvl);
 	} else if (head->type == CAP_PGTBL) {
 		struct cap_pgtbl *pt = (struct cap_pgtbl *)head;
-		u32_t flags;
+		u32_t             flags;
 		if (lvl <= pt->lvl) return -EINVAL;
 		intern = pgtbl_lkup_lvl(pt->pgtbl, pruneid, &flags, pt->lvl, lvl);
 	} else {
@@ -210,14 +210,14 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 	/* decrement the refcnt */
 	if (head->type == CAP_CAPTBL) {
 		struct cap_captbl *ct = (struct cap_captbl *)sub;
-		u32_t old_v, l;
+		u32_t              old_v, l;
 
 		old_v = l = ct->refcnt_flags;
 		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 		cos_faa((int *)&(ct->refcnt_flags), -1);
 	} else {
 		struct cap_pgtbl *pt = (struct cap_pgtbl *)sub;
-		u32_t old_v, l;
+		u32_t             old_v, l;
 
 		old_v = l = pt->refcnt_flags;
 		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
@@ -231,8 +231,8 @@ static int
 cap_kmem_freeze(struct captbl *t, capid_t target_cap)
 {
 	struct cap_header *ch;
-	u32_t l;
-	int ret;
+	u32_t              l;
+	int                ret;
 
 	ch = captbl_lkup(t, target_cap);
 	if (!ch) return -EINVAL;
@@ -269,7 +269,7 @@ kmem_page_scan(void *obj_vaddr, const int size)
 	/* For non-leaf level captbl / pgtbl. entries are all pointers
 	 * in these cases. */
 	unsigned int i;
-	void *addr = obj_vaddr;
+	void *       addr = obj_vaddr;
 
 	for (i = 0; i < size / sizeof(void *); i++) {
 		if (*(unsigned long *)addr != 0) return -EINVAL;
@@ -280,11 +280,11 @@ kmem_page_scan(void *obj_vaddr, const int size)
 }
 
 int kmem_deact_pre(struct cap_header *ch,
-                   struct captbl *ct,
-                   capid_t pgtbl_cap,
-                   capid_t cosframe_addr,
-                   unsigned long **p_pte,
-                   unsigned long *v);
+                   struct captbl *    ct,
+                   capid_t            pgtbl_cap,
+                   capid_t            cosframe_addr,
+                   unsigned long **   p_pte,
+                   unsigned long *    v);
 int kmem_deact_post(unsigned long *pte, unsigned long old_v);
 
 #endif /* CAP_OPS */

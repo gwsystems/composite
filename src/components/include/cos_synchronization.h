@@ -28,18 +28,18 @@ union cos_lock_atomic_struct {
 
 typedef struct __attribute__((packed)) {
 	volatile union cos_lock_atomic_struct atom;
-	u32_t lock_id;
+	u32_t                                 lock_id;
 } cos_lock_t;
 
 /* Provided by the synchronization primitive component */
 extern unsigned long lock_component_alloc(spdid_t spdid, vaddr_t lock_addr);
-extern void lock_component_free(spdid_t spdid, unsigned long lock_id);
+extern void          lock_component_free(spdid_t spdid, unsigned long lock_id);
 
 int lock_release_contention(cos_lock_t *l, union cos_lock_atomic_struct *prev_val);
-int lock_take_contention(cos_lock_t *l,
+int lock_take_contention(cos_lock_t *                  l,
                          union cos_lock_atomic_struct *result,
                          union cos_lock_atomic_struct *prev_val,
-                         u16_t owner);
+                         u16_t                         owner);
 
 static inline int
 __cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated, int smp)
@@ -54,8 +54,8 @@ static inline int
 __lock_take(cos_lock_t *l, int smp)
 {
 	union cos_lock_atomic_struct result, prev_val;
-	unsigned int curr = cos_get_thd_id();
-	u16_t owner;
+	unsigned int                 curr = cos_get_thd_id();
+	u16_t                        owner;
 
 	prev_val.c.owner = prev_val.c.contested = 0;
 	result.v                                = 0;
@@ -92,7 +92,7 @@ __lock_take(cos_lock_t *l, int smp)
 static inline int
 __lock_release(cos_lock_t *l, int smp)
 {
-	unsigned int curr = cos_get_thd_id();
+	unsigned int                 curr = cos_get_thd_id();
 	union cos_lock_atomic_struct prev_val;
 
 	prev_val.c.owner = prev_val.c.contested = 0;
@@ -156,7 +156,7 @@ lock_id_alloc(cos_lock_t *l)
 
 #define NCACHED_LOCK_IDS 32
 extern u32_t __lid_cache[];
-extern int __lid_top;
+extern int   __lid_top;
 
 static inline void
 lock_id_put(u32_t lid)
@@ -205,7 +205,7 @@ lock_static_free(cos_lock_t *l)
 #ifndef STATIC_ALLOC
 #include <cos_alloc.h>
 cos_lock_t *lock_alloc(void);
-void lock_free(cos_lock_t *l);
+void        lock_free(cos_lock_t *l);
 #endif
 
 #endif

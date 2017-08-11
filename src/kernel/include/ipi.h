@@ -51,9 +51,9 @@ struct IPI_receiving_rings IPI_dest[NUM_CPU];
 static inline int
 cos_ipi_ring_enqueue(u32_t dest, u32_t data)
 {
-	struct xcore_ring *ring = &IPI_dest[dest].IPI_source[get_cpuid()];
-	u32_t tail              = ring->sender.tail;
-	u32_t delta             = (tail + 1) & IPI_RING_MASK;
+	struct xcore_ring *ring  = &IPI_dest[dest].IPI_source[get_cpuid()];
+	u32_t              tail  = ring->sender.tail;
+	u32_t              delta = (tail + 1) & IPI_RING_MASK;
 
 	if (unlikely(!data)) return -1;
 
@@ -95,7 +95,7 @@ cos_ipi_ring_dequeue(struct xcore_ring *ring)
 static inline void
 handle_ipi_acap(int spd_id, int acap_id)
 {
-	struct spd *spd;
+	struct spd *      spd;
 	struct async_cap *acap;
 
 	spd = spd_get_by_index(spd_id);
@@ -140,9 +140,9 @@ process_ring(struct xcore_ring *ring)
 static int
 cos_send_ipi(int cpu, int spd_id, int acap_id)
 {
-	int ret;
-	u32_t data           = (spd_id << 16) | (acap_id);
-	unsigned long long s = 0, e;
+	int                ret;
+	u32_t              data = (spd_id << 16) | (acap_id);
+	unsigned long long s    = 0, e;
 
 	while (1) {
 		ret = cos_ipi_ring_enqueue(cpu, data);

@@ -18,17 +18,17 @@ typedef enum {
 } sl_thd_state;
 
 struct sl_thd {
-	sl_thd_state state;
-	thdid_t thdid;
-	thdcap_t thdcap;
-	tcap_prio_t prio;
+	sl_thd_state   state;
+	thdid_t        thdid;
+	thdcap_t       thdcap;
+	tcap_prio_t    prio;
 	struct sl_thd *dependency;
 
 	cycles_t period;
 	cycles_t periodic_cycs; /* for implicit periodic timeouts */
 	cycles_t timeout_cycs;  /* next timeout - used in timeout API */
 	cycles_t wakeup_cycs;   /* actual last wakeup - used in timeout API for jitter information, etc */
-	int timeout_idx;        /* timeout heap index, used in timeout API */
+	int      timeout_idx;   /* timeout heap index, used in timeout API */
 };
 
 #ifndef assert

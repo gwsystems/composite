@@ -42,9 +42,9 @@
 #define TEST_NTHDS 5
 
 extern struct cos_compinfo booter_info;
-extern thdcap_t termthd; /* switch to this to shutdown */
-extern unsigned long tls_test[TEST_NTHDS];
-extern int num, den;
+extern thdcap_t            termthd; /* switch to this to shutdown */
+extern unsigned long       tls_test[TEST_NTHDS];
+extern int                 num, den;
 
 static unsigned long
 tls_get(size_t off)
@@ -62,8 +62,8 @@ tls_set(size_t off, unsigned long val)
 	__asm__ __volatile__("movl %0, %%gs:(%1)" : : "r"(val), "r"(off) : "memory");
 }
 
-extern int prints(char *s);
-extern int printc(char *fmt, ...);
+extern int  prints(char *s);
+extern int  printc(char *fmt, ...);
 extern void test_run_mb(void);
 
 #endif /* MICRO_BOOTER_H */

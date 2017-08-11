@@ -11,13 +11,13 @@
 
 #define BUF_SZ 40
 struct cringbuf rb;
-char buffer[BUF_SZ];
+char            buffer[BUF_SZ];
 
 void
 populate(char *b, int sz)
 {
 	static int val = 0;
-	int i;
+	int        i;
 
 	for (i = 0; i < sz; i++) {
 		b[i] = val;
@@ -30,7 +30,7 @@ int
 check(char *b, int sz)
 {
 	static int val = 0;
-	int i;
+	int        i;
 
 	//	printf("check: ");
 	for (i = 0; i < sz; i++) {
@@ -47,7 +47,7 @@ void
 consume_all(struct cringbuf *rb)
 {
 	char b[BUF_SZ];
-	int amnt = cringbuf_sz(rb);
+	int  amnt = cringbuf_sz(rb);
 
 	assert(cringbuf_consume(rb, b, amnt) == amnt);
 	assert(cringbuf_sz(rb) == 0);
@@ -58,7 +58,7 @@ void
 produce_all(struct cringbuf *rb)
 {
 	char b[BUF_SZ];
-	int amnt = cringbuf_empty_sz(rb);
+	int  amnt = cringbuf_empty_sz(rb);
 
 	assert(cringbuf_produce(rb, b, amnt) == amnt);
 	assert(cringbuf_empty_sz(rb) == 0);
@@ -68,7 +68,7 @@ produce_all(struct cringbuf *rb)
 int
 main(void)
 {
-	int tot = BUF_SZ - sizeof(struct __cringbuf) - 1, left = tot, i, amnt, l;
+	int  tot = BUF_SZ - sizeof(struct __cringbuf) - 1, left = tot, i, amnt, l;
 	char b[BUF_SZ];
 
 	cringbuf_init(&rb, buffer, BUF_SZ);

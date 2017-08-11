@@ -43,8 +43,8 @@ struct sl_cs {
 	union sl_cs_intern {
 		struct {
 			thdcap_t owner : 31;
-			u32_t contention : 1;
-		} PS_PACKED s;
+			u32_t    contention : 1;
+		} PS_PACKED   s;
 		unsigned long v;
 	} u;
 };
@@ -52,13 +52,13 @@ struct sl_cs {
 struct sl_global {
 	struct sl_cs lock;
 
-	thdcap_t sched_thdcap;
+	thdcap_t       sched_thdcap;
 	struct sl_thd *sched_thd;
 	struct sl_thd *idle_thd;
 
-	int cyc_per_usec;
-	cycles_t period;
-	cycles_t timer_next;
+	int         cyc_per_usec;
+	cycles_t    period;
+	cycles_t    timer_next;
 	tcap_time_t timeout_next;
 };
 
@@ -137,8 +137,8 @@ static inline int
 sl_cs_enter_nospin(void)
 {
 	union sl_cs_intern csi, cached;
-	struct sl_thd *t = sl_thd_curr();
-	sched_tok_t tok;
+	struct sl_thd *    t = sl_thd_curr();
+	sched_tok_t        tok;
 
 	assert(t);
 	tok      = cos_sched_sync();
@@ -187,7 +187,7 @@ static inline void
 sl_cs_exit(void)
 {
 	union sl_cs_intern csi, cached;
-	sched_tok_t tok;
+	sched_tok_t        tok;
 
 	assert(sl_cs_owner());
 
@@ -231,11 +231,11 @@ cycles_t sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
  *           +ve - number of periods elapsed. (1 if it wokeup exactly at timeout = next period)
  */
 unsigned int sl_thd_block_periodic(thdid_t tid);
-int sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type);
+int          sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type);
 
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);
-int sl_thd_wakeup_no_cs(struct sl_thd *t);
+int  sl_thd_wakeup_no_cs(struct sl_thd *t);
 
 void sl_thd_yield(thdid_t tid);
 void sl_thd_yield_cs_exit(thdid_t tid);
@@ -243,7 +243,7 @@ void sl_thd_yield_cs_exit(thdid_t tid);
 /* The entire thread allocation and free API */
 struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
 struct sl_thd *sl_thd_comp_alloc(struct cos_defcompinfo *comp);
-void sl_thd_free(struct sl_thd *t);
+void           sl_thd_free(struct sl_thd *t);
 
 void sl_thd_param_set(struct sl_thd *t, sched_param_t sp);
 
@@ -372,13 +372,13 @@ static inline int
 sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 {
 	struct sl_thd_policy *pt;
-	struct sl_thd *t;
-	struct sl_global *globals = sl__globals();
-	thdcap_t thdcap;
-	tcap_prio_t prio;
-	sched_tok_t tok;
-	cycles_t now;
-	s64_t offset;
+	struct sl_thd *       t;
+	struct sl_global *    globals = sl__globals();
+	thdcap_t              thdcap;
+	tcap_prio_t           prio;
+	sched_tok_t           tok;
+	cycles_t              now;
+	s64_t                 offset;
 
 	/* Don't abuse this, it is only to enable the tight loop around this function for races... */
 	if (unlikely(!sl_cs_owner())) sl_cs_enter();

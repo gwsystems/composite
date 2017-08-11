@@ -57,7 +57,7 @@
 	andl $0xffff, % eax;                                 \
 	pushl % eax; /* thd id */                            \
 	pushl $0x03; /* flags */                             \
-	subl $4, % esp;
+	subl  $4, % esp;
 /* pushl $0xFACE;  /\* next *\/               */
 
 
@@ -67,7 +67,7 @@
 	/* get stk space */               \
 	movl $stkmgr_stack_space, % esp;  \
 	andl $0xffff, % eax;              \
-	shl $7, % eax;                    \
+	shl  $7, % eax;                   \
 	addl % eax, % esp;                \
                                           \
 	/* save our registers */          \
@@ -127,7 +127,7 @@
 	movl $THD_ID_SHARED_PAGE, % ebx;                 \
 	movl(% ebx), % ebx;                              \
 	movl $stkmgr_stack_space, % esp;                 \
-	shl $7, % ebx;                                   \
+	shl  $7, % ebx;                                  \
 	addl % ebx, % esp;                               \
 	/* save our registers */                         \
 	pushl % ebp;                                     \
@@ -158,108 +158,108 @@
 /**
  * Assign a thread a stack to execute on.
  */
-#define COS_ASM_GET_STACK_OLD                                                                          \
-                                                                                                       \
-	/* Remove me */                                                                                \
-	movl % eax, % edx;                                                                             \
-	movl $stkmgr_stack_space, % esp;                                                               \
-	shl $7, % eax;                                                                                 \
-	addl % eax, % esp;                                                                             \
-	movl % edx, % eax;                                                                             \
-                                                                                                       \
-                                                                                                       \
-	/*movl $ARGREG_ADDRESS, %edx;                                                                  \
-	mov  0x4(%edx), %esp;*/                                                                        \
-	/* ugh*/                                                                                       \
-                                                                                                       \
-	movl % eax, % edx;                                                                             \
-	/* do we have a stack free? */                                                                 \
-	movl cos_comp_info, % eax;                                                                     \
-	testl % eax, % eax;                                                                            \
-	jne 1f;                                                                                        \
-                                                                                                       \
-	/* First we need a stack */                                                                    \
-	movl $stkmgr_stack_space, % esp;                                                               \
-	shl $7, % edx;                                                                                 \
-	addl % edx, % esp;                                                                             \
-	/* save our registers */                                                                       \
-	pushl % ebp;                                                                                   \
-	pushl % esi;                                                                                   \
-	pushl % edi;                                                                                   \
-	pushl % ebx;                                                                                   \
-	pushl % ecx;                                                                                   \
-                                                                                                       \
-	/*                                                                                             \
-	movl cos_heap_ptr, %edx;                                                                       \
-	movl %edx, %eax;                                                                               \
-	addl $4096, %edx;                                                                              \
-	movl %edx, cos_heap_ptr;                                                                       \
-	*/                                                                                             \
-                                                                                                       \
-	/* call stkmgr_get_stack */                                                                    \
-	/*pushl %edx;                                                                                  \
-	pushl %eax;*/                                                                                  \
-	pushl % ecx;                                                                                   \
-	call stkmgr_grant_stack;                                                                       \
-	addl $4, % esp;                                                                                \
-                                                                                                       \
-	/* popl %edx;                                                                                  \
-	stk is in stk+4                                                                                \
-	movl %edx, %eax;*/                                                                             \
-	subl $0x4, % eax;                                                                              \
-	/*addl $4, %eax;*/                                                                             \
-	/*movl %edx, %eax;*/                                                                           \
-                                                                                                       \
-	/*restore stack */                                                                             \
-	popl % ecx;                                                                                    \
-	popl % ebx;                                                                                    \
-	popl % edi;                                                                                    \
-	popl % esi;                                                                                    \
-	popl % ebp;                                                                                    \
-	/*movl %esp, %eax;*/                                                                           \
-	jmp 2f;                                                                                        \
-                                                                                                       \
-	1                                                                                              \
-	  : /* stk_list = stk_list->next */ /*                                                         \
-	                                    SAFE_PUSH_ALL;                                             \
-	                                    call stkmgr_got_from_list;                                 \
-	                                    SAFE_POP_ALL;*/                                            \
-	    movl cos_comp_info                                                                         \
-	  , % eax;                                                                                     \
-	movl(% eax), % edx;                                                                            \
-	movl % edx, cos_comp_info;                                                                     \
-	addl $4, % eax;                                                                                \
-	/*SAFE_PUSH_ALL;                                                                               \
-	pushl (%eax);                                                                                  \
-	call stkmgr_return_stack;                                                                      \
-	addl $4, %esp;                                                                                 \
-	call stkmgr_got_from_list;                                                                     \
-	SAFE_PUSH_ALL;*/                                                                               \
-	/*SAFE_PUSH_ALL;                                                                               \
-	pushl (%eax);                                                                                  \
-	call stkmgr_return_stack;                                                                      \
-	addl $4, %esp;                                                                                 \
-	push %eax;                                                                                     \
-	call stkmgr_return_stack;                                                                      \
-	addl $4, %esp;                                                                                 \
-	call stkmgr_got_from_list;                                                                     \
-	SAFE_POP_ALL;                                                                                  \
-	*/                                                                                             \
-                                                                                                       \
-	2                                                                                              \
-	  : /*movl %eax, %edx; */                                              /*addl $0x4,  %edx;*/   \
-	    /*orl  $0x01, %edx;*/ /* mark in use */ /*movl $0xFACE, 0(%edx);*/ /*movl $0xFACE, %eax;*/ \
-	    movl                                                                                       \
-	    % eax                                                                                      \
-	  , % esp;                                                                                     \
-	addl $4, % esp;                                                                                \
-	pushl $0x01;   /* flags */                                                                     \
-	pushl $0xFACE; /* next */                                                                      \
-/*SAFE_PUSH_ALL;                                                                                       \
-pushl $0xDEAD;                                                                                         \
-pushl (%esp);                                                                                          \
-call stkmgr_return_stack;                                                                              \
-addl $8, %esp;                                                                                         \
+#define COS_ASM_GET_STACK_OLD                                                                         \
+                                                                                                      \
+	/* Remove me */                                                                               \
+	movl % eax, % edx;                                                                            \
+	movl $stkmgr_stack_space, % esp;                                                              \
+	shl  $7, % eax;                                                                               \
+	addl % eax, % esp;                                                                            \
+	movl % edx, % eax;                                                                            \
+                                                                                                      \
+                                                                                                      \
+	/*movl $ARGREG_ADDRESS, %edx;                                                                 \
+	mov  0x4(%edx), %esp;*/                                                                       \
+	/* ugh*/                                                                                      \
+                                                                                                      \
+	movl % eax, % edx;                                                                            \
+	/* do we have a stack free? */                                                                \
+	movl cos_comp_info, % eax;                                                                    \
+	testl % eax, % eax;                                                                           \
+	jne 1f;                                                                                       \
+                                                                                                      \
+	/* First we need a stack */                                                                   \
+	movl $stkmgr_stack_space, % esp;                                                              \
+	shl  $7, % edx;                                                                               \
+	addl % edx, % esp;                                                                            \
+	/* save our registers */                                                                      \
+	pushl % ebp;                                                                                  \
+	pushl % esi;                                                                                  \
+	pushl % edi;                                                                                  \
+	pushl % ebx;                                                                                  \
+	pushl % ecx;                                                                                  \
+                                                                                                      \
+	/*                                                                                            \
+	movl cos_heap_ptr, %edx;                                                                      \
+	movl %edx, %eax;                                                                              \
+	addl $4096, %edx;                                                                             \
+	movl %edx, cos_heap_ptr;                                                                      \
+	*/                                                                                            \
+                                                                                                      \
+	/* call stkmgr_get_stack */                                                                   \
+	/*pushl %edx;                                                                                 \
+	pushl %eax;*/                                                                                 \
+	pushl % ecx;                                                                                  \
+	call stkmgr_grant_stack;                                                                      \
+	addl $4, % esp;                                                                               \
+                                                                                                      \
+	/* popl %edx;                                                                                 \
+	stk is in stk+4                                                                               \
+	movl %edx, %eax;*/                                                                            \
+	subl $0x4, % eax;                                                                             \
+	/*addl $4, %eax;*/                                                                            \
+	/*movl %edx, %eax;*/                                                                          \
+                                                                                                      \
+	/*restore stack */                                                                            \
+	popl % ecx;                                                                                   \
+	popl % ebx;                                                                                   \
+	popl % edi;                                                                                   \
+	popl % esi;                                                                                   \
+	popl % ebp;                                                                                   \
+	/*movl %esp, %eax;*/                                                                          \
+	jmp 2f;                                                                                       \
+                                                                                                      \
+	1                                                                                             \
+	  : /* stk_list = stk_list->next */ /*                                                        \
+	                                    SAFE_PUSH_ALL;                                            \
+	                                    call stkmgr_got_from_list;                                \
+	                                    SAFE_POP_ALL;*/                                           \
+	    movl cos_comp_info                                                                        \
+	  , % eax;                                                                                    \
+	movl(% eax), % edx;                                                                           \
+	movl % edx, cos_comp_info;                                                                    \
+	addl $4, % eax;                                                                               \
+	/*SAFE_PUSH_ALL;                                                                              \
+	pushl (%eax);                                                                                 \
+	call stkmgr_return_stack;                                                                     \
+	addl $4, %esp;                                                                                \
+	call stkmgr_got_from_list;                                                                    \
+	SAFE_PUSH_ALL;*/                                                                              \
+	/*SAFE_PUSH_ALL;                                                                              \
+	pushl (%eax);                                                                                 \
+	call stkmgr_return_stack;                                                                     \
+	addl $4, %esp;                                                                                \
+	push %eax;                                                                                    \
+	call stkmgr_return_stack;                                                                     \
+	addl $4, %esp;                                                                                \
+	call stkmgr_got_from_list;                                                                    \
+	SAFE_POP_ALL;                                                                                 \
+	*/                                                                                            \
+                                                                                                      \
+	2                                                                                             \
+	  : /*movl %eax, %edx; */ /*addl $0x4,  %edx;*/ /*orl  $0x01, %edx;*/ /* mark in use */       \
+	    /*movl $0xFACE, 0(%edx);*/                                        /*movl $0xFACE, %eax;*/ \
+	    movl                                                                                      \
+	    % eax                                                                                     \
+	  , % esp;                                                                                    \
+	addl  $4, % esp;                                                                              \
+	pushl $0x01;   /* flags */                                                                    \
+	pushl $0xFACE; /* next */                                                                     \
+/*SAFE_PUSH_ALL;                                                                                      \
+pushl $0xDEAD;                                                                                        \
+pushl (%esp);                                                                                         \
+call stkmgr_return_stack;                                                                             \
+addl $8, %esp;                                                                                        \
 SAFE_POP_ALL;*/
 
 
@@ -289,7 +289,7 @@ SAFE_POP_ALL;*/
 	jne 1f;                                   \
 	/*cmpl $0xDEAD, %edx;*/                   \
 	/*jne 1f;*/                               \
-	addl $4, % esp;                           \
+	addl  $4, % esp;                          \
 	pushl $0x00;   /* Flag Mark Not in Use */ \
 	pushl $0xFACE; /* next */                 \
 	/*subl $4, %esp;*/                        \
@@ -311,7 +311,7 @@ SAFE_POP_ALL;*/
 	movl $THD_ID_SHARED_PAGE, % ecx;          \
 	movl(% ecx), % ecx;                       \
 	movl $stkmgr_stack_space, % esp;          \
-	shl $7, % ecx;                            \
+	shl  $7, % ecx;                           \
 	addl % ecx, % esp;                        \
 	/* save our registers */                  \
 	pushl % ebp;                              \
@@ -349,7 +349,7 @@ SAFE_POP_ALL;*/
 
 #define COS_ASM_GET_STACK              \
 	movl $cos_static_stack, % esp; \
-	shl $12, % eax;                \
+	shl  $12, % eax;               \
 	addl % eax, % esp;
 
 #define COS_ASM_RET_STACK

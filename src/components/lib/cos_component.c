@@ -111,7 +111,7 @@ CWEAKSYMB void *
 cos_get_vas_page(void)
 {
 	char *h;
-	long r;
+	long  r;
 	do {
 		h = cos_get_heap_ptr();
 		r = (long)h + PAGE_SIZE;

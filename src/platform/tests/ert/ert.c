@@ -3,9 +3,9 @@
 #include <malloc.h>
 #include <assert.h>
 
-typedef unsigned char u8_t;
+typedef unsigned char      u8_t;
 typedef unsigned short int u16_t;
-typedef unsigned int u32_t;
+typedef unsigned int       u32_t;
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #define LINUX_TEST
 #include <kvtrie.h>
@@ -16,7 +16,7 @@ typedef unsigned int u32_t;
 #define NTESTS (4096)
 
 struct pair {
-	long id;
+	long  id;
 	void *val;
 };
 
@@ -34,7 +34,7 @@ int alloc_cnt = 0;
 static void *
 unit_allocfn(void *d, int sz, int last_lvl)
 {
-	int *mem = d;
+	int * mem = d;
 	void *r;
 	(void)d;
 	(void)last_lvl;
@@ -73,7 +73,7 @@ ERT_CREATE_DEF(unit5, 1, 0, 14, 32, unit_allocfn);
 void *
 do_lookups(struct pair *ps, struct unit3_ert *v)
 {
-	void *r;
+	void *        r;
 	unsigned long id = ps->id;
 	assert(v);
 	assert(id < unit3_maxid());
@@ -109,17 +109,17 @@ typedef int (*expandn_fn_t)(struct ert *v, unsigned long id, u32_t dlimit, unsig
 typedef int (*expand_fn_t)(struct ert *v, unsigned long id, unsigned long *accum, void *memctxt);
 
 void
-kv_test(int max,
-        alloc_fn_t a,
-        free_fn_t f,
-        lkupp_fn_t lp,
-        add_fn_t add,
-        del_fn_t d,
-        lkup_fn_t l,
-        lkupa_fn_t la,
-        lkupan_fn_t lan,
+kv_test(int          max,
+        alloc_fn_t   a,
+        free_fn_t    f,
+        lkupp_fn_t   lp,
+        add_fn_t     add,
+        del_fn_t     d,
+        lkup_fn_t    l,
+        lkupa_fn_t   la,
+        lkupan_fn_t  lan,
         expandn_fn_t en,
-        expand_fn_t e)
+        expand_fn_t  e)
 {
 	(void)l;
 	(void)la;
@@ -127,7 +127,7 @@ kv_test(int max,
 	(void)en;
 	(void)e;
 	struct pair pairs[NTESTS];
-	int i;
+	int         i;
 	struct ert *dyn_vect;
 
 	dyn_vect = (struct ert *)a(NULL);
@@ -160,11 +160,11 @@ ert_test(int max, int depth, alloc_fn_t a, lkup_fn_t l, lkupa_fn_t la, lkupan_fn
 	(void)la;
 	(void)lan;
 	(void)e;
-	struct pair pairs[NTESTS];
-	int i;
+	struct pair   pairs[NTESTS];
+	int           i;
 	unsigned long mem;
-	struct ert *v;
-	int testnum = NTESTS;
+	struct ert *  v;
+	int           testnum = NTESTS;
 
 	if (testnum > max) testnum = max;
 	mem = 0;
@@ -172,9 +172,9 @@ ert_test(int max, int depth, alloc_fn_t a, lkup_fn_t l, lkupa_fn_t la, lkupan_fn
 	assert(v);
 	assert(mem);
 	for (i = 0; i < testnum; i++) {
-		int j, c;
+		int           j, c;
 		unsigned long accum;
-		int *val;
+		int *         val;
 
 		do {
 			pairs[i].id = rand() % max;
@@ -212,10 +212,10 @@ do_captbllkups(struct captbl *ct, unsigned long id)
 void
 ct_test(void)
 {
-	struct captbl *ct;
-	char *p  = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	char *p1 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	int ret;
+	struct captbl *    ct;
+	char *             p  = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	char *             p1 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	int                ret;
 	struct cap_header *c;
 
 	assert(p);
@@ -308,11 +308,11 @@ ct_test(void)
 void
 pgt_test(void)
 {
-	char *p1 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	char *p2 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	char *p3 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	char *  p1 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	char *  p2 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	char *  p3 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	pgtbl_t pt;
-	u32_t flags = 0;
+	u32_t   flags = 0;
 
 	pt = pgtbl_alloc(p1);
 	assert(pt);

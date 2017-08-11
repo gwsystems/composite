@@ -91,11 +91,11 @@ int
 deserialize_dependencies(char *deps, struct service_symbs *services)
 {
 	char *next, *current;
-	char *serial        = "-";
-	char *parallel      = "|";
-	char inter_dep      = ';';
-	char open_modifier  = '[';
-	char close_modifier = ']';
+	char *serial         = "-";
+	char *parallel       = "|";
+	char  inter_dep      = ';';
+	char  open_modifier  = '[';
+	char  close_modifier = ']';
 
 	if (!deps) return -1;
 	next = current = deps;
@@ -105,7 +105,7 @@ deserialize_dependencies(char *deps, struct service_symbs *services)
 	/* go through each dependent-trusted|... relation */
 	while (current) {
 		struct service_symbs *s, *dep;
-		char *tmp;
+		char *                tmp;
 
 		next = strchr(current, inter_dep);
 		if (next) {

@@ -58,7 +58,7 @@ struct retype_entry {
  * mapping/unmapping. */
 struct retype_info {
 	struct retype_entry mem_set[N_MEM_SETS];
-	char __pad[(N_MEM_SETS_SZ % CACHE_LINE == 0) ? 0 : (N_MEM_SETS_SZ % CACHE_LINE)];
+	char                __pad[(N_MEM_SETS_SZ % CACHE_LINE == 0) ? 0 : (N_MEM_SETS_SZ % CACHE_LINE)];
 } CACHE_ALIGNED;
 
 extern struct retype_info retype_tbl[NUM_CPU];
@@ -67,7 +67,7 @@ extern struct retype_info retype_tbl[NUM_CPU];
  * retyping. NOT when doing mapping / unmapping. */
 struct retype_info_glb {
 	u32_t type;
-	char __pad[CACHE_LINE - sizeof(u32_t)];
+	char  __pad[CACHE_LINE - sizeof(u32_t)];
 } CACHE_ALIGNED;
 
 extern struct retype_info_glb glb_retype_tbl[N_MEM_SETS];
@@ -108,8 +108,8 @@ int retypetbl_retype2kern(void *pa);
 int retypetbl_retype2frame(void *pa);
 
 void retype_tbl_init(void);
-int retypetbl_ref(void *pa);
-int retypetbl_kern_ref(void *pa);
-int retypetbl_deref(void *pa);
+int  retypetbl_ref(void *pa);
+int  retypetbl_kern_ref(void *pa);
+int  retypetbl_deref(void *pa);
 
 #endif /* RETYPE_TBL_H */

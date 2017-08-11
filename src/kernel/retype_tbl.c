@@ -13,16 +13,16 @@
 #include "cc.h"
 #include <assert.h>
 
-struct retype_info retype_tbl[NUM_CPU] CACHE_ALIGNED;
+struct retype_info     retype_tbl[NUM_CPU] CACHE_ALIGNED;
 struct retype_info_glb glb_retype_tbl[N_MEM_SETS] CACHE_ALIGNED;
 
 /* called to increment or decrement the refcnt. */
 static inline int
 mod_ref_cnt(void *pa, const int op, const int type_check)
 {
-	u32_t idx, old_v;
+	u32_t                idx, old_v;
 	struct retype_entry *retype_entry;
-	union refcnt_atom local_u;
+	union refcnt_atom    local_u;
 
 	PA_BOUNDARY_CHECK();
 
@@ -74,8 +74,8 @@ retypetbl_deref(void *pa)
 static inline int
 mod_mem_type(void *pa, const mem_type_t type)
 {
-	int i, ret;
-	u32_t idx, old_type;
+	int                     i, ret;
+	u32_t                   idx, old_type;
 	struct retype_info_glb *glb_retype_info;
 
 	assert(pa); /* cannot be NULL: kernel image takes that space */
@@ -137,11 +137,11 @@ int
 retypetbl_retype2frame(void *pa)
 {
 	struct retype_info_glb *glb_retype_info;
-	union refcnt_atom local_u;
-	u32_t old_v, idx;
-	u64_t last_unmap;
-	int cpu, ret, ref_sum;
-	mem_type_t old_type;
+	union refcnt_atom       local_u;
+	u32_t                   old_v, idx;
+	u64_t                   last_unmap;
+	int                     cpu, ret, ref_sum;
+	mem_type_t              old_type;
 
 	PA_BOUNDARY_CHECK();
 

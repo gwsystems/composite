@@ -18,8 +18,8 @@
 
 struct cap_sinv {
 	struct cap_header h;
-	struct comp_info comp_info;
-	vaddr_t entry_addr;
+	struct comp_info  comp_info;
+	vaddr_t           entry_addr;
 } __attribute__((packed));
 
 struct cap_sret {
@@ -29,9 +29,9 @@ struct cap_sret {
 
 struct cap_asnd {
 	struct cap_header h;
-	cpuid_t cpuid, arcv_cpuid;
-	u32_t arcv_capid, arcv_epoch; /* identify receiver */
-	struct comp_info comp_info;
+	cpuid_t           cpuid, arcv_cpuid;
+	u32_t             arcv_capid, arcv_epoch; /* identify receiver */
+	struct comp_info  comp_info;
 
 	/* deferrable server to rate-limit IPIs */
 	u32_t budget, period, replenish_amnt;
@@ -41,12 +41,12 @@ struct cap_asnd {
 
 struct cap_arcv {
 	struct cap_header h;
-	struct comp_info comp_info;
-	u32_t epoch;
-	cpuid_t cpuid;
+	struct comp_info  comp_info;
+	u32_t             epoch;
+	cpuid_t           cpuid;
 	/* The thread to receive events, and the one to send events to (i.e. scheduler) */
 	struct thread *thd, *event_notif;
-	u8_t depth;
+	u8_t           depth;
 } __attribute__((packed));
 
 static int
@@ -54,7 +54,7 @@ sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, va
 {
 	struct cap_sinv *sinvc;
 	struct cap_comp *compc;
-	int ret;
+	int              ret;
 
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
@@ -79,7 +79,7 @@ static int
 sret_activate(struct captbl *t, capid_t cap, capid_t capin)
 {
 	struct cap_sret *sretc;
-	int ret;
+	int              ret;
 
 	sretc = (struct cap_sret *)__cap_capactivate_pre(t, cap, capin, CAP_SRET, &ret);
 	if (!sretc) return ret;
@@ -117,17 +117,17 @@ asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, capid_t rcv_cap, 
 
 static int
 asnd_activate(struct captbl *t,
-              capid_t cap,
-              capid_t capin,
-              capid_t rcv_captbl,
-              capid_t rcv_cap,
-              u32_t budget,
-              u32_t period)
+              capid_t        cap,
+              capid_t        capin,
+              capid_t        rcv_captbl,
+              capid_t        rcv_cap,
+              u32_t          budget,
+              u32_t          period)
 {
 	struct cap_captbl *rcv_ct;
-	struct cap_asnd *asndc;
-	struct cap_arcv *arcvc;
-	int ret;
+	struct cap_asnd *  asndc;
+	struct cap_arcv *  arcvc;
+	int                ret;
 
 	rcv_ct = (struct cap_captbl *)captbl_lkup(t, rcv_captbl);
 	if (unlikely(!rcv_ct || rcv_ct->h.type != CAP_CAPTBL)) return -EINVAL;
@@ -171,7 +171,7 @@ static int
 __arcv_teardown(struct cap_arcv *arcv, struct thread *thd)
 {
 	struct thread *notif;
-	struct tcap *tcap;
+	struct tcap *  tcap;
 
 	tcap = thd->rcvcap.rcvcap_tcap;
 	assert(tcap);
@@ -196,21 +196,21 @@ arcv_thd_notif(struct thread *arcvt)
 
 static int
 arcv_activate(struct captbl *t,
-              capid_t cap,
-              capid_t capin,
-              capid_t comp_cap,
-              capid_t thd_cap,
-              capid_t tcap_cap,
-              capid_t arcv_cap,
-              int init)
+              capid_t        cap,
+              capid_t        capin,
+              capid_t        comp_cap,
+              capid_t        thd_cap,
+              capid_t        tcap_cap,
+              capid_t        arcv_cap,
+              int            init)
 {
 	struct cap_comp *compc;
-	struct cap_thd *thdc;
+	struct cap_thd * thdc;
 	struct cap_tcap *tcapc;
 	struct cap_arcv *arcv_p, *arcvc; /* parent and new capability */
-	struct thread *thd;
-	u8_t depth = 0;
-	int ret;
+	struct thread *  thd;
+	u8_t             depth = 0;
+	int              ret;
 
 	/* Find the constituent capability structures */
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
@@ -314,7 +314,7 @@ static inline void
 sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *cos_info)
 {
 	struct comp_info *ci;
-	unsigned long ip, sp;
+	unsigned long     ip, sp;
 
 	ci = thd_invstk_pop(thd, &ip, &sp, cos_info);
 	if (unlikely(!ci)) {

@@ -4,8 +4,8 @@
 #include "mem_layout.h"
 #include "chal_cpu.h"
 
-u32_t free_thd_id = 1;
-char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
+u32_t        free_thd_id = 1;
+char         timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 extern void *cos_kmem, *cos_kmem_base;
 
 paddr_t chal_kernel_mem_pa;
@@ -56,7 +56,7 @@ chal_init(void)
 	u32_t a, b, c, d;
 	u32_t vendor[4];
 	char *v = (char *)&vendor[0];
-	int apicid;
+	int   apicid;
 
 	printk("Processor information:\n");
 	chal_cpuid(0, &a, &b, &c, &d);

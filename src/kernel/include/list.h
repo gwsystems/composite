@@ -9,7 +9,7 @@
 
 struct list_node {
 	struct list_node *next, *prev;
-	void *container;
+	void *            container;
 };
 
 struct list {

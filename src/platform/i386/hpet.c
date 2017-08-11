@@ -59,7 +59,7 @@
 static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;
 static volatile u64_t *hpet_interrupt;
-static void *hpet;
+static void *          hpet;
 
 volatile struct hpet_timer {
 	u64_t config;
@@ -90,7 +90,7 @@ volatile struct hpet_timer {
 #define FEMPTO_PER_PICO 1000UL
 #define TIMER_CALIBRATION_ITER 256
 #define TIMER_ERROR_BOUND_FACTOR 256
-static int timer_calibration_init             = 1;
+static int           timer_calibration_init   = 1;
 static unsigned long timer_cycles_per_hpetcyc = TIMER_ERROR_BOUND_FACTOR;
 static unsigned long cycles_per_tick;
 static unsigned long hpetcyc_per_tick;
@@ -129,7 +129,7 @@ timer_disable(timer_type_t timer_type)
 static void
 timer_calibration(void)
 {
-	static int cnt     = 0;
+	static int   cnt   = 0;
 	static u64_t cycle = 0, tot = 0, prev;
 	static u32_t apic_curr = 0, apic_tot = 0, apic_prev;
 
@@ -235,10 +235,10 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 u64_t
 timer_find_hpet(void *timer)
 {
-	u32_t i;
-	unsigned char sum       = 0;
+	u32_t          i;
+	unsigned char  sum      = 0;
 	unsigned char *hpetaddr = timer;
-	u32_t length            = *(u32_t *)(hpetaddr + HPET_TAB_LENGTH);
+	u32_t          length   = *(u32_t *)(hpetaddr + HPET_TAB_LENGTH);
 
 	printk("Initializing HPET @ %p\n", hpetaddr);
 

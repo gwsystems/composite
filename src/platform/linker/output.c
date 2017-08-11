@@ -59,21 +59,21 @@ service_get_spdid(struct service_symbs *ss)
  */
 /*struct cap_info **/
 int
-create_invocation_cap(struct spd_info *from_spd,
+create_invocation_cap(struct spd_info *     from_spd,
                       struct service_symbs *from_obj,
-                      struct spd_info *to_spd,
+                      struct spd_info *     to_spd,
                       struct service_symbs *to_obj,
-                      char *client_fn,
-                      char *client_stub,
-                      char *server_stub,
-                      char *server_fn,
-                      int flags)
+                      char *                client_fn,
+                      char *                client_stub,
+                      char *                server_stub,
+                      char *                server_fn,
+                      int                   flags)
 {
-	struct cap_info cap;
+	struct cap_info   cap;
 	struct symb_type *st = &from_obj->undef;
 
 	vaddr_t addr;
-	int i;
+	int     i;
 
 	/* find in what position the symbol was inserted into the
 	 * user-level capability table (which position was opted for
@@ -133,7 +133,7 @@ create_invocation_cap(struct spd_info *from_spd,
 struct symb *
 spd_contains_symb(struct service_symbs *s, char *name)
 {
-	int i, client_stub;
+	int               i, client_stub;
 	struct symb_type *symbs = &s->exported;
 
 	client_stub = strstr(name, CAP_CLIENT_STUB_POSTPEND) != NULL;
@@ -166,10 +166,10 @@ spd_contains_symb(struct service_symbs *s, char *name)
 int
 cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct symb *symb)
 {
-	struct symb *exp_symb          = symb->exported_symb;
+	struct symb *         exp_symb = symb->exported_symb;
 	struct service_symbs *exporter = symb->exporter;
-	struct symb *c_stub, *s_stub;
-	char tmp[MAX_SYMB_LEN];
+	struct symb *         c_stub, *s_stub;
+	char                  tmp[MAX_SYMB_LEN];
 
 	assert(exporter);
 	memset(cri, 0, sizeof(struct cap_ret_info));
@@ -229,13 +229,13 @@ cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct sym
 int
 create_spd_capabilities(struct service_symbs *service)
 {
-	int i;
+	int               i;
 	struct symb_type *undef_symbs = &service->undef;
-	struct spd_info *spd          = (struct spd_info *)service->extern_info;
+	struct spd_info * spd         = (struct spd_info *)service->extern_info;
 
 	assert(!is_booter_loaded(service));
 	for (i = 0; i < undef_symbs->num_symbs; i++) {
-		struct symb *symb = &undef_symbs->symbs[i];
+		struct symb *       symb = &undef_symbs->symbs[i];
 		struct cap_ret_info cri;
 
 		if (cap_get_info(service, &cri, symb)) return -1;
@@ -259,12 +259,12 @@ create_spd_capabilities(struct service_symbs *service)
 struct spd_info *
 create_spd(struct service_symbs *s, long lowest_addr, long size)
 {
-	struct spd_info *spd;
-	struct usr_inv_cap *ucap_tbl;
-	vaddr_t upcall_addr;
-	long *spd_id_addr, *heap_ptr;
+	struct spd_info *                 spd;
+	struct usr_inv_cap *              ucap_tbl;
+	vaddr_t                           upcall_addr;
+	long *                            spd_id_addr, *heap_ptr;
 	struct cos_component_information *ci;
-	int i;
+	int                               i;
 
 	assert(!is_booter_loaded(s));
 	spd = (struct spd_info *)malloc(sizeof(struct spd_info));
@@ -334,7 +334,7 @@ create_spd(struct service_symbs *s, long lowest_addr, long size)
 void
 make_spd_scheduler(struct service_symbs *s, struct service_symbs *p)
 {
-	vaddr_t sched_page;
+	vaddr_t                     sched_page;
 	struct cos_sched_data_area *sched_page_ptr;
 
 	sched_page_ptr = (struct cos_sched_data_area *)get_symb_address(&s->exported, SCHED_NOTIF);
@@ -350,7 +350,7 @@ int
 serialize_spd_graph(struct comp_graph *g, int sz, struct service_symbs *ss)
 {
 	struct comp_graph *edge;
-	int g_frontier = 0;
+	int                g_frontier = 0;
 
 	while (ss) {
 		int i, cid, sid;
@@ -410,7 +410,7 @@ get_heap_ptr(struct service_symbs *ss)
 void
 make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all)
 {
-	int **heap_ptr, *heap_ptr_val;
+	int **             heap_ptr, *heap_ptr_val;
 	struct comp_graph *g;
 
 	if (is_booter_loaded(mm)) {
@@ -441,13 +441,13 @@ make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all)
 int
 make_cobj_caps(struct service_symbs *s, struct cobj_header *h)
 {
-	int i;
+	int               i;
 	struct symb_type *undef_symbs = &s->undef;
 
 	printl(PRINT_DEBUG, "%s loaded by Composite -- Capabilities:\n", s->obj);
 	for (i = 0; i < undef_symbs->num_symbs; i++) {
-		u32_t cap_off, dest_id, sfn, cstub, sstub, fault;
-		struct symb *symb = &undef_symbs->symbs[i];
+		u32_t               cap_off, dest_id, sfn, cstub, sstub, fault;
+		struct symb *       symb = &undef_symbs->symbs[i];
 		struct cap_ret_info cri;
 
 		if (cap_get_info(s, &cri, symb)) return -1;
@@ -537,14 +537,14 @@ format_config_info(struct service_symbs *ss, struct component_init_str *data)
 void
 make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 {
-	int n = 0, cnt = 0, tot_sz = 0;
-	unsigned int off = 0, i;
-	struct cobj_header *h, *new_h;
-	char *new_end, *new_sect_start;
-	u32_t new_vaddr_start;
-	u32_t all_obj_sz;
+	int                               n = 0, cnt = 0, tot_sz = 0;
+	unsigned int                      off = 0, i;
+	struct cobj_header *              h, *new_h;
+	char *                            new_end, *new_sect_start;
+	u32_t                             new_vaddr_start;
+	u32_t                             all_obj_sz;
 	struct cos_component_information *ci;
-	struct service_symbs *first = all;
+	struct service_symbs *            first = all;
 	/* array to hold the order of initialization/schedule */
 	struct service_symbs **schedule;
 
@@ -702,7 +702,7 @@ spd_assign_ids(struct service_symbs *all)
 void
 make_spd_config_comp(struct service_symbs *c, struct service_symbs *all)
 {
-	int **heap_ptr, *heap_ptr_val;
+	int **                     heap_ptr, *heap_ptr_val;
 	struct component_init_str *info;
 
 	heap_ptr = get_heap_ptr(c);
@@ -730,13 +730,13 @@ make_spd_config_comp(struct service_symbs *c, struct service_symbs *all)
 void
 make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 {
-	volatile int **heap_ptr;
-	int *heap_ptr_val, n = 0;
-	struct cobj_header *h;
-	char *mem;
-	u32_t obj_size;
+	volatile int **                   heap_ptr;
+	int *                             heap_ptr_val, n = 0;
+	struct cobj_header *              h;
+	char *                            mem;
+	u32_t                             obj_size;
 	struct cos_component_information *ci;
-	struct service_symbs *first = all;
+	struct service_symbs *            first = all;
 
 	if (service_get_spdid(boot) != LLBOOT_COMPN) {
 		printf("Low-Level Booter component must be component number %d, but is %d instead.\n"
@@ -765,7 +765,7 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 
 	for (all = first; NULL != all; all = all->next) {
 		vaddr_t map_addr;
-		int map_sz;
+		int     map_sz;
 
 		if (!is_booter_loaded(all) || is_hl_booter_loaded(all)) continue;
 		n++;
@@ -832,15 +832,15 @@ void
 output_image(struct service_symbs *services)
 {
 	struct service_symbs *s;
-	u32_t entry_point = 0;
-	char image_filename[18];
-	int image;
-	u32_t image_base;
+	u32_t                 entry_point = 0;
+	char                  image_filename[18];
+	int                   image;
+	u32_t                 image_base;
 
 	s = services;
 	while (s) {
 		struct service_symbs *t;
-		struct spd_info *t_spd;
+		struct spd_info *     t_spd;
 
 		t = s;
 		if (!is_booter_loaded(s)) {

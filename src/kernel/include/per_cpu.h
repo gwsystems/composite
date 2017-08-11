@@ -30,7 +30,7 @@ CREATE_PERCPU_FNS(struct thread *, curr_thd); /* cos_get/put_curr_thd */
  * touches one more page potentially. We get/save such info on stack
  * to avoid this. */
 struct per_core_variables {
-	struct thread *curr_thd;
+	struct thread *  curr_thd;
 	struct spd_poly *curr_spd;
 } CACHE_ALIGNED;
 

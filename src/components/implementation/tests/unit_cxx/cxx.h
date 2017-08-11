@@ -45,7 +45,7 @@ class cl
 	cl(void);
 	cl(int a);
 	~cl();
-	int get_i();
+	int  get_i();
 	void put_i(int j);
 };
 
@@ -97,9 +97,9 @@ Mypair<T>::getmax()
 class Getdata
 {
       public:
-	int getdata(int i);
+	int    getdata(int i);
 	double getdata(double f);
-	char getdata(char c);
+	char   getdata(char c);
 };
 
 int
@@ -133,8 +133,8 @@ class Polygon
 	}
 	virtual ~Polygon() {}
 	virtual int area(void) = 0;
-	void set_values(int a, int b);
-	int retarea();
+	void        set_values(int a, int b);
+	int         retarea();
 };
 
 void

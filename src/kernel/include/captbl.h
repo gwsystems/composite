@@ -66,10 +66,10 @@ struct cap_header {
 	 * Size is only populated on cache-line-aligned entries.
 	 * Applies to all caps in that cache-line
 	 */
-	u8_t amap : CAP_HEAD_AMAP_SZ; /* allocation map */
-	cap_sz_t size : CAP_HEAD_SZ_SZ;
+	u8_t        amap : CAP_HEAD_AMAP_SZ; /* allocation map */
+	cap_sz_t    size : CAP_HEAD_SZ_SZ;
 	cap_flags_t flags : CAP_HEAD_FLAGS_SZ;
-	cap_t type : CAP_HEAD_TYPE_SZ;
+	cap_t       type : CAP_HEAD_TYPE_SZ;
 
 	u8_t post[0];
 } __attribute__((packed));
@@ -88,19 +88,19 @@ struct cap_min {
 
 /* Capability structure to a capability table */
 struct cap_captbl {
-	struct cap_header h;
-	u32_t refcnt_flags; /* includes refcnt and flags */
-	struct captbl *captbl;
-	u32_t lvl;                 /* what level are the captbl nodes at? */
-	struct cap_captbl *parent; /* if !null, points to parent cap */
-	u64_t frozen_ts;           /* timestamp when frozen is set. */
+	struct cap_header  h;
+	u32_t              refcnt_flags; /* includes refcnt and flags */
+	struct captbl *    captbl;
+	u32_t              lvl;       /* what level are the captbl nodes at? */
+	struct cap_captbl *parent;    /* if !null, points to parent cap */
+	u64_t              frozen_ts; /* timestamp when frozen is set. */
 } __attribute__((packed));
 
 static void *
 __captbl_allocfn(void *d, int sz, int last_lvl)
 {
 	void **mem = d; /* really a pointer to a pointer */
-	void *m    = *mem;
+	void * m   = *mem;
 
 	/* dewarn */
 	(void)last_lvl;
@@ -146,7 +146,7 @@ captbl_init(void *node, int leaf)
 static inline CFORCEINLINE void *
 __captbl_getleaf(struct ert_intern *a, void *accum)
 {
-	unsigned long off, mask;
+	unsigned long      off, mask;
 	struct cap_header *h, *c;
 	/* dewarn */
 	(void)accum;
@@ -223,10 +223,18 @@ __captbl_header_validate(struct cap_header *h, cap_sz_t sz)
 	cap_sz_t mask;
 	/* compiler should optimize away the branches here */
 	switch (sz) {
-	case CAP_SZ_16B: mask = CAP_MASK_16B; break;
-	case CAP_SZ_32B: mask = CAP_MASK_32B; break;
-	case CAP_SZ_64B: mask = CAP_MASK_64B; break;
-	default: mask = 0; break;
+	case CAP_SZ_16B:
+		mask = CAP_MASK_16B;
+		break;
+	case CAP_SZ_32B:
+		mask = CAP_MASK_32B;
+		break;
+	case CAP_SZ_64B:
+		mask = CAP_MASK_64B;
+		break;
+	default:
+		mask = 0;
+		break;
 	}
 
 	if (unlikely(sz != h->size)) return 1;
@@ -270,10 +278,10 @@ static inline struct cap_header *
 captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 {
 	struct cap_header *p, *h;
-	struct cap_header l, o;
-	u64_t curr_ts, past_ts;
-	int ret     = 0, off;
-	cap_sz_t sz = __captbl_cap2sz(type);
+	struct cap_header  l, o;
+	u64_t              curr_ts, past_ts;
+	int                ret = 0, off;
+	cap_sz_t           sz  = __captbl_cap2sz(type);
 
 	if (unlikely(sz == CAP_SZ_ERR)) cos_throw(err, -EINVAL);
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
@@ -303,7 +311,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 		/* The entire cacheline has been deactivated
 		 * before. We need to make sure all entries in the
 		 * cacheline has reached quiescence before re-size. */
-		int i, n_ent, ent_size;
+		int                i, n_ent, ent_size;
 		struct cap_header *header_i;
 		assert(l.size);
 		ent_size = 1 << (l.size + CAP_SZ_OFF);
@@ -370,8 +378,8 @@ static inline int
 captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 {
 	struct cap_header *p, *h;
-	struct cap_header l, o;
-	int ret = 0, off;
+	struct cap_header  l, o;
+	int                ret = 0, off;
 
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
 	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL);
@@ -451,7 +459,7 @@ static void *
 captbl_prune(struct captbl *t, capid_t cap, u32_t depth, int *retval)
 {
 	unsigned long *intern, p, new;
-	int ret = 0;
+	int            ret = 0;
 
 	if (unlikely(cap >= __captbl_maxid() || depth >= captbl_maxdepth())) cos_throw(err, -EINVAL);
 	intern = __captbl_lkupan(t, cap, depth, NULL);
@@ -471,7 +479,7 @@ static struct captbl *
 captbl_create(void *page)
 {
 	struct captbl *ct;
-	int ret;
+	int            ret;
 
 	assert(page);
 	ct = captbl_alloc(page);
@@ -489,13 +497,13 @@ captbl_create(void *page)
 }
 
 int captbl_activate(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
-int captbl_deactivate(struct captbl *t,
+int captbl_deactivate(struct captbl *    t,
                       struct cap_captbl *dest_ct_cap,
-                      unsigned long capin,
-                      livenessid_t lid,
-                      capid_t pgtbl_cap,
-                      capid_t cosframe_addr,
-                      const int root);
+                      unsigned long      capin,
+                      livenessid_t       lid,
+                      capid_t            pgtbl_cap,
+                      capid_t            cosframe_addr,
+                      const int          root);
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
 
 int captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr);

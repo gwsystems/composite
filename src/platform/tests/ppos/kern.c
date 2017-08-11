@@ -28,7 +28,7 @@ unsigned long sys_maxmem      = 1 << 10; /* 4M of physical memory (2^10 pages) *
 unsigned long sys_llbooter_sz = 10;      /* how many pages is the llbooter? */
 
 struct thread *__thd_current;
-unsigned long __cr3_contents;
+unsigned long  __cr3_contents;
 
 int
 printfn(struct pt_regs *regs)
@@ -83,8 +83,8 @@ kern_boot_comp(void)
 {
 	struct pt_regs regs;
 	struct captbl *ct, *ct0;
-	pgtbl_t pt, pt0 = 0;
-	unsigned int i;
+	pgtbl_t        pt, pt0 = 0;
+	unsigned int   i;
 	struct thread *thd = (struct thread *)thdinit;
 
 	/* llbooter's captbl */

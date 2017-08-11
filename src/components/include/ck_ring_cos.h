@@ -42,8 +42,8 @@
 #define DEF_RING_PTR(type) struct type *ring
 #define ASSIGN_RING_PTR ring->ring = buffer
 #else
-#define DEF_RING_PTR(type)                                      \
-	char __pad[CK_MD_CACHELINE - sizeof(unsigned int) * 2]; \
+#define DEF_RING_PTR(type)                                             \
+	char        __pad[CK_MD_CACHELINE - sizeof(unsigned int) * 2]; \
 	struct type ring[0]
 #define ASSIGN_RING_PTR
 #endif
@@ -53,9 +53,9 @@
 #define CK_RING(type, name)                                                                                          \
 	struct ck_ring_##name {                                                                                      \
 		unsigned int c_head;                                                                                 \
-		char pad[CK_MD_CACHELINE - sizeof(unsigned int)];                                                    \
+		char         pad[CK_MD_CACHELINE - sizeof(unsigned int)];                                            \
 		unsigned int p_tail;                                                                                 \
-		char _pad[CK_MD_CACHELINE - sizeof(unsigned int)];                                                   \
+		char         _pad[CK_MD_CACHELINE - sizeof(unsigned int)];                                           \
 		unsigned int size;                                                                                   \
 		unsigned int mask;                                                                                   \
 		DEF_RING_PTR(type);                                                                                  \
@@ -79,8 +79,8 @@
 		return (p - c) & ring->mask;                                                                         \
 	}                                                                                                            \
 	CK_CC_INLINE static unsigned int ck_ring_capacity_##name(struct ck_ring_##name *ring) { return ring->size; } \
-	CK_CC_INLINE static bool ck_ring_enqueue_spsc_size_##name(                                                   \
-	  struct ck_ring_##name *ring, struct type *entry, unsigned int *size)                                       \
+	CK_CC_INLINE static bool         ck_ring_enqueue_spsc_size_##name(                                           \
+          struct ck_ring_##name *ring, struct type *entry, unsigned int *size)                               \
 	{                                                                                                            \
 		unsigned int consumer, producer, delta;                                                              \
 		unsigned int mask = ring->mask;                                                                      \
@@ -190,12 +190,12 @@
 
 struct ck_ring {
 	unsigned int c_head;
-	char pad[CK_MD_CACHELINE - sizeof(unsigned int)];
+	char         pad[CK_MD_CACHELINE - sizeof(unsigned int)];
 	unsigned int p_tail;
-	char _pad[CK_MD_CACHELINE - sizeof(unsigned int)];
+	char         _pad[CK_MD_CACHELINE - sizeof(unsigned int)];
 	unsigned int size;
 	unsigned int mask;
-	void **ring;
+	void **      ring;
 };
 typedef struct ck_ring ck_ring_t;
 
@@ -365,7 +365,7 @@ ck_ring_dequeue_spmc(struct ck_ring *ring, void *data)
 {
 	unsigned int consumer, producer;
 	unsigned int mask = ring->mask;
-	void *r;
+	void *       r;
 
 	consumer = ck_pr_load_uint(&ring->c_head);
 

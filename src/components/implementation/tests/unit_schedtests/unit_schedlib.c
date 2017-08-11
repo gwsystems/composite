@@ -58,8 +58,8 @@ test_thd_fn(void *data)
 void
 test_yields(void)
 {
-	int i;
-	struct sl_thd *threads[N_TESTTHDS];
+	int               i;
+	struct sl_thd *   threads[N_TESTTHDS];
 	union sched_param sp = { .c = { .type = SCHEDP_PRIO, .value = 10 } };
 
 	for (i = 0; i < N_TESTTHDS; i++) {
@@ -93,7 +93,7 @@ test_low(void *data)
 void
 test_blocking_directed_yield(void)
 {
-	struct sl_thd *low, *high;
+	struct sl_thd *   low, *high;
 	union sched_param sph = { .c = { .type = SCHEDP_PRIO, .value = 5 } };
 	union sched_param spl = { .c = { .type = SCHEDP_PRIO, .value = 10 } };
 
@@ -108,9 +108,9 @@ test_blocking_directed_yield(void)
 void
 test_high_wakeup(void *data)
 {
-	unsigned int toggle = 0, iters = 0;
-	struct sl_thd *t = data;
-	cycles_t start   = sl_now();
+	unsigned int   toggle = 0, iters = 0;
+	struct sl_thd *t     = data;
+	cycles_t       start = sl_now();
 
 	while (1) {
 		cycles_t timeout = sl_now() + sl_usec2cyc(100);
@@ -138,7 +138,7 @@ test_high_wakeup(void *data)
 void
 test_timeout_wakeup(void)
 {
-	struct sl_thd *low, *high;
+	struct sl_thd *   low, *high;
 	union sched_param sph = { .c = { .type = SCHEDP_PRIO, .value = 5 } };
 	union sched_param spl = { .c = { .type = SCHEDP_PRIO, .value = 10 } };
 	union sched_param spw = { .c = { .type = SCHEDP_WINDOW, .value = 1000 } };
@@ -156,7 +156,7 @@ void
 cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *ci       = cos_compinfo_get(defci);
+	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
 
 	printc("Unit-test for the scheduling library (sl)\n");
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);

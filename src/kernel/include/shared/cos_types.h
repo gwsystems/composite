@@ -23,13 +23,13 @@
 #endif
 
 typedef unsigned long word_t;
-typedef u64_t cycles_t;
-typedef u64_t microsec_t;
+typedef u64_t         cycles_t;
+typedef u64_t         microsec_t;
 typedef unsigned long tcap_res_t;
 typedef unsigned long tcap_time_t;
-typedef u64_t tcap_prio_t;
-typedef u64_t tcap_uid_t;
-typedef u32_t sched_tok_t;
+typedef u64_t         tcap_prio_t;
+typedef u64_t         tcap_uid_t;
+typedef u32_t         sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
 
 /*
@@ -192,15 +192,19 @@ __captbl_cap2sz(cap_t c)
 	switch (c) {
 	case CAP_SRET:
 	case CAP_THD:
-	case CAP_TCAP: return CAP_SZ_16B;
+	case CAP_TCAP:
+		return CAP_SZ_16B;
 	case CAP_SINV:
 	case CAP_CAPTBL:
 	case CAP_PGTBL:
-	case CAP_HW: /* TODO: 256bits = 32B * 8b */ return CAP_SZ_32B;
+	case CAP_HW: /* TODO: 256bits = 32B * 8b */
+		return CAP_SZ_32B;
 	case CAP_COMP:
 	case CAP_ASND:
-	case CAP_ARCV: return CAP_SZ_64B;
-	default: return CAP_SZ_ERR;
+	case CAP_ARCV:
+		return CAP_SZ_64B;
+	default:
+		return CAP_SZ_ERR;
 	}
 }
 
@@ -310,7 +314,7 @@ typedef int cpuid_t; /* Don't use unsigned type. We use negative values for erro
  */
 typedef unsigned long paddr_t; /* physical address */
 typedef unsigned long vaddr_t; /* virtual address */
-typedef unsigned int page_index_t;
+typedef unsigned int  page_index_t;
 
 typedef unsigned short int spdid_t;
 typedef unsigned short int compid_t;
@@ -322,7 +326,7 @@ struct restartable_atomic_sequence {
 
 /* see explanation in spd.h */
 struct usr_inv_cap {
-	vaddr_t invocation_fn, service_entry_inst;
+	vaddr_t      invocation_fn, service_entry_inst;
 	unsigned int invocation_count, cap_no;
 } __attribute__((aligned(16)));
 
@@ -337,9 +341,9 @@ enum { COMP_INFO_TMEM_STK = 0, COMP_INFO_TMEM_CBUF, COMP_INFO_TMEM };
  * by the assembly entry routines into a component to decide which
  * freelist to use. */
 struct stack_fl {
-	vaddr_t freelist;
+	vaddr_t       freelist;
 	unsigned long thd_id;
-	char __padding[CACHE_LINE - sizeof(vaddr_t) - sizeof(unsigned long)];
+	char          __padding[CACHE_LINE - sizeof(vaddr_t) - sizeof(unsigned long)];
 } __attribute__((packed));
 
 struct cos_stack_freelists {
@@ -356,18 +360,18 @@ struct cos_stack_freelists {
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;
-	long cos_this_spd_id;
-	u32_t cos_tmem_relinquish[COMP_INFO_TMEM];
-	u32_t cos_tmem_available[COMP_INFO_TMEM];
-	vaddr_t cos_heap_ptr, cos_heap_limit;
-	vaddr_t cos_heap_allocated, cos_heap_alloc_extent;
-	vaddr_t cos_upcall_entry;
-	vaddr_t cos_async_inv_entry;
+	long                       cos_this_spd_id;
+	u32_t                      cos_tmem_relinquish[COMP_INFO_TMEM];
+	u32_t                      cos_tmem_available[COMP_INFO_TMEM];
+	vaddr_t                    cos_heap_ptr, cos_heap_limit;
+	vaddr_t                    cos_heap_allocated, cos_heap_alloc_extent;
+	vaddr_t                    cos_upcall_entry;
+	vaddr_t                    cos_async_inv_entry;
 	//	struct cos_sched_data_area *cos_sched_data_area;
-	vaddr_t cos_user_caps;
+	vaddr_t                            cos_user_caps;
 	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS / 2];
-	vaddr_t cos_poly[COMP_INFO_POLY_NUM];
-	char init_string[COMP_INFO_INIT_STR_LEN];
+	vaddr_t                            cos_poly[COMP_INFO_POLY_NUM];
+	char                               init_string[COMP_INFO_INIT_STR_LEN];
 } __attribute__((aligned(PAGE_SIZE)));
 
 typedef enum {

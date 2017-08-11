@@ -23,9 +23,9 @@ prints(char *s)
 
 int __attribute__((format(printf, 1, 2))) printc(char *fmt, ...)
 {
-	char s[128];
+	char    s[128];
 	va_list arg_ptr;
-	int ret, len = 128;
+	int     ret, len = 128;
 
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);

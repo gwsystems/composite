@@ -437,9 +437,9 @@ __ert_init(struct ert_intern *vi, int isleaf, ERT_CONST_PARAMS)
 static struct ert *
 ert_alloc(void *memctxt, ERT_CONST_PARAMS)
 {
-	struct ert *v;
+	struct ert *      v;
 	struct ert_intern e;
-	unsigned long accum = 0;
+	unsigned long     accum = 0;
 
 	/* Make sure the id size can be represented on our system */
 	assert(((order * (depth - 1)) + last_order) < (sizeof(unsigned long) * 8));
@@ -495,7 +495,7 @@ static inline CFORCEINLINE void *
 __ert_lookup(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *accum, ERT_CONST_PARAMS)
 {
 	struct ert_intern r, *n;
-	u32_t i, limit;
+	u32_t             i, limit;
 
 	assert(v);
 	assert(id < __ert_maxid(ERT_CONST_ARGS));
@@ -531,17 +531,17 @@ __ert_lookup(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
  * leaf data to something provided in the memctxt.
  */
 static inline int
-__ert_expand(struct ert *v,
+__ert_expand(struct ert *  v,
              unsigned long id,
-             u32_t dstart,
-             u32_t dlimit,
-             void *accum,
-             void *memctxt,
-             void *data,
+             u32_t         dstart,
+             u32_t         dlimit,
+             void *        accum,
+             void *        memctxt,
+             void *        data,
              ERT_CONST_PARAMS)
 {
 	struct ert_intern r, *n, *new;
-	u32_t i, limit;
+	u32_t             i, limit;
 
 	assert(v);
 	assert(id < __ert_maxid(ERT_CONST_ARGS));

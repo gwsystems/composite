@@ -18,7 +18,7 @@ static inline int
 call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 {
 	long fault = 0;
-	int ret;
+	int  ret;
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
@@ -45,17 +45,17 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 }
 
 static inline int
-call_cap_retvals_asm(u32_t cap_no,
-                     u32_t op,
-                     int arg1,
-                     int arg2,
-                     int arg3,
-                     int arg4,
+call_cap_retvals_asm(u32_t          cap_no,
+                     u32_t          op,
+                     int            arg1,
+                     int            arg2,
+                     int            arg3,
+                     int            arg4,
                      unsigned long *r1,
                      unsigned long *r2)
 {
 	long fault = 0;
-	int ret;
+	int  ret;
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
@@ -224,7 +224,7 @@ static inline void *
 cos_get_prealloc_page(void)
 {
 	char *h;
-	long r;
+	long  r;
 	do {
 		h = (char *)cos_comp_info.cos_heap_alloc_extent;
 		if (!h || (char *)cos_comp_info.cos_heap_allocated >= h) return NULL;
@@ -236,7 +236,7 @@ cos_get_prealloc_page(void)
 
 /* allocate and release a page in the vas */
 extern void *cos_get_vas_page(void);
-extern void cos_release_vas_page(void *p);
+extern void  cos_release_vas_page(void *p);
 
 /* only if the heap pointer is pre_addr, set it to post_addr */
 static inline void
@@ -337,7 +337,7 @@ recoveryfns_execute(void)
 
 struct cos_array {
 	char *mem;
-	int sz;
+	int   sz;
 }; /* TODO: remove */
 #define prevent_tail_call(ret) __asm__("" : "=r"(ret) : "m"(ret))
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A"(val))

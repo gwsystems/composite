@@ -3,8 +3,8 @@
 #include "vk_api.h"
 
 struct cos_compinfo booter_info;
-thdcap_t termthd = VM_CAPTBL_SELF_EXITTHD_BASE; /* switch to this to shutdown */
-unsigned long tls_test[TEST_NTHDS];
+thdcap_t            termthd = VM_CAPTBL_SELF_EXITTHD_BASE; /* switch to this to shutdown */
+unsigned long       tls_test[TEST_NTHDS];
 
 #include <llprint.h>
 

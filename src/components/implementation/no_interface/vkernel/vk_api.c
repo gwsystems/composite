@@ -5,7 +5,7 @@ vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 {
 	struct cos_compinfo *vmcinfo = &vminfo->cinfo;
 	struct cos_compinfo *vkcinfo = &vkinfo->cinfo;
-	int ret;
+	int                  ret;
 
 	assert(vminfo && vkinfo);
 
@@ -54,9 +54,9 @@ vk_iocaps_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkerne
 	struct cos_compinfo *d0cinfo = &dom0info->cinfo;
 	struct cos_compinfo *vkcinfo = &vkinfo->cinfo;
 	struct dom0_io_info *d0io    = dom0info->dom0io;
-	struct vm_io_info *vio       = vminfo->vmio;
-	int vmidx                    = vminfo->id - 1;
-	int ret;
+	struct vm_io_info *  vio     = vminfo->vmio;
+	int                  vmidx   = vminfo->id - 1;
+	int                  ret;
 
 	assert(vminfo && dom0info && vkinfo);
 	assert(vminfo->id && !dom0info->id);

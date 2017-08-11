@@ -40,8 +40,8 @@ enum vga_colors {
 };
 
 static u16_t *video_mem = (u16_t *)VIDEO_MEM;
-static u8_t cursor_x;
-static u8_t cursor_y;
+static u8_t   cursor_x;
+static u8_t   cursor_y;
 
 static void
 wmemset(void *dst, int c, size_t count)
@@ -72,7 +72,7 @@ update_cursor(u8_t row, u8_t col)
 static void
 scroll(void)
 {
-	u16_t blank = ((u8_t)' ') | gen_color(WHITE, BLACK);
+	u16_t    blank = ((u8_t)' ') | gen_color(WHITE, BLACK);
 	unsigned i;
 
 	if (cursor_y < LINES) return;
@@ -87,8 +87,8 @@ scroll(void)
 static void
 vga_putch(char c)
 {
-	u8_t color      = gen_color(LIGHT_GREY, BLACK);
-	u16_t attribute = color << 8;
+	u8_t   color     = gen_color(LIGHT_GREY, BLACK);
+	u16_t  attribute = color << 8;
 	u16_t *location;
 
 	if (c == BACKSPACE && cursor_x)
@@ -125,7 +125,7 @@ vga_puts(const char *s)
 void
 vga_clear(void)
 {
-	u8_t color  = gen_color(WHITE, BLACK);
+	u8_t  color = gen_color(WHITE, BLACK);
 	u16_t blank = ((u8_t)' ') | color << 8;
 	wmemset(video_mem, blank, COLUMNS * LINES);
 }
@@ -134,7 +134,7 @@ int
 keyboard_handler(struct pt_regs *regs)
 {
 	u16_t scancode;
-	int preempt = 1;
+	int   preempt = 1;
 
 	ack_irq(IRQ_KEYBOARD);
 

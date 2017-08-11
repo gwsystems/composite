@@ -104,7 +104,7 @@ static char *
 string_to_token(char *output, char *str, int token, int maxlen)
 {
 	char *end;
-	int len;
+	int   len;
 
 	end = strchr(str, token);
 	if (NULL == end) {
@@ -125,7 +125,7 @@ string_to_token(char *output, char *str, int token, int maxlen)
 static inline void
 create_stanza(char *output, int len, char *fn_name, int cap_num)
 {
-	int ret;
+	int  ret;
 	char ucap_name[FN_NAME_SZ];
 
 	sprintf(ucap_name, "%s" UCAP_EXT, fn_name);
@@ -160,10 +160,10 @@ create_cap_data(char *output, int len, char *name)
 int
 main(int argc, char *argv[])
 {
-	char *product;
-	char *fns;
+	char *       product;
+	char *       fns;
 	unsigned int cap_no = 1;
-	int len;
+	int          len;
 
 	if (argc != 2 && argc != 1) {
 		printf("Usage: %s <nothing OR string of comma-separated functions in trusted service's API>", argv[0]);
@@ -171,7 +171,7 @@ main(int argc, char *argv[])
 	}
 
 	if (argc == 2) {
-		char fn_name[FN_NAME_SZ];
+		char  fn_name[FN_NAME_SZ];
 		char *orig_fns;
 
 		/* conservative amount of space for fn names: ~500 chars */

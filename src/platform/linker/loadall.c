@@ -23,10 +23,10 @@
 unsigned long
 getsym(bfd *obj, char *symbol)
 {
-	long storage_needed;
+	long      storage_needed;
 	asymbol **symbol_table;
-	long number_of_symbols;
-	int i;
+	long      number_of_symbols;
+	int       i;
 
 	storage_needed = bfd_get_symtab_upper_bound(obj);
 
@@ -54,10 +54,10 @@ int
 set_object_addresses(bfd *obj, struct service_symbs *obj_data)
 {
 	struct symb_type *st = &obj_data->exported;
-	int i;
+	int               i;
 
 	for (i = 0; i < st->num_symbs; i++) {
-		char *symb         = st->symbs[i].name;
+		char *        symb = st->symbs[i].name;
 		unsigned long addr = getsym(obj, symb);
 		if (addr == 0) {
 			printl(PRINT_DEBUG, "Symbol %s has invalid address.\n", symb);
@@ -76,11 +76,11 @@ make_cobj_symbols(struct service_symbs *s, struct cobj_header *h)
 {
 	u32_t addr;
 	u32_t symb_offset = 0;
-	int i;
+	int   i;
 
 	struct name_type_map {
 		const char *name;
-		u32_t type;
+		u32_t       type;
 	};
 	struct name_type_map map[] = { { .name = COMP_INFO, .type = COBJ_SYMB_COMP_INFO },
 		                       { .name = NULL, .type = 0 } };
@@ -152,7 +152,7 @@ void
 findsections(asection *sect, PTR obj, int ld)
 {
 	struct cos_sections *css = obj;
-	int i;
+	int                  i;
 
 	for (i = 0; css[i].secid < MAXSEC_S; i++) {
 		if (!strcmp(css[i].sname, sect->name)) {
@@ -207,9 +207,9 @@ run_linker(char *input_obj, char *output_exe, char *script)
 int
 genscript(int with_addr, char *tmp_exec, char *script)
 {
-	FILE *fp;
+	FILE *              fp;
 	static unsigned int cnt = 0;
-	int i;
+	int                 i;
 
 	sprintf(script, "/tmp/loader_script.%d", getpid());
 	sprintf(tmp_exec, "/tmp/loader_exec.%d.%d.%d", with_addr, getpid(), cnt);
@@ -257,14 +257,14 @@ section_info_init(struct cos_sections *cs)
 int
 load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned long size)
 {
-	bfd *obj, *objout;
-	int sect_sz, offset, tot_static_mem = 0;
-	void *ret_addr;
-	char *service_name = ret_data->obj;
+	bfd *               obj, *objout;
+	int                 sect_sz, offset, tot_static_mem = 0;
+	void *              ret_addr;
+	char *              service_name = ret_data->obj;
 	struct cobj_header *h;
-	int i;
-	char script[64];
-	char tmp_exec[128];
+	int                 i;
+	char                script[64];
+	char                tmp_exec[128];
 
 	section_info_init(&section_info[0]);
 	if (!service_name) {
@@ -380,8 +380,8 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 		u32_t size = 0, obj_size;
 		u32_t nsymbs, ncaps, nsects;
 		char *mem;
-		char cobj_name[COBJ_NAME_SZ], *end;
-		int i;
+		char  cobj_name[COBJ_NAME_SZ], *end;
+		int   i;
 
 		for (i = 0; csg(i)->secid < MAXSEC_S; i++) {
 			tot_static_mem += csg(i)->len;
@@ -511,7 +511,7 @@ unsigned long
 load_all_services(struct service_symbs *services)
 {
 	unsigned long service_addr = BASE_SERVICE_ADDRESS + DEFAULT_SERVICE_SIZE;
-	long sz;
+	long          sz;
 
 	while (services) {
 		sz = services->mem_size = load_service(services, service_addr, DEFAULT_SERVICE_SIZE);

@@ -22,18 +22,18 @@ struct int_cntl_head {
 struct lapic_cntl {
 	/* type == APIC_CNTL_LAPIC */
 	struct int_cntl_head header;
-	u8_t proc_id;
-	u8_t apic_id;
-	u32_t flags; /* 0 = dead processor */
+	u8_t                 proc_id;
+	u8_t                 apic_id;
+	u32_t                flags; /* 0 = dead processor */
 } __attribute__((packed));
 
 struct ioapic_cntl {
 	/* type == APIC_CNTL_IOAPIC */
 	struct int_cntl_head header;
-	u8_t ioapic_id;
-	u8_t reserved;
-	u32_t ioapic_phys_addr;
-	u32_t glb_int_num_off; /* I/O APIC's interrupt base number offset  */
+	u8_t                 ioapic_id;
+	u8_t                 reserved;
+	u32_t                ioapic_phys_addr;
+	u32_t                glb_int_num_off; /* I/O APIC's interrupt base number offset  */
 } __attribute__((packed));
 
 int ncpus = 1;
@@ -80,13 +80,13 @@ enum lapic_timer_div_by_config {
 	LAPIC_DIV_BY_1,
 };
 
-static volatile void *lapic           = (void *)APIC_DEFAULT_PHYS;
-static unsigned int lapic_timer_mode  = LAPIC_TSC_DEADLINE;
-static unsigned int lapic_is_disabled = 1;
+static volatile void *lapic             = (void *)APIC_DEFAULT_PHYS;
+static unsigned int   lapic_timer_mode  = LAPIC_TSC_DEADLINE;
+static unsigned int   lapic_is_disabled = 1;
 
-static unsigned int lapic_cycs_thresh = 0;
-static u32_t lapic_cpu_to_timer_ratio = 0;
-u32_t lapic_timer_calib_init          = 0;
+static unsigned int lapic_cycs_thresh        = 0;
+static u32_t        lapic_cpu_to_timer_ratio = 0;
+u32_t               lapic_timer_calib_init   = 0;
 
 static void
 lapic_write_reg(u32_t off, u32_t val)
@@ -146,9 +146,9 @@ void
 lapic_intsrc_iter(unsigned char *madt)
 {
 	struct int_cntl_head *h   = (struct int_cntl_head *)(madt + APIC_CNTR_ARR_OFF);
-	u32_t len                 = *(u32_t *)(madt + APIC_HDR_LEN_OFF);
+	u32_t                 len = *(u32_t *)(madt + APIC_HDR_LEN_OFF);
 	struct int_cntl_head *end = (struct int_cntl_head *)(madt + len);
-	int us = lapic_apicid(), off = 1;
+	int                   us = lapic_apicid(), off = 1;
 
 	cpus[0] = us;
 	printk("\tMADT length %d (base struct %d)\n", len, APIC_CNTR_ARR_OFF);
@@ -192,11 +192,11 @@ lapic_intsrc_iter(unsigned char *madt)
 u32_t
 lapic_find_localaddr(void *l)
 {
-	u32_t i;
-	unsigned char sum        = 0;
+	u32_t          i;
+	unsigned char  sum       = 0;
 	unsigned char *lapicaddr = l;
-	u32_t length             = *(u32_t *)(lapicaddr + APIC_HDR_LEN_OFF);
-	u32_t addr, apic_flags;
+	u32_t          length    = *(u32_t *)(lapicaddr + APIC_HDR_LEN_OFF);
+	u32_t          addr, apic_flags;
 
 	printk("Initializing LAPIC @ %p\n", lapicaddr);
 

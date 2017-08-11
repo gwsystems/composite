@@ -37,10 +37,10 @@
 #define CHILD_SCHED_CYCS TCAP_RES_INF
 #define CHILD_SCHED_PRIO TCAP_PRIO_MAX
 
-int is_booter = 1;
-extern vaddr_t cos_upcall_entry;
+int                    is_booter = 1;
+extern vaddr_t         cos_upcall_entry;
 struct cos_defcompinfo child_defci[CHILD_COMP_COUNT];
-static cycles_t cycs_per_usec;
+static cycles_t        cycs_per_usec;
 
 #include <llprint.h>
 
@@ -61,10 +61,10 @@ aep_thd_fn(arcvcap_t rcv, void *data)
 static void
 test_aeps(void)
 {
-	int i, ret;
-	int blocked;
-	cycles_t cycs;
-	thdid_t tid;
+	int                  i, ret;
+	int                  blocked;
+	cycles_t             cycs;
+	thdid_t              tid;
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 	memset(&test_aep, 0, sizeof(struct cos_aep_info) * TEST_NAEPS);
@@ -98,9 +98,9 @@ test_childcomps(void)
 
 	printc("Test switching to new components\n");
 	for (id = 0; id < CHILD_COMP_COUNT; id++) {
-		int blocked;
+		int      blocked;
 		cycles_t cycs;
-		thdid_t tid;
+		thdid_t  tid;
 
 		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycs))
 			;
@@ -114,7 +114,7 @@ test_childcomps(void)
 			                 cos_sched_sync());
 			assert(ret == 0);
 		} else {
-			cycles_t now;
+			cycles_t    now;
 			tcap_time_t timer;
 
 			rdtscll(now);
@@ -134,9 +134,9 @@ cos_init(void)
 	cycs_per_usec = (cycles_t)cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	if (is_booter) {
-		int id, ret;
+		int                     id, ret;
 		struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-		struct cos_compinfo *ci       = cos_compinfo_get(defci);
+		struct cos_compinfo *   ci    = cos_compinfo_get(defci);
 
 		is_booter = 0;
 		printc("Unit-test for defcompinfo API\n");
@@ -144,9 +144,9 @@ cos_init(void)
 		cos_defcompinfo_init();
 
 		for (id = 0; id < CHILD_COMP_COUNT; id++) {
-			vaddr_t vm_range, addr;
-			pgtblcap_t child_utpt;
-			int is_sched                  = ((id == CHILD_SCHED_ID) ? 1 : 0);
+			vaddr_t              vm_range, addr;
+			pgtblcap_t           child_utpt;
+			int                  is_sched = ((id == CHILD_SCHED_ID) ? 1 : 0);
 			struct cos_compinfo *child_ci = cos_compinfo_get(&child_defci[id]);
 
 			printc("\tCreating new %s component [%d]\n", is_sched ? "scheduler" : "simple", id);
@@ -222,7 +222,7 @@ cos_init(void)
 		SPIN();
 	} else {
 		struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-		struct cos_compinfo *ci       = cos_compinfo_get(defci);
+		struct cos_compinfo *   ci    = cos_compinfo_get(defci);
 
 		printc("Component started\n");
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, CHILD_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);

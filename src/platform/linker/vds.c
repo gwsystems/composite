@@ -53,7 +53,7 @@ int
 verify_dependency_soundness(struct service_symbs *services)
 {
 	struct service_symbs *tmp_s = services;
-	int cnt                     = 0;
+	int                   cnt   = 0;
 
 	while (tmp_s) {
 		cnt++;

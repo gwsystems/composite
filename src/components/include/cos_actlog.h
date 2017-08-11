@@ -32,13 +32,13 @@ struct action {
 };
 
 static struct action actions[ACT_LOG_LEN];
-static int action_head = 0, action_tail = ACT_LOG_LEN - 1;
+static int           action_head = 0, action_tail = ACT_LOG_LEN - 1;
 
 static void
 action_record(action_t action, unsigned long *action_items, filter_fn_t f)
 {
 	struct action *a = &actions[action_head];
-	int i;
+	int            i;
 
 	if (f && f(action_items)) return;
 

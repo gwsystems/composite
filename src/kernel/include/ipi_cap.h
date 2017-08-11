@@ -21,18 +21,18 @@
 #define IPI_RING_MASK (IPI_RING_SIZE - 1);
 
 struct ipi_cap_data {
-	capid_t arcv_capid;
-	capid_t arcv_epoch;
+	capid_t          arcv_capid;
+	capid_t          arcv_epoch;
 	struct comp_info comp_info;
 };
 
 struct xcore_ring {
-	volatile u32_t sender;
-	char _pad[CACHE_LINE - sizeof(u32_t)];
-	volatile u32_t receiver;
-	char __pad[CACHE_LINE - sizeof(u32_t)];
+	volatile u32_t      sender;
+	char                _pad[CACHE_LINE - sizeof(u32_t)];
+	volatile u32_t      receiver;
+	char                __pad[CACHE_LINE - sizeof(u32_t)];
 	struct ipi_cap_data ring[IPI_RING_SIZE];
-	char ___pad[CACHE_LINE - (sizeof(struct ipi_cap_data) * IPI_RING_SIZE) % CACHE_LINE];
+	char                ___pad[CACHE_LINE - (sizeof(struct ipi_cap_data) * IPI_RING_SIZE) % CACHE_LINE];
 } CACHE_ALIGNED __attribute__((packed));
 
 /*
@@ -70,7 +70,7 @@ static inline void
 handle_ipi_arcv(struct ipi_cap_data *data)
 {
 	struct comp_info *ci = &data->comp_info;
-	struct cap_arcv *arcv;
+	struct cap_arcv * arcv;
 	/* FIXME: check epoch and liveness! */
 
 	assert(ci->captbl);
@@ -97,9 +97,9 @@ process_ring(struct xcore_ring *ring)
 static inline int
 cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd)
 {
-	struct xcore_ring *ring = &IPI_cap_dest[dest].IPI_source[get_cpuid()];
-	u32_t tail              = ring->sender;
-	u32_t delta;
+	struct xcore_ring *  ring = &IPI_cap_dest[dest].IPI_source[get_cpuid()];
+	u32_t                tail = ring->sender;
+	u32_t                delta;
 	struct ipi_cap_data *data;
 
 	delta = (tail + 1) & IPI_RING_MASK;

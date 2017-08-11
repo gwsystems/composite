@@ -14,7 +14,7 @@
 
 #ifdef COS_LINUX_ENV
 typedef unsigned short int u16_t;
-typedef unsigned int u32_t;
+typedef unsigned int       u32_t;
 #else
 #include <cos_component.h>
 #endif
@@ -24,7 +24,7 @@ struct cos_vect_intern_struct {
 };
 
 typedef struct cos_vect_struct {
-	u16_t depth;
+	u16_t                          depth;
 	struct cos_vect_intern_struct *vect;
 } cos_vect_t;
 
@@ -71,7 +71,7 @@ static inline int
 __cos_vect_init(cos_vect_t *v)
 {
 	struct cos_vect_intern_struct *vs;
-	int i;
+	int                            i;
 
 	v->depth = 1;
 	assert(cos_vect_power_2(COS_VECT_BASE));
@@ -154,7 +154,7 @@ cos_vect_free_vect(cos_vect_t *v)
 static inline struct cos_vect_intern_struct *
 __cos_vect_lookup(cos_vect_t *v, long id)
 {
-	long depth;
+	long                           depth;
 	struct cos_vect_intern_struct *is;
 
 	/* make sure the data structure is configured and initialized */
@@ -198,7 +198,7 @@ static inline int
 __cos_vect_expand(cos_vect_t *v, long id)
 {
 	struct cos_vect_intern_struct *is, *root;
-	int i;
+	int                            i;
 
 	assert(v && NULL == __cos_vect_lookup(v, id));
 

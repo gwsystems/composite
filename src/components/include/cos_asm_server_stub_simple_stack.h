@@ -21,7 +21,7 @@
 
 #define cos_asm_server_stub(name)                   \
 	.globl name##_inv;                          \
-	.type name##_inv, @function;                \
+	.type  name##_inv, @function;               \
 	.align 16;                                  \
 	name##_inv : COS_ASM_GET_STACK pushl % ebp; \
 	xor % ebp, % ebp;                           \
@@ -39,7 +39,7 @@
 
 #define cos_asm_server_stub_spdid(name)             \
 	.globl name##_inv;                          \
-	.type name##_inv, @function;                \
+	.type  name##_inv, @function;               \
 	.align 16;                                  \
 	name##_inv : COS_ASM_GET_STACK pushl % ebp; \
 	xor % ebp, % ebp;                           \

@@ -121,19 +121,19 @@ cobj_sect_addr(struct cobj_header *h, unsigned int sect_id)
 }
 
 struct cobj_header *
-cobj_create(u32_t id,
-            char *name,
-            u32_t nsect,
-            u32_t sect_sz,
-            u32_t nsymb,
-            u32_t ncap,
-            char *space,
+cobj_create(u32_t        id,
+            char *       name,
+            u32_t        nsect,
+            u32_t        sect_sz,
+            u32_t        nsymb,
+            u32_t        ncap,
+            char *       space,
             unsigned int sz,
-            u32_t flags)
+            u32_t        flags)
 {
-	struct cobj_header *h = (struct cobj_header *)space;
-	u32_t tot_sz          = 0;
-	const unsigned int sect_symb_cap_sz =
+	struct cobj_header *h      = (struct cobj_header *)space;
+	u32_t               tot_sz = 0;
+	const unsigned int  sect_symb_cap_sz =
 	  nsect * sizeof(struct cobj_sect) + nsymb * sizeof(struct cobj_symb) + ncap * sizeof(struct cobj_cap);
 
 	if (!space) return NULL;
@@ -168,7 +168,7 @@ int
 cobj_sect_init(struct cobj_header *h, unsigned int sect_idx, u32_t flags, u32_t vaddr, u32_t size)
 {
 	struct cobj_sect *s;
-	u32_t offset;
+	u32_t             offset;
 
 	if (sect_idx >= h->nsect) return -1;
 
@@ -205,13 +205,13 @@ cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, u32_t type, u32_t v
 
 int
 cobj_cap_init(struct cobj_header *h,
-              unsigned int cap_idx,
-              u32_t cap_off,
-              u32_t dest_id,
-              u32_t sfn,
-              u32_t cstub,
-              u32_t sstub,
-              u32_t fault_num)
+              unsigned int        cap_idx,
+              u32_t               cap_off,
+              u32_t               dest_id,
+              u32_t               sfn,
+              u32_t               cstub,
+              u32_t               sstub,
+              u32_t               fault_num)
 {
 	struct cobj_cap *c;
 
@@ -233,10 +233,10 @@ cobj_cap_init(struct cobj_header *h,
 int
 main(void)
 {
-	u32_t sz;
-	char *mem;
+	u32_t               sz;
+	char *              mem;
 	struct cobj_header *h;
-	struct cobj_sect *sect;
+	struct cobj_sect *  sect;
 
 	printf("sizes: header=%d, sect=%d, symb=%d, cap=%d\n",
 	       sizeof(struct cobj_header),

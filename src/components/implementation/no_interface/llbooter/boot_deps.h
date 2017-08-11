@@ -20,15 +20,15 @@ struct cobj_header *hs[MAX_NUM_SPDS + 1];
 /* The booter uses this to keep track of each comp */
 struct comp_cap_info {
 	struct cos_compinfo *compinfo;
-	vaddr_t addr_start;
-	vaddr_t vaddr_mapped_in_booter;
-	vaddr_t upcall_entry;
+	vaddr_t              addr_start;
+	vaddr_t              vaddr_mapped_in_booter;
+	vaddr_t              upcall_entry;
 } new_comp_cap_info[MAX_NUM_SPDS + 1];
 
 struct cos_compinfo boot_info;
 struct cos_compinfo new_compinfo[MAX_NUM_SPDS + 1];
 
-thdcap_t schedule[MAX_NUM_SPDS + 1];
+thdcap_t              schedule[MAX_NUM_SPDS + 1];
 volatile unsigned int sched_cur;
 
 /* Macro for sinv back to booter from new component */
@@ -81,12 +81,12 @@ boot_compinfo_init(int spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 static void
 boot_newcomp_create(int spdid, struct cos_compinfo *comp_info)
 {
-	compcap_t cc;
+	compcap_t   cc;
 	captblcap_t ct = new_comp_cap_info[spdid].compinfo->captbl_cap;
-	pgtblcap_t pt  = new_comp_cap_info[spdid].compinfo->pgtbl_cap;
-	sinvcap_t sinv;
-	thdcap_t main_thd;
-	int i = 0;
+	pgtblcap_t  pt = new_comp_cap_info[spdid].compinfo->pgtbl_cap;
+	sinvcap_t   sinv;
+	thdcap_t    main_thd;
+	int         i = 0;
 
 	cc = cos_comp_alloc(&boot_info, ct, pt, (vaddr_t)new_comp_cap_info[spdid].upcall_entry);
 	assert(cc);

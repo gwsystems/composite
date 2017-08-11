@@ -27,14 +27,14 @@
 	} while (0)
 
 extern vaddr_t cos_upcall_entry;
-extern void vm_init(void *);
+extern void    vm_init(void *);
 
-struct vms_info vmx_info[VM_COUNT];
-struct dom0_io_info dom0ioinfo;
-struct vm_io_info vmioinfo[VM_COUNT - 1];
-struct vkernel_info vk_info;
-unsigned int ready_vms        = VM_COUNT;
-struct cos_compinfo *vk_cinfo = (struct cos_compinfo *)&vk_info.cinfo;
+struct vms_info      vmx_info[VM_COUNT];
+struct dom0_io_info  dom0ioinfo;
+struct vm_io_info    vmioinfo[VM_COUNT - 1];
+struct vkernel_info  vk_info;
+unsigned int         ready_vms = VM_COUNT;
+struct cos_compinfo *vk_cinfo  = (struct cos_compinfo *)&vk_info.cinfo;
 
 void
 vk_terminate(void *d)
@@ -57,10 +57,10 @@ void
 scheduler(void)
 {
 	static unsigned int i;
-	thdid_t tid;
-	int blocked;
-	cycles_t cycles;
-	int index;
+	thdid_t             tid;
+	int                 blocked;
+	cycles_t            cycles;
+	int                 index;
 
 	while (ready_vms) {
 		index = i++ % VM_COUNT;
@@ -119,12 +119,12 @@ cos_init(void)
 
 	for (id = 0; id < VM_COUNT; id++) {
 		struct cos_compinfo *vm_cinfo = &vmx_info[id].cinfo;
-		struct vms_info *vm_info      = &vmx_info[id];
-		vaddr_t vm_range, addr;
-		pgtblcap_t vmpt, vmutpt;
-		captblcap_t vmct;
-		compcap_t vmcc;
-		int ret;
+		struct vms_info *    vm_info  = &vmx_info[id];
+		vaddr_t              vm_range, addr;
+		pgtblcap_t           vmpt, vmutpt;
+		captblcap_t          vmct;
+		compcap_t            vmcc;
+		int                  ret;
 
 		printc("vkernel: VM%d Init START\n", id);
 		vm_info->id = id;

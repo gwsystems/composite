@@ -15,14 +15,14 @@ struct intra_shared_struct {
 
 /* Master thread structures. */
 struct par_cap_info {
-	int acap;
-	void *shared_page;
+	int                        acap;
+	void *                     shared_page;
 	struct intra_shared_struct shared_struct;
 };
 
 struct nested_par_info {
 	struct par_cap_info *cap; /* acaps for the "current" master thread. */
-	int wait_acap, wakeup_acap;
+	int                  wait_acap, wakeup_acap;
 	unsigned int finished CACHE_ALIGNED; // FIXME: ensure alignment???
 };
 
@@ -34,7 +34,7 @@ struct par_thd_info {
 	int n_cpu;                       /* 0 means never created */
 	int n_acap;                      /* 0 means sequentially. Equals n_cpu - 1 */
 
-	int nest_level; /* nesting level of the current thread. */
+	int                    nest_level; /* nesting level of the current thread. */
 	struct nested_par_info nested_par[MAX_OMP_NESTED_PAR_LEVEL];
 };
 
@@ -42,8 +42,8 @@ extern struct par_thd_info *__par_thd_info[MAX_NUM_THREADS];
 
 /* Worker thread structures. */
 struct par_srv_thd_info {
-	int acap;
-	void *shared_page;
+	int                  acap;
+	void *               shared_page;
 	struct par_thd_info *parent;
 
 	struct intra_shared_struct intra_shared_struct;
@@ -65,9 +65,9 @@ init_intra_shared_page(struct intra_shared_struct *curr, void *page)
 
 static inline int parallel_create(void *fn, int max_par) // fn and max_par are not used for now.
 {
-	int curr_thd_id               = cos_get_thd_id();
-	struct par_thd_info *curr_thd = __par_thd_info[curr_thd_id];
-	struct par_cap_info *curr_cap;
+	int                     curr_thd_id = cos_get_thd_id();
+	struct par_thd_info *   curr_thd    = __par_thd_info[curr_thd_id];
+	struct par_cap_info *   curr_cap;
 	struct nested_par_info *par_team;
 
 	if (unlikely(curr_thd == NULL)) {
@@ -142,13 +142,13 @@ int cos_intra_ainv_handling(void);
 static inline int
 parallel_send(void *fn, void *data)
 {
-	int i, n_acap, curr_thd_id = cos_get_thd_id();
-	struct par_thd_info *curr_thd = __par_thd_info[curr_thd_id];
-	struct nested_par_info *par_team;
-	struct par_cap_info *curr_cap;
+	int                         i, n_acap, curr_thd_id = cos_get_thd_id();
+	struct par_thd_info *       curr_thd = __par_thd_info[curr_thd_id];
+	struct nested_par_info *    par_team;
+	struct par_cap_info *       curr_cap;
 	struct intra_shared_struct *shared_struct;
-	struct __intra_inv_data inv;
-	unsigned long long s = 0, e;
+	struct __intra_inv_data     inv;
+	unsigned long long          s = 0, e;
 
 	int curr_nest = curr_thd->nest_level - 1;
 	;
@@ -226,8 +226,8 @@ ainv_parallel_start(void *fn, void *data, int max_par)
 static inline int
 ainv_parallel_end(void)
 {
-	int curr_thd_id               = cos_get_thd_id(), nest, wait_acap, ret;
-	struct par_thd_info *curr_thd = __par_thd_info[curr_thd_id];
+	int                     curr_thd_id = cos_get_thd_id(), nest, wait_acap, ret;
+	struct par_thd_info *   curr_thd    = __par_thd_info[curr_thd_id];
 	struct nested_par_info *par_team;
 	/* printc("thd %d parallel_end!\n", cos_get_thd_id()); */
 
@@ -297,7 +297,7 @@ static inline int
 par_inv(void *fn, void *data, int max_par)
 {
 	struct par_thd_info *curr_thd;
-	int i, ret;
+	int                  i, ret;
 
 	ret = ainv_parallel_start(fn, data, max_par);
 	assert(ret == 0);
@@ -316,8 +316,8 @@ par_inv(void *fn, void *data, int max_par)
 static inline int
 ainv_get_thd_num(void)
 {
-	int curr_thd_id               = cos_get_thd_id();
-	struct par_thd_info *curr_thd = __par_thd_info[curr_thd_id];
+	int                  curr_thd_id = cos_get_thd_id();
+	struct par_thd_info *curr_thd    = __par_thd_info[curr_thd_id];
 	if (unlikely(!curr_thd)) return 0;
 	/* printc("core %ld, thread %d got thd num %d\n", cos_cpuid(), cos_get_thd_id(), curr_thd->thd_num); */
 
@@ -329,8 +329,8 @@ ainv_get_num_thds(void)
 {
 	/* FIXME: when the max level of parallelism is less than
 	 * n_cpu, this is not correct. */
-	int curr_thd_id               = cos_get_thd_id();
-	struct par_thd_info *curr_thd = __par_thd_info[curr_thd_id];
+	int                  curr_thd_id = cos_get_thd_id();
+	struct par_thd_info *curr_thd    = __par_thd_info[curr_thd_id];
 	if (unlikely(!curr_thd)) return 1;
 	/* printc("core %ld got # of thds %d\n", cos_cpuid(), curr_thd->num_thds); */
 
@@ -340,8 +340,8 @@ ainv_get_num_thds(void)
 static inline int
 ainv_get_max_thds(void)
 {
-	int curr_thd_id               = cos_get_thd_id();
-	struct par_thd_info *curr_thd = __par_thd_info[curr_thd_id];
+	int                  curr_thd_id = cos_get_thd_id();
+	struct par_thd_info *curr_thd    = __par_thd_info[curr_thd_id];
 	/* this function could be called before parallel section. */
 	if (unlikely(!curr_thd || !curr_thd->num_thds)) {
 		parallel_create(0, 0);
@@ -355,11 +355,11 @@ ainv_get_max_thds(void)
 static inline int
 multicast_send(struct par_cap_info acaps[], int n_acap, struct __intra_inv_data *orig_inv)
 {
-	int i;
-	struct par_cap_info *curr_cap;
+	int                         i;
+	struct par_cap_info *       curr_cap;
 	struct intra_shared_struct *shared_struct;
-	unsigned long long s        = 0, e;
-	struct __intra_inv_data inv = *orig_inv;
+	unsigned long long          s   = 0, e;
+	struct __intra_inv_data     inv = *orig_inv;
 
 	for (i = n_acap - 1; i >= 0; i--) { // sending to other cores
 		curr_cap = &acaps[i];
@@ -396,8 +396,8 @@ multicast_send(struct par_cap_info acaps[], int n_acap, struct __intra_inv_data 
 static inline int
 cos_multicast_distribution(struct par_srv_thd_info *curr)
 {
-	int i, ret, acap = curr->acap, n_acap = 0, cnt;
-	struct par_cap_info forward_acaps[NUM_CORE_PER_SOCKET], *curr_cap;
+	int                         i, ret, acap = curr->acap, n_acap = 0, cnt;
+	struct par_cap_info         forward_acaps[NUM_CORE_PER_SOCKET], *curr_cap;
 	struct intra_shared_struct *shared_struct = &curr->intra_shared_struct;
 	CK_RING_INSTANCE(intra_inv_ring) *ring    = shared_struct->ring;
 	struct __intra_inv_data inv;

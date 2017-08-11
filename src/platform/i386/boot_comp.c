@@ -20,19 +20,19 @@ boot_nptes(unsigned int sz)
 
 int
 boot_pgtbl_mappings_add(struct captbl *ct,
-                        capid_t pgdcap,
-                        capid_t ptecap,
-                        const char *label,
-                        void *kern_vaddr,
-                        unsigned long user_vaddr,
-                        unsigned int range,
-                        int uvm)
+                        capid_t        pgdcap,
+                        capid_t        ptecap,
+                        const char *   label,
+                        void *         kern_vaddr,
+                        unsigned long  user_vaddr,
+                        unsigned int   range,
+                        int            uvm)
 {
-	int ret;
-	u8_t *ptes;
-	unsigned int nptes = 0, i;
+	int               ret;
+	u8_t *            ptes;
+	unsigned int      nptes = 0, i;
 	struct cap_pgtbl *pte_cap, *pgd_cap;
-	pgtbl_t pgtbl;
+	pgtbl_t           pgtbl;
 
 	pgd_cap = (struct cap_pgtbl *)captbl_lkup(ct, pgdcap);
 	if (!pgd_cap || !CAP_TYPECHK(pgd_cap, CAP_PGTBL)) assert(0);
@@ -66,7 +66,7 @@ boot_pgtbl_mappings_add(struct captbl *ct,
 
 	/* Hook in the PTEs */
 	for (i = 0; i < nptes; i++) {
-		u8_t *p    = ptes + i * PAGE_SIZE;
+		u8_t *  p  = ptes + i * PAGE_SIZE;
 		paddr_t pf = chal_va2pa(p);
 
 		pgtbl_init_pte(p);
@@ -80,9 +80,9 @@ boot_pgtbl_mappings_add(struct captbl *ct,
 	printk("\tMapping in %s.\n", label);
 	/* Map in the actual memory. */
 	for (i = 0; i < range / PAGE_SIZE; i++) {
-		u8_t *p     = kern_vaddr + i * PAGE_SIZE;
-		paddr_t pf  = chal_va2pa(p);
-		u32_t mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
+		u8_t *  p     = kern_vaddr + i * PAGE_SIZE;
+		paddr_t pf    = chal_va2pa(p);
+		u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
 
 		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, PGTBL_USER_DEF)) assert(0);
 		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, PGTBL_COSFRAME)) assert(0);
@@ -97,12 +97,12 @@ static void
 kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 {
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
-	struct thread *t                    = thd_mem;
-	struct tcap *tc                     = tcap_mem;
-	tcap_res_t expended;
-	int ret;
-	struct cap_pgtbl *cap_pt;
-	pgtbl_t pgtbl;
+	struct thread *            t        = thd_mem;
+	struct tcap *              tc       = tcap_mem;
+	tcap_res_t                 expended;
+	int                        ret;
+	struct cap_pgtbl *         cap_pt;
+	pgtbl_t                    pgtbl;
 
 	assert(sizeof(struct cos_cpu_local_info) == STK_INFO_SZ);
 	memset(cos_info, 0, sizeof(struct cos_cpu_local_info));
@@ -153,13 +153,13 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 void
 kern_boot_comp(void)
 {
-	int ret = 0, nkmemptes;
+	int            ret = 0, nkmemptes;
 	struct captbl *ct;
-	unsigned int i;
-	u8_t *boot_comp_captbl;
-	void *thd_mem, *tcap_mem;
-	pgtbl_t pgtbl   = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
-	u32_t hw_bitmap = 0xFFFFFFFF;
+	unsigned int   i;
+	u8_t *         boot_comp_captbl;
+	void *         thd_mem, *tcap_mem;
+	pgtbl_t        pgtbl     = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
+	u32_t          hw_bitmap = 0xFFFFFFFF;
 
 	printk("Setting up the booter component.\n");
 

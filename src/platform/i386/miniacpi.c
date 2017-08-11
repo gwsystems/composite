@@ -8,32 +8,32 @@
 #define RSDP_ALIGNMENT (16)
 
 struct rsdp {
-	char signature[8];
-	u8_t checksum;
-	char oemid[6];
-	u8_t revision;
+	char  signature[8];
+	u8_t  checksum;
+	char  oemid[6];
+	u8_t  revision;
 	u32_t rsdtaddress;
 	u32_t length;
 	u64_t xsdtaddress;
-	u8_t extendedchecksum;
-	u8_t reserved[3];
+	u8_t  extendedchecksum;
+	u8_t  reserved[3];
 } __attribute__((packed));
 
 struct rsdt {
-	char signature[4];
-	u32_t length;
-	u8_t revision;
-	u8_t checksum;
-	char oemid[6];
-	char oemtableid[8];
-	u32_t oemrevision;
-	u32_t creatorid;
-	u32_t creatorrevision;
+	char         signature[4];
+	u32_t        length;
+	u8_t         revision;
+	u8_t         checksum;
+	char         oemid[6];
+	char         oemtableid[8];
+	u32_t        oemrevision;
+	u32_t        creatorid;
+	u32_t        creatorrevision;
 	struct rsdt *entry[0];
 } __attribute__((packed));
 
-extern u8_t *boot_comp_pgd;
-static u32_t basepage;
+extern u8_t *       boot_comp_pgd;
+static u32_t        basepage;
 static struct rsdt *rsdt;
 
 static inline void *
@@ -46,13 +46,13 @@ void *
 acpi_find_rsdt(void)
 {
 	unsigned char *sig;
-	struct rsdp *rsdp = NULL;
+	struct rsdp *  rsdp = NULL;
 
 	for (sig = RSDP_LO_ADDRESS; sig < RSDP_HI_ADDRESS; sig += RSDP_ALIGNMENT) {
 		if (!strncmp("RSD PTR ", (char *)sig, 8)) {
-			struct rsdp *r    = (struct rsdp *)sig;
+			struct rsdp * r   = (struct rsdp *)sig;
 			unsigned char sum = 0;
-			u32_t i;
+			u32_t         i;
 
 			for (i = 0; i < r->length; i++) {
 				sum += sig[i];
@@ -81,14 +81,14 @@ void *
 acpi_find_timer(void)
 {
 	pgtbl_t pgtbl = (pgtbl_t)boot_comp_pgd;
-	size_t i;
+	size_t  i;
 
 	for (i = 0; i < (rsdt->length - sizeof(struct rsdt)) / sizeof(struct rsdt *); i++) {
 		struct rsdt *e = (struct rsdt *)pa2va(rsdt->entry[i]);
 		if (!strncmp(e->signature, "HPET", 4)) {
 			unsigned char *check = (unsigned char *)e;
-			unsigned char sum    = 0;
-			u32_t j;
+			unsigned char  sum   = 0;
+			u32_t          j;
 
 			for (j = 0; j < e->length; j++) {
 				sum += check[j];
@@ -116,8 +116,8 @@ acpi_find_apic(void)
 		struct rsdt *e = (struct rsdt *)pa2va(rsdt->entry[i]);
 		if (!strncmp(e->signature, "APIC", 4)) {
 			unsigned char *check = (unsigned char *)e;
-			unsigned char sum    = 0;
-			u32_t j;
+			unsigned char  sum   = 0;
+			u32_t          j;
 
 			for (j = 0; j < e->length; j++) {
 				sum += check[j];

@@ -7,7 +7,7 @@ void *
 memcpy(void *dst, const void *src, size_t count)
 {
 	const u8_t *s = (const u8_t *)src;
-	u8_t *d       = (u8_t *)dst;
+	u8_t *      d = (u8_t *)dst;
 
 	for (; count != 0; count--)
 		*d++ = *s++;

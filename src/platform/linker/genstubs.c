@@ -28,15 +28,15 @@
 void
 gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *services)
 {
-	int pid = getpid();
+	int  pid = getpid();
 	char tmp_str[2048];
 
 	while (services) {
-		int i;
+		int               i;
 		struct symb_type *symbs = &services->undef;
-		char dest[256];
-		char tmp_name[256];
-		char *obj_name, *orig_name, *str;
+		char              dest[256];
+		char              tmp_name[256];
+		char *            obj_name, *orig_name, *str;
 
 		orig_name = services->obj;
 		obj_name  = basename(services->obj);

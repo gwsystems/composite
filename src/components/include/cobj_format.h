@@ -43,7 +43,7 @@ enum { COBJ_INIT_THD = 1,
 
 struct cobj_header {
 	u32_t id, nsect, nsymb, ncap, size, flags;
-	char name[COBJ_NAME_SZ];
+	char  name[COBJ_NAME_SZ];
 } __attribute__((packed));
 
 enum { COBJ_SECT_UNINIT   = 0,
@@ -79,34 +79,34 @@ cobj_cap_is_fault(struct cobj_cap *c)
 	return c->fault_num <= COS_FLT_MAX;
 }
 
-u32_t cobj_size_req(u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap);
-struct cobj_header *cobj_create(u32_t id,
-                                char *name,
-                                u32_t nsect,
-                                u32_t sect_sz,
-                                u32_t nsymb,
-                                u32_t ncap,
-                                char *space,
+u32_t               cobj_size_req(u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap);
+struct cobj_header *cobj_create(u32_t        id,
+                                char *       name,
+                                u32_t        nsect,
+                                u32_t        sect_sz,
+                                u32_t        nsymb,
+                                u32_t        ncap,
+                                char *       space,
                                 unsigned int sz,
-                                u32_t flags);
+                                u32_t        flags);
 
 int cobj_sect_init(struct cobj_header *h, unsigned int sect_idx, u32_t flags, u32_t vaddr, u32_t size);
 int cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, u32_t type, u32_t vaddr);
 int cobj_cap_init(struct cobj_header *h,
-                  unsigned int cap_idx,
-                  u32_t cap_off,
-                  u32_t dest_id,
-                  u32_t sfn,
-                  u32_t cstub,
-                  u32_t sstub,
-                  u32_t fault_num);
+                  unsigned int        cap_idx,
+                  u32_t               cap_off,
+                  u32_t               dest_id,
+                  u32_t               sfn,
+                  u32_t               cstub,
+                  u32_t               sstub,
+                  u32_t               fault_num);
 
 struct cobj_sect *cobj_sect_get(struct cobj_header *h, unsigned int sect_id);
 struct cobj_symb *cobj_symb_get(struct cobj_header *h, unsigned int symb_id);
-struct cobj_cap *cobj_cap_get(struct cobj_header *h, unsigned int cap_id);
-void *cobj_vaddr_get(struct cobj_header *h, u32_t vaddr);
+struct cobj_cap * cobj_cap_get(struct cobj_header *h, unsigned int cap_id);
+void *            cobj_vaddr_get(struct cobj_header *h, u32_t vaddr);
 
-int cobj_sect_empty(struct cobj_header *h, unsigned int sect_id);
+int   cobj_sect_empty(struct cobj_header *h, unsigned int sect_id);
 u32_t cobj_sect_content_offset(struct cobj_header *h);
 char *cobj_sect_contents(struct cobj_header *h, unsigned int sect_id);
 u32_t cobj_sect_size(struct cobj_header *h, unsigned int sect_id);

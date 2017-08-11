@@ -1,8 +1,8 @@
 #include "micro_booter.h"
 
 struct cos_compinfo booter_info;
-thdcap_t termthd; /* switch to this to shutdown */
-unsigned long tls_test[TEST_NTHDS];
+thdcap_t            termthd; /* switch to this to shutdown */
+unsigned long       tls_test[TEST_NTHDS];
 
 #include <llprint.h>
 

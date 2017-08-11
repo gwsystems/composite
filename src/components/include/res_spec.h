@@ -46,12 +46,12 @@ typedef enum {
 #define SCHED_PARAM_TYPE_BITS 8
 struct sched_param_s {
 	sched_param_type_t type : (SCHED_PARAM_TYPE_BITS);
-	unsigned int value : (32 - SCHED_PARAM_TYPE_BITS);
+	unsigned int       value : (32 - SCHED_PARAM_TYPE_BITS);
 } __attribute__((packed));
 
 union sched_param {
 	struct sched_param_s c; /* composite */
-	u32_t v;                /* value     */
+	u32_t                v; /* value     */
 };
 typedef u32_t sched_param_t;
 

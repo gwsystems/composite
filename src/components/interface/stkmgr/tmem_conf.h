@@ -42,9 +42,9 @@ enum stk_flags {
  */
 struct cos_stk {
 	struct cos_stk *next;
-	u32_t flags;
-	u32_t thdid_owner;
-	u32_t cpu_id;
+	u32_t           flags;
+	u32_t           thdid_owner;
+	u32_t           cpu_id;
 } __attribute__((packed));
 
 #define D_COS_STK_ADDR(d_addr) (d_addr + PAGE_SIZE - sizeof(struct cos_stk))
@@ -53,12 +53,12 @@ struct cos_stk {
  * Information aobut a stack
  */
 struct cos_stk_item {
-	struct cos_stk_item *next, *prev; /* per-spd list */
-	struct cos_stk_item *free_next;   /* freelist of tmem manager */
-	spdid_t parent_spdid;             // Not needed but saves on lookup
-	vaddr_t d_addr;
-	void *hptr;
-	struct cos_stk *stk;
+	struct cos_stk_item *next, *prev;  /* per-spd list */
+	struct cos_stk_item *free_next;    /* freelist of tmem manager */
+	spdid_t              parent_spdid; // Not needed but saves on lookup
+	vaddr_t              d_addr;
+	void *               hptr;
+	struct cos_stk *     stk;
 };
 
 

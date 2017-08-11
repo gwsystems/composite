@@ -43,12 +43,12 @@ struct component;
 struct pd_edge;
 
 struct edge {
-	long invocations;
+	long              invocations;
 	struct component *from, *to;
-	struct edge *from_next, *from_prev, *to_next, *to_prev;
+	struct edge *     from_next, *from_prev, *to_next, *to_prev;
 
 	/* pd-related links (for list in pd_edge) */
-	struct edge *pd_next, *pd_prev;
+	struct edge *   pd_next, *pd_prev;
 	struct pd_edge *master;
 
 	/* list of all edges */
@@ -59,14 +59,14 @@ typedef enum { PDE_ON_HEAP = 1, PDE_OFF_HEAP } pd_edge_state_t;
 
 struct pd_edge {
 	pd_edge_state_t state;
-	int prio_q_idx;
+	int             prio_q_idx;
 
-	long weight, invocations;
+	long                      weight, invocations;
 	struct protection_domain *from, *to;
-	struct pd_edge *from_next, *from_prev, *to_next, *to_prev;
+	struct pd_edge *          from_next, *from_prev, *to_next, *to_prev;
 
 	/* list of edges that make up this link between pds */
-	int nedges;
+	int         nedges;
 	struct edge constituent_edges;
 
 	struct pd_edge *next, *prev;
@@ -75,10 +75,10 @@ struct pd_edge {
 typedef enum { MOST_CONNECTED, LEAST_CONNECTED, SLAVE } min_cut_grp_t;
 
 struct component {
-	spdid_t id;
-	struct edge outward_edges, inward_edges;
+	spdid_t                   id;
+	struct edge               outward_edges, inward_edges;
 	struct protection_domain *pd;
-	struct component *pd_next, *pd_prev;
+	struct component *        pd_next, *pd_prev;
 
 	/******************************************************
 	 * Data for the min-cut algorithm.  See "A Simple Min-Cut
@@ -93,7 +93,7 @@ struct component {
 	 * components in this protection domain are part of the
 	 * subgraph.
 	 */
-	int sg_nmembs;
+	int               sg_nmembs;
 	struct component *sg_master;
 	struct component *sg_next, *sg_prev;
 	/*
@@ -101,7 +101,7 @@ struct component {
 	 * subgraph being computed (from the least connected, to the
 	 * most).
 	 */
-	int prio_q_idx;
+	int  prio_q_idx;
 	long edge_weight, edge_invocations;
 	/******************************************************/
 
@@ -115,12 +115,12 @@ struct protection_domain {
 	pd_state_t state;
 
 	/* All members of the protection domain */
-	int nmembs;
+	int               nmembs;
 	struct component *members;
-	int prio_q_idx;
+	int               prio_q_idx;
 
 	/* Min cut info */
-	long mc_amnt;
+	long              mc_amnt;
 	struct component *mc_members;
 
 	/* links to connect protection domains: */
@@ -143,13 +143,13 @@ struct heaps {
 /* FIXME: Small change -- all of these globals should be in a
  * structure passed to each relevant function instead of accessed
  * globally */
-static int n_cs, n_pds;
-static long tot_cost = 0, tot_inv = 0;
-static struct component cs;
+static int                      n_cs, n_pds;
+static long                     tot_cost = 0, tot_inv = 0;
+static struct component         cs;
 static struct protection_domain pds;
-static struct pd_edge pdes;
-static struct edge es;
-struct heaps hs;
+static struct pd_edge           pdes;
+static struct edge              es;
+struct heaps                    hs;
 COS_VECT_CREATE_STATIC(c_map);
 
 static void
@@ -427,7 +427,7 @@ pd_find_edge(struct protection_domain *pd1, struct protection_domain *pd2)
 static int
 mpd_component_add_edge(struct component *from, struct component *to, long weight)
 {
-	struct edge *e;
+	struct edge *   e;
 	struct pd_edge *pd_e;
 
 	assert(from && to && from != to);
@@ -584,7 +584,7 @@ static void
 __pd_merge(struct protection_domain *pd, struct protection_domain *pd_fin, struct heaps *hs)
 {
 	struct component *c, *c_first, *c_fin_first;
-	int done = 0;
+	int               done = 0;
 
 	assert(pd_fin && pd);
 	assert(pd_fin->members && pd->members);
@@ -630,7 +630,7 @@ static struct protection_domain *
 pd_split(struct protection_domain *pd, struct heaps *hs)
 {
 	struct protection_domain *pd_new;
-	struct component *c, *c_rep;
+	struct component *        c, *c_rep;
 
 	assert(heap_empty(hs->mc_h));
 	assert(pd && hs->mc_h);
@@ -684,8 +684,8 @@ static long
 component_grp_weight(struct component *s, struct component *grp)
 {
 	struct component *master;
-	struct edge *e;
-	long cnt = 0;
+	struct edge *     e;
+	long              cnt = 0;
 
 	assert(s && grp);
 
@@ -711,7 +711,7 @@ component_grp_to_grp_weight(struct component *g1, struct component *g2)
 {
 	//	struct protection_domain *pd;
 	struct component *c;
-	long cnt = 0;
+	long              cnt = 0;
 	//	unsigned long g1_nmembs = 0, g2_nmembs = 0;
 	//	unsigned long delta_fault_exposure, ret;
 
@@ -1190,7 +1190,7 @@ recompute_min_cuts(struct protection_domain *pds, struct heaps *hs)
 static void
 test_edge_weight_consistency(void)
 {
-	struct edge *e;
+	struct edge *   e;
 	struct pd_edge *pd_e;
 
 	for (pd_e = FIRST_LIST(&pdes, next, prev); pd_e != &pdes; pd_e = FIRST_LIST(pd_e, next, prev)) {
@@ -1339,7 +1339,7 @@ static void
 merge_split_repeat(struct heaps *hs)
 {
 	const int TEST_ITER = 1000;
-	int i;
+	int       i;
 
 	for (i = 0; i < TEST_ITER; i++) {
 		struct protection_domain *pd;
@@ -1361,7 +1361,7 @@ static long
 sum_pde_cost(void)
 {
 	struct pd_edge *pd_e;
-	long tot = 0;
+	long            tot = 0;
 
 	for (pd_e = FIRST_LIST(&pdes, next, prev); pd_e != &pdes; pd_e = FIRST_LIST(pd_e, next, prev)) {
 		tot += pd_edge_get_weight(pd_e);
@@ -1373,7 +1373,7 @@ static long
 sum_e_cost(void)
 {
 	struct edge *e;
-	long tot = 0;
+	long         tot = 0;
 
 	for (e = FIRST_LIST(&es, next, prev); e != &es; e = FIRST_LIST(e, next, prev)) {
 		tot += edge_get_inv(e);

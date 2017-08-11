@@ -12,7 +12,7 @@
 CVECT_CREATE_STATIC(static_vect);
 
 struct pair {
-	long id;
+	long  id;
 	void *val;
 };
 
@@ -37,8 +37,8 @@ int
 main(void)
 {
 	struct pair pairs[NTESTS];
-	int i;
-	cvect_t *dyn_vect;
+	int         i;
+	cvect_t *   dyn_vect;
 
 	dyn_vect = cvect_alloc();
 	assert(dyn_vect);

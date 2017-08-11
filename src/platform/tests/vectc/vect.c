@@ -12,8 +12,8 @@
 #define OUTPUT (1 << 10)
 
 struct cvectc static_vect;
-long ids[NTESTS];
-void print(struct cvectc *s);
+long          ids[NTESTS];
+void          print(struct cvectc *s);
 
 int
 in_pairs(int nid)
@@ -70,7 +70,7 @@ ps(void)
 void
 rand_test(void)
 {
-	int i, j;
+	int                i, j;
 	unsigned long long start, end;
 
 	printf("Incremental tests:\n");
@@ -139,15 +139,15 @@ rand_test(void)
 
 struct node {
 	struct cvcentry *e;
-	int size, id, parent, lvl;
-	struct node *next, *prev;
+	int              size, id, parent, lvl;
+	struct node *    next, *prev;
 } * start, *end;
 
 void
 print(struct cvectc *s)
 {
-	struct node *n = malloc(sizeof(struct node));
-	int cnt        = 0;
+	struct node *n   = malloc(sizeof(struct node));
+	int          cnt = 0;
 	assert(n);
 
 	n->e      = &s->d;
@@ -161,7 +161,7 @@ print(struct cvectc *s)
 	end       = n;
 
 	while (start) {
-		int i;
+		int              i;
 		struct cvcentry *e;
 
 		n     = start;

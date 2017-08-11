@@ -29,7 +29,7 @@ static inline void *
 cpage_alloc(void)
 {
 	struct free_page *fp;
-	void *a;
+	void *            a;
 
 	fp = page_list.next;
 	if (NULL == fp) {

@@ -20,7 +20,7 @@
 
 struct invstk_entry {
 	struct comp_info comp_info;
-	unsigned long sp, ip; /* to return to */
+	unsigned long    sp, ip; /* to return to */
 } HALF_CACHE_ALIGNED;
 
 #define THD_INVSTK_MAXSZ 32
@@ -34,9 +34,9 @@ struct invstk_entry {
  */
 struct rcvcap_info {
 	/* how many other arcv end-points send notifications to this one? */
-	int isbound, pending, refcnt, is_all_pending;
-	sched_tok_t sched_count;
-	struct tcap *rcvcap_tcap;        /* This rcvcap's tcap */
+	int            isbound, pending, refcnt, is_all_pending;
+	sched_tok_t    sched_count;
+	struct tcap *  rcvcap_tcap;      /* This rcvcap's tcap */
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
 };
 
@@ -52,8 +52,8 @@ typedef enum {
  * components.
  */
 struct thread {
-	thdid_t tid;
-	u16_t invstk_top;
+	thdid_t        tid;
+	u16_t          invstk_top;
 	struct pt_regs regs;
 	struct pt_regs fault_regs;
 	struct cos_fpu fpu;
@@ -61,17 +61,17 @@ struct thread {
 	/* TODO: same cache-line as the tid */
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
 
-	thd_state_t state;
-	u32_t tls;
-	cpuid_t cpuid;
-	unsigned int refcnt;
-	tcap_res_t exec; /* execution time */
+	thd_state_t    state;
+	u32_t          tls;
+	cpuid_t        cpuid;
+	unsigned int   refcnt;
+	tcap_res_t     exec; /* execution time */
 	struct thread *interrupted_thread;
 
 	/* rcv end-point data-structures */
 	struct rcvcap_info rcvcap;
-	struct list event_head;      /* all events for *this* end-point */
-	struct list_node event_list; /* the list of events for another end-point */
+	struct list        event_head; /* all events for *this* end-point */
+	struct list_node   event_list; /* the list of events for another end-point */
 } CACHE_ALIGNED;
 
 /*
@@ -83,8 +83,8 @@ struct thread {
  */
 struct cap_thd {
 	struct cap_header h;
-	struct thread *t;
-	cpuid_t cpuid;
+	struct thread *   t;
+	cpuid_t           cpuid;
 } __attribute__((packed));
 
 static void
@@ -175,10 +175,10 @@ thd_rcvcap_sched(struct thread *t)
 
 static void
 thd_next_thdinfo_update(struct cos_cpu_local_info *cli,
-                        struct thread *thd,
-                        struct tcap *tc,
-                        tcap_prio_t prio,
-                        tcap_res_t budget)
+                        struct thread *            thd,
+                        struct tcap *              tc,
+                        tcap_prio_t                prio,
+                        tcap_res_t                 budget)
 {
 	struct next_thdinfo *nti = &cli->next_ti;
 
@@ -307,9 +307,9 @@ thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long 
 static int
 thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, int init_data)
 {
-	struct cap_thd *tc;
+	struct cap_thd * tc;
 	struct cap_comp *compc;
-	int ret;
+	int              ret;
 
 	memset(thd, 0, sizeof(struct thread));
 	compc = (struct cap_comp *)captbl_lkup(t, compcap);
@@ -342,19 +342,19 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 }
 
 static int
-thd_deactivate(struct captbl *ct,
+thd_deactivate(struct captbl *    ct,
                struct cap_captbl *dest_ct,
-               unsigned long capin,
-               livenessid_t lid,
-               capid_t pgtbl_cap,
-               capid_t cosframe_addr,
-               const int root)
+               unsigned long      capin,
+               livenessid_t       lid,
+               capid_t            pgtbl_cap,
+               capid_t            cosframe_addr,
+               const int          root)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
-	struct cap_header *thd_header;
-	struct thread *thd;
-	unsigned long old_v = 0, *pte = NULL;
-	int ret;
+	struct cap_header *        thd_header;
+	struct thread *            thd;
+	unsigned long              old_v = 0, *pte = NULL;
+	int                        ret;
 
 	thd_header = captbl_lkup(dest_ct->captbl, capin);
 	if (!thd_header || thd_header->type != CAP_THD) cos_throw(err, -EINVAL);
@@ -409,7 +409,7 @@ static int
 thd_tls_set(struct captbl *ct, capid_t thd_cap, vaddr_t tlsaddr, struct thread *current)
 {
 	struct cap_thd *tc;
-	struct thread *thd;
+	struct thread * thd;
 
 	tc = (struct cap_thd *)captbl_lkup(ct, thd_cap);
 	if (!tc || tc->h.type != CAP_THD || get_cpuid() != tc->cpuid) return -EINVAL;
@@ -488,10 +488,10 @@ thd_current_pgtbl(struct thread *thd)
 }
 
 static inline int
-thd_invstk_push(struct thread *thd,
-                struct comp_info *ci,
-                unsigned long ip,
-                unsigned long sp,
+thd_invstk_push(struct thread *            thd,
+                struct comp_info *         ci,
+                unsigned long              ip,
+                unsigned long              sp,
                 struct cos_cpu_local_info *cos_info)
 {
 	struct invstk_entry *top, *prev;
@@ -529,7 +529,7 @@ static inline void
 thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs)
 {
 	unsigned long a = 0, b = 0;
-	int all_pending = thd_rcvcap_all_pending_get(thd);
+	int           all_pending = thd_rcvcap_all_pending_get(thd);
 
 	thd_state_evt_deliver(thd, &a, &b);
 	if (all_pending) {
@@ -566,8 +566,11 @@ static inline int
 thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 {
 	switch (op) {
-	case THD_GET_TID: *retval = t->tid; break;
-	default: return -EINVAL;
+	case THD_GET_TID:
+		*retval = t->tid;
+		break;
+	default:
+		return -EINVAL;
 	}
 	return 0;
 }

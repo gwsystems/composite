@@ -71,7 +71,7 @@ typedef unsigned int u32_t;
  * Invariants:  2^ignore <= CVECTC_MAX_SZ.   nsubdir <= 2^__cvectc_size(d)
  */
 struct cvcdir {
-	u32_t leaf : 1, ignore : 7, size : 6, nsubdir : 18;
+	u32_t            leaf : 1, ignore : 7, size : 6, nsubdir : 18;
 	struct cvcentry *next;
 };
 
@@ -260,7 +260,7 @@ static inline int
 cvectc_init(struct cvectc *v)
 {
 	struct cvcentry *n;
-	int i;
+	int              i;
 
 	n = CVECTC_ALLOC(sizeof(struct cvcentry) * CVECTC_MIN_ENTRIES);
 	if (!n) return -1;
@@ -336,7 +336,7 @@ __cvectc_prefix_match(u32_t v1, u32_t v2, int prefix_order)
 static inline int
 __cvectc_prefix_sz(u32_t v1, u32_t v2)
 {
-	int i, cnt = 0;
+	int   i, cnt = 0;
 	u32_t out_of_bounds = (((u32_t)(~0) >> CVECTC_MAX_ID_SZ) << CVECTC_MAX_ID_SZ);
 	assert((out_of_bounds & (v1 | v2)) == 0);
 
@@ -366,9 +366,9 @@ int cvectc_debug = 0;
 static inline int
 __cvectc_level_compress(struct cvcdir *p, u32_t id)
 {
-	int i, sz, nsz, subsz = 0, uniform_subsz = 1, pignored;
+	int              i, sz, nsz, subsz = 0, uniform_subsz = 1, pignored;
 	struct cvcentry *e, *n, *t;
-	struct cvcleaf *l;
+	struct cvcleaf * l;
 
 	if (cvectc_debug) cvcprint((struct cvcentry *)p);
 	l = __cvectc_lookup_leaf((struct cvcentry *)p, id);
@@ -387,8 +387,8 @@ __cvectc_level_compress(struct cvcdir *p, u32_t id)
 	 */
 	for (i = 0; i < sz; i++) {
 		struct cvcentry *iter = &e[i];
-		struct cvcdir *d;
-		int __sz;
+		struct cvcdir *  d;
+		int              __sz;
 
 		if (__cvc_isleaf(iter)) continue;
 		d    = __cvc_dir(iter);
@@ -444,8 +444,8 @@ __cvectc_level_compress(struct cvcdir *p, u32_t id)
 	 */
 	for (i = 0; i < sz; i++) {
 		struct cvcentry *sub, *target, *ndir_off;
-		struct cvcdir *d;
-		int dir_off;
+		struct cvcdir *  d;
+		int              dir_off;
 
 		sub = &e[i];
 		/* leaves */
@@ -541,7 +541,7 @@ static inline int
 __cvectc_alloc_link(struct cvcentry *e, u32_t nprefix, int prefix_sz)
 {
 	struct cvcentry *n;
-	int i;
+	int              i;
 
 	n = CVECTC_ALLOC(sizeof(struct cvcentry) * CVECTC_MIN_ENTRIES);
 	if (!n) return -1;
@@ -564,7 +564,7 @@ __cvectc_alloc_link(struct cvcentry *e, u32_t nprefix, int prefix_sz)
 static inline void
 __cvectc_prefix_info(struct cvcentry *e, u32_t id, u32_t trie_id, u32_t *__prefix, int *__prefix_sz)
 {
-	int prefix_sz, nprefix_sz;
+	int   prefix_sz, nprefix_sz;
 	u32_t nprefix;
 
 	prefix_sz  = __cvc_isleaf(e) ? CVECTC_MAX_SZ - CVECTC_MIN_ORDER : __cvc_dir(e)->ignore;
@@ -589,10 +589,10 @@ __cvectc_prefix_info(struct cvcentry *e, u32_t id, u32_t trie_id, u32_t *__prefi
 static inline int
 __cvectc_path_decompress(struct cvcentry *e, u32_t id, u32_t trie_id, void *val)
 {
-	int nprefix_sz;
-	u32_t nprefix;
+	int             nprefix_sz;
+	u32_t           nprefix;
 	struct cvcentry saved, *l, *p;
-	struct cvcdir *new_d;
+	struct cvcdir * new_d;
 
 	__cvectc_prefix_info(e, id, trie_id, &nprefix, &nprefix_sz);
 
@@ -624,8 +624,8 @@ static inline int __cvectc_nsubdirs(struct cvcdir *d);
 static int
 cvectc_add(struct cvectc *v, void *val, u32_t id)
 {
-	struct cvcleaf *l;
-	struct cvcdir *p;
+	struct cvcleaf * l;
+	struct cvcdir *  p;
 	struct cvcentry *e;
 
 	assert(v && val != CVECTC_INIT_VAL);
@@ -693,9 +693,9 @@ cvectc_add(struct cvectc *v, void *val, u32_t id)
 static inline int
 __cvectc_nentries(struct cvcdir *d, struct cvcentry **entry)
 {
-	int i, cnt = 0;
+	int              i, cnt = 0;
 	struct cvcentry *e;
-	int sz;
+	int              sz;
 
 	sz = __cvectc_size(d);
 	assert(d && !__cvc_isleaf((struct cvcentry *)d));
@@ -714,9 +714,9 @@ __cvectc_nentries(struct cvcdir *d, struct cvcentry **entry)
 static inline int
 __cvectc_nsubdirs(struct cvcdir *d)
 {
-	int i, cnt = 0;
+	int              i, cnt = 0;
 	struct cvcentry *e;
-	int sz;
+	int              sz;
 
 	sz = __cvectc_size(d);
 	assert(d && !__cvc_isleaf((struct cvcentry *)d));
@@ -738,9 +738,9 @@ __cvectc_nsubdirs(struct cvcdir *d)
 static inline int
 __cvectc_nentries_children(struct cvcdir *d, int *tot_sz)
 {
-	int i, cnt = 0;
+	int              i, cnt = 0;
 	struct cvcentry *e;
-	int sz = __cvectc_size(d);
+	int              sz = __cvectc_size(d);
 
 	assert(d && !__cvc_isleaf((struct cvcentry *)d));
 	assert(sz >= CVECTC_MIN_ENTRIES); /* check entries vs. order */
@@ -750,7 +750,7 @@ __cvectc_nentries_children(struct cvcdir *d, int *tot_sz)
 	for (i = 0; i < sz; i++) {
 		if (!__cvc_isleaf(&e[i])) {
 			struct cvcentry *e;
-			struct cvcdir *d = __cvc_dir(&e[i]);
+			struct cvcdir *  d = __cvc_dir(&e[i]);
 
 			*tot_sz += __cvectc_size(d);
 			cnt += __cvectc_nentries(d, &e);
@@ -770,7 +770,7 @@ static inline void
 __cvectc_path_compress(struct cvcdir *d, u32_t id)
 {
 	struct cvcentry *c, *p;
-	int sz;
+	int              sz;
 
 	assert(d && !__cvc_isleaf((struct cvcentry *)d) && __cvectc_nentries(d, &p) == 0);
 
@@ -785,9 +785,9 @@ static void
 cvectc_del(struct cvectc *v, u32_t id)
 {
 	struct cvcentry *e, *s; /* entry and saved entry */
-	struct cvcdir *p;       /* previous level */
-	struct cvcleaf *l;
-	int nent;
+	struct cvcdir *  p;     /* previous level */
+	struct cvcleaf * l;
+	int              nent;
 
 	e = &v->d;
 	l = __cvectc_lookup_leaf_prev(e, id, &p);

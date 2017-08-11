@@ -39,10 +39,10 @@ int chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr, int flags);
 vaddr_t chal_pgtbl_vaddr2kaddr(paddr_t pgtbl, unsigned long addr);
 /* Remove mapping for a vaddr from pgtbl. != 0 if mapping doesn't exist */
 paddr_t chal_pgtbl_rem(paddr_t pgtbl, vaddr_t va);
-int chal_pgtbl_entry_absent(paddr_t pt, unsigned long addr);
-void chal_pgtbl_copy_range(paddr_t pt_to, paddr_t pt_from, unsigned long lower_addr, unsigned long size);
-void chal_pgtbl_copy_range_nocheck(paddr_t pt_to, paddr_t pt_from, unsigned long lower_addr, unsigned long size);
-void chal_pgtbl_zero_range(paddr_t pt, unsigned long lower_addr, unsigned long size);
+int     chal_pgtbl_entry_absent(paddr_t pt, unsigned long addr);
+void    chal_pgtbl_copy_range(paddr_t pt_to, paddr_t pt_from, unsigned long lower_addr, unsigned long size);
+void    chal_pgtbl_copy_range_nocheck(paddr_t pt_to, paddr_t pt_from, unsigned long lower_addr, unsigned long size);
+void    chal_pgtbl_zero_range(paddr_t pt, unsigned long lower_addr, unsigned long size);
 /* can we switch the current page tables right now? */
 int chal_pgtbl_can_switch(void);
 
@@ -60,8 +60,8 @@ void chal_cycles_per_period(u64_t cycles);
  * Address translation functions *
  *********************************/
 
-paddr_t chal_va2pa(void *va);
-void *chal_pa2va(paddr_t pa);
+paddr_t        chal_va2pa(void *va);
+void *         chal_pa2va(paddr_t pa);
 extern paddr_t chal_kernel_mem_pa;
 
 /************************************
@@ -70,8 +70,8 @@ extern paddr_t chal_kernel_mem_pa;
 
 void *chal_alloc_page(void);
 void *chal_alloc_kern_mem(int order);
-void chal_free_page(void *page);
-void chal_free_kern_mem(void *mem, int order);
+void  chal_free_page(void *page);
+void  chal_free_kern_mem(void *mem, int order);
 
 /* Per core ACAPs for timer events */
 PERCPU_DECL(struct async_cap *, cos_timer_acap);
@@ -81,7 +81,7 @@ PERCPU_DECL(struct cap_arcv *, cos_timer_arcv);
  * Other functions *
  *******************/
 
-int chal_cyc_usec(void);
+int          chal_cyc_usec(void);
 unsigned int chal_cyc_thresh(void);
 
 int chal_attempt_arcv(struct cap_arcv *arcv);
@@ -105,6 +105,6 @@ void chal_init(void);
 #include "../../platform/include/chal_plat.h"
 
 extern void printk(const char *fmt, ...);
-void chal_khalt(void);
+void        chal_khalt(void);
 
 #endif /* CHAL_H */

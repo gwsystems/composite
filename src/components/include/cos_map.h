@@ -38,7 +38,7 @@
  */
 typedef struct cos_map_struct {
 	cos_vect_t data;
-	long free_list, id_boundary;
+	long       free_list, id_boundary;
 } cos_map_t;
 
 #ifndef COS_MAP_BASE
@@ -48,7 +48,7 @@ typedef struct cos_map_struct {
 /* depth = 0 indicates that we haven't initialized the structure */
 #define COS_MAP_CREATE_STATIC(name)                                   \
 	struct cos_vect_intern_struct __##name##_vect[COS_VECT_BASE]; \
-	cos_map_t name = { .data = { .depth = 0, .vect = __##name##_vect }, .free_list = 0 }
+	cos_map_t                     name = { .data = { .depth = 0, .vect = __##name##_vect }, .free_list = 0 }
 
 
 static inline long
@@ -156,7 +156,7 @@ cos_map_lookup(cos_map_t *m, long mid)
 static inline long
 cos_map_add(cos_map_t *m, void *val)
 {
-	long free;
+	long                           free;
 	struct cos_vect_intern_struct *is_free, *is;
 
 	assert(m);
@@ -204,7 +204,7 @@ static inline long
 cos_map_add_id(cos_map_t *m, void *val, long mid)
 {
 	struct cos_vect_intern_struct *is;
-	long next, prev;
+	long                           next, prev;
 
 	/* not really tested enough.  This is not the purpose of map,
 	 * use vect instead */

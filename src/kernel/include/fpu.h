@@ -16,25 +16,25 @@ PERCPU_EXTERN(fpu_last_used);
 enum { FPU_DISABLE = 0, FPU_ENABLE = 1 };
 
 /* fucntions called outside */
-static inline int fpu_init(void);
-static inline int fpu_disabled_exception_handler(void);
+static inline int  fpu_init(void);
+static inline int  fpu_disabled_exception_handler(void);
 static inline void fpu_thread_init(struct thread *thd);
-static inline int fpu_switch(struct thread *next);
+static inline int  fpu_switch(struct thread *next);
 
 /* packed functions for FPU operation */
 static inline void fpu_enable(void);
 static inline void fpu_disable(void);
-static inline int fpu_is_disabled(void);
-static inline int fpu_thread_uses_fp(struct thread *thd);
+static inline int  fpu_is_disabled(void);
+static inline int  fpu_thread_uses_fp(struct thread *thd);
 
 /* packed low level (assemmbly) functions */
-static inline void fxsave(struct thread *);
-static inline void fxrstor(struct thread *);
+static inline void          fxsave(struct thread *);
+static inline void          fxrstor(struct thread *);
 static inline unsigned long fpu_read_cr0(void);
-static inline void fpu_set(int);
-static inline int fpu_get_info(void);
-static inline int fpu_check_fxsr(void);
-static inline int fpu_check_sse(void);
+static inline void          fpu_set(int);
+static inline int           fpu_get_info(void);
+static inline int           fpu_check_fxsr(void);
+static inline int           fpu_check_sse(void);
 
 #ifdef FPU_ENABLED
 static inline int

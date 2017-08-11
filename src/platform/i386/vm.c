@@ -32,7 +32,7 @@ kern_retype_initial(void)
 
 u8_t *mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 {
-	u8_t *r = glb_memlayout.kern_boot_heap;
+	u8_t *        r = glb_memlayout.kern_boot_heap;
 	unsigned long i;
 
 	assert(glb_memlayout.allocs_avail);
@@ -56,7 +56,7 @@ int
 kern_setup_image(void)
 {
 	unsigned long i, j;
-	paddr_t kern_pa_start, kern_pa_end;
+	paddr_t       kern_pa_start, kern_pa_end;
 
 	printk("\tSetting up initial page directory.\n");
 	kern_pa_start = round_to_pgd_page(chal_va2pa(mem_kern_start())); /* likely 0 */
@@ -119,7 +119,7 @@ void
 kern_paging_map_init(void *pa)
 {
 	unsigned long i, j;
-	paddr_t kern_pa_start = 0, kern_pa_end = (paddr_t)pa;
+	paddr_t       kern_pa_start = 0, kern_pa_end = (paddr_t)pa;
 
 	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA / PGD_RANGE;
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end);

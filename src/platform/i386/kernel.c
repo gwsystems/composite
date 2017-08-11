@@ -44,7 +44,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 {
 	struct multiboot_mod_list *mods;
 	struct multiboot_mem_list *mems;
-	unsigned int i, wastage = 0;
+	unsigned int               i, wastage = 0;
 
 	glb_memlayout.allocs_avail = 1;
 
@@ -67,10 +67,10 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	printk("System memory info from multiboot (end 0x%x):\n", &end);
 	printk("\tModules:\n");
 	for (i = 0; i < mb->mods_count; i++) {
-		struct multiboot_mod_list *mod = &mods[i];
-		char *cmdline                  = (char *)mod->cmdline;
-		int cmdline_len                = strnlen((const char *)cmdline, CMDLINE_MAX_LEN);
-		int addr_offset                = cmdline_len - CMDLINE_REQ_LEN;
+		struct multiboot_mod_list *mod         = &mods[i];
+		char *                     cmdline     = (char *)mod->cmdline;
+		int                        cmdline_len = strnlen((const char *)cmdline, CMDLINE_MAX_LEN);
+		int                        addr_offset = cmdline_len - CMDLINE_REQ_LEN;
 
 		printk("\t- %d: [%08x, %08x) : %s", i, mod->mod_start, mod->mod_end, mod->cmdline);
 		assert(cmdline_len >= CMDLINE_REQ_LEN);
@@ -88,9 +88,9 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 
 	printk("\tMemory regions:\n");
 	for (i = 0; i < mb->mmap_length / sizeof(struct multiboot_mem_list); i++) {
-		struct multiboot_mem_list *mem = &mems[i];
-		u8_t *mod_end                  = glb_memlayout.mod_end;
-		u8_t *mem_addr                 = chal_pa2va((paddr_t)mem->addr);
+		struct multiboot_mem_list *mem      = &mems[i];
+		u8_t *                     mod_end  = glb_memlayout.mod_end;
+		u8_t *                     mem_addr = chal_pa2va((paddr_t)mem->addr);
 
 		printk("\t- %d (%s): [%08llx, %08llx)\n",
 		       i,

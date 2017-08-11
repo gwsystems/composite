@@ -44,11 +44,11 @@ typedef enum {
 } fsobj_type_t;
 
 struct fsobj {
-	char *name;
-	fsobj_type_t type;
-	u32_t size, allocated, refcnt;
-	int flags; /* only defined in client code */
-	char *data;
+	char *        name;
+	fsobj_type_t  type;
+	u32_t         size, allocated, refcnt;
+	int           flags; /* only defined in client code */
+	char *        data;
 	struct fsobj *next, *prev;
 	struct fsobj *child, *parent; /* child != NULL iff type = dir */
 };
@@ -116,10 +116,10 @@ fsobj_cons(struct fsobj *o, struct fsobj *parent, char *name, fsobj_type_t t, u3
 struct fsobj *
 fsobj_alloc(char *name, struct fsobj *parent)
 {
-	char *end, *chld_name;
+	char *        end, *chld_name;
 	struct fsobj *chld = NULL;
-	fsobj_type_t t;
-	int len;
+	fsobj_type_t  t;
+	int           len;
 
 	end = strchr(name, '/');
 	if (end) {
@@ -174,7 +174,7 @@ static inline struct fsobj *
 fsobj_find_child(char *name, char *name_end, struct fsobj *dir)
 {
 	struct fsobj *sibling, *first;
-	int len;
+	int           len;
 
 	assert(dir && name);
 	assert(dir->type == FSOBJ_DIR);
@@ -303,7 +303,7 @@ fsobj_free_hier(struct fsobj *o)
 static struct fsobj *
 fsobj_path2obj(char *path, int len, struct fsobj *root, struct fsobj **parent, char **subpath)
 {
-	char *next;
+	char *        next;
 	struct fsobj *dir = root;
 
 	assert(path && root && len >= 0);

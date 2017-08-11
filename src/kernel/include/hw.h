@@ -21,7 +21,7 @@ struct cap_asnd hw_asnd_caps[HW_IRQ_TOTAL];
 
 struct cap_hw {
 	struct cap_header h;
-	u32_t hw_bitmap;
+	u32_t             hw_bitmap;
 } __attribute__((packed));
 
 static void
@@ -40,7 +40,7 @@ static int
 hw_activate(struct captbl *t, capid_t cap, capid_t capin, u32_t bitmap)
 {
 	struct cap_hw *hwc;
-	int ret;
+	int            ret;
 
 	hwc = (struct cap_hw *)__cap_capactivate_pre(t, cap, capin, CAP_HW, &ret);
 	if (!hwc) return ret;

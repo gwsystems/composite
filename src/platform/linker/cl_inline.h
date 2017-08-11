@@ -60,7 +60,7 @@ add_undef_symb(struct service_symbs *ss, const char *name, int mod_len)
 static inline struct cos_sections *
 cos_sect_get(sec_type_t id)
 {
-	int i;
+	int        i;
 	static int first = 1;
 
 	assert(id <= MAXSEC_S);

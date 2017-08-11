@@ -73,9 +73,9 @@ oct2dec(char *oct)
 static inline struct tar_record *
 tar_parse_record(struct tar_record *r, struct fsobj **o, struct fsobj *root)
 {
-	int len, sz, records_sz;
-	char *name;
-	fsobj_type_t t;
+	int           len, sz, records_sz;
+	char *        name;
+	fsobj_type_t  t;
 	struct fsobj *parent, *new, *p;
 
 	if (tar_end(r)) return NULL;
@@ -96,7 +96,7 @@ tar_parse_record(struct tar_record *r, struct fsobj **o, struct fsobj *root)
 	name = strrchr(&r->name[0], '/');
 	if (name) {
 		char *fail_path;
-		int len;
+		int   len;
 
 		*name = '\0';
 		name++;

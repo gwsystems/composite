@@ -5,10 +5,10 @@
 #include <ps_list.h>
 
 struct sl_thd_policy {
-	struct sl_thd thd;
-	tcap_prio_t priority;
-	microsec_t period_usec;
-	cycles_t period;
+	struct sl_thd  thd;
+	tcap_prio_t    priority;
+	microsec_t     period_usec;
+	cycles_t       period;
 	struct ps_list list;
 };
 

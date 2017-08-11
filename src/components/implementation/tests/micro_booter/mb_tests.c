@@ -14,10 +14,10 @@ thd_fn_perf(void *d)
 static void
 test_thds_perf(void)
 {
-	thdcap_t ts;
+	thdcap_t  ts;
 	long long total_swt_cycles = 0;
 	long long start_swt_cycles = 0, end_swt_cycles = 0;
-	int i;
+	int       i;
 
 	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL);
 	assert(ts);
@@ -51,7 +51,7 @@ static void
 test_thds(void)
 {
 	thdcap_t ts[TEST_NTHDS];
-	int i;
+	int      i;
 
 	for (i = 0; i < TEST_NTHDS; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
@@ -70,8 +70,8 @@ test_thds(void)
 static void
 test_mem(void)
 {
-	char *p, *s, *t, *prev;
-	int i;
+	char *      p, *s, *t, *prev;
+	int         i;
 	const char *chk = "SUCCESS";
 
 	p = cos_page_bump_alloc(&booter_info);
@@ -100,14 +100,14 @@ test_mem(void)
 
 volatile arcvcap_t rcc_global, rcp_global;
 volatile asndcap_t scp_global;
-int async_test_flag = 0;
+int                async_test_flag = 0;
 
 static void
 async_thd_fn_perf(void *thdcap)
 {
-	thdcap_t tc  = (thdcap_t)thdcap;
+	thdcap_t  tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcc_global;
-	int i;
+	int       i;
 
 	cos_rcv(rc, 0, NULL);
 
@@ -121,12 +121,12 @@ async_thd_fn_perf(void *thdcap)
 static void
 async_thd_parent_perf(void *thdcap)
 {
-	thdcap_t tc                 = (thdcap_t)thdcap;
+	thdcap_t  tc                = (thdcap_t)thdcap;
 	arcvcap_t rc                = rcp_global;
 	asndcap_t sc                = scp_global;
 	long long total_asnd_cycles = 0;
 	long long start_asnd_cycles = 0, end_arcv_cycles = 0;
-	int i;
+	int       i;
 
 	cos_asnd(sc, 1);
 
@@ -150,9 +150,9 @@ async_thd_parent_perf(void *thdcap)
 static void
 async_thd_fn(void *thdcap)
 {
-	thdcap_t tc  = (thdcap_t)thdcap;
+	thdcap_t  tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcc_global;
-	int pending, rcvd;
+	int       pending, rcvd;
 
 
 	PRINTC("Asynchronous event thread handler.\n");
@@ -192,13 +192,13 @@ async_thd_fn(void *thdcap)
 static void
 async_thd_parent(void *thdcap)
 {
-	thdcap_t tc  = (thdcap_t)thdcap;
+	thdcap_t  tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcp_global;
 	asndcap_t sc = scp_global;
-	int ret, pending;
-	thdid_t tid;
-	int blocked;
-	cycles_t cycles;
+	int       ret, pending;
+	thdid_t   tid;
+	int       blocked;
+	cycles_t  cycles;
 
 	PRINTC("--> sending\n");
 	ret = cos_asnd(sc, 0);
@@ -237,10 +237,10 @@ async_thd_parent(void *thdcap)
 static void
 test_async_endpoints(void)
 {
-	thdcap_t tcp, tcc;
-	tcap_t tccp, tccc;
+	thdcap_t  tcp, tcc;
+	tcap_t    tccp, tccc;
 	arcvcap_t rcp, rcc;
-	int ret;
+	int       ret;
 
 	PRINTC("Creating threads, and async end-points.\n");
 	/* parent rcv capabilities */
@@ -283,8 +283,8 @@ test_async_endpoints(void)
 static void
 test_async_endpoints_perf(void)
 {
-	thdcap_t tcp, tcc;
-	tcap_t tccp, tccc;
+	thdcap_t  tcp, tcc;
+	tcap_t    tccp, tccc;
 	arcvcap_t rcp, rcc;
 
 	/* parent rcv capabilities */
@@ -340,7 +340,7 @@ tcap_child(void *d)
 static void
 tcap_parent(void *d)
 {
-	int i;
+	int       i;
 	asndcap_t __tc_sc = (asndcap_t)d;
 
 	for (i = 0; i < ITER; i++) {
@@ -394,7 +394,7 @@ cycles_t cyc_per_usec;
 static void
 test_timer(void)
 {
-	int i;
+	int      i;
 	thdcap_t tc;
 	cycles_t c = 0, p = 0, t = 0;
 
@@ -403,9 +403,9 @@ test_timer(void)
 	tc           = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 
 	for (i = 0; i <= 16; i++) {
-		thdid_t tid;
-		int blocked;
-		cycles_t cycles, now;
+		thdid_t     tid;
+		int         blocked;
+		cycles_t    cycles, now;
 		tcap_time_t timer;
 
 		rdtscll(now);
@@ -429,13 +429,13 @@ test_timer(void)
 }
 
 struct exec_cluster {
-	thdcap_t tc;
-	arcvcap_t rc;
-	tcap_t tcc;
-	cycles_t cyc;
-	asndcap_t sc; /*send-cap to send to rc */
+	thdcap_t    tc;
+	arcvcap_t   rc;
+	tcap_t      tcc;
+	cycles_t    cyc;
+	asndcap_t   sc; /*send-cap to send to rc */
 	tcap_prio_t prio;
-	int xseq; /* expected activation sequence number for this thread */
+	int         xseq; /* expected activation sequence number for this thread */
 };
 
 struct budget_test_data {
@@ -488,8 +488,8 @@ test_budgets_single(void)
 	PRINTC("Budget switch latencies: ");
 	for (i = 1; i < 10; i++) {
 		cycles_t s, e;
-		thdid_t tid;
-		int blocked;
+		thdid_t  tid;
+		int      blocked;
 		cycles_t cycles;
 
 		if (cos_tcap_transfer(bt.c.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, i * 100000, TCAP_PRIO_MAX + 2))
@@ -527,9 +527,9 @@ test_budgets_multi(void)
 	PRINTC("Budget switch latencies:\n");
 	for (i = 1; i < 10; i++) {
 		tcap_res_t res;
-		thdid_t tid;
-		int blocked;
-		cycles_t cycles, s, e;
+		thdid_t    tid;
+		int        blocked;
+		cycles_t   cycles, s, e;
 
 		/* test both increasing budgets and constant budgets */
 		if (i > 5)
@@ -635,9 +635,9 @@ static void
 intr_sched_thd(void *d)
 {
 	struct exec_cluster *e = &(((struct activation_test_data *)d)->s);
-	cycles_t cycs;
-	int blocked;
-	thdid_t tid;
+	cycles_t             cycs;
+	int                  blocked;
+	thdid_t              tid;
 
 	while (1) {
 		cos_sched_rcv(e->rc, 0, NULL, &tid, &blocked, &cycs);
@@ -674,12 +674,12 @@ preempted_thd(void *d)
 
 static void
 test_wakeup_case(struct activation_test_data *at,
-                 tcap_prio_t pprio,
-                 tcap_prio_t iprio,
-                 tcap_prio_t wprio,
-                 int pseq,
-                 int iseq,
-                 int wseq)
+                 tcap_prio_t                  pprio,
+                 tcap_prio_t                  iprio,
+                 tcap_prio_t                  wprio,
+                 int                          pseq,
+                 int                          iseq,
+                 int                          wseq)
 {
 	active_seq = 0;
 	at->i.prio = iprio;
@@ -870,8 +870,8 @@ call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
 static void
 test_inv(void)
 {
-	compcap_t cc;
-	sinvcap_t ic;
+	compcap_t    cc;
+	sinvcap_t    ic;
 	unsigned int r;
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
@@ -887,11 +887,11 @@ test_inv(void)
 static void
 test_inv_perf(void)
 {
-	compcap_t cc;
-	sinvcap_t ic;
-	int i;
-	long long total_cycles     = 0LL;
-	long long total_inv_cycles = 0LL, total_ret_cycles = 0LL;
+	compcap_t    cc;
+	sinvcap_t    ic;
+	int          i;
+	long long    total_cycles     = 0LL;
+	long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL;
 	unsigned int ret;
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
@@ -925,7 +925,7 @@ test_inv_perf(void)
 void
 test_captbl_expand(void)
 {
-	int i;
+	int       i;
 	compcap_t cc;
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);

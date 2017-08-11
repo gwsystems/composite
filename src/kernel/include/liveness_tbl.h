@@ -30,10 +30,10 @@ struct liveness_entry {
 } __attribute__((packed));
 
 typedef struct liveness_entry ltbl_entry_t;
-typedef u32_t livenessid_t;
+typedef u32_t                 livenessid_t;
 
 struct liveness_data {
-	u64_t epoch;
+	u64_t        epoch;
 	livenessid_t id;
 } __attribute__((packed));
 
@@ -121,7 +121,7 @@ static inline int
 ltbl_expire(struct liveness_data *ld)
 {
 	struct liveness_entry *ent;
-	u64_t old_v;
+	u64_t                  old_v;
 
 	ent   = __ltbl_lkupan(LTBL_REF(), ld->id, __ltbl_maxdepth(), NULL);
 	old_v = ent->epoch;
@@ -144,7 +144,7 @@ static inline int
 ltbl_isfreeable(struct liveness_data *ld, u64_t quiescence_period)
 {
 	struct liveness_entry *ent;
-	u64_t ts;
+	u64_t                  ts;
 
 	ent = __ltbl_lkupan(LTBL_REF(), ld->id, __ltbl_maxdepth(), NULL);
 	rdtscll(ts);

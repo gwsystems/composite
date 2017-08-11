@@ -38,7 +38,7 @@
 
 #ifdef COS_LINUX_ENV
 typedef unsigned short int u16_t;
-typedef unsigned int u32_t;
+typedef unsigned int       u32_t;
 #else
 #include <cos_component.h>
 #endif
@@ -91,7 +91,7 @@ typedef unsigned int u32_t;
 
 struct cvect_intern {
 	union {
-		void *val;
+		void *               val;
 		struct cvect_intern *next;
 	} c;
 };

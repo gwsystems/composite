@@ -35,7 +35,7 @@
 
 struct mem_layout {
 	u8_t *kern_end, *mod_start, *mod_end, *bootc_entry, *bootc_vaddr, *kern_boot_heap, *kmem_end;
-	int allocs_avail;
+	int   allocs_avail;
 };
 extern struct mem_layout glb_memlayout;
 

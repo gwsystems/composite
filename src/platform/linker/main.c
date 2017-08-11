@@ -30,14 +30,14 @@
 #include <stdio.h>
 #include <string.h>
 
-int deserialize_dependencies(char *deps, struct service_symbs *services);
-void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *services);
-unsigned long load_all_services(struct service_symbs *services);
-void print_objs_symbs(struct service_symbs *str);
+int                   deserialize_dependencies(char *deps, struct service_symbs *services);
+void                  gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *services);
+unsigned long         load_all_services(struct service_symbs *services);
+void                  print_objs_symbs(struct service_symbs *str);
 struct service_symbs *prepare_service_symbs(char *services);
-void output_image(struct service_symbs *services);
-int verify_dependency_completeness(struct service_symbs *services);
-int verify_dependency_soundness(struct service_symbs *services);
+void                  output_image(struct service_symbs *services);
+int                   verify_dependency_completeness(struct service_symbs *services);
+int                   verify_dependency_soundness(struct service_symbs *services);
 
 /*
  * Format of the input string is as such:
@@ -53,9 +53,9 @@ int
 main(int argc, char *argv[])
 {
 	struct service_symbs *services;
-	char *delim = ":";
-	char *servs, *dependencies = NULL, *ndeps = NULL, *stub_gen_prog;
-	long service_addr;
+	char *                delim = ":";
+	char *                servs, *dependencies = NULL, *ndeps = NULL, *stub_gen_prog;
+	long                  service_addr;
 
 	if (argc != 3) {
 		printl(PRINT_HIGH,

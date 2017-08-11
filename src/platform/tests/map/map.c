@@ -36,8 +36,8 @@ int
 main(void)
 {
 	struct pair pairs[NTESTS * 2];
-	int i;
-	cmap_t *dyn_map;
+	int         i;
+	cmap_t *    dyn_map;
 
 	dyn_map = cmap_alloc();
 	assert(dyn_map->data);

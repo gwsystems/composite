@@ -322,10 +322,10 @@ entries_validate(struct heap *h, struct hentry *es, int amnt)
 static void
 test_driver(int amnt, int type)
 {
-	int i;
+	int            i;
 	struct hentry *prev, *es;
-	cmp_fn_t c;
-	struct heap *h;
+	cmp_fn_t       c;
+	struct heap *  h;
 
 	c  = (type == MIN ? c_min : c_max);
 	h  = heap_alloc(amnt, c, u);

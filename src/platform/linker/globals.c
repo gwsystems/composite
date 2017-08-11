@@ -16,7 +16,7 @@ enum { PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG } print_lvl = PRINT
 const char *COMP_INFO      = "cos_comp_info";
 const char *SCHED_NOTIF    = "cos_sched_notifications";
 const char *INIT_COMP      = "c0.o";
-char *ROOT_SCHED           = NULL;   // this is set to the first listed scheduler (*)
+char *      ROOT_SCHED     = NULL;   // this is set to the first listed scheduler (*)
 const char *INITMM         = "mm.o"; // this is set to the first listed memory manager (#)
 const char *MPD_MGR        = "cg.o"; // the component graph!
 const char *CONFIG_COMP    = "schedconf.o";
@@ -87,6 +87,6 @@ struct cos_sections section_info[MAXSEC_S + 1] = {
 	{ .secid = MAXSEC_S, .sname = NULL }
 };
 
-int spdid_inc = -1;
-u32_t llboot_mem;
+int          spdid_inc = -1;
+u32_t        llboot_mem;
 volatile int var;

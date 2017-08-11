@@ -34,19 +34,19 @@ is_transparent_capability(struct symb *s, int *fltn)
 int
 create_transparent_capabilities(struct service_symbs *service)
 {
-	int i, j, fault_found[COS_FLT_MAX], other_found = 0;
+	int                i, j, fault_found[COS_FLT_MAX], other_found = 0;
 	struct dependency *dep = service->dependencies;
 
 	memset(fault_found, 0, sizeof(int) * COS_FLT_MAX);
 
 	for (i = 0; i < service->num_dependencies; i++) {
-		struct symb_type *symbs = &dep[i].dep->exported;
-		char *modifier          = dep[i].modifier;
-		int mod_len             = dep[i].mod_len;
+		struct symb_type *symbs    = &dep[i].dep->exported;
+		char *            modifier = dep[i].modifier;
+		int               mod_len  = dep[i].mod_len;
 
 		for (j = 0; j < symbs->num_symbs; j++) {
 			trans_cap_t r;
-			int fltn;
+			int         fltn;
 
 			r = is_transparent_capability(&symbs->symbs[j], &fltn);
 			switch (r) {
@@ -55,8 +55,8 @@ create_transparent_capabilities(struct service_symbs *service)
 				fault_found[fltn] = 1;
 			case TRANS_CAP_SCHED: {
 				struct symb_type *st;
-				struct symb *s;
-				char mod_name[256]; /* arbitrary value... */
+				struct symb *     s;
+				char              mod_name[256]; /* arbitrary value... */
 
 				//                              if (symb_already_undef(service, symbs->symbs[j].name))
 				//                              break;
@@ -91,7 +91,8 @@ create_transparent_capabilities(struct service_symbs *service)
 				dep[i].resolved = 1;
 				break;
 			}
-			case TRANS_CAP_NIL: break;
+			case TRANS_CAP_NIL:
+				break;
 			}
 		}
 		if (!dep[i].resolved) {
@@ -112,16 +113,16 @@ create_transparent_capabilities(struct service_symbs *service)
  * exporters.
  */
 inline struct service_symbs *
-find_symbol_exporter_mark_resolved(struct symb *s,
+find_symbol_exporter_mark_resolved(struct symb *      s,
                                    struct dependency *exporters,
-                                   int num_exporters,
-                                   struct symb **exported)
+                                   int                num_exporters,
+                                   struct symb **     exported)
 {
 	int i, j;
 
 	for (i = 0; i < num_exporters; i++) {
 		struct dependency *exporter;
-		struct symb_type *exp_symbs;
+		struct symb_type * exp_symbs;
 
 		exporter  = &exporters[i];
 		exp_symbs = &exporter->dep->exported;
@@ -158,8 +159,8 @@ int
 verify_dependency_completeness(struct service_symbs *services)
 {
 	struct service_symbs *start = services;
-	int ret                     = 0;
-	int i;
+	int                   ret   = 0;
+	int                   i;
 
 	/* for each of the services... */
 	for (; services; services = services->next) {
@@ -167,8 +168,8 @@ verify_dependency_completeness(struct service_symbs *services)
 
 		/* ...go through each of its undefined symbols... */
 		for (i = 0; i < undef_symbs->num_symbs; i++) {
-			struct symb *symb = &undef_symbs->symbs[i];
-			struct symb *exp_symb;
+			struct symb *         symb = &undef_symbs->symbs[i];
+			struct symb *         exp_symb;
 			struct service_symbs *exporter;
 
 			/*

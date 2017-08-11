@@ -174,11 +174,11 @@ typedef struct pgtbl *pgtbl_t;
 /* identical to the capability structure */
 struct cap_pgtbl {
 	struct cap_header h;
-	u32_t refcnt_flags; /* includes refcnt and flags */
-	pgtbl_t pgtbl;
-	u32_t lvl;                /* what level are the pgtbl nodes at? */
-	struct cap_pgtbl *parent; /* if !null, points to parent cap */
-	u64_t frozen_ts;          /* timestamp when frozen is set. */
+	u32_t             refcnt_flags; /* includes refcnt and flags */
+	pgtbl_t           pgtbl;
+	u32_t             lvl;       /* what level are the pgtbl nodes at? */
+	struct cap_pgtbl *parent;    /* if !null, points to parent cap */
+	u64_t             frozen_ts; /* timestamp when frozen is set. */
 } __attribute__((packed));
 
 static pgtbl_t
@@ -190,7 +190,7 @@ pgtbl_alloc(void *page)
 static void
 pgtbl_init_pte(void *pte)
 {
-	int i;
+	int            i;
 	unsigned long *vals = pte;
 
 	for (i = 0; i < (1 << PGTBL_ORD); i++)
@@ -201,7 +201,7 @@ static int
 pgtbl_intern_expand(pgtbl_t pt, u32_t addr, void *pte, u32_t flags)
 {
 	unsigned long accum = (unsigned long)flags;
-	int ret;
+	int           ret;
 
 	/* NOTE: flags currently ignored. */
 
@@ -225,7 +225,7 @@ static void *
 pgtbl_intern_prune(pgtbl_t pt, u32_t addr)
 {
 	unsigned long accum = 0, *pgd;
-	void *page;
+	void *        page;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & (u32_t)addr) == 0);
@@ -265,7 +265,7 @@ static inline int
 pgtbl_quie_check(u32_t orig_v)
 {
 	livenessid_t lid;
-	u64_t ts;
+	u64_t        ts;
 
 	if (orig_v & PGTBL_QUIESCENCE) {
 		lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
@@ -294,9 +294,9 @@ pgtbl_quie_check(u32_t orig_v)
 static int
 pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
-	int ret = 0;
+	int                ret = 0;
 	struct ert_intern *pte;
-	u32_t orig_v, accum = 0;
+	u32_t              orig_v, accum = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
@@ -335,9 +335,9 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 static int
 kmem_add_hack(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
-	int ret;
+	int                ret;
 	struct ert_intern *pte;
-	u32_t orig_v, accum = 0;
+	u32_t              orig_v, accum = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
@@ -363,7 +363,7 @@ static int
 pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
 	struct ert_intern *pte;
-	u32_t orig_v, accum = 0;
+	u32_t              orig_v, accum = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
@@ -385,7 +385,7 @@ pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 	/* Not used for now. TODO: add retypetbl_ref / _deref */
 
 	struct ert_intern *pte;
-	u32_t orig_v, accum = 0;
+	u32_t              orig_v, accum = 0;
 
 	assert(pt && prevflags);
 	assert((PGTBL_FLAG_MASK & addr) == 0);
@@ -413,9 +413,9 @@ pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 static int
 pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 {
-	int ret;
+	int                ret;
 	struct ert_intern *pte;
-	unsigned long orig_v, accum = 0;
+	unsigned long      orig_v, accum = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & addr) == 0);
@@ -503,9 +503,9 @@ pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 static int
 pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
 {
-	u32_t flags;
+	u32_t          flags;
 	unsigned long *pte;
-	paddr_t v;
+	paddr_t        v;
 
 	pte = pgtbl_lkup_pte(pt, frame_addr, &flags);
 	if (!pte) return -EINVAL;
@@ -564,20 +564,20 @@ pgtbl_create(void *page, void *curr_pgtbl)
 	return ret;
 }
 int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
-int pgtbl_deactivate(struct captbl *t,
+int pgtbl_deactivate(struct captbl *    t,
                      struct cap_captbl *dest_ct_cap,
-                     unsigned long capin,
-                     livenessid_t lid,
-                     capid_t pgtbl_cap,
-                     capid_t cosframe_addr,
-                     const int root);
+                     unsigned long      capin,
+                     livenessid_t       lid,
+                     capid_t            pgtbl_cap,
+                     capid_t            cosframe_addr,
+                     const int          root);
 
 static int
 pgtbl_mapping_scan(struct cap_pgtbl *pt)
 {
 	unsigned int i, pte, *page;
 	livenessid_t lid;
-	u64_t past_ts;
+	u64_t        past_ts;
 
 	/* This scans the leaf level of the pgtbl and verifies
 	 * quiescence. */

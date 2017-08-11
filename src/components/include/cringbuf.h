@@ -48,13 +48,13 @@ __cringbuf_zeros(char *buf, int amnt)
 
 /* shared ring buffer*/
 struct __cringbuf {
-	int head;
+	int                     head;
 	CRINGBUF_ALIGN_TAIL int tail;
-	char buffer[0];
+	char                    buffer[0];
 };
 /* local data-structure */
 struct cringbuf {
-	int sz; /* total size of the mapping */
+	int                sz; /* total size of the mapping */
 	struct __cringbuf *b;
 };
 
@@ -108,7 +108,7 @@ static inline char *
 cringbuf_active_extent(struct cringbuf *rb, int *len, int amnt)
 {
 	struct __cringbuf *b;
-	int head, tail;
+	int                head, tail;
 
 	assert(rb && rb->b);
 	b = rb->b;
@@ -129,7 +129,7 @@ static inline char *
 cringbuf_inactive_extent(struct cringbuf *rb, int *len, int amnt)
 {
 	struct __cringbuf *b;
-	int head, tail;
+	int                head, tail;
 
 	assert(rb && rb->b);
 	b    = rb->b;
@@ -151,7 +151,7 @@ cringbuf_inactive_extent(struct cringbuf *rb, int *len, int amnt)
 static inline void
 cringbuf_delete(struct cringbuf *rb, int amnt)
 {
-	int l = 0, head, nhead;
+	int   l = 0, head, nhead;
 	char *c;
 
 	assert(rb && rb->b);
@@ -168,7 +168,7 @@ cringbuf_delete(struct cringbuf *rb, int amnt)
 static inline void
 cringbuf_add(struct cringbuf *rb, int amnt)
 {
-	int l, tail, ntail;
+	int   l, tail, ntail;
 	char *c;
 
 	assert(rb && rb->b);
@@ -186,7 +186,7 @@ cringbuf_add(struct cringbuf *rb, int amnt)
 static int
 ringbuf_consume_some(struct cringbuf *rb, char *b, int amnt)
 {
-	int l;
+	int   l;
 	char *t;
 
 	t = cringbuf_active_extent(rb, &l, amnt);
@@ -201,7 +201,7 @@ ringbuf_consume_some(struct cringbuf *rb, char *b, int amnt)
 static int
 ringbuf_produce_some(struct cringbuf *rb, char *b, int amnt)
 {
-	int l;
+	int   l;
 	char *t;
 
 	t = cringbuf_inactive_extent(rb, &l, amnt);

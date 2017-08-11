@@ -60,10 +60,10 @@ skip_atoi(const char **s)
 static int
 number(void (*tx_byte)(unsigned char byte), unsigned long long num, int base, int size, int precision, int type)
 {
-	char c, sign, tmp[66];
+	char        c, sign, tmp[66];
 	const char *digits = "0123456789abcdefghijklmnopqrstuvwxyz";
-	int i;
-	int count = 0;
+	int         i;
+	int         count = 0;
 
 	if (type & LARGE) digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 	if (type & LEFT) type &= ~ZEROPAD;
@@ -125,10 +125,10 @@ number(void (*tx_byte)(unsigned char byte), unsigned long long num, int base, in
 int
 vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
 {
-	int len;
+	int                len;
 	unsigned long long num;
-	int i, base;
-	const char *s;
+	int                i, base;
+	const char *       s;
 
 	int flags; /* flags to number() */
 
@@ -155,11 +155,21 @@ vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
 	repeat:
 		++fmt; /* this also skips first '%' */
 		switch (*fmt) {
-		case '-': flags |= LEFT; goto repeat;
-		case '+': flags |= PLUS; goto repeat;
-		case ' ': flags |= SPACE; goto repeat;
-		case '#': flags |= SPECIAL; goto repeat;
-		case '0': flags |= ZEROPAD; goto repeat;
+		case '-':
+			flags |= LEFT;
+			goto repeat;
+		case '+':
+			flags |= PLUS;
+			goto repeat;
+		case ' ':
+			flags |= SPACE;
+			goto repeat;
+		case '#':
+			flags |= SPECIAL;
+			goto repeat;
+		case '0':
+			flags |= ZEROPAD;
+			goto repeat;
 		}
 
 		/* get field width */
@@ -257,14 +267,21 @@ vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
 			continue;
 
 		/* integer number formats - set up the flags and "break" */
-		case 'o': base = 8; break;
+		case 'o':
+			base = 8;
+			break;
 
-		case 'X': flags |= LARGE;
-		case 'x': base = 16; break;
+		case 'X':
+			flags |= LARGE;
+		case 'x':
+			base = 16;
+			break;
 
 		case 'd':
-		case 'i': flags |= SIGN;
-		case 'u': break;
+		case 'i':
+			flags |= SIGN;
+		case 'u':
+			break;
 
 		default:
 			tx_byte('%'), count++;

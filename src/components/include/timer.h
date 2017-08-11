@@ -15,7 +15,7 @@ struct timer_record {
 };
 
 struct timer {
-	unsigned long start;
+	unsigned long        start;
 	struct timer_record *r;
 };
 
@@ -28,7 +28,7 @@ timer_start(struct timer *t)
 static inline void
 timer_end(struct timer *t)
 {
-	unsigned long end, diff;
+	unsigned long        end, diff;
 	struct timer_record *r;
 
 	rdtscl(end);

@@ -15,12 +15,12 @@
  * performance of not using function pointers, but that is secondary.
  */
 struct sl_thd_policy *sl_thd_alloc_backend(thdid_t tid);
-void sl_thd_free_backend(struct sl_thd_policy *t);
+void                  sl_thd_free_backend(struct sl_thd_policy *t);
 
-void sl_thd_index_add_backend(struct sl_thd_policy *);
-void sl_thd_index_rem_backend(struct sl_thd_policy *);
+void                  sl_thd_index_add_backend(struct sl_thd_policy *);
+void                  sl_thd_index_rem_backend(struct sl_thd_policy *);
 struct sl_thd_policy *sl_thd_lookup_backend(thdid_t);
-void sl_thd_init_backend(void);
+void                  sl_thd_init_backend(void);
 
 /*
  * Each scheduler policy must implement the following API.  See above
@@ -29,10 +29,10 @@ void sl_thd_init_backend(void);
  * Scheduler modules (policies) should define the following
  */
 struct sl_thd_policy;
-static inline struct sl_thd *sl_mod_thd_get(struct sl_thd_policy *tp);
+static inline struct sl_thd *       sl_mod_thd_get(struct sl_thd_policy *tp);
 static inline struct sl_thd_policy *sl_mod_thd_policy_get(struct sl_thd *t);
 
-void sl_mod_execution(struct sl_thd_policy *t, cycles_t cycles);
+void                  sl_mod_execution(struct sl_thd_policy *t, cycles_t cycles);
 struct sl_thd_policy *sl_mod_schedule(void);
 
 void sl_mod_block(struct sl_thd_policy *t);

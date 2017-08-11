@@ -59,11 +59,11 @@ static int attrib = ATTRIBUTE;
 
 /* Forward declarations. */
 static unsigned short *memsetw(unsigned short *dest, unsigned short val, size_t count);
-static void puts(unsigned char *str);
-static void move_csr(void);
-static void cls(void);
-static void cll(void);
-static void putchar(int c);
+static void            puts(unsigned char *str);
+static void            move_csr(void);
+static void            cls(void);
+static void            cll(void);
+static void            putchar(int c);
 
 /* Utility: set 16bit memory with 16bit value */
 static unsigned short *
@@ -136,7 +136,7 @@ static void
 cls(void)
 {
 	unsigned blank = 0;
-	int i          = 0;
+	int      i     = 0;
 
 	/*
 	 * Again, we need the 'short' that will be used to

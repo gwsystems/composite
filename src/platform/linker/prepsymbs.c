@@ -58,7 +58,7 @@ int
 obs_serialize(asymbol *symb, void *data)
 {
 	struct symb_type *symbs = data;
-	char *name;
+	char *            name;
 
 	/* So that we can later add into the exported symbols the user
 	 * capability table
@@ -90,10 +90,10 @@ obs_serialize(asymbol *symb, void *data)
 int
 for_each_symb_type(bfd *obj, int symb_type, observer_t o, void *obs_data)
 {
-	long storage_needed;
+	long      storage_needed;
 	asymbol **symbol_table;
-	long number_of_symbols;
-	int i;
+	long      number_of_symbols;
+	int       i;
 
 	storage_needed = bfd_get_symtab_upper_bound(obj);
 
@@ -133,7 +133,7 @@ for_each_symb_type(bfd *obj, int symb_type, observer_t o, void *obs_data)
 int
 obj_serialize_symbols(char *tmp_exec, int symb_type, struct service_symbs *str)
 {
-	bfd *obj;
+	bfd *             obj;
 	struct symb_type *st;
 
 	obj = bfd_openr(tmp_exec, "elf32-i386");
@@ -192,8 +192,11 @@ parse_component_traits(char *name, struct component_traits *t, int *off)
 		}
 		break;
 	}
-	case '!': t->composite_loaded = 1; break;
-	default: /* base case */ return;
+	case '!':
+		t->composite_loaded = 1;
+		break;
+	default: /* base case */
+		return;
 	}
 	(*off)++;
 	parse_component_traits(name, t, off);
@@ -205,11 +208,11 @@ parse_component_traits(char *name, struct component_traits *t, int *off)
 struct service_symbs *
 alloc_service_symbs(char *obj)
 {
-	struct service_symbs *str;
-	char *obj_name     = malloc(strlen(obj) + 1), *cpy, *orig, *pos;
-	const char lassign = '(', *rassign = ")", *assign = "=";
-	struct component_traits t = { .sched = 0, .composite_loaded = 0 };
-	int off                   = 0;
+	struct service_symbs *  str;
+	char *                  obj_name = malloc(strlen(obj) + 1), *cpy, *orig, *pos;
+	const char              lassign = '(', *rassign = ")", *assign = "=";
+	struct component_traits t   = { .sched = 0, .composite_loaded = 0 };
+	int                     off = 0;
 
 	parse_component_traits(obj, &t, &off);
 	assert(obj_name);
@@ -217,7 +220,7 @@ alloc_service_symbs(char *obj)
 	 * is (newval=oldval),... */
 	if (obj[off] == lassign) {
 		char copy_cmd[256];
-		int ret;
+		int  ret;
 
 		off++;
 		parse_component_traits(obj, &t, &off);
@@ -269,9 +272,9 @@ struct service_symbs *
 prepare_service_symbs(char *services)
 {
 	struct service_symbs *str, *first;
-	const char *init_delim = ",", *serv_delim = ";";
-	char *tok, *init_str;
-	int len;
+	const char *          init_delim = ",", *serv_delim = ";";
+	char *                tok, *init_str;
+	int                   len;
 
 	printl(PRINT_DEBUG, "Prepare the list of components.\n");
 

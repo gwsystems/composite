@@ -34,11 +34,11 @@ __compinfo_metacap(struct cos_compinfo *ci)
 
 void
 cos_compinfo_init(struct cos_compinfo *ci,
-                  pgtblcap_t pgtbl_cap,
-                  captblcap_t captbl_cap,
-                  compcap_t comp_cap,
-                  vaddr_t heap_ptr,
-                  capid_t cap_frontier,
+                  pgtblcap_t           pgtbl_cap,
+                  captblcap_t          captbl_cap,
+                  compcap_t            comp_cap,
+                  vaddr_t              heap_ptr,
+                  capid_t              cap_frontier,
                   struct cos_compinfo *ci_resources)
 {
 	assert(ci && ci_resources);
@@ -76,9 +76,9 @@ cos_compinfo_init(struct cos_compinfo *ci,
 static vaddr_t
 __mem_bump_alloc(struct cos_compinfo *__ci, int km, int retype)
 {
-	vaddr_t ret = 0;
+	vaddr_t              ret = 0;
 	struct cos_compinfo *ci;
-	vaddr_t *ptr, *frontier;
+	vaddr_t *            ptr, *frontier;
 
 	printd("__mem_bump_alloc\n");
 
@@ -150,7 +150,7 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	/* the compinfo that tracks/allocates resources */
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 	/* do we manage our own resources, or does a separate meta? */
-	int self_resources = (meta == ci);
+	int     self_resources = (meta == ci);
 	capid_t frontier;
 
 	capid_t captblcap;
@@ -261,17 +261,24 @@ __capid_bump_alloc_generic(struct cos_compinfo *ci, capid_t *capsz_frontier, cap
 static capid_t
 __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 {
-	capid_t ret;
+	capid_t       ret;
 	unsigned long sz = captbl_idsize(cap);
-	capid_t *frontier;
+	capid_t *     frontier;
 
 	printd("__capid_bump_alloc\n");
 
 	switch (sz) {
-	case CAP16B_IDSZ: frontier = &ci->cap16_frontier; break;
-	case CAP32B_IDSZ: frontier = &ci->cap32_frontier; break;
-	case CAP64B_IDSZ: frontier = &ci->cap64_frontier; break;
-	default: return -1;
+	case CAP16B_IDSZ:
+		frontier = &ci->cap16_frontier;
+		break;
+	case CAP32B_IDSZ:
+		frontier = &ci->cap32_frontier;
+		break;
+	case CAP64B_IDSZ:
+		frontier = &ci->cap64_frontier;
+		break;
+	default:
+		return -1;
 	}
 	return __capid_bump_alloc_generic(ci, frontier, sz);
 }
@@ -282,8 +289,8 @@ static pgtblcap_t
 __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, pgtblcap_t intern)
 {
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
-	capid_t pte_cap;
-	vaddr_t ptemem_cap;
+	capid_t              pte_cap;
+	vaddr_t              ptemem_cap;
 
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
 
@@ -372,7 +379,7 @@ cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t 
 static void
 __cos_meminfo_populate(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz)
 {
-	vaddr_t addr, start_addr, retaddr;
+	vaddr_t              addr, start_addr, retaddr;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 
 	assert(untyped_ptr == round_up_to_pgd_page(untyped_ptr));
@@ -402,9 +409,9 @@ cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long un
 static vaddr_t
 __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_frontier, size_t sz)
 {
-	vaddr_t heap_vaddr, retaddr;
+	vaddr_t              heap_vaddr, retaddr;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
-	size_t rounded;
+	size_t               rounded;
 
 	printd("__page_bump_alloc\n");
 
@@ -441,7 +448,7 @@ static vaddr_t
 __page_bump_alloc(struct cos_compinfo *ci, size_t sz)
 {
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
-	vaddr_t heap_vaddr, heap_cursor, heap_limit;
+	vaddr_t              heap_vaddr, heap_cursor, heap_limit;
 
 	/*
 	 * Allocate the virtual address range to map into.  This is
@@ -533,7 +540,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 thdcap_t
 cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data)
 {
-	int idx = cos_thd_init_alloc(fn, data);
+	int      idx = cos_thd_init_alloc(fn, data);
 	thdcap_t ret;
 
 	if (idx < 1) return 0;
@@ -587,7 +594,7 @@ compcap_t
 cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry)
 {
 	capid_t cap;
-	u32_t lid = livenessid_bump_alloc();
+	u32_t   lid = livenessid_bump_alloc();
 
 	printd("cos_comp_alloc\n");
 
@@ -602,14 +609,14 @@ cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t
 
 int
 cos_compinfo_alloc(struct cos_compinfo *ci,
-                   vaddr_t heap_ptr,
-                   capid_t cap_frontier,
-                   vaddr_t entry,
+                   vaddr_t              heap_ptr,
+                   capid_t              cap_frontier,
+                   vaddr_t              entry,
                    struct cos_compinfo *ci_resources)
 {
-	pgtblcap_t ptc;
+	pgtblcap_t  ptc;
 	captblcap_t ctc;
-	compcap_t compc;
+	compcap_t   compc;
 
 	printd("cos_compinfo_alloc\n");
 
@@ -783,7 +790,7 @@ cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd, thdid_t *thdid, int *
 {
 	unsigned long thd_state = 0;
 	unsigned long cyc       = 0;
-	int ret;
+	int           ret;
 
 	ret = call_cap_retvals_asm(rcv, 0, flags, 0, 0, 0, &thd_state, &cyc);
 
@@ -802,10 +809,10 @@ cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd, thdid_t *thdid, int *
 int
 cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd)
 {
-	thdid_t tid = 0;
-	int blocked;
+	thdid_t  tid = 0;
+	int      blocked;
 	cycles_t cyc;
-	int ret;
+	int      ret;
 
 	ret = cos_sched_rcv(rcv, flags, rcvd, &tid, &blocked, &cyc);
 	assert(tid == 0);
@@ -962,7 +969,7 @@ cos_hw_cycles_thresh(hwcap_t hwc)
 void *
 cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 {
-	size_t sz;
+	size_t  sz;
 	vaddr_t fva, va;
 
 	assert(ci && hwc && pa && len);

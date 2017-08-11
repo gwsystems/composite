@@ -38,7 +38,7 @@
  */
 typedef struct cmap_struct {
 	cvect_t *data;
-	long free_list, id_boundary;
+	long     free_list, id_boundary;
 } cmap_t;
 
 /* depth = 0 indicates that we haven't initialized the structure */
@@ -138,7 +138,7 @@ cmap_lookup(cmap_t *m, long mid)
 static inline long
 cmap_add(cmap_t *m, void *val)
 {
-	long free;
+	long                 free;
 	struct cvect_intern *is_free, *is;
 
 	assert(m);
@@ -185,7 +185,7 @@ static inline long
 cmap_add_id(cmap_t *m, void *val, long mid)
 {
 	struct cvect_intern *is;
-	long next, prev;
+	long                 next, prev;
 
 	/* not really tested enough.  This is not the purpose of map,
 	 * use vect instead */

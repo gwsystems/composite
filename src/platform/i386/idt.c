@@ -31,8 +31,8 @@
 struct idt_entry {
 	u16_t base_lo; // Lower 16 bits of address to jump too after int
 	u16_t sel;     // Kernel segment selector
-	u8_t zero;     // Must always be zero
-	u8_t flags;    // flags
+	u8_t  zero;    // Must always be zero
+	u8_t  flags;   // flags
 	u16_t base_hi; // Upper 16 bits of addres to jump too
 } __attribute__((packed));
 
@@ -47,7 +47,7 @@ struct idt_ptr {
 extern void idt_flush(u32_t);
 
 struct idt_entry idt_entries[NUM_IDT_ENTRIES];
-struct idt_ptr idt_ptr;
+struct idt_ptr   idt_ptr;
 
 static void
 idt_set_gate(u8_t num, u32_t base, u16_t sel, u8_t flags)
@@ -165,7 +165,7 @@ idt_init(void)
 
 	struct {
 		unsigned short length;
-		unsigned long base;
+		unsigned long  base;
 	} __attribute__((__packed__)) idtr;
 
 	idtr.length = idt_ptr.limit;

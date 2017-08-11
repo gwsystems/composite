@@ -19,8 +19,8 @@ printk_register_handler(void (*handler)(const char *))
 void
 printk(const char *fmt, ...)
 {
-	char buffer[PRINTK_BUFFER];
-	va_list args;
+	char         buffer[PRINTK_BUFFER];
+	va_list      args;
 	unsigned int l, i;
 
 	va_start(args, fmt);

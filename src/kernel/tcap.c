@@ -110,7 +110,7 @@ int
 tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new)
 {
 	struct cap_tcap *tc;
-	int ret;
+	int              ret;
 
 	assert(tcap_new);
 	__tcap_init(tcap_new);
@@ -135,10 +135,10 @@ tcap_promote(struct tcap *t, struct thread *thd)
 int
 tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t prio)
 {
-	int ndelegs, i, j;
+	int        ndelegs, i, j;
 	tcap_uid_t d, s;
-	int si  = -1;
-	int ret = 0;
+	int        si  = -1;
+	int        ret = 0;
 	/* doing this in-place is too much of a pain */
 	struct tcap_sched_info deleg_tmp[TCAP_MAX_DELEGATIONS];
 
@@ -223,9 +223,9 @@ tcap_merge(struct tcap *dst, struct tcap *rm)
 int
 tcap_wakeup(struct tcap *tc, tcap_prio_t prio, tcap_res_t budget, struct thread *thd, struct cos_cpu_local_info *cli)
 {
-	int ret;
-	struct next_thdinfo *nti = &cli->next_ti;
-	tcap_prio_t tmpprio      = tcap_sched_info(tc)->prio;
+	int                  ret;
+	struct next_thdinfo *nti     = &cli->next_ti;
+	tcap_prio_t          tmpprio = tcap_sched_info(tc)->prio;
 
 	if (!nti->tc) {
 		assert(!nti->thd);

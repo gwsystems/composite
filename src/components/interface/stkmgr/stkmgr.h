@@ -13,6 +13,6 @@
  * cos_asm_server_stub_spdid
  */
 void *stkmgr_grant_stack(spdid_t d_spdid);
-void stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr);
+void  stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr);
 
 #endif

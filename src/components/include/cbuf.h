@@ -201,11 +201,11 @@ typedef union {
 /* TODO: use these! */
 struct cbuf_agg_elem {
 	cbuf_t id;
-	u32_t offset, len;
+	u32_t  offset, len;
 };
 /* An aggregate of multiple cbufs. */
 struct cbuf_agg {
-	int ncbufs;
+	int                  ncbufs;
 	struct cbuf_agg_elem elem[0];
 };
 
@@ -240,9 +240,9 @@ cbuf_is_null(cbuf_t cb)
 }
 
 extern struct cbuf_meta *__cbuf_alloc_slow(unsigned long size, int *len, unsigned int flag);
-extern int __cbuf_2buf_miss(unsigned int cbid, int len);
-extern cvect_t meta_cbuf;
-static inline void cbuf_free(cbuf_t cb);
+extern int               __cbuf_2buf_miss(unsigned int cbid, int len);
+extern cvect_t           meta_cbuf;
+static inline void       cbuf_free(cbuf_t cb);
 
 static inline struct cbuf_meta *
 cbuf_vect_lookup_addr(unsigned int id)
@@ -261,8 +261,8 @@ static inline void *
 cbuf2buf(cbuf_t cb, int len)
 {
 	struct cbuf_meta *cm;
-	void *ret = NULL;
-	unsigned int id, t;
+	void *            ret = NULL;
+	unsigned int      id, t;
 
 	if (unlikely(len <= 0)) return NULL;
 	cbuf_unpack(cb, &id);
@@ -315,7 +315,7 @@ done:
 static inline void
 __cbuf_send(cbuf_t cb, int free)
 {
-	unsigned int id;
+	unsigned int      id;
 	struct cbuf_meta *cm;
 
 	cbuf_unpack(cb, &id);
@@ -368,9 +368,9 @@ static inline struct cbuf_meta *
 __cbuf_freelist_get(int size)
 {
 	/* We have per-core, per-component, per-size free-list */
-	struct cbuf_freelist *fl = PERCPU_GET(cbuf_alloc_freelists);
-	int order                = ones(size - 1) - PAGE_ORDER;
-	struct cbuf_meta *m;
+	struct cbuf_freelist *fl    = PERCPU_GET(cbuf_alloc_freelists);
+	int                   order = ones(size - 1) - PAGE_ORDER;
+	struct cbuf_meta *    m;
 	if (!(pow2(size) && size >= PAGE_SIZE)) {
 		printc("cbuf free size %d spd %d\n", size, cos_spd_id());
 	}
@@ -398,7 +398,7 @@ __cbuf_freelist_get(int size)
 static inline int
 __cbuf_try_take(struct cbuf_meta *cm, unsigned int flag)
 {
-	int inconsistent, r = 0;
+	int           inconsistent, r = 0;
 	unsigned long old_nfo, new_nfo;
 
 	assert(cm && cm->next);
@@ -448,10 +448,10 @@ ret:
 static inline void
 __cbuf_freelist_push(unsigned long sz, struct cbuf_meta *h, struct cbuf_meta *t)
 {
-	struct cbuf_meta *fl;
+	struct cbuf_meta *  fl;
 	unsigned long long *target, old, update;
-	unsigned long *ofake = (unsigned long *)&old;
-	unsigned long *nfake = (unsigned long *)&update;
+	unsigned long *     ofake = (unsigned long *)&old;
+	unsigned long *     nfake = (unsigned long *)&update;
 
 	fl       = __cbuf_freelist_get(sz);
 	target   = (unsigned long long *)(&fl->next);
@@ -466,9 +466,9 @@ __cbuf_freelist_push(unsigned long sz, struct cbuf_meta *h, struct cbuf_meta *t)
 static inline struct cbuf_meta *
 __cbuf_freelist_pop(unsigned long sz, unsigned int flag)
 {
-	struct cbuf_meta *cm, *fl;
+	struct cbuf_meta *  cm, *fl;
 	unsigned long long *target, old, update;
-	unsigned long *ofake, *nfake;
+	unsigned long *     ofake, *nfake;
 
 	ofake = (unsigned long *)&old;
 	nfake = (unsigned long *)&update;
@@ -494,7 +494,7 @@ again:
 static inline void *
 cbuf_set_fork(cbuf_t cb, int flag)
 {
-	unsigned int id;
+	unsigned int      id;
 	struct cbuf_meta *cm;
 
 	cbuf_unpack(cb, &id);
@@ -508,9 +508,9 @@ cbuf_set_fork(cbuf_t cb, int flag)
 static inline void *
 cbuf_alloc_ext(unsigned long sz, cbuf_t *cb, unsigned int flag)
 {
-	void *ret;
-	unsigned int cbid;
-	int len;
+	void *            ret;
+	unsigned int      cbid;
+	int               len;
 	struct cbuf_meta *cm = NULL;
 
 	if (unlikely(flag & CBUF_EXACTSZ)) goto create;
@@ -541,7 +541,7 @@ static inline void
 cbuf_ref(cbuf_t cb)
 {
 	struct cbuf_meta *cm;
-	unsigned int id;
+	unsigned int      id;
 
 	cbuf_unpack(cb, &id);
 	cm = cbuf_vect_lookup_addr(id);
@@ -553,8 +553,8 @@ static inline void
 cbuf_free(cbuf_t cb)
 {
 	struct cbuf_meta *cm, *fl;
-	int flag = CBUF_RELINQ | CBUF_TMEM | CBUF_EXACTSZ;
-	unsigned int id;
+	int               flag = CBUF_RELINQ | CBUF_TMEM | CBUF_EXACTSZ;
+	unsigned int      id;
 
 	cbuf_unpack(cb, &id);
 	cm = cbuf_vect_lookup_addr(id);
@@ -608,7 +608,7 @@ static int
 cbuf_debug_freelist_num(unsigned long sz)
 {
 	struct cbuf_meta *cm, *fl;
-	int ret = 0;
+	int               ret = 0;
 
 	sz = nlepow2(round_up_to_page(sz));
 	fl = __cbuf_freelist_get(sz);

@@ -27,7 +27,7 @@ cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated)
 static inline int
 cos_dcas(unsigned long long *target, unsigned long long old, unsigned long long updated)
 {
-	char z;
+	char         z;
 	unsigned int old_h, old_l, new_h, new_l;
 	old_h = (unsigned int)(old >> 32);
 	old_l = (unsigned int)(old & 0xffffffff);

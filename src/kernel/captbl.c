@@ -12,7 +12,7 @@ int
 captbl_activate_boot(struct captbl *t, unsigned long cap)
 {
 	struct cap_captbl *ctc;
-	int ret;
+	int                ret;
 
 	ctc = (struct cap_captbl *)captbl_add(t, cap, CAP_CAPTBL, &ret);
 	if (!ctc) return ret;
@@ -29,7 +29,7 @@ int
 captbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, struct captbl *toadd, u32_t lvl)
 {
 	struct cap_captbl *ct;
-	int ret;
+	int                ret;
 
 	ct = (struct cap_captbl *)__cap_capactivate_pre(t, cap, capin, CAP_CAPTBL, &ret);
 	if (!unlikely(ct)) return ret;
@@ -45,19 +45,19 @@ captbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, struct
 }
 
 int
-captbl_deactivate(struct captbl *t,
+captbl_deactivate(struct captbl *    t,
                   struct cap_captbl *dest_ct_cap,
-                  unsigned long capin,
-                  livenessid_t lid,
-                  capid_t pgtbl_cap,
-                  capid_t cosframe_addr,
-                  const int root)
+                  unsigned long      capin,
+                  livenessid_t       lid,
+                  capid_t            pgtbl_cap,
+                  capid_t            cosframe_addr,
+                  const int          root)
 {
 	struct cap_header *deact_header;
 	struct cap_captbl *deact_cap, *parent;
 
 	unsigned long l, old_v = 0, *pte = NULL;
-	int ret;
+	int           ret;
 
 	deact_header = captbl_lkup(dest_ct_cap->captbl, capin);
 	if (!deact_header || deact_header->type != CAP_CAPTBL) cos_throw(err, -EINVAL);
@@ -117,7 +117,7 @@ err:
 int
 captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr)
 {
-	int ret;
+	int   ret;
 	u32_t l;
 	void *captbl_mem;
 
@@ -164,11 +164,11 @@ static int
 captbl_leaflvl_scan(struct captbl *ct)
 {
 	unsigned int i, ret;
-	u64_t curr_ts, past_ts;
+	u64_t        curr_ts, past_ts;
 
 	/* going through each cacheline. */
 	for (i = 0; i < ((1 << CAPTBL_LEAF_ORD) * CAPTBL_LEAFSZ) / CACHELINE_SIZE; i++) {
-		int j, n_ent, ent_size;
+		int                j, n_ent, ent_size;
 		struct cap_header *h, *header_i, l;
 
 		/* header of this cacheline. */
@@ -206,7 +206,7 @@ captbl_kmem_scan(struct cap_captbl *cap)
 {
 	/* This scans the leaf level of the captbl. We need to go
 	 * through all cap entries and verify quiescence. */
-	int ret;
+	int            ret;
 	struct captbl *ct = cap->captbl;
 	assert(cap->lvl == CAPTBL_DEPTH - 1);
 

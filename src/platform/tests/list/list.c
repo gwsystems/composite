@@ -6,10 +6,10 @@
 #include <clist.h>
 
 struct list_test {
-	int id;
-	char filler[2];
+	int          id;
+	char         filler[2];
 	struct clist CLIST_DEF_NAME;
-	int nothingelse;
+	int          nothingelse;
 };
 
 void
@@ -29,7 +29,7 @@ int
 check(struct clist_head *lh, char chk[])
 {
 	struct list_test *l;
-	int i;
+	int               i;
 
 	clist_head_fst(lh, &l);
 	for (i = 0, clist_head_fst(lh, &l); !clist_is_head(lh, l); l = clist_next(l), i++) {
@@ -43,7 +43,7 @@ int
 main(void)
 {
 	struct clist_head h;
-	struct list_test l0, l1, l2;
+	struct list_test  l0, l1, l2;
 
 	clist_head_init(&h);
 	l0.id = 0;

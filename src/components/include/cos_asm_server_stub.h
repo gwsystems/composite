@@ -22,10 +22,10 @@
 
 #define cos_asm_server_fn_stub(name, fn)         \
 	.globl name##_inv;                       \
-	.type name##_inv, @function;             \
+	.type  name##_inv, @function;            \
 	.align 16;                               \
 	name##_inv : COS_ASM_GET_STACK pushl $0; \
-	pushl $0;                                \
+	pushl                                $0; \
 	pushl % esp;                             \
 	pushl % ebp;                             \
 	xor % ebp, % ebp;                        \
@@ -47,10 +47,10 @@
 
 #define cos_asm_server_fn_stub_spdid(name, fn)   \
 	.globl name##_inv;                       \
-	.type name##_inv, @function;             \
+	.type  name##_inv, @function;            \
 	.align 16;                               \
 	name##_inv : COS_ASM_GET_STACK pushl $0; \
-	pushl $0;                                \
+	pushl                                $0; \
 	pushl % esp;                             \
 	pushl % ebp;                             \
 	xor % ebp, % ebp;                        \
