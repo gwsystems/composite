@@ -23,7 +23,7 @@
 struct free_page {
 	struct free_page *next;
 };
-static struct free_page page_list = {.next = NULL};
+static struct free_page page_list = { .next = NULL };
 
 static inline void *
 cpage_alloc(void)
@@ -36,20 +36,20 @@ cpage_alloc(void)
 		a = CPAGE_ALLOC();
 	} else {
 		page_list.next = fp->next;
-		fp->next = NULL;
-		a = (void*)fp;
+		fp->next       = NULL;
+		a              = (void *)fp;
 	}
-	
+
 	return a;
 }
 
-static inline void 
+static inline void
 cpage_free(void *ptr)
 {
 	struct free_page *fp;
-	
-	fp = (struct free_page *)ptr;
-	fp->next = page_list.next;
+
+	fp             = (struct free_page *)ptr;
+	fp->next       = page_list.next;
 	page_list.next = fp;
 
 	return;

@@ -20,7 +20,7 @@
 
 struct invstk_entry {
 	struct comp_info comp_info;
-	unsigned long sp, ip; 	/* to return to */
+	unsigned long sp, ip; /* to return to */
 } HALF_CACHE_ALIGNED;
 
 #define THD_INVSTK_MAXSZ 32
@@ -36,13 +36,13 @@ struct rcvcap_info {
 	/* how many other arcv end-points send notifications to this one? */
 	int isbound, pending, refcnt, is_all_pending;
 	sched_tok_t sched_count;
-	struct tcap   *rcvcap_tcap;      /* This rcvcap's tcap */
+	struct tcap *rcvcap_tcap;        /* This rcvcap's tcap */
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
 };
 
 typedef enum {
-	THD_STATE_PREEMPTED   = 1,
-	THD_STATE_RCVING      = 1<<1, /* report to parent rcvcap that we're receiving */
+	THD_STATE_PREEMPTED = 1,
+	THD_STATE_RCVING    = 1 << 1, /* report to parent rcvcap that we're receiving */
 } thd_state_t;
 
 /**
@@ -54,24 +54,24 @@ typedef enum {
 struct thread {
 	thdid_t tid;
 	u16_t invstk_top;
-        struct pt_regs regs;
-        struct pt_regs fault_regs;
-        struct cos_fpu fpu;
+	struct pt_regs regs;
+	struct pt_regs fault_regs;
+	struct cos_fpu fpu;
 
 	/* TODO: same cache-line as the tid */
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
 
-	thd_state_t  state;
-	u32_t        tls;
-	cpuid_t      cpuid;
+	thd_state_t state;
+	u32_t tls;
+	cpuid_t cpuid;
 	unsigned int refcnt;
-	tcap_res_t   exec;   /* execution time */
+	tcap_res_t exec; /* execution time */
 	struct thread *interrupted_thread;
 
 	/* rcv end-point data-structures */
 	struct rcvcap_info rcvcap;
-	struct list        event_head; /* all events for *this* end-point */
-	struct list_node   event_list; /* the list of events for another end-point */
+	struct list event_head;      /* all events for *this* end-point */
+	struct list_node event_list; /* the list of events for another end-point */
 } CACHE_ALIGNED;
 
 /*
@@ -99,7 +99,7 @@ thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int
 	r->si = arg3;
 
 	r->ip = r->dx = entry_addr;
-	r->ax = thd->tid | (get_cpuid() << 16); // thd id + cpu id
+	r->ax         = thd->tid | (get_cpuid() << 16); // thd id + cpu id
 
 	return;
 }
@@ -120,30 +120,51 @@ extern u32_t free_thd_id;
 static u32_t
 thdid_alloc(void)
 {
-        /* FIXME: thd id address space management. */
+	/* FIXME: thd id address space management. */
 	if (unlikely(free_thd_id >= MAX_NUM_THREADS)) assert(0);
-	return cos_faa((int*)&free_thd_id, 1);
+	return cos_faa((int *)&free_thd_id, 1);
 }
 static void
-thd_rcvcap_take(struct thread *t)         { t->rcvcap.refcnt++; }
+thd_rcvcap_take(struct thread *t)
+{
+	t->rcvcap.refcnt++;
+}
 
 static void
-thd_rcvcap_release(struct thread *t)      { t->rcvcap.refcnt--; }
+thd_rcvcap_release(struct thread *t)
+{
+	t->rcvcap.refcnt--;
+}
 
 static inline int
-thd_rcvcap_isreferenced(struct thread *t) { return t->rcvcap.refcnt > 0; }
+thd_rcvcap_isreferenced(struct thread *t)
+{
+	return t->rcvcap.refcnt > 0;
+}
 
 static inline int
-thd_bound2rcvcap(struct thread *t)        { return t->rcvcap.isbound; }
+thd_bound2rcvcap(struct thread *t)
+{
+	return t->rcvcap.isbound;
+}
 
 static inline int
-thd_rcvcap_is_sched(struct thread *t)     { return thd_rcvcap_isreferenced(t); }
+thd_rcvcap_is_sched(struct thread *t)
+{
+	return thd_rcvcap_isreferenced(t);
+}
 
 static inline struct tcap *
-thd_rcvcap_tcap(struct thread *t)         { return t->rcvcap.rcvcap_tcap; }
+thd_rcvcap_tcap(struct thread *t)
+{
+	return t->rcvcap.rcvcap_tcap;
+}
 
 static int
-thd_rcvcap_isroot(struct thread *t)       { return t == t->rcvcap.rcvcap_thd_notif; }
+thd_rcvcap_isroot(struct thread *t)
+{
+	return t == t->rcvcap.rcvcap_thd_notif;
+}
 
 static inline struct thread *
 thd_rcvcap_sched(struct thread *t)
@@ -153,8 +174,11 @@ thd_rcvcap_sched(struct thread *t)
 }
 
 static void
-thd_next_thdinfo_update(struct cos_cpu_local_info *cli, struct thread *thd,
-			struct tcap *tc, tcap_prio_t prio, tcap_res_t budget)
+thd_next_thdinfo_update(struct cos_cpu_local_info *cli,
+                        struct thread *thd,
+                        struct tcap *tc,
+                        tcap_prio_t prio,
+                        tcap_res_t budget)
 {
 	struct next_thdinfo *nti = &cli->next_ti;
 
@@ -170,20 +194,28 @@ thd_rcvcap_init(struct thread *t)
 	struct rcvcap_info *rc = &t->rcvcap;
 
 	rc->isbound = rc->pending = rc->refcnt = 0;
-	rc->is_all_pending = 0;
-	rc->sched_count = 0;
-	rc->rcvcap_thd_notif = NULL;
+	rc->is_all_pending                     = 0;
+	rc->sched_count                        = 0;
+	rc->rcvcap_thd_notif                   = NULL;
 }
 
 static inline void
 thd_rcvcap_evt_enqueue(struct thread *head, struct thread *t)
-{ if (list_empty(&t->event_list) && head != t) list_enqueue(&head->event_head, &t->event_list); }
+{
+	if (list_empty(&t->event_list) && head != t) list_enqueue(&head->event_head, &t->event_list);
+}
 
 static inline void
-thd_list_rem(struct thread *head, struct thread *t) { list_rem(&t->event_list); }
+thd_list_rem(struct thread *head, struct thread *t)
+{
+	list_rem(&t->event_list);
+}
 
 static inline struct thread *
-thd_rcvcap_evt_dequeue(struct thread *head) { return list_dequeue(&head->event_head); }
+thd_rcvcap_evt_dequeue(struct thread *head)
+{
+	return list_dequeue(&head->event_head);
+}
 
 /*
  * If events are going to be delivered on this thread, then we should
@@ -191,15 +223,22 @@ thd_rcvcap_evt_dequeue(struct thread *head) { return list_dequeue(&head->event_h
  * a notification trigger for tracking the thread's execution time.
  */
 static inline int
-thd_track_exec(struct thread *t) { return !list_empty(&t->event_list); }
+thd_track_exec(struct thread *t)
+{
+	return !list_empty(&t->event_list);
+}
 
 static void
 thd_rcvcap_all_pending_set(struct thread *t, int val)
-{ t->rcvcap.is_all_pending = val; }
+{
+	t->rcvcap.is_all_pending = val;
+}
 
 static int
 thd_rcvcap_all_pending_get(struct thread *t)
-{ return t->rcvcap.is_all_pending; }
+{
+	return t->rcvcap.is_all_pending;
+}
 
 static int
 thd_rcvcap_all_pending(struct thread *t)
@@ -217,20 +256,27 @@ static int
 thd_rcvcap_pending(struct thread *t)
 {
 	if (t->rcvcap.pending) return t->rcvcap.pending;
-	return !list_isempty(&t->event_head);;
+	return !list_isempty(&t->event_head);
+	;
 }
 
 static sched_tok_t
 thd_rcvcap_get_counter(struct thread *t)
-{ return t->rcvcap.sched_count; }
+{
+	return t->rcvcap.sched_count;
+}
 
 static void
 thd_rcvcap_set_counter(struct thread *t, sched_tok_t cntr)
-{ t->rcvcap.sched_count = cntr; }
+{
+	t->rcvcap.sched_count = cntr;
+}
 
 static void
 thd_rcvcap_pending_inc(struct thread *arcvt)
-{ arcvt->rcvcap.pending++; }
+{
+	arcvt->rcvcap.pending++;
+}
 
 static int
 thd_rcvcap_pending_dec(struct thread *arcvt)
@@ -251,7 +297,7 @@ thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long 
 	assert(thd_bound2rcvcap(t));
 	if (!e) return 0;
 
-	*thd_state = e->tid | (e->state & THD_STATE_RCVING ? (thd_rcvcap_pending(e) ? 0 : 1<<31) : 0);
+	*thd_state = e->tid | (e->state & THD_STATE_RCVING ? (thd_rcvcap_pending(e) ? 0 : 1 << 31) : 0);
 	*cycles    = e->exec;
 	e->exec    = 0;
 
@@ -275,10 +321,10 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
-	thd->tid          = thdid_alloc();
-	thd->refcnt       = 1;
-     	thd->invstk_top   = 0;
-	thd->cpuid        = get_cpuid();
+	thd->tid                              = thdid_alloc();
+	thd->refcnt                           = 1;
+	thd->invstk_top                       = 0;
+	thd->cpuid                            = get_cpuid();
 	assert(thd->tid <= MAX_NUM_THREADS);
 
 	thd_rcvcap_init(thd);
@@ -296,8 +342,13 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 }
 
 static int
-thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin,
-	       livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
+thd_deactivate(struct captbl *ct,
+               struct cap_captbl *dest_ct,
+               unsigned long capin,
+               livenessid_t lid,
+               capid_t pgtbl_cap,
+               capid_t cosframe_addr,
+               const int root)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
 	struct cap_header *thd_header;
@@ -318,8 +369,7 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 		 * Last reference. Require pgtbl and cos_frame cap to
 		 * release the kmem page.
 		 */
-		ret = kmem_deact_pre(thd_header, ct, pgtbl_cap,
-				     cosframe_addr, &pte, &old_v);
+		ret = kmem_deact_pre(thd_header, ct, pgtbl_cap, cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
 		/* more reference exists. */
@@ -331,7 +381,8 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 			 * parameters as we won't be able to release
 			 * the memory. */
 			printk("cos: deactivating thread but not able to release kmem page (%p) yet (ref_cnt %d).\n",
-			       (void *)cosframe_addr, thd->refcnt);
+			       (void *)cosframe_addr,
+			       thd->refcnt);
 		}
 	}
 
@@ -376,12 +427,14 @@ static void
 thd_init(void)
 {
 	assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD));
-	//assert(offsetof(struct thread, regs) == 4); /* see THD_REGS in entry.S */
+	// assert(offsetof(struct thread, regs) == 4); /* see THD_REGS in entry.S */
 }
 
 static inline struct thread *
 thd_current(struct cos_cpu_local_info *cos_info)
-{ return (struct thread *)(cos_info->curr_thd); }
+{
+	return (struct thread *)(cos_info->curr_thd);
+}
 
 static inline void
 thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
@@ -392,17 +445,20 @@ thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_loca
 	cos_info->curr_thd   = next;
 }
 
-static inline int curr_invstk_inc(struct cos_cpu_local_info *cos_info)
+static inline int
+curr_invstk_inc(struct cos_cpu_local_info *cos_info)
 {
 	return cos_info->invstk_top++;
 }
 
-static inline int curr_invstk_dec(struct cos_cpu_local_info *cos_info)
+static inline int
+curr_invstk_dec(struct cos_cpu_local_info *cos_info)
 {
 	return cos_info->invstk_top--;
 }
 
-static inline int curr_invstk_top(struct cos_cpu_local_info *cos_info)
+static inline int
+curr_invstk_top(struct cos_cpu_local_info *cos_info)
 {
 	return cos_info->invstk_top;
 }
@@ -414,8 +470,8 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 	struct invstk_entry *curr;
 
 	curr = &curr_thd->invstk[curr_invstk_top(cos_info)];
-	*ip = curr->ip;
-	*sp = curr->sp;
+	*ip  = curr->ip;
+	*sp  = curr->sp;
 
 	return &curr->comp_info;
 }
@@ -432,19 +488,23 @@ thd_current_pgtbl(struct thread *thd)
 }
 
 static inline int
-thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp, struct cos_cpu_local_info *cos_info)
+thd_invstk_push(struct thread *thd,
+                struct comp_info *ci,
+                unsigned long ip,
+                unsigned long sp,
+                struct cos_cpu_local_info *cos_info)
 {
 	struct invstk_entry *top, *prev;
 
 	if (unlikely(curr_invstk_top(cos_info) >= THD_INVSTK_MAXSZ)) return -1;
 
 	prev = &thd->invstk[curr_invstk_top(cos_info)];
-	top  = &thd->invstk[curr_invstk_top(cos_info)+1];
+	top  = &thd->invstk[curr_invstk_top(cos_info) + 1];
 	curr_invstk_inc(cos_info);
 	prev->ip = ip;
 	prev->sp = sp;
 	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
-	top->ip  = top->sp = 0;
+	top->ip = top->sp = 0;
 
 	return 0;
 }
@@ -460,13 +520,14 @@ thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, struct 
 static inline void
 thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_regs *regs)
 {
-	curr->state             |= THD_STATE_PREEMPTED;
+	curr->state |= THD_STATE_PREEMPTED;
 	next->interrupted_thread = curr;
 	memcpy(&curr->regs, regs, sizeof(struct pt_regs));
 }
 
-static inline void 
-thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs) {
+static inline void
+thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs)
+{
 	unsigned long a = 0, b = 0;
 	int all_pending = thd_rcvcap_all_pending_get(thd);
 
@@ -504,9 +565,9 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 static inline int
 thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 {
-	switch(op) {
+	switch (op) {
 	case THD_GET_TID: *retval = t->tid; break;
-	default:          return -EINVAL;
+	default: return -EINVAL;
 	}
 	return 0;
 }

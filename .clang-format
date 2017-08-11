@@ -11,7 +11,7 @@ AllowShortCaseLabelsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: true
 AllowShortIfStatementsOnASingleLine: true
 
-AlwaysBreakAfterReturnType: All
+AlwaysBreakAfterReturnType: AllDefinitions
 
 BreakBeforeBraces: Linux
 BreakBeforeBinaryOperators: NonAssignment

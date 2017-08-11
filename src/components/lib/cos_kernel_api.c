@@ -142,8 +142,7 @@ __untyped_bump_alloc(struct cos_compinfo *ci)
 
 /**************** [Capability Allocation Functions] ****************/
 
-static capid_t
-__capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
+static capid_t __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
 
 static int
 __capid_captbl_check_expand(struct cos_compinfo *ci)

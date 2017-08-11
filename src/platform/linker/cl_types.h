@@ -15,13 +15,7 @@
 #include <bfd.h>
 #include <cobj_format.h>
 
-typedef enum {
-	LLBOOT_COMPN,
-	LLBOOT_SCHED,
-	LLBOOT_MM,
-	LLBOOT_PRINT,
-	LLBOOT_BOOT
-} llboot_component_ids;
+typedef enum { LLBOOT_COMPN, LLBOOT_SCHED, LLBOOT_MM, LLBOOT_PRINT, LLBOOT_BOOT } llboot_component_ids;
 
 struct sec_info {
 	asection *s;
@@ -52,7 +46,7 @@ typedef enum {
  */
 struct cos_sections {
 	sec_type_t secid;
-	int cobj_flags, coalesce; 		/* should this section be output with the previous? */
+	int cobj_flags, coalesce; /* should this section be output with the previous? */
 	char *sname, *ld_output;
 	struct sec_info srcobj, ldobj;
 	unsigned long start_addr, len;
@@ -86,13 +80,7 @@ struct dependency {
 	int resolved;
 };
 
-typedef enum {
-	SERV_SECT_RO,
-	SERV_SECT_DATA,
-	SERV_SECT_BSS,
-	SERV_SECT_INITONCE,
-	SERV_SECT_NUM
-} serv_sect_type;
+typedef enum { SERV_SECT_RO, SERV_SECT_DATA, SERV_SECT_BSS, SERV_SECT_INITONCE, SERV_SECT_NUM } serv_sect_type;
 
 struct service_section {
 	unsigned long offset;
@@ -122,11 +110,7 @@ struct service_symbs {
 	void *extern_info;
 };
 
-typedef enum {
-	TRANS_CAP_NIL = 0,
-	TRANS_CAP_FAULT,
-	TRANS_CAP_SCHED
-} trans_cap_t;
+typedef enum { TRANS_CAP_NIL = 0, TRANS_CAP_FAULT, TRANS_CAP_SCHED } trans_cap_t;
 
 struct cap_ret_info {
 	struct symb *csymb, *ssymbfn, *cstub, *sstub;
@@ -141,33 +125,33 @@ struct comp_graph {
 
 /* struct is 64 bytes, so we can have 64 entries in a page. */
 struct component_init_str {
-        unsigned int spdid, schedid;
-        int startup;
-        char init_str[INIT_STR_SZ];
-}__attribute__((packed));
+	unsigned int spdid, schedid;
+	int startup;
+	char init_str[INIT_STR_SZ];
+} __attribute__((packed));
 
 struct component_traits {
-        int sched, composite_loaded;
+	int sched, composite_loaded;
 };
 
 struct spd_info {
-        int spd_handle, num_caps;
-        vaddr_t ucap_tbl;
-        unsigned long lowest_addr;
-        unsigned long size;
-        unsigned long mem_size;
-        vaddr_t upcall_entry;
-        vaddr_t atomic_regions[10];
+	int spd_handle, num_caps;
+	vaddr_t ucap_tbl;
+	unsigned long lowest_addr;
+	unsigned long size;
+	unsigned long mem_size;
+	vaddr_t upcall_entry;
+	vaddr_t atomic_regions[10];
 };
 
 struct cap_info {
-        int cap_handle, rel_offset;
-        int owner_spd_handle, dest_spd_handle;
-        isolation_level_t il;
-        int flags;
-        vaddr_t ST_serv_entry;
-        vaddr_t SD_cli_stub, SD_serv_stub;
-        vaddr_t AT_cli_stub, AT_serv_stub;
+	int cap_handle, rel_offset;
+	int owner_spd_handle, dest_spd_handle;
+	isolation_level_t il;
+	int flags;
+	vaddr_t ST_serv_entry;
+	vaddr_t SD_cli_stub, SD_serv_stub;
+	vaddr_t AT_cli_stub, AT_serv_stub;
 };
 
 

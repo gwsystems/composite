@@ -71,7 +71,9 @@ sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, va
 
 static int
 sinv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
-{ return cap_capdeactivate(t, capin, CAP_SINV, lid); }
+{
+	return cap_capdeactivate(t, capin, CAP_SINV, lid);
+}
 
 static int
 sret_activate(struct captbl *t, capid_t cap, capid_t capin)
@@ -88,7 +90,9 @@ sret_activate(struct captbl *t, capid_t cap, capid_t capin)
 
 static int
 sret_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
-{ return cap_capdeactivate(t, capin, CAP_SRET, lid); }
+{
+	return cap_capdeactivate(t, capin, CAP_SRET, lid);
+}
 
 static int
 asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, capid_t rcv_cap, u32_t budget, u32_t period)
@@ -97,9 +101,9 @@ asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, capid_t rcv_cap, 
 
 	/* copy data from the arcv capability */
 	memcpy(&asndc->comp_info, &arcvc->comp_info, sizeof(struct comp_info));
-	asndc->h.type         = CAP_ASND;
-	asndc->arcv_epoch     = arcvc->epoch;
-	asndc->arcv_cpuid     = arcvc->cpuid;
+	asndc->h.type     = CAP_ASND;
+	asndc->arcv_epoch = arcvc->epoch;
+	asndc->arcv_cpuid = arcvc->cpuid;
 	/* ...and initialize our own data */
 	asndc->cpuid          = get_cpuid();
 	asndc->arcv_capid     = rcv_cap;
@@ -112,7 +116,13 @@ asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, capid_t rcv_cap, 
 }
 
 static int
-asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, capid_t rcv_cap, u32_t budget, u32_t period)
+asnd_activate(struct captbl *t,
+              capid_t cap,
+              capid_t capin,
+              capid_t rcv_captbl,
+              capid_t rcv_cap,
+              u32_t budget,
+              u32_t period)
 {
 	struct cap_captbl *rcv_ct;
 	struct cap_asnd *asndc;
@@ -136,7 +146,9 @@ asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, 
 
 static int
 asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
-{ return cap_capdeactivate(t, capin, CAP_ASND, lid); }
+{
+	return cap_capdeactivate(t, capin, CAP_ASND, lid);
+}
 
 /* send to a receive end-point within an interrupt */
 int cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs);
@@ -148,9 +160,9 @@ __arcv_setup(struct cap_arcv *arcv, struct thread *thd, struct tcap *tcap, struc
 	arcv->thd                    = thd;
 	thd->rcvcap.rcvcap_thd_notif = notif;
 	if (notif) thd_rcvcap_take(notif);
-	thd->rcvcap.isbound          = 1;
+	thd->rcvcap.isbound = 1;
 
-	thd->rcvcap.rcvcap_tcap      = tcap;
+	thd->rcvcap.rcvcap_tcap = tcap;
 	tcap_ref_take(tcap);
 	tcap_promote(tcap, thd);
 }
@@ -159,7 +171,7 @@ static int
 __arcv_teardown(struct cap_arcv *arcv, struct thread *thd)
 {
 	struct thread *notif;
-	struct tcap   *tcap;
+	struct tcap *tcap;
 
 	tcap = thd->rcvcap.rcvcap_tcap;
 	assert(tcap);
@@ -178,36 +190,45 @@ __arcv_teardown(struct cap_arcv *arcv, struct thread *thd)
 
 static struct thread *
 arcv_thd_notif(struct thread *arcvt)
-{ return arcvt->rcvcap.rcvcap_thd_notif; }
+{
+	return arcvt->rcvcap.rcvcap_thd_notif;
+}
 
 static int
-arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap, capid_t tcap_cap, capid_t arcv_cap, int init)
+arcv_activate(struct captbl *t,
+              capid_t cap,
+              capid_t capin,
+              capid_t comp_cap,
+              capid_t thd_cap,
+              capid_t tcap_cap,
+              capid_t arcv_cap,
+              int init)
 {
 	struct cap_comp *compc;
-	struct cap_thd  *thdc;
+	struct cap_thd *thdc;
 	struct cap_tcap *tcapc;
 	struct cap_arcv *arcv_p, *arcvc; /* parent and new capability */
-	struct thread   *thd;
-	u8_t             depth = 0;
+	struct thread *thd;
+	u8_t depth = 0;
 	int ret;
 
 	/* Find the constituent capability structures */
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
-	if (unlikely(!CAP_TYPECHK(compc, CAP_COMP)))      return -EINVAL;
+	if (unlikely(!CAP_TYPECHK(compc, CAP_COMP))) return -EINVAL;
 
 	thdc = (struct cap_thd *)captbl_lkup(t, thd_cap);
-	if (unlikely(!CAP_TYPECHK_CORE(thdc, CAP_THD)))   return -EINVAL;
+	if (unlikely(!CAP_TYPECHK_CORE(thdc, CAP_THD))) return -EINVAL;
 	thd = thdc->t;
 
 	tcapc = (struct cap_tcap *)captbl_lkup(t, tcap_cap);
 	if (unlikely(!CAP_TYPECHK_CORE(tcapc, CAP_TCAP))) return -EINVAL;
 	/* a single thread cannot be bound to multiple rcvcaps */
 	if (thd_bound2rcvcap(thd)) return -EINVAL;
-	assert(!thd->rcvcap.rcvcap_tcap); 	/* an unbound thread should not have a tcap */
+	assert(!thd->rcvcap.rcvcap_tcap); /* an unbound thread should not have a tcap */
 
 	if (!init) {
-	        arcv_p = (struct cap_arcv *)captbl_lkup(t, arcv_cap);
-	        if (unlikely(!CAP_TYPECHK_CORE(arcv_p, CAP_ARCV))) return -EINVAL;
+		arcv_p = (struct cap_arcv *)captbl_lkup(t, arcv_cap);
+		if (unlikely(!CAP_TYPECHK_CORE(arcv_p, CAP_ARCV))) return -EINVAL;
 
 		depth = arcv_p->depth + 1;
 		if (depth >= ARCV_NOTIF_DEPTH) return -EINVAL;
@@ -218,9 +239,9 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 
 	memcpy(&arcvc->comp_info, &compc->info, sizeof(struct comp_info));
 
-	arcvc->epoch     = 0; 	  /* FIXME: get the real epoch */
-	arcvc->cpuid     = get_cpuid();
-	arcvc->depth     = depth;
+	arcvc->epoch = 0; /* FIXME: get the real epoch */
+	arcvc->cpuid = get_cpuid();
+	arcvc->depth = depth;
 
 	__arcv_setup(arcvc, thd, tcapc->tcap, init ? thd : arcv_p->thd);
 
@@ -237,7 +258,7 @@ arcv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 	arcvc = (struct cap_arcv *)captbl_lkup(t->captbl, capin);
 	if (unlikely(!arcvc || arcvc->h.type != CAP_ARCV || arcvc->cpuid != get_cpuid())) return -EINVAL;
 	if (thd_rcvcap_isreferenced(arcvc->thd)) return -EBUSY;
-	if (__arcv_teardown(arcvc, arcvc->thd))  return -EBUSY;
+	if (__arcv_teardown(arcvc, arcvc->thd)) return -EBUSY;
 
 	return cap_capdeactivate(t, capin, CAP_ARCV, lid);
 }
@@ -269,7 +290,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	 */
 	if (unlikely(!ltbl_isalive(&(sinvc->comp_info.liveness)))) {
 		printk("cos: sinv comp (liveness %d) doesn't exist!\n", sinvc->comp_info.liveness.id);
-		//FIXME: add fault handling here.
+		// FIXME: add fault handling here.
 		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
 		return;
 	}
@@ -283,8 +304,8 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 
 	/* TODO: test this before pgtbl update...pre- vs. post-serialization */
 	__userregs_sinvupdate(regs);
-	__userregs_set(regs, thd->tid | (get_cpuid() << 16),
-		       0 /* FIXME: add calling component id */, sinvc->entry_addr);
+	__userregs_set(
+	  regs, thd->tid | (get_cpuid() << 16), 0 /* FIXME: add calling component id */, sinvc->entry_addr);
 
 	return;
 }
@@ -303,7 +324,7 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 
 	if (unlikely(!ltbl_isalive(&ci->liveness))) {
 		printk("cos: ret comp (liveness %d) doesn't exist!\n", ci->liveness.id);
-		//FIXME: add fault handling here.
+		// FIXME: add fault handling here.
 		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
 		return;
 	}
@@ -315,16 +336,23 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);
 }
 
-static void inv_init(void)
+static void
+inv_init(void)
 {
 //#define __OUTPUT_CAP_SIZE
 #ifdef __OUTPUT_CAP_SIZE
-	printk(" Cap header size %d, minimal cap %d\n SINV %d, SRET %d, ASND %d, ARCV %d\n CAP_COMP %d, CAP_THD %d, CAP_CAPTBL %d, CAP_PGTBL %d\n",
-	       sizeof(struct cap_header), sizeof(struct cap_min),
-	       sizeof(struct cap_sinv), sizeof(struct cap_sret),
-	       sizeof(struct cap_asnd), sizeof(struct cap_arcv),
-	       sizeof(struct cap_comp), sizeof(struct cap_thd),
-	       sizeof(struct cap_captbl), sizeof(struct cap_pgtbl));
+	printk(" Cap header size %d, minimal cap %d\n SINV %d, SRET %d, ASND %d, ARCV %d\n CAP_COMP %d, CAP_THD %d, "
+	       "CAP_CAPTBL %d, CAP_PGTBL %d\n",
+	       sizeof(struct cap_header),
+	       sizeof(struct cap_min),
+	       sizeof(struct cap_sinv),
+	       sizeof(struct cap_sret),
+	       sizeof(struct cap_asnd),
+	       sizeof(struct cap_arcv),
+	       sizeof(struct cap_comp),
+	       sizeof(struct cap_thd),
+	       sizeof(struct cap_captbl),
+	       sizeof(struct cap_pgtbl));
 #endif
 	assert(sizeof(struct cap_sinv) <= __captbl_cap2bytes(CAP_SINV));
 	assert(sizeof(struct cap_sret) <= __captbl_cap2bytes(CAP_SRET));

@@ -76,8 +76,7 @@ printfn(struct pt_regs *regs)
 /* 	BOOT_MEM_PM_BASE = 1<<30, */
 /* }; */
 
-int
-syscall_handler(struct pt_regs *regs);
+int syscall_handler(struct pt_regs *regs);
 
 void
 kern_boot_comp(void)

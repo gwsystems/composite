@@ -838,8 +838,7 @@ test_serverfn(int a, int b, int c)
 	return 0xDEADBEEF;
 }
 
-extern void *
-__inv_test_serverfn(int a, int b, int c);
+extern void *__inv_test_serverfn(int a, int b, int c);
 
 static inline int
 call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)

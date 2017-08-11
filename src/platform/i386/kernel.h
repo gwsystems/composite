@@ -63,7 +63,7 @@ void smp_init(void);
 
 void tls_update(u32_t addr);
 
-//void printk(const char *fmt, ...);
+// void printk(const char *fmt, ...);
 int printk_register_handler(void (*handler)(const char *));
 
 void khalt(void);

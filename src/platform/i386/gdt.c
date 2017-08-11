@@ -7,16 +7,11 @@
 static volatile u64_t gdt[SEL_CNT] __attribute__((aligned(sizeof(u64_t))));
 
 /* GDT helpers. */
-static u64_t
-make_code_desc(int dpl);
-static u64_t
-make_data_desc(int dpl);
-static u64_t
-make_data_desc_at(int dpl, u32_t addr);
-static u64_t
-make_tss_desc(void *laddr);
-static u64_t
-make_gdtr_operand(u16_t limit, void *base);
+static u64_t make_code_desc(int dpl);
+static u64_t make_data_desc(int dpl);
+static u64_t make_data_desc_at(int dpl, u32_t addr);
+static u64_t make_tss_desc(void *laddr);
+static u64_t make_gdtr_operand(u16_t limit, void *base);
 
 void
 chal_tls_update(vaddr_t addr)

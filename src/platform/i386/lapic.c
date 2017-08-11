@@ -61,8 +61,7 @@ int cpus[NUM_CPU];
 #define LAPIC_ONESHOT_THRESH (1 << 12)
 #define LAPIC_TSCDEADLINE_THRESH 0
 
-extern int
-timer_process(struct pt_regs *regs);
+extern int timer_process(struct pt_regs *regs);
 
 enum lapic_timer_type {
 	LAPIC_ONESHOT = 0,

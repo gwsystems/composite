@@ -27,8 +27,7 @@
 	} while (0)
 
 extern vaddr_t cos_upcall_entry;
-extern void
-vm_init(void *);
+extern void vm_init(void *);
 
 struct vms_info vmx_info[VM_COUNT];
 struct dom0_io_info dom0ioinfo;

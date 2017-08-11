@@ -8,7 +8,7 @@
 #ifndef STKMGR_H_
 #define STKMGR_H_
 
-/** 
+/**
  * In the future we may want to change this too
  * cos_asm_server_stub_spdid
  */

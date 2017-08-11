@@ -131,8 +131,7 @@ retypetbl_retype2kern(void *pa)
 }
 
 /* implemented in pgtbl.c */
-int
-tlb_quiescence_check(u64_t unmap_time);
+int tlb_quiescence_check(u64_t unmap_time);
 
 int
 retypetbl_retype2frame(void *pa)

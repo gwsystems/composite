@@ -31,11 +31,11 @@ typedef void (*cos_aepthd_fn_t)(arcvcap_t, void *);
 
 /* Capabilities for Async activation end point */
 struct cos_aep_info {
-	tcap_t          tc;
-	thdcap_t        thd;
-	arcvcap_t       rcv;
+	tcap_t tc;
+	thdcap_t thd;
+	arcvcap_t rcv;
 	cos_aepthd_fn_t fn;
-	void           *data;
+	void *data;
 };
 
 /* Default Component information */
@@ -58,20 +58,33 @@ struct cos_compinfo *cos_compinfo_get(struct cos_defcompinfo *defci);
 struct cos_aep_info *cos_sched_aep_get(struct cos_defcompinfo *defci);
 
 /*
- * cos_defcompinfo_init: initialize the current component's global cos_defcompinfo struct using the standard boot capabilities layout.
+ * cos_defcompinfo_init: initialize the current component's global cos_defcompinfo struct using the standard boot
+ * capabilities layout.
  */
 void cos_defcompinfo_init(void);
 /*
- * cos_defcompinfo_init_ext: initialize the current component's global cos_defcompinfo struct using the parameters passed.
+ * cos_defcompinfo_init_ext: initialize the current component's global cos_defcompinfo struct using the parameters
+ * passed.
  */
-void cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rcv, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier);
+void cos_defcompinfo_init_ext(tcap_t sched_tc,
+                              thdcap_t sched_thd,
+                              arcvcap_t sched_rcv,
+                              pgtblcap_t pgtbl_cap,
+                              captblcap_t captbl_cap,
+                              compcap_t comp_cap,
+                              vaddr_t heap_ptr,
+                              capid_t cap_frontier);
 
 /*
- * cos_defcompinfo_child_alloc: called to create a new child component including initial capabilities like pgtbl, captbl, compcap, aep.
- *                        if is_sched is set, scheduling end-point will also be created for the child component,
- *                        else, the current component's scheduler will remain the scheduler for the child component.
+ * cos_defcompinfo_child_alloc: called to create a new child component including initial capabilities like pgtbl,
+ * captbl, compcap, aep. if is_sched is set, scheduling end-point will also be created for the child component, else,
+ * the current component's scheduler will remain the scheduler for the child component.
  */
-int cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, vaddr_t heap_ptr, capid_t cap_frontier, int is_sched);
+int cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci,
+                                vaddr_t entry,
+                                vaddr_t heap_ptr,
+                                capid_t cap_frontier,
+                                int is_sched);
 
 /*
  * cos_aep_alloc: creates a new async activation end-point which includes thread, tcap and rcv capabilities.

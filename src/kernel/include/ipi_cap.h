@@ -51,8 +51,10 @@ struct IPI_receiving_rings {
 struct IPI_receiving_rings IPI_cap_dest[NUM_CPU] CACHE_ALIGNED;
 
 static inline u32_t
-cos_ipi_ring_dequeue(struct xcore_ring *ring, struct ipi_cap_data *ret) {
-	/* printk("core %d ring : %x, sender %d, receiver %d\n", get_cpuid(), ring, ring->sender.tail, ring->receiver.head); */
+cos_ipi_ring_dequeue(struct xcore_ring *ring, struct ipi_cap_data *ret)
+{
+	/* printk("core %d ring : %x, sender %d, receiver %d\n", get_cpuid(), ring, ring->sender.tail,
+	 * ring->receiver.head); */
 
 	if (ring->sender == ring->receiver) return 0;
 	memcpy(ret, &ring->ring[ring->receiver], sizeof(struct ipi_cap_data));
@@ -83,7 +85,8 @@ handle_ipi_arcv(struct ipi_cap_data *data)
 }
 
 static inline void
-process_ring(struct xcore_ring *ring) {
+process_ring(struct xcore_ring *ring)
+{
 	struct ipi_cap_data data;
 
 	while ((cos_ipi_ring_dequeue(ring, &data)) != 0) {
@@ -92,14 +95,15 @@ process_ring(struct xcore_ring *ring) {
 }
 
 static inline int
-cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd) {
+cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd)
+{
 	struct xcore_ring *ring = &IPI_cap_dest[dest].IPI_source[get_cpuid()];
-	u32_t tail = ring->sender;
+	u32_t tail              = ring->sender;
 	u32_t delta;
 	struct ipi_cap_data *data;
 
 	delta = (tail + 1) & IPI_RING_MASK;
-	data = &ring->ring[tail];
+	data  = &ring->ring[tail];
 	if (unlikely(delta == ring->receiver)) return -1;
 
 	data->arcv_capid = asnd->arcv_capid;
@@ -113,7 +117,9 @@ cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd) {
 	return 0;
 }
 
-static int cos_cap_send_ipi(int cpu, struct cap_asnd *asnd) {
+static int
+cos_cap_send_ipi(int cpu, struct cap_asnd *asnd)
+{
 	int ret;
 
 	ret = cos_ipi_ring_enqueue(cpu, asnd);

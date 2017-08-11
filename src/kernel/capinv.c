@@ -82,8 +82,7 @@ done:
 	return 0;
 }
 
-void
-cos_cap_ipi_handling(void);
+void cos_cap_ipi_handling(void);
 void
 cos_cap_ipi_handling(void)
 {
@@ -906,8 +905,7 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 
 #define ENABLE_KERNEL_PRINT
 
-static int
-composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch);
+static int composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch);
 
 COS_SYSCALL __attribute__((section("__ipc_entry"))) int
 composite_syscall_handler(struct pt_regs *regs)

@@ -12,7 +12,7 @@
 #define CVECT_DYNAMIC 1
 #endif
 
-/* 
+/*
  * A simple data structure that behaves like an array in terms of
  * getting and setting, but is O(log(n)) with a base that is chose
  * below.  In most situations this will be O(log_1024(n)), or
@@ -53,15 +53,15 @@ typedef unsigned int u32_t;
 /* Customization parameters: */
 #ifndef CVECT_BASE
 /* CVECT_BASE -- What is the fan out eat each level? Default: 1024 */
-#define CVECT_BASE  (PAGE_SIZE/sizeof(struct cvect_intern))
-#define CVECT_SHIFT 10 	/* log_2(CVECT_BASE) */
+#define CVECT_BASE (PAGE_SIZE / sizeof(struct cvect_intern))
+#define CVECT_SHIFT 10 /* log_2(CVECT_BASE) */
 #endif
 
-#define CVECT_SZ   (CVECT_BASE*sizeof(struct cvect_intern))
-#define CVECT_MASK  (CVECT_BASE-1)
+#define CVECT_SZ (CVECT_BASE * sizeof(struct cvect_intern))
+#define CVECT_MASK (CVECT_BASE - 1)
 
 #ifndef CVECT_INIT_VAL
-/* 
+/*
  * CVECT_INIT_VAL -- What is "empty" in the structure? Default: NULL.
  * If you're not storing pointers, this might be inappropriate.
  */
@@ -79,7 +79,7 @@ typedef unsigned int u32_t;
 #define CVECT_ALLOC() malloc(PAGE_SIZE)
 #define CVECT_FREE(x) free(x)
 #endif
-#else  /* COS_LINUX_ENV */
+#else /* COS_LINUX_ENV */
 
 #ifndef CVECT_ALLOC
 /* How do we allocate and free a chunk of size CVECT_SZ? */
@@ -100,11 +100,10 @@ typedef struct cvect_struct {
 	struct cvect_intern vect[CVECT_BASE];
 } cvect_t;
 
-#define CVECT_CREATE_STATIC(name)					\
-	cvect_t name = {.vect = {{.c.next = NULL}}} 
+#define CVECT_CREATE_STATIC(name) cvect_t name = { .vect = { { .c.next = NULL } } }
 
 /* true or false: is v a power of 2 */
-static inline int 
+static inline int
 __cvect_power_2(const u32_t v)
 {
 	/* Assume 2's complement */
@@ -112,7 +111,7 @@ __cvect_power_2(const u32_t v)
 	return (v > 1 && smallest_set_bit == v);
 }
 
-static inline int 
+static inline int
 __cvect_init(cvect_t *v)
 {
 	int i;
@@ -120,18 +119,19 @@ __cvect_init(cvect_t *v)
 	assert(v);
 	/* should be optimized away by the compiler: */
 	assert(__cvect_power_2(CVECT_BASE));
-	for (i = 0 ; i < (int)CVECT_BASE ; i++) v->vect[i].c.next = NULL;
+	for (i = 0; i < (int)CVECT_BASE; i++)
+		v->vect[i].c.next = NULL;
 
 	return 0;
 }
 
-static inline void 
+static inline void
 cvect_init_static(cvect_t *v)
 {
 	__cvect_init(v);
 }
 
-static inline void 
+static inline void
 cvect_init(cvect_t *v)
 {
 	__cvect_init(v);
@@ -143,7 +143,7 @@ static cvect_t *
 cvect_alloc(void)
 {
 	cvect_t *v;
-	
+
 	v = CVECT_ALLOC();
 	if (NULL == v) return NULL;
 	cvect_init(v);
@@ -151,12 +151,12 @@ cvect_alloc(void)
 	return v;
 }
 
-/* 
+/*
  * All *_rec functions assume that constant propagation, loop
  * unrolling, and self-recursive function inlining should turn this
  * into optimal (straighline) code, yet still enable the depth and
- * vect size to be macro params.  
- * 
+ * vect size to be macro params.
+ *
  * Regardless, this is an expensive function due to iterations through
  * a large tree.
  *
@@ -164,16 +164,16 @@ cvect_alloc(void)
  * deallocated (i.e. at depth CVECT_BASE, all values are set to
  * CVECT_INIT_VAL).
  */
-static inline void 
+static inline void
 __cvect_free_rec(struct cvect_intern *vi, const int depth)
 {
 	unsigned int i;
-	
+
 	assert(vi);
 	if (depth > 1) {
-		for (i = 0 ; i < CVECT_BASE ; i++) {
+		for (i = 0; i < CVECT_BASE; i++) {
 			if (vi[i].c.next != NULL) {
-				__cvect_free_rec(vi[i].c.next, depth-1);
+				__cvect_free_rec(vi[i].c.next, depth - 1);
 			}
 		}
 	}
@@ -181,7 +181,7 @@ __cvect_free_rec(struct cvect_intern *vi, const int depth)
 	CVECT_FREE(vi);
 }
 
-static void 
+static void
 cvect_free(cvect_t *v)
 {
 	assert(v);
@@ -190,7 +190,7 @@ cvect_free(cvect_t *v)
 
 #endif /* CVECT_DYNAMIC */
 
-/* 
+/*
  * Again relying on compiler optimizations (constant propagation, loop
  * unrolling, and self-recursive function inlining) to turn this into
  * straight-line code.
@@ -199,17 +199,17 @@ static inline struct cvect_intern *
 __cvect_lookup_rec(struct cvect_intern *vi, const long id, const int depth)
 {
 	if (depth > 1) {
-		long n = id >> (CVECT_SHIFT * (depth-1));
+		long n = id >> (CVECT_SHIFT * (depth - 1));
 		if (vi[n & CVECT_MASK].c.next == NULL) return NULL;
-		return __cvect_lookup_rec(vi[n & CVECT_MASK].c.next, id, depth-1);
+		return __cvect_lookup_rec(vi[n & CVECT_MASK].c.next, id, depth - 1);
 	}
 	return &vi[id & CVECT_MASK];
 }
 
 static inline struct cvect_intern *
-__cvect_lookup(cvect_t *v, long id) 
-{ 
-	return __cvect_lookup_rec(v->vect, id, CVECT_DEPTH); 
+__cvect_lookup(cvect_t *v, long id)
+{
+	return __cvect_lookup_rec(v->vect, id, CVECT_DEPTH);
 }
 
 static inline void *
@@ -240,29 +240,29 @@ static inline int
 __cvect_expand_rec(struct cvect_intern *vi, const long id, const int depth)
 {
 	if (depth > 1) {
-		long n = id >> (CVECT_SHIFT * (depth-1));
+		long n = id >> (CVECT_SHIFT * (depth - 1));
 		if (vi[n & CVECT_MASK].c.next == NULL) {
 			struct cvect_intern *new = CVECT_ALLOC();
 			if (!new) return -1;
 			memset(new, 0, PAGE_SIZE);
 			vi[n & CVECT_MASK].c.next = new;
 		}
-		return __cvect_expand_rec(vi[n & CVECT_MASK].c.next, id, depth-1);
+		return __cvect_expand_rec(vi[n & CVECT_MASK].c.next, id, depth - 1);
 	}
 	return 0;
 }
 
-static inline int 
+static inline int
 __cvect_expand(cvect_t *v, long id)
 {
 	return __cvect_expand_rec(v->vect, id, CVECT_DEPTH);
 }
 
-static inline int 
+static inline int
 __cvect_set(cvect_t *v, long id, void *val)
 {
 	struct cvect_intern *vi;
-	
+
 	assert(v);
 	vi = __cvect_lookup(v, id);
 	if (NULL == vi) return -1;
@@ -271,7 +271,7 @@ __cvect_set(cvect_t *v, long id, void *val)
 	return 0;
 }
 
-/* 
+/*
  * This function will try to find an empty slot specifically for the
  * identifier id, or fail.
  *
@@ -292,14 +292,14 @@ cvect_add(cvect_t *v, void *val, long id)
 }
 #define cvect_add_id cvect_add /* backwards compatibility */
 
-/* 
+/*
  * Assume: id is valid within v.
  */
-static int 
+static int
 cvect_del(cvect_t *v, long id)
 {
 	assert(v);
-	if (__cvect_set(v, id, (void*)CVECT_INIT_VAL)) return 1;
+	if (__cvect_set(v, id, (void *)CVECT_INIT_VAL)) return 1;
 	return 0;
 }
 

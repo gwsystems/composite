@@ -48,11 +48,12 @@ struct IPI_receiving_rings {
 
 struct IPI_receiving_rings IPI_dest[NUM_CPU];
 
-static inline int 
-cos_ipi_ring_enqueue(u32_t dest, u32_t data) {
+static inline int
+cos_ipi_ring_enqueue(u32_t dest, u32_t data)
+{
 	struct xcore_ring *ring = &IPI_dest[dest].IPI_source[get_cpuid()];
-	u32_t tail = ring->sender.tail;
-	u32_t delta = (tail + 1) & IPI_RING_MASK;
+	u32_t tail              = ring->sender.tail;
+	u32_t delta             = (tail + 1) & IPI_RING_MASK;
 
 	if (unlikely(!data)) return -1;
 
@@ -62,34 +63,37 @@ cos_ipi_ring_enqueue(u32_t dest, u32_t data) {
 	}
 
 	ring->sender.ring[tail] = data;
-	ring->sender.tail = delta;
+	ring->sender.tail       = delta;
 	/* Memory fence! */
 	cos_mem_fence();
 
 	/* printk("enqueue ring %x: dest %u, source %u, idx %u data %x\n", */
 	/*        ring, dest, get_cpuid(), tail, data); */
-	
+
 	return 0;
 }
 
 /* returns spd_id + acap_id */
-static inline u32_t 
-cos_ipi_ring_dequeue(struct xcore_ring *ring) {
+static inline u32_t
+cos_ipi_ring_dequeue(struct xcore_ring *ring)
+{
 	u32_t data;
-	/* printk("core %d ring : %x, sender %d, receiver %d\n", get_cpuid(), ring, ring->sender.tail, ring->receiver.head); */
+	/* printk("core %d ring : %x, sender %d, receiver %d\n", get_cpuid(), ring, ring->sender.tail,
+	 * ring->receiver.head); */
 
 	/* Do we need mem fence here? The sender had this already. */
 	/* cos_mem_fence(); */
 
 	if (ring->sender.tail == ring->receiver.head) return 0;
 
-	data = ring->sender.ring[ring->receiver.head];
+	data                = ring->sender.ring[ring->receiver.head];
 	ring->receiver.head = (ring->receiver.head + 1) & IPI_RING_MASK;
 
 	return data;
 }
 
-static inline void handle_ipi_acap(int spd_id, int acap_id)
+static inline void
+handle_ipi_acap(int spd_id, int acap_id)
 {
 	struct spd *spd;
 	struct async_cap *acap;
@@ -97,19 +101,23 @@ static inline void handle_ipi_acap(int spd_id, int acap_id)
 	spd = spd_get_by_index(spd_id);
 	if (unlikely(!spd)) {
 		printk("cos: core %d received IPI but no valid data found (spd %d, acap %d)!\n",
-		       get_cpuid(), spd_id, acap_id);
+		       get_cpuid(),
+		       spd_id,
+		       acap_id);
 		return;
-	} 
+	}
 	acap = &spd->acaps[acap_id];
 	if (unlikely(!acap->allocated)) {
 		printk("cos: core %d received IPI but no valid data found (spd %d, acap %d)!\n",
-		       get_cpuid(), spd_id, acap_id);
+		       get_cpuid(),
+		       spd_id,
+		       acap_id);
 		return;
-	} 
+	}
 
 	if (!acap->upcall_thd) {
 		/* No thread waiting yet. */
-		acap->pending_upcall++; 
+		acap->pending_upcall++;
 		return;
 	}
 	/* printk("core %d receives ipi for acap %d, %x (thd %d) in spd %d\n",  */
@@ -119,7 +127,9 @@ static inline void handle_ipi_acap(int spd_id, int acap_id)
 	chal_attempt_ainv(acap);
 }
 
-static inline void process_ring(struct xcore_ring *ring) {
+static inline void
+process_ring(struct xcore_ring *ring)
+{
 	u32_t data;
 
 	while ((data = cos_ipi_ring_dequeue(ring)) != 0) {
@@ -127,9 +137,11 @@ static inline void process_ring(struct xcore_ring *ring) {
 	}
 }
 
-static int cos_send_ipi(int cpu, int spd_id, int acap_id) {
+static int
+cos_send_ipi(int cpu, int spd_id, int acap_id)
+{
 	int ret;
-	u32_t data = (spd_id << 16) | (acap_id);
+	u32_t data           = (spd_id << 16) | (acap_id);
 	unsigned long long s = 0, e;
 
 	while (1) {
@@ -140,8 +152,10 @@ static int cos_send_ipi(int cpu, int spd_id, int acap_id) {
 		if (!s) rdtscll(s);
 		rdtscll(e);
 		if (e - s > (NUM_CPU * 1000 * 1000)) {
-			printk("cos: WARNING: IPI ring buffer (Core %d) full - have been spinning for %llu cycles. No IPI sent.\n",
-			       cpu, e - s);
+			printk("cos: WARNING: IPI ring buffer (Core %d) full - have been spinning for %llu cycles. No "
+			       "IPI sent.\n",
+			       cpu,
+			       e - s);
 			return -1;
 		}
 	}

@@ -1,15 +1,14 @@
 #ifdef ACT_LOG
 
 #ifndef ACT_LOG_LEN
-#define ACT_LOG_LEN 128		/* must be a power of 2 */
+#define ACT_LOG_LEN 128 /* must be a power of 2 */
 #endif
-#define ACT_LOG_MASK (ACT_LOG_LEN-1)
+#define ACT_LOG_MASK (ACT_LOG_LEN - 1)
 #ifndef NUM_ACT_ITEMS
 #define NUM_ACT_ITEMS 1
 #endif
 #ifndef rdtscl
-#define rdtscl(val)					\
-	__asm__ __volatile__ ("rdtsc" : "=a" (val) : : "edx")
+#define rdtscl(val) __asm__ __volatile__("rdtsc" : "=a"(val) : : "edx")
 #endif
 
 /* typedef struct {} filter_t; */
@@ -33,9 +32,10 @@ struct action {
 };
 
 static struct action actions[ACT_LOG_LEN];
-static int action_head = 0, action_tail = ACT_LOG_LEN-1;
+static int action_head = 0, action_tail = ACT_LOG_LEN - 1;
 
-static void action_record(action_t action, unsigned long *action_items, filter_fn_t f)
+static void
+action_record(action_t action, unsigned long *action_items, filter_fn_t f)
 {
 	struct action *a = &actions[action_head];
 	int i;
@@ -43,22 +43,23 @@ static void action_record(action_t action, unsigned long *action_items, filter_f
 	if (f && f(action_items)) return;
 
 	action_head = (action_head + 1) & ACT_LOG_MASK;
-	if (action_head == action_tail) action_tail = (action_tail + 1) & ACT_LOG_MASK;
-	
+	if (action_head == action_tail) action_tail= (action_tail + 1) & ACT_LOG_MASK;
+
 	a->action = action;
-#ifdef ACTION_TIMESTAMP	
+#ifdef ACTION_TIMESTAMP
 	{
 		unsigned long ts;
 		rdtscl(ts);
 		a->ts = ts;
 	}
 #endif
-	for (i = 0 ; i < NUM_ACT_ITEMS ; i++) {
+	for (i = 0; i < NUM_ACT_ITEMS; i++) {
 		a->act_items[i] = action_items[i];
 	}
 }
 
-static struct action *action_report(void)
+static struct action *
+action_report(void)
 {
 	int new_tail;
 
@@ -69,7 +70,8 @@ static struct action *action_report(void)
 	return &actions[action_tail];
 }
 
-static unsigned long action_item(action_item_t item, struct action *a)
+static unsigned long
+action_item(action_item_t item, struct action *a)
 {
 	return a->act_items[item];
 }

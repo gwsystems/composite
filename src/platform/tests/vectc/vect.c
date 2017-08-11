@@ -13,8 +13,7 @@
 
 struct cvectc static_vect;
 long ids[NTESTS];
-void
-print(struct cvectc *s);
+void print(struct cvectc *s);
 
 int
 in_pairs(int nid)

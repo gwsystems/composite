@@ -3,7 +3,7 @@
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
- * 
+ *
  * This is a simple table of epoch counters.
  */
 
@@ -15,10 +15,10 @@
 #include "ertrie.h"
 
 #define LTBL_ENT_ORDER 20
-#define LTBL_ENTS (1<<LTBL_ENT_ORDER)
+#define LTBL_ENTS (1 << LTBL_ENT_ORDER)
 
 #ifndef rdtscll
-#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A"(val))
 #endif
 
 /* We need 64-bit for each of the field in liveness entry. */
@@ -37,7 +37,7 @@ struct liveness_data {
 	livenessid_t id;
 } __attribute__((packed));
 
-/* 
+/*
  * TODO: Add the rdtsc for liveness and quiescence into the actual
  * liveness table entries themselves.
  */
@@ -47,14 +47,28 @@ struct liveness_data {
  * returned from the ertrie API that calls this function so that the
  * compiler can statically determine it.
  */
-static void *__ltbl_allocfn(void *d, int sz, int last_lvl)
-{ (void)d; (void)sz; (void)last_lvl; assert(0); return 0; }
-static int __ltbl_isnull(struct ert_intern *a, void *accum, int leaf)
-{ (void)accum; (void)leaf; (void)a; return 0; }
-static int __ltbl_setleaf(struct ert_intern *a, void *data)
-{ 
+static void *
+__ltbl_allocfn(void *d, int sz, int last_lvl)
+{
+	(void)d;
+	(void)sz;
+	(void)last_lvl;
+	assert(0);
+	return 0;
+}
+static int
+__ltbl_isnull(struct ert_intern *a, void *accum, int leaf)
+{
+	(void)accum;
+	(void)leaf;
+	(void)a;
+	return 0;
+}
+static int
+__ltbl_setleaf(struct ert_intern *a, void *data)
+{
 	u64_t old, new, *ptr;
-	(void)data; 
+	(void)data;
 
 	ptr = &(((struct liveness_entry *)a)->epoch);
 	old = *ptr;
@@ -65,13 +79,29 @@ static int __ltbl_setleaf(struct ert_intern *a, void *data)
 
 	return 0;
 }
-static void *__ltbl_getleaf(struct ert_intern *a, void *accum)
-{ (void)accum; return &((struct liveness_entry *)a)->epoch; }
+static void *
+__ltbl_getleaf(struct ert_intern *a, void *accum)
+{
+	(void)accum;
+	return &((struct liveness_entry *)a)->epoch;
+}
 
-ERT_CREATE(__ltbl, ltbl, 1, 0, sizeof(int), LTBL_ENT_ORDER,		\
-	   sizeof(struct liveness_entry), 0, ert_definit,		\
-	   ert_defget, __ltbl_isnull, ert_defset, __ltbl_allocfn,	\
-	   __ltbl_setleaf, __ltbl_getleaf, ert_defresolve);
+ERT_CREATE(__ltbl,
+           ltbl,
+           1,
+           0,
+           sizeof(int),
+           LTBL_ENT_ORDER,
+           sizeof(struct liveness_entry),
+           0,
+           ert_definit,
+           ert_defget,
+           __ltbl_isnull,
+           ert_defset,
+           __ltbl_allocfn,
+           __ltbl_setleaf,
+           __ltbl_getleaf,
+           ert_defresolve);
 
 extern struct liveness_entry __liveness_tbl[LTBL_ENTS];
 #define LTBL_REF() ((struct ltbl *)__liveness_tbl)
@@ -81,7 +111,7 @@ ltbl_isalive(struct liveness_data *ld)
 {
 	u64_t *epoch;
 
-	epoch = __ltbl_lkupan(LTBL_REF(), ld->id, __ltbl_maxdepth()+1, NULL);
+	epoch = __ltbl_lkupan(LTBL_REF(), ld->id, __ltbl_maxdepth() + 1, NULL);
 	if (unlikely(*epoch != ld->epoch)) return 0;
 	return 1;
 }
@@ -93,20 +123,20 @@ ltbl_expire(struct liveness_data *ld)
 	struct liveness_entry *ent;
 	u64_t old_v;
 
-	ent = __ltbl_lkupan(LTBL_REF(), ld->id, __ltbl_maxdepth(), NULL);
+	ent   = __ltbl_lkupan(LTBL_REF(), ld->id, __ltbl_maxdepth(), NULL);
 	old_v = ent->epoch;
 
 	rdtscll(ent->deact_timestamp);
 	cos_mem_fence();
-//	cos_inst_bar();
+	//	cos_inst_bar();
 
-	//FIXME: 64-bit op
+	// FIXME: 64-bit op
 	if (!cos_cas((unsigned long *)&ent->epoch, (unsigned long)old_v, (unsigned long)(old_v + 1))) return -ECASFAIL;
 
 	return 0;
 }
 
-/* 
+/*
  * After an object has been expired, when can it be freed (i.e. its
  * memory reclaimed)?
  */
@@ -130,11 +160,11 @@ ltbl_get(livenessid_t id, struct liveness_data *ld)
 	u64_t *e;
 	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
 
-	e = (u64_t*)__ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth()+1, NULL);
+	e = (u64_t *)__ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth() + 1, NULL);
 	assert(e);
-	
+
 	ld->epoch = *e;
-	ld->id = id;
+	ld->id    = id;
 
 	return 0;
 }
@@ -145,7 +175,7 @@ ltbl_get_timestamp(livenessid_t id, u64_t *ts)
 	struct liveness_entry *ent;
 
 	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
-	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth()+1, NULL);
+	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth() + 1, NULL);
 	assert(ent);
 
 	*ts = ent->deact_timestamp;
@@ -164,7 +194,7 @@ ltbl_timestamp_update(livenessid_t id)
 
 	/* Barrier here to ensure tsc is taken after store
 	 * instruction (avoid out-of-order execution). */
-//	cos_inst_bar();
+	//	cos_inst_bar();
 	cos_mem_fence();
 
 	rdtscll(ent->deact_timestamp);

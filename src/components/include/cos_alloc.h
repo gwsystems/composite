@@ -15,7 +15,7 @@ void *page_alloc(int npages);
 void page_free(void *ptr, int npages);
 
 #define ALLOC_DEBUG_STATS 1
-#define ALLOC_DEBUG_ALL   2
+#define ALLOC_DEBUG_ALL 2
 //#define ALLOC_DEBUG ALLOC_DEBUG_STATS
 #ifndef ALLOC_DEBUG
 #define alloc_stats_print()

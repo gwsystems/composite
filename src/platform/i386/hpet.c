@@ -191,8 +191,7 @@ periodic_handler(struct pt_regs *regs)
 	return preempt;
 }
 
-extern int
-timer_process(struct pt_regs *regs);
+extern int timer_process(struct pt_regs *regs);
 
 int
 oneshot_handler(struct pt_regs *regs)

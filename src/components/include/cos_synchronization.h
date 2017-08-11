@@ -20,11 +20,11 @@
 
 union cos_lock_atomic_struct {
 	struct {
-		volatile u16_t owner; /* thread id || 0 */
+		volatile u16_t owner;     /* thread id || 0 */
 		volatile u16_t contested; /* 0 || 1 */
 	} c;
 	volatile u32_t v;
-} __attribute__((packed,aligned(4)));
+} __attribute__((packed, aligned(4)));
 
 typedef struct __attribute__((packed)) {
 	volatile union cos_lock_atomic_struct atom;
@@ -36,27 +36,31 @@ extern unsigned long lock_component_alloc(spdid_t spdid, vaddr_t lock_addr);
 extern void lock_component_free(spdid_t spdid, unsigned long lock_id);
 
 int lock_release_contention(cos_lock_t *l, union cos_lock_atomic_struct *prev_val);
-int lock_take_contention(cos_lock_t *l, union cos_lock_atomic_struct *result, 
-			 union cos_lock_atomic_struct *prev_val, u16_t owner);
+int lock_take_contention(cos_lock_t *l,
+                         union cos_lock_atomic_struct *result,
+                         union cos_lock_atomic_struct *prev_val,
+                         u16_t owner);
 
 static inline int
 __cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated, int smp)
 {
-	if (smp) return cos_cas(target, cmp, updated);
-	else     return cos_cas_up(target, cmp, updated);
+	if (smp)
+		return cos_cas(target, cmp, updated);
+	else
+		return cos_cas_up(target, cmp, updated);
 }
 
 static inline int
 __lock_take(cos_lock_t *l, int smp)
 {
 	union cos_lock_atomic_struct result, prev_val;
-	unsigned int curr    = cos_get_thd_id();
-	u16_t        owner;
+	unsigned int curr = cos_get_thd_id();
+	u16_t owner;
 
 	prev_val.c.owner = prev_val.c.contested = 0;
-	result.v = 0;
+	result.v                                = 0;
 	do {
-restart:
+	restart:
 		/* Atomically copy the entire 32 bit structure */
 		prev_val.v         = l->atom.v;
 		owner              = prev_val.c.owner;
@@ -85,8 +89,9 @@ restart:
 	return 0;
 }
 
-static inline int 
-__lock_release(cos_lock_t *l, int smp) {
+static inline int
+__lock_release(cos_lock_t *l, int smp)
+{
 	unsigned int curr = cos_get_thd_id();
 	union cos_lock_atomic_struct prev_val;
 
@@ -109,22 +114,41 @@ __lock_release(cos_lock_t *l, int smp) {
 	return 0;
 }
 
-/* 
+/*
  * The hard-coding of the smp values here, with function inlining and
  * constant propagation should remove any costs of having smp
  * conditionals in the code.
  */
-static inline int lock_release(cos_lock_t *l)    { return __lock_release(l, 1); }
+static inline int
+lock_release(cos_lock_t *l)
+{
+	return __lock_release(l, 1);
+}
 /* uni-processor variant for partitioned data-structures */
-static inline int lock_release_up(cos_lock_t *l) { return __lock_release(l, 0); }
-static inline int lock_take(cos_lock_t *l)       { return __lock_take(l, 1); }
+static inline int
+lock_release_up(cos_lock_t *l)
+{
+	return __lock_release(l, 0);
+}
+static inline int
+lock_take(cos_lock_t *l)
+{
+	return __lock_take(l, 1);
+}
 /* uni-processor variant for partitioned data-structures */
-static inline int lock_take_up(cos_lock_t *l)    { return __lock_take(l, 0); }
+static inline int
+lock_take_up(cos_lock_t *l)
+{
+	return __lock_take(l, 0);
+}
 
 static unsigned int
-lock_contested(cos_lock_t *l) { return l->atom.c.owner; }
+lock_contested(cos_lock_t *l)
+{
+	return l->atom.c.owner;
+}
 
-static inline unsigned long 
+static inline unsigned long
 lock_id_alloc(cos_lock_t *l)
 {
 	return lock_component_alloc(cos_spd_id(), (vaddr_t)l);
@@ -134,22 +158,25 @@ lock_id_alloc(cos_lock_t *l)
 extern u32_t __lid_cache[];
 extern int __lid_top;
 
-static inline void 
+static inline void
 lock_id_put(u32_t lid)
 {
-	if (__lid_top == NCACHED_LOCK_IDS) lock_component_free(cos_spd_id(), lid);
-	else                               __lid_cache[__lid_top++] = lid;
-
+	if (__lid_top == NCACHED_LOCK_IDS)
+		lock_component_free(cos_spd_id(), lid);
+	else
+		__lid_cache[__lid_top++] = lid;
 }
 
-static inline u32_t 
+static inline u32_t
 lock_id_get(cos_lock_t *l)
 {
-	if (__lid_top == 0) return lock_id_alloc(l);
-	else                return __lid_cache[--__lid_top];
+	if (__lid_top == 0)
+		return lock_id_alloc(l);
+	else
+		return __lid_cache[--__lid_top];
 }
 
-static inline int 
+static inline int
 lock_init(cos_lock_t *l)
 {
 	l->lock_id = 0;
@@ -158,7 +185,7 @@ lock_init(cos_lock_t *l)
 	return 0;
 }
 
-static inline unsigned long 
+static inline unsigned long
 lock_static_init(cos_lock_t *l)
 {
 	lock_init(l);
@@ -167,7 +194,7 @@ lock_static_init(cos_lock_t *l)
 	return l->lock_id;
 }
 
-static inline void 
+static inline void
 lock_static_free(cos_lock_t *l)
 {
 	assert(l);

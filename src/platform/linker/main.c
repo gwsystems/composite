@@ -30,22 +30,14 @@
 #include <stdio.h>
 #include <string.h>
 
-int
-deserialize_dependencies(char *deps, struct service_symbs *services);
-void
-gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *services);
-unsigned long
-load_all_services(struct service_symbs *services);
-void
-print_objs_symbs(struct service_symbs *str);
-struct service_symbs *
-prepare_service_symbs(char *services);
-void
-output_image(struct service_symbs *services);
-int
-verify_dependency_completeness(struct service_symbs *services);
-int
-verify_dependency_soundness(struct service_symbs *services);
+int deserialize_dependencies(char *deps, struct service_symbs *services);
+void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *services);
+unsigned long load_all_services(struct service_symbs *services);
+void print_objs_symbs(struct service_symbs *str);
+struct service_symbs *prepare_service_symbs(char *services);
+void output_image(struct service_symbs *services);
+int verify_dependency_completeness(struct service_symbs *services);
+int verify_dependency_soundness(struct service_symbs *services);
 
 /*
  * Format of the input string is as such:
