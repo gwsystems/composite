@@ -18,8 +18,7 @@ extern "C" {
 }
 #endif
 
-class Global_foo
-{
+class Global_foo {
       public:
 	Global_foo();
 	~Global_foo();
@@ -29,16 +28,14 @@ Global_foo::Global_foo() { printc("Global foo constructor\n"); }
 
 Global_foo::~Global_foo() { cout << "Global foo destructor" << endl; }
 
-class Global_bar
-{
+class Global_bar {
       public:
 	Global_bar();
 };
 
 Global_bar::Global_bar() { printc("Global bar constructor\n"); }
 
-class cl
-{
+class cl {
 	int i;
 
       public:
@@ -72,8 +69,7 @@ cl::put_i(int j)
 }
 
 template<class T>
-class Mypair
-{
+class Mypair {
 	T a, b;
 
       public:
@@ -94,8 +90,7 @@ Mypair<T>::getmax()
 	return retval;
 }
 
-class Getdata
-{
+class Getdata {
       public:
 	int    getdata(int i);
 	double getdata(double f);
@@ -120,8 +115,7 @@ Getdata::getdata(char c)
 	return c;
 }
 
-class Polygon
-{
+class Polygon {
       protected:
 	int width, height;
 
@@ -150,8 +144,7 @@ Polygon::retarea(void)
 	return this->area();
 }
 
-class Rectangle : public Polygon
-{
+class Rectangle : public Polygon {
       public:
 	Rectangle(int a = 1, int b = 1)
 	  : Polygon(a, b)
@@ -167,8 +160,7 @@ Rectangle::area()
 	return width * height;
 }
 
-class Triangle : public Polygon
-{
+class Triangle : public Polygon {
       public:
 	Triangle(int a = 2, int b = 2)
 	  : Polygon(a, b)
@@ -184,8 +176,7 @@ Triangle::area()
 	return width * height / 2;
 }
 
-class Person
-{
+class Person {
       public:
 	virtual ~Person() {}
 	void methodSpecificToA();
@@ -197,8 +188,7 @@ Person::methodSpecificToA()
 	cout << "Method specific for A was invoked" << endl;
 }
 
-class Employee : public Person
-{
+class Employee : public Person {
       public:
 	virtual ~Employee() {}
 	void methodSpecificToB();

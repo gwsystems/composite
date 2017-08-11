@@ -235,38 +235,45 @@ captbl_idsize(cap_t c)
  * 1.5GB-> = kernel memory
  * 2GB-> = system physical memory
  */
-enum { BOOT_CAPTBL_SRET            = 0,
-       BOOT_CAPTBL_SELF_CT         = 4,
-       BOOT_CAPTBL_SELF_PT         = 6,
-       BOOT_CAPTBL_SELF_COMP       = 8,
-       BOOT_CAPTBL_BOOTVM_PTE      = 12,
-       BOOT_CAPTBL_SELF_UNTYPED_PT = 14,
-       BOOT_CAPTBL_PHYSM_PTE       = 16,
-       BOOT_CAPTBL_KM_PTE          = 18,
+enum
+{
+	BOOT_CAPTBL_SRET            = 0,
+	BOOT_CAPTBL_SELF_CT         = 4,
+	BOOT_CAPTBL_SELF_PT         = 6,
+	BOOT_CAPTBL_SELF_COMP       = 8,
+	BOOT_CAPTBL_BOOTVM_PTE      = 12,
+	BOOT_CAPTBL_SELF_UNTYPED_PT = 14,
+	BOOT_CAPTBL_PHYSM_PTE       = 16,
+	BOOT_CAPTBL_KM_PTE          = 18,
 
-       BOOT_CAPTBL_COMP0_CT           = 20,
-       BOOT_CAPTBL_COMP0_PT           = 22,
-       BOOT_CAPTBL_COMP0_COMP         = 24,
-       BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
-       BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS * CAP16B_IDSZ,
-       BOOT_CAPTBL_SELF_INITRCV_BASE =
-	 round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU_COS * CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
-       BOOT_CAPTBL_SELF_INITHW_BASE =
-	 round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS * CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
-       BOOT_CAPTBL_LAST_CAP = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
-       /* round up to next entry */
-       BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ) };
-
-enum { BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1 << 22)), /* @ 1G + 8M */
-       BOOT_MEM_KM_BASE = PGD_SIZE, /* kernel & user memory @ 4M, pgd aligned start address */
+	BOOT_CAPTBL_COMP0_CT           = 20,
+	BOOT_CAPTBL_COMP0_PT           = 22,
+	BOOT_CAPTBL_COMP0_COMP         = 24,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
+	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS * CAP16B_IDSZ,
+	BOOT_CAPTBL_SELF_INITRCV_BASE =
+	  round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU_COS * CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_SELF_INITHW_BASE =
+	  round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS * CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_LAST_CAP = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
+	/* round up to next entry */
+	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
 
-enum {
+enum
+{
+	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1 << 22)), /* @ 1G + 8M */
+	BOOT_MEM_KM_BASE = PGD_SIZE, /* kernel & user memory @ 4M, pgd aligned start address */
+};
+
+enum
+{
 	/* thread id */
 	THD_GET_TID,
 };
 
-enum {
+enum
+{
 	/* tcap budget */
 	TCAP_GET_BUDGET,
 };
@@ -335,7 +342,12 @@ struct usr_inv_cap {
 /* For multicore system, we should have 1 freelist per core. */
 #define COMP_INFO_STACK_FREELISTS 1 // NUM_CPU_COS
 
-enum { COMP_INFO_TMEM_STK = 0, COMP_INFO_TMEM_CBUF, COMP_INFO_TMEM };
+enum
+{
+	COMP_INFO_TMEM_STK = 0,
+	COMP_INFO_TMEM_CBUF,
+	COMP_INFO_TMEM
+};
 
 /* Each stack freelist is associated with a thread id that can be used
  * by the assembly entry routines into a component to decide which
@@ -382,7 +394,12 @@ typedef enum {
 	COS_UPCALL_QUARANTINE
 } upcall_type_t;
 
-enum { MAPPING_RO = 0, MAPPING_RW = 1 << 0, MAPPING_KMEM = 1 << 1 };
+enum
+{
+	MAPPING_RO   = 0,
+	MAPPING_RW   = 1 << 0,
+	MAPPING_KMEM = 1 << 1
+};
 
 /*
  * Fault and fault handler information.  Fault indices/identifiers and

@@ -38,7 +38,9 @@
 #define COBJ_NAME_SZ 64
 
 /* cobj flags */
-enum { COBJ_INIT_THD = 1,
+enum
+{
+	COBJ_INIT_THD = 1,
 };
 
 struct cobj_header {
@@ -46,13 +48,15 @@ struct cobj_header {
 	char  name[COBJ_NAME_SZ];
 } __attribute__((packed));
 
-enum { COBJ_SECT_UNINIT   = 0,
-       COBJ_SECT_READ     = 0x1,
-       COBJ_SECT_WRITE    = 0x2,
-       COBJ_SECT_ZEROS    = 0x8,
-       COBJ_SECT_INITONCE = 0x10,
-       COBJ_SECT_KMEM     = 0x20,
-       COBJ_SECT_CINFO    = 0x40,
+enum
+{
+	COBJ_SECT_UNINIT   = 0,
+	COBJ_SECT_READ     = 0x1,
+	COBJ_SECT_WRITE    = 0x2,
+	COBJ_SECT_ZEROS    = 0x8,
+	COBJ_SECT_INITONCE = 0x10,
+	COBJ_SECT_KMEM     = 0x20,
+	COBJ_SECT_CINFO    = 0x40,
 };
 
 struct cobj_sect {
@@ -61,7 +65,12 @@ struct cobj_sect {
 	u32_t vaddr, bytes;
 } __attribute__((packed));
 
-enum { COBJ_SYMB_UNDEF = 0, COBJ_SYMB_COMP_INFO, COBJ_SYMB_EXPORTED };
+enum
+{
+	COBJ_SYMB_UNDEF = 0,
+	COBJ_SYMB_COMP_INFO,
+	COBJ_SYMB_EXPORTED
+};
 
 struct cobj_symb {
 	u32_t type;

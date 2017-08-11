@@ -6,7 +6,8 @@
 
 #include <cos_defkernel_api.h>
 
-enum cos_defcompinfo_status {
+enum cos_defcompinfo_status
+{
 	UNINITIALIZED = 0,
 	INITIALIZED,
 };

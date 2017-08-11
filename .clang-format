@@ -15,7 +15,19 @@ AllowShortIfStatementsOnASingleLine: true
 
 AlwaysBreakAfterReturnType: AllDefinitions
 
-BreakBeforeBraces: Linux
+BraceWrapping: {
+  AfterClass: false,
+  AfterControlStatement: false,
+  AfterEnum: true,
+  AfterFunction: true,
+  AfterNamespace: false,
+  AfterStruct: false,
+  AfterUnion: false,
+  BeforeElse: false,
+  IndentBraces: false,
+}
+
+BreakBeforeBraces: Custom
 BreakBeforeBinaryOperators: NonAssignment
 
 ColumnLimit: 120

@@ -20,7 +20,8 @@
 #define BACKSPACE 0x08
 #define TAB 0x09
 
-enum vga_colors {
+enum vga_colors
+{
 	BLACK = 0x00,
 	BLUE,
 	GREEN,

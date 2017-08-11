@@ -13,7 +13,11 @@ PERCPU_EXTERN(fpu_disabled);
 PERCPU_DECL(struct thread *, fpu_last_used);
 PERCPU_EXTERN(fpu_last_used);
 
-enum { FPU_DISABLE = 0, FPU_ENABLE = 1 };
+enum
+{
+	FPU_DISABLE = 0,
+	FPU_ENABLE  = 1
+};
 
 /* fucntions called outside */
 static inline int  fpu_init(void);

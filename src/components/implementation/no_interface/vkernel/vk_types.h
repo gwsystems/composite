@@ -14,7 +14,8 @@
 #define VM_BUDGET_FIXED 400000
 #define VM_PRIO_FIXED TCAP_PRIO_MAX
 
-enum vm_captbl_layout {
+enum vm_captbl_layout
+{
 	VM_CAPTBL_SELF_EXITTHD_BASE = BOOT_CAPTBL_FREE,
 
 	/* VM1~ I/O Capabilities layout */
@@ -26,7 +27,8 @@ enum vm_captbl_layout {
 	VM_CAPTBL_FREE             = round_up_to_pow2(VM_CAPTBL_SELF_LAST_CAP, CAPMAX_ENTRY_SZ),
 };
 
-enum dom0_captbl_layout {
+enum dom0_captbl_layout
+{
 	/* DOM0 I/O Capabilities layout */
 	DOM0_CAPTBL_SELF_IOTHD_SET_BASE = VM_CAPTBL_SELF_IOTHD_BASE,
 	DOM0_CAPTBL_SELF_IOTCAP_SET_BASE =
@@ -43,7 +45,8 @@ enum dom0_captbl_layout {
 	DOM0_CAPTBL_FREE = round_up_to_pow2(DOM0_CAPTBL_SELF_LAST_CAP, CAPMAX_ENTRY_SZ),
 };
 
-enum vm_state {
+enum vm_state
+{
 	VM_RUNNING = 0,
 	VM_EXITED  = 1,
 };

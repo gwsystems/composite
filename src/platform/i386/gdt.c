@@ -50,13 +50,15 @@ gdt_init(void)
 }
 
 /* System segment or code/data segment? */
-enum seg_class {
+enum seg_class
+{
 	CLS_SYSTEM    = 0, /* System segment. */
 	CLS_CODE_DATA = 1  /* Code or data segment. */
 };
 
 /* Limit has byte or 4 kB page granularity? */
-enum seg_granularity {
+enum seg_granularity
+{
 	GRAN_BYTE = 0, /* Limit has 1-byte granularity. */
 	GRAN_PAGE = 1  /* Limit has 4 kB granularity. */
 };

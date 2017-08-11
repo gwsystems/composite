@@ -10,8 +10,10 @@
 #define APIC_CNTR_ARR_OFF 0x2C
 
 /* See 5.2.12 in the ACPI 5.0 Spec */
-enum { APIC_CNTL_LAPIC  = 0,
-       APIC_CNTL_IOAPIC = 1,
+enum
+{
+	APIC_CNTL_LAPIC  = 0,
+	APIC_CNTL_IOAPIC = 1,
 };
 
 struct int_cntl_head {
@@ -63,13 +65,15 @@ int cpus[NUM_CPU];
 
 extern int timer_process(struct pt_regs *regs);
 
-enum lapic_timer_type {
+enum lapic_timer_type
+{
 	LAPIC_ONESHOT = 0,
 	LAPIC_PERIODIC,
 	LAPIC_TSC_DEADLINE,
 };
 
-enum lapic_timer_div_by_config {
+enum lapic_timer_div_by_config
+{
 	LAPIC_DIV_BY_2 = 0,
 	LAPIC_DIV_BY_4,
 	LAPIC_DIV_BY_8,

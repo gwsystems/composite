@@ -288,7 +288,8 @@ heap_size(struct heap *h)
 #ifdef LINUX_TEST
 #define VAL_BOUND 1000000
 
-enum heap_type {
+enum heap_type
+{
 	MIN = 0,
 	MAX,
 };

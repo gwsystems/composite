@@ -16,9 +16,11 @@ typedef enum {
 	CR4_SMAP   = 1 << 21  /* Supervisor Mode Access Protection Enable */
 } cr4_flags_t;
 
-enum { CR0_PG    = 1 << 31, /* enable paging */
-       CR0_FPEMU = 1 << 2,  /* disable floating point, enable emulation */
-       CR0_PRMOD = 1 << 0   /* in protected-mode (vs real-mode) */
+enum
+{
+	CR0_PG    = 1 << 31, /* enable paging */
+	CR0_FPEMU = 1 << 2,  /* disable floating point, enable emulation */
+	CR0_PRMOD = 1 << 0   /* in protected-mode (vs real-mode) */
 };
 
 static inline u32_t

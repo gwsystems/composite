@@ -32,7 +32,10 @@ thdcap_t              schedule[MAX_NUM_SPDS + 1];
 volatile unsigned int sched_cur;
 
 /* Macro for sinv back to booter from new component */
-enum { BOOT_SINV_CAP = round_up_to_pow2(BOOT_CAPTBL_FREE + CAP32B_IDSZ, CAPMAX_ENTRY_SZ) };
+enum
+{
+	BOOT_SINV_CAP = round_up_to_pow2(BOOT_CAPTBL_FREE + CAP32B_IDSZ, CAPMAX_ENTRY_SZ)
+};
 
 static vaddr_t
 boot_deps_map_sect(int spdid, vaddr_t dest_daddr)

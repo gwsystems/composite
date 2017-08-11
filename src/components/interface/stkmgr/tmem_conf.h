@@ -29,7 +29,8 @@ typedef struct ci_wrapper_ptr shared_component_info;
 /**
  * Flags to control stack
  */
-enum stk_flags {
+enum stk_flags
+{
 	IN_USE    = (0x01 << 0),
 	TOUCHED   = (0x01 << 1), /* don't change the sequence here! Using in stk stub */
 	PERMANATE = (0x01 << 2),

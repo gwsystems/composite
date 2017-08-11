@@ -7,7 +7,13 @@
 
 void serial_puts(const char *s);
 
-enum serial_ports { SERIAL_PORT_A = 0x3F8, SERIAL_PORT_B = 0x2F8, SERIAL_PORT_C = 0x3E8, SERIAL_PORT_D = 0x2E8 };
+enum serial_ports
+{
+	SERIAL_PORT_A = 0x3F8,
+	SERIAL_PORT_B = 0x2F8,
+	SERIAL_PORT_C = 0x3E8,
+	SERIAL_PORT_D = 0x2E8
+};
 
 static inline char
 serial_recv(void)
