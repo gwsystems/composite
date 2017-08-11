@@ -5,20 +5,15 @@
 #include "isr.h"
 #include "kernel.h"
 
-void serial_puts(const char *s);
+void
+serial_puts(const char *s);
 
-enum serial_ports {
-	SERIAL_PORT_A = 0x3F8,
-	SERIAL_PORT_B = 0x2F8,
-	SERIAL_PORT_C = 0x3E8,
-	SERIAL_PORT_D = 0x2E8
-};
+enum serial_ports { SERIAL_PORT_A = 0x3F8, SERIAL_PORT_B = 0x2F8, SERIAL_PORT_C = 0x3E8, SERIAL_PORT_D = 0x2E8 };
 
 static inline char
 serial_recv(void)
 {
-	if ((inb(SERIAL_PORT_A + 5) & 1) == 0)
-        	return '\0';
+	if ((inb(SERIAL_PORT_A + 5) & 1) == 0) return '\0';
 	return inb(SERIAL_PORT_A);
 }
 
@@ -52,30 +47,23 @@ serial_handler(struct pt_regs *r)
 	 * Fix the serial input assuming it is ascii
 	 */
 	switch (serial) {
-		case '\0':
-			return preempt;
-		case 127:
-			serial = 0x08;
-			break;
-		case 13:
-			serial = '\n';
-			break;
-		case 3: /* FIXME: Obviously remove this once we have working components */
-			die("Break\n");
-		case 'o':
-			timer_set(TIMER_ONESHOT, 50000000);
-			timer_set(TIMER_ONESHOT, 50000000);
-			break;
-		case 'p':
-			timer_set(TIMER_PERIODIC, 100000000);
-			timer_set(TIMER_PERIODIC, 100000000);
-			break;
-		default:
-			break;
+	case '\0': return preempt;
+	case 127: serial = 0x08; break;
+	case 13: serial = '\n'; break;
+	case 3: /* FIXME: Obviously remove this once we have working components */ die("Break\n");
+	case 'o':
+		timer_set(TIMER_ONESHOT, 50000000);
+		timer_set(TIMER_ONESHOT, 50000000);
+		break;
+	case 'p':
+		timer_set(TIMER_PERIODIC, 100000000);
+		timer_set(TIMER_PERIODIC, 100000000);
+		break;
+	default: break;
 	}
 
 	printk("Serial: %d\n", serial);
-	//printk("%c", serial);
+	// printk("%c", serial);
 	return preempt;
 }
 

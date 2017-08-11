@@ -19,30 +19,28 @@ print(struct clist_head *lh)
 
 	clist_head_fst(lh, &l);
 	printf("[ ");
-	for (clist_head_fst(lh, &l) ; 
-	     !clist_is_head(lh, l) ; 
-	     l = clist_next(l)) {
-		printf("%d ", l->id);		
+	for (clist_head_fst(lh, &l); !clist_is_head(lh, l); l = clist_next(l)) {
+		printf("%d ", l->id);
 	}
 	printf("]\n");
 }
 
-int check(struct clist_head *lh, char chk[])
+int
+check(struct clist_head *lh, char chk[])
 {
 	struct list_test *l;
 	int i;
 
 	clist_head_fst(lh, &l);
-	for (i = 0, clist_head_fst(lh, &l) ; 
-	     !clist_is_head(lh, l) ; 
-	     l = clist_next(l), i++) {
-		int x = chk[i]-48;
+	for (i = 0, clist_head_fst(lh, &l); !clist_is_head(lh, l); l = clist_next(l), i++) {
+		int x = chk[i] - 48;
 		if (x != l->id) return 0;
 	}
 	return 1;
 }
 
-int main(void)
+int
+main(void)
 {
 	struct clist_head h;
 	struct list_test l0, l1, l2;

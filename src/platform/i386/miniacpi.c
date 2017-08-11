@@ -3,9 +3,9 @@
 #include "mem_layout.h"
 #include "pgtbl.h"
 
-#define RSDP_LO_ADDRESS ((unsigned char*)0xc00E0000)
-#define RSDP_HI_ADDRESS ((unsigned char*)0xc00FFFFF)
-#define RSDP_ALIGNMENT  (16)
+#define RSDP_LO_ADDRESS ((unsigned char *)0xc00E0000)
+#define RSDP_HI_ADDRESS ((unsigned char *)0xc00FFFFF)
+#define RSDP_ALIGNMENT (16)
 
 struct rsdp {
 	char signature[8];
@@ -39,7 +39,7 @@ static struct rsdt *rsdt;
 static inline void *
 pa2va(void *pa)
 {
-	return (void*)(((u32_t)pa & ((1<<22)-1)) | basepage);
+	return (void *)(((u32_t)pa & ((1 << 22) - 1)) | basepage);
 }
 
 void *
@@ -49,8 +49,8 @@ acpi_find_rsdt(void)
 	struct rsdp *rsdp = NULL;
 
 	for (sig = RSDP_LO_ADDRESS; sig < RSDP_HI_ADDRESS; sig += RSDP_ALIGNMENT) {
-		if (!strncmp("RSD PTR ", (char*)sig, 8)) {
-			struct rsdp *r = (struct rsdp*)sig;
+		if (!strncmp("RSD PTR ", (char *)sig, 8)) {
+			struct rsdp *r    = (struct rsdp *)sig;
 			unsigned char sum = 0;
 			u32_t i;
 
@@ -60,7 +60,7 @@ acpi_find_rsdt(void)
 
 			if (sum == 0) {
 				printk("\tFound good RSDP @ %p\n", sig);
-				rsdp = (struct rsdp*)sig;
+				rsdp = (struct rsdp *)sig;
 				break;
 			} else {
 				printk("\tFound RSDP signature but bad checksum (%d) @ %p\n", sum, sig);
@@ -69,7 +69,7 @@ acpi_find_rsdt(void)
 	}
 
 	if (rsdp) {
-		rsdt = (struct rsdt*)rsdp->rsdtaddress;
+		rsdt = (struct rsdt *)rsdp->rsdtaddress;
 	} else {
 		rsdt = NULL;
 	}
@@ -80,14 +80,14 @@ acpi_find_rsdt(void)
 void *
 acpi_find_timer(void)
 {
-        pgtbl_t pgtbl = (pgtbl_t)boot_comp_pgd;
+	pgtbl_t pgtbl = (pgtbl_t)boot_comp_pgd;
 	size_t i;
 
-	for (i = 0; i < (rsdt->length - sizeof(struct rsdt)) / sizeof(struct rsdt*); i++) {
-		struct rsdt *e = (struct rsdt*)pa2va(rsdt->entry[i]);
+	for (i = 0; i < (rsdt->length - sizeof(struct rsdt)) / sizeof(struct rsdt *); i++) {
+		struct rsdt *e = (struct rsdt *)pa2va(rsdt->entry[i]);
 		if (!strncmp(e->signature, "HPET", 4)) {
-			unsigned char *check = (unsigned char*)e;
-			unsigned char sum = 0;
+			unsigned char *check = (unsigned char *)e;
+			unsigned char sum    = 0;
 			u32_t j;
 
 			for (j = 0; j < e->length; j++) {
@@ -112,11 +112,11 @@ acpi_find_apic(void)
 {
 	size_t i;
 
-	for (i = 0; i < (rsdt->length - sizeof(struct rsdt)) / sizeof(struct rsdt*); i++) {
-		struct rsdt *e = (struct rsdt*)pa2va(rsdt->entry[i]);
+	for (i = 0; i < (rsdt->length - sizeof(struct rsdt)) / sizeof(struct rsdt *); i++) {
+		struct rsdt *e = (struct rsdt *)pa2va(rsdt->entry[i]);
 		if (!strncmp(e->signature, "APIC", 4)) {
-			unsigned char *check = (unsigned char*)e;
-			unsigned char sum = 0;
+			unsigned char *check = (unsigned char *)e;
+			unsigned char sum    = 0;
 			u32_t j;
 
 			for (j = 0; j < e->length; j++) {
@@ -140,5 +140,5 @@ void
 acpi_set_rsdt_page(u32_t page)
 {
 	basepage = page * (1 << 22);
-	rsdt = (struct rsdt*)pa2va(rsdt);
+	rsdt     = (struct rsdt *)pa2va(rsdt);
 }

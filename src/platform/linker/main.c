@@ -30,14 +30,22 @@
 #include <stdio.h>
 #include <string.h>
 
-int deserialize_dependencies(char *deps, struct service_symbs *services);
-void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *services);
-unsigned long load_all_services(struct service_symbs *services);
-void print_objs_symbs(struct service_symbs *str);
-struct service_symbs *prepare_service_symbs(char *services);
-void output_image(struct service_symbs *services);
-int verify_dependency_completeness(struct service_symbs *services);
-int verify_dependency_soundness(struct service_symbs *services);
+int
+deserialize_dependencies(char *deps, struct service_symbs *services);
+void
+gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *services);
+unsigned long
+load_all_services(struct service_symbs *services);
+void
+print_objs_symbs(struct service_symbs *str);
+struct service_symbs *
+prepare_service_symbs(char *services);
+void
+output_image(struct service_symbs *services);
+int
+verify_dependency_completeness(struct service_symbs *services);
+int
+verify_dependency_soundness(struct service_symbs *services);
 
 /*
  * Format of the input string is as such:
@@ -58,9 +66,11 @@ main(int argc, char *argv[])
 	long service_addr;
 
 	if (argc != 3) {
-		printl(PRINT_HIGH, "Usage: %s [-q] <comma separated string of all "
-               "objs:truster1-trustee1|trustee2|...;truster2-...> "
-               "<path to gen_client_stub>\n", argv[0]);
+		printl(PRINT_HIGH,
+		       "Usage: %s [-q] <comma separated string of all "
+		       "objs:truster1-trustee1|trustee2|...;truster2-...> "
+		       "<path to gen_client_stub>\n",
+		       argv[0]);
 		return 1;
 	}
 
@@ -80,11 +90,13 @@ main(int argc, char *argv[])
 	servs = strtok(argv[1], delim);
 	while ((ndeps = strtok(NULL, delim))) {
 		dependencies = ndeps;
-		*(ndeps-1) = ':';
+		*(ndeps - 1) = ':';
 	}
-	if (!dependencies) dependencies = "";
-	else               *(dependencies-1) = '\0';
-	//printf("comps: %s\ndeps: %s\n", servs, dependencies);
+	if (!dependencies)
+		dependencies = "";
+	else
+		*(dependencies - 1) = '\0';
+	// printf("comps: %s\ndeps: %s\n", servs, dependencies);
 
 	if (!servs) {
 		printl(PRINT_HIGH, "You must specify at least one service.\n");

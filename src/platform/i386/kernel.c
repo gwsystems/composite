@@ -10,9 +10,9 @@
 #include <component.h>
 #include <thd.h>
 
-#define ADDR_STR_LEN     8
-#define CMDLINE_MAX_LEN  32
-#define CMDLINE_REQ_LEN  (ADDR_STR_LEN * 2 + 1)
+#define ADDR_STR_LEN 8
+#define CMDLINE_MAX_LEN 32
+#define CMDLINE_REQ_LEN (ADDR_STR_LEN * 2 + 1)
 
 struct mem_layout glb_memlayout;
 
@@ -30,14 +30,14 @@ hextol(const char *s)
 {
 	int i, r = 0;
 
-	for (i = 0 ; i < 8 ; i++) {
+	for (i = 0; i < 8; i++) {
 		r = (r * 0x10) + xdtoi(s[i]);
 	}
 
 	return r;
 }
 
-extern u8_t end; 		/* from the linker script */
+extern u8_t end; /* from the linker script */
 
 void
 kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
@@ -52,8 +52,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		die("Not started from a multiboot loader!\n");
 	}
 	if ((mb->flags & MULTIBOOT_FLAGS_REQUIRED) != MULTIBOOT_FLAGS_REQUIRED) {
-		die("Multiboot flags include %x but are missing one of %x\n",
-		    mb->flags, MULTIBOOT_FLAGS_REQUIRED);
+		die("Multiboot flags include %x but are missing one of %x\n", mb->flags, MULTIBOOT_FLAGS_REQUIRED);
 	}
 
 	mods = (struct multiboot_mod_list *)mb->mods_addr;
@@ -63,15 +62,15 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	}
 
 	glb_memlayout.kern_end = &end + PAGE_SIZE;
-	assert((unsigned int)&end % RETYPE_MEM_NPAGES*PAGE_SIZE == 0);
+	assert((unsigned int)&end % RETYPE_MEM_NPAGES * PAGE_SIZE == 0);
 
 	printk("System memory info from multiboot (end 0x%x):\n", &end);
 	printk("\tModules:\n");
-	for (i = 0 ; i < mb->mods_count ; i++) {
+	for (i = 0; i < mb->mods_count; i++) {
 		struct multiboot_mod_list *mod = &mods[i];
-		char *cmdline = (char *)mod->cmdline;
-		int cmdline_len = strnlen((const char*)cmdline, CMDLINE_MAX_LEN);
-		int addr_offset = cmdline_len - CMDLINE_REQ_LEN;
+		char *cmdline                  = (char *)mod->cmdline;
+		int cmdline_len                = strnlen((const char *)cmdline, CMDLINE_MAX_LEN);
+		int addr_offset                = cmdline_len - CMDLINE_REQ_LEN;
 
 		printk("\t- %d: [%08x, %08x) : %s", i, mod->mod_start, mod->mod_end, mod->cmdline);
 		assert(cmdline_len >= CMDLINE_REQ_LEN);
@@ -81,47 +80,51 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		glb_memlayout.mod_start = chal_pa2va((paddr_t)mod->mod_start);
 		glb_memlayout.mod_end   = chal_pa2va((paddr_t)mod->mod_end);
 
-		glb_memlayout.bootc_vaddr = (void*)hextol((char *)(cmdline + addr_offset));
-		glb_memlayout.bootc_entry = (void*)hextol((char *)(cmdline + addr_offset + ADDR_STR_LEN + 1));
-		printk(" @ virtual address %p, _start = %p.\n",
-		       glb_memlayout.bootc_vaddr, glb_memlayout.bootc_entry);
+		glb_memlayout.bootc_vaddr = (void *)hextol((char *)(cmdline + addr_offset));
+		glb_memlayout.bootc_entry = (void *)hextol((char *)(cmdline + addr_offset + ADDR_STR_LEN + 1));
+		printk(" @ virtual address %p, _start = %p.\n", glb_memlayout.bootc_vaddr, glb_memlayout.bootc_entry);
 	}
 	glb_memlayout.kern_boot_heap = mem_boot_start();
 
 	printk("\tMemory regions:\n");
-	for (i = 0 ; i < mb->mmap_length/sizeof(struct multiboot_mem_list) ; i++) {
+	for (i = 0; i < mb->mmap_length / sizeof(struct multiboot_mem_list); i++) {
 		struct multiboot_mem_list *mem = &mems[i];
-		u8_t *mod_end  = glb_memlayout.mod_end;
-		u8_t *mem_addr = chal_pa2va((paddr_t)mem->addr);
+		u8_t *mod_end                  = glb_memlayout.mod_end;
+		u8_t *mem_addr                 = chal_pa2va((paddr_t)mem->addr);
 
-		printk("\t- %d (%s): [%08llx, %08llx)\n", i,
-		       mem->type == 1 ? "Available" : "Reserved ", mem->addr, mem->addr + mem->len);
+		printk("\t- %d (%s): [%08llx, %08llx)\n",
+		       i,
+		       mem->type == 1 ? "Available" : "Reserved ",
+		       mem->addr,
+		       mem->addr + mem->len);
 
 		/* is this the memory region we'll use for component memory? */
 		if (mem->type == 1 && mod_end >= mem_addr && mod_end < (mem_addr + mem->len)) {
 			unsigned long sz = (mem_addr + mem->len) - mod_end;
 
 			glb_memlayout.kmem_end = mem_addr + mem->len;
-			printk("\t  memory available at boot time: %lx (%ld MB + %ld KB)\n", sz, sz>>20, (sz&((1<<20)-1))>>10);
+			printk("\t  memory available at boot time: %lx (%ld MB + %ld KB)\n",
+			       sz,
+			       sz >> 20,
+			       (sz & ((1 << 20) - 1)) >> 10);
 		}
 	}
 	/* FIXME: check memory layout vs. the multiboot memory regions... */
 
 	/* Validate the memory layout. */
-	assert(mem_kern_end()    <= mem_bootc_start());
-	assert(mem_bootc_end()   <= mem_boot_start());
-	assert(mem_boot_start()  >= mem_kmem_start());
-	assert(mem_kmem_start()  == mem_bootc_start());
-	assert(mem_kmem_end()    >= mem_boot_end());
+	assert(mem_kern_end() <= mem_bootc_start());
+	assert(mem_bootc_end() <= mem_boot_start());
+	assert(mem_boot_start() >= mem_kmem_start());
+	assert(mem_kmem_start() == mem_bootc_start());
+	assert(mem_kmem_end() >= mem_boot_end());
 	assert(mem_utmem_start() >= mem_kmem_start());
 	assert(mem_utmem_start() >= mem_boot_end());
-	assert(mem_utmem_end()   <= mem_kmem_end());
+	assert(mem_utmem_end() <= mem_kmem_end());
 	assert(mem_bootc_entry() - mem_bootc_vaddr() <= mem_bootc_end() - mem_bootc_start());
 
 	wastage += mem_boot_start() - mem_bootc_end();
 
-	printk("\tAmount of wasted memory due to layout is %u MB + 0x%x B\n",
-	       wastage>>20, wastage & ((1<<20)-1));
+	printk("\tAmount of wasted memory due to layout is %u MB + 0x%x B\n", wastage >> 20, wastage & ((1 << 20) - 1));
 
 	assert(STK_INFO_SZ == sizeof(struct cos_cpu_local_info));
 }
@@ -129,7 +132,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 void
 kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 {
-#define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
+#define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
 	unsigned long max;
 
 	tss_init();
@@ -146,9 +149,9 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	vga_init();
 #endif
 
-	max = MAX((unsigned long)mboot->mods_addr,
-		  MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
-	kern_paging_map_init((void*)(max + PGD_SIZE));
+	max =
+	  MAX((unsigned long)mboot->mods_addr, MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
+	kern_paging_map_init((void *)(max + PGD_SIZE));
 	kern_memory_setup(mboot, mboot_magic);
 
 	chal_init();
@@ -175,7 +178,8 @@ void
 khalt(void)
 {
 	printk("Shutting down...\n");
-	while (1) ;
+	while (1)
+		;
 	asm("mov $0x53,%ah");
 	asm("mov $0x07,%al");
 	asm("mov $0x001,%bx");

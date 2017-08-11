@@ -12,27 +12,43 @@ paddr_t chal_kernel_mem_pa;
 
 void *
 chal_pa2va(paddr_t address)
-{ return (void*)(address+COS_MEM_KERN_START_VA); }
+{
+	return (void *)(address + COS_MEM_KERN_START_VA);
+}
 
 paddr_t
 chal_va2pa(void *address)
-{ return (paddr_t)(address-COS_MEM_KERN_START_VA); }
+{
+	return (paddr_t)(address - COS_MEM_KERN_START_VA);
+}
 
 void *
 chal_alloc_kern_mem(int order)
-{ return mem_kmem_start(); }
+{
+	return mem_kmem_start();
+}
 
-void chal_free_kern_mem(void *mem, int order) {}
+void
+chal_free_kern_mem(void *mem, int order)
+{
+}
 
 int
 chal_attempt_arcv(struct cap_arcv *arcv)
-{ return 0; }
+{
+	return 0;
+}
 
-void chal_send_ipi(int cpuid) {}
+void
+chal_send_ipi(int cpuid)
+{
+}
 
 void
 chal_khalt(void)
-{ khalt(); }
+{
+	khalt();
+}
 
 void
 chal_init(void)
@@ -65,22 +81,22 @@ chal_init(void)
 
 	printk("\tFeatures [");
 	chal_cpuid(1, &a, &b, &c, &d);
-	if (d & (1<<4))  printk("rdtsc ");
-	if (d & (1<<0))  printk("fpu ");
-	if (d & (1<<3))  printk("superpages ");
-	if (d & (1<<11)) printk("sysenter/exit ");
-	if (d & (1<<19)) printk("clflush ");
-	if (d & (1<<22)) printk("acpi ");
-	if (d & (1<<9))  printk("apic ");
-	if (c & (1<<21)) printk("x2apic ");
+	if (d & (1 << 4)) printk("rdtsc ");
+	if (d & (1 << 0)) printk("fpu ");
+	if (d & (1 << 3)) printk("superpages ");
+	if (d & (1 << 11)) printk("sysenter/exit ");
+	if (d & (1 << 19)) printk("clflush ");
+	if (d & (1 << 22)) printk("acpi ");
+	if (d & (1 << 9)) printk("apic ");
+	if (c & (1 << 21)) printk("x2apic ");
 	chal_cpuid(0x80000001, &a, &b, &c, &d);
-	if (d & (1<<27)) printk("rdtscp ");
+	if (d & (1 << 27)) printk("rdtscp ");
 	chal_cpuid(0x80000007, &a, &b, &c, &d);
-	if (d & (1<<8))  printk("invariant_tsc ");
+	if (d & (1 << 8)) printk("invariant_tsc ");
 	printk("]\n");
 
 	readmsr(MSR_PLATFORM_INFO, &a, &b);
-	printk("\tFrequency: %d (* 100Mz)\n", (a >> 8) & ((1<<7)-1));
+	printk("\tFrequency: %d (* 100Mz)\n", (a >> 8) & ((1 << 7) - 1));
 
 	chal_kernel_mem_pa = chal_va2pa(mem_kmem_start());
 }

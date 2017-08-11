@@ -18,8 +18,8 @@
 
 #undef HEAP_TRACE_DEBUG
 #ifdef HEAP_TRACE_DEBUG
-#define debug(format, ...) printd(format, ## __VA_ARGS__)
-#else 
+#define debug(format, ...) printd(format, ##__VA_ARGS__)
+#else
 #define debug(format, ...)
 #endif
 
@@ -28,7 +28,7 @@ swap_entries(void *arr[], int a, int b, update_fn_t u)
 {
 	void *t;
 
-	t = arr[a];
+	t      = arr[a];
 	arr[a] = arr[b];
 	arr[b] = t;
 
@@ -36,7 +36,7 @@ swap_entries(void *arr[], int a, int b, update_fn_t u)
 	u(arr[b], b);
 }
 
-/* 
+/*
  * a: array
  * c: current index
  * e: end index
@@ -44,18 +44,18 @@ swap_entries(void *arr[], int a, int b, update_fn_t u)
 static inline int
 swap_down(struct heap *h, int c)
 {
-	int l; 			/* last entry */
+	int l; /* last entry */
 
 	assert(c != 0);
 	assert(c <= h->e);
 
-	l = h->e-1;
-	while (c <= l/2) { /* not a leaf? */
-		int n; 	   /* next index */
+	l = h->e - 1;
+	while (c <= l / 2) { /* not a leaf? */
+		int n;       /* next index */
 		int left, right;
 
-		left = 2*c;
-		right = 2*c+1;
+		left  = 2 * c;
+		right = 2 * c + 1;
 
 		if (right > l) {
 			n = left;
@@ -82,9 +82,9 @@ swap_up(struct heap *h, int c)
 	assert(c > 0);
 
 	while (c > 1) {
-		int p; 		/* parent index */
-		
-		p = c/2;
+		int p; /* parent index */
+
+		p = c / 2;
 		assert(p != 0);
 		if (h->c(h->data[p], h->data[c])) break; /* done? */
 
@@ -117,23 +117,27 @@ __heap_verify(struct heap *h, int c)
 {
 	int left, right;
 
-	left = c*2;
-	right = c*2+1;
+	left  = c * 2;
+	right = c * 2 + 1;
 	if (left < h->e) {
-		assert(((struct hentry*)h->data[left])->index == left);
+		assert(((struct hentry *)h->data[left])->index == left);
 		if (!h->c(h->data[c], h->data[left]) || __heap_verify(h, left)) {
-			printd("Left data %d @ %d < %d @ %d\n", 
-			       ((struct hentry*)h->data[c])->value, c, 
-			       ((struct hentry*)h->data[left])->value, left);
+			printd("Left data %d @ %d < %d @ %d\n",
+			       ((struct hentry *)h->data[c])->value,
+			       c,
+			       ((struct hentry *)h->data[left])->value,
+			       left);
 			return 1;
 		}
 	}
 	if (right < h->e) {
-		assert(((struct hentry*)h->data[right])->index == right);
+		assert(((struct hentry *)h->data[right])->index == right);
 		if (!h->c(h->data[c], h->data[right]) || __heap_verify(h, right)) {
-			printd("Right data %d @ %d < %d @ %d\n", 
-			       ((struct hentry*)h->data[c])->value, c, 
-			       ((struct hentry*)h->data[left])->value, left);
+			printd("Right data %d @ %d < %d @ %d\n",
+			       ((struct hentry *)h->data[c])->value,
+			       c,
+			       ((struct hentry *)h->data[left])->value,
+			       left);
 			return 1;
 		}
 	}
@@ -142,7 +146,9 @@ __heap_verify(struct heap *h, int c)
 
 static int
 heap_verify(struct heap *h)
-{ return __heap_verify(h, 1); }
+{
+	return __heap_verify(h, 1);
+}
 #else
 #define heap_verify(h) 0
 #endif
@@ -153,11 +159,11 @@ heap_init(struct heap *h, int max_sz, cmp_fn_t c, update_fn_t u)
 {
 	assert(h);
 
-	h->max_sz = max_sz+1;
-	h->e = 1;
-	h->c = c;
-	h->u = u;
-	h->data = (void *)&h[1];
+	h->max_sz = max_sz + 1;
+	h->e      = 1;
+	h->c      = c;
+	h->u      = u;
+	h->data   = (void *)&h[1];
 	assert(!heap_verify(h));
 }
 
@@ -167,7 +173,7 @@ heap_alloc(int max_sz, cmp_fn_t c, update_fn_t u)
 	struct heap *h = NULL;
 
 #ifdef LINUX
-	h = malloc(sizeof(struct heap) + (max_sz * sizeof(void*)) + 1);
+	h = malloc(sizeof(struct heap) + (max_sz * sizeof(void *)) + 1);
 	if (NULL == h) return NULL;
 
 	heap_init(h, max_sz, c, u);
@@ -196,7 +202,7 @@ heap_add(struct heap *h, void *new)
 	debug("heap_add(%p,%d) %p\n", h, h->e, new);
 
 	assert(!heap_verify(h));
-	c = h->e;
+	c          = h->e;
 	h->data[c] = new;
 	h->u(new, c);
 	h->e++;
@@ -275,7 +281,9 @@ heap_remove(struct heap *h, int c)
 
 int
 heap_size(struct heap *h)
-{ return h->e-1; }
+{
+	return h->e - 1;
+}
 
 #ifdef LINUX_TEST
 #define VAL_BOUND 1000000
@@ -285,61 +293,75 @@ enum heap_type {
 	MAX,
 };
 
-int c_min(void *a, void *b) { return ((struct hentry*)a)->value <= ((struct hentry*)b)->value; }
-int c_max(void *a, void *b) { return ((struct hentry*)a)->value >= ((struct hentry*)b)->value; }
-void u(void *e, int pos) { ((struct hentry*)e)->index = pos; }
+int
+c_min(void *a, void *b)
+{
+	return ((struct hentry *)a)->value <= ((struct hentry *)b)->value;
+}
+int
+c_max(void *a, void *b)
+{
+	return ((struct hentry *)a)->value >= ((struct hentry *)b)->value;
+}
+void
+u(void *e, int pos)
+{
+	((struct hentry *)e)->index = pos;
+}
 
-static void entries_validate(struct heap *h, struct hentry *es, int amnt)
+static void
+entries_validate(struct heap *h, struct hentry *es, int amnt)
 {
 	int i;
 
-	for (i = 0 ; i < amnt ; i++) {
+	for (i = 0; i < amnt; i++) {
 		assert(h->data[es[i].index] == &es[i]);
 	}
 }
 
-static void test_driver(int amnt, int type)
+static void
+test_driver(int amnt, int type)
 {
 	int i;
 	struct hentry *prev, *es;
 	cmp_fn_t c;
 	struct heap *h;
 
-	c = (type == MIN ? c_min : c_max);
-	h = heap_alloc(amnt, c, u);
+	c  = (type == MIN ? c_min : c_max);
+	h  = heap_alloc(amnt, c, u);
 	es = malloc(sizeof(struct hentry) * amnt);
 	assert(es);
 
-	for (i = 0 ; i < amnt ; i++) {
+	for (i = 0; i < amnt; i++) {
 		es[i].value = rand() % VAL_BOUND;
 		printf("adding@%d:%d\n", i, es[i].value);
 		assert(!heap_add(h, &es[i]));
 	}
 	entries_validate(h, es, amnt);
-	for (i = 0 ; i < amnt ; i++) {
+	for (i = 0; i < amnt; i++) {
 		es[i].value = rand() % VAL_BOUND;
 		printf("adjusting@%d:%d\n", i, es[i].value);
 		heap_adjust(h, es[i].index);
 	}
 	entries_validate(h, es, amnt);
 	prev = h->data[1];
-	for (i = 0 ; i < amnt ; i++) {
+	for (i = 0; i < amnt; i++) {
 		struct hentry *curr = heap_highest(h);
 		printf("highest:%d\n", curr->value);
-		if (!c((struct hentry*)prev, (struct hentry*)curr)) assert(0);
+		if (!c((struct hentry *)prev, (struct hentry *)curr)) assert(0);
 		prev = curr;
 	}
 	assert(!heap_highest(h));
 	assert(heap_size(h) == 0);
-	for (i = 0 ; i < amnt ; i++) {
+	for (i = 0; i < amnt; i++) {
 		es[i].value = rand() % VAL_BOUND;
 		printf("adding@%d:%d\n", i, es[i].value);
 		assert(!heap_add(h, &es[i]));
 	}
 	entries_validate(h, es, amnt);
-	for (i = amnt ; i > 0 ; i--) {
+	for (i = amnt; i > 0; i--) {
 		int idx;
-		idx = (rand() % i) + 1;
+		idx                 = (rand() % i) + 1;
 		struct hentry *curr = heap_remove(h, idx);
 		printf("removing:%d\n", curr->value);
 		assert(curr);
@@ -352,16 +374,17 @@ static void test_driver(int amnt, int type)
 	free(es);
 }
 
-#define ITER  10
+#define ITER 10
 #define BOUND 4096
 
-int main(void)
+int
+main(void)
 {
 	int i;
 
 	srand(time(NULL));
 
-	for (i = 0 ; i < ITER ; i++) {
+	for (i = 0; i < ITER; i++) {
 		int items = rand() % BOUND;
 
 		printf("MIN-HEAP TEST - iter:%d items:%d\n", i, items);

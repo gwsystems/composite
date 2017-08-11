@@ -7,18 +7,23 @@
 static volatile u64_t gdt[SEL_CNT] __attribute__((aligned(sizeof(u64_t))));
 
 /* GDT helpers. */
-static u64_t make_code_desc(int dpl);
-static u64_t make_data_desc(int dpl);
-static u64_t make_data_desc_at(int dpl, u32_t addr);
-static u64_t make_tss_desc(void *laddr);
-static u64_t make_gdtr_operand(u16_t limit, void *base);
+static u64_t
+make_code_desc(int dpl);
+static u64_t
+make_data_desc(int dpl);
+static u64_t
+make_data_desc_at(int dpl, u32_t addr);
+static u64_t
+make_tss_desc(void *laddr);
+static u64_t
+make_gdtr_operand(u16_t limit, void *base);
 
 void
 chal_tls_update(vaddr_t addr)
 {
 	gdt[SEL_UGSEG / sizeof *gdt] = make_data_desc_at(3, (u32_t)addr);
 	/* force the reload of the segment cache */
-	asm volatile ("movl %0, %%gs" : : "q" (SEL_UGSEG));
+	asm volatile("movl %0, %%gs" : : "q"(SEL_UGSEG));
 }
 
 /*
@@ -26,17 +31,17 @@ chal_tls_update(vaddr_t addr)
  * user-mode selectors or a TSS, but we need both now.
  */
 void
-gdt_init (void)
+gdt_init(void)
 {
 	u64_t gdtr_operand;
 
 	/* Initialize GDT. */
-	gdt[SEL_NULL  / sizeof *gdt] = 0;
+	gdt[SEL_NULL / sizeof *gdt]  = 0;
 	gdt[SEL_KCSEG / sizeof *gdt] = make_code_desc(0);
 	gdt[SEL_KDSEG / sizeof *gdt] = make_data_desc(0);
 	gdt[SEL_UCSEG / sizeof *gdt] = make_code_desc(3);
 	gdt[SEL_UDSEG / sizeof *gdt] = make_data_desc(3);
-	gdt[SEL_TSS   / sizeof *gdt] = make_tss_desc(&tss);
+	gdt[SEL_TSS / sizeof *gdt]   = make_tss_desc(&tss);
 	gdt[SEL_UGSEG / sizeof *gdt] = make_data_desc(3);
 
 	/*
@@ -44,21 +49,21 @@ gdt_init (void)
 	 * Table Register (GDTR)", 2.4.4 "Task Register (TR)", and
 	 * 6.2.4 "Task Register".
 	 */
-	gdtr_operand = make_gdtr_operand(sizeof gdt - 1, (void*)gdt);
-	asm volatile ("lgdt %0" : : "m" (gdtr_operand));
-	asm volatile ("ltr %w0" : : "q" (SEL_TSS));
+	gdtr_operand = make_gdtr_operand(sizeof gdt - 1, (void *)gdt);
+	asm volatile("lgdt %0" : : "m"(gdtr_operand));
+	asm volatile("ltr %w0" : : "q"(SEL_TSS));
 }
 
 /* System segment or code/data segment? */
 enum seg_class {
-	CLS_SYSTEM = 0,             /* System segment. */
-	CLS_CODE_DATA = 1           /* Code or data segment. */
+	CLS_SYSTEM    = 0, /* System segment. */
+	CLS_CODE_DATA = 1  /* Code or data segment. */
 };
 
 /* Limit has byte or 4 kB page granularity? */
 enum seg_granularity {
-	GRAN_BYTE = 0,              /* Limit has 1-byte granularity. */
-	GRAN_PAGE = 1               /* Limit has 4 kB granularity. */
+	GRAN_BYTE = 0, /* Limit has 1-byte granularity. */
+	GRAN_PAGE = 1  /* Limit has 4 kB granularity. */
 };
 
 /* Returns a segment descriptor with the given 32-bit BASE and
@@ -73,35 +78,30 @@ enum seg_granularity {
    DPL==0 means that only the kernel can use the segment.  See
    [IA32-v3a] 4.5 "Privilege Levels" for further discussion. */
 static u64_t
-make_seg_desc (u32_t base,
-               u32_t limit,
-               enum seg_class class,
-               int type,
-               int dpl,
-               enum seg_granularity granularity)
+make_seg_desc(u32_t base, u32_t limit, enum seg_class class, int type, int dpl, enum seg_granularity granularity)
 {
 	u32_t e0, e1;
 
-	//ASSERT (limit <= 0xfffff);
-	//ASSERT (class == CLS_SYSTEM || class == CLS_CODE_DATA);
-	//ASSERT (type >= 0 && type <= 15);
-	//ASSERT (dpl >= 0 && dpl <= 3);
-	//ASSERT (granularity == GRAN_BYTE || granularity == GRAN_PAGE);
+	// ASSERT (limit <= 0xfffff);
+	// ASSERT (class == CLS_SYSTEM || class == CLS_CODE_DATA);
+	// ASSERT (type >= 0 && type <= 15);
+	// ASSERT (dpl >= 0 && dpl <= 3);
+	// ASSERT (granularity == GRAN_BYTE || granularity == GRAN_PAGE);
 
-	e0 = ((limit & 0xffff)             /* Limit 15:0. */
-	      | (base << 16));             /* Base 15:0. */
+	e0 = ((limit & 0xffff) /* Limit 15:0. */
+	      | (base << 16)); /* Base 15:0. */
 
-	e1 = (((base >> 16) & 0xff)        /* Base 23:16. */
-	      | (type << 8)                /* Segment type. */
-	      | (class << 12)              /* 0=system, 1=code/data. */
-	      | (dpl << 13)                /* Descriptor privilege. */
-	      | (1 << 15)                  /* Present. */
-	      | (limit & 0xf0000)          /* Limit 16:19. */
-	      | (1 << 22)                  /* 32-bit segment. */
-	      | (granularity << 23)        /* Byte/page granularity. */
-	      | (base & 0xff000000));      /* Base 31:24. */
+	e1 = (((base >> 16) & 0xff)   /* Base 23:16. */
+	      | (type << 8)           /* Segment type. */
+	      | (class << 12)         /* 0=system, 1=code/data. */
+	      | (dpl << 13)           /* Descriptor privilege. */
+	      | (1 << 15)             /* Present. */
+	      | (limit & 0xf0000)     /* Limit 16:19. */
+	      | (1 << 22)             /* 32-bit segment. */
+	      | (granularity << 23)   /* Byte/page granularity. */
+	      | (base & 0xff000000)); /* Base 31:24. */
 
-	return e0 | ((u64_t) e1 << 32);
+	return e0 | ((u64_t)e1 << 32);
 }
 
 /*
@@ -137,9 +137,9 @@ make_data_desc_at(int dpl, u32_t base)
  *  "TSS Descriptor".
  */
 static u64_t
-make_tss_desc (void *laddr)
+make_tss_desc(void *laddr)
 {
-	return make_seg_desc((u32_t) laddr, 0x67, CLS_SYSTEM, 9, 0, GRAN_BYTE);
+	return make_seg_desc((u32_t)laddr, 0x67, CLS_SYSTEM, 9, 0, GRAN_BYTE);
 }
 
 /*
@@ -147,7 +147,7 @@ make_tss_desc (void *laddr)
  * used as an operand for the LGDT instruction.
  */
 static u64_t
-make_gdtr_operand (u16_t limit, void *base)
+make_gdtr_operand(u16_t limit, void *base)
 {
-	return limit | ((u64_t) (u32_t) base << 16);
+	return limit | ((u64_t)(u32_t)base << 16);
 }

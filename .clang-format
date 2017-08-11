@@ -1,0 +1,42 @@
+---
+BasedOnStyle: Mozilla
+IndentWidth: 8
+Language: Cpp
+
+AlignConsecutiveAssignments: true
+AlignEscapedNewlines: Left
+AlignTrailingComments: true
+
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: true
+
+AlwaysBreakAfterReturnType: All
+
+BreakBeforeBraces: Linux
+BreakBeforeBinaryOperators: NonAssignment
+
+ColumnLimit: 120
+
+IndentCaseLabels: false
+IndentWrappedFunctionNames: false
+
+KeepEmptyLinesAtTheStartOfBlocks: false
+
+MaxEmptyLinesToKeep: 2
+
+PointerAlignment: Right
+
+SortIncludes: false
+
+SpaceAfterCStyleCast: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 1
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+
+TabWidth: 8
+UseTab: ForIndentation
+...
