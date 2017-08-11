@@ -60,8 +60,8 @@
 		unsigned int mask;                                                                                   \
 		DEF_RING_PTR(type);                                                                                  \
 	};                                                                                                           \
-	CK_CC_INLINE static void ck_ring_init_##name(                                                                \
-	  struct ck_ring_##name *ring, struct type *buffer, unsigned int size)                                       \
+	CK_CC_INLINE static void ck_ring_init_##name(struct ck_ring_##name *ring, struct type *buffer,               \
+	                                             unsigned int size)                                              \
 	{                                                                                                            \
 		ring->size   = size;                                                                                 \
 		ring->mask   = size - 1;                                                                             \
@@ -79,8 +79,8 @@
 		return (p - c) & ring->mask;                                                                         \
 	}                                                                                                            \
 	CK_CC_INLINE static unsigned int ck_ring_capacity_##name(struct ck_ring_##name *ring) { return ring->size; } \
-	CK_CC_INLINE static bool         ck_ring_enqueue_spsc_size_##name(                                           \
-          struct ck_ring_##name *ring, struct type *entry, unsigned int *size)                               \
+	CK_CC_INLINE static bool ck_ring_enqueue_spsc_size_##name(struct ck_ring_##name *ring, struct type *entry,   \
+	                                                          unsigned int *size)                                \
 	{                                                                                                            \
 		unsigned int consumer, producer, delta;                                                              \
 		unsigned int mask = ring->mask;                                                                      \
@@ -130,8 +130,8 @@
                                                                                                                      \
 		return true;                                                                                         \
 	}                                                                                                            \
-	CK_CC_INLINE static bool ck_ring_enqueue_spmc_size_##name(                                                   \
-	  struct ck_ring_##name *ring, void *entry, unsigned int *size)                                              \
+	CK_CC_INLINE static bool ck_ring_enqueue_spmc_size_##name(struct ck_ring_##name *ring, void *entry,          \
+	                                                          unsigned int *size)                                \
 	{                                                                                                            \
 		return ck_ring_enqueue_spsc_size_##name(ring, entry, size);                                          \
 	}                                                                                                            \

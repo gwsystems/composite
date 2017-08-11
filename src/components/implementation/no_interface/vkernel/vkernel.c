@@ -68,11 +68,8 @@ scheduler(void)
 		if (vmx_info[index].state == VM_RUNNING) {
 			assert(vk_info.vminitasnd[index]);
 
-			if (cos_tcap_delegate(vk_info.vminitasnd[index],
-			                      BOOT_CAPTBL_SELF_INITTCAP_BASE,
-			                      VM_BUDGET_FIXED,
-			                      VM_PRIO_FIXED,
-			                      TCAP_DELEG_YIELD))
+			if (cos_tcap_delegate(vk_info.vminitasnd[index], BOOT_CAPTBL_SELF_INITTCAP_BASE,
+			                      VM_BUDGET_FIXED, VM_PRIO_FIXED, TCAP_DELEG_YIELD))
 				assert(0);
 		}
 
@@ -91,25 +88,15 @@ cos_init(void)
 	assert(VM_COUNT >= 2);
 
 	cos_meminfo_init(&vk_cinfo->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_compinfo_init(vk_cinfo,
-	                  BOOT_CAPTBL_SELF_PT,
-	                  BOOT_CAPTBL_SELF_CT,
-	                  BOOT_CAPTBL_SELF_COMP,
-	                  (vaddr_t)cos_get_heap_ptr(),
-	                  BOOT_CAPTBL_FREE,
-	                  vk_cinfo);
+	cos_compinfo_init(vk_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+	                  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, vk_cinfo);
 	/*
 	 * TODO: If there is any captbl modification, this could mess up a bit.
 	 *       Care to be taken not to use this for captbl mod api
 	 *       Or use some offset into the future in CAPTBL_FREE
 	 */
-	cos_compinfo_init(&vk_info.shm_cinfo,
-	                  BOOT_CAPTBL_SELF_PT,
-	                  BOOT_CAPTBL_SELF_CT,
-	                  BOOT_CAPTBL_SELF_COMP,
-	                  (vaddr_t)VK_VM_SHM_BASE,
-	                  BOOT_CAPTBL_FREE,
-	                  vk_cinfo);
+	cos_compinfo_init(&vk_info.shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+	                  (vaddr_t)VK_VM_SHM_BASE, BOOT_CAPTBL_FREE, vk_cinfo);
 
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL);
 	assert(vk_info.termthd);
@@ -144,8 +131,8 @@ cos_init(void)
 
 		cos_meminfo_init(&vm_cinfo->mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, vmutpt);
 		cos_compinfo_init(vm_cinfo, vmpt, vmct, vmcc, (vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, vk_cinfo);
-		cos_compinfo_init(
-		  &vm_info->shm_cinfo, vmpt, vmct, vmcc, (vaddr_t)VK_VM_SHM_BASE, VM_CAPTBL_FREE, vk_cinfo);
+		cos_compinfo_init(&vm_info->shm_cinfo, vmpt, vmct, vmcc, (vaddr_t)VK_VM_SHM_BASE, VM_CAPTBL_FREE,
+		                  vk_cinfo);
 
 		printc("\tCopying pgtbl, captbl, component capabilities\n");
 		ret = cos_cap_cpy_at(vm_cinfo, BOOT_CAPTBL_SELF_CT, vk_cinfo, vmct);

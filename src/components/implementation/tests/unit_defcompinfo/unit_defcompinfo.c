@@ -80,8 +80,8 @@ test_aeps(void)
 		snd = cos_asnd_alloc(ci, test_aep[i].rcv, ci->captbl_cap);
 		assert(snd);
 
-		ret = cos_tcap_delegate(
-		  snd, BOOT_CAPTBL_SELF_INITTCAP_BASE, TEST_AEP_CYCS, TEST_AEP_PRIO, TCAP_DELEG_YIELD);
+		ret = cos_tcap_delegate(snd, BOOT_CAPTBL_SELF_INITTCAP_BASE, TEST_AEP_CYCS, TEST_AEP_PRIO,
+		                        TCAP_DELEG_YIELD);
 		assert(ret == 0);
 
 		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycs))
@@ -106,12 +106,8 @@ test_childcomps(void)
 			;
 		printc("\tSwitching to [%d] component\n", id);
 		if (id == CHILD_SCHED_ID) {
-			ret = cos_switch(child_defci[id].sched_aep.thd,
-			                 child_defci[id].sched_aep.tc,
-			                 CHILD_SCHED_PRIO,
-			                 TCAP_TIME_NIL,
-			                 BOOT_CAPTBL_SELF_INITRCV_BASE,
-			                 cos_sched_sync());
+			ret = cos_switch(child_defci[id].sched_aep.thd, child_defci[id].sched_aep.tc, CHILD_SCHED_PRIO,
+			                 TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0);
 		} else {
 			cycles_t    now;
@@ -154,11 +150,8 @@ cos_init(void)
 			assert(child_utpt);
 
 			cos_meminfo_init(&(child_ci->mi), BOOT_MEM_KM_BASE, CHILD_UNTYPED_SIZE, child_utpt);
-			cos_defcompinfo_child_alloc(&child_defci[id],
-			                            (vaddr_t)&cos_upcall_entry,
-			                            (vaddr_t)BOOT_MEM_VM_BASE,
-			                            BOOT_CAPTBL_FREE,
-			                            is_sched);
+			cos_defcompinfo_child_alloc(&child_defci[id], (vaddr_t)&cos_upcall_entry,
+			                            (vaddr_t)BOOT_MEM_VM_BASE, BOOT_CAPTBL_FREE, is_sched);
 
 			printc("\t\tCopying new capabilities\n");
 			ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_CT, ci, child_ci->captbl_cap);
@@ -178,17 +171,15 @@ cos_init(void)
 
 			if (is_sched) {
 				printc("\t\tCopying scheduler capabilities\n");
-				ret = cos_cap_cpy_at(
-				  child_ci, BOOT_CAPTBL_SELF_INITTCAP_BASE, ci, child_defci[id].sched_aep.tc);
+				ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_INITTCAP_BASE, ci,
+				                     child_defci[id].sched_aep.tc);
 				assert(ret == 0);
-				ret = cos_cap_cpy_at(
-				  child_ci, BOOT_CAPTBL_SELF_INITRCV_BASE, ci, child_defci[id].sched_aep.rcv);
+				ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_INITRCV_BASE, ci,
+				                     child_defci[id].sched_aep.rcv);
 				assert(ret == 0);
 
-				ret = cos_tcap_transfer(child_defci[id].sched_aep.rcv,
-				                        BOOT_CAPTBL_SELF_INITTCAP_BASE,
-				                        CHILD_SCHED_CYCS,
-				                        CHILD_SCHED_PRIO);
+				ret = cos_tcap_transfer(child_defci[id].sched_aep.rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE,
+				                        CHILD_SCHED_CYCS, CHILD_SCHED_PRIO);
 				assert(ret == 0);
 			}
 

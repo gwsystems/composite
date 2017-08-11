@@ -304,8 +304,8 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 
 	/* TODO: test this before pgtbl update...pre- vs. post-serialization */
 	__userregs_sinvupdate(regs);
-	__userregs_set(
-	  regs, thd->tid | (get_cpuid() << 16), 0 /* FIXME: add calling component id */, sinvc->entry_addr);
+	__userregs_set(regs, thd->tid | (get_cpuid() << 16), 0 /* FIXME: add calling component id */,
+	               sinvc->entry_addr);
 
 	return;
 }
@@ -343,16 +343,9 @@ inv_init(void)
 #ifdef __OUTPUT_CAP_SIZE
 	printk(" Cap header size %d, minimal cap %d\n SINV %d, SRET %d, ASND %d, ARCV %d\n CAP_COMP %d, CAP_THD %d, "
 	       "CAP_CAPTBL %d, CAP_PGTBL %d\n",
-	       sizeof(struct cap_header),
-	       sizeof(struct cap_min),
-	       sizeof(struct cap_sinv),
-	       sizeof(struct cap_sret),
-	       sizeof(struct cap_asnd),
-	       sizeof(struct cap_arcv),
-	       sizeof(struct cap_comp),
-	       sizeof(struct cap_thd),
-	       sizeof(struct cap_captbl),
-	       sizeof(struct cap_pgtbl));
+	       sizeof(struct cap_header), sizeof(struct cap_min), sizeof(struct cap_sinv), sizeof(struct cap_sret),
+	       sizeof(struct cap_asnd), sizeof(struct cap_arcv), sizeof(struct cap_comp), sizeof(struct cap_thd),
+	       sizeof(struct cap_captbl), sizeof(struct cap_pgtbl));
 #endif
 	assert(sizeof(struct cap_sinv) <= __captbl_cap2bytes(CAP_SINV));
 	assert(sizeof(struct cap_sret) <= __captbl_cap2bytes(CAP_SRET));

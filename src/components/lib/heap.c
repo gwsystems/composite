@@ -122,22 +122,16 @@ __heap_verify(struct heap *h, int c)
 	if (left < h->e) {
 		assert(((struct hentry *)h->data[left])->index == left);
 		if (!h->c(h->data[c], h->data[left]) || __heap_verify(h, left)) {
-			printd("Left data %d @ %d < %d @ %d\n",
-			       ((struct hentry *)h->data[c])->value,
-			       c,
-			       ((struct hentry *)h->data[left])->value,
-			       left);
+			printd("Left data %d @ %d < %d @ %d\n", ((struct hentry *)h->data[c])->value, c,
+			       ((struct hentry *)h->data[left])->value, left);
 			return 1;
 		}
 	}
 	if (right < h->e) {
 		assert(((struct hentry *)h->data[right])->index == right);
 		if (!h->c(h->data[c], h->data[right]) || __heap_verify(h, right)) {
-			printd("Right data %d @ %d < %d @ %d\n",
-			       ((struct hentry *)h->data[c])->value,
-			       c,
-			       ((struct hentry *)h->data[left])->value,
-			       left);
+			printd("Right data %d @ %d < %d @ %d\n", ((struct hentry *)h->data[c])->value, c,
+			       ((struct hentry *)h->data[left])->value, left);
 			return 1;
 		}
 	}

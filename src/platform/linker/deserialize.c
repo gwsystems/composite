@@ -152,8 +152,7 @@ deserialize_dependencies(char *deps, struct service_symbs *services)
 				printl(PRINT_HIGH,
 				       "Error: Non-Composite-loaded component %s dependent "
 				       "on composite loaded component %s.\n",
-				       s->obj,
-				       dep->obj);
+				       s->obj, dep->obj);
 				return -1;
 			}
 
@@ -169,9 +168,7 @@ deserialize_dependencies(char *deps, struct service_symbs *services)
 					printl(PRINT_HIGH,
 					       "Service %s is dependent on more than "
 					       "one scheduler (at least %s and %s).  Error.\n",
-					       s->obj,
-					       dep->obj,
-					       s->scheduler->obj);
+					       s->obj, dep->obj, s->scheduler->obj);
 					return -1;
 				}
 			}

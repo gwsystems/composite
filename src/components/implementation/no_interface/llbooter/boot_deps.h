@@ -116,13 +116,8 @@ boot_bootcomp_init(void)
 {
 	cos_meminfo_init(&boot_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 
-	cos_compinfo_init(&boot_info,
-	                  BOOT_CAPTBL_SELF_PT,
-	                  BOOT_CAPTBL_SELF_CT,
-	                  BOOT_CAPTBL_SELF_COMP,
-	                  (vaddr_t)cos_get_heap_ptr(),
-	                  BOOT_CAPTBL_FREE,
-	                  &boot_info);
+	cos_compinfo_init(&boot_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+	                  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &boot_info);
 }
 
 static void

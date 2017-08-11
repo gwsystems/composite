@@ -172,12 +172,7 @@ print(struct cvectc *s)
 
 		if (__cvc_isleaf(e)) {
 			struct cvcleaf *l = __cvc_leaf(e);
-			printf("[l:%3d @ %p, p:%3d, n:%3d](k:%d->v:%d)\n",
-			       n->lvl,
-			       n->e,
-			       n->parent,
-			       n->id,
-			       l->id,
+			printf("[l:%3d @ %p, p:%3d, n:%3d](k:%d->v:%d)\n", n->lvl, n->e, n->parent, n->id, l->id,
 			       (unsigned int)l->val);
 		} else {
 			struct cvcdir *d = __cvc_dir(e);

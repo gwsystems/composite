@@ -30,9 +30,7 @@ test_thds_perf(void)
 	rdtscll(end_swt_cycles);
 	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
 
-	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
-	       total_swt_cycles,
-	       (long long)ITER,
+	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n", total_swt_cycles, (long long)ITER,
 	       (total_swt_cycles / (long long)ITER));
 }
 
@@ -137,9 +135,7 @@ async_thd_parent_perf(void *thdcap)
 	rdtscll(end_arcv_cycles);
 	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
 
-	PRINTC("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n",
-	       total_asnd_cycles,
-	       (long long)(ITER),
+	PRINTC("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n", total_asnd_cycles, (long long)(ITER),
 	       (total_asnd_cycles / (long long)(ITER)));
 
 	async_test_flag = 0;
@@ -288,8 +284,8 @@ test_async_endpoints_perf(void)
 	arcvcap_t rcp, rcc;
 
 	/* parent rcv capabilities */
-	tcp = cos_thd_alloc(
-	  &booter_info, booter_info.comp_cap, async_thd_parent_perf, (void *)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf,
+	                    (void *)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
 	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
@@ -410,8 +406,8 @@ test_timer(void)
 
 		rdtscll(now);
 		timer = tcap_cyc2time(now + 1000 * cyc_per_usec);
-		cos_switch(
-		  tc, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_BASE,
+		           cos_sched_sync());
 		p = c;
 		rdtscll(c);
 		if (i > 0) t += c - p;
@@ -421,8 +417,7 @@ test_timer(void)
 			;
 	}
 
-	PRINTC("\tCycles per tick (1000 microseconds) = %lld, cycles threshold = %u\n",
-	       t / 16,
+	PRINTC("\tCycles per tick (1000 microseconds) = %lld, cycles threshold = %u\n", t / 16,
 	       (unsigned int)cos_hw_cycles_thresh(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	PRINTC("Timer test completed.\nSuccess.\n");
@@ -496,11 +491,7 @@ test_budgets_single(void)
 			assert(0);
 
 		rdtscll(s);
-		if (cos_switch(bt.c.tc,
-		               bt.c.tcc,
-		               TCAP_PRIO_MAX + 2,
-		               TCAP_TIME_NIL,
-		               BOOT_CAPTBL_SELF_INITRCV_BASE,
+		if (cos_switch(bt.c.tc, bt.c.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE,
 		               cos_sched_sync()))
 			assert(0);
 		rdtscll(e);
@@ -542,11 +533,7 @@ test_budgets_multi(void)
 		if (cos_tcap_transfer(mbt.g.rc, mbt.c.tcc, res / 4, TCAP_PRIO_MAX + 2)) assert(0);
 
 		rdtscll(s);
-		if (cos_switch(mbt.g.tc,
-		               mbt.g.tcc,
-		               TCAP_PRIO_MAX + 2,
-		               TCAP_TIME_NIL,
-		               BOOT_CAPTBL_SELF_INITRCV_BASE,
+		if (cos_switch(mbt.g.tc, mbt.g.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE,
 		               cos_sched_sync()))
 			assert(0);
 		rdtscll(e);
@@ -645,10 +632,8 @@ intr_sched_thd(void *d)
 		if (wakeup_budget_test) {
 			struct exec_cluster *w = &(((struct activation_test_data *)d)->w);
 			rdtscll(e->cyc);
-			printc(" | preempted worker @ %llu, budget: %lu=%lu |",
-			       e->cyc,
-			       (unsigned long)TEST_WAKEUP_BUDGET,
-			       (unsigned long)(e->cyc - w->cyc));
+			printc(" | preempted worker @ %llu, budget: %lu=%lu |", e->cyc,
+			       (unsigned long)TEST_WAKEUP_BUDGET, (unsigned long)(e->cyc - w->cyc));
 		}
 	}
 }
@@ -912,13 +897,9 @@ test_inv_perf(void)
 		total_ret_cycles += (end_cycles - midinv_cycles);
 	}
 
-	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n",
-	       total_inv_cycles,
-	       (long long)(ITER),
+	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n", total_inv_cycles, (long long)(ITER),
 	       (total_inv_cycles / (long long)(ITER)));
-	PRINTC("Average SRET (Total: %lld / Iterations: %lld ): %lld\n",
-	       total_ret_cycles,
-	       (long long)(ITER),
+	PRINTC("Average SRET (Total: %lld / Iterations: %lld ): %lld\n", total_ret_cycles, (long long)(ITER),
 	       (total_ret_cycles / (long long)(ITER)));
 }
 

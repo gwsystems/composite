@@ -238,11 +238,8 @@ main(void)
 	struct cobj_header *h;
 	struct cobj_sect *  sect;
 
-	printf("sizes: header=%d, sect=%d, symb=%d, cap=%d\n",
-	       sizeof(struct cobj_header),
-	       sizeof(struct cobj_sect),
-	       sizeof(struct cobj_symb),
-	       sizeof(struct cobj_cap));
+	printf("sizes: header=%d, sect=%d, symb=%d, cap=%d\n", sizeof(struct cobj_header), sizeof(struct cobj_sect),
+	       sizeof(struct cobj_symb), sizeof(struct cobj_cap));
 	sz  = cobj_size_req(3, 20, 3, 4);
 	mem = malloc(sz);
 	h   = cobj_create(0, NULL, 3, 20, 3, 4, mem, sz, 0);
@@ -255,43 +252,21 @@ main(void)
 		return -1;
 	}
 
-	printf("header: id %d=0, nsect %d=2, nsymb %d=3, ncap %d=4, size %d=%d\n",
-	       h->id,
-	       h->nsect,
-	       h->nsymb,
-	       h->ncap,
-	       h->size,
-	       sz);
+	printf("header: id %d=0, nsect %d=2, nsymb %d=3, ncap %d=4, size %d=%d\n", h->id, h->nsect, h->nsymb, h->ncap,
+	       h->size, sz);
 
 	sect = cobj_sect_get(h, 0);
-	printf("sect %d (off %d): f=%x, o=%d, s=%d, a=%x\n",
-	       0,
-	       (u32_t)sect - (u32_t)h,
-	       sect->flags,
-	       sect->offset,
-	       sect->bytes,
-	       sect->vaddr);
+	printf("sect %d (off %d): f=%x, o=%d, s=%d, a=%x\n", 0, (u32_t)sect - (u32_t)h, sect->flags, sect->offset,
+	       sect->bytes, sect->vaddr);
 	sect = cobj_sect_get(h, 1);
-	printf("sect %d (off %d): f=%x, o=%d, s=%d, a=%x\n",
-	       1,
-	       (u32_t)sect - (u32_t)h,
-	       sect->flags,
-	       sect->offset,
-	       sect->bytes,
-	       sect->vaddr);
+	printf("sect %d (off %d): f=%x, o=%d, s=%d, a=%x\n", 1, (u32_t)sect - (u32_t)h, sect->flags, sect->offset,
+	       sect->bytes, sect->vaddr);
 	sect = cobj_sect_get(h, 2);
-	printf("sect %d (off %d): f=%x, o=%d, s=%d, a=%x\n",
-	       2,
-	       (u32_t)sect - (u32_t)h,
-	       sect->flags,
-	       sect->offset,
-	       sect->bytes,
-	       sect->vaddr);
+	printf("sect %d (off %d): f=%x, o=%d, s=%d, a=%x\n", 2, (u32_t)sect - (u32_t)h, sect->flags, sect->offset,
+	       sect->bytes, sect->vaddr);
 
-	printf("data_offset %x, sect 0 data %x, sect 1 data %x\n",
-	       (u32_t)h + cobj_sect_content_offset(h),
-	       cobj_sect_contents(h, 0),
-	       cobj_sect_contents(h, 1));
+	printf("data_offset %x, sect 0 data %x, sect 1 data %x\n", (u32_t)h + cobj_sect_content_offset(h),
+	       cobj_sect_contents(h, 0), cobj_sect_contents(h, 1));
 
 	return 0;
 }

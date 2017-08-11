@@ -192,8 +192,7 @@ parallel_send(void *fn, void *data)
 			if (e - s > 1 << 30) {
 				printc("parallel execution: comp %ld pushing into ring buffer has abnormal delay (%llu "
 				       "cycles).\n",
-				       cos_spd_id(),
-				       e - s);
+				       cos_spd_id(), e - s);
 				s = e;
 			}
 		}
@@ -378,8 +377,7 @@ multicast_send(struct par_cap_info acaps[], int n_acap, struct __intra_inv_data 
 			if (e - s > 1 << 30) {
 				printc("parallel execution: comp %ld pushing into ring buffer has abnormal delay (%llu "
 				       "cycles).\n",
-				       cos_spd_id(),
-				       e - s);
+				       cos_spd_id(), e - s);
 				s = e;
 			}
 		}
@@ -441,10 +439,8 @@ cos_multicast_distribution(struct par_srv_thd_info *curr)
 		/* printc("core %ld, thd %d: multicasting thread got inv for data %d, fn %d\n", */
 		/*        cos_cpuid(), cos_get_thd_id(), (int)inv.data, (int)inv.fn); */
 		if (unlikely(!inv.fn)) {
-			printc("Server thread %d in comp %ld: receiving invalid fn %d\n",
-			       cos_get_thd_id(),
-			       cos_spd_id(),
-			       (int)inv.fn);
+			printc("Server thread %d in comp %ld: receiving invalid fn %d\n", cos_get_thd_id(),
+			       cos_spd_id(), (int)inv.fn);
 			assert(0);
 			/* TODO: add code for thread termination here */
 		}

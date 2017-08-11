@@ -150,16 +150,11 @@ static void
 cvectc_stats(void)
 {
 	int nent = __cvectc_stats.nentries, i;
-	printf("Tree nodes %d, memory %d, entries %d, %d memory/entry\n",
-	       __cvectc_stats.nodes,
-	       __cvectc_stats.mem,
-	       nent,
-	       __cvectc_stats.mem / (nent ? nent : 1));
+	printf("Tree nodes %d, memory %d, entries %d, %d memory/entry\n", __cvectc_stats.nodes, __cvectc_stats.mem,
+	       nent, __cvectc_stats.mem / (nent ? nent : 1));
 	for (i = 0; i < SIZE_REC; i++) {
 		if (__cvectc_stats.lvlsizes[i].cnt == 0) continue;
-		printf("\tnode %d: %d, total %d\n",
-		       __cvectc_stats.lvlsizes[i].sz,
-		       __cvectc_stats.lvlsizes[i].cnt,
+		printf("\tnode %d: %d, total %d\n", __cvectc_stats.lvlsizes[i].sz, __cvectc_stats.lvlsizes[i].cnt,
 		       __cvectc_stats.lvlsizes[i].tot);
 	}
 }

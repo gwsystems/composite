@@ -100,17 +100,13 @@ handle_ipi_acap(int spd_id, int acap_id)
 
 	spd = spd_get_by_index(spd_id);
 	if (unlikely(!spd)) {
-		printk("cos: core %d received IPI but no valid data found (spd %d, acap %d)!\n",
-		       get_cpuid(),
-		       spd_id,
+		printk("cos: core %d received IPI but no valid data found (spd %d, acap %d)!\n", get_cpuid(), spd_id,
 		       acap_id);
 		return;
 	}
 	acap = &spd->acaps[acap_id];
 	if (unlikely(!acap->allocated)) {
-		printk("cos: core %d received IPI but no valid data found (spd %d, acap %d)!\n",
-		       get_cpuid(),
-		       spd_id,
+		printk("cos: core %d received IPI but no valid data found (spd %d, acap %d)!\n", get_cpuid(), spd_id,
 		       acap_id);
 		return;
 	}
@@ -154,8 +150,7 @@ cos_send_ipi(int cpu, int spd_id, int acap_id)
 		if (e - s > (NUM_CPU * 1000 * 1000)) {
 			printk("cos: WARNING: IPI ring buffer (Core %d) full - have been spinning for %llu cycles. No "
 			       "IPI sent.\n",
-			       cpu,
-			       e - s);
+			       cpu, e - s);
 			return -1;
 		}
 	}

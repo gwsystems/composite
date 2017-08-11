@@ -301,8 +301,8 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 		if (pte_cap == 0 || ptemem_cap == 0) return 0;
 
 		/* PTE */
-		if (call_cap_op(
-		      meta->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, pte_cap, meta->mi.pgtbl_cap, ptemem_cap, 1)) {
+		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, pte_cap, meta->mi.pgtbl_cap, ptemem_cap,
+		                1)) {
 			assert(0); /* race? */
 			return 0;
 		}
@@ -524,12 +524,8 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
 	assert(!(init_data & ~((1 << 16) - 1)));
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap,
-	                CAPTBL_OP_THDACTIVATE,
-	                (init_data << 16) | cap,
-	                __compinfo_metacap(ci)->mi.pgtbl_cap,
-	                kmem,
-	                comp))
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap,
+	                __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, comp))
 		BUG();
 
 	return cap;
@@ -775,8 +771,8 @@ cos_sched_sync(void)
 int
 cos_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_time_t timeout, arcvcap_t rcv, sched_tok_t stok)
 {
-	return call_cap_op(
-	  c, (stok >> 16), tc << 16 | rcv, (prio << 32) >> 32, ((prio << 16) >> 32) | ((stok << 16) >> 16), timeout);
+	return call_cap_op(c, (stok >> 16), tc << 16 | rcv, (prio << 32) >> 32,
+	                   ((prio << 16) >> 32) | ((stok << 16) >> 16), timeout);
 }
 
 int
@@ -905,8 +901,8 @@ cos_tcap_alloc(struct cos_compinfo *ci)
 
 	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
 	/* TODO: Add cap size checking */
-	if (call_cap_op(
-	      ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (cap << 16) | __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0, 0))
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (cap << 16) | __compinfo_metacap(ci)->mi.pgtbl_cap,
+	                kmem, 0, 0))
 		BUG();
 
 	return cap;

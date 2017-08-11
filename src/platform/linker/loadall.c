@@ -127,9 +127,7 @@ calculate_mem_size(int first, int last)
 		asection *s = section_info[i].srcobj.s;
 
 		if (s == NULL) {
-			printl(PRINT_DEBUG,
-			       "Warning: could not find section for sectno %d @ %p.\n",
-			       i,
+			printl(PRINT_DEBUG, "Warning: could not find section for sectno %d @ %p.\n", i,
 			       &(section_info[i].srcobj.s));
 			continue;
 		}
@@ -316,12 +314,8 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 				offset += align_diff;
 				csg(i)->start_addr += align_diff;
 			}
-			printl(PRINT_DEBUG,
-			       "\t section %d, offset %d, align %x, start addr %x, align_diff %d\n",
-			       i,
-			       offset,
-			       csg(i)->srcobj.s->alignment_power,
-			       (unsigned int)csg(i)->start_addr,
+			printl(PRINT_DEBUG, "\t section %d, offset %d, align %x, start addr %x, align_diff %d\n", i,
+			       offset, csg(i)->srcobj.s->alignment_power, (unsigned int)csg(i)->start_addr,
 			       (int)align_diff);
 
 			sect_sz = calculate_mem_size(i, i + 1);
@@ -338,8 +332,8 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 		} else {
 			offset = round_up_to_page(offset + sect_sz);
 		}
-		printl(
-		  PRINT_DEBUG, "\tSect %d, addr %lx, sz %lx, offset %x\n", i, csg(i)->start_addr, csg(i)->len, offset);
+		printl(PRINT_DEBUG, "\tSect %d, addr %lx, sz %lx, offset %x\n", i, csg(i)->start_addr, csg(i)->len,
+		       offset);
 	}
 
 	/* Allocate memory for any components that are Linux-loaded */
@@ -360,18 +354,14 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 		 */
 		assert(tot_sz);
 		tot_static_mem = tot_sz;
-		ret_addr       = mmap((void *)start_addr,
-                                tot_sz,
-                                PROT_EXEC | PROT_READ | PROT_WRITE,
-                                MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
-                                0,
-                                0);
+		ret_addr       = mmap((void *)start_addr, tot_sz, PROT_EXEC | PROT_READ | PROT_WRITE,
+                                MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 		if (MAP_FAILED == (void *)ret_addr) {
 			/* If you get outrageous sizes here, there is
 			 * a required section missing (such as
 			 * rodata).  Add a const. */
-			printl(
-			  PRINT_DEBUG, "Error mapping 0x%x(0x%x)\n", (unsigned int)start_addr, (unsigned int)tot_sz);
+			printl(PRINT_DEBUG, "Error mapping 0x%x(0x%x)\n", (unsigned int)start_addr,
+			       (unsigned int)tot_sz);
 			perror("Couldn't map text segment into address space");
 			return -1;
 		}
@@ -402,8 +392,8 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 		end = strstr(cobj_name, ".o.");
 		if (!end) end= &cobj_name[COBJ_NAME_SZ - 1];
 		*end = '\0';
-		h    = cobj_create(
-                  0, cobj_name, nsects, size, nsymbs, ncaps, mem, obj_size, ret_data->scheduler ? COBJ_INIT_THD : 0);
+		h    = cobj_create(0, cobj_name, nsects, size, nsymbs, ncaps, mem, obj_size,
+                                ret_data->scheduler ? COBJ_INIT_THD : 0);
 		if (!h) {
 			printl(PRINT_HIGH, "boot component: couldn't create cobj.\n");
 			return -1;
@@ -442,8 +432,8 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 
 		if (!is_booter_loaded(ret_data)) {
 			if (csg(i)->ldobj.s) {
-				bfd_get_section_contents(
-				  objout, csg(i)->ldobj.s, (char *)csg(i)->start_addr, 0, csg(i)->len);
+				bfd_get_section_contents(objout, csg(i)->ldobj.s, (char *)csg(i)->start_addr, 0,
+				                         csg(i)->len);
 			}
 		} else {
 			char *sect_loc;
@@ -454,11 +444,8 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 			}
 			if (csg(i)->cobj_flags & COBJ_SECT_ZEROS) continue;
 			sect_loc = cobj_sect_contents(h, i);
-			printl(PRINT_DEBUG,
-			       "\tSection @ %d, size %d, addr %x, sect start %d\n",
-			       (u32_t)sect_loc - (u32_t)h,
-			       cobj_sect_size(h, i),
-			       cobj_sect_addr(h, i),
+			printl(PRINT_DEBUG, "\tSection @ %d, size %d, addr %x, sect start %d\n",
+			       (u32_t)sect_loc - (u32_t)h, cobj_sect_size(h, i), cobj_sect_addr(h, i),
 			       cobj_sect_content_offset(h));
 			assert(sect_loc);
 			// memcpy(sect_loc, tmp_storage, csg(i)->len);

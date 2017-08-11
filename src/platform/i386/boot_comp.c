@@ -41,14 +41,8 @@ boot_pgtbl_mappings_add(struct captbl *ct,
 	ptes  = mem_boot_alloc(nptes);
 	assert(ptes);
 
-	printk("\tCreating %d %s PTEs for PGD @ 0x%x from [%x,%x) to [%x,%x).\n",
-	       nptes,
-	       label,
-	       chal_pa2va((paddr_t)pgtbl),
-	       kern_vaddr,
-	       kern_vaddr + range,
-	       user_vaddr,
-	       user_vaddr + range);
+	printk("\tCreating %d %s PTEs for PGD @ 0x%x from [%x,%x) to [%x,%x).\n", nptes, label,
+	       chal_pa2va((paddr_t)pgtbl), kern_vaddr, kern_vaddr + range, user_vaddr, user_vaddr + range);
 
 	/*
 	 * Note the use of NULL here.  We aren't actually adding a PTE
@@ -127,14 +121,8 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 
 	thd_current_update(t, t, cos_info);
 
-	ret = arcv_activate(ct,
-	                    BOOT_CAPTBL_SELF_CT,
-	                    BOOT_CAPTBL_SELF_INITRCV_BASE,
-	                    BOOT_CAPTBL_SELF_COMP,
-	                    BOOT_CAPTBL_SELF_INITTHD_BASE,
-	                    BOOT_CAPTBL_SELF_INITTCAP_BASE,
-	                    0,
-	                    1);
+	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_COMP,
+	                    BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 1);
 	assert(!ret);
 
 	/*
@@ -193,20 +181,13 @@ kern_boot_comp(void)
 	 */
 	boot_vm_pgd = (pgtbl_t)mem_boot_alloc(1);
 	assert(boot_vm_pgd);
-	memcpy((void *)boot_vm_pgd + KERNEL_PGD_REGION_OFFSET,
-	       (void *)(&boot_comp_pgd) + KERNEL_PGD_REGION_OFFSET,
+	memcpy((void *)boot_vm_pgd + KERNEL_PGD_REGION_OFFSET, (void *)(&boot_comp_pgd) + KERNEL_PGD_REGION_OFFSET,
 	       KERNEL_PGD_REGION_SIZE);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (pgtbl_t)chal_va2pa(boot_vm_pgd), 0))
 		assert(0);
 
-	ret = boot_pgtbl_mappings_add(ct,
-	                              BOOT_CAPTBL_SELF_PT,
-	                              BOOT_CAPTBL_BOOTVM_PTE,
-	                              "booter VM",
-	                              mem_bootc_start(),
-	                              (unsigned long)mem_bootc_vaddr(),
-	                              mem_bootc_end() - mem_bootc_start(),
-	                              1);
+	ret = boot_pgtbl_mappings_add(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(),
+	                              (unsigned long)mem_bootc_vaddr(), mem_bootc_end() - mem_bootc_start(), 1);
 	assert(ret == 0);
 
 	/*
@@ -218,14 +199,9 @@ kern_boot_comp(void)
 	 */
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_UNTYPED_PT, pgtbl, 0)) assert(0);
 	nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
-	ret       = boot_pgtbl_mappings_add(ct,
-                                      BOOT_CAPTBL_SELF_UNTYPED_PT,
-                                      BOOT_CAPTBL_KM_PTE,
-                                      "untyped memory",
-                                      mem_boot_nalloc_end(nkmemptes),
-                                      BOOT_MEM_KM_BASE,
-                                      mem_utmem_end() - mem_boot_nalloc_end(nkmemptes),
-                                      0);
+	ret       = boot_pgtbl_mappings_add(ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
+                                      mem_boot_nalloc_end(nkmemptes), BOOT_MEM_KM_BASE,
+                                      mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
 	assert(ret == 0);
 
 	printk("\tCapability table and page-table created.\n");
@@ -233,14 +209,8 @@ kern_boot_comp(void)
 	/* Shut off further bump allocations */
 	glb_memlayout.allocs_avail = 0;
 
-	if (comp_activate(ct,
-	                  BOOT_CAPTBL_SELF_CT,
-	                  BOOT_CAPTBL_SELF_COMP,
-	                  BOOT_CAPTBL_SELF_CT,
-	                  BOOT_CAPTBL_SELF_PT,
-	                  0,
-	                  (vaddr_t)mem_bootc_entry(),
-	                  NULL))
+	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
+	                  (vaddr_t)mem_bootc_entry(), NULL))
 		assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 

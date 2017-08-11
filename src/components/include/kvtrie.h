@@ -28,133 +28,36 @@
  */
 typedef void (*kv_free_fn_t)(void *data, void *mem, int sz, int leaf);
 
-#define __KVT_CREATE(name,                                                       \
-                     depth,                                                      \
-                     order,                                                      \
-                     last_order,                                                 \
-                     initval,                                                    \
-                     initfn,                                                     \
-                     getfn,                                                      \
-                     isnullfn,                                                   \
-                     setfn,                                                      \
-                     allocfn,                                                    \
-                     freefn,                                                     \
-                     setleaffn,                                                  \
-                     getleaffn,                                                  \
-                     resolvefn)                                                  \
-	ERT_CREATE(name,                                                         \
-	           name##_ert,                                                   \
-	           depth,                                                        \
-	           order,                                                        \
-	           sizeof(int *),                                                \
-	           last_order,                                                   \
-	           sizeof(int *),                                                \
-	           initval,                                                      \
-	           initfn,                                                       \
-	           getfn,                                                        \
-	           isnullfn,                                                     \
-	           setfn,                                                        \
-	           allocfn,                                                      \
-	           setleaffn,                                                    \
-	           getleaffn,                                                    \
-	           resolvefn)                                                    \
-	static void name##_free(struct name##_ert *v)                            \
-	{                                                                        \
-		__kvt_free((struct ert *)v,                                      \
-		           depth,                                                \
-		           order,                                                \
-		           sizeof(int *),                                        \
-		           last_order,                                           \
-		           sizeof(int *),                                        \
-		           initval,                                              \
-		           initfn,                                               \
-		           getfn,                                                \
-		           isnullfn,                                             \
-		           setfn,                                                \
-		           allocfn,                                              \
-		           setleaffn,                                            \
-		           getleaffn,                                            \
-		           resolvefn,                                            \
-		           freefn);                                              \
-	}                                                                        \
-	static inline void *name##_lkupp(struct name##_ert *v, unsigned long id) \
-	{                                                                        \
-		unsigned long accum;                                             \
-		return __ert_lookup((struct ert *)v,                             \
-		                    id,                                          \
-		                    0,                                           \
-		                    depth + 1,                                   \
-		                    &accum,                                      \
-		                    depth,                                       \
-		                    order,                                       \
-		                    sizeof(int *),                               \
-		                    last_order,                                  \
-		                    sizeof(int *),                               \
-		                    initval,                                     \
-		                    initfn,                                      \
-		                    getfn,                                       \
-		                    isnullfn,                                    \
-		                    setfn,                                       \
-		                    allocfn,                                     \
-		                    setleaffn,                                   \
-		                    getleaffn,                                   \
-		                    resolvefn);                                  \
-	}                                                                        \
-	static inline int name##_add(struct name##_ert *v, long id, void *val)   \
-	{                                                                        \
-		return __kvt_add((struct ert *)v,                                \
-		                 id,                                             \
-		                 val,                                            \
-		                 depth,                                          \
-		                 order,                                          \
-		                 sizeof(int *),                                  \
-		                 last_order,                                     \
-		                 sizeof(int *),                                  \
-		                 initval,                                        \
-		                 initfn,                                         \
-		                 getfn,                                          \
-		                 isnullfn,                                       \
-		                 setfn,                                          \
-		                 allocfn,                                        \
-		                 setleaffn,                                      \
-		                 getleaffn,                                      \
-		                 resolvefn);                                     \
-	}                                                                        \
-	static inline int name##_del(struct name##_ert *v, long id)              \
-	{                                                                        \
-		return __kvt_del((struct ert *)v,                                \
-		                 id,                                             \
-		                 depth,                                          \
-		                 order,                                          \
-		                 sizeof(int *),                                  \
-		                 last_order,                                     \
-		                 sizeof(int *),                                  \
-		                 initval,                                        \
-		                 initfn,                                         \
-		                 getfn,                                          \
-		                 isnullfn,                                       \
-		                 setfn,                                          \
-		                 allocfn,                                        \
-		                 setleaffn,                                      \
-		                 getleaffn,                                      \
-		                 resolvefn);                                     \
+#define __KVT_CREATE(name, depth, order, last_order, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn,         \
+                     setleaffn, getleaffn, resolvefn)                                                                  \
+	ERT_CREATE(name, name##_ert, depth, order, sizeof(int *), last_order, sizeof(int *), initval, initfn, getfn,   \
+	           isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn)                                          \
+	static void name##_free(struct name##_ert *v)                                                                  \
+	{                                                                                                              \
+		__kvt_free((struct ert *)v, depth, order, sizeof(int *), last_order, sizeof(int *), initval, initfn,   \
+		           getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn, freefn);                  \
+	}                                                                                                              \
+	static inline void *name##_lkupp(struct name##_ert *v, unsigned long id)                                       \
+	{                                                                                                              \
+		unsigned long accum;                                                                                   \
+		return __ert_lookup((struct ert *)v, id, 0, depth + 1, &accum, depth, order, sizeof(int *),            \
+		                    last_order, sizeof(int *), initval, initfn, getfn, isnullfn, setfn, allocfn,       \
+		                    setleaffn, getleaffn, resolvefn);                                                  \
+	}                                                                                                              \
+	static inline int name##_add(struct name##_ert *v, long id, void *val)                                         \
+	{                                                                                                              \
+		return __kvt_add((struct ert *)v, id, val, depth, order, sizeof(int *), last_order, sizeof(int *),     \
+		                 initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn);   \
+	}                                                                                                              \
+	static inline int name##_del(struct name##_ert *v, long id)                                                    \
+	{                                                                                                              \
+		return __kvt_del((struct ert *)v, id, depth, order, sizeof(int *), last_order, sizeof(int *), initval, \
+		                 initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn);            \
 	}
 
-#define KVT_CREATE(name, depth, order, last_order, allocfn, freefn) \
-	__KVT_CREATE(name,                                          \
-	             depth,                                         \
-	             order,                                         \
-	             last_order,                                    \
-	             NULL,                                          \
-	             ert_definit,                                   \
-	             ert_defget,                                    \
-	             ert_defisnull,                                 \
-	             ert_defset,                                    \
-	             allocfn,                                       \
-	             freefn,                                        \
-	             ert_defsetleaf,                                \
-	             ert_defgetleaf,                                \
-	             ert_defresolve)
+#define KVT_CREATE(name, depth, order, last_order, allocfn, freefn)                                            \
+	__KVT_CREATE(name, depth, order, last_order, NULL, ert_definit, ert_defget, ert_defisnull, ert_defset, \
+	             allocfn, freefn, ert_defsetleaf, ert_defgetleaf, ert_defresolve)
 
 #define KVT_ROUND(a, sz) (((unsigned long)a) & (~(sz - 1)))
 static int
@@ -190,20 +93,8 @@ struct ert_intern test_sink[1 << 9] = {
 		if (!accum) return 1;                                                                               \
 		return KVT_ROUND(*a, ((1 << order) * sz)) != KVT_ROUND(name##_sink, ((1 << order) * sz))            \
 	}                                                                                                           \
-	__KVT_CREATE(name,                                                                                          \
-	             depth,                                                                                         \
-	             order,                                                                                         \
-	             last_order,                                                                                    \
-	             NULL,                                                                                          \
-	             name##_nonnull_initfn,                                                                         \
-	             ert_defget,                                                                                    \
-	             ert_defisnull,                                                                                 \
-	             ert_defset,                                                                                    \
-	             allocfn,                                                                                       \
-	             freefn,                                                                                        \
-	             ert_defsetleaf,                                                                                \
-	             ert_defgetleaf,                                                                                \
-	             name##_nonnull_resolve)
+	__KVT_CREATE(name, depth, order, last_order, NULL, name##_nonnull_initfn, ert_defget, ert_defisnull,        \
+	             ert_defset, allocfn, freefn, ert_defsetleaf, ert_defgetleaf, name##_nonnull_resolve)
 
 /*
  * This function will try to find an empty slot specifically for the

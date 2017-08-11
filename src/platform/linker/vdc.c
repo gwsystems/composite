@@ -99,8 +99,7 @@ create_transparent_capabilities(struct service_symbs *service)
 			printl(PRINT_HIGH,
 			       "Warning: dependency %s-%s "
 			       "is not creating a capability.\n",
-			       service->obj,
-			       dep[i].dep->obj);
+			       service->obj, dep[i].dep->obj);
 		}
 	}
 
@@ -177,12 +176,10 @@ verify_dependency_completeness(struct service_symbs *services)
 			 * exported function in a service we are
 			 * dependent on.
 			 */
-			exporter = find_symbol_exporter_mark_resolved(
-			  symb, services->dependencies, services->num_dependencies, &exp_symb);
+			exporter = find_symbol_exporter_mark_resolved(symb, services->dependencies,
+			                                              services->num_dependencies, &exp_symb);
 			if (!exporter) {
-				printl(PRINT_HIGH,
-				       "Could not find exporter of symbol %s in service %s.\n",
-				       symb->name,
+				printl(PRINT_HIGH, "Could not find exporter of symbol %s in service %s.\n", symb->name,
 				       services->obj);
 
 				ret = -1;

@@ -178,10 +178,8 @@ lapic_intsrc_iter(unsigned char *madt)
 			struct ioapic_cntl *io = (struct ioapic_cntl *)h;
 
 			assert(io->header.len == sizeof(struct ioapic_cntl));
-			printk("\tI/O APIC found: ioapicid %d, addr %x, int offset %d\n",
-			       io->ioapic_id,
-			       io->ioapic_phys_addr,
-			       io->glb_int_num_off);
+			printk("\tI/O APIC found: ioapicid %d, addr %x, int offset %d\n", io->ioapic_id,
+			       io->ioapic_phys_addr, io->glb_int_num_off);
 			break;
 		}
 		default:

@@ -129,12 +129,7 @@ create_stanza(char *output, int len, char *fn_name, int cap_num)
 	char ucap_name[FN_NAME_SZ];
 
 	sprintf(ucap_name, "%s" UCAP_EXT, fn_name);
-	ret = snprintf(output,
-	               len,
-	               fn_string,
-	               fn_name,
-	               fn_name,
-	               ucap_name /*cap_num*SIZEOFUSERCAP*/,
+	ret = snprintf(output, len, fn_string, fn_name, fn_name, ucap_name /*cap_num*SIZEOFUSERCAP*/,
 	               /* INVOCATIONCNT, INVOCATIONCNT, */ /*ENTRYFN,*/ INVFN);
 
 	if (ret == len) {

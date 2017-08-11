@@ -161,8 +161,7 @@ timer_calibration(void)
 		/* Possibly significant rounding error here.  Bound by the factor */
 		timer_cycles_per_hpetcyc = (TIMER_ERROR_BOUND_FACTOR * cycles_per_tick) / hpetcyc_per_tick;
 		printk("Timer calibrated:\n\tCPU cycles per HPET tick: %ld\n\tHPET ticks in %d us: %ld\n",
-		       timer_cycles_per_hpetcyc / TIMER_ERROR_BOUND_FACTOR,
-		       TIMER_DEFAULT_US_INTERARRIVAL,
+		       timer_cycles_per_hpetcyc / TIMER_ERROR_BOUND_FACTOR, TIMER_DEFAULT_US_INTERARRIVAL,
 		       hpetcyc_per_tick);
 
 		timer_disable(TIMER_PERIODIC);

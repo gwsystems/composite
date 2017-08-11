@@ -201,17 +201,17 @@ __cslab_mem_alloc(struct cslab_freelist *fl, int obj_sz, int max_objs)
 	static const int      slab_##name##_max_objs =                   \
 	  ((CSLAB_MEM_ALLOC_SZ - CSLAB_FIRST_OFF) / (round_up_to_pow2(size, WORD_SIZE)))
 
-#define CSLAB_CREATE_FNS(name, size)                                                                        \
-	static inline void *cslab_alloc_##name(void)                                                        \
-	{                                                                                                   \
-		return __cslab_mem_alloc(                                                                   \
-		  &slab_##name##_freelist, round_up_to_pow2(size, WORD_SIZE), slab_##name##_max_objs);      \
-	}                                                                                                   \
-                                                                                                            \
-	static inline void cslab_free_##name(void *buf)                                                     \
-	{                                                                                                   \
-		return __cslab_mem_free(                                                                    \
-		  buf, &slab_##name##_freelist, round_up_to_pow2(size, WORD_SIZE), slab_##name##_max_objs); \
+#define CSLAB_CREATE_FNS(name, size)                                                                     \
+	static inline void *cslab_alloc_##name(void)                                                     \
+	{                                                                                                \
+		return __cslab_mem_alloc(&slab_##name##_freelist, round_up_to_pow2(size, WORD_SIZE),     \
+		                         slab_##name##_max_objs);                                        \
+	}                                                                                                \
+                                                                                                         \
+	static inline void cslab_free_##name(void *buf)                                                  \
+	{                                                                                                \
+		return __cslab_mem_free(buf, &slab_##name##_freelist, round_up_to_pow2(size, WORD_SIZE), \
+		                        slab_##name##_max_objs);                                         \
 	}
 
 #define CSLAB_CREATE(name, size)       \

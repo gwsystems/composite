@@ -64,8 +64,7 @@ kern_setup_image(void)
 	/* ASSUMPTION: The static layout of boot_comp_pgd is identical to a pgd post-pgtbl_alloc */
 	/* FIXME: should use pgtbl_extend instead of directly accessing the pgd array... */
 	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA / PGD_RANGE;
-	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end);
-	     i += PGD_RANGE, j++) {
+	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end); i += PGD_RANGE, j++) {
 		assert(j != KERN_INIT_PGD_IDX
 		       || ((boot_comp_pgd[j] | PGTBL_GLOBAL) & ~(PGTBL_MODIFIED | PGTBL_ACCESSED))
 		            == (i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL));
@@ -122,8 +121,7 @@ kern_paging_map_init(void *pa)
 	paddr_t       kern_pa_start = 0, kern_pa_end = (paddr_t)pa;
 
 	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA / PGD_RANGE;
-	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end);
-	     i += PGD_RANGE, j++) {
+	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end); i += PGD_RANGE, j++) {
 		assert(j != KERN_INIT_PGD_IDX
 		       || ((boot_comp_pgd[j] | PGTBL_GLOBAL) & ~(PGTBL_MODIFIED | PGTBL_ACCESSED))
 		            == (i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL));

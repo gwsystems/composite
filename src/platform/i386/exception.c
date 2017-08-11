@@ -10,19 +10,10 @@ void
 print_regs_state(struct pt_regs *regs)
 {
 	printk("\n\nGeneral registers-> EAX: %x, EBX: %x, ECX: %x, EDX: %x\n", regs->ax, regs->bx, regs->cx, regs->dx);
-	printk("Segment registers-> CS: %x, DS: %x, ES: %x, FS: %x, GS: %x, SS: %x\n",
-	       regs->cs,
-	       regs->ds,
-	       regs->es,
-	       regs->fs,
-	       regs->gs,
-	       regs->ss);
-	printk("Index registers-> ESI: %x, EDI: %x, EIP: %x, ESP: %x, EBP: %x\n",
-	       regs->si,
-	       regs->di,
-	       regs->ip,
-	       regs->sp,
-	       regs->bp);
+	printk("Segment registers-> CS: %x, DS: %x, ES: %x, FS: %x, GS: %x, SS: %x\n", regs->cs, regs->ds, regs->es,
+	       regs->fs, regs->gs, regs->ss);
+	printk("Index registers-> ESI: %x, EDI: %x, EIP: %x, ESP: %x, EBP: %x\n", regs->si, regs->di, regs->ip,
+	       regs->sp, regs->bp);
 	printk("Indicator-> EFLAGS: %x\n", regs->flags);
 	printk("(Exception Error Code-> ORIG_AX: %x)\n", regs->orig_ax);
 }
@@ -147,15 +138,10 @@ page_fault_handler(struct pt_regs *regs)
 	errcode    = chal_cpu_fault_errcode(regs);
 	eip        = chal_cpu_fault_ip(regs);
 
-	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%x, ip 0x%x\n",
-	    thdid,
+	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%x, ip 0x%x\n", thdid,
 	    errcode & PGTBL_PRESENT ? "present" : "not-present",
-	    errcode & PGTBL_WRITABLE ? "write-fault" : "read-fault",
-	    errcode & PGTBL_USER ? "user-mode" : "system",
-	    errcode & PGTBL_WT ? "reserved" : "",
-	    errcode & PGTBL_NOCACHE ? "instruction-fetch" : "",
-	    fault_addr,
-	    eip);
+	    errcode & PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & PGTBL_USER ? "user-mode" : "system",
+	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, eip);
 
 	return 1;
 }

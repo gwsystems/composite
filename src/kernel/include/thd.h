@@ -381,8 +381,7 @@ thd_deactivate(struct captbl *    ct,
 			 * parameters as we won't be able to release
 			 * the memory. */
 			printk("cos: deactivating thread but not able to release kmem page (%p) yet (ref_cnt %d).\n",
-			       (void *)cosframe_addr,
-			       thd->refcnt);
+			       (void *)cosframe_addr, thd->refcnt);
 		}
 	}
 

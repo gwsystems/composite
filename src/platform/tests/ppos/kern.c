@@ -100,8 +100,8 @@ kern_boot_comp(void)
 	assert(!pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, pt, 0));
 	assert(!pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_BOOTVM_PTE, (pgtbl_t)boot_comp_pte_vm, 1));
 	assert(!pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_PHYSM_PTE, (pgtbl_t)boot_comp_pte_pm, 1));
-	assert(!comp_activate(
-	  ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0, 0x37337, NULL));
+	assert(!comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT,
+	                      0, 0x37337, NULL));
 	/* construct the page tables */
 	assert(!cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, BOOT_MEM_VM_BASE));
 	assert(!cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE, BOOT_MEM_PM_BASE));
@@ -128,14 +128,8 @@ kern_boot_comp(void)
 	assert(!captbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_CT, ct0, 0));
 	/* pt0 should be replaced with page tables from the Linux cos_loader */
 	assert(!pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_PT, pt0, 0));
-	assert(!comp_activate(ct,
-	                      BOOT_CAPTBL_SELF_CT,
-	                      BOOT_CAPTBL_COMP0_COMP,
-	                      BOOT_CAPTBL_COMP0_CT,
-	                      BOOT_CAPTBL_COMP0_PT,
-	                      0,
-	                      0x37337,
-	                      NULL));
+	assert(!comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_COMP, BOOT_CAPTBL_COMP0_CT,
+	                      BOOT_CAPTBL_COMP0_PT, 0, 0x37337, NULL));
 
 	/*
 	 * Only capability for the comp0 is 0: the synchronous

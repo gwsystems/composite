@@ -143,9 +143,7 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 		cos_throw(err, ret);
 	}
 
-	ret = captbl_expand(target_ct->captbl,
-	                    cons_addr + (PAGE_SIZE / (2 * CAPTBL_LEAFSZ)),
-	                    captbl_maxdepth(),
+	ret = captbl_expand(target_ct->captbl, cons_addr + (PAGE_SIZE / (2 * CAPTBL_LEAFSZ)), captbl_maxdepth(),
 	                    &((char *)captbl_mem)[PAGE_SIZE / 2]);
 	if (ret) {
 		printk("second captbl_expand returns %d\n", ret);

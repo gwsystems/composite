@@ -327,8 +327,8 @@ __cbuf_send(cbuf_t cb, int free)
 	int old = cm->snd_rcv.nsent;
 	CBUF_NSND_ATOMIC_INC(cm);
 	if (!(cm->snd_rcv.nsent > old)) {
-		printc(
-		  "spd %d thd %d cb %d sent %d old %d\n", cos_spd_id(), cos_get_thd_id(), cb, cm->snd_rcv.nsent, old);
+		printc("spd %d thd %d cb %d sent %d old %d\n", cos_spd_id(), cos_get_thd_id(), cb, cm->snd_rcv.nsent,
+		       old);
 	}
 	assert(cm->snd_rcv.nsent > old);
 	if (free) cbuf_free(cb);

@@ -20,14 +20,8 @@ main(void)
 	for (i = 0; bs[i] || bs[i + 1]; i++) {
 		printf("%x:  ones %d, nlpow2 %d, ls_one %d, _log32 %d, "
 		       "log32 %d, lsorder %d, log32up %d\n",
-		       bs[i],
-		       ones(bs[i]),
-		       nlpow2(bs[i]),
-		       ls_one(bs[i]),
-		       _log32(bs[i]),
-		       log32(bs[i]),
-		       _log32(ls_one(bs[i])),
-		       log32up(bs[i]));
+		       bs[i], ones(bs[i]), nlpow2(bs[i]), ls_one(bs[i]), _log32(bs[i]), log32(bs[i]),
+		       _log32(ls_one(bs[i])), log32up(bs[i]));
 	}
 
 	return 0;

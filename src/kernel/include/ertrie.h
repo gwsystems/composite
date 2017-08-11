@@ -160,245 +160,75 @@ ert_definit(struct ert_intern *a, int leaf)
  * macro?  I'm hitting some preprocessor limitation I didn't
  * anticipate here.
  */
-#define ERT_CREATE(name,                                                                                              \
-                   structname,                                                                                        \
-                   depth,                                                                                             \
-                   order,                                                                                             \
-                   intern_sz,                                                                                         \
-                   last_order,                                                                                        \
-                   last_sz,                                                                                           \
-                   initval,                                                                                           \
-                   initfn,                                                                                            \
-                   getfn,                                                                                             \
-                   isnullfn,                                                                                          \
-                   setfn,                                                                                             \
-                   allocfn,                                                                                           \
-                   setleaffn,                                                                                         \
-                   getleaffn,                                                                                         \
-                   resolvefn)                                                                                         \
+#define ERT_CREATE(name, structname, depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn,  \
+                   setfn, allocfn, setleaffn, getleaffn, resolvefn)                                                   \
 	struct structname {                                                                                           \
 		struct ert t;                                                                                         \
 	};                                                                                                            \
 	static struct structname *name##_alloc(void *memctxt)                                                         \
 	{                                                                                                             \
-		return (struct structname *)ert_alloc(memctxt,                                                        \
-		                                      depth,                                                          \
-		                                      order,                                                          \
-		                                      intern_sz,                                                      \
-		                                      last_order,                                                     \
-		                                      last_sz,                                                        \
-		                                      initval,                                                        \
-		                                      initfn,                                                         \
-		                                      getfn,                                                          \
-		                                      isnullfn,                                                       \
-		                                      setfn,                                                          \
-		                                      allocfn,                                                        \
-		                                      setleaffn,                                                      \
-		                                      getleaffn,                                                      \
+		return (struct structname *)ert_alloc(memctxt, depth, order, intern_sz, last_order, last_sz, initval, \
+		                                      initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn,  \
 		                                      resolvefn);                                                     \
 	}                                                                                                             \
 	static inline void *name##_lkup(struct structname *v, unsigned long id)                                       \
 	{                                                                                                             \
 		unsigned long a;                                                                                      \
-		return __ert_lookup((struct ert *)v,                                                                  \
-		                    id,                                                                               \
-		                    0,                                                                                \
-		                    depth,                                                                            \
-		                    &a,                                                                               \
-		                    depth,                                                                            \
-		                    order,                                                                            \
-		                    intern_sz,                                                                        \
-		                    last_order,                                                                       \
-		                    last_sz,                                                                          \
-		                    initval,                                                                          \
-		                    initfn,                                                                           \
-		                    getfn,                                                                            \
-		                    isnullfn,                                                                         \
-		                    setfn,                                                                            \
-		                    allocfn,                                                                          \
-		                    setleaffn,                                                                        \
-		                    getleaffn,                                                                        \
+		return __ert_lookup((struct ert *)v, id, 0, depth, &a, depth, order, intern_sz, last_order, last_sz,  \
+		                    initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn,           \
 		                    resolvefn);                                                                       \
 	}                                                                                                             \
 	static inline void *name##_lkupa(struct structname *v, unsigned long id, void *accum)                         \
 	{                                                                                                             \
-		return __ert_lookup((struct ert *)v,                                                                  \
-		                    id,                                                                               \
-		                    0,                                                                                \
-		                    depth,                                                                            \
-		                    accum,                                                                            \
-		                    depth,                                                                            \
-		                    order,                                                                            \
-		                    intern_sz,                                                                        \
-		                    last_order,                                                                       \
-		                    last_sz,                                                                          \
-		                    initval,                                                                          \
-		                    initfn,                                                                           \
-		                    getfn,                                                                            \
-		                    isnullfn,                                                                         \
-		                    setfn,                                                                            \
-		                    allocfn,                                                                          \
-		                    setleaffn,                                                                        \
-		                    getleaffn,                                                                        \
+		return __ert_lookup((struct ert *)v, id, 0, depth, accum, depth, order, intern_sz, last_order,        \
+		                    last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn,  \
 		                    resolvefn);                                                                       \
 	}                                                                                                             \
 	static inline void *name##_lkupan(struct structname *v, unsigned long id, u32_t dlimit, void *accum)          \
 	{                                                                                                             \
-		return __ert_lookup((struct ert *)v,                                                                  \
-		                    id,                                                                               \
-		                    0,                                                                                \
-		                    dlimit,                                                                           \
-		                    accum,                                                                            \
-		                    depth,                                                                            \
-		                    order,                                                                            \
-		                    intern_sz,                                                                        \
-		                    last_order,                                                                       \
-		                    last_sz,                                                                          \
-		                    initval,                                                                          \
-		                    initfn,                                                                           \
-		                    getfn,                                                                            \
-		                    isnullfn,                                                                         \
-		                    setfn,                                                                            \
-		                    allocfn,                                                                          \
-		                    setleaffn,                                                                        \
-		                    getleaffn,                                                                        \
+		return __ert_lookup((struct ert *)v, id, 0, dlimit, accum, depth, order, intern_sz, last_order,       \
+		                    last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn,  \
 		                    resolvefn);                                                                       \
 	}                                                                                                             \
-	static inline void *name##_lkupani(                                                                           \
-	  struct structname *v, unsigned long id, u32_t dstart, u32_t dlimit, void *accum)                            \
+	static inline void *name##_lkupani(struct structname *v, unsigned long id, u32_t dstart, u32_t dlimit,        \
+	                                   void *accum)                                                               \
 	{                                                                                                             \
-		return __ert_lookup((struct ert *)v,                                                                  \
-		                    id,                                                                               \
-		                    dstart,                                                                           \
-		                    dlimit,                                                                           \
-		                    accum,                                                                            \
-		                    depth,                                                                            \
-		                    order,                                                                            \
-		                    intern_sz,                                                                        \
-		                    last_order,                                                                       \
-		                    last_sz,                                                                          \
-		                    initval,                                                                          \
-		                    initfn,                                                                           \
-		                    getfn,                                                                            \
-		                    isnullfn,                                                                         \
-		                    setfn,                                                                            \
-		                    allocfn,                                                                          \
-		                    setleaffn,                                                                        \
-		                    getleaffn,                                                                        \
+		return __ert_lookup((struct ert *)v, id, dstart, dlimit, accum, depth, order, intern_sz, last_order,  \
+		                    last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn,  \
 		                    resolvefn);                                                                       \
 	}                                                                                                             \
-	static inline int name##_expandni(                                                                            \
-	  struct structname *v, unsigned long id, u32_t dstart, u32_t dlimit, void *accum, void *memctxt, void *data) \
+	static inline int name##_expandni(struct structname *v, unsigned long id, u32_t dstart, u32_t dlimit,         \
+	                                  void *accum, void *memctxt, void *data)                                     \
 	{                                                                                                             \
-		return __ert_expand((struct ert *)v,                                                                  \
-		                    id,                                                                               \
-		                    dstart,                                                                           \
-		                    dlimit,                                                                           \
-		                    accum,                                                                            \
-		                    memctxt,                                                                          \
-		                    data,                                                                             \
-		                    depth,                                                                            \
-		                    order,                                                                            \
-		                    intern_sz,                                                                        \
-		                    last_order,                                                                       \
-		                    last_sz,                                                                          \
-		                    initval,                                                                          \
-		                    initfn,                                                                           \
-		                    getfn,                                                                            \
-		                    isnullfn,                                                                         \
-		                    setfn,                                                                            \
-		                    allocfn,                                                                          \
-		                    setleaffn,                                                                        \
-		                    getleaffn,                                                                        \
-		                    resolvefn);                                                                       \
+		return __ert_expand((struct ert *)v, id, dstart, dlimit, accum, memctxt, data, depth, order,          \
+		                    intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, \
+		                    setleaffn, getleaffn, resolvefn);                                                 \
 	}                                                                                                             \
-	static inline int name##_expandn(                                                                             \
-	  struct structname *v, unsigned long id, u32_t dlimit, void *accum, void *memctxt, void *data)               \
+	static inline int name##_expandn(struct structname *v, unsigned long id, u32_t dlimit, void *accum,           \
+	                                 void *memctxt, void *data)                                                   \
 	{                                                                                                             \
-		return __ert_expand((struct ert *)v,                                                                  \
-		                    id,                                                                               \
-		                    0,                                                                                \
-		                    dlimit,                                                                           \
-		                    accum,                                                                            \
-		                    memctxt,                                                                          \
-		                    data,                                                                             \
-		                    depth,                                                                            \
-		                    order,                                                                            \
-		                    intern_sz,                                                                        \
-		                    last_order,                                                                       \
-		                    last_sz,                                                                          \
-		                    initval,                                                                          \
-		                    initfn,                                                                           \
-		                    getfn,                                                                            \
-		                    isnullfn,                                                                         \
-		                    setfn,                                                                            \
-		                    allocfn,                                                                          \
-		                    setleaffn,                                                                        \
-		                    getleaffn,                                                                        \
-		                    resolvefn);                                                                       \
+		return __ert_expand((struct ert *)v, id, 0, dlimit, accum, memctxt, data, depth, order, intern_sz,    \
+		                    last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, \
+		                    getleaffn, resolvefn);                                                            \
 	}                                                                                                             \
-	static inline int name##_expand(                                                                              \
-	  struct structname *v, unsigned long id, void *accum, void *memctxt, void *data)                             \
+	static inline int name##_expand(struct structname *v, unsigned long id, void *accum, void *memctxt,           \
+	                                void *data)                                                                   \
 	{                                                                                                             \
-		return __ert_expand((struct ert *)v,                                                                  \
-		                    id,                                                                               \
-		                    0,                                                                                \
-		                    depth,                                                                            \
-		                    accum,                                                                            \
-		                    memctxt,                                                                          \
-		                    data,                                                                             \
-		                    depth,                                                                            \
-		                    order,                                                                            \
-		                    intern_sz,                                                                        \
-		                    last_order,                                                                       \
-		                    last_sz,                                                                          \
-		                    initval,                                                                          \
-		                    initfn,                                                                           \
-		                    getfn,                                                                            \
-		                    isnullfn,                                                                         \
-		                    setfn,                                                                            \
-		                    allocfn,                                                                          \
-		                    setleaffn,                                                                        \
-		                    getleaffn,                                                                        \
-		                    resolvefn);                                                                       \
+		return __ert_expand((struct ert *)v, id, 0, depth, accum, memctxt, data, depth, order, intern_sz,     \
+		                    last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, \
+		                    getleaffn, resolvefn);                                                            \
 	}                                                                                                             \
 	static inline unsigned long name##_maxid(void)                                                                \
 	{                                                                                                             \
-		return __ert_maxid(depth,                                                                             \
-		                   order,                                                                             \
-		                   intern_sz,                                                                         \
-		                   last_order,                                                                        \
-		                   last_sz,                                                                           \
-		                   initval,                                                                           \
-		                   initfn,                                                                            \
-		                   getfn,                                                                             \
-		                   isnullfn,                                                                          \
-		                   setfn,                                                                             \
-		                   allocfn,                                                                           \
-		                   setleaffn,                                                                         \
-		                   getleaffn,                                                                         \
-		                   resolvefn);                                                                        \
+		return __ert_maxid(depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn,    \
+		                   setfn, allocfn, setleaffn, getleaffn, resolvefn);                                  \
 	}                                                                                                             \
 	static inline u32_t name##_maxdepth(void) { return (u32_t)depth; }
 
 
-#define ERT_CREATE_DEF(name, depth, order, last_order, last_sz, allocfn) \
-	ERT_CREATE(name,                                                 \
-	           name##_ert,                                           \
-	           depth,                                                \
-	           order,                                                \
-	           sizeof(int *),                                        \
-	           last_order,                                           \
-	           last_sz,                                              \
-	           NULL,                                                 \
-	           ert_definit,                                          \
-	           ert_defget,                                           \
-	           ert_defisnull,                                        \
-	           ert_defset,                                           \
-	           allocfn,                                              \
-	           ert_defsetleaf,                                       \
-	           ert_defgetleaf,                                       \
-	           ert_defresolve)
+#define ERT_CREATE_DEF(name, depth, order, last_order, last_sz, allocfn)                                              \
+	ERT_CREATE(name, name##_ert, depth, order, sizeof(int *), last_order, last_sz, NULL, ert_definit, ert_defget, \
+	           ert_defisnull, ert_defset, allocfn, ert_defsetleaf, ert_defgetleaf, ert_defresolve)
 
 static inline unsigned long __ert_maxid(ERT_CONST_PARAMS)
 {

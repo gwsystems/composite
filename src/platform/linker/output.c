@@ -118,12 +118,8 @@ create_invocation_cap(struct spd_info *     from_spd,
 	cap.cap_handle = cos_spd_add_cap(&cap);
 
 	if (cap.cap_handle == 0) {
-		printl(PRINT_DEBUG,
-		       "Could not add capability # %d to %s (%d) for %s.\n",
-		       cap.rel_offset,
-		       from_obj->obj,
-		       cap.owner_spd_handle,
-		       server_fn);
+		printl(PRINT_DEBUG, "Could not add capability # %d to %s (%d) for %s.\n", cap.rel_offset, from_obj->obj,
+		       cap.owner_spd_handle, server_fn);
 		exit(-1);
 	}
 
@@ -151,10 +147,8 @@ spd_contains_symb(struct service_symbs *s, char *name)
 				if (!d->modifier || strncmp(d->modifier, name, d->mod_len)) continue;
 				if (!strcmp(name + d->mod_len, n)) {
 					printl(PRINT_DEBUG,
-					       "Found client stub with dependency modification: %s->%s in %s\n",
-					       name,
-					       n,
-					       s->obj);
+					       "Found client stub with dependency modification: %s->%s in %s\n", name,
+					       n, s->obj);
 					return &symbs->symbs[i];
 				}
 			}
@@ -189,9 +183,7 @@ cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct sym
 	if (NULL == c_stub) {
 		c_stub = spd_contains_symb(service, CAP_CLIENT_STUB_DEFAULT);
 		if (NULL == c_stub) {
-			printl(PRINT_HIGH,
-			       "Could not find a client stub for function %s in service %s.\n",
-			       symb->name,
+			printl(PRINT_HIGH, "Could not find a client stub for function %s in service %s.\n", symb->name,
 			       service->obj);
 			return -1;
 		}
@@ -204,12 +196,8 @@ cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct sym
 
 	s_stub = spd_contains_symb(exporter, tmp);
 	if (NULL == s_stub) {
-		printl(PRINT_HIGH,
-		       "Could not find server stub (%s) for function %s in service %s to satisfy %s.\n",
-		       tmp,
-		       exp_symb->name,
-		       exporter->obj,
-		       service->obj);
+		printl(PRINT_HIGH, "Could not find server stub (%s) for function %s in service %s to satisfy %s.\n",
+		       tmp, exp_symb->name, exporter->obj, service->obj);
 		return -1;
 	}
 
@@ -240,15 +228,8 @@ create_spd_capabilities(struct service_symbs *service)
 
 		if (cap_get_info(service, &cri, symb)) return -1;
 		assert(!is_booter_loaded(cri.serv));
-		if (create_invocation_cap(spd,
-		                          service,
-		                          cri.serv->extern_info,
-		                          cri.serv,
-		                          cri.csymb->name,
-		                          cri.cstub->name,
-		                          cri.sstub->name,
-		                          cri.ssymbfn->name,
-		                          0)) {
+		if (create_invocation_cap(spd, service, cri.serv->extern_info, cri.serv, cri.csymb->name,
+		                          cri.cstub->name, cri.sstub->name, cri.ssymbfn->name, 0)) {
 			return -1;
 		}
 	}
@@ -305,12 +286,8 @@ create_spd(struct service_symbs *s, long lowest_addr, long size)
 		free(spd);
 		return NULL;
 	}
-	printl(PRINT_HIGH,
-	       "spd %s, id %d with initialization string \"%s\" @ %x.\n",
-	       s->obj,
-	       (unsigned int)spd->spd_handle,
-	       s->init_str,
-	       (unsigned int)spd->lowest_addr);
+	printl(PRINT_HIGH, "spd %s, id %d with initialization string \"%s\" @ %x.\n", s->obj,
+	       (unsigned int)spd->spd_handle, s->init_str, (unsigned int)spd->lowest_addr);
 	*spd_id_addr = spd->spd_handle;
 	printl(PRINT_DEBUG, "\tHeap pointer directed to %x.\n", (unsigned int)s->heap_top);
 	*heap_ptr = s->heap_top;
@@ -319,10 +296,7 @@ create_spd(struct service_symbs *s, long lowest_addr, long size)
 	printl(PRINT_DEBUG, "\tFound cos_upcall for component %s @ %p.\n", s->obj, (void *)upcall_addr);
 	printl(PRINT_DEBUG, "\tFound spd_id address for component %s @ %p.\n", s->obj, spd_id_addr);
 	for (i = 0; i < NUM_ATOMIC_SYMBS; i++) {
-		printl(PRINT_DEBUG,
-		       "\tFound %s address for component %s @ %x.\n",
-		       ATOMIC_USER_DEF[i],
-		       s->obj,
+		printl(PRINT_DEBUG, "\tFound %s address for component %s @ %x.\n", ATOMIC_USER_DEF[i], s->obj,
 		       (unsigned int)spd->atomic_regions[i]);
 	}
 
@@ -429,9 +403,7 @@ make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all)
 		perror("Couldn't map the graph into the address space");
 		return;
 	}
-	printl(PRINT_DEBUG,
-	       "Found mpd_mgr: remapping heap_ptr from %p to %p, serializing graph.\n",
-	       *heap_ptr,
+	printl(PRINT_DEBUG, "Found mpd_mgr: remapping heap_ptr from %p to %p, serializing graph.\n", *heap_ptr,
 	       heap_ptr_val + PAGE_SIZE / sizeof(heap_ptr_val));
 	*heap_ptr = heap_ptr_val + PAGE_SIZE / sizeof(heap_ptr_val);
 
@@ -506,11 +478,8 @@ format_config_info(struct service_symbs *ss, struct component_init_str *data)
 
 		info = ss->init_str;
 		if (strlen(info) >= INIT_STR_SZ) {
-			printl(PRINT_HIGH,
-			       "Initialization string %s for component %s is too long (longer than %d)",
-			       info,
-			       ss->obj,
-			       strlen(info));
+			printl(PRINT_HIGH, "Initialization string %s for component %s is too long (longer than %d)",
+			       info, ss->obj, strlen(info));
 			exit(-1);
 		}
 
@@ -552,8 +521,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 		printf("Booter component must be component number %d, is %d.\n"
 		       "\tSuggested fix: Your first four components should be e.g. "
 		       "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;\n",
-		       LLBOOT_BOOT,
-		       service_get_spdid(boot));
+		       LLBOOT_BOOT, service_get_spdid(boot));
 		exit(-1);
 	}
 
@@ -595,9 +563,8 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 		struct cobj_header *h;
 
 		if (!is_hl_booter_loaded(all)) continue;
-		printl(
-		  PRINT_HIGH, "booter found %s:%d with len %d\n", all->obj, service_get_spdid(all), all->cobj->size)
-		  n++;
+		printl(PRINT_HIGH, "booter found %s:%d with len %d\n", all->obj, service_get_spdid(all),
+		       all->cobj->size) n++;
 
 		assert(is_hl_booter_loaded(all));
 		h = all->cobj;
@@ -620,11 +587,8 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 
 		s_prev = cobj_sect_get(new_h, INITFILE_S);
 
-		cobj_sect_init(new_h,
-		               INITFILE_S,
-		               cos_sect_get(INITFILE_S)->cobj_flags,
-		               round_up_to_page(s_prev->vaddr + s_prev->bytes),
-		               all_obj_sz);
+		cobj_sect_init(new_h, INITFILE_S, cos_sect_get(INITFILE_S)->cobj_flags,
+		               round_up_to_page(s_prev->vaddr + s_prev->bytes), all_obj_sz);
 	}
 	new_sect_start = new_end = cobj_sect_contents(new_h, INITFILE_S);
 	new_vaddr_start          = cobj_sect_get(new_h, INITFILE_S)->vaddr;
@@ -671,15 +635,9 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	printl(PRINT_HIGH,
 	       "boot component %s:%d has new section @ %x:%x at address %x, \n\t"
 	       "with n %d, graph @ %x, config info @ %x, schedule %x, and heap %x\n",
-	       boot->obj,
-	       service_get_spdid(boot),
-	       (unsigned int)cobj_sect_get(new_h, 3)->vaddr,
-	       (int)cobj_sect_get(new_h, 3)->bytes,
-	       (unsigned int)ci->cos_poly[0],
-	       (unsigned int)ci->cos_poly[1],
-	       (unsigned int)ci->cos_poly[2],
-	       (unsigned int)ci->cos_poly[3],
-	       (unsigned int)ci->cos_poly[4],
+	       boot->obj, service_get_spdid(boot), (unsigned int)cobj_sect_get(new_h, 3)->vaddr,
+	       (int)cobj_sect_get(new_h, 3)->bytes, (unsigned int)ci->cos_poly[0], (unsigned int)ci->cos_poly[1],
+	       (unsigned int)ci->cos_poly[2], (unsigned int)ci->cos_poly[3], (unsigned int)ci->cos_poly[4],
 	       (unsigned int)ci->cos_heap_ptr);
 }
 
@@ -717,11 +675,8 @@ make_spd_config_comp(struct service_symbs *c, struct service_symbs *all)
 		perror("Couldn't map the configuration info into the address space");
 		return;
 	}
-	printl(PRINT_DEBUG,
-	       "Found %s: remapping heap_ptr from %p to %p, writing config info.\n",
-	       CONFIG_COMP,
-	       *heap_ptr,
-	       heap_ptr_val + PAGE_SIZE / sizeof(heap_ptr_val));
+	printl(PRINT_DEBUG, "Found %s: remapping heap_ptr from %p to %p, writing config info.\n", CONFIG_COMP,
+	       *heap_ptr, heap_ptr_val + PAGE_SIZE / sizeof(heap_ptr_val));
 	*heap_ptr = heap_ptr_val + PAGE_SIZE / sizeof(heap_ptr_val);
 
 	format_config_info(all, info);
@@ -742,8 +697,7 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 		printf("Low-Level Booter component must be component number %d, but is %d instead.\n"
 		       "\tSuggested fix: Your first four components should be e.g. "
 		       "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;boot.o, ;\n",
-		       LLBOOT_COMPN,
-		       service_get_spdid(boot));
+		       LLBOOT_COMPN, service_get_spdid(boot));
 		exit(-1);
 	}
 
@@ -779,24 +733,15 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 		map_addr = round_up_to_page(heap_ptr_val);
 		map_sz   = (int)obj_size - (int)(map_addr - (vaddr_t)heap_ptr_val);
 		if (map_sz > 0) {
-			mem = mmap((void *)map_addr,
-			           map_sz,
-			           PROT_WRITE | PROT_READ,
-			           MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
-			           0,
-			           0);
+			mem = mmap((void *)map_addr, map_sz, PROT_WRITE | PROT_READ,
+			           MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 			if (MAP_FAILED == mem) {
 				perror("Couldn't map test component into the boot component");
 				exit(-1);
 			}
 		}
-		printl(PRINT_HIGH,
-		       "boot component: placing %s:%d @ %p, copied from %p:%d\n",
-		       all->obj,
-		       service_get_spdid(all),
-		       heap_ptr_val,
-		       h,
-		       obj_size);
+		printl(PRINT_HIGH, "boot component: placing %s:%d @ %p, copied from %p:%d\n", all->obj,
+		       service_get_spdid(all), heap_ptr_val, h, obj_size);
 		memcpy(heap_ptr_val, h, h->size);
 		*heap_ptr = (void *)(((int)heap_ptr_val) + obj_size);
 	}

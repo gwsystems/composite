@@ -233,10 +233,7 @@ alloc_service_symbs(char *obj)
 		obj = cpy;
 		off = 0;
 	}
-	printl(PRINT_DEBUG,
-	       "Processed object %s (%s%s)\n",
-	       obj,
-	       t.sched ? "scheduler " : "",
+	printl(PRINT_DEBUG, "Processed object %s (%s%s)\n", obj, t.sched ? "scheduler " : "",
 	       t.composite_loaded ? "booted" : "");
 	str = malloc(sizeof(struct service_symbs));
 	if (!str || initialize_service_symbs(str)) {

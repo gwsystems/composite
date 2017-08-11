@@ -276,9 +276,7 @@ pgtbl_quie_check(u32_t orig_v)
 
 		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
 		if (!tlb_quiescence_check(ts)) {
-			printk("kern tsc %llu, lid %d, last flush %llu\n",
-			       ts,
-			       lid,
+			printk("kern tsc %llu, lid %d, last flush %llu\n", ts, lid,
 			       tlb_quiescence[get_cpuid()].last_periodic_flush);
 			return -EQUIESCENCE;
 		}
@@ -303,8 +301,8 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
 	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan(
-	  (pgtbl_t)((u32_t)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	                                          PGTBL_DEPTH, &accum);
 	if (!pte) return -ENOENT;
 	orig_v = (u32_t)(pte->next);
 
@@ -344,8 +342,8 @@ kmem_add_hack(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
 	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan(
-	  (pgtbl_t)((u32_t)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	pte    = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+                                                  PGTBL_DEPTH, &accum);
 	orig_v = (u32_t)(pte->next);
 
 	if (orig_v & PGTBL_PRESENT) return -EEXIST;
@@ -370,8 +368,8 @@ pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
 	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan(
-	  (pgtbl_t)((u32_t)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	pte    = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+                                                  PGTBL_DEPTH, &accum);
 	orig_v = (u32_t)(pte->next);
 	assert(orig_v == 0);
 
@@ -392,8 +390,8 @@ pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
 	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan(
-	  (pgtbl_t)((u32_t)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	                                          PGTBL_DEPTH, &accum);
 	if (__pgtbl_isnull(pte, 0, 0)) return -ENOENT;
 
 	orig_v = (u32_t)(pte->next);
@@ -404,8 +402,8 @@ pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 	*prevflags = orig_v & PGTBL_FLAG_MASK;
 
 	/* and update the flags. */
-	return __pgtbl_update_leaf(
-	  pte, (void *)((orig_v & PGTBL_FRAME_MASK) | ((u32_t)flags & PGTBL_FLAG_MASK)), orig_v);
+	return __pgtbl_update_leaf(pte, (void *)((orig_v & PGTBL_FRAME_MASK) | ((u32_t)flags & PGTBL_FLAG_MASK)),
+	                           orig_v);
 }
 
 /* When we remove a mapping, we need to link the vas to a liv_id,
@@ -428,8 +426,8 @@ pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 	if (unlikely(ret)) goto done;
 
 	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan(
-	  (pgtbl_t)((u32_t)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	pte    = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+                                                  PGTBL_DEPTH, &accum);
 	orig_v = (u32_t)(pte->next);
 	if (!(orig_v & PGTBL_PRESENT)) return -EEXIST;
 	if (orig_v & PGTBL_COSFRAME) return -EPERM;
@@ -462,8 +460,8 @@ pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr)
 static void *
 pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
 {
-	return __pgtbl_lkupani(
-	  (pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, start_lvl, end_lvl, flags);
+	return __pgtbl_lkupani((pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, start_lvl,
+	                       end_lvl, flags);
 }
 
 static int
@@ -477,8 +475,8 @@ pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags)
 {
 	void *ret;
 
-	ret = __pgtbl_lkupan(
-	  (pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH + 1, flags);
+	ret = __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH + 1,
+	                     flags);
 	if (!pgtbl_ispresent(*flags)) return NULL;
 	return ret;
 }
@@ -487,8 +485,8 @@ pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags)
 static unsigned long *
 pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags)
 {
-	return __pgtbl_lkupan(
-	  (pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, flags);
+	return __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH,
+	                      flags);
 }
 
 /* FIXME: remove this function.  Why do we need a paddr lookup??? */
@@ -557,8 +555,7 @@ pgtbl_create(void *page, void *curr_pgtbl)
 {
 	pgtbl_t ret = pgtbl_alloc(page);
 	/* Copying the kernel part of the pgd. */
-	memcpy(page + KERNEL_PGD_REGION_OFFSET,
-	       (void *)chal_pa2va((paddr_t)curr_pgtbl) + KERNEL_PGD_REGION_OFFSET,
+	memcpy(page + KERNEL_PGD_REGION_OFFSET, (void *)chal_pa2va((paddr_t)curr_pgtbl) + KERNEL_PGD_REGION_OFFSET,
 	       KERNEL_PGD_REGION_SIZE);
 
 	return ret;

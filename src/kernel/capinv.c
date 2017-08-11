@@ -205,8 +205,7 @@ kmem_deact_pre(struct cap_header *ch,
 
 		if (ret) {
 			/* unset scan and frozen bits. */
-			cos_cas((unsigned long *)&deact_cap->refcnt_flags,
-			        l | CAP_MEM_SCAN_FLAG,
+			cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
 			        l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
 			cos_throw(err, ret);
 		}
@@ -253,8 +252,7 @@ kmem_deact_pre(struct cap_header *ch,
 
 		if (ret) {
 			/* unset scan and frozen bits. */
-			cos_cas((unsigned long *)&deact_cap->refcnt_flags,
-			        l | CAP_MEM_SCAN_FLAG,
+			cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
 			        l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
 			cos_throw(err, ret);
 		}

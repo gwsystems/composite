@@ -369,59 +369,23 @@ int
 main(void)
 {
 	printf("key-value tests:\n");
-	kv_test(unit_maxid(),
-	        (alloc_fn_t)unit_alloc,
-	        (free_fn_t)unit_free,
-	        (lkupp_fn_t)unit_lkupp,
-	        (add_fn_t)unit_add,
-	        (del_fn_t)unit_del,
-	        (lkup_fn_t)unit_lkup,
-	        (lkupa_fn_t)unit_lkupa,
-	        (lkupan_fn_t)unit_lkupan,
-	        (expandn_fn_t)unit_expandn,
-	        (expand_fn_t)unit_expand);
-	kv_test(unit2_maxid(),
-	        (alloc_fn_t)unit2_alloc,
-	        (free_fn_t)unit2_free,
-	        (lkupp_fn_t)unit2_lkupp,
-	        (add_fn_t)unit2_add,
-	        (del_fn_t)unit2_del,
-	        (lkup_fn_t)unit2_lkup,
-	        (lkupa_fn_t)unit2_lkupa,
-	        (lkupan_fn_t)unit2_lkupan,
-	        (expandn_fn_t)unit2_expandn,
-	        (expand_fn_t)unit2_expand);
-	kv_test(unit3_maxid(),
-	        (alloc_fn_t)unit3_alloc,
-	        (free_fn_t)unit3_free,
-	        (lkupp_fn_t)unit3_lkupp,
-	        (add_fn_t)unit3_add,
-	        (del_fn_t)unit3_del,
-	        (lkup_fn_t)unit3_lkup,
-	        (lkupa_fn_t)unit3_lkupa,
-	        (lkupan_fn_t)unit3_lkupan,
-	        (expandn_fn_t)unit3_expandn,
-	        (expand_fn_t)unit3_expand);
+	kv_test(unit_maxid(), (alloc_fn_t)unit_alloc, (free_fn_t)unit_free, (lkupp_fn_t)unit_lkupp, (add_fn_t)unit_add,
+	        (del_fn_t)unit_del, (lkup_fn_t)unit_lkup, (lkupa_fn_t)unit_lkupa, (lkupan_fn_t)unit_lkupan,
+	        (expandn_fn_t)unit_expandn, (expand_fn_t)unit_expand);
+	kv_test(unit2_maxid(), (alloc_fn_t)unit2_alloc, (free_fn_t)unit2_free, (lkupp_fn_t)unit2_lkupp,
+	        (add_fn_t)unit2_add, (del_fn_t)unit2_del, (lkup_fn_t)unit2_lkup, (lkupa_fn_t)unit2_lkupa,
+	        (lkupan_fn_t)unit2_lkupan, (expandn_fn_t)unit2_expandn, (expand_fn_t)unit2_expand);
+	kv_test(unit3_maxid(), (alloc_fn_t)unit3_alloc, (free_fn_t)unit3_free, (lkupp_fn_t)unit3_lkupp,
+	        (add_fn_t)unit3_add, (del_fn_t)unit3_del, (lkup_fn_t)unit3_lkup, (lkupa_fn_t)unit3_lkupa,
+	        (lkupan_fn_t)unit3_lkupan, (expandn_fn_t)unit3_expandn, (expand_fn_t)unit3_expand);
 	assert(alloc_cnt == 0);
 	printf("\tSUCCESS\n");
 
 	printf("ert tests:\n");
-	ert_test(unit4_maxid(),
-	         3,
-	         (alloc_fn_t)unit4_alloc,
-	         (lkup_fn_t)unit4_lkup,
-	         (lkupa_fn_t)unit4_lkupa,
-	         (lkupan_fn_t)unit4_lkupan,
-	         (expandn_fn_t)unit4_expandn,
-	         (expand_fn_t)unit4_expand);
-	ert_test(unit5_maxid(),
-	         1,
-	         (alloc_fn_t)unit5_alloc,
-	         (lkup_fn_t)unit5_lkup,
-	         (lkupa_fn_t)unit5_lkupa,
-	         (lkupan_fn_t)unit5_lkupan,
-	         (expandn_fn_t)unit5_expandn,
-	         (expand_fn_t)unit5_expand);
+	ert_test(unit4_maxid(), 3, (alloc_fn_t)unit4_alloc, (lkup_fn_t)unit4_lkup, (lkupa_fn_t)unit4_lkupa,
+	         (lkupan_fn_t)unit4_lkupan, (expandn_fn_t)unit4_expandn, (expand_fn_t)unit4_expand);
+	ert_test(unit5_maxid(), 1, (alloc_fn_t)unit5_alloc, (lkup_fn_t)unit5_lkup, (lkupa_fn_t)unit5_lkupa,
+	         (lkupan_fn_t)unit5_lkupan, (expandn_fn_t)unit5_expandn, (expand_fn_t)unit5_expand);
 	printf("\tSUCCESS\n");
 
 	printf("captbl tests:\n");

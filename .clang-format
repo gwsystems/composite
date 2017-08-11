@@ -15,6 +15,9 @@ AllowShortIfStatementsOnASingleLine: true
 
 AlwaysBreakAfterReturnType: AllDefinitions
 
+BinPackArguments: true
+BinPackParameters: false
+
 BraceWrapping: {
   AfterClass: false,
   AfterControlStatement: false,
