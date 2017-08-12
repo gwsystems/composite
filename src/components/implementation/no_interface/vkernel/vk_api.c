@@ -71,7 +71,7 @@ vk_vm_sched_init(struct vms_info *vminfo)
 	union sched_param spsameT     = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
 	int ret;
 
-	vminfo->inithd = sl_thd_comp_init(vmdci, SL_THD_COMP_TCAP);
+	vminfo->inithd = sl_thd_comp_init(vmdci, 1);
 	assert(vminfo->inithd);
 
 	sl_thd_param_set(vminfo->inithd, spsameprio.v);

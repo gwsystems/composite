@@ -233,12 +233,12 @@ void sl_thd_yield_cs_exit(thdid_t tid);
 
 /* The entire thread allocation and free API */
 struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
-struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, sl_thd_type type);
+struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int owntc);
 /*
  * This API creates a sl_thd object for this child component.
  * @comp: component created using cos_defkernel_api which includes initthd/initrcv (with/without its own tcap).
  */
-struct sl_thd *sl_thd_comp_init(struct cos_defcompinfo *comp, sl_thd_type type);
+struct sl_thd *sl_thd_comp_init(struct cos_defcompinfo *comp, int owntc);
 void sl_thd_free(struct sl_thd *t);
 
 void sl_thd_param_set(struct sl_thd *t, sched_param_t sp);
@@ -334,22 +334,12 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
 
-	switch(t->type) {
-	case SL_THD_THD:
-	case SL_THD_AEP:
-	{
-		return cos_defswitch(sl_thd_thdcap(t), t->prio, sl__globals()->timeout_next, tok);	
-	}
-	case SL_THD_AEP_TCAP:
-	{
-		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio, sl__globals()->timeout_next, sl__globals()->sched_rcv, tok);	
-	}
-	case SL_THD_COMP:
-	case SL_THD_COMP_TCAP:
-	{
+	if (t->flags & SL_FLAG_SEND) {
 		return cos_asnd(t->sndcap, 1);
-	}
-	default: assert(0);
+	} else {
+		if (t->flags & SL_FLAG_OWNTC) return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
+							        sl__globals()->timeout_next, sl__globals()->sched_rcv, tok);
+		else                          return cos_defswitch(sl_thd_thdcap(t), t->prio, sl__globals()->timeout_next, tok);	
 	}
 }
 
@@ -415,7 +405,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		else               t = sl_mod_thd_get(pt);
 	}
 
-	if (t->type == SL_THD_AEP_TCAP || t->type == SL_THD_COMP_TCAP) {
+	if (t->flags & SL_FLAG_OWNTC) {
 		assert(t->budget && t->period);
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
