@@ -767,7 +767,7 @@ cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout,
 }
 
 int
-cos_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout, int *rcvd)
+cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd)
 {
 	thdid_t     tid = 0;
 	int         blocked;
@@ -775,7 +775,7 @@ cos_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout, int *rcvd)
 	int         ret;
 	tcap_time_t thd_timeout;
 
-	ret = cos_sched_rcv(rcv, flags, timeout, rcvd, &tid, &blocked, &cyc, &thd_timeout);
+	ret = cos_sched_rcv(rcv, flags, 0, rcvd, &tid, &blocked, &cyc, &thd_timeout);
 	assert(tid == 0);
 
 	return ret;

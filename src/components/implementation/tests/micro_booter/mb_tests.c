@@ -108,10 +108,10 @@ async_thd_fn_perf(void *thdcap)
 	arcvcap_t rc = rcc_global;
 	int i;
 
-	cos_rcv(rc, 0, 0, NULL);
+	cos_rcv(rc, 0, NULL);
 
 	for (i = 0 ; i < ITER + 1 ; i++) {
-		cos_rcv(rc, 0, 0, NULL);
+		cos_rcv(rc, 0, NULL);
 	}
 
 	cos_thd_switch(tc);
@@ -152,38 +152,34 @@ async_thd_fn(void *thdcap)
 	arcvcap_t rc = rcc_global;
 	int pending, rcvd;
 	cycles_t    timeout_cycs, now;
-	tcap_time_t timeout = 0;
 
 	PRINTC("Asynchronous event thread handler.\n");
 	PRINTC("<-- rcving (non-blocking)...\n");
-	pending = cos_rcv(rc, RCV_NON_BLOCKING, 0, NULL);
+	pending = cos_rcv(rc, RCV_NON_BLOCKING, NULL);
 	PRINTC("<-- pending %d\n", pending);
 
 	PRINTC("<-- rcving (non-blocking & all pending)...\n");
-	pending = cos_rcv(rc, RCV_NON_BLOCKING | RCV_ALL_PENDING, 0, &rcvd);
+	pending = cos_rcv(rc, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
 	PRINTC("<-- rcvd %d\n", rcvd);
 
 	PRINTC("<-- rcving (all pending)...\n");
-	pending = cos_rcv(rc, RCV_ALL_PENDING, 0, &rcvd);
+	pending = cos_rcv(rc, RCV_ALL_PENDING, &rcvd);
 	PRINTC("<-- rcvd %d\n", rcvd);
 
 	PRINTC("<-- rcving...\n");
-	pending = cos_rcv(rc, 0, 0, NULL);
+	pending = cos_rcv(rc, 0, NULL);
 	PRINTC("<-- pending %d\n", pending);
 	PRINTC("<-- rcving...\n");
-	pending = cos_rcv(rc, 0, 0, NULL);
+	pending = cos_rcv(rc, 0, NULL);
 	PRINTC("<-- pending %d\n", pending);
 
 	PRINTC("<-- rcving (non-blocking)...\n");
-	pending = cos_rcv(rc, RCV_NON_BLOCKING, 0, NULL);
+	pending = cos_rcv(rc, RCV_NON_BLOCKING, NULL);
 	PRINTC("<-- pending %d\n", pending);
 	assert(pending == -EAGAIN);
-	rdtscll(now);
-	timeout_cycs = now + (TEST_TIMEOUT_MS * cyc_per_usec * 1000);
-	timeout = tcap_cyc2time(timeout_cycs);
-	PRINTC("<-- rcving with timeout:%lu (now:%llu, abs:%llu)...\n", timeout, now, timeout_cycs);
+	PRINTC("<-- rcving\n");
 	
-	pending = cos_rcv(rc, 0, timeout, NULL);
+	pending = cos_rcv(rc, 0, NULL);
 	PRINTC("<-- Error: manually returning to snding thread.\n");
 
 	cos_thd_switch(tc);
@@ -534,7 +530,7 @@ intr_thd(void *d)
 	struct exec_cluster *w = &(((struct activation_test_data *)d)->w);
 
 	while (1) {
-		cos_rcv(e->rc, 0, 0, NULL);
+		cos_rcv(e->rc, 0, NULL);
 		seq_order_check(e);
 		cos_thd_wakeup(w->tc, w->tcc, w->prio, wakeup_budget_test ? TEST_WAKEUP_BUDGET : 0);
 	}
@@ -667,7 +663,7 @@ receiver_thd(void *d)
 	struct exec_cluster *e = &(((struct activation_test_data *)d)->w);
 
 	while (1) {
-		cos_rcv(e->rc, 0, 0, NULL);
+		cos_rcv(e->rc, 0, NULL);
 		seq_order_check(e);
 	}
 }
@@ -681,7 +677,7 @@ sender_thd(void *d)
 	while (1) {
 		cos_asnd(r->sc, 0);
 		seq_order_check(e);
-		cos_rcv(e->rc, 0, 0, NULL);
+		cos_rcv(e->rc, 0, NULL);
 	}
 }
 

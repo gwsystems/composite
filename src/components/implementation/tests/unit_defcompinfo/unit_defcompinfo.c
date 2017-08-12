@@ -40,7 +40,7 @@ aep_thd_fn(arcvcap_t rcv, void *data)
 {
 	printc("\tSwitched to aep %d\n", (int)data);
 	while (1) {
-		cos_rcv(rcv, 0, 0, NULL);
+		cos_rcv(rcv, 0, NULL);
 	}
 }
 
@@ -201,7 +201,7 @@ cos_init(void)
 
 		/* TEST BLOCKING */
 		/* TODO: Challenge - how does a component know at runtime if can call cos_rcv or not? - It does not at runtime. */
-		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, 0, NULL);
+		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL);
 		printc("\tThis is a simple component\n");
 
 		SPIN();
