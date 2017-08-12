@@ -18,11 +18,11 @@ typedef enum {
 } sl_thd_state;
 
 typedef enum {
-	SL_THD_THD = 0,
-	SL_THD_AEP,
-	SL_THD_AEP_TCAP,
-	SL_THD_COMP,
-	SL_THD_COMP_TCAP,
+	SL_THD_THD = 0,		/* simple thread that relies on scheduler tcap for time */
+	SL_THD_AEP,		/* a thread associated with a rcv endpoint, associated with scheduler tcap for time */
+	SL_THD_AEP_TCAP,	/* a thread associated with a rcv endpoint and dedicated tcap. relies on scheduler to transfer time to its tcap */
+	SL_THD_COMP,		/* init thread of a child component, associated with its initrcv and its parent (current shceduler's) tcap for time */
+	SL_THD_COMP_TCAP,	/* init thread of a child component, associated with its initrcv and a dedicated tcap. relies on scheduler to transfer time to its tcap */
 } sl_thd_type;
 
 struct sl_thd {
