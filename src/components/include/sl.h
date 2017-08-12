@@ -430,7 +430,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	assert(t->state == SL_THD_RUNNABLE);
 	sl_cs_exit();
 
-	/* TODO: enable per-thread tcaps for interrupt threads */
+	/* TODO: handle `-EPERM` in cos_switch() to interrupt thread or cos_asnd to child comp with its own tcap here. */
 	return sl_thd_activate(t, tok);
 }
 
