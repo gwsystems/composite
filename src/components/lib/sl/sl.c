@@ -307,7 +307,7 @@ sl_thd_yield(thdid_t tid)
 }
 
 static void
-sl_thd_aepinfo_caps_init(struct sl_thd *t, thdcap_t thd, arcvcap_t rcv, tcap_t tc)
+sl_thd_aepinfo_init(struct sl_thd *t, thdcap_t thd, arcvcap_t rcv, tcap_t tc)
 {
 	assert(t);
 
@@ -329,7 +329,7 @@ sl_thd_alloc_init(thdid_t tid, thdcap_t thdcap, arcvcap_t rcvcap, tcap_t tcap,
 	
 	t->thdid          = tid;
 	t->type           = type;
-	sl_thd_aepinfo_caps_init(t, thdcap, rcvcap, tcap);
+	sl_thd_aepinfo_init(t, thdcap, rcvcap, tcap);
 	t->sndcap         = sndcap;
 	t->state          = SL_THD_RUNNABLE;
 	sl_thd_index_add_backend(sl_mod_thd_policy_get(t));

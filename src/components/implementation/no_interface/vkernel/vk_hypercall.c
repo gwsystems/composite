@@ -1,7 +1,7 @@
 
 #include "vk_types.h"
 
-int
+static inline int
 vkernel_find_vm(thdid_t tid)
 {
 	int i;
@@ -15,7 +15,7 @@ vkernel_find_vm(thdid_t tid)
 }
 
 int
-vkernel_server(int a, int b, int c)
+vkernel_hypercall(int a, int b, int c)
 {
 	int option = a >> 16;
 	int thdid  = (a << 16) >> 16;
@@ -29,6 +29,8 @@ vkernel_server(int a, int b, int c)
 		i = vkernel_find_vm(thdid);
 		printc("VM%d EXIT\n", i);
 		sl_thd_free(vmx_info[i].inithd);
+
+		/* TODO: Free all the resources allocated for this VM! -Initial capabilites, I/O Capabilities etc */	
 		
 		printc("VM %d ERROR!!!!!", i);
 		break;

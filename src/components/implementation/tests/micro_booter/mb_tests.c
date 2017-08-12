@@ -334,7 +334,7 @@ test_timer(void)
 
 	for (i = 0 ; i <= 16 ; i++) {
 		thdid_t     tid;
-		int         blocked;
+		int         blocked, rcvd;
 		cycles_t    cycles, now;
 		tcap_time_t timer, thd_timeout;
 
@@ -345,8 +345,8 @@ test_timer(void)
 		rdtscll(c);
 		if (i > 0) t += c-p;
 
-		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, 0, NULL, &tid, &blocked, &cycles, &thd_timeout) != 0) ;
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING, 0,
+				     &rcvd, &tid, &blocked, &cycles, &thd_timeout) != 0) ;
 	}
 
 	PRINTC("\tCycles per tick (1000 microseconds) = %lld, cycles threshold = %u\n",
@@ -867,23 +867,16 @@ test_run_mb(void)
 	test_preemption();
 }
 
-/*
- * Executed in vkernel environment:
- *  Some of the tests are not feasible at least for now
- *  to run in vkernel env. (ex: tcaps related, because budgets
- *  in these tests are INF.
- *
- * TODO: Fix those eventually.
- */
-void
-__block_vm(void)
+static void
+block_vm(void)
 {
 	int blocked, rcvd;
 	cycles_t cycles, now;
 	tcap_time_t timeout, thd_timeout;
 	thdid_t tid;
 
-	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING, 0, &rcvd, &tid, &blocked, &cycles, &thd_timeout) > 0); 
+	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING | RCV_NON_BLOCKING, 0, 
+			     &rcvd, &tid, &blocked, &cycles, &thd_timeout) > 0); 
 
 	rdtscll(now);
 	now += (1000 * cyc_per_usec);
@@ -891,6 +884,12 @@ __block_vm(void)
 	cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING, timeout, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
 }
 
+/*
+ * Executed in vkernel environment:
+ * Budget tests, tests that use tcaps are not quite feasible in vkernel environment.
+ * These tests are designed for micro-benchmarking, and are not intelligent enough to 
+ * account for VM timeslice, they should not be either.
+ */
 void
 test_run_vk(void)
 {
@@ -898,13 +897,13 @@ test_run_vk(void)
 
 	test_thds();
 	test_thds_perf();
-	__block_vm();
+	block_vm();
 
 	test_mem();
 
 	test_inv();
 	test_inv_perf();
-	__block_vm();
+	block_vm();
 
 	test_captbl_expand();
 }

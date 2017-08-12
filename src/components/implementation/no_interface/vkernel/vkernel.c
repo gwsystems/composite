@@ -15,6 +15,7 @@
 
 extern vaddr_t cos_upcall_entry;
 extern void vm_init(void *);
+extern void *__inv_vkernel_hypercallfn(int a, int b, int c);
 
 struct vms_info vmx_info[VM_COUNT];
 struct dom0_io_info dom0ioinfo;
@@ -58,7 +59,7 @@ cos_init(void)
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL);
 	assert(vk_info.termthd);
 
-	vk_info.sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_vkernel_serverfn);
+	vk_info.sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_vkernel_hypercallfn);
 	assert(vk_info.sinv);
 
 	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
@@ -74,26 +75,26 @@ cos_init(void)
 		printc("vkernel: VM%d Init START\n", id);
 		vm_info->id = id;
 
-		vk_initcaps_init(vm_info, &vk_info);
+		vk_vm_create(vm_info, &vk_info);
 
 		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE);
 		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE);
 
 		if (id == 0) {
 			printc("\tAllocating shared-memory (size: %lu)\n", (unsigned long)VM_SHM_ALL_SZ);
-			vk_shmem_alloc(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_ALL_SZ);
+			vk_vm_shmem_alloc(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_ALL_SZ);
 
 			vm_info->dom0io = &dom0ioinfo;
 		} else {
 			printc("\tMapping in shared-memory (size: %lu)\n", (unsigned long)VM_SHM_SZ);
-			vk_shmem_map(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_SZ);
+			vk_vm_shmem_map(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_SZ);
 
 			vm_info->vmio = &vmioinfo[id - 1];
 		}
 
 		if (id > 0) {
 			printc("\tSetting up Cross-VM (between DOM0 and VM%d) communication capabilities\n", id);
-			vk_iocaps_init(vm_info, &vmx_info[0], &vk_info);
+			vk_vm_io_init(vm_info, &vmx_info[0], &vk_info);
 
 			/*
 			 * Create and copy booter comp virtual memory to each VM
@@ -101,24 +102,23 @@ cos_init(void)
 			vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
 			assert(vm_range > 0);
 			printc("\tMapping in Booter component's virtual memory (range:%lu)\n", vm_range);
-			vk_virtmem_alloc(vm_info, &vk_info, BOOT_MEM_VM_BASE, vm_range);
+			vk_vm_virtmem_alloc(vm_info, &vk_info, BOOT_MEM_VM_BASE, vm_range);
 
 			/*
 			 * Copy DOM0 only after all VMs are initialized
 			 */
 			if (id == VM_COUNT - 1) {
-				vk_virtmem_alloc(&vmx_info[0], &vk_info, BOOT_MEM_VM_BASE, vm_range);
+				vk_vm_virtmem_alloc(&vmx_info[0], &vk_info, BOOT_MEM_VM_BASE, vm_range);
 			}
 		}
 
-		vk_sl_thd_init(vm_info);
+		vk_vm_sched_init(vm_info);
 		printc("vkernel: VM%d Init END\n", id);
 	}
 
 	printc("Starting Scheduler\n");
 	printc("------------------[ VKernel & VMs init complete ]------------------\n");
 
-	//scheduler();
 	sl_sched_loop();
 
 	printc("vkernel: END\n");

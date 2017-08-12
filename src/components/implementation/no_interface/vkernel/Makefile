@@ -1,4 +1,4 @@
-ASM_OBJS=cos_asm_scheduler.o inv.o invvk.o
+ASM_OBJS=inv.o invvk.o
 COMPONENT=vkernel_boot.o
 INTERFACES=
 DEPENDENCIES=

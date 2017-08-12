@@ -1,13 +1,17 @@
 #include "vk_api.h"
 
 extern vaddr_t cos_upcall_entry;
+/* extern functions */
+extern void vm_init(void *);
+extern void dom0_io_fn(void *);
+extern void vm_io_fn(void *);
 
 static struct cos_aep_info *
 vm_schedaep_get(struct vms_info *vminfo)
 { return cos_sched_aep_get(&(vminfo->dci)); }
 
 void
-vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
+vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 {
 	struct cos_compinfo *vk_cinfo = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct cos_defcompinfo *vmdci = &(vminfo->dci);
@@ -57,7 +61,7 @@ vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 }
 
 void
-vk_sl_thd_init(struct vms_info *vminfo)
+vk_vm_sched_init(struct vms_info *vminfo)
 {
 	struct cos_compinfo *vk_cinfo = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct cos_defcompinfo *vmdci = &(vminfo->dci);
@@ -79,7 +83,7 @@ vk_sl_thd_init(struct vms_info *vminfo)
 }
 
 void
-vk_iocaps_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkernel_info *vkinfo)
+vk_vm_io_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkernel_info *vkinfo)
 {
 	struct cos_compinfo *vmcinfo = cos_compinfo_get(&vminfo->dci);
 	struct cos_compinfo *d0cinfo = cos_compinfo_get(&dom0info->dci);
@@ -128,18 +132,21 @@ vk_iocaps_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkerne
 }
 
 void
-vk_virtmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo,
+vk_vm_virtmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 		 unsigned long start_ptr, unsigned long range)
 {
+	vaddr_t src_pg;
 	struct cos_compinfo *vmcinfo = cos_compinfo_get(&(vminfo->dci));
 	struct cos_compinfo *vk_cinfo = cos_compinfo_get(cos_defcompinfo_curr_get());
 	vaddr_t addr;
 
 	assert(vminfo && vkinfo);	
 
-	for (addr = 0 ; addr < range ; addr += PAGE_SIZE) {
-		vaddr_t src_pg = (vaddr_t)cos_page_bump_alloc(vk_cinfo), dst_pg;
-		assert(src_pg);
+	src_pg = (vaddr_t)cos_page_bump_allocn(vk_cinfo, range);
+	assert(src_pg);
+
+	for (addr = 0 ; addr < range ; addr += PAGE_SIZE, src_pg += PAGE_SIZE) {
+		vaddr_t dst_pg;
 
 		memcpy((void *)src_pg, (void *)(start_ptr + addr), PAGE_SIZE);
 
@@ -149,18 +156,20 @@ vk_virtmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 }
 
 void
-vk_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, 
+vk_vm_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, 
 	       unsigned long shm_ptr, unsigned long shm_sz)
 {
-	vaddr_t src_pg = (shm_sz * vminfo->id) + shm_ptr, dst_pg, addr;
+	vaddr_t src_pg, dst_pg, addr;
 
 	assert(vminfo && vminfo->id == 0 && vkinfo);
 	assert(shm_ptr == round_up_to_pgd_page(shm_ptr));
 
+	/* VM0: mapping in all available shared memory. */
+	src_pg = (vaddr_t)cos_page_bump_allocn(&vkinfo->shm_cinfo, shm_sz);
+	assert(src_pg);
+
 	for (addr = shm_ptr ; addr < (shm_ptr + shm_sz) ; addr += PAGE_SIZE, src_pg += PAGE_SIZE) {
-		/* VM0: mapping in all available shared memory. */
-		src_pg = (vaddr_t)cos_page_bump_alloc(&vkinfo->shm_cinfo);
-		assert(src_pg && src_pg == addr);
+		assert(src_pg == addr);
 
 		dst_pg = cos_mem_alias(&vminfo->shm_cinfo, &vkinfo->shm_cinfo, src_pg);
 		assert(dst_pg && dst_pg == addr);
@@ -170,7 +179,7 @@ vk_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo,
 }
 
 void
-vk_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo, 
+vk_vm_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo, 
 	     unsigned long shm_ptr, unsigned long shm_sz)
 {
 	vaddr_t src_pg = (shm_sz * vminfo->id) + shm_ptr, dst_pg, addr;

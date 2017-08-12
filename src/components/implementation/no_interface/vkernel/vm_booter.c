@@ -3,7 +3,11 @@
 #include "vk_api.h"
 
 struct cos_compinfo booter_info;
-thdcap_t termthd = BOOT_CAPTBL_SELF_INITTHD_BASE;	/* no exit thread for now */
+/*
+ * the capability for the thread switched to upon termination.
+ * FIXME: not exit thread for now
+ */
+thdcap_t termthd = BOOT_CAPTBL_SELF_INITTHD_BASE; 
 unsigned long tls_test[TEST_NTHDS];
 
 #include <llprint.h>
@@ -28,9 +32,9 @@ vm_init(void *d)
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			(vaddr_t)cos_get_heap_ptr(), vmid == 0 ? DOM0_CAPTBL_FREE : VM_CAPTBL_FREE, &booter_info);
 
-	PRINTC("Micro Booter started.\n");
+	PRINTC("Virtual-machine booter started.\n");
 	test_run_vk();
-	PRINTC("Micro Booter done.\n");
+	PRINTC("Virtual-machine booter done.\n");
 
 	cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_EXIT << 16 | cos_thdid(), 0, 0, 0);
 	/* should not be scheduled. but tcap budget is a bitch! */
