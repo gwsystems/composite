@@ -380,6 +380,8 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 static inline int
 sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 {
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo *ci = &dci->ci;
 	struct sl_thd_policy *pt;
 	struct sl_thd        *t;
 	struct sl_global     *globals = sl__globals();
@@ -417,10 +419,12 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		assert(t->budget && t->period);
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
-			t->last_replenish = now;
+			tcap_res_t currbudget;
 
+			t->last_replenish = now;
+			currbudget        = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
 			/* TODO: need to change logic for SNDCAP with tcap_delegate, and error handling */
-			if (cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals()->sched_tcap, t->budget, t->prio)) assert(0);
+			if (currbudget < t->budget && cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals()->sched_tcap, (t->budget - currbudget), t->prio)) assert(0);
 		}
 	}
 	assert(t->state == SL_THD_RUNNABLE);
