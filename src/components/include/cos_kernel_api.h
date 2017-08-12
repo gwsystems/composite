@@ -135,11 +135,17 @@ sched_tok_t cos_sched_sync(void);
 int cos_switch(thdcap_t c, tcap_t t, tcap_prio_t p, tcap_time_t r, arcvcap_t rcv, sched_tok_t stok);
 int cos_thd_mod(struct cos_compinfo *ci, thdcap_t c, void *tls_addr); /* set tls addr of thd in captbl */
 
+/*
+ * returns 0 on success and errno on failure:
+ * -EPERM: if yielding (@yield set to 1) to the rcv endpoint but the tcap associated with rcv endpoint is out of budget. 
+ *         in this case, notification is not sent to the rcv endpoint either. 
+ * -EINVAL: any other error
+ */
 int cos_asnd(asndcap_t snd, int yield);
 /* returns non-zero if there are still pending events (i.e. there have been pending snds) */
 int cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd);
 /* returns the same value as cos_rcv, but also information about scheduling events */
-int cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd, thdid_t *thdid, int *blocked, cycles_t *cycles);
+int cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout, int *rcvd, thdid_t *thdid, int *blocked, cycles_t *cycles, tcap_time_t *thd_timeout);
 
 int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
 

@@ -478,7 +478,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next,
 }
 
 static struct thread *
-notify_parent(struct thread *rcv_thd)
+notify_parent(struct thread *rcv_thd, int send)
 {
 	struct thread *curr_notif = NULL, *prev_notif = NULL, *arcv_notif = NULL;
 	int depth = 0;
@@ -486,6 +486,17 @@ notify_parent(struct thread *rcv_thd)
 	/* hierarchical notifications - upto init (bounded by ARCV_NOTIF_DEPTH) */
 	prev_notif = rcv_thd;
 	curr_notif = arcv_notif = arcv_thd_notif(prev_notif);
+
+	/*
+	 * Enqueue send sched event only if it's the first one after the thread
+	 * state changed to THD_STATE_RCVING.
+	 * This is to avoid duplicate wakeup events at user-level scheduling.
+	 * Basically changing to Edge-triggered wakeup notification from 
+	 * some form of level-triggered.
+	 */ 
+	if (send && (!(rcv_thd->state & THD_STATE_RCVING) || 
+	    (rcv_thd->state & THD_STATE_RCVING && thd_rcvcap_pending(rcv_thd)))) goto done;
+
 	while (curr_notif && curr_notif != prev_notif) {
 		assert(depth < ARCV_NOTIF_DEPTH);
 
@@ -497,6 +508,7 @@ notify_parent(struct thread *rcv_thd)
 		depth ++;
 	}
 
+done:
 	return arcv_notif;
 }
 
@@ -510,7 +522,7 @@ notify_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap
 {
 	struct thread *next;
 
-	notify_parent(rcv_thd);
+	notify_parent(rcv_thd, 1);
 
 	/* The thread switch decision: */
 	if (yield || tcap_higher_prio(rcv_tcap, tcap)) {
@@ -571,7 +583,7 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		}
 	}
 
-	if (budget_expired) notify_parent(tcap_rcvcap_thd(tc_curr));
+	if (budget_expired) notify_parent(tcap_rcvcap_thd(tc_curr), 0);
 	if (timer_intr_context || switch_away) {
 		thd_next = notify_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
 		if (thd_next == thd_curr && tc_next == tc_curr) return timer_intr_context;
@@ -688,6 +700,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	tcap     = tcap_current(cos_info);
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
+	if (unlikely(yield && tcap_expended(rcv_tcap))) return -EPERM;
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, yield, cos_info);
 
@@ -789,7 +802,8 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 	struct tcap   *tc_next   = tcap_current(cos_info);
 	struct next_thdinfo *nti = &cos_info->next_ti;
 	rcv_flags_t rflags       = __userregs_get1(regs);
-	tcap_time_t timeout      = TCAP_TIME_NIL;
+	tcap_time_t swtimeout    = TCAP_TIME_NIL;
+	tcap_time_t timeout      = __userregs_get2(regs);
 	int all_pending          = (!!(rflags & RCV_ALL_PENDING));
 
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
@@ -803,12 +817,12 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		return 0;
 	} else if (rflags & RCV_NON_BLOCKING) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-		__userregs_setretvals(regs, -EAGAIN, 0, 0);
+		__userregs_setretvals(regs, -EAGAIN, 0, 0, 0);
 
 		return 0;
 	}
 
-	next = notify_parent(thd);
+	next = notify_parent(thd, 0);
 	/* TODO: should we continue tcap-inheritence policy in this case? */
 	if (unlikely(tc_next != thd_rcvcap_tcap(thd))) tc_next = thd_rcvcap_tcap(thd);
 
@@ -823,7 +837,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 			/* convert budget to timeout */
 			cycles_t now;
 			rdtscll(now);
-			timeout = tcap_cyc2time(now + nti->budget);
+			swtimeout = tcap_cyc2time(now + nti->budget);
 		}
 		thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
 	}
@@ -841,9 +855,10 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state |= THD_STATE_RCVING;
 		thd_rcvcap_all_pending_set(thd, all_pending);
+		thd->timeout = timeout;
 	}
 
-	return cap_switch(regs, thd, next, tc_next, timeout, ci, cos_info);
+	return cap_switch(regs, thd, next, tc_next, swtimeout, ci, cos_info);
 }
 
 static int
