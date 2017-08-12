@@ -37,7 +37,7 @@ vm_init(void *d)
 	PRINTC("Virtual-machine booter done.\n");
 
 	cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_EXIT << 16 | cos_thdid(), 0, 0, 0);
-	/* should not be scheduled. but tcap budget is a bitch! */
+	/* should not be scheduled. but it may be activated if this tcap or it's child tcap has budget! */
 }
 
 void
