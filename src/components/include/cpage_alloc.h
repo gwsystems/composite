@@ -23,7 +23,7 @@
 struct free_page {
 	struct free_page *next;
 };
-static struct free_page page_list = { .next = NULL };
+static struct free_page page_list = {.next = NULL};
 
 static inline void *
 cpage_alloc(void)

@@ -44,14 +44,8 @@ cos_defcompinfo_init(void)
 }
 
 void
-cos_defcompinfo_init_ext(tcap_t      sched_tc,
-                         thdcap_t    sched_thd,
-                         arcvcap_t   sched_rcv,
-                         pgtblcap_t  pgtbl_cap,
-                         captblcap_t captbl_cap,
-                         compcap_t   comp_cap,
-                         vaddr_t     heap_ptr,
-                         capid_t     cap_frontier)
+cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rcv, pgtblcap_t pgtbl_cap,
+                         captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_compinfo *   ci        = cos_compinfo_get(defci);
@@ -68,11 +62,8 @@ cos_defcompinfo_init_ext(tcap_t      sched_tc,
 }
 
 int
-cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci,
-                            vaddr_t                 entry,
-                            vaddr_t                 heap_ptr,
-                            capid_t                 cap_frontier,
-                            int                     is_sched)
+cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, vaddr_t heap_ptr, capid_t cap_frontier,
+                            int is_sched)
 {
 	int                     ret;
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();

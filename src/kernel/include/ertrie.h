@@ -361,13 +361,7 @@ __ert_lookup(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
  * leaf data to something provided in the memctxt.
  */
 static inline int
-__ert_expand(struct ert *  v,
-             unsigned long id,
-             u32_t         dstart,
-             u32_t         dlimit,
-             void *        accum,
-             void *        memctxt,
-             void *        data,
+__ert_expand(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *accum, void *memctxt, void *data,
              ERT_CONST_PARAMS)
 {
 	struct ert_intern r, *n, *new;

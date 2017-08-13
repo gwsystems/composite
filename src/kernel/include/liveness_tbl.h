@@ -86,22 +86,8 @@ __ltbl_getleaf(struct ert_intern *a, void *accum)
 	return &((struct liveness_entry *)a)->epoch;
 }
 
-ERT_CREATE(__ltbl,
-           ltbl,
-           1,
-           0,
-           sizeof(int),
-           LTBL_ENT_ORDER,
-           sizeof(struct liveness_entry),
-           0,
-           ert_definit,
-           ert_defget,
-           __ltbl_isnull,
-           ert_defset,
-           __ltbl_allocfn,
-           __ltbl_setleaf,
-           __ltbl_getleaf,
-           ert_defresolve);
+ERT_CREATE(__ltbl, ltbl, 1, 0, sizeof(int), LTBL_ENT_ORDER, sizeof(struct liveness_entry), 0, ert_definit, ert_defget,
+           __ltbl_isnull, ert_defset, __ltbl_allocfn, __ltbl_setleaf, __ltbl_getleaf, ert_defresolve);
 
 extern struct liveness_entry __liveness_tbl[LTBL_ENTS];
 #define LTBL_REF() ((struct ltbl *)__liveness_tbl)

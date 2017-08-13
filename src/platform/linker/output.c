@@ -59,15 +59,9 @@ service_get_spdid(struct service_symbs *ss)
  */
 /*struct cap_info **/
 int
-create_invocation_cap(struct spd_info *     from_spd,
-                      struct service_symbs *from_obj,
-                      struct spd_info *     to_spd,
-                      struct service_symbs *to_obj,
-                      char *                client_fn,
-                      char *                client_stub,
-                      char *                server_stub,
-                      char *                server_fn,
-                      int                   flags)
+create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_obj, struct spd_info *to_spd,
+                      struct service_symbs *to_obj, char *client_fn, char *client_stub, char *server_stub,
+                      char *server_fn, int flags)
 {
 	struct cap_info   cap;
 	struct symb_type *st = &from_obj->undef;
@@ -343,9 +337,8 @@ serialize_spd_graph(struct comp_graph *g, int sz, struct service_symbs *ss)
 			sid = service_get_spdid(dep);
 			if (sid == 0) continue;
 			if (g_frontier >= (sz - 2)) {
-				printl(PRINT_DEBUG,
-				       "More edges in component graph than can be serialized into the allocated "
-				       "region: fix cos_loader.c.\n");
+				printl(PRINT_DEBUG, "More edges in component graph than can be serialized into the "
+				                    "allocated region: fix cos_loader.c.\n");
 				exit(-1);
 			}
 

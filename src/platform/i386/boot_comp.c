@@ -19,14 +19,8 @@ boot_nptes(unsigned int sz)
 }
 
 int
-boot_pgtbl_mappings_add(struct captbl *ct,
-                        capid_t        pgdcap,
-                        capid_t        ptecap,
-                        const char *   label,
-                        void *         kern_vaddr,
-                        unsigned long  user_vaddr,
-                        unsigned int   range,
-                        int            uvm)
+boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *label, void *kern_vaddr,
+                        unsigned long user_vaddr, unsigned int range, int uvm)
 {
 	int               ret;
 	u8_t *            ptes;

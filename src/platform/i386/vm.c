@@ -14,9 +14,9 @@ struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED LARGE_BSS;
 struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED LARGE_BSS;
 
 #define KERN_INIT_PGD_IDX (COS_MEM_KERN_START_VA >> PGD_SHIFT)
-u32_t boot_comp_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = { [0] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER,
-	                                                        [KERN_INIT_PGD_IDX] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE
-	                                                                              | PGTBL_SUPER };
+u32_t boot_comp_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER,
+                                                               [KERN_INIT_PGD_IDX] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE
+                                                                                     | PGTBL_SUPER};
 
 void
 kern_retype_initial(void)

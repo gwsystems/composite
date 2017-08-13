@@ -44,7 +44,7 @@ typedef struct cmap_struct {
 /* depth = 0 indicates that we haven't initialized the structure */
 #define CMAP_CREATE_STATIC(name)              \
 	CVECT_CREATE_STATIC(__##name##_vect); \
-	cmap_t name = { .data = &__##name##_vect, .free_list = -1, .id_boundary = 0 }
+	cmap_t name = {.data = &__##name##_vect, .free_list = -1, .id_boundary = 0}
 
 static inline long
 cvect_to_map_id(long vid)

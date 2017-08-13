@@ -36,10 +36,8 @@ extern unsigned long lock_component_alloc(spdid_t spdid, vaddr_t lock_addr);
 extern void          lock_component_free(spdid_t spdid, unsigned long lock_id);
 
 int lock_release_contention(cos_lock_t *l, union cos_lock_atomic_struct *prev_val);
-int lock_take_contention(cos_lock_t *                  l,
-                         union cos_lock_atomic_struct *result,
-                         union cos_lock_atomic_struct *prev_val,
-                         u16_t                         owner);
+int lock_take_contention(cos_lock_t *l, union cos_lock_atomic_struct *result, union cos_lock_atomic_struct *prev_val,
+                         u16_t owner);
 
 static inline int
 __cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated, int smp)

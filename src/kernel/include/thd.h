@@ -174,11 +174,8 @@ thd_rcvcap_sched(struct thread *t)
 }
 
 static void
-thd_next_thdinfo_update(struct cos_cpu_local_info *cli,
-                        struct thread *            thd,
-                        struct tcap *              tc,
-                        tcap_prio_t                prio,
-                        tcap_res_t                 budget)
+thd_next_thdinfo_update(struct cos_cpu_local_info *cli, struct thread *thd, struct tcap *tc, tcap_prio_t prio,
+                        tcap_res_t budget)
 {
 	struct next_thdinfo *nti = &cli->next_ti;
 
@@ -342,13 +339,8 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 }
 
 static int
-thd_deactivate(struct captbl *    ct,
-               struct cap_captbl *dest_ct,
-               unsigned long      capin,
-               livenessid_t       lid,
-               capid_t            pgtbl_cap,
-               capid_t            cosframe_addr,
-               const int          root)
+thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, livenessid_t lid, capid_t pgtbl_cap,
+               capid_t cosframe_addr, const int root)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
 	struct cap_header *        thd_header;
@@ -487,10 +479,7 @@ thd_current_pgtbl(struct thread *thd)
 }
 
 static inline int
-thd_invstk_push(struct thread *            thd,
-                struct comp_info *         ci,
-                unsigned long              ip,
-                unsigned long              sp,
+thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp,
                 struct cos_cpu_local_info *cos_info)
 {
 	struct invstk_entry *top, *prev;

@@ -45,13 +45,7 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 }
 
 static inline int
-call_cap_retvals_asm(u32_t          cap_no,
-                     u32_t          op,
-                     int            arg1,
-                     int            arg2,
-                     int            arg3,
-                     int            arg4,
-                     unsigned long *r1,
+call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4, unsigned long *r1,
                      unsigned long *r2)
 {
 	long fault = 0;

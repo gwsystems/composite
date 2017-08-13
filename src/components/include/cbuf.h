@@ -212,7 +212,7 @@ struct cbuf_agg {
 static inline void
 cbuf_unpack(cbuf_t cb, unsigned int *cbid)
 {
-	cbuf_unpacked_t cu = { 0 };
+	cbuf_unpacked_t cu = {0};
 	cu.v               = cb;
 	*cbid              = cu.c.id;
 	assert(!cu.c.aggregate);

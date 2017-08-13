@@ -82,8 +82,7 @@ make_cobj_symbols(struct service_symbs *s, struct cobj_header *h)
 		const char *name;
 		u32_t       type;
 	};
-	struct name_type_map map[] = { { .name = COMP_INFO, .type = COBJ_SYMB_COMP_INFO },
-		                       { .name = NULL, .type = 0 } };
+	struct name_type_map map[] = {{.name = COMP_INFO, .type = COBJ_SYMB_COMP_INFO}, {.name = NULL, .type = 0}};
 
 	/* Create the sumbols */
 	printl(PRINT_DEBUG, "%s loaded by Composite -- Symbols:\n", s->obj);

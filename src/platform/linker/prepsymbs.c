@@ -211,7 +211,7 @@ alloc_service_symbs(char *obj)
 	struct service_symbs *  str;
 	char *                  obj_name = malloc(strlen(obj) + 1), *cpy, *orig, *pos;
 	const char              lassign = '(', *rassign = ")", *assign = "=";
-	struct component_traits t   = { .sched = 0, .composite_loaded = 0 };
+	struct component_traits t   = {.sched = 0, .composite_loaded = 0};
 	int                     off = 0;
 
 	parse_component_traits(obj, &t, &off);

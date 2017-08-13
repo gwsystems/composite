@@ -93,8 +93,8 @@ cos_cap_ipi_handling(void)
 	receiver_rings = &IPI_cap_dest[get_cpuid()];
 
 	/* We need to scan the entire buffer once. */
-	idx                   = receiver_rings->start;
-	end                   = receiver_rings->start - 1; // end is int type. could be -1.
+	idx = receiver_rings->start;
+	end = receiver_rings->start - 1; // end is int type. could be -1.
 	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
 
 	/* scan the first half */
@@ -137,12 +137,8 @@ kmem_unalloc(unsigned long *pte)
  * cap_captbl, cap_pgtbl and thd.
  */
 int
-kmem_deact_pre(struct cap_header *ch,
-               struct captbl *    ct,
-               capid_t            pgtbl_cap,
-               capid_t            cosframe_addr,
-               unsigned long **   p_pte,
-               unsigned long *    v)
+kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capid_t cosframe_addr,
+               unsigned long **p_pte, unsigned long *v)
 {
 	struct cap_pgtbl *cap_pt;
 	u32_t             flags, old_v, pa;
@@ -440,10 +436,7 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, c
 }
 
 static int
-cap_thd_switch(struct pt_regs *           regs,
-               struct thread *            curr,
-               struct thread *            next,
-               struct comp_info *         ci,
+cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struct comp_info *ci,
                struct cos_cpu_local_info *cos_info)
 {
 	struct next_thdinfo *nti     = &cos_info->next_ti;
@@ -510,12 +503,8 @@ notify_parent(struct thread *rcv_thd)
  * Return the thread that should be executed next.
  */
 static struct thread *
-notify_process(struct thread *rcv_thd,
-               struct thread *thd,
-               struct tcap *  rcv_tcap,
-               struct tcap *  tcap,
-               struct tcap ** tcap_next,
-               int            yield)
+notify_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, struct tcap *tcap,
+               struct tcap **tcap_next, int yield)
 {
 	struct thread *next;
 
@@ -538,13 +527,8 @@ notify_process(struct thread *rcv_thd,
  * Return the thread that should be executed next.
  */
 static struct thread *
-asnd_process(struct thread *            rcv_thd,
-             struct thread *            thd,
-             struct tcap *              rcv_tcap,
-             struct tcap *              tcap,
-             struct tcap **             tcap_next,
-             int                        yield,
-             struct cos_cpu_local_info *cos_info)
+asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, struct tcap *tcap,
+             struct tcap **tcap_next, int yield, struct cos_cpu_local_info *cos_info)
 {
 	struct thread *next;
 
@@ -560,15 +544,9 @@ asnd_process(struct thread *            rcv_thd,
 }
 
 static int
-cap_update(struct pt_regs *           regs,
-           struct thread *            thd_curr,
-           struct thread *            thd_next,
-           struct tcap *              tc_curr,
-           struct tcap *              tc_next,
-           tcap_time_t                timeout,
-           struct comp_info *         ci,
-           struct cos_cpu_local_info *cos_info,
-           int                        timer_intr_context)
+cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_next, struct tcap *tc_curr,
+           struct tcap *tc_next, tcap_time_t timeout, struct comp_info *ci, struct cos_cpu_local_info *cos_info,
+           int timer_intr_context)
 {
 	struct thread *thc, *thn;
 	struct tcap *  tc, *tn;
@@ -615,22 +593,14 @@ cap_update(struct pt_regs *           regs,
 }
 
 static int
-cap_switch(struct pt_regs *           regs,
-           struct thread *            curr,
-           struct thread *            next,
-           struct tcap *              next_tcap,
-           tcap_time_t                timeout,
-           struct comp_info *         ci,
-           struct cos_cpu_local_info *cos_info)
+cap_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struct tcap *next_tcap, tcap_time_t timeout,
+           struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
 	return cap_update(regs, curr, next, tcap_current(cos_info), next_tcap, timeout, ci, cos_info, 0);
 }
 
 static int
-cap_thd_op(struct cap_thd *           thd_cap,
-           struct thread *            thd,
-           struct pt_regs *           regs,
-           struct comp_info *         ci,
+cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, struct comp_info *ci,
            struct cos_cpu_local_info *cos_info)
 {
 	struct thread *next        = thd_cap->t;
@@ -700,10 +670,7 @@ __cap_asnd_to_arcv(struct cap_asnd *asnd)
 }
 
 static int
-cap_asnd_op(struct cap_asnd *          asnd,
-            struct thread *            thd,
-            struct pt_regs *           regs,
-            struct comp_info *         ci,
+cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, struct comp_info *ci,
             struct cos_cpu_local_info *cos_info)
 {
 	int              curr_cpu = get_cpuid();
@@ -771,11 +738,8 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 }
 
 int
-expended_process(struct pt_regs *           regs,
-                 struct thread *            thd_curr,
-                 struct comp_info *         ci,
-                 struct cos_cpu_local_info *cos_info,
-                 int                        timer_intr_context)
+expended_process(struct pt_regs *regs, struct thread *thd_curr, struct comp_info *ci,
+                 struct cos_cpu_local_info *cos_info, int timer_intr_context)
 {
 	struct thread *thd_next;
 	struct tcap *  tc_curr, *tc_next;
@@ -820,10 +784,7 @@ timer_process(struct pt_regs *regs)
 }
 
 static int
-cap_arcv_op(struct cap_arcv *          arcv,
-            struct thread *            thd,
-            struct pt_regs *           regs,
-            struct comp_info *         ci,
+cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, struct comp_info *ci,
             struct cos_cpu_local_info *cos_info)
 {
 	struct thread *      next;

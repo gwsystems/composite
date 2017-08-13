@@ -112,10 +112,8 @@ create_transparent_capabilities(struct service_symbs *service)
  * exporters.
  */
 inline struct service_symbs *
-find_symbol_exporter_mark_resolved(struct symb *      s,
-                                   struct dependency *exporters,
-                                   int                num_exporters,
-                                   struct symb **     exported)
+find_symbol_exporter_mark_resolved(struct symb *s, struct dependency *exporters, int num_exporters,
+                                   struct symb **exported)
 {
 	int i, j;
 

@@ -54,9 +54,9 @@ typedef struct cos_vect_struct {
 
 #define COS_VECT_CREATE_STATIC(name)                                         \
 	struct cos_vect_intern_struct __cos_##name##_vect[COS_VECT_BASE] = { \
-		{ .val = COS_VECT_INIT_VAL },                                \
+	  {.val = COS_VECT_INIT_VAL},                                        \
 	};                                                                   \
-	cos_vect_t name = { .depth = 1, .vect = __cos_##name##_vect }
+	cos_vect_t name = {.depth = 1, .vect = __cos_##name##_vect}
 
 /* true or false: is v a power of 2 */
 static inline int

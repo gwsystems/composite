@@ -89,26 +89,13 @@ cobj_cap_is_fault(struct cobj_cap *c)
 }
 
 u32_t               cobj_size_req(u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap);
-struct cobj_header *cobj_create(u32_t        id,
-                                char *       name,
-                                u32_t        nsect,
-                                u32_t        sect_sz,
-                                u32_t        nsymb,
-                                u32_t        ncap,
-                                char *       space,
-                                unsigned int sz,
-                                u32_t        flags);
+struct cobj_header *cobj_create(u32_t id, char *name, u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap, char *space,
+                                unsigned int sz, u32_t flags);
 
 int cobj_sect_init(struct cobj_header *h, unsigned int sect_idx, u32_t flags, u32_t vaddr, u32_t size);
 int cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, u32_t type, u32_t vaddr);
-int cobj_cap_init(struct cobj_header *h,
-                  unsigned int        cap_idx,
-                  u32_t               cap_off,
-                  u32_t               dest_id,
-                  u32_t               sfn,
-                  u32_t               cstub,
-                  u32_t               sstub,
-                  u32_t               fault_num);
+int cobj_cap_init(struct cobj_header *h, unsigned int cap_idx, u32_t cap_off, u32_t dest_id, u32_t sfn, u32_t cstub,
+                  u32_t sstub, u32_t fault_num);
 
 struct cobj_sect *cobj_sect_get(struct cobj_header *h, unsigned int sect_id);
 struct cobj_symb *cobj_symb_get(struct cobj_header *h, unsigned int symb_id);

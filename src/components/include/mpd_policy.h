@@ -1313,16 +1313,16 @@ split_all_components(struct protection_domain *pds, struct heaps *hs)
 
 /* The example from the min-cut paper + 2 extra edges */
 //#define MAX_COMPONENTS 14
-static struct comp_graph ies[MAX_COMPONENTS + 1] = { { .client = 1, .server = 2 }, { .client = 2, .server = 3 },
-	                                             { .client = 3, .server = 4 }, { .client = 4, .server = 8 },
-	                                             { .client = 8, .server = 7 }, { .client = 7, .server = 6 },
-	                                             { .client = 6, .server = 5 }, { .client = 5, .server = 1 },
-	                                             { .client = 5, .server = 2 }, { .client = 2, .server = 6 },
-	                                             { .client = 3, .server = 7 }, { .client = 7, .server = 4 },
+static struct comp_graph ies[MAX_COMPONENTS + 1] = {{.client = 1, .server = 2}, {.client = 2, .server = 3},
+                                                    {.client = 3, .server = 4}, {.client = 4, .server = 8},
+                                                    {.client = 8, .server = 7}, {.client = 7, .server = 6},
+                                                    {.client = 6, .server = 5}, {.client = 5, .server = 1},
+                                                    {.client = 5, .server = 2}, {.client = 2, .server = 6},
+                                                    {.client = 3, .server = 7}, {.client = 7, .server = 4},
 
-	                                             { .client = 1, .server = 2 }, { .client = 2, .server = 6 },
+                                                    {.client = 1, .server = 2}, {.client = 2, .server = 6},
 
-	                                             { .client = 0, .server = 0 } };
+                                                    {.client = 0, .server = 0}};
 
 static void
 edges_reset_random_weights(void)

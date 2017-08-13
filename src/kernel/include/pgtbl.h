@@ -151,22 +151,8 @@ __pgtbl_getleaf(struct ert_intern *a, void *accum)
 	return __pgtbl_get(a, accum, 1);
 }
 
-ERT_CREATE(__pgtbl,
-           pgtbl,
-           PGTBL_DEPTH,
-           PGTBL_ORD,
-           sizeof(int *),
-           PGTBL_ORD,
-           sizeof(int *),
-           NULL,
-           __pgtbl_init,
-           __pgtbl_get,
-           __pgtbl_isnull,
-           __pgtbl_set,
-           __pgtbl_a,
-           __pgtbl_setleaf,
-           __pgtbl_getleaf,
-           ert_defresolve);
+ERT_CREATE(__pgtbl, pgtbl, PGTBL_DEPTH, PGTBL_ORD, sizeof(int *), PGTBL_ORD, sizeof(int *), NULL, __pgtbl_init,
+           __pgtbl_get, __pgtbl_isnull, __pgtbl_set, __pgtbl_a, __pgtbl_setleaf, __pgtbl_getleaf, ert_defresolve);
 
 /* make it an opaque type...not to be touched */
 typedef struct pgtbl *pgtbl_t;
@@ -560,13 +546,8 @@ pgtbl_create(void *page, void *curr_pgtbl)
 	return ret;
 }
 int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
-int pgtbl_deactivate(struct captbl *    t,
-                     struct cap_captbl *dest_ct_cap,
-                     unsigned long      capin,
-                     livenessid_t       lid,
-                     capid_t            pgtbl_cap,
-                     capid_t            cosframe_addr,
-                     const int          root);
+int pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
+                     capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
 
 static int
 pgtbl_mapping_scan(struct cap_pgtbl *pt)

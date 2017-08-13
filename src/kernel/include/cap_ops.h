@@ -279,12 +279,8 @@ kmem_page_scan(void *obj_vaddr, const int size)
 	return 0;
 }
 
-int kmem_deact_pre(struct cap_header *ch,
-                   struct captbl *    ct,
-                   capid_t            pgtbl_cap,
-                   capid_t            cosframe_addr,
-                   unsigned long **   p_pte,
-                   unsigned long *    v);
+int kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capid_t cosframe_addr,
+                   unsigned long **p_pte, unsigned long *v);
 int kmem_deact_post(unsigned long *pte, unsigned long old_v);
 
 #endif /* CAP_OPS */

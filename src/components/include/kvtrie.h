@@ -69,7 +69,7 @@ ert_nonull_isnull(struct ert_intern *a, void *accum, int isleaf)
 }
 
 struct ert_intern test_sink[1 << 9] = {
-	{ .next = test_sink },
+  {.next = test_sink},
 };
 
 /*
@@ -78,7 +78,7 @@ struct ert_intern test_sink[1 << 9] = {
  */
 #define KVT_CREATE_ALIGNED(name, depth, order, last_order, allocfn, freefn)                                         \
 	struct ert_intern name##_sink[1 << order] = {                                                               \
-		{ .next = name##_sink },                                                                            \
+	  {.next = name##_sink},                                                                                    \
 	};                                                                                                          \
 	static void name##_nonull_initfn(struct ert_intern *a, int leaf)                                            \
 	{                                                                                                           \

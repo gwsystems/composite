@@ -197,7 +197,7 @@ __cslab_mem_alloc(struct cslab_freelist *fl, int obj_sz, int max_objs)
  * maintenance and readability.
  */
 #define CSLAB_CREATE_DATA(name, size)                                                          \
-	struct cslab_freelist slab_##name##_freelist = { .list = NULL };                       \
+	struct cslab_freelist slab_##name##_freelist = {.list = NULL};                         \
 	static const int      slab_##name##_max_objs = ((CSLAB_MEM_ALLOC_SZ - CSLAB_FIRST_OFF) \
                                                    / (round_up_to_pow2(size, WORD_SIZE)))
 

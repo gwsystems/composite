@@ -33,13 +33,8 @@ __compinfo_metacap(struct cos_compinfo *ci)
 }
 
 void
-cos_compinfo_init(struct cos_compinfo *ci,
-                  pgtblcap_t           pgtbl_cap,
-                  captblcap_t          captbl_cap,
-                  compcap_t            comp_cap,
-                  vaddr_t              heap_ptr,
-                  capid_t              cap_frontier,
-                  struct cos_compinfo *ci_resources)
+cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
+                  vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources)
 {
 	assert(ci && ci_resources);
 	assert(cap_frontier % CAPMAX_ENTRY_SZ == 0);
@@ -604,10 +599,7 @@ cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t
 }
 
 int
-cos_compinfo_alloc(struct cos_compinfo *ci,
-                   vaddr_t              heap_ptr,
-                   capid_t              cap_frontier,
-                   vaddr_t              entry,
+cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
                    struct cos_compinfo *ci_resources)
 {
 	pgtblcap_t  ptc;

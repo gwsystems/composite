@@ -651,13 +651,8 @@ preempted_thd(void *d)
 }
 
 static void
-test_wakeup_case(struct activation_test_data *at,
-                 tcap_prio_t                  pprio,
-                 tcap_prio_t                  iprio,
-                 tcap_prio_t                  wprio,
-                 int                          pseq,
-                 int                          iseq,
-                 int                          wseq)
+test_wakeup_case(struct activation_test_data *at, tcap_prio_t pprio, tcap_prio_t iprio, tcap_prio_t wprio, int pseq,
+                 int iseq, int wseq)
 {
 	active_seq = 0;
 	at->i.prio = iprio;

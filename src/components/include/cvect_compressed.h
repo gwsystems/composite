@@ -100,16 +100,16 @@ static struct cvectc_stats {
 	struct lvlsz {
 		int sz, cnt, tot;
 	} lvlsizes[SIZE_REC];
-} __cvectc_stats = { .lvlsizes = {
-	               { .sz = 2 },
-	               { .sz = 4 },
-	               { .sz = 8 },
-	               { .sz = 16 },
-	               { .sz = 32 },
-	               { .sz = 64 },
-	               { .sz = 128 },
-	               { .sz = 0 }, /* catch all */
-	             } };
+} __cvectc_stats = {.lvlsizes = {
+                      {.sz = 2},
+                      {.sz = 4},
+                      {.sz = 8},
+                      {.sz = 16},
+                      {.sz = 32},
+                      {.sz = 64},
+                      {.sz = 128},
+                      {.sz = 0}, /* catch all */
+                    }};
 
 static void
 cvectc_stats_node(int sz)

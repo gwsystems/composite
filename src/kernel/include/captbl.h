@@ -194,22 +194,9 @@ __captbl_get(struct ert_intern *a, void *accum, int leaf)
 }
 
 #define CT_DEFINITVAL NULL
-ERT_CREATE(__captbl,
-           captbl,
-           CAPTBL_DEPTH,
-           CAPTBL_INTERN_ORD,
-           CAPTBL_INTERNSZ,
-           CAPTBL_LEAF_ORD,
-           CAPTBL_LEAFSZ,
-           CT_DEFINITVAL,
-           __captbl_init,
-           __captbl_get,
-           ert_defisnull,
-           ert_defset,
-           __captbl_allocfn,
-           __captbl_setleaf,
-           __captbl_getleaf,
-           ert_defresolve);
+ERT_CREATE(__captbl, captbl, CAPTBL_DEPTH, CAPTBL_INTERN_ORD, CAPTBL_INTERNSZ, CAPTBL_LEAF_ORD, CAPTBL_LEAFSZ,
+           CT_DEFINITVAL, __captbl_init, __captbl_get, ert_defisnull, ert_defset, __captbl_allocfn, __captbl_setleaf,
+           __captbl_getleaf, ert_defresolve);
 
 static struct captbl *
 captbl_alloc(void *page)
@@ -497,13 +484,8 @@ captbl_create(void *page)
 }
 
 int captbl_activate(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
-int captbl_deactivate(struct captbl *    t,
-                      struct cap_captbl *dest_ct_cap,
-                      unsigned long      capin,
-                      livenessid_t       lid,
-                      capid_t            pgtbl_cap,
-                      capid_t            cosframe_addr,
-                      const int          root);
+int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
+                      capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
 
 int captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr);

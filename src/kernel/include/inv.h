@@ -116,13 +116,8 @@ asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, capid_t rcv_cap, 
 }
 
 static int
-asnd_activate(struct captbl *t,
-              capid_t        cap,
-              capid_t        capin,
-              capid_t        rcv_captbl,
-              capid_t        rcv_cap,
-              u32_t          budget,
-              u32_t          period)
+asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, capid_t rcv_cap, u32_t budget,
+              u32_t period)
 {
 	struct cap_captbl *rcv_ct;
 	struct cap_asnd *  asndc;
@@ -195,14 +190,8 @@ arcv_thd_notif(struct thread *arcvt)
 }
 
 static int
-arcv_activate(struct captbl *t,
-              capid_t        cap,
-              capid_t        capin,
-              capid_t        comp_cap,
-              capid_t        thd_cap,
-              capid_t        tcap_cap,
-              capid_t        arcv_cap,
-              int            init)
+arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap, capid_t tcap_cap,
+              capid_t arcv_cap, int init)
 {
 	struct cap_comp *compc;
 	struct cap_thd * thdc;

@@ -121,15 +121,8 @@ cobj_sect_addr(struct cobj_header *h, unsigned int sect_id)
 }
 
 struct cobj_header *
-cobj_create(u32_t        id,
-            char *       name,
-            u32_t        nsect,
-            u32_t        sect_sz,
-            u32_t        nsymb,
-            u32_t        ncap,
-            char *       space,
-            unsigned int sz,
-            u32_t        flags)
+cobj_create(u32_t id, char *name, u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap, char *space, unsigned int sz,
+            u32_t flags)
 {
 	struct cobj_header *h                = (struct cobj_header *)space;
 	u32_t               tot_sz           = 0;
@@ -204,14 +197,8 @@ cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, u32_t type, u32_t v
 }
 
 int
-cobj_cap_init(struct cobj_header *h,
-              unsigned int        cap_idx,
-              u32_t               cap_off,
-              u32_t               dest_id,
-              u32_t               sfn,
-              u32_t               cstub,
-              u32_t               sstub,
-              u32_t               fault_num)
+cobj_cap_init(struct cobj_header *h, unsigned int cap_idx, u32_t cap_off, u32_t dest_id, u32_t sfn, u32_t cstub,
+              u32_t sstub, u32_t fault_num)
 {
 	struct cobj_cap *c;
 

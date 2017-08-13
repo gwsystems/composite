@@ -8,7 +8,7 @@
 #endif
 
 #define STATIC_TIMER_RECORDS(name, N) struct timer_record name[N]
-#define TIMER_INIT(name, rs, idx) struct timer name = { .start = 0, .r = &rs[idx] }
+#define TIMER_INIT(name, rs, idx) struct timer name = {.start = 0, .r = &rs[idx]}
 
 struct timer_record {
 	unsigned long tot, max, min, cnt;

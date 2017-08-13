@@ -109,17 +109,8 @@ typedef int (*expandn_fn_t)(struct ert *v, unsigned long id, u32_t dlimit, unsig
 typedef int (*expand_fn_t)(struct ert *v, unsigned long id, unsigned long *accum, void *memctxt);
 
 void
-kv_test(int          max,
-        alloc_fn_t   a,
-        free_fn_t    f,
-        lkupp_fn_t   lp,
-        add_fn_t     add,
-        del_fn_t     d,
-        lkup_fn_t    l,
-        lkupa_fn_t   la,
-        lkupan_fn_t  lan,
-        expandn_fn_t en,
-        expand_fn_t  e)
+kv_test(int max, alloc_fn_t a, free_fn_t f, lkupp_fn_t lp, add_fn_t add, del_fn_t d, lkup_fn_t l, lkupa_fn_t la,
+        lkupan_fn_t lan, expandn_fn_t en, expand_fn_t e)
 {
 	(void)l;
 	(void)la;

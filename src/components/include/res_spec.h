@@ -10,18 +10,18 @@ typedef struct {
 	/* allocation, and window of that allocation */
 	s16_t a, w;
 } __attribute__((packed)) res_spec_t;
-#define NULL_RSPEC ((res_spec_t){ .a = 0, .w = 0 })
+#define NULL_RSPEC ((res_spec_t){.a = 0, .w = 0})
 
 static inline res_spec_t
 resres_spec(s16_t alloc)
 {
-	return (res_spec_t){ .a = alloc, .w = 0 };
+	return (res_spec_t){.a = alloc, .w = 0};
 }
 
 static inline res_spec_t
 resres_spec_w(s16_t alloc, s16_t window)
 {
-	return (res_spec_t){ .a = alloc, .w = window };
+	return (res_spec_t){.a = alloc, .w = window};
 }
 
 typedef enum {
@@ -58,7 +58,7 @@ typedef u32_t sched_param_t;
 static inline sched_param_t
 sched_param_pack(sched_param_type_t type, unsigned int value)
 {
-	return ((union sched_param){ .c = { .type = type, .value = value } }).v;
+	return ((union sched_param){.c = {.type = type, .value = value}}).v;
 }
 
 static inline void

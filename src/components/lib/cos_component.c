@@ -138,19 +138,19 @@ CWEAKSYMB vaddr_t ST_user_caps;
  * Much of this is either initialized at load time, or passed to the
  * loader though this structure.
  */
-struct cos_component_information cos_comp_info __attribute__((section(
-  ".cinfo"))) = { .cos_this_spd_id         = 0,
-	          .cos_heap_ptr            = 0,
-	          .cos_heap_limit          = 0,
-	          .cos_stacks.freelists[0] = { .freelist = 0, .thd_id = 0 },
-	          .cos_upcall_entry        = (vaddr_t)&cos_upcall_entry,
-	          .cos_async_inv_entry     = (vaddr_t)&cos_ainv_entry,
-	          .cos_user_caps           = (vaddr_t)&ST_user_caps,
-	          .cos_ras  = { { .start = (vaddr_t)&cos_atomic_cmpxchg, .end = (vaddr_t)&cos_atomic_cmpxchg_end },
-                               { .start = (vaddr_t)&cos_atomic_user1, .end = (vaddr_t)&cos_atomic_user1_end },
-                               { .start = (vaddr_t)&cos_atomic_user2, .end = (vaddr_t)&cos_atomic_user2_end },
-                               { .start = (vaddr_t)&cos_atomic_user3, .end = (vaddr_t)&cos_atomic_user3_end },
-                               { .start = (vaddr_t)&cos_atomic_user4, .end = (vaddr_t)&cos_atomic_user4_end } },
-	          .cos_poly = {
-	            0,
-	          } };
+struct cos_component_information cos_comp_info __attribute__((
+  section(".cinfo"))) = {.cos_this_spd_id         = 0,
+                         .cos_heap_ptr            = 0,
+                         .cos_heap_limit          = 0,
+                         .cos_stacks.freelists[0] = {.freelist = 0, .thd_id = 0},
+                         .cos_upcall_entry        = (vaddr_t)&cos_upcall_entry,
+                         .cos_async_inv_entry     = (vaddr_t)&cos_ainv_entry,
+                         .cos_user_caps           = (vaddr_t)&ST_user_caps,
+                         .cos_ras  = {{.start = (vaddr_t)&cos_atomic_cmpxchg, .end = (vaddr_t)&cos_atomic_cmpxchg_end},
+                                     {.start = (vaddr_t)&cos_atomic_user1, .end = (vaddr_t)&cos_atomic_user1_end},
+                                     {.start = (vaddr_t)&cos_atomic_user2, .end = (vaddr_t)&cos_atomic_user2_end},
+                                     {.start = (vaddr_t)&cos_atomic_user3, .end = (vaddr_t)&cos_atomic_user3_end},
+                                     {.start = (vaddr_t)&cos_atomic_user4, .end = (vaddr_t)&cos_atomic_user4_end}},
+                         .cos_poly = {
+                           0,
+                         }};

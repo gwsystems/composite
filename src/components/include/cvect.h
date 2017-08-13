@@ -100,7 +100,7 @@ typedef struct cvect_struct {
 	struct cvect_intern vect[CVECT_BASE];
 } cvect_t;
 
-#define CVECT_CREATE_STATIC(name) cvect_t name = { .vect = { { .c.next = NULL } } }
+#define CVECT_CREATE_STATIC(name) cvect_t name = {.vect = {{.c.next = NULL}}}
 
 /* true or false: is v a power of 2 */
 static inline int

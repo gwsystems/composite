@@ -76,13 +76,8 @@ struct cos_compinfo {
 	struct cos_meminfo   mi;     /* only populated for the component with real memory */
 };
 
-void cos_compinfo_init(struct cos_compinfo *ci,
-                       pgtblcap_t           pgtbl_cap,
-                       captblcap_t          captbl_cap,
-                       compcap_t            comp_cap,
-                       vaddr_t              heap_ptr,
-                       capid_t              cap_frontier,
-                       struct cos_compinfo *ci_resources);
+void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
+                       vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);
 /*
  * This only needs be called on compinfos that are managing resources
  * (i.e. likely only one).  All of the capabilities will be relative
@@ -108,10 +103,7 @@ int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vadd
  * This uses the next three functions to allocate a new component and
  * correctly populate ci (allocating all resources from ci_resources).
  */
-int         cos_compinfo_alloc(struct cos_compinfo *ci,
-                               vaddr_t              heap_ptr,
-                               capid_t              cap_frontier,
-                               vaddr_t              entry,
+int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
                                struct cos_compinfo *ci_resources);
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);

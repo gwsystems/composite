@@ -18,7 +18,7 @@ AllowShortLoopsOnASingleLine: true
 AlwaysBreakAfterReturnType: AllDefinitions
 
 BinPackArguments: true
-BinPackParameters: false
+BinPackParameters: true
 
 BraceWrapping: {
   AfterClass: false,
@@ -36,6 +36,8 @@ BreakBeforeBraces: Custom
 BreakBeforeBinaryOperators: NonAssignment
 
 ColumnLimit: 120
+
+Cpp11BracedListStyle: true
 
 IndentCaseLabels: false
 IndentWrappedFunctionNames: false
@@ -55,6 +57,7 @@ SpaceInEmptyParentheses: false
 SpacesBeforeTrailingComments: 1
 SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
+SpacesInSquareBrackets: false
 
 TabWidth: 8
 UseTab: ForIndentation
