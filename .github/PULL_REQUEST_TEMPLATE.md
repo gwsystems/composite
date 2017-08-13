@@ -23,6 +23,7 @@ As part of this pull request, I've considered the following:
 - [ ] Spacing adhere's to the SG
 - [ ] Naming adhere's to the SG
 - [ ] All other aspects of the SG are adhered to, or exceptions are justified in this pull request
+- [ ] I have run the auto formatter on my code before submitting this PR (see doc/auto_formatter.md for instructions)
 
 [Code Craftsmanship](http://www2.seas.gwu.edu/~gparmer/posts/2016-03-07-code-craftsmanship.html):
 
