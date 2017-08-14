@@ -15,6 +15,7 @@ sudo apt-get -y install python-qt4
 sudo apt-get -y install pyqt4-dev-tools
 
 # Tools nessesary for composite
+sudo apt-get -y install g++
 sudo apt-get -y install bc
 sudo apt-get -y install gcc-multilib
 sudo apt-get -y install binutils-dev

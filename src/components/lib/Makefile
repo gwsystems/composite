@@ -11,7 +11,7 @@ CINC_ENV=$(CINC)
 export CINC_ENV
 
 .PHONY: all sl
-all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl 
+all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl
 
 # we have to compile these without dietlibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't
@@ -56,7 +56,7 @@ distclean:
 #	make -C libccv clean
 
 musl:
-	cd musl-1.1.11; ./configure --disable-shared; cd ..
+	cd musl-1.1.11; ./configure --disable-shared --enable-debug; cd ..
 	make -C musl-1.1.11
 	make -C musl-1.1.11 install
 

@@ -1,4 +1,4 @@
-CFLAGS=-Wall -fno-stack-protector -I../../include -I../../../kernel/include -I../../../kernel/include/shared -I../../interface/cbuf_mgr -I../../interface/evt
+CFLAGS=-Wall -fno-stack-protector -I../../include -I../ps -I../../../kernel/include -I../../../kernel/include/shared
 
 .PHONY: all
 

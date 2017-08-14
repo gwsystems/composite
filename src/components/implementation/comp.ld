@@ -17,12 +17,14 @@ SECTIONS
 		__DTOR_END__ = .;
 	}
 	.init_array : {
+		__init_array_start = .;
 		__INIT_ARRAY_LIST__ = .;
 		LONG((__INIT_ARRAY_END__ - __INIT_ARRAY_LIST__) / 4 - 2)
 		KEEP (*(SORT(.init_array.*)))
 		KEEP (*(.init_array))
 		LONG(0)
 		__INIT_ARRAY_END__ = .;
+		__init_array_end = .;
 	}
 	.fini_array : {
 		__fini_array_start = .;

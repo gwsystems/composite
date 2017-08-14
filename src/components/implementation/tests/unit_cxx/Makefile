@@ -1,10 +1,10 @@
 C_OBJS=cxx.o
 COMPONENT=cxx_test.o
 INTERFACES=
-DEPENDENCIES=cbuf_mgr printc sched valloc mem_mgr_large torrent evt timed_blk lock
-IF_LIB=./libstdc++.a ./libsupc++.a 
+DEPENDENCIES=
+IF_LIB=./libstdc++.a ./libsupc++.a
 OBJLIBS += $(POSIX_LIB)
-ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api
+ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_defkernel_api -lsl -lsl_mod_fprr -lsl_thd_static_backend
 
 pre: first all
 first:
@@ -15,4 +15,3 @@ first:
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o
-

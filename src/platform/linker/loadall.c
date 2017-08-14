@@ -35,6 +35,7 @@ unsigned long getsym(bfd *obj, char* symbol)
                 exit(-1);
         }
 
+        printl(PRINT_DEBUG, "Allocating %d for symbol table\n", (int) storage_needed);
         symbol_table = (asymbol **) malloc (storage_needed);
         number_of_symbols = bfd_canonicalize_symtab(obj, symbol_table);
 
@@ -283,7 +284,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 
         obj = bfd_openr(tmp_exec, "elf32-i386");
         if(!obj){
-                bfd_perror("object open failure (loadall 279)");
+                bfd_perror("object open failure (loadall 286)");
                 return -1;
         }
         if(!bfd_check_format(obj, bfd_object)){
