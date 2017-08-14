@@ -60,12 +60,17 @@ musl:
 	make -C musl-1.1.11
 	make -C musl-1.1.11 install
 
-init: clean distclean musl all
+ck:
+	cd ck; ./configure; cd ..
+
+ps:
+	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
+
+
+init: clean distclean musl ck ps all
 #	make -C lwip/cos
 #	make -C lua/cos
 # keep the following commands in one line. Same as above.
-	cd ck; ./configure; cd ..
-	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
 	make -C posix
 	make -C libcxx
 

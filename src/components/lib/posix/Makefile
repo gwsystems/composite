@@ -1,4 +1,7 @@
-CFLAGS=-Wall -fno-stack-protector -I../../include -I../ps -I../../../kernel/include -I../../../kernel/include/shared
+include Makefile.src Makefile.comp
+
+# HACK: For some reason this isn't being included here 
+INC += -I../ps/
 
 .PHONY: all
 

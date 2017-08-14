@@ -21,7 +21,7 @@ clean:
 	rm -rf $(BUILDDIR) ../../libsupc++.a *.o
 
 $(OBJ_CC) $(OBJ_CC_GCC48):%.o:%.cc
-	$(CXX) $< -o $@ -c $(CXXFLAGS)
+	@$(CXX) $< -o $@ -c $(CXXFLAGS)
 
 libsupc++.a:$(OBJ_CC) $(OBJ_CC_GCC48) 
 	@$(AR) rcs $@ $^

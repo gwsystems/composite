@@ -1,1 +1,1 @@
-/home/vagrant/composite/src/components/lib/libcxx/libstdc++-v3-4.8/config/cpu/generic/atomic_word.h
+../.././libstdc++-v3-4.8/config/cpu/generic/atomic_word.h

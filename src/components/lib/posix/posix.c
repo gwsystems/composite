@@ -83,11 +83,13 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 	printc("mmap\n");
 	if (addr != NULL) {
 		printc("parameter void *addr is not supported!\n");
-		assert(0);
+		errno = ENOTSUP;
+		return MAP_FAILED;
 	}
 	if (fd != -1) {
 		printc("file mapping is not supported!\n");
-		assert(0);
+		errno = ENOTSUP;
+		return MAP_FAILED;
 	}
 
 	addr = (void *)cos_page_bump_allocn(&cos_defcompinfo_curr_get()->ci, length);
@@ -102,7 +104,6 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		// This is a best guess about what went wrong
 		errno = ENOMEM;
 	}
-
 	return ret;
 }
 

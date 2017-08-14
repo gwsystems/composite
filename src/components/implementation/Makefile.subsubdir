@@ -42,7 +42,7 @@ TMP_STR2=tmp2
 INCLUDE=-I../ $(DEP_INC) $(IF_INCLUDE) $(CINC)
 LIB_LIBRARIES_PRE=$(DEP_LIB_EXIST)
 LIB_LIBRARIES=$(strip $(LIB_LIBRARIES_PRE))
-LIB_FLAGS=-L$(LIBDIR) $(DEP_LIB) $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)
+LIB_FLAGS=-L$(LIBDIR) -L$(LIBCXXDIR) $(DEP_LIB) $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)
 
 C_SOURCES=$(C_OBJS:%.o=%.c)
 CXX_SOURCES=$(CXX_OBJS:%.o=%.cc)
@@ -80,15 +80,15 @@ $(COMPONENT): $(OBJS)
 	@cp $@ c.o
 
 %.o:%.c
-#	$(info |     [CC]   $<: Compiling)
+	$(info |     [CC]   $<: Compiling)
 	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
        
 %.o:%.cc
-#	$(info |     [CC]   $<: Compiling)
-	$(CXX) $(INCLUDE) $(LIBSTDCXXINC) $(CXXFLAGS) -o $@ -c $<
+	$(info |     [CXX]  $<: Compiling)
+	@$(CXX) $(INCLUDE) $(LIBSTDCXXINC) $(CXXFLAGS) -o $@ -c $<
        
 %.o:%.S
-#	$(info |     [AS]   Compiling assembly file $^ into $@)
+	$(info |     [AS]   Compiling assembly file $^ into $@)
 #	$(info |     [AS]   $<: Compiling)
 	@$(AS) $(INCLUDE) $(ASFLAGS) -c -o $@ $^
 

@@ -1,1 +1,1 @@
-/home/vagrant/composite/src/components/lib/libcxx/libstdc++-v3-4.8/config/io/c_io_stdio.h
+../.././libstdc++-v3-4.8/config/io/c_io_stdio.h

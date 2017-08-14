@@ -1,1 +1,1 @@
-/home/vagrant/composite/src/components/lib/libcxx/libstdc++-headers/bits/gthr.h
+../.././libstdc++-headers/bits/gthr.h

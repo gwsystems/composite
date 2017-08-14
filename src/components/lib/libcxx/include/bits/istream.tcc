@@ -1,1 +1,1 @@
-/home/vagrant/composite/src/components/lib/libcxx/libstdc++-v3-4.8/include/bits/istream.tcc
+../.././libstdc++-v3-4.8/include/bits/istream.tcc

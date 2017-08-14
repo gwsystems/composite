@@ -1,1 +1,1 @@
-/home/vagrant/composite/src/components/lib/libcxx/libstdc++-v3-4.8/include/bits/c++0x_warning.h
+../.././libstdc++-v3-4.8/include/bits/c++0x_warning.h
