@@ -18,49 +18,35 @@ extern "C" {
 }
 #endif
 
-class Global_foo
-{
-public:
+class Global_foo {
+      public:
 	Global_foo();
 	~Global_foo();
 };
 
-Global_foo::Global_foo()
-{
-	printc("Global foo constructor\n");
-}
+Global_foo::Global_foo() { printc("Global foo constructor\n"); }
 
-Global_foo::~Global_foo()
-{
-	cout << "Global foo destructor" << endl;
-}
+Global_foo::~Global_foo() { cout << "Global foo destructor" << endl; }
 
-class Global_bar
-{
-public:
+class Global_bar {
+      public:
 	Global_bar();
 };
 
-Global_bar::Global_bar()
-{
-	printc("Global bar constructor\n");
-}
+Global_bar::Global_bar() { printc("Global bar constructor\n"); }
 
-class cl
-{
+class cl {
 	int i;
-public:
+
+      public:
 	cl(void);
 	cl(int a);
 	~cl();
-	int get_i();
+	int  get_i();
 	void put_i(int j);
 };
 
-cl::cl(void)
-{
-	i = 0;
-}
+cl::cl(void) { i = 0; }
 
 cl::cl(int a)
 {
@@ -68,10 +54,7 @@ cl::cl(int a)
 	cout << "create object " << i << endl;
 }
 
-cl::~cl()
-{
-	cout << "destroy object " << i << endl;
-}
+cl::~cl() { cout << "destroy object " << i << endl; }
 
 int
 cl::get_i()
@@ -85,29 +68,33 @@ cl::put_i(int j)
 	i = j;
 }
 
-template <class T>
-class Mypair
-{
+template<class T>
+class Mypair {
 	T a, b;
-public:
-	Mypair (T first, T second) {a = first; b = second;}
-	T getmax ();
+
+      public:
+	Mypair(T first, T second)
+	{
+		a = first;
+		b = second;
+	}
+	T getmax();
 };
 
-template <class T>
-T Mypair<T>::getmax ()
+template<class T>
+T
+Mypair<T>::getmax()
 {
 	T retval;
 	retval = a > b ? a : b;
 	return retval;
 }
 
-class Getdata 
-{
-public:
-	int getdata(int i);
+class Getdata {
+      public:
+	int    getdata(int i);
 	double getdata(double f);
-	char getdata(char c);
+	char   getdata(char c);
 };
 
 int
@@ -128,22 +115,26 @@ Getdata::getdata(char c)
 	return c;
 }
 
-class Polygon
-{
-protected:
+class Polygon {
+      protected:
 	int width, height;
-public:
-	Polygon(int a, int b): width(a), height(b) {}
+
+      public:
+	Polygon(int a, int b)
+	  : width(a)
+	  , height(b)
+	{
+	}
 	virtual ~Polygon() {}
 	virtual int area(void) = 0;
-	void set_values(int a, int b);
-	int retarea();
+	void        set_values(int a, int b);
+	int         retarea();
 };
 
 void
 Polygon::set_values(int a, int b)
 {
-	width = a;
+	width  = a;
 	height = b;
 }
 
@@ -153,10 +144,12 @@ Polygon::retarea(void)
 	return this->area();
 }
 
-class Rectangle: public Polygon
-{
-public:
-	Rectangle(int a = 1, int b = 1): Polygon(a, b) {}
+class Rectangle : public Polygon {
+      public:
+	Rectangle(int a = 1, int b = 1)
+	  : Polygon(a, b)
+	{
+	}
 	virtual ~Rectangle() {}
 	int area(void);
 };
@@ -164,13 +157,15 @@ public:
 int
 Rectangle::area()
 {
-	return width*height;
+	return width * height;
 }
 
-class Triangle: public Polygon
-{
-public:
-	Triangle(int a = 2, int b = 2): Polygon(a, b) {}
+class Triangle : public Polygon {
+      public:
+	Triangle(int a = 2, int b = 2)
+	  : Polygon(a, b)
+	{
+	}
 	virtual ~Triangle() {}
 	int area(void);
 };
@@ -178,11 +173,11 @@ public:
 int
 Triangle::area()
 {
-	return width*height/2;
+	return width * height / 2;
 }
 
 class Person {
-public:
+      public:
 	virtual ~Person() {}
 	void methodSpecificToA();
 };
@@ -193,9 +188,8 @@ Person::methodSpecificToA()
 	cout << "Method specific for A was invoked" << endl;
 }
 
-class Employee : public Person
-{
-public:
+class Employee : public Person {
+      public:
 	virtual ~Employee() {}
 	void methodSpecificToB();
 };

@@ -10,7 +10,7 @@
 #else
 #include <cos_debug.h>
 #endif
-#include <stddef.h>		/* offsetof */
+#include <stddef.h> /* offsetof */
 
 struct clist {
 	struct clist *n, *p;
@@ -29,19 +29,27 @@ struct clist_head {
 
 static inline void
 clist_ll_init(struct clist *l)
-{ l->n = l->p = l; }
+{
+	l->n = l->p = l;
+}
 
 static inline void
 clist_head_init(struct clist_head *lh)
-{ clist_ll_init(&lh->l); }
+{
+	clist_ll_init(&lh->l);
+}
 
 static inline int
 clist_ll_empty(struct clist *l)
-{ return l->n == l; }
+{
+	return l->n == l;
+}
 
 static inline int
 clist_head_empty(struct clist_head *lh)
-{ return clist_ll_empty(&lh->l); }
+{
+	return clist_ll_empty(&lh->l);
+}
 
 static inline void
 clist_ll_add(struct clist *l, struct clist *new)
@@ -67,8 +75,7 @@ clist_ll_rem(struct clist *l)
  * a list.  Do _not_ use this function.  It is a utility used by the
  * following functions.
  */
-#define clist_obj_get_l(l, o, lname) \
-	(typeof (*(o)) *)(((char*)(l)) - offsetof(typeof(*(o)), lname))
+#define clist_obj_get_l(l, o, lname) (typeof(*(o)) *)(((char *)(l)) - offsetof(typeof(*(o)), lname))
 
 /***
  * The object API.  These functions are called with pointers to your
@@ -91,13 +98,13 @@ clist_ll_rem(struct clist *l)
 #define clist_is_head_l(lh, o, lname) (clist_obj_get_l((lh), (o), lname) == (o))
 
 /* functions for if we don't use the default name for the list field */
-#define clist_singleton_l(o, lname)    clist_ll_empty(&(o)->lname)
-#define clist_init_l(o, lname)         clist_ll_init(&(o)->lname)
-#define clist_next_l(o, lname)         clist_obj_get_l((o)->lname.n, (o), lname)
-#define clist_prev_l(o, lname)         clist_obj_get_l((o)->lname.p, (o), lname)
-#define clist_add_l(o, n, lname)       clist_ll_add(&(o)->lname, &(n)->lname)
-#define clist_append_l(o, n, lname)    clist_add_l(clist_prev_l((o), lname), n, lname)
-#define clist_rem_l(o, lname)          clist_ll_rem(&(o)->lname)
+#define clist_singleton_l(o, lname) clist_ll_empty(&(o)->lname)
+#define clist_init_l(o, lname) clist_ll_init(&(o)->lname)
+#define clist_next_l(o, lname) clist_obj_get_l((o)->lname.n, (o), lname)
+#define clist_prev_l(o, lname) clist_obj_get_l((o)->lname.p, (o), lname)
+#define clist_add_l(o, n, lname) clist_ll_add(&(o)->lname, &(n)->lname)
+#define clist_append_l(o, n, lname) clist_add_l(clist_prev_l((o), lname), n, lname)
+#define clist_rem_l(o, lname) clist_ll_rem(&(o)->lname)
 #define clist_head_add_l(lh, o, lname) clist_ll_add((&(lh)->l), &(o)->lname)
 #define clist_head_append_l(lh, o, lname) clist_ll_add(((&(lh)->l)->p), &(o)->lname)
 
@@ -108,23 +115,21 @@ clist_ll_rem(struct clist *l)
  * pointer to the iterator that is stepping through the list.  "lh" is
  * the list head.
  */
-#define clist_head_fst_l(lh, o, lname) \
-	(*(o) = clist_obj_get_l(((lh)->l.n), (*o), lname))
-#define clist_head_lst_l(lh, o, lname) \
-	(*(o) = clist_obj_get_l(((lh)->l.p), (*o), lname))
+#define clist_head_fst_l(lh, o, lname) (*(o) = clist_obj_get_l(((lh)->l.n), (*o), lname))
+#define clist_head_lst_l(lh, o, lname) (*(o) = clist_obj_get_l(((lh)->l.p), (*o), lname))
 
 /* If your struct named the list field "list" (as defined by CLIST_DEF_NAME */
-#define clist_is_head(lh, o)           clist_is_head_l(lh, o, CLIST_DEF_NAME)
-#define clist_singleton(o)             clist_singleton_l(o, CLIST_DEF_NAME)
-#define clist_init(o)                  clist_init_l(o, CLIST_DEF_NAME)
-#define clist_next(o)                  clist_next_l(o, CLIST_DEF_NAME)
-#define clist_prev(o)                  clist_prev_l(o, CLIST_DEF_NAME)
-#define clist_add(o, n)                clist_add_l(o, n, CLIST_DEF_NAME)
-#define clist_append(o, n)             clist_append_l(o, n, CLIST_DEF_NAME)
-#define clist_rem(o)                   clist_rem_l(o, CLIST_DEF_NAME)
-#define clist_head_fst(lh, o)          clist_head_fst_l(lh, o, CLIST_DEF_NAME)
-#define clist_head_lst(lh, o)          clist_head_lst_l(lh, o, CLIST_DEF_NAME)
-#define clist_head_add(lh, o)          clist_head_add_l(lh, o, CLIST_DEF_NAME)
-#define clist_head_append(lh, o)       clist_head_append_l(lh, o, CLIST_DEF_NAME)
+#define clist_is_head(lh, o) clist_is_head_l(lh, o, CLIST_DEF_NAME)
+#define clist_singleton(o) clist_singleton_l(o, CLIST_DEF_NAME)
+#define clist_init(o) clist_init_l(o, CLIST_DEF_NAME)
+#define clist_next(o) clist_next_l(o, CLIST_DEF_NAME)
+#define clist_prev(o) clist_prev_l(o, CLIST_DEF_NAME)
+#define clist_add(o, n) clist_add_l(o, n, CLIST_DEF_NAME)
+#define clist_append(o, n) clist_append_l(o, n, CLIST_DEF_NAME)
+#define clist_rem(o) clist_rem_l(o, CLIST_DEF_NAME)
+#define clist_head_fst(lh, o) clist_head_fst_l(lh, o, CLIST_DEF_NAME)
+#define clist_head_lst(lh, o) clist_head_lst_l(lh, o, CLIST_DEF_NAME)
+#define clist_head_add(lh, o) clist_head_add_l(lh, o, CLIST_DEF_NAME)
+#define clist_head_append(lh, o) clist_head_append_l(lh, o, CLIST_DEF_NAME)
 
-#endif	/* CLIST_H */
+#endif /* CLIST_H */

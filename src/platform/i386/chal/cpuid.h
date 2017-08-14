@@ -20,7 +20,7 @@ tsc(void)
 {
 	unsigned long long ret;
 
-	__asm__ __volatile__("rdtsc" : "=A" (ret));
+	__asm__ __volatile__("rdtsc" : "=A"(ret));
 
 	return ret;
 }
@@ -33,8 +33,8 @@ tsc(void)
  * to schedule the thread that is deemed eligible by the scheduler.
  */
 struct next_thdinfo {
-	void       *thd;
-	void       *tc;
+	void *      thd;
+	void *      tc;
 	tcap_prio_t prio;
 	tcap_res_t  budget;
 };
@@ -48,19 +48,19 @@ struct cos_cpu_local_info {
 	/***********************************************/
 	/* info saved in kernel stack for fast access. */
 	unsigned long cpuid;
-	void       *curr_thd;
-	void       *curr_tcap;
-	struct list tcaps;
-	tcap_uid_t  tcap_uid;
-	tcap_prio_t tcap_prio;
-	cycles_t    cycles;
-	cycles_t    next_timer;
+	void *        curr_thd;
+	void *        curr_tcap;
+	struct list   tcaps;
+	tcap_uid_t    tcap_uid;
+	tcap_prio_t   tcap_prio;
+	cycles_t      cycles;
+	cycles_t      next_timer;
 	/*
 	 * cache the stk_top index to save a cacheline access on
 	 * inv/ret. Could use a struct here if need to cache multiple
 	 * things. (e.g. captbl, etc)
 	 */
-	int invstk_top;
+	int           invstk_top;
 	unsigned long epoch;
 	/***********************************************/
 	/*

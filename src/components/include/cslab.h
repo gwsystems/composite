@@ -7,13 +7,13 @@
  * Author: Gabriel Parmer, gparmer@gwu.edu, 2011
  */
 
-#ifndef  CSLAB_H
-#define  CSLAB_H
+#ifndef CSLAB_H
+#define CSLAB_H
 
 #ifdef LINUX_TEST
 #include <assert.h>
 #include <sys/mman.h>
-#define CSLAB_ALLOC(sz)   mmap(0, sz, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0)
+#define CSLAB_ALLOC(sz) mmap(0, sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, (size_t)0)
 #define CSLAB_FREE(x, sz) munmap(x, CSLAB_MEM_ALLOC_SZ)
 #define u16_t unsigned short int
 #define u32_t unsigned int
@@ -50,20 +50,20 @@
 
 #define CSLAB_MEM_ALLOC_SZ PAGE_SIZE
 
-#define CSLAB_MIN_ORDER 5 	/* minimum slab size = 2^5 = 32 bytes */
-#define CSLAB_MIN       (1<<CSLAB_MIN_ORDER)
-#define CSLAB_MAX_OBJS  (PAGE_SIZE/CSLAB_MIN)
-#define CSLAB_FIRST_OFF 64 	/* first memory allocation is cache-aligned */
+#define CSLAB_MIN_ORDER 5 /* minimum slab size = 2^5 = 32 bytes */
+#define CSLAB_MIN (1 << CSLAB_MIN_ORDER)
+#define CSLAB_MAX_OBJS (PAGE_SIZE / CSLAB_MIN)
+#define CSLAB_FIRST_OFF 64 /* first memory allocation is cache-aligned */
 
 #define CSLAB_BITMAP_UNIT 32
-#define CSLAB_BITMAP_NUNIT ((unsigned int)(CSLAB_MAX_OBJS/CSLAB_BITMAP_UNIT))
-#define CSLAB_BITMAP_SIZE						\
-((CSLAB_BITMAP_NUNIT*CSLAB_BITMAP_UNIT != CSLAB_MAX_OBJS) ? CSLAB_BITMAP_NUNIT+1 : CSLAB_BITMAP_NUNIT)
+#define CSLAB_BITMAP_NUNIT ((unsigned int)(CSLAB_MAX_OBJS / CSLAB_BITMAP_UNIT))
+#define CSLAB_BITMAP_SIZE \
+	((CSLAB_BITMAP_NUNIT * CSLAB_BITMAP_UNIT != CSLAB_MAX_OBJS) ? CSLAB_BITMAP_NUNIT + 1 : CSLAB_BITMAP_NUNIT)
 
 /* The header for a slab. */
 struct cslab {
-	u16_t obj_sz, nfree;
-	u32_t bitmap[CSLAB_BITMAP_SIZE];
+	u16_t         obj_sz, nfree;
+	u32_t         bitmap[CSLAB_BITMAP_SIZE];
 	struct cslab *next, *prev; /* freelist next */
 } __attribute__((packed));
 
@@ -75,18 +75,26 @@ struct cslab_freelist {
 #error "You must pound define a CSLAB_ALLOC and CSLAB_FREE"
 #endif
 
-static inline struct cslab *__cslab_lookup(void *buf) 
-{ return (struct cslab *)(PAGE_MASK & (u32_t)buf); }
-static inline char *__cslab_mem_first(struct cslab *s)
-{ return ((char*)s) + CSLAB_FIRST_OFF; }
+static inline struct cslab *
+__cslab_lookup(void *buf)
+{
+	return (struct cslab *)(PAGE_MASK & (u32_t)buf);
+}
+static inline char *
+__cslab_mem_first(struct cslab *s)
+{
+	return ((char *)s) + CSLAB_FIRST_OFF;
+}
 
 static void
 __slab_freelist_rem(struct cslab_freelist *fl, struct cslab *s)
 {
 	assert(s && fl);
 	if (fl->list == s) {
-		if (EMPTY_LIST(s, next, prev)) fl->list = NULL;
-		else                           fl->list = FIRST_LIST(s, next, prev);
+		if (EMPTY_LIST(s, next, prev))
+			fl->list = NULL;
+		else
+			fl->list = FIRST_LIST(s, next, prev);
 	}
 	REM_LIST(s, next, prev);
 }
@@ -103,11 +111,11 @@ __slab_freelist_add(struct cslab_freelist *fl, struct cslab *s)
 	 * complexity of a tree? */
 }
 
-static inline void 
+static inline void
 __cslab_mem_free(void *buf, struct cslab_freelist *fl, int obj_sz, int max_objs)
 {
 	struct cslab *s = __cslab_lookup(buf);
-	int idx, off;
+	int           idx, off;
 	assert(s && fl && buf);
 
 	off = (int)((u32_t)buf - (u32_t)__cslab_mem_first(s));
@@ -122,14 +130,14 @@ __cslab_mem_free(void *buf, struct cslab_freelist *fl, int obj_sz, int max_objs)
 	 * otherwise.  Trust your compiler (see the comment before
 	 * CSLAB_CREATE).
 	 */
-	idx = off/obj_sz;
+	idx = off / obj_sz;
 	assert(idx < max_objs);
 	assert(!bitmap_check(s->bitmap, idx));
 	bitmap_set(s->bitmap, idx);
 	s->nfree++;
 	if (s->nfree == max_objs) {
 		__slab_freelist_rem(fl, s);
-	 	CSLAB_FREE(s, CSLAB_MEM_ALLOC_SZ);
+		CSLAB_FREE(s, CSLAB_MEM_ALLOC_SZ);
 	} else if (s->nfree == 1) {
 		assert(EMPTY_LIST(s, next, prev));
 		__slab_freelist_add(fl, s);
@@ -138,7 +146,7 @@ __cslab_mem_free(void *buf, struct cslab_freelist *fl, int obj_sz, int max_objs)
 	return;
 }
 
-static void 
+static void
 __cslab_init(struct cslab *s, struct cslab_freelist *fl, int size, int max_objs)
 {
 	s->obj_sz = size;
@@ -152,9 +160,9 @@ static inline void *
 __cslab_mem_alloc(struct cslab_freelist *fl, int obj_sz, int max_objs)
 {
 	struct cslab *s;
-	int idx;
-	u32_t *bm;
-	void *mem;
+	int           idx;
+	u32_t *       bm;
+	void *        mem;
 
 	s = fl->list;
 	if (unlikely(!s)) {
@@ -188,31 +196,26 @@ __cslab_mem_alloc(struct cslab_freelist *fl, int obj_sz, int max_objs)
  * all of the code for allocation and deallocation in the macro due to
  * maintenance and readability.
  */
-#define CSLAB_CREATE_DATA(name, size)				\
-struct cslab_freelist slab_##name##_freelist = {.list = NULL};	\
-static const int slab_##name##_max_objs =			\
-	((CSLAB_MEM_ALLOC_SZ-CSLAB_FIRST_OFF)/			\
-	 (round_up_to_pow2(size,WORD_SIZE)))
+#define CSLAB_CREATE_DATA(name, size)                                                          \
+	struct cslab_freelist slab_##name##_freelist = {.list = NULL};                         \
+	static const int      slab_##name##_max_objs = ((CSLAB_MEM_ALLOC_SZ - CSLAB_FIRST_OFF) \
+                                                   / (round_up_to_pow2(size, WORD_SIZE)))
 
-#define CSLAB_CREATE_FNS(name, size)				\
-static inline void *						\
-cslab_alloc_##name(void)					\
-{								\
-	return __cslab_mem_alloc(&slab_##name##_freelist,	\
-				 round_up_to_pow2(size, WORD_SIZE),\
-				 slab_##name##_max_objs);       \
-}								\
-								\
-static inline void						\
-cslab_free_##name(void *buf)					\
-{								\
-	return __cslab_mem_free(buf, &slab_##name##_freelist,	\
-				round_up_to_pow2(size, WORD_SIZE),\
-				slab_##name##_max_objs);	\
-}
+#define CSLAB_CREATE_FNS(name, size)                                                                     \
+	static inline void *cslab_alloc_##name(void)                                                     \
+	{                                                                                                \
+		return __cslab_mem_alloc(&slab_##name##_freelist, round_up_to_pow2(size, WORD_SIZE),     \
+		                         slab_##name##_max_objs);                                        \
+	}                                                                                                \
+                                                                                                         \
+	static inline void cslab_free_##name(void *buf)                                                  \
+	{                                                                                                \
+		return __cslab_mem_free(buf, &slab_##name##_freelist, round_up_to_pow2(size, WORD_SIZE), \
+		                        slab_##name##_max_objs);                                         \
+	}
 
-#define CSLAB_CREATE(name, size)				\
-	CSLAB_CREATE_DATA(name, size);				\
+#define CSLAB_CREATE(name, size)       \
+	CSLAB_CREATE_DATA(name, size); \
 	CSLAB_CREATE_FNS(name, size)
 
 #endif /* CSLAB_H */

@@ -14,24 +14,24 @@ thd_fn_perf(void *d)
 static void
 test_thds_perf(void)
 {
-	thdcap_t ts;
+	thdcap_t  ts;
 	long long total_swt_cycles = 0;
 	long long start_swt_cycles = 0, end_swt_cycles = 0;
-	int i;
+	int       i;
 
 	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL);
 	assert(ts);
 	cos_thd_switch(ts);
 
 	rdtscll(start_swt_cycles);
-	for (i = 0 ; i < ITER ; i++) {
+	for (i = 0; i < ITER; i++) {
 		cos_thd_switch(ts);
 	}
 	rdtscll(end_swt_cycles);
 	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
 
-	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
-		total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));
+	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n", total_swt_cycles, (long long)ITER,
+	       (total_swt_cycles / (long long)ITER));
 }
 
 static void
@@ -48,9 +48,9 @@ static void
 test_thds(void)
 {
 	thdcap_t ts[TEST_NTHDS];
-	int i;
+	int      i;
 
-	for (i = 0 ; i < TEST_NTHDS ; i++) {
+	for (i = 0; i < TEST_NTHDS; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
 		assert(ts[i]);
 		tls_test[i] = i;
@@ -62,13 +62,13 @@ test_thds(void)
 	PRINTC("test done\n");
 }
 
-#define TEST_NPAGES (1024 * 2) 	/* Testing with 8MB for now */
+#define TEST_NPAGES (1024 * 2) /* Testing with 8MB for now */
 
 static void
 test_mem(void)
 {
-	char *p, *s, *t, *prev;
-	int i;
+	char *      p, *s, *t, *prev;
+	int         i;
 	const char *chk = "SUCCESS";
 
 	p = cos_page_bump_alloc(&booter_info);
@@ -81,7 +81,7 @@ test_mem(void)
 	s = cos_page_bump_alloc(&booter_info);
 	assert(s);
 	prev = s;
-	for (i = 0 ; i < TEST_NPAGES ; i++) {
+	for (i = 0; i < TEST_NPAGES; i++) {
 		t = cos_page_bump_alloc(&booter_info);
 		assert(t && t == prev + PAGE_SIZE);
 		prev = t;
@@ -97,18 +97,18 @@ test_mem(void)
 
 volatile arcvcap_t rcc_global, rcp_global;
 volatile asndcap_t scp_global;
-int async_test_flag = 0;
+int                async_test_flag = 0;
 
 static void
 async_thd_fn_perf(void *thdcap)
 {
-	thdcap_t tc = (thdcap_t)thdcap;
+	thdcap_t  tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcc_global;
-	int i;
+	int       i;
 
 	cos_rcv(rc, 0, NULL);
 
-	for (i = 0 ; i < ITER + 1 ; i++) {
+	for (i = 0; i < ITER + 1; i++) {
 		cos_rcv(rc, 0, NULL);
 	}
 
@@ -118,24 +118,24 @@ async_thd_fn_perf(void *thdcap)
 static void
 async_thd_parent_perf(void *thdcap)
 {
-	thdcap_t tc = (thdcap_t)thdcap;
-	arcvcap_t rc = rcp_global;
-	asndcap_t sc = scp_global;
+	thdcap_t  tc                = (thdcap_t)thdcap;
+	arcvcap_t rc                = rcp_global;
+	asndcap_t sc                = scp_global;
 	long long total_asnd_cycles = 0;
 	long long start_asnd_cycles = 0, end_arcv_cycles = 0;
-	int i;
+	int       i;
 
 	cos_asnd(sc, 1);
 
 	rdtscll(start_asnd_cycles);
-	for (i = 0 ; i < ITER ; i++) {
+	for (i = 0; i < ITER; i++) {
 		cos_asnd(sc, 1);
 	}
 	rdtscll(end_arcv_cycles);
 	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
 
-	PRINTC("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n",
-		total_asnd_cycles, (long long) (ITER), (total_asnd_cycles / (long long)(ITER)));
+	PRINTC("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n", total_asnd_cycles, (long long)(ITER),
+	       (total_asnd_cycles / (long long)(ITER)));
 
 	async_test_flag = 0;
 	while (1) cos_thd_switch(tc);
@@ -144,9 +144,9 @@ async_thd_parent_perf(void *thdcap)
 static void
 async_thd_fn(void *thdcap)
 {
-	thdcap_t tc = (thdcap_t)thdcap;
+	thdcap_t  tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcc_global;
-	int pending, rcvd;
+	int       pending, rcvd;
 
 
 	PRINTC("Asynchronous event thread handler.\n");
@@ -194,27 +194,27 @@ async_thd_parent(void *thdcap)
 	cycles_t  cycles;
 
 	PRINTC("--> sending\n");
-	ret     = cos_asnd(sc, 0);
+	ret = cos_asnd(sc, 0);
 	PRINTC("--> sending\n");
-	ret     = cos_asnd(sc, 0);
+	ret = cos_asnd(sc, 0);
 	PRINTC("--> sending\n");
-	ret     = cos_asnd(sc, 0);
+	ret = cos_asnd(sc, 0);
 	PRINTC("--> sending\n");
-	ret     = cos_asnd(sc, 1);
+	ret = cos_asnd(sc, 1);
 
 	PRINTC("--> sending\n");
-	ret     = cos_asnd(sc, 0);
+	ret = cos_asnd(sc, 0);
 	PRINTC("--> sending\n");
-	ret     = cos_asnd(sc, 0);
+	ret = cos_asnd(sc, 0);
 	PRINTC("--> sending\n");
-	ret     = cos_asnd(sc, 1);
+	ret = cos_asnd(sc, 1);
 
 	PRINTC("--> sending\n");
-	ret     = cos_asnd(sc, 0);
+	ret = cos_asnd(sc, 0);
 	if (ret) PRINTC("asnd returned %d.\n", ret);
 	PRINTC("--> Back in the asnder.\n");
 	PRINTC("--> sending\n");
-	ret     = cos_asnd(sc, 1);
+	ret = cos_asnd(sc, 1);
 	if (ret) PRINTC("--> asnd returned %d.\n", ret);
 
 	PRINTC("--> Back in the asnder.\n");
@@ -229,14 +229,15 @@ async_thd_parent(void *thdcap)
 static void
 test_async_endpoints(void)
 {
-	thdcap_t  tcp,  tcc;
+	thdcap_t  tcp, tcc;
 	tcap_t    tccp, tccc;
-	arcvcap_t rcp,  rcc;
-	int ret;
+	arcvcap_t rcp, rcc;
+	int       ret;
 
 	PRINTC("Creating threads, and async end-points.\n");
 	/* parent rcv capabilities */
-	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent,
+	                    (void *)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
 	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
@@ -248,7 +249,7 @@ test_async_endpoints(void)
 	}
 
 	/* child rcv capabilities */
-	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)tcp);
+	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void *)tcp);
 	assert(tcc);
 	tccc = cos_tcap_alloc(&booter_info);
 	assert(tccc);
@@ -273,12 +274,13 @@ test_async_endpoints(void)
 static void
 test_async_endpoints_perf(void)
 {
-	thdcap_t tcp, tcc;
-	tcap_t tccp, tccc;
+	thdcap_t  tcp, tcc;
+	tcap_t    tccp, tccc;
 	arcvcap_t rcp, rcc;
 
 	/* parent rcv capabilities */
-	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf,
+	                    (void *)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
 	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
@@ -287,7 +289,7 @@ test_async_endpoints_perf(void)
 	if (cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1)) assert(0);
 
 	/* child rcv capabilities */
-	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void*)tcp);
+	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void *)tcp);
 	assert(tcc);
 	tccc = cos_tcap_alloc(&booter_info);
 	assert(tccc);
@@ -328,10 +330,10 @@ tcap_child(void *d)
 static void
 tcap_parent(void *d)
 {
-	int i;
+	int       i;
 	asndcap_t __tc_sc = (asndcap_t)d;
 
-	for (i = 0 ; i < ITER ; i++) {
+	for (i = 0; i < ITER; i++) {
 		cos_asnd(__tc_sc, 0);
 	}
 }
@@ -372,7 +374,10 @@ tcap_parent(void *d)
 
 static void
 spinner(void *d)
-{ while (1) ; }
+{
+	while (1)
+		;
+}
 
 cycles_t cyc_per_usec;
 
@@ -385,9 +390,9 @@ test_timer(void)
 
 	PRINTC("Starting timer test.\n");
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
+	tc           = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 
-	for (i = 0 ; i <= 16 ; i++) {
+	for (i = 0; i <= 16; i++) {
 		thdid_t     tid;
 		int         blocked;
 		cycles_t    cycles, now;
@@ -395,29 +400,31 @@ test_timer(void)
 
 		rdtscll(now);
 		timer = tcap_cyc2time(now + 1000 * cyc_per_usec);
-		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-		p     = c;
+		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_BASE,
+		           cos_sched_sync());
+		p = c;
 		rdtscll(c);
-		if (i > 0) t += c-p;
+		if (i > 0) t += c - p;
 
 		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycles) != 0) ;
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycles) != 0)
+			;
 	}
 
-	PRINTC("\tCycles per tick (1000 microseconds) = %lld, cycles threshold = %u\n",
-	       t/16, (unsigned int)cos_hw_cycles_thresh(BOOT_CAPTBL_SELF_INITHW_BASE));
+	PRINTC("\tCycles per tick (1000 microseconds) = %lld, cycles threshold = %u\n", t / 16,
+	       (unsigned int)cos_hw_cycles_thresh(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	PRINTC("Timer test completed.\nSuccess.\n");
 }
 
 struct exec_cluster {
-	thdcap_t  tc;
-	arcvcap_t rc;
-	tcap_t    tcc;
-	cycles_t  cyc;
-	asndcap_t sc; /*send-cap to send to rc */
+	thdcap_t    tc;
+	arcvcap_t   rc;
+	tcap_t      tcc;
+	cycles_t    cyc;
+	asndcap_t   sc; /*send-cap to send to rc */
 	tcap_prio_t prio;
-	int xseq; /* expected activation sequence number for this thread */
+	int         xseq; /* expected activation sequence number for this thread */
 };
 
 struct budget_test_data {
@@ -463,25 +470,29 @@ test_budgets_single(void)
 
 	PRINTC("Starting single-level budget test.\n");
 
-	exec_cluster_alloc(&bt.p, parent,  &bt.p, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	exec_cluster_alloc(&bt.p, parent, &bt.p, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	exec_cluster_alloc(&bt.c, spinner, &bt.c, bt.p.rc);
 
 	PRINTC("Budget switch latencies: ");
-	for (i = 1 ; i < 10 ; i++) {
+	for (i = 1; i < 10; i++) {
 		cycles_t s, e;
 		thdid_t  tid;
 		int      blocked;
 		cycles_t cycles;
 
-		if (cos_tcap_transfer(bt.c.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, i * 100000, TCAP_PRIO_MAX + 2)) assert(0);
+		if (cos_tcap_transfer(bt.c.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, i * 100000, TCAP_PRIO_MAX + 2))
+			assert(0);
 
 		rdtscll(s);
-		if (cos_switch(bt.c.tc, bt.c.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync())) assert(0);
+		if (cos_switch(bt.c.tc, bt.c.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE,
+		               cos_sched_sync()))
+			assert(0);
 		rdtscll(e);
-		PRINTC("%lld,\t", e-s);
+		PRINTC("%lld,\t", e - s);
 
 		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycles) != 0) ;
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycles) != 0)
+			;
 	}
 	PRINTC("Done.\n");
 }
@@ -493,27 +504,31 @@ test_budgets_multi(void)
 
 	PRINTC("Starting multi-level budget test.\n");
 
-	exec_cluster_alloc(&mbt.p, spinner_cyc,  &(mbt.p.cyc), BOOT_CAPTBL_SELF_INITRCV_BASE);
+	exec_cluster_alloc(&mbt.p, spinner_cyc, &(mbt.p.cyc), BOOT_CAPTBL_SELF_INITRCV_BASE);
 	exec_cluster_alloc(&mbt.c, spinner_cyc, &(mbt.c.cyc), mbt.p.rc);
 	exec_cluster_alloc(&mbt.g, spinner_cyc, &(mbt.g.cyc), mbt.c.rc);
 
 	PRINTC("Budget switch latencies:\n");
-	for (i = 1 ; i < 10 ; i++) {
+	for (i = 1; i < 10; i++) {
 		tcap_res_t res;
 		thdid_t    tid;
 		int        blocked;
 		cycles_t   cycles, s, e;
 
 		/* test both increasing budgets and constant budgets */
-		if (i > 5) res = 1600000;
-		else       res = i * 800000;
+		if (i > 5)
+			res = 1600000;
+		else
+			res = i * 800000;
 
 		if (cos_tcap_transfer(mbt.p.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, TCAP_PRIO_MAX + 2)) assert(0);
-		if (cos_tcap_transfer(mbt.c.rc, mbt.p.tcc, res/2, TCAP_PRIO_MAX + 2)) assert(0);
-		if (cos_tcap_transfer(mbt.g.rc, mbt.c.tcc, res/4, TCAP_PRIO_MAX + 2)) assert(0);
+		if (cos_tcap_transfer(mbt.c.rc, mbt.p.tcc, res / 2, TCAP_PRIO_MAX + 2)) assert(0);
+		if (cos_tcap_transfer(mbt.g.rc, mbt.c.tcc, res / 4, TCAP_PRIO_MAX + 2)) assert(0);
 
 		rdtscll(s);
-		if (cos_switch(mbt.g.tc, mbt.g.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync())) assert(0);
+		if (cos_switch(mbt.g.tc, mbt.g.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE,
+		               cos_sched_sync()))
+			assert(0);
 		rdtscll(e);
 		PRINTC("g:%llu c:%llu p:%llu => %llu,\t", mbt.g.cyc - s, mbt.c.cyc - s, mbt.p.cyc - s, e - s);
 
@@ -533,9 +548,9 @@ test_budgets(void)
 	test_budgets_multi();
 }
 
-#define TEST_PRIO_HIGH     (TCAP_PRIO_MAX)
-#define TEST_PRIO_MED      (TCAP_PRIO_MAX+1)
-#define TEST_PRIO_LOW      (TCAP_PRIO_MAX+2)
+#define TEST_PRIO_HIGH (TCAP_PRIO_MAX)
+#define TEST_PRIO_MED (TCAP_PRIO_MAX + 1)
+#define TEST_PRIO_LOW (TCAP_PRIO_MAX + 2)
 #define TEST_WAKEUP_BUDGET 400000
 
 struct activation_test_data {
@@ -543,14 +558,16 @@ struct activation_test_data {
 	struct exec_cluster p, s, i, w;
 } wat, pat;
 
-int wakeup_test_start = 0;
+int wakeup_test_start  = 0;
 int wakeup_budget_test = 0;
-int active_seq = 0;
-int final_seq = 2;
+int active_seq         = 0;
+int final_seq          = 2;
 
 static void
 seq_expected_order_set(struct exec_cluster *e, int seq)
-{ e->xseq = seq; }
+{
+	e->xseq = seq;
+}
 
 static void
 seq_order_check(struct exec_cluster *e)
@@ -558,7 +575,7 @@ seq_order_check(struct exec_cluster *e)
 	assert(e->xseq >= 0);
 	assert(e->xseq == active_seq);
 
-	active_seq ++;
+	active_seq++;
 }
 
 /* worker thread thats awoken by intr_thd */
@@ -571,7 +588,8 @@ worker_thd(void *d)
 		seq_order_check(e);
 		if (wakeup_budget_test) {
 			rdtscll(e->cyc);
-			while (1) ;
+			while (1)
+				;
 		} else {
 			cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0, 0, 0);
 		}
@@ -597,9 +615,9 @@ static void
 intr_sched_thd(void *d)
 {
 	struct exec_cluster *e = &(((struct activation_test_data *)d)->s);
-	cycles_t cycs;
-	int blocked;
-	thdid_t tid;
+	cycles_t             cycs;
+	int                  blocked;
+	thdid_t              tid;
 
 	while (1) {
 		cos_sched_rcv(e->rc, 0, NULL, &tid, &blocked, &cycs);
@@ -633,8 +651,8 @@ preempted_thd(void *d)
 }
 
 static void
-test_wakeup_case(struct activation_test_data *at, tcap_prio_t pprio, tcap_prio_t iprio, tcap_prio_t wprio,
-		 int pseq, int iseq, int wseq)
+test_wakeup_case(struct activation_test_data *at, tcap_prio_t pprio, tcap_prio_t iprio, tcap_prio_t wprio, int pseq,
+                 int iseq, int wseq)
 {
 	active_seq = 0;
 	at->i.prio = iprio;
@@ -662,7 +680,7 @@ test_wakeup(void)
 	exec_cluster_alloc(&wat.p, preempted_thd, &wat, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	exec_cluster_alloc(&wat.i, intr_thd, &wat, wat.s.rc);
 	exec_cluster_alloc(&wat.w, worker_thd, &wat, wat.s.rc);
-	wat.s.prio = TEST_PRIO_HIGH; /* scheduler's prio doesn't matter */
+	wat.s.prio = TEST_PRIO_HIGH;        /* scheduler's prio doesn't matter */
 	seq_expected_order_set(&wat.s, -1); /* scheduler should not be activated */
 	if (cos_tcap_transfer(wat.s.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, wat.s.prio)) assert(0);
 	final_seq = 2;
@@ -737,11 +755,10 @@ sender_thd(void *d)
 }
 
 static void
-test_preemption_case(struct activation_test_data *at, tcap_prio_t iprio, tcap_prio_t wprio,
-		     int iseq, int wseq)
+test_preemption_case(struct activation_test_data *at, tcap_prio_t iprio, tcap_prio_t wprio, int iseq, int wseq)
 {
 	active_seq = 0;
-	final_seq = 2;
+	final_seq  = 2;
 	at->i.prio = iprio;
 	seq_expected_order_set(&at->i, iseq);
 	at->w.prio = wprio;
@@ -796,8 +813,8 @@ test_serverfn(int a, int b, int c)
 
 extern void *__inv_test_serverfn(int a, int b, int c);
 
-static inline
-int call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
+static inline int
+call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
 {
 	int ret;
 
@@ -809,17 +826,16 @@ int call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
 	 */
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 
-	__asm__ __volatile__( \
-		"pushl %%ebp\n\t" \
-		"movl %%esp, %%ebp\n\t" \
-		"movl %%esp, %%edx\n\t" \
-		"movl $1f, %%ecx\n\t" \
-		"sysenter\n\t" \
-		"1:\n\t" \
-		"popl %%ebp" \
-		: "=a" (ret)
-		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3) \
-		: "memory", "cc", "ecx", "edx");
+	__asm__ __volatile__("pushl %%ebp\n\t"
+	                     "movl %%esp, %%ebp\n\t"
+	                     "movl %%esp, %%edx\n\t"
+	                     "movl $1f, %%ecx\n\t"
+	                     "sysenter\n\t"
+	                     "1:\n\t"
+	                     "popl %%ebp"
+	                     : "=a"(ret)
+	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3)
+	                     : "memory", "cc", "ecx", "edx");
 
 	return ret;
 }
@@ -827,8 +843,8 @@ int call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
 static void
 test_inv(void)
 {
-	compcap_t cc;
-	sinvcap_t ic;
+	compcap_t    cc;
+	sinvcap_t    ic;
 	unsigned int r;
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
@@ -844,11 +860,11 @@ test_inv(void)
 static void
 test_inv_perf(void)
 {
-	compcap_t cc;
-	sinvcap_t ic;
-	int i;
-	long long total_cycles = 0LL;
-	long long total_inv_cycles = 0LL, total_ret_cycles = 0LL;
+	compcap_t    cc;
+	sinvcap_t    ic;
+	int          i;
+	long long    total_cycles     = 0LL;
+	long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL;
 	unsigned int ret;
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
@@ -858,7 +874,7 @@ test_inv_perf(void)
 	ret = call_cap_mb(ic, 1, 2, 3);
 	assert(ret == 0xDEADBEEF);
 
-	for (i = 0 ; i < ITER ; i++) {
+	for (i = 0; i < ITER; i++) {
 		long long start_cycles = 0LL, end_cycles = 0LL;
 
 		midinv_cycles = 0LL;
@@ -869,21 +885,21 @@ test_inv_perf(void)
 		total_ret_cycles += (end_cycles - midinv_cycles);
 	}
 
-	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n",
-		total_inv_cycles, (long long) (ITER), (total_inv_cycles / (long long)(ITER)));
-	PRINTC("Average SRET (Total: %lld / Iterations: %lld ): %lld\n",
-		total_ret_cycles, (long long) (ITER), (total_ret_cycles / (long long)(ITER)));
+	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n", total_inv_cycles, (long long)(ITER),
+	       (total_inv_cycles / (long long)(ITER)));
+	PRINTC("Average SRET (Total: %lld / Iterations: %lld ): %lld\n", total_ret_cycles, (long long)(ITER),
+	       (total_ret_cycles / (long long)(ITER)));
 }
 
 void
 test_captbl_expand(void)
 {
-	int i;
+	int       i;
 	compcap_t cc;
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc);
-	for (i = 0 ; i < 1024 ; i++) {
+	for (i = 0; i < 1024; i++) {
 		sinvcap_t ic;
 
 		ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);

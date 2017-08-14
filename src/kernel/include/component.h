@@ -14,29 +14,29 @@
 #include "cap_ops.h"
 
 struct comp_info {
-	struct liveness_data liveness;
-	pgtbl_t pgtbl;
-	struct captbl *captbl;
+	struct liveness_data        liveness;
+	pgtbl_t                     pgtbl;
+	struct captbl *             captbl;
 	struct cos_sched_data_area *comp_nfo;
 } __attribute__((packed));
 
 struct cap_comp {
-	struct cap_header h;
-	vaddr_t entry_addr;
-	struct cap_pgtbl *pgd;
+	struct cap_header  h;
+	vaddr_t            entry_addr;
+	struct cap_pgtbl * pgd;
 	struct cap_captbl *ct_top;
-	struct comp_info info;
+	struct comp_info   info;
 } __attribute__((packed));
 
-static int 
-comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, capid_t pgtbl_cap, 
-	      livenessid_t lid, vaddr_t entry_addr, struct cos_sched_data_area *sa)
+static int
+comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, capid_t pgtbl_cap, livenessid_t lid,
+              vaddr_t entry_addr, struct cos_sched_data_area *sa)
 {
-	struct cap_comp   *compc;
-	struct cap_pgtbl  *ptc;
+	struct cap_comp *  compc;
+	struct cap_pgtbl * ptc;
 	struct cap_captbl *ctc;
-	u32_t v;
-	int ret = 0;
+	u32_t              v;
+	int                ret = 0;
 
 	ctc = (struct cap_captbl *)captbl_lkup(t, captbl_cap);
 	if (unlikely(!ctc || ctc->h.type != CAP_CAPTBL || ctc->lvl > 0)) return -EINVAL;
@@ -53,7 +53,7 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 		/* undo before return */
 		cos_throw(undo_ptc, -ECASFAIL);
 	}
-	
+
 	compc = (struct cap_comp *)__cap_capactivate_pre(t, cap, capin, CAP_COMP, &ret);
 	if (!compc) cos_throw(undo_ctc, ret);
 
@@ -75,11 +75,12 @@ undo_ptc:
 	return ret;
 }
 
-static int comp_deactivate(struct cap_captbl *ct, capid_t capin, livenessid_t lid)
-{ 
-	int ret;
-	struct cap_comp *compc;
-	struct cap_pgtbl *pgd;
+static int
+comp_deactivate(struct cap_captbl *ct, capid_t capin, livenessid_t lid)
+{
+	int                ret;
+	struct cap_comp *  compc;
+	struct cap_pgtbl * pgd;
 	struct cap_captbl *ct_top;
 
 	compc = (struct cap_comp *)captbl_lkup(ct->captbl, capin);
@@ -89,7 +90,7 @@ static int comp_deactivate(struct cap_captbl *ct, capid_t capin, livenessid_t li
 	pgd    = compc->pgd;
 	ct_top = compc->ct_top;
 
-	ret = cap_capdeactivate(ct, capin, CAP_COMP, lid); 
+	ret = cap_capdeactivate(ct, capin, CAP_COMP, lid);
 	if (ret) return ret;
 
 	/* decrement the refcnt of the pgd, and top level of
@@ -100,7 +101,10 @@ static int comp_deactivate(struct cap_captbl *ct, capid_t capin, livenessid_t li
 	return 0;
 }
 
-static void comp_init(void)
-{ assert(sizeof(struct cap_comp) <= __captbl_cap2bytes(CAP_COMP)); }
+static void
+comp_init(void)
+{
+	assert(sizeof(struct cap_comp) <= __captbl_cap2bytes(CAP_COMP));
+}
 
 #endif /* COMPONENT_H */

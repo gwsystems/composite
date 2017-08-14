@@ -13,7 +13,7 @@
 #include "chal/call_convention.h"
 #include "inv.h"
 
-#define HW_IRQ_TOTAL        256
+#define HW_IRQ_TOTAL 256
 #define HW_IRQ_EXTERNAL_MIN 32
 #define HW_IRQ_EXTERNAL_MAX 63
 
@@ -21,12 +21,14 @@ struct cap_asnd hw_asnd_caps[HW_IRQ_TOTAL];
 
 struct cap_hw {
 	struct cap_header h;
-	u32_t hw_bitmap;
+	u32_t             hw_bitmap;
 } __attribute__((packed));
 
 static void
 hw_asndcap_init(void)
-{ memset(&hw_asnd_caps, 0, sizeof(struct cap_asnd) * HW_IRQ_TOTAL); }
+{
+	memset(&hw_asnd_caps, 0, sizeof(struct cap_asnd) * HW_IRQ_TOTAL);
+}
 
 /*
  * FIXME: This is broken as it allows someone to create a hwcap with an
@@ -38,7 +40,7 @@ static int
 hw_activate(struct captbl *t, capid_t cap, capid_t capin, u32_t bitmap)
 {
 	struct cap_hw *hwc;
-	int ret;
+	int            ret;
 
 	hwc = (struct cap_hw *)__cap_capactivate_pre(t, cap, capin, CAP_HW, &ret);
 	if (!hwc) return ret;
@@ -52,10 +54,12 @@ hw_activate(struct captbl *t, capid_t cap, capid_t capin, u32_t bitmap)
 
 static int
 hw_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
-{ return cap_capdeactivate(t, capin, CAP_HW, lid); }
+{
+	return cap_capdeactivate(t, capin, CAP_HW, lid);
+}
 
 static int
-hw_attach_rcvcap(struct cap_hw *hwc, hwid_t hwid, struct cap_arcv * rcvc, capid_t rcv_cap)
+hw_attach_rcvcap(struct cap_hw *hwc, hwid_t hwid, struct cap_arcv *rcvc, capid_t rcv_cap)
 {
 	if (hwid < HW_IRQ_EXTERNAL_MIN || hwid > HW_IRQ_EXTERNAL_MAX) return -EINVAL;
 	if (!(hwc->hw_bitmap & (1 << (hwid - HW_IRQ_EXTERNAL_MIN)))) return -EINVAL;

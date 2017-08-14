@@ -19,14 +19,15 @@ print_symbs(struct symb_type *st)
 {
 	int i;
 
-	for (i = 0 ; i < st->num_symbs ; i++) {
+	for (i = 0; i < st->num_symbs; i++) {
 		printl(PRINT_DEBUG, "%s, ", st->symbs[i].name);
 	}
 
 	return;
 }
 
-void print_objs_symbs(struct service_symbs *str)
+void
+print_objs_symbs(struct service_symbs *str)
 {
 	if (print_lvl < PRINT_DEBUG) return;
 	while (str) {

@@ -20,6 +20,7 @@
  * we know that when the %ebp is 0, we are at the end of the stack.
  */
 
+/* clang-format off */
 #define cos_asm_server_fn_stub(name, fn)	\
 .globl name##_inv ;               \
 .type  name##_inv, @function ;	  \
@@ -71,6 +72,7 @@ name##_inv:                             \
                                         \
         sysenter;                       \
         COS_ASM_REQUEST_STACK
+/* clang-format on */
 
 #define cos_asm_server_stub_spdid(name) cos_asm_server_fn_stub_spdid(name, name)
 
