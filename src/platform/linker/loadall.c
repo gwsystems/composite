@@ -191,15 +191,14 @@ emit_section(FILE *fp, char *sec)
 void
 run_linker(char *input_obj, char *output_exe, char *script)
 {
-        char linker_cmd[512];
-        sprintf(linker_cmd, LINKER_BIN " -m elf_i386 -T %s -o %s %s", script, output_exe,
-                input_obj);
-        printl(PRINT_DEBUG, "%s\n", linker_cmd);
-        fflush(stdout);
-        int i = system(linker_cmd);
-        if (i) {
-            printl(PRINT_HIGH, "Linker command failed %d, errno %d\n", i, errno);
-        }
+	char linker_cmd[512];
+	sprintf(linker_cmd, LINKER_BIN " -m elf_i386 -T %s -o %s %s", script, output_exe, input_obj);
+	printl(PRINT_DEBUG, "%s\n", linker_cmd);
+	fflush(stdout);
+	int i = system(linker_cmd);
+	if (i) {
+		printl(PRINT_HIGH, "Linker command failed %d, errno %d\n", i, errno);
+	}
 }
 
 

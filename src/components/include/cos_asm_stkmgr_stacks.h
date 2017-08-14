@@ -1,7 +1,7 @@
 #include <../../kernel/include/shared/cos_config.h>
 
 // FIXME: From consts.h
-#define THD_ID_SHARED_PAGE (1<<30)  // 1 gig
+#define THD_ID_SHARED_PAGE (1 << 30) // 1 gig
 
 /* sweeney */
 //#define ARGREG_ADDRESS (SHARED_REGION_START)
@@ -14,20 +14,18 @@
  * (where it is now) would be overloaded.
  */
 #define USE_NEW_STACKS 1
-#ifdef  USE_NEW_STACKS
+#ifdef USE_NEW_STACKS
 
 #if NUM_CPU_COS > 1
 /* We should avoid the lock cmpxchg by using per-core freelist. */
-#define COMP_INFO_CMPXCHG                       \
-	lock cmpxchgl %esp, cos_comp_info
+#define COMP_INFO_CMPXCHG lock cmpxchgl % esp, cos_comp_info
 #else
-#define COMP_INFO_CMPXCHG                       \
-	cmpxchgl %esp, cos_comp_info
+#define COMP_INFO_CMPXCHG cmpxchgl % esp, cos_comp_info
 #endif
 
 /* FIXME: Here we have the ABA problem. This simple lock-free
  * operation does not prevent ABA. A possible fix could be
- * integrating a generation number in the lower bits of the 
+ * integrating a generation number in the lower bits of the
  * pointer. */
 /* clang-format off */
 #define COS_ASM_GET_STACK                       \

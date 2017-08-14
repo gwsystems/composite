@@ -50,14 +50,16 @@ struct sched_param_s {
 } __attribute__((packed));
 
 union sched_param_union {
-	struct sched_param_s c;      /* composite */
-	u32_t v;		     /* value     */
+	struct sched_param_s c; /* composite */
+	u32_t                v; /* value     */
 };
 typedef u32_t sched_param_t;
 
 static inline sched_param_t
 sched_param_pack(sched_param_type_t type, unsigned int value)
-{ return ((union sched_param_union){.c = {.type = type, .value = value}}).v; }
+{
+	return ((union sched_param_union){.c = {.type = type, .value = value}}).v;
+}
 
 static inline void
 sched_param_get(sched_param_t sp, sched_param_type_t *type, unsigned int *value)

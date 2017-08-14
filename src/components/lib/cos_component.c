@@ -29,16 +29,21 @@ cos_init(void *arg)
 
 /* Intended to be implement by libraries */
 CWEAKSYMB void
-pre_syscall_default_setup() {}
+pre_syscall_default_setup()
+{
+}
 
 /* Intended to be overriden by components */
 CWEAKSYMB void
-pre_syscall_setup() {
+pre_syscall_setup()
+{
 	pre_syscall_default_setup();
 }
 
 CWEAKSYMB void
-syscall_emulation_setup() {}
+syscall_emulation_setup()
+{
+}
 
 CWEAKSYMB long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f)
@@ -55,36 +60,44 @@ __cos_syscall(int syscall_num, long a, long b, long c, long d, long e, long f)
 }
 
 CWEAKSYMB void
-libc_initialization_handler() {}
+libc_initialization_handler()
+{
+}
 
 void __init_libc(char **envp, char *pn);
 
 void
-libc_init() {
+libc_init()
+{
 	// The construction of this is:
 	// evn1, env2, ..., NULL, auxv_n1, auxv_1, auxv_n2, auxv_2 ..., NULL
 	// TODO: Figure out a way to set AT_HWCAP / AT_SYSINFO
-	static char* envp[] = {
-		"USER=composite_user",
-		"LANG=en_US.UTF-8",
-		"HOME=/home/composite_user",
-		"LOGNAME=composite_user",
-		NULL,
-		(char*)AT_PAGESZ,  (char*)PAGE_SIZE,    // Page size
-		(char*)AT_UID,     (char*)1000,         // User id
-		(char*)AT_EUID,    (char*)1000,         // Effective user id
-		(char*)AT_GID,     (char*)1000,         // Group id
-		(char*)AT_EGID,    (char*)1000,         // Effective group id
-		(char*)AT_SECURE,  (char*)0,            // Whether the program is being run under sudo
-		NULL
-	};
-	char* program_name = "composite component";
+	static char *envp[]       = {"USER=composite_user",
+                               "LANG=en_US.UTF-8",
+                               "HOME=/home/composite_user",
+                               "LOGNAME=composite_user",
+                               NULL,
+                               (char *)AT_PAGESZ,
+                               (char *)PAGE_SIZE, // Page size
+                               (char *)AT_UID,
+                               (char *)1000, // User id
+                               (char *)AT_EUID,
+                               (char *)1000, // Effective user id
+                               (char *)AT_GID,
+                               (char *)1000, // Group id
+                               (char *)AT_EGID,
+                               (char *)1000, // Effective group id
+                               (char *)AT_SECURE,
+                               (char *)0, // Whether the program is being run under sudo
+                               NULL};
+	char *       program_name = "composite component";
 	__init_libc(envp, program_name);
 }
 
 CWEAKSYMB void
 cos_upcall_exec(void *arg)
-{ }
+{
+}
 
 CWEAKSYMB int
 cos_async_inv(struct usr_inv_cap *ucap, int *params)
