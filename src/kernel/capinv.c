@@ -93,8 +93,8 @@ cos_cap_ipi_handling(void)
 	receiver_rings = &IPI_cap_dest[get_cpuid()];
 
 	/* We need to scan the entire buffer once. */
-	idx = receiver_rings->start;
-	end = receiver_rings->start - 1; // end is int type. could be -1.
+	idx                   = receiver_rings->start;
+	end                   = receiver_rings->start - 1; // end is int type. could be -1.
 	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
 
 	/* scan the first half */

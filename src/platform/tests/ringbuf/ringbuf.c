@@ -80,7 +80,7 @@ main(void)
 
 		amnt = (rand() % (left - 1)) + 1;
 		//		printf("alloc %d, left %d, size %d, to increase %d, l %d\n", cringbuf_sz(&rb),
-		//cringbuf_empty_sz(&rb), rb.sz, amnt, left);
+		// cringbuf_empty_sz(&rb), rb.sz, amnt, left);
 		assert((rb.sz - cringbuf_sz(&rb)) >= amnt);
 		populate(b, amnt);
 		p = cringbuf_produce(&rb, b, amnt);

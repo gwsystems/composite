@@ -1,2 +1,0 @@
-#!/bin/bash
-find src -type f | egrep -v '(lib\/.*\/|linux|archives|cos_asm)' | egrep '\.[ch]$' | xargs clang-format -i
