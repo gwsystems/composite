@@ -9,7 +9,7 @@ CINC=-I./ -I$(CDIR)/include/ -I$(SHAREDINC) -I$(CDIR)/lib/ck/include -I$(CDIR)/l
 MUSLDIR=$(CDIR)/lib/musl-1.1.11
 MUSLBIN=$(MUSLDIR)/bin
 MUSLCC=$(MUSLBIN)/musl-$(CC)
-MUSLINC=-I$(MUSLDIR)/include
+MUSLINC=-isystem$(MUSLDIR)/include
 
 LIBCXXDIR=$(LIBDIR)/libcxx
 LIBSTDCXXOBJ=$(LIBCXXDIR)/libstdc++.a
