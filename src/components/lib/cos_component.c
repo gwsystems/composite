@@ -64,6 +64,7 @@ libc_initialization_handler()
 {
 }
 
+/* TODO: Make this a weak symbol (currently doing so makes this fail) */
 void __init_libc(char **envp, char *pn);
 
 void
@@ -72,7 +73,8 @@ libc_init()
 	// The construction of this is:
 	// evn1, env2, ..., NULL, auxv_n1, auxv_1, auxv_n2, auxv_2 ..., NULL
 	// TODO: Figure out a way to set AT_HWCAP / AT_SYSINFO
-	static char *envp[]       = {"USER=composite_user",
+	static char *envp[] = {
+                               "USER=composite_user",
                                "LANG=en_US.UTF-8",
                                "HOME=/home/composite_user",
                                "LOGNAME=composite_user",
@@ -89,8 +91,9 @@ libc_init()
                                (char *)1000, // Effective group id
                                (char *)AT_SECURE,
                                (char *)0, // Whether the program is being run under sudo
-                               NULL};
-	char *       program_name = "composite component";
+                               NULL
+	};
+	char *program_name = "composite component";
 	__init_libc(envp, program_name);
 }
 
@@ -141,9 +144,9 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		first = 0;
 		/* The syscall enumlator might need something to be setup before it can work */
 		pre_syscall_setup();
-		/* The syscall enumlator might need something to be setup before it can work */
+		/* libc needs syscall emulation to work */
 		syscall_emulation_setup();
-		/* The syscall enumlator might need something to be setup before it can work */
+		/* With all that setup, we can invoke the libc_initialization_handler */
 		libc_initialization_handler();
 
 		constructors_execute();
