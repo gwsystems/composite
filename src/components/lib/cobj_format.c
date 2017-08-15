@@ -193,7 +193,7 @@ cobj_sect_init(struct cobj_header *h, unsigned int sect_idx, u32_t flags, u32_t 
 }
 
 int
-cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, const char *name, u32_t type, u32_t vaddr)
+cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, const char *name, u32_t type, u32_t vaddr, u32_t user_caps_offset)
 {
 	struct cobj_symb *s;
 
@@ -202,6 +202,7 @@ cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, const char *name, u
         strcpy(s->name, name);
 	s->type = type;
 	s->vaddr = vaddr;
+        s->user_caps_offset = user_caps_offset;
 
 	return 0;
 }

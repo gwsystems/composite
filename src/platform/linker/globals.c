@@ -11,9 +11,10 @@
 #include "cl_types.h"
 #include "cl_macros.h"
 
-enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_HIGH;
+enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_DEBUG;
 
 const char *COMP_INFO      = "cos_comp_info";
+const char *COMP_PLT       = "ST_user_caps";
 const char *SCHED_NOTIF    = "cos_sched_notifications";
 const char *INIT_COMP      = "c0.o";
 char       *ROOT_SCHED     = NULL;   // this is set to the first listed scheduler (*)
@@ -53,7 +54,8 @@ cos_flt_handlers[COS_FLT_MAX] = {
 	"fault_gen_prot_handler",
 	"fault_linux_handler",
 	"fault_save_regs_handler",
-	"fault_flt_notif_handler"
+	"fault_flt_notif_handler",
+        "fault_flt_quarantine",
 };
 
 struct cos_sections section_info[MAXSEC_S+1] = {

@@ -34,9 +34,11 @@
 
 char *fn_string =
 ".text\n"
-".globl %s\n"
 ".align 16\n"
-"%s:\n\t"
+".globl %s\n"
+"%s:\n"
+".globl %s__cos_undef_%d\n"
+"%s__cos_undef_%d:\n\t"
 /* get the cap table */
 /* "movl $ST_user_caps, %%eax\n\t" */
 /* "/\* eax now holds the **usr_inv_cap *\/\n\t" */
@@ -132,6 +134,7 @@ static inline void create_stanza(char *output, int len, char *fn_name, int cap_n
 
 	sprintf(ucap_name, "%s"UCAP_EXT, fn_name);
 	ret = snprintf(output, len, fn_string, fn_name, fn_name,
+                       fn_name, cap_num, fn_name, cap_num,
 		       ucap_name/*cap_num*SIZEOFUSERCAP*/, /* INVOCATIONCNT, INVOCATIONCNT, */ /*ENTRYFN,*/ INVFN);
 
 	if (ret == len) {
