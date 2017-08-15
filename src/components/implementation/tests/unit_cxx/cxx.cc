@@ -94,7 +94,7 @@ rtti_test()
 	Person *a1, *a2;       /*pointers to base class */
 	a1 = new Employee();   /*Pointer to Employee object*/
 	a2 = new Person();     /*Pointer to Person object*/
-
+	
 	cout << "rtti test >>> dynamic_cast" << endl;
 	my_function(a1);
 	delete a1;
@@ -146,7 +146,7 @@ string_test()
 Global_foo foo;
 Global_bar bar;
 
-extern "C" void
+extern "C" void 
 cos_init(void *args)
 {
 	struct cos_defcompinfo *defci;

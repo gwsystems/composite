@@ -13,7 +13,7 @@
 #include <cos_asm_simple_stacks.h>
 
 
-/*
+/* 
  * The register layout is paired with that in ipc.S, %ecx holding the
  * spdid.  We zero out the %ebp so that is we do a stack trace later,
  * we know that when the %ebp is 0, we are at the end of the stack.
