@@ -12,6 +12,7 @@
 #include <cos_defkernel_api.h>
 #include <llprint.h>
 #include <sl.h>
+#include <sl_thd.h>
 
 volatile int* null_ptr = NULL;
 #define ABORT() do {int i = *null_ptr;} while(0)
@@ -207,7 +208,7 @@ setup_thread_area(struct sl_thd *thread, void* data)
 
 	backing_data[thdid] = data;
 
-	cos_thd_mod(ci, thread->thdcap, &backing_data[thdid]);
+	cos_thd_mod(ci, sl_thd_thdcap(thread), &backing_data[thdid]);
 }
 
 int
