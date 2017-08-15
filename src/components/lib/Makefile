@@ -10,8 +10,8 @@ SIMPLE_STKLIB=simple_stklib.o
 CINC_ENV=$(CINC)
 export CINC_ENV
 
-.PHONY: all sl
-all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl
+.PHONY: all sl ck ps
+all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl 
 
 # we have to compile these without dietlibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't

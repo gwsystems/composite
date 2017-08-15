@@ -65,6 +65,7 @@ test_aeps(void)
 	int                  blocked;
 	cycles_t             cycs;
 	thdid_t              tid;
+	tcap_time_t          thd_timeout;
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 	memset(&test_aep, 0, sizeof(struct cos_aep_info) * TEST_NAEPS);
@@ -84,7 +85,7 @@ test_aeps(void)
 		                        TCAP_DELEG_YIELD);
 		assert(ret == 0);
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycs))
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, 0, NULL, &tid, &blocked, &cycs, &thd_timeout))
 			;
 	}
 
@@ -97,12 +98,13 @@ test_childcomps(void)
 	int id, ret;
 
 	printc("Test switching to new components\n");
-	for (id = 0; id < CHILD_COMP_COUNT; id++) {
-		int      blocked;
-		cycles_t cycs;
-		thdid_t  tid;
+	for (id = 0; id < CHILD_COMP_COUNT; id ++ ) {
+		int         blocked;
+		cycles_t    cycs;
+		thdid_t     tid;
+		tcap_time_t thd_timeout;
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL, &tid, &blocked, &cycs))
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, 0, NULL, &tid, &blocked, &cycs, &thd_timeout))
 			;
 		printc("\tSwitching to [%d] component\n", id);
 		if (id == CHILD_SCHED_ID) {
