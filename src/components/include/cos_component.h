@@ -23,20 +23,20 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	__asm__ __volatile__("pushl %%ebp\n\t"
-	                     "movl %%esp, %%ebp\n\t"
-	                     "movl $1f, %%ecx\n\t"
-	                     "sysenter\n\t"
-	                     ".align 8\n\t"
-	                     "jmp 2f\n\t"
-	                     ".align 8\n\t"
-	                     "1:\n\t"
-	                     "movl $0, %%ecx\n\t"
-	                     "jmp 3f\n\t"
-	                     "2:\n\t"
-	                     "movl $1, %%ecx\n\t"
-	                     "3:\n\t"
-	                     "popl %%ebp"
+	__asm__ __volatile__("pushl %%ebp\n\t"		\
+	                     "movl %%esp, %%ebp\n\t"	\
+	                     "movl $1f, %%ecx\n\t"	\
+	                     "sysenter\n\t"		\
+	                     ".align 8\n\t"		\
+	                     "jmp 2f\n\t"		\
+	                     ".align 8\n\t"		\
+	                     "1:\n\t"			\
+	                     "movl $0, %%ecx\n\t"	\
+	                     "jmp 3f\n\t"		\
+	                     "2:\n\t"			\
+	                     "movl $1, %%ecx\n\t"	\
+	                     "3:\n\t"			\
+	                     "popl %%ebp"		\
 	                     : "=a"(ret), "=c"(fault)
 	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
 	                     : "memory", "cc");
@@ -45,8 +45,8 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 }
 
 static inline int
-call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4, unsigned long *r1,
-                     unsigned long *r2)
+call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
+			 unsigned long *r1, unsigned long *r2, unsigned long *r3)
 {
 	long fault = 0;
 	int  ret;
@@ -54,23 +54,21 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int a
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	__asm__ __volatile__("pushl %%ebp\n\t"
-	                     "movl %%esp, %%ebp\n\t"
-	                     "movl $1f, %%ecx\n\t"
-	                     "sysenter\n\t"
-	                     ".align 8\n\t"
-	                     "jmp 2f\n\t"
-	                     ".align 8\n\t"
-	                     "1:\n\t"
-	                     "movl $0, %%ecx\n\t"
-	                     "jmp 3f\n\t"
-	                     "2:\n\t"
-	                     "movl $1, %%ecx\n\t"
-	                     "3:\n\t"
-	                     "popl %%ebp\n\t"
-	                     "movl %%esi, %%ebx\n\t"
-	                     "movl %%edi, %%edx\n\t"
-	                     : "=a"(ret), "=c"(fault), "=b"(*r1), "=d"(*r2)
+	__asm__ __volatile__("pushl %%ebp\n\t"		\
+	                     "movl %%esp, %%ebp\n\t"	\
+	                     "movl $1f, %%ecx\n\t"	\
+	                     "sysenter\n\t"		\
+	                     ".align 8\n\t"		\
+	                     "jmp 2f\n\t"		\
+	                     ".align 8\n\t"		\
+	                     "1:\n\t"			\
+	                     "movl $0, %%ecx\n\t"	\
+	                     "jmp 3f\n\t"		\
+	                     "2:\n\t"			\
+	                     "movl $1, %%ecx\n\t"	\
+	                     "3:\n\t"			\
+	                     "popl %%ebp\n\t"		\
+	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2), "=b" (*r3)
 	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
 	                     : "memory", "cc");
 

@@ -53,6 +53,8 @@ struct sl_global {
 	struct sl_cs lock;
 
 	thdcap_t       sched_thdcap;
+	tcap_t         sched_tcap;
+	arcvcap_t      sched_rcv;
 	struct sl_thd *sched_thd;
 	struct sl_thd *idle_thd;
 
@@ -106,7 +108,7 @@ sl_thd_curr(void)
 static inline int
 sl_cs_owner(void)
 {
-	return sl__globals()->lock.u.s.owner == sl_thd_curr()->thdcap;
+	return sl__globals()->lock.u.s.owner == sl_thd_thdcap(sl_thd_curr());
 }
 
 /* ...not part of the public API */
@@ -146,10 +148,10 @@ sl_cs_enter_nospin(void)
 	cached.v = csi.v;
 
 	if (unlikely(csi.s.owner)) {
-		return sl_cs_enter_contention(&csi, &cached, t->thdcap, tok);
+		return sl_cs_enter_contention(&csi, &cached, sl_thd_thdcap(t), tok);
 	}
 
-	csi.s.owner = t->thdcap;
+	csi.s.owner = sl_thd_thdcap(t);
 	if (!ps_cas(&sl__globals()->lock.u.v, cached.v, csi.v)) return 1;
 
 	return 0;
@@ -231,7 +233,7 @@ cycles_t sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
  *           +ve - number of periods elapsed. (1 if it wokeup exactly at timeout = next period)
  */
 unsigned int sl_thd_block_periodic(thdid_t tid);
-int          sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type);
+int          sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t abs_timeout);
 
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);
@@ -242,7 +244,12 @@ void sl_thd_yield_cs_exit(thdid_t tid);
 
 /* The entire thread allocation and free API */
 struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
-struct sl_thd *sl_thd_comp_alloc(struct cos_defcompinfo *comp);
+struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap);
+/*
+ * This API creates a sl_thd object for this child component.
+ * @comp: component created using cos_defkernel_api which includes initthd (with/without its own tcap & rcvcap).
+ */
+struct sl_thd *sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched);
 void           sl_thd_free(struct sl_thd *t);
 
 void sl_thd_param_set(struct sl_thd *t, sched_param_t sp);
@@ -344,6 +351,22 @@ sl_timeout_wakeup_expired(cycles_t now)
 	} while (heap_size(sl_timeout_heap()));
 }
 
+static inline int
+sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
+{
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = &dci->ci;
+
+	if (t->properties & SL_THD_PROPERTY_SEND) {
+		return cos_sched_asnd(t->sndcap, sl__globals()->timeout_next, sl__globals()->sched_rcv, tok);
+	} else if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
+		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
+				  sl__globals()->timeout_next, sl__globals()->sched_rcv, tok);
+	} else {
+		return cos_defswitch(sl_thd_thdcap(t), t->prio, sl__globals()->timeout_next, tok);
+	}
+}
+
 /*
  * Do a few things: 1. take the critical section if it isn't already
  * taken, 2. call schedule to find the next thread to run, 3. release
@@ -371,11 +394,11 @@ sl_timeout_wakeup_expired(cycles_t now)
 static inline int
 sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 {
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo *ci = &dci->ci;
 	struct sl_thd_policy *pt;
 	struct sl_thd *       t;
 	struct sl_global *    globals = sl__globals();
-	thdcap_t              thdcap;
-	tcap_prio_t           prio;
 	sched_tok_t           tok;
 	cycles_t              now;
 	s64_t                 offset;
@@ -407,13 +430,24 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		else
 			t = sl_mod_thd_get(pt);
 	}
-	thdcap = t->thdcap;
-	prio   = t->prio;
 
+	if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
+		assert(t->budget && t->period);
+
+		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
+			tcap_res_t currbudget;
+
+			t->last_replenish = now;
+			currbudget        = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
+			/* TODO: need to change logic for SNDCAP with tcap_delegate, and error handling */
+			if (currbudget < t->budget && cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals()->sched_tcap, (t->budget - currbudget), t->prio)) assert(0);
+		}
+	}
+	assert(t->state == SL_THD_RUNNABLE);
 	sl_cs_exit();
 
-	/* TODO: enable per-thread tcaps for interrupt threads */
-	return cos_defswitch(thdcap, prio, sl__globals()->timeout_next, tok);
+	/* TODO: handle `-EPERM` in cos_switch() to interrupt thread or cos_asnd to child comp with its own tcap here. */
+	return sl_thd_activate(t, tok);
 }
 
 static inline int

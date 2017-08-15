@@ -93,6 +93,10 @@ sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned 
 
 		break;
 	}
+	case SCHEDP_BUDGET:
+	{
+		break;
+	}
 	default: assert(0);
 	}
 }

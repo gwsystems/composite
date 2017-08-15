@@ -66,6 +66,7 @@ struct thread {
 	cpuid_t        cpuid;
 	unsigned int   refcnt;
 	tcap_res_t     exec; /* execution time */
+	tcap_time_t    timeout;
 	struct thread *interrupted_thread;
 
 	/* rcv end-point data-structures */
@@ -287,7 +288,7 @@ thd_rcvcap_pending_dec(struct thread *arcvt)
 }
 
 static inline int
-thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long *cycles)
+thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long *cycles, unsigned long *timeout)
 {
 	struct thread *e = thd_rcvcap_evt_dequeue(t);
 
@@ -297,6 +298,8 @@ thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long 
 	*thd_state = e->tid | (e->state & THD_STATE_RCVING ? (thd_rcvcap_pending(e) ? 0 : 1 << 31) : 0);
 	*cycles    = e->exec;
 	e->exec    = 0;
+	*timeout   = e->timeout;
+	e->timeout = 0;
 
 	return 1;
 }
@@ -516,16 +519,17 @@ thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_
 static inline void
 thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs)
 {
-	unsigned long a = 0, b = 0;
+	unsigned long thd_state = 0, cycles = 0, timeout = 0, pending = 0;
 	int           all_pending = thd_rcvcap_all_pending_get(thd);
 
-	thd_state_evt_deliver(thd, &a, &b);
+	thd_state_evt_deliver(thd, &thd_state, &cycles, &timeout);
 	if (all_pending) {
-		__userregs_setretvals(regs, thd_rcvcap_all_pending(thd), a, b);
+		pending = thd_rcvcap_all_pending(thd);
 	} else {
 		thd_rcvcap_pending_dec(thd);
-		__userregs_setretvals(regs, thd_rcvcap_pending(thd), a, b);
+		pending = thd_rcvcap_pending(thd);
 	}
+	__userregs_setretvals(regs, pending, thd_state, cycles, timeout);
 }
 
 static inline int
