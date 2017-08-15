@@ -3,7 +3,7 @@
  *
  * ref: http://www.osdever.net/bkerndev/index.php (Public domain code)
  * author: Brandon F. (friesenb@gmail.com)
- * 
+ *
  * ref: https://www.gnu.org/software/grub/manual/multiboot/multiboot.html#kernel_002ec
  * Copyright (C) 1999  Free Software Foundation, Inc. (GPLv2 Below)
  */
@@ -30,22 +30,22 @@
 #include "isr.h"
 
 /* The number of columns. */
-#define COLUMNS                80
+#define COLUMNS 80
 /* The number of lines. */
-#define LINES                  25
+#define LINES 25
 /* The attribute of an character. */
-#define ATTRIBUTE              0x0F
+#define ATTRIBUTE 0x0F
 /* The video memory address. */
-#define VIDEO                  0xB8000
+#define VIDEO 0xB8000
 
-#define SPACE                  0x20
-#define STRLEN_MAX             (COLUMNS * 2)
+#define SPACE 0x20
+#define STRLEN_MAX (COLUMNS * 2)
 
-#define VGA_CTL_REG            0x3D4
-#define VGA_DATA_REG           0x3D5
+#define VGA_CTL_REG 0x3D4
+#define VGA_DATA_REG 0x3D5
 
-#define KEY_DEVICE             0x60
-#define KEY_PENDING            0x64
+#define KEY_DEVICE 0x60
+#define KEY_PENDING 0x64
 
 /* Variables. */
 /* Save the X position. */
@@ -59,11 +59,11 @@ static int attrib = ATTRIBUTE;
 
 /* Forward declarations. */
 static unsigned short *memsetw(unsigned short *dest, unsigned short val, size_t count);
-static void puts(unsigned char *str);
-static void move_csr(void);
-static void cls(void);
-static void cll(void);
-static void putchar (int c);
+static void            puts(unsigned char *str);
+static void            move_csr(void);
+static void            cls(void);
+static void            cll(void);
+static void            putchar(int c);
 
 /* Utility: set 16bit memory with 16bit value */
 static unsigned short *
@@ -77,7 +77,7 @@ memsetw(unsigned short *dest, unsigned short val, size_t count)
 	 * unsigned short
 	 */
 	temp = (unsigned short *)dest;
-	for ( ; count != 0; count--) *temp++ = val;
+	for (; count != 0; count--) *temp++= val;
 	return dest;
 }
 
@@ -135,7 +135,7 @@ static void
 cls(void)
 {
 	unsigned blank = 0;
-	int i = 0;
+	int      i     = 0;
 
 	/*
 	 * Again, we need the 'short' that will be used to
@@ -166,7 +166,7 @@ vga_init(void)
 {
 	int i = 0;
 
-	video = (unsigned char *) VIDEO;
+	video = (unsigned char *)VIDEO;
 
 	csr_x = 0;
 	csr_y = 0;
@@ -177,14 +177,16 @@ vga_init(void)
 /* Initialize VIDEO virtual address - High address. */
 void
 vga_high_init(void)
-{ video = chal_pa2va(VIDEO); }
+{
+	video = chal_pa2va(VIDEO);
+}
 
 /* Put the character C on the screen. */
 static void
 putchar(int c)
 {
 	if (c == '\n' || c == '\r') {
-newline:
+	newline:
 		cll();
 		csr_x = 0;
 		csr_y++;
@@ -194,7 +196,7 @@ newline:
 		return;
 	}
 
-	*(video + (csr_x + csr_y * COLUMNS) * 2) = c & 0xFF;
+	*(video + (csr_x + csr_y * COLUMNS) * 2)     = c & 0xFF;
 	*(video + (csr_x + csr_y * COLUMNS) * 2 + 1) = attrib;
 
 	csr_x++;
@@ -203,7 +205,9 @@ newline:
 
 void
 vga_puts(const char *s)
-{ puts((unsigned char *)s); }
+{
+	puts((unsigned char *)s);
+}
 
 /* Uses the above routine to output a string... */
 static void
@@ -212,7 +216,7 @@ puts(unsigned char *text)
 	size_t i = 0;
 
 	cll();
-	for (i = 0; i < strnlen((const char*)text, STRLEN_MAX); i++) {
+	for (i = 0; i < strnlen((const char *)text, STRLEN_MAX); i++) {
 		putchar(text[i]);
 	}
 	move_csr();
@@ -231,4 +235,3 @@ keyboard_handler(struct pt_regs *regs)
 	scancode = inb(KEY_DEVICE);
 	printk("Keyboard press: %d\n", scancode);
 }
-

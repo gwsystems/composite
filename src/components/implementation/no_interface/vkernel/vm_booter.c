@@ -7,7 +7,7 @@ struct cos_compinfo booter_info;
  * the capability for the thread switched to upon termination.
  * FIXME: not exit thread for now
  */
-thdcap_t termthd = BOOT_CAPTBL_SELF_INITTHD_BASE; 
+thdcap_t      termthd = BOOT_CAPTBL_SELF_INITTHD_BASE; 
 unsigned long tls_test[TEST_NTHDS];
 
 #include <llprint.h>
@@ -30,7 +30,7 @@ vm_init(void *d)
 
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			(vaddr_t)cos_get_heap_ptr(), vmid == 0 ? DOM0_CAPTBL_FREE : VM_CAPTBL_FREE, &booter_info);
+	                  (vaddr_t)cos_get_heap_ptr(), vmid == 0 ? DOM0_CAPTBL_FREE : VM_CAPTBL_FREE, &booter_info);
 
 	PRINTC("Virtual-machine booter started.\n");
 	test_run_vk();

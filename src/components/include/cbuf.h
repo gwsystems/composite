@@ -10,8 +10,8 @@
  * Updated to add persistent cbufs, Gabe Parmer, 2012
  */
 
-#ifndef  CBUF_H
-#define  CBUF_H
+#ifndef CBUF_H
+#define CBUF_H
 
 #include <cos_component.h>
 #include <cos_debug.h>
@@ -194,18 +194,18 @@ typedef union {
 		 * cbuf id, aggregate = 1 if this cbuf
 		 * holds an array of other cbufs
 		 */
-		u32_t id:31, aggregate: 1;
+		u32_t id : 31, aggregate : 1;
 	} __attribute__((packed)) c;
 } cbuf_unpacked_t;
 
 /* TODO: use these! */
 struct cbuf_agg_elem {
 	cbuf_t id;
-	u32_t offset, len;
+	u32_t  offset, len;
 };
 /* An aggregate of multiple cbufs. */
 struct cbuf_agg {
-	int ncbufs;
+	int                  ncbufs;
 	struct cbuf_agg_elem elem[0];
 };
 
@@ -213,8 +213,8 @@ static inline void
 cbuf_unpack(cbuf_t cb, unsigned int *cbid)
 {
 	cbuf_unpacked_t cu = {0};
-	cu.v  = cb;
-	*cbid = cu.c.id;
+	cu.v               = cb;
+	*cbid              = cu.c.id;
 	assert(!cu.c.aggregate);
 	return;
 }
@@ -223,18 +223,26 @@ static inline cbuf_t
 cbuf_cons(unsigned int cbid)
 {
 	cbuf_unpacked_t cu;
-	cu.v     = 0;
-	cu.c.id  = cbid;
+	cu.v    = 0;
+	cu.c.id = cbid;
 	return cu.v;
 }
 
-static inline cbuf_t cbuf_null(void)      { return 0; }
-static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
+static inline cbuf_t
+cbuf_null(void)
+{
+	return 0;
+}
+static inline int
+cbuf_is_null(cbuf_t cb)
+{
+	return cb == 0;
+}
 
-extern struct cbuf_meta * __cbuf_alloc_slow(unsigned long size, int *len, unsigned int flag);
-extern int  __cbuf_2buf_miss(unsigned int cbid, int len);
-extern cvect_t meta_cbuf;
-static inline void cbuf_free(cbuf_t cb);
+extern struct cbuf_meta *__cbuf_alloc_slow(unsigned long size, int *len, unsigned int flag);
+extern int               __cbuf_2buf_miss(unsigned int cbid, int len);
+extern cvect_t           meta_cbuf;
+static inline void       cbuf_free(cbuf_t cb);
 
 static inline struct cbuf_meta *
 cbuf_vect_lookup_addr(unsigned int id)
@@ -253,8 +261,8 @@ static inline void *
 cbuf2buf(cbuf_t cb, int len)
 {
 	struct cbuf_meta *cm;
-	void *ret = NULL;
-	unsigned int id, t;
+	void *            ret = NULL;
+	unsigned int      id, t;
 
 	if (unlikely(len <= 0)) return NULL;
 	cbuf_unpack(cb, &id);
@@ -284,9 +292,9 @@ again:
 
 	/* TODO: Issue #120. As we use faa to increase the counter, check overflow
 	 * before increment is useless, but after increment the overflow is happen. */
-	assert(CBUF_REFCNT(cm) > (unsigned int)(CBUF_REFCNT(cm)-1));
-	assert(cm->snd_rcv.nrecvd > (unsigned int)(cm->snd_rcv.nrecvd-1));
-	ret = (void*)CBUF_PTR(cm);
+	assert(CBUF_REFCNT(cm) > (unsigned int)(CBUF_REFCNT(cm) - 1));
+	assert(cm->snd_rcv.nrecvd > (unsigned int)(cm->snd_rcv.nrecvd - 1));
+	ret = (void *)CBUF_PTR(cm);
 	assert(ret);
 done:
 	return ret;
@@ -307,7 +315,7 @@ done:
 static inline void
 __cbuf_send(cbuf_t cb, int free)
 {
-	unsigned int id;
+	unsigned int      id;
 	struct cbuf_meta *cm;
 
 	cbuf_unpack(cb, &id);
@@ -319,8 +327,8 @@ __cbuf_send(cbuf_t cb, int free)
 	int old = cm->snd_rcv.nsent;
 	CBUF_NSND_ATOMIC_INC(cm);
 	if (!(cm->snd_rcv.nsent > old)) {
-		printc("spd %d thd %d cb %d sent %d old %d\n",
-			cos_spd_id(), cos_get_thd_id(), cb, cm->snd_rcv.nsent, old);
+		printc("spd %d thd %d cb %d sent %d old %d\n", cos_spd_id(), cos_get_thd_id(), cb, cm->snd_rcv.nsent,
+		       old);
 	}
 	assert(cm->snd_rcv.nsent > old);
 	if (free) cbuf_free(cb);
@@ -328,11 +336,15 @@ __cbuf_send(cbuf_t cb, int free)
 
 static inline void
 cbuf_send_free(cbuf_t cb)
-{ __cbuf_send(cb, 1); }
+{
+	__cbuf_send(cb, 1);
+}
 
 static inline void
 cbuf_send(cbuf_t cb)
-{ __cbuf_send(cb, 0); }
+{
+	__cbuf_send(cb, 0);
+}
 
 struct cbuf_freelist {
 	struct cbuf_meta freelist_head[CBUF_MAX_NSZ];
@@ -356,14 +368,14 @@ static inline struct cbuf_meta *
 __cbuf_freelist_get(int size)
 {
 	/* We have per-core, per-component, per-size free-list */
-	struct cbuf_freelist *fl = PERCPU_GET(cbuf_alloc_freelists);
-	int order = ones(size-1) - PAGE_ORDER;
-	struct cbuf_meta *m;
+	struct cbuf_freelist *fl    = PERCPU_GET(cbuf_alloc_freelists);
+	int                   order = ones(size - 1) - PAGE_ORDER;
+	struct cbuf_meta *    m;
 	if (!(pow2(size) && size >= PAGE_SIZE)) {
 		printc("cbuf free size %d spd %d\n", size, cos_spd_id());
 	}
 	assert(pow2(size) && size >= PAGE_SIZE);
-	assert(order >= 0 && order < WORD_SIZE-PAGE_ORDER);
+	assert(order >= 0 && order < WORD_SIZE - PAGE_ORDER);
 	m = &(fl->freelist_head[order]);
 	assert(m->next);
 	return m;
@@ -386,7 +398,7 @@ __cbuf_freelist_get(int size)
 static inline int
 __cbuf_try_take(struct cbuf_meta *cm, unsigned int flag)
 {
-	int inconsistent, r = 0;
+	int           inconsistent, r = 0;
 	unsigned long old_nfo, new_nfo;
 
 	assert(cm && cm->next);
@@ -404,9 +416,11 @@ __cbuf_try_take(struct cbuf_meta *cm, unsigned int flag)
 		goto ret;
 	}
 
-	new_nfo = old_nfo+1;
-	if (unlikely(flag & CBUF_TMEM)) new_nfo |= CBUF_TMEM;
-	else new_nfo &= ~CBUF_TMEM;
+	new_nfo = old_nfo + 1;
+	if (unlikely(flag & CBUF_TMEM))
+		new_nfo |= CBUF_TMEM;
+	else
+		new_nfo &= ~CBUF_TMEM;
 	if (unlikely(!cos_cas(&cm->nfo, old_nfo, new_nfo))) {
 		/*
 		 * This failure maybe because:
@@ -419,13 +433,13 @@ __cbuf_try_take(struct cbuf_meta *cm, unsigned int flag)
 		goto ret;
 	}
 	r = 1;
-	/*
-	 * guarantee the order between CAS and set "next".
-	 * If the next is set to NULL before increment refcnt, the
-	 * manager may think this cbuf is garbage and collect it.
-	 * But there is dependency between those two, we do not
-	 * need explicit barrier.
-	 */
+/*
+ * guarantee the order between CAS and set "next".
+ * If the next is set to NULL before increment refcnt, the
+ * manager may think this cbuf is garbage and collect it.
+ * But there is dependency between those two, we do not
+ * need explicit barrier.
+ */
 ret:
 	cm->next = NULL;
 	return r;
@@ -434,31 +448,31 @@ ret:
 static inline void
 __cbuf_freelist_push(unsigned long sz, struct cbuf_meta *h, struct cbuf_meta *t)
 {
-	struct cbuf_meta *fl;
+	struct cbuf_meta *  fl;
 	unsigned long long *target, old, update;
-	unsigned long *ofake = (unsigned long *)&old;
-	unsigned long *nfake = (unsigned long *)&update;
+	unsigned long *     ofake = (unsigned long *)&old;
+	unsigned long *     nfake = (unsigned long *)&update;
 
 	fl       = __cbuf_freelist_get(sz);
 	target   = (unsigned long long *)(&fl->next);
 	nfake[0] = (unsigned long)h;
 	do {
 		old      = *(volatile unsigned long long *)target;
-		t ->next = (struct cbuf_meta *)ofake[0];
-		nfake[1] = ofake[1]+1;
-	} while(unlikely(!cos_dcas(target, old, update)));
+		t->next  = (struct cbuf_meta *)ofake[0];
+		nfake[1] = ofake[1] + 1;
+	} while (unlikely(!cos_dcas(target, old, update)));
 }
 
 static inline struct cbuf_meta *
 __cbuf_freelist_pop(unsigned long sz, unsigned int flag)
 {
-	struct cbuf_meta *cm, *fl;
+	struct cbuf_meta *  cm, *fl;
 	unsigned long long *target, old, update;
-	unsigned long *ofake, *nfake;
+	unsigned long *     ofake, *nfake;
 
 	ofake = (unsigned long *)&old;
 	nfake = (unsigned long *)&update;
-	fl = __cbuf_freelist_get(sz);
+	fl    = __cbuf_freelist_get(sz);
 again:
 	/*
 	 * This is a lock-free stack implementation. Add a
@@ -469,8 +483,8 @@ again:
 		old      = *(volatile unsigned long long *)target;
 		cm       = (struct cbuf_meta *)ofake[0];
 		nfake[0] = (unsigned long)cm->next;
-		nfake[1] = ofake[1]+1;
-	} while(unlikely(!cos_dcas(target, old, update)));
+		nfake[1] = ofake[1] + 1;
+	} while (unlikely(!cos_dcas(target, old, update)));
 
 	if (unlikely(cm == fl)) return NULL;
 	if (unlikely(!__cbuf_try_take(cm, flag))) goto again;
@@ -480,7 +494,7 @@ again:
 static inline void *
 cbuf_set_fork(cbuf_t cb, int flag)
 {
-	unsigned int id;
+	unsigned int      id;
 	struct cbuf_meta *cm;
 
 	cbuf_unpack(cb, &id);
@@ -494,9 +508,9 @@ cbuf_set_fork(cbuf_t cb, int flag)
 static inline void *
 cbuf_alloc_ext(unsigned long sz, cbuf_t *cb, unsigned int flag)
 {
-	void *ret;
-	unsigned int cbid;
-	int len;
+	void *            ret;
+	unsigned int      cbid;
+	int               len;
 	struct cbuf_meta *cm = NULL;
 
 	if (unlikely(flag & CBUF_EXACTSZ)) goto create;
@@ -512,7 +526,7 @@ done:
 	return ret;
 create:
 	/* TODO: Why use len? */
-	cm   = __cbuf_alloc_slow(sz, &len, flag);
+	cm = __cbuf_alloc_slow(sz, &len, flag);
 	assert(cm);
 	goto done;
 }
@@ -527,7 +541,7 @@ static inline void
 cbuf_ref(cbuf_t cb)
 {
 	struct cbuf_meta *cm;
-	unsigned int id;
+	unsigned int      id;
 
 	cbuf_unpack(cb, &id);
 	cm = cbuf_vect_lookup_addr(id);
@@ -539,8 +553,8 @@ static inline void
 cbuf_free(cbuf_t cb)
 {
 	struct cbuf_meta *cm, *fl;
-	int flag = CBUF_RELINQ | CBUF_TMEM | CBUF_EXACTSZ;
-	unsigned int id;
+	int               flag = CBUF_RELINQ | CBUF_TMEM | CBUF_EXACTSZ;
+	unsigned int      id;
 
 	cbuf_unpack(cb, &id);
 	cm = cbuf_vect_lookup_addr(id);
@@ -555,7 +569,7 @@ cbuf_free(cbuf_t cb)
 		/* Always delete exact size cbuf */
 		if (CBUF_RELINQ(cm) || CBUF_EXACTSZ(cm)) {
 			cbuf_delete(cos_spd_id(), id);
-			return ;
+			return;
 		}
 
 		if (CBUF_TMEM(cm)) {
@@ -594,7 +608,7 @@ static int
 cbuf_debug_freelist_num(unsigned long sz)
 {
 	struct cbuf_meta *cm, *fl;
-	int ret = 0;
+	int               ret = 0;
 
 	sz = nlepow2(round_up_to_page(sz));
 	fl = __cbuf_freelist_get(sz);

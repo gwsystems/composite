@@ -7,12 +7,12 @@
 #include <sl.h>
 #include <sl_thd.h>
 
-#define VM_COUNT        2	/* virtual machine count */
-#define VM_UNTYPED_SIZE (1<<26) /* untyped memory per vm = 64MB */
+#define VM_COUNT 2                /* virtual machine count */
+#define VM_UNTYPED_SIZE (1 << 26) /* untyped memory per vm = 64MB */
 
-#define VK_VM_SHM_BASE  0x80000000      /* shared memory region */
-#define VM_SHM_SZ       (1<<20)	        /* Shared memory mapping for each vm = 4MB */
-#define VM_SHM_ALL_SZ   ((VM_COUNT>0)?(VM_COUNT*VM_SHM_SZ):VM_SHM_SZ)
+#define VK_VM_SHM_BASE 0x80000000 /* shared memory region */
+#define VM_SHM_SZ (1 << 20)       /* Shared memory mapping for each vm = 4MB */
+#define VM_SHM_ALL_SZ ((VM_COUNT > 0) ? (VM_COUNT * VM_SHM_SZ) : VM_SHM_SZ)
 
 #define VM_FIXED_PERIOD_MS 10
 #define VM_FIXED_BUDGET_MS 5
@@ -33,32 +33,33 @@
 #define DOM0_CAPTBL_SELF_LAST_CAP        DOM0_CAPTBL_SELF_IOASND_SET_BASE + captbl_idsize(CAP_ASND)*((VM_COUNT>1 ? VM_COUNT-1 : 1))
 #define DOM0_CAPTBL_FREE                 round_up_to_pow2(DOM0_CAPTBL_SELF_LAST_CAP, CAPMAX_ENTRY_SZ)
 
-enum vm_state {
-	VM_RUNNING = 0,	
+enum vm_state
+{
+	VM_RUNNING = 0,
 	VM_EXITED  = 1,
 };
 
 struct vm_io_info {
-	thdcap_t iothd;
+	thdcap_t  iothd;
 	arcvcap_t iorcv;
 	asndcap_t ioasnd;
 };
 
 struct dom0_io_info {
-	thdcap_t iothds[VM_COUNT-1];
-	tcap_t iotcaps[VM_COUNT-1];
-	arcvcap_t iorcvs[VM_COUNT-1];
-	asndcap_t ioasnds[VM_COUNT-1];
+	thdcap_t  iothds[VM_COUNT - 1];
+	tcap_t    iotcaps[VM_COUNT - 1];
+	arcvcap_t iorcvs[VM_COUNT - 1];
+	asndcap_t ioasnds[VM_COUNT - 1];
 };
 
 struct vms_info {
-	unsigned int id;
+	unsigned int           id;
 	struct cos_defcompinfo dci;
-	struct cos_compinfo shm_cinfo;
-	struct sl_thd *inithd;
+	struct cos_compinfo    shm_cinfo;
+	struct sl_thd         *inithd;
 
 	union { /* for clarity */
-		struct vm_io_info *vmio;
+		struct vm_io_info *  vmio;
 		struct dom0_io_info *dom0io;
 	};
 };

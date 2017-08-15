@@ -7,25 +7,42 @@
 #include <sl.h>
 
 #undef assert
-#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0; } } while (0)
+#define assert(node)                                       \
+	do {                                               \
+		if (unlikely(!(node))) {                   \
+			debug_print("assert error in @ "); \
+			*((int *)0) = 0;                   \
+		}                                          \
+	} while (0)
 #define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
-#define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
-#define SPIN() do { while (1) ; } while (0)
+#define BUG()                          \
+	do {                           \
+		debug_print("BUG @ "); \
+		*((int *)0) = 0;       \
+	} while (0);
+#define SPIN()            \
+	do {              \
+		while (1) \
+			; \
+	} while (0)
 
 extern vaddr_t cos_upcall_entry;
-extern void vm_init(void *);
-extern void *__inv_vkernel_hypercallfn(int a, int b, int c);
+extern void    vm_init(void *);
+extern void   *__inv_vkernel_hypercallfn(int a, int b, int c);
 
-struct vms_info vmx_info[VM_COUNT];
-struct dom0_io_info dom0ioinfo;
-struct vm_io_info vmioinfo[VM_COUNT-1];
-struct vkernel_info vk_info;
+struct vms_info      vmx_info[VM_COUNT];
+struct dom0_io_info  dom0ioinfo;
+struct vm_io_info    vmioinfo[VM_COUNT - 1];
+struct vkernel_info  vk_info;
+unsigned int         ready_vms = VM_COUNT;
 struct cos_compinfo *vk_cinfo;
 
 void
 vk_terminate(void *d)
-{ SPIN(); }
+{
+	SPIN();
+}
 
 void
 cos_init(void)
@@ -49,12 +66,12 @@ cos_init(void)
 	cos_defcompinfo_init();
 	
 	/*
-	 * TODO: If there is any captbl modification, this could mess up a bit. 
+	 * TODO: If there is any captbl modification, this could mess up a bit.
 	 *       Care to be taken not to use this for captbl mod api
 	 *       Or use some offset into the future in CAPTBL_FREE
 	 */
 	cos_compinfo_init(&vk_info.shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			(vaddr_t)VK_VM_SHM_BASE, BOOT_CAPTBL_FREE, ci);
+			  (vaddr_t)VK_VM_SHM_BASE, BOOT_CAPTBL_FREE, ci);
 
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL);
 	assert(vk_info.termthd);
@@ -66,11 +83,11 @@ cos_init(void)
 	printc("\t%d cycles per microsecond\n", cycs);
 	sl_init();
 
-	for (id = 0 ; id < VM_COUNT ; id ++) {
+	for (id = 0; id < VM_COUNT; id ++) {
 		struct cos_compinfo *vm_cinfo = cos_compinfo_get(&(vmx_info[id].dci));
-		struct vms_info *vm_info = &vmx_info[id];
-		vaddr_t vm_range, addr;
-		int ret;
+		struct vms_info     *vm_info = &vmx_info[id];
+		vaddr_t              vm_range, addr;
+		int                  ret;
 
 		printc("vkernel: VM%d Init START\n", id);
 		vm_info->id = id;

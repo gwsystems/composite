@@ -19,62 +19,60 @@
  * This ends up being the most efficient "calling
  * convention" on x86.
  */
-#define do_div(n,base) ({ \
-	unsigned long __upper, __low, __high, __mod, __base; \
-	__base = (base); \
-	asm("":"=a" (__low), "=d" (__high):"A" (n)); \
-	__upper = __high; \
-	if (__high) { \
-		__upper = __high % (__base); \
-		__high = __high / (__base); \
-	} \
-	asm("divl %2":"=a" (__low), "=d" (__mod):"rm" (__base), "0" (__low), "1" (__upper)); \
-	asm("":"=A" (n):"a" (__low),"d" (__high)); \
-	__mod; \
-})
+#define do_div(n, base)                                                                             \
+	({                                                                                          \
+		unsigned long __upper, __low, __high, __mod, __base;                                \
+		__base = (base);                                                                    \
+		asm("" : "=a"(__low), "=d"(__high) : "A"(n));                                       \
+		__upper = __high;                                                                   \
+		if (__high) {                                                                       \
+			__upper = __high % (__base);                                                \
+			__high  = __high / (__base);                                                \
+		}                                                                                   \
+		asm("divl %2" : "=a"(__low), "=d"(__mod) : "rm"(__base), "0"(__low), "1"(__upper)); \
+		asm("" : "=A"(n) : "a"(__low), "d"(__high));                                        \
+		__mod;                                                                              \
+	})
 
 /* haha, don't need ctype.c */
-#define isdigit(c)	((c) >= '0' && (c) <= '9')
+#define isdigit(c) ((c) >= '0' && (c) <= '9')
 #define is_digit isdigit
-#define isxdigit(c)	(((c) >= '0' && (c) <= '9') || ((c) >= 'a' && (c) <= 'f') || ((c) >= 'A' && (c) <= 'F'))
+#define isxdigit(c) (((c) >= '0' && (c) <= '9') || ((c) >= 'a' && (c) <= 'f') || ((c) >= 'A' && (c) <= 'F'))
 
-static int skip_atoi(const char **s)
+static int
+skip_atoi(const char **s)
 {
-	int i=0;
+	int i = 0;
 
-	while (is_digit(**s))
-		i = i*10 + *((*s)++) - '0';
+	while (is_digit(**s)) i = i * 10 + *((*s)++) - '0';
 	return i;
 }
 
-#define ZEROPAD	1		/* pad with zero */
-#define SIGN	2		/* unsigned/signed long */
-#define PLUS	4		/* show plus */
-#define SPACE	8		/* space if plus */
-#define LEFT	16		/* left justified */
-#define SPECIAL	32		/* 0x */
-#define LARGE	64		/* use 'ABCDEF' instead of 'abcdef' */
+#define ZEROPAD 1  /* pad with zero */
+#define SIGN 2     /* unsigned/signed long */
+#define PLUS 4     /* show plus */
+#define SPACE 8    /* space if plus */
+#define LEFT 16    /* left justified */
+#define SPECIAL 32 /* 0x */
+#define LARGE 64   /* use 'ABCDEF' instead of 'abcdef' */
 
-static int number(void (*tx_byte)(unsigned char byte),
-	unsigned long long num, int base, int size, int precision, int type)
+static int
+number(void (*tx_byte)(unsigned char byte), unsigned long long num, int base, int size, int precision, int type)
 {
-	char c,sign,tmp[66];
-	const char *digits="0123456789abcdefghijklmnopqrstuvwxyz";
-	int i;
-	int count = 0;
+	char        c, sign, tmp[66];
+	const char *digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+	int         i;
+	int         count = 0;
 
-	if (type & LARGE)
-		digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	if (type & LEFT)
-		type &= ~ZEROPAD;
-	if (base < 2 || base > 36)
-		return 0;
-	c = (type & ZEROPAD) ? '0' : ' ';
+	if (type & LARGE) digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	if (type & LEFT) type &= ~ZEROPAD;
+	if (base < 2 || base > 36) return 0;
+	c    = (type & ZEROPAD) ? '0' : ' ';
 	sign = 0;
 	if (type & SIGN) {
 		if ((signed long long)num < 0) {
 			sign = '-';
-			num = -num;
+			num  = -num;
 			size--;
 		} else if (type & PLUS) {
 			sign = '+';
@@ -92,51 +90,45 @@ static int number(void (*tx_byte)(unsigned char byte),
 	}
 	i = 0;
 	if (num == 0)
-		tmp[i++]='0';
-	else while (num != 0)
-		tmp[i++] = digits[do_div(num,base)];
-	if (i > precision)
-		precision = i;
+		tmp[i++] = '0';
+	else
+		while (num != 0) tmp[i++] = digits[do_div(num, base)];
+	if (i > precision) precision = i;
 	size -= precision;
-	if (!(type&(ZEROPAD+LEFT)))
-		while(size-->0)
-			tx_byte(' '), count++;
-	if (sign)
-		tx_byte(sign), count++;
+	if (!(type & (ZEROPAD + LEFT)))
+		while (size-- > 0) tx_byte(' '), count++;
+	if (sign) tx_byte(sign), count++;
 	if (type & SPECIAL) {
-		if (base==8)
+		if (base == 8)
 			tx_byte('0'), count++;
-		else if (base==16) {
+		else if (base == 16) {
 			tx_byte('0'), count++;
 			tx_byte(digits[33]), count++;
 		}
 	}
 	if (!(type & LEFT))
-		while (size-- > 0)
-			tx_byte(c), count++;
-	while (i < precision--)
-		tx_byte('0'), count++;
-	while (i-- > 0)
-		tx_byte(tmp[i]), count++;
-	while (size-- > 0)
-		tx_byte(' '), count++;
+		while (size-- > 0) tx_byte(c), count++;
+	while (i < precision--) tx_byte('0'), count++;
+	while (i-- > 0) tx_byte(tmp[i]), count++;
+	while (size-- > 0) tx_byte(' '), count++;
 	return count;
 }
 
 
-int vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
+int
+vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
 {
-	int len;
+	int                len;
 	unsigned long long num;
-	int i, base;
-	const char *s;
+	int                i, base;
+	const char *       s;
 
-	int flags;		/* flags to number() */
+	int flags; /* flags to number() */
 
-	int field_width;	/* width of output field */
-	int precision;		/* min. # of digits for integers; max
-				   number of chars for from string */
-	int qualifier;		/* 'h', 'l', or 'L' for integer fields */
+	int field_width; /* width of output field */
+	int precision;   /* min. # of digits for integers; max
+	                    number of chars for from string */
+	int qualifier;   /* 'h', 'l', or 'L' for integer fields */
 
 	int count;
 
@@ -145,7 +137,7 @@ int vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args
 	tx_byte = console_tx_byte;
 #endif
 
-	for (count=0; *fmt ; ++fmt) {
+	for (count = 0; *fmt; ++fmt) {
 		if (*fmt != '%') {
 			tx_byte(*fmt), count++;
 			continue;
@@ -153,15 +145,25 @@ int vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args
 
 		/* process flags */
 		flags = 0;
-repeat:
-			++fmt;		/* this also skips first '%' */
-			switch (*fmt) {
-				case '-': flags |= LEFT; goto repeat;
-				case '+': flags |= PLUS; goto repeat;
-				case ' ': flags |= SPACE; goto repeat;
-				case '#': flags |= SPECIAL; goto repeat;
-				case '0': flags |= ZEROPAD; goto repeat;
-				}
+	repeat:
+		++fmt; /* this also skips first '%' */
+		switch (*fmt) {
+		case '-':
+			flags |= LEFT;
+			goto repeat;
+		case '+':
+			flags |= PLUS;
+			goto repeat;
+		case ' ':
+			flags |= SPACE;
+			goto repeat;
+		case '#':
+			flags |= SPECIAL;
+			goto repeat;
+		case '0':
+			flags |= ZEROPAD;
+			goto repeat;
+		}
 
 		/* get field width */
 		field_width = -1;
@@ -188,8 +190,7 @@ repeat:
 				/* it's the next argument */
 				precision = va_arg(args, int);
 			}
-			if (precision < 0)
-				precision = 0;
+			if (precision < 0) precision = 0;
 		}
 
 		/* get the conversion qualifier */
@@ -209,50 +210,43 @@ repeat:
 		switch (*fmt) {
 		case 'c':
 			if (!(flags & LEFT))
-				while (--field_width > 0)
-					tx_byte(' '), count++;
-			tx_byte((unsigned char) va_arg(args, int)), count++;
-			while (--field_width > 0)
-				tx_byte(' '), count++;
+				while (--field_width > 0) tx_byte(' '), count++;
+			tx_byte((unsigned char)va_arg(args, int)), count++;
+			while (--field_width > 0) tx_byte(' '), count++;
 			continue;
 
 		case 's':
 			s = va_arg(args, char *);
-			if (!s)
-				s = "<NULL>";
+			if (!s) s= "<NULL>";
 
 			len = strnlen(s, precision);
 
 			if (!(flags & LEFT))
-				while (len < field_width--)
-					tx_byte(' '), count++;
-			for (i = 0; i < len; ++i)
-				tx_byte(*s++), count++;
-			while (len < field_width--)
-				tx_byte(' '), count++;
+				while (len < field_width--) tx_byte(' '), count++;
+			for (i = 0; i < len; ++i) tx_byte(*s++), count++;
+			while (len < field_width--) tx_byte(' '), count++;
 			continue;
 
 		case 'p':
 			if (field_width == -1) {
-				field_width = 2*sizeof(void *);
+				field_width = 2 * sizeof(void *);
 				flags |= ZEROPAD;
 			}
-			count += number(tx_byte,
-				(unsigned long) va_arg(args, void *), 16,
-				field_width, precision, flags);
+			count += number(tx_byte, (unsigned long)va_arg(args, void *), 16, field_width, precision,
+			                flags);
 			continue;
 
 
 		case 'n':
 			if (qualifier == 'L') {
 				long long *ip = va_arg(args, long long *);
-				*ip = count;
+				*ip           = count;
 			} else if (qualifier == 'l') {
-				long * ip = va_arg(args, long *);
-				*ip = count;
+				long *ip = va_arg(args, long *);
+				*ip      = count;
 			} else {
-				int * ip = va_arg(args, int *);
-				*ip = count;
+				int *ip = va_arg(args, int *);
+				*ip     = count;
 			}
 			continue;
 
@@ -290,9 +284,8 @@ repeat:
 		} else if (qualifier == 'l') {
 			num = va_arg(args, unsigned long);
 		} else if (qualifier == 'h') {
-			num = (unsigned short) va_arg(args, int);
-			if (flags & SIGN)
-				num = (short) num;
+			num = (unsigned short)va_arg(args, int);
+			if (flags & SIGN) num= (short)num;
 		} else if (flags & SIGN) {
 			num = va_arg(args, int);
 		} else {

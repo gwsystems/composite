@@ -13,16 +13,16 @@
 #include "cc.h"
 #include <assert.h>
 
-struct retype_info     retype_tbl[NUM_CPU]        CACHE_ALIGNED;
+struct retype_info     retype_tbl[NUM_CPU] CACHE_ALIGNED;
 struct retype_info_glb glb_retype_tbl[N_MEM_SETS] CACHE_ALIGNED;
 
 /* called to increment or decrement the refcnt. */
 static inline int
 mod_ref_cnt(void *pa, const int op, const int type_check)
 {
-	u32_t idx, old_v;
+	u32_t                idx, old_v;
 	struct retype_entry *retype_entry;
-	union refcnt_atom local_u;
+	union refcnt_atom    local_u;
 
 	PA_BOUNDARY_CHECK();
 
@@ -43,7 +43,7 @@ mod_ref_cnt(void *pa, const int op, const int type_check)
 		local_u.ref_cnt = local_u.ref_cnt - 1;
 		rdtscll(retype_entry->last_unmap);
 		cos_mem_fence();
-//		cos_inst_bar();
+		//		cos_inst_bar();
 	}
 	cos_mem_fence();
 
@@ -74,23 +74,25 @@ retypetbl_deref(void *pa)
 static inline int
 mod_mem_type(void *pa, const mem_type_t type)
 {
-	int i, ret;
-	u32_t idx, old_type;
+	int                     i, ret;
+	u32_t                   idx, old_type;
 	struct retype_info_glb *glb_retype_info;
 
-	assert(pa); 	/* cannot be NULL: kernel image takes that space */
+	assert(pa); /* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
 
 	idx = GET_MEM_IDX(pa);
 	assert(idx < N_MEM_SETS);
 
 	glb_retype_info = GET_GLB_RETYPE_ENTRY(idx);
-	old_type = glb_retype_info->type;
+	old_type        = glb_retype_info->type;
 
 	/* only can retype untyped mem sets. */
 	if (unlikely(old_type != RETYPETBL_UNTYPED)) {
-		if (old_type == type) return -EEXIST;
-		else                  return -EPERM;
+		if (old_type == type)
+			return -EEXIST;
+		else
+			return -EPERM;
 	}
 
 	/* Kernel memory needs to be kernel accessible: pa2va returns
@@ -135,11 +137,11 @@ int
 retypetbl_retype2frame(void *pa)
 {
 	struct retype_info_glb *glb_retype_info;
-	union refcnt_atom local_u;
-	u32_t old_v, idx;
-	u64_t last_unmap;
-	int cpu, ret, ref_sum;
-	mem_type_t old_type;
+	union refcnt_atom       local_u;
+	u32_t                   old_v, idx;
+	u64_t                   last_unmap;
+	int                     cpu, ret, ref_sum;
+	mem_type_t              old_type;
 
 	PA_BOUNDARY_CHECK();
 
@@ -147,7 +149,7 @@ retypetbl_retype2frame(void *pa)
 	assert(idx < N_MEM_SETS);
 
 	glb_retype_info = GET_GLB_RETYPE_ENTRY(idx);
-	old_type = glb_retype_info->type;
+	old_type        = glb_retype_info->type;
 	/* only can retype untyped mem sets. */
 	if (unlikely(old_type != RETYPETBL_USER && old_type != RETYPETBL_KERN)) return -EPERM;
 
@@ -163,7 +165,7 @@ retypetbl_retype2frame(void *pa)
 		assert(local_u.type == old_type || local_u.type == RETYPETBL_RETYPING);
 
 		local_u.type = RETYPETBL_RETYPING;
-		ret = retypetbl_cas(&(retype_tbl[cpu].mem_set[idx].refcnt_atom.v), old_v, local_u.v);
+		ret          = retypetbl_cas(&(retype_tbl[cpu].mem_set[idx].refcnt_atom.v), old_v, local_u.v);
 		if (ret != CAS_SUCCESS) cos_throw(restore_all, -ECASFAIL);
 
 		ref_sum += local_u.ref_cnt;
@@ -204,7 +206,7 @@ restore_all:
 	 * restore [0, cpu-1]. */
 	for (cpu--; cpu >= 0; cpu--) {
 		old_v = local_u.v = retype_tbl[cpu].mem_set[idx].refcnt_atom.v;
-		local_u.type = old_type;
+		local_u.type      = old_type;
 		retypetbl_cas(&(retype_tbl[cpu].mem_set[idx].refcnt_atom.v), old_v, local_u.v);
 	}
 	/* and global entry. */
@@ -224,11 +226,11 @@ retype_tbl_init(void)
 	int i, j;
 
 	/* Alignment & size checks! */
-	assert(sizeof(struct retype_info)     % CACHE_LINE == 0);
+	assert(sizeof(struct retype_info) % CACHE_LINE == 0);
 	assert(sizeof(struct retype_info_glb) % CACHE_LINE == 0);
-	assert(sizeof(retype_tbl)     % CACHE_LINE == 0);
+	assert(sizeof(retype_tbl) % CACHE_LINE == 0);
 	assert(sizeof(glb_retype_tbl) % CACHE_LINE == 0);
-	assert((int)retype_tbl     % CACHE_LINE == 0);
+	assert((int)retype_tbl % CACHE_LINE == 0);
 	assert((int)glb_retype_tbl % CACHE_LINE == 0);
 
 	assert(sizeof(union refcnt_atom) == sizeof(u32_t));

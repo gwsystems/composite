@@ -29,6 +29,7 @@
  * operation does not prevent ABA. A possible fix could be
  * integrating a generation number in the lower bits of the 
  * pointer. */
+/* clang-format off */
 #define COS_ASM_GET_STACK                       \
 1:                                              \
         movl %eax, %edx;		        \
@@ -354,6 +355,8 @@
 	movl $cos_static_stack, %esp;	    \
 	shl $12, %eax;			    \
 	addl %eax, %esp;
+
+/* clang-format on */
 
 #define COS_ASM_RET_STACK
 
