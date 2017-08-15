@@ -15,16 +15,16 @@ typedef enum {
 	SL_THD_WOKEN, 		/* if a race causes a wakeup before the inevitable block */
 	SL_THD_RUNNABLE,
 	SL_THD_DYING,
-} sl_thd_state;
+} sl_thd_state_t;
 
 typedef enum {
-	SL_FLAG_OWNTC = 1,      /* Thread owns a tcap */
-	SL_FLAG_SEND  = (1<<1), /* use asnd to dispatch to this thread */
-} sl_thd_flags;
+	SL_THD_PROPERTY_OWN_TCAP = 1,      /* Thread owns a tcap */
+	SL_THD_PROPERTY_SEND     = (1<<1), /* use asnd to dispatch to this thread */
+} sl_thd_property_t;
 
 struct sl_thd {
-	sl_thd_state        state;
-	sl_thd_flags        flags;
+	sl_thd_state_t      state;
+	sl_thd_property_t   properties;
 	thdid_t             thdid;
 	struct cos_aep_info aepinfo;
 	asndcap_t           sndcap;

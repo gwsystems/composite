@@ -222,7 +222,7 @@ cycles_t sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
  *           +ve - number of periods elapsed. (1 if it wokeup exactly at timeout = next period)
  */
 unsigned int sl_thd_block_periodic(thdid_t tid);
-int sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type, cycles_t abs_timeout);
+int sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t abs_timeout);
 
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);
@@ -233,12 +233,12 @@ void sl_thd_yield_cs_exit(thdid_t tid);
 
 /* The entire thread allocation and free API */
 struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
-struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int owntc);
+struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap);
 /*
  * This API creates a sl_thd object for this child component.
- * @comp: component created using cos_defkernel_api which includes initthd/initrcv (with/without its own tcap).
+ * @comp: component created using cos_defkernel_api which includes initthd (with/without its own tcap & rcvcap).
  */
-struct sl_thd *sl_thd_comp_init(struct cos_defcompinfo *comp, int owntc);
+struct sl_thd *sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched);
 void sl_thd_free(struct sl_thd *t);
 
 void sl_thd_param_set(struct sl_thd *t, sched_param_t sp);
@@ -334,12 +334,13 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
 
-	if (t->flags & SL_FLAG_SEND) {
+	if (t->properties & SL_THD_PROPERTY_SEND) {
 		return cos_asnd(t->sndcap, 1);
+	} else if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
+		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
+				  sl__globals()->timeout_next, sl__globals()->sched_rcv, tok);
 	} else {
-		if (t->flags & SL_FLAG_OWNTC) return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
-							        sl__globals()->timeout_next, sl__globals()->sched_rcv, tok);
-		else                          return cos_defswitch(sl_thd_thdcap(t), t->prio, sl__globals()->timeout_next, tok);	
+		return cos_defswitch(sl_thd_thdcap(t), t->prio, sl__globals()->timeout_next, tok);
 	}
 }
 
@@ -405,7 +406,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		else               t = sl_mod_thd_get(pt);
 	}
 
-	if (t->flags & SL_FLAG_OWNTC) {
+	if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
 		assert(t->budget && t->period);
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {

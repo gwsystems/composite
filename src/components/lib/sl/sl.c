@@ -123,7 +123,7 @@ sl_timeout_init(void)
  *	    0 if it successfully blocked in this call.
  */
 int
-sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state block_type, cycles_t timeout)
+sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
 {
 	assert(t);
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
@@ -318,7 +318,7 @@ sl_thd_aepinfo_init(struct sl_thd *t, thdcap_t thd, arcvcap_t rcv, tcap_t tc)
 
 static struct sl_thd *
 sl_thd_alloc_init(thdid_t tid, thdcap_t thdcap, arcvcap_t rcvcap, tcap_t tcap,
-		  asndcap_t sndcap, sl_thd_flags flags)
+		  asndcap_t sndcap, sl_thd_property_t prps)
 {
 	struct sl_thd_policy *tp = NULL;
 	struct sl_thd        *t  = NULL;
@@ -328,7 +328,7 @@ sl_thd_alloc_init(thdid_t tid, thdcap_t thdcap, arcvcap_t rcvcap, tcap_t tcap,
 	t  = sl_mod_thd_get(tp);
 	
 	t->thdid          = tid;
-	t->flags          = flags;
+	t->properties     = prps;
 	sl_thd_aepinfo_init(t, thdcap, rcvcap, tcap);
 	t->sndcap         = sndcap;
 	t->state          = SL_THD_RUNNABLE;
@@ -367,7 +367,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *comp, sl_thd_flags flags)
+sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *comp, sl_thd_property_t prps)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
@@ -377,28 +377,25 @@ sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *
 	thdid_t                 tid;
 	int                     ret;
 
-	if (flags & SL_FLAG_SEND) {
+	if (prps & SL_THD_PROPERTY_SEND) {
 		struct cos_aep_info *sa;
 
 		assert(comp);
-		sa = cos_sched_aep_get(comp);
-
-		/* FIXME: inefficient.. find a zerocopy way! */
-		aep.tc  = sa->tc;
-		aep.thd = sa->thd;
-		aep.rcv = sa->rcv;
+		sa  = cos_sched_aep_get(comp);
+		aep = *sa;
 
 		snd = cos_asnd_alloc(ci, aep.rcv, ci->captbl_cap);
 		assert(snd);
 	} else {
-		if (flags & SL_FLAG_OWNTC) ret = cos_aep_alloc(&aep, fn, data);
-		else                       ret = cos_aep_tcap_alloc(&aep, sl_thd_aepinfo(sl__globals()->sched_thd)->tc, fn, data);
+		if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(&aep, fn, data);
+		else                                 ret = cos_aep_tcap_alloc(&aep, sl_thd_aepinfo(sl__globals()->sched_thd)->tc, 
+									      fn, data);
 		if (ret) goto done;
 	}
 
 	tid = cos_introspect(ci, aep.thd, THD_GET_TID);
 	assert(tid);
-	t = sl_thd_alloc_init(tid, aep.thd, aep.rcv, aep.tc, snd, flags);
+	t = sl_thd_alloc_init(tid, aep.thd, aep.rcv, aep.tc, snd, prps);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -418,12 +415,12 @@ sl_thd_alloc(cos_thd_fn_t fn, void *data)
 }
 
 struct sl_thd *
-sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int owntc)
+sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap)
 {
 	struct sl_thd *t;
 
 	sl_cs_enter();
-	t = sl_thd_aep_alloc_intern(fn, data, NULL, owntc ? SL_FLAG_OWNTC: 0);
+	t = sl_thd_aep_alloc_intern(fn, data, NULL, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0);
 	sl_cs_exit();
 
 	return t;
@@ -431,16 +428,26 @@ sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int owntc)
 
 /* sl object for inithd in the child comp */
 struct sl_thd *
-sl_thd_comp_init(struct cos_defcompinfo *comp, int owntc)
+sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 {
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = &dci->ci;
 	struct sl_thd *t;
+	thdid_t tid;
 
 	assert(comp);
-	if (owntc) assert(cos_sched_aep_get(comp)->tc != sl_thd_tcap(sl__globals()->sched_thd));
-	else       assert(cos_sched_aep_get(comp)->tc == sl_thd_tcap(sl__globals()->sched_thd));
 
 	sl_cs_enter();
-	t = sl_thd_aep_alloc_intern(NULL, NULL, comp, SL_FLAG_SEND | (owntc ? SL_FLAG_OWNTC : 0));
+	if (is_sched) {
+		t = sl_thd_aep_alloc_intern(NULL, NULL, comp, SL_THD_PROPERTY_OWN_TCAP | SL_THD_PROPERTY_SEND);
+	} else {
+		struct cos_aep_info *aep = cos_sched_aep_get(comp);
+
+		tid = cos_introspect(ci, aep->thd, THD_GET_TID);
+		assert(tid);
+		t   = sl_thd_alloc_init(tid, aep->thd, aep->rcv, aep->tc, 0, 0);
+		sl_mod_thd_create(sl_mod_thd_policy_get(t));
+	}
 	sl_cs_exit();
 
 	return t;
@@ -578,7 +585,7 @@ sl_sched_loop(void)
 			sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
 
 			if (blocked) {
-				sl_thd_state state   = SL_THD_BLOCKED;
+				sl_thd_state_t state = SL_THD_BLOCKED;
 				cycles_t abs_timeout = 0;
 
 				if (thd_timeout) {
