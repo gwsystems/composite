@@ -54,7 +54,7 @@ test_vmio(int vm)
 			for(j = 0; j < (15*vm); j++){
 				PRINTC("%d",j);
 			}
-			cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, 0, 0, NULL);
+			cos_rcv(VM_CAPTBL_SELF_IORCV_BASE, 0, NULL);
 			PRINTC("cos2rk_shm_read returned: %d\n", cos2rk_shm_read(buf, 0, vm));
 			PRINTC("Recvd: %s @ %x:%x\n", buf, (unsigned int)COS2RK_MEM_SHM_BASE, (unsigned int)cos_va2pa(&booter_info, (void *)COS2RK_MEM_SHM_BASE));
 		}

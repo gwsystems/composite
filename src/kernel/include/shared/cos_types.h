@@ -23,13 +23,13 @@
 #endif
 
 typedef unsigned long word_t;
-typedef u64_t cycles_t;
-typedef u64_t microsec_t;
+typedef u64_t         cycles_t;
+typedef u64_t         microsec_t;
 typedef unsigned long tcap_res_t;
 typedef unsigned long tcap_time_t;
-typedef u64_t tcap_prio_t;
-typedef u64_t tcap_uid_t;
-typedef u32_t sched_tok_t;
+typedef u64_t         tcap_prio_t;
+typedef u64_t         tcap_uid_t;
+typedef u32_t         sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
 
 
@@ -40,31 +40,40 @@ typedef u32_t sched_tok_t;
  *  sizeof(cycles_t) >= sizeof(tcap_time_t)
  */
 #define TCAP_TIME_QUANTUM_ORD 12
-#define TCAP_TIME_MAX_ORD     (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
+#define TCAP_TIME_MAX_ORD (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
 #define TCAP_TIME_MAX_BITS(c) ((c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
-#define TCAP_TIME_NIL         0
+#define TCAP_TIME_NIL 0
 static inline cycles_t
 tcap_time2cyc(tcap_time_t c, cycles_t curr)
-{ return (((cycles_t)c) << TCAP_TIME_QUANTUM_ORD) | TCAP_TIME_MAX_BITS(curr); }
+{
+	return (((cycles_t)c) << TCAP_TIME_QUANTUM_ORD) | TCAP_TIME_MAX_BITS(curr);
+}
 static inline tcap_time_t
-tcap_cyc2time(cycles_t c) {
+tcap_cyc2time(cycles_t c)
+{
 	tcap_time_t t = (tcap_time_t)(c >> TCAP_TIME_QUANTUM_ORD);
 	return t == TCAP_TIME_NIL ? 1 : t;
 }
 static inline int
 cycles_same(cycles_t a, cycles_t b, cycles_t diff_thresh)
-{ return (b < a ? a - b : b - a) <= diff_thresh; }
+{
+	return (b < a ? a - b : b - a) <= diff_thresh;
+}
 /* FIXME: if wraparound happens, we need additional logic to compensate here */
-static inline int tcap_time_lessthan(tcap_time_t a, tcap_time_t b) { return a < b; }
+static inline int
+tcap_time_lessthan(tcap_time_t a, tcap_time_t b)
+{
+	return a < b;
+}
 
 typedef enum {
 	TCAP_DELEG_TRANSFER = 1,
-	TCAP_DELEG_YIELD    = 1<<1,
+	TCAP_DELEG_YIELD    = 1 << 1,
 } tcap_deleg_flags_t;
 
 typedef enum {
 	RCV_NON_BLOCKING = 1,
-	RCV_ALL_PENDING  = 1<<1,
+	RCV_ALL_PENDING  = 1 << 1,
 } rcv_flags_t;
 
 #define BOOT_LIVENESS_ID_BASE 2
@@ -121,19 +130,19 @@ typedef enum {
 
 typedef enum {
 	CAP_FREE = 0,
-	CAP_SINV,		/* synchronous communication -- invoke */
-	CAP_SRET,		/* synchronous communication -- return */
-	CAP_ASND,		/* async communication; sender */
-	CAP_ARCV,               /* async communication; receiver */
-	CAP_THD,                /* thread */
-	CAP_COMP,               /* component */
-	CAP_CAPTBL,             /* capability table */
-	CAP_PGTBL,              /* page-table */
-	CAP_FRAME, 		/* untyped frame within a page-table */
-	CAP_VM, 		/* mapped virtual memory within a page-table */
-	CAP_QUIESCENCE,         /* when deactivating, set to track quiescence state */
-	CAP_TCAP, 		/* tcap captable entry */
-	CAP_HW,			/* hardware (interrupt) */
+	CAP_SINV,       /* synchronous communication -- invoke */
+	CAP_SRET,       /* synchronous communication -- return */
+	CAP_ASND,       /* async communication; sender */
+	CAP_ARCV,       /* async communication; receiver */
+	CAP_THD,        /* thread */
+	CAP_COMP,       /* component */
+	CAP_CAPTBL,     /* capability table */
+	CAP_PGTBL,      /* page-table */
+	CAP_FRAME,      /* untyped frame within a page-table */
+	CAP_VM,         /* mapped virtual memory within a page-table */
+	CAP_QUIESCENCE, /* when deactivating, set to track quiescence state */
+	CAP_TCAP,       /* tcap captable entry */
+	CAP_HW,         /* hardware (interrupt) */
 } cap_t;
 
 /* TODO: pervasive use of these macros */
@@ -157,39 +166,34 @@ typedef capid_t hwcap_t;
 
 #define TCAP_PRIO_MAX (1ULL)
 #define TCAP_PRIO_MIN ((~0ULL) >> 16) /* 48bit value */
-#define TCAP_RES_GRAN_ORD  16
-#define TCAP_RES_PACK(r)   (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
+#define TCAP_RES_GRAN_ORD 16
+#define TCAP_RES_PACK(r) (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
 #define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
-#define TCAP_RES_INF  (~0UL)
-#define TCAP_RES_MAX  (TCAP_RES_INF - 1)
+#define TCAP_RES_INF (~0UL)
+#define TCAP_RES_MAX (TCAP_RES_INF - 1)
 #define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
 typedef capid_t tcap_t;
 
 #define ARCV_NOTIF_DEPTH 8
 
-#define QUIESCENCE_CHECK(curr, past, quiescence_period)  (((curr) - (past)) > (quiescence_period))
+#define QUIESCENCE_CHECK(curr, past, quiescence_period) (((curr) - (past)) > (quiescence_period))
 
 /*
  * The values in this enum are the order of the size of the
  * capabilities in this cacheline, offset by CAP_SZ_OFF (to compress
  * memory).
  */
-typedef enum {
-	CAP_SZ_16B = 0,
-	CAP_SZ_32B,
-	CAP_SZ_64B,
-	CAP_SZ_ERR
-} cap_sz_t;
+typedef enum { CAP_SZ_16B = 0, CAP_SZ_32B, CAP_SZ_64B, CAP_SZ_ERR } cap_sz_t;
 /* the shift offset for the *_SZ_* values */
-#define	CAP_SZ_OFF   4
+#define CAP_SZ_OFF 4
 /* The allowed amap bits of each size */
-#define	CAP_MASK_16B ((1<<4)-1)
-#define	CAP_MASK_32B (1 | (1<<2))
-#define	CAP_MASK_64B 1
+#define CAP_MASK_16B ((1 << 4) - 1)
+#define CAP_MASK_32B (1 | (1 << 2))
+#define CAP_MASK_64B 1
 
-#define CAP16B_IDSZ (1<<(CAP_SZ_16B))
-#define CAP32B_IDSZ (1<<(CAP_SZ_32B))
-#define CAP64B_IDSZ (1<<(CAP_SZ_64B))
+#define CAP16B_IDSZ (1 << (CAP_SZ_16B))
+#define CAP32B_IDSZ (1 << (CAP_SZ_32B))
+#define CAP64B_IDSZ (1 << (CAP_SZ_64B))
 #define CAPMAX_ENTRY_SZ CAP64B_IDSZ
 
 #define CAPTBL_EXPAND_SZ 128
@@ -218,8 +222,11 @@ __captbl_cap2sz(cap_t c)
 	}
 }
 
-static inline unsigned long captbl_idsize(cap_t c)
-{ return 1<<__captbl_cap2sz(c); }
+static inline unsigned long
+captbl_idsize(cap_t c)
+{
+	return 1 << __captbl_cap2sz(c);
+}
 
 /*
  * LLBooter initial captbl setup:
@@ -242,7 +249,8 @@ static inline unsigned long captbl_idsize(cap_t c)
  * 1.5GB-> = kernel memory
  * 2GB-> = system physical memory
  */
-enum {
+enum
+{
 	BOOT_CAPTBL_SRET            = 0,
 	BOOT_CAPTBL_SELF_CT         = 4,
 	BOOT_CAPTBL_SELF_PT         = 6,
@@ -256,25 +264,30 @@ enum {
 	BOOT_CAPTBL_COMP0_PT           = 22,
 	BOOT_CAPTBL_COMP0_COMP         = 24,
 	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
-	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
-	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS * CAP16B_IDSZ,
+	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU_COS * CAP16B_IDSZ,
+                                                         CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS * CAP64B_IDSZ,
+                                                        CAPMAX_ENTRY_SZ),
 	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
 	/* round up to next entry */
-	BOOT_CAPTBL_FREE               = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
+	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
 
-enum {
-	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1<<22)), /* @ 1G + 8M */
+enum
+{
+	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1 << 22)), /* @ 1G + 8M */
 	BOOT_MEM_KM_BASE = PGD_SIZE, /* kernel & user memory @ 4M, pgd aligned start address */
 };
 
-enum {
+enum
+{
 	/* thread id */
 	THD_GET_TID,
 };
 
-enum {
+enum
+{
 	/* tcap budget */
 	TCAP_GET_BUDGET,
 };
@@ -282,40 +295,37 @@ enum {
 typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */
 
 /* Macro used to define per core variables */
-#define PERCPU(type, name)                              \
-	PERCPU_DECL(type, name);                        \
+#define PERCPU(type, name)       \
+	PERCPU_DECL(type, name); \
 	PERCPU_VAR(name)
 
-#define PERCPU_DECL(type, name)                         \
-struct __##name##_percore_decl {                        \
-	type name;                                      \
-} CACHE_ALIGNED
+#define PERCPU_DECL(type, name)          \
+	struct __##name##_percore_decl { \
+		type name;               \
+	} CACHE_ALIGNED
 
-#define PERCPU_VAR(name)                                \
-struct __##name##_percore_decl name[NUM_CPU]
+#define PERCPU_VAR(name) struct __##name##_percore_decl name[NUM_CPU]
 
 /* With attribute */
-#define PERCPU_ATTR(attr, type, name)	   	        \
-	PERCPU_DECL(type, name);                        \
+#define PERCPU_ATTR(attr, type, name) \
+	PERCPU_DECL(type, name);      \
 	PERCPU_VAR_ATTR(attr, name)
 
-#define PERCPU_VAR_ATTR(attr, name)                     \
-attr struct __##name##_percore_decl name[NUM_CPU]
+#define PERCPU_VAR_ATTR(attr, name) attr struct __##name##_percore_decl name[NUM_CPU]
 
 /* when define an external per cpu variable */
-#define PERCPU_EXTERN(name)		                \
-	PERCPU_VAR_ATTR(extern, name)
+#define PERCPU_EXTERN(name) PERCPU_VAR_ATTR(extern, name)
 
 /* We have different functions for getting current CPU in user level
  * and kernel. Thus the GET_CURR_CPU is used here. It's defined
  * separately in user(cos_component.h) and kernel(per_cpu.h).*/
-#define PERCPU_GET(name)                (&(name[GET_CURR_CPU].name))
+#define PERCPU_GET(name) (&(name[GET_CURR_CPU].name))
 #define PERCPU_GET_TARGET(name, target) (&(name[target].name))
 
 #define COS_SYSCALL __attribute__((regparm(0)))
 
 #ifndef NULL
-#define NULL ((void*)0)
+#define NULL ((void *)0)
 #endif
 
 /*
@@ -323,9 +333,9 @@ attr struct __##name##_percore_decl name[NUM_CPU]
  * dereferenced.  They will generally be used to set up page table
  * entries.
  */
-typedef unsigned long paddr_t;	/* physical address */
-typedef unsigned long vaddr_t;	/* virtual address */
-typedef unsigned int page_index_t;
+typedef unsigned long paddr_t; /* physical address */
+typedef unsigned long vaddr_t; /* virtual address */
+typedef unsigned int  page_index_t;
 
 typedef unsigned short int spdid_t;
 typedef unsigned short int compid_t;
@@ -337,16 +347,17 @@ struct restartable_atomic_sequence {
 
 /* see explanation in spd.h */
 struct usr_inv_cap {
-	vaddr_t invocation_fn, service_entry_inst;
+	vaddr_t      invocation_fn, service_entry_inst;
 	unsigned int invocation_count, cap_no;
 } __attribute__((aligned(16)));
 
 #define COMP_INFO_POLY_NUM 10
 #define COMP_INFO_INIT_STR_LEN 128
 /* For multicore system, we should have 1 freelist per core. */
-#define COMP_INFO_STACK_FREELISTS 1//NUM_CPU_COS
+#define COMP_INFO_STACK_FREELISTS 1 // NUM_CPU_COS
 
-enum {
+enum
+{
 	COMP_INFO_TMEM_STK = 0,
 	COMP_INFO_TMEM_CBUF,
 	COMP_INFO_TMEM
@@ -356,9 +367,9 @@ enum {
  * by the assembly entry routines into a component to decide which
  * freelist to use. */
 struct stack_fl {
-	vaddr_t freelist;
+	vaddr_t       freelist;
 	unsigned long thd_id;
-	char __padding[CACHE_LINE - sizeof(vaddr_t) - sizeof(unsigned long)];
+	char          __padding[CACHE_LINE - sizeof(vaddr_t) - sizeof(unsigned long)];
 } __attribute__((packed));
 
 struct cos_stack_freelists {
@@ -369,24 +380,25 @@ struct cos_stack_freelists {
 //#define ASM_OFFSET_TO_STK_RELINQ (sizeof(struct cos_stack_freelists) + sizeof(u32_t) * COMP_INFO_TMEM_STK_RELINQ)
 //#define ASM_OFFSET_TO_STK_RELINQ 8
 /* #ifdef COMP_INFO_STACK_FREELISTS != 1 || COMP_INFO_TMEM_STK_RELINQ != 0 */
-/* #error "Assembly in <fill in file name here> requires that COMP_INFO_STACK_FREELISTS != 1 || COMP_INFO_TMEM_STK_RELINQ != 0.  Change the defines, or change the assembly" */
+/* #error "Assembly in <fill in file name here> requires that COMP_INFO_STACK_FREELISTS != 1 ||
+ * COMP_INFO_TMEM_STK_RELINQ != 0.  Change the defines, or change the assembly" */
 /* #endif */
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;
-	long cos_this_spd_id;
-	u32_t cos_tmem_relinquish[COMP_INFO_TMEM];
-	u32_t cos_tmem_available[COMP_INFO_TMEM];
-	vaddr_t cos_heap_ptr, cos_heap_limit;
-	vaddr_t cos_heap_allocated, cos_heap_alloc_extent;
-	vaddr_t cos_upcall_entry;
-	vaddr_t cos_async_inv_entry;
-//	struct cos_sched_data_area *cos_sched_data_area;
-	vaddr_t cos_user_caps;
-	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS/2];
-	vaddr_t cos_poly[COMP_INFO_POLY_NUM];
-	char init_string[COMP_INFO_INIT_STR_LEN];
-}__attribute__((aligned(PAGE_SIZE)));
+	long                       cos_this_spd_id;
+	u32_t                      cos_tmem_relinquish[COMP_INFO_TMEM];
+	u32_t                      cos_tmem_available[COMP_INFO_TMEM];
+	vaddr_t                    cos_heap_ptr, cos_heap_limit;
+	vaddr_t                    cos_heap_allocated, cos_heap_alloc_extent;
+	vaddr_t                    cos_upcall_entry;
+	vaddr_t                    cos_async_inv_entry;
+	//	struct cos_sched_data_area *cos_sched_data_area;
+	vaddr_t                            cos_user_caps;
+	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS / 2];
+	vaddr_t                            cos_poly[COMP_INFO_POLY_NUM];
+	char                               init_string[COMP_INFO_INIT_STR_LEN];
+} __attribute__((aligned(PAGE_SIZE)));
 
 typedef enum {
 	COS_UPCALL_THD_CREATE,
@@ -396,10 +408,11 @@ typedef enum {
 	COS_UPCALL_QUARANTINE
 } upcall_type_t;
 
-enum {
-	MAPPING_RO    = 0,
-	MAPPING_RW    = 1 << 0,
-	MAPPING_KMEM  = 1 << 1
+enum
+{
+	MAPPING_RO   = 0,
+	MAPPING_RW   = 1 << 0,
+	MAPPING_KMEM = 1 << 1
 };
 
 /*
@@ -423,7 +436,7 @@ typedef enum {
 
 #define IL_INV_UNMAP (0x1) // when invoking, should we be unmapped?
 #define IL_RET_UNMAP (0x2) // when returning, should we unmap?
-#define MAX_ISOLATION_LVL_VAL (IL_INV_UNMAP|IL_RET_UNMAP)
+#define MAX_ISOLATION_LVL_VAL (IL_INV_UNMAP | IL_RET_UNMAP)
 
 /*
  * Note on Symmetric Trust, Symmetric Distruct, and Asym trust:
@@ -431,8 +444,8 @@ typedef enum {
  * SDT iff (flags & CAP_INV_UNMAP && flags & CAP_RET_UNMAP)
  * AST iff (!(flags & CAP_INV_UNMAP) && flags & CAP_RET_UNMAP)
  */
-#define IL_ST  (0)
-#define IL_SDT (IL_INV_UNMAP|IL_RET_UNMAP)
+#define IL_ST (0)
+#define IL_SDT (IL_INV_UNMAP | IL_RET_UNMAP)
 #define IL_AST (IL_RET_UNMAP)
 /* invalid type, can NOT be used in data structures, only for return values. */
 #define IL_INV (~0)

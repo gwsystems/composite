@@ -7,17 +7,17 @@
 #endif
 
 .text
-.globl __inv_vkernel_serverfn 
-.type  __inv_vkernel_serverfn, @function
-__inv_vkernel_serverfn:
+.globl __inv_vkernel_hypercallfn 
+.type  __inv_vkernel_hypercallfn, @function
+__inv_vkernel_hypercallfn:
 	COS_ASM_GET_STACK
 
 	pushl %ebp /* arg 4 */
-        pushl %edi /* arg 3 */
-        pushl %esi /* arg 2 */
-        pushl %ebx /* arg 1 */
-	call vkernel_server 
-        movl %eax, %ecx
+	pushl %edi /* arg 3 */
+	pushl %esi /* arg 2 */
+	pushl %ebx /* arg 1 */
+	call vkernel_hypercall 
+	movl %eax, %ecx
 
 	COS_ASM_RET_STACK
 	movl $RET_CAP, %eax

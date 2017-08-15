@@ -112,7 +112,7 @@ cos_irqthd_handler(void *line)
 	arcvcap_t arcvcap = irq_arcvcap[which];
 	
 	while(1) {
-		int pending = cos_rcv(arcvcap, 0, 0, NULL);
+		int pending = cos_rcv(arcvcap, 0, NULL);
 
 		intr_start(which);
 

@@ -5,6 +5,8 @@
 #error "Missing MAX_STACK_SZ_BYTE_ORDER, try including consts.h"
 #endif
 
+/* clang-format off */
+
 #define COS_ASM_GET_STACK                   \
 	movl $cos_static_stack, %esp;	    \
 	movl %eax, %edx;		    \
@@ -15,6 +17,8 @@
 	shr $16, %edx;			    \
 	pushl %edx;			    \
 	pushl %eax;
+
+/* clang-format on */
 
 #define COS_ASM_RET_STACK
 
