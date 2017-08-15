@@ -358,7 +358,7 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 	struct cos_compinfo    *ci  = &dci->ci;
 
 	if (t->properties & SL_THD_PROPERTY_SEND) {
-		return cos_asnd(t->sndcap, 1);
+		return cos_sched_asnd(t->sndcap, sl__globals()->timeout_next, sl__globals()->sched_rcv, tok);
 	} else if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
 		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
 				  sl__globals()->timeout_next, sl__globals()->sched_rcv, tok);

@@ -611,6 +611,18 @@ cap_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struc
 	return cap_update(regs, curr, next, tcap_current(cos_info), next_tcap, timeout, ci, cos_info, 0);
 }
 
+static int 
+cap_sched_tok_validate(struct thread *rcvt, sched_tok_t usr_tok, struct comp_info *ci, struct cos_cpu_local_info *cos_info)
+{
+	assert(rcvt && usr_tok < ~0U);	
+
+	/* race-condition check for user-level thread switches */
+	if (thd_rcvcap_get_counter(rcvt) > usr_tok) return -EAGAIN;
+	thd_rcvcap_set_counter(rcvt, usr_tok);
+
+	return 0;
+}
+
 static int
 cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, struct comp_info *ci,
            struct cos_cpu_local_info *cos_info)
@@ -635,12 +647,10 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 
 		arcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv);
 		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
-
 		rcvt = arcv_cap->thd;
-		/* race-condition check for user-level thread switches */
-		assert(usr_counter < ~0U);
-		if (thd_rcvcap_get_counter(rcvt) > usr_counter) return -EAGAIN;
-		thd_rcvcap_set_counter(rcvt, usr_counter);
+
+		ret  = cap_sched_tok_validate(rcvt, usr_counter, ci, cos_info);
+		if (ret) return ret;
 
 		if (thd_rcvcap_pending(rcvt) > 0) {
 			if (thd == rcvt) return -EBUSY;
@@ -686,14 +696,21 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
             struct cos_cpu_local_info *cos_info)
 {
 	int              curr_cpu = get_cpuid();
-	int              yield    = __userregs_get1(regs);
+	capid_t          srcv     = __userregs_get1(regs);
+	sched_tok_t      usr_tok  = __userregs_get2(regs);
+	tcap_time_t      timeout  = __userregs_get3(regs);
+	int              yield    = __userregs_get4(regs);
 	struct cap_arcv *arcv;
 	struct thread *  rcv_thd, *next;
 	struct tcap *    rcv_tcap, *tcap, *tcap_next;
+	int              ret;
 
 	assert(asnd->arcv_capid);
 	/* IPI notification to another core */
-	if (asnd->arcv_cpuid != curr_cpu) return cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
+	if (asnd->arcv_cpuid != curr_cpu) {
+		assert(!srcv);
+		return cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
+	}
 	arcv = __cap_asnd_to_arcv(asnd);
 	if (unlikely(!arcv)) return -EINVAL;
 
@@ -701,11 +718,37 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 	tcap     = tcap_current(cos_info);
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
-	if (unlikely(yield && tcap_expended(rcv_tcap))) return -EPERM;
+
+	if (srcv) {
+		struct cap_arcv *srcv_cap;
+		struct thread   *rcvt;
+
+		srcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, srcv);
+		if (!CAP_TYPECHK_CORE(srcv_cap, CAP_ARCV)) return -EINVAL;
+		rcvt = srcv_cap->thd;
+
+		ret  = cap_sched_tok_validate(rcvt, usr_tok, ci, cos_info);
+		if (ret) return ret;
+
+		if (thd_rcvcap_pending(rcvt) > 0) {
+			if (thd == rcvt) return -EBUSY;
+
+			next = rcvt;
+			/* tcap inheritance here...use the current tcap to process events */
+			timeout = TCAP_TIME_NIL;
+			goto done;
+		}
+
+		if (unlikely(tcap_expended(rcv_tcap))) return -EPERM;
+		yield = 1; /* scheduling child thread, so yield to it. */
+
+		/* FIXME: child component to abide by the parent's timeout */
+	}
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, yield, cos_info);
 
-	return cap_switch(regs, thd, next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
+done:
+	return cap_switch(regs, thd, next, tcap_next, timeout, ci, cos_info);
 }
 
 int

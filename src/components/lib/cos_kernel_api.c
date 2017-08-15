@@ -768,9 +768,15 @@ cos_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_time_t timeout, arcvcap
 }
 
 int
+cos_sched_asnd(asndcap_t snd, tcap_time_t timeout, arcvcap_t srcv, sched_tok_t stok)
+{
+	return call_cap_op(snd, 0, srcv, stok, timeout, 0);
+}
+
+int
 cos_asnd(asndcap_t snd, int yield)
 {
-	return call_cap_op(snd, 0, yield, 0, 0, 0);
+	return call_cap_op(snd, 0, 0, 0, 0, yield);
 }
 
 int
