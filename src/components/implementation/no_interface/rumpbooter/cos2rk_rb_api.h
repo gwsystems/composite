@@ -27,4 +27,6 @@ int cos2rk_shm_read(void *buff, unsigned int srcvm, unsigned int dstvm);
 
 int cos2rk_shm_write(void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm);
 
+int cos2rk_rb_init(void);
+
 #endif /* COS2RK_RB_API_H */

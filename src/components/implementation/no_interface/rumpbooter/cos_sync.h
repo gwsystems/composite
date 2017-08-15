@@ -4,6 +4,7 @@
 #include <cos_types.h>
 #include <cos_kernel_api.h>
 #include "rumpcalls.h"
+#include <ps_plat.h>
 
 //#define assert(node)if (unlikely(!(node))) { debug_print("assert error in @ "); while(1);}
 
@@ -20,28 +21,7 @@ int  intr_getdisabled(int intr);
 void intr_start(unsigned int irqline);
 void intr_end(void);
 
-#define PS_ATOMIC_POSTFIX "l" /* x86-32 */
-#define PS_CAS_INSTRUCTION "cmpxchg"
-#define PS_CAS_STR PS_CAS_INSTRUCTION PS_ATOMIC_POSTFIX " %2, %0; setz %1"
-
 extern int vmid;
-
-/*
- * Return values:
- * 0 on failure due to contention (*target != old)
- * 1 otherwise (*target == old -> *target = updated)
- */
-static inline int
-ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
-{
-
-        char z;
-        __asm__ __volatile__("lock " PS_CAS_STR
-                             : "+m" (*target), "=a" (z)
-                             : "q"  (updated), "a"  (old)
-                             : "memory", "cc");
-        return (int)z;
-}
 
 static unsigned int intr_translate_thdid2irq(thdid_t tid)
 {

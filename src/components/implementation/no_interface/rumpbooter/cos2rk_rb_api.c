@@ -26,6 +26,21 @@ cos2rk_send_rb_create(struct cos2rk_shm_rb * sm_rb, int vmid){
 	return 1;	
 }
 
+int
+cos2rk_rb_init(void)
+{
+	int i;
+
+	for (i = 1; i < COS2RK_VIRT_MACH_COUNT; i ++) {
+		struct cos2rk_shm_rb *snd_rb = NULL, *rcv_rb = NULL;
+
+		cos2rk_send_rb_create(snd_rb, i);
+		cos2rk_recv_rb_create(rcv_rb, i);
+	}
+
+	return 0;
+}
+
 struct cos2rk_shm_rb *
 cos2rk_shmem_addr_send(int to_vmid){
 	if(to_vmid == 0){

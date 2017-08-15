@@ -7,9 +7,13 @@
 
 #include "rumpcalls.h"
 #include "cos_init.h"
+#include "vk_api.h"
 
 extern struct cos_compinfo booter_info;
 extern int vmid;
+
+u64_t t_vm_cycs  = 0;
+u64_t t_dom_cycs = 0;
 
 void
 hw_irq_alloc(void){
@@ -28,17 +32,17 @@ hw_irq_alloc(void){
 		if (vmid == 0) {
 			switch(i) {
 			case IRQ_VM1:
-				irq_thdcap[i] = DOM0_CAPTBL_SELF_IOTHD_SET_BASE;
+				irq_thdcap[i] = dom0_vio_thdcap(1);
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
-				irq_arcvcap[i] = DOM0_CAPTBL_SELF_IORCV_SET_BASE;
-				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+				irq_arcvcap[i] = dom0_vio_rcvcap(1);
+				irq_tcap[i] = dom0_vio_tcap(1);
 				irq_prio[i] = PRIO_BOOST;
 				break;
 			case IRQ_VM2:
-				irq_thdcap[i] = DOM0_CAPTBL_SELF_IOTHD_SET_BASE + CAP16B_IDSZ;
+				irq_thdcap[i] = dom0_vio_thdcap(2);
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
-				irq_arcvcap[i] = DOM0_CAPTBL_SELF_IORCV_SET_BASE + CAP64B_IDSZ;
-				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+				irq_arcvcap[i] = dom0_vio_rcvcap(2);
+				irq_tcap[i] = dom0_vio_tcap(2);
 				irq_prio[i] = PRIO_BOOST;
 				break;
 			default:

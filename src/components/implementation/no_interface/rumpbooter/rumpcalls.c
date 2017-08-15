@@ -12,6 +12,7 @@
 #include "cos2rk_rb_api.h"
 //#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 #include "cos_sync.h"
+#include "vk_api.h"
 
 extern struct cos_compinfo booter_info;
 extern struct cos_rumpcalls crcalls;
@@ -80,7 +81,7 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 	asndcap_t sndcap;
 	int ret;
 
-	if(srcvm == 0) sndcap = DOM0_CAPTBL_SELF_IOASND_SET_BASE + (dstvm - 1) * CAP64B_IDSZ;
+	if(srcvm == 0) sndcap = dom0_vio_asndcap(dstvm);
 	else sndcap = VM_CAPTBL_SELF_IOASND_BASE;
 
 	//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
@@ -406,7 +407,7 @@ cos_pa2va(void * pa, unsigned long len)
 
 void
 cos_vm_exit(void)
-{ while (1) cos_thd_switch(VM_CAPTBL_SELF_EXITTHD_BASE); }
+{ cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_EXIT << 16 | cos_thdid(), 0, 0, 0); }
 
 void
 cos_sched_yield(void)
