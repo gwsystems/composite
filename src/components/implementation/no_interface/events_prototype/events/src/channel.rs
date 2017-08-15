@@ -27,6 +27,7 @@ struct ChannelData<EventType> {
     waiters: VecDeque<Thread>
 }
 
+#[allow(dead_code)]
 impl <EventType> ChannelData<EventType> {
     fn send(&mut self, event: EventType) {
         self.buffer.push_back(event);
@@ -69,6 +70,7 @@ pub struct ChannelHandle<EventType> {
     channel: Arc<Lock<ChannelData<EventType>>>
 }
 
+#[allow(dead_code)]
 impl<EventType> ChannelHandle<EventType> {
     pub fn new(channel: &Channel<EventType>) -> Self {
         ChannelHandle {
@@ -113,6 +115,7 @@ pub struct MultiChannelHandle<EventType> {
     count: usize
 }
 
+#[allow(dead_code)]
 impl<EventType> MultiChannelHandle<EventType> {
     pub fn new(c: &[&Channel<EventType>]) -> Self {
         if c.len() == 0 {
@@ -174,4 +177,3 @@ impl<EventType> MultiChannelHandle<EventType> {
         event
     }
 }
-

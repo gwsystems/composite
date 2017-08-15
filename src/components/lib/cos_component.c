@@ -46,7 +46,7 @@ syscall_emulation_setup()
 }
 
 CWEAKSYMB long
-cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f)
+cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f, long g)
 {
 	printc("Default syscall handler callled (syscall: %d), faulting!", syscall_num);
 	assert(0);
@@ -54,9 +54,9 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 }
 
 __attribute__((regparm(1))) long
-__cos_syscall(int syscall_num, long a, long b, long c, long d, long e, long f)
+__cos_syscall(int syscall_num, long a, long b, long c, long d, long e, long f, long g)
 {
-	cos_syscall_handler(syscall_num, a, b, c, d, e, f);
+	return cos_syscall_handler(syscall_num, a, b, c, d, e, f, g);
 }
 
 CWEAKSYMB void

@@ -46,8 +46,8 @@ int faccessat(int fd, const char *filename, int amode, int flag)
 	struct ctx c = { .fd = fd, .filename = filename, .amode = amode };
 
 	__block_all_sigs(&set);
-	
-	pid = __clone(checker, stack+sizeof stack, 0, &c);
+
+	pid = __clone(checker, stack+sizeof stack, 0, &c, 0, 0, 0);
 	if (pid > 0) {
 		int status;
 		do {
