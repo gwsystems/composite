@@ -10,12 +10,15 @@
 
 int32 OS_FS_Init(void)
 {
+    os_dirent_t d;
+    OS_printf("The length of a dirent object according to cos/musl is %d\n", sizeof(d));
+
     uint32 ret = 0;
-    ret = newfs_init("/ramdev0", "RAM", 512, 4096);
+    ret = tar_load();
+    if (ret != OS_FS_SUCCESS) return ret;
+    ret = fs_init("/ramdev0", "RAM", 512, 4096);
     if (ret != OS_FS_SUCCESS)   return ret;
-    ret = tar_parse();
-    if (ret != OS_FS_SUCCESS)   return ret;
-    return OS_FS_SUCCESS;
+    return tar_parse();
 }
 
 /*
@@ -23,11 +26,10 @@ int32 OS_FS_Init(void)
 */
 int32 OS_creat(const char *path, int32  access)
 {
-    int32 ret = path_chk_isvalid(path);
+    int32 ret = path_isvalid(path);
     if (access != OS_READ_WRITE && access != OS_WRITE_ONLY) return OS_FS_ERROR;
     if (ret != OS_FS_SUCCESS) return ret;
-    ret = file_create((char *) path, access);
-    return ret;
+    return file_create((char *) path, access);
 }
 
 /*
@@ -38,7 +40,7 @@ int32 OS_open(const char *path,  int32 access,  uint32 mode)
     if (access != OS_READ_WRITE && access != OS_WRITE_ONLY && access != OS_READ_ONLY) {
         return OS_FS_ERROR;
     }
-    int32 ret = path_chk_exists(path);
+    int32 ret = path_exists(path);
     if (ret != OS_FS_SUCCESS) return ret;
     return file_open((char *)path, access);
 }
@@ -58,8 +60,7 @@ int32 OS_close(int32 filedes)
 int32 OS_read(int32 filedes, void *buffer, uint32 nbytes)
 {
     if (chk_fd(filedes) != OS_FS_SUCCESS)  return OS_FS_ERR_INVALID_FD;
-    int32 ret = file_read(filedes, buffer, nbytes);
-    return ret;
+    return file_read(filedes, buffer, nbytes);
 }
 
 /*
@@ -85,9 +86,9 @@ int32 OS_chmod(const char *path, uint32 access)
 int32 OS_stat(const char *path, os_fstat_t  *filestats)
 {
     if (!filestats || !path) return OS_FS_ERR_INVALID_POINTER;
-    int32 ret = path_chk_exists(path);
+    int32 ret = path_exists(path);
     if (ret != OS_FS_SUCCESS) return ret;
-    return file_stat((char *) path, (struct hack_stat *) filestats);
+    return file_stat((char *) path, filestats);
 }
 
 /*
@@ -103,10 +104,9 @@ int32 OS_lseek(int32  filedes, int32 offset, uint32 whence)
 */
 int32 OS_remove(const char *path)
 {
-    int32 ret = path_chk_exists(path);
+    int32 ret = path_exists(path);
     if (ret != OS_FS_SUCCESS) return ret;
-    ret = file_remove((char *)path);
-    return ret;
+    return file_remove((char *)path);
 }
 
 /*
@@ -114,10 +114,12 @@ int32 OS_remove(const char *path)
 */
 int32 OS_rename(const char *old_filename, const char *new_filename) {
     if (!old_filename || !new_filename) return OS_FS_ERR_INVALID_POINTER;
-    int32 ret = path_chk_exists(old_filename);
+    int32 ret = path_exists(old_filename);
     if (ret != OS_FS_SUCCESS) return ret;
-    ret = path_chk_isvalid(new_filename);
+    ret = path_isvalid(new_filename);
     if (ret != OS_FS_SUCCESS) return ret;
+    // if new filename already exists
+    if (path_exists(new_filename) == OS_SUCCESS) return OS_FS_ERR_PATH_INVALID;
     return file_rename((char *)old_filename, (char *)new_filename);
 }
 
@@ -135,9 +137,9 @@ int32 OS_cp(const char *src, const char *dest)
     if (strlen(path_to_name(src_path)) > OS_MAX_FILE_NAME) return OS_FS_ERR_NAME_TOO_LONG;
     if (strlen(path_to_name(dest_path)) > OS_MAX_FILE_NAME) return OS_FS_ERR_NAME_TOO_LONG;
 
-    int32 ret = path_chk_exists(src_path);
+    int32 ret = path_exists(src_path);
     if (ret != OS_FS_SUCCESS) return ret;
-    ret = path_chk_isvalid(dest_path);
+    ret = path_isvalid(dest_path);
     if (ret != OS_FS_SUCCESS) return ret;
 
     return file_cp(src_path, dest_path);
@@ -157,13 +159,12 @@ int32 OS_mv(const char *src, const char *dest)
     if (strlen(path_to_name(src_path)) > OS_MAX_FILE_NAME) return OS_FS_ERR_NAME_TOO_LONG;
     if (strlen(path_to_name(dest_path)) > OS_MAX_FILE_NAME) return OS_FS_ERR_NAME_TOO_LONG;
 
-    int32 ret = path_chk_exists(src);
+    int32 ret = path_exists(src);
     if (ret != OS_FS_SUCCESS) return ret;
-    ret = path_chk_isvalid(dest);
+    ret = path_isvalid(dest);
     if (ret != OS_FS_SUCCESS) return ret;
-    ret = file_mv(src_path, dest_path);
 
-    return ret;
+    return file_mv(src_path, dest_path);
 }
 
 /*
@@ -182,7 +183,7 @@ int32 OS_FDGetInfo(int32 filedes, OS_FDTableEntry *fd_prop)
 */
 int32 OS_FileOpenCheck(char *Filename)
 {
-    int32 ret = path_chk_exists(Filename);
+    int32 ret = path_exists(Filename);
     if (ret != OS_FS_SUCCESS) return OS_FS_ERR_INVALID_POINTER;
 
     struct fsobj *file = file_find(Filename);
@@ -198,7 +199,7 @@ int32 OS_FileOpenCheck(char *Filename)
 int32 OS_CloseAllFiles(void)
 {
     uint32 i;
-    for (i = 1 ; i < MAX_NUM_FILES + 1 ; i++) {
+    for (i = 1 ; i <= MAX_NUM_FILES ; i++) {
         OS_close(i);
     }
     return OS_FS_SUCCESS;
@@ -209,7 +210,7 @@ int32 OS_CloseAllFiles(void)
 */
 int32 OS_CloseFileByName(char *Filename)
 {
-    int32 ret = path_chk_exists(Filename);
+    int32 ret = path_exists(Filename);
     if (ret != OS_FS_SUCCESS) return ret;
     return file_close_by_name(Filename);
 }
@@ -224,7 +225,7 @@ int32 OS_CloseFileByName(char *Filename)
 */
 int32 OS_mkdir(const char *path, uint32 access)
 {
-    int32 ret = path_chk_isvalid(path);
+    int32 ret = path_isvalid(path);
     if (ret != OS_FS_SUCCESS) return ret;
     return file_mkdir((char *)path);
 }
@@ -234,7 +235,7 @@ int32 OS_mkdir(const char *path, uint32 access)
 */
 os_dirp_t OS_opendir(const char *path)
 {
-    if(path_chk_exists(path) != OS_FS_SUCCESS) return NULL;
+    if(path_exists(path) != OS_FS_SUCCESS) return NULL;
     int32 FD = dir_open((char *)path);
     if (FD == 0) return NULL;
     return (os_dirp_t) FD;
@@ -254,7 +255,6 @@ int32 OS_closedir(os_dirp_t directory)
 */
 void OS_rewinddir(os_dirp_t directory)
 {
-    if (!directory) return;
     dir_rewind((int32) directory);
     return;
 }
@@ -265,8 +265,7 @@ void OS_rewinddir(os_dirp_t directory)
 os_dirent_t *OS_readdir(os_dirp_t directory)
 {
     if (!directory) return NULL;
-    os_dirent_t *dir = dir_read((int32) directory);
-    return dir;
+    return dir_read((int32) directory);
 }
 
 /*
@@ -274,7 +273,7 @@ os_dirent_t *OS_readdir(os_dirp_t directory)
 */
 int32 OS_rmdir(const char *path)
 {
-    int32 ret = path_chk_exists(path);
+    int32 ret = path_exists(path);
     if (ret != OS_FS_SUCCESS) return ret;
     return file_rmdir((char *)path);
 }
@@ -292,7 +291,7 @@ int32 OS_mkfs(char *address, char *devname, char *volname,
     if (!devname || !volname)   return OS_FS_ERR_INVALID_POINTER;
     if (strlen(devname) >= OS_FS_DEV_NAME_LEN || strlen(volname) >= OS_FS_VOL_NAME_LEN)
                                 return OS_FS_ERR_PATH_TOO_LONG;
-    return newfs_init(devname, volname, blocksize, numblocks);
+    return fs_init(devname, volname, blocksize, numblocks);
 }
 /*
  * Mounts a file system
@@ -321,7 +320,7 @@ int32 OS_initfs(char *address, char *devname, char *volname, uint32 blocksize, u
 int32 OS_rmfs(char *devname)
 {
     if (!devname) return OS_FS_ERR_INVALID_POINTER;
-    return rmfs(devname);
+    return fs_remove(devname);
 }
 
 /*
@@ -330,7 +329,7 @@ int32 OS_rmfs(char *devname)
 int32 OS_unmount(const char *mountpoint)
 {
     if (!mountpoint) return OS_FS_ERR_INVALID_POINTER;
-    int32 ret = path_chk_exists(mountpoint);
+    int32 ret = path_exists(mountpoint);
     if (ret != OS_FS_SUCCESS) return ret;
     return fs_unmount((char *)mountpoint);
 }
@@ -340,23 +339,11 @@ int32 OS_unmount(const char *mountpoint)
 */
 int32 OS_fsBlocksFree(const char *name)
 {
-   /*
-    * I am open to discussion on how we want to handle this.
-    * We could impose an artificial limit on the size of the filesystem
-    * if we expect the filesystem to be used much, that is the right choice, but
-    * otherwise it is not worth actually doing
-    */
     return OS_ERR_NOT_IMPLEMENTED;
 }
 
-/*
-** Returns the number of free bytes in a file system
-** Note the 64 bit data type to support filesystems that
-** are greater than 4 Gigabytes
-*/
 int32 OS_fsBytesFree(const char *name, uint64 *bytes_free)
 {
-    // see comment in fsBlocksFree
     return OS_ERR_NOT_IMPLEMENTED;
 }
 
@@ -375,9 +362,9 @@ os_fshealth_t OS_chkfs(const char *name, boolean repair)
 int32 OS_FS_GetPhysDriveName(char * PhysDriveName, char * MountPoint)
 {
     if (!PhysDriveName || !MountPoint) return OS_FS_ERR_INVALID_POINTER;
-    int32 ret = path_chk_exists(MountPoint);
+    int32 ret = path_exists(MountPoint);
     if (ret != OS_FS_SUCCESS) return ret;
-    return filesys_GetPhysDriveName(PhysDriveName, MountPoint);
+    return fs_get_drive_name(PhysDriveName, MountPoint);
 }
 
 /*
@@ -395,7 +382,7 @@ int32 OS_TranslatePath(const char *VirtualPath, char *LocalPath)
 int32 OS_GetFsInfo(os_fsinfo_t  *filesys_info)
 {
     if (!filesys_info) return OS_FS_ERR_INVALID_POINTER;
-    return filesys_GetFsInfo(filesys_info);
+    return fs_get_info(filesys_info);
 }
 
 /******************************************************************************

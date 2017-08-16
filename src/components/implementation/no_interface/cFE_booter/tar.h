@@ -23,10 +23,6 @@ struct posix_header
                                   /* 500 */
 };
 
-uint32 round_to_blocksize(uint32 offset);
-
-uint32 oct_to_dec(char *oct);
-
 uint32 tar_load();
 
 uint32 tar_parse();

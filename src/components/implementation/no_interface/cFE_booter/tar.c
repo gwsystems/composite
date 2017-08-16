@@ -3,23 +3,23 @@
 #include <string.h>
 
 //should be overwritten by linking step in build process
-__attribute__((weak)) char _binary_cFEfs_tar_size=0;
-__attribute__((weak)) char _binary_cFEfs_tar_start=0;
-__attribute__((weak)) char _binary_cFEfs_tar_end=0;
+__attribute__((weak)) char _binary_cFEfs_tar_size = 0;
+__attribute__((weak)) char _binary_cFEfs_tar_start = 0;
+__attribute__((weak)) char _binary_cFEfs_tar_end = 0;
 
 //locations and size of tar
 char      *tar_start;
 char      *tar_end;
 size_t    tar_size;
 
-uint32 round_to_blocksize(uint32 offset)
+static uint32 round_to_blocksize(uint32 offset)
 {
     if (offset % TAR_BLOCKSIZE) return offset + (TAR_BLOCKSIZE - (offset % TAR_BLOCKSIZE));
     return offset;
 }
 
-//used to convert filesize in oct to dec
-uint32 oct_to_dec(char *oct)
+//used to convert filesize in oct char string to dec, adapted from old fs code by gparmer
+static uint32 oct_to_dec(char *oct)
 {
     int32 i, base;
     int32 tot;
@@ -37,17 +37,20 @@ uint32 oct_to_dec(char *oct)
 /*
  * Loads the position in memory of linked tar file system
  * Checks for badly linked or no linked tar file.  The names given by
- * the linker are non-intuitive so a description of error checking is given:
+ * the linker are non-intuitive so a description of error checking is given
  * First checks to make sure that symbols have been overwritten by linking
  * process.  Next checks that the size is greater than 0.  Finally checks that
  * the end of the tar is after the start
  */
 uint32 tar_load()
 {
+    // First make sure that symbols have been overwritten by linking process
     if (!_binary_cFEfs_tar_start)
         return OS_FS_ERR_DRIVE_NOT_CREATED;
-    if (! &_binary_cFEfs_tar_size)
+    // Next check that file size is greater than 0
+    if (&_binary_cFEfs_tar_size == 0)
         return OS_FS_ERR_DRIVE_NOT_CREATED;
+    // Check that the end of the tar is after the start
     if (&_binary_cFEfs_tar_end < &_binary_cFEfs_tar_start)
         return OS_FS_ERR_DRIVE_NOT_CREATED;
 
@@ -74,9 +77,8 @@ uint32 tar_parse()
     uint32 offset = 0;
     struct fsobj *o;
 
-
     while (offset + tar_start < tar_end) {
-        if (newfile_get(&o))            return OS_FS_ERR_DRIVE_NOT_CREATED;
+        if (file_get_new(&o))            return OS_FS_ERR_DRIVE_NOT_CREATED;
 
         //tar ends after two empty records
         if ( !(offset + tar_start)[0] && !(offset + tar_start)[TAR_BLOCKSIZE]) {
@@ -99,14 +101,13 @@ uint32 tar_parse()
 
 /*
  * Copies information from a tar file header to a fsobj
- * TODO: change name of this function and make it cast to tar hdr struct
  */
 uint32 tar_hdr_read(uint32 tar_offset, struct fsobj *file)
 {
     assert(tar_offset < tar_size);
     assert(file->ino > 0);
     struct f_part *part;
-    newpart_get(&part);
+    part_get_new(&part);
     file->memtype = STATIC;
     char *location = tar_start;
     location += tar_offset;

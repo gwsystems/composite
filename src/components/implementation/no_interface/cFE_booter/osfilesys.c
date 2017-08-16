@@ -2,12 +2,9 @@
 #include "tar.h"
 
 struct fs filesystems[MAX_NUM_FS];
-struct fs *openfs = &filesystems[0];;
+struct fs *openfs = &filesystems[0];
 struct fsobj files[MAX_NUM_FILES];
-struct cos_compinfo *ci;
-
 struct fd fd_tbl[OS_MAX_NUM_OPEN_FILES + 1];
-char copy_buffer[F_PART_DATA_SIZE];
 
 /*
  * Notes on this version:
@@ -29,19 +26,21 @@ char copy_buffer[F_PART_DATA_SIZE];
 ** fsobj Level Methods
 ******************************************************************************/
 
+// checks if a file descriptor is valid and in use
 int32 chk_fd(int32 FD)
 {
     if (FD > OS_MAX_NUM_OPEN_FILES) return OS_FS_ERR_INVALID_FD;
-    if (FD <= 0)                        return OS_FS_ERR_INVALID_FD;
+    if (FD <= 0) return OS_FS_ERR_INVALID_FD;
 
     struct fd *filedes = &fd_tbl[FD];
     if (!filedes->file) return OS_FS_ERR_INVALID_FD;
-    if (filedes->ino != filedes->file->ino) return OS_FS_ERR_INVALID_FD;
+    if (filedes->ino == 0 || filedes->file->ino == 0) return OS_FS_ERR_INVALID_FD;
+    assert(filedes->ino == filedes->file->ino);
     return OS_FS_SUCCESS;
 }
 
 //finds the next free file
-uint32 newfile_get(struct fsobj **o)
+uint32 file_get_new(struct fsobj **o)
 {
     uint32 count = 0;
     while (count < MAX_NUM_FILES && files[count].ino) {
@@ -52,25 +51,24 @@ uint32 newfile_get(struct fsobj **o)
 
     **o = (struct fsobj) {
         //ino needs to be unique and nonzero, so ino is defined as index+1
-        .ino = count +1
+        .ino = count + 1
     };
     return OS_FS_SUCCESS;
 }
 
 uint32 file_insert(struct fsobj *o, char *path)
 {
+    assert(o && path && openfs);
+
     //paths should always begin with '/' but we do not need it here
     if (path[0] != '/') return OS_FS_ERR_PATH_INVALID;
     path++;
-
-    assert(o && path && openfs);
 
     if (!openfs->root) {
         if (strcmp(o->name, path) != 0) return OS_FS_ERR_PATH_INVALID;
         openfs->root = o;
         return OS_FS_SUCCESS;
     }
-
     assert(openfs->root->ino);
     struct fsobj *cur = openfs->root;
 
@@ -81,8 +79,8 @@ uint32 file_insert(struct fsobj *o, char *path)
     char *token = strtok(path_temp, delim);
 
     if (strcmp(token, cur->name) != 0) return OS_FS_ERR_PATH_INVALID;
-    //loop terminates when it finds a place to put o or determines path is invalid
 
+    //loop terminates when it finds a place to put o or determines path is invalid
     while (1) {
         if (token == NULL) {
             return OS_FS_ERR_PATH_INVALID;
@@ -129,10 +127,27 @@ uint32 file_insert(struct fsobj *o, char *path)
     return 0;
 }
 
-int32 file_open(char *path, permission_t permission)
+// Internally, FDs are considered unused when ino == 0
+static int32 fd_get(int32 ino)
+{
+    uint32 count = 1;
+    struct fd *filedes;
+
+    while (count <= OS_MAX_NUM_OPEN_FILES + 1 && fd_tbl[count].ino != 0) {
+        count++;
+    }
+    if (count == OS_MAX_NUM_OPEN_FILES + 1) return OS_FS_ERROR;
+
+    filedes =  &fd_tbl[count];
+    filedes->ino = ino;
+    filedes->access = NONE;
+    return count;
+}
+
+int32 file_open(char *path, enum fs_permissions permission)
 {
     assert(openfs);
-    if (!openfs->root) return OS_FS_ERR_PATH_TOO_LONG;
+    if (!openfs->root) return OS_FS_ERROR;
     if (!path) return OS_FS_ERR_INVALID_POINTER;
 
     // find the file
@@ -141,7 +156,7 @@ int32 file_open(char *path, permission_t permission)
     if (file->type != FSOBJ_FILE) return OS_FS_ERROR;
 
     // get a new fd
-    int32 FD = newfd_get(file->ino);
+    int32 FD = fd_get(file->ino);
     if (FD == OS_FS_ERROR) {
         return OS_FS_ERR_NO_FREE_FDS;
     }
@@ -189,10 +204,10 @@ int32 file_close_by_name(char *path)
 
 // converts from the cFE defined permission constants to internal permission type
 // unknown permissions return NONE, cFE should treat none as an error
-permission_t permission_cFE_to_COS(uint32 permission) {
+enum fs_permissions permission_cFE_to_COS(uint32 permission) {
     switch (permission) {
         case OS_READ_WRITE :
-            return READ_WRITE;
+            return READ & WRITE;
         case OS_WRITE_ONLY :
             return WRITE;
         case OS_READ_ONLY :
@@ -204,9 +219,9 @@ permission_t permission_cFE_to_COS(uint32 permission) {
     return 0;
 }
 
-uint32 permission_cos_to_cFE(permission_t permission) {
+uint32 permission_cos_to_cFE(enum fs_permissions  permission) {
     switch (permission) {
-        case READ_WRITE :
+        case READ & WRITE :
             return OS_READ_WRITE;
         case WRITE :
             return OS_WRITE_ONLY;
@@ -220,16 +235,16 @@ uint32 permission_cos_to_cFE(permission_t permission) {
 }
 
 // checks if a path is the right format for a path, and if it exists
-int32 path_chk_exists(const char *path)
+int32 path_exists(const char *path)
 {
-    int32 ret = path_chk_isvalid(path);
+    int32 ret = path_isvalid(path);
     if (ret != OS_FS_SUCCESS) return ret;
     if (file_find((char *)path) == NULL) return OS_FS_ERROR;
-    return 0;
+    return OS_FS_SUCCESS;
 }
 
 // checks if a path is the correct format, for example to be inserted
-int32 path_chk_isvalid(const char *path)
+int32 path_isvalid(const char *path)
 {
     if (path == NULL) return OS_FS_ERR_INVALID_POINTER;
     if (strlen(path) > OS_MAX_PATH_LEN) return OS_FS_ERR_PATH_TOO_LONG;
@@ -249,10 +264,10 @@ int32 path_chk_isvalid(const char *path)
 int32 path_translate(char *virt, char *local)
 {
     if (!virt || !local) return OS_FS_ERR_INVALID_POINTER;
-    int32 ret = path_chk_isvalid(virt);
+    int32 ret = path_isvalid(virt);
     if (ret != OS_FS_SUCCESS) return ret;
     if (!openfs->root) return OS_FS_ERR_PATH_INVALID;
-    ret = path_chk_exists(virt);
+    ret = path_exists(virt);
     if (ret != OS_FS_SUCCESS) return ret;
     strcpy(local, virt);
     return OS_FS_SUCCESS;
@@ -262,12 +277,10 @@ int32 path_translate(char *virt, char *local)
 ** f_part Level Methods
 ******************************************************************************/
 
-uint32 newpart_get(struct f_part **part)
+uint32 part_get_new(struct f_part **part)
 {
-    if (!ci) {
-        struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-        ci = &defci->ci;
-    }
+    struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+    struct cos_compinfo *ci = &defci->ci;
 
     *part = cos_page_bump_alloc(ci);
 
@@ -288,49 +301,49 @@ int32 file_read(int32 FD, void *buffer, uint32 nbytes)
     struct fd *filedes = &fd_tbl[FD];
 
     struct fsobj *o = filedes->file;
+    assert(o->refcnt >= 1);
     if (o->type != FSOBJ_FILE) return OS_FS_ERR_INVALID_FD;
     struct file_position *position = &filedes->position.file_pos;
     struct f_part *part = position->open_part;
-    if (o->refcnt < 1)                              return OS_FS_ERROR;
-    if (o->type == FSOBJ_DIR)                       return OS_FS_ERROR;
 
     // nbytes > number of bytes left in file, only number left are read
     if (nbytes > o->size - position->file_offset) {
         nbytes = o->size - position->file_offset;
     }
 
-    if (nbytes == 0)            return 0;
-    uint32 bytes_to_read        = nbytes;
+    if (nbytes == OS_FS_SUCCESS) return 0;
+    uint32 bytes_to_read = nbytes;
 
     if (o->memtype == DYNAMIC){
-        uint32 read_size; //the length of a continuous segment to be read from
         while (1) {
-            read_size = F_PART_DATA_SIZE - position->file_offset;
+            //read_size is the length of a continuous segment to be read from
+            uint32 read_size = F_PART_DATA_SIZE - position->file_offset;
             part = position->open_part;
             assert(part);
 
             if (bytes_to_read > read_size) {
                 memcpy(buffer, &part->data[position->part_offset], read_size);
 
-                buffer                      += read_size;
-                bytes_to_read               -= read_size;
-                position->file_offset       += read_size;
+                buffer                  += read_size;
+                bytes_to_read           -= read_size;
+                position->file_offset   += read_size;
 
                 if (!part->next) {
                     position->part_offset = F_PART_DATA_SIZE;
                     return nbytes - bytes_to_read;
                 }
-                position->open_part   = part->next;
+                position->open_part = part->next;
                 position->part_offset = 0;
+
             } else if (bytes_to_read == read_size) {
                 memcpy(buffer, &part->data[position->part_offset], read_size);
-                position->file_offset     += read_size;
+                position->file_offset += read_size;
                 if (!part->next) {
                     position->part_offset = F_PART_DATA_SIZE;
                     return nbytes;
                 }
-                position->open_part       = part->next;
-                position->part_offset     = 0;
+                position->open_part = part->next;
+                position->part_offset = 0;
                 return nbytes;
 
             // bytes_to_read < the continuous space left on f_part
@@ -367,8 +380,8 @@ int32 file_write(int32 FD, void *buffer, uint32 nbytes)
     if (o->refcnt < 1)                  return OS_FS_ERROR;
     if (o->memtype == STATIC)           return OS_FS_ERROR;
     if (o->type == FSOBJ_DIR)           return OS_FS_ERROR;
-
     if (nbytes == 0)                    return 0;
+
     uint32 bytes_to_write = nbytes;
     uint32 bytes_remaining = F_PART_DATA_SIZE - position->part_offset;
 
@@ -381,7 +394,7 @@ int32 file_write(int32 FD, void *buffer, uint32 nbytes)
         position->part_offset           = 0;
         if (position->open_part->next == NULL) {
             struct f_part *part;
-            newpart_get(&part);
+            part_get_new(&part);
             part->file                  = o;
             part->next                  = NULL;
             part->prev                  = position->open_part;
@@ -434,23 +447,21 @@ struct fsobj *file_find(char *path)
     return NULL;
 }
 
-int32 file_create(char *path, permission_t permission)
+int32 file_create(char *path, enum fs_permissions permission)
 {
     assert(path);
 
     struct fsobj *o;
-    if (newfile_get(&o) != OS_FS_SUCCESS) return OS_FS_ERROR;
-
+    if (file_get_new(&o) != OS_FS_SUCCESS) return OS_FS_ERROR;
     o->name = path_to_name(path);
     o->type = FSOBJ_FILE;
     o->size = 0;
     o->permission = permission;
+    o->memtype = DYNAMIC;
 
     struct f_part *part;
-    newpart_get(&part);
-    assert(part);
+    part_get_new(&part);
 
-    o->memtype = DYNAMIC;
     o->file_part = part;
     part->file = o;
     part->data = (char *) part + sizeof(struct f_part);
@@ -477,23 +488,26 @@ int32 file_rename(char *old_filename, char *new_filename)
     return OS_FS_SUCCESS;
 }
 
-// This is part of but not a full posix implementation
-// also because we are compiling with musl in cos and glibc in cFE
-// I needed to introduce a struct that has the data layout of cFE's stat struct
-int32 file_stat(char *path, struct hack_stat *filestats)
+// This is part of but not a full posix implementation,
+// stat has a lot of fields not applicable to us
+int32 file_stat(char *path, os_fstat_t *filestats)
 {
     struct fsobj *file = file_find(path);
     if (!file) return OS_FS_ERROR;
-    filestats->st_dev = 0;
-    filestats->st_ino = file->ino;
+    *filestats = (os_fstat_t) {
+        .st_dev = 0,
+        .st_ino = file->ino,
+        .st_size = file->size,
+        .st_blksize = F_PART_DATA_SIZE
+    };
+
     if (file->type == FSOBJ_FILE) {
         filestats->st_mode = S_IFREG;
     }
     if (file->type == FSOBJ_DIR) {
         filestats->st_mode = S_IFDIR;
     }
-    filestats->st_size = file->size;
-    filestats->st_blksize = F_PART_DATA_SIZE;
+
     return OS_FS_SUCCESS;
 }
 
@@ -512,11 +526,9 @@ int32 file_lseek(int32 FD, int32 offset, uint32 whence)
     if (whence == SEEK_SET) {
         if (offset < 0) return OS_FS_ERROR;
         target_offset = offset;
-
     } else if (whence == SEEK_CUR) {
         if (offset + (int32) position->file_offset < 0) return OS_FS_ERROR;
         target_offset = offset + position->file_offset;
-
     } else if (whence == SEEK_END) {
         if (offset + (int32) position->file_offset < 0) return OS_FS_ERROR;
         target_offset = offset + o->size;
@@ -535,7 +547,7 @@ int32 file_lseek(int32 FD, int32 offset, uint32 whence)
         // seeking past the end of a file writes zeros until that position
         if (position->open_part->next == NULL) {
             struct f_part *part;
-            newpart_get(&part);
+            part_get_new(&part);
             part->file                  = o;
             part->next                  = NULL;
             part->prev                  = position->open_part;
@@ -550,16 +562,24 @@ int32 file_lseek(int32 FD, int32 offset, uint32 whence)
     if (position->file_offset > o->size) {
         o->size = position->file_offset;
     }
-    assert(position->file_offset == target_offset);
     return target_offset;
 }
 
 int32 file_cp(char *src, char *dest)
 {
+    static char copy_buffer[F_PART_DATA_SIZE];
+
     int32 fd_src = file_open(src, READ);
     if (chk_fd(fd_src) != OS_FS_SUCCESS) return fd_src;
 
-    int32 fd_dest = file_create(dest, fd_tbl[fd_src].file->permission);
+    // if the dest already exists, overwrite it
+    int32 fd_dest = file_open(dest, WRITE);
+    if (chk_fd(fd_dest) == OS_FS_SUCCESS) {
+        //writing size to zero effectivly deletes all the old data
+        fd_tbl[fd_dest].file->size = 0;
+    } else {
+        fd_dest = file_create(dest, fd_tbl[fd_src].file->permission);
+    }
     if (chk_fd(fd_dest) != OS_FS_SUCCESS) return fd_dest;
 
     int32 to_copy = fd_tbl[fd_src].file->size;
@@ -601,8 +621,7 @@ int32 file_mv(char *src, char *dest)
     }
 
     file->name = path_to_name(dest);
-    file_insert(file, dest);
-    file = file_find(dest);
+    if (file_insert(file, dest) != OS_FS_SUCCESS) return OS_FS_ERROR;
     return OS_FS_SUCCESS;
 }
 
@@ -613,7 +632,6 @@ int32 file_mv(char *src, char *dest)
  */
 int32 file_FDGetInfo(int32 FD, OS_FDTableEntry *fd_prop)
 {
-
     int32 ret = chk_fd(FD);
     if (ret != OS_FS_SUCCESS) return OS_FS_ERR_INVALID_FD;
 
@@ -632,23 +650,6 @@ int32 file_FDGetInfo(int32 FD, OS_FDTableEntry *fd_prop)
 ** Dirent Level Methods
 ******************************************************************************/
 
-// Internally, FDs are considered unused when ino == 0
-int32 newfd_get(int32 ino)
-{
-    uint32 count = 1;
-    struct fd *filedes;
-
-    while (count <= OS_MAX_NUM_OPEN_FILES + 1 && fd_tbl[count].ino != 0) {
-        count++;
-    }
-    if (count == OS_MAX_NUM_OPEN_FILES + 1) return OS_FS_ERROR;
-
-    filedes =  &fd_tbl[count];
-    filedes->ino = ino;
-    filedes->access = NONE;
-    return count;
-}
-
 int32 dir_open(char *path)
 {
     struct fsobj *file;
@@ -657,7 +658,7 @@ int32 dir_open(char *path)
     if (file->ino == 0) return 0;
     if (file->type != FSOBJ_DIR) return 0;
 
-    int32 FD = newfd_get(file->ino);
+    int32 FD = fd_get(file->ino);
     if (FD > OS_MAX_NUM_OPEN_FILES + 1 || FD <= 0) return 0;
     file->refcnt++;
 
@@ -684,7 +685,7 @@ uint32 dir_close(int32 FD)
 
 void dir_rewind(int32 FD)
 {
-    if (FD > OS_MAX_NUM_OPEN_FILES + 1 || FD <= 0) return;
+    if (FD >= OS_MAX_NUM_OPEN_FILES || FD <= 0) return;
     struct fd *filedes = &fd_tbl[FD];
 
     if (filedes->ino == 0) return;
@@ -703,7 +704,7 @@ os_dirent_t *dir_read(int32 FD)
     if (filedes->ino == 0) return NULL;
     if (filedes->file->type != FSOBJ_DIR) return NULL;
 
-    struct hack_dirent *dir = &filedes->position.dir_pos.dirent;
+    os_dirent_t *dir = &filedes->position.dir_pos.dirent;
 
     switch (filedes->position.dir_pos.status) {
         case NORMAL :
@@ -721,7 +722,7 @@ os_dirent_t *dir_read(int32 FD)
             strcpy(dir->d_name, "..");
             dir->d_ino = 0;
             filedes->position.dir_pos.status = PARENT_DIR_LINK;
-            return (os_dirent_t *)dir;
+            return dir;
     }
 
     if (filedes->position.dir_pos.cur == filedes->position.dir_pos.open_dir) {
@@ -746,7 +747,7 @@ int32 file_mkdir(char *path)
 {
     assert(path);
     struct fsobj *o;
-    if (newfile_get(&o)) return OS_FS_ERR_DRIVE_NOT_CREATED;
+    if (file_get_new(&o)) return OS_FS_ERR_DRIVE_NOT_CREATED;
     o->name = path_to_name(path);
     o->type = FSOBJ_DIR;
     o->next = NULL;
@@ -789,8 +790,8 @@ int32 file_rmdir(char *path)
 
 int32 file_rm(struct fsobj *o)
 {
-    // I think I should keep a file from being deleted if it is open, rather than closing it
-    //file_close_by_ino(o->ino);
+    // TODO, pass an error back out of library if someone implicitly tries to close open file
+    //assert(o->refcnt == 0);
     assert(o && o->child == NULL);
     // if o is first in list of children, update parent link to it
     if (o->prev == NULL && o->parent) {
@@ -845,9 +846,9 @@ uint32 fs_mount(char *devname, char *mountpoint)
             // but to load tar I need to pre-mount the first filesystem
             if (strcmp(mountpoint, "/ram") && filesystems[i].root) return OS_FS_ERROR;
             struct fsobj *o;
-            if (newfile_get(&o))        return OS_FS_ERROR;
-            filesystems[i].mountpoint   = mountpoint;
-            openfs                      = &filesystems[i];
+            if (file_get_new(&o)) return OS_FS_ERROR;
+            filesystems[i].mountpoint = mountpoint;
+            openfs = &filesystems[i];
             if (!filesystems[i].root) {
                 file_mkdir(mountpoint);
             }
@@ -870,52 +871,33 @@ uint32 fs_unmount(char *mountpoint) {
     return OS_FS_ERROR;
 }
 
-/*
- * Given a pointer to an FS, initializes values and fsobj for root
- */
-uint32 fs_init(struct fs *filesys, char *devname, char *volname, uint32 blocksize, uint32 numblocks)
+uint32 fs_init(char *devname, char *volname, uint32 blocksize, uint32 numblocks)
 {
-    filesys->devname        = devname;
-    filesys->volname        = volname;
-    filesys->mountpoint     = "";
-    filesys->blocksize      = blocksize;
-    filesys->numblocks      = numblocks;
-    filesys->root           = NULL;
-    return OS_FS_SUCCESS;
-}
-
-uint32 newfs_init(char *devname, char *volname, uint32 blocksize, uint32 numblocks)
-{
-    uint32 count = 1, ret = 0;
+    uint32 count = 0, ret = 0;
     if (!devname)                           return OS_FS_ERR_INVALID_POINTER;
     if (blocksize == 0 || numblocks == 0)   return OS_FS_ERROR;
     if (strlen(devname) >= OS_FS_DEV_NAME_LEN || strlen(volname) >= OS_FS_VOL_NAME_LEN)
         return OS_FS_ERROR;
 
-
-    // the first filesystem is always the tar
-    if (!filesystems[0].devname) {
-        ret = tar_load();
-        if (ret != OS_FS_SUCCESS) return ret;
-        ret = fs_init(&filesystems[0], devname, volname, blocksize, numblocks);
-        if (ret != OS_FS_SUCCESS) return ret;
-        return OS_FS_SUCCESS;
-    }
-
-    // filesystem[0] is initialized during OS_FS_Init
-    if (strcmp(devname, filesystems[0].devname) == 0) return OS_SUCCESS;
-
     while (count < MAX_NUM_FS && filesystems[count].devname) {
         count++;
     }
     if (count == MAX_NUM_FS) return OS_FS_ERR_DEVICE_NOT_FREE;
-    ret = fs_init(&filesystems[count], devname, volname, blocksize, numblocks);
-    if (ret !=OS_FS_SUCCESS) return ret;
+
+    filesystems[count] = (struct fs) {
+        .devname = devname,
+        .volname = volname,
+        .mountpoint = "",
+        .blocksize = blocksize,
+        .numblocks = numblocks,
+        .root = NULL
+    };
+
     openfs = &filesystems[count];
     return OS_FS_SUCCESS;
 }
 
-int32 rmfs(char *devname)
+int32 fs_remove(char *devname)
 {
     if (!devname) return OS_FS_ERR_INVALID_POINTER;
 
@@ -935,19 +917,20 @@ int32 rmfs(char *devname)
 
 }
 
-int32 filesys_GetPhysDriveName(char *PhysDriveName, char *MountPoint)
+int32 fs_get_drive_name(char *PhysDriveName, char *MountPoint)
 {
     uint32 i;
     for (i = 0 ; i < MAX_NUM_FS && filesystems[i].devname != NULL ; i++) {
         if (filesystems[i].mountpoint && !strcmp(filesystems[i].mountpoint,MountPoint)) {
-            memcpy(PhysDriveName, "RAM FS\n",7);
+            char *new_name = "Ram FS\n";
+            memcpy(PhysDriveName, new_name, strlen(new_name));
             return OS_FS_SUCCESS;
         }
     }
     return OS_FS_ERROR;
 }
 
-int32 filesys_GetFsInfo(os_fsinfo_t *filesys_info)
+int32 fs_get_info(os_fsinfo_t *filesys_info)
 {
     filesys_info->MaxFds = MAX_NUM_FILES;
     uint32 i, count = 0;
