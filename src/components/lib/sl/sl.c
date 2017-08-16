@@ -141,18 +141,16 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	 */
 	if (unlikely(t->state == SL_THD_BLOCKED_TIMEOUT || t->state == SL_THD_BLOCKED)) {
 		if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
-		if (block_type == SL_THD_BLOCKED_TIMEOUT) goto timeout;
-		else                                      goto done;
+		goto update;
 	}
 
 	assert(t->state == SL_THD_RUNNABLE);
-	t->state = block_type;
 	sl_mod_block(sl_mod_thd_policy_get(t));
 
-timeout:
-	sl_timeout_block(t, timeout);
+update:
+	t->state = block_type;
+	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
 
-done:
 	return 0;
 }
 

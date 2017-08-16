@@ -443,7 +443,8 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			if (currbudget < t->budget && cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals()->sched_tcap, (t->budget - currbudget), t->prio)) assert(0);
 		}
 	}
-	assert(t->state == SL_THD_RUNNABLE);
+
+	assert(t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
 	sl_cs_exit();
 
 	/* TODO: handle `-EPERM` in cos_switch() to interrupt thread or cos_asnd to child comp with its own tcap here. */

@@ -764,7 +764,7 @@ int
 cos_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_time_t timeout, arcvcap_t rcv, sched_tok_t stok)
 {
 	return call_cap_op(c, (stok >> 16), tc << 16 | rcv, (prio << 32) >> 32,
-	                   ((prio << 16) >> 32) | ((stok << 16) >> 16), timeout);
+	                   (((prio << 16) >> 48) << 16) | ((stok << 16) >> 16), timeout);
 }
 
 int
