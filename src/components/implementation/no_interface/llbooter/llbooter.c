@@ -38,7 +38,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 			tot += cobj_sect_size(h, j);
 		}
 		printc("cobj %s:%d found at %p:%x, size %x -> %x\n",
-		       h->name, h->id, hs[i-1], size, tot, cobj_sect_get(hs[i-1], 0)->vaddr);
+			   h->name, h->id, hs[i-1], size, tot, cobj_sect_get(hs[i-1], 0)->vaddr);
 
 		end   = start + round_up_to_cacheline(size);
 		hs[i] = h = (struct cobj_header*)end;
@@ -47,7 +47,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 	
 	hs[n] = NULL;
 	printc("cobj %s:%d found at %p -> %x\n",
-	       hs[n-1]->name, hs[n-1]->id, hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);
+		   hs[n-1]->name, hs[n-1]->id, hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);
 }
 
 static int
@@ -110,18 +110,31 @@ boot_spd_end(struct cobj_header *h)
 int
 boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info)
 {
-	int i = 0;
+	unsigned int i;
 
-	for (i = 0 ; i < (int)h->nsymb ; i++) {
+	printc("cobj: getting spd symbs for header %s, nsymbs %d.\n", h->name, h->nsymb);
+	for (i = 0 ; i < h->nsymb ; i++) {
 		struct cobj_symb *symb;
 
 		symb = cobj_symb_get(h, i);
 		assert(symb);
-		if (COBJ_SYMB_UNDEF == symb->type) break;
+
+		if (symb->type == COBJ_SYMB_UNDEF) {
+			printc("cobj: undefined symbol %s: nsymb %d, usercap offset %d\n", symb->name, i, symb->user_caps_offset);
+			continue;
+		} else if (symb->type == COBJ_SYMB_EXPORTED) {
+			printc("cobj: exported symbol %s: nsymb %d, addr %x\n", symb->name, i, symb->vaddr);
+			continue;
+		}
 
 		switch (symb->type) {
 		case COBJ_SYMB_COMP_INFO:
+			printc("cobj: comp info %s: addr %x\n", symb->name, symb->vaddr);
 			*comp_info = symb->vaddr;
+			break;
+		case COBJ_SYMB_COMP_PLT:
+			/* Otherwise known as ST_user_caps. */
+			printc("cobj: capability array %s: addr %x\n", symb->name, symb->vaddr);
 			break;
 		default:
 			printc("boot: Unknown symbol type %d\n", symb->type);
@@ -183,19 +196,19 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 		char *lsrc, *dsrc;
 		int left, dest_doff;
 
-		sect       = cobj_sect_get(h, i);
+		sect	   = cobj_sect_get(h, i);
 		/* virtual address in the destination address space */
 		dest_daddr = sect->vaddr;
 		/* where we're copying from in the cobj */
-		lsrc       = cobj_sect_contents(h, i);
+		lsrc	   = cobj_sect_contents(h, i);
 		/* how much is left to copy? */
-		left       = cobj_sect_size(h, i);
+		left	   = cobj_sect_size(h, i);
 
 		/* Initialize memory. */
 		if (!(sect->flags & COBJ_SECT_KMEM) &&
-		    (first_time || !(sect->flags & COBJ_SECT_INITONCE))) {
+			(first_time || !(sect->flags & COBJ_SECT_INITONCE))) {
 			if (sect->flags & COBJ_SECT_ZEROS) {
-      				memset(start_addr + (dest_daddr - init_daddr), 0, left);
+					memset(start_addr + (dest_daddr - init_daddr), 0, left);
 			} else {
 				memcpy(start_addr + (dest_daddr - init_daddr), lsrc, left);
 			}
@@ -218,6 +231,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 int
 boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, pgtblcap_t pt)
 {
+	/* Allocating memory and mapping it to the booter's address space */
 	boot_comp_map_memory(h, spdid, pt);
 	boot_comp_map_populate(h, spdid, comp_info, 1);
 	return 0;
@@ -285,7 +299,7 @@ cos_init(void)
 	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj  = (int)cos_comp_info.cos_poly[1];
 
-	deps      = (struct deps *)cos_comp_info.cos_poly[2];
+	deps     = (struct deps *)cos_comp_info.cos_poly[2];
 	boot_init_ndeps();
 
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];

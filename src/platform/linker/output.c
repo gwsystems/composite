@@ -418,6 +418,12 @@ make_cobj_caps(struct service_symbs *s, struct cobj_header *h)
 		struct symb *symb = &undef_symbs->symbs[i];
 		struct cap_ret_info cri;
 
+		/*
+		 * Before creating the cobj, we add ncap to nsymb because we want to track both undefined and exports.
+		 * In order to get the actual symbol index of the current undefined symbol, we need to undo that operation.
+		 */
+		int symbol_idx = h->nsymb - h->ncap + i;
+
 		if (cap_get_info(s, &cri, symb)) return -1;
 
 		cap_off = i;
@@ -433,6 +439,12 @@ make_cobj_caps(struct service_symbs *s, struct cobj_header *h)
 		if (cobj_cap_init(h, cap_off, cap_off, dest_id, sfn, cstub, sstub, fault)) return -1;
 
 		printl(PRINT_DEBUG, "capability from %s:%d to %s:%d\n", s->obj, s->cobj->id, cri.serv->obj, dest_id);
+
+		printl(PRINT_DEBUG, "\tInserting undefined symbol %s at offset %d into user caps array.\n", cri.csymb->name, cap_off + 1);
+		if (cobj_symb_init(h, symbol_idx, cri.csymb->name, COBJ_SYMB_UNDEF, sfn, cap_off + 1)) {
+			printl(PRINT_HIGH, "Couldn't create undefined symbol %s.\n", cri.csymb->name);
+			return -1;
+		}
 	}
 
 	return 0;
@@ -742,7 +754,18 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 		       all->obj, service_get_spdid(all), heap_ptr_val, h, obj_size);
 		memcpy(heap_ptr_val, h, h->size);
 		*heap_ptr = (void*)(((int)heap_ptr_val) + obj_size);
+
+		/* Output cobject file. */
+		char filename[32];
+		sprintf(filename, "%s.co", &all->obj[5]);
+		printl(PRINT_HIGH, "Outputting co to file %s\n", filename);
+		int co_fd = open(filename, O_WRONLY | O_CREAT);
+		if (write(co_fd, h, h->size) == -1) {
+			printl(PRINT_HIGH, "Error outputting co.\n");
+		}
+		close(co_fd);
 	}
+
 	all = first;
 	*heap_ptr = (int*)(round_up_to_page((int)*heap_ptr));
 	ci->cos_poly[1] = (vaddr_t)n;
@@ -755,8 +778,6 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 	llboot_mem = (unsigned int)*heap_ptr - boot->lower_addr;
 	boot->heap_top = (unsigned int)*heap_ptr; /* ensure that we copy all of the meta-data as well */
 }
-
-
 
 struct service_symbs *
 find_obj_by_name(struct service_symbs *s, const char *n)

@@ -79,32 +79,36 @@ int make_cobj_symbols(struct service_symbs *s, struct cobj_header *h)
                 const char *name;
                 u32_t type;
         };
+
         struct name_type_map map[] = {
                 {.name = COMP_INFO, .type = COBJ_SYMB_COMP_INFO},
+                {.name = COMP_PLT, .type = COBJ_SYMB_COMP_PLT},
                 {.name = NULL, .type = 0}
         };
 
-        /* Create the sumbols */
+        /* Create the symbols */
         printl(PRINT_DEBUG, "%s loaded by Composite\n", s->obj);
         printl(PRINT_DEBUG, "\tMap symbols:\n");
         for (i = 0 ; map[i].name != NULL ; i++) {
                 addr = (u32_t)get_symb_address(&s->exported, map[i].name);
-                printl(PRINT_DEBUG, "\tname %s, addr %x, nsymb %d\n", map[i].name, addr, i);
-                if (addr && cobj_symb_init(h, symb_offset++, map[i].name, map[i].type, addr)) {
-                        printl(PRINT_HIGH, "boot component: couldn't create cobj symb for %s (%d).\n", map[i].name, i);
+                printl(PRINT_DEBUG, "\tsymb %s, addr %x, nsymb %d\n", map[i].name, addr, i);
+
+                /* ST_user_caps offset is 0 when not relevant. */
+                if (addr && cobj_symb_init(h, symb_offset++, map[i].name, map[i].type, addr, 0)) {
+                        printl(PRINT_HIGH, "boot component: couldn't create map cobj symb for %s (%d).\n", map[i].name, i);
                         return -1;
                 }
         }
 
-        /* Begin to write all symbols */
         printl(PRINT_DEBUG, "\tExported symbols:\n");
-        while (s) {
-                struct symb_type exports = s->exported;
-                for (i = 0; i < exports.num_symbs; i++) {
-                        printl(PRINT_DEBUG, "\tname %s, addr %x, nsymb %d\n", exports.symbs[i].name, exports.symbs[i].addr, i);
-                        cobj_symb_init(h, symb_offset++, exports.symbs[i].name, COBJ_SYMB_EXPORTED, i);
+        for (i = 0 ; i < s->exported.num_symbs ; i++) {
+                printl(PRINT_DEBUG, "\tsymb %s, nsymb %d\n", s->exported.symbs[i].name, i);
+
+                /* ST_user_caps offset is 0 when not relevant. */
+                if (cobj_symb_init(h, symb_offset++, s->exported.symbs[i].name, COBJ_SYMB_EXPORTED, s->exported.symbs[i].addr, 0)) {
+                        printl(PRINT_HIGH, "boot component: couldn't create exported cobj symb for %s (%d).\n", s->exported.symbs[i].name, i);
+                        return -1;
                 }
-                s = s->next;
         }
 
         return 0;
@@ -384,8 +388,10 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
                         if (csg(i)->cobj_flags & COBJ_SECT_ZEROS) continue;
                         size += csg(i)->len;
                 }
-                nsymbs = ret_data->exported.num_symbs;
+
+                nsymbs = ret_data->exported.num_symbs + 2; /* +2 is for COMP_INFO and COMP_PLT */
                 ncaps  = ret_data->undef.num_symbs;
+                nsymbs += ncaps; /* We must track undefined symbols in addition to exports */
                 nsects = MAXSEC_S;
 
                 obj_size = cobj_size_req(nsects, size, nsymbs, ncaps);

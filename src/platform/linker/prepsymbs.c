@@ -35,6 +35,7 @@ inline void add_kexport(struct service_symbs *ss, const char *name)
 void add_kernel_exports(struct service_symbs *service)
 {
         add_kexport(service, COMP_INFO);
+        add_kexport(service, COMP_PLT);
         add_kexport(service, SCHED_NOTIF);
 
         return;

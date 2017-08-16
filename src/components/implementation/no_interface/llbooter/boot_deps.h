@@ -36,6 +36,8 @@ boot_deps_map_sect(int spdid, vaddr_t dest_daddr)
 	vaddr_t addr = (vaddr_t) cos_page_bump_alloc(&boot_info);
 	assert(addr);
 
+        /* TODO:ZD cos_mem_alias_at with our current boot-info rather than the new component */
+        /* Set compinfo pointer to point at boot_info */
 	if (cos_mem_alias_at(new_comp_cap_info[spdid].compinfo, dest_daddr, &boot_info, addr)) BUG();
 
 	return addr;
@@ -71,6 +73,7 @@ boot_compinfo_init(int spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 	assert(*pt);
 
 	new_comp_cap_info[spdid].compinfo = &new_compinfo[spdid];
+        /* TODO:ZD new_comp_cap_info: metadata structure for this specific component */
 	cos_compinfo_init(new_comp_cap_info[spdid].compinfo, *pt, *ct, 0,
 				  (vaddr_t)vaddr, 4, &boot_info);
 }
@@ -107,6 +110,7 @@ boot_newcomp_create(int spdid, struct cos_compinfo *comp_info)
 static void
 boot_bootcomp_init(void)
 {
+        /* TODO:ZD Create memory for component and create "component" */
 	cos_meminfo_init(&boot_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 
 	cos_compinfo_init(&boot_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,

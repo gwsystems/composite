@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 static inline int
 is_booter_loaded(struct service_symbs *s)

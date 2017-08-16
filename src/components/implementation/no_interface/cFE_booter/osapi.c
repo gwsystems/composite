@@ -433,3 +433,9 @@ void OS_ApplicationExit(int32 Status)
 {
     PANIC("Application exit invoked!");
 }
+
+/* TODO: Linker test, delete me. */
+void call_inv(void) { }
+
+/* TODO: Linker test, delete me. */
+void call(void) { }
