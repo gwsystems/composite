@@ -204,7 +204,7 @@ int32 file_close_by_name(char *path)
 
 // converts from the cFE defined permission constants to internal permission type
 // unknown permissions return NONE, cFE should treat none as an error
-enum fs_permissions permission_cFE_to_COS(uint32 permission) {
+enum fs_permissions permission_cFE_to_cos(uint32 permission) {
     switch (permission) {
         case OS_READ_WRITE :
             return READ & WRITE;
@@ -213,7 +213,7 @@ enum fs_permissions permission_cFE_to_COS(uint32 permission) {
         case OS_READ_ONLY :
             return READ;
         default :
-            return NONE;
+            PANIC("Invalid permission from cFE");
     }
     PANIC("unreachable statement");
     return 0;

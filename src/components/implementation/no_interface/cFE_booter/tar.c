@@ -86,7 +86,7 @@ uint32 tar_parse()
             return OS_FS_SUCCESS;
         }
         if (tar_hdr_read(offset, o))           return OS_FS_ERR_DRIVE_NOT_CREATED;
-        if (file_insert(o, offset + tar_start)) return OS_FS_ERR_DRIVE_NOT_CREATED;
+        if (file_insert(o, offset + tar_start) == OS_FS_SUCCESS) return OS_FS_ERR_DRIVE_NOT_CREATED;
 
         /*
          * data is aligned to 512 byte blocks.  a header is 500 bytes, and
@@ -106,14 +106,17 @@ uint32 tar_hdr_read(uint32 tar_offset, struct fsobj *file)
 {
     assert(tar_offset < tar_size);
     assert(file->ino > 0);
+
     struct f_part *part;
     part_get_new(&part);
     file->memtype = STATIC;
+
     char *location = tar_start;
     location += tar_offset;
     memmove(location + 1, location, strlen(location));
     location[0] = '/';
     file->name = path_to_name(location);
+
     if (*(location + strlen(location) - 1) == '/') {
         file->type              = FSOBJ_DIR;
         file->size              = 0;
