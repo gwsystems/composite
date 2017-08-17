@@ -237,7 +237,8 @@ int          sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cyc
 
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);
-int  sl_thd_wakeup_no_cs(struct sl_thd *t);
+/* @rm: if 1, remove thread from timeout queue if blocked on timeout */
+int  sl_thd_wakeup_no_cs(struct sl_thd *t, int rm);
 
 void sl_thd_yield(thdid_t tid);
 void sl_thd_yield_cs_exit(thdid_t tid);
@@ -347,7 +348,7 @@ sl_timeout_wakeup_expired(cycles_t now)
 
 		assert(th->wakeup_cycs == 0);
 		th->wakeup_cycs = now;
-		sl_thd_wakeup_no_cs(th);
+		sl_thd_wakeup_no_cs(th, 0);
 	} while (heap_size(sl_timeout_heap()));
 }
 
@@ -356,14 +357,14 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
+	struct sl_global       *slg = sl__globals();
 
 	if (t->properties & SL_THD_PROPERTY_SEND) {
-		return cos_sched_asnd(t->sndcap, sl__globals()->timeout_next, sl__globals()->sched_rcv, tok);
+		return cos_sched_asnd(t->sndcap, slg->timeout_next, slg->sched_rcv, tok);
 	} else if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
-		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
-				  sl__globals()->timeout_next, sl__globals()->sched_rcv, tok);
+		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio, slg->timeout_next, slg->sched_rcv, tok);
 	} else {
-		return cos_defswitch(sl_thd_thdcap(t), t->prio, sl__globals()->timeout_next, tok);
+		return cos_defswitch(sl_thd_thdcap(t), t->prio, slg->timeout_next, tok);
 	}
 }
 
@@ -402,6 +403,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	sched_tok_t           tok;
 	cycles_t              now;
 	s64_t                 offset;
+	int                   ret;
 
 	/* Don't abuse this, it is only to enable the tight loop around this function for races... */
 	if (unlikely(!sl_cs_owner())) sl_cs_enter();
@@ -431,6 +433,11 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			t = sl_mod_thd_get(pt);
 	}
 
+	if (t == sl__globals()->idle_thd) {
+		sl_cs_exit();
+		return -EAGAIN;
+	}
+
 	if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
 		assert(t->budget && t->period);
 
@@ -440,14 +447,17 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			t->last_replenish = now;
 			currbudget        = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
 			/* TODO: need to change logic for SNDCAP with tcap_delegate, and error handling */
-			if (currbudget < t->budget && cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals()->sched_tcap, (t->budget - currbudget), t->prio)) assert(0);
+			if (currbudget < t->budget && cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals()->sched_tcap,
+			    currbudget - t->budget, t->prio)) assert(0);
 		}
 	}
-	assert(t->state == SL_THD_RUNNABLE);
+	assert(t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
 	sl_cs_exit();
 
 	/* TODO: handle `-EPERM` in cos_switch() to interrupt thread or cos_asnd to child comp with its own tcap here. */
-	return sl_thd_activate(t, tok);
+	ret = sl_thd_activate(t, tok);
+	//printc("#%u=>%u:%d#", cos_thdid(), t->thdid, ret);
+	return ret;
 }
 
 static inline int

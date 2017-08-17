@@ -29,7 +29,7 @@ typedef unsigned long tcap_res_t;
 typedef unsigned long tcap_time_t;
 typedef u64_t         tcap_prio_t;
 typedef u64_t         tcap_uid_t;
-typedef u32_t         sched_tok_t;
+typedef unsigned long sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
 
 

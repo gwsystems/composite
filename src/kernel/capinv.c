@@ -735,6 +735,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 
 			next = rcvt;
 			/* tcap inheritance here...use the current tcap to process events */
+			tcap_next = tcap;
 			timeout = TCAP_TIME_NIL;
 			goto done;
 		}

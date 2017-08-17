@@ -257,6 +257,8 @@ print_cycles(void)
 	}
 }
 
+#define SCHED_TIMEOUT (1 * 1000 * cycs_per_usec)
+
 /* Called once from RK init thread. The one in while(1) */
 void
 cos_resume(void)
@@ -271,7 +273,7 @@ cos_resume(void)
 
 		do {
 			unsigned int contending;
-			cycles_t cycles;
+			cycles_t cycles, now;
 			int pending, blocked, irq_line;
 			thdid_t tid;
 			tcap_time_t timeout = 0, thd_timeout;
@@ -289,6 +291,8 @@ cos_resume(void)
 		 	 */
 
 			do {
+				rdtscll(now);
+				timeout = tcap_cyc2time(now + SCHED_TIMEOUT); 
 				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, timeout, 
 						        NULL, &tid, &blocked, &cycles, &thd_timeout);
 

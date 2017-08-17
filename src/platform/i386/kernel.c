@@ -155,14 +155,13 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	comp_init();
 	thd_init();
 	paging_init();
-#ifdef ENABLE_VGA
-	vga_high_init();
-#endif
-
 	kern_boot_comp();
 	smp_init();
 	timer_init();
 	lapic_timer_init();
+#ifdef ENABLE_VGA
+	vga_high_init();
+#endif
 	kern_boot_upcall();
 	/* should not get here... */
 	khalt();

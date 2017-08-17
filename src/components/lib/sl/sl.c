@@ -128,11 +128,6 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	assert(t);
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
 
-	if (unlikely(t->state == SL_THD_WOKEN)) {
-		t->state = SL_THD_RUNNABLE;
-		return 1;
-	}
-
 	/*
 	 * If an AEP/a child COMP was blocked and an interrupt caused it to wakeup and run
 	 * but blocks itself before the scheduler could see the wakeup event.. Scheduler
@@ -141,18 +136,17 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	 */
 	if (unlikely(t->state == SL_THD_BLOCKED_TIMEOUT || t->state == SL_THD_BLOCKED)) {
 		if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
-		if (block_type == SL_THD_BLOCKED_TIMEOUT) goto timeout;
-		else                                      goto done;
+
+		goto update;
 	}
 
 	assert(t->state == SL_THD_RUNNABLE);
-	t->state = block_type;
 	sl_mod_block(sl_mod_thd_policy_get(t));
 
-timeout:
-	sl_timeout_block(t, timeout);
+update:
+	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
+	t->state = block_type;
 
-done:
 	return 0;
 }
 
@@ -241,21 +235,20 @@ done:
 }
 
 /*
+ * @rm: if 1, also remove from timeout queue if it was blocked on SL_THD_BLOCKED_TIMEOUT.
  * @return: 1 if it's already RUNNABLE.
  *          0 if it was woken up in this call
  */
 int
-sl_thd_wakeup_no_cs(struct sl_thd *t)
+sl_thd_wakeup_no_cs(struct sl_thd *t, int rm)
 {
 	assert(t);
 
-	if (unlikely(t->state == SL_THD_RUNNABLE)) {
-		t->state = SL_THD_WOKEN;
-		return 1;
-	}
+	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1;
 
 	/* TODO: for AEP threads, wakeup events from kernel could be level-triggered. */
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
+	if (rm && t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
 	t->state = SL_THD_RUNNABLE;
 	sl_mod_wakeup(sl_mod_thd_policy_get(t));
 
@@ -273,8 +266,7 @@ sl_thd_wakeup(thdid_t tid)
 	t = sl_thd_lkup(tid);
 	if (unlikely(!t)) goto done;
 
-	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
-	if (sl_thd_wakeup_no_cs(t)) goto done;
+	if (sl_thd_wakeup_no_cs(t, 1)) goto done;
 	sl_cs_exit_schedule();
 
 	return;
@@ -594,7 +586,7 @@ sl_sched_loop(void)
 				}
 				sl_thd_block_no_cs(t, state, abs_timeout);
 			} else if (!cycles) { /* ignore if this is a budget expiry notification */
-				sl_thd_wakeup_no_cs(t);
+				sl_thd_wakeup_no_cs(t, 1);
 			}
 
 			sl_cs_exit();
