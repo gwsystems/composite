@@ -243,7 +243,7 @@ done:
  *          0 if it was woken up in this call
  */
 int
-sl_thd_wakeup_no_cs(struct sl_thd *t)
+sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 {
 	assert(t);
 
@@ -260,6 +260,15 @@ sl_thd_wakeup_no_cs(struct sl_thd *t)
 	return 0;
 }
 
+int
+sl_thd_wakeup_no_cs(struct sl_thd *t)
+{
+	assert(t);
+
+	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
+	return sl_thd_wakeup_no_cs_rm(t);
+}
+
 void
 sl_thd_wakeup(thdid_t tid)
 {
@@ -271,7 +280,6 @@ sl_thd_wakeup(thdid_t tid)
 	t = sl_thd_lkup(tid);
 	if (unlikely(!t)) goto done;
 
-	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
 	if (sl_thd_wakeup_no_cs(t)) goto done;
 	sl_cs_exit_schedule();
 
