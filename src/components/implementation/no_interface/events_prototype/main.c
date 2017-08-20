@@ -1,4 +1,8 @@
+#include <locale.h>
 #include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
 
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
@@ -67,27 +71,62 @@ sl_lock_release_rs(struct sl_lock *lock)
 /* This is a stub that rust calls to "assign_thread_data". It's fine for it to
  * do nothing for now
  */
+#define _NSIG 65
 
-/* struct plenty_of_data {
- *	char data[8 * 1024];
- * };
- * struct plenty_of_data backing_thread_data[SL_MAX_NUM_THDS];
- * void *                thread_data[SL_MAX_NUM_THDS];
-*/
+struct pthread {
+	struct pthread *self;
+	void **dtv, *unused1, *unused2;
+	uintptr_t sysinfo;
+	uintptr_t canary, canary2;
+	pid_t tid, pid;
+	int tsd_used, errno_val;
+	volatile int cancel, canceldisable, cancelasync;
+	int detached;
+	unsigned char *map_base;
+	size_t map_size;
+	void *stack;
+	size_t stack_size;
+	void *start_arg;
+	void *(*start)(void *);
+	void *result;
+	struct __ptcb *cancelbuf;
+	void **tsd;
+	pthread_attr_t attr;
+	volatile int dead;
+	struct {
+		volatile void *volatile head;
+		long off;
+		volatile void *volatile pending;
+	} robust_list;
+	int unblock_cancel;
+	volatile int timer_id;
+	locale_t locale;
+	volatile int killlock[2];
+	volatile int exitlock[2];
+	volatile int startlock[2];
+	unsigned long sigmask[_NSIG/8/sizeof(long)];
+	char *dlerror_buf;
+	int dlerror_flag;
+	void *stdio_locks;
+	uintptr_t canary_at_end;
+	void **dtv_copy;
+};
+
+struct pthread backing_thread_data[SL_MAX_NUM_THDS];
+void *                thread_data[SL_MAX_NUM_THDS];
 
 void
 assign_thread_data(struct sl_thd *thread)
 {
-	/* struct cos_compinfo *ci     = cos_compinfo_get(cos_defcompinfo_curr_get());
-	 * thdcap_t             thdcap = thread->thdcap;
-	 * thdid_t              thdid  = thread->thdid;
-	 *
-	 * thread_data[thdid] = &backing_thread_data[thdid].data;
-	 * printc("thdcap is %d\n", (int)thdcap);
-	 * printc("Thread data is %p\n", thread_data[thdid]);
-	 * printc("Thread data address is %p\n", &thread_data[thdid]);
-	 * cos_thd_mod(ci, thdcap, &thread_data[thdid]);
-	 */
+	struct cos_compinfo *ci     = cos_compinfo_get(cos_defcompinfo_curr_get());
+	thdcap_t             thdcap = sl_thd_thdcap(thread);
+	thdid_t              thdid  = thread->thdid;
+
+	/* HACK: We setup some thread specific data to make musl stuff work with sl threads */
+	backing_thread_data[thdid].tsd = calloc(1024, sizeof(void*));
+
+	thread_data[thdid] = &backing_thread_data[thdid];
+	cos_thd_mod(ci, thdcap, &thread_data[thdid]);
 }
 
 extern void rust_init();

@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-#[macro_use]
 extern crate lib_composite;
 use lib_composite::kernel_api::DefKernelAPI;
 use lib_composite::sl::{ThreadParameter, Sl};
@@ -11,15 +10,13 @@ use channel::{Channel, ChannelHandle};
 
 #[no_mangle]
 pub extern fn rust_init() {
-    println!("This a print from rust!");
+    println!("This a print from Rust!");
 
     let api = unsafe {
         DefKernelAPI::assert_already_initialized()
     };
 
     Sl::start_scheduler_loop_without_initializing(api, 30, move |sl: Sl| {
-        println!("This a print from the new first thread!");
-
         println!("Entered scheduler loop");
         let channel: &Channel<u64> = &Channel::new(sl);
         println!("Got handle");
