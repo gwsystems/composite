@@ -12,6 +12,7 @@
 #include <cos_defkernel_api.h>
 #include <llprint.h>
 #include <sl.h>
+#include <sl_lock.h>
 #include <sl_thd.h>
 
 volatile int* null_ptr = NULL;
@@ -29,14 +30,24 @@ libc_syscall_override(cos_syscall_t fn, int syscall_num)
 	cos_syscalls[syscall_num] = fn;
 }
 
+struct sl_lock stdout_lock = SL_LOCK_STATIC_INIT();
+
+ssize_t
+write_bytes_to_stdout(const char *buf, size_t count)
+{
+	size_t i;
+	for(i = 0; i < count; i++) printc("%c", buf[i]);
+	return count;
+}
+
 ssize_t
 cos_write(int fd, const void *buf, size_t count)
 {
-	// You shouldn't write to stdin anyway, so don't bother special casing it
+	/* You shouldn't write to stdin anyway, so don't bother special casing it */
 	if (fd == 1 || fd == 2) {
-		size_t i;
-		char *d = (char *)buf;
-		for(i = 0; i < count; i++) printc("%c", d[i]);
+		sl_lock_take(&stdout_lock);
+		write_bytes_to_stdout((const char *) buf, count);
+		sl_lock_release(&stdout_lock);
 		return count;
 	} else {
 		printc("fd: %d not supported!\n", fd);
@@ -47,12 +58,19 @@ cos_write(int fd, const void *buf, size_t count)
 ssize_t
 cos_writev(int fd, const struct iovec *iov, int iovcnt)
 {
-	int i;
-	ssize_t ret = 0;
-	for(i=0; i<iovcnt; i++) {
-		ret += cos_write(fd, (const void *)iov[i].iov_base, iov[i].iov_len);
+	if (fd == 1 || fd == 2) {
+		sl_lock_take(&stdout_lock);
+		int i;
+		ssize_t ret = 0;
+		for(i=0; i<iovcnt; i++) {
+			ret += write_bytes_to_stdout((const void *)iov[i].iov_base, iov[i].iov_len);
+		}
+		sl_lock_release(&stdout_lock);
+		return ret;
+	} else {
+		printc("fd: %d not supported!\n", fd);
+		assert(0);
 	}
-	return ret;
 }
 
 long
@@ -70,7 +88,7 @@ ssize_t
 cos_brk(void *addr)
 {
 	printc("brk not implemented\n");
-	// I'm unsure if the below comment is accurate. We return 0, so doesn't brk "succeed"?
+	/* Unsure if the below comment is accurate. We return 0, so doesn't brk "succeed"? */
 	/* musl libc tries to use brk to expand heap in malloc. But if brk fails, it
 	   turns to mmap. So this fake brk always fails, force musl libc to use mmap */
 	return 0;
@@ -100,9 +118,9 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		ret = addr;
 	}
 
-	if (ret == (void *)-1) {  //return value comes from man page
+	if (ret == (void *)-1) {  /* return value comes from man page */
 		printc("mmap() failed!\n");
-		// This is a best guess about what went wrong
+		/* This is a best guess about what went wrong */
 		errno = ENOMEM;
 	}
 	return ret;
@@ -134,7 +152,7 @@ cos_mremap(void *old_address, size_t old_size, size_t new_size, int flags)
 int
 cos_rt_sigprocmask(int how, void* set, void* oldset, size_t sigsetsize)
 {
-	// Musl uses this at thread create time
+	/* Musl uses this at thread create time */
 	printc("rt_sigprocmask not implemented\n");
 	errno = ENOSYS;
 	return -1;
@@ -143,12 +161,12 @@ cos_rt_sigprocmask(int how, void* set, void* oldset, size_t sigsetsize)
 int
 cos_mprotect(void *addr, size_t len, int prot)
 {
-	// Musl uses this at thread create time
+	/* Musl uses this at thread create time */
 	printc("mprotect not implemented\n");
 	return 0;
 }
 
-// Thread related functions
+/* Thread related functions */
 pid_t
 cos_gettid(void)
 {
@@ -182,21 +200,22 @@ cos_tkill(int tid, int sig)
 long
 cos_set_tid_address(int *tidptr)
 {
-	// Just do nothing for now and hope that works
+	/* Just do nothing for now and hope that works */
 	return 0;
 }
 
-// struct user_desc {
-//     int  		  entry_number; // Ignore
-//     unsigned int  base_addr; // Pass to cos thread mod
-//     unsigned int  limit; // Ignore
-//     unsigned int  seg_32bit:1;
-//     unsigned int  contents:2;
-//     unsigned int  read_exec_only:1;
-//     unsigned int  limit_in_pages:1;
-//     unsigned int  seg_not_present:1;
-//     unsigned int  useable:1;
-// };
+/* struct user_desc {
+ *     int  		  entry_number; // Ignore
+ *     unsigned int  base_addr; // Pass to cos thread mod
+ *     unsigned int  limit; // Ignore
+ *     unsigned int  seg_32bit:1;
+ *     unsigned int  contents:2;
+ *     unsigned int  read_exec_only:1;
+ *     unsigned int  limit_in_pages:1;
+ *     unsigned int  seg_not_present:1;
+ *     unsigned int  useable:1;
+ * };
+ */
 
 void* backing_data[SL_MAX_NUM_THDS];
 
@@ -282,7 +301,7 @@ long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f)
 {
 	assert(syscall_num <= SYSCALLS_NUM);
-	// printc("Making syscall %d\n", syscall_num);
+	/* printc("Making syscall %d\n", syscall_num); */
 	if (!cos_syscalls[syscall_num]){
 		printc("WARNING: Component %ld calling unimplemented system call %d\n", cos_spd_id(), syscall_num);
 		assert(0);

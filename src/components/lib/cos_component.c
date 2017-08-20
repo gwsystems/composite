@@ -70,9 +70,10 @@ void __init_libc(char **envp, char *pn);
 void
 libc_init()
 {
-	// The construction of this is:
-	// evn1, env2, ..., NULL, auxv_n1, auxv_1, auxv_n2, auxv_2 ..., NULL
-	// TODO: Figure out a way to set AT_HWCAP / AT_SYSINFO
+	/* The construction of this is:
+	 * evn1, env2, ..., NULL, auxv_n1, auxv_1, auxv_n2, auxv_2 ..., NULL
+	 * TODO: Figure out a way to set AT_HWCAP / AT_SYSINFO
+	 */
 	static char *envp[] = {
                                "USER=composite_user",
                                "LANG=en_US.UTF-8",
@@ -80,17 +81,17 @@ libc_init()
                                "LOGNAME=composite_user",
                                NULL,
                                (char *)AT_PAGESZ,
-                               (char *)PAGE_SIZE, // Page size
+                               (char *)PAGE_SIZE, /* Page size */
                                (char *)AT_UID,
-                               (char *)1000, // User id
+                               (char *)1000, /* User id */
                                (char *)AT_EUID,
-                               (char *)1000, // Effective user id
+                               (char *)1000, /* Effective user id */
                                (char *)AT_GID,
-                               (char *)1000, // Group id
+                               (char *)1000, /* Group id */
                                (char *)AT_EGID,
-                               (char *)1000, // Effective group id
+                               (char *)1000, /* Effective group id */
                                (char *)AT_SECURE,
-                               (char *)0, // Whether the program is being run under sudo
+                               (char *)0, /* Whether the program is being run under sudo */
                                NULL
 	};
 	char *program_name = "composite component";

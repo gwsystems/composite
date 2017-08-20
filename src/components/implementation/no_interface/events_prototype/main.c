@@ -9,12 +9,12 @@
 
 #include <res_spec.h>
 
-// These are macro values rust needs, so we duplicate them here
+/* These are macro values rust needs, so we duplicate them here */
 vaddr_t       boot_mem_km_base            = BOOT_MEM_KM_BASE;
 unsigned long cos_mem_kern_pa_sz          = COS_MEM_KERN_PA_SZ;
 pgtblcap_t    boot_captbl_self_untyped_pt = BOOT_CAPTBL_SELF_UNTYPED_PT;
 
-// This are wrappers for static inline functions that rust needs
+/* This are wrappers for static inline functions that rust needs */
 sched_param_t
 sched_param_pack_rs(sched_param_type_t type, unsigned int value)
 {
