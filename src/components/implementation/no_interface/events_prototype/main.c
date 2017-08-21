@@ -1,17 +1,17 @@
-#include <locale.h>
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
+#include <res_spec.h>
 
 #include <sl.h>
 #include <sl_lock.h>
 #include <sl_thd.h>
 
-#include <res_spec.h>
+#include <locale.h>
+#include <limits.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
 
 /* These are macro values rust needs, so we duplicate them here */
 vaddr_t       boot_mem_km_base            = BOOT_MEM_KM_BASE;
@@ -67,10 +67,7 @@ sl_lock_release_rs(struct sl_lock *lock)
 	return sl_lock_release(lock);
 }
 
-
-/* This is a stub that rust calls to "assign_thread_data". It's fine for it to
- * do nothing for now
- */
+/* This is a bit of a hack, but we setup pthread data for sl threads */
 #define _NSIG 65
 
 struct pthread {
@@ -113,7 +110,7 @@ struct pthread {
 };
 
 struct pthread backing_thread_data[SL_MAX_NUM_THDS];
-void *                thread_data[SL_MAX_NUM_THDS];
+void *         thread_data[SL_MAX_NUM_THDS];
 
 void
 assign_thread_data(struct sl_thd *thread)
@@ -123,7 +120,7 @@ assign_thread_data(struct sl_thd *thread)
 	thdid_t              thdid  = thread->thdid;
 
 	/* HACK: We setup some thread specific data to make musl stuff work with sl threads */
-	backing_thread_data[thdid].tsd = calloc(1024, sizeof(void*));
+	backing_thread_data[thdid].tsd = calloc(PTHREAD_KEYS_MAX, sizeof(void*));
 
 	thread_data[thdid] = &backing_thread_data[thdid];
 	cos_thd_mod(ci, thdcap, &thread_data[thdid]);
