@@ -78,15 +78,15 @@ uint32 tar_parse()
     struct fsobj *o;
 
     while (offset + tar_start < tar_end) {
-        if (file_get_new(&o))            return OS_FS_ERR_DRIVE_NOT_CREATED;
+        if (file_get_new(&o)) return OS_FS_ERR_DRIVE_NOT_CREATED;
 
         //tar ends after two empty records
         if ( !(offset + tar_start)[0] && !(offset + tar_start)[TAR_BLOCKSIZE]) {
             o->ino = 0;
             return OS_FS_SUCCESS;
         }
-        if (tar_hdr_read(offset, o))           return OS_FS_ERR_DRIVE_NOT_CREATED;
-        if (file_insert(o, offset + tar_start) == OS_FS_SUCCESS) return OS_FS_ERR_DRIVE_NOT_CREATED;
+        if (tar_hdr_read(offset, o)) return OS_FS_ERR_DRIVE_NOT_CREATED;
+        if (file_insert(o, offset + tar_start) != OS_FS_SUCCESS) return OS_FS_ERR_DRIVE_NOT_CREATED;
 
         /*
          * data is aligned to 512 byte blocks.  a header is 500 bytes, and

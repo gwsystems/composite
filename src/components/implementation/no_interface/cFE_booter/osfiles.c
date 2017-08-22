@@ -11,7 +11,6 @@
 int32 OS_FS_Init(void)
 {
     os_dirent_t d;
-    OS_printf("The length of a dirent object according to cos/musl is %d\n", sizeof(d));
 
     uint32 ret = 0;
     ret = tar_load();
