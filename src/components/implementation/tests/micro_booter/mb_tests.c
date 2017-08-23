@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 #include "micro_booter.h"
 
 unsigned int cyc_per_usec;
@@ -50,7 +52,7 @@ static void
 test_thds(void)
 {
 	thdcap_t ts[TEST_NTHDS];
-	int      i;
+	intptr_t i;
 
 	for (i = 0; i < TEST_NTHDS; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
@@ -121,7 +123,6 @@ static void
 async_thd_parent_perf(void *thdcap)
 {
 	thdcap_t  tc                = (thdcap_t)thdcap;
-	arcvcap_t rc                = rcp_global;
 	asndcap_t sc                = scp_global;
 	long long total_asnd_cycles = 0;
 	long long start_asnd_cycles = 0, end_arcv_cycles = 0;
@@ -177,7 +178,7 @@ async_thd_fn(void *thdcap)
 	PRINTC("<-- pending %d\n", pending);
 	assert(pending == -EAGAIN);
 	PRINTC("<-- rcving\n");
-	
+
 	pending = cos_rcv(rc, 0, NULL);
 	PRINTC("<-- Error: manually returning to snding thread.\n");
 
@@ -226,7 +227,7 @@ async_thd_parent(void *thdcap)
 	PRINTC("--> receiving to get notifications\n");
 	pending = cos_sched_rcv(rc, 0, 0, NULL, &tid, &blocked, &cycles, &thd_timeout);
 	rdtscll(now);
-	PRINTC("--> pending %d, thdid %d, blocked %d, cycles %lld, timeout %lu (now=%llu, abs:%llu)\n", 
+	PRINTC("--> pending %d, thdid %d, blocked %d, cycles %lld, timeout %lu (now=%llu, abs:%llu)\n",
 	       pending, tid, blocked, cycles, thd_timeout, now, tcap_time2cyc(thd_timeout, now));
 
 	async_test_flag = 0;
@@ -390,8 +391,6 @@ exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t p
 static void
 parent(void *d)
 {
-	struct exec_cluster *e = d;
-
 	assert(0);
 }
 
@@ -807,7 +806,6 @@ test_inv_perf(void)
 	compcap_t    cc;
 	sinvcap_t    ic;
 	int          i;
-	long long    total_cycles     = 0LL;
 	long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL;
 	unsigned int ret;
 
@@ -886,9 +884,9 @@ block_vm(void)
 	tcap_time_t timeout, thd_timeout;
 	thdid_t tid;
 
-	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING | RCV_NON_BLOCKING, 0, 
+	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING | RCV_NON_BLOCKING, 0,
 			     &rcvd, &tid, &blocked, &cycles, &thd_timeout) > 0)
-		; 
+		;
 
 	rdtscll(now);
 	now += (1000 * cyc_per_usec);
@@ -899,7 +897,7 @@ block_vm(void)
 /*
  * Executed in vkernel environment:
  * Budget tests, tests that use tcaps are not quite feasible in vkernel environment.
- * These tests are designed for micro-benchmarking, and are not intelligent enough to 
+ * These tests are designed for micro-benchmarking, and are not intelligent enough to
  * account for VM timeslice, they should not be either.
  */
 void

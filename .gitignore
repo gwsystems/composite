@@ -31,3 +31,4 @@ GTAGS
 .vagrant
 Vagrantfile
 provision.sh
+.clang_complete

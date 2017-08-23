@@ -1,10 +1,13 @@
 #ifndef MICRO_BOOTER_H
 #define MICRO_BOOTER_H
+
 #include <stdio.h>
 #include <string.h>
 
+#include <cos_debug.h>
+#include <llprint.h>
+
 #undef assert
-#ifndef assert
 /* On assert, immediately switch to the "exit" thread */
 #define assert(node)                                       \
 	do {                                               \
@@ -13,20 +16,13 @@
 			cos_thd_switch(termthd);           \
 		}                                          \
 	} while (0)
-#endif
 
-#define PRINT_FN prints
-#define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
-#define BUG()                          \
-	do {                           \
-		debug_print("BUG @ "); \
-		*((int *)0) = 0;       \
-	} while (0);
 #define BUG_DIVZERO()                                           \
 	do {                                                    \
 		debug_print("Testing divide by zero fault @ "); \
 		int i = num / den;                              \
 	} while (0);
+
 #define SPIN()            \
 	do {              \
 		while (1) \
@@ -62,8 +58,6 @@ tls_set(size_t off, unsigned long val)
 	__asm__ __volatile__("movl %0, %%gs:(%1)" : : "r"(val), "r"(off) : "memory");
 }
 
-extern int  prints(char *s);
-extern int  printc(char *fmt, ...);
 extern void test_run_mb(void);
 
 #endif /* MICRO_BOOTER_H */

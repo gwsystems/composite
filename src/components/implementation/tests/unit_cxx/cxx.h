@@ -11,7 +11,7 @@
 using namespace std;
 #ifdef __cplusplus
 extern "C" {
-#include <print.h>
+#include <llprint.h>
 #endif
 
 #ifdef __cplusplus

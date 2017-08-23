@@ -1,26 +1,12 @@
-#include <cos_component.h>
 #include <cobj_format.h>
+#include <cos_component.h>
+#include <cos_debug.h>
 #include <cos_kernel_api.h>
+#include <sl.h>
 
 #include "vk_types.h"
 #include "vk_api.h"
-#include <sl.h>
 
-#undef assert
-#define assert(node)                                       \
-	do {                                               \
-		if (unlikely(!(node))) {                   \
-			debug_print("assert error in @ "); \
-			*((int *)0) = 0;                   \
-		}                                          \
-	} while (0)
-#define PRINT_FN prints
-#define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
-#define BUG()                          \
-	do {                           \
-		debug_print("BUG @ "); \
-		*((int *)0) = 0;       \
-	} while (0);
 #define SPIN()            \
 	do {              \
 		while (1) \
@@ -64,7 +50,7 @@ cos_init(void)
 	vk_cinfo = ci;
 	cos_meminfo_init(&ci->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
-	
+
 	/*
 	 * TODO: If there is any captbl modification, this could mess up a bit.
 	 *       Care to be taken not to use this for captbl mod api

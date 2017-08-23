@@ -1,5 +1,6 @@
 #include <cos_kernel_api.h>
 #include <llprint.h>
+
 #include "boot_deps.h"
 
 void

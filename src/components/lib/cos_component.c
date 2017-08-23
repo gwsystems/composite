@@ -6,6 +6,7 @@
  */
 
 #include <cos_component.h>
+#include <cos_debug.h>
 
 CWEAKSYMB int cos_sched_notifications;
 
@@ -42,7 +43,7 @@ cos_async_inv(struct usr_inv_cap *ucap, int *params)
 CWEAKSYMB int
 cos_thd_entry_static(u32_t idx)
 {
-	*(int *)NULL = 0;
+	assert(0);
 	return 0;
 }
 
@@ -101,7 +102,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		}
 	default:
 		/* fault! */
-		*(int *)NULL = 0;
+		assert(0);
 		return;
 	}
 	return;

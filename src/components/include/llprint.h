@@ -5,27 +5,29 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <cos_component.h>
+
 static void
 cos_llprint(char *s, int len)
 {
 	call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0);
 }
 
-int
+static size_t
 prints(char *s)
 {
-	int len = strlen(s);
+	size_t len = strlen(s);
 
 	cos_llprint(s, len);
 
 	return len;
 }
 
-int __attribute__((format(printf, 1, 2))) printc(char *fmt, ...)
+static size_t __attribute__((format(printf, 1, 2))) printc(char *fmt, ...)
 {
 	char    s[128];
 	va_list arg_ptr;
-	int     ret, len = 128;
+	size_t  ret, len = 128;
 
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
