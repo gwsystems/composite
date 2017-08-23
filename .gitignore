@@ -29,3 +29,5 @@ GRTAGS
 GSYMS
 GTAGS
 .vagrant
+Vagrantfile
+provision.sh
