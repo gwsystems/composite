@@ -114,6 +114,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 	thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
 
 	thd_current_update(t, t, cos_info);
+	thd_scheduler_set(t, t);
 
 	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_COMP,
 	                    BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 1);
