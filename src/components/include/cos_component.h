@@ -13,6 +13,8 @@
 #include <errno.h>
 #include <util.h>
 
+void libc_init();
+
 /* temporary */
 static inline int
 call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)

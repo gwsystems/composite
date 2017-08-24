@@ -35,6 +35,7 @@
 #include <res_spec.h>
 #include <sl_mod_policy.h>
 #include <sl_plugins.h>
+#include <sl_thd.h>
 #include <sl_consts.h>
 #include <heap.h>
 
@@ -262,7 +263,7 @@ sl_cyc2usec(cycles_t cyc)
 	return cyc / sl__globals()->cyc_per_usec;
 }
 
-static inline microsec_t
+static inline cycles_t
 sl_usec2cyc(microsec_t usec)
 {
 	return usec * sl__globals()->cyc_per_usec;

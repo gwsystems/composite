@@ -2,6 +2,7 @@
 #define SL_LOCK_H
 
 #include <cos_kernel_api.h>
+#include <sl.h>
 
 struct sl_lock {
 	// will be 0 if no one holds the lock
@@ -28,6 +29,8 @@ sl_lock_take(struct sl_lock *lock)
 }
 
 int sl_lock_timed_take(struct sl_lock *lock, microsec_t max_wait_time);
+
+int sl_lock_try_take(struct sl_lock *lock);
 
 static inline void
 sl_lock_release(struct sl_lock *lock)

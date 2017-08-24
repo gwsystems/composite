@@ -56,7 +56,7 @@ distclean:
 #	make -C libccv clean
 
 musl:
-	cd musl-1.1.11; ./configure --disable-shared; cd ..
+	cd musl-1.1.11; ./configure --disable-shared --enable-debug; cd ..
 	make -C musl-1.1.11
 	make -C musl-1.1.11 install
 
