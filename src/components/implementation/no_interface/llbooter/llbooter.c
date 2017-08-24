@@ -1,7 +1,8 @@
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
-#include <boot_deps.h>
+
+#include "boot_deps.h"
 
 struct deps {
 	short int client, server;
@@ -53,10 +54,10 @@ boot_find_cobjs(struct cobj_header *h, int n)
 static int
 boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 {
-	int               i, j;
+	int               i;
 	int               flag;
 	vaddr_t           dest_daddr, prev_map = 0;
-	int               tot = 0, n_pte = 1;
+	int               n_pte = 1;
 	struct cobj_sect *sect = cobj_sect_get(h, 0);
 
 	boot_comp_pgtbl_expand(n_pte, pt, sect->vaddr, h);
@@ -169,9 +170,9 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 {
 	unsigned int i;
 	/* Where are we in the actual component's memory in the booter? */
-	char *start_addr, *offset;
+	char *start_addr;
 	/* Where are we in the destination address space? */
-	vaddr_t                           prev_daddr, init_daddr;
+	vaddr_t                           init_daddr;
 	struct cos_component_information *ci;
 
 	start_addr = (char *)(new_comp_cap_info[spdid].vaddr_mapped_in_booter);
@@ -179,8 +180,8 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 	for (i = 0; i < h->nsect; i++) {
 		struct cobj_sect *sect;
 		vaddr_t           dest_daddr;
-		char *            lsrc, *dsrc;
-		int               left, dest_doff;
+		char *            lsrc;
+		int               left;
 
 		sect = cobj_sect_get(h, i);
 		/* virtual address in the destination address space */
@@ -205,8 +206,6 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info - init_daddr), comp_info);
 			ci = (struct cos_component_information *)(start_addr + (comp_info - init_daddr));
 			new_comp_cap_info[h->id].upcall_entry = ci->cos_upcall_entry;
-
-			vaddr_t begin = (vaddr_t)start_addr + ((ci->cos_upcall_entry) - init_daddr);
 		}
 	}
 
@@ -277,7 +276,7 @@ void
 cos_init(void)
 {
 	struct cobj_header *h;
-	int                 num_cobj, i;
+	int                 num_cobj;
 
 	printc("Booter for new kernel\n");
 

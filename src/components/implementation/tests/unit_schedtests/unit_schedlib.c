@@ -5,28 +5,17 @@
  */
 
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
+
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_defkernel_api.h>
-
+#include <llprint.h>
 #include <sl.h>
 
-#undef assert
-#define assert(node)                                       \
-	do {                                               \
-		if (unlikely(!(node))) {                   \
-			debug_print("assert error in @ "); \
-			*((int *)0) = 0;                   \
-		}                                          \
-	} while (0)
-#define PRINT_FN prints
-#define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
-#define BUG()                          \
-	do {                           \
-		debug_print("BUG @ "); \
-		*((int *)0) = 0;       \
-	} while (0);
+/* sl also defines a SPIN macro */
+#undef SPIN
 #define SPIN(iters)                                \
 	do {                                       \
 		if (iters > 0) {                   \
@@ -38,7 +27,6 @@
 		}                                  \
 	} while (0)
 
-#include <llprint.h>
 
 #define N_TESTTHDS 8
 #define WORKITERS 10000
@@ -63,7 +51,7 @@ test_yields(void)
 	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = 10}};
 
 	for (i = 0; i < N_TESTTHDS; i++) {
-		threads[i] = sl_thd_alloc(test_thd_fn, (void *)(i + 1));
+		threads[i] = sl_thd_alloc(test_thd_fn, (void *)(intptr_t)(i + 1));
 		assert(threads[i]);
 		sl_thd_param_set(threads[i], sp.v);
 	}

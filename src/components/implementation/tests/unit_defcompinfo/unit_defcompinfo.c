@@ -4,27 +4,14 @@
  * This uses a two clause BSD License.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <cos_component.h>
-#include <cobj_format.h>
-#include <cos_defkernel_api.h>
+ #include <stdio.h>
+ #include <string.h>
 
-#undef assert
-#define assert(node)                                       \
-	do {                                               \
-		if (unlikely(!(node))) {                   \
-			debug_print("assert error in @ "); \
-			*((int *)0) = 0;                   \
-		}                                          \
-	} while (0)
-#define PRINT_FN prints
-#define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
-#define BUG()                          \
-	do {                           \
-		debug_print("BUG @ "); \
-		*((int *)0) = 0;       \
-	} while (0);
+#include <cos_component.h>
+#include <cos_defkernel_api.h>
+#include <cos_debug.h>
+#include <cobj_format.h>
+
 #define SPIN()            \
 	do {              \
 		while (1) \

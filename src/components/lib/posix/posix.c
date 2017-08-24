@@ -241,13 +241,13 @@ cos_set_thread_area(void* data)
 int
 cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, void *tls, pid_t *ctid)
 {
-	if(!func) {
+	if (!func) {
 		errno = EINVAL;
 		return -1;
 	}
 
 	struct sl_thd * thd = sl_thd_alloc((cos_thd_fn_t) func, arg);
-	if(tls) {
+	if (tls) {
 		setup_thread_area(thd, tls);
 	}
 	return thd->thdid;

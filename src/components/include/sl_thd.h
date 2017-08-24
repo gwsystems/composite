@@ -8,6 +8,8 @@
 #ifndef SL_THD_H
 #define SL_THD_H
 
+#include <cos_debug.h>
+
 typedef enum {
 	SL_THD_FREE = 0,
 	SL_THD_BLOCKED,
@@ -60,26 +62,10 @@ static inline asndcap_t
 sl_thd_asndcap(struct sl_thd *t)
 { return t->sndcap; }
 
-#ifndef assert
-#define assert(node)                                       \
-	do {                                               \
-		if (unlikely(!(node))) {                   \
-			debug_print("assert error in @ "); \
-			*((int *)0) = 0;                   \
-		}                                          \
-	} while (0)
-#define PRINT_FN prints
-#define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
-#define BUG()                          \
-	do {                           \
-		debug_print("BUG @ "); \
-		*((int *)0) = 0;       \
-	} while (0);
 #define SPIN()            \
 	do {              \
 		while (1) \
 			; \
 	} while (0)
-#endif
 
 #endif /* SL_THD_H */
