@@ -160,25 +160,21 @@ cls(void)
 	move_csr();
 }
 
-/* Clear the screen and initialize VIDEO, XPOS and YPOS. */
+/*
+ * Clear the screen and initialize VIDEO, XPOS and YPOS.
+ * VIDEO virtual address set to HIGH address.
+ */
 void
 vga_init(void)
 {
 	int i = 0;
 
-	video = (unsigned char *)VIDEO;
+	video = chal_pa2va(VIDEO);
 
 	csr_x = 0;
 	csr_y = 0;
 	cls();
 	printk_register_handler(vga_puts);
-}
-
-/* Initialize VIDEO virtual address - High address. */
-void
-vga_high_init(void)
-{
-	video = chal_pa2va(VIDEO);
 }
 
 /* Put the character C on the screen. */

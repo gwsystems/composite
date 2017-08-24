@@ -35,6 +35,7 @@
 #include <res_spec.h>
 #include <sl_mod_policy.h>
 #include <sl_plugins.h>
+#include <sl_thd.h>
 #include <sl_consts.h>
 #include <heap.h>
 
@@ -238,6 +239,8 @@ int          sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cyc
 /* wakeup a thread that has (or soon will) block */
 void sl_thd_wakeup(thdid_t tid);
 int  sl_thd_wakeup_no_cs(struct sl_thd *t);
+/* wakeup thread and do not remove from timeout queue if blocked on timeout */
+int  sl_thd_wakeup_no_cs_rm(struct sl_thd *t);
 
 void sl_thd_yield(thdid_t tid);
 void sl_thd_yield_cs_exit(thdid_t tid);
@@ -260,7 +263,7 @@ sl_cyc2usec(cycles_t cyc)
 	return cyc / sl__globals()->cyc_per_usec;
 }
 
-static inline microsec_t
+static inline cycles_t
 sl_usec2cyc(microsec_t usec)
 {
 	return usec * sl__globals()->cyc_per_usec;
@@ -347,7 +350,7 @@ sl_timeout_wakeup_expired(cycles_t now)
 
 		assert(th->wakeup_cycs == 0);
 		th->wakeup_cycs = now;
-		sl_thd_wakeup_no_cs(th);
+		sl_thd_wakeup_no_cs_rm(th);
 	} while (heap_size(sl_timeout_heap()));
 }
 

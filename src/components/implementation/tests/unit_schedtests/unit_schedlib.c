@@ -46,9 +46,9 @@ test_thd_fn(void *data)
 void
 test_yields(void)
 {
-	int               i;
-	struct sl_thd *   threads[N_TESTTHDS];
-	union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = 10}};
+	int                     i;
+	struct sl_thd *         threads[N_TESTTHDS];
+	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = 10}};
 
 	for (i = 0; i < N_TESTTHDS; i++) {
 		threads[i] = sl_thd_alloc(test_thd_fn, (void *)(intptr_t)(i + 1));
@@ -81,9 +81,9 @@ test_low(void *data)
 void
 test_blocking_directed_yield(void)
 {
-	struct sl_thd *   low, *high;
-	union sched_param sph = {.c = {.type = SCHEDP_PRIO, .value = 5}};
-	union sched_param spl = {.c = {.type = SCHEDP_PRIO, .value = 10}};
+	struct sl_thd *         low, *high;
+	union sched_param_union sph = {.c = {.type = SCHEDP_PRIO, .value = 5}};
+	union sched_param_union spl = {.c = {.type = SCHEDP_PRIO, .value = 10}};
 
 	low  = sl_thd_alloc(test_low, NULL);
 	high = sl_thd_alloc(test_high, low);
@@ -126,10 +126,10 @@ test_high_wakeup(void *data)
 void
 test_timeout_wakeup(void)
 {
-	struct sl_thd *   low, *high;
-	union sched_param sph = {.c = {.type = SCHEDP_PRIO, .value = 5}};
-	union sched_param spl = {.c = {.type = SCHEDP_PRIO, .value = 10}};
-	union sched_param spw = {.c = {.type = SCHEDP_WINDOW, .value = 1000}};
+	struct sl_thd *         low, *high;
+	union sched_param_union sph = {.c = {.type = SCHEDP_PRIO, .value = 5}};
+	union sched_param_union spl = {.c = {.type = SCHEDP_PRIO, .value = 10}};
+	union sched_param_union spw = {.c = {.type = SCHEDP_WINDOW, .value = 1000}};
 
 	low = sl_thd_alloc(test_low, NULL);
 	sl_thd_param_set(low, spl.v);

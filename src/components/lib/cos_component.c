@@ -4,9 +4,15 @@
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  */
+#include <stdio.h>
 
+#include <sys/auxv.h>
+
+#include <consts.h>
 #include <cos_component.h>
 #include <cos_debug.h>
+
+#include <ps.h>
 
 CWEAKSYMB int cos_sched_notifications;
 
@@ -22,16 +28,80 @@ cos_init(void *arg)
 	main();
 }
 
+/* Intended to be implement by libraries */
 CWEAKSYMB void
-__alloc_libc_initilize(void)
+pre_syscall_default_setup()
 {
-	return;
+}
+
+/* Intended to be overriden by components */
+CWEAKSYMB void
+pre_syscall_setup()
+{
+	pre_syscall_default_setup();
+}
+
+CWEAKSYMB void
+syscall_emulation_setup()
+{
+}
+
+CWEAKSYMB long
+cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f, long g)
+{
+	printc("Default syscall handler callled (syscall: %d), faulting!", syscall_num);
+	assert(0);
+	return 0;
+}
+
+__attribute__((regparm(1))) long
+__cos_syscall(int syscall_num, long a, long b, long c, long d, long e, long f, long g)
+{
+	return cos_syscall_handler(syscall_num, a, b, c, d, e, f, g);
+}
+
+CWEAKSYMB void
+libc_initialization_handler()
+{
+}
+
+/* TODO: Make this a weak symbol (currently doing so makes this fail) */
+void __init_libc(char **envp, char *pn);
+
+void
+libc_init()
+{
+	/* The construction of this is:
+	 * evn1, env2, ..., NULL, auxv_n1, auxv_1, auxv_n2, auxv_2 ..., NULL
+	 * TODO: Figure out a way to set AT_HWCAP / AT_SYSINFO
+	 */
+	static char *envp[] = {
+                               "USER=composite_user",
+                               "LANG=en_US.UTF-8",
+                               "HOME=/home/composite_user",
+                               "LOGNAME=composite_user",
+                               NULL,
+                               (char *)AT_PAGESZ,
+                               (char *)PAGE_SIZE, /* Page size */
+                               (char *)AT_UID,
+                               (char *)1000, /* User id */
+                               (char *)AT_EUID,
+                               (char *)1000, /* Effective user id */
+                               (char *)AT_GID,
+                               (char *)1000, /* Group id */
+                               (char *)AT_EGID,
+                               (char *)1000, /* Effective group id */
+                               (char *)AT_SECURE,
+                               (char *)0, /* Whether the program is being run under sudo */
+                               NULL
+	};
+	char *program_name = "composite component";
+	__init_libc(envp, program_name);
 }
 
 CWEAKSYMB void
 cos_upcall_exec(void *arg)
 {
-	return;
 }
 
 CWEAKSYMB int
@@ -74,7 +144,13 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 	if (first) {
 		first = 0;
-		__alloc_libc_initilize();
+		/* The syscall enumlator might need something to be setup before it can work */
+		pre_syscall_setup();
+		/* libc needs syscall emulation to work */
+		syscall_emulation_setup();
+		/* With all that setup, we can invoke the libc_initialization_handler */
+		libc_initialization_handler();
+
 		constructors_execute();
 	}
 

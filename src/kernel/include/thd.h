@@ -68,6 +68,7 @@ struct thread {
 	tcap_res_t     exec; /* execution time */
 	tcap_time_t    timeout;
 	struct thread *interrupted_thread;
+	struct thread *scheduler_thread;
 
 	/* rcv end-point data-structures */
 	struct rcvcap_info rcvcap;
@@ -304,12 +305,40 @@ thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long 
 	return 1;
 }
 
+static inline struct thread *
+thd_current(struct cos_cpu_local_info *cos_info)
+{
+	return (struct thread *)(cos_info->curr_thd);
+}
+
+static inline void
+thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
+{
+	/* commit the cached data */
+	prev->invstk_top     = cos_info->invstk_top;
+	cos_info->invstk_top = next->invstk_top;
+	cos_info->curr_thd   = next;
+}
+
+static inline struct thread *
+thd_scheduler(struct thread *thd)
+{
+	return thd->scheduler_thread;
+}
+
+static inline void
+thd_scheduler_set(struct thread *thd, struct thread *sched)
+{
+	if (unlikely(thd->scheduler_thread != sched)) thd->scheduler_thread = sched;
+}
+
 static int
 thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, int init_data)
 {
-	struct cap_thd * tc;
-	struct cap_comp *compc;
-	int              ret;
+	struct cos_cpu_local_info *cli = cos_cpu_local_info();
+	struct cap_thd            *tc;
+	struct cap_comp           *compc;
+	int                        ret;
 
 	memset(thd, 0, sizeof(struct thread));
 	compc = (struct cap_comp *)captbl_lkup(t, compcap);
@@ -326,6 +355,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->invstk_top                       = 0;
 	thd->cpuid                            = get_cpuid();
 	assert(thd->tid <= MAX_NUM_THREADS);
+	thd_scheduler_set(thd, thd_current(cli));
 
 	thd_rcvcap_init(thd);
 	list_head_init(&thd->event_head);
@@ -422,21 +452,6 @@ thd_init(void)
 {
 	assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD));
 	// assert(offsetof(struct thread, regs) == 4); /* see THD_REGS in entry.S */
-}
-
-static inline struct thread *
-thd_current(struct cos_cpu_local_info *cos_info)
-{
-	return (struct thread *)(cos_info->curr_thd);
-}
-
-static inline void
-thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
-{
-	/* commit the cached data */
-	prev->invstk_top     = cos_info->invstk_top;
-	cos_info->invstk_top = next->invstk_top;
-	cos_info->curr_thd   = next;
 }
 
 static inline int
