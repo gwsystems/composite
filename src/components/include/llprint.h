@@ -13,7 +13,7 @@ cos_llprint(char *s, int len)
 	call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0);
 }
 
-static size_t
+static int
 prints(char *s)
 {
 	size_t len = strlen(s);
@@ -23,7 +23,8 @@ prints(char *s)
 	return len;
 }
 
-static size_t __attribute__((format(printf, 1, 2))) printc(char *fmt, ...)
+static int  __attribute__((format(printf, 1, 2)))
+printc(char *fmt, ...)
 {
 	char    s[128];
 	va_list arg_ptr;
