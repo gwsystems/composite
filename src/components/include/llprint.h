@@ -9,7 +9,7 @@ static void
 cos_llprint(char *s, int len)
 { call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0); }
 
-int
+static int
 prints(char *s)
 {
 	int len = strlen(s);
@@ -19,7 +19,7 @@ prints(char *s)
 	return len;
 }
 
-int __attribute__((format(printf,1,2)))
+static int __attribute__((format(printf,1,2)))
 printc(char *fmt, ...)
 {
 	char s[128];

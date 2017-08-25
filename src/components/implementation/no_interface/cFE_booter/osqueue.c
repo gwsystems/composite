@@ -5,6 +5,9 @@
 
 #include <string.h>
 
+#undef OS_MAX_QUEUES
+#define OS_MAX_QUEUES 15
+
 #define MAX_QUEUE_DATA_SIZE (1024 * 1024)
 
 // The main queue data structure.

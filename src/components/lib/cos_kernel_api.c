@@ -3,16 +3,16 @@
  *
  * This uses a two clause BSD License.
  */
+ #include <stdarg.h>
+ #include <stdio.h>
 
 #include <cos_kernel_api.h>
 #include <cos_types.h>
+#include <llprint.h>
+
 #include <ps_plat.h>
 
-#include <stdarg.h>
-#include <stdio.h>
-
 #ifdef NIL
-#include <llprint.h>
 #define printd(...) printc(__VA_ARGS__)
 #else
 #define printd(...)
@@ -280,6 +280,8 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 static pgtblcap_t
 __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, pgtblcap_t intern)
 {
+	printc("__bump_mem_expand_intern(%p, %lu, %p, %lu)\n", ci, cipgtbl, (void *) mem_ptr, intern);
+
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 	capid_t pte_cap;
 	vaddr_t ptemem_cap;
@@ -289,6 +291,7 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 	if (!intern) {
 		pte_cap    = __capid_bump_alloc(meta, CAP_PGTBL);
 		ptemem_cap = __kmem_bump_alloc(meta);
+		printc("pte_cap = %d, ptemem_cap = %p\n", (int) pte_cap, (void *) ptemem_cap);
 		/* TODO: handle the case of running out of memory */
 		if (pte_cap == 0 || ptemem_cap == 0) return 0;
 
@@ -302,8 +305,10 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 		pte_cap = intern;
 	}
 
+	int res = call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, mem_ptr, 0, 0);
+	printc("call_cap_op(%lu, %d, %lu, %p) = %d\n", cipgtbl, CAPTBL_OP_CONS, pte_cap, (void *) mem_ptr, res);
 	/* Construct pgtbl */
-	if (call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, mem_ptr, 0, 0)) {
+	if (res) {
 		assert(0); /* race? */
 		return 0;
 	}
@@ -314,9 +319,11 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 static vaddr_t
 __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
 {
+	printc("__bump_mem_expand_range(%p, %lu, %p, %lu)\n", ci, cipgtbl, (void *) mem_ptr, mem_sz);
 	vaddr_t addr;
 
 	for (addr = mem_ptr ; addr < mem_ptr + mem_sz ; addr += PGD_RANGE) {
+		printc("addr = %p\n", (void *) addr);
 		/* ignore errors likely due to races here as we want to keep expanding regardless */
 		__bump_mem_expand_intern(ci, cipgtbl, addr, 0);
 	}

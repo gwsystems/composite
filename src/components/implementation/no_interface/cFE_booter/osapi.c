@@ -28,6 +28,8 @@ int32 OS_API_Init(void)
 
         OS_FS_Init();
 
+        OS_ModuleTableInit();
+
         have_initialized = 1;
     }
 

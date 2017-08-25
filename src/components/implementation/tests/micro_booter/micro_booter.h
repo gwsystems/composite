@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <cos_debug.h>
+
 #undef assert
 #ifndef assert
 /* On assert, immediately switch to the "exit" thread */
@@ -11,7 +13,6 @@
 
 #define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
-#define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
 #define BUG_DIVZERO() do { debug_print("Testing divide by zero fault @ "); int i = num / den; } while (0);
 #define SPIN() do { while (1) ; } while (0)
 

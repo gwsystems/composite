@@ -8,6 +8,9 @@
 #include <cos_kernel_api.h>
 #include <cobj_format.h>
 
+#include <llprint.h>
+
+
 #include "gen/common_types.h"
 
 // These variables store the global SPACECRAFT_ID and CPU_ID
@@ -15,9 +18,6 @@ uint32  CFE_PSP_SpacecraftId;
 uint32  CFE_PSP_CpuId;
 
 void llprint(const char *s, int len);
-
-// I'm not sure why we even have to reimplement prints...
-int prints(char *s);
 
 int __attribute__((format(printf,1,2))) printc(char *fmt, ...);
 

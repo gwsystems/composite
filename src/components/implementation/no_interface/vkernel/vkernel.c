@@ -9,6 +9,7 @@
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0; } } while (0)
 #define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
+#undef BUG
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
 #define SPIN() do { while (1) ; } while (0)
 
@@ -31,13 +32,13 @@ vm_exit(void *d)
 {
 	printc("%d: EXIT\n", (int)d);
 	ready_vms --;
-	vmx_info[(int)d].state = VM_EXITED;	
+	vmx_info[(int)d].state = VM_EXITED;
 
 	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 }
 
 void
-scheduler(void) 
+scheduler(void)
 {
 	static unsigned int i;
 	thdid_t             tid;
@@ -47,7 +48,7 @@ scheduler(void)
 
 	while (ready_vms) {
 		index = i++ % VM_COUNT;
-		
+
 		if (vmx_info[index].state == VM_RUNNING) {
 			assert(vk_info.vminitasnd[index]);
 
@@ -72,7 +73,7 @@ cos_init(void)
 	cos_compinfo_init(vk_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, vk_cinfo);
 	/*
-	 * TODO: If there is any captbl modification, this could mess up a bit. 
+	 * TODO: If there is any captbl modification, this could mess up a bit.
 	 *       Care to be taken not to use this for captbl mod api
 	 *       Or use some offset into the future in CAPTBL_FREE
 	 */
