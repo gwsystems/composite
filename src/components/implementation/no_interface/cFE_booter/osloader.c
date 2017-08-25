@@ -7,9 +7,10 @@
 
 #include "gen/osapi.h"
 #include "gen/common_types.h"
+#include "gen/cfe_es.h"
+#include "gen/cfe_evs.h"
 
 #define USER_CAPS_SYMB_NAME "ST_user_caps"
-
 
 int cobj_count;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
@@ -102,6 +103,26 @@ struct symbol_of_jank {
 
 struct symbol_of_jank soj[] = {
 	{ .name = "OS_printf", .fn = OS_printf },
+    { .name = "OS_TaskInstallDeleteHandler", .fn = OS_TaskInstallDeleteHandler },
+    { .name = "OS_TaskDelay", .fn = OS_TaskDelay },
+    { .name = "CFE_ES_ExitApp", .fn = CFE_ES_ExitApp },
+    { .name = "CFE_ES_PerfLogAdd", .fn = CFE_ES_PerfLogAdd },
+    { .name = "CFE_ES_RegisterApp", .fn = CFE_ES_RegisterApp },
+    { .name = "CFE_EVS_Register", .fn = CFE_EVS_Register },
+    { .name = "CFE_EVS_SendEvent", .fn = CFE_EVS_SendEvent },
+    { .name = "CFE_SB_CreatePipe", .fn = CFE_SB_CreatePipe },
+    { .name = "CFE_SB_GetCmdCode", .fn = CFE_SB_GetCmdCode },
+    { .name = "CFE_SB_GetMsgId", .fn = CFE_SB_GetMsgId },
+    { .name = "CFE_SB_GetTotalMsgLength", .fn = CFE_SB_GetTotalMsgLength },
+    { .name = "CFE_SB_RcvMsg", .fn = CFE_SB_RcvMsg },
+    { .name = "CFE_SB_SendMsg", .fn = CFE_SB_SendMsg },
+    { .name = "CFE_SB_Subscribe", .fn = CFE_SB_Subscribe },
+    { .name = "CFE_SB_TimeStampMsg", .fn = CFE_SB_TimeStampMsg },
+    { .name = "CFE_ES_RunLoop", .fn = CFE_ES_RunLoop },
+    { .name = "CFE_SB_InitMsg", .fn = CFE_SB_InitMsg },
+    { .name = "CFE_SB_MessageStringGet", .fn = CFE_SB_MessageStringGet },
+    { .name = "CFE_SB_SubscribeEx", .fn = CFE_SB_SubscribeEx },
+    { .name = "CFE_SB_Unsubscribe", .fn = CFE_SB_Unsubscribe },
     { .name = "", .fn = NULL },
 };
 
@@ -573,13 +594,6 @@ int32 OS_SymbolLookup(cpuaddr *symbol_address, const char *symbol_name)
 			cpuaddr addr = search_cobj_for_symbol(module_table[i].header, symbol_name);
 			if (addr != 0) {
 				printc("osloader: found cobj symbol for %s, address %p\n", symbol_name, (void *) addr);
-				size_t j;
-				printc("[ ");
-				for(j = 0; j < 1000; j++)
-				{
-				printc("%02x ", ((char *) addr)[j]);
-				}
-				printc("]\n");
 				*symbol_address = addr;
 				return OS_SUCCESS;
 			}
