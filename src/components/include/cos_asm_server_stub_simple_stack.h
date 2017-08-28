@@ -21,6 +21,8 @@
  * we know that when the %ebp is 0, we are at the end of the stack.
  */
 
+/* clang-format off */
+
 #define cos_asm_server_stub(name) \
 .globl name##_inv ;               \
 .type  name##_inv, @function ;	  \
@@ -60,5 +62,6 @@ name##_inv:                             \
         COS_ASM_RET_STACK		\
                                         \
         sysenter;
+/* clang-format on */
 
 #endif /* COS_ASM_SERVER_STUB_H */

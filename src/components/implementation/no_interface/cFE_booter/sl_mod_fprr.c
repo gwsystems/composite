@@ -16,8 +16,6 @@ void
 sl_mod_execution(struct sl_thd_policy *t, cycles_t cycles)
 { }
 
-
-volatile int count = 0;
 struct sl_thd_policy *
 sl_mod_schedule(void)
 {
@@ -28,18 +26,8 @@ sl_mod_schedule(void)
 		if (ps_list_head_empty(&threads[i])) continue;
 		t = ps_list_head_first_d(&threads[i], struct sl_thd_policy);
 
-		if (count % 2017 == 0) {
-			printc("Scheduling thread %s, thdid %d\n", t->osal_task_prop.name, (int) t->thd.thdid);
-		}
-		count++;
-
 		return t;
 	}
-
-	if (count % 200 == 0) {
-		printc("Scheduling nothing...\n");
-	}
-	count++;
 
 	return NULL;
 }

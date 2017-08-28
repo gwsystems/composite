@@ -1,12 +1,12 @@
 #include <cos_component.h>
 
-#include <print.h>
+#include <cos_debug.h>
 
 __attribute__((regparm(1))) void call_call(struct usr_inv_cap *uc)
 {
 	int ret, fault = 0;
 
-	/* 
+	/*
 	 * cap#    -> eax
 	 * sp      -> ebp
 	 * 1st arg -> ebx

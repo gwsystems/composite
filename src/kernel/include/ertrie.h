@@ -44,7 +44,7 @@ struct ert {
 /* get the next level/value in the internal structure/value */
 typedef struct ert_intern *(*ert_get_fn_t)(struct ert_intern *, void *accum, int isleaf);
 /* check if the value in the internal structure is "null" */
-typedef int  (*ert_isnull_fn_t)(struct ert_intern *, void *accum, int isleaf);
+typedef int (*ert_isnull_fn_t)(struct ert_intern *, void *accum, int isleaf);
 /* does this final ert_intern in a lookup resolve to an successful lookup? */
 typedef int (*ert_resolve_fn_t)(struct ert_intern *a, void *accum, int leaf, u32_t order, u32_t sz);
 /* set values to their initial value (often "null") */
@@ -57,13 +57,28 @@ typedef void *(*ert_alloc_fn_t)(void *data, int sz, int last_lvl);
 typedef int (*ert_setleaf_fn_t)(struct ert_intern *entry, void *data);
 typedef void *(*ert_getleaf_fn_t)(struct ert_intern *entry, void *accum);
 
-#define ERT_CONST_PARAMS						\
-	u32_t depth, u32_t order, u32_t intern_sz, u32_t last_order, u32_t last_sz, void *initval, \
-        ert_initval_fn_t initfn, ert_get_fn_t getfn, ert_isnull_fn_t isnullfn, ert_set_fn_t setfn, \
-        ert_alloc_fn_t allocfn, ert_setleaf_fn_t setleaffn, ert_getleaf_fn_t getleaffn, ert_resolve_fn_t resolvefn
-#define ERT_CONST_ARGS depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn
-#define ERT_CONSTS_DEWARN  (void)depth; (void)order; (void)intern_sz; (void)last_order; (void)last_sz; (void)initval; \
-        (void)initfn; (void)getfn; (void)isnullfn; (void)setfn; (void)allocfn; (void)setleaffn; (void)getleaffn; (void)resolvefn;
+#define ERT_CONST_PARAMS                                                                             \
+	u32_t depth, u32_t order, u32_t intern_sz, u32_t last_order, u32_t last_sz, void *initval,   \
+	  ert_initval_fn_t initfn, ert_get_fn_t getfn, ert_isnull_fn_t isnullfn, ert_set_fn_t setfn, \
+	  ert_alloc_fn_t allocfn, ert_setleaf_fn_t setleaffn, ert_getleaf_fn_t getleaffn, ert_resolve_fn_t resolvefn
+#define ERT_CONST_ARGS                                                                                             \
+	depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, \
+	  getleaffn, resolvefn
+#define ERT_CONSTS_DEWARN \
+	(void)depth;      \
+	(void)order;      \
+	(void)intern_sz;  \
+	(void)last_order; \
+	(void)last_sz;    \
+	(void)initval;    \
+	(void)initfn;     \
+	(void)getfn;      \
+	(void)isnullfn;   \
+	(void)setfn;      \
+	(void)allocfn;    \
+	(void)setleaffn;  \
+	(void)getleaffn;  \
+	(void)resolvefn;
 #define ERT_DEWARN ERT_CONSTS_DEWARN
 
 /*
@@ -75,22 +90,55 @@ typedef void *(*ert_getleaf_fn_t)(struct ert_intern *entry, void *accum);
  */
 static inline CFORCEINLINE struct ert_intern *
 ert_defget(struct ert_intern *a, void *accum, int leaf)
-{ (void)accum; (void)leaf; return a->next; }
+{
+	(void)accum;
+	(void)leaf;
+	return a->next;
+}
 static inline void *
 ert_defgetleaf(struct ert_intern *a, void *accum)
-{ (void)accum;  return a->next; }
+{
+	(void)accum;
+	return a->next;
+}
 static inline int
 ert_defisnull(struct ert_intern *a, void *accum, int leaf)
-{ (void)accum; (void)leaf; return a->next == NULL; }
+{
+	(void)accum;
+	(void)leaf;
+	return a->next == NULL;
+}
 static int
 ert_defresolve(struct ert_intern *a, void *accum, int leaf, u32_t order, u32_t sz)
-{ (void)a; (void)accum; (void)leaf; (void)order; (void)sz; return 1; }
-static int ert_defset(struct ert_intern *a, void *v, void *accum, int leaf)
-{ (void)leaf; (void)accum; a->next = v; return 0; }
-static int ert_defsetleaf(struct ert_intern *a, void *data)
-{ a->next = data; return 0; }
-static void ert_definit(struct ert_intern *a, int leaf)
-{ (void)a; (void)leaf; a->next = NULL; }
+{
+	(void)a;
+	(void)accum;
+	(void)leaf;
+	(void)order;
+	(void)sz;
+	return 1;
+}
+static int
+ert_defset(struct ert_intern *a, void *v, void *accum, int leaf)
+{
+	(void)leaf;
+	(void)accum;
+	a->next = v;
+	return 0;
+}
+static int
+ert_defsetleaf(struct ert_intern *a, void *data)
+{
+	a->next = data;
+	return 0;
+}
+static void
+ert_definit(struct ert_intern *a, int leaf)
+{
+	(void)a;
+	(void)leaf;
+	a->next = NULL;
+}
 
 /*
  * This macro is the key using the compiler to generate fast code.
@@ -112,40 +160,83 @@ static void ert_definit(struct ert_intern *a, int leaf)
  * macro?  I'm hitting some preprocessor limitation I didn't
  * anticipate here.
  */
-#define ERT_CREATE(name, structname, depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn) \
-struct structname { struct ert t; };				        \
-static struct structname *name##_alloc(void *memctxt)                   \
-{ return (struct structname*)ert_alloc(memctxt, depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); } \
-static inline void *name##_lkup(struct structname *v, unsigned long id)	\
-{ unsigned long a; return __ert_lookup((struct ert*)v, id, 0, depth, &a, depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); } \
-static inline void *name##_lkupa(struct structname *v, unsigned long id, void *accum)  \
-{ return __ert_lookup((struct ert*)v, id, 0, depth, accum, depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); } \
-static inline void *name##_lkupan(struct structname *v, unsigned long id, u32_t dlimit, void *accum) \
-{ return __ert_lookup((struct ert*)v, id, 0, dlimit, accum, depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); } \
-static inline void *name##_lkupani(struct structname *v, unsigned long id, u32_t dstart, u32_t dlimit, void *accum) \
-{ return __ert_lookup((struct ert*)v, id, dstart, dlimit, accum, depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); } \
-static inline int name##_expandni(struct structname *v, unsigned long id, u32_t dstart, u32_t dlimit, void *accum, void *memctxt, void *data) \
-{ return __ert_expand((struct ert*)v, id, dstart, dlimit, accum, memctxt, data, depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); } \
-static inline int name##_expandn(struct structname *v, unsigned long id, u32_t dlimit, void *accum, void *memctxt, void *data) \
-{ return __ert_expand((struct ert*)v, id, 0, dlimit, accum, memctxt, data, depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); } \
-static inline int name##_expand(struct structname *v, unsigned long id, void *accum, void *memctxt, void *data) \
-{ return __ert_expand((struct ert*)v, id, 0, depth, accum, memctxt, data, depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); } \
-static inline unsigned long name##_maxid(void)				\
-{ return __ert_maxid(depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); } \
-static inline u32_t name##_maxdepth(void) { return (u32_t)depth; }
+#define ERT_CREATE(name, structname, depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn,  \
+                   setfn, allocfn, setleaffn, getleaffn, resolvefn)                                                   \
+	struct structname {                                                                                           \
+		struct ert t;                                                                                         \
+	};                                                                                                            \
+	static struct structname *name##_alloc(void *memctxt)                                                         \
+	{                                                                                                             \
+		return (struct structname *)ert_alloc(memctxt, depth, order, intern_sz, last_order, last_sz, initval, \
+		                                      initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn,  \
+		                                      resolvefn);                                                     \
+	}                                                                                                             \
+	static inline void *name##_lkup(struct structname *v, unsigned long id)                                       \
+	{                                                                                                             \
+		unsigned long a;                                                                                      \
+		return __ert_lookup((struct ert *)v, id, 0, depth, &a, depth, order, intern_sz, last_order, last_sz,  \
+		                    initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn,           \
+		                    resolvefn);                                                                       \
+	}                                                                                                             \
+	static inline void *name##_lkupa(struct structname *v, unsigned long id, void *accum)                         \
+	{                                                                                                             \
+		return __ert_lookup((struct ert *)v, id, 0, depth, accum, depth, order, intern_sz, last_order,        \
+		                    last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn,  \
+		                    resolvefn);                                                                       \
+	}                                                                                                             \
+	static inline void *name##_lkupan(struct structname *v, unsigned long id, u32_t dlimit, void *accum)          \
+	{                                                                                                             \
+		return __ert_lookup((struct ert *)v, id, 0, dlimit, accum, depth, order, intern_sz, last_order,       \
+		                    last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn,  \
+		                    resolvefn);                                                                       \
+	}                                                                                                             \
+	static inline void *name##_lkupani(struct structname *v, unsigned long id, u32_t dstart, u32_t dlimit,        \
+	                                   void *accum)                                                               \
+	{                                                                                                             \
+		return __ert_lookup((struct ert *)v, id, dstart, dlimit, accum, depth, order, intern_sz, last_order,  \
+		                    last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn,  \
+		                    resolvefn);                                                                       \
+	}                                                                                                             \
+	static inline int name##_expandni(struct structname *v, unsigned long id, u32_t dstart, u32_t dlimit,         \
+	                                  void *accum, void *memctxt, void *data)                                     \
+	{                                                                                                             \
+		return __ert_expand((struct ert *)v, id, dstart, dlimit, accum, memctxt, data, depth, order,          \
+		                    intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, \
+		                    setleaffn, getleaffn, resolvefn);                                                 \
+	}                                                                                                             \
+	static inline int name##_expandn(struct structname *v, unsigned long id, u32_t dlimit, void *accum,           \
+	                                 void *memctxt, void *data)                                                   \
+	{                                                                                                             \
+		return __ert_expand((struct ert *)v, id, 0, dlimit, accum, memctxt, data, depth, order, intern_sz,    \
+		                    last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, \
+		                    getleaffn, resolvefn);                                                            \
+	}                                                                                                             \
+	static inline int name##_expand(struct structname *v, unsigned long id, void *accum, void *memctxt,           \
+	                                void *data)                                                                   \
+	{                                                                                                             \
+		return __ert_expand((struct ert *)v, id, 0, depth, accum, memctxt, data, depth, order, intern_sz,     \
+		                    last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, \
+		                    getleaffn, resolvefn);                                                            \
+	}                                                                                                             \
+	static inline unsigned long name##_maxid(void)                                                                \
+	{                                                                                                             \
+		return __ert_maxid(depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn,    \
+		                   setfn, allocfn, setleaffn, getleaffn, resolvefn);                                  \
+	}                                                                                                             \
+	static inline u32_t name##_maxdepth(void) { return (u32_t)depth; }
 
 
-#define ERT_CREATE_DEF(name, depth, order, last_order, last_sz, allocfn) \
-ERT_CREATE(name, name##_ert, depth, order, sizeof(int*), last_order, last_sz, NULL, ert_definit, ert_defget, ert_defisnull, ert_defset, allocfn, ert_defsetleaf, ert_defgetleaf, ert_defresolve)
+#define ERT_CREATE_DEF(name, depth, order, last_order, last_sz, allocfn)                                              \
+	ERT_CREATE(name, name##_ert, depth, order, sizeof(int *), last_order, last_sz, NULL, ert_definit, ert_defget, \
+	           ert_defisnull, ert_defset, allocfn, ert_defsetleaf, ert_defgetleaf, ert_defresolve)
 
-static inline unsigned long
-__ert_maxid(ERT_CONST_PARAMS)
+static inline unsigned long __ert_maxid(ERT_CONST_PARAMS)
 {
-	unsigned long off    = (unsigned long)(((order * (depth-1)) + last_order));
-	unsigned long maxoff = (unsigned long)(sizeof(int*)*8); /* 8 bits per byte */
+	unsigned long off    = (unsigned long)(((order * (depth - 1)) + last_order));
+	unsigned long maxoff = (unsigned long)(sizeof(int *) * 8); /* 8 bits per byte */
 	ERT_CONSTS_DEWARN;
 
-	return (off > maxoff) ? ((unsigned long)1)<<maxoff : ((unsigned long)1)<<off;
+	return (off > maxoff) ? ((unsigned long)1) << maxoff : ((unsigned long)1) << off;
 }
 
 /*
@@ -161,14 +252,14 @@ __ert_init(struct ert_intern *vi, int isleaf, ERT_CONST_PARAMS)
 
 	assert(vi);
 	if (!isleaf) {
-		base = 1<<order;
+		base = 1 << order;
 		sz   = intern_sz;
 	} else {
-		base = 1<<last_order;
+		base = 1 << last_order;
 		sz   = last_sz;
 	}
-	for (i = 0 ; i < base ; i++) {
-		struct ert_intern *t = (void*)(((char*)vi) + (sz * i));
+	for (i = 0; i < base; i++) {
+		struct ert_intern *t = (void *)(((char *)vi) + (sz * i));
 		initfn(t, isleaf);
 	}
 }
@@ -176,15 +267,17 @@ __ert_init(struct ert_intern *vi, int isleaf, ERT_CONST_PARAMS)
 static struct ert *
 ert_alloc(void *memctxt, ERT_CONST_PARAMS)
 {
-	struct ert *v;
+	struct ert *      v;
 	struct ert_intern e;
-	unsigned long accum = 0;
+	unsigned long     accum = 0;
 
 	/* Make sure the id size can be represented on our system */
-	assert(((order * (depth-1)) + last_order) < (sizeof(unsigned long)*8));
+	assert(((order * (depth - 1)) + last_order) < (sizeof(unsigned long) * 8));
 	assert(depth >= 1);
-	if (depth > 1) v = allocfn(memctxt, (1<<order) * intern_sz, 0);
-	else           v = allocfn(memctxt, (1<<last_order) * last_sz, 1);
+	if (depth > 1)
+		v = allocfn(memctxt, (1 << order) * intern_sz, 0);
+	else
+		v = allocfn(memctxt, (1 << last_order) * last_sz, 1);
 	if (NULL == v) return NULL;
 	__ert_init(v->vect, depth == 1, ERT_CONST_ARGS);
 
@@ -196,16 +289,16 @@ static inline struct ert_intern *
 __ert_walk(struct ert_intern *vi, unsigned long id, void *accum, u32_t lvl, ERT_CONST_PARAMS)
 {
 	u32_t last_off;
-#define ERT_M(id, o) ((id) & ((1<<(o))-1)) // Mask out order number of bits
+#define ERT_M(id, o) ((id) & ((1 << (o)) - 1)) // Mask out order number of bits
 	ERT_CONSTS_DEWARN;
 
 	vi = getfn(vi, accum, 0);
-	if (lvl-1 == 0) {
+	if (lvl - 1 == 0) {
 		/* offset into the last level, leaf node */
 		last_off = ERT_M(id, last_order) * last_sz;
 	} else {
 		/* calculate the offset in an internal node */
-		last_off = ERT_M((id >> ((order * (lvl-2)) + last_order)), order) * intern_sz;
+		last_off = ERT_M((id >> ((order * (lvl - 2)) + last_order)), order) * intern_sz;
 	}
 	return (struct ert_intern *)(((char *)vi) + last_off);
 }
@@ -232,27 +325,25 @@ static inline CFORCEINLINE void *
 __ert_lookup(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *accum, ERT_CONST_PARAMS)
 {
 	struct ert_intern r, *n;
-	u32_t i, limit;
+	u32_t             i, limit;
 
 	assert(v);
 	assert(id < __ert_maxid(ERT_CONST_ARGS));
-	assert(dlimit <= depth+1);
+	assert(dlimit <= depth + 1);
 	assert(dstart <= dlimit);
 
 	/* simply gets the address of the vector */
 	r.next = v->vect;
 	n      = &r;
 	limit  = dlimit < depth ? dlimit : depth;
-	for (i = dstart ; i < limit ; i++) {
+	for (i = dstart; i < limit; i++) {
 		if (unlikely(isnullfn(n, accum, 0))) return NULL;
-		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
+		n = __ert_walk(n, id, accum, depth - i, ERT_CONST_ARGS);
 	}
 
-	if (i == depth &&
-	    unlikely(!resolvefn(n, accum, 1, last_order, last_sz))) return NULL;
-	if (i < depth  &&
-	    unlikely(!resolvefn(n, accum, 0, order, intern_sz))) return NULL;
-	if (dlimit == depth+1) n = getleaffn(n, accum);
+	if (i == depth && unlikely(!resolvefn(n, accum, 1, last_order, last_sz))) return NULL;
+	if (i < depth && unlikely(!resolvefn(n, accum, 0, order, intern_sz))) return NULL;
+	if (dlimit == depth + 1) n = getleaffn(n, accum);
 
 	return n;
 }
@@ -270,33 +361,36 @@ __ert_lookup(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
  * leaf data to something provided in the memctxt.
  */
 static inline int
-__ert_expand(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *accum, void *memctxt, void *data, ERT_CONST_PARAMS)
+__ert_expand(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *accum, void *memctxt, void *data,
+             ERT_CONST_PARAMS)
 {
 	struct ert_intern r, *n, *new;
-	u32_t i, limit;
+	u32_t             i, limit;
 
 	assert(v);
 	assert(id < __ert_maxid(ERT_CONST_ARGS));
-	assert(dlimit <= depth+1); /* cannot expand past leaf */
+	assert(dlimit <= depth + 1); /* cannot expand past leaf */
 	assert(dstart <= dlimit);
 
 	r.next = v->vect;
 	n      = &r;
 	limit  = dlimit < depth ? dlimit : depth;
-	for (i = dstart ; i < limit-1 ; i++) {
-		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
+	for (i = dstart; i < limit - 1; i++) {
+		n = __ert_walk(n, id, accum, depth - i, ERT_CONST_ARGS);
 		if (!isnullfn(n, accum, 0)) continue;
 
 		/* expand via memory allocation */
-		if (i+2 < depth) new = allocfn(memctxt, (1<<order) * intern_sz, 0);
-		else             new = allocfn(memctxt, (1<<last_order) * last_sz, 1);
+		if (i + 2 < depth)
+			new = allocfn(memctxt, (1 << order) * intern_sz, 0);
+		else
+			new = allocfn(memctxt, (1 << last_order) * last_sz, 1);
 
 		if (unlikely(!new)) return -1;
-		__ert_init(new, i+2 >= depth, ERT_CONST_ARGS);
+		__ert_init(new, i + 2 >= depth, ERT_CONST_ARGS);
 		setfn(n, new, accum, 0);
 	}
-	if (dlimit == depth+1) {
-		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
+	if (dlimit == depth + 1) {
+		n = __ert_walk(n, id, accum, depth - i, ERT_CONST_ARGS);
 		/* don't overwrite a value, unless we want to set it to the initval */
 		if (data != initval && !isnullfn(n, accum, 0)) return 1;
 

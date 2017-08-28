@@ -4,12 +4,16 @@ IMPLDIR=$(CDIR)/implementation/
 INTERDIR=$(CDIR)/interface/
 LIBDIR=$(CDIR)/lib/
 MANDITORY_LIB=cos_manditory.o
-CINC=-I./ -I$(CDIR)/include/ -I$(SHAREDINC) -I$(CDIR)/lib/ck/include -I$(CDIR)/lib/ps/
+CINC=-I./ -I$(CDIR)/include/ -I$(SHAREDINC) -I$(CDIR)/lib/ck/include -I$(CDIR)/lib/ps/ -I$(CDIR)/lib/libcxx/include
 
 MUSLDIR=$(CDIR)/lib/musl-1.1.11
 MUSLBIN=$(MUSLDIR)/bin
 MUSLCC=$(MUSLBIN)/musl-$(CC)
-MUSLINC=-I$(MUSLDIR)/include
+MUSLINC=-isystem$(MUSLDIR)/include
+
+LIBCXXDIR=$(LIBDIR)/libcxx
+LIBSTDCXXOBJ=$(LIBCXXDIR)/libstdc++.a
+LIBSUPCXXOBJ=$(LIBCXXDIR)/libsupc++.a
 
 LWIPBASE=$(CDIR)/lib/lwip
 LWIPDIR=$(LWIPBASE)/lwip-1.3.0
@@ -35,6 +39,7 @@ SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic
 OPT= -g
 #OPT= -O3
 CFLAGS=-m32 -D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable -fvar-tracking $(INC_PATH) $(MUSLINC) $(LWIPINC) $(LUAINC) $(OPT) $(SHARED_FLAGS)
+CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
 LDFLAGS=-m elf_i386
 MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r
 ASFLAGS=-m32 $(INC_PATH) $(SHARED_FLAGS)

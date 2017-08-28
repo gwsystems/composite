@@ -21,7 +21,7 @@ void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
     sl_init();
 
     struct sl_thd* main_delegate_thread = sl_thd_alloc(main_delegate, NULL);
-    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = MAIN_DELEGATE_THREAD_PRIORITY}};
+    union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = MAIN_DELEGATE_THREAD_PRIORITY}};
     sl_thd_param_set(main_delegate_thread, sp.v);
     main_delegate_thread_id = main_delegate_thread->thdid;
 
@@ -94,7 +94,7 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
 
     struct sl_thd* thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
     assert(thd);
-    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = priority}};
+    union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = priority}};
     sl_thd_param_set(thd, sp.v);
 
     struct sl_thd_policy* policy = sl_mod_thd_policy_get(thd);
@@ -170,7 +170,7 @@ int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
         return OS_ERR_INVALID_ID;
     }
 
-    union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = new_priority}};
+    union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = new_priority}};
     sl_thd_param_set(thd, sp.v);
 
     return OS_SUCCESS;

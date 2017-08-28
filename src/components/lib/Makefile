@@ -10,8 +10,8 @@ SIMPLE_STKLIB=simple_stklib.o
 CINC_ENV=$(CINC)
 export CINC_ENV
 
-.PHONY: all sl
-all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl 
+.PHONY: all sl ck ps
+all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl
 
 # we have to compile these without dietlibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't
@@ -45,26 +45,32 @@ clean:
 
 distclean:
 	make -C musl-1.1.11 distclean
-	make -C lwip/cos clean
-	make -C lua/cos clean
 # keep the following commands in one line. make executes each line
 # with a new shell.
 #	cd ck; ./configure; cd ..
 #	make -C ck distclean
-#	make -C posix clean
+	make -C posix clean
+	make -C libcxx clean
 #	make -C libccv clean
 
 musl:
-	cd musl-1.1.11; ./configure --disable-shared; cd ..
+	cd musl-1.1.11; ./configure --disable-shared --enable-debug; cd ..
 	make -C musl-1.1.11
 	make -C musl-1.1.11 install
 
-init: clean distclean musl all
+ck:
+	cd ck; ./configure; cd ..
+
+ps:
+	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
+
+
+init: clean distclean musl ck ps all
 #	make -C lwip/cos
 #	make -C lua/cos
 # keep the following commands in one line. Same as above.
-	cd ck; ./configure; cd ..
-	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
+	make -C posix
+	make -C libcxx
 
 #	make -C lwip/cos
 #	make -C lua/cos

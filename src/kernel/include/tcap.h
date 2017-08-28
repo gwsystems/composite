@@ -21,12 +21,12 @@
 #define TCAP_MAX_DELEGATIONS 16
 #endif
 
-#define TCAP_TIMER_DIFF      (1<<9)
+#define TCAP_TIMER_DIFF (1 << 9)
 
 struct cap_tcap {
 	struct cap_header h;
-	struct tcap *tcap;
-	cpuid_t cpuid;
+	struct tcap *     tcap;
+	cpuid_t           cpuid;
 } __attribute__((packed));
 
 /*
@@ -37,7 +37,7 @@ struct cap_tcap {
 
 struct tcap_budget {
 	/* overrun due to tick granularity can result in cycles < 0 */
-        tcap_res_t cycles;
+	tcap_res_t cycles;
 };
 
 struct tcap_sched_info {
@@ -46,8 +46,8 @@ struct tcap_sched_info {
 };
 
 struct tcap {
-	struct thread     *arcv_ep; /* the arcv endpoint this tcap is hooked into */
-	u32_t 		   refcnt;
+	struct thread *    arcv_ep; /* the arcv endpoint this tcap is hooked into */
+	u32_t              refcnt;
 	struct tcap_budget budget;
 	u8_t               ndelegs, curr_sched_off;
 	u16_t              cpuid;
@@ -70,60 +70,87 @@ struct tcap {
 	 * we assume it is of the lowest-priority.
 	 */
 	struct tcap_sched_info delegations[TCAP_MAX_DELEGATIONS];
-	struct list_node active_list;
+	struct list_node       active_list;
 };
 
 void tcap_active_init(struct cos_cpu_local_info *cli);
-int tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new);
-int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio);
-int tcap_merge(struct tcap *dst, struct tcap *rm);
+int  tcap_activate(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new);
+int  tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio);
+int  tcap_merge(struct tcap *dst, struct tcap *rm);
 void tcap_promote(struct tcap *t, struct thread *thd);
-int tcap_wakeup(struct tcap *tc, tcap_prio_t prio, tcap_res_t budget, struct thread *thd, struct cos_cpu_local_info *cli);
+int
+tcap_wakeup(struct tcap *tc, tcap_prio_t prio, tcap_res_t budget, struct thread *thd, struct cos_cpu_local_info *cli);
 
 struct thread *tcap_tick_handler(void);
-void tcap_timer_choose(int c);
+void           tcap_timer_choose(int c);
 
 static inline struct tcap_sched_info *
 tcap_sched_info(struct tcap *t)
-{ return &t->delegations[t->curr_sched_off]; }
+{
+	return &t->delegations[t->curr_sched_off];
+}
 
 static inline void
 tcap_ref_take(struct tcap *t)
-{ t->refcnt++; }
+{
+	t->refcnt++;
+}
 
 static inline void
 tcap_ref_release(struct tcap *t)
-{ t->refcnt--; }
+{
+	t->refcnt--;
+}
 
 static inline int
 tcap_ref(struct tcap *t)
-{ return t->refcnt; }
+{
+	return t->refcnt;
+}
 
 static inline struct thread *
-tcap_rcvcap_thd(struct tcap *tc) { return tc->arcv_ep; }
+tcap_rcvcap_thd(struct tcap *tc)
+{
+	return tc->arcv_ep;
+}
 
 /*** Active TCap list ***/
 
 static inline int
-tcap_is_active(struct tcap *t) { return !list_empty(&t->active_list); }
+tcap_is_active(struct tcap *t)
+{
+	return !list_empty(&t->active_list);
+}
 
 static inline void
 tcap_active_add_before(struct tcap *existing, struct tcap *t)
-{ list_add_before(&existing->active_list, &t->active_list); }
+{
+	list_add_before(&existing->active_list, &t->active_list);
+}
 
 static inline void
 tcap_active_add_after(struct tcap *existing, struct tcap *t)
-{ list_add_after(&existing->active_list, &t->active_list); }
+{
+	list_add_after(&existing->active_list, &t->active_list);
+}
 
 static inline struct tcap *
-tcap_active_next(struct cos_cpu_local_info *cli) { return (struct tcap *)list_first(&cli->tcaps); }
+tcap_active_next(struct cos_cpu_local_info *cli)
+{
+	return (struct tcap *)list_first(&cli->tcaps);
+}
 
 static inline void
-tcap_active_rem(struct tcap *t) { list_rem(&t->active_list); }
+tcap_active_rem(struct tcap *t)
+{
+	list_rem(&t->active_list);
+}
 
 static unsigned int
 tcap_cycles_same(cycles_t a, cycles_t b)
-{ return cycles_same(a, b, (cycles_t)chal_cyc_thresh()); }
+{
+	return cycles_same(a, b, (cycles_t)chal_cyc_thresh());
+}
 
 /**
  * Expend @cycles amount of budget.
@@ -153,11 +180,15 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 
 static inline tcap_res_t
 tcap_left(struct tcap *t)
-{ return t->budget.cycles; }
+{
+	return t->budget.cycles;
+}
 
 static inline int
 tcap_expended(struct tcap *t)
-{ return tcap_left(t) == 0; }
+{
+	return tcap_left(t) == 0;
+}
 
 static inline void
 tcap_setprio(struct tcap *t, tcap_prio_t p)
@@ -168,7 +199,9 @@ tcap_setprio(struct tcap *t, tcap_prio_t p)
 
 static inline struct tcap *
 tcap_current(struct cos_cpu_local_info *cos_info)
-{ return (struct tcap *)(cos_info->curr_tcap); }
+{
+	return (struct tcap *)(cos_info->curr_tcap);
+}
 
 static inline void
 tcap_current_set(struct cos_cpu_local_info *cos_info, struct tcap *t)
@@ -176,7 +209,7 @@ tcap_current_set(struct cos_cpu_local_info *cos_info, struct tcap *t)
 	struct tcap *curr = tcap_current(cos_info);
 
 	/* remove transient prio on current tcap before switching to a new tcap */
-	if(curr->perm_prio != tcap_sched_info(curr)->prio) tcap_setprio(curr, curr->perm_prio);
+	if (curr->perm_prio != tcap_sched_info(curr)->prio) tcap_setprio(curr, curr->perm_prio);
 	cos_info->curr_tcap = t;
 }
 
@@ -186,10 +219,10 @@ void __thd_exec_add(struct thread *t, cycles_t cycles);
 static inline int
 tcap_budgets_update(struct cos_cpu_local_info *cos_info, struct thread *t, struct tcap *next, cycles_t *now)
 {
-	cycles_t cycles, expended;
+	cycles_t     cycles, expended;
 	struct tcap *curr = tcap_current(cos_info);
 
-	cycles =  *now   = tsc();
+	cycles = *now    = tsc();
 	expended         = cycles - cos_info->cycles;
 	cos_info->cycles = cycles;
 	__thd_exec_add(t, expended);
@@ -206,24 +239,26 @@ tcap_budgets_update(struct cos_cpu_local_info *cos_info, struct thread *t, struc
 static inline void
 tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_time_t timeout, cycles_t now)
 {
-	cycles_t timer, timeout_cyc;
+	cycles_t   timer, timeout_cyc;
 	tcap_res_t left;
 
 	/* next == INF? no timer required. */
-	left        = tcap_left(next);
+	left = tcap_left(next);
 	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) {
 		cos_info->next_timer = 0;
 		chal_timer_disable();
 		return;
-	} 
+	}
 
 	/* timeout based on the tcap budget... */
 	timer       = now + left;
 	timeout_cyc = tcap_time2cyc(timeout, now);
 	/* ...or explicit timeout within the bounds of the budget */
 	if (timeout != TCAP_TIME_NIL && timeout_cyc < timer) {
-		if (tcap_time_lessthan(timeout, tcap_cyc2time(now))) timer = now;
-		else                                                 timer = timeout_cyc;
+		if (tcap_time_lessthan(timeout, tcap_cyc2time(now)))
+			timer = now;
+		else
+			timer = timeout_cyc;
 	}
 
 	if (cycles_same(now, timer, TCAP_TIMER_DIFF)) timer = now + TCAP_TIMER_DIFF;
@@ -247,7 +282,7 @@ tcap_higher_prio(struct tcap *a, struct tcap *c)
 
 	if (tcap_expended(a)) return 0;
 
-	for (i = 0, j = 0 ; i < a->ndelegs && j < c->ndelegs ; ) {
+	for (i = 0, j = 0; i < a->ndelegs && j < c->ndelegs;) {
 		/*
 		 * These cases are for the case where the tcaps don't
 		 * share a common scheduler (due to the partial order
@@ -272,11 +307,14 @@ fixup:
 static inline int
 tcap_introspect(struct tcap *t, unsigned long op, unsigned long *retval)
 {
-	switch(op) {
-	case TCAP_GET_BUDGET: *retval = t->budget.cycles; break;
-	default:              return -EINVAL;
+	switch (op) {
+	case TCAP_GET_BUDGET:
+		*retval = t->budget.cycles;
+		break;
+	default:
+		return -EINVAL;
 	}
 	return 0;
 }
 
-#endif	/* TCAP_H */
+#endif /* TCAP_H */

@@ -31,3 +31,6 @@ GSYMS
 GTAGS
 tools/.vagrant
 .vagrant
+.clang_complete
+Vagrantfile
+provision.sh
