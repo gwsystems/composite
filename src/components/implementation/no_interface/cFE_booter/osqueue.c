@@ -5,12 +5,16 @@
 
 #include <cos_debug.h>
 
+#include <sl_lock.h>
+
 #include <string.h>
 
 #undef OS_MAX_QUEUES
 #define OS_MAX_QUEUES 15
 
 #define MAX_QUEUE_DATA_SIZE (1024 * 1024)
+
+struct sl_lock queue_lock = SL_LOCK_STATIC_INIT();
 
 // The main queue data structure.
 struct queue {
@@ -109,20 +113,25 @@ int32
 OS_QueueGet(uint32 queue_id, void* data, uint32 size, uint32* size_copied, int32 timeout)
 {
         uint32 i;
+        int result = OS_ERROR;
+
+        sl_lock_take(queue_lock);
 
         // Check if the requested queue exists.
         if (queue_id > OS_MAX_QUEUES || queues[queue_id].used == FALSE) {
-                return OS_ERR_INVALID_ID;
+                result = OS_ERR_INVALID_ID;
+                goto exit;
         }
 
         // Check for a NULL pointer.
         if (data == NULL || size_copied == NULL) {
-                return OS_INVALID_POINTER;
+                result = OS_INVALID_POINTER;
+                goto exit;
         }
 
+        /* FIXME: Block instead of poll */
         int32 intervals = timeout / 50 + 1;
         int32 inter = 0;
-        int result = OS_ERROR;
         for (inter = 0; inter < intervals; inter++) {
                 OS_TaskDelay(50);
                 // Check if there are messages to be received.
@@ -149,9 +158,13 @@ OS_QueueGet(uint32 queue_id, void* data, uint32 size, uint32* size_copied, int32
                 // Advance the queue head, wrapping if it is passed `depth`.
                 cur->head = (cur->head + 1) % cur->depth;
 
-                return OS_SUCCESS;
+                result = OS_SUCCESS;
+                goto exit;
         }
         assert(result != OS_ERROR);
+
+exit:
+        sl_lock_release(queue_lock);
         return result;
 }
 
