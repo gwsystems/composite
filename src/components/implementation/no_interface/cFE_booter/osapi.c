@@ -100,6 +100,7 @@ OS_time_t local_time;
 microsec_t last_time_check;
 
 OS_time_t OS_AdvanceTime(OS_time_t initial_time, microsec_t usec) {
+    printc("Advancing time\n");
     microsec_t old_seconds = (microsec_t) initial_time.seconds;
     microsec_t old_additional_usec = (microsec_t) initial_time.microsecs;
 
@@ -108,6 +109,7 @@ OS_time_t OS_AdvanceTime(OS_time_t initial_time, microsec_t usec) {
 
     microsec_t new_seconds = new_usec / (1000 * 1000);
     microsec_t new_additional_usec = new_usec % (1000 * 1000);
+    printc("Done advancing time!\n");
 
     return (OS_time_t) {
         .seconds = new_seconds,

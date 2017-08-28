@@ -3,6 +3,8 @@
 #include "gen/common_types.h"
 #include "gen/osapi.h"
 
+#include <cos_debug.h>
+
 #include <string.h>
 
 #undef OS_MAX_QUEUES
@@ -118,29 +120,39 @@ OS_QueueGet(uint32 queue_id, void* data, uint32 size, uint32* size_copied, int32
                 return OS_INVALID_POINTER;
         }
 
-        // Check if there are messages to be received.
-        if (queues[queue_id].head == queues[queue_id].tail) {
-                return OS_QUEUE_EMPTY;
+        int32 intervals = timeout / 50 + 1;
+        int32 inter = 0;
+        int result = OS_ERROR;
+        for (inter = 0; inter < intervals; inter++) {
+                OS_TaskDelay(50);
+                // Check if there are messages to be received.
+                if (queues[queue_id].head == queues[queue_id].tail) {
+                        result = OS_QUEUE_EMPTY;
+                        continue;
+                }
+
+                // TODO: Implement logic for returning OS_QUEUE_TIMEOUT (waiting on mutex implementation).
+
+                if (size < queues[queue_id].data_size) {
+                        result = OS_QUEUE_INVALID_SIZE;
+                        continue;
+                }
+
+                // A helper reference to the currently selected queue.
+                struct queue* cur = &queues[queue_id];
+
+                // Walk through the bytes at the head of the queue and write them to buffer `data`.
+                for (i = 0; i < size; i++) {
+                        *((char*)data + i) = queue_data[queue_id][cur->head * cur->data_size + i];
+                }
+
+                // Advance the queue head, wrapping if it is passed `depth`.
+                cur->head = (cur->head + 1) % cur->depth;
+
+                return OS_SUCCESS;
         }
-
-        // TODO: Implement logic for returning OS_QUEUE_TIMEOUT (waiting on mutex implementation).
-
-        if (size < queues[queue_id].data_size) {
-                return OS_QUEUE_INVALID_SIZE;
-        }
-
-        // A helper reference to the currently selected queue.
-        struct queue* cur = &queues[queue_id];
-
-        // Walk through the bytes at the head of the queue and write them to buffer `data`.
-        for (i = 0; i < size; i++) {
-                *((char*)data + i) = queue_data[queue_id][cur->head * cur->data_size + i];
-        }
-
-        // Advance the queue head, wrapping if it is passed `depth`.
-        cur->head = (cur->head + 1) % cur->depth;
-
-        return OS_SUCCESS;
+        assert(result != OS_ERROR);
+        return result;
 }
 
 /*
