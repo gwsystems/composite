@@ -580,12 +580,14 @@ sl_sched_loop(void)
 				sl_thd_state_t state = SL_THD_BLOCKED;
 				cycles_t abs_timeout = 0;
 
-				if (thd_timeout) {
-					state       = SL_THD_BLOCKED_TIMEOUT;
-					abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
+				if (cycles) {
+					if (thd_timeout) {
+						state       = SL_THD_BLOCKED_TIMEOUT;
+						abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
+					}
+					sl_thd_block_no_cs(t, state, abs_timeout);
 				}
-				sl_thd_block_no_cs(t, state, abs_timeout);
-			} else if (!cycles) { /* ignore if this is a budget expiry notification */
+			} else {
 				sl_thd_wakeup_no_cs(t, 1);
 			}
 

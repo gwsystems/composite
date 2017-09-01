@@ -485,28 +485,21 @@ notify_parent(struct thread *rcv_thd, int send)
 	prev_notif = rcv_thd;
 	curr_notif = arcv_notif = arcv_thd_notif(prev_notif);
 
-	/*
-	 * Enqueue send sched event only if it's the first one after the thread
-	 * state changed to THD_STATE_RCVING.
-	 * This is to avoid duplicate wakeup events at user-level scheduling.
-	 * Basically changing to Edge-triggered wakeup notification from 
-	 * some form of level-triggered.
-	 */ 
-	if (send && (!(rcv_thd->state & THD_STATE_RCVING) || 
-	    (rcv_thd->state & THD_STATE_RCVING && thd_rcvcap_pending(rcv_thd)))) goto done;
-
 	while (curr_notif && curr_notif != prev_notif) {
 		assert(depth < ARCV_NOTIF_DEPTH);
 
 		thd_rcvcap_evt_enqueue(curr_notif, prev_notif);
-		if (!(curr_notif->state & THD_STATE_RCVING)) break;
+		/*
+		 * If either the thread is not suspended on RCV or
+		 * if it already has pending events. There is no need to notify it's parent of this wakeup.
+		 */
+		if (!(curr_notif->state & THD_STATE_RCVING) || thd_rcvcap_pending(curr_notif)) break;
 
 		prev_notif = curr_notif;
 		curr_notif = arcv_thd_notif(prev_notif);
 		depth++;
 	}
 
-done:
 	return arcv_notif;
 }
 
@@ -547,11 +540,6 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, 
 	thd_rcvcap_pending_inc(rcv_thd);
 	next = notify_process(rcv_thd, thd, rcv_tcap, tcap, tcap_next, yield);
 
-	if (next == thd)
-		tcap_wakeup(rcv_tcap, tcap_sched_info(rcv_tcap)->prio, 0, rcv_thd, cos_info);
-	else
-		thd_next_thdinfo_update(cos_info, thd, tcap, tcap_sched_info(tcap)->prio, 0);
-
 	return next;
 }
 
@@ -582,13 +570,12 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 			thd_next    = thd_rcvcap_sched(tcap_rcvcap_thd(tc_next));
 			switch_away = 1;
 		}
+	} else if (timer_intr_context) {
+		thd_next = thd_scheduler(thd_curr);
+		/* tc_next is tc_curr */
 	}
 
-	if (budget_expired) notify_parent(tcap_rcvcap_thd(tc_curr), 0);
-	if (timer_intr_context || switch_away) {
-		thd_next = notify_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
-		if (thd_next == thd_curr && tc_next == tc_curr) return timer_intr_context;
-	}
+	if (unlikely(switch_away)) notify_parent(thd_next, 1);
 
 	/* update tcaps, and timers */
 	tcap_timer_update(cos_info, tc_next, timeout, now);
@@ -659,7 +646,12 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 			/* tcap inheritance here...use the current tcap to process events */
 			tc      = 0;
 			timeout = TCAP_TIME_NIL;
+		} else {
+			thd_scheduler_set(next, rcvt);
 		}
+	} else {
+		/* TODO: no scheduler rcv specified. set current as it's scheduler? */
+		thd_scheduler_set(next, thd);
 	}
 
 	if (tc) {
@@ -743,6 +735,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 		if (unlikely(tcap_expended(rcv_tcap))) return -EPERM;
 		yield = 1; /* scheduling child thread, so yield to it. */
 
+		thd_scheduler_set(rcv_thd, rcvt);
 		/* FIXME: child component to abide by the parent's timeout */
 	}
 

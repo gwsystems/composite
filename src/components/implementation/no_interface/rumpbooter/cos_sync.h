@@ -164,7 +164,7 @@ intr_enable(void)
 		do {
 			ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending), irq_prio[contending], 
 					 TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-			assert (ret == 0 || ret == -EAGAIN || ret == -EBUSY);
+			assert (ret == 0 || ret == -EAGAIN || ret == -EPERM);
 		} while(ret == -EAGAIN);
 	}
 }

@@ -423,7 +423,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 */
 	if (unlikely(to)) {
 		t = to;
-		if (t->state != SL_THD_RUNNABLE) to= NULL;
+		if (t->state != SL_THD_RUNNABLE) to = NULL;
 	}
 	if (likely(!to)) {
 		pt = sl_mod_schedule();
@@ -440,23 +440,42 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 
 	if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
 		assert(t->budget && t->period);
+		assert(sl_thd_tcap(t) != sl__globals()->sched_tcap);
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
-			tcap_res_t currbudget;
+			tcap_res_t currbudget = 0;
+			int        ret        = 0;
+			cycles_t   replenish  = now - ((now - t->last_replenish) % t->period);
 
-			t->last_replenish = now;
-			currbudget        = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
-			/* TODO: need to change logic for SNDCAP with tcap_delegate, and error handling */
-			if (currbudget < t->budget && cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals()->sched_tcap,
-			    currbudget - t->budget, t->prio)) assert(0);
+			if (likely(t->last_replenish)) currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
+
+			if (!cycles_same(currbudget, t->budget, SL_CYCS_DIFF) && currbudget < t->budget) {
+				tcap_res_t transfer = t->budget - currbudget;
+
+				ret = cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals()->sched_tcap, transfer, t->prio);
+			}
+
+			if (likely(ret == 0)) t->last_replenish = replenish;
 		}
 	}
-	assert(t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
+
+	assert(t->state == SL_THD_RUNNABLE);
 	sl_cs_exit();
 
-	/* TODO: handle `-EPERM` in cos_switch() to interrupt thread or cos_asnd to child comp with its own tcap here. */
 	ret = sl_thd_activate(t, tok);
-	//printc("#%u=>%u:%d#", cos_thdid(), t->thdid, ret);
+	if (unlikely(ret == -EPERM)) {
+		cycles_t abs_timeout = t->last_replenish + t->period;
+
+		assert(t->thdid != globals->sched_thd->thdid);
+		sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
+
+		if (likely(sl_thdid() == globals->sched_thd->thdid)) {
+			return ret;
+		} else {
+			ret = sl_thd_activate(globals->sched_thd, tok);
+		}
+	}
+
 	return ret;
 }
 

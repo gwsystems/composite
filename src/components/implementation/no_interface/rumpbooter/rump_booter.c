@@ -8,6 +8,7 @@
 #include "rumpcalls.h"
 #include "cos_init.h"
 #include "vk_api.h"
+#include "cos_sync.h"
 
 extern struct cos_compinfo booter_info;
 extern int vmid;
@@ -32,6 +33,7 @@ hw_irq_alloc(void){
 		if (vmid == 0) {
 			switch(i) {
 			case IRQ_VM1:
+				intr_update(i, 0);
 				irq_thdcap[i] = dom0_vio_thdcap(1);
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
 				irq_arcvcap[i] = dom0_vio_rcvcap(1);
@@ -39,13 +41,17 @@ hw_irq_alloc(void){
 				irq_prio[i] = PRIO_BOOST;
 				break;
 			case IRQ_VM2:
-				irq_thdcap[i] = dom0_vio_thdcap(2);
-				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
-				irq_arcvcap[i] = dom0_vio_rcvcap(2);
-				irq_tcap[i] = dom0_vio_tcap(2);
-				irq_prio[i] = PRIO_BOOST;
+				if (COS2RK_VIRT_MACH_COUNT ==3) { 
+					intr_update(i, 0);
+					irq_thdcap[i] = dom0_vio_thdcap(2);
+					irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
+					irq_arcvcap[i] = dom0_vio_rcvcap(2);
+					irq_tcap[i] = dom0_vio_tcap(2);
+					irq_prio[i] = PRIO_BOOST;
+				}
 				break;
 			default:
+				intr_update(i, 0);
 				irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, (void *)i);
 				assert(irq_thdcap[i]);
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
@@ -61,6 +67,7 @@ hw_irq_alloc(void){
 		} else {
 			switch(i) {
 				case IRQ_DOM0_VM:
+					intr_update(i, 0);
 					irq_thdcap[i] = VM_CAPTBL_SELF_IOTHD_BASE;
 					irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
 					irq_arcvcap[i] = VM_CAPTBL_SELF_IORCV_BASE;

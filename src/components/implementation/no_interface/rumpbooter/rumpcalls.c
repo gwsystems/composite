@@ -61,6 +61,8 @@ cos2rump_setup(void)
 	crcalls.rump_sched_yield		= cos_sched_yield;
 	crcalls.rump_vm_yield			= cos_vm_yield;
 
+	crcalls.rump_cpu_intr_ack		= cos_cpu_intr_ack;
+
 	crcalls.rump_shmem_send			= cos_shmem_send;
 	crcalls.rump_shmem_recv			= cos_shmem_recv;
 	crcalls.rump_dequeue_size		= cos_dequeue_size;
@@ -103,6 +105,28 @@ rump2cos_rcv(void)
 {
 	printc("rump2cos_rcv");	
 	return;
+}
+
+static inline void
+__cpu_intr_ack(void)
+{
+	static int count;
+	if (vmid) return;
+
+	__asm__ __volatile(
+		"movb $0x20, %%al\n"
+		"outb %%al, $0xa0\n"
+		"outb %%al, $0x20\n"
+		::: "al");
+	count ++;
+
+	//printc("[%d]", count);
+}
+
+void
+cos_cpu_intr_ack(void)
+{
+	__cpu_intr_ack();
 }
 
 /* irq */
@@ -198,7 +222,7 @@ extern int vmid;
 static inline void
 intr_switch(void)
 {
-	int ret, i = 32;
+	int i = 32;
 
 	if (!intrs) return;
 
@@ -207,10 +231,13 @@ intr_switch(void)
 		int tmp = intrs;
 
 		if ((tmp>>(i-1)) & 1) {
+			int ret = 0;
+
 			do {
 				ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(i), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-				assert (ret == 0 || ret == -EAGAIN || ret == -EBUSY);
 			} while (ret == -EAGAIN);
+
+			if (ret == -EBUSY) return; /* scheduler events have to be processed */
 		}
 	}
 }
@@ -257,7 +284,7 @@ print_cycles(void)
 	}
 }
 
-#define SCHED_TIMEOUT (1 * 1000 * cycs_per_usec)
+#define SCHED_TIMEOUT_CYCS (1000 * cycs_per_usec)
 
 /* Called once from RK init thread. The one in while(1) */
 void
@@ -292,7 +319,7 @@ cos_resume(void)
 
 			do {
 				rdtscll(now);
-				timeout = tcap_cyc2time(now + SCHED_TIMEOUT); 
+				timeout = tcap_cyc2time(now + SCHED_TIMEOUT_CYCS); 
 				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, timeout, 
 						        NULL, &tid, &blocked, &cycles, &thd_timeout);
 
@@ -322,7 +349,6 @@ rk_resume:
 			cos_find_vio_tcap();
 			/* TODO: decide which TCAP to use for rest of RK processing for I/O and do deficit accounting */
 			ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-			assert(ret == 0 || ret == -EAGAIN || ret == -EBUSY);
 		} while(ret == -EAGAIN);
 
 		check_vio_budgets();
