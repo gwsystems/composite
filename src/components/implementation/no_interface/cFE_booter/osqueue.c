@@ -115,7 +115,7 @@ OS_QueueGet(uint32 queue_id, void* data, uint32 size, uint32* size_copied, int32
         uint32 i;
         int result = OS_ERROR;
 
-        sl_lock_take(queue_lock);
+        sl_lock_take(&queue_lock);
 
         // Check if the requested queue exists.
         if (queue_id > OS_MAX_QUEUES || queues[queue_id].used == FALSE) {
@@ -130,10 +130,19 @@ OS_QueueGet(uint32 queue_id, void* data, uint32 size, uint32* size_copied, int32
         }
 
         /* FIXME: Block instead of poll */
-        int32 intervals = timeout / 50 + 1;
+        int32 intervals;
+        if (timeout == OS_CHECK) {
+            intervals = 0;
+        } else if (timeout == OS_PEND) {
+            intervals = 0xFFFFFF;
+        } else {
+            intervals = timeout / 50 + 1;
+        }
         int32 inter = 0;
         for (inter = 0; inter < intervals; inter++) {
+                sl_lock_release(&queue_lock);
                 OS_TaskDelay(50);
+                sl_lock_take(&queue_lock);
                 // Check if there are messages to be received.
                 if (queues[queue_id].head == queues[queue_id].tail) {
                         result = OS_QUEUE_EMPTY;
@@ -164,7 +173,7 @@ OS_QueueGet(uint32 queue_id, void* data, uint32 size, uint32* size_copied, int32
         assert(result != OS_ERROR);
 
 exit:
-        sl_lock_release(queue_lock);
+        sl_lock_release(&queue_lock);
         return result;
 }
 
