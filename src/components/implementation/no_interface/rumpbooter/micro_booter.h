@@ -19,7 +19,7 @@
 #include <cos_kernel_api.h>
 #include "rumpcalls.h"
 
-#include "vk_types_old.h"
+#include "vk_types.h"
 
 #define PRINTC(fmt, args...) printc("%d: " fmt, cos_spdid_get() , ##args)
 #define ITER       10000
@@ -48,5 +48,8 @@ extern int prints(char *s);
 extern int printc(char *fmt, ...);
 extern void rump_booter_init(void);
 extern void test_run_vk(void);
+/* blocks for first period! */
+extern cycles_t hpet_first_period(void);
+extern void dl_booter_init(void);
 
 #endif /* MICRO_BOOTER_H */

@@ -21,6 +21,8 @@
 #define TCAP_MAX_DELEGATIONS 16
 #endif
 
+#define TCAP_TIMER_DIFF      (1<<9)
+
 struct cap_tcap {
 	struct cap_header h;
 	struct tcap *tcap;
@@ -50,6 +52,12 @@ struct tcap {
 	u8_t               ndelegs, curr_sched_off;
 	u16_t              cpuid;
 	tcap_prio_t        perm_prio;
+	/*
+	 * HACK: Tcap to Rcvcap is a 1:n association. 
+	 * Need this bitmap to enable/disable interrupts on budget expiry or transfers
+	 */
+	u32_t		   intbmp;
+	u8_t               masked;
 
 	/*
 	 * Which chain of temporal capabilities resulted in this
@@ -100,6 +108,14 @@ tcap_ref(struct tcap *t)
 static inline struct thread *
 tcap_rcvcap_thd(struct tcap *tc) { return tc->arcv_ep; }
 
+static inline void
+tcap_intbmp_set(struct tcap *tc, int line)
+{ tc->intbmp |= (1<<line); }
+
+static inline void
+tcap_intbmp_reset(struct tcap *tc, int line)
+{ tc->intbmp &= ~(1<<line); }
+
 /*** Active TCap list ***/
 
 static inline int
@@ -136,6 +152,11 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 	if (cycles >= t->budget.cycles || tcap_cycles_same(cycles, t->budget.cycles)) {
 		t->budget.cycles = 0;
 		tcap_active_rem(t); /* no longer active */
+		if (t->intbmp && t->masked == 0) {
+			if (t->intbmp == 1) printk("HPET TCAP CONSUMED\n");
+			chal_mask_irqbmp(t->intbmp);
+			t->masked = 1;
+		}
 
 		/* "declassify" the time by keeping only the current tcap's priority */
 		t->ndelegs = 1;
@@ -211,6 +232,7 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 	/* next == INF? no timer required. */
 	left        = tcap_left(next);
 	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) {
+		cos_info->next_timer = 0;
 		chal_timer_disable();
 		return;
 	} 
@@ -224,6 +246,11 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 		else                                                 timer = timeout_cyc;
 	}
 
+	if (cycles_same(now, timer, TCAP_TIMER_DIFF)) timer = now + TCAP_TIMER_DIFF;
+	if (cycles_same(cos_info->next_timer, timer, TCAP_TIMER_DIFF) && cos_info->next_timer) return;
+
+	assert(timer); /* TODO: wraparound check when timer == 0 */
+	cos_info->next_timer = timer;
 	chal_timer_set(timer);
 }
 

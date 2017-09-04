@@ -5,7 +5,7 @@
 #include <cos_kernel_api.h>
 
 #define VM_COUNT        2	/* virtual machine count */
-#define VM_UNTYPED_SIZE (1<<27) /* untyped memory per vm = 124MB */
+#define VM_UNTYPED_SIZE (1<<26) /* untyped memory per vm = 64MB */
 
 #define VK_VM_SHM_BASE  0x80000000      /* shared memory region */
 #define VM_SHM_SZ       (1<<20)	        /* Shared memory mapping for each vm = 4MB */
@@ -36,7 +36,7 @@ enum dom0_captbl_layout {
 };
 
 enum vm_state {
-	VM_RUNNING = 0,	
+	VM_RUNNING = 0,
 	VM_EXITED  = 1,
 };
 

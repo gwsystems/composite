@@ -3,7 +3,7 @@
 #include "cos_sync.h"
 #include <cos_kernel_api.h>
 #include <cos_types.h>
-#include "vk_types_old.h"
+#include "vk_types.h"
 #include "rumpcalls.h"
 
 volatile isr_state_t cos_isr = 0;  /* Last running isr thread */

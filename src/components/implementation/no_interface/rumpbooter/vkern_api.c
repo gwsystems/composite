@@ -98,7 +98,7 @@ vk_ringbuf_enqueue(struct cos_shm_rb *rb, void *buff, size_t size)
 
 		/* check if ringbuf is full w/ wraparound */
 		if (second >= rb->tail) {
-			printc("wrap around, rb is full no enqueue\n");
+			//printc("wrap around, rb is full no enqueue\n");
 			return -1;
 		}
 

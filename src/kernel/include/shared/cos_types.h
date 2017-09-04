@@ -31,8 +31,21 @@ typedef signed long long s64_t;
 
 #define LLONG_MAX 9223372036854775807LL
 
-typedef unsigned long word_t;
+/* Types mainly used for documentation */
+typedef unsigned long capid_t;
 
+typedef capid_t sinvcap_t;
+typedef capid_t sretcap_t;
+typedef capid_t asndcap_t;
+typedef capid_t arcvcap_t;
+typedef capid_t thdcap_t;
+typedef capid_t tcap_t;
+typedef capid_t compcap_t;
+typedef capid_t captblcap_t;
+typedef capid_t pgtblcap_t;
+typedef capid_t hwcap_t;
+
+typedef unsigned long word_t;
 typedef u64_t cycles_t;
 typedef u64_t microsec_t;
 typedef unsigned long tcap_res_t;
@@ -60,9 +73,6 @@ tcap_cyc2time(cycles_t c) {
 	tcap_time_t t = (tcap_time_t)(c >> TCAP_TIME_QUANTUM_ORD);
 	return t == TCAP_TIME_NIL ? 1 : t;
 }
-
-// #define CYCLES_DIFF_THRESH (1<<10)
-
 static inline int
 cycles_same(cycles_t a, cycles_t b, cycles_t diff_thresh)
 { return (b < a ? a - b : b - a) <= diff_thresh; }
@@ -112,6 +122,7 @@ typedef enum {
 	CAPTBL_OP_THDDEACTIVATE_ROOT,
 	CAPTBL_OP_MEMMOVE,
 	CAPTBL_OP_INTROSPECT,
+	CAPTBL_OP_INTROSPECT64,
 	CAPTBL_OP_TCAP_ACTIVATE,
 	CAPTBL_OP_TCAP_TRANSFER,
 	CAPTBL_OP_TCAP_DELEGATE,
@@ -124,6 +135,7 @@ typedef enum {
 	CAPTBL_OP_HW_DETACH,
 	CAPTBL_OP_HW_MAP,
 	CAPTBL_OP_HW_CYC_USEC,
+	CAPTBL_OP_HW_CYC_MSEC,
 	CAPTBL_OP_HW_CYC_THRESH,
 } syscall_op_t;
 
@@ -315,11 +327,18 @@ enum {
 	THD_GET_DI,
 	/* thread id */
 	THD_GET_TID,
+	/* thd blocked/unblocked */
+	THD_GET_BLOCKED,
 };
 
 /* Tcap info */
 enum {
 	TCAP_GET_BUDGET,
+};
+
+enum {
+	/* HW info */
+	HW_GET_FIRSTPERIOD,
 };
 
 enum {

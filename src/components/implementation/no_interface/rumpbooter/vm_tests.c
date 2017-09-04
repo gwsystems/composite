@@ -1,5 +1,5 @@
 #include "micro_booter.h"
-#include "vk_types_old.h"
+#include "vk_types.h"
 #include "vkern_api.h"
 #include "rumpcalls.h"
 
@@ -9,7 +9,7 @@ test_shmem(int vm)
 	char buf[50] = { '\0' };
 	if (!vm) {
 		int i = 0;
-		while (i < COS_VIRT_MACH_COUNT - 1) {
+		while (i < VM_COUNT - 1) {
 			memset(buf, '\0', 50);
 			vaddr_t shm_addr = BOOT_MEM_SHM_BASE + i * COS_SHM_VM_SZ;
 			sprintf(buf, "SHMEM %d to %d - %x", vm, i + 1, (unsigned int)cos_va2pa(&booter_info, (void *)shm_addr));
@@ -30,12 +30,12 @@ void
 test_vmio(int vm)
 {
 	/* FIXME: Not tested with new end-points. need VM scheduling for it. */
-	if (COS_VIRT_MACH_COUNT > 1) {
+	if (VM_COUNT > 1) {
 		static int it = 0;
 		char buf[50] = { '\0' };
 		if (!vm) {
 			int i = 1;
-			while (i < COS_VIRT_MACH_COUNT) {
+			while (i < VM_COUNT) {
 				int j = 0;
 				memset(buf, '\0', 50);
 				asndcap_t sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (i - 1) * CAP64B_IDSZ;
@@ -71,7 +71,7 @@ test_vmio_events(void)
 		int i;
 		asndcap_t snd = VM0_CAPTBL_SELF_IOASND_SET_BASE;
 
-		for (i = 1; i < COS_VIRT_MACH_COUNT; i ++) {
+		for (i = 1; i < VM_COUNT; i ++) {
 			snd += (i - 1) * CAP64B_IDSZ;
 			cos_asnd(snd, 1);
 			PRINTC("Sent to fvm%d\n", i);

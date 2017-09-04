@@ -2,6 +2,7 @@
 #define MICRO_BOOTER_H
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #undef assert
 #ifndef assert
@@ -19,8 +20,10 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 
+#include "perfdata.h"
+
 #define PRINTC     printc
-#define ITER       10000
+#define ITER       PERF_VAL_MAX_SZ
 #define TEST_NTHDS 5
 
 extern struct cos_compinfo booter_info;
@@ -45,5 +48,7 @@ tls_set(size_t off, unsigned long val)
 extern int prints(char *s);
 extern int printc(char *fmt, ...);
 extern void test_run_mb(void);
+/* blocks for first period! */
+extern cycles_t hpet_first_period(void);
 
 #endif /* MICRO_BOOTER_H */

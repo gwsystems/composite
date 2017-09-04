@@ -1,6 +1,6 @@
 #include "cos_init.h"
 #include "rump_cos_alloc.h"
-#include <vk_types_old.h>
+#include "vk_types.h"
 
 #include <cos_kernel_api.h>
 

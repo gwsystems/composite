@@ -1,0 +1,12 @@
+1. rump_booter.c
+
+2. cos_hw_attach (provide rcv cap)
+   cos_hw_periodic_attach()
+
+check if(32) add interrupt functions above to rumo_booter
+
+replace vm0_io_fn() cos_snd in while loop, if (32)
+
+cos_snd endpout probably taken care of, but check if working. 
+
+ensure vm0_io_asnd() attached to init_rcv endpoint for dlvm, not io_rcv endpoint

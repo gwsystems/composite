@@ -56,6 +56,9 @@
 
 #define HPET_INT_ENABLE(n) (*hpet_interrupt = (0x1 << n)) /* Clears the INT n for level-triggered mode. */
 
+#define __USECS_CEIL__(n, m) (n+(m-(n%m)))
+#define __IGNORE_FIRST_X__  2000
+
 static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;
 static volatile u64_t *hpet_interrupt;
@@ -94,6 +97,8 @@ static int timer_calibration_init = 1;
 static unsigned long timer_cycles_per_hpetcyc = TIMER_ERROR_BOUND_FACTOR;
 static unsigned long cycles_per_tick;
 static unsigned long hpetcyc_per_tick;
+static unsigned long periodicity_curr = 0;
+static cycles_t first_hpet_period = 0;
 #define ULONG_MAX 4294967295UL
 
 static inline u64_t
@@ -116,14 +121,15 @@ static void
 timer_disable(timer_type_t timer_type)
 {
 	/* Disable timer interrupts */
-	*hpet_config ^= ~1;
+	*hpet_config &= ~HPET_ENABLE_CNF;
 
 	/* Disable timer interrupt of timer_type */
-	hpet_timers[timer_type].config = 0;
+	hpet_timers[timer_type].config  = 0;
+	HPET_COUNTER                    = 0x00;
 	hpet_timers[timer_type].compare = 0;
 
 	/* Enable timer interrupts */
-	*hpet_config |= 1;
+	*hpet_config |= HPET_ENABLE_CNF;
 }
 
 static void
@@ -171,17 +177,52 @@ timer_calibration(void)
 
 int
 chal_cyc_usec(void)
-{ return cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL; }
+{
+	if (cycles_per_tick) return __USECS_CEIL__(cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL, 100);
+	else                 return 0;
+}
+
+int
+chal_cyc_msec(void)
+{
+	assert(TIMER_DEFAULT_US_INTERARRIVAL == 1000);
+	return cycles_per_tick;
+}
 
 int
 periodic_handler(struct pt_regs *regs)
 {
+	static u32_t count = 0;
+	cycles_t now;
+	static cycles_t prev = 0;
 	int preempt = 1;
 
 	if (unlikely(timer_calibration_init)) timer_calibration();
 
+	rdtscll(now);
 	ack_irq(HW_PERIODIC);
+	if (periodicity_curr) {
+		count ++;
+		//if (prev && count < 200) { printk("act..%llu..", now - prev); }
+		//prev = now;
+		if (unlikely(count < __IGNORE_FIRST_X__)) {
+			if (count % 999 == 0) printk(".h=%lu.", count);
+			goto done;
+		}
+		//if (count >= 400) while (1);
+		//if (count == 2500) while (1) ;
+		if (!first_hpet_period) {
+			rdtscll(first_hpet_period);
+		//	printk("f=%llu..\n", first_hpet_period);
+		}
+	}
+	//printk("p");
+//	rdtscll(now);
+//	if (prev) printk(" %llu ", now - prev);
+//	prev = now;
+
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
+done:
 	HPET_INT_ENABLE(TIMER_PERIODIC);
 
 	return preempt;
@@ -204,15 +245,16 @@ oneshot_handler(struct pt_regs *regs)
 void
 timer_set(timer_type_t timer_type, u64_t cycles)
 {
+	
 	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF;
 
-	cycles = timer_cpu2hpet_cycles(cycles);
-
 	/* Disable timer interrupts */
-	*hpet_config ^= ~1;
+	*hpet_config &= ~HPET_ENABLE_CNF;
 
 	/* Reset main counter */
 	if (timer_type == TIMER_ONESHOT) {
+		cycles = timer_cpu2hpet_cycles(cycles);
+
 		/* Set a static value to count up to */
 		hpet_timers[timer_type].config = outconfig;
 		cycles += HPET_COUNTER;
@@ -225,25 +267,8 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 	hpet_timers[timer_type].compare = cycles;
 
 	/* Enable timer interrupts */
-	*hpet_config |= 1;
+	*hpet_config |= HPET_ENABLE_CNF;
 }
-
-/* FIXME:  This is broken. Why does setting the oneshot twice make it work? */
-/*void
-chal_timer_set(cycles_t cycles)
-{
-//	printk("set:%llu\n", cycles);
-	timer_set(TIMER_ONESHOT, cycles);
-	timer_set(TIMER_ONESHOT, cycles);
-}*/
-
-/*void
-chal_timer_disable(void)
-{
-//	printk("disable\n");
-	timer_disable(TIMER_ONESHOT);
-	timer_disable(TIMER_ONESHOT);
-}*/
 
 u64_t
 timer_find_hpet(void *timer)
@@ -273,6 +298,46 @@ timer_find_hpet(void *timer)
 }
 
 void
+chal_hpet_periodic_set(unsigned long usecs_period)
+{
+	if (periodicity_curr != usecs_period) {
+		timer_disable(0);
+		timer_disable(0);
+
+		periodicity_curr = 0;
+	}
+
+	if (periodicity_curr == 0) {
+		unsigned long tick_multiple;
+		cycles_t hpetcyc_per_period;
+
+		assert(timer_calibration_init == 0);
+		assert((usecs_period >= TIMER_DEFAULT_US_INTERARRIVAL) && (usecs_period % TIMER_DEFAULT_US_INTERARRIVAL == 0));
+
+		tick_multiple = usecs_period / TIMER_DEFAULT_US_INTERARRIVAL;
+		hpetcyc_per_period = hpetcyc_per_tick * tick_multiple;
+		periodicity_curr = usecs_period;
+		timer_set(TIMER_PERIODIC, hpetcyc_per_period);
+		first_hpet_period = 0;
+		printk("Setting HPET Periodicity:%lu hpetcyc_per_period:%llu\n", usecs_period, hpetcyc_per_period);
+	}
+}
+
+cycles_t
+chal_hpet_first_period(void)
+{
+//	printk("f=%llu..\n", first_hpet_period); 
+	return first_hpet_period; 
+}
+
+void
+chal_hpet_disable(void)
+{
+	timer_disable(0);
+	timer_disable(0);
+}
+
+void
 timer_set_hpet_page(u32_t page)
 {
 	hpet              = (void*)(page * (1 << 22) | ((u32_t)hpet & ((1<<22)-1)));
@@ -295,7 +360,7 @@ timer_init(void)
 
 	printk("Enabling timer @ %p with tick granularity %ld picoseconds\n", hpet, pico_per_hpetcyc);
 	/* Enable legacy interrupt routing */
-	*hpet_config |= (1ll);
+	*hpet_config |= HPET_LEG_RT_CNF;
 
 	/*
 	 * Set the timer as specified.  This assumes that the cycle

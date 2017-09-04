@@ -1,3 +1,4 @@
+#include "vk_types.h"
 #include "vk_api.h"
 
 extern thdcap_t vm_main_thd;
@@ -54,6 +55,7 @@ rk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	vkinfo->vminitasnd[vminfo->id] = cos_asnd_alloc(vkcinfo, vminfo->initrcv, vkcinfo->captbl_cap);
 	assert(vkinfo->vminitasnd[vminfo->id]);
 }
+
 void
 vk_initcaps_init(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 {

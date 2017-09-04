@@ -17,7 +17,7 @@
 #define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
-#define SPIN() do { while (1) ; } while (0)
+#define SPIN(iters) do { if (iters > 0) { for (; iters > 0 ; iters -- ) ; } else { while (1) ; } } while (0)
 
 static void
 cos_llprint(char *s, int len)
@@ -49,11 +49,15 @@ printc(char *fmt, ...)
 }
 
 #define N_TESTTHDS 8
+#define WORKITERS  10000
 
 void
 test_thd_fn(void *data)
 {
+	int workiters = WORKITERS * ((int)data);
 	while (1) {
+		SPIN(workiters);
+
 		sl_thd_yield(0);
 	}
 }
@@ -73,7 +77,7 @@ cos_init(void)
 	sl_init();
 
 	for (i = 0 ; i < N_TESTTHDS ; i++) {
-		threads[i] = sl_thd_alloc(test_thd_fn, NULL);
+		threads[i] = sl_thd_alloc(test_thd_fn, (void *)(i + 1));
 		assert(threads[i]);
 		sl_thd_param_set(threads[i], sp.v);
 	}

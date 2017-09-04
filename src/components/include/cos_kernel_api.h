@@ -10,18 +10,6 @@
 #include <cos_component.h>
 #include <cos_debug.h>
 
-/* Types mainly used for documentation */
-typedef capid_t sinvcap_t;
-typedef capid_t sretcap_t;
-typedef capid_t asndcap_t;
-typedef capid_t arcvcap_t;
-typedef capid_t thdcap_t;
-typedef capid_t tcap_t;
-typedef capid_t compcap_t;
-typedef capid_t captblcap_t;
-typedef capid_t pgtblcap_t;
-typedef capid_t hwcap_t;
-
 /* Memory source information */
 struct cos_meminfo {
 	vaddr_t untyped_ptr,      umem_ptr,      kmem_ptr;
@@ -39,19 +27,12 @@ struct cos_compinfo {
 	capid_t cap16_frontier, cap32_frontier, cap64_frontier;
 	/* heap pointer equivalent, and range of allocated PTEs */
 	vaddr_t vas_frontier, vasrange_frontier;
-	/* shared memory pointer and range of allocated PTEs */
-	vaddr_t shm_frontier, shmrange_frontier;
-	vaddr_t shmmap_bump_ptr;
 	/* the source of memory */
 	struct cos_compinfo *memsrc; /* might be self-referential */
 	struct cos_meminfo mi;	     /* only populated for the component with real memory */
 };
 
-struct cos_shminfo {
-	vaddr_t shm_ptr, shm_offset, shm_size;
-};
-void cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);
-void cos_compinfo_init_OLD(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t shm_ptr, struct cos_compinfo *ci_resources);
+void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);
 /*
  * This only needs be called on compinfos that are managing resources
  * (i.e. likely only one).  All of the capabilities will be relative
@@ -66,7 +47,6 @@ vaddr_t cos_pgtbl_intern_alloc(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vadd
  * correctly populate ci (allocating all resources from ci_resources).
  */
 int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry, struct cos_compinfo *ci_resources);
-int         cos_compinfo_alloc_OLD(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry, vaddr_t shm_ptr, struct cos_compinfo *ci_resources);
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
 compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry);
@@ -80,11 +60,6 @@ arcvcap_t cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapca
 asndcap_t cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t ctcap);
 
 void *cos_page_bump_alloc(struct cos_compinfo *ci);
-void cos_shmem_alloc(struct cos_compinfo *ci, unsigned long sz);
-void cos_shmem_map(struct cos_compinfo *ci, unsigned long sz);
-
-capid_t cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_t srcctype, capid_t srccap);
-int cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_compinfo *srcci, capid_t srccap);
 
 capid_t cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_t srcctype, capid_t srccap);
 int cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_compinfo *srcci, capid_t srccap);
@@ -101,8 +76,10 @@ int cos_asnd(asndcap_t snd, int yield);
 int cos_rcv(arcvcap_t rcv);
 /* returns the same value as cos_rcv, but also information about scheduling events */
 int cos_sched_rcv(arcvcap_t rcv, thdid_t *thdid, int *blocked, cycles_t *cycles);
+int cos_sched_rcv_all(arcvcap_t rcv, int *rcvd, thdid_t *thdid, int *blocked, cycles_t *cycles);
 
 int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
+int cos_introspect64(struct cos_compinfo *ci, capid_t cap, unsigned long op, u64_t *value);
 
 int cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4);
 
@@ -121,9 +98,11 @@ int cos_tcap_merge(tcap_t dst, tcap_t rm);
 /* Hardware (interrupts) operations */
 hwcap_t cos_hw_alloc(struct cos_compinfo *ci, u32_t bitmap);
 int cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t rcvcap);
+int cos_hw_periodic_attach(hwcap_t hwc, arcvcap_t rcvcap, unsigned int period);
 int cos_hw_detach(hwcap_t hwc, hwid_t hwid);
 void *cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
 int cos_hw_cycles_per_usec(hwcap_t hwc);
+int cos_hw_cycles_per_msec(hwcap_t hwc);
 int cos_hw_cycles_thresh(hwcap_t hwc);
 
 #endif /* COS_KERNEL_API_H */

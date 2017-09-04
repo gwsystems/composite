@@ -41,25 +41,48 @@ int num = 1, den = 0;
 /* virtual machine id */
 int rumpns_vmid;
 
+cycles_t
+hpet_first_period(void)
+{
+	int ret;
+	static cycles_t start_period = 0;
+
+	if (start_period) return start_period;
+
+	while ((ret = cos_introspect64(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_GET_FIRSTPERIOD, &start_period)) == -EAGAIN) ;
+	if (ret) assert(0);
+
+//	printc("sp:%llu\n", start_period);
+	return start_period;
+}
+
+void
+spin_forever(void)
+{
+	printc("CPU-BOUND VM..SPINNING FOREVER\n");
+
+	while (1) ;
+}
+
 void
 vm_init(void *id)
 {
-	int ret;
+	int ret, vmid;
 	struct cos_shm_rb *sm_rb;
 	struct cos_shm_rb *sm_rb_r;
 
+	printc("\n************ USERSPACE *************\n");
+
 	cos_spdid_set((int)id);
 	/* FIXME remove rumpns_vmid, replace with cos_spdid_get() calls */
+        vmid = cos_spdid_get();
+	assert(vmid < VM_COUNT);
 	rumpns_vmid = (int)id;
 
 	printc("vm_init, setting spdid for user component to: %d\n", cos_spdid_get());
-
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE, &booter_info);
-
-
-	printc("\n************ USERSPACE *************\n");
+			  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, &booter_info);
 
 	//printc("Running fs test\n");
 	//cos_fs_test();
@@ -77,21 +100,45 @@ vm_init(void *id)
 void
 kernel_init(void *id)
 {
-	int ret;
+	int ret, vmid;
 	struct cos_shm_rb *sm_rb;
 	struct cos_shm_rb *sm_rb_r;
 
-	cos_spdid_set((int)id);
-	printc("vm_init: &booter_info: %p\n", &booter_info);
-
-	printc("Kernel_init, setting spdid for kernel component to: %d\n", cos_spdid_get());
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_VIRT_MACH_MEM_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			  (vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE, &booter_info);
 
 	printc("\n************ KERNEL *************\n");
 
-	rump_booter_init();
+        cos_spdid_set((int)id);
+	/* FIXME remove rumpns_vmid, replace with cos_spdid_get() calls */
+        vmid = cos_spdid_get();
+	assert(vmid < VM_COUNT);
+	rumpns_vmid = vmid;
+
+	printc("Kernel_init, setting spdid for kernel component to: %d\n", cos_spdid_get());
+	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+			(vaddr_t)cos_get_heap_ptr(), VM0_CAPTBL_FREE, &booter_info);
+
+	if(id == DL_VM) dl_booter_init();
+	else if (id == CPU_VM) spin_forever();
+	else rump_booter_init();
 
 	printc("\n************ KERNEL DONE ************\n");
+}
+
+void
+dom0_io_fn(void *id)
+{
+        arcvcap_t rcvcap = dom0_vio_rcvcap((unsigned int)id);
+        while (1) {
+                int pending = cos_rcv(rcvcap);
+        }
+}
+
+void
+vm_io_fn(void *id)
+{
+        arcvcap_t rcvcap = VM_CAPTBL_SELF_IORCV_BASE;
+        while (1) {
+                int pending = cos_rcv(rcvcap);
+        }
 }

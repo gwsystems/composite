@@ -37,6 +37,8 @@ __tcap_init(struct tcap *t)
 	t->refcnt                  = 1;
 	t->arcv_ep                 = NULL;
 	t->perm_prio               = 0;
+	t->intbmp                  = 0;
+	t->masked                  = 0;
 	tcap_setprio(t, 0);
 	list_init(&t->active_list, t);
 }
@@ -85,9 +87,21 @@ __tcap_budget_xfer(struct tcap *d, struct tcap *s, tcap_res_t cycles)
 	}
 	if (!TCAP_RES_IS_INF(bs->cycles)) bs->cycles -= cycles;
 done:
-	if (!tcap_is_active(d)) tcap_active_add_before(s, d);
-	if (tcap_expended(s))   tcap_active_rem(s);
-	/* TODO: what if this is the current tcap? we should set a small timeout, so it gets switched away from */
+	if (!tcap_is_active(d)) {
+		tcap_active_add_before(s, d);
+		if (d->intbmp && d->masked == 1) {
+			chal_unmask_irqbmp(d->intbmp);
+			d->masked = 0;
+		}
+	}
+	if (tcap_expended(s)) {
+		tcap_active_rem(s);
+		if (s->intbmp && s->masked == 0) {
+			if (s->intbmp == 1) printk("bumping isr: %lu\n", s->intbmp);
+			chal_mask_irqbmp(s->intbmp);
+			s->masked = 1;
+		}
+	}
 
 	return 0;
 }
