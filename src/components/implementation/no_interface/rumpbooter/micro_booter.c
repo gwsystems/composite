@@ -84,6 +84,14 @@ vm_init(void *id)
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, &booter_info);
 
+	/* Only run userspace for component id 1*/
+	if (cos_spdid_get() > 1) {
+		printc("Userspace Component #%d spinning...\n", cos_spdid_get());
+		goto done;
+	}
+
+	/* FIXME, we need to wait till the RK is done booting to do this */
+	/* TODO Add a syscall checking if a variable is set yet */
 	//printc("Running fs test\n");
 	//cos_fs_test();
 	//printc("Done\n");
@@ -93,6 +101,7 @@ vm_init(void *id)
 	printc("Done\n");
 
 	/* Done, just spin */
+done:
 	printc("\n************ USERSPACE DONE ************\n");
 	while (1);
 }

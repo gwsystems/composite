@@ -22,8 +22,10 @@ extern vaddr_t cos_upcall_entry;
 struct vkernel_info vk_info;
 struct cos_compinfo *vk_cinfo = (struct cos_compinfo *)&vk_info.cinfo;
 
-struct vms_info user_info;
-struct cos_compinfo *user_cinfo = (struct cos_compinfo *)&user_info.cinfo;
+struct vms_info user_info1;
+struct cos_compinfo *user_cinfo1 = (struct cos_compinfo *)&user_info1.cinfo;
+struct vms_info user_info2;
+struct cos_compinfo *user_cinfo2 = (struct cos_compinfo *)&user_info2.cinfo;
 
 struct vms_info kernel_info;
 struct cos_compinfo *kernel_cinfo = (struct cos_compinfo *)&kernel_info.cinfo;
@@ -419,7 +421,7 @@ sched_fn(void *x)
 
 		vmruncount[index] ++;
 		if (index == DL_VM || index == CPU_VM) {
-			//if (vmruncount[index] % 100 == 0) printc("%d:%llu\n", index, vmruncount[index]);
+			if (vmruncount[index] % 100 == 0) printc("%d:%llu\n", index, vmruncount[index]);
 			do {
 				ret = cos_switch(vm_main_thd[index], vminittcap[index], vmprio[index], 0, sched_rcv, cos_sched_sync());
 				assert(ret == 0 || ret == -EAGAIN);
@@ -534,18 +536,22 @@ cos_init(void)
 	 * kernel component has id = 0
 	 * user component has id = 1
 	 */
-	printc("user_cinfo: %p, kernel_cinfo: %p\n", user_cinfo, kernel_cinfo);
+	printc("user_cinfo1: %p, user_cinfo2: %p, kernel_cinfo: %p\n", user_cinfo1, user_cinfo2, kernel_cinfo);
 
 	/* Save temp struct cos_compinfo for copying kernel component virtual memory below */
-	for (id = 0 ; id < 2 ; id++) {
+	for (id = 0 ; id < VM_COUNT ; id++) {
 		struct vms_info *vm_info;
 		struct cos_compinfo *vm_cinfo;
+		/* TODO, generalize this for any number of components */
                 if (id == 0) {
 			vm_info = &kernel_info;
 			vm_cinfo = kernel_cinfo;
 		} else if (id == 1) {
-			vm_info = &user_info;
-			vm_cinfo = user_cinfo;
+			vm_info = &user_info1;
+			vm_cinfo = user_cinfo1;
+		} else if (id == 2) {
+			vm_info = &user_info2;
+			vm_cinfo = user_cinfo2;
 		}
 		vaddr_t vm_range, addr;
 		pgtblcap_t vmpt, vmutpt;
@@ -599,22 +605,32 @@ cos_init(void)
 		/* We have different initialization functions for kernel and user components */
 		/* FIXME change vk_initcaps_init to user and rk to kernel */
 		if (id == 0) {
-			printc("kernel_info: %p, kernel_cinfo: %p, &kernel_info.cinfo: %p\n", &kernel_info, kernel_cinfo, &kernel_info.cinfo);
-			printc("vm_info: %p, vm_cinfo: %p, &vm_info->cinfo: %p\n", vm_info, vm_cinfo, &vm_info->cinfo);
 			rk_initcaps_init(vm_info, &vk_info);
 		} else if (id > 0)  {
 			vk_initcaps_init(vm_info, &vk_info);
 			printc("\tCoppying in vm_main_thd capability into Kernel component\n");
-			ret = cos_cap_cpy_at(kernel_cinfo, BOOT_CAPTBL_USERSPACE_THD,
+			/* TODO make this more generic, but only the user_vm1 gets its init thread in kernel_cinfo */
+			if (id == 1) {
+				ret = cos_cap_cpy_at(kernel_cinfo, BOOT_CAPTBL_USERSPACE_THD,
 					     vm_cinfo, BOOT_CAPTBL_SELF_INITTHD_BASE);
+			}
 			assert(ret == 0);
 		}
+		vm_main_thd[id]   = vm_info->initthd;
+		vm_main_thdid[id] = vm_info->inittid;
+
+		vminittcap[id] = vm_info->inittcap;
+		assert(vminittcap[id]);
+		vminitrcv[id] =  vm_info->initrcv;
+		assert(vminitrcv[id]);
+		vksndvm[id] = vk_info.vminitasnd[id];
+		assert(vksndvm[id]);
+
 		printc("\tDone Initializing capabilities\n");
 
-		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SZ);
-
 		/* User component must be initializing and kernel component must be done, wait for id > 0 */
-		if (id > 0) {
+		/* FIXME, right now userspace vm is the only one who gets sinv capbilities */
+		if (id == 1) {
 			assert(DL_VM == VM_COUNT-1);
 
 			sinvcap_t sinv;
@@ -662,8 +678,10 @@ cos_init(void)
 			assert(ret == 0);
 
 			printc("\tDone setting up sinvs\n");
+		}
 
-			printc("\tSetting up Cross VM (between vm0 and vm%d) communication channels\n", id);
+		printc("\tSetting up Cross VM (between vm0 and vm%d) communication channels\n", id);
+		if (id > 0) {
 			if (id != DL_VM) {
 				/* VM0 to VMid */
 				vm0_io_thd[id-1] = cos_thd_alloc(vk_cinfo, vm_cinfo->comp_cap, vm0_io_fn, (void *)id);
@@ -671,6 +689,7 @@ cos_init(void)
 				vms_io_thd[id-1] = cos_thd_alloc(vk_cinfo, vm_cinfo->comp_cap, vmx_io_fn, (void *)id);
 				assert(vms_io_thd[id-1]);
 
+				printc("vk_cinfo: %p, vm0_io_thd[id-1]: %p, vminitcap[0]: %d, vk_cinfo->comp_cap: %d, vminitrcv[0]: %p\n", vk_cinfo, vm0_io_thd[id-1], vminittcap[0], vk_cinfo->comp_cap, vminitrcv[0]);
 				vm0_io_rcv[id-1] = cos_arcv_alloc(vk_cinfo, vm0_io_thd[id-1], vminittcap[0], vk_cinfo->comp_cap, vminitrcv[0]);
 				assert(vm0_io_rcv[id-1]);
 				vms_io_rcv[id-1] = cos_arcv_alloc(vk_cinfo, vms_io_thd[id-1], vminittcap[id], vk_cinfo->comp_cap, vminitrcv[id]);
@@ -679,6 +698,7 @@ cos_init(void)
 				/* Changing to init thd of dl_vm
 				 * DOM0 -> DL_VM asnd
 				 */
+				/* FIXME, how could this ever happen? */
 				if (id == DL_VM) {
 					vm0_io_asnd[id-1] = cos_asnd_alloc(vk_cinfo, vminitrcv[id], vk_cinfo->captbl_cap);
 					assert(vm0_io_asnd[id-1]);
@@ -694,9 +714,10 @@ cos_init(void)
 				cos_cap_cpy_at(vm_cinfo, VM0_CAPTBL_SELF_IORCV_SET_BASE + (id-1)*CAP64B_IDSZ, vk_cinfo, vm0_io_rcv[id-1]);
 				cos_cap_cpy_at(vm_cinfo, VM0_CAPTBL_SELF_IOASND_SET_BASE + (id-1)*CAP64B_IDSZ, vk_cinfo, vm0_io_asnd[id-1]);
 
-				cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_IOTHD_BASE, vk_cinfo, vms_io_thd[id-1]);
-				cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_IORCV_BASE, vk_cinfo, vms_io_rcv[id-1]);
-				cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_IOASND_BASE, vk_cinfo, vms_io_asnd[id-1]);
+				/* TODO, figure out the propper boot setup and if we need these */
+				//cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_IOTHD_BASE, vk_cinfo, vms_io_thd[id-1]);
+				//cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_IORCV_BASE, vk_cinfo, vms_io_rcv[id-1]);
+				//cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_IOASND_BASE, vk_cinfo, vms_io_asnd[id-1]);
 			} else {
 				vm0_io_asnd[id-1] = cos_asnd_alloc(vk_cinfo, vminitrcv[id], vk_cinfo->captbl_cap);
 				assert(vm0_io_asnd[id-1]);
@@ -707,13 +728,13 @@ cos_init(void)
 			vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
 			assert(vm_range > 0);
 			printc("\tMapping in Booter component's virtual memory (range:%lu)\n", vm_range);
-			vk_virtmem_alloc(vm_info, &vk_info, BOOT_MEM_VM_BASE, vm_range);
+			vk_virtmem_alloc(vm_info, vk_cinfo, BOOT_MEM_VM_BASE, vm_range);
 
 
 
 			/* Copy Kernel component after userspace component is initialized */
 			if (id == 1) {
-				vk_virtmem_alloc(&kernel_info, &vk_info, BOOT_MEM_VM_BASE, vm_range);
+				vk_virtmem_alloc(&kernel_info, vk_cinfo, BOOT_MEM_VM_BASE, vm_range);
 			}
 		}
 

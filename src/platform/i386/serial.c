@@ -83,7 +83,7 @@ void
 serial_init(void)
 {
 	printk("Enabling serial I/O\n");
-//	printk_register_handler(serial_puts);
+	printk_register_handler(serial_puts);
 
 	/* We will initialize the first serial port */
 	outb(SERIAL_PORT_A + 1, 0x00);

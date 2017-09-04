@@ -64,4 +64,4 @@ cd ../../../../../transfer/
 #	echo "CANNOT WRITE ISO IMAGE TO /dev/sdb: $USB_DEV"
 #fi
 
-./qemu.sh rumpkernboot.sh
+./qemu_rk.sh rumpkernboot.sh
