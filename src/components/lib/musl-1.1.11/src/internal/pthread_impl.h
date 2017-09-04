@@ -5,6 +5,8 @@
 #include <signal.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdarg.h>
+#include <syscall.h>
 #include "libc.h"
 #include "syscall.h"
 #include "atomic.h"
@@ -112,7 +114,8 @@ struct __timer {
 
 pthread_t __pthread_self_init(void);
 
-int __clone(int (*)(void *), void *, int, void *, ...);
+int __clone(int (*a)(void *), void *b, int c, void *d, void *e, void* f, void* g);
+
 int __set_thread_area(void *);
 int __libc_sigaction(int, const struct sigaction *, struct sigaction *);
 int __libc_sigprocmask(int, const sigset_t *, sigset_t *);

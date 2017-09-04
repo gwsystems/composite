@@ -5,28 +5,17 @@
  */
 
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
+
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_defkernel_api.h>
-
+#include <llprint.h>
 #include <sl.h>
 
-#undef assert
-#define assert(node)                                       \
-	do {                                               \
-		if (unlikely(!(node))) {                   \
-			debug_print("assert error in @ "); \
-			*((int *)0) = 0;                   \
-		}                                          \
-	} while (0)
-#define PRINT_FN prints
-#define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
-#define BUG()                          \
-	do {                           \
-		debug_print("BUG @ "); \
-		*((int *)0) = 0;       \
-	} while (0);
+/* sl also defines a SPIN macro */
+#undef SPIN
 #define SPIN(iters)                                \
 	do {                                       \
 		if (iters > 0) {                   \
@@ -38,7 +27,6 @@
 		}                                  \
 	} while (0)
 
-#include <llprint.h>
 
 #define N_TESTTHDS 8
 #define WORKITERS 10000
@@ -58,12 +46,12 @@ test_thd_fn(void *data)
 void
 test_yields(void)
 {
-	int               i;
-	struct sl_thd *   threads[N_TESTTHDS];
-	union sched_param sp = {.c = {.type = SCHEDP_PRIO, .value = 10}};
+	int                     i;
+	struct sl_thd *         threads[N_TESTTHDS];
+	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = 10}};
 
 	for (i = 0; i < N_TESTTHDS; i++) {
-		threads[i] = sl_thd_alloc(test_thd_fn, (void *)(i + 1));
+		threads[i] = sl_thd_alloc(test_thd_fn, (void *)(intptr_t)(i + 1));
 		assert(threads[i]);
 		sl_thd_param_set(threads[i], sp.v);
 	}
@@ -93,9 +81,9 @@ test_low(void *data)
 void
 test_blocking_directed_yield(void)
 {
-	struct sl_thd *   low, *high;
-	union sched_param sph = {.c = {.type = SCHEDP_PRIO, .value = 5}};
-	union sched_param spl = {.c = {.type = SCHEDP_PRIO, .value = 10}};
+	struct sl_thd *         low, *high;
+	union sched_param_union sph = {.c = {.type = SCHEDP_PRIO, .value = 5}};
+	union sched_param_union spl = {.c = {.type = SCHEDP_PRIO, .value = 10}};
 
 	low  = sl_thd_alloc(test_low, NULL);
 	high = sl_thd_alloc(test_high, low);
@@ -138,10 +126,10 @@ test_high_wakeup(void *data)
 void
 test_timeout_wakeup(void)
 {
-	struct sl_thd *   low, *high;
-	union sched_param sph = {.c = {.type = SCHEDP_PRIO, .value = 5}};
-	union sched_param spl = {.c = {.type = SCHEDP_PRIO, .value = 10}};
-	union sched_param spw = {.c = {.type = SCHEDP_WINDOW, .value = 1000}};
+	struct sl_thd *         low, *high;
+	union sched_param_union sph = {.c = {.type = SCHEDP_PRIO, .value = 5}};
+	union sched_param_union spl = {.c = {.type = SCHEDP_PRIO, .value = 10}};
+	union sched_param_union spw = {.c = {.type = SCHEDP_WINDOW, .value = 1000}};
 
 	low = sl_thd_alloc(test_low, NULL);
 	sl_thd_param_set(low, spl.v);

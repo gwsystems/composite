@@ -144,8 +144,8 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	sl_mod_block(sl_mod_thd_policy_get(t));
 
 update:
-	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
 	t->state = block_type;
+	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
 
 	return 0;
 }
@@ -240,19 +240,26 @@ done:
  *          0 if it was woken up in this call
  */
 int
-sl_thd_wakeup_no_cs(struct sl_thd *t, int rm)
+sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 {
 	assert(t);
 
 	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1;
 
-	/* TODO: for AEP threads, wakeup events from kernel could be level-triggered. */
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
-	if (rm && t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
 	t->state = SL_THD_RUNNABLE;
 	sl_mod_wakeup(sl_mod_thd_policy_get(t));
 
 	return 0;
+}
+
+int
+sl_thd_wakeup_no_cs(struct sl_thd *t)
+{
+	assert(t);
+
+	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
+	return sl_thd_wakeup_no_cs_rm(t);
 }
 
 void
@@ -266,7 +273,7 @@ sl_thd_wakeup(thdid_t tid)
 	t = sl_thd_lkup(tid);
 	if (unlikely(!t)) goto done;
 
-	if (sl_thd_wakeup_no_cs(t, 1)) goto done;
+	if (sl_thd_wakeup_no_cs(t)) goto done;
 	sl_cs_exit_schedule();
 
 	return;
@@ -588,7 +595,7 @@ sl_sched_loop(void)
 					sl_thd_block_no_cs(t, state, abs_timeout);
 				}
 			} else {
-				sl_thd_wakeup_no_cs(t, 1);
+				sl_thd_wakeup_no_cs(t);
 			}
 
 			sl_cs_exit();

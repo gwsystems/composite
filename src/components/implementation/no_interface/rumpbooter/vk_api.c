@@ -64,12 +64,12 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 void
 vk_vm_sched_init(struct vms_info *vminfo)
 {
-	struct cos_compinfo *vk_cinfo = cos_compinfo_get(cos_defcompinfo_curr_get());
-	struct cos_defcompinfo *vmdci = &(vminfo->dci);
-	struct cos_compinfo *vmcinfo  = cos_compinfo_get(vmdci);
-	union sched_param spsameprio  = {.c = {.type = SCHEDP_PRIO, .value = (vminfo->id + 1)}};
-	union sched_param spsameC     = {.c = {.type = SCHEDP_BUDGET, .value = (VM_FIXED_BUDGET_MS * 1000)}}; 
-	union sched_param spsameT     = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
+	struct cos_compinfo *vk_cinfo       = cos_compinfo_get(cos_defcompinfo_curr_get());
+	struct cos_defcompinfo *vmdci       = &(vminfo->dci);
+	struct cos_compinfo *vmcinfo        = cos_compinfo_get(vmdci);
+	union sched_param_union spsameprio  = {.c = {.type = SCHEDP_PRIO, .value = (vminfo->id + 1)}};
+	union sched_param_union spsameC     = {.c = {.type = SCHEDP_BUDGET, .value = (VM_FIXED_BUDGET_MS * 1000)}}; 
+	union sched_param_union spsameT     = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
 	int ret;
 
 	vminfo->inithd = sl_thd_comp_init(vmdci, 1);

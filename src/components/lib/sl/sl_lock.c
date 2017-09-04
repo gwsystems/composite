@@ -34,3 +34,16 @@ sl_lock_timed_take(struct sl_lock *lock, microsec_t max_wait_time)
     sl_cs_exit();
     return result;
 }
+
+int sl_lock_try_take(struct sl_lock *lock) {
+    int result;
+    sl_cs_enter();
+    if (lock->holder == 0) {
+        lock->holder = sl_thdid();
+        result = 1;
+    } else {
+        result = 0;
+    }
+    sl_cs_exit();
+    return result;
+}

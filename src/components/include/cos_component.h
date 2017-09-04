@@ -13,6 +13,8 @@
 #include <errno.h>
 #include <util.h>
 
+void libc_init();
+
 /* temporary */
 static inline int
 call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
@@ -96,7 +98,8 @@ call_cap_op(u32_t cap_no, u32_t op_code, int arg1, int arg2, int arg3, int arg4)
 static void
 cos_print(char *s, int len)
 {
-	call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0);
+	// FIXME: casting from a pointer to an int can be lossy
+	call_cap(PRINT_CAP_TEMP, (int) s, len, 0, 0);
 }
 
 /**

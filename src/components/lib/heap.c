@@ -1,24 +1,13 @@
-#ifdef LINUX
-#include <assert.h>
-#include <malloc.h>
-#include <stdio.h>
-#include <time.h>
-#include <stdlib.h>
-
-#define printd printf
-#else
 #include <cos_component.h>
 #include <cos_debug.h>
 #include <cos_alloc.h>
-#define printd printc
-#endif
 
 #include <string.h>
 #include <heap.h>
 
 #undef HEAP_TRACE_DEBUG
 #ifdef HEAP_TRACE_DEBUG
-#define debug(format, ...) printd(format, ##__VA_ARGS__)
+#define debug(format, ...) printc(format, ##__VA_ARGS__)
 #else
 #define debug(format, ...)
 #endif
@@ -122,7 +111,7 @@ __heap_verify(struct heap *h, int c)
 	if (left < h->e) {
 		assert(((struct hentry *)h->data[left])->index == left);
 		if (!h->c(h->data[c], h->data[left]) || __heap_verify(h, left)) {
-			printd("Left data %d @ %d < %d @ %d\n", ((struct hentry *)h->data[c])->value, c,
+			printc("Left data %d @ %d < %d @ %d\n", ((struct hentry *)h->data[c])->value, c,
 			       ((struct hentry *)h->data[left])->value, left);
 			return 1;
 		}
@@ -130,7 +119,7 @@ __heap_verify(struct heap *h, int c)
 	if (right < h->e) {
 		assert(((struct hentry *)h->data[right])->index == right);
 		if (!h->c(h->data[c], h->data[right]) || __heap_verify(h, right)) {
-			printd("Right data %d @ %d < %d @ %d\n", ((struct hentry *)h->data[c])->value, c,
+			printc("Right data %d @ %d < %d @ %d\n", ((struct hentry *)h->data[c])->value, c,
 			       ((struct hentry *)h->data[left])->value, left);
 			return 1;
 		}

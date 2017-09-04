@@ -154,6 +154,7 @@ __arcv_setup(struct cap_arcv *arcv, struct thread *thd, struct tcap *tcap, struc
 	assert(arcv && thd && tcap && !thd_bound2rcvcap(thd));
 	arcv->thd                    = thd;
 	thd->rcvcap.rcvcap_thd_notif = notif;
+	thd_scheduler_set(thd, notif);
 	if (notif) thd_rcvcap_take(notif);
 	thd->rcvcap.isbound = 1;
 

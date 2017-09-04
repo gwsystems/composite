@@ -571,6 +571,14 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 			switch_away = 1;
 		}
 	} else if (timer_intr_context) {
+		/*
+		 * If this is a timer interrupt and the current tcap has not been expended,
+		 * then the timer interrupt is for a timeout request.
+		 * choose the current thread's scheduler as next thread.
+		 *
+		 * Note: If the timer interrupt was indeed for a timeout but the current tcap
+		 *       has expended, then budget expiry condition takes priority. 
+		 */
 		thd_next = thd_scheduler(thd_curr);
 		/* tc_next is tc_curr */
 	}
@@ -650,7 +658,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 			thd_scheduler_set(next, rcvt);
 		}
 	} else {
-		/* TODO: no scheduler rcv specified. set current as it's scheduler? */
+		/* TODO: set current thread as it's scheduler? */
 		thd_scheduler_set(next, thd);
 	}
 
@@ -728,7 +736,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 			next = rcvt;
 			/* tcap inheritance here...use the current tcap to process events */
 			tcap_next = tcap;
-			timeout = TCAP_TIME_NIL;
+			timeout   = TCAP_TIME_NIL;
 			goto done;
 		}
 
@@ -1534,6 +1542,12 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			n = asnd_process(rthd, thd, tcapdst, tcap_current(cos_info), &tcap_next, yield, cos_info);
 			if (n != thd) {
+				/*
+				 * FIXME: set scheduler for rcv thread with DELEG_YIELD and 
+				 *        when we have room for sched_rcv with this API
+				 *
+				 *        Also, scheduling token validation!
+				 */
 				ret = cap_switch(regs, thd, n, tcap_next, TCAP_TIME_NIL, ci, cos_info);
 				if (unlikely(ret < 0)) cos_throw(err, ret);
 

@@ -12,7 +12,6 @@
 #include <stdio.h>
 
 #ifdef NIL
-#include <llprint.h>
 #define printd(...) printc(__VA_ARGS__)
 #else
 #define printd(...)
@@ -256,7 +255,6 @@ __capid_bump_alloc_generic(struct cos_compinfo *ci, capid_t *capsz_frontier, cap
 static capid_t
 __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 {
-	capid_t       ret;
 	unsigned long sz = captbl_idsize(cap);
 	capid_t *     frontier;
 
@@ -780,7 +778,7 @@ cos_asnd(asndcap_t snd, int yield)
 }
 
 int
-cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout, 
+cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout,
 	      int *rcvd, thdid_t *thdid, int *blocked, cycles_t *cycles, tcap_time_t *thd_timeout)
 {
 	unsigned long thd_state = 0;

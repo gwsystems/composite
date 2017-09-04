@@ -31,3 +31,6 @@ GRTAGS
 GSYMS
 GTAGS
 .vagrant
+.clang_complete
+Vagrantfile
+provision.sh
