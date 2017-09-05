@@ -8,13 +8,14 @@ sudo apt-get -y install binutils-dev
 sudo apt-get -y install qemu-kvm  
 sudo apt-get -y install cmake  
 sudo apt-get -y install build-essential  
-sudo apt-get -y install grub-common  
+sudo apt-get -y install xorriso  
   
 curl https://sh.rustup.rs -sSf | sh 
   
-. ~/.cargo/env
-rustup component add rust-src
-cargo install xargo
+source ~/.cargo/env  
+rustup default nightly  
+rustup component add rust-src  
+cargo install xargo  
 ```
 ## Getting and building
 
