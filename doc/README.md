@@ -1,19 +1,16 @@
 # Composite Setup Guide
 
-## Tools nessesary for Composite
+## Tools necessary for Composite
 ```
 sudo apt-get -y install bc  
 sudo apt-get -y install gcc-multilib  
 sudo apt-get -y install binutils-dev  
 sudo apt-get -y install qemu-kvm  
-sudo apt-get -y install g++  
-sudo apt-get -y install make  
 sudo apt-get -y install cmake  
+sudo apt-get -y install build-essential  
+sudo apt-get -y install grub-common  
   
-curl https://sh.rustup.rs -sSf > ./rustup_setup 
-chmod +x ./rustup_setup  
-./rustup_setup -y --default-toolchain nightly  
-rm ./rustup_setup  
+curl https://sh.rustup.rs -sSf | sh 
   
 . ~/.cargo/env
 rustup component add rust-src
