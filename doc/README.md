@@ -9,7 +9,8 @@ sudo apt-get -y install qemu-kvm
 sudo apt-get -y install cmake  
 sudo apt-get -y install build-essential  
 sudo apt-get -y install xorriso  
-  
+sudo apt-get -y install curl  
+
 curl https://sh.rustup.rs -sSf | sh 
   
 source ~/.cargo/env  
