@@ -25,6 +25,8 @@ sl_mod_schedule(void)
 	for (i = 0 ; i < SL_FPRR_NPRIOS ; i++) {
 		if (ps_list_head_empty(&threads[i])) continue;
 		t = ps_list_head_first_d(&threads[i], struct sl_thd_policy);
+		ps_list_rem_d(t);
+		ps_list_head_append_d(&threads[i], t);
 
 		return t;
 	}
