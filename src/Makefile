@@ -1,6 +1,8 @@
 MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
+default: | all cp
+
 all: comps plat
 
 comps:
@@ -35,6 +37,7 @@ distclean: clean
 	@rm -f `pwd`/../transfer/*
 
 init:
+	test -f PLATFORM_ID || $(MAKE) $(MAKEFLAGS) config
 	$(MAKE) $(MAKEFLAGS) -C components init
 	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform init
 
@@ -68,6 +71,9 @@ config-i386: config-gen
 	@echo "#define COS_PLATFORM I386" >> ./kernel/include/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/i386/chal/ chal
 	@echo "i386" > PLATFORM_ID
+
+run:
+	@cd ../transfer && echo "Running" $(RUNSCRIPT) && ./qemu.sh $(RUNSCRIPT)
 
 idl:
 	$(MAKE) $(MAKEFLAGS) -C components idl
