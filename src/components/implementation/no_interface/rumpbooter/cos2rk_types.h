@@ -28,19 +28,12 @@ capid_t irq_arcvcap[HW_ISR_LINES];
 tcap_prio_t irq_prio[HW_ISR_LINES];
 
 enum vm_prio {
-	PRIO_BOOST = TCAP_PRIO_MAX,
-	PRIO_OVER  = TCAP_PRIO_MAX + 100,
-	PRIO_UNDER = TCAP_PRIO_MAX + 50,
-};
-
-enum vm_credits {
-	DOM0_CREDITS = 5, // not used, DOM0 gets INF budget.. But this is required for cpu usage calc. (assuming dom0 is 50% & vm1 + vm2 = 50%) 
-	VM1_CREDITS  = 4,
-	VM2_CREDITS  = 1,
+	PRIO_HIGH = TCAP_PRIO_MAX,
+	PRIO_MID  = TCAP_PRIO_MAX + 1,
+	PRIO_LOW  = TCAP_PRIO_MAX + 2,
 };
 
 extern unsigned int cycs_per_usec;
-
 extern u64_t t_vm_cycs;
 extern u64_t t_dom_cycs;
 

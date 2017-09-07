@@ -38,7 +38,7 @@ hw_irq_alloc(void){
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
 				irq_arcvcap[i] = dom0_vio_rcvcap(1);
 				irq_tcap[i] = dom0_vio_tcap(1);
-				irq_prio[i] = PRIO_BOOST;
+				irq_prio[i] = PRIO_MID;
 				break;
 			case IRQ_VM2:
 				if (COS2RK_VIRT_MACH_COUNT ==3) { 
@@ -47,7 +47,7 @@ hw_irq_alloc(void){
 					irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
 					irq_arcvcap[i] = dom0_vio_rcvcap(2);
 					irq_tcap[i] = dom0_vio_tcap(2);
-					irq_prio[i] = PRIO_BOOST;
+					irq_prio[i] = PRIO_MID;
 				}
 				break;
 			default:
@@ -56,7 +56,7 @@ hw_irq_alloc(void){
 				assert(irq_thdcap[i]);
 				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
 				assert(irq_thdid[i]);
-				irq_prio[i] = PRIO_BOOST;
+				irq_prio[i] = PRIO_MID;
 
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
@@ -73,7 +73,7 @@ hw_irq_alloc(void){
 					irq_arcvcap[i] = VM_CAPTBL_SELF_IORCV_BASE;
 					/* VMs use only 1 tcap - INITTCAP for all execution */
 					irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-					irq_prio[i] = PRIO_UNDER;
+					irq_prio[i] = PRIO_MID;
 					break;
 				default: 
 					break;
@@ -90,11 +90,13 @@ rump_booter_init(void)
 	char *json_file = "";
 #define JSON_PAWS_BAREMETAL 0
 #define JSON_PAWS_QEMU 1
+#define JSON_UPDSERV_BAREMETAL JSON_PAWS_BAREMETAL
+#define JSON_UDPSERV_QEMU JSON_PAWS_QEMU
 #define JSON_NGINX_BAREMETAL 2
 #define JSON_NGINX_QEMU 3
 
 /* json config string fixed at compile-time */
-#define JSON_CONF_TYPE JSON_NGINX_BAREMETAL
+#define JSON_CONF_TYPE JSON_UDPSERV_BAREMETAL
 //#define JSON_CONF_TYPE JSON_PAWS_BAREMETAL
 
 	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
@@ -119,7 +121,7 @@ rump_booter_init(void)
 #endif
 	}
 
-	rk_thd_prio = (vmid == 0) ? PRIO_BOOST : PRIO_UNDER;
+	rk_thd_prio = (vmid == 0) ? PRIO_MID : PRIO_LOW;
 
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();

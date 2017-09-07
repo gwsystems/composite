@@ -7,22 +7,24 @@ struct mbuf;
 void rumpns_m_copydata(struct mbuf *m, int off, int len, void *vp);
 
 int
-cos2rk_recv_rb_create(struct cos2rk_shm_rb * sm_rb, int vmid){
-	
+cos2rk_recv_rb_create(struct cos2rk_shm_rb * sm_rb, int vmid)
+{
 	sm_rb = cos2rk_shmem_addr_recv(vmid);
 	sm_rb->head = 0;
 	sm_rb->tail = 0;
 	sm_rb->size = COS2RK_SHM_VM_SZ/2 - (sizeof(struct cos2rk_shm_rb));
+
 	return 1;	
 }
 
 int
-cos2rk_send_rb_create(struct cos2rk_shm_rb * sm_rb, int vmid){
-	
+cos2rk_send_rb_create(struct cos2rk_shm_rb * sm_rb, int vmid)
+{
 	sm_rb = cos2rk_shmem_addr_send(vmid);
 	sm_rb->head = 0;
 	sm_rb->tail = 0;
 	sm_rb->size = COS2RK_SHM_VM_SZ/2 - (sizeof(struct cos2rk_shm_rb));
+
 	return 1;	
 }
 
@@ -42,33 +44,35 @@ cos2rk_rb_init(void)
 }
 
 struct cos2rk_shm_rb *
-cos2rk_shmem_addr_send(int to_vmid){
-	if(to_vmid == 0){
+cos2rk_shmem_addr_send(int to_vmid)
+{
+	if (to_vmid == 0) {
 		/* if sending from a VM to DOM0 */
 		return (struct cos2rk_shm_rb *)COS2RK_MEM_SHM_BASE;	
-	}else{
+	} else {
 		/* if sending from DOM0 to a VM */
-		return (struct cos2rk_shm_rb *)((COS2RK_MEM_SHM_BASE)+((COS2RK_SHM_VM_SZ) * (to_vmid) ));
+		return (struct cos2rk_shm_rb *)(COS2RK_MEM_SHM_BASE+(COS2RK_SHM_VM_SZ*to_vmid));
 	}
 }
 
 struct cos2rk_shm_rb *
-cos2rk_shmem_addr_recv(int from_vmid){
-	if(from_vmid == 0){
+cos2rk_shmem_addr_recv(int from_vmid)
+{
+	if (from_vmid == 0) {
 		/* if rcving from DOM0 */
-		return (struct cos2rk_shm_rb *)((COS2RK_MEM_SHM_BASE) + (COS2RK_SHM_VM_SZ/2));	
-	}else{
+		return (struct cos2rk_shm_rb *)(COS2RK_MEM_SHM_BASE+(COS2RK_SHM_VM_SZ/2));	
+	} else {
 		/* if DOM0 rcving from a VM */
-		return (struct cos2rk_shm_rb *)((COS2RK_MEM_SHM_BASE)+( (COS2RK_SHM_VM_SZ) * (from_vmid) ) + ((COS2RK_SHM_VM_SZ)/2));
+		return (struct cos2rk_shm_rb *)(COS2RK_MEM_SHM_BASE+(COS2RK_SHM_VM_SZ*from_vmid)+(COS2RK_SHM_VM_SZ/2));
 	}
 }
 
 int
-cos2rk_ringbuf_isfull(struct cos2rk_shm_rb *rb, size_t size){
-
+cos2rk_ringbuf_isfull(struct cos2rk_shm_rb *rb, size_t size)
+{
 	/* doesn't account for wraparound, that's checked only if we need to wraparound. */
 	if(rb->head+size >= rb->tail && rb->head < rb->tail){
-		printc("rb full\n");
+		printc("F");
 		return 1;
 	}
 
@@ -77,8 +81,8 @@ cos2rk_ringbuf_isfull(struct cos2rk_shm_rb *rb, size_t size){
 
 
 int
-cos2rk_ringbuf_enqueue(struct cos2rk_shm_rb *rb, void *buff, size_t size){
-	
+cos2rk_ringbuf_enqueue(struct cos2rk_shm_rb *rb, void *buff, size_t size)
+{
 	unsigned int producer;
 
 	assert(size > 0);
@@ -110,7 +114,7 @@ cos2rk_ringbuf_enqueue(struct cos2rk_shm_rb *rb, void *buff, size_t size){
 	
 		/* check if ringbuf is full w/ wraparound */
 		if (second >= rb->tail) {
-			printc("wrap around, rb is full no enqueue\n");
+			printc("W");
 			return -1;
 		}
 
@@ -156,12 +160,13 @@ cos2rk_dequeue_size(unsigned int srcvm, unsigned int curvm)
 	 * in cos_pktq_dequeue
 	 */
 	if (ret <= 0 || ret > 1500) ret = 0;
+
 	return ret;
 }
 
 int
-cos2rk_ringbuf_dequeue(struct cos2rk_shm_rb *rb, void * buff){
-
+cos2rk_ringbuf_dequeue(struct cos2rk_shm_rb *rb, void * buff)
+{
 	unsigned int consumer;
 	size_t size;
 
@@ -210,6 +215,7 @@ cos2rk_ringbuf_dequeue(struct cos2rk_shm_rb *rb, void * buff){
 	}
 
 	assert(buff != NULL);
+
 	return 1;
 }
 
@@ -222,7 +228,7 @@ cos2rk_shm_write(void *buff, size_t sz, unsigned int srcvm, unsigned int dstvm)
 	/* else if you're a VM, write to your send ringbuf for DOM0 to read from */
 	if (srcvm == 0) {
 		rb = cos2rk_shmem_addr_recv(dstvm);
-	}else{
+	} else {
 		rb = cos2rk_shmem_addr_send(dstvm);
 	}
 
@@ -241,10 +247,9 @@ cos2rk_shm_read(void *buff, unsigned int srcvm, unsigned int curvm)
 	*/
 	if (srcvm == 0) {
 		rb = cos2rk_shmem_addr_recv(0);
-	}else{
+	} else {
 		rb = cos2rk_shmem_addr_send(srcvm);
 	}
 	
 	return cos2rk_ringbuf_dequeue(rb, buff);
 }
-

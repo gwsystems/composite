@@ -79,6 +79,7 @@ void
 vm_io_fn(void *id)
 {
 	arcvcap_t rcvcap = VM_CAPTBL_SELF_IORCV_BASE;
+
 	while (1) {
 		cos_rcv(rcvcap, 0, NULL);
 		intr_start(IRQ_DOM0_VM);
