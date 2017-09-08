@@ -273,8 +273,6 @@ void
 sl_thd_wakeup(thdid_t tid)
 {
 	struct sl_thd *t;
-	tcap_t         tcap;
-	tcap_prio_t    prio;
 
 	sl_cs_enter();
 	t = sl_thd_lkup(tid);
@@ -464,6 +462,8 @@ sl_thd_free(struct sl_thd *t)
 {
 	struct sl_thd *ct = sl_thd_curr();
 
+	assert(t);
+
 	sl_cs_enter();
 
 	assert(t->state != SL_THD_FREE);
@@ -493,6 +493,8 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 {
 	sched_param_type_t type;
 	unsigned int       value;
+
+	assert(t);
 
 	sched_param_get(sp, &type, &value);
 
@@ -532,7 +534,6 @@ void
 sl_init(void)
 {
 	struct sl_global       *g  = sl__globals();
-	struct cos_defcompinfo *ci = cos_defcompinfo_curr_get();
 
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));

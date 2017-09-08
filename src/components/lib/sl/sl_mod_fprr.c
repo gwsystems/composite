@@ -26,7 +26,8 @@ sl_mod_schedule(void)
 		if (ps_list_head_empty(&threads[i])) continue;
 		t = ps_list_head_first_d(&threads[i], struct sl_thd_policy);
 
-		/* We want to move the selected thread to the back of the list.
+		/*
+		 * We want to move the selected thread to the back of the list.
 		 * Otherwise fprr won't be truly round robin
 		 */
 		ps_list_rem_d(t);
