@@ -33,3 +33,6 @@ Next, we have a series of components prepended with `!`.  That specifies that th
 Following the `:`, we have the list of dependencies specified as `a.o-b.o|c.o`.  The component (that must be in the initial list before the `:`) on the left of the `-` depends on functions in interfaces exported by the components on the right of the `-`, speparated by `|`s.  In this case, component `a.o` wants to invoke functions in both `b.o` and `c.o`.  
 
 The syntax `[parent_]` is necessary to enable a component that exports an interface, to also be able to depend on and invoke functions in components that provide the same interface.  For example, if `mm.o` provides the `mman_alias` function, and `mm.o-hiermm.o`, where `hiermm.o` also exports `mman_alias`, then any call in `mm.o` to that function would be recursive *within* `mm.o`.  How can we invoke the same function in `hiermm.o`?  We can change the dependency to `mm.o-[parent_]hiermm.o` which specifies that any calls to `parent_mman_alias` in `mm.o` should go to the corresponding function in `hiermm.o`.
+
+**Note:**
+If the runscript syntax looks insane, we're with you. Efforts are being made to fix it.
