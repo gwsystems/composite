@@ -73,6 +73,11 @@ config-i386: config-gen
 	@echo "i386" > PLATFORM_ID
 
 run:
+ifeq ($(RUNSCRIPT),)
+	@echo "Please provide a runscript: make RUNSCRIPT=rs.sh run"
+	@exit 1
+endif
+
 	@cd ../transfer && echo "Running" $(RUNSCRIPT) && ./qemu.sh $(RUNSCRIPT)
 
 idl:
