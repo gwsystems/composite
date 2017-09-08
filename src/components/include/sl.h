@@ -253,7 +253,9 @@ struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap);
  * @comp: component created using cos_defkernel_api which includes initthd (with/without its own tcap & rcvcap).
  */
 struct sl_thd *sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched);
+
 void           sl_thd_free(struct sl_thd *t);
+void           sl_thd_exit();
 
 void sl_thd_param_set(struct sl_thd *t, sched_param_t sp);
 
