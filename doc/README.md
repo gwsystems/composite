@@ -1,5 +1,23 @@
 # Composite Setup Guide
 
+## Tools necessary for Composite
+```
+sudo apt-get -y install bc  
+sudo apt-get -y install gcc-multilib  
+sudo apt-get -y install binutils-dev  
+sudo apt-get -y install qemu-kvm  
+sudo apt-get -y install cmake  
+sudo apt-get -y install build-essential  
+sudo apt-get -y install xorriso  
+sudo apt-get -y install curl  
+
+curl https://sh.rustup.rs -sSf | sh 
+  
+source ~/.cargo/env  
+rustup default nightly  
+rustup component add rust-src  
+cargo install xargo  
+```
 ## Getting and building
 
 We do all of our testing on 32 bit Ubuntu 14.04.
