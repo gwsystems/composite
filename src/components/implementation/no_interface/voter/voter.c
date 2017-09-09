@@ -1,10 +1,10 @@
 #include <cos_component.h>
-#include <print.h>
-#include <quarantine.h>
-#include <cbuf.h>
+//#include <print.h>
+//#include <quarantine.h>
+//#include <cbuf.h>
 #include <sched.h>
 #include <voter.h>
-#include <periodic_wake.h>
+//#include <periodic_wake.h>
 
 #undef DEBUG
 
