@@ -2,6 +2,7 @@
 #include "cos2rk_rb_api.h"
 
 extern vaddr_t cos_upcall_entry;
+extern int __inv_rk_inv_entry(int r1, int r2, int r3, int r4);
 /* extern functions */
 extern void vm_init(void *);
 extern void dom0_io_fn(void *);
@@ -55,9 +56,6 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITTCAP_BASE, vk_cinfo, initaep->tc);
 	assert(ret == 0);
 	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITRCV_BASE, vk_cinfo, initaep->rcv);
-	assert(ret == 0);
-
-	ret = cos_cap_cpy_at(vmcinfo, VM_CAPTBL_SELF_SINV_BASE, vk_cinfo, vkinfo->sinv); 
 	assert(ret == 0);
 }
 
@@ -198,56 +196,36 @@ vk_vm_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned l
 }
 
 void
-sinv_init_all(struct cos_compinfo *vk_cinfo, struct cos_compinfo *vm_cinfo, struct cos_compinfo *kernel_cinfo)
+vk_vm_sinvs_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 {
-	sinvcap_t sinv;
+	struct cos_compinfo *vk_cinfo = cos_compinfo_get(cos_defcompinfo_curr_get());
+	struct cos_compinfo *vm_cinfo = cos_compinfo_get(&vminfo->dci);
 	int ret;
-	printc("\tSetting up sinv capability from user component to kernel component\n");
-        sinv = cos_sinv_alloc(vk_cinfo, kernel_cinfo->comp_cap, (vaddr_t)__inv_test_fs);
-        assert(sinv > 0);
-        /* Copy into user capability table at a known location */
-        ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_IOSINV_BASE, vk_cinfo, sinv);
-        assert(ret == 0);
 
-        /* Testing shared memory from user component to kernel component  */
-        sinv = cos_sinv_alloc(vk_cinfo, kernel_cinfo->comp_cap, (vaddr_t)__inv_test_shdmem);
-        ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_IOSINV_TEST, vk_cinfo, sinv);
-        assert(ret == 0);
+	ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_VK_SINV_BASE, vk_cinfo, vkinfo->sinv); 
+	assert(ret == 0);
 
-        printc("\tSetting up sinv capabilities from kernel and user component to booter component\n");
-        /* TODO: change enum name from VM_... either VM or nothing */
-        /* Shmem Syncronous Invocations */
-        sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_shdmem_get_vaddr);
-        assert(sinv > 0);
-        ret = cos_cap_cpy_at(kernel_cinfo, VM_CAPTBL_SELF_IOSINV_VADDR_GET, vk_cinfo, sinv);
-        assert(ret == 0);
-        ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_IOSINV_VADDR_GET, vk_cinfo, sinv);
-        assert(ret == 0);
+	switch(vminfo->id) {
+	case RUMP_SUB: /* kernel component - do nothing for now */ break;
+	case TIMER_SUB: /* timer subsys. do nothing for now*/ break;
+	case UDP_APP:
+	case DL_APP:
+	{
+		struct cos_compinfo *rk_cinfo = cos_compinfo_get(&vmx_info[RUMP_SUB].dci);
+		struct cos_compinfo *tm_cinfo = cos_compinfo_get(&vmx_info[TIMER_SUB].dci);
+		sinvcap_t rk_inv, tm_inv;
 
-        sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_shdmem_allocate);
-        assert(sinv > 0);
-        ret = cos_cap_cpy_at(kernel_cinfo, VM_CAPTBL_SELF_IOSINV_ALLOC, vk_cinfo, sinv);
-        assert(ret == 0);
-        ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_IOSINV_ALLOC, vk_cinfo, sinv);
-        assert(ret == 0);
+		printc("\tSetting up sinv capability from user component to kernel component\n");
+		rk_inv = cos_sinv_alloc(vk_cinfo, rk_cinfo->comp_cap, (vaddr_t)__inv_rk_inv_entry);
+		assert(rk_inv);
 
-        sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_shdmem_deallocate);
-        assert(sinv > 0);
-        ret = cos_cap_cpy_at(kernel_cinfo, VM_CAPTBL_SELF_IOSINV_DEALLOC, vk_cinfo, sinv);
-        assert(ret == 0);
-        ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_IOSINV_DEALLOC, vk_cinfo, sinv);
-        assert(ret == 0);
+		ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_RK_SINV_BASE, vk_cinfo, rk_inv);
+		assert(ret == 0);
 
-        sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_shdmem_map);
-        assert(sinv > 0);
-        ret = cos_cap_cpy_at(kernel_cinfo, VM_CAPTBL_SELF_IOSINV_MAP, vk_cinfo, sinv);
-        assert(ret == 0);
-        ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_IOSINV_MAP, vk_cinfo, sinv);
-        assert(ret == 0);
-
-        printc("\tDone setting up sinvs\n");
+		/* TODO: TIMER SUBSYS INV CAP */
+	}
+	}
 }
-
 
 thdcap_t
 dom0_vio_thdcap(unsigned int vmid)

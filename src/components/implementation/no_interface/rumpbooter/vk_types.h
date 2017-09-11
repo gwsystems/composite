@@ -15,15 +15,12 @@
 #define VM_FIXED_PERIOD_MS 10
 #define VM_FIXED_BUDGET_MS 5
 
-#define VM_CAPTBL_SELF_SINV_BASE         BOOT_CAPTBL_FREE
-#define VM_CAPTBL_SELF_IOSINV_BASE       round_up_to_pow2(VM_CAPTBL_SELF_SINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
-#define VM_CAPTBL_SELF_IOSINV_TEST       round_up_to_pow2(VM_CAPTBL_SELF_IOSINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
-#define VM_CAPTBL_SELF_IOSINV_VADDR_GET  round_up_to_pow2(VM_CAPTBL_SELF_IOSINV_TEST + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
-#define VM_CAPTBL_SELF_IOSINV_ALLOC      round_up_to_pow2(VM_CAPTBL_SELF_IOSINV_VADDR_GET + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
-#define VM_CAPTBL_SELF_IOSINV_DEALLOC    round_up_to_pow2(VM_CAPTBL_SELF_IOSINV_ALLOC + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
-#define VM_CAPTBL_SELF_IOSINV_MAP        round_up_to_pow2(VM_CAPTBL_SELF_IOSINV_DEALLOC + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
+#define VM_CAPTBL_SELF_VK_SINV_BASE      BOOT_CAPTBL_FREE
+#define VM_CAPTBL_SELF_RK_SINV_BASE      round_up_to_pow2(VM_CAPTBL_SELF_VK_SINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
+/* INV to TIMER SUBSYSTEM */
+#define VM_CAPTBL_SELF_TM_SINV_BASE      round_up_to_pow2(VM_CAPTBL_SELF_RK_SINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
 /* VM1~ I/O Capabilities layout */
-#define VM_CAPTBL_SELF_IOTHD_BASE        round_up_to_pow2(VM_CAPTBL_SELF_IOSINV_MAP + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
+#define VM_CAPTBL_SELF_IOTHD_BASE        round_up_to_pow2(VM_CAPTBL_SELF_TM_SINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
 #define VM_CAPTBL_SELF_IORCV_BASE        round_up_to_pow2(VM_CAPTBL_SELF_IOTHD_BASE + captbl_idsize(CAP_THD), CAPMAX_ENTRY_SZ)
 #define VM_CAPTBL_SELF_IOASND_BASE       round_up_to_pow2(VM_CAPTBL_SELF_IORCV_BASE + captbl_idsize(CAP_ARCV), CAPMAX_ENTRY_SZ)
 #define VM_CAPTBL_SELF_LAST_CAP          VM_CAPTBL_SELF_IOASND_BASE + captbl_idsize(CAP_ASND)
@@ -40,13 +37,22 @@ enum vkernel_server_option {
         VK_SERV_VM_ID = 0,
 	VK_SERV_VM_BLOCK,
         VK_SERV_VM_EXIT,
+	VK_SERV_SHM_VADDR_GET,
+	VK_SERV_SHM_ALLOC,
+	VK_SERV_SHM_DEALLOC,
+	VK_SERV_SHM_MAP,
 };
 
-enum {
+enum vm_types {
 	RUMP_SUB = 0, /* SL THD WITH ASND, VIO from HC_DL for logging with LA budget, SINV for POSIX API */
 	UDP_APP, /* VIO to HA_HPET for HPET INFO, SL_THD in OWN COMP but NO ASND */
 	TIMER_SUB, /* SL_THD WITH ASND, VIO from LC with it's own budget (tcap_deleg), SINV for HPET INFO */
 	DL_APP, /* SL_THD with TCAP shared between HA + HC, SINV to HA, ASYNC to LA */
+};
+
+enum rk_inv_ops {
+	RK_INV_OP1 = 0,
+	RK_INV_OP2,
 };
 
 #endif /* VK_TYPES_H */

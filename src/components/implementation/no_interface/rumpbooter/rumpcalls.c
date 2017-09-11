@@ -15,6 +15,7 @@
 //#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 #include "cos_sync.h"
 #include "vk_api.h"
+#include "rk_inv_api.h"
 
 extern struct cos_compinfo booter_info;
 extern struct cos_rumpcalls crcalls;
@@ -564,13 +565,11 @@ cos_find_vio_tcap(void)
 void
 cos_fs_test(void)
 {
-	/* This sinv cap is allocated and found within vkernel_init.c */
-	sinvcap_t sinv = VM_CAPTBL_SELF_IOSINV_BASE;
-	int sinv_ret = -1;
+	int sinv_ret;
 
 	printc("Running cos fs test: VM%d\n", cos_spdid_get());
 
-	sinv_ret = cos_sinv(sinv, 0, 0, 0, 0);
+	sinv_ret = rk_inv_op1();
 
 	printc("Ret from fs test: %d\n", sinv_ret);
 }
@@ -596,8 +595,7 @@ cos_shmem_test(void)
 	*(char *)my_page = 'a';
 
 	/* Go to kernel, map in shared mem page, read 'a', write 'b' */
-	sinv = VM_CAPTBL_SELF_IOSINV_TEST;
-	cos_sinv(sinv, shm_id, 0, 0, 0);
+	rk_inv_op2(shm_id);
 
 	/* Read 'b' in our page */
 	printc("Return from kernel component, reading %p + 1: %c\n", \
@@ -607,46 +605,25 @@ cos_shmem_test(void)
 vaddr_t
 shmem_get_vaddr_invoke(int id)
 {
-	int sinv_ret = 0;
-
-	sinvcap_t sinv = VM_CAPTBL_SELF_IOSINV_VADDR_GET;
-
-	sinv_ret = cos_sinv(sinv, cos_spdid_get(), id, 0 , 0);
-
-	return (vaddr_t)sinv_ret; /* FIXME: is this right? */
+	return vk_shmem_vaddr_get(cos_spdid_get(), id); /* FIXME: is this right? */
 }
 
 int
 shmem_allocate_invoke(void)
 {
-	sinvcap_t sinv = VM_CAPTBL_SELF_IOSINV_ALLOC;
-	int sinv_ret;
-
-	sinv_ret = cos_sinv(sinv, cos_spdid_get(), 1, 0, 0);
-
-	return sinv_ret;
+	return vk_shmem_alloc(cos_spdid_get(), 1);;
 }
 
 int
 shmem_deallocate_invoke(void)
 {
-	sinvcap_t sinv = VM_CAPTBL_SELF_IOSINV_DEALLOC;
-	int sinv_ret = -1;
-
-	sinv_ret = cos_sinv(sinv, 0, 0, 0, 0);
-
-	return sinv_ret;
+	return vk_shmem_dealloc();
 }
 
 int
 shmem_map_invoke(int id)
 {
-	sinvcap_t sinv = VM_CAPTBL_SELF_IOSINV_MAP;
-	int sinv_ret;
-
-	sinv_ret = cos_sinv(sinv, cos_spdid_get(), id, 0, 0);
-
-	return sinv_ret;
+	return vk_shmem_map(cos_spdid_get(), id);
 }
 
 int _spdid = -1;

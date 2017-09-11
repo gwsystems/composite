@@ -3,23 +3,49 @@
 #include "vk_api.h"
 
 extern int vmid;
+extern int shmem_call(int arg1, int arg2, int arg3, int arg4);
 
 int
 vk_vm_id(void)
 {
-	return cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_ID << 16 | cos_thdid(), 0, 0, 0);	
+	return cos_sinv(VM_CAPTBL_SELF_VK_SINV_BASE, VK_SERV_VM_ID << 16 | cos_thdid(), 0, 0, 0);	
 }
 
 void
 vk_vm_exit(void)
 {
-	cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_EXIT << 16 | vmid, 0, 0, 0);
+	cos_sinv(VM_CAPTBL_SELF_VK_SINV_BASE, VK_SERV_VM_EXIT << 16 | vmid, 0, 0, 0);
 }
 
 void
 vk_vm_block(tcap_time_t timeout)
 {
-	cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_ID << 16 | vmid, (int)timeout, 0, 0);
+	cos_sinv(VM_CAPTBL_SELF_VK_SINV_BASE, VK_SERV_VM_ID << 16 | vmid, (int)timeout, 0, 0);
+}
+
+/* TODO: can pack some args */
+vaddr_t
+vk_shmem_vaddr_get(int spdid, int id)
+{
+	return cos_sinv(VM_CAPTBL_SELF_VK_SINV_BASE, VK_SERV_SHM_VADDR_GET << 16 | 0, spdid, id, 0);
+}
+
+int
+vk_shmem_alloc(int spdid, int i)
+{
+	return cos_sinv(VM_CAPTBL_SELF_VK_SINV_BASE, VK_SERV_SHM_ALLOC << 16 | 0, spdid, i, 0);
+}
+
+int
+vk_shmem_dealloc(void)
+{
+	return cos_sinv(VM_CAPTBL_SELF_VK_SINV_BASE, VK_SERV_SHM_DEALLOC << 16 | 0, 0, 0, 0);
+}
+
+int
+vk_shmem_map(int spdid, int id)
+{
+	return cos_sinv(VM_CAPTBL_SELF_VK_SINV_BASE, VK_SERV_SHM_MAP << 16 | 0, spdid, id, 0);
 }
 
 static inline int
@@ -36,7 +62,7 @@ vkernel_find_vm(thdid_t tid)
 }
 
 int
-vkernel_hypercall(int a, int b, int c)
+vkernel_hypercall(int a, int b, int c, int d)
 {
 	int option = a >> 16;
 	int thdid  = (a << 16) >> 16;
@@ -74,7 +100,7 @@ vkernel_hypercall(int a, int b, int c)
 		sl_thd_block_timeout(0, abs_timeout);
 		break;
 	}
-	default: assert(0);
+	default: shmem_call(option, b, c, d);
 	}
 
 	return ret;

@@ -16,7 +16,7 @@
 
 extern vaddr_t cos_upcall_entry;
 extern void    vm_init(void *d);
-extern void   *__inv_vkernel_hypercallfn(int a, int b, int c);
+extern void   *__inv_vkernel_hypercallfn(int a, int b, int c, int d);
 
 /* Init thread for userspace vm, needed to register within RK */
 thdcap_t vm_main_thd;
@@ -78,7 +78,7 @@ cos_init(void)
 	sl_init();
 
 	for (id = 0 ; id < VM_COUNT ; id ++) {
-		struct cos_compinfo *kernel_cinfo, *vm_cinfo = cos_compinfo_get(&(vmx_info[id].dci));
+		struct cos_compinfo *vm_cinfo = cos_compinfo_get(&(vmx_info[id].dci));
 		struct vms_info     *vm_info = &vmx_info[id];
 		vaddr_t              vm_range, addr;
 		int                  ret;
@@ -94,23 +94,11 @@ cos_init(void)
 		assert(vm_cinfo);
 		printc("vm_cinfo: %p for id: %d\n", vm_cinfo, vm_info->id);
 		shm_infos[id].cinfo = vm_cinfo;
-		shm_infos[id].shm_frontier = 0x80000000; /* 2Gb */
+		shm_infos[id].shm_frontier = VK_VM_SHM_BASE; /* 2Gb */
 
 		vk_vm_create(vm_info, &vk_info);
 
-		/*
-		 * Allocate syncronos invocations.
-		 * Make sure we have at least 2 components.
-		 */
-		/* TODO add kernel_cinfo && only do this when id > 0 */
-		assert(VM_COUNT > 1);
-		if (id == 0) {
-			/* This is our kernel component */
-			kernel_cinfo = vm_cinfo;
-		} else {
-			assert(kernel_cinfo != vm_cinfo);
-			sinv_init_all(vk_cinfo, vm_cinfo, kernel_cinfo);
-		}
+		vk_vm_sinvs_alloc(vm_info, &vk_info);
 
 		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE);
 		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE);

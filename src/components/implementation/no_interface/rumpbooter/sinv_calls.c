@@ -3,6 +3,8 @@
 #include <sinv_calls.h>
 #include <shdmem.h>
 #include "rumpcalls.h"
+#include "rk_inv_api.h"
+#include "vk_types.h"
 
 int
 test_entry(int arg1, int arg2, int arg3, int arg4)
@@ -59,19 +61,46 @@ test_shdmem(int shm_id, int arg2, int arg3, int arg4)
 	return 0;
 }
 
-/* TODO Rename this dumb conevention from a function to a system call  */
-vaddr_t
-shdmem_get_vaddr(int arg1, int arg2, int arg3, int arg4)
-{ return shm_get_vaddr((unsigned int)arg1, (unsigned int)arg2, arg3, arg4); }
+/* TODO: too many unused arguments in many cases.. get rid of them */
+int
+rk_inv_entry(int arg1, int arg2, int arg3, int arg4)
+{
+	int ret = 0;
+
+	/* TODO Rename this dumb conevention from a function to a system call  */
+	switch(arg1) {
+	case RK_INV_OP1:
+		ret = test_fs(arg2, arg3, arg4, 0);
+		break;
+	case RK_INV_OP2:
+		ret = test_shdmem(arg2, arg3, arg4, 0);
+		break;
+	default: assert(0);
+	}
+
+	return ret;
+}
 
 int
-shdmem_allocate(int arg1, int arg2, int arg3, int arg4)
-{ return shm_allocate((unsigned int)arg1, arg2, arg3, arg4); }
+shmem_call(int arg1, int arg2, int arg3, int arg4)
+{
+	int ret = 0;
 
-int
-shdmem_deallocate(int arg1, int arg2, int arg3, int arg4)
-{ return shm_deallocate(arg1, arg2, arg3, arg4); }
+	switch(arg1) {
+	case VK_SERV_SHM_VADDR_GET:
+		ret = shm_get_vaddr((unsigned int)arg2, (unsigned int)arg3, arg4, 0);
+		break;
+	case VK_SERV_SHM_ALLOC:
+		ret = shm_allocate((unsigned int)arg2, arg3, arg4, 0);
+		break;
+	case VK_SERV_SHM_DEALLOC:
+		ret = shm_deallocate(arg2, arg3, arg4, 0);
+		break;
+	case VK_SERV_SHM_MAP:
+		ret = shm_map(arg2, arg3, arg4, 0);
+		break;
+	default: assert(0);
+	}
 
-int
-shdmem_map(int arg1, int arg2, int arg3, int arg4)
-{ return shm_map(arg1, arg2, arg3, arg4); }
+	return ret;
+}

@@ -14,7 +14,7 @@ void vk_vm_virtmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, u
 void vk_vm_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long shm_ptr, unsigned long shm_sz);
 void vk_vm_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long shm_ptr, unsigned long shm_sz);
 void vk_vm_sched_init(struct vms_info *vminfo);
-void sinv_init_all(struct cos_compinfo *vk_cinfo, struct cos_compinfo *vm_cinfo, struct cos_compinfo *kernel_cinfo);
+void vk_vm_sinvs_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo);
 
 thdcap_t  dom0_vio_thdcap(unsigned int vmid);
 tcap_t    dom0_vio_tcap(unsigned int vmid);
@@ -26,5 +26,9 @@ vaddr_t dom0_vio_shm_base(unsigned int vmid);
 int vk_vm_id(void);
 void vk_vm_exit(void);
 void vk_vm_block(tcap_time_t timeout);
+vaddr_t vk_shmem_vaddr_get(int spdid, int id);
+int vk_shmem_alloc(int spdid, int i);
+int vk_shmem_dealloc(void);
+int vk_shmem_map(int spdid, int id);
 
 #endif /* VK_API_H */
