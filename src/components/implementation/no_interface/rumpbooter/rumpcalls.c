@@ -6,12 +6,15 @@
 #include <cos_types.h>
 #include <cos_asm_simple_stacks.h>
 
+#include "vk_types.h"
 #include "rumpcalls.h"
 #include "rump_cos_alloc.h"
 #include "cos_sched.h"
+//#include "cos_lock.h"
+#include "cos2rk_rb_api.h"
+//#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 #include "cos_sync.h"
-#include "vkern_api.h"
-#include "micro_booter.h"
+#include "vk_api.h"
 
 extern struct cos_compinfo booter_info;
 extern struct cos_rumpcalls crcalls;
@@ -20,10 +23,7 @@ extern struct cos_rumpcalls crcalls;
 volatile thdcap_t cos_cur = BOOT_CAPTBL_SELF_INITTHD_BASE;
 volatile unsigned int cos_cur_tcap = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 
-tcap_prio_t rk_thd_prio = PRIO_LOW;
-static cycles_t nw_start = 0, nw_end = 0;
-
-extern thdcap_t vm_main_thd;
+tcap_prio_t rk_thd_prio = PRIO_UNDER;
 
 /* Mapping the functions from rumpkernel to composite */
 void
@@ -64,11 +64,10 @@ cos2rump_setup(void)
 	crcalls.rump_vm_yield			= cos_vm_yield;
 
 	crcalls.rump_cpu_intr_ack		= cos_cpu_intr_ack;
+
 	crcalls.rump_shmem_send			= cos_shmem_send;
 	crcalls.rump_shmem_recv			= cos_shmem_recv;
 	crcalls.rump_dequeue_size		= cos_dequeue_size;
-
-	crcalls.rump_fs_test			= cos_fs_test;
 
 	return;
 }
@@ -77,7 +76,7 @@ cos2rump_setup(void)
 static int slen = -1;
 static char str[STR_LEN_MAX + 1];
 
-static inline void 
+static inline void
 __reset_str(void)
 {
 	memset(str, 0, STR_LEN_MAX + 1);
@@ -120,7 +119,7 @@ cos_vm_print(char s[], int ret)
 int
 cos_dequeue_size(unsigned int srcvm, unsigned int curvm)
 {
-	return vk_dequeue_size(srcvm, curvm);
+	return cos2rk_dequeue_size(srcvm, curvm);
 }
 
 /*rk shared mem functions*/
@@ -130,11 +129,12 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 	asndcap_t sndcap;
 	int ret;
 
-	if(srcvm == 0) sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (dstvm - 1) * CAP64B_IDSZ;
+	if(srcvm == 0) sndcap = dom0_vio_asndcap(dstvm);
 	else sndcap = VM_CAPTBL_SELF_IOASND_BASE;
 
 	//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
-	cos_shm_write(buff, size, srcvm, dstvm);
+
+	cos2rk_shm_write(buff, size, srcvm, dstvm);
 
 	if(cos_asnd(sndcap, 0)) assert(0);
 	return 1;
@@ -142,8 +142,8 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 
 int
 cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm){
-	printc("%s = s:%d d:%d\n", __func__, srcvm, curvm);
-	return cos_shm_read(buff, srcvm, curvm);
+	//printc("%s = s:%d d:%d\n", __func__, srcvm, curvm);
+	return cos2rk_shm_read(buff, srcvm, curvm);
 }
 
 /* send and recieve notifications */
@@ -154,59 +154,43 @@ rump2cos_rcv(void)
 	return;
 }
 
+static inline void
+__cpu_intr_ack(void)
+{
+	static int count;
+	if (vmid) return;
+
+	__asm__ __volatile(
+		"movb $0x20, %%al\n"
+		"outb %%al, $0xa0\n"
+		"outb %%al, $0x20\n"
+		::: "al");
+	count ++;
+
+	//printc("[%d]", count);
+}
+
 void
 cos_cpu_intr_ack(void)
 {
-	static int count = 0;
-
-	if (cos_spdid_get()) return;
-
-	rdtscll(nw_end);
-	assert(nw_end > nw_start);
-	count ++;
-
-	//if (nw_end - nw_start > cycs_per_msec) {
-	//	printc("%d:%llu ms..", count, (nw_end - nw_start)/cycs_per_msec);
-	//}
-	/*
-         * ACK interrupts on PIC
-         */
-        __asm__ __volatile(
-            "movb $0x20, %%al\n"
-            "outb %%al, $0xa0\n"
-            "outb %%al, $0x20\n"
-            ::: "al");
-//	if (count % 1000 == 0) printc("..%d:ack:%d..", cos_spdid_get(), count);
+	__cpu_intr_ack();
 }
 
 /* irq */
 void
 cos_irqthd_handler(void *line)
 {
-	cycles_t first = 0;
-	asndcap_t sndcap;
 	int which = (int)line;
 	arcvcap_t arcvcap = irq_arcvcap[which];
-	int prev = 0;
-
-	if (line == 0) sndcap = VM0_CAPTBL_SELF_IOASND_SET_BASE + (DL_VM - 1) * CAP64B_IDSZ;
 
 	while(1) {
-		int pending = cos_rcv(arcvcap);
+		int pending = cos_rcv(arcvcap, 0, NULL);
 
-		if ((int)line == 0) {
-//			prev++;
-//			if (prev % 1000 == 0) printc("--h:%d--", prev);
+		intr_start(which);
 
-			if(cos_asnd(sndcap, 0)) assert(0);
-		} else {
-			rdtscll(nw_start);
-			intr_start(which);
-			bmk_isr(which);
-			prev ++;
-		//	if (prev % 1000 == 0) printc(" (n:%d) ", prev);
-			intr_end();
-		}
+		bmk_isr(which);
+
+		intr_end();
 	}
 }
 
@@ -216,7 +200,7 @@ void
 rump_bmk_memsize_init(void)
 {
 	/* (1<<20) == 1 MG */
-	bmk_memsize = VM_UNTYPED_SZ - ((1<<20)*2);
+	bmk_memsize = COS2RK_VIRT_MACH_MEM_SZ - ((1<<20)*2);
 	printc("FIX ME: ");
 	printc("bmk_memsize: %lu\n", bmk_memsize);
 }
@@ -266,6 +250,9 @@ cos_tls_init(unsigned long tp, thdcap_t tc)
 	return cos_thd_mod(&booter_info, tc, (void *)tp);
 }
 
+
+extern thdcap_t vm_main_thd;
+
 void
 cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void (*f)(void *), void *arg,
@@ -291,7 +278,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 static inline void
 intr_switch(void)
 {
-	int ret, i = 32;
+	int i = 32;
 
 	if (!intrs) return;
 
@@ -300,11 +287,13 @@ intr_switch(void)
 		int tmp = intrs;
 
 		if ((tmp>>(i-1)) & 1) {
+			int ret = 0;
+
 			do {
-				//ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(i), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-				ret = cos_thd_switch(irq_thdcap[i]);
-				assert (ret == 0 || ret == -EAGAIN);
+				ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(i), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			} while (ret == -EAGAIN);
+
+			if (ret == -EBUSY) return; /* scheduler events have to be processed */
 		}
 	}
 }
@@ -346,11 +335,12 @@ print_cycles(void)
 
 	if (total_cycles >= cycs_per_sec) {
 		mainbud = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
-		printc("vm%d: %lu\n", cos_spdid_get(), mainbud);
-
+		printc("vm%d: %lu\n", vmid, mainbud);
 		total_cycles = 0;
 	}
 }
+
+#define SCHED_TIMEOUT_CYCS (1000 * cycs_per_usec)
 
 /* Called once from RK init thread. The one in while(1) */
 void
@@ -373,9 +363,10 @@ cos_resume(void)
 		r1 ++;
 		do {
 			unsigned int contending;
-			cycles_t cycles;
+			cycles_t cycles, now;
 			int pending, blocked, irq_line;
 			thdid_t tid;
+			tcap_time_t timeout = 0, thd_timeout;
 
 			/*
 			 * Handle all possible interrupts when
@@ -391,10 +382,11 @@ cos_resume(void)
 
 			r2 ++;
 			do {
-				r3 ++;
-				int rcvd;
-				pending = cos_sched_rcv_all(BOOT_CAPTBL_SELF_INITRCV_BASE, &rcvd, &tid, &blocked, &cycles);
-				assert(pending <= 1);
+
+				rdtscll(now);
+				timeout = tcap_cyc2time(now + SCHED_TIMEOUT_CYCS); 
+				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, timeout, 
+						        NULL, &tid, &blocked, &cycles, &thd_timeout);
 
 				irq_line = intr_translate_thdid2irq(tid);
 				if (irq_line == 0) hpet_irq_blocked = blocked;
@@ -424,10 +416,10 @@ cos_resume(void)
 
 rk_resume:
 		/*
-		 * Phani: 
+		 * Phani:
 		 * Check if BMK Runq has something to RUN!
 		 * Return value indicates how long to wait before timing out, 0 if it's not running bmk_platform_block..
-		 * This is a check in bmk_platform_block(). 
+		 * This is a check in bmk_platform_block().
 		 * This upcall should make things faster in idle/block time processing in RK threads.
 		 */
 //		if ((until = bmk_runq_empty())) {
@@ -447,9 +439,6 @@ rk_resume:
 			rdtscll(then);
 			/* TODO: decide which TCAP to use for rest of RK processing for I/O and do deficit accounting */
 			ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-			rdtscll(now);
-	//		if (now - then > VM_TIMESLICE * 3 * cycs_per_usec) printc("vm:%d rk:%llu cycs\n", cos_spdid_get(), now - then);
-			assert(ret == 0 || ret == -EAGAIN);
 		} while(ret == -EAGAIN);
 
 		cos_printflush();
@@ -470,10 +459,8 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 	cos_cur = temp;
 
 	do {
-		//ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
-		ret = cos_thd_switch(cos_cur);
-
-		assert(ret == 0 || ret == -EAGAIN);
+		ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
+		assert(ret == 0 || ret == -EAGAIN || ret == -EBUSY);
 		if (ret == -EAGAIN) {
 			/*
 			 * I was preempted after getting the token and before updating cos_cur which just outdated my sched token
@@ -497,29 +484,36 @@ cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
 //long long cycles_us = (long long)(CPU_GHZ * 1000);
 
 /* Return monotonic time since RK per VM initiation in nanoseconds */
-extern uint64_t t_vm_cycs;
-extern uint64_t t_dom_cycs;
+extern u64_t t_vm_cycs;
+extern u64_t t_dom_cycs;
 long long
 cos_vm_clock_now(void)
 {
-       uint64_t tsc_now = 0;
-       unsigned long long curtime = 0;
+	u64_t tsc_now = 0;
+	unsigned long long curtime = 0;
 
-       assert(cos_spdid_get() <= 1);
-       if (cos_spdid_get() == 0)      tsc_now = t_dom_cycs;
-       else if (cos_spdid_get() == 1) tsc_now = t_vm_cycs;
+	assert(vmid <= 1);
+	if (vmid == 0)      tsc_now = t_dom_cycs;
+	else if (vmid == 1) tsc_now = t_vm_cycs;
 
-       curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
-       curtime = (long long)(curtime * 1000); /* micro to nano seconds */
+	curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
+        curtime = (long long)(curtime * 1000); /* micro to nano seconds */
 
-       return curtime;
+	assert(cos_spdid_get() <= 1);
+	if (cos_spdid_get() == 0)      tsc_now = t_dom_cycs;
+	else if (cos_spdid_get() == 1) tsc_now = t_vm_cycs;
+
+	curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
+	curtime = (long long)(curtime * 1000); /* micro to nano seconds */
+
+	return curtime;
 }
 
 /* Return monotonic time since RK initiation in nanoseconds */
 long long
 cos_cpu_clock_now(void)
 {
-	uint64_t tsc_now = 0;
+	u64_t tsc_now = 0;
 	unsigned long long curtime = 0;
         rdtscll(tsc_now);
 
@@ -541,7 +535,7 @@ cos_pa2va(void * pa, unsigned long len)
 
 void
 cos_vm_exit(void)
-{ while (1) cos_thd_switch(VM_CAPTBL_SELF_EXITTHD_BASE); }
+{ cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_EXIT << 16 | cos_thdid(), 0, 0, 0); }
 
 void
 cos_sched_yield(void)
@@ -550,7 +544,6 @@ cos_sched_yield(void)
 void
 cos_vm_yield(void)
 { cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
-//{ cos_asnd(VM_CAPTBL_SELF_VKASND_BASE, 1); }
 
 void
 cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_prio_t prio)
@@ -573,13 +566,12 @@ cos_find_vio_tcap(void)
 	return BOOT_CAPTBL_SELF_INITTCAP_BASE;
 }
 
-
 /* System Calls */
 void
 cos_fs_test(void)
 {
 	/* This sinv cap is allocated and found within vkernel_init.c */
-	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_BASE;
+	sinvcap_t sinv = VM_CAPTBL_SELF_IOSINV_BASE;
 	int sinv_ret = -1;
 
 	printc("Running cos fs test: VM%d\n", cos_spdid_get());
@@ -610,7 +602,7 @@ cos_shmem_test(void)
 	*(char *)my_page = 'a';
 
 	/* Go to kernel, map in shared mem page, read 'a', write 'b' */
-	sinv = VM0_CAPTBL_SELF_IOSINV_TEST;
+	sinv = VM_CAPTBL_SELF_IOSINV_TEST;
 	cos_sinv(sinv, shm_id, 0, 0, 0);
 
 	/* Read 'b' in our page */
@@ -621,7 +613,7 @@ cos_shmem_test(void)
 vaddr_t
 shmem_get_vaddr_invoke(int id)
 {
-	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_VADDR_GET;
+	sinvcap_t sinv = VM_CAPTBL_SELF_IOSINV_VADDR_GET;
 	int sinv_ret;
 
 	sinv_ret = cos_sinv(sinv, cos_spdid_get(), id, 0 , 0);
@@ -630,7 +622,7 @@ shmem_get_vaddr_invoke(int id)
 int
 shmem_allocate_invoke(void)
 {
-	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_ALLOC;
+	sinvcap_t sinv = VM_CAPTBL_SELF_IOSINV_ALLOC;
 	int sinv_ret;
 
 	sinv_ret = cos_sinv(sinv, cos_spdid_get(), 1, 0, 0);
@@ -641,7 +633,7 @@ shmem_allocate_invoke(void)
 int
 shmem_deallocate_invoke(void)
 {
-	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_DEALLOC;
+	sinvcap_t sinv = VM_CAPTBL_SELF_IOSINV_DEALLOC;
 	int sinv_ret = -1;
 
 	sinv_ret = cos_sinv(sinv, 0, 0, 0, 0);
@@ -652,7 +644,7 @@ shmem_deallocate_invoke(void)
 int
 shmem_map_invoke(int id)
 {
-	sinvcap_t sinv = VM0_CAPTBL_SELF_IOSINV_MAP;
+	sinvcap_t sinv = VM_CAPTBL_SELF_IOSINV_MAP;
 	int sinv_ret;
 
 	sinv_ret = cos_sinv(sinv, cos_spdid_get(), id, 0, 0);
@@ -665,7 +657,6 @@ void
 cos_spdid_set(unsigned int spdid)
 {
 	/* Try and have some sort of sanity check that it is only being set once... */
-	printc("\t!!!!!Calling cos_spdid_set, _spdid: %d\n", spdid);
 	assert(_spdid < 0);
 
 	_spdid = spdid;

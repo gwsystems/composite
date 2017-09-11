@@ -6,8 +6,8 @@
  */
 
 #define __ASM__
-#include <cos_asm_simple_stacks.h>
 #include <consts.h>
+#include <cos_asm_simple_stacks.h>
 #include "../../kernel/include/asm_ipc_defs.h"
 
 #define IPRETURN 4
@@ -20,6 +20,7 @@ nil:
 	.long 0
 	.endr
 
+.align COS_STACK_SZ
 .globl cos_static_stack
 cos_static_stack:
 	.rep ALL_STACK_SZ
@@ -27,7 +28,7 @@ cos_static_stack:
 	.endr
 .globl cos_static_stack_end
 cos_static_stack_end:
-	
+
 .text
 .globl cos_upcall_entry
 .type  cos_upcall_entry, @function
@@ -39,7 +40,7 @@ cos_upcall_entry:
 	pushl %edi
 	pushl %ebx
 	xor %ebp, %ebp
-	pushl %ecx /* option */	
+	pushl %ecx /* option */
 	call cos_upcall_fn
 	addl $16, %esp
 
@@ -48,7 +49,7 @@ cos_upcall_entry:
 	COS_ASM_RET_STACK
 
 	sysenter
-	
+
 /*
  * %eax = cmpval, %ebx = memaddr, %ecx = newval
  * output %edx, either cmpval: fail, or newval:	success
@@ -63,7 +64,7 @@ cos_atomic_cmpxchg:
 	movl %ecx, %edx   /* XXX */
 	movl %ecx, (%ebx)
 .weak cos_atomic_cmpxchg_end
-cos_atomic_cmpxchg_end:	
+cos_atomic_cmpxchg_end:
 	ret
 
 /*
@@ -92,4 +93,3 @@ cos_atomic_user4_end:
 	/* crash out as something's wrong */
 	movl $0, %eax
 	movl (%eax), %eax
-

@@ -1,8 +1,10 @@
-/* Use the passed in stack in arg4 */
-
+#define __ASM__
+#include <consts.h>
 #include <cos_asm_simple_stacks.h>
 
+#ifndef RET_CAP
 #define RET_CAP (1 << 16)
+#endif
 
 .text
 .globl __inv_test_serverfn

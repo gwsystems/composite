@@ -3,7 +3,7 @@
 # uints
 #
 # -Xlinker -r is used to pass flags into the linker, in this case to
-# prevent dietlibc from creating an executable and linking in many of
+# prevent musllibc from creating an executable and linking in many of
 # its normal symbols
 
 # I never want to touch this again, but will have to
@@ -34,18 +34,20 @@ CLIB=../complib.o
 #COMPLIB=$(if $(wildcard $(CLIB)),$(CLIB))
 COMPLIB=$(IF_LIB) $(wildcard $(CLIB))
 C_OBJS=$(patsubst %.c,%.o,$(wildcard *.c))
+CXX_OBJS=$(patsubst %.cc,%.o,$(wildcard *.cc))
 ASM_OBJS=$(patsubst %.S,%.o,$(wildcard *.S))
-OBJS=$(C_OBJS) $(ASM_OBJS) $(COMPLIB) $(OBJLIBS)
+OBJS=$(CXX_OBJS) $(C_OBJS) $(ASM_OBJS) $(COMPLIB) $(OBJLIBS)
 TMP_STR=tmp
 TMP_STR2=tmp2
 INCLUDE=-I../ $(DEP_INC) $(IF_INCLUDE) $(CINC)
 LIB_LIBRARIES_PRE=$(DEP_LIB_EXIST)
 LIB_LIBRARIES=$(strip $(LIB_LIBRARIES_PRE))
-LIB_FLAGS=-L$(LIBDIR) $(DEP_LIB) $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)
+LIB_FLAGS=-L$(LIBDIR) -L$(LIBCXXDIR) $(DEP_LIB) $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)
 
-SOURCES=$(C_OBJS:%.o=%.c)
+C_SOURCES=$(C_OBJS:%.o=%.c)
+CXX_SOURCES=$(CXX_OBJS:%.o=%.cc)
 #NOTE: assembly files don't have dependencies generated for them
-SOURCE_DEPENDENCIES=$(SOURCES:%.c=%.d)
+SOURCE_DEPENDENCIES=$(C_SOURCES:%.c=%.d) $(CXX_SOURCES:%.cc=%.d)
 
 COMP_LD_SCRIPT=$(IMPLDIR)/comp.ld
 
@@ -72,17 +74,21 @@ $(COMPONENT): $(OBJS)
 #	$(info |     [LD]   $@: Loading stubs and cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
 	$(info |     [LD]   $(COMPNAME) ($@): Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $^)
 	@$(LD) $(LDFLAGS) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(IF_CLIENT_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
-	@$(DIETCC) $(DIETCFLAGS) -fno-pic -Xlinker -r -o $@.$(TMP_STR2) $@.$(TMP_STR)
+	@$(MUSLCC) $@.$(TMP_STR) $(MUSLCFLAGS) -Xlinker -r -o $@.$(TMP_STR2)
 	@$(LD) $(LDFLAGS) -r -T $(COMP_LD_SCRIPT) -o $@ $@.$(TMP_STR2)
 	@rm $@.$(TMP_STR) $@.$(TMP_STR2)
 	@cp $@ c.o
 
 %.o:%.c
-#	$(info |     [CC]   $<: Compiling)
+	$(info |     [CC]   $<: Compiling)
 	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
-
+       
+%.o:%.cc
+	$(info |     [CXX]  $<: Compiling)
+	@$(CXX) $(INCLUDE) $(LIBSTDCXXINC) $(CXXFLAGS) -o $@ -c $<
+       
 %.o:%.S
-#	$(info |     [AS]   Compiling assembly file $^ into $@)
+	$(info |     [AS]   Compiling assembly file $^ into $@)
 #	$(info |     [AS]   $<: Compiling)
 	@$(AS) $(INCLUDE) $(ASFLAGS) -c -o $@ $^
 
@@ -92,6 +98,13 @@ $(COMPONENT): $(OBJS)
 #	$(info |     [DEP]  Creating dependency file for $<)
 	@set -e; rm -f $@; \
 	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+	
+%.d:%.cc
+#	$(info |     [DEP]  Creating dependency file for $<)
+	@set -e; rm -f $@; \
+	$(CXX) -M $(INCLUDE) $(LIBSTDCXXINC) $(CXXFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 

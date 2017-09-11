@@ -2,6 +2,21 @@
  * Copyright 2016, Phani Gadepalli and Gabriel Parmer, GWU, gparmer@gwu.edu.
  *
  * This uses a two clause BSD License.
+ *
+ * This API is layered on top of the cos_kernel_api and simply makes
+ * some assumptions about capability setup, but provides a much
+ * simpler API to use for creating and using asynchronous end-points.
+ *
+ * The main assumptions this API makes are: the initial tcap provided
+ * in the bootup protocol is used along with the initial thread as the
+ * parent tcap that schedules all others.  The asynchronous receive
+ * end-points are created as a package of receive end-point, thread to
+ * receive from the end-point, and tcap (which can be provided as a
+ * separate argument).
+ *
+ * This API provides a wrapper structure around the cos_compinfo
+ * (cos_definfo) to include the information about the root scheduling
+ * thread and tcap.
  */
 
 #ifndef COS_DEFKERNEL_API_H
@@ -20,7 +35,7 @@ struct cos_aep_info {
 	thdcap_t        thd;
 	arcvcap_t       rcv;
 	cos_aepthd_fn_t fn;
-	void           *data;
+	void *          data;
 };
 
 /* Default Component information */
@@ -43,22 +58,24 @@ struct cos_compinfo *cos_compinfo_get(struct cos_defcompinfo *defci);
 struct cos_aep_info *cos_sched_aep_get(struct cos_defcompinfo *defci);
 
 /*
- * cos_defcompinfo_init: initialize the current component's global cos_defcompinfo struct using the standard boot capabilities layout.
+ * cos_defcompinfo_init: initialize the current component's global cos_defcompinfo struct using the standard boot
+ * capabilities layout.
  */
 void cos_defcompinfo_init(void);
 /*
- * cos_defcompinfo_init_ext: initialize the current component's global cos_defcompinfo struct using the parameters passed.
+ * cos_defcompinfo_init_ext: initialize the current component's global cos_defcompinfo struct using the parameters
+ * passed.
  */
-void cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rcv, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier);
-void cos_defcompinfo_init_ext_OLD(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rcv, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t shm_ptr);
+void cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rcv, pgtblcap_t pgtbl_cap,
+                              captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier);
 
 /*
- * cos_defcompinfo_child_alloc: called to create a new child component including initial capabilities like pgtbl, captbl, compcap, aep.
- *                        if is_sched is set, scheduling end-point will also be created for the child component,
- *                        else, the current component's scheduler will remain the scheduler for the child component.
+ * cos_defcompinfo_child_alloc: called to create a new child component including initial capabilities like pgtbl,
+ * captbl, compcap, aep. if is_sched is set, scheduling end-point will also be created for the child component, else,
+ * the current component's scheduler will remain the scheduler for the child component.
  */
-int cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, vaddr_t heap_ptr, capid_t cap_frontier, int is_sched);
-int cos_defcompinfo_child_alloc_OLD(struct cos_defcompinfo *child_defci, vaddr_t entry, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t shm_ptr, int is_sched);
+int cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, vaddr_t heap_ptr,
+                                capid_t cap_frontier, int is_sched);
 
 /*
  * cos_aep_alloc: creates a new async activation end-point which includes thread, tcap and rcv capabilities.

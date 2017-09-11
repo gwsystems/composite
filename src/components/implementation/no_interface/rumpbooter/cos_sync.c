@@ -11,6 +11,7 @@ unsigned int cos_nesting = 0;	   /* Depth to intr_disable/intr_enable */
 u32_t intrs = 0;	           /* Intrrupt bit mask */
 
 extern volatile thdcap_t cos_cur; /* Last running rk thread */
+extern int vmid;
 
 /* Called from cos_irqthd_handler */
 
@@ -43,7 +44,7 @@ intr_start(unsigned int irqline)
 	int ret;
 
 	assert(irqline >= HW_ISR_FIRST && irqline < HW_ISR_LINES);
-	if (cos_spdid_get()) assert(irqline == IRQ_DOM0_VM);
+	if (vmid) assert(irqline == IRQ_DOM0_VM);
 	/*
 	 * 1. Get current cos_isr
          * 2. Check if intr_disabled is set (another isr thread is unblocked)
@@ -73,11 +74,10 @@ intr_start(unsigned int irqline)
 
 				/* Switch to contending isr thread */
 				do {
-					//ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending),
-					//		 irq_prio[contending], TCAP_TIME_NIL,
-					//		 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-					ret = cos_thd_switch(irq_thdcap[contending]);
-					assert (ret == 0 || ret == -EAGAIN);
+					ret = cos_switch(irq_thdcap[contending], intr_eligible_tcap(contending), 
+							 irq_prio[contending], TCAP_TIME_NIL, 
+							 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+					assert (ret == 0 || ret == -EAGAIN || ret == -EPERM);
 				} while(ret == -EAGAIN);
 
 				continue;
@@ -98,10 +98,9 @@ intr_start(unsigned int irqline)
 			cos_isr = isr_construct(rk_disabled, 0, contending);
 			do {
 				/* Switch back to RK thread */
-				//ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL,
-				//		 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-				ret = cos_thd_switch(cos_cur);
-				assert(ret == 0 || ret == -EAGAIN);
+				ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL,
+						 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+				assert(ret == 0 || ret == -EAGAIN || ret == -EPERM);
 			} while (ret == -EAGAIN);
 
 			continue;

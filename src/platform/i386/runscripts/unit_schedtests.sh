@@ -1,4 +1,4 @@
 #!/bin/sh
 
-cp no_interface.scheddev.o llboot.o
-./cos_linker "llboot.o, ;llpong.o, :" ./gen_client_stub
+cp unit_schedlibtests.o llboot.o
+./cos_linker "llboot.o, :" ./gen_client_stub

@@ -29,6 +29,7 @@
  * operation does not prevent ABA. A possible fix could be
  * integrating a generation number in the lower bits of the 
  * pointer. */
+/* clang-format off */
 #define COS_ASM_GET_STACK                       \
 1:                                              \
         movl %eax, %edx;		        \
@@ -42,6 +43,7 @@
         movl (%eax), %esp;                      \
 	COMP_INFO_CMPXCHG;                      \
         jnz 8b;					\
+5:                                              \
 						\
 	/* now we have the stack */		\
         movl  %eax, %esp;                       \
@@ -80,9 +82,7 @@
         call stkmgr_grant_stack;                \
         addl $4, %esp;                          \
                                                 \
-        /* addl $0x4, %eax; */                  \
-                                                \
-        /*restore stack */                      \
+        /* restore regs */                      \
 	popl %edx;				\
         popl %ecx;                              \
         popl %ebx;                              \
@@ -90,12 +90,11 @@
         popl %esi;                              \
         popl %ebp;                              \
 						\
-        /* movl  %eax, %esp; */                 \
-	/* restore Thd_id in eax */		\
-	/* movl $THD_ID_SHARED_PAGE, %edx; */	\
-        /* movl (%edx), %eax; */		\
-	movl %edx, %eax;			\
-	jmp  1b;                                
+	/* Check for NULL stack return */	\
+        testl %eax, %eax;                       \
+        je    8b;                               \
+	/* Got a stack in eax */		\
+	jmp   5b;                                
 
 #define COS_ASM_RET_STACK                       \
                                                 \
@@ -356,6 +355,8 @@
 	movl $cos_static_stack, %esp;	    \
 	shl $12, %eax;			    \
 	addl %eax, %esp;
+
+/* clang-format on */
 
 #define COS_ASM_RET_STACK
 

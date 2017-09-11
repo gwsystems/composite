@@ -1,1 +1,1 @@
-../../tests/micro_booter/inv.S
+../vkernel/inv.S

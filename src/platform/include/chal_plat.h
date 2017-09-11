@@ -5,15 +5,21 @@
 static inline void
 chal_flush_cache(void)
 {
-	asm volatile("wbinvd": : :"memory");
+	asm volatile("wbinvd" : : : "memory");
 }
 
 static inline void
-chal_flush_tlb_global(void) {}
+chal_flush_tlb_global(void)
+{
+}
 static inline void
-chal_remote_tlb_flush(int target_cpu) {}
+chal_remote_tlb_flush(int target_cpu)
+{
+}
 /* This won't flush global TLB (pinned with PGE) entries. */
 static inline void
-chal_flush_tlb(void) {}
+chal_flush_tlb(void)
+{
+}
 
-#endif	/* CHAL_PLAT_H */
+#endif /* CHAL_PLAT_H */

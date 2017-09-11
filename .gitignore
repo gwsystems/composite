@@ -1,3 +1,4 @@
+**/.DS_Store
 *.o
 *.tmp
 *.d
@@ -16,10 +17,10 @@
 composite_new
 *.out
 tags
+src/components/lib/musl-1.1.11/bin/musl-gcc
 src/kernel/include/shared/cpu_ghz.h
 src/Makefile.cosconfig
-src/PLATFORM
-src/platform_info
+src/PLATFORM_ID
 modules.order
 .depend
 *.img
@@ -29,3 +30,7 @@ GPATH
 GRTAGS
 GSYMS
 GTAGS
+.vagrant
+.clang_complete
+Vagrantfile
+provision.sh

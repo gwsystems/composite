@@ -26,7 +26,7 @@
 #define TEST_NTHDS 5
 
 extern struct cos_compinfo booter_info;
-extern thdcap_t termthd; 		/* switch to this to shutdown */
+extern thdcap_t termthd;		/* switch to this to shutdown */
 extern unsigned long tls_test[TEST_NTHDS];
 extern int num, den;
 

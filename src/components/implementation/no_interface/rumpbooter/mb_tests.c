@@ -1,1 +1,1 @@
-../../tests/micro_booter/mb_tests.c
+../vkernel/mb_tests.c

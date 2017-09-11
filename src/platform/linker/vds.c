@@ -14,27 +14,27 @@
 static int
 rec_verify_dag(struct service_symbs *services, int current_depth, int max_depth)
 {
-        int i;
+	int i;
 
-        /* cycle */
-        if (current_depth > max_depth) {
-                return -1;
-        }
+	/* cycle */
+	if (current_depth > max_depth) {
+		return -1;
+	}
 
-        if (current_depth > services->depth) {
-                services->depth = current_depth;
-        }
+	if (current_depth > services->depth) {
+		services->depth = current_depth;
+	}
 
-        for (i = 0 ; i < services->num_dependencies ; i++) {
-                struct service_symbs *d = services->dependencies[i].dep;
+	for (i = 0; i < services->num_dependencies; i++) {
+		struct service_symbs *d = services->dependencies[i].dep;
 
-                if (rec_verify_dag(d, current_depth+1, max_depth)) {
-                        printl(PRINT_HIGH, "Component %s found in cycle\n", d->obj);
-                        return -1;
-                }
-        }
+		if (rec_verify_dag(d, current_depth + 1, max_depth)) {
+			printl(PRINT_HIGH, "Component %s found in cycle\n", d->obj);
+			return -1;
+		}
+	}
 
-        return 0;
+	return 0;
 }
 
 
@@ -53,7 +53,7 @@ int
 verify_dependency_soundness(struct service_symbs *services)
 {
 	struct service_symbs *tmp_s = services;
-	int cnt = 0;
+	int                   cnt   = 0;
 
 	while (tmp_s) {
 		cnt++;
