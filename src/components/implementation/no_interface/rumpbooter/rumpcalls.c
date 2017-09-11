@@ -23,7 +23,7 @@ extern struct cos_rumpcalls crcalls;
 volatile thdcap_t cos_cur = BOOT_CAPTBL_SELF_INITTHD_BASE;
 volatile unsigned int cos_cur_tcap = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 
-tcap_prio_t rk_thd_prio = PRIO_UNDER;
+tcap_prio_t rk_thd_prio = PRIO_LOW;
 
 /* Mapping the functions from rumpkernel to composite */
 void
@@ -124,8 +124,8 @@ cos_dequeue_size(unsigned int srcvm, unsigned int curvm)
 
 /*rk shared mem functions*/
 int
-cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm){
-
+cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm)
+{
 	asndcap_t sndcap;
 	int ret;
 
@@ -133,16 +133,16 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 	else sndcap = VM_CAPTBL_SELF_IOASND_BASE;
 
 	//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
-
 	cos2rk_shm_write(buff, size, srcvm, dstvm);
 
 	if(cos_asnd(sndcap, 0)) assert(0);
+
 	return 1;
 }
 
 int
-cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm){
-	//printc("%s = s:%d d:%d\n", __func__, srcvm, curvm);
+cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm)
+{
 	return cos2rk_shm_read(buff, srcvm, curvm);
 }
 
@@ -157,7 +157,6 @@ rump2cos_rcv(void)
 static inline void
 __cpu_intr_ack(void)
 {
-	static int count;
 	if (vmid) return;
 
 	__asm__ __volatile(
@@ -165,9 +164,6 @@ __cpu_intr_ack(void)
 		"outb %%al, $0xa0\n"
 		"outb %%al, $0x20\n"
 		::: "al");
-	count ++;
-
-	//printc("[%d]", count);
 }
 
 void
@@ -187,9 +183,7 @@ cos_irqthd_handler(void *line)
 		int pending = cos_rcv(arcvcap, 0, NULL);
 
 		intr_start(which);
-
 		bmk_isr(which);
-
 		intr_end();
 	}
 }
