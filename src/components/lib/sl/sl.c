@@ -53,7 +53,7 @@ sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched
 
 /* Timeout and wakeup functionality */
 /*
- * TODO: 
+ * TODO:
  * (comments from Gabe)
  * We likely want to replace all of this with rb-tree with nodes internal to the threads.
  * This heap is fast, but the static memory allocation is not great.
@@ -94,7 +94,7 @@ static inline void
 sl_timeout_remove(struct sl_thd *t)
 {
 	assert(t && t->timeout_idx > 0);
-	assert(heap_size(sl_timeout_heap())); 
+	assert(heap_size(sl_timeout_heap()));
 
 	heap_remove(sl_timeout_heap(), t->timeout_idx);
 	t->timeout_idx = -1;
@@ -173,7 +173,7 @@ sl_thd_block(thdid_t tid)
  * if timeout == 0, blocks on timeout = last periodic wakeup + task period
  * @return: 0 if blocked in this call. 1 if already WOKEN!
  */
-static inline int 
+static inline int
 sl_thd_block_timeout_intern(thdid_t tid, cycles_t timeout)
 {
 	struct sl_thd *t;
@@ -266,8 +266,6 @@ void
 sl_thd_wakeup(thdid_t tid)
 {
 	struct sl_thd *t;
-	tcap_t         tcap;
-	tcap_prio_t    prio;
 
 	sl_cs_enter();
 	t = sl_thd_lkup(tid);
@@ -325,7 +323,7 @@ sl_thd_alloc_init(thdid_t tid, thdcap_t thdcap, arcvcap_t rcvcap, tcap_t tcap,
 	tp = sl_thd_alloc_backend(tid);
 	if (!tp) goto done;
 	t  = sl_mod_thd_get(tp);
-	
+
 	t->thdid          = tid;
 	t->properties     = prps;
 	sl_thd_aepinfo_init(t, thdcap, rcvcap, tcap);
@@ -387,7 +385,7 @@ sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *
 		assert(snd);
 	} else {
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(&aep, fn, data);
-		else                                 ret = cos_aep_tcap_alloc(&aep, sl_thd_aepinfo(sl__globals()->sched_thd)->tc, 
+		else                                 ret = cos_aep_tcap_alloc(&aep, sl_thd_aepinfo(sl__globals()->sched_thd)->tc,
 									      fn, data);
 		if (ret) goto done;
 	}
@@ -457,6 +455,8 @@ sl_thd_free(struct sl_thd *t)
 {
 	struct sl_thd *ct = sl_thd_curr();
 
+	assert(t);
+
 	sl_cs_enter();
 
 	assert(t->state != SL_THD_FREE);
@@ -476,10 +476,18 @@ sl_thd_free(struct sl_thd *t)
 }
 
 void
+sl_thd_exit()
+{
+	sl_thd_free(sl_thd_curr());
+}
+
+void
 sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 {
 	sched_param_type_t type;
 	unsigned int       value;
+
+	assert(t);
 
 	sched_param_get(sp, &type, &value);
 
@@ -519,7 +527,6 @@ void
 sl_init(void)
 {
 	struct sl_global       *g  = sl__globals();
-	struct cos_defcompinfo *ci = cos_defcompinfo_curr_get();
 
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
@@ -532,7 +539,7 @@ sl_init(void)
 	sl_timeout_init();
 
 	/* Create the scheduler thread for us */
-	g->sched_thd       = sl_thd_alloc_init(cos_thdid(), BOOT_CAPTBL_SELF_INITTHD_BASE, 
+	g->sched_thd       = sl_thd_alloc_init(cos_thdid(), BOOT_CAPTBL_SELF_INITTHD_BASE,
 					    BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
 	assert(g->sched_thd);
 	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_BASE;
