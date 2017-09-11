@@ -6,6 +6,7 @@
 #include "vk_types.h"
 #include "vk_structs.h"
 #include "vk_api.h"
+#include "spinlib.h"
 
 #define SPIN()            \
 	do {              \
@@ -73,6 +74,9 @@ cos_init(void)
 
 	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	printc("\t%d cycles per microsecond\n", cycs);
+
+	spinlib_calib();
+
 	sl_init();
 
 	for (id = 0 ; id < VM_COUNT ; id ++) {
