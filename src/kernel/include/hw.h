@@ -83,4 +83,24 @@ hw_detach_rcvcap(struct cap_hw *hwc, hwid_t hwid)
 	return 0;
 }
 
+static inline int
+hw_introspect64(struct cos_cpu_local_info *cos_info, struct cap_hw *hwc, unsigned long op, u64_t *retval)
+{
+	cycles_t first_period = 0;
+
+	switch(op) {
+	case HW_GET_FIRST_HPET:
+	{
+		first_period = chal_hpet_first_period();
+		if (!first_period) return -EAGAIN;
+		*retval = first_period;
+
+		break;
+	}
+	default: return -EINVAL;
+	}
+
+	return 0;
+}
+
 #endif /* HW_H */

@@ -113,6 +113,7 @@ typedef enum {
 	CAPTBL_OP_THDDEACTIVATE_ROOT,
 	CAPTBL_OP_MEMMOVE,
 	CAPTBL_OP_INTROSPECT,
+	CAPTBL_OP_INTROSPECT64,
 	CAPTBL_OP_TCAP_ACTIVATE,
 	CAPTBL_OP_TCAP_TRANSFER,
 	CAPTBL_OP_TCAP_DELEGATE,
@@ -290,6 +291,12 @@ enum
 {
 	/* tcap budget */
 	TCAP_GET_BUDGET,
+};
+
+enum
+{
+	/* HPET first interrupt cycs (after calibration) */
+	HW_GET_FIRST_HPET,
 };
 
 typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */

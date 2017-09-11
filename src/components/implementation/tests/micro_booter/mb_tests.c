@@ -336,6 +336,51 @@ spinner(void *d)
 		;
 }
 
+#define TEST_USEC_INTERVAL 1000 /* in microseconds */
+#define TEST_HPET_ITERS   ITER 
+cycles_t iat_vals[TEST_HPET_ITERS - 1];
+
+static void
+test_hpet_timer(void)
+{
+	int      i;
+	thdcap_t tc;
+	cycles_t c = 0, p = 0, t = 0;
+
+	PRINTC("Starting HPET timer test.\n");
+	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
+	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, BOOT_CAPTBL_SELF_INITRCV_BASE, TEST_USEC_INTERVAL);
+
+
+	for (i = 0 ; i <= TEST_HPET_ITERS ; i++) {
+		thdid_t     tid;
+		int         blocked;
+		cycles_t    cycles;
+
+		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, TCAP_TIME_NIL, 0, cos_sched_sync());
+		p     = c;
+		rdtscll(c);
+		if (i > 0) {
+			t += c-p;
+			iat_vals[i - 1] = c - p;
+		}
+
+		//while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
+	}
+	printc("FIRST HPET PERIOD: %llu\n", hpet_first_period());
+
+	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
+
+	for (i = 0 ; i < TEST_HPET_ITERS ; i += 10) {
+		PRINTC("%llu ", iat_vals[i]);
+	}
+
+	PRINTC("\nAverage inter-arrival time (%d microseconds) = %lld\n",
+	       TEST_USEC_INTERVAL, t/TEST_HPET_ITERS);
+
+	PRINTC("Timer test completed.\nSuccess.\n");
+}
+
 static void
 test_timer(void)
 {
@@ -872,19 +917,20 @@ test_run_mb(void)
 {
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	test_timer();
-	test_budgets();
-
-	test_thds();
-	test_thds_perf();
+	test_hpet_timer();
+//	test_timer();
+//	test_budgets();
+//
+//	test_thds();
+//	test_thds_perf();
 //
 //	test_mem();
 //
 //	test_async_endpoints();
-	test_async_endpoints_perf();
+//	test_async_endpoints_perf();
 //
 //	test_inv();
-	test_inv_perf();
+//	test_inv_perf();
 //
 //	test_captbl_expand();
 //

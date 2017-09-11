@@ -195,23 +195,14 @@ periodic_handler(struct pt_regs *regs)
 	ack_irq(HW_PERIODIC);
 	if (periodicity_curr) {
 		count ++;
-		//if (prev && count < 200) { printk("act..%llu..", now - prev); }
-		//prev = now;
 		if (unlikely(count < __IGNORE_FIRST_X__)) {
 			if (count % 999 == 0) printk(".h=%lu.", count);
 			goto done;
 		}
-		//if (count >= 400) while (1);
-		//if (count == 2500) while (1) ;
 		if (!first_hpet_period) {
 			rdtscll(first_hpet_period);
-		//	printk("f=%llu..\n", first_hpet_period);
 		}
 	}
-	//printk("p");
-//	rdtscll(now);
-//	if (prev) printk(" %llu ", now - prev);
-//	prev = now;
 
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
 done:
