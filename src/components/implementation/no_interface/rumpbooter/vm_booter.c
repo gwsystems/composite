@@ -7,6 +7,8 @@
 #include <sl.h>
 
 extern void rump_booter_init(void);
+extern void timer_comp_init(void *);
+extern void dlapp_init(void *);
 extern void rk_kernel_init(void *);
 struct cos_compinfo booter_info;
 /*
@@ -50,10 +52,25 @@ vm_init(void *unused)
 	arcvcap_t rcvcap = BOOT_CAPTBL_SELF_INITRCV_BASE;
 
 	vmid = vk_vm_id();
-	if (!vmid) {
+
+	switch(vmid) {
+	case RUMP_SUB: 
 		rk_kernel_init(NULL);
 
 		assert(0);
+		break;
+	case TIMER_SUB:
+		timer_comp_init(NULL);
+
+		assert(0);
+		break;
+	case DL_APP:
+		dlapp_init(NULL);
+
+		assert(0);
+		break;
+	case UDP_APP: break;
+	default: assert(0);
 	}
 
 	rumpns_vmid = vmid;

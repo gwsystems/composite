@@ -10,6 +10,8 @@
 #define VM_SHM_SZ (1 << 20)       /* Shared memory mapping for each vm = 4MB */
 #define VM_SHM_ALL_SZ ((VM_COUNT > 0) ? (VM_COUNT * VM_SHM_SZ) : VM_SHM_SZ)
 
+#define HPET_PERIOD_US (10 * 1000)
+
 #define VM_FIXED_PERIOD_MS 10
 #define VM_FIXED_BUDGET_MS 5
 
@@ -38,6 +40,13 @@ enum vkernel_server_option {
         VK_SERV_VM_ID = 0,
 	VK_SERV_VM_BLOCK,
         VK_SERV_VM_EXIT,
+};
+
+enum {
+	RUMP_SUB = 0, /* SL THD WITH ASND, VIO from HC_DL for logging with LA budget, SINV for POSIX API */
+	UDP_APP, /* VIO to HA_HPET for HPET INFO, SL_THD in OWN COMP but NO ASND */
+	TIMER_SUB, /* SL_THD WITH ASND, VIO from LC with it's own budget (tcap_deleg), SINV for HPET INFO */
+	DL_APP, /* SL_THD with TCAP shared between HA + HC, SINV to HA, ASYNC to LA */
 };
 
 #endif /* VK_TYPES_H */
