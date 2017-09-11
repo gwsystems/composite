@@ -36,6 +36,7 @@ extern volatile unsigned int cos_cur_tcap;
 
 struct bmk_tcb *tcb;
 extern void bmk_isr(int which);
+extern int paws_tests(void);
 
 void* rump_cos_malloc(size_t size);
 void* rump_cos_calloc(size_t nmemb, size_t _size);
@@ -94,7 +95,7 @@ struct cos_rumpcalls
 			void (*f)(void *), void *arg,
 			void *stack_base, unsigned long stack_size);
 	void   (*rump_cpu_sched_switch_viathd)(struct bmk_thread *prev, struct bmk_thread *next);
-	void   (*rump_tls_init)(unsigned long tp, capid_t tc); /* thdcap_t == capid_t*/
+	int    (*rump_tls_init)(unsigned long tp, capid_t tc); /* thdcap_t == capid_t*/
 	void*  (*rump_va2pa)(void *addr);
 	void*  (*rump_pa2va)(void *addr, unsigned long len);
 	void   (*rump_resume)(void);

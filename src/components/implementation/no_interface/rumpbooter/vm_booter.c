@@ -25,6 +25,8 @@ int num = 1, den = 0;
 int vmid;
 int rumpns_vmid;
 
+extern int cos_shmem_test(void);
+
 cycles_t
 hpet_first_period(void)
 {

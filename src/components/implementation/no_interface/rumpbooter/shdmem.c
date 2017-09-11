@@ -35,7 +35,7 @@ __print_region_idxs(unsigned int spdid)
 	printc("\tPrinting regions for the shm_info, spdid: %d\n", spdid);
 	while (count < SHM_MAX_REGIONS) {
 		if (shm_infos[spdid].my_regions[count]) {
-			printc("\t\tidx: %d, master region: %d\n", count, shm_infos[spdid].my_regions[count]);
+			printc("\t\tidx: %u, master region: %d\n", count, (int)shm_infos[spdid].my_regions[count]);
 		}
 		count++;
 	}
@@ -125,7 +125,7 @@ shm_map(unsigned int spdid, unsigned int id, int arg3, int arg4)
 	if (!comp_shm_info->init) { __shm_infos_init(spdid); }
 
 	src_pg = shm_master_regions[id];
-	printc("shm_map, src_pg: %p\n", src_pg);
+	printc("shm_map, src_pg: %p\n", (void *)src_pg);
 
 	dst_pg = comp_shm_info->shm_frontier;
 	comp_shm_info->my_regions[id] = dst_pg;

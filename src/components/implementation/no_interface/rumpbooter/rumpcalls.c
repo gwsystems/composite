@@ -263,7 +263,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		newthd_cap = vm_main_thd;
 	} else {
 		newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, f, arg);
-		printc(" thdcap: %d\n", newthd_cap);
+		printc(" thdcap: %lu\n", newthd_cap);
 	}
 	assert(newthd_cap);
 	set_cos_thddata(thread, newthd_cap, cos_introspect(&booter_info, newthd_cap, 9));
@@ -607,10 +607,13 @@ cos_shmem_test(void)
 vaddr_t
 shmem_get_vaddr_invoke(int id)
 {
+	int sinv_ret = 0;
+
 	sinvcap_t sinv = VM_CAPTBL_SELF_IOSINV_VADDR_GET;
-	int sinv_ret;
 
 	sinv_ret = cos_sinv(sinv, cos_spdid_get(), id, 0 , 0);
+
+	return (vaddr_t)sinv_ret; /* FIXME: is this right? */
 }
 
 int
