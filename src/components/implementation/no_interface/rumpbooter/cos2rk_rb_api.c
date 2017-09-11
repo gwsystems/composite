@@ -3,27 +3,29 @@
 #include <stdio.h>
 #include "cos2rk_rb_api.h"
 
-struct mbuf; 
+struct mbuf;
 void rumpns_m_copydata(struct mbuf *m, int off, int len, void *vp);
 
 int
-cos2rk_recv_rb_create(struct cos2rk_shm_rb * sm_rb, int vmid){
-	
+cos2rk_recv_rb_create(struct cos2rk_shm_rb * sm_rb, int vmid)
+{
+
 	sm_rb = cos2rk_shmem_addr_recv(vmid);
 	sm_rb->head = 0;
 	sm_rb->tail = 0;
 	sm_rb->size = COS2RK_SHM_VM_SZ/2 - (sizeof(struct cos2rk_shm_rb));
-	return 1;	
+	return 1;
 }
 
 int
-cos2rk_send_rb_create(struct cos2rk_shm_rb * sm_rb, int vmid){
-	
+cos2rk_send_rb_create(struct cos2rk_shm_rb * sm_rb, int vmid)
+{
+
 	sm_rb = cos2rk_shmem_addr_send(vmid);
 	sm_rb->head = 0;
 	sm_rb->tail = 0;
 	sm_rb->size = COS2RK_SHM_VM_SZ/2 - (sizeof(struct cos2rk_shm_rb));
-	return 1;	
+	return 1;
 }
 
 int
@@ -42,29 +44,32 @@ cos2rk_rb_init(void)
 }
 
 struct cos2rk_shm_rb *
-cos2rk_shmem_addr_send(int to_vmid){
-	if(to_vmid == 0){
+cos2rk_shmem_addr_send(int to_vmid)
+{
+	if (to_vmid == 0) {
 		/* if sending from a VM to DOM0 */
-		return (struct cos2rk_shm_rb *)COS2RK_MEM_SHM_BASE;	
-	}else{
+		return (struct cos2rk_shm_rb *)COS2RK_MEM_SHM_BASE;
+	} else {
 		/* if sending from DOM0 to a VM */
 		return (struct cos2rk_shm_rb *)((COS2RK_MEM_SHM_BASE)+((COS2RK_SHM_VM_SZ) * (to_vmid) ));
 	}
 }
 
 struct cos2rk_shm_rb *
-cos2rk_shmem_addr_recv(int from_vmid){
-	if(from_vmid == 0){
+cos2rk_shmem_addr_recv(int from_vmid)
+{
+	if (from_vmid == 0) {
 		/* if rcving from DOM0 */
-		return (struct cos2rk_shm_rb *)((COS2RK_MEM_SHM_BASE) + (COS2RK_SHM_VM_SZ/2));	
-	}else{
+		return (struct cos2rk_shm_rb *)((COS2RK_MEM_SHM_BASE) + (COS2RK_SHM_VM_SZ/2));
+	} else {
 		/* if DOM0 rcving from a VM */
 		return (struct cos2rk_shm_rb *)((COS2RK_MEM_SHM_BASE)+( (COS2RK_SHM_VM_SZ) * (from_vmid) ) + ((COS2RK_SHM_VM_SZ)/2));
 	}
 }
 
 int
-cos2rk_ringbuf_isfull(struct cos2rk_shm_rb *rb, size_t size){
+cos2rk_ringbuf_isfull(struct cos2rk_shm_rb *rb, size_t size)
+{
 
 	/* doesn't account for wraparound, that's checked only if we need to wraparound. */
 	if(rb->head+size >= rb->tail && rb->head < rb->tail){
@@ -77,8 +82,8 @@ cos2rk_ringbuf_isfull(struct cos2rk_shm_rb *rb, size_t size){
 
 
 int
-cos2rk_ringbuf_enqueue(struct cos2rk_shm_rb *rb, void *buff, size_t size){
-	
+cos2rk_ringbuf_enqueue(struct cos2rk_shm_rb *rb, void *buff, size_t size)
+{
 	unsigned int producer;
 
 	assert(size > 0);
@@ -103,11 +108,11 @@ cos2rk_ringbuf_enqueue(struct cos2rk_shm_rb *rb, void *buff, size_t size){
 	/* check split wraparound */
 	if (unlikely(producer+size >= (rb->size))) {
 		unsigned int first, second;
-	
+
 		first = rb->size - producer;
 		second = size - first;
 
-	
+
 		/* check if ringbuf is full w/ wraparound */
 		if (second >= rb->tail) {
 			printc("wrap around, rb is full no enqueue\n");
@@ -117,8 +122,8 @@ cos2rk_ringbuf_enqueue(struct cos2rk_shm_rb *rb, void *buff, size_t size){
 		rumpns_m_copydata((struct mbuf *)buff, 0, first, &rb->buf[producer]);
 		producer = 0;
 		rumpns_m_copydata((struct mbuf *)buff, first, second, &rb->buf[producer]);
-	
-		rb->head = producer+second;	
+
+		rb->head = producer+second;
 	} else {
 		/* Normal case */
 		rumpns_m_copydata((struct mbuf *)buff, 0, size, &rb->buf[producer]);
@@ -139,7 +144,7 @@ cos2rk_dequeue_size(unsigned int srcvm, unsigned int curvm)
 	} else {
 		rb = cos2rk_shmem_addr_send(srcvm);
 	}
-	
+
 
 	if ((rb->size - rb->tail) < sizeof(size_t)) {
 		/* Get the size from the head of the rb, skip last 4 bytes */
@@ -149,10 +154,10 @@ cos2rk_dequeue_size(unsigned int srcvm, unsigned int curvm)
 		memcpy(&ret, &rb->buf[rb->tail], sizeof(size_t));
 	}
 
-	/* 
+	/*
 	 * If ret is a garbage value because RB is empty, return 0
 	 * FIXME we should do something better than this, there is the chance that a
- 	 * garbage value is in the valid range, then we waste time doing a malloc and imediately free after
+	 * garbage value is in the valid range, then we waste time doing a malloc and imediately free after
 	 * in cos_pktq_dequeue
 	 */
 	if (ret <= 0 || ret > 1500) ret = 0;
@@ -160,16 +165,17 @@ cos2rk_dequeue_size(unsigned int srcvm, unsigned int curvm)
 }
 
 int
-cos2rk_ringbuf_dequeue(struct cos2rk_shm_rb *rb, void * buff){
+cos2rk_ringbuf_dequeue(struct cos2rk_shm_rb *rb, void * buff)
+{
 
 	unsigned int consumer;
 	size_t size;
 
 	/* Assumption: if head == tail rb is empty */
 
-	if (rb->head == rb->tail) { 
-		return -1; 
-	} 
+	if (rb->head == rb->tail) {
+		return -1;
+	}
 
 	/* If there is not enough space at the end to store size goto start and skip last 4 bytes */
 	if ((rb->size - rb->tail) < sizeof(size_t))	{
@@ -183,7 +189,7 @@ cos2rk_ringbuf_dequeue(struct cos2rk_shm_rb *rb, void * buff){
 	/* get size of entry */
 	memcpy(&size, &rb->buf[consumer], sizeof(size_t));
 	consumer += sizeof(size_t);
-	
+
 	/* check for empty */
 	assert(size > 0);
 
@@ -195,13 +201,13 @@ cos2rk_ringbuf_dequeue(struct cos2rk_shm_rb *rb, void * buff){
 		second = size - first;
 
 
-		/* tail is following head, it should only evert catch up at most */	
+		/* tail is following head, it should only evert catch up at most */
 		assert(second <= rb->head);
 
 		memcpy(buff, &rb->buf[consumer], first);
 		consumer = 0;
 		memcpy(buff+first, &rb->buf[consumer], second);
-		
+
 		rb->tail=consumer+second;
 	} else {
 		/* Normal case */
@@ -244,7 +250,7 @@ cos2rk_shm_read(void *buff, unsigned int srcvm, unsigned int curvm)
 	}else{
 		rb = cos2rk_shmem_addr_send(srcvm);
 	}
-	
+
 	return cos2rk_ringbuf_dequeue(rb, buff);
 }
 
