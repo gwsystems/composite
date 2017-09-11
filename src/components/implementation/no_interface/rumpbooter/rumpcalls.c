@@ -529,7 +529,7 @@ cos_pa2va(void * pa, unsigned long len)
 
 void
 cos_vm_exit(void)
-{ cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_EXIT << 16 | cos_thdid(), 0, 0, 0); }
+{ vk_vm_exit(); }
 
 void
 cos_sched_yield(void)

@@ -16,7 +16,6 @@
 
 extern vaddr_t cos_upcall_entry;
 extern void    vm_init(void *d);
-extern void    kernel_init(void *d);
 extern void   *__inv_vkernel_hypercallfn(int a, int b, int c);
 
 /* Init thread for userspace vm, needed to register within RK */
@@ -44,9 +43,8 @@ cos_init(void)
 	int id, cycs;
 
 	if (is_booter == 0) {
-		int vmid = cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_ID << 16 | cos_thdid(), 0, 0, 0);
-		if (!vmid) kernel_init((void *)vmid);
-		else vm_init((void *)vmid);
+		vm_init(NULL);
+
 		SPIN();
 	}
 	is_booter = 0;

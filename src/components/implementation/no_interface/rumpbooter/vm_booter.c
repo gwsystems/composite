@@ -7,6 +7,7 @@
 #include <sl.h>
 
 extern void rump_booter_init(void);
+extern void rk_kernel_init(void *);
 struct cos_compinfo booter_info;
 /*
  * the capability for the thread switched to upon termination.
@@ -22,7 +23,7 @@ unsigned int  cycs_per_usec;
 int num = 1, den = 0;
 
 /* virtual machine id */
-int vmid;
+int vmid = 0;
 int rumpns_vmid;
 
 extern int cos_shmem_test(void);
@@ -40,7 +41,7 @@ hpet_first_period(void)
 }
 
 void
-vm_init(void *id)
+vm_init(void *unused)
 {
 	int         rcvd, blocked;
 	cycles_t    cycles;
@@ -48,7 +49,13 @@ vm_init(void *id)
 	tcap_time_t timeout = 0, thd_timeout;
 	arcvcap_t rcvcap = BOOT_CAPTBL_SELF_INITRCV_BASE;
 
-	vmid = (int)id;
+	vmid = vk_vm_id();
+	if (!vmid) {
+		rk_kernel_init(NULL);
+
+		assert(0);
+	}
+
 	rumpns_vmid = vmid;
 	cos_spdid_set(vmid);
 
@@ -79,7 +86,7 @@ vm_init(void *id)
 
 done:
 	PRINTC("\n******************* USERSPACE DONE *******************\n");
-	//cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_EXIT << 16 | cos_thdid(), 0, 0, 0);
+	//cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_EXIT << 16 | vmid, 0, 0, 0);
 	while (1) {
 		cos_rcv(rcvcap, 0, NULL);
 	}
@@ -87,18 +94,16 @@ done:
 }
 
 void
-kernel_init(void *id)
+rk_kernel_init(void *unused)
 {
-	int ret, vmid;
+	int ret;
 	struct cos_shm_rb *sm_rb;
 	struct cos_shm_rb *sm_rb_r;
 
 	PRINTC("\n******************* KERNEL *******************\n");
 
-	vmid = (int)id;
 	rumpns_vmid = vmid;
 	assert(vmid < VM_COUNT);
-	rumpns_vmid = vmid;
 	cos_spdid_set(vmid);
 
 	PRINTC("Kernel_init, setting spdid for kernel component to: %d\n", vmid);
@@ -110,6 +115,7 @@ kernel_init(void *id)
 	rump_booter_init();
 
 	PRINTC("\n******************* KERNEL DONE *******************\n");
+	vk_vm_exit();
 }
 
 void

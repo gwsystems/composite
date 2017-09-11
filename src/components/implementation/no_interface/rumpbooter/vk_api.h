@@ -23,4 +23,8 @@ asndcap_t dom0_vio_asndcap(unsigned int vmid);
 
 vaddr_t dom0_vio_shm_base(unsigned int vmid);
 
+int vk_vm_id(void);
+void vk_vm_exit(void);
+void vk_vm_block(tcap_time_t timeout);
+
 #endif /* VK_API_H */

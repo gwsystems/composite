@@ -36,6 +36,7 @@
 
 enum vkernel_server_option {
         VK_SERV_VM_ID = 0,
+	VK_SERV_VM_BLOCK,
         VK_SERV_VM_EXIT,
 };
 
