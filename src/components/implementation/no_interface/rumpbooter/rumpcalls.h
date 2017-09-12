@@ -1,8 +1,6 @@
 #ifndef RUMPCALLS_H
 #define RUMPCALLS_H
 
-#include "../../../../kernel/include/shared/consts.h"
-#include "../../../../kernel/include/shared/cos_types.h"
 #include <consts.h>
 #include <cos_types.h>
 #include "cos2rk_types.h"

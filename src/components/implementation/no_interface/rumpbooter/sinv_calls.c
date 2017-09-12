@@ -63,6 +63,15 @@ test_shdmem(int shm_id, int arg2, int arg3, int arg4)
 	return 0;
 }
 
+int
+get_boot_done(void) {
+	/* defined in the main for a given rk application */
+	extern int rk_boot_done;
+	printc("\nget_boot_done: %d\n\n", rk_boot_done);
+	return rk_boot_done;
+}
+
+
 /* TODO: too many unused arguments in many cases.. get rid of them */
 int
 rk_inv_entry(int arg1, int arg2, int arg3, int arg4)
@@ -76,6 +85,9 @@ rk_inv_entry(int arg1, int arg2, int arg3, int arg4)
 		break;
 	case RK_INV_OP2:
 		ret = test_shdmem(arg2, arg3, arg4, 0);
+		break;
+	case RK_GET_BOOT_DONE:
+		ret = get_boot_done();
 		break;
 	default: assert(0);
 	}

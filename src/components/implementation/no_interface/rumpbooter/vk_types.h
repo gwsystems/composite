@@ -53,6 +53,7 @@ enum vm_types {
 enum rk_inv_ops {
 	RK_INV_OP1 = 0,
 	RK_INV_OP2,
+	RK_GET_BOOT_DONE,
 };
 
 #endif /* VK_TYPES_H */

@@ -4,12 +4,14 @@
 #include "cos2rk_types.h"
 #include "cos_sync.h"
 #include "rumpcalls.h"
+#include "rk_inv_api.h"
 #include <sl.h>
 
 extern void rump_booter_init(void);
 extern void timer_comp_init(void *);
 extern void dlapp_init(void *);
 extern void rk_kernel_init(void *);
+extern int main(void);
 struct cos_compinfo booter_info;
 /*
  * the capability for the thread switched to upon termination.
@@ -99,6 +101,14 @@ vm_init(void *unused)
 	PRINTC("Running shared memory tests\n");
 	cos_shmem_test();
 	PRINTC("Virtual-machine booter done.\n");
+
+	while (!rk_inv_get_boot_done()) {
+		PRINTC("RK not yet done booting, yield\n");
+		cos_rcv(rcvcap, 0, NULL);
+	}
+	PRINTC("Running udp app\n");
+	main();
+	PRINTC("Done running udp app\n");
 
 done:
 	PRINTC("\n******************* USERSPACE DONE *******************\n");

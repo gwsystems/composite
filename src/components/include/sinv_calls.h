@@ -1,6 +1,8 @@
 #ifndef SINV_CALLS_H
 #define SINV_CALLS_H
 
+/* TODO this header needs to reorganized like sinv_calls and vk_hypercalls were */
+
 /* Test Functions */
 extern void * __inv_test_entry(int a, int b, int c, int d);
 extern void * __inv_test_fs(int a, int b, int c, int d);

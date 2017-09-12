@@ -538,7 +538,10 @@ cos_sched_yield(void)
 
 void
 cos_vm_yield(void)
-{ cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
+{
+	printc("cos_vm_yield\n");
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+}
 
 void
 cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_prio_t prio)
