@@ -10,7 +10,7 @@ SIMPLE_STKLIB=simple_stklib.o
 CINC_ENV=$(CINC)
 export CINC_ENV
 
-.PHONY: all sl ck ps
+.PHONY: all sl ps
 all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl
 
 # we have to compile these without dietlibc so that there are not
@@ -47,35 +47,19 @@ distclean:
 	make -C musl-1.1.11 distclean
 # keep the following commands in one line. make executes each line
 # with a new shell.
-#	cd ck; ./configure; cd ..
-#	make -C ck distclean
 	make -C posix clean
 	make -C libcxx clean
-#	make -C libccv clean
 
 musl:
 	cd musl-1.1.11; ./configure --disable-shared --enable-debug; cd ..
 	make -C musl-1.1.11
 	make -C musl-1.1.11 install
 
-ck:
-	cd ck; ./configure; cd ..
-
 ps:
 	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
 
 
-init: clean distclean musl ck ps all
-#	make -C lwip/cos
-#	make -C lua/cos
+init: clean distclean musl ps all
 # keep the following commands in one line. Same as above.
 	make -C posix
 	make -C libcxx
-
-#	make -C lwip/cos
-#	make -C lua/cos
-# keep the following commands in one line. Same as above.
-#	make -C ck
-#	make -C posix clean
-#	make -C libccv clean
-#	make -C libccv cos_libccv.a
