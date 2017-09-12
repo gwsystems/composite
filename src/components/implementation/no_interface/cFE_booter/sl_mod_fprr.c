@@ -1,3 +1,5 @@
+#include <llprint.h>
+
 #include <sl.h>
 #include <sl_consts.h>
 #include <sl_mod_policy.h>
@@ -16,6 +18,9 @@ void
 sl_mod_execution(struct sl_thd_policy *t, cycles_t cycles)
 { }
 
+
+volatile int global = 0;
+
 struct sl_thd_policy *
 sl_mod_schedule(void)
 {
@@ -25,6 +30,20 @@ sl_mod_schedule(void)
 	for (i = 0 ; i < SL_FPRR_NPRIOS ; i++) {
 		if (ps_list_head_empty(&threads[i])) continue;
 		t = ps_list_head_first_d(&threads[i], struct sl_thd_policy);
+
+		struct sl_thd *thd  = sl_mod_thd_get(t);
+
+		if (global % 1000 == 0) {
+			printc("switching to thd %d\n", (int) thd->thdid);
+		}
+		global++;
+
+		/*
+		 * We want to move the selected thread to the back of the list.
+		 * Otherwise fprr won't be truly round robin
+		 */
+		ps_list_rem_d(t);
+		ps_list_head_append_d(&threads[i], t);
 
 		return t;
 	}

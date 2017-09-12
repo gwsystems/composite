@@ -110,6 +110,36 @@ OS_QueueDelete(uint32 queue_id) {
 }
 
 int32
+OS_QueuePoll(uint32 queue_id, void* data, uint32 size, uint32* size_copied)
+{
+    uint32 i;
+
+    // Check if there are messages to be received.
+    if (queues[queue_id].head == queues[queue_id].tail) {
+            return OS_QUEUE_EMPTY;
+    }
+
+    // TODO: Implement logic for returning OS_QUEUE_TIMEOUT (waiting on mutex implementation).
+
+    if (size < queues[queue_id].data_size) {
+            return OS_QUEUE_INVALID_SIZE;
+    }
+
+    // A helper reference to the currently selected queue.
+    struct queue* cur = &queues[queue_id];
+
+    // Walk through the bytes at the head of the queue and write them to buffer `data`.
+    for (i = 0; i < size; i++) {
+            *((char*)data + i) = queue_data[queue_id][cur->head * cur->data_size + i];
+    }
+
+    // Advance the queue head, wrapping if it is passed `depth`.
+    cur->head = (cur->head + 1) % cur->depth;
+
+    return OS_SUCCESS;
+}
+
+int32
 OS_QueueGet(uint32 queue_id, void* data, uint32 size, uint32* size_copied, int32 timeout)
 {
         uint32 i;
@@ -132,48 +162,31 @@ OS_QueueGet(uint32 queue_id, void* data, uint32 size, uint32* size_copied, int32
         /* FIXME: Block instead of poll */
         int32 intervals;
         if (timeout == OS_CHECK) {
-            intervals = 0;
+            result = OS_QueuePoll(queue_id, data, size, size_copied);
+            goto exit;
         } else if (timeout == OS_PEND) {
             intervals = 0xFFFFFF;
         } else {
             intervals = timeout / 50 + 1;
         }
+
         int32 inter = 0;
         for (inter = 0; inter < intervals; inter++) {
+                result = OS_QueuePoll(queue_id, data, size, size_copied);
+                if (result == OS_SUCCESS) {
+                    goto exit;
+                }
                 sl_lock_release(&queue_lock);
                 OS_TaskDelay(50);
                 sl_lock_take(&queue_lock);
-                // Check if there are messages to be received.
-                if (queues[queue_id].head == queues[queue_id].tail) {
-                        result = OS_QUEUE_EMPTY;
-                        continue;
-                }
-
-                // TODO: Implement logic for returning OS_QUEUE_TIMEOUT (waiting on mutex implementation).
-
-                if (size < queues[queue_id].data_size) {
-                        result = OS_QUEUE_INVALID_SIZE;
-                        continue;
-                }
-
-                // A helper reference to the currently selected queue.
-                struct queue* cur = &queues[queue_id];
-
-                // Walk through the bytes at the head of the queue and write them to buffer `data`.
-                for (i = 0; i < size; i++) {
-                        *((char*)data + i) = queue_data[queue_id][cur->head * cur->data_size + i];
-                }
-
-                // Advance the queue head, wrapping if it is passed `depth`.
-                cur->head = (cur->head + 1) % cur->depth;
-
-                result = OS_SUCCESS;
-                goto exit;
         }
         assert(result != OS_ERROR);
 
 exit:
         sl_lock_release(&queue_lock);
+        if (result != OS_SUCCESS && timeout != OS_CHECK) {
+            return OS_QUEUE_TIMEOUT;
+        }
         return result;
 }
 
