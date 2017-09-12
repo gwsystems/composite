@@ -1,6 +1,9 @@
 #include "vk_types.h"
 #include "vk_structs.h"
 #include "vk_api.h"
+#include <shdmem.h>
+
+/* These syncronous invocations are related to calling to and from the vkernel */
 
 extern int vmid;
 extern int shmem_call(int arg1, int arg2, int arg3, int arg4);
@@ -8,7 +11,7 @@ extern int shmem_call(int arg1, int arg2, int arg3, int arg4);
 int
 vk_vm_id(void)
 {
-	return cos_sinv(VM_CAPTBL_SELF_VK_SINV_BASE, VK_SERV_VM_ID << 16 | cos_thdid(), 0, 0, 0);	
+	return cos_sinv(VM_CAPTBL_SELF_VK_SINV_BASE, VK_SERV_VM_ID << 16 | cos_thdid(), 0, 0, 0);
 }
 
 void
@@ -62,12 +65,36 @@ vkernel_find_vm(thdid_t tid)
 }
 
 int
+shmem_call(int arg1, int arg2, int arg3, int arg4)
+{
+        int ret = 0;
+
+        switch(arg1) {
+        case VK_SERV_SHM_VADDR_GET:
+                ret = (int)shm_get_vaddr((unsigned int)arg2, (unsigned int)arg3, arg4, 0);
+                break;
+        case VK_SERV_SHM_ALLOC:
+                ret = shm_allocate((unsigned int)arg2, arg3, arg4, 0);
+                break;
+        case VK_SERV_SHM_DEALLOC:
+                ret = shm_deallocate(arg2, arg3, arg4, 0);
+                break;
+        case VK_SERV_SHM_MAP:
+                ret = shm_map(arg2, arg3, arg4, 0);
+                break;
+        default: assert(0);
+        }
+
+        return ret;
+}
+
+int
 vkernel_hypercall(int a, int b, int c, int d)
 {
 	int option = a >> 16;
 	int thdid  = (a << 16) >> 16;
 	int ret = 0;
-	int i = thdid;
+	int i;
 
 	switch(option) {
 	case VK_SERV_VM_EXIT:
@@ -84,6 +111,7 @@ vkernel_hypercall(int a, int b, int c, int d)
 	}
 	case VK_SERV_VM_ID:
 	{
+		i = vkernel_find_vm(thdid);
 		ret = vmx_info[i].id;
 
 		break;
@@ -100,7 +128,7 @@ vkernel_hypercall(int a, int b, int c, int d)
 		sl_thd_block_timeout(0, abs_timeout);
 		break;
 	}
-	default: shmem_call(option, b, c, d);
+	default: ret = shmem_call(option, b, c, d);
 	}
 
 	return ret;

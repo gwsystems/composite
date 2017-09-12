@@ -6,6 +6,8 @@
 #include "rk_inv_api.h"
 #include "vk_types.h"
 
+/* These syncronous invocations involve calls to and from a RumpKernel */
+
 int
 test_entry(int arg1, int arg2, int arg3, int arg4)
 {
@@ -74,30 +76,6 @@ rk_inv_entry(int arg1, int arg2, int arg3, int arg4)
 		break;
 	case RK_INV_OP2:
 		ret = test_shdmem(arg2, arg3, arg4, 0);
-		break;
-	default: assert(0);
-	}
-
-	return ret;
-}
-
-int
-shmem_call(int arg1, int arg2, int arg3, int arg4)
-{
-	int ret = 0;
-
-	switch(arg1) {
-	case VK_SERV_SHM_VADDR_GET:
-		ret = shm_get_vaddr((unsigned int)arg2, (unsigned int)arg3, arg4, 0);
-		break;
-	case VK_SERV_SHM_ALLOC:
-		ret = shm_allocate((unsigned int)arg2, arg3, arg4, 0);
-		break;
-	case VK_SERV_SHM_DEALLOC:
-		ret = shm_deallocate(arg2, arg3, arg4, 0);
-		break;
-	case VK_SERV_SHM_MAP:
-		ret = shm_map(arg2, arg3, arg4, 0);
 		break;
 	default: assert(0);
 	}

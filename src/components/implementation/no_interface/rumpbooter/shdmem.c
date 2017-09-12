@@ -68,6 +68,7 @@ shm_allocate(unsigned int spdid, unsigned int num_pages, int arg3, int arg4)
 	if (!shm_infos[spdid].init) { __shm_infos_init(spdid); }
 
 	comp_shm_info = &shm_infos[spdid];
+	assert(comp_shm_info);
 
 	src_pg = (vaddr_t)cos_page_bump_alloc(vk_cinfo);
 	assert(src_pg);
@@ -78,6 +79,7 @@ shm_allocate(unsigned int spdid, unsigned int num_pages, int arg3, int arg4)
 	/* Get address to map into */
 	idx = shm_master_idx;
 	dst_pg = comp_shm_info->shm_frontier;
+	assert(dst_pg);
         comp_shm_info->my_regions[idx] = dst_pg;
 
 	shm_master_idx++;

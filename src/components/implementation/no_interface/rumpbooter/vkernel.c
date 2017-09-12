@@ -17,6 +17,7 @@
 extern vaddr_t cos_upcall_entry;
 extern void    vm_init(void *d);
 extern void   *__inv_vkernel_hypercallfn(int a, int b, int c, int d);
+unsigned int cycs_per_usec;
 
 /* Init thread for userspace vm, needed to register within RK */
 thdcap_t vm_main_thd;
@@ -40,13 +41,13 @@ cos_init(void)
 	static int is_booter = 1;
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
-	int id, cycs;
+	int id;
 
 	if (is_booter == 0) {
 		vm_init(NULL);
-
 		SPIN();
 	}
+
 	is_booter = 0;
 
 	printc("vkernel: START\n");
@@ -70,8 +71,8 @@ cos_init(void)
 	vk_info.sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_vkernel_hypercallfn);
 	assert(vk_info.sinv);
 
-	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-	printc("\t%d cycles per microsecond\n", cycs);
+	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	printc("\t%d cycles per microsecond\n", cycs_per_usec);
 
 	spinlib_calib();
 

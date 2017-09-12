@@ -202,7 +202,7 @@ vk_vm_sinvs_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	struct cos_compinfo *vm_cinfo = cos_compinfo_get(&vminfo->dci);
 	int ret;
 
-	ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_VK_SINV_BASE, vk_cinfo, vkinfo->sinv); 
+	ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_VK_SINV_BASE, vk_cinfo, vkinfo->sinv);
 	assert(ret == 0);
 
 	switch(vminfo->id) {

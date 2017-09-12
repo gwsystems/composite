@@ -41,7 +41,7 @@ spinlib_calib(void)
 	cycs_per_spin_iters = total_cycs / CALIB;
 	usecs_per_spin_iters = cycs_per_spin_iters / cycs_per_usec;
 
-	printc("Spin calibration: ITERS:%u Cycs/ITERS:%llu usecs/ITERS:%llu\n", 
+	printc("Spin calibration: ITERS:%u Cycs/ITERS:%llu usecs/ITERS:%llu\n",
 	       ITERS_SPIN, cycs_per_spin_iters, usecs_per_spin_iters);
 }
 

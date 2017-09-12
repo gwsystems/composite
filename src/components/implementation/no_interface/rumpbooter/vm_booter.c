@@ -17,7 +17,6 @@ struct cos_compinfo booter_info;
  */
 thdcap_t      termthd = BOOT_CAPTBL_SELF_INITTHD_BASE;
 unsigned long tls_test[TEST_NTHDS];
-unsigned int  cycs_per_usec;
 
 #include <llprint.h>
 
@@ -52,9 +51,10 @@ vm_init(void *unused)
 	arcvcap_t rcvcap = BOOT_CAPTBL_SELF_INITRCV_BASE;
 
 	vmid = vk_vm_id();
+	printc("!!!!!vmid: %d\n", vmid);
 
 	switch(vmid) {
-	case RUMP_SUB: 
+	case RUMP_SUB:
 		rk_kernel_init(NULL);
 
 		assert(0);
@@ -83,7 +83,6 @@ vm_init(void *unused)
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 	                  (vaddr_t)cos_get_heap_ptr(), vmid == 0 ? DOM0_CAPTBL_FREE : VM_CAPTBL_FREE, &booter_info);
 
-	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	/* Userspace component >= 2 then spin */
 	if (vmid > 2) {
@@ -103,7 +102,6 @@ vm_init(void *unused)
 
 done:
 	PRINTC("\n******************* USERSPACE DONE *******************\n");
-	//cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_EXIT << 16 | vmid, 0, 0, 0);
 	while (1) {
 		cos_rcv(rcvcap, 0, NULL);
 	}
@@ -128,7 +126,6 @@ rk_kernel_init(void *unused)
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			(vaddr_t)cos_get_heap_ptr(), DOM0_CAPTBL_FREE, &booter_info);
 
-	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	rump_booter_init();
 
 	PRINTC("\n******************* KERNEL DONE *******************\n");
