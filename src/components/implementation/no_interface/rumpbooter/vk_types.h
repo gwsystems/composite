@@ -50,4 +50,9 @@ enum rk_inv_ops {
 	RK_GET_BOOT_DONE,
 };
 
+enum timer_inv_ops {
+	TIMER_APP_BLOCK = 0,
+	TIMER_GET_COUNTER,
+};
+
 #endif /* VK_TYPES_H */

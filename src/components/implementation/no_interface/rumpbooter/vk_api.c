@@ -3,6 +3,7 @@
 
 extern vaddr_t cos_upcall_entry;
 extern int __inv_rk_inv_entry(int r1, int r2, int r3, int r4);
+extern int __inv_timer_inv_entry(int r1, int r2, int r3, int r4);
 /* extern functions */
 extern void vm_init(void *);
 extern void dom0_io_fn(void *);
@@ -231,23 +232,37 @@ vk_vm_sinvs_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 
 	switch(vminfo->id) {
 	case RUMP_SUB: /* kernel component - do nothing for now */ break;
+	{
+		vminfo->sinv = cos_sinv_alloc(vk_cinfo, vm_cinfo->comp_cap, (vaddr_t)__inv_rk_inv_entry);
+		assert(vminfo->sinv);
+
+		break;
+	}
 	case TIMER_SUB: /* timer subsys. do nothing for now*/ break;
+	{
+		vminfo->sinv = cos_sinv_alloc(vk_cinfo, vm_cinfo->comp_cap, (vaddr_t)__inv_timer_inv_entry);
+		assert(vminfo->sinv);
+
+		break;
+	}
 	case UDP_APP:
 	case DL_APP:
 	{
-		struct cos_compinfo *rk_cinfo = cos_compinfo_get(&vmx_info[RUMP_SUB].dci);
-		struct cos_compinfo *tm_cinfo = cos_compinfo_get(&vmx_info[TIMER_SUB].dci);
+		struct vms_info *rk_info = &vmx_info[RUMP_SUB];
+		struct vms_info *tm_info = &vmx_info[TIMER_SUB];
 		sinvcap_t rk_inv, tm_inv;
 
 		printc("\tSetting up sinv capability from user component to kernel component\n");
-		rk_inv = cos_sinv_alloc(vk_cinfo, rk_cinfo->comp_cap, (vaddr_t)__inv_rk_inv_entry);
-		assert(rk_inv);
 
-		ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_RK_SINV_BASE, vk_cinfo, rk_inv);
+		ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_RK_SINV_BASE, vk_cinfo, rk_info->sinv);
 		assert(ret == 0);
 
-		/* TODO: TIMER SUBSYS INV CAP */
+		ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_TM_SINV_BASE, vk_cinfo, tm_info->sinv);
+		assert(ret == 0);
+
+		break;
 	}
+	default: assert(0);
 	}
 }
 

@@ -16,7 +16,7 @@
 
 extern vaddr_t cos_upcall_entry;
 extern void    vm_init(void *d);
-extern void   *__inv_vkernel_hypercallfn(int a, int b, int c, int d);
+extern void   *__inv_vkernel_hypercall(int a, int b, int c, int d);
 unsigned int cycs_per_usec;
 
 /* Init thread for userspace vm, needed to register within RK */
@@ -68,7 +68,7 @@ cos_init(void)
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL);
 	assert(vk_info.termthd);
 
-	vk_info.sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_vkernel_hypercallfn);
+	vk_info.sinv = cos_sinv_alloc(vk_cinfo, vk_cinfo->comp_cap, (vaddr_t)__inv_vkernel_hypercall);
 	assert(vk_info.sinv);
 
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);

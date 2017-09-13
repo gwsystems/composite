@@ -21,20 +21,22 @@ __inv_test_serverfn:
         movl $RET_CAP, %eax
         sysenter;
 
-.text
-.globl __inv_rk_inv_entry
-.type  __inv_rk_inv_entry, @function
-__inv_rk_inv_entry:
-	COS_ASM_GET_STACK
-
-        pushl %ebp /* arg 4 */
-        pushl %edi /* arg 3 */
-        pushl %esi /* arg 2 */
-        pushl %ebx /* arg 1 */
-        call rk_inv_entry
-        movl %eax, %ecx
-
-	COS_ASM_RET_STACK
-        movl $RET_CAP, %eax
+#define INV_ENTRY(fn)			\
+.globl __inv_##fn;			\
+.type  __inv_##fn, @function;		\
+__inv_##fn:				\
+	COS_ASM_GET_STACK;		\
+        pushl %ebp;			\
+        pushl %edi; 		        \
+        pushl %esi; 		        \
+        pushl %ebx; 		        \
+        call fn;			\
+        movl %eax, %ecx;		\
+	COS_ASM_RET_STACK;		\
+        movl $RET_CAP, %eax;		\
         sysenter
 
+.text
+INV_ENTRY(vkernel_hypercall)
+INV_ENTRY(rk_inv_entry)
+INV_ENTRY(timer_inv_entry)

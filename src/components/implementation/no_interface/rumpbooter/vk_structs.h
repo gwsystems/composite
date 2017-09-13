@@ -24,6 +24,7 @@ struct vms_info {
 	struct cos_defcompinfo dci;
 	struct cos_compinfo    shm_cinfo;
 	struct sl_thd         *inithd;
+	sinvcap_t              sinv;
 
 	union { /* for clarity */
 		struct vm_io_info *  vmio;
