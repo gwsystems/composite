@@ -50,7 +50,6 @@ vm_init(void *unused)
 	cycles_t    cycles;
 	thdid_t     tid;
 	tcap_time_t timeout = 0, thd_timeout;
-	arcvcap_t rcvcap = BOOT_CAPTBL_SELF_INITRCV_BASE;
 
 	vmid = vk_vm_id();
 	printc("!!!!!vmid: %d\n", vmid);
@@ -78,44 +77,26 @@ vm_init(void *unused)
 	rumpns_vmid = vmid;
 	cos_spdid_set(vmid);
 
+	assert(vmid == UDP_APP);
 	PRINTC("\n******************* USERSPACE *******************\n");
 
 	PRINTC("vm_init, setting spdid for user component to: %d\n", vmid);
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-	                  (vaddr_t)cos_get_heap_ptr(), vmid == 0 ? DOM0_CAPTBL_FREE : VM_CAPTBL_FREE, &booter_info);
+	                  (vaddr_t)cos_get_heap_ptr(), APP_CAPTBL_FREE, &booter_info);
 
-
-	/* Userspace component >= 2 then spin */
-	if (vmid > 2) {
-		PRINTC("Userspace Component #%d spinning...\n", vmid);
-		goto done;
-	}
-
-	PRINTC("Virtual-machine booter started.\n");
-	/* FIXME, we need to wait till the RK is done booting to do this */
-	//PRINTC("Running fs test\n");
-	//cos_fs_test();
-	//PRINTC("Done\n");
 
 	PRINTC("Running shared memory tests\n");
 	cos_shmem_test();
 	PRINTC("Virtual-machine booter done.\n");
 
-	while (!rk_inv_get_boot_done()) {
-		PRINTC("RK not yet done booting, yield\n");
-		cos_rcv(rcvcap, 0, NULL);
-	}
 	PRINTC("Running udp app\n");
 	main();
 	PRINTC("Done running udp app\n");
 
-done:
 	PRINTC("\n******************* USERSPACE DONE *******************\n");
-	while (1) {
-		cos_rcv(rcvcap, 0, NULL);
-	}
-	/* should not be scheduled. but it may be activated if this tcap or it's child tcap has budget! */
+	/* Perhaps platform block from BMK? But this should not happen!!*/
+	while (1) ;
 }
 
 void
@@ -134,7 +115,7 @@ rk_kernel_init(void *unused)
 	PRINTC("Kernel_init, setting spdid for kernel component to: %d\n", vmid);
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			(vaddr_t)cos_get_heap_ptr(), DOM0_CAPTBL_FREE, &booter_info);
+			(vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, &booter_info);
 
 	rump_booter_init();
 
@@ -145,41 +126,43 @@ rk_kernel_init(void *unused)
 void
 dom0_io_fn(void *d)
 {
-	int          line;
-	unsigned int irqline;
-	arcvcap_t    rcvcap = dom0_vio_rcvcap((unsigned int)d);
-
-	switch((int)d) {
-		case 1:
-			line = 13;
-			irqline = IRQ_VM1;
-			break;
-		case 2:
-			line = 15;
-			irqline = IRQ_VM2;
-			break;
-		default: assert(0);
-	}
-
-	while (1) {
-		cos_rcv(rcvcap, 0, NULL);
-		intr_start(irqline);
-		bmk_isr(line);
-		cos_vio_tcap_set((int)d);
-		intr_end();
-	}
+	assert(0);
+//	int          line;
+//	unsigned int irqline;
+//	arcvcap_t    rcvcap = dom0_vio_rcvcap((unsigned int)d);
+//
+//	switch((int)d) {
+//		case 1:
+//			line = 13;
+//			irqline = IRQ_VM1;
+//			break;
+//		case 2:
+//			line = 15;
+//			irqline = IRQ_VM2;
+//			break;
+//		default: assert(0);
+//	}
+//
+//	while (1) {
+//		cos_rcv(rcvcap, 0, NULL);
+//		intr_start(irqline);
+//		bmk_isr(line);
+//		cos_vio_tcap_set((int)d);
+//		intr_end();
+//	}
 }
 
 void
 vm_io_fn(void *id)
 {
-	arcvcap_t rcvcap = VM_CAPTBL_SELF_IORCV_BASE;
-
-	while (1) {
-		cos_rcv(rcvcap, 0, NULL);
-		intr_start(IRQ_DOM0_VM);
-		bmk_isr(12);
-		intr_end();
-
-	}
+	assert(0);
+//	arcvcap_t rcvcap = VM_CAPTBL_SELF_IORCV_BASE;
+//
+//	while (1) {
+//		cos_rcv(rcvcap, 0, NULL);
+//		intr_start(IRQ_DOM0_VM);
+//		bmk_isr(12);
+//		intr_end();
+//
+//	}
 }

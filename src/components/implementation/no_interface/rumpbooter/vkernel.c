@@ -84,7 +84,7 @@ cos_init(void)
 		vaddr_t              vm_range, addr;
 		int                  ret;
 
-		printc("vkernel: VM%d Init START\n", id);
+		printc("vkernel: %s %d Init START\n", id < APP_START_ID ? "VM" : "APP", id);
 		vm_info->id = id;
 
 		/*
@@ -119,8 +119,8 @@ cos_init(void)
 		}
 
 		if (id > 0) {
-			printc("\tSetting up Cross-VM (between DOM0 and VM%d) communication capabilities\n", id);
-			vk_vm_io_init(vm_info, &vmx_info[0], &vk_info);
+			//printc("\tSetting up Cross-VM (between DOM0 and VM%d) communication capabilities\n", id);
+			//vk_vm_io_init(vm_info, &vmx_info[0], &vk_info);
 
 			/*
 			 * Create and copy booter comp virtual memory to each VM
@@ -139,16 +139,7 @@ cos_init(void)
 		}
 
 		vk_vm_sched_init(vm_info);
-		if (id == KERNEL_VM) {
-			/*
-			 * TODO, this is wrong, need to take the initthd for USERSPACE_VM
-			 * and copy it into a location in the KERNEL_VM, then use that capability
-			 * as the initthd.
-			 */
-			vm_main_thd = sl_thd_thdcap(vm_info->inithd);
-			assert(vm_main_thd);
-		}
-		printc("vkernel: VM%d Init END\n", id);
+		printc("vkernel: %s %d Init END\n", id < APP_START_ID ? "VM" : "APP", id);
 	}
 
 	printc("Starting Scheduler\n");

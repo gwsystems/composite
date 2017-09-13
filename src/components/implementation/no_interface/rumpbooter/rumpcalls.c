@@ -120,6 +120,7 @@ cos_vm_print(char s[], int ret)
 int
 cos_dequeue_size(unsigned int srcvm, unsigned int curvm)
 {
+	assert(0);
 	return cos2rk_dequeue_size(srcvm, curvm);
 }
 
@@ -130,13 +131,14 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 	asndcap_t sndcap;
 	int ret;
 
-	if(srcvm == 0) sndcap = dom0_vio_asndcap(dstvm);
-	else sndcap = VM_CAPTBL_SELF_IOASND_BASE;
-
-	//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
-	cos2rk_shm_write(buff, size, srcvm, dstvm);
-
-	if(cos_asnd(sndcap, 0)) assert(0);
+	assert(0);
+//	if(srcvm == 0) sndcap = dom0_vio_asndcap(dstvm);
+//	else sndcap = VM_CAPTBL_SELF_IOASND_BASE;
+//
+//	//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
+//	cos2rk_shm_write(buff, size, srcvm, dstvm);
+//
+//	if(cos_asnd(sndcap, 0)) assert(0);
 
 	return 1;
 }
@@ -144,6 +146,7 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 int
 cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm)
 {
+	assert(0);
 	return cos2rk_shm_read(buff, srcvm, curvm);
 }
 
@@ -260,8 +263,8 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p", thread->bt_name, f);
 	if (!strcmp(thread->bt_name, "user_lwp")) {
 		/* Return userlevel thread cap that is set up in vkernel_init */
-		printc("\nMatch, returning vm_main_thd: %d\n", (unsigned int)vm_main_thd);
-		newthd_cap = vm_main_thd;
+		printc("\nMatch, returning vm_main_thd: %d\n", (unsigned int)VM_CAPTBL_SELF_APPTHD_BASE);
+		newthd_cap = VM_CAPTBL_SELF_APPTHD_BASE;
 	} else {
 		newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, f, arg);
 		printc(" thdcap: %lu\n", newthd_cap);
@@ -341,7 +344,6 @@ print_cycles(void)
 void
 cos_resume(void)
 {
-	static int hpet_irq_blocked = 1;
 	static u64_t r1 = 0, r2 = 0, r3 = 0, r4 = 0;
 	/* this will not return if this vm is set to be CPU bound */
 	//cpu_bound_test();
@@ -384,8 +386,7 @@ cos_resume(void)
 						        NULL, &tid, &blocked, &cycles, &thd_timeout);
 
 				irq_line = intr_translate_thdid2irq(tid);
-				if (irq_line == 0) hpet_irq_blocked = blocked;
-				else intr_update(irq_line, blocked);
+				intr_update(irq_line, blocked);
 
 				if(first) {
 					isr_get(cos_isr, &rk_disabled, &intr_disabled, &contending);
@@ -399,15 +400,9 @@ cos_resume(void)
 			 * Finish any remaining interrupts
 			 */
 			intr_switch();
-			if (!hpet_irq_blocked) {
-				do {
-					ret = cos_switch(irq_thdcap[0], irq_tcap[0], irq_prio[0], 0, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-					assert(ret == 0 || ret == -EAGAIN);
-				} while (ret == -EAGAIN);
-			}
-		} while(intrs || !hpet_irq_blocked);
+		} while(intrs);
 
-		assert(!intrs && hpet_irq_blocked);
+		assert(!intrs);
 
 rk_resume:
 		/*

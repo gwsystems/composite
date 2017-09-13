@@ -16,10 +16,10 @@ void vk_vm_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsig
 void vk_vm_sched_init(struct vms_info *vminfo);
 void vk_vm_sinvs_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo);
 
-thdcap_t  dom0_vio_thdcap(unsigned int vmid);
-tcap_t    dom0_vio_tcap(unsigned int vmid);
-arcvcap_t dom0_vio_rcvcap(unsigned int vmid);
-asndcap_t dom0_vio_asndcap(unsigned int vmid);
+//thdcap_t  dom0_vio_thdcap(unsigned int vmid);
+//tcap_t    dom0_vio_tcap(unsigned int vmid);
+//arcvcap_t dom0_vio_rcvcap(unsigned int vmid);
+//asndcap_t dom0_vio_asndcap(unsigned int vmid);
 
 vaddr_t dom0_vio_shm_base(unsigned int vmid);
 

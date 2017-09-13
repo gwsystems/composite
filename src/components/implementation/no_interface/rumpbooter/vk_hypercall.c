@@ -101,11 +101,13 @@ vkernel_hypercall(int a, int b, int c, int d)
 	{
 		/* free sl threads */
 		i = vkernel_find_vm(thdid);
-		printc("VM%d EXIT\n", i);
-		sl_thd_free(vmx_info[i].inithd);
+
+		printc("%s %d EXIT\n", i < APP_START_ID ? "VM" : "APP", i);
+
+		if (i < APP_START_ID) sl_thd_free(vmx_info[i].inithd);
+		else                  return 0;
 
 		/* TODO: Free all the resources allocated for this VM! -Initial capabilites, I/O Capabilities etc */
-
 		printc("VM %d ERROR!!!!!", i);
 		break;
 	}
@@ -121,6 +123,7 @@ vkernel_hypercall(int a, int b, int c, int d)
 		tcap_time_t timeout     = (tcap_time_t)b;
 		cycles_t abs_timeout, now;
 
+		if (vkernel_find_vm(cos_thdid()) >= APP_START_ID) assert(0);
 		rdtscll(now);
 		abs_timeout = tcap_time2cyc(timeout, now);
 
