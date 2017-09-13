@@ -198,7 +198,7 @@ void
 rump_bmk_memsize_init(void)
 {
 	/* (1<<20) == 1 MG */
-	bmk_memsize = COS2RK_VIRT_MACH_MEM_SZ - ((1<<20)*2);
+	bmk_memsize = COS2RK_VIRT_MACH_MEM_SZ(vmid) - ((1<<20)*2);
 	printc("FIX ME: ");
 	printc("bmk_memsize: %lu\n", bmk_memsize);
 }
@@ -533,10 +533,7 @@ cos_sched_yield(void)
 
 void
 cos_vm_yield(void)
-{
-	printc("cos_vm_yield\n");
-	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
-}
+{ cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
 
 void
 cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_prio_t prio)

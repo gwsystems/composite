@@ -28,7 +28,7 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	vmutpt = cos_pgtbl_alloc(vk_cinfo);
 	assert(vmutpt);
 
-	cos_meminfo_init(&(vmcinfo->mi), BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, vmutpt);
+	cos_meminfo_init(&(vmcinfo->mi), BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE(vminfo->id), vmutpt);
 
 	ret = cos_defcompinfo_child_alloc(vmdci, (vaddr_t)&cos_upcall_entry, (vaddr_t)BOOT_MEM_VM_BASE,
 					  VM_CAPTBL_FREE, vminfo->id < APP_START_ID ? 1 : 0);
@@ -55,7 +55,7 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 
 	cos_compinfo_init(&(vminfo->shm_cinfo), vmcinfo->pgtbl_cap, vmcinfo->captbl_cap, vmcinfo->comp_cap,
 			  (vaddr_t)VK_VM_SHM_BASE, VM_CAPTBL_FREE, vk_cinfo);
-	
+
 	printc("\tCreating and copying initial component capabilities\n");
 	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_CT, vk_cinfo, vmcinfo->captbl_cap);
 	assert(ret == 0);
@@ -89,11 +89,12 @@ vk_vm_sched_init(struct vms_info *vminfo)
 	struct cos_defcompinfo *vmdci       = &(vminfo->dci);
 	struct cos_compinfo *vmcinfo        = cos_compinfo_get(vmdci);
 	union sched_param_union spsameprio  = {.c = {.type = SCHEDP_PRIO, .value = (vminfo->id + 1)}};
-	union sched_param_union spsameC     = {.c = {.type = SCHEDP_BUDGET, .value = (VM_FIXED_BUDGET_MS * 1000)}}; 
+	union sched_param_union spsameC     = {.c = {.type = SCHEDP_BUDGET, .value = (VM_FIXED_BUDGET_MS * 1000)}};
 	union sched_param_union spsameT     = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
 	int ret;
 
-	if (vminfo->id >= APP_START_ID) return;
+	//if (vminfo->id >= APP_START_ID) return;
+	if (vminfo->id != RUMP_SUB) return;
 
 	vminfo->inithd = sl_thd_comp_init(vmdci, 1);
 	assert(vminfo->inithd);

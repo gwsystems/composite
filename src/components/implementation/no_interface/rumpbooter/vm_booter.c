@@ -52,7 +52,15 @@ vm_init(void *unused)
 	tcap_time_t timeout = 0, thd_timeout;
 
 	vmid = vk_vm_id();
-	printc("!!!!!vmid: %d\n", vmid);
+	rumpns_vmid = vmid;
+	cos_spdid_set(vmid);
+
+	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE(vmid),
+			BOOT_CAPTBL_SELF_UNTYPED_PT);
+
+	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
+			BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(),
+			vmid < APP_START_ID ? VM_CAPTBL_FREE : APP_CAPTBL_FREE, &booter_info);
 
 	switch(vmid) {
 	case RUMP_SUB:
@@ -74,17 +82,9 @@ vm_init(void *unused)
 	default: assert(0);
 	}
 
-	rumpns_vmid = vmid;
-	cos_spdid_set(vmid);
-
 	assert(vmid == UDP_APP);
+
 	PRINTC("\n******************* USERSPACE *******************\n");
-
-	PRINTC("vm_init, setting spdid for user component to: %d\n", vmid);
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-	                  (vaddr_t)cos_get_heap_ptr(), APP_CAPTBL_FREE, &booter_info);
-
 
 	PRINTC("Running shared memory tests\n");
 	cos_shmem_test();
@@ -95,31 +95,19 @@ vm_init(void *unused)
 	PRINTC("Done running udp app\n");
 
 	PRINTC("\n******************* USERSPACE DONE *******************\n");
-	/* Perhaps platform block from BMK? But this should not happen!!*/
+	/* Perhaps platform block from BMK? But this should not happen!! */
 	while (1) ;
 }
 
 void
 rk_kernel_init(void *unused)
 {
-	int ret;
-	struct cos_shm_rb *sm_rb;
-	struct cos_shm_rb *sm_rb_r;
-
 	PRINTC("\n******************* KERNEL *******************\n");
-
-	rumpns_vmid = vmid;
-	assert(vmid < VM_COUNT);
-	cos_spdid_set(vmid);
-
-	PRINTC("Kernel_init, setting spdid for kernel component to: %d\n", vmid);
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			(vaddr_t)cos_get_heap_ptr(), VM_CAPTBL_FREE, &booter_info);
 
 	rump_booter_init();
 
 	PRINTC("\n******************* KERNEL DONE *******************\n");
+
 	vk_vm_exit();
 }
 

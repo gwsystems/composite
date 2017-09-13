@@ -101,8 +101,8 @@ cos_init(void)
 
 		vk_vm_sinvs_alloc(vm_info, &vk_info);
 
-		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE);
-		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE);
+		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE(id));
+		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE(id));
 
 		if (id == 0) {
 			/* TODO Look into shared memory ringbuffer, replace with my shared memory implementation */
@@ -118,6 +118,9 @@ cos_init(void)
 			vm_info->vmio = &vmioinfo[id - 1];
 		}
 
+		vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
+		assert(vm_range > 0);
+
 		if (id > 0) {
 			//printc("\tSetting up Cross-VM (between DOM0 and VM%d) communication capabilities\n", id);
 			//vk_vm_io_init(vm_info, &vmx_info[0], &vk_info);
@@ -125,17 +128,16 @@ cos_init(void)
 			/*
 			 * Create and copy booter comp virtual memory to each VM
 			 */
-			vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
-			assert(vm_range > 0);
-			printc("\tMapping in Booter component's virtual memory (range:%lu)\n", vm_range);
+			printc("\tMapping in Booter component's virtual memory (range:%lu) to vmid %d\n", vm_range, vm_info->id);
 			vk_vm_virtmem_alloc(vm_info, &vk_info, BOOT_MEM_VM_BASE, vm_range);
+		}
 
-			/*
-			 * Copy DOM0 only after all VMs are initialized
-			 */
-			if (id == VM_COUNT - 1) {
-				vk_vm_virtmem_alloc(&vmx_info[0], &vk_info, BOOT_MEM_VM_BASE, vm_range);
-			}
+		/*
+		 * Copy DOM0 only after all VMs are initialized
+		 */
+		if (id == VM_COUNT - 1) {
+			printc("\tMapping in Booter component's virtual memory (range:%lu) to vmid %d\n", vm_range, vm_info->id);
+			vk_vm_virtmem_alloc(&vmx_info[0], &vk_info, BOOT_MEM_VM_BASE, vm_range);
 		}
 
 		vk_vm_sched_init(vm_info);
