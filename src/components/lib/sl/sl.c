@@ -303,18 +303,8 @@ sl_thd_yield(thdid_t tid)
 	sl_thd_yield_cs_exit(tid);
 }
 
-static void
-sl_thd_aepinfo_init(struct sl_thd *t, thdcap_t thd, arcvcap_t rcv, tcap_t tc)
-{
-	assert(t);
-
-	sl_thd_aepinfo(t)->thd = thd;
-	sl_thd_aepinfo(t)->rcv = rcv;
-	sl_thd_aepinfo(t)->tc  = tc;
-}
-
 static struct sl_thd *
-sl_thd_alloc_init(thdid_t tid, thdcap_t thdcap, arcvcap_t rcvcap, tcap_t tcap,
+sl_thd_alloc_init(thdid_t tid, struct cos_aep_info *aep,
 		  asndcap_t sndcap, sl_thd_property_t prps)
 {
 	struct sl_thd_policy *tp = NULL;
@@ -326,7 +316,7 @@ sl_thd_alloc_init(thdid_t tid, thdcap_t thdcap, arcvcap_t rcvcap, tcap_t tcap,
 
 	t->thdid          = tid;
 	t->properties     = prps;
-	sl_thd_aepinfo_init(t, thdcap, rcvcap, tcap);
+	t->aepinfo        = aep;
 	t->sndcap         = sndcap;
 	t->state          = SL_THD_RUNNABLE;
 	sl_thd_index_add_backend(sl_mod_thd_policy_get(t));
@@ -348,15 +338,19 @@ sl_thd_alloc_intern(cos_thd_fn_t fn, void *data)
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
 	struct sl_thd          *t   = NULL;
+	struct cos_aep_info    *aep = NULL;
 	thdcap_t thdcap;
 	thdid_t tid;
 
-	thdcap = cos_thd_alloc(ci, ci->comp_cap, fn, data);
-	if (!thdcap) goto done;
+	aep = sl_thd_alloc_aep_backend();
+	assert(aep);
 
-	tid = cos_introspect(ci, thdcap, THD_GET_TID);
+	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data);
+	if (!aep->thd) goto done;
+
+	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	assert(tid);
-	t = sl_thd_alloc_init(tid, thdcap, 0, 0, 0, 0);
+	t = sl_thd_alloc_init(tid, aep, 0, 0);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -370,29 +364,33 @@ sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *
 	struct cos_compinfo    *ci  = &dci->ci;
 	struct sl_thd          *t   = NULL;
 	asndcap_t               snd = 0;
-	struct cos_aep_info     aep;
+	struct cos_aep_info    *aep = NULL;
 	thdid_t                 tid;
 	int                     ret;
 
+	aep = sl_thd_alloc_aep_backend();
+	assert(aep);
+
 	if (prps & SL_THD_PROPERTY_SEND) {
-		struct cos_aep_info *sa;
+		struct cos_aep_info *saep = NULL;
 
 		assert(comp);
-		sa  = cos_sched_aep_get(comp);
-		aep = *sa;
+		saep = cos_sched_aep_get(comp);
 
-		snd = cos_asnd_alloc(ci, aep.rcv, ci->captbl_cap);
+		snd = cos_asnd_alloc(ci, saep->rcv, ci->captbl_cap);
 		assert(snd);
+
+		*aep = *saep;
 	} else {
-		if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(&aep, fn, data);
-		else                                 ret = cos_aep_tcap_alloc(&aep, sl_thd_aepinfo(sl__globals()->sched_thd)->tc,
+		if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data);
+		else                                 ret = cos_aep_tcap_alloc(aep, sl_thd_aepinfo(sl__globals()->sched_thd)->tc,
 									      fn, data);
 		if (ret) goto done;
 	}
 
-	tid = cos_introspect(ci, aep.thd, THD_GET_TID);
+	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	assert(tid);
-	t = sl_thd_alloc_init(tid, aep.thd, aep.rcv, aep.tc, snd, prps);
+	t = sl_thd_alloc_init(tid, aep, snd, prps);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -442,7 +440,7 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 
 		tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 		assert(tid);
-		t   = sl_thd_alloc_init(tid, aep->thd, aep->rcv, aep->tc, 0, 0);
+		t   = sl_thd_alloc_init(tid, aep, 0, 0);
 		sl_mod_thd_create(sl_mod_thd_policy_get(t));
 	}
 	sl_cs_exit();
@@ -526,7 +524,9 @@ sl_idle(void *d)
 void
 sl_init(void)
 {
-	struct sl_global       *g  = sl__globals();
+	struct cos_defcompinfo *dci    = cos_defcompinfo_curr_get();
+	struct cos_aep_info    *schaep = cos_sched_aep_get(dci);
+	struct sl_global       *g      = sl__globals();
 
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
@@ -540,9 +540,9 @@ sl_init(void)
 	sl_timeout_init();
 
 	/* Create the scheduler thread for us */
-	g->sched_thd       = sl_thd_alloc_init(cos_thdid(), BOOT_CAPTBL_SELF_INITTHD_BASE,
-					    BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0);
+	g->sched_thd       = sl_thd_alloc_init(cos_thdid(), schaep, 0, 0);
 	assert(g->sched_thd);
+
 	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_BASE;
 	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 	g->sched_rcv       = BOOT_CAPTBL_SELF_INITRCV_BASE;
