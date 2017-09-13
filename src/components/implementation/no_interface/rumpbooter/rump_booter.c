@@ -41,7 +41,7 @@ hw_irq_alloc(void){
 	//			irq_prio[i] = PRIO_MID;
 	//			break;
 	//		case IRQ_VM2:
-	//			if (COS2RK_VIRT_MACH_COUNT ==3) { 
+	//			if (COS2RK_VIRT_MACH_COUNT ==3) {
 	//				intr_update(i, 0);
 	//				irq_thdcap[i] = dom0_vio_thdcap(2);
 	//				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
@@ -132,9 +132,9 @@ rump_booter_init(void)
 	printc("\nSetting up arcv for hw irq\n");
 	hw_irq_alloc();
 	//RK_hw_irq
-	
+
 	//bmk_isr_init(ipintr, NULL, 12);
-	
+
 	/* We pass in the json config string to the RK */
 	cos_run(json_file);
 	printc("\nRumpKernel Boot done.\n");

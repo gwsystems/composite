@@ -3,7 +3,7 @@
 
 #define VM_COUNT 4                /* virtual machine count */
 #define APP_START_ID 2
-#define VM_UNTYPED_SIZE (1 << 27) /* untyped memory per vm = 128MB */
+#define VM_UNTYPED_SIZE(vmid) (vmid == RUMP_SUB ? (1 << 27) : (1<<25))/* untyped memory per vm = 128MB */
 #define USERSPACE_VM 1
 #define KERNEL_VM 0
 
