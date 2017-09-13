@@ -3,6 +3,7 @@
 #include <cos_defkernel_api.h>
 #include <sl.h>
 #include <sl_thd.h>
+#include <llprint.h>
 
 #include "cos2rk_types.h"
 #include "timer_inv_api.h"
@@ -34,6 +35,7 @@ __thds_init(void)
 	local_thds[0] = sl_thd_aep_alloc(hpet_handler, NULL, 0);
 	assert(local_thds[0]);
 	sl_thd_param_set(local_thds[0], spprio.v);
+	printc("Thd:%u\n", local_thds[0]->thdid);
 
 	/* just set what's required for sl! */
 	child_ci->captbl_cap = BOOT_CAPTBL_SELF_CT;
@@ -44,6 +46,7 @@ __thds_init(void)
 	assert(local_thds[1]);
 	spprio.c.value = HA_APP_THD_PRIO;
 	sl_thd_param_set(local_thds[1], spprio.v);
+	printc("Thd:%u\n", local_thds[1]->thdid);
 	
 	/* TODO: init the server thread */
 
@@ -52,9 +55,11 @@ __thds_init(void)
 }
 
 void
-timer_comp_init(void *d)
+timersub_init(void *d)
 {
+	printc("Timer Subsystem [%u] STARTED\n", cos_thdid());
 	sl_init();
+	printc("HERE");
 
 	__thds_init();
 

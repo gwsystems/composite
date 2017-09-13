@@ -57,7 +57,7 @@ vkernel_find_vm(thdid_t tid)
 	int i;
 
 	for (i = 0 ; i < VM_COUNT ; i ++) {
-		if ((vmx_info[i].inithd)->thdid == tid) break;
+		if (vmx_info[i].inithd && (vmx_info[i].inithd)->thdid == tid) break;
 	}
 	assert (i < VM_COUNT);
 

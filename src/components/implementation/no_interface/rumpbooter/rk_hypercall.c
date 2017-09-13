@@ -65,10 +65,7 @@ test_shdmem(int shm_id, int arg2, int arg3, int arg4)
 
 int
 get_boot_done(void) {
-	/* defined in the main for a given rk application */
-	extern int rk_boot_done;
-	printc("\nget_boot_done: %d\n\n", rk_boot_done);
-	return rk_boot_done;
+	return 1;
 }
 
 

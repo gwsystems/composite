@@ -66,7 +66,7 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_COMP, vk_cinfo, vmcinfo->comp_cap);
 	assert(ret == 0);
 
-	printc("\tInit thread= cap:%x\n", (unsigned int)initaep->thd);
+	printc("\tInit thread= cap:%x, thdid:%u\n", (unsigned int)initaep->thd, (thdid_t)cos_introspect(vk_cinfo, initaep->thd, THD_GET_TID));
 
 	/*
 	 * TODO: Multi-core support to create INITIAL Capabilities per core
@@ -93,8 +93,8 @@ vk_vm_sched_init(struct vms_info *vminfo)
 	union sched_param_union spsameT     = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
 	int ret;
 
-	//if (vminfo->id >= APP_START_ID) return;
-	if (vminfo->id != RUMP_SUB) return;
+	vminfo->inithd = NULL;
+	if (vminfo->id >= APP_START_ID) return;
 
 	vminfo->inithd = sl_thd_comp_init(vmdci, 1);
 	assert(vminfo->inithd);
