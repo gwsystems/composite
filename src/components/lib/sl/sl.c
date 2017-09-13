@@ -530,6 +530,7 @@ sl_init(void)
 
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
+	memset(g, 0, sizeof(struct sl_global));
 
 	g->cyc_per_usec    = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	g->lock.u.v        = 0;
