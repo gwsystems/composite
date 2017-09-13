@@ -39,8 +39,8 @@ enum vkernel_server_option {
 
 enum vm_types {
 	RUMP_SUB = 0, /* SL THD WITH ASND, VIO from HC_DL for logging with LA budget, SINV for POSIX API */
-	UDP_APP, /* VIO to HA_HPET for HPET INFO, SL_THD in OWN COMP but NO ASND */
 	TIMER_SUB, /* SL_THD WITH ASND, VIO from LC with it's own budget (tcap_deleg), SINV for HPET INFO */
+	UDP_APP, /* VIO to HA_HPET for HPET INFO, SL_THD in OWN COMP but NO ASND */
 	DL_APP, /* SL_THD with TCAP shared between HA + HC, SINV to HA, ASYNC to LA */
 };
 
@@ -52,6 +52,7 @@ enum rk_inv_ops {
 
 enum timer_inv_ops {
 	TIMER_APP_BLOCK = 0,
+	TIMER_UPCOUNTER_WAIT,
 	TIMER_GET_COUNTER,
 };
 

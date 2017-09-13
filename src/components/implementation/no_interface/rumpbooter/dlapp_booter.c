@@ -1,7 +1,8 @@
 #include "micro_booter.h"
 #include "vk_api.h"
 #include "spinlib.h"
-/* get from ha_comp */
+
+#include "timer_inv_api.h"
 
 #define DL_SPIN_US (2*1000) //2ms
 #define DL_LOG_SIZE 128
@@ -25,18 +26,7 @@ dlapp_init(void *d)
 		cycles_t now;
 		u32_t rcvd_total = 0;
 
-		do {
-			//ha_comp_call();
-	
-			if (rcvd_total == dl_total) {
-				cycles_t next;
-				tcap_time_t timeout;
-	
-				next = first_hpet + (dl_total) * HPET_PERIOD_US * cycs_per_usec;
-				timeout = tcap_cyc2time(next);
-				vk_vm_block(timeout); /* for timeout = hpet period */
-			}
-		} while (rcvd_total == dl_total);
+		rcvd_total = timer_upcounter_wait(dl_total);
 
 		assert(dl_total + 1 == rcvd_total);
 
