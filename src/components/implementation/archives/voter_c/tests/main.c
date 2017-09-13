@@ -7,7 +7,7 @@ void
 my_entry_pt(void *p)
 {
   while(1){
-    printc("thd1\n");
+    printc("thd3\n");
     sl_thd_yield(sl_thdid());
   }
   assert(0);
