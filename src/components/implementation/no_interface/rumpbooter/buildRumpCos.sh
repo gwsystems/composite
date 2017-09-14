@@ -1,5 +1,4 @@
-#!/bin/bash
-
+#!/bin/bash 
 PROG=$1
 SRCOBJ=rump_boot.o
 DSTOBJ=$PROG.bin

@@ -1,7 +1,8 @@
 #ifndef VK_TYPES_H
 #define VK_TYPES_H
 
-#define VM_COUNT 4                /* virtual machine count */
+#define VM_COUNT 4                /* total virtual machine count */
+#define VM_APP_COUNT 2            /* App virtual machine count */
 #define APP_START_ID 2
 #define VM_UNTYPED_SIZE(vmid) (vmid == RUMP_SUB ? (1 << 27) : (1<<25))/* untyped memory per vm = 128MB */
 #define USERSPACE_VM 1

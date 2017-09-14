@@ -56,10 +56,12 @@ vkernel_find_vm(thdid_t tid)
 {
 	int i;
 
-	for (i = 0 ; i < VM_COUNT ; i ++) {
+	/* HACK FIX ME WHEN TIME_SUB COMES BACK IN */
+	/* Will leave in the VM_APP_COUNT, but remove the - 1 */
+	for (i = 0 ; i < VM_COUNT - VM_APP_COUNT - 1; i ++) {
 		if ((vmx_info[i].inithd)->thdid == tid) break;
 	}
-	assert (i < VM_COUNT);
+	assert (i < (VM_COUNT - VM_APP_COUNT - 1));
 
 	return i;
 }
@@ -84,7 +86,6 @@ shmem_call(int arg1, int arg2, int arg3, int arg4)
                 break;
         default: assert(0);
         }
-
         return ret;
 }
 
@@ -113,6 +114,7 @@ vkernel_hypercall(int a, int b, int c, int d)
 	}
 	case VK_SERV_VM_ID:
 	{
+		printc("VK_SERV_VM_BLOCK\n");
 		i = vkernel_find_vm(thdid);
 		ret = vmx_info[i].id;
 
@@ -123,6 +125,7 @@ vkernel_hypercall(int a, int b, int c, int d)
 		tcap_time_t timeout     = (tcap_time_t)b;
 		cycles_t abs_timeout, now;
 
+		printc("VK_SERV_VM_BLOCK\n");
 		if (vkernel_find_vm(cos_thdid()) >= APP_START_ID) assert(0);
 		rdtscll(now);
 		abs_timeout = tcap_time2cyc(timeout, now);

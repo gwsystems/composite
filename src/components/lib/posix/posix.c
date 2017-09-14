@@ -205,7 +205,7 @@ cos_set_tid_address(int *tidptr)
 }
 
 /* struct user_desc {
- *     int  		  entry_number; // Ignore
+ *     int		  entry_number; // Ignore
  *     unsigned int  base_addr; // Pass to cos thread mod
  *     unsigned int  limit; // Ignore
  *     unsigned int  seg_32bit:1;

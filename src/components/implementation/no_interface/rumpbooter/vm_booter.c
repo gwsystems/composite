@@ -64,21 +64,26 @@ vm_init(void *unused)
 
 	switch(vmid) {
 	case RUMP_SUB:
+		printc("RUNNING RUMP_SUB\n");
 		rk_kernel_init(NULL);
 
 		assert(0);
 		break;
 	case TIMER_SUB:
+		printc("RUNNING TIMER_SUB\n");
 		timer_comp_init(NULL);
 
 		assert(0);
 		break;
 	case DL_APP:
+		printc("RUNNING DL_APP\n");
 		dlapp_init(NULL);
 
 		assert(0);
 		break;
-	case UDP_APP: break;
+	case UDP_APP:
+		printc("RUNNING UDP_APP\n");
+		break;
 	default: assert(0);
 	}
 
