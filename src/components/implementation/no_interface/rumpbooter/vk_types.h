@@ -18,14 +18,14 @@
 #define VM_FIXED_BUDGET_MS 5
 
 #define VM_CAPTBL_SELF_VK_SINV_BASE      BOOT_CAPTBL_FREE
-#define VM_CAPTBL_SELF_RK_SINV_BASE      round_up_to_pow2(VM_CAPTBL_SELF_VK_SINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
-#define VM_CAPTBL_SELF_TM_SINV_BASE      round_up_to_pow2(VM_CAPTBL_SELF_RK_SINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
 /* for now, one thread per app and one app per subsys */
-#define VM_CAPTBL_SELF_APPTHD_BASE       round_up_to_pow2(VM_CAPTBL_SELF_TM_SINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
+#define VM_CAPTBL_SELF_APPTHD_BASE       round_up_to_pow2(VM_CAPTBL_SELF_VK_SINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
 #define VM_CAPTBL_SELF_LAST_CAP          VM_CAPTBL_SELF_APPTHD_BASE + captbl_idsize(CAP_THD)
 #define VM_CAPTBL_FREE                   round_up_to_pow2(VM_CAPTBL_SELF_LAST_CAP, CAPMAX_ENTRY_SZ)
 
-#define APP_CAPTBL_SELF_LAST_CAP         VM_CAPTBL_SELF_TM_SINV_BASE + captbl_idsize(CAP_SINV)
+#define APP_CAPTBL_SELF_RK_SINV_BASE     round_up_to_pow2(VM_CAPTBL_SELF_VK_SINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
+#define APP_CAPTBL_SELF_TM_SINV_BASE     round_up_to_pow2(APP_CAPTBL_SELF_RK_SINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
+#define APP_CAPTBL_SELF_LAST_CAP         APP_CAPTBL_SELF_TM_SINV_BASE + captbl_idsize(CAP_SINV)
 #define APP_CAPTBL_FREE                  round_up_to_pow2(APP_CAPTBL_SELF_LAST_CAP, CAPMAX_ENTRY_SZ)
 
 enum vkernel_server_option {

@@ -14,17 +14,17 @@ static volatile cycles_t __last_hpet = 0;
 
 int timer_get_counter(void)
 {
-	return cos_sinv(VM_CAPTBL_SELF_TM_SINV_BASE, TIMER_GET_COUNTER, 0, 0, 0);
+	return cos_sinv(APP_CAPTBL_SELF_TM_SINV_BASE, TIMER_GET_COUNTER, 0, 0, 0);
 }
 
 int timer_upcounter_wait(u32_t curr_count)
 {
-	return cos_sinv(VM_CAPTBL_SELF_TM_SINV_BASE, TIMER_UPCOUNTER_WAIT, (int)curr_count, 0, 0);
+	return cos_sinv(APP_CAPTBL_SELF_TM_SINV_BASE, TIMER_UPCOUNTER_WAIT, (int)curr_count, 0, 0);
 }
 
 int timer_app_block(tcap_time_t timeout)
 {
-	return cos_sinv(VM_CAPTBL_SELF_TM_SINV_BASE, TIMER_APP_BLOCK, (int)timeout, 0, 0);
+	return cos_sinv(APP_CAPTBL_SELF_TM_SINV_BASE, TIMER_APP_BLOCK, (int)timeout, 0, 0);
 }
 
 void
@@ -33,10 +33,7 @@ hpet_handler(arcvcap_t rcv, void *data)
 	int first = 1;
 
         while (1) {
-		int rcvd = 0, pending = 0;
-
-                pending = cos_rcv(rcv, 0, &rcvd);
-		//assert(pending == 0); /* if there are more pending, that means, we missed as many deadlines. */
+                cos_rcv(rcv, 0, NULL);
 
 		/* ignoring first period */
 		if (first) {
@@ -46,7 +43,6 @@ hpet_handler(arcvcap_t rcv, void *data)
 
 		rdtscll(__last_hpet);
 		__hpet_counter ++;
-//		printc("[%u %llu]", __hpet_counter, __last_hpet);
         }
 }
 

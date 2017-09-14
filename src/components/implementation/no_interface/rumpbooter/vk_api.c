@@ -261,10 +261,10 @@ vk_vm_sinvs_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 
 		printc("\tSetting up sinv capability from user component to kernel component\n");
 
-		ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_RK_SINV_BASE, vk_cinfo, rk_info->sinv);
+		ret = cos_cap_cpy_at(vm_cinfo, APP_CAPTBL_SELF_RK_SINV_BASE, vk_cinfo, rk_info->sinv);
 		assert(ret == 0);
 
-		ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_TM_SINV_BASE, vk_cinfo, tm_info->sinv);
+		ret = cos_cap_cpy_at(vm_cinfo, APP_CAPTBL_SELF_TM_SINV_BASE, vk_cinfo, tm_info->sinv);
 		assert(ret == 0);
 
 		break;
