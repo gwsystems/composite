@@ -115,6 +115,8 @@ static void
 sl_timeout_init(microsec_t period)
 {
 	sl_timeout_period(period);
+	memset(&timeout_heap, 0, sizeof(struct timeout_heap));
+
 	heap_init(sl_timeout_heap(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
 }
 
@@ -436,8 +438,12 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 	if (is_sched) {
 		t = sl_thd_aep_alloc_intern(NULL, NULL, comp, SL_THD_PROPERTY_OWN_TCAP | SL_THD_PROPERTY_SEND);
 	} else {
-		struct cos_aep_info *aep = cos_sched_aep_get(comp);
+		struct cos_aep_info *saep = cos_sched_aep_get(comp), *aep = NULL;
 
+		aep = sl_thd_alloc_aep_backend();
+		assert(aep);
+
+		*aep = *saep;
 		tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 		assert(tid);
 		t   = sl_thd_alloc_init(tid, aep, 0, 0);
@@ -564,7 +570,7 @@ sl_sched_loop(void)
 			thdid_t        tid;
 			int            blocked, rcvd;
 			cycles_t       cycles;
-			tcap_time_t    timeout = 0, thd_timeout;
+			tcap_time_t    timeout = sl__globals()->timeout_next, thd_timeout;
 			struct sl_thd *t;
 
 			/*

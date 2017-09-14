@@ -493,7 +493,7 @@ notify_parent(struct thread *rcv_thd, int send)
 		 * If either the thread is not suspended on RCV or
 		 * if it already has pending events. There is no need to notify it's parent of this wakeup.
 		 */
-		if (!(curr_notif->state & THD_STATE_RCVING)) break;// || thd_rcvcap_pending(curr_notif)) break;
+		if (!(curr_notif->state & THD_STATE_RCVING)) break;
 
 		prev_notif = curr_notif;
 		curr_notif = arcv_thd_notif(prev_notif);
@@ -868,6 +868,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 
 		return 0;
 	}
+	__userregs_setretvals(regs, 0, 0, 0, 0);
 
 	next = notify_parent(thd, 0);
 	/* TODO: should we continue tcap-inheritence policy in this case? */

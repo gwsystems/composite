@@ -111,6 +111,7 @@ sl_mod_init(void)
 {
 	int i;
 
+	memset(threads, 0, sizeof(struct ps_list_head) * SL_FPRR_NPRIOS);
 	for (i = 0 ; i < SL_FPRR_NPRIOS ; i++) {
 		ps_list_head_init(&threads[i]);
 	}
