@@ -449,7 +449,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		}
 	}
 
-	assert(t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
+	assert(t->state == SL_THD_RUNNABLE);
 	sl_cs_exit();
 
 	/* TODO: handle `-EPERM` in cos_switch() to interrupt thread or cos_asnd to child comp with its own tcap here. */

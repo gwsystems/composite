@@ -128,11 +128,6 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	assert(t);
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
 
-	if (unlikely(t->state == SL_THD_WOKEN)) {
-		t->state = SL_THD_RUNNABLE;
-		return 1;
-	}
-
 	/*
 	 * If an AEP/a child COMP was blocked and an interrupt caused it to wakeup and run
 	 * but blocks itself before the scheduler could see the wakeup event.. Scheduler
@@ -247,10 +242,7 @@ sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 {
 	assert(t);
 
-	if (unlikely(t->state == SL_THD_RUNNABLE)) {
-		t->state = SL_THD_WOKEN;
-		return 1;
-	}
+	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1; 
 
 	/* TODO: for AEP threads, wakeup events from kernel could be level-triggered. */
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
@@ -584,8 +576,8 @@ sl_sched_loop(void)
 
 			t = sl_thd_lkup(tid);
 			assert(t);
-			/* don't report the idle thread */
-			if (unlikely(t == sl__globals()->idle_thd)) continue;
+			/* don't report the idle thread or a freed thread */
+			if (unlikely(t == sl__globals()->idle_thd || t->state == SL_THD_FREE)) continue;
 
 			/*
 			 * receiving scheduler notifications is not in critical section mainly for
@@ -601,12 +593,14 @@ sl_sched_loop(void)
 				sl_thd_state_t state = SL_THD_BLOCKED;
 				cycles_t abs_timeout = 0;
 
-				if (thd_timeout) {
-					state       = SL_THD_BLOCKED_TIMEOUT;
-					abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
+				if (likely(cycles)) {
+					if (thd_timeout) {
+						state       = SL_THD_BLOCKED_TIMEOUT;
+						abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
+					}
+					sl_thd_block_no_cs(t, state, abs_timeout);
 				}
-				sl_thd_block_no_cs(t, state, abs_timeout);
-			} else if (!cycles) { /* ignore if this is a budget expiry notification */
+			} else {
 				sl_thd_wakeup_no_cs(t);
 			}
 
