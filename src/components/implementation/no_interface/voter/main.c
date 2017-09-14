@@ -131,7 +131,7 @@ extern void rust_init();
 void
 cos_init()
 {
-	printc("Entering rust!\n");
+	printc("Entering USER LAND HAVE FUNNNNNNN! BE SAFE!!\n");
 	rust_init();
 	assert(0);
 }
