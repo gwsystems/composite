@@ -11,9 +11,11 @@ static u32_t dl_made, dl_missed, dl_total;
 static cycles_t next_deadline;
 
 void
-la_comp_call(char *data)
+log_info(char *data)
 {
 	PRINTC("%s", data);
+	cos_asnd(APP_CAPTBL_SELF_IOSND_BASE, 0);
+	printc("-");
 }
 
 void
@@ -47,7 +49,7 @@ dlapp_init(void *d)
 		if ((dl_total % 1000) == 0) {
 			memset(log, 0, DL_LOG_SIZE);
 			sprintf(log, "Deadlines T:%u, =:%u, x:%u\n", dl_total, dl_made, dl_missed);
-			la_comp_call(log);
+			log_info(log);
 		}
 
 		next_deadline += (cycs_per_usec * HPET_PERIOD_US);

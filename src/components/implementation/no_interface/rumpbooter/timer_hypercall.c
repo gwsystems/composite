@@ -6,6 +6,7 @@
 
 #include "vk_types.h"
 #include "timer_inv_api.h"
+#include "micro_booter.h"
 
 extern unsigned int cycs_per_usec;
 
@@ -53,6 +54,8 @@ timer_io_fn(void *d)
 
 	while (1) {
 		cos_rcv(rcv, 0, 0);
+
+		PRINTC("|");
 	}
 }
 

@@ -5,6 +5,7 @@
 #include "rumpcalls.h"
 #include "rk_inv_api.h"
 #include "vk_types.h"
+#include "micro_booter.h"
 
 /* These syncronous invocations involve calls to and from a RumpKernel */
 
@@ -15,6 +16,8 @@ rump_io_fn(void *d)
 
 	while (1) {
 		cos_rcv(rcv, 0, 0);
+
+		printc("+");
 	}
 }
 

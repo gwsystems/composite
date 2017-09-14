@@ -6,6 +6,8 @@
 #define HW_ISR_LINES 32
 #define HW_ISR_FIRST 1
 
+#define RK_IRQ_IO 15
+
 #define IRQ_DOM0_VM 22 /* DOM0's message line to VM's, in VM's */
 #define IRQ_VM1 21     /* VM1's message line to DOM0, so in DOM0 */
 #define IRQ_VM2 27     /* VM2's message line to DOM0, so in DOM0 */
