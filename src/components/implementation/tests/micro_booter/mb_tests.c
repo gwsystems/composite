@@ -872,8 +872,8 @@ test_run_mb(void)
 
 	test_captbl_expand();
 
-	test_wakeup();
-	test_preemption();
+//	test_wakeup();
+//	test_preemption();
 }
 
 static void
