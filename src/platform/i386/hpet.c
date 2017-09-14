@@ -195,17 +195,17 @@ periodic_handler(struct pt_regs *regs)
 	ack_irq(HW_PERIODIC);
 	if (periodicity_curr) {
 		count ++;
-		if (unlikely(count < __IGNORE_FIRST_X__)) {
-			if (count % 999 == 0) printk(".h=%lu.", count);
-			goto done;
-		}
+		//if (unlikely(count < __IGNORE_FIRST_X__)) {
+		//	if (count % 999 == 0) printk(".h=%lu.", count);
+		//	goto done;
+		//}
 		if (!first_hpet_period) {
 			rdtscll(first_hpet_period);
 		}
 	}
 
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
-done:
+//done:
 	HPET_INT_ENABLE(TIMER_PERIODIC);
 
 	return preempt;

@@ -493,7 +493,7 @@ notify_parent(struct thread *rcv_thd, int send)
 		 * If either the thread is not suspended on RCV or
 		 * if it already has pending events. There is no need to notify it's parent of this wakeup.
 		 */
-		if (!(curr_notif->state & THD_STATE_RCVING) || thd_rcvcap_pending(curr_notif)) break;
+		if (!(curr_notif->state & THD_STATE_RCVING)) break;// || thd_rcvcap_pending(curr_notif)) break;
 
 		prev_notif = curr_notif;
 		curr_notif = arcv_thd_notif(prev_notif);
