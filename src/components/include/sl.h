@@ -508,12 +508,12 @@ sl_cs_exit_switchto(struct sl_thd *to)
  * library-internal data-structures, and then the ability for the
  * scheduler thread to start its scheduling loop.
  *
- * sl_init();
+ * sl_init(period); <- using `period` for scheduler periodic timeouts 
  * sl_*;            <- use the sl_api here
  * ...
  * sl_sched_loop(); <- loop here
  */
-void sl_init(void);
+void sl_init(microsec_t period);
 void sl_sched_loop(void);
 
 #endif /* SL_H */

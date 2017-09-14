@@ -127,7 +127,7 @@ cos_init(void)
 	printc("Unit-test for the scheduling library (sl)\n");
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
-	sl_init();
+	sl_init(SL_MIN_PERIOD_US);
 
 	testing_thread = sl_thd_alloc(run_tests, NULL);
 	sl_thd_param_set(testing_thread, sched_param_pack(SCHEDP_PRIO, LOWEST_PRIORITY));

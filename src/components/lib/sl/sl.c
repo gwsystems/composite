@@ -20,8 +20,8 @@ struct sl_global sl_global_data;
 int
 sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok)
 {
-	struct sl_thd *t           = sl_thd_curr();
-	struct sl_global *g        = sl__globals();
+	struct sl_thd    *t = sl_thd_curr();
+	struct sl_global *g = sl__globals();
 	int ret;
 
 	/* recursive locks are not allowed */
@@ -41,8 +41,8 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 int
 sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched_tok_t tok)
 {
-	struct sl_thd    *t        = sl_thd_curr();
-	struct sl_global *g        = sl__globals();
+	struct sl_thd    *t = sl_thd_curr();
+	struct sl_global *g = sl__globals();
 
 	if (!ps_cas(&g->lock.u.v, cached->v, 0)) return 1;
 	/* let the scheduler thread decide which thread to run next, inheriting our budget/priority */
@@ -112,9 +112,12 @@ __sl_timeout_update_idx(void *e, int pos)
 { ((struct sl_thd *)e)->timeout_idx = pos; }
 
 static void
-sl_timeout_init(void)
+sl_timeout_init(microsec_t period)
 {
-	sl_timeout_period(SL_PERIOD_US);
+	assert(period >= SL_MIN_PERIOD_US);
+
+	sl_timeout_period(period);
+	memset(&timeout_heap, 0, sizeof(struct timeout_heap));
 	heap_init(sl_timeout_heap(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
 }
 
@@ -526,20 +529,21 @@ sl_idle(void *d)
 { while (1) ; }
 
 void
-sl_init(void)
+sl_init(microsec_t period)
 {
-	struct cos_defcompinfo *dci    = cos_defcompinfo_curr_get();
-	struct sl_global       *g      = sl__globals();
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct sl_global       *g   = sl__globals();
 
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
+	memset(g, 0, sizeof(struct sl_global));
 
 	g->cyc_per_usec    = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	g->lock.u.v        = 0;
 
 	sl_thd_init_backend();
 	sl_mod_init();
-	sl_timeout_init();
+	sl_timeout_init(period);
 
 	/* Create the scheduler thread for us. cos_sched_aep_get() is from global(static) memory */
 	g->sched_thd       = sl_thd_alloc_init(cos_thdid(), cos_sched_aep_get(dci), 0, 0);
