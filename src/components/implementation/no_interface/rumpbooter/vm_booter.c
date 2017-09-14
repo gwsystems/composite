@@ -10,10 +10,9 @@
 #include <sl.h>
 #include <sl_thd.h>
 
-extern void rump_booter_init(void);
+extern void rump_booter_init(void *);
 extern void timersub_init(void *);
 extern void dlapp_init(void *);
-extern void rk_kernel_init(void *);
 extern int main(void);
 struct cos_compinfo booter_info;
 /*
@@ -55,114 +54,51 @@ vm_init(void *unused)
 	cycles_t    cycles;
 	thdid_t     tid;
 	tcap_time_t timeout = 0, thd_timeout;
+	capid_t     cap_frontier = APP_CAPTBL_FREE;
+	void (*init_fn)(void *) = NULL;
 
 	vmid = vk_vm_id();
 	rumpns_vmid = vmid;
 	cos_spdid_set(vmid);
+
+	switch(vmid) {
+	case RUMP_SUB:
+		init_fn = rump_booter_init;
+		cap_frontier = SUB_CAPTBL_FREE;
+		break;
+	case TIMER_SUB:
+		init_fn = timersub_init;
+		cap_frontier = TM_CAPTBL_FREE;
+		break;
+	case DL_APP:
+		init_fn = dlapp_init;
+		break;
+	case UDP_APP:
+		break;
+	default: assert(0);
+	}
 
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE(vmid),
 			BOOT_CAPTBL_SELF_UNTYPED_PT);
 
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
 			BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(),
-			vmid < APP_START_ID ? VM_CAPTBL_FREE : APP_CAPTBL_FREE, &booter_info);
+			cap_frontier, &booter_info);
 
 	cos_defcompinfo_init_ext(BOOT_CAPTBL_SELF_INITTCAP_BASE, BOOT_CAPTBL_SELF_INITTHD_BASE,
 				 BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_PT,
 				 BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(),
-				 vmid < APP_START_ID ? VM_CAPTBL_FREE : APP_CAPTBL_FREE);
+				 cap_frontier);
 
 	PRINTC("RUNNING %s %d\n", vmid < APP_START_ID ? "VM" : "APP", vmid);
+	if (init_fn == NULL) main();
+	else                 init_fn(NULL);
 
-	switch(vmid) {
-	case RUMP_SUB:
-		rk_kernel_init(NULL);
+	PRINTC("ERROR!!!");
+//	PRINTC("Running shared memory tests\n");
+//	cos_shmem_test();
+//	PRINTC("Virtual-machine booter done.\n");
 
-		assert(0);
-		break;
-	case TIMER_SUB:
-		timersub_init(NULL);
-
-		assert(0);
-		break;
-	case DL_APP:
-		dlapp_init(NULL);
-
-		assert(0);
-		break;
-	case UDP_APP: break;
-	default: assert(0);
-	}
-
-	assert(vmid == UDP_APP);
-
-	PRINTC("\n******************* USERSPACE *******************\n");
-
-	PRINTC("Running shared memory tests\n");
-	cos_shmem_test();
-	PRINTC("Virtual-machine booter done.\n");
-
-	PRINTC("Running udp app\n");
-	main();
-	PRINTC("Done running udp app\n");
-
-	PRINTC("\n******************* USERSPACE DONE *******************\n");
-	/* Perhaps platform block from BMK? But this should not happen!! */
 	while (1) ;
 }
 
-void
-rk_kernel_init(void *unused)
-{
-	PRINTC("\n******************* KERNEL *******************\n");
-
-	rump_booter_init();
-
-	PRINTC("\n******************* KERNEL DONE *******************\n");
-
-	vk_vm_exit();
-}
-
-void
-dom0_io_fn(void *d)
-{
-	assert(0);
-//	int          line;
-//	unsigned int irqline;
-//	arcvcap_t    rcvcap = dom0_vio_rcvcap((unsigned int)d);
-//
-//	switch((int)d) {
-//		case 1:
-//			line = 13;
-//			irqline = IRQ_VM1;
-//			break;
-//		case 2:
-//			line = 15;
-//			irqline = IRQ_VM2;
-//			break;
-//		default: assert(0);
-//	}
-//
-//	while (1) {
-//		cos_rcv(rcvcap, 0, NULL);
-//		intr_start(irqline);
-//		bmk_isr(line);
-//		cos_vio_tcap_set((int)d);
-//		intr_end();
-//	}
-}
-
-void
-vm_io_fn(void *id)
-{
-	assert(0);
-//	arcvcap_t rcvcap = VM_CAPTBL_SELF_IORCV_BASE;
-//
-//	while (1) {
-//		cos_rcv(rcvcap, 0, NULL);
-//		intr_start(IRQ_DOM0_VM);
-//		bmk_isr(12);
-//		intr_end();
-//
-//	}
-}

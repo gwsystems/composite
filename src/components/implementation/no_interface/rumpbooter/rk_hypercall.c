@@ -8,6 +8,16 @@
 
 /* These syncronous invocations involve calls to and from a RumpKernel */
 
+void
+rump_io_fn(void *d)
+{
+	arcvcap_t rcv = SUB_CAPTBL_SELF_IORCV_BASE;
+
+	while (1) {
+		cos_rcv(rcv, 0, 0);
+	}
+}
+
 int
 test_entry(int arg1, int arg2, int arg3, int arg4)
 {

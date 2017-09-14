@@ -46,20 +46,15 @@ hpet_handler(arcvcap_t rcv, void *data)
         }
 }
 
-//void
-//timer_serv_thd_fn(void *data)
-//{
-//        /* TODO: vkernel cap offsets */
-//        arcvcap_t rcv = 0;
-//        asndcap_t snd = 0;
-//
-//        while (1) {
-//                cos_rcv(rcv, 0, 0);
-//
-//                /* TODO: write to ring buffer and send */
-//                cos_asnd(snd, 0);
-//        }
-//}
+void
+timer_io_fn(void *d)
+{
+	arcvcap_t rcv = SUB_CAPTBL_SELF_IORCV_BASE;
+
+	while (1) {
+		cos_rcv(rcv, 0, 0);
+	}
+}
 
 int
 timer_inv_entry(int a, int b, int c, int d)

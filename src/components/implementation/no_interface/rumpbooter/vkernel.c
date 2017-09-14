@@ -19,15 +19,9 @@ extern void    vm_init(void *d);
 extern void   *__inv_vkernel_hypercall(int a, int b, int c, int d);
 unsigned int cycs_per_usec;
 
-/* Init thread for userspace vm, needed to register within RK */
-thdcap_t vm_main_thd;
-
 struct vms_info      vmx_info[VM_COUNT];
-struct dom0_io_info  dom0ioinfo;
-struct vm_io_info    vmioinfo[VM_COUNT - 1];
 struct vkernel_info  vk_info;
 struct cos_compinfo *vk_cinfo;
-unsigned int         ready_vms = VM_COUNT;
 
 void
 vk_terminate(void *d)
@@ -80,6 +74,9 @@ cos_init(void)
 
 	printc("vkernel: START\n");
 	assert(VM_COUNT >= 2);
+
+	memset(&vk_info, 0, sizeof(struct vkernel_info));
+	memset(&vmx_info, 0, sizeof(struct vms_info) * VM_COUNT);
 
 	vk_cinfo = ci;
 	cos_meminfo_init(&ci->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
@@ -137,14 +134,10 @@ cos_init(void)
 			/* TODO Look into shared memory ringbuffer, replace with my shared memory implementation */
 			//printc("\tAllocating shared-memory (size: %lu)\n", (unsigned long)VM_SHM_ALL_SZ);
 			//vk_vm_shmem_alloc(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_ALL_SZ);
-
-			vm_info->dom0io = &dom0ioinfo;
 		} else {
 			/* TODO see above */
 			//printc("\tMapping in shared-memory (size: %lu)\n", (unsigned long)VM_SHM_SZ);
 			//vk_vm_shmem_map(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_SZ);
-
-			vm_info->vmio = &vmioinfo[id - 1];
 		}
 
 		vk_vm_sched_init(vm_info);
@@ -153,6 +146,12 @@ cos_init(void)
 		if (id == VM_COUNT - 1) {
 			vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
 			assert(vm_range > 0);
+
+			/*
+			 * At this point, all VMs are initialized except their virtual memory!
+			 * Right time to create and copy IO caps required by each VM!
+			 */
+			vk_iocomm_init();
 
 			/*
 			 * Create and copy booter comp virtual memory to each VM
