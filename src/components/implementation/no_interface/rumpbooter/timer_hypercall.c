@@ -38,6 +38,7 @@ hpet_handler(arcvcap_t rcv, void *data)
 
 		rdtscll(__last_hpet);
 		__hpet_counter ++;
+//		printc("[%u %llu]", __hpet_counter, __last_hpet);
         }
 }
 
