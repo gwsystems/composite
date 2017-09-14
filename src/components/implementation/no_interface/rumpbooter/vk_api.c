@@ -96,7 +96,6 @@ vk_vm_sched_init(struct vms_info *vminfo)
 	vminfo->inithd = sl_thd_comp_init(vmdci, 1);
 	assert(vminfo->inithd);
 
-//	if (vminfo->id != TIMER_SUB) return;
 	if (vminfo->id >= APP_START_ID) return;
 
 	sl_thd_param_set(vminfo->inithd, spsameprio.v);

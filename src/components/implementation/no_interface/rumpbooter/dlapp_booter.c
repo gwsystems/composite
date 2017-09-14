@@ -28,7 +28,11 @@ dlapp_init(void *d)
 
 		timer_upcounter_wait(dl_total);
 
-		if (!next_deadline) next_deadline = hpet_first_period() + (cycs_per_usec * HPET_PERIOD_US);
+		if (!next_deadline) {
+			next_deadline  = hpet_first_period() + (cycs_per_usec * HPET_PERIOD_US);
+			/* ignoring first period */
+			next_deadline += (cycs_per_usec * HPET_PERIOD_US);
+		}
 
 		//assert(dl_total + 1 == rcvd_total);
 
@@ -40,9 +44,11 @@ dlapp_init(void *d)
 		if (now > next_deadline) dl_missed ++;
 		else                dl_made ++;
 
-		memset(log, 0, DL_LOG_SIZE);
-		sprintf(log, "Deadlines T:%u, =:%u, x:%u\n", dl_total, dl_made, dl_missed);
-		la_comp_call(log);
+		if ((dl_total % 1000) == 0) {
+			memset(log, 0, DL_LOG_SIZE);
+			sprintf(log, "Deadlines T:%u, =:%u, x:%u\n", dl_total, dl_made, dl_missed);
+			la_comp_call(log);
+		}
 
 		next_deadline += (cycs_per_usec * HPET_PERIOD_US);
 	}

@@ -30,11 +30,19 @@ int timer_app_block(tcap_time_t timeout)
 void
 hpet_handler(arcvcap_t rcv, void *data)
 {
+	int first = 1;
+
         while (1) {
 		int rcvd = 0, pending = 0;
 
                 pending = cos_rcv(rcv, 0, &rcvd);
-		assert(pending == 0); /* if there are more pending, that means, we missed as many deadlines. */
+		//assert(pending == 0); /* if there are more pending, that means, we missed as many deadlines. */
+
+		/* ignoring first period */
+		if (first) {
+			first = 0;
+			continue;
+		}
 
 		rdtscll(__last_hpet);
 		__hpet_counter ++;

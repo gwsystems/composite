@@ -53,6 +53,7 @@ __thds_init(void)
 	/* attach to hpet periodic timer */
 	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, sl_thd_rcvcap(local_thds[0]), HPET_PERIOD_US);
 	hpet_first_period();
+	printc("Done timer sub init..\n");
 }
 
 void
