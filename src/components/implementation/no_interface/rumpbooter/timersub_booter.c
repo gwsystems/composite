@@ -5,6 +5,7 @@
 #include <sl_thd.h>
 #include <llprint.h>
 
+#include "micro_booter.h"
 #include "cos2rk_types.h"
 #include "timer_inv_api.h"
 
@@ -35,35 +36,35 @@ __thds_init(void)
 	local_thds[0] = sl_thd_aep_alloc(hpet_handler, NULL, 0);
 	assert(local_thds[0]);
 	sl_thd_param_set(local_thds[0], spprio.v);
-	printc("Thd:%u\n", local_thds[0]->thdid);
 
 	/* just set what's required for sl! */
 	child_ci->captbl_cap = BOOT_CAPTBL_SELF_CT;
 	child_aep->thd       = VM_CAPTBL_SELF_APPTHD_BASE;	
-	child_aep->rcv       = 0;
-	child_aep->tc        = 0; 
-	local_thds[1] = sl_thd_comp_init(&child_defcinfo, 0);
+	child_aep->rcv       = BOOT_CAPTBL_SELF_INITRCV_BASE;
+	child_aep->tc        = BOOT_CAPTBL_SELF_INITTCAP_BASE; 
+
+	local_thds[1]  = sl_thd_comp_init(&child_defcinfo, 0);
 	assert(local_thds[1]);
 	spprio.c.value = HA_APP_THD_PRIO;
 	sl_thd_param_set(local_thds[1], spprio.v);
-	printc("Thd:%u\n", local_thds[1]->thdid);
 	
 	/* TODO: init the server thread */
 
 	/* attach to hpet periodic timer */
 	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, sl_thd_rcvcap(local_thds[0]), HPET_PERIOD_US);
+	hpet_first_period();
 }
 
 void
 timersub_init(void *d)
 {
 	printc("Timer Subsystem [%u] STARTED\n", cos_thdid());
-	sl_init();
-	printc("HERE");
+	sl_init(CHILD_PERIOD_US);
 
 	__thds_init();
 
 	sl_sched_loop();
+	printc("Timer Subsystem Scheduling Error!!\n");
 
 	assert(0);
 }

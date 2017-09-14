@@ -112,9 +112,9 @@ __sl_timeout_update_idx(void *e, int pos)
 { ((struct sl_thd *)e)->timeout_idx = pos; }
 
 static void
-sl_timeout_init(void)
+sl_timeout_init(microsec_t period)
 {
-	sl_timeout_period(SL_PERIOD_US);
+	sl_timeout_period(period);
 	heap_init(sl_timeout_heap(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
 }
 
@@ -522,7 +522,7 @@ sl_idle(void *d)
 { while (1) ; }
 
 void
-sl_init(void)
+sl_init(microsec_t period)
 {
 	struct cos_defcompinfo *dci    = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *schaep = cos_sched_aep_get(dci);
@@ -537,7 +537,7 @@ sl_init(void)
 
 	sl_thd_init_backend();
 	sl_mod_init();
-	sl_timeout_init();
+	sl_timeout_init(period);
 
 	/* Create the scheduler thread for us */
 	g->sched_thd       = sl_thd_alloc_init(cos_thdid(), schaep, 0, 0);

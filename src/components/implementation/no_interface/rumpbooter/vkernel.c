@@ -77,7 +77,7 @@ cos_init(void)
 
 	spinlib_calib();
 
-	sl_init();
+	sl_init(PARENT_PERIOD_US);
 
 	for (id = 0 ; id < VM_COUNT ; id ++) {
 		struct cos_compinfo *vm_cinfo = cos_compinfo_get(&(vmx_info[id].dci));
