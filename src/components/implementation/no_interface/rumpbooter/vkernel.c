@@ -35,6 +35,33 @@ vk_terminate(void *d)
 	SPIN();
 }
 
+#define TEST_SPIN_N 5
+static void
+test_spinlib(void)
+{
+	int i;
+	cycles_t start, end;
+	u64_t usecs[TEST_SPIN_N] = { 1000, 10000, 5000, 4000, 8500 };
+	u64_t cycs_usecs[TEST_SPIN_N] = { 1000, 10000, 5000, 4000, 8500 };
+
+	for (i = 0 ; i < TEST_SPIN_N ; i++) {
+		rdtscll(start);
+		spinlib_usecs(usecs[i]);
+		rdtscll(end);
+
+		printc("%d = Spun (%llu us): %llu cycs, %llu usecs\n", i, usecs[i], end-start, (end-start)/cycs_per_usec);
+	}
+
+	for (i = 0 ; i < TEST_SPIN_N ; i++) {
+		rdtscll(start);
+		spinlib_cycles((cycs_usecs[i] * cycs_per_usec));
+		rdtscll(end);
+
+		printc("%d = Spun (%llu cycs): %llu cycs, %llu usecs\n", i, cycs_usecs[i], end-start, (end-start)/cycs_per_usec);
+	}
+
+}
+
 void
 cos_init(void)
 {
@@ -76,6 +103,7 @@ cos_init(void)
 	printc("\t%d cycles per microsecond\n", cycs_per_usec);
 
 	spinlib_calib();
+	test_spinlib();
 
 	sl_init(PARENT_PERIOD_US);
 

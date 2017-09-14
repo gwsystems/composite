@@ -4,7 +4,7 @@
 
 #include "timer_inv_api.h"
 
-#define DL_SPIN_US (2*1000) //2ms
+#define DL_SPIN_US (4*1000) //4ms
 #define DL_LOG_SIZE 128
 extern int vmid;
 static u32_t dl_made, dl_missed, dl_total;

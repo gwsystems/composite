@@ -85,22 +85,29 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 void
 vk_vm_sched_init(struct vms_info *vminfo)
 {
-	struct cos_compinfo *vk_cinfo       = cos_compinfo_get(cos_defcompinfo_curr_get());
-	struct cos_defcompinfo *vmdci       = &(vminfo->dci);
-	struct cos_compinfo *vmcinfo        = cos_compinfo_get(vmdci);
-	union sched_param_union spsameprio  = {.c = {.type = SCHEDP_PRIO, .value = (vminfo->id + 1)}};
-	union sched_param_union spsameC     = {.c = {.type = SCHEDP_BUDGET, .value = (VM_FIXED_BUDGET_MS * 1000)}};
-	union sched_param_union spsameT     = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
-	int ret;
+	struct cos_compinfo *vk_cinfo  = cos_compinfo_get(cos_defcompinfo_curr_get());
+	struct cos_defcompinfo *vmdci  = &(vminfo->dci);
+	struct cos_compinfo *vmcinfo   = cos_compinfo_get(vmdci);
+	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = 0}};
+	union sched_param_union spC    = {.c = {.type = SCHEDP_BUDGET, .value = (VM_FIXED_BUDGET_MS * 1000)}};
+	union sched_param_union spT    = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
+	int ret, prio;
 
-	vminfo->inithd = sl_thd_comp_init(vmdci, 1);
+	vminfo->inithd = sl_thd_comp_init(vmdci, vminfo->id < APP_START_ID ? 1 : 0);
 	assert(vminfo->inithd);
 
 	if (vminfo->id >= APP_START_ID) return;
 
-	sl_thd_param_set(vminfo->inithd, spsameprio.v);
-	sl_thd_param_set(vminfo->inithd, spsameC.v);
-	sl_thd_param_set(vminfo->inithd, spsameT.v);
+	switch (vminfo->id) {
+	case TIMER_SUB: prio = PRIO_HIGH; break;
+	case RUMP_SUB:  prio = PRIO_MID; break;
+	default: assert(0);
+	}
+	spprio.c.value = prio;
+
+	sl_thd_param_set(vminfo->inithd, spprio.v);
+	sl_thd_param_set(vminfo->inithd, spC.v);
+	sl_thd_param_set(vminfo->inithd, spT.v);
 
 	printc("\tsl_thd 0x%x created for thread = cap:%x, id=%u\n", (unsigned int)(vminfo->inithd),
 	       (unsigned int)sl_thd_thdcap(vminfo->inithd), (vminfo->inithd)->thdid);
