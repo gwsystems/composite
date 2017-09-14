@@ -25,13 +25,13 @@ typedef enum {
 } sl_thd_property_t;
 
 struct sl_thd {
-	sl_thd_state_t      state;
-	sl_thd_property_t   properties;
-	thdid_t             thdid;
-	struct cos_aep_info aepinfo;
-	asndcap_t           sndcap;
-	tcap_prio_t         prio;
-	struct sl_thd      *dependency;
+	sl_thd_state_t       state;
+	sl_thd_property_t    properties;
+	thdid_t              thdid;
+	struct cos_aep_info *aepinfo;
+	asndcap_t            sndcap;
+	tcap_prio_t          prio;
+	struct sl_thd       *dependency;
 
 	tcap_res_t budget;        /* budget if this thread has it's own tcap */
 	cycles_t   last_replenish;
@@ -44,7 +44,7 @@ struct sl_thd {
 
 static inline struct cos_aep_info *
 sl_thd_aepinfo(struct sl_thd *t)
-{ return &(t->aepinfo); }
+{ return (t->aepinfo); }
 
 static inline thdcap_t
 sl_thd_thdcap(struct sl_thd *t)

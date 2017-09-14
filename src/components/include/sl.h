@@ -520,7 +520,7 @@ sl_cs_exit_switchto(struct sl_thd *to)
  * ...
  * sl_sched_loop(); <- loop here
  */
-void sl_init(void);
+void sl_init(microsec_t);
 void sl_sched_loop(void);
 
 #endif /* SL_H */

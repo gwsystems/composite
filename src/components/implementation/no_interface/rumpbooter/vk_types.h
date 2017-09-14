@@ -2,17 +2,17 @@
 #define VK_TYPES_H
 
 #define VM_COUNT 4                /* total virtual machine count */
-#define VM_APP_COUNT 2            /* App virtual machine count */
 #define APP_START_ID 2
 #define VM_UNTYPED_SIZE(vmid) (vmid == RUMP_SUB ? (1 << 27) : (1<<25))/* untyped memory per vm = 128MB */
-#define USERSPACE_VM 1
-#define KERNEL_VM 0
 
 #define VK_VM_SHM_BASE 0x80000000 /* shared memory region */
 #define VM_SHM_SZ (1 << 20)       /* Shared memory mapping for each vm = 4MB */
 #define VM_SHM_ALL_SZ ((VM_COUNT > 0) ? (VM_COUNT * VM_SHM_SZ) : VM_SHM_SZ)
 
 #define HPET_PERIOD_US (10 * 1000)
+
+#define PARENT_PERIOD_US (5 * 1000)
+#define CHILD_PERIOD_US  (1000)
 
 #define VM_FIXED_PERIOD_MS 10
 #define VM_FIXED_BUDGET_MS 5
@@ -53,6 +53,7 @@ enum rk_inv_ops {
 
 enum timer_inv_ops {
 	TIMER_APP_BLOCK = 0,
+	TIMER_UPCOUNTER_WAIT,
 	TIMER_GET_COUNTER,
 };
 

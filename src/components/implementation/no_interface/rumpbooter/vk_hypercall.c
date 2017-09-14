@@ -56,12 +56,11 @@ vkernel_find_vm(thdid_t tid)
 {
 	int i;
 
-	/* HACK FIX ME WHEN TIME_SUB COMES BACK IN */
-	/* Will leave in the VM_APP_COUNT, but remove the - 1 */
-	for (i = 0 ; i < VM_COUNT - VM_APP_COUNT - 1; i ++) {
-		if ((vmx_info[i].inithd)->thdid == tid) break;
+
+	for (i = 0 ; i < VM_COUNT ; i ++) {
+		if (vmx_info[i].inithd && (vmx_info[i].inithd)->thdid == tid) break;
 	}
-	assert (i < (VM_COUNT - VM_APP_COUNT - 1));
+	assert (i < VM_COUNT);
 
 	return i;
 }

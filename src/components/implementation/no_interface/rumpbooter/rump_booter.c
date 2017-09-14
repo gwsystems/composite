@@ -96,9 +96,9 @@ rump_booter_init(void)
 #define JSON_NGINX_QEMU 3
 
 /* json config string fixed at compile-time */
-//#define JSON_CONF_TYPE JSON_UDPSERV_BAREMETAL
+#define JSON_CONF_TYPE JSON_UDPSERV_BAREMETAL
 //#define JSON_CONF_TYPE JSON_PAWS_BAREMETAL
-#define JSON_CONF_TYPE JSON_PAWS_QEMU
+//#define JSON_CONF_TYPE JSON_PAWS_QEMU
 
 	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
 	assert(vmid == 0);

@@ -5,10 +5,13 @@
 #include "cos_sync.h"
 #include "rumpcalls.h"
 #include "rk_inv_api.h"
+#include <cos_kernel_api.h>
+#include <cos_defkernel_api.h>
 #include <sl.h>
+#include <sl_thd.h>
 
 extern void rump_booter_init(void);
-extern void timer_comp_init(void *);
+extern void timersub_init(void *);
 extern void dlapp_init(void *);
 extern void rk_kernel_init(void *);
 extern int main(void);
@@ -35,10 +38,12 @@ cycles_t
 hpet_first_period(void)
 {
 	int ret;
-	cycles_t start_period = 0;
+	static cycles_t start_period = 0;
 
-	while ((ret = cos_introspect64(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_GET_FIRST_HPET, &start_period)) == -EAGAIN) ;
-	if (ret) assert(0);
+	if (!start_period) {
+		while ((ret = cos_introspect64(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_GET_FIRST_HPET, &start_period)) == -EAGAIN) ;
+		if (ret) assert(0);
+	}
 
 	return start_period;
 }
@@ -62,6 +67,13 @@ vm_init(void *unused)
 			BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(),
 			vmid < APP_START_ID ? VM_CAPTBL_FREE : APP_CAPTBL_FREE, &booter_info);
 
+	cos_defcompinfo_init_ext(BOOT_CAPTBL_SELF_INITTCAP_BASE, BOOT_CAPTBL_SELF_INITTHD_BASE,
+				 BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_PT,
+				 BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(),
+				 vmid < APP_START_ID ? VM_CAPTBL_FREE : APP_CAPTBL_FREE);
+
+	PRINTC("RUNNING %s %d\n", vmid < APP_START_ID ? "VM" : "APP", vmid);
+
 	switch(vmid) {
 	case RUMP_SUB:
 		printc("RUNNING RUMP_SUB\n");
@@ -71,7 +83,7 @@ vm_init(void *unused)
 		break;
 	case TIMER_SUB:
 		printc("RUNNING TIMER_SUB\n");
-		timer_comp_init(NULL);
+		timersub_init(NULL);
 
 		assert(0);
 		break;

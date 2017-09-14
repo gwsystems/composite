@@ -66,7 +66,7 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_COMP, vk_cinfo, vmcinfo->comp_cap);
 	assert(ret == 0);
 
-	printc("\tInit thread= cap:%x\n", (unsigned int)initaep->thd);
+	printc("\tInit thread= cap:%x, thdid:%u\n", (unsigned int)initaep->thd, (thdid_t)cos_introspect(vk_cinfo, initaep->thd, THD_GET_TID));
 
 	/*
 	 * TODO: Multi-core support to create INITIAL Capabilities per core
@@ -93,11 +93,10 @@ vk_vm_sched_init(struct vms_info *vminfo)
 	union sched_param_union spsameT     = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
 	int ret;
 
-	//if (vminfo->id >= APP_START_ID) return;
-	if (vminfo->id != RUMP_SUB) return;
-
 	vminfo->inithd = sl_thd_comp_init(vmdci, 1);
 	assert(vminfo->inithd);
+
+	if (vminfo->id >= APP_START_ID) return;
 
 	sl_thd_param_set(vminfo->inithd, spsameprio.v);
 	sl_thd_param_set(vminfo->inithd, spsameC.v);
@@ -232,14 +231,14 @@ vk_vm_sinvs_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	assert(ret == 0);
 
 	switch(vminfo->id) {
-	case RUMP_SUB: /* kernel component - do nothing for now */ break;
+	case RUMP_SUB:
 	{
 		vminfo->sinv = cos_sinv_alloc(vk_cinfo, vm_cinfo->comp_cap, (vaddr_t)__inv_rk_inv_entry);
 		assert(vminfo->sinv);
 
 		break;
 	}
-	case TIMER_SUB: /* timer subsys. do nothing for now*/ break;
+	case TIMER_SUB:
 	{
 		vminfo->sinv = cos_sinv_alloc(vk_cinfo, vm_cinfo->comp_cap, (vaddr_t)__inv_timer_inv_entry);
 		assert(vminfo->sinv);
