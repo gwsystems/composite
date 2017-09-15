@@ -5,8 +5,21 @@
 #include "rumpcalls.h"
 #include "rk_inv_api.h"
 #include "vk_types.h"
+#include "micro_booter.h"
 
 /* These syncronous invocations involve calls to and from a RumpKernel */
+
+void
+rump_io_fn(void *d)
+{
+	arcvcap_t rcv = SUB_CAPTBL_SELF_IORCV_BASE;
+
+	while (1) {
+		cos_rcv(rcv, 0, 0);
+
+		printc("+");
+	}
+}
 
 int
 test_entry(int arg1, int arg2, int arg3, int arg4)
@@ -30,7 +43,7 @@ test_fs(int arg1, int arg2, int arg3, int arg4)
 
         /* FS Test */
         printc("Running paws test: VM%d\n", cos_spdid_get());
-        paws_tests();
+//        paws_tests();
 
         printc("*** KERNEL COMPONENT RETURNING ***\n\n");
 

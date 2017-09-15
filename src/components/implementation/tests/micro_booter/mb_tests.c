@@ -808,7 +808,6 @@ long long midinv_cycles = 0LL;
 int
 test_serverfn(int a, int b, int c)
 {
-	printc("test_serverfn\n");
 	rdtscll(midinv_cycles);
 	return 0xDEADBEEF;
 }

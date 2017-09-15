@@ -412,6 +412,32 @@ sl_thd_alloc(cos_thd_fn_t fn, void *data)
 }
 
 struct sl_thd *
+sl_thd_init(struct cos_aep_info *a, int own_tcap)
+{
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = &dci->ci;
+	struct sl_thd          *t   = NULL;
+	struct cos_aep_info    *aep = NULL;
+	thdid_t tid;
+
+	sl_cs_enter();
+
+	aep = sl_thd_alloc_aep_backend();
+	if (!aep) goto done;
+
+	*aep = *a;
+	tid = cos_introspect(ci, a->thd, THD_GET_TID);
+	assert(tid);
+	t = sl_thd_alloc_init(tid, aep, 0, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0);
+	sl_mod_thd_create(sl_mod_thd_policy_get(t));
+
+done:
+	sl_cs_exit();
+
+	return t;
+}
+
+struct sl_thd *
 sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap)
 {
 	struct sl_thd *t;

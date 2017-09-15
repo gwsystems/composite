@@ -6,8 +6,8 @@ extern int __inv_rk_inv_entry(int r1, int r2, int r3, int r4);
 extern int __inv_timer_inv_entry(int r1, int r2, int r3, int r4);
 /* extern functions */
 extern void vm_init(void *);
-extern void dom0_io_fn(void *);
-extern void vm_io_fn(void *);
+extern void rump_io_fn(void *);
+extern void timer_io_fn(void *);
 
 static struct cos_aep_info *
 vm_schedaep_get(struct vms_info *vminfo)
@@ -85,70 +85,32 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 void
 vk_vm_sched_init(struct vms_info *vminfo)
 {
-	struct cos_compinfo *vk_cinfo       = cos_compinfo_get(cos_defcompinfo_curr_get());
-	struct cos_defcompinfo *vmdci       = &(vminfo->dci);
-	struct cos_compinfo *vmcinfo        = cos_compinfo_get(vmdci);
-	union sched_param_union spsameprio  = {.c = {.type = SCHEDP_PRIO, .value = (vminfo->id + 1)}};
-	union sched_param_union spsameC     = {.c = {.type = SCHEDP_BUDGET, .value = (VM_FIXED_BUDGET_MS * 1000)}};
-	union sched_param_union spsameT     = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
-	int ret;
+	struct cos_compinfo *vk_cinfo  = cos_compinfo_get(cos_defcompinfo_curr_get());
+	struct cos_defcompinfo *vmdci  = &(vminfo->dci);
+	struct cos_compinfo *vmcinfo   = cos_compinfo_get(vmdci);
+	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = 0}};
+	union sched_param_union spC    = {.c = {.type = SCHEDP_BUDGET, .value = (VM_FIXED_BUDGET_MS * 1000)}};
+	union sched_param_union spT    = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
+	int ret, prio;
 
-	vminfo->inithd = sl_thd_comp_init(vmdci, 1);
+	vminfo->inithd = sl_thd_comp_init(vmdci, vminfo->id < APP_START_ID ? 1 : 0);
 	assert(vminfo->inithd);
 
 	if (vminfo->id >= APP_START_ID) return;
 
-	sl_thd_param_set(vminfo->inithd, spsameprio.v);
-	sl_thd_param_set(vminfo->inithd, spsameC.v);
-	sl_thd_param_set(vminfo->inithd, spsameT.v);
+	switch (vminfo->id) {
+	case TIMER_SUB: prio = PRIO_HIGH; break;
+	case RUMP_SUB:  prio = PRIO_MID; break;
+	default: assert(0);
+	}
+	spprio.c.value = prio;
+
+	sl_thd_param_set(vminfo->inithd, spprio.v);
+	sl_thd_param_set(vminfo->inithd, spC.v);
+	sl_thd_param_set(vminfo->inithd, spT.v);
 
 	printc("\tsl_thd 0x%x created for thread = cap:%x, id=%u\n", (unsigned int)(vminfo->inithd),
 	       (unsigned int)sl_thd_thdcap(vminfo->inithd), (vminfo->inithd)->thdid);
-}
-
-void
-vk_vm_io_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkernel_info *vkinfo)
-{
-//	struct cos_compinfo *vmcinfo = cos_compinfo_get(&vminfo->dci);
-//	struct cos_compinfo *d0cinfo = cos_compinfo_get(&dom0info->dci);
-//	struct cos_aep_info *d0aep   = vm_schedaep_get(dom0info);
-//	struct cos_aep_info *vmaep   = vm_schedaep_get(vminfo);
-//	struct cos_compinfo *vkcinfo = cos_compinfo_get(cos_defcompinfo_curr_get());
-//	struct dom0_io_info *d0io    = dom0info->dom0io;
-//	struct vm_io_info *  vio     = vminfo->vmio;
-//	int                  vmidx   = vminfo->id - 1;
-//	int                  ret;
-//
-//	assert(vminfo && dom0info && vkinfo);
-//	assert(vminfo->id && !dom0info->id);
-//	assert(vmidx >= 0 && vmidx <= VM_COUNT - 1);
-//
-//	d0io->iothds[vmidx] = cos_thd_alloc(vkcinfo, d0cinfo->comp_cap, dom0_io_fn, (void *)vminfo->id);
-//	assert(d0io->iothds[vmidx]);
-//	d0io->iorcvs[vmidx] = cos_arcv_alloc(vkcinfo, d0io->iothds[vmidx], d0aep->tc, vkcinfo->comp_cap, d0aep->rcv);
-//	assert(d0io->iorcvs[vmidx]);
-//	ret = cos_cap_cpy_at(d0cinfo, dom0_vio_thdcap(vminfo->id), vkcinfo, d0io->iothds[vmidx]);
-//	assert(ret == 0);
-//	ret = cos_cap_cpy_at(d0cinfo, dom0_vio_rcvcap(vminfo->id), vkcinfo, d0io->iorcvs[vmidx]);
-//	assert(ret == 0);
-//
-//	vio->iothd = cos_thd_alloc(vkcinfo, vmcinfo->comp_cap, vm_io_fn, (void *)vminfo->id);
-//	assert(vio->iothd);
-//	vio->iorcv = cos_arcv_alloc(vkcinfo, vio->iothd, vmaep->tc, vkcinfo->comp_cap, vmaep->rcv);
-//	assert(vio->iorcv);
-//	ret = cos_cap_cpy_at(vmcinfo, VM_CAPTBL_SELF_IOTHD_BASE, vkcinfo, vio->iothd);
-//	assert(ret == 0);
-//	ret = cos_cap_cpy_at(vmcinfo, VM_CAPTBL_SELF_IORCV_BASE, vkcinfo, vio->iorcv);
-//	assert(ret == 0);
-//
-//	d0io->ioasnds[vmidx] = cos_asnd_alloc(vkcinfo, vio->iorcv, vkcinfo->captbl_cap);
-//	assert(d0io->ioasnds[vmidx]);
-//	vio->ioasnd = cos_asnd_alloc(vkcinfo, d0io->iorcvs[vmidx], vkcinfo->captbl_cap);
-//	assert(vio->ioasnd);
-//	ret = cos_cap_cpy_at(d0cinfo, dom0_vio_asndcap(vminfo->id), vkcinfo, d0io->ioasnds[vmidx]);
-//	assert(ret == 0);
-//	ret = cos_cap_cpy_at(vmcinfo, VM_CAPTBL_SELF_IOASND_BASE, vkcinfo, vio->ioasnd);
-//	assert(ret == 0);
 }
 
 void
@@ -254,10 +216,10 @@ vk_vm_sinvs_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 
 		printc("\tSetting up sinv capability from user component to kernel component\n");
 
-		ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_RK_SINV_BASE, vk_cinfo, rk_info->sinv);
+		ret = cos_cap_cpy_at(vm_cinfo, APP_CAPTBL_SELF_RK_SINV_BASE, vk_cinfo, rk_info->sinv);
 		assert(ret == 0);
 
-		ret = cos_cap_cpy_at(vm_cinfo, VM_CAPTBL_SELF_TM_SINV_BASE, vk_cinfo, tm_info->sinv);
+		ret = cos_cap_cpy_at(vm_cinfo, APP_CAPTBL_SELF_TM_SINV_BASE, vk_cinfo, tm_info->sinv);
 		assert(ret == 0);
 
 		break;
@@ -266,29 +228,63 @@ vk_vm_sinvs_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	}
 }
 
-//thdcap_t
-//dom0_vio_thdcap(unsigned int vmid)
-//{
-//	return DOM0_CAPTBL_SELF_IOTHD_SET_BASE + (captbl_idsize(CAP_THD) * (vmid - 1));
-//}
-//
-//tcap_t
-//dom0_vio_tcap(unsigned int vmid)
-//{
-//	return BOOT_CAPTBL_SELF_INITTCAP_BASE;
-//}
-//
-//arcvcap_t
-//dom0_vio_rcvcap(unsigned int vmid)
-//{
-//	return DOM0_CAPTBL_SELF_IORCV_SET_BASE + (captbl_idsize(CAP_ARCV) * (vmid - 1));
-//}
-//
-//asndcap_t
-//dom0_vio_asndcap(unsigned int vmid)
-//{
-//	return DOM0_CAPTBL_SELF_IOASND_SET_BASE + (captbl_idsize(CAP_ASND) * (vmid - 1));
-//}
+void
+vk_iocomm_init(void)
+{
+	struct cos_compinfo *vkcinfo = cos_compinfo_get(cos_defcompinfo_curr_get());
+	struct vms_info *rk, *tm, *udp, *dl;
+	struct cos_compinfo *rkci, *tmci, *udpci, *dlci;
+	int ret;
+
+	assert(VM_COUNT == 4);
+	rk  = &vmx_info[RUMP_SUB];
+	tm  = &vmx_info[TIMER_SUB];
+	udp = &vmx_info[UDP_APP];
+	dl  = &vmx_info[DL_APP];
+
+	rkci  = cos_compinfo_get(&rk->dci);
+	tmci  = cos_compinfo_get(&tm->dci);
+	udpci = cos_compinfo_get(&udp->dci);
+	dlci  = cos_compinfo_get(&dl->dci);
+
+	printc("Creating required I/O capabilities - based on complex communication policies\n");
+
+	/* I/O in RUMP_SUB */
+	rk->iothd = cos_thd_alloc(vkcinfo, rkci->comp_cap, rump_io_fn, NULL);
+	assert(rk->iothd);
+	rk->iorcv = cos_arcv_alloc(vkcinfo, rk->iothd, sl_thd_tcap(rk->inithd), vkcinfo->comp_cap, sl_thd_rcvcap(rk->inithd));
+	assert(rk->iorcv);
+	ret = cos_cap_cpy_at(rkci, SUB_CAPTBL_SELF_IOTHD_BASE, vkcinfo, rk->iothd);
+	assert(ret == 0);
+	ret = cos_cap_cpy_at(rkci, SUB_CAPTBL_SELF_IORCV_BASE, vkcinfo, rk->iorcv);
+	assert(ret == 0);
+
+	rk->ioasnd = cos_asnd_alloc(vkcinfo, rk->iorcv, vkcinfo->captbl_cap);
+	assert(rk->ioasnd);
+	/* copy asnd to rk into dl */
+	ret = cos_cap_cpy_at(dlci, APP_CAPTBL_SELF_IOSND_BASE, vkcinfo, rk->ioasnd);
+	assert(ret == 0);
+
+	/* I/O in TIMER_SUB */
+	tm->iothd = cos_thd_alloc(vkcinfo, tmci->comp_cap, timer_io_fn, NULL);
+	assert(tm->iothd);
+	tm->iotcap = cos_tcap_alloc(vkcinfo);
+	assert(tm->iotcap);
+	tm->iorcv = cos_arcv_alloc(vkcinfo, tm->iothd, tm->iotcap, vkcinfo->comp_cap, sl_thd_rcvcap(tm->inithd));
+	assert(tm->iorcv);
+	ret = cos_cap_cpy_at(tmci, SUB_CAPTBL_SELF_IOTHD_BASE, vkcinfo, tm->iothd);
+	assert(ret == 0);
+	ret = cos_cap_cpy_at(tmci, SUB_CAPTBL_SELF_IORCV_BASE, vkcinfo, tm->iorcv);
+	assert(ret == 0);
+	ret = cos_cap_cpy_at(tmci, TM_CAPTBL_SELF_IOTCAP_BASE, vkcinfo, tm->iotcap);
+	assert(ret == 0);
+
+	tm->ioasnd = cos_asnd_alloc(vkcinfo, tm->iorcv, vkcinfo->captbl_cap);
+	assert(tm->ioasnd);
+	/* copy asnd to timer into udp */
+	ret = cos_cap_cpy_at(udpci, APP_CAPTBL_SELF_IOSND_BASE, vkcinfo, tm->ioasnd);
+	assert(ret == 0);
+}
 
 vaddr_t
 dom0_vio_shm_base(unsigned int vmid)

@@ -19,20 +19,41 @@ extern void    vm_init(void *d);
 extern void   *__inv_vkernel_hypercall(int a, int b, int c, int d);
 unsigned int cycs_per_usec;
 
-/* Init thread for userspace vm, needed to register within RK */
-thdcap_t vm_main_thd;
-
 struct vms_info      vmx_info[VM_COUNT];
-struct dom0_io_info  dom0ioinfo;
-struct vm_io_info    vmioinfo[VM_COUNT - 1];
 struct vkernel_info  vk_info;
 struct cos_compinfo *vk_cinfo;
-unsigned int         ready_vms = VM_COUNT;
 
 void
 vk_terminate(void *d)
 {
 	SPIN();
+}
+
+#define TEST_SPIN_N 5
+static void
+test_spinlib(void)
+{
+	int i;
+	cycles_t start, end;
+	u64_t usecs[TEST_SPIN_N] = { 1000, 10000, 5000, 4000, 8500 };
+	u64_t cycs_usecs[TEST_SPIN_N] = { 1000, 10000, 5000, 4000, 8500 };
+
+	for (i = 0 ; i < TEST_SPIN_N ; i++) {
+		rdtscll(start);
+		spinlib_usecs(usecs[i]);
+		rdtscll(end);
+
+		printc("%d = Spun (%llu us): %llu cycs, %llu usecs\n", i, usecs[i], end-start, (end-start)/cycs_per_usec);
+	}
+
+	for (i = 0 ; i < TEST_SPIN_N ; i++) {
+		rdtscll(start);
+		spinlib_cycles((cycs_usecs[i] * cycs_per_usec));
+		rdtscll(end);
+
+		printc("%d = Spun (%llu cycs): %llu cycs, %llu usecs\n", i, cycs_usecs[i], end-start, (end-start)/cycs_per_usec);
+	}
+
 }
 
 void
@@ -54,6 +75,9 @@ cos_init(void)
 	printc("vkernel: START\n");
 	assert(VM_COUNT >= 2);
 
+	memset(&vk_info, 0, sizeof(struct vkernel_info));
+	memset(&vmx_info, 0, sizeof(struct vms_info) * VM_COUNT);
+
 	vk_cinfo = ci;
 
 	/*
@@ -74,6 +98,7 @@ cos_init(void)
 	printc("\t%d cycles per microsecond\n", cycs_per_usec);
 
 	spinlib_calib();
+	test_spinlib();
 
 	sl_init(PARENT_PERIOD_US);
 
@@ -107,14 +132,10 @@ cos_init(void)
 			/* TODO Look into shared memory ringbuffer, replace with my shared memory implementation */
 			//printc("\tAllocating shared-memory (size: %lu)\n", (unsigned long)VM_SHM_ALL_SZ);
 			//vk_vm_shmem_alloc(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_ALL_SZ);
-
-			vm_info->dom0io = &dom0ioinfo;
 		} else {
 			/* TODO see above */
 			//printc("\tMapping in shared-memory (size: %lu)\n", (unsigned long)VM_SHM_SZ);
 			//vk_vm_shmem_map(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_SZ);
-
-			vm_info->vmio = &vmioinfo[id - 1];
 		}
 
 		vk_vm_sched_init(vm_info);
@@ -123,6 +144,12 @@ cos_init(void)
 		if (id == VM_COUNT - 1) {
 			vm_range = (vaddr_t)cos_get_heap_ptr() - BOOT_MEM_VM_BASE;
 			assert(vm_range > 0);
+
+			/*
+			 * At this point, all VMs are initialized except their virtual memory!
+			 * Right time to create and copy IO caps required by each VM!
+			 */
+			vk_iocomm_init();
 
 			/*
 			 * Create and copy booter comp virtual memory to each VM

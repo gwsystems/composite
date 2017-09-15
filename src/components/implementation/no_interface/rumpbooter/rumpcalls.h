@@ -34,7 +34,7 @@ extern volatile unsigned int cos_cur_tcap;
 
 struct bmk_tcb *tcb;
 extern void bmk_isr(int which);
-extern int paws_tests(void);
+//extern int paws_tests(void);
 
 void* rump_cos_malloc(size_t size);
 void* rump_cos_calloc(size_t nmemb, size_t _size);

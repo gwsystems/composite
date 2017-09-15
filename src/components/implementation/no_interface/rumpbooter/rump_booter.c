@@ -17,12 +17,13 @@ u64_t t_vm_cycs  = 0;
 u64_t t_dom_cycs = 0;
 
 void
-hw_irq_alloc(void){
-
+hw_irq_alloc(void)
+{
 	tcap_res_t budget;
 	int i, ret;
 	int first = 1, id = HW_ISR_FIRST;
 
+	assert(vmid == 0);
 	memset(irq_thdcap, 0, sizeof(irq_thdcap));
 	memset(irq_thdid, 0, sizeof(irq_thdid));
 	memset(irq_arcvcap, 0, sizeof(irq_arcvcap));
@@ -30,26 +31,15 @@ hw_irq_alloc(void){
 	memset(irq_prio, 0, sizeof(irq_prio));
 
 	for(i = HW_ISR_FIRST; i < HW_ISR_LINES; i++){
-		if (vmid == 0) {
-			switch(i) {
-	//		case IRQ_VM1:
-	//			intr_update(i, 0);
-	//			irq_thdcap[i] = dom0_vio_thdcap(1);
-	//			irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
-	//			irq_arcvcap[i] = dom0_vio_rcvcap(1);
-	//			irq_tcap[i] = dom0_vio_tcap(1);
-	//			irq_prio[i] = PRIO_MID;
-	//			break;
-	//		case IRQ_VM2:
-	//			if (COS2RK_VIRT_MACH_COUNT ==3) {
-	//				intr_update(i, 0);
-	//				irq_thdcap[i] = dom0_vio_thdcap(2);
-	//				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
-	//				irq_arcvcap[i] = dom0_vio_rcvcap(2);
-	//				irq_tcap[i] = dom0_vio_tcap(2);
-	//				irq_prio[i] = PRIO_MID;
-	//			}
-	//			break;
+		switch(i) {
+			case RK_IRQ_IO:
+				intr_update(i, 0);
+				irq_thdcap[i] = SUB_CAPTBL_SELF_IOTHD_BASE;
+				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
+				irq_arcvcap[i] = SUB_CAPTBL_SELF_IORCV_BASE;
+				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+				irq_prio[i] = PRIO_LOW;
+				break;
 			default:
 				intr_update(i, 0);
 				irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, (void *)i);
@@ -63,27 +53,12 @@ hw_irq_alloc(void){
 				assert(irq_arcvcap[i]);
 				cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
 				break;
-			}
-		} else {
-//			switch(i) {
-//				case IRQ_DOM0_VM:
-//					intr_update(i, 0);
-//					irq_thdcap[i] = VM_CAPTBL_SELF_IOTHD_BASE;
-//					irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
-//					irq_arcvcap[i] = VM_CAPTBL_SELF_IORCV_BASE;
-//					/* VMs use only 1 tcap - INITTCAP for all execution */
-//					irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-//					irq_prio[i] = PRIO_MID;
-//					break;
-//				default:
-//					break;
-//			}
 		}
 	}
 }
 
 void
-rump_booter_init(void)
+rump_booter_init(void *d)
 {
 	extern int vmid;
 
@@ -96,9 +71,9 @@ rump_booter_init(void)
 #define JSON_NGINX_QEMU 3
 
 /* json config string fixed at compile-time */
-#define JSON_CONF_TYPE JSON_UDPSERV_BAREMETAL
+//#define JSON_CONF_TYPE JSON_UDPSERV_BAREMETAL
 //#define JSON_CONF_TYPE JSON_PAWS_BAREMETAL
-//#define JSON_CONF_TYPE JSON_PAWS_QEMU
+#define JSON_CONF_TYPE JSON_PAWS_QEMU
 
 	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
 	assert(vmid == 0);

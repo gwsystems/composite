@@ -7,17 +7,17 @@
 int
 rk_inv_op1(void)
 {
-	return cos_sinv(VM_CAPTBL_SELF_RK_SINV_BASE, RK_INV_OP1, 0, 0, 0);
+	return cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_INV_OP1, 0, 0, 0);
 }
 
 void
 rk_inv_op2(int shmid)
 {
-	cos_sinv(VM_CAPTBL_SELF_RK_SINV_BASE, RK_INV_OP2, shmid, 0, 0);
+	cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_INV_OP2, shmid, 0, 0);
 }
 
 int
 rk_inv_get_boot_done(void)
 {
-	return cos_sinv(VM_CAPTBL_SELF_RK_SINV_BASE, RK_GET_BOOT_DONE, 0, 0, 0);
+	return cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_GET_BOOT_DONE, 0, 0, 0);
 }

@@ -248,6 +248,8 @@ void sl_thd_yield_cs_exit(thdid_t tid);
 /* The entire thread allocation and free API */
 struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
 struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap);
+/* A thread that is already created by booter or created using low-level composite API. */
+struct sl_thd *sl_thd_init(struct cos_aep_info *aep, int own_tcap);
 /*
  * This API creates a sl_thd object for this child component.
  * @comp: component created using cos_defkernel_api which includes initthd (with/without its own tcap & rcvcap).
@@ -442,8 +444,8 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		return -EAGAIN;
 	}
 
-	if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
-		assert(t->budget && t->period);
+	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {
+		assert(t->period);
 		assert(sl_thd_tcap(t) != sl__globals()->sched_tcap);
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
@@ -468,7 +470,10 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 
 	ret = sl_thd_activate(t, tok);
 	if (unlikely(ret == -EPERM)) {
-		cycles_t abs_timeout = t->last_replenish + t->period;
+		cycles_t abs_timeout = 0;
+
+		if (t->period) abs_timeout = t->last_replenish + t->period;
+		else           abs_timeout = sl__globals()->timer_next;
 
 		assert(t->thdid != globals->sched_thd->thdid);
 		sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);

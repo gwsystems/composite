@@ -178,7 +178,8 @@ timer_calibration(void)
 int
 chal_cyc_usec(void)
 {
-	return cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL;
+	if (cycles_per_tick) return __USECS_CEIL__(cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL, 100);
+	else                 return 0;
 }
 
 int
