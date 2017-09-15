@@ -29,9 +29,14 @@ localizesymsrc=( "__fpclassifyl"
 		"__fini_array_start"
 		"__init_array_end"
 		"__init_array_start"
+		"fputc"
 		)
 localizesymdst=( "_start"
 		"exit"
+		"socket"
+		"bind"
+		"recvfrom"
+		"sendto"
 		)
 
 if [ "$PROG" == "" ]; then

@@ -13,7 +13,7 @@
 extern void rump_booter_init(void *);
 extern void timersub_init(void *);
 extern void dlapp_init(void *);
-extern int main(void);
+extern int udpserv_main(void);
 struct cos_compinfo booter_info;
 /*
  * the capability for the thread switched to upon termination.
@@ -91,13 +91,14 @@ vm_init(void *unused)
 				 cap_frontier);
 
 	PRINTC("RUNNING %s %d\n", vmid < APP_START_ID ? "VM" : "APP", vmid);
-	if (init_fn == NULL) main();
-	else                 init_fn(NULL);
+	if (init_fn == NULL) {
+		PRINTC("Yes, UDP SERVER!\n");
+		udpserv_main();
+	} else {
+		init_fn(NULL);
+	}
 
 	PRINTC("ERROR!!!");
-//	PRINTC("Running shared memory tests\n");
-//	cos_shmem_test();
-//	PRINTC("Virtual-machine booter done.\n");
 
 	while (1) ;
 }

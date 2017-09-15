@@ -43,7 +43,7 @@ test_fs(int arg1, int arg2, int arg3, int arg4)
 
         /* FS Test */
         printc("Running paws test: VM%d\n", cos_spdid_get());
-        paws_tests();
+//        paws_tests();
 
         printc("*** KERNEL COMPONENT RETURNING ***\n\n");
 

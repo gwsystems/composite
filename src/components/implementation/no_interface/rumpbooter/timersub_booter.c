@@ -25,7 +25,7 @@ struct sl_thd *local_thds[HA_COMP_NUM_THDS];
 void hpet_handler(arcvcap_t rcv, void *data);
 
 static void
-__thds_init(void)
+__timersub_thds_init(void)
 {
 	struct cos_defcompinfo child_defcinfo;
 	struct cos_compinfo *child_ci = cos_compinfo_get(&child_defcinfo);
@@ -73,7 +73,7 @@ timersub_init(void *d)
 	printc("Timer Subsystem [%u] STARTED\n", cos_thdid());
 	sl_init(CHILD_PERIOD_US);
 
-	__thds_init();
+	__timersub_thds_init();
 
 	sl_sched_loop();
 	printc("Timer Subsystem Scheduling Error!!\n");

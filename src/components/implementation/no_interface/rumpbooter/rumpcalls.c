@@ -261,9 +261,10 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	int ret;
 
 	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p", thread->bt_name, f);
+	
 	if (!strcmp(thread->bt_name, "user_lwp")) {
 		/* Return userlevel thread cap that is set up in vkernel_init */
-		printc("\nMatch, returning vm_main_thd: %d\n", (unsigned int)VM_CAPTBL_SELF_APPTHD_BASE);
+		printc("\nMatch, thdcap %d\n", (unsigned int)VM_CAPTBL_SELF_APPTHD_BASE);
 		newthd_cap = VM_CAPTBL_SELF_APPTHD_BASE;
 	} else {
 		newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, f, arg);
