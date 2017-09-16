@@ -54,7 +54,7 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	}
 
 	cos_compinfo_init(&(vminfo->shm_cinfo), vmcinfo->pgtbl_cap, vmcinfo->captbl_cap, vmcinfo->comp_cap,
-			  (vaddr_t)VK_VM_SHM_BASE, VM_CAPTBL_FREE, vk_cinfo);
+			  (vaddr_t)APP_SUB_SHM_BASE, VM_CAPTBL_FREE, vk_cinfo);
 
 	printc("\tCreating and copying initial component capabilities\n");
 	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_CT, vk_cinfo, vmcinfo->captbl_cap);
@@ -143,7 +143,7 @@ vk_vm_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned
 	int i;
 	vaddr_t src_pg, dst_pg, addr;
 
-	assert(vminfo && vminfo->id == 0 && vkinfo);
+	assert(vminfo && vkinfo);
 	assert(shm_ptr == round_up_to_pgd_page(shm_ptr));
 
 	/* VM0: mapping in all available shared memory. */
@@ -151,14 +151,14 @@ vk_vm_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned
 	assert(src_pg);
 
 	for (addr = shm_ptr; addr < (shm_ptr + shm_sz); addr += PAGE_SIZE, src_pg += PAGE_SIZE) {
-		assert(src_pg == addr);
+		//assert(src_pg == addr);
 
 		dst_pg = cos_mem_alias(&vminfo->shm_cinfo, &vkinfo->shm_cinfo, src_pg);
 		assert(dst_pg && dst_pg == addr);
 	}
 
 	/* cos2rk ring buffer creation */
-	cos2rk_rb_init();
+	//cos2rk_rb_init();
 
 	return;
 }
@@ -166,10 +166,20 @@ vk_vm_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned
 void
 vk_vm_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long shm_ptr, unsigned long shm_sz)
 {
-	vaddr_t src_pg = (shm_sz * vminfo->id) + shm_ptr, dst_pg, addr;
+	vaddr_t src_pg, dst_pg, addr;
 
 	assert(vminfo && vminfo->id && vkinfo);
 	assert(shm_ptr == round_up_to_pgd_page(shm_ptr));
+
+	if (vminfo->id == UDP_APP) {
+		assert(TIMER_SUB == 1);
+		src_pg = shm_ptr + shm_sz;
+	} else if (vminfo->id == DL_APP) {
+		assert(RUMP_SUB == 0);
+		src_pg = shm_ptr;
+	} else {
+		assert(0);
+	}
 
 	for (addr = shm_ptr; addr < (shm_ptr + shm_sz); addr += PAGE_SIZE, src_pg += PAGE_SIZE) {
 		/* VMx: mapping in only a section of shared-memory to share with VM0 */

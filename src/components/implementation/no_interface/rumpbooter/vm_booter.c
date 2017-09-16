@@ -7,6 +7,7 @@
 #include "rk_inv_api.h"
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
+#include <cringbuf.h>
 #include <sl.h>
 #include <sl_thd.h>
 
@@ -15,6 +16,8 @@ extern void timersub_init(void *);
 extern void dlapp_init(void *);
 extern int udpserv_main(void);
 struct cos_compinfo booter_info;
+static struct cringbuf vmringbuf;
+struct cringbuf *vmrb = NULL;
 /*
  * the capability for the thread switched to upon termination.
  * FIXME: not exit thread for now
@@ -60,6 +63,9 @@ vm_init(void *unused)
 	vmid = vk_vm_id();
 	rumpns_vmid = vmid;
 	cos_spdid_set(vmid);
+
+	cringbuf_init(&vmringbuf, (void *)APP_SUB_SHM_BASE, APP_SUB_SHM_SZ);
+	vmrb = &vmringbuf;
 
 	switch(vmid) {
 	case RUMP_SUB:

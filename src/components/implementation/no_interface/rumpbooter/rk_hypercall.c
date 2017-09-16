@@ -1,5 +1,6 @@
 #include <cos_kernel_api.h>
 #include <cos_types.h>
+#include <cringbuf.h>
 #include <sinv_calls.h>
 #include <shdmem.h>
 #include "rumpcalls.h"
@@ -8,6 +9,7 @@
 #include "micro_booter.h"
 
 /* These syncronous invocations involve calls to and from a RumpKernel */
+extern struct cringbuf *vmrb;
 
 void
 rump_io_fn(void *d)
@@ -15,9 +17,18 @@ rump_io_fn(void *d)
 	arcvcap_t rcv = SUB_CAPTBL_SELF_IORCV_BASE;
 
 	while (1) {
-		cos_rcv(rcv, 0, 0);
+		int amnt = 0, len = 0;
 
+		cos_rcv(rcv, 0, 0);
+		assert(vmrb);
+
+		amnt = cringbuf_sz(vmrb);
+		assert(amnt);
+
+		/* TODO: SYNC! */
 		printc("+");
+		printc("%s", cringbuf_active_extent(vmrb, &len, amnt));
+		cringbuf_delete(vmrb, amnt);
 	}
 }
 

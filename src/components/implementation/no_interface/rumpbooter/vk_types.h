@@ -9,6 +9,9 @@
 #define VM_SHM_SZ (1 << 20)       /* Shared memory mapping for each vm = 4MB */
 #define VM_SHM_ALL_SZ ((VM_COUNT > 0) ? (VM_COUNT * VM_SHM_SZ) : VM_SHM_SZ)
 
+#define APP_SUB_SHM_BASE 0x20000000
+#define APP_SUB_SHM_SZ   (1<<22)
+
 #define HPET_PERIOD_US (10 * 1000)
 
 #define PARENT_PERIOD_US (5 * 1000)
