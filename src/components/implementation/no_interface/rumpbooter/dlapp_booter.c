@@ -1,3 +1,4 @@
+#include <cringbuf.h>
 #include "micro_booter.h"
 #include "vk_api.h"
 #include "spinlib.h"
@@ -7,15 +8,26 @@
 #define DL_SPIN_US (4*1000) //4ms
 #define DL_LOG_SIZE 128
 extern int vmid;
+extern struct cringbuf *vmrb;
 static u32_t dl_made, dl_missed, dl_total;
 static cycles_t next_deadline;
 
 void
 log_info(char *data)
 {
-	PRINTC("%s", data);
+	int amnt = 0, ret = 0;
+
+	assert(vmrb);
+	if (cringbuf_full(vmrb)) {
+		printc("-");
+		return;
+	}
+
+	amnt = strlen(data);
+	ret = cringbuf_produce(vmrb, data, amnt);
+	assert(ret == amnt);
 	cos_asnd(APP_CAPTBL_SELF_IOSND_BASE, 0);
-	printc("-");
+	printc(">");
 }
 
 void

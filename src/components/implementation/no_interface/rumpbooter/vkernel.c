@@ -85,10 +85,8 @@ cos_init(void)
 	 *       Care to be taken not to use this for captbl mod api
 	 *       Or use some offset into the future in CAPTBL_FREE
 	 */
-	cos_defcompinfo_init();
-	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&vk_info.shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
-		BOOT_CAPTBL_SELF_COMP, (vaddr_t)VK_VM_SHM_BASE, BOOT_CAPTBL_FREE, ci);
+		BOOT_CAPTBL_SELF_COMP, (vaddr_t)APP_SUB_SHM_BASE, BOOT_CAPTBL_FREE, ci);
 
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL);
 	assert(vk_info.termthd);
@@ -130,13 +128,15 @@ cos_init(void)
 		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE(id));
 		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE(id));
 
-		if (id == 0) {
+		if (id < APP_START_ID) {
 			/* TODO Look into shared memory ringbuffer, replace with my shared memory implementation */
-			//printc("\tAllocating shared-memory (size: %lu)\n", (unsigned long)VM_SHM_ALL_SZ);
+			printc("\tAllocating shared-memory (size: %lu)\n", (unsigned long)APP_SUB_SHM_SZ);
+			vk_vm_shmem_alloc(vm_info, &vk_info, APP_SUB_SHM_BASE, APP_SUB_SHM_SZ);
 			//vk_vm_shmem_alloc(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_ALL_SZ);
 		} else {
 			/* TODO see above */
-			//printc("\tMapping in shared-memory (size: %lu)\n", (unsigned long)VM_SHM_SZ);
+			printc("\tMapping in shared-memory (size: %lu)\n", (unsigned long)APP_SUB_SHM_SZ);
+			vk_vm_shmem_map(vm_info, &vk_info, APP_SUB_SHM_BASE, APP_SUB_SHM_SZ);
 			//vk_vm_shmem_map(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_SZ);
 		}
 

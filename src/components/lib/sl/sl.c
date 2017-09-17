@@ -146,8 +146,8 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	sl_mod_block(sl_mod_thd_policy_get(t));
 
 update:
-	t->state = block_type;
 	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
+	t->state = block_type;
 
 	return 0;
 }
