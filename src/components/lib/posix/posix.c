@@ -14,6 +14,7 @@
 #include <sl.h>
 #include <sl_lock.h>
 #include <sl_thd.h>
+#include <rk_inv_api.h>
 
 volatile int *null_ptr = NULL;
 #define ABORT() do {int i = *null_ptr;} while(0)
@@ -43,7 +44,6 @@ write_bytes_to_stdout(const char *buf, size_t count)
 ssize_t
 cos_write(int fd, const void *buf, size_t count)
 {
-	printc("%s\n", __func__);
 	/* You shouldn't write to stdin anyway, so don't bother special casing it */
 	if (fd == 1 || fd == 2) {
 		sl_lock_take(&stdout_lock);
@@ -59,7 +59,6 @@ cos_write(int fd, const void *buf, size_t count)
 ssize_t
 cos_writev(int fd, const struct iovec *iov, int iovcnt)
 {
-	printc("%s\n", __func__);
 	if (fd == 1 || fd == 2) {
 		sl_lock_take(&stdout_lock);
 		int i;
@@ -262,10 +261,60 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 	return thd->thdid;
 }
 
-int cos_socketcall(long a, long b, long c, long d, long e, long f)
+unsigned int cos_spdid_get(void);
+int shmem_allocate_invoke(void);
+unsigned long shmem_get_vaddr_invoke(int id);
+void *memcpy(void *dest, const void *src, size_t n);
+int
+cos_socketcall(int call, unsigned long *args)
 {
-	printc("Thd:%u => %s:%d - %ld %ld %ld %ld %ld %ld\n", cos_thdid(), __func__, __LINE__, a, b, c, d, e, f);
-	return 0;
+	int ret = -1;
+
+	printc("\tcos_socketcall, call: %d, args: %p\n", call, args);
+
+	switch (call) {
+		case 1: {
+			int domain, type, protocol;
+
+			domain     = *args;
+			type       = *(args+1);
+			protocol   = *(args+2);
+			ret = rk_inv_socket(domain, type, protocol);
+
+			break;
+		}
+		case 2: {
+			int sockfd, shdmem_id;
+			unsigned long shdmem_addr;
+			void *addr;
+			u32_t addrlen;
+
+			sockfd  = *args;
+			addr    = *(args+1);
+			addrlen = *(args+2);
+
+			/*
+			 * Do stupid shared memory for now
+			 * allocate a page for each bind addr
+			 * don't deallocate. #memLeaksEverywhere
+			 */
+
+			shdmem_id = shmem_allocate_invoke();
+			assert(shdmem_id > -1);
+
+			shdmem_addr = shmem_get_vaddr_invoke(shdmem_id);
+			assert(shdmem_addr > 0);
+
+			memcpy(shdmem_addr, addr, addrlen);
+			ret = rk_inv_bind(sockfd, shdmem_id, addrlen);
+
+			break;
+		}
+		default:
+			assert(0);
+	}
+
+	return ret;
 }
 
 void

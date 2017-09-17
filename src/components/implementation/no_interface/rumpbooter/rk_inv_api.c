@@ -1,5 +1,5 @@
 #include "vk_types.h"
-#include "rk_inv_api.h"
+#include <rk_inv_api.h>
 #include <cos_types.h>
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
@@ -20,4 +20,15 @@ int
 rk_inv_get_boot_done(void)
 {
 	return cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_GET_BOOT_DONE, 0, 0, 0);
+}
+
+int
+rk_inv_socket(int domain, int type, int protocol)
+{
+	return cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_SOCKET, domain, type, protocol);
+}
+
+int
+rk_inv_bind(int sockfd, int shdmem_id, socklen_t addrlen) {
+	return cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_BIND, sockfd, shdmem_id, addrlen);
 }

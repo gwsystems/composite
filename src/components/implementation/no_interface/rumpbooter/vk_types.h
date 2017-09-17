@@ -62,6 +62,8 @@ enum rk_inv_ops {
 	RK_INV_OP1 = 0,
 	RK_INV_OP2,
 	RK_GET_BOOT_DONE,
+	RK_SOCKET,
+	RK_BIND,
 };
 
 enum timer_inv_ops {

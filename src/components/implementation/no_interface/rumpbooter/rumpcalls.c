@@ -15,7 +15,7 @@
 //#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 #include "cos_sync.h"
 #include "vk_api.h"
-#include "rk_inv_api.h"
+#include <rk_inv_api.h>
 
 extern struct cos_compinfo booter_info;
 extern struct cos_rumpcalls crcalls;
@@ -261,7 +261,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	int ret;
 
 	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p", thread->bt_name, f);
-	
+
 	if (!strcmp(thread->bt_name, "user_lwp")) {
 		/* Return userlevel thread cap that is set up in vkernel_init */
 		printc("\nMatch, thdcap %d\n", (unsigned int)VM_CAPTBL_SELF_APPTHD_BASE);

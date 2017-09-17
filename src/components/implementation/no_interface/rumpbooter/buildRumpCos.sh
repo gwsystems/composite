@@ -36,6 +36,7 @@ localizesymdst=( "_start"
 		"bind"
 		"recvfrom"
 		"sendto"
+		"printf"
 		)
 
 if [ "$PROG" == "" ]; then

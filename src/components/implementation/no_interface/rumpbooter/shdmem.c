@@ -127,8 +127,6 @@ shm_map(unsigned int spdid, unsigned int id, int arg3, int arg4)
 	if (!comp_shm_info->init) { __shm_infos_init(spdid); }
 
 	src_pg = shm_master_regions[id];
-	printc("shm_map, src_pg: %p\n", (void *)src_pg);
-
 	dst_pg = comp_shm_info->shm_frontier;
 	comp_shm_info->my_regions[id] = dst_pg;
 

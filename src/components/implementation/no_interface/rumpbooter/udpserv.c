@@ -1,17 +1,6 @@
-//#include <netconfig.h>
-//#include <assert.h>
-//#include <stdio.h>
-//#include <malloc.h>
-//#include <sys/types.h>
-//#include <sys/stat.h>
-//#include <sys/ioctl.h>
 #include <net/if.h>
-//#include <net/route.h>
 #include <netinet/in.h>
-//#include <netconfig.h>
-//#include <errno.h>
-//#include <fcntl.h>
-//#include "include/udpserv.h"
+#include <sys/socket.h>
 #include "micro_booter.h"
 
 #define __rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
@@ -41,20 +30,22 @@ __test_udp_server(void)
 	soutput.sin_addr.s_addr = htonl(INADDR_ANY);
 	PRINTC("Sending to port %d\n", OUT_PORT);
 	if ((fd = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
-		PRINTC("Establishing socket");
+		PRINTC("Error Establishing socket\n");
 		return -1;
 	}
+	PRINTC("fd for socket: %d\n", fd);
 	if ((fdr = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
-		PRINTC("Establishing receive socket");
+		PRINTC("Error Establishing receive socket\n");
 		return -1;
 	}
+	PRINTC("fd for receive socket: %d\n", fdr);
 
 	sinput.sin_family      = AF_INET;
 	sinput.sin_port        = htons(IN_PORT);
 	sinput.sin_addr.s_addr = htonl(INADDR_ANY);
 	PRINTC("binding receive socket to port %d\n", IN_PORT);
 	if (bind(fdr, (struct sockaddr *)&sinput, sizeof(sinput))) {
-		PRINTC("binding receive socket");
+		PRINTC("binding receive socket\n");
 		return -1;
 	}
 
@@ -86,7 +77,7 @@ __test_udp_server(void)
 			msg_count = 0;
 			prev = now;
 		}
-	} while (0) ;
+	} while (1) ;
 
 	return -1;
 }
@@ -96,8 +87,6 @@ udpserv_main(void)
 {
 	PRINTC("%d: Starting udp-server [in:%d out:%d]\n", vmid, IN_PORT, OUT_PORT);
 	__test_udp_server();
-
-//	assert(0);
 
 	return 0;
 }

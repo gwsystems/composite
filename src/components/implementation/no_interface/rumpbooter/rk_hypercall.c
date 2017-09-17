@@ -2,10 +2,14 @@
 #include <cos_types.h>
 #include <sinv_calls.h>
 #include <shdmem.h>
+#include <rk_inv_api.h>
 #include "rumpcalls.h"
-#include "rk_inv_api.h"
 #include "vk_types.h"
 #include "micro_booter.h"
+#include <sys/socket.h>
+
+int rump___sysimpl_socket30(int, int, int);
+int rump___sysimpl_bind(int, const struct sockaddr *, socklen_t);
 
 /* These syncronous invocations involve calls to and from a RumpKernel */
 
@@ -81,6 +85,21 @@ get_boot_done(void) {
 	return 1;
 }
 
+int
+rk_socket(int domain, int type, int protocol)
+{ return rump___sysimpl_socket30(domain, type, protocol); }
+
+int
+rk_bind(int sockfd, int shdmem_id, socklen_t addrlen)
+{
+	const struct sockaddr *addr;
+	/* TODO use shdmem id to map shdmem here and pass in shdmem pointer as addr */
+	shdmem_id = shmem_map_invoke(shdmem_id);
+	assert(shdmem_id > -1);
+	addr = (const struct sockaddr *)shmem_get_vaddr_invoke(shdmem_id);
+	assert(addr > 0);
+	return rump___sysimpl_bind(sockfd, addr, addrlen);
+}
 
 /* TODO: too many unused arguments in many cases.. get rid of them */
 int
@@ -98,6 +117,12 @@ rk_inv_entry(int arg1, int arg2, int arg3, int arg4)
 		break;
 	case RK_GET_BOOT_DONE:
 		ret = get_boot_done();
+		break;
+	case RK_SOCKET:
+		ret = rk_socket(arg2, arg3, arg4);
+		break;
+	case RK_BIND:
+		ret = rk_bind(arg2, arg3, (socklen_t)arg4);
 		break;
 	default: assert(0);
 	}

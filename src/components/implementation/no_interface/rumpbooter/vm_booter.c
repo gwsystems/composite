@@ -4,7 +4,7 @@
 #include "cos2rk_types.h"
 #include "cos_sync.h"
 #include "rumpcalls.h"
-#include "rk_inv_api.h"
+#include <rk_inv_api.h>
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <sl.h>
