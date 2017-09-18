@@ -103,12 +103,12 @@ rk_socket(int domain, int type, int protocol)
 int
 rk_bind(int sockfd, int shdmem_id, socklen_t addrlen)
 {
-	const struct sockaddr *addr;
+	const struct sockaddr *addr = NULL;
 	/* TODO use shdmem id to map shdmem here and pass in shdmem pointer as addr */
 	shdmem_id = shmem_map_invoke(shdmem_id);
 	assert(shdmem_id > -1);
 	addr = (const struct sockaddr *)shmem_get_vaddr_invoke(shdmem_id);
-	assert(addr > 0);
+	assert(addr);
 	return rump___sysimpl_bind(sockfd, addr, addrlen);
 }
 

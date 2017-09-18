@@ -2,6 +2,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include "micro_booter.h"
+#include "rk_inv_api.h"
 
 #define __rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 
@@ -85,6 +86,8 @@ __test_udp_server(void)
 int
 udpserv_main(void)
 {
+	rk_socketcall_init();
+	
 	PRINTC("%d: Starting udp-server [in:%d out:%d]\n", vmid, IN_PORT, OUT_PORT);
 	__test_udp_server();
 
