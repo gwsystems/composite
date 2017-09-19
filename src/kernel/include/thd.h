@@ -550,7 +550,7 @@ thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs)
 static inline int
 thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 {
-	int preempt = 0;
+	int preempt = 0, samercv = 0;
 
 	/* TODO: check FPU */
 	/* fpu_save(thd); */
@@ -562,7 +562,15 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state &= ~THD_STATE_RCVING;
 		thd_rcvcap_pending_deliver(thd, regs);
-	} else if (issame) {
+
+		/*
+		 * Child tcap budget expiry can run a suspended thread.
+		 * TODO: set an error in the return val? 
+		 */
+		if (unlikely(issame)) samercv = 1;
+	}
+
+	if (samercv || issame) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 	}
 

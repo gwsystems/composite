@@ -30,11 +30,23 @@ rump_io_fn(void *d)
 		amnt = cringbuf_sz(vmrb);
 		assert(amnt);
 
-		/* TODO: SYNC! */
-		printc("+");
 		printc("%s", cringbuf_active_extent(vmrb, &len, amnt));
 		cringbuf_delete(vmrb, amnt);
 	}
+}
+
+int
+rk_logdata(void)
+{
+	int amnt = 0, len = 0;
+
+	amnt = cringbuf_sz(vmrb);
+	assert(amnt);
+
+	printc("%s", cringbuf_active_extent(vmrb, &len, amnt));
+	cringbuf_delete(vmrb, amnt);
+
+	return 0;
 }
 
 int
@@ -104,12 +116,12 @@ rk_socket(int domain, int type, int protocol)
 int
 rk_bind(int sockfd, int shdmem_id, socklen_t addrlen)
 {
-	const struct sockaddr *addr;
+	const struct sockaddr *addr = NULL;
 	/* TODO use shdmem id to map shdmem here and pass in shdmem pointer as addr */
 	shdmem_id = shmem_map_invoke(shdmem_id);
 	assert(shdmem_id > -1);
 	addr = (const struct sockaddr *)shmem_get_vaddr_invoke(shdmem_id);
-	assert(addr > 0);
+	assert(addr);
 	return rump___sysimpl_bind(sockfd, addr, addrlen);
 }
 
@@ -187,6 +199,10 @@ rk_inv_entry(int arg1, int arg2, int arg3, int arg4)
 
 			ret = (int)rk_recvfrom(s, buff_shdmem_id, len, flags,
 					from_shdmem_id, from_addr_len);
+			break;
+		}
+		case RK_LOGDATA: {
+			ret = rk_logdata();
 			break;
 		}
 		default: assert(0);

@@ -49,6 +49,7 @@ __timersub_thds_init(void)
 	spprio.c.value = HA_APP_THD_PRIO;
 	sl_thd_param_set(local_thds[1], spprio.v);
 	
+#if defined(APP_COMM_ASYNC)
 	/* init the i/o thread */
 	child_aep->thd = SUB_CAPTBL_SELF_IOTHD_BASE;
 	child_aep->rcv = SUB_CAPTBL_SELF_IORCV_BASE;
@@ -60,6 +61,7 @@ __timersub_thds_init(void)
 //	spprio.c.type  = SCHEDP_PERIOD;
 //	spprio.c.value = HPET_PERIOD_US; /* mainly used for blocking for period if no budget! performance! */
 //	sl_thd_param_set(local_thds[2], spprio.v);
+#endif
 
 	/* attach to hpet periodic timer */
 	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, sl_thd_rcvcap(local_thds[0]), HPET_PERIOD_US);

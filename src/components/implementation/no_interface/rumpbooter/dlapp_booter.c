@@ -4,6 +4,7 @@
 #include "spinlib.h"
 
 #include "timer_inv_api.h"
+#include "rk_inv_api.h"
 
 #define DL_SPIN_US (4*1000) //4ms
 #define DL_LOG_SIZE 128
@@ -19,15 +20,19 @@ log_info(char *data)
 
 	assert(vmrb);
 	if (cringbuf_full(vmrb)) {
-		printc("-");
 		return;
 	}
 
 	amnt = strlen(data);
 	ret = cringbuf_produce(vmrb, data, amnt);
 	assert(ret == amnt);
+#if defined(APP_COMM_ASYNC)
 	cos_asnd(APP_CAPTBL_SELF_IOSND_BASE, 0);
-	printc(">");
+#elif defined(APP_COMM_SYNC)
+	rk_inv_logdata();
+#else
+	assert(0);
+#endif
 }
 
 void

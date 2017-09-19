@@ -470,13 +470,14 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 
 	ret = sl_thd_activate(t, tok);
 	if (unlikely(ret == -EPERM)) {
-		cycles_t abs_timeout = 0;
-
-		if (t->period) abs_timeout = t->last_replenish + t->period;
-		else           abs_timeout = sl__globals()->timer_next;
+		cycles_t abs_timeout = sl__globals()->timer_next;;
 
 		assert(t->thdid != globals->sched_thd->thdid);
+
+		sl_cs_enter();
+		if (t->period) abs_timeout = t->last_replenish + t->period;
 		sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
+		sl_cs_exit();
 
 		if (likely(sl_thdid() == globals->sched_thd->thdid)) {
 			return ret;

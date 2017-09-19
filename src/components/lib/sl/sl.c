@@ -611,7 +611,7 @@ sl_sched_loop(void)
 			t = sl_thd_lkup(tid);
 			assert(t);
 			/* don't report the idle thread */
-			if (unlikely(t == sl__globals()->idle_thd)) continue;
+			if (unlikely(t == sl__globals()->idle_thd || t->state == SL_THD_FREE)) continue;
 
 			/*
 			 * receiving scheduler notifications is not in critical section mainly for

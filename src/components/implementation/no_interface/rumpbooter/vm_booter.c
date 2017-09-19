@@ -64,8 +64,12 @@ vm_init(void *unused)
 	rumpns_vmid = vmid;
 	cos_spdid_set(vmid);
 
-	cringbuf_init(&vmringbuf, (void *)APP_SUB_SHM_BASE, APP_SUB_SHM_SZ);
-	vmrb = &vmringbuf;
+	if (vmid == RUMP_SUB || vmid == DL_APP) {
+		cringbuf_init(&vmringbuf, (void *)APP_SUB_SHM_BASE, APP_SUB_SHM_SZ);
+		vmrb = &vmringbuf;
+	} else {
+		*((u32_t *)APP_SUB_SHM_BASE) = 0;
+	}
 
 	switch(vmid) {
 	case RUMP_SUB:

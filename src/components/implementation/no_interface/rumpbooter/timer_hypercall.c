@@ -12,6 +12,7 @@ extern unsigned int cycs_per_usec;
 
 static volatile u32_t __hpet_counter = 0;
 static volatile cycles_t __last_hpet = 0;
+static volatile u32_t *__hpet_shm_addr = (u32_t *)APP_SUB_SHM_BASE;
 
 int timer_get_counter(void)
 {
@@ -55,54 +56,54 @@ timer_io_fn(void *d)
 	while (1) {
 		cos_rcv(rcv, 0, 0);
 
-		PRINTC("|");
+		*__hpet_shm_addr = __hpet_counter;
 	}
 }
 
 int
 timer_inv_entry(int a, int b, int c, int d)
 {
-        int ret = 0;
+	int ret = 0;
 
-        switch(a) {
-        case TIMER_APP_BLOCK:
-        {
-                tcap_time_t timeout     = (tcap_time_t)b;
-                cycles_t abs_timeout, now;
+	switch(a) {
+	case TIMER_APP_BLOCK:
+	{
+		tcap_time_t timeout     = (tcap_time_t)b;
+		cycles_t abs_timeout, now;
 
-                rdtscll(now);
-                abs_timeout = tcap_time2cyc(timeout, now);
+		rdtscll(now);
+		abs_timeout = tcap_time2cyc(timeout, now);
 
-                /* calling thread must be the main thread! */
-                sl_thd_block_timeout(0, abs_timeout);
+		/* calling thread must be the main thread! */
+		sl_thd_block_timeout(0, abs_timeout);
 
-                break;
-        }
-        case TIMER_UPCOUNTER_WAIT:
-        {
-                u32_t    app_counter = (u32_t)b;
-                cycles_t abs_timeout, now;
+		break;
+	}
+	case TIMER_UPCOUNTER_WAIT:
+	{
+		u32_t    app_counter = (u32_t)b;
+		cycles_t abs_timeout, now;
 
-                /* TODO: atomic __hpet_counter! */
-                while (app_counter == __hpet_counter) {
-                        rdtscll(now);
-                        abs_timeout = __last_hpet + (HPET_PERIOD_US * cycs_per_usec);
+		/* TODO: atomic __hpet_counter! */
+		while (app_counter == __hpet_counter) {
+			rdtscll(now);
+			abs_timeout = __last_hpet + (HPET_PERIOD_US * cycs_per_usec);
 
-                        /* calling thread must be the main thread! */
-                        sl_thd_block_timeout(0, abs_timeout);
-                }
+			/* calling thread must be the main thread! */
+			sl_thd_block_timeout(0, abs_timeout);
+		}
 
-                ret = __hpet_counter;
-                break;
-        }
-        case TIMER_GET_COUNTER:
-        {
-                ret = __hpet_counter;
-                break;
-        }
-        default: assert(0);
-        }
+		ret = __hpet_counter;
+		break;
+	}
+	case TIMER_GET_COUNTER:
+	{
+		ret = __hpet_counter;
+		break;
+	}
+	default: assert(0);
+	}
 
-        return ret;
+	return ret;
 }
 

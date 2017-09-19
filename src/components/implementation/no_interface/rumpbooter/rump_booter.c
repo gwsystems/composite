@@ -32,6 +32,7 @@ hw_irq_alloc(void)
 
 	for(i = HW_ISR_FIRST; i < HW_ISR_LINES; i++){
 		switch(i) {
+#if defined(APP_COMM_ASYNC)
 			case RK_IRQ_IO:
 				intr_update(i, 0);
 				irq_thdcap[i] = SUB_CAPTBL_SELF_IOTHD_BASE;
@@ -40,6 +41,7 @@ hw_irq_alloc(void)
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 				irq_prio[i] = PRIO_LOW;
 				break;
+#endif
 			default:
 				intr_update(i, 0);
 				irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, (void *)i);

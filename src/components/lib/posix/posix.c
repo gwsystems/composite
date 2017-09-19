@@ -2,7 +2,6 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <syscall.h>
 
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -14,15 +13,14 @@
 #include <sl.h>
 #include <sl_lock.h>
 #include <sl_thd.h>
-#include <rk_inv_api.h>
+
+#include <posix.h>
 
 volatile int *null_ptr = NULL;
 #define ABORT() do {int i = *null_ptr;} while(0)
 
-#define SYSCALLS_NUM 378
-
 typedef long (*cos_syscall_t)(long a, long b, long c, long d, long e, long f);
-cos_syscall_t cos_syscalls[SYSCALLS_NUM];
+static cos_syscall_t cos_syscalls[SYSCALL_NUM_MAX];
 
 static void
 libc_syscall_override(cos_syscall_t fn, int syscall_num)
@@ -261,103 +259,6 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 	return thd->thdid;
 }
 
-unsigned int cos_spdid_get(void);
-int shmem_allocate_invoke(void);
-unsigned long shmem_get_vaddr_invoke(int id);
-void *memcpy(void *dest, const void *src, size_t n);
-struct sockaddr;
-int
-cos_socketcall(int call, unsigned long *args)
-{
-	int ret = -1;
-
-	printc("\tcos_socketcall, call: %d, args: %p\n", call, args);
-
-	switch (call) {
-		case 1: { /* Socket */
-			int domain, type, protocol;
-
-			domain     = *args;
-			type       = *(args + 1);
-			protocol   = *(args + 2);
-			ret = rk_inv_socket(domain, type, protocol);
-
-			break;
-		}
-		case 2: { /* Bind */
-			int sockfd, shdmem_id;
-			unsigned long shdmem_addr;
-			void *addr;
-			u32_t addrlen;
-
-			sockfd  = *args;
-			addr    = *(args + 1);
-			addrlen = *(args + 2);
-
-			/*
-			 * Do stupid shared memory for now
-			 * allocate a page for each bind addr
-			 * don't deallocate. #memLeaksEverywhere
-			 */
-
-			shdmem_id = shmem_allocate_invoke();
-			assert(shdmem_id > -1);
-
-			shdmem_addr = shmem_get_vaddr_invoke(shdmem_id);
-			assert(shdmem_addr > 0);
-
-			memcpy(shdmem_addr, addr, addrlen);
-			ret = rk_inv_bind(sockfd, shdmem_id, addrlen);
-
-			break;
-		}
-		case 12: { /* recievefrom */
-			int s, flags, shdmem_id;
-			unsigned long shdmem_addr;
-			void *buff;
-			size_t len;
-			struct sockaddr *from_addr;
-			u32_t *from_addr_len_ptr;
-
-			s                 = *args;
-			buff              = *(args + 1);
-			len               = *(args + 2);
-			flags             = *(args + 3);
-			from_addr         = *(args + 4);
-			from_addr_len_ptr = *(args + 5);
-
-			/* For the time being, just allocate a new page every time we read */
-			/* TODO don't do that */
-			shdmem_id = shmem_allocate_invoke();
-			assert(shdmem_id > -1);
-
-			shdmem_addr = shmem_get_vaddr_invoke(shdmem_id);
-			assert(shdmem_addr > 0);
-
-			ret = (int)rk_inv_recvfrom(s, shdmem_id, len, flags,
-				shdmem_id, *from_addr_len_ptr);
-
-			/* TODO, put this in a function */
-			/* Copy buffer back to its original value*/
-			memcpy(buff, shdmem_addr, ret);
-			shdmem_addr += len; /* Add overall length of buffer */
-
-			/* Set from_addr_len_ptr pointer to be shared memory at right offset */
-			*from_addr_len_ptr = *(u32_t *)shdmem_addr;
-			shdmem_addr += sizeof(u32_t *);
-
-			/* Copy from_addr to be shared memory at right offset */
-			memcpy(from_addr, shdmem_addr, *from_addr_len_ptr);
-
-			break;
-		}
-		default:
-			assert(0);
-	}
-
-	return ret;
-}
-
 void
 pre_syscall_default_setup()
 {
@@ -377,7 +278,7 @@ syscall_emulation_setup(void)
 	printc("syscall_emulation_setup\n");
 
 	int i;
-	for (i = 0; i < SYSCALLS_NUM; i++) {
+	for (i = 0; i < SYSCALL_NUM_MAX; i++) {
 		cos_syscalls[i] = 0;
 	}
 
@@ -399,13 +300,12 @@ syscall_emulation_setup(void)
 	libc_syscall_override((cos_syscall_t)cos_set_thread_area, __NR_set_thread_area);
 	libc_syscall_override((cos_syscall_t)cos_set_tid_address, __NR_set_tid_address);
 	libc_syscall_override((cos_syscall_t)cos_clone, __NR_clone);
-	libc_syscall_override((cos_syscall_t)cos_socketcall, __NR_socketcall);
 }
 
 long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f)
 {
-	assert(syscall_num <= SYSCALLS_NUM);
+	assert(syscall_num <= SYSCALL_NUM_MAX);
 	/* printc("Making syscall %d\n", syscall_num); */
 	if (!cos_syscalls[syscall_num]){
 		printc("WARNING: Thread %u calling unimplemented system call %d\n", cos_thdid(), syscall_num);
@@ -420,4 +320,12 @@ libc_initialization_handler()
 {
 	printc("libc_init\n");
 	libc_init();
+}
+
+int
+posix_syscall_override(cos_syscall_t fn, int syscall_num)
+{
+	libc_syscall_override(fn, syscall_num);
+
+	return 0;
 }
