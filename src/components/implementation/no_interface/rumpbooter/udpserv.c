@@ -54,20 +54,21 @@ __test_udp_server(void)
 
 	do {
 		struct sockaddr sa;
-		socklen_t len;
+		socklen_t len = sizeof(struct sockaddr);
 
 		if (recvfrom(fdr, msg, msg_size, 0, &sa, &len) != msg_size) {
 			PRINTC("read");
 			continue;
 		}
-		//PRINTC("Received-msg: seqno:%u time:%llu\n", ((unsigned int *)msg)[0], ((unsigned long long *)msg)[1]);
+		PRINTC("Received-msg: seqno:%u time:%llu\n", ((unsigned int *)msg)[0], ((unsigned long long *)msg)[1]);
+		PRINTC("sin_family: %hu, sin_port: %zu, sin_addr.s_addr: %p\n", ((struct sockaddr_in *)&sa)->sin_family, ((struct sockaddr_in *)&sa)->sin_port, ((struct sockaddr_in *)&sa)->sin_addr.s_addr);
 		/* Reply to the sender */
 		soutput.sin_addr.s_addr = ((struct sockaddr_in*)&sa)->sin_addr.s_addr;
 		if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&soutput, sizeof(soutput)) < 0) {
 			PRINTC("sendto");
 			continue;
 		}
-		//PRINTC("Sent-msg: seqno:%u time:%llu\n", ((unsigned int *)msg)[0], ((unsigned long long *)msg)[1]);
+		PRINTC("Sent-msg: seqno:%u time:%llu\n", ((unsigned int *)msg)[0], ((unsigned long long *)msg)[1]);
 
 		msg_count ++;
 		__rdtscll(now);

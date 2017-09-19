@@ -11,6 +11,7 @@
 
 int rump___sysimpl_socket30(int, int, int);
 int rump___sysimpl_bind(int, const struct sockaddr *, socklen_t);
+ssize_t rump___sysimpl_recvfrom(int, void *, size_t, int, struct sockaddr *, socklen_t *);
 
 /* These syncronous invocations involve calls to and from a RumpKernel */
 extern struct cringbuf *vmrb;
@@ -112,7 +113,40 @@ rk_bind(int sockfd, int shdmem_id, socklen_t addrlen)
 	return rump___sysimpl_bind(sockfd, addr, addrlen);
 }
 
-/* TODO: too many unused arguments in many cases.. get rid of them */
+ssize_t
+rk_recvfrom(int s, int buff_shdmem_id, size_t len, int flags, int from_shdmem_id, int from_addr_len)
+{
+	int shdmem_id;
+	vaddr_t my_addr;
+	void *buff;
+	struct sockaddr *from;
+	socklen_t *from_addr_len_ptr;
+
+	/* We are using only one page, make sure the id is the same */
+	assert(buff_shdmem_id == from_shdmem_id);
+
+	shdmem_id = shmem_map_invoke(buff_shdmem_id);
+	assert(shdmem_id > -1);
+	my_addr = (const struct sockaddr *)shmem_get_vaddr_invoke(shdmem_id);
+	assert(my_addr > 0);
+
+	/* TODO, put this in a function */
+	/* In the shared memory page, first comes the message buffer for len amount */
+	buff = my_addr;
+	my_addr += len;
+
+	/* Second is from addr length ptr */
+	from_addr_len_ptr  = my_addr;
+	*from_addr_len_ptr = from_addr_len;
+	my_addr += sizeof(socklen_t *);
+
+	/* Last is the from socket address */
+	from = my_addr;
+
+
+	return rump___sysimpl_recvfrom(s, buff, len, flags, from, from_addr_len_ptr);
+}
+
 int
 rk_inv_entry(int arg1, int arg2, int arg3, int arg4)
 {
@@ -120,22 +154,42 @@ rk_inv_entry(int arg1, int arg2, int arg3, int arg4)
 
 	/* TODO Rename this dumb conevention from a function to a system call  */
 	switch(arg1) {
-	case RK_INV_OP1:
-		ret = test_fs(arg2, arg3, arg4, 0);
-		break;
-	case RK_INV_OP2:
-		ret = test_shdmem(arg2, arg3, arg4, 0);
-		break;
-	case RK_GET_BOOT_DONE:
-		ret = get_boot_done();
-		break;
-	case RK_SOCKET:
-		ret = rk_socket(arg2, arg3, arg4);
-		break;
-	case RK_BIND:
-		ret = rk_bind(arg2, arg3, (socklen_t)arg4);
-		break;
-	default: assert(0);
+		case RK_INV_OP1: {
+			ret = test_fs(arg2, arg3, arg4, 0);
+			break;
+		}
+		case RK_INV_OP2: {
+			ret = test_shdmem(arg2, arg3, arg4, 0);
+			break;
+		}
+		case RK_GET_BOOT_DONE: {
+			ret = get_boot_done();
+			break;
+		}
+		case RK_SOCKET: {
+			ret = rk_socket(arg2, arg3, arg4);
+			break;
+		}
+		case RK_BIND: {
+			ret = rk_bind(arg2, arg3, (socklen_t)arg4);
+			break;
+		}
+		case RK_RECVFROM: {
+			int s, buff_shdmem_id, flags, from_shdmem_id, from_addr_len;
+			size_t len;
+
+			s = (arg2 >> 16);
+			buff_shdmem_id = (arg2 << 16) >> 16;
+			len = (arg3 >> 16);
+			flags = (arg3 << 16) >> 16;
+			from_shdmem_id = (arg4 >> 16);
+			from_addr_len = (arg4 << 16) >> 16;
+
+			ret = (int)rk_recvfrom(s, buff_shdmem_id, len, flags,
+					from_shdmem_id, from_addr_len);
+			break;
+		}
+		default: assert(0);
 	}
 
 	return ret;

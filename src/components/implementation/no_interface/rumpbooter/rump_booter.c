@@ -65,15 +65,16 @@ rump_booter_init(void *d)
 	char *json_file = "";
 #define JSON_PAWS_BAREMETAL 0
 #define JSON_PAWS_QEMU 1
-#define JSON_UPDSERV_BAREMETAL JSON_PAWS_BAREMETAL
+#define JSON_UDPSERV_BAREMETAL JSON_PAWS_BAREMETAL
 #define JSON_UDPSERV_QEMU JSON_PAWS_QEMU
 #define JSON_NGINX_BAREMETAL 2
 #define JSON_NGINX_QEMU 3
 
 /* json config string fixed at compile-time */
 //#define JSON_CONF_TYPE JSON_UDPSERV_BAREMETAL
+#define JSON_CONF_TYPE JSON_UDPSERV_QEMU
 //#define JSON_CONF_TYPE JSON_PAWS_BAREMETAL
-#define JSON_CONF_TYPE JSON_PAWS_QEMU
+//#define JSON_CONF_TYPE JSON_PAWS_QEMU
 
 	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
 	assert(vmid == 0);
