@@ -29,11 +29,23 @@ rump_io_fn(void *d)
 		amnt = cringbuf_sz(vmrb);
 		assert(amnt);
 
-		/* TODO: SYNC! */
-		printc("+");
 		printc("%s", cringbuf_active_extent(vmrb, &len, amnt));
 		cringbuf_delete(vmrb, amnt);
 	}
+}
+
+int
+rk_logdata(void)
+{
+	int amnt = 0, len = 0;
+
+	amnt = cringbuf_sz(vmrb);
+	assert(amnt);
+
+	printc("%s", cringbuf_active_extent(vmrb, &len, amnt));
+	cringbuf_delete(vmrb, amnt);
+
+	return 0;
 }
 
 int
@@ -134,6 +146,9 @@ rk_inv_entry(int arg1, int arg2, int arg3, int arg4)
 		break;
 	case RK_BIND:
 		ret = rk_bind(arg2, arg3, (socklen_t)arg4);
+		break;
+	case RK_LOGDATA:
+		ret = rk_logdata();
 		break;
 	default: assert(0);
 	}

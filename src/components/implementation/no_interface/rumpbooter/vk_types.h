@@ -20,6 +20,9 @@
 #define VM_FIXED_PERIOD_MS 10
 #define VM_FIXED_BUDGET_MS 5
 
+//#define APP_COMM_SYNC
+#define APP_COMM_ASYNC
+
 #define VM_CAPTBL_SELF_VK_SINV_BASE  BOOT_CAPTBL_FREE
 /* for now, one thread per app and one app per subsys */
 #define VM_CAPTBL_SELF_APPTHD_BASE   round_up_to_pow2(VM_CAPTBL_SELF_VK_SINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
@@ -67,6 +70,7 @@ enum rk_inv_ops {
 	RK_GET_BOOT_DONE,
 	RK_SOCKET,
 	RK_BIND,
+	RK_LOGDATA,
 };
 
 enum timer_inv_ops {

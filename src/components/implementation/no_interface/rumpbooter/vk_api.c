@@ -241,6 +241,7 @@ vk_vm_sinvs_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 void
 vk_iocomm_init(void)
 {
+#if defined(APP_COMM_ASYNC)
 	struct cos_compinfo *vkcinfo = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct vms_info *rk, *tm, *udp, *dl;
 	struct cos_compinfo *rkci, *tmci, *udpci, *dlci;
@@ -294,6 +295,11 @@ vk_iocomm_init(void)
 	/* copy asnd to timer into udp */
 	ret = cos_cap_cpy_at(udpci, APP_CAPTBL_SELF_IOSND_BASE, vkcinfo, tm->ioasnd);
 	assert(ret == 0);
+#elif defined(APP_COMM_SYNC)
+	printc("Not creating I/O capabilities\n");
+#else
+	assert(0);
+#endif
 }
 
 vaddr_t

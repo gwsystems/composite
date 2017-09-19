@@ -3,19 +3,40 @@
 #include <sys/socket.h>
 #include "micro_booter.h"
 #include "rk_inv_api.h"
-
-#define __rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+#include "timer_inv_api.h"
 
 #define IN_PORT  9998
 #define OUT_PORT 9999
 #define MSG_SZ   16
-#define TP_INFO_MS (unsigned long long)(5*1000)
+#define TP_INFO_MS (unsigned long long)(5*1000) //5secs
+#define HPET_REQ_US (20*1000) //20ms
+#define HPET_REQ_BUDGET_US (500) //1ms
 
 extern int vmid;
 
-static unsigned long long prev = 0, now = 0;
-static unsigned long msg_count = 0;
-static char msg[MSG_SZ + 1] = { '\0' };
+static unsigned long long __tp_out_prev = 0, __now = 0, __hpet_req_prev = 0;
+static unsigned long __msg_count = 0;
+static char __msg[MSG_SZ + 1] = { '\0' };
+static u32_t __hpets_last_pass = 0;
+
+static volatile u32_t *__hpets_shm_addr = (u32_t *)APP_SUB_SHM_BASE;
+static u32_t __interval_count = (TP_INFO_MS * 1000)/(HPET_PERIOD_US);
+
+static void
+__get_hpet_counter(void)
+{
+#if defined(APP_COMM_ASYNC)
+	int ret = 0;
+	tcap_res_t b = HPET_REQ_BUDGET_US * cycs_per_usec;
+
+	ret = cos_tcap_delegate(APP_CAPTBL_SELF_IOSND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, b, PRIO_HIGH, 0);
+	if (ret != -EPERM) assert(ret == 0);
+#elif defined(APP_COMM_SYNC)
+	*__hpets_shm_addr = (u32_t)timer_get_counter();
+#else
+	assert(0);
+#endif
+}
 
 static int
 __test_udp_server(void)
@@ -27,7 +48,6 @@ __test_udp_server(void)
 
 	soutput.sin_family      = AF_INET;
 	soutput.sin_port        = htons(OUT_PORT);
-//	PRINTC("%x\n", (unsigned int)soutput.sin_addr.s_addr);
 	soutput.sin_addr.s_addr = htonl(INADDR_ANY);
 	PRINTC("Sending to port %d\n", OUT_PORT);
 	if ((fd = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
@@ -50,34 +70,42 @@ __test_udp_server(void)
 		return -1;
 	}
 
-	__rdtscll(now);
-	prev = now;
+	rdtscll(__now);
+	__tp_out_prev = __now;
 
 	do {
 		struct sockaddr sa;
 		socklen_t len;
 
-		if (recvfrom(fdr, msg, msg_size, 0, &sa, &len) != msg_size) {
+		if (recvfrom(fdr, __msg, msg_size, 0, &sa, &len) != msg_size) {
 			PRINTC("read");
 			continue;
 		}
-		//PRINTC("Received-msg: seqno:%u time:%llu\n", ((unsigned int *)msg)[0], ((unsigned long long *)msg)[1]);
+
 		/* Reply to the sender */
 		soutput.sin_addr.s_addr = ((struct sockaddr_in*)&sa)->sin_addr.s_addr;
-		if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&soutput, sizeof(soutput)) < 0) {
+		if (sendto(fd, __msg, msg_size, 0, (struct sockaddr*)&soutput, sizeof(soutput)) < 0) {
 			PRINTC("sendto");
 			continue;
 		}
-		//PRINTC("Sent-msg: seqno:%u time:%llu\n", ((unsigned int *)msg)[0], ((unsigned long long *)msg)[1]);
 
-		msg_count ++;
-		__rdtscll(now);
-	//	PRINTC("now:%llu prev:%llu %llu, cycs_per_msec:%d\n", now, prev, now - prev, cycs_per_msec);
-		if ((now - prev) >= ((unsigned long long)cycs_per_usec * TP_INFO_MS * 1000)) {
-			PRINTC("%d:Msgs processed:%lu, last seqno:%u\n", tp_counter++, msg_count, ((unsigned int *)msg)[0]);
-			msg_count = 0;
-			prev = now;
+		__msg_count ++;
+		rdtscll(__now);
+
+		/* Request Number of HPET intervals passed. Every HPET_REQ_US usecs */
+		if ((__now - __hpet_req_prev) >= ((cycles_t)cycs_per_usec*HPET_REQ_US)) {
+			__hpet_req_prev = __now;
+			__get_hpet_counter();
 		}
+
+		/* Log every __interval_count number of HPETS processed */
+		if (*__hpets_shm_addr >= __hpets_last_pass + __interval_count) {
+			PRINTC("%d:Msgs processed:%lu, last seqno:%u\n", tp_counter++, __msg_count, ((unsigned int *)__msg)[0]);
+			__msg_count = 0;
+			__tp_out_prev = __now;
+			__hpets_last_pass = *__hpets_shm_addr;
+		}
+
 	} while (1) ;
 
 	return -1;
@@ -88,7 +116,7 @@ udpserv_main(void)
 {
 	rk_socketcall_init();
 	
-	PRINTC("%d: Starting udp-server [in:%d out:%d]\n", vmid, IN_PORT, OUT_PORT);
+	PRINTC("Starting udp-server [in:%d out:%d]\n", IN_PORT, OUT_PORT);
 	__test_udp_server();
 
 	return 0;

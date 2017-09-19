@@ -32,8 +32,16 @@ rk_inv_socket(int domain, int type, int protocol)
 }
 
 int
-rk_inv_bind(int sockfd, int shdmem_id, socklen_t addrlen) {
+rk_inv_bind(int sockfd, int shdmem_id, socklen_t addrlen)
+{
 	return cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_BIND, sockfd, shdmem_id, addrlen);
+}
+
+/* still using ringbuffer shared data */
+int
+rk_inv_logdata(void)
+{
+	return cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_LOGDATA, 0, 0, 0);
 }
 
 unsigned int cos_spdid_get(void);
