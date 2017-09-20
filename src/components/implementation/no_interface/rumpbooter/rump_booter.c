@@ -10,7 +10,7 @@
 #include "vk_api.h"
 #include "cos_sync.h"
 
-extern struct cos_compinfo booter_info;
+extern struct cos_compinfo *currci;
 extern int vmid;
 
 u64_t t_vm_cycs  = 0;
@@ -36,7 +36,7 @@ hw_irq_alloc(void)
 			case RK_IRQ_IO:
 				intr_update(i, 0);
 				irq_thdcap[i] = SUB_CAPTBL_SELF_IOTHD_BASE;
-				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
+				irq_thdid[i] = (thdid_t)cos_introspect(currci, irq_thdcap[i], THD_GET_TID);
 				irq_arcvcap[i] = SUB_CAPTBL_SELF_IORCV_BASE;
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 				irq_prio[i] = PRIO_LOW;
@@ -44,14 +44,14 @@ hw_irq_alloc(void)
 #endif
 			default:
 				intr_update(i, 0);
-				irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, (void *)i);
+				irq_thdcap[i] = cos_thd_alloc(currci, currci->comp_cap, cos_irqthd_handler, (void *)i);
 				assert(irq_thdcap[i]);
-				irq_thdid[i] = (thdid_t)cos_introspect(&booter_info, irq_thdcap[i], THD_GET_TID);
+				irq_thdid[i] = (thdid_t)cos_introspect(currci, irq_thdcap[i], THD_GET_TID);
 				assert(irq_thdid[i]);
 				irq_prio[i] = PRIO_MID;
 
 				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-				irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+				irq_arcvcap[i] = cos_arcv_alloc(currci, irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, currci->comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 				assert(irq_arcvcap[i]);
 				cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
 				break;

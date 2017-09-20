@@ -4,7 +4,7 @@
 
 #include <cos_kernel_api.h>
 
-extern struct cos_compinfo booter_info;
+extern struct cos_compinfo *currci;
 
 /* The amount of memory to give RK to start in bytes */
 #define RK_MEM (1<<26) //64MB
@@ -23,7 +23,7 @@ alloc_initmem_all(void)
 	printc("Looking to get %d pages\n", max_rk);
 
 	void *curpage;
-	void *nxtpage = cos_page_bump_alloc(&booter_info);
+	void *nxtpage = cos_page_bump_alloc(currci);
 	int  *nxtpage_test = (int *)nxtpage;
 	*nxtpage_test = 1;
 
@@ -32,7 +32,7 @@ alloc_initmem_all(void)
 		int *curpage_test = (int *)nxtpage;
 		*curpage_test = 1;
 
-		nxtpage = cos_page_bump_alloc(&booter_info);
+		nxtpage = cos_page_bump_alloc(currci);
 		count++;
 	}
 
@@ -58,7 +58,7 @@ cos_run(char *cmdline)
 	 * Before bmk_pgalloc_loadmem is called, I need to alloc memory till we have enough or till failure
 	 * the start and end locations in memory to bmk_pgalloc
 	 */
-	void *minptr = cos_page_bump_alloc(&booter_info);
+	void *minptr = cos_page_bump_alloc(currci);
 	int *mintest = (int *)minptr;
 	*mintest = 1;
 

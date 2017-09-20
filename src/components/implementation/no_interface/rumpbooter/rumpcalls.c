@@ -17,7 +17,7 @@
 #include "vk_api.h"
 #include <rk_inv_api.h>
 
-extern struct cos_compinfo booter_info;
+extern struct cos_compinfo *currci;
 extern struct cos_rumpcalls crcalls;
 
 /* Thread cap */
@@ -245,7 +245,7 @@ int boot_thd = BOOT_CAPTBL_SELF_INITTHD_BASE;
 int
 cos_tls_init(unsigned long tp, thdcap_t tc)
 {
-	return cos_thd_mod(&booter_info, tc, (void *)tp);
+	return cos_thd_mod(currci, tc, (void *)tp);
 }
 
 
@@ -267,11 +267,11 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		printc("\nMatch, thdcap %d\n", (unsigned int)VM_CAPTBL_SELF_APPTHD_BASE);
 		newthd_cap = VM_CAPTBL_SELF_APPTHD_BASE;
 	} else {
-		newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, f, arg);
+		newthd_cap = cos_thd_alloc(currci, currci->comp_cap, f, arg);
 		printc(" thdcap: %lu\n", newthd_cap);
 	}
 	assert(newthd_cap);
-	set_cos_thddata(thread, newthd_cap, cos_introspect(&booter_info, newthd_cap, 9));
+	set_cos_thddata(thread, newthd_cap, cos_introspect(currci, newthd_cap, 9));
 }
 
 static inline void
@@ -333,7 +333,7 @@ print_cycles(void)
 	prev = curr;
 
 	if (total_cycles >= cycs_per_sec) {
-		mainbud = (tcap_res_t)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
+		mainbud = (tcap_res_t)cos_introspect(currci, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
 		printc("vm%d: %lu\n", vmid, mainbud);
 		total_cycles = 0;
 	}
@@ -518,11 +518,11 @@ cos_cpu_clock_now(void)
 
 void *
 cos_vatpa(void * vaddr)
-{ return cos_va2pa(&booter_info, vaddr); }
+{ return cos_va2pa(currci, vaddr); }
 
 void *
 cos_pa2va(void * pa, unsigned long len)
-{ return (void *)cos_hw_map(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)pa, (unsigned int)len); }
+{ return (void *)cos_hw_map(currci, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)pa, (unsigned int)len); }
 
 void
 cos_vm_exit(void)

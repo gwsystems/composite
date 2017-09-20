@@ -13,7 +13,6 @@ extern volatile isr_state_t cos_isr;           /* Last running isr thread */
 extern unsigned int cos_nesting;               /* Depth to intr_disable/intr_enable */
 extern u32_t intrs;	                       /* Intrrupt bit mask */
 extern volatile unsigned int cos_intrdisabled; /* Variable to detect if cos interrupt threads disabled interrupts */
-extern struct cos_compinfo booter_info;
 
 int __attribute__((format(printf,1,2))) printc(char *fmt, ...);
 

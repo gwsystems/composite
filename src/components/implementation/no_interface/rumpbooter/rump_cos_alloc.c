@@ -20,7 +20,7 @@
 
 #include <cos_kernel_api.h>
 
-extern struct cos_compinfo booter_info;
+extern struct cos_compinfo *currci;
 
 void *allocpage(void);
 
@@ -30,7 +30,7 @@ allocpage(void)
 	void *rv;
 
 	/* cos_kernel_api */
-	rv = cos_page_bump_alloc(&booter_info);
+	rv = cos_page_bump_alloc(currci);
 	return rv;
 }
 
