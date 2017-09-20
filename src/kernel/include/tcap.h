@@ -282,6 +282,7 @@ tcap_higher_prio(struct tcap *a, struct tcap *c)
 	int ret = 0;
 
 	if (tcap_expended(a)) return 0;
+	if (unlikely(a == c)) return 1;
 
 	for (i = 0, j = 0; i < a->ndelegs && j < c->ndelegs;) {
 		/*

@@ -621,20 +621,15 @@ sl_init(microsec_t period)
 	return;
 }
 
-//#define PRINTX printc
-#define PRINTX(fmt,...)
-
 void
 sl_sched_loop(void)
 {
 	struct sl_global *g = sl__globals();
 
-	PRINTX("%u:a]", g->sched_thd->thdid);
 	while (1) {
 		int pending;
 
 		do {
-	PRINTX("%u:b]", g->sched_thd->thdid);
 			thdid_t        tid;
 			int            blocked, rcvd;
 			cycles_t       cycles;
@@ -650,12 +645,10 @@ sl_sched_loop(void)
 						&rcvd, &tid, &blocked, &cycles, &thd_timeout);
 			if (!tid) goto pending_events;
 
-	PRINTX("%u:c]", g->sched_thd->thdid);
 			t = sl_thd_lkup(tid);
 			assert(t);
 			/* don't report the idle thread or a freed thread */
 			if (unlikely(t == g->idle_thd || t->state == SL_THD_FREE)) goto pending_events;
-	PRINTX("%u:d]", g->sched_thd->thdid);
 
 			/*
 			 * Failure to take the CS because another thread is holding it and switching to
@@ -666,16 +659,9 @@ sl_sched_loop(void)
 			 */
 			sl_thd_event_enqueue(t, blocked, cycles, thd_timeout);
 
-	PRINTX("%u:e]", g->sched_thd->thdid);
 pending_events:
-	PRINTX("%u:x]", g->sched_thd->thdid);
-			if (ps_list_is_head(&g->event_head, t, SL_THD_EVENT_LIST)) {
-//			if (!ps_list_head_first(&g->event_head, struct sl_thd, SL_THD_EVENT_LIST)) {
-				PRINTX("%u:Z", g->sched_thd->thdid);
-				continue;
-			}
+			if (ps_list_is_head(&g->event_head, t, SL_THD_EVENT_LIST)) continue;
 
-	PRINTX("%u:f]", g->sched_thd->thdid);
 			/*
 			 * receiving scheduler notifications is not in critical section mainly for
 			 * 1. scheduler thread can often be blocked in rcv, which can add to
@@ -685,14 +671,11 @@ pending_events:
 			 */
 			if (sl_cs_enter_sched()) continue;
 
-	PRINTX("%u:g]", g->sched_thd->thdid);
 			ps_list_foreach_del(&g->event_head, t, tn, SL_THD_EVENT_LIST) {
-	PRINTX("%u:h]", g->sched_thd->thdid);
 				
 				/* outdated event for a freed thread */
 				if (t->state == SL_THD_FREE) continue;
 
-	PRINTX("%u:i]", g->sched_thd->thdid);
 				sl_thd_event_info(t, &blocked, &cycles, &thd_timeout);
 				sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
 
@@ -712,15 +695,11 @@ pending_events:
 				}
 			}
 
-	PRINTX("%u:j]", g->sched_thd->thdid);
 			sl_cs_exit();
 		} while (pending);
-	PRINTX("%u:k]", g->sched_thd->thdid);
 
 		if (sl_cs_enter_sched()) continue;
-	PRINTX("%u:l]", g->sched_thd->thdid);
 		/* If switch returns an inconsistency, we retry anyway */
 		sl_cs_exit_schedule_nospin();
-	PRINTX("%u:m]", g->sched_thd->thdid);
 	}
 }
