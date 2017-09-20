@@ -437,8 +437,8 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			t = sl_mod_thd_get(pt);
 	}
 
-	if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
-		assert(t->budget && t->period);
+	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {
+		assert(t->period);
 		assert(sl_thd_tcap(t) != sl__globals()->sched_tcap);
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
@@ -446,7 +446,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);  
 
 			ret = 0;
-			if (likely(t->last_replenish)) currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
+			currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
 
 			if (!cycles_same(currbudget, t->budget, SL_CYCS_DIFF) && currbudget < t->budget) {
 				tcap_res_t transfer = t->budget - currbudget;
@@ -463,12 +463,15 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 
 	ret = sl_thd_activate(t, tok);
 	if (unlikely(ret == -EPERM)) {
-			cycles_t abs_timeout = t->last_replenish + t->period;
+			cycles_t abs_timeout = globals->timer_next;
 
 			assert(t != globals->sched_thd);
 			assert(t->properties & SL_THD_PROPERTY_OWN_TCAP);
 
+			sl_cs_enter();
+			if (likely(t->period)) abs_timeout = t->last_replenish + t->period;
 			sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
+			sl_cs_exit();
 
 			if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok);
 	}
