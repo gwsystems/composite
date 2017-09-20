@@ -23,23 +23,8 @@ struct {                                                                \
 }
 #define TAILQ_ENTRY(type) _TAILQ_ENTRY(struct type,)
 
-extern struct cos_rumpcalls crcalls;
-
-extern int boot_thd;
-
 extern __thread struct bmk_thread *bmk_current;
-extern tcap_prio_t rk_thd_prio;
-extern volatile unsigned int cos_cur_tcap;
-#define COS_CUR_TCAP ((tcap_t)((cos_cur_tcap << 16) >> 16))
-
 struct bmk_tcb *tcb;
-extern void bmk_isr(int which);
-//extern int paws_tests(void);
-
-void* rump_cos_malloc(size_t size);
-void* rump_cos_calloc(size_t nmemb, size_t _size);
-void rump_cos_free(void *ptr);
-
 struct bmk_tcb {
         unsigned long btcb_sp;          /* stack pointer        */
         unsigned long btcb_ip;          /* program counter      */
@@ -72,6 +57,23 @@ struct bmk_thread {
 	long long runtime_end;
 };
 
+/*
+ * These are defined on the rumpkernel side
+ * Think of these as upcalls to the rump kernel
+ */
+extern void bmk_isr(int which);
+void bmk_sched_startmain(void (*)(void *), void *) __attribute__((noreturn));
+void bmk_mainthread(void *);
+void bmk_memalloc_init(void);
+void bmk_pgalloc_loadmem(unsigned long min, unsigned long max);
+void bmk_sched_init(void);
+int  bmk_intr_init(void);
+
+extern int boot_thd;
+extern struct cos_rumpcalls crcalls;
+extern tcap_prio_t rk_thd_prio;
+extern volatile unsigned int cos_cur_tcap;
+#define COS_CUR_TCAP ((tcap_t)((cos_cur_tcap << 16) >> 16))
 
 struct cos_rumpcalls
 {
@@ -108,6 +110,10 @@ struct cos_rumpcalls
 	void   (*rump_cpu_intr_ack)(void);
 	int    (*rump_dequeue_size)(unsigned int srcvm, unsigned int dstvm);
 };
+
+void* rump_cos_malloc(size_t size);
+void* rump_cos_calloc(size_t nmemb, size_t _size);
+void rump_cos_free(void *ptr);
 
 /* Mapping the functions from rumpkernel to composite */
 void cos2rump_setup(void);

@@ -15,9 +15,12 @@ extern void rump_booter_init(void *);
 extern void timersub_init(void *);
 extern void dlapp_init(void *);
 extern int udpserv_main(void);
-struct cos_compinfo booter_info;
 static struct cringbuf vmringbuf;
 struct cringbuf *vmrb = NULL;
+
+struct cos_defcompinfo *currdci = NULL;
+struct cos_compinfo *currci = NULL;
+
 /*
  * the capability for the thread switched to upon termination.
  * FIXME: not exit thread for now
@@ -42,8 +45,10 @@ hpet_first_period(void)
 	int ret;
 	static cycles_t start_period = 0;
 
+	assert(currci);
+
 	if (!start_period) {
-		while ((ret = cos_introspect64(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_GET_FIRST_HPET, &start_period)) == -EAGAIN) ;
+		while ((ret = cos_introspect64(currci, BOOT_CAPTBL_SELF_INITHW_BASE, HW_GET_FIRST_HPET, &start_period)) == -EAGAIN) ;
 		if (ret) assert(0);
 	}
 
@@ -59,6 +64,9 @@ vm_init(void *unused)
 	tcap_time_t timeout = 0, thd_timeout;
 	capid_t     cap_frontier = APP_CAPTBL_FREE;
 	void (*init_fn)(void *) = NULL;
+
+	currdci = cos_defcompinfo_curr_get();
+	currci  = cos_compinfo_get(currdci);
 
 	vmid = vk_vm_id();
 	rumpns_vmid = vmid;
@@ -88,12 +96,8 @@ vm_init(void *unused)
 	default: assert(0);
 	}
 
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE(vmid),
+	cos_meminfo_init(&currci->mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE(vmid),
 			BOOT_CAPTBL_SELF_UNTYPED_PT);
-
-	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
-			BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(),
-			cap_frontier, &booter_info);
 
 	cos_defcompinfo_init_ext(BOOT_CAPTBL_SELF_INITTCAP_BASE, BOOT_CAPTBL_SELF_INITTHD_BASE,
 				 BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_PT,
