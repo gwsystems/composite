@@ -1,3 +1,3 @@
 #include <elf.h>
 
-Elf64_Dyn _DYNAMIC [];
+Elf64_Dyn _DYNAMIC [1];

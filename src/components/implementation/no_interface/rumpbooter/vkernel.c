@@ -79,8 +79,6 @@ cos_init(void)
 	memset(&vmx_info, 0, sizeof(struct vms_info) * VM_COUNT);
 
 	vk_cinfo = ci;
-	cos_meminfo_init(&ci->mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_defcompinfo_init();
 
 	/*
 	 * TODO: If there is any captbl modification, this could mess up a bit.

@@ -75,13 +75,14 @@ __test_udp_server(void)
 
 	do {
 		struct sockaddr sa;
-		socklen_t len;
+		socklen_t len = sizeof(struct sockaddr);
 
 		if (recvfrom(fdr, __msg, msg_size, 0, &sa, &len) != msg_size) {
 			PRINTC("read");
 			continue;
 		}
-
+		PRINTC("Received-msg: seqno:%u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned long long *)__msg)[1]);
+		PRINTC("sin_family: %hu, sin_port: %zu, sin_addr.s_addr: %p\n", ((struct sockaddr_in *)&sa)->sin_family, ((struct sockaddr_in *)&sa)->sin_port, (void *)((struct sockaddr_in *)&sa)->sin_addr.s_addr);
 		/* Reply to the sender */
 		soutput.sin_addr.s_addr = ((struct sockaddr_in*)&sa)->sin_addr.s_addr;
 		if (sendto(fd, __msg, msg_size, 0, (struct sockaddr*)&soutput, sizeof(soutput)) < 0) {
@@ -89,7 +90,9 @@ __test_udp_server(void)
 			continue;
 		}
 
-		__msg_count ++;
+		PRINTC("Sent-msg: seqno:%u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned long long *)__msg)[1]);
+
+		__msg_count++;
 		rdtscll(__now);
 
 		/* Request Number of HPET intervals passed. Every HPET_REQ_US usecs */
@@ -115,7 +118,7 @@ int
 udpserv_main(void)
 {
 	rk_socketcall_init();
-	
+
 	PRINTC("Starting udp-server [in:%d out:%d]\n", IN_PORT, OUT_PORT);
 	__test_udp_server();
 
