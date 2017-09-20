@@ -377,6 +377,7 @@ sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *
 
 		assert(comp);
 		sa   = cos_sched_aep_get(comp);
+		/* copying cos_aep_info is fine here as cos_thd_alloc() is not done using this aep */
 		*aep = *sa;
 
 		snd = cos_asnd_alloc(ci, aep->rcv, ci->captbl_cap);
@@ -442,6 +443,7 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 		aep = sl_thd_alloc_aep_backend();
 		if (!aep) goto done;
 
+		/* copying cos_aep_info is fine here as cos_thd_alloc() is not done using this aep */
 		*aep = *sa;
 		tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 		assert(tid);

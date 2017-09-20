@@ -872,8 +872,11 @@ test_run_mb(void)
 
 	test_captbl_expand();
 
-//	test_wakeup();
-//	test_preemption();
+	/*
+	 * FIXME: Preemption stack mechanism in the kernel is disabled.
+	 * test_wakeup();
+	 * test_preemption();
+	 */
 }
 
 static void

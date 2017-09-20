@@ -538,11 +538,12 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, 
 
 	/*
 	 * FIXME: Need to revisit the preemption-stack functionality
+	 *
+	 * if (next == thd)
+	 * 	tcap_wakeup(rcv_tcap, tcap_sched_info(rcv_tcap)->prio, 0, rcv_thd, cos_info);
+	 * else
+	 * 	thd_next_thdinfo_update(cos_info, thd, tcap, tcap_sched_info(tcap)->prio, 0);
 	 */
-	//if (next == thd)
-	//	tcap_wakeup(rcv_tcap, tcap_sched_info(rcv_tcap)->prio, 0, rcv_thd, cos_info);
-	//else
-	//	thd_next_thdinfo_update(cos_info, thd, tcap, tcap_sched_info(tcap)->prio, 0);
 
 	return next;
 }

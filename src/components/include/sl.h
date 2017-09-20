@@ -462,6 +462,13 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	sl_cs_exit();
 
 	ret = sl_thd_activate(t, tok);
+	/*
+	 * dispatch failed with -EPERM because tcap associated with thread t does not have budget.
+	 * Block the thread until it's next replenishment and return to the scheduler thread.
+	 *
+	 * If the thread is not replenished by the scheduler (replenished "only" by 
+	 * the inter-component delegations), block till next timeout and try again.
+	 */
 	if (unlikely(ret == -EPERM)) {
 			cycles_t abs_timeout = globals->timer_next;
 
