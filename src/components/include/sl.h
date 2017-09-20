@@ -63,6 +63,8 @@ struct sl_global {
 	cycles_t    period;
 	cycles_t    timer_next;
 	tcap_time_t timeout_next;
+
+	struct ps_list_head event_head; /* all pending events for sched end-point */
 };
 
 extern struct sl_global sl_global_data;

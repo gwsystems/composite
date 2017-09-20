@@ -247,7 +247,6 @@ sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 
 	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1; 
 
-	/* TODO: for AEP threads, wakeup events from kernel could be level-triggered. */
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	t->state = SL_THD_RUNNABLE;
 	sl_mod_wakeup(sl_mod_thd_policy_get(t));
@@ -305,6 +304,35 @@ sl_thd_yield(thdid_t tid)
 	sl_thd_yield_cs_exit(tid);
 }
 
+static inline void
+sl_thd_event_info_reset(struct sl_thd *t)
+{
+	t->event_info.blocked = 0;
+	t->event_info.cycles  = 0;
+	t->event_info.timeout = 0;
+}
+
+static inline void
+sl_thd_event_enqueue(struct sl_thd *t, int blocked, cycles_t cycles, tcap_time_t timeout)
+{
+	struct sl_global *g = sl__globals();
+
+	if (ps_list_singleton(t, SL_THD_EVENT_LIST)) ps_list_head_append(&g->event_head, t, SL_THD_EVENT_LIST);
+
+	t->event_info.blocked  = blocked;
+	t->event_info.cycles  += cycles;
+	t->event_info.timeout  = timeout;
+}
+
+static inline void
+sl_thd_event_info(struct sl_thd *t, int *blocked, cycles_t *cycles, tcap_time_t *timeout)
+{
+	*blocked = t->event_info.blocked;
+	*cycles  = t->event_info.cycles;
+	*timeout = t->event_info.timeout;
+	sl_thd_event_info_reset(t);
+}
+
 static struct sl_thd *
 sl_thd_alloc_init(thdid_t tid, struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps)
 {
@@ -328,6 +356,8 @@ sl_thd_alloc_init(thdid_t tid, struct cos_aep_info *aep, asndcap_t sndcap, sl_th
 	t->wakeup_cycs    = 0;
 	t->timeout_idx    = -1;
 	t->prio           = TCAP_PRIO_MIN;
+	ps_list_init(t, SL_THD_EVENT_LIST);
+	sl_thd_event_info_reset(t);
 
 done:
 	return t;
@@ -554,6 +584,7 @@ sl_init(microsec_t period)
 	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 	g->sched_rcv       = BOOT_CAPTBL_SELF_INITRCV_BASE;
 	g->sched_thd->prio = 0;
+	ps_list_head_init(&g->event_head);
 
 	g->idle_thd        = sl_thd_alloc(sl_idle, NULL);
 	assert(g->idle_thd);
@@ -564,6 +595,8 @@ sl_init(microsec_t period)
 void
 sl_sched_loop(void)
 {
+	struct sl_global *g = sl__globals();
+
 	while (1) {
 		int pending;
 
@@ -571,22 +604,34 @@ sl_sched_loop(void)
 			thdid_t        tid;
 			int            blocked, rcvd;
 			cycles_t       cycles;
-			tcap_time_t    timeout = 0, thd_timeout;
-			struct sl_thd *t;
+			tcap_time_t    timeout = g->timeout_next, thd_timeout;
+			struct sl_thd *t, *tn;
 
 			/*
 			 * a child scheduler may receive both scheduling notifications (block/unblock
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			pending = cos_sched_rcv(sl__globals()->sched_rcv, RCV_ALL_PENDING, timeout,
+			pending = cos_sched_rcv(g->sched_rcv, RCV_ALL_PENDING, timeout,
 						&rcvd, &tid, &blocked, &cycles, &thd_timeout);
-			if (!tid) continue;
+			if (!tid) goto pending_events;
 
 			t = sl_thd_lkup(tid);
 			assert(t);
 			/* don't report the idle thread or a freed thread */
-			if (unlikely(t == sl__globals()->idle_thd || t->state == SL_THD_FREE)) continue;
+			if (unlikely(t == g->idle_thd || t->state == SL_THD_FREE)) goto pending_events;
+
+			/*
+			 * Failure to take the CS because another thread is holding it and switching to
+			 * that thread cannot succeed because scheduler has pending events causes the event
+			 * just received to be dropped.
+			 * To avoid dropping events, add the events to the scheduler event list and processing all
+			 * the pending events after the scheduler can successfully take the lock.
+			 */
+			sl_thd_event_enqueue(t, blocked, cycles, thd_timeout);
+
+pending_events:
+			if (!ps_list_head_first(&g->event_head, struct sl_thd, SL_THD_EVENT_LIST)) continue;
 
 			/*
 			 * receiving scheduler notifications is not in critical section mainly for
@@ -596,21 +641,28 @@ sl_sched_loop(void)
 			 *    having finer grained locks around the code that modifies sl_thd states is better.
 			 */
 			if (sl_cs_enter_sched()) continue;
-			sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
 
-			if (blocked) {
-				sl_thd_state_t state = SL_THD_BLOCKED;
-				cycles_t abs_timeout = 0;
+			ps_list_foreach_del(&g->event_head, t, tn, SL_THD_EVENT_LIST) {
+				/* outdated event for a freed thread */
+				if (t->state == SL_THD_FREE) continue;
 
-				if (likely(cycles)) {
-					if (thd_timeout) {
-						state       = SL_THD_BLOCKED_TIMEOUT;
-						abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
+				sl_thd_event_info(t, &blocked, &cycles, &thd_timeout);
+				sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
+
+				if (blocked) {
+					sl_thd_state_t state = SL_THD_BLOCKED;
+					cycles_t abs_timeout = 0;
+
+					if (likely(cycles)) {
+						if (thd_timeout) {
+							state       = SL_THD_BLOCKED_TIMEOUT;
+							abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
+						}
+						sl_thd_block_no_cs(t, state, abs_timeout);
 					}
-					sl_thd_block_no_cs(t, state, abs_timeout);
+				} else {
+					sl_thd_wakeup_no_cs(t);
 				}
-			} else {
-				sl_thd_wakeup_no_cs(t);
 			}
 
 			sl_cs_exit();
