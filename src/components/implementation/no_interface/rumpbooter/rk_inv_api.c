@@ -1,10 +1,10 @@
 #include "vk_types.h"
-#include "rumpcalls.h"
 #include <rk_inv_api.h>
 #include <cos_types.h>
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <posix.h>
+#include "rumpcalls.h"
 
 extern int vmid;
 
@@ -83,7 +83,7 @@ rk_socketcall(int call, unsigned long *args)
                         u32_t addrlen;
 
                         sockfd  = *args;
-                        addr    = *(args + 1);
+                        addr    = (void *)*(args + 1);
                         addrlen = *(args + 2);
 
                         /*
@@ -98,7 +98,7 @@ rk_socketcall(int call, unsigned long *args)
                         shdmem_addr = shmem_get_vaddr_invoke(shdmem_id);
                         assert(shdmem_addr > 0);
 
-                        memcpy(shdmem_addr, addr, addrlen);
+                        memcpy((void * __restrict__)shdmem_addr, addr, addrlen);
                         ret = rk_inv_bind(sockfd, shdmem_id, addrlen);
 
                         break;
@@ -112,11 +112,11 @@ rk_socketcall(int call, unsigned long *args)
                         u32_t *from_addr_len_ptr;
 
                         s                 = *args;
-                        buff              = *(args + 1);
+                        buff              = (void *)*(args + 1);
                         len               = *(args + 2);
                         flags             = *(args + 3);
-                        from_addr         = *(args + 4);
-                        from_addr_len_ptr = *(args + 5);
+                        from_addr         = (struct sockaddr *)*(args + 4);
+                        from_addr_len_ptr = (u32_t *)*(args + 5);
 
                         /* For the time being, just allocate a new page every time we read */
                         /* TODO don't do that */
@@ -131,7 +131,7 @@ rk_socketcall(int call, unsigned long *args)
 
                         /* TODO, put this in a function */
                         /* Copy buffer back to its original value*/
-                        memcpy(buff, shdmem_addr, ret);
+                        memcpy(buff, (const void * __restrict__)shdmem_addr, ret);
                         shdmem_addr += len; /* Add overall length of buffer */
 
                         /* Set from_addr_len_ptr pointer to be shared memory at right offset */
@@ -139,7 +139,7 @@ rk_socketcall(int call, unsigned long *args)
                         shdmem_addr += sizeof(u32_t *);
 
                         /* Copy from_addr to be shared memory at right offset */
-                        memcpy(from_addr, shdmem_addr, *from_addr_len_ptr);
+                        memcpy(from_addr, (const void * __restrict__)shdmem_addr, *from_addr_len_ptr);
 
                         break;
                 }

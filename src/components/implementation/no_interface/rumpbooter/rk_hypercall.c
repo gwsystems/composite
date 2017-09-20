@@ -139,21 +139,21 @@ rk_recvfrom(int s, int buff_shdmem_id, size_t len, int flags, int from_shdmem_id
 
 	shdmem_id = shmem_map_invoke(buff_shdmem_id);
 	assert(shdmem_id > -1);
-	my_addr = (const struct sockaddr *)shmem_get_vaddr_invoke(shdmem_id);
+	my_addr = shmem_get_vaddr_invoke(shdmem_id);
 	assert(my_addr > 0);
 
 	/* TODO, put this in a function */
 	/* In the shared memory page, first comes the message buffer for len amount */
-	buff = my_addr;
+	buff = (void *)my_addr;
 	my_addr += len;
 
 	/* Second is from addr length ptr */
-	from_addr_len_ptr  = my_addr;
+	from_addr_len_ptr  = (void *)my_addr;
 	*from_addr_len_ptr = from_addr_len;
 	my_addr += sizeof(socklen_t *);
 
 	/* Last is the from socket address */
-	from = my_addr;
+	from = (struct sockaddr *)my_addr;
 
 
 	return rump___sysimpl_recvfrom(s, buff, len, flags, from, from_addr_len_ptr);

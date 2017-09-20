@@ -46,7 +46,7 @@ cos2rump_setup(void)
 
 	crcalls.rump_cos_thdid			= cos_thdid;
 	crcalls.rump_memcpy			= memcpy;
-	crcalls.rump_memset			= cos_memset;
+	crcalls.rump_memset			= (void *)cos_memset;
 	crcalls.rump_cpu_sched_create		= cos_cpu_sched_create;
 
 	if(!crcalls.rump_cpu_sched_create) printc("SCHED: rump_cpu_sched_create is set to null");
