@@ -7,7 +7,7 @@
 #define SL_FPRR_PRIO_HIGHEST   0
 #define SL_FPRR_PRIO_LOWEST    (SL_FPRR_NPRIOS-1)
 
-#define SL_FPRR_PERIOD_US_MIN  SL_PERIOD_US
+#define SL_FPRR_PERIOD_US_MIN  SL_MIN_PERIOD_US
 
 struct ps_list_head threads[SL_FPRR_NPRIOS];
 
@@ -111,6 +111,7 @@ sl_mod_init(void)
 {
 	int i;
 
+	memset(threads, 0, sizeof(struct ps_list_head) * SL_FPRR_NPRIOS);
 	for (i = 0 ; i < SL_FPRR_NPRIOS ; i++) {
 		ps_list_head_init(&threads[i]);
 	}

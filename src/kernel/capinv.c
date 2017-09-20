@@ -485,16 +485,6 @@ notify_parent(struct thread *rcv_thd, int send)
 	prev_notif = rcv_thd;
 	curr_notif = arcv_notif = arcv_thd_notif(prev_notif);
 
-	/*
-	 * Enqueue send sched event only if it's the first one after the thread
-	 * state changed to THD_STATE_RCVING.
-	 * This is to avoid duplicate wakeup events at user-level scheduling.
-	 * Basically changing to Edge-triggered wakeup notification from 
-	 * some form of level-triggered.
-	 */ 
-	if (send && (!(rcv_thd->state & THD_STATE_RCVING) || 
-	    (rcv_thd->state & THD_STATE_RCVING && thd_rcvcap_pending(rcv_thd)))) goto done;
-
 	while (curr_notif && curr_notif != prev_notif) {
 		assert(depth < ARCV_NOTIF_DEPTH);
 
@@ -506,7 +496,6 @@ notify_parent(struct thread *rcv_thd, int send)
 		depth++;
 	}
 
-done:
 	return arcv_notif;
 }
 
@@ -547,10 +536,14 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, 
 	thd_rcvcap_pending_inc(rcv_thd);
 	next = notify_process(rcv_thd, thd, rcv_tcap, tcap, tcap_next, yield);
 
-	if (next == thd)
-		tcap_wakeup(rcv_tcap, tcap_sched_info(rcv_tcap)->prio, 0, rcv_thd, cos_info);
-	else
-		thd_next_thdinfo_update(cos_info, thd, tcap, tcap_sched_info(tcap)->prio, 0);
+	/*
+	 * FIXME: Need to revisit the preemption-stack functionality
+	 *
+	 * if (next == thd)
+	 * 	tcap_wakeup(rcv_tcap, tcap_sched_info(rcv_tcap)->prio, 0, rcv_thd, cos_info);
+	 * else
+	 * 	thd_next_thdinfo_update(cos_info, thd, tcap, tcap_sched_info(tcap)->prio, 0);
+	 */
 
 	return next;
 }
@@ -563,13 +556,12 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 	struct thread *thc, *thn;
 	struct tcap *  tc, *tn;
 	cycles_t       now;
-	int            budget_expired = 0, switch_away = 0;
+	int            switch_away = 0;
 
 	/* which tcap should we use?  is the current expended? */
 	if (tcap_budgets_update(cos_info, thd_curr, tc_curr, &now)) {
 		assert(!tcap_is_active(tc_curr) && tcap_expended(tc_curr));
 
-		budget_expired = 1;
 		if (timer_intr_context) tc_next= thd_rcvcap_tcap(thd_next);
 
 		/* how about the scheduler's tcap? */
@@ -595,8 +587,7 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		/* tc_next is tc_curr */
 	}
 
-	if (unlikely(budget_expired)) notify_parent(tcap_rcvcap_thd(tc_curr), 0);
-	if (unlikely(switch_away)) thd_next = notify_process(thd_next, thd_curr, tc_next, tc_curr, &tc_next, 1);
+	if (unlikely(switch_away)) notify_parent(thd_next, 1);
 
 	/* update tcaps, and timers */
 	tcap_timer_update(cos_info, tc_next, timeout, now);
@@ -881,6 +872,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 
 		return 0;
 	}
+	__userregs_setretvals(regs, 0, 0, 0, 0);
 
 	next = notify_parent(thd, 0);
 	/* TODO: should we continue tcap-inheritence policy in this case? */

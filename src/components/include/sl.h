@@ -63,6 +63,8 @@ struct sl_global {
 	cycles_t    period;
 	cycles_t    timer_next;
 	tcap_time_t timeout_next;
+
+	struct ps_list_head event_head; /* all pending events for sched end-point */
 };
 
 extern struct sl_global sl_global_data;
@@ -407,6 +409,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	sched_tok_t           tok;
 	cycles_t              now;
 	s64_t                 offset;
+	int                   ret;
 
 	/* Don't abuse this, it is only to enable the tight loop around this function for races... */
 	if (unlikely(!sl_cs_owner())) sl_cs_enter();
@@ -436,24 +439,53 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			t = sl_mod_thd_get(pt);
 	}
 
-	if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
-		assert(t->budget && t->period);
+	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {
+		assert(t->period);
+		assert(sl_thd_tcap(t) != sl__globals()->sched_tcap);
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
-			tcap_res_t currbudget;
+			tcap_res_t currbudget = 0;
+			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);  
 
-			t->last_replenish = now;
-			currbudget        = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
-			/* TODO: need to change logic for SNDCAP with tcap_delegate, and error handling */
-			if (currbudget < t->budget && cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals()->sched_tcap, (t->budget - currbudget), t->prio)) assert(0);
+			ret = 0;
+			currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
+
+			if (!cycles_same(currbudget, t->budget, SL_CYCS_DIFF) && currbudget < t->budget) {
+				tcap_res_t transfer = t->budget - currbudget;
+
+				ret = cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals()->sched_tcap, transfer, t->prio);
+			}
+
+			if (likely(ret == 0)) t->last_replenish = replenish;
 		}
 	}
 
-	assert(t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
+	assert(t->state == SL_THD_RUNNABLE);
 	sl_cs_exit();
 
-	/* TODO: handle `-EPERM` in cos_switch() to interrupt thread or cos_asnd to child comp with its own tcap here. */
-	return sl_thd_activate(t, tok);
+	ret = sl_thd_activate(t, tok);
+	/*
+	 * dispatch failed with -EPERM because tcap associated with thread t does not have budget.
+	 * Block the thread until it's next replenishment and return to the scheduler thread.
+	 *
+	 * If the thread is not replenished by the scheduler (replenished "only" by 
+	 * the inter-component delegations), block till next timeout and try again.
+	 */
+	if (unlikely(ret == -EPERM)) {
+			cycles_t abs_timeout = globals->timer_next;
+
+			assert(t != globals->sched_thd);
+			assert(t->properties & SL_THD_PROPERTY_OWN_TCAP);
+
+			sl_cs_enter();
+			if (likely(t->period)) abs_timeout = t->last_replenish + t->period;
+			sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
+			sl_cs_exit();
+
+			if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok);
+	}
+
+	return ret;
 }
 
 static inline int
@@ -488,12 +520,12 @@ sl_cs_exit_switchto(struct sl_thd *to)
  * library-internal data-structures, and then the ability for the
  * scheduler thread to start its scheduling loop.
  *
- * sl_init();
+ * sl_init(period); <- using `period` for scheduler periodic timeouts 
  * sl_*;            <- use the sl_api here
  * ...
  * sl_sched_loop(); <- loop here
  */
-void sl_init(void);
+void sl_init(microsec_t period);
 void sl_sched_loop(void);
 
 #endif /* SL_H */
