@@ -631,7 +631,7 @@ sl_sched_loop(void)
 			sl_thd_event_enqueue(t, blocked, cycles, thd_timeout);
 
 pending_events:
-			if (!ps_list_head_first(&g->event_head, struct sl_thd, SL_THD_EVENT_LIST)) continue;
+			if (ps_list_is_head(&g->event_head, t, SL_THD_EVENT_LIST)) continue;
 
 			/*
 			 * receiving scheduler notifications is not in critical section mainly for
