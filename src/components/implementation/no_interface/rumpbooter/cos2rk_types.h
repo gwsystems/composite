@@ -6,6 +6,9 @@
 #define HW_ISR_LINES 32
 #define HW_ISR_FIRST 1
 
+/* The amount of memory to give RK to start in bytes */
+#define RK_TOTAL_MEM (1<<26) //64MB
+
 #define RK_IRQ_IO 15
 
 #define IRQ_DOM0_VM 22 /* DOM0's message line to VM's, in VM's */

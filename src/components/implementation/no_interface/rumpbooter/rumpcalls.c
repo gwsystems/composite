@@ -24,7 +24,7 @@ extern struct cos_rumpcalls crcalls;
 volatile thdcap_t cos_cur = BOOT_CAPTBL_SELF_INITTHD_BASE;
 volatile unsigned int cos_cur_tcap = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 
-tcap_prio_t rk_thd_prio = PRIO_LOW;
+tcap_prio_t rk_thd_prio = PRIO_MID;
 
 /* Mapping the functions from rumpkernel to composite */
 void
