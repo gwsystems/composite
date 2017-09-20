@@ -20,8 +20,8 @@ struct sl_global sl_global_data;
 int
 sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok)
 {
-	struct sl_thd *t           = sl_thd_curr();
-	struct sl_global *g        = sl__globals();
+	struct sl_thd    *t = sl_thd_curr();
+	struct sl_global *g = sl__globals();
 	int ret;
 
 	/* recursive locks are not allowed */
@@ -41,8 +41,8 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 int
 sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched_tok_t tok)
 {
-	struct sl_thd    *t        = sl_thd_curr();
-	struct sl_global *g        = sl__globals();
+	struct sl_thd    *t = sl_thd_curr();
+	struct sl_global *g = sl__globals();
 
 	if (!ps_cas(&g->lock.u.v, cached->v, 0)) return 1;
 	/* let the scheduler thread decide which thread to run next, inheriting our budget/priority */
@@ -114,9 +114,10 @@ __sl_timeout_update_idx(void *e, int pos)
 static void
 sl_timeout_init(microsec_t period)
 {
+	assert(period >= SL_MIN_PERIOD_US);
+
 	sl_timeout_period(period);
 	memset(&timeout_heap, 0, sizeof(struct timeout_heap));
-
 	heap_init(sl_timeout_heap(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
 }
 
@@ -305,9 +306,37 @@ sl_thd_yield(thdid_t tid)
 	sl_thd_yield_cs_exit(tid);
 }
 
+static inline void
+sl_thd_event_info_reset(struct sl_thd *t)
+{
+	t->event_info.blocked = 0;
+	t->event_info.cycles  = 0;
+	t->event_info.timeout = 0;
+}
+
+static inline void
+sl_thd_event_enqueue(struct sl_thd *t, int blocked, cycles_t cycles, tcap_time_t timeout)
+{
+	struct sl_global *g = sl__globals();
+
+	if (ps_list_singleton(t, SL_THD_EVENT_LIST)) ps_list_head_append(&g->event_head, t, SL_THD_EVENT_LIST);
+
+	t->event_info.blocked  = blocked;
+	t->event_info.cycles  += cycles;
+	t->event_info.timeout  = timeout;
+}
+
+static inline void
+sl_thd_event_info(struct sl_thd *t, int *blocked, cycles_t *cycles, tcap_time_t *timeout)
+{
+	*blocked = t->event_info.blocked;
+	*cycles  = t->event_info.cycles;
+	*timeout = t->event_info.timeout;
+	sl_thd_event_info_reset(t);
+}
+
 static struct sl_thd *
-sl_thd_alloc_init(thdid_t tid, struct cos_aep_info *aep,
-		  asndcap_t sndcap, sl_thd_property_t prps)
+sl_thd_alloc_init(thdid_t tid, struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps)
 {
 	struct sl_thd_policy *tp = NULL;
 	struct sl_thd        *t  = NULL;
@@ -329,6 +358,8 @@ sl_thd_alloc_init(thdid_t tid, struct cos_aep_info *aep,
 	t->wakeup_cycs    = 0;
 	t->timeout_idx    = -1;
 	t->prio           = TCAP_PRIO_MIN;
+	ps_list_init(t, SL_THD_EVENT_LIST);
+	sl_thd_event_info_reset(t);
 
 done:
 	return t;
@@ -345,7 +376,7 @@ sl_thd_alloc_intern(cos_thd_fn_t fn, void *data)
 	thdid_t tid;
 
 	aep = sl_thd_alloc_aep_backend();
-	assert(aep);
+	if (!aep) goto done;
 
 	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data);
 	if (!aep->thd) goto done;
@@ -371,19 +402,20 @@ sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *
 	int                     ret;
 
 	aep = sl_thd_alloc_aep_backend();
-	assert(aep);
+	if (!aep) goto done;
 
 	if (prps & SL_THD_PROPERTY_SEND) {
-		struct cos_aep_info *saep = NULL;
+		struct cos_aep_info *sa = NULL;
 
 		assert(comp);
-		saep = cos_sched_aep_get(comp);
+		sa   = cos_sched_aep_get(comp);
+		/* copying cos_aep_info is fine here as cos_thd_alloc() is not done using this aep */
+		*aep = *sa;
 
-		snd = cos_asnd_alloc(ci, saep->rcv, ci->captbl_cap);
+		snd = cos_asnd_alloc(ci, aep->rcv, ci->captbl_cap);
 		assert(snd);
-
-		*aep = *saep;
 	} else {
+		/* IMP: Cannot use stack-allocated cos_aep_info struct here */
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data);
 		else                                 ret = cos_aep_tcap_alloc(aep, sl_thd_aepinfo(sl__globals()->sched_thd)->tc,
 									      fn, data);
@@ -455,7 +487,7 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
-	struct sl_thd *t;
+	struct sl_thd          *t   = NULL;
 	thdid_t tid;
 
 	assert(comp);
@@ -464,17 +496,20 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 	if (is_sched) {
 		t = sl_thd_aep_alloc_intern(NULL, NULL, comp, SL_THD_PROPERTY_OWN_TCAP | SL_THD_PROPERTY_SEND);
 	} else {
-		struct cos_aep_info *saep = cos_sched_aep_get(comp), *aep = NULL;
+		struct cos_aep_info *sa = cos_sched_aep_get(comp), *aep = NULL;
 
 		aep = sl_thd_alloc_aep_backend();
-		assert(aep);
+		if (!aep) goto done;
 
-		*aep = *saep;
+		/* copying cos_aep_info is fine here as cos_thd_alloc() is not done using this aep */
+		*aep = *sa;
 		tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 		assert(tid);
 		t   = sl_thd_alloc_init(tid, aep, 0, 0);
 		sl_mod_thd_create(sl_mod_thd_policy_get(t));
 	}
+
+done:
 	sl_cs_exit();
 
 	return t;
@@ -556,9 +591,8 @@ sl_idle(void *d)
 void
 sl_init(microsec_t period)
 {
-	struct cos_defcompinfo *dci    = cos_defcompinfo_curr_get();
-	struct cos_aep_info    *schaep = cos_sched_aep_get(dci);
-	struct sl_global       *g      = sl__globals();
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct sl_global       *g   = sl__globals();
 
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
@@ -571,14 +605,15 @@ sl_init(microsec_t period)
 	sl_mod_init();
 	sl_timeout_init(period);
 
-	/* Create the scheduler thread for us */
-	g->sched_thd       = sl_thd_alloc_init(cos_thdid(), schaep, 0, 0);
+	/* Create the scheduler thread for us. cos_sched_aep_get() is from global(static) memory */
+	g->sched_thd       = sl_thd_alloc_init(cos_thdid(), cos_sched_aep_get(dci), 0, 0);
 	assert(g->sched_thd);
 
 	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_BASE;
 	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 	g->sched_rcv       = BOOT_CAPTBL_SELF_INITRCV_BASE;
 	g->sched_thd->prio = 0;
+	ps_list_head_init(&g->event_head);
 
 	g->idle_thd        = sl_thd_alloc(sl_idle, NULL);
 	assert(g->idle_thd);
@@ -586,33 +621,61 @@ sl_init(microsec_t period)
 	return;
 }
 
+//#define PRINTX printc
+#define PRINTX(fmt,...)
+
 void
 sl_sched_loop(void)
 {
+	struct sl_global *g = sl__globals();
+
+	PRINTX("%u:a]", g->sched_thd->thdid);
 	while (1) {
 		int pending;
 
 		do {
+	PRINTX("%u:b]", g->sched_thd->thdid);
 			thdid_t        tid;
 			int            blocked, rcvd;
 			cycles_t       cycles;
-			tcap_time_t    timeout = sl__globals()->timeout_next, thd_timeout;
-			struct sl_thd *t;
+			tcap_time_t    timeout = g->timeout_next, thd_timeout;
+			struct sl_thd *t, *tn;
 
 			/*
 			 * a child scheduler may receive both scheduling notifications (block/unblock
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			pending = cos_sched_rcv(sl__globals()->sched_rcv, RCV_ALL_PENDING, timeout,
+			pending = cos_sched_rcv(g->sched_rcv, RCV_ALL_PENDING, timeout,
 						&rcvd, &tid, &blocked, &cycles, &thd_timeout);
-			if (!tid) continue;
+			if (!tid) goto pending_events;
 
+	PRINTX("%u:c]", g->sched_thd->thdid);
 			t = sl_thd_lkup(tid);
 			assert(t);
-			/* don't report the idle thread */
-			if (unlikely(t == sl__globals()->idle_thd || t->state == SL_THD_FREE)) continue;
+			/* don't report the idle thread or a freed thread */
+			if (unlikely(t == g->idle_thd || t->state == SL_THD_FREE)) goto pending_events;
+	PRINTX("%u:d]", g->sched_thd->thdid);
 
+			/*
+			 * Failure to take the CS because another thread is holding it and switching to
+			 * that thread cannot succeed because scheduler has pending events causes the event
+			 * just received to be dropped.
+			 * To avoid dropping events, add the events to the scheduler event list and processing all
+			 * the pending events after the scheduler can successfully take the lock.
+			 */
+			sl_thd_event_enqueue(t, blocked, cycles, thd_timeout);
+
+	PRINTX("%u:e]", g->sched_thd->thdid);
+pending_events:
+	PRINTX("%u:x]", g->sched_thd->thdid);
+			if (ps_list_is_head(&g->event_head, t, SL_THD_EVENT_LIST)) {
+//			if (!ps_list_head_first(&g->event_head, struct sl_thd, SL_THD_EVENT_LIST)) {
+				PRINTX("%u:Z", g->sched_thd->thdid);
+				continue;
+			}
+
+	PRINTX("%u:f]", g->sched_thd->thdid);
 			/*
 			 * receiving scheduler notifications is not in critical section mainly for
 			 * 1. scheduler thread can often be blocked in rcv, which can add to
@@ -621,28 +684,43 @@ sl_sched_loop(void)
 			 *    having finer grained locks around the code that modifies sl_thd states is better.
 			 */
 			if (sl_cs_enter_sched()) continue;
-			sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
 
-			if (blocked) {
-				sl_thd_state_t state = SL_THD_BLOCKED;
-				cycles_t abs_timeout = 0;
+	PRINTX("%u:g]", g->sched_thd->thdid);
+			ps_list_foreach_del(&g->event_head, t, tn, SL_THD_EVENT_LIST) {
+	PRINTX("%u:h]", g->sched_thd->thdid);
+				
+				/* outdated event for a freed thread */
+				if (t->state == SL_THD_FREE) continue;
 
-				if (cycles) {
-					if (thd_timeout) {
-						state       = SL_THD_BLOCKED_TIMEOUT;
-						abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
+	PRINTX("%u:i]", g->sched_thd->thdid);
+				sl_thd_event_info(t, &blocked, &cycles, &thd_timeout);
+				sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
+
+				if (blocked) {
+					sl_thd_state_t state = SL_THD_BLOCKED;
+					cycles_t abs_timeout = 0;
+
+					if (likely(cycles)) {
+						if (thd_timeout) {
+							state       = SL_THD_BLOCKED_TIMEOUT;
+							abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
+						}
+						sl_thd_block_no_cs(t, state, abs_timeout);
 					}
-					sl_thd_block_no_cs(t, state, abs_timeout);
+				} else {
+					sl_thd_wakeup_no_cs(t);
 				}
-			} else {
-				sl_thd_wakeup_no_cs(t);
 			}
 
+	PRINTX("%u:j]", g->sched_thd->thdid);
 			sl_cs_exit();
 		} while (pending);
+	PRINTX("%u:k]", g->sched_thd->thdid);
 
 		if (sl_cs_enter_sched()) continue;
+	PRINTX("%u:l]", g->sched_thd->thdid);
 		/* If switch returns an inconsistency, we retry anyway */
 		sl_cs_exit_schedule_nospin();
+	PRINTX("%u:m]", g->sched_thd->thdid);
 	}
 }

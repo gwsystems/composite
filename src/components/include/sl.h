@@ -63,6 +63,8 @@ struct sl_global {
 	cycles_t    period;
 	cycles_t    timer_next;
 	tcap_time_t timeout_next;
+
+	struct ps_list_head event_head; /* all pending events for sched end-point */
 };
 
 extern struct sl_global sl_global_data;
@@ -450,10 +452,10 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
 			tcap_res_t currbudget = 0;
-			int        ret        = 0;
-			cycles_t   replenish  = now - ((now - t->last_replenish) % t->period);
+			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);  
 
-			if (likely(t->last_replenish)) currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
+			ret = 0;
+			currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
 
 			if (!cycles_same(currbudget, t->budget, SL_CYCS_DIFF) && currbudget < t->budget) {
 				tcap_res_t transfer = t->budget - currbudget;
@@ -469,21 +471,25 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	sl_cs_exit();
 
 	ret = sl_thd_activate(t, tok);
+	/*
+	 * dispatch failed with -EPERM because tcap associated with thread t does not have budget.
+	 * Block the thread until it's next replenishment and return to the scheduler thread.
+	 *
+	 * If the thread is not replenished by the scheduler (replenished "only" by 
+	 * the inter-component delegations), block till next timeout and try again.
+	 */
 	if (unlikely(ret == -EPERM)) {
-		cycles_t abs_timeout = sl__globals()->timer_next;;
+		cycles_t abs_timeout = globals->timer_next;
 
-		assert(t->thdid != globals->sched_thd->thdid);
+		assert(t != globals->sched_thd);
+		assert(t->properties & SL_THD_PROPERTY_OWN_TCAP);
 
 		sl_cs_enter();
-		if (t->period) abs_timeout = t->last_replenish + t->period;
+		if (likely(t->period)) abs_timeout = t->last_replenish + t->period;
 		sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
 		sl_cs_exit();
 
-		if (likely(sl_thdid() == globals->sched_thd->thdid)) {
-			return ret;
-		} else {
-			ret = sl_thd_activate(globals->sched_thd, tok);
-		}
+		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok);
 	}
 
 	return ret;
@@ -521,12 +527,12 @@ sl_cs_exit_switchto(struct sl_thd *to)
  * library-internal data-structures, and then the ability for the
  * scheduler thread to start its scheduling loop.
  *
- * sl_init();
+ * sl_init(period); <- using `period` for scheduler periodic timeouts 
  * sl_*;            <- use the sl_api here
  * ...
  * sl_sched_loop(); <- loop here
  */
-void sl_init(microsec_t);
+void sl_init(microsec_t period);
 void sl_sched_loop(void);
 
 #endif /* SL_H */

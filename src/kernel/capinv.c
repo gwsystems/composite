@@ -540,6 +540,15 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, 
 	thd_rcvcap_pending_inc(rcv_thd);
 	next = notify_process(rcv_thd, thd, rcv_tcap, tcap, tcap_next, yield);
 
+	/*
+	 * FIXME: Need to revisit the preemption-stack functionality
+	 *
+	 * if (next == thd)
+	 * 	tcap_wakeup(rcv_tcap, tcap_sched_info(rcv_tcap)->prio, 0, rcv_thd, cos_info);
+	 * else
+	 * 	thd_next_thdinfo_update(cos_info, thd, tcap, tcap_sched_info(tcap)->prio, 0);
+	 */
+
 	return next;
 }
 
@@ -551,13 +560,12 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 	struct thread *thc, *thn;
 	struct tcap *  tc, *tn;
 	cycles_t       now;
-	int            budget_expired = 0, switch_away = 0;
+	int            switch_away = 0;
 
 	/* which tcap should we use?  is the current expended? */
 	if (tcap_budgets_update(cos_info, thd_curr, tc_curr, &now)) {
 		assert(!tcap_is_active(tc_curr) && tcap_expended(tc_curr));
 
-		budget_expired = 1;
 		if (timer_intr_context) tc_next= thd_rcvcap_tcap(thd_next);
 
 		/* how about the scheduler's tcap? */

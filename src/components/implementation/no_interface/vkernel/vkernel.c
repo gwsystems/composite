@@ -68,7 +68,7 @@ cos_init(void)
 
 	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	printc("\t%d cycles per microsecond\n", cycs);
-	sl_init(SL_PERIOD_US);
+	sl_init(SL_MIN_PERIOD_US);
 
 	for (id = 0; id < VM_COUNT; id ++) {
 		struct cos_compinfo *vm_cinfo = cos_compinfo_get(&(vmx_info[id].dci));
