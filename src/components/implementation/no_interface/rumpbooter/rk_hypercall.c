@@ -12,6 +12,7 @@
 int rump___sysimpl_socket30(int, int, int);
 int rump___sysimpl_bind(int, const struct sockaddr *, socklen_t);
 ssize_t rump___sysimpl_recvfrom(int, void *, size_t, int, struct sockaddr *, socklen_t *);
+ssize_t rump___sysimpl_sendto(int, const void *, size_t, int, const struct sockaddr *, socklen_t);
 
 /* These syncronous invocations involve calls to and from a RumpKernel */
 extern struct cringbuf *vmrb;
@@ -117,7 +118,6 @@ int
 rk_bind(int sockfd, int shdmem_id, socklen_t addrlen)
 {
 	const struct sockaddr *addr = NULL;
-	/* TODO use shdmem id to map shdmem here and pass in shdmem pointer as addr */
 	shdmem_id = shmem_map_invoke(shdmem_id);
 	assert(shdmem_id > -1);
 	addr = (const struct sockaddr *)shmem_get_vaddr_invoke(shdmem_id);
@@ -155,8 +155,27 @@ rk_recvfrom(int s, int buff_shdmem_id, size_t len, int flags, int from_shdmem_id
 	/* Last is the from socket address */
 	from = (struct sockaddr *)my_addr;
 
-
 	return rump___sysimpl_recvfrom(s, buff, len, flags, from, from_addr_len_ptr);
+}
+
+ssize_t
+rk_sendto(int sockfd, int buff_shdmem_id, size_t len, int flags, int addr_shdmem_id, socklen_t addrlen)
+{
+	int shdmem_id;
+	const void *buff;
+	const struct sockaddr *addr;
+
+	assert(buff_shdmem_id == addr_shdmem_id);
+
+	shdmem_id = shmem_map_invoke(buff_shdmem_id);
+	assert(shdmem_id);
+	buff = (const void *)shmem_get_vaddr_invoke(shdmem_id);
+	assert(buff);
+
+	addr = (const struct sockaddr *)(buff + len);
+	assert(addr);
+
+	return rump___sysimpl_sendto(sockfd, buff, len, flags, addr, addrlen);
 }
 
 int
@@ -199,6 +218,22 @@ rk_inv_entry(int arg1, int arg2, int arg3, int arg4)
 
 			ret = (int)rk_recvfrom(s, buff_shdmem_id, len, flags,
 					from_shdmem_id, from_addr_len);
+			break;
+		}
+		case RK_SENDTO: {
+			int sockfd, flags, buff_shdmem_id, addr_shdmem_id;
+			size_t len;
+			socklen_t addrlen;
+			const struct sockaddr *addr;
+
+			sockfd            = (arg2 >> 16);
+			buff_shdmem_id    = (arg2 << 16) >> 16;
+			len               = (arg3 >> 16);
+			flags             = (arg3 << 16) >> 16;
+			addr_shdmem_id    = (arg4 >> 16);
+			addrlen           = (arg4 << 16) >> 16;
+
+			ret = (int)rk_sendto(sockfd, buff_shdmem_id, len, flags, addr_shdmem_id, addrlen);
 			break;
 		}
 		case RK_LOGDATA: {

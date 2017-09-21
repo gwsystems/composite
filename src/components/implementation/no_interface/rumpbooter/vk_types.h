@@ -71,6 +71,7 @@ enum rk_inv_ops {
 	RK_SOCKET,
 	RK_BIND,
 	RK_RECVFROM,
+	RK_SENDTO,
 	RK_LOGDATA,
 };
 
