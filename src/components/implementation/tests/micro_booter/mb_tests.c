@@ -195,7 +195,7 @@ async_thd_parent(void *thdcap)
 	asndcap_t   sc = scp_global;
 	int         ret, pending;
 	thdid_t     tid;
-	int         blocked;
+	int         blocked, rcvd;
 	cycles_t    cycles, now;
 	tcap_time_t thd_timeout;
 
@@ -209,11 +209,8 @@ async_thd_parent(void *thdcap)
 	ret = cos_asnd(sc, 1);
 
 	PRINTC("--> sending\n");
+	/* child blocked at this point, parent is using child's tcap, this call yields to the child */
 	ret = cos_asnd(sc, 0);
-	PRINTC("--> sending\n");
-	ret = cos_asnd(sc, 0);
-	PRINTC("--> sending\n");
-	ret = cos_asnd(sc, 1);
 
 	PRINTC("--> sending\n");
 	ret = cos_asnd(sc, 0);
@@ -225,7 +222,7 @@ async_thd_parent(void *thdcap)
 
 	PRINTC("--> Back in the asnder.\n");
 	PRINTC("--> receiving to get notifications\n");
-	pending = cos_sched_rcv(rc, 0, 0, NULL, &tid, &blocked, &cycles, &thd_timeout);
+	pending = cos_sched_rcv(rc, RCV_ALL_PENDING, 0, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
 	rdtscll(now);
 	PRINTC("--> pending %d, thdid %d, blocked %d, cycles %lld, timeout %lu (now=%llu, abs:%llu)\n",
 	       pending, tid, blocked, cycles, thd_timeout, now, tcap_time2cyc(thd_timeout, now));
@@ -240,6 +237,7 @@ test_async_endpoints(void)
 	thdcap_t  tcp, tcc;
 	tcap_t    tccp, tccc;
 	arcvcap_t rcp, rcc;
+	asndcap_t scr;
 	int       ret;
 
 	PRINTC("Creating threads, and async end-points.\n");
@@ -251,7 +249,7 @@ test_async_endpoints(void)
 	assert(tccp);
 	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
-	if ((ret = cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1))) {
+	if ((ret = cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX))) {
 		PRINTC("transfer failed: %d\n", ret);
 		assert(0);
 	}
@@ -263,17 +261,19 @@ test_async_endpoints(void)
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
-	if (cos_tcap_transfer(rcc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX)) assert(0);
+	if (cos_tcap_transfer(rcc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1)) assert(0);
 
 	/* make the snd channel to the child */
 	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
 	assert(scp_global);
+	scr = cos_asnd_alloc(&booter_info, rcp, booter_info.captbl_cap);
+	assert(scr);
 
 	rcc_global = rcc;
 	rcp_global = rcp;
 
 	async_test_flag = 1;
-	while (async_test_flag) cos_thd_switch(tcp);
+	while (async_test_flag) cos_asnd(scr, 1);
 
 	PRINTC("Async end-point test successful.\n");
 	PRINTC("Test done.\n");
