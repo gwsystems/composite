@@ -550,7 +550,7 @@ thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs)
 static inline int
 thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 {
-	int preempt = 0, samercv = 0;
+	int preempt = 0, issamercv = 0;
 
 	/* TODO: check FPU */
 	/* fpu_save(thd); */
@@ -564,13 +564,14 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		thd_rcvcap_pending_deliver(thd, regs);
 
 		/*
-		 * Child tcap budget expiry can run a suspended thread.
-		 * TODO: set an error in the return val? 
+		 * If a scheduler thread was running using child tcap and blocked on RCVING
+		 * and budget expended logic decided to run the scheduler thread with it's
+		 * tcap, then curr_thd == next_thd and state will be RCVING.
 		 */
-		if (unlikely(issame)) samercv = 1;
+		if (unlikely(issame)) issamercv = 1;
 	}
 
-	if (samercv || issame) {
+	if (issame || issamercv) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 	}
 

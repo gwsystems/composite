@@ -16,6 +16,14 @@
  */
 struct sl_thd_policy *sl_thd_alloc_backend(thdid_t tid);
 void                  sl_thd_free_backend(struct sl_thd_policy *t);
+/*
+ * cos_aep_info structs cannot be stack allocated!
+ * The thread_alloc_backened needs to provide struct cos_aep_info without
+ * any knowledge of the thread being alloced.
+ *
+ * sl_thd_free_backend to free the cos_aep_info struct
+ */
+struct cos_aep_info  *sl_thd_alloc_aep_backend(void);
 
 void                  sl_thd_index_add_backend(struct sl_thd_policy *);
 void                  sl_thd_index_rem_backend(struct sl_thd_policy *);
@@ -23,7 +31,6 @@ struct sl_thd_policy *sl_thd_lookup_backend(thdid_t);
 void                  sl_thd_init_backend(void);
 
 struct cos_aep_info  *sl_thd_alloc_aep_backend(void);
-void                  sl_thd_free_aep_backend(struct sl_thd_policy *);
 
 /*
  * Each scheduler policy must implement the following API.  See above

@@ -8,13 +8,16 @@
 #ifndef SL_THD_H
 #define SL_THD_H
 
+#include <ps.h>
 #include <cos_debug.h>
+
+#define SL_THD_EVENT_LIST event_list
 
 typedef enum {
 	SL_THD_FREE = 0,
 	SL_THD_BLOCKED,
 	SL_THD_BLOCKED_TIMEOUT,
-	SL_THD_WOKEN, /* if a race causes a wakeup before the inevitable block */
+	SL_THD_WOKEN, /* Unused because kernel may send redundant scheduling events! if a race causes a wakeup before the inevitable block */
 	SL_THD_RUNNABLE,
 	SL_THD_DYING,
 } sl_thd_state_t;
@@ -23,6 +26,12 @@ typedef enum {
 	SL_THD_PROPERTY_OWN_TCAP = 1,      /* Thread owns a tcap */
 	SL_THD_PROPERTY_SEND     = (1<<1), /* use asnd to dispatch to this thread */
 } sl_thd_property_t;
+
+struct event_info {
+	int         blocked; /* 1 - blocked. 0 - awoken */
+	cycles_t    cycles;
+	tcap_time_t timeout;
+};
 
 struct sl_thd {
 	sl_thd_state_t       state;
@@ -40,6 +49,9 @@ struct sl_thd {
 	cycles_t   timeout_cycs;  /* next timeout - used in timeout API */
 	cycles_t   wakeup_cycs;   /* actual last wakeup - used in timeout API for jitter information, etc */
 	int        timeout_idx;   /* timeout heap index, used in timeout API */
+
+	struct event_info event_info;
+	struct ps_list    SL_THD_EVENT_LIST; /* list of events for the scheduler end-point */
 };
 
 static inline struct cos_aep_info *
