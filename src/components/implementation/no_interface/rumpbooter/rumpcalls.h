@@ -109,6 +109,12 @@ struct cos_rumpcalls
 	void   (*rump_vm_yield)(void);
 	void   (*rump_cpu_intr_ack)(void);
 	int    (*rump_dequeue_size)(unsigned int srcvm, unsigned int dstvm);
+
+	void   (*rump_cpu_sched_wakeup)(struct bmk_thread *t);
+	int    (*rump_cpu_sched_block_timeout)(struct bmk_thread *curr, unsigned long long timeout);
+	void   (*rump_cpu_sched_block)(struct bmk_thread *curr);
+	void   (*rump_cpu_sched_yield)(void);
+	void   (*rump_cpu_sched_exit)(void);
 };
 
 void* rump_cos_malloc(size_t size);
@@ -132,7 +138,7 @@ char *get_name(struct bmk_thread *thread);
 long long cos_cpu_clock_now(void);
 long long cos_vm_clock_now(void);
 
-void cos_irqthd_handler(void *line);
+void cos_irqthd_handler(arcvcap_t intrrc, void *line);
 
 void *cos_vatpa(void* addr);
 void *cos_pa2va(void* addr, unsigned long len);
@@ -147,11 +153,6 @@ int cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned 
 int cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm);
 int cos_dequeue_size(unsigned int srcvm, unsigned int curvm);
 
-void cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_prio_t prio);
-void cos_vio_tcap_update(unsigned int dst);
-void cos_vio_tcap_set(unsigned int src);
-tcap_t cos_find_vio_tcap(void);
-
 vaddr_t shmem_get_vaddr_invoke(int id);
 int shmem_allocate_invoke(void);
 int shmem_deallocate_invoke(void);
@@ -159,5 +160,13 @@ int shmem_map_invoke(int id);
 
 void cos_spdid_set(unsigned int spdid);
 unsigned int cos_spdid_get(void);
+
+int __attribute__((format(printf,1,2))) printc(char *fmt, ...);
+void cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
+                void (*f)(void *), void *arg,
+                void *stack_base, unsigned long stack_size);
+void cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next);
+int cos_tls_init(unsigned long tp, thdcap_t tc);
+void cos_resume(void);
 
 #endif /* RUMPCALLS_H */

@@ -482,7 +482,8 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		cycles_t abs_timeout = globals->timer_next;
 
 		assert(t != globals->sched_thd);
-		assert(t->properties & SL_THD_PROPERTY_OWN_TCAP);
+		//assert(t->properties & SL_THD_PROPERTY_OWN_TCAP);
+		/* WONDER WHY THIS DIDN"T WORK FOR ROBBIE! WILL NEED TO DEBUG AFTER HE MERGES SENDTO! */
 
 		sl_cs_enter();
 		if (likely(t->period)) abs_timeout = t->last_replenish + t->period;

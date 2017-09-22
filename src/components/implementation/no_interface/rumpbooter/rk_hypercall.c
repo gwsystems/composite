@@ -21,11 +21,13 @@ rump_io_fn(void *d)
 {
 	arcvcap_t rcv = SUB_CAPTBL_SELF_IORCV_BASE;
 
+	assert(vmrb);
+
 	while (1) {
 		int amnt = 0, len = 0;
+		int rcvd = 0;
 
-		cos_rcv(rcv, 0, 0);
-		assert(vmrb);
+		cos_rcv(rcv, RCV_ALL_PENDING, &rcvd);
 
 		amnt = cringbuf_sz(vmrb);
 		assert(amnt);

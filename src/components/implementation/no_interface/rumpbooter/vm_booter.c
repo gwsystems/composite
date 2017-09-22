@@ -2,7 +2,6 @@
 #include "micro_booter.h"
 #include "vk_api.h"
 #include "cos2rk_types.h"
-#include "cos_sync.h"
 #include "rumpcalls.h"
 #include <rk_inv_api.h>
 #include <cos_kernel_api.h>

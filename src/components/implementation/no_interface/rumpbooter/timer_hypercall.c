@@ -54,7 +54,9 @@ timer_io_fn(void *d)
 	arcvcap_t rcv = SUB_CAPTBL_SELF_IORCV_BASE;
 
 	while (1) {
-		cos_rcv(rcv, 0, 0);
+		int rcvd;
+
+		cos_rcv(rcv, RCV_ALL_PENDING, &rcvd);
 
 		*__hpet_shm_addr = __hpet_counter;
 	}

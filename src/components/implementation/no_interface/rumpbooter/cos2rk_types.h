@@ -26,12 +26,6 @@
 
 #define BOOTUP_ITERS 100
 
-capid_t irq_thdcap[HW_ISR_LINES];
-thdid_t irq_thdid[HW_ISR_LINES];
-tcap_t irq_tcap[HW_ISR_LINES];
-capid_t irq_arcvcap[HW_ISR_LINES];
-tcap_prio_t irq_prio[HW_ISR_LINES];
-
 enum vm_prio {
 	PRIO_HIGH = TCAP_PRIO_MAX,
 	PRIO_MID  = TCAP_PRIO_MAX + 1,
