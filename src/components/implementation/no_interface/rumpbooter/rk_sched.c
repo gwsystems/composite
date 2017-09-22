@@ -1,9 +1,14 @@
 #include <res_spec.h>
 
 #include "rk_sched.h"
-#define CS_RECURSE_LIMIT (1<<5)
-
-volatile unsigned int cs_recursive = 0;
+/*
+ * TODO: Doesn't look like we need a recursive lock!
+ * Wonder why we had "cos_nesting" before!
+ * Confirm that and perhaps remove all the commented code related
+ * to recursive locking!
+ */
+//#define CS_RECURSE_LIMIT (1<<5)
+//volatile unsigned int cs_recursive = 0;
 
 static int
 rk_rump_thd_param_set(struct sl_thd *t)
@@ -145,16 +150,16 @@ rk_rump_thd_exit(void)
 static void
 rk_sched_cs_enter(void)
 {
-	if (sl_cs_owner()) {
-		assert(cs_recursive);
-		goto recurse;
-	}
+//	if (sl_cs_owner()) {
+//		assert(cs_recursive);
+//		goto recurse;
+//	}
 
 	sl_cs_enter();
 
-recurse:
-	__sync_add_and_fetch(&cs_recursive, 1);
-	assert(cs_recursive < CS_RECURSE_LIMIT); /* make sure it's not taken too many times */
+//recurse:
+//	__sync_add_and_fetch(&cs_recursive, 1);
+//	assert(cs_recursive < CS_RECURSE_LIMIT); /* make sure it's not taken too many times */
 }
 
 static void
@@ -162,10 +167,11 @@ rk_sched_cs_exit(void)
 {
 	assert(sl_cs_owner());
 
-	assert(cs_recursive);
-
-	__sync_sub_and_fetch(&cs_recursive, 1);
-	if (!cs_recursive) sl_cs_exit();
+//	assert(cs_recursive);
+//
+//	__sync_sub_and_fetch(&cs_recursive, 1);
+//	if (!cs_recursive)
+		sl_cs_exit();
 }
 
 void

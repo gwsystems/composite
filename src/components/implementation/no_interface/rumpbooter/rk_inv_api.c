@@ -48,9 +48,26 @@ rk_inv_recvfrom(int s, int buff_shdmem_id, size_t len, int flags, int from_shdme
 	assert(from_shdmem_id <= 0xFFFF);
 	assert(fromlenaddr_shdmem_id <= 0xFFFF);
 
-	return (ssize_t)cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_RECVFROM, (s << 16) | buff_shdmem_id,
-				(len << 16) | flags, (from_shdmem_id << 16) | fromlenaddr_shdmem_id);
+	return (ssize_t)cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_RECVFROM,
+			(s << 16) | buff_shdmem_id, (len << 16) | flags,
+			(from_shdmem_id << 16) | fromlenaddr_shdmem_id);
 }
+
+ssize_t
+rk_inv_sendto(int sockfd, int buff_shdmem_id, size_t len, int flags, int addr_shdmem_id, socklen_t addrlen)
+{
+	assert(sockfd <= 0xFFFF);
+	assert(buff_shdmem_id <= 0xFFFF);
+	assert(len <= 0xFFFF);
+	assert(flags <= 0xFFFF);
+	assert(addr_shdmem_id <= (int)0xFFFF);
+	assert(addrlen <= (int)0xFFFF);
+
+	return (ssize_t)cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_SENDTO,
+			(sockfd << 16) | buff_shdmem_id, (len << 16) | flags,
+			(addr_shdmem_id << 16) | addrlen);
+}
+
 /* still using ringbuffer shared data */
 int
 rk_inv_logdata(void)
@@ -62,8 +79,6 @@ int
 rk_socketcall(int call, unsigned long *args)
 {
         int ret = -1;
-
-        printc("\tcos_socketcall, call: %d, args: %p\n", call, args);
 
         switch (call) {
 		case 1: { /* Socket */
@@ -78,7 +93,7 @@ rk_socketcall(int call, unsigned long *args)
                 }
                 case 2: { /* Bind */
                         int sockfd, shdmem_id;
-                        unsigned long shdmem_addr;
+                        vaddr_t shdmem_addr;
                         void *addr;
                         u32_t addrlen;
 
@@ -92,9 +107,9 @@ rk_socketcall(int call, unsigned long *args)
                          * don't deallocate. #memLeaksEverywhere
                          */
 
+			/* TODO make this a function */
                         shdmem_id = shmem_allocate_invoke();
                         assert(shdmem_id > -1);
-
                         shdmem_addr = shmem_get_vaddr_invoke(shdmem_id);
                         assert(shdmem_addr > 0);
 
@@ -103,9 +118,46 @@ rk_socketcall(int call, unsigned long *args)
 
                         break;
                 }
+		case 11: { /* sendto */
+			int fd, flags, shdmem_id;
+			vaddr_t shdmem_addr;
+			const void *buff;
+			void *shdmem_buff;
+			size_t len;
+			const struct sockaddr *addr;
+			struct sockaddr *shdmem_sockaddr;
+			socklen_t addrlen;
+
+			fd      = (int)*args;
+			buff    = (const void *)*(args + 1);
+			len     = (size_t)*(args + 2);
+			flags   = (int)*(args + 3);
+			addr    = (const struct sockaddr *)*(args + 4);
+			addrlen = (socklen_t)*(args + 5);
+
+			/* For the time being, just allocate a new page every time we read */
+                        /* TODO don't do that */
+			/* TODO make this a function */
+                        shdmem_id = shmem_allocate_invoke();
+                        assert(shdmem_id > -1);
+                        shdmem_addr = shmem_get_vaddr_invoke(shdmem_id);
+                        assert(shdmem_addr > 0);
+
+			shdmem_buff = (void *)shdmem_addr;
+			memcpy(shdmem_buff, buff, len);
+			shdmem_addr += len;
+
+			shdmem_sockaddr = (struct sockaddr*)shdmem_addr;
+			memcpy(shdmem_sockaddr, addr, addrlen);
+
+			ret = (int)rk_inv_sendto(fd, shdmem_id, len, flags,
+				shdmem_id, addrlen);
+
+			break;
+		}
 		case 12: { /* Recvfrom */
                         int s, flags, shdmem_id;
-                        unsigned long shdmem_addr;
+                        vaddr_t shdmem_addr;
                         void *buff;
                         size_t len;
                         struct sockaddr *from_addr;
@@ -120,9 +172,9 @@ rk_socketcall(int call, unsigned long *args)
 
                         /* For the time being, just allocate a new page every time we read */
                         /* TODO don't do that */
+			/* TODO make this a function */
                         shdmem_id = shmem_allocate_invoke();
                         assert(shdmem_id > -1);
-
                         shdmem_addr = shmem_get_vaddr_invoke(shdmem_id);
                         assert(shdmem_addr > 0);
 

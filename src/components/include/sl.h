@@ -452,7 +452,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
 			tcap_res_t currbudget = 0;
-			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);  
+			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);
 
 			ret = 0;
 			currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
@@ -475,15 +475,13 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 * dispatch failed with -EPERM because tcap associated with thread t does not have budget.
 	 * Block the thread until it's next replenishment and return to the scheduler thread.
 	 *
-	 * If the thread is not replenished by the scheduler (replenished "only" by 
+	 * If the thread is not replenished by the scheduler (replenished "only" by
 	 * the inter-component delegations), block till next timeout and try again.
 	 */
 	if (unlikely(ret == -EPERM)) {
 		cycles_t abs_timeout = globals->timer_next;
 
 		assert(t != globals->sched_thd);
-		//assert(t->properties & SL_THD_PROPERTY_OWN_TCAP);
-		/* WONDER WHY THIS DIDN"T WORK FOR ROBBIE! WILL NEED TO DEBUG AFTER HE MERGES SENDTO! */
 
 		sl_cs_enter();
 		if (likely(t->period)) abs_timeout = t->last_replenish + t->period;

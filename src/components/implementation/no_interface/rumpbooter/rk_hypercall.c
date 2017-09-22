@@ -12,9 +12,34 @@
 int rump___sysimpl_socket30(int, int, int);
 int rump___sysimpl_bind(int, const struct sockaddr *, socklen_t);
 ssize_t rump___sysimpl_recvfrom(int, void *, size_t, int, struct sockaddr *, socklen_t *);
+ssize_t rump___sysimpl_sendto(int, const void *, size_t, int, const struct sockaddr *, socklen_t);
 
 /* These syncronous invocations involve calls to and from a RumpKernel */
 extern struct cringbuf *vmrb;
+
+#define RK_MAX_BUFF_SZ 1024
+static char logdata[RK_MAX_BUFF_SZ] = { '\0' };
+
+static void
+rk_logdata_intern(void)
+{
+	int amnt = 0, len = 0;
+	int first = 1;
+
+	while ((amnt = cringbuf_sz(vmrb))) {
+		if (first) first = 0;
+
+		if (amnt >= RK_MAX_BUFF_SZ) amnt = RK_MAX_BUFF_SZ - 1;
+
+		memset(logdata, '\0', RK_MAX_BUFF_SZ);
+		strncpy(logdata, cringbuf_active_extent(vmrb, &len, amnt), amnt);
+
+		printc("%s",logdata);
+		cringbuf_delete(vmrb, amnt);
+	}
+
+	assert(first == 0);
+}
 
 void
 rump_io_fn(void *d)
@@ -24,29 +49,18 @@ rump_io_fn(void *d)
 	assert(vmrb);
 
 	while (1) {
-		int amnt = 0, len = 0;
 		int rcvd = 0;
 
 		cos_rcv(rcv, RCV_ALL_PENDING, &rcvd);
 
-		amnt = cringbuf_sz(vmrb);
-		assert(amnt);
-
-		printc("%s", cringbuf_active_extent(vmrb, &len, amnt));
-		cringbuf_delete(vmrb, amnt);
+		rk_logdata_intern();
 	}
 }
 
 int
 rk_logdata(void)
 {
-	int amnt = 0, len = 0;
-
-	amnt = cringbuf_sz(vmrb);
-	assert(amnt);
-
-	printc("%s", cringbuf_active_extent(vmrb, &len, amnt));
-	cringbuf_delete(vmrb, amnt);
+	rk_logdata_intern();
 
 	return 0;
 }
@@ -119,7 +133,6 @@ int
 rk_bind(int sockfd, int shdmem_id, socklen_t addrlen)
 {
 	const struct sockaddr *addr = NULL;
-	/* TODO use shdmem id to map shdmem here and pass in shdmem pointer as addr */
 	shdmem_id = shmem_map_invoke(shdmem_id);
 	assert(shdmem_id > -1);
 	addr = (const struct sockaddr *)shmem_get_vaddr_invoke(shdmem_id);
@@ -157,8 +170,27 @@ rk_recvfrom(int s, int buff_shdmem_id, size_t len, int flags, int from_shdmem_id
 	/* Last is the from socket address */
 	from = (struct sockaddr *)my_addr;
 
-
 	return rump___sysimpl_recvfrom(s, buff, len, flags, from, from_addr_len_ptr);
+}
+
+ssize_t
+rk_sendto(int sockfd, int buff_shdmem_id, size_t len, int flags, int addr_shdmem_id, socklen_t addrlen)
+{
+	int shdmem_id;
+	const void *buff;
+	const struct sockaddr *addr;
+
+	assert(buff_shdmem_id == addr_shdmem_id);
+
+	shdmem_id = shmem_map_invoke(buff_shdmem_id);
+	assert(shdmem_id);
+	buff = (const void *)shmem_get_vaddr_invoke(shdmem_id);
+	assert(buff);
+
+	addr = (const struct sockaddr *)(buff + len);
+	assert(addr);
+
+	return rump___sysimpl_sendto(sockfd, buff, len, flags, addr, addrlen);
 }
 
 int
@@ -201,6 +233,22 @@ rk_inv_entry(int arg1, int arg2, int arg3, int arg4)
 
 			ret = (int)rk_recvfrom(s, buff_shdmem_id, len, flags,
 					from_shdmem_id, from_addr_len);
+			break;
+		}
+		case RK_SENDTO: {
+			int sockfd, flags, buff_shdmem_id, addr_shdmem_id;
+			size_t len;
+			socklen_t addrlen;
+			const struct sockaddr *addr;
+
+			sockfd            = (arg2 >> 16);
+			buff_shdmem_id    = (arg2 << 16) >> 16;
+			len               = (arg3 >> 16);
+			flags             = (arg3 << 16) >> 16;
+			addr_shdmem_id    = (arg4 >> 16);
+			addrlen           = (arg4 << 16) >> 16;
+
+			ret = (int)rk_sendto(sockfd, buff_shdmem_id, len, flags, addr_shdmem_id, addrlen);
 			break;
 		}
 		case RK_LOGDATA: {

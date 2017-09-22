@@ -57,7 +57,7 @@
 #define HPET_INT_ENABLE(n) (*hpet_interrupt = (0x1 << n)) /* Clears the INT n for level-triggered mode. */
 
 #define __USECS_CEIL__(n, m) (n+(m-(n%m)))
-#define __IGNORE_FIRST_X__  2000
+#define __IGNORE_FIRST_X__  20
 
 static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;
@@ -197,7 +197,7 @@ periodic_handler(struct pt_regs *regs)
 	if (periodicity_curr) {
 		count ++;
 		if (unlikely(count < __IGNORE_FIRST_X__)) {
-			if (count % 999 == 0) printk(".h=%lu.", count);
+			if (count == __IGNORE_FIRST_X__ - 1) printk(".h=%lu.", count);
 			goto done;
 		}
 		if (!first_hpet_period) {

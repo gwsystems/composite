@@ -185,13 +185,13 @@ cos_irqthd_handler(arcvcap_t rcvc, void *line)
 
 	printc("=[%d]", which);
 	while(1) {
-		int rcvd = 0;
-
 		/*
+		 * TODO: for optimization!
 		 * For N/w INT, Data is available on DMA and doesn't need
 		 * multiple queuing of events to process all data (if there are multiple events pending)
 		 */
-		cos_rcv(rcvc, RCV_ALL_PENDING, &rcvd);
+		//cos_rcv(rcvc, RCV_ALL_PENDING, &rcvd);
+		cos_rcv(rcvc, 0, NULL);
 
 		/*
 		 * This only wakes up isr_thread. 
