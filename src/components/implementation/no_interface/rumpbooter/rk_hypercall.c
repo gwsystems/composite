@@ -17,35 +17,50 @@ ssize_t rump___sysimpl_sendto(int, const void *, size_t, int, const struct socka
 /* These syncronous invocations involve calls to and from a RumpKernel */
 extern struct cringbuf *vmrb;
 
+#define RK_MAX_BUFF_SZ 1024
+static char logdata[RK_MAX_BUFF_SZ] = { '\0' };
+
+static void
+rk_logdata_intern(void)
+{
+	int amnt = 0, len = 0;
+	int first = 1;
+
+	while ((amnt = cringbuf_sz(vmrb))) {
+		if (first) first = 0;
+
+		if (amnt >= RK_MAX_BUFF_SZ) amnt = RK_MAX_BUFF_SZ - 1;
+
+		memset(logdata, '\0', RK_MAX_BUFF_SZ);
+		strncpy(logdata, cringbuf_active_extent(vmrb, &len, amnt), amnt);
+
+		printc("%s",logdata);
+		cringbuf_delete(vmrb, amnt);
+	}
+
+	assert(first == 0);
+}
+
 void
 rump_io_fn(void *d)
 {
 	arcvcap_t rcv = SUB_CAPTBL_SELF_IORCV_BASE;
 
+	assert(vmrb);
+
 	while (1) {
-		int amnt = 0, len = 0;
+		int rcvd = 0;
 
-		cos_rcv(rcv, 0, 0);
-		assert(vmrb);
+		cos_rcv(rcv, RCV_ALL_PENDING, &rcvd);
 
-		amnt = cringbuf_sz(vmrb);
-		assert(amnt);
-
-		printc("%s", cringbuf_active_extent(vmrb, &len, amnt));
-		cringbuf_delete(vmrb, amnt);
+		rk_logdata_intern();
 	}
 }
 
 int
 rk_logdata(void)
 {
-	int amnt = 0, len = 0;
-
-	amnt = cringbuf_sz(vmrb);
-	assert(amnt);
-
-	printc("%s", cringbuf_active_extent(vmrb, &len, amnt));
-	cringbuf_delete(vmrb, amnt);
+	rk_logdata_intern();
 
 	return 0;
 }

@@ -20,8 +20,8 @@
 #define VM_FIXED_PERIOD_MS 10
 #define VM_FIXED_BUDGET_MS 5
 
-//#define APP_COMM_SYNC
-#define APP_COMM_ASYNC
+#define APP_COMM_SYNC
+//#define APP_COMM_ASYNC
 
 #define VM_CAPTBL_SELF_VK_SINV_BASE  BOOT_CAPTBL_FREE
 /* for now, one thread per app and one app per subsys */

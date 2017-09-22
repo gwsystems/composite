@@ -4,11 +4,15 @@
 
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
+#include <cos_defkernel_api.h>
+#include <sl.h>
+#include <sl_thd.h>
+#include <sl_consts.h>
 
 #include "rumpcalls.h"
 #include "vk_api.h"
-#include "cos_sync.h"
 #include "rk_json_cfg.h"
+#include "rk_sched.h"
 
 extern struct cos_compinfo *currci;
 extern int vmid;
@@ -53,41 +57,29 @@ rk_alloc_initmem_all(void)
 void
 rk_hw_irq_alloc(void)
 {
-	tcap_res_t budget;
-	int i, ret;
-	int first = 1, id = HW_ISR_FIRST;
+	int i;
 
 	assert(vmid == 0);
-	memset(irq_thdcap, 0, sizeof(irq_thdcap));
-	memset(irq_thdid, 0, sizeof(irq_thdid));
-	memset(irq_arcvcap, 0, sizeof(irq_arcvcap));
-	memset(irq_tcap, 0, sizeof(irq_tcap));
-	memset(irq_prio, 0, sizeof(irq_prio));
 
 	for(i = HW_ISR_FIRST; i < HW_ISR_LINES; i++){
+		struct sl_thd *t = NULL;
+		struct cos_aep_info tmpaep;
+
 		switch(i) {
 #if defined(APP_COMM_ASYNC)
 			case RK_IRQ_IO:
-				intr_update(i, 0);
-				irq_thdcap[i] = SUB_CAPTBL_SELF_IOTHD_BASE;
-				irq_thdid[i] = (thdid_t)cos_introspect(currci, irq_thdcap[i], THD_GET_TID);
-				irq_arcvcap[i] = SUB_CAPTBL_SELF_IORCV_BASE;
-				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-				irq_prio[i] = PRIO_LOW;
+				tmpaep.thd = SUB_CAPTBL_SELF_IOTHD_BASE;
+				tmpaep.rcv = SUB_CAPTBL_SELF_IORCV_BASE;
+				tmpaep.tc  = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+				t = rk_intr_aep_init(&tmpaep, 0);
+				assert(t);
 				break;
 #endif
 			default:
-				intr_update(i, 0);
-				irq_thdcap[i] = cos_thd_alloc(currci, currci->comp_cap, cos_irqthd_handler, (void *)i);
-				assert(irq_thdcap[i]);
-				irq_thdid[i] = (thdid_t)cos_introspect(currci, irq_thdcap[i], THD_GET_TID);
-				assert(irq_thdid[i]);
-				irq_prio[i] = PRIO_MID;
-
-				irq_tcap[i] = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-				irq_arcvcap[i] = cos_arcv_alloc(currci, irq_thdcap[i], BOOT_CAPTBL_SELF_INITTCAP_BASE, currci->comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-				assert(irq_arcvcap[i]);
-				cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, irq_arcvcap[i]);
+				t = rk_intr_aep_alloc(cos_irqthd_handler, (void *)i, 0);
+				assert(t);
+			
+				cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, sl_thd_rcvcap(t));
 				break;
 		}
 	}
@@ -126,19 +118,18 @@ rk_alloc_run(char *cmdline)
 void
 rump_booter_init(void *d)
 {
-	extern int vmid;
-
 	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
 	assert(vmid == 0);
 
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();
+	rk_sched_init(RK_SCHED_PERIOD_US);
 
 	printc("\nSetting up arcv for hw irq\n");
 	rk_hw_irq_alloc();
 
 	/* We pass in the json config string to the RK */
-	rk_alloc_run(RK_JSON_DEFAULT_QEMU);
+	rk_alloc_run(RK_JSON_DEFAULT_HW);
 	printc("\nRumpKernel Boot done.\n");
 
 	cos_vm_exit();

@@ -81,7 +81,7 @@ __test_udp_server(void)
 			PRINTC("read");
 			continue;
 		}
-		PRINTC("Received-msg: seqno:%u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned long long *)__msg)[1]);
+		//PRINTC("Received-msg: seqno:%u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned long long *)__msg)[1]);
 		/* Reply to the sender */
 		soutput.sin_addr.s_addr = ((struct sockaddr_in*)&sa)->sin_addr.s_addr;
 		if (sendto(fd, __msg, msg_size, 0, (struct sockaddr*)&soutput, sizeof(soutput)) < 0) {
@@ -89,7 +89,7 @@ __test_udp_server(void)
 			continue;
 		}
 
-		PRINTC("Sent-msg: seqno:%u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned long long *)__msg)[1]);
+		//PRINTC("Sent-msg: seqno:%u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned long long *)__msg)[1]);
 
 		__msg_count++;
 		rdtscll(__now);

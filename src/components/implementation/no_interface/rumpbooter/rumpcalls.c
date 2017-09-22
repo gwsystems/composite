@@ -5,18 +5,21 @@
 #include <cos_kernel_api.h>
 #include <cos_types.h>
 #include <cos_asm_simple_stacks.h>
+#include <cos_defkernel_api.h>
+#include <sl.h>
+#include <sl_thd.h>
 
 #include "vk_types.h"
 #include "rumpcalls.h"
 #include "rump_cos_alloc.h"
-#include "cos_sched.h"
 //#include "cos_lock.h"
 #include "cos2rk_rb_api.h"
 //#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
-#include "cos_sync.h"
 #include "vk_api.h"
-#include <rk_inv_api.h>
+#include "rk_inv_api.h"
+#include "rk_sched.h"
 
+extern int vmid;
 extern struct cos_compinfo *currci;
 extern struct cos_rumpcalls crcalls;
 
@@ -51,16 +54,16 @@ cos2rump_setup(void)
 
 	if(!crcalls.rump_cpu_sched_create) printc("SCHED: rump_cpu_sched_create is set to null");
 
-	crcalls.rump_cpu_sched_switch_viathd    = cos_cpu_sched_switch;
+	crcalls.rump_cpu_sched_switch_viathd    = rk_rump_thd_yield_to;
 	crcalls.rump_memfree			= cos_memfree;
 	crcalls.rump_tls_init			= cos_tls_init;
 	crcalls.rump_va2pa			= cos_vatpa;
 	crcalls.rump_pa2va			= cos_pa2va;
-	crcalls.rump_resume                     = cos_resume;
+	crcalls.rump_resume                     = rk_sched_loop;
 	crcalls.rump_platform_exit		= cos_vm_exit;
 
-	crcalls.rump_intr_enable		= intr_enable;
-	crcalls.rump_intr_disable		= intr_disable;
+	crcalls.rump_intr_enable		= rk_intr_enable;
+	crcalls.rump_intr_disable		= rk_intr_disable;
 	crcalls.rump_sched_yield		= cos_sched_yield;
 	crcalls.rump_vm_yield			= cos_vm_yield;
 
@@ -69,6 +72,12 @@ cos2rump_setup(void)
 	crcalls.rump_shmem_send			= cos_shmem_send;
 	crcalls.rump_shmem_recv			= cos_shmem_recv;
 	crcalls.rump_dequeue_size		= cos_dequeue_size;
+
+	crcalls.rump_cpu_sched_wakeup		= rk_rump_thd_wakeup;
+	crcalls.rump_cpu_sched_block_timeout	= rk_rump_thd_block_timeout;
+	crcalls.rump_cpu_sched_block		= rk_rump_thd_block;
+	crcalls.rump_cpu_sched_yield		= rk_rump_thd_yield;
+	crcalls.rump_cpu_sched_exit		= rk_rump_thd_exit;
 
 	return;
 }
@@ -132,14 +141,6 @@ cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int 
 	int ret;
 
 	assert(0);
-//	if(srcvm == 0) sndcap = dom0_vio_asndcap(dstvm);
-//	else sndcap = VM_CAPTBL_SELF_IOASND_BASE;
-//
-//	//printc("%s = s:%d d:%d\n", __func__, srcvm, dstvm);
-//	cos2rk_shm_write(buff, size, srcvm, dstvm);
-//
-//	if(cos_asnd(sndcap, 0)) assert(0);
-
 	return 1;
 }
 
@@ -178,17 +179,25 @@ cos_cpu_intr_ack(void)
 
 /* irq */
 void
-cos_irqthd_handler(void *line)
+cos_irqthd_handler(arcvcap_t rcvc, void *line)
 {
 	int which = (int)line;
-	arcvcap_t arcvcap = irq_arcvcap[which];
 
+	printc("=[%d]", which);
 	while(1) {
-		int pending = cos_rcv(arcvcap, 0, NULL);
+		/*
+		 * TODO: for optimization!
+		 * For N/w INT, Data is available on DMA and doesn't need
+		 * multiple queuing of events to process all data (if there are multiple events pending)
+		 */
+		//cos_rcv(rcvc, RCV_ALL_PENDING, &rcvd);
+		cos_rcv(rcvc, 0, NULL);
 
-		intr_start(which);
+		/*
+		 * This only wakes up isr_thread. 
+		 * Now, using sl_thd_wakeup. So, don't need to disable interrupts around this!
+		 */
 		bmk_isr(which);
-		intr_end();
 	}
 }
 
@@ -249,230 +258,33 @@ cos_tls_init(unsigned long tp, thdcap_t tc)
 }
 
 
-extern thdcap_t vm_main_thd;
-
 void
 cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void (*f)(void *), void *arg,
 		void *stack_base, unsigned long stack_size)
 {
-
-	thdcap_t newthd_cap;
+	struct sl_thd *t = NULL;
+	struct cos_aep_info tmpaep;
 	int ret;
 
 	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p", thread->bt_name, f);
 
 	if (!strcmp(thread->bt_name, "user_lwp")) {
+		tmpaep.thd = VM_CAPTBL_SELF_APPTHD_BASE;
+		tmpaep.rcv = 0;
+		tmpaep.tc  = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+		t = rk_rump_thd_init(&tmpaep);
+		assert(t);
 		/* Return userlevel thread cap that is set up in vkernel_init */
-		printc("\nMatch, thdcap %d\n", (unsigned int)VM_CAPTBL_SELF_APPTHD_BASE);
-		newthd_cap = VM_CAPTBL_SELF_APPTHD_BASE;
+		printc("\nMatch, thdcap %d, id:%u\n", (unsigned int)VM_CAPTBL_SELF_APPTHD_BASE, t->thdid);
 	} else {
-		newthd_cap = cos_thd_alloc(currci, currci->comp_cap, f, arg);
-		printc(" thdcap: %lu\n", newthd_cap);
+		t = rk_rump_thd_alloc(f, arg);
+		assert(t);
+		printc(" thdcap: %lu, id:%u\n", sl_thd_thdcap(t), t->thdid);
 	}
-	assert(newthd_cap);
-	set_cos_thddata(thread, newthd_cap, cos_introspect(currci, newthd_cap, 9));
+
+	set_cos_thddata(thread, sl_thd_thdcap(t), t->thdid);
 }
-
-static inline void
-intr_switch(void)
-{
-	int i = 32;
-
-	if (!intrs) return;
-
-	/* Man this is ugly...FIXME? */
-	for (; i > 0 ; i--) {
-		int tmp = intrs;
-
-		if ((tmp>>(i-1)) & 1) {
-			int ret = 0;
-
-			do {
-				ret = cos_switch(irq_thdcap[i], intr_eligible_tcap(i), irq_prio[i], TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-			} while (ret == -EAGAIN);
-
-			if (ret == -EBUSY) return; /* scheduler events have to be processed */
-		}
-	}
-}
-
-#define CHECK_ITER 32
-static inline void
-check_vio_budgets(void)
-{
-	return;
-}
-
-static void
-cpu_bound_thd_fn(void *d)
-{
-	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
-
-	while (1) {
-		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
-	}
-}
-
-static void
-cpu_bound_test(void)
-{
-	return;
-}
-
-static void
-print_cycles(void)
-{
-	static cycles_t total_cycles = 0;
-	static cycles_t prev = 0, curr = 0;
-	cycles_t cycs_per_sec = cycs_per_usec * 1000 * 1000 * 5;
-	tcap_res_t isrbud, viobud, mainbud;
-
-	rdtscll(curr);
-	if (prev) total_cycles += (curr - prev);
-	prev = curr;
-
-	if (total_cycles >= cycs_per_sec) {
-		mainbud = (tcap_res_t)cos_introspect(currci, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_GET_BUDGET);
-		printc("vm%d: %lu\n", vmid, mainbud);
-		total_cycles = 0;
-	}
-}
-
-#define SCHED_TIMEOUT_CYCS (1000 * cycs_per_usec)
-
-/* Called once from RK init thread. The one in while(1) */
-void
-cos_resume(void)
-{
-	static u64_t r1 = 0, r2 = 0, r3 = 0, r4 = 0;
-	/* this will not return if this vm is set to be CPU bound */
-	//cpu_bound_test();
-
-	while(1) {
-		int ret, first = 1;
-		unsigned int rk_disabled = 0;
-		unsigned int intr_disabled = 0;
-		long long until = 0, curr_time = 0;
-
-//		if (r2 % 10000 == 0 || r4 % 10000 == 0) {
-//			printc("%d: r1:%llu r2:%llu r3:%llu r4:%llu\n", cos_spdid_get(), r1, r2, r3, r4);
-//		}
-		r1 ++;
-		do {
-			unsigned int contending;
-			cycles_t cycles, now;
-			int pending, blocked, irq_line;
-			thdid_t tid;
-			tcap_time_t timeout = 0, thd_timeout;
-
-			/*
-			 * Handle all possible interrupts when
-			 * interrupts are enabled or when
-			 * a cos interrupt thread has disabled interrupts.
-			 * Otherwise a rk thread disabled them and we need to
-			 * switch back so it can enable interrupts
-			 *
-			 * Loop is neccessary incase we get preempted before a valid
-			 * interrupt finishes execuing and we requrie that it finishes
-			 * executing before returning to RK
-			 */
-
-			r2 ++;
-			do {
-
-				rdtscll(now);
-				timeout = tcap_cyc2time(now + SCHED_TIMEOUT_CYCS); 
-				pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, timeout, 
-						        NULL, &tid, &blocked, &cycles, &thd_timeout);
-
-				irq_line = intr_translate_thdid2irq(tid);
-				intr_update(irq_line, blocked);
-
-				if(first) {
-					isr_get(cos_isr, &rk_disabled, &intr_disabled, &contending);
-					if(rk_disabled && !intr_disabled) goto rk_resume;
-					first = 0;
-				}
-			} while(pending);
-
-			/*
-			 * Done processing pending events
-			 * Finish any remaining interrupts
-			 */
-			intr_switch();
-		} while(intrs);
-
-		assert(!intrs);
-
-rk_resume:
-		/*
-		 * Phani:
-		 * Check if BMK Runq has something to RUN!
-		 * Return value indicates how long to wait before timing out, 0 if it's not running bmk_platform_block..
-		 * This is a check in bmk_platform_block().
-		 * This upcall should make things faster in idle/block time processing in RK threads.
-		 */
-//		if ((until = bmk_runq_empty())) {
-//			curr_time = cos_cpu_clock_now();
-//			if(until > curr_time) {
-//		//		printc("%d: %lld %lld..", cos_spdid_get(), until, curr_time);
-//				continue;
-//			}
-//		}
-		do {
-			cycles_t now, then;
-
-			r4 ++;
-			if(intr_disabled) break;
-			cos_find_vio_tcap();
-
-			rdtscll(then);
-			/* TODO: decide which TCAP to use for rest of RK processing for I/O and do deficit accounting */
-			ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
-		} while(ret == -EAGAIN);
-
-		cos_printflush();
-		check_vio_budgets();
-//		print_cycles();
-	}
-}
-
-void
-cos_cpu_sched_switch(struct bmk_thread *unsused, struct bmk_thread *next)
-{
-	sched_tok_t tok = cos_sched_sync();
-	thdcap_t temp   = get_cos_thdcap(next);
-	int ret;
-
-	if(cos_isr) printc("%x\n", (unsigned int)cos_isr);
-	assert(!cos_isr);
-	cos_cur = temp;
-
-	do {
-		ret = cos_switch(cos_cur, COS_CUR_TCAP, rk_thd_prio, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, tok);
-		assert(ret == 0 || ret == -EAGAIN || ret == -EBUSY);
-		if (ret == -EAGAIN) {
-			/*
-			 * I was preempted after getting the token and before updating cos_cur which just outdated my sched token
-			 * So get a new token and try cos_switch again
-			 * 
-			 * And cos_cur == temp, can only happen if I've updated cos_cur and there were no other RK threads switched-to after that.
-			 */
-			if (cos_cur == temp) tok = cos_sched_sync();
-			/*
-			 * cos_cur is set to 'me' by some other RK thread because I was preempted after updating cos_cur
-			 * ignore -EAGAIN in this scenario
-			 */
-			else break;
-		}
-	} while (ret == -EAGAIN);
-}
-
-/* --------- Timer ----------- */
-
-/* Get the number of cycles in a single micro second. If we do nano second we lose the fraction */
-//long long cycles_us = (long long)(CPU_GHZ * 1000);
 
 /* Return monotonic time since RK per VM initiation in nanoseconds */
 extern u64_t t_vm_cycs;
@@ -535,27 +347,6 @@ cos_sched_yield(void)
 void
 cos_vm_yield(void)
 { cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
-
-void
-cos_dom02io_transfer(unsigned int irqline, tcap_t tc, arcvcap_t rc, tcap_prio_t prio)
-{
-}
-
-void
-cos_vio_tcap_set(unsigned int src)
-{
-}
-
-void
-cos_vio_tcap_update(unsigned int dst)
-{
-}
-
-tcap_t
-cos_find_vio_tcap(void)
-{
-	return BOOT_CAPTBL_SELF_INITTCAP_BASE;
-}
 
 /* System Calls */
 void

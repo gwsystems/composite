@@ -327,8 +327,10 @@ sl_thd_event_enqueue(struct sl_thd *t, int blocked, cycles_t cycles, tcap_time_t
 }
 
 static inline void
-sl_thd_event_info(struct sl_thd *t, int *blocked, cycles_t *cycles, tcap_time_t *timeout)
+sl_thd_event_dequeue(struct sl_thd *t, int *blocked, cycles_t *cycles, tcap_time_t *timeout)
 {
+	ps_list_rem(t, SL_THD_EVENT_LIST);
+
 	*blocked = t->event_info.blocked;
 	*cycles  = t->event_info.cycles;
 	*timeout = t->event_info.timeout;
@@ -634,7 +636,7 @@ sl_sched_loop(void)
 			int            blocked, rcvd;
 			cycles_t       cycles;
 			tcap_time_t    timeout = g->timeout_next, thd_timeout;
-			struct sl_thd *t, *tn;
+			struct sl_thd *t = NULL, *tn = NULL;
 
 			/*
 			 * a child scheduler may receive both scheduling notifications (block/unblock
@@ -660,7 +662,7 @@ sl_sched_loop(void)
 			sl_thd_event_enqueue(t, blocked, cycles, thd_timeout);
 
 pending_events:
-			if (ps_list_is_head(&g->event_head, t, SL_THD_EVENT_LIST)) continue;
+			if (ps_list_head_empty(&g->event_head)) continue;
 
 			/*
 			 * receiving scheduler notifications is not in critical section mainly for
@@ -672,11 +674,12 @@ pending_events:
 			if (sl_cs_enter_sched()) continue;
 
 			ps_list_foreach_del(&g->event_head, t, tn, SL_THD_EVENT_LIST) {
-				
+				/* remove the event from the list and get event info */
+				sl_thd_event_dequeue(t, &blocked, &cycles, &thd_timeout);
+
 				/* outdated event for a freed thread */
 				if (t->state == SL_THD_FREE) continue;
 
-				sl_thd_event_info(t, &blocked, &cycles, &thd_timeout);
 				sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
 
 				if (blocked) {
