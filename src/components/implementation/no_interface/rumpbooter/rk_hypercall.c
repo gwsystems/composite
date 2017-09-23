@@ -145,6 +145,7 @@ rk_recvfrom(int s, int buff_shdmem_id, size_t len, int flags, int from_shdmem_id
 {
 	static int shdmem_id = -1;
 	static vaddr_t my_addr = 0;
+	vaddr_t my_addr_tmp;
 	void *buff;
 	struct sockaddr *from;
 	socklen_t *from_addr_len_ptr;
@@ -154,23 +155,24 @@ rk_recvfrom(int s, int buff_shdmem_id, size_t len, int flags, int from_shdmem_id
 		my_addr = shmem_get_vaddr_invoke(shdmem_id);
 	}
 
-	/* We are using only one page, make sure the id is the same */
-	assert(buff_shdmem_id == from_shdmem_id && buff_shdmem_id == shdmem_id);
 	assert(shdmem_id > -1);
 	assert(my_addr > 0);
+	/* We are using only one page, make sure the id is the same */
+	assert(buff_shdmem_id == from_shdmem_id && buff_shdmem_id == shdmem_id);
 
 	/* TODO, put this in a function */
 	/* In the shared memory page, first comes the message buffer for len amount */
-	buff = (void *)my_addr;
-	my_addr += len;
+	my_addr_tmp = my_addr;
+	buff = (void *)my_addr_tmp;
+	my_addr_tmp += len;
 
 	/* Second is from addr length ptr */
-	from_addr_len_ptr  = (void *)my_addr;
+	from_addr_len_ptr  = (void *)my_addr_tmp;
 	*from_addr_len_ptr = from_addr_len;
-	my_addr += sizeof(socklen_t *);
+	my_addr_tmp += sizeof(socklen_t *);
 
 	/* Last is the from socket address */
-	from = (struct sockaddr *)my_addr;
+	from = (struct sockaddr *)my_addr_tmp;
 
 	return rump___sysimpl_recvfrom(s, buff, len, flags, from, from_addr_len_ptr);
 }
@@ -187,9 +189,9 @@ rk_sendto(int sockfd, int buff_shdmem_id, size_t len, int flags, int addr_shdmem
 		buff = (const void *)shmem_get_vaddr_invoke(shdmem_id);
 	}
 
+	assert(shdmem_id > -1);
+	assert(buff > 0);
 	assert(buff_shdmem_id == addr_shdmem_id && buff_shdmem_id == shdmem_id);
-	assert(shdmem_id);
-	assert(buff);
 
 	addr = (const struct sockaddr *)(buff + len);
 	assert(addr);
