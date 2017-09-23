@@ -143,18 +143,20 @@ rk_bind(int sockfd, int shdmem_id, socklen_t addrlen)
 ssize_t
 rk_recvfrom(int s, int buff_shdmem_id, size_t len, int flags, int from_shdmem_id, int from_addr_len)
 {
-	int shdmem_id;
-	vaddr_t my_addr;
+	static int shdmem_id = -1;
+	static vaddr_t my_addr = 0;
 	void *buff;
 	struct sockaddr *from;
 	socklen_t *from_addr_len_ptr;
 
-	/* We are using only one page, make sure the id is the same */
-	assert(buff_shdmem_id == from_shdmem_id);
+	if (shdmem_id == -1 && my_addr == 0) {
+		shdmem_id = shmem_map_invoke(buff_shdmem_id);
+		my_addr = shmem_get_vaddr_invoke(shdmem_id);
+	}
 
-	shdmem_id = shmem_map_invoke(buff_shdmem_id);
+	/* We are using only one page, make sure the id is the same */
+	assert(buff_shdmem_id == from_shdmem_id && buff_shdmem_id == shdmem_id);
 	assert(shdmem_id > -1);
-	my_addr = shmem_get_vaddr_invoke(shdmem_id);
 	assert(my_addr > 0);
 
 	/* TODO, put this in a function */
@@ -176,15 +178,17 @@ rk_recvfrom(int s, int buff_shdmem_id, size_t len, int flags, int from_shdmem_id
 ssize_t
 rk_sendto(int sockfd, int buff_shdmem_id, size_t len, int flags, int addr_shdmem_id, socklen_t addrlen)
 {
-	int shdmem_id;
-	const void *buff;
+	static int shdmem_id = -1;
+	static const void *buff = 0;
 	const struct sockaddr *addr;
 
-	assert(buff_shdmem_id == addr_shdmem_id);
+	if (shdmem_id == -1 && buff == 0) {
+		shdmem_id = shmem_map_invoke(buff_shdmem_id);
+		buff = (const void *)shmem_get_vaddr_invoke(shdmem_id);
+	}
 
-	shdmem_id = shmem_map_invoke(buff_shdmem_id);
+	assert(buff_shdmem_id == addr_shdmem_id && buff_shdmem_id == shdmem_id);
 	assert(shdmem_id);
-	buff = (const void *)shmem_get_vaddr_invoke(shdmem_id);
 	assert(buff);
 
 	addr = (const struct sockaddr *)(buff + len);
