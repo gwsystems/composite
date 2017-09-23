@@ -155,7 +155,7 @@ cos_init(void)
 	//	test_blocking_directed_yield();
 	test_timeout_wakeup();
 
-	sl_sched_loop(0);
+	sl_sched_loop(SL_SCHEDRCV_DEFAULT);
 
 	assert(0);
 

@@ -123,7 +123,7 @@ cos_init(void)
 	printc("Starting Scheduler\n");
 	printc("------------------[ VKernel & VMs init complete ]------------------\n");
 
-	sl_sched_loop(0);
+	sl_sched_loop(SL_SCHEDRCV_DEFAULT);
 
 	printc("vkernel: END\n");
 	cos_thd_switch(vk_info.termthd);
