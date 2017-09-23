@@ -79,6 +79,12 @@ int
 rk_socketcall(int call, unsigned long *args)
 {
         int ret = -1;
+	/*
+	 * Set and unset by sendto and recvfrom to ensure that only 1 thread
+	 * is sending and recieving packets. This means that we will never have
+	 * have more than 1 packet in the send or recv shdmem page at a given time
+	 */
+	static int canSend = 0;
 
         switch (call) {
 		case 1: { /* Socket */
@@ -105,6 +111,7 @@ rk_socketcall(int call, unsigned long *args)
                          * Do stupid shared memory for now
                          * allocate a page for each bind addr
                          * don't deallocate. #memLeaksEverywhere
+			 * We don't have to fix this for now as we only have 1 bind
                          */
 
 			/* TODO make this a function */
@@ -119,8 +126,10 @@ rk_socketcall(int call, unsigned long *args)
                         break;
                 }
 		case 11: { /* sendto */
-			int fd, flags, shdmem_id;
-			vaddr_t shdmem_addr;
+			int fd, flags;
+			static int shdmem_id = -1;
+			static vaddr_t shdmem_addr = 0;
+			vaddr_t shdmem_addr_tmp;
 			const void *buff;
 			void *shdmem_buff;
 			size_t len;
@@ -135,19 +144,24 @@ rk_socketcall(int call, unsigned long *args)
 			addr    = (const struct sockaddr *)*(args + 4);
 			addrlen = (socklen_t)*(args + 5);
 
-			/* For the time being, just allocate a new page every time we read */
-                        /* TODO don't do that */
 			/* TODO make this a function */
-                        shdmem_id = shmem_allocate_invoke();
-                        assert(shdmem_id > -1);
-                        shdmem_addr = shmem_get_vaddr_invoke(shdmem_id);
-                        assert(shdmem_addr > 0);
+			if (shdmem_id < 0 && !shdmem_addr) {
+				shdmem_id = shmem_allocate_invoke();
+				shdmem_addr = shmem_get_vaddr_invoke(shdmem_id);
+			}
 
-			shdmem_buff = (void *)shdmem_addr;
+			assert(shdmem_id > -1);
+			assert(shdmem_addr > 0);
+
+			assert(canSend == 1);
+			canSend = 0;
+
+			shdmem_addr_tmp = shdmem_addr;
+			shdmem_buff = (void *)shdmem_addr_tmp;
 			memcpy(shdmem_buff, buff, len);
-			shdmem_addr += len;
+			shdmem_addr_tmp += len;
 
-			shdmem_sockaddr = (struct sockaddr*)shdmem_addr;
+			shdmem_sockaddr = (struct sockaddr*)shdmem_addr_tmp;
 			memcpy(shdmem_sockaddr, addr, addrlen);
 
 			ret = (int)rk_inv_sendto(fd, shdmem_id, len, flags,
@@ -156,8 +170,10 @@ rk_socketcall(int call, unsigned long *args)
 			break;
 		}
 		case 12: { /* Recvfrom */
-                        int s, flags, shdmem_id;
-                        vaddr_t shdmem_addr;
+                        int s, flags;
+			static int shdmem_id = -1;
+			static vaddr_t shdmem_addr = 0;
+			vaddr_t shdmem_addr_tmp;
                         void *buff;
                         size_t len;
                         struct sockaddr *from_addr;
@@ -170,28 +186,33 @@ rk_socketcall(int call, unsigned long *args)
                         from_addr         = (struct sockaddr *)*(args + 4);
                         from_addr_len_ptr = (u32_t *)*(args + 5);
 
-                        /* For the time being, just allocate a new page every time we read */
-                        /* TODO don't do that */
 			/* TODO make this a function */
-                        shdmem_id = shmem_allocate_invoke();
+			if (shdmem_id < 0 && !shdmem_addr) {
+				shdmem_id = shmem_allocate_invoke();
+				shdmem_addr = shmem_get_vaddr_invoke(shdmem_id);
+			}
+
                         assert(shdmem_id > -1);
-                        shdmem_addr = shmem_get_vaddr_invoke(shdmem_id);
                         assert(shdmem_addr > 0);
+
+			assert(canSend == 0);
+			canSend = 1;
 
                         ret = (int)rk_inv_recvfrom(s, shdmem_id, len, flags,
                                 shdmem_id, *from_addr_len_ptr);
 
                         /* TODO, put this in a function */
                         /* Copy buffer back to its original value*/
-                        memcpy(buff, (const void * __restrict__)shdmem_addr, ret);
-                        shdmem_addr += len; /* Add overall length of buffer */
+			shdmem_addr_tmp = shdmem_addr;
+                        memcpy(buff, (const void * __restrict__)shdmem_addr_tmp, ret);
+                        shdmem_addr_tmp += len; /* Add overall length of buffer */
 
                         /* Set from_addr_len_ptr pointer to be shared memory at right offset */
-                        *from_addr_len_ptr = *(u32_t *)shdmem_addr;
-                        shdmem_addr += sizeof(u32_t *);
+                        *from_addr_len_ptr = *(u32_t *)shdmem_addr_tmp;
+                        shdmem_addr_tmp += sizeof(u32_t *);
 
                         /* Copy from_addr to be shared memory at right offset */
-                        memcpy(from_addr, (const void * __restrict__)shdmem_addr, *from_addr_len_ptr);
+                        memcpy(from_addr, (const void * __restrict__)shdmem_addr_tmp, *from_addr_len_ptr);
 
                         break;
                 }
