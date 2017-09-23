@@ -596,9 +596,10 @@ sl_init(microsec_t period)
 }
 
 void
-sl_sched_loop(void)
+sl_sched_loop(int non_block)
 {
-	struct sl_global *g = sl__globals();
+	struct sl_global *g   = sl__globals();
+	rcv_flags_t       rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
 
 	while (1) {
 		int pending;
@@ -615,7 +616,7 @@ sl_sched_loop(void)
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			pending = cos_sched_rcv(g->sched_rcv, RCV_ALL_PENDING, timeout,
+			pending = cos_sched_rcv(g->sched_rcv, rfl, timeout,
 						&rcvd, &tid, &blocked, &cycles, &thd_timeout);
 			if (!tid) goto pending_events;
 
@@ -671,7 +672,7 @@ pending_events:
 			}
 
 			sl_cs_exit();
-		} while (pending);
+		} while (pending > 0);
 
 		if (sl_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */

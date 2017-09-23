@@ -528,6 +528,6 @@ sl_cs_exit_switchto(struct sl_thd *to)
  * sl_sched_loop(); <- loop here
  */
 void sl_init(microsec_t period);
-void sl_sched_loop(void);
+void sl_sched_loop(int non_block);
 
 #endif /* SL_H */
