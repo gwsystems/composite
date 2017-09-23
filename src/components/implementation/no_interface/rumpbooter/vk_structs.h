@@ -26,7 +26,6 @@ struct vkernel_info {
 
 	thdcap_t  termthd;
 	sinvcap_t sinv;
-	asndcap_t vminitasnd[VM_COUNT];
 };
 
 extern struct vms_info     vmx_info[];

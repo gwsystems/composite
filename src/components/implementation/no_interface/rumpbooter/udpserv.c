@@ -29,7 +29,7 @@ __get_hpet_counter(void)
 	int ret = 0;
 	tcap_res_t b = HPET_REQ_BUDGET_US * cycs_per_usec;
 
-	ret = cos_tcap_delegate(APP_CAPTBL_SELF_IOSND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, b, PRIO_HIGH, 0);
+	ret = cos_tcap_delegate(APP_CAPTBL_SELF_IOSND_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, b, UDP_PRIO, 0);
 	if (ret != -EPERM) assert(ret == 0);
 #elif defined(APP_COMM_SYNC)
 	*__hpets_shm_addr = (u32_t)timer_get_counter();

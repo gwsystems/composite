@@ -6,7 +6,7 @@
 #include "timer_inv_api.h"
 #include "rk_inv_api.h"
 
-#define DL_SPIN_US (4*1000) //4ms
+#define DL_SPIN_US (1*1000) //1ms
 #define DL_LOG_SIZE 128
 extern int vmid;
 extern struct cringbuf *vmrb;

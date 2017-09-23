@@ -33,6 +33,20 @@ rk_intr_thd_param_set(struct sl_thd *t, int own_tcap)
 	return 0;
 }
 
+static int
+rk_subsys_thd_param_set(struct sl_thd *t)
+{
+	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = TIMER_PRIO}};
+	union sched_param_union spexec = {.c = {.type = SCHEDP_BUDGET, .value = VM_FIXED_BUDGET_MS * 1000}};
+	union sched_param_union spperiod = {.c = {.type = SCHEDP_WINDOW, .value = VM_FIXED_PERIOD_MS * 1000}};
+
+	sl_thd_param_set(t, spprio.v);
+	sl_thd_param_set(t, spexec.v);
+	sl_thd_param_set(t, spperiod.v);
+
+	return 0;
+}
+
 struct sl_thd *
 rk_rump_thd_init(struct cos_aep_info *aep)
 {
@@ -42,6 +56,35 @@ rk_rump_thd_init(struct cos_aep_info *aep)
 	assert(t);	
 
 	rk_rump_thd_param_set(t);
+
+	return t;
+}
+
+static struct sl_thd *
+rk_subsys_thd_init(thdcap_t thd, arcvcap_t rcv, tcap_t tc, asndcap_t snd, int is_sched)
+{
+	static int only_once = 0;
+	struct cos_defcompinfo sub_defci;
+	struct cos_compinfo *subci = cos_compinfo_get(&sub_defci);
+	struct cos_aep_info *subaep = cos_sched_aep_get(&sub_defci);
+	struct sl_thd *t = NULL;
+
+	assert(is_sched);
+
+	assert(only_once == 0);
+	only_once ++;
+
+	subci->captbl_cap = BOOT_CAPTBL_SELF_CT;
+	printc("%lu %lu %lu\n", thd, tc, rcv);
+	subaep->thd = thd;
+	subaep->rcv = rcv;
+	subaep->tc = tc;
+
+	t = sl_thd_comp_init(&sub_defci, is_sched);
+	assert(t);
+	t->sndcap = snd;
+
+	rk_subsys_thd_param_set(t);
 
 	return t;
 }
@@ -102,13 +145,16 @@ void
 rk_sched_loop(void)
 {
 	printc("STARTING RK SCHED!\n");
-	sl_sched_loop();
+	sl_sched_loop(1);
 }
 
 void
 rk_sched_init(microsec_t period)
 {
 	sl_init(period);
+
+	rk_subsys_thd_init(RK_CAPTBL_SELF_TMTHD_BASE, RK_CAPTBL_SELF_TMRCV_BASE, RK_CAPTBL_SELF_TMTCAP_BASE, 
+			   RK_CAPTBL_SELF_TMASND_BASE, 1);
 }
 
 void

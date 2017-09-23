@@ -81,7 +81,7 @@ vm_init(void *unused)
 	switch(vmid) {
 	case RUMP_SUB:
 		init_fn = rump_booter_init;
-		cap_frontier = SUB_CAPTBL_FREE;
+		cap_frontier = RK_CAPTBL_FREE;
 		break;
 	case TIMER_SUB:
 		init_fn = timersub_init;

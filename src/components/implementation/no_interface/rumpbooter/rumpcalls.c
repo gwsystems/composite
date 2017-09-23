@@ -12,9 +12,7 @@
 #include "vk_types.h"
 #include "rumpcalls.h"
 #include "rump_cos_alloc.h"
-//#include "cos_lock.h"
 #include "cos2rk_rb_api.h"
-//#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 #include "vk_api.h"
 #include "rk_inv_api.h"
 #include "rk_sched.h"
@@ -22,12 +20,6 @@
 extern int vmid;
 extern struct cos_compinfo *currci;
 extern struct cos_rumpcalls crcalls;
-
-/* Thread cap */
-volatile thdcap_t cos_cur = BOOT_CAPTBL_SELF_INITTHD_BASE;
-volatile unsigned int cos_cur_tcap = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-
-tcap_prio_t rk_thd_prio = PRIO_MID;
 
 /* Mapping the functions from rumpkernel to composite */
 void

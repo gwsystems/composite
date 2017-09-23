@@ -77,7 +77,7 @@ timersub_init(void *d)
 
 	__timersub_thds_init();
 
-	sl_sched_loop();
+	sl_sched_loop(0);
 	printc("Timer Subsystem Scheduling Error!!\n");
 
 	assert(0);

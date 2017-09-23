@@ -18,10 +18,12 @@
 #define CHILD_PERIOD_US  (1000)
 
 #define VM_FIXED_PERIOD_MS 10
-#define VM_FIXED_BUDGET_MS 5
+#define VM_FIXED_BUDGET_MS 3
 
 #define APP_COMM_SYNC
 //#define APP_COMM_ASYNC
+
+//#define CHRONOS_ENABLED
 
 #define VM_CAPTBL_SELF_VK_SINV_BASE  BOOT_CAPTBL_FREE
 /* for now, one thread per app and one app per subsys */
@@ -47,6 +49,13 @@
 #define TM_CAPTBL_SELF_LAST_CAP      TM_CAPTBL_SELF_IOTCAP_BASE + captbl_idsize(CAP_TCAP)
 #define TM_CAPTBL_FREE               round_up_to_pow2(TM_CAPTBL_SELF_LAST_CAP, CAPMAX_ENTRY_SZ)
 
+#define RK_CAPTBL_SELF_TMTHD_BASE    SUB_CAPTBL_FREE
+#define RK_CAPTBL_SELF_TMRCV_BASE    round_up_to_pow2(RK_CAPTBL_SELF_TMTHD_BASE + captbl_idsize(CAP_THD), CAPMAX_ENTRY_SZ)
+#define RK_CAPTBL_SELF_TMTCAP_BASE   round_up_to_pow2(RK_CAPTBL_SELF_TMRCV_BASE + captbl_idsize(CAP_ARCV), CAPMAX_ENTRY_SZ)
+#define RK_CAPTBL_SELF_TMASND_BASE   round_up_to_pow2(RK_CAPTBL_SELF_TMTCAP_BASE + captbl_idsize(CAP_TCAP), CAPMAX_ENTRY_SZ)
+#define RK_CAPTBL_SELF_LAST_CAP      RK_CAPTBL_SELF_TMASND_BASE + captbl_idsize(CAP_ASND)
+#define RK_CAPTBL_FREE               round_up_to_pow2(RK_CAPTBL_SELF_LAST_CAP, CAPMAX_ENTRY_SZ)
+
 enum vkernel_server_option {
         VK_SERV_VM_ID = 0,
 	VK_SERV_VM_BLOCK,
@@ -62,6 +71,13 @@ enum vm_types {
 	TIMER_SUB, /* SL_THD WITH ASND, VIO from LC with it's own budget (tcap_deleg), SINV for HPET INFO */
 	UDP_APP, /* VIO to HA_HPET for HPET INFO, SL_THD in OWN COMP but NO ASND */
 	DL_APP, /* SL_THD with TCAP shared between HA + HC, SINV to HA, ASYNC to LA */
+};
+
+enum vm_prio {
+	RUMP_PRIO = 2,
+	TIMER_PRIO = 1,
+	UDP_PRIO = 2,
+	DL_PRIO = 1,
 };
 
 enum rk_inv_ops {

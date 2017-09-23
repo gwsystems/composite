@@ -129,7 +129,7 @@ rump_booter_init(void *d)
 	rk_hw_irq_alloc();
 
 	/* We pass in the json config string to the RK */
-	rk_alloc_run(RK_JSON_DEFAULT_HW);
+	rk_alloc_run(RK_JSON_DEFAULT_QEMU);
 	printc("\nRumpKernel Boot done.\n");
 
 	cos_vm_exit();

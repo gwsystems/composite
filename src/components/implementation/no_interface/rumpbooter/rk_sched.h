@@ -10,10 +10,10 @@
 #include "vk_types.h"
 #include "rumpcalls.h"
 
-#define RK_SCHED_PERIOD_US CHILD_PERIOD_US
+#define RK_SCHED_PERIOD_US PARENT_PERIOD_US
 
 enum {
-	RK_SL_PRIO_HIGH = 0,
+	RK_SL_PRIO_HIGH = 5,
 	RK_SL_PRIO_MID,
 	RK_SL_PRIO_LOW,
 };

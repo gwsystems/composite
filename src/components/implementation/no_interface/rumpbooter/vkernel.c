@@ -15,8 +15,9 @@
 	} while (0)
 
 extern vaddr_t cos_upcall_entry;
-extern void    vm_init(void *d);
-extern void   *__inv_vkernel_hypercall(int a, int b, int c, int d);
+extern void chronos_sched_loop(void);
+extern void  vm_init(void *d);
+extern void *__inv_vkernel_hypercall(int a, int b, int c, int d);
 unsigned int cycs_per_usec;
 
 struct vms_info      vmx_info[VM_COUNT];
@@ -173,10 +174,10 @@ cos_init(void)
 
 	}
 
-	printc("Starting Scheduler\n");
 	printc("------------------[ VKernel & VMs init complete ]------------------\n");
+	printc("Starting Scheduler\n");
 
-	sl_sched_loop();
+	chronos_sched_loop();
 
 	printc("vkernel: END\n");
 	cos_thd_switch(vk_info.termthd);

@@ -30,8 +30,50 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 
 	cos_meminfo_init(&(vmcinfo->mi), BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE(vminfo->id), vmutpt);
 
-	ret = cos_defcompinfo_child_alloc(vmdci, (vaddr_t)&cos_upcall_entry, (vaddr_t)BOOT_MEM_VM_BASE,
+	if (vminfo->id == TIMER_SUB) {
+		asndcap_t snd = 0;
+		struct cos_compinfo *rkci = cos_compinfo_get(&(vmx_info[RUMP_SUB].dci));
+		struct cos_aep_info *schaep = cos_sched_aep_get(&(vmx_info[RUMP_SUB].dci));
+
+		/*
+		 * RUMP KERNEL SCHEDULER IS THE SYSTEM SCHEDULER! 
+		 * OTHER SUBSYSTEMS (TIMER SUB here) are CHILD SUBSYSTEMS OF RUMP KERNEL!
+		 * rump subsystem should be initialized before timer subsystem
+		 */
+		assert(RUMP_SUB < TIMER_SUB);
+		ret = cos_compinfo_alloc(vmcinfo, (vaddr_t)BOOT_MEM_VM_BASE, VM_CAPTBL_FREE, (vaddr_t)&cos_upcall_entry, vk_cinfo);
+		assert(ret == 0);
+
+		initaep->thd = cos_initthd_alloc(vk_cinfo, vmcinfo->comp_cap);
+		assert(initaep->thd);
+
+		initaep->tc = cos_tcap_alloc(vk_cinfo);
+		assert(initaep->tc);
+
+		initaep->rcv = cos_arcv_alloc(vk_cinfo, initaep->thd, initaep->tc, vk_cinfo->comp_cap, schaep->rcv);
+		assert(initaep->rcv);
+
+		initaep->fn = NULL;
+		initaep->data = NULL;
+
+		ret = cos_cap_cpy_at(rkci, RK_CAPTBL_SELF_TMTHD_BASE, vk_cinfo, initaep->thd);
+		assert(ret == 0);
+		ret = cos_cap_cpy_at(rkci, RK_CAPTBL_SELF_TMTCAP_BASE, vk_cinfo, initaep->tc);
+		assert(ret == 0);
+		ret = cos_cap_cpy_at(rkci, RK_CAPTBL_SELF_TMRCV_BASE, vk_cinfo, initaep->rcv);
+		assert(ret == 0);
+
+		/* FIXME: ASND CREATION from RK doesn't seem to really work! DEBUG THAT */
+		snd = cos_asnd_alloc(vk_cinfo, initaep->rcv, vk_cinfo->captbl_cap);
+		assert(snd);
+		ret = cos_cap_cpy_at(rkci, RK_CAPTBL_SELF_TMASND_BASE, vk_cinfo, snd);
+		assert(ret == 0);
+	} else {
+		ret = cos_defcompinfo_child_alloc(vmdci, (vaddr_t)&cos_upcall_entry, (vaddr_t)BOOT_MEM_VM_BASE,
 					  VM_CAPTBL_FREE, vminfo->id < APP_START_ID ? 1 : 0);
+		assert(ret == 0);
+	}
+
 	if (vminfo->id >= APP_START_ID) {
 		int schidx = 0;
 		struct cos_compinfo *schci = NULL;
@@ -50,6 +92,16 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 		initaep->rcv = schaep->rcv;
 
 		ret = cos_cap_cpy_at(schci, VM_CAPTBL_SELF_APPTHD_BASE, vk_cinfo, initaep->thd);
+		assert(ret == 0);
+
+		ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITTCAP_BASE, vk_cinfo, schaep->tc);
+		assert(ret == 0);
+		ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITRCV_BASE, vk_cinfo, schaep->rcv);
+		assert(ret == 0);
+	} else {
+		ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITTCAP_BASE, vk_cinfo, initaep->tc);
+		assert(ret == 0);
+		ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITRCV_BASE, vk_cinfo, initaep->rcv);
 		assert(ret == 0);
 	}
 
@@ -75,39 +127,16 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	assert(ret == 0);
 	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITHW_BASE, vk_cinfo, BOOT_CAPTBL_SELF_INITHW_BASE);
 	assert(ret == 0);
-
-	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITTCAP_BASE, vk_cinfo, initaep->tc);
-	assert(ret == 0);
-	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_INITRCV_BASE, vk_cinfo, initaep->rcv);
-	assert(ret == 0);
 }
 
 void
 vk_vm_sched_init(struct vms_info *vminfo)
 {
-	struct cos_compinfo *vk_cinfo  = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct cos_defcompinfo *vmdci  = &(vminfo->dci);
 	struct cos_compinfo *vmcinfo   = cos_compinfo_get(vmdci);
-	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = 0}};
-	union sched_param_union spC    = {.c = {.type = SCHEDP_BUDGET, .value = (VM_FIXED_BUDGET_MS * 1000)}};
-	union sched_param_union spT    = {.c = {.type = SCHEDP_WINDOW, .value = (VM_FIXED_PERIOD_MS * 1000)}};
-	int ret, prio;
 
 	vminfo->inithd = sl_thd_comp_init(vmdci, vminfo->id < APP_START_ID ? 1 : 0);
 	assert(vminfo->inithd);
-
-	if (vminfo->id >= APP_START_ID) return;
-
-	switch (vminfo->id) {
-	case TIMER_SUB: prio = PRIO_HIGH; break;
-	case RUMP_SUB:  prio = PRIO_MID; break;
-	default: assert(0);
-	}
-	spprio.c.value = prio;
-
-	sl_thd_param_set(vminfo->inithd, spprio.v);
-	sl_thd_param_set(vminfo->inithd, spC.v);
-	sl_thd_param_set(vminfo->inithd, spT.v);
 
 	printc("\tsl_thd 0x%x created for thread = cap:%x, id=%u\n", (unsigned int)(vminfo->inithd),
 	       (unsigned int)sl_thd_thdcap(vminfo->inithd), (vminfo->inithd)->thdid);
@@ -126,6 +155,7 @@ vk_vm_virtmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsign
 
 	src_pg = (vaddr_t)cos_page_bump_allocn(vk_cinfo, range);
 	assert(src_pg);
+	printc("\tVM start:0x%x\n", (unsigned int)src_pg);
 
 	for (addr = 0; addr < range; addr += PAGE_SIZE, src_pg += PAGE_SIZE) {
 		vaddr_t dst_pg;
