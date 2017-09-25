@@ -1,5 +1,5 @@
-ASM_OBJS=inv.o start.o
-COMPONENT=rump_boot.o
+ASM_OBJS=start.o
+COMPONENT=noiso_rumpboot.o
 INTERFACES=
 DEPENDENCIES=
 IF_LIB=

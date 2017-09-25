@@ -190,7 +190,7 @@ rk_sendto(int sockfd, int buff_shdmem_id, size_t len, int flags, int addr_shdmem
 	}
 
 	assert(shdmem_id > -1);
-	assert(buff > 0);
+	assert(buff);
 	assert(buff_shdmem_id == addr_shdmem_id && buff_shdmem_id == shdmem_id);
 
 	addr = (const struct sockaddr *)(buff + len);
