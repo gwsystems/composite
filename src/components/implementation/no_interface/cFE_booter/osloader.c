@@ -11,6 +11,7 @@
 #include "gen/cfe_evs.h"
 
 #define USER_CAPS_SYMB_NAME "ST_user_caps"
+#define PRINT_ENABLE 0
 
 int cobj_count;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
@@ -22,8 +23,10 @@ find_cobjs(struct cobj_header *h, int n)
 	vaddr_t start, end;
 
 	start = (vaddr_t)h;
+#if PRINT_ENABLE
     printc("First cobj is '%s'.\n", h->name);
-	hs[0] = h;
+#endif
+    hs[0] = h;
 
 	for (i = 1 ; i < n ; i++) {
 		int j = 0, size = 0, tot = 0;
@@ -32,9 +35,10 @@ find_cobjs(struct cobj_header *h, int n)
 		for (j = 0 ; j < (int)h->nsect ; j++) {
 			tot += cobj_sect_size(h, j);
 		}
+#if PRINT_ENABLE
 		printc("cobj %s:%d found at %p:%x, size %x -> %x\n",
 			   h->name, h->id, hs[i-1], size, tot, cobj_sect_get(hs[i-1], 0)->vaddr);
-
+#endif
 		end   = start + round_up_to_cacheline(size);
 		hs[i] = h = (struct cobj_header*)end;
 		start = end;
@@ -42,8 +46,10 @@ find_cobjs(struct cobj_header *h, int n)
 
 	hs[n] = NULL;
 	cobj_count = i;
-	printc("cobj %s:%d found at %p -> %x\n",
+#if PRINT_ENABLE
+    printc("cobj %s:%d found at %p -> %x\n",
 		   hs[n-1]->name, hs[n-1]->id, hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);
+#endif
 }
 
 struct module_internal_record {
@@ -133,7 +139,9 @@ struct symbol_of_jank* lookup_symbol_in_soj(const char *symb_name)
     for (i = 0; soj[i].fn != NULL; i++) {
         if (!strcmp(symb_name, soj[i].name)) {
             /* We have found the matching SOJ. */
+#if PRINT_ENABLE
             printc("Found matching SOJ @ %p for undef '%s'.\n", soj[i].fn, symb_name);
+#endif
             return &soj[i];
         }
     }
@@ -150,28 +158,35 @@ struct cobj_header *get_cobj_header(const char* path)
 {
 	char name[OS_MAX_PATH_LEN];
 
-	printc("cobj: Object path is %s\n", path);
-
+#if PRINT_ENABLE
+    printc("cobj: Object path is %s\n", path);
+#endif
 	int slash_index;
 	for (slash_index = strlen(path); path[slash_index] != '/' && slash_index != 0; slash_index--) {
 	}
-	if (slash_index == 0) {
+#if PRINT_ENABLE
+    if (slash_index == 0) {
 		PANIC("Could not find slash in object name, aborting...");
 	}
+#endif
 	/* We just want the name after the slash_index */
 	strcpy(name, path + slash_index + 1);
-	printc("cobj: Object name appears to be %s\n", name);
-
+#if PRINT_ENABLE
+    printc("cobj: Object name appears to be %s\n", name);
+#endif
 	/* But before the '.' */
 	int dot_index;
 	for (dot_index = 0; name[dot_index] != '.' && name[dot_index] != '\0'; dot_index++) {
 	}
+#if PRINT_ENABLE
 	if (name[dot_index] == '\0') {
 		PANIC("Invalid object name, aborting...");
 	}
+#endif
 	name[dot_index] = '\0';
-	printc("cobj: Trimmed object name appears to be %s\n", name);
-
+#if PRINT_ENABLE
+    printc("cobj: Trimmed object name appears to be %s\n", name);
+#endif
 	int cobj_index;
 	for (cobj_index = 0; hs[cobj_index] != NULL; cobj_index++) {
 		if (!strcmp(hs[cobj_index]->name, name)) {
@@ -188,7 +203,9 @@ struct user_cap *find_user_caps(struct cobj_header *h)
     for (i = 0; i < h->nsymb; i++) {
         struct cobj_symb *curr = cobj_symb_get(h, i);
         if (!strcmp(curr->name, USER_CAPS_SYMB_NAME)) {
+#if PRINT_ENABLE
             printc("cobj: found user caps array '%s' @ %x.\n", USER_CAPS_SYMB_NAME, curr->vaddr);
+#endif
 
             /* Set to the first user cap in the array. */
             return (struct user_cap *) (intptr_t) curr->vaddr;
@@ -202,33 +219,46 @@ void inspect_cobj_symbols(struct cobj_header *h, vaddr_t *comp_info)
 {
 	unsigned int i;
 
-	printc("cobj: getting spd symbs for header %s, nsymbs %d.\n", h->name, h->nsymb);
-	for (i = 0 ; i < h->nsymb ; i++) {
+#if PRINT_ENABLE
+    printc("cobj: getting spd symbs for header %s, nsymbs %d.\n", h->name, h->nsymb);
+#endif
+
+    for (i = 0 ; i < h->nsymb ; i++) {
 		struct cobj_symb *symb;
 
 		symb = cobj_symb_get(h, i);
 		assert(symb);
 
 		if (symb->type == COBJ_SYMB_UNDEF) {
-			printc("cobj: undefined symbol %s: nsymb %d, usercap offset %d\n", symb->name, i, symb->user_caps_offset);
-			continue;
+#if PRINT_ENABLE
+            printc("cobj: undefined symbol %s: nsymb %d, usercap offset %d\n", symb->name, i, symb->user_caps_offset);
+#endif
+            continue;
 		} else if (symb->type == COBJ_SYMB_EXPORTED) {
-			printc("cobj: exported symbol %s: nsymb %d, addr %x\n", symb->name, i, symb->vaddr);
-			continue;
+#if PRINT_ENABLE
+            printc("cobj: exported symbol %s: nsymb %d, addr %x\n", symb->name, i, symb->vaddr);
+#endif
+            continue;
 		}
 
 		switch (symb->type) {
 		case COBJ_SYMB_COMP_INFO:
-			printc("cobj: comp info %s: addr %x\n", symb->name, symb->vaddr);
-			*comp_info = symb->vaddr;
+#if PRINT_ENABLE
+            printc("cobj: comp info %s: addr %x\n", symb->name, symb->vaddr);
+#endif
+            *comp_info = symb->vaddr;
 			break;
 		case COBJ_SYMB_COMP_PLT:
 			/* Otherwise known as ST_user_caps. */
-			printc("cobj: capability array %s: addr %x\n", symb->name, symb->vaddr);
-			break;
+#if PRINT_ENABLE
+            printc("cobj: capability array %s: addr %x\n", symb->name, symb->vaddr);
+#endif
+            break;
 		default:
-			printc("boot: Unknown symbol type %d\n", symb->type);
-			break;
+#if PRINT_ENABLE
+            printc("boot: Unknown symbol type %d\n", symb->type);
+#endif
+            break;
 		}
 	}
 }
@@ -236,8 +266,10 @@ void inspect_cobj_symbols(struct cobj_header *h, vaddr_t *comp_info)
 static void
 expand_pgtbl(int n_pte, pgtblcap_t pt, vaddr_t vaddr, struct cobj_header *h)
 {
-	printc("expand_pgtbl(%d, %lu, %lu, %p)\n", n_pte, pt, vaddr, h);
-	int i;
+#if PRINT_ENABLE
+    printc("expand_pgtbl(%d, %lu, %lu, %p)\n", n_pte, pt, vaddr, h);
+#endif
+    int i;
 	int tot = 0;
 
     struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
@@ -254,8 +286,10 @@ expand_pgtbl(int n_pte, pgtblcap_t pt, vaddr_t vaddr, struct cobj_header *h)
 	}
 
 	for (i = 0 ; i < n_pte ; i++) {
-		printc("cos_pgtbl_intern_alloc(%p, %lu, %lu, %d)\n", ci, pt, vaddr, SERVICE_SIZE);
-		if (!cos_pgtbl_intern_alloc(ci, pt, vaddr, SERVICE_SIZE)) PANIC("BUG");
+#if PRINT_ENABLE
+        printc("cos_pgtbl_intern_alloc(%p, %lu, %lu, %d)\n", ci, pt, vaddr, SERVICE_SIZE);
+#endif
+        if (!cos_pgtbl_intern_alloc(ci, pt, vaddr, SERVICE_SIZE)) PANIC("BUG");
 	}
 }
 
@@ -280,7 +314,10 @@ void map_cobj_memory(struct cobj_header *h, pgtblcap_t pt) {
     int n_pte = 1;
     struct cobj_sect *sect = cobj_sect_get(h, 0);
 
+#if PRINT_ENABLE
 	printc("cobj: Expanding pgtbl\n");
+#endif
+
     expand_pgtbl(n_pte, pt, sect->vaddr, h);
 
     /* NOTE: We just hardcode this, since we also want to map into this components memory` */
@@ -387,23 +424,28 @@ void populate_cobj_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_inf
         lsrc	   = cobj_sect_contents(h, i);
         /* how much is left to copy? */
         left	   = cobj_sect_size(h, i);
-
+#if PRINT_ENABLE
         printc("Destination is %p\n", (void*) dest_daddr);
-
+#endif
         /* Initialize memory. */
         if (!(sect->flags & COBJ_SECT_KMEM) &&
             (first_time || !(sect->flags & COBJ_SECT_INITONCE))) {
             if (sect->flags & COBJ_SECT_ZEROS) {
                     char * to = (char *) dest_daddr;
+#if PRINT_ENABLE
                     printc("Zeroing some memory %p (%d bytes)!\n", to, left);
-					// HACK: Should actually resolve this
+#endif
+
+                    // HACK: Should actually resolve this
                     // memset(start_addr + (dest_daddr - init_daddr), 0, left);
                     memset(to, 0, left);
             } else {
                 char * to = (char *) dest_daddr;
                 char * from = lsrc;
+#if PRINT_ENABLE
                 printc("Setting some memory to %p from %p (%d bytes)!\n", to, from, left);
-				// HACK: Should actually resolve this
+#endif
+                // HACK: Should actually resolve this
                 // memcpy(start_addr + (dest_daddr - init_daddr), lsrc, left);
                 memcpy(to, from, left);
             }
@@ -427,11 +469,15 @@ void populate_cobj_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_inf
 void setup_cobj_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, pgtblcap_t pt)
 {
 	/* Allocating memory and mapping it to the booter's address space */
-	printc("cobj: doing map_cobj_memory\n");
-	map_cobj_memory(h, pt);
+#if PRINT_ENABLE
+    printc("cobj: doing map_cobj_memory\n");
+#endif
+    map_cobj_memory(h, pt);
 
-	printc("cobj: doing populate_cobj_memory\n");
-	populate_cobj_memory(h, spdid, comp_info, 1);
+#if print_enable
+    printc("cobj: doing populate_cobj_memory\n");
+#endif
+    populate_cobj_memory(h, spdid, comp_info, 1);
 }
 
 
@@ -440,9 +486,9 @@ void load_cobj_into_memory(struct cobj_header *h)
     vaddr_t ci = 0;
 	pgtblcap_t pt = BOOT_CAPTBL_SELF_PT;
 	spdid_t spdid = h->id;
-
+#if print_enable
     printc("cobj: Loading cobj with id %d, name %s\n", h->id, h->name);
-
+#endif
 
     // NOTE: We end up not needing this information
 	// struct cobj_sect *sect;
@@ -456,7 +502,9 @@ void load_cobj_into_memory(struct cobj_header *h)
         PANIC("Could not find component info in cobj!");
     }
 
+#if print_enable
     printc("Mapping cobj '%s'.\n", h->name);
+#endif
     setup_cobj_memory(h, spdid, ci, pt);
 }
 
@@ -464,6 +512,7 @@ void link_cobj(struct cobj_header *h, struct user_cap *user_caps)
 {
     unsigned int i;
 
+#if print_enable
     printc("link: printing symbols of jank.\n");
     for (i = 0; soj[i].fn != NULL; i++) {
         printc("\tlink: symbol of jank %d '%s' with fn @ %p\n", i, soj[i].name, soj[i].fn);
@@ -471,39 +520,47 @@ void link_cobj(struct cobj_header *h, struct user_cap *user_caps)
 
     /* Iterate through each symbol in the header. If it is undefined, index into the user caps array and set the `invfn`. */
     printc("link: parsing symbols for cobj header '%s'.\n", h->name);
+#endif
     for (i = 0; i < h->nsymb; i++) {
         struct cobj_symb *symb = cobj_symb_get(h, i);
         assert(symb);
 
         if (symb->type == COBJ_SYMB_UNDEF) {
+#if print_enable
             printc("link: found undefined symbol '%s': nsymb %u, usercap offset %d\n", symb->name, i, symb->user_caps_offset);
-
+#endif
 			// FIXME: Figure out if this is an ok way to do this
             // struct symbol_of_jank *symbol = lookup_symbol_in_soj(symb->name);
 			cpuaddr addr;
 			int result = OS_SymbolLookup(&addr, symb->name);
 			if (result != OS_SUCCESS) {
-				printc("link: ERROR: could not find matching symbol for '%s'.\n", symb->name);
-				PANIC("Cannot resolve symbol!");
+#if print_enable
+                printc("link: ERROR: could not find matching symbol for '%s'.\n", symb->name);
+#endif
+                PANIC("Cannot resolve symbol!");
 			}
 
 			struct user_cap cap = (struct user_cap) {
 				.invfn = (void *) addr
 			};
 
+#if print_enable
             printc("link: setting user cap index %d invfn @ %p\n", symb->user_caps_offset, cap.invfn);
+#endif
             user_caps[symb->user_caps_offset] = cap;
         }
     }
 
+#if print_enable
     printc("link: done parsing symbols for cobj header '%s'.\n", h->name);
-
+#endif
 }
 
 int32 OS_ModuleLoad(uint32 *module_id, const char *module_name, const char *filename)
 {
+#if print_enable
 	printc("OS_ModuleLoad start\n");
-
+#endif
     uint32 i;
     uint32 possible_id;
 
@@ -511,31 +568,37 @@ int32 OS_ModuleLoad(uint32 *module_id, const char *module_name, const char *file
     if (module_id == NULL || module_name == NULL || filename == NULL) {
         return OS_INVALID_POINTER;
     }
+#if print_enable
 	printc("OS_ModuleLoad %s %s\n", module_name, filename);
-
+#endif
     /* Find a free id. */
     for (possible_id = 0; possible_id < OS_MAX_MODULES; possible_id++) {
         if (module_table[possible_id].free == TRUE) break;
     }
-
     /* Check bounds of that id. */
     if (possible_id >= OS_MAX_MODULES || module_table[possible_id].free == FALSE) {
-		printc("OS_ERR_NO_FREE_IDS\n");
+#if print_enable
+        printc("OS_ERR_NO_FREE_IDS\n");
+#endif
         return OS_ERR_NO_FREE_IDS;
     }
 
     /* Check if the module was already loaded. */
     for (i = 0; i < OS_MAX_MODULES; i++) {
         if (module_table[i].free == FALSE && strcmp(module_name, module_table[i].name) == 0) {
-			printc("OS_ERR_NAME_TAKEN\n");
+#if print_enable
+            printc("OS_ERR_NAME_TAKEN\n");
+#endif
             return OS_ERR_NAME_TAKEN;
         }
     }
 
 	struct cobj_header *h = get_cobj_header(filename);
 	if (!h) {
-		printc("Could not find cobj for designated object %s!\n", filename);
-		return OS_ERROR;
+#if print_enable
+        printc("Could not find cobj for designated object %s!\n", filename);
+#endif
+        return OS_ERROR;
 	}
 
     /* Claim the module id. */
@@ -549,8 +612,9 @@ int32 OS_ModuleLoad(uint32 *module_id, const char *module_name, const char *file
     load_cobj_into_memory(h);
     link_cobj(h, caps);
 
+#if print_enable
 	printc("osloader: Loading finished successfully, returning OS_SUCCESS\n");
-
+#endif
     return OS_SUCCESS;
 }
 
@@ -575,7 +639,9 @@ cpuaddr search_cobj_for_symbol(struct cobj_header *h, const char *symbol_name)
 
 int32 OS_SymbolLookup(cpuaddr *symbol_address, const char *symbol_name)
 {
+#if print_enable
 	printc("osloader: doing symbol lookup for %s\n", symbol_name);
+#endif
     /* Check parameters. */
     if (symbol_address == NULL || symbol_name == NULL) {
         return OS_INVALID_POINTER;
@@ -584,8 +650,10 @@ int32 OS_SymbolLookup(cpuaddr *symbol_address, const char *symbol_name)
 	struct symbol_of_jank *jank_symbol = lookup_symbol_in_soj(symbol_name);
 	if (jank_symbol->fn != NULL) {
 		*symbol_address = (cpuaddr) jank_symbol->fn;
-		printc("osloader: found soj for %s, address %p\n", symbol_name, (void *) jank_symbol->fn);
-		return OS_SUCCESS;
+#if print_enable
+        printc("osloader: found soj for %s, address %p\n", symbol_name, (void *) jank_symbol->fn);
+#endif
+        return OS_SUCCESS;
 	}
 
 	int i;
@@ -593,8 +661,10 @@ int32 OS_SymbolLookup(cpuaddr *symbol_address, const char *symbol_name)
 		if(!module_table[i].free) {
 			cpuaddr addr = search_cobj_for_symbol(module_table[i].header, symbol_name);
 			if (addr != 0) {
-				printc("osloader: found cobj symbol for %s, address %p\n", symbol_name, (void *) addr);
-				*symbol_address = addr;
+#if print_enable
+                printc("osloader: found cobj symbol for %s, address %p\n", symbol_name, (void *) addr);
+#endif
+                *symbol_address = addr;
 				return OS_SUCCESS;
 			}
 		}

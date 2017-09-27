@@ -77,7 +77,6 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
     if(task_id == NULL || task_name == NULL || function_pointer == NULL){
         return OS_INVALID_POINTER;
     }
-    printc("ostask: Attempting to create task %s, priority %d\n", task_name, (int) priority);
 
     // Validate the name
     if(!is_valid_name(task_name)) {
@@ -105,8 +104,6 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
     policy->osal_task_prop.OStask_id = (uint32) thd->thdid;
 
     *task_id = (uint32) thd->thdid;
-
-    printc("ostask: Created task %s, thdid %d!\n", task_name, (int) thd->thdid);
 
     return OS_SUCCESS;
 }
@@ -153,7 +150,6 @@ int32 OS_TaskInstallDeleteHandler(osal_task_entry function_pointer)
 
 int32 OS_TaskDelay(uint32 millisecond)
 {
-    // printc("ostask: Delaying task by %d milliseconds\n", (int) millisecond);
     cycles_t wakeup = sl_now() + sl_usec2cyc(millisecond * 1000);
     sl_thd_block_timeout(0, wakeup);
     return OS_SUCCESS;
@@ -510,8 +506,6 @@ int32 OS_SemaphoreGive(struct semaphore* semaphores, uint32 max_semaphores, uint
         goto exit;
     }
 
-    printc("ostask: Giving semaphore %s!\n", semaphores[sem_id].name);
-
     // FIXME: Add some checks that the semaphore was actually taken by this thread
     semaphores[sem_id].count += 1;
 
@@ -533,8 +527,6 @@ int32 OS_SemaphoreTake(struct semaphore* semaphores, uint32 max_semaphores, uint
     }
 
     int starting_epoch = semaphores[sem_id].epoch;
-
-    printc("ostask: Taking semaphore %s!\n", semaphores[sem_id].name);
 
     while (semaphores[sem_id].used && semaphores[sem_id].count == 0) {
         if(semaphores[sem_id].epoch != starting_epoch) {

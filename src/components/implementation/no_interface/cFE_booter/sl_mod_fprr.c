@@ -33,9 +33,6 @@ sl_mod_schedule(void)
 
 		struct sl_thd *thd  = sl_mod_thd_get(t);
 
-		if (global % 1000 == 0) {
-			printc("switching to thd %d\n", (int) thd->thdid);
-		}
 		global++;
 
 		/*
