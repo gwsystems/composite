@@ -70,6 +70,7 @@ cos2rump_setup(void)
 	crcalls.rump_cpu_sched_block		= rk_rump_thd_block;
 	crcalls.rump_cpu_sched_yield		= rk_rump_thd_yield;
 	crcalls.rump_cpu_sched_exit		= rk_rump_thd_exit;
+	crcalls.rump_cpu_sched_set_prio		= rk_curr_thd_set_prio;
 
 	return;
 }
@@ -154,13 +155,16 @@ rump2cos_rcv(void)
 static inline void
 __cpu_intr_ack(void)
 {
-	if (vmid) return;
+//	static int count;
 
 	__asm__ __volatile(
 		"movb $0x20, %%al\n"
 		"outb %%al, $0xa0\n"
 		"outb %%al, $0x20\n"
 		::: "al");
+
+//	count ++;
+//	if (count % 1000 == 0) printc("..a%d..", count);
 }
 
 void
@@ -174,16 +178,22 @@ void
 cos_irqthd_handler(arcvcap_t rcvc, void *line)
 {
 	int which = (int)line;
+//	static int count;
 
 	printc("=[%d]", which);
 	while(1) {
+		int rcvd = 0;
+
 		/*
 		 * TODO: for optimization!
 		 * For N/w INT, Data is available on DMA and doesn't need
 		 * multiple queuing of events to process all data (if there are multiple events pending)
 		 */
-		//cos_rcv(rcvc, RCV_ALL_PENDING, &rcvd);
-		cos_rcv(rcvc, 0, NULL);
+		cos_rcv(rcvc, RCV_ALL_PENDING, &rcvd);
+//		cos_rcv(rcvc, 0, NULL);
+
+//		count ++;
+//		if (count % 1000 == 0) printc("..i%d..", count);
 
 		/*
 		 * This only wakes up isr_thread. 

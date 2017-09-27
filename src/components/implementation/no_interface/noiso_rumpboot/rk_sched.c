@@ -10,6 +10,17 @@
 //#define CS_RECURSE_LIMIT (1<<5)
 //volatile unsigned int cs_recursive = 0;
 
+void
+rk_curr_thd_set_prio(int prio)
+{
+	struct sl_thd *t = sl_thd_curr();
+	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = prio}};
+
+	sl_thd_param_set(t, spprio.v);
+
+	return 0;
+}
+
 static int
 rk_rump_thd_param_set(struct sl_thd *t)
 {

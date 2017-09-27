@@ -5,7 +5,7 @@
 
 #include "timer_inv_api.h"
 
-#define DL_SPIN_US (1*1000) //1ms
+#define DL_SPIN_US (500) //0.5ms
 #define DL_LOG_SIZE 128
 static u32_t dl_made, dl_missed, dl_total;
 static cycles_t next_deadline;
@@ -42,7 +42,7 @@ dlapp_init(void *d)
 		dl_total ++;
 
 		if (now > next_deadline) dl_missed ++;
-		else                dl_made ++;
+		else                     dl_made ++;
 
 		if ((dl_total % 1000) == 0) {
 			memset(log, 0, DL_LOG_SIZE);

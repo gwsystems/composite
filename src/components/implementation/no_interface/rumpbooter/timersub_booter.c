@@ -77,7 +77,11 @@ timersub_init(void *d)
 
 	__timersub_thds_init();
 
+#if defined(CHRONOS_ENABLED)
+	sl_sched_loop(1);
+#else
 	sl_sched_loop(0);
+#endif
 	printc("Timer Subsystem Scheduling Error!!\n");
 
 	assert(0);

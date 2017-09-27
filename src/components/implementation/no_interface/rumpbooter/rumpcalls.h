@@ -55,6 +55,7 @@ struct bmk_thread {
 	thdid_t cos_tid;
 	long long runtime_start;
 	long long runtime_end;
+	int firsttime;
 };
 
 /*
@@ -115,6 +116,7 @@ struct cos_rumpcalls
 	void   (*rump_cpu_sched_block)(struct bmk_thread *curr);
 	void   (*rump_cpu_sched_yield)(void);
 	void   (*rump_cpu_sched_exit)(void);
+	void   (*rump_cpu_sched_set_prio)(int prio);
 };
 
 void* rump_cos_malloc(size_t size);

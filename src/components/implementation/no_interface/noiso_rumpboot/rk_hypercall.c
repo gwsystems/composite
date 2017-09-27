@@ -7,12 +7,6 @@
 #include "rumpcalls.h"
 #include "vk_types.h"
 #include "micro_booter.h"
-#include <sys/socket.h>
-
-int rump___sysimpl_socket30(int, int, int);
-int rump___sysimpl_bind(int, const struct sockaddr *, socklen_t);
-ssize_t rump___sysimpl_recvfrom(int, void *, size_t, int, struct sockaddr *, socklen_t *);
-ssize_t rump___sysimpl_sendto(int, const void *, size_t, int, const struct sockaddr *, socklen_t);
 
 int
 test_entry(int arg1, int arg2, int arg3, int arg4)

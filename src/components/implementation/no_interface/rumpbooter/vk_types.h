@@ -14,14 +14,11 @@
 
 #define HPET_PERIOD_US (10 * 1000)
 
-#define PARENT_PERIOD_US (5 * 1000)
+#define PARENT_PERIOD_US (2*1000)
 #define CHILD_PERIOD_US  (1000)
 
-#define VM_FIXED_PERIOD_MS 10
-#define VM_FIXED_BUDGET_MS 3
-
-#define APP_COMM_SYNC
-//#define APP_COMM_ASYNC
+//#define APP_COMM_SYNC
+#define APP_COMM_ASYNC
 
 //#define CHRONOS_ENABLED
 

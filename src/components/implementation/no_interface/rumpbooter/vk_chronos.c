@@ -7,8 +7,8 @@
 #include "vk_types.h"
 #include "vk_structs.h"
 
-#define MIN_TIMESLICE_US   (1000) //2ms
-#define SCHED_TIMESLICE_US (9000) //10ms
+#define MIN_TIMESLICE_US   (2000) //2ms
+#define SCHED_TIMESLICE_US (8000) //8ms
 
 extern unsigned int cycs_per_usec;
 

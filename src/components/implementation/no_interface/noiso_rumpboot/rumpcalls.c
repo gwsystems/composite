@@ -71,6 +71,7 @@ cos2rump_setup(void)
 	crcalls.rump_cpu_sched_block		= rk_rump_thd_block;
 	crcalls.rump_cpu_sched_yield		= rk_rump_thd_yield;
 	crcalls.rump_cpu_sched_exit		= rk_rump_thd_exit;
+	crcalls.rump_cpu_sched_set_prio		= rk_curr_thd_set_prio;
 
 	return;
 }
@@ -155,13 +156,16 @@ rump2cos_rcv(void)
 static inline void
 __cpu_intr_ack(void)
 {
-	if (vmid) return;
+//	static int count;
 
 	__asm__ __volatile(
 		"movb $0x20, %%al\n"
 		"outb %%al, $0xa0\n"
 		"outb %%al, $0x20\n"
 		::: "al");
+
+//	count ++;
+//	if (count % 1000 == 0) printc("..a%d..", count);
 }
 
 void
@@ -174,17 +178,23 @@ cos_cpu_intr_ack(void)
 void
 cos_irqthd_handler(arcvcap_t rcvc, void *line)
 {
+//	static int count;
 	int which = (int)line;
 
 	printc("=[%d]", which);
 	while(1) {
+		int rcvd = 0;
+
 		/*
 		 * TODO: for optimization!
 		 * For N/w INT, Data is available on DMA and doesn't need
 		 * multiple queuing of events to process all data (if there are multiple events pending)
 		 */
-		//cos_rcv(rcvc, RCV_ALL_PENDING, &rcvd);
-		cos_rcv(rcvc, 0, NULL);
+		cos_rcv(rcvc, RCV_ALL_PENDING, &rcvd);
+		//cos_rcv(rcvc, 0, NULL);
+
+//		count ++;
+//		if (count % 1000 == 0) printc("..i%d(%d)..", count, rcvd);
 
 		/*
 		 * This only wakes up isr_thread. 
@@ -285,19 +295,11 @@ cos_vm_clock_now(void)
 	u64_t tsc_now = 0;
 	unsigned long long curtime = 0;
 
-	assert(vmid <= 1);
-	if (vmid == 0)      tsc_now = t_dom_cycs;
-	else if (vmid == 1) tsc_now = t_vm_cycs;
+	assert(vmid == 0);
+	rdtscll(tsc_now);
 
 	curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
         curtime = (long long)(curtime * 1000); /* micro to nano seconds */
-
-	assert(cos_spdid_get() <= 1);
-	if (cos_spdid_get() == 0)      tsc_now = t_dom_cycs;
-	else if (cos_spdid_get() == 1) tsc_now = t_vm_cycs;
-
-	curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
-	curtime = (long long)(curtime * 1000); /* micro to nano seconds */
 
 	return curtime;
 }
@@ -306,16 +308,7 @@ cos_vm_clock_now(void)
 long long
 cos_cpu_clock_now(void)
 {
-	u64_t tsc_now = 0;
-	unsigned long long curtime = 0;
-        rdtscll(tsc_now);
-
-	/* We divide as we have cycles and cycles per micro second */
-        curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
-        curtime = (long long)(curtime * 1000); /* micro to nano seconds */
-
-
-	return curtime;
+	return cos_vm_clock_now();
 }
 
 void *

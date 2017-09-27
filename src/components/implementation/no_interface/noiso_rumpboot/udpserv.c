@@ -8,8 +8,8 @@
 #define IN_PORT  9998
 #define OUT_PORT 9999
 #define MSG_SZ   16
-#define TP_INFO_MS (unsigned long long)(5*1000) //5secs
-#define HPET_REQ_US (20*1000) //20ms
+#define TP_INFO_MS (unsigned long long)(10*1000) //5secs
+#define HPET_REQ_US (100*1000) //100ms
 #define HPET_REQ_BUDGET_US (500) //1ms
 
 static unsigned long long __tp_out_prev = 0, __now = 0, __hpet_req_prev = 0;
@@ -84,13 +84,14 @@ __test_udp_server(void)
 		rdtscll(__now);
 
 		/* Request Number of HPET intervals passed. Every HPET_REQ_US usecs */
-		if ((__now - __hpet_req_prev) >= ((cycles_t)cycs_per_usec*HPET_REQ_US)) {
+		if ((__now - __hpet_req_prev) >= ((cycles_t)cycs_per_usec*(cycles_t)HPET_REQ_US)) {
 			__hpet_req_prev = __now;
 			__get_hpet_counter();
 		}
 
 		/* Log every __interval_count number of HPETS processed */
 		if (*__hpets_shm_addr >= __hpets_last_pass + __interval_count) {
+//		if (__now - __tp_out_prev > (__interval_count * HPET_PERIOD_US * cycs_per_usec)) {
 			PRINTC("%d:Msgs processed:%lu, last seqno:%u\n", tp_counter++, __msg_count, ((unsigned int *)__msg)[0]);
 			__msg_count = 0;
 			__tp_out_prev = __now;

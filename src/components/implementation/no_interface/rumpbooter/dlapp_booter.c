@@ -6,7 +6,7 @@
 #include "timer_inv_api.h"
 #include "rk_inv_api.h"
 
-#define DL_SPIN_US (1*1000) //1ms
+#define DL_SPIN_US (500) //0.5ms
 #define DL_LOG_SIZE 128
 extern int vmid;
 extern struct cringbuf *vmrb;
@@ -61,12 +61,21 @@ dlapp_init(void *d)
 		dl_total ++;
 
 		if (now > next_deadline) dl_missed ++;
-		else                dl_made ++;
+		else                     dl_made ++;
 
 		if ((dl_total % 1000) == 0) {
 			memset(log, 0, DL_LOG_SIZE);
 			sprintf(log, "Deadlines T:%u, =:%u, x:%u\n", dl_total, dl_made, dl_missed);
+#if defined(CHRONOS_ENABLED)
+			/*
+			 * In this case, it's just used for our convenience
+			 * because RK subsystem fails and we can no longer log using ASYNC!
+			 * and it doesn't seem right to use SYNC with a faulty subsystem and still make deadlines!
+			 */
+			printc("%s", log);	
+#else
 			log_info(log);
+#endif
 		}
 
 		next_deadline += (cycs_per_usec * HPET_PERIOD_US);

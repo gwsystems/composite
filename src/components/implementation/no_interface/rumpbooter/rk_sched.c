@@ -10,6 +10,17 @@
 //#define CS_RECURSE_LIMIT (1<<5)
 //volatile unsigned int cs_recursive = 0;
 
+void
+rk_curr_thd_set_prio(int prio)
+{
+	struct sl_thd *t = sl_thd_curr();
+	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = prio}};
+
+	sl_thd_param_set(t, spprio.v);
+
+	return 0;
+}
+
 static int
 rk_rump_thd_param_set(struct sl_thd *t)
 {
@@ -37,8 +48,8 @@ static int
 rk_subsys_thd_param_set(struct sl_thd *t)
 {
 	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = TIMER_PRIO}};
-	union sched_param_union spexec = {.c = {.type = SCHEDP_BUDGET, .value = VM_FIXED_BUDGET_MS * 1000}};
-	union sched_param_union spperiod = {.c = {.type = SCHEDP_WINDOW, .value = VM_FIXED_PERIOD_MS * 1000}};
+	union sched_param_union spexec = {.c = {.type = SCHEDP_BUDGET, .value = TM_SUB_BUDGET_US}};
+	union sched_param_union spperiod = {.c = {.type = SCHEDP_WINDOW, .value = TM_SUB_PERIOD_US}};
 
 	sl_thd_param_set(t, spprio.v);
 	sl_thd_param_set(t, spexec.v);
@@ -145,7 +156,12 @@ void
 rk_sched_loop(void)
 {
 	printc("STARTING RK SCHED!\n");
+#if defined(CHRONOS_ENABLED)
+	/* FAIL immediately? That's what we're doing here */
+	while (1) ;
+#else
 	sl_sched_loop(1);
+#endif
 }
 
 void

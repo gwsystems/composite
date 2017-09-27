@@ -14,8 +14,7 @@
 
 #define HPET_PERIOD_US (10 * 1000)
 
-#define PARENT_PERIOD_US (5 * 1000)
-#define CHILD_PERIOD_US  (1000)
+#define PARENT_PERIOD_US (1000)
 
 #define VM_FIXED_PERIOD_MS 10
 #define VM_FIXED_BUDGET_MS 3

@@ -8,9 +8,9 @@
 #define IN_PORT  9998
 #define OUT_PORT 9999
 #define MSG_SZ   16
-#define TP_INFO_MS (unsigned long long)(5*1000) //5secs
-#define HPET_REQ_US (20*1000) //20ms
-#define HPET_REQ_BUDGET_US (500) //1ms
+#define TP_INFO_MS (unsigned long long)(10*1000) //5secs
+#define HPET_REQ_US (100*1000) //100ms
+#define HPET_REQ_BUDGET_US (500) //0.5ms
 
 extern int vmid;
 
@@ -95,7 +95,7 @@ __test_udp_server(void)
 		rdtscll(__now);
 
 		/* Request Number of HPET intervals passed. Every HPET_REQ_US usecs */
-		if ((__now - __hpet_req_prev) >= ((cycles_t)cycs_per_usec*HPET_REQ_US)) {
+		if ((__now - __hpet_req_prev) >= ((cycles_t)cycs_per_usec*(cycles_t)HPET_REQ_US)) {
 			__hpet_req_prev = __now;
 			__get_hpet_counter();
 		}
