@@ -51,7 +51,7 @@ distclean:
 	make -C libcxx clean
 
 musl:
-	cd musl-1.1.11; ./configure --disable-shared --enable-debug; cd ..
+	cd musl-1.1.11; ./configure CFLAGS=-O3 --disable-shared; cd ..
 	make -C musl-1.1.11
 	make -C musl-1.1.11 install
 
