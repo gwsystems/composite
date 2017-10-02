@@ -3,6 +3,7 @@
 
 #include <shared/cos_config.h>
 #include <shared/cos_types.h>
+#include <shared/util.h>
 #include "chal.h"
 #include "multiboot.h"
 
@@ -53,6 +54,7 @@ void *       acpi_find_apic(void);
 u32_t        lapic_find_localaddr(void *l);
 void         lapic_set_page(u32_t page);
 void         lapic_timer_init(void);
+void 				 lapic_init(void);
 void         lapic_set_timer(int timer_type, cycles_t deadline);
 u32_t        lapic_get_ccr(void);
 void         lapic_timer_calibration(u32_t ratio);

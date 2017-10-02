@@ -89,14 +89,23 @@ chal_init(void)
 	if (d & (1 << 22)) printk("acpi ");
 	if (d & (1 << 9)) printk("apic ");
 	if (c & (1 << 21)) printk("x2apic ");
+	if (c & (1 << 24)) printk("tsc-deadline ");
 	chal_cpuid(0x80000001, &a, &b, &c, &d);
 	if (d & (1 << 27)) printk("rdtscp ");
 	chal_cpuid(0x80000007, &a, &b, &c, &d);
 	if (d & (1 << 8)) printk("invariant_tsc ");
 	printk("]\n");
 
+	chal_cpuid(0x16, &a, &b, &c, &d);
+	a = (a << 16) >> 16;
+	if (a) {
+		printk("\tCPUID base frequency: %d (* 1Mhz)\n", a);
+		printk("\tCPUID max  frequency: %d (* 1Mhz)\n", (b << 16) >> 16);
+	}
+
 	readmsr(MSR_PLATFORM_INFO, &a, &b);
-	printk("\tFrequency: %d (* 100Mz)\n", (a >> 8) & ((1 << 7) - 1));
+	a = (a >> 8) & ((1<<7)-1);
+	if (a) printk("\tMSR Frequency: %d (* 100Mhz)\n", a);
 
 	chal_kernel_mem_pa = chal_va2pa(mem_kmem_start());
 }

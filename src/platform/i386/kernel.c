@@ -157,12 +157,22 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	vga_init();
 #endif
 	kern_boot_comp();
-	smp_init();
 	timer_init();
+	lapic_init();
+	smp_init();
 	lapic_timer_init();
+
 	kern_boot_upcall();
+
 	/* should not get here... */
 	khalt();
+}
+
+void
+smp_kmain(void)
+{
+	printk("New CPU %d Booted\n", get_cpuid());
+	while (1) ;
 }
 
 void
