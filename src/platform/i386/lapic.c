@@ -496,9 +496,3 @@ smp_init(void)
 {
 	smp_bootall();
 }
-
-void
-smp_init(void)
-{
-	int apicid = lapic_apicid();
-}
