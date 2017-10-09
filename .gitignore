@@ -6,6 +6,7 @@
 *.ko
 *.cmd
 *.a
+*.bin
 *~
 *.sw*
 *#
@@ -23,6 +24,7 @@ src/PLATFORM_ID
 modules.order
 .depend
 *.img
+*.out
 transfer/
 GPATH
 GRTAGS

@@ -11,26 +11,15 @@ Print Statements in Composite:
 
 In any component, you can
 
-#include <print.h>
+#include <llprint.h>
 
-and make sure that the "print" interface is included in the
-dependencies list in the Makefile for your component, and that the run
-script includes the dependency as well (yourcomponent.o-print.o).
-
-You can, at any point in your code, use 
+You can, at any point in your code, use
 
 printc(...);
 
 which has a format exactly like printf(...); (see "man 3 printf").
 
 Do not use printf in Composite.
-
-You can see the output from your print statements by typing "dmesg",
-or, more usefully because a lot of information is printed out, "dmesg
-| less".  Your print statements will show up in the kernel logs.
-
-In addition to you print statements, many measurements will print out.
-These might or might not be useful to you.
 
 Assert Statements in Composite:
 -------------------------------
@@ -44,7 +33,7 @@ if you know that the length of your array should always be less than
 MAX_LEN.  This can be used to catch errors defensively in your code.
 You should use many assert statements.
 
-You must satisfy the same dependencies, and 
+You must satisfy the same dependencies, and
 
 #include <cos_debug.h>
 
@@ -68,49 +57,23 @@ Assessing Segmentation Faults:
 -----------------------------
 
 Sometimes you will write code that faults.  This will be reported as a
-segmentation fault, and you can observe the kernel logs with dmesg to
-find the following lines:
+segmentation fault, like so:
 
-cos: Faults:
-cos: spd 28, thd 21 @ addr 0 @ time 160968716636, mpd flags 1 (master 0) and w/ regs:
-cos:            eip   47800037, esp   4782cfd0, eax          0, ebx d879d768, ecx   4782cf88,
-cos:            edx         44, edi         1c, esi          0, ebp 4782cfd8
+General registers-> EAX: 0, EBX: 0, ECX: 0, EDX: 0
+Segment registers-> CS: 1b, DS: 23, ES: 23, FS: 23, GS: 33, SS: 23
+Index registers-> ESI: 0, EDI: 0, EIP: 0x47800037, ESP: 40810ed8, EBP: 40810f10
+Indicator-> EFLAGS: 3202
+(Exception Error Code-> ORIG_AX: 6)
+FAULT: Page Fault in thd 2 (not-present write-fault user-mode  ) @ 0x0, ip 0x47800037
 
-This says that the fault happened while executing in component (see
-the terminology.txt file, components are denoted as "spds" or service
-protection domains in the code) number 28, as thread number 21.  The
-registers of that thread when the fault occurred are printed as eip
+This says that the fault happened while executing in thread number 2. The
+registers of that thread when the fault occurred are printed as eis
 through ebp.  eip is the instruction pointer.
 
-Next, we wish to figure out which component has the error (which
-component is component number 28?).  When you initially executed the
-system (typed "sh run.sh"), the system printed out a number of lines
-like so:
-
-...
-spd /tmp/ainv2.o.3620.o, id 27 with initialization string "a6" @ 47400000.
-spd /tmp/cpu.o.3620.o, id 28 with initialization string "a20" @ 47800000.
-...
-
-What this says is that the component with id 28 is the cpu.o
-component.  Next, we might want to check which component created the
-thread that was executing in the cpu.o component when it faulted.
-When the system began execution, it printed to the kernel log a number
-of lines like so:
-
-...
-sched 1: component 27's thread has id 20 and priority a6.
-sched 1: component 28's thread has id 21 and priority a20.
-Timer thread has id 23 with priority t.
-...
-
-This is saying that component 28 (which we now know is cpu.o) had
-thread 21 created in it.  So we know now that the thread that caused
-the fault was the same one that we created in cpu.o.
-
-Next, we wish to figure out which line of code in the cpu.o component
-caused the fault.  For this we use "objdump", a program that allows
-you to decompile a component, and look at its assembly source.  If the
+Let's say this fault was in the cpu component. We wish to figure out which line
+of code in the cpu.o component caused the fault.  For this we use "objdump", a
+program that allows you to decompile a component, and look at its assembly
+source. If the
 C code was compiled with debugging symbols (which we do by default for
 Composite), then it will also show C lines.  In the root directory,
 execute the following:
@@ -139,7 +102,7 @@ void cos_init(void *arg)
 //      spin_var = *(int*)NULL;
         while (1) if (spin_var) other = 1;
   3d:   a1 00 00 00 00          mov    0x0,%eax
- 
+
 We can see that instruction 37 dereferenced a null pointer.  More
 importantly, if you look up in the code, we see that that code
 corresponds to line 18 in
@@ -163,16 +126,4 @@ above techniques to track down the error.
 Stack traces:
 -------------
 
-You can get not only the address that faults happened at, but a stack
-trace (of addresses that made function calls).  When you find a
-reproducible fault, add the pfs.o component into the dependency set of
-your faulting component (example in lpf.sh).  Unfortunately, you will
-probably also need to add the following into your component:
-
-#include <pgfault.h>
-void bin(void) { fault_page_fault_handler(cos_spd_id(), NULL, 0,
-NULL); }
-
-Now, when your component faults, it will print out not only the
-registers the component had when faulting, but a back-trace of all
-functions called in _all components invoked_ as well.
+Composite currently lacks stack trace support.

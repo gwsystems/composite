@@ -29,8 +29,9 @@ typedef unsigned long tcap_res_t;
 typedef unsigned long tcap_time_t;
 typedef u64_t         tcap_prio_t;
 typedef u64_t         tcap_uid_t;
-typedef u32_t         sched_tok_t;
+typedef unsigned long sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
+
 
 /*
  * The assumption in the following is that cycles_t are higher
@@ -112,6 +113,7 @@ typedef enum {
 	CAPTBL_OP_THDDEACTIVATE_ROOT,
 	CAPTBL_OP_MEMMOVE,
 	CAPTBL_OP_INTROSPECT,
+	CAPTBL_OP_INTROSPECT64,
 	CAPTBL_OP_TCAP_ACTIVATE,
 	CAPTBL_OP_TCAP_TRANSFER,
 	CAPTBL_OP_TCAP_DELEGATE,
@@ -150,6 +152,19 @@ typedef enum {
 #define CAP_TYPECHK_CORE(v, type) (CAP_TYPECHK((v), (type)) && (v)->cpuid == get_cpuid())
 
 typedef unsigned long capid_t;
+
+typedef capid_t sinvcap_t;
+typedef capid_t sretcap_t;
+typedef capid_t asndcap_t;
+typedef capid_t arcvcap_t;
+typedef capid_t thdcap_t;
+typedef capid_t tcap_t;
+typedef capid_t compcap_t;
+typedef capid_t captblcap_t;
+typedef capid_t pgtblcap_t;
+typedef capid_t hwcap_t;
+
+
 #define TCAP_PRIO_MAX (1ULL)
 #define TCAP_PRIO_MIN ((~0ULL) >> 16) /* 48bit value */
 #define TCAP_RES_GRAN_ORD 16
@@ -276,6 +291,12 @@ enum
 {
 	/* tcap budget */
 	TCAP_GET_BUDGET,
+};
+
+enum
+{
+	/* HPET first interrupt cycs (after calibration) */
+	HW_GET_FIRST_HPET,
 };
 
 typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */

@@ -7,7 +7,7 @@ ADDITIONAL_LIBS=-lcobj_format -lcos_defkernel_api -lcos_kernel_api -lsl -lheap -
 OBJLIBS += $(POSIX_LIB)
 
 export XARGO_RUST_SRC=$(shell rustc --print sysroot)/lib/rustlib/src/rust/src/
-export RUSTFLAGS=-L ../../../../lib/musl-1.1.11/lib/
+export RUSTFLAGS=-L ../../../../lib/musl-1.1.11/lib/ -L lib
 CRATE_DIR=events
 
 IF_LIB:=lib$(CRATE_DIR).a

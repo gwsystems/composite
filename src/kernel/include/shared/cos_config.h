@@ -17,7 +17,6 @@
 
 #include "cpu_ghz.h"
 
-
 /*
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
  * it is the PA of the kernel.  If you change this, update the kernel

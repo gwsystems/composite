@@ -1,3 +1,4 @@
+#include "vk_types.h"
 #include "vk_api.h"
 
 extern vaddr_t cos_upcall_entry;
