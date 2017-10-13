@@ -67,6 +67,18 @@ sl_lock_release_rs(struct sl_lock *lock)
 	return sl_lock_release(lock);
 }
 
+void
+sl_thdid_rs()
+{
+	return sl_thdid();
+}
+
+struct sl_thd * 
+sl_thd_lkup_rs(thdid_t thdid)
+{
+	return sl_thd_lkup(thdid);
+}
+
 /* This is a bit of a hack, but we setup pthread data for sl threads */
 #define _NSIG 65
 
