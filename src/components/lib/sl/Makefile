@@ -6,7 +6,7 @@ LIBS=$(LIB_OBJS:%.o=%.a)
 .PHONY: all clean
 all: $(LIBS)
 	@cp *.a ../
-	$(CC) $(INC_PATH) $(CINC) -o sl_bind_check.o sl_bind_check.c
+	$(CC) $(INC_PATH) $(CINC) -o sl_bind_check sl_bind_check.c
 
 %.a:%.c
 	$(info |     [CC]   Creating library file $@ from $^)

@@ -90,4 +90,4 @@ cltests:
 	$(MAKE) $(MAKEFLAGS) -C platform cltests
 
 rustchk:
-	.$(CODE_DIR)/components/lib/sl/sl_bind_check.o
+	.$(CODE_DIR)/components/lib/sl/sl_bind_check
