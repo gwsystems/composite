@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <syscall.h>
+#include <time.h>
 
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -198,6 +199,39 @@ cos_tkill(int tid, int sig)
 }
 
 long
+cos_nanosleep(const struct timespec *req, struct timespec *rem)
+{
+	if (!req) {
+		errno = EFAULT;
+		return -1;
+	}
+	time_t seconds             = req->tv_sec;
+	long nano_seconds          = req->tv_nsec;
+	microsec_t microseconds    = seconds * 1000000 + nano_seconds / 1000;
+
+	cycles_t wakeup_deadline   = sl_now() + sl_usec2cyc(microseconds);
+	int completed_successfully = sl_thd_block_timeout(0, wakeup_deadline);
+	cycles_t wakeup_time       = sl_now();
+
+	if (completed_successfully || wakeup_time > wakeup_deadline) {
+		return 0;
+	} else {
+		errno = EINTR;
+		if (rem) {
+			microsec_t remaining_microseconds = sl_cyc2usec(wakeup_deadline - wakeup_time);
+			time_t remaining_seconds          = remaining_microseconds / 1000000;
+			long remaining_nano_seconds       = (remaining_microseconds - remaining_seconds * 1000000) * 1000;
+			*rem = (struct timespec) {
+				.tv_sec = remaining_seconds,
+				.tv_nsec = remaining_nano_seconds
+			};
+		}
+		return -1;
+	}
+}
+
+
+long
 cos_set_tid_address(int *tidptr)
 {
 	/* Just do nothing for now and hope that works */
@@ -286,6 +320,8 @@ syscall_emulation_setup(void)
 	libc_syscall_override((cos_syscall_t)cos_munmap, __NR_munmap);
 	libc_syscall_override((cos_syscall_t)cos_madvise, __NR_madvise);
 	libc_syscall_override((cos_syscall_t)cos_mremap, __NR_mremap);
+
+	libc_syscall_override((cos_syscall_t)cos_nanosleep, __NR_nanosleep);
 
 	libc_syscall_override((cos_syscall_t)cos_rt_sigprocmask, __NR_rt_sigprocmask);
 	libc_syscall_override((cos_syscall_t)cos_mprotect, __NR_mprotect);
