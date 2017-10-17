@@ -53,7 +53,7 @@ main(void) {
 	if(sizeof(struct sl_thd) != expected_size) {
 		printf("ERROR: sl_thd struct size doesn't match expected.\n\n");
 		return -1;
-	} 
+	}
 
 	for (i = 0; i < NUM_FIELDS; i++) {
 		if (expected_offsets[i] != actual_offsets[i]) {
@@ -62,5 +62,5 @@ main(void) {
 		}
 	}
 
-	return 0; 
+	return 0;
 }

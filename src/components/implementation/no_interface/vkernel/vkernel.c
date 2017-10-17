@@ -57,6 +57,7 @@ cos_init(void)
 	 *       Or use some offset into the future in CAPTBL_FREE
 	 */
 	cos_compinfo_init(&vk_info.shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+
 			  (vaddr_t)VK_VM_SHM_BASE, BOOT_CAPTBL_FREE, ci);
 
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL);
@@ -122,7 +123,7 @@ cos_init(void)
 	printc("Starting Scheduler\n");
 	printc("------------------[ VKernel & VMs init complete ]------------------\n");
 
-	sl_sched_loop();
+	sl_sched_loop(SL_SCHEDRCV_DEFAULT);
 
 	printc("vkernel: END\n");
 	cos_thd_switch(vk_info.termthd);

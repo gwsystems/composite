@@ -56,6 +56,9 @@
 
 #define HPET_INT_ENABLE(n) (*hpet_interrupt = (0x1 << n)) /* Clears the INT n for level-triggered mode. */
 
+#define __USECS_CEIL__(n, m) (n+(m-(n%m)))
+#define __IGNORE_FIRST_X__  20
+
 static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;
 static volatile u64_t *hpet_interrupt;
@@ -94,6 +97,8 @@ static int           timer_calibration_init   = 1;
 static unsigned long timer_cycles_per_hpetcyc = TIMER_ERROR_BOUND_FACTOR;
 static unsigned long cycles_per_tick;
 static unsigned long hpetcyc_per_tick;
+static unsigned long periodicity_curr = 0;
+static cycles_t first_hpet_period = 0;
 #define ULONG_MAX 4294967295UL
 
 static inline u64_t
@@ -173,18 +178,35 @@ timer_calibration(void)
 int
 chal_cyc_usec(void)
 {
-	return cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL;
+	if (cycles_per_tick) return __USECS_CEIL__(cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL, 100);
+	else                 return 0;
 }
 
 int
 periodic_handler(struct pt_regs *regs)
 {
+	static u32_t count = 0;
+	cycles_t now;
+	static cycles_t prev = 0;
 	int preempt = 1;
 
 	if (unlikely(timer_calibration_init)) timer_calibration();
 
+	rdtscll(now);
 	ack_irq(HW_PERIODIC);
+	if (periodicity_curr) {
+		count ++;
+		if (unlikely(count < __IGNORE_FIRST_X__)) {
+			if (count == __IGNORE_FIRST_X__ - 1) printk(".h=%lu.", count);
+			goto done;
+		}
+		if (!first_hpet_period) {
+			rdtscll(first_hpet_period);
+		}
+	}
+
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
+done:
 	HPET_INT_ENABLE(TIMER_PERIODIC);
 
 	return preempt;
@@ -207,6 +229,7 @@ oneshot_handler(struct pt_regs *regs)
 void
 timer_set(timer_type_t timer_type, u64_t cycles)
 {
+	
 	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF;
 
 	/* Disable timer interrupts */
@@ -256,6 +279,46 @@ timer_find_hpet(void *timer)
 
 	printk("\tInvalid checksum (%d)\n", sum);
 	return 0;
+}
+
+void
+chal_hpet_periodic_set(unsigned long usecs_period)
+{
+	if (periodicity_curr != usecs_period) {
+		timer_disable(0);
+		timer_disable(0);
+
+		periodicity_curr = 0;
+	}
+
+	if (periodicity_curr == 0) {
+		unsigned long tick_multiple;
+		cycles_t hpetcyc_per_period;
+
+		assert(timer_calibration_init == 0);
+		assert((usecs_period >= TIMER_DEFAULT_US_INTERARRIVAL) && (usecs_period % TIMER_DEFAULT_US_INTERARRIVAL == 0));
+
+		tick_multiple = usecs_period / TIMER_DEFAULT_US_INTERARRIVAL;
+		hpetcyc_per_period = hpetcyc_per_tick * tick_multiple;
+		periodicity_curr = usecs_period;
+		timer_set(TIMER_PERIODIC, hpetcyc_per_period);
+		first_hpet_period = 0;
+		printk("Setting HPET Periodicity:%lu hpetcyc_per_period:%llu\n", usecs_period, hpetcyc_per_period);
+	}
+}
+
+cycles_t
+chal_hpet_first_period(void)
+{
+//	printk("f=%llu..\n", first_hpet_period); 
+	return first_hpet_period; 
+}
+
+void
+chal_hpet_disable(void)
+{
+	timer_disable(0);
+	timer_disable(0);
 }
 
 void

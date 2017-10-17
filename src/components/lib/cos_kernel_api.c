@@ -755,7 +755,7 @@ sched_tok_t
 cos_sched_sync(void)
 {
 	static sched_tok_t stok;
-	return __sync_add_and_fetch(&stok, 1);
+	return (sched_tok_t)ps_faa(&stok, 1);
 }
 
 int
@@ -886,6 +886,18 @@ cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 	return call_cap_op(ci->captbl_cap, CAPTBL_OP_INTROSPECT, cap, (int)op, 0, 0);
 }
 
+int
+cos_introspect64(struct cos_compinfo *ci, capid_t cap, unsigned long op, u64_t *value)
+{
+	int ret;
+	unsigned long a, b, c;
+	
+	ret = call_cap_retvals_asm(ci->captbl_cap, CAPTBL_OP_INTROSPECT64, cap, (int)op, 0, 0, &a, &b, &c);
+	if (!ret) *value = ((u64_t)a) << 32 | ((u64_t)b);
+
+	return ret;
+}
+
 /***************** [Kernel Tcap Operations] *****************/
 
 tcap_t
@@ -930,6 +942,12 @@ int
 cos_tcap_merge(tcap_t dst, tcap_t rm)
 {
 	return call_cap_op(dst, CAPTBL_OP_TCAP_MERGE, rm, 0, 0, 0);
+}
+
+int
+cos_hw_periodic_attach(hwcap_t hwc, arcvcap_t arcv, unsigned int period)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, HW_PERIODIC, arcv, period, 0);
 }
 
 int
@@ -985,4 +1003,14 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 	} while (sz > 0);
 
 	return (void *)fva;
+}
+
+void *
+cos_va2pa(struct cos_compinfo *ci, void * vaddr)
+{
+	assert(ci || vaddr);
+
+        int paddr = call_cap_op(ci->pgtbl_cap, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
+	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
+        return (void *)paddr;
 }

@@ -1179,20 +1179,18 @@ int redirect_cap_async(int cspd, int sspd)
 		printc("err: spd %d doesn't exist or has no static caps.\n", cspd);
 		goto err;
 	}
-	
+
 	for (i = 0; i < comp_info[cspd].ncaps; i++) {
 		cap = &(comp_info[cspd].cap[i]);
 		if (cap->srv_comp != sspd) continue;
 		printc("linking cap %d of cspd %d\n", i, cspd);
 		ret = cos_async_cap_cntl(COS_ACAP_LINK_STATIC_CAP, cspd, i, 0);
 
-		if (ret < 0) { 
+		if (ret < 0) {
 			printc("err: linking cap %d to acap stub failed (comp %d).", i, cspd);
-			goto err; 
+			goto err;
 		}
 	}
-
-	printc("ret from acap creation %d.\n", ret);
 
 	return 0;
 err:

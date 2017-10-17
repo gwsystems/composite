@@ -31,7 +31,8 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 		if (!ps_cas(&g->lock.u.v, cached->v, csi->v)) return 1;
 	}
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	if ((ret = cos_defswitch(csi->s.owner, t->prio, g->timeout_next, tok))) return ret;
+	if ((ret = cos_defswitch(csi->s.owner, t->prio, csi->s.owner == sl_thd_thdcap(g->sched_thd) ? 
+				 TCAP_TIME_NIL : g->timeout_next, tok))) return ret;
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
 
 	return 1;
@@ -46,7 +47,7 @@ sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched
 
 	if (!ps_cas(&g->lock.u.v, cached->v, 0)) return 1;
 	/* let the scheduler thread decide which thread to run next, inheriting our budget/priority */
-	cos_defswitch(g->sched_thdcap, t->prio, g->timeout_next, tok);
+	cos_defswitch(g->sched_thdcap, t->prio, TCAP_TIME_NIL, tok);
 
 	return 0;
 }
@@ -139,6 +140,7 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	 */
 	if (unlikely(t->state == SL_THD_BLOCKED_TIMEOUT || t->state == SL_THD_BLOCKED)) {
 		if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
+
 		goto update;
 	}
 
@@ -146,8 +148,8 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	sl_mod_block(sl_mod_thd_policy_get(t));
 
 update:
-	t->state = block_type;
 	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
+	t->state = block_type;
 
 	return 0;
 }
@@ -237,6 +239,7 @@ done:
 }
 
 /*
+ * @rm: if 1, also remove from timeout queue if it was blocked on SL_THD_BLOCKED_TIMEOUT.
  * @return: 1 if it's already RUNNABLE.
  *          0 if it was woken up in this call
  */
@@ -245,7 +248,7 @@ sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 {
 	assert(t);
 
-	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1; 
+	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1;
 
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	t->state = SL_THD_RUNNABLE;
@@ -444,6 +447,32 @@ sl_thd_alloc(cos_thd_fn_t fn, void *data)
 }
 
 struct sl_thd *
+sl_thd_init(struct cos_aep_info *a, int own_tcap)
+{
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = &dci->ci;
+	struct sl_thd          *t   = NULL;
+	struct cos_aep_info    *aep = NULL;
+	thdid_t tid;
+
+	sl_cs_enter();
+
+	aep = sl_thd_alloc_aep_backend();
+	if (!aep) goto done;
+
+	*aep = *a;
+	tid = cos_introspect(ci, a->thd, THD_GET_TID);
+	assert(tid);
+	t = sl_thd_alloc_init(tid, aep, 0, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0);
+	sl_mod_thd_create(sl_mod_thd_policy_get(t));
+
+done:
+	sl_cs_exit();
+
+	return t;
+}
+
+struct sl_thd *
 sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap)
 {
 	struct sl_thd *t;
@@ -582,6 +611,7 @@ sl_init(microsec_t period)
 	/* Create the scheduler thread for us. cos_sched_aep_get() is from global(static) memory */
 	g->sched_thd       = sl_thd_alloc_init(cos_thdid(), cos_sched_aep_get(dci), 0, 0);
 	assert(g->sched_thd);
+
 	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_BASE;
 	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 	g->sched_rcv       = BOOT_CAPTBL_SELF_INITRCV_BASE;
@@ -595,9 +625,10 @@ sl_init(microsec_t period)
 }
 
 void
-sl_sched_loop(void)
+sl_sched_loop(int non_block)
 {
-	struct sl_global *g = sl__globals();
+	struct sl_global *g   = sl__globals();
+	rcv_flags_t       rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
 
 	while (1) {
 		int pending;
@@ -614,7 +645,7 @@ sl_sched_loop(void)
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			pending = cos_sched_rcv(g->sched_rcv, RCV_ALL_PENDING, timeout,
+			pending = cos_sched_rcv(g->sched_rcv, rfl, timeout,
 						&rcvd, &tid, &blocked, &cycles, &thd_timeout);
 			if (!tid) goto pending_events;
 
@@ -670,7 +701,7 @@ pending_events:
 			}
 
 			sl_cs_exit();
-		} while (pending);
+		} while (pending > 0);
 
 		if (sl_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */

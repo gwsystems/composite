@@ -2,7 +2,6 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <syscall.h>
 
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -15,13 +14,13 @@
 #include <sl_lock.h>
 #include <sl_thd.h>
 
-volatile int* null_ptr = NULL;
+#include <posix.h>
+
+volatile int *null_ptr = NULL;
 #define ABORT() do {int i = *null_ptr;} while(0)
 
-#define SYSCALLS_NUM 378
-
 typedef long (*cos_syscall_t)(long a, long b, long c, long d, long e, long f);
-cos_syscall_t cos_syscalls[SYSCALLS_NUM];
+static cos_syscall_t cos_syscalls[SYSCALL_NUM_MAX];
 
 static void
 libc_syscall_override(cos_syscall_t fn, int syscall_num)
@@ -76,6 +75,7 @@ cos_writev(int fd, const struct iovec *iov, int iovcnt)
 long
 cos_ioctl(int fd, int request, void *data)
 {
+	printc("%s\n", __func__);
 	/* musl libc does some ioctls to stdout, so just allow these to silently go through */
 	if (fd == 1 || fd == 2) return 0;
 
@@ -99,7 +99,7 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 	void *ret=0;
 
-	printc("mmap\n");
+	printc("%s\n", __func__);
 	if (addr != NULL) {
 		printc("parameter void *addr is not supported!\n");
 		errno = ENOTSUP;
@@ -137,6 +137,7 @@ cos_munmap(void *start, size_t length)
 int
 cos_madvise(void *start, size_t length, int advice)
 {
+	printc("%s\n", __func__);
 	/* We don't do anything with the advice from madvise, but that isn't really a problem */
 	return 0;
 }
@@ -170,12 +171,14 @@ cos_mprotect(void *addr, size_t len, int prot)
 pid_t
 cos_gettid(void)
 {
+	printc("%s\n", __func__);
 	return (pid_t) sl_thdid();
 }
 
 int
 cos_tkill(int tid, int sig)
 {
+	printc("%s\n", __func__);
 	if (sig == SIGABRT || sig == SIGKILL) {
 		printc("Abort requested, complying...\n");
 		ABORT();
@@ -200,12 +203,13 @@ cos_tkill(int tid, int sig)
 long
 cos_set_tid_address(int *tidptr)
 {
+	printc("%s\n", __func__);
 	/* Just do nothing for now and hope that works */
 	return 0;
 }
 
 /* struct user_desc {
- *     int  		  entry_number; // Ignore
+ *     int		  entry_number; // Ignore
  *     unsigned int  base_addr; // Pass to cos thread mod
  *     unsigned int  limit; // Ignore
  *     unsigned int  seg_32bit:1;
@@ -217,30 +221,32 @@ cos_set_tid_address(int *tidptr)
  * };
  */
 
-void* backing_data[SL_MAX_NUM_THDS];
-
+//void* backing_data[SL_MAX_NUM_THDS];
+//
 static void
 setup_thread_area(struct sl_thd *thread, void* data)
 {
-	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	thdid_t thdid = thread->thdid;
-
-	backing_data[thdid] = data;
-
-	cos_thd_mod(ci, sl_thd_thdcap(thread), &backing_data[thdid]);
+	printc("%s\n", __func__);
+//	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+//	thdid_t thdid = thread->thdid;
+//
+//	backing_data[thdid] = data;
+//
+//	cos_thd_mod(ci, sl_thd_thdcap(thread), &backing_data[thdid]);
 }
 
 int
 cos_set_thread_area(void* data)
 {
 	printc("cos_set_thread_area %p\n", data);
-	setup_thread_area(sl_thd_curr(), data);
+//	setup_thread_area(sl_thd_curr(), data);
 	return 0;
 }
 
 int
 cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, void *tls, pid_t *ctid)
 {
+	printc("%s\n", __func__);
 	if (!func) {
 		errno = EINVAL;
 		return -1;
@@ -253,18 +259,17 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 	return thd->thdid;
 }
 
-
 void
 pre_syscall_default_setup()
 {
 	printc("pre_syscall_default_setup\n");
 
-	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
-
-	cos_defcompinfo_init();
-	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	sl_init(SL_MIN_PERIOD_US);
+//	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+//	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
+//
+//	cos_defcompinfo_init();
+//	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+//	sl_init(SL_MIN_PERIOD_US);
 }
 
 void
@@ -273,7 +278,7 @@ syscall_emulation_setup(void)
 	printc("syscall_emulation_setup\n");
 
 	int i;
-	for (i = 0; i < SYSCALLS_NUM; i++) {
+	for (i = 0; i < SYSCALL_NUM_MAX; i++) {
 		cos_syscalls[i] = 0;
 	}
 
@@ -300,12 +305,11 @@ syscall_emulation_setup(void)
 long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f)
 {
-	assert(syscall_num <= SYSCALLS_NUM);
+	assert(syscall_num <= SYSCALL_NUM_MAX);
 	/* printc("Making syscall %d\n", syscall_num); */
 	if (!cos_syscalls[syscall_num]){
-		printc("WARNING: Component %ld calling unimplemented system call %d\n", cos_spd_id(), syscall_num);
+		printc("WARNING: Thread %u calling unimplemented system call %d\n", cos_thdid(), syscall_num);
 		assert(0);
-		return 0;
 	} else {
 		return cos_syscalls[syscall_num](a, b, c, d, e, f);
 	}
@@ -316,4 +320,12 @@ libc_initialization_handler()
 {
 	printc("libc_init\n");
 	libc_init();
+}
+
+int
+posix_syscall_override(cos_syscall_t fn, int syscall_num)
+{
+	libc_syscall_override(fn, syscall_num);
+
+	return 0;
 }
