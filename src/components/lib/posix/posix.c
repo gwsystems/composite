@@ -201,26 +201,32 @@ cos_tkill(int tid, int sig)
 long
 cos_nanosleep(const struct timespec *req, struct timespec *rem)
 {
+	time_t seconds, remaining_seconds;
+	long nano_seconds, remaining_nano_seconds;
+	microsec_t microseconds, remaining_microseconds;
+	cycles_t wakeup_deadline, wakeup_time;
+	int completed_successfully;
+
 	if (!req) {
 		errno = EFAULT;
 		return -1;
 	}
-	time_t seconds             = req->tv_sec;
-	long nano_seconds          = req->tv_nsec;
-	microsec_t microseconds    = seconds * 1000000 + nano_seconds / 1000;
+	seconds      = req->tv_sec;
+	nano_seconds = req->tv_nsec;
+	microseconds = seconds * 1000000 + nano_seconds / 1000;
 
-	cycles_t wakeup_deadline   = sl_now() + sl_usec2cyc(microseconds);
-	int completed_successfully = sl_thd_block_timeout(0, wakeup_deadline);
-	cycles_t wakeup_time       = sl_now();
+	wakeup_deadline        = sl_now() + sl_usec2cyc(microseconds);
+	completed_successfully = sl_thd_block_timeout(0, wakeup_deadline);
+	wakeup_time   = sl_now();
 
 	if (completed_successfully || wakeup_time > wakeup_deadline) {
 		return 0;
 	} else {
 		errno = EINTR;
 		if (rem) {
-			microsec_t remaining_microseconds = sl_cyc2usec(wakeup_deadline - wakeup_time);
-			time_t remaining_seconds          = remaining_microseconds / 1000000;
-			long remaining_nano_seconds       = (remaining_microseconds - remaining_seconds * 1000000) * 1000;
+			remaining_microseconds = sl_cyc2usec(wakeup_deadline - wakeup_time);
+			remaining_seconds      = remaining_microseconds / 1000000;
+			remaining_nano_seconds = (remaining_microseconds - remaining_seconds * 1000000) * 1000;
 			*rem = (struct timespec) {
 				.tv_sec = remaining_seconds,
 				.tv_nsec = remaining_nano_seconds
