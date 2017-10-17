@@ -11,7 +11,7 @@ sudo apt-get -y install build-essential
 sudo apt-get -y install xorriso  
 sudo apt-get -y install curl  
 ```
-If you want or need Rust on composite, also follow the steps [here](https://github.com/gwsystems/composite/blob/rumpkernel/doc/rust_with_composite.md)
+If you want or need Rust on composite, also follow the steps [here](https://github.com/gwsystems/composite/blob/rumpkernel/doc/rust_with_composite.md)  
 If you want or need Rumpkernel on composite, also follow the steps [here](https://github.com/gwsystems/composite/blob/rumpkernel/doc/rumpkernel_with_composite.md)
 ## Getting and building
 
