@@ -35,3 +35,4 @@ GTAGS
 .clang_complete
 Vagrantfile
 provision.sh
+sl_bind_check
