@@ -1,11 +1,11 @@
 #!/bin/bash
 PROG=$1
-SRCDIR=../implementation/no_interface/rumpbooter/
-PROGDIR=../implementation/netbsd/$PROG
+SRCDIR=../../../implementation/no_interface/rumpbooter/
+PROGDIR=../../../implementation/netbsd/$PROG
 COSOBJ=rump_boot.o
 FINALOBJ=rumpcos.o
 QEMURK=qemu_rk.sh
-TRANSFERDIR=../../../transfer/
+TRANSFERDIR=../../../../../transfer/
 
 localizesymsrc=( "__fpclassifyl"
 		"memset"
@@ -42,7 +42,7 @@ localizesymdst=( "_start"
 if [ "$PROG" == "" ]; then
 	echo Please input an application name;
 	echo Valid choices include:
-	ls ../implementation/netbsd | grep -v "Makefile"
+	ls ../../../implementation/netbsd | grep -v "Makefile"
 	exit;
 fi
 
