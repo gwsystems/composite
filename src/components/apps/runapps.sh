@@ -1,11 +1,11 @@
-#!/bin/bash 
+#!/bin/bash
 PROG=$1
-SRCOBJ=rump_boot.o
-DSTOBJ=$PROG.bin
+SRCDIR=../implementation/no_interface/rumpbooter/
+PROGDIR=../implementation/netbsd/$PROG
+COSOBJ=rump_boot.o
 FINALOBJ=rumpcos.o
 QEMURK=qemu_rk.sh
-RUMPAPPDIR=../../../../../../apps
-TRANSFERDIR=../../../../../transfer/
+TRANSFERDIR=../../../transfer/
 
 localizesymsrc=( "__fpclassifyl"
 		"memset"
@@ -41,31 +41,38 @@ localizesymdst=( "_start"
 
 if [ "$PROG" == "" ]; then
 	echo Please input an application name;
+	echo Valid choices include:
+	ls ../implementation/netbsd | grep -v "Makefile"
 	exit;
 fi
 
-if [ ! -d $RUMPAPPDIR ]; then
-	echo "Woops! $RUMPAPPDIR doesn't exist"
-	exit
-fi
+# Compile RK stub
+cd rk_stub
+make clean
+make all
+cd ../
 
-cp $RUMPAPPDIR/$PROG/$DSTOBJ .
+# Combine COSOBJ and application
+objcopy --weaken $PROGDIR/$PROG.o
+ld -melf_i386 -r -o app.tmp $PROGDIR/$PROG.o $SRCDIR/$COSOBJ
 
 # Defined in both cos and rk, localize one of them.
 for sym in "${localizesymsrc[@]}"
 do
-	objcopy -L $sym $SRCOBJ
+	objcopy -L $sym app.tmp
 done
 
 for sym in "${localizesymdst[@]}"
 do
-	objcopy -L $sym $DSTOBJ
+	objcopy -L $sym rk_stub/rk_stub.bin
 done
 
-ld -melf_i386 -r -o $FINALOBJ $DSTOBJ $SRCOBJ
+# Combine RK stub (all drivers with no application) with applicaiton
+ld -melf_i386 -r -o $FINALOBJ app.tmp rk_stub/rk_stub.bin
+rm app.tmp
 
-cp $FINALOBJ $TRANSFERDIR
-cp $QEMURK $TRANSFERDIR
+mv $FINALOBJ $TRANSFERDIR
+cp $SRCDIR/$QEMURK $TRANSFERDIR
 
 cd $TRANSFERDIR
 USB_DEV=`stat --format "%F" /dev/sdb`
@@ -79,6 +86,6 @@ if [ "$USB_DEV" = "block special file" ]; then
 else
 	echo "NO /dev/sdb: $USB_DEV"
 	echo "RUNNING THE SYSTEM ON QEMU INSTEAD"
-	./qemu_rk.sh rumpkernboot.sh
+	./$QEMURK rumpkernboot.sh
 fi
 

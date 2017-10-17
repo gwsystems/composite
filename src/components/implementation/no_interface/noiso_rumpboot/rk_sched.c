@@ -17,8 +17,6 @@ rk_curr_thd_set_prio(int prio)
 	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = prio}};
 
 	sl_thd_param_set(t, spprio.v);
-
-	return 0;
 }
 
 static int
