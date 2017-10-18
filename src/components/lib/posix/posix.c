@@ -100,7 +100,6 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 	void *ret=0;
 
-	printc("mmap\n");
 	if (addr != NULL) {
 		printc("parameter void *addr is not supported!\n");
 		errno = ENOTSUP;
@@ -198,12 +197,21 @@ cos_tkill(int tid, int sig)
 	return 0;
 }
 
+static inline microsec_t
+time_to_microsec(const struct timespec *t)
+{
+	time_t seconds    		= t->tv_sec;
+	long nano_seconds 		= t->tv_nsec;
+	microsec_t microseconds = seconds * 1000000 + nano_seconds / 1000;
+	return microseconds;
+}
+
 long
 cos_nanosleep(const struct timespec *req, struct timespec *rem)
 {
-	time_t seconds, remaining_seconds;
-	long nano_seconds, remaining_nano_seconds;
-	microsec_t microseconds, remaining_microseconds;
+	time_t remaining_seconds;
+	long remaining_nano_seconds;
+	microsec_t remaining_microseconds;
 	cycles_t wakeup_deadline, wakeup_time;
 	int completed_successfully;
 
@@ -211,11 +219,8 @@ cos_nanosleep(const struct timespec *req, struct timespec *rem)
 		errno = EFAULT;
 		return -1;
 	}
-	seconds      = req->tv_sec;
-	nano_seconds = req->tv_nsec;
-	microseconds = seconds * 1000000 + nano_seconds / 1000;
 
-	wakeup_deadline        = sl_now() + sl_usec2cyc(microseconds);
+	wakeup_deadline        = sl_now() + sl_usec2cyc(time_to_microsec(req));
 	completed_successfully = sl_thd_block_timeout(0, wakeup_deadline);
 	wakeup_time   = sl_now();
 
@@ -273,7 +278,6 @@ setup_thread_area(struct sl_thd *thread, void* data)
 int
 cos_set_thread_area(void* data)
 {
-	printc("cos_set_thread_area %p\n", data);
 	setup_thread_area(sl_thd_curr(), data);
 	return 0;
 }
@@ -291,6 +295,149 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 		setup_thread_area(thd, tls);
 	}
 	return thd->thdid;
+}
+
+#define FUTEX_WAIT		0
+#define FUTEX_WAKE		1
+#define FUTEX_FD		2
+#define FUTEX_REQUEUE		3
+#define FUTEX_CMP_REQUEUE	4
+#define FUTEX_WAKE_OP		5
+#define FUTEX_LOCK_PI		6
+#define FUTEX_UNLOCK_PI		7
+#define FUTEX_TRYLOCK_PI	8
+#define FUTEX_WAIT_BITSET	9
+
+#define FUTEX_PRIVATE 128
+
+#define FUTEX_CLOCK_REALTIME 256
+
+struct futex_data
+{
+	int *uaddr;
+	struct ps_list_head waiters;
+};
+
+struct futex_waiter
+{
+	thdid_t thdid;
+	struct ps_list list;
+};
+
+#define FUTEX_COUNT 20
+struct futex_data futexes[FUTEX_COUNT];
+
+struct futex_data *
+lookup_futex(int* uaddr)
+{
+	int last_free = -1;
+	int i;
+	for (i = 0; i < FUTEX_COUNT; i++) {
+		if (futexes[i].uaddr == uaddr) {
+			return &futexes[i];
+		} else if (futexes[i].uaddr == 0) {
+			last_free = i;
+		}
+	}
+	if (last_free >= 0) {
+		futexes[last_free] = (struct futex_data) {
+			.uaddr = uaddr
+		};
+		ps_list_head_init(&futexes[last_free].waiters);
+		return &futexes[last_free];
+	}
+	printc("Out of futex ids!");
+	assert(0);
+}
+
+// TODO: Cleanup empty futexes
+
+struct sl_lock futex_lock = SL_LOCK_STATIC_INIT();
+
+int
+cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct timespec *timeout)
+{
+	int not_awoken;
+	cycles_t   deadline;
+	microsec_t wait_time       = 0;
+	struct futex_waiter waiter = (struct futex_waiter) {
+		.thdid = sl_thdid()
+	};
+
+	if (*uaddr != val) {
+		return EAGAIN;
+	}
+
+	ps_list_init_d(&waiter);
+	ps_list_head_append_d(&futex->waiters, &waiter);
+
+	if (timeout != NULL) {
+		wait_time = time_to_microsec(timeout);
+	}
+
+	// No race here, we'll enter the awoken state if things go wrong
+	sl_lock_release(&futex_lock);
+	if (wait_time == 0) {
+		sl_thd_block(0);
+	} else {
+		deadline = sl_now() + sl_usec2cyc(wait_time);
+		sl_thd_block_timeout(0, deadline);
+	}
+	sl_lock_take(&futex_lock);
+	ps_list_rem_d(&waiter);
+	return 0;
+}
+
+int cos_futex_wake(struct futex_data *futex, int wakeup_count)
+{
+	struct futex_waiter *waiter;
+	int awoken = 0;
+	ps_list_foreach_d(&futex->waiters, waiter) {
+		if (awoken >= wakeup_count) {
+			return 0;
+		} else {
+			sl_thd_wakeup(waiter->thdid);
+			awoken += 1;
+		}
+	}
+	return awoken;
+}
+
+int
+cos_futex(int *uaddr, int op, int val,
+          const struct timespec *timeout, /* or: uint32_t val2 */
+		  int *uaddr2, int val3)
+{
+	int result = 0;
+	struct futex_data *futex;
+
+	sl_lock_take(&futex_lock);
+
+	if (op & FUTEX_PRIVATE) {
+		op ^= FUTEX_PRIVATE;
+	}
+	assert(!(op & FUTEX_CLOCK_REALTIME));
+
+	futex = lookup_futex(uaddr);
+	switch (op)
+	{
+		case FUTEX_WAIT:
+			result = cos_futex_wait(futex, uaddr, val, timeout);
+			if (result != 0) {
+				errno = result;
+				result = -1;
+			}
+			break;
+		case FUTEX_WAKE:
+			result = cos_futex_wake(futex, val);
+			break;
+		default:
+			printc("Unsupported futex operation");
+			assert(0);
+	}
+
+	sl_lock_release(&futex_lock);
+	return result;
 }
 
 
@@ -337,6 +484,7 @@ syscall_emulation_setup(void)
 	libc_syscall_override((cos_syscall_t)cos_set_thread_area, __NR_set_thread_area);
 	libc_syscall_override((cos_syscall_t)cos_set_tid_address, __NR_set_tid_address);
 	libc_syscall_override((cos_syscall_t)cos_clone, __NR_clone);
+	libc_syscall_override((cos_syscall_t)cos_futex, __NR_futex);
 }
 
 long
