@@ -363,14 +363,16 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
+	struct sl_global       *g   = sl__globals();
 
 	if (t->properties & SL_THD_PROPERTY_SEND) {
-		return cos_sched_asnd(t->sndcap, sl__globals()->timeout_next, sl__globals()->sched_rcv, tok);
+		return cos_sched_asnd(t->sndcap, g->timeout_next, g->sched_rcv, tok);
 	} else if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
 		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
-				  sl__globals()->timeout_next, sl__globals()->sched_rcv, tok);
+				  g->timeout_next, g->sched_rcv, tok);
 	} else {
-		return cos_defswitch(sl_thd_thdcap(t), t->prio, sl__globals()->timeout_next, tok);
+		return cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ? 
+				     TCAP_TIME_NIL : g->timeout_next, tok);
 	}
 }
 
@@ -526,6 +528,6 @@ sl_cs_exit_switchto(struct sl_thd *to)
  * sl_sched_loop(); <- loop here
  */
 void sl_init(microsec_t period);
-void sl_sched_loop(void);
+void sl_sched_loop(int non_block);
 
 #endif /* SL_H */
