@@ -25,8 +25,8 @@ static char * field_names[NUM_FIELDS] = {
 	"wakeup_cycs",
 	"timeout_idx"
 };
-static size_t expected_offsets[NUM_FIELDS] = {0,4,8,12,32,36,44,48,52,60,68,76,84,92};
-static size_t expected_size = 96;
+static size_t expected_offsets[NUM_FIELDS] = {0,4,8,12,16,20,28,32,36,44,52,60,68,76};
+static size_t expected_size = 104;
 
 int
 main(void) {
@@ -50,16 +50,18 @@ main(void) {
 
 	printf("***** Checking expected sl_thd offsets *****\n");
 
-	if(sizeof(struct sl_thd) != expected_size) {
-		printf("ERROR: sl_thd struct size doesn't match expected.\n\n");
-		return -1;
-	}
-
 	for (i = 0; i < NUM_FIELDS; i++) {
 		if (expected_offsets[i] != actual_offsets[i]) {
-			printf("ERROR: sl_thd struct offset of %s doesn't match expected.\n\n", field_names[i]);
+			printf("ERROR: sl_thd struct offset of %s doesn't match expected.\n", field_names[i]);
 			return -1;
 		}
+	}
+
+	int size = sizeof(struct sl_thd);
+	if(size != expected_size) {
+		printf("ERROR: sl_thd struct size doesn't match expected.\n");
+		printf("Got: %d :: Expected: %d\n",size,expected_size);
+		return -1;
 	}
 
 	return 0;
