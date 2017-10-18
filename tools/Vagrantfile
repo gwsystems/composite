@@ -1,19 +1,21 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-VAGRANTFILE_API_VERSION = "2"
+Vagrant.configure(2) do |config|
+    config.vm.box = "ubuntu/trusty32"
 
-Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
-  config.vm.box = "composite"
-  config.vm.box_url = "http://128.164.201.103/composite.box"
-  config.vm.box_download_checksum = "34989bf2c322eea8eac7b2f81a585816fa576314014091388703acd5ec85f4b0"
-  config.vm.box_download_checksum_type = "sha256"
+    config.vm.provider "virtualbox" do |v|
+        v.name = "composite_dev"
+        v.memory = 3072
+        v.cpus = 2
+        v.customize ["modifyvm", :id, "--paravirtprovider", "kvm"]
+    end
 
-  config.vm.network "private_network",  type: "dhcp"
+    # Disable the default syncing
+    config.vm.synced_folder ".", "/vagrant", disabled: true
+    # Instead sync the actual composite folder
+    config.vm.synced_folder "../", "/home/vagrant/composite"
+    config.vm.synced_folder "../../lib_composite", "/home/vagrant/lib_composite"
 
-  config.vm.provider "virtualbox" do |vb|
-    vb.name = "composite_fedora_14"
-    vb.cpus = 1 # Higher is better
-    vb.customize ["modifyvm", :id, "--memory", "1024"]
-  end
+    config.vm.provision :shell,path: "provision.sh"
 end
