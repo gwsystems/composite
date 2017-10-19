@@ -12,7 +12,7 @@ use std::time::Duration;
 /* ------------- Check to make sure states correctly transation on replicas ---------- */
 pub fn test_state_logic(sl: Sl) {
 	//QUESTION -- why do i need to decalre the whole component mutable, when i defined the individual replicas
-	//as mutable 
+	//as mutable
 	let mut test_comp = voter_lib::ModComp::new(1,sl,thd_entry);
 	test_comp.replicas[0].state_transition(Processing);
 	printc!("Expceted: Replica Processing :: Actual : {:?}", test_comp.replicas[0].state);
@@ -22,7 +22,7 @@ pub fn test_state_logic(sl: Sl) {
 }
 fn thd_entry(sl:Sl, rep: Arc<Replica>) {printc!("hello")}
 */
-/* --------------- put threads to sleep and see if they wake up ----------------- */ 
+/* --------------- put threads to sleep and see if they wake up ----------------- */
 
 pub fn test_wakeup(sl: Sl, num_reps:usize) {
 	let mut test_comp = voter_lib::ModComp::new(num_reps,sl,thd_block);
@@ -42,16 +42,16 @@ fn thd_block(sl:Sl, rep: Arc<Lock<Replica>>) {
 	let rep_id = rep.lock().deref().get_thdid();
 	printc!("thread {} running",rep_id);
 	rep.lock().deref_mut().state_transition(Read);
-	voter_lib::Replica::block(rep,sl,rep_id);
+	voter_lib::Replica::block(rep,sl);
 	printc!("Thead {} awake!", rep_id);
 }
 
 
- /* ------------ Test vote functions abillity to detect state differences -------------- */ 
+ /* ------------ Test vote functions abillity to detect state differences -------------- */
 
 pub fn test_vote_simple(sl: Sl) {
 	let test_comp = voter_lib::ModComp::new(1,sl,vote_a);
-	printc!("Expected: Inconclusive; Actual: {:?}", test_comp.vote());
+	//printc!("Expected: Inconclusive; Actual: {:?}", test_comp.vote());
 
 	// let test_comp = voter_lib::ModComp::new(3,sl,vote_b);
 	// printc!("Expected: Fail(Read); Actual: {:?}", test_comp.vote());
@@ -76,12 +76,12 @@ fn vote_b(sl:Sl, rep: Arc<Replica>) {
 	}
 }
 fn vote_c(sl:Sl, rep: Arc<Replica>) {
-	printc!("replica running");	
+	printc!("replica running");
 	rep.block(sl,Written)
 }
 */
 
-/* -------------- Test lib Composite chagnes ------------------- */ 
+/* -------------- Test lib Composite chagnes ------------------- */
 
 pub fn test_lib_composite(sl:Sl) {
 	let mut thd = sl.spawn(move |sl:Sl| {printc!("thd started")});

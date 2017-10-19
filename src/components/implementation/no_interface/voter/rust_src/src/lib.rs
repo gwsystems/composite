@@ -5,7 +5,7 @@ mod unit_tests;
 use lib_composite::kernel_api::DefKernelAPI;
 use lib_composite::sl::{ThreadParameter, Sl};
 
-	
+
 #[no_mangle]
 pub extern fn rust_init() {
 	printc!("Entering Rust ---------------\n");
@@ -18,7 +18,7 @@ pub extern fn rust_init() {
 	Sl::start_scheduler_loop_without_initializing(api, 30, move |sl: Sl| {
 		printc!("test inside\n");
 		// printc!("Entered Sched loop");
-		unit_tests::test_wakeup(sl,3);
+		//unit_tests::test_wakeup(sl,3);
 		//unit_tests::test_vote_simple(sl);
 	});
 }
