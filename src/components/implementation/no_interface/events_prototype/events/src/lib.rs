@@ -16,7 +16,7 @@ pub extern fn rust_init() {
         DefKernelAPI::assert_already_initialized()
     };
 
-    Sl::start_scheduler_loop_without_initializing(api, 35, move |sl: Sl| {
+    Sl::start_scheduler_loop_without_initializing(api, 30, move |sl: Sl| {
         println!("Entered scheduler loop");
         let channel: &Channel<u64> = &Channel::new(sl);
         println!("Got handle");

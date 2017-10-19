@@ -200,9 +200,10 @@ cos_tkill(int tid, int sig)
 static inline microsec_t
 time_to_microsec(const struct timespec *t)
 {
-	time_t seconds    		= t->tv_sec;
-	long nano_seconds 		= t->tv_nsec;
+	time_t seconds          = t->tv_sec;
+	long nano_seconds       = t->tv_nsec;
 	microsec_t microseconds = seconds * 1000000 + nano_seconds / 1000;
+
 	return microseconds;
 }
 
@@ -332,6 +333,7 @@ lookup_futex(int* uaddr)
 {
 	int last_free = -1;
 	int i;
+
 	for (i = 0; i < FUTEX_COUNT; i++) {
 		if (futexes[i].uaddr == uaddr) {
 			return &futexes[i];
@@ -350,13 +352,14 @@ lookup_futex(int* uaddr)
 	assert(0);
 }
 
-// TODO: Cleanup empty futexes
+/* TODO: Cleanup empty futexes */
 
 struct sl_lock futex_lock = SL_LOCK_STATIC_INIT();
 
 int
 cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct timespec *timeout)
 {
+	/* We enter the function with futex_lock already taken */
 	int not_awoken;
 	cycles_t   deadline;
 	microsec_t wait_time       = 0;
@@ -364,9 +367,7 @@ cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct times
 		.thdid = sl_thdid()
 	};
 
-	if (*uaddr != val) {
-		return EAGAIN;
-	}
+	if (*uaddr != val) return EAGAIN;
 
 	ps_list_init_d(&waiter);
 	ps_list_head_append_d(&futex->waiters, &waiter);
@@ -375,7 +376,7 @@ cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct times
 		wait_time = time_to_microsec(timeout);
 	}
 
-	// No race here, we'll enter the awoken state if things go wrong
+	/* No race here, we'll enter the awoken state if things go wrong */
 	sl_lock_release(&futex_lock);
 	if (wait_time == 0) {
 		sl_thd_block(0);
@@ -385,6 +386,8 @@ cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct times
 	}
 	sl_lock_take(&futex_lock);
 	ps_list_rem_d(&waiter);
+	/* We exit the function with futex_lock taken */
+
 	return 0;
 }
 
@@ -392,6 +395,7 @@ int cos_futex_wake(struct futex_data *futex, int wakeup_count)
 {
 	struct futex_waiter *waiter;
 	int awoken = 0;
+
 	ps_list_foreach_d(&futex->waiters, waiter) {
 		if (awoken >= wakeup_count) {
 			return 0;
@@ -419,8 +423,7 @@ cos_futex(int *uaddr, int op, int val,
 	assert(!(op & FUTEX_CLOCK_REALTIME));
 
 	futex = lookup_futex(uaddr);
-	switch (op)
-	{
+	switch (op) {
 		case FUTEX_WAIT:
 			result = cos_futex_wait(futex, uaddr, val, timeout);
 			if (result != 0) {
@@ -437,6 +440,7 @@ cos_futex(int *uaddr, int op, int val,
 	}
 
 	sl_lock_release(&futex_lock);
+	
 	return result;
 }
 

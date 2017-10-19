@@ -31,6 +31,18 @@ sl_thd_curr_rs()
 	return sl_thd_curr();
 }
 
+thdid_t
+sl_thdid_rs()
+{
+	return sl_thdid();
+}
+
+struct sl_thd *
+sl_thd_lkup_rs(thdid_t tid)
+{
+	return sl_thd_lkup(tid);
+}
+
 microsec_t
 sl_cyc2usec_rs(cycles_t cyc)
 {
