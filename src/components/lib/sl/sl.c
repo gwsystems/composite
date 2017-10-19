@@ -12,6 +12,7 @@
 #include <cos_kernel_api.h>
 
 struct sl_global sl_global_data;
+static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
 
 /*
  * These functions are removed from the inlined fast-paths of the
@@ -595,8 +596,8 @@ sl_init(microsec_t period)
 	return;
 }
 
-void
-sl_sched_loop(int non_block)
+static void
+sl_sched_loop_intern(int non_block)
 {
 	struct sl_global *g   = sl__globals();
 	rcv_flags_t       rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
@@ -678,4 +679,16 @@ pending_events:
 		/* If switch returns an inconsistency, we retry anyway */
 		sl_cs_exit_schedule_nospin();
 	}
+}
+
+void
+sl_sched_loop(void)
+{
+	sl_sched_loop_intern(0);
+}
+
+void
+sl_sched_loop_nonblock(void)
+{
+	sl_sched_loop_intern(1);
 }

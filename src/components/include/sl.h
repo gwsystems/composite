@@ -525,9 +525,26 @@ sl_cs_exit_switchto(struct sl_thd *to)
  * sl_init(period); <- using `period` for scheduler periodic timeouts 
  * sl_*;            <- use the sl_api here
  * ...
- * sl_sched_loop(); <- loop here
+ * sl_sched_loop(); <- loop here. or using sl_sched_loop_nonblock();
  */
 void sl_init(microsec_t period);
-void sl_sched_loop(int non_block);
+/*
+ * sl_sched_loop internally calls the kernel api - cos_sched_rcv
+ * which blocks (suspends) the calling thread if there are no pending events.
+ */
+void sl_sched_loop(void) __attribute__((noreturn));
+/*
+ * sl_sched_loop_nonblock internally calls the kernel api - cos_sched_rcv
+ * with a RCV_NONBLOCK flag, the kernel returns to the calling thread immediately if
+ * there are no pending events.
+ *
+ * This is useful for the system scheduler in a hierarchical settings where 
+ * booter (perhaps only doing simple chronos delegations) hands off the 
+ * system scheduling responsibility to another component.
+ *
+ * Note: sl_sched_loop_nonblock has same semantics as sl_sched_loop for 
+ * booter receive (INITRCV) end-point at the kernel level.
+ */
+void sl_sched_loop_nonblock(void) __attribute__((noreturn));
 
 #endif /* SL_H */
