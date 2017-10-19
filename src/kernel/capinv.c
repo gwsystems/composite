@@ -562,7 +562,10 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 	if (tcap_budgets_update(cos_info, thd_curr, tc_curr, &now)) {
 		assert(!tcap_is_active(tc_curr) && tcap_expended(tc_curr));
 
-		/* can't use timeout on another tcap */
+		/*
+		 * FIXME: child scheduler should abide by parent's timeouts.
+		 * for now, we set timeout to 0 to use the budget of the tcap for timer interrupt programming.
+		 */
 		timeout = 0;
 		if (timer_intr_context) tc_next= thd_rcvcap_tcap(thd_next);
 
