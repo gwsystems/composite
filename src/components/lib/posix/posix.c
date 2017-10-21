@@ -398,7 +398,7 @@ int cos_futex_wake(struct futex_data *futex, int wakeup_count)
 
 	ps_list_foreach_d(&futex->waiters, waiter) {
 		if (awoken >= wakeup_count) {
-			return 0;
+			return awoken;
 		} else {
 			sl_thd_wakeup(waiter->thdid);
 			awoken += 1;
@@ -440,7 +440,7 @@ cos_futex(int *uaddr, int op, int val,
 	}
 
 	sl_lock_release(&futex_lock);
-	
+
 	return result;
 }
 
