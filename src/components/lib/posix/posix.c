@@ -329,7 +329,7 @@ struct futex_waiter
 struct futex_data futexes[FUTEX_COUNT];
 
 struct futex_data *
-lookup_futex(int* uaddr)
+lookup_futex(int *uaddr)
 {
 	int last_free = -1;
 	int i;
@@ -356,10 +356,12 @@ lookup_futex(int* uaddr)
 
 struct sl_lock futex_lock = SL_LOCK_STATIC_INIT();
 
+/*
+ * precondition: futex_lock is taken
+ */
 int
 cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct timespec *timeout)
 {
-	/* We enter the function with futex_lock already taken */
 	int not_awoken;
 	cycles_t   deadline;
 	microsec_t wait_time       = 0;
@@ -399,10 +401,9 @@ int cos_futex_wake(struct futex_data *futex, int wakeup_count)
 	ps_list_foreach_d(&futex->waiters, waiter) {
 		if (awoken >= wakeup_count) {
 			return awoken;
-		} else {
-			sl_thd_wakeup(waiter->thdid);
-			awoken += 1;
 		}
+		sl_thd_wakeup(waiter->thdid);
+		awoken += 1;
 	}
 	return awoken;
 }
@@ -417,9 +418,8 @@ cos_futex(int *uaddr, int op, int val,
 
 	sl_lock_take(&futex_lock);
 
-	if (op & FUTEX_PRIVATE) {
-		op ^= FUTEX_PRIVATE;
-	}
+	/* TODO: Consider whether these options have sensible composite interpretations */
+	op &= ~FUTEX_PRIVATE;
 	assert(!(op & FUTEX_CLOCK_REALTIME));
 
 	futex = lookup_futex(uaddr);
