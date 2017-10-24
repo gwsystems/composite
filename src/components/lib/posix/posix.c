@@ -362,9 +362,8 @@ struct sl_lock futex_lock = SL_LOCK_STATIC_INIT();
 int
 cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct timespec *timeout)
 {
-	int not_awoken;
 	cycles_t   deadline;
-	microsec_t wait_time       = 0;
+	microsec_t wait_time;
 	struct futex_waiter waiter = (struct futex_waiter) {
 		.thdid = sl_thdid()
 	};
@@ -376,32 +375,40 @@ cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct times
 
 	if (timeout != NULL) {
 		wait_time = time_to_microsec(timeout);
-	}
-
-	/* No race here, we'll enter the awoken state if things go wrong */
-	sl_lock_release(&futex_lock);
-	if (wait_time == 0) {
-		sl_thd_block(0);
-	} else {
 		deadline = sl_now() + sl_usec2cyc(wait_time);
-		sl_thd_block_timeout(0, deadline);
 	}
-	sl_lock_take(&futex_lock);
-	ps_list_rem_d(&waiter);
-	/* We exit the function with futex_lock taken */
 
+	do {
+		/* No race here, we'll enter the awoken state if things go wrong */
+		sl_lock_release(&futex_lock);
+		if (timeout == NULL) {
+			sl_thd_block(0);
+		} else {
+			sl_thd_block_timeout(0, deadline);
+		}
+		sl_lock_take(&futex_lock);
+	/* We continue while the waiter is in the list, and the deadline has not elapsed */
+	} while(!ps_list_singleton_d(&waiter) && (timeout == NULL || sl_now() < deadline));
+
+	/* If our waiter is still in the list (meaning we quit because the deadline elapsed),
+	 * then we remove it from the list. */
+	if (!ps_list_singleton_d(&waiter)) {
+		ps_list_rem_d(&waiter);
+	}
+	/* We exit the function with futex_lock taken */
 	return 0;
 }
 
 int cos_futex_wake(struct futex_data *futex, int wakeup_count)
 {
-	struct futex_waiter *waiter;
+	struct futex_waiter *waiter, *tmp;
 	int awoken = 0;
 
-	ps_list_foreach_d(&futex->waiters, waiter) {
+	ps_list_foreach_del_d(&futex->waiters, waiter, tmp) {
 		if (awoken >= wakeup_count) {
 			return awoken;
 		}
+		ps_list_rem_d(waiter);
 		sl_thd_wakeup(waiter->thdid);
 		awoken += 1;
 	}
