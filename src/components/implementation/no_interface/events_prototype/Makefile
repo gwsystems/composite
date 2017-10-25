@@ -16,7 +16,6 @@ pre: rust all
 
 .PHONY: rust
 rust:
-	@echo $(XARGO_RUST_SRC)
 	@cd $(CRATE_DIR) && . ~/.cargo/env && xargo build --target i686-unknown-composite-musl --release
 	@cp $(CRATE_DIR)/target/i686-unknown-composite-musl/release/*.a .
 
