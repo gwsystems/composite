@@ -24,7 +24,7 @@ pub enum VoteStatus<'a> {
 pub struct Replica {
 	pub state:  ReplicaState,
 	thd:        Option<Thread>,
-	buf:        Vec<char>,
+	buf:        Vec<char>, /* this may be completely unnecessary if we just pub to channel */
 	amnt:       i32,
 	ret_val:    Option<i32>,
 }
@@ -35,8 +35,14 @@ pub struct ModComp {
 }
 
 struct Channel<'a>  {
-	reader: &'a ModComp,
-	writer: &'a ModComp,
+	reader: &'a mut ModComp,
+	writer: &'a mut ModComp,
+	channel_data: Arc<Lock<Vec<ChannelData>>>,
+}
+
+struct ChannelData {
+	rep_id: u16,
+	message: Box<u8>, /* write messages into a vec then call into_boxed_slice() */
 }
 
 //manually implement as lib_composite::Thread doesn't impl debug
@@ -116,7 +122,7 @@ impl Replica  {
 impl ModComp {
 	pub fn new(num_replicas: usize,sl: Sl, thd_entry: fn(sl:Sl, rep: Arc<Lock<Replica>>)) -> ModComp {
 		//create new Component
-		printc!("Mod comp new called");
+		println!("Mod comp new called");
 		let mut comp = ModComp {
 			replicas: Vec::with_capacity(num_replicas),
 			num_replicas,
@@ -126,7 +132,7 @@ impl ModComp {
 		for i in 0..num_replicas {
 			let rep = Arc::new(Lock::new(sl,Replica::new()));
 			let thd = sl.spawn(|sl:Sl| {thd_entry(sl, Arc::clone(&rep));});
-			printc!("Created thd {}",thd.thdid());
+			println!("Created thd {}",thd.thdid());
 			rep.lock().deref_mut().set_thd(thd);
 			comp.replicas.push(Arc::clone(&rep));
 		}
@@ -134,7 +140,7 @@ impl ModComp {
 	}
 
 	pub fn wake_all(&mut self) {
-		printc!("Entering Wake");
+		println!("Entering Wake");
 		//update state first to avoid replicas beginning new read/write
 		//while still in old read/write state
 		for i in 0..self.num_replicas {
@@ -144,12 +150,12 @@ impl ModComp {
 		}
 
 		for replica in &self.replicas {
-			printc!("time to wake!");
+			println!("time to wake!");
 			replica.lock().deref_mut().thd.as_mut().unwrap().wakeup();
 		}
 	}
 
-	pub fn vote(&self) -> VoteStatus {
+	pub fn collect_vote(&self) -> VoteStatus {
 		//check first to see that all replicas are done processing.
 		for replica in &self.replicas {
 			if replica.lock().deref().is_processing() {return VoteStatus::Inconclusive}
@@ -201,22 +207,18 @@ impl ModComp {
 
 
 		loop {
-			match self.vote() { //FIXME cange to channel vote.
+			match ch.call_vote() { //FIXME cange to channel vote.
 				VoteStatus::Fail(faulted) => {
 					faulted.lock().deref_mut().recover();
-					break;
+					break
 				},
-				VoteStatus::Inconclusive       => {
-					//FIXME
-					//This will block what ever thread called this, not the replica
-					//... i assume we want this thread to go and block the thread associated
-					//with that replica but i dotn think that is possbile in SL (or at least rust sl)
-					//Replica::block(replica,sl); need way to block
-					break;
+				VoteStatus::Inconclusive  => {
+					Replica::block(Arc::clone(&self.replicas[rep_id]),sl);
+					break
 				},
-				VoteStatus::Success            => {
+				VoteStatus::Success       => {
 					//TODO implemnt channel calls here
-					break;
+					break
 				},
 			}
 		}
@@ -224,4 +226,32 @@ impl ModComp {
 		return self.replicas[rep_id].lock().deref_mut().retval_get();
 	}
 
+}
+
+impl<'a> Channel<'a> {
+	pub fn new(reader:&'a mut ModComp, writer:&'a mut ModComp, sl:Sl) -> Channel<'a> {
+		Channel {
+			reader,
+			writer,
+			channel_data: Arc::new(Lock::new(sl,Vec::new())),
+		}
+	}
+
+	fn call_vote(&self) -> VoteStatus {
+		let reader_vote = self.reader.collect_vote();
+		match reader_vote {
+			VoteStatus::Success => return self.writer.collect_vote(),
+			_  				    => return reader_vote,
+		}
+	}
+
+	fn transfer(&mut self) {
+		//TODO transfer data from buffers on healthy replica to reader buffers
+		//Readers go in get messages from channel data
+	}
+
+	fn wake_all(&mut self) {
+		self.reader.wake_all();
+		self.writer.wake_all();
+	}
 }
