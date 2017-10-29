@@ -3,7 +3,7 @@ MAKEFLAGS=-I$(shell pwd)
 rk_all: backing
 	cd ./rumprun; ./build-rr.sh cos -- -F ACFLAGS=-m32 -r
 
-rk_init: patch all
+rk_init: patch rk_all
 
 backing:
 	- rm -f ./tools/backing.o
