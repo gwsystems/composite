@@ -11,6 +11,7 @@ pub enum ReplicaState {
 	Processing,  /* processing */
 	Read,        /* issued a read (blocked) */
 	Written,     /* issued a write (blockd) */
+	Done,        /* DEBUG - remove me */
 }
 
 pub enum VoteStatus<'a> {
@@ -27,6 +28,7 @@ pub struct Replica {
 	buf:        Vec<char>, /* this may be completely unnecessary if we just pub to channel */
 	amnt:       i32,
 	ret_val:    Option<i32>,
+	pub rep_id: u16,
 }
 
 pub struct ModComp {
@@ -34,7 +36,7 @@ pub struct ModComp {
 	pub num_replicas: usize,
 }
 
-struct Channel<'a>  {
+pub struct Channel<'a>  {
 	reader: &'a mut ModComp,
 	writer: &'a mut ModComp,
 	channel_data: Arc<Lock<Vec<ChannelData>>>,
@@ -48,12 +50,24 @@ struct ChannelData {
 //manually implement as lib_composite::Thread doesn't impl debug
 impl fmt::Debug for Replica {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Replica: [Thdid - {} State - {:?} ret_val - {:?}]",
-        match self.thd.as_ref() {
-			Some(thd) => thd.thdid(),
-			None      => 0,
-		}, self.state, self.ret_val)
+        write!(f, "Replica: [rep_id - {} Thdid - {} State - {:?} ret_val - {:?}]",
+        self.rep_id, self.get_thdid(), self.state, self.ret_val)
     }
+}
+
+impl<'a> fmt::Debug for VoteStatus<'a> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Status: {}",
+        match self {
+        	&VoteStatus::Inconclusive => "Inconclusive",
+        	&VoteStatus::Success => "Success",
+        	&VoteStatus::Fail(faulted) => "Fail",
+        })
+    }
+}
+
+impl<'a> fmt::Debug for Channel<'a> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {write!(f, "Reader: {:?} | Writer: {:?}", self.reader, self.writer)}
 }
 
 //manually implement as lib_composite::Lock doenst impl debug
@@ -65,26 +79,27 @@ impl fmt::Debug for ModComp {
 }
 
 impl Replica  {
-	pub fn new() -> Replica  {
+	pub fn new(rep_id:u16) -> Replica  {
 		Replica {
 			state : ReplicaState::Init,
 			thd: None,
 			buf: Vec::new(),
 			amnt : 0,
 			ret_val : None,
+			rep_id,
 		}
 	}
-
-	pub fn set_thd(&mut self, mut thd: Thread) {
-		thd.set_param(ThreadParameter::Priority(5));
+	//using a setter to contol the initial scheduling of the thread.
+	pub fn set_thd(&mut self,thd: Thread) {
 		self.thd = Some(thd);
 		self.state_transition(ReplicaState::Processing);
+		self.thd.as_mut().expect("set_thd missing thd").set_param(ThreadParameter::Priority(5));
 	}
-
+	//really dont think we need this
 	pub fn get_thdid(&self) -> u16 {
 		match self.thd.as_ref() {
 			Some(thd) => thd.thdid(),
-			None      => 0,
+			None      => 9999,
 		}
 	}
 
@@ -108,7 +123,7 @@ impl Replica  {
 		mem::replace(&mut self.ret_val, None)
 	}
 
-	pub fn block(rep: Arc<Lock<Replica>>, sl:Sl) {
+	pub fn block(rep: &Arc<Lock<Replica>>, sl:Sl) {
 		assert!(rep.lock().deref().is_blocked());
 		sl.block();
 	}
@@ -122,7 +137,6 @@ impl Replica  {
 impl ModComp {
 	pub fn new(num_replicas: usize,sl: Sl, thd_entry: fn(sl:Sl, rep: Arc<Lock<Replica>>)) -> ModComp {
 		//create new Component
-		println!("Mod comp new called");
 		let mut comp = ModComp {
 			replicas: Vec::with_capacity(num_replicas),
 			num_replicas,
@@ -130,8 +144,10 @@ impl ModComp {
 
 		//create replicas,start their threads,add them to the componenet
 		for i in 0..num_replicas {
-			let rep = Arc::new(Lock::new(sl,Replica::new()));
-			let thd = sl.spawn(|sl:Sl| {thd_entry(sl, Arc::clone(&rep));});
+			let rep = Arc::new(Lock::new(sl,Replica::new(i as u16)));
+			let rep_ref = Arc::clone(&rep);
+
+			let thd = sl.spawn(move |sl:Sl| {thd_entry(sl, rep_ref);});
 			println!("Created thd {}",thd.thdid());
 			rep.lock().deref_mut().set_thd(thd);
 			comp.replicas.push(Arc::clone(&rep));
@@ -140,7 +156,6 @@ impl ModComp {
 	}
 
 	pub fn wake_all(&mut self) {
-		println!("Entering Wake");
 		//update state first to avoid replicas beginning new read/write
 		//while still in old read/write state
 		for i in 0..self.num_replicas {
@@ -150,12 +165,12 @@ impl ModComp {
 		}
 
 		for replica in &self.replicas {
-			println!("time to wake!");
 			replica.lock().deref_mut().thd.as_mut().unwrap().wakeup();
 		}
 	}
 
 	pub fn collect_vote(&self) -> VoteStatus {
+		println!("Component Collecting Votes");
 		//check first to see that all replicas are done processing.
 		for replica in &self.replicas {
 			if replica.lock().deref().is_processing() {return VoteStatus::Inconclusive}
@@ -213,7 +228,7 @@ impl ModComp {
 					break
 				},
 				VoteStatus::Inconclusive  => {
-					Replica::block(Arc::clone(&self.replicas[rep_id]),sl);
+					Replica::block(&self.replicas[rep_id],sl);
 					break
 				},
 				VoteStatus::Success       => {
@@ -237,7 +252,7 @@ impl<'a> Channel<'a> {
 		}
 	}
 
-	fn call_vote(&self) -> VoteStatus {
+	pub fn call_vote(&self) -> VoteStatus {
 		let reader_vote = self.reader.collect_vote();
 		match reader_vote {
 			VoteStatus::Success => return self.writer.collect_vote(),
@@ -250,7 +265,7 @@ impl<'a> Channel<'a> {
 		//Readers go in get messages from channel data
 	}
 
-	fn wake_all(&mut self) {
+	pub fn wake_all(&mut self) {
 		self.reader.wake_all();
 		self.writer.wake_all();
 	}

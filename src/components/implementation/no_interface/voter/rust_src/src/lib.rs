@@ -10,7 +10,6 @@ use lib_composite::panic_trace;
 #[no_mangle]
 pub extern fn rust_init() {
 	println!("Entering Rust ---------------");
-	println!("test outside");
 
 	let api = unsafe {
 		DefKernelAPI::assert_already_initialized()
@@ -19,8 +18,10 @@ pub extern fn rust_init() {
 	Sl::start_scheduler_loop_without_initializing(api, 30, move |sl: Sl| {
 		panic_trace::trace_init();
 		println!("Entered Sched loop");
-		unit_tests::test_wakeup(sl,3);
-		//unit_tests::test_vote_simple(sl);
+		unit_tests::test_state_logic(sl,2);
+		unit_tests::test_wakeup(sl,2);
+		unit_tests::test_vote_simple(sl,2);
+		unit_tests::test_channel_create(sl,1);
 	});
 }
 
