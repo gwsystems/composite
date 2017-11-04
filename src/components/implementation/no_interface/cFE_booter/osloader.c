@@ -9,6 +9,7 @@
 #include "gen/common_types.h"
 #include "gen/cfe_es.h"
 #include "gen/cfe_evs.h"
+#include "gen/cfe_tbl.h"
 
 #define USER_CAPS_SYMB_NAME "ST_user_caps"
 
@@ -108,6 +109,8 @@ struct symbol_of_jank {
 
 struct symbol_of_jank soj[] = {
 	{ .name = "OS_printf", .fn = OS_printf },
+    { .name = "OS_close", .fn = OS_close },
+    { .name = "OS_open", .fn = OS_open },
     { .name = "OS_TaskInstallDeleteHandler", .fn = OS_TaskInstallDeleteHandler },
     { .name = "OS_TaskDelay", .fn = OS_TaskDelay },
     { .name = "CFE_ES_ExitApp", .fn = CFE_ES_ExitApp },
@@ -128,6 +131,35 @@ struct symbol_of_jank soj[] = {
     { .name = "CFE_SB_MessageStringGet", .fn = CFE_SB_MessageStringGet },
     { .name = "CFE_SB_SubscribeEx", .fn = CFE_SB_SubscribeEx },
     { .name = "CFE_SB_Unsubscribe", .fn = CFE_SB_Unsubscribe },
+    { .name = "CFE_ES_RegisterChildTask", .fn = CFE_ES_RegisterChildTask },
+    { .name = "CFE_ES_CalculateCRC", .fn = CFE_ES_CalculateCRC },
+    { .name = "CFE_ES_CopyToCDS", .fn = CFE_ES_CopyToCDS },
+    { .name = "CFE_ES_CreateChildTask", .fn = CFE_ES_CreateChildTask },
+    { .name = "CFE_ES_DeleteChildTask", .fn = CFE_ES_DeleteChildTask },
+    { .name = "CFE_ES_ExitChildTask", .fn = CFE_ES_ExitChildTask },
+    { .name = "CFE_ES_GetAppID", .fn = CFE_ES_GetAppID },
+    { .name = "CFE_ES_GetAppIDByName", .fn = CFE_ES_GetAppIDByName },
+    { .name = "CFE_ES_GetAppInfo", .fn = CFE_ES_GetAppInfo },
+    { .name = "CFE_ES_GetAppName", .fn = CFE_ES_GetAppName },
+    { .name = "CFE_ES_RegisterCDS", .fn = CFE_ES_RegisterCDS },
+    { .name = "CFE_ES_RegisterChildTask", .fn = CFE_ES_RegisterChildTask },
+    { .name = "CFE_ES_RestoreFromCDS", .fn = CFE_ES_RestoreFromCDS },
+    { .name = "CFE_ES_WaitForStartupSync", .fn = CFE_ES_WaitForStartupSync },
+    { .name = "CFE_ES_WriteToSysLog", .fn = CFE_ES_WriteToSysLog },
+    { .name = "CFE_PSP_GetCFETextSegmentInfo", .fn = CFE_PSP_GetCFETextSegmentInfo },
+    { .name = "CFE_PSP_GetKernelTextSegmentInfo", .fn = CFE_PSP_GetKernelTextSegmentInfo },
+    { .name = "CFE_PSP_MemCpy", .fn = CFE_PSP_MemCpy },
+    { .name = "CFE_PSP_MemSet", .fn = CFE_PSP_MemSet },
+    { .name = "CFE_PSP_MemValidateRange", .fn = CFE_PSP_MemValidateRange },
+    { .name = "CFE_TBL_GetAddress", .fn = CFE_TBL_GetAddress },
+    { .name = "CFE_TBL_GetInfo", .fn = CFE_TBL_GetInfo },
+    { .name = "CFE_TBL_Load", .fn = CFE_TBL_Load },
+    { .name = "CFE_TBL_Manage", .fn = CFE_TBL_Manage },
+    { .name = "CFE_TBL_Modified", .fn = CFE_TBL_Modified },
+    { .name = "CFE_TBL_Register", .fn = CFE_TBL_Register },
+    { .name = "CFE_TBL_ReleaseAddress", .fn = CFE_TBL_ReleaseAddress },
+    { .name = "CFE_TBL_Share", .fn = CFE_TBL_Share },
+    { .name = "CFE_TBL_Unregister", .fn = CFE_TBL_Unregister },
     { .name = "", .fn = NULL },
 };
 
