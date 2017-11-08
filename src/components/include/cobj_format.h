@@ -69,12 +69,16 @@ enum
 {
 	COBJ_SYMB_UNDEF = 0,
 	COBJ_SYMB_COMP_INFO,
-	COBJ_SYMB_EXPORTED
+	COBJ_SYMB_EXPORTED,
+	COBJ_SYMB_COMP_PLT
 };
 
 struct cobj_symb {
+	/* TODO: fix this waste of space */
+	char name[64];
 	u32_t type;
 	u32_t vaddr;
+	u32_t user_caps_offset;
 } __attribute__((packed));
 
 struct cobj_cap {

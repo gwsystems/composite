@@ -20,6 +20,7 @@ enum
 } print_lvl = PRINT_HIGH;
 
 const char *COMP_INFO      = "cos_comp_info";
+const char *COMP_PLT       = "ST_user_caps";
 const char *SCHED_NOTIF    = "cos_sched_notifications";
 const char *INIT_COMP      = "c0.o";
 char *      ROOT_SCHED     = NULL;   // this is set to the first listed scheduler (*)

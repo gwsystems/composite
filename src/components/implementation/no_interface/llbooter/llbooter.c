@@ -4,6 +4,8 @@
 
 #include "boot_deps.h"
 
+#define USER_CAPS_SYMB_NAME "ST_user_caps"
+
 struct deps {
 	short int client, server;
 };
@@ -38,7 +40,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 		for (j = 0; j < (int)h->nsect; j++) {
 			tot += cobj_sect_size(h, j);
 		}
-		printc("cobj %s:%d found at %p:%x, size %x -> %x\n", h->name, h->id, hs[i - 1], size, tot,
+		printc("cobj %s:%d found at %p:%x, -> %x\n", h->name, h->id, hs[i - 1], size,
 		       cobj_sect_get(hs[i - 1], 0)->vaddr);
 
 		end   = start + round_up_to_cacheline(size);
@@ -49,13 +51,14 @@ boot_find_cobjs(struct cobj_header *h, int n)
 	hs[n] = NULL;
 	printc("cobj %s:%d found at %p -> %x\n", hs[n - 1]->name, hs[n - 1]->id, hs[n - 1],
 	       cobj_sect_get(hs[n - 1], 0)->vaddr);
+	
 }
 
 static int
 boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 {
 	int               i;
-	int               flag;
+	int 		  first = 1;
 	vaddr_t           dest_daddr, prev_map = 0;
 	int               n_pte = 1;
 	struct cobj_sect *sect = cobj_sect_get(h, 0);
@@ -63,16 +66,11 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 	boot_comp_pgtbl_expand(n_pte, pt, sect->vaddr, h);
 
 	/* We'll map the component into booter's heap. */
-	new_comp_cap_info[spdid].vaddr_mapped_in_booter = (vaddr_t)cos_get_heap_ptr();
 
 	for (i = 0; i < (int)h->nsect; i++) {
 		int left;
 
 		sect = cobj_sect_get(h, i);
-		flag = MAPPING_RW;
-		if (sect->flags & COBJ_SECT_KMEM) {
-			flag |= MAPPING_KMEM;
-		}
 
 		dest_daddr = sect->vaddr;
 		left       = cobj_sect_size(h, i);
@@ -84,14 +82,18 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 		}
 
 		while (left > 0) {
-			boot_deps_map_sect(spdid, dest_daddr);
-
+			if (first) { 
+				new_comp_cap_info[spdid].vaddr_mapped_in_booter = boot_deps_map_sect(spdid, dest_daddr);
+				first = 0;
+			} else {
+				boot_deps_map_sect(spdid, dest_daddr);
+			}
 			prev_map = dest_daddr;
 			dest_daddr += PAGE_SIZE;
 			left -= PAGE_SIZE;
 		}
 	}
-
+	
 	return 0;
 }
 
@@ -108,8 +110,79 @@ boot_spd_end(struct cobj_header *h)
 	return sect->vaddr + round_up_to_page(sect->bytes);
 }
 
+struct cobj_symb *
+cobj_find_symb(const char *symbol_name, int cobj) {
+	unsigned int j = 0;
+	for (j = 0; j < hs[cobj]->nsymb; j++) {
+		struct cobj_symb *symb;
+
+		symb = cobj_symb_get(hs[cobj], j);
+		assert(symb);
+
+		if (!strcmp(symb->name, symbol_name) && symb->type == COBJ_SYMB_EXPORTED) {
+			// printc("found: %s, spdid: %d, addr: %x \n", symb->name, cobj, symb->vaddr);
+			return symb;
+		}
+				
+	}		
+	return NULL;
+}
+
+vaddr_t
+boot_find_invsymb_addr(struct cobj_symb *undefsymb) {
+	
+	unsigned int i;
+	vaddr_t symb_addr;	
+	struct cobj_symb *symb;
+	/* HACK is this the best way to do this? */
+	char jumper_symb[25];
+	strcpy(jumper_symb, undefsymb->name);
+	strcat(jumper_symb, "_inv");
+
+	for (i = 0; hs[i] != NULL; i++) {
+		symb = cobj_find_symb(jumper_symb, i);
+		if (symb) break;	
+	}
+
+	assert(symb);
+	symb_addr = symb->vaddr;
+
+	return symb_addr;
+}
+
 int
-boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info)
+boot_link_symbs(struct cobj_header *h, spdid_t spdid)
+{
+	int i = 0;
+	struct cobj_symb *ipc_client_symb;
+	struct cobj_symb *symb;
+	vaddr_t symb_addr;
+
+	for (i = 0; i < (int)h->nsymb; i++) {
+
+		symb = cobj_symb_get(h, i);
+		assert(symb);
+	
+		if (COBJ_SYMB_UNDEF == symb->type) {
+			ipc_client_symb = cobj_find_symb("SS_ipc_client_marshal_args", spdid-1);
+			symb_addr = ipc_client_symb->vaddr;
+		
+			/* create the user cap for the undef symb */
+			struct usr_inv_cap cap = (struct usr_inv_cap) {
+				.invocation_fn = symb_addr
+			};	
+			
+			new_comp_cap_info[spdid].ST_user_caps[symb->user_caps_offset] = cap;	
+			new_comp_cap_info[spdid].ST_user_caps[symb->user_caps_offset].service_entry_inst = boot_find_invsymb_addr(symb);
+			break;
+		}
+	}
+
+	return 0;
+}
+
+int
+boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info, vaddr_t *user_caps)
 {
 	int i = 0;
 
@@ -118,14 +191,20 @@ boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info)
 
 		symb = cobj_symb_get(h, i);
 		assert(symb);
-		if (COBJ_SYMB_UNDEF == symb->type) break;
-
+	
 		switch (symb->type) {
 		case COBJ_SYMB_COMP_INFO:
 			*comp_info = symb->vaddr;
 			break;
+		case COBJ_SYMB_EXPORTED:
+			//printc("COBJ_SYMB_EXPORTED: %s\n", symb->name);
+			break;	
+		case COBJ_SYMB_COMP_PLT:
+			//printc("user caps spdid: %d: vaddr: %x\n", spdid, (vaddr_t)*user_caps);
+			*user_caps = symb->vaddr;
+			break;	
 		default:
-			printc("boot: Unknown symbol type %d\n", symb->type);
+			//printc("boot: Unknown symbol type %d\n", symb->type);
 			break;
 		}
 	}
@@ -166,7 +245,7 @@ boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val, char 
 }
 
 static int
-boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, int first_time)
+boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
 	unsigned int i;
 	/* Where are we in the actual component's memory in the booter? */
@@ -177,12 +256,14 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 
 	start_addr = (char *)(new_comp_cap_info[spdid].vaddr_mapped_in_booter);
 	init_daddr = cobj_sect_get(h, 0)->vaddr;
+
+	int total = 0;
 	for (i = 0; i < h->nsect; i++) {
 		struct cobj_sect *sect;
 		vaddr_t           dest_daddr;
 		char *            lsrc;
 		int               left;
-
+		
 		sect = cobj_sect_get(h, i);
 		/* virtual address in the destination address space */
 		dest_daddr = sect->vaddr;
@@ -190,11 +271,20 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 		lsrc = cobj_sect_contents(h, i);
 		/* how much is left to copy? */
 		left = cobj_sect_size(h, i);
+		total += left;
 
 		/* Initialize memory. */
-		if (!(sect->flags & COBJ_SECT_KMEM) && (first_time || !(sect->flags & COBJ_SECT_INITONCE))) {
+		if (!(sect->flags & COBJ_SECT_KMEM)) {
 			if (sect->flags & COBJ_SECT_ZEROS) {
-				memset(start_addr + (dest_daddr - init_daddr), 0, left);
+				/* HACK FOR PING COMPONENT
+				 * For some reason ping memsets one more page than it is allowed to.
+				 */
+				if (left > PAGE_SIZE*257) {
+					memset(start_addr + (dest_daddr - init_daddr), 0, PAGE_SIZE* 257);
+				} else {
+					memset(start_addr + (dest_daddr - init_daddr), 0, left);
+				}			
+	
 			} else {
 				memcpy(start_addr + (dest_daddr - init_daddr), lsrc, left);
 			}
@@ -207,6 +297,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 			ci = (struct cos_component_information *)(start_addr + (comp_info - init_daddr));
 			new_comp_cap_info[h->id].upcall_entry = ci->cos_upcall_entry;
 		}
+	
 	}
 
 	return 0;
@@ -216,7 +307,7 @@ int
 boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, pgtblcap_t pt)
 {
 	boot_comp_map_memory(h, spdid, pt);
-	boot_comp_map_populate(h, spdid, comp_info, 1);
+	boot_comp_map_populate(h, spdid, comp_info);
 	return 0;
 }
 
@@ -237,6 +328,7 @@ boot_create_cap_system(void)
 	for (i = 0; hs[i] != NULL; i++) {
 		struct cobj_header *h;
 		struct cobj_sect *  sect;
+		//struct user_cap *   user_caps;
 		captblcap_t         ct;
 		pgtblcap_t          pt;
 		spdid_t             spdid;
@@ -244,19 +336,18 @@ boot_create_cap_system(void)
 
 		h     = hs[i];
 		spdid = h->id;
-		printc("Initializing Comp: %s\n", h->name);
 
 		sect                                = cobj_sect_get(h, 0);
 		new_comp_cap_info[spdid].addr_start = sect->vaddr;
-
 		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);
-
-		if (boot_spd_symbs(h, spdid, &ci)) BUG();
+		
+		if (boot_spd_symbs(h, spdid, &ci, &new_comp_cap_info[spdid].vaddr_user_caps)) BUG();
+		if (boot_link_symbs(h, spdid)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
 		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo);
 
-		printc("Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
+		printc("\nComp %d (%s) created @ %x!\n\n", h->id, h->name, sect->vaddr);
 	}
 
 	return;
@@ -292,9 +383,11 @@ cos_init(void)
 	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
 	boot_init_sched();
 
+	printc("num cobjs: %d\n", num_cobj);
 	boot_find_cobjs(h, num_cobj);
 	boot_bootcomp_init();
 	boot_create_cap_system();
 
 	boot_done();
+	while(1);
 }

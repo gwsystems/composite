@@ -12,9 +12,12 @@ struct cobj_header *hs[MAX_NUM_SPDS + 1];
 /* The booter uses this to keep track of each comp */
 struct comp_cap_info {
 	struct cos_compinfo *compinfo;
+	/* TODO: figure out a better way to do this. Need one ST_user_cap per linked symb. Currently just hard coding 5. */
+	struct usr_inv_cap   ST_user_caps[5];
 	vaddr_t              addr_start;
 	vaddr_t              vaddr_mapped_in_booter;
 	vaddr_t              upcall_entry;
+	vaddr_t              vaddr_user_caps;
 } new_comp_cap_info[MAX_NUM_SPDS + 1];
 
 struct cos_compinfo boot_info;
@@ -26,7 +29,7 @@ volatile size_t          sched_cur;
 /* Macro for sinv back to booter from new component */
 enum
 {
-	BOOT_SINV_CAP = round_up_to_pow2(BOOT_CAPTBL_FREE + CAP32B_IDSZ, CAPMAX_ENTRY_SZ)
+	BOOT_SINV_CAP = round_up_to_pow2(BOOT_CAPTBL_FREE + CAP32B_IDSZ, CAPMAX_ENTRY_SZ),
 };
 
 static vaddr_t
@@ -34,7 +37,7 @@ boot_deps_map_sect(spdid_t spdid, vaddr_t dest_daddr)
 {
 	vaddr_t addr = (vaddr_t)cos_page_bump_alloc(&boot_info);
 	assert(addr);
-
+	
 	if (cos_mem_alias_at(new_comp_cap_info[spdid].compinfo, dest_daddr, &boot_info, addr)) BUG();
 
 	return addr;
@@ -74,6 +77,34 @@ boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 }
 
 static void
+boot_newcomp_sinv_alloc(spdid_t spdid, spdid_t intr_spdid)
+{
+		sinvcap_t   sinv;
+		struct cos_compinfo * newcomp_compinfo = new_comp_cap_info[spdid].compinfo; 
+		struct cos_compinfo * interface_compinfo = new_comp_cap_info[intr_spdid].compinfo;
+
+		/* 
+		 * Loop through all undefined symbs 
+		 * TODO: currently hardcoded to 5, fix this. See new_comp_cap_info struct
+		 */	
+		int i = 0;
+		for (i = 0 ; i < 5 ; i++ ) {
+			if ( new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst > 0) {
+				/* Create sinv capability from ping to pong */
+				sinv = cos_sinv_alloc(newcomp_compinfo, interface_compinfo->comp_cap, (vaddr_t)new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst);
+				assert(sinv > 0);
+				
+				new_comp_cap_info[spdid].ST_user_caps[i].cap_no = sinv;
+				
+				/* Now that we have the sinv allocated, we can copy in the symb user cap to correct index */
+				memcpy((void *) (new_comp_cap_info[spdid].vaddr_mapped_in_booter + (new_comp_cap_info[spdid].vaddr_user_caps - new_comp_cap_info[spdid].addr_start) + sizeof(struct usr_inv_cap)) , &new_comp_cap_info[spdid].ST_user_caps[i], sizeof(struct usr_inv_cap));
+			}
+		}
+	
+
+}
+
+static void
 boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 {
 	compcap_t   cc;
@@ -94,9 +125,14 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	/* Copy sinv into new comp's capability table at a known location (BOOT_SINV_CAP) */
 	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_SINV_CAP, &boot_info, sinv);
 
+	/* HACK: Currently assume comp 0 is the only interface */
+	if (spdid > 1) {
+		boot_newcomp_sinv_alloc(spdid, 1);
+	}	
+
 	main_thd = cos_initthd_alloc(&boot_info, cc);
 	assert(main_thd);
-
+	
 	/* Add created component to "scheduling" array */
 	while (schedule[i] != 0) i++;
 	schedule[i] = main_thd;
@@ -114,7 +150,7 @@ boot_bootcomp_init(void)
 static void
 boot_done(void)
 {
-	printc("Booter: done creating system.\n");
+	printc("Booter: done creating system.\n\n");
 	cos_thd_switch(schedule[sched_cur]);
 }
 
@@ -125,9 +161,9 @@ boot_thd_done(void)
 	sched_cur++;
 
 	if (schedule[sched_cur] != 0) {
-		printc("Initializing comp: %d\n", (int)sched_cur);
 		cos_thd_switch(schedule[sched_cur]);
 	} else {
 		printc("Done Initializing\n");
 	}
 }
+
