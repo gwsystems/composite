@@ -23,29 +23,34 @@ pub enum VoteStatus<'a> {
 //TODO - Fix public methods - i think only the channel will be exposed.
 
 pub struct Replica {
-	pub state:  ReplicaState,
-	thd:        Option<Thread>,
-	buf:        Vec<char>, /* this may be completely unnecessary if we just pub to channel */
-	amnt:       i32,
-	ret_val:    Option<i32>,
-	pub rep_id: u16,
+	pub state:   ReplicaState,
+	thd:         Option<Thread>,
+	//pub channel: Option<&'a Channel>,
+	ret_val:     Option<i32>,
+	pub rep_id:  u16,
 }
 
 pub struct ModComp {
 	pub replicas:     Vec<Arc<Lock<Replica>>>,
+	pub comp_id: usize,
 	pub num_replicas: usize,
 }
 
-pub struct Channel<'a>  {
-	reader: &'a mut ModComp,
-	writer: &'a mut ModComp,
+pub struct CompStore {
+	pub components:Vec<ModComp>,
+}
+
+pub struct Channel  {
+	reader_id: usize,
+	writer_id: usize,
 	channel_data: Arc<Lock<Vec<ChannelData>>>,
 }
 
 struct ChannelData {
 	rep_id: u16,
-	message: Box<u8>, /* write messages into a vec then call into_boxed_slice() */
+	message: Box<[u8]>,
 }
+
 
 //manually implement as lib_composite::Thread doesn't impl debug
 impl fmt::Debug for Replica {
@@ -66,8 +71,8 @@ impl<'a> fmt::Debug for VoteStatus<'a> {
     }
 }
 
-impl<'a> fmt::Debug for Channel<'a> {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {write!(f, "Reader: {:?} | Writer: {:?}", self.reader, self.writer)}
+impl fmt::Debug for Channel {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {write!(f, "Reader_id: {} | Writer_id: {}", self.reader_id, self.writer_id)}
 }
 
 //manually implement as lib_composite::Lock doenst impl debug
@@ -83,8 +88,6 @@ impl Replica  {
 		Replica {
 			state : ReplicaState::Init,
 			thd: None,
-			buf: Vec::new(),
-			amnt : 0,
 			ret_val : None,
 			rep_id,
 		}
@@ -134,11 +137,20 @@ impl Replica  {
 
 }
 
+impl CompStore {
+	pub fn new() -> CompStore {
+		CompStore {
+			components: Vec::new(),
+		}
+	}
+}
+
 impl ModComp {
-	pub fn new(num_replicas: usize,sl: Sl, thd_entry: fn(sl:Sl, rep: Arc<Lock<Replica>>)) -> ModComp {
+	pub fn new(num_replicas: usize, comp_store:&mut CompStore, sl: Sl, thd_entry: fn(sl:Sl, rep: Arc<Lock<Replica>>)) -> usize {
 		//create new Component
 		let mut comp = ModComp {
 			replicas: Vec::with_capacity(num_replicas),
+			comp_id: (comp_store.components.len()),
 			num_replicas,
 		};
 
@@ -152,7 +164,9 @@ impl ModComp {
 			rep.lock().deref_mut().set_thd(thd);
 			comp.replicas.push(Arc::clone(&rep));
 		}
-		comp
+
+		comp_store.components.push(comp);
+		return comp_store.components.len() - 1;
 	}
 
 	pub fn wake_all(&mut self) {
@@ -209,20 +223,18 @@ impl ModComp {
 		return self.replicas.get(0).expect("Found no faulted replica");
 	}
 
-	fn replica_communicate(&mut self, sl:Sl, rep_id:usize, ch:Channel, action:ReplicaState, amnt:i32) -> Option<i32> {
+	fn replica_communicate(&mut self, sl:Sl, rep_id:usize, ch:Channel,comp_store:&CompStore, action:ReplicaState) -> Option<i32> {
 		assert!(rep_id < self.num_replicas);
-		if ch.reader as *const _ == self as *const _ && action != ReplicaState::Read ||
-		   ch.writer as *const _ == self as *const _ && action != ReplicaState::Written {
+		if ch.reader_id == self.comp_id && action != ReplicaState::Read ||
+		   ch.writer_id == self.comp_id && action != ReplicaState::Written {
 		   	return Some(-1); //TODO more descriptive return valeus
 		}
 
 
 		self.replicas[rep_id].lock().deref_mut().state_transition(action);
-		self.replicas[rep_id].lock().deref_mut().amnt = amnt;
-
 
 		loop {
-			match ch.call_vote() { //FIXME cange to channel vote.
+			match ch.call_vote(comp_store) { //FIXME cange to channel vote.
 				VoteStatus::Fail(faulted) => {
 					faulted.lock().deref_mut().recover();
 					break
@@ -243,21 +255,45 @@ impl ModComp {
 
 }
 
-impl<'a> Channel<'a> {
-	pub fn new(reader:&'a mut ModComp, writer:&'a mut ModComp, sl:Sl) -> Channel<'a> {
+impl Channel {
+	pub fn new(reader_id:usize, writer_id:usize, sl:Sl) -> Channel {
 		Channel {
-			reader,
-			writer,
+			reader_id,
+			writer_id,
 			channel_data: Arc::new(Lock::new(sl,Vec::new())),
+		}
+
+
+	}
+
+	pub fn call_vote<'a>(&self,comp_store:&'a CompStore) -> VoteStatus<'a> {
+		let ref comps = &comp_store.components;
+		let ref reader = &comps[self.reader_id];
+		let reader_vote = reader.collect_vote();
+		match reader_vote {
+			VoteStatus::Success => {
+				let ref writer = &comps[self.writer_id];
+				return writer.collect_vote();
+			},
+			_ => return reader_vote,
 		}
 	}
 
-	pub fn call_vote(&self) -> VoteStatus {
-		let reader_vote = self.reader.collect_vote();
-		match reader_vote {
-			VoteStatus::Success => return self.writer.collect_vote(),
-			_  				    => return reader_vote,
-		}
+	pub fn send(&mut self, msg:Vec<u8>, rep_id:u16) {
+		self.channel_data.lock().deref_mut().push(
+			ChannelData {
+				rep_id,
+				message: msg.into_boxed_slice(),
+			}
+		)
+	}
+
+	pub fn receive(&mut self) -> Option<ChannelData> {
+		self.channel_data.lock().deref_mut().pop()
+	}
+
+	pub fn has_data(&self) -> bool {
+		return !self.channel_data.lock().deref().is_empty()
 	}
 
 	fn transfer(&mut self) {
@@ -265,8 +301,8 @@ impl<'a> Channel<'a> {
 		//Readers go in get messages from channel data
 	}
 
-	pub fn wake_all(&mut self) {
-		self.reader.wake_all();
-		self.writer.wake_all();
+	pub fn wake_all(&mut self,comp_store:& mut CompStore) {
+		comp_store.components[self.reader_id].wake_all();
+		comp_store.components[self.writer_id].wake_all();
 	}
 }
