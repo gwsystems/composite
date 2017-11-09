@@ -25,7 +25,7 @@ pub enum VoteStatus<'a> {
 pub struct Replica {
 	pub state:   ReplicaState,
 	thd:         Option<Thread>,
-	//pub channel: Option<&'a Channel>,
+	pub channel:  Option<Arc<Lock<Channel>>>,
 	ret_val:     Option<i32>,
 	pub rep_id:  u16,
 }
@@ -41,14 +41,15 @@ pub struct CompStore {
 }
 
 pub struct Channel  {
-	reader_id: usize,
-	writer_id: usize,
+	reader_id:  usize,
+	writer_id:  usize,
 	channel_data: Arc<Lock<Vec<ChannelData>>>,
 }
 
-struct ChannelData {
-	rep_id: u16,
-	message: Box<[u8]>,
+
+pub struct ChannelData {
+	pub rep_id: u16,
+	pub message: Box<[u8]>,
 }
 
 
@@ -88,6 +89,7 @@ impl Replica  {
 		Replica {
 			state : ReplicaState::Init,
 			thd: None,
+			channel: None,
 			ret_val : None,
 			rep_id,
 		}
@@ -256,14 +258,26 @@ impl ModComp {
 }
 
 impl Channel {
-	pub fn new(reader_id:usize, writer_id:usize, sl:Sl) -> Channel {
-		Channel {
-			reader_id,
-			writer_id,
-			channel_data: Arc::new(Lock::new(sl,Vec::new())),
+	pub fn new(reader_id:usize, writer_id:usize, compStore:&mut CompStore, sl:Sl) -> Arc<Lock<Channel>> {
+		let chan = Arc::new(Lock::new(sl,
+			Channel {
+				reader_id,
+				writer_id,
+				channel_data: Arc::new(Lock::new(sl,Vec::new())),
+			}
+		));
+
+		let ref mut components = compStore.components;
+
+		for i in 0..components[reader_id].num_replicas {
+			components[reader_id].replicas[i].lock().deref_mut().channel = Some(Arc::clone(&chan));
 		}
 
+		for i in 0..components[writer_id].num_replicas {
+			components[writer_id].replicas[i].lock().deref_mut().channel = Some(Arc::clone(&chan));
+		}
 
+		return Arc::clone(&chan);
 	}
 
 	pub fn call_vote<'a>(&self,comp_store:&'a CompStore) -> VoteStatus<'a> {

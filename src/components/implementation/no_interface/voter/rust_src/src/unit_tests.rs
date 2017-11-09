@@ -129,12 +129,61 @@ pub fn test_channel_create(sl:Sl,num_reps:usize) {
 	let mut compStore = voter_lib::CompStore::new();
 	let mut reader_id = voter_lib::ModComp::new(num_reps,&mut compStore,sl,thd_block);
 	let mut writer_id = voter_lib::ModComp::new(num_reps,&mut compStore,sl,thd_block);
-	let mut channel = voter_lib::Channel::new(reader_id,writer_id,sl);
-	println!("Channle Created - {:?}", channel);
+	let mut channel = voter_lib::Channel::new(reader_id,writer_id,&mut compStore,sl);
+	println!("Channle Created - {:?}", channel.lock().deref());
 	sl.block_for(Duration::new(2,0));
 	println!("channel wake");
-	channel.wake_all(&mut compStore);
-	println!("Channel Calling Vote: Expected: Inconclusive : {:?},", channel.call_vote(&compStore));
+	channel.lock().deref_mut().wake_all(&mut compStore);
+	println!("Channel Calling Vote: Expected: Inconclusive : {:?},", channel.lock().deref_mut().call_vote(&compStore));
 }
 
 
+// /* -------------------- Test Channel snd rcv ------------------------ */
+pub fn test_snd_rcv(sl:Sl,num_reps:usize) {
+	test_print("Begin snd rcv test");
+	let mut compStore = voter_lib::CompStore::new();
+
+	let mut channel = voter_lib::Channel::new(
+		voter_lib::ModComp::new(num_reps,&mut compStore,sl ,thd_send),
+		voter_lib::ModComp::new(num_reps,&mut compStore,sl ,thd_rcv),
+		&mut compStore,
+		sl
+	);
+}
+
+fn thd_send(sl:Sl, rep:  Arc<Lock<Replica>>) {
+	println!("Running {:?}",rep.lock().deref());
+	while rep.lock().deref().channel.is_none() {
+		sl.block_for(Duration::new(1,0));
+	}
+
+	let msg = String::from("Hello").into_bytes();
+	let mut rep = rep.lock();
+	let rep_id = rep.deref().rep_id;
+	let ref mut chan = rep.deref_mut().channel.as_mut().expect("Replica has no channel to send");
+	println!("Rep {:?} Send msg {:?}", rep_id,msg);
+	chan.lock().deref_mut().send(msg,rep_id);
+}
+
+fn thd_rcv(sl:Sl, rep:  Arc<Lock<Replica>>) {
+	println!("Running {:?}",rep.lock().deref());
+	while rep.lock().deref().channel.is_none() {
+		sl.block_for(Duration::new(1,0));
+	}
+	let mut rep = rep.lock();
+	let ref mut chan = rep.deref_mut().channel.as_mut().expect("Replica has no hannel to rcv");
+	while !chan.lock().deref().has_data() {
+		sl.block_for(Duration::new(1,0));
+	}
+	let msg = chan.lock().deref_mut().receive().expect("no msg");
+	println!("GOT MSG {:?} FROM {:?}",msg.message, msg.rep_id);
+
+}
+// /* -------------- Test lib Composite chagnes ------------------- */
+
+// pub fn test_lib_composite(sl:Sl) {
+// 	let mut thd = sl.spawn(move |sl:Sl| {println!("thd started")});
+// 	thd.set_param(ThreadParameter::Priority(5));
+// 	println!("Thread id {}", thd.thdid());
+// 	println!("Current Thread {}", sl.current_thread().thdid());
+// }
