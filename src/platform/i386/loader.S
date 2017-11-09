@@ -106,7 +106,7 @@ smppatchstart:
 .globl smploader
 smploader:
 	cli
-
+	jmp .
 	movw    %cs, %ax
 	movw    %ax, %ds
 	lgdtl   RELOCATE_ADDR_CS(smpgdtdesc) /* using cs as ds: idea taken from Quest */
@@ -122,6 +122,7 @@ smploader:
 .align 0x10
 .code32
 smpstart32:
+
 	movw    $(SEL_KDSEG), %ax
 	movw    %ax, %ds
 	movw    %ax, %es

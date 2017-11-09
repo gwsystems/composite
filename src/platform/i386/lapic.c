@@ -116,7 +116,7 @@ u32_t               lapic_timer_calib_init   = 0;
 static void
 lapic_write_reg(u32_t off, u32_t val)
 {
-	*(u32_t *)(lapic + off) = val;
+	*(u32_t volatile *)(lapic + off) = val;
 }
 
 static void
@@ -128,7 +128,7 @@ lapic_ack(void)
 static u32_t
 lapic_read_reg(u32_t off)
 {
-	return *(u32_t *)(lapic + off);
+	return *(u32_t volatile *)(lapic + off);
 }
 
 static int
@@ -412,10 +412,10 @@ static int
 lapic_ipi_send(u32_t dest, u32_t vect_flags)
 {
 	lapic_write_reg(LAPIC_ICR + 0x10, dest << 24);
-	lapic_write_reg(LAPIC_ICR, vect_flags);
+	while (lapic_read_reg(LAPIC_ICR + 0x10) != dest << 24);
 
-	/* wait until it is successfully sent */
-	while (lapic_read_reg(LAPIC_ICR) & LAPIC_ICR_STATUS) ;
+	lapic_write_reg(LAPIC_ICR, vect_flags);
+	while (lapic_read_reg(LAPIC_ICR) != vect_flags);
 
 	return 0;
 }
@@ -462,6 +462,7 @@ smp_bootall(void)
 		lapic_write_reg(LAPIC_ESR, 0);
 		lapic_read_reg(LAPIC_ESR);
 
+		printk("starting %d AP\n", i);
 		/* Application Processor (AP) startup sequence: */
 
 		/* ...make sure that we pass this core's stack */
@@ -473,6 +474,7 @@ smp_bootall(void)
 
 		/* Now the IPI coordination process to boot the AP: first send init ipi... */
 		lapic_ipi_send(apicids[i], LAPIC_ICR_LEVEL | LAPIC_ICR_ASSERT | LAPIC_ICR_INIT);
+		delay_us(200);
 		/* ...deassert it... */
 		lapic_ipi_send(apicids[i], LAPIC_ICR_LEVEL | LAPIC_ICR_INIT);
 		/* ...wait for 10 ms... */
@@ -484,6 +486,7 @@ smp_bootall(void)
 			/* ...wait for 20 us... */
 			delay_us(200);
 		}
+		while(apicids[i]);
 	}
 	ret = lapic_read_reg(LAPIC_ESR);
 	if (ret) printk("SMP Bootup: LAPIC error status register is %x\n", ret);
