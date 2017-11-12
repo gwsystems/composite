@@ -111,7 +111,8 @@ boot_spd_end(struct cobj_header *h)
 }
 
 struct cobj_symb *
-cobj_find_symb(const char *symbol_name, int cobj) {
+cobj_find_symb(const char *symbol_name, int cobj) 
+{
 	unsigned int j = 0;
 	for (j = 0; j < hs[cobj]->nsymb; j++) {
 		struct cobj_symb *symb;
@@ -120,24 +121,20 @@ cobj_find_symb(const char *symbol_name, int cobj) {
 		assert(symb);
 
 		if (!strcmp(symb->name, symbol_name) && symb->type == COBJ_SYMB_EXPORTED) {
-			// printc("found: %s, spdid: %d, addr: %x \n", symb->name, cobj, symb->vaddr);
 			return symb;
 		}
-				
 	}		
 	return NULL;
 }
 
 vaddr_t
-boot_find_invsymb_addr(struct cobj_symb *undefsymb) {
+boot_find_inv_symb_addr(struct cobj_symb *undefsymb) {
 	
 	unsigned int i;
 	vaddr_t symb_addr;	
 	struct cobj_symb *symb;
-	/* HACK is this the best way to do this? */
 	char jumper_symb[25];
-	strcpy(jumper_symb, undefsymb->name);
-	strcat(jumper_symb, "_inv");
+	sprintf(jumper_symb, "%s_inv", undefsymb->name);
 
 	for (i = 0; hs[i] != NULL; i++) {
 		symb = cobj_find_symb(jumper_symb, i);
@@ -154,7 +151,6 @@ int
 boot_link_symbs(struct cobj_header *h, spdid_t spdid)
 {
 	int i = 0;
-	struct cobj_symb *ipc_client_symb;
 	struct cobj_symb *symb;
 	vaddr_t symb_addr;
 
@@ -164,16 +160,18 @@ boot_link_symbs(struct cobj_header *h, spdid_t spdid)
 		assert(symb);
 	
 		if (COBJ_SYMB_UNDEF == symb->type) {
+			struct cobj_symb *ipc_client_symb;
+			struct usr_inv_cap cap;	
 			ipc_client_symb = cobj_find_symb("SS_ipc_client_marshal_args", spdid-1);
 			symb_addr = ipc_client_symb->vaddr;
 		
-			/* create the user cap for the undef symb */
-			struct usr_inv_cap cap = (struct usr_inv_cap) {
+			/* Create the user cap for the undef symb */
+			cap = (struct usr_inv_cap) {
 				.invocation_fn = symb_addr
 			};	
 			
 			new_comp_cap_info[spdid].ST_user_caps[symb->user_caps_offset] = cap;	
-			new_comp_cap_info[spdid].ST_user_caps[symb->user_caps_offset].service_entry_inst = boot_find_invsymb_addr(symb);
+			new_comp_cap_info[spdid].ST_user_caps[symb->user_caps_offset].service_entry_inst = boot_find_inv_symb_addr(symb);
 			break;
 		}
 	}
@@ -197,14 +195,11 @@ boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info, vaddr_t
 			*comp_info = symb->vaddr;
 			break;
 		case COBJ_SYMB_EXPORTED:
-			//printc("COBJ_SYMB_EXPORTED: %s\n", symb->name);
 			break;	
 		case COBJ_SYMB_COMP_PLT:
-			//printc("user caps spdid: %d: vaddr: %x\n", spdid, (vaddr_t)*user_caps);
 			*user_caps = symb->vaddr;
 			break;	
 		default:
-			//printc("boot: Unknown symbol type %d\n", symb->type);
 			break;
 		}
 	}
@@ -263,7 +258,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		vaddr_t           dest_daddr;
 		char *            lsrc;
 		int               left;
-		
+
 		sect = cobj_sect_get(h, i);
 		/* virtual address in the destination address space */
 		dest_daddr = sect->vaddr;
@@ -276,15 +271,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		/* Initialize memory. */
 		if (!(sect->flags & COBJ_SECT_KMEM)) {
 			if (sect->flags & COBJ_SECT_ZEROS) {
-				/* HACK FOR PING COMPONENT
-				 * For some reason ping memsets one more page than it is allowed to.
-				 */
-				if (left > PAGE_SIZE*257) {
-					memset(start_addr + (dest_daddr - init_daddr), 0, PAGE_SIZE* 257);
-				} else {
-					memset(start_addr + (dest_daddr - init_daddr), 0, left);
-				}			
-	
+				memset(start_addr + (dest_daddr - init_daddr), 0, left);
 			} else {
 				memcpy(start_addr + (dest_daddr - init_daddr), lsrc, left);
 			}
@@ -328,7 +315,6 @@ boot_create_cap_system(void)
 	for (i = 0; hs[i] != NULL; i++) {
 		struct cobj_header *h;
 		struct cobj_sect *  sect;
-		//struct user_cap *   user_caps;
 		captblcap_t         ct;
 		pgtblcap_t          pt;
 		spdid_t             spdid;
@@ -389,5 +375,4 @@ cos_init(void)
 	boot_create_cap_system();
 
 	boot_done();
-	while(1);
 }

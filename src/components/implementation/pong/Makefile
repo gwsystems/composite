@@ -1,3 +1,3 @@
 INTERFACES=pong
 
-include ../../Makefile.subsubdir
+include ../Makefile.subdir

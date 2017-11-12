@@ -4,6 +4,8 @@
 #include <cos_types.h>
 #include <llprint.h>
 
+#define UNDEF_SYMBS 64
+
 /* Assembly function for sinv from new component */
 extern void *__inv_test_entry(int a, int b, int c);
 
@@ -12,12 +14,11 @@ struct cobj_header *hs[MAX_NUM_SPDS + 1];
 /* The booter uses this to keep track of each comp */
 struct comp_cap_info {
 	struct cos_compinfo *compinfo;
-	/* TODO: figure out a better way to do this. Need one ST_user_cap per linked symb. Currently just hard coding 5. */
-	struct usr_inv_cap   ST_user_caps[5];
+	struct usr_inv_cap   ST_user_caps[UNDEF_SYMBS];
+	vaddr_t              vaddr_user_caps; // vaddr of user caps table in comp
 	vaddr_t              addr_start;
 	vaddr_t              vaddr_mapped_in_booter;
 	vaddr_t              upcall_entry;
-	vaddr_t              vaddr_user_caps;
 } new_comp_cap_info[MAX_NUM_SPDS + 1];
 
 struct cos_compinfo boot_info;
@@ -26,18 +27,12 @@ struct cos_compinfo new_compinfo[MAX_NUM_SPDS + 1];
 thdcap_t                 schedule[MAX_NUM_SPDS + 1];
 volatile size_t          sched_cur;
 
-/* Macro for sinv back to booter from new component */
-enum
-{
-	BOOT_SINV_CAP = round_up_to_pow2(BOOT_CAPTBL_FREE + CAP32B_IDSZ, CAPMAX_ENTRY_SZ),
-};
-
 static vaddr_t
 boot_deps_map_sect(spdid_t spdid, vaddr_t dest_daddr)
 {
 	vaddr_t addr = (vaddr_t)cos_page_bump_alloc(&boot_info);
 	assert(addr);
-	
+
 	if (cos_mem_alias_at(new_comp_cap_info[spdid].compinfo, dest_daddr, &boot_info, addr)) BUG();
 
 	return addr;
@@ -79,29 +74,28 @@ boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 static void
 boot_newcomp_sinv_alloc(spdid_t spdid, spdid_t intr_spdid)
 {
-		sinvcap_t   sinv;
-		struct cos_compinfo * newcomp_compinfo = new_comp_cap_info[spdid].compinfo; 
-		struct cos_compinfo * interface_compinfo = new_comp_cap_info[intr_spdid].compinfo;
+	sinvcap_t sinv;
+	int i = 0;
+	struct cos_compinfo *newcomp_compinfo = new_comp_cap_info[spdid].compinfo; 
+	struct cos_compinfo *interface_compinfo = new_comp_cap_info[intr_spdid].compinfo;
 
-		/* 
-		 * Loop through all undefined symbs 
-		 * TODO: currently hardcoded to 5, fix this. See new_comp_cap_info struct
-		 */	
-		int i = 0;
-		for (i = 0 ; i < 5 ; i++ ) {
-			if ( new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst > 0) {
-				/* Create sinv capability from ping to pong */
-				sinv = cos_sinv_alloc(newcomp_compinfo, interface_compinfo->comp_cap, (vaddr_t)new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst);
-				assert(sinv > 0);
-				
-				new_comp_cap_info[spdid].ST_user_caps[i].cap_no = sinv;
-				
-				/* Now that we have the sinv allocated, we can copy in the symb user cap to correct index */
-				memcpy((void *) (new_comp_cap_info[spdid].vaddr_mapped_in_booter + (new_comp_cap_info[spdid].vaddr_user_caps - new_comp_cap_info[spdid].addr_start) + sizeof(struct usr_inv_cap)) , &new_comp_cap_info[spdid].ST_user_caps[i], sizeof(struct usr_inv_cap));
-			}
+	/* 
+	 * Loop through all undefined symbs 
+	 */	
+	for (i = 0; i < UNDEF_SYMBS; i++) {
+		if ( new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst > 0) {
+			void *user_cap_vaddr = (void *) (new_comp_cap_info[spdid].vaddr_mapped_in_booter + (new_comp_cap_info[spdid].vaddr_user_caps - new_comp_cap_info[spdid].addr_start) + (sizeof(struct usr_inv_cap) * i));
+			
+			/* Create sinv capability from ping to pong */
+			sinv = cos_sinv_alloc(newcomp_compinfo, interface_compinfo->comp_cap, (vaddr_t)new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst);
+			assert(sinv > 0);
+			
+			new_comp_cap_info[spdid].ST_user_caps[i].cap_no = sinv;
+			
+			/* Now that we have the sinv allocated, we can copy in the symb user cap to correct index */
+			memcpy(user_cap_vaddr, &new_comp_cap_info[spdid].ST_user_caps[i], sizeof(struct usr_inv_cap));
 		}
-	
-
+	}
 }
 
 static void
@@ -112,7 +106,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	pgtblcap_t  pt = new_comp_cap_info[spdid].compinfo->pgtbl_cap;
 	sinvcap_t   sinv;
 	thdcap_t    main_thd;
-	size_t         i = 0;
+	int         i = 0;
 
 	cc = cos_comp_alloc(&boot_info, ct, pt, (vaddr_t)new_comp_cap_info[spdid].upcall_entry);
 	assert(cc);
@@ -122,10 +116,9 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	sinv = cos_sinv_alloc(&boot_info, boot_info.comp_cap, (vaddr_t)__inv_test_entry);
 	assert(sinv > 0);
 
-	/* Copy sinv into new comp's capability table at a known location (BOOT_SINV_CAP) */
-	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_SINV_CAP, &boot_info, sinv);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SINV_CAP, &boot_info, sinv);
 
-	/* HACK: Currently assume comp 0 is the only interface */
+	/* FIXME: Currently assumes comp 0 (spdid 1) is the only interface */
 	if (spdid > 1) {
 		boot_newcomp_sinv_alloc(spdid, 1);
 	}	
