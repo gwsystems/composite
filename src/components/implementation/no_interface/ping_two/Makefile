@@ -1,0 +1,10 @@
+C_OBJS=ping_two.o
+ASM_OBJS=
+COMPONENT=pingp_two.o
+INTERFACES=
+DEPENDENCIES=pong
+IF_LIB=
+ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api
+
+include ../../Makefile.subsubdir
+MANDITORY_LIB=simple_stklib.o
