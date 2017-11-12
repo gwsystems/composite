@@ -10,3 +10,9 @@
 .text
 
 cos_asm_server_stub(call)
+cos_asm_server_stub(call_two)
+cos_asm_server_stub(call_three)
+cos_asm_server_stub(call_four)
+
+cos_asm_server_stub(call_arg)
+cos_asm_server_stub(call_args)
