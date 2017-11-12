@@ -85,7 +85,7 @@ boot_newcomp_sinv_alloc(spdid_t spdid, spdid_t intr_spdid)
 	for (i = 0; i < UNDEF_SYMBS; i++) {
 		if ( new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst > 0) {
 			void *user_cap_vaddr = (void *) (new_comp_cap_info[spdid].vaddr_mapped_in_booter + (new_comp_cap_info[spdid].vaddr_user_caps - new_comp_cap_info[spdid].addr_start) + (sizeof(struct usr_inv_cap) * i));
-			printc("allocing: %d \n", i);	
+			
 			/* Create sinv capability from ping to pong */
 			sinv = cos_sinv_alloc(newcomp_compinfo, interface_compinfo->comp_cap, (vaddr_t)new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst);
 			assert(sinv > 0);

@@ -160,7 +160,6 @@ boot_link_symbs(struct cobj_header *h, spdid_t spdid)
 		assert(symb);
 	
 		if (COBJ_SYMB_UNDEF == symb->type) {
-			printc("symb->name: %s \n", symb->name);
 			struct cobj_symb *ipc_client_symb;
 			struct usr_inv_cap cap;	
 			ipc_client_symb = cobj_find_symb("SS_ipc_client_marshal_args", spdid-1);
