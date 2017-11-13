@@ -2,7 +2,7 @@ C_OBJS=ping_two.o
 ASM_OBJS=
 COMPONENT=pingp_two.o
 INTERFACES=
-DEPENDENCIES=pong
+DEPENDENCIES=pong_two
 IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api
 

@@ -6,10 +6,12 @@
 
 #define USER_CAPS_SYMB_NAME "ST_user_caps"
 
+#define MAX_DEPS (PAGE_SIZE/sizeof(struct deps))
+
 struct deps {
 	short int client, server;
 };
-struct deps *deps;
+struct deps deps_list[MAX_DEPS];
 int          ndeps;
 
 /*Component init info*/
@@ -108,74 +110,6 @@ boot_spd_end(struct cobj_header *h)
 	sect     = cobj_sect_get(h, max_sect);
 
 	return sect->vaddr + round_up_to_page(sect->bytes);
-}
-
-struct cobj_symb *
-cobj_find_symb(const char *symbol_name, int cobj) 
-{
-	unsigned int j = 0;
-	for (j = 0; j < hs[cobj]->nsymb; j++) {
-		struct cobj_symb *symb;
-
-		symb = cobj_symb_get(hs[cobj], j);
-		assert(symb);
-
-		if (!strcmp(symb->name, symbol_name) && symb->type == COBJ_SYMB_EXPORTED) {
-			return symb;
-		}
-	}		
-	return NULL;
-}
-
-vaddr_t
-boot_find_inv_symb_addr(struct cobj_symb *undefsymb) {
-	
-	unsigned int i;
-	vaddr_t symb_addr;	
-	struct cobj_symb *symb;
-	char jumper_symb[25];
-	sprintf(jumper_symb, "%s_inv", undefsymb->name);
-
-	for (i = 0; hs[i] != NULL; i++) {
-		symb = cobj_find_symb(jumper_symb, i);
-		if (symb) break;	
-	}
-
-	assert(symb);
-	symb_addr = symb->vaddr;
-
-	return symb_addr;
-}
-
-int
-boot_link_symbs(struct cobj_header *h, spdid_t spdid)
-{
-	int i = 0;
-	struct cobj_symb *symb;
-	vaddr_t symb_addr;
-
-	for (i = 0; i < (int)h->nsymb; i++) {
-
-		symb = cobj_symb_get(h, i);
-		assert(symb);
-	
-		if (COBJ_SYMB_UNDEF == symb->type) {
-			struct cobj_symb *ipc_client_symb;
-			struct usr_inv_cap cap;	
-			ipc_client_symb = cobj_find_symb("SS_ipc_client_marshal_args", spdid-1);
-			symb_addr = ipc_client_symb->vaddr;
-		
-			/* Create the user cap for the undef symb */
-			cap = (struct usr_inv_cap) {
-				.invocation_fn = symb_addr
-			};	
-			
-			new_comp_cap_info[spdid].ST_user_caps[symb->user_caps_offset] = cap;	
-			new_comp_cap_info[spdid].ST_user_caps[symb->user_caps_offset].service_entry_inst = boot_find_inv_symb_addr(symb);
-		}
-	}
-
-	return 0;
 }
 
 int
@@ -306,6 +240,34 @@ boot_init_sched(void)
 	sched_cur = 0;
 }
 
+int
+boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
+{
+	struct cobj_cap *cap;
+	struct usr_inv_cap inv_cap;	
+	int cap_offset;
+	int i; 
+
+	for (i = 0; i < h->ncap ; i++) {
+	
+		cap = cobj_cap_get(h, i);
+		assert(cap);
+
+		/* 0 index of inv_cap array is special, so start at 1 */
+		cap_offset = cap->cap_off + 1;	
+
+		/* Create the user cap for the undef symb */
+		inv_cap = (struct usr_inv_cap) {
+			.invocation_fn = (vaddr_t) cap->cstub,
+			.service_entry_inst = (vaddr_t) cap->sstub,
+			.invocation_count = cap->dest_id
+		};	
+	
+		new_comp_cap_info[spdid].ST_user_caps[cap_offset] = inv_cap;	
+	}
+	return 0;
+}
+
 static void
 boot_create_cap_system(void)
 {
@@ -327,24 +289,28 @@ boot_create_cap_system(void)
 		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);
 		
 		if (boot_spd_symbs(h, spdid, &ci, &new_comp_cap_info[spdid].vaddr_user_caps)) BUG();
-		if (boot_link_symbs(h, spdid)) BUG();
+		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
 		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo);
-
 		printc("\nComp %d (%s) created @ %x!\n\n", h->id, h->name, sect->vaddr);
 	}
 
+	
 	return;
 }
 
 void
-boot_init_ndeps(void)
+boot_init_ndeps(int num_cobj)
 {
-	int i;
+	int i = 0;
 
-	for (i = 0; deps[i].server; i++)
-		;
+	printc("MAX DEPS: %d\n", MAX_DEPS);
+	for (i = 0; i < deps_list[i].server; i++) {
+//		if (deps_list[i].client != 0) printc("client: %d, server: %d \n", deps_list[i].client, deps_list[i].server);
+	}
+	
+	printc("ndeps: %d\n", ndeps);
 	ndeps = i;
 }
 
@@ -359,8 +325,9 @@ cos_init(void)
 	h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj = (int)cos_comp_info.cos_poly[1];
 
-	deps = (struct deps *)cos_comp_info.cos_poly[2];
-	boot_init_ndeps();
+	//deps = (struct deps *)cos_comp_info.cos_poly[2];
+	memcpy(deps_list, (struct deps *)cos_comp_info.cos_poly[2], PAGE_SIZE);
+	boot_init_ndeps(num_cobj);
 
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
 	init_args++;

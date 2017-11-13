@@ -1,5 +1,5 @@
 #include <cos_kernel_api.h>
-#include <pong.h>
+#include <pong_two.h>
 #include <cos_types.h>
 #include <cobj_format.h>
 

@@ -24,7 +24,7 @@ struct comp_cap_info {
 struct cos_compinfo boot_info;
 struct cos_compinfo new_compinfo[MAX_NUM_SPDS + 1];
 
-thdcap_t                 schedule[MAX_NUM_SPDS + 1];
+int                      schedule[MAX_NUM_SPDS + 1];
 volatile size_t          sched_cur;
 
 static vaddr_t
@@ -72,20 +72,25 @@ boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 }
 
 static void
-boot_newcomp_sinv_alloc(spdid_t spdid, spdid_t intr_spdid)
+boot_newcomp_sinv_alloc(spdid_t spdid)
 {
 	sinvcap_t sinv;
 	int i = 0;
+	int intr_spdid;
+	void *user_cap_vaddr;
+	struct cos_compinfo *interface_compinfo;
 	struct cos_compinfo *newcomp_compinfo = new_comp_cap_info[spdid].compinfo; 
-	struct cos_compinfo *interface_compinfo = new_comp_cap_info[intr_spdid].compinfo;
 
 	/* 
 	 * Loop through all undefined symbs 
 	 */	
 	for (i = 0; i < UNDEF_SYMBS; i++) {
 		if ( new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst > 0) {
-			void *user_cap_vaddr = (void *) (new_comp_cap_info[spdid].vaddr_mapped_in_booter + (new_comp_cap_info[spdid].vaddr_user_caps - new_comp_cap_info[spdid].addr_start) + (sizeof(struct usr_inv_cap) * i));
 			
+			intr_spdid = new_comp_cap_info[spdid].ST_user_caps[i].invocation_count;
+			interface_compinfo = new_comp_cap_info[intr_spdid].compinfo;
+			user_cap_vaddr = (void *) (new_comp_cap_info[spdid].vaddr_mapped_in_booter + (new_comp_cap_info[spdid].vaddr_user_caps - new_comp_cap_info[spdid].addr_start) + (sizeof(struct usr_inv_cap) * i));
+		
 			/* Create sinv capability from ping to pong */
 			sinv = cos_sinv_alloc(newcomp_compinfo, interface_compinfo->comp_cap, (vaddr_t)new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst);
 			assert(sinv > 0);
@@ -118,10 +123,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 
 	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SINV_CAP, &boot_info, sinv);
 
-	/* FIXME: Currently assumes comp 0 (spdid 1) is the only interface */
-	if (spdid > 1) {
-		boot_newcomp_sinv_alloc(spdid, 1);
-	}	
+	boot_newcomp_sinv_alloc(spdid);
 
 	main_thd = cos_initthd_alloc(&boot_info, cc);
 	assert(main_thd);
