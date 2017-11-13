@@ -91,7 +91,7 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 			interface_compinfo = new_comp_cap_info[intr_spdid].compinfo;
 			user_cap_vaddr = (void *) (new_comp_cap_info[spdid].vaddr_mapped_in_booter + (new_comp_cap_info[spdid].vaddr_user_caps - new_comp_cap_info[spdid].addr_start) + (sizeof(struct usr_inv_cap) * i));
 		
-			/* Create sinv capability from ping to pong */
+			/* Create sinv capability from client to server */
 			sinv = cos_sinv_alloc(newcomp_compinfo, interface_compinfo->comp_cap, (vaddr_t)new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst);
 			assert(sinv > 0);
 			
