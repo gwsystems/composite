@@ -26,6 +26,7 @@ loader:
 	movl    %eax, %cr4
 	movl    $(boot_comp_pgd-COS_MEM_KERN_START_VA), %eax
 	movl    %eax, %cr3
+
 	# Turn on paging.
 	movl    %cr0, %eax
 	orl     $(1<<31), %eax
@@ -106,10 +107,10 @@ smppatchstart:
 .globl smploader
 smploader:
 	cli
-	jmp .
+
 	movw    %cs, %ax
 	movw    %ax, %ds
-	lgdtl   RELOCATE_ADDR_CS(smpgdtdesc) /* using cs as ds: idea taken from Quest */
+	lgdt   RELOCATE_ADDR_CS(smpgdtdesc) /* using cs as ds: idea taken from Quest */
 	xorw    %ax, %ax
 	movw    %ax, %ds
 
@@ -135,8 +136,10 @@ smpstart32:
 	movl    %cr4, %eax
 	orl     $((1<<4) | (1<<7)), %eax
 	movl    %eax, %cr4
-	movl    $(boot_comp_pgd-COS_MEM_KERN_START_VA), %eax
+
+	movl    $(boot_comp_pgd_t-COS_MEM_KERN_START_VA), %eax
 	movl    %eax, %cr3
+
 	/* Turn on paging. */
 	movl    %cr0, %eax
 	orl     $(CR0_PE|CR0_PG|CR0_WP), %eax
@@ -147,7 +150,7 @@ smpstart32:
 	movl    (%esp), %esp
 	pushl   $spin
 
-	mov     $kmain, %eax
+	mov     $smp_kmain, %eax
 	jmp     *%eax
 spin:
 	jmp     spin
@@ -161,7 +164,7 @@ smpgdt:
 
 smpgdtdesc:
   .word   (smpgdtdesc - smpgdt - 1)
-  .long   smpgdt
+  .long   RELOCATE_ADDR(smpgdt)
 
 .global smpstack
 smpstack:

@@ -17,6 +17,9 @@ struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED LARGE_BSS;
 u32_t boot_comp_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER,
                                                                [KERN_INIT_PGD_IDX] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE
                                                                                      | PGTBL_SUPER};
+u32_t boot_comp_pgd_t[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER,
+                                                               [KERN_INIT_PGD_IDX] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE
+                                                                                     | PGTBL_SUPER};
 
 void
 kern_retype_initial(void)

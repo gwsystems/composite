@@ -462,7 +462,7 @@ smp_bootall(void)
 		lapic_write_reg(LAPIC_ESR, 0);
 		lapic_read_reg(LAPIC_ESR);
 
-		printk("starting %d AP\n", i);
+		printk("Booting AP %d\n", i);
 		/* Application Processor (AP) startup sequence: */
 
 		/* ...make sure that we pass this core's stack */
