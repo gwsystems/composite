@@ -1,9 +1,13 @@
+#![allow(dead_code)] /* DEBUG REMOVE THIS */
 use lib_composite::sl::{ThreadParameter, Sl,Thread};
 use lib_composite::sl_lock::Lock;
 use std::mem;
 use std::fmt;
 use std::sync::Arc;
 use std::ops::{DerefMut,Deref};
+use channel::*;
+
+pub const MAX_REPS:usize = 3;
 
 #[derive(Debug,PartialEq,Copy,Clone)]
 pub enum ReplicaState {
@@ -14,8 +18,8 @@ pub enum ReplicaState {
 	Done,        /* DEBUG - remove me */
 }
 
-pub enum VoteStatus<'a> {
-	Fail(&'a Arc<Lock<Replica>>), /* stores reference to divergent replica */
+pub enum VoteStatus {
+	Fail(usize,u16), /* stores reference to divergent replica  comp id, rep id*/
 	Inconclusive,
 	Success,
 }
@@ -27,6 +31,7 @@ pub struct Replica {
 	thd:         Option<Thread>,
 	pub channel:  Option<Arc<Lock<Channel>>>,
 	ret_val:     Option<i32>,
+	pub unit_of_work: u16,
 	pub rep_id:  u16,
 }
 
@@ -40,19 +45,6 @@ pub struct CompStore {
 	pub components:Vec<ModComp>,
 }
 
-pub struct Channel  {
-	reader_id:  usize,
-	writer_id:  usize,
-	channel_data: Arc<Lock<Vec<ChannelData>>>,
-}
-
-
-pub struct ChannelData {
-	pub rep_id: u16,
-	pub message: Box<[u8]>,
-}
-
-
 //manually implement as lib_composite::Thread doesn't impl debug
 impl fmt::Debug for Replica {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -61,20 +53,17 @@ impl fmt::Debug for Replica {
     }
 }
 
-impl<'a> fmt::Debug for VoteStatus<'a> {
+impl fmt::Debug for VoteStatus {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Status: {}",
         match self {
         	&VoteStatus::Inconclusive => "Inconclusive",
         	&VoteStatus::Success => "Success",
-        	&VoteStatus::Fail(faulted) => "Fail",
+        	&VoteStatus::Fail(comp,rep) => "Fail",
         })
     }
 }
 
-impl fmt::Debug for Channel {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {write!(f, "Reader_id: {} | Writer_id: {}", self.reader_id, self.writer_id)}
-}
 
 //manually implement as lib_composite::Lock doenst impl debug
 impl fmt::Debug for ModComp {
@@ -91,6 +80,7 @@ impl Replica  {
 			thd: None,
 			channel: None,
 			ret_val : None,
+			unit_of_work: 0,
 			rep_id,
 		}
 	}
@@ -149,6 +139,7 @@ impl CompStore {
 
 impl ModComp {
 	pub fn new(num_replicas: usize, comp_store:&mut CompStore, sl: Sl, thd_entry: fn(sl:Sl, rep: Arc<Lock<Replica>>)) -> usize {
+		assert!(num_replicas <= MAX_REPS);
 		//create new Component
 		let mut comp = ModComp {
 			replicas: Vec::with_capacity(num_replicas),
@@ -185,7 +176,7 @@ impl ModComp {
 		}
 	}
 
-	pub fn collect_vote(&self) -> VoteStatus {
+	pub fn collect_vote(& mut self) -> VoteStatus {
 		println!("Component Collecting Votes");
 		//check first to see that all replicas are done processing.
 		for replica in &self.replicas {
@@ -194,8 +185,9 @@ impl ModComp {
 
 		//VOTE!
 		let mut consensus = [0,0,0];
-		for replica in &self.replicas {
-			let replica = replica.lock();
+		for replica in &mut self.replicas {
+			let mut replica = replica.lock();
+			replica.deref_mut().unit_of_work += 1;
 			match replica.deref().state {
 				ReplicaState::Processing  => consensus[0] += 1,
 				ReplicaState::Read        => consensus[1] += 1,
@@ -217,15 +209,17 @@ impl ModComp {
 			_ => panic!("No consensus in find healthy state"),
 		};
 
-		return VoteStatus::Fail(self.failure_find(healthy_state))
+		let faulted = self.failure_find(healthy_state);
+		return VoteStatus::Fail(faulted.0,faulted.1)
 	}
 
-	fn failure_find(&self, healthy_state:ReplicaState) -> &Arc<Lock<Replica>> {
+	fn failure_find(&self, healthy_state:ReplicaState) -> (usize,u16) {
 		//TODO return replica that is not in healthy state
-		return self.replicas.get(0).expect("Found no faulted replica");
+		return (0,0)
 	}
 
-	fn replica_communicate(&mut self, sl:Sl, rep_id:usize, ch:Channel,comp_store:&CompStore, action:ReplicaState) -> Option<i32> {
+	//TODO - this function needs to be called by the channel somewhere, send recieve ????
+	fn replica_communicate(&mut self, sl:Sl, rep_id:usize, ch:Channel,comp_store:& mut CompStore, action:ReplicaState) -> Option<i32> {
 		assert!(rep_id < self.num_replicas);
 		if ch.reader_id == self.comp_id && action != ReplicaState::Read ||
 		   ch.writer_id == self.comp_id && action != ReplicaState::Written {
@@ -234,11 +228,22 @@ impl ModComp {
 
 
 		self.replicas[rep_id].lock().deref_mut().state_transition(action);
-
+		//fixme -- this iterate over tuple
 		loop {
-			match ch.call_vote(comp_store) { //FIXME cange to channel vote.
-				VoteStatus::Fail(faulted) => {
-					faulted.lock().deref_mut().recover();
+			match ch.call_vote(comp_store).0 {
+				VoteStatus::Fail(comp,rep) => {
+					comp_store.components[comp].replicas[rep as usize].lock().deref_mut().recover();
+				},
+				VoteStatus::Inconclusive  => {
+					Replica::block(&self.replicas[rep_id],sl);
+				},
+				VoteStatus::Success       => {
+					//TODO implemnt channel calls here
+				},
+			}
+			match ch.call_vote(comp_store).1 {
+				VoteStatus::Fail(comp,rep) => {
+					comp_store.components[comp].replicas[rep as usize].lock().deref_mut().recover();
 					break
 				},
 				VoteStatus::Inconclusive  => {
@@ -257,66 +262,3 @@ impl ModComp {
 
 }
 
-impl Channel {
-	pub fn new(reader_id:usize, writer_id:usize, compStore:&mut CompStore, sl:Sl) -> Arc<Lock<Channel>> {
-		let chan = Arc::new(Lock::new(sl,
-			Channel {
-				reader_id,
-				writer_id,
-				channel_data: Arc::new(Lock::new(sl,Vec::new())),
-			}
-		));
-
-		let ref mut components = compStore.components;
-
-		for i in 0..components[reader_id].num_replicas {
-			components[reader_id].replicas[i].lock().deref_mut().channel = Some(Arc::clone(&chan));
-		}
-
-		for i in 0..components[writer_id].num_replicas {
-			components[writer_id].replicas[i].lock().deref_mut().channel = Some(Arc::clone(&chan));
-		}
-
-		return Arc::clone(&chan);
-	}
-
-	pub fn call_vote<'a>(&self,comp_store:&'a CompStore) -> VoteStatus<'a> {
-		let ref comps = &comp_store.components;
-		let ref reader = &comps[self.reader_id];
-		let reader_vote = reader.collect_vote();
-		match reader_vote {
-			VoteStatus::Success => {
-				let ref writer = &comps[self.writer_id];
-				return writer.collect_vote();
-			},
-			_ => return reader_vote,
-		}
-	}
-
-	pub fn send(&mut self, msg:Vec<u8>, rep_id:u16) {
-		self.channel_data.lock().deref_mut().push(
-			ChannelData {
-				rep_id,
-				message: msg.into_boxed_slice(),
-			}
-		)
-	}
-
-	pub fn receive(&mut self) -> Option<ChannelData> {
-		self.channel_data.lock().deref_mut().pop()
-	}
-
-	pub fn has_data(&self) -> bool {
-		return !self.channel_data.lock().deref().is_empty()
-	}
-
-	fn transfer(&mut self) {
-		//TODO transfer data from buffers on healthy replica to reader buffers
-		//Readers go in get messages from channel data
-	}
-
-	pub fn wake_all(&mut self,comp_store:& mut CompStore) {
-		comp_store.components[self.reader_id].wake_all();
-		comp_store.components[self.writer_id].wake_all();
-	}
-}

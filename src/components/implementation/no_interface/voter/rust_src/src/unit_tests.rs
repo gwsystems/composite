@@ -1,3 +1,4 @@
+#![allow(dead_code)] /* DEBUG REMOVE THIS */
 use voter_lib;
 use voter_lib::ReplicaState::*;
 use voter_lib::Replica;
@@ -6,6 +7,7 @@ use lib_composite::sl_lock::Lock;
 use std::sync::Arc;
 use std::ops::{DerefMut,Deref};
 use std::time::Duration;
+use channel::*;
 
 fn wait_for_done(comp:&voter_lib::ModComp,sl:Sl) {
 	let mut done = 0;
@@ -73,6 +75,7 @@ pub fn test_wakeup(sl: Sl, num_reps:usize) {
 	sl.block_for(Duration::new(1,0));
 	println!("Voter waking all replicas!");
 	compStore.components[test_comp_id].wake_all();
+	wait_for_done(&(compStore.components[test_comp_id]),sl);
 }
 
 fn thd_block(sl:Sl, rep: Arc<Lock<Replica>>) {
@@ -81,6 +84,7 @@ fn thd_block(sl:Sl, rep: Arc<Lock<Replica>>) {
 	rep.lock().deref_mut().state_transition(Read);
 	voter_lib::Replica::block(&rep,sl);
 	println!("Awake {:?}",rep.lock().deref());
+	rep.lock().deref_mut().state_transition(Done);
 }
 
 
@@ -129,12 +133,12 @@ pub fn test_channel_create(sl:Sl,num_reps:usize) {
 	let mut compStore = voter_lib::CompStore::new();
 	let mut reader_id = voter_lib::ModComp::new(num_reps,&mut compStore,sl,thd_block);
 	let mut writer_id = voter_lib::ModComp::new(num_reps,&mut compStore,sl,thd_block);
-	let mut channel = voter_lib::Channel::new(reader_id,writer_id,&mut compStore,sl);
+	let mut channel = Channel::new(reader_id,writer_id,&mut compStore,sl);
 	println!("Channle Created - {:?}", channel.lock().deref());
 	sl.block_for(Duration::new(2,0));
 	println!("channel wake");
 	channel.lock().deref_mut().wake_all(&mut compStore);
-	println!("Channel Calling Vote: Expected: Inconclusive : {:?},", channel.lock().deref_mut().call_vote(&compStore));
+	println!("Channel Calling Vote: Expected: Inconclusive : {:?},", channel.lock().deref_mut().call_vote(& mut compStore));
 }
 
 
@@ -142,13 +146,14 @@ pub fn test_channel_create(sl:Sl,num_reps:usize) {
 pub fn test_snd_rcv(sl:Sl,num_reps:usize) {
 	test_print("Begin snd rcv test");
 	let mut compStore = voter_lib::CompStore::new();
-
-	let mut channel = voter_lib::Channel::new(
+	let reader = voter_lib::ModComp::new(num_reps,&mut compStore,sl ,thd_rcv);
+	let mut channel = Channel::new(
 		voter_lib::ModComp::new(num_reps,&mut compStore,sl ,thd_send),
-		voter_lib::ModComp::new(num_reps,&mut compStore,sl ,thd_rcv),
+		reader,
 		&mut compStore,
 		sl
 	);
+	wait_for_done(&(compStore.components[reader]),sl);
 }
 
 fn thd_send(sl:Sl, rep:  Arc<Lock<Replica>>) {
@@ -160,9 +165,10 @@ fn thd_send(sl:Sl, rep:  Arc<Lock<Replica>>) {
 	let msg = String::from("Hello").into_bytes();
 	let mut rep = rep.lock();
 	let rep_id = rep.deref().rep_id;
+	let unit_of_work = rep.deref().unit_of_work;
 	let ref mut chan = rep.deref_mut().channel.as_mut().expect("Replica has no channel to send");
-	println!("Rep {:?} Send msg {:?}", rep_id,msg);
-	chan.lock().deref_mut().send(msg,rep_id);
+	println!("SND MSG {:?} FROM {:?}", msg,rep_id);
+	chan.lock().deref_mut().send(msg,rep_id,unit_of_work);
 }
 
 fn thd_rcv(sl:Sl, rep:  Arc<Lock<Replica>>) {
@@ -171,14 +177,80 @@ fn thd_rcv(sl:Sl, rep:  Arc<Lock<Replica>>) {
 		sl.block_for(Duration::new(1,0));
 	}
 	let mut rep = rep.lock();
-	let ref mut chan = rep.deref_mut().channel.as_mut().expect("Replica has no hannel to rcv");
-	while !chan.lock().deref().has_data() {
+	while !rep.deref_mut().channel.as_mut().expect("rep has no chan").lock().deref().has_data() {
 		sl.block_for(Duration::new(1,0));
 	}
-	let msg = chan.lock().deref_mut().receive().expect("no msg");
+	let msg = rep.deref_mut().channel.as_mut().expect("rep has no chan").lock().deref_mut().receive().expect("no msg");
 	println!("GOT MSG {:?} FROM {:?}",msg.message, msg.rep_id);
-
+	rep.state_transition(Done);
 }
+
+// /* -------------------- Test Channel msg validation ------------------------ */
+
+pub fn test_chan_validate(sl:Sl) {
+	test_print("Begin channel msg validate test");
+	let mut compStore = voter_lib::CompStore::new();
+	let writer = voter_lib::ModComp::new(3,&mut compStore,sl ,thd_send_same);
+	let mut channel = Channel::new(
+		writer,
+		voter_lib::ModComp::new(1,&mut compStore,sl ,no_op),
+		&mut compStore,
+		sl
+	);
+	wait_for_done(&(compStore.components[writer]),sl);
+	println!("Validate Msgs: Expected: True : Actual: {:?},", channel.lock().deref().validate_msgs(0));
+}
+
+fn thd_send_same(sl:Sl, rep:  Arc<Lock<Replica>>) {
+	println!("Running {:?}",rep.lock().deref());
+	while rep.lock().deref().channel.is_none() {
+		sl.block_for(Duration::new(1,0));
+	}
+
+	let mut rep = rep.lock();
+	let rep_id = rep.deref().rep_id;
+	let unit_of_work = rep.deref().unit_of_work;
+
+	let msg = String::from("Hello").into_bytes();
+	println!("Rep {:?} Send msg {:?}", rep_id,msg);
+	rep.deref_mut().channel.as_mut().expect("rep has no chan").lock().deref_mut().send(msg,rep_id,unit_of_work);
+	rep.state_transition(Done);
+}
+
+// /* -------------------- Test Channel msg faultfind ------------------------ */
+
+pub fn test_chan_fault_find(sl:Sl) {
+	test_print("Begin channel msg Fault find test");
+	let mut compStore = voter_lib::CompStore::new();
+	let writer = voter_lib::ModComp::new(3,&mut compStore,sl ,thd_send_diff);
+	let mut channel = Channel::new(
+		writer,
+		voter_lib::ModComp::new(1,&mut compStore,sl ,no_op),
+		&mut compStore,
+		sl
+	);
+	wait_for_done(&(compStore.components[writer]),sl);
+	println!("Validate Msgs: Expected: False : Actual: {:?},", channel.lock().deref().validate_msgs(0));
+	println!("Chan Find Fault: Expected: 2 : Actual: {:?}", channel.lock().deref().find_fault(0));
+}
+
+fn thd_send_diff(sl:Sl, rep:  Arc<Lock<Replica>>) {
+	println!("Running {:?}",rep.lock().deref());
+	while rep.lock().deref().channel.is_none() {
+		sl.block_for(Duration::new(1,0));
+	}
+
+	let mut rep = rep.lock();
+	let rep_id = rep.deref().rep_id;
+	let unit_of_work = rep.deref().unit_of_work;
+
+	let msg = if rep_id > 1 {String::from("Hello").into_bytes()} else {String::from("World").into_bytes()};
+	println!("Rep {:?} Send msg {:?}", rep_id,msg);
+	rep.deref_mut().channel.as_mut().expect("rep has no chan").lock().deref_mut().send(msg,rep_id,unit_of_work);
+	rep.state_transition(Done);
+}
+
+
 // /* -------------- Test lib Composite chagnes ------------------- */
 
 // pub fn test_lib_composite(sl:Sl) {
@@ -187,3 +259,7 @@ fn thd_rcv(sl:Sl, rep:  Arc<Lock<Replica>>) {
 // 	println!("Thread id {}", thd.thdid());
 // 	println!("Current Thread {}", sl.current_thread().thdid());
 // }
+
+
+fn no_op(sl:Sl, rep:  Arc<Lock<Replica>>) {}
+
