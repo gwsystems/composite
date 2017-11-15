@@ -20,6 +20,7 @@ enum
 } print_lvl = PRINT_HIGH;
 
 const char *COMP_INFO      = "cos_comp_info";
+const char *COMP_PLT       = "ST_user_caps";
 const char *SCHED_NOTIF    = "cos_sched_notifications";
 const char *INIT_COMP      = "c0.o";
 char *      ROOT_SCHED     = NULL;   // this is set to the first listed scheduler (*)
@@ -47,7 +48,7 @@ const char *cos_flt_handlers[COS_FLT_MAX] = {"fault_page_fault_handler", "fault_
                                              "fault_brkpt_handler",      "fault_overflow_handler",
                                              "fault_range_handler",      "fault_gen_prot_handler",
                                              "fault_linux_handler",      "fault_save_regs_handler",
-                                             "fault_flt_notif_handler"};
+                                             "fault_flt_notif_handler", "fault_flt_quarantine"};
 
 struct cos_sections section_info[MAXSEC_S + 1] =
   {{.secid = TEXT_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE, .sname = ".text"},
