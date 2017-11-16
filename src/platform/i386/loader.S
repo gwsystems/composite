@@ -137,7 +137,7 @@ smpstart32:
 	orl     $((1<<4) | (1<<7)), %eax
 	movl    %eax, %cr4
 
-	movl    $(boot_comp_pgd_t-COS_MEM_KERN_START_VA), %eax
+	movl    $(boot_ap_pgd - COS_MEM_KERN_START_VA), %eax
 	movl    %eax, %cr3
 
 	/* Turn on paging. */
