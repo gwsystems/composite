@@ -42,7 +42,7 @@ __print_region_idxs(unsigned int spdid)
 }
 
 vaddr_t
-shm_get_vaddr(unsigned int spdid, unsigned int id, int arg3, int arg4)
+shm_get_vaddr(unsigned int spdid, unsigned int id)
 {
 	assert(id < SHM_MAX_REGIONS && shm_infos[spdid].cinfo && shm_infos[spdid].shm_frontier);
 
@@ -50,7 +50,7 @@ shm_get_vaddr(unsigned int spdid, unsigned int id, int arg3, int arg4)
 }
 
 int
-shm_allocate(unsigned int spdid, unsigned int num_pages, int arg3, int arg4)
+shm_allocate(unsigned int spdid, unsigned int num_pages)
 {
 	vaddr_t src_pg, dst_pg, unused;
 	struct shm_info *comp_shm_info;
@@ -111,7 +111,7 @@ shm_deallocate(int arg1, int arg2, int arg3, int arg4)
 }
 
 int
-shm_map(unsigned int spdid, unsigned int id, int arg3, int arg4)
+shm_map(unsigned int spdid, unsigned int id)
 {
 	vaddr_t src_pg, dst_pg;
 	int ret;

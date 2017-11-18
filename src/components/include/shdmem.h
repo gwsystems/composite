@@ -4,10 +4,10 @@
 #include <cos_kernel_api.h>
 #include <consts.h>
 
-vaddr_t shm_get_vaddr(unsigned int spdid, unsigned int id, int arg3, int arg4);
-int shm_allocate(unsigned int spdid, unsigned int num_pages, int arg3, int arg4);
+vaddr_t shm_get_vaddr(unsigned int spdid, unsigned int id);
+int shm_allocate(unsigned int spdid, unsigned int num_pages);
 int shm_deallocate(int arg1, int arg2, int arg3, int arg4);
-int shm_map(unsigned int spdid, unsigned int id, int arg3, int arg4);
+int shm_map(unsigned int spdid, unsigned int id);
 
 /* Each region is the size of a page, this number is arbitrary */
 #define SHM_MAX_REGIONS 1000
