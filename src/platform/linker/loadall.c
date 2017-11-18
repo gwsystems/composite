@@ -18,7 +18,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
-#include <errno.h>
 #include <sys/mman.h>
 
 unsigned long getsym(bfd *obj, char* symbol)
@@ -28,35 +27,15 @@ unsigned long getsym(bfd *obj, char* symbol)
         long number_of_symbols;
         int i;
 
-        static bfd *cached_obj = NULL;
-        static asymbol **cached_symbol_table = NULL;
-        static long cached_number_of_symbols;
+        storage_needed = bfd_get_symtab_upper_bound (obj);
 
-        assert(obj);
-        assert(symbol);
-
-        if (cached_obj != obj) {
-                storage_needed = bfd_get_symtab_upper_bound (obj);
-
-                if (storage_needed <= 0){
-                        printl(PRINT_HIGH, "no symbols in object file\n");
-                        exit(-1);
-                }
-
-                symbol_table = (asymbol **) malloc (storage_needed);
-                assert(symbol_table);
-                number_of_symbols = bfd_canonicalize_symtab(obj, symbol_table);
-
-                if (cached_obj) {
-                        free(cached_symbol_table);
-                }
-                cached_obj          = obj;
-                cached_symbol_table = symbol_table;
-                cached_number_of_symbols = number_of_symbols;
-        } else {
-                symbol_table      = cached_symbol_table;
-                number_of_symbols = cached_number_of_symbols;
+        if (storage_needed <= 0){
+                printl(PRINT_HIGH, "no symbols in object file\n");
+                exit(-1);
         }
+
+        symbol_table = (asymbol **) malloc (storage_needed);
+        number_of_symbols = bfd_canonicalize_symtab(obj, symbol_table);
 
         //notes: symbol_table[i]->flags & (BSF_FUNCTION | BSF_GLOBAL)
         for (i = 0; i < number_of_symbols; i++) {
@@ -100,18 +79,34 @@ int make_cobj_symbols(struct service_symbs *s, struct cobj_header *h)
                 const char *name;
                 u32_t type;
         };
+
         struct name_type_map map[] = {
                 {.name = COMP_INFO, .type = COBJ_SYMB_COMP_INFO},
+                {.name = COMP_PLT, .type = COBJ_SYMB_COMP_PLT},
                 {.name = NULL, .type = 0}
         };
 
-        /* Create the sumbols */
-        printl(PRINT_DEBUG, "%s loaded by Composite -- Symbols:\n", s->obj);
+        /* Create the symbols */
+        printl(PRINT_DEBUG, "%s loaded by Composite\n", s->obj);
+        printl(PRINT_DEBUG, "\tMap symbols:\n");
         for (i = 0 ; map[i].name != NULL ; i++) {
                 addr = (u32_t)get_symb_address(&s->exported, map[i].name);
-                printl(PRINT_DEBUG, "\taddr %x, nsymb %d\n", addr, i);
-                if (addr && cobj_symb_init(h, symb_offset++, map[i].type, addr)) {
-                        printl(PRINT_HIGH, "boot component: couldn't create cobj symb for %s (%d).\n", map[i].name, i);
+                printl(PRINT_DEBUG, "\tsymb %s, addr %x, nsymb %d\n", map[i].name, addr, i);
+		printf("\tsymb %s, addr %x, nsymb %d\n", map[i].name, addr, i);
+                /* ST_user_caps offset is 0 when not relevant. */
+                if (addr && cobj_symb_init(h, symb_offset++, map[i].name, map[i].type, addr, 0)) {
+                        printl(PRINT_HIGH, "boot component: couldn't create map cobj symb for %s (%d).\n", map[i].name, i);
+                        return -1;
+                }
+        }
+
+        printl(PRINT_DEBUG, "\tExported symbols:\n");
+        for (i = 0 ; i < s->exported.num_symbs ; i++) {
+                printl(PRINT_DEBUG, "\tsymb %s, nsymb %d\n", s->exported.symbs[i].name, i);
+
+                /* ST_user_caps offset is 0 when not relevant. */
+                if (cobj_symb_init(h, symb_offset++, s->exported.symbs[i].name, COBJ_SYMB_EXPORTED, s->exported.symbs[i].addr, 0)) {
+                        printl(PRINT_HIGH, "boot component: couldn't create exported cobj symb for %s (%d).\n", s->exported.symbs[i].name, i);
                         return -1;
                 }
         }
@@ -203,14 +198,12 @@ void emit_section(FILE *fp, char *sec)
 
 void run_linker(char *input_obj, char *output_exe, char *script)
 {
-	char linker_cmd[512];
-	sprintf(linker_cmd, LINKER_BIN " -m elf_i386 -T %s -o %s %s", script, output_exe, input_obj);
-	printl(PRINT_DEBUG, "%s\n", linker_cmd);
-	fflush(stdout);
-	int i = system(linker_cmd);
-	if (i) {
-		printl(PRINT_HIGH, "Linker command failed %d, errno %d\n", i, errno);
-	}
+        char linker_cmd[256];
+        sprintf(linker_cmd, LINKER_BIN " -m elf_i386 -T %s -o %s %s", script, output_exe,
+                input_obj);
+        printl(PRINT_DEBUG, "%s\n", linker_cmd);
+        fflush(stdout);
+        system(linker_cmd);
 }
 
 
@@ -395,8 +388,10 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
                         if (csg(i)->cobj_flags & COBJ_SECT_ZEROS) continue;
                         size += csg(i)->len;
                 }
-                nsymbs = ret_data->exported.num_symbs;
+
+                nsymbs = ret_data->exported.num_symbs + 2; /* +2 is for COMP_INFO and COMP_PLT */
                 ncaps  = ret_data->undef.num_symbs;
+                nsymbs += ncaps; /* We must track undefined symbols in addition to exports */
                 nsects = MAXSEC_S;
 
                 obj_size = cobj_size_req(nsects, size, nsymbs, ncaps);

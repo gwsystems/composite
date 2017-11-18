@@ -100,9 +100,10 @@ main(int argc, char *argv[])
 		dependencies = ndeps;
 		*(ndeps-1) = ':';
 	}
-	if (!dependencies) dependencies = "";
-	else               *(dependencies-1) = '\0';
-	//printf("comps: %s\ndeps: %s\n", servs, dependencies);
+	if (!dependencies)
+		dependencies = "";
+	else
+		*(dependencies - 1) = '\0';
 
 	if (!servs) {
 		printl(PRINT_HIGH, "You must specify at least one service.\n");

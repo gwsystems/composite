@@ -70,7 +70,7 @@ __timersub_thds_init(void)
 }
 
 void
-timersub_init(void *d)
+timersub_init(void)
 {
 	printc("Timer Subsystem [%u] STARTED\n", cos_thdid());
 	sl_init(CHILD_PERIOD_US);
@@ -78,9 +78,9 @@ timersub_init(void *d)
 	__timersub_thds_init();
 
 #if defined(CHRONOS_ENABLED)
-	sl_sched_loop(1);
+	sl_sched_loop();
 #else
-	sl_sched_loop(0);
+	sl_sched_loop();
 #endif
 	printc("Timer Subsystem Scheduling Error!!\n");
 

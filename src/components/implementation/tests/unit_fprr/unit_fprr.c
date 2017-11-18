@@ -132,7 +132,7 @@ cos_init(void)
 	testing_thread = sl_thd_alloc(run_tests, NULL);
 	sl_thd_param_set(testing_thread, sched_param_pack(SCHEDP_PRIO, LOWEST_PRIORITY));
 
-	sl_sched_loop(SL_SCHEDRCV_DEFAULT);
+	sl_sched_loop();
 
 	assert(0);
 

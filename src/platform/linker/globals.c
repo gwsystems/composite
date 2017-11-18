@@ -15,6 +15,7 @@ enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_H
 
 
 const char *COMP_INFO      = "cos_comp_info";
+const char *COMP_PLT       = "ST_user_caps";
 const char *SCHED_NOTIF    = "cos_sched_notifications";
 const char *INIT_COMP      = "c0.o";
 char       *ROOT_SCHED     = NULL;   // this is set to the first listed scheduler (*)
@@ -44,37 +45,24 @@ const char *SCHED_CREATE_FN = "sched_init";
  * See cos_types.h for the numerical identifiers of each of these
  * fault handlers.
  */
-const char *
-cos_flt_handlers[COS_FLT_MAX] = {
-	"fault_page_fault_handler",
-	"fault_div_zero_handler",
-	"fault_brkpt_handler",
-	"fault_overflow_handler",
-	"fault_range_handler",
-	"fault_gen_prot_handler",
-	"fault_linux_handler",
-	"fault_save_regs_handler",
-	"fault_flt_notif_handler"
-};
+const char *cos_flt_handlers[COS_FLT_MAX] = {"fault_page_fault_handler", "fault_div_zero_handler",
+                                             "fault_brkpt_handler",      "fault_overflow_handler",
+                                             "fault_range_handler",      "fault_gen_prot_handler",
+                                             "fault_linux_handler",      "fault_save_regs_handler",
+                                             "fault_flt_notif_handler", "fault_flt_quarantine"};
 
-struct cos_sections section_info[MAXSEC_S+1] = {
+struct cos_sections section_info[MAXSEC_S + 1] =
+{
 	{
-		.secid      = TEXT_S,
+		.secid = TEXT_S,
 		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
-		.sname      = ".text"
+		.sname = ".text"
 	},
 	{
-		.secid      = RODATA_S,
+		.secid = RODATA_S,
 		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
-		.coalesce   = 1,
-		.sname      = ".rodata"
-	},
-	{
-		.secid      = INITFINI_S,
-		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
-		.coalesce   = 1,
-		.sname      = ".initfini"
-
+		.coalesce = 1,
+		.sname = ".rodata"
 	},
 	{
 		.secid      = CTORS_S,
@@ -88,7 +76,7 @@ struct cos_sections section_info[MAXSEC_S+1] = {
 		.coalesce   = 1,
 		.sname      = ".dtors",
 	},
- 	{
+	{
 		.secid      = INIT_ARRAY_S,
 		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
 		.coalesce   = 1,

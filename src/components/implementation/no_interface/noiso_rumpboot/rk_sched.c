@@ -138,7 +138,7 @@ void
 rk_sched_loop(void)
 {
 	printc("STARTING RK SCHED!\n");
-	sl_sched_loop(1);
+	sl_sched_loop();
 }
 
 void

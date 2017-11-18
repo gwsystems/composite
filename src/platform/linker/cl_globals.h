@@ -29,6 +29,7 @@
 extern enum { PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG } print_lvl;
 
 extern const char *COMP_INFO;
+extern const char *COMP_PLT;
 extern const char *SCHED_NOTIF;
 extern const char *INIT_COMP;
 extern char *      ROOT_SCHED;

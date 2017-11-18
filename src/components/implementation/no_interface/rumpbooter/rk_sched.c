@@ -117,7 +117,7 @@ rk_intr_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap)
 	struct sl_thd *t = NULL;
 
 	t = sl_thd_aep_alloc(fn, data, own_tcap);
-	assert(t);	
+	assert(t);
 
 	rk_intr_thd_param_set(t, own_tcap);
 
@@ -130,7 +130,7 @@ rk_intr_aep_init(struct cos_aep_info *aep, int own_tcap)
 	struct sl_thd *t = NULL;
 
 	t = sl_thd_init(aep, own_tcap);
-	assert(t);	
+	assert(t);
 
 	rk_intr_thd_param_set(t, own_tcap);
 
@@ -158,7 +158,7 @@ rk_sched_loop(void)
 	/* FAIL immediately? That's what we're doing here */
 	while (1) ;
 #else
-	sl_sched_loop(1);
+	sl_sched_loop();
 #endif
 }
 
