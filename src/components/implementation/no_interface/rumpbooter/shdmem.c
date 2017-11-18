@@ -1,6 +1,12 @@
 #include <cos_kernel_api.h>
 #include <shdmem.h>
 
+/*
+ * For generic shared memory, the client component is responsible for allocating memory
+ * from this shared memory manager.
+ * The server component should then map in memory upon the request of the client component
+ */
+
 static vaddr_t shm_master_regions[SHM_MAX_REGIONS];
 /* Until we have to implement the deallocate, just increment this */
 static unsigned int shm_master_idx = 0;
@@ -54,7 +60,7 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 {
 	vaddr_t src_pg, dst_pg, unused;
 	struct shm_info *comp_shm_info;
-	int ret, idx;
+	int ret, id;
 
 	/* FIXME, this function is a critial section, syncronize this sh*t */
 
@@ -63,6 +69,12 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 		shm_infos[spdid].cinfo && \
 		shm_infos[spdid].shm_frontier && \
 		num_pages);
+
+	if (num_pages > 1) {
+		/* Unimplemented TODO */
+		printc("num_pages > 1, unimplemented, TODO\n");
+		return -1;
+	}
 
 	/* Initialize the shm_info for this spdid if it has not been initialized yet */
 	if (!shm_infos[spdid].init) { __shm_infos_init(spdid); }
@@ -77,10 +89,10 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 	shm_master_regions[shm_master_idx] = src_pg;
 
 	/* Get address to map into */
-	idx = shm_master_idx;
+	id = shm_master_idx;
 	dst_pg = comp_shm_info->shm_frontier;
 	assert(dst_pg);
-        comp_shm_info->my_regions[idx] = dst_pg;
+        comp_shm_info->my_regions[id] = dst_pg;
 
 	shm_master_idx++;
 
@@ -88,7 +100,7 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 	assert(dst_pg && !ret);
 	comp_shm_info->shm_frontier += PAGE_SIZE;
 
-	return idx;
+	return id;
 }
 
 int
@@ -106,7 +118,9 @@ shm_deallocate(int arg1, int arg2, int arg3, int arg4)
 	 * Takes spdid_t spdid, int cbid
 	 */
 
-	printc("Hello from shm_deallocate\n");
+	printc("Hello from shm_deallocate - UNIMPLEMENTED\n");
+	assert(0);
+
 	return 0;
 }
 

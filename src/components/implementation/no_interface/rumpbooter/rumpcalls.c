@@ -12,7 +12,6 @@
 #include "vk_types.h"
 #include "rumpcalls.h"
 #include "rump_cos_alloc.h"
-#include "cos2rk_rb_api.h"
 #include "vk_api.h"
 #include "rk_inv_api.h"
 #include "rk_sched.h"
@@ -60,10 +59,6 @@ cos2rump_setup(void)
 	crcalls.rump_vm_yield			= cos_vm_yield;
 
 	crcalls.rump_cpu_intr_ack		= cos_cpu_intr_ack;
-
-	crcalls.rump_shmem_send			= cos_shmem_send;
-	crcalls.rump_shmem_recv			= cos_shmem_recv;
-	crcalls.rump_dequeue_size		= cos_dequeue_size;
 
 	crcalls.rump_cpu_sched_wakeup		= rk_rump_thd_wakeup;
 	crcalls.rump_cpu_sched_block_timeout	= rk_rump_thd_block_timeout;
@@ -117,39 +112,6 @@ cos_vm_print(char s[], int ret)
 	strncpy(str+slen, s+len, rem);
 	slen += rem;
 	assert(slen <= STR_LEN_MAX);
-}
-
-int
-cos_dequeue_size(unsigned int srcvm, unsigned int curvm)
-{
-	assert(0);
-	return cos2rk_dequeue_size(srcvm, curvm);
-}
-
-/*rk shared mem functions*/
-int
-cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm)
-{
-	asndcap_t sndcap;
-	int ret;
-
-	assert(0);
-	return 1;
-}
-
-int
-cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm)
-{
-	assert(0);
-	return cos2rk_shm_read(buff, srcvm, curvm);
-}
-
-/* send and recieve notifications */
-void
-rump2cos_rcv(void)
-{
-	printc("rump2cos_rcv");
-	return;
 }
 
 static inline void

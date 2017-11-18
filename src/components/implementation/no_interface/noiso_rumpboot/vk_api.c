@@ -1,5 +1,4 @@
 #include "vk_api.h"
-#include "cos2rk_rb_api.h"
 
 extern vaddr_t cos_upcall_entry;
 

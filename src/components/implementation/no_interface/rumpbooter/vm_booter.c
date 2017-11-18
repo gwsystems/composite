@@ -71,7 +71,14 @@ vm_init(void *unused)
 	rumpns_vmid = vmid;
 	cos_spdid_set(vmid);
 
-	if (vmid == RUMP_SUB || vmid == DL_APP) {
+	if (vmid == RUMP_SUB) {
+		/* Map shared memory between  component and booter */
+		vk_vm_shmem_alloc();
+		cringbuf_init(&vmringbuf, (void *)APP_SUB_SHM_BASE, APP_SUB_SHM_SZ);
+		vmrb = &vmringbuf;
+	} else if (vmid == DL_APP) {
+		vk_vm_shmem_map();
+		/* Map in shared memory between RUMP_SUB and DL_APP components*/
 		cringbuf_init(&vmringbuf, (void *)APP_SUB_SHM_BASE, APP_SUB_SHM_SZ);
 		vmrb = &vmringbuf;
 	} else {

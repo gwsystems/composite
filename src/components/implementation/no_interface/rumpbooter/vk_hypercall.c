@@ -72,16 +72,16 @@ shmem_call(int arg1, int arg2, int arg3, int arg4)
 
         switch(arg1) {
         case VK_SERV_SHM_VADDR_GET:
-                ret = (int)shm_get_vaddr((unsigned int)arg2, (unsigned int)arg3, arg4, 0);
+                ret = (int)shm_get_vaddr((unsigned int)arg2, (unsigned int)arg3);
                 break;
         case VK_SERV_SHM_ALLOC:
-                ret = shm_allocate((unsigned int)arg2, arg3, arg4, 0);
+                ret = shm_allocate((unsigned int)arg2, arg3);
                 break;
         case VK_SERV_SHM_DEALLOC:
                 ret = shm_deallocate(arg2, arg3, arg4, 0);
                 break;
         case VK_SERV_SHM_MAP:
-                ret = shm_map(arg2, arg3, arg4, 0);
+                ret = shm_map(arg2, arg3);
                 break;
         default: assert(0);
         }

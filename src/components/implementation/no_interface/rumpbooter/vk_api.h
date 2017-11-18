@@ -10,8 +10,8 @@
 /* api */
 void vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo);
 void vk_vm_virtmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long start_ptr, unsigned long range);
-void vk_vm_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long shm_ptr, unsigned long shm_sz);
-void vk_vm_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long shm_ptr, unsigned long shm_sz);
+void vk_vm_shmem_alloc();
+void vk_vm_shmem_map();
 void vk_vm_sched_init(struct vms_info *vminfo);
 void vk_vm_sinvs_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo);
 void vk_iocomm_init(void);

@@ -1,5 +1,4 @@
 #include "vk_api.h"
-#include "cos2rk_rb_api.h"
 
 extern vaddr_t cos_upcall_entry;
 extern int __inv_rk_inv_entry(int r1, int r2, int r3, int r4);
@@ -168,55 +167,32 @@ vk_vm_virtmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsign
 }
 
 void
-vk_vm_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long shm_ptr, unsigned long shm_sz)
+vk_vm_shmem_alloc(unsigned int spdid, unsigned int len)
 {
-	int i;
-	vaddr_t src_pg, dst_pg, addr;
+	unsigned int i;
+	int ret;
 
-	assert(vminfo && vkinfo);
-	assert(shm_ptr == round_up_to_pgd_page(shm_ptr));
+	assert(len > 0);
 
-	/* VM0: mapping in all available shared memory. */
-	src_pg = (vaddr_t)cos_page_bump_allocn(&vkinfo->shm_cinfo, shm_sz);
-	assert(src_pg);
-
-	for (addr = shm_ptr; addr < (shm_ptr + shm_sz); addr += PAGE_SIZE, src_pg += PAGE_SIZE) {
-		//assert(src_pg == addr);
-
-		dst_pg = cos_mem_alias(&vminfo->shm_cinfo, &vkinfo->shm_cinfo, src_pg);
-		assert(dst_pg && dst_pg == addr);
+	for (i = 0 ; i < len ; i++) {
+		ret = vk_shmem_alloc(spdid, 1);
+		assert(ret >= 0);
 	}
-
-	/* cos2rk ring buffer creation */
-	//cos2rk_rb_init();
 
 	return;
 }
 
 void
-vk_vm_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long shm_ptr, unsigned long shm_sz)
+vk_vm_shmem_map(unsigned int spdid, unsigned int len)
 {
-	vaddr_t src_pg, dst_pg, addr;
+	unsigned int i;
+	int ret;
 
-	assert(vminfo && vminfo->id && vkinfo);
-	assert(shm_ptr == round_up_to_pgd_page(shm_ptr));
+	assert(len > 0);
 
-	if (vminfo->id == UDP_APP) {
-		assert(TIMER_SUB == 1);
-		src_pg = shm_ptr + shm_sz;
-	} else if (vminfo->id == DL_APP) {
-		assert(RUMP_SUB == 0);
-		src_pg = shm_ptr;
-	} else {
-		assert(0);
-	}
-
-	for (addr = shm_ptr; addr < (shm_ptr + shm_sz); addr += PAGE_SIZE, src_pg += PAGE_SIZE) {
-		/* VMx: mapping in only a section of shared-memory to share with VM0 */
-		assert(src_pg);
-
-		dst_pg = cos_mem_alias(&vminfo->shm_cinfo, &vkinfo->shm_cinfo, src_pg);
-		assert(dst_pg && dst_pg == addr);
+	for (i = 0 ; i < len ; i++) {
+		ret = vk_shmem_map(spdid, 1);
+		assert(ret >= 0);
 	}
 
 	return;
@@ -333,7 +309,7 @@ vk_iocomm_init(void)
 }
 
 vaddr_t
-dom0_vio_shm_base(unsigned int vmid)
+dom0_vio_shm_base(unsigned int spdid)
 {
-	return VK_VM_SHM_BASE + (VM_SHM_SZ * vmid);
+	return VK_VM_SHM_BASE + (VM_SHM_SZ * spdid);
 }

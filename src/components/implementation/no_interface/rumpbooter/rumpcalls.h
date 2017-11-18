@@ -104,8 +104,6 @@ struct cos_rumpcalls
 	void   (*rump_rcv)(void);
 	void   (*rump_intr_disable)(void);
 	void   (*rump_intr_enable)(void);
-	int    (*rump_shmem_send)(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
-	int    (*rump_shmem_recv)(void * buff, unsigned int srcvm, unsigned int dstvm);
 	void   (*rump_sched_yield)(void);
 	void   (*rump_vm_yield)(void);
 	void   (*rump_cpu_intr_ack)(void);
@@ -150,10 +148,6 @@ void cos_sched_yield(void);
 void cos_vm_yield(void);
 
 void cos_cpu_intr_ack(void);
-
-int cos_shmem_send(void * buff, unsigned int size, unsigned int srcvm, unsigned int dstvm);
-int cos_shmem_recv(void * buff, unsigned int srcvm, unsigned int curvm);
-int cos_dequeue_size(unsigned int srcvm, unsigned int curvm);
 
 vaddr_t shmem_get_vaddr_invoke(int id);
 int shmem_allocate_invoke(void);

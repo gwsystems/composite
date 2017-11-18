@@ -131,16 +131,13 @@ cos_init(void)
 		printc("\tAllocating Untyped memory (size: %lu)\n", (unsigned long)VM_UNTYPED_SIZE(id));
 		cos_meminfo_alloc(vm_cinfo, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE(id));
 
+		/* Move this to application start*/
 		if (id < APP_START_ID) {
-			/* TODO Look into shared memory ringbuffer, replace with my shared memory implementation */
 			printc("\tAllocating shared-memory (size: %lu)\n", (unsigned long)APP_SUB_SHM_SZ);
 			vk_vm_shmem_alloc(vm_info, &vk_info, APP_SUB_SHM_BASE, APP_SUB_SHM_SZ);
-			//vk_vm_shmem_alloc(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_ALL_SZ);
 		} else {
-			/* TODO see above */
 			printc("\tMapping in shared-memory (size: %lu)\n", (unsigned long)APP_SUB_SHM_SZ);
 			vk_vm_shmem_map(vm_info, &vk_info, APP_SUB_SHM_BASE, APP_SUB_SHM_SZ);
-			//vk_vm_shmem_map(vm_info, &vk_info, VK_VM_SHM_BASE, VM_SHM_SZ);
 		}
 
 		vk_vm_sched_init(vm_info);
@@ -151,8 +148,8 @@ cos_init(void)
 			assert(vm_range > 0);
 
 			/*
-			 * At this point, all VMs are initialized except their virtual memory!
-			 * Right time to create and copy IO caps required by each VM!
+			 * At this point, all VMs are initialized except their virtual memory
+			 * Right time to create and copy IO caps required by each VM
 			 */
 			vk_iocomm_init();
 
