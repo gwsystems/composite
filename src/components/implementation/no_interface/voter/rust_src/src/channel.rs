@@ -10,7 +10,7 @@ use voter_lib::MAX_REPS;
 pub struct Channel  {
 	pub reader_id:  usize,
 	pub writer_id:  usize,
-	channel_data: Arc<Lock<Vec<ChannelData>>>,
+	messages: Vec<ChannelData>,
 }
 
 pub struct ChannelData {
@@ -43,7 +43,7 @@ impl Channel {
 			Channel {
 				reader_id,
 				writer_id,
-				channel_data: Arc::new(Lock::new(sl,Vec::new())),
+				messages:Vec::new(),
 			}
 		));
 
@@ -79,7 +79,7 @@ impl Channel {
 	}
 
 	pub fn send(&mut self, msg:Vec<u8>, rep_id:u16,msg_id:u16) {
-		self.channel_data.lock().deref_mut().push(
+		self.messages.push(
 			ChannelData {
 				msg_id,
 				rep_id,
@@ -89,26 +89,24 @@ impl Channel {
 	}
 
 	pub fn receive(&mut self) -> Option<ChannelData> {
-		self.channel_data.lock().deref_mut().pop()
+		self.messages.pop()
 	}
 
 	pub fn has_data(&self) -> bool {
-		return !self.channel_data.lock().deref().is_empty()
+		return !self.messages.is_empty()
 	}
 
 	pub fn validate_msgs(&self,msg_id:u16) -> bool {
-		let data_lock = self.channel_data.lock();
-		let data = data_lock.deref();
-		if data.len() == 0 {return true}
+		if self.messages.len() == 0 {return true}
 
 		//outter loop find a message with the passed in id to compare to
-		for msg in data {
+		for msg in &self.messages {
 			if msg.msg_id != msg_id {continue}
 			//compare all other messages with this id against msg
-			for msg_b in data {
+			for msg_b in &self.messages {
 				if msg_b.msg_id != msg_id {continue}
 				//if the msgs dont match return and well handle finding the fault elsewhere
-				if !msg.compare_msg_to(msg_b) {return false}
+				if !msg.compare_msg_to(&msg_b) {return false}
 			}
 
 			break;
@@ -122,16 +120,14 @@ impl Channel {
 		let mut concensus: [(u8,i16); MAX_REPS] = [(0,0); MAX_REPS];
 
 		//find which replica disagrees with the majority
-		let data_lock = self.channel_data.lock();
-		let data = data_lock.deref();
 		let mut i = 0;
-		for msg in data {
+		for msg in &self.messages {
 			if msg.msg_id != msg_id {continue} /* skip messages that have been validated but not read */
 			concensus[i].1 = msg.rep_id as i16;
-			for msg_b in data {
+			for msg_b in &self.messages {
 				if msg_b.msg_id != msg_id {continue}
 				//if the msgs agree mark that
-				if (msg.compare_msg_to(msg_b)) {
+				if (msg.compare_msg_to(&msg_b)) {
 					concensus[i].0 += 1;
 				}
 			}
