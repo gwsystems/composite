@@ -231,7 +231,10 @@ pub fn test_chan_fault_find(sl:Sl) {
 	);
 	wait_for_done(&(compStore.components[writer]),sl);
 	println!("Validate Msgs: Expected: False : Actual: {:?},", channel.lock().deref().validate_msgs(0));
-	println!("Chan Find Fault: Expected: 2 : Actual: {:?}", channel.lock().deref().find_fault(0));
+	let faulted = channel.lock().deref().find_fault(0);
+	println!("Chan Find Fault: Expected: 2 : Actual: {:?}", faulted);
+	channel.lock().deref_mut().poison(faulted as u16);
+	println!("Channel poison: Expected no messages from rep 2 : actual: {:?}", channel.lock().deref().messages);
 }
 
 fn thd_send_diff(sl:Sl, rep:  Arc<Lock<Replica>>) {

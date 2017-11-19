@@ -219,7 +219,7 @@ impl ModComp {
 	}
 
 	//TODO - this function needs to be called by the channel somewhere, send recieve ????
-	fn replica_communicate(&mut self, sl:Sl, rep_id:usize, ch:Channel,comp_store:& mut CompStore, action:ReplicaState) -> Option<i32> {
+	fn replica_communicate(&mut self, sl:Sl, rep_id:usize, mut ch: Channel,comp_store:& mut CompStore, action:ReplicaState) -> Option<i32> {
 		assert!(rep_id < self.num_replicas);
 		if ch.reader_id == self.comp_id && action != ReplicaState::Read ||
 		   ch.writer_id == self.comp_id && action != ReplicaState::Written {

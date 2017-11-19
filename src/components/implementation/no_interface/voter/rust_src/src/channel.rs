@@ -10,7 +10,7 @@ use voter_lib::MAX_REPS;
 pub struct Channel  {
 	pub reader_id:  usize,
 	pub writer_id:  usize,
-	messages: Vec<ChannelData>,
+	pub messages: Vec<ChannelData>,
 }
 
 pub struct ChannelData {
@@ -22,6 +22,10 @@ pub struct ChannelData {
 
 impl fmt::Debug for Channel {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {write!(f, "Reader_id: {} | Writer_id: {}", self.reader_id, self.writer_id)}
+}
+
+impl fmt::Debug for ChannelData {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {write!(f, "Msg id: {} | rep id: {} | message {:?}\n", self.msg_id, self.rep_id, self.message)}
 }
 
 impl ChannelData {
@@ -60,7 +64,7 @@ impl Channel {
 		return Arc::clone(&chan);
 	}
 
-	pub fn call_vote(&self,comp_store:&mut CompStore) -> (VoteStatus,VoteStatus) {
+	pub fn call_vote(&mut self,comp_store:&mut CompStore) -> (VoteStatus,VoteStatus) {
 		//check to make sure messages on the channel are valid data
 		let unit_of_work = comp_store.components[self.writer_id].replicas[0].lock().deref().unit_of_work;
 		if (!self.validate_msgs(unit_of_work)) {
@@ -68,7 +72,7 @@ impl Channel {
 			let faulted = self.find_fault(unit_of_work);
 			assert!(faulted > 0);
 			//remove these messages from the chanel
-			//self.poison(faulted)
+			self.poison(faulted as u16);
 			//return a faild vote
 			return (VoteStatus::Fail(self.writer_id,faulted as u16),
 					comp_store.components[self.reader_id].collect_vote())
@@ -145,6 +149,10 @@ impl Channel {
 			}
 		}
 		return faulted;
+	}
+
+	pub fn poison(&mut self, rep_id:u16) {
+		self.messages.retain(|ref msg| msg.rep_id != rep_id);
 	}
 
 	pub fn wake_all(&mut self,comp_store:& mut CompStore) {
