@@ -80,11 +80,11 @@
 
 
 /* Use CSTUB_INVOKE() to make a capability invocation with _uc.
- * 	_ret: output return variable
- * 	_fault: output fault variable
- * 	_uc: a usr_inv_cap
- * 	_narg: the number of args in ...
- * 		* NOTE: _narg must be a literal constant integer
+ *	_ret: output return variable
+ *	_fault: output fault variable
+ *	_uc: a usr_inv_cap
+ *	_narg: the number of args in ...
+ *		* NOTE: _narg must be a literal constant integer
  */
 #define CSTUB_INVOKE(_ret, _fault, _uc, _narg, ...) CSTUB_ASM(_narg, _ret, _fault, _uc, __VA_ARGS__)
 
@@ -93,8 +93,8 @@
 
 
 /* Use CSTUB_FN() to declare a function that is going to use CSTUB_INVOKE.
- * 	type: return type of function
- * 	name: name of function corresponding to the invocation
+ *	type: return type of function
+ *	name: name of function corresponding to the invocation
  */
 #define CSTUB_FN(type, name) __attribute__((regparm(1))) type name##_call
 

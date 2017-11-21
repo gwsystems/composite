@@ -53,14 +53,14 @@ boot_find_cobjs(struct cobj_header *h, int n)
 	hs[n] = NULL;
 	printc("cobj %s:%d found at %p -> %x\n", hs[n - 1]->name, hs[n - 1]->id, hs[n - 1],
 	       cobj_sect_get(hs[n - 1], 0)->vaddr);
-	
+
 }
 
 static int
 boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 {
 	int               i;
-	int 		  first = 1;
+	int		  first = 1;
 	vaddr_t           dest_daddr, prev_map = 0;
 	int               n_pte = 1;
 	struct cobj_sect *sect = cobj_sect_get(h, 0);
@@ -84,7 +84,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 		}
 
 		while (left > 0) {
-			if (first) { 
+			if (first) {
 				new_comp_cap_info[spdid].vaddr_mapped_in_booter = boot_deps_map_sect(spdid, dest_daddr);
 				first = 0;
 			} else {
@@ -95,7 +95,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 			left -= PAGE_SIZE;
 		}
 	}
-	
+
 	return 0;
 }
 
@@ -122,16 +122,16 @@ boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info, vaddr_t
 
 		symb = cobj_symb_get(h, i);
 		assert(symb);
-	
+
 		switch (symb->type) {
 		case COBJ_SYMB_COMP_INFO:
 			*comp_info = symb->vaddr;
 			break;
 		case COBJ_SYMB_EXPORTED:
-			break;	
+			break;
 		case COBJ_SYMB_COMP_PLT:
 			*user_caps = symb->vaddr;
-			break;	
+			break;
 		default:
 			break;
 		}
@@ -217,7 +217,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 			ci = (struct cos_component_information *)(start_addr + (comp_info - init_daddr));
 			new_comp_cap_info[h->id].upcall_entry = ci->cos_upcall_entry;
 		}
-	
+
 	}
 
 	return 0;
@@ -287,7 +287,7 @@ boot_create_cap_system(void)
 		sect                                = cobj_sect_get(h, 0);
 		new_comp_cap_info[spdid].addr_start = sect->vaddr;
 		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);
-		
+
 		if (boot_spd_symbs(h, spdid, &ci, &new_comp_cap_info[spdid].vaddr_user_caps)) BUG();
 		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
@@ -296,7 +296,7 @@ boot_create_cap_system(void)
 		printc("\nComp %d (%s) created @ %x!\n\n", h->id, h->name, sect->vaddr);
 	}
 
-	
+
 	return;
 }
 
@@ -309,7 +309,7 @@ boot_init_ndeps(int num_cobj)
 	for (i = 0; i < deps_list[i].server; i++) {
 //		if (deps_list[i].client != 0) printc("client: %d, server: %d \n", deps_list[i].client, deps_list[i].server);
 	}
-	
+
 	printc("ndeps: %d\n", ndeps);
 	ndeps = i;
 }

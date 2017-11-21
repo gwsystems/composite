@@ -5,40 +5,40 @@
 #include <cos_debug.h>
 #include <cos_types.h>
 
-void 
-call(void) { 
+void
+call(void) {
 	printc("In call() in pong_two interface\n");
-	return; 
+	return;
 }
 
-void 
-call_two(void) { 
+void
+call_two(void) {
 	printc("In call_two() in pong_two interface. \n");
-	return; 
+	return;
 }
 
-void 
-call_three(void) { 
+void
+call_three(void) {
 	printc("In call_three() in pong_two interface. \n");
-	return; 
+	return;
 }
 
-void 
-call_four(void) { 
+void
+call_four(void) {
 	printc("In call_four() in pong_two interface. \n");
-	return; 
+	return;
 }
 
-void 
-call_arg(int p1) { 
+void
+call_arg(int p1) {
 	printc("In call_arg() in pong_two interface. arg: %d\n", p1);
-	return; 
+	return;
 }
 
-void 
-call_args(int p1, int p2, int p3, int p4) { 
+void
+call_args(int p1, int p2, int p3, int p4) {
 	printc("In call_args() in pong_two interface.\n p1:%d p2:%d p3:%d p4:%d \n", p1, p2, p3, p4);
-	return; 
+	return;
 }
 
 void

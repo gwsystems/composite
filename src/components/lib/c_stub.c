@@ -1,13 +1,16 @@
 #include <cos_component.h>
+#include <cos_kernel_api.h>
 #include <cos_types.h>
 #include <cstub.h>
 
 /* Avoid creating any dependencies in the default stub code */
+#ifndef assert
 #define assert(x)                           \
 	do {                                \
 		volatile int y;             \
 		if (!(x)) y = *(int *)NULL; \
 	} while (0)
+#endif
 
 /* Return zero from SS_ipc_client_fault to cause CSTUB_INVOKE to retry */
 __attribute__((weak, regparm(1))) int
@@ -23,7 +26,7 @@ SS_ipc_client_fault(cos_flt_off flt)
 		/* Any other fault is bad */
 		assert(0);
 	}
-	
+
 	return error_out;
 }
 
@@ -32,9 +35,8 @@ SS_ipc_client_marshal_args(struct usr_inv_cap *uc, long p0, long p1, long p2, lo
 {
 	int ret;
 
-	/* Arguments are untested */	
-	ret = cos_sinv(uc->cap_no, p0, p1, p2, p3);		
-	
+	/* Arguments are untested */
+	ret = cos_sinv(uc->cap_no, p0, p1, p2, p3);
+
 	return ret;
 }
-#undef assert
