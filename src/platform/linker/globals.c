@@ -65,6 +65,13 @@ struct cos_sections section_info[MAXSEC_S + 1] =
 		.sname = ".rodata"
 	},
 	{
+		.secid      = INITFINI_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+		.coalesce   = 1,
+		.sname      = ".initfini"
+
+	},
+	{
 		.secid      = CTORS_S,
 		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
 		.coalesce   = 1,
