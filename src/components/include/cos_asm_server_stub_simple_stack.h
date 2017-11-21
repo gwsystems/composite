@@ -33,7 +33,7 @@ name##_inv:                       \
         pushl %edi;	          \
         pushl %esi;	          \
         pushl %ebx;	          \
-        call name ; 		  \
+        call name ;		  \
         addl $16, %esp;           \
                                   \
         movl %eax, %ecx;          \
@@ -53,7 +53,7 @@ name##_inv:                             \
         pushl %edi;	                \
         pushl %esi;	                \
         pushl %ecx;	                \
-        call name ; 		        \
+        call name ;		        \
         addl $16, %esp;                 \
                                         \
         movl %eax, %ecx;                \

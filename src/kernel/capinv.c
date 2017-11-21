@@ -958,10 +958,10 @@ composite_syscall_handler(struct pt_regs *regs)
 	cap = __userregs_getcap(regs);
 	thd = thd_current(cos_info);
 
-	/* printk("thd %d calling cap %d (ip %x, sp %x), operation %d: %x, %x, %x, %x\n", thd->tid, cap, */
-	/*        __userregs_getip(regs), __userregs_getsp(regs), __userregs_getop(regs), */
-	/*        __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
-
+	/* printk("thd %d calling cap %d (ip %x, sp %x), operation %d: %x, %x, %x, %x\n", thd->tid, cap,
+	 *        __userregs_getip(regs), __userregs_getsp(regs), __userregs_getop(regs),
+	 *        __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs));
+	 */
 
 	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
