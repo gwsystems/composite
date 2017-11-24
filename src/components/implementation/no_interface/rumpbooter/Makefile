@@ -1,7 +1,7 @@
 ASM_OBJS=inv.o start.o
 COMPONENT=rump_boot.o
 INTERFACES=
-DEPENDENCIES=
+DEPENDENCIES=shdmem
 IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format -lcos_defkernel_api -lcos_kernel_api -lsl -lheap -lsl_mod_fprr -lsl_thd_static_backend
 OBJLIBS += $(POSIX_LIB)
