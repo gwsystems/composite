@@ -1,4 +1,6 @@
+#include <cos_component.h>
 #include <cos_kernel_api.h>
+#include <cos_defkernel_api.h>
 #include <shdmem.h>
 
 /*
@@ -12,7 +14,7 @@ static vaddr_t shm_master_regions[SHM_MAX_REGIONS];
 static unsigned int shm_master_idx = 0;
 
 /* cos_compinfo for the booter component when using vkernel_init.c for the booter */
-extern struct cos_compinfo *vk_cinfo;
+struct cos_compinfo *shm_cinfo;
 
 static void
 __shm_infos_init(unsigned int spdid)
@@ -50,6 +52,7 @@ __print_region_idxs(unsigned int spdid)
 vaddr_t
 shm_get_vaddr(unsigned int spdid, unsigned int id)
 {
+	printc("IN SHM_GET_VADDR;\n");
 	assert(id < SHM_MAX_REGIONS && shm_infos[spdid].cinfo && shm_infos[spdid].shm_frontier);
 
 	return shm_infos[spdid].my_regions[id];
@@ -58,13 +61,14 @@ shm_get_vaddr(unsigned int spdid, unsigned int id)
 int
 shm_allocate(unsigned int spdid, unsigned int num_pages)
 {
+	printc("IN SHM_ALLOCATE\n");
 	vaddr_t src_pg, dst_pg, unused;
 	struct shm_info *comp_shm_info;
 	int ret, id;
 
 	/* FIXME, this function is a critial section, syncronize this sh*t */
 
-	assert(vk_cinfo && \
+	assert(shm_cinfo && \
 		((int)spdid > -1) && \
 		shm_infos[spdid].cinfo && \
 		shm_infos[spdid].shm_frontier && \
@@ -82,7 +86,7 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 	comp_shm_info = &shm_infos[spdid];
 	assert(comp_shm_info);
 
-	src_pg = (vaddr_t)cos_page_bump_alloc(vk_cinfo);
+	src_pg = (vaddr_t)cos_page_bump_alloc(shm_cinfo);
 	assert(src_pg);
 	/* Source Page comes from component managing shared memory, this is the page we keep in shm_master_regions*/
 	assert(shm_master_idx < SHM_MAX_REGIONS);
@@ -96,7 +100,7 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 
 	shm_master_idx++;
 
-	ret = cos_mem_alias_at(comp_shm_info->cinfo, comp_shm_info->shm_frontier, vk_cinfo, src_pg);
+	ret = cos_mem_alias_at(comp_shm_info->cinfo, comp_shm_info->shm_frontier, shm_cinfo, src_pg);
 	assert(dst_pg && !ret);
 	comp_shm_info->shm_frontier += PAGE_SIZE;
 
@@ -127,6 +131,7 @@ shm_deallocate(int arg1, int arg2, int arg3, int arg4)
 int
 shm_map(unsigned int spdid, unsigned int id)
 {
+	printc("IN SHM_MAP\n");
 	vaddr_t src_pg, dst_pg;
 	int ret;
 	struct shm_info *comp_shm_info;
@@ -144,9 +149,26 @@ shm_map(unsigned int spdid, unsigned int id)
 	dst_pg = comp_shm_info->shm_frontier;
 	comp_shm_info->my_regions[id] = dst_pg;
 
-	ret = cos_mem_alias_at(comp_shm_info->cinfo, comp_shm_info->shm_frontier, vk_cinfo, src_pg);
+	ret = cos_mem_alias_at(comp_shm_info->cinfo, comp_shm_info->shm_frontier, shm_cinfo, src_pg);
 	assert(dst_pg && !ret);
 	comp_shm_info->shm_frontier += PAGE_SIZE;
 
 	return id;
+}
+
+void
+cos_init(void)
+{
+	struct cos_defcompinfo *dci;
+	int ret;
+
+	printc("Welcome to the shdmem component\n");
+	printc("Getting cos_compinfo for ourselves...");
+	dci = cos_defcompinfo_curr_get();
+	assert(dci);
+	shm_cinfo = cos_compinfo_get(dci);
+	assert(shm_cinfo);
+	printc(" done\n");
+
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, 1, 2, 3, 4);
 }

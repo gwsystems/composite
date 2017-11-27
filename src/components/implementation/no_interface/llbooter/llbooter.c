@@ -325,9 +325,10 @@ cos_init(void)
 	h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj = (int)cos_comp_info.cos_poly[1];
 
+	/* TODO, deps and deps_list is not used for anything */
 	//deps = (struct deps *)cos_comp_info.cos_poly[2];
-	memcpy(deps_list, (struct deps *)cos_comp_info.cos_poly[2], PAGE_SIZE);
-	boot_init_ndeps(num_cobj);
+	//memcpy(deps_list, (struct deps *)cos_comp_info.cos_poly[2], PAGE_SIZE);
+	//boot_init_ndeps(num_cobj);
 
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
 	init_args++;
