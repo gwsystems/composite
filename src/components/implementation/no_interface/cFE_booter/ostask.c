@@ -9,6 +9,24 @@
 
 #include <cos_kernel_api.h>
 
+void
+timer_fn_1hz(void *d)
+{
+	int first = 0;
+	cycles_t now, start;
+
+	rdtscll(start);
+	start += sl_usec2cyc(250000); //250ms after
+
+	while (1) {
+		rdtscll(now);
+		if (now > start) {
+			CFE_TIME_Local1HzISR(); /* input param is signum. but CFE_PSP_TimerHandler doesn't seem to use it. */
+		}	
+
+		sl_thd_block_periodic(0);
+	}
+}
 
 /*
 ** Internal Task helper functions
@@ -29,6 +47,12 @@ void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
     strcpy(policy->osal_task_prop.name, "MAIN_THREAD");
     policy->osal_task_prop.priority = MAIN_DELEGATE_THREAD_PRIORITY;
     policy->osal_task_prop.OStask_id = (uint32) main_delegate_thread->thdid;
+
+    struct sl_thd *timer_thd = sl_thd_alloc(timer_fn_1hz, NULL);
+    union sched_param_union spperiod = {.c = {.type = SCHEDP_WINDOW, .value = 250000 }};
+    union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = MAIN_DELEGATE_THREAD_PRIORITY+1}};
+    sl_thd_param_set(timer_thd, spperiod.v);
+    sl_thd_param_set(timer_thd, spprio.v);
 
     sl_sched_loop();
 }
