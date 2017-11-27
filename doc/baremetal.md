@@ -6,10 +6,19 @@ Procedure (from *transfer* directory):
 * Run *geniso.sh* script: This generates **composite.iso** bootable CD-ROM image.
 * Run *qemu-iso.sh* script to execute *composite.iso* in [Qemu](http://wiki.qemu.org/Main_Page) emulator.
 * To Boot *composite.iso* on Bare metal:
-	* Burn this image in to a USB: `sudo dd if=**composite.iso** of=/dev/sdX bs=8M`
+	* Burn this image in to a USB: `sudo dd if=composite.iso of=/dev/sdX bs=8M`
 	* Reboot PC and select USB as Bootable device from BIOS.
 
 This is the most straight forward and less tedious way to boot on Bare metal.
+
+**NOTES**
+* If you're not running Composite on baremetal, you don't need to generate a ISO image to run.
+  Instead, you could just run it using QEMU emulation -- `./qemu.sh <runscript>` in your `transfer/` directory.
+* `geniso.sh` may fail if you've an outdated `xorriso` version. Be sure to check the logs and update your `xorriso` package. example error log:
+   ```
+   $ ./geniso.sh micro_boot.sh 
+   grub-mkrescue: warning: Your xorriso doesn't support `--grub2-boot-info'. Some features are disabled. Please use xorriso 1.2.9 or later..
+   ```
 
 ## Working with Grub bootloaders on the Host PC Disk
 **(I've not tested these with the latest Composite kernel.)**
@@ -59,6 +68,23 @@ You can see the Logs on VGA but is not something that you'd really want to work 
 
 ### Debug: Serial
 
-I've not used it as there is some serial compatibility issues, need a serial cable with female connectors at both end to connect 2 PCs or a USB at one end! That didn't work out well!
+Good news, we found some [Null-Modem RS232 Serial cables](https://www.amazon.com/StarTech-com-USB-Serial-Adapter-Modem/dp/B008634VJY/ref=pd_cp_147_2?_encoding=UTF8&pd_rd_i=B008634VJY&pd_rd_r=HKWQ429M9PDSE567JMVT&pd_rd_w=xvaFb&pd_rd_wg=QJsOn&psc=1&refRID=HKWQ429M9PDSE567JMVT) that work for serial communication between two intel PCs.
 
-But with Qemu emulation, you'll be able to see Serial output.
+If you've a UNIX-based machine, you could use `minicom` to see the serial output from Composite running on baremetal on your host machine.
+
+To get minicom working with the RS232 Serial to USB cables, you'd need to change the serail port to: `/dev/ttyUSB0` ideally using `minicom -s`. (You should verify this device from the `dmesg` output to be sure you're using the right port).
+Next, you'd need to set up the baudrate to match what composite uses (38400bps).
+To see the logs correctly, you'd need to set the linefeed, carriage return, and linewrap to "Yes".
+
+The contents of my minicom config file `minirc.dfl`:
+```
+# Machine-generated file - use "minicom -s" to change parameters.
+pu port             /dev/ttyUSB0
+pu baudrate         38400
+pu histlines        5000
+pu addlinefeed      Yes
+pu linewrap         Yes
+pu addcarreturn     Yes
+
+```
+I've also set to have the maximum number of history lines, which is not a necessity.

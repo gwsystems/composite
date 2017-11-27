@@ -562,6 +562,11 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 	if (tcap_budgets_update(cos_info, thd_curr, tc_curr, &now)) {
 		assert(!tcap_is_active(tc_curr) && tcap_expended(tc_curr));
 
+		/*
+		 * FIXME: child scheduler should abide by parent's timeouts.
+		 * for now, we set timeout to 0 to use the budget of the tcap for timer interrupt programming.
+		 */
+		timeout = 0;
 		if (timer_intr_context) tc_next= thd_rcvcap_tcap(thd_next);
 
 		/* how about the scheduler's tcap? */
@@ -953,10 +958,10 @@ composite_syscall_handler(struct pt_regs *regs)
 	cap = __userregs_getcap(regs);
 	thd = thd_current(cos_info);
 
-	/* printk("thd %d calling cap %d (ip %x, sp %x), operation %d: %x, %x, %x, %x\n", thd->tid, cap, */
-	/*        __userregs_getip(regs), __userregs_getsp(regs), __userregs_getop(regs), */
-	/*        __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
-
+	/* printk("thd %d calling cap %d (ip %x, sp %x), operation %d: %x, %x, %x, %x\n", thd->tid, cap,
+	 *        __userregs_getip(regs), __userregs_getsp(regs), __userregs_getop(regs),
+	 *        __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs));
+	 */
 
 	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
