@@ -18,9 +18,6 @@ void
 sl_mod_execution(struct sl_thd_policy *t, cycles_t cycles)
 { }
 
-
-volatile int global = 0;
-
 struct sl_thd_policy *
 sl_mod_schedule(void)
 {
@@ -32,8 +29,6 @@ sl_mod_schedule(void)
 		t = ps_list_head_first_d(&threads[i], struct sl_thd_policy);
 
 		struct sl_thd *thd  = sl_mod_thd_get(t);
-
-		global++;
 
 		/*
 		 * We want to move the selected thread to the back of the list.

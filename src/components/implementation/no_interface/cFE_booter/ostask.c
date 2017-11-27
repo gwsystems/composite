@@ -102,6 +102,7 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
     policy->osal_task_prop.stack_size = stack_size;
     policy->osal_task_prop.priority = priority;
     policy->osal_task_prop.OStask_id = (uint32) thd->thdid;
+    policy->delete_handler = NULL;
 
     *task_id = (uint32) thd->thdid;
 
@@ -114,7 +115,6 @@ int32 OS_TaskDelete(uint32 task_id)
     if(!thd) {
         return OS_ERR_INVALID_ID;
     }
-
 
     struct sl_thd_policy* thd_policy =  sl_mod_thd_policy_get(thd);
 

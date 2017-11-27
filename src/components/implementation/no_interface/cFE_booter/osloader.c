@@ -12,7 +12,6 @@
 
 #define USER_CAPS_SYMB_NAME "ST_user_caps"
 
-int cobj_count;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
 
 static void
@@ -44,7 +43,6 @@ find_cobjs(struct cobj_header *h, int n)
 	}
 
 	hs[n] = NULL;
-	cobj_count = i;
 
     printc("cobj %s:%d found at %p -> %x\n",
 		   hs[n-1]->name, hs[n-1]->id, hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);
