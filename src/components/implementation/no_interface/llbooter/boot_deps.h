@@ -5,6 +5,7 @@
 #include <llprint.h>
 
 #define UNDEF_SYMBS 64
+#define CMP_UTYPMEM_SZ (1 << 26)
 
 /* Assembly function for sinv from new component */
 extern void *__inv_test_entry(int a, int b, int c);
@@ -68,7 +69,7 @@ boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 	assert(*pt);
 
 	new_comp_cap_info[spdid].compinfo = &new_compinfo[spdid];
-	cos_compinfo_init(new_comp_cap_info[spdid].compinfo, *pt, *ct, 0, (vaddr_t)vaddr, 4, &boot_info);
+	cos_compinfo_init(new_comp_cap_info[spdid].compinfo, *pt, *ct, 0, (vaddr_t)vaddr, BOOT_CAPTBL_FREE, &boot_info);
 }
 
 static void
@@ -109,6 +110,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	compcap_t   cc;
 	captblcap_t ct = new_comp_cap_info[spdid].compinfo->captbl_cap;
 	pgtblcap_t  pt = new_comp_cap_info[spdid].compinfo->pgtbl_cap;
+	pgtblcap_t  vmutpt;
 	sinvcap_t   sinv;
 	thdcap_t    main_thd;
 	int         i = 0;
@@ -124,6 +126,20 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SINV_CAP, &boot_info, sinv);
 
 	boot_newcomp_sinv_alloc(spdid);
+
+	vmutpt = cos_pgtbl_alloc(&boot_info);
+	assert(vmutpt);
+	cos_meminfo_init(&(new_comp_cap_info[spdid].compinfo->mi), BOOT_MEM_KM_BASE, CMP_UTYPMEM_SZ, vmutpt);
+
+	/*assign SL related capeabilities */
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_INITHW_BASE, &boot_info, BOOT_CAPTBL_SELF_INITHW_BASE);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_CT, &boot_info, ct);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_PT, &boot_info, pt);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_UNTYPED_PT, &boot_info, vmutpt);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_COMP, &boot_info, cc);
+
+	/* Populate untyped memory */
+	cos_meminfo_alloc(new_comp_cap_info[spdid].compinfo, BOOT_MEM_KM_BASE, CMP_UTYPMEM_SZ);
 
 	main_thd = cos_initthd_alloc(&boot_info, cc);
 	assert(main_thd);
