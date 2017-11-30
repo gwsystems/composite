@@ -20,27 +20,49 @@
 #include <assert.h>
 #include <sys/mman.h>
 
+struct private_symtab{
+	char name[MAX_SYMB_LEN];
+	unsigned long vma_val;
+};
+
 unsigned long getsym(bfd *obj, char* symbol)
 {
         long storage_needed;
-        asymbol **symbol_table;
+        asymbol **symbol_table = NULL;
+	static struct private_symtab *private_symtabs;
+	static bfd *prev_obj = NULL;
         long number_of_symbols;
         int i;
 
-        storage_needed = bfd_get_symtab_upper_bound (obj);
+	if (prev_obj != obj) {
+		prev_obj = obj;
+		storage_needed = bfd_get_symtab_upper_bound (obj);
+		printl(PRINT_DEBUG, "Allocating new symbol table\n");
 
-        if (storage_needed <= 0){
-                printl(PRINT_HIGH, "no symbols in object file\n");
-                exit(-1);
-        }
+		if (storage_needed <= 0){
+		        printl(PRINT_HIGH, "no symbols in object file\n");
+		        exit(-1);
+		}
 
-        symbol_table = (asymbol **) malloc (storage_needed);
-        number_of_symbols = bfd_canonicalize_symtab(obj, symbol_table);
+		symbol_table = (asymbol **) malloc (storage_needed);
+		assert(symbol_table);
+		number_of_symbols = bfd_canonicalize_symtab(obj, symbol_table);
+		private_symtabs = malloc (number_of_symbols * sizeof(struct private_symtab));
+		assert(private_symtabs);
+		int i;
+		for (i = 0 ; i < number_of_symbols ; i++) {
+			assert(symbol_table[i]->name);
+			strcpy(private_symtabs[i].name, symbol_table[i]->name);
+			private_symtabs[i].vma_val = symbol_table[i]->section->vma + symbol_table[i]->value;
+		}
+	}
+
+	assert(private_symtabs != NULL);
 
         //notes: symbol_table[i]->flags & (BSF_FUNCTION | BSF_GLOBAL)
         for (i = 0; i < number_of_symbols; i++) {
-                if(!strcmp(symbol, symbol_table[i]->name)){
-                        return symbol_table[i]->section->vma + symbol_table[i]->value;
+                if(!strcmp(symbol,  private_symtabs[i].name)){
+                        return private_symtabs[i].vma_val;
                 }
         }
 
@@ -441,7 +463,6 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 
         for (i = 0 ; csg(i)->secid < MAXSEC_S ; i++) {
                 printl(PRINT_DEBUG, "\tRetreiving section %d of size %lx @ %lx.\n", i, csg(i)->len, csg(i)->start_addr);
-
                 if (!is_booter_loaded(ret_data)) {
                         if (csg(i)->ldobj.s) {
                                 bfd_get_section_contents(objout, csg(i)->ldobj.s, (char*)csg(i)->start_addr, 0, csg(i)->len);
@@ -453,6 +474,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
                                 printl(PRINT_HIGH, "Could not create section %d in cobj for %s\n", i, service_name);
                                 return -1;
                         }
+
                         if (csg(i)->cobj_flags & COBJ_SECT_ZEROS) continue;
                         sect_loc = cobj_sect_contents(h, i);
                         printl(PRINT_DEBUG, "\tSection @ %d, size %d, addr %x, sect start %d\n", (u32_t)sect_loc-(u32_t)h,
