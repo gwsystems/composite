@@ -33,7 +33,7 @@ unsigned long getsym(bfd *obj, char* symbol)
         asymbol **symbol_table = NULL;
 	static struct private_symtab *private_symtabs;
 	/* FIXME, this shouldn't be max symbol length, it should be a number for max file length*/
-	static char prev_name[MAX_SYMB_LEN] = "";
+	static char prev_name[MAX_FILE_NAME_LEN] = "";
         long number_of_symbols;
         int i;
 

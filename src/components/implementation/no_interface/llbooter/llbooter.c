@@ -244,26 +244,26 @@ int
 boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 {
 	struct cobj_cap *cap;
-	struct usr_inv_cap inv_cap;	
+	struct usr_inv_cap inv_cap;
 	int cap_offset;
-	int i; 
+	unsigned int i;
 
 	for (i = 0; i < h->ncap ; i++) {
-	
+
 		cap = cobj_cap_get(h, i);
 		assert(cap);
 
 		/* 0 index of inv_cap array is special, so start at 1 */
-		cap_offset = cap->cap_off + 1;	
+		cap_offset = cap->cap_off + 1;
 
 		/* Create the user cap for the undef symb */
 		inv_cap = (struct usr_inv_cap) {
 			.invocation_fn = (vaddr_t) cap->cstub,
 			.service_entry_inst = (vaddr_t) cap->sstub,
 			.invocation_count = cap->dest_id
-		};	
-	
-		new_comp_cap_info[spdid].ST_user_caps[cap_offset] = inv_cap;	
+		};
+
+		new_comp_cap_info[spdid].ST_user_caps[cap_offset] = inv_cap;
 	}
 	return 0;
 }
