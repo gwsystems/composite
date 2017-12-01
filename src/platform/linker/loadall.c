@@ -20,6 +20,8 @@
 #include <assert.h>
 #include <sys/mman.h>
 
+char *service_name = NULL;
+
 struct private_symtab{
 	char name[MAX_SYMB_LEN];
 	unsigned long vma_val;
@@ -30,14 +32,17 @@ unsigned long getsym(bfd *obj, char* symbol)
         long storage_needed;
         asymbol **symbol_table = NULL;
 	static struct private_symtab *private_symtabs;
-	static bfd *prev_obj = NULL;
+	/* FIXME, this shouldn't be max symbol length, it should be a number for max file length*/
+	static char prev_name[MAX_SYMB_LEN] = "";
         long number_of_symbols;
         int i;
 
-	if (prev_obj != obj) {
-		prev_obj = obj;
+	assert(service_name);
+	if (strcmp(prev_name, service_name)) {
+		strcpy(prev_name, service_name);
+
 		storage_needed = bfd_get_symtab_upper_bound (obj);
-		printl(PRINT_DEBUG, "Allocating new symbol table\n");
+		printl(PRINT_DEBUG, "\tAllocating new symbol table...\n");
 
 		if (storage_needed <= 0){
 		        printl(PRINT_HIGH, "no symbols in object file\n");
@@ -288,7 +293,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
         bfd *obj, *objout;
         int sect_sz, offset, tot_static_mem = 0;
         void *ret_addr;
-        char *service_name = ret_data->obj;
+        service_name = ret_data->obj;
         struct cobj_header *h;
         int i;
         char script[64];
