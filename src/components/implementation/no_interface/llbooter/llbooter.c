@@ -185,7 +185,6 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	start_addr = (char *)(new_comp_cap_info[spdid].vaddr_mapped_in_booter);
 	init_daddr = cobj_sect_get(h, 0)->vaddr;
 
-	int total = 0;
 	for (i = 0; i < h->nsect; i++) {
 		struct cobj_sect *sect;
 		vaddr_t           dest_daddr;
@@ -199,7 +198,6 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		lsrc = cobj_sect_contents(h, i);
 		/* how much is left to copy? */
 		left = cobj_sect_size(h, i);
-		total += left;
 
 		/* Initialize memory. */
 		if (!(sect->flags & COBJ_SECT_KMEM)) {
@@ -211,8 +209,8 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		}
 
 		if (sect->flags & COBJ_SECT_CINFO) {
-			assert(left == PAGE_SIZE);
-			assert(comp_info == dest_daddr);
+			assert((left % PAGE_SIZE) == 0);
+			assert(comp_info == (dest_daddr + (((left/PAGE_SIZE)-1)*PAGE_SIZE)));
 			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info - init_daddr), comp_info);
 			ci = (struct cos_component_information *)(start_addr + (comp_info - init_daddr));
 			new_comp_cap_info[h->id].upcall_entry = ci->cos_upcall_entry;
@@ -328,7 +326,7 @@ cos_init(void)
 	/* TODO, deps and deps_list is not used for anything */
 	//deps = (struct deps *)cos_comp_info.cos_poly[2];
 	//memcpy(deps_list, (struct deps *)cos_comp_info.cos_poly[2], PAGE_SIZE);
-	//boot_init_ndeps(num_cobj);
+	boot_init_ndeps(num_cobj);
 
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
 	init_args++;

@@ -55,6 +55,8 @@ boot_comp_pgtbl_expand(size_t n_pte, pgtblcap_t pt, vaddr_t vaddr, struct cobj_h
 
 	for (i = 0; i < n_pte; i++) {
 		if (!cos_pgtbl_intern_alloc(&boot_info, pt, vaddr, SERVICE_SIZE)) BUG();
+		/* Increment vaddr incase we loop again */
+		vaddr += SERVICE_SIZE;
 	}
 }
 

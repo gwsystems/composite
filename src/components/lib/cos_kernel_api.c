@@ -637,6 +637,7 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 int
 cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
+	printc("In cos_sinv! EXPORTED BY RK INTERFACE\n");
 	return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4);
 }
 

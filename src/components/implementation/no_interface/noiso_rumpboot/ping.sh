@@ -1,1 +1,0 @@
-../rumpbooter/ping.sh

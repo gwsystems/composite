@@ -1,1 +1,0 @@
-../rumpbooter/stubs.c

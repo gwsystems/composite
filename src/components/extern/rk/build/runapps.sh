@@ -1,11 +1,13 @@
 #!/bin/bash
 PROG=$1
-SRCDIR=../../../implementation/no_interface/rumpbooter/
+SRCDIR=../../../implementation/rk/cnic/
 PROGDIR=../../../implementation/netbsd/$PROG
-COSOBJ=rump_boot.o
+COSOBJ=cnic.o
 FINALOBJ=rumpcos.o
 QEMURK=qemu_rk.sh
 TRANSFERDIR=../../../../../transfer/
+
+cp ./$QEMURK ./$TRANSFERDIR
 
 localizesymsrc=( "__fpclassifyl"
 		"memset"
@@ -71,8 +73,7 @@ done
 ld -melf_i386 -r -o $FINALOBJ app.tmp rk_stub/rk_stub.bin
 rm app.tmp
 
-mv $FINALOBJ $TRANSFERDIR
-cp $SRCDIR/$QEMURK $TRANSFERDIR
+cp $FINALOBJ $TRANSFERDIR
 
 cd $TRANSFERDIR
 USB_DEV=`stat --format "%F" /dev/sdb`

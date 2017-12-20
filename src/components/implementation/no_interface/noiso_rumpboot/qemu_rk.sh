@@ -1,1 +1,0 @@
-../rumpbooter/qemu_rk.sh

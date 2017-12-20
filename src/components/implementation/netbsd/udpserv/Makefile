@@ -2,7 +2,7 @@ C_OBJS=udpserver.c
 ASM_OBJS=
 COMPONENT=udpserv.o
 INTERFACES=netbsd
-DEPENDENCIES=
+DEPENDENCIES=rk
 IF_LIB=
 
 include ../../Makefile.subsubdir
