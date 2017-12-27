@@ -128,9 +128,13 @@ void *         thread_data[SL_MAX_NUM_THDS];
 void
 assign_thread_data(struct sl_thd *thread)
 {
+	// printc("Assigning thread data!\n");
 	struct cos_compinfo *ci     = cos_compinfo_get(cos_defcompinfo_curr_get());
+	// printc("Got cos_compinfo\n");
 	thdcap_t             thdcap = sl_thd_thdcap(thread);
+	// printc("Got thdcap %d\n", thdcap);
 	thdid_t              thdid  = thread->thdid;
+	// printc("Got thdid\n");
 
 	/* HACK: We setup some thread specific data to make musl stuff work with sl threads */
 	backing_thread_data[thdid].tid = thdid;
@@ -138,24 +142,38 @@ assign_thread_data(struct sl_thd *thread)
 	backing_thread_data[thdid].tsd = calloc(PTHREAD_KEYS_MAX, sizeof(void*));
 
 	thread_data[thdid] = &backing_thread_data[thdid];
+
+	// printc("Wrote data\n");
+
 	cos_thd_mod(ci, thdcap, &thread_data[thdid]);
 }
 
 extern void rust_init();
+extern void test_call_rs();
 
 void
 test_call(void)
 {
-	printc("Making test_call\n");
+	// printc("Assign thread data");
+	// struct sl_thd *thd = sl_thd_curr();
+	// printc("Thd %p\n", thd);
+	// assign_thread_data(thd);
+	printc("Making rust call\n");
+	//test_call_rs();
+	printc("Finished rust call\n");
 	return;
 }
 
 void
 cos_init()
 {
-	printc("Entering rust!\n");
-	//rust_init();
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, 1, 2, 3, 4);
+	printc("Entering rust\n");
+	rust_init();
 }
 
+void
+sinv_rs(void)
+{
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, 1, 2, 3, 4);
+}
 

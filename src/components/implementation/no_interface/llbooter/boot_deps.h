@@ -113,6 +113,10 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	pgtblcap_t  vmutpt;
 	sinvcap_t   sinv;
 	thdcap_t    main_thd;
+	tcap_t      tcap;
+	arcvcap_t   arcvcap;
+	asndcap_t   asndcap;
+
 	int         i = 0;
 
 	cc = cos_comp_alloc(&boot_info, ct, pt, (vaddr_t)new_comp_cap_info[spdid].upcall_entry);
@@ -143,6 +147,18 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 
 	main_thd = cos_initthd_alloc(&boot_info, cc);
 	assert(main_thd);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_INITTHD_BASE, &boot_info, main_thd);
+
+	tcap = cos_tcap_alloc(&boot_info);
+	assert(tcap);
+    cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_INITTCAP_BASE, &boot_info, tcap);
+
+	arcvcap = cos_arcv_alloc(&boot_info, main_thd, tcap, cc, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	assert(arcvcap);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_INITRCV_BASE, &boot_info, arcvcap);
+
+	int ret = cos_tcap_transfer(arcvcap,BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX);
+	assert(ret == 0);
 
 	/* Add created component to "scheduling" array */
 	while (schedule[i] != 0) i++;
