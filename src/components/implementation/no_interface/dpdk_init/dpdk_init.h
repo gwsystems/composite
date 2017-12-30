@@ -29,5 +29,6 @@
 #include <cos_kernel_api.h>
 
 extern struct cos_compinfo dpdk_init_info;
+extern int rte_eal_init(int, char**);
 
 #endif /* MICRO_BOOTER_H */
