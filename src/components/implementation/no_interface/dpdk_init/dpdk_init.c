@@ -21,8 +21,8 @@ cos_init(void)
     printc("\nDPDK init started.\n");
     pci_init();
     int ret = 0;
-    printc("\nCall to rte_eal_init returned %d \n", ret);
     ret = rte_eal_init(argc, argv);
+    printc("\nCall to rte_eal_init returned %d \n", ret);
 	printc("\nDPDK init done.\n");
 
     SPIN();
