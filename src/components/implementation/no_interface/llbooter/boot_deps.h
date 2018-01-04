@@ -203,3 +203,13 @@ boot_done(void)
 	sl_sched_loop();
 }
 
+static int
+boot_check_scheduler(char *comp_name) {
+	int i;
+	char *prefix = "sl_";
+
+	for (i = 0; i < 3; i++)
+		if (comp_name[i] == '\0' || comp_name[i] != prefix[i]) return 0;
+
+	return 1;
+}

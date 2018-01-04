@@ -275,6 +275,7 @@ boot_create_cap_system(void)
 		pgtblcap_t          pt;
 		spdid_t             spdid;
 		vaddr_t             ci = 0;
+		int                 is_sched;
 
 		h     = hs[i];
 		spdid = h->id;
@@ -287,8 +288,10 @@ boot_create_cap_system(void)
 		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
-		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo,1);
-		printc("\nComp %d (%s) created @ %x!\n\n", h->id, h->name, sect->vaddr);
+		//check for hardcoded "sl_" prefix in c obj to determine which cap image we create
+		is_sched = boot_check_scheduler(h->name);
+		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo, is_sched);
+		printc("\nComp %d (%s) scheduler=%d created @ %x!\n\n", h->id, h->name, is_sched, sect->vaddr);
 	}
 
 
