@@ -1,3 +1,7 @@
 [submodule "src/components/lib/ps"]
 	path = src/components/lib/ps
 	url = https://github.com/gwsystems/ps.git
+[submodule "src/components/lib/dpdk"]
+	path = src/components/lib/dpdk
+	url = https://github.com/rskennedy/dpdk
+	branch = exp-linuxapp
