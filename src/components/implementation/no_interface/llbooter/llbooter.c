@@ -1,6 +1,9 @@
 #include <cos_component.h>
 #include <cobj_format.h>
-#include <cos_kernel_api.h>
+#include <cos_defkernel_api.h>
+#include <sl.h>
+//#include <cos_kernel_api.h>
+
 
 #include "boot_deps.h"
 
@@ -231,39 +234,31 @@ boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, pgtblcap_
 	return 0;
 }
 
-static void
-boot_init_sched(void)
-{
-	int i;
-
-	for (i = 0; i < MAX_NUM_SPDS; i++) schedule[i] = 0;
-	sched_cur = 0;
-}
 
 int
 boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 {
 	struct cobj_cap *cap;
-	struct usr_inv_cap inv_cap;	
+	struct usr_inv_cap inv_cap;
 	int cap_offset;
-	int i; 
+	int i;
 
-	for (i = 0; i < h->ncap ; i++) {
-	
+	for (i = 0; (size_t)i < h->ncap ; i++) {
+
 		cap = cobj_cap_get(h, i);
 		assert(cap);
 
 		/* 0 index of inv_cap array is special, so start at 1 */
-		cap_offset = cap->cap_off + 1;	
+		cap_offset = cap->cap_off + 1;
 
 		/* Create the user cap for the undef symb */
 		inv_cap = (struct usr_inv_cap) {
 			.invocation_fn = (vaddr_t) cap->cstub,
 			.service_entry_inst = (vaddr_t) cap->sstub,
 			.invocation_count = cap->dest_id
-		};	
-	
-		new_comp_cap_info[spdid].ST_user_caps[cap_offset] = inv_cap;	
+		};
+
+		new_comp_cap_info[spdid].ST_user_caps[cap_offset] = inv_cap;
 	}
 	return 0;
 }
@@ -280,6 +275,7 @@ boot_create_cap_system(void)
 		pgtblcap_t          pt;
 		spdid_t             spdid;
 		vaddr_t             ci = 0;
+		int                 is_sched;
 
 		h     = hs[i];
 		spdid = h->id;
@@ -292,8 +288,10 @@ boot_create_cap_system(void)
 		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
-		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo);
-		printc("\nComp %d (%s) created @ %x!\n\n", h->id, h->name, sect->vaddr);
+		//check for hardcoded "sl_" prefix in c obj to determine which cap image we create
+		is_sched = boot_check_scheduler(h->name);
+		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo, is_sched);
+		printc("\nComp %d (%s) scheduler=%d created @ %x!\n\n", h->id, h->name, is_sched, sect->vaddr);
 	}
 
 
@@ -306,7 +304,7 @@ boot_init_ndeps(int num_cobj)
 	int i = 0;
 
 	printc("MAX DEPS: %d\n", MAX_DEPS);
-	for (i = 0; i < deps_list[i].server; i++) {
+	for (i = 0; (short int)i < deps_list[i].server; i++) {
 //		if (deps_list[i].client != 0) printc("client: %d, server: %d \n", deps_list[i].client, deps_list[i].server);
 	}
 
@@ -331,9 +329,6 @@ cos_init(void)
 
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
 	init_args++;
-
-	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
-	boot_init_sched();
 
 	printc("num cobjs: %d\n", num_cobj);
 	boot_find_cobjs(h, num_cobj);
