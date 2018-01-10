@@ -127,6 +127,7 @@ cos_init(void)
 
 	get_loc();
 //	read_jpeg_file();
+
 //	diagonal(0,0);
 //	assign_task(t);
 

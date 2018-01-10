@@ -12,4 +12,5 @@ int init_map(int height, int width);
 int check_quadrant(int x, int y);
 int check_green(int *triple, int x, int y);
 int read_jpeg_file(void);
+
 #endif /* ROBOT_SCHED_H */
