@@ -49,6 +49,7 @@ distclean:
 # with a new shell.
 	make -C posix clean
 	make -C libcxx clean
+	make -C libccv clean
 
 musl:
 	cd musl-1.1.11; ./configure --disable-shared --enable-debug; cd ..
@@ -63,3 +64,4 @@ init: clean distclean musl ps all
 # keep the following commands in one line. Same as above.
 	make -C posix
 	make -C libcxx
+	make -C libccv

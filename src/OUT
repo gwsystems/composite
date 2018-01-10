@@ -1,0 +1,10 @@
+diff --git a/src/platform/i386/runscripts/llbooter_pong.sh b/src/platform/i386/runscripts/llbooter_pong.sh
+index 6c8b1af..e4c05d1 100644
+--- a/src/platform/i386/runscripts/llbooter_pong.sh
++++ b/src/platform/i386/runscripts/llbooter_pong.sh
+@@ -1,4 +1,4 @@
+ #!/bin/sh
+ 
+ cp llboot_test.o llboot.o
+-./cos_linker "llboot.o, ;ppong.o, ;ppong_two.o, ;pingp.o, ;pingp_two.o, :pingp.o-ppong.o;pingp_two.o-ppong_two.o" ./gen_client_stub
++./cos_linker "llboot.o, ;robot_controller.o, :" ./gen_client_stub
