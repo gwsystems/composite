@@ -30,6 +30,8 @@ is_transparent_capability(struct symb *s, int *fltn)
 	return TRANS_CAP_NIL;
 }
 
+trans_cap_t is_transparent_capability(struct symb *s, int *fltn);
+
 
 int
 create_transparent_capabilities(struct service_symbs *service)
@@ -141,6 +143,9 @@ find_symbol_exporter_mark_resolved(struct symb *s, struct dependency *exporters,
 
 	return NULL;
 }
+
+struct service_symbs *find_symbol_exporter_mark_resolved(struct symb *s, struct dependency *exporters, int num_exporters,
+                                   struct symb **exported);
 
 
 /*
