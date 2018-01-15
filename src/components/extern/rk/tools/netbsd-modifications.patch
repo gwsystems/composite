@@ -1,7 +1,7 @@
-From 434524a9612dfb6ae0600fe30e101454680d7e4a Mon Sep 17 00:00:00 2001
-From: lab176 <lbaier176@gmail.com>
-Date: Sun, 16 Oct 2016 21:25:17 -0400
-Subject: [PATCH] Full patch
+From 664f4863d33d0af29be0b393a08946c5d4008e8f Mon Sep 17 00:00:00 2001
+From: Robert Gifford <robertgif@gmail.com>
+Date: Mon, 15 Jan 2018 14:56:27 -0500
+Subject: [PATCH] Create a new patch file
 
 ---
  sys/kern/init_main.c                    |    7 +-
@@ -9,18 +9,19 @@ Subject: [PATCH] Full patch
  sys/net/Makefile                        |    4 +-
  sys/net/if_cnic.c                       | 1243 +++++++++++++++++++++++++++++++
  sys/net/if_cnic.h                       |   44 ++
- sys/net/pktqueue.c                      |   49 +-
+ sys/net/pktqueue.c                      |   39 +-
  sys/net/pktqueue.h                      |    3 +
  sys/netinet/ip_icmp.c                   |   12 +-
  sys/netinet/ip_input.c                  |   46 +-
  sys/netinet/ip_output.c                 |   14 +-
+ sys/rump/dev/lib/libpci/Makefile        |   13 +-
  sys/rump/dev/lib/libpci/pci_user.h      |    2 +-
  sys/rump/librump/rumpkern/intr.c        |   11 +-
  sys/rump/librump/rumpkern/rump.c        |    4 +-
  sys/rump/librump/rumpvfs/rump_vfs.c     |   10 +-
  sys/rump/net/lib/libtap/Makefile        |    2 +
  sys/rump/net/lib/libtap/tap_component.c |   45 +-
- 16 files changed, 1514 insertions(+), 113 deletions(-)
+ 17 files changed, 1516 insertions(+), 114 deletions(-)
  create mode 100644 sys/net/if_cnic.c
  create mode 100644 sys/net/if_cnic.h
 
@@ -1533,7 +1534,7 @@ index 0000000..3dc220c
 +
 +#endif /* !_NET_IF_TUN_H_ */
 diff --git a/sys/net/pktqueue.c b/sys/net/pktqueue.c
-index cf3f96d..a4eac1e 100644
+index cf3f96d..5549b72 100644
 --- a/sys/net/pktqueue.c
 +++ b/sys/net/pktqueue.c
 @@ -48,9 +48,10 @@ __KERNEL_RCSID(0, "$NetBSD: pktqueue.c,v 1.8 2014/07/04 01:50:22 ozaki-r Exp $")
@@ -1565,7 +1566,7 @@ index cf3f96d..a4eac1e 100644
  /*
   * pktq_enqueue: inject the packet into the end of the queue.
   *
-@@ -205,6 +206,22 @@ pktq_rps_hash(const struct mbuf *m __unused)
+@@ -205,6 +206,17 @@ pktq_rps_hash(const struct mbuf *m __unused)
   * => Consumes the packet and returns true on success.
   * => Returns false on failure; caller is responsible to free the packet.
   */
@@ -1575,12 +1576,7 @@ index cf3f96d..a4eac1e 100644
 +{
 +	KASSERT(kpreempt_disabled());
 +
-+	//assume VMs can only send to/recv from DOM0
-+	if(to_vmid != 0) assert(rump_vmid == 0);
-+
-+	if(!rump_shmem_write(m, size, rump_vmid, to_vmid)){
-+		return false;
-+	}
++	/* TODO */
 +	
 +	return true;
 +}
@@ -1588,7 +1584,7 @@ index cf3f96d..a4eac1e 100644
  bool
  pktq_enqueue(pktqueue_t *pq, struct mbuf *m, const u_int hash __unused)
  {
-@@ -213,7 +230,6 @@ pktq_enqueue(pktqueue_t *pq, struct mbuf *m, const u_int hash __unused)
+@@ -213,7 +225,6 @@ pktq_enqueue(pktqueue_t *pq, struct mbuf *m, const u_int hash __unused)
  #else
  	const unsigned cpuid = hash % ncpu;
  #endif
@@ -1596,13 +1592,16 @@ index cf3f96d..a4eac1e 100644
  	KASSERT(kpreempt_disabled());
  
  	if (__predict_false(!pcq_put(pq->pq_queue[cpuid], m))) {
-@@ -225,22 +241,43 @@ pktq_enqueue(pktqueue_t *pq, struct mbuf *m, const u_int hash __unused)
+@@ -225,22 +236,38 @@ pktq_enqueue(pktqueue_t *pq, struct mbuf *m, const u_int hash __unused)
  	return true;
  }
  
 +int
 +cos_pktq_dequeue_size(int srcvm)
-+{ return rump_shmem_dequeue_size(srcvm, rump_vmid); }
++{ 
++	/* TODO */
++	return -1;
++}
 +
  /*
   * pktq_dequeue: take a packet from the queue.
@@ -1614,17 +1613,9 @@ index cf3f96d..a4eac1e 100644
 +void *
 +cos_pktq_dequeue(int srcvm, int size)
 +{
-+	if(size <= 0) return NULL;
-+
-+	void *test = malloc(size, 0, M_NOWAIT);
-+	if (!test) return NULL;
-+
-+	if(rump_shmem_read(test, srcvm, rump_vmid) == NULL) {
-+		free(test, m_devbuf);
-+		return NULL;
-+	}
++	/* TODO */
 +	
-+	return test;	
++	return NULL;	
 +}
 +
  struct mbuf *
@@ -2003,6 +1994,41 @@ index 36f9ad1..5192d0b 100644
  	optlen = opt->m_len - sizeof(p->ipopt_dst);
  	if (optlen + ntohs(ip->ip_len) > IP_MAXPACKET)
  		return (m);		/* XXX should fail */
+diff --git a/sys/rump/dev/lib/libpci/Makefile b/sys/rump/dev/lib/libpci/Makefile
+index dab23f9..b7fe95c 100644
+--- a/sys/rump/dev/lib/libpci/Makefile
++++ b/sys/rump/dev/lib/libpci/Makefile
+@@ -29,18 +29,29 @@ CPPFLAGS+= -I${RUMPTOP}/librump/rumpvfs
+ .error RUMP_PCI_IOSPACE defined in Makefile.  Use userfeatures.h instead.
+ .endif
+ 
+-.PATH:			${RUMPCOMP_USER_PATH.rumpdev_pci}
++MYPATH=                 ${RUMPCOMP_USER_PATH.rumpdev_pci}
++MYPATH+=                ${RUMPCOMP_USER_PATH_rumpdev_pci}
++.PATH:                  ${MYPATH}
+ RUMPCOMP_USER_SRCS=	${RUMPCOMP_USER_SRCS.rumpdev_pci}
++RUMPCOMP_USER_SRCS+=	${RUMPCOMP_USER_SRCS_rumpdev_pci}
+ MYDIR:=			${.PARSEDIR}
+ RUMPCOMP_USER_CPPFLAGS=	-I${MYDIR}
+ RUMPCOMP_USER_CPPFLAGS+=${RUMPCOMP_USER_CPPFLAGS.rumpdev_pci}
++RUMPCOMP_USER_CPPFLAGS+=${RUMPCOMP_USER_CPPFLAGS_rumpdev_pci}
+ RUMPCOMP_USER_CFLAGS=	${RUMPCOMP_USER_CFLAGS.rumpdev_pci}
++RUMPCOMP_USER_CFLAGS+=	${RUMPCOMP_USER_CFLAGS_rumpdev_pci}
+ 
+ CPPFLAGS+=		${RUMPCOMP_CPPFLAGS.rumpdev_pci}
++CPPFLAGS+=		${RUMPCOMP_CPPFLAGS_rumpdev_pci}
+ 
+ # XXX: messy
+ .undef RUMPKERN_ONLY
+ 
++.ifdef RUMPCOMP_MAKEFILEINC_rumpdev_pci
++.warning RUMPCOMP_MAKEFILEINC interface is unstable and may change
++.include "${RUMPCOMP_MAKEFILEINC_rumpdev_pci}"
++.endif
++
+ .include "${RUMPTOP}/Makefile.rump"
+ .include <bsd.lib.mk>
+ .include <bsd.klinks.mk>
 diff --git a/sys/rump/dev/lib/libpci/pci_user.h b/sys/rump/dev/lib/libpci/pci_user.h
 index a683f88..214dcba 100644
 --- a/sys/rump/dev/lib/libpci/pci_user.h
@@ -2183,5 +2209,5 @@ index 6d9a1f5..f0b4559 100644
 +		panic("cannot create cnic[0-4] device node: %d", error);
  }
 -- 
-1.9.1
+2.7.4
 

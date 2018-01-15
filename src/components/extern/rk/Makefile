@@ -12,9 +12,9 @@ backing:
 	@ python ./tools/buildbacking.py
 
 patch:
-	cp ./tools/full.patch ./rumprun/src-netbsd
-	cd ./rumprun/src-netbsd; git apply --stat full.patch
-	cd ./rumprun/src-netbsd; git apply full.patch; rm full.patch
+	@cp ./tools/netbsd-modifications.patch ./rumprun/src-netbsd
+	@cd ./rumprun/src-netbsd; git apply --stat netbsd-modifications.patch
+	@cd ./rumprun/src-netbsd; git apply netbsd-modifications.patch; rm netbsd-modifications.patch
 
 rk_clean:
 	cd ./rumprun/platform/cos; make clean

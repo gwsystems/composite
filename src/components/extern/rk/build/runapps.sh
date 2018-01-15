@@ -4,7 +4,7 @@ SRCDIR=../../../implementation/rk/cnic/
 PROGDIR=../../../implementation/netbsd/$PROG
 COSOBJ=cnic.o
 FINALOBJ=rumpcos.o
-QEMURK=qemu_rk.sh
+QEMURK=qemu.sh
 TRANSFERDIR=../../../../../transfer/
 
 cp ./$QEMURK ./$TRANSFERDIR
