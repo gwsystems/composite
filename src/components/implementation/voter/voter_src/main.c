@@ -1,3 +1,6 @@
+#include <cos_component.h>
+#include <cobj_format.h>
+
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <res_spec.h>
@@ -13,6 +16,47 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+
+/******* CLEAN ME TEMP BOOTER STUBS ********/
+
+// struct cobj_header *hs[MAX_NUM_SPDS + 1];
+
+// void
+// voter_boot_find_cobjs()
+// {
+// 	struct cobj_header *h = (struct cobj_header *)cos_comp_info.cos_poly[0];
+// 	assert(cos_comp_info);
+// 	int n = (int)cos_comp_info.cos_poly[1];
+// 	printc("num objs %d\n",n);
+
+// 	int     i;
+// 	vaddr_t start, end;
+
+// 	start = (vaddr_t)h;
+// 	hs[0] = h;
+// 	printc("header start %p\n",start);
+// 	for (i = 1; i < n; i++) {
+// 		int j = 0, size = 0, tot = 0;
+
+// 		size = h->size;
+// 		for (j = 0; j < (int)h->nsect; j++) {
+// 			tot += cobj_sect_size(h, j);
+// 		}
+// 		printc("cobj %s:%d found at %p:%x, -> %x\n", h->name, h->id, hs[i - 1], size,
+// 		       cobj_sect_get(hs[i - 1], 0)->vaddr);
+
+// 		end   = start + round_up_to_cacheline(size);
+// 		hs[i] = h = (struct cobj_header *)end;
+// 		start     = end;
+// 	}
+
+// 	hs[n] = NULL;
+// 	printc("cobj %s:%d found at %p -> %x\n", hs[n - 1]->name, hs[n - 1]->id, hs[n - 1],
+// 	       cobj_sect_get(hs[n - 1], 0)->vaddr);
+// }
+
+/******* ^^CLEAN ME TEMP BOOTER STUBS ********/
+
 
 /* These are macro values rust needs, so we duplicate them here */
 vaddr_t       boot_mem_km_base            = BOOT_MEM_KM_BASE;
@@ -80,6 +124,11 @@ sl_lock_release_rs(struct sl_lock *lock)
 	return sl_lock_release(lock);
 }
 
+void
+print_hack(int n) {
+	printc("rust hit %d \n",n);
+}
+
 /* This is a bit of a hack, but we setup pthread data for sl threads */
 #define _NSIG 65
 
@@ -128,38 +177,50 @@ void *         thread_data[SL_MAX_NUM_THDS];
 void
 assign_thread_data(struct sl_thd *thread)
 {
-	// printc("Assigning thread data!\n");
+	printc("%s - %d\n",__FILE__,__LINE__);
 	struct cos_compinfo *ci     = cos_compinfo_get(cos_defcompinfo_curr_get());
-	// printc("Got cos_compinfo\n");
+	printc("%s - %d\n",__FILE__,__LINE__);
 	thdcap_t             thdcap = sl_thd_thdcap(thread);
-	// printc("Got thdcap %d\n", thdcap);
+	printc("%s - %d\n",__FILE__,__LINE__);
 	thdid_t              thdid  = thread->thdid;
-	// printc("Got thdid\n");
+	printc("%s - %d\n",__FILE__,__LINE__);
 
 	/* HACK: We setup some thread specific data to make musl stuff work with sl threads */
 	backing_thread_data[thdid].tid = thdid;
+	printc("%s - %d\n",__FILE__,__LINE__);
 	backing_thread_data[thdid].robust_list.head = &backing_thread_data[thdid].robust_list.head;
 	backing_thread_data[thdid].tsd = calloc(PTHREAD_KEYS_MAX, sizeof(void*));
 
 	thread_data[thdid] = &backing_thread_data[thdid];
+	printc("%s - %d\n",__FILE__,__LINE__);
 
-	// printc("Wrote data\n");
 
 	cos_thd_mod(ci, thdcap, &thread_data[thdid]);
+	printc("%s - %d\n",__FILE__,__LINE__);
 }
 
 extern void rust_init();
 extern void test_call_rs();
+extern void interface_handeler(int);
+
+int rust_initialized = 0;
 
 void
 test_call(void)
 {
-	// printc("Assign thread data");
-	// struct sl_thd *thd = sl_thd_curr();
-	// printc("Thd %p\n", thd);
-	// assign_thread_data(thd);
+	while (!rust_initialized);
+	printc("Settting up thd data\n");
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_aep_info    *aep = cos_sched_aep_get(dci);
+	assert(aep);
+
+	struct sl_thd * thd = sl_thd_curr();
+	assert(thd);
+	thd->aepinfo = aep;
+	assign_thread_data(thd);
 	printc("Making rust call\n");
-	//test_call_rs();
+	//interface_handeler(0);
+	test_call_rs();
 	printc("Finished rust call\n");
 	return;
 }
@@ -167,13 +228,11 @@ test_call(void)
 void
 cos_init()
 {
-	printc("Entering rust\n");
-	rust_init();
-}
+	//printc("Voter: Booting Replicas\n");
+	//voter_boot_find_cobjs();
 
-void
-sinv_rs(void)
-{
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, 1, 2, 3, 4);
+	printc("Entering rust\n");
+	rust_initialized = 1; // this is obvi still vulnerable to preemtpion - temp work around
+	rust_init();
 }
 

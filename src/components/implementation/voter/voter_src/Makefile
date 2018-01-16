@@ -1,6 +1,6 @@
  C_OBJS=main.o
 ASM_OBJS=
-COMPONENT=voter_cpt.o
+COMPONENT=sl_voter_cpt.o
 INTERFACES=voter
 DEPENDENCIES=
 ADDITIONAL_LIBS=-lcobj_format -lcos_defkernel_api -lcos_kernel_api -lsl -lheap -lsl_thd_static_backend -lsl_lock -lsl_mod_fprr
