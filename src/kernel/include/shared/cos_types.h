@@ -41,7 +41,16 @@ typedef unsigned long sched_tok_t;
  */
 #define TCAP_TIME_QUANTUM_ORD 12
 #define TCAP_TIME_MAX_ORD (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
-#define TCAP_TIME_MAX_BITS(c) ((c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
+/*
+ * FIXME
+ * TCAP_TIME_MAX_ORD comes out as 44, thus shifting by this much on a 32 bit
+ * system leads to warnings that shift is greater than the width of the type.
+ * As we shift right by this amount, it zeros out the number. To avoid
+ * warnings I have temporarily replaced this initial shift by 32 bits.
+ * Fix when I know the original purpose of this macro.
+ */
+//#define TCAP_TIME_MAX_BITS(c) ((c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
+#define TCAP_TIME_MAX_BITS(c) ((c >> 32) << 32)
 #define TCAP_TIME_NIL 0
 static inline cycles_t
 tcap_time2cyc(tcap_time_t c, cycles_t curr)

@@ -934,6 +934,8 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 		return thd_introspect(((struct cap_thd *)ch)->t, op, retval);
 	case CAP_TCAP:
 		return tcap_introspect(((struct cap_tcap *)ch)->tcap, op, retval);
+	default:
+		return -EINVAL;
 	}
 	return -EINVAL;
 }
@@ -948,6 +950,8 @@ cap_introspect64(struct cos_cpu_local_info *cos_info, struct captbl *ct, capid_t
 	switch(ch->type) {
 	case CAP_HW:
 		return hw_introspect64(cos_info, (struct cap_hw*)ch, op, retval);
+	default:
+		return -EINVAL;
 	}
 	return -EINVAL;
 }
@@ -1030,6 +1034,8 @@ composite_syscall_handler(struct pt_regs *regs)
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
+	default:
+		break;
 	}
 
 	/* slowpath restbl (captbl and pgtbl) operations */
