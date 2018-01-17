@@ -1,18 +1,10 @@
+#include <cos_debug.h>
+#include <llprint.h>
+#include <res_spec.h>
+#include <sl.h>
 #include <cos_component.h>
-#include <print.h>
-#include <quarantine.h>
-#include <cbuf.h>
-#include <sched.h>
 #include <voter.h>
-#include <periodic_wake.h>
 
-#undef DEBUG
-
-#if defined(DEBUG)
-#define printd(...) printc("Voter: "__VA_ARGS__)
-#else
-#define printd(...)
-#endif
 
 #define N_COMPS 2				/* number of nMR components - symbolizes an encapsulated redundant component 	*/
 #define N_CHANNELS 2				/* number of channels between components. One-directional 			*/
@@ -34,8 +26,6 @@ struct replica {
 	unsigned int epoch[N_CHANNELS];		/* Epoch per channel 								*/
 	
 	/* Buffers */
-	cbuf_t read_buffer;			/* cbuf_t is an id, void * is an actual pointer to the memory			*/
-	cbuf_t write_buffer;
 	void *buf_read;
 	void *buf_write;
 	size_t sz_read;
@@ -51,7 +41,6 @@ struct channel {
 	struct nmodcomp *snd, *rcv;
 	int have_data;
 	size_t sz_data;
-	cbuf_t data_cbid;
 	void *data_buf;
 	unsigned int epoch;
 };
@@ -68,7 +57,7 @@ int matches[N_MAX];				/* To keep track of voting. Not in nmodcomp because it ca
 
 struct channel *
 channel_get(channel_id cid) {
-	assert(cid >= 0 && cid < N_CHANNELS);
+	assert(cid < N_CHANNELS);
 	return &channels[cid];
 }
 
@@ -92,8 +81,8 @@ int
 replica_wakeup(struct replica *replica) {
 	assert(replica->thread_id);
 	if (replica->thread_id == cos_get_thd_id()) return 1;	/* We are already awake */
-	printd("Thread %d: Waking up replica with spdid %d, thread %d\n", cos_get_thd_id(), replica->spdid, replica->thread_id);
-	sched_wakeup(cos_spd_id(), replica->thread_id);
+	printc("Thread %d: Waking up replica with spdid %d, thread %d\n", cos_get_thd_id(), replica->spdid, replica->thread_id);
+  sl_thd_wakeup(replica->thread_id);
 	return 0;
 }
 
@@ -105,6 +94,7 @@ replica_block(struct replica *replica, replica_state_t transition) {
 
 	for (i = 0; i < N_COMPS; i++) {
 		for (j = 0; j < components[i].nreplicas; j++) {
+      //checks to see if other threads are processing 
 			if ((components[i].replicas[j].state == REPLICA_ST_PROCESSING || components[i].replicas[j].state == REPLICA_ST_UNINIT ) && 
 				components[i].replicas[j].spdid != replica->spdid) n++;
 		}
@@ -118,7 +108,7 @@ replica_block(struct replica *replica, replica_state_t transition) {
 		if (!replica->thread_id) BUG();
 		if (cos_get_thd_id() != replica->thread_id) BUG();
 		replica_transition(replica, transition);
-		sched_block(cos_spd_id(), 0);
+    sl_thd_block(replica->thread_id);
 		return 0;
 	} else {
 		return -1;
@@ -198,7 +188,7 @@ comp_writes_complete(channel_id cid) {
 	}
 	if (found != c->snd->nreplicas) return 0;
 	
-	printd("Thread %d: We have enough data to send\n", cos_get_thd_id());
+	printc("Thread %d: We have enough data to send\n", cos_get_thd_id());
 	return found;
 }
 
@@ -327,16 +317,14 @@ replica_init(struct replica *replica, spdid_t spdid, struct nmodcomp *comp) {
 	replica->spdid = spdid;
 	replica->thread_id = 0;					/* This will get set the first time read/write are called */
 	replica_transition(replica, REPLICA_ST_PROCESSING);
-	replica->buf_read = cbuf_alloc(1024, &replica->read_buffer); 
-	replica->buf_write = cbuf_alloc(1024, &replica->write_buffer);
+  replica->buf_read = (void *) malloc(1024);
+  replica->buf_write = (void *) malloc(1024); 
 	assert(replica->buf_read);
 	assert(replica->buf_write);
-	assert(replica->read_buffer > 0);
-	assert(replica->write_buffer > 0);
 
 	/* Send this information back to the replica */
-	cbuf_send(replica->read_buffer);
-	cbuf_send(replica->write_buffer);
+	//FIXMEcbuf_send(replica->read_buffer);
+	//FIXMEcbuf_send(replica->write_buffer);
 
 	/* Set map entries for this replica */
 	map[replica->spdid].replica = replica;
@@ -356,27 +344,27 @@ confirm_fork(spdid_t spdid) {
 
 	for (i = 0; i < component->nreplicas; i++) {
 		if (replicas[i].state == REPLICA_ST_UNINIT) {
-			fork_spd = quarantine_fork(cos_spd_id(), spdid);
-			if (!fork_spd) BUG();
-			replica_init(&replicas[i], fork_spd, component);
+			//FIXMEfork_spd = quarantine_fork(cos_spd_id(), spdid);
+			//if (!fork_spd) BUG();
+			//replica_init(&replicas[i], fork_spd, component);
 			
 			return;		/* TODO: actually probably don't */
 		}
 	}
 }
-
+/*FIXME
 cbuf_t
 get_read_buf(spdid_t spdid) {
 	if (!map[spdid].replica) return 0;
 	return map[spdid].replica->read_buffer;
 }
-
+//FIXME
 cbuf_t
 get_write_buf(spdid_t spdid) {
 	if (!map[spdid].replica) return 0;
 	return map[spdid].replica->write_buffer;
 }
-
+*/
 int
 replica_confirm(spdid_t spdid) {
 	int ret;
@@ -386,11 +374,9 @@ replica_confirm(spdid_t spdid) {
 
 	for (i = 0; i < components[t].nreplicas; i++) {
 		if (replicas[i].state == REPLICA_ST_UNINIT) {
-			printd("creating replica for spdid %d in slot %d\n", spdid, i);
+			printc("creating replica for spdid %d in slot %d\n", spdid, i);
 			replica_init(&replicas[i], spdid, &components[t]);
 			replicas[i].thread_id = cos_get_thd_id();				/* We can override this now */	
-			cbuf_set_fork(replicas[i].read_buffer, 0);				/* Mildly hackish */
-			cbuf_set_fork(replicas[i].write_buffer, 0);
 			
 			return 0;
 		}
@@ -408,11 +394,11 @@ replica_clear(struct replica *replica) {
 }
 
 void
-cos_init(void)
+voter_init(void *p)
 {
-	int i, j;
+  int i, j;
 	for (i = 0; i < N_COMPS; i++) {
-		printd("Setting up nmod component %d\n", i);
+		printc("Setting up nmod component %d\n", i);
 	
 		/* TODO: This is an ugly if-statement, get rid of it */	
 		if (i == 0) components[i].nreplicas = 2;
@@ -427,19 +413,39 @@ cos_init(void)
 	channels[0].rcv = &components[1];
 	channels[1].snd = &components[1];
 	channels[1].rcv = &components[0];
-	channels[0].data_buf = cbuf_alloc(1024, &channels[0].data_cbid); 
+  channels[0].data_buf = (void *) malloc(1024);
+  channels[1].data_buf = (void *) malloc(1024);
+
 	assert(channels[0].data_buf);
-	channels[1].data_buf = cbuf_alloc(1024, &channels[1].data_cbid); 
 	assert(channels[1].data_buf);
 
 	for (i = 0; i < N_MAP_SZ; i++) {
 		map[i].replica = NULL;
 		map[i].component = NULL;
 	}
+  
+  int *test_var = (int *) malloc(100);
+
+  *test_var = 666;
+  printc("test %d\n", *test_var);
+  printc("malloc rtrnd %p\n", test_var);
 
 	//periodic_wake_create(cos_spd_id(), period);
 	//do {
 	//	periodic_wake_wait(cos_spd_id());
 		//monitor();
 	//} while (i++ < 2000);
+  
+  sl_thd_exit();
+
+}
+//TODO jurry rig ipc with therads in the same address space
+void
+cos_init(void)
+{
+  printc("======WELCOME TO THE VOTER======\n");
+  struct sl_thd *voter = sl_thd_alloc(voter_init, NULL);
+  sl_thd_param_set(voter, sched_param_pack(SCHEDP_PRIO,2));
+  
+  sl_sched_loop();;  
 }

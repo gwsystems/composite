@@ -56,7 +56,7 @@ static inline void cos_next_thread(unsigned short int thd_id)
 	cos_next->next_thd_id = thd_id;
 }
 
-/* 
+/*
  * The lock contains the thread that owns it (or 0 if it is not
  * taken), and the thread id of the most recent thread to contend the
  * lock (if one did).  Here we just do atomic operations to ensure
@@ -67,7 +67,7 @@ static inline int cos_sched_lock_take(void)
 {
 	union cos_synchronization_atom *l = &PERCPU_GET(cos_sched_notifications)->cos_locks;
 	u16_t curr_thd = cos_get_thd_id(), owner;
-	
+
 	/* Recursively taking the lock: not good */
 	assert(l->c.owner_thd != curr_thd);
 	do {

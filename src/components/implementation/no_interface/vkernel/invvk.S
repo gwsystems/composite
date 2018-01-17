@@ -7,7 +7,7 @@
 #endif
 
 .text
-.globl __inv_vkernel_hypercallfn 
+.globl __inv_vkernel_hypercallfn
 .type  __inv_vkernel_hypercallfn, @function
 __inv_vkernel_hypercallfn:
 	COS_ASM_GET_STACK
@@ -16,7 +16,7 @@ __inv_vkernel_hypercallfn:
 	pushl %edi /* arg 3 */
 	pushl %esi /* arg 2 */
 	pushl %ebx /* arg 1 */
-	call vkernel_hypercall 
+	call vkernel_hypercall
 	movl %eax, %ecx
 
 	COS_ASM_RET_STACK

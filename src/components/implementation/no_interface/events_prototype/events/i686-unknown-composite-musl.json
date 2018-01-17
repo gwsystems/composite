@@ -15,6 +15,7 @@
   "linker-is-gnu": true,
   "llvm-target": "i686-unknown-linux-musl",
   "max-atomic-width": 32,
+  "target-c-int-width":"32",
   "os": "linux",
   "relocation-model": "dynamic-no-pic",
   "post-link-args": {

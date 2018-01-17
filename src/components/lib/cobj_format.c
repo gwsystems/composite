@@ -21,8 +21,7 @@ cobj_sect_get(struct cobj_header *h, unsigned int sect_id)
 	struct cobj_sect *s;
 
 	if (h->nsect <= sect_id) return NULL;
-	s = (struct cobj_sect *)((u32_t)h + sizeof(struct cobj_header));
-	// s = (struct cobj_sect*)&h[1];
+	s = (struct cobj_sect*)&h[1];
 
 	return &s[sect_id];
 }
@@ -33,8 +32,7 @@ cobj_symb_get(struct cobj_header *h, unsigned int symb_id)
 	struct cobj_symb *s;
 
 	if (symb_id >= h->nsymb) return NULL;
-	s = (struct cobj_symb *)((u32_t)h + sizeof(struct cobj_header) + sizeof(struct cobj_sect) * h->nsect);
-	//	s = (struct cobj_symb*)&(cobj_sect_get(h, h->nsect-1)[1]);
+	s = (struct cobj_symb*)&(cobj_sect_get(h, h->nsect-1)[1]);
 
 	return &s[symb_id];
 }
@@ -45,9 +43,7 @@ cobj_cap_get(struct cobj_header *h, unsigned int cap_id)
 	struct cobj_cap *c;
 
 	if (cap_id >= h->ncap) return NULL;
-	c = (struct cobj_cap *)((u32_t)h + sizeof(struct cobj_header) + sizeof(struct cobj_sect) * h->nsect
-	                        + sizeof(struct cobj_symb) * h->nsymb);
-	// c = (struct cobj_cap*)&(cobj_symb_get(h, h->nsymb-1)[1]);
+	c = (struct cobj_cap*)&(cobj_symb_get(h, h->nsymb-1)[1]);
 
 	return &c[cap_id];
 }

@@ -29,8 +29,9 @@ typedef unsigned long tcap_res_t;
 typedef unsigned long tcap_time_t;
 typedef u64_t         tcap_prio_t;
 typedef u64_t         tcap_uid_t;
-typedef u32_t         sched_tok_t;
+typedef unsigned long sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
+
 
 /*
  * The assumption in the following is that cycles_t are higher
@@ -40,7 +41,16 @@ typedef u32_t         sched_tok_t;
  */
 #define TCAP_TIME_QUANTUM_ORD 12
 #define TCAP_TIME_MAX_ORD (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
-#define TCAP_TIME_MAX_BITS(c) ((c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
+/*
+ * FIXME
+ * TCAP_TIME_MAX_ORD comes out as 44, thus shifting by this much on a 32 bit
+ * system leads to warnings that shift is greater than the width of the type.
+ * As we shift right by this amount, it zeros out the number. To avoid
+ * warnings I have temporarily replaced this initial shift by 32 bits.
+ * Fix when I know the original purpose of this macro.
+ */
+//#define TCAP_TIME_MAX_BITS(c) ((c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
+#define TCAP_TIME_MAX_BITS(c) ((c >> 32) << 32)
 #define TCAP_TIME_NIL 0
 static inline cycles_t
 tcap_time2cyc(tcap_time_t c, cycles_t curr)
@@ -112,6 +122,7 @@ typedef enum {
 	CAPTBL_OP_THDDEACTIVATE_ROOT,
 	CAPTBL_OP_MEMMOVE,
 	CAPTBL_OP_INTROSPECT,
+	CAPTBL_OP_INTROSPECT64,
 	CAPTBL_OP_TCAP_ACTIVATE,
 	CAPTBL_OP_TCAP_TRANSFER,
 	CAPTBL_OP_TCAP_DELEGATE,
@@ -150,6 +161,19 @@ typedef enum {
 #define CAP_TYPECHK_CORE(v, type) (CAP_TYPECHK((v), (type)) && (v)->cpuid == get_cpuid())
 
 typedef unsigned long capid_t;
+
+typedef capid_t sinvcap_t;
+typedef capid_t sretcap_t;
+typedef capid_t asndcap_t;
+typedef capid_t arcvcap_t;
+typedef capid_t thdcap_t;
+typedef capid_t tcap_t;
+typedef capid_t compcap_t;
+typedef capid_t captblcap_t;
+typedef capid_t pgtblcap_t;
+typedef capid_t hwcap_t;
+
+
 #define TCAP_PRIO_MAX (1ULL)
 #define TCAP_PRIO_MIN ((~0ULL) >> 16) /* 48bit value */
 #define TCAP_RES_GRAN_ORD 16
@@ -277,6 +301,12 @@ enum
 {
 	/* tcap budget */
 	TCAP_GET_BUDGET,
+};
+
+enum
+{
+	/* HPET first interrupt cycs (after calibration) */
+	HW_GET_FIRST_HPET,
 };
 
 typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */

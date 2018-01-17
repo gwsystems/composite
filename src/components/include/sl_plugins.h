@@ -30,6 +30,8 @@ void                  sl_thd_index_rem_backend(struct sl_thd_policy *);
 struct sl_thd_policy *sl_thd_lookup_backend(thdid_t);
 void                  sl_thd_init_backend(void);
 
+struct cos_aep_info  *sl_thd_alloc_aep_backend(void);
+
 /*
  * Each scheduler policy must implement the following API.  See above
  * for why this is not a function-pointer-based API.

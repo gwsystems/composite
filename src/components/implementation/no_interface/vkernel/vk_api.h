@@ -16,6 +16,6 @@ tcap_t    dom0_vio_tcap(unsigned int vmid);
 arcvcap_t dom0_vio_rcvcap(unsigned int vmid);
 asndcap_t dom0_vio_asndcap(unsigned int vmid);
 
-vaddr_t dom0_vio_shm_base(unsigned int vmid);
+vaddr_t dom0_vio_shm_base(unsigned int spdid);
 
 #endif /* VK_API_H */

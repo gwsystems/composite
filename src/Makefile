@@ -3,7 +3,7 @@ MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 
 default: | all cp
 
-all: comps plat
+all: comps plat rustchk
 
 comps:
 	$(info )
@@ -88,3 +88,15 @@ ltests:
 
 cltests:
 	$(MAKE) $(MAKEFLAGS) -C platform cltests
+
+rk:
+	$(MAKE) $(MAKEFLAGS) -C components rk
+
+rk_init:
+	$(MAKE) $(MAKEFLAGS) -C components rk_init
+
+rk_clean:
+	$(MAKE) $(MAKEFLAGS) -C components rk_clean
+
+rustchk:
+	- .$(CODE_DIR)/components/lib/sl/sl_bind_check

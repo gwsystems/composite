@@ -250,6 +250,8 @@ void sl_thd_yield_cs_exit(thdid_t tid);
 /* The entire thread allocation and free API */
 struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
 struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap);
+/* A thread that is already created by booter or created using low-level composite API. */
+struct sl_thd *sl_thd_init(struct cos_aep_info *aep, int own_tcap);
 /*
  * This API creates a sl_thd object for this child component.
  * @comp: component created using cos_defkernel_api which includes initthd (with/without its own tcap & rcvcap).
@@ -431,7 +433,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 */
 	if (unlikely(to)) {
 		t = to;
-		if (t->state != SL_THD_RUNNABLE) to= NULL;
+		if (t->state != SL_THD_RUNNABLE) to = NULL;
 	}
 	if (likely(!to)) {
 		pt = sl_mod_schedule();
@@ -441,13 +443,18 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			t = sl_mod_thd_get(pt);
 	}
 
+	if (t == sl__globals()->idle_thd) {
+		sl_cs_exit();
+		return -EAGAIN;
+	}
+
 	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {
 		assert(t->period);
 		assert(sl_thd_tcap(t) != sl__globals()->sched_tcap);
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
 			tcap_res_t currbudget = 0;
-			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);  
+			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);
 
 			ret = 0;
 			currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
@@ -470,21 +477,20 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 * dispatch failed with -EPERM because tcap associated with thread t does not have budget.
 	 * Block the thread until it's next replenishment and return to the scheduler thread.
 	 *
-	 * If the thread is not replenished by the scheduler (replenished "only" by 
+	 * If the thread is not replenished by the scheduler (replenished "only" by
 	 * the inter-component delegations), block till next timeout and try again.
 	 */
 	if (unlikely(ret == -EPERM)) {
-			cycles_t abs_timeout = globals->timer_next;
+		cycles_t abs_timeout = globals->timer_next;
 
-			assert(t != globals->sched_thd);
-			assert(t->properties & SL_THD_PROPERTY_OWN_TCAP);
+		assert(t != globals->sched_thd);
 
-			sl_cs_enter();
-			if (likely(t->period)) abs_timeout = t->last_replenish + t->period;
-			sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
-			sl_cs_exit();
+		sl_cs_enter();
+		if (likely(t->period)) abs_timeout = t->last_replenish + t->period;
+		sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
+		sl_cs_exit();
 
-			if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok);
+		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok);
 	}
 
 	return ret;
