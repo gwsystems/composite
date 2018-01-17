@@ -4,12 +4,12 @@ use lib_composite::sl_lock::Lock;
 use lib_composite::sl::Sl;
 use std::sync::Arc;
 use std::ops::{DerefMut,Deref};
-use voter_lib::*;
-use voter_lib::MAX_REPS;
+use voter::voter_lib::*;
+use voter::voter_lib::MAX_REPS;
 
 pub struct Channel  {
-	pub reader_id:  usize,
-	pub writer_id:  usize,
+	pub reader_id:  Option<usize>,
+	pub writer_id:  Option<usize>,
 	pub messages: Vec<ChannelData>,
 }
 
@@ -21,7 +21,7 @@ pub struct ChannelData {
 
 
 impl fmt::Debug for Channel {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {write!(f, "Reader_id: {} | Writer_id: {}", self.reader_id, self.writer_id)}
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {write!(f, "Reader_id: {} | Writer_id: {}", self.reader_id.unwrap_or(999), self.writer_id.unwrap_or(999))}
 }
 
 impl fmt::Debug for ChannelData {
@@ -42,44 +42,59 @@ impl ChannelData {
 }
 
 impl Channel {
-	pub fn new(reader_id:usize, writer_id:usize, compStore:&mut CompStore, sl:Sl) -> Arc<Lock<Channel>> {
+	pub fn new(sl:Sl) -> Arc<Lock<Channel>> {
 		let chan = Arc::new(Lock::new(sl,
 			Channel {
-				reader_id,
-				writer_id,
+				reader_id:None,
+				writer_id:None,
 				messages:Vec::new(),
 			}
 		));
 
-		let ref mut components = compStore.components;
-
-		for i in 0..components[reader_id].num_replicas {
-			components[reader_id].replicas[i].lock().deref_mut().channel = Some(Arc::clone(&chan));
-		}
-
-		for i in 0..components[writer_id].num_replicas {
-			components[writer_id].replicas[i].lock().deref_mut().channel = Some(Arc::clone(&chan));
-		}
-
 		return Arc::clone(&chan);
 	}
 
-	pub fn call_vote(&mut self,comp_store:&mut CompStore) -> (VoteStatus,VoteStatus) {
+	pub fn join(chan_lock:Arc<Lock<Channel>>, comp_id:usize, comp_store:&mut CompStore, is_reader:bool) -> bool {
+		let ref mut chan = chan_lock.lock();
+		match is_reader {
+			true  => {
+				if chan.deref().reader_id.is_some() {return false}
+				chan.deref_mut().reader_id = Some(comp_id)
+			},
+			false => {
+				if chan.deref().writer_id.is_some() {return false}
+				chan.deref_mut().writer_id = Some(comp_id)
+			},
+		};
+
+		let ref mut components = comp_store.components;
+
+		for i in 0..components[comp_id].num_replicas {
+			components[comp_id].replicas[i].lock().deref_mut().channel = Some(Arc::clone(&chan_lock));
+		}
+
+		return true
+	}
+
+	pub fn call_vote(&mut self,comp_store:&mut CompStore) -> Result<(VoteStatus,VoteStatus), &'static str> {
+		let reader_id = if self.reader_id.is_some() {self.reader_id.unwrap()} else {return Err("call_vote fail, no reader")};
+		let writer_id = if self.reader_id.is_some() {self.writer_id.unwrap()} else {return Err("call_vote fail, no writer")};
+
 		//check to make sure messages on the channel are valid data
-		let unit_of_work = comp_store.components[self.writer_id].replicas[0].lock().deref().unit_of_work;
-		if (!self.validate_msgs(unit_of_work)) {
+		let unit_of_work = comp_store.components[writer_id].replicas[0].lock().deref().unit_of_work;
+		if !self.validate_msgs(unit_of_work) {
 			//if not find the replica with invalid messages
 			let faulted = self.find_fault(unit_of_work);
 			assert!(faulted > 0);
 			//remove these messages from the chanel
 			self.poison(faulted as u16);
 			//return a faild vote
-			return (VoteStatus::Fail(self.writer_id,faulted as u16),
-					comp_store.components[self.reader_id].collect_vote())
+			return Ok((VoteStatus::Fail(writer_id,faulted as u16),
+					comp_store.components[reader_id].collect_vote()))
 		}
 
-		return (comp_store.components[self.writer_id].collect_vote(),
-				comp_store.components[self.reader_id].collect_vote())
+		Ok((comp_store.components[writer_id].collect_vote(),
+		    comp_store.components[reader_id].collect_vote()))
 	}
 
 	pub fn send(&mut self, msg:Vec<u8>, rep_id:u16,msg_id:u16) {
@@ -119,7 +134,7 @@ impl Channel {
 		return true;
 	}
 
-	pub fn find_fault(&self,msg_id:u16) -> i16 {
+	pub fn find_fault(&self, msg_id:u16) -> i16 {
 		//store the number of replicas that agree, and rep id of sender
 		let mut concensus: [(u8,i16); MAX_REPS] = [(0,0); MAX_REPS];
 
@@ -131,7 +146,7 @@ impl Channel {
 			for msg_b in &self.messages {
 				if msg_b.msg_id != msg_id {continue}
 				//if the msgs agree mark that
-				if (msg.compare_msg_to(&msg_b)) {
+				if msg.compare_msg_to(&msg_b) {
 					concensus[i].0 += 1;
 				}
 			}
@@ -155,8 +170,13 @@ impl Channel {
 		self.messages.retain(|ref msg| msg.rep_id != rep_id);
 	}
 
-	pub fn wake_all(&mut self,comp_store:& mut CompStore) {
-		comp_store.components[self.reader_id].wake_all();
-		comp_store.components[self.writer_id].wake_all();
+	pub fn wake_all(&mut self, comp_store:& mut CompStore) -> bool {
+		let reader_id = if self.reader_id.is_some() {self.reader_id.unwrap()} else {return false};
+		let writer_id = if self.reader_id.is_some() {self.writer_id.unwrap()} else {return false};
+
+		comp_store.components[reader_id].wake_all();
+		comp_store.components[writer_id].wake_all();
+
+		return true;
 	}
 }

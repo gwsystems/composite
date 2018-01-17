@@ -177,26 +177,19 @@ void *         thread_data[SL_MAX_NUM_THDS];
 void
 assign_thread_data(struct sl_thd *thread)
 {
-	printc("%s - %d\n",__FILE__,__LINE__);
 	struct cos_compinfo *ci     = cos_compinfo_get(cos_defcompinfo_curr_get());
-	printc("%s - %d\n",__FILE__,__LINE__);
 	thdcap_t             thdcap = sl_thd_thdcap(thread);
-	printc("%s - %d\n",__FILE__,__LINE__);
 	thdid_t              thdid  = thread->thdid;
-	printc("%s - %d\n",__FILE__,__LINE__);
 
 	/* HACK: We setup some thread specific data to make musl stuff work with sl threads */
 	backing_thread_data[thdid].tid = thdid;
-	printc("%s - %d\n",__FILE__,__LINE__);
 	backing_thread_data[thdid].robust_list.head = &backing_thread_data[thdid].robust_list.head;
 	backing_thread_data[thdid].tsd = calloc(PTHREAD_KEYS_MAX, sizeof(void*));
 
 	thread_data[thdid] = &backing_thread_data[thdid];
-	printc("%s - %d\n",__FILE__,__LINE__);
 
 
 	cos_thd_mod(ci, thdcap, &thread_data[thdid]);
-	printc("%s - %d\n",__FILE__,__LINE__);
 }
 
 extern void rust_init();
@@ -219,7 +212,6 @@ test_call(void)
 	thd->aepinfo = aep;
 	assign_thread_data(thd);
 	printc("Making rust call\n");
-	//interface_handeler(0);
 	test_call_rs();
 	printc("Finished rust call\n");
 	return;

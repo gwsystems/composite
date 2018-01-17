@@ -2,6 +2,7 @@
 name = "rust_src"
 version = "0.1.0"
 dependencies = [
+ "lazy_static 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lib_composite 0.7.0",
 ]
 
@@ -17,6 +18,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.32 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "lazy_static"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "lib_composite"
@@ -44,5 +50,6 @@ dependencies = [
 [metadata]
 "checksum cfg-if 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d4c819a1287eb618df47cc647173c5c4c66ba19d888a6e50d605672aed3140de"
 "checksum const-cstr-fork 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "5bc62b762029d3c1232c72db00227df9ece151ec3739a758dc2f2064108b6f7c"
+"checksum lazy_static 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c8f31047daa365f19be14b47c29df4f7c3b581832407daabe6ae77397619237d"
 "checksum libc 0.2.32 (registry+https://github.com/rust-lang/crates.io-index)" = "56cce3130fd040c28df6f495c8492e5ec5808fb4c9093c310df02b0c8f030148"
 "checksum libc-extra 0.0.15 (registry+https://github.com/rust-lang/crates.io-index)" = "aea866cf056287de8b433f144210446a96fa8789a3249ecbff1bfb437c65ffbc"

@@ -1,11 +1,11 @@
-#![allow(dead_code)] /* DEBUG REMOVE THIS */
+use std::str::FromStr;
 use lib_composite::sl::{ThreadParameter, Sl,Thread};
 use lib_composite::sl_lock::Lock;
 use std::mem;
 use std::fmt;
 use std::sync::Arc;
 use std::ops::{DerefMut,Deref};
-use channel::*;
+use voter::channel::*;
 
 pub const MAX_REPS:usize = 3;
 
@@ -57,9 +57,9 @@ impl fmt::Debug for VoteStatus {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Status: {}",
         match self {
-        	&VoteStatus::Inconclusive => "Inconclusive",
-        	&VoteStatus::Success => "Success",
-        	&VoteStatus::Fail(comp,rep) => "Fail",
+        	&VoteStatus::Inconclusive => String::from_str("Inconclusive").unwrap(),
+        	&VoteStatus::Success => String::from_str("Success").unwrap(),
+        	&VoteStatus::Fail(comp,rep) => format!("Fail - comp {:?} rep {:?}",comp,rep),
         })
     }
 }
@@ -219,46 +219,43 @@ impl ModComp {
 	}
 
 	//TODO - this function needs to be called by the channel somewhere, send recieve ????
-	fn replica_communicate(&mut self, sl:Sl, rep_id:usize, mut ch: Channel,comp_store:& mut CompStore, action:ReplicaState) -> Option<i32> {
+	fn replica_communicate(&mut self, sl:Sl, rep_id:usize, mut ch: Channel, comp_store:& mut CompStore, action:ReplicaState) -> Result<Option<i32>, String> {
 		assert!(rep_id < self.num_replicas);
-		if ch.reader_id == self.comp_id && action != ReplicaState::Read ||
-		   ch.writer_id == self.comp_id && action != ReplicaState::Written {
-		   	return Some(-1); //TODO more descriptive return valeus
+		let reader_id = if ch.reader_id.is_some() {ch.reader_id.unwrap()} else {return Err("replica_communicate fail, no reader".to_string())};
+		let writer_id = if ch.reader_id.is_some() {ch.writer_id.unwrap()} else {return Err("replica_communicate fail, no writer".to_string())};
+
+		if reader_id == self.comp_id && action != ReplicaState::Read ||
+		   writer_id == self.comp_id && action != ReplicaState::Written {
+		   	return Err(format!("Replica_communicate: Component not permitted to {:?}",action));
 		}
 
 
 		self.replicas[rep_id].lock().deref_mut().state_transition(action);
-		//fixme -- this iterate over tuple
+
 		loop {
-			match ch.call_vote(comp_store).0 {
-				VoteStatus::Fail(comp,rep) => {
-					comp_store.components[comp].replicas[rep as usize].lock().deref_mut().recover();
-				},
-				VoteStatus::Inconclusive  => {
-					Replica::block(&self.replicas[rep_id],sl);
-				},
-				VoteStatus::Success       => {
-					//TODO implemnt channel calls here
-				},
-			}
-			match ch.call_vote(comp_store).1 {
-				VoteStatus::Fail(comp,rep) => {
-					comp_store.components[comp].replicas[rep as usize].lock().deref_mut().recover();
-					break
-				},
-				VoteStatus::Inconclusive  => {
-					Replica::block(&self.replicas[rep_id],sl);
-					break
-				},
-				VoteStatus::Success       => {
-					//TODO implemnt channel calls here
-					break
-				},
-			}
+			let (reader_result, writer_result) = ch.call_vote(comp_store)?;
+			if self.check_vote_status(reader_result, comp_store, rep_id, sl) && self.check_vote_status(writer_result, comp_store, rep_id, sl) {break}
 		}
 
-		return self.replicas[rep_id].lock().deref_mut().retval_get();
+		return Ok(self.replicas[rep_id].lock().deref_mut().retval_get());
 	}
 
+	fn check_vote_status(&mut self, vote:VoteStatus, comp_store:& mut CompStore, rep_id:usize, sl:Sl) -> bool {
+		match vote {
+			VoteStatus::Fail(comp,rep) => {
+				comp_store.components[comp].replicas[rep as usize].lock().deref_mut().recover();
+				false
+			},
+			VoteStatus::Inconclusive => {
+				Replica::block(&self.replicas[rep_id],sl);
+				true
+			},
+			VoteStatus::Success => {
+				//TODO implemnt channel calls here
+				true
+			},
+		}
+	}
 }
+
 

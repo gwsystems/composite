@@ -5,6 +5,7 @@ authors = ["Alexander Maloney <maloney.a12@gmail.com>"]
 
 [dependencies]
 lib_composite = {path = "/home/vagrant/lib_composite"}
+lazy_static = "1.0.0"
 
 [lib]
 crate-type = ["staticlib"]
