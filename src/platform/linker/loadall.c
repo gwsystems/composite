@@ -42,7 +42,6 @@ getsym(bfd *obj, char* symbol)
 		strcpy(prev_name, service_name);
 
 		storage_needed = bfd_get_symtab_upper_bound (obj);
-		printl(PRINT_DEBUG, "\tAllocating new symbol table...\n");
 
 		if (storage_needed <= 0){
 			printl(PRINT_HIGH, "no symbols in object file\n");
@@ -56,6 +55,7 @@ getsym(bfd *obj, char* symbol)
 		/* Free previous cahced symtabs */
 		if (private_symtabs != NULL) {
 			free(private_symtabs);
+			private_symtabs = NULL;
 		}
 		private_symtabs = malloc(number_of_symbols * sizeof(struct private_symtab));
 		assert(private_symtabs);
@@ -492,7 +492,6 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 			char *sect_loc;
 
 			if (cobj_sect_init(h, i, csg(i)->cobj_flags, csg(i)->start_addr, csg(i)->len)) {
-				printl(PRINT_HIGH, "Could not create section %d in cobj for %s\n", i, service_name);
 				return -1;
 			}
 
