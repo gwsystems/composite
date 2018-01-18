@@ -289,6 +289,7 @@ boot_create_cap_system(void)
 		is_sched = boot_check_scheduler(h->name);
 		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo, is_sched);
 		printc("\nComp %d (%s) scheduler=%d created @ %x!\n\n", h->id, h->name, is_sched, sect->vaddr);
+		printc("spdid: %d\n", spdid);
 	}
 
 
@@ -307,6 +308,9 @@ boot_init_ndeps(int num_cobj)
 
 	printc("ndeps: %d\n", ndeps);
 	ndeps = i;
+
+	for (i = 0; i < MAX_NUM_SPDS; i++) schedule[i] = 0;
+	sched_cur = 0;
 }
 
 void
