@@ -6,7 +6,6 @@
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 
 static inline int
 is_booter_loaded(struct service_symbs *s)
@@ -34,7 +33,7 @@ fault_handler_num(char *fn_name)
 {
 	int i;
 
-	for (i = 0; i < COS_FLT_MAX; i++) {
+	for (i = 0; i < COS_FLT_MAX ; i++) {
 		if (!strcmp(cos_flt_handlers[i], fn_name)) return i;
 	}
 	return -1;

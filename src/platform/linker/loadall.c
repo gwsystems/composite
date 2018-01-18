@@ -92,7 +92,7 @@ int make_cobj_symbols(struct service_symbs *s, struct cobj_header *h)
         for (i = 0 ; map[i].name != NULL ; i++) {
                 addr = (u32_t)get_symb_address(&s->exported, map[i].name);
                 printl(PRINT_DEBUG, "\tsymb %s, addr %x, nsymb %d\n", map[i].name, addr, i);
-
+		printf("\tsymb %s, addr %x, nsymb %d\n", map[i].name, addr, i);
                 /* ST_user_caps offset is 0 when not relevant. */
                 if (addr && cobj_symb_init(h, symb_offset++, map[i].name, map[i].type, addr, 0)) {
                         printl(PRINT_HIGH, "boot component: couldn't create map cobj symb for %s (%d).\n", map[i].name, i);

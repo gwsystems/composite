@@ -35,7 +35,7 @@ name##_inv:                       \
         pushl %edi;	          \
         pushl %esi;	          \
         pushl %ebx;	          \
-        call fn ; 		  \
+        call fn ;		  \
         addl $20, %esp;           \
         popl %esi;		  \
         popl %edi;		  \

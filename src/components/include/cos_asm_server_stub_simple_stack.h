@@ -9,9 +9,8 @@
 #ifndef COS_ASM_SERVER_STUB_SIMPLE_STACK_H
 #define COS_ASM_SERVER_STUB_SIMPLE_STACK_H
 
-#define __ASM__
 #include "../../kernel/include/asm_ipc_defs.h"
-#include <consts.h>
+//#include <consts.h>
 #include <cos_asm_simple_stacks.h>
 
 
@@ -34,7 +33,7 @@ name##_inv:                       \
         pushl %edi;	          \
         pushl %esi;	          \
         pushl %ebx;	          \
-        call name ; 		  \
+        call name ;		  \
         addl $16, %esp;           \
                                   \
         movl %eax, %ecx;          \
@@ -54,7 +53,7 @@ name##_inv:                             \
         pushl %edi;	                \
         pushl %esi;	                \
         pushl %ecx;	                \
-        call name ; 		        \
+        call name ;		        \
         addl $16, %esp;                 \
                                         \
         movl %eax, %ecx;                \

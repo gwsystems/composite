@@ -9,7 +9,7 @@
 #define SL_FPRR_PRIO_HIGHEST   0
 #define SL_FPRR_PRIO_LOWEST    (SL_FPRR_NPRIOS-1)
 
-#define SL_FPRR_PERIOD_US_MIN  SL_PERIOD_US
+#define SL_FPRR_PERIOD_US_MIN  SL_MIN_PERIOD_US
 
 struct ps_list_head threads[SL_FPRR_NPRIOS];
 

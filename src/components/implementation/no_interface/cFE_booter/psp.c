@@ -121,7 +121,7 @@ uint32 CFE_PSP_Get_Timer_Tick(void)
 uint32 CFE_PSP_GetTimerTicksPerSecond(void)
 {
     // (usec / sec) / (usec / tick)
-    return 1000000 / SL_PERIOD_US;
+    return 1000000 / SL_MIN_PERIOD_US;
 }
 
 /*

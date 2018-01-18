@@ -4,7 +4,7 @@ COMPONENT=sch_lab.o
 INTERFACES=
 DEPENDENCIES=cFE
 IF_LIB:=./cFE_sch_lab_app.o
-ADDITIONAL_LIBS=
+ADDITIONAL_LIBS=-lcos_kernel_api
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o

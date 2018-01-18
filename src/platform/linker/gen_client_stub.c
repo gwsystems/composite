@@ -13,7 +13,7 @@
 
 #include <consts.h>
 
-#define STR_SIZE 1024*4
+#define STR_SIZE 1024 * 4
 #define FN_NAME_SZ 256
 #define UCAP_EXT "_cos_ucap"
 
@@ -32,41 +32,38 @@
  * data.
  */
 
-char *fn_string =
-".text\n"
-".align 16\n"
-".globl %s\n"
-"%s:\n"
-".globl %s__cos_undef_%d\n"
-"%s__cos_undef_%d:\n\t"
-/* get the cap table */
-/* "movl $ST_user_caps, %%eax\n\t" */
-/* "/\* eax now holds the **usr_inv_cap *\/\n\t" */
-/* "/\* get the specific *usr_inv_cap we are interested in *\/\n\t" */
-/* "addl $%d, %%eax\n\t" */
-"movl $%s, %%eax\n\t"
-/*"movl (%%eax), %%eax\n\t"
-  "ret\n\t"*/
-/* are we ST, hardcoded as 0? */
-/*"cmpl $0, %d(%%eax)\n\t"*/
-/*"jne 1f\n\t"*/
-/* static branch predict will go here */
-/* Comment out the inv cnt for multicore performance. */
-/* invocation count inc */
-/* If we would overflow the invocation count, don't count */
-/* "cmpl $(~0), %d(%%eax)\n\t" */
-/* "je 1f\n\t" */
-/* "/\* Static branch prediction will go here: incriment invocation cnt *\/\n\t" */
-/* "incl %d(%%eax)\n" */
-/* Inv cnt removed for multicore performance. */
-// The following approach works too and avoids the branch...but has the same cost.
-/*"incl %d(%%eax)\n\t" */ /* why is this 4 cycles? how aren't we using the parallelism? */
-/*"andl $0x7FFFFFFF, %d(%%eax)\n\t"*/
-/*"jmp *%d(%%eax)\n"*/
-"1: \n\t"
-/*"pushl $ST_inv_stk\n\t"*/
-"/* Call the invocation fn; either direct inv, or stub as set by kernel */\n\t"
-"jmp *%d(%%eax)\n";
+char *fn_string = ".text\n"
+                  ".globl %s\n"
+                  ".align 16\n"
+                  "%s:\n\t"
+                  /* get the cap table */
+                  /* "movl $ST_user_caps, %%eax\n\t" */
+                  /* "/\* eax now holds the **usr_inv_cap *\/\n\t" */
+                  /* "/\* get the specific *usr_inv_cap we are interested in *\/\n\t" */
+                  /* "addl $%d, %%eax\n\t" */
+                  "movl $%s, %%eax\n\t"
+                  /*"movl (%%eax), %%eax\n\t"
+                    "ret\n\t"*/
+                  /* are we ST, hardcoded as 0? */
+                  /*"cmpl $0, %d(%%eax)\n\t"*/
+                  /*"jne 1f\n\t"*/
+                  /* static branch predict will go here */
+                  /* Comment out the inv cnt for multicore performance. */
+                  /* invocation count inc */
+                  /* If we would overflow the invocation count, don't count */
+                  /* "cmpl $(~0), %d(%%eax)\n\t" */
+                  /* "je 1f\n\t" */
+                  /* "/\* Static branch prediction will go here: incriment invocation cnt *\/\n\t" */
+                  /* "incl %d(%%eax)\n" */
+                  /* Inv cnt removed for multicore performance. */
+                  // The following approach works too and avoids the branch...but has the same cost.
+                  /*"incl %d(%%eax)\n\t" */ /* why is this 4 cycles? how aren't we using the parallelism? */
+                  /*"andl $0x7FFFFFFF, %d(%%eax)\n\t"*/
+                  /*"jmp *%d(%%eax)\n"*/
+                  "1: \n\t"
+                  /*"pushl $ST_inv_stk\n\t"*/
+                  "/* Call the invocation fn; either direct inv, or stub as set by kernel */\n\t"
+                  "jmp *%d(%%eax)\n";
 /*
  * Note that in either case, %eax holds the ptr to the usr_inv_cap:
  * useful as that entry holds the kernel version of the capability.
@@ -84,32 +81,30 @@ full:
 
 */
 
-char *footer1 =
-".section .kmem\n"
-".align 4096\n"
-".globl ST_user_caps\n"
-"ST_user_caps:\n\t"
-".rep " UCAP_SZ_STR "\n\t"
-".long 0\n\t"
-".endr\n"; 			/* take up a whole cap slot for cap 0 */
+char *footer1 = ".section .kmem\n"
+                ".align 4096\n"
+                ".globl ST_user_caps\n"
+                "ST_user_caps:\n\t"
+                ".rep " UCAP_SZ_STR "\n\t"
+                ".long 0\n\t"
+                ".endr\n"; /* take up a whole cap slot for cap 0 */
 
-char *footer2 =
-".align 16\n"
-"ST_user_caps_end:\n\t"
-".long 0\n";
+char *footer2 = ".align 16\n"
+                "ST_user_caps_end:\n\t"
+                ".long 0\n";
 
-char *cap_data =
-".align 16\n"
-".globl %s\n"
-"%s:\n\t"
-".rep " UCAP_SZ_STR "\n\t"
-".long 0\n\t"
-".endr\n";
+char *cap_data = ".align 16\n"
+                 ".globl %s\n"
+                 "%s:\n\t"
+                 ".rep " UCAP_SZ_STR "\n\t"
+                 ".long 0\n\t"
+                 ".endr\n";
 
-static char *string_to_token(char *output, char *str, int token, int maxlen)
+static char *
+string_to_token(char *output, char *str, int token, int maxlen)
 {
 	char *end;
-	int len;
+	int   len;
 
 	end = strchr(str, token);
 	if (NULL == end) {
@@ -117,25 +112,25 @@ static char *string_to_token(char *output, char *str, int token, int maxlen)
 		return NULL;
 	}
 
-	len = end-str;
+	len = end - str;
 	if (len >= maxlen) {
 		fprintf(stderr, "function name starting at %s too long\n", str);
 		exit(-1);
 	}
 	strncpy(output, str, len);
 	output[len] = '\0';
-	return end+1;
+	return end + 1;
 }
 
-static inline void create_stanza(char *output, int len, char *fn_name, int cap_num)
+static inline void
+create_stanza(char *output, int len, char *fn_name, int cap_num)
 {
-	int ret;
+	int  ret;
 	char ucap_name[FN_NAME_SZ];
 
-	sprintf(ucap_name, "%s"UCAP_EXT, fn_name);
-	ret = snprintf(output, len, fn_string, fn_name, fn_name,
-                       fn_name, cap_num, fn_name, cap_num,
-		       ucap_name/*cap_num*SIZEOFUSERCAP*/, /* INVOCATIONCNT, INVOCATIONCNT, */ /*ENTRYFN,*/ INVFN);
+	sprintf(ucap_name, "%s" UCAP_EXT, fn_name);
+	ret = snprintf(output, len, fn_string, fn_name, fn_name, ucap_name /*cap_num*SIZEOFUSERCAP*/,
+	               /* INVOCATIONCNT, INVOCATIONCNT, */ /*ENTRYFN,*/ INVFN);
 
 	if (ret == len) {
 		fprintf(stderr, "Function name %s too long: string overrun.\n", fn_name);
@@ -145,7 +140,8 @@ static inline void create_stanza(char *output, int len, char *fn_name, int cap_n
 	return;
 }
 
-static inline void create_cap_data(char *output, int len, char *name)
+static inline void
+create_cap_data(char *output, int len, char *name)
 {
 	int ret;
 
@@ -156,12 +152,13 @@ static inline void create_cap_data(char *output, int len, char *name)
 	}
 }
 
-int main(int argc, char *argv[])
+int
+main(int argc, char *argv[])
 {
-	char *product;
-	char *fns;
+	char *       product;
+	char *       fns;
 	unsigned int cap_no = 1;
-	int len;
+	int          len;
 
 	if (argc != 2 && argc != 1) {
 		printf("Usage: %s <nothing OR string of comma-separated functions in trusted service's API>", argv[0]);
@@ -169,11 +166,11 @@ int main(int argc, char *argv[])
 	}
 
 	if (argc == 2) {
-		char fn_name[FN_NAME_SZ];
+		char  fn_name[FN_NAME_SZ];
 		char *orig_fns;
 
 		/* conservative amount of space for fn names: ~500 chars */
-		len = strlen(fn_string)+STR_SIZE;
+		len     = strlen(fn_string) + STR_SIZE;
 		product = malloc(len);
 		assert(product);
 		orig_fns = fns = argv[1];
@@ -190,7 +187,7 @@ int main(int argc, char *argv[])
 			char new_name[FN_NAME_SZ] = "\n";
 
 			fns = string_to_token(fn_name, fns, ',', FN_NAME_SZ);
-			sprintf(new_name, "%s"UCAP_EXT, fn_name);
+			sprintf(new_name, "%s" UCAP_EXT, fn_name);
 			create_cap_data(product, len, new_name);
 			printf("%s\n", product);
 		}
@@ -205,7 +202,7 @@ int main(int argc, char *argv[])
 	 * an entry per static capability made.  /4 because we are
 	 * repeating the occurance of 4 bytes, not one (see footer).
 	 */
-//	printf(footer, ((cap_no)*SIZEOFUSERCAP)/4);
+	//	printf(footer, ((cap_no)*SIZEOFUSERCAP)/4);
 
 	return 0;
 }

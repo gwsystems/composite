@@ -22,7 +22,7 @@ timer_fn_1hz(void *d)
 		rdtscll(now);
 		if (now > start) {
 			CFE_TIME_Local1HzISR(); /* input param is signum. but CFE_PSP_TimerHandler doesn't seem to use it. */
-		}	
+		}
 
 		sl_thd_block_periodic(0);
 	}
@@ -36,7 +36,7 @@ timer_fn_1hz(void *d)
 thdid_t main_delegate_thread_id;
 
 void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
-    sl_init();
+    sl_init(SL_MIN_PERIOD_US);
 
     struct sl_thd* main_delegate_thread = sl_thd_alloc(main_delegate, NULL);
     union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = MAIN_DELEGATE_THREAD_PRIORITY}};
@@ -144,6 +144,7 @@ int32 OS_TaskDelete(uint32 task_id)
 
     osal_task_entry delete_handler = thd_policy->delete_handler;
     if(delete_handler) {
+        printc("Triggering delete handler @%p\n", (void *) delete_handler);
         delete_handler();
     }
 

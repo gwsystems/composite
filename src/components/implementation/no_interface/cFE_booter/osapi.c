@@ -5,6 +5,7 @@
 
 #include "gen/osapi.h"
 #include "gen/cfe_psp.h"
+#include "gen/cfe_time.h"
 #include "gen/common_types.h"
 
 
@@ -93,7 +94,7 @@ int32 OS_Milli2Ticks(uint32 milli_seconds)
 
 int32 OS_Tick2Micros(void)
 {
-    return SL_PERIOD_US;
+    return SL_MIN_PERIOD_US;
 }
 
 OS_time_t local_time;

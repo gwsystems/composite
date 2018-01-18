@@ -149,13 +149,13 @@ cos_init(void)
 	printc("Unit-test for the scheduling library (sl)\n");
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
-	sl_init();
+	sl_init(SL_MIN_PERIOD_US);
 
 	//	test_yields();
 	//	test_blocking_directed_yield();
 	test_timeout_wakeup();
 
-	sl_sched_loop();
+	sl_sched_loop_nonblock();
 
 	assert(0);
 

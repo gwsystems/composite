@@ -18,7 +18,6 @@ static struct cos_defcompinfo curr_defci;
 struct cos_defcompinfo *
 cos_defcompinfo_curr_get(void)
 {
-	assert(curr_defci_init_status == INITIALIZED);
 	return &curr_defci;
 }
 
@@ -48,9 +47,7 @@ void
 cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rcv, pgtblcap_t pgtbl_cap,
                          captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier)
 {
-	assert(curr_defci_init_status == UNINITIALIZED);
-
-	struct cos_defcompinfo *defci     = &curr_defci;
+	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_compinfo *   ci        = cos_compinfo_get(defci);
 	struct cos_aep_info *   sched_aep = cos_sched_aep_get(defci);
 

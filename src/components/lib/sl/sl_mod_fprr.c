@@ -7,7 +7,7 @@
 #define SL_FPRR_PRIO_HIGHEST   0
 #define SL_FPRR_PRIO_LOWEST    (SL_FPRR_NPRIOS-1)
 
-#define SL_FPRR_PERIOD_US_MIN  SL_PERIOD_US
+#define SL_FPRR_PERIOD_US_MIN  SL_MIN_PERIOD_US
 
 struct ps_list_head threads[SL_FPRR_NPRIOS];
 
@@ -25,6 +25,13 @@ sl_mod_schedule(void)
 	for (i = 0 ; i < SL_FPRR_NPRIOS ; i++) {
 		if (ps_list_head_empty(&threads[i])) continue;
 		t = ps_list_head_first_d(&threads[i], struct sl_thd_policy);
+
+		/*
+		 * We want to move the selected thread to the back of the list.
+		 * Otherwise fprr won't be truly round robin
+		 */
+		ps_list_rem_d(t);
+		ps_list_head_append_d(&threads[i], t);
 
 		return t;
 	}
@@ -84,8 +91,6 @@ sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned 
 	}
 	case SCHEDP_WINDOW:
 	{
-		struct sl_thd *td = sl_mod_thd_get(t);
-
 		assert(v >= SL_FPRR_PERIOD_US_MIN);
 		t->period_usec    = v;
 		t->period         = sl_usec2cyc(v);
@@ -105,8 +110,8 @@ void
 sl_mod_init(void)
 {
 	int i;
-	struct sl_thd *t;
 
+	memset(threads, 0, sizeof(struct ps_list_head) * SL_FPRR_NPRIOS);
 	for (i = 0 ; i < SL_FPRR_NPRIOS ; i++) {
 		ps_list_head_init(&threads[i]);
 	}

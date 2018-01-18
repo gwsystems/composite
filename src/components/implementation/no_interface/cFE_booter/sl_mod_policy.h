@@ -15,8 +15,8 @@ struct sl_thd_policy {
 	struct ps_list list;
 
 	// cFE specific fields
-	OS_task_prop_t osal_task_prop;
 	osal_task_entry delete_handler;
+	OS_task_prop_t osal_task_prop;
 };
 
 static inline struct sl_thd *

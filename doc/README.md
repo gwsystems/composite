@@ -1,5 +1,17 @@
 # Composite Setup Guide
 
+## Tools necessary for Composite
+```
+sudo apt-get -y install bc  
+sudo apt-get -y install gcc-multilib  
+sudo apt-get -y install binutils-dev  
+sudo apt-get -y install qemu-kvm  
+sudo apt-get -y install cmake  
+sudo apt-get -y install build-essential  
+sudo apt-get -y install xorriso  
+sudo apt-get -y install curl  
+```
+If you want or need Rust on composite, also follow the steps in `rust_with_composite.md`
 ## Getting and building
 
 We do all of our testing on 32 bit Ubuntu 14.04.
@@ -10,30 +22,23 @@ To get and compile the base system, you do the following once:
 ```
 $ git clone https://github.com/gparmer/composite.git composite
 $ cd composite/src/
-$ make config
 $ make init
-$ make ; make cp
-$ cd ../transfer/
-$ sh qemu.sh micro_boot.sh      # microbenchmarks
-$ sh qemu.sh unit_schedtests.sh # simple scheduler tests
+$ make
+$ make run RUNSCRIPT=micro_boot.sh run      # microbenchmarks
+$ make run RUNSCRIPT=unit_schedtests.sh run # simple scheduler tests
 ```
-
-Note that there will be quite a few warnings, but there should be no errors.
-The warnings are due to a change in a GCC version a while ago, and we haven't cleaned up the build since then.
-Please don't use this as an excuse to leave warnings in your code.
 
 When developing:
 
 ```
-$ make ; make cp
-$ pushd ../transfer/ ; sh qemu.sh micro_boot.sh
-$ popd
+$ make
+$ make run RUNSCRIPT=micro_boot.sh run
 ```
 
 ## The `doc` Directory
 
-The only document that is currently up-to-date is the `style_guide/`, and this document.
-The others are *mostly* correct, but if they allude to Linux in any way, then ignore that part.
+The only document that is currently up-to-date is the `style_guide/` (and `rust_with_composite.md`),
+and this document. The others are *mostly* correct, but if they allude to Linux in any way, then ignore that part.
 
 ## Theory and abstractions
 
