@@ -183,7 +183,8 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched)
 
 	boot_newcomp_sinv_alloc(spdid);
 
-	if (is_sched) {boot_newschedcomp_cap_init(spdid, ct, pt, cc);}
+	//if (is_sched) {boot_newschedcomp_cap_init(spdid, ct, pt, cc);}
+	boot_newschedcomp_cap_init(spdid, ct, pt, cc);
 	/* Create sinv capability from Userspace to Booter components */
 	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)__inv_test_entry);
 	assert(sinv > 0);

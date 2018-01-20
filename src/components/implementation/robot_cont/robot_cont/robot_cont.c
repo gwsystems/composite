@@ -1,94 +1,212 @@
-#include <cos_component.h>
-#include <cos_kernel_api.h>
+//#include <cos_component.h>
+//#include <cos_kernel_api.h>
+//#include <video_codec.h>
+
+//#include <cos_defkernel_api.h>
+//#include <cos_alloc.h>
+//#include <cos_debug.h>
+//#include <cos_types.h>
 #include <llprint.h>
+
 #include <robot_cont.h>
-#include <malloc.h>
-//#include <robot_sched.h>
-#include <cos_types.h>
+#include <shdmem.h>
+#include <posix.h>
+#include <sl.h>
+#include <sl_lock.h>
+#include <sl_thd.h>
 
-#define ARB_NUM 1
+#include <locale.h>
+#include <limits.h>
+#include <pthread.h>
 
-int* side(int distance, int* cmds) {
-	int c[6] =  {132, 137 };//132, 137, FIX THIS 
-	cmds = c;
-	return cmds;
-}
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
 
-int* up(int distance, int* cmds) {
-	int velocity[2];
-	if (distance < 0) {
-		velocity[0] = 255;
-		velocity[1] = 56;
-	} else {
-		velocity[0] = 0; //high byte <-- not sure this is right: 200ms/s ->hex = C8
-		velocity[1] = 200; //low byte
-	}
-	int c[6] = {132, 137, velocity[0], velocity[1], 0, 0}; //132, 137, 		
-	cmds = c;
-	return cmds;
-}
-/*int**/
-void diagonal(int dx, int dy) {
-}
-void* determine_steps(int x, int y, int xc, int yc) {
-	//assuming front is always north
-	//if yc-y is negative, need to move north(forward)
-	//if xc-x is negative, need to move right
-	int up_var;
-	int side_var; //right is positive, left is negative
-	up_var = yc-y;
-	side_var = xc-x;
-	int cmds[6];
-	if(up_var  != 0 && side_var != 0) diagonal(side_var, up_var);
-	else if (up_var) return up(up_var, cmds);
+#define NORTH 0
+#define EAST 1
+#define SOUTH 2
+#define WEST 3
+
+struct rp {
+	int x, y;
+	unsigned long direction;
+};
+struct rp rpos;
+
+int
+create_movement(int xf, int yf) {
+
+	int ychange = yf - rpos.y;
+	int xchange = xf - rpos.x;
+	int i;
 	
-	else if (side_var) return side(side_var, cmds);
+	/* roomba scripts can be 100 bytes long */
+	unsigned char script [100];
+	int sidx = 0;
+	script[sidx++] = 152; // Indicates we're sending a script
+	/* script[1] is reserved for script length, will populate after we generate the script */
+	sidx++;
+	printc("script[0]: %u \n", script[0]);
+
+	/* Must move north */	
+	if (ychange > 0) {
+
+		switch (rpos.direction) {
+			case NORTH:
+			{
+				break;
+			}
+			case EAST:
+			{
+				/* Turn 90 counter clock */
+				
+				/* drive */
+				script[sidx++] = 137;
+				
+				/* 300 mm/s */
+				script[sidx++] = 1;
+				script[sidx++] = 44;
+				
+				/* Spin counter clock */
+				script[sidx++] = 0;
+				script[sidx++] = 1;
+				
+				/* Wait for angle */
+				script[sidx++] = 157;
+				
+				/* 90 degrees */
+				script[sidx++] = 0;
+				script[sidx++] = 90;
+				
+				break;
+			}
+			case SOUTH:
+			{
+				/* Turn 180 counter clock */
+				
+				/* Drive */
+				script[sidx++] = 137;
+				
+				/* 300 mm/s */
+				script[sidx++] = 1;
+				script[sidx++] = 44;
+				
+				/* Spin counter clock */
+				script[sidx++] = 0;
+				script[sidx++] = 1;
+				
+				/* Wait for angle */
+				script[sidx++] = 157;
+				
+				/* 90 degrees */
+				script[sidx++] = 0;
+				script[sidx++] = 180;
+				
+				break;
+			}
+			case WEST:
+			{
+				/* Turn 90 clock */
+				/* Drive */
+				script[sidx++] = 137;
+				
+				/* 300 mm/s */
+				script[sidx++] = 1;
+				script[sidx++] = 44;
+				
+				/* Spin counter clock */
+				script[sidx++] = 0;
+				script[sidx++] = 0;
+				
+				/* Wait for angle */
+				script[sidx++] = 157;
+				
+				/* 90 degrees */
+				script[sidx++] = 0;
+				script[sidx++] = 90;
+
+				break;
+			}
+			default:
+				printc("error, no direction?\n");
+				break;
+		}
+		/* move forward 100mm * ychange */
+		//137 1 44 128 0 156 1 144
+		/* Drive */
+		script[sidx++] = 137;
+		
+		/* 300 mm/s */
+		script[sidx++] = 1;
+		script[sidx++] = 44;
+	
+		/* Straight */	
+		script[sidx++] = 128;
+		script[sidx++] = 0;
+	
+		/* Wait for distance */	
+		script[sidx++] = 156;
+
+		/* Distance == 100mm * ychange */	
+		script[sidx++] = 1;
+		script[sidx++] = 36 * ychange;
+
+		/* start script */		
+		script[sidx] = 153;	
+		script[1] = sidx - 1;
+
+		printc("script length: %d: \n", sidx - 1);
+		for (i = 0; i < sidx ; i ++) {
+			printc("%u ,", script[i]);
+		}
+		printc("\n");
+
+	} else if (ychange < 0) {
+		/* turn south */
+		/* check angle */
+	}
+
+	rpos.x = xf;
+	rpos.y = yf;	
+	
 	return 0;
 }
-int
-send_cmd(int x) {
-	printc("In send_cmd() in robot cont interface\n");
-	return 1;
-}
-int
-send_task(int *curr, struct Task *task) { //WIP change parameters. Takes ina series of cmds
-	printc("In send_task() in robot cont interface\n");
-	int *queue = determine_steps(task->coords[0], task->coords[1], curr[0], curr[1]);
-	int i;
-	int cmd_queue[2] = {136, 9}; //each contains an integer command
-	for(i = 0; i < ARB_NUM; i++) {
-	    send_cmd(cmd_queue[i]);
-	}
-	return 1;
-}
-
-
-int*
-get_loc(void) {
-	printc("In get_loc() in robot cont interface\n");
-	//request image?
-	static int coords[2] = {0,0};
-	return coords;
-}
 
 int
-receive_task(struct Task* task) { //break task down into single command or set	
-	if (task->command != 0) {
-	    send_cmd(task->command);
-	} else if (task->coords != NULL) {
-	    int *curr_loc = get_loc();
-	    send_task(curr_loc, task);
-	}
-	printc("In receive_task() in robot cont interface\n");
-	return 1;
+send_task(int x, int y) {
+
+	create_movement(x, y);
+
+	printc("new position: %d, %d\n", rpos.x, rpos.y);
+	
+	return 0;
 }
 
 void
 cos_init(void)
 {
-	int ret;
+	printc("Welcome to the robot_cont component\n");
 
-	printc("Welcome to the robot cont component\n");
+
+	int shdmem_id;
+	vaddr_t shdmem_addr;
+	void *addr;
+	u32_t addrlen;
+
+	char * test = (char *)malloc(1);
+
+	printc("%d \n", __LINE__);
+	*test = 'h';
+
+	printc("%d \n", __LINE__);
+	printc("test: %c \n", *test);
+//	shdmem_id = shm_allocate(2, 1);	
+//	printc("shdmem_id: %d\n", shdmem_id);
+
+	rpos.x = 0;
+	rpos.y = 0;
+	rpos.direction = EAST;	
 	
 	cos_sinv(BOOT_CAPTBL_SINV_CAP, 1, 2, 3, 4);
 }
