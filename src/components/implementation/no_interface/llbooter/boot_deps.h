@@ -53,9 +53,9 @@ boot_comp_pgtbl_expand(size_t n_pte, pgtblcap_t pt, vaddr_t vaddr, struct cobj_h
 		if (tot % SERVICE_SIZE) n_pte++;
 	}
 
-	for (i = 0; i < n_pte; i++) {
-		if (!cos_pgtbl_intern_alloc(&boot_info, pt, vaddr, SERVICE_SIZE)) BUG();
-	}
+	printc("Expanding pgtbl by %d\n", (int) n_pte);
+	int ret = cos_pgtbl_intern_alloc(&boot_info, pt, vaddr, SERVICE_SIZE * n_pte);
+	if (!ret) BUG();
 }
 
 /* Initialize just the captblcap and pgtblcap, due to hack for upcall_fn addr */
@@ -136,10 +136,13 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 static void
 boot_bootcomp_init(void)
 {
+	printc("boot_bootcomp_init\n");
 	cos_meminfo_init(&boot_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 
 	cos_compinfo_init(&boot_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 	                  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &boot_info);
+	printc("boot_bootcomp_init done\n");
+
 }
 
 static void

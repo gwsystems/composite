@@ -65,10 +65,12 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 	int               n_pte = 1;
 	struct cobj_sect *sect = cobj_sect_get(h, 0);
 
+	printc("expanding pgtbl...\n");
 	boot_comp_pgtbl_expand(n_pte, pt, sect->vaddr, h);
 
 	/* We'll map the component into booter's heap. */
 
+	printc("mapping component into booter's heap...\n");
 	for (i = 0; i < (int)h->nsect; i++) {
 		int left;
 
@@ -115,6 +117,7 @@ boot_spd_end(struct cobj_header *h)
 int
 boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info, vaddr_t *user_caps)
 {
+	printc("boot_spd_symbs\n");
 	int i = 0;
 
 	for (i = 0; i < (int)h->nsymb; i++) {
@@ -136,6 +139,7 @@ boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info, vaddr_t
 			break;
 		}
 	}
+	printc("boot_spd_symbs done\n");
 	return 0;
 }
 
@@ -226,7 +230,9 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 int
 boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, pgtblcap_t pt)
 {
+	printc("Mapping memory...\n");
 	boot_comp_map_memory(h, spdid, pt);
+	printc("Populating memory...\n");
 	boot_comp_map_populate(h, spdid, comp_info);
 	return 0;
 }
@@ -244,26 +250,26 @@ int
 boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 {
 	struct cobj_cap *cap;
-	struct usr_inv_cap inv_cap;	
+	struct usr_inv_cap inv_cap;
 	int cap_offset;
-	int i; 
+	int i;
 
 	for (i = 0; i < h->ncap ; i++) {
-	
+
 		cap = cobj_cap_get(h, i);
 		assert(cap);
 
 		/* 0 index of inv_cap array is special, so start at 1 */
-		cap_offset = cap->cap_off + 1;	
+		cap_offset = cap->cap_off + 1;
 
 		/* Create the user cap for the undef symb */
 		inv_cap = (struct usr_inv_cap) {
 			.invocation_fn = (vaddr_t) cap->cstub,
 			.service_entry_inst = (vaddr_t) cap->sstub,
 			.invocation_count = cap->dest_id
-		};	
-	
-		new_comp_cap_info[spdid].ST_user_caps[cap_offset] = inv_cap;	
+		};
+
+		new_comp_cap_info[spdid].ST_user_caps[cap_offset] = inv_cap;
 	}
 	return 0;
 }
@@ -285,13 +291,21 @@ boot_create_cap_system(void)
 		spdid = h->id;
 
 		sect                                = cobj_sect_get(h, 0);
+
+		printc("\nCreating comp %d (%s) @ %x!\n", h->id, h->name, sect->vaddr);
+
+
 		new_comp_cap_info[spdid].addr_start = sect->vaddr;
 		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);
 
+		printc("Doing spd symbs\n");
 		if (boot_spd_symbs(h, spdid, &ci, &new_comp_cap_info[spdid].vaddr_user_caps)) BUG();
+		printc("Doing spd invocation capability allocation\n");
 		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
+		printc("Doing component map\n");
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
+		printc("Actually creating the new component...\n");
 		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo);
 		printc("\nComp %d (%s) created @ %x!\n\n", h->id, h->name, sect->vaddr);
 	}
