@@ -1,11 +1,3 @@
-//#include <cos_component.h>
-//#include <cos_kernel_api.h>
-//#include <video_codec.h>
-
-//#include <cos_defkernel_api.h>
-//#include <cos_alloc.h>
-//#include <cos_debug.h>
-//#include <cos_types.h>
 #include <llprint.h>
 
 #include <camera.h>
@@ -30,6 +22,10 @@
 
 #include "jpeglib.h"
 
+extern const void* _binary_image_jpg_start;
+extern const void* _binary_image_jpg_end;
+extern const int _binary_image_jpg_size;
+
 struct rp {
 	int x, y;
 	unsigned long direction;
@@ -53,18 +49,16 @@ cos_init(void)
 	void *addr;
 	u32_t addrlen;
 
-	char * test = (char *)malloc(1);
+	char * test = (char *)malloc(sizeof(char) * 11);
+	test = "malloc test";
+	printc("test: %s \n", test);
+	
+	printc("image size: %d\n", &_binary_image_jpg_size);
+	printc("image start: %p\n", _binary_image_jpg_start);
+	printc("image end: %p\n", _binary_image_jpg_end);
 
 	struct jpeg_decompress_struct cinfo;
 	jpeg_create_decompress(&cinfo);
-
-	printc("%d \n", __LINE__);
-	*test = 'h';
-
-	printc("%d \n", __LINE__);
-	printc("test: %c \n", *test);
-//	shdmem_id = shm_allocate(2, 1);	
-//	printc("shdmem_id: %d\n", shdmem_id);
 
 	rpos.x = 0;
 	rpos.y = 0;
