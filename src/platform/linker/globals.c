@@ -26,6 +26,7 @@ const char *BOOT_COMP      = "boot.o";
 const char *LLBOOT_COMP    = "llboot.o";
 const char *INIT_FILE      = "initfs.o";
 const char *INIT_FILE_NAME = "init.tar";
+const char *TEST_JPEG	   = "jpegtest.o";
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] =
 { "cos_atomic_cmpxchg",
@@ -84,9 +85,7 @@ struct cos_sections section_info[MAXSEC_S + 1] =
 		.sname      = ".dtors",
 	},
 	{
-		.secid      = INIT_ARRAY_S,
-		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
-		.coalesce   = 1,
+		.secid      = INIT_ARRAY_S, .cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE, .coalesce   = 1,
 		.sname      = ".init_array",
 	},
 	{
