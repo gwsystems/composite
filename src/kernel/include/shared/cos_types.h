@@ -32,9 +32,6 @@ typedef u64_t         tcap_uid_t;
 typedef unsigned long sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
 
-#define SHM_BASE 0x80000000
-#define SHM_SZ (1 << 20) /* shared memory mappring for each vm = 4mb */
-
 /*
  * The assumption in the following is that cycles_t are higher
  * fidelity than tcap_time_t:
