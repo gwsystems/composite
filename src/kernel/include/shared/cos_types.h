@@ -255,8 +255,8 @@ enum
                                                          CAPMAX_ENTRY_SZ),
 	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS * CAP64B_IDSZ,
                                                         CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_SINV_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP64B_IDSZ,
-	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SINV_CAP + CAP32B_IDSZ,
+	BOOT_CAPTBL_SINV_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
+	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SINV_CAP + CAP64B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
