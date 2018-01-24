@@ -194,11 +194,11 @@ __captbl_cap2sz(cap_t c)
 	case CAP_THD:
 	case CAP_TCAP:
 		return CAP_SZ_16B;
-	case CAP_SINV:
 	case CAP_CAPTBL:
 	case CAP_PGTBL:
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 		return CAP_SZ_32B;
+	case CAP_SINV:
 	case CAP_COMP:
 	case CAP_ASND:
 	case CAP_ARCV:
@@ -255,7 +255,7 @@ enum
                                                          CAPMAX_ENTRY_SZ),
 	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS * CAP64B_IDSZ,
                                                         CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_SINV_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
+	BOOT_CAPTBL_SINV_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP64B_IDSZ,
 	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SINV_CAP + CAP32B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
