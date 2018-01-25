@@ -74,6 +74,6 @@ name##_inv:                             \
         COS_ASM_REQUEST_STACK
 /* clang-format on */
 
-#define cos_asm_server_stub_spdid(name) cos_asm_server_fn_stub_spdid(name, name)
+#define cos_asm_server_stub_token(name) cos_asm_server_fn_stub_spdid(name, name)
 
 #endif /* COS_ASM_SERVER_STUB_H */
