@@ -86,14 +86,16 @@ init_source (j_decompress_ptr cinfo)
  * the front of the buffer rather than discarding it.
  */
 
+extern const char _binary_greenroomba_jpg_start;
+
 METHODDEF(boolean)
 fill_input_buffer (j_decompress_ptr cinfo)
 {
   my_src_ptr src = (my_src_ptr) cinfo->src;
   size_t nbytes;
 
-  nbytes = JFREAD(src->infile, src->buffer, INPUT_BUF_SIZE);
-
+//  nbytes = JFREAD(src->infile, src->buffer, INPUT_BUF_SIZE);
+  nbytes = 2290;
   if (nbytes <= 0) {
     if (src->start_of_file)	/* Treat empty input file as fatal error */
       ERREXIT(cinfo, JERR_INPUT_EMPTY);
@@ -104,7 +106,8 @@ fill_input_buffer (j_decompress_ptr cinfo)
     nbytes = 2;
   }
 
-  src->pub.next_input_byte = src->buffer;
+//  src->pub.next_input_byte = src->buffer;
+  src->pub.next_input_byte = &_binary_greenroomba_jpg_start;
   src->pub.bytes_in_buffer = nbytes;
   src->start_of_file = FALSE;
 

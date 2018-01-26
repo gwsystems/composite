@@ -27,7 +27,6 @@
 #define EAST 1
 #define SOUTH 2
 #define WEST 3
-
 #include "jpeglib.h"
 
 extern const char _binary_greenroomba_jpg_start;
@@ -92,20 +91,15 @@ int read_jpeg_file(void) //char *filename )
  struct jpeg_error_mgr jerr;
  JSAMPROW row_pointer[1];
  JSAMPARRAY colormap;
- FILE *infile = fopen( "filename", "rb" );
  unsigned long location = 0;
  int i = 0;
 
- if ( !infile )
- {
-  printf("Error opening jpeg file %s\n!", "filename");//filename );
-  return -1;
- }
  cinfo.quantize_colors = TRUE;
  cinfo.err = jpeg_std_error( &jerr );
  jpeg_create_decompress( &cinfo );
- jpeg_stdio_src( &cinfo, infile );
+ jpeg_stdio_src( &cinfo, (FILE*) &_binary_greenroomba_jpg_start );
  jpeg_read_header( &cinfo, TRUE );
+
  jpeg_start_decompress( &cinfo );
 
  raw_image = (unsigned char*)malloc( cinfo.output_width*cinfo.output_height*cinfo.num_components );
@@ -115,18 +109,20 @@ int read_jpeg_file(void) //char *filename )
  init_map(height, width);
  int x = 0;
  int y = 0;
-
+  
+  printc("cinfo.image_height: %d\n", cinfo.image_height);
   while( cinfo.output_scanline < cinfo.image_height )
  {
 
   x = 0;
   int triple[3];
   jpeg_read_scanlines( &cinfo, row_pointer, 1 );
-
+  printc("cinfo.num_components: %d\n", cinfo.num_components);
   for( i=0; (unsigned int)i<cinfo.image_width*cinfo.num_components;i++) {
    raw_image[location++] = row_pointer[0][i];
+   
    triple[i%cinfo.num_components] = (int)row_pointer[0][i];
-   unsigned char test = row_pointer[0][i];
+   int test = row_pointer[0][i];
    if(i%cinfo.num_components == 2) {
         check_green(triple, y, x);
         x++;
@@ -138,7 +134,7 @@ int read_jpeg_file(void) //char *filename )
  jpeg_finish_decompress( &cinfo );
  jpeg_destroy_decompress( &cinfo );
  free( row_pointer[0] );
- fclose( infile );
+ printc("read_jpeg_file end\n");
  return 1;
 }
 
@@ -165,8 +161,17 @@ cos_init(void)
 	printc("Image  Size: %d\n", &_binary_greenroomba_jpg_size);
 	printc("Image Start Addr: %d\n",&_binary_greenroomba_jpg_start);
 	printc("Image End Addr: %d\n",&_binary_greenroomba_jpg_end);
-	printc("img content test: %c\n", (char) *(&_binary_greenroomba_jpg_start));
-
+	printc("img content test: %c\n", (char)*(&_binary_greenroomba_jpg_start+4));
+	printc("img content test: %c\n", (char)*(&_binary_greenroomba_jpg_start+8));
+//	jpeg_get_large (j_common_ptr cinfo, size_t sizeofobject);
+	read_jpeg_file();
+ int i;
+ for(i=0; i <4; i++) {
+  printc("%d ", track[i]);
+  if(track[i] == 1) {
+     printc("Quadrant %d,", i+1);
+  }
+ }
 	printc("%d \n", __LINE__);
 	printc("test: %c \n", *test);
 //	shdmem_id = shm_allocate(2, 1);	
