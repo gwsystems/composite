@@ -1,11 +1,3 @@
-//#include <cos_component.h>
-//#include <cos_kernel_api.h>
-//#include <video_codec.h>
-
-//#include <cos_defkernel_api.h>
-//#include <cos_alloc.h>
-//#include <cos_debug.h>
-//#include <cos_types.h>
 #include <llprint.h>
 
 #include <camera.h>
@@ -151,7 +143,13 @@ cos_init(void)
 	void *addr;
 	u32_t addrlen;
 
-	char * test = (char *)malloc(1);
+	char * test = (char *)malloc(sizeof(char) * 11);
+	test = "malloc test";
+	printc("test: %s \n", test);
+	
+	printc("image size: %d\n", &_binary_image_jpg_size);
+	printc("image start: %p\n", _binary_image_jpg_start);
+	printc("image end: %p\n", _binary_image_jpg_end);
 
 	struct jpeg_decompress_struct cinfo;
 	jpeg_create_decompress(&cinfo);
@@ -165,13 +163,13 @@ cos_init(void)
 	printc("img content test: %c\n", (char)*(&_binary_greenroomba_jpg_start+8));
 //	jpeg_get_large (j_common_ptr cinfo, size_t sizeofobject);
 	read_jpeg_file();
- int i;
- for(i=0; i <4; i++) {
-  printc("%d ", track[i]);
-  if(track[i] == 1) {
-     printc("Quadrant %d,", i+1);
-  }
- }
+        int i;
+	 for(i=0; i <4; i++) {
+	  printc("%d ", track[i]);
+	  if(track[i] == 1) {
+	     printc("Quadrant %d,", i+1);
+	  }
+	 }
 	printc("%d \n", __LINE__);
 	printc("test: %c \n", *test);
 //	shdmem_id = shm_allocate(2, 1);	

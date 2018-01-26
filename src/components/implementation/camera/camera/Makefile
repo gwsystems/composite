@@ -9,3 +9,7 @@ OBJLIBS += $(POSIX_LIB)
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o
+
+jpeg.o: image.jpg
+	ld -r -b binary -o jpeg.o image.jpg
+

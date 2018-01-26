@@ -8,7 +8,7 @@
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text	
-cos_asm_server_stub_spdid(valloc_alloc)
-cos_asm_server_stub_spdid(valloc_free)
-cos_asm_server_stub_spdid(valloc_alloc_at)
-cos_asm_server_stub_spdid(valloc_fork_spd)
+cos_asm_server_stub_token(valloc_alloc)
+cos_asm_server_stub_token(valloc_free)
+cos_asm_server_stub_token(valloc_alloc_at)
+cos_asm_server_stub_token(valloc_fork_spd)
