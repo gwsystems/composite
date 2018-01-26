@@ -20,6 +20,7 @@ struct cap_sinv {
 	struct cap_header h;
 	struct comp_info  comp_info;
 	vaddr_t           entry_addr;
+	unsigned long 	  token;
 } __attribute__((packed));
 
 struct cap_sret {
@@ -50,7 +51,7 @@ struct cap_arcv {
 } __attribute__((packed));
 
 static int
-sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, vaddr_t entry_addr)
+sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, vaddr_t entry_addr, unsigned long token)
 {
 	struct cap_sinv *sinvc;
 	struct cap_comp *compc;
@@ -61,6 +62,8 @@ sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, va
 
 	sinvc = (struct cap_sinv *)__cap_capactivate_pre(t, cap, capin, CAP_SINV, &ret);
 	if (!sinvc) return ret;
+
+	sinvc->token = token;
 
 	memcpy(&sinvc->comp_info, &compc->info, sizeof(struct comp_info));
 	sinvc->entry_addr = entry_addr;
@@ -294,7 +297,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 
 	/* TODO: test this before pgtbl update...pre- vs. post-serialization */
 	__userregs_sinvupdate(regs);
-	__userregs_set(regs, thd->tid | (get_cpuid() << 16), 0 /* FIXME: add calling component id */,
+	__userregs_set(regs, thd->tid | (get_cpuid() << 16), sinvc->token,
 	               sinvc->entry_addr);
 
 	return;

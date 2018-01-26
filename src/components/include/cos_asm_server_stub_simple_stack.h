@@ -42,7 +42,7 @@ name##_inv:                       \
                                   \
         sysenter;
 
-#define cos_asm_server_stub_spdid(name) \
+#define cos_asm_server_stub_token(name) \
 .globl name##_inv ;                     \
 .type  name##_inv, @function ;	        \
 .align 16 ;			        \
