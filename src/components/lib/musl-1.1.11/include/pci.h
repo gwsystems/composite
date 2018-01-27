@@ -50,7 +50,7 @@ struct pci_bar {
 	u32_t mask;
 } __attribute__((packed));
 
-struct pci_device {
+struct cos_pci_device {
 	u32_t bus, dev, func;
 	u16_t vendor;
 	u16_t device;
