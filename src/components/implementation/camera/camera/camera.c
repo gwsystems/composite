@@ -138,45 +138,37 @@ cos_init(void)
 	printc("Welcome to the robot_cont component\n");
 
 
-	int shdmem_id;
-	vaddr_t shdmem_addr;
-	void *addr;
-	u32_t addrlen;
-
-	char * test = (char *)malloc(sizeof(char) * 11);
-	test = "malloc test";
-	printc("test: %s \n", test);
+//	int shdmem_id;
+//	vaddr_t shdmem_addr;
+//	void *addr;
+//	u32_t addrlen;
+//
+//	char * test = (char *)malloc(sizeof(char) * 11);
+//	test = "malloc test";
+//	printc("test: %s \n", test);
+//	
+//	struct jpeg_decompress_struct cinfo;
+//	jpeg_create_decompress(&cinfo);
+//
+//	printc("%d \n", __LINE__);
+//	*test = 'h';
+//	printc("Image  Size: %d\n", &_binary_greenroomba_jpg_size);
+//	printc("Image Start Addr: %d\n",&_binary_greenroomba_jpg_start);
+//	printc("Image End Addr: %d\n",&_binary_greenroomba_jpg_end);
+////	jpeg_get_large (j_common_ptr cinfo, size_t sizeofobject);
+//	read_jpeg_file();
+//        int i;
+//	 for(i=0; i <4; i++) {
+//	  printc("%d ", track[i]);
+//	  if(track[i] == 1) {
+//	     printc("Quadrant %d,", i+1);
+//	  }
+//	 }
+////	shdmem_id = shm_allocate(2, 1);	
+////	printc("shdmem_id: %d\n", shdmem_id);
+//	rpos.x = 0;
+//	rpos.y = 0;
+//	rpos.direction = EAST;	
 	
-	printc("image size: %d\n", &_binary_image_jpg_size);
-	printc("image start: %p\n", _binary_image_jpg_start);
-	printc("image end: %p\n", _binary_image_jpg_end);
-
-	struct jpeg_decompress_struct cinfo;
-	jpeg_create_decompress(&cinfo);
-
-	printc("%d \n", __LINE__);
-	*test = 'h';
-	printc("Image  Size: %d\n", &_binary_greenroomba_jpg_size);
-	printc("Image Start Addr: %d\n",&_binary_greenroomba_jpg_start);
-	printc("Image End Addr: %d\n",&_binary_greenroomba_jpg_end);
-	printc("img content test: %c\n", (char)*(&_binary_greenroomba_jpg_start+4));
-	printc("img content test: %c\n", (char)*(&_binary_greenroomba_jpg_start+8));
-//	jpeg_get_large (j_common_ptr cinfo, size_t sizeofobject);
-	read_jpeg_file();
-        int i;
-	 for(i=0; i <4; i++) {
-	  printc("%d ", track[i]);
-	  if(track[i] == 1) {
-	     printc("Quadrant %d,", i+1);
-	  }
-	 }
-	printc("%d \n", __LINE__);
-	printc("test: %c \n", *test);
-//	shdmem_id = shm_allocate(2, 1);	
-//	printc("shdmem_id: %d\n", shdmem_id);
-	rpos.x = 0;
-	rpos.y = 0;
-	rpos.direction = EAST;	
-	
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, 1, 2, 3, 4);
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 2, 3, 4);
 }

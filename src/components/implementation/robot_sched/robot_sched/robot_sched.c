@@ -69,7 +69,7 @@ cos_init(void)
 //	assign_task(t);
 
 	//read_jpeg_file(); //test readjpegfile
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, 1, 2, 3, 4);
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 2, 3, 4);
 	return;
 }
 

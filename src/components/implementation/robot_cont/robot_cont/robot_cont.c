@@ -189,24 +189,10 @@ cos_init(void)
 	printc("Welcome to the robot_cont component\n");
 
 
-	int shdmem_id;
-	vaddr_t shdmem_addr;
-	void *addr;
-	u32_t addrlen;
-
-	char * test = (char *)malloc(1);
-
-	printc("%d \n", __LINE__);
-	*test = 'h';
-
-	printc("%d \n", __LINE__);
-	printc("test: %c \n", *test);
-//	shdmem_id = shm_allocate(2, 1);	
-//	printc("shdmem_id: %d\n", shdmem_id);
 
 	rpos.x = 0;
 	rpos.y = 0;
 	rpos.direction = EAST;	
 	
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, 1, 2, 3, 4);
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 2, 3, 4);
 }

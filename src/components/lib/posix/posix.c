@@ -27,7 +27,7 @@ static cos_syscall_t cos_syscalls[SYSCALL_NUM_MAX];
 static void
 libc_syscall_override(cos_syscall_t fn, int syscall_num)
 {
-	printc("Overriding syscall %d\n", syscall_num);
+	//printc("Overriding syscall %d\n", syscall_num);
 	cos_syscalls[syscall_num] = fn;
 }
 

@@ -850,7 +850,7 @@ test_inv(void)
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc > 0);
-	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
+	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
 	assert(ic > 0);
 
 	r = call_cap_mb(ic, 1, 2, 3);
@@ -870,7 +870,7 @@ test_inv_perf(void)
 	perfdata_init(&pd, "SINV");
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc > 0);
-	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
+	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
 	assert(ic > 0);
 	ret = call_cap_mb(ic, 1, 2, 3);
 	assert(ret == 0xDEADBEEF);
@@ -904,7 +904,7 @@ test_captbl_expand(void)
 	for (i = 0; i < 1024; i++) {
 		sinvcap_t ic;
 
-		ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
+		ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
 		assert(ic > 0);
 	}
 	PRINTC("Captbl expand SUCCESS.\n");
