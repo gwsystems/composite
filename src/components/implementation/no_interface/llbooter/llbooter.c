@@ -29,6 +29,44 @@ struct component_init_str *init_args;
 
 unsigned int *boot_sched;
 
+void *
+boot_thd_done(int op, int spdid, int opt_arg) {
+
+	printc("operation: %d, spdid: %d\n", op, spdid);
+
+	switch(op) {
+		case 0: {
+			printc("Done booting\n\n");
+			while(1) sl_thd_block(0);
+		} case 1: {
+			printc("Fetching cap frontier for: %d\n", spdid);
+			printc("For this component, the frontier is at: %lu\n",
+					new_comp_cap_info[spdid].compinfo->cap_frontier);
+			return (void *)new_comp_cap_info[spdid].compinfo->cap_frontier;
+		} case 2: {
+			/*
+			 * In this case, spdid is actualy the capid of where we want to copy
+			 * the udpserver thd into
+			 */
+			capid_t thd_offset = opt_arg;
+			printc("Copying in udpserver thd into cap offset: %lu...", thd_offset);
+			assert(thd_offset > 0);
+
+			cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, thd_offset,
+					boot_info,
+					new_comp_cap_info[UDP_SPDID].defcompinfo->sched_aep.thd);
+			printc("done\n");
+			return 0;
+		} default: {
+			printc("Unsupported opperation!\n");
+			assert(0);
+		}
+	}
+
+	/* Error, should not reach this statement */
+	assert(0);
+}
+
 static void
 boot_find_cobjs(struct cobj_header *h, int n)
 {

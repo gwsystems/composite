@@ -15,8 +15,9 @@
 #include "rk_sched.h"
 #include <llprint.h>
 
+extern struct cos_component_information cos_comp_info;
+
 /* TODO rumpboot component should export this when it is moved to its own interface */
-//extern struct cos_compinfo *currci;
 struct cos_compinfo *currci = NULL;
 
 /*TODO same reason above */
@@ -25,6 +26,8 @@ int vmid = 0;
 
 u64_t t_vm_cycs  = 0;
 u64_t t_dom_cycs = 0;
+
+cycles_t cycs_per_usec;
 
 #define RK_TOTAL_MEM (1 << 26) //64MB
 #define HW_ISR_LINES 32
@@ -72,27 +75,14 @@ rk_hw_irq_alloc(void)
 
 	assert(vmid == 0);
 
-	for(i = HW_ISR_FIRST; i < HW_ISR_LINES; i++){
+	for (i = HW_ISR_FIRST; i < HW_ISR_LINES; i++) {
 		struct sl_thd *t = NULL;
 		struct cos_aep_info tmpaep;
 
-		switch(i) {
-#if defined(APP_COMM_ASYNC)
-			case RK_IRQ_IO:
-				tmpaep.thd = SUB_CAPTBL_SELF_IOTHD_BASE;
-				tmpaep.rcv = SUB_CAPTBL_SELF_IORCV_BASE;
-				tmpaep.tc  = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-				t = rk_intr_aep_init(&tmpaep, 0);
-				assert(t);
-				break;
-#endif
-			default:
-				t = rk_intr_aep_alloc(cos_irqthd_handler, (void *)i, 0);
-				assert(t);
-			
-				cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, sl_thd_rcvcap(t));
-				break;
-		}
+		t = rk_intr_aep_alloc(cos_irqthd_handler, (void *)i, 0);
+		assert(t);
+
+		cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, sl_thd_rcvcap(t));
 	}
 }
 
@@ -144,5 +134,51 @@ rump_booter_init(void *d)
 	printc("\nRumpKernel Boot done.\n");
 
 	cos_vm_exit();
+	return;
+}
+
+int spdid;
+capid_t udpserv_thdcap = -1;
+
+void
+cos_init(void)
+{
+	unsigned long cap_frontier = -1;
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
+	int ret = -1;
+
+	assert(ci && dci);
+
+	currci = ci;
+
+	cycs_per_usec = (cycles_t)cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+
+	/*
+	 * We don't know how many sinv's have been allocated for us, so switch back to booter to get
+	 * the frontier value
+	 */
+
+	spdid = cos_comp_info.cos_this_spd_id;
+	cap_frontier = (unsigned long)cos_sinv(BOOT_CAPTBL_SINV_CAP, 1,
+			cos_comp_info.cos_this_spd_id, 0, 0);
+	assert(cap_frontier > 0);
+
+	cos_compinfo_init(ci, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+			(vaddr_t)cos_get_heap_ptr(), cap_frontier, ci);
+	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ,
+			BOOT_CAPTBL_SELF_UNTYPED_PT);
+
+	/*
+	 * Callback into the llbooter to have the udpserver thread copied
+	 * in to a new offset that we allocate here
+	 */
+	udpserv_thdcap = cos_capid_bump_alloc(ci, CAP_THD);
+	assert(udpserv_thdcap);
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, 2, cos_comp_info.cos_this_spd_id,
+			udpserv_thdcap, 0);
+
+	printc("Setting up RK\n");
+	rump_booter_init((void *)0);
 	return;
 }

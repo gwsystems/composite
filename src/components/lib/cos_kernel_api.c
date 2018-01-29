@@ -251,6 +251,10 @@ __capid_bump_alloc_generic(struct cos_compinfo *ci, capid_t *capsz_frontier, cap
 	return ret;
 }
 
+capid_t
+cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
+{ return __capid_bump_alloc(ci, cap); }
+
 /* allocate a new capid in the booter. */
 static capid_t
 __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
@@ -629,6 +633,7 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 
 	cap = __capid_bump_alloc(srcci, CAP_COMP);
 	if (!cap) return 0;
+
 	if (call_cap_op(srcci->captbl_cap, CAPTBL_OP_SINVACTIVATE, cap, dstcomp, entry, 0)) BUG();
 
 	return cap;
@@ -636,10 +641,7 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 
 int
 cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
-{
-	printc("In cos_sinv! EXPORTED BY RK INTERFACE\n");
-	return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4);
-}
+{ return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4); }
 
 /*
  * Arguments:

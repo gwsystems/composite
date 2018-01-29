@@ -74,8 +74,7 @@ cos2rump_setup(void)
 static int slen = -1;
 static char str[STR_LEN_MAX + 1];
 
-/* TODO define this within the RK's cos_init */
-unsigned int cycs_per_usec = 0;
+extern cycles_t cycs_per_usec;
 
 static inline void
 __reset_str(void)
@@ -175,7 +174,6 @@ rump_bmk_memsize_init(void)
 {
 	/* (1<<20) == 1 MG */
 	bmk_memsize = VM_UNTYPED_SIZE(vmid) - ((1<<20)*2);
-	printc("FIX ME: ");
 	printc("bmk_memsize: %lu\n", bmk_memsize);
 }
 
@@ -233,13 +231,15 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	struct sl_thd *t = NULL;
 	struct cos_aep_info tmpaep;
 	int ret;
+	extern capid_t udpserv_thdcap;
 
 	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p", thread->bt_name, f);
 
 	if (!strcmp(thread->bt_name, "user_lwp")) {
-		tmpaep.thd = VM_CAPTBL_SELF_APPTHD_BASE;
+		tmpaep.thd = udpserv_thdcap;
 		tmpaep.rcv = 0;
 		tmpaep.tc  = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+		assert(tmpaep.thd);
 		t = rk_rump_thd_init(&tmpaep);
 		assert(t);
 		/* Return userlevel thread cap that is set up in vkernel_init */

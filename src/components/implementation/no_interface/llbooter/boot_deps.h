@@ -5,12 +5,20 @@
 #include <llprint.h>
 
 #define UNDEF_SYMBS 64
-#define CMP_UTYPMEM_SZ (1 << 26)
+#define CMP_UTYPMEM_SZ (1 << 27)
 #define THD_PRIO 5
 #define THD_PERIOD 10
 #define THD_BUDGET 5
 
+void __inv_test_entry(int arg1, int arg2, int arg3, int arg4);
+
 struct cobj_header *hs[MAX_NUM_SPDS + 1];
+
+/*
+ * This is a hack! This only works for RG's specific boot layout and was put in place to make
+ * progress. REMOVE IF NOT USING HIS SET UP
+ */
+#define UDP_SPDID 3
 
 /* The booter uses this to keep track of each comp */
 struct comp_cap_info {
@@ -172,6 +180,12 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched)
 	//manually laying out struct due to upcall addr calculation
 	boot_newcomp_definfo_init(spdid, cc, is_sched);
 
+	/* Create sinv capability from Userspace to Booter components */
+	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)__inv_test_entry);
+	assert(sinv);
+
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);
+
 	boot_newcomp_sinv_alloc(spdid);
 
 	if (is_sched) {boot_newschedcomp_cap_init(spdid, ct, pt, cc);}
@@ -179,7 +193,11 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched)
 	thd = sl_thd_comp_init(new_comp_cap_info[spdid].defcompinfo, is_sched);
 	assert(thd);
 
-	sl_thd_param_set(thd,sched_param_pack(SCHEDP_PRIO, THD_PRIO));
+	/* HACK skipping udpserver so that only the RK runs it, this only works for RG's setup */
+	if (spdid != UDP_SPDID) {
+		sl_thd_param_set(thd, sched_param_pack(SCHEDP_PRIO, THD_PRIO));
+	}
+
 	if (is_sched) {
 		sl_thd_param_set(thd,sched_param_pack(SCHEDP_BUDGET, THD_BUDGET * 1000));
 		sl_thd_param_set(thd,sched_param_pack(SCHEDP_WINDOW, THD_PERIOD * 1000));

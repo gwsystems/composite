@@ -2,6 +2,7 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <shdmem.h>
+#include <sl.h>
 
 /*
  * For generic shared memory, the client component is responsible for allocating memory
@@ -15,6 +16,8 @@ static unsigned int shm_master_idx = 0;
 
 /* cos_compinfo for the booter component when using vkernel_init.c for the booter */
 struct cos_compinfo *shm_cinfo;
+
+extern struct cos_component_information cos_comp_info;
 
 static void
 __shm_infos_init(unsigned int spdid)
@@ -164,11 +167,12 @@ cos_init(void)
 
 	printc("Welcome to the shdmem component\n");
 	printc("Getting cos_compinfo for ourselves...");
+	printc("cos_component_information spdid: %ld\n", cos_comp_info.cos_this_spd_id);
 	dci = cos_defcompinfo_curr_get();
 	assert(dci);
 	shm_cinfo = cos_compinfo_get(dci);
 	assert(shm_cinfo);
 	printc(" done\n");
 
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, 1, 2, 3, 4);
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, cos_comp_info.cos_this_spd_id, 0, 0);
 }

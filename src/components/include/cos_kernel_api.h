@@ -181,6 +181,8 @@ int cos_tcap_transfer(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t pri
 int cos_tcap_delegate(asndcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags);
 int cos_tcap_merge(tcap_t dst, tcap_t rm);
 
+capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
+
 /* Hardware (interrupts) operations */
 hwcap_t cos_hw_alloc(struct cos_compinfo *ci, u32_t bitmap);
 int     cos_hw_periodic_attach(hwcap_t hwc, arcvcap_t rcvcap, unsigned int period);
