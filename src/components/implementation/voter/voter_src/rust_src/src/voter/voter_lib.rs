@@ -6,6 +6,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::ops::{DerefMut,Deref};
 use voter::channel::*;
+use voter::*;
 
 pub const MAX_REPS:usize = 3;
 
@@ -19,7 +20,7 @@ pub enum ReplicaState {
 }
 
 pub enum VoteStatus {
-	Fail(usize,u16), /* stores reference to divergent replica  comp id, rep id*/
+	Fail(u16), /* stores reference to divergent replica rep id*/
 	Inconclusive,
 	Success,
 }
@@ -41,10 +42,6 @@ pub struct ModComp {
 	pub num_replicas: usize,
 }
 
-pub struct CompStore {
-	pub components:Vec<ModComp>,
-}
-
 //manually implement as lib_composite::Thread doesn't impl debug
 impl fmt::Debug for Replica {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -59,11 +56,10 @@ impl fmt::Debug for VoteStatus {
         match self {
         	&VoteStatus::Inconclusive => String::from_str("Inconclusive").unwrap(),
         	&VoteStatus::Success => String::from_str("Success").unwrap(),
-        	&VoteStatus::Fail(comp,rep) => format!("Fail - comp {:?} rep {:?}",comp,rep),
+        	&VoteStatus::Fail(rep) => format!("Fail - {:?}",rep),
         })
     }
 }
-
 
 //manually implement as lib_composite::Lock doenst impl debug
 impl fmt::Debug for ModComp {
@@ -127,23 +123,47 @@ impl Replica  {
 		assert!(false);
 	}
 
-}
+	pub fn commmunicate(current_comp_id:usize, rep_id:usize, ch:&mut Channel, action:ReplicaState, sl:Sl) -> Result<Option<i32>, String> {
+		let compStore(ref comp_lock) = COMPONENTS[current_comp_id];
 
-impl CompStore {
-	pub fn new() -> CompStore {
-		CompStore {
-			components: Vec::new(),
+		//take lock - error check and update state of replica
+		{
+			let ref mut comp = comp_lock.lock();
+			if comp.is_none() {return Err(format!("communicate, no comp at {}",current_comp_id))}
+
+			assert!(rep_id < comp.deref().as_ref().unwrap().num_replicas);
+			let reader_id = if ch.reader_id.is_some() {ch.reader_id.unwrap()} else {return Err("replica_communicate fail, no reader".to_string())};
+			let writer_id = if ch.reader_id.is_some() {ch.writer_id.unwrap()} else {return Err("replica_communicate fail, no writer".to_string())};
+
+			if reader_id == current_comp_id && action != ReplicaState::Read ||
+			   writer_id == current_comp_id && action != ReplicaState::Written {
+			   	return Err(format!("Replica_communicate: Component not permitted to {:?}",action));
+			}
+
+			let ref mut component = comp.deref_mut().as_mut().unwrap();
+			component.replicas[rep_id].lock().deref_mut().state_transition(action);
 		}
+		//initiate vote for channel and loop on failure
+		loop {
+			let (reader_result, writer_result) = ch.call_vote()?;
+			let ref mut comp = comp_lock.lock();
+			if comp.deref_mut().as_mut().unwrap().check_vote_pass(reader_result, rep_id, sl) &&
+			comp.deref_mut().as_mut().unwrap().check_vote_pass(writer_result, rep_id, sl) {break}
+		}
+		let ref comp = comp_lock.lock();
+		let ref mut component = comp.deref().as_ref().unwrap();
+		return Ok(component.replicas[rep_id].lock().deref_mut().retval_get());
 	}
+
 }
 
 impl ModComp {
-	pub fn new(num_replicas: usize, comp_store:&mut CompStore, sl: Sl, thd_entry: fn(sl:Sl, rep: Arc<Lock<Replica>>)) -> usize {
+	pub fn new(num_replicas: usize, new_comp_id: usize, sl: Sl, thd_entry: fn(sl:Sl, rep: Arc<Lock<Replica>>)) -> ModComp {
 		assert!(num_replicas <= MAX_REPS);
 		//create new Component
 		let mut comp = ModComp {
 			replicas: Vec::with_capacity(num_replicas),
-			comp_id: (comp_store.components.len()),
+			comp_id: new_comp_id,
 			num_replicas,
 		};
 
@@ -158,8 +178,7 @@ impl ModComp {
 			comp.replicas.push(Arc::clone(&rep));
 		}
 
-		comp_store.components.push(comp);
-		return comp_store.components.len() - 1;
+		comp
 	}
 
 	pub fn wake_all(&mut self) {
@@ -210,40 +229,18 @@ impl ModComp {
 		};
 
 		let faulted = self.failure_find(healthy_state);
-		return VoteStatus::Fail(faulted.0,faulted.1)
+		return VoteStatus::Fail(faulted)
 	}
 
-	fn failure_find(&self, healthy_state:ReplicaState) -> (usize,u16) {
+	fn failure_find(&self, healthy_state:ReplicaState) -> u16 {
 		//TODO return replica that is not in healthy state
-		return (0,0)
+		return 0
 	}
 
-	//TODO - this function needs to be called by the channel somewhere, send recieve ????
-	fn replica_communicate(&mut self, sl:Sl, rep_id:usize, mut ch: Channel, comp_store:& mut CompStore, action:ReplicaState) -> Result<Option<i32>, String> {
-		assert!(rep_id < self.num_replicas);
-		let reader_id = if ch.reader_id.is_some() {ch.reader_id.unwrap()} else {return Err("replica_communicate fail, no reader".to_string())};
-		let writer_id = if ch.reader_id.is_some() {ch.writer_id.unwrap()} else {return Err("replica_communicate fail, no writer".to_string())};
-
-		if reader_id == self.comp_id && action != ReplicaState::Read ||
-		   writer_id == self.comp_id && action != ReplicaState::Written {
-		   	return Err(format!("Replica_communicate: Component not permitted to {:?}",action));
-		}
-
-
-		self.replicas[rep_id].lock().deref_mut().state_transition(action);
-
-		loop {
-			let (reader_result, writer_result) = ch.call_vote(comp_store)?;
-			if self.check_vote_status(reader_result, comp_store, rep_id, sl) && self.check_vote_status(writer_result, comp_store, rep_id, sl) {break}
-		}
-
-		return Ok(self.replicas[rep_id].lock().deref_mut().retval_get());
-	}
-
-	fn check_vote_status(&mut self, vote:VoteStatus, comp_store:& mut CompStore, rep_id:usize, sl:Sl) -> bool {
+	fn check_vote_pass(&mut self, vote:VoteStatus, rep_id:usize, sl:Sl) -> bool {
 		match vote {
-			VoteStatus::Fail(comp,rep) => {
-				comp_store.components[comp].replicas[rep as usize].lock().deref_mut().recover();
+			VoteStatus::Fail(rep) => {
+				self.replicas[rep as usize].lock().deref_mut().recover();
 				false
 			},
 			VoteStatus::Inconclusive => {

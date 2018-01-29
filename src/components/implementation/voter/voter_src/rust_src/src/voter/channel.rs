@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::ops::{DerefMut,Deref};
 use voter::voter_lib::*;
 use voter::voter_lib::MAX_REPS;
+use voter::*;
 
 pub struct Channel  {
 	pub reader_id:  Option<usize>,
@@ -54,7 +55,7 @@ impl Channel {
 		return Arc::clone(&chan);
 	}
 
-	pub fn join(chan_lock:Arc<Lock<Channel>>, comp_id:usize, comp_store:&mut CompStore, is_reader:bool) -> bool {
+	pub fn join(chan_lock:Arc<Lock<Channel>>, comp_id:usize, is_reader:bool) -> bool {
 		let ref mut chan = chan_lock.lock();
 		match is_reader {
 			true  => {
@@ -67,21 +68,32 @@ impl Channel {
 			},
 		};
 
-		let ref mut components = comp_store.components;
+		let compStore(ref component) = COMPONENTS[comp_id];
+		let ref mut component = component.lock();
 
-		for i in 0..components[comp_id].num_replicas {
-			components[comp_id].replicas[i].lock().deref_mut().channel = Some(Arc::clone(&chan_lock));
+		for i in 0..component.deref().as_ref().unwrap().num_replicas {
+			let ref mut rep_lock = component.deref_mut().as_mut().unwrap().replicas[i];
+			rep_lock.lock().deref_mut().channel = Some(Arc::clone(&chan_lock));
 		}
 
 		return true
 	}
 
-	pub fn call_vote(&mut self,comp_store:&mut CompStore) -> Result<(VoteStatus,VoteStatus), &'static str> {
-		let reader_id = if self.reader_id.is_some() {self.reader_id.unwrap()} else {return Err("call_vote fail, no reader")};
-		let writer_id = if self.reader_id.is_some() {self.writer_id.unwrap()} else {return Err("call_vote fail, no writer")};
+	pub fn call_vote(&mut self) -> Result<(VoteStatus,VoteStatus), String> {
+		let reader_id = if self.reader_id.is_some() {self.reader_id.unwrap()} else {return Err("call_vote fail, no readerid on chan".to_string())};
+		let writer_id = if self.reader_id.is_some() {self.writer_id.unwrap()} else {return Err("call_vote fail, no writerid on chan".to_string())};
+
+		let compStore(ref reader) = COMPONENTS[reader_id];
+		let ref mut reader = reader.lock();
+		if reader.is_none() {return Err(format!("call_vote fail, no reader at {}",reader_id))}
+
+		let compStore(ref writer) = COMPONENTS[writer_id];
+		let ref mut writer = writer.lock();
+		if writer.is_none() {return Err(format!("call_vote fail, no writer at {}",writer_id))}
 
 		//check to make sure messages on the channel are valid data
-		let unit_of_work = comp_store.components[writer_id].replicas[0].lock().deref().unit_of_work;
+		//todo - which comps UOW .. do they have to be the same?
+		let unit_of_work = writer.deref().as_ref().unwrap().replicas[0].lock().deref().unit_of_work;
 		if !self.validate_msgs(unit_of_work) {
 			//if not find the replica with invalid messages
 			let faulted = self.find_fault(unit_of_work);
@@ -89,12 +101,12 @@ impl Channel {
 			//remove these messages from the chanel
 			self.poison(faulted as u16);
 			//return a faild vote
-			return Ok((VoteStatus::Fail(writer_id,faulted as u16),
-					comp_store.components[reader_id].collect_vote()))
+			return Ok((VoteStatus::Fail(faulted as u16),
+					reader.deref_mut().as_mut().unwrap().collect_vote()))
 		}
 
-		Ok((comp_store.components[writer_id].collect_vote(),
-		    comp_store.components[reader_id].collect_vote()))
+		Ok((writer.deref_mut().as_mut().unwrap().collect_vote(),
+		    reader.deref_mut().as_mut().unwrap().collect_vote()))
 	}
 
 	pub fn send(&mut self, msg:Vec<u8>, rep_id:u16,msg_id:u16) {
@@ -170,12 +182,17 @@ impl Channel {
 		self.messages.retain(|ref msg| msg.rep_id != rep_id);
 	}
 
-	pub fn wake_all(&mut self, comp_store:& mut CompStore) -> bool {
+	pub fn wake_all(&mut self, comp_store:&[compStore; MAX_COMPS]) -> bool {
 		let reader_id = if self.reader_id.is_some() {self.reader_id.unwrap()} else {return false};
 		let writer_id = if self.reader_id.is_some() {self.writer_id.unwrap()} else {return false};
 
-		comp_store.components[reader_id].wake_all();
-		comp_store.components[writer_id].wake_all();
+		let compStore(ref reader) = comp_store[reader_id];
+		let ref mut reader = reader.lock();
+		reader.deref_mut().as_mut().unwrap().wake_all();
+
+		let compStore(ref writer) = comp_store[writer_id];
+		let ref mut writer = writer.lock();
+		writer.deref_mut().as_mut().unwrap().wake_all();
 
 		return true;
 	}

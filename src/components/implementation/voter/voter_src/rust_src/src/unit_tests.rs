@@ -1,14 +1,15 @@
 #![allow(dead_code)] /* DEBUG REMOVE THIS */
 use voter::voter_lib;
 use voter::voter_lib::ReplicaState::{Init,Processing,Read,Written,Done};
-use voter::voter_lib::Replica;
+// use voter::voter_lib::Replica;
 use lib_composite::sl::Sl;
 use lib_composite::sl_lock::Lock;
 use std::sync::Arc;
 use std::ops::{DerefMut,Deref};
 use std::time::Duration;
-use voter::channel::*;
-use voter::channel::Channel;
+// use voter::channel::*;
+// use voter::channel::Channel;
+use voter;
 
 fn wait_for_done(comp:&voter_lib::ModComp,sl:Sl) {
 	let mut done = 0;
@@ -41,90 +42,90 @@ fn test_print(msg:&'static str) {
 
 
 /* ------------- Check to make sure states correctly transation on replicas ---------- */
-pub fn test_state_logic(sl: Sl,num_reps:usize) {
-	test_print("Begin state logic test");
-	let mut components = voter_lib::CompStore::new();
-	let test_comp_id = voter_lib::ModComp::new(num_reps,& mut components,sl,thd_entry);
-	wait_for_done(&(components.components[test_comp_id]),sl);
-}
+// pub fn test_state_logic(sl: Sl,num_reps:usize) {
+// 	test_print("Begin state logic test");
+// 	let mut components = voter_lib::CompStore::new();
+// 	let test_comp_id = voter_lib::ModComp::new(num_reps,& mut components,sl,thd_entry);
+// 	wait_for_done(&(components.components[test_comp_id]),sl);
+// }
 
-fn thd_entry(_sl:Sl, rep: Arc<Lock<Replica>>) {
-	println!("Running {:?}",rep.lock().deref());
+// fn thd_entry(_sl:Sl, rep: Arc<Lock<Replica>>) {
+// 	println!("Running {:?}",rep.lock().deref());
 
-	println!("Expceted: Processing :: Actual : {:?}", rep.lock().deref().state);
-	println!("Expected: True :: Actual {}", rep.lock().deref().is_processing());
+// 	println!("Expceted: Processing :: Actual : {:?}", rep.lock().deref().state);
+// 	println!("Expected: True :: Actual {}", rep.lock().deref().is_processing());
 
-	rep.lock().deref_mut().state_transition(Written);
-	println!("Expceted: Written :: Actual : {:?}", rep.lock().deref().state);
+// 	rep.lock().deref_mut().state_transition(Written);
+// 	println!("Expceted: Written :: Actual : {:?}", rep.lock().deref().state);
 
-	println!("Is_blocked Expected: True :: Actual: {}",rep.lock().deref().is_blocked());
-	rep.lock().deref_mut().state_transition(Processing);
+// 	println!("Is_blocked Expected: True :: Actual: {}",rep.lock().deref().is_blocked());
+// 	rep.lock().deref_mut().state_transition(Processing);
 
-	println!("Rep ret value - {:?}", rep.lock().deref_mut().retval_get());
+// 	println!("Rep ret value - {:?}", rep.lock().deref_mut().retval_get());
 
-	rep.lock().deref_mut().state_transition(Done);
+// 	rep.lock().deref_mut().state_transition(Done);
 
-}
+// }
 
-// /* --------------- put threads to sleep and see if they wake up ----------------- */
+// // /* --------------- put threads to sleep and see if they wake up ----------------- */
 
-pub fn test_wakeup(sl: Sl, num_reps:usize) {
-	test_print("Begin thread sleep and component wake test");
-	let mut comp_store = voter_lib::CompStore::new();
-	let test_comp_id = voter_lib::ModComp::new(num_reps,&mut comp_store,sl,thd_block);
-	wait_for_blocked(&(comp_store.components[test_comp_id]),sl);
-	sl.block_for(Duration::new(1,0));
-	println!("Voter waking all replicas!");
-	comp_store.components[test_comp_id].wake_all();
-	wait_for_done(&(comp_store.components[test_comp_id]),sl);
-}
+// pub fn test_wakeup(sl: Sl, num_reps:usize) {
+// 	test_print("Begin thread sleep and component wake test");
+// 	let mut comp_store = voter_lib::CompStore::new();
+// 	let test_comp_id = voter_lib::ModComp::new(num_reps,&mut comp_store,sl,thd_block);
+// 	wait_for_blocked(&(comp_store.components[test_comp_id]),sl);
+// 	sl.block_for(Duration::new(1,0));
+// 	println!("Voter waking all replicas!");
+// 	comp_store.components[test_comp_id].wake_all();
+// 	wait_for_done(&(comp_store.components[test_comp_id]),sl);
+// }
 
-fn thd_block(sl:Sl, rep: Arc<Lock<Replica>>) {
-	println!("Running {:?}",rep.lock().deref());
-	rep.lock().deref_mut().state_transition(Read);
-	voter_lib::Replica::block(&rep,sl);
-	println!("Awake {:?}",rep.lock().deref());
-	rep.lock().deref_mut().state_transition(Done);
-}
-
-
-//  /* ------------ Test vote functions abillity to detect state differences -------------- */
-
-pub fn test_vote_simple(sl: Sl, num_reps:usize) {
-	test_print("Begin vote collect state test");
-	let mut comp_store = voter_lib::CompStore::new();
-	let test_comp = voter_lib::ModComp::new(num_reps,&mut comp_store,sl,vote_a);
-	println!("Expected: Inconclusive; Actual: {:?}", comp_store.components[test_comp].collect_vote());
-
-	let test_comp_2 = voter_lib::ModComp::new(num_reps,&mut comp_store,sl,vote_b);
-	sl.block_for(Duration::new(2,0));
-	println!("Expected: Fail; Actual: {:?}", comp_store.components[test_comp_2].collect_vote());
+// fn thd_block(sl:Sl, rep: Arc<Lock<Replica>>) {
+// 	println!("Running {:?}",rep.lock().deref());
+// 	rep.lock().deref_mut().state_transition(Read);
+// 	voter_lib::Replica::block(&rep,sl);
+// 	println!("Awake {:?}",rep.lock().deref());
+// 	rep.lock().deref_mut().state_transition(Done);
+// }
 
 
-	let test_comp3 = voter_lib::ModComp::new(num_reps,&mut comp_store,sl,vote_c);
-	sl.block_for(Duration::new(2,0));
-	println!("Expected: Success; Actual: {:?}", comp_store.components[test_comp3].collect_vote());
-}
+// //  /* ------------ Test vote functions abillity to detect state differences -------------- */
 
-fn vote_a(_sl:Sl, rep: Arc<Lock<Replica>>) {
-	println!("Running {:?}",rep.lock().deref());
-}
+// pub fn test_vote_simple(sl: Sl, num_reps:usize) {
+// 	test_print("Begin vote collect state test");
+// 	let mut comp_store = voter_lib::CompStore::new();
+// 	let test_comp = voter_lib::ModComp::new(num_reps,&mut comp_store,sl,vote_a);
+// 	println!("Expected: Inconclusive; Actual: {:?}", comp_store.components[test_comp].collect_vote());
 
-fn vote_b(_sl:Sl, rep:  Arc<Lock<Replica>>) {
-	println!("Running {:?}",rep.lock().deref());
-	if rep.lock().deref().rep_id < 1 {
-		rep.lock().deref_mut().state_transition(Written);
-	}
-	else {
-		rep.lock().deref_mut().state_transition(Read);
-	}
-}
+// 	let test_comp_2 = voter_lib::ModComp::new(num_reps,&mut comp_store,sl,vote_b);
+// 	sl.block_for(Duration::new(2,0));
+// 	println!("Expected: Fail; Actual: {:?}", comp_store.components[test_comp_2].collect_vote());
 
 
-fn vote_c(_sl:Sl, rep:  Arc<Lock<Replica>>) {
-	println!("Running {:?}",rep.lock().deref());
-	rep.lock().deref_mut().state_transition(Written);
-}
+// 	let test_comp3 = voter_lib::ModComp::new(num_reps,&mut comp_store,sl,vote_c);
+// 	sl.block_for(Duration::new(2,0));
+// 	println!("Expected: Success; Actual: {:?}", comp_store.components[test_comp3].collect_vote());
+// }
+
+// fn vote_a(_sl:Sl, rep: Arc<Lock<Replica>>) {
+// 	println!("Running {:?}",rep.lock().deref());
+// }
+
+// fn vote_b(_sl:Sl, rep:  Arc<Lock<Replica>>) {
+// 	println!("Running {:?}",rep.lock().deref());
+// 	if rep.lock().deref().rep_id < 1 {
+// 		rep.lock().deref_mut().state_transition(Written);
+// 	}
+// 	else {
+// 		rep.lock().deref_mut().state_transition(Read);
+// 	}
+// }
+
+
+// fn vote_c(_sl:Sl, rep:  Arc<Lock<Replica>>) {
+// 	println!("Running {:?}",rep.lock().deref());
+// 	rep.lock().deref_mut().state_transition(Written);
+// }
 
 
 // // /* -------------------- Test Channel  ------------------------ */
@@ -264,5 +265,26 @@ fn vote_c(_sl:Sl, rep:  Arc<Lock<Replica>>) {
 // // }
 
 
-// fn no_op(_sl:Sl, _rep:  Arc<Lock<Replica>>) {}
+/* -------------- Test Comp store and channel store ------------------- */
+
+pub fn test_store(sl:Sl) {
+	test_print("Begin global data store test");
+
+	let mut chan_free_idx = voter::CHAN_FREE.lock();
+	let voter::channelStore(ref channel) = voter::CHANNELS[*chan_free_idx.deref()];
+	let ref mut channel = channel.lock();
+	channel.deref_mut().get_or_insert(voter::channel::Channel::new(sl));
+	println!("Created channel {:?} at {}", channel.deref().as_ref().unwrap().lock().deref(),chan_free_idx.deref());
+	*chan_free_idx.deref_mut() +=1;
+
+	let mut comp_free_idx = voter::COMP_FREE.lock();
+	let voter::compStore(ref comp) = voter::COMPONENTS[*comp_free_idx.deref()];
+	let ref mut comp = comp.lock();
+	comp.deref_mut().get_or_insert(voter::voter_lib::ModComp::new(1,*comp_free_idx.deref(),sl,no_op));
+	println!("Created comp {:?} at {}", comp.deref().as_ref().unwrap(),comp_free_idx.deref());
+	*comp_free_idx.deref_mut() += 1;
+}
+
+
+fn no_op(_sl:Sl, _rep:  Arc<Lock<voter_lib::Replica>>) {}
 

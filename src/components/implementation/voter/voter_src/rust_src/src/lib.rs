@@ -44,7 +44,8 @@ pub extern fn rust_init() {
 	Sl::start_scheduler_loop_without_initializing(api, 30, move |sl: Sl| {
 		// panic_trace::trace_init();
 		println!("Entered Sched loop\n=========================");
-		demo_app::start(sl);
+		//demo_app::start(sl);
+		unit_tests::test_store(sl);
 	});
 }
 
