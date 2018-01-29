@@ -1,187 +1,234 @@
+/******************************************************************************
+Filename    : pgtbl.c
+Author      : Gabriel Parmer
+Date        : ?/?/2015
+Licence     : GPL v2; see COPYING for details.
+Description : The page table operations that does not need special optimizations.
+******************************************************************************/
+
+/* Includes ******************************************************************/
 #include "include/shared/cos_types.h"
 #include "include/captbl.h"
 #include "include/pgtbl.h"
 #include "include/cap_ops.h"
 #include "include/liveness_tbl.h"
 #include "include/retype_tbl.h"
+#include "chal/chal_prot.h"
+/* End Includes **************************************************************/
 
+/* Begin Function:pgtbl_kmem_act **********************************************
+Description : Activate a page table entry as a kernel page.
+Input       : pgtbl_t pt - The page table structure.
+              u32_t addr - The virtual address of the memory to activate.
+Output      : unsigned long *kern_addr - The kernel address of the memory page.
+              unsigned long **pte_ret - The pointer to the PTE, so that we can 
+                                        release the page if the kernel object 
+                                        activation failed later.
+Return      : int - If successful, 0; or an error code.
+******************************************************************************/
 int
 pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
-	struct ert_intern *pte;
-	u32_t              orig_v, new_v, accum = 0;
-
-	assert(pt);
-	assert((PGTBL_FLAG_MASK & addr) == 0);
-
-	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-	                                          PGTBL_DEPTH, &accum);
-	if (unlikely(!pte)) return -ENOENT;
-	if (unlikely(__pgtbl_isnull(pte, 0, 0))) return -ENOENT;
-
-	orig_v = (u32_t)(pte->next);
-	if (unlikely(!(orig_v & PGTBL_COSFRAME))) return -EINVAL; /* can't activate non-frames */
-	if (unlikely(orig_v & PGTBL_COSKMEM)) return -EEXIST;     /* can't re-activate kmem frames */
-	assert(!(orig_v & PGTBL_QUIESCENCE));
-
-	*kern_addr = (unsigned long)chal_pa2va((paddr_t)(orig_v & PGTBL_FRAME_MASK));
-	new_v      = orig_v | PGTBL_COSKMEM;
-
-	/* pa2va (value in *kern_addr) will return NULL if the page is
-	 * not kernel accessible */
-	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
-	if (unlikely(retypetbl_kern_ref((void *)(new_v & PGTBL_FRAME_MASK)))) return -EFAULT;
-
-	/* We keep the cos_frame entry, but mark it as COSKMEM so that
-	 * we won't use it for other kernel objects. */
-	if (unlikely(cos_cas((unsigned long *)pte, orig_v, new_v) != CAS_SUCCESS)) {
-		/* restore the ref cnt. */
-		retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK));
-		return -ECASFAIL;
-	}
-	/* Return the pte ptr, so that we can release the page if the
-	 * kobj activation failed later. */
-	*pte_ret = (unsigned long *)pte;
-
-	return 0;
+	return chal_pgtbl_kmem_act(pt, addr, kern_addr, pte_ret);
 }
+/* End Function:pgtbl_kmem_act ***********************************************/
 
-/* Return 1 if quiescent past since input timestamp. 0 if not. */
+/* Begin Function:tlb_quiescence_check ****************************************
+Description : Check if the TLB is quiescent. This function will return 1 if 
+              the quiescence time have passed since input timestamp. 0 if not.
+Input       : u64_t timestamp - The reference timestamp.
+Output      : None.
+Return      : int - If quiescent, 0; else 1.
+******************************************************************************/
 int
 tlb_quiescence_check(u64_t timestamp)
 {
-	int i, quiescent = 1;
-
-	/* Did timer interrupt (which does tlb flush
-	 * periodically) happen after unmap? The periodic
-	 * flush happens on all cpus, thus only need to check
-	 * the time stamp of the current core for that case
-	 * (assuming consistent time stamp counters). */
-	if (timestamp > tlb_quiescence[get_cpuid()].last_periodic_flush) {
-		/* If no periodic flush done yet, did the
-		 * mandatory flush happen on all cores? */
-		for (i = 0; i < NUM_CPU_COS; i++) {
-			if (timestamp > tlb_quiescence[i].last_mandatory_flush) {
-				/* no go */
-				quiescent = 0;
-				break;
-			}
-		}
-	}
-	if (quiescent == 0) {
-		printk("from cpu %d, t %llu: cpu %d last mandatory flush: %llu\n", get_cpuid(), timestamp, i,
-		       tlb_quiescence[i].last_mandatory_flush);
-		for (i = 0; i < NUM_CPU_COS; i++) {
-			printk("cpu %d: flush %llu\n", i, tlb_quiescence[i].last_mandatory_flush);
-		}
-	}
-
-	return quiescent;
+	return chal_tlb_quiescence_check(timestamp);
 }
+/* End Function:tlb_quiescence_check *****************************************/
 
+/* Begin Function:cap_memactivate *********************************************
+Description : Delegate a user page from one page table to another. This will be 
+              called by the capinv.c's system call path.
+Input       : struct captbl *ct - The capability table for the destination page table.
+              struct cap_pgtbl *pt - The source page table.
+              capid_t frame_cap - The virtual address of the cosframe to delegate.
+              vaddr_t vaddr - The virtual address of to delegate to on the destination page table.
+Output      : None.
+Return      : int  - If successful, 0; else an error code.
+******************************************************************************/
 int
 cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr)
 {
-	unsigned long *    pte, cosframe, orig_v;
-	struct cap_header *dest_pt_h;
-	u32_t              flags;
-	int                ret;
-
-	if (unlikely(pt->lvl || (pt->refcnt_flags & CAP_MEM_FROZEN_FLAG))) return -EINVAL;
-
-	dest_pt_h = captbl_lkup(ct, dest_pt);
-	if (dest_pt_h->type != CAP_PGTBL) return -EINVAL;
-	if (((struct cap_pgtbl *)dest_pt_h)->lvl) return -EINVAL;
-
-	pte = pgtbl_lkup_pte(pt->pgtbl, frame_cap, &flags);
-	if (!pte) return -EINVAL;
-	orig_v = *pte;
-
-	if (!(orig_v & PGTBL_COSFRAME) || (orig_v & PGTBL_COSKMEM)) return -EPERM;
-
-	assert(!(orig_v & PGTBL_QUIESCENCE));
-	cosframe = orig_v & PGTBL_FRAME_MASK;
-
-	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, cosframe, PGTBL_USER_DEF);
-
-	return ret;
+	return chal_cap_memactivate(ct, pt, frame_cap, dest_pt, vaddr);
 }
+/* End Function:cap_memactivate **********************************************/
 
+/* Begin Function:pgtbl_activate **********************************************
+Description : Activate(create) a page table capability in the capability table
+              designated. At this point, the page table data structure page is 
+              already allocated.
+Input       : struct captbl *t - The master capability table.
+              unsigned long cap - The capability to the capability table that you want 
+                                  this newly created page table capability to be in.
+              unsigned long capin - The position that you want this page table capability
+                                    to be in.
+              pgtbl_t pgtbl - The page table data structure.
+              u32_t lvl - The level of this page table.
+Output      : None.
+Return      : int  - If successful, 0; else an error code.
+TODO        : 1. The captbl is named t instead of ct. Inconsistency.
+              2. cap and capin is badly named.
+              3. u32_t, fixed length types are not generic.
+******************************************************************************/
 int
 pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl)
 {
-	struct cap_pgtbl *pt;
-	int               ret;
+	return chal_pgtbl_activate(t, cap, capin, pgtbl, lvl);
+}
+/* End Function:pgtbl_activate ***********************************************/
 
-	pt = (struct cap_pgtbl *)__cap_capactivate_pre(t, cap, capin, CAP_PGTBL, &ret);
-	if (unlikely(!pt)) return ret;
-	pt->pgtbl = pgtbl;
+/* Begin Function:pgtbl_deactivate ********************************************
+Description : Deactivate a page table capability.
+Input       : struct captbl *t - The master capability table.
+              struct cap_captbl *dest_ct_cap - The capability to the target 
+                                               capability table.
+              unsigned long capin - The capid of the page table capability in the
+                                    target capability table.
+              livenessid_t lid - The liveness id of the XXX.
+              capid_t pgtbl_cap - The capid of the page table that contains the
+                                  mapping of the memory trunk used by the page table
+                                  that is to be freed. If we free the target page table,
+                                  we are freeing a page; thus we need the capability
+                                  to the page table that contains the page to be freed
+                                  to do operations on it.
+              capid_t cosframe_addr - The address of the cosframe used by the target
+                                      page table. This is only needed when the page table
+                                      is freed.
+              const int root - Whether we are doing a root deletion. If not root we are
+                               deactivating just a alias, if root then we are deactivating
+                               the kernel object as well.
+Output      : None.
+Return      : int  - If successful, 0; else an error code.
+TODO        : 1. The dest_ct_cap is badly named, consider changing to target_ct.
+              2. captbl is named t instead of ct. Inconsistency.
+              3. capin is badly named.
+              4. Change livenessid_t to lid_t. The name is too long!
+              5. This function is too complex. The root argument should be deleted 
+                 and the functionality should be moved to a separate function.
+******************************************************************************/
+int
+pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin,
+                 livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
+{
+	return chal_pgtbl_deactivate(t, dest_ct_cap, capin, lid, pgtbl_cap, cosframe_addr, root);
+}
+/* End Function:pgtbl_deactivate *********************************************/
 
-	pt->refcnt_flags = 1;
-	pt->parent       = NULL; /* new cap has no parent. only copied cap has. */
-	pt->lvl          = lvl;
-	__cap_capactivate_post(&pt->h, CAP_PGTBL);
+/*
+ * this works on both kmem and regular user memory: the retypetbl_ref
+ * works on both.
+ */
+int
+pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
+{
+	return chal_pgtbl_mapping_add(pt, addr, page, flags);
+}
 
-	return 0;
+/* This function is only used by the booting code to add cos frames to
+ * the pgtbl. It ignores the retype tbl (as we are adding untyped
+ * frames). */
+int
+pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
+{
+	return chal_pgtbl_cosframe_add(pt, addr, page, flags);
+}
+
+/* This function updates flags of an existing mapping. */
+int
+pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
+{
+	return chal_pgtbl_mapping_mod(pt, addr, flags, prevflags);
+}
+
+/* When we remove a mapping, we need to link the vas to a liv_id,
+ * which tracks quiescence for us. */
+int
+pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
+{
+	return chal_pgtbl_mapping_del(pt, addr, liv_id);
+}
+
+/* NOTE: This just removes the mapping. NO liveness tracking! TLB
+ * flush should be taken care of separately (and carefully). */
+int
+pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr)
+{
+	return chal_pgtbl_mapping_del_direct(pt, addr);
 }
 
 int
-pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
-                 capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
+pgtbl_mapping_scan(struct cap_pgtbl *pt)
 {
-	struct cap_header *deact_header;
-	struct cap_pgtbl * deact_cap, *parent;
-
-	unsigned long l, old_v = 0, *pte = NULL;
-	int           ret;
-
-	deact_header = captbl_lkup(dest_ct_cap->captbl, capin);
-	if (!deact_header || deact_header->type != CAP_PGTBL) cos_throw(err, -EINVAL);
-	deact_cap = (struct cap_pgtbl *)deact_header;
-	parent    = deact_cap->parent;
-
-	l = deact_cap->refcnt_flags;
-	assert(l & CAP_REFCNT_MAX);
-
-	if ((l & CAP_REFCNT_MAX) != 1) {
-		/* We need to deact children first! */
-		cos_throw(err, -EINVAL);
-	}
-
-	if (parent == NULL) {
-		if (!root) cos_throw(err, -EINVAL);
-		/* Last reference to the captbl page. Require pgtbl
-		 * and cos_frame cap to release the kmem page. */
-		ret = kmem_deact_pre(deact_header, t, pgtbl_cap, cosframe_addr, &pte, &old_v);
-		if (ret) cos_throw(err, ret);
-	} else {
-		/* more reference exists. */
-		if (root) cos_throw(err, -EINVAL);
-		assert(!pgtbl_cap && !cosframe_addr);
-	}
-
-	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS)
-		cos_throw(err, -ECASFAIL);
-
-	/* deactivation success. We should either release the
-	 * page, or decrement parent cnt. */
-	if (parent == NULL) {
-		/* move the kmem to COSFRAME */
-		ret = kmem_deact_post(pte, old_v);
-		if (ret) {
-			cos_faa((int *)&deact_cap->refcnt_flags, 1);
-			cos_throw(err, ret);
-		}
-	} else {
-		cos_faa((int *)&parent->refcnt_flags, -1);
-	}
-
-	/* FIXME: this should be before the kmem_deact_post */
-	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_PGTBL, lid);
-	if (ret) cos_throw(err, ret);
-
-	return 0;
-err:
-	return ret;
+	return chal_pgtbl_mapping_scan(pt);
 }
+
+void *
+pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
+{
+	return chal_pgtbl_lkup_lvl(pt, addr, flags, start_lvl, end_lvl);
+}
+
+int
+pgtbl_ispresent(u32_t flags)
+{
+	return chal_pgtbl_ispresent(flags);
+}
+
+unsigned long *
+pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags)
+{
+	return chal_pgtbl_lkup(pt, addr, flags);
+}
+
+unsigned long *
+pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags)
+{
+	return chal_pgtbl_lkup_pte(pt, addr, flags);
+}
+
+int
+pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
+{
+	return chal_pgtbl_get_cosframe(pt, frame_addr, cosframe);
+}
+
+/* vaddr -> kaddr */
+vaddr_t
+pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
+{
+	return (vaddr_t)pgtbl_lkup(pt, addr, flags);
+}
+
+pgtbl_t
+pgtbl_create(void *page, void *curr_pgtbl)
+{
+	return chal_pgtbl_create(page, curr_pgtbl);
+}
+
+int
+pgtbl_quie_check(u32_t orig_v)
+{
+	return chal_pgtbl_quie_check(orig_v);
+}
+
+void
+pgtbl_init_pte(void *pte)
+{
+	return chal_pgtbl_init_pte(pte);
+}
+
+/* End Of File ***************************************************************/
+
+/* Copyright (C) GWU Systems & Security Lab. All rights reserved *************/
+

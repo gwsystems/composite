@@ -4,6 +4,7 @@
 #include "captbl.h"
 #include "pgtbl.h"
 #include "liveness_tbl.h"
+#include "chal/chal_prot.h"
 
 /*
  * Capability-table, capability operations for activation and
@@ -101,7 +102,6 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	 * identical layout to cap_pgtbl.
 	 */
 	struct cap_captbl *ct, *ctsub;
-	unsigned long *    intern;
 	u32_t              depth;
 	cap_t              cap_type;
 	int                ret = 0;
@@ -122,34 +122,7 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	if (cap_type == CAP_CAPTBL) {
 		ret = captbl_cons(ct, ctsub, expandid);
 	} else {
-		/* FIXME: we need to ensure TLB quiescence for pgtbl cons/decons! */
-		u32_t flags = 0, old_pte, new_pte, old_v, refcnt_flags;
-
-		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
-		if (!intern) return -ENOENT;
-		old_pte = *intern;
-		if (pgtbl_ispresent(old_pte)) return -EPERM;
-
-		old_v = refcnt_flags = ((struct cap_pgtbl *)ctsub)->refcnt_flags;
-		if (refcnt_flags & CAP_MEM_FROZEN_FLAG) return -EINVAL;
-		if ((refcnt_flags & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
-
-		refcnt_flags++;
-		ret = cos_cas((unsigned long *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
-		if (ret != CAS_SUCCESS) return -ECASFAIL;
-
-		new_pte = (u32_t)chal_va2pa(
-		            (void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK))
-		          | PGTBL_INTERN_DEF;
-
-		ret = cos_cas(intern, old_pte, new_pte);
-		if (ret != CAS_SUCCESS) {
-			/* decrement to restore the refcnt on failure. */
-			cos_faa((int *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), -1);
-			return -ECASFAIL;
-		} else {
-			ret = 0;
-		}
+		ret = chal_pgtbl_cons(ct, ctsub, expandid, depth);
 	}
 
 	return ret;
