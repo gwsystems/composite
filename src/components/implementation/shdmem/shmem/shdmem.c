@@ -10,6 +10,8 @@
  * The server component should then map in memory upon the request of the client component
  */
 
+#define SHMEM_TOKEN 1
+
 static vaddr_t shm_master_regions[SHM_MAX_REGIONS];
 /* Until we have to implement the deallocate, just increment this */
 static unsigned int shm_master_idx = 0;
@@ -19,6 +21,7 @@ struct cos_compinfo *shm_cinfo;
 
 extern struct cos_component_information cos_comp_info;
 
+/* --------------------------- Private Functions --------------------------- */
 static void
 __shm_infos_init(unsigned int spdid)
 {
@@ -46,12 +49,28 @@ __print_region_idxs(unsigned int spdid)
 	printc("\tPrinting regions for the shm_info, spdid: %d\n", spdid);
 	while (count < SHM_MAX_REGIONS) {
 		if (shm_infos[spdid].my_regions[count]) {
-			printc("\t\tidx: %u, master region: %d\n", count, (int)shm_infos[spdid].my_regions[count]);
+			printc("\t\tidx: %u, master region: %d\n", count,
+					(int)shm_infos[spdid].my_regions[count]);
 		}
 		count++;
 	}
 }
 
+void
+__get_pgtbls()
+{
+	capid_t cap_index;
+       	cap_index = cos_capid_bump_alloc(shm_cinfo, CAP_PGTBL);
+	printc("cap_index: %d\n", cap_index);
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_PGTBL_CAP, SHMEM_TOKEN, 3, cap_index);
+
+	/*
+	 * TODO save the pgtbl into the shm_infos[spdid] struct by allocating a new emtpy cinfo struct to hold it
+	 * All we care about is that the pgtbl is set
+	 */
+}
+
+/* --------------------------- Public Functions --------------------------- */
 vaddr_t
 shm_get_vaddr(unsigned int spdid, unsigned int id)
 {
@@ -74,7 +93,7 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 	assert(shm_cinfo && \
 		((int)spdid > -1) && \
 		shm_infos[spdid].cinfo && \
-		shm_infos[spdid].shm_frontier && \
+	        shm_infos[spdid].shm_frontier && \
 		num_pages);
 
 	if (num_pages > 1) {
@@ -159,6 +178,7 @@ shm_map(unsigned int spdid, unsigned int id)
 	return id;
 }
 
+
 void
 cos_init(void)
 {
@@ -168,11 +188,23 @@ cos_init(void)
 	printc("Welcome to the shdmem component\n");
 	printc("Getting cos_compinfo for ourselves...");
 	printc("cos_component_information spdid: %ld\n", cos_comp_info.cos_this_spd_id);
+
 	dci = cos_defcompinfo_curr_get();
 	assert(dci);
 	shm_cinfo = cos_compinfo_get(dci);
 	assert(shm_cinfo);
-	printc(" done\n");
 
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, cos_comp_info.cos_this_spd_id, 0, 0);
+	cos_defcompinfo_init();
+	cos_meminfo_init(&(shm_cinfo->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ,
+			BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_compinfo_init(shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
+			BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(),
+			BOOT_CAPTBL_FREE, shm_cinfo);	
+
+	/* Get access to the page tables from the booter of the components we will be servicing */
+	__get_pgtbls(shm_cinfo);
+
+	printc("Shdmem init done\n");
+
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 0, 0, 0);
 }
