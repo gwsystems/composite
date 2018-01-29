@@ -9,8 +9,9 @@
 #include "pci.h"
 #include <llprint.h>
 
+#define DEBUG 0
 
-struct pci_device devices[PCI_DEVICE_NUM];
+struct cos_pci_device devices[PCI_DEVICE_NUM];
 int dev_num = 0;
 
 static inline u32_t
@@ -56,17 +57,18 @@ pci_print(void)
 /*     *devices_p = devices; */
 /* } */
 
-static void
-pci_probe(void)
+void
+cos_pci_scan(void)
 {
-	int i, j, k, f;
+	int i, j, k, f, tmp;
 	u32_t reg;
+	struct pci_bar *bar;
 	for(i=0; i<PCI_BUS_MAX; i++) {
 		for(j=0; j<PCI_DEVICE_MAX; j++) {
 			for(f=0; f<PCI_FUNC_MAX; f++) {
 				reg = pci_read(i, j, f, 0x0);
-				if (reg == 0xFFFFFFFF) continue;
-				for(k=0; k<PCI_DATA_NUM; k++) devices[dev_num].data[k] = pci_read(i, j, f, k<<2);
+				if (reg == PCI_BITMASK_32) continue;
+				for(k=0; k<PCI_DATA_NUM; k++) devices[dev_num].data[k] = pci_read(i, j, f, k << 2);
 				devices[dev_num].bus       = (u32_t)i;
 				devices[dev_num].dev       = (u32_t)j;
 				devices[dev_num].func      = (u32_t)f;
@@ -76,12 +78,20 @@ pci_probe(void)
 				devices[dev_num].subclass  = (u8_t)PCI_SUBCLASS_ID(devices[dev_num].data[2]);
 				devices[dev_num].progIF    = (u8_t)PCI_PROG_IF(devices[dev_num].data[2]);
 				devices[dev_num].header    = (u8_t)PCI_HEADER(devices[dev_num].data[3]);
-				for(k=0; k<PCI_BAR_NUM; k++) devices[dev_num].bar[k].raw = devices[dev_num].data[4+k];
+				for(k=0; k<PCI_BAR_NUM; k++) {
+					bar       = &devices[dev_num].bar[k];
+					bar->raw  = devices[dev_num].data[4 + k];
+					reg       = (k + 4) << 2;
+					pci_write(i, j, f, reg, PCI_BITMASK_32);
+					tmp       = pci_read(i, j, f, reg);
+					bar->size = ~(tmp & ~0xF) + 1;
+				}
 				dev_num++;
 			}
 		}
 	}
-    pci_print();
+	if (DEBUG)
+	   	pci_print();
 
 		/* Implementation detail is from PCI Local Bus Specification  */
 		/* http://www.xilinx.com/Attachment/PCI_SPEV_V3_0.pdf */
@@ -93,10 +103,4 @@ pci_probe(void)
 		/* 	ivshmem_sz = (~(reg & 0xFFFFFFF0))+1; */
 		/* 	if (ivshmem_sz > IVSHMEM_TOT_SIZE) ivshmem_sz = IVSHMEM_TOT_SIZE; */
 		/* } */
-}
-
-void
-pci_init(void)
-{
-	pci_probe();
 }
