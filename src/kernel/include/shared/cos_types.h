@@ -32,6 +32,15 @@ typedef u64_t         tcap_uid_t;
 typedef unsigned long sched_tok_t;
 #define PRINT_CAP_TEMP (1 << 14)
 
+/* Parameters for specifying resource requests from booter */
+typedef enum {
+	INIT_DONE,
+	REQ_PGTBL_CAP,
+	REQ_THD_CAP,
+	REQ_SINV_CAP,
+} boot_sinv_op;	
+
+
 /*
  * The assumption in the following is that cycles_t are higher
  * fidelity than tcap_time_t:

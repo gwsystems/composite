@@ -9,12 +9,16 @@
  * The server component should then map in memory upon the request of the client component
  */
 
+#define SHMEM_TOKEN 1
+
 static vaddr_t shm_master_regions[SHM_MAX_REGIONS];
 /* Until we have to implement the deallocate, just increment this */
 static unsigned int shm_master_idx = 0;
 
 /* cos_compinfo for the booter component when using vkernel_init.c for the booter */
 struct cos_compinfo *shm_cinfo;
+
+struct cos_compinfo compinfos[2];
 
 static void
 __shm_infos_init(unsigned int spdid)
@@ -71,7 +75,7 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 	assert(shm_cinfo && \
 		((int)spdid > -1) && \
 		shm_infos[spdid].cinfo && \
-		shm_infos[spdid].shm_frontier && \
+	        shm_infos[spdid].shm_frontier && \
 		num_pages);
 
 	if (num_pages > 1) {
@@ -157,18 +161,37 @@ shm_map(unsigned int spdid, unsigned int id)
 }
 
 void
+get_pagetables()
+{
+
+	
+	capid_t cap_index;
+       	cos_capid_bump_alloc(shm_cinfo, CAP_PGTBL, &cap_index);
+	printc("cap_index: %d\n", cap_index);
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_PGTBL_CAP, SHMEM_TOKEN, 3, cap_index);
+
+	compinfos[0].pgtbl_cap = cap_index;
+
+}
+
+void
 cos_init(void)
 {
 	struct cos_defcompinfo *dci;
 	int ret;
 
 	printc("Welcome to the shdmem component\n");
-	printc("Getting cos_compinfo for ourselves...");
 	dci = cos_defcompinfo_curr_get();
 	assert(dci);
 	shm_cinfo = cos_compinfo_get(dci);
-	assert(shm_cinfo);
-	printc(" done\n");
+	
+	cos_meminfo_init(&(shm_cinfo->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_defcompinfo_init();
+	cos_compinfo_init(shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr() , BOOT_CAPTBL_FREE, shm_cinfo);	
 
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, 1, 2, 3, 4);
+	get_pagetables(shm_cinfo);
+
+	printc("Shdmem init done\n");
+
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 2, 3, 4);
 }

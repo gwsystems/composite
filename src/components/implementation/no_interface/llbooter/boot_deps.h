@@ -12,6 +12,7 @@
 
 /* Assembly function for sinv from new component */
 extern void *__inv_test_entry(int a, int b, int c);
+void boot_pgtbl_cap_alloc(int dst, int src, int cap_slot);
 
 struct cobj_header *hs[MAX_NUM_SPDS + 1];
 
@@ -100,7 +101,7 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 			user_cap_vaddr = (void *) (new_comp_cap_info[spdid].vaddr_mapped_in_booter + (new_comp_cap_info[spdid].vaddr_user_caps - new_comp_cap_info[spdid].addr_start) + (sizeof(struct usr_inv_cap) * i));
 
 			/* Create sinv capability from client to server */
-			sinv = cos_sinv_alloc(newcomp_compinfo, interface_compinfo->comp_cap, (vaddr_t)new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst);
+			sinv = cos_sinv_alloc(newcomp_compinfo, interface_compinfo->comp_cap, (vaddr_t)new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst, (unsigned long) spdid);
 			assert(sinv > 0);
 
 			new_comp_cap_info[spdid].ST_user_caps[i].cap_no = sinv;
@@ -185,11 +186,11 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched)
 
 	//if (is_sched) {boot_newschedcomp_cap_init(spdid, ct, pt, cc);}
 	boot_newschedcomp_cap_init(spdid, ct, pt, cc);
-	/* Create sinv capability from Userspace to Booter components */
-	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)__inv_test_entry);
-	assert(sinv > 0);
 
-cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);
+	/* Create sinv capability from Userspace to Booter components */
+	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)__inv_test_entry, (unsigned long) spdid);
+	assert(sinv > 0);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);
 
 	thd = sl_thd_comp_init(new_comp_cap_info[spdid].defcompinfo, is_sched);
 	assert(thd);
@@ -242,6 +243,36 @@ boot_thd_done(void)
 		cos_thd_switch(schedule[sched_cur]);
 	} else {
 		printc("Done Init\n");
+	}
+}
+
+void
+boot_pgtbl_cap_alloc(int dst, int src, int cap_slot)
+{
+	cos_cap_cpy_at(new_comp_cap_info[dst].compinfo, cap_slot, boot_info, new_comp_cap_info[src].compinfo->pgtbl_cap);
+}
+
+void
+boot_sinv_fn(boot_sinv_op op, int dst, int src, int cap_slot)
+{
+	switch (op) {
+
+		case INIT_DONE:
+			boot_thd_done();
+			break;
+
+		case REQ_PGTBL_CAP:
+			boot_pgtbl_cap_alloc(dst, src, cap_slot);
+			break;
+	
+		case REQ_THD_CAP:
+			printc("Thd cap request not implemented\n");
+			break;
+		case REQ_SINV_CAP:
+			printc("Sinv cap request not implemented\n");
+			break;
+		default:
+			break;
 	}
 }
 

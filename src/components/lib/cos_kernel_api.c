@@ -143,6 +143,7 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 {
 	/* the compinfo that tracks/allocates resources */
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
+	assert(meta);
 	/* do we manage our own resources, or does a separate meta? */
 	int     self_resources = (meta == ci);
 	capid_t frontier;
@@ -257,8 +258,6 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 {
 	unsigned long sz = captbl_idsize(cap);
 	capid_t *     frontier;
-
-	printd("__capid_bump_alloc\n");
 
 	switch (sz) {
 	case CAP16B_IDSZ:
@@ -404,6 +403,7 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 {
 	vaddr_t              heap_vaddr, retaddr;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
+	assert(meta);
 	size_t               rounded;
 
 	printd("__page_bump_alloc\n");
@@ -488,6 +488,14 @@ static u32_t
 livenessid_bump_alloc(void)
 {
 	return livenessid_frontier++;
+}
+
+int
+cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t ct, capid_t *cap)
+{
+	*cap = __capid_bump_alloc(ci, ct);
+	if (!*cap) return -1;
+	return 0;
 }
 
 /**************** [Kernel Object Allocation] ****************/

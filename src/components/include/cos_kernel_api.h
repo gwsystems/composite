@@ -89,6 +89,10 @@ void cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long
 void cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz);
 /* expand *only* the pgtbl-internal nodes */
 vaddr_t cos_pgtbl_intern_alloc(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz);
+
+/* used to alloc a space without inserting cap */
+int cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t ct, capid_t *cap);
+
 /*
  * Expand the page-table with a node at lvl, and return the pgtbl
  * capability to that node.  This also adjusts the frontier, so it
