@@ -55,7 +55,7 @@ impl Channel {
 		return Arc::clone(&chan);
 	}
 
-	pub fn join(chan_lock:Arc<Lock<Channel>>, comp_id:usize, is_reader:bool) -> bool {
+	pub fn join(chan_lock:&mut Arc<Lock<Channel>>, comp_id:usize, is_reader:bool) -> bool {
 		let ref mut chan = chan_lock.lock();
 		match is_reader {
 			true  => {

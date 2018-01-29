@@ -41,41 +41,57 @@ pub fn voter_component_sched_loop(sl:Sl) {
 	//end of a cycle.
 }
 
-pub fn voter_app_init(num_replicas: usize, sl:Sl,thd_entry: fn(sl:Sl, rep: Arc<Lock<voter_lib::Replica>>)) -> usize {
-	voter_lib::ModComp::new(num_replicas,0,sl,thd_entry);
-	return 0 //todo
+pub fn voter_new_app_init(num_replicas: usize, sl:Sl,thd_entry: fn(sl:Sl, rep: Arc<Lock<voter_lib::Replica>>)) -> usize {
+	let mut comp_free_idx = COMP_FREE.lock();
+	let comp_id = *comp_free_idx.deref();
+
+	let compStore(ref comp) = COMPONENTS[comp_id];
+	let ref mut comp = comp.lock();
+	comp.deref_mut().get_or_insert(voter_lib::ModComp::new(num_replicas,comp_id,sl,thd_entry));
+
+	*comp_free_idx.deref_mut() += 1;
+	return comp_id;
 }
 
 pub fn channel_create(sl:Sl) -> usize {
- return 0;
+	let mut chan_free_idx = CHAN_FREE.lock();
+	let chan_id = *chan_free_idx.deref();
+
+	let channelStore(ref channel) = CHANNELS[chan_id];
+	let ref mut channel = channel.lock();
+	channel.deref_mut().get_or_insert(channel::Channel::new(sl));
+
+	*chan_free_idx.deref_mut() += 1;
+	return chan_id;
 }
 
-pub fn channel_join_reader(chan_id:usize) {
-
+pub fn channel_join_reader(chan_id:usize, comp_id:usize) {
+	let is_reader = true;
+	let channelStore(ref chan) = CHANNELS[chan_id];
+	channel::Channel::join(chan.lock().deref_mut().as_mut().unwrap(),comp_id,is_reader);
 }
 
-pub fn channel_join_writer(chan_id:usize) {
-
+pub fn channel_join_writer(chan_id:usize, comp_id:usize) {
+	let is_reader = false;
+	let channelStore(ref chan) = CHANNELS[chan_id];
+	channel::Channel::join(chan.lock().deref_mut().as_mut().unwrap(),comp_id,is_reader);
 }
 
 pub fn channel_snd(data:Vec<u8>, chan_id:usize, comp_id:usize, rep_id: usize, sl:Sl) {
-	// let mut components_lock = COMPONENTS.lock();
-	// let mut channels_lock = CHANNELS.lock();
+	let channelStore(ref chan_store_wrapper_lock) = CHANNELS[chan_id];
+	let ref mut chan_store_wrapper = chan_store_wrapper_lock.lock();
+	let ref mut chan_lock = chan_store_wrapper.deref_mut().as_mut().unwrap();
 
-	// let ref mut comp = components_lock.deref_mut().components[comp_id];
-	// let ref chan_lock = channels_lock.deref()[chan_id];
+	match voter_lib::ModComp::replica_communicate(comp_id, rep_id, chan_lock.lock().deref_mut(), voter_lib::ReplicaState::Written, sl) {
+		Ok(ret_val) => println!("rep ret val {}",ret_val.unwrap_or(99999)),
+		Err(e) => {
+			println!("{}",e);
+			return
+		},
+	}
 
-	// match comp.replica_communicate(sl, rep_id, chan_lock.lock().deref_mut(),components_lock.deref_mut(), voter_lib::ReplicaState::Written) {
-	// 	Ok(ret_val) => println!("rep ret val {}",ret_val.unwrap_or(99999)),
-	// 	Err(e) => {
-	// 		println!("{}",e);
-	// 		return
-	// 	},
-	// }
-
-	// let ref mut chan = chan_lock.lock();
-	// //fixme - msg id should be set with UOW
-	// chan.deref_mut().send(data,rep_id as u16,0);
+	//fixme - msg id should be set with UOW (which we need to calculate in cheduling)
+	chan_lock.lock().deref_mut().send(data,rep_id as u16,0);
 }
 
 // pub fn channel_rcv(chan_id:usize, chan_id:usize, rep_id: usize) -> Vec<u8> {

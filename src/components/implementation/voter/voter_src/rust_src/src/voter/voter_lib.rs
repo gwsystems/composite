@@ -122,39 +122,6 @@ impl Replica  {
 	pub fn recover(&mut self) {
 		assert!(false);
 	}
-
-	pub fn commmunicate(current_comp_id:usize, rep_id:usize, ch:&mut Channel, action:ReplicaState, sl:Sl) -> Result<Option<i32>, String> {
-		let compStore(ref comp_lock) = COMPONENTS[current_comp_id];
-
-		//take lock - error check and update state of replica
-		{
-			let ref mut comp = comp_lock.lock();
-			if comp.is_none() {return Err(format!("communicate, no comp at {}",current_comp_id))}
-
-			assert!(rep_id < comp.deref().as_ref().unwrap().num_replicas);
-			let reader_id = if ch.reader_id.is_some() {ch.reader_id.unwrap()} else {return Err("replica_communicate fail, no reader".to_string())};
-			let writer_id = if ch.reader_id.is_some() {ch.writer_id.unwrap()} else {return Err("replica_communicate fail, no writer".to_string())};
-
-			if reader_id == current_comp_id && action != ReplicaState::Read ||
-			   writer_id == current_comp_id && action != ReplicaState::Written {
-			   	return Err(format!("Replica_communicate: Component not permitted to {:?}",action));
-			}
-
-			let ref mut component = comp.deref_mut().as_mut().unwrap();
-			component.replicas[rep_id].lock().deref_mut().state_transition(action);
-		}
-		//initiate vote for channel and loop on failure
-		loop {
-			let (reader_result, writer_result) = ch.call_vote()?;
-			let ref mut comp = comp_lock.lock();
-			if comp.deref_mut().as_mut().unwrap().check_vote_pass(reader_result, rep_id, sl) &&
-			comp.deref_mut().as_mut().unwrap().check_vote_pass(writer_result, rep_id, sl) {break}
-		}
-		let ref comp = comp_lock.lock();
-		let ref mut component = comp.deref().as_ref().unwrap();
-		return Ok(component.replicas[rep_id].lock().deref_mut().retval_get());
-	}
-
 }
 
 impl ModComp {
@@ -235,6 +202,38 @@ impl ModComp {
 	fn failure_find(&self, healthy_state:ReplicaState) -> u16 {
 		//TODO return replica that is not in healthy state
 		return 0
+	}
+
+	pub fn replica_communicate(current_comp_id:usize, rep_id:usize, ch:&mut Channel, action:ReplicaState, sl:Sl) -> Result<Option<i32>, String> {
+		let compStore(ref comp_lock) = COMPONENTS[current_comp_id];
+
+		//take lock - error check and update state of replica
+		{
+			let ref mut comp = comp_lock.lock();
+			if comp.is_none() {return Err(format!("communicate, no comp at {}",current_comp_id))}
+
+			assert!(rep_id < comp.deref().as_ref().unwrap().num_replicas);
+			let reader_id = if ch.reader_id.is_some() {ch.reader_id.unwrap()} else {return Err("replica_communicate fail, no reader".to_string())};
+			let writer_id = if ch.reader_id.is_some() {ch.writer_id.unwrap()} else {return Err("replica_communicate fail, no writer".to_string())};
+
+			if reader_id == current_comp_id && action != ReplicaState::Read ||
+			   writer_id == current_comp_id && action != ReplicaState::Written {
+			   	return Err(format!("Replica_communicate: Component not permitted to {:?}",action));
+			}
+
+			let ref mut component = comp.deref_mut().as_mut().unwrap();
+			component.replicas[rep_id].lock().deref_mut().state_transition(action);
+		}
+		//initiate vote for channel and loop on failure
+		loop {
+			let (reader_result, writer_result) = ch.call_vote()?;
+			let ref mut comp = comp_lock.lock();
+			if comp.deref_mut().as_mut().unwrap().check_vote_pass(reader_result, rep_id, sl) &&
+			comp.deref_mut().as_mut().unwrap().check_vote_pass(writer_result, rep_id, sl) {break}
+		}
+		let ref comp = comp_lock.lock();
+		let ref mut component = comp.deref().as_ref().unwrap();
+		return Ok(component.replicas[rep_id].lock().deref_mut().retval_get());
 	}
 
 	fn check_vote_pass(&mut self, vote:VoteStatus, rep_id:usize, sl:Sl) -> bool {
