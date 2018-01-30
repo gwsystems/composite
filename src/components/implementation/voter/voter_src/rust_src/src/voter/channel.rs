@@ -92,7 +92,7 @@ impl Channel {
 		if writer.is_none() {return Err(format!("call_vote fail, no writer at {}",writer_id))}
 
 		//check to make sure messages on the channel are valid data
-		//todo - which comps UOW .. do they have to be the same?
+		//todo - which comps UOW are we checking.. do they have to be the same?
 		let unit_of_work = writer.deref().as_ref().unwrap().replicas[0].lock().deref().unit_of_work;
 		if !self.validate_msgs(unit_of_work) {
 			//if not find the replica with invalid messages

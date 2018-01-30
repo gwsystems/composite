@@ -286,5 +286,5 @@ pub fn test_store(sl:Sl) {
 }
 
 
-fn no_op(_sl:Sl, _rep:  Arc<Lock<voter_lib::Replica>>) {}
+fn no_op(_sl:Sl, _rep_id:  usize) {}
 

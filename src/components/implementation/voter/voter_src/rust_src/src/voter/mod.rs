@@ -41,7 +41,7 @@ pub fn voter_component_sched_loop(sl:Sl) {
 	//end of a cycle.
 }
 
-pub fn voter_new_app_init(num_replicas: usize, sl:Sl,thd_entry: fn(sl:Sl, rep: Arc<Lock<voter_lib::Replica>>)) -> usize {
+pub fn voter_new_app_init(num_replicas: usize, sl:Sl,thd_entry: fn(sl:Sl, rep_id: usize)) -> usize {
 	let mut comp_free_idx = COMP_FREE.lock();
 	let comp_id = *comp_free_idx.deref();
 
@@ -92,8 +92,39 @@ pub fn channel_snd(data:Vec<u8>, chan_id:usize, comp_id:usize, rep_id: usize, sl
 
 	//fixme - msg id should be set with UOW (which we need to calculate in cheduling)
 	chan_lock.lock().deref_mut().send(data,rep_id as u16,0);
+	sl.block();
 }
 
-// pub fn channel_rcv(chan_id:usize, chan_id:usize, rep_id: usize) -> Vec<u8> {
+pub fn channel_rcv(chan_id:usize, comp_id:usize, rep_id: usize, sl:Sl) -> Option<channel::ChannelData> {
+	let channelStore(ref chan_store_wrapper_lock) = CHANNELS[chan_id];
+	let ref mut chan_store_wrapper = chan_store_wrapper_lock.lock();
+	let ref mut chan_lock = chan_store_wrapper.deref_mut().as_mut().unwrap();
 
-// }
+	match voter_lib::ModComp::replica_communicate(comp_id, rep_id, chan_lock.lock().deref_mut(), voter_lib::ReplicaState::Read, sl) {
+		Ok(ret_val) => println!("rep ret val {}",ret_val.unwrap_or(99999)),
+		Err(e) => {
+			println!("{}",e);
+			return None
+		},
+	}
+
+	let mut chan = chan_lock.lock();
+	chan.deref_mut().receive()
+}
+
+pub fn channel_wake(chan_id:usize) {
+	let channelStore(ref chan_store_wrapper_lock) = CHANNELS[chan_id];
+	let ref mut chan_store_wrapper = chan_store_wrapper_lock.lock();
+	let ref mut chan_lock = chan_store_wrapper.deref_mut().as_mut().unwrap();
+
+	chan_lock.lock().deref_mut().wake_all(&COMPONENTS);
+}
+
+pub fn replica_processing(comp_id:usize, rep_id:usize) {
+	let compStore(ref comp_store_wrapper_lock) = COMPONENTS[comp_id];
+	let mut comp = comp_store_wrapper_lock.lock();
+	let comp = comp.deref_mut().as_mut().unwrap();
+
+	let mut rep = comp.replicas[rep_id].lock();
+	rep.deref_mut().state_transition(voter_lib::ReplicaState::Processing);
+}

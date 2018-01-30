@@ -37,7 +37,7 @@ pub struct Replica {
 }
 
 pub struct ModComp {
-	pub replicas:     Vec<Arc<Lock<Replica>>>,
+	pub replicas:     Vec<Arc<Lock<Replica>>>, //TODO i think we can remove the arc lock, only voter thds have access
 	pub comp_id: usize,
 	pub num_replicas: usize,
 }
@@ -101,7 +101,6 @@ impl Replica  {
 		self.state = state;
 	}
 
-
 	pub fn is_blocked(&self) -> bool {
 		return self.state == ReplicaState::Read || self.state == ReplicaState::Written;
 	}
@@ -125,7 +124,7 @@ impl Replica  {
 }
 
 impl ModComp {
-	pub fn new(num_replicas: usize, new_comp_id: usize, sl: Sl, thd_entry: fn(sl:Sl, rep: Arc<Lock<Replica>>)) -> ModComp {
+	pub fn new(num_replicas: usize, new_comp_id: usize, sl: Sl, thd_entry: fn(sl:Sl, rep_id: usize)) -> ModComp {
 		assert!(num_replicas <= MAX_REPS);
 		//create new Component
 		let mut comp = ModComp {
@@ -139,7 +138,7 @@ impl ModComp {
 			let rep = Arc::new(Lock::new(sl,Replica::new(i as u16)));
 			let rep_ref = Arc::clone(&rep);
 
-			let thd = sl.spawn(move |sl:Sl| {thd_entry(sl, rep_ref);});
+			let thd = sl.spawn(move |sl:Sl| {thd_entry(sl, i);});
 			println!("Created thd {}",thd.thdid());
 			rep.lock().deref_mut().set_thd(thd);
 			comp.replicas.push(Arc::clone(&rep));
@@ -227,23 +226,38 @@ impl ModComp {
 		//initiate vote for channel and loop on failure
 		loop {
 			let (reader_result, writer_result) = ch.call_vote()?;
-			let ref mut comp = comp_lock.lock();
-			if comp.deref_mut().as_mut().unwrap().check_vote_pass(reader_result, rep_id, sl) &&
-			comp.deref_mut().as_mut().unwrap().check_vote_pass(writer_result, rep_id, sl) {break}
+			if ModComp::check_vote_pass(ch.reader_id.unwrap(), &reader_result, rep_id, sl) && ModComp::check_vote_pass(ch.writer_id.unwrap(), &writer_result, rep_id, sl) {
+				//if were everything has written we are ready to wake the writers.
+				match writer_result {
+					VoteStatus::Success => {
+						let compStore(ref reader_lock) = COMPONENTS[ch.reader_id.unwrap()];
+						let mut reader = reader_lock.lock();
+						reader.deref_mut().as_mut().unwrap().wake_all();
+					},
+					_ => break,
+				}
+
+				break;
+			}
 		}
+
 		let ref comp = comp_lock.lock();
 		let ref mut component = comp.deref().as_ref().unwrap();
 		return Ok(component.replicas[rep_id].lock().deref_mut().retval_get());
 	}
 
-	fn check_vote_pass(&mut self, vote:VoteStatus, rep_id:usize, sl:Sl) -> bool {
-		match vote {
+	fn check_vote_pass(comp_id:usize, vote:&VoteStatus, rep_id:usize, sl:Sl) -> bool {
+		let compStore(ref comp_store_wrapper_lock) = COMPONENTS[comp_id];
+		let mut comp_lock = comp_store_wrapper_lock.lock();
+		let mut comp = comp_lock.deref_mut().as_mut().unwrap();
+
+		match *vote {
 			VoteStatus::Fail(rep) => {
-				self.replicas[rep as usize].lock().deref_mut().recover();
+				comp.replicas[rep as usize].lock().deref_mut().recover();
 				false
 			},
 			VoteStatus::Inconclusive => {
-				Replica::block(&self.replicas[rep_id],sl);
+				Replica::block(&comp.replicas[rep_id],sl);
 				true
 			},
 			VoteStatus::Success => {
