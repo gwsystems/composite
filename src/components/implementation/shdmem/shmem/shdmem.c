@@ -61,7 +61,7 @@ __get_pgtbls()
 {
 	capid_t cap_index;
        	cap_index = cos_capid_bump_alloc(shm_cinfo, CAP_PGTBL);
-	printc("cap_index: %d\n", cap_index);
+	printc("cap_index: %lu\n", cap_index);
 	cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_PGTBL_CAP, SHMEM_TOKEN, 3, cap_index);
 
 	/*

@@ -17,6 +17,8 @@ void boot_thd_cap_transfer(int dst, int src, int cap_slot);
 
 struct cobj_header *hs[MAX_NUM_SPDS + 1];
 
+#define UDP_SPDID 3
+
 /* The booter uses this to keep track of each comp */
 struct comp_cap_info {
 	struct cos_compinfo    *compinfo;
@@ -87,6 +89,8 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 	void *user_cap_vaddr;
 	struct cos_compinfo *interface_compinfo;
 	struct cos_compinfo *newcomp_compinfo = new_comp_cap_info[spdid].compinfo;
+	/* TODO: Purge rest of booter of spdid convention */
+	unsigned long token = (unsigned long)spdid;
 
 	/*
 	 * Loop through all undefined symbs
@@ -99,7 +103,10 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 			user_cap_vaddr = (void *) (new_comp_cap_info[spdid].vaddr_mapped_in_booter + (new_comp_cap_info[spdid].vaddr_user_caps - new_comp_cap_info[spdid].addr_start) + (sizeof(struct usr_inv_cap) * i));
 
 			/* Create sinv capability from client to server */
-			sinv = cos_sinv_alloc(newcomp_compinfo, interface_compinfo->comp_cap, (vaddr_t)new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst, (unsigned long) spdid);
+			sinv = cos_sinv_alloc(newcomp_compinfo, interface_compinfo->comp_cap,
+				(vaddr_t)new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst,
+				token);
+
 			assert(sinv > 0);
 
 			new_comp_cap_info[spdid].ST_user_caps[i].cap_no = sinv;
@@ -173,13 +180,15 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched)
 	struct sl_thd *thd;
 
 	cc = cos_comp_alloc(boot_info, ct, pt, (vaddr_t)new_comp_cap_info[spdid].upcall_entry);
+
 	assert(cc);
 	//manually laying out struct due to upcall addr calculation
 	boot_newcomp_definfo_init(spdid, cc, is_sched);
 
-<<<<<<< HEAD
 	/* Create sinv capability from Userspace to Booter components */
-	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)__inv_test_entry);
+
+	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)__inv_test_entry,
+			(unsigned long)spdid);
 	assert(sinv);
 
 	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);
@@ -187,17 +196,6 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched)
 	boot_newcomp_sinv_alloc(spdid);
 
 	if (is_sched) {boot_newschedcomp_cap_init(spdid, ct, pt, cc);}
-=======
-	boot_newcomp_sinv_alloc(spdid);
-
-	//if (is_sched) {boot_newschedcomp_cap_init(spdid, ct, pt, cc);}
-	boot_newschedcomp_cap_init(spdid, ct, pt, cc);
-
-	/* Create sinv capability from Userspace to Booter components */
-	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)__inv_test_entry, (unsigned long) spdid);
-	assert(sinv > 0);
-	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);
->>>>>>> e7dd103... Add basis for capability request sinv into booter
 
 	thd = sl_thd_comp_init(new_comp_cap_info[spdid].defcompinfo, is_sched);
 	assert(thd);
@@ -253,8 +251,10 @@ boot_thd_done(void)
 void
 boot_pgtbl_cap_transfer(int dst, int src, int cap_slot)
 {
+	printc("booter transfering pgtbl...");
 	cos_cap_cpy_at(new_comp_cap_info[dst].compinfo, cap_slot, boot_info,
 		new_comp_cap_info[src].compinfo->pgtbl_cap);
+	printc("done\n");
 }
 
 void
@@ -265,10 +265,10 @@ boot_thd_cap_transfer(int dst, int src, int cap_slot)
 	 * was put in place to make progress. REMOVE IF NOT USING HIS SET UP
 	 * This will not work for any generic thd transfer, only from udpserver
 	 */
-	int udpserv_id = 3;
-
+	printc("booter transfering thd...");
 	cos_cap_cpy_at(new_comp_cap_info[dst].compinfo, cap_slot, boot_info,
-		new_comp_cap_info[udpserv_id].compinfo->sched_aep.thd);
+		new_comp_cap_info[UDP_SPDID].defcompinfo->sched_aep.thd);
+	printc("done\n");
 }
 
 void *
@@ -280,14 +280,13 @@ boot_sinv_fn(boot_sinv_op op, void *arg1, void *arg2, void *arg3)
 		case INIT_DONE:
 			boot_thd_done();
 			break;
-		case REQ_pgtbl_CAP:
+		case REQ_PGTBL_CAP:
 			/* arg1: dst, arg2: src, arg3: cap_slot */
 			boot_pgtbl_cap_transfer((int)arg1, (int)arg2, (int)arg3);
 			ret = (void *)0;
 			break;
 		case REQ_THD_CAP:
 			/* arg1: dst: arg2: src, arg3: cap_slot */
-			int udpserv_id = 3;
 			boot_thd_cap_transfer((int)arg1, (int)arg2, (int)arg3);
 			ret = (void *)0;
 			break;
@@ -296,7 +295,9 @@ boot_sinv_fn(boot_sinv_op op, void *arg1, void *arg2, void *arg3)
 			break;
 		case REQ_CAP_FRONTIER:
 			/* arg1: spdid */
+			printc("Transfering cap frontier...");
 			ret = (void *)new_comp_cap_info[(int)arg1].compinfo->cap_frontier;
+			printc("done\n");
 			break;
 		default:
 			printc("op: %d not supported!\n", op);

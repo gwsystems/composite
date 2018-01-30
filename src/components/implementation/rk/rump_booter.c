@@ -143,12 +143,18 @@ capid_t udpserv_thdcap = -1;
 void
 cos_init(void)
 {
+
 	unsigned long cap_frontier = -1;
-	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
+	struct cos_defcompinfo *dci;
+	struct cos_compinfo    *ci;
 	int ret = -1;
 
-	assert(ci && dci);
+	printc("rumpkernel cos_init\n");
+
+	dci = cos_defcompinfo_curr_get();
+	assert(dci);
+	ci  = cos_compinfo_get(dci);
+	assert(ci);
 
 	currci = ci;
 
@@ -159,10 +165,11 @@ cos_init(void)
 	 * the frontier value
 	 */
 
+	printc("Fetching cap frontier from booter...");
 	spdid = cos_comp_info.cos_this_spd_id;
-	cap_frontier = (unsigned long)cos_sinv(BOOT_CAPTBL_SINV_CAP, 1,
-			cos_comp_info.cos_this_spd_id, 0, 0);
+	cap_frontier = (unsigned long)cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_CAP_FRONTIER, spdid, 0, 0);
 	assert(cap_frontier > 0);
+	printc("done\n");
 
 	cos_compinfo_init(ci, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			(vaddr_t)cos_get_heap_ptr(), cap_frontier, ci);
@@ -175,8 +182,7 @@ cos_init(void)
 	 */
 	udpserv_thdcap = cos_capid_bump_alloc(ci, CAP_THD);
 	assert(udpserv_thdcap);
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, 2, cos_comp_info.cos_this_spd_id,
-			udpserv_thdcap, 0);
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_THD_CAP, spdid, 0, udpserv_thdcap);
 
 	printc("Setting up RK\n");
 	rump_booter_init((void *)0);

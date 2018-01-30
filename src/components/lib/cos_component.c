@@ -154,6 +154,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		constructors_execute();
 	}
 
+
 	switch (t) {
 	case COS_UPCALL_THD_CREATE:
 		/* New thread creation method passes in this type. */
