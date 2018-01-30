@@ -71,7 +71,7 @@ __get_pgtbls()
 	int i;
 
 	/* Get the number of pagetables available to use to copy */
-	num_comps = (int)cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_NUM_COMPS, 0, 0, 0);
+	num_comps = (int)cos_sinv(BOOT_CAPTBL_SINV_CAP, VK_NUM_COMPS_REQ, 0, 0, 0);
 	assert(num_comps);
 	printc("We need to tansfer %d pgtbls...\n", num_comps-1);
 
@@ -81,7 +81,7 @@ __get_pgtbls()
 
        		cap_index = cos_capid_bump_alloc(shm_cinfo, CAP_PGTBL);
 		printc("cap_index to transfer to: %lu\n", cap_index);
-		cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_PGTBL_CAP, SHMEM_TOKEN, i, cap_index);
+		cos_sinv(BOOT_CAPTBL_SINV_CAP, VK_PGTBL_CAP_REQ, SHMEM_TOKEN, i, cap_index);
 		__create_shm_info(i, cap_index);
 	}
 

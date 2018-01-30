@@ -167,7 +167,7 @@ cos_init(void)
 
 	printc("Fetching cap frontier from booter...");
 	spdid = cos_comp_info.cos_this_spd_id;
-	cap_frontier = (unsigned long)cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_CAP_FRONTIER, spdid, 0, 0);
+	cap_frontier = (unsigned long)cos_sinv(BOOT_CAPTBL_SINV_CAP, VK_CAP_FRONTIER_REQ, spdid, 0, 0);
 	assert(cap_frontier > 0);
 	printc("done\n");
 
@@ -182,7 +182,7 @@ cos_init(void)
 	 */
 	udpserv_thdcap = cos_capid_bump_alloc(ci, CAP_THD);
 	assert(udpserv_thdcap);
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_THD_CAP, spdid, 0, udpserv_thdcap);
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, VK_THD_CAP_REQ, spdid, 0, udpserv_thdcap);
 
 	printc("Setting up RK\n");
 	rump_booter_init((void *)0);

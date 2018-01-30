@@ -35,11 +35,11 @@ typedef unsigned long sched_tok_t;
 /* Parameters for specifying resource requests from booter */
 typedef enum {
 	INIT_DONE,
-	REQ_PGTBL_CAP,
-	REQ_THD_CAP,
-	REQ_SINV_CAP,
-	REQ_CAP_FRONTIER,
-	REQ_NUM_COMPS,
+	VK_PGTBL_CAP_REQ,
+	VK_THD_CAP_REQ,
+	VK_SINV_CAP_REQ,
+	VK_CAP_FRONTIER_REQ,
+	VK_NUM_COMPS_REQ,
 } boot_sinv_op;	
 
 /*

@@ -14,8 +14,8 @@ int num_cobj;
 
 /* Assembly function for sinv from new component */
 extern void *__inv_test_entry(int a, int b, int c);
-void boot_pgtbl_cap_transfer(int dst, int src, int cap_slot);
-void boot_thd_cap_transfer(int dst, int src, int cap_slot);
+void boot_pgtbl_cap_transfer_at(int dst, int src, int cap_slot);
+void boot_thd_cap_transfer_at(int dst, int src, int cap_slot);
 
 struct cobj_header *hs[MAX_NUM_SPDS + 1];
 
@@ -270,7 +270,7 @@ boot_thd_done(void)
 }
 
 void
-boot_pgtbl_cap_transfer(int dst, int src, int cap_slot)
+boot_pgtbl_cap_transfer_at(int dst, int src, int cap_slot)
 {
 	printc("booter transfering pgtbl: %lu to: %d, from: %d, into: %d...",
 		new_comp_cap_info[src].compinfo->pgtbl_cap, dst, src, cap_slot);
@@ -280,7 +280,7 @@ boot_pgtbl_cap_transfer(int dst, int src, int cap_slot)
 }
 
 void
-boot_thd_cap_transfer(int dst, int src, int cap_slot)
+boot_thd_cap_transfer_at(int dst, int src, int cap_slot)
 {
 	/*
 	 * This is a hack! This only works for RG's specific boot layout and
@@ -304,23 +304,23 @@ boot_sinv_fn(boot_sinv_op op, void *arg1, void *arg2, void *arg3)
 			sched_cur++;
 			boot_done();
 			break;
-		case REQ_PGTBL_CAP:
+		case VK_PGTBL_CAP_REQ:
 			/* arg1: dst, arg2: src, arg3: cap_slot */
-			boot_pgtbl_cap_transfer((int)arg1, (int)arg2, (int)arg3);
+			boot_pgtbl_cap_transfer_at((int)arg1, (int)arg2, (int)arg3);
 			ret = (void *)0;
 			break;
-		case REQ_NUM_COMPS:
+		case VK_NUM_COMPS_REQ:
 			ret = (void *)num_cobj;
 			break;
-		case REQ_THD_CAP:
+		case VK_THD_CAP_REQ:
 			/* arg1: dst: arg2: src, arg3: cap_slot */
-			boot_thd_cap_transfer((int)arg1, (int)arg2, (int)arg3);
+			boot_thd_cap_transfer_at((int)arg1, (int)arg2, (int)arg3);
 			ret = (void *)0;
 			break;
-		case REQ_SINV_CAP:
+		case VK_SINV_CAP_REQ:
 			printc("Sinv cap request not implemented\n");
 			break;
-		case REQ_CAP_FRONTIER:
+		case VK_CAP_FRONTIER_REQ:
 			/* arg1: spdid */
 			ret = (void *)new_comp_cap_info[(int)arg1].compinfo->cap_frontier;
 			break;
