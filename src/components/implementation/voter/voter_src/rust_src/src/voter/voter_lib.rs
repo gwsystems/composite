@@ -25,8 +25,6 @@ pub enum VoteStatus {
 	Success,
 }
 
-//TODO - Fix public methods - i think only the channel will be exposed.
-
 pub struct Replica {
 	pub state:   ReplicaState,
 	thd:         Option<Thread>,
@@ -95,6 +93,7 @@ impl Replica  {
 	}
 
 	pub fn state_transition(&mut self, state: ReplicaState) {
+		//println!("        rep {}: old {:?} new {:?}",self.rep_id,self.state,state);
 		assert!(self.state != state);
 		assert!(state != ReplicaState::Init);
 		if self.is_blocked() {assert!(state == ReplicaState::Processing)}
@@ -139,7 +138,6 @@ impl ModComp {
 			let rep_ref = Arc::clone(&rep);
 
 			let thd = sl.spawn(move |sl:Sl| {thd_entry(sl, i);});
-			println!("Created thd {}",thd.thdid());
 			rep.lock().deref_mut().set_thd(thd);
 			comp.replicas.push(Arc::clone(&rep));
 		}
@@ -157,12 +155,13 @@ impl ModComp {
 		}
 
 		for replica in &self.replicas {
-			replica.lock().deref_mut().thd.as_mut().unwrap().wakeup();
+			let mut rep = replica.lock();
+			rep.deref_mut().thd.as_mut().unwrap().wakeup();
 		}
 	}
 
 	pub fn collect_vote(& mut self) -> VoteStatus {
-		println!("Component Collecting Votes");
+		println!("Component {} Collecting Votes", self.comp_id);
 		//check first to see that all replicas are done processing.
 		for replica in &self.replicas {
 			if replica.lock().deref().is_processing() {return VoteStatus::Inconclusive}
@@ -173,6 +172,7 @@ impl ModComp {
 		for replica in &mut self.replicas {
 			let mut replica = replica.lock();
 			replica.deref_mut().unit_of_work += 1;
+			println!("Replica {}:{} - {:?}", self.comp_id,replica.deref().rep_id,replica.deref().state);
 			match replica.deref().state {
 				ReplicaState::Processing  => consensus[0] += 1,
 				ReplicaState::Read        => consensus[1] += 1,
@@ -180,7 +180,7 @@ impl ModComp {
 				_                         => panic!("Invalid replica state in Vote"),
 			}
 		}
-
+		println!("{} Consensus {:?}",self.comp_id,consensus);
 		//Check Consensus of Vote - if all same success! if conflict find the majority state
 		let mut max_id = 0;
 		for i in 0..consensus.len() {
@@ -203,10 +203,10 @@ impl ModComp {
 		return 0
 	}
 
-	pub fn replica_communicate(current_comp_id:usize, rep_id:usize, ch:&mut Channel, action:ReplicaState, sl:Sl) -> Result<Option<i32>, String> {
+	pub fn replica_communicate(current_comp_id:usize, rep_id:usize, ch:&mut Channel, action:ReplicaState, sl:Sl) -> Result<(), String> {
 		let compStore(ref comp_lock) = COMPONENTS[current_comp_id];
 
-		//take lock - error check and update state of replica
+		//take lock - error check and update state
 		{
 			let ref mut comp = comp_lock.lock();
 			if comp.is_none() {return Err(format!("communicate, no comp at {}",current_comp_id))}
@@ -225,27 +225,33 @@ impl ModComp {
 		}
 		//initiate vote for channel and loop on failure
 		loop {
-			let (reader_result, writer_result) = ch.call_vote()?;
-			if ModComp::check_vote_pass(ch.reader_id.unwrap(), &reader_result, rep_id, sl) && ModComp::check_vote_pass(ch.writer_id.unwrap(), &writer_result, rep_id, sl) {
-				//if were everything has written we are ready to wake the writers.
-				match writer_result {
-					VoteStatus::Success => {
-						let compStore(ref reader_lock) = COMPONENTS[ch.reader_id.unwrap()];
-						let mut reader = reader_lock.lock();
-						reader.deref_mut().as_mut().unwrap().wake_all();
-					},
-					_ => break,
-				}
+			let (writer_result, reader_result) = ch.call_vote()?;
+			println!("Reader result - {:?}\nWriter result - {:?}",reader_result,writer_result);
+			//if ModComp::check_vote_pass(ch.reader_id.unwrap(), &reader_result, rep_id, sl) && ModComp::check_vote_pass(ch.writer_id.unwrap(), &writer_result, rep_id, sl) {
 
-				break;
+			match writer_result {
+				VoteStatus::Success => { /*if all writers wrote wake reader */
+					println!("Waking reader...");
+					let compStore(ref reader_lock) = COMPONENTS[ch.reader_id.unwrap()];
+					let mut reader = reader_lock.lock();
+					reader.deref_mut().as_mut().unwrap().wake_all();
+					break
+				},
+				VoteStatus::Fail(faulted_rep_id) => { /*if a rep faulted reboot it*/
+					println!("Rep faulted {}",faulted_rep_id);
+					let compStore(ref reader_lock) = COMPONENTS[ch.reader_id.unwrap()];
+					let mut reader = reader_lock.lock();
+					reader.deref_mut().as_mut().unwrap().wake_all();
+				},
+				VoteStatus::Inconclusive => break, /*if no concensus let them run*/
 			}
+
+
 		}
 
-		let ref comp = comp_lock.lock();
-		let ref mut component = comp.deref().as_ref().unwrap();
-		return Ok(component.replicas[rep_id].lock().deref_mut().retval_get());
+		return Ok(());
 	}
-
+	//todo - this might get changed, we really only care about checking the readers status for the 3-1 serv provider model
 	fn check_vote_pass(comp_id:usize, vote:&VoteStatus, rep_id:usize, sl:Sl) -> bool {
 		let compStore(ref comp_store_wrapper_lock) = COMPONENTS[comp_id];
 		let mut comp_lock = comp_store_wrapper_lock.lock();
@@ -261,7 +267,6 @@ impl ModComp {
 				true
 			},
 			VoteStatus::Success => {
-				//TODO implemnt channel calls here
 				true
 			},
 		}

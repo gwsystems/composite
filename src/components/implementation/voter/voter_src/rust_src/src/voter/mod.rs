@@ -66,50 +66,50 @@ pub fn channel_create(sl:Sl) -> usize {
 }
 
 pub fn channel_join_reader(chan_id:usize, comp_id:usize) {
+	println!("Comp {:?} joined channel {} as reader",comp_id,chan_id);
 	let is_reader = true;
 	let channelStore(ref chan) = CHANNELS[chan_id];
 	channel::Channel::join(chan.lock().deref_mut().as_mut().unwrap(),comp_id,is_reader);
 }
 
 pub fn channel_join_writer(chan_id:usize, comp_id:usize) {
+	println!("Comp {:?} joined channel {} as writer",comp_id,chan_id);
 	let is_reader = false;
 	let channelStore(ref chan) = CHANNELS[chan_id];
 	channel::Channel::join(chan.lock().deref_mut().as_mut().unwrap(),comp_id,is_reader);
 }
 
 pub fn channel_snd(data:Vec<u8>, chan_id:usize, comp_id:usize, rep_id: usize, sl:Sl) {
-	let channelStore(ref chan_store_wrapper_lock) = CHANNELS[chan_id];
-	let ref mut chan_store_wrapper = chan_store_wrapper_lock.lock();
-	let ref mut chan_lock = chan_store_wrapper.deref_mut().as_mut().unwrap();
+	println!("Sending ....");
+	{
+		let channelStore(ref chan_store_wrapper_lock) = CHANNELS[chan_id];
+		let ref mut chan_store_wrapper = chan_store_wrapper_lock.lock();
+		let ref mut chan_lock = chan_store_wrapper.deref_mut().as_mut().unwrap();
+		let mut chan = chan_lock.lock();
 
-	match voter_lib::ModComp::replica_communicate(comp_id, rep_id, chan_lock.lock().deref_mut(), voter_lib::ReplicaState::Written, sl) {
-		Ok(ret_val) => println!("rep ret val {}",ret_val.unwrap_or(99999)),
-		Err(e) => {
-			println!("{}",e);
-			return
-		},
-	}
+		//fixme - msg id should be set with UOW (which we need to calculate in cheduling)
+		chan.deref_mut().send(data,rep_id as u16,0);
 
-	//fixme - msg id should be set with UOW (which we need to calculate in cheduling)
-	chan_lock.lock().deref_mut().send(data,rep_id as u16,0);
+		let result = voter_lib::ModComp::replica_communicate(comp_id, rep_id, chan.deref_mut(), voter_lib::ReplicaState::Written, sl);
+		if result.is_err() {panic!("{:?}", result.unwrap_err());}
+	} /*drop the locks*/
 	sl.block();
+	//state_trans(comp_id,rep_id,voter_lib::ReplicaState::Processing);
 }
 
 pub fn channel_rcv(chan_id:usize, comp_id:usize, rep_id: usize, sl:Sl) -> Option<channel::ChannelData> {
+	println!("Reading ....");
 	let channelStore(ref chan_store_wrapper_lock) = CHANNELS[chan_id];
 	let ref mut chan_store_wrapper = chan_store_wrapper_lock.lock();
 	let ref mut chan_lock = chan_store_wrapper.deref_mut().as_mut().unwrap();
-
-	match voter_lib::ModComp::replica_communicate(comp_id, rep_id, chan_lock.lock().deref_mut(), voter_lib::ReplicaState::Read, sl) {
-		Ok(ret_val) => println!("rep ret val {}",ret_val.unwrap_or(99999)),
-		Err(e) => {
-			println!("{}",e);
-			return None
-		},
-	}
-
 	let mut chan = chan_lock.lock();
-	chan.deref_mut().receive()
+
+	let msg = chan.deref_mut().receive();
+
+	let result = voter_lib::ModComp::replica_communicate(comp_id, rep_id, chan.deref_mut(), voter_lib::ReplicaState::Read, sl);
+	if result.is_err() {panic!("{:?}", result.unwrap_err());}
+
+	msg
 }
 
 pub fn channel_wake(chan_id:usize) {
@@ -120,11 +120,22 @@ pub fn channel_wake(chan_id:usize) {
 	chan_lock.lock().deref_mut().wake_all(&COMPONENTS);
 }
 
-pub fn replica_processing(comp_id:usize, rep_id:usize) {
+pub fn writer_wake(chan_id:usize) {
+	let channelStore(ref chan_store_wrapper_lock) = CHANNELS[chan_id];
+	let ref mut chan_store_wrapper = chan_store_wrapper_lock.lock();
+	let ref mut chan_lock = chan_store_wrapper.deref_mut().as_mut().unwrap();
+
+	let writer_id = chan_lock.lock().deref().writer_id.unwrap();
+	let compStore(ref writer_lock) = COMPONENTS[writer_id];
+	let mut writer = writer_lock.lock();
+	writer.deref_mut().as_mut().unwrap().wake_all();
+}
+
+pub fn state_trans(comp_id:usize, rep_id:usize, state:voter_lib::ReplicaState) {
 	let compStore(ref comp_store_wrapper_lock) = COMPONENTS[comp_id];
 	let mut comp = comp_store_wrapper_lock.lock();
 	let comp = comp.deref_mut().as_mut().unwrap();
 
 	let mut rep = comp.replicas[rep_id].lock();
-	rep.deref_mut().state_transition(voter_lib::ReplicaState::Processing);
+	rep.deref_mut().state_transition(state);
 }
