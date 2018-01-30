@@ -9,8 +9,4 @@
 
 .text
 
-cos_asm_server_stub(assign_task)
-cos_asm_server_stub(init_map)
-cos_asm_server_stub(check_quadrant)
-cos_asm_server_stub(check_green)
-
+cos_asm_server_stub_token(assign_task)

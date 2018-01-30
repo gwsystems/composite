@@ -12,7 +12,6 @@
 
 /* Assembly function for sinv from new component */
 extern void *__inv_test_entry(int a, int b, int c);
-void boot_pgtbl_cap_alloc(int dst, int src, int cap_slot);
 
 struct cobj_header *hs[MAX_NUM_SPDS + 1];
 
@@ -247,7 +246,7 @@ boot_thd_done(void)
 }
 
 void
-boot_pgtbl_cap_alloc(int dst, int src, int cap_slot)
+boot_pgtbl_cap_cpy(int dst, int src, int cap_slot)
 {
 	cos_cap_cpy_at(new_comp_cap_info[dst].compinfo, cap_slot, boot_info, new_comp_cap_info[src].compinfo->pgtbl_cap);
 }
@@ -262,7 +261,7 @@ boot_sinv_fn(boot_sinv_op op, int dst, int src, int cap_slot)
 			break;
 
 		case REQ_PGTBL_CAP:
-			boot_pgtbl_cap_alloc(dst, src, cap_slot);
+			boot_pgtbl_cap_cpy(dst, src, cap_slot);
 			break;
 	
 		case REQ_THD_CAP:
