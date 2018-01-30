@@ -11,6 +11,7 @@ int shm_map(unsigned int spdid, unsigned int id);
 
 /* Each region is the size of a page, this number is arbitrary */
 #define SHM_MAX_REGIONS 1000
+#define SHM_BASE_ADDR 0x80000000
 
 /*
  * Array of all components that may call down to shdmem api.
@@ -19,7 +20,7 @@ int shm_map(unsigned int spdid, unsigned int id);
  */
 
 struct shm_info {
-	struct cos_compinfo *cinfo;
+	struct cos_compinfo cinfo;
 	vaddr_t shm_frontier;
 	vaddr_t my_regions[SHM_MAX_REGIONS];
 	/* Boolean value to determine if the PTE for the shdmem range has been allocated */

@@ -4,6 +4,7 @@
 #include <rk_inv_api.h>
 #include <micro_booter.h>
 #include <rumpcalls.h>
+#include <cos_types.h>
 
 #define IN_PORT  9998
 #define OUT_PORT 9999
@@ -13,6 +14,7 @@
 #define HPET_REQ_BUDGET_US (500) //0.5ms
 
 extern int vmid;
+extern struct cos_component_information cos_comp_info;
 
 static char __msg[MSG_SZ + 1] = { '\0' };
 
@@ -80,4 +82,15 @@ udpserv_main(void)
 	__test_udp_server();
 
 	return 0;
+}
+
+void
+cos_init(void)
+{
+	printc("Welcome to the udpserver component\n");
+	printc("cos_component_information spdid: %ld\n", cos_comp_info.cos_this_spd_id);
+	printc("FIXME, this should be booted by the RK component...\n");
+	printc("TODO, for now... just have the RK add the main thread for this to the booter's runq after the RK is done booting\n");
+
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, cos_comp_info.cos_this_spd_id, 0, 0);
 }

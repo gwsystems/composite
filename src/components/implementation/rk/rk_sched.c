@@ -85,7 +85,7 @@ rk_subsys_thd_init(thdcap_t thd, arcvcap_t rcv, tcap_t tc, asndcap_t snd, int is
 	only_once ++;
 
 	subci->captbl_cap = BOOT_CAPTBL_SELF_CT;
-	printc("%lu %lu %lu\n", thd, tc, rcv);
+	printc("%lu %lu %lu %lu\n", thd, tc, rcv, snd);
 	subaep->thd = thd;
 	subaep->rcv = rcv;
 	subaep->tc = tc;
@@ -151,6 +151,10 @@ rk_rump_thd_yield_to(struct bmk_thread *c, struct bmk_thread *n)
 	sl_thd_yield(ntid);
 }
 
+#ifdef CHRONOS_ENABLED
+#undef CHRONOS_ENABLED
+#endif
+
 void
 rk_sched_loop(void)
 {
@@ -166,10 +170,9 @@ rk_sched_loop(void)
 void
 rk_sched_init(microsec_t period)
 {
+	printc("rk_sched_init...\n");
 	sl_init(period);
-
-	rk_subsys_thd_init(RK_CAPTBL_SELF_TMTHD_BASE, RK_CAPTBL_SELF_TMRCV_BASE, RK_CAPTBL_SELF_TMTCAP_BASE,
-			   RK_CAPTBL_SELF_TMASND_BASE, 1);
+	printc("done\n");
 }
 
 void

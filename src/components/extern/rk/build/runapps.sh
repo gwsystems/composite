@@ -3,8 +3,8 @@ PROG=$1
 SRCDIR=../../../implementation/rk/cnic/
 PROGDIR=../../../implementation/netbsd/$PROG
 COSOBJ=cnic.o
-FINALOBJ=rumpcos.o
-QEMURK=qemu.sh
+FINALOBJ=sl_rumpcos.o
+QEMURK=qemu_rk.sh
 TRANSFERDIR=../../../../../transfer/
 
 cp ./$QEMURK ./$TRANSFERDIR

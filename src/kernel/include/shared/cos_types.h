@@ -38,8 +38,9 @@ typedef enum {
 	REQ_PGTBL_CAP,
 	REQ_THD_CAP,
 	REQ_SINV_CAP,
+	REQ_CAP_FRONTIER,
+	REQ_NUM_COMPS,
 } boot_sinv_op;	
-
 
 /*
  * The assumption in the following is that cycles_t are higher

@@ -272,7 +272,7 @@ boot_create_cap_system(void)
 		pgtblcap_t          pt;
 		spdid_t             spdid;
 		vaddr_t             ci = 0;
-		int                 is_sched;
+		int                 is_sched, is_shdmem;
 
 		h     = hs[i];
 		spdid = h->id;
@@ -285,11 +285,13 @@ boot_create_cap_system(void)
 		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
-		//check for hardcoded "sl_" prefix in c obj to determine which cap image we create
-		is_sched = boot_check_scheduler(h->name);
-		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo, is_sched);
-		printc("\nComp %d (%s) scheduler=%d created @ %x!\n\n", h->id, h->name, is_sched, sect->vaddr);
-		printc("spdid: %d\n", spdid);
+		/* check for hardcoded "sl_" prefix in c obj to determine which cap image we create */
+		is_sched  = boot_check_scheduler(h->name);
+		/* Check for shdmem component */
+		is_shdmem = boot_check_shdmem(h->name);
+
+		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo, is_sched, is_shdmem);
+		printc("\nComp %d (%s) is_sched=%d, is_shdmem=%d, created @ %x!\n\n", h->id, h->name, is_sched, is_shdmem, sect->vaddr);
 	}
 
 
@@ -317,12 +319,12 @@ void
 cos_init(void)
 {
 	struct cobj_header *h;
-	int                 num_cobj;
 
 	printc("Booter for new kernel\n");
 
 	h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj = (int)cos_comp_info.cos_poly[1];
+	printc("num_cobj: %d\n", num_cobj);
 
 	/* TODO, deps and deps_list is not used for anything */
 	//deps = (struct deps *)cos_comp_info.cos_poly[2];

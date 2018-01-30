@@ -2,6 +2,7 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <shdmem.h>
+#include <sl.h>
 
 /*
  * For generic shared memory, the client component is responsible for allocating memory
@@ -18,18 +19,17 @@ static unsigned int shm_master_idx = 0;
 /* cos_compinfo for the booter component when using vkernel_init.c for the booter */
 struct cos_compinfo *shm_cinfo;
 
-struct cos_compinfo compinfos[2];
+extern struct cos_component_information cos_comp_info;
 
+/* --------------------------- Private Functions --------------------------- */
 static void
 __shm_infos_init(unsigned int spdid)
 {
 	int i;
 
 	/* Allocate second level PTE for the shdmem regions */
-	/* FIXME, should we be passing in PAGE_SIZE? */
-	cos_pgtbl_intern_alloc(shm_infos[spdid].cinfo, shm_infos[spdid].cinfo->pgtbl_cap,
-		shm_infos[spdid].shm_frontier,
-		PAGE_SIZE);
+	cos_pgtbl_intern_alloc(&shm_infos[spdid].cinfo, shm_infos[spdid].cinfo.pgtbl_cap,
+		shm_infos[spdid].shm_frontier, PAGE_SIZE);
 
 	/* Set all region idxs to -1 */
 	for (i = 0 ; i < SHM_MAX_REGIONS ; i++ ) {
@@ -47,17 +47,54 @@ __print_region_idxs(unsigned int spdid)
 	printc("\tPrinting regions for the shm_info, spdid: %d\n", spdid);
 	while (count < SHM_MAX_REGIONS) {
 		if (shm_infos[spdid].my_regions[count]) {
-			printc("\t\tidx: %u, master region: %d\n", count, (int)shm_infos[spdid].my_regions[count]);
+			printc("\t\tidx: %u, master region: %d\n", count,
+					(int)shm_infos[spdid].my_regions[count]);
 		}
 		count++;
 	}
 }
 
+void
+__create_shm_info(unsigned int spdid, int pgtbl_cap)
+{
+	assert(spdid && pgtbl_cap);
+	shm_infos[spdid].cinfo.pgtbl_cap = pgtbl_cap;
+	shm_infos[spdid].cinfo.memsrc	 = shm_cinfo;
+	shm_infos[spdid].shm_frontier    = SHM_BASE_ADDR;
+}
+
+void
+__get_pgtbls()
+{
+	capid_t cap_index;
+	int num_comps = -1;
+	int i;
+
+	/* Get the number of pagetables available to use to copy */
+	num_comps = (int)cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_NUM_COMPS, 0, 0, 0);
+	assert(num_comps);
+	printc("We need to tansfer %d pgtbls...\n", num_comps-1);
+
+	for (i = 1 ; i <= num_comps ; i++) {
+		/* Already have access to my own page table */
+		if (i == SHMEM_TOKEN) continue;
+
+       		cap_index = cos_capid_bump_alloc(shm_cinfo, CAP_PGTBL);
+		printc("cap_index to transfer to: %lu\n", cap_index);
+		cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_PGTBL_CAP, SHMEM_TOKEN, i, cap_index);
+		__create_shm_info(i, cap_index);
+	}
+
+	printc("Done transfering pgtbls\n");
+
+}
+
+/* --------------------------- Public Functions --------------------------- */
 vaddr_t
 shm_get_vaddr(unsigned int spdid, unsigned int id)
 {
 	printc("IN SHM_GET_VADDR;\n");
-	assert(id < SHM_MAX_REGIONS && shm_infos[spdid].cinfo && shm_infos[spdid].shm_frontier);
+	assert(id < SHM_MAX_REGIONS && &shm_infos[spdid].cinfo && shm_infos[spdid].shm_frontier);
 
 	return shm_infos[spdid].my_regions[id];
 }
@@ -74,7 +111,7 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 
 	assert(shm_cinfo && \
 		((int)spdid > -1) && \
-		shm_infos[spdid].cinfo && \
+		&shm_infos[spdid].cinfo && \
 	        shm_infos[spdid].shm_frontier && \
 		num_pages);
 
@@ -104,7 +141,8 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 
 	shm_master_idx++;
 
-	ret = cos_mem_alias_at(comp_shm_info->cinfo, comp_shm_info->shm_frontier, shm_cinfo, src_pg);
+	printc("dst_pg: %p, src_pg: %p\n", (void *)dst_pg, (void *)src_pg);
+	ret = cos_mem_alias_at(&comp_shm_info->cinfo, comp_shm_info->shm_frontier, shm_cinfo, src_pg);
 	assert(dst_pg && !ret);
 	comp_shm_info->shm_frontier += PAGE_SIZE;
 
@@ -141,8 +179,8 @@ shm_map(unsigned int spdid, unsigned int id)
 	struct shm_info *comp_shm_info;
 
 	assert(id < SHM_MAX_REGIONS && \
-		shm_infos[spdid].shm_frontier && \
-		shm_infos[spdid].cinfo);
+		&shm_infos[spdid].shm_frontier && \
+		&shm_infos[spdid].cinfo);
 
 	comp_shm_info = &shm_infos[spdid];
 
@@ -153,25 +191,11 @@ shm_map(unsigned int spdid, unsigned int id)
 	dst_pg = comp_shm_info->shm_frontier;
 	comp_shm_info->my_regions[id] = dst_pg;
 
-	ret = cos_mem_alias_at(comp_shm_info->cinfo, comp_shm_info->shm_frontier, shm_cinfo, src_pg);
+	ret = cos_mem_alias_at(&comp_shm_info->cinfo, comp_shm_info->shm_frontier, shm_cinfo, src_pg);
 	assert(dst_pg && !ret);
 	comp_shm_info->shm_frontier += PAGE_SIZE;
 
 	return id;
-}
-
-void
-get_pagetables()
-{
-
-	
-	capid_t cap_index;
-       	cos_capid_bump_alloc(shm_cinfo, CAP_PGTBL, &cap_index);
-	printc("cap_index: %d\n", cap_index);
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_PGTBL_CAP, SHMEM_TOKEN, 3, cap_index);
-
-	compinfos[0].pgtbl_cap = cap_index;
-
 }
 
 void
@@ -181,17 +205,25 @@ cos_init(void)
 	int ret;
 
 	printc("Welcome to the shdmem component\n");
+	printc("Getting cos_compinfo for ourselves...");
+	printc("cos_component_information spdid: %ld\n", cos_comp_info.cos_this_spd_id);
+
 	dci = cos_defcompinfo_curr_get();
 	assert(dci);
 	shm_cinfo = cos_compinfo_get(dci);
-	
-	cos_meminfo_init(&(shm_cinfo->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_defcompinfo_init();
-	cos_compinfo_init(shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr() , BOOT_CAPTBL_FREE, shm_cinfo);	
+	assert(shm_cinfo);
 
-	get_pagetables(shm_cinfo);
+	cos_defcompinfo_init();
+	cos_meminfo_init(&(shm_cinfo->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ,
+			BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_compinfo_init(shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
+			BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(),
+			BOOT_CAPTBL_FREE, shm_cinfo);	
+
+	/* Get access to the page tables from the booter of the components we will be servicing */
+	__get_pgtbls(shm_cinfo);
 
 	printc("Shdmem init done\n");
 
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 2, 3, 4);
+	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 0, 0, 0);
 }

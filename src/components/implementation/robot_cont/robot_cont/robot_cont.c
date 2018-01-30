@@ -186,7 +186,7 @@ send_task(int x, int y) {
 void
 cos_init(void)
 {
-	printc("Welcome to the robot_cont component\n");
+	printc("\nWelcome to the robot_cont component\n");
 
 
 

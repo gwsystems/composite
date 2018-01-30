@@ -15,7 +15,7 @@ assign_task(unsigned long token, int x, int y) {
 void
 cos_init(void)
 {
-	printc("Welcome to the robot sched component\n");
+	printc("\nWelcome to the robot sched component\n");
 
 	send_task(2, 3);
 	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 2, 3, 4);

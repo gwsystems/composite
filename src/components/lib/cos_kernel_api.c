@@ -252,6 +252,10 @@ __capid_bump_alloc_generic(struct cos_compinfo *ci, capid_t *capsz_frontier, cap
 	return ret;
 }
 
+capid_t
+cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
+{ return __capid_bump_alloc(ci, cap); }
+
 /* allocate a new capid in the booter. */
 static capid_t
 __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
@@ -315,10 +319,12 @@ static vaddr_t
 __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
 {
 	vaddr_t addr;
+	pgtblcap_t ret;
 
 	for (addr = mem_ptr; addr < mem_ptr + mem_sz; addr += PGD_RANGE) {
 		/* ignore errors likely due to races here as we want to keep expanding regardless */
-		__bump_mem_expand_intern(ci, cipgtbl, addr, 0);
+		ret = __bump_mem_expand_intern(ci, cipgtbl, addr, 0);
+		assert(ret != 0);
 	}
 
 	assert(round_up_to_pgd_page(addr) == round_up_to_pgd_page(mem_ptr + mem_sz));
@@ -490,14 +496,6 @@ livenessid_bump_alloc(void)
 	return livenessid_frontier++;
 }
 
-int
-cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t ct, capid_t *cap)
-{
-	*cap = __capid_bump_alloc(ci, ct);
-	if (!*cap) return -1;
-	return 0;
-}
-
 /**************** [Kernel Object Allocation] ****************/
 
 static int
@@ -637,6 +635,7 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, uns
 
 	cap = __capid_bump_alloc(srcci, CAP_COMP);
 	if (!cap) return 0;
+
 	if (call_cap_op(srcci->captbl_cap, CAPTBL_OP_SINVACTIVATE, cap, dstcomp, entry, token)) BUG();
 
 	return cap;
@@ -644,9 +643,7 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, uns
 
 int
 cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
-{
-	return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4);
-}
+{ return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4); }
 
 /*
  * Arguments:
