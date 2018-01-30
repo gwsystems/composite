@@ -203,7 +203,8 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched,
 
 	boot_newcomp_sinv_alloc(spdid);
 
-	if (is_sched || is_shdmem) boot_newschedcomp_cap_init(spdid, ct, pt, cc);
+	//boot_newschedcomp_cap_init(spdid, ct, pt, cc);
+	if (is_sched || is_shdmem || spdid == 2) boot_newschedcomp_cap_init(spdid, ct, pt, cc);
 
 	thd = sl_thd_comp_init(new_comp_cap_info[spdid].defcompinfo, is_sched);
 	assert(thd);
@@ -234,9 +235,8 @@ boot_bootcomp_init(void)
 static void
 boot_done(void)
 {
-	printc("Booter: done %d init.\n", sched_cur);
-//	cos_thd_switch(schedule[sched_cur]);
-	sl_sched_loop();
+	cos_thd_switch(schedule[sched_cur]);
+	//sl_sched_loop();
 }
 
 static int
@@ -300,8 +300,8 @@ boot_sinv_fn(boot_sinv_op op, void *arg1, void *arg2, void *arg3)
 
 	switch (op) {
 		case INIT_DONE:
-//			boot_thd_done();
-		//	sched_cur++;
+	//		boot_thd_done();
+			sched_cur++;
 			boot_done();
 			break;
 		case REQ_PGTBL_CAP:

@@ -1,11 +1,3 @@
-//#include <cos_component.h>
-//#include <cos_kernel_api.h>
-//#include <video_codec.h>
-
-//#include <cos_defkernel_api.h>
-//#include <cos_alloc.h>
-//#include <cos_debug.h>
-//#include <cos_types.h>
 #include <llprint.h>
 
 #include <robot_cont.h>
@@ -23,10 +15,14 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#include <camera.h>
 #define NORTH 0
 #define EAST 1
 #define SOUTH 2
 #define WEST 3
+
+int shmid;
+vaddr_t shm_vaddr;
 
 struct rp {
 	int x, y;
@@ -47,10 +43,9 @@ create_movement(int xf, int yf) {
 	script[sidx++] = 152; // Indicates we're sending a script
 	/* script[1] is reserved for script length, will populate after we generate the script */
 	sidx++;
-	printc("script[0]: %u \n", script[0]);
 
-	/* Must move north */	
-	if (ychange > 0) {
+//	/* Must move north */	
+//	if (ychange > 0) {
 
 		switch (rpos.direction) {
 			case NORTH:
@@ -156,16 +151,16 @@ create_movement(int xf, int yf) {
 		script[sidx] = 153;	
 		script[1] = sidx - 1;
 
-		printc("script length: %d: \n", sidx - 1);
+//		printc("script length: %d: \n", sidx - 1);
 		for (i = 0; i < sidx ; i ++) {
-			printc("%u ,", script[i]);
+			printc("%u ", script[i]);
 		}
 		printc("\n");
 
-	} else if (ychange < 0) {
-		/* turn south */
-		/* check angle */
-	}
+//	} else if (ychange < 0) {
+//		/* turn south */
+//		/* check angle */
+//	}
 
 	rpos.x = xf;
 	rpos.y = yf;	
@@ -176,9 +171,21 @@ create_movement(int xf, int yf) {
 int
 send_task(int x, int y) {
 
+	int position;
+
 	create_movement(x, y);
 
+	printc("Send script to udp\n");
+	
+	printc("Checking location via camera: \n");
+	position = check_location_image(x, y);
+
+	if (position) {
+		printc("Camera in correct location\n");
+	}
+
 	printc("new position: %d, %d\n", rpos.x, rpos.y);
+	printc("\n");
 	
 	return 0;
 }
@@ -187,12 +194,18 @@ void
 cos_init(void)
 {
 	printc("\nWelcome to the robot_cont component\n");
-
-
-
+	
 	rpos.x = 0;
 	rpos.y = 0;
 	rpos.direction = EAST;	
-	
+
+	char * test = "Hello";
+	shmid = shm_allocate(3, 1);
+	printc("shmid: %d \n", shmid);
+	shm_vaddr = shm_get_vaddr(3, 0);
+	printc("shm_vaddr: %p \n", shm_vaddr);
+
+	memcpy(shm_vaddr, test, 5);
+
 	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 2, 3, 4);
 }

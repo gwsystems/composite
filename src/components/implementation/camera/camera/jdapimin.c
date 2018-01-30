@@ -29,7 +29,6 @@
 GLOBAL(void)
 jpeg_CreateDecompress (j_decompress_ptr cinfo, int version, size_t structsize)
 {
-  printc("WE OUT HERE\n");
   int i;
 
   /* Guard against version mismatches between library and caller. */
