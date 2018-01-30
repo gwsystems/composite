@@ -10,6 +10,8 @@
 #define THD_PERIOD 10
 #define THD_BUDGET 5
 
+int num_cobj;
+
 /* Assembly function for sinv from new component */
 extern void *__inv_test_entry(int a, int b, int c);
 void boot_pgtbl_cap_transfer(int dst, int src, int cap_slot);
@@ -171,7 +173,7 @@ boot_newschedcomp_cap_init(spdid_t spdid, captblcap_t ct, pgtblcap_t pt, compcap
 }
 
 static void
-boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched)
+boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched, int is_shdmem)
 {
 	compcap_t      cc;
 	captblcap_t    ct = new_comp_cap_info[spdid].compinfo->captbl_cap;
@@ -195,7 +197,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched)
 
 	boot_newcomp_sinv_alloc(spdid);
 
-	if (is_sched) {boot_newschedcomp_cap_init(spdid, ct, pt, cc);}
+	if (is_sched || is_shdmem) boot_newschedcomp_cap_init(spdid, ct, pt, cc);
 
 	thd = sl_thd_comp_init(new_comp_cap_info[spdid].defcompinfo, is_sched);
 	assert(thd);
@@ -241,6 +243,17 @@ boot_check_scheduler(char *comp_name) {
 	return 1;
 }
 
+static int
+boot_check_shdmem(char *comp_name) {
+	int i;
+	char *prefix = "shmem";
+
+	for (i = 0; i < 5; i++)
+		if (comp_name[i] == '\0' || comp_name[i] != prefix[i]) return 0;
+
+	return 1;
+}
+
 void
 boot_thd_done(void)
 {
@@ -251,7 +264,8 @@ boot_thd_done(void)
 void
 boot_pgtbl_cap_transfer(int dst, int src, int cap_slot)
 {
-	printc("booter transfering pgtbl...");
+	printc("booter transfering pgtbl: %lu to: %d, from: %d, into: %d...",
+		new_comp_cap_info[src].compinfo->pgtbl_cap, dst, src, cap_slot);
 	cos_cap_cpy_at(new_comp_cap_info[dst].compinfo, cap_slot, boot_info,
 		new_comp_cap_info[src].compinfo->pgtbl_cap);
 	printc("done\n");
@@ -285,6 +299,9 @@ boot_sinv_fn(boot_sinv_op op, void *arg1, void *arg2, void *arg3)
 			boot_pgtbl_cap_transfer((int)arg1, (int)arg2, (int)arg3);
 			ret = (void *)0;
 			break;
+		case REQ_NUM_COMPS:
+			ret = (void *)num_cobj;
+			break;
 		case REQ_THD_CAP:
 			/* arg1: dst: arg2: src, arg3: cap_slot */
 			boot_thd_cap_transfer((int)arg1, (int)arg2, (int)arg3);
@@ -295,9 +312,7 @@ boot_sinv_fn(boot_sinv_op op, void *arg1, void *arg2, void *arg3)
 			break;
 		case REQ_CAP_FRONTIER:
 			/* arg1: spdid */
-			printc("Transfering cap frontier...");
 			ret = (void *)new_comp_cap_info[(int)arg1].compinfo->cap_frontier;
-			printc("done\n");
 			break;
 		default:
 			printc("op: %d not supported!\n", op);

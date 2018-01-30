@@ -28,10 +28,8 @@ __shm_infos_init(unsigned int spdid)
 	int i;
 
 	/* Allocate second level PTE for the shdmem regions */
-	/* FIXME, should we be passing in PAGE_SIZE? */
-	cos_pgtbl_intern_alloc(shm_infos[spdid].cinfo, shm_infos[spdid].cinfo->pgtbl_cap,
-		shm_infos[spdid].shm_frontier,
-		PAGE_SIZE);
+	cos_pgtbl_intern_alloc(&shm_infos[spdid].cinfo, shm_infos[spdid].cinfo.pgtbl_cap,
+		shm_infos[spdid].shm_frontier, PAGE_SIZE);
 
 	/* Set all region idxs to -1 */
 	for (i = 0 ; i < SHM_MAX_REGIONS ; i++ ) {
@@ -57,17 +55,38 @@ __print_region_idxs(unsigned int spdid)
 }
 
 void
+__create_shm_info(unsigned int spdid, int pgtbl_cap)
+{
+	assert(spdid && pgtbl_cap);
+	shm_infos[spdid].cinfo.pgtbl_cap = pgtbl_cap;
+	shm_infos[spdid].cinfo.memsrc	 = shm_cinfo;
+	shm_infos[spdid].shm_frontier    = SHM_BASE_ADDR;
+}
+
+void
 __get_pgtbls()
 {
 	capid_t cap_index;
-       	cap_index = cos_capid_bump_alloc(shm_cinfo, CAP_PGTBL);
-	printc("cap_index: %lu\n", cap_index);
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_PGTBL_CAP, SHMEM_TOKEN, 3, cap_index);
+	int num_comps = -1;
+	int i;
 
-	/*
-	 * TODO save the pgtbl into the shm_infos[spdid] struct by allocating a new emtpy cinfo struct to hold it
-	 * All we care about is that the pgtbl is set
-	 */
+	/* Get the number of pagetables available to use to copy */
+	num_comps = (int)cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_NUM_COMPS, 0, 0, 0);
+	assert(num_comps);
+	printc("We need to tansfer %d pgtbls...\n", num_comps-1);
+
+	for (i = 1 ; i <= num_comps ; i++) {
+		/* Already have access to my own page table */
+		if (i == SHMEM_TOKEN) continue;
+
+       		cap_index = cos_capid_bump_alloc(shm_cinfo, CAP_PGTBL);
+		printc("cap_index to transfer to: %lu\n", cap_index);
+		cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_PGTBL_CAP, SHMEM_TOKEN, i, cap_index);
+		__create_shm_info(i, cap_index);
+	}
+
+	printc("Done transfering pgtbls\n");
+
 }
 
 /* --------------------------- Public Functions --------------------------- */
@@ -75,7 +94,7 @@ vaddr_t
 shm_get_vaddr(unsigned int spdid, unsigned int id)
 {
 	printc("IN SHM_GET_VADDR;\n");
-	assert(id < SHM_MAX_REGIONS && shm_infos[spdid].cinfo && shm_infos[spdid].shm_frontier);
+	assert(id < SHM_MAX_REGIONS && &shm_infos[spdid].cinfo && shm_infos[spdid].shm_frontier);
 
 	return shm_infos[spdid].my_regions[id];
 }
@@ -92,7 +111,7 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 
 	assert(shm_cinfo && \
 		((int)spdid > -1) && \
-		shm_infos[spdid].cinfo && \
+		&shm_infos[spdid].cinfo && \
 	        shm_infos[spdid].shm_frontier && \
 		num_pages);
 
@@ -122,7 +141,8 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 
 	shm_master_idx++;
 
-	ret = cos_mem_alias_at(comp_shm_info->cinfo, comp_shm_info->shm_frontier, shm_cinfo, src_pg);
+	printc("dst_pg: %p, src_pg: %p\n", (void *)dst_pg, (void *)src_pg);
+	ret = cos_mem_alias_at(&comp_shm_info->cinfo, comp_shm_info->shm_frontier, shm_cinfo, src_pg);
 	assert(dst_pg && !ret);
 	comp_shm_info->shm_frontier += PAGE_SIZE;
 
@@ -159,8 +179,8 @@ shm_map(unsigned int spdid, unsigned int id)
 	struct shm_info *comp_shm_info;
 
 	assert(id < SHM_MAX_REGIONS && \
-		shm_infos[spdid].shm_frontier && \
-		shm_infos[spdid].cinfo);
+		&shm_infos[spdid].shm_frontier && \
+		&shm_infos[spdid].cinfo);
 
 	comp_shm_info = &shm_infos[spdid];
 
@@ -171,7 +191,7 @@ shm_map(unsigned int spdid, unsigned int id)
 	dst_pg = comp_shm_info->shm_frontier;
 	comp_shm_info->my_regions[id] = dst_pg;
 
-	ret = cos_mem_alias_at(comp_shm_info->cinfo, comp_shm_info->shm_frontier, shm_cinfo, src_pg);
+	ret = cos_mem_alias_at(&comp_shm_info->cinfo, comp_shm_info->shm_frontier, shm_cinfo, src_pg);
 	assert(dst_pg && !ret);
 	comp_shm_info->shm_frontier += PAGE_SIZE;
 

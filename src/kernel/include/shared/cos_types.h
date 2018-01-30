@@ -39,6 +39,7 @@ typedef enum {
 	REQ_THD_CAP,
 	REQ_SINV_CAP,
 	REQ_CAP_FRONTIER,
+	REQ_NUM_COMPS,
 } boot_sinv_op;	
 
 /*

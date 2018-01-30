@@ -319,10 +319,12 @@ static vaddr_t
 __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
 {
 	vaddr_t addr;
+	pgtblcap_t ret;
 
 	for (addr = mem_ptr; addr < mem_ptr + mem_sz; addr += PGD_RANGE) {
 		/* ignore errors likely due to races here as we want to keep expanding regardless */
-		__bump_mem_expand_intern(ci, cipgtbl, addr, 0);
+		ret = __bump_mem_expand_intern(ci, cipgtbl, addr, 0);
+		assert(ret != 0);
 	}
 
 	assert(round_up_to_pgd_page(addr) == round_up_to_pgd_page(mem_ptr + mem_sz));
