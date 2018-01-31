@@ -15,7 +15,7 @@ struct cos_pci_device devices[PCI_DEVICE_NUM];
 int dev_num = 0;
 
 static inline u32_t
-pci_read(u32_t bus, u32_t dev, u32_t func, u32_t reg)
+cos_pci_read_config(u32_t bus, u32_t dev, u32_t func, u32_t reg)
 {
 	u32_t v = PCI_ADDR(bus, dev, func, reg);
 	outl(PCI_CONFIG_ADDRESS, v);
@@ -23,7 +23,7 @@ pci_read(u32_t bus, u32_t dev, u32_t func, u32_t reg)
 }
 
 static inline void
-pci_write(u32_t bus, u32_t dev, u32_t func, u32_t reg, u32_t v)
+cos_pci_write_config(u32_t bus, u32_t dev, u32_t func, u32_t reg, u32_t v)
 {
 	u32_t a = PCI_ADDR(bus, dev, func, reg);
 	outl(PCI_CONFIG_ADDRESS, a);
@@ -31,7 +31,7 @@ pci_write(u32_t bus, u32_t dev, u32_t func, u32_t reg, u32_t v)
 }
 
 void
-pci_print(void)
+cos_pci_print(void)
 {
     int i;
 	printc("total pci device %d\n", dev_num);
@@ -66,9 +66,9 @@ cos_pci_scan(void)
 	for(i=0; i<PCI_BUS_MAX; i++) {
 		for(j=0; j<PCI_DEVICE_MAX; j++) {
 			for(f=0; f<PCI_FUNC_MAX; f++) {
-				reg = pci_read(i, j, f, 0x0);
+				reg = cos_pci_read_config(i, j, f, 0x0);
 				if (reg == PCI_BITMASK_32) continue;
-				for(k=0; k<PCI_DATA_NUM; k++) devices[dev_num].data[k] = pci_read(i, j, f, k << 2);
+				for(k=0; k<PCI_DATA_NUM; k++) devices[dev_num].data[k] = cos_pci_read_config(i, j, f, k << 2);
 				devices[dev_num].bus       = (u32_t)i;
 				devices[dev_num].dev       = (u32_t)j;
 				devices[dev_num].func      = (u32_t)f;
@@ -82,8 +82,8 @@ cos_pci_scan(void)
 					bar       = &devices[dev_num].bar[k];
 					bar->raw  = devices[dev_num].data[4 + k];
 					reg       = (k + 4) << 2;
-					pci_write(i, j, f, reg, PCI_BITMASK_32);
-					tmp       = pci_read(i, j, f, reg);
+					cos_pci_write_config(i, j, f, reg, PCI_BITMASK_32);
+					tmp       = cos_pci_read_config(i, j, f, reg);
 					bar->size = ~(tmp & ~0xF) + 1;
 				}
 				dev_num++;
@@ -91,7 +91,7 @@ cos_pci_scan(void)
 		}
 	}
 	if (DEBUG)
-	   	pci_print();
+	   	cos_pci_print();
 
 		/* Implementation detail is from PCI Local Bus Specification  */
 		/* http://www.xilinx.com/Attachment/PCI_SPEV_V3_0.pdf */
