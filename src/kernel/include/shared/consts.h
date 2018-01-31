@@ -51,7 +51,7 @@ struct pt_regs {
 #define MAX_NUM_THREADS 64
 
 /* Stacks are 2 * page_size (expressed in words) */
-#define MAX_STACK_SZ_BYTE_ORDER 12
+#define MAX_STACK_SZ_BYTE_ORDER 13
 /* Stack size in bytes */
 #define COS_STACK_SZ (1 << MAX_STACK_SZ_BYTE_ORDER)
 /* Stack size in words */
