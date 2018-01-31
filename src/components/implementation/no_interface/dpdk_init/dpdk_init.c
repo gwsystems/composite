@@ -3,7 +3,7 @@
 #include "sl.h"
 
 struct cos_compinfo dpdk_init_info;
-extern struct pci_device devices[PCI_DEVICE_NUM];
+extern struct cos_pci_device devices[PCI_DEVICE_NUM];
 
 #include <llprint.h>
 
@@ -22,25 +22,31 @@ cos_eal_thd_create(cos_eal_thd_t *thd_id, void *(*func)(void *), void *arg)
     return new_thd->thdid;
 }
 
+void *
+cos_map_phys_to_virt(void *paddr, unsigned int size)
+{
+	return (void *)cos_hw_map(&dpdk_init_info, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)paddr, size);
+}
+
 void
 cos_init(void)
 {
-	cos_meminfo_init(&dpdk_init_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(&dpdk_init_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-	                  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &dpdk_init_info);
+			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &dpdk_init_info);
+	cos_meminfo_init(&dpdk_init_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 
-    int argc = 3;
+	int argc = 3;
 	char arg1[] = "DEBUG", arg2[] = "-l", arg3[] = "0";
-    char *argv[] = {arg1, arg2, arg3};
+	char *argv[] = {arg1, arg2, arg3};
 
-    printc("\nDPDK init started.\n");
-    pci_init();
-    int ret = 0;
-    ret = rte_eal_init(argc, argv);
-    printc("\nCall to rte_eal_init returned %d \n", ret);
+	printc("\nDPDK init started.\n");
+
+	int ret = 0;
+	ret = rte_eal_init(argc, argv);
+	printc("\nCall to rte_eal_init returned %d \n", ret);
 	printc("\nDPDK init done.\n");
 
-    SPIN();
+	SPIN();
 
 	return;
 }
