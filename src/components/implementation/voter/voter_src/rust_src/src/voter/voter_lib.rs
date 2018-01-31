@@ -122,7 +122,7 @@ impl Replica  {
 	}
 	//TODO!
 	pub fn recover(&mut self) {
-		assert!(false);
+		panic!("Replica {:?} must be recovered", self.rep_id);;
 	}
 
 	pub fn write(&mut self, data:[u8;WRITE_BUFF_SIZE]) {
@@ -251,9 +251,9 @@ impl ModComp {
 				},
 				VoteStatus::Fail(faulted_rep_id) => { /*if a rep faulted reboot it*/
 					println!("Rep faulted {}",faulted_rep_id);
-					let compStore(ref reader_lock) = COMPONENTS[ch.reader_id.unwrap()];
-					let mut reader = reader_lock.lock();
-					reader.deref_mut().as_mut().unwrap().wake_all();
+					let compStore(ref writer_lock) = COMPONENTS[ch.writer_id.unwrap()];
+					let mut writer = writer_lock.lock();
+					writer.deref_mut().as_mut().unwrap().replicas[faulted_rep_id as usize].lock().deref_mut().recover();
 				},
 				VoteStatus::Inconclusive => break, /*if no concensus let them run*/
 			}
@@ -299,7 +299,7 @@ impl ModComp {
 	//todo return result
 	pub fn find_faulted_msg(&self) -> i16 {
 		//store the number of replicas that agree, and rep id of sender
-		let mut concensus: [(u8,i16); MAX_REPS] = [(0,0); MAX_REPS];
+		let mut concensus: [u8; MAX_REPS] = [0; MAX_REPS];
 
 		//find which replica disagrees with the majority
 		for i in 0..self.num_replicas {
@@ -312,18 +312,17 @@ impl ModComp {
 				let msg_b = &rep_b.write_buffer;
 
 				if compare_msgs(msg_a,msg_b) {
-					concensus[i].0 += 1;
+					concensus[i] += 1;
 				}
 			}
 		}
-
 		//go through concensus to get the rep id that sent the msg with least agreement
-		let mut min = 4;
-		let mut faulted = -1;
-		for val in concensus.iter() {
-			if val.0 < min {
-				min = val.0;
-				faulted = val.1;
+		let mut min:u8 = 4;
+		let mut faulted:i16 = -1;
+		for (rep,msg_votes) in concensus.iter().enumerate() {
+			if  *msg_votes < min {
+				min = *msg_votes;
+				faulted = rep as i16;
 			}
 		}
 		return faulted;

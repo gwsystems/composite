@@ -85,7 +85,7 @@ impl Channel {
 		if writer_vote == VoteStatus::Success {
 			if !writer.validate_msgs() {
 				let faulted = writer.find_faulted_msg();
-				assert!(faulted>0);
+				assert!(faulted>-1);
 				writer_vote = VoteStatus::Fail(faulted as u16);
 			}
 			else if writer.new_data {
