@@ -34,7 +34,11 @@ fn do_work(sl:Sl, rep_id: usize) {
 	println!("Replica {:?} starting work ....", rep_id);
 	let mut i = 0;
 	loop {
-		if i % 100 == 0 {
+		if i % 200 == 0 {
+			make_systemcall(2,rep_id,sl);
+			println!("Replica {:?} resuming work ....", rep_id);
+		}
+		else if i % 200 == 100 {
 			make_systemcall(1,rep_id,sl);
 			println!("Replica {:?} resuming work ....", rep_id);
 		}
@@ -45,8 +49,7 @@ fn do_work(sl:Sl, rep_id: usize) {
 fn make_systemcall(sys_call:u8, rep_id:usize, sl:Sl) {
 	println!("Replica {:?} making syscall {:?}", rep_id, sys_call);
 
-	let mut data:Vec<u8> = Vec::new();
-	data.push(sys_call);
+	let mut data:[u8;voter::voter_lib::WRITE_BUFF_SIZE] = [sys_call;voter::voter_lib::WRITE_BUFF_SIZE];
 	voter::channel_snd(data,*CHAN_ID,*APP_ID,rep_id,sl);
 }
 
@@ -66,6 +69,7 @@ fn service(sl:Sl, rep_id: usize) {
 			println!("performing system call {:?}", msg.unwrap().message);
 		}
 		//voter::channel_wake(*CHAN_ID);
+		println!("====================");
 		voter::writer_wake(*CHAN_ID);
 		//voter::state_trans(*SRV_ID,rep_id,voter::voter_lib::ReplicaState::Processing);
 	}

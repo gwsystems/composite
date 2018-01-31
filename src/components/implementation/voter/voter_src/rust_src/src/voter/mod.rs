@@ -79,16 +79,23 @@ pub fn channel_join_writer(chan_id:usize, comp_id:usize) {
 	channel::Channel::join(chan.lock().deref_mut().as_mut().unwrap(),comp_id,is_reader);
 }
 
-pub fn channel_snd(data:Vec<u8>, chan_id:usize, comp_id:usize, rep_id: usize, sl:Sl) {
+pub fn channel_snd(data:[u8;voter_lib::WRITE_BUFF_SIZE], chan_id:usize, comp_id:usize, rep_id: usize, sl:Sl) {
 	println!("Sending ....");
+	//write data to replica local buffer
+	{
+		let compStore(ref comp_store_wrapper_lock) = COMPONENTS[comp_id];
+		let mut comp = comp_store_wrapper_lock.lock();
+		let comp = comp.deref_mut().as_mut().unwrap();
+
+		let mut rep = comp.replicas[rep_id].lock();
+		rep.write(data);
+	}
+	//trigger vote
 	{
 		let channelStore(ref chan_store_wrapper_lock) = CHANNELS[chan_id];
 		let ref mut chan_store_wrapper = chan_store_wrapper_lock.lock();
 		let ref mut chan_lock = chan_store_wrapper.deref_mut().as_mut().unwrap();
 		let mut chan = chan_lock.lock();
-
-		//fixme - msg id should be set with UOW (which we need to calculate in cheduling)
-		chan.deref_mut().send(data,rep_id as u16,0);
 
 		let result = voter_lib::ModComp::replica_communicate(comp_id, rep_id, chan.deref_mut(), voter_lib::ReplicaState::Written, sl);
 		if result.is_err() {panic!("{:?}", result.unwrap_err());}

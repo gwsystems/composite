@@ -9,6 +9,7 @@ use voter::channel::*;
 use voter::*;
 
 pub const MAX_REPS:usize = 3;
+pub const WRITE_BUFF_SIZE:usize = 16;
 
 #[derive(Debug,PartialEq,Copy,Clone)]
 pub enum ReplicaState {
@@ -18,7 +19,7 @@ pub enum ReplicaState {
 	Written,     /* issued a write (blockd) */
 	Done,        /* DEBUG - remove me */
 }
-
+#[derive(PartialEq)]
 pub enum VoteStatus {
 	Fail(u16), /* stores reference to divergent replica rep id*/
 	Inconclusive,
@@ -26,18 +27,20 @@ pub enum VoteStatus {
 }
 
 pub struct Replica {
-	pub state:   ReplicaState,
-	thd:         Option<Thread>,
+	pub state:    ReplicaState,
+	thd:          Option<Thread>,
 	pub channel:  Option<Arc<Lock<Channel>>>,
-	ret_val:     Option<i32>,
+	ret_val:      Option<i32>,
 	pub unit_of_work: u16,
 	pub rep_id:  u16,
+	pub write_buffer: [u8;WRITE_BUFF_SIZE],
 }
 
 pub struct ModComp {
 	pub replicas:     Vec<Arc<Lock<Replica>>>, //TODO i think we can remove the arc lock, only voter thds have access
 	pub comp_id: usize,
 	pub num_replicas: usize,
+	pub new_data:bool,
 }
 
 //manually implement as lib_composite::Thread doesn't impl debug
@@ -76,6 +79,7 @@ impl Replica  {
 			ret_val : None,
 			unit_of_work: 0,
 			rep_id,
+			write_buffer: [0;WRITE_BUFF_SIZE],
 		}
 	}
 	//using a setter to contol the initial scheduling of the thread.
@@ -120,6 +124,12 @@ impl Replica  {
 	pub fn recover(&mut self) {
 		assert!(false);
 	}
+
+	pub fn write(&mut self, data:[u8;WRITE_BUFF_SIZE]) {
+		for i in 0..WRITE_BUFF_SIZE {
+			self.write_buffer[i] = data[i];
+		}
+	}
 }
 
 impl ModComp {
@@ -130,6 +140,7 @@ impl ModComp {
 			replicas: Vec::with_capacity(num_replicas),
 			comp_id: new_comp_id,
 			num_replicas,
+			new_data:false,
 		};
 
 		//create replicas,start their threads,add them to the componenet
@@ -222,6 +233,7 @@ impl ModComp {
 
 			let ref mut component = comp.deref_mut().as_mut().unwrap();
 			component.replicas[rep_id].lock().deref_mut().state_transition(action);
+			component.new_data = true;
 		}
 		//initiate vote for channel and loop on failure
 		loop {
@@ -271,6 +283,58 @@ impl ModComp {
 			},
 		}
 	}
+
+	pub fn validate_msgs(&self) -> bool {
+		//compare each message against the first to look for difference (handle detecting fault later)
+		let compare_rep = self.replicas[0].lock();
+		let ref msg = &compare_rep.deref().write_buffer;
+		for i in 1..self.num_replicas {
+			let rep = self.replicas[i].lock();
+			if !compare_msgs(msg,&rep.write_buffer) {return false}
+		}
+
+		true
+	}
+
+	//todo return result
+	pub fn find_faulted_msg(&self) -> i16 {
+		//store the number of replicas that agree, and rep id of sender
+		let mut concensus: [(u8,i16); MAX_REPS] = [(0,0); MAX_REPS];
+
+		//find which replica disagrees with the majority
+		for i in 0..self.num_replicas {
+			let rep = self.replicas[i].lock();
+			let msg_a = &rep.write_buffer;
+			for j in 0..self.num_replicas {
+				if i == j {continue}
+
+				let rep_b = self.replicas[j].lock();
+				let msg_b = &rep_b.write_buffer;
+
+				if compare_msgs(msg_a,msg_b) {
+					concensus[i].0 += 1;
+				}
+			}
+		}
+
+		//go through concensus to get the rep id that sent the msg with least agreement
+		let mut min = 4;
+		let mut faulted = -1;
+		for val in concensus.iter() {
+			if val.0 < min {
+				min = val.0;
+				faulted = val.1;
+			}
+		}
+		return faulted;
+	}
 }
 
+pub fn compare_msgs(msg_a:&[u8;voter_lib::WRITE_BUFF_SIZE], msg_b:&[u8;voter_lib::WRITE_BUFF_SIZE]) -> bool {
+	for i in 0..voter_lib::WRITE_BUFF_SIZE {
+		if msg_a[i] != msg_b[i] {return false}
+	}
+
+	true
+}
 
