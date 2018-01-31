@@ -1,8 +1,6 @@
 #ifndef PCI_H
 #define PCI_H
 
-/* #include "ivshmem.h" */
-
 #define PCI_BUS_MAX        256
 #define PCI_DEVICE_MAX     32
 #define PCI_FUNC_MAX       7
@@ -11,9 +9,7 @@
 #define PCI_CONFIG_DATA    0xCFC
 #define PCI_DATA_NUM       0x10
 #define PCI_BAR_NUM        6
-
-/* #define PCI_IVSHMEM_VENDOR 0x1AF4 */
-/* #define PCI_IVSHMEM_DEVICE 0x1110 */
+#define PCI_BITMASK_32     0xFFFFFFFF
 
 /* /1* pci CONFIG_ADDRESS register format *1/ */
 /* struct pci_addr_layout { */
@@ -32,6 +28,8 @@
 #define PCI_PROG_IF(v)     (((v) >> 8) & 0xFF)
 #define PCI_HEADER(v)      (((v) >> 16) & 0xFF)
 
+/* Data Structures */
+
 struct pci_bar {
 	union {
 		u32_t raw;
@@ -47,6 +45,7 @@ struct pci_bar {
 			u32_t baseAddr:28;
 		} __attribute__((packed)) mem;
 	};
+    u32_t size;
 	u32_t mask;
 } __attribute__((packed));
 
@@ -64,7 +63,13 @@ struct cos_pci_device {
 	void *drvdata;
 } __attribute__((packed));
 
-void pci_init(void);
-void pci_print(void);
+/* API */
+
+void cos_pci_scan(void);
+void cos_pci_print(void);
+void *cos_map_phys_to_virt(void *paddr, unsigned int size);
+/* u32_t cos_pci_read_config(u32_t bus, u32_t dev, u32_t func, u32_t reg); */
+/* void cos_pci_write_config(u32_t bus, u32_t dev, u32_t func, u32_t reg, u32_t v); */
 
 #endif /* PCI_H */
+
