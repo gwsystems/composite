@@ -1,7 +1,7 @@
 #ifndef COS_ASM_SIMPLE_STACKS_H
 #define COS_ASM_SIMPLE_STACKS_H
 
-#define MAX_STACK_SZ_BYTE_ORDER 12
+#define MAX_STACK_SZ_BYTE_ORDER 13
 
 #ifndef MAX_STACK_SZ_BYTE_ORDER
 #error "Missing MAX_STACK_SZ_BYTE_ORDER, try including consts.h"
