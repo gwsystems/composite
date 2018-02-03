@@ -43,7 +43,6 @@ OBJS += hpet.o
 OBJS += chal.o
 OBJS += boot_comp.o
 OBJS += miniacpi.o
-#OBJS += console.o
 OBJS += vga.o
 OBJS += exception.o
 OBJS += lapic.o

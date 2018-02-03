@@ -10,12 +10,6 @@
 #include <thd.h>
 #include <hw.h>
 
-#ifdef ENABLE_CONSOLE
-void vga_clear(void);
-void vga_puts(const char *s);
-void console_init(void);
-#endif
-
 #ifdef ENABLE_VGA
 void vga_init(void);
 void vga_puts(const char *str);
