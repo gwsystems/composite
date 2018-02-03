@@ -34,11 +34,7 @@ fn do_work(sl:Sl, rep_id: usize) {
 	println!("Replica {:?} starting work ....", rep_id);
 	let mut i = 0;
 	loop {
-		if i == rep_id {
-			make_systemcall(rep_id as u8,rep_id,sl);
-			println!("Replica {:?} resuming work ....", rep_id);
-		}
-		else if i % 100 == 0 {
+		 if i % 100 == 0 {
 			make_systemcall(3,rep_id,sl);
 			println!("Replica {:?} resuming work ....", rep_id);
 		}

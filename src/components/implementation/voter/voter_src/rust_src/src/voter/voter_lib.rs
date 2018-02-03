@@ -28,16 +28,16 @@ pub enum VoteStatus {
 
 pub struct Replica {
 	pub state:    ReplicaState,
-	thd:          Option<Thread>,
+	thd:          Thread,
 	pub channel:  Option<Arc<Lock<Channel>>>,
 	ret_val:      Option<i32>,
 	pub unit_of_work: u16,
-	pub rep_id:  u16,
+	pub rep_id:  usize,
 	pub write_buffer: [u8;WRITE_BUFF_SIZE],
 }
 
 pub struct ModComp {
-	pub replicas:     Vec<Arc<Lock<Replica>>>, //TODO i think we can remove the arc lock, only voter thds have access
+	pub replicas:     Vec<Replica>, //TODO i think we can remove the arc lock, only voter thds have access
 	pub comp_id: usize,
 	pub num_replicas: usize,
 	pub new_data:bool,
@@ -47,7 +47,7 @@ pub struct ModComp {
 impl fmt::Debug for Replica {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Replica: [rep_id - {} Thdid - {} State - {:?} ret_val - {:?}]",
-        self.rep_id, self.get_thdid(), self.state, self.ret_val)
+        self.rep_id, self.thd.thdid(), self.state, self.ret_val)
     }
 }
 
@@ -71,28 +71,16 @@ impl fmt::Debug for ModComp {
 }
 
 impl Replica  {
-	pub fn new(rep_id:u16) -> Replica  {
+	pub fn new(rep_id:usize,mut thd:Thread) -> Replica  {
+		thd.set_param(ThreadParameter::Priority(5));
 		Replica {
-			state : ReplicaState::Init,
-			thd: None,
+			state : ReplicaState::Processing,
+			thd: thd,
 			channel: None,
 			ret_val : None,
 			unit_of_work: 0,
 			rep_id,
 			write_buffer: [0;WRITE_BUFF_SIZE],
-		}
-	}
-	//using a setter to contol the initial scheduling of the thread.
-	pub fn set_thd(&mut self,thd: Thread) {
-		self.thd = Some(thd);
-		self.state_transition(ReplicaState::Processing);
-		self.thd.as_mut().expect("set_thd missing thd").set_param(ThreadParameter::Priority(5));
-	}
-	//really dont think we need this
-	pub fn get_thdid(&self) -> u16 {
-		match self.thd.as_ref() {
-			Some(thd) => thd.thdid(),
-			None      => 9999,
 		}
 	}
 
@@ -116,8 +104,8 @@ impl Replica  {
 		mem::replace(&mut self.ret_val, None)
 	}
 
-	pub fn block(rep: &Arc<Lock<Replica>>, sl:Sl) {
-		assert!(rep.lock().deref().is_blocked());
+	pub fn block(rep: &Replica, sl:Sl) {
+		assert!(rep.is_blocked());
 		sl.block();
 	}
 	//TODO!
@@ -145,12 +133,8 @@ impl ModComp {
 
 		//create replicas,start their threads,add them to the componenet
 		for i in 0..num_replicas {
-			let rep = Arc::new(Lock::new(sl,Replica::new(i as u16)));
-			let rep_ref = Arc::clone(&rep);
-
 			let thd = sl.spawn(move |sl:Sl| {thd_entry(sl, i);});
-			rep.lock().deref_mut().set_thd(thd);
-			comp.replicas.push(Arc::clone(&rep));
+			comp.replicas.push(Replica::new(i,thd));
 		}
 
 		comp
@@ -159,15 +143,13 @@ impl ModComp {
 	pub fn wake_all(&mut self) {
 		//update state first to avoid replicas beginning new read/write
 		//while still in old read/write state
-		for i in 0..self.num_replicas {
-			let mut replica = self.replicas[i].lock();
-			assert!(replica.deref().state != ReplicaState::Init);
-			replica.deref_mut().state_transition(ReplicaState::Processing);
+		for replica in &mut self.replicas {
+			assert!(replica.state != ReplicaState::Init);
+			replica.state_transition(ReplicaState::Processing);
 		}
 
-		for replica in &self.replicas {
-			let mut rep = replica.lock();
-			rep.deref_mut().thd.as_mut().unwrap().wakeup();
+		for replica in &mut self.replicas {
+			replica.thd.wakeup();
 		}
 	}
 
@@ -175,15 +157,13 @@ impl ModComp {
 		println!("Component {} Collecting Votes", self.comp_id);
 		//check first to see that all replicas are done processing.
 		for replica in &self.replicas {
-			if replica.lock().deref().is_processing() {return VoteStatus::Inconclusive}
+			if replica.is_processing() {return VoteStatus::Inconclusive}
 		}
 
 		//VOTE!
 		let mut consensus = [0,0,0];
-		for replica in &mut self.replicas {
-			let mut replica = replica.lock();
-			replica.deref_mut().unit_of_work += 1;
-			println!("Replica {}:{} - {:?}", self.comp_id,replica.deref().rep_id,replica.deref().state);
+		for mut replica in &mut self.replicas {
+			println!("Replica {}:{} - {:?}", self.comp_id,replica.rep_id,replica.state);
 			match replica.deref().state {
 				ReplicaState::Processing  => consensus[0] += 1,
 				ReplicaState::Read        => consensus[1] += 1,
@@ -232,7 +212,7 @@ impl ModComp {
 			}
 
 			let ref mut component = comp.deref_mut().as_mut().unwrap();
-			component.replicas[rep_id].lock().deref_mut().state_transition(action);
+			component.replicas[rep_id].state_transition(action);
 			component.new_data = true;
 		}
 		//initiate vote for channel and loop on failure
@@ -253,7 +233,7 @@ impl ModComp {
 					println!("Rep faulted {}",faulted_rep_id);
 					let compStore(ref writer_lock) = COMPONENTS[ch.writer_id.unwrap()];
 					let mut writer = writer_lock.lock();
-					writer.deref_mut().as_mut().unwrap().replicas[faulted_rep_id as usize].lock().deref_mut().recover();
+					writer.deref_mut().as_mut().unwrap().replicas[faulted_rep_id as usize].recover();
 				},
 				VoteStatus::Inconclusive => break, /*if no concensus let them run*/
 			}
@@ -271,7 +251,7 @@ impl ModComp {
 
 		match *vote {
 			VoteStatus::Fail(rep) => {
-				comp.replicas[rep as usize].lock().deref_mut().recover();
+				comp.replicas[rep as usize].recover();
 				false
 			},
 			VoteStatus::Inconclusive => {
@@ -286,11 +266,9 @@ impl ModComp {
 
 	pub fn validate_msgs(&self) -> bool {
 		//compare each message against the first to look for difference (handle detecting fault later)
-		let compare_rep = self.replicas[0].lock();
-		let ref msg = &compare_rep.deref().write_buffer;
-		for i in 1..self.num_replicas {
-			let rep = self.replicas[i].lock();
-			if !compare_msgs(msg,&rep.write_buffer) {return false}
+		let ref msg = &self.replicas[0].write_buffer;
+		for replica in &self.replicas {
+			if !compare_msgs(msg,&replica.write_buffer) {return false}
 		}
 
 		true
@@ -303,13 +281,11 @@ impl ModComp {
 
 		//find which replica disagrees with the majority
 		for i in 0..self.num_replicas {
-			let rep = self.replicas[i].lock();
-			let msg_a = &rep.write_buffer;
+			let msg_a = &self.replicas[i].write_buffer;
 			for j in 0..self.num_replicas {
 				if i == j {continue}
 
-				let rep_b = self.replicas[j].lock();
-				let msg_b = &rep_b.write_buffer;
+				let msg_b = &self.replicas[j].write_buffer;
 
 				if compare_msgs(msg_a,msg_b) {
 					concensus[i] += 1;

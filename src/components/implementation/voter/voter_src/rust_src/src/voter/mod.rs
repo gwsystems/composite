@@ -87,8 +87,7 @@ pub fn channel_snd(data:[u8;voter_lib::WRITE_BUFF_SIZE], chan_id:usize, comp_id:
 		let mut comp = comp_store_wrapper_lock.lock();
 		let comp = comp.deref_mut().as_mut().unwrap();
 
-		let mut rep = comp.replicas[rep_id].lock();
-		rep.write(data);
+		let mut rep = comp.replicas[rep_id].write(data);
 	}
 	//trigger vote
 	{
@@ -143,6 +142,5 @@ pub fn state_trans(comp_id:usize, rep_id:usize, state:voter_lib::ReplicaState) {
 	let mut comp = comp_store_wrapper_lock.lock();
 	let comp = comp.deref_mut().as_mut().unwrap();
 
-	let mut rep = comp.replicas[rep_id].lock();
-	rep.deref_mut().state_transition(state);
+	let mut rep = comp.replicas[rep_id].state_transition(state);
 }

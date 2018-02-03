@@ -59,7 +59,7 @@ impl Channel {
 
 		for i in 0..component.deref().as_ref().unwrap().num_replicas {
 			let ref mut rep_lock = component.deref_mut().as_mut().unwrap().replicas[i];
-			rep_lock.lock().deref_mut().channel = Some(Arc::clone(&chan_lock));
+			rep_lock.channel = Some(Arc::clone(&chan_lock));
 		}
 
 		return true
@@ -115,14 +115,12 @@ impl Channel {
 	//transfer validated data from replica local buffers to a channel message
 	fn transfer(&mut self,writer:&mut voter_lib::ModComp) {
 		{
-			let mut rep = writer.replicas[0].lock();
-			self.send(rep.write_buffer.to_vec()); //TODO update channel data strucutre to use static allocations
+			self.send(writer.replicas[0].write_buffer.to_vec()); //TODO update channel data strucutre to use static allocations
 		}
 		//clear write_buffers
 		for i in 0..writer.num_replicas {
-			let mut rep = writer.replicas[i].lock();
 			for j in 0..voter_lib::WRITE_BUFF_SIZE {
-				rep.write_buffer[j] = 0;
+				writer.replicas[i].write_buffer[j] = 0;
 			}
 		}
 		writer.new_data = false;
