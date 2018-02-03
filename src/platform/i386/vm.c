@@ -74,26 +74,26 @@ kern_setup_image(void)
 
 	/* FIXME: Ugly hack to get the physical page with the ACPI RSDT mapped */
 	printk("ACPI initialization\n");
-	void *rsdt = acpi_find_rsdt();
+	void *rsdt = miniacpi_find_rsdt();
 	if (rsdt) {
 		u32_t lapic, page;
 		u64_t hpet;
 
 		page             = round_up_to_pgd_page(rsdt) - (1 << 22);
 		boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
-		acpi_set_rsdt_page(j);
+		miniacpi_set_rsdt_page(j);
 		j++;
 
-		hpet = timer_find_hpet(acpi_find_timer());
+		hpet = hpet_find(miniacpi_find_hpet());
 		if (hpet) {
 			page             = round_up_to_pgd_page(hpet & 0xffffffff) - (1 << 22);
 			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
-			timer_set_hpet_page(j);
+			hpet_set_page(j);
 			j++;
 		}
 
 		/* lapic memory map */
-		lapic = lapic_find_localaddr(acpi_find_apic());
+		lapic = lapic_find_localaddr(miniacpi_find_apic());
 		if (lapic) {
 			page             = round_up_to_pgd_page(lapic & 0xffffffff) - (1 << 22);
 			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;

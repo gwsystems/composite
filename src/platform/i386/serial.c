@@ -5,8 +5,6 @@
 #include "isr.h"
 #include "kernel.h"
 
-void serial_puts(const char *s);
-
 enum serial_ports
 {
 	SERIAL_PORT_A = 0x3F8,
@@ -43,7 +41,7 @@ serial_handler(struct pt_regs *r)
 	char serial;
 	int  preempt = 1;
 
-	ack_irq(HW_SERIAL);
+	pic_ack_irq(HW_SERIAL);
 
 	serial = serial_recv();
 
@@ -62,12 +60,12 @@ serial_handler(struct pt_regs *r)
 	case 3: /* FIXME: Obviously remove this once we have working components */
 		die("Break\n");
 	case 'o':
-		timer_set(TIMER_ONESHOT, 50000000);
-		timer_set(TIMER_ONESHOT, 50000000);
+		hpet_set(HPET_ONESHOT, 50000000);
+		hpet_set(HPET_ONESHOT, 50000000);
 		break;
 	case 'p':
-		timer_set(TIMER_PERIODIC, 100000000);
-		timer_set(TIMER_PERIODIC, 100000000);
+		hpet_set(HPET_PERIODIC, 100000000);
+		hpet_set(HPET_PERIODIC, 100000000);
 		break;
 	default:
 		break;

@@ -160,23 +160,6 @@ cls(void)
 	move_csr();
 }
 
-/*
- * Clear the screen and initialize VIDEO, XPOS and YPOS.
- * VIDEO virtual address set to HIGH address.
- */
-void
-vga_init(void)
-{
-	int i = 0;
-
-	video = chal_pa2va(VIDEO);
-
-	csr_x = 0;
-	csr_y = 0;
-	cls();
-	printk_register_handler(vga_puts);
-}
-
 /* Put the character C on the screen. */
 static void
 putchar(int c)
@@ -218,12 +201,29 @@ puts(unsigned char *text)
 	move_csr();
 }
 
+/*
+ * Clear the screen and initialize VIDEO, XPOS and YPOS.
+ * VIDEO virtual address set to HIGH address.
+ */
+void
+vga_init(void)
+{
+	int i = 0;
+
+	video = chal_pa2va(VIDEO);
+
+	csr_x = 0;
+	csr_y = 0;
+	cls();
+	printk_register_handler(vga_puts);
+}
+
 void
 keyboard_handler(struct pt_regs *regs)
 {
 	u16_t scancode = 0;
 
-	ack_irq(HW_KEYBOARD);
+	pic_ack_irq(HW_KEYBOARD);
 
 	while (inb(KEY_PENDING) & 2) {
 		/* wait for keypress to be ready */

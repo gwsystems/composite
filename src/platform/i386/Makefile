@@ -32,6 +32,7 @@ CFLAGS += $(WARNINGS)
 OBJS += kernel.o
 OBJS += gdt.o
 OBJS += idt.o
+OBJS += pic.o
 OBJS += vm.o
 OBJS += printk.o
 OBJS += string.o
