@@ -33,6 +33,7 @@ OBJS += kernel.o
 OBJS += gdt.o
 OBJS += idt.o
 OBJS += pic.o
+OBJS += ioapic.o
 OBJS += vm.o
 OBJS += printk.o
 OBJS += string.o

@@ -1,6 +1,9 @@
 #ifndef LAPIC_H
 #define LAPIC_H
 
+#include "apic_cntl.h"
+
+void         lapic_iter(struct lapic_cntl *);
 u32_t        lapic_find_localaddr(void *l);
 void         lapic_set_page(u32_t page);
 void         lapic_timer_init(void);
