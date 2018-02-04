@@ -17,47 +17,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-/******* CLEAN ME TEMP BOOTER STUBS ********/
-
-// struct cobj_header *hs[MAX_NUM_SPDS + 1];
-
-// void
-// voter_boot_find_cobjs()
-// {
-// 	struct cobj_header *h = (struct cobj_header *)cos_comp_info.cos_poly[0];
-// 	assert(cos_comp_info);
-// 	int n = (int)cos_comp_info.cos_poly[1];
-// 	printc("num objs %d\n",n);
-
-// 	int     i;
-// 	vaddr_t start, end;
-
-// 	start = (vaddr_t)h;
-// 	hs[0] = h;
-// 	printc("header start %p\n",start);
-// 	for (i = 1; i < n; i++) {
-// 		int j = 0, size = 0, tot = 0;
-
-// 		size = h->size;
-// 		for (j = 0; j < (int)h->nsect; j++) {
-// 			tot += cobj_sect_size(h, j);
-// 		}
-// 		printc("cobj %s:%d found at %p:%x, -> %x\n", h->name, h->id, hs[i - 1], size,
-// 		       cobj_sect_get(hs[i - 1], 0)->vaddr);
-
-// 		end   = start + round_up_to_cacheline(size);
-// 		hs[i] = h = (struct cobj_header *)end;
-// 		start     = end;
-// 	}
-
-// 	hs[n] = NULL;
-// 	printc("cobj %s:%d found at %p -> %x\n", hs[n - 1]->name, hs[n - 1]->id, hs[n - 1],
-// 	       cobj_sect_get(hs[n - 1], 0)->vaddr);
-// }
-
-/******* ^^CLEAN ME TEMP BOOTER STUBS ********/
-
-
 /* These are macro values rust needs, so we duplicate them here */
 vaddr_t       boot_mem_km_base            = BOOT_MEM_KM_BASE;
 unsigned long cos_mem_kern_pa_sz          = COS_MEM_KERN_PA_SZ;
@@ -194,7 +153,6 @@ assign_thread_data(struct sl_thd *thread)
 
 extern void rust_init();
 extern void test_call_rs();
-extern void interface_handeler(int);
 
 int rust_initialized = 0;
 
@@ -224,7 +182,7 @@ cos_init()
 	//voter_boot_find_cobjs();
 
 	printc("Entering rust\n");
-	rust_initialized = 1; // this is obvi still vulnerable to preemtpion - temp work around
+	rust_initialized = 1;
 	rust_init();
 }
 

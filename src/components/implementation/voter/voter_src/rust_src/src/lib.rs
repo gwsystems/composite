@@ -9,6 +9,7 @@ use lib_composite::kernel_api::DefKernelAPI;
 use lib_composite::sl::Sl;
 use lib_composite::sys::sl;
 use lib_composite::panic_trace;
+use lib_composite::sl::{ThreadParameter,Thread};
 
 extern {
     pub fn sl_thd_curr_rs() -> *mut sl::sl_thd;
@@ -22,21 +23,6 @@ pub extern fn test_call_rs() {
 }
 
 #[no_mangle]
-pub extern fn interface_handeler(op: u8) {
-	unsafe {print_hack(1)};
-	match op {
-		0 => Sl::spawn2(move |sl: Sl| {test_call_rs();}),
-		_ => panic!("Invalid interface operateion: {}",op),
-	};
-
-
-	// unsafe {
-	// 	let thd_ptr = sl_thd_curr_rs();
-	// 	assign_thread_data(thd_ptr);
-	// }
-}
-
-#[no_mangle]
 pub extern fn rust_init() {
 	let api = unsafe {
 		DefKernelAPI::assert_already_initialized()
@@ -47,6 +33,7 @@ pub extern fn rust_init() {
 		demo_app::start(sl);
 	});
 }
+
 
 fn run_tests(sl:Sl) {
 	// unit_tests::test_state_logic(sl,2);

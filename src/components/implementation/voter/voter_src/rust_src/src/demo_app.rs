@@ -2,35 +2,32 @@ use voter::voter_lib::ReplicaState::*;
 use voter::voter_lib::Replica;
 use lib_composite::sl::Sl;
 use lib_composite::sl_lock::Lock;
-use std::sync::Arc;
 use std::ops::{DerefMut,Deref};
+
 use std::time::Duration;
-use voter::channel::*;
+
 use voter;
+use voter::Voter;
 use lazy_static;
 
+//todo - figure out blocking design. is it okay to have the blocking responsibility live here????
+
 lazy_static! {
-	static ref CHAN_ID:usize = unsafe {voter::channel_create(Sl::assert_scheduler_already_started())};
-	static ref APP_ID:usize = unsafe {voter::voter_new_app_init(3,Sl::assert_scheduler_already_started(),do_work)};
-	static ref SRV_ID:usize = unsafe {voter::voter_new_app_init(1,Sl::assert_scheduler_already_started(),service)};
-	static ref INIT:Lock<bool> = unsafe {Lock::new(Sl::assert_scheduler_already_started(),false)};
+	static ref VOTER:Lock<Voter> = unsafe {
+		Lock::new(Sl::assert_scheduler_already_started(),
+			      voter::Voter::new(3,1,do_work,service,Sl::assert_scheduler_already_started())
+	)};
 }
 
 pub fn start(sl:Sl) {
 	println!("Test app initializing");
-	println!("App Comp id {} Srv Comp id {} chan id {}", *APP_ID,*SRV_ID,*CHAN_ID);
-	voter::channel_join_writer(*CHAN_ID,*APP_ID);
-	voter::channel_join_reader(*CHAN_ID,*SRV_ID);
-	println!("--------------");
-	*INIT.lock().deref_mut() = true;
+	voter::Voter::monitor_vote(&*VOTER, sl);
 }
 
 /************************ Application *************************/
 //todo - add fault cases: diff system calls, one doesnt make sys call, inf loop ...
 
 fn do_work(sl:Sl, rep_id: usize) {
-	while !(INIT.lock().deref()) {sl.block_for(Duration::new(1,0));}
-
 	println!("Replica {:?} starting work ....", rep_id);
 	let mut i = 0;
 	loop {
@@ -45,28 +42,28 @@ fn do_work(sl:Sl, rep_id: usize) {
 fn make_systemcall(sys_call:u8, rep_id:usize, sl:Sl) {
 	println!("Replica {:?} making syscall {:?}", rep_id, sys_call);
 
-	let mut data:[u8;voter::voter_lib::WRITE_BUFF_SIZE] = [sys_call;voter::voter_lib::WRITE_BUFF_SIZE];
-	voter::channel_snd(data,*CHAN_ID,*APP_ID,rep_id,sl);
+	let mut data:[u8;voter::voter_lib::BUFF_SIZE] = [sys_call;voter::voter_lib::BUFF_SIZE];
+	VOTER.lock().deref_mut().request(data,rep_id);
+	println!("rep {} blocking ...",rep_id );
+	sl.block(); // feels like this shouldnt be the apps responsibility.
 }
-
 
 /******************* Service Provider ********************/
 
 fn service(sl:Sl, rep_id: usize) {
-	//while !(INIT.lock().deref()) {sl.block_for(Duration::new(1,0));}
-
-	 //fixme - dont start blocked once we sort out the channel posting issue
+		//worried about how we set state... dont know how to start this in the blocked state.
+		//HACK -- need a real solution around here.
+	{
+		let mut voter = VOTER.lock();
+		for replica in &mut voter.service_provider.replicas {
+			replica.state_transition(voter::voter_lib::ReplicaState::Blocked);
+		}
+	}
 	loop {
-		voter::state_trans(*SRV_ID,rep_id,voter::voter_lib::ReplicaState::Read); //Conisder adding new blocked state
 		sl.block();
 		println!("Service provider waking .... ");
-		let msg = voter::channel_rcv(*CHAN_ID,*SRV_ID,rep_id,sl);
-		if msg.is_some() {
-			println!("performing system call {:?}", msg.unwrap().message);
-		}
-		//voter::channel_wake(*CHAN_ID);
+		let msg = VOTER.lock().deref_mut().service(rep_id);
+		println!("performing system call {:?}", msg);
 		println!("====================");
-		voter::writer_wake(*CHAN_ID);
-		//voter::state_trans(*SRV_ID,rep_id,voter::voter_lib::ReplicaState::Processing);
 	}
 }
