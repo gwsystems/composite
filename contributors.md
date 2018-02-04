@@ -15,6 +15,7 @@ The current primary contributors to _Composite_
 - **Robert Gifford and Lucas Baier** -- Undergraduate students at GWU working to provide rump kernel and TCap support
 - **Gregor Peach, Joseph Espy, Zach Day** -- Undergraduates working Satellite software (cFE)
 - **Vlad Nitu** -- PhD student at Toulouse University, France working on network function OS.
+- **Riley Kennedy** -- Undergraduate student at GWU working on DPDK port for network function OS.
 
 Significant past contributors
 -----------------------------
