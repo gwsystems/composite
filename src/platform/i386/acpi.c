@@ -43,7 +43,7 @@ pa2va(void *pa)
 }
 
 void *
-miniacpi_find_rsdt(void)
+acpi_find_rsdt(void)
 {
 	unsigned char *sig;
 	struct rsdp *  rsdp = NULL;
@@ -78,7 +78,7 @@ miniacpi_find_rsdt(void)
 }
 
 void *
-miniacpi_find_hpet(void)
+acpi_find_hpet(void)
 {
 	pgtbl_t pgtbl = (pgtbl_t)boot_comp_pgd;
 	size_t  i;
@@ -108,7 +108,7 @@ miniacpi_find_hpet(void)
 }
 
 void *
-miniacpi_find_apic(void)
+acpi_find_apic(void)
 {
 	size_t i;
 
@@ -137,7 +137,7 @@ miniacpi_find_apic(void)
 }
 
 void
-miniacpi_set_rsdt_page(u32_t page)
+acpi_set_rsdt_page(u32_t page)
 {
 	basepage = page * (1 << 22);
 	rsdt     = (struct rsdt *)pa2va(rsdt);

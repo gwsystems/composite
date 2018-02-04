@@ -13,7 +13,7 @@
 #include "vga.h"
 #include "serial.h"
 #include "hpet.h"
-#include "miniacpi.h"
+#include "acpi.h"
 #include "lapic.h"
 #include "pic.h"
 
