@@ -2,7 +2,7 @@
 #include "cos_eal_thd.h"
 #include "sl.h"
 
-struct cos_compinfo dpdk_init_info;
+struct cos_compinfo *dpdk_init_info;
 extern struct cos_pci_device devices[PCI_DEVICE_NUM];
 
 #include <llprint.h>
@@ -25,15 +25,13 @@ cos_eal_thd_create(cos_eal_thd_t *thd_id, void *(*func)(void *), void *arg)
 void *
 cos_map_phys_to_virt(void *paddr, unsigned int size)
 {
-	return (void *)cos_hw_map(&dpdk_init_info, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)paddr, size);
+	return (void *)cos_hw_map(dpdk_init_info, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)paddr, size);
 }
 
 void
 cos_init(void)
 {
-	cos_compinfo_init(&dpdk_init_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &dpdk_init_info);
-	cos_meminfo_init(&dpdk_init_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	dpdk_init_info = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 	int argc = 3;
 	char arg1[] = "DEBUG", arg2[] = "-l", arg3[] = "0";
