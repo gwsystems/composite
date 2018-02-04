@@ -980,10 +980,8 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 		sz -= PAGE_SIZE;
 		pa += PAGE_SIZE;
 
-		if (sz > 0)
-			va = __page_bump_valloc(ci, PAGE_SIZE);
-		else
-			break;
+		if (sz <= 0) break;
+		va = __page_bump_valloc(ci, PAGE_SIZE);
 	}
 
 	return (void *)fva;
