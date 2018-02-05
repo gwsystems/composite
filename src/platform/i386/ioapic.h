@@ -3,6 +3,8 @@
 
 #include "apic_cntl.h"
 
+void ioapic_init(void);
+
 void ioapic_iter(struct ioapic_cntl *);
 void ioapic_int_mask(int irq);
 void ioapic_int_unmask(int irq);

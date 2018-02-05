@@ -1,3 +1,4 @@
+#include "kernel.h"
 #include "pic.h"
 
 #define PIC_IRQ_BASE    0x20
@@ -27,14 +28,14 @@
 #define PIC_ICW4_SFNM       0x10 /* Special fully nested (not) */
 #define PIC_ICW1_ICW4       0x01
 
-static void
+void
 pic_disable(void)
 {
 	outb(PIC1_DATA, PIC_ALL_DISABLE);
 	outb(PIC2_DATA, PIC_ALL_DISABLE);
 }
 
-static void
+void
 pic_enable(void)
 {
 	outb(PIC1_DATA, PIC_ALL_ENABLE);
@@ -44,6 +45,7 @@ pic_enable(void)
 void
 pic_init(void)
 {
+	printk("Setting up PIC\n");
 	outb(PIC1_CMD, PIC_ICW1_INIT | PIC_ICW1_ICW4);
 	outb(PIC2_CMD, PIC_ICW1_INIT | PIC_ICW1_ICW4);
 	outb(PIC1_DATA, PIC_IRQ_BASE);
@@ -53,5 +55,5 @@ pic_init(void)
 	outb(PIC1_DATA, PIC_ICW4_8086);
 	outb(PIC2_DATA, PIC_ICW4_8086);
 
-	pic_disable();
+	pic_enable();
 }

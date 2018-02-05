@@ -4,6 +4,8 @@
 #include "io.h"
 
 void pic_init(void);
+void pic_enable(void);
+void pic_disable(void);
 
 static void
 pic_ack_irq(int n)

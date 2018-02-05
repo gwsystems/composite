@@ -79,7 +79,6 @@ serial_handler(struct pt_regs *r)
 void
 serial_init(void)
 {
-	printk("Enabling serial I/O\n");
 	printk_register_handler(serial_puts);
 
 	/* We will initialize the first serial port */
@@ -92,4 +91,5 @@ serial_init(void)
 	outb(SERIAL_PORT_A + 4, 0x0B);
 
 	outb(SERIAL_PORT_A + 1, 0x01); /* Enable interrupts on receive */
+	printk("Enabling serial I/O\n");
 }

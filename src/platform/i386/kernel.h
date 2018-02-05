@@ -16,6 +16,7 @@
 #include "acpi.h"
 #include "lapic.h"
 #include "pic.h"
+#include "ioapic.h"
 
 void  tss_init(void);
 void  idt_init(void);

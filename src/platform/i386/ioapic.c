@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "ioapic.h"
+#include "pic.h"
 
 #define IOAPIC_MAX 4
 
@@ -42,107 +43,153 @@ enum ioapic_triggermode
         IOAPIC_TRIGGER_LEVEL = 1,
 };
 
+struct ioapic_info {
+	unsigned int   ioapicid;
+	volatile void *io_vaddr;
+	int            nentries;
+	int            glbint_base;
+};
 
-static volatile void *ioapic_base = (volatile void *)0xfec00000;
+static struct ioapic_info ioapicinfo[IOAPIC_MAX] = { { 0, NULL, 0, 0} };
 static unsigned int ioapic_count;
 
 void
-ioapic_set_page(u32_t page)
+ioapic_set_page(struct ioapic_info *io, u32_t page)
 {
-        ioapic_base = (volatile u32_t *)(page * (1 << 22) | ((u32_t)ioapic_base & ((1 << 22) - 1)));
+        io->io_vaddr = (volatile u32_t *)(page * (1 << 22) | ((u32_t)io->io_vaddr & ((1 << 22) - 1)));
 
-        printk("\tSet IOAPIC @ %p\n", ioapic_base);
+        printk("\tSet IOAPIC %d @ %p\n", io->ioapicid, io->io_vaddr);
 }
 
 static void
-ioapic_reg_write(u8_t offset, u32_t val)
+ioapic_reg_write(struct ioapic_info *io, u8_t offset, u32_t val)
 {
-        *(volatile u32_t *)(ioapic_base + IOAPIC_IOREGSEL) = offset;
-        *(volatile u32_t *)(ioapic_base + IOAPIC_IOWIN)    = val;
+        *(volatile u32_t *)(io->io_vaddr + IOAPIC_IOREGSEL) = offset;
+        *(volatile u32_t *)(io->io_vaddr + IOAPIC_IOWIN)    = val;
 }
 
 static u32_t
-ioapic_reg_read(u8_t offset)
+ioapic_reg_read(struct ioapic_info *io, u8_t offset)
 {
-        *(volatile u32_t *)(ioapic_base + IOAPIC_IOREGSEL) = offset;
+        *(volatile u32_t *)(io->io_vaddr + IOAPIC_IOREGSEL) = offset;
 
-        return *(volatile u32_t *)(ioapic_base + IOAPIC_IOWIN);
+        return *(volatile u32_t *)(io->io_vaddr + IOAPIC_IOWIN);
 }
 
 void
 ioapic_int_mask(int intnum)
 {
-        /*
-         * TODO:
-         * 1. how to find which IOAPIC ? 
-         * 2. read register (only first 32bits) for that redirection entry.
-         * 3. mask that bit and write that register back.
-         */
+	/* TODO */
 }
 
 void
 ioapic_int_unmask(int intnum)
 {
-        /*
-         * TODO:
-         * 1. how to find which IOAPIC ? 
-         * 2. read register (only first 32bits) for that redirection entry.
-         * 3. unmask that bit and write that register back.
-         */
+	/* TODO */
+}
+
+static struct ioapic_info *
+ioapic_findbygsi(int irq)
+{
+	unsigned int i = 0;
+
+	for (; i < ioapic_count; i++) {
+		if (irq >= ioapicinfo[i].glbint_base && irq < ioapicinfo[i].nentries) return &ioapicinfo[i];
+	}
+
+	return NULL;
+}
+
+static struct ioapic_info *
+ioapic_findbyid(int id)
+{
+	unsigned int i = 0;
+
+	for (; i < ioapic_count; i++) {
+		if (id == (int)(ioapicinfo[i].ioapicid)) return &ioapicinfo[i];
+	}
+
+	return NULL;
 }
 
 void
 ioapic_int_override(struct intsrcovrride_cntl *iso)
 {
-	int src, gsi;
-
 	assert(iso->header.len == sizeof(struct intsrcovrride_cntl));
-	printk("\tInterrupt Source Override for [%u] => %u\n", iso->source, iso->glb_int_num_off);
-
-	/* TODO: Find the right IOAPIC based on the GSI base in IOAPIC info */
 
 	if (iso->source != iso->glb_int_num_off) {
-		ioapic_reg_write(IOAPIC_IOREDTBL_OFFSET(iso->glb_int_num_off), iso->source + 32);
+		struct ioapic_info *ioap = ioapic_findbygsi(iso->glb_int_num_off);
+
+		assert(ioap);
+		printk("\tInterrupt Source Override for [%u] => %u with IOAPIC %d\n", iso->source, iso->glb_int_num_off, ioap->ioapicid);
+		ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(iso->glb_int_num_off), iso->source + 32);
 	}
 }
 
 void
 ioapic_int_enable(int irqnum, int cpunum, int addflag)
 {
+	struct ioapic_info *ioap = ioapic_findbygsi(irqnum);
+
+	assert(ioap);
 	if (addflag) {
 		/* TODO: logical destination = 1 and add core no or lapic number? */
 	} else {
-		ioapic_reg_write(IOAPIC_IOREDTBL_OFFSET(irqnum), irqnum + 32);
-		ioapic_reg_write(IOAPIC_IOREDTBL_OFFSET(irqnum)+1, cpunum<<24);
+		ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum), irqnum + 32);
+		ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum)+1, cpunum<<24);
 	}
 }
 
 void
 ioapic_int_disable(int irqnum)
 {
-        ioapic_reg_write(IOAPIC_IOREDTBL_OFFSET(irqnum), IOAPIC_INT_DISABLED | irqnum);
-        ioapic_reg_write(IOAPIC_IOREDTBL_OFFSET(irqnum)+1, 0);
+	struct ioapic_info *ioap = ioapic_findbygsi(irqnum);
+
+	assert(ioap);
+        ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum), IOAPIC_INT_DISABLED | irqnum);
+        ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum)+1, 0);
 }
 
 void
 ioapic_iter(struct ioapic_cntl *io)
 {
-	u32_t ver, ioent, i;
+	u32_t ver;
+	int ioent, j;
+	static int more = 0;
 
 	assert(io);
 
-	ioapic_count ++;
+	if (ioapic_count == IOAPIC_MAX) {
+		more ++;
+		printk("\t%d more than %d IOAPICs present..\n", more, IOAPIC_MAX);
+		return;
+	}
 	
-	/* FIXME: Just one for now! */
-	if (ioapic_count > 1) return;
+	ioapicinfo[ioapic_count].io_vaddr = (volatile void *)(io->ioapic_phys_addr);	
+	ioapicinfo[ioapic_count].ioapicid = io->ioapic_id;
+	ioapic_set_page(&(ioapicinfo[ioapic_count]), vm_set_supage((u32_t)(ioapicinfo[ioapic_count].io_vaddr)));
 
-	ioapic_base = (volatile u32_t *)(io->ioapic_phys_addr);
-	ioapic_set_page(vm_set_supage((u32_t)ioapic_base));
-
-	ver   = ioapic_reg_read(IOAPIC_IOAPICVER);
+	ver   = ioapic_reg_read(&ioapicinfo[ioapic_count], IOAPIC_IOAPICVER);
 	ioent = ((ver >> 16) & 0xFF) + 1;
+	printk("\tIOAPIC %d (counter:%d): Number of entries = %d\n", io->ioapic_id, ioapic_count, ioent);
 
-	printk("\tIOAPIC %d: Number of entries = %d\n", io->ioapic_id, ioent);
+	ioapicinfo[ioapic_count].nentries    = ioent;
+	ioapicinfo[ioapic_count].glbint_base = io->glb_int_num_off;
+	ioapic_count ++;
 
-	for (i = 0; i < ioent; i++) ioapic_int_enable(i, 0, 0);
+	for (j = 0; j < ioent; j++) ioapic_int_enable(io->glb_int_num_off + j, 0, 0); /* TODO: assign to different cores */
+}
+
+void
+ioapic_init(void)
+{
+	assert(ioapic_count);
+	pic_disable();
+
+	printk("Setting up IOAPIC (disabling PIC)\n");
+
+	/*
+	 * PCI Interrupts may need some attention here.
+	 * TODO: Test it with NIC in RK env.
+	 */
 }

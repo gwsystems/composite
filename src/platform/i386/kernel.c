@@ -158,6 +158,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	hpet_init();
 	lapic_timer_init();
 	pic_init();
+	ioapic_init();
 	kern_boot_upcall();
 	/* should not get here... */
 	khalt();
