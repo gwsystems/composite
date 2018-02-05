@@ -122,7 +122,7 @@ ioapic_int_override(struct intsrcovrride_cntl *iso)
 
 		assert(ioap);
 		printk("\tInterrupt Source Override for [%u] => %u with IOAPIC %d\n", iso->source, iso->glb_int_num_off, ioap->ioapicid);
-		ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(iso->glb_int_num_off), iso->source + 32);
+		ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(iso->glb_int_num_off), iso->source + HW_IRQ_START);
 	}
 }
 
@@ -135,7 +135,7 @@ ioapic_int_enable(int irqnum, int cpunum, int addflag)
 	if (addflag) {
 		/* TODO: logical destination = 1 and add core no or lapic number? */
 	} else {
-		ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum), irqnum + 32);
+		ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum), irqnum + HW_IRQ_START);
 		ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum)+1, cpunum<<24);
 	}
 }
@@ -146,8 +146,8 @@ ioapic_int_disable(int irqnum)
 	struct ioapic_info *ioap = ioapic_findbygsi(irqnum);
 
 	assert(ioap);
-        ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum), IOAPIC_INT_DISABLED | irqnum);
-        ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum)+1, 0);
+	ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum), IOAPIC_INT_DISABLED | irqnum);
+	ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum)+1, 0);
 }
 
 void
@@ -162,6 +162,7 @@ ioapic_iter(struct ioapic_cntl *io)
 	if (ioapic_count == IOAPIC_MAX) {
 		more ++;
 		printk("\t%d more than %d IOAPICs present..\n", more, IOAPIC_MAX);
+
 		return;
 	}
 	

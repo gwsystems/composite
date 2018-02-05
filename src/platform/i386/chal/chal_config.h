@@ -13,8 +13,10 @@ typedef signed int         s32_t;
 typedef signed long long   s64_t;
 #endif
 
+#define HW_IRQ_START 32
+
 typedef enum {
-	HW_HPET_PERIODIC = 32, /* periodic timer interrupt */
+	HW_HPET_PERIODIC = HW_IRQ_START, /* periodic timer interrupt */
 	HW_KEYBOARD,      /* keyboard interrupt */
 	HW_ID3,
 	HW_ID4,
