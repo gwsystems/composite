@@ -44,9 +44,6 @@
 #define VGA_CTL_REG 0x3D4
 #define VGA_DATA_REG 0x3D5
 
-#define KEY_DEVICE 0x60
-#define KEY_PENDING 0x64
-
 /* Variables. */
 /* Save the X position. */
 static int csr_x;
@@ -216,18 +213,4 @@ vga_init(void)
 	csr_y = 0;
 	cls();
 	printk_register_handler(vga_puts);
-}
-
-void
-keyboard_handler(struct pt_regs *regs)
-{
-	u16_t scancode = 0;
-
-	pic_ack_irq(HW_KEYBOARD);
-
-	while (inb(KEY_PENDING) & 2) {
-		/* wait for keypress to be ready */
-	}
-	scancode = inb(KEY_DEVICE);
-	printk("Keyboard press: %d\n", scancode);
 }

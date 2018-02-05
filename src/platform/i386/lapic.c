@@ -66,7 +66,7 @@ lapic_write_reg(u32_t off, u32_t val)
 	*(u32_t *)(lapic + off) = val;
 }
 
-static void
+void
 lapic_ack(void)
 {
 	if (lapic) lapic_write_reg(LAPIC_EOI_REG, 0);

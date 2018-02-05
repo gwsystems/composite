@@ -3,6 +3,7 @@
 
 #include "apic_cntl.h"
 
+void         lapic_ack(void);
 void         lapic_iter(struct lapic_cntl *);
 u32_t        lapic_find_localaddr(void *l);
 void         lapic_set_page(u32_t page);

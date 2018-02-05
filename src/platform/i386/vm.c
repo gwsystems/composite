@@ -52,6 +52,21 @@ u8_t *mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 	return r;
 }
 
+static unsigned long vm_pgd_idx = COS_MEM_KERN_START_VA / PGD_RANGE;
+
+int
+vm_set_supage(u32_t addr)
+{
+	int idx = vm_pgd_idx;
+	u32_t page;
+	
+	page = round_to_pgd_page(addr);
+	boot_comp_pgd[idx] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
+	vm_pgd_idx ++;
+
+	return idx;
+}
+
 int
 kern_setup_image(void)
 {
@@ -72,6 +87,8 @@ kern_setup_image(void)
 		boot_comp_pgd[i / PGD_RANGE] = 0; /* unmap lower addresses */
 	}
 
+	vm_pgd_idx = j;
+
 	/* FIXME: Ugly hack to get the physical page with the ACPI RSDT mapped */
 	printk("ACPI initialization\n");
 	void *rsdt = acpi_find_rsdt();
@@ -80,28 +97,17 @@ kern_setup_image(void)
 		u64_t hpet;
 
 		page             = round_up_to_pgd_page(rsdt) - (1 << 22);
-		boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
-		acpi_set_rsdt_page(j);
-		j++;
+		acpi_set_rsdt_page(vm_set_supage(page));
 
 		hpet = hpet_find(acpi_find_hpet());
-		if (hpet) {
-			page             = round_up_to_pgd_page(hpet & 0xffffffff) - (1 << 22);
-			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
-			hpet_set_page(j);
-			j++;
-		}
+		if (hpet) hpet_set_page(vm_set_supage(hpet));
 
 		/* lapic memory map */
 		lapic = lapic_find_localaddr(acpi_find_apic());
-		if (lapic) {
-			page             = round_up_to_pgd_page(lapic & 0xffffffff) - (1 << 22);
-			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
-			lapic_set_page(j);
-			j++;
-		}
+		if (lapic) lapic_set_page(vm_set_supage(lapic));
 	}
 
+	j = vm_pgd_idx;
 	for (; j < PAGE_SIZE / sizeof(unsigned int); i += PGD_RANGE, j++) {
 		boot_comp_pgd[j] = boot_comp_pgd[i / PGD_RANGE] = 0;
 	}

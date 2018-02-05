@@ -47,7 +47,7 @@ hw_handler(struct pt_regs *regs)
 	 * TODO: ack here? or
 	 *       after user-level interrupt(rcv event) processing?
 	 */
-	pic_ack_irq(regs->orig_ax);
+	lapic_ack();
 	preempt = cap_hw_asnd(&hw_asnd_caps[regs->orig_ax], regs);
 
 	return preempt;

@@ -175,6 +175,10 @@ acpi_madt_intsrc_iter(unsigned char *addr)
 			ioapic_iter((struct ioapic_cntl *)h);
 			break;
 		}
+		case APIC_CNTL_ISO: {
+			ioapic_int_override((struct intsrcovrride_cntl *)h);
+			break;
+		}
 		default:
 			/* See 5.2.12 in the ACPI 5.0 Spec */
 			printk("\tInterrupt controller type %d: ignoring\n", h->type);

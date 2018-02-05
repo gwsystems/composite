@@ -41,7 +41,7 @@ serial_handler(struct pt_regs *r)
 	char serial;
 	int  preempt = 1;
 
-	pic_ack_irq(HW_SERIAL);
+	lapic_ack();
 
 	serial = serial_recv();
 

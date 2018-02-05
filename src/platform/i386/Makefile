@@ -46,6 +46,7 @@ OBJS += chal.o
 OBJS += boot_comp.o
 OBJS += acpi.o
 OBJS += vga.o
+OBJS += keyboard.o
 OBJS += exception.o
 OBJS += lapic.o
 

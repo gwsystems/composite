@@ -184,7 +184,7 @@ hpet_periodic_handler(struct pt_regs *regs)
 
 	if (unlikely(hpet_calibration_init)) hpet_calibration();
 
-	pic_ack_irq(HW_HPET_PERIODIC);
+	lapic_ack();
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_HPET_PERIODIC], regs);
 	HPET_INT_ENABLE(HPET_PERIODIC);
 
@@ -198,7 +198,7 @@ hpet_oneshot_handler(struct pt_regs *regs)
 
 	assert(!hpet_calibration_init);
 
-	pic_ack_irq(HW_HPET_ONESHOT);
+	lapic_ack();
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_HPET_ONESHOT], regs);
 	HPET_INT_ENABLE(HPET_ONESHOT);
 

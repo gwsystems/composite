@@ -53,5 +53,5 @@ pic_init(void)
 	outb(PIC1_DATA, PIC_ICW4_8086);
 	outb(PIC2_DATA, PIC_ICW4_8086);
 
-	pic_enable();
+	pic_disable();
 }
