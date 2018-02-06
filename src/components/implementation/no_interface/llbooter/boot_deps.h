@@ -184,11 +184,10 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched,
 	cc = cos_comp_alloc(boot_info, ct, pt, (vaddr_t)new_comp_cap_info[spdid].upcall_entry);
 
 	assert(cc);
-	//manually laying out struct due to upcall addr calculation
+	/* manually laying out struct due to upcall addr calculation */
 	boot_newcomp_definfo_init(spdid, cc, is_sched);
 
-	/* Create sinv capability from Userspace to Booter components */
-
+	/* Create sinv capability from Components to Booter */
 	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)__inv_test_entry,
 			(unsigned long)spdid);
 	assert(sinv);
@@ -197,19 +196,17 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched,
 
 	boot_newcomp_sinv_alloc(spdid);
 
-	if (is_sched || is_shdmem) boot_newschedcomp_cap_init(spdid, ct, pt, cc);
+	if (is_sched || is_shdmem) {
+		boot_newschedcomp_cap_init(spdid, ct, pt, cc);
 
-	thd = sl_thd_comp_init(new_comp_cap_info[spdid].defcompinfo, is_sched);
-	assert(thd);
-
-	/* HACK skipping udpserver so that only the RK runs it, this only works for RG's setup */
-	if (spdid != UDP_SPDID) {
+		thd = sl_thd_comp_init(new_comp_cap_info[spdid].defcompinfo, is_sched);
+		assert(thd);
 		sl_thd_param_set(thd, sched_param_pack(SCHEDP_PRIO, THD_PRIO));
 	}
 
 	if (is_sched) {
-		sl_thd_param_set(thd,sched_param_pack(SCHEDP_BUDGET, THD_BUDGET * 1000));
-		sl_thd_param_set(thd,sched_param_pack(SCHEDP_WINDOW, THD_PERIOD * 1000));
+		sl_thd_param_set(thd, sched_param_pack(SCHEDP_BUDGET, THD_BUDGET * 1000));
+		sl_thd_param_set(thd, sched_param_pack(SCHEDP_WINDOW, THD_PERIOD * 1000));
 	}
 }
 
@@ -264,7 +261,7 @@ boot_thd_done(void)
 void
 boot_pgtbl_cap_transfer(int dst, int src, int cap_slot)
 {
-	printc("booter transfering pgtbl: %lu to: %d, from: %d, into: %d...",
+	printc("booter transfering pgtbl cap: %lu to: %d, from: %d, into: %d...",
 		new_comp_cap_info[src].compinfo->pgtbl_cap, dst, src, cap_slot);
 	cos_cap_cpy_at(new_comp_cap_info[dst].compinfo, cap_slot, boot_info,
 		new_comp_cap_info[src].compinfo->pgtbl_cap);
@@ -272,18 +269,15 @@ boot_pgtbl_cap_transfer(int dst, int src, int cap_slot)
 }
 
 void
-boot_thd_cap_transfer(int dst, int src, int cap_slot)
+boot_comp_cap_transfer(int dst, int src, int cap_slot)
 {
-	/*
-	 * This is a hack! This only works for RG's specific boot layout and
-	 * was put in place to make progress. REMOVE IF NOT USING HIS SET UP
-	 * This will not work for any generic thd transfer, only from udpserver
-	 */
-	printc("booter transfering thd...");
+	printc("booter transfering comp cap: %lu to: %d, from: %d, into: %d...",
+		new_comp_cap_info[src].compinfo->comp_cap, dst, src, cap_slot);
 	cos_cap_cpy_at(new_comp_cap_info[dst].compinfo, cap_slot, boot_info,
-		new_comp_cap_info[UDP_SPDID].defcompinfo->sched_aep.thd);
+		new_comp_cap_info[src].compinfo->comp_cap);
 	printc("done\n");
 }
+
 
 void *
 boot_sinv_fn(boot_sinv_op op, void *arg1, void *arg2, void *arg3)
@@ -292,20 +286,16 @@ boot_sinv_fn(boot_sinv_op op, void *arg1, void *arg2, void *arg3)
 
 	switch (op) {
 		case INIT_DONE:
+			/* DEPRICATED, should not be needed as llbooter is not scheduler */
 			boot_thd_done();
 			break;
 		case REQ_PGTBL_CAP:
-			/* arg1: dst, arg2: src, arg3: cap_slot */
+			/* arg1: dst comp, arg2: src comp, arg3: cap_slot */
 			boot_pgtbl_cap_transfer((int)arg1, (int)arg2, (int)arg3);
 			ret = (void *)0;
 			break;
 		case REQ_NUM_COMPS:
 			ret = (void *)num_cobj;
-			break;
-		case REQ_THD_CAP:
-			/* arg1: dst: arg2: src, arg3: cap_slot */
-			boot_thd_cap_transfer((int)arg1, (int)arg2, (int)arg3);
-			ret = (void *)0;
 			break;
 		case REQ_SINV_CAP:
 			printc("Sinv cap request not implemented\n");
@@ -313,6 +303,11 @@ boot_sinv_fn(boot_sinv_op op, void *arg1, void *arg2, void *arg3)
 		case REQ_CAP_FRONTIER:
 			/* arg1: spdid */
 			ret = (void *)new_comp_cap_info[(int)arg1].compinfo->cap_frontier;
+			break;
+		case REQ_COMP_CAP:
+			/* arg1: dst comp spdid, arg2: src comp spdid, arg3: cap_slot */
+			boot_comp_cap_transfer((int)arg1, (int)arg2, (int)arg3);
+			ret = (void *)0;
 			break;
 		default:
 			printc("op: %d not supported!\n", op);

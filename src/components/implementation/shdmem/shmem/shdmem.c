@@ -79,9 +79,9 @@ __get_pgtbls()
 		/* Already have access to my own page table */
 		if (i == SHMEM_TOKEN) continue;
 
-       		cap_index = cos_capid_bump_alloc(shm_cinfo, CAP_PGTBL);
-		printc("cap_index to transfer to: %lu\n", cap_index);
-		cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_PGTBL_CAP, SHMEM_TOKEN, i, cap_index);
+		cap_index = (unsigned int)cos_hypervisor_get_resource(REQ_PGTBL_CAP,
+				(void *)SHMEM_TOKEN, (void *)i, (void *)shm_cinfo);
+		assert(cap_index > 0);
 		__create_shm_info(i, cap_index);
 	}
 

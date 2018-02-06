@@ -160,6 +160,12 @@ int cos_introspect64(struct cos_compinfo *ci, capid_t cap, unsigned long op, u64
 
 int cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4);
 
+/*
+ * Calls down to the booter to access necessary resources that are needed for
+ * higher level resource managers
+ */
+void * cos_hypervisor_get_resource(int op, void *arg1, void *arg2, void *arg3);
+
 vaddr_t cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
 int     cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);
 vaddr_t cos_mem_move(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);

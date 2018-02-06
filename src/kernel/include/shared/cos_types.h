@@ -36,10 +36,10 @@ typedef unsigned long sched_tok_t;
 typedef enum {
 	INIT_DONE,
 	REQ_PGTBL_CAP,
-	REQ_THD_CAP,
 	REQ_SINV_CAP,
 	REQ_CAP_FRONTIER,
 	REQ_NUM_COMPS,
+	REQ_COMP_CAP,
 } boot_sinv_op;	
 
 /*

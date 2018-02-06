@@ -92,5 +92,6 @@ cos_init(void)
 	printc("FIXME, this should be booted by the RK component...\n");
 	printc("TODO, for now... just have the RK add the main thread for this to the booter's runq after the RK is done booting\n");
 
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, cos_comp_info.cos_this_spd_id, 0, 0);
+	/* Spinning */
+	while(1);
 }

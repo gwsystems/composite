@@ -137,8 +137,8 @@ rump_booter_init(void *d)
 	return;
 }
 
-int spdid;
 capid_t udpserv_thdcap = -1;
+int spdid;
 
 void
 cos_init(void)
@@ -161,13 +161,17 @@ cos_init(void)
 	cycs_per_usec = (cycles_t)cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	/*
-	 * We don't know how many sinv's have been allocated for us, so switch back to booter to get
-	 * the frontier value
+	 * We don't know how many sinv's have been allocated for us,
+	 * so switch back to booter to get the frontier value
 	 */
 
 	printc("Fetching cap frontier from booter...");
-	spdid = cos_comp_info.cos_this_spd_id;
-	cap_frontier = (unsigned long)cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_CAP_FRONTIER, spdid, 0, 0);
+	cos_spdid_set(cos_comp_info.cos_this_spd_id);
+	spdid = cos_spdid_get();
+	printc("spdid: %d\n", spdid);
+
+	cap_frontier = (unsigned long)cos_hypervisor_get_resource(REQ_CAP_FRONTIER,
+			(void *)cos_spdid_get(), 0, 0);
 	assert(cap_frontier > 0);
 	printc("done\n");
 
@@ -175,14 +179,6 @@ cos_init(void)
 			(vaddr_t)cos_get_heap_ptr(), cap_frontier, ci);
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ,
 			BOOT_CAPTBL_SELF_UNTYPED_PT);
-
-	/*
-	 * Callback into the llbooter to have the udpserver thread copied
-	 * in to a new offset that we allocate here
-	 */
-	udpserv_thdcap = cos_capid_bump_alloc(ci, CAP_THD);
-	assert(udpserv_thdcap);
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_THD_CAP, spdid, 0, udpserv_thdcap);
 
 	printc("Setting up RK\n");
 	rump_booter_init((void *)0);
