@@ -21,8 +21,6 @@ void boot_thd_cap_transfer(int dst, int src, int cap_slot);
 
 struct cobj_header *hs[MAX_NUM_SPDS + 1];
 
-#define UDP_SPDID 3
-
 /* The booter uses this to keep track of each comp */
 struct comp_cap_info {
 	struct cos_compinfo    *compinfo;
@@ -80,8 +78,9 @@ boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t vaddr)
 	assert(*pt);
 
 	new_comp_cap_info[spdid].defcompinfo = &new_defcompinfo[spdid];
-	new_comp_cap_info[spdid].compinfo =  cos_compinfo_get(&new_defcompinfo[spdid]);
-	cos_compinfo_init(cos_compinfo_get(new_comp_cap_info[spdid].defcompinfo), *pt, *ct, 0, (vaddr_t)vaddr, BOOT_CAPTBL_FREE, boot_info);
+	new_comp_cap_info[spdid].compinfo    = cos_compinfo_get(&new_defcompinfo[spdid]);
+	cos_compinfo_init(cos_compinfo_get(new_comp_cap_info[spdid].defcompinfo),
+			*pt, *ct, 0, (vaddr_t)vaddr, BOOT_CAPTBL_FREE, boot_info);
 }
 
 static void
@@ -115,8 +114,12 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 
 			new_comp_cap_info[spdid].ST_user_caps[i].cap_no = sinv;
 
-			/* Now that we have the sinv allocated, we can copy in the symb user cap to correct index */
-			memcpy(user_cap_vaddr, &new_comp_cap_info[spdid].ST_user_caps[i], sizeof(struct usr_inv_cap));
+			/*
+			 * Now that we have the sinv allocated, we can copy in the symb user
+			 * cap to correct index
+			 */
+			memcpy(user_cap_vaddr, &new_comp_cap_info[spdid].ST_user_caps[i],
+					sizeof(struct usr_inv_cap));
 		}
 	}
 }
@@ -126,9 +129,9 @@ boot_newcomp_definfo_init(spdid_t spdid, compcap_t cc, int is_sched)
 {
 
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
-	struct cos_aep_info *   sched_aep = cos_sched_aep_get(defci);
-	struct cos_aep_info *   child_aep = cos_sched_aep_get(new_comp_cap_info[spdid].defcompinfo);
-	struct cos_compinfo *   child_ci  = cos_compinfo_get(new_comp_cap_info[spdid].defcompinfo);
+	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
+	struct cos_aep_info    *child_aep = cos_sched_aep_get(new_comp_cap_info[spdid].defcompinfo);
+	struct cos_compinfo    *child_ci  = cos_compinfo_get(new_comp_cap_info[spdid].defcompinfo);
 
 	child_ci->comp_cap = cc;
 	child_aep->thd = cos_initthd_alloc(boot_info, child_ci->comp_cap);
@@ -138,11 +141,10 @@ boot_newcomp_definfo_init(spdid_t spdid, compcap_t cc, int is_sched)
 		child_aep->tc = cos_tcap_alloc(boot_info);
 		assert(child_aep->tc);
 
-		child_aep->rcv = cos_arcv_alloc(boot_info, child_aep->thd, child_aep->tc, boot_info->comp_cap, sched_aep->rcv);
+		child_aep->rcv = cos_arcv_alloc(boot_info, child_aep->thd, child_aep->tc,
+				boot_info->comp_cap, sched_aep->rcv);
 		assert(child_aep->rcv);
-	}
-
-	else {
+	} else {
 		child_aep->tc  = sched_aep->tc;
 		child_aep->rcv = sched_aep->rcv;
 	}
@@ -152,26 +154,35 @@ boot_newcomp_definfo_init(spdid_t spdid, compcap_t cc, int is_sched)
 }
 
 static void
-boot_newschedcomp_cap_init(spdid_t spdid, captblcap_t ct, pgtblcap_t pt, compcap_t cc) {
-		struct cos_aep_info *   child_aep = cos_sched_aep_get(new_comp_cap_info[spdid].defcompinfo);
-		pgtblcap_t              untype_pt;
+boot_newschedcomp_cap_init(spdid_t spdid, captblcap_t ct, pgtblcap_t pt, compcap_t cc) 
+{
+	struct cos_aep_info *   child_aep = cos_sched_aep_get(new_comp_cap_info[spdid].defcompinfo);
+	pgtblcap_t              untype_pt;
 
-		untype_pt = cos_pgtbl_alloc(boot_info);
-		assert(untype_pt);
-		cos_meminfo_init(&(new_comp_cap_info[spdid].compinfo->mi), BOOT_MEM_KM_BASE, CMP_UTYPMEM_SZ, untype_pt);
+	untype_pt = cos_pgtbl_alloc(boot_info);
+	assert(untype_pt);
+	cos_meminfo_init(&(new_comp_cap_info[spdid].compinfo->mi), BOOT_MEM_KM_BASE,
+			CMP_UTYPMEM_SZ, untype_pt);
 
-		cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_INITHW_BASE, boot_info, BOOT_CAPTBL_SELF_INITHW_BASE);
-		cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_CT, boot_info, ct);
-	 	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_UNTYPED_PT, boot_info, untype_pt);
-		cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_PT, boot_info, pt);
-		cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_COMP, boot_info, cc);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_INITHW_BASE,
+			boot_info, BOOT_CAPTBL_SELF_INITHW_BASE);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_CT,
+			boot_info, ct);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_UNTYPED_PT,
+			boot_info, untype_pt);
 
-	 	/* Populate untyped memory */
-		cos_meminfo_alloc(new_comp_cap_info[spdid].compinfo, BOOT_MEM_KM_BASE, CMP_UTYPMEM_SZ);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_PT, boot_info, pt);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_COMP, boot_info, cc);
 
-		cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_INITTHD_BASE, boot_info, child_aep->thd);
-		cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_INITTCAP_BASE, boot_info, child_aep->tc);
-		cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_INITRCV_BASE, boot_info, child_aep->rcv);
+	/* Populate untyped memory */
+	cos_meminfo_alloc(new_comp_cap_info[spdid].compinfo, BOOT_MEM_KM_BASE, CMP_UTYPMEM_SZ);
+
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_INITTHD_BASE,
+			boot_info, child_aep->thd);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_INITTCAP_BASE,
+			boot_info, child_aep->tc);
+	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SELF_INITRCV_BASE,
+			boot_info, child_aep->rcv);
 }
 
 static void
@@ -192,6 +203,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched,
 	/* Create sinv capability from Components to Booter */
 	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)__inv_test_entry,
 			(unsigned long)spdid);
+
 	assert(sinv);
 
 	cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);
@@ -219,7 +231,8 @@ boot_bootcomp_init(void)
 	boot_info = cos_compinfo_get(cos_defcompinfo_curr_get());
 	assert(boot_info);
 
-	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ,
+			BOOT_CAPTBL_SELF_UNTYPED_PT);
 	sl_init(SL_MIN_PERIOD_US);
 }
 
@@ -232,23 +245,29 @@ boot_done(void)
 }
 
 static int
-boot_check_scheduler(char *comp_name) {
+boot_check_scheduler(char *comp_name)
+{
 	int i;
 	char *prefix = "sl_";
 
-	for (i = 0; i < 3; i++)
-		if (comp_name[i] == '\0' || comp_name[i] != prefix[i]) return 0;
+	for (i = 0; i < 3; i++) {
+		if (comp_name[i] == '\0' || comp_name[i] != prefix[i]) 
+			return 0;
+	}
 
 	return 1;
 }
 
 static int
-boot_check_shdmem(char *comp_name) {
+boot_check_shdmem(char *comp_name)
+{
 	int i;
 	char *prefix = "shmem";
 
-	for (i = 0; i < 5; i++)
-		if (comp_name[i] == '\0' || comp_name[i] != prefix[i]) return 0;
+	for (i = 0; i < 5; i++) {
+		if (comp_name[i] == '\0' || comp_name[i] != prefix[i])
+			return 0;
+	}
 
 	return 1;
 }
@@ -264,9 +283,11 @@ void
 boot_pgtbl_cap_transfer(int dst, int src, int cap_slot)
 {
 	printc("booter transfering pgtbl cap: %lu to: %d, from: %d, into: %d...",
-		new_comp_cap_info[src].compinfo->pgtbl_cap, dst, src, cap_slot);
+			new_comp_cap_info[src].compinfo->pgtbl_cap, dst, src, cap_slot);
+
 	cos_cap_cpy_at(new_comp_cap_info[dst].compinfo, cap_slot, boot_info,
-		new_comp_cap_info[src].compinfo->pgtbl_cap);
+			new_comp_cap_info[src].compinfo->pgtbl_cap);
+
 	printc("done\n");
 }
 
@@ -274,9 +295,11 @@ void
 boot_comp_cap_transfer(int dst, int src, int cap_slot)
 {
 	printc("booter transfering comp cap: %lu to: %d, from: %d, into: %d...",
-		new_comp_cap_info[src].compinfo->comp_cap, dst, src, cap_slot);
+			new_comp_cap_info[src].compinfo->comp_cap, dst, src, cap_slot);
+
 	cos_cap_cpy_at(new_comp_cap_info[dst].compinfo, cap_slot, boot_info,
-		new_comp_cap_info[src].compinfo->comp_cap);
+			new_comp_cap_info[src].compinfo->comp_cap);
+
 	printc("done\n");
 }
 
@@ -288,7 +311,11 @@ boot_sinv_fn(boot_sinv_op op, void *arg1, void *arg2, void *arg3)
 
 	switch (op) {
 		case INIT_DONE:
-			/* DEPRICATED, should not be needed as llbooter is not scheduler */
+			/*
+			 * DEPRICATED:
+			 * Should not be needed as llbooter is not scheduler
+			 * Kept for the purpose of older test code like llbooter_pong.sh
+			 */
 			boot_thd_done();
 			break;
 		case REQ_PGTBL_CAP:
