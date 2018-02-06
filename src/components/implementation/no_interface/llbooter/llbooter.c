@@ -1,10 +1,5 @@
 #include <cos_component.h>
 #include <cobj_format.h>
-#include <cos_defkernel_api.h>
-#include <sl.h>
-//#include <cos_kernel_api.h>
-
-
 #include "boot_deps.h"
 
 #define USER_CAPS_SYMB_NAME "ST_user_caps"
@@ -305,7 +300,8 @@ boot_init_ndeps(int num_cobj)
 
 	printc("MAX DEPS: %d\n", MAX_DEPS);
 	for (i = 0; (short int)i < deps_list[i].server; i++) {
-//		if (deps_list[i].client != 0) printc("client: %d, server: %d \n", deps_list[i].client, deps_list[i].server);
+		/* TODO, why is this commented? Do we need this? */
+		//if (deps_list[i].client != 0) printc("client: %d, server: %d \n", deps_list[i].client, deps_list[i].server);
 	}
 
 	printc("ndeps: %d\n", ndeps);
