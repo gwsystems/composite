@@ -18,8 +18,8 @@ Changes with descriptions (if necessary)
 ## DPDK ##
 1. config choices are made in `config_minimal` and
 	`defconfig-i686-native-cosapp-gcc`
-2. Makefiles in `mk/` directory--
-		- `cos-machine/rte.vars.mk` sets machine type to be 32 bit machine
+2. Makefiles in `mk/` directory --
+	- `cos-machine/rte.vars.mk` sets machine type to be 32 bit machine
 		without floating point instructions
 3. Forced linking in drivers (em1000) and devices (bus)
 4. Replaced pthreads lib with sl
