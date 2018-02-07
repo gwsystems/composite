@@ -43,9 +43,8 @@ fn make_systemcall(sys_call:u8, rep_id:usize, sl:Sl) {
 	println!("Replica {:?} making syscall {:?}", rep_id, sys_call);
 
 	let mut data:[u8;voter::voter_lib::BUFF_SIZE] = [sys_call;voter::voter_lib::BUFF_SIZE];
-	VOTER.lock().deref_mut().request(data,rep_id);
+	println!("Rep got {:?}",voter::Voter::request(&*VOTER,data,rep_id,sl));
 	println!("rep {} blocking ...",rep_id );
-	sl.block(); // feels like this shouldnt be the apps responsibility.
 }
 
 /******************* Service Provider ********************/
@@ -55,15 +54,14 @@ fn service(sl:Sl, rep_id: usize) {
 		//HACK -- need a real solution around here.
 	{
 		let mut voter = VOTER.lock();
-		for replica in &mut voter.service_provider.replicas {
-			replica.state_transition(voter::voter_lib::ReplicaState::Blocked);
-		}
+		voter.service_provider.replicas[rep_id].state_transition(voter::voter_lib::ReplicaState::Blocked);
 	}
+	sl.block();
 	loop {
-		sl.block();
 		println!("Service provider waking .... ");
-		let msg = VOTER.lock().deref_mut().service(rep_id);
+		let msg = VOTER.lock().deref_mut().get_reqeust(rep_id);
 		println!("performing system call {:?}", msg);
-		println!("====================");
+		let data = [9;voter::voter_lib::BUFF_SIZE];
+		voter::Voter::send_response(&*VOTER,data,rep_id,sl);
 	}
 }

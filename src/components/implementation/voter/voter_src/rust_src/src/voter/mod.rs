@@ -23,19 +23,27 @@ impl Voter {
 		}
 	}
 
- 	fn transfer(&mut self) {
+ 	fn transfer(&mut self, from_app:bool) {
  		{
-			let msg = &self.application.replicas[0].data_buffer;
-			for srv_replica in &mut self.service_provider.replicas {
+	 		let (mut from,mut to) = if from_app {
+	 			(&self.application,&mut self.service_provider)
+	 		} else {
+	 			(&self.service_provider,&mut self.application)
+	 		};
+
+			let msg = from.replicas[0].data_buffer;
+			for replica in &mut to.replicas {
 				for i in 0..voter_lib::BUFF_SIZE {
-					srv_replica.data_buffer[i] = msg[i];
+					replica.data_buffer[i] = msg[i];
 				}
 			}
 		}
-		//clearing in seperate loop incase num app != num srv
-		for app_replica in &mut self.application.replicas {
+
+		let mut from = if from_app {&mut self.application} else {&mut self.service_provider};
+
+		for replica in &mut from.replicas {
 			for i in 0..voter_lib::BUFF_SIZE {
-				app_replica.data_buffer[i] = 0;
+				replica.data_buffer[i] = 0;
 			}
 		}
 	}
@@ -53,8 +61,12 @@ impl Voter {
 				if (application_vote != voter_lib::VoteStatus::Success) {sl.thd_yield();} //todo cleanup
 			}
 
-			voter_lock.lock().deref_mut().transfer();
-			voter_lock.lock().deref_mut().service_provider.wake_all();
+
+			{
+				let mut voter = voter_lock.lock();
+				voter.transfer(true);
+				voter.deref_mut().service_provider.wake_all();
+			}
 
 			//loop until service provider reaches consesus
 			let mut srv_vote = voter_lib::VoteStatus::Fail(99);
@@ -66,7 +78,12 @@ impl Voter {
 				if (srv_vote != voter_lib::VoteStatus::Success) {sl.thd_yield();} //todo cleanup
 			}
 
-			voter_lock.lock().deref_mut().application.wake_all();
+			{
+				let mut voter = voter_lock.lock();
+				voter.transfer(false);
+				voter.deref_mut().application.wake_all();
+			}
+
 		}
 	}
 
@@ -88,15 +105,29 @@ impl Voter {
 	}
 
 
-	pub fn request(&mut self, data:[u8;voter_lib::BUFF_SIZE], rep_id: usize) {
-		println!("Sending ....");
-		self.application.replicas[rep_id].write(data);
-		self.application.replicas[rep_id].state_transition(voter_lib::ReplicaState::Blocked);
-		//small issue - cant block here becasue this will hold the lock to the voter struct.
+	pub fn request(voter_lock:&Lock<Voter>, data:[u8;voter_lib::BUFF_SIZE], rep_id: usize, sl:Sl) -> [u8;voter_lib::BUFF_SIZE] {
+		println!("Making Reqeust ....");
+		{
+			let mut voter = voter_lock.lock();
+			voter.application.replicas[rep_id].write(data);
+			voter.application.replicas[rep_id].state_transition(voter_lib::ReplicaState::Blocked);
+		}
+		sl.block();
+
+		//get data returned from request.
+		let voter = voter_lock.lock();
+		let ref data = &voter.application.replicas[0].data_buffer;
+		let mut msg = [0;voter_lib::BUFF_SIZE];
+
+		for i in 0..voter_lib::BUFF_SIZE {
+			msg[i] = data[i];
+		}
+
+		msg
 	}
 
-	pub fn service(&mut self, rep_id: usize) -> [u8;voter_lib::BUFF_SIZE] {
-		println!("Reading ....");
+	pub fn get_reqeust(&mut self, rep_id: usize) -> [u8;voter_lib::BUFF_SIZE] {
+		println!("Geting Request ....");
 
 		let mut msg:[u8;voter_lib::BUFF_SIZE] = [0;voter_lib::BUFF_SIZE];
 		{
@@ -106,7 +137,16 @@ impl Voter {
 				buffer[i] = 0;
 			}
 		}
-		self.service_provider.replicas[rep_id].state_transition(voter_lib::ReplicaState::Blocked);
 		msg
+	}
+
+	pub fn send_response(voter_lock:&Lock<Voter>, data:[u8;voter_lib::BUFF_SIZE], rep_id: usize, sl:Sl) {
+		println!("Sending Response ....");
+		{
+			let mut voter = voter_lock.lock();
+			voter.service_provider.replicas[rep_id].write(data);
+			voter.service_provider.replicas[rep_id].state_transition(voter_lib::ReplicaState::Blocked);
+		}
+		sl.block();
 	}
 }
