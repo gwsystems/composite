@@ -13,7 +13,7 @@
 #define IOAPIC_IOREDTBL 0x10
 #define IOAPIC_IOREDTBL_OFFSET(n) (IOAPIC_IOREDTBL + 2*n)
 
-#define IOAPIC_INT_DISABLED (1<<16)
+#define IOAPIC_INT_MASKED (1<<16)
 
 enum ioapic_deliverymode
 {
@@ -76,18 +76,6 @@ ioapic_reg_read(struct ioapic_info *io, u8_t offset)
         return *(volatile u32_t *)(io->io_vaddr + IOAPIC_IOWIN);
 }
 
-void
-ioapic_int_mask(int intnum)
-{
-	/* TODO */
-}
-
-void
-ioapic_int_unmask(int intnum)
-{
-	/* TODO */
-}
-
 static struct ioapic_info *
 ioapic_findbygsi(int irq)
 {
@@ -127,6 +115,26 @@ ioapic_int_override(struct intsrcovrride_cntl *iso)
 }
 
 void
+ioapic_int_mask(int irqnum)
+{
+	struct ioapic_info *ioap = ioapic_findbygsi(irqnum);
+
+	assert(ioap);
+	ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum), IOAPIC_INT_MASKED | irqnum);
+}
+
+void
+ioapic_int_unmask(int irqnum)
+{
+	struct ioapic_info *ioap = ioapic_findbygsi(irqnum);
+	u32_t val = 0;
+
+	assert(ioap);
+	val = ioapic_reg_read(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum));
+	ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum), val & ~IOAPIC_INT_MASKED);
+}
+
+void
 ioapic_int_enable(int irqnum, int cpunum, int addflag)
 {
 	struct ioapic_info *ioap = ioapic_findbygsi(irqnum);
@@ -134,6 +142,7 @@ ioapic_int_enable(int irqnum, int cpunum, int addflag)
 	assert(ioap);
 	if (addflag) {
 		/* TODO: logical destination = 1 and add core no or lapic number? */
+		assert(0);
 	} else {
 		ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum), irqnum + HW_IRQ_START);
 		ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum)+1, cpunum<<24);
@@ -146,7 +155,7 @@ ioapic_int_disable(int irqnum)
 	struct ioapic_info *ioap = ioapic_findbygsi(irqnum);
 
 	assert(ioap);
-	ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum), IOAPIC_INT_DISABLED | irqnum);
+	ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum), IOAPIC_INT_MASKED | irqnum);
 	ioapic_reg_write(ioap, IOAPIC_IOREDTBL_OFFSET(irqnum)+1, 0);
 }
 
