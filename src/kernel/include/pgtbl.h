@@ -50,40 +50,44 @@ typedef enum {
 #define PGTBL_ORD 10
 
 /* The page size definitions for composite OS */
-#define PGSZ_128B	7
-#define PGSZ_256B	8
-#define PGSZ_512B	9
-#define PGSZ_1K		10
-#define PGSZ_2K		11
-#define PGSZ_4K		12
-#define PGSZ_8K		13
-#define PGSZ_16K	14
-#define PGSZ_32K	15
-#define PGSZ_64K	16
-#define PGSZ_128K	17
-#define PGSZ_256K	18
-#define PGSZ_512K	19
-#define PGSZ_1M		20
-#define PGSZ_2M		21
-#define PGSZ_4M		22
+typedef enum {
+	PGSZ_128B = 7,
+	PGSZ_256B = 8,
+	PGSZ_512B = 9,
+	PGSZ_1K	  = 10,
+	PGSZ_2K	  = 11,
+	PGSZ_4K	  = 12,
+	PGSZ_8K	  = 13,
+	PGSZ_16K  = 14,
+	PGSZ_32K  = 15,
+	PGSZ_64K  = 16,
+	PGSZ_128K = 17,
+	PGSZ_256K = 18,
+	PGSZ_512K = 19,
+	PGSZ_1M	  = 20,
+	PGSZ_2M	  = 21,
+	PGSZ_4M	  = 22
+} pgtbl_sz_t;
 
 /* The number of pages in this page table */
-#define PGNUM_2		1
-#define PGNUM_4		2
-#define PGNUM_8		3
-#define PGNUM_16	4
-#define PGNUM_32	5
-#define PGNUM_64	6
-#define PGNUM_128	7
-#define PGNUM_256	8
-#define PGNUM_512	9
-#define PGNUM_1024	10
-#define PGNUM_2048	11
-#define PGNUM_4096	12
-#define PGNUM_8192	13
-#define PGNUM_16384	14
-#define PGNUM_32768	15
-#define PGNUM_65536	16
+typedef enum {
+	PGNO_2    = 1,
+	PGNO_4	  = 2,
+	PGNO_8    = 3,
+	PGNO_16   = 4,
+	PGNO_32   = 5,
+	PGNO_64   = 6,
+	PGNO_128  = 7,
+	PGNO_256  = 8,
+	PGNO_512  = 9,
+	PGNO_1K	  = 10,
+	PGNO_2K	  = 11,
+	PGNO_4K	  = 12,
+	PGNO_8K	  = 13,
+	PGNO_16K  = 14,
+	PGNO_32K  = 15,
+	PGNO_64K  = 16
+} pgtbl_no_t;
 
 struct tlb_quiescence {
 	/* Updated by timer. */
@@ -99,24 +103,24 @@ extern struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
 int tlb_quiescence_check(u64_t timestamp);
 
 
-int pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
-int pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
-int pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags);
-int pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id);
-int pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr);
-void *pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl);
-int pgtbl_ispresent(u32_t flags);
+int            pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
+int            pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
+int            pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags);
+int            pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id);
+int            pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr);
+void          *pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl);
+int            pgtbl_ispresent(u32_t flags);
 unsigned long *pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags);
 unsigned long *pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags);
-int pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe);
-vaddr_t pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags);
-pgtbl_t pgtbl_create(void *page, void *curr_pgtbl);
-int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
-int pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
-                     capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
-int pgtbl_mapping_scan(struct cap_pgtbl *pt);
-int pgtbl_quie_check(u32_t orig_v);
-void pgtbl_init_pte(void *pte);
+int            pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe);
+vaddr_t        pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags);
+pgtbl_t        pgtbl_create(void *page, void *curr_pgtbl);
+int            pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
+int            pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
+				capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
+int            pgtbl_mapping_scan(struct cap_pgtbl *pt);
+int            pgtbl_quie_check(u32_t orig_v);
+void           pgtbl_init_pte(void *pte);
 
 extern unsigned long __cr3_contents;
 
@@ -126,13 +130,9 @@ pgtbl_update(pgtbl_t pt)
 	asm volatile("mov %0, %%cr3" : : "r"(pt));
 }
 
-
-
 /* FIXME: this should be using cos_config.h defines */
 #define KERNEL_PGD_REGION_OFFSET (PAGE_SIZE - PAGE_SIZE / 4)
 #define KERNEL_PGD_REGION_SIZE (PAGE_SIZE / 4)
-
-
 
 static void
 pgtbl_init(void)

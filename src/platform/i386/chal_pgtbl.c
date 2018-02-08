@@ -15,13 +15,13 @@
 
 /* These two functions do flag transformations */
 u32_t 
-chal_chal2cos(u32_t flags)
+chal_pgtbl_chal2cos(u32_t flags)
 {
 	return flags;
 }
 
 u32_t
-chal_cos2chal(u32_t flags)
+chal_pgtbl_cos2chal(u32_t flags)
 {
 	return flags;
 }
