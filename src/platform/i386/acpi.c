@@ -166,12 +166,12 @@ acpi_madt_intsrc_iter(unsigned char *addr)
 		assert(h->len >= sizeof(struct int_cntl_head));
 		switch (h->type) {
 		case APIC_CNTL_LAPIC: {
-			nl ++;
+			nl++;
 			lapic_iter((struct lapic_cntl *)h);
 			break;
 		}
 		case APIC_CNTL_IOAPIC: {
-			nio ++;
+			nio++;
 			ioapic_iter((struct ioapic_cntl *)h);
 			break;
 		}

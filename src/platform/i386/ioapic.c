@@ -177,7 +177,7 @@ ioapic_iter(struct ioapic_cntl *io)
 	
 	ioapicinfo[ioapic_count].io_vaddr = (volatile void *)(io->ioapic_phys_addr);	
 	ioapicinfo[ioapic_count].ioapicid = io->ioapic_id;
-	ioapic_set_page(&(ioapicinfo[ioapic_count]), vm_set_supage((u32_t)(ioapicinfo[ioapic_count].io_vaddr)));
+	ioapic_set_page(&(ioapicinfo[ioapic_count]), vm_map_superpage((u32_t)(ioapicinfo[ioapic_count].io_vaddr)));
 
 	ver   = ioapic_reg_read(&ioapicinfo[ioapic_count], IOAPIC_IOAPICVER);
 	ioent = ((ver >> 16) & 0xFF) + 1;
@@ -200,6 +200,11 @@ ioapic_init(void)
 
 	/*
 	 * PCI Interrupts may need some attention here.
-	 * TODO: Test it with NIC in RK env.
+	 * https://forum.osdev.org/viewtopic.php?f=1&t=21745
+	 * The discussion in the above forum suggest modern PCIe devices bypass IOAPIC and send 
+	 * interrupts directly to the core. For legacy PCI, we probably need to read some APIC tables.
+	 *
+	 * Update: I've tested by porting IOAPIC to RK on Qemu, udpserver test went OK.
+	 *         But on HW, I can't get even "ping" to work. TODO: Debugging!
 	 */
 }

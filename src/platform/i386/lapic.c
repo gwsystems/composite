@@ -4,7 +4,7 @@
 #include "isr.h"
 #include "apic_cntl.h"
 
-#define LAPIC_MAX 8
+#define LAPIC_MAX NUM_CPU
 
 int ncpus = 1;
 int cpus[NUM_CPU];

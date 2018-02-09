@@ -55,7 +55,7 @@ u8_t *mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 static unsigned long vm_pgd_idx = COS_MEM_KERN_START_VA / PGD_RANGE;
 
 int
-vm_set_supage(u32_t addr)
+vm_map_superpage(u32_t addr)
 {
 	int idx = vm_pgd_idx;
 	u32_t page;
@@ -97,14 +97,14 @@ kern_setup_image(void)
 		u64_t hpet;
 
 		page             = round_up_to_pgd_page(rsdt) - (1 << 22);
-		acpi_set_rsdt_page(vm_set_supage(page));
+		acpi_set_rsdt_page(vm_map_superpage(page));
 
 		hpet = hpet_find(acpi_find_hpet());
-		if (hpet) hpet_set_page(vm_set_supage(hpet));
+		if (hpet) hpet_set_page(vm_map_superpage(hpet));
 
 		/* lapic memory map */
 		lapic = lapic_find_localaddr(acpi_find_apic());
-		if (lapic) lapic_set_page(vm_set_supage(lapic));
+		if (lapic) lapic_set_page(vm_map_superpage(lapic));
 	}
 
 	j = vm_pgd_idx;

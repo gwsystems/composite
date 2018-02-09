@@ -25,7 +25,7 @@ void  user_init(void);
 
 void  paging_init(void);
 void  kern_paging_map_init(void *pa);
-int   vm_set_supage(u32_t addr);
+int   vm_map_superpage(u32_t addr);
 
 void tls_update(u32_t addr);
 
