@@ -1,19 +1,14 @@
-use voter::voter_lib::ReplicaState::*;
-use voter::voter_lib::Replica;
 use lib_composite::sl::Sl;
 use lib_composite::sl_lock::Lock;
-use std::ops::{DerefMut,Deref};
 
-use std::time::Duration;
-
-use voter;
+use voter::voter_lib::BUFF_SIZE;
 use voter::Voter;
 use lazy_static;
 
 lazy_static! {
 	static ref VOTER:Lock<Voter> = unsafe {
 		Lock::new(Sl::assert_scheduler_already_started(),
-			      voter::Voter::new(3,1,do_work,service,Sl::assert_scheduler_already_started())
+			      Voter::new(3,1,do_work,service,Sl::assert_scheduler_already_started())
 	)};
 }
 
@@ -21,7 +16,7 @@ const MODE:u8 = 0;
 
 pub fn start(sl:Sl) {
 	println!("Test app initializing in mode {}",MODE);
-	voter::Voter::monitor_components(&*VOTER, sl);
+	Voter::monitor_components(&*VOTER, sl);
 }
 
 /************************ Application *************************/
@@ -77,17 +72,17 @@ fn _bad_state(sl:Sl ,rep_id: usize) {
 fn make_systemcall(sys_call:u8, rep_id:usize, sl:Sl) {
 	println!("Replica {:?} making syscall {:?}", rep_id, sys_call);
 
-	let mut data:[u8;voter::voter_lib::BUFF_SIZE] = [sys_call;voter::voter_lib::BUFF_SIZE];
-	println!("Rep got {:?}",voter::Voter::request(&*VOTER,data,rep_id,sl)[0]);
+	let data:[u8;BUFF_SIZE] = [sys_call;BUFF_SIZE];
+	println!("Rep got {:?}",Voter::request(&*VOTER,data,rep_id,sl)[0]);
 }
 
 /******************* Service Provider ********************/
 
 fn service(sl:Sl, rep_id: usize) {
 	loop {
-		let msg = voter::Voter::get_reqeust(&*VOTER, rep_id, sl);
+		let msg = Voter::get_reqeust(&*VOTER, rep_id, sl);
 		println!("performing system call {:?}", msg[0]);
-		let data = [9;voter::voter_lib::BUFF_SIZE];
-		voter::Voter::send_response(&*VOTER,data,rep_id,sl);
+		let data = [9;BUFF_SIZE];
+		Voter::send_response(&*VOTER,data,rep_id,sl);
 	}
 }

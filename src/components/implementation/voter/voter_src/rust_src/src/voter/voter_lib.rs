@@ -1,10 +1,6 @@
 use std::str::FromStr;
 use lib_composite::sl::{ThreadParameter, Sl,Thread};
-use lib_composite::sl_lock::Lock;
-use std::mem;
 use std::fmt;
-use std::sync::Arc;
-use std::ops::{DerefMut,Deref};
 use voter::*;
 
 pub const MAX_REPS:usize = 3;
@@ -19,7 +15,7 @@ pub enum ReplicaState {
 #[derive(PartialEq)]
 pub enum VoteStatus {
 	//fixme should be usize
-	Fail(u16), /* stores reference to divergent replica rep id*/
+	Fail(usize), /* stores reference to divergent replica rep id*/
 	Inconclusive(u8,usize),
 	Success,
 }
@@ -49,7 +45,7 @@ impl fmt::Debug for VoteStatus {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Status: {}",
         match self {
-        	&VoteStatus::Inconclusive(num_processing,rep) => format!("Inconclusive {:?}",rep),
+        	&VoteStatus::Inconclusive(num_processing,rep) => format!("Inconclusive {}:{:?}", num_processing, rep),
         	&VoteStatus::Success => String::from_str("Success").unwrap(),
         	&VoteStatus::Fail(rep) => format!("Fail - {:?}",rep),
         })
@@ -127,7 +123,7 @@ impl Component {
 		//while still in old read/write state
 		for replica in &mut self.replicas {
 			assert!(replica.state != ReplicaState::Init);
-			if (replica.is_blocked()) {replica.state_transition(ReplicaState::Processing);}
+			if replica.is_blocked() {replica.state_transition(ReplicaState::Processing);}
 		}
 
 		for replica in &mut self.replicas {
@@ -154,7 +150,7 @@ impl Component {
 		if !self.validate_msgs() {
 			let faulted = self.find_faulted_msg();
 			assert!(faulted>-1);
-			return VoteStatus::Fail(faulted as u16);
+			return VoteStatus::Fail(faulted as usize);
 		}
 
 		return VoteStatus::Success;

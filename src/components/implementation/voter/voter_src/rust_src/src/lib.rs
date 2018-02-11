@@ -7,18 +7,10 @@ mod demo_app;
 
 use lib_composite::kernel_api::DefKernelAPI;
 use lib_composite::sl::Sl;
-use lib_composite::sys::sl;
 use lib_composite::panic_trace;
-use lib_composite::sl::{ThreadParameter,Thread};
-
-extern {
-    pub fn sl_thd_curr_rs() -> *mut sl::sl_thd;
-    fn print_hack(n: i8);
-}
 
 #[no_mangle]
 pub extern fn test_call_rs() {
-	unsafe {print_hack(2)};
 	printc!("Executing test call in Rust");
 }
 
@@ -35,7 +27,7 @@ pub extern fn rust_init() {
 }
 
 
-fn run_tests(sl:Sl) {
+fn _run_tests(_sl:Sl) {
 	// unit_tests::test_state_logic(sl,2);
 	// unit_tests::test_wakeup(sl,2);
 	// unit_tests::test_vote_simple(sl,2);

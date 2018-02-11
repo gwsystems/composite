@@ -1,7 +1,8 @@
 pub mod voter_lib;
 
+use self::voter_lib::VoteStatus;
 use lib_composite::sl_lock::Lock;
-use lib_composite::sl::{ThreadParameter, Sl,Thread};
+use lib_composite::sl::{ThreadParameter, Sl};
 use std::ops::{DerefMut,Deref};
 
 const MAX_COMPS:usize = 2;
@@ -16,7 +17,7 @@ const SRV_IDX:usize = 1;
 
 pub struct Voter {
 	/* application:0 Service_Provider:1 */
-	pub components:[voter_lib::Component;MAX_COMPS], //fixme rem pub
+	components:[voter_lib::Component;MAX_COMPS],
 	active_component:usize,
 	new_data:bool,
 }
@@ -38,31 +39,31 @@ impl Voter {
 			while !concensus {
 				concensus = false;
 				match Voter::monitor_vote(voter_lock,consecutive_inconclusive,sl) {
-					voter_lib::VoteStatus::Success => concensus = true,
-					voter_lib::VoteStatus::Inconclusive(num_processing,rep) => {
+					VoteStatus::Success => concensus = true,
+					VoteStatus::Inconclusive(num_processing,_rep) => {
 						//track inconclusive for the case where only one replica is still processing
 						if num_processing == 1 {
 							consecutive_inconclusive += 1;
 						}
 						sl.thd_yield();
 					},
-					voter_lib::VoteStatus::Fail(rep) => concensus = true, //not sure if this is right
+					VoteStatus::Fail(_rep) => concensus = true, //TODO - handle faults
 				}
 			}
 			Voter::switch_active_component(voter_lock, sl);
 		}
 	}
 
-	fn monitor_vote(voter_lock:&Lock<Voter>, mut consecutive_inconclusive:u8, sl:Sl) -> voter_lib::VoteStatus {
+	fn monitor_vote(voter_lock:&Lock<Voter>, consecutive_inconclusive:u8, sl:Sl) -> voter_lib::VoteStatus {
 		sl.current_thread().set_param(ThreadParameter::Priority(VOTE_PRIO));
 
 		let mut voter = voter_lock.lock();
 		let current = voter.deref().active_component;
 		let vote = voter.deref_mut().components[current].collect_vote();
 		match vote {
-			voter_lib::VoteStatus::Success => (),
-			voter_lib::VoteStatus::Fail(rep_id) => voter.components[current].replicas[rep_id as usize].recover(),
-			voter_lib::VoteStatus::Inconclusive(num_processing,rep_id) => {
+			VoteStatus::Success => (),
+			VoteStatus::Fail(rep_id) => voter.components[current].replicas[rep_id].recover(),
+			VoteStatus::Inconclusive(_num_processing,rep_id) => {
 				if consecutive_inconclusive > MAX_INCONCLUSIVE {
 					println!("Inconclusive breach!");
 					voter.components[current].replicas[rep_id].recover();
@@ -107,6 +108,8 @@ impl Voter {
 				replica.data_buffer[i] = 0;
 			}
 		}
+
+		self.new_data = false;
 	}
 
 	pub fn request(voter_lock:&Lock<Voter>, data:[u8;voter_lib::BUFF_SIZE], rep_id: usize, sl:Sl) -> [u8;voter_lib::BUFF_SIZE] {
@@ -118,7 +121,7 @@ impl Voter {
 		}
 		sl.block();
 
-		//get data returned from request. (clean this up?)
+		//get data returned from request.
 		let voter = voter_lock.lock();
 		let ref data = &voter.components[APP_IDX].replicas[0].data_buffer;
 		let mut msg = [0;voter_lib::BUFF_SIZE];
@@ -142,7 +145,7 @@ impl Voter {
 		let mut msg:[u8;voter_lib::BUFF_SIZE] = [0;voter_lib::BUFF_SIZE];
 		{
 			let mut voter = voter_lock.lock();
-			let mut buffer = &mut voter.deref_mut().components[SRV_IDX].replicas[rep_id].data_buffer;
+			let buffer = &mut voter.deref_mut().components[SRV_IDX].replicas[rep_id].data_buffer;
 			for i in 0..voter_lib::BUFF_SIZE {
 				msg[i] = buffer[i];
 				buffer[i] = 0;
