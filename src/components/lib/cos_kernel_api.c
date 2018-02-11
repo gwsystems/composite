@@ -619,7 +619,7 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 }
 
 sinvcap_t
-cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
+cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, unsigned long token)
 {
 	capid_t cap;
 
@@ -629,7 +629,7 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 
 	cap = __capid_bump_alloc(srcci, CAP_COMP);
 	if (!cap) return 0;
-	if (call_cap_op(srcci->captbl_cap, CAPTBL_OP_SINVACTIVATE, cap, dstcomp, entry, 0)) BUG();
+	if (call_cap_op(srcci->captbl_cap, CAPTBL_OP_SINVACTIVATE, cap, dstcomp, entry, token)) BUG();
 
 	return cap;
 }
@@ -971,18 +971,18 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 
 	fva = __page_bump_valloc(ci, PAGE_SIZE);
 	va  = fva;
-	if (unlikely(!fva)) return NULL;
 
-	do {
+	while (1) {
+		if (unlikely(!va)) return NULL;
+
 		if (call_cap_op(hwc, CAPTBL_OP_HW_MAP, ci->pgtbl_cap, va, pa, 0)) BUG();
 
 		sz -= PAGE_SIZE;
 		pa += PAGE_SIZE;
 
+		if (sz <= 0) break;
 		va = __page_bump_valloc(ci, PAGE_SIZE);
-		if (unlikely(!va)) return NULL;
-
-	} while (sz > 0);
+	}
 
 	return (void *)fva;
 }

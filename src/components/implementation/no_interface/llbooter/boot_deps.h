@@ -80,6 +80,8 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 	void *user_cap_vaddr;
 	struct cos_compinfo *interface_compinfo;
 	struct cos_compinfo *newcomp_compinfo = new_comp_cap_info[spdid].compinfo;
+	/* TODO: Purge rest of booter of spdid convention */
+	unsigned long token = (unsigned long)spdid;
 
 	/*
 	 * Loop through all undefined symbs
@@ -92,7 +94,7 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 			user_cap_vaddr = (void *) (new_comp_cap_info[spdid].vaddr_mapped_in_booter + (new_comp_cap_info[spdid].vaddr_user_caps - new_comp_cap_info[spdid].addr_start) + (sizeof(struct usr_inv_cap) * i));
 
 			/* Create sinv capability from client to server */
-			sinv = cos_sinv_alloc(newcomp_compinfo, interface_compinfo->comp_cap, (vaddr_t)new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst);
+			sinv = cos_sinv_alloc(newcomp_compinfo, interface_compinfo->comp_cap, (vaddr_t)new_comp_cap_info[spdid].ST_user_caps[i].service_entry_inst, token);
 			assert(sinv > 0);
 
 			new_comp_cap_info[spdid].ST_user_caps[i].cap_no = sinv;
@@ -106,7 +108,6 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 static void
 boot_newcomp_definfo_init(spdid_t spdid, compcap_t cc, int is_sched)
 {
-
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info *   sched_aep = cos_sched_aep_get(defci);
 	struct cos_aep_info *   child_aep = cos_sched_aep_get(new_comp_cap_info[spdid].defcompinfo);
@@ -159,11 +160,22 @@ boot_newschedcomp_cap_init(spdid_t spdid, captblcap_t ct, pgtblcap_t pt, compcap
 static void
 boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, int is_sched)
 {
-	compcap_t      cc;
-	captblcap_t    ct = new_comp_cap_info[spdid].compinfo->captbl_cap;
-	pgtblcap_t     pt = new_comp_cap_info[spdid].compinfo->pgtbl_cap;
-	sinvcap_t      sinv;
-	struct sl_thd *thd;
+
+	compcap_t   cc;
+	captblcap_t ct = new_comp_cap_info[spdid].compinfo->captbl_cap;
+	pgtblcap_t  pt = new_comp_cap_info[spdid].compinfo->pgtbl_cap;
+	sinvcap_t   sinv;
+	thdcap_t    main_thd;
+	int         i = 0;
+	unsigned long token = (unsigned long) spdid;
+
+	cc = cos_comp_alloc(&boot_info, ct, pt, (vaddr_t)new_comp_cap_info[spdid].upcall_entry);
+	assert(cc);
+	new_comp_cap_info[spdid].compinfo->comp_cap = cc;
+
+	/* Create sinv capability from Userspace to Booter components */
+	sinv = cos_sinv_alloc(&boot_info, boot_info.comp_cap, (vaddr_t)__inv_test_entry, token);
+	assert(sinv > 0);
 
 	cc = cos_comp_alloc(boot_info, ct, pt, (vaddr_t)new_comp_cap_info[spdid].upcall_entry);
 	assert(cc);

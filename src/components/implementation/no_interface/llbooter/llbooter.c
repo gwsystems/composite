@@ -241,10 +241,10 @@ boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 	struct cobj_cap *cap;
 	struct usr_inv_cap inv_cap;
 	int cap_offset;
-	int i;
 
-	for (i = 0; (size_t)i < h->ncap ; i++) {
+	unsigned int i;
 
+	for (i = 0; i < h->ncap ; i++) {
 		cap = cobj_cap_get(h, i);
 		assert(cap);
 
