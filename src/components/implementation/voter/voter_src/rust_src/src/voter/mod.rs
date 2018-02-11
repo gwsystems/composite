@@ -17,7 +17,8 @@ const SRV_IDX:usize = 1;
 pub struct Voter {
 	/* application:0 Service_Provider:1 */
 	pub components:[voter_lib::Component;MAX_COMPS], //fixme rem pub
-	active_component:usize
+	active_component:usize,
+	new_data:bool,
 }
 
 impl Voter {
@@ -26,6 +27,7 @@ impl Voter {
 			components: [voter_lib::Component::new(app_reps, sl, app_entry),
 			             voter_lib::Component::new(srv_reps, sl, srv_entry)],
 			active_component: 0,
+			new_data: false,
 		}
 	}
 
@@ -76,6 +78,7 @@ impl Voter {
 		sl.current_thread().set_param(ThreadParameter::Priority(VOTE_PRIO));
 
 		let mut voter = voter_lock.lock();
+		voter.new_data = true;
 		let current = voter.deref().active_component;
 		let next_comp = (current + 1) % 2;
 
@@ -127,12 +130,19 @@ impl Voter {
 		msg
 	}
 
-	pub fn get_reqeust(&mut self, rep_id: usize) -> [u8;voter_lib::BUFF_SIZE] {
-		println!("Geting Request ....");
+	pub fn get_reqeust(voter_lock:&Lock<Voter>, rep_id: usize, sl:Sl) -> [u8;voter_lib::BUFF_SIZE] {
+		println!("Checking for Request ....");
 
+		if !voter_lock.lock().deref().new_data {
+			voter_lock.lock().deref_mut().components[SRV_IDX].replicas[rep_id].state_transition(voter_lib::ReplicaState::Blocked);
+			sl.block();
+		}
+
+		println!("Getting request ....");
 		let mut msg:[u8;voter_lib::BUFF_SIZE] = [0;voter_lib::BUFF_SIZE];
 		{
-			let mut buffer = &mut self.components[SRV_IDX].replicas[rep_id].data_buffer;
+			let mut voter = voter_lock.lock();
+			let mut buffer = &mut voter.deref_mut().components[SRV_IDX].replicas[rep_id].data_buffer;
 			for i in 0..voter_lib::BUFF_SIZE {
 				msg[i] = buffer[i];
 				buffer[i] = 0;

@@ -127,7 +127,7 @@ impl Component {
 		//while still in old read/write state
 		for replica in &mut self.replicas {
 			assert!(replica.state != ReplicaState::Init);
-			replica.state_transition(ReplicaState::Processing);
+			if (replica.is_blocked()) {replica.state_transition(ReplicaState::Processing);}
 		}
 
 		for replica in &mut self.replicas {

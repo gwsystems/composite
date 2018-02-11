@@ -10,8 +10,6 @@ use voter;
 use voter::Voter;
 use lazy_static;
 
-//todo - figure out blocking design. is it okay to have the blocking responsibility live here????
-
 lazy_static! {
 	static ref VOTER:Lock<Voter> = unsafe {
 		Lock::new(Sl::assert_scheduler_already_started(),
@@ -86,16 +84,8 @@ fn make_systemcall(sys_call:u8, rep_id:usize, sl:Sl) {
 /******************* Service Provider ********************/
 
 fn service(sl:Sl, rep_id: usize) {
-		//worried about how we set state... dont know how to start this in the blocked state.
-		//HACK -- need a real solution around here.
-	{
-		let mut voter = VOTER.lock();
-		voter.components[1].replicas[rep_id].state_transition(voter::voter_lib::ReplicaState::Blocked);
-	}
-	sl.block();
 	loop {
-		println!("Service provider waking .... ");
-		let msg = VOTER.lock().deref_mut().get_reqeust(rep_id);
+		let msg = voter::Voter::get_reqeust(&*VOTER, rep_id, sl);
 		println!("performing system call {:?}", msg[0]);
 		let data = [9;voter::voter_lib::BUFF_SIZE];
 		voter::Voter::send_response(&*VOTER,data,rep_id,sl);
