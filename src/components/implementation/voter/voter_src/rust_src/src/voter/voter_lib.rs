@@ -18,8 +18,9 @@ pub enum ReplicaState {
 }
 #[derive(PartialEq)]
 pub enum VoteStatus {
+	//fixme should be usize
 	Fail(u16), /* stores reference to divergent replica rep id*/
-	Inconclusive,
+	Inconclusive(u8,usize),
 	Success,
 }
 
@@ -48,7 +49,7 @@ impl fmt::Debug for VoteStatus {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Status: {}",
         match self {
-        	&VoteStatus::Inconclusive => String::from_str("Inconclusive").unwrap(),
+        	&VoteStatus::Inconclusive(num_processing,rep) => format!("Inconclusive {:?}",rep),
         	&VoteStatus::Success => String::from_str("Success").unwrap(),
         	&VoteStatus::Fail(rep) => format!("Fail - {:?}",rep),
         })
@@ -136,10 +137,19 @@ impl Component {
 
 	pub fn collect_vote(& mut self) -> VoteStatus {
 		println!("Collecting Votes");
-		//if any of the replicas are still processing bail.
+		let mut processing_rep_id = 0;
+		let mut num_processing = 0;
 		for replica in &self.replicas {
-			if replica.is_processing() {return VoteStatus::Inconclusive}
+			if replica.is_processing() {
+				num_processing += 1;
+				//rep id is only useful in the case where only 1 replica is still processing
+				//so it would only be set once in that case.
+				processing_rep_id = replica.rep_id;
+			}
 		}
+		//if any of the replicas are still processing bail.
+		if num_processing > 0 {return VoteStatus::Inconclusive(num_processing,processing_rep_id)}
+
 		//check the request each replica has made
 		if !self.validate_msgs() {
 			let faulted = self.find_faulted_msg();
