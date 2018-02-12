@@ -113,7 +113,7 @@ typedef void (*cos_thd_fn_t)(void *);
 thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
 /* Create the initial (cos_init) thread */
 thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp);
-sinvcap_t cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry);
+sinvcap_t cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, unsigned long token);
 arcvcap_t cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap, arcvcap_t enotif);
 asndcap_t cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t ctcap);
 
@@ -185,5 +185,7 @@ int     cos_hw_detach(hwcap_t hwc, hwid_t hwid);
 void *  cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
 int     cos_hw_cycles_per_usec(hwcap_t hwc);
 int     cos_hw_cycles_thresh(hwcap_t hwc);
+
+capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
 
 #endif /* COS_KERNEL_API_H */

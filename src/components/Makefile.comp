@@ -40,7 +40,7 @@ OPT= -g
 #OPT= -O3
 CFLAGS=-m32 -D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable -fvar-tracking $(INC_PATH) $(MUSLINC) $(LWIPINC) $(LUAINC) $(OPT) $(SHARED_FLAGS)
 CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
-LDFLAGS=-m elf_i386
+LDFLAGS=-melf_i386
 MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r
 ASFLAGS=-m32 $(INC_PATH) $(SHARED_FLAGS)
 

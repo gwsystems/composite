@@ -930,8 +930,9 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 		return thd_introspect(((struct cap_thd *)ch)->t, op, retval);
 	case CAP_TCAP:
 		return tcap_introspect(((struct cap_tcap *)ch)->tcap, op, retval);
+	default:
+		return -EINVAL;
 	}
-	return -EINVAL;
 }
 
 #define ENABLE_KERNEL_PRINT
@@ -1012,6 +1013,8 @@ composite_syscall_handler(struct pt_regs *regs)
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
+	default:
+		break;
 	}
 
 	/* slowpath restbl (captbl and pgtbl) operations */
@@ -1259,8 +1262,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_SINVACTIVATE: {
 			capid_t dest_comp_cap = __userregs_get2(regs);
 			vaddr_t entry_addr    = __userregs_get3(regs);
+			unsigned long token   = __userregs_get4(regs);
 
-			ret = sinv_activate(ct, cap, capin, dest_comp_cap, entry_addr);
+			ret = sinv_activate(ct, cap, capin, dest_comp_cap, entry_addr, token);
 			break;
 		}
 		case CAPTBL_OP_SINVDEACTIVATE: {

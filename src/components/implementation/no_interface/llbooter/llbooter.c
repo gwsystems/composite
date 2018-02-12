@@ -1,7 +1,5 @@
 #include <cos_component.h>
 #include <cobj_format.h>
-#include <cos_kernel_api.h>
-
 #include "boot_deps.h"
 
 #define USER_CAPS_SYMB_NAME "ST_user_caps"
@@ -65,12 +63,10 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 	int               n_pte = 1;
 	struct cobj_sect *sect = cobj_sect_get(h, 0);
 
-	printc("expanding pgtbl...\n");
 	boot_comp_pgtbl_expand(n_pte, pt, sect->vaddr, h);
 
 	/* We'll map the component into booter's heap. */
 
-	printc("mapping component into booter's heap...\n");
 	for (i = 0; i < (int)h->nsect; i++) {
 		int left;
 
@@ -117,7 +113,6 @@ boot_spd_end(struct cobj_header *h)
 int
 boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info, vaddr_t *user_caps)
 {
-	printc("boot_spd_symbs\n");
 	int i = 0;
 
 	for (i = 0; i < (int)h->nsymb; i++) {
@@ -139,7 +134,6 @@ boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info, vaddr_t
 			break;
 		}
 	}
-	printc("boot_spd_symbs done\n");
 	return 0;
 }
 
@@ -189,7 +183,6 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	start_addr = (char *)(new_comp_cap_info[spdid].vaddr_mapped_in_booter);
 	init_daddr = cobj_sect_get(h, 0)->vaddr;
 
-	int total = 0;
 	for (i = 0; i < h->nsect; i++) {
 		struct cobj_sect *sect;
 		vaddr_t           dest_daddr;
@@ -203,7 +196,6 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		lsrc = cobj_sect_contents(h, i);
 		/* how much is left to copy? */
 		left = cobj_sect_size(h, i);
-		total += left;
 
 		/* Initialize memory. */
 		if (!(sect->flags & COBJ_SECT_KMEM)) {
@@ -215,8 +207,8 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		}
 
 		if (sect->flags & COBJ_SECT_CINFO) {
-			assert(left == PAGE_SIZE);
-			assert(comp_info == dest_daddr);
+			assert((left % PAGE_SIZE) == 0);
+			assert(comp_info == (dest_daddr + (((left/PAGE_SIZE)-1)*PAGE_SIZE)));
 			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info - init_daddr), comp_info);
 			ci = (struct cos_component_information *)(start_addr + (comp_info - init_daddr));
 			new_comp_cap_info[h->id].upcall_entry = ci->cos_upcall_entry;
@@ -230,21 +222,11 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 int
 boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, pgtblcap_t pt)
 {
-	printc("Mapping memory...\n");
 	boot_comp_map_memory(h, spdid, pt);
-	printc("Populating memory...\n");
 	boot_comp_map_populate(h, spdid, comp_info);
 	return 0;
 }
 
-static void
-boot_init_sched(void)
-{
-	int i;
-
-	for (i = 0; i < MAX_NUM_SPDS; i++) schedule[i] = 0;
-	sched_cur = 0;
-}
 
 int
 boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
@@ -252,10 +234,9 @@ boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 	struct cobj_cap *cap;
 	struct usr_inv_cap inv_cap;
 	int cap_offset;
-	int i;
+	size_t i;
 
-	for (i = 0; i < h->ncap ; i++) {
-
+	for (i = 0 ; i < h->ncap ; i++) {
 		cap = cobj_cap_get(h, i);
 		assert(cap);
 
@@ -286,28 +267,27 @@ boot_create_cap_system(void)
 		pgtblcap_t          pt;
 		spdid_t             spdid;
 		vaddr_t             ci = 0;
+		boot_comp_flag_t    comp_flags;
 
 		h     = hs[i];
 		spdid = h->id;
 
 		sect                                = cobj_sect_get(h, 0);
-
-		printc("\nCreating comp %d (%s) @ %x!\n", h->id, h->name, sect->vaddr);
-
-
 		new_comp_cap_info[spdid].addr_start = sect->vaddr;
 		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);
 
-		printc("Doing spd symbs\n");
 		if (boot_spd_symbs(h, spdid, &ci, &new_comp_cap_info[spdid].vaddr_user_caps)) BUG();
-		printc("Doing spd invocation capability allocation\n");
 		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
-		printc("Doing component map\n");
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
-		printc("Actually creating the new component...\n");
-		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo);
-		printc("\nComp %d (%s) created @ %x!\n\n", h->id, h->name, sect->vaddr);
+		/* check for hardcoded "sl_" prefix in c obj to determine which cap image we create */
+		comp_flags  = boot_check_scheduler(h->name);
+		/* Check for shdmem component */
+		comp_flags  |= boot_check_shdmem(h->name);
+
+		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo, comp_flags);
+		printc("\nComp %d (%s) comp_flags=%d created @ %x!\n\n",
+			h->id, h->name, comp_flags, sect->vaddr);
 	}
 
 
@@ -315,39 +295,18 @@ boot_create_cap_system(void)
 }
 
 void
-boot_init_ndeps(int num_cobj)
-{
-	int i = 0;
-
-	printc("MAX DEPS: %d\n", MAX_DEPS);
-	for (i = 0; i < deps_list[i].server; i++) {
-//		if (deps_list[i].client != 0) printc("client: %d, server: %d \n", deps_list[i].client, deps_list[i].server);
-	}
-
-	printc("ndeps: %d\n", ndeps);
-	ndeps = i;
-}
-
-void
 cos_init(void)
 {
 	struct cobj_header *h;
-	int                 num_cobj;
 
 	printc("Booter for new kernel\n");
 
 	h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj = (int)cos_comp_info.cos_poly[1];
-
-	//deps = (struct deps *)cos_comp_info.cos_poly[2];
-	memcpy(deps_list, (struct deps *)cos_comp_info.cos_poly[2], PAGE_SIZE);
-	boot_init_ndeps(num_cobj);
+	printc("num_cobj: %d\n", num_cobj);
 
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
 	init_args++;
-
-	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
-	boot_init_sched();
 
 	printc("num cobjs: %d\n", num_cobj);
 	boot_find_cobjs(h, num_cobj);

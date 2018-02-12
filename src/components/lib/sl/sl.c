@@ -470,7 +470,8 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 
 	sl_cs_enter();
 	if (is_sched) {
-		t = sl_thd_aep_alloc_intern(NULL, NULL, comp, SL_THD_PROPERTY_OWN_TCAP | SL_THD_PROPERTY_SEND);
+		t = sl_thd_aep_alloc_intern(NULL, NULL, comp,
+				SL_THD_PROPERTY_OWN_TCAP | SL_THD_PROPERTY_SEND);
 	} else {
 		struct cos_aep_info *sa = cos_sched_aep_get(comp), *aep = NULL;
 

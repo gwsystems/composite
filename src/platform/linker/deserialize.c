@@ -80,6 +80,8 @@ get_service_struct(char *name, struct service_symbs *list)
 	return NULL;
 }
 
+struct service_symbs * get_service_struct(char *name, struct service_symbs *list);
+
 /*
  * Add to the service_symbs structures the dependents.
  *
