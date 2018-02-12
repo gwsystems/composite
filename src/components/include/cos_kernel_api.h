@@ -156,12 +156,6 @@ int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
 
 int cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4);
 
-/*
- * Calls down to the booter to access necessary resources that are needed for
- * higher level resource managers
- */
-void * cos_hypervisor_get_resource(int op, void *arg1, void *arg2, void *arg3);
-
 vaddr_t cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
 int     cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);
 vaddr_t cos_mem_move(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
@@ -184,8 +178,6 @@ int cos_tcap_transfer(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t pri
 int cos_tcap_delegate(asndcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags);
 int cos_tcap_merge(tcap_t dst, tcap_t rm);
 
-capid_t cos_capid_bumkp_alloc(struct cos_compinfo *ci, cap_t cap);
-
 /* Hardware (interrupts) operations */
 hwcap_t cos_hw_alloc(struct cos_compinfo *ci, u32_t bitmap);
 int     cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t rcvcap);
@@ -193,5 +185,7 @@ int     cos_hw_detach(hwcap_t hwc, hwid_t hwid);
 void *  cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
 int     cos_hw_cycles_per_usec(hwcap_t hwc);
 int     cos_hw_cycles_thresh(hwcap_t hwc);
+
+capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
 
 #endif /* COS_KERNEL_API_H */

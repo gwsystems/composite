@@ -933,7 +933,6 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 	default:
 		return -EINVAL;
 	}
-	return -EINVAL;
 }
 
 #define ENABLE_KERNEL_PRINT
