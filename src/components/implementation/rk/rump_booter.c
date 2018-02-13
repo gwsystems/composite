@@ -1,19 +1,20 @@
 #include <stdio.h>
 #include <string.h>
 #include <cos_component.h>
-
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <sl.h>
 #include <sl_thd.h>
 #include <sl_consts.h>
-
 #include <rumpcalls.h>
 #include <vk_types.h>
+#include <llprint.h>
+#include <llbooter_inv.h>
+
 #include "rk_json_cfg.h"
 #include "rk_sched.h"
-#include <llprint.h>
+
 
 extern struct cos_component_information cos_comp_info;
 
@@ -144,7 +145,7 @@ void
 cos_init(void)
 {
 
-	unsigned long cap_frontier = -1;
+	long cap_frontier = -1;
 	struct cos_defcompinfo *dci;
 	struct cos_compinfo    *ci;
 	int ret = -1;
@@ -170,8 +171,8 @@ cos_init(void)
 	spdid = cos_spdid_get();
 	printc("spdid: %d\n", spdid);
 
-	cap_frontier = (unsigned long)cos_hypervisor_get_resource(REQ_CAP_FRONTIER,
-			(void *)cos_spdid_get(), 0, 0);
+	cap_frontier = cos_hypervisor_hypercall(BOOT_HYP_CAP_FRONTIER, (void *)cos_spdid_get(),
+						0, 0);
 	assert(cap_frontier > 0);
 	printc("done\n");
 

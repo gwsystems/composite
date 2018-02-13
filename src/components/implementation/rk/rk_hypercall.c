@@ -8,64 +8,17 @@
 #include <rumpcalls.h>
 #include <vk_types.h>
 #include <llprint.h>
+#include <rk.h>
 
 int rump___sysimpl_socket30(int, int, int);
 int rump___sysimpl_bind(int, const struct sockaddr *, socklen_t);
 ssize_t rump___sysimpl_recvfrom(int, void *, size_t, int, struct sockaddr *, socklen_t *);
 ssize_t rump___sysimpl_sendto(int, const void *, size_t, int, const struct sockaddr *, socklen_t);
 
-/* These syncronous invocations involve calls to and from a RumpKernel */
+/* These synchronous invocations involve calls to and from a RumpKernel */
 //extern struct cringbuf *vmrb;
 /* TODO when rumpbooter is its own interface, have this as an exported symbol */
 struct cringbuf *vmrb = NULL;
-
-#define RK_MAX_BUFF_SZ 1024
-static char logdata[RK_MAX_BUFF_SZ] = { '\0' };
-
-static void
-rk_logdata_intern(void)
-{
-	int amnt = 0, len = 0;
-	int first = 1;
-
-	while ((amnt = cringbuf_sz(vmrb))) {
-		if (first) first = 0;
-
-		if (amnt >= RK_MAX_BUFF_SZ) amnt = RK_MAX_BUFF_SZ - 1;
-
-		memset(logdata, '\0', RK_MAX_BUFF_SZ);
-		strncpy(logdata, cringbuf_active_extent(vmrb, &len, amnt), amnt);
-
-		printc("%s",logdata);
-		cringbuf_delete(vmrb, amnt);
-	}
-
-	assert(first == 0);
-}
-
-void
-rump_io_fn(void *d)
-{
-	arcvcap_t rcv = SUB_CAPTBL_SELF_IORCV_BASE;
-
-	assert(vmrb);
-
-	while (1) {
-		int rcvd = 0;
-
-		cos_rcv(rcv, RCV_ALL_PENDING, &rcvd);
-
-		rk_logdata_intern();
-	}
-}
-
-int
-rk_logdata(void)
-{
-	rk_logdata_intern();
-
-	return 0;
-}
 
 int
 test_entry(int arg1, int arg2, int arg3, int arg4)
@@ -89,7 +42,7 @@ test_fs(int arg1, int arg2, int arg3, int arg4)
 
         /* FS Test */
         printc("Running paws test: VM%d\n", cos_spdid_get());
-//        paws_tests();
+//      paws_tests();
 
         printc("*** KERNEL COMPONENT RETURNING ***\n\n");
 
@@ -206,68 +159,68 @@ rk_sendto(int sockfd, int buff_shdmem_id, size_t len, int flags, int addr_shdmem
 }
 
 int
-rk_inv_entry(int arg1, int arg2, int arg3, int arg4)
+rk_entry(int arg1, int arg2, int arg3, int arg4)
 {
 	int ret = 0;
 
-	/* TODO Rename this dumb conevention from a function to a system call  */
+	/* TODO, remove this function and instead have all function invocations auto-generated */
 	switch(arg1) {
-		case RK_INV_OP1: {
-			ret = test_fs(arg2, arg3, arg4, 0);
-			break;
-		}
-		case RK_INV_OP2: {
-			ret = test_shdmem(arg2, arg3, arg4, 0);
-			break;
-		}
-		case RK_GET_BOOT_DONE: {
-			ret = get_boot_done();
-			break;
-		}
-		case RK_SOCKET: {
-			ret = rk_socket(arg2, arg3, arg4);
-			break;
-		}
-		case RK_BIND: {
-			ret = rk_bind(arg2, arg3, (socklen_t)arg4);
-			break;
-		}
-		case RK_RECVFROM: {
-			int s, buff_shdmem_id, flags, from_shdmem_id, from_addr_len;
-			size_t len;
+	case RK_INV_OP1: {
+		ret = test_fs(arg2, arg3, arg4, 0);
+		break;
+	}
+	case RK_INV_OP2: {
+		ret = test_shdmem(arg2, arg3, arg4, 0);
+		break;
+	}
+	case RK_GET_BOOT_DONE: {
+		ret = get_boot_done();
+		break;
+	}
+	case RK_SOCKET: {
+		ret = rk_socket(arg2, arg3, arg4);
+		break;
+	}
+	case RK_BIND: {
+		ret = rk_bind(arg2, arg3, (socklen_t)arg4);
+		break;
+	}
+	case RK_RECVFROM: {
+		int s, buff_shdmem_id, flags, from_shdmem_id, from_addr_len;
+		size_t len;
 
-			s = (arg2 >> 16);
-			buff_shdmem_id = (arg2 << 16) >> 16;
-			len = (arg3 >> 16);
-			flags = (arg3 << 16) >> 16;
-			from_shdmem_id = (arg4 >> 16);
-			from_addr_len = (arg4 << 16) >> 16;
+		s = (arg2 >> 16);
+		buff_shdmem_id = (arg2 << 16) >> 16;
+		len = (arg3 >> 16);
+		flags = (arg3 << 16) >> 16;
+		from_shdmem_id = (arg4 >> 16);
+		from_addr_len = (arg4 << 16) >> 16;
 
-			ret = (int)rk_recvfrom(s, buff_shdmem_id, len, flags,
-					from_shdmem_id, from_addr_len);
-			break;
-		}
-		case RK_SENDTO: {
-			int sockfd, flags, buff_shdmem_id, addr_shdmem_id;
-			size_t len;
-			socklen_t addrlen;
-			const struct sockaddr *addr;
+		ret = (int)rk_recvfrom(s, buff_shdmem_id, len, flags,
+				from_shdmem_id, from_addr_len);
+		break;
+	}
+	case RK_SENDTO: {
+		int sockfd, flags, buff_shdmem_id, addr_shdmem_id;
+		size_t len;
+		socklen_t addrlen;
+		const struct sockaddr *addr;
 
-			sockfd            = (arg2 >> 16);
-			buff_shdmem_id    = (arg2 << 16) >> 16;
-			len               = (arg3 >> 16);
-			flags             = (arg3 << 16) >> 16;
-			addr_shdmem_id    = (arg4 >> 16);
-			addrlen           = (arg4 << 16) >> 16;
+		sockfd            = (arg2 >> 16);
+		buff_shdmem_id    = (arg2 << 16) >> 16;
+		len               = (arg3 >> 16);
+		flags             = (arg3 << 16) >> 16;
+		addr_shdmem_id    = (arg4 >> 16);
+		addrlen           = (arg4 << 16) >> 16;
 
-			ret = (int)rk_sendto(sockfd, buff_shdmem_id, len, flags, addr_shdmem_id, addrlen);
-			break;
-		}
-		case RK_LOGDATA: {
-			ret = rk_logdata();
-			break;
-		}
-		default: assert(0);
+		ret = (int)rk_sendto(sockfd, buff_shdmem_id, len, flags, addr_shdmem_id, addrlen);
+		break;
+	}
+	case RK_LOGDATA: {
+		/* DEPRECATED */
+		break;
+	}
+	default: assert(0);
 	}
 
 	return ret;

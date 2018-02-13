@@ -3,6 +3,7 @@
 #include <cos_defkernel_api.h>
 #include <shdmem.h>
 #include <sl.h>
+#include <llbooter_inv.h>
 
 /*
  * For generic shared memory, the client component is responsible for allocating memory
@@ -71,7 +72,7 @@ __get_pgtbls()
 	int i;
 
 	/* Get the number of pagetables available to use to copy */
-	num_comps = (int)cos_sinv(BOOT_CAPTBL_SINV_CAP, REQ_NUM_COMPS, 0, 0, 0);
+	num_comps = (int)cos_sinv(BOOT_CAPTBL_SINV_CAP, BOOT_HYP_NUM_COMPS, 0, 0, 0);
 	assert(num_comps);
 	printc("We need to tansfer %d pgtbls...\n", num_comps-1);
 
@@ -79,7 +80,7 @@ __get_pgtbls()
 		/* Already have access to my own page table */
 		if (i == SHMEM_TOKEN) continue;
 
-		cap_index = (unsigned int)cos_hypervisor_get_resource(REQ_PGTBL_CAP,
+		cap_index = (unsigned int)cos_hypervisor_hypercall(BOOT_HYP_PGTBL_CAP,
 				(void *)SHMEM_TOKEN, (void *)i, (void *)shm_cinfo);
 		assert(cap_index > 0);
 		__create_shm_info(i, cap_index);

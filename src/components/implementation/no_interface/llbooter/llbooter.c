@@ -1,10 +1,5 @@
 #include <cos_component.h>
 #include <cobj_format.h>
-#include <cos_defkernel_api.h>
-#include <sl.h>
-//#include <cos_kernel_api.h>
-
-
 #include "boot_deps.h"
 
 #define USER_CAPS_SYMB_NAME "ST_user_caps"
@@ -272,7 +267,7 @@ boot_create_cap_system(void)
 		pgtblcap_t          pt;
 		spdid_t             spdid;
 		vaddr_t             ci = 0;
-		int                 is_sched, is_shdmem;
+		boot_comp_flag_t    comp_flags;
 
 		h     = hs[i];
 		spdid = h->id;
@@ -286,30 +281,17 @@ boot_create_cap_system(void)
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
 		/* check for hardcoded "sl_" prefix in c obj to determine which cap image we create */
-		is_sched  = boot_check_scheduler(h->name);
+		comp_flags  = boot_check_scheduler(h->name);
 		/* Check for shdmem component */
-		is_shdmem = boot_check_shdmem(h->name);
+		comp_flags  |= boot_check_shdmem(h->name);
 
-		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo, is_sched, is_shdmem);
-		printc("\nComp %d (%s) is_sched=%d, is_shdmem=%d, created @ %x!\n\n", h->id, h->name, is_sched, is_shdmem, sect->vaddr);
+		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo, comp_flags);
+		printc("\nComp %d (%s) comp_flags=%d created @ %x!\n\n",
+			h->id, h->name, comp_flags, sect->vaddr);
 	}
 
 
 	return;
-}
-
-void
-boot_init_ndeps(int num_cobj)
-{
-	int i = 0;
-
-	printc("MAX DEPS: %d\n", MAX_DEPS);
-	for (i = 0; (short int)i < deps_list[i].server; i++) {
-//		if (deps_list[i].client != 0) printc("client: %d, server: %d \n", deps_list[i].client, deps_list[i].server);
-	}
-
-	printc("ndeps: %d\n", ndeps);
-	ndeps = i;
 }
 
 void
@@ -322,11 +304,6 @@ cos_init(void)
 	h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj = (int)cos_comp_info.cos_poly[1];
 	printc("num_cobj: %d\n", num_cobj);
-
-	/* TODO, deps and deps_list is not used for anything */
-	//deps = (struct deps *)cos_comp_info.cos_poly[2];
-	//memcpy(deps_list, (struct deps *)cos_comp_info.cos_poly[2], PAGE_SIZE);
-	boot_init_ndeps(num_cobj);
 
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
 	init_args++;

@@ -646,79 +646,6 @@ cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 { return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4); }
 
 /*
- * TODO:
- * talk about this naming choice
- * can't remember what Gabe thought was best choice here
- */
-void *
-cos_hypervisor_get_resource(int op, void *arg1, void *arg2, void *arg3)
-{
-	void *ret;
-	assert(op >= 0);
-
-	/* Dpending on the operation we will need to allocate our own a cap space */
-	switch(op) {
-		case INIT_DONE: {
-			/* DEPRICATED, Should not be needed as llbooter is not scheduler */
-			assert(0);
-			break;
-		}
-		case REQ_PGTBL_CAP: {
-			/*
-			 * FIXME: There is no mechanism for checking to see if a comp
-			 * should be permitted to do this
-			 */
-			capid_t cap_index = cos_capid_bump_alloc((struct cos_compinfo *)arg3,
-					CAP_PGTBL);
-			assert(cap_index > 0);
-			cos_sinv(BOOT_CAPTBL_SINV_CAP, op, (int)arg1, (int)arg2,
-					(int)cap_index);
-			ret = (void *)cap_index;
-			break;
-		}
-		case REQ_SINV_CAP: {
-			/* TODO */
-			assert(0);
-			break;
-		}
-		case REQ_CAP_FRONTIER: {
-			/* Get the offset of the cap frontier as known by the hypervisor*/
-			ret = (void *)cos_sinv(BOOT_CAPTBL_SINV_CAP, op, (int)arg1,
-					(int)arg2, (int)arg3);
-			break;
-		}
-		case REQ_NUM_COMPS: {
-			/* Ask the hypervisor for the number of components on the system*/
-			/*
-			 * FIXME: Is this sensitive information? Can someone use this
-			 * maliciously?
-			 */
-			ret = (void *)cos_sinv(BOOT_CAPTBL_SINV_CAP, op, (int)arg1,
-					(int)arg2, (int)arg3);
-			break;
-		}
-		case REQ_COMP_CAP: {
-			/*
-			 * FIXME: There is no mechanism for checking to see if a comp
-			 * should be permitted to do this
-			 */
-			/* TODO: set each arg to a variable with a real name */
-			capid_t cap_index = cos_capid_bump_alloc((struct cos_compinfo *)arg3,
-					CAP_COMP);
-			assert(cap_index > 0);
-			cos_sinv(BOOT_CAPTBL_SINV_CAP, op, (int)arg1, (int)arg2,
-					(int)cap_index);
-			ret = (void *)cap_index;
-			break;
-		}
-		default:
-			assert(0);
-	}
-
-	return ret;
-}
-
-/*
  * Arguments:
  * thdcap:  the thread to activate on snds to the rcv endpoint.
  * tcap:    the tcap to use for that execution.
@@ -1067,18 +994,18 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 
 	fva = __page_bump_valloc(ci, PAGE_SIZE);
 	va  = fva;
-	if (unlikely(!fva)) return NULL;
 
-	do {
+	while (1) {
+		if (unlikely(!va)) return NULL;
+
 		if (call_cap_op(hwc, CAPTBL_OP_HW_MAP, ci->pgtbl_cap, va, pa, 0)) BUG();
 
 		sz -= PAGE_SIZE;
 		pa += PAGE_SIZE;
 
+		if (sz <= 0) break;
 		va = __page_bump_valloc(ci, PAGE_SIZE);
-		if (unlikely(!va)) return NULL;
-
-	} while (sz > 0);
+	}
 
 	return (void *)fva;
 }

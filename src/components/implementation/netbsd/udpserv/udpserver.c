@@ -5,6 +5,7 @@
 #include <micro_booter.h>
 #include <rumpcalls.h>
 #include <cos_types.h>
+#include <rk.h>
 
 #define IN_PORT  9998
 #define OUT_PORT 9999
@@ -89,8 +90,11 @@ cos_init(void)
 {
 	printc("Welcome to the udpserver component\n");
 	printc("cos_component_information spdid: %ld\n", cos_comp_info.cos_this_spd_id);
-	printc("FIXME, this should be booted by the RK component...\n");
-	printc("TODO, for now... just have the RK add the main thread for this to the booter's runq after the RK is done booting\n");
+
+	/* Test RK entry */
+	printc("calling rk_inv_entry\n");
+	rk_entry(RK_GET_BOOT_DONE, 0, 0, 0);
+	test_entry(0, 1, 2, 3);
 
 	/* Spinning */
 	while(1);

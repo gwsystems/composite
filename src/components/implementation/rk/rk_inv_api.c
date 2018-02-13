@@ -7,8 +7,14 @@
 #include <vk_types.h>
 #include <shdmem.h>
 #include <llprint.h>
+#include <rk.h>
 
 extern int vmid;
+
+/*
+ * Essentially everything in this file can be deleted or except for the packing code for
+ * a few of the invocations. This file is used on the application side to invoke into the Rumpkernel
+ */
 
 int
 rk_inv_op1(void)

@@ -11,6 +11,7 @@
 #include <rumpcalls.h>
 #include <vk_types.h>
 #include <vk_api.h>
+#include <llbooter_inv.h>
 
 #include "rk_inv_api.h"
 #include "rump_cos_alloc.h"
@@ -250,8 +251,9 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 
 		/* FIXME, hard coding in the udpserver's spdid */
 		int udpserver_id = 3;
-		int cap_index = (int)cos_hypervisor_get_resource(REQ_COMP_CAP,
-				(void *)cos_spdid_get(), (void *)udpserver_id, ci);
+		int cap_index = (int)cos_hypervisor_hypercall(BOOT_HYP_COMP_CAP,
+							     (void *)cos_spdid_get(),
+							     (void *)udpserver_id, ci);
 		assert(cap_index > 0);
 		printc("cap_index: %d\n", cap_index);
 		printc("Allocating a thread using comp cap of udpserver\n");
