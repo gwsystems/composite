@@ -34,8 +34,7 @@ When developing:
 $ make
 $ make run RUNSCRIPT=micro_boot.sh run
 ```
-Both `micro_boot.sh` and `unit_schedtests.sh` will launch a [QEMU](https://www.qemu.org/documentation/) instance.
-Use `<Ctrl-a x>` to exit a QEMU instance.
+Both `micro_boot.sh` and `unit_schedtests.sh` will launch a [QEMU](https://www.qemu.org/documentation/) instance, use `<Ctrl-a x>` to exit.
 ## The `doc` Directory
 
 The only document that is currently up-to-date is the `style_guide/` (and `rust_with_composite.md`),
