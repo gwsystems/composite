@@ -1,0 +1,25 @@
+## Just remake dpdk and composite
+alias ,='pushd . && cd $dpdk && make && cp build/lib/* ../ && rm $dpdk_init/cos_dpdk.o && popd && make && make run RUNSCRIPT=dpdk_init.sh run'
+## make clean dpdk too
+alias c='pushd . && cd $dpdk && make clean && make && cp build/lib/* ../ && rm $dpdk_init/cos_dpdk.o && popd && make && make run RUNSCRIPT=dpdk_init.sh run'
+## make clean everything, nuclear button
+alias k='make clean && make init && make && make run RUNSCRIPT=dpdk_init.sh run'
+
+#dpdk compilation flags
+export EXT_CFLAGS="-nostdlib -nostdinc -fno-pic -fno-pie -D_GLOBAL_OFFSET_TABLE_ -D_GNU_SOURCE"
+
+## Helpful shortcuts
+export src=~/clones/composite/src
+export dpdk=$src/components/lib/dpdk
+export lib_dpdk=$dpdk/lib
+export ether=$lib_dpdk/librte_ether
+export eal=$dpdk/lib/librte_eal
+export lapp=$eal/linuxapp/eal
+export common=$eal/common
+export include=$common/include
+export drivers=$dpdk/drivers
+export e1000=$drivers/net/e1000
+
+export dpdk_init=$src/components/implementation/no_interface/dpdk_init
+export musl_include=$src/components/lib/musl-1.1.11/include
+export COS_HOME="/home/riley/clones/composite"
