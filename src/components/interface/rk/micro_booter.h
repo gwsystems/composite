@@ -17,6 +17,7 @@
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
+#include <rumpcalls.h>
 
 #define PRINTC(fmt, args...) printc("%d: " fmt, cos_spdid_get() , ##args)
 #define ITER       10000

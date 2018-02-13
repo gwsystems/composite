@@ -94,7 +94,6 @@ __get_pgtbls()
 vaddr_t
 shm_get_vaddr(unsigned int spdid, unsigned int id)
 {
-	printc("IN SHM_GET_VADDR;\n");
 	assert(id < SHM_MAX_REGIONS && &shm_infos[spdid].cinfo && shm_infos[spdid].shm_frontier);
 
 	return shm_infos[spdid].my_regions[id];
@@ -103,7 +102,6 @@ shm_get_vaddr(unsigned int spdid, unsigned int id)
 int
 shm_allocate(unsigned int spdid, unsigned int num_pages)
 {
-	printc("IN SHM_ALLOCATE\n");
 	vaddr_t src_pg, dst_pg, unused;
 	struct shm_info *comp_shm_info;
 	int ret, id;
@@ -142,7 +140,6 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 
 	shm_master_idx++;
 
-	printc("dst_pg: %p, src_pg: %p\n", (void *)dst_pg, (void *)src_pg);
 	ret = cos_mem_alias_at(&comp_shm_info->cinfo, comp_shm_info->shm_frontier, shm_cinfo, src_pg);
 	assert(dst_pg && !ret);
 	comp_shm_info->shm_frontier += PAGE_SIZE;
@@ -174,7 +171,6 @@ shm_deallocate(int arg1, int arg2, int arg3, int arg4)
 int
 shm_map(unsigned int spdid, unsigned int id)
 {
-	printc("IN SHM_MAP\n");
 	vaddr_t src_pg, dst_pg;
 	int ret;
 	struct shm_info *comp_shm_info;

@@ -3,7 +3,6 @@
 #include <cringbuf.h>
 #include <sinv_calls.h>
 #include <shdmem.h>
-#include <rk_inv_api.h>
 #include <sys/socket.h>
 #include <rumpcalls.h>
 #include <vk_types.h>
@@ -61,11 +60,11 @@ test_shdmem(int shm_id, int arg2, int arg3, int arg4)
 	//assert(!cos_spdid_get());
 
 	///* Map in shared page */
-	//my_id = shmem_map_invoke(shm_id);
+	//my_id = shm_map(cos_spdid_get(), shm_id);
 	//assert(my_id == shm_id);
 
 	///* Get our vaddr for this shm_id */
-	//my_page = shmem_get_vaddr_invoke(my_id);
+	//my_page = shm_get_vaddr(cos_spdid_get(), my_id);
 	//assert(my_page);
 
 	//printc("Kernel Component shared mem vaddr: %p\n", (void *)my_page);
@@ -88,14 +87,12 @@ rk_socket(int domain, int type, int protocol)
 int
 rk_bind(int sockfd, int shdmem_id, socklen_t addrlen)
 {
-	/* TODO */
-	//const struct sockaddr *addr = NULL;
-	//shdmem_id = shmem_map_invoke(shdmem_id);
-	//assert(shdmem_id > -1);
-	//addr = (const struct sockaddr *)shmem_get_vaddr_invoke(shdmem_id);
-	//assert(addr);
-	//return rump___sysimpl_bind(sockfd, addr, addrlen);
-	return 0;
+	const struct sockaddr *addr = NULL;
+	shdmem_id = shm_map(cos_spdid_get(), shdmem_id);
+	assert(shdmem_id > -1);
+	addr = (const struct sockaddr *)shm_get_vaddr(cos_spdid_get(), shdmem_id);
+	assert(addr);
+	return rump___sysimpl_bind(sockfd, addr, addrlen);
 }
 
 ssize_t
@@ -108,11 +105,10 @@ rk_recvfrom(int s, int buff_shdmem_id, size_t len, int flags, int from_shdmem_id
 	struct sockaddr *from;
 	socklen_t *from_addr_len_ptr;
 
-	/* TODO */
-	//if (shdmem_id == -1 && my_addr == 0) {
-	//	shdmem_id = shmem_map_invoke(buff_shdmem_id);
-	//	my_addr = shmem_get_vaddr_invoke(shdmem_id);
-	//}
+	if (shdmem_id == -1 && my_addr == 0) {
+		shdmem_id = shm_map(cos_spdid_get(), buff_shdmem_id);
+		my_addr = shm_get_vaddr(cos_spdid_get(), shdmem_id);
+	}
 
 	assert(shdmem_id > -1);
 	assert(my_addr > 0);
@@ -143,10 +139,10 @@ rk_sendto(int sockfd, int buff_shdmem_id, size_t len, int flags, int addr_shdmem
 	static const void *buff = 0;
 	const struct sockaddr *addr;
 
-	//if (shdmem_id == -1 && buff == 0) {
-	//	shdmem_id = shmem_map_invoke(buff_shdmem_id);
-	//	buff = (const void *)shmem_get_vaddr_invoke(shdmem_id);
-	//}
+	if (shdmem_id == -1 && buff == 0) {
+		shdmem_id = shm_map(cos_spdid_get(), buff_shdmem_id);
+		buff = (const void *)shm_get_vaddr(cos_spdid_get(), shdmem_id);
+	}
 
 	assert(shdmem_id > -1);
 	assert(buff);
@@ -178,14 +174,17 @@ rk_entry(int arg1, int arg2, int arg3, int arg4)
 		break;
 	}
 	case RK_SOCKET: {
+		printc("RK socket\n");
 		ret = rk_socket(arg2, arg3, arg4);
 		break;
 	}
 	case RK_BIND: {
+		printc("RK bind\n");
 		ret = rk_bind(arg2, arg3, (socklen_t)arg4);
 		break;
 	}
 	case RK_RECVFROM: {
+		printc("RK recvfrom\n");
 		int s, buff_shdmem_id, flags, from_shdmem_id, from_addr_len;
 		size_t len;
 
@@ -201,6 +200,7 @@ rk_entry(int arg1, int arg2, int arg3, int arg4)
 		break;
 	}
 	case RK_SENDTO: {
+		printc("RK sendto\n");
 		int sockfd, flags, buff_shdmem_id, addr_shdmem_id;
 		size_t len;
 		socklen_t addrlen;

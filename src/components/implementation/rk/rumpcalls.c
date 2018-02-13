@@ -13,7 +13,6 @@
 #include <vk_api.h>
 #include <llbooter_inv.h>
 
-#include "rk_inv_api.h"
 #include "rump_cos_alloc.h"
 #include "rk_sched.h"
 
@@ -231,15 +230,21 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	struct sl_thd *t = NULL;
 	int ret;
 
-	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p\n", thread->bt_name, f);
+	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p, in spdid: %d\n", thread->bt_name, f,
+			cos_spdid_get());
 
 	/* Check to see if we are creating the thread for our application */
 	if (!strcmp(thread->bt_name, "user_lwp")) {
-		/* TODO:
-		 * 3. Construct a cos_aep_info on behalf of
-		 * 4. Use sl_thd_init to make that cos thd into an sl thread
-		 * 5. Set the prio of that thread
+		/*
+		 * FIXME, remove this hack and use real system configuration
+		 * this is based off an assumption that the RK that does networking
+		 * is always spdid 4
 		 */
+		if (cos_spdid_get() == 4) {
+			printc("In cnic RK, skipping lwp thread initialization\n");
+			return;
+		}
+
 		struct cos_defcompinfo *dci;
 		struct cos_compinfo    *ci;
 		thdcap_t thd;
@@ -340,17 +345,6 @@ cos_vm_yield(void)
 { cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
 
 /* System Calls */
-void
-cos_fs_test(void)
-{
-	int sinv_ret;
-
-	printc("Running cos fs test: VM%d\n", cos_spdid_get());
-
-	sinv_ret = rk_inv_op1();
-
-	printc("Ret from fs test: %d\n", sinv_ret);
-}
 
 /* FIXME rename two tests below */
 void
