@@ -14,8 +14,8 @@
   "linker-flavor": "gcc",
   "linker-is-gnu": true,
   "llvm-target": "i686-unknown-linux-musl",
-  "max-atomic-width": 32,
   "target-c-int-width":"32",
+  "max-atomic-width": 32,
   "os": "linux",
   "relocation-model": "dynamic-no-pic",
   "post-link-args": {
@@ -47,7 +47,6 @@
   "stack-probes": false,
   "target-endian": "little",
   "target-family": "unix",
-  "target-c-int-width": "32",
   "target-pointer-width": "32",
   "vendor": "unknown",
   "features": "-mmx,-sse",
