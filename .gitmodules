@@ -3,5 +3,5 @@
 	url = https://github.com/gwsystems/ps.git
 [submodule "src/components/lib/dpdk"]
 	path = src/components/lib/dpdk
-	url = https://github.com/rskennedy/dpdk
-	branch = exp-linuxapp
+	url = https://github.com/gwsystems/dpdk
+	branch = composite
