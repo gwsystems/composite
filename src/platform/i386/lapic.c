@@ -412,10 +412,10 @@ static int
 lapic_ipi_send(u32_t dest, u32_t vect_flags)
 {
 	lapic_write_reg(LAPIC_ICR + 0x10, dest << 24);
-	while (lapic_read_reg(LAPIC_ICR + 0x10) != dest << 24);
+	lapic_read_reg(LAPIC_ICR + 0x10);
 
 	lapic_write_reg(LAPIC_ICR, vect_flags);
-	while (lapic_read_reg(LAPIC_ICR) != vect_flags);
+	lapic_read_reg(LAPIC_ICR);
 
 	return 0;
 }
@@ -486,7 +486,6 @@ smp_bootall(void)
 			/* ...wait for 20 us... */
 			delay_us(200);
 		}
-		while(apicids[i]);
 	}
 	ret = lapic_read_reg(LAPIC_ESR);
 	if (ret) printk("SMP Bootup: LAPIC error status register is %x\n", ret);

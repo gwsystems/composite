@@ -92,10 +92,11 @@ static void
 chal_cpu_init(void)
 {
 	u32_t cr4 = chal_cpu_cr4_get();
+	int cpu_id = get_cpuid();
 
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
 	writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
-	writemsr(IA32_SYSENTER_ESP, (u32_t)tss.esp0, 0);
+	writemsr(IA32_SYSENTER_ESP, (u32_t)tss[cpu_id].esp0, 0);
 	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, 0);
 	chal_cpu_eflags_init();
 }

@@ -35,6 +35,7 @@ loader:
 	pushl %esp
 	pushl %ecx
 	pushl %ebx
+
 	pushl $0  /* empty return value as we're jmping, not calling */
 	mov $kmain, %eax
 	jmp *%eax

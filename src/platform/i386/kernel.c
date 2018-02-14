@@ -130,9 +130,9 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
 	unsigned long max;
 
-	tss_init();
-	gdt_init();
-	idt_init();
+	tss_init(0);
+	gdt_init(0);
+	idt_init(0);
 
 #ifdef ENABLE_SERIAL
 	serial_init();
@@ -160,8 +160,8 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	timer_init();
 	lapic_init();
 	smp_init();
+	while(1);
 	lapic_timer_init();
-
 	kern_boot_upcall();
 
 	/* should not get here... */
@@ -171,7 +171,14 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 void
 smp_kmain(void)
 {
-	printk("New CPU %d Booted\n", get_cpuid());
+	int cpuid = get_cpuid();
+	while (1);
+	tss_init(cpuid);
+	gdt_init(cpuid);
+	idt_init(cpuid);
+
+	// printk("New CPU %d Booted\n", cpuid);
+	// kern_boot_upcall();
 	while (1) ;
 }
 

@@ -40,9 +40,9 @@ u64_t timer_find_hpet(void *timer);
 void  timer_set_hpet_page(u32_t page);
 void  timer_thd_init(struct thread *t);
 
-void  tss_init(void);
-void  idt_init(void);
-void  gdt_init(void);
+void  tss_init(const u32_t cpu_id);
+void  idt_init(const u32_t cpu_id);
+void  gdt_init(const u32_t cpu_id);
 void  user_init(void);
 void  paging_init(void);
 void *acpi_find_rsdt(void);
