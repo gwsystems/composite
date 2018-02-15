@@ -467,7 +467,7 @@ smp_bootall(void)
 
 		/* ...make sure that we pass this core's stack */
 		stackpatch  = (char **)chal_pa2va(SMP_BOOT_PATCH_ADDR + (&smpstack - &smppatchstart));
-		*stackpatch = &stack + ((PAGE_SIZE * i) + (PAGE_SIZE - STK_INFO_OFF));
+		*stackpatch = &stack + ((PAGE_SIZE * (i + 1)) + (PAGE_SIZE - STK_INFO_OFF));
 		/* ...initialize the coreid of the new processor */
 		cli         = (struct cos_cpu_local_info *)*stackpatch;
 		cli->cpuid  = i; /* the rest is initialized during the bootup process */

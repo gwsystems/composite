@@ -172,14 +172,14 @@ void
 smp_kmain(void)
 {
 	int cpuid = get_cpuid();
-	while (1);
+
 	tss_init(cpuid);
 	gdt_init(cpuid);
 	idt_init(cpuid);
-
-	// printk("New CPU %d Booted\n", cpuid);
+	while(1);
+	kern_boot_comp();
+	printk("New CPU %d Booted\n", cpuid);
 	// kern_boot_upcall();
-	while (1) ;
 }
 
 void
