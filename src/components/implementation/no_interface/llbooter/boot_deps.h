@@ -6,6 +6,7 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <sl.h>
+#include <llboot.h>
 
 #define UNDEF_SYMBS 64
 
@@ -268,8 +269,156 @@ boot_thd_done(void)
 	}
 }
 
-void
-llboot_entry(int a, int b, int c, int d)
+/* assume capid_t is 16bit for packing */
+#define BOOT_CI_GET_ERROR LLBOOT_ERROR
+
+static int 
+boot_comp_info_get(spdid_t spdid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t *cc, spdid_t *psid)
 {
-	boot_thd_done();
+	struct cos_compinfo *a_ci, *resci;
+
+	/* looks like the boot comps index start from 1 in that array */
+	if (spdid > num_cobj) {
+		return BOOT_CI_GET_ERROR;
+	}
+
+	a_ci  = new_comp_cap_info[spdid].compinfo;
+	resci = new_comp_cap_info[resmgr_spdid].compinfo;
+	assert(a_ci);
+	assert(resci);
+
+	/* FIXME: need resmgr or curr component's spdid */
+	*pgc  = cos_cap_cpy(resci, boot_info, CAP_PGTBL, a_ci->pgtbl_cap);
+	assert(*pgc);
+	*capc = cos_cap_cpy(resci, boot_info, CAP_CAPTBL, a_ci->captbl_cap);
+	assert(*capc);
+	*cc   = cos_cap_cpy(resci, boot_info, CAP_COMP, a_ci->comp_cap);
+	assert(*cc);
+	*psid = 0; /* TODO: find the parent */
+
+	return (int)(resci->cap_frontier);
+}
+
+static int 
+boot_comp_info_iter(spdid_t *csid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t *cc, spdid_t *psid)
+{
+	static int iter_idx = 1; /* skip llbooter component info! i'm guessing spdid == 0 is for booter */
+	int ret = BOOT_CI_GET_ERROR;
+
+	/* looks like the boot comps index start from 1 in that array */
+	if (iter_idx > num_cobj) {
+		*csid = 0;
+		goto done;
+	}
+
+	*csid = iter_idx;
+	ret   = boot_comp_info_get(*csid, pgc, capc, cc, psid);
+	if (ret == BOOT_CI_GET_ERROR) {
+		*csid = 0;
+		goto done;
+	}
+	iter_idx ++;
+
+done:
+	return ret;
+}
+
+static int
+boot_comp_frontier_get(int spdid, vaddr_t *vasfr, capid_t *capfr)
+{
+	struct cos_compinfo *a_ci;
+
+	/* looks like the boot comps index start from 1 in that array */
+	if (spdid > num_cobj) {
+		return BOOT_CI_GET_ERROR;
+	}
+
+	a_ci  = new_comp_cap_info[spdid].compinfo;
+	assert(a_ci);
+
+	*vasfr = a_ci->vas_frontier;
+	*capfr = a_ci->cap_frontier;
+
+	return 0;
+}
+
+u32_t
+llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *ret3)
+{
+	u32_t ret1 = 0;
+	u32_t error = (1 << 16) - 1;
+
+	/* TODO: check if this is resmgr to allow access! */
+	switch(op) {
+	case LLBOOT_COMP_INIT_DONE:
+	{
+		boot_thd_done();
+		break;
+	}
+	case LLBOOT_COMP_INFO_GET:
+	{
+		pgtblcap_t pgc;
+		captblcap_t capc;
+		compcap_t cc;
+		spdid_t psid;
+		int ret;
+
+		ret = boot_comp_info_get(arg2, &pgc, &capc, &cc, &psid);
+		if (ret == BOOT_CI_GET_ERROR) { 
+			ret1 = error;
+			break;
+		}
+
+		ret1  = ret;
+		*ret2 = (pgc << 16) | capc;
+		*ret3 = (cc << 16) | psid;
+
+		break;
+	}
+	case LLBOOT_COMP_INFO_NEXT:
+	{
+		pgtblcap_t pgc;
+		captblcap_t capc;
+		compcap_t cc;
+		spdid_t csid, psid;
+		int ret;
+
+		ret = boot_comp_info_iter(&csid, &pgc, &capc, &cc, &psid);
+		if (ret == BOOT_CI_GET_ERROR) { 
+			ret1 = error;
+			break;
+		}
+
+		ret1  = (csid << 16) | ret;
+		*ret2 = (pgc << 16) | capc;
+		*ret3 = (cc << 16) | psid;
+
+		break;
+	}
+	case LLBOOT_COMP_FRONTIER_GET:
+	{
+		vaddr_t vas;
+		capid_t caps;
+		int ret;
+
+		ret = boot_comp_frontier_get(arg2, &vas, &caps);
+		if (ret) { 
+			ret1 = error;
+			break;
+		}
+
+		*ret2 = ((caps << 16) >> 16);
+		*ret3 = vas;
+
+		break;
+	}
+	default:
+	{
+		assert(0);
+
+		ret1 = error;
+	}
+	}
+
+	return ret1;
 }

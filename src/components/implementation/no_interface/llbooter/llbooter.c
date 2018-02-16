@@ -291,6 +291,8 @@ boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 #define BOOT_RESMGR       "resmgr"
 #define BOOT_DELIMITER    "_"
 
+#define BOOT_NAME_MAX 32
+
 static spdid_t
 boot_comp_find_parent(spdid_t s)
 {
@@ -305,9 +307,10 @@ boot_comp_find_parent(spdid_t s)
 }
 
 static void
-boot_comp_name_parse(spdid_t s, char *name)
+boot_comp_name_parse(spdid_t s, const char *strname)
 {
 	struct comp_cap_info *cinfo = &new_comp_cap_info[s];
+	char name[BOOT_NAME_MAX] = { '\0' };
 
 #if 0
 	cinfo->is_sched = 1;
@@ -318,6 +321,7 @@ boot_comp_name_parse(spdid_t s, char *name)
 	char *tok;
 	int count_parsed = 0;
 
+	strncpy(name, strname, BOOT_NAME_MAX); 
 	cinfo->is_sched = -1;
 	if (name[0] == '_') {
 		/* TODO: */

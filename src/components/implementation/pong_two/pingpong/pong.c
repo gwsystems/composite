@@ -4,6 +4,7 @@
 #include <pong_two.h>
 #include <cos_debug.h>
 #include <cos_types.h>
+#include <llboot.h>
 
 void
 call(void) {
@@ -46,5 +47,6 @@ cos_init(void)
 {
 	printc("Welcome to the pong _twocomponent\n");
 
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, 1, 2, 3, 4);
+	llboot_comp_init_done();
+	while (1) ;
 }

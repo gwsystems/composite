@@ -2,6 +2,7 @@
 #include <pong_two.h>
 #include <cos_types.h>
 #include <cobj_format.h>
+#include <llboot.h>
 
 void cos_init(void)
 {
@@ -17,6 +18,6 @@ void cos_init(void)
 	call_arg(1);
 	call_args(1, 2, 3, 4);
 
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, 1, 2, 3, 4);
-	return;
+	llboot_comp_init_done();
+	while (1);
 }
