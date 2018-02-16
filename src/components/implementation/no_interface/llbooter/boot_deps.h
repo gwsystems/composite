@@ -365,6 +365,22 @@ boot_comp_frontier_get(int spdid, vaddr_t *vasfr, capid_t *capfr)
 	return 0;
 }
 
+static int
+boot_comp_childspds_get(int spdid, u64_t *idbits)
+{
+	int i = 1; /* 0 == llbooter */
+
+	*idbits = 0;
+	if (spdid > num_cobj) return -1;
+
+	while (i <= num_cobj) {
+		if (new_comp_cap_info[spdid].parent_spdid == spdid) *idbits |= (1 << i);
+		i ++;
+	}
+
+	return 0;
+}
+
 u32_t
 llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *ret3)
 {
@@ -439,10 +455,21 @@ llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 	{
 		capid_t capfr;
 
+		/* init-thread of components that booter created..*/
 		thdcap_t t = boot_comp_initthd_get(arg2, &capfr);
 
 		ret1 = t;
 		*ret2 = capfr;
+
+		break;
+	}
+	case LLBOOT_COMP_CHILDSPDIDS_GET:
+	{
+		u64_t idbits;
+
+		ret1 = boot_comp_childspds_get(arg2, &idbits);
+		*ret2 = (u32_t)idbits;
+		*ret3 = (u32_t)((idbits << 32) >> 32);
 
 		break;
 	}

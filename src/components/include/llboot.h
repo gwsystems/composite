@@ -2,6 +2,7 @@
 #define LLBOOT_H
 
 #include <cos_kernel_api.h>
+/* TODO: using token from sync inv creation */
 
 /*
  * strong assumption:
@@ -16,7 +17,17 @@ enum llboot_cntl {
 	LLBOOT_COMP_FRONTIER_GET, /* get current cap frontier & vaddr frontier of spdid comp */
 
 	LLBOOT_COMP_INITTHD_GET,
+	LLBOOT_COMP_CHILDSPDIDS_GET,
 };
+
+/* assumption: spdids are monotonically increasing from 0 and max MAX_NUM_SPD == 64 */
+static inline int 
+llboot_comp_childspdids_get(u64_t *id_bits)
+{
+	word_t lo = 0, hi = 0;
+
+	return cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, LLBOOT_COMP_CHILDSPDIDS_GET, cos_spd_id(), 0, 0, &lo, &hi);
+}
 
 static inline int
 llboot_comp_init_done(void)

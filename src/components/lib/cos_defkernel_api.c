@@ -63,6 +63,8 @@ cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rc
 	sched_aep->fn   = NULL;
 	sched_aep->data = NULL;
 
+	defci->id = cos_spd_id();
+
 	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, comp_cap, heap_ptr, cap_frontier, ci);
 	curr_defci_init_status = INITIALIZED;
 }
@@ -116,6 +118,14 @@ cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, 
 	child_aep->data = NULL;
 
 	return ret;
+}
+
+void
+cos_defcompinfo_childid_init(struct cos_defcompinfo *child_defci, spdid_t c)
+{
+	assert(child_defci != cos_defcompinfo_curr_get());
+
+	child_defci->id = c;
 }
 
 int

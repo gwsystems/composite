@@ -90,7 +90,7 @@ resmgr_initthd_create(spdid_t cur, spdid_t s)
 }
 
 thdcap_t
-resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, asndcap_t *sndret, u32_t *unused)
+resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, asndcap_t *sndret, u32_t *rcvtcret)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
@@ -98,6 +98,8 @@ resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, asndcap_t *sndre
 	struct res_comp_info *rs = res_info_comp_find(s);
 	struct res_thd_info *rt = NULL, *rst = NULL, *rinit = NULL;
 	struct sl_thd *t = NULL, *sched = NULL;
+	tcap_t tc;
+	arcvcap_t rcv;
 	int ret;
 
 	assert(res_info_init_check(rc) && res_info_init_check(rs));
@@ -131,6 +133,11 @@ resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, asndcap_t *sndre
 	/* parent only needs the thdcap/asndcap */
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, res_thd_thdcap(rt));
 	assert(ret > 0);
+	rcv = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ARCV, res_thd_rcvcap(rt));
+	assert(rcv > 0);
+	tc = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_TCAP, res_thd_tcap(rt));
+	assert(tc > 0);
+	*rcvtcret = (rcv << 16) | (tc);
 	*sndret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ASND, res_thd_asndcap(rt));
 	assert(*sndret > 0);
 

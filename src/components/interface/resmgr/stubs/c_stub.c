@@ -6,7 +6,7 @@ thdcap_t resmgr_thd_create_intern(spdid_t c, int idx);
 thdcap_t resmgr_ext_thd_create_intern(spdid_t c, spdid_t s, int idx);
 thdcap_t resmgr_aep_create_intern(spdid_t c, int idx, int owntc, arcvcap_t *rcvret, tcap_t *tcret);
 thdcap_t resmgr_ext_aep_create_intern(spdid_t c, spdid_t s, int idx, int owntc, arcvcap_t *rcvret, u32_t *rcvtcret);
-thdcap_t resmgr_initaep_create_intern(spdid_t c, spdid_t s, int owntc, asndcap_t *sndret, u32_t *unused);
+thdcap_t resmgr_initaep_create_intern(spdid_t c, spdid_t s, int owntc, asndcap_t *sndret, u32_t *rcvtcret);
 
 thdcap_t
 resmgr_thd_create(spdid_t c, cos_thd_fn_t fn, void *data)
@@ -82,14 +82,20 @@ resmgr_ext_aep_create(spdid_t c, spdid_t s, struct cos_aep_info *aep, int idx, i
 }
 
 thdcap_t
-resmgr_initaep_create(spdid_t c, spdid_t s, int owntc, asndcap_t *snd)
+resmgr_initaep_create(spdid_t c, spdid_t s, struct cos_aep_info *aep, int owntc, asndcap_t *snd)
 {
 	int ret;
-	u32_t unused;
+	u32_t r2 = 0, r3 = 0;
 
-	ret = resmgr_initaep_create_intern(0, s, owntc, snd, &unused);
+	ret = resmgr_initaep_create_intern(0, s, owntc, snd, &r3);
 	assert(ret > 0);
 
-	/* rcv, tc => are copied to INITRCV, INITTCAP offsets */
+	aep->fn   = NULL;
+	aep->data = NULL;
+	aep->thd  = ret;
+	aep->rcv  = r3 >> 16;
+	aep->tc   = (r3 << 16) >> 16;
+
+	/* initcaps are copied to INITXXX offsets in the dst component */
 	return ret;
 }
