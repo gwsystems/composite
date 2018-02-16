@@ -1,6 +1,7 @@
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
+#include <cos_defkernel_api.h>
 
 #include "boot_deps.h"
 
@@ -13,6 +14,8 @@ struct deps {
 };
 struct deps deps_list[MAX_DEPS];
 int          ndeps;
+int          num_cobj;
+int          resmgr_spdid;
 
 /*Component init info*/
 #define INIT_STR_SZ 52
@@ -268,6 +271,111 @@ boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 	return 0;
 }
 
+/*
+ * Hacky specification until we have json parser working.
+ * Root scheduler (not booter): "root_" prefix
+ * Hierarchical schedulers: "<sched_no>_<parent_no>_" prefix, sched_no or parent_no is not related to spdid. it's really a static number from init string..
+ *                          More importantly, the order in init string for hierarchical scheduling should be increasing order of levels.
+ * 			    ID of root scheduler be == 0. Hierarchical scheduler numbers monotonically increasing starting from 1.
+ * Non-scheduling components: "_<parent_no>_" prefix.??.
+ * Resource manager: "resmgr" as its name!
+ *
+ * Thought: If SPDID namespace is created based on some hierarchical protocol then doing it here will be unnecessary. (I first need to find where SPDIDs are created though!)
+ */
+#define BOOT_ROOT_SCHED   "root_"
+#define BOOT_SCHED_STR    "%d_"
+#define BOOT_SCHED_OFF    0
+#define BOOT_PARENT_OFF   1
+#define BOOT_PARENT_STR   "%d_"
+#define BOOT_NONSCHED_STR "_"
+#define BOOT_RESMGR       "resmgr"
+#define BOOT_DELIMITER    "_"
+
+static spdid_t
+boot_comp_find_parent(spdid_t s)
+{
+	int i = 0;
+
+	/* NOTE: only from objects parsed so far */
+	for (; i <= num_cobj; i++) {
+		if (new_comp_cap_info[i].sched_no == new_comp_cap_info[s].parent_no) return i;
+	}
+
+	return -1;
+}
+
+static void
+boot_comp_name_parse(spdid_t s, char *name)
+{
+	struct comp_cap_info *cinfo = &new_comp_cap_info[s];
+
+#if 0
+	cinfo->is_sched = 1;
+	cinfo->parent_spdid = 0;
+
+	return;
+#endif
+	char *tok;
+	int count_parsed = 0;
+
+	cinfo->is_sched = -1;
+	if (name[0] == '_') {
+		/* TODO: */
+		/* set it to be non-scheduler */
+		/* set parent to be none: don't care who uses or runs it for now! */
+		cinfo->is_sched  = 0;
+		cinfo->sched_no  = 0;
+		cinfo->parent_no = 0;
+
+		count_parsed = 1;
+	} else if (strncmp(name, BOOT_ROOT_SCHED, 5) == 0) {
+		/* set it to be the root scheduler */
+		/* set it's parent to be llbooter! */
+		cinfo->is_sched = 1;
+		cinfo->parent_spdid = 0;
+		return;
+	} else if (strcmp(name, BOOT_RESMGR) == 0) {
+		/* llbooter creates init thread and lets it initialize. (for my impl: should not run after boot-up */
+		/* set it's parent to be llbooter */
+		resmgr_spdid = s;
+		cinfo->is_sched  = 0;
+		cinfo->sched_no  = 0;
+		cinfo->parent_no = 0;
+		cinfo->parent_spdid = 0;
+
+		return;
+	}
+
+	tok = strtok(name, BOOT_DELIMITER);
+	while (tok != NULL) {
+		switch (count_parsed) {
+		case BOOT_SCHED_OFF:
+		{
+			cinfo->sched_no = atoi(tok);
+			cinfo->is_sched = 1;
+			break;
+		}
+		case BOOT_PARENT_OFF:
+		{
+			cinfo->parent_no    = atoi(tok);
+			cinfo->parent_spdid = boot_comp_find_parent(s);
+			break;
+		}
+		default: break;
+		}
+
+		count_parsed ++;
+		tok = strtok(NULL, BOOT_DELIMITER);
+		if (cinfo->is_sched == 0) break;
+		if (count_parsed == 2) break;
+	}
+
+	assert(count_parsed == 2);
+
+	/* FIXME: should just work with carefully crafted names. no consistency checks here! */
+	return;
+}
+
 static void
 boot_create_cap_system(void)
 {
@@ -284,6 +392,8 @@ boot_create_cap_system(void)
 		h     = hs[i];
 		spdid = h->id;
 
+		assert(spdid != 0);
+
 		sect                                = cobj_sect_get(h, 0);
 		new_comp_cap_info[spdid].addr_start = sect->vaddr;
 		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);
@@ -292,10 +402,10 @@ boot_create_cap_system(void)
 		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
+		boot_comp_name_parse(spdid, h->name);
 		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo);
 		printc("\nComp %d (%s) created @ %x!\n\n", h->id, h->name, sect->vaddr);
 	}
-
 
 	return;
 }
@@ -318,12 +428,18 @@ void
 cos_init(void)
 {
 	struct cobj_header *h;
-	int                 num_cobj;
 
 	printc("Booter for new kernel\n");
 
+	resmgr_spdid = 0;
+
 	h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj = (int)cos_comp_info.cos_poly[1];
+
+	memset(new_comp_cap_info, 0, sizeof(struct comp_cap_info) * (MAX_NUM_SPDS + 1));
+
+	new_comp_cap_info[0].defci    = cos_defcompinfo_curr_get();
+	new_comp_cap_info[0].compinfo = cos_compinfo_get(new_comp_cap_info[0].defci);
 
 	//deps = (struct deps *)cos_comp_info.cos_poly[2];
 	memcpy(deps_list, (struct deps *)cos_comp_info.cos_poly[2], PAGE_SIZE);

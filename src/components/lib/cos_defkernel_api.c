@@ -38,9 +38,13 @@ cos_sched_aep_get(struct cos_defcompinfo *defci)
 void
 cos_defcompinfo_init(void)
 {
+	if (curr_defci_init_status == INITIALIZED) return;
+
 	cos_defcompinfo_init_ext(BOOT_CAPTBL_SELF_INITTCAP_BASE, BOOT_CAPTBL_SELF_INITTHD_BASE,
 	                         BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
 	                         BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE);
+
+	curr_defci_init_status = INITIALIZED;
 }
 
 void
@@ -50,6 +54,8 @@ cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rc
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_compinfo *   ci        = cos_compinfo_get(defci);
 	struct cos_aep_info *   sched_aep = cos_sched_aep_get(defci);
+
+	if (curr_defci_init_status == INITIALIZED) return;
 
 	sched_aep->tc   = sched_tc;
 	sched_aep->thd  = sched_thd;
