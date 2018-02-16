@@ -194,4 +194,6 @@ int     cos_hw_cycles_per_usec(hwcap_t hwc);
 int     cos_hw_cycles_thresh(hwcap_t hwc);
 void   *cos_va2pa(struct cos_compinfo *ci, void * vaddr);
 
+capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
+
 #endif /* COS_KERNEL_API_H */

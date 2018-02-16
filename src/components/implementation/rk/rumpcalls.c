@@ -11,8 +11,8 @@
 #include <rumpcalls.h>
 #include <vk_types.h>
 #include <vk_api.h>
+#include <llbooter_inv.h>
 
-#include "rk_inv_api.h"
 #include "rump_cos_alloc.h"
 #include "rk_sched.h"
 
@@ -222,28 +222,54 @@ cos_tls_init(unsigned long tp, thdcap_t tc)
 	return cos_thd_mod(currci, tc, (void *)tp);
 }
 
-
 void
 cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void (*f)(void *), void *arg,
 		void *stack_base, unsigned long stack_size)
 {
 	struct sl_thd *t = NULL;
-	struct cos_aep_info tmpaep;
 	int ret;
-	extern capid_t udpserv_thdcap;
 
-	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p", thread->bt_name, f);
+	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p, in spdid: %d\n", thread->bt_name, f,
+			cos_spdid_get());
 
+	/* Check to see if we are creating the thread for our application */
 	if (!strcmp(thread->bt_name, "user_lwp")) {
-		tmpaep.thd = udpserv_thdcap;
-		tmpaep.rcv = 0;
-		tmpaep.tc  = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-		assert(tmpaep.thd);
-		t = rk_rump_thd_init(&tmpaep);
-		assert(t);
-		/* Return userlevel thread cap that is set up in vkernel_init */
-		printc("\nMatch, thdcap %d, id:%u\n", (unsigned int)VM_CAPTBL_SELF_APPTHD_BASE, t->thdid);
+		/*
+		 * FIXME, remove this hack and use real system configuration
+		 * this is based off an assumption that the RK that does networking
+		 * is always spdid 4
+		 */
+		if (cos_spdid_get() == 4) {
+			printc("In cnic RK, skipping lwp thread initialization\n");
+			return;
+		}
+
+		struct cos_defcompinfo *dci;
+		struct cos_compinfo    *ci;
+		thdcap_t thd;
+		struct cos_aep_info udpserv_aep;
+		dci = cos_defcompinfo_curr_get();
+		assert(dci);
+		ci  = cos_compinfo_get(dci);
+		assert(ci);
+
+		/* FIXME, hard coding in the udpserver's spdid */
+		int udpserver_id = 3;
+		int cap_index = (int)cos_hypervisor_hypercall(BOOT_HYP_COMP_CAP,
+							     (void *)cos_spdid_get(),
+							     (void *)udpserver_id, ci);
+		assert(cap_index > 0);
+		printc("cap_index: %d\n", cap_index);
+		printc("Allocating a thread using comp cap of udpserver\n");
+		thd = cos_initthd_alloc(ci, cap_index);
+		assert(thd);
+		printc("thd: %lu\n", thd);
+
+		udpserv_aep.thd = thd;
+		t = sl_thd_init(&udpserv_aep, 0);
+		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_RUMP_THD_PRIO));
+
 	} else {
 		t = rk_rump_thd_alloc(f, arg);
 		assert(t);
@@ -319,17 +345,6 @@ cos_vm_yield(void)
 { cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
 
 /* System Calls */
-void
-cos_fs_test(void)
-{
-	int sinv_ret;
-
-	printc("Running cos fs test: VM%d\n", cos_spdid_get());
-
-	sinv_ret = rk_inv_op1();
-
-	printc("Ret from fs test: %d\n", sinv_ret);
-}
 
 /* FIXME rename two tests below */
 void
@@ -372,7 +387,4 @@ cos_spdid_set(unsigned int spdid)
 
 unsigned int
 cos_spdid_get(void)
-{
-	printc("in cos_spdid_get, EXPORTED BY RK INTERFACE\n");
-	return _spdid;
-}
+{ return _spdid; }

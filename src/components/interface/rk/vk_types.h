@@ -77,17 +77,6 @@ enum vm_prio {
 	DL_PRIO = 1,
 };
 
-enum rk_inv_ops {
-	RK_INV_OP1 = 0,
-	RK_INV_OP2,
-	RK_GET_BOOT_DONE,
-	RK_SOCKET,
-	RK_BIND,
-	RK_RECVFROM,
-	RK_SENDTO,
-	RK_LOGDATA,
-};
-
 enum timer_inv_ops {
 	TIMER_APP_BLOCK = 0,
 	TIMER_UPCOUNTER_WAIT,

@@ -7,37 +7,39 @@
 #include <vk_types.h>
 #include <shdmem.h>
 #include <llprint.h>
+#include <rk.h>
+#include <string.h>
 
-extern int vmid;
+extern int spdid;
 
 int
 rk_inv_op1(void)
 {
-	return cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_INV_OP1, 0, 0, 0);
+	return rk_entry(RK_INV_OP1, 0, 0, 0);
 }
 
 void
 rk_inv_op2(int shmid)
 {
-	cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_INV_OP2, shmid, 0, 0);
+	rk_entry(RK_INV_OP2, shmid, 0, 0);
 }
 
 int
 rk_inv_get_boot_done(void)
 {
-	return cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_GET_BOOT_DONE, 0, 0, 0);
+	return rk_entry(RK_GET_BOOT_DONE, 0, 0, 0);
 }
 
 int
 rk_inv_socket(int domain, int type, int protocol)
 {
-	return cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_SOCKET, domain, type, protocol);
+	return rk_entry(RK_SOCKET, domain, type, protocol);
 }
 
 int
 rk_inv_bind(int sockfd, int shdmem_id, socklen_t addrlen)
 {
-	return cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_BIND, sockfd, shdmem_id, addrlen);
+	return rk_entry(RK_BIND, sockfd, shdmem_id, addrlen);
 }
 
 ssize_t
@@ -50,7 +52,7 @@ rk_inv_recvfrom(int s, int buff_shdmem_id, size_t len, int flags, int from_shdme
 	assert(from_shdmem_id <= 0xFFFF);
 	assert(fromlenaddr_shdmem_id <= 0xFFFF);
 
-	return (ssize_t)cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_RECVFROM,
+	return (ssize_t)rk_entry(RK_RECVFROM,
 			(s << 16) | buff_shdmem_id, (len << 16) | flags,
 			(from_shdmem_id << 16) | fromlenaddr_shdmem_id);
 }
@@ -65,16 +67,9 @@ rk_inv_sendto(int sockfd, int buff_shdmem_id, size_t len, int flags, int addr_sh
 	assert(addr_shdmem_id <= (int)0xFFFF);
 	assert(addrlen <= (int)0xFFFF);
 
-	return (ssize_t)cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_SENDTO,
+	return (ssize_t)rk_entry(RK_SENDTO,
 			(sockfd << 16) | buff_shdmem_id, (len << 16) | flags,
 			(addr_shdmem_id << 16) | addrlen);
-}
-
-/* still using ringbuffer shared data */
-int
-rk_inv_logdata(void)
-{
-	return cos_sinv(APP_CAPTBL_SELF_RK_SINV_BASE, RK_LOGDATA, 0, 0, 0);
 }
 
 int
@@ -118,9 +113,9 @@ rk_socketcall(int call, unsigned long *args)
 
 			/* TODO make this a function */
 			/* FIXME, shm_allocate should not take 0,0 */
-                        shdmem_id = shm_allocate(0, 0);
+                        shdmem_id = shm_allocate(spdid, 1);
                         assert(shdmem_id > -1);
-                        shdmem_addr = shm_get_vaddr(0, shdmem_id);
+                        shdmem_addr = shm_get_vaddr(spdid, shdmem_id);
                         assert(shdmem_addr > 0);
 
                         memcpy((void * __restrict__)shdmem_addr, addr, addrlen);
@@ -150,8 +145,8 @@ rk_socketcall(int call, unsigned long *args)
 			/* TODO make this a function */
 			if (shdmem_id < 0 && !shdmem_addr) {
 				/* FIXME */
-				shdmem_id = shm_allocate(0, 0);
-				shdmem_addr = shm_get_vaddr(0, shdmem_id);
+				shdmem_id = shm_allocate(spdid, 1);
+				shdmem_addr = shm_get_vaddr(spdid, shdmem_id);
 			}
 
 			assert(shdmem_id > -1);
@@ -193,8 +188,8 @@ rk_socketcall(int call, unsigned long *args)
 			/* TODO make this a function */
 			if (shdmem_id < 0 && !shdmem_addr) {
 				/* FIXME */
-				shdmem_id = shm_allocate(0, 0);
-				shdmem_addr = shm_get_vaddr(0, shdmem_id);
+				shdmem_id = shm_allocate(spdid, 1);
+				shdmem_addr = shm_get_vaddr(spdid, shdmem_id);
 			}
 
                         assert(shdmem_id > -1);
@@ -231,14 +226,14 @@ rk_socketcall(int call, unsigned long *args)
 int
 rk_socketcall_init(void)
 {
-	assert(vmid != 0);
+	assert(spdid != 0);
 
 	/*
 	 * Should only need this if a libc application is booted from the RK,
 	 * it is currently not, it is booted by the llbooter
 	 */
 
-	//posix_syscall_override((cos_syscall_t)rk_socketcall, __NR_socketcall);
+	posix_syscall_override((cos_syscall_t)rk_socketcall, __NR_socketcall);
 
 	return 0;
 }

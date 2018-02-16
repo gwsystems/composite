@@ -3,6 +3,7 @@
 #include <cos_defkernel_api.h>
 #include <shdmem.h>
 #include <sl.h>
+#include <llbooter_inv.h>
 
 /*
  * For generic shared memory, the client component is responsible for allocating memory
@@ -71,7 +72,7 @@ __get_pgtbls()
 	int i;
 
 	/* Get the number of pagetables available to use to copy */
-	num_comps = (int)cos_sinv(BOOT_CAPTBL_SINV_CAP, VK_NUM_COMPS_REQ, 0, 0, 0);
+	num_comps = (int)cos_sinv(BOOT_CAPTBL_SINV_CAP, BOOT_HYP_NUM_COMPS, 0, 0, 0);
 	assert(num_comps);
 	printc("We need to tansfer %d pgtbls...\n", num_comps-1);
 
@@ -79,9 +80,9 @@ __get_pgtbls()
 		/* Already have access to my own page table */
 		if (i == SHMEM_TOKEN) continue;
 
-       		cap_index = cos_capid_bump_alloc(shm_cinfo, CAP_PGTBL);
-		printc("cap_index to transfer to: %lu\n", cap_index);
-		cos_sinv(BOOT_CAPTBL_SINV_CAP, VK_PGTBL_CAP_REQ, SHMEM_TOKEN, i, cap_index);
+		cap_index = (unsigned int)cos_hypervisor_hypercall(BOOT_HYP_PGTBL_CAP,
+				(void *)SHMEM_TOKEN, (void *)i, (void *)shm_cinfo);
+		assert(cap_index > 0);
 		__create_shm_info(i, cap_index);
 	}
 
@@ -93,7 +94,6 @@ __get_pgtbls()
 vaddr_t
 shm_get_vaddr(unsigned int spdid, unsigned int id)
 {
-	printc("IN SHM_GET_VADDR;\n");
 	assert(id < SHM_MAX_REGIONS && &shm_infos[spdid].cinfo && shm_infos[spdid].shm_frontier);
 
 	return shm_infos[spdid].my_regions[id];
@@ -102,7 +102,6 @@ shm_get_vaddr(unsigned int spdid, unsigned int id)
 int
 shm_allocate(unsigned int spdid, unsigned int num_pages)
 {
-	printc("IN SHM_ALLOCATE\n");
 	vaddr_t src_pg, dst_pg, unused;
 	struct shm_info *comp_shm_info;
 	int ret, id;
@@ -141,7 +140,6 @@ shm_allocate(unsigned int spdid, unsigned int num_pages)
 
 	shm_master_idx++;
 
-	printc("dst_pg: %p, src_pg: %p\n", (void *)dst_pg, (void *)src_pg);
 	ret = cos_mem_alias_at(&comp_shm_info->cinfo, comp_shm_info->shm_frontier, shm_cinfo, src_pg);
 	assert(dst_pg && !ret);
 	comp_shm_info->shm_frontier += PAGE_SIZE;
@@ -173,7 +171,6 @@ shm_deallocate(int arg1, int arg2, int arg3, int arg4)
 int
 shm_map(unsigned int spdid, unsigned int id)
 {
-	printc("IN SHM_MAP\n");
 	vaddr_t src_pg, dst_pg;
 	int ret;
 	struct shm_info *comp_shm_info;

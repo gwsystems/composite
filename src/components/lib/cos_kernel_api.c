@@ -994,18 +994,18 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 
 	fva = __page_bump_valloc(ci, PAGE_SIZE);
 	va  = fva;
-	if (unlikely(!fva)) return NULL;
 
-	do {
+	while (1) {
+		if (unlikely(!va)) return NULL;
+
 		if (call_cap_op(hwc, CAPTBL_OP_HW_MAP, ci->pgtbl_cap, va, pa, 0)) BUG();
 
 		sz -= PAGE_SIZE;
 		pa += PAGE_SIZE;
 
+		if (sz <= 0) break;
 		va = __page_bump_valloc(ci, PAGE_SIZE);
-		if (unlikely(!va)) return NULL;
-
-	} while (sz > 0);
+	}
 
 	return (void *)fva;
 }

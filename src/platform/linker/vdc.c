@@ -144,9 +144,9 @@ find_symbol_exporter_mark_resolved(struct symb *s, struct dependency *exporters,
 	return NULL;
 }
 
-struct service_symbs *find_symbol_exporter_mark_resolved(struct symb *s, struct dependency *exporters, int num_exporters,
-                                   struct symb **exported);
-
+struct service_symbs *find_symbol_exporter_mark_resolved(struct symb *s,
+							 struct dependency *exporters,
+							 int num_exporters, struct symb **exported);
 
 /*
  * Verify that all symbols can be resolved by the present dependency

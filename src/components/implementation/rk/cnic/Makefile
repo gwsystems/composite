@@ -1,4 +1,4 @@
-C_OBJS=../*.o
+C_OBJS=../*.c
 COMPONENT=cnic.o
 INTERFACES=rk
 DEPENDENCIES=shdmem
