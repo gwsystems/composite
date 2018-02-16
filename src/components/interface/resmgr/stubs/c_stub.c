@@ -3,7 +3,9 @@
 #include <cos_defkernel_api.h>
 
 thdcap_t resmgr_thd_create_intern(spdid_t c, int idx);
+thdcap_t resmgr_ext_thd_create_intern(spdid_t c, spdid_t s, int idx);
 thdcap_t resmgr_aep_create_intern(spdid_t c, int idx, int owntc, arcvcap_t *rcvret, tcap_t *tcret);
+thdcap_t resmgr_ext_aep_create_intern(spdid_t c, spdid_t s, int idx, int owntc, arcvcap_t *rcvret, u32_t *rcvtcret);
 thdcap_t resmgr_initaep_create_intern(spdid_t c, spdid_t s, int owntc, asndcap_t *sndret, u32_t *unused);
 
 thdcap_t
@@ -14,6 +16,12 @@ resmgr_thd_create(spdid_t c, cos_thd_fn_t fn, void *data)
 	if (idx < 1) assert(0);
 
 	return resmgr_thd_create_intern(0, idx);
+}
+
+thdcap_t
+resmgr_ext_thd_create(spdid_t c, spdid_t s, int idx)
+{
+	return resmgr_ext_thd_create_intern(0, s, idx);
 }
 
 static void
@@ -45,7 +53,32 @@ resmgr_aep_create(spdid_t c, struct cos_aep_info *aep, cos_aepthd_fn_t fn, void 
 	aep->rcv  = rcv;
 	aep->tc   = tc;
 
-	return 0;
+	return aep->thd;
+}
+
+thdcap_t
+resmgr_ext_aep_create(spdid_t c, spdid_t s, struct cos_aep_info *aep, int idx, int owntc, arcvcap_t *extrcv)
+{
+	int ret;
+	arcvcap_t rcv;
+	u32_t tcrcvret;
+
+	ret = resmgr_ext_aep_create_intern(0, s, idx, owntc, &rcv, &tcrcvret);
+	assert(ret > 0);
+
+	aep->fn   = NULL;
+	aep->data = NULL;
+	aep->thd  = ret;
+	*extrcv   = rcv;
+	if (owntc) {
+		aep->rcv = tcrcvret >> 16;
+		aep->tc  = (tcrcvret << 16) >> 16;
+	} else {
+		aep->rcv = 0;
+		aep->tc  = (tcrcvret << 16) >> 16;
+	}
+
+	return aep->thd;
 }
 
 thdcap_t
