@@ -250,6 +250,7 @@ static void
 boot_done(void)
 {
 	printc("Booter: done creating system.\n");
+	printc("********************************\n");
 	cos_thd_switch(schedule[sched_cur]);
 	/* TODO: hand it off to the root-scheduler */
 	sl_sched_loop();
@@ -265,6 +266,7 @@ boot_thd_done(void)
 		cos_thd_switch(schedule[sched_cur]);
 	} else {
 		printc("Done Initializing\n");
+		printc("********************************\n");
 		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	}
 }
@@ -272,8 +274,28 @@ boot_thd_done(void)
 /* assume capid_t is 16bit for packing */
 #define BOOT_CI_GET_ERROR LLBOOT_ERROR
 
+static thdcap_t
+boot_comp_initthd_get(spdid_t spdid, capid_t *resfr)
+{
+	struct comp_cap_info *acomp = &new_comp_cap_info[spdid];
+	struct cos_compinfo *resci = new_comp_cap_info[resmgr_spdid].compinfo;
+
+	if (acomp->initaep && sl_thd_thdcap(acomp->initaep)) {
+		thdcap_t t;
+
+		t = cos_cap_cpy(resci, boot_info, CAP_THD, sl_thd_thdcap(acomp->initaep));
+		assert(t);
+
+		*resfr = resci->cap_frontier;
+		return t;
+	}
+
+	*resfr = 0;
+	return 0;
+}
+
 static int 
-boot_comp_info_get(spdid_t spdid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t *cc, spdid_t *psid)
+boot_comp_info_get(capid_t curresfr, spdid_t spdid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t *cc, spdid_t *psid)
 {
 	struct cos_compinfo *a_ci, *resci;
 
@@ -287,6 +309,7 @@ boot_comp_info_get(spdid_t spdid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t 
 	assert(a_ci);
 	assert(resci);
 
+	cos_capfrontier_init(resci, curresfr);
 	/* FIXME: need resmgr or curr component's spdid */
 	*pgc  = cos_cap_cpy(resci, boot_info, CAP_PGTBL, a_ci->pgtbl_cap);
 	assert(*pgc);
@@ -300,7 +323,7 @@ boot_comp_info_get(spdid_t spdid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t 
 }
 
 static int 
-boot_comp_info_iter(spdid_t *csid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t *cc, spdid_t *psid)
+boot_comp_info_iter(capid_t curresfr, spdid_t *csid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t *cc, spdid_t *psid)
 {
 	static int iter_idx = 1; /* skip llbooter component info! i'm guessing spdid == 0 is for booter */
 	int ret = BOOT_CI_GET_ERROR;
@@ -312,7 +335,7 @@ boot_comp_info_iter(spdid_t *csid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t
 	}
 
 	*csid = iter_idx;
-	ret   = boot_comp_info_get(*csid, pgc, capc, cc, psid);
+	ret   = boot_comp_info_get(curresfr, *csid, pgc, capc, cc, psid);
 	if (ret == BOOT_CI_GET_ERROR) {
 		*csid = 0;
 		goto done;
@@ -363,7 +386,7 @@ llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 		spdid_t psid;
 		int ret;
 
-		ret = boot_comp_info_get(arg2, &pgc, &capc, &cc, &psid);
+		ret = boot_comp_info_get(arg3, arg2, &pgc, &capc, &cc, &psid);
 		if (ret == BOOT_CI_GET_ERROR) { 
 			ret1 = error;
 			break;
@@ -383,7 +406,7 @@ llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 		spdid_t csid, psid;
 		int ret;
 
-		ret = boot_comp_info_iter(&csid, &pgc, &capc, &cc, &psid);
+		ret = boot_comp_info_iter(arg3, &csid, &pgc, &capc, &cc, &psid);
 		if (ret == BOOT_CI_GET_ERROR) { 
 			ret1 = error;
 			break;
@@ -409,6 +432,17 @@ llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 
 		*ret2 = ((caps << 16) >> 16);
 		*ret3 = vas;
+
+		break;
+	}
+	case LLBOOT_COMP_INITTHD_GET:
+	{
+		capid_t capfr;
+
+		thdcap_t t = boot_comp_initthd_get(arg2, &capfr);
+
+		ret1 = t;
+		*ret2 = capfr;
 
 		break;
 	}

@@ -32,6 +32,23 @@ __compinfo_metacap(struct cos_compinfo *ci)
 }
 
 void
+cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier)
+{
+	ci->cap_frontier = cap_frontier;
+
+	/*
+	 * captbls are initialized populated with a single
+	 * second-level node.
+	 */
+	if (cap_frontier < CAPTBL_EXPAND_SZ) {
+		ci->caprange_frontier = round_up_to_pow2(cap_frontier, CAPTBL_EXPAND_SZ);
+	} else {
+		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ);
+	}
+	ci->cap16_frontier = ci->cap32_frontier = ci->cap64_frontier = cap_frontier;
+}
+
+void
 cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
                   vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources)
 {
@@ -45,7 +62,6 @@ cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t cap
 	ci->captbl_cap   = captbl_cap;
 	ci->comp_cap     = comp_cap;
 	ci->vas_frontier = heap_ptr;
-	ci->cap_frontier = cap_frontier;
 	/*
 	 * The first allocation should trigger PTE allocation, unless
 	 * it is in the middle of a PGD, in which case we assume one
@@ -53,16 +69,8 @@ cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t cap
 	 */
 	ci->vasrange_frontier = round_up_to_pgd_page(heap_ptr);
 	assert(ci->vasrange_frontier == round_up_to_pgd_page(ci->vasrange_frontier));
-	/*
-	 * captbls are initialized populated with a single
-	 * second-level node.
-	 */
-	if (cap_frontier < CAPTBL_EXPAND_SZ) {
-		ci->caprange_frontier = round_up_to_pow2(cap_frontier, CAPTBL_EXPAND_SZ);
-	} else {
-		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ);
-	}
-	ci->cap16_frontier = ci->cap32_frontier = ci->cap64_frontier = cap_frontier;
+
+	cos_capfrontier_init(ci, cap_frontier);
 }
 
 /**************** [Memory Capability Allocation Functions] ***************/
@@ -525,6 +533,14 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 }
 
 #include <cos_thd_init.h>
+
+thdcap_t
+cos_thd_alloc_idx(struct cos_compinfo *ci, compcap_t comp, int idx)
+{
+	if (idx < 1) return 0;
+
+	return __cos_thd_alloc(ci, comp, idx);
+}
 
 thdcap_t
 cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data)

@@ -14,6 +14,8 @@ enum llboot_cntl {
 	LLBOOT_COMP_INFO_GET, /* packed! <retval>, <pgtbl, captbl>, <compcap, parent_spdid> */
 	LLBOOT_COMP_INFO_NEXT, /* iterator to get comp_info */
 	LLBOOT_COMP_FRONTIER_GET, /* get current cap frontier & vaddr frontier of spdid comp */
+
+	LLBOOT_COMP_INITTHD_GET,
 };
 
 static inline int
@@ -27,8 +29,16 @@ llboot_comp_init_done(void)
 	return (int)(ret);
 }
 
+static inline thdcap_t 
+llboot_comp_initthd_get(spdid_t spdid, capid_t *myfr)
+{
+	word_t unused = 0;
+
+	return cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, LLBOOT_COMP_INITTHD_GET, spdid, 0, 0, myfr, &unused);
+}
+
 static inline int
-llboot_comp_info_get(spdid_t spdid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t *cc, spdid_t *psid, capid_t *rsfr)
+llboot_comp_info_get(capid_t rcurfr, spdid_t spdid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t *cc, spdid_t *psid, capid_t *rsfr)
 {
 	word_t r1 = 0, r2 = 0, r3 = 0;
 
@@ -37,7 +47,7 @@ llboot_comp_info_get(spdid_t spdid, pgtblcap_t *pgc, captblcap_t *capc, compcap_
 	 * that component special privilege to access anything.
 	 * for all others, it should return error!
 	 */
-	r1    = cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, LLBOOT_COMP_INFO_GET, spdid, 0, 0, &r2, &r3);
+	r1    = cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, LLBOOT_COMP_INFO_GET, spdid, rcurfr, 0, &r2, &r3);
 	*rsfr = ((r1 << 16) >> 16);
 	if (*rsfr == LLBOOT_ERROR) return -1;
 
@@ -50,7 +60,7 @@ llboot_comp_info_get(spdid_t spdid, pgtblcap_t *pgc, captblcap_t *capc, compcap_
 }
 
 static inline int
-llboot_comp_info_next(spdid_t *sid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t *cc, spdid_t *psid, capid_t *rsfr)
+llboot_comp_info_next(capid_t rcurfr, spdid_t *sid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t *cc, spdid_t *psid, capid_t *rsfr)
 {
 	word_t r1 = 0, r2 = 0, r3 = 0;
 
@@ -59,7 +69,7 @@ llboot_comp_info_next(spdid_t *sid, pgtblcap_t *pgc, captblcap_t *capc, compcap_
 	 * that component special privilege to access anything.
 	 * for all others, it should return error!
 	 */
-	r1    = cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, LLBOOT_COMP_INFO_NEXT, 0, 0, 0, &r2, &r3);
+	r1    = cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, LLBOOT_COMP_INFO_NEXT, 0, rcurfr, 0, &r2, &r3);
 	*rsfr = (int)((r1 << 16) >> 16);
 
 	if (*rsfr == LLBOOT_ERROR) return -1;

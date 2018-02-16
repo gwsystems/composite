@@ -400,15 +400,15 @@ boot_create_cap_system(void)
 
 		sect                                = cobj_sect_get(h, 0);
 		new_comp_cap_info[spdid].addr_start = sect->vaddr;
+		boot_comp_name_parse(spdid, h->name);
 		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);
 
 		if (boot_spd_symbs(h, spdid, &ci, &new_comp_cap_info[spdid].vaddr_user_caps)) BUG();
 		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
-		boot_comp_name_parse(spdid, h->name);
 		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo);
-		printc("\nComp %d (%s) created @ %x!\n\n", h->id, h->name, sect->vaddr);
+		printc("Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
 	}
 
 	return;

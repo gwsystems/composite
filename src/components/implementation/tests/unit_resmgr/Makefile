@@ -1,0 +1,10 @@
+C_OBJS=unit_resmgr.c
+ASM_OBJS=
+COMPONENT=_0_unitresmgr.o
+INTERFACES=
+DEPENDENCIES=resmgr
+IF_LIB=
+ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_defkernel_api -lsl_raw
+
+include ../../Makefile.subsubdir
+MANDITORY_LIB=simple_stklib.o

@@ -251,10 +251,23 @@ void sl_thd_yield_cs_exit(thdid_t tid);
 struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
 struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap);
 /*
+ * DEPRECATED!! Use the API that creates initthd also with cos_defkernel_api that doesn't!
  * This API creates a sl_thd object for this child component.
  * @comp: component created using cos_defkernel_api which includes initthd (with/without its own tcap & rcvcap).
  */
 struct sl_thd *sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched);
+
+/*
+ * This API creates a sl_thd object for the child component including init aep capabilities.
+ */
+struct sl_thd *sl_thd_child_initaep_alloc(struct cos_defcompinfo *comp, int is_sched, int own_tcap);
+struct sl_thd *sl_thd_ext_child_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *schthd, int own_tcap);
+
+/* class of API used by managers creating threads for components in those components */
+struct sl_thd *sl_thd_ext_idx_alloc(struct cos_defcompinfo *comp, int idx);
+struct sl_thd *sl_thd_extaep_idx_alloc(struct cos_defcompinfo *comp, struct sl_thd *schthd, int idx, int own_tcap);
+
+struct sl_thd *sl_thd_ext_init(thdcap_t t, tcap_t tc, arcvcap_t r, asndcap_t s);
 
 void           sl_thd_free(struct sl_thd *t);
 void           sl_thd_exit();

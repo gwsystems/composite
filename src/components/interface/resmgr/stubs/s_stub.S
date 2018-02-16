@@ -1,0 +1,11 @@
+#include <cos_asm_server_stub_simple_stack.h>
+
+.text
+cos_asm_server_stub_token(resmgr_initthd_create)
+cos_asm_server_stub_token_3rets(resmgr_initaep_create_intern)
+cos_asm_server_stub_token(resmgr_thd_create_intern)
+cos_asm_server_stub_token(resmgr_thd_retrieve)
+cos_asm_server_stub_token_3rets(resmgr_aep_create_intern)
+cos_asm_server_stub_token(resmgr_asnd_create)
+
+cos_asm_server_stub_token(memmgr_page_bump_alloc)

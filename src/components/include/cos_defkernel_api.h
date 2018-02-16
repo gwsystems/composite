@@ -70,6 +70,14 @@ void cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sch
                               captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier);
 
 /*
+ * cos_defcompinfo_child_init_ext: initialize the current component's global cos_defcompinfo struct using the parameters
+ * passed.
+ * Sched aep information will be initialized to zero.
+ */
+void cos_defcompinfo_child_init_ext(struct cos_defcompinfo *child_defci, pgtblcap_t pgtbl_cap,
+                              captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier);
+
+/*
  * cos_defcompinfo_child_alloc: called to create a new child component including initial capabilities like pgtbl,
  * captbl, compcap, aep. if is_sched is set, scheduling end-point will also be created for the child component, else,
  * the current component's scheduler will remain the scheduler for the child component.
@@ -88,6 +96,14 @@ int cos_aep_alloc(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data);
  */
 int cos_aep_tcap_alloc(struct cos_aep_info *aep, tcap_t tc, cos_aepthd_fn_t fn, void *data);
 
+int cos_child_initthd_alloc(struct cos_defcompinfo *child_dci);
+int cos_child_initaep_alloc(struct cos_defcompinfo *child_dci);
+int cos_child_initaep_tcap_alloc(struct cos_defcompinfo *child_dci, tcap_t tc);
+int cos_child_initaep_alloc_ext(struct cos_defcompinfo *child_dci, struct cos_aep_info *sched);
+int cos_child_initaep_tcap_alloc_ext(struct cos_defcompinfo *child_dci, tcap_t tc, struct cos_aep_info *sched);
+
+int cos_aep_idx_tcap_alloc_ext(struct cos_aep_info *aep, tcap_t tc, int idx, struct cos_defcompinfo *dstdci, struct cos_aep_info *sched_aep);
+int cos_aep_idx_alloc_ext(struct cos_aep_info *aep, int idx, struct cos_defcompinfo *dstdci, struct cos_aep_info *sched_aep);
 /*
  * cos_defswitch: thread switch api using the default scheduling tcap and rcv.
  */
