@@ -303,13 +303,14 @@ boot_comp_find_parent(spdid_t s)
 		if (new_comp_cap_info[i].sched_no == new_comp_cap_info[s].parent_no) return i;
 	}
 
-	return -1;
+	return 0;
 }
 
 static void
 boot_comp_name_parse(spdid_t s, const char *strname)
 {
 	struct comp_cap_info *cinfo = &new_comp_cap_info[s];
+	struct comp_cap_info *bootcinfo = &new_comp_cap_info[0];
 	char name[BOOT_NAME_MAX] = { '\0' };
 
 #if 0
@@ -323,6 +324,7 @@ boot_comp_name_parse(spdid_t s, const char *strname)
 
 	strncpy(name, strname, BOOT_NAME_MAX); 
 	cinfo->is_sched = -1;
+	cinfo->childid_bitf = 0;
 	if (name[0] == '_') {
 		/* TODO: */
 		/* set it to be non-scheduler */
@@ -337,6 +339,8 @@ boot_comp_name_parse(spdid_t s, const char *strname)
 		/* set it's parent to be llbooter! */
 		cinfo->is_sched = 1;
 		cinfo->parent_spdid = 0;
+
+		bootcinfo->childid_bitf |= (1 << s);
 		return;
 	} else if (strcmp(name, BOOT_RESMGR) == 0) {
 		/* llbooter creates init thread and lets it initialize. (for my impl: should not run after boot-up */
@@ -347,6 +351,7 @@ boot_comp_name_parse(spdid_t s, const char *strname)
 		cinfo->parent_no = 0;
 		cinfo->parent_spdid = 0;
 
+		bootcinfo->childid_bitf |= (1 << s);
 		return;
 	}
 
@@ -361,8 +366,16 @@ boot_comp_name_parse(spdid_t s, const char *strname)
 		}
 		case BOOT_PARENT_OFF:
 		{
+			struct comp_cap_info *parentcinfo = NULL;
+
 			cinfo->parent_no    = atoi(tok);
 			cinfo->parent_spdid = boot_comp_find_parent(s);
+
+			if (cinfo->parent_spdid <= num_cobj) {
+				parentcinfo = &new_comp_cap_info[cinfo->parent_spdid];
+				assert(s);
+				parentcinfo->childid_bitf |= (1 << (s-1));
+			}
 			break;
 		}
 		default: break;
@@ -429,6 +442,16 @@ boot_init_ndeps(int num_cobj)
 }
 
 void
+boot_child_info(void)
+{
+	int i = 0;
+
+	for (; i <= num_cobj; i++) {
+		printc("Component %d => child bitmap %llx\n", i, new_comp_cap_info[i].childid_bitf);
+	}
+}
+
+void
 cos_init(void)
 {
 	struct cobj_header *h;
@@ -440,6 +463,7 @@ cos_init(void)
 	h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj = (int)cos_comp_info.cos_poly[1];
 
+	assert(num_cobj <= MAX_NUM_SPDS);
 	memset(new_comp_cap_info, 0, sizeof(struct comp_cap_info) * (MAX_NUM_SPDS + 1));
 
 	new_comp_cap_info[0].defci    = cos_defcompinfo_curr_get();
@@ -459,6 +483,7 @@ cos_init(void)
 	boot_find_cobjs(h, num_cobj);
 	boot_bootcomp_init();
 	boot_create_cap_system();
+	boot_child_info();
 
 	boot_done();
 }

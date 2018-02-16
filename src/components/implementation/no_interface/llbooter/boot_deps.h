@@ -32,6 +32,7 @@ struct comp_cap_info {
 	int                  sched_no;
 	int                  parent_no;
 	spdid_t              parent_spdid;
+	u64_t                childid_bitf;
 	struct sl_thd       *initaep;
 } new_comp_cap_info[MAX_NUM_SPDS + 1];
 
@@ -368,15 +369,7 @@ boot_comp_frontier_get(int spdid, vaddr_t *vasfr, capid_t *capfr)
 static int
 boot_comp_childspds_get(int spdid, u64_t *idbits)
 {
-	int i = 1; /* 0 == llbooter */
-
-	*idbits = 0;
-	if (spdid > num_cobj) return -1;
-
-	while (i <= num_cobj) {
-		if (new_comp_cap_info[spdid].parent_spdid == spdid) *idbits |= (1 << i);
-		i ++;
-	}
+	*idbits = new_comp_cap_info[spdid].childid_bitf;
 
 	return 0;
 }
