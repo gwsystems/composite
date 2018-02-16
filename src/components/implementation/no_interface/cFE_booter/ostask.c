@@ -1,13 +1,14 @@
+#include <cos_kernel_api.h>
+#include <sl.h>
+#include <sl_lock.h>
+
 #include "cFE_util.h"
 #include "ostask.h"
 
 #include "gen/osapi.h"
 #include "gen/common_types.h"
+#include "gen/cFE_time.h"
 
-#include "sl.h"
-#include "sl_lock.h"
-
-#include <cos_kernel_api.h>
 
 void
 timer_fn_1hz(void *d)
@@ -244,7 +245,7 @@ int32 OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop)
 */
 void OS_IdleLoop(void)
 {
-    sl_thd_block(0);
+	while(1) sl_thd_block(0);
 }
 
 /*
