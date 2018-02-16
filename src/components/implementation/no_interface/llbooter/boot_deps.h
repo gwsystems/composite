@@ -235,8 +235,8 @@ boot_bootcomp_init(void)
 static void
 boot_done(void)
 {
-	cos_thd_switch(schedule[sched_cur]);
-	//sl_sched_loop();
+//	cos_thd_switch(schedule[sched_cur]);
+	sl_sched_loop();
 }
 
 static int
@@ -300,9 +300,9 @@ boot_sinv_fn(boot_sinv_op op, void *arg1, void *arg2, void *arg3)
 
 	switch (op) {
 		case INIT_DONE:
-	//		boot_thd_done();
-			sched_cur++;
-			boot_done();
+			boot_thd_done();
+//			sched_cur++;
+//			boot_done();
 			break;
 		case VK_PGTBL_CAP_REQ:
 			/* arg1: dst, arg2: src, arg3: cap_slot */
