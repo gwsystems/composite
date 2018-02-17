@@ -16,6 +16,7 @@ struct deps deps_list[MAX_DEPS];
 int          ndeps;
 int          num_cobj;
 int          resmgr_spdid;
+int          root_spdid;
 
 /*Component init info*/
 #define INIT_STR_SZ 52
@@ -283,10 +284,8 @@ boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
  * Thought: If SPDID namespace is created based on some hierarchical protocol then doing it here will be unnecessary. (I first need to find where SPDIDs are created though!)
  */
 #define BOOT_ROOT_SCHED   "root_"
-#define BOOT_SCHED_STR    "%d_"
 #define BOOT_SCHED_OFF    0
 #define BOOT_PARENT_OFF   1
-#define BOOT_PARENT_STR   "%d_"
 #define BOOT_NONSCHED_STR "_"
 #define BOOT_RESMGR       "resmgr"
 #define BOOT_DELIMITER    "_"
@@ -330,7 +329,7 @@ boot_comp_name_parse(spdid_t s, const char *strname)
 		/* set it to be non-scheduler */
 		/* set parent to be none: don't care who uses or runs it for now! */
 		cinfo->is_sched  = 0;
-		cinfo->sched_no  = 0;
+		cinfo->sched_no  = -1;
 		cinfo->parent_no = 0;
 
 		count_parsed = 1;
@@ -339,6 +338,8 @@ boot_comp_name_parse(spdid_t s, const char *strname)
 		/* set it's parent to be llbooter! */
 		cinfo->is_sched = 1;
 		cinfo->parent_spdid = 0;
+		cinfo->sched_no = 2;
+		root_spdid = s;
 
 		bootcinfo->childid_bitf |= (1 << s);
 		return;
@@ -347,7 +348,7 @@ boot_comp_name_parse(spdid_t s, const char *strname)
 		/* set it's parent to be llbooter */
 		resmgr_spdid = s;
 		cinfo->is_sched  = 0;
-		cinfo->sched_no  = 0;
+		cinfo->sched_no  = 1;
 		cinfo->parent_no = 0;
 		cinfo->parent_spdid = 0;
 
@@ -459,6 +460,7 @@ cos_init(void)
 	printc("Booter for new kernel\n");
 
 	resmgr_spdid = 0;
+	root_spdid = 0;
 
 	h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj = (int)cos_comp_info.cos_poly[1];

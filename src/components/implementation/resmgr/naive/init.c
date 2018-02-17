@@ -65,11 +65,15 @@ cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
+	u64_t childbits = 0;
 
 	printc("CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
+
+	llboot_comp_childspdids_get(&childbits);
+	assert(!childbits);
 
 	sl_init(SL_MIN_PERIOD_US);
 	res_info_init();

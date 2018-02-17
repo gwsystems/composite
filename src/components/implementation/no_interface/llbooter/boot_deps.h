@@ -7,6 +7,7 @@
 #include <cos_defkernel_api.h>
 #include <sl.h>
 #include <llboot.h>
+#include <res_spec.h>
 
 #define UNDEF_SYMBS 64
 
@@ -14,6 +15,7 @@
 extern void *__inv_llboot_entry(int a, int b, int c);
 extern int num_cobj;
 extern int resmgr_spdid;
+extern int root_spdid;
 
 struct cobj_header *hs[MAX_NUM_SPDS + 1];
 
@@ -189,9 +191,23 @@ boot_newcomp_init_caps(spdid_t spdid)
 			assert(ret == 0);
 			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTCAP_BASE, boot_info, sl_thd_tcap(capci->initaep));
 			assert(ret == 0);
+
+			/*
+			 * FIXME:
+			 * This is an ugly hack to allow components to do cos_introspect()
+			 * - to get thdid
+			 * - to get budget on tcap
+			 * - other introspect...requirements..
+			 *
+			 * I don't know a way to get away from this for now! 
+			 * If it were just thdid, resmgr could have returned the thdids!
+			 */
+			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_CT, boot_info, ci->captbl_cap);
+			assert(ret == 0);
 		}
 
 		if (resmgr_spdid == spdid) {
+			assert(capci->is_sched == 0);
 			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_CT, boot_info, ci->captbl_cap);
 			assert(ret == 0);
 			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_PT, boot_info, ci->pgtbl_cap);
@@ -247,13 +263,34 @@ boot_bootcomp_init(void)
 	sl_init(SL_MIN_PERIOD_US);
 }
 
+#define LLBOOT_ROOT_PRIO 1
+#define LLBOOT_ROOT_BUDGET_MS (10*1000)
+#define LLBOOT_ROOT_PERIOD_MS (10*1000)
+
+#undef LLBOOT_CHRONOS_ENABLED
+
 static void
 boot_done(void)
 {
+	struct sl_thd *root = NULL;
+	int ret;
+
 	printc("Booter: done creating system.\n");
 	printc("********************************\n");
 	cos_thd_switch(schedule[sched_cur]);
-	/* TODO: hand it off to the root-scheduler */
+
+	assert(root_spdid);
+	root = new_comp_cap_info[root_spdid].initaep;
+	assert(root);
+	sl_thd_param_set(root, sched_param_pack(SCHEDP_PRIO, LLBOOT_ROOT_PRIO));
+#ifdef LLBOOT_CHRONOS_ENABLED
+	sl_thd_param_set(root, sched_param_pack(SCHEDP_BUDGET, LLBOOT_ROOT_BUDGET_MS));
+	sl_thd_param_set(root, sched_param_pack(SCHEDP_WINDOW, LLBOOT_ROOT_PERIOD_MS));
+#else
+	ret = cos_tcap_transfer(sl_thd_rcvcap(root), sl__globals()->sched_tcap, TCAP_RES_INF, LLBOOT_ROOT_PRIO);
+	assert(ret == 0);
+#endif
+
 	sl_sched_loop();
 }
 
@@ -458,11 +495,11 @@ llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 	}
 	case LLBOOT_COMP_CHILDSPDIDS_GET:
 	{
-		u64_t idbits;
+		u64_t idbits = 0;
 
 		ret1 = boot_comp_childspds_get(arg2, &idbits);
 		*ret2 = (u32_t)idbits;
-		*ret3 = (u32_t)((idbits << 32) >> 32);
+		*ret3 = (u32_t)(idbits >> 32);
 
 		break;
 	}

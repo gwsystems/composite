@@ -25,8 +25,13 @@ static inline int
 llboot_comp_childspdids_get(u64_t *id_bits)
 {
 	word_t lo = 0, hi = 0;
+	int ret;
 
-	return cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, LLBOOT_COMP_CHILDSPDIDS_GET, cos_spd_id(), 0, 0, &lo, &hi);
+	*id_bits = 0;
+	ret = cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, LLBOOT_COMP_CHILDSPDIDS_GET, cos_spd_id(), 0, 0, &lo, &hi);
+	*id_bits = ((u64_t)hi << 32) | (u64_t)lo;
+
+	return ret;
 }
 
 static inline int
