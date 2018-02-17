@@ -265,7 +265,7 @@ struct sl_thd *sl_thd_ext_child_initaep_alloc(struct cos_defcompinfo *comp, stru
 
 /* class of API used by managers creating threads for components in those components */
 struct sl_thd *sl_thd_ext_idx_alloc(struct cos_defcompinfo *comp, int idx);
-struct sl_thd *sl_thd_extaep_idx_alloc(struct cos_defcompinfo *comp, struct sl_thd *schthd, int idx, int own_tcap);
+struct sl_thd *sl_thd_extaep_idx_alloc(struct cos_defcompinfo *comp, struct sl_thd *schthd, int idx, int own_tcap, arcvcap_t *extrcv);
 
 struct sl_thd *sl_thd_ext_init(thdcap_t t, tcap_t tc, arcvcap_t r, asndcap_t s);
 

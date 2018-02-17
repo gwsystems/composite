@@ -99,7 +99,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *schthd, int idx, sl_thd_property_t prps)
+sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *schthd, int idx, sl_thd_property_t prps, arcvcap_t *extrcv)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
@@ -108,7 +108,6 @@ sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *scht
 	thdid_t                 tid;
 	int                     ret;
 	int                     owntc = 0;
-	arcvcap_t               extrcv = 0;
 
 	if (comp == NULL || comp->id == 0) goto done;
 
@@ -116,8 +115,7 @@ sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *scht
 	if (!aep) goto done;
 
 	if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;	
-	/* FIXME: need to pass this extrcv back to the calling "child" component, so it knows where to cos_rcv() */
-	ret = resmgr_ext_aep_create(cos_spd_id(), comp->id, aep, idx, owntc, &extrcv);
+	ret = resmgr_ext_aep_create(cos_spd_id(), comp->id, aep, idx, owntc, extrcv);
 	if (!ret) goto done;
 
 	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
@@ -334,12 +332,12 @@ sl_thd_ext_idx_alloc(struct cos_defcompinfo *comp, int idx)
 }
 
 struct sl_thd *
-sl_thd_extaep_idx_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched, int idx, int own_tcap)
+sl_thd_extaep_idx_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched, int idx, int own_tcap, arcvcap_t *extrcv)
 {
 	struct sl_thd *t = NULL;
 
 	sl_cs_enter();
-	t = sl_thd_extaep_idx_alloc_intern(comp, sched, idx, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0);
+	t = sl_thd_extaep_idx_alloc_intern(comp, sched, idx, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, extrcv);
 	sl_cs_exit();
 
 	return t;

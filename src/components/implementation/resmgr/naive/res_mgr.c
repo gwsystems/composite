@@ -163,7 +163,7 @@ resmgr_ext_aep_create_intern(spdid_t cur, spdid_t s, int tidx, int owntc, arcvca
 	sched = rinit->schthd;
 	assert(sched);
 
-	t = sl_thd_extaep_idx_alloc(res_info_dci(rc), sched, tidx, owntc);
+	t = sl_thd_extaep_idx_alloc(res_info_dci(rc), sched, tidx, owntc, &srcrcv);
 	assert(t);
 	rt = res_info_thd_init(rc, t);
 	assert(rt);
@@ -208,6 +208,7 @@ resmgr_aep_create_intern(spdid_t cur, int tidx, int owntc, arcvcap_t *rcvret, tc
 	struct res_comp_info *rc = res_info_comp_find(cur);
 	struct res_thd_info *rt = NULL, *rst = NULL, *rinit = NULL;
 	struct sl_thd *t = NULL, *sched = NULL;
+	arcvcap_t rcv;
 	int ret;
 
 	assert(rc && res_info_init_check(rc));
@@ -218,7 +219,7 @@ resmgr_aep_create_intern(spdid_t cur, int tidx, int owntc, arcvcap_t *rcvret, tc
 	sched = rinit->schthd;
 	assert(sched);
 
-	t = sl_thd_extaep_idx_alloc(res_info_dci(rc), sched, tidx, owntc);
+	t = sl_thd_extaep_idx_alloc(res_info_dci(rc), sched, tidx, owntc, &rcv);
 	assert(t);
 	rt = res_info_thd_init(rc, t);
 	assert(rt);
