@@ -14,7 +14,7 @@ __inv_test_entry:
         pushl %edi /* arg 3 */
         pushl %esi /* arg 2 */
         pushl %ebx /* arg 1 */
-	call boot_thd_done
+	call boot_sinv_fn
         movl %eax, %ecx
 
 	COS_ASM_RET_STACK
