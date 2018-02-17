@@ -36,8 +36,7 @@ cos_hypervisor_hypercall(boot_hyp_op_t op, void *arg1, void *arg2, void *arg3)
 	/* Depending on the operation we will need to allocate our own a cap space */
 	switch(op) {
 	case INIT_DONE:
-		/* DEPRECATED, Should not be needed as llbooter is not scheduler */
-		assert(0);
+		cos_sinv(BOOT_CAPTBL_SINV_CAP, op, 0, 0, 0);
 		break;
 	case BOOT_HYP_PGTBL_CAP:
 		cap_index = cos_capid_bump_alloc((struct cos_compinfo *)arg3, CAP_PGTBL);

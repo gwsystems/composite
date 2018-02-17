@@ -13,6 +13,7 @@
 #define THD_PRIO 5
 #define THD_PERIOD 10
 #define THD_BUDGET 5
+#define INIT_THDS_SIZE MAX_NUM_SPDS + 1
 
 int num_cobj;
 
@@ -38,6 +39,10 @@ typedef enum {
 	BOOT_COMP_FLAG_SCHED = 1,
 	BOOT_COMP_FLAG_MM    = 1<<1,
 } boot_comp_flag_t;
+
+thdcap_t init_thds[INIT_THDS_SIZE];
+/* Keep track of the init_thds that have already been run once */
+size_t global_idx = 0;
 
 struct cos_defcompinfo new_defcompinfo[MAX_NUM_SPDS + 1];
 
@@ -140,10 +145,13 @@ boot_newcomp_definfo_init(spdid_t spdid, compcap_t cc, boot_comp_flag_t comp_fla
 	struct cos_compinfo    *child_ci  = cos_compinfo_get(new_comp_cap_info[spdid].defcompinfo);
 
 	child_ci->comp_cap = cc;
-	child_aep->thd = cos_initthd_alloc(boot_info(), child_ci->comp_cap);
 
-	if (comp_flags == BOOT_COMP_FLAG_SCHED) {
+	if (comp_flags) {
+		child_aep->thd = cos_initthd_alloc(boot_info(), child_ci->comp_cap);
 		assert(child_aep->thd);
+
+		init_thds[spdid] = child_aep->thd;
+
 		child_aep->tc = cos_tcap_alloc(boot_info());
 		assert(child_aep->tc);
 
@@ -198,7 +206,6 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, boot_comp_fla
 	captblcap_t    ct = new_comp_cap_info[spdid].compinfo->captbl_cap;
 	pgtblcap_t     pt = new_comp_cap_info[spdid].compinfo->pgtbl_cap;
 	sinvcap_t      sinv;
-	struct sl_thd *thd;
 
 	cc = cos_comp_alloc(boot_info(), ct, pt, (vaddr_t)new_comp_cap_info[spdid].upcall_entry);
 
@@ -216,36 +223,40 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, boot_comp_fla
 
 	boot_newcomp_sinv_alloc(spdid);
 
-	if (comp_flags) {
-		boot_newschedcomp_cap_init(spdid, ct, pt, cc);
-
-		thd = sl_thd_comp_init(new_comp_cap_info[spdid].defcompinfo, comp_flags);
-		assert(thd);
-		sl_thd_param_set(thd, sched_param_pack(SCHEDP_PRIO, THD_PRIO));
-	}
-
-	if (comp_flags == BOOT_COMP_FLAG_SCHED) {
-		sl_thd_param_set(thd, sched_param_pack(SCHEDP_BUDGET, THD_BUDGET * 1000));
-		sl_thd_param_set(thd, sched_param_pack(SCHEDP_WINDOW, THD_PERIOD * 1000));
-	}
+	if (comp_flags) boot_newschedcomp_cap_init(spdid, ct, pt, cc);
 }
 
 static void
 boot_bootcomp_init(void)
 {
 	cos_defcompinfo_init();
-
 	cos_meminfo_init(&(boot_info()->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ,
 			BOOT_CAPTBL_SELF_UNTYPED_PT);
-	sl_init(SL_MIN_PERIOD_US);
 }
 
 static void
 boot_done(void)
 {
 	printc("Booter: done creating system.\n");
-	printc("Booter: Starting SL event loop\n\n");
-	sl_sched_loop();
+	printc("Booter: Starting set of initial threads\n\n");
+
+	/*
+	 * If a component is the base scheduler or the memory manager
+	 * and we had to make an init thread for it, run it once here.
+	 * Get the first spdid that needs us to switch to it
+	 */
+
+	while (init_thds[global_idx] == 0) global_idx++;
+	assert(global_idx < INIT_THDS_SIZE);
+	cos_thd_switch(init_thds[global_idx]);
+
+	/*
+	 * ERROR, we should not end back up in the llbooter's thread.
+	 * When the switched to component is done initializing, it will
+	 * invoke the booter in boot_thd_done where it will itself switch
+	 * to the next component that needs to be initialized.
+	 */
+	assert(0);
 }
 
 static int
@@ -274,7 +285,25 @@ void
 boot_thd_done(void)
 {
 	printc("Done booting\n\n");
-	while(1) sl_thd_block(0);
+
+	global_idx++;
+	if (global_idx >= INIT_THDS_SIZE) goto done;
+
+	while (init_thds[global_idx] == 0) global_idx++;
+	if (global_idx >= INIT_THDS_SIZE) goto done;
+	cos_thd_switch(init_thds[global_idx]);
+
+	/*
+	 * ERROR, we should not end up back in this thread,
+	 * booter runs us just once to initialize
+	 */
+	assert(0);
+
+done:
+	/* There are not more threads to run */
+	printc("\nSystem done\n");
+	while(1);
+
 }
 
 long
@@ -299,11 +328,6 @@ boot_sinv_fn(boot_hyp_op_t op, void *arg1, void *arg2, void *arg3)
 
 	switch (op) {
 	case INIT_DONE:
-		/*
-		 * DEPRECATED:
-		 * Should not be needed as llbooter is not scheduler
-		 * Kept for the purpose of older test code like llbooter_pong.sh
-		 */
 		boot_thd_done();
 		break;
 	case BOOT_HYP_PGTBL_CAP:
