@@ -12,7 +12,7 @@
 #define UNDEF_SYMBS 64
 
 /* Assembly function for sinv from new component */
-extern void *__inv_llboot_entry(int a, int b, int c);
+extern void *llboot_entry_inv(int a, int b, int c);
 extern int num_cobj;
 extern int resmgr_spdid;
 extern int root_spdid;
@@ -246,7 +246,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	new_comp_cap_info[spdid].compinfo->comp_cap = cc;
 
 	/* Create sinv capability from Userspace to Booter components */
-	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)__inv_llboot_entry, token);
+	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)llboot_entry_inv, token);
 	assert(sinv > 0);
 
 	ret = cos_cap_cpy_at(new_comp_cap_info[spdid].compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);
@@ -427,12 +427,11 @@ boot_comp_childspds_get(int spdid, u64_t *idbits)
 }
 
 u32_t
-llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *ret3)
+llboot_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *ret3)
 {
 	u32_t ret1 = 0;
 	u32_t error = (1 << 16) - 1;
 
-	/* TODO: check if this is resmgr to allow access! */
 	switch(op) {
 	case LLBOOT_COMP_INIT_DONE:
 	{
@@ -447,7 +446,9 @@ llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 		spdid_t psid;
 		int ret;
 
-		ret = boot_comp_info_get(arg3, arg2, &pgc, &capc, &cc, &psid);
+		/* only resource manager is allowed to use this function */
+		assert(curr == resmgr_spdid);
+		ret = boot_comp_info_get(arg4, arg3, &pgc, &capc, &cc, &psid);
 		if (ret == BOOT_CI_GET_ERROR) { 
 			ret1 = error;
 			break;
@@ -467,7 +468,9 @@ llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 		spdid_t csid, psid;
 		int ret;
 
-		ret = boot_comp_info_iter(arg3, &csid, &pgc, &capc, &cc, &psid);
+		/* only resource manager is allowed to use this function */
+		assert(curr == resmgr_spdid);
+		ret = boot_comp_info_iter(arg4, &csid, &pgc, &capc, &cc, &psid);
 		if (ret == BOOT_CI_GET_ERROR) { 
 			ret1 = error;
 			break;
@@ -485,7 +488,9 @@ llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 		capid_t caps;
 		int ret;
 
-		ret = boot_comp_frontier_get(arg2, &vas, &caps);
+		/* only resource manager is allowed to use this function */
+		assert(curr == resmgr_spdid);
+		ret = boot_comp_frontier_get(arg3, &vas, &caps);
 		if (ret) { 
 			ret1 = error;
 			break;
@@ -500,8 +505,10 @@ llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 	{
 		capid_t capfr;
 
+		/* only resource manager is allowed to use this function */
+		assert(curr == resmgr_spdid);
 		/* init-thread of components that booter created..*/
-		thdcap_t t = boot_comp_initthd_get(arg2, &capfr);
+		thdcap_t t = boot_comp_initthd_get(arg3, &capfr);
 
 		ret1 = t;
 		*ret2 = capfr;
@@ -512,7 +519,8 @@ llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 	{
 		u64_t idbits = 0;
 
-		ret1 = boot_comp_childspds_get(arg2, &idbits);
+		if (curr != resmgr_spdid) assert(curr == arg3);
+		ret1 = boot_comp_childspds_get(arg3, &idbits);
 		*ret2 = (u32_t)idbits;
 		*ret3 = (u32_t)(idbits >> 32);
 
@@ -522,7 +530,8 @@ llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 	{
 		u64_t idbits = 0;
 
-		ret1 = boot_comp_childschedspds_get(arg2, &idbits);
+		if (curr != resmgr_spdid) assert(curr == arg3);
+		ret1 = boot_comp_childschedspds_get(arg3, &idbits);
 		*ret2 = (u32_t)idbits;
 		*ret3 = (u32_t)(idbits >> 32);
 
