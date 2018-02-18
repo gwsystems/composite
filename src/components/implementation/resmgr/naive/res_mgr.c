@@ -44,6 +44,7 @@ resmgr_ext_thd_create_intern(spdid_t cur, spdid_t s, int idx, int u1, int *u2, i
 	assert(rc && res_info_init_check(rc));
 	assert(rs && res_info_init_check(rs));
 	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
+	assert(!res_info_is_sched(s));
 	assert(idx > 0);
 
 	t = sl_thd_ext_idx_alloc(res_info_dci(rs), idx);
@@ -55,7 +56,7 @@ resmgr_ext_thd_create_intern(spdid_t cur, spdid_t s, int idx, int u1, int *u2, i
 
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, res_thd_thdcap(rt));
 	assert(ret > 0);
-	/* not copied into the child component's address-space */
+	/* child is not a scheduler, don't copy into child */
 
 	return ret;
 }
@@ -74,6 +75,7 @@ resmgr_initthd_create_intern(spdid_t cur, spdid_t s, int u1, int u2, int *u3, in
 	assert(rc && res_info_init_check(rc));
 	assert(rs && res_info_init_check(rs));
 	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
+	assert(!res_info_is_sched(s));
 
 	t = sl_thd_child_initaep_alloc(res_info_dci(rs), 0, 0);
 	assert(t);
@@ -82,9 +84,7 @@ resmgr_initthd_create_intern(spdid_t cur, spdid_t s, int u1, int u2, int *u3, in
 	rst = res_info_initthd_init(rs, t);
 	assert(rst);
 
-	ret = cos_cap_cpy_at(res_info_ci(rs), BOOT_CAPTBL_SELF_INITTHD_BASE, res_ci, res_thd_thdcap(rt));
-	assert(ret == 0);
-
+	/* child is not a scheduler, don't copy into child */
 	/* parent only needs the thdcap */
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, res_thd_thdcap(rt));
 	assert(ret > 0);
@@ -108,6 +108,7 @@ resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_
 	assert(rc && res_info_init_check(rc));
 	assert(rs && res_info_init_check(rs));
 	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
+	assert(res_info_is_sched(s));
 
 	rinit = res_info_initthd(rc);
 	assert(rinit);
@@ -120,7 +121,7 @@ resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_
 	rst = res_info_initthd_init(rs, t);	
 	assert(rst);
 
-	/* whether to copy or not is not clear.. perhaps depending on whether it's a scheduler or not */
+	/* child is a scheduler.. copy initcaps */
 	ret = cos_cap_cpy_at(res_info_ci(rs), BOOT_CAPTBL_SELF_INITTHD_BASE, res_ci, res_thd_thdcap(rt));
 	assert(ret == 0);
 	ret = cos_cap_cpy_at(res_info_ci(rs), BOOT_CAPTBL_SELF_INITRCV_BASE, res_ci, res_thd_rcvcap(rt));
@@ -134,7 +135,7 @@ resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_
 		assert(ret == 0);
 	}
 
-	/* parent only needs the thdcap/asndcap */
+	/* parent needs tcap/rcv to manage time. thd/asnd to activate. */
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, res_thd_thdcap(rt));
 	assert(ret > 0);
 	rcv = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ARCV, res_thd_rcvcap(rt));
@@ -178,7 +179,7 @@ resmgr_ext_aep_create_intern(spdid_t cur, spdid_t s, int tidx, int owntc, arcvca
 	rst = res_info_thd_init(rs, t);
 	assert(rst);
 
-	/* whether to copy or not is not clear.. perhaps depending on whether it's a scheduler or not */
+	/* cur is a scheduler, copy thdcap */
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, res_thd_thdcap(rt));
 	assert(ret > 0);
 	/* 
@@ -233,7 +234,7 @@ resmgr_aep_create_intern(spdid_t cur, int tidx, int owntc, int u1, arcvcap_t *rc
 	rt = res_info_thd_init(rc, t);
 	assert(rt);
 
-	/* whether to copy or not is not clear.. perhaps depending on whether it's a scheduler or not */
+	/* current is a sched, so copy */
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, res_thd_thdcap(rt));
 	assert(ret > 0);
 	*rcvret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ARCV, res_thd_rcvcap(rt));
