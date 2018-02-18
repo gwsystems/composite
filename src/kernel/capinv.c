@@ -15,6 +15,7 @@
 #include "include/tcap.h"
 #include "include/chal/defs.h"
 #include "include/hw.h"
+#include "include/chal/chal_prot.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -127,9 +128,11 @@ kmem_unalloc(unsigned long *pte)
 	 */
 	unsigned long old = *pte;
 
-	assert(old & PGTBL_COSKMEM);
+	assert(chal_pgtbl_is_coskmem(old));
+	/* TODO: remove after test assert(chal_pgtbl_chal2cos(old) & PGTBL_COSKMEM); */
 	retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
-	*pte = old & ~PGTBL_COSKMEM;
+	/* TODO: remove after test *pte = chal_pgtbl_cos2chal(chal_pgtbl_chal2cos(old) & ~PGTBL_COSKMEM); */
+	*pte = chal_pgtbl_clr_coskmem(*pte);
 }
 
 /*
@@ -157,8 +160,12 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 	old_v = *v = **p_pte;
 
 	pa = old_v & PGTBL_FRAME_MASK;
-	if (!(old_v & PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
-	assert(!(old_v & PGTBL_QUIESCENCE));
+        /* TODO: remove after testing
+	 * if (!(chal_pgtbl_chal2cos(old_v) & PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
+	 * assert(!(chal_pgtbl_chal2cos(old_v) & PGTBL_QUIESCENCE)); 
+         */
+	 if (!chal_pgtbl_is_coskmem(old_v)) cos_throw(err, -EINVAL);
+	 assert(!chal_pgtbl_is_quiescence(old_v)); 
 
 	/* Scan the page to make sure there's nothing left. */
 	if (ch->type == CAP_CAPTBL) {
@@ -277,7 +284,8 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v)
 	u32_t new_v;
 
 	/* Unset coskmem bit. Release the kmem frame. */
-	new_v = old_v & (~PGTBL_COSKMEM);
+	/* TODO: delete after testing new_v = chal_pgtbl_cos2chal(chal_pgtbl_chal2cos(old_v) & (~PGTBL_COSKMEM)); */
+        new_v = chal_pgtbl_clr_coskmem(old_v);
 	if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	ret = retypetbl_deref((void *)(old_v & PGTBL_FRAME_MASK));
@@ -370,7 +378,8 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 		old_v = *f;
 
 		/* Cannot copy frame, or kernel entry. */
-		if ((old_v & PGTBL_COSFRAME) || !(old_v & PGTBL_USER)) return -EPERM;
+		/* TODO:remove after testing if ((chal_pgtbl_chal2cos(old_v) & PGTBL_COSFRAME) || !(chal_pgtbl_chal2cos(old_v) & PGTBL_USER)) return -EPERM; */
+		if (chal_pgtbl_is_cosframe(old_v) || !chal_pgtbl_is_user(old_v)) return -EPERM;
 		/* TODO: validate the type is appropriate given the value of *flags */
 		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags);
 	} else {
@@ -412,8 +421,13 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, c
 		old_v_to = *moveto;
 
 		cos_mem_fence();
-		if ((old_v & PGTBL_COSFRAME) == 0) return -EPERM;
-		if (old_v_to & (PGTBL_COSFRAME | PGTBL_PRESENT)) return -EPERM;
+                /* TODO:remove after testing.
+		 * if ((chal_pgtbl_chal2cos(old_v) & PGTBL_COSFRAME) == 0) return -EPERM;
+		 * if (chal_pgtbl_chal2cos(old_v_to) & (PGTBL_COSFRAME | PGTBL_PRESENT)) return -EPERM;
+                 */
+		if (!chal_pgtbl_is_cosframe(old_v)) return -EPERM;
+		if (chal_pgtbl_is_cosframe(old_v_to) | chal_pgtbl_is_present(old_v_to)) return -EPERM;
+
 		ret = pgtbl_quie_check(old_v_to);
 		if (ret) return ret;
 
@@ -1646,7 +1660,8 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			pte = pgtbl_lkup_pte(ptc->pgtbl, va, &flags);
 			if (!pte) cos_throw(err, -EINVAL);
 			if (*pte & PGTBL_FRAME_MASK) cos_throw(err, -ENOENT);
-			*pte = (PGTBL_FRAME_MASK & pa) | PGTBL_USER_DEF;
+			/* TODO: delete after testing *pte = (PGTBL_FRAME_MASK & pa) | chal_pgtbl_cos2chal(PGTBL_USER_DEF); */
+                        *pte = chal_pgtbl_set_user_def(PGTBL_FRAME_MASK & pa);
 
 			ret = 0;
 			break;

@@ -2,6 +2,8 @@
 #include "kernel.h"
 #include "boot_comp.h"
 #include "chal_cpu.h"
+#include "chal/chal_prot.h"
+#include "chal_pgtbl.h"
 #include "mem_layout.h"
 #include "string.h"
 #include <pgtbl.h>
@@ -72,8 +74,8 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 		paddr_t pf    = chal_va2pa(p);
 		u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
 
-		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, PGTBL_USER_DEF)) assert(0);
-		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, PGTBL_COSFRAME)) assert(0);
+		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_USER_DEF)) assert(0);
+		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_COSFRAME)) assert(0);
 		assert((void *)p == pgtbl_lkup(pgtbl, user_vaddr + i * PAGE_SIZE, &flags));
 	}
 
