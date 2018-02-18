@@ -1,6 +1,6 @@
 C_OBJS=pong.o
 ASM_OBJS=
-COMPONENT=_0_ppong.o
+COMPONENT=ppong.o
 INTERFACES=pong
 DEPENDENCIES=
 IF_LIB=

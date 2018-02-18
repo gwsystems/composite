@@ -1,4 +1,4 @@
-COMPONENT=_2_unit_schedcomp_test.o
+COMPONENT=unit_schedcomp_test.o
 INTERFACES=
 DEPENDENCIES=schedmgr
 IF_LIB=

@@ -1,6 +1,6 @@
 C_OBJS=test_booter.o
 ASM_OBJS=
-COMPONENT=_0_test_boot.o
+COMPONENT=test_boot.o
 INTERFACES=
 DEPENDENCIES=
 IF_LIB=

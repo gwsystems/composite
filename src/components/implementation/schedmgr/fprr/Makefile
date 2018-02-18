@@ -1,6 +1,6 @@
 C_OBJS=sched_mgr.c
 ASM_OBJS=
-COMPONENT=root_fprr_sched.o
+COMPONENT=fprr_sched.o
 INTERFACES=schedmgr
 DEPENDENCIES=resmgr
 IF_LIB=

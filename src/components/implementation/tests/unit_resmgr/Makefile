@@ -1,6 +1,6 @@
 C_OBJS=unit_resmgr.c
 ASM_OBJS=
-COMPONENT=2_0_unitresmgr.o
+COMPONENT=unitresmgr.o
 INTERFACES=
 DEPENDENCIES=resmgr
 IF_LIB=
