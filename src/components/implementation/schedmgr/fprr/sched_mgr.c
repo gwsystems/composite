@@ -2,9 +2,14 @@
 #include <schedmgr.h>
 #include <sl.h>
 
+extern u64_t child_spdbits;
+
+#define IS_CHILD(c) (child_spdbits & ((u64_t)1 << (c-1)))
+
 int
 schedmgr_thd_wakeup_intern(spdid_t c, thdid_t t, int u1, int u2, int *u3, int *u4)
 {
+	assert(c && IS_CHILD(c));
 	sl_thd_wakeup(t);
 
 	return 0;
@@ -13,6 +18,7 @@ schedmgr_thd_wakeup_intern(spdid_t c, thdid_t t, int u1, int u2, int *u3, int *u
 int
 schedmgr_thd_block_intern(spdid_t c, thdid_t deptid, int u1, int u2, int *u3, int *u4)
 {
+	assert(c && IS_CHILD(c));
 	sl_thd_block(deptid);
 
 	return 0;
@@ -21,6 +27,7 @@ schedmgr_thd_block_intern(spdid_t c, thdid_t deptid, int u1, int u2, int *u3, in
 int
 schedmgr_thd_block_timeout_intern(spdid_t c, thdid_t deptid, u32_t hi, u32_t lo, int *u1, int *u2)
 {
+	assert(c && IS_CHILD(c));
 	/* TODO: return time elapsed */
 	sl_thd_block_timeout(deptid, ((cycles_t)hi << 32 | (cycles_t)lo));
 
@@ -34,6 +41,7 @@ schedmgr_thd_create_intern(spdid_t c, int idx, int u1, int u2, int *u3, int *u4)
 	struct cos_defcompinfo defcinfo;
 	struct sl_thd *t = NULL;
 
+	assert(c && IS_CHILD(c));
 	/* assuming this scheduler uses sl_resmgr library */
 	memset(&defcinfo, 0, sizeof(struct cos_defcompinfo));
 	defcinfo.id = c;
@@ -51,6 +59,7 @@ schedmgr_aep_create_intern(spdid_t c, int idx, int owntc, int u1, arcvcap_t *ext
 	struct cos_defcompinfo defcinfo;
 	struct sl_thd *t = NULL;
 
+	assert(c && IS_CHILD(c));
 	/* assuming this scheduler uses sl_resmgr library */
 	memset(&defcinfo, 0, sizeof(struct cos_defcompinfo));
 	defcinfo.id = c;
@@ -66,6 +75,7 @@ schedmgr_thd_param_set_intern(spdid_t c, thdid_t tid, sched_param_t sp, int u1, 
 {
 	struct sl_thd *t = sl_thd_lkup(tid);
 
+	assert(c && IS_CHILD(c));
 	assert(t);
 	sl_thd_param_set(t, sp);
 
@@ -77,6 +87,7 @@ schedmgr_thd_delete_intern(spdid_t c, thdid_t tid, int u1, int u2, int *u3, int 
 {
 	struct sl_thd *t = sl_thd_lkup(tid);
 
+	assert(c && IS_CHILD(c));
 	assert(t);
 
 	sl_thd_free(t);
@@ -87,6 +98,7 @@ schedmgr_thd_delete_intern(spdid_t c, thdid_t tid, int u1, int u2, int *u3, int 
 int
 schedmgr_thd_exit_intern(spdid_t c, int u1, int u2, int u3, int *u4, int *u5)
 {
+	assert(c && IS_CHILD(c));
 	sl_thd_exit();
 
 	return 0;
