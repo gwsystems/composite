@@ -64,15 +64,18 @@ void launch_other_component(int component_id) {
 // 4) Add a proxy here
 
 void sample_lib_proxy() {
-	launch_other_component(2);
+    launch_other_component(2);
+    // Do not idle loop if you are an app, they are initialized on the main thread
 }
 
 void sample_app_proxy() {
-	launch_other_component(3);
+    launch_other_component(3);
+    OS_IdleLoop();
 }
 
 void sch_lab_proxy() {
-	launch_other_component(4);
+    launch_other_component(4);
+    OS_IdleLoop();
 }
 
 struct symbol_proxy {
