@@ -42,6 +42,33 @@ name##_inv:                       \
                                   \
         sysenter;
 
+#define cos_asm_server_stub_3rets(name) \
+.globl name##_inv ;                     \
+.type  name##_inv, @function ;	        \
+.align 16 ;			        \
+name##_inv:                             \
+        COS_ASM_GET_STACK               \
+	pushl $0;                       \
+	movl %esp, -8(%esp);            \
+	pushl $0;                       \
+	movl %esp, -8(%esp);            \
+	subl $8, %esp;                  \
+	pushl %ebp;		        \
+	xor %ebp, %ebp;		        \
+        pushl %edi;	                \
+        pushl %esi;	                \
+        pushl %ebx;	                \
+        call name ;		        \
+        addl $24, %esp;                 \
+	popl %esi;                      \
+	popl %edi;                      \
+                                        \
+        movl %eax, %ecx;                \
+        movl $RET_CAP, %eax;	        \
+        COS_ASM_RET_STACK               \
+                                        \
+        sysenter;
+
 #define cos_asm_server_stub_token(name) \
 .globl name##_inv ;                     \
 .type  name##_inv, @function ;	        \
