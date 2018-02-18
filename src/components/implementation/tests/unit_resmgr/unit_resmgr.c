@@ -21,63 +21,97 @@
 
 static cycles_t cycs_per_usec;
 
-void
+#define TEST_N_THDS 5
+static thdcap_t test_ts[TEST_N_THDS] = { 0 };
+static int thd_run_flag = 0;
+
+static void
 __test_thd_fn(void *d)
 {
-	printc("Thread created! %u\n", (int)d);
-	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	thd_run_flag = (int)d;
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 }
-
-#define TEST_N_THDS 5
-thdcap_t test_ts[TEST_N_THDS] = { 0 };
 
 static void
 test_thds(void)
 {
 	int i = 0;
 
-//	resmgr_initthd_create(0, 0);
 	for (; i < TEST_N_THDS; i++) {
-		printc("Creating thread @ %d\n", i);
 		test_ts[i] = resmgr_thd_create(0, __test_thd_fn, (void *)i);
 		assert(test_ts[i]);
 
-		printc("Switching to thread %lu\n", test_ts[i]);
 		cos_thd_switch(test_ts[i]);
+		assert(thd_run_flag == i);
 	}
-//	resmgr_thd_retrieve(0, 0, 0);
+	printc("Creation/switch %d threads done.\n", TEST_N_THDS);
 }
 
-static void
-test_asnd(void)
-{
-	resmgr_asnd_create(0, 0, 0);
-}
+#define TEST_N_HEAP_PAGES 2048
+#define TEST_HEAP_STRING  "Hello, World!"
+
+#define TEST_N_SHMEM_PAGES 64
+#define TEST_SHMEM_STRING  "Goodbye, World!"
+
+#define TEST_STR_MAX_LEN 32
+#define TEST_STR_NUM 5
+
+char *test_strs[TEST_STR_NUM] = {
+					"Hello",
+					"Welcome",
+					"Hi",
+					"Howdy",
+					"Goodbye",
+				};
 
 static void
 test_mem(void)
 {
-	memmgr_page_bump_alloc(0);
+	int idx;
+	int i;
+	vaddr_t addr, haddr;
 
-	/* memmgr_page_map(spdid, page_addr); */
-	/* memmgr_page_map_at(spdid, page_addr, map_addr); -> for shared memory mapped at same addresses! */
+	haddr = memmgr_heap_page_allocn(0, TEST_N_HEAP_PAGES);
+	printc("Alloc'd heap @ %lx, pages:%d\n", haddr, TEST_N_HEAP_PAGES);
+	for (i = 0; i < TEST_N_HEAP_PAGES; i++) {
+		vaddr_t page = haddr + i * PAGE_SIZE;
+		const char *str = test_strs[i % TEST_STR_NUM];
+
+		memset((void *)page, 0, TEST_STR_MAX_LEN + 1);
+		strcpy((char *)page, str);
+
+		assert(strcmp((char *)page, str) == 0);
+	}
+	printc("Read/write %d pages done\n", TEST_N_HEAP_PAGES);
+
+	idx = memmgr_shared_page_allocn(0, TEST_N_SHMEM_PAGES, &addr);
+	printc("Alloc'd shared @ %d:%lx, pages:%d\n", idx, addr, TEST_N_SHMEM_PAGES);
+
+	assert(addr == memmgr_shared_page_vaddr(0, idx));
+	for (i = 0; i < TEST_N_SHMEM_PAGES; i++) {
+		vaddr_t page = addr + i * PAGE_SIZE;
+		const char *str = test_strs[i % TEST_STR_NUM];
+
+		memset((void *)page, 0, TEST_STR_MAX_LEN + 1);
+		strcpy((char *)page, str);
+
+		assert(strcmp((char *)page, str) == 0);
+	}
+	printc("Read/write %d pages done\n", TEST_N_SHMEM_PAGES);
 }
 
 void
 cos_init(void)
 {
-
-	int                     id, ret;
-	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
+	u64_t childbits;
 
 	printc("Unit-test for Resource Manager interface\n");
+	llboot_comp_childspdids_get(cos_spd_id(), &childbits);
+	assert(!childbits);
 
 	test_thds();
-//	test_asnd();
-//	test_mem();
-//
-//	printc("Unit-test done.\n");
+	test_mem();
+	printc("Unit-test done.\n");
 	llboot_comp_init_done();
 
 	SPIN();

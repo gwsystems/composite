@@ -55,7 +55,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 	}
 
 	hs[n] = NULL;
-	printc("cobj %s:%d found at %p -> %x\n", hs[n - 1]->name, hs[n - 1]->id, hs[n - 1],
+	printc("cobj %s:%d found at %p:%x -> %x\n", hs[n - 1]->name, hs[n - 1]->id, hs[n - 1], hs[n-1]->size,
 	       cobj_sect_get(hs[n - 1], 0)->vaddr);
 
 }
@@ -306,18 +306,26 @@ boot_comp_find_parent(spdid_t s)
 }
 
 static void
+boot_comp_parent_childbit_set(spdid_t s)
+{
+	struct comp_cap_info *parentcinfo = NULL;
+	struct comp_cap_info *cinfo = &new_comp_cap_info[s];
+
+	if (cinfo->parent_spdid <= num_cobj) {
+		parentcinfo = &new_comp_cap_info[cinfo->parent_spdid];
+		assert(s);
+		parentcinfo->childid_bitf |= (1 << (s-1));
+
+		if (cinfo->is_sched == 1) parentcinfo->childid_sched_bitf |= (1 << (s-1));
+	}
+}
+
+static void
 boot_comp_name_parse(spdid_t s, const char *strname)
 {
 	struct comp_cap_info *cinfo = &new_comp_cap_info[s];
 	struct comp_cap_info *bootcinfo = &new_comp_cap_info[0];
 	char name[BOOT_NAME_MAX] = { '\0' };
-
-#if 0
-	cinfo->is_sched = 1;
-	cinfo->parent_spdid = 0;
-
-	return;
-#endif
 	char *tok;
 	int count_parsed = 0;
 
@@ -341,7 +349,7 @@ boot_comp_name_parse(spdid_t s, const char *strname)
 		cinfo->sched_no = 2;
 		root_spdid = s;
 
-		bootcinfo->childid_bitf |= (1 << s);
+		boot_comp_parent_childbit_set(s);
 		return;
 	} else if (strcmp(name, BOOT_RESMGR) == 0) {
 		/* llbooter creates init thread and lets it initialize. (for my impl: should not run after boot-up */
@@ -352,7 +360,7 @@ boot_comp_name_parse(spdid_t s, const char *strname)
 		cinfo->parent_no = 0;
 		cinfo->parent_spdid = 0;
 
-		bootcinfo->childid_bitf |= (1 << s);
+		boot_comp_parent_childbit_set(s);
 		return;
 	}
 
@@ -367,16 +375,11 @@ boot_comp_name_parse(spdid_t s, const char *strname)
 		}
 		case BOOT_PARENT_OFF:
 		{
-			struct comp_cap_info *parentcinfo = NULL;
 
 			cinfo->parent_no    = atoi(tok);
 			cinfo->parent_spdid = boot_comp_find_parent(s);
+			boot_comp_parent_childbit_set(s);
 
-			if (cinfo->parent_spdid <= num_cobj) {
-				parentcinfo = &new_comp_cap_info[cinfo->parent_spdid];
-				assert(s);
-				parentcinfo->childid_bitf |= (1 << (s-1));
-			}
 			break;
 		}
 		default: break;
@@ -448,7 +451,7 @@ boot_child_info(void)
 	int i = 0;
 
 	for (; i <= num_cobj; i++) {
-		printc("Component %d => child bitmap %llx\n", i, new_comp_cap_info[i].childid_bitf);
+		printc("Component %d => child bitmap %llx, sched bitmap %llx\n", i, new_comp_cap_info[i].childid_bitf, new_comp_cap_info[i].childid_sched_bitf);
 	}
 }
 

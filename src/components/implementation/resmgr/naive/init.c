@@ -35,6 +35,7 @@ resmgr_comp_info_iter(void)
 		thdcap_t t = 0;
 		struct res_comp_info *rci;
 		struct sl_thd *ithd;
+		u64_t chbits = 0, chschbits = 0;
 	
 		ret = llboot_comp_info_next(rescapfr, &csid, &pgc, &capc, &cc, &psid, &rescapfr);
 		if (ret) break;
@@ -46,7 +47,12 @@ resmgr_comp_info_iter(void)
 		ret = llboot_comp_frontier_get(csid, &vasfr, &capfr);
 		assert(ret == 0);
 
-		rci = res_info_comp_init(csid, capc, pgc, cc, capfr, vasfr, psid);
+		ret = llboot_comp_childspdids_get(csid, &chbits);
+		assert(ret == 0);
+		ret = llboot_comp_childschedspdids_get(csid, &chschbits);
+		assert(ret == 0);
+
+		rci = res_info_comp_init(csid, capc, pgc, cc, capfr, vasfr, (vaddr_t)MEMMGR_COMP_SHARED_BASE, psid, chbits, chschbits);
 		assert(rci);
 
 		if (t) {
@@ -72,7 +78,7 @@ cos_init(void)
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
 
-	llboot_comp_childspdids_get(&childbits);
+	llboot_comp_childspdids_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
 	sl_init(SL_MIN_PERIOD_US);

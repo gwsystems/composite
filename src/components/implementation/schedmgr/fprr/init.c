@@ -31,7 +31,7 @@ cos_init(void)
 	sl_init(SL_MIN_PERIOD_US);
 	memset(&child_defcinfo, 0, sizeof(struct cos_defcompinfo) * MAX_CHILD_COMPS);
 
-	llboot_comp_childspdids_get(&child_spdbits);
+	llboot_comp_childspdids_get(cos_spd_id(), &child_spdbits);
 	printc("%lu Child bitmap : %llx\n", cos_spd_id(), child_spdbits);
 
 	for (i = 0; i < MAX_CHILD_BITS; i++) {

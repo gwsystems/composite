@@ -3,7 +3,7 @@
 #include <sl.h>
 
 int
-schedmgr_thd_wakeup(spdid_t c, thdid_t t)
+schedmgr_thd_wakeup_intern(spdid_t c, thdid_t t, int u1, int u2, int *u3, int *u4)
 {
 	sl_thd_wakeup(t);
 
@@ -11,7 +11,7 @@ schedmgr_thd_wakeup(spdid_t c, thdid_t t)
 }
 
 int
-schedmgr_thd_block(spdid_t c, thdid_t deptid)
+schedmgr_thd_block_intern(spdid_t c, thdid_t deptid, int u1, int u2, int *u3, int *u4)
 {
 	sl_thd_block(deptid);
 
@@ -19,7 +19,7 @@ schedmgr_thd_block(spdid_t c, thdid_t deptid)
 }
 
 int
-schedmgr_thd_block_timeout_intern(spdid_t c, thdid_t deptid, u32_t hi, u32_t lo)
+schedmgr_thd_block_timeout_intern(spdid_t c, thdid_t deptid, u32_t hi, u32_t lo, int *u1, int *u2)
 {
 	/* TODO: return time elapsed */
 	sl_thd_block_timeout(deptid, ((cycles_t)hi << 32 | (cycles_t)lo));
@@ -28,7 +28,7 @@ schedmgr_thd_block_timeout_intern(spdid_t c, thdid_t deptid, u32_t hi, u32_t lo)
 }
 
 thdid_t
-schedmgr_thd_create_intern(spdid_t c, int idx)
+schedmgr_thd_create_intern(spdid_t c, int idx, int u1, int u2, int *u3, int *u4)
 {
 	/* FIXME: use initialized defci */
 	struct cos_defcompinfo defcinfo;
@@ -45,7 +45,7 @@ schedmgr_thd_create_intern(spdid_t c, int idx)
 }
 
 thdid_t
-schedmgr_aep_create_intern(spdid_t c, int idx, int owntc, arcvcap_t *extrcv, u32_t *unused)
+schedmgr_aep_create_intern(spdid_t c, int idx, int owntc, int u1, arcvcap_t *extrcv, int *u2)
 {
 	/* FIXME: use initialized defci */
 	struct cos_defcompinfo defcinfo;
@@ -62,7 +62,7 @@ schedmgr_aep_create_intern(spdid_t c, int idx, int owntc, arcvcap_t *extrcv, u32
 }
 
 int
-schedmgr_thd_param_set(spdid_t c, thdid_t tid, sched_param_t sp)
+schedmgr_thd_param_set_intern(spdid_t c, thdid_t tid, sched_param_t sp, int u1, int *u2, int *u3)
 {
 	struct sl_thd *t = sl_thd_lkup(tid);
 
@@ -73,7 +73,7 @@ schedmgr_thd_param_set(spdid_t c, thdid_t tid, sched_param_t sp)
 }
 
 int
-schedmgr_thd_delete(spdid_t c, thdid_t tid)
+schedmgr_thd_delete_intern(spdid_t c, thdid_t tid, int u1, int u2, int *u3, int *u4)
 {
 	struct sl_thd *t = sl_thd_lkup(tid);
 
@@ -85,7 +85,7 @@ schedmgr_thd_delete(spdid_t c, thdid_t tid)
 }
 
 int
-schedmgr_thd_exit(spdid_t c)
+schedmgr_thd_exit_intern(spdid_t c, int u1, int u2, int u3, int *u4, int *u5)
 {
 	sl_thd_exit();
 

@@ -1,27 +1,50 @@
+#include <memmgr.h>
 #include <resmgr.h>
 #include <cos_thd_init.h>
 #include <cos_defkernel_api.h>
 
-thdcap_t resmgr_thd_create_intern(spdid_t c, int idx);
-thdcap_t resmgr_ext_thd_create_intern(spdid_t c, spdid_t s, int idx);
-thdcap_t resmgr_aep_create_intern(spdid_t c, int idx, int owntc, arcvcap_t *rcvret, tcap_t *tcret);
+thdcap_t resmgr_initthd_create_intern(spdid_t c, spdid_t s, int u1, int u2, int *u3, int *u4);
+thdcap_t resmgr_thd_create_intern(spdid_t c, int idx, int u1, int u2, int *u3, int *u4);
+thdcap_t resmgr_ext_thd_create_intern(spdid_t c, spdid_t s, int idx, int u1, int *u2, int *u3);
+thdcap_t resmgr_aep_create_intern(spdid_t c, int idx, int owntc, int u1, arcvcap_t *rcvret, tcap_t *tcret);
 thdcap_t resmgr_ext_aep_create_intern(spdid_t c, spdid_t s, int idx, int owntc, arcvcap_t *rcvret, u32_t *rcvtcret);
-thdcap_t resmgr_initaep_create_intern(spdid_t c, spdid_t s, int owntc, asndcap_t *sndret, u32_t *rcvtcret);
+thdcap_t resmgr_initaep_create_intern(spdid_t c, spdid_t s, int owntc, int u1, asndcap_t *sndret, u32_t *rcvtcret);
+thdcap_t resmgr_thd_retrieve_intern(spdid_t c, spdid_t s, thdid_t t, int u1, int *u2, int *u3);
+asndcap_t resmgr_asnd_create_intern(spdid_t c, spdid_t s, thdid_t t, int u1, int *u2, int *u3);
+
+thdcap_t
+resmgr_thd_retrieve(spdid_t c, spdid_t s, thdid_t t)
+{
+	int unused;
+
+	return resmgr_thd_retrieve_intern(c, s, t, unused, &unused, &unused);
+}
+
+thdcap_t
+resmgr_initthd_create(spdid_t c, spdid_t s)
+{
+	int unused;
+
+	return resmgr_initthd_create_intern(c, s, unused, unused, &unused, &unused);
+}
 
 thdcap_t
 resmgr_thd_create(spdid_t c, cos_thd_fn_t fn, void *data)
 {
+	int unused;
 	int idx = cos_thd_init_alloc(fn, data);
 
 	if (idx < 1) assert(0);
 
-	return resmgr_thd_create_intern(0, idx);
+	return resmgr_thd_create_intern(c, idx, unused, unused, &unused, &unused);
 }
 
 thdcap_t
 resmgr_ext_thd_create(spdid_t c, spdid_t s, int idx)
 {
-	return resmgr_ext_thd_create_intern(0, s, idx);
+	int unused;
+
+	return resmgr_ext_thd_create_intern(c, s, idx, unused, &unused, &unused);
 }
 
 static void
@@ -37,6 +60,7 @@ __resmgr_aep_fn(void *data)
 thdcap_t
 resmgr_aep_create(spdid_t c, struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc)
 {
+	int unused = 0;
 	int idx = cos_thd_init_alloc(__resmgr_aep_fn, (void *)aep);
 	int ret;
 	arcvcap_t rcv;
@@ -44,7 +68,7 @@ resmgr_aep_create(spdid_t c, struct cos_aep_info *aep, cos_aepthd_fn_t fn, void 
 
 	if (idx < 1) assert(0);
 
-	ret = resmgr_aep_create_intern(0, idx, owntc, &rcv, &tc);
+	ret = resmgr_aep_create_intern(c, idx, owntc, unused, &rcv, &tc);
 	assert(ret > 0);
 
 	aep->fn   = fn;
@@ -63,7 +87,7 @@ resmgr_ext_aep_create(spdid_t c, spdid_t s, struct cos_aep_info *aep, int idx, i
 	arcvcap_t rcv;
 	u32_t tcrcvret;
 
-	ret = resmgr_ext_aep_create_intern(0, s, idx, owntc, &rcv, &tcrcvret);
+	ret = resmgr_ext_aep_create_intern(c, s, idx, owntc, &rcv, &tcrcvret);
 	assert(ret > 0);
 
 	aep->fn   = NULL;
@@ -84,10 +108,11 @@ resmgr_ext_aep_create(spdid_t c, spdid_t s, struct cos_aep_info *aep, int idx, i
 thdcap_t
 resmgr_initaep_create(spdid_t c, spdid_t s, struct cos_aep_info *aep, int owntc, asndcap_t *snd)
 {
+	int unused = 0;
 	int ret;
 	u32_t r2 = 0, r3 = 0;
 
-	ret = resmgr_initaep_create_intern(0, s, owntc, snd, &r3);
+	ret = resmgr_initaep_create_intern(c, s, owntc, unused, snd, &r3);
 	assert(ret > 0);
 
 	aep->fn   = NULL;
@@ -98,4 +123,69 @@ resmgr_initaep_create(spdid_t c, spdid_t s, struct cos_aep_info *aep, int owntc,
 
 	/* initcaps are copied to INITXXX offsets in the dst component */
 	return ret;
+}
+
+asndcap_t
+resmgr_asnd_create(spdid_t c, spdid_t s, thdid_t t)
+{
+	int unused;
+
+	return resmgr_asnd_create_intern(c, s, t, unused, &unused, &unused);
+}
+
+int memmgr_heap_page_allocn_intern(spdid_t c, unsigned int npgs, int u1, int u2, int *u3, int *u4);
+
+int memmgr_shared_page_allocn_intern(spdid_t c, int num_pages, int u1, int u2, vaddr_t *pgaddr, int *u3);
+int memmgr_shared_page_map_range_intern(spdid_t c, spdid_t s, int sidx, u32_t range, vaddr_t *pgaddr, int *u1);
+vaddr_t memmgr_shared_page_vaddr_intern(spdid_t c, int cur_idx, int u1, int u2, int *u3, int *u4);
+
+vaddr_t
+memmgr_heap_page_allocn(spdid_t c, unsigned int npgs)
+{
+	int unused;
+
+	return memmgr_heap_page_allocn_intern(c, npgs, unused, unused, &unused, &unused);
+}
+
+vaddr_t
+memmgr_heap_page_alloc(spdid_t c)
+{
+	return memmgr_heap_page_allocn(c, 1);
+}
+
+int
+memmgr_shared_page_allocn(spdid_t c, int num_pages, vaddr_t *pgaddr)
+{
+	int unused;
+
+	return memmgr_shared_page_allocn_intern(c, num_pages, unused, unused, pgaddr, &unused);
+}
+
+int
+memmgr_shared_page_alloc(spdid_t c, vaddr_t *pgaddr)
+{
+	return memmgr_shared_page_allocn(c, 1, pgaddr);
+}
+
+int
+memmgr_shared_page_map_range(spdid_t c, spdid_t s, int sidx, int off, int nm_pgs, vaddr_t *pgaddr)
+{
+	int unused;
+	u32_t range = (off << 16) | nm_pgs;
+
+	return memmgr_shared_page_map_range_intern(c, s, sidx, range, pgaddr, &unused);
+}
+
+int
+memmgr_shared_page_map(spdid_t c, spdid_t s, int sidx, vaddr_t *pgaddr)
+{
+	return memmgr_shared_page_map_range(c, s, sidx, 0, 0, pgaddr);
+}
+
+vaddr_t
+memmgr_shared_page_vaddr(spdid_t c, int i)
+{
+	int unused;
+
+	return memmgr_shared_page_vaddr_intern(c, i, unused, unused, &unused, &unused);
 }

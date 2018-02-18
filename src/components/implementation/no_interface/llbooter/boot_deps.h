@@ -35,6 +35,7 @@ struct comp_cap_info {
 	int                  parent_no;
 	spdid_t              parent_spdid;
 	u64_t                childid_bitf;
+	u64_t                childid_sched_bitf;
 	struct sl_thd       *initaep;
 } new_comp_cap_info[MAX_NUM_SPDS + 1];
 
@@ -50,6 +51,7 @@ boot_deps_map_sect(spdid_t spdid, vaddr_t dest_daddr)
 	assert(addr);
 
 	if (cos_mem_alias_at(new_comp_cap_info[spdid].compinfo, dest_daddr, boot_info, addr)) BUG();
+	cos_vasfrontier_init(new_comp_cap_info[spdid].compinfo, dest_daddr + PAGE_SIZE);
 
 	return addr;
 }
@@ -175,6 +177,21 @@ boot_newcomp_init_caps(spdid_t spdid)
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, boot_info, BOOT_CAPTBL_SELF_INITHW_BASE);
 	assert(ret == 0);
 
+	if (capci->is_sched) {
+		/*
+		 * FIXME:
+		 * This is an ugly hack to allow components to do cos_introspect()
+		 * - to get thdid
+		 * - to get budget on tcap
+		 * - other introspect...requirements..
+		 *
+		 * I don't know a way to get away from this for now! 
+		 * If it were just thdid, resmgr could have returned the thdids!
+		 */
+		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_CT, boot_info, ci->captbl_cap);
+		assert(ret == 0);
+	}
+
 	/* If booter should create the init caps in that component */
 	if (capci->parent_spdid == 0) {
 		boot_newcomp_defcinfo_init(spdid);
@@ -191,26 +208,13 @@ boot_newcomp_init_caps(spdid_t spdid)
 			assert(ret == 0);
 			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTCAP_BASE, boot_info, sl_thd_tcap(capci->initaep));
 			assert(ret == 0);
-
-			/*
-			 * FIXME:
-			 * This is an ugly hack to allow components to do cos_introspect()
-			 * - to get thdid
-			 * - to get budget on tcap
-			 * - other introspect...requirements..
-			 *
-			 * I don't know a way to get away from this for now! 
-			 * If it were just thdid, resmgr could have returned the thdids!
-			 */
-			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_CT, boot_info, ci->captbl_cap);
-			assert(ret == 0);
 		}
 
 		if (resmgr_spdid == spdid) {
 			assert(capci->is_sched == 0);
-			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_CT, boot_info, ci->captbl_cap);
-			assert(ret == 0);
 			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_PT, boot_info, ci->pgtbl_cap);
+			assert(ret == 0);
+			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_CT, boot_info, ci->captbl_cap);
 			assert(ret == 0);
 			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_COMP, boot_info, ci->comp_cap);
 			assert(ret == 0);
@@ -279,18 +283,21 @@ boot_done(void)
 	printc("********************************\n");
 	cos_thd_switch(schedule[sched_cur]);
 
-	assert(root_spdid);
-	root = new_comp_cap_info[root_spdid].initaep;
-	assert(root);
-	sl_thd_param_set(root, sched_param_pack(SCHEDP_PRIO, LLBOOT_ROOT_PRIO));
+	if (root_spdid) {
+		printc("Root scheduler is %u\n", root_spdid);
+		root = new_comp_cap_info[root_spdid].initaep;
+		assert(root);
+		sl_thd_param_set(root, sched_param_pack(SCHEDP_PRIO, LLBOOT_ROOT_PRIO));
 #ifdef LLBOOT_CHRONOS_ENABLED
-	sl_thd_param_set(root, sched_param_pack(SCHEDP_BUDGET, LLBOOT_ROOT_BUDGET_MS));
-	sl_thd_param_set(root, sched_param_pack(SCHEDP_WINDOW, LLBOOT_ROOT_PERIOD_MS));
+		sl_thd_param_set(root, sched_param_pack(SCHEDP_BUDGET, LLBOOT_ROOT_BUDGET_MS));
+		sl_thd_param_set(root, sched_param_pack(SCHEDP_WINDOW, LLBOOT_ROOT_PERIOD_MS));
 #else
-	ret = cos_tcap_transfer(sl_thd_rcvcap(root), sl__globals()->sched_tcap, TCAP_RES_INF, LLBOOT_ROOT_PRIO);
-	assert(ret == 0);
+		ret = cos_tcap_transfer(sl_thd_rcvcap(root), sl__globals()->sched_tcap, TCAP_RES_INF, LLBOOT_ROOT_PRIO);
+		assert(ret == 0);
 #endif
+	}
 
+	printc("Starting llboot sched loop\n");
 	sl_sched_loop();
 }
 
@@ -404,6 +411,14 @@ boot_comp_frontier_get(int spdid, vaddr_t *vasfr, capid_t *capfr)
 }
 
 static int
+boot_comp_childschedspds_get(int spdid, u64_t *idbits)
+{
+	*idbits = new_comp_cap_info[spdid].childid_sched_bitf;
+
+	return 0;
+}
+
+static int
 boot_comp_childspds_get(int spdid, u64_t *idbits)
 {
 	*idbits = new_comp_cap_info[spdid].childid_bitf;
@@ -498,6 +513,16 @@ llboot_entry(u32_t op, u32_t arg2, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 		u64_t idbits = 0;
 
 		ret1 = boot_comp_childspds_get(arg2, &idbits);
+		*ret2 = (u32_t)idbits;
+		*ret3 = (u32_t)(idbits >> 32);
+
+		break;
+	}
+	case LLBOOT_COMP_CHILDSCHEDSPDIDS_GET:
+	{
+		u64_t idbits = 0;
+
+		ret1 = boot_comp_childschedspds_get(arg2, &idbits);
 		*ret2 = (u32_t)idbits;
 		*ret3 = (u32_t)(idbits >> 32);
 

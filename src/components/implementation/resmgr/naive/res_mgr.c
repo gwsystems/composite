@@ -6,7 +6,7 @@
 #include "res_info.h"
 
 thdcap_t
-resmgr_thd_create_intern(spdid_t cur, int idx)
+resmgr_thd_create_intern(spdid_t cur, int idx, int u1, int u2, int *u3, int *u4)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
@@ -29,7 +29,7 @@ resmgr_thd_create_intern(spdid_t cur, int idx)
 }
 
 thdcap_t
-resmgr_ext_thd_create_intern(spdid_t cur, spdid_t s, int idx)
+resmgr_ext_thd_create_intern(spdid_t cur, spdid_t s, int idx, int u1, int *u2, int *u3)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
@@ -59,7 +59,7 @@ resmgr_ext_thd_create_intern(spdid_t cur, spdid_t s, int idx)
 }
 
 thdcap_t
-resmgr_initthd_create(spdid_t cur, spdid_t s)
+resmgr_initthd_create_intern(spdid_t cur, spdid_t s, int u1, int u2, int *u3, int *u4)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
@@ -90,7 +90,7 @@ resmgr_initthd_create(spdid_t cur, spdid_t s)
 }
 
 thdcap_t
-resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, asndcap_t *sndret, u32_t *rcvtcret)
+resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_t *sndret, u32_t *rcvtcret)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
@@ -201,7 +201,7 @@ resmgr_ext_aep_create_intern(spdid_t cur, spdid_t s, int tidx, int owntc, arcvca
 }
 
 thdcap_t
-resmgr_aep_create_intern(spdid_t cur, int tidx, int owntc, arcvcap_t *rcvret, tcap_t *tcret)
+resmgr_aep_create_intern(spdid_t cur, int tidx, int owntc, int u1, arcvcap_t *rcvret, tcap_t *tcret)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
@@ -241,7 +241,7 @@ resmgr_aep_create_intern(spdid_t cur, int tidx, int owntc, arcvcap_t *rcvret, tc
 }
 
 thdcap_t
-resmgr_thd_retrieve(spdid_t cur, spdid_t s, thdid_t tid)
+resmgr_thd_retrieve_intern(spdid_t cur, spdid_t s, thdid_t tid, int u1, int *u2, int *u3)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
@@ -262,13 +262,13 @@ resmgr_thd_retrieve(spdid_t cur, spdid_t s, thdid_t tid)
 
 /* TODO: use thdid? or rcvcap? */
 asndcap_t
-resmgr_asnd_create(spdid_t cur, spdid_t s, thdid_t tid /* thd with rcvcap */)
+resmgr_asnd_create_intern(spdid_t cur, spdid_t s, thdid_t tid /* thd with rcvcap */, int u1, int *u2, int *u3)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
-	struct res_comp_info *rc = res_info_comp_find(cur);
-	struct res_comp_info *rs = res_info_comp_find(s);
-	struct res_thd_info *ti  = res_info_thd_find(rs, tid);
+	struct res_comp_info *rc        = res_info_comp_find(cur);
+	struct res_comp_info *rs        = res_info_comp_find(s);
+	struct res_thd_info *ti         = res_info_thd_find(rs, tid);
 	asndcap_t snd;
 	int ret;
 

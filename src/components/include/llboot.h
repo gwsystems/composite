@@ -18,17 +18,31 @@ enum llboot_cntl {
 
 	LLBOOT_COMP_INITTHD_GET,
 	LLBOOT_COMP_CHILDSPDIDS_GET,
+	LLBOOT_COMP_CHILDSCHEDSPDIDS_GET,
 };
 
 /* assumption: spdids are monotonically increasing from 0 and max MAX_NUM_SPD == 64 */
 static inline int 
-llboot_comp_childspdids_get(u64_t *id_bits)
+llboot_comp_childspdids_get(spdid_t c, u64_t *id_bits)
 {
 	word_t lo = 0, hi = 0;
 	int ret;
 
 	*id_bits = 0;
-	ret = cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, LLBOOT_COMP_CHILDSPDIDS_GET, cos_spd_id(), 0, 0, &lo, &hi);
+	ret = cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, LLBOOT_COMP_CHILDSPDIDS_GET, c, 0, 0, &lo, &hi);
+	*id_bits = ((u64_t)hi << 32) | (u64_t)lo;
+
+	return ret;
+}
+
+static inline int 
+llboot_comp_childschedspdids_get(spdid_t c, u64_t *id_bits)
+{
+	word_t lo = 0, hi = 0;
+	int ret;
+
+	*id_bits = 0;
+	ret = cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, LLBOOT_COMP_CHILDSCHEDSPDIDS_GET, c, 0, 0, &lo, &hi);
 	*id_bits = ((u64_t)hi << 32) | (u64_t)lo;
 
 	return ret;

@@ -32,6 +32,19 @@ __compinfo_metacap(struct cos_compinfo *ci)
 }
 
 void
+cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
+{
+	ci->vas_frontier = heap_ptr;
+	/*
+	 * The first allocation should trigger PTE allocation, unless
+	 * it is in the middle of a PGD, in which case we assume one
+	 * is already allocated.
+	 */
+	ci->vasrange_frontier = round_up_to_pgd_page(heap_ptr);
+	assert(ci->vasrange_frontier == round_up_to_pgd_page(ci->vasrange_frontier));
+}
+
+void
 cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier)
 {
 	ci->cap_frontier = cap_frontier;
@@ -61,15 +74,8 @@ cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t cap
 	ci->pgtbl_cap    = pgtbl_cap;
 	ci->captbl_cap   = captbl_cap;
 	ci->comp_cap     = comp_cap;
-	ci->vas_frontier = heap_ptr;
-	/*
-	 * The first allocation should trigger PTE allocation, unless
-	 * it is in the middle of a PGD, in which case we assume one
-	 * is already allocated.
-	 */
-	ci->vasrange_frontier = round_up_to_pgd_page(heap_ptr);
-	assert(ci->vasrange_frontier == round_up_to_pgd_page(ci->vasrange_frontier));
 
+	cos_vasfrontier_init(ci, heap_ptr);
 	cos_capfrontier_init(ci, cap_frontier);
 }
 
