@@ -21,33 +21,26 @@
 #include "chal.h"
 #endif
 
-/* These are the generic flags, not tied to any specific architecture */
-typedef enum {
-	PGTBL_PRESENT  = 1,
-	PGTBL_WRITABLE = 1 << 1,
-	PGTBL_USER     = 1 << 2,
-	PGTBL_WT       = 1 << 3, /* write-through caching */
-	PGTBL_NOCACHE  = 1 << 4, /* caching disabled */
-	PGTBL_ACCESSED = 1 << 5,
-	PGTBL_MODIFIED = 1 << 6,
-	PGTBL_SUPER    = 1 << 7, /* super-page (4MB on x86-32) */
-	PGTBL_GLOBAL   = 1 << 8,
+/* TODO: remove after testing. These are the generic flags, not tied to any specific architecture */
+//typedef enum {
+//	PGTBL_PRESENT  = 1,
+//	PGTBL_WRITABLE = 1 << 1,
+//	PGTBL_USER     = 1 << 2,
+//	PGTBL_WT       = 1 << 3, /* write-through caching */
+//	PGTBL_NOCACHE  = 1 << 4, /* caching disabled */
+//	PGTBL_ACCESSED = 1 << 5,
+//	PGTBL_MODIFIED = 1 << 6,
+//	PGTBL_SUPER    = 1 << 7, /* super-page (4MB on x86-32) */
+//	PGTBL_GLOBAL   = 1 << 8,
 	/* Composite defined bits next*/
-	PGTBL_COSFRAME   = 1 << 9,
-	PGTBL_COSKMEM    = 1 << 10, /* page activated as kernel object */
-	PGTBL_QUIESCENCE = 1 << 11,
+//	PGTBL_COSFRAME   = 1 << 9,
+//	PGTBL_COSKMEM    = 1 << 10, /* page activated as kernel object */
+//	PGTBL_QUIESCENCE = 1 << 11,
 	/* Flag bits done. */
 
-	PGTBL_USER_DEF   = PGTBL_PRESENT | PGTBL_USER | PGTBL_ACCESSED | PGTBL_MODIFIED | PGTBL_WRITABLE,
-	PGTBL_INTERN_DEF = PGTBL_USER_DEF,
-} pgtbl_flags_t;
-
-#define PGTBL_PAGEIDX_SHIFT (12)
-#define PGTBL_FRAME_BITS (32 - PGTBL_PAGEIDX_SHIFT)
-#define PGTBL_FLAG_MASK ((1 << PGTBL_PAGEIDX_SHIFT) - 1)
-#define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
-#define PGTBL_DEPTH 2
-#define PGTBL_ORD 10
+//	PGTBL_USER_DEF   = PGTBL_PRESENT | PGTBL_USER | PGTBL_ACCESSED | PGTBL_MODIFIED | PGTBL_WRITABLE,
+//	PGTBL_INTERN_DEF = PGTBL_USER_DEF,
+//} pgtbl_flags_t;
 
 /* The page size definitions for composite OS */
 typedef enum {

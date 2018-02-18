@@ -9,6 +9,15 @@ Description : The Composite chal general prototype interface.
 /* Begin Function Prototypes *************************************************/
 #ifndef CHAL_PROT
 #define CHAL_PROT
+
+/* Page table platform-dependent definitions */
+#define PGTBL_PAGEIDX_SHIFT (12)
+#define PGTBL_FRAME_BITS (32 - PGTBL_PAGEIDX_SHIFT)
+#define PGTBL_FLAG_MASK ((1 << PGTBL_PAGEIDX_SHIFT) - 1)
+#define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
+#define PGTBL_DEPTH 2
+#define PGTBL_ORD 10
+
 /* Page table related prototypes & structs */
 /* make it an opaque type...not to be touched */
 typedef struct pgtbl *pgtbl_t;
@@ -24,8 +33,63 @@ struct cap_pgtbl {
 } __attribute__((packed));
 
 /* Do flag transformations */
-u32_t          chal_pgtbl_chal2cos(u32_t flags);
-u32_t          chal_pgtbl_cos2chal(u32_t flags);
+/* These functions do flag operations */
+/* PRESENT flag */
+u32_t           chal_pgtbl_set_present(u32_t input);
+u32_t           chal_pgtbl_clr_present(u32_t input);
+u32_t           chal_pgtbl_is_present(u32_t input);
+/* WRITABLE flag */
+u32_t           chal_pgtbl_set_writable(u32_t input);
+u32_t           chal_pgtbl_clr_writable(u32_t input);
+u32_t           chal_pgtbl_is_writable(u32_t input);
+/* USER flag */
+u32_t           chal_pgtbl_set_user(u32_t input);
+u32_t           chal_pgtbl_clr_user(u32_t input);
+u32_t           chal_pgtbl_is_user(u32_t input);
+/* WT flag */
+u32_t           chal_pgtbl_set_wt(u32_t input);
+u32_t           chal_pgtbl_clr_wt(u32_t input);
+u32_t           chal_pgtbl_is_wt(u32_t input);
+/* NOCACHE flag */
+u32_t           chal_pgtbl_set_nocache(u32_t input);
+u32_t           chal_pgtbl_clr_nocache(u32_t input);
+u32_t           chal_pgtbl_is_nocache(u32_t input);
+/* ACCESSED flag */
+u32_t           chal_pgtbl_set_accessed(u32_t input);
+u32_t           chal_pgtbl_clr_accessed(u32_t input);
+u32_t           chal_pgtbl_is_accessed(u32_t input);
+/* MODIFIED flag */
+u32_t           chal_pgtbl_set_modified(u32_t input);
+u32_t           chal_pgtbl_clr_modified(u32_t input);
+u32_t           chal_pgtbl_is_modified(u32_t input);
+/* SUPER flag */
+u32_t           chal_pgtbl_set_super(u32_t input);
+u32_t           chal_pgtbl_clr_super(u32_t input);
+u32_t           chal_pgtbl_is_super(u32_t input);
+/* GLOBAL flag */
+u32_t           chal_pgtbl_set_global(u32_t input);
+u32_t           chal_pgtbl_clr_global(u32_t input);
+u32_t           chal_pgtbl_is_global(u32_t input);
+/* COSFRAME flag */
+u32_t           chal_pgtbl_set_cosframe(u32_t input);
+u32_t           chal_pgtbl_clr_cosframe(u32_t input);
+u32_t           chal_pgtbl_is_cosframe(u32_t input);
+/* COSKMEM flag */
+u32_t           chal_pgtbl_set_coskmem(u32_t input);
+u32_t           chal_pgtbl_clr_coskmem(u32_t input);
+u32_t           chal_pgtbl_is_coskmem(u32_t input);
+/* QUIESCENCE flag */
+u32_t          chal_pgtbl_set_quiescence(u32_t input);
+u32_t          chal_pgtbl_clr_quiescence(u32_t input);
+u32_t          chal_pgtbl_is_quiescence(u32_t input);
+/* USER_DEF flag group */
+u32_t          chal_pgtbl_set_user_def(u32_t input);
+u32_t          chal_pgtbl_clr_user_def(u32_t input);
+u32_t          chal_pgtbl_is_user_def(u32_t input);
+/* INTERN_DEF flag group */
+u32_t          chal_pgtbl_set_intern_def(u32_t input);
+u32_t          chal_pgtbl_clr_intern_def(u32_t input);
+u32_t          chal_pgtbl_is_intern_def(u32_t input);
 
 int            chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte_ret);
 int            chal_tlb_quiescence_check(u64_t timestamp);
