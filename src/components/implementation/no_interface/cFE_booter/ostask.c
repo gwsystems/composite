@@ -7,7 +7,7 @@
 
 #include "gen/osapi.h"
 #include "gen/common_types.h"
-#include "gen/cFE_time.h"
+#include "gen/cfe_time.h"
 
 
 void
