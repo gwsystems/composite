@@ -65,8 +65,9 @@ res_shmem_region_info(struct res_shmem_info *rsh, int idx)
 	return &(rsh->shmdata[idx]);
 }
 
-#define IS_CHILDBIT_SET(r, c) (r->chbits & ((u64_t)1 << c))
-#define IS_CHILDSCHEDBIT_SET(r, c) (r->chschbits & ((u64_t)1 << c))
+#define IS_SCHEDBIT_SET(s, c) (s & ((u64_t)1 << (c-1)))
+#define IS_CHILDBIT_SET(r, c) (r->chbits & ((u64_t)1 << (c-1)))
+#define IS_CHILDSCHEDBIT_SET(r, c) (r->chschbits & ((u64_t)1 << (c-1)))
 
 static inline struct cos_compinfo *
 res_info_ci(struct res_comp_info *r)
@@ -95,14 +96,23 @@ res_info_is_parent(struct res_comp_info *r, spdid_t p)
 }
 
 static inline int
+res_info_is_sched(spdid_t c)
+{
+	if (!c) return 1; /* llbooter! */
+	return IS_SCHEDBIT_SET(res_info_schedbmp, c);
+}
+
+static inline int
 res_info_is_child(struct res_comp_info *r, spdid_t c)
 {
+	if (!c) return 0;
 	return IS_CHILDBIT_SET(r, c);
 }
 
 static inline int
 res_info_is_sched_child(struct res_comp_info *r, spdid_t c)
 {
+	if (!c) return 0;
 	return IS_CHILDSCHEDBIT_SET(r, c);
 }
 

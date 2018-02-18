@@ -370,7 +370,7 @@ boot_comp_info_get(capid_t curresfr, spdid_t spdid, pgtblcap_t *pgc, captblcap_t
 static int 
 boot_comp_info_iter(capid_t curresfr, spdid_t *csid, pgtblcap_t *pgc, captblcap_t *capc, compcap_t *cc, spdid_t *psid)
 {
-	static int iter_idx = 1; /* skip llbooter component info! i'm guessing spdid == 0 is for booter */
+	static int iter_idx = 0; /* including llbooter! */
 	int ret = BOOT_CI_GET_ERROR;
 
 	/* looks like the boot comps index start from 1 in that array */

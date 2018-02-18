@@ -15,8 +15,10 @@ resmgr_thd_create_intern(spdid_t cur, int idx, int u1, int u2, int *u3, int *u4)
 	struct sl_thd *t = NULL;
 	int ret;
 
-	assert(res_info_init_check(r));
-	/* TODO: check if it's a scheduler. */
+	assert(r && res_info_init_check(r));
+	assert(res_info_is_sched(cur));
+	assert(idx > 0);
+
 	t = sl_thd_ext_idx_alloc(res_info_dci(r), idx);
 	assert(t);
 	rt = res_info_thd_init(r, t);
@@ -40,10 +42,10 @@ resmgr_ext_thd_create_intern(spdid_t cur, spdid_t s, int idx, int u1, int *u2, i
 	int ret;
 
 	assert(rc && res_info_init_check(rc));
-	assert(rs);
-	/* TODO: only called by a scheduling component of a non-scheduling "child" component */
-	/* assert(rc->is_sched && !(rc->is_sched)); */
-	/* TODO: check if it's a scheduler. */
+	assert(rs && res_info_init_check(rs));
+	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
+	assert(idx > 0);
+
 	t = sl_thd_ext_idx_alloc(res_info_dci(rs), idx);
 	assert(t);
 	rt = res_info_thd_init(rc, t);
@@ -69,9 +71,10 @@ resmgr_initthd_create_intern(spdid_t cur, spdid_t s, int u1, int u2, int *u3, in
 	struct sl_thd *t = NULL;
 	int ret;
 
-	assert(res_info_init_check(rc) && res_info_init_check(rs));
-	/* TODO: are you the parent of this component? */
-	/* cur == r->parent->cid ? */
+	assert(rc && res_info_init_check(rc));
+	assert(rs && res_info_init_check(rs));
+	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
+
 	t = sl_thd_child_initaep_alloc(res_info_dci(rs), 0, 0);
 	assert(t);
 	rt = res_info_thd_init(rc, t);
@@ -102,13 +105,14 @@ resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_
 	arcvcap_t rcv;
 	int ret;
 
-	assert(res_info_init_check(rc) && res_info_init_check(rs));
+	assert(rc && res_info_init_check(rc));
+	assert(rs && res_info_init_check(rs));
+	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
+
 	rinit = res_info_initthd(rc);
 	assert(rinit);
 	sched = rinit->schthd;
 	assert(sched);
-	/* TODO: are you the parent of this component? */
-	/* cur == r->parent->cid ? */
 	t = sl_thd_ext_child_initaep_alloc(res_info_dci(rs), sched, 1);
 	assert(t);
 	rt = res_info_thd_init(rc, t);
@@ -157,7 +161,11 @@ resmgr_ext_aep_create_intern(spdid_t cur, spdid_t s, int tidx, int owntc, arcvca
 	tcap_t tc;
 	int ret;
 
-	assert(res_info_init_check(rc));
+	assert(rc && res_info_init_check(rc));
+	assert(rs && res_info_init_check(rs));
+	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
+	assert(tidx > 0);
+
 	rinit = res_info_initthd(rc);
 	assert(rinit);
 	sched = rinit->schthd;
@@ -212,8 +220,9 @@ resmgr_aep_create_intern(spdid_t cur, int tidx, int owntc, int u1, arcvcap_t *rc
 	int ret;
 
 	assert(rc && res_info_init_check(rc));
-	/* TODO: only called by a scheduling component of a non-scheduling "child" component */
-	/* assert(rc->is_sched && !(rc->is_sched)); */
+	assert(res_info_is_sched(cur));
+	assert(tidx > 0);
+
 	rinit = res_info_initthd(rc);
 	assert(rinit);
 	sched = rinit->schthd;
@@ -250,9 +259,11 @@ resmgr_thd_retrieve_intern(spdid_t cur, spdid_t s, thdid_t tid, int u1, int *u2,
 	struct res_thd_info *ti = res_info_thd_find(rs, tid);
 	int ret;
 
-	assert(res_info_init_check(rc) && res_info_init_check(rs));
+
+	assert(rc && res_info_init_check(rc));
+	assert(rs && res_info_init_check(rs));
+	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
 	assert(ti && res_thd_thdcap(ti));
-	/* TODO: are you the parent of that component? */
 
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, res_thd_thdcap(ti));
 	assert(ret > 0);
@@ -274,9 +285,8 @@ resmgr_asnd_create_intern(spdid_t cur, spdid_t s, thdid_t tid /* thd with rcvcap
 
 	assert(res_info_init_check(rc) && res_info_init_check(rs));
 	assert(ti && res_thd_rcvcap(ti));
-	/* It does have to be a parent creating.. for being able to access "rcvcap" from a component */
+	assert(res_info_is_sched(cur));
 
-	/* TODO: access check */
 	snd = cos_asnd_alloc(res_ci, res_thd_rcvcap(ti), res_info_ci(rs)->captbl_cap);
 	assert(snd);
 
