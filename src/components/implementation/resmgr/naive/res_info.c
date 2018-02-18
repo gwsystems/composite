@@ -3,6 +3,7 @@
 
 static struct res_comp_info resci[MAX_NUM_COMPS];
 static unsigned int res_comp_count;
+u64_t res_info_schedbmp;
 
 struct res_comp_info *
 res_info_comp_find(spdid_t sid)
@@ -102,6 +103,7 @@ void
 res_info_init(void)
 {
 	res_comp_count = 0;
+	res_info_schedbmp = 0;
 	memset(resci, 0, sizeof(struct res_comp_info)*MAX_NUM_COMPS);
 }
 

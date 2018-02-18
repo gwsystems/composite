@@ -8,6 +8,8 @@
 #include <resmgr.h>
 #include <memmgr.h>
 
+extern u64_t res_info_schedbmp;
+
 struct res_thd_info {
 	int init_data_off;
 	struct sl_thd *schthd;

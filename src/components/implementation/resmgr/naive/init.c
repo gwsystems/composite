@@ -7,8 +7,6 @@
 #include <llboot.h>
 #include <sl.h>
 
-void shdmem_init(void);
-
 static inline void
 resmgr_capfr_update(capid_t cfr)
 {
@@ -51,6 +49,7 @@ resmgr_comp_info_iter(void)
 		assert(ret == 0);
 		ret = llboot_comp_childschedspdids_get(csid, &chschbits);
 		assert(ret == 0);
+		res_info_schedbmp |= chschbits;
 
 		rci = res_info_comp_init(csid, capc, pgc, cc, capfr, vasfr, (vaddr_t)MEMMGR_COMP_SHARED_BASE, psid, chbits, chschbits);
 		assert(rci);
@@ -64,6 +63,8 @@ resmgr_comp_info_iter(void)
 			res_info_initthd_init(rci, sl__globals()->sched_thd);
 		}
 	} while (ret == 0);
+
+	printc("Schedulers bitmap: %llx\n", res_info_schedbmp);
 }
 
 void
