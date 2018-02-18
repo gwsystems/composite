@@ -14,270 +14,28 @@
 #include "chal_pgtbl.h"
 
 /* These functions do flag operations */
-/* PRESENT flag */
-u32_t 
-chal_pgtbl_set_present(u32_t input)
+unsigned long
+chal_pgtbl_flag_add(unsigned long input, pgtbl_flags_t flags)
 {
-	return input|X86_PRESENT;
+	return input | flags;
 }
 
-u32_t 
-chal_pgtbl_clr_present(u32_t input)
+unsigned long
+chal_pgtbl_flag_clr(unsigned long input, pgtbl_flags_t flags)
 {
-	return input&(~X86_PRESENT);
+	return input & (~flags);
 }
 
-u32_t 
-chal_pgtbl_is_present(u32_t input)
+unsigned long
+chal_pgtbl_flag_exist(unsigned long input, pgtbl_flags_t flags)
 {
-	return input&X86_PRESENT;
+	return input & flags;
 }
 
-/* WRITABLE flag */
-u32_t 
-chal_pgtbl_set_writable(u32_t input)
+unsigned long
+chal_pgtbl_flag_all(unsigned long input, pgtbl_flags_t flags)
 {
-	return input|X86_WRITABLE;
-}
-
-u32_t 
-chal_pgtbl_clr_writable(u32_t input)
-{
-	return input&(~X86_WRITABLE);
-}
-
-u32_t 
-chal_pgtbl_is_writable(u32_t input)
-{
-	return input&X86_WRITABLE;
-}
-
-/* USER flag */
-u32_t 
-chal_pgtbl_set_user(u32_t input)
-{
-	return input|X86_USER;
-}
-
-u32_t 
-chal_pgtbl_clr_user(u32_t input)
-{
-	return input&(~X86_USER);
-}
-
-u32_t 
-chal_pgtbl_is_user(u32_t input)
-{
-	return input&X86_USER;
-}
-
-/* WT flag */
-u32_t 
-chal_pgtbl_set_wt(u32_t input)
-{
-	return input|X86_WT;
-}
-
-u32_t 
-chal_pgtbl_clr_wt(u32_t input)
-{
-	return input&(~X86_WT);
-}
-
-u32_t 
-chal_pgtbl_is_wt(u32_t input)
-{
-	return input&X86_WT;
-}
-
-/* NOCACHE flag */
-u32_t 
-chal_pgtbl_set_nocache(u32_t input)
-{
-	return input|X86_NOCACHE;
-}
-
-u32_t 
-chal_pgtbl_clr_nocache(u32_t input)
-{
-	return input&(~X86_NOCACHE);
-}
-
-u32_t 
-chal_pgtbl_is_nocache(u32_t input)
-{
-	return input&X86_NOCACHE;
-}
-
-/* ACCESSED flag */
-u32_t 
-chal_pgtbl_set_accessed(u32_t input)
-{
-	return input|X86_ACCESSED;
-}
-
-u32_t 
-chal_pgtbl_clr_accessed(u32_t input)
-{
-	return input&(~X86_ACCESSED);
-}
-
-u32_t 
-chal_pgtbl_is_accessed(u32_t input)
-{
-	return input&X86_ACCESSED;
-}
-
-/* MODIFIED flag */
-u32_t 
-chal_pgtbl_set_modified(u32_t input)
-{
-	return input|X86_MODIFIED;
-}
-
-u32_t 
-chal_pgtbl_clr_modified(u32_t input)
-{
-	return input&(~X86_MODIFIED);
-}
-
-u32_t 
-chal_pgtbl_is_modified(u32_t input)
-{
-	return input&X86_MODIFIED;
-}
-
-/* SUPER flag */
-u32_t 
-chal_pgtbl_set_super(u32_t input)
-{
-	return input|X86_SUPER;
-}
-
-u32_t 
-chal_pgtbl_clr_super(u32_t input)
-{
-	return input&(~X86_SUPER);
-}
-
-u32_t 
-chal_pgtbl_is_super(u32_t input)
-{
-	return input&X86_SUPER;
-}
-
-/* GLOBAL flag */
-u32_t 
-chal_pgtbl_set_global(u32_t input)
-{
-	return input|X86_GLOBAL;
-}
-
-u32_t 
-chal_pgtbl_clr_global(u32_t input)
-{
-	return input&(~X86_GLOBAL);
-}
-
-u32_t 
-chal_pgtbl_is_global(u32_t input)
-{
-	return input&X86_GLOBAL;
-}
-
-/* COSFRAME flag */
-u32_t 
-chal_pgtbl_set_cosframe(u32_t input)
-{
-	return input|X86_COSFRAME;
-}
-
-u32_t 
-chal_pgtbl_clr_cosframe(u32_t input)
-{
-	return input&(~X86_COSFRAME);
-}
-
-u32_t 
-chal_pgtbl_is_cosframe(u32_t input)
-{
-	return input&X86_COSFRAME;
-}
-
-/* COSKMEM flag */
-u32_t 
-chal_pgtbl_set_coskmem(u32_t input)
-{
-	return input|X86_COSKMEM;
-}
-
-u32_t 
-chal_pgtbl_clr_coskmem(u32_t input)
-{
-	return input&(~X86_COSKMEM);
-}
-
-u32_t 
-chal_pgtbl_is_coskmem(u32_t input)
-{
-	return input&X86_COSKMEM;
-}
-
-/* QUIESCENCE flag */
-u32_t 
-chal_pgtbl_set_quiescence(u32_t input)
-{
-	return input|X86_QUIESCENCE;
-}
-
-u32_t 
-chal_pgtbl_clr_quiescence(u32_t input)
-{
-	return input&(~X86_QUIESCENCE);
-}
-
-u32_t 
-chal_pgtbl_is_quiescence(u32_t input)
-{
-	return input&X86_QUIESCENCE;
-}
-
-/* USER_DEF flag group */
-u32_t 
-chal_pgtbl_set_user_def(u32_t input)
-{
-	return input|X86_USER_DEF;
-}
-
-u32_t 
-chal_pgtbl_clr_user_def(u32_t input)
-{
-	return input&(~X86_USER_DEF);
-}
-
-u32_t 
-chal_pgtbl_is_user_def(u32_t input)
-{
-	return (input&X86_USER_DEF)==X86_USER_DEF;
-}
-
-/* INTERN_DEF flag group */
-u32_t 
-chal_pgtbl_set_intern_def(u32_t input)
-{
-	return input|X86_INTERN_DEF;
-}
-
-u32_t 
-chal_pgtbl_clr_intern_def(u32_t input)
-{
-	return input&(~X86_INTERN_DEF);
-}
-
-u32_t 
-chal_pgtbl_is_intern_def(u32_t input)
-{
-	return (input&X86_INTERN_DEF)==X86_INTERN_DEF;
+	return chal_pgtbl_flag_exist(input, flags) == flags;
 }
 
 int
