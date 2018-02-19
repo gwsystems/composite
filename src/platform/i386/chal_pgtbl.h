@@ -1,14 +1,14 @@
 /* These code below are for x86 specifically */
 typedef enum {
-	X86_PRESENT  = 1,
-	X86_WRITABLE = 1 << 1,
-	X86_USER     = 1 << 2,
-	X86_WT       = 1 << 3, /* write-through caching */
-	X86_NOCACHE  = 1 << 4, /* caching disabled */
-	X86_ACCESSED = 1 << 5,
-	X86_MODIFIED = 1 << 6,
-	X86_SUPER    = 1 << 7, /* super-page (4MB on x86-32) */
-	X86_GLOBAL   = 1 << 8,
+	X86_PRESENT    = 1,
+	X86_WRITABLE   = 1 << 1,
+	X86_USER       = 1 << 2,
+	X86_WT         = 1 << 3, /* write-through caching */
+	X86_NOCACHE    = 1 << 4, /* caching disabled */
+	X86_ACCESSED   = 1 << 5,
+	X86_MODIFIED   = 1 << 6,
+	X86_SUPER      = 1 << 7, /* super-page (4MB on x86-32) */
+	X86_GLOBAL     = 1 << 8,
 	/* Composite defined bits next*/
 	X86_COSFRAME   = 1 << 9,
 	X86_COSKMEM    = 1 << 10, /* page activated as kernel object */
