@@ -424,7 +424,7 @@ boot_create_cap_system(void)
 		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
-		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo);
+		boot_newcomp_create(spdid, boot_spd_compinfo_get(spdid));
 		printc("Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
 	}
 
@@ -470,9 +470,6 @@ cos_init(void)
 
 	assert(num_cobj <= MAX_NUM_SPDS);
 	memset(new_comp_cap_info, 0, sizeof(struct comp_cap_info) * (MAX_NUM_SPDS + 1));
-
-	new_comp_cap_info[0].defci    = cos_defcompinfo_curr_get();
-	new_comp_cap_info[0].compinfo = cos_compinfo_get(new_comp_cap_info[0].defci);
 
 	//deps = (struct deps *)cos_comp_info.cos_poly[2];
 	memcpy(deps_list, (struct deps *)cos_comp_info.cos_poly[2], PAGE_SIZE);
