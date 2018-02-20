@@ -91,7 +91,7 @@ boot_comp_pgtbl_expand(size_t n_pte, pgtblcap_t pt, vaddr_t vaddr, struct cobj_h
 	}
 }
 
-#define RESMGR_UNTYPED_MEM_SZ (COS_MEM_KERN_PA_SZ - (4 * PGD_RANGE))
+#define RESMGR_UNTYPED_MEM_SZ (COS_MEM_KERN_PA_SZ / 2)
 
 /* Initialize just the captblcap and pgtblcap, due to hack for upcall_fn addr */
 static void
