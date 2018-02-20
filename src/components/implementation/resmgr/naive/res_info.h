@@ -36,9 +36,12 @@ struct res_comp_info {
 	struct res_thd_info tinfo[MAX_NUM_THREADS];
 	int initflag;
 	u64_t chbits; /* all child components */
-	u64_t chschbits; /* TODO: child components which are also schedulers. NOT IMPL Yet! */
+	u64_t chschbits; /* child components which are also schedulers. */
 
 	struct res_comp_info *parent;
+	int p_thd_iterator; /* iterator for parent to get all threads created by resmgr in this component so far! */
+	thdcap_t p_initthdcap; /* init thread's cap in parent */
+	thdid_t  initthdid; /* init thread's tid */
 };
 
 struct res_comp_info *res_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
@@ -50,6 +53,7 @@ struct res_thd_info *res_info_initthd_init(struct res_comp_info *rci, struct sl_
 
 struct res_comp_info *res_info_comp_find(spdid_t s);
 struct res_thd_info *res_info_thd_find(struct res_comp_info *r, thdid_t t);
+struct res_thd_info *res_info_thd_next(struct res_comp_info *r);
 struct res_thd_info *res_info_initthd(struct res_comp_info *r);
 unsigned int res_info_count(void);
 void res_info_init(void);

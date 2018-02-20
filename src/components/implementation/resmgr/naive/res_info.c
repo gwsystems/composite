@@ -1,7 +1,7 @@
 #include <cos_kernel_api.h>
 #include "res_info.h"
 
-static struct res_comp_info resci[MAX_NUM_COMPS + 1];
+static struct res_comp_info resci[MAX_NUM_COMPS + 1]; /* like booter => incl booter MAX + 1 */
 static unsigned int res_comp_count;
 u64_t res_info_schedbmp;
 static struct res_shmem_glb_info res_shmglbinfo;
@@ -33,6 +33,18 @@ res_info_thd_find(struct res_comp_info *rci, thdid_t tid)
 	assert(rci && rci->initflag);
 	for (; i < rci->thd_used; i++) {
 		if (((rci->tinfo[i]).schthd)->thdid == tid) return &(rci->tinfo[i]);
+	}
+
+	return NULL;
+}
+
+struct res_thd_info *
+res_info_thd_next(struct res_comp_info *rci)
+{
+	assert(rci && rci->initflag);
+
+	if (rci->p_thd_iterator < rci->thd_used) {
+		return &(rci->tinfo[__sync_fetch_and_add(&(rci->p_thd_iterator), 1)]);
 	}
 
 	return NULL;
@@ -113,7 +125,7 @@ res_info_init(void)
 {
 	res_comp_count = 0;
 	res_info_schedbmp = 0;
-	memset(resci, 0, sizeof(struct res_comp_info)*MAX_NUM_COMPS);
+	memset(resci, 0, sizeof(struct res_comp_info)*(MAX_NUM_COMPS+1));
 }
 
 static inline vaddr_t

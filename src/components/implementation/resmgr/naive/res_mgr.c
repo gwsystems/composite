@@ -88,6 +88,8 @@ resmgr_initthd_create_intern(spdid_t cur, spdid_t s, int u1, int u2, int *u3, in
 	/* parent only needs the thdcap */
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, res_thd_thdcap(rt));
 	assert(ret > 0);
+	rs->p_initthdcap = ret;
+	rs->initthdid    = res_thd_thdid(rt);
 
 	return ret;
 }
@@ -138,6 +140,8 @@ resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_
 	/* parent needs tcap/rcv to manage time. thd/asnd to activate. */
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, res_thd_thdcap(rt));
 	assert(ret > 0);
+	rs->p_initthdcap = ret;
+	rs->initthdid    = res_thd_thdid(rt);
 	rcv = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ARCV, res_thd_rcvcap(rt));
 	assert(rcv > 0);
 	tc = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_TCAP, res_thd_tcap(rt));
@@ -254,22 +258,52 @@ thdcap_t
 resmgr_thd_retrieve_intern(spdid_t cur, spdid_t s, thdid_t tid, int u1, int *u2, int *u3)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
-	struct res_comp_info *rc = res_info_comp_find(cur);
-	struct res_comp_info *rs = res_info_comp_find(s);
-	struct res_thd_info *ti = res_info_thd_find(rs, tid);
+	struct cos_compinfo    *res_ci  = cos_compinfo_get(res_dci);
+	struct res_comp_info   *rc      = res_info_comp_find(cur);
+	struct res_comp_info   *rs      = res_info_comp_find(s);
+	struct res_thd_info    *ti      = res_info_thd_find(rs, tid);
 	int ret;
-
 
 	assert(rc && res_info_init_check(rc));
 	assert(rs && res_info_init_check(rs));
 	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
 	assert(ti && res_thd_thdcap(ti));
 
+	if (tid == rs->initthdid) {
+		ret = rs->p_initthdcap;
+		goto done;
+	}
+
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, res_thd_thdcap(ti));
 	assert(ret > 0);
 
+done:
 	return ret;
+}
+
+thdid_t
+resmgr_thd_retrieve_next_intern(spdid_t cur, spdid_t s, int u1, int u2, thdcap_t *thdcap, int *u3)
+{
+	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *res_ci  = cos_compinfo_get(res_dci);
+	struct res_comp_info   *rc      = res_info_comp_find(cur);
+	struct res_comp_info   *rs      = res_info_comp_find(s);
+	struct res_thd_info    *ti      = res_info_thd_next(rs);
+
+	assert(rc && res_info_init_check(rc));
+	assert(rs && res_info_init_check(rs));
+	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
+
+	if (ti == NULL) return 0;
+	if (res_thd_thdid(ti) == rs->initthdid) {
+		*thdcap = rs->p_initthdcap;
+		goto done;
+	}
+	*thdcap = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, res_thd_thdcap(ti));
+	assert(*thdcap > 0);
+
+done:
+	return res_thd_thdid(ti);
 }
 
 /* TODO: use thdid? or rcvcap? */

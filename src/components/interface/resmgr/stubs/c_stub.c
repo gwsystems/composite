@@ -10,7 +10,16 @@ thdcap_t resmgr_aep_create_intern(spdid_t c, int idx, int owntc, int u1, arcvcap
 thdcap_t resmgr_ext_aep_create_intern(spdid_t c, spdid_t s, int idx, int owntc, arcvcap_t *rcvret, u32_t *rcvtcret);
 thdcap_t resmgr_initaep_create_intern(spdid_t c, spdid_t s, int owntc, int u1, asndcap_t *sndret, u32_t *rcvtcret);
 thdcap_t resmgr_thd_retrieve_intern(spdid_t c, spdid_t s, thdid_t t, int u1, int *u2, int *u3);
+thdid_t  resmgr_thd_retrieve_next_intern(spdid_t c, spdid_t s, int u1, int u2, thdcap_t *t, int *u3);
 asndcap_t resmgr_asnd_create_intern(spdid_t c, spdid_t s, thdid_t t, int u1, int *u2, int *u3);
+
+thdid_t
+resmgr_thd_retrieve_next(spdid_t c, spdid_t s, thdcap_t *t)
+{
+	int unused;
+
+	return resmgr_thd_retrieve_next_intern(c, s, unused, unused, t, &unused);
+}
 
 thdcap_t
 resmgr_thd_retrieve(spdid_t c, spdid_t s, thdid_t t)
