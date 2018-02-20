@@ -54,6 +54,7 @@ memmgr_shared_page_map_intern(spdid_t cur, int idx, int u1, int u2, vaddr_t *pga
 {
 	struct res_comp_info *cur_rci = res_info_comp_find(cur);
 	struct res_shmem_info *cur_shi  = res_info_shmem_info(cur_rci);
+	int shmidx = -1;
 
 	assert(cur_rci && res_info_init_check(cur_rci));
 	assert(cur_shi);
@@ -61,9 +62,10 @@ memmgr_shared_page_map_intern(spdid_t cur, int idx, int u1, int u2, vaddr_t *pga
 	*num_pages = res_shmem_region_map(cur_shi, idx);
 	if (*num_pages == 0) goto done;
 
+	shmidx  = idx;
 	*pgaddr = res_shmem_region_vaddr(cur_shi, idx);
 done:
-	return idx;
+	return shmidx;
 }
 
 vaddr_t
