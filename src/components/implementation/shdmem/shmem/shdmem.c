@@ -223,5 +223,5 @@ cos_init(void)
 
 	printc("Shdmem init done\n");
 
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 0, 0, 0);
+	cos_hypervisor_hypercall(BOOT_HYP_INIT_DONE, 0, 0, 0);
 }

@@ -183,5 +183,8 @@ cos_init(void)
 
 	printc("Setting up RK\n");
 	rump_booter_init((void *)0);
+
+	/* Error, should not get here */
+	assert(0);
 	return;
 }

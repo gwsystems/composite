@@ -151,20 +151,11 @@ rk_rump_thd_yield_to(struct bmk_thread *c, struct bmk_thread *n)
 	sl_thd_yield(ntid);
 }
 
-#ifdef CHRONOS_ENABLED
-#undef CHRONOS_ENABLED
-#endif
-
 void
 rk_sched_loop(void)
 {
-	printc("STARTING RK SCHED!\n");
-#if defined(CHRONOS_ENABLED)
-	/* FAIL immediately? That's what we're doing here */
-	while (1) ;
-#else
-	sl_sched_loop();
-#endif
+	printc("STARTING RK SL LOOP\n");
+	sl_sched_loop_nonblock();
 }
 
 void
