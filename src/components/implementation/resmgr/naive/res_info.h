@@ -15,17 +15,17 @@ struct res_thd_info {
 	struct sl_thd *schthd;
 };
 
-struct res_shmem_region_info {
-	vaddr_t region;
-	vaddr_t res_region;
-	int num_pages;
+struct res_shmem_glb_info {
+	int free_region_id;
+	int total_pages;
+
+	int npages[MEMMGR_MAX_SHMEM_REGIONS];
 };
 
 struct res_shmem_info {
-	int free_idx, total_pages;
 	struct cos_compinfo shcinfo;	
 
-	struct res_shmem_region_info shmdata[MEMMGR_COMP_MAX_SHREGION];
+	vaddr_t shm_addr[MEMMGR_MAX_SHMEM_REGIONS];
 };
 
 struct res_comp_info {
@@ -54,16 +54,9 @@ struct res_thd_info *res_info_initthd(struct res_comp_info *r);
 unsigned int res_info_count(void);
 void res_info_init(void);
 
-int res_shmem_region_alloc(struct res_shmem_info *rsh, int num_pages);
-int res_shmem_region_map(struct res_shmem_info *rsh, struct res_shmem_info *rsh_src, int srcidx, int off, int num_pages);
-vaddr_t res_shmem_region_comp_vaddr(struct res_shmem_info *rsh, int idx);
-vaddr_t res_shmem_region_res_vaddr(struct res_shmem_info *rsh, int idx);
-
-static inline struct res_shmem_region_info *
-res_shmem_region_info(struct res_shmem_info *rsh, int idx)
-{
-	return &(rsh->shmdata[idx]);
-}
+int res_shmem_region_alloc(struct res_shmem_info *rcur, int num_pages);
+int res_shmem_region_map(struct res_shmem_info *rcur, int id);
+vaddr_t res_shmem_region_vaddr(struct res_shmem_info *rsh, int id);
 
 #define IS_SCHEDBIT_SET(s, c) (s & ((u64_t)1 << (c-1)))
 #define IS_CHILDBIT_SET(r, c) (r->chbits & ((u64_t)1 << (c-1)))

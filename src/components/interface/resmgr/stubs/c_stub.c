@@ -136,8 +136,8 @@ resmgr_asnd_create(spdid_t c, spdid_t s, thdid_t t)
 int memmgr_heap_page_allocn_intern(spdid_t c, unsigned int npgs, int u1, int u2, int *u3, int *u4);
 
 int memmgr_shared_page_allocn_intern(spdid_t c, int num_pages, int u1, int u2, vaddr_t *pgaddr, int *u3);
-int memmgr_shared_page_map_range_intern(spdid_t c, spdid_t s, int sidx, u32_t range, vaddr_t *pgaddr, int *u1);
-vaddr_t memmgr_shared_page_vaddr_intern(spdid_t c, int cur_idx, int u1, int u2, int *u3, int *u4);
+int memmgr_shared_page_map_intern(spdid_t c, int id, int u1, int u2, vaddr_t *pgaddr, int *num_pages);
+vaddr_t memmgr_shared_page_vaddr_intern(spdid_t c, int id, int u1, int u2, int *u3, int *u4);
 
 vaddr_t
 memmgr_heap_page_allocn(spdid_t c, unsigned int npgs)
@@ -168,24 +168,17 @@ memmgr_shared_page_alloc(spdid_t c, vaddr_t *pgaddr)
 }
 
 int
-memmgr_shared_page_map_range(spdid_t c, spdid_t s, int sidx, int off, int nm_pgs, vaddr_t *pgaddr)
+memmgr_shared_page_map(spdid_t c, int id, vaddr_t *pgaddr, int *num_pages)
 {
-	int unused;
-	u32_t range = (off << 16) | nm_pgs;
+	int unused = 0;
 
-	return memmgr_shared_page_map_range_intern(c, s, sidx, range, pgaddr, &unused);
-}
-
-int
-memmgr_shared_page_map(spdid_t c, spdid_t s, int sidx, vaddr_t *pgaddr)
-{
-	return memmgr_shared_page_map_range(c, s, sidx, 0, 0, pgaddr);
+	return memmgr_shared_page_map_intern(c, id, unused, unused, pgaddr, num_pages);
 }
 
 vaddr_t
-memmgr_shared_page_vaddr(spdid_t c, int i)
+memmgr_shared_page_vaddr(spdid_t c, int id)
 {
 	int unused;
 
-	return memmgr_shared_page_vaddr_intern(c, i, unused, unused, &unused, &unused);
+	return memmgr_shared_page_vaddr_intern(c, id, unused, unused, &unused, &unused);
 }

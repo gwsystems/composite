@@ -48,10 +48,7 @@ test_thds(void)
 }
 
 #define TEST_N_HEAP_PAGES 2048
-#define TEST_HEAP_STRING  "Hello, World!"
-
 #define TEST_N_SHMEM_PAGES 64
-#define TEST_SHMEM_STRING  "Goodbye, World!"
 
 #define TEST_STR_MAX_LEN 32
 #define TEST_STR_NUM 5
@@ -86,6 +83,8 @@ test_mem(void)
 
 	idx = memmgr_shared_page_allocn(0, TEST_N_SHMEM_PAGES, &addr);
 	printc("Alloc'd shared @ %d:%lx, pages:%d\n", idx, addr, TEST_N_SHMEM_PAGES);
+
+	assert(idx == 0); /* to create a reader and test */
 
 	assert(addr == memmgr_shared_page_vaddr(0, idx));
 	for (i = 0; i < TEST_N_SHMEM_PAGES; i++) {

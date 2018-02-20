@@ -7,6 +7,8 @@
 #include <llboot.h>
 #include <sl.h>
 
+spdid_t resmgr_myspdid = 0;
+
 static inline void
 resmgr_capfr_update(capid_t cfr)
 {
@@ -39,7 +41,7 @@ resmgr_comp_info_iter(void)
 		if (ret) break;
 
 		resmgr_capfr_update(rescapfr);
-		if (cos_spd_id() != csid) t = llboot_comp_initthd_get(csid, &rescapfr);
+		if (resmgr_myspdid != csid) t = llboot_comp_initthd_get(csid, &rescapfr);
 		if (t) resmgr_capfr_update(rescapfr);
 
 		ret = llboot_comp_frontier_get(csid, &vasfr, &capfr);
@@ -51,7 +53,7 @@ resmgr_comp_info_iter(void)
 		assert(ret == 0);
 		res_info_schedbmp |= chschbits;
 
-		rci = res_info_comp_init(csid, capc, pgc, cc, capfr, vasfr, (vaddr_t)MEMMGR_COMP_SHARED_BASE, psid, chbits, chschbits);
+		rci = res_info_comp_init(csid, capc, pgc, cc, capfr, vasfr, (vaddr_t)MEMMGR_SHMEM_BASE, psid, chbits, chschbits);
 		assert(rci);
 
 		if (t) {
@@ -74,6 +76,8 @@ cos_init(void)
 	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
 	u64_t childbits = 0;
 
+	resmgr_myspdid = cos_spd_id();
+	assert(resmgr_myspdid);
 	printc("CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
@@ -90,12 +94,5 @@ cos_init(void)
 
 	llboot_comp_init_done();
 	printc("SPINNING\n");
-	while (1) {
-//		thdid_t tid;
-//		int blocked;
-//		cycles_t cycles;
-//		tcap_time_t chtimeout;
-//
-//		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, 0, NULL, &tid, &blocked, &cycles, &chtimeout);
-	}
+	while (1) ;
 }
