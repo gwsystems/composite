@@ -1,7 +1,7 @@
 #include <cos_kernel_api.h>
 #include "res_info.h"
 
-static struct res_comp_info resci[MAX_NUM_COMPS];
+static struct res_comp_info resci[MAX_NUM_COMPS + 1];
 static unsigned int res_comp_count;
 u64_t res_info_schedbmp;
 static struct res_shmem_glb_info res_shmglbinfo;
@@ -65,8 +65,8 @@ res_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, co
 	cos_compinfo_init(sh_ci, pgtbl_cap, 0, 0, shared_frontier, 0, 
 			  cos_compinfo_get(cos_defcompinfo_curr_get()));
 
-	resci[sid].initflag  = 1;
-	res_comp_count ++;
+	resci[sid].initflag = 1;
+	__sync_fetch_and_add(&res_comp_count, 1);
 
 	return &resci[sid];
 }
@@ -80,8 +80,7 @@ res_info_thd_init(struct res_comp_info *rci, struct sl_thd *t)
 	assert(rci->thd_used < MAX_NUM_THREADS-1);
 	assert(t);
 
-	off = rci->thd_used;
-	rci->thd_used ++;
+	off = __sync_fetch_and_add(&(rci->thd_used), 1);
 
 	rci->tinfo[off].schthd = t;
 
@@ -180,19 +179,17 @@ res_shmem_region_alloc(struct res_shmem_info *rsh, int num_pages)
 
 	assert(rsh);
 	
-	/* TODO: lock-free alloc */
-	fidx = rglb->free_region_id;
 	/* limits check */
-	if (fidx >= MEMMGR_MAX_SHMEM_REGIONS) goto done;
 	if ((rglb->total_pages + num_pages) * PAGE_SIZE > MEMMGR_MAX_SHMEM_SIZE) goto done;
+	fidx = __sync_fetch_and_add(&(rglb->free_region_id), 1);
+	if (fidx >= MEMMGR_MAX_SHMEM_REGIONS) goto done;
 
 	/* check id unused */
 	assert(__res_info_shm_resmgr_vaddr(fidx) == 0);
 	assert(rsh->shm_addr[fidx] == 0);
 
-	(rglb->free_region_id)++;
 	rglb->npages[fidx] = num_pages;
-	rglb->total_pages += num_pages;
+	__sync_fetch_and_add(&(rglb->total_pages), num_pages);
 
 	ret = __res_cos_shared_page_allocn(rsh_ci, num_pages, &res_addr, &comp_addr);
 	assert(!ret);
