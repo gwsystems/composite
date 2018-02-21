@@ -2,7 +2,7 @@
 #include <pong.h>
 #include <cos_types.h>
 #include <cobj_format.h>
-#include <llboot.h>
+#include <hypercall.h>
 
 void cos_init(void)
 {
@@ -24,7 +24,7 @@ void cos_init(void)
 	call_3rets(1, 2, 3, 4, &r1, &r2);
 	printc(" ping=> r1: %d, r2: %d\n\n", r1, r2);
 
-	llboot_comp_init_done();
+	hypercall_comp_init_done();
 
 	while (1) ;
 }

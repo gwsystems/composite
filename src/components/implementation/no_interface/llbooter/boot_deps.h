@@ -6,13 +6,13 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <sl.h>
-#include <llboot.h>
+#include <hypercall.h>
 #include <res_spec.h>
 
 #define UNDEF_SYMBS 64
 
 /* Assembly function for sinv from new component */
-extern void *llboot_entry_inv(spdid_t cur, int op, int arg1, int arg2, int *ret2, int *ret3);
+extern void *hypercall_entry_inv(spdid_t cur, int op, int arg1, int arg2, int *ret2, int *ret3);
 
 extern int num_cobj;
 extern int resmgr_spdid;
@@ -277,7 +277,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	compinfo->comp_cap = cc;
 
 	/* Create sinv capability from Userspace to Booter components */
-	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)llboot_entry_inv, token);
+	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)hypercall_entry_inv, token);
 	assert(sinv > 0);
 
 	ret = cos_cap_cpy_at(compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);
@@ -347,7 +347,7 @@ boot_thd_done(spdid_t c)
 }
 
 /* assume capid_t is 16bit for packing */
-#define BOOT_CI_GET_ERROR LLBOOT_ERROR
+#define BOOT_CI_GET_ERROR HYPERCALL_ERROR
 
 static thdcap_t
 boot_comp_initthd_get(spdid_t spdid, tcap_t *tc, arcvcap_t *rcv, capid_t *resfr)
@@ -470,18 +470,18 @@ boot_comp_childspds_get(int spdid, u64_t *idbits)
 }
 
 u32_t
-llboot_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *ret3)
+hypercall_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *ret3)
 {
 	u32_t ret1 = 0;
 	u32_t error = (1 << 16) - 1;
 
 	switch(op) {
-	case LLBOOT_COMP_INIT_DONE:
+	case HYPERCALL_COMP_INIT_DONE:
 	{
 		boot_thd_done(curr);
 		break;
 	}
-	case LLBOOT_COMP_INFO_GET:
+	case HYPERCALL_COMP_INFO_GET:
 	{
 		pgtblcap_t pgc;
 		captblcap_t capc;
@@ -503,7 +503,7 @@ llboot_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 
 		break;
 	}
-	case LLBOOT_COMP_INFO_NEXT:
+	case HYPERCALL_COMP_INFO_NEXT:
 	{
 		pgtblcap_t pgc;
 		captblcap_t capc;
@@ -525,7 +525,7 @@ llboot_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 
 		break;
 	}
-	case LLBOOT_COMP_FRONTIER_GET:
+	case HYPERCALL_COMP_FRONTIER_GET:
 	{
 		vaddr_t vas;
 		capid_t caps;
@@ -544,7 +544,7 @@ llboot_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 
 		break;
 	}
-	case LLBOOT_COMP_INITTHD_GET:
+	case HYPERCALL_COMP_INITTHD_GET:
 	{
 		capid_t capfr;
 		tcap_t tc;
@@ -561,7 +561,7 @@ llboot_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 
 		break;
 	}
-	case LLBOOT_COMP_CHILDSPDIDS_GET:
+	case HYPERCALL_COMP_CHILDSPDIDS_GET:
 	{
 		u64_t idbits = 0;
 
@@ -572,7 +572,7 @@ llboot_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 
 		break;
 	}
-	case LLBOOT_COMP_CHILDSCHEDSPDIDS_GET:
+	case HYPERCALL_COMP_CHILDSCHEDSPDIDS_GET:
 	{
 		u64_t idbits = 0;
 

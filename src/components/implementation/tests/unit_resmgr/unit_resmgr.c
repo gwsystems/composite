@@ -11,7 +11,7 @@
 #include <cos_defkernel_api.h>
 #include <resmgr.h>
 #include <memmgr.h>
-#include <llboot.h>
+#include <hypercall.h>
 
 #define SPIN()            \
 	do {              \
@@ -105,13 +105,13 @@ cos_init(void)
 	u64_t childbits;
 
 	PRINTC("Unit-test for Resource Manager interface\n");
-	llboot_comp_childspdids_get(cos_spd_id(), &childbits);
+	hypercall_comp_childspdids_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
 	test_thds();
 	test_mem();
 	PRINTC("Unit-test done.\n");
-	llboot_comp_init_done();
+	hypercall_comp_init_done();
 
 	SPIN();
 

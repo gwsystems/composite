@@ -4,7 +4,7 @@
 #include <memmgr.h>
 #include <resmgr.h>
 #include "res_info.h"
-#include <llboot.h>
+#include <hypercall.h>
 #include <sl.h>
 
 spdid_t resmgr_myspdid = 0;
@@ -39,19 +39,19 @@ resmgr_comp_info_iter(void)
 		struct sl_thd *ithd;
 		u64_t chbits = 0, chschbits = 0;
 	
-		ret = llboot_comp_info_next(rescapfr, &csid, &pgc, &capc, &cc, &psid, &rescapfr);
+		ret = hypercall_comp_info_next(rescapfr, &csid, &pgc, &capc, &cc, &psid, &rescapfr);
 		if (ret) break;
 
 		resmgr_capfr_update(rescapfr);
-		if (resmgr_myspdid != csid) t = llboot_comp_initthd_get(csid, &rcv, &tc, &rescapfr);
+		if (resmgr_myspdid != csid) t = hypercall_comp_initthd_get(csid, &rcv, &tc, &rescapfr);
 		if (t) resmgr_capfr_update(rescapfr);
 
-		ret = llboot_comp_frontier_get(csid, &vasfr, &capfr);
+		ret = hypercall_comp_frontier_get(csid, &vasfr, &capfr);
 		assert(ret == 0);
 
-		ret = llboot_comp_childspdids_get(csid, &chbits);
+		ret = hypercall_comp_childspdids_get(csid, &chbits);
 		assert(ret == 0);
-		ret = llboot_comp_childschedspdids_get(csid, &chschbits);
+		ret = hypercall_comp_childschedspdids_get(csid, &chschbits);
 		assert(ret == 0);
 		res_info_schedbmp |= chschbits;
 
@@ -85,7 +85,7 @@ cos_init(void)
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
 
-	llboot_comp_childspdids_get(cos_spd_id(), &childbits);
+	hypercall_comp_childspdids_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
 	sl_init(SL_MIN_PERIOD_US);
@@ -94,7 +94,7 @@ cos_init(void)
 
 	PRINTC("Initialized RESOURCE MANAGER\n");
 
-	llboot_comp_init_done();
+	hypercall_comp_init_done();
 	PRINTC("SPINNING\n");
 	while (1) ;
 }

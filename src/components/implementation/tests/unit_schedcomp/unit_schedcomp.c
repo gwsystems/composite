@@ -6,7 +6,7 @@
 
 #include <llprint.h>
 #include <res_spec.h>
-#include <llboot.h>
+#include <hypercall.h>
 #include <schedmgr.h>
 
 #define SL_FPRR_NPRIOS 32
@@ -148,7 +148,7 @@ cos_init(void)
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	PRINTC("Unit-test scheduling component\n");
-	llboot_comp_childspdids_get(cos_spd_id(), &childbits);
+	hypercall_comp_childspdids_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
 	testtid = schedmgr_thd_create(0, run_tests, NULL);

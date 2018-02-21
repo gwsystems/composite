@@ -6,7 +6,7 @@
 
 #include <llprint.h>
 #include <res_spec.h>
-#include <llboot.h>
+#include <hypercall.h>
 #include <schedmgr.h>
 #include <resmgr.h>
 
@@ -88,7 +88,7 @@ cos_init(void)
 
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	llboot_comp_childspdids_get(cos_spd_id(), &childbits);
+	hypercall_comp_childspdids_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
 	test_aeps();

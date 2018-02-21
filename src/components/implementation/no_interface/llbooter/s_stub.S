@@ -1,4 +1,4 @@
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text
-cos_asm_server_stub_token_3rets(llboot_entry)
+cos_asm_server_stub_token_3rets(hypercall_entry)

@@ -1,7 +1,7 @@
 #include <resmgr.h>
 #include <sl.h>
 #include <res_spec.h>
-#include <llboot.h>
+#include <hypercall.h>
 
 #define MAX_CHILD_COMPS 8
 #define MAX_CHILD_BITS  64
@@ -47,8 +47,8 @@ cos_init(void)
 	sl_init(SL_MIN_PERIOD_US);
 	memset(&child_defcinfo, 0, sizeof(struct cos_defcompinfo) * MAX_CHILD_COMPS);
 
-	llboot_comp_childspdids_get(cos_spd_id(), &child_spdbits);
-	llboot_comp_childschedspdids_get(cos_spd_id(), &childsch_bitf);
+	hypercall_comp_childspdids_get(cos_spd_id(), &child_spdbits);
+	hypercall_comp_childschedspdids_get(cos_spd_id(), &childsch_bitf);
 	PRINTC("Child bitmap: %llx, Child-sched bitmap: %llx\n", child_spdbits, childsch_bitf);
 
 	for (i = 0; i < MAX_CHILD_BITS; i++) {
@@ -72,7 +72,7 @@ cos_init(void)
 
 	self_init = 1;
 	assert(num_child);
-	llboot_comp_init_done();
+	hypercall_comp_init_done();
 
 	sl_sched_loop_nonblock();
 

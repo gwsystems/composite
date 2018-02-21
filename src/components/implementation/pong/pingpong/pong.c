@@ -4,7 +4,7 @@
 #include <pong.h>
 #include <cos_debug.h>
 #include <cos_types.h>
-#include <llboot.h>
+#include <hypercall.h>
 
 void
 call_intern(int u1, int u2, int u3, int u4, int *u5, int *u6)
@@ -64,6 +64,6 @@ cos_init(void)
 
 	printc("Welcome to the pong component\n");
 
-	llboot_comp_init_done();
+	hypercall_comp_init_done();
 	while (1) ;
 }
