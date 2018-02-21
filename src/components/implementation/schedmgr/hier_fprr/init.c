@@ -72,7 +72,6 @@ cos_init(void)
 
 	self_init = 1;
 	assert(num_child);
-	llboot_comp_init_done();
 
 	sl_sched_loop();
 

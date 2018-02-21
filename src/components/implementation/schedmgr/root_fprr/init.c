@@ -74,7 +74,7 @@ cos_init(void)
 	assert(num_child);
 	llboot_comp_init_done();
 
-	sl_sched_loop();
+	sl_sched_loop_nonblock();
 
 	PRINTC("ERROR: Should never have reached this point!!!\n");
 	assert(0);

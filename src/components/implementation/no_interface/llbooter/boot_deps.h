@@ -12,7 +12,8 @@
 #define UNDEF_SYMBS 64
 
 /* Assembly function for sinv from new component */
-extern void *llboot_entry_inv(int a, int b, int c);
+extern void *llboot_entry_inv(spdid_t cur, int op, int arg1, int arg2, int *ret2, int *ret3);
+
 extern int num_cobj;
 extern int resmgr_spdid;
 extern int root_spdid;
@@ -33,7 +34,6 @@ struct comp_cap_info {
 	spdid_t              parent_spdid;
 	u64_t                childid_bitf;
 	u64_t                childid_sched_bitf;
-	struct sl_thd       *initaep;
 } new_comp_cap_info[MAX_NUM_SPDS + 1];
 
 int                      schedule[MAX_NUM_SPDS + 1];
@@ -53,6 +53,14 @@ boot_spd_defcompinfo_get(spdid_t spdid)
 	if (spdid == 0) return cos_defcompinfo_curr_get();
 
 	return &(new_comp_cap_info[spdid].def_cinfo);
+}
+
+static inline struct cos_aep_info *
+boot_spd_initaep_get(spdid_t spdid)
+{
+	if (spdid == 0) return cos_sched_aep_get(cos_defcompinfo_curr_get());
+
+	return cos_sched_aep_get(boot_spd_defcompinfo_get(spdid));
 }
 
 static vaddr_t
@@ -159,7 +167,7 @@ boot_newcomp_defcinfo_init(spdid_t spdid)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info *   sched_aep = cos_sched_aep_get(defci);
-	struct cos_aep_info *   child_aep = cos_sched_aep_get(boot_spd_defcompinfo_get(spdid));
+	struct cos_aep_info *   child_aep = boot_spd_initaep_get(spdid);
 	struct cos_compinfo *   child_ci  = boot_spd_compinfo_get(spdid);
 	struct cos_compinfo *   boot_info = boot_spd_compinfo_get(0);
 
@@ -181,12 +189,24 @@ boot_newcomp_defcinfo_init(spdid_t spdid)
 	child_aep->data = NULL;
 }
 
+static inline void
+boot_comp_sched_set(spdid_t spdid)
+{
+	struct cos_aep_info *child_aep = boot_spd_initaep_get(spdid);
+	int i = 0;
+
+	while (schedule[i] != 0) i ++;
+	assert(i < MAX_NUM_COMPS);
+	schedule[i] = child_aep->thd;
+}
+
 static void
 boot_newcomp_init_caps(spdid_t spdid)
 {
 	struct cos_compinfo  *boot_info = boot_spd_compinfo_get(0);
 	struct cos_compinfo  *ci        = boot_spd_compinfo_get(spdid);
 	struct comp_cap_info *capci     = &new_comp_cap_info[spdid];
+	struct cos_aep_info  *child_aep = boot_spd_initaep_get(spdid);
 	int ret, i;
 	
 	/* FIXME: not everyone should have it. but for now, because getting cpu cycles uses this */
@@ -211,18 +231,14 @@ boot_newcomp_init_caps(spdid_t spdid)
 	/* If booter should create the init caps in that component */
 	if (capci->parent_spdid == 0) {
 		boot_newcomp_defcinfo_init(spdid);
-		capci->initaep = sl_thd_comp_init(&(capci->def_cinfo), capci->is_sched);
-		assert(capci->initaep);
 
-		/* TODO: Scheduling parameters to schedule them! */
-
-		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTHD_BASE, boot_info, sl_thd_thdcap(capci->initaep));
+		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTHD_BASE, boot_info, child_aep->thd);
 		assert(ret == 0);
 
 		if (capci->is_sched) {
-			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITRCV_BASE, boot_info, sl_thd_rcvcap(capci->initaep));
+			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITRCV_BASE, boot_info, child_aep->rcv);
 			assert(ret == 0);
-			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTCAP_BASE, boot_info, sl_thd_tcap(capci->initaep));
+			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTCAP_BASE, boot_info, child_aep->tc);
 			assert(ret == 0);
 		}
 
@@ -238,10 +254,7 @@ boot_newcomp_init_caps(spdid_t spdid)
 			assert(ret == 0);
 		}
 
-		/* FIXME: remove when llbooter can do something else for scheduling bootup phase */
-		i = 0;
-		while (schedule[i] != 0) i ++;
-		schedule[i] = sl_thd_thdcap(capci->initaep);
+		boot_comp_sched_set(spdid);
 	}
 }
 
@@ -283,58 +296,52 @@ boot_bootcomp_init(void)
 	/* TODO: if posix already did meminfo init */
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
-	sl_init(SL_MIN_PERIOD_US);
-
 	capci->is_sched = 1;
-	capci->initaep  = sl__globals()->sched_thd;
-
 }
 
 #define LLBOOT_ROOT_PRIO 1
-#define LLBOOT_ROOT_BUDGET_MS (10*1000)
-#define LLBOOT_ROOT_PERIOD_MS (10*1000)
-
-#undef LLBOOT_CHRONOS_ENABLED
 
 static void
 boot_done(void)
 {
-	struct sl_thd *root = NULL;
+	struct cos_aep_info *root_aep = NULL;
 	int ret;
 
 	PRINTC("Booter: done creating system.\n");
 	PRINTC("********************************\n");
 	cos_thd_switch(schedule[sched_cur]);
+	PRINTC("Booter: done initializing child components.\n");
 
 	if (root_spdid) {
-		PRINTC("Root scheduler is %u\n", root_spdid);
-		root = new_comp_cap_info[root_spdid].initaep;
-		assert(root);
-		sl_thd_param_set(root, sched_param_pack(SCHEDP_PRIO, LLBOOT_ROOT_PRIO));
-#ifdef LLBOOT_CHRONOS_ENABLED
-		sl_thd_param_set(root, sched_param_pack(SCHEDP_BUDGET, LLBOOT_ROOT_BUDGET_MS));
-		sl_thd_param_set(root, sched_param_pack(SCHEDP_WINDOW, LLBOOT_ROOT_PERIOD_MS));
-#else
-		ret = cos_tcap_transfer(sl_thd_rcvcap(root), sl__globals()->sched_tcap, TCAP_RES_INF, LLBOOT_ROOT_PRIO);
+		/* NOTE: Chronos delegations would replace this in some  experiments! */
+		root_aep = boot_spd_initaep_get(root_spdid);
+
+		PRINTC("Root scheduler is %u, switching to it now!\n", root_spdid);
+		ret = cos_tcap_transfer(root_aep->rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, LLBOOT_ROOT_PRIO);
 		assert(ret == 0);
-#endif
+
+		ret = cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOT_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
+		PRINTC("ERROR: Root scheduler returned.\n");
+		assert(0);
 	}
 
-	PRINTC("********************************\n");
-	PRINTC("Starting llboot sched loop\n");
-	sl_sched_loop();
+	PRINTC("No root scheduler in the system. Spinning!\n");
+	while (1) ;
 }
 
 /* Run after a componenet is done init execution, via sinv() into booter */
 void
 boot_thd_done(spdid_t c)
 {
+	struct comp_cap_info *acomp = &new_comp_cap_info[c];
+
+	assert(acomp->parent_spdid == 0);
 	sched_cur++;
 
+	PRINTC("Component %d initialized!\n", c);
 	if (schedule[sched_cur] != 0) {
 		cos_thd_switch(schedule[sched_cur]);
 	} else {
-		PRINTC("Component %d initialized!\n", c);
 		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	}
 }
@@ -348,20 +355,21 @@ boot_comp_initthd_get(spdid_t spdid, tcap_t *tc, arcvcap_t *rcv, capid_t *resfr)
 	struct cos_compinfo  *boot_info = boot_spd_compinfo_get(0);
 	struct comp_cap_info *acomp     = &new_comp_cap_info[spdid];
 	struct cos_compinfo  *resci     = boot_spd_compinfo_get(resmgr_spdid);
+	struct cos_aep_info  *initaep   = boot_spd_initaep_get(spdid);
 
-	if (acomp->initaep && sl_thd_thdcap(acomp->initaep)) {
+	if (initaep->thd) {
 		thdcap_t t;
 
-		t = cos_cap_cpy(resci, boot_info, CAP_THD, sl_thd_thdcap(acomp->initaep));
+		t = cos_cap_cpy(resci, boot_info, CAP_THD, initaep->thd);
 		assert(t);
 
 		if (acomp->is_sched) {
-			assert(sl_thd_rcvcap(acomp->initaep));
-			*rcv = cos_cap_cpy(resci, boot_info, CAP_ARCV, sl_thd_rcvcap(acomp->initaep));
+			assert(initaep->rcv);
+			*rcv = cos_cap_cpy(resci, boot_info, CAP_ARCV, initaep->rcv);
 			assert(*rcv);
 
-			if (sl_thd_tcap(acomp->initaep)) {
-				*tc = cos_cap_cpy(resci, boot_info, CAP_TCAP, sl_thd_tcap(acomp->initaep));
+			if (initaep->tc) {
+				*tc = cos_cap_cpy(resci, boot_info, CAP_TCAP, initaep->tc);
 				assert(*tc);
 			}
 		}
