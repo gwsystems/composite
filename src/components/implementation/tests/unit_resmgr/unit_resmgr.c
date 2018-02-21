@@ -44,7 +44,7 @@ test_thds(void)
 		cos_thd_switch(test_ts[i]);
 		assert(thd_run_flag == i);
 	}
-	printc("Creation/switch %d threads done.\n", TEST_N_THDS);
+	PRINTC("Creation/switch %d threads done.\n", TEST_N_THDS);
 }
 
 #define TEST_N_HEAP_PAGES 2048
@@ -69,7 +69,7 @@ test_mem(void)
 	vaddr_t addr, haddr;
 
 	haddr = memmgr_heap_page_allocn(0, TEST_N_HEAP_PAGES);
-	printc("Alloc'd heap @ %lx, pages:%d\n", haddr, TEST_N_HEAP_PAGES);
+	PRINTC("Alloc'd heap @ %lx, pages:%d\n", haddr, TEST_N_HEAP_PAGES);
 	for (i = 0; i < TEST_N_HEAP_PAGES; i++) {
 		vaddr_t page = haddr + i * PAGE_SIZE;
 		const char *str = test_strs[i % TEST_STR_NUM];
@@ -79,10 +79,10 @@ test_mem(void)
 
 		assert(strcmp((char *)page, str) == 0);
 	}
-	printc("Read/write %d pages done\n", TEST_N_HEAP_PAGES);
+	PRINTC("Read/write %d pages done\n", TEST_N_HEAP_PAGES);
 
 	idx = memmgr_shared_page_allocn(0, TEST_N_SHMEM_PAGES, &addr);
-	printc("Alloc'd shared @ %d:%lx, pages:%d\n", idx, addr, TEST_N_SHMEM_PAGES);
+	PRINTC("Alloc'd shared @ %d:%lx, pages:%d\n", idx, addr, TEST_N_SHMEM_PAGES);
 
 	assert(idx == 0); /* to create a reader and test */
 
@@ -96,7 +96,7 @@ test_mem(void)
 
 		assert(strcmp((char *)page, str) == 0);
 	}
-	printc("Read/write %d pages done\n", TEST_N_SHMEM_PAGES);
+	PRINTC("Read/write %d pages done\n", TEST_N_SHMEM_PAGES);
 }
 
 void
@@ -104,13 +104,13 @@ cos_init(void)
 {
 	u64_t childbits;
 
-	printc("Unit-test for Resource Manager interface\n");
+	PRINTC("Unit-test for Resource Manager interface\n");
 	llboot_comp_childspdids_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
 	test_thds();
 	test_mem();
-	printc("Unit-test done.\n");
+	PRINTC("Unit-test done.\n");
 	llboot_comp_init_done();
 
 	SPIN();

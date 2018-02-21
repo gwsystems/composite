@@ -40,7 +40,7 @@ test_shmem(void)
 	vaddr_t addr;
 
 	idx = memmgr_shared_page_map(0, 0, &addr, &npages);
-	printc("Mapped shared @ %d:%lx, pages:%d\n", idx, addr, npages);
+	PRINTC("Mapped shared @ %d:%lx, pages:%d\n", idx, addr, npages);
 	assert(idx == 0); /* to create a reader and test */
 	assert(addr == memmgr_shared_page_vaddr(0, idx));
 
@@ -50,7 +50,7 @@ test_shmem(void)
 
 		assert(strcmp((char *)page, str) == 0);
 	}
-	printc("Read %d shared pages done\n", TEST_N_SHMEM_PAGES);
+	PRINTC("Read %d shared pages done\n", TEST_N_SHMEM_PAGES);
 }
 
 void
@@ -58,13 +58,13 @@ cos_init(void)
 {
 	u64_t childbits;
 
-	printc("Unit-test for Resource Manager shared memory interface\n");
+	PRINTC("Unit-test for Resource Manager shared memory interface\n");
 	llboot_comp_childspdids_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
 	/* assuming this runs (initialization) after unit_resmgr component */
 	test_shmem();
-	printc("Unit-test done.\n");
+	PRINTC("Unit-test done.\n");
 	llboot_comp_init_done();
 
 	SPIN();
