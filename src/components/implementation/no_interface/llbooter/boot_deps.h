@@ -13,7 +13,7 @@
 #define THD_PRIO 5
 #define THD_PERIOD 10
 #define THD_BUDGET 5
-#define INIT_THDS_SIZE MAX_NUM_SPDS + 1
+#define INIT_THDS_SIZE MAX_NUM_COMPS + 1
 
 int num_cobj;
 
@@ -22,7 +22,7 @@ extern void *__inv_test_entry(int a, int b, int c);
 long boot_pgtbl_cap_transfer(int dst, int src, int cap_slot);
 long boot_thd_cap_transfer(int dst, int src, int cap_slot);
 
-struct cobj_header *hs[MAX_NUM_SPDS + 1];
+struct cobj_header *hs[MAX_NUM_COMPS + 1];
 
 #define UDP_SPDID 3
 
@@ -41,14 +41,14 @@ struct comp_cap_info {
 	vaddr_t                 vaddr_mapped_in_booter;
 	vaddr_t                 upcall_entry;
 	boot_comp_flag_t	special_type;
-} new_comp_cap_info[MAX_NUM_SPDS + 1];
+} new_comp_cap_info[MAX_NUM_COMPS + 1];
 
 
 thdcap_t init_thds[INIT_THDS_SIZE];
 /* Keep track of the init_thds that have already been run once */
 size_t global_idx = 0;
 
-struct cos_defcompinfo new_defcompinfo[MAX_NUM_SPDS + 1];
+struct cos_defcompinfo new_defcompinfo[MAX_NUM_COMPS + 1];
 
 static vaddr_t
 boot_deps_map_sect(spdid_t spdid, vaddr_t dest_daddr)

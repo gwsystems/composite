@@ -148,6 +148,7 @@ cos_init(void)
 	long cap_frontier = -1;
 	struct cos_defcompinfo *dci;
 	struct cos_compinfo    *ci;
+	struct cos_config_info_t *my_info;
 	int ret = -1;
 
 	printc("rumpkernel cos_init\n");
@@ -180,6 +181,11 @@ cos_init(void)
 			(vaddr_t)cos_get_heap_ptr(), cap_frontier, ci);
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ,
 			BOOT_CAPTBL_SELF_UNTYPED_PT);
+
+	printc("Fetching boot configuration information\n");
+	my_info = cos_init_args();
+	printc("Greeting key: %s\n", my_info->kvp[GREETING_KEY].key);
+	printc("Greeting value: %s\n", my_info->kvp[GREETING_KEY].value);
 
 	printc("Setting up RK\n");
 	rump_booter_init((void *)0);

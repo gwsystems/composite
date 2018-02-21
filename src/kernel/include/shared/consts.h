@@ -136,4 +136,8 @@ struct pt_regs {
 #define CPUID_OFFSET 1
 #define THDID_OFFSET 2
 
+#define KEY_VALUE_PAIRS 10
+#define KEY_LENGTH 25
+#define VALUE_LENGTH 100
+
 #endif

@@ -2,6 +2,7 @@
 #include <cobj_format.h>
 #include <string.h>
 #include "boot_deps.h"
+#include "comp_config.h"
 
 #define USER_CAPS_SYMB_NAME "ST_user_caps"
 
@@ -20,8 +21,6 @@ struct component_init_str {
 	int          startup;
 	char         init_str[INIT_STR_SZ];
 } __attribute__((packed));
-
-struct component_init_str *init_args;
 
 unsigned int *boot_sched;
 
@@ -141,32 +140,30 @@ boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info, vaddr_t
 static int
 boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val, char *mem, vaddr_t symb_addr)
 {
-	int                               i;
+	int                                i;
+	char			  *comp_name;
+	char 			 *config_key;
+	char 		       *config_value;
 	struct cos_component_information *ci;
 
 	assert(symb_addr == round_to_page(symb_addr));
 	ci = (struct cos_component_information *)(mem);
+	ci->cos_this_spd_id = spdid;
+
+	for (i = 0 ; comp_configs[i] && i < MAX_NUM_COMPS ; i++) {
+		comp_name = comp_configs[i]->kvp[COMP_KEY].value;
+		if (strncmp(comp_name, h->name, VALUE_LENGTH)) continue;
+
+		config_key   = comp_configs[i]->kvp[GREETING_KEY].key;
+		config_value = comp_configs[i]->kvp[GREETING_KEY].value;
+		strncpy(ci->cos_config_info.kvp[GREETING_KEY].key, config_key, KEY_LENGTH);
+		strncpy(ci->cos_config_info.kvp[GREETING_KEY].value, config_value,
+			VALUE_LENGTH);
+	}
+
+
 
 	if (!ci->cos_heap_ptr) ci->cos_heap_ptr = heap_val;
-
-	ci->cos_this_spd_id = spdid;
-	ci->init_string[0]  = '\0';
-
-	for (i = 0; init_args[i].spdid; i++) {
-		char *start, *end;
-		int   len;
-
-		if (init_args[i].spdid != spdid) continue;
-
-		start = strchr(init_args[i].init_str, '\'');
-		if (!start) break;
-		start++;
-		end = strchr(start, '\'');
-		if (!end) break;
-		len = (int)(end - start);
-		memcpy(&ci->init_string[0], start, len);
-		ci->init_string[len] = '\0';
-	}
 
 	return 1;
 }
@@ -306,8 +303,7 @@ cos_init(void)
 	num_cobj = (int)cos_comp_info.cos_poly[1];
 	printc("num_cobj: %d\n", num_cobj);
 
-	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
-	init_args++;
+	__init_configs();
 
 	printc("num cobjs: %d\n", num_cobj);
 	boot_find_cobjs(h, num_cobj);

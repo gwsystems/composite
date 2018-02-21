@@ -200,6 +200,7 @@ void
 cos_init(void)
 {
 	struct cos_defcompinfo *dci;
+	struct cos_config_info_t *my_info;
 	int ret;
 
 	printc("Welcome to the shdmem component\n");
@@ -220,6 +221,11 @@ cos_init(void)
 
 	/* Get access to the page tables from the booter of the components we will be servicing */
 	__get_pgtbls(shm_cinfo);
+
+	printc("Fetching boot configuration information\n");
+	my_info = cos_init_args();
+	printc("Greeting key: %s\n", my_info->kvp[GREETING_KEY].key);
+	printc("Greeting value: %s\n", my_info->kvp[GREETING_KEY].value);
 
 	printc("Shdmem init done\n");
 
