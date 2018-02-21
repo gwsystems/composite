@@ -74,14 +74,6 @@ void cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sch
                               captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier);
 
 /*
- * cos_defcompinfo_child_init_ext: initialize the current component's global cos_defcompinfo struct using the parameters
- * passed.
- * Sched aep information will be initialized to zero.
- */
-void cos_defcompinfo_child_init_ext(struct cos_defcompinfo *child_defci, pgtblcap_t pgtbl_cap,
-                              captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier);
-
-/*
  * cos_defcompinfo_child_alloc: called to create a new child component including initial capabilities like pgtbl,
  * captbl, compcap, aep. if is_sched is set, scheduling end-point will also be created for the child component, else,
  * the current component's scheduler will remain the scheduler for the child component.

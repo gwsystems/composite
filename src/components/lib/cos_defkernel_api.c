@@ -69,22 +69,6 @@ cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rc
 	curr_defci_init_status = INITIALIZED;
 }
 
-void
-cos_defcompinfo_child_init_ext(struct cos_defcompinfo *child_dci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap,
-			       compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier)
-{
-	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
-	struct cos_compinfo *   ci        = cos_compinfo_get(defci);
-	struct cos_compinfo *   child_ci  = cos_compinfo_get(child_dci);
-	struct cos_aep_info *   child_aep = cos_sched_aep_get(child_dci);
-
-	if (curr_defci_init_status == INITIALIZED) return;
-
-	memset(child_aep, 0, sizeof(struct cos_aep_info));
-
-	cos_compinfo_init(child_ci, pgtbl_cap, captbl_cap, comp_cap, heap_ptr, cap_frontier, ci);
-}
-
 int
 cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, vaddr_t heap_ptr, capid_t cap_frontier,
                             int is_sched)
