@@ -364,6 +364,26 @@ struct cos_stack_freelists {
 	struct stack_fl freelists[COMP_INFO_STACK_FREELISTS];
 };
 
+/*
+ * enum for defining the beginning set number of keys that all components will
+ * share in common.
+ */
+enum
+{
+	COMP_KEY = 0,
+	GREETING_KEY,
+	/* After this, the key values are free to use as components need them */
+};
+
+struct kv {
+	char key[KEY_LENGTH];
+	char value[VALUE_LENGTH];
+};
+
+struct cos_config_info_t {
+	struct kv kvp[KEY_VALUE_PAIRS];
+};
+
 /* move this to the stack manager assembly file, and use the ASM_... to access the relinquish variable */
 //#define ASM_OFFSET_TO_STK_RELINQ (sizeof(struct cos_stack_freelists) + sizeof(u32_t) * COMP_INFO_TMEM_STK_RELINQ)
 //#define ASM_OFFSET_TO_STK_RELINQ 8
@@ -374,6 +394,7 @@ struct cos_stack_freelists {
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;
+	struct cos_config_info_t   cos_config_info;
 	long                       cos_this_spd_id;
 	u32_t                      cos_tmem_relinquish[COMP_INFO_TMEM];
 	u32_t                      cos_tmem_available[COMP_INFO_TMEM];
@@ -385,7 +406,6 @@ struct cos_component_information {
 	vaddr_t                            cos_user_caps;
 	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS / 2];
 	vaddr_t                            cos_poly[COMP_INFO_POLY_NUM];
-	char                               init_string[COMP_INFO_INIT_STR_LEN];
 } __attribute__((aligned(PAGE_SIZE)));
 
 typedef enum {
