@@ -85,7 +85,6 @@ resmgr_aep_create(spdid_t c, struct cos_aep_info *aep, cos_aepthd_fn_t fn, void 
 	aep->thd  = ret;
 	aep->rcv  = rcv;
 	aep->tc   = tc;
-	PRINTC("%s:%d = %lu\n", __func__, __LINE__, rcv);
 
 	return aep->thd;
 }
