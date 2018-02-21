@@ -131,11 +131,11 @@ static void
 run_tests()
 {
 	test_highest_is_scheduled();
-	printc("Test successful! Highest was scheduled only!\n");
+	PRINTC("Test successful! Highest was scheduled only!\n");
 	test_swapping();
-	printc("Test successful! We swapped back and forth!\n");
+	PRINTC("Test successful! We swapped back and forth!\n");
 
-	printc("Done testing, spinning...\n");
+	PRINTC("Done testing, spinning...\n");
 	SPIN();
 }
 
@@ -147,7 +147,7 @@ cos_init(void)
 
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	printc("Unit-test scheduling component\n");
+	PRINTC("Unit-test scheduling component\n");
 	llboot_comp_childspdids_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 

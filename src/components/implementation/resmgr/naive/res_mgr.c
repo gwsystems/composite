@@ -288,7 +288,7 @@ resmgr_thd_retrieve_next_intern(spdid_t cur, spdid_t s, int u1, int u2, thdcap_t
 	struct cos_compinfo    *res_ci  = cos_compinfo_get(res_dci);
 	struct res_comp_info   *rc      = res_info_comp_find(cur);
 	struct res_comp_info   *rs      = res_info_comp_find(s);
-	struct res_thd_info    *ti      = res_info_thd_next(rs);
+	struct res_thd_info    *ti      = res_info_thd_next(rs), *rt = NULL;
 
 	assert(rc && res_info_init_check(rc));
 	assert(rs && res_info_init_check(rs));
@@ -301,6 +301,8 @@ resmgr_thd_retrieve_next_intern(spdid_t cur, spdid_t s, int u1, int u2, thdcap_t
 	}
 	*thdcap = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, res_thd_thdcap(ti));
 	assert(*thdcap > 0);
+	rt = res_info_thd_init(rc, ti->schthd);
+	assert(rt);
 
 done:
 	return res_thd_thdid(ti);

@@ -278,11 +278,16 @@ static void
 boot_bootcomp_init(void)
 {
 	struct cos_compinfo *boot_info = boot_spd_compinfo_get(0);
+	struct comp_cap_info *capci    = &new_comp_cap_info[0];
 
 	/* TODO: if posix already did meminfo init */
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
 	sl_init(SL_MIN_PERIOD_US);
+
+	capci->is_sched = 1;
+	capci->initaep  = sl__globals()->sched_thd;
+
 }
 
 #define LLBOOT_ROOT_PRIO 1
@@ -297,12 +302,12 @@ boot_done(void)
 	struct sl_thd *root = NULL;
 	int ret;
 
-	printc("Booter: done creating system.\n");
-	printc("********************************\n");
+	PRINTC("Booter: done creating system.\n");
+	PRINTC("********************************\n");
 	cos_thd_switch(schedule[sched_cur]);
 
 	if (root_spdid) {
-		printc("Root scheduler is %u\n", root_spdid);
+		PRINTC("Root scheduler is %u\n", root_spdid);
 		root = new_comp_cap_info[root_spdid].initaep;
 		assert(root);
 		sl_thd_param_set(root, sched_param_pack(SCHEDP_PRIO, LLBOOT_ROOT_PRIO));
@@ -315,7 +320,7 @@ boot_done(void)
 #endif
 	}
 
-	printc("Starting llboot sched loop\n");
+	PRINTC("Starting llboot sched loop\n");
 	sl_sched_loop();
 }
 
@@ -328,8 +333,8 @@ boot_thd_done(void)
 	if (schedule[sched_cur] != 0) {
 		cos_thd_switch(schedule[sched_cur]);
 	} else {
-		printc("Done Initializing\n");
-		printc("********************************\n");
+		PRINTC("Done Initializing\n");
+		PRINTC("********************************\n");
 		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	}
 }
@@ -338,7 +343,7 @@ boot_thd_done(void)
 #define BOOT_CI_GET_ERROR LLBOOT_ERROR
 
 static thdcap_t
-boot_comp_initthd_get(spdid_t spdid, capid_t *resfr)
+boot_comp_initthd_get(spdid_t spdid, tcap_t *tc, arcvcap_t *rcv, capid_t *resfr)
 {
 	struct cos_compinfo  *boot_info = boot_spd_compinfo_get(0);
 	struct comp_cap_info *acomp     = &new_comp_cap_info[spdid];
@@ -350,6 +355,16 @@ boot_comp_initthd_get(spdid_t spdid, capid_t *resfr)
 		t = cos_cap_cpy(resci, boot_info, CAP_THD, sl_thd_thdcap(acomp->initaep));
 		assert(t);
 
+		if (acomp->is_sched) {
+			assert(sl_thd_rcvcap(acomp->initaep));
+			*rcv = cos_cap_cpy(resci, boot_info, CAP_ARCV, sl_thd_rcvcap(acomp->initaep));
+			assert(*rcv);
+
+			if (sl_thd_tcap(acomp->initaep)) {
+				*tc = cos_cap_cpy(resci, boot_info, CAP_TCAP, sl_thd_tcap(acomp->initaep));
+				assert(*tc);
+			}
+		}
 		*resfr = resci->cap_frontier;
 		return t;
 	}
@@ -524,14 +539,17 @@ llboot_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 	case LLBOOT_COMP_INITTHD_GET:
 	{
 		capid_t capfr;
+		tcap_t tc;
+		arcvcap_t rcv;
 
 		/* only resource manager is allowed to use this function */
 		assert(curr == resmgr_spdid);
 		/* init-thread of components that booter created..*/
-		thdcap_t t = boot_comp_initthd_get(arg3, &capfr);
+		thdcap_t t = boot_comp_initthd_get(arg3, &tc, &rcv, &capfr);
 
 		ret1 = t;
 		*ret2 = capfr;
+		*ret3 = (rcv << 16) | tc;
 
 		break;
 	}

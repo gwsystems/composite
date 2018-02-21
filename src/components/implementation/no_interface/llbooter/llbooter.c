@@ -46,7 +46,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 		for (j = 0; j < (int)h->nsect; j++) {
 			tot += cobj_sect_size(h, j);
 		}
-		printc("cobj %s:%d found at %p:%x, -> %x\n", h->name, h->id, hs[i - 1], size,
+		PRINTC("cobj %s:%d found at %p:%x, -> %x\n", h->name, h->id, hs[i - 1], size,
 		       cobj_sect_get(hs[i - 1], 0)->vaddr);
 
 		end   = start + round_up_to_cacheline(size);
@@ -55,7 +55,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 	}
 
 	hs[n] = NULL;
-	printc("cobj %s:%d found at %p:%x -> %x\n", hs[n - 1]->name, hs[n - 1]->id, hs[n - 1], hs[n-1]->size,
+	PRINTC("cobj %s:%d found at %p:%x -> %x\n", hs[n - 1]->name, hs[n - 1]->id, hs[n - 1], hs[n-1]->size,
 	       cobj_sect_get(hs[n - 1], 0)->vaddr);
 
 }
@@ -425,7 +425,7 @@ boot_create_cap_system(void)
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
 		boot_newcomp_create(spdid, boot_spd_compinfo_get(spdid));
-		printc("Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
+		PRINTC("Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
 	}
 
 	return;
@@ -436,12 +436,12 @@ boot_init_ndeps(int num_cobj)
 {
 	int i = 0;
 
-	printc("MAX DEPS: %d\n", MAX_DEPS);
+	PRINTC("MAX DEPS: %d\n", MAX_DEPS);
 	for (i = 0; i < deps_list[i].server; i++) {
-//		if (deps_list[i].client != 0) printc("client: %d, server: %d \n", deps_list[i].client, deps_list[i].server);
+//		if (deps_list[i].client != 0) PRINTC("client: %d, server: %d \n", deps_list[i].client, deps_list[i].server);
 	}
 
-	printc("ndeps: %d\n", ndeps);
+	PRINTC("ndeps: %d\n", ndeps);
 	ndeps = i;
 }
 
@@ -451,7 +451,7 @@ boot_child_info(void)
 	int i = 0;
 
 	for (; i <= num_cobj; i++) {
-		printc("Component %d => child bitmap %llx, sched bitmap %llx\n", i, new_comp_cap_info[i].childid_bitf, new_comp_cap_info[i].childid_sched_bitf);
+		PRINTC("Component %d => child bitmap %llx, sched bitmap %llx\n", i, new_comp_cap_info[i].childid_bitf, new_comp_cap_info[i].childid_sched_bitf);
 	}
 }
 
@@ -460,7 +460,7 @@ cos_init(void)
 {
 	struct cobj_header *h;
 
-	printc("Booter for new kernel\n");
+	PRINTC("Booter for new kernel\n");
 
 	resmgr_spdid = 0;
 	root_spdid = 0;
@@ -481,7 +481,7 @@ cos_init(void)
 	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
 	boot_init_sched();
 
-	printc("num cobjs: %d\n", num_cobj);
+	PRINTC("num cobjs: %d\n", num_cobj);
 	boot_find_cobjs(h, num_cobj);
 	boot_bootcomp_init();
 	boot_create_cap_system();

@@ -56,11 +56,16 @@ llboot_comp_init_done(void)
 }
 
 static inline thdcap_t 
-llboot_comp_initthd_get(spdid_t spdid, capid_t *myfr)
+llboot_comp_initthd_get(spdid_t spdid, arcvcap_t *rcv, tcap_t *tc, capid_t *myfr)
 {
-	word_t unused = 0;
+	word_t ret2;
+	thdcap_t t;
 
-	return cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, 0, LLBOOT_COMP_INITTHD_GET, spdid, 0, myfr, &unused);
+	t = cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, 0, LLBOOT_COMP_INITTHD_GET, spdid, 0, myfr, &ret2);
+	*rcv = (ret2 >> 16);
+	*tc  = ((ret2 << 16) >> 16);
+
+	return t;
 }
 
 static inline int

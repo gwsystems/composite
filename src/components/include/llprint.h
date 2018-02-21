@@ -38,4 +38,6 @@ printc(char *fmt, ...)
 	return ret;
 }
 
+#define PRINTC(fmt, args...) printc("%lu=> " fmt, cos_spd_id(), ##args)
+
 #endif /* LLPRINT_H */

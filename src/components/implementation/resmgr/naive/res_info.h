@@ -8,6 +8,9 @@
 #include <resmgr.h>
 #include <memmgr.h>
 
+#define RES_INFO_COMP_MAX_SUBTREE 8
+#define RES_INFO_COMP_MAX_THREADS (MAX_NUM_THREADS*RES_INFO_COMP_MAX_SUBTREE)
+
 extern u64_t res_info_schedbmp;
 
 struct res_thd_info {
@@ -33,7 +36,7 @@ struct res_comp_info {
 	int thd_used;
 	struct cos_defcompinfo defci;
 	struct res_shmem_info shminfo;
-	struct res_thd_info tinfo[MAX_NUM_THREADS];
+	struct res_thd_info tinfo[RES_INFO_COMP_MAX_THREADS]; /* including threads from components in subtree. */
 	int initflag;
 	u64_t chbits; /* all child components */
 	u64_t chschbits; /* child components which are also schedulers. */

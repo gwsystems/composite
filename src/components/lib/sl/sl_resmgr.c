@@ -120,7 +120,7 @@ sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *scht
 
 	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	assert(tid);
-	t = sl_thd_alloc_init(tid, aep, 0, SL_THD_PROPERTY_OWN_TCAP);
+	t = sl_thd_alloc_init(tid, aep, 0, prps);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -217,7 +217,7 @@ sl_thd_childaep_alloc_intern(struct cos_defcompinfo *comp, sl_thd_property_t prp
 
 	if (prps & SL_THD_PROPERTY_SEND) {
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
-		resmgr_initaep_create(cos_spd_id(), comp->id, sl_thd_aepinfo(g->sched_thd), owntc, &snd);
+		resmgr_initaep_create(cos_spd_id(), comp->id, aep, owntc, &snd);
 	} else {
 		aep->thd = resmgr_initthd_create(cos_spd_id(), comp->id);
 	}

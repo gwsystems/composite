@@ -117,7 +117,7 @@ sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *scht
 	*extrcv = 0;
 	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	assert(tid);
-	t = sl_thd_alloc_init(tid, aep, 0, SL_THD_PROPERTY_OWN_TCAP);
+	t = sl_thd_alloc_init(tid, aep, 0, prps);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:

@@ -89,7 +89,7 @@ res_info_thd_init(struct res_comp_info *rci, struct sl_thd *t)
 	int off;
 
 	assert(rci && rci->initflag);
-	assert(rci->thd_used < MAX_NUM_THREADS-1);
+	assert(rci->thd_used < RES_INFO_COMP_MAX_THREADS);
 	assert(t);
 
 	off = __sync_fetch_and_add(&(rci->thd_used), 1);
@@ -103,7 +103,7 @@ struct res_thd_info *
 res_info_initthd_init(struct res_comp_info *rci, struct sl_thd *t)
 {
 	assert(rci && rci->initflag);
-	assert(rci->thd_used < MAX_NUM_THREADS-1);
+	assert(rci->thd_used < RES_INFO_COMP_MAX_THREADS);
 	assert(t);
 
 	rci->tinfo[0].schthd = t;

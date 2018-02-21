@@ -33,6 +33,8 @@ resmgr_comp_info_iter(void)
 		vaddr_t vasfr;
 		capid_t capfr, rescapfr = ci->cap_frontier;
 		thdcap_t t = 0;
+		arcvcap_t rcv = 0;
+		tcap_t tc = 0;
 		struct res_comp_info *rci;
 		struct sl_thd *ithd;
 		u64_t chbits = 0, chschbits = 0;
@@ -41,7 +43,7 @@ resmgr_comp_info_iter(void)
 		if (ret) break;
 
 		resmgr_capfr_update(rescapfr);
-		if (resmgr_myspdid != csid) t = llboot_comp_initthd_get(csid, &rescapfr);
+		if (resmgr_myspdid != csid) t = llboot_comp_initthd_get(csid, &rcv, &tc, &rescapfr);
 		if (t) resmgr_capfr_update(rescapfr);
 
 		ret = llboot_comp_frontier_get(csid, &vasfr, &capfr);
@@ -57,7 +59,7 @@ resmgr_comp_info_iter(void)
 		assert(rci);
 
 		if (t) {
-			ithd = sl_thd_ext_init(t, 0, 0, 0);
+			ithd = sl_thd_ext_init(t, tc, rcv, 0);
 			assert(ithd);
 
 			res_info_initthd_init(rci, ithd);
@@ -66,7 +68,7 @@ resmgr_comp_info_iter(void)
 		}
 	} while (ret == 0);
 
-	printc("Schedulers bitmap: %llx\n", res_info_schedbmp);
+	PRINTC("Schedulers bitmap: %llx\n", res_info_schedbmp);
 }
 
 void
@@ -78,7 +80,7 @@ cos_init(void)
 
 	resmgr_myspdid = cos_spd_id();
 	assert(resmgr_myspdid);
-	printc("CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+	PRINTC("CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
@@ -90,9 +92,9 @@ cos_init(void)
 	res_info_init();
 	resmgr_comp_info_iter();
 
-	printc("Initialized RESOURCE MANAGER\n");
+	PRINTC("Initialized RESOURCE MANAGER\n");
 
 	llboot_comp_init_done();
-	printc("SPINNING\n");
+	PRINTC("SPINNING\n");
 	while (1) ;
 }

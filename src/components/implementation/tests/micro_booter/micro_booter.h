@@ -33,6 +33,7 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 
+#undef PRINTC
 #define PRINTC printc
 #define ITER 10000
 #define TEST_NTHDS 5

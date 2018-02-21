@@ -8,13 +8,29 @@
 
 u32_t cycs_per_usec = 0;
 u64_t child_spdbits = 0;
+u64_t childsch_bitf = 0;
+unsigned int self_init = 0;
+extern int schedinit_self(void);
 
 static struct cos_defcompinfo child_defcinfo[MAX_CHILD_COMPS];
 static unsigned int num_child;
 static struct sl_thd *child_initthd[MAX_CHILD_COMPS] = { NULL };
+static struct sl_thd *__initthd = NULL;
 
 #define FIXED_PRIO 1
+#define FIXED_PERIOD_MS (10000)
+#define FIXED_BUDGET_MS (4000)
 #define IS_BIT_SET(v, pos) (v & ((u64_t)1 << pos))
+
+static void
+__init_done(void *d)
+{
+	while (schedinit_self()) sl_thd_block_periodic(0);
+	PRINTC("SELF (inc. CHILD) INIT DONE.\n");
+	sl_thd_exit();
+
+	assert(0);
+}
 
 void
 cos_init(void)
@@ -32,21 +48,29 @@ cos_init(void)
 	memset(&child_defcinfo, 0, sizeof(struct cos_defcompinfo) * MAX_CHILD_COMPS);
 
 	llboot_comp_childspdids_get(cos_spd_id(), &child_spdbits);
-	PRINTC("Child bitmap : %llx\n", child_spdbits);
+	llboot_comp_childschedspdids_get(cos_spd_id(), &childsch_bitf);
+	PRINTC("Child bitmap: %llx, Child-sched bitmap: %llx\n", child_spdbits, childsch_bitf);
 
 	for (i = 0; i < MAX_CHILD_BITS; i++) {
 		if (IS_BIT_SET(child_spdbits, i)) {
 			PRINTC("Initializing child component %d\n", i + 1);
 			cos_defcompinfo_childid_init(&child_defcinfo[num_child], i + 1);
 
-			/* TODO: get more info. whether it's a scheduler or not!*/
-			child_initthd[num_child] = sl_thd_child_initaep_alloc(&child_defcinfo[num_child], 0, 0);
+			child_initthd[num_child] = sl_thd_child_initaep_alloc(&child_defcinfo[num_child], IS_BIT_SET(childsch_bitf, i), 1);
 			assert(child_initthd[num_child]);
 
 			sl_thd_param_set(child_initthd[num_child], sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
+			sl_thd_param_set(child_initthd[num_child], sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
+			sl_thd_param_set(child_initthd[num_child], sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
 			num_child ++;
 		}
 	}
+
+	__initthd = sl_thd_alloc(__init_done, NULL);
+	assert(__initthd);
+	sl_thd_param_set(__initthd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
+
+	self_init = 1;
 	assert(num_child);
 	llboot_comp_init_done();
 
