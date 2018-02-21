@@ -176,7 +176,7 @@ resmgr_ext_aep_create_intern(spdid_t cur, spdid_t s, int tidx, int owntc, arcvca
 	sched = rinit->schthd;
 	assert(sched);
 
-	t = sl_thd_extaep_idx_alloc(res_info_dci(rc), sched, tidx, owntc, &srcrcv);
+	t = sl_thd_extaep_idx_alloc(res_info_dci(rs), sched, tidx, owntc, &srcrcv);
 	assert(t);
 	rt = res_info_thd_init(rc, t);
 	assert(rt);
@@ -313,18 +313,19 @@ asndcap_t
 resmgr_asnd_create_intern(spdid_t cur, spdid_t s, thdid_t tid /* thd with rcvcap */, int u1, int *u2, int *u3)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
-	struct res_comp_info *rc        = res_info_comp_find(cur);
-	struct res_comp_info *rs        = res_info_comp_find(s);
-	struct res_thd_info *ti         = res_info_thd_find(rs, tid);
+	struct cos_compinfo    *res_ci  = cos_compinfo_get(res_dci);
+	struct res_comp_info   *rc      = res_info_comp_find(cur);
+	struct res_comp_info   *rs      = res_info_comp_find(s);
+	struct res_thd_info    *ti      = res_info_thd_find(rs, tid);
 	asndcap_t snd;
 	int ret;
 
 	assert(res_info_init_check(rc) && res_info_init_check(rs));
 	assert(ti && res_thd_rcvcap(ti));
-	assert(res_info_is_sched(cur));
+	/* either scheduler creates the sndcap or the component creates itself as it has access to rcvcap */
+	assert(res_info_is_sched(cur) || cur == s);
 
-	snd = cos_asnd_alloc(res_ci, res_thd_rcvcap(ti), res_info_ci(rs)->captbl_cap);
+	snd = cos_asnd_alloc(res_ci, res_thd_rcvcap(ti), res_ci->captbl_cap);
 	assert(snd);
 
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ASND, snd);

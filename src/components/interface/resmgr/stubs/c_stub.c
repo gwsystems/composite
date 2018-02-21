@@ -85,6 +85,7 @@ resmgr_aep_create(spdid_t c, struct cos_aep_info *aep, cos_aepthd_fn_t fn, void 
 	aep->thd  = ret;
 	aep->rcv  = rcv;
 	aep->tc   = tc;
+	PRINTC("%s:%d = %lu\n", __func__, __LINE__, rcv);
 
 	return aep->thd;
 }
@@ -93,23 +94,16 @@ thdcap_t
 resmgr_ext_aep_create(spdid_t c, spdid_t s, struct cos_aep_info *aep, int idx, int owntc, arcvcap_t *extrcv)
 {
 	int ret;
-	arcvcap_t rcv;
 	u32_t tcrcvret;
 
-	ret = resmgr_ext_aep_create_intern(c, s, idx, owntc, &rcv, &tcrcvret);
+	ret = resmgr_ext_aep_create_intern(c, s, idx, owntc, extrcv, &tcrcvret);
 	assert(ret > 0);
 
 	aep->fn   = NULL;
 	aep->data = NULL;
 	aep->thd  = ret;
-	*extrcv   = rcv;
-	if (owntc) {
-		aep->rcv = tcrcvret >> 16;
-		aep->tc  = (tcrcvret << 16) >> 16;
-	} else {
-		aep->rcv = 0;
-		aep->tc  = (tcrcvret << 16) >> 16;
-	}
+	aep->rcv  = tcrcvret >> 16;
+	aep->tc   = (tcrcvret << 16) >> 16;
 
 	return aep->thd;
 }
