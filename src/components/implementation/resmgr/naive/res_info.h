@@ -13,11 +13,6 @@
 
 extern u64_t res_info_schedbmp;
 
-struct res_thd_info {
-	int init_data_off;
-	struct sl_thd *schthd;
-};
-
 struct res_shmem_glb_info {
 	int free_region_id;
 	int total_pages;
@@ -36,7 +31,7 @@ struct res_comp_info {
 	int thd_used;
 	struct cos_defcompinfo defci;
 	struct res_shmem_info shminfo;
-	struct res_thd_info tinfo[RES_INFO_COMP_MAX_THREADS]; /* including threads from components in subtree. */
+	struct sl_thd *tinfo[RES_INFO_COMP_MAX_THREADS]; /* including threads from components in subtree. */
 	int initflag;
 	u64_t chbits; /* all child components */
 	u64_t chschbits; /* child components which are also schedulers. */
@@ -51,13 +46,13 @@ struct res_comp_info *res_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pg
 					 capid_t cap_frontier, vaddr_t heap_frontier, vaddr_t shared_frontier, 
 					 spdid_t par_sid, u64_t ch, u64_t ch_sch);
 
-struct res_thd_info *res_info_thd_init(struct res_comp_info *rci, struct sl_thd *t);
-struct res_thd_info *res_info_initthd_init(struct res_comp_info *rci, struct sl_thd *t);
+struct sl_thd *res_info_thd_init(struct res_comp_info *rci, struct sl_thd *t);
+struct sl_thd *res_info_initthd_init(struct res_comp_info *rci, struct sl_thd *t);
 
 struct res_comp_info *res_info_comp_find(spdid_t s);
-struct res_thd_info *res_info_thd_find(struct res_comp_info *r, thdid_t t);
-struct res_thd_info *res_info_thd_next(struct res_comp_info *r);
-struct res_thd_info *res_info_initthd(struct res_comp_info *r);
+struct sl_thd *res_info_thd_find(struct res_comp_info *r, thdid_t t);
+struct sl_thd *res_info_thd_next(struct res_comp_info *r);
+struct sl_thd *res_info_initthd(struct res_comp_info *r);
 unsigned int res_info_count(void);
 void res_info_init(void);
 
@@ -132,36 +127,6 @@ static inline int
 res_info_init_check(struct res_comp_info *r)
 {
 	return r->initflag;
-}
-
-static inline thdcap_t
-res_thd_thdcap(struct res_thd_info *ti)
-{
-	return sl_thd_thdcap(ti->schthd);
-}
-
-static inline arcvcap_t
-res_thd_rcvcap(struct res_thd_info *ti)
-{
-	return sl_thd_rcvcap(ti->schthd);
-}
-
-static inline tcap_t
-res_thd_tcap(struct res_thd_info *ti)
-{
-	return sl_thd_tcap(ti->schthd);
-}
-
-static inline asndcap_t
-res_thd_asndcap(struct res_thd_info *ti)
-{
-	return sl_thd_asndcap(ti->schthd);
-}
-
-static inline thdcap_t
-res_thd_thdid(struct res_thd_info *ti)
-{
-	return ti->schthd->thdid;
 }
 
 #endif /* RES_INFO_H */

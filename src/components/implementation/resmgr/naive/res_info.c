@@ -25,26 +25,26 @@ res_info_count(void)
 	return res_comp_count;
 }
 
-struct res_thd_info *
+struct sl_thd *
 res_info_thd_find(struct res_comp_info *rci, thdid_t tid)
 {
 	int i = 0;
 
 	assert(rci && rci->initflag);
 	for (; i < rci->thd_used; i++) {
-		if (((rci->tinfo[i]).schthd)->thdid == tid) return &(rci->tinfo[i]);
+		if ((rci->tinfo[i])->thdid == tid) return rci->tinfo[i];
 	}
 
 	return NULL;
 }
 
-struct res_thd_info *
+struct sl_thd *
 res_info_thd_next(struct res_comp_info *rci)
 {
 	assert(rci && rci->initflag);
 
 	if (rci->p_thd_iterator < rci->thd_used) {
-		return &(rci->tinfo[__sync_fetch_and_add(&(rci->p_thd_iterator), 1)]);
+		return (rci->tinfo[__sync_fetch_and_add(&(rci->p_thd_iterator), 1)]);
 	}
 
 	return NULL;
@@ -83,7 +83,7 @@ res_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, co
 	return &resci[sid];
 }
 
-struct res_thd_info *
+struct sl_thd *
 res_info_thd_init(struct res_comp_info *rci, struct sl_thd *t)
 {
 	int off;
@@ -94,30 +94,30 @@ res_info_thd_init(struct res_comp_info *rci, struct sl_thd *t)
 
 	off = __sync_fetch_and_add(&(rci->thd_used), 1);
 
-	rci->tinfo[off].schthd = t;
+	rci->tinfo[off] = t;
 
-	return &(rci->tinfo[off]);
+	return rci->tinfo[off];
 }
 
-struct res_thd_info *
+struct sl_thd *
 res_info_initthd_init(struct res_comp_info *rci, struct sl_thd *t)
 {
 	assert(rci && rci->initflag);
 	assert(rci->thd_used < RES_INFO_COMP_MAX_THREADS);
 	assert(t);
 
-	rci->tinfo[0].schthd = t;
+	rci->tinfo[0] = t;
 
-	return &(rci->tinfo[0]);
+	return rci->tinfo[0];
 
 }
 
-struct res_thd_info *
+struct sl_thd *
 res_info_initthd(struct res_comp_info *rci)
 {
 	assert(rci);
 
-	return &(rci->tinfo[0]);
+	return rci->tinfo[0];
 }
 
 void
