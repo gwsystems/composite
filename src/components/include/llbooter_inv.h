@@ -5,7 +5,7 @@
 
 /* Parameters for specifying resource requests from booter */
 typedef enum {
-	INIT_DONE,
+	BOOT_HYP_INIT_DONE,
 	BOOT_HYP_PGTBL_CAP,
 	BOOT_HYP_SINV_CAP,
 	BOOT_HYP_CAP_FRONTIER,
@@ -35,7 +35,7 @@ cos_hypervisor_hypercall(boot_hyp_op_t op, void *arg1, void *arg2, void *arg3)
 
 	/* Depending on the operation we will need to allocate our own a cap space */
 	switch(op) {
-	case INIT_DONE:
+	case BOOT_HYP_INIT_DONE:
 		cos_sinv(BOOT_CAPTBL_SINV_CAP, op, 0, 0, 0);
 		break;
 	case BOOT_HYP_PGTBL_CAP:

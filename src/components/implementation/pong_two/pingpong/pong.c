@@ -47,5 +47,5 @@ cos_init(void)
 {
 	printc("Welcome to the pong _twocomponent\n");
 
-	cos_hypervisor_hypercall(INIT_DONE, 0, 0, 0);
+	cos_hypervisor_hypercall(BOOT_HYP_INIT_DONE, 0, 0, 0);
 }

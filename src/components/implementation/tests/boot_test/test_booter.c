@@ -11,5 +11,5 @@ cos_init(void)
 	prints(" Wecome to test_boot component!\n");
 	prints("|*****************************|\n");
 
-	cos_hypervisor_hypercall(INIT_DONE, 0, 0, 0);
+	cos_hypervisor_hypercall(BOOT_HYP_INIT_DONE, 0, 0, 0);
 }

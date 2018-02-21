@@ -18,6 +18,6 @@ void cos_init(void)
 	call_arg(1);
 	call_args(1, 2, 3, 4);
 
-	cos_hypervisor_hypercall(INIT_DONE, 0, 0, 0);
+	cos_hypervisor_hypercall(BOOT_HYP_INIT_DONE, 0, 0, 0);
 	return;
 }

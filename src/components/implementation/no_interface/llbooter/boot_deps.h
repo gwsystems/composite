@@ -138,7 +138,6 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 static void
 boot_newcomp_definfo_init(spdid_t spdid, compcap_t cc, boot_comp_flag_t comp_flags)
 {
-
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 	struct cos_aep_info    *child_aep = cos_sched_aep_get(new_comp_cap_info[spdid].defcompinfo);
@@ -161,6 +160,16 @@ boot_newcomp_definfo_init(spdid_t spdid, compcap_t cc, boot_comp_flag_t comp_fla
 	} else {
 		child_aep->tc  = sched_aep->tc;
 		child_aep->rcv = sched_aep->rcv;
+	}
+
+	if (comp_flags & BOOT_COMP_FLAG_SCHED) {
+		int ret;
+		/* Give the child infinite tcap if it's the system scheduler */
+		ret = cos_tcap_transfer(child_aep->rcv, sched_aep->tc, TCAP_RES_INF, TCAP_PRIO_MAX+1);
+		if (ret) {
+			printc("tcap transfer to sched init thread failed: %d\n", ret);
+			assert(0);
+		}
 	}
 
 	child_aep->fn   = NULL;
@@ -223,7 +232,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info, boot_comp_fla
 
 	boot_newcomp_sinv_alloc(spdid);
 
-	if (comp_flags) boot_newschedcomp_cap_init(spdid, ct, pt, cc);
+	if (comp_flags & BOOT_COMP_FLAG_SCHED) boot_newschedcomp_cap_init(spdid, ct, pt, cc);
 }
 
 static void
@@ -265,9 +274,9 @@ boot_check_scheduler(char *comp_name)
 	int ret;
 	const char prefix[] = "sl_";
 
-	ret = strncmp(comp_name, prefix, sizeof(prefix)-1);
+	ret = !strncmp(comp_name, prefix, sizeof(prefix)-1);
 
-	return !ret;
+	return ret;
 }
 
 static int
@@ -276,9 +285,9 @@ boot_check_shdmem(char *comp_name)
 	int ret;
 	const char prefix[] = "shmem";
 
-	ret = strncmp(comp_name, prefix, sizeof(prefix)-1);
+	ret = !strncmp(comp_name, prefix, sizeof(prefix)-1);
 
-	return !ret;
+	return ret;
 }
 
 void
@@ -327,7 +336,7 @@ boot_sinv_fn(boot_hyp_op_t op, void *arg1, void *arg2, void *arg3)
 	long ret = -ENOTSUP;
 
 	switch (op) {
-	case INIT_DONE:
+	case BOOT_HYP_INIT_DONE:
 		boot_thd_done();
 		break;
 	case BOOT_HYP_PGTBL_CAP:
