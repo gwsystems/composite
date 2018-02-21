@@ -36,14 +36,13 @@ char *test_strs[TEST_STR_NUM] = {
 static void
 test_shmem(void)
 {
-	int idx, i, npages = 0;
+	int idx = 0, i, npages = 0;
 	vaddr_t addr;
 
-	idx = memmgr_shared_page_map(0, 0, &addr, &npages);
+	npages = memmgr_shared_page_map(0, idx, &addr);
 	PRINTC("Mapped shared @ %d:%lx, pages:%d\n", idx, addr, npages);
-	assert(idx == 0); /* to create a reader and test */
-	assert(addr == memmgr_shared_page_vaddr(0, idx));
 
+	assert(idx == 0); /* know that other comp created this before me. */
 	for (i = 0; i < TEST_N_SHMEM_PAGES; i++) {
 		vaddr_t page = addr + i * PAGE_SIZE;
 		const char *str = test_strs[i % TEST_STR_NUM];

@@ -85,8 +85,6 @@ test_mem(void)
 	PRINTC("Alloc'd shared @ %d:%lx, pages:%d\n", idx, addr, TEST_N_SHMEM_PAGES);
 
 	assert(idx == 0); /* to create a reader and test */
-
-	assert(addr == memmgr_shared_page_vaddr(0, idx));
 	for (i = 0; i < TEST_N_SHMEM_PAGES; i++) {
 		vaddr_t page = addr + i * PAGE_SIZE;
 		const char *str = test_strs[i % TEST_STR_NUM];

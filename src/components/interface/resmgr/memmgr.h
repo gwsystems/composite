@@ -16,7 +16,6 @@ vaddr_t memmgr_heap_page_allocn(spdid_t cur, unsigned int num_pages);
 
 int memmgr_shared_page_alloc(spdid_t cur, vaddr_t *pgaddr);
 int memmgr_shared_page_allocn(spdid_t cur, int num_pages, vaddr_t *pgaddr);
-int memmgr_shared_page_map(spdid_t cur, int id, vaddr_t *pgaddr, int *num_pages);
-vaddr_t memmgr_shared_page_vaddr(spdid_t cur, int id);
+int memmgr_shared_page_map(spdid_t cur, int id, vaddr_t *pgaddr);
 
 #endif /* MEMMGR_H */
