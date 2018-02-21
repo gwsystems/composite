@@ -320,21 +320,21 @@ boot_done(void)
 #endif
 	}
 
+	PRINTC("********************************\n");
 	PRINTC("Starting llboot sched loop\n");
 	sl_sched_loop();
 }
 
 /* Run after a componenet is done init execution, via sinv() into booter */
 void
-boot_thd_done(void)
+boot_thd_done(spdid_t c)
 {
 	sched_cur++;
 
 	if (schedule[sched_cur] != 0) {
 		cos_thd_switch(schedule[sched_cur]);
 	} else {
-		PRINTC("Done Initializing\n");
-		PRINTC("********************************\n");
+		PRINTC("Component %d initialized!\n", c);
 		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	}
 }
@@ -470,7 +470,7 @@ llboot_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *r
 	switch(op) {
 	case LLBOOT_COMP_INIT_DONE:
 	{
-		boot_thd_done();
+		boot_thd_done(curr);
 		break;
 	}
 	case LLBOOT_COMP_INFO_GET:
