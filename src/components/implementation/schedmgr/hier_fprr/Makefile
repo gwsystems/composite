@@ -4,6 +4,7 @@ COMPONENT=hier_fprr.o
 INTERFACES=schedmgr schedinit
 DEPENDENCIES=resmgr schedmgr schedinit
 IF_LIB=
+FN_PREPEND=parent_
 ADDITIONAL_LIBS=-lcos_kernel_api -lsl_sched -lcos_defkernel_api -lheap -lsl_mod_fprr -lsl_thd_static_backend -lsl_resmgr 
 
 include ../../Makefile.subsubdir
