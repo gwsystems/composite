@@ -60,7 +60,6 @@ struct cos_compinfo *cos_compinfo_get(struct cos_defcompinfo *defci);
  * cos_sched_aep_get: returns the sched aep info from the defcompinfo.
  */
 struct cos_aep_info *cos_sched_aep_get(struct cos_defcompinfo *defci);
-
 /*
  * cos_defcompinfo_init: initialize the current component's global cos_defcompinfo struct using the standard boot
  * capabilities layout.

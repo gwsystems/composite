@@ -1,7 +1,9 @@
+#include <cos_types.h>
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
+#include <stdlib.h>
 
 #include "boot_deps.h"
 
@@ -27,8 +29,6 @@ struct component_init_str {
 } __attribute__((packed));
 
 struct component_init_str *init_args;
-
-unsigned int *boot_sched;
 
 static void
 boot_find_cobjs(struct cobj_header *h, int n)
@@ -189,7 +189,6 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	start_addr = (char *)(new_comp_cap_info[spdid].vaddr_mapped_in_booter);
 	init_daddr = cobj_sect_get(h, 0)->vaddr;
 
-	int total = 0;
 	for (i = 0; i < h->nsect; i++) {
 		struct cobj_sect *sect;
 		vaddr_t           dest_daddr;
@@ -203,7 +202,6 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		lsrc = cobj_sect_contents(h, i);
 		/* how much is left to copy? */
 		left = cobj_sect_size(h, i);
-		total += left;
 
 		/* Initialize memory. */
 		if (!(sect->flags & COBJ_SECT_KMEM)) {
@@ -215,8 +213,8 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		}
 
 		if (sect->flags & COBJ_SECT_CINFO) {
-			assert(left == PAGE_SIZE);
-			assert(comp_info == dest_daddr);
+			assert((left % PAGE_SIZE) == 0);
+			assert(comp_info == (dest_daddr + (((left/PAGE_SIZE)-1)*PAGE_SIZE)));
 			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info - init_daddr), comp_info);
 			ci = (struct cos_component_information *)(start_addr + (comp_info - init_daddr));
 			new_comp_cap_info[h->id].upcall_entry = ci->cos_upcall_entry;
@@ -250,10 +248,9 @@ boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 	struct cobj_cap *cap;
 	struct usr_inv_cap inv_cap;
 	int cap_offset;
-	unsigned int i;
+	size_t i;
 
-	for (i = 0; i < h->ncap ; i++) {
-
+	for (i = 0 ; i < h->ncap ; i++) {
 		cap = cobj_cap_get(h, i);
 		assert(cap);
 
@@ -398,9 +395,29 @@ boot_comp_name_parse(spdid_t s, const char *strname)
 }
 
 static void
+boot_comp_preparse_name(void)
+{
+	unsigned int i;
+
+	for (i = 0; hs[i] != NULL; i++) {
+		struct cobj_header *h;
+		spdid_t             spdid;
+
+		h     = hs[i];
+		spdid = h->id;
+
+		assert(spdid != 0);
+
+		boot_comp_name_parse(spdid, h->name);
+	}
+}
+
+static void
 boot_create_cap_system(void)
 {
 	unsigned int i;
+
+	boot_comp_preparse_name();
 
 	for (i = 0; hs[i] != NULL; i++) {
 		struct cobj_header *h;
@@ -417,7 +434,6 @@ boot_create_cap_system(void)
 
 		sect                                = cobj_sect_get(h, 0);
 		new_comp_cap_info[spdid].addr_start = sect->vaddr;
-		boot_comp_name_parse(spdid, h->name);
 		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);
 
 		if (boot_spd_symbs(h, spdid, &ci, &new_comp_cap_info[spdid].vaddr_user_caps)) BUG();
@@ -432,21 +448,7 @@ boot_create_cap_system(void)
 }
 
 void
-boot_init_ndeps(int num_cobj)
-{
-	int i = 0;
-
-	PRINTC("MAX DEPS: %d\n", MAX_DEPS);
-	for (i = 0; i < deps_list[i].server; i++) {
-//		if (deps_list[i].client != 0) PRINTC("client: %d, server: %d \n", deps_list[i].client, deps_list[i].server);
-	}
-
-	PRINTC("ndeps: %d\n", ndeps);
-	ndeps = i;
-}
-
-void
-boot_child_info(void)
+boot_child_info_print(void)
 {
 	int i = 0;
 
@@ -468,24 +470,18 @@ cos_init(void)
 	h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj = (int)cos_comp_info.cos_poly[1];
 
+	PRINTC("num cobjs: %d\n", num_cobj);
 	assert(num_cobj <= MAX_NUM_SPDS);
 	memset(new_comp_cap_info, 0, sizeof(struct comp_cap_info) * (MAX_NUM_SPDS + 1));
-
-	//deps = (struct deps *)cos_comp_info.cos_poly[2];
-	memcpy(deps_list, (struct deps *)cos_comp_info.cos_poly[2], PAGE_SIZE);
-	boot_init_ndeps(num_cobj);
 
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
 	init_args++;
 
-	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
 	boot_init_sched();
-
-	PRINTC("num cobjs: %d\n", num_cobj);
 	boot_find_cobjs(h, num_cobj);
 	boot_bootcomp_init();
 	boot_create_cap_system();
-	boot_child_info();
+	boot_child_info_print();
 
 	boot_done();
 }

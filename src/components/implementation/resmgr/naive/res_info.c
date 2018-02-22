@@ -30,7 +30,7 @@ res_info_thd_find(struct res_comp_info *rci, thdid_t tid)
 {
 	int i = 0;
 
-	assert(rci && rci->initflag);
+	assert(rci && res_info_init_check(rci));
 	for (; i < rci->thd_used; i++) {
 		if ((rci->tinfo[i])->thdid == tid) return rci->tinfo[i];
 	}
@@ -41,7 +41,7 @@ res_info_thd_find(struct res_comp_info *rci, thdid_t tid)
 struct sl_thd *
 res_info_thd_next(struct res_comp_info *rci)
 {
-	assert(rci && rci->initflag);
+	assert(rci && res_info_init_check(rci));
 
 	if (rci->p_thd_iterator < rci->thd_used) {
 		return (rci->tinfo[__sync_fetch_and_add(&(rci->p_thd_iterator), 1)]);
@@ -63,8 +63,7 @@ res_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, co
 	resci[sid].cid       = sid;
 	resci[sid].thd_used  = 1;
 	resci[sid].parent    = &resci[psid];
-
-	resci[sid].chbits = childbits;
+	resci[sid].chbits    = childbits;
 	resci[sid].chschbits = childschedbits;
 
 	cos_meminfo_init(&ci->mi, 0, 0, 0);
@@ -88,7 +87,7 @@ res_info_thd_init(struct res_comp_info *rci, struct sl_thd *t)
 {
 	int off;
 
-	assert(rci && rci->initflag);
+	assert(rci && res_info_init_check(rci));
 	assert(rci->thd_used < RES_INFO_COMP_MAX_THREADS);
 	assert(t);
 
@@ -102,7 +101,7 @@ res_info_thd_init(struct res_comp_info *rci, struct sl_thd *t)
 struct sl_thd *
 res_info_initthd_init(struct res_comp_info *rci, struct sl_thd *t)
 {
-	assert(rci && rci->initflag);
+	assert(rci && res_info_init_check(rci));
 	assert(rci->thd_used < RES_INFO_COMP_MAX_THREADS);
 	assert(t);
 

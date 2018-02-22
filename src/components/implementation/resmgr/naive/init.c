@@ -9,45 +9,38 @@
 
 spdid_t resmgr_myspdid = 0;
 
-static inline void
-resmgr_capfr_update(capid_t cfr)
-{
-	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
-
-	cos_capfrontier_init(ci, cfr);
-}
-
 static void
 resmgr_comp_info_iter(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
-	int ret = 0;
+	struct res_comp_info   *btinfo = res_info_comp_find(0);
+	int remaining = 0;
 
 	do {
-		pgtblcap_t pgc;
-		captblcap_t capc;
-		compcap_t cc;
-		spdid_t csid, psid;
-		vaddr_t vasfr;
-		capid_t capfr, rescapfr = ci->cap_frontier;
-		thdcap_t t = 0;
-		arcvcap_t rcv = 0;
-		tcap_t tc = 0;
-		struct res_comp_info *rci;
-		struct sl_thd *ithd;
+		spdid_t csid = 0, psid = 0;
+		thdcap_t thdslot = 0;
+		arcvcap_t rcvslot = 0;
+		tcap_t tcslot = 0;
+		struct res_comp_info *rci = NULL;
+		struct sl_thd *ithd = NULL;
 		u64_t chbits = 0, chschbits = 0;
-	
-		ret = hypercall_comp_info_next(rescapfr, &csid, &pgc, &capc, &cc, &psid, &rescapfr);
-		if (ret) break;
+		pgtblcap_t pgtslot = 0;
+		captblcap_t captslot = 0;
+		compcap_t ccslot = 0;
+		vaddr_t vasfr = 0;
+		capid_t capfr = 0;
+		int ret = 0;
+		
+		pgtslot  = cos_capid_bump_alloc(ci, CAP_PGTBL);
+		assert(pgtslot);
+		captslot = cos_capid_bump_alloc(ci, CAP_CAPTBL);
+		assert(captslot);
+		ccslot   = cos_capid_bump_alloc(ci, CAP_COMP);
+		assert(ccslot);
 
-		resmgr_capfr_update(rescapfr);
-		if (resmgr_myspdid != csid) t = hypercall_comp_initthd_get(csid, &rcv, &tc, &rescapfr);
-		if (t) resmgr_capfr_update(rescapfr);
-
-		ret = hypercall_comp_frontier_get(csid, &vasfr, &capfr);
-		assert(ret == 0);
+		remaining = hypercall_comp_info_next(pgtslot, captslot, ccslot, &csid, &psid);
+		if (remaining < 0) break;
 
 		ret = hypercall_comp_childspdids_get(csid, &chbits);
 		assert(ret == 0);
@@ -55,18 +48,34 @@ resmgr_comp_info_iter(void)
 		assert(ret == 0);
 		res_info_schedbmp |= chschbits;
 
-		rci = res_info_comp_init(csid, capc, pgc, cc, capfr, vasfr, (vaddr_t)MEMMGR_SHMEM_BASE, psid, chbits, chschbits);
+		if (csid == 0 || (csid != resmgr_myspdid && res_info_is_child(btinfo, csid))) {
+			thdslot  = cos_capid_bump_alloc(ci, CAP_THD);
+			assert(thdslot);
+			if (csid == 0 || res_info_is_sched_child(btinfo, csid)) {
+				rcvslot  = cos_capid_bump_alloc(ci, CAP_ARCV);
+				assert(rcvslot);
+				tcslot   = cos_capid_bump_alloc(ci, CAP_TCAP);
+				assert(tcslot);
+			}
+			ret = hypercall_comp_initthd_get(csid, thdslot, rcvslot, tcslot);
+			assert(ret == 0);
+		}
+
+		ret = hypercall_comp_frontier_get(csid, &vasfr, &capfr);
+		assert(ret == 0);
+
+		rci = res_info_comp_init(csid, captslot, pgtslot, ccslot, capfr, vasfr, (vaddr_t)MEMMGR_SHMEM_BASE, psid, chbits, chschbits);
 		assert(rci);
 
-		if (t) {
-			ithd = sl_thd_ext_init(t, tc, rcv, 0);
+		if (thdslot) {
+			ithd = sl_thd_ext_init(thdslot, tcslot, rcvslot, 0);
 			assert(ithd);
 
 			res_info_initthd_init(rci, ithd);
-		} else if (cos_spd_id() == csid) {
+		} else if (resmgr_myspdid == csid) {
 			res_info_initthd_init(rci, sl__globals()->sched_thd);
 		}
-	} while (ret == 0);
+	} while (remaining > 0);
 
 	PRINTC("Schedulers bitmap: %llx\n", res_info_schedbmp);
 }
@@ -77,13 +86,20 @@ cos_init(void)
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
 	u64_t childbits = 0;
+	capid_t cap_frontier = 0;
+	vaddr_t heap_frontier = 0;
+	int ret = 0;
 
 	resmgr_myspdid = cos_spd_id();
 	assert(resmgr_myspdid);
 	PRINTC("CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+	ret = hypercall_comp_frontier_get(resmgr_myspdid, &heap_frontier, &cap_frontier);
+	assert(ret == 0);
 
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_defcompinfo_init();
+	cos_defcompinfo_init_ext(BOOT_CAPTBL_SELF_INITTCAP_BASE, BOOT_CAPTBL_SELF_INITTHD_BASE,
+				 BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
+				 BOOT_CAPTBL_SELF_COMP, heap_frontier, cap_frontier);
 
 	hypercall_comp_childspdids_get(cos_spd_id(), &childbits);
 	assert(!childbits);

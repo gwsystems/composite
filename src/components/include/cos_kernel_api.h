@@ -77,7 +77,6 @@ struct cos_compinfo {
 };
 
 void cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr);
-void cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier);
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
                        vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);
 /*
@@ -189,5 +188,7 @@ int     cos_hw_detach(hwcap_t hwc, hwid_t hwid);
 void *  cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
 int     cos_hw_cycles_per_usec(hwcap_t hwc);
 int     cos_hw_cycles_thresh(hwcap_t hwc);
+
+capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
 
 #endif /* COS_KERNEL_API_H */

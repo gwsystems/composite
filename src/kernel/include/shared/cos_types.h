@@ -40,8 +40,9 @@ typedef u32_t         sched_tok_t;
  */
 #define TCAP_TIME_QUANTUM_ORD 12
 #define TCAP_TIME_MAX_ORD (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
-#define TCAP_TIME_MAX_BITS(c) ((c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
+#define TCAP_TIME_MAX_BITS(c) (((u64_t)c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
 #define TCAP_TIME_NIL 0
+
 static inline cycles_t
 tcap_time2cyc(tcap_time_t c, cycles_t curr)
 {

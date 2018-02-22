@@ -26,6 +26,13 @@ add_kexport(struct service_symbs *ss, const char *name)
 	return;
 }
 
+/* FIXME
+ * for some reason, using inline functions doesn't mean the function symbol will be generated
+ * This means that the add_kexport functions below fail to compile due to missing symbols
+ * Adding this declaration forces symbol to be generated
+ */
+void add_kexport(struct service_symbs *ss, const char *name);
+
 /*
  * Assume that these are added LAST.  The last NUM_KERN_SYMBS are
  * ignored for most purposes so they must be the actual kern_syms.
