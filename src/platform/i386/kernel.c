@@ -91,15 +91,20 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		struct multiboot_mem_list *mem      = &mems[i];
 		u8_t *                     mod_end  = glb_memlayout.mod_end;
 		u8_t *                     mem_addr = chal_pa2va((paddr_t)mem->addr);
+		unsigned long              mem_len  = (mem->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ : mem->len); /* maximum allowed */ 
 
-		printk("\t- %d (%s): [%08llx, %08llx)\n", i, mem->type == 1 ? "Available" : "Reserved ", mem->addr,
-		       mem->addr + mem->len);
+		if (mem->addr > BOOT_KERN_MEMSCAN_MAX || mem->addr + mem_len > BOOT_KERN_MEMSCAN_MAX) {
+			printk("\tScanned maximum allowed regions\n");
+			break;
+		}
+		printk("\t- %d (%s): [%08llx, %08llx) sz = [%08lldKB, %ldKB)\n", i, mem->type == 1 ? "Available" : "Reserved ", mem->addr,
+		       mem->addr + mem->len, mem->len/1024, mem_len/1024);
 
 		/* is this the memory region we'll use for component memory? */
-		if (mem->type == 1 && mod_end >= mem_addr && mod_end < (mem_addr + mem->len)) {
-			unsigned long sz = (mem_addr + mem->len) - mod_end;
+		if (mem->type == 1 && mod_end >= mem_addr && mod_end < (mem_addr + mem_len)) {
+			unsigned long sz = (mem_addr + mem_len) - mod_end;
 
-			glb_memlayout.kmem_end = mem_addr + mem->len;
+			glb_memlayout.kmem_end = mem_addr + mem_len;
 			printk("\t  memory available at boot time: %lx (%ld MB + %ld KB)\n", sz, sz >> 20,
 			       (sz & ((1 << 20) - 1)) >> 10);
 		}

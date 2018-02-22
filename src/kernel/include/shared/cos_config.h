@@ -32,6 +32,11 @@
 
 #define COS_MEM_KERN_VA_SZ (1 << 24) /* 16 MB from KERN_START_VA + end of kernel image onward */
 
+#define COS_HW_MMIO_START_VA 0xf0000000 /* Assuming all hardware virtual addresses are beyond this */
+#define COS_PHYMEM_MAX_SZ (COS_HW_MMIO_START_VA-(COS_MEM_KERN_START_VA+COS_MEM_KERN_PA)) /* Maximum addressable physical memory */
+
+#define BOOT_KERN_MEMSCAN_MAX (COS_HW_MMIO_START_VA)
+
 /* To get more memory, we need many PTE caps in the captbl. So give
  * multiple pages to it. 5 is enough for 512 MBs.*/
 #define BOOT_CAPTBL_NPAGES 1
