@@ -63,8 +63,8 @@ kern_setup_image(void)
 	int cpu_id = get_cpuid();
 
 	if (cpu_id > 0) {
-	chal_cpu_init();
-	return 0;
+		chal_cpu_init();
+		return 0;
 	}
 	printk("\tSetting up initial page directory.\n");
 	kern_pa_start = round_to_pgd_page(chal_va2pa(mem_kern_start())); /* likely 0 */
