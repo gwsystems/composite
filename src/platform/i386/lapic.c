@@ -491,6 +491,7 @@ smp_bootall(void)
 	if (ret) printk("SMP Bootup: LAPIC error status register is %x\n", ret);
 	lapic_write_reg(LAPIC_ESR, 0);
 	lapic_read_reg(LAPIC_ESR);
+
 }
 
 void

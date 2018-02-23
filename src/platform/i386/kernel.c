@@ -15,6 +15,7 @@
 #define CMDLINE_REQ_LEN (ADDR_STR_LEN * 2 + 1)
 
 struct mem_layout glb_memlayout;
+volatile int booted_core_cnt = 0;
 
 static int
 xdtoi(char c)
@@ -159,8 +160,9 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	kern_boot_comp(0);
 	timer_init();
 	lapic_init();
-	smp_init();
 	lapic_timer_init();
+	smp_init();
+	while(!booted_core_cnt);
 	kern_boot_upcall();
 
 	/* should not get here... */
@@ -171,15 +173,18 @@ void
 smp_kmain(void)
 {
 	int cpuid = get_cpuid();
+	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 
 	tss_init(cpuid);
 	gdt_init(cpuid);
 	idt_init(cpuid);
 
 	kern_boot_comp(cpuid);
-
+	lapic_init();
+	lapic_timer_init();
 	printk("New CPU %d Booted\n", cpuid);
-	// kern_boot_upcall();
+	booted_core_cnt = 1;
+	kern_boot_upcall();
 	while(1);
 }
 
