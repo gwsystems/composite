@@ -156,11 +156,10 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	/* uses virtual address for VGA. should be after paging_init() */
 	vga_init();
 #endif
-	kern_boot_comp();
+	kern_boot_comp(0);
 	timer_init();
 	lapic_init();
 	smp_init();
-	while(1);
 	lapic_timer_init();
 	kern_boot_upcall();
 
@@ -176,10 +175,12 @@ smp_kmain(void)
 	tss_init(cpuid);
 	gdt_init(cpuid);
 	idt_init(cpuid);
-	while(1);
-	kern_boot_comp();
+
+	kern_boot_comp(cpuid);
+
 	printk("New CPU %d Booted\n", cpuid);
 	// kern_boot_upcall();
+	while(1);
 }
 
 void

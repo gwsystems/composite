@@ -12,6 +12,9 @@
 
 extern u8_t *boot_comp_pgd;
 
+void *thd_mem[NUM_CPU], *tcap_mem[NUM_CPU];
+struct captbl *ct;
+
 int
 boot_nptes(unsigned int sz)
 {
@@ -82,7 +85,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 
 /* FIXME:  loops to create threads/tcaps/rcv caps per core. */
 static void
-kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
+kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const u32_t cpu_id)
 {
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	struct thread *            t        = thd_mem;
@@ -92,18 +95,20 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 	struct cap_pgtbl *         cap_pt;
 	pgtbl_t                    pgtbl;
 
+	assert(cos_info->cpuid == cpu_id);
 	assert(sizeof(struct cos_cpu_local_info) == STK_INFO_SZ);
 	memset(cos_info, 0, sizeof(struct cos_cpu_local_info));
-	cos_info->cpuid          = 0;
+	cos_info->cpuid          = cpu_id;
 	cos_info->invstk_top     = 0;
 	cos_info->overflow_check = 0xDEADBEEF;
-
-	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE, thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
+	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE + cpu_id * captbl_idsize(CAP_THD), thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
 	assert(!ret);
+
 
 	tcap_active_init(cos_info);
-	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE, tcap_mem);
+	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE + cpu_id * captbl_idsize(CAP_TCAP), tcap_mem);
 	assert(!ret);
+
 	tc->budget.cycles = TCAP_RES_INF; /* Chronos's got all the time in the world */
 	tc->perm_prio     = 0;
 	tcap_setprio(tc, 0);                              /* Chronos gets preempted by no one! */
@@ -116,8 +121,9 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 	thd_current_update(t, t, cos_info);
 	thd_scheduler_set(t, t);
 
-	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_COMP,
-	                    BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 1);
+	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE + cpu_id * captbl_idsize(CAP_ARCV), BOOT_CAPTBL_SELF_COMP,
+	                    BOOT_CAPTBL_SELF_INITTHD_BASE + cpu_id * captbl_idsize(CAP_THD),
+											BOOT_CAPTBL_SELF_INITTCAP_BASE + cpu_id * captbl_idsize(CAP_TCAP), 0, 1);
 	assert(!ret);
 
 	/*
@@ -134,15 +140,20 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 }
 
 void
-kern_boot_comp(void)
+kern_boot_comp(const u32_t cpu_id)
 {
 	int            ret = 0, nkmemptes;
-	struct captbl *ct;
 	unsigned int   i;
 	u8_t *         boot_comp_captbl;
-	void *         thd_mem, *tcap_mem;
 	pgtbl_t        pgtbl     = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
 	u32_t          hw_bitmap = 0xFFFFFFFF;
+
+	if (cpu_id > 0 ){
+		assert(ct);
+		pgtbl_update(pgtbl);
+		kern_boot_thd(ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
+		return;
+	}
 
 	printk("Setting up the booter component.\n");
 
@@ -161,9 +172,11 @@ kern_boot_comp(void)
 		assert(!ret);
 	}
 
-	thd_mem  = mem_boot_alloc(1);
-	tcap_mem = mem_boot_alloc(1);
-	assert(thd_mem && tcap_mem);
+	for (i = 0; i < NUM_CPU; ++i) {
+		thd_mem[i]  = mem_boot_alloc(1);
+		tcap_mem[i] = mem_boot_alloc(1);
+		assert(thd_mem[i] && tcap_mem[i]);
+	}
 
 	if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) assert(0);
 	if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) assert(0);
@@ -209,7 +222,7 @@ kern_boot_comp(void)
 		assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
-	kern_boot_thd(ct, thd_mem, tcap_mem);
+	kern_boot_thd(ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
 
 	printk("\tBoot component initialization complete.\n");
 }
