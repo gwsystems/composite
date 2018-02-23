@@ -486,6 +486,7 @@ u32_t
 hypercall_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *ret3)
 {
 	int ret1 = 0;
+	struct comp_cap_info *cinfo = &new_comp_cap_info[curr], *req;
 
 	switch(op) {
 	case HYPERCALL_COMP_INIT_DONE:
@@ -500,8 +501,9 @@ hypercall_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t
 		compcap_t   ccslot   = (arg3 << 16) >> 16;
 		spdid_t     srcid    = arg3 >> 16;
 
-		/* only resource manager is allowed to use this function */
-		assert(curr == resmgr_spdid);
+		/* resource manager if it exists is the only component allowed to use this function */
+		if (resmgr_spdid) assert(curr == resmgr_spdid);
+		else              assert(srcid && (cinfo->childid_bitf & ((u64_t)1 << (srcid-1))));
 
 		ret1 = boot_comp_info_get(curr, srcid, pgtslot, captslot, ccslot, (spdid_t *)ret2);
 
@@ -515,6 +517,7 @@ hypercall_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t
 
 		/* only resource manager is allowed to use this function */
 		assert(curr == resmgr_spdid);
+
 		ret1 = boot_comp_info_iter(curr, pgtslot, captslot, ccslot, (spdid_t *)ret2, (spdid_t *)ret3);
 
 		break;
@@ -524,8 +527,10 @@ hypercall_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t
 		vaddr_t vasfr;
 		capid_t capfr;
 
-		/* only resource manager is allowed to use this function */
-		assert(curr == resmgr_spdid);
+		/* resource manager if it exists is the only component allowed to use this function */
+		if (resmgr_spdid) assert(curr == resmgr_spdid);
+		else              assert(arg3 && (curr == arg3 || (cinfo->childid_bitf & ((u64_t)1 << (arg3-1)))));
+
 		ret1 = boot_comp_frontier_get(curr, arg3, &vasfr, &capfr);
 
 		*ret2 = vasfr;
@@ -542,6 +547,7 @@ hypercall_entry(spdid_t curr, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t
 
 		/* only resource manager is allowed to use this function */
 		assert(curr == resmgr_spdid && srcid != resmgr_spdid);
+
 		ret1 = boot_comp_initthd_get(curr, srcid, thdslot, rcvslot, tcslot);
 
 		break;
