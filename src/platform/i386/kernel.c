@@ -163,6 +163,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	lapic_timer_init();
 	smp_init();
 	while(!booted_core_cnt);
+	while(1);
 	kern_boot_upcall();
 
 	/* should not get here... */
@@ -179,11 +180,13 @@ smp_kmain(void)
 	gdt_init(cpuid);
 	idt_init(cpuid);
 
+	paging_init();
 	kern_boot_comp(cpuid);
 	lapic_init();
 	lapic_timer_init();
 	printk("New CPU %d Booted\n", cpuid);
 	booted_core_cnt = 1;
+	// while(1);
 	kern_boot_upcall();
 	while(1);
 }

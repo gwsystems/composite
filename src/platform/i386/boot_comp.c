@@ -233,7 +233,7 @@ kern_boot_upcall(void)
 	u8_t *entry = mem_bootc_entry();
 	u32_t flags = 0;
 	void *p;
-	if (get_cpuid() == 0) {
+	if (get_cpuid() >= 0) {
 		printk("Upcall into boot component at ip 0x%x for cpu: %d with tid: %d\n", entry, get_cpuid(), thd_current(cos_cpu_local_info())->tid);
 		printk("------------------[ Kernel boot complete ]------------------\n");
 	}
