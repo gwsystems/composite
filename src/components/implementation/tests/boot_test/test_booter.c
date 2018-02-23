@@ -6,9 +6,7 @@
 void
 cos_init(void)
 {
-	prints("\n|*****************************|\n");
-	prints(" Wecome to test_boot component!\n");
-	prints("|*****************************|\n");
+	PRINTC("Dummy component booted.\n");
 
 	hypercall_comp_init_done();
 

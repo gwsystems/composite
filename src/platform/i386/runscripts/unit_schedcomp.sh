@@ -1,7 +1,8 @@
 #!/bin/sh
 
 cp llboot_comp.o llboot.o
-cp fprr_sched.o root_fprr_sched.o
-cp unit_schedcomp_test.o _2_unit_schedcomp_test.o
-cp unit_schedaep_test.o _2_unit_schedaep_test.o
-./cos_linker "llboot.o, ;resmgr.o, ;root_fprr_sched.o, ;_2_unit_schedcomp_test.o, ;_2_unit_schedaep_test.o, :root_fprr_sched.o-resmgr.o;_2_unit_schedcomp_test.o-root_fprr_sched.o;_2_unit_schedaep_test.o-root_fprr_sched.o|resmgr.o" ./gen_client_stub
+cp test_boot.o dummy1.o
+cp test_boot.o dummy2.o
+cp resmgr.o mm.o
+cp fprr_sched.o boot.o
+./cos_linker "llboot.o, ;dummy1.o, ;mm.o, ;dummy2.o, ;*boot.o, ;unit_schedcomp_test.o, ;unit_schedaep_test.o, :boot.o-mm.o;unit_schedcomp_test.o-boot.o;unit_schedaep_test.o-boot.o|mm.o" ./gen_client_stub

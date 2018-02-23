@@ -269,128 +269,22 @@ boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 	return 0;
 }
 
-/*
- * Hacky specification until we have json parser working.
- * Root scheduler (not booter): "root_" prefix
- * Hierarchical schedulers: "<sched_no>_<parent_no>_" prefix, sched_no or parent_no is not related to spdid. it's really a static number from init string..
- *                          More importantly, the order in init string for hierarchical scheduling should be increasing order of levels.
- * 			    ID of root scheduler be == 0. Hierarchical scheduler numbers monotonically increasing starting from 1.
- * Non-scheduling components: "_<parent_no>_" prefix.??.
- * Resource manager: "resmgr" as its name!
- *
- * Thought: If SPDID namespace is created based on some hierarchical protocol then doing it here will be unnecessary. (I first need to find where SPDIDs are created though!)
- */
-#define BOOT_ROOT_SCHED   "root_"
-#define BOOT_SCHED_OFF    0
-#define BOOT_PARENT_OFF   1
-#define BOOT_NONSCHED_STR "_"
-#define BOOT_RESMGR       "resmgr"
-#define BOOT_DELIMITER    "_"
-
-#define BOOT_NAME_MAX 32
-
-static spdid_t
-boot_comp_find_parent(spdid_t s)
-{
-	int i = 0;
-
-	/* NOTE: only from objects parsed so far */
-	for (; i <= num_cobj; i++) {
-		if (new_comp_cap_info[i].sched_no == new_comp_cap_info[s].parent_no) return i;
-	}
-
-	return 0;
-}
+#define BOOT_ROOT_SCHED   "boot"
+#define BOOT_RESMGR       "mm"
 
 static void
-boot_comp_parent_childbit_set(spdid_t s)
-{
-	struct comp_cap_info *parentcinfo = NULL;
-	struct comp_cap_info *cinfo = &new_comp_cap_info[s];
-
-	if (cinfo->parent_spdid <= num_cobj) {
-		parentcinfo = &new_comp_cap_info[cinfo->parent_spdid];
-		assert(s);
-		parentcinfo->childid_bitf |= (1 << (s-1));
-
-		if (cinfo->is_sched == 1) parentcinfo->childid_sched_bitf |= (1 << (s-1));
-	}
-}
-
-static void
-boot_comp_name_parse(spdid_t s, const char *strname)
+boot_comp_name_parse(spdid_t s, const char *name)
 {
 	struct comp_cap_info *cinfo = &new_comp_cap_info[s];
-	struct comp_cap_info *bootcinfo = &new_comp_cap_info[0];
-	char name[BOOT_NAME_MAX] = { '\0' };
-	char *tok;
-	int count_parsed = 0;
 
-	strncpy(name, strname, BOOT_NAME_MAX); 
-	cinfo->is_sched = -1;
-	cinfo->childid_bitf = 0;
-	if (name[0] == '_') {
-		/* TODO: */
-		/* set it to be non-scheduler */
-		/* set parent to be none: don't care who uses or runs it for now! */
-		cinfo->is_sched  = 0;
-		cinfo->sched_no  = -1;
-		cinfo->parent_no = 0;
-
-		count_parsed = 1;
-	} else if (strncmp(name, BOOT_ROOT_SCHED, 5) == 0) {
-		/* set it to be the root scheduler */
-		/* set it's parent to be llbooter! */
-		cinfo->is_sched = 1;
-		cinfo->parent_spdid = 0;
-		cinfo->sched_no = 2;
+	if (strcmp(name, BOOT_ROOT_SCHED) == 0) {
+		cinfo->flags |= BOOT_FLAG_SCHED;
 		root_spdid = s;
-
-		boot_comp_parent_childbit_set(s);
-		return;
 	} else if (strcmp(name, BOOT_RESMGR) == 0) {
-		/* llbooter creates init thread and lets it initialize. (for my impl: should not run after boot-up */
-		/* set it's parent to be llbooter */
 		resmgr_spdid = s;
-		cinfo->is_sched  = 0;
-		cinfo->sched_no  = 1;
-		cinfo->parent_no = 0;
-		cinfo->parent_spdid = 0;
-
-		boot_comp_parent_childbit_set(s);
-		return;
+		cinfo->flags |= BOOT_FLAG_MM;
 	}
 
-	tok = strtok(name, BOOT_DELIMITER);
-	while (tok != NULL) {
-		switch (count_parsed) {
-		case BOOT_SCHED_OFF:
-		{
-			cinfo->sched_no = atoi(tok);
-			cinfo->is_sched = 1;
-			break;
-		}
-		case BOOT_PARENT_OFF:
-		{
-
-			cinfo->parent_no    = atoi(tok);
-			cinfo->parent_spdid = boot_comp_find_parent(s);
-			boot_comp_parent_childbit_set(s);
-
-			break;
-		}
-		default: break;
-		}
-
-		count_parsed ++;
-		tok = strtok(NULL, BOOT_DELIMITER);
-		if (cinfo->is_sched == 0) break;
-		if (count_parsed == 2) break;
-	}
-
-	assert(count_parsed == 2);
-
-	/* FIXME: should just work with carefully crafted names. no consistency checks here! */
 	return;
 }
 
@@ -402,6 +296,7 @@ boot_comp_preparse_name(void)
 	for (i = 0; hs[i] != NULL; i++) {
 		struct cobj_header *h;
 		spdid_t             spdid;
+		struct comp_cap_info *spd, *schedspd; 
 
 		h     = hs[i];
 		spdid = h->id;
@@ -409,7 +304,19 @@ boot_comp_preparse_name(void)
 		assert(spdid != 0);
 
 		boot_comp_name_parse(spdid, h->name);
+
+		if (!(h->flags)) continue;
+		spd      = &new_comp_cap_info[spdid];
+		schedspd = &new_comp_cap_info[spd->parent_spdid];
+
+		assert((spd->flags & BOOT_FLAG_MM) == 0);
+		assert(schedspd->flags & BOOT_FLAG_SCHED);
+		spd->flags |= BOOT_FLAG_SCHED;
+		schedspd->childid_sched_bitf |= (1 << (spdid-1));
 	}
+
+	if (!resmgr_spdid) printc("No RESOURCE MANAGER\n");
+	if (!root_spdid) printc("No ROOT SCHEDULER\n");
 }
 
 static void
@@ -458,6 +365,22 @@ boot_child_info_print(void)
 }
 
 void
+boot_parse_init_args(void)
+{
+	int i = 1;
+
+	for (; i <= num_cobj; i++) {
+		spdid_t spdid = init_args[i].spdid, schedid = init_args[i].schedid;
+		struct comp_cap_info *spd      = &new_comp_cap_info[spdid];
+		struct comp_cap_info *schedspd = &new_comp_cap_info[schedid];
+
+		spd->parent_spdid = schedid;
+		schedspd->childid_bitf |= (1 << (spdid-1));
+		schedspd->flags |= BOOT_FLAG_SCHED;
+	} 
+}
+
+void
 cos_init(void)
 {
 	struct cobj_header *h;
@@ -475,6 +398,7 @@ cos_init(void)
 	memset(new_comp_cap_info, 0, sizeof(struct comp_cap_info) * (MAX_NUM_SPDS + 1));
 
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
+	boot_parse_init_args();
 	init_args++;
 
 	boot_init_sched();

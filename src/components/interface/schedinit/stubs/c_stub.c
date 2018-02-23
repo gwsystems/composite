@@ -6,6 +6,5 @@ int schedinit_child(spdid_t c)
 {
 	int unused;
 
-	return 0;
-//	return schedinit_child_intern(c, unused, unused, unused, &unused, &unused);
+	return schedinit_child_intern(c, unused, unused, unused, &unused, &unused);
 }

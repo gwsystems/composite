@@ -26,6 +26,11 @@ extern int root_spdid;
 long boot_pgtbl_cap_transfer(int dst, int src, int cap_slot);
 long boot_thd_cap_transfer(int dst, int src, int cap_slot);
 
+typedef enum {
+	BOOT_FLAG_SCHED = 1,
+	BOOT_FLAG_MM    = 1<<1,
+} boot_flag_t;
+
 struct cobj_header *hs[MAX_NUM_SPDS + 1];
 
 /* The booter uses this to keep track of each comp */
@@ -36,9 +41,7 @@ struct comp_cap_info {
 	vaddr_t              addr_start;
 	vaddr_t              vaddr_mapped_in_booter;
 	vaddr_t              upcall_entry;
-	int                  is_sched;
-	int                  sched_no;
-	int                  parent_no;
+	boot_flag_t          flags;
 	spdid_t              parent_spdid;
 	u64_t                childid_bitf;
 	u64_t                childid_sched_bitf;
@@ -202,7 +205,7 @@ boot_newcomp_defcinfo_init(spdid_t spdid)
 	child_aep->thd = cos_initthd_alloc(boot_info, child_ci->comp_cap);
 	assert(child_aep->thd);
 
-	if (new_comp_cap_info[spdid].is_sched) {
+	if (new_comp_cap_info[spdid].flags & BOOT_FLAG_SCHED) {
 		child_aep->tc = cos_tcap_alloc(boot_info);
 		assert(child_aep->tc);
 
@@ -241,7 +244,7 @@ boot_newcomp_init_caps(spdid_t spdid)
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, boot_info, BOOT_CAPTBL_SELF_INITHW_BASE);
 	assert(ret == 0);
 
-	if (resmgr_spdid && capci->is_sched) {
+	if (resmgr_spdid && (capci->flags & BOOT_FLAG_SCHED)) {
 		/*
 		 * FIXME:
 		 * This is an ugly hack to allow components to do cos_introspect()
@@ -278,7 +281,7 @@ boot_newcomp_init_caps(spdid_t spdid)
 		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTHD_BASE, boot_info, child_aep->thd);
 		assert(ret == 0);
 
-		if (capci->is_sched) {
+		if (capci->flags & BOOT_FLAG_SCHED) {
 			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITRCV_BASE, boot_info, child_aep->rcv);
 			assert(ret == 0);
 			ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTCAP_BASE, boot_info, child_aep->tc);
@@ -327,7 +330,7 @@ boot_bootcomp_init(void)
 	/* TODO: if posix already did meminfo init */
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
-	capci->is_sched = 1;
+	capci->flags |= BOOT_FLAG_SCHED;
 }
 
 #define LLBOOT_ROOT_PRIO 1
@@ -393,7 +396,7 @@ boot_comp_initthd_get(spdid_t dstid, spdid_t srcid, thdcap_t thdslot, arcvcap_t 
 		ret = cos_cap_cpy_at(resci, thdslot, boot_info, initaep->thd);
 		assert(ret == 0);
 
-		if (acomp->is_sched) {
+		if (acomp->flags & BOOT_FLAG_SCHED) {
 			assert(initaep->rcv && initaep->tc);
 			ret = cos_cap_cpy_at(resci, rcvslot, boot_info, initaep->rcv);
 			assert(ret == 0);
