@@ -315,7 +315,6 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	ret = cos_cap_cpy_at(compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);
 	assert(ret == 0);
 
-	boot_newcomp_sinv_alloc(spdid);
 	boot_newcomp_init_caps(spdid);
 }
 
