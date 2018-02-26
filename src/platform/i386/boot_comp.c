@@ -123,7 +123,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const u32_t cpu_
 
 	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE + cpu_id * captbl_idsize(CAP_ARCV), BOOT_CAPTBL_SELF_COMP,
 	                    BOOT_CAPTBL_SELF_INITTHD_BASE + cpu_id * captbl_idsize(CAP_THD),
-											BOOT_CAPTBL_SELF_INITTCAP_BASE + cpu_id * captbl_idsize(CAP_TCAP), 0, 1);
+			    BOOT_CAPTBL_SELF_INITTCAP_BASE + cpu_id * captbl_idsize(CAP_TCAP), 0, 1);
 	assert(!ret);
 
 	/*
