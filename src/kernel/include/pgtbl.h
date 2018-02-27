@@ -109,7 +109,7 @@ vaddr_t        pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags);
 pgtbl_t        pgtbl_create(void *page, void *curr_pgtbl);
 int            pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
 int            pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
-				capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
+                                capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
 int            pgtbl_mapping_scan(struct cap_pgtbl *pt);
 int            pgtbl_quie_check(u32_t orig_v);
 void           pgtbl_init_pte(void *pte);
