@@ -32,6 +32,36 @@ __compinfo_metacap(struct cos_compinfo *ci)
 }
 
 void
+cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
+{
+	ci->vas_frontier = heap_ptr;
+	/*
+	 * The first allocation should trigger PTE allocation, unless
+	 * it is in the middle of a PGD, in which case we assume one
+	 * is already allocated.
+	 */
+	ci->vasrange_frontier = round_up_to_pgd_page(heap_ptr);
+	assert(ci->vasrange_frontier == round_up_to_pgd_page(ci->vasrange_frontier));
+}
+
+static inline void
+cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier)
+{
+	ci->cap_frontier = cap_frontier;
+
+	/*
+	 * captbls are initialized populated with a single
+	 * second-level node.
+	 */
+	if (cap_frontier < CAPTBL_EXPAND_SZ) {
+		ci->caprange_frontier = round_up_to_pow2(cap_frontier, CAPTBL_EXPAND_SZ);
+	} else {
+		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ);
+	}
+	ci->cap16_frontier = ci->cap32_frontier = ci->cap64_frontier = cap_frontier;
+}
+
+void
 cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
                   vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources)
 {
@@ -44,25 +74,9 @@ cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t cap
 	ci->pgtbl_cap    = pgtbl_cap;
 	ci->captbl_cap   = captbl_cap;
 	ci->comp_cap     = comp_cap;
-	ci->vas_frontier = heap_ptr;
-	ci->cap_frontier = cap_frontier;
-	/*
-	 * The first allocation should trigger PTE allocation, unless
-	 * it is in the middle of a PGD, in which case we assume one
-	 * is already allocated.
-	 */
-	ci->vasrange_frontier = round_up_to_pgd_page(heap_ptr);
-	assert(ci->vasrange_frontier == round_up_to_pgd_page(ci->vasrange_frontier));
-	/*
-	 * captbls are initialized populated with a single
-	 * second-level node.
-	 */
-	if (cap_frontier < CAPTBL_EXPAND_SZ) {
-		ci->caprange_frontier = round_up_to_pow2(cap_frontier, CAPTBL_EXPAND_SZ);
-	} else {
-		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ);
-	}
-	ci->cap16_frontier = ci->cap32_frontier = ci->cap64_frontier = cap_frontier;
+
+	cos_vasfrontier_init(ci, heap_ptr);
+	cos_capfrontier_init(ci, cap_frontier);
 }
 
 /**************** [Memory Capability Allocation Functions] ***************/
@@ -531,6 +545,14 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 #include <cos_thd_init.h>
 
 thdcap_t
+cos_thd_alloc_idx(struct cos_compinfo *ci, compcap_t comp, int idx)
+{
+	if (idx < 1) return 0;
+
+	return __cos_thd_alloc(ci, comp, idx);
+}
+
+thdcap_t
 cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data)
 {
 	int      idx = cos_thd_init_alloc(fn, data);
@@ -642,6 +664,12 @@ int
 cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
 	return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4);
+}
+
+int
+cos_sinv_3rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret2, word_t *ret3)
+{
+	return call_cap_2retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret2, ret3);
 }
 
 /*

@@ -4,17 +4,20 @@
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  */
+ 
+ #define __ASM__
+ #include <consts.h>
 
-#define __ASM__
-#include <consts.h>
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text
 
-cos_asm_server_stub(call)
-cos_asm_server_stub(call_two)
-cos_asm_server_stub(call_three)
-cos_asm_server_stub(call_four)
+cos_asm_server_stub_3rets(call_intern)
+cos_asm_server_stub_3rets(call_two_intern)
+cos_asm_server_stub_3rets(call_three_intern)
+cos_asm_server_stub_3rets(call_four_intern)
 
-cos_asm_server_stub(call_arg)
-cos_asm_server_stub(call_args)
+cos_asm_server_stub_3rets(call_arg_intern)
+cos_asm_server_stub_3rets(call_args_intern)
+
+cos_asm_server_stub_3rets(call_3rets)

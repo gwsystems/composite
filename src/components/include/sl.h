@@ -249,13 +249,25 @@ void sl_thd_yield_cs_exit(thdid_t tid);
 
 /* The entire thread allocation and free API */
 struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
-struct sl_thd *sl_thd_init(struct cos_aep_info *a, int own_tcap);
 struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap);
 /*
+ * DEPRECATED!! Use the API that creates initthd also with cos_defkernel_api that doesn't!
  * This API creates a sl_thd object for this child component.
  * @comp: component created using cos_defkernel_api which includes initthd (with/without its own tcap & rcvcap).
  */
 struct sl_thd *sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched);
+
+/*
+ * This API creates a sl_thd object for the child component including init aep capabilities.
+ */
+struct sl_thd *sl_thd_child_initaep_alloc(struct cos_defcompinfo *comp, int is_sched, int own_tcap);
+struct sl_thd *sl_thd_ext_child_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *schthd, int own_tcap);
+
+/* class of API used by managers creating threads for components in those components */
+struct sl_thd *sl_thd_ext_idx_alloc(struct cos_defcompinfo *comp, int idx);
+struct sl_thd *sl_thd_extaep_idx_alloc(struct cos_defcompinfo *comp, struct sl_thd *schthd, int idx, int own_tcap, arcvcap_t *extrcv);
+
+struct sl_thd *sl_thd_ext_init(thdcap_t t, tcap_t tc, arcvcap_t r, asndcap_t s);
 
 void           sl_thd_free(struct sl_thd *t);
 void           sl_thd_exit();
@@ -372,7 +384,7 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
 				  g->timeout_next, g->sched_rcv, tok);
 	} else {
-		return cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ?
+		return cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ? 
 				     TCAP_TIME_NIL : g->timeout_next, tok);
 	}
 }
@@ -448,7 +460,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
 			tcap_res_t currbudget = 0;
-			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);
+			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);  
 
 			ret = 0;
 			currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
@@ -471,14 +483,13 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 * dispatch failed with -EPERM because tcap associated with thread t does not have budget.
 	 * Block the thread until it's next replenishment and return to the scheduler thread.
 	 *
-	 * If the thread is not replenished by the scheduler (replenished "only" by
+	 * If the thread is not replenished by the scheduler (replenished "only" by 
 	 * the inter-component delegations), block till next timeout and try again.
 	 */
 	if (unlikely(ret == -EPERM)) {
 			cycles_t abs_timeout = globals->timer_next;
 
 			assert(t != globals->sched_thd);
-			assert(t->properties & SL_THD_PROPERTY_OWN_TCAP);
 
 			sl_cs_enter();
 			if (likely(t->period)) abs_timeout = t->last_replenish + t->period;
@@ -523,7 +534,7 @@ sl_cs_exit_switchto(struct sl_thd *to)
  * library-internal data-structures, and then the ability for the
  * scheduler thread to start its scheduling loop.
  *
- * sl_init(period); <- using `period` for scheduler periodic timeouts
+ * sl_init(period); <- using `period` for scheduler periodic timeouts 
  * sl_*;            <- use the sl_api here
  * ...
  * sl_sched_loop(); <- loop here. or using sl_sched_loop_nonblock();
@@ -539,11 +550,11 @@ void sl_sched_loop(void) __attribute__((noreturn));
  * with a RCV_NONBLOCK flag, the kernel returns to the calling thread immediately if
  * there are no pending events.
  *
- * This is useful for the system scheduler in a hierarchical settings where
- * booter (perhaps only doing simple chronos delegations) hands off the
+ * This is useful for the system scheduler in a hierarchical settings where 
+ * booter (perhaps only doing simple chronos delegations) hands off the 
  * system scheduling responsibility to another component.
  *
- * Note: sl_sched_loop_nonblock has same semantics as sl_sched_loop for
+ * Note: sl_sched_loop_nonblock has same semantics as sl_sched_loop for 
  * booter receive (INITRCV) end-point at the kernel level.
  */
 void sl_sched_loop_nonblock(void) __attribute__((noreturn));

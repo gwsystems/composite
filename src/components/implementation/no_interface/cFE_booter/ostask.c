@@ -37,8 +37,10 @@ timer_fn_1hz(void *d)
 thdid_t main_delegate_thread_id;
 
 void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
+	printc("Doing sl_init\n");
     sl_init(SL_MIN_PERIOD_US);
 
+	printc("Creating main delegate thread\n");
     struct sl_thd* main_delegate_thread = sl_thd_alloc(main_delegate, NULL);
     union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = MAIN_DELEGATE_THREAD_PRIORITY}};
     sl_thd_param_set(main_delegate_thread, sp.v);
@@ -49,13 +51,15 @@ void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
     policy->osal_task_prop.priority = MAIN_DELEGATE_THREAD_PRIORITY;
     policy->osal_task_prop.OStask_id = (uint32) main_delegate_thread->thdid;
 
+	printc("Creating timer thread\n");
     struct sl_thd *timer_thd = sl_thd_alloc(timer_fn_1hz, NULL);
     union sched_param_union spperiod = {.c = {.type = SCHEDP_WINDOW, .value = 250000 }};
     union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = MAIN_DELEGATE_THREAD_PRIORITY+1}};
     sl_thd_param_set(timer_thd, spperiod.v);
     sl_thd_param_set(timer_thd, spprio.v);
 
-    sl_sched_loop();
+	printc("Doing sl_sched_loop\n");
+	sl_sched_loop();
 }
 
 void osal_task_entry_wrapper(void* task_entry) {

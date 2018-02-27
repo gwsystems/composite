@@ -40,9 +40,13 @@ struct cos_aep_info {
 
 /* Default Component information */
 struct cos_defcompinfo {
+	spdid_t id;
 	struct cos_compinfo ci;
 	struct cos_aep_info sched_aep;
 };
+
+/* ugly hack to get resmgr to work with current sl interface */
+void cos_defcompinfo_childid_init(struct cos_defcompinfo *defci, spdid_t id);
 
 /*
  * cos_defcompinfo_curr_get: returns the current component's cos_defcompinfo.
@@ -56,11 +60,6 @@ struct cos_compinfo *cos_compinfo_get(struct cos_defcompinfo *defci);
  * cos_sched_aep_get: returns the sched aep info from the defcompinfo.
  */
 struct cos_aep_info *cos_sched_aep_get(struct cos_defcompinfo *defci);
-/*
- * boot_info: leverages the above calls to conveniently fetch the current components cos_compinfo struct
- */
-struct cos_compinfo *boot_info(void);
-
 /*
  * cos_defcompinfo_init: initialize the current component's global cos_defcompinfo struct using the standard boot
  * capabilities layout.
@@ -92,6 +91,14 @@ int cos_aep_alloc(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data);
  */
 int cos_aep_tcap_alloc(struct cos_aep_info *aep, tcap_t tc, cos_aepthd_fn_t fn, void *data);
 
+int cos_child_initthd_alloc(struct cos_defcompinfo *child_dci);
+int cos_child_initaep_alloc(struct cos_defcompinfo *child_dci);
+int cos_child_initaep_tcap_alloc(struct cos_defcompinfo *child_dci, tcap_t tc);
+int cos_child_initaep_alloc_ext(struct cos_defcompinfo *child_dci, struct cos_aep_info *sched);
+int cos_child_initaep_tcap_alloc_ext(struct cos_defcompinfo *child_dci, tcap_t tc, struct cos_aep_info *sched);
+
+int cos_aep_idx_tcap_alloc_ext(struct cos_aep_info *aep, tcap_t tc, int idx, struct cos_defcompinfo *dstdci, struct cos_aep_info *sched_aep);
+int cos_aep_idx_alloc_ext(struct cos_aep_info *aep, int idx, struct cos_defcompinfo *dstdci, struct cos_aep_info *sched_aep);
 /*
  * cos_defswitch: thread switch api using the default scheduling tcap and rcv.
  */

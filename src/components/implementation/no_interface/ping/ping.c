@@ -2,10 +2,12 @@
 #include <pong.h>
 #include <cos_types.h>
 #include <cobj_format.h>
-#include <llbooter_inv.h>
+#include <hypercall.h>
 
 void cos_init(void)
 {
+	int r1 = 0, r2 = 0;
+
 	printc("Welcome to the ping component\n");
 
 	printc("Invoking pong interface:\n");
@@ -18,6 +20,11 @@ void cos_init(void)
 	call_arg(1);
 	call_args(1, 2, 3, 4);
 
-	cos_hypervisor_hypercall(BOOT_HYP_INIT_DONE, 0, 0, 0);
-	return;
+	printc("\nInvoking pong interface w/ multiple-rets:\n");
+	call_3rets(1, 2, 3, 4, &r1, &r2);
+	printc(" ping=> r1: %d, r2: %d\n\n", r1, r2);
+
+	hypercall_comp_init_done();
+
+	while (1) ;
 }

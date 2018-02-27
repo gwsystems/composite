@@ -49,7 +49,7 @@ for line in lines:
     data = re.split("=", line)
     if data[0] == "DEPENDENCIES":
        deps = re.split(" ", data[1])
-       deps.append("stkmgr")
+       #deps.append("stkmgr")
        for d in deps:
        	   if d == "":
 	      continue

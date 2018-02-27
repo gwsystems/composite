@@ -553,8 +553,7 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
            struct tcap *tc_next, tcap_time_t timeout, struct comp_info *ci, struct cos_cpu_local_info *cos_info,
            int timer_intr_context)
 {
-	struct thread *thc, *thn;
-	struct tcap *  tc, *tn;
+	struct thread *thd_sched;
 	cycles_t       now;
 	int            switch_away = 0;
 
@@ -588,7 +587,9 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		 * Note: If the timer interrupt was indeed for a timeout but the current tcap
 		 *       has expended, then budget expiry condition takes priority. 
 		 */
-		thd_next = thd_scheduler(thd_curr);
+		if (thd_bound2rcvcap(thd_curr)
+		    && thd_rcvcap_isreferenced(thd_curr)) thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
+		else                                      thd_next = thd_scheduler(thd_curr);
 		/* tc_next is tc_curr */
 	}
 

@@ -10,8 +10,8 @@
 #define __ASM__
 
 #include "../../kernel/include/asm_ipc_defs.h"
-#include <cos_asm_stacks.h>
 #include <consts.h>
+#include <cos_asm_stacks.h>
 
 #define IPRETURN 4
 
@@ -38,7 +38,7 @@ stkmgr_stack_space:
 	.rep ALL_TMP_STACKS_SZ
 	.long 0
 	.endr
-	
+
 .text
 .globl cos_upcall_entry
 .type  cos_upcall_entry, @function
@@ -50,7 +50,7 @@ cos_upcall_entry:
 	pushl %esi
 	pushl %edi
 	pushl %ebx
-	pushl %ecx /* option */	
+	pushl %ecx /* option */
 	call cos_upcall_fn
 	addl $16, %esp
 
@@ -74,7 +74,7 @@ cos_atomic_cmpxchg:
 	movl %ecx, %edx   /* XXX */
 	movl %ecx, (%ebx)
 .weak cos_atomic_cmpxchg_end
-cos_atomic_cmpxchg_end:	
+cos_atomic_cmpxchg_end:
 	ret
 
 /*
@@ -103,4 +103,3 @@ cos_atomic_user4_end:
 	/* crash out as something's wrong */
 	movl $0, %eax
 	movl (%eax), %eax
-

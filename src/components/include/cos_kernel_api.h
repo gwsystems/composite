@@ -76,6 +76,7 @@ struct cos_compinfo {
 	struct cos_meminfo   mi;     /* only populated for the component with real memory */
 };
 
+void cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr);
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
                        vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);
 /*
@@ -111,6 +112,7 @@ compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t 
 
 typedef void (*cos_thd_fn_t)(void *);
 thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
+thdcap_t cos_thd_alloc_idx(struct cos_compinfo *ci, compcap_t comp, int idx);
 /* Create the initial (cos_init) thread */
 thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp);
 sinvcap_t cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, unsigned long token);
@@ -155,6 +157,7 @@ int cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout, int *rc
 int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
 
 int cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4);
+int cos_sinv_3rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret2, word_t *ret3);
 
 vaddr_t cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
 int     cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);

@@ -756,7 +756,7 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 		*heap_ptr = (void*)(((int)heap_ptr_val) + obj_size);
 
 		/* Output cobject file. */
-		char filename[32];
+		char filename[MAX_FILE_NAME_LEN] = { '\0' };
 		sprintf(filename, "%s.co", &all->obj[5]);
 		printl(PRINT_HIGH, "Outputting co to file %s\n", filename);
 		int co_fd = open(filename, O_WRONLY | O_CREAT);

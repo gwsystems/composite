@@ -1,0 +1,19 @@
+#define __ASM__
+#include <consts.h>
+
+#include <cos_asm_server_stub_simple_stack.h>
+
+.text
+cos_asm_server_stub_token_3rets(resmgr_initthd_create_intern)
+cos_asm_server_stub_token_3rets(resmgr_initaep_create_intern)
+cos_asm_server_stub_token_3rets(resmgr_thd_create_intern)
+cos_asm_server_stub_token_3rets(resmgr_ext_thd_create_intern)
+cos_asm_server_stub_token_3rets(resmgr_thd_retrieve_intern)
+cos_asm_server_stub_token_3rets(resmgr_thd_retrieve_next_intern)
+cos_asm_server_stub_token_3rets(resmgr_aep_create_intern)
+cos_asm_server_stub_token_3rets(resmgr_ext_aep_create_intern)
+cos_asm_server_stub_token_3rets(resmgr_asnd_create_intern)
+
+cos_asm_server_stub_token_3rets(memmgr_heap_page_allocn_intern)
+cos_asm_server_stub_token_3rets(memmgr_shared_page_allocn_intern)
+cos_asm_server_stub_token_3rets(memmgr_shared_page_map_intern)

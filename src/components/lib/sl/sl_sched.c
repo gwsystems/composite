@@ -13,6 +13,7 @@
 
 struct sl_global sl_global_data;
 static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
+extern struct sl_thd *sl_thd_alloc_init(thdid_t tid, struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps);
 
 /*
  * These functions are removed from the inlined fast-paths of the
@@ -32,7 +33,7 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 		if (!ps_cas(&g->lock.u.v, cached->v, csi->v)) return 1;
 	}
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	if ((ret = cos_defswitch(csi->s.owner, t->prio, csi->s.owner == sl_thd_thdcap(g->sched_thd) ?
+	if ((ret = cos_defswitch(csi->s.owner, t->prio, csi->s.owner == sl_thd_thdcap(g->sched_thd) ? 
 				 TCAP_TIME_NIL : g->timeout_next, tok))) return ret;
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
 
@@ -100,6 +101,27 @@ sl_timeout_remove(struct sl_thd *t)
 
 	heap_remove(sl_timeout_heap(), t->timeout_idx);
 	t->timeout_idx = -1;
+}
+
+void
+sl_thd_free_intern(struct sl_thd *t)
+{
+        struct sl_thd *ct = sl_thd_curr();
+
+        assert(t);
+        assert(t->state != SL_THD_FREE);
+        if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
+        sl_thd_index_rem_backend(sl_mod_thd_policy_get(t));
+        sl_mod_thd_delete(sl_mod_thd_policy_get(t));
+        t->state = SL_THD_FREE;
+        /* TODO: add logic for the graveyard to delay this deallocation if t == current */
+        sl_thd_free_backend(sl_mod_thd_policy_get(t));
+
+        /* thread should not continue to run if it deletes itself. */
+        if (unlikely(t == ct)) {
+                while (1) sl_cs_exit_schedule();
+                /* FIXME: should never get here, but tcap mechanism can let a child scheduler run! */
+        }
 }
 
 static int
@@ -247,7 +269,7 @@ sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 {
 	assert(t);
 
-	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1;
+	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1; 
 
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	t->state = SL_THD_RUNNABLE;
@@ -306,7 +328,7 @@ sl_thd_yield(thdid_t tid)
 	sl_thd_yield_cs_exit(tid);
 }
 
-static inline void
+void
 sl_thd_event_info_reset(struct sl_thd *t)
 {
 	t->event_info.blocked = 0;
@@ -335,217 +357,6 @@ sl_thd_event_dequeue(struct sl_thd *t, int *blocked, cycles_t *cycles, tcap_time
 	*cycles  = t->event_info.cycles;
 	*timeout = t->event_info.timeout;
 	sl_thd_event_info_reset(t);
-}
-
-static struct sl_thd *
-sl_thd_alloc_init(thdid_t tid, struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps)
-{
-	struct sl_thd_policy *tp = NULL;
-	struct sl_thd        *t  = NULL;
-
-	tp = sl_thd_alloc_backend(tid);
-	if (!tp) goto done;
-	t  = sl_mod_thd_get(tp);
-
-	t->thdid          = tid;
-	t->properties     = prps;
-	t->aepinfo        = aep;
-	t->sndcap         = sndcap;
-	t->state          = SL_THD_RUNNABLE;
-	sl_thd_index_add_backend(sl_mod_thd_policy_get(t));
-
-	t->budget         = 0;
-	t->last_replenish = 0;
-	t->period         = t->timeout_cycs = t->periodic_cycs = 0;
-	t->wakeup_cycs    = 0;
-	t->timeout_idx    = -1;
-	t->prio           = TCAP_PRIO_MIN;
-	ps_list_init(t, SL_THD_EVENT_LIST);
-	sl_thd_event_info_reset(t);
-
-done:
-	return t;
-}
-
-static struct sl_thd *
-sl_thd_alloc_intern(cos_thd_fn_t fn, void *data)
-{
-	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci  = &dci->ci;
-	struct sl_thd          *t   = NULL;
-	struct cos_aep_info    *aep = NULL;
-	thdcap_t thdcap;
-	thdid_t tid;
-
-	aep = sl_thd_alloc_aep_backend();
-	if (!aep) goto done;
-
-	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data);
-	if (!aep->thd) goto done;
-
-	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
-	assert(tid);
-	t = sl_thd_alloc_init(tid, aep, 0, 0);
-	sl_mod_thd_create(sl_mod_thd_policy_get(t));
-
-done:
-	return t;
-}
-
-static struct sl_thd *
-sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *comp, sl_thd_property_t prps)
-{
-	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci  = &dci->ci;
-	struct sl_thd          *t   = NULL;
-	asndcap_t               snd = 0;
-	struct cos_aep_info    *aep = NULL;
-	thdid_t                 tid;
-	int                     ret;
-
-	aep = sl_thd_alloc_aep_backend();
-	if (!aep) goto done;
-
-	if (prps & SL_THD_PROPERTY_SEND) {
-		struct cos_aep_info *sa = NULL;
-
-		assert(comp);
-		sa   = cos_sched_aep_get(comp);
-		/* copying cos_aep_info is fine here as cos_thd_alloc() is not done using this aep */
-		*aep = *sa;
-
-		snd = cos_asnd_alloc(ci, aep->rcv, ci->captbl_cap);
-		assert(snd);
-	} else {
-		/* IMP: Cannot use stack-allocated cos_aep_info struct here */
-		if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data);
-		else                                 ret = cos_aep_tcap_alloc(aep, sl_thd_aepinfo(sl__globals()->sched_thd)->tc,
-									      fn, data);
-		if (ret) goto done;
-	}
-
-	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
-	assert(tid);
-	t = sl_thd_alloc_init(tid, aep, snd, prps);
-	sl_mod_thd_create(sl_mod_thd_policy_get(t));
-
-done:
-	return t;
-}
-
-struct sl_thd *
-sl_thd_alloc(cos_thd_fn_t fn, void *data)
-{
-	struct sl_thd *t;
-
-	sl_cs_enter();
-	t = sl_thd_alloc_intern(fn, data);
-	sl_cs_exit();
-
-	return t;
-}
-
-struct sl_thd *
-sl_thd_init(struct cos_aep_info *a, int own_tcap)
-{
-	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci  = &dci->ci;
-	struct sl_thd          *t   = NULL;
-	struct cos_aep_info    *aep = NULL;
-	thdid_t tid;
-
-	sl_cs_enter();
-
-	aep = sl_thd_alloc_aep_backend();
-	if (!aep) goto done;
-
-	*aep = *a;
-	tid = cos_introspect(ci, a->thd, THD_GET_TID);
-	assert(tid);
-	t = sl_thd_alloc_init(tid, aep, 0, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0);
-	sl_mod_thd_create(sl_mod_thd_policy_get(t));
-
-done:
-	sl_cs_exit();
-
-	return t;
-}
-
-
-
-struct sl_thd *
-sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap)
-{
-	struct sl_thd *t;
-
-	sl_cs_enter();
-	t = sl_thd_aep_alloc_intern(fn, data, NULL, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0);
-	sl_cs_exit();
-
-	return t;
-}
-
-/* sl object for inithd in the child comp */
-struct sl_thd *
-sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
-{
-	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci  = &dci->ci;
-	struct sl_thd          *t   = NULL;
-	thdid_t tid;
-
-	assert(comp);
-
-	sl_cs_enter();
-	if (is_sched) {
-		t = sl_thd_aep_alloc_intern(NULL, NULL, comp,
-				SL_THD_PROPERTY_OWN_TCAP | SL_THD_PROPERTY_SEND);
-	} else {
-		struct cos_aep_info *sa = cos_sched_aep_get(comp), *aep = NULL;
-
-		aep = sl_thd_alloc_aep_backend();
-		if (!aep) goto done;
-
-		/* copying cos_aep_info is fine here as cos_thd_alloc() is not done using this aep */
-		*aep = *sa;
-		tid = cos_introspect(ci, aep->thd, THD_GET_TID);
-		assert(tid);
-		t   = sl_thd_alloc_init(tid, aep, 0, 0);
-		sl_mod_thd_create(sl_mod_thd_policy_get(t));
-	}
-
-done:
-	sl_cs_exit();
-
-	return t;
-}
-
-void
-sl_thd_free(struct sl_thd *t)
-{
-	struct sl_thd *ct = sl_thd_curr();
-
-	if (t->state == SL_THD_FREE) {
-		return;
-	}
-
-	assert(t);
-
-	sl_cs_enter();
-
-	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
-	sl_thd_index_rem_backend(sl_mod_thd_policy_get(t));
-	sl_mod_thd_delete(sl_mod_thd_policy_get(t));
-	t->state = SL_THD_FREE;
-	/* TODO: add logic for the graveyard to delay this deallocation if t == current */
-	sl_thd_free_backend(sl_mod_thd_policy_get(t));
-
-	/* thread should not continue to run if it deletes itself. */
-	if (unlikely(t == ct)) {
-		while (1) sl_cs_exit_schedule();
-		/* FIXME: should never get here, but tcap mechanism can let a child scheduler run! */
-	}
-	sl_cs_exit();
 }
 
 void

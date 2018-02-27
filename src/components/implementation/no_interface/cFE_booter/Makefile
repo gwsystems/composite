@@ -4,7 +4,7 @@ COMPONENT=cFE_booter.o
 INTERFACES=cFE
 DEPENDENCIES=
 IF_LIB:=./composite_cFE.o $(wildcard test/*.o)
-ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_defkernel_api -lsl -lheap -lsl_lock
+ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_defkernel_api -lsl_rawmgr -lsl_sched -lheap -lsl_lock
 
 include ../../Makefile.subsubdir
 CFLAGS += -I./gen -I ./test/shared $(CPPFLAGS)
