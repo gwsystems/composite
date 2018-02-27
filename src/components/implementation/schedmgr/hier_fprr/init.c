@@ -1,4 +1,3 @@
-#include <resmgr.h>
 #include <sl.h>
 #include <res_spec.h>
 #include <hypercall.h>
@@ -12,15 +11,31 @@ u64_t childsch_bitf = 0;
 unsigned int self_init = 0;
 extern int schedinit_self(void);
 
-static struct cos_defcompinfo child_defcinfo[MAX_CHILD_COMPS];
-static unsigned int num_child;
-static struct sl_thd *child_initthd[MAX_CHILD_COMPS] = { NULL };
-static struct sl_thd *__initthd = NULL;
-
 #define FIXED_PRIO 1
 #define FIXED_BUDGET_MS 2000
 #define FIXED_PERIOD_MS 10000
 #define IS_BIT_SET(v, pos) (v & ((u64_t)1 << pos))
+
+struct child_info {
+	struct cos_defcompinfo defcinfo;
+	struct sl_thd *initaep;
+	spdid_t spdid;
+};
+static struct child_info childinfo[MAX_CHILD_COMPS];
+static int num_child = 0;
+static struct sl_thd *__initthd = NULL;
+
+struct cos_defcompinfo *
+child_defci_get(spdid_t spdid)
+{
+	int i;
+
+	for (i = 0; i < num_child; i ++) {
+		if (childinfo[i].spdid == spdid) return &(childinfo[i].defcinfo);
+	}
+
+	return NULL;
+}
 
 static void
 __init_done(void *d)
@@ -45,7 +60,7 @@ cos_init(void)
 	cos_defcompinfo_init();
 
 	sl_init(SL_MIN_PERIOD_US);
-	memset(&child_defcinfo, 0, sizeof(struct cos_defcompinfo) * MAX_CHILD_COMPS);
+	memset(&childinfo, 0, sizeof(struct child_info) * MAX_CHILD_COMPS);
 
 	hypercall_comp_childspdids_get(cos_spd_id(), &child_spdbits);
 	hypercall_comp_childschedspdids_get(cos_spd_id(), &childsch_bitf);
@@ -53,15 +68,19 @@ cos_init(void)
 
 	for (i = 0; i < MAX_CHILD_BITS; i++) {
 		if (IS_BIT_SET(child_spdbits, i)) {
+			struct cos_defcompinfo *child_dci = &(childinfo[num_child].defcinfo);
+			struct cos_compinfo *child_ci = cos_compinfo_get(child_dci);
+
 			PRINTC("Initializing child component %d\n", i + 1);
-			cos_defcompinfo_childid_init(&child_defcinfo[num_child], i + 1);
+			cos_defcompinfo_childid_init(child_dci, i + 1);
+			childinfo[num_child].spdid = i + 1;
 
-			child_initthd[num_child] = sl_thd_child_initaep_alloc(&child_defcinfo[num_child], IS_BIT_SET(childsch_bitf, i), 1);
-			assert(child_initthd[num_child]);
+			childinfo[num_child].initaep = sl_thd_child_initaep_alloc(child_dci, IS_BIT_SET(childsch_bitf, i), 1);
+			assert(childinfo[num_child].initaep);
 
-			sl_thd_param_set(child_initthd[num_child], sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
-			sl_thd_param_set(child_initthd[num_child], sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
-			sl_thd_param_set(child_initthd[num_child], sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
+			sl_thd_param_set(childinfo[num_child].initaep, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
+			sl_thd_param_set(childinfo[num_child].initaep, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
+			sl_thd_param_set(childinfo[num_child].initaep, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
 			num_child ++;
 		}
 	}

@@ -9,18 +9,19 @@ extern int parent_schedinit_child_intern(spdid_t c, int u1, int u2, int u3, int 
 extern unsigned int self_init;
 extern u64_t childsch_bitf;
 static u64_t childinit_bitf = 0;
+extern struct cos_defcompinfo *child_defci_get(spdid_t spdid);
 
 int
 schedinit_child_intern(spdid_t c, int u1, int u2, int u3, int *u4, int *u5)
 {
 	thdcap_t thdcap = 0;
 	thdid_t thdid = 0;
-	struct cos_defcompinfo defcinfo;
+	struct cos_defcompinfo *dci;
 
 	/* is a child sched? */
 	assert(childsch_bitf & ((u64_t)1 << (c-1)));
-	memset(&defcinfo, 0, sizeof(struct cos_defcompinfo));
-	cos_defcompinfo_childid_init(&defcinfo, c);
+	dci = child_defci_get(c);
+	assert(dci);
 
 	/* thd retrieve */
 	do {

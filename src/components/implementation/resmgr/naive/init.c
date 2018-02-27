@@ -16,6 +16,7 @@ resmgr_comp_info_iter(void)
 	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
 	struct res_comp_info   *btinfo = res_info_comp_find(0);
 	int remaining = 0;
+	int num_comps = 0;
 
 	do {
 		spdid_t csid = 0, psid = 0;
@@ -30,18 +31,12 @@ resmgr_comp_info_iter(void)
 		compcap_t ccslot = 0;
 		vaddr_t vasfr = 0;
 		capid_t capfr = 0;
-		int ret = 0;
+		int ret = 0, is_sched = 0;
 		
-		pgtslot  = cos_capid_bump_alloc(ci, CAP_PGTBL);
-		assert(pgtslot);
-		captslot = cos_capid_bump_alloc(ci, CAP_CAPTBL);
-		assert(captslot);
-		ccslot   = cos_capid_bump_alloc(ci, CAP_COMP);
-		assert(ccslot);
-
-		remaining = hypercall_comp_info_next(pgtslot, captslot, ccslot, &csid, &psid);
+		remaining = hypercall_comp_info_next(&pgtslot, &captslot, &ccslot, &csid, &psid);
 		if (remaining < 0) break;
 
+		num_comps ++;
 		ret = hypercall_comp_childspdids_get(csid, &chbits);
 		assert(ret == 0);
 		ret = hypercall_comp_childschedspdids_get(csid, &chschbits);
@@ -49,15 +44,9 @@ resmgr_comp_info_iter(void)
 		res_info_schedbmp |= chschbits;
 
 		if (csid == 0 || (csid != resmgr_myspdid && res_info_is_child(btinfo, csid))) {
-			thdslot  = cos_capid_bump_alloc(ci, CAP_THD);
-			assert(thdslot);
-			if (csid == 0 || res_info_is_sched_child(btinfo, csid)) {
-				rcvslot  = cos_capid_bump_alloc(ci, CAP_ARCV);
-				assert(rcvslot);
-				tcslot   = cos_capid_bump_alloc(ci, CAP_TCAP);
-				assert(tcslot);
-			}
-			ret = hypercall_comp_initthd_get(csid, thdslot, rcvslot, tcslot);
+			is_sched = (csid == 0 || res_info_is_sched_child(btinfo, csid)) ? 1 : 0;
+
+			ret = hypercall_comp_initthd_get(csid, is_sched, &thdslot, &rcvslot, &tcslot);
 			assert(ret == 0);
 		}
 
@@ -77,6 +66,7 @@ resmgr_comp_info_iter(void)
 		}
 	} while (remaining > 0);
 
+	assert(num_comps == hypercall_numcomps_get());
 	PRINTC("Schedulers bitmap: %llx\n", res_info_schedbmp);
 }
 

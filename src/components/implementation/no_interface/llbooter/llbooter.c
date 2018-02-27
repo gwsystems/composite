@@ -352,6 +352,21 @@ boot_create_cap_system(void)
 		PRINTC("Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
 	}
 
+	/*
+	 * create invocations only after all components are created,
+	 * to be able to resolve forward dependencies.
+	 */
+	for (i = 0; hs[i] != NULL; i++) {
+		struct cobj_header *h;
+		spdid_t             spdid;
+
+		h     = hs[i];
+		spdid = h->id;
+
+		assert(spdid != 0);
+		boot_newcomp_sinv_alloc(spdid);
+		PRINTC("Comp %d (%s) undefined symbols resolved!\n", h->id, h->name);
+	}
 	return;
 }
 
