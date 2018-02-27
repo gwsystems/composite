@@ -251,6 +251,10 @@ __capid_bump_alloc_generic(struct cos_compinfo *ci, capid_t *capsz_frontier, cap
 	return ret;
 }
 
+capid_t
+cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
+{ return __capid_bump_alloc(ci, cap); }
+
 /* allocate a new capid in the booter. */
 static capid_t
 __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
