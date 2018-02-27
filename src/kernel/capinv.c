@@ -130,7 +130,7 @@ kmem_unalloc(unsigned long *pte)
 
 	assert(chal_pgtbl_flag_exist(old, PGTBL_COSKMEM));
 	retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
-	*pte=chal_pgtbl_flag_clr(*pte, PGTBL_COSKMEM);
+	*pte = chal_pgtbl_flag_clr(*pte, PGTBL_COSKMEM);
 }
 
 /*
