@@ -128,10 +128,8 @@ kmem_unalloc(unsigned long *pte)
 	 */
 	unsigned long old = *pte;
 
-	/* TODO: remove after test assert(chal_pgtbl_chal2cos(old) & PGTBL_COSKMEM); */
 	assert(chal_pgtbl_flag_exist(old, PGTBL_COSKMEM));
 	retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
-	/* TODO: remove after test *pte = chal_pgtbl_cos2chal(chal_pgtbl_chal2cos(old) & ~PGTBL_COSKMEM); */
 	*pte=chal_pgtbl_flag_clr(*pte, PGTBL_COSKMEM);
 }
 
@@ -160,10 +158,6 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 	old_v = *v = **p_pte;
 
 	pa = old_v & PGTBL_FRAME_MASK;
-        /* TODO: remove after testing
-	 * if (!(chal_pgtbl_chal2cos(old_v) & PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
-	 * assert(!(chal_pgtbl_chal2cos(old_v) & PGTBL_QUIESCENCE)); 
-         */
 	 if (!chal_pgtbl_flag_exist(old_v, PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
 	 assert(!chal_pgtbl_flag_exist(old_v, PGTBL_QUIESCENCE)); 
 
@@ -284,7 +278,6 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v)
 	u32_t new_v;
 
 	/* Unset coskmem bit. Release the kmem frame. */
-	/* TODO: delete after testing new_v = chal_pgtbl_cos2chal(chal_pgtbl_chal2cos(old_v) & (~PGTBL_COSKMEM)); */
         new_v = chal_pgtbl_flag_clr(old_v, PGTBL_COSKMEM);
 
 	if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
@@ -379,9 +372,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 		old_v = *f;
 
 		/* Cannot copy frame, or kernel entry. */
-		/* TODO:remove after testing if ((chal_pgtbl_chal2cos(old_v) & PGTBL_COSFRAME) || !(chal_pgtbl_chal2cos(old_v) & PGTBL_USER)) return -EPERM; */
 		if (chal_pgtbl_flag_exist(old_v, PGTBL_COSFRAME) || !chal_pgtbl_flag_exist(old_v, PGTBL_USER)) return -EPERM;
-		/* TODO: validate the type is appropriate given the value of *flags */
 		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags);
 	} else {
 		ret = -EINVAL;
@@ -422,10 +413,6 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, c
 		old_v_to = *moveto;
 
 		cos_mem_fence();
-                /* TODO:remove after testing.
-		 * if ((chal_pgtbl_chal2cos(old_v) & PGTBL_COSFRAME) == 0) return -EPERM;
-		 * if (chal_pgtbl_chal2cos(old_v_to) & (PGTBL_COSFRAME | PGTBL_PRESENT)) return -EPERM;
-                 */
 		if (!chal_pgtbl_flag_exist(old_v, PGTBL_COSFRAME)) return -EPERM;
 		if (chal_pgtbl_flag_exist(old_v_to, PGTBL_COSFRAME | PGTBL_PRESENT)) return -EPERM;
 
