@@ -88,7 +88,7 @@ cos_init(void)
 
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	hypercall_comp_childspdids_get(cos_spd_id(), &childbits);
+	hypercall_comp_children_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
 	test_aeps();

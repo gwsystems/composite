@@ -103,7 +103,7 @@ cos_init(void)
 	u64_t childbits;
 
 	PRINTC("Unit-test for Resource Manager interface\n");
-	hypercall_comp_childspdids_get(cos_spd_id(), &childbits);
+	hypercall_comp_children_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
 	test_thds();

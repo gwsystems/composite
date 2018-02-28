@@ -46,7 +46,7 @@ cos_init(void)
 	sl_init(SL_MIN_PERIOD_US);
 	memset(&childinfo, 0, sizeof(struct child_info) * MAX_CHILD_COMPS);
 
-	hypercall_comp_childspdids_get(cos_spd_id(), &child_spdbits);
+	hypercall_comp_children_get(cos_spd_id(), &child_spdbits);
 	PRINTC("Child bitmap : %llx\n", child_spdbits);
 
 	for (i = 0; i < MAX_CHILD_BITS; i++) {
