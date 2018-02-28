@@ -8,6 +8,8 @@
 #include <string.h>
 #include <llbooter_inv.h>
 
+//#define GATEWAY 0
+
 #define UNDEF_SYMBS 64
 #define CMP_UTYPMEM_SZ (1 << 27)
 #define THD_PRIO 5
@@ -18,8 +20,8 @@ int num_cobj;
 
 /* Assembly function for sinv from new component */
 extern void *__inv_test_entry(int a, int b, int c);
-void boot_pgtbl_cap_transfer_at(int dst, int src, int cap_slot);
-void boot_thd_cap_transfer_at(int dst, int src, int cap_slot);
+int boot_pgtbl_cap_transfer_at(int dst, int src, int cap_slot);
+int boot_thd_cap_transfer_at(int dst, int src, int cap_slot);
 
 struct cobj_header *hs[MAX_NUM_SPDS + 1];
 
@@ -146,7 +148,7 @@ boot_newcomp_definfo_init(spdid_t spdid, compcap_t cc, boot_comp_flag_t comp_fla
 	int i = 0;
 
 	child_ci->comp_cap = cc;
-	child_aep->thd = cos_initthd_alloc(boot_info, child_ci->comp_cap);
+	child_aep->thd = cos_initthd_alloc(boot_info(), child_ci->comp_cap);
 	while (schedule[i] != 0) i++;
 	schedule[i] = child_aep->thd;
 
@@ -254,8 +256,14 @@ boot_bootcomp_init(void)
 static void
 boot_done(void)
 {
-//	cos_thd_switch(schedule[sched_cur]);
+#ifdef GATEWAY
+	printc("GATEWAY DEFINED\n");
+	cos_thd_switch(schedule[sched_cur]);
+	sched_cur++;
+#else
+	printc("sl sched loop starting\n");
 	sl_sched_loop();
+#endif
 }
 
 static int
@@ -284,23 +292,35 @@ void
 boot_thd_done(void)
 {
 	printc("Done booting\n\n");
+#ifdef GATEWAY
+	sched_cur++;
+	printc("GATEWAY SCHED LOOP: %d \n", sched_cur);
+	cos_thd_switch(schedule[sched_cur]);
+#else
 	while(1) sl_thd_block(0);
+#endif
 }
 
-void
+int
 boot_pgtbl_cap_transfer_at(int dst, int src, int cap_slot)
 {
 	return cos_cap_cpy_at(new_comp_cap_info[dst].compinfo, cap_slot, boot_info(),
 			new_comp_cap_info[src].compinfo->pgtbl_cap);
 }
 
-void
+int
 boot_thd_cap_transfer_at(int dst, int src, int cap_slot)
 {
 	return cos_cap_cpy_at(new_comp_cap_info[dst].compinfo, cap_slot, boot_info(),
 			new_comp_cap_info[src].compinfo->comp_cap);
 }
 
+long
+boot_comp_cap_transfer(int dst, int src, int cap_slot)
+{
+	return cos_cap_cpy_at(new_comp_cap_info[dst].compinfo, cap_slot, boot_info(),
+			new_comp_cap_info[src].compinfo->comp_cap);
+}
 
 long
 boot_sinv_fn(boot_hyp_op_t op, void *arg1, void *arg2, void *arg3)
@@ -333,6 +353,7 @@ boot_sinv_fn(boot_hyp_op_t op, void *arg1, void *arg2, void *arg3)
 		break;
 	case BOOT_HYP_COMP_CAP:
 		/* arg1: dst comp spdid, arg2: src comp spdid, arg3: cap_slot */
+		printc("BOOT_HYP_COMP_CAP not imlemented\n");
 		ret = boot_comp_cap_transfer((int)arg1, (int)arg2, (int)arg3);
 		break;
 	}
