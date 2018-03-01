@@ -282,7 +282,7 @@ uint32 part_get_new(struct f_part **part)
     struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
     struct cos_compinfo *ci = &defci->ci;
 
-    *part = cos_page_bump_alloc(ci);
+    *part = memmgr_heap_page_alloc(cos_comp_info.cos_this_spd_id);
 
     assert(part != NULL);
     (*part)->next = NULL;

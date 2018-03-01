@@ -5,6 +5,8 @@
 #include <cos_defkernel_api.h>
 #include <cos_kernel_api.h>
 
+#include <memmgr.h>
+
 #include "gen/common_types.h"
 #include "gen/osapi.h"
 #include "gen/osapi-os-filesys.h"

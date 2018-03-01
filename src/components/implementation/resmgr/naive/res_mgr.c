@@ -8,6 +8,7 @@
 thdcap_t
 resmgr_thd_create_intern(spdid_t cur, int idx, int u1, int u2, int *u3, int *u4)
 {
+	printc("inside resmgr_thd_create_intern\n");
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
 	struct res_comp_info *r = res_info_comp_find(cur);
@@ -18,14 +19,18 @@ resmgr_thd_create_intern(spdid_t cur, int idx, int u1, int u2, int *u3, int *u4)
 	assert(res_info_is_sched(cur));
 	assert(idx > 0);
 
+	printc("calling sl_thd_ext_idx_alloc\n");
 	t = sl_thd_ext_idx_alloc(res_info_dci(r), idx);
 	assert(t);
+	printc("res_info_thd_init\n");
 	rt = res_info_thd_init(r, t);
 	assert(rt);
 
+	printc("cos_cap_cpy\n");
 	ret = cos_cap_cpy(res_info_ci(r), res_ci, CAP_THD, sl_thd_thdcap(rt));
 	assert(ret > 0);
 
+	printc("returning\n");
 	return ret;
 }
 
@@ -114,7 +119,7 @@ resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_
 	assert(t);
 	rt = res_info_thd_init(rc, t);
 	assert(rt);
-	rst = res_info_initthd_init(rs, t);	
+	rst = res_info_initthd_init(rs, t);
 	assert(rst);
 
 	/* child is a scheduler.. copy initcaps */
@@ -177,7 +182,7 @@ resmgr_ext_aep_create_intern(spdid_t cur, spdid_t s, int tidx, int owntc, arcvca
 	/* cur is a scheduler, copy thdcap */
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(rt));
 	assert(ret > 0);
-	/* 
+	/*
 	 * for aep thread.. rcv cap should be accessible in the destination component,
 	 * so we return that cap so the scheduler can init proper structures of the dest component.
 	 */
