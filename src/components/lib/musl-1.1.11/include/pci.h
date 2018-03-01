@@ -1,7 +1,7 @@
 #ifndef PCI_H
 #define PCI_H
 
-#define PCI_BUS_MAX        256
+#define PCI_BUS_MAX        255
 #define PCI_DEVICE_MAX     32
 #define PCI_FUNC_MAX       7
 #define PCI_DEVICE_NUM     64
@@ -45,7 +45,6 @@ struct pci_bar {
 			u32_t baseAddr:28;
 		} __attribute__((packed)) mem;
 	};
-    u32_t size;
 	u32_t mask;
 } __attribute__((packed));
 
@@ -68,8 +67,8 @@ struct cos_pci_device {
 void cos_pci_scan(void);
 void cos_pci_print(void);
 void *cos_map_phys_to_virt(void *paddr, unsigned int size);
-/* u32_t cos_pci_read_config(u32_t bus, u32_t dev, u32_t func, u32_t reg); */
-/* void cos_pci_write_config(u32_t bus, u32_t dev, u32_t func, u32_t reg, u32_t v); */
+u32_t cos_pci_read_config(u32_t bus, u32_t dev, u32_t func, u32_t reg);
+void cos_pci_write_config(u32_t bus, u32_t dev, u32_t func, u32_t reg, u32_t v);
 
 #endif /* PCI_H */
 

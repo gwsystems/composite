@@ -14,7 +14,11 @@
 struct cos_pci_device devices[PCI_DEVICE_NUM];
 int dev_num = 0;
 
-static inline u32_t
+/* RSK
+ * Would get better performance with static inline.
+ * However, this is called by DPDK lib
+ * */
+u32_t
 cos_pci_read_config(u32_t bus, u32_t dev, u32_t func, u32_t reg)
 {
 	u32_t v = PCI_ADDR(bus, dev, func, reg);
@@ -22,7 +26,7 @@ cos_pci_read_config(u32_t bus, u32_t dev, u32_t func, u32_t reg)
 	return inl(PCI_CONFIG_DATA);
 }
 
-static inline void
+void
 cos_pci_write_config(u32_t bus, u32_t dev, u32_t func, u32_t reg, u32_t v)
 {
 	u32_t a = PCI_ADDR(bus, dev, func, reg);
@@ -78,14 +82,7 @@ cos_pci_scan(void)
 				devices[dev_num].subclass  = (u8_t)PCI_SUBCLASS_ID(devices[dev_num].data[2]);
 				devices[dev_num].progIF    = (u8_t)PCI_PROG_IF(devices[dev_num].data[2]);
 				devices[dev_num].header    = (u8_t)PCI_HEADER(devices[dev_num].data[3]);
-				for(k=0; k<PCI_BAR_NUM; k++) {
-					bar       = &devices[dev_num].bar[k];
-					bar->raw  = devices[dev_num].data[4 + k];
-					reg       = (k + 4) << 2;
-					cos_pci_write_config(i, j, f, reg, PCI_BITMASK_32);
-					tmp       = cos_pci_read_config(i, j, f, reg);
-					bar->size = ~(tmp & ~0xF) + 1;
-				}
+				for(k=0; k<PCI_BAR_NUM; k++) devices[dev_num].bar[k].raw = devices[dev_num].data[4+k];
 				dev_num++;
 			}
 		}
