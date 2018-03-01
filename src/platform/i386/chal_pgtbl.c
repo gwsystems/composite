@@ -61,20 +61,23 @@ chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned l
 	*kern_addr = (unsigned long)chal_pa2va((paddr_t)(orig_v & PGTBL_FRAME_MASK));
 	new_v      = orig_v | X86_COSKMEM;
 
-	/* pa2va (value in *kern_addr) will return NULL if the page is
-	 * not kernel accessible */
+	/* pa2va (value in *kern_addr) will return NULL if the page is not kernel accessible */
 	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
 	if (unlikely(retypetbl_kern_ref((void *)(new_v & PGTBL_FRAME_MASK)))) return -EFAULT;
 
-	/* We keep the cos_frame entry, but mark it as COSKMEM so that
-	 * we won't use it for other kernel objects. */
+	/**
+         * We keep the cos_frame entry, but mark it as COSKMEM so that
+	 * we won't use it for other kernel objects.
+         */
 	if (unlikely(cos_cas((unsigned long *)pte, orig_v, new_v) != CAS_SUCCESS)) {
 		/* restore the ref cnt. */
 		retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK));
 		return -ECASFAIL;
 	}
-	/* Return the pte ptr, so that we can release the page if the
-	 * kobj activation failed later. */
+	/**
+         * Return the pte ptr, so that we can release the page if the
+	 * kobj activation failed later.
+         */
 	*pte_ret = (unsigned long *)pte;
 
 	return 0;
@@ -85,14 +88,18 @@ chal_tlb_quiescence_check(u64_t timestamp)
 {
 	int i, quiescent = 1;
 
-	/* Did timer interrupt (which does tlb flush
+	/**
+         * Did timer interrupt (which does tlb flush
 	 * periodically) happen after unmap? The periodic
 	 * flush happens on all cpus, thus only need to check
 	 * the time stamp of the current core for that case
-	 * (assuming consistent time stamp counters). */
+	 * (assuming consistent time stamp counters).
+         */
 	if (timestamp > tlb_quiescence[get_cpuid()].last_periodic_flush) {
-		/* If no periodic flush done yet, did the
-		 * mandatory flush happen on all cores? */
+		/**
+                 * If no periodic flush done yet, did the
+		 * mandatory flush happen on all cores?
+                 */
 		for (i = 0; i < NUM_CPU_COS; i++) {
 			if (timestamp > tlb_quiescence[i].last_mandatory_flush) {
 				/* no go */
@@ -183,8 +190,10 @@ chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 
 	if (parent == NULL) {
 		if (!root) cos_throw(err, -EINVAL);
-		/* Last reference to the captbl page. Require pgtbl
-		 * and cos_frame cap to release the kmem page. */
+		/**
+                 * Last reference to the captbl page. Require pgtbl
+		 * and cos_frame cap to release the kmem page.
+                 */
 		ret = kmem_deact_pre(deact_header, t, pgtbl_cap, cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
@@ -196,8 +205,10 @@ chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS)
 		cos_throw(err, -ECASFAIL);
 
-	/* deactivation success. We should either release the
-	 * page, or decrement parent cnt. */
+	/**
+         * deactivation success. We should either release the
+	 * page, or decrement parent cnt.
+         */
 	if (parent == NULL) {
 		/* move the kmem to COSFRAME */
 		ret = kmem_deact_post(pte, old_v);
@@ -291,7 +302,7 @@ chal_pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 	if (__pgtbl_isnull(pte, 0, 0)) return -ENOENT;
 
 	orig_v = (u32_t)(pte->next);
-	/*
+	/**
 	 * accum contains flags from pgd as well, so don't use it to
 	 * get prevflags.
 	 */
@@ -302,8 +313,10 @@ chal_pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 	                           orig_v);
 }
 
-/* When we remove a mapping, we need to link the vas to a liv_id,
- * which tracks quiescence for us. */
+/**
+ * When we remove a mapping, we need to link the vas to a liv_id,
+ * which tracks quiescence for us.
+ */
 int
 chal_pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 {
@@ -340,8 +353,10 @@ done:
 	return ret;
 }
 
-/* NOTE: This just removes the mapping. NO liveness tracking! TLB
- * flush should be taken care of separately (and carefully). */
+/**
+ * NOTE: This just removes the mapping. NO liveness tracking! TLB
+ * flush should be taken care of separately (and carefully).
+ */
 int
 chal_pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr)
 {
@@ -360,8 +375,10 @@ chal_pgtbl_mapping_scan(struct cap_pgtbl *pt)
 	livenessid_t lid;
 	u64_t        past_ts;
 
-	/* This scans the leaf level of the pgtbl and verifies
-	 * quiescence. */
+	/**
+         * This scans the leaf level of the pgtbl and verifies
+	 * quiescence.
+         */
 	if (pt->lvl != PGTBL_DEPTH - 1) return -EINVAL;
 
 	page = (unsigned int *)(pt->pgtbl);
@@ -450,9 +467,11 @@ chal_pgtbl_quie_check(u32_t orig_v)
 
 	if (orig_v & X86_QUIESCENCE) {
 		lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
-		/* An unmap happened at this vaddr before. We need to
+		/**
+                 * An unmap happened at this vaddr before. We need to
 		 * make sure that all cores have done tlb flush before
-		 * creating new mapping. */
+		 * creating new mapping.
+                 */
 		assert(lid < LTBL_ENTS);
 
 		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;

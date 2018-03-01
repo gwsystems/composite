@@ -24,41 +24,41 @@
 /* The page size definitions for composite OS */
 typedef enum {
 	PGSZ_128B = 7,
-	PGSZ_256B = 8,
-	PGSZ_512B = 9,
-	PGSZ_1K	  = 10,
-	PGSZ_2K	  = 11,
-	PGSZ_4K	  = 12,
-	PGSZ_8K	  = 13,
-	PGSZ_16K  = 14,
-	PGSZ_32K  = 15,
-	PGSZ_64K  = 16,
-	PGSZ_128K = 17,
-	PGSZ_256K = 18,
-	PGSZ_512K = 19,
-	PGSZ_1M	  = 20,
-	PGSZ_2M	  = 21,
-	PGSZ_4M	  = 22
+	PGSZ_256B,
+	PGSZ_512B,
+	PGSZ_1K,
+	PGSZ_2K,
+	PGSZ_4K,
+	PGSZ_8K,
+	PGSZ_16K,
+	PGSZ_32K,
+	PGSZ_64K,
+	PGSZ_128K,
+	PGSZ_256K,
+	PGSZ_512K,
+	PGSZ_1M,
+	PGSZ_2M,
+	PGSZ_4M
 } pgtbl_sz_t;
 
 /* The number of pages in this page table */
 typedef enum {
 	PGNO_2    = 1,
-	PGNO_4	  = 2,
-	PGNO_8    = 3,
-	PGNO_16   = 4,
-	PGNO_32   = 5,
-	PGNO_64   = 6,
-	PGNO_128  = 7,
-	PGNO_256  = 8,
-	PGNO_512  = 9,
-	PGNO_1K	  = 10,
-	PGNO_2K	  = 11,
-	PGNO_4K	  = 12,
-	PGNO_8K	  = 13,
-	PGNO_16K  = 14,
-	PGNO_32K  = 15,
-	PGNO_64K  = 16
+	PGNO_4,
+	PGNO_8,
+	PGNO_16,
+	PGNO_32,
+	PGNO_64,
+	PGNO_128,
+	PGNO_256,
+	PGNO_512,
+	PGNO_1K,
+	PGNO_2K,
+	PGNO_4K,
+	PGNO_8K,
+	PGNO_16K,
+	PGNO_32K,
+	PGNO_64K
 } pgtbl_no_t;
 
 struct tlb_quiescence {
@@ -73,7 +73,6 @@ struct tlb_quiescence {
 extern struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
 
 int tlb_quiescence_check(u64_t timestamp);
-
 
 int            pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
 int            pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);

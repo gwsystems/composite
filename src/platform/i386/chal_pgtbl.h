@@ -22,7 +22,7 @@ typedef enum {
 	X86_INTERN_DEF = X86_USER_DEF,
 } pgtbl_flags_x86_t;
 
-/*
+/**
  * Use the passed in page, but make sure that we only use the passed
  * in page once.
  */
@@ -57,15 +57,16 @@ static void
 __pgtbl_init(struct ert_intern *a, int isleaf)
 {
 	(void)isleaf;
-	//	if (isleaf) return;
 	a->next = NULL;
 }
 
-/* We only need to do mapping_add at boot time to add all physical
+/**
+ * We only need to do mapping_add at boot time to add all physical
  * memory to the pgtbl of llboot. After that, we only need to do copy
  * from llboot pgtbl to other pgtbls. Thus, when adding to pgtbl, we
  * use physical addresses; when doing copy, we don't need to worry
- * about PA. */
+ * about PA.
+ */
 
 /* v should include the desired flags */
 static inline int
@@ -81,8 +82,10 @@ __pgtbl_setleaf(struct ert_intern *a, void *v)
 	return 0;
 }
 
-/* This takes an input parameter as the old value of the mapping. Only
- * update when the existing value matches. */
+/**
+ * This takes an input parameter as the old value of the mapping. Only
+ * update when the existing value matches.
+ */
 static inline int
 __pgtbl_update_leaf(struct ert_intern *a, void *v, u32_t old)
 {
@@ -146,7 +149,7 @@ pgtbl_intern_expand(pgtbl_t pt, u32_t addr, void *pte, u32_t flags)
 	return ret;
 }
 
-/*
+/**
  * FIXME: If these need to return a physical address, we should do a
  * va2pa before returning
  */
