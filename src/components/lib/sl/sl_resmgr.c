@@ -61,7 +61,7 @@ sl_thd_ext_idx_alloc_intern(struct cos_defcompinfo *comp, int idx)
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 
-	aep->thd = resmgr_ext_thd_create(cos_spd_id(), comp->id, idx); 
+	aep->thd = resmgr_ext_thd_create(comp->id, idx);
 	if (!aep->thd) goto done;
 
 	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
@@ -86,7 +86,7 @@ sl_thd_alloc_intern(cos_thd_fn_t fn, void *data)
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 
-	aep->thd = resmgr_thd_create(cos_spd_id(), fn, data);
+	aep->thd = resmgr_thd_create(fn, data);
 	if (!aep->thd) goto done;
 
 	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
@@ -114,8 +114,8 @@ sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *scht
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 
-	if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;	
-	ret = resmgr_ext_aep_create(cos_spd_id(), comp->id, aep, idx, owntc, extrcv);
+	if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
+	ret = resmgr_ext_aep_create(comp->id, aep, idx, owntc, extrcv);
 	if (!ret) goto done;
 
 	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
@@ -178,14 +178,14 @@ sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *
 	} else {
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
 
-		resmgr_aep_create(cos_spd_id(), aep, fn, data, owntc);
+		resmgr_aep_create(aep, fn, data, owntc);
 	}
 	if (aep->thd == 0) goto done;
 
 	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	assert(tid);
 	if (prps & SL_THD_PROPERTY_OWN_TCAP && snd == 0) {
-		snd = resmgr_asnd_create(cos_spd_id(), comp->id, tid);
+		snd = resmgr_asnd_create(comp->id, tid);
 		assert(snd);
 	}
 	t = sl_thd_alloc_init(tid, aep, snd, prps);
@@ -217,9 +217,9 @@ sl_thd_childaep_alloc_intern(struct cos_defcompinfo *comp, sl_thd_property_t prp
 
 	if (prps & SL_THD_PROPERTY_SEND) {
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
-		resmgr_initaep_create(cos_spd_id(), comp->id, aep, owntc, &snd);
+		resmgr_initaep_create(comp->id, aep, owntc, &snd);
 	} else {
-		aep->thd = resmgr_initthd_create(cos_spd_id(), comp->id);
+		aep->thd = resmgr_initthd_create(comp->id);
 	}
 	if (aep->thd == 0) goto done;
 	*sa = *aep;
@@ -351,7 +351,7 @@ sl_thd_ext_init(thdcap_t thd, tcap_t tc, arcvcap_t rcv, asndcap_t snd)
 	sl_thd_property_t props = 0;
 
 	if (snd) props |= SL_THD_PROPERTY_SEND;
-	if (tc != sl_thd_tcap(g->sched_thd)) props |= SL_THD_PROPERTY_OWN_TCAP; 
+	if (tc != sl_thd_tcap(g->sched_thd)) props |= SL_THD_PROPERTY_OWN_TCAP;
 
 	sl_cs_enter();
 	t = sl_thd_ext_init_intern(thd, tc, rcv, snd, props);

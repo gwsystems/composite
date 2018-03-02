@@ -39,7 +39,7 @@ test_shmem(void)
 	int idx = 0, i, npages = 0;
 	vaddr_t addr;
 
-	npages = memmgr_shared_page_map(0, idx, &addr);
+	npages = memmgr_shared_page_map(idx, &addr);
 	PRINTC("Mapped shared @ %d:%lx, pages:%d\n", idx, addr, npages);
 
 	assert(idx == 0); /* know that other comp created this before me. */

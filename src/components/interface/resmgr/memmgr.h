@@ -11,11 +11,11 @@
 #define MEMMGR_MAX_SHMEM_SIZE    (1<<22) /* 4MB */
 #define MEMMGR_SHMEM_BASE        (0x80000000)
 
-vaddr_t memmgr_heap_page_alloc(spdid_t cur);
-vaddr_t memmgr_heap_page_allocn(spdid_t cur, unsigned int num_pages);
+vaddr_t memmgr_heap_page_alloc(void);
+vaddr_t memmgr_heap_page_allocn(unsigned int num_pages);
 
-int memmgr_shared_page_alloc(spdid_t cur, vaddr_t *pgaddr);
-int memmgr_shared_page_allocn(spdid_t cur, int num_pages, vaddr_t *pgaddr);
-int memmgr_shared_page_map(spdid_t cur, int id, vaddr_t *pgaddr);
+int memmgr_shared_page_alloc(vaddr_t *pgaddr);
+int memmgr_shared_page_allocn(int num_pages, vaddr_t *pgaddr);
+int memmgr_shared_page_map(int id, vaddr_t *pgaddr);
 
 #endif /* MEMMGR_H */

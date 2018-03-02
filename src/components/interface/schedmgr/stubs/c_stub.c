@@ -12,38 +12,38 @@ int schedmgr_thd_delete_intern(spdid_t c, thdid_t tid, int u1, int u2, int *u3, 
 int schedmgr_thd_exit_intern(spdid_t c, int u1, int u2, int u3, int *u4, int *u5);
 
 int
-schedmgr_thd_wakeup(spdid_t c, thdid_t t)
+schedmgr_thd_wakeup(thdid_t t)
 {
 	int unused;
 
-	return schedmgr_thd_wakeup_intern(c, t, unused, unused, &unused, &unused);
+	return schedmgr_thd_wakeup_intern(0, t, unused, unused, &unused, &unused);
 }
 
 int
-schedmgr_thd_block(spdid_t c, thdid_t dt)
+schedmgr_thd_block(thdid_t dt)
 {
 	int unused;
 
-	return schedmgr_thd_block_intern(c, dt, unused, unused, &unused, &unused);
+	return schedmgr_thd_block_intern(0, dt, unused, unused, &unused, &unused);
 }
 
 int
-schedmgr_thd_block_timeout(spdid_t c, thdid_t deptid, cycles_t abs_timeout)
+schedmgr_thd_block_timeout(thdid_t deptid, cycles_t abs_timeout)
 {
 	int unused;
 
-	return schedmgr_thd_block_timeout_intern(c, deptid, (u32_t)(abs_timeout >> 32), (u32_t)((abs_timeout << 32) >> 32), &unused, &unused);
+	return schedmgr_thd_block_timeout_intern(0, deptid, (u32_t)(abs_timeout >> 32), (u32_t)((abs_timeout << 32) >> 32), &unused, &unused);
 }
 
 thdid_t
-schedmgr_thd_create(spdid_t c, cos_thd_fn_t fn, void *data)
+schedmgr_thd_create(cos_thd_fn_t fn, void *data)
 {
 	int unused;
 	int idx = cos_thd_init_alloc(fn, data);
 
 	if (idx < 1) assert(0);
 
-	return schedmgr_thd_create_intern(c, idx, unused, unused, &unused, &unused);
+	return schedmgr_thd_create_intern(0, idx, unused, unused, &unused, &unused);
 }
 
 static void
@@ -57,7 +57,7 @@ __schedmgr_aep_fn(void *data)
 }
 
 thdid_t
-schedmgr_aep_create(spdid_t c, struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc)
+schedmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc)
 {
 	int idx = cos_thd_init_alloc(__schedmgr_aep_fn, (void *)aep);
 	arcvcap_t rcv;
@@ -66,7 +66,7 @@ schedmgr_aep_create(spdid_t c, struct cos_aep_info *aep, cos_aepthd_fn_t fn, voi
 
 	if (idx < 1) assert(0);
 
-	ret = schedmgr_aep_create_intern(c, idx, owntc, unused, &rcv, &unused);
+	ret = schedmgr_aep_create_intern(0, idx, owntc, unused, &rcv, &unused);
 	assert(ret);
 
 	aep->fn = fn;
@@ -79,25 +79,25 @@ schedmgr_aep_create(spdid_t c, struct cos_aep_info *aep, cos_aepthd_fn_t fn, voi
 }
 
 int
-schedmgr_thd_param_set(spdid_t c, thdid_t t, sched_param_t p)
+schedmgr_thd_param_set(thdid_t t, sched_param_t p)
 {
 	int unused;
 
-	return schedmgr_thd_param_set_intern(c, t, p, unused, &unused, &unused);
+	return schedmgr_thd_param_set_intern(0, t, p, unused, &unused, &unused);
 }
 
 int
-schedmgr_thd_delete(spdid_t c, thdid_t t)
+schedmgr_thd_delete(thdid_t t)
 {
 	int unused;
 
-	return schedmgr_thd_delete_intern(c, t, unused, unused, &unused, &unused);
+	return schedmgr_thd_delete_intern(0, t, unused, unused, &unused, &unused);
 }
 
 int
-schedmgr_thd_exit(spdid_t c)
+schedmgr_thd_exit(void)
 {
 	int unused;
 
-	return schedmgr_thd_exit_intern(c, unused, unused, unused, &unused, &unused);
+	return schedmgr_thd_exit_intern(0, unused, unused, unused, &unused, &unused);
 }

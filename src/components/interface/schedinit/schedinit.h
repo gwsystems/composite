@@ -3,6 +3,6 @@
 
 #include <cos_types.h>
 
-int schedinit_child(spdid_t c);
+int schedinit_child(void);
 
 #endif /* SCHEDINIT_H */
