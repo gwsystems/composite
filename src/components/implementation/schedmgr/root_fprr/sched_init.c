@@ -10,7 +10,7 @@ static u64_t childinit_bitf = 0;
 extern struct cos_defcompinfo *child_defci_get(spdid_t spdid);
 
 int
-schedinit_child_intern(spdid_t c, int u1, int u2, int u3, int *u4, int *u5)
+schedinit_child_intern(spdid_t c)
 {
 	thdcap_t thdcap = 0;
 	thdid_t thdid = 0;

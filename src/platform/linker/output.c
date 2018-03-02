@@ -157,7 +157,8 @@ cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct sym
 {
 	struct symb *exp_symb = symb->exported_symb;
 	struct service_symbs *exporter = symb->exporter;
-	struct symb *c_stub, *s_stub;
+	struct symb *c_stub, *s_stub, *c_stub_3rets;
+	int s_3rets = 0;
 	char tmp[MAX_SYMB_LEN];
 
 	assert(exporter);
@@ -175,6 +176,7 @@ cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct sym
 	/* } */
 
 	c_stub = spd_contains_symb(service, tmp);
+	c_stub_3rets = c_stub;
 	if (NULL == c_stub) {
 		c_stub = spd_contains_symb(service, CAP_CLIENT_STUB_DEFAULT);
 		if (NULL == c_stub) {
@@ -182,9 +184,15 @@ cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct sym
 			       symb->name, service->obj);
 			return -1;
 		}
+		c_stub_3rets = spd_contains_symb(service, CAP_CLIENT_STUB_3RETS);
+		if (NULL == c_stub_3rets) {
+			printl(PRINT_HIGH, "Could not find a client stub for function %s in service %s.\n",
+			       symb->name, service->obj);
+			return -1;
+		}
 	}
 
-	if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", exp_symb->name, CAP_SERVER_STUB_POSTPEND)) {
+	if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", exp_symb->name, CAP_SERVER_STUB_POSTPEND_3RETS)) {
 		printl(PRINT_HIGH, "symbol name %s too long to become server capability\n", exp_symb->name);
 		return -1;
 	}
@@ -193,12 +201,24 @@ cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct sym
 	if (NULL == s_stub) {
 		printl(PRINT_HIGH, "Could not find server stub (%s) for function %s in service %s to satisfy %s.\n",
 		       tmp, exp_symb->name, exporter->obj, service->obj);
-		return -1;
+		if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", exp_symb->name, CAP_SERVER_STUB_POSTPEND)) {
+			printl(PRINT_HIGH, "symbol name %s too long to become server capability\n", exp_symb->name);
+			return -1;
+		}
+
+		s_stub = spd_contains_symb(exporter, tmp);
+		if (NULL == s_stub) {
+			printl(PRINT_HIGH, "Could not find server stub (%s) for function %s in service %s to satisfy %s.\n",
+					tmp, exp_symb->name, exporter->obj, service->obj);
+			return -1;
+		}
+	} else {
+		s_3rets = 1;
 	}
 
 	cri->csymb = symb;
 	cri->ssymbfn = exp_symb;
-	cri->cstub = c_stub;
+	cri->cstub = s_3rets ? c_stub_3rets : c_stub;
 	cri->sstub = s_stub;
 	cri->serv = exporter;
 	if (exp_symb->modifier_offset) {

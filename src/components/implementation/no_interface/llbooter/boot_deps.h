@@ -16,7 +16,7 @@
 #define INIT_THDS_SIZE MAX_NUM_SPDS + 1
 
 /* Assembly function for sinv from new component */
-extern void *hypercall_entry_inv(spdid_t cur, int op, int arg1, int arg2, int *ret2, int *ret3);
+extern void *hypercall_entry_3rets_inv(spdid_t cur, int op, int arg1, int arg2, int *ret2, int *ret3);
 
 extern int num_cobj;
 extern int resmgr_spdid;
@@ -319,7 +319,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	compinfo->comp_cap = cc;
 
 	/* Create sinv capability from Userspace to Booter components */
-	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)hypercall_entry_inv, token);
+	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)hypercall_entry_3rets_inv, token);
 	assert(sinv > 0);
 
 	ret = cos_cap_cpy_at(compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);

@@ -6,7 +6,7 @@
 #include "res_info.h"
 
 vaddr_t
-memmgr_heap_page_allocn_intern(spdid_t cur, unsigned int num, int u1, int u2, int *u3, int *u4)
+memmgr_heap_page_allocn_intern(spdid_t cur, unsigned int num)
 {
 	struct cos_compinfo *res_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct res_comp_info *cur_rci = res_info_comp_find(cur);

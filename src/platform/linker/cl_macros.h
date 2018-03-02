@@ -23,7 +23,9 @@
 #define NUM_KERN_SYMBS 1
 
 #define CAP_CLIENT_STUB_DEFAULT "SS_ipc_client_marshal_args"
+#define CAP_CLIENT_STUB_3RETS "SS_ipc_client_marshal_args_3rets"
 #define CAP_CLIENT_STUB_POSTPEND "_call"
+#define CAP_SERVER_STUB_POSTPEND_3RETS "_3rets_inv"
 #define CAP_SERVER_STUB_POSTPEND "_inv"
 
 #define BASE_SERVICE_ADDRESS SERVICE_START

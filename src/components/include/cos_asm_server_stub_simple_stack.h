@@ -14,7 +14,7 @@
 #include <cos_asm_simple_stacks.h>
 
 
-/* 
+/*
  * The register layout is paired with that in ipc.S, %ecx holding the
  * spdid.  We zero out the %ebp so that is we do a stack trace later,
  * we know that when the %ebp is 0, we are at the end of the stack.
@@ -43,10 +43,10 @@ name##_inv:                       \
 	sysenter;
 
 #define cos_asm_server_stub_3rets(name) \
-.globl name##_inv ;                     \
-.type  name##_inv, @function ;          \
+.globl name##_3rets_inv ;               \
+.type  name##_3rets_inv, @function ;    \
 .align 16 ;                             \
-name##_inv:                             \
+name##_3rets_inv:                       \
 	COS_ASM_GET_STACK               \
 	pushl $0;                       \
 	movl %esp, -8(%esp);            \
@@ -90,10 +90,10 @@ name##_inv:                             \
 	sysenter;
 
 #define cos_asm_server_stub_token_3rets(name) \
-.globl name##_inv ;                           \
-.type  name##_inv, @function ;                \
+.globl name##_3rets_inv ;                     \
+.type  name##_3rets_inv, @function ;          \
 .align 16 ;                                   \
-name##_inv:                                   \
+name##_3rets_inv:                             \
 	COS_ASM_GET_STACK                     \
 	pushl $0;                             \
 	movl %esp, -8(%esp);                  \

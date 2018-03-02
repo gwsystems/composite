@@ -54,7 +54,15 @@ f = os.popen("nm --extern-only c.o | awk '{if (NF == 3 && ($2 == \"T\" || $2 == 
 fns = f.readlines()
 fns = [string.rstrip(x) for x in fns]
 
+iffnexps3rets = []
 for iffn in iffnexps:
+    if (iffn not in fns):
+       iffnexps3rets.append(iffn)
+    else:
+       print(iffn)
+
+iffnexps3rets = [string.replace(x,"_3rets", "") for x in iffnexps3rets]
+for iffn in iffnexps3rets:
     if (iffn not in fns):
        sys.stderr.write("Warning: in component " + cif + "." + comp + ", function " + iffn + " defined in an interface, but not in component\n")
     else:
