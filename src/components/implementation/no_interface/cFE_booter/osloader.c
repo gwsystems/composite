@@ -26,32 +26,13 @@ int32 OS_ModuleUnload(uint32 module_id)
     return OS_SUCCESS;
 }
 
-void launch_other_component(int component_id) {
-	struct cos_defcompinfo *dci;
-	struct cos_compinfo    *ci;
+void launch_other_component(int child_id) {
+    struct cos_defcompinfo dci;
+    cos_defcompinfo_childid_init(&dci, child_id);
 
-	dci = cos_defcompinfo_curr_get();
-	assert(dci);
-	ci  = cos_compinfo_get(dci);
-	assert(ci);
-
-
-    pgtblcap_t pgtslot  = cos_capid_bump_alloc(ci, CAP_PGTBL);
-    assert(pgtslot);
-    captblcap_t captslot = cos_capid_bump_alloc(ci, CAP_CAPTBL);
-    assert(captslot);
-    compcap_t ccslot   = cos_capid_bump_alloc(ci, CAP_COMP);
-    assert(ccslot);
-
-    spdid_t parent_spid;
-    hypercall_comp_info_get(component_id, pgtslot, captslot, ccslot, &parent_spid);
-
-	thdcap_t thd = cos_initthd_alloc(ci, ccslot);
-	assert(thd);
-    struct sl_thd *t = sl_thd_ext_init(thd, 0, 0, 0);
-
-	sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, 1));
-	sl_thd_yield(t->thdid);
+    struct sl_thd *t = sl_thd_child_initaep_alloc(&dci, 0, 1);
+    sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, 1));
+    sl_thd_yield(t->thdid);
 }
 
 // Component proxy hack
@@ -62,7 +43,7 @@ void launch_other_component(int component_id) {
 // 4) Add a proxy here
 
 void sample_lib_proxy() {
-    launch_other_component(2);
+    launch_other_component(1);
     // Do not idle loop if you are an app, they are initialized on the main thread
 }
 
@@ -72,7 +53,7 @@ void sample_app_proxy() {
 }
 
 void sch_lab_proxy() {
-    launch_other_component(4);
+    launch_other_component(5);
     OS_IdleLoop();
 }
 

@@ -237,7 +237,7 @@ boot_newcomp_init_caps(spdid_t spdid)
 	struct comp_cap_info *capci     = &new_comp_cap_info[spdid];
 	struct cos_aep_info  *child_aep = boot_spd_initaep_get(spdid);
 	int ret, i;
-	
+
 	/* FIXME: not everyone should have it. but for now, because getting cpu cycles uses this */
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, boot_info, BOOT_CAPTBL_SELF_INITHW_BASE);
 	assert(ret == 0);
@@ -250,7 +250,7 @@ boot_newcomp_init_caps(spdid_t spdid)
 		 * - to get budget on tcap
 		 * - other introspect...requirements..
 		 *
-		 * I don't know a way to get away from this for now! 
+		 * I don't know a way to get away from this for now!
 		 * If it were just thdid, resmgr could have returned the thdids!
 		 */
 		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_CT, boot_info, ci->captbl_cap);
@@ -351,7 +351,8 @@ boot_done(void)
 		ret = cos_tcap_transfer(root_aep->rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, LLBOOT_ROOT_PRIO);
 		assert(ret == 0);
 
-		ret = cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOT_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
+		while(1)
+			cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOT_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
 		PRINTC("ERROR: Root scheduler returned.\n");
 		assert(0);
 	}
