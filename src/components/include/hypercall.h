@@ -23,7 +23,7 @@ enum hypercall_cntl {
 };
 
 /* assumption: spdids are monotonically increasing from 0 and max MAX_NUM_SPD == 64 */
-static inline int 
+static inline int
 hypercall_comp_children_get(spdid_t c, u64_t *child_bitf)
 {
 	word_t lo = 0, hi = 0;
@@ -36,7 +36,7 @@ hypercall_comp_children_get(spdid_t c, u64_t *child_bitf)
 	return ret;
 }
 
-static inline int 
+static inline int
 hypercall_comp_sched_children_get(spdid_t c, u64_t *child_bitf)
 {
 	word_t lo = 0, hi = 0;
@@ -60,7 +60,7 @@ hypercall_comp_init_done(void)
 }
 
 /* Note: This API can be called ONLY by components that manage capability resources */
-static inline int 
+static inline int
 hypercall_comp_initthd_get(spdid_t spdid, int is_sched, thdcap_t *thdslot, arcvcap_t *rcvslot, tcap_t *tcslot)
 {
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
@@ -126,7 +126,7 @@ hypercall_comp_info_next(pgtblcap_t *ptslot, captblcap_t *ctslot, compcap_t *com
 	*comp_parentid = r3;
 
 	return ret;
-	
+
 }
 
 static inline int
@@ -136,7 +136,7 @@ hypercall_comp_frontier_get(spdid_t spdid, vaddr_t *vasfr, capid_t *capfr)
 }
 
 /* Note: This API can be called ONLY by components that manage capability resources */
-static inline compcap_t 
+static inline compcap_t
 hypercall_comp_compcap_get(spdid_t spdid)
 {
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
@@ -150,12 +150,12 @@ hypercall_comp_compcap_get(spdid_t spdid)
 }
 
 /* Note: This API can be called ONLY by components that manage capability resources */
-static inline captblcap_t 
+static inline captblcap_t
 hypercall_comp_captblcap_get(spdid_t spdid)
 {
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	captblcap_t ctslot = cos_capid_bump_alloc(ci, CAP_CAPTBL);
-	
+
 	assert(ctslot);
 
 	if (cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CAPTBLCAP_GET, spdid, ctslot)) return 0;
@@ -177,7 +177,7 @@ hypercall_comp_pgtblcap_get(spdid_t spdid)
 	return ptslot;
 }
 
-static inline capid_t 
+static inline capid_t
 hypercall_comp_capfrontier_get(spdid_t spdid)
 {
 	word_t unused;

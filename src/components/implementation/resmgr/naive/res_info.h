@@ -21,7 +21,7 @@ struct res_shmem_glb_info {
 };
 
 struct res_shmem_info {
-	struct cos_compinfo shcinfo;	
+	struct cos_compinfo shcinfo;
 
 	vaddr_t shm_addr[MEMMGR_MAX_SHMEM_REGIONS];
 };
@@ -43,7 +43,7 @@ struct res_comp_info {
 };
 
 struct res_comp_info *res_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
-					 capid_t cap_frontier, vaddr_t heap_frontier, vaddr_t shared_frontier, 
+					 capid_t cap_frontier, vaddr_t heap_frontier, vaddr_t shared_frontier,
 					 spdid_t par_sid, u64_t ch, u64_t ch_sch);
 
 struct sl_thd *res_info_thd_init(struct res_comp_info *rci, struct sl_thd *t);

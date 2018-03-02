@@ -248,7 +248,7 @@ boot_newcomp_init_caps(spdid_t spdid)
 	struct comp_cap_info *capci     = &new_comp_cap_info[spdid];
 	struct cos_aep_info  *child_aep = boot_spd_initaep_get(spdid);
 	int ret, i;
-	
+
 	/* FIXME: not everyone should have it. but for now, because getting cpu cycles uses this */
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, boot_info, BOOT_CAPTBL_SELF_INITHW_BASE);
 	assert(ret == 0);
@@ -261,7 +261,7 @@ boot_newcomp_init_caps(spdid_t spdid)
 		 * - to get budget on tcap
 		 * - other introspect...requirements..
 		 *
-		 * I don't know a way to get away from this for now! 
+		 * I don't know a way to get away from this for now!
 		 * If it were just thdid, resmgr could have returned the thdids!
 		 */
 		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_CT, boot_info, ci->captbl_cap);

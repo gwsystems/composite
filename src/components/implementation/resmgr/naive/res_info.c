@@ -67,13 +67,13 @@ res_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, co
 	resci[sid].chschbits = childschedbits;
 
 	cos_meminfo_init(&ci->mi, 0, 0, 0);
-	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, compcap, heap_frontier, cap_frontier, 
+	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, compcap, heap_frontier, cap_frontier,
 			  cos_compinfo_get(cos_defcompinfo_curr_get()));
 
 	memset(rglb, 0, sizeof(struct res_shmem_glb_info));
 	memset(res_shi, 0, sizeof(struct res_shmem_info));
 	cos_meminfo_init(&sh_ci->mi, 0, 0, 0);
-	cos_compinfo_init(sh_ci, pgtbl_cap, 0, 0, shared_frontier, 0, 
+	cos_compinfo_init(sh_ci, pgtbl_cap, 0, 0, shared_frontier, 0,
 			  cos_compinfo_get(cos_defcompinfo_curr_get()));
 
 	resci[sid].initflag = 1;
@@ -133,7 +133,7 @@ __res_info_shm_resmgr_vaddr(int id)
 	return resci[resmgr_myspdid].shminfo.shm_addr[id];
 }
 
-static inline void 
+static inline void
 __res_info_shm_resmgr_vaddr_set(int id, vaddr_t v)
 {
 	resci[resmgr_myspdid].shminfo.shm_addr[id] = v;
@@ -189,7 +189,7 @@ res_shmem_region_alloc(struct res_shmem_info *rsh, int num_pages)
 	vaddr_t res_addr, comp_addr;
 
 	assert(rsh);
-	
+
 	/* limits check */
 	if ((rglb->total_pages + num_pages) * PAGE_SIZE > MEMMGR_MAX_SHMEM_SIZE) goto done;
 	fidx = __sync_fetch_and_add(&(rglb->free_region_id), 1);

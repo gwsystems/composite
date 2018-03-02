@@ -27,7 +27,7 @@ memmgr_heap_page_allocn_intern(spdid_t cur, unsigned int num, int u1, int u2, in
 		if (!off) first_pg = dst_pg;
 		off++;
 	}
-	
+
 	return first_pg;
 }
 

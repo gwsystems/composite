@@ -32,7 +32,7 @@ resmgr_comp_info_iter(void)
 		vaddr_t vasfr = 0;
 		capid_t capfr = 0;
 		int ret = 0, is_sched = 0;
-		
+
 		remaining = hypercall_comp_info_next(&pgtslot, &captslot, &ccslot, &csid, &psid);
 		if (remaining < 0) break;
 

@@ -114,7 +114,7 @@ resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_
 	assert(t);
 	rt = res_info_thd_init(rc, t);
 	assert(rt);
-	rst = res_info_initthd_init(rs, t);	
+	rst = res_info_initthd_init(rs, t);
 	assert(rst);
 
 	/* child is a scheduler.. copy initcaps */
@@ -177,7 +177,7 @@ resmgr_ext_aep_create_intern(spdid_t cur, spdid_t s, int tidx, int owntc, arcvca
 	/* cur is a scheduler, copy thdcap */
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(rt));
 	assert(ret > 0);
-	/* 
+	/*
 	 * for aep thread.. rcv cap should be accessible in the destination component,
 	 * so we return that cap so the scheduler can init proper structures of the dest component.
 	 */
