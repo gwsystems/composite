@@ -30,7 +30,7 @@ hypercall_comp_children_get(spdid_t c, u64_t *child_bitf)
 	int ret;
 
 	*child_bitf = 0;
-	ret         = cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CHILDREN_GET, c, 0, &lo, &hi);
+	ret         = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CHILDREN_GET, c, 0, &lo, &hi);
 	*child_bitf = ((u64_t)hi << 32) | (u64_t)lo;
 
 	return ret;
@@ -43,7 +43,7 @@ hypercall_comp_sched_children_get(spdid_t c, u64_t *child_bitf)
 	int ret;
 
 	*child_bitf = 0;
-	ret         = cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_SCHED_CHILDREN_GET, c, 0, &lo, &hi);
+	ret         = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_SCHED_CHILDREN_GET, c, 0, &lo, &hi);
 	*child_bitf = ((u64_t)hi << 32) | (u64_t)lo;
 
 	return ret;
@@ -97,7 +97,7 @@ hypercall_comp_info_get(spdid_t spdid, pgtblcap_t *ptslot, captblcap_t *ctslot, 
 	assert(*compslot);
 
 	/* capid_t though is unsigned long, only assuming it occupies 16bits for packing */
-	ret = cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INFO_GET,
+	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INFO_GET,
 			     spdid << 16 | (*compslot), (*ptslot) << 16 | (*ctslot), &r2, &r3);
 	*parentid = r2;
 
@@ -120,7 +120,7 @@ hypercall_comp_info_next(pgtblcap_t *ptslot, captblcap_t *ctslot, compcap_t *com
 	assert(*compslot);
 
 	/* capid_t though is unsigned long, only assuming it occupies 16bits for packing */
-	ret =  cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INFO_NEXT,
+	ret =  cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INFO_NEXT,
 			      (*compslot), (*ptslot) << 16 | (*ctslot), &r2, &r3);
 	*compid        = r2;
 	*comp_parentid = r3;
@@ -132,7 +132,7 @@ hypercall_comp_info_next(pgtblcap_t *ptslot, captblcap_t *ctslot, compcap_t *com
 static inline int
 hypercall_comp_frontier_get(spdid_t spdid, vaddr_t *vasfr, capid_t *capfr)
 {
-	return cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_FRONTIER_GET, spdid, 0, vasfr, capfr);
+	return cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_FRONTIER_GET, spdid, 0, vasfr, capfr);
 }
 
 /* Note: This API can be called ONLY by components that manage capability resources */
@@ -183,7 +183,7 @@ hypercall_comp_capfrontier_get(spdid_t spdid)
 	word_t unused;
 	capid_t cap_frontier;
 
-	if (cos_sinv_3rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CAPFRONTIER_GET, spdid, 0, &cap_frontier, &unused)) return 0;
+	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CAPFRONTIER_GET, spdid, 0, &cap_frontier, &unused)) return 0;
 
 	return cap_frontier;
 }

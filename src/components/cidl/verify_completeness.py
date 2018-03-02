@@ -87,7 +87,7 @@ dangling = []
 for undef in fndeps:
     found = 0
     for exp in fnexps:
-        if undef + "_3rets_inv" == exp:
+        if undef + "_rets_inv" == exp:
            found = 1
            break
     	elif undef + "_inv" == exp:

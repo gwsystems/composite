@@ -42,31 +42,31 @@ name##_inv:                       \
 	                          \
 	sysenter;
 
-#define cos_asm_server_stub_3rets(name) \
-.globl name##_3rets_inv ;               \
-.type  name##_3rets_inv, @function ;    \
-.align 16 ;                             \
-name##_3rets_inv:                       \
-	COS_ASM_GET_STACK               \
-	pushl $0;                       \
-	movl %esp, -8(%esp);            \
-	pushl $0;                       \
-	movl %esp, -8(%esp);            \
-	subl $8, %esp;                  \
-	pushl %ebp;                     \
-	xor %ebp, %ebp;		        \
-	pushl %edi;                     \
-	pushl %esi;                     \
-	pushl %ebx;                     \
-	call name ;                     \
-	addl $24, %esp;                 \
-	popl %esi;                      \
-	popl %edi;                      \
-	                                \
-	movl %eax, %ecx;                \
-	movl $RET_CAP, %eax;            \
-	COS_ASM_RET_STACK               \
-	                                \
+#define cos_asm_server_stub_rets(name) \
+.globl name##_rets_inv ;               \
+.type  name##_rets_inv, @function ;    \
+.align 16 ;                            \
+name##_rets_inv:                       \
+	COS_ASM_GET_STACK              \
+	pushl $0;                      \
+	movl %esp, -8(%esp);           \
+	pushl $0;                      \
+	movl %esp, -8(%esp);           \
+	subl $8, %esp;                 \
+	pushl %ebp;                    \
+	xor %ebp, %ebp;		       \
+	pushl %edi;                    \
+	pushl %esi;                    \
+	pushl %ebx;                    \
+	call name ;                    \
+	addl $24, %esp;                \
+	popl %esi;                     \
+	popl %edi;                     \
+	                               \
+	movl %eax, %ecx;               \
+	movl $RET_CAP, %eax;           \
+	COS_ASM_RET_STACK              \
+	                               \
 	sysenter;
 
 #define cos_asm_server_stub_token(name) \
@@ -89,31 +89,31 @@ name##_inv:                             \
 	                                \
 	sysenter;
 
-#define cos_asm_server_stub_token_3rets(name) \
-.globl name##_3rets_inv ;                     \
-.type  name##_3rets_inv, @function ;          \
-.align 16 ;                                   \
-name##_3rets_inv:                             \
-	COS_ASM_GET_STACK                     \
-	pushl $0;                             \
-	movl %esp, -8(%esp);                  \
-	pushl $0;                             \
-	movl %esp, -8(%esp);                  \
-	subl $8, %esp;                        \
-	pushl %ebp;                           \
-	xor %ebp, %ebp;		              \
-	pushl %edi;                           \
-	pushl %esi;                           \
-	pushl %ecx;                           \
-	call name ;                           \
-	addl $24, %esp;                       \
-	popl %esi;                            \
-	popl %edi;                            \
-	                                      \
-	movl %eax, %ecx;                      \
-	movl $RET_CAP, %eax;                  \
-	COS_ASM_RET_STACK                     \
-	                                      \
+#define cos_asm_server_stub_token_rets(name) \
+.globl name##_rets_inv ;                     \
+.type  name##_rets_inv, @function ;          \
+.align 16 ;                                  \
+name##_rets_inv:                             \
+	COS_ASM_GET_STACK                    \
+	pushl $0;                            \
+	movl %esp, -8(%esp);                 \
+	pushl $0;                            \
+	movl %esp, -8(%esp);                 \
+	subl $8, %esp;                       \
+	pushl %ebp;                          \
+	xor %ebp, %ebp;		             \
+	pushl %edi;                          \
+	pushl %esi;                          \
+	pushl %ecx;                          \
+	call name ;                          \
+	addl $24, %esp;                      \
+	popl %esi;                           \
+	popl %edi;                           \
+	                                     \
+	movl %eax, %ecx;                     \
+	movl $RET_CAP, %eax;                 \
+	COS_ASM_RET_STACK                    \
+	                                     \
 	sysenter;
 /* clang-format on */
 
