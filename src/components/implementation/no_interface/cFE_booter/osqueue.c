@@ -9,9 +9,6 @@
 
 #include <string.h>
 
-#undef OS_MAX_QUEUES
-#define OS_MAX_QUEUES 15
-
 #define MAX_QUEUE_DATA_SIZE (1024 * 1024)
 
 struct sl_lock queue_lock = SL_LOCK_STATIC_INIT();

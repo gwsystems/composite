@@ -6,10 +6,13 @@
 #include <sl.h>
 #include <sl_thd.h>
 
-#include "cFE_util.h"
-
 #include "gen/osapi.h"
 #include "gen/common_types.h"
+
+#include "cFE_util.h"
+#include "ostask.h"
+
+thdid_t id_overrides[SL_MAX_NUM_THDS] = { 0 };
 
 int32 OS_ModuleTableInit(void)
 {
@@ -36,6 +39,7 @@ void launch_other_component(int child_id, int is_library)
         sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, 1));
         sl_thd_yield(t->thdid);
     } else {
+        id_overrides[t->thdid] = sl_thdid();
         while(1) sl_thd_yield(t->thdid);
     }
 }

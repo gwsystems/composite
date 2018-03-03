@@ -9,6 +9,7 @@
 #include "gen/common_types.h"
 #include "gen/cfe_time.h"
 
+#define HZ_PAUSE (1000 * 1000)
 
 void
 timer_fn_1hz(void *d)
@@ -17,7 +18,7 @@ timer_fn_1hz(void *d)
 	cycles_t now, start;
 
 	rdtscll(start);
-	start += sl_usec2cyc(250000); //250ms after
+	start += sl_usec2cyc(HZ_PAUSE);
 
 	while (1) {
 		rdtscll(now);
@@ -33,7 +34,7 @@ timer_fn_1hz(void *d)
 ** Internal Task helper functions
 */
 // We need to keep track of this to check if register or delete handler calls are invalid
-#define MAIN_DELEGATE_THREAD_PRIORITY 1
+#define MAIN_DELEGATE_THREAD_PRIORITY 2
 thdid_t main_delegate_thread_id;
 
 void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
@@ -50,7 +51,7 @@ void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
     policy->osal_task_prop.OStask_id = (uint32) main_delegate_thread->thdid;
 
     struct sl_thd *timer_thd = sl_thd_alloc(timer_fn_1hz, NULL);
-    union sched_param_union spperiod = {.c = {.type = SCHEDP_WINDOW, .value = 250000 }};
+    union sched_param_union spperiod = {.c = {.type = SCHEDP_WINDOW, .value = HZ_PAUSE }};
     union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = MAIN_DELEGATE_THREAD_PRIORITY+1}};
     sl_thd_param_set(timer_thd, spperiod.v);
     sl_thd_param_set(timer_thd, spprio.v);
@@ -156,7 +157,10 @@ int32 OS_TaskDelete(uint32 task_id)
 
 uint32 OS_TaskGetId(void)
 {
-    return sl_thdid();
+	thdid_t real_id = sl_thdid();
+	thdid_t possible_override = id_overrides[real_id];
+	if(possible_override) return possible_override;
+	return real_id;
 }
 
 void OS_TaskExit(void)
