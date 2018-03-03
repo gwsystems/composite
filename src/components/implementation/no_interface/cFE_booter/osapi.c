@@ -1,17 +1,15 @@
-#include "cFE_util.h"
+#include <cos_component.h>
+#include <cos_defkernel_api.h>
 
-#include "sl.h"
-#include "sl_consts.h"
+#include <sl.h>
+#include <sl_consts.h>
 
 #include "gen/osapi.h"
 #include "gen/cfe_psp.h"
 #include "gen/cfe_time.h"
 #include "gen/common_types.h"
 
-
-#include <cos_component.h>
-#include <cos_defkernel_api.h>
-
+#include "cFE_util.h"
 
 /*
 ** Initialization of API

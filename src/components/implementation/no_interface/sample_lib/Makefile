@@ -2,7 +2,7 @@
 ASM_OBJS=
 COMPONENT=sample_lib.o
 INTERFACES=
-DEPENDENCIES=cFE
+DEPENDENCIES=cFE resmgr
 IF_LIB:=./cFE_sample_lib.o
 ADDITIONAL_LIBS=-lcos_kernel_api -lcFE_emu
 
