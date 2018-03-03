@@ -31,12 +31,13 @@ SS_ipc_client_fault(cos_flt_off flt)
 }
 
 __attribute__((regparm(1))) int
-SS_ipc_client_marshal_args(struct usr_inv_cap *uc, long p0, long p1, long p2, long p3, long *r2, long *r3)
+SS_ipc_client_marshal_args(struct usr_inv_cap *uc, long p0, long p1, long p2, long p3)
 {
-	int ret;
+	return cos_sinv(uc->cap_no, p0, p1, p2, p3);
+}
 
-	/* Arguments are untested */
-	ret = cos_sinv_3rets(uc->cap_no, p0, p1, p2, p3, (word_t *)r2, (word_t *)r3);
-
-	return ret;
+__attribute__((regparm(1))) int
+SS_ipc_client_marshal_args_rets(struct usr_inv_cap *uc, long p0, long p1, long p2, long p3, long *r2, long *r3)
+{
+	return cos_sinv_rets(uc->cap_no, p0, p1, p2, p3, (word_t *)r2, (word_t *)r3);
 }

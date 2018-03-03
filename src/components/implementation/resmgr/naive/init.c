@@ -32,14 +32,14 @@ resmgr_comp_info_iter(void)
 		vaddr_t vasfr = 0;
 		capid_t capfr = 0;
 		int ret = 0, is_sched = 0;
-		
+
 		remaining = hypercall_comp_info_next(&pgtslot, &captslot, &ccslot, &csid, &psid);
 		if (remaining < 0) break;
 
 		num_comps ++;
-		ret = hypercall_comp_childspdids_get(csid, &chbits);
+		ret = hypercall_comp_children_get(csid, &chbits);
 		assert(ret == 0);
-		ret = hypercall_comp_childschedspdids_get(csid, &chschbits);
+		ret = hypercall_comp_sched_children_get(csid, &chschbits);
 		assert(ret == 0);
 		res_info_schedbmp |= chschbits;
 
@@ -91,7 +91,7 @@ cos_init(void)
 				 BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
 				 BOOT_CAPTBL_SELF_COMP, heap_frontier, cap_frontier);
 
-	hypercall_comp_childspdids_get(cos_spd_id(), &childbits);
+	hypercall_comp_children_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
 	sl_init(SL_MIN_PERIOD_US);

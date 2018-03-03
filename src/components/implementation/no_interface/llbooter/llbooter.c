@@ -297,7 +297,7 @@ boot_comp_preparse_name(void)
 	for (i = 0; hs[i] != NULL; i++) {
 		struct cobj_header *h;
 		spdid_t             spdid;
-		struct comp_cap_info *spd, *schedspd; 
+		struct comp_cap_info *spd, *schedspd;
 
 		h     = hs[i];
 		spdid = h->id;
@@ -393,7 +393,7 @@ boot_parse_init_args(void)
 		spd->parent_spdid = schedid;
 		schedspd->childid_bitf |= (1 << (spdid-1));
 		schedspd->flags |= BOOT_FLAG_SCHED;
-	} 
+	}
 }
 
 void

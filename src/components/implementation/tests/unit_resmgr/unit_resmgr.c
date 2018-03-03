@@ -38,7 +38,7 @@ test_thds(void)
 	int i = 0;
 
 	for (; i < TEST_N_THDS; i++) {
-		test_ts[i] = resmgr_thd_create(0, __test_thd_fn, (void *)i);
+		test_ts[i] = resmgr_thd_create(__test_thd_fn, (void *)i);
 		assert(test_ts[i]);
 
 		cos_thd_switch(test_ts[i]);
@@ -68,7 +68,7 @@ test_mem(void)
 	int i;
 	vaddr_t addr, haddr;
 
-	haddr = memmgr_heap_page_allocn(0, TEST_N_HEAP_PAGES);
+	haddr = memmgr_heap_page_allocn(TEST_N_HEAP_PAGES);
 	PRINTC("Alloc'd heap @ %lx, pages:%d\n", haddr, TEST_N_HEAP_PAGES);
 	for (i = 0; i < TEST_N_HEAP_PAGES; i++) {
 		vaddr_t page = haddr + i * PAGE_SIZE;
@@ -81,7 +81,7 @@ test_mem(void)
 	}
 	PRINTC("Read/write %d pages done\n", TEST_N_HEAP_PAGES);
 
-	idx = memmgr_shared_page_allocn(0, TEST_N_SHMEM_PAGES, &addr);
+	idx = memmgr_shared_page_allocn(TEST_N_SHMEM_PAGES, &addr);
 	PRINTC("Alloc'd shared @ %d:%lx, pages:%d\n", idx, addr, TEST_N_SHMEM_PAGES);
 
 	assert(idx == 0); /* to create a reader and test */
@@ -103,7 +103,7 @@ cos_init(void)
 	u64_t childbits;
 
 	PRINTC("Unit-test for Resource Manager interface\n");
-	hypercall_comp_childspdids_get(cos_spd_id(), &childbits);
+	hypercall_comp_children_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
 	test_thds();

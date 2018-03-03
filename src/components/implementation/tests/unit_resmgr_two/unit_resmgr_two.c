@@ -39,7 +39,7 @@ test_shmem(void)
 	int idx = 0, i, npages = 0;
 	vaddr_t addr;
 
-	npages = memmgr_shared_page_map(0, idx, &addr);
+	npages = memmgr_shared_page_map(idx, &addr);
 	PRINTC("Mapped shared @ %d:%lx, pages:%d\n", idx, addr, npages);
 
 	assert(idx == 0); /* know that other comp created this before me. */
@@ -58,7 +58,7 @@ cos_init(void)
 	u64_t childbits;
 
 	PRINTC("Unit-test for Resource Manager shared memory interface\n");
-	hypercall_comp_childspdids_get(cos_spd_id(), &childbits);
+	hypercall_comp_children_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
 	/* assuming this runs (initialization) after unit_resmgr component */
