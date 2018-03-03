@@ -9,11 +9,9 @@
 #include <res_spec.h>
 
 #define UNDEF_SYMBS 64
-#define CMP_UTYPMEM_SZ (1 << 27)
-#define THD_PRIO 5
-#define THD_PERIOD 10
-#define THD_BUDGET 5
-#define INIT_THDS_SIZE MAX_NUM_SPDS + 1
+#define LLBOOT_ROOT_PRIO 1
+#define RESMGR_UNTYPED_MEM_SZ (COS_MEM_KERN_PA_SZ / 2)
+#define BOOT_COMP_UNTYPED_SZ  (1<<24) /* 16MB */
 
 /* Assembly function for sinv from new component */
 extern void *hypercall_entry_rets_inv(spdid_t cur, int op, int arg1, int arg2, int *ret2, int *ret3);
@@ -21,8 +19,6 @@ extern void *hypercall_entry_rets_inv(spdid_t cur, int op, int arg1, int arg2, i
 extern int num_cobj;
 extern int resmgr_spdid;
 extern int root_spdid;
-long boot_pgtbl_cap_transfer(int dst, int src, int cap_slot);
-long boot_thd_cap_transfer(int dst, int src, int cap_slot);
 
 typedef enum {
 	BOOT_FLAG_SCHED = 1,
@@ -125,9 +121,6 @@ boot_comp_pgtbl_expand(size_t n_pte, pgtblcap_t pt, vaddr_t vaddr, struct cobj_h
 		if (!cos_pgtbl_intern_alloc(boot_info, pt, vaddr, SERVICE_SIZE)) BUG();
 	}
 }
-
-#define RESMGR_UNTYPED_MEM_SZ (COS_MEM_KERN_PA_SZ / 2)
-#define BOOT_COMP_UNTYPED_SZ  (1<<24) /* 16MB */
 
 /* Initialize just the captblcap and pgtblcap, due to hack for upcall_fn addr */
 static void
@@ -339,8 +332,6 @@ boot_bootcomp_init(void)
 	cos_defcompinfo_init();
 	capci->flags |= BOOT_FLAG_SCHED;
 }
-
-#define LLBOOT_ROOT_PRIO 1
 
 static void
 boot_done(void)

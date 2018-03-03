@@ -24,23 +24,18 @@ resmgr_thd_retrieve_next(spdid_t child, thdcap_t *t)
 thdcap_t
 resmgr_thd_retrieve(spdid_t child, thdid_t t)
 {
-	int unused;
-
 	return resmgr_thd_retrieve_intern(0, child, t);
 }
 
 thdcap_t
 resmgr_initthd_create(spdid_t child)
 {
-	int unused;
-
 	return resmgr_initthd_create_intern(0, child);
 }
 
 thdcap_t
 resmgr_thd_create(cos_thd_fn_t fn, void *data)
 {
-	int unused;
 	int idx = cos_thd_init_alloc(fn, data);
 
 	if (idx < 1) assert(0);
@@ -51,8 +46,6 @@ resmgr_thd_create(cos_thd_fn_t fn, void *data)
 thdcap_t
 resmgr_ext_thd_create(spdid_t child, int idx)
 {
-	int unused;
-
 	return resmgr_ext_thd_create_intern(0, child, idx);
 }
 
@@ -130,8 +123,6 @@ resmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, asndca
 asndcap_t
 resmgr_asnd_create(spdid_t child, thdid_t t)
 {
-	int unused;
-
 	return resmgr_asnd_create_intern(0, child, t);
 }
 
@@ -143,8 +134,6 @@ int memmgr_shared_page_map_intern(spdid_t c, int id, int u1, int u2, vaddr_t *pg
 vaddr_t
 memmgr_heap_page_allocn(unsigned int npgs)
 {
-	int unused;
-
 	return memmgr_heap_page_allocn_intern(0, npgs);
 }
 
