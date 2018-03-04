@@ -3,7 +3,7 @@ ASM_OBJS=
 COMPONENT=rust_test.o
 INTERFACES=
 DEPENDENCIES=
-ADDITIONAL_LIBS=-lcobj_format -lcos_defkernel_api -lcos_kernel_api -lsl_rawmgr -lsl_sched -lheap -lsl_thd_static_backend -lsl_lock -lsl_mod_fprr
+ADDITIONAL_LIBS=-lcobj_format -lcos_defkernel_api -lcos_kernel_api -lsl_raw -lsl_sched -lheap -lsl_thd_static_backend -lsl_lock -lsl_mod_fprr
 OBJLIBS += $(POSIX_LIB)
 
 CRATE_DIR=events
