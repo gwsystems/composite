@@ -42,7 +42,7 @@ cap_info_thd_next(struct cap_comp_info *rci)
 {
 	if (!rci || !cap_info_init_check(rci)) return NULL;
 	if (rci->p_thd_iterator < rci->thd_used) {
-		return (rci->tinfo[__sync_fetch_and_add(&(rci->p_thd_iterator), 1)]);
+		return (rci->tinfo[ps_faa((long unsigned *)&(rci->p_thd_iterator), 1)]);
 	}
 
 	return NULL;
@@ -75,7 +75,7 @@ cap_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, co
 			  cos_compinfo_get(cos_defcompinfo_curr_get()));
 
 	capci[sid].initflag = 1;
-	__sync_fetch_and_add(&cap_comp_count, 1);
+	ps_faa((long unsigned *)&cap_comp_count, 1);
 
 	return &capci[sid];
 }
@@ -89,7 +89,7 @@ cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t)
 	if (rci->thd_used >= CAP_INFO_COMP_MAX_THREADS) return NULL;
 	if (!t) return NULL;
 
-	off = __sync_fetch_and_add(&(rci->thd_used), 1);
+	off = ps_faa((long unsigned *)&(rci->thd_used), 1);
 	rci->tinfo[off] = t;
 
 	return t;
@@ -188,7 +188,7 @@ cap_shmem_region_alloc(struct cap_shmem_info *rsh, int num_pages)
 	if (!rsh) goto done;
 	/* limits check */
 	if ((rglb->total_pages + num_pages) * PAGE_SIZE > MEMMGR_MAX_SHMEM_SIZE) goto done;
-	fidx = __sync_fetch_and_add(&(rglb->free_region_id), 1);
+	fidx = ps_faa((long unsigned *)&(rglb->free_region_id), 1);
 	if (fidx >= MEMMGR_MAX_SHMEM_REGIONS) goto done;
 
 	/* check id unused */
@@ -196,7 +196,7 @@ cap_shmem_region_alloc(struct cap_shmem_info *rsh, int num_pages)
 	if (rsh->shm_addr[fidx] != 0) goto done;
 
 	rglb->npages[fidx] = num_pages;
-	__sync_fetch_and_add(&(rglb->total_pages), num_pages);
+	ps_faa((long unsigned *)&(rglb->total_pages), num_pages);
 
 	ret = __cap_cos_shared_page_allocn(rsh_ci, num_pages, &cap_addr, &comp_addr);
 	if (ret) goto done;

@@ -7,6 +7,7 @@
 #include <cos_defkernel_api.h>
 #include <hypercall.h>
 #include <res_spec.h>
+#include <ps.h>
 
 #define UNDEF_SYMBS 64
 #define LLBOOT_ROOT_PRIO 1
@@ -378,7 +379,7 @@ boot_thd_done(spdid_t c)
 	struct comp_sched_info *si = boot_spd_comp_schedinfo_get(c);
 
 	assert(si->parent_spdid == 0);
-	__sync_fetch_and_add(&sched_cur, 1);
+	ps_faa((long unsigned *)&sched_cur, 1);
 
 	PRINTC("Component %d initialized!\n", c);
 	if (schedule[sched_cur] != 0) {
