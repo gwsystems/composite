@@ -10,7 +10,7 @@
 #include <sl_mod_policy.h>
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
-#include "../../interface/resmgr/resmgr.h"
+#include "../../interface/capmgr/capmgr.h"
 
 extern struct sl_global sl_global_data;
 extern void sl_thd_event_info_reset(struct sl_thd *t);
@@ -61,7 +61,7 @@ sl_thd_ext_idx_alloc_intern(struct cos_defcompinfo *comp, int idx)
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 
-	aep->thd = resmgr_ext_thd_create(comp->id, idx);
+	aep->thd = capmgr_ext_thd_create(comp->id, idx);
 	if (!aep->thd) goto done;
 
 	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
@@ -86,7 +86,7 @@ sl_thd_alloc_intern(cos_thd_fn_t fn, void *data)
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 
-	aep->thd = resmgr_thd_create(fn, data);
+	aep->thd = capmgr_thd_create(fn, data);
 	if (!aep->thd) goto done;
 
 	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
@@ -115,7 +115,7 @@ sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *scht
 	if (!aep) goto done;
 
 	if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
-	ret = resmgr_ext_aep_create(comp->id, aep, idx, owntc, extrcv);
+	ret = capmgr_ext_aep_create(comp->id, aep, idx, owntc, extrcv);
 	if (!ret) goto done;
 
 	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
@@ -178,14 +178,14 @@ sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *
 	} else {
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
 
-		resmgr_aep_create(aep, fn, data, owntc);
+		capmgr_aep_create(aep, fn, data, owntc);
 	}
 	if (aep->thd == 0) goto done;
 
 	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	assert(tid);
 	if (prps & SL_THD_PROPERTY_OWN_TCAP && snd == 0) {
-		snd = resmgr_asnd_create(comp->id, tid);
+		snd = capmgr_asnd_create(comp->id, tid);
 		assert(snd);
 	}
 	t = sl_thd_alloc_init(tid, aep, snd, prps);
@@ -217,9 +217,9 @@ sl_thd_childaep_alloc_intern(struct cos_defcompinfo *comp, sl_thd_property_t prp
 
 	if (prps & SL_THD_PROPERTY_SEND) {
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
-		resmgr_initaep_create(comp->id, aep, owntc, &snd);
+		capmgr_initaep_create(comp->id, aep, owntc, &snd);
 	} else {
-		aep->thd = resmgr_initthd_create(comp->id);
+		aep->thd = capmgr_initthd_create(comp->id);
 	}
 	if (aep->thd == 0) goto done;
 	*sa = *aep;

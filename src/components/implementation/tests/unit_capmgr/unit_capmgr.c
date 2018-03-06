@@ -9,7 +9,7 @@
 
 #include <cos_component.h>
 #include <cos_defkernel_api.h>
-#include <resmgr.h>
+#include <capmgr.h>
 #include <memmgr.h>
 #include <hypercall.h>
 
@@ -38,7 +38,7 @@ test_thds(void)
 	int i = 0;
 
 	for (; i < TEST_N_THDS; i++) {
-		test_ts[i] = resmgr_thd_create(__test_thd_fn, (void *)i);
+		test_ts[i] = capmgr_thd_create(__test_thd_fn, (void *)i);
 		assert(test_ts[i]);
 
 		cos_thd_switch(test_ts[i]);
@@ -102,7 +102,7 @@ cos_init(void)
 {
 	u64_t childbits;
 
-	PRINTC("Unit-test for Resource Manager interface\n");
+	PRINTC("Unit-test for capability manager\n");
 	hypercall_comp_children_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 

@@ -1,3 +1,3 @@
-INTERFACES=resmgr
+INTERFACES=capmgr
 
 include ../Makefile.subdir

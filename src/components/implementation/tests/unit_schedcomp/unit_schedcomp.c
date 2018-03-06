@@ -147,7 +147,7 @@ cos_init(void)
 
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	PRINTC("Unit-test scheduling component\n");
+	PRINTC("Unit-test scheduling manager component\n");
 	hypercall_comp_children_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 

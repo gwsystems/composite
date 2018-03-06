@@ -2,19 +2,17 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <memmgr.h>
-#include <resmgr.h>
-#include "res_info.h"
+#include <capmgr.h>
+#include "cap_info.h"
 #include <hypercall.h>
 #include <sl.h>
 
-spdid_t resmgr_myspdid = 0;
-
 static void
-resmgr_comp_info_iter(void)
+capmgr_comp_info_iter(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
-	struct res_comp_info   *btinfo = res_info_comp_find(0);
+	struct cap_comp_info   *btinfo = cap_info_comp_find(0);
 	int remaining = 0;
 	int num_comps = 0;
 
@@ -23,7 +21,7 @@ resmgr_comp_info_iter(void)
 		thdcap_t thdslot = 0;
 		arcvcap_t rcvslot = 0;
 		tcap_t tcslot = 0;
-		struct res_comp_info *rci = NULL;
+		struct cap_comp_info *rci = NULL;
 		struct sl_thd *ithd = NULL;
 		u64_t chbits = 0, chschbits = 0;
 		pgtblcap_t pgtslot = 0;
@@ -41,10 +39,10 @@ resmgr_comp_info_iter(void)
 		assert(ret == 0);
 		ret = hypercall_comp_sched_children_get(csid, &chschbits);
 		assert(ret == 0);
-		res_info_schedbmp |= chschbits;
+		cap_info_schedbmp |= chschbits;
 
-		if (csid == 0 || (csid != resmgr_myspdid && res_info_is_child(btinfo, csid))) {
-			is_sched = (csid == 0 || res_info_is_sched_child(btinfo, csid)) ? 1 : 0;
+		if (csid == 0 || (csid != cos_spd_id() && cap_info_is_child(btinfo, csid))) {
+			is_sched = (csid == 0 || cap_info_is_sched_child(btinfo, csid)) ? 1 : 0;
 
 			ret = hypercall_comp_initthd_get(csid, is_sched, &thdslot, &rcvslot, &tcslot);
 			assert(ret == 0);
@@ -53,21 +51,21 @@ resmgr_comp_info_iter(void)
 		ret = hypercall_comp_frontier_get(csid, &vasfr, &capfr);
 		assert(ret == 0);
 
-		rci = res_info_comp_init(csid, captslot, pgtslot, ccslot, capfr, vasfr, (vaddr_t)MEMMGR_SHMEM_BASE, psid, chbits, chschbits);
+		rci = cap_info_comp_init(csid, captslot, pgtslot, ccslot, capfr, vasfr, (vaddr_t)MEMMGR_SHMEM_BASE, psid, chbits, chschbits);
 		assert(rci);
 
 		if (thdslot) {
 			ithd = sl_thd_ext_init(thdslot, tcslot, rcvslot, 0);
 			assert(ithd);
 
-			res_info_initthd_init(rci, ithd);
-		} else if (resmgr_myspdid == csid) {
-			res_info_initthd_init(rci, sl__globals()->sched_thd);
+			cap_info_initthd_init(rci, ithd);
+		} else if (cos_spd_id() == csid) {
+			cap_info_initthd_init(rci, sl__globals()->sched_thd);
 		}
 	} while (remaining > 0);
 
 	assert(num_comps == hypercall_numcomps_get());
-	PRINTC("Schedulers bitmap: %llx\n", res_info_schedbmp);
+	PRINTC("Schedulers bitmap: %llx\n", cap_info_schedbmp);
 }
 
 void
@@ -80,10 +78,8 @@ cos_init(void)
 	vaddr_t heap_frontier = 0;
 	int ret = 0;
 
-	resmgr_myspdid = cos_spd_id();
-	assert(resmgr_myspdid);
 	PRINTC("CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
-	ret = hypercall_comp_frontier_get(resmgr_myspdid, &heap_frontier, &cap_frontier);
+	ret = hypercall_comp_frontier_get(cos_spd_id(), &heap_frontier, &cap_frontier);
 	assert(ret == 0);
 
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
@@ -95,10 +91,10 @@ cos_init(void)
 	assert(!childbits);
 
 	sl_init(SL_MIN_PERIOD_US);
-	res_info_init();
-	resmgr_comp_info_iter();
+	cap_info_init();
+	capmgr_comp_info_iter();
 
-	PRINTC("Initialized RESOURCE MANAGER\n");
+	PRINTC("Initialized CAPABILITY MANAGER\n");
 
 	hypercall_comp_init_done();
 	PRINTC("SPINNING\n");

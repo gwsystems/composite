@@ -17,7 +17,7 @@ struct deps {
 struct deps deps_list[MAX_DEPS];
 int          ndeps;
 int          num_cobj;
-int          resmgr_spdid;
+int          capmgr_spdid;
 int          root_spdid;
 
 /*Component init info*/
@@ -275,7 +275,7 @@ boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 }
 
 #define BOOT_ROOT_SCHED   "boot"
-#define BOOT_RESMGR       "mm"
+#define BOOT_CAPMGR       "capmgr"
 
 static void
 boot_comp_name_parse(spdid_t s, const char *name)
@@ -285,9 +285,9 @@ boot_comp_name_parse(spdid_t s, const char *name)
 	if (strcmp(name, BOOT_ROOT_SCHED) == 0) {
 		si->flags |= COMP_FLAG_SCHED;
 		root_spdid = s;
-	} else if (strcmp(name, BOOT_RESMGR) == 0) {
-		resmgr_spdid = s;
-		si->flags |= COMP_FLAG_RESMGR;
+	} else if (strcmp(name, BOOT_CAPMGR) == 0) {
+		capmgr_spdid = s;
+		si->flags |= COMP_FLAG_CAPMGR;
 	}
 
 	return;
@@ -314,13 +314,13 @@ boot_comp_preparse_name(void)
 		spdsi      = boot_spd_comp_schedinfo_get(spdid);
 		schedspdsi = boot_spd_comp_schedinfo_get(spdsi->parent_spdid);
 
-		assert((spdsi->flags & COMP_FLAG_RESMGR) == 0);
+		assert((spdsi->flags & COMP_FLAG_CAPMGR) == 0);
 		assert(schedspdsi->flags & COMP_FLAG_SCHED);
 		spdsi->flags |= COMP_FLAG_SCHED;
 		schedspdsi->childid_sched_bitf |= (1 << (spdid-1));
 	}
 
-	if (!resmgr_spdid) printc("No RESOURCE MANAGER\n");
+	if (!capmgr_spdid) printc("No CAPABILITY MANAGER\n");
 	if (!root_spdid) printc("No ROOT SCHEDULER\n");
 }
 
@@ -426,7 +426,7 @@ cos_init(void)
 
 	PRINTC("Booter for new kernel\n");
 
-	resmgr_spdid = 0;
+	capmgr_spdid = 0;
 	root_spdid = 0;
 
 	h        = (struct cobj_header *)cos_comp_info.cos_poly[0];

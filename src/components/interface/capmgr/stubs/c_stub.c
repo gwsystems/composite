@@ -1,56 +1,56 @@
 #include <memmgr.h>
-#include <resmgr.h>
+#include <capmgr.h>
 #include <cos_thd_init.h>
 #include <cos_defkernel_api.h>
 
-thdcap_t resmgr_initthd_create_intern(spdid_t c, spdid_t s);
-thdcap_t resmgr_thd_create_intern(spdid_t c, int idx);
-thdcap_t resmgr_ext_thd_create_intern(spdid_t c, spdid_t s, int idx);
-thdcap_t resmgr_aep_create_intern(spdid_t c, int idx, int owntc, int u1, arcvcap_t *rcvret, tcap_t *tcret);
-thdcap_t resmgr_ext_aep_create_intern(spdid_t c, spdid_t s, int idx, int owntc, arcvcap_t *rcvret, u32_t *rcvtcret);
-thdcap_t resmgr_initaep_create_intern(spdid_t c, spdid_t s, int owntc, int u1, asndcap_t *sndret, u32_t *rcvtcret);
-thdcap_t resmgr_thd_retrieve_intern(spdid_t c, spdid_t s, thdid_t t);
-thdid_t  resmgr_thd_retrieve_next_intern(spdid_t c, spdid_t s, int u1, int u2, thdcap_t *t, int *u3);
-asndcap_t resmgr_asnd_create_intern(spdid_t c, spdid_t s, thdid_t t);
+thdcap_t capmgr_initthd_create_intern(spdid_t c, spdid_t s);
+thdcap_t capmgr_thd_create_intern(spdid_t c, int idx);
+thdcap_t capmgr_ext_thd_create_intern(spdid_t c, spdid_t s, int idx);
+thdcap_t capmgr_aep_create_intern(spdid_t c, int idx, int owntc, int u1, arcvcap_t *rcvret, tcap_t *tcret);
+thdcap_t capmgr_ext_aep_create_intern(spdid_t c, spdid_t s, int idx, int owntc, arcvcap_t *rcvret, u32_t *rcvtcret);
+thdcap_t capmgr_initaep_create_intern(spdid_t c, spdid_t s, int owntc, int u1, asndcap_t *sndret, u32_t *rcvtcret);
+thdcap_t capmgr_thd_retrieve_intern(spdid_t c, spdid_t s, thdid_t t);
+thdid_t  capmgr_thd_retrieve_next_intern(spdid_t c, spdid_t s, int u1, int u2, thdcap_t *t, int *u3);
+asndcap_t capmgr_asnd_create_intern(spdid_t c, spdid_t s, thdid_t t);
 
 thdid_t
-resmgr_thd_retrieve_next(spdid_t child, thdcap_t *t)
+capmgr_thd_retrieve_next(spdid_t child, thdcap_t *t)
 {
 	int unused = 0;
 
-	return resmgr_thd_retrieve_next_intern(0, child, unused, unused, t, &unused);
+	return capmgr_thd_retrieve_next_intern(0, child, unused, unused, t, &unused);
 }
 
 thdcap_t
-resmgr_thd_retrieve(spdid_t child, thdid_t t)
+capmgr_thd_retrieve(spdid_t child, thdid_t t)
 {
-	return resmgr_thd_retrieve_intern(0, child, t);
+	return capmgr_thd_retrieve_intern(0, child, t);
 }
 
 thdcap_t
-resmgr_initthd_create(spdid_t child)
+capmgr_initthd_create(spdid_t child)
 {
-	return resmgr_initthd_create_intern(0, child);
+	return capmgr_initthd_create_intern(0, child);
 }
 
 thdcap_t
-resmgr_thd_create(cos_thd_fn_t fn, void *data)
+capmgr_thd_create(cos_thd_fn_t fn, void *data)
 {
 	int idx = cos_thd_init_alloc(fn, data);
 
 	if (idx < 1) assert(0);
 
-	return resmgr_thd_create_intern(0, idx);
+	return capmgr_thd_create_intern(0, idx);
 }
 
 thdcap_t
-resmgr_ext_thd_create(spdid_t child, int idx)
+capmgr_ext_thd_create(spdid_t child, int idx)
 {
-	return resmgr_ext_thd_create_intern(0, child, idx);
+	return capmgr_ext_thd_create_intern(0, child, idx);
 }
 
 static void
-__resmgr_aep_fn(void *data)
+__capmgr_aep_fn(void *data)
 {
 	struct cos_aep_info *ai    = (struct cos_aep_info *)data;
 	cos_aepthd_fn_t      fn    = ai->fn;
@@ -60,17 +60,17 @@ __resmgr_aep_fn(void *data)
 }
 
 thdcap_t
-resmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc)
+capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc)
 {
 	int unused = 0;
-	int idx = cos_thd_init_alloc(__resmgr_aep_fn, (void *)aep);
+	int idx = cos_thd_init_alloc(__capmgr_aep_fn, (void *)aep);
 	int ret;
 	arcvcap_t rcv;
 	tcap_t tc;
 
 	if (idx < 1) return 0;
 
-	ret = resmgr_aep_create_intern(0, idx, owntc, unused, &rcv, &tc);
+	ret = capmgr_aep_create_intern(0, idx, owntc, unused, &rcv, &tc);
 	if (!ret) return 0;
 
 	aep->fn   = fn;
@@ -83,12 +83,12 @@ resmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int 
 }
 
 thdcap_t
-resmgr_ext_aep_create(spdid_t child, struct cos_aep_info *aep, int idx, int owntc, arcvcap_t *extrcv)
+capmgr_ext_aep_create(spdid_t child, struct cos_aep_info *aep, int idx, int owntc, arcvcap_t *extrcv)
 {
 	int ret;
 	u32_t tcrcvret;
 
-	ret = resmgr_ext_aep_create_intern(0, child, idx, owntc, extrcv, &tcrcvret);
+	ret = capmgr_ext_aep_create_intern(0, child, idx, owntc, extrcv, &tcrcvret);
 	if (!ret) return 0;
 
 	aep->fn   = NULL;
@@ -101,13 +101,13 @@ resmgr_ext_aep_create(spdid_t child, struct cos_aep_info *aep, int idx, int ownt
 }
 
 thdcap_t
-resmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, asndcap_t *snd)
+capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, asndcap_t *snd)
 {
 	int unused = 0;
 	int ret;
 	u32_t r2 = 0, r3 = 0;
 
-	ret = resmgr_initaep_create_intern(0, child, owntc, unused, snd, &r3);
+	ret = capmgr_initaep_create_intern(0, child, owntc, unused, snd, &r3);
 	if (!ret) return 0;
 
 	aep->fn   = NULL;
@@ -121,9 +121,9 @@ resmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, asndca
 }
 
 asndcap_t
-resmgr_asnd_create(spdid_t child, thdid_t t)
+capmgr_asnd_create(spdid_t child, thdid_t t)
 {
-	return resmgr_asnd_create_intern(0, child, t);
+	return capmgr_asnd_create_intern(0, child, t);
 }
 
 vaddr_t memmgr_heap_page_allocn_intern(spdid_t c, unsigned int npgs);

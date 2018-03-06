@@ -1,8 +1,8 @@
-C_OBJS=unit_resmgr.c
+C_OBJS=unit_capmgr.c
 ASM_OBJS=
-COMPONENT=unitresmgr.o
+COMPONENT=unitcapmgr.o
 INTERFACES=
-DEPENDENCIES=resmgr
+DEPENDENCIES=capmgr
 IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_defkernel_api
 

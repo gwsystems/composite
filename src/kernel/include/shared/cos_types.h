@@ -398,7 +398,7 @@ typedef enum {
 
 typedef enum {
 	COMP_FLAG_SCHED  = 1,
-	COMP_FLAG_RESMGR = (1<<1),
+	COMP_FLAG_CAPMGR = (1<<1),
 } comp_flag_t;
 
 enum

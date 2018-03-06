@@ -9,7 +9,7 @@
 
 #include <cos_component.h>
 #include <cos_defkernel_api.h>
-#include <resmgr.h>
+#include <capmgr.h>
 #include <memmgr.h>
 #include <hypercall.h>
 
@@ -57,11 +57,11 @@ cos_init(void)
 {
 	u64_t childbits;
 
-	PRINTC("Unit-test for Resource Manager shared memory interface\n");
+	PRINTC("Unit-test for capability manager shared memory interface\n");
 	hypercall_comp_children_get(cos_spd_id(), &childbits);
 	assert(!childbits);
 
-	/* assuming this runs (initialization) after unit_resmgr component */
+	/* assuming this runs (initialization) after unit_capmgr component */
 	test_shmem();
 	PRINTC("Unit-test done.\n");
 	hypercall_comp_init_done();

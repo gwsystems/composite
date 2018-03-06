@@ -1,4 +1,4 @@
-#include <resmgr.h>
+#include <capmgr.h>
 #include <schedinit.h>
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
@@ -27,7 +27,7 @@ schedinit_child_intern(spdid_t c)
 	do {
 		struct sl_thd *t = NULL;
 
-		thdid = resmgr_thd_retrieve_next(c, &thdcap);
+		thdid = capmgr_thd_retrieve_next(c, &thdcap);
 		if (!thdid) break;
 		t = sl_thd_lkup(thdid);
 		/* already in? only init thd, coz it's created by this sched! */

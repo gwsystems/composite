@@ -10,14 +10,14 @@
 
 #define UNDEF_SYMBS 64
 #define LLBOOT_ROOT_PRIO 1
-#define RESMGR_UNTYPED_MEM_SZ (COS_MEM_KERN_PA_SZ / 2)
+#define CAPMGR_UNTYPED_MEM_SZ (COS_MEM_KERN_PA_SZ / 2)
 #define BOOT_COMP_UNTYPED_SZ  (1<<24) /* 16MB */
 
 /* Assembly function for sinv from new component */
 extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t *ret2, word_t *ret3);
 
 extern int num_cobj;
-extern int resmgr_spdid;
+extern int capmgr_spdid;
 extern int root_spdid;
 
 struct cobj_header *hs[MAX_NUM_SPDS + 1];
@@ -144,12 +144,12 @@ boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t heap_st
 	cos_compinfo_init(compinfo, *pt, *ct, 0, (vaddr_t)heap_start_vaddr, BOOT_CAPTBL_FREE, boot_info);
 
 	/*
-	 * if this is a resmgr, let it manage its share (ideally rest of system memory) of memory.
-	 * if there is no resmgr in the system, allow every component to manage its memory.
+	 * if this is a capmgr, let it manage its share (ideally rest of system memory) of memory.
+	 * if there is no capmgr in the system, allow every component to manage its memory.
 	 */
-	if (!resmgr_spdid || (resmgr_spdid && spdid && spdid == resmgr_spdid)) {
+	if (!capmgr_spdid || (capmgr_spdid && spdid && spdid == capmgr_spdid)) {
 		pgtblcap_t utpt;
-		unsigned long mem_sz = resmgr_spdid ? RESMGR_UNTYPED_MEM_SZ : BOOT_COMP_UNTYPED_SZ;
+		unsigned long mem_sz = capmgr_spdid ? CAPMGR_UNTYPED_MEM_SZ : BOOT_COMP_UNTYPED_SZ;
 
 		utpt = cos_pgtbl_alloc(boot_info);
 		assert(utpt);
@@ -256,7 +256,7 @@ boot_newcomp_init_caps(spdid_t spdid)
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, boot_info, BOOT_CAPTBL_SELF_INITHW_BASE);
 	assert(ret == 0);
 
-	if (resmgr_spdid && (compsi->flags & COMP_FLAG_SCHED)) {
+	if (capmgr_spdid && (compsi->flags & COMP_FLAG_SCHED)) {
 		/*
 		 * FIXME:
 		 * This is an ugly hack to allow components to do cos_introspect()
@@ -265,16 +265,16 @@ boot_newcomp_init_caps(spdid_t spdid)
 		 * - other introspect...requirements..
 		 *
 		 * I don't know a way to get away from this for now!
-		 * If it were just thdid, resmgr could have returned the thdids!
+		 * If it were just thdid, capmgr could have returned the thdids!
 		 */
 		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_CT, boot_info, ci->captbl_cap);
 		assert(ret == 0);
 	}
 
-	if (resmgr_spdid == spdid || !resmgr_spdid) {
+	if (capmgr_spdid == spdid || !capmgr_spdid) {
 		/*
-		 * if this is a resmgr, let it manage resources.
-		 * if there is no resmgr in the system, allow every component to manage its resources.
+		 * if this is a capmgr, let it manage resources.
+		 * if there is no capmgr in the system, allow every component to manage its resources.
 		 */
 		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_PT, boot_info, ci->pgtbl_cap);
 		assert(ret == 0);
@@ -547,17 +547,17 @@ boot_comp_children_get(spdid_t dstid, spdid_t srcid, u64_t *childbitf)
 }
 
 static inline int
-__hypercall_resource_access_check(spdid_t dstid, spdid_t srcid, int resmgr_ignore)
+__hypercall_resource_access_check(spdid_t dstid, spdid_t srcid, int capmgr_ignore)
 {
 	struct comp_sched_info *dstinfo = NULL;
 
 	if (dstid > num_cobj || srcid > num_cobj) return 0;
 	dstinfo = boot_spd_comp_schedinfo_get(dstid);
 
-	/* resource manager if it exists is the only component allowed to access all resources */
-	if (!resmgr_ignore)             return (resmgr_spdid && dstid == resmgr_spdid);
-	else if (dstid == resmgr_spdid) return 1;
-	/* if there is no resource manager, components are allowed to access their or resources of their child components */
+	/* capability manager if it exists is the only component allowed to access all resources */
+	if (!capmgr_ignore)             return (capmgr_spdid && dstid == capmgr_spdid);
+	else if (dstid == capmgr_spdid) return 1;
+	/* if there is no capability manager, components are allowed to access their or resources of their child components */
 	else                            return (srcid && (dstid == srcid ||
 	                                                  (dstinfo->childid_bitf & ((u64_t)1 << (srcid-1)))));
 }

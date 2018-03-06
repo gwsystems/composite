@@ -1,8 +1,8 @@
-C_OBJS=unit_resmgr_shmmap.c
+C_OBJS=unit_capmgr_shmmap.c
 ASM_OBJS=
-COMPONENT=unitresmgr_shmmap.o
+COMPONENT=unitcapmgr_shmmap.o
 INTERFACES=
-DEPENDENCIES=resmgr
+DEPENDENCIES=capmgr
 IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_defkernel_api
 
