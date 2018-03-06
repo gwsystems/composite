@@ -70,7 +70,19 @@ config-linux: config-gen
 config-i386: config-gen
 	@echo "#define COS_PLATFORM I386" >> ./kernel/include/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/i386/chal/ chal
+	@ln -sf ../../../platform/i386/chal/cos_config.h kernel/include/shared
 	@echo "i386" > PLATFORM_ID
+
+config-cmx: config-gen
+	@echo "#define COS_PLATFORM CMX" >> ./kernel/include/shared/cpu_ghz.h
+	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/cmx/chal/ chal
+	@ln -sf ../../../platform/cmx/chal/cos_config.h ../../kernel/include/shared/cos_config.h
+	@echo "cmx" > PLATFORM_ID
+
+config-crx: config-gen
+	@echo "#define COS_PLATFORM CRX" >> ./kernel/include/shared/cpu_ghz.h
+	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/crx/chal/ chal
+	@echo "crx" > PLATFORM_ID
 
 run:
 ifeq ($(RUNSCRIPT),)
