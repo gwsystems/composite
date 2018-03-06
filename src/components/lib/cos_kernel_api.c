@@ -31,7 +31,7 @@ __compinfo_metacap(struct cos_compinfo *ci)
 	return ci->memsrc;
 }
 
-void
+static inline void
 cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
 {
 	ci->vas_frontier = heap_ptr;

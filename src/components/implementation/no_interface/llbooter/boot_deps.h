@@ -108,44 +108,22 @@ boot_spd_initaep_get(spdid_t spdid)
 }
 
 static vaddr_t
-boot_deps_map_sect(spdid_t spdid, vaddr_t dest_daddr)
+boot_deps_map_sect(spdid_t spdid, vaddr_t *mapaddr)
 {
 	struct cos_compinfo *compinfo  = boot_spd_compinfo_get(spdid);
 	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
 	vaddr_t addr = (vaddr_t)cos_page_bump_alloc(boot_info);
 
 	assert(addr);
-	if (cos_mem_alias_at(compinfo, dest_daddr, boot_info, addr)) BUG();
-	cos_vasfrontier_init(compinfo, dest_daddr + PAGE_SIZE);
+	*mapaddr = cos_mem_alias(compinfo, boot_info, addr);
+	if (*mapaddr == 0) BUG();
 
 	return addr;
 }
 
-static void
-boot_comp_pgtbl_expand(size_t n_pte, pgtblcap_t pt, vaddr_t vaddr, struct cobj_header *h)
-{
-	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
-	size_t i;
-	int tot = 0;
-
-	/* Expand Page table, could do this faster */
-	for (i = 0; i < (size_t)h->nsect; i++) {
-		tot += cobj_sect_size(h, i);
-	}
-
-	if (tot > SERVICE_SIZE) {
-		n_pte = tot / SERVICE_SIZE;
-		if (tot % SERVICE_SIZE) n_pte++;
-	}
-
-	for (i = 0; i < n_pte; i++, vaddr += SERVICE_SIZE) {
-		if (!cos_pgtbl_intern_alloc(boot_info, pt, vaddr, SERVICE_SIZE)) BUG();
-	}
-}
-
 /* Initialize just the captblcap and pgtblcap, due to hack for upcall_fn addr */
 static void
-boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t entry_vaddr)
+boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t heap_start_vaddr)
 {
 	struct cos_compinfo *compinfo  = boot_spd_compinfo_get(spdid);
 	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
@@ -155,7 +133,7 @@ boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t entry_v
 	*pt = cos_pgtbl_alloc(boot_info);
 	assert(*pt);
 
-	cos_compinfo_init(compinfo, *pt, *ct, 0, (vaddr_t)entry_vaddr, BOOT_CAPTBL_FREE, boot_info);
+	cos_compinfo_init(compinfo, *pt, *ct, 0, (vaddr_t)heap_start_vaddr, BOOT_CAPTBL_FREE, boot_info);
 
 	/*
 	 * if this is a resmgr, let it manage its share (ideally rest of system memory) of memory.

@@ -76,7 +76,6 @@ struct cos_compinfo {
 	struct cos_meminfo   mi;     /* only populated for the component with real memory */
 };
 
-void cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr);
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
                        vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);
 /*

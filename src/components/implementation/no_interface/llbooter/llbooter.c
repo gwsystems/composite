@@ -61,19 +61,16 @@ boot_find_cobjs(struct cobj_header *h, int n)
 }
 
 static int
-boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
+boot_comp_map_memory(struct cobj_header *h, spdid_t spdid)
 {
 	int               i;
 	int		  first = 1;
-	vaddr_t           dest_daddr, prev_map = 0;
+	vaddr_t           dest_daddr, prev_map = 0, map_daddr;
 	int               n_pte = 1;
 	struct cobj_sect *sect = cobj_sect_get(h, 0);
 	struct comp_cap_info *spdinfo = boot_spd_compcapinfo_get(spdid);
 
-	boot_comp_pgtbl_expand(n_pte, pt, sect->vaddr, h);
-
 	/* We'll map the component into booter's heap. */
-
 	for (i = 0; i < (int)h->nsect; i++) {
 		int left;
 
@@ -90,11 +87,12 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 
 		while (left > 0) {
 			if (first) {
-				spdinfo->vaddr_mapped_in_booter = boot_deps_map_sect(spdid, dest_daddr);
+				spdinfo->vaddr_mapped_in_booter = boot_deps_map_sect(spdid, &map_daddr);
 				first = 0;
 			} else {
-				boot_deps_map_sect(spdid, dest_daddr);
+				boot_deps_map_sect(spdid, &map_daddr);
 			}
+			assert(dest_daddr == map_daddr);
 			prev_map = dest_daddr;
 			dest_daddr += PAGE_SIZE;
 			left -= PAGE_SIZE;
@@ -231,10 +229,11 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 }
 
 int
-boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, pgtblcap_t pt)
+boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
-	boot_comp_map_memory(h, spdid, pt);
+	boot_comp_map_memory(h, spdid);
 	boot_comp_map_populate(h, spdid, comp_info);
+
 	return 0;
 }
 
@@ -353,7 +352,7 @@ boot_create_cap_system(void)
 
 		if (boot_spd_symbs(h, spdid, &ci, &(spdinfo->vaddr_user_caps))) BUG();
 		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
-		if (boot_comp_map(h, spdid, ci, pt)) BUG();
+		if (boot_comp_map(h, spdid, ci)) BUG();
 
 		boot_newcomp_create(spdid, boot_spd_compinfo_get(spdid));
 		PRINTC("Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
