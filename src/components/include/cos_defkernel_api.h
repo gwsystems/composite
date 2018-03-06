@@ -40,12 +40,14 @@ struct cos_aep_info {
 
 /* Default Component information */
 struct cos_defcompinfo {
-	spdid_t id;
-	struct cos_compinfo ci;
+	union {
+		spdid_t id;
+		struct cos_compinfo ci;
+	};
 	struct cos_aep_info sched_aep;
 };
 
-/* ugly hack to get resmgr to work with current sl interface */
+/* Only spdid is required when using manager interfaces. */
 void cos_defcompinfo_childid_init(struct cos_defcompinfo *defci, spdid_t id);
 
 /*
