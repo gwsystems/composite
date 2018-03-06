@@ -61,26 +61,24 @@ config-gen: update
 config: config-i386
 
 config-linux: config-gen
-	@echo "#define COS_PLATFORM LINUX" >> ./kernel/include/shared/cpu_ghz.h
-	@echo "#define COS_LINUX" >> ./kernel/include/shared/cpu_ghz.h
+	@echo "#define COS_PLATFORM LINUX" >> ./platform/linux/chal/shared/cpu_ghz.h
+	@echo "#define COS_LINUX" >> ./platform/linux/chal/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/linux/module/chal/ chal
 	@echo "linux" > PLATFORM_ID
 
 # override the default linux chal link
 config-i386: config-gen
-	@echo "#define COS_PLATFORM I386" >> ./kernel/include/shared/cpu_ghz.h
+	@echo "#define COS_PLATFORM I386" >> ./platform/i386/chal/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/i386/chal/ chal
-	@ln -sf ../../../platform/i386/chal/cos_config.h kernel/include/shared
 	@echo "i386" > PLATFORM_ID
 
 config-cmx: config-gen
-	@echo "#define COS_PLATFORM CMX" >> ./kernel/include/shared/cpu_ghz.h
+	@echo "#define COS_PLATFORM CMX" >> ./platform/cmx/chal/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/cmx/chal/ chal
-	@ln -sf ../../../platform/cmx/chal/cos_config.h ../../kernel/include/shared/cos_config.h
 	@echo "cmx" > PLATFORM_ID
 
 config-crx: config-gen
-	@echo "#define COS_PLATFORM CRX" >> ./kernel/include/shared/cpu_ghz.h
+	@echo "#define COS_PLATFORM CRX" >> ./platform/crx/chal/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/crx/chal/ chal
 	@echo "crx" > PLATFORM_ID
 

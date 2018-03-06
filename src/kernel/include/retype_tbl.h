@@ -10,7 +10,7 @@
 #define RETYPE_TBL_H
 
 #include "shared/cos_types.h"
-#include "shared/cos_config.h"
+#include "chal/shared/cos_config.h"
 #include "shared/util.h"
 #include "chal/cpuid.h"
 #include "chal.h"

@@ -14,7 +14,7 @@
 #define CONSTS_H
 
 #include "cos_errno.h"
-#include "cos_config.h"
+#include "../chal/shared/cos_config.h"
 
 #ifndef __ASM__
 #ifdef __KERNEL__

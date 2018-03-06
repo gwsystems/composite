@@ -2,7 +2,7 @@ include Makefile.src
 
 CC=gcc
 LD=ld
-CFLAGS=-D__x86__ -D_GNU_SOURCE -lpthread -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -Wno-format -ggdb3 -I$(SHAREDINC)
+CFLAGS=-D__x86__ -D_GNU_SOURCE -lpthread -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -Wno-format -ggdb3 -I$(SHAREDINC) -I$(CHALSHAREDINC)
 LDFLAGS=-melf_i386
 PRODUCTS=cos_linker gen_client_stub
 

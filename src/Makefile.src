@@ -14,6 +14,7 @@ TOP_DIR=$(CODE_DIR)/
 KDIR=$(TOP_DIR)/kernel/
 KINC=$(TOP_DIR)/kernel/include/
 SHAREDINC=$(TOP_DIR)/kernel/include/shared/
+CHALSHAREDINC=$(TOP_DIR)/kernel/include/chal/shared/
 CDIR=$(TOP_DIR)/components/
 
 LINKER_DIR=$(TOP_DIR)/platform/linux/link_load/
