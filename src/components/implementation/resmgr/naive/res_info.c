@@ -28,10 +28,10 @@ res_info_count(void)
 struct sl_thd *
 res_info_thd_find(struct res_comp_info *rci, thdid_t tid)
 {
-	int i = 0;
+	int i;
 
-	assert(rci && res_info_init_check(rci));
-	for (; i < rci->thd_used; i++) {
+	if (!rci || !res_info_init_check(rci)) return NULL;
+	for (i = 0; i < rci->thd_used; i++) {
 		if ((rci->tinfo[i])->thdid == tid) return rci->tinfo[i];
 	}
 
@@ -41,8 +41,7 @@ res_info_thd_find(struct res_comp_info *rci, thdid_t tid)
 struct sl_thd *
 res_info_thd_next(struct res_comp_info *rci)
 {
-	assert(rci && res_info_init_check(rci));
-
+	if (!rci || !res_info_init_check(rci)) return NULL;
 	if (rci->p_thd_iterator < rci->thd_used) {
 		return (rci->tinfo[__sync_fetch_and_add(&(rci->p_thd_iterator), 1)]);
 	}
@@ -87,34 +86,32 @@ res_info_thd_init(struct res_comp_info *rci, struct sl_thd *t)
 {
 	int off;
 
-	assert(rci && res_info_init_check(rci));
-	assert(rci->thd_used < RES_INFO_COMP_MAX_THREADS);
-	assert(t);
+	if (!rci || !res_info_init_check(rci)) return NULL;
+	if (rci->thd_used >= RES_INFO_COMP_MAX_THREADS) return NULL;
+	if (!t) return NULL;
 
 	off = __sync_fetch_and_add(&(rci->thd_used), 1);
-
 	rci->tinfo[off] = t;
 
-	return rci->tinfo[off];
+	return t;
 }
 
 struct sl_thd *
 res_info_initthd_init(struct res_comp_info *rci, struct sl_thd *t)
 {
-	assert(rci && res_info_init_check(rci));
-	assert(rci->thd_used < RES_INFO_COMP_MAX_THREADS);
-	assert(t);
+	if (!rci || !res_info_init_check(rci)) return NULL;
+	if (rci->thd_used >= RES_INFO_COMP_MAX_THREADS) return NULL;
+	if (!t) return NULL;
 
 	rci->tinfo[0] = t;
 
-	return rci->tinfo[0];
-
+	return t;
 }
 
 struct sl_thd *
 res_info_initthd(struct res_comp_info *rci)
 {
-	assert(rci);
+	if (!rci) return NULL;
 
 	return rci->tinfo[0];
 }
@@ -147,11 +144,11 @@ __res_cos_shared_page_allocn(struct cos_compinfo *rci, int num_pages, vaddr_t *r
 	vaddr_t src_pg, dst_pg;
 
 	*resvaddr = src_pg = (vaddr_t)cos_page_bump_allocn(res_ci, num_pages * PAGE_SIZE);
-	assert(*resvaddr);
+	if (!(*resvaddr)) return -1;
 
 	while (off < num_pages) {
 		dst_pg = cos_mem_alias(rci, res_ci, src_pg + (off * PAGE_SIZE));
-		assert(dst_pg);
+		if (!dst_pg) return -1;
 
 		if (!off) *compvaddr = dst_pg;
 		off++;
@@ -168,10 +165,11 @@ __res_cos_shared_page_mapn(struct cos_compinfo *rci, int num_pages, vaddr_t resv
 	int off = 0;
 
 	assert(resvaddr);
+	if (!resvaddr) return -1;
 
 	while (off < num_pages) {
 		dst_pg = cos_mem_alias(rci, res_ci, resvaddr + (off * PAGE_SIZE));
-		assert(dst_pg);
+		if (!dst_pg) return -1;
 
 		if (!off) *compvaddr = dst_pg;
 		off++;
@@ -188,25 +186,26 @@ res_shmem_region_alloc(struct res_shmem_info *rsh, int num_pages)
 	int alloc_idx = -1, fidx, ret;
 	vaddr_t res_addr, comp_addr;
 
-	assert(rsh);
-
+	if (!rsh) goto done;
 	/* limits check */
 	if ((rglb->total_pages + num_pages) * PAGE_SIZE > MEMMGR_MAX_SHMEM_SIZE) goto done;
 	fidx = __sync_fetch_and_add(&(rglb->free_region_id), 1);
 	if (fidx >= MEMMGR_MAX_SHMEM_REGIONS) goto done;
 
 	/* check id unused */
-	assert(__res_info_shm_resmgr_vaddr(fidx) == 0);
-	assert(rsh->shm_addr[fidx] == 0);
+	if (__res_info_shm_resmgr_vaddr(fidx) != 0) goto done;
+	if (rsh->shm_addr[fidx] != 0) goto done;
 
 	rglb->npages[fidx] = num_pages;
 	__sync_fetch_and_add(&(rglb->total_pages), num_pages);
 
 	ret = __res_cos_shared_page_allocn(rsh_ci, num_pages, &res_addr, &comp_addr);
-	assert(!ret);
+	if (ret) goto done;
+
 	__res_info_shm_resmgr_vaddr_set(fidx, res_addr);
 	rsh->shm_addr[fidx] = comp_addr;
 	alloc_idx = fidx;
+
 done:
 	return alloc_idx;
 }
@@ -219,12 +218,12 @@ res_shmem_region_map(struct res_shmem_info *rsh, int idx)
 	vaddr_t res_addr = __res_info_shm_resmgr_vaddr(idx), comp_addr;
 	int ret = -1;
 
-	assert(rsh);
-	assert(idx < MEMMGR_MAX_SHMEM_REGIONS);
-	assert(res_addr && rsh->shm_addr[idx] == 0);
+	if (!rsh) return 0;
+	if (idx >= MEMMGR_MAX_SHMEM_REGIONS) return 0;
+	if (!res_addr || rsh->shm_addr[idx] != 0) return 0;
 
 	ret = __res_cos_shared_page_mapn(rsh_ci, rglb->npages[idx], res_addr, &comp_addr);
-	assert(!ret);
+	if (ret) return 0;
 	rsh->shm_addr[idx] = comp_addr;
 
 	return rglb->npages[idx];

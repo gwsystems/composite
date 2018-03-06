@@ -68,10 +68,10 @@ resmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int 
 	arcvcap_t rcv;
 	tcap_t tc;
 
-	if (idx < 1) assert(0);
+	if (idx < 1) return 0;
 
 	ret = resmgr_aep_create_intern(0, idx, owntc, unused, &rcv, &tc);
-	assert(ret > 0);
+	if (!ret) return 0;
 
 	aep->fn   = fn;
 	aep->data = data;
@@ -89,7 +89,7 @@ resmgr_ext_aep_create(spdid_t child, struct cos_aep_info *aep, int idx, int ownt
 	u32_t tcrcvret;
 
 	ret = resmgr_ext_aep_create_intern(0, child, idx, owntc, extrcv, &tcrcvret);
-	assert(ret > 0);
+	if (!ret) return 0;
 
 	aep->fn   = NULL;
 	aep->data = NULL;
@@ -108,7 +108,7 @@ resmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, asndca
 	u32_t r2 = 0, r3 = 0;
 
 	ret = resmgr_initaep_create_intern(0, child, owntc, unused, snd, &r3);
-	assert(ret > 0);
+	if (!ret) return 0;
 
 	aep->fn   = NULL;
 	aep->data = NULL;

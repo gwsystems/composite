@@ -19,9 +19,9 @@ schedinit_child_intern(spdid_t c)
 	struct cos_defcompinfo *dci;
 
 	/* is a child sched? */
-	assert(childsch_bitf & ((u64_t)1 << (c-1)));
+	if (!(childsch_bitf & ((u64_t)1 << (c-1)))) return -1;
 	dci = child_defci_get(c);
-	assert(dci);
+	if (!dci) return -1;
 
 	/* thd retrieve */
 	do {
@@ -34,7 +34,7 @@ schedinit_child_intern(spdid_t c)
 		if (unlikely(t)) continue;
 
 		t = sl_thd_ext_init(thdcap, 0, 0, 0);
-		assert(t);
+		if (!t) return -1;
 	} while (thdid);
 
 	/* set childinit bitf */

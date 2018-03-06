@@ -35,7 +35,7 @@ schedmgr_thd_create(cos_thd_fn_t fn, void *data)
 {
 	int idx = cos_thd_init_alloc(fn, data);
 
-	if (idx < 1) assert(0);
+	if (idx < 1) return 0;
 
 	return schedmgr_thd_create_intern(0, idx);
 }
@@ -58,10 +58,10 @@ schedmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, in
 	int ret;
 	u32_t unused;
 
-	if (idx < 1) assert(0);
+	if (idx < 1) return 0;
 
 	ret = schedmgr_aep_create_intern(0, idx, owntc, unused, &rcv, &unused);
-	assert(ret);
+	if (!ret) return 0;
 
 	aep->fn = fn;
 	aep->data = data;

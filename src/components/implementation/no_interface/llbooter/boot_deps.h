@@ -14,7 +14,7 @@
 #define BOOT_COMP_UNTYPED_SZ  (1<<24) /* 16MB */
 
 /* Assembly function for sinv from new component */
-extern void *hypercall_entry_rets_inv(spdid_t cur, int op, int arg1, int arg2, int *ret2, int *ret3);
+extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t *ret2, word_t *ret3);
 
 extern int num_cobj;
 extern int resmgr_spdid;
@@ -40,13 +40,13 @@ struct comp_cap_info {
 	struct comp_sched_info *schedinfo;
 } new_comp_cap_info[MAX_NUM_SPDS];
 
-int                      schedule[MAX_NUM_SPDS];
-volatile unsigned int    sched_cur = 0;
+int                   schedule[MAX_NUM_SPDS];
+volatile unsigned int sched_cur = 0;
 
 static inline struct comp_cap_info *
 boot_spd_compcapinfo_get(spdid_t spdid)
 {
-	assert(spdid);
+	assert(spdid && spdid <= MAX_NUM_SPDS);
 
 	return &(new_comp_cap_info[spdid-1]);
 }
@@ -61,6 +61,8 @@ static inline struct comp_sched_info *
 boot_spd_comp_schedinfo_get(spdid_t spdid)
 {
 	if (spdid == 0) return boot_spd_comp_schedinfo_curr_get();
+
+	assert(spdid <= MAX_NUM_SPDS);
 
 	return boot_spd_compcapinfo_get(spdid)->schedinfo;
 }
@@ -88,6 +90,8 @@ boot_spd_compinfo_get(spdid_t spdid)
 {
 	if (spdid == 0) return boot_spd_compinfo_curr_get();
 
+	assert(spdid <= MAX_NUM_SPDS);
+
 	return cos_compinfo_get(&(boot_spd_compcapinfo_get(spdid)->def_cinfo));
 }
 
@@ -96,6 +100,8 @@ boot_spd_defcompinfo_get(spdid_t spdid)
 {
 	if (spdid == 0) return boot_spd_defcompinfo_curr_get();
 
+	assert(spdid <= MAX_NUM_SPDS);
+
 	return &(boot_spd_compcapinfo_get(spdid)->def_cinfo);
 }
 
@@ -103,6 +109,8 @@ static inline struct cos_aep_info *
 boot_spd_initaep_get(spdid_t spdid)
 {
 	if (spdid == 0) return boot_spd_initaep_curr_get();
+
+	assert(spdid <= MAX_NUM_SPDS);
 
 	return cos_sched_aep_get(boot_spd_defcompinfo_get(spdid));
 }
@@ -230,7 +238,7 @@ boot_comp_sched_set(spdid_t spdid)
 	struct cos_aep_info *child_aep = boot_spd_initaep_get(spdid);
 	int i = 0;
 
-	while (schedule[i] != 0) i ++;
+	while (schedule[i] != 0) i++;
 	assert(i < MAX_NUM_COMPS);
 	schedule[i] = child_aep->thd;
 }
@@ -384,7 +392,7 @@ static inline int
 boot_comp_cap_get(spdid_t dstid, capid_t dstslot, spdid_t srcid, cap_t captype)
 {
 	struct cos_compinfo *bootci = boot_spd_compinfo_curr_get(), *dstci, *srcci;
-	int ret = -1;
+	int ret = -EINVAL;
 
 	if (srcid > num_cobj || dstid > num_cobj) goto done;
 	if (!dstslot) goto done;
@@ -433,7 +441,7 @@ boot_comp_cap_get(spdid_t dstid, capid_t dstslot, spdid_t srcid, cap_t captype)
 	}
 	default:
 	{
-		return -1;
+		break;
 	}
 	}
 
@@ -444,24 +452,24 @@ done:
 static inline int
 boot_comp_initthd_get(spdid_t dstid, spdid_t srcid, thdcap_t thdslot, arcvcap_t rcvslot, tcap_t tcslot)
 {
-	struct comp_sched_info *si = boot_spd_comp_schedinfo_get(srcid);
-	int ret = 0;
+	struct comp_sched_info *si = NULL;
+	int ret = -1;
 
-	if (srcid > num_cobj || dstid > num_cobj) return -1;
+	if (srcid > num_cobj || dstid > num_cobj) return -EINVAL;
+	if (!thdslot) return -EINVAL;
 
-	assert(thdslot);
+	si = boot_spd_comp_schedinfo_get(srcid);
+	if (si->flags & COMP_FLAG_SCHED && (!rcvslot || !tcslot)) return -EINVAL;
+
 	ret = boot_comp_cap_get(dstid, thdslot, srcid, CAP_THD);
-	if (ret) return -1;
+	if (ret) goto done;
 
-	if (si->flags & COMP_FLAG_SCHED) {
-		assert(rcvslot && tcslot);
-		ret = boot_comp_cap_get(dstid, rcvslot, srcid, CAP_ARCV);
-		assert(ret == 0);
+	if (!(si->flags & COMP_FLAG_SCHED)) goto done;
+	ret = boot_comp_cap_get(dstid, rcvslot, srcid, CAP_ARCV);
+	if (ret) goto done;
+	ret = boot_comp_cap_get(dstid, tcslot, srcid, CAP_TCAP);
 
-		ret = boot_comp_cap_get(dstid, tcslot, srcid, CAP_TCAP);
-		assert(ret == 0);
-	}
-
+done:
 	return ret;
 }
 
@@ -471,18 +479,20 @@ boot_comp_info_get(spdid_t dstid, spdid_t srcid, pgtblcap_t ptslot, captblcap_t 
 	struct comp_sched_info *si = NULL;
 	int ret = 0;
 
-	if (srcid > num_cobj || dstid > num_cobj) return -1;
+	if (srcid > num_cobj || dstid > num_cobj) return -EINVAL;
+	if (!ptslot || !ctslot || !compslot) return -EINVAL;
+
 	si = boot_spd_comp_schedinfo_get(srcid);
 
-	assert(ptslot && ctslot && compslot);
 	ret = boot_comp_cap_get(dstid, ptslot, srcid, CAP_PGTBL);
-	assert(ret == 0);
+	if (ret) goto done;
 	ret = boot_comp_cap_get(dstid, ctslot, srcid, CAP_CAPTBL);
-	assert(ret == 0);
+	if (ret) goto done;
 	ret = boot_comp_cap_get(dstid, compslot, srcid, CAP_COMP);
-	assert(ret == 0);
+	if (ret) goto done;
 	*parentid = si->parent_spdid;
 
+done:
 	return ret;
 }
 
@@ -552,8 +562,8 @@ __hypercall_resource_access_check(spdid_t dstid, spdid_t srcid, int resmgr_ignor
 	                                                  (dstinfo->childid_bitf & ((u64_t)1 << (srcid-1)))));
 }
 
-u32_t
-hypercall_entry(spdid_t client, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32_t *ret3)
+word_t
+hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, word_t *ret3)
 {
 	int ret1 = 0;
 
@@ -570,7 +580,7 @@ hypercall_entry(spdid_t client, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32
 		compcap_t   compslot = (arg3 << 16) >> 16;
 		spdid_t     srcid    = arg3 >> 16;
 
-		assert(__hypercall_resource_access_check(client, srcid, 0));
+		if (!__hypercall_resource_access_check(client, srcid, 0)) return -EPERM;
 		ret1 = boot_comp_info_get(client, srcid, ptslot, ctslot, compslot, (spdid_t *)ret2);
 
 		break;
@@ -581,7 +591,7 @@ hypercall_entry(spdid_t client, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32
 		captblcap_t ctslot   = (arg4 << 16) >> 16;
 		compcap_t   compslot = (arg3 << 16) >> 16;
 
-		assert(__hypercall_resource_access_check(client, 0, 0));
+		if (!__hypercall_resource_access_check(client, 0, 0)) return -EPERM;
 		ret1 = boot_comp_info_iter(client, ptslot, ctslot, compslot, (spdid_t *)ret2, (spdid_t *)ret3);
 
 		break;
@@ -590,9 +600,12 @@ hypercall_entry(spdid_t client, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32
 	{
 		vaddr_t vasfr;
 		capid_t capfr;
+		spdid_t srcid = arg3;
 
-		assert(__hypercall_resource_access_check(client, arg3, 1));
-		ret1  = boot_comp_frontier_get(client, arg3, &vasfr, &capfr);
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		ret1  = boot_comp_frontier_get(client, srcid, &vasfr, &capfr);
+		if (ret1) goto done;
+
 		*ret2 = vasfr;
 		*ret3 = capfr;
 
@@ -605,18 +618,20 @@ hypercall_entry(spdid_t client, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32
 		tcap_t    tcslot  = (arg4 << 16) >> 16;;
 		arcvcap_t rcvslot = arg4 >> 16;
 
-		assert(__hypercall_resource_access_check(client, srcid, 0));
-
+		if (!__hypercall_resource_access_check(client, srcid, 0)) return -EPERM;
 		ret1 = boot_comp_initthd_get(client, srcid, thdslot, rcvslot, tcslot);
 
 		break;
 	}
 	case HYPERCALL_COMP_CHILDREN_GET:
 	{
-		u64_t childbitf = 0;
+		u64_t   childbitf = 0;
+		spdid_t srcid     = arg3;
 
-		assert(__hypercall_resource_access_check(client, arg3, 1));
-		ret1  = boot_comp_children_get(client, arg3, &childbitf);
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		ret1  = boot_comp_children_get(client, srcid, &childbitf);
+		if (ret1) goto done;
+
 		*ret2 = (u32_t)childbitf;
 		*ret3 = (u32_t)(childbitf >> 32);
 
@@ -624,10 +639,13 @@ hypercall_entry(spdid_t client, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32
 	}
 	case HYPERCALL_COMP_SCHED_CHILDREN_GET:
 	{
-		u64_t childbitf = 0;
+		u64_t   childbitf = 0;
+		spdid_t srcid     = arg3;
 
-		assert(__hypercall_resource_access_check(client, arg3, 1));
-		ret1  = boot_comp_sched_children_get(client, arg3, &childbitf);
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		ret1  = boot_comp_sched_children_get(client, srcid, &childbitf);
+		if (ret1) goto done;
+
 		*ret2 = (u32_t)childbitf;
 		*ret3 = (u32_t)(childbitf >> 32);
 
@@ -635,25 +653,31 @@ hypercall_entry(spdid_t client, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32
 	}
 	case HYPERCALL_COMP_COMPCAP_GET:
 	{
-		assert(__hypercall_resource_access_check(client, arg3, 1));
+		spdid_t   srcid    = arg3;
+		compcap_t compslot = arg4;
 
-		ret1 = boot_comp_cap_get(client, arg4, arg3, CAP_COMP);
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		ret1 = boot_comp_cap_get(client, compslot, srcid, CAP_COMP);
 
 		break;
 	}
 	case HYPERCALL_COMP_CAPTBLCAP_GET:
 	{
-		assert(__hypercall_resource_access_check(client, arg3, 1));
+		spdid_t     srcid  = arg3;
+		captblcap_t ctslot = arg4;
 
-		ret1 = boot_comp_cap_get(client, arg4, arg3, CAP_CAPTBL);
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		ret1 = boot_comp_cap_get(client, ctslot, srcid, CAP_CAPTBL);
 
 		break;
 	}
 	case HYPERCALL_COMP_PGTBLCAP_GET:
 	{
-		assert(__hypercall_resource_access_check(client, arg3, 1));
+		spdid_t    srcid  = arg3;
+		pgtblcap_t ptslot = arg4;
 
-		ret1 = boot_comp_cap_get(client, arg4, arg3, CAP_PGTBL);
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		ret1 = boot_comp_cap_get(client, ptslot, srcid, CAP_PGTBL);
 
 		break;
 	}
@@ -661,10 +685,12 @@ hypercall_entry(spdid_t client, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32
 	{
 		vaddr_t vasfr;
 		capid_t capfr;
+		spdid_t srcid = arg3;
 
-		assert(__hypercall_resource_access_check(client, arg3, 1));
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		ret1  = boot_comp_frontier_get(client, srcid, &vasfr, &capfr);
+		if (ret1) goto done;
 
-		ret1  = boot_comp_frontier_get(client, arg3, &vasfr, &capfr);
 		*ret2 = vasfr;
 
 		break;
@@ -676,9 +702,10 @@ hypercall_entry(spdid_t client, int op, u32_t arg3, u32_t arg4, u32_t *ret2, u32
 	}
 	default:
 	{
-		assert(0);
+		return -EINVAL;
 	}
 	}
 
+done:
 	return ret1;
 }

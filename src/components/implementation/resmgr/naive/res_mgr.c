@@ -9,22 +9,20 @@ thdcap_t
 resmgr_thd_create_intern(spdid_t cur, int idx)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
-	struct res_comp_info *r = res_info_comp_find(cur);
+	struct cos_compinfo    *res_ci  = cos_compinfo_get(res_dci);
+	struct res_comp_info   *r       = res_info_comp_find(cur);
 	struct sl_thd *rt = NULL, *t = NULL;
 	int ret;
 
-	assert(r && res_info_init_check(r));
-	assert(res_info_is_sched(cur));
-	assert(idx > 0);
+	if (!r || !res_info_init_check(r)) return 0;
+	if (!res_info_is_sched(cur)) return 0;
+	if (idx <= 0) return 0;
 
 	t = sl_thd_ext_idx_alloc(res_info_dci(r), idx);
-	assert(t);
-	rt = res_info_thd_init(r, t);
-	assert(rt);
+	if (!t) return 0;
+	res_info_thd_init(r, t);
 
-	ret = cos_cap_cpy(res_info_ci(r), res_ci, CAP_THD, sl_thd_thdcap(rt));
-	assert(ret > 0);
+	ret = cos_cap_cpy(res_info_ci(r), res_ci, CAP_THD, sl_thd_thdcap(t));
 
 	return ret;
 }
@@ -33,27 +31,24 @@ thdcap_t
 resmgr_ext_thd_create_intern(spdid_t cur, spdid_t s, int idx)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
-	struct res_comp_info *rc = res_info_comp_find(cur);
-	struct res_comp_info *rs = res_info_comp_find(s);
-	struct sl_thd *t = NULL, *rt = NULL, *rst = NULL;
+	struct cos_compinfo    *res_ci  = cos_compinfo_get(res_dci);
+	struct res_comp_info   *rc      = res_info_comp_find(cur);
+	struct res_comp_info   *rs      = res_info_comp_find(s);
+	struct sl_thd *t = NULL;
 	int ret;
 
-	assert(rc && res_info_init_check(rc));
-	assert(rs && res_info_init_check(rs));
-	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
-	assert(!res_info_is_sched(s));
-	assert(idx > 0);
+	if (!rc || !res_info_init_check(rc)) return 0;
+	if (!rs || !res_info_init_check(rs)) return 0;
+	if (!res_info_is_sched(cur) || !res_info_is_child(rc, s)) return 0;
+	if (res_info_is_sched(s)) return 0;
+	if (idx <= 0) return 0;
 
 	t = sl_thd_ext_idx_alloc(res_info_dci(rs), idx);
-	assert(t);
-	rt = res_info_thd_init(rc, t);
-	assert(rt);
-	rst = res_info_thd_init(rs, t);
-	assert(rst);
+	if (!t) return 0;
+	res_info_thd_init(rc, t);
+	res_info_thd_init(rs, t);
 
-	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(rt));
-	assert(ret > 0);
+	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(t));
 	/* child is not a scheduler, don't copy into child */
 
 	return ret;
@@ -63,30 +58,29 @@ thdcap_t
 resmgr_initthd_create_intern(spdid_t cur, spdid_t s)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
-	struct res_comp_info *rc = res_info_comp_find(cur);
-	struct res_comp_info *rs = res_info_comp_find(s);
-	struct sl_thd *t = NULL, *rt = NULL, *rst = NULL;
+	struct cos_compinfo    *res_ci  = cos_compinfo_get(res_dci);
+	struct res_comp_info   *rc      = res_info_comp_find(cur);
+	struct res_comp_info   *rs      = res_info_comp_find(s);
+	struct sl_thd *t = NULL;
 	int ret;
 
-	assert(rc && res_info_init_check(rc));
-	assert(rs && res_info_init_check(rs));
-	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
-	assert(!res_info_is_sched(s));
+	if (!rc || !res_info_init_check(rc)) return 0;
+	if (!rs || !res_info_init_check(rs)) return 0;
+	if (!res_info_is_sched(cur) || !res_info_is_child(rc, s)) return 0;
+	if (res_info_is_sched(s)) return 0;
 
 	t = sl_thd_child_initaep_alloc(res_info_dci(rs), 0, 0);
-	assert(t);
-	rt = res_info_thd_init(rc, t);
-	assert(rt);
-	rst = res_info_initthd_init(rs, t);
-	assert(rst);
+	if (!t) return 0;
+	res_info_thd_init(rc, t);
+	res_info_initthd_init(rs, t);
 
 	/* child is not a scheduler, don't copy into child */
 	/* parent only needs the thdcap */
-	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(rt));
-	assert(ret > 0);
+	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(t));
+	if (!ret) return 0;
+
 	rs->p_initthdcap = ret;
-	rs->initthdid    = rt->thdid;
+	rs->initthdid    = t->thdid;
 
 	return ret;
 }
@@ -95,54 +89,53 @@ thdcap_t
 resmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_t *sndret, u32_t *rcvtcret)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
-	struct res_comp_info *rc = res_info_comp_find(cur);
-	struct res_comp_info *rs = res_info_comp_find(s);
-	struct sl_thd *rt = NULL, *rst = NULL, *t = NULL, *rinit = NULL;
+	struct cos_compinfo    *res_ci  = cos_compinfo_get(res_dci);
+	struct res_comp_info   *rc      = res_info_comp_find(cur);
+	struct res_comp_info   *rs      = res_info_comp_find(s);
+	struct sl_thd *t = NULL, *rinit = NULL;
 	tcap_t tc;
 	arcvcap_t rcv;
 	int ret;
 
-	assert(rc && res_info_init_check(rc));
-	assert(rs && res_info_init_check(rs));
-	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
-	assert(res_info_is_sched(s));
+	if (!rc || !res_info_init_check(rc)) return 0;
+	if (!rs || !res_info_init_check(rs)) return 0;
+	if (!res_info_is_sched(cur) || !res_info_is_child(rc, s)) return 0;
+	if (!res_info_is_sched(s)) return 0;
 
 	rinit = res_info_initthd(rc);
-	assert(rinit);
+	if (!rinit) return 0;
 	t = sl_thd_ext_child_initaep_alloc(res_info_dci(rs), rinit, 1);
-	assert(t);
-	rt = res_info_thd_init(rc, t);
-	assert(rt);
-	rst = res_info_initthd_init(rs, t);
-	assert(rst);
+	if (!t) return 0;
+	res_info_thd_init(rc, t);
+	res_info_initthd_init(rs, t);
 
 	/* child is a scheduler.. copy initcaps */
-	ret = cos_cap_cpy_at(res_info_ci(rs), BOOT_CAPTBL_SELF_INITTHD_BASE, res_ci, sl_thd_thdcap(rt));
-	assert(ret == 0);
-	ret = cos_cap_cpy_at(res_info_ci(rs), BOOT_CAPTBL_SELF_INITRCV_BASE, res_ci, sl_thd_rcvcap(rt));
-	assert(ret == 0);
+	ret = cos_cap_cpy_at(res_info_ci(rs), BOOT_CAPTBL_SELF_INITTHD_BASE, res_ci, sl_thd_thdcap(t));
+	if (ret) return 0;
+	ret = cos_cap_cpy_at(res_info_ci(rs), BOOT_CAPTBL_SELF_INITRCV_BASE, res_ci, sl_thd_rcvcap(t));
+	if (ret) return 0;
 	if (owntc) {
-		ret = cos_cap_cpy_at(res_info_ci(rs), BOOT_CAPTBL_SELF_INITTCAP_BASE, res_ci, sl_thd_tcap(rt));
-		assert(ret == 0);
+		ret = cos_cap_cpy_at(res_info_ci(rs), BOOT_CAPTBL_SELF_INITTCAP_BASE, res_ci, sl_thd_tcap(t));
+		if (ret) return 0;
 	} else {
 		/* if it's a scheduler.. use parent's tcap (current spdid) */
 		ret = cos_cap_cpy_at(res_info_ci(rs), BOOT_CAPTBL_SELF_INITTCAP_BASE, res_ci, sl_thd_tcap(rinit));
-		assert(ret == 0);
+		if (ret) return 0;
 	}
 
 	/* parent needs tcap/rcv to manage time. thd/asnd to activate. */
-	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(rt));
-	assert(ret > 0);
+	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(t));
+	if (!ret) return 0;
+
 	rs->p_initthdcap = ret;
-	rs->initthdid    = rt->thdid;
-	rcv = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ARCV, sl_thd_rcvcap(rt));
-	assert(rcv > 0);
-	tc = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_TCAP, sl_thd_tcap(rt));
-	assert(tc > 0);
+	rs->initthdid    = t->thdid;
+	rcv = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ARCV, sl_thd_rcvcap(t));
+	if (!rcv) return 0;
+	tc = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_TCAP, sl_thd_tcap(t));
+	if (!tc) return 0;
+
 	*rcvtcret = (rcv << 16) | (tc);
-	*sndret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ASND, sl_thd_asndcap(rt));
-	assert(*sndret > 0);
+	*sndret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ASND, sl_thd_asndcap(t));
 
 	return ret;
 }
@@ -151,48 +144,47 @@ thdcap_t
 resmgr_ext_aep_create_intern(spdid_t cur, spdid_t s, int tidx, int owntc, arcvcap_t *dstrcvret, u32_t *rcvtcret)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
-	struct res_comp_info *rc = res_info_comp_find(cur);
-	struct res_comp_info *rs = res_info_comp_find(s);
-	struct sl_thd *t = NULL, *rt = NULL, *rst = NULL, *rinit = NULL;
+	struct cos_compinfo    *res_ci  = cos_compinfo_get(res_dci);
+	struct res_comp_info   *rc      = res_info_comp_find(cur);
+	struct res_comp_info   *rs      = res_info_comp_find(s);
+	struct sl_thd *t = NULL, *rinit = NULL;
 	arcvcap_t srcrcv, dstrcv;
 	tcap_t tc;
 	int ret;
 
-	assert(rc && res_info_init_check(rc));
-	assert(rs && res_info_init_check(rs));
-	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
-	assert(tidx > 0);
+	if (!rc || !res_info_init_check(rc)) return 0;
+	if (!rs || !res_info_init_check(rs)) return 0;
+	if (!res_info_is_sched(cur) || !res_info_is_child(rc, s)) return 0;
+	if (tidx <= 0) return 0;
 
 	rinit = res_info_initthd(rc);
-	assert(rinit);
+	if (!rinit) return 0;
 
 	t = sl_thd_extaep_idx_alloc(res_info_dci(rs), rinit, tidx, owntc, &srcrcv);
-	assert(t);
-	rt = res_info_thd_init(rc, t);
-	assert(rt);
-	rst = res_info_thd_init(rs, t);
-	assert(rst);
+	if (!t) return 0;
+	res_info_thd_init(rc, t);
+	res_info_thd_init(rs, t);
 
 	/* cur is a scheduler, copy thdcap */
-	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(rt));
-	assert(ret > 0);
+	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(t));
+	if (!ret) return 0;
 	/*
 	 * for aep thread.. rcv cap should be accessible in the destination component,
 	 * so we return that cap so the scheduler can init proper structures of the dest component.
 	 */
-	*dstrcvret = cos_cap_cpy(res_info_ci(rs), res_ci, CAP_ARCV, sl_thd_rcvcap(rt));
-	assert(*dstrcvret > 0);
+	*dstrcvret = cos_cap_cpy(res_info_ci(rs), res_ci, CAP_ARCV, sl_thd_rcvcap(t));
+	if (!(*dstrcvret)) return 0;
+
 	if (owntc) {
 		/*
 		 * needs access to rcvcap if it's doing tcap transfer
 		 * complexity: sl data-structure to keep both rcvs? one to return to user, one to keep!
 		 */
-		srcrcv = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ARCV, sl_thd_rcvcap(rt));
-		assert(srcrcv > 0);
+		srcrcv = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ARCV, sl_thd_rcvcap(t));
+		if (!srcrcv) return 0;
 
-		tc = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_TCAP, sl_thd_tcap(rt));
-		assert(tc > 0);
+		tc = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_TCAP, sl_thd_tcap(t));
+		if (!tc) return 0;
 
 		/* TODO: size check before packing */
 		*rcvtcret = (srcrcv << 16) | (tc);
@@ -208,32 +200,32 @@ thdcap_t
 resmgr_aep_create_intern(spdid_t cur, int tidx, int owntc, int u1, arcvcap_t *rcvret, tcap_t *tcret)
 {
 	struct cos_defcompinfo *res_dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *res_ci     = cos_compinfo_get(res_dci);
-	struct res_comp_info *rc = res_info_comp_find(cur);
-	struct sl_thd *t = NULL, *rt = NULL, *rst = NULL, *rinit = NULL;
+	struct cos_compinfo    *res_ci  = cos_compinfo_get(res_dci);
+	struct res_comp_info   *rc      = res_info_comp_find(cur);
+	struct sl_thd *t = NULL, *rinit = NULL;
 	arcvcap_t rcv;
 	int ret;
 
-	assert(rc && res_info_init_check(rc));
-	assert(res_info_is_sched(cur));
-	assert(tidx > 0);
+	if (!rc || !res_info_init_check(rc)) return 0;
+	if (!res_info_is_sched(cur)) return 0;
+	if (tidx <= 0) return 0;
 
 	rinit = res_info_initthd(rc);
-	assert(rinit);
+	if (!rinit) return 0;
 
 	t = sl_thd_extaep_idx_alloc(res_info_dci(rc), rinit, tidx, owntc, &rcv);
-	assert(t);
-	rt = res_info_thd_init(rc, t);
-	assert(rt);
+	if (!t) return 0;
+	res_info_thd_init(rc, t);
 
 	/* current is a sched, so copy */
-	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(rt));
-	assert(ret > 0);
-	*rcvret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ARCV, sl_thd_rcvcap(rt));
-	assert(*rcvret > 0);
+	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(t));
+	if (!ret) return 0;
+
+	*rcvret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ARCV, sl_thd_rcvcap(t));
+	if (!(*rcvret)) return 0;
+
 	if (owntc) {
-		*tcret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_TCAP, sl_thd_tcap(rt));
-		assert(*tcret > 0);
+		*tcret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_TCAP, sl_thd_tcap(t));
 	} else {
 		/* copy sched tc (offset) presumably INITTCAP */
 		*tcret = BOOT_CAPTBL_SELF_INITTCAP_BASE;
@@ -252,10 +244,10 @@ resmgr_thd_retrieve_intern(spdid_t cur, spdid_t s, thdid_t tid)
 	struct sl_thd          *ti      = res_info_thd_find(rs, tid);
 	int ret;
 
-	assert(rc && res_info_init_check(rc));
-	assert(rs && res_info_init_check(rs));
-	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
-	assert(ti && sl_thd_thdcap(ti));
+	if (!rc || !res_info_init_check(rc)) return 0;
+	if (!rs || !res_info_init_check(rs)) return 0;
+	if (!res_info_is_sched(cur) || !res_info_is_child(rc, s)) return 0;
+	if (!ti || !sl_thd_thdcap(ti)) return 0;
 
 	if (tid == rs->initthdid) {
 		ret = rs->p_initthdcap;
@@ -263,7 +255,6 @@ resmgr_thd_retrieve_intern(spdid_t cur, spdid_t s, thdid_t tid)
 	}
 
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(ti));
-	assert(ret > 0);
 
 done:
 	return ret;
@@ -276,11 +267,11 @@ resmgr_thd_retrieve_next_intern(spdid_t cur, spdid_t s, int u1, int u2, thdcap_t
 	struct cos_compinfo    *res_ci  = cos_compinfo_get(res_dci);
 	struct res_comp_info   *rc      = res_info_comp_find(cur);
 	struct res_comp_info   *rs      = res_info_comp_find(s);
-	struct sl_thd          *ti      = res_info_thd_next(rs), *rt = NULL;
+	struct sl_thd          *ti      = res_info_thd_next(rs);
 
-	assert(rc && res_info_init_check(rc));
-	assert(rs && res_info_init_check(rs));
-	assert(res_info_is_sched(cur) && res_info_is_child(rc, s));
+	if (!rc || !res_info_init_check(rc)) return 0;
+	if (!rs || !res_info_init_check(rs)) return 0;
+	if (!res_info_is_sched(cur) || !res_info_is_child(rc, s)) return 0;
 
 	if (ti == NULL) return 0;
 	if (ti->thdid == rs->initthdid) {
@@ -288,10 +279,9 @@ resmgr_thd_retrieve_next_intern(spdid_t cur, spdid_t s, int u1, int u2, thdcap_t
 		goto done;
 	}
 	*thdcap = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_THD, sl_thd_thdcap(ti));
-	assert(*thdcap > 0);
+	if (!(*thdcap)) return 0;
 	/* add to parent's array, for grand-parent's walk-through */
-	rt = res_info_thd_init(rc, ti);
-	assert(rt);
+	res_info_thd_init(rc, ti);
 
 done:
 	return ti->thdid;
@@ -309,16 +299,16 @@ resmgr_asnd_create_intern(spdid_t cur, spdid_t s, thdid_t tid /* thd with rcvcap
 	asndcap_t snd;
 	int ret;
 
-	assert(res_info_init_check(rc) && res_info_init_check(rs));
-	assert(ti && sl_thd_rcvcap(ti));
+	if (!rc || !res_info_init_check(rc)) return 0;
+	if (!rs || !res_info_init_check(rs)) return 0;
+	if (!ti || !sl_thd_rcvcap(ti)) return 0;
 	/* either scheduler creates the sndcap or the component creates itself as it has access to rcvcap */
-	assert(res_info_is_sched(cur) || cur == s);
+	if (!res_info_is_sched(cur) && cur != s) return 0;
 
 	snd = cos_asnd_alloc(res_ci, sl_thd_rcvcap(ti), res_ci->captbl_cap);
-	assert(snd);
+	if (!snd) return 0;
 
 	ret = cos_cap_cpy(res_info_ci(rc), res_ci, CAP_ASND, snd);
-	assert(ret > 0);
 
 	return ret;
 }
