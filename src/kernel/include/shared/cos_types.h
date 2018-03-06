@@ -396,6 +396,11 @@ typedef enum {
 	COS_UPCALL_QUARANTINE
 } upcall_type_t;
 
+typedef enum {
+	COMP_FLAG_SCHED  = 1,
+	COMP_FLAG_RESMGR = (1<<1),
+} comp_flag_t;
+
 enum
 {
 	MAPPING_RO   = 0,

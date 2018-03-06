@@ -68,6 +68,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 	vaddr_t           dest_daddr, prev_map = 0;
 	int               n_pte = 1;
 	struct cobj_sect *sect = cobj_sect_get(h, 0);
+	struct comp_cap_info *spdinfo = boot_spd_compcapinfo_get(spdid);
 
 	boot_comp_pgtbl_expand(n_pte, pt, sect->vaddr, h);
 
@@ -89,7 +90,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, pgtblcap_t pt)
 
 		while (left > 0) {
 			if (first) {
-				new_comp_cap_info[spdid].vaddr_mapped_in_booter = boot_deps_map_sect(spdid, dest_daddr);
+				spdinfo->vaddr_mapped_in_booter = boot_deps_map_sect(spdid, dest_daddr);
 				first = 0;
 			} else {
 				boot_deps_map_sect(spdid, dest_daddr);
@@ -185,15 +186,17 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	/* Where are we in the destination address space? */
 	vaddr_t                           init_daddr;
 	struct cos_component_information *ci;
+	struct comp_cap_info             *spdinfo = boot_spd_compcapinfo_get(spdid);
 
-	start_addr = (char *)(new_comp_cap_info[spdid].vaddr_mapped_in_booter);
+	start_addr = (char *)(spdinfo->vaddr_mapped_in_booter);
 	init_daddr = cobj_sect_get(h, 0)->vaddr;
 
 	for (i = 0; i < h->nsect; i++) {
-		struct cobj_sect *sect;
-		vaddr_t           dest_daddr;
-		char *            lsrc;
-		int               left;
+		struct cobj_sect     *sect;
+		vaddr_t               dest_daddr;
+		char                 *lsrc;
+		int                   left;
+		struct comp_cap_info *hinfo = NULL;
 
 		sect = cobj_sect_get(h, i);
 		/* virtual address in the destination address space */
@@ -217,7 +220,9 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 			assert(comp_info == (dest_daddr + (((left/PAGE_SIZE)-1)*PAGE_SIZE)));
 			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info - init_daddr), comp_info);
 			ci = (struct cos_component_information *)(start_addr + (comp_info - init_daddr));
-			new_comp_cap_info[h->id].upcall_entry = ci->cos_upcall_entry;
+
+			hinfo = boot_spd_compcapinfo_get(h->id);
+			hinfo->upcall_entry = ci->cos_upcall_entry;
 		}
 
 	}
@@ -245,6 +250,7 @@ boot_init_sched(void)
 int
 boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 {
+	struct comp_cap_info *spdinfo = boot_spd_compcapinfo_get(spdid);
 	struct cobj_cap *cap;
 	struct usr_inv_cap inv_cap;
 	int cap_offset;
@@ -264,7 +270,7 @@ boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 			.invocation_count = cap->dest_id
 		};
 
-		new_comp_cap_info[spdid].ST_user_caps[cap_offset] = inv_cap;
+		spdinfo->ST_user_caps[cap_offset] = inv_cap;
 	}
 	return 0;
 }
@@ -275,14 +281,14 @@ boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 static void
 boot_comp_name_parse(spdid_t s, const char *name)
 {
-	struct comp_cap_info *cinfo = &new_comp_cap_info[s];
+	struct comp_sched_info *si = boot_spd_comp_schedinfo_get(s);
 
 	if (strcmp(name, BOOT_ROOT_SCHED) == 0) {
-		cinfo->flags |= BOOT_FLAG_SCHED;
+		si->flags |= COMP_FLAG_SCHED;
 		root_spdid = s;
 	} else if (strcmp(name, BOOT_RESMGR) == 0) {
 		resmgr_spdid = s;
-		cinfo->flags |= BOOT_FLAG_MM;
+		si->flags |= COMP_FLAG_RESMGR;
 	}
 
 	return;
@@ -296,7 +302,7 @@ boot_comp_preparse_name(void)
 	for (i = 0; hs[i] != NULL; i++) {
 		struct cobj_header *h;
 		spdid_t             spdid;
-		struct comp_cap_info *spd, *schedspd;
+		struct comp_sched_info *spdsi, *schedspdsi;
 
 		h     = hs[i];
 		spdid = h->id;
@@ -306,13 +312,13 @@ boot_comp_preparse_name(void)
 		boot_comp_name_parse(spdid, h->name);
 
 		if (!(h->flags)) continue;
-		spd      = &new_comp_cap_info[spdid];
-		schedspd = &new_comp_cap_info[spd->parent_spdid];
+		spdsi      = boot_spd_comp_schedinfo_get(spdid);
+		schedspdsi = boot_spd_comp_schedinfo_get(spdsi->parent_spdid);
 
-		assert((spd->flags & BOOT_FLAG_MM) == 0);
-		assert(schedspd->flags & BOOT_FLAG_SCHED);
-		spd->flags |= BOOT_FLAG_SCHED;
-		schedspd->childid_sched_bitf |= (1 << (spdid-1));
+		assert((spdsi->flags & COMP_FLAG_RESMGR) == 0);
+		assert(schedspdsi->flags & COMP_FLAG_SCHED);
+		spdsi->flags |= COMP_FLAG_SCHED;
+		schedspdsi->childid_sched_bitf |= (1 << (spdid-1));
 	}
 
 	if (!resmgr_spdid) printc("No RESOURCE MANAGER\n");
@@ -327,23 +333,25 @@ boot_create_cap_system(void)
 	boot_comp_preparse_name();
 
 	for (i = 0; hs[i] != NULL; i++) {
-		struct cobj_header *h;
-		struct cobj_sect *  sect;
-		captblcap_t         ct;
-		pgtblcap_t          pt;
-		spdid_t             spdid;
-		vaddr_t             ci = 0;
+		struct comp_cap_info *spdinfo;
+		struct cobj_header   *h;
+		struct cobj_sect     *sect;
+		captblcap_t           ct;
+		pgtblcap_t            pt;
+		spdid_t               spdid;
+		vaddr_t               ci = 0;
 
 		h     = hs[i];
 		spdid = h->id;
 
 		assert(spdid != 0);
+		spdinfo = boot_spd_compcapinfo_get(spdid);
 
-		sect                                = cobj_sect_get(h, 0);
-		new_comp_cap_info[spdid].addr_start = sect->vaddr;
+		sect                = cobj_sect_get(h, 0);
+		spdinfo->addr_start = sect->vaddr;
 		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);
 
-		if (boot_spd_symbs(h, spdid, &ci, &new_comp_cap_info[spdid].vaddr_user_caps)) BUG();
+		if (boot_spd_symbs(h, spdid, &ci, &(spdinfo->vaddr_user_caps))) BUG();
 		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
@@ -375,7 +383,9 @@ boot_child_info_print(void)
 	int i = 0;
 
 	for (; i <= num_cobj; i++) {
-		PRINTC("Component %d => child bitmap %llx, sched bitmap %llx\n", i, new_comp_cap_info[i].childid_bitf, new_comp_cap_info[i].childid_sched_bitf);
+		struct comp_sched_info *si = boot_spd_comp_schedinfo_get(i);
+
+		PRINTC("Component %d => child bitmap %llx, sched bitmap %llx\n", i, si->childid_bitf, si->childid_sched_bitf);
 	}
 }
 
@@ -386,12 +396,27 @@ boot_parse_init_args(void)
 
 	for (; i <= num_cobj; i++) {
 		spdid_t spdid = init_args[i].spdid, schedid = init_args[i].schedid;
-		struct comp_cap_info *spd      = &new_comp_cap_info[spdid];
-		struct comp_cap_info *schedspd = &new_comp_cap_info[schedid];
+		struct comp_sched_info *spdsi      = boot_spd_comp_schedinfo_get(spdid);
+		struct comp_sched_info *schedspdsi = boot_spd_comp_schedinfo_get(schedid);
 
-		spd->parent_spdid = schedid;
-		schedspd->childid_bitf |= (1 << (spdid-1));
-		schedspd->flags |= BOOT_FLAG_SCHED;
+		spdsi->parent_spdid = schedid;
+		schedspdsi->childid_bitf |= (1 << (spdid-1));
+		schedspdsi->flags |= COMP_FLAG_SCHED;
+	}
+}
+
+void
+boot_comp_capinfo_init(void)
+{
+	int i;
+
+	memset(new_comp_cap_info, 0, sizeof(struct comp_cap_info) * (MAX_NUM_SPDS));
+	memset(comp_schedinfo, 0, sizeof(struct comp_sched_info) * (MAX_NUM_SPDS + 1));
+
+	for (i = 1; i <= MAX_NUM_SPDS; i++) {
+		struct comp_cap_info *spdinfo = boot_spd_compcapinfo_get(i);
+
+		spdinfo->schedinfo = &comp_schedinfo[i];
 	}
 }
 
@@ -410,7 +435,7 @@ cos_init(void)
 
 	PRINTC("num cobjs: %d\n", num_cobj);
 	assert(num_cobj <= MAX_NUM_SPDS);
-	memset(new_comp_cap_info, 0, sizeof(struct comp_cap_info) * (MAX_NUM_SPDS + 1));
+	boot_comp_capinfo_init();
 
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
 	boot_parse_init_args();
