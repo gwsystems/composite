@@ -320,8 +320,8 @@ boot_comp_preparse_name(void)
 		schedspdsi->childid_sched_bitf |= (1 << (spdid-1));
 	}
 
-	if (!capmgr_spdid) printc("No CAPABILITY MANAGER\n");
-	if (!root_spdid) printc("No ROOT SCHEDULER\n");
+	PRINTC("Capability manager component[=%u] %s!\n", capmgr_spdid, capmgr_spdid ? "found" : "not found");
+	PRINTC("Root scheduler component[=%u] %s!\n", root_spdid, root_spdid ? "found" : "not found");
 }
 
 static void
@@ -373,6 +373,8 @@ boot_create_cap_system(void)
 		boot_newcomp_sinv_alloc(spdid);
 		PRINTC("Comp %d (%s) undefined symbols resolved!\n", h->id, h->name);
 	}
+	boot_capmgr_mem_alloc();
+
 	return;
 }
 

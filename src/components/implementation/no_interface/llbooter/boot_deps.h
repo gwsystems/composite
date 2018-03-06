@@ -9,11 +9,6 @@
 #include <res_spec.h>
 #include <ps.h>
 
-#define UNDEF_SYMBS 64
-#define LLBOOT_ROOT_PRIO 1
-#define CAPMGR_UNTYPED_MEM_SZ (COS_MEM_KERN_PA_SZ / 2)
-#define BOOT_COMP_UNTYPED_SZ  (1<<24) /* 16MB */
-
 /* Assembly function for sinv from new component */
 extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t *ret2, word_t *ret3);
 
@@ -26,15 +21,15 @@ struct cobj_header *hs[MAX_NUM_SPDS + 1];
 struct comp_sched_info {
 	comp_flag_t          flags;
 	spdid_t              parent_spdid;
-	u64_t                childid_bitf;
-	u64_t                childid_sched_bitf;
+	u64_t                childid_bitf;       /* bitmap of all child components */
+	u64_t                childid_sched_bitf; /* bitmap of only child scheduler components */
 } comp_schedinfo[MAX_NUM_SPDS + 1];
 
 /* The booter uses this to keep track of each comp */
 struct comp_cap_info {
 	struct cos_defcompinfo  def_cinfo;
-	struct usr_inv_cap      ST_user_caps[UNDEF_SYMBS];
-	vaddr_t                 vaddr_user_caps; // vaddr of user caps table in comp
+	struct usr_inv_cap      ST_user_caps[INTERFACE_UNDEF_SYMBS];
+	vaddr_t                 vaddr_user_caps; /* vaddr of user caps table in comp */
 	vaddr_t                 addr_start;
 	vaddr_t                 vaddr_mapped_in_booter;
 	vaddr_t                 upcall_entry;
@@ -130,6 +125,22 @@ boot_deps_map_sect(spdid_t spdid, vaddr_t *mapaddr)
 	return addr;
 }
 
+static void
+boot_capmgr_mem_alloc(void)
+{
+	struct cos_compinfo *capmgr_info = boot_spd_compinfo_get(capmgr_spdid);
+	struct cos_compinfo *boot_info   = boot_spd_compinfo_curr_get();
+	unsigned long mem_sz;
+
+	if (!capmgr_spdid) return;
+
+	mem_sz = round_up_to_pgd_page(boot_info->mi.untyped_frontier - (boot_info->mi.untyped_ptr + LLBOOT_RESERVED_UNTYPED_SZ));
+	assert(mem_sz >= CAPMGR_MIN_UNTYPED_SZ);
+	PRINTC("Allocating %lu MB untyped memory to capability manager[=%u]\n", mem_sz/(1024*1024), capmgr_spdid);
+
+	cos_meminfo_alloc(capmgr_info, BOOT_MEM_KM_BASE, mem_sz);
+}
+
 /* Initialize just the captblcap and pgtblcap, due to hack for upcall_fn addr */
 static void
 boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t heap_start_vaddr)
@@ -150,12 +161,12 @@ boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t heap_st
 	 */
 	if (!capmgr_spdid || (capmgr_spdid && spdid && spdid == capmgr_spdid)) {
 		pgtblcap_t utpt;
-		unsigned long mem_sz = capmgr_spdid ? CAPMGR_UNTYPED_MEM_SZ : BOOT_COMP_UNTYPED_SZ;
+		unsigned long mem_sz = capmgr_spdid ? CAPMGR_MIN_UNTYPED_SZ : LLBOOT_NEWCOMP_UNTYPED_SZ;
 
 		utpt = cos_pgtbl_alloc(boot_info);
 		assert(utpt);
 		cos_meminfo_init(&(compinfo->mi), BOOT_MEM_KM_BASE, mem_sz, utpt);
-		cos_meminfo_alloc(compinfo, BOOT_MEM_KM_BASE, mem_sz);
+		if (!capmgr_spdid) cos_meminfo_alloc(compinfo, BOOT_MEM_KM_BASE, mem_sz);
 	}
 }
 
@@ -175,7 +186,7 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 	/*
 	 * Loop through all undefined symbs
 	 */
-	for (i = 0; i < UNDEF_SYMBS; i++) {
+	for (i = 0; i < INTERFACE_UNDEF_SYMBS; i++) {
 		if (spdinfo->ST_user_caps[i].service_entry_inst > 0) {
 			intr_spdid = spdinfo->ST_user_caps[i].invocation_count;
 			assert(intr_spdid); /* booter interface not allowed */
@@ -361,10 +372,10 @@ boot_done(void)
 		root_aep = boot_spd_initaep_get(root_spdid);
 
 		PRINTC("Root scheduler is %u, switching to it now!\n", root_spdid);
-		ret = cos_tcap_transfer(root_aep->rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, LLBOOT_ROOT_PRIO);
+		ret = cos_tcap_transfer(root_aep->rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, LLBOOT_ROOTSCHED_PRIO);
 		assert(ret == 0);
 
-		ret = cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOT_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
+		ret = cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOTSCHED_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
 		PRINTC("ERROR: Root scheduler returned.\n");
 		assert(0);
 	}

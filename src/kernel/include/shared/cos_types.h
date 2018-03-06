@@ -397,8 +397,8 @@ typedef enum {
 } upcall_type_t;
 
 typedef enum {
-	COMP_FLAG_SCHED  = 1,
-	COMP_FLAG_CAPMGR = (1<<1),
+	COMP_FLAG_SCHED  = 1,      /* component is a scheduler */
+	COMP_FLAG_CAPMGR = (1<<1), /* component is a capability manager */
 } comp_flag_t;
 
 enum
@@ -443,5 +443,11 @@ typedef enum {
 /* invalid type, can NOT be used in data structures, only for return values. */
 #define IL_INV (~0)
 typedef unsigned int isolation_level_t;
+
+#define INTERFACE_UNDEF_SYMBS 64 /* maxiumum undefined symbols in a cobj */
+#define LLBOOT_ROOTSCHED_PRIO 1  /* root scheduler priority for llbooter dispatch */
+#define LLBOOT_NEWCOMP_UNTYPED_SZ  (1<<24) /* 16 MB = untyped size per component if there is no capability manager */
+#define LLBOOT_RESERVED_UNTYPED_SZ (1<<24) /* 16 MB = reserved untyped size with booter if there is a capability manager */
+#define CAPMGR_MIN_UNTYPED_SZ      (1<<26) /* 64 MB = minimum untyped size for the capability manager in the system */
 
 #endif /* TYPES_H */
