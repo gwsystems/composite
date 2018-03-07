@@ -1,6 +1,6 @@
-C_OBJS=dpdk_init.o
+C_OBJS=ninf.o
 ASM_OBJS=
-COMPONENT=cos_dpdk.o
+COMPONENT=network_interface_nf.o
 INTERFACES=
 DEPENDENCIES=
 IF_LIB=
