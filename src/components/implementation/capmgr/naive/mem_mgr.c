@@ -11,7 +11,7 @@ memmgr_heap_page_allocn_intern(spdid_t cur, unsigned int npages)
 	struct cos_compinfo  *cap_ci  = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct cap_comp_info *cur_rci = cap_info_comp_find(cur);
 	struct cos_compinfo  *cur_ci  = cap_info_ci(cur_rci);
-	vaddr_t src_pg, dst_pg, first_pg;
+	vaddr_t src_pg, dst_pg;
 	unsigned int off = 0;
 
 	if (!cur_rci || !cap_info_init_check(cur_rci)) return 0;
@@ -19,16 +19,9 @@ memmgr_heap_page_allocn_intern(spdid_t cur, unsigned int npages)
 
 	src_pg = (vaddr_t)cos_page_bump_allocn(cap_ci, npages * PAGE_SIZE);
 	if (!src_pg) return 0;
+	dst_pg = cos_mem_aliasn(cur_ci, cap_ci, src_pg, npages * PAGE_SIZE);
 
-	while (off < npages) {
-		dst_pg = cos_mem_alias(cur_ci, cap_ci, src_pg + (off * PAGE_SIZE));
-		if (!dst_pg) return 0;
-
-		if (!off) first_pg = dst_pg;
-		off++;
-	}
-
-	return first_pg;
+	return dst_pg;
 }
 
 int

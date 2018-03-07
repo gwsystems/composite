@@ -13,17 +13,19 @@
 
 extern u64_t cap_info_schedbmp;
 
+/* shared memory region information */
 struct cap_shmem_glb_info {
-	int free_region_id;
-	int total_pages;
+	int free_region_id; /* free global identifier */
+	int total_pages;    /* total number of pages allocated in all shared-mem regions */
 
-	int npages[MEMMGR_MAX_SHMEM_REGIONS];
+	int region_npages[MEMMGR_MAX_SHMEM_REGIONS]; /* number of pages allocated per region with array index as the shared-memory identifier */
 };
 
+/* per component shared memory region information */
 struct cap_shmem_info {
-	struct cos_compinfo shcinfo;
+	struct cos_compinfo shcinfo; /* used for heap_frontier == shared_mem_froniter, with same pgtbl capability of a component */
 
-	vaddr_t shm_addr[MEMMGR_MAX_SHMEM_REGIONS];
+	vaddr_t shm_addr[MEMMGR_MAX_SHMEM_REGIONS]; /* virtual address mapped in the component with array index as the global shared memory identifier */
 };
 
 struct cap_comp_info {
@@ -31,7 +33,7 @@ struct cap_comp_info {
 	int thd_used;
 	struct cos_defcompinfo defci;
 	struct cap_shmem_info shminfo;
-	struct sl_thd *tinfo[CAP_INFO_COMP_MAX_THREADS]; /* including threads from components in subtree. */
+	struct sl_thd *thdinfo[CAP_INFO_COMP_MAX_THREADS]; /* including threads from components in subtree. */
 	int initflag;
 	u64_t chbits; /* all child components */
 	u64_t chschbits; /* child components which are also schedulers. */

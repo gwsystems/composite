@@ -215,7 +215,10 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 	}
 }
 
-/* TODO: possible to cos_defcompinfo_child_alloc if we somehow move allocations to one place */
+/*
+ * NOTE: This is code duplication! cos_defcompinfo_child_alloc() cannot be used here
+ *       as init-threads are created only for booter's child components here.
+ */
 static void
 boot_newcomp_defcinfo_init(spdid_t spdid)
 {
@@ -264,7 +267,10 @@ boot_newcomp_init_caps(spdid_t spdid)
 	struct cos_aep_info    *child_aep = boot_spd_initaep_get(spdid);
 	int ret, i;
 
-	/* FIXME: not everyone should have it. but for now, because getting cpu cycles uses this */
+	/*
+	 * FIXME: Ideally only components with HW access should have this.
+	 *       But copying to each component as cos_hw_cycles_per_usec() used to get cpu cycles uses this.
+	 */
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, boot_info, BOOT_CAPTBL_SELF_INITHW_BASE);
 	assert(ret == 0);
 
@@ -350,7 +356,6 @@ boot_bootcomp_init(void)
 	struct cos_compinfo    *boot_info = boot_spd_compinfo_curr_get();
 	struct comp_sched_info *bootsi    = boot_spd_comp_schedinfo_curr_get();
 
-	/* TODO: if posix already did meminfo init */
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
 	bootsi->flags |= COMP_FLAG_SCHED;
@@ -368,7 +373,7 @@ boot_done(void)
 	PRINTC("Booter: done initializing child components.\n");
 
 	if (root_spdid) {
-		/* NOTE: Chronos delegations would replace this in some  experiments! */
+		/* NOTE: Chronos delegations would replace this in some experiments! */
 		root_aep = boot_spd_initaep_get(root_spdid);
 
 		PRINTC("Root scheduler is %u, switching to it now!\n", root_spdid);
@@ -401,7 +406,7 @@ boot_thd_done(spdid_t c)
 }
 
 static inline int
-boot_comp_cap_get(spdid_t dstid, capid_t dstslot, spdid_t srcid, cap_t captype)
+boot_comp_cap_cpy_at(spdid_t dstid, capid_t dstslot, spdid_t srcid, cap_t captype)
 {
 	struct cos_compinfo *bootci = boot_spd_compinfo_curr_get(), *dstci, *srcci;
 	int ret = -EINVAL;
@@ -473,13 +478,13 @@ boot_comp_initthd_get(spdid_t dstid, spdid_t srcid, thdcap_t thdslot, arcvcap_t 
 	si = boot_spd_comp_schedinfo_get(srcid);
 	if (si->flags & COMP_FLAG_SCHED && (!rcvslot || !tcslot)) return -EINVAL;
 
-	ret = boot_comp_cap_get(dstid, thdslot, srcid, CAP_THD);
+	ret = boot_comp_cap_cpy_at(dstid, thdslot, srcid, CAP_THD);
 	if (ret) goto done;
 
 	if (!(si->flags & COMP_FLAG_SCHED)) goto done;
-	ret = boot_comp_cap_get(dstid, rcvslot, srcid, CAP_ARCV);
+	ret = boot_comp_cap_cpy_at(dstid, rcvslot, srcid, CAP_ARCV);
 	if (ret) goto done;
-	ret = boot_comp_cap_get(dstid, tcslot, srcid, CAP_TCAP);
+	ret = boot_comp_cap_cpy_at(dstid, tcslot, srcid, CAP_TCAP);
 
 done:
 	return ret;
@@ -496,11 +501,11 @@ boot_comp_info_get(spdid_t dstid, spdid_t srcid, pgtblcap_t ptslot, captblcap_t 
 
 	si = boot_spd_comp_schedinfo_get(srcid);
 
-	ret = boot_comp_cap_get(dstid, ptslot, srcid, CAP_PGTBL);
+	ret = boot_comp_cap_cpy_at(dstid, ptslot, srcid, CAP_PGTBL);
 	if (ret) goto done;
-	ret = boot_comp_cap_get(dstid, ctslot, srcid, CAP_CAPTBL);
+	ret = boot_comp_cap_cpy_at(dstid, ctslot, srcid, CAP_CAPTBL);
 	if (ret) goto done;
-	ret = boot_comp_cap_get(dstid, compslot, srcid, CAP_COMP);
+	ret = boot_comp_cap_cpy_at(dstid, compslot, srcid, CAP_COMP);
 	if (ret) goto done;
 	*parentid = si->parent_spdid;
 
@@ -669,7 +674,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		compcap_t compslot = arg4;
 
 		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
-		ret1 = boot_comp_cap_get(client, compslot, srcid, CAP_COMP);
+		ret1 = boot_comp_cap_cpy_at(client, compslot, srcid, CAP_COMP);
 
 		break;
 	}
@@ -679,7 +684,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		captblcap_t ctslot = arg4;
 
 		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
-		ret1 = boot_comp_cap_get(client, ctslot, srcid, CAP_CAPTBL);
+		ret1 = boot_comp_cap_cpy_at(client, ctslot, srcid, CAP_CAPTBL);
 
 		break;
 	}
@@ -689,7 +694,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		pgtblcap_t ptslot = arg4;
 
 		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
-		ret1 = boot_comp_cap_get(client, ptslot, srcid, CAP_PGTBL);
+		ret1 = boot_comp_cap_cpy_at(client, ptslot, srcid, CAP_PGTBL);
 
 		break;
 	}

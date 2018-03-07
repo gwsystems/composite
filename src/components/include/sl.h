@@ -251,7 +251,6 @@ void sl_thd_yield_cs_exit(thdid_t tid);
 struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
 struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap);
 /*
- * DEPRECATED!! Use the API that creates initthd also with cos_defkernel_api that doesn't!
  * This API creates a sl_thd object for this child component.
  * @comp: component created using cos_defkernel_api which includes initthd (with/without its own tcap & rcvcap).
  */

@@ -847,18 +847,29 @@ cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd)
 }
 
 vaddr_t
-cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src)
+cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz)
 {
-	vaddr_t dst;
+	size_t i;
+	vaddr_t dst, first_dst;
 
 	assert(srcci && dstci);
+	assert(sz && (sz % PAGE_SIZE == 0));
 
-	dst = __page_bump_valloc(dstci, PAGE_SIZE);
+	dst = __page_bump_valloc(dstci, sz);
 	if (unlikely(!dst)) return 0;
+	first_dst = dst;
+	
+	for (i = 0; i < sz; i += PAGE_SIZE, src += PAGE_SIZE, dst += PAGE_SIZE) {
+		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) BUG();
+	}
 
-	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) BUG();
+	return first_dst;
+}
 
-	return dst;
+vaddr_t
+cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src)
+{
+	return cos_mem_aliasn(dstci, srcci, src, PAGE_SIZE);
 }
 
 int

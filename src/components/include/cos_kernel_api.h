@@ -159,6 +159,7 @@ int cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 int cos_sinv_rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret2, word_t *ret3);
 
 vaddr_t cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
+vaddr_t cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz);
 int     cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);
 vaddr_t cos_mem_move(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
 int     cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);

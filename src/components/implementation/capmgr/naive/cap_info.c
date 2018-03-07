@@ -1,7 +1,7 @@
 #include <cos_kernel_api.h>
 #include "cap_info.h"
 
-static struct cap_comp_info capci[MAX_NUM_COMPS + 1]; /* like booter => incl booter MAX + 1 */
+static struct cap_comp_info capci[MAX_NUM_COMPS + 1]; /* includes booter information also, so +1 */
 static unsigned int cap_comp_count;
 u64_t cap_info_schedbmp;
 static struct cap_shmem_glb_info cap_shmglbinfo;
@@ -31,7 +31,7 @@ cap_info_thd_find(struct cap_comp_info *rci, thdid_t tid)
 
 	if (!rci || !cap_info_init_check(rci)) return NULL;
 	for (i = 0; i < rci->thd_used; i++) {
-		if ((rci->tinfo[i])->thdid == tid) return rci->tinfo[i];
+		if ((rci->thdinfo[i])->thdid == tid) return rci->thdinfo[i];
 	}
 
 	return NULL;
@@ -42,7 +42,7 @@ cap_info_thd_next(struct cap_comp_info *rci)
 {
 	if (!rci || !cap_info_init_check(rci)) return NULL;
 	if (rci->p_thd_iterator < rci->thd_used) {
-		return (rci->tinfo[ps_faa((long unsigned *)&(rci->p_thd_iterator), 1)]);
+		return (rci->thdinfo[ps_faa((long unsigned *)&(rci->p_thd_iterator), 1)]);
 	}
 
 	return NULL;
@@ -90,7 +90,7 @@ cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t)
 	if (!t) return NULL;
 
 	off = ps_faa((long unsigned *)&(rci->thd_used), 1);
-	rci->tinfo[off] = t;
+	rci->thdinfo[off] = t;
 
 	return t;
 }
@@ -102,7 +102,7 @@ cap_info_initthd_init(struct cap_comp_info *rci, struct sl_thd *t)
 	if (rci->thd_used >= CAP_INFO_COMP_MAX_THREADS) return NULL;
 	if (!t) return NULL;
 
-	rci->tinfo[0] = t;
+	rci->thdinfo[0] = t;
 
 	return t;
 }
@@ -112,7 +112,7 @@ cap_info_initthd(struct cap_comp_info *rci)
 {
 	if (!rci) return NULL;
 
-	return rci->tinfo[0];
+	return rci->thdinfo[0];
 }
 
 void
@@ -136,27 +136,6 @@ __cap_info_shm_capmgr_vaddr_set(int id, vaddr_t v)
 }
 
 static int
-__cap_cos_shared_page_allocn(struct cos_compinfo *rci, int num_pages, vaddr_t *capvaddr, vaddr_t *compvaddr)
-{
-	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	int off = 0;
-	vaddr_t src_pg, dst_pg;
-
-	*capvaddr = src_pg = (vaddr_t)cos_page_bump_allocn(cap_ci, num_pages * PAGE_SIZE);
-	if (!(*capvaddr)) return -1;
-
-	while (off < num_pages) {
-		dst_pg = cos_mem_alias(rci, cap_ci, src_pg + (off * PAGE_SIZE));
-		if (!dst_pg) return -1;
-
-		if (!off) *compvaddr = dst_pg;
-		off++;
-	}
-
-	return 0;
-}
-
-static int
 __cap_cos_shared_page_mapn(struct cos_compinfo *rci, int num_pages, vaddr_t capvaddr, vaddr_t *compvaddr)
 {
 	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
@@ -166,13 +145,23 @@ __cap_cos_shared_page_mapn(struct cos_compinfo *rci, int num_pages, vaddr_t capv
 	assert(capvaddr);
 	if (!capvaddr) return -1;
 
-	while (off < num_pages) {
-		dst_pg = cos_mem_alias(rci, cap_ci, capvaddr + (off * PAGE_SIZE));
-		if (!dst_pg) return -1;
+	*compvaddr = cos_mem_aliasn(rci, cap_ci, capvaddr, num_pages * PAGE_SIZE);
+	if (!*compvaddr) return -1;
 
-		if (!off) *compvaddr = dst_pg;
-		off++;
-	}
+	return 0;
+}
+
+static int
+__cap_cos_shared_page_allocn(struct cos_compinfo *rci, int num_pages, vaddr_t *capvaddr, vaddr_t *compvaddr)
+{
+	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	int off = 0;
+	vaddr_t src_pg, dst_pg;
+
+	*capvaddr = src_pg = (vaddr_t)cos_page_bump_allocn(cap_ci, num_pages * PAGE_SIZE);
+	if (!(*capvaddr)) return -1;
+
+	if (__cap_cos_shared_page_mapn(rci, num_pages, src_pg, compvaddr)) return -1;
 
 	return 0;
 }
@@ -195,7 +184,7 @@ cap_shmem_region_alloc(struct cap_shmem_info *rsh, int num_pages)
 	if (__cap_info_shm_capmgr_vaddr(fidx) != 0) goto done;
 	if (rsh->shm_addr[fidx] != 0) goto done;
 
-	rglb->npages[fidx] = num_pages;
+	rglb->region_npages[fidx] = num_pages;
 	ps_faa((long unsigned *)&(rglb->total_pages), num_pages);
 
 	ret = __cap_cos_shared_page_allocn(rsh_ci, num_pages, &cap_addr, &comp_addr);
@@ -221,11 +210,11 @@ cap_shmem_region_map(struct cap_shmem_info *rsh, int idx)
 	if (idx >= MEMMGR_MAX_SHMEM_REGIONS) return 0;
 	if (!cap_addr || rsh->shm_addr[idx] != 0) return 0;
 
-	ret = __cap_cos_shared_page_mapn(rsh_ci, rglb->npages[idx], cap_addr, &comp_addr);
+	ret = __cap_cos_shared_page_mapn(rsh_ci, rglb->region_npages[idx], cap_addr, &comp_addr);
 	if (ret) return 0;
 	rsh->shm_addr[idx] = comp_addr;
 
-	return rglb->npages[idx];
+	return rglb->region_npages[idx];
 }
 
 vaddr_t

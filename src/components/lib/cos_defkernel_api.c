@@ -63,8 +63,6 @@ cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rc
 	sched_aep->fn   = NULL;
 	sched_aep->data = NULL;
 
-	defci->id = cos_spd_id();
-
 	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, comp_cap, heap_ptr, cap_frontier, ci);
 	curr_defci_init_status = INITIALIZED;
 }
