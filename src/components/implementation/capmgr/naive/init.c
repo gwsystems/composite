@@ -32,7 +32,10 @@ capmgr_comp_info_iter(void)
 		int ret = 0, is_sched = 0;
 
 		remaining = hypercall_comp_info_next(&pgtslot, &captslot, &ccslot, &csid, &psid);
-		if (remaining < 0) break;
+		if (remaining < 0) {
+			assert(remaining == -1); /* iterator end */
+			break;
+		}
 
 		num_comps ++;
 		ret = hypercall_comp_children_get(csid, &chbits);

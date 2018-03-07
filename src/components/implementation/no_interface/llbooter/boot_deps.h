@@ -597,7 +597,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		compcap_t   compslot = (arg3 << 16) >> 16;
 		spdid_t     srcid    = arg3 >> 16;
 
-		if (!__hypercall_resource_access_check(client, srcid, 0)) return -EPERM;
+		if (!__hypercall_resource_access_check(client, srcid, 0)) return -EACCES;
 		ret1 = boot_comp_info_get(client, srcid, ptslot, ctslot, compslot, (spdid_t *)ret2);
 
 		break;
@@ -608,7 +608,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		captblcap_t ctslot   = (arg4 << 16) >> 16;
 		compcap_t   compslot = (arg3 << 16) >> 16;
 
-		if (!__hypercall_resource_access_check(client, 0, 0)) return -EPERM;
+		if (!__hypercall_resource_access_check(client, 0, 0)) return -EACCES;
 		ret1 = boot_comp_info_iter(client, ptslot, ctslot, compslot, (spdid_t *)ret2, (spdid_t *)ret3);
 
 		break;
@@ -619,7 +619,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		capid_t capfr;
 		spdid_t srcid = arg3;
 
-		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
 		ret1  = boot_comp_frontier_get(client, srcid, &vasfr, &capfr);
 		if (ret1) goto done;
 
@@ -635,7 +635,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		tcap_t    tcslot  = (arg4 << 16) >> 16;;
 		arcvcap_t rcvslot = arg4 >> 16;
 
-		if (!__hypercall_resource_access_check(client, srcid, 0)) return -EPERM;
+		if (!__hypercall_resource_access_check(client, srcid, 0)) return -EACCES;
 		ret1 = boot_comp_initthd_get(client, srcid, thdslot, rcvslot, tcslot);
 
 		break;
@@ -645,7 +645,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		u64_t   childbitf = 0;
 		spdid_t srcid     = arg3;
 
-		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
 		ret1  = boot_comp_children_get(client, srcid, &childbitf);
 		if (ret1) goto done;
 
@@ -659,7 +659,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		u64_t   childbitf = 0;
 		spdid_t srcid     = arg3;
 
-		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
 		ret1  = boot_comp_sched_children_get(client, srcid, &childbitf);
 		if (ret1) goto done;
 
@@ -673,7 +673,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		spdid_t   srcid    = arg3;
 		compcap_t compslot = arg4;
 
-		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
 		ret1 = boot_comp_cap_cpy_at(client, compslot, srcid, CAP_COMP);
 
 		break;
@@ -683,7 +683,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		spdid_t     srcid  = arg3;
 		captblcap_t ctslot = arg4;
 
-		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
 		ret1 = boot_comp_cap_cpy_at(client, ctslot, srcid, CAP_CAPTBL);
 
 		break;
@@ -693,7 +693,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		spdid_t    srcid  = arg3;
 		pgtblcap_t ptslot = arg4;
 
-		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
 		ret1 = boot_comp_cap_cpy_at(client, ptslot, srcid, CAP_PGTBL);
 
 		break;
@@ -704,7 +704,7 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 		capid_t capfr;
 		spdid_t srcid = arg3;
 
-		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EPERM;
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
 		ret1  = boot_comp_frontier_get(client, srcid, &vasfr, &capfr);
 		if (ret1) goto done;
 
