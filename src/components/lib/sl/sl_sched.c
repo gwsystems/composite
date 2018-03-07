@@ -13,7 +13,7 @@
 
 struct sl_global sl_global_data;
 static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
-extern struct sl_thd *sl_thd_alloc_init(thdid_t tid, struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps);
+extern struct sl_thd *sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps);
 
 /*
  * These functions are removed from the inlined fast-paths of the
@@ -425,7 +425,7 @@ sl_init(microsec_t period)
 	sl_timeout_init(period);
 
 	/* Create the scheduler thread for us. cos_sched_aep_get() is from global(static) memory */
-	g->sched_thd       = sl_thd_alloc_init(cos_thdid(), cos_sched_aep_get(dci), 0, 0);
+	g->sched_thd       = sl_thd_alloc_init(cos_sched_aep_get(dci), 0, 0);
 	assert(g->sched_thd);
 	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_BASE;
 	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_BASE;

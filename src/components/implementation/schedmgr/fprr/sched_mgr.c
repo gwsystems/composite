@@ -48,7 +48,7 @@ schedmgr_thd_create_intern(spdid_t c, int idx)
 	t = sl_thd_ext_idx_alloc(dci, idx);
 	if (!t) return 0;
 
-	return t->thdid;
+	return sl_thd_thdid(t);
 }
 
 thdid_t
@@ -64,7 +64,7 @@ schedmgr_aep_create_intern(spdid_t c, int idx, int owntc, int u1, arcvcap_t *ext
 	t = sl_thd_extaep_idx_alloc(dci, sl__globals()->sched_thd, idx, owntc, extrcv);
 	if (!t) return 0;
 
-	return t->thdid;
+	return sl_thd_thdid(t);
 }
 
 int

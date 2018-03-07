@@ -16,16 +16,16 @@ extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_intern(struct sl_thd *t);
 
 struct sl_thd *
-sl_thd_alloc_init(thdid_t tid, struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps)
+sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps)
 {
 	struct sl_thd_policy *tp = NULL;
 	struct sl_thd        *t  = NULL;
 
-	tp = sl_thd_alloc_backend(tid);
+	assert(aep->tid);
+	tp = sl_thd_alloc_backend(aep->tid);
 	if (!tp) goto done;
 	t  = sl_mod_thd_get(tp);
 
-	t->thdid          = tid;
 	t->properties     = prps;
 	t->aepinfo        = aep;
 	t->sndcap         = sndcap;
@@ -53,18 +53,15 @@ sl_thd_ext_idx_alloc_intern(struct cos_defcompinfo *comp, int idx)
 	struct cos_compinfo    *dstci = cos_compinfo_get(comp);
 	struct sl_thd          *t     = NULL;
 	struct cos_aep_info    *aep   = NULL;
-	thdcap_t thdcap;
-	thdid_t tid;
 
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
-
 	aep->thd = cos_thd_alloc_idx(ci, dstci->comp_cap, idx);
 	if (!aep->thd) goto done;
+	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
+	if (!aep->tid) goto done;
 
-	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
-	assert(tid);
-	t = sl_thd_alloc_init(tid, aep, 0, 0);
+	t = sl_thd_alloc_init(aep, 0, 0);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -78,18 +75,16 @@ sl_thd_alloc_intern(cos_thd_fn_t fn, void *data)
 	struct cos_compinfo    *ci  = &dci->ci;
 	struct sl_thd          *t   = NULL;
 	struct cos_aep_info    *aep = NULL;
-	thdcap_t thdcap;
-	thdid_t tid;
 
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 
 	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data);
 	if (!aep->thd) goto done;
+	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
+	if (!aep->tid) goto done;
 
-	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
-	assert(tid);
-	t = sl_thd_alloc_init(tid, aep, 0, 0);
+	t = sl_thd_alloc_init(aep, 0, 0);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -103,7 +98,6 @@ sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *scht
 	struct cos_compinfo    *ci  = &dci->ci;
 	struct sl_thd          *t   = NULL;
 	struct cos_aep_info    *aep = NULL;
-	thdid_t                 tid;
 	int                     ret;
 
 	aep = sl_thd_alloc_aep_backend();
@@ -115,9 +109,7 @@ sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *scht
 
 	/* FIXME: copy rcvcap to comp and return extrcv */
 	*extrcv = 0;
-	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
-	assert(tid);
-	t = sl_thd_alloc_init(tid, aep, 0, prps);
+	t = sl_thd_alloc_init(aep, 0, prps);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -131,7 +123,6 @@ sl_thd_ext_init_intern(thdcap_t thd, tcap_t tc, arcvcap_t rcv, asndcap_t snd, sl
 	struct cos_compinfo    *ci  = &dci->ci;
 	struct cos_aep_info    *aep = NULL;
 	struct sl_thd          *t   = NULL;
-	thdid_t tid;
 
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
@@ -139,10 +130,10 @@ sl_thd_ext_init_intern(thdcap_t thd, tcap_t tc, arcvcap_t rcv, asndcap_t snd, sl
 	aep->thd = thd;
 	aep->tc  = tc;
 	aep->rcv = rcv;
+	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
+	if (!aep->tid) goto done;
 
-	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
-	assert(tid);
-	t = sl_thd_alloc_init(tid, aep, snd, prps);
+	t = sl_thd_alloc_init(aep, snd, prps);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -157,7 +148,6 @@ sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *
 	struct sl_thd          *t   = NULL;
 	asndcap_t               snd = 0;
 	struct cos_aep_info    *aep = NULL;
-	thdid_t                 tid;
 	int                     ret;
 
 	aep = sl_thd_alloc_aep_backend();
@@ -181,9 +171,7 @@ sl_thd_aep_alloc_intern(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *
 		if (ret) goto done;
 	}
 
-	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
-	assert(tid);
-	t = sl_thd_alloc_init(tid, aep, snd, prps);
+	t = sl_thd_alloc_init(aep, snd, prps);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -199,7 +187,6 @@ sl_thd_ext_childaep_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *sc
 	asndcap_t               snd = 0;
 	struct cos_aep_info    *aep = NULL;
 	struct cos_aep_info    *sa  = NULL;
-	thdid_t                 tid;
 	int                     ret;
 
 	aep = sl_thd_alloc_aep_backend();
@@ -216,9 +203,7 @@ sl_thd_ext_childaep_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *sc
 	assert(snd);
 	*aep = *sa;
 
-	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
-	assert(tid);
-	t = sl_thd_alloc_init(tid, aep, snd, prps);
+	t = sl_thd_alloc_init(aep, snd, prps);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -235,7 +220,6 @@ sl_thd_childaep_alloc_intern(struct cos_defcompinfo *comp, sl_thd_property_t prp
 	asndcap_t               snd = 0;
 	struct cos_aep_info    *aep = NULL;
 	struct cos_aep_info    *sa  = NULL;
-	thdid_t                 tid;
 	int                     ret;
 
 	aep = sl_thd_alloc_aep_backend();
@@ -253,9 +237,7 @@ sl_thd_childaep_alloc_intern(struct cos_defcompinfo *comp, sl_thd_property_t prp
 	}
 	*aep = *sa;
 
-	tid = cos_introspect(ci, aep->thd, THD_GET_TID);
-	assert(tid);
-	t = sl_thd_alloc_init(tid, aep, snd, prps);
+	t = sl_thd_alloc_init(aep, snd, prps);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -293,7 +275,6 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
 	struct sl_thd          *t   = NULL;
-	thdid_t tid;
 
 	assert(comp);
 
@@ -308,9 +289,7 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 
 		/* copying cos_aep_info is fine here as cos_thd_alloc() is not done using this aep */
 		*aep = *sa;
-		tid = cos_introspect(ci, aep->thd, THD_GET_TID);
-		assert(tid);
-		t   = sl_thd_alloc_init(tid, aep, 0, 0);
+		t    = sl_thd_alloc_init(aep, 0, 0);
 		sl_mod_thd_create(sl_mod_thd_policy_get(t));
 	}
 

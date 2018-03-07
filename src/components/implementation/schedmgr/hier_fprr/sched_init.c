@@ -27,7 +27,7 @@ schedinit_child_intern(spdid_t c)
 	do {
 		struct sl_thd *t = NULL;
 
-		thdid = capmgr_thd_retrieve_next(c, &thdcap);
+		thdcap = capmgr_thd_retrieve_next(c, &thdid);
 		if (!thdid) break;
 		t = sl_thd_lkup(thdid);
 		/* already in? only init thd, coz it's created by this sched! */

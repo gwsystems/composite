@@ -5,7 +5,9 @@
 #include <capmgr.h>
 #include "cap_info.h"
 
-thdcap_t
+#define __RET_THDID_THDCAP(ret, thdcap, thdid) (ret = (thdid << 16) | (thdcap))
+
+u32_t
 capmgr_thd_create_intern(spdid_t cur, int idx)
 {
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -23,11 +25,12 @@ capmgr_thd_create_intern(spdid_t cur, int idx)
 	cap_info_thd_init(r, t);
 
 	ret = cos_cap_cpy(cap_info_ci(r), cap_ci, CAP_THD, sl_thd_thdcap(t));
+	__RET_THDID_THDCAP(ret, ret, sl_thd_thdid(t));
 
 	return ret;
 }
 
-thdcap_t
+u32_t
 capmgr_ext_thd_create_intern(spdid_t cur, spdid_t s, int idx)
 {
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -50,11 +53,12 @@ capmgr_ext_thd_create_intern(spdid_t cur, spdid_t s, int idx)
 
 	ret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
 	/* child is not a scheduler, don't copy into child */
+	__RET_THDID_THDCAP(ret, ret, sl_thd_thdid(t));
 
 	return ret;
 }
 
-thdcap_t
+u32_t
 capmgr_initthd_create_intern(spdid_t cur, spdid_t s)
 {
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -80,12 +84,13 @@ capmgr_initthd_create_intern(spdid_t cur, spdid_t s)
 	if (!ret) return 0;
 
 	rs->p_initthdcap = ret;
-	rs->initthdid    = t->thdid;
+	rs->initthdid    = sl_thd_thdid(t);
+	__RET_THDID_THDCAP(ret, ret, sl_thd_thdid(t));
 
 	return ret;
 }
 
-thdcap_t
+u32_t
 capmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_t *sndret, u32_t *rcvtcret)
 {
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -128,7 +133,7 @@ capmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_
 	if (!ret) return 0;
 
 	rs->p_initthdcap = ret;
-	rs->initthdid    = t->thdid;
+	rs->initthdid    = sl_thd_thdid(t);
 	rcv = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ARCV, sl_thd_rcvcap(t));
 	if (!rcv) return 0;
 	tc = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_TCAP, sl_thd_tcap(t));
@@ -136,11 +141,12 @@ capmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_
 
 	*rcvtcret = (rcv << 16) | (tc);
 	*sndret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, sl_thd_asndcap(t));
+	__RET_THDID_THDCAP(ret, ret, sl_thd_thdid(t));
 
 	return ret;
 }
 
-thdcap_t
+u32_t
 capmgr_ext_aep_create_intern(spdid_t cur, spdid_t s, int tidx, int owntc, arcvcap_t *dstrcvret, u32_t *rcvtcret)
 {
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -192,11 +198,12 @@ capmgr_ext_aep_create_intern(spdid_t cur, spdid_t s, int tidx, int owntc, arcvca
 		/* copy sched tc (offset) pcapumably INITTCAP */
 		*rcvtcret = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 	}
+	__RET_THDID_THDCAP(ret, ret, sl_thd_thdid(t));
 
 	return ret;
 }
 
-thdcap_t
+u32_t
 capmgr_aep_create_intern(spdid_t cur, int tidx, int owntc, int u1, arcvcap_t *rcvret, tcap_t *tcret)
 {
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -230,6 +237,7 @@ capmgr_aep_create_intern(spdid_t cur, int tidx, int owntc, int u1, arcvcap_t *rc
 		/* copy sched tc (offset) pcapumably INITTCAP */
 		*tcret = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 	}
+	__RET_THDID_THDCAP(ret, ret, sl_thd_thdid(t));
 
 	return ret;
 }
@@ -260,31 +268,35 @@ done:
 	return ret;
 }
 
-thdid_t
-capmgr_thd_retrieve_next_intern(spdid_t cur, spdid_t s, int u1, int u2, thdcap_t *thdcap, int *u3)
+u32_t
+capmgr_thd_retrieve_next_intern(spdid_t cur, spdid_t s)
 {
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
 	struct sl_thd          *ti      = cap_info_thd_next(rs);
+	thdcap_t thd = 0;
+	u32_t    ret = 0;
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!rs || !cap_info_init_check(rs)) return 0;
 	if (!cap_info_is_sched(cur) || !cap_info_is_child(rc, s)) return 0;
 
 	if (ti == NULL) return 0;
-	if (ti->thdid == rs->initthdid) {
-		*thdcap = rs->p_initthdcap;
+	if (sl_thd_thdid(ti) == rs->initthdid) {
+		thd = rs->p_initthdcap;
 		goto done;
 	}
-	*thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
-	if (!(*thdcap)) return 0;
+	thd = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
+	if (!thd) return 0;
 	/* add to parent's array, for grand-parent's walk-through */
 	cap_info_thd_init(rc, ti);
 
 done:
-	return ti->thdid;
+	__RET_THDID_THDCAP(ret, thd, sl_thd_thdid(ti));
+
+	return ret;
 }
 
 /* TODO: use thdid? or rcvcap? */

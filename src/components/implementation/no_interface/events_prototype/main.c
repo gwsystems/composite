@@ -129,7 +129,7 @@ assign_thread_data(struct sl_thd *thread)
 {
 	struct cos_compinfo *ci     = cos_compinfo_get(cos_defcompinfo_curr_get());
 	thdcap_t             thdcap = sl_thd_thdcap(thread);
-	thdid_t              thdid  = thread->thdid;
+	thdid_t              thdid  = sl_thd_thdid(thread);
 
 	/* HACK: We setup some thread specific data to make musl stuff work with sl threads */
 	backing_thread_data[thdid].tid = thdid;

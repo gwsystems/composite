@@ -36,9 +36,10 @@ static void
 test_thds(void)
 {
 	int i = 0;
+	thdid_t tid;
 
 	for (; i < TEST_N_THDS; i++) {
-		test_ts[i] = capmgr_thd_create(__test_thd_fn, (void *)i);
+		test_ts[i] = capmgr_thd_create(__test_thd_fn, (void *)i, &tid);
 		assert(test_ts[i]);
 
 		cos_thd_switch(test_ts[i]);

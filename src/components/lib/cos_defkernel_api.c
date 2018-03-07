@@ -64,6 +64,7 @@ cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rc
 	sched_aep->data = NULL;
 
 	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, comp_cap, heap_ptr, cap_frontier, ci);
+	sched_aep->tid         = cos_introspect(ci, sched_thd, THD_GET_TID);
 	curr_defci_init_status = INITIALIZED;
 }
 
@@ -96,6 +97,7 @@ cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, 
 		child_aep->rcv = sched_aep->rcv;
 	}
 
+	child_aep->tid  = cos_introspect(ci, child_aep->thd, THD_GET_TID);
 	child_aep->fn   = NULL;
 	child_aep->data = NULL;
 
@@ -125,8 +127,9 @@ cos_child_initthd_alloc(struct cos_defcompinfo *child_dci)
 	aep->thd = cos_initthd_alloc(ci, child_ci->comp_cap);
 	assert(aep->thd);
 
-	aep->tc  = 0;
-	aep->rcv = 0;
+	aep->tid  = cos_introspect(ci, aep->thd, THD_GET_TID);
+	aep->tc   = 0;
+	aep->rcv  = 0;
 	aep->fn   = NULL;
 	aep->data = NULL;
 
@@ -161,6 +164,7 @@ cos_child_initaep_tcap_alloc(struct cos_defcompinfo *child_dci, tcap_t tc)
 	aep->thd = cos_initthd_alloc(ci, child_ci->comp_cap);
 	assert(aep->thd);
 
+	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	aep->tc  = tc;
 	aep->rcv = cos_arcv_alloc(ci, aep->thd, aep->tc, ci->comp_cap, sched_aep->rcv);
 	assert(aep->rcv);
@@ -198,6 +202,7 @@ cos_child_initaep_tcap_alloc_ext(struct cos_defcompinfo *child_dci, tcap_t tc, s
 	aep->thd = cos_initthd_alloc(ci, child_ci->comp_cap);
 	assert(aep->thd);
 
+	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	aep->tc  = tc;
 	aep->rcv = cos_arcv_alloc(ci, aep->thd, aep->tc, ci->comp_cap, sched_aep->rcv);
 	assert(aep->rcv);
@@ -244,6 +249,7 @@ cos_aep_idx_tcap_alloc_ext(struct cos_aep_info *aep, tcap_t tc, int idx, struct 
 	aep->thd = cos_thd_alloc_idx(ci, dstci->comp_cap, idx);
 	assert(aep->thd);
 
+	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	aep->tc  = tc;
 	aep->rcv = cos_arcv_alloc(ci, aep->thd, aep->tc, ci->comp_cap, sched_aep->rcv);
 	assert(aep->rcv);
@@ -280,6 +286,7 @@ cos_aep_tcap_alloc(struct cos_aep_info *aep, tcap_t tc, cos_aepthd_fn_t fn, void
 	aep->thd = cos_thd_alloc(ci, ci->comp_cap, __aepthd_fn, (void *)aep);
 	assert(aep->thd);
 
+	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	aep->tc  = tc;
 	aep->rcv = cos_arcv_alloc(ci, aep->thd, aep->tc, ci->comp_cap, sched_aep->rcv);
 	assert(aep->rcv);

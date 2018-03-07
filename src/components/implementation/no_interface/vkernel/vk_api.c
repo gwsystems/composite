@@ -79,7 +79,7 @@ vk_vm_sched_init(struct vms_info *vminfo)
 	sl_thd_param_set(vminfo->inithd, spsameT.v);
 
 	printc("\tsl_thd 0x%x created for thread = cap:%x, id=%u\n", (unsigned int)(vminfo->inithd),
-	       (unsigned int)sl_thd_thdcap(vminfo->inithd), (vminfo->inithd)->thdid);
+	       (unsigned int)sl_thd_thdcap(vminfo->inithd), sl_thd_thdid(vminfo->inithd));
 }
 
 void

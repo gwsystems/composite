@@ -31,7 +31,7 @@ cap_info_thd_find(struct cap_comp_info *rci, thdid_t tid)
 
 	if (!rci || !cap_info_init_check(rci)) return NULL;
 	for (i = 0; i < rci->thd_used; i++) {
-		if ((rci->thdinfo[i])->thdid == tid) return rci->thdinfo[i];
+		if (sl_thd_thdid(rci->thdinfo[i]) == tid) return rci->thdinfo[i];
 	}
 
 	return NULL;

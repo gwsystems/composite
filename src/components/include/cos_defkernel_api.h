@@ -33,6 +33,7 @@ typedef void (*cos_aepthd_fn_t)(arcvcap_t, void *);
 struct cos_aep_info {
 	tcap_t          tc;
 	thdcap_t        thd;
+	thdid_t         tid;
 	arcvcap_t       rcv;
 	cos_aepthd_fn_t fn;
 	void *          data;
