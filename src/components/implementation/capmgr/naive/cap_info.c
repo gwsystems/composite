@@ -3,7 +3,7 @@
 
 static struct cap_comp_info capci[MAX_NUM_COMPS + 1]; /* includes booter information also, so +1 */
 static unsigned int cap_comp_count;
-u64_t cap_info_schedbmp;
+u32_t cap_info_schedbmp[MAX_NUM_COMP_WORDS];
 static struct cap_shmem_glb_info cap_shmglbinfo;
 
 static inline struct cap_shmem_glb_info *
@@ -50,19 +50,16 @@ cap_info_thd_next(struct cap_comp_info *rci)
 
 struct cap_comp_info *
 cap_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
-		   capid_t cap_frontier, vaddr_t heap_frontier, vaddr_t shared_frontier, spdid_t psid,
-		   u64_t childbits, u64_t childschedbits)
+		   capid_t cap_frontier, vaddr_t heap_frontier, vaddr_t shared_frontier, spdid_t psid)
 {
 	struct cos_compinfo       *ci      = cos_compinfo_get(&(capci[sid].defci));
 	struct cap_shmem_info     *cap_shi = cap_info_shmem_info(&capci[sid]);
 	struct cos_compinfo       *sh_ci   = cap_info_shmem_ci(cap_shi);
 	struct cap_shmem_glb_info *rglb    = __cap_info_shmglb_info();
 
-	capci[sid].cid       = sid;
-	capci[sid].thd_used  = 1;
-	capci[sid].parent    = &capci[psid];
-	capci[sid].chbits    = childbits;
-	capci[sid].chschbits = childschedbits;
+	capci[sid].cid      = sid;
+	capci[sid].thd_used = 1;
+	capci[sid].parent   = &capci[psid];
 
 	cos_meminfo_init(&ci->mi, 0, 0, 0);
 	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, compcap, heap_frontier, cap_frontier,
@@ -119,7 +116,7 @@ void
 cap_info_init(void)
 {
 	cap_comp_count = 0;
-	cap_info_schedbmp = 0;
+	memset(cap_info_schedbmp, 0, sizeof(u32_t) * MAX_NUM_COMP_WORDS);
 	memset(capci, 0, sizeof(struct cap_comp_info)*(MAX_NUM_COMPS+1));
 }
 

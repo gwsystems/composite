@@ -13,7 +13,7 @@ capmgr_comp_info_iter(void)
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
 	struct cap_comp_info   *btinfo = cap_info_comp_find(0);
-	int remaining = 0;
+	int remaining = 0, i;
 	int num_comps = 0;
 
 	do {
@@ -41,14 +41,6 @@ capmgr_comp_info_iter(void)
 		}
 
 		num_comps ++;
-		while ((remain_child = hypercall_comp_child_next(csid, &childid, &ch_flags)) >= 0) {
-			chbits |= (1 << (childid-1));
-			if (ch_flags & COMP_FLAG_SCHED) chschbits |= (1 << (childid-1));
-
-			if (!remain_child) break;
-		}
-		cap_info_schedbmp |= chschbits;
-
 		if (csid == 0 || (csid != cos_spd_id() && cap_info_is_child(btinfo, csid))) {
 			is_sched = (csid == 0 || cap_info_is_sched_child(btinfo, csid)) ? 1 : 0;
 
@@ -59,8 +51,18 @@ capmgr_comp_info_iter(void)
 		ret = hypercall_comp_frontier_get(csid, &vasfr, &capfr);
 		assert(ret == 0);
 
-		rci = cap_info_comp_init(csid, captslot, pgtslot, ccslot, capfr, vasfr, (vaddr_t)MEMMGR_SHMEM_BASE, psid, chbits, chschbits);
+		rci = cap_info_comp_init(csid, captslot, pgtslot, ccslot, capfr, vasfr, (vaddr_t)MEMMGR_SHMEM_BASE, psid);
 		assert(rci);
+
+		while ((remain_child = hypercall_comp_child_next(csid, &childid, &ch_flags)) >= 0) {
+			bitmap_set(rci->child_bitmap, childid - 1);
+			if (ch_flags & COMP_FLAG_SCHED) {
+				bitmap_set(rci->child_sched_bitmap, childid - 1);
+				bitmap_set(cap_info_schedbmp, childid - 1);
+			}
+
+			if (!remain_child) break;
+		}
 
 		if (thdslot) {
 			ithd = sl_thd_ext_init(thdslot, tcslot, rcvslot, 0);
@@ -72,8 +74,8 @@ capmgr_comp_info_iter(void)
 		}
 	} while (remaining > 0);
 
+	for (i = 0; i < MAX_NUM_COMP_WORDS; i++) PRINTC("Scheduler bitmap[%d]: %u\n", i, cap_info_schedbmp[i]);
 	assert(num_comps == hypercall_numcomps_get());
-	PRINTC("Schedulers bitmap: %llx\n", cap_info_schedbmp);
 }
 
 void

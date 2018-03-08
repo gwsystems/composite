@@ -68,6 +68,7 @@ struct pt_regs {
 
 #define MAX_NUM_COMPS 64
 #define MAX_NUM_SPDS (MAX_NUM_COMPS) /* Legacy code still has this. */
+#define MAX_NUM_COMP_WORDS (MAX_NUM_COMPS/(8*sizeof(u32_t)))
 
 #define MAX_STATIC_CAP 256
 #define MAX_NUM_ACAP 256

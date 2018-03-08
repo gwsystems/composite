@@ -317,7 +317,6 @@ boot_comp_preparse_name(void)
 		assert((spdsi->flags & COMP_FLAG_CAPMGR) == 0);
 		assert(schedspdsi->flags & COMP_FLAG_SCHED);
 		spdsi->flags |= COMP_FLAG_SCHED;
-		schedspdsi->childid_sched_bitf |= (1 << (spdid-1));
 	}
 
 	PRINTC("Capability manager component[=%u] %s!\n", capmgr_spdid, capmgr_spdid ? "found" : "not found");
@@ -381,12 +380,15 @@ boot_create_cap_system(void)
 void
 boot_child_info_print(void)
 {
-	int i = 0;
+	int i;
 
-	for (; i <= num_cobj; i++) {
+	for (i = 0; i <= num_cobj; i++) {
 		struct comp_sched_info *si = boot_spd_comp_schedinfo_get(i);
+		int j;
 
-		PRINTC("Component %d => child bitmap %llx, sched bitmap %llx\n", i, si->childid_bitf, si->childid_sched_bitf);
+		PRINTC("Component %d => child", i);
+		for (j = 0; j < (int)MAX_NUM_COMP_WORDS; j++) printc(" bitmap[%d]: %04x", j, si->child_bitmap[j]);
+		printc("\n");
 	}
 }
 
@@ -401,7 +403,7 @@ boot_parse_init_args(void)
 		struct comp_sched_info *schedspdsi = boot_spd_comp_schedinfo_get(schedid);
 
 		spdsi->parent_spdid = schedid;
-		schedspdsi->childid_bitf |= (1 << (spdid-1));
+		bitmap_set(schedspdsi->child_bitmap, spdid - 1);
 		schedspdsi->flags |= COMP_FLAG_SCHED;
 		schedspdsi->num_child++;
 	}

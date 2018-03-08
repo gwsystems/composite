@@ -8,6 +8,7 @@
 #include <hypercall.h>
 #include <res_spec.h>
 #include <ps.h>
+#include <bitmap.h>
 
 /* Assembly function for sinv from new component */
 extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t *ret2, word_t *ret3);
@@ -21,10 +22,9 @@ struct cobj_header *hs[MAX_NUM_SPDS + 1];
 struct comp_sched_info {
 	comp_flag_t          flags;
 	spdid_t              parent_spdid;
-	u64_t                childid_bitf;       /* bitmap of all child components */
-	u64_t                childid_sched_bitf; /* bitmap of only child scheduler components */
-	unsigned int         num_child;          /* number of child components */
-	unsigned int         num_child_iter;     /* iterator for getting child components */
+	u32_t                child_bitmap[MAX_NUM_COMP_WORDS]; /* bitmap of all child component spdids */
+	unsigned int         num_child;                        /* number of child components */
+	unsigned int         num_child_iter;                   /* iterator for getting child components */
 } comp_schedinfo[MAX_NUM_SPDS + 1];
 
 /* The booter uses this to keep track of each comp */
@@ -554,7 +554,7 @@ boot_comp_child_next(spdid_t dstid, spdid_t srcid, spdid_t *child, comp_flag_t *
 	if (si->num_child == 0) return -1;
 
 	for (i = 0; i <= MAX_NUM_SPDS; i++) {
-		if ((si->childid_bitf & ((u64_t)1 << i))) {
+		if (bitmap_check(si->child_bitmap, i)) {
 			childid = i + 1;
 			iter++;
 		}
@@ -587,7 +587,7 @@ __hypercall_resource_access_check(spdid_t dstid, spdid_t srcid, int capmgr_ignor
 	else if (dstid == capmgr_spdid) return 1;
 	/* if there is no capability manager, components are allowed to access their or resources of their child components */
 	else                            return (srcid && (dstid == srcid ||
-	                                                  (dstinfo->childid_bitf & ((u64_t)1 << (srcid-1)))));
+							  (bitmap_check(dstinfo->child_bitmap, srcid - 1))));
 }
 
 word_t

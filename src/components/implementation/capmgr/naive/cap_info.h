@@ -7,11 +7,12 @@
 #include <sl.h>
 #include <capmgr.h>
 #include <memmgr.h>
+#include <bitmap.h>
 
 #define CAP_INFO_COMP_MAX_SUBTREE 8
 #define CAP_INFO_COMP_MAX_THREADS (MAX_NUM_THREADS*CAP_INFO_COMP_MAX_SUBTREE)
 
-extern u64_t cap_info_schedbmp;
+extern u32_t cap_info_schedbmp[];
 
 /* shared memory region information */
 struct cap_shmem_glb_info {
@@ -35,8 +36,8 @@ struct cap_comp_info {
 	struct cap_shmem_info shminfo;
 	struct sl_thd *thdinfo[CAP_INFO_COMP_MAX_THREADS]; /* including threads from components in subtree. */
 	int initflag;
-	u64_t chbits; /* all child components */
-	u64_t chschbits; /* child components which are also schedulers. */
+	u32_t child_bitmap[MAX_NUM_COMP_WORDS];
+	u32_t child_sched_bitmap[MAX_NUM_COMP_WORDS];
 
 	struct cap_comp_info *parent;
 	int p_thd_iterator; /* iterator for parent to get all threads created by capmgr in this component so far! */
@@ -46,7 +47,7 @@ struct cap_comp_info {
 
 struct cap_comp_info *cap_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
 					 capid_t cap_frontier, vaddr_t heap_frontier, vaddr_t shared_frontier,
-					 spdid_t par_sid, u64_t ch, u64_t ch_sch);
+					 spdid_t par_sid);
 
 struct sl_thd *cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t);
 struct sl_thd *cap_info_initthd_init(struct cap_comp_info *rci, struct sl_thd *t);
@@ -61,10 +62,6 @@ void cap_info_init(void);
 int cap_shmem_region_alloc(struct cap_shmem_info *rcur, int num_pages);
 int cap_shmem_region_map(struct cap_shmem_info *rcur, int id);
 vaddr_t cap_shmem_region_vaddr(struct cap_shmem_info *rsh, int id);
-
-#define IS_SCHEDBIT_SET(s, c) (s & ((u64_t)1 << (c-1)))
-#define IS_CHILDBIT_SET(r, c) (r->chbits & ((u64_t)1 << (c-1)))
-#define IS_CHILDSCHEDBIT_SET(r, c) (r->chschbits & ((u64_t)1 << (c-1)))
 
 static inline struct cos_compinfo *
 cap_info_ci(struct cap_comp_info *r)
@@ -96,21 +93,24 @@ static inline int
 cap_info_is_sched(spdid_t c)
 {
 	if (!c) return 1; /* llbooter! */
-	return IS_SCHEDBIT_SET(cap_info_schedbmp, c);
+
+	return bitmap_check(cap_info_schedbmp, c - 1);
 }
 
 static inline int
 cap_info_is_child(struct cap_comp_info *r, spdid_t c)
 {
 	if (!c) return 0;
-	return IS_CHILDBIT_SET(r, c);
+
+	return bitmap_check(r->child_bitmap, c - 1);
 }
 
 static inline int
 cap_info_is_sched_child(struct cap_comp_info *r, spdid_t c)
 {
 	if (!c) return 0;
-	return IS_CHILDSCHEDBIT_SET(r, c);
+
+	return bitmap_check(r->child_sched_bitmap, c - 1);
 }
 
 static inline struct cap_shmem_info *
