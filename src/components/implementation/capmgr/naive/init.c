@@ -30,6 +30,9 @@ capmgr_comp_info_iter(void)
 		vaddr_t vasfr = 0;
 		capid_t capfr = 0;
 		int ret = 0, is_sched = 0;
+		int remain_child = 0;
+		spdid_t childid;
+		comp_flag_t ch_flags;
 
 		remaining = hypercall_comp_info_next(&pgtslot, &captslot, &ccslot, &csid, &psid);
 		if (remaining < 0) {
@@ -38,10 +41,12 @@ capmgr_comp_info_iter(void)
 		}
 
 		num_comps ++;
-		ret = hypercall_comp_children_get(csid, &chbits);
-		assert(ret == 0);
-		ret = hypercall_comp_sched_children_get(csid, &chschbits);
-		assert(ret == 0);
+		while ((remain_child = hypercall_comp_child_next(csid, &childid, &ch_flags)) >= 0) {
+			chbits |= (1 << (childid-1));
+			if (ch_flags & COMP_FLAG_SCHED) chschbits |= (1 << (childid-1));
+
+			if (!remain_child) break;
+		}
 		cap_info_schedbmp |= chschbits;
 
 		if (csid == 0 || (csid != cos_spd_id() && cap_info_is_child(btinfo, csid))) {
@@ -76,9 +81,10 @@ cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
-	u64_t childbits = 0;
 	capid_t cap_frontier = 0;
 	vaddr_t heap_frontier = 0;
+	spdid_t child;
+	comp_flag_t ch_flags;
 	int ret = 0;
 
 	PRINTC("CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
@@ -90,8 +96,7 @@ cos_init(void)
 				 BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
 				 BOOT_CAPTBL_SELF_COMP, heap_frontier, cap_frontier);
 
-	hypercall_comp_children_get(cos_spd_id(), &childbits);
-	assert(!childbits);
+	assert(hypercall_comp_child_next(cos_spd_id(), &child, &ch_flags) == -1);
 
 	sl_init(SL_MIN_PERIOD_US);
 	cap_info_init();

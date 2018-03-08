@@ -143,13 +143,13 @@ void
 cos_init(void)
 {
 	thdid_t testtid;
-	u64_t childbits = 0;
+	spdid_t child;
+	comp_flag_t childflag;
 
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	PRINTC("Unit-test scheduling manager component\n");
-	hypercall_comp_children_get(cos_spd_id(), &childbits);
-	assert(!childbits);
+	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflag) == -1);
 
 	testtid = schedmgr_thd_create(run_tests, NULL);
 	schedmgr_thd_param_set(testtid, sched_param_pack(SCHEDP_PRIO, LOWEST_PRIORITY));
@@ -160,5 +160,7 @@ cos_init(void)
 		wakeup = now() + usec2cyc(1000 * 1000);
 		schedmgr_thd_block_timeout(0, wakeup);
 	}
-	return;
+
+	/* should never get here */
+	assert(0);
 }

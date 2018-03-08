@@ -16,37 +16,23 @@ enum hypercall_cntl {
 	HYPERCALL_COMP_CAPFRONTIER_GET,
 
 	HYPERCALL_COMP_INITTHD_GET,
-	HYPERCALL_COMP_CHILDREN_GET,
-	HYPERCALL_COMP_SCHED_CHILDREN_GET,
+	HYPERCALL_COMP_CHILD_NEXT,
 
 	HYPERCALL_NUMCOMPS_GET,
 };
 
-/* assumption: spdids are monotonically increasing from 0 and max MAX_NUM_SPD == 64 */
 static inline int
-hypercall_comp_children_get(spdid_t c, u64_t *child_bitf)
+hypercall_comp_child_next(spdid_t c, spdid_t *child, comp_flag_t *flags)
 {
-	word_t lo = 0, hi = 0;
+	word_t r2 = 0, r3 = 0;
 	int ret;
 
-	*child_bitf = 0;
-	ret         = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CHILDREN_GET, c, 0, &lo, &hi);
-	*child_bitf = ((u64_t)hi << 32) | (u64_t)lo;
+	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CHILD_NEXT, c, 0, &r2, &r3);
+	if (ret < 0) return ret;
+	*child = (spdid_t)r2;
+	*flags = (comp_flag_t)r3;
 
-	return ret;
-}
-
-static inline int
-hypercall_comp_sched_children_get(spdid_t c, u64_t *child_bitf)
-{
-	word_t lo = 0, hi = 0;
-	int ret;
-
-	*child_bitf = 0;
-	ret         = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_SCHED_CHILDREN_GET, c, 0, &lo, &hi);
-	*child_bitf = ((u64_t)hi << 32) | (u64_t)lo;
-
-	return ret;
+	return ret; /* remaining child spds */
 }
 
 static inline int

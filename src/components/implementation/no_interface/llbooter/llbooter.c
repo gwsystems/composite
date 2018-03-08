@@ -403,6 +403,7 @@ boot_parse_init_args(void)
 		spdsi->parent_spdid = schedid;
 		schedspdsi->childid_bitf |= (1 << (spdid-1));
 		schedspdsi->flags |= COMP_FLAG_SCHED;
+		schedspdsi->num_child++;
 	}
 }
 

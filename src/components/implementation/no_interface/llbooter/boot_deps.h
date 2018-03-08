@@ -23,6 +23,8 @@ struct comp_sched_info {
 	spdid_t              parent_spdid;
 	u64_t                childid_bitf;       /* bitmap of all child components */
 	u64_t                childid_sched_bitf; /* bitmap of only child scheduler components */
+	unsigned int         num_child;          /* number of child components */
+	unsigned int         num_child_iter;     /* iterator for getting child components */
 } comp_schedinfo[MAX_NUM_SPDS + 1];
 
 /* The booter uses this to keep track of each comp */
@@ -544,23 +546,32 @@ boot_comp_frontier_get(spdid_t dstid, spdid_t srcid, vaddr_t *vasfr, capid_t *ca
 }
 
 static inline int
-boot_comp_sched_children_get(spdid_t dstid, spdid_t srcid, u64_t *childbitf)
+boot_comp_child_next(spdid_t dstid, spdid_t srcid, spdid_t *child, comp_flag_t *flag)
 {
-	struct comp_sched_info *si = boot_spd_comp_schedinfo_get(srcid);
+	struct comp_sched_info *si = boot_spd_comp_schedinfo_get(srcid), *sch = NULL;
+	int i = 0, iter = -1, childid = 0, remaining;
 
-	*childbitf = si->childid_sched_bitf;
+	if (si->num_child == 0) return -1;
 
-	return 0;
-}
+	for (i = 0; i <= MAX_NUM_SPDS; i++) {
+		if ((si->childid_bitf & ((u64_t)1 << i))) {
+			childid = i + 1;
+			iter++;
+		}
 
-static inline int
-boot_comp_children_get(spdid_t dstid, spdid_t srcid, u64_t *childbitf)
-{
-	struct comp_sched_info *si = boot_spd_comp_schedinfo_get(srcid);
+		if (iter >= 0 && (unsigned int)iter == si->num_child_iter) break;
+	}
+	if (i > MAX_NUM_SPDS || iter < 0 || (unsigned int)iter > si->num_child_iter) return -EACCES;
 
-	*childbitf = si->childid_bitf;
+	si->num_child_iter++;
+	*child = childid;
+	sch    = boot_spd_comp_schedinfo_get(*child);
+	*flag  = sch->flags;
 
-	return 0;
+	remaining = si->num_child - si->num_child_iter;
+	if (si->num_child_iter == si->num_child) si->num_child_iter = 0; /* reset iterator */
+
+	return remaining;
 }
 
 static inline int
@@ -640,31 +651,17 @@ hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, 
 
 		break;
 	}
-	case HYPERCALL_COMP_CHILDREN_GET:
+	case HYPERCALL_COMP_CHILD_NEXT:
 	{
-		u64_t   childbitf = 0;
-		spdid_t srcid     = arg3;
+		spdid_t srcid = arg3, child;
+		comp_flag_t flags;
 
 		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
-		ret1  = boot_comp_children_get(client, srcid, &childbitf);
-		if (ret1) goto done;
+		ret1 = boot_comp_child_next(client, srcid, &child, &flags);
+		if (ret1 < 0) goto done;
 
-		*ret2 = (u32_t)childbitf;
-		*ret3 = (u32_t)(childbitf >> 32);
-
-		break;
-	}
-	case HYPERCALL_COMP_SCHED_CHILDREN_GET:
-	{
-		u64_t   childbitf = 0;
-		spdid_t srcid     = arg3;
-
-		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
-		ret1  = boot_comp_sched_children_get(client, srcid, &childbitf);
-		if (ret1) goto done;
-
-		*ret2 = (u32_t)childbitf;
-		*ret3 = (u32_t)(childbitf >> 32);
+		*ret2 = (word_t)child;
+		*ret3 = (word_t)flags;
 
 		break;
 	}

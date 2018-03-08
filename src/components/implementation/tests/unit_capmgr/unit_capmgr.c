@@ -101,11 +101,11 @@ test_mem(void)
 void
 cos_init(void)
 {
-	u64_t childbits;
+	spdid_t child;
+	comp_flag_t childflag;
 
 	PRINTC("Unit-test for capability manager\n");
-	hypercall_comp_children_get(cos_spd_id(), &childbits);
-	assert(!childbits);
+	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflag) == -1);
 
 	test_thds();
 	test_mem();

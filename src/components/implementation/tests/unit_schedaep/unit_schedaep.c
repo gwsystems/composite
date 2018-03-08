@@ -83,14 +83,12 @@ test_aeps(void)
 void
 cos_init(void)
 {
-	thdid_t testtid;
-	u64_t childbits = 0;
+	spdid_t child;
+	comp_flag_t childflags;
 
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	hypercall_comp_children_get(cos_spd_id(), &childbits);
-	assert(!childbits);
-
+	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflags) == -1);
 	test_aeps();
 
 	schedmgr_thd_exit();
