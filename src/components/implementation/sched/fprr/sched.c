@@ -1,10 +1,10 @@
 #include <cos_defkernel_api.h>
-#include <schedmgr.h>
+#include <sched.h>
 #include <sl.h>
 #include "sched_info.h"
 
 int
-schedmgr_thd_wakeup_intern(spdid_t c, thdid_t t)
+sched_thd_wakeup_intern(spdid_t c, thdid_t t)
 {
 	if (!c || !sched_childinfo_find(c)) return -1;
 	sl_thd_wakeup(t);
@@ -13,7 +13,7 @@ schedmgr_thd_wakeup_intern(spdid_t c, thdid_t t)
 }
 
 int
-schedmgr_thd_block_intern(spdid_t c, thdid_t deptid)
+sched_thd_block_intern(spdid_t c, thdid_t deptid)
 {
 	if (!c || !sched_childinfo_find(c)) return -1;
 	sl_thd_block(deptid);
@@ -22,7 +22,7 @@ schedmgr_thd_block_intern(spdid_t c, thdid_t deptid)
 }
 
 int
-schedmgr_thd_block_timeout_intern(spdid_t c, thdid_t deptid, u32_t hi, u32_t lo)
+sched_thd_block_timeout_intern(spdid_t c, thdid_t deptid, u32_t hi, u32_t lo)
 {
 	if (!c || !sched_childinfo_find(c)) return -1;
 	/* TODO: return time elapsed */
@@ -32,7 +32,7 @@ schedmgr_thd_block_timeout_intern(spdid_t c, thdid_t deptid, u32_t hi, u32_t lo)
 }
 
 thdid_t
-schedmgr_thd_create_intern(spdid_t c, int idx)
+sched_thd_create_intern(spdid_t c, int idx)
 {
 	struct cos_defcompinfo *dci;
 	struct sl_thd *t = NULL;
@@ -48,7 +48,7 @@ schedmgr_thd_create_intern(spdid_t c, int idx)
 }
 
 thdid_t
-schedmgr_aep_create_intern(spdid_t c, int idx, int owntc, int u1, arcvcap_t *extrcv, int *u2)
+sched_aep_create_intern(spdid_t c, int idx, int owntc, int u1, arcvcap_t *extrcv, int *u2)
 {
 	struct cos_defcompinfo *dci;
 	struct sl_thd *t = NULL;
@@ -64,7 +64,7 @@ schedmgr_aep_create_intern(spdid_t c, int idx, int owntc, int u1, arcvcap_t *ext
 }
 
 int
-schedmgr_thd_param_set_intern(spdid_t c, thdid_t tid, sched_param_t sp)
+sched_thd_param_set_intern(spdid_t c, thdid_t tid, sched_param_t sp)
 {
 	struct sl_thd *t = sl_thd_lkup(tid);
 
@@ -76,7 +76,7 @@ schedmgr_thd_param_set_intern(spdid_t c, thdid_t tid, sched_param_t sp)
 }
 
 int
-schedmgr_thd_delete_intern(spdid_t c, thdid_t tid)
+sched_thd_delete_intern(spdid_t c, thdid_t tid)
 {
 	struct sl_thd *t = sl_thd_lkup(tid);
 
@@ -89,7 +89,7 @@ schedmgr_thd_delete_intern(spdid_t c, thdid_t tid)
 }
 
 int
-schedmgr_thd_exit_intern(spdid_t c)
+sched_thd_exit_intern(spdid_t c)
 {
 	if (!c || !sched_childinfo_find(c)) return -1;
 	sl_thd_exit();

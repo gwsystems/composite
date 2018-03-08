@@ -1,3 +1,3 @@
-INTERFACES=schedmgr
+INTERFACES=sched
 
 include ../Makefile.subdir

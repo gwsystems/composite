@@ -74,7 +74,7 @@ capmgr_comp_info_iter(void)
 		}
 	} while (remaining > 0);
 
-	for (i = 0; i < MAX_NUM_COMP_WORDS; i++) PRINTC("Scheduler bitmap[%d]: %u\n", i, cap_info_schedbmp[i]);
+	for (i = 0; i < (int)MAX_NUM_COMP_WORDS; i++) PRINTC("Scheduler bitmap[%d]: %u\n", i, cap_info_schedbmp[i]);
 	assert(num_comps == hypercall_numcomps_get());
 }
 
