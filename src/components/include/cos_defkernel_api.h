@@ -41,7 +41,7 @@ struct cos_aep_info {
 /* Default Component information */
 struct cos_defcompinfo {
 	struct cos_compinfo ci;
-	struct cos_aep_info sched_aep;
+	struct cos_aep_info sched_aep[NUM_CPU];
 };
 
 /*

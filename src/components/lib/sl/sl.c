@@ -11,7 +11,7 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 
-struct sl_global sl_global_data;
+struct sl_global sl_global_data[NUM_CPU];
 static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
 
 /*
@@ -32,7 +32,7 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 		if (!ps_cas(&g->lock.u.v, cached->v, csi->v)) return 1;
 	}
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	if ((ret = cos_defswitch(csi->s.owner, t->prio, csi->s.owner == sl_thd_thdcap(g->sched_thd) ? 
+	if ((ret = cos_defswitch(csi->s.owner, t->prio, csi->s.owner == sl_thd_thdcap(g->sched_thd) ?
 				 TCAP_TIME_NIL : g->timeout_next, tok))) return ret;
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
 
@@ -65,11 +65,11 @@ struct timeout_heap {
 	void        *data[SL_MAX_NUM_THDS];
 };
 
-static struct timeout_heap timeout_heap;
+static struct timeout_heap timeout_heap[NUM_CPU];
 
 struct heap *
 sl_timeout_heap(void)
-{ return &timeout_heap.h; }
+{ return &timeout_heap[cos_cpuid()].h; }
 
 static inline void
 sl_timeout_block(struct sl_thd *t, cycles_t timeout)
@@ -119,7 +119,7 @@ sl_timeout_init(microsec_t period)
 	assert(period >= SL_MIN_PERIOD_US);
 
 	sl_timeout_period(period);
-	memset(&timeout_heap, 0, sizeof(struct timeout_heap));
+	memset(&timeout_heap[cos_cpuid()], 0, sizeof(struct timeout_heap));
 	heap_init(sl_timeout_heap(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
 }
 
@@ -247,7 +247,7 @@ sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 {
 	assert(t);
 
-	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1; 
+	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1;
 
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	t->state = SL_THD_RUNNABLE;

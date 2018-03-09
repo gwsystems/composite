@@ -758,8 +758,9 @@ cos_thd_wakeup(thdcap_t thd, tcap_t tc, tcap_prio_t prio, tcap_res_t res)
 sched_tok_t
 cos_sched_sync(void)
 {
-	static sched_tok_t stok;
-	return __sync_add_and_fetch(&stok, 1);
+	static sched_tok_t stok[NUM_CPU];
+
+	return ps_faa((unsigned long *)&stok[cos_cpuid()], 1);
 }
 
 int

@@ -118,13 +118,15 @@ thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int
  * principal id otherwise.  Given this, the allocator should be in the
  * scheduler, not here.
  */
-extern u32_t free_thd_id;
+extern u32_t free_thd_id[];
 static u32_t
 thdid_alloc(void)
 {
+	int cpu = get_cpuid();
+
 	/* FIXME: thd id address space management. */
-	if (unlikely(free_thd_id >= MAX_NUM_THREADS)) assert(0);
-	return cos_faa((int *)&free_thd_id, 1);
+	if (unlikely(free_thd_id[cpu] >= MAX_NUM_THREADS)) assert(0);
+	return cos_faa((int *)&free_thd_id[cpu], 1);
 }
 static void
 thd_rcvcap_take(struct thread *t)

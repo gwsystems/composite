@@ -95,7 +95,7 @@ test_childcomps(void)
 			;
 		printc("\tSwitching to [%d] component\n", id);
 		if (id == CHILD_SCHED_ID) {
-			ret = cos_switch(child_defci[id].sched_aep.thd, child_defci[id].sched_aep.tc, CHILD_SCHED_PRIO,
+			ret = cos_switch(cos_sched_aep_get(&child_defci[id])->thd, cos_sched_aep_get(&child_defci[id])->tc, CHILD_SCHED_PRIO,
 			                 TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0);
 		} else {
@@ -105,7 +105,7 @@ test_childcomps(void)
 			rdtscll(now);
 			timer = tcap_cyc2time(now + 100 * cycs_per_usec);
 
-			ret = cos_defswitch(child_defci[id].sched_aep.thd, timer, CHILD_SCHED_PRIO, cos_sched_sync());
+			ret = cos_defswitch(cos_sched_aep_get(&child_defci[id])->thd, timer, CHILD_SCHED_PRIO, cos_sched_sync());
 			assert(ret == 0);
 		}
 	}
@@ -153,7 +153,7 @@ cos_init(void)
 			assert(ret == 0);
 
 			ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_INITTHD_BASE, ci,
-			                     child_defci[id].sched_aep.thd);
+			                     cos_sched_aep_get(&child_defci[id])->thd);
 			assert(ret == 0);
 			ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_INITHW_BASE, ci, BOOT_CAPTBL_SELF_INITHW_BASE);
 			assert(ret == 0);
@@ -161,13 +161,13 @@ cos_init(void)
 			if (is_sched) {
 				printc("\t\tCopying scheduler capabilities\n");
 				ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_INITTCAP_BASE, ci,
-				                     child_defci[id].sched_aep.tc);
+				                     cos_sched_aep_get(&child_defci[id])->tc);
 				assert(ret == 0);
 				ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_INITRCV_BASE, ci,
-				                     child_defci[id].sched_aep.rcv);
+				                     cos_sched_aep_get(&child_defci[id])->rcv);
 				assert(ret == 0);
 
-				ret = cos_tcap_transfer(child_defci[id].sched_aep.rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE,
+				ret = cos_tcap_transfer(cos_sched_aep_get(&child_defci[id])->rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE,
 				                        CHILD_SCHED_CYCS, CHILD_SCHED_PRIO);
 				assert(ret == 0);
 			}

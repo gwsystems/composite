@@ -11,27 +11,28 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 
-static struct sl_thd_policy __sl_threads[SL_MAX_NUM_THDS];
+static struct sl_thd_policy __sl_threads[NUM_CPU][SL_MAX_NUM_THDS];
 
-static struct cos_aep_info __sl_aep_infos[SL_MAX_NUM_THDS];
-static u32_t               __sl_aep_free_off;
+static struct cos_aep_info __sl_aep_infos[NUM_CPU][SL_MAX_NUM_THDS];
+static u32_t               __sl_aep_free_off[NUM_CPU];
 
 /* Default implementations of backend functions */
 struct sl_thd_policy *
 sl_thd_alloc_backend(thdid_t tid)
 {
 	assert(tid < SL_MAX_NUM_THDS);
-	return &__sl_threads[tid];
+	return &(__sl_threads[cos_cpuid()][tid]);
 }
 
 struct cos_aep_info *
 sl_thd_alloc_aep_backend(void)
 {
+	int cpu = cos_cpuid();
 	struct cos_aep_info *aep = NULL;
 
-	assert(__sl_aep_free_off < SL_MAX_NUM_THDS);
-	aep = &__sl_aep_infos[__sl_aep_free_off];
-	__sl_aep_free_off++;
+	assert(__sl_aep_free_off[cpu] < SL_MAX_NUM_THDS);
+	aep = &(__sl_aep_infos[cpu][__sl_aep_free_off[cpu]]);
+	ps_faa((unsigned long *)&(__sl_aep_free_off[cpu]), 1);
 
 	return aep;
 }
@@ -52,15 +53,17 @@ struct sl_thd_policy *
 sl_thd_lookup_backend(thdid_t tid)
 {
 	assert(tid < SL_MAX_NUM_THDS);
-	return &__sl_threads[tid];
+	return &(__sl_threads[cos_cpuid()][tid]);
 }
 
 void
 sl_thd_init_backend(void)
 {
+	int cpu = cos_cpuid();
+
 	assert(SL_MAX_NUM_THDS <= MAX_NUM_THREADS);
 
-	memset(__sl_threads, 0, sizeof(struct sl_thd_policy)*SL_MAX_NUM_THDS);
-	memset(__sl_aep_infos, 0, sizeof(struct cos_aep_info)*SL_MAX_NUM_THDS);
-	__sl_aep_free_off = 0;
+	memset(__sl_threads[cpu], 0, sizeof(struct sl_thd_policy)*SL_MAX_NUM_THDS);
+	memset(__sl_aep_infos[cpu], 0, sizeof(struct cos_aep_info)*SL_MAX_NUM_THDS);
+	__sl_aep_free_off[cpu] = 0;
 }

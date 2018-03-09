@@ -32,7 +32,7 @@ struct cos_aep_info *
 cos_sched_aep_get(struct cos_defcompinfo *defci)
 {
 	assert(defci);
-	return &(defci->sched_aep);
+	return &(defci->sched_aep[cos_cpuid()]);
 }
 
 struct cos_compinfo *
@@ -40,6 +40,7 @@ boot_info(void)
 {
 	struct cos_defcompinfo *dci;
 	struct cos_compinfo    *ci;
+
 	dci = cos_defcompinfo_curr_get();
 	assert(dci);
 	ci  = cos_compinfo_get(dci);
@@ -51,8 +52,13 @@ boot_info(void)
 void
 cos_defcompinfo_init(void)
 {
-	cos_defcompinfo_init_ext(BOOT_CAPTBL_SELF_INITTCAP_BASE, BOOT_CAPTBL_SELF_INITTHD_BASE,
-	                         BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
+	int cpu      = cos_cpuid();
+	/* TODO: need wrappers to get offsets per core */
+	thdcap_t thd = BOOT_CAPTBL_SELF_INITTHD_BASE + (cpu * captbl_idsize(CAP_THD));
+	tcap_t   tc  = BOOT_CAPTBL_SELF_INITTCAP_BASE + (cpu * captbl_idsize(CAP_TCAP));
+	thdcap_t rcv = BOOT_CAPTBL_SELF_INITRCV_BASE + (cpu * captbl_idsize(CAP_ARCV));
+
+	cos_defcompinfo_init_ext(tc, thd, rcv, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
 	                         BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE);
 }
 
@@ -69,6 +75,13 @@ cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rc
 	sched_aep->rcv  = sched_rcv;
 	sched_aep->fn   = NULL;
 	sched_aep->data = NULL;
+
+	/*
+	 * FIXME:
+	 * if component is already initialized by one core, don't compinfo_init on every core.
+	 * Perhaps, we need a API to init scheduler end-point separately.
+	 */
+	if (curr_defci_init_status == INITIALIZED) return;
 
 	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, comp_cap, heap_ptr, cap_frontier, ci);
 	curr_defci_init_status = INITIALIZED;
