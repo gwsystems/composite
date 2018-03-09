@@ -219,7 +219,7 @@ lapic_find_localaddr(void *l)
 	unsigned char  sum       = 0;
 	unsigned char *lapicaddr = l;
 	u32_t          length    = *(u32_t *)(lapicaddr + APIC_HDR_LEN_OFF);
-	u32_t 				 addr, apic_flags, hi, lo;
+	u32_t 	       addr, apic_flags, hi, lo;
 
 	printk("Initializing LAPIC @ %p\n", lapicaddr);
 

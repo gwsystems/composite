@@ -111,7 +111,7 @@ smploader:
 
 	movw    %cs, %ax
 	movw    %ax, %ds
-	lgdt   RELOCATE_ADDR_CS(smpgdtdesc) /* using cs as ds: idea taken from Quest */
+	lgdt    RELOCATE_ADDR_CS(smpgdtdesc) /* using cs as ds: idea taken from Quest */
 	xorw    %ax, %ax
 	movw    %ax, %ds
 

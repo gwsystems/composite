@@ -61,12 +61,12 @@ chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 	/* asm volatile("mov %0, %%cr0" : : "r"(cr0)); */
 }
 
-#define IA32_SYSENTER_CS 	0x174
+#define IA32_SYSENTER_CS  0x174
 #define IA32_SYSENTER_ESP 0x175
 #define IA32_SYSENTER_EIP 0x176
 #define MSR_PLATFORM_INFO 0x000000ce
 #define MSR_APIC_BASE     0x1b
-#define MSR_TSC_AUX 			0xc0000103
+#define MSR_TSC_AUX       0xc0000103
 
 extern void sysenter_entry(void);
 

@@ -92,7 +92,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		struct multiboot_mem_list *mem      = &mems[i];
 		u8_t *                     mod_end  = glb_memlayout.mod_end;
 		u8_t *                     mem_addr = chal_pa2va((paddr_t)mem->addr);
-		unsigned long              mem_len  = (mem->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ : mem->len); /* maximum allowed */ 
+		unsigned long              mem_len  = (mem->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ : mem->len); /* maximum allowed */
 
 		if (mem->addr > BOOT_KERN_MEMSCAN_MAX || mem->addr + mem_len > BOOT_KERN_MEMSCAN_MAX) {
 			printk("\tScanned maximum allowed regions\n");
@@ -171,7 +171,6 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	lapic_timer_init();
 	smp_init();
 	while(!booted_core_cnt);
-	// while(1);
 	kern_boot_upcall();
 
 	/* should not get here... */
