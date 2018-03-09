@@ -14,8 +14,8 @@
 .long MULTIBOOT_FLAGS
 .long MULTIBOOT_CHECKSUM
 
-.set STACKSIZE, (0x1000 * NUM_CPU)
-.comm stack, STACKSIZE, 0x1000
+.set STACKSIZE, 0x1000
+.comm stack, (STACKSIZE * NUM_CPU), 0x1000
 
 .globl loader
 loader:

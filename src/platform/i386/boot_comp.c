@@ -104,7 +104,6 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const u32_t cpu_
 	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE + cpu_id * captbl_idsize(CAP_THD), thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
 	assert(!ret);
 
-
 	tcap_active_init(cos_info);
 	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE + cpu_id * captbl_idsize(CAP_TCAP), tcap_mem);
 	assert(!ret);

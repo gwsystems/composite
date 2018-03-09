@@ -425,8 +425,8 @@ static void
 delay_us(u32_t us)
 {
 	unsigned long long hz = CPU_GHZ, hz_per_us = hz * 1000;
-	unsigned long long tsc, end;
-
+	unsigned long long end;
+	volatile unsigned long long tsc;
 	rdtscll(tsc);
 	end = tsc + (hz_per_us * us);
 	while (1) {
@@ -440,10 +440,11 @@ delay_us(u32_t us)
 extern char smppatchstart, smppatchend, smpstack, stack;
 
 void
-smp_bootall(void)
+smp_bootall(volatile int *cores_ready)
 {
 	int i;
 	u32_t ret;
+	char **stackpatch;
 
 	/*
 	 * Set up the processor boot-up code .  Use SMC to create the
@@ -451,9 +452,9 @@ smp_bootall(void)
 	 * an address that real-mode 16-bit code can execute
 	 */
 	memcpy((char *)chal_pa2va(SMP_BOOT_PATCH_ADDR), &smppatchstart, &smppatchend - &smppatchstart);
+	stackpatch  = (char **)chal_pa2va(SMP_BOOT_PATCH_ADDR + (&smpstack - &smppatchstart));
 
 	for (i = 1 ; i < ncpus ; i++) {
-		char **stackpatch;
 		struct cos_cpu_local_info *cli;
 		int j;
 
@@ -462,11 +463,9 @@ smp_bootall(void)
 		lapic_write_reg(LAPIC_ESR, 0);
 		lapic_read_reg(LAPIC_ESR);
 
-		printk("Booting AP %d\n", i);
+		printk("\nBooting AP %d\n", i);
 		/* Application Processor (AP) startup sequence: */
-
 		/* ...make sure that we pass this core's stack */
-		stackpatch  = (char **)chal_pa2va(SMP_BOOT_PATCH_ADDR + (&smpstack - &smppatchstart));
 		*stackpatch = &stack + ((PAGE_SIZE * (i + 1)) + (PAGE_SIZE - STK_INFO_OFF));
 		/* ...initialize the coreid of the new processor */
 		cli         = (struct cos_cpu_local_info *)*stackpatch;
@@ -486,6 +485,8 @@ smp_bootall(void)
 			/* ...wait for 20 us... */
 			delay_us(200);
 		}
+		// waiting for booting
+		while(*(int volatile *)(cores_ready + i) == 0);
 	}
 	ret = lapic_read_reg(LAPIC_ESR);
 	if (ret) printk("SMP Bootup: LAPIC error status register is %x\n", ret);
@@ -495,7 +496,7 @@ smp_bootall(void)
 }
 
 void
-smp_init(void)
+smp_init(volatile int *cores_ready)
 {
-	smp_bootall();
+	smp_bootall(cores_ready);
 }

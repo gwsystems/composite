@@ -15,7 +15,8 @@
 #define CMDLINE_REQ_LEN (ADDR_STR_LEN * 2 + 1)
 
 struct mem_layout glb_memlayout;
-volatile int booted_core_cnt = 0;
+volatile int cores_ready[NUM_CPU];
+volatile int bsp_ready = 0;
 
 static int
 xdtoi(char c)
@@ -169,8 +170,8 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	timer_init();
 	lapic_init();
 	lapic_timer_init();
-	smp_init();
-	while(!booted_core_cnt);
+	smp_init(cores_ready);
+	bsp_ready = 1;
 	kern_boot_upcall();
 
 	/* should not get here... */
@@ -180,9 +181,9 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 void
 smp_kmain(void)
 {
-	int cpuid = get_cpuid();
+	volatile int cpuid = get_cpuid();
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
-
+	printk("Initialize CPU %d\n", cpuid);
 	tss_init(cpuid);
 	gdt_init(cpuid);
 	idt_init(cpuid);
@@ -191,8 +192,11 @@ smp_kmain(void)
 	kern_boot_comp(cpuid);
 	lapic_init();
 	lapic_timer_init();
+
 	printk("New CPU %d Booted\n", cpuid);
-	booted_core_cnt = 1;
+	cores_ready[cpuid] = 1;
+	// waiting for all cored booted
+	while(bsp_ready == 0);
 	while(1);
 	kern_boot_upcall();
 	while(1);
@@ -202,8 +206,7 @@ void
 khalt(void)
 {
 	printk("Shutting down...\n");
-	while (1)
-		;
+	while (1);
 	asm("mov $0x53,%ah");
 	asm("mov $0x07,%al");
 	asm("mov $0x001,%bx");
