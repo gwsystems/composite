@@ -29,6 +29,17 @@ cos_map_phys_to_virt(void *paddr, unsigned int size)
 	return (void *)cos_hw_map(ninf_info, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)paddr, size);
 }
 
+void *
+cos_map_virt_to_phys(void *addr)
+{
+  int ret;
+  vaddr_t vaddr = (vaddr_t)addr;
+
+  assert((vaddr & 0xfff) == 0);
+  ret = call_cap_op(cos_defcompinfo_curr_get()->ci.pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
+  return ret & 0xfffff000;
+}
+
 int
 dpdk_init(void)
 {
