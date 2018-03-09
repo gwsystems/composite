@@ -290,4 +290,6 @@ hpet_init(void)
 	 * specification is in hpet cycles (not cpu cycles).
 	 */
 	hpet_set(HPET_PERIODIC, hpet_hpetcyc_per_tick);
+
+	chal_irq_enable(HW_HPET_PERIODIC);
 }

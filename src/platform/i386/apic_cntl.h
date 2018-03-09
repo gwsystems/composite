@@ -46,4 +46,18 @@ struct intsrcovrride_cntl {
 	u16_t                flags;
 } __attribute__((packed));
 
+enum acpi_madt_iso_polarity {
+	ACPI_MADT_ISO_POL_CONFORMS = 0,
+	ACPI_MADT_ISO_POL_ACTHIGH,
+	ACPI_MADT_ISO_POL_RESERVED,
+	ACPI_MADT_ISO_POL_ACTLOW,
+};
+
+enum acpi_madt_iso_trigger {
+	ACPI_MADT_ISO_TRIG_CONFORMS = 0,
+	ACPI_MADT_ISO_TRIG_EDGE,
+	ACPI_MADT_ISO_TRIG_RESERVED,
+	ACPI_MADT_ISO_TRIG_LEVEL,
+};
+
 #endif /* APIC_CNTL_H */

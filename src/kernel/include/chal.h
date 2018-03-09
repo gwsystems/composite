@@ -95,6 +95,9 @@ void chal_idle(void);
 void chal_timer_set(cycles_t cycles);
 void chal_timer_disable(void);
 
+void chal_irq_disable(int irqline);
+void chal_irq_enable(int irqline);
+
 void chal_init(void);
 
 /* int cos_syscall_idle(void); */
