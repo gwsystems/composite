@@ -48,7 +48,7 @@ sched_thd_create_intern(spdid_t c, int idx)
 }
 
 thdid_t
-sched_aep_create_intern(spdid_t c, int idx, int owntc, int u1, arcvcap_t *extrcv, int *u2)
+sched_aep_create_intern(arcvcap_t *extrcv, int *unused, spdid_t c, int idx, int owntc)
 {
 	struct cos_defcompinfo *dci;
 	struct sl_thd *t = NULL;

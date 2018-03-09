@@ -91,7 +91,7 @@ capmgr_initthd_create_intern(spdid_t cur, spdid_t s)
 }
 
 u32_t
-capmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_t *sndret, u32_t *rcvtcret)
+capmgr_initaep_create_intern(asndcap_t *sndret, u32_t *rcvtcret, spdid_t cur, spdid_t s, int owntc)
 {
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
@@ -147,7 +147,7 @@ capmgr_initaep_create_intern(spdid_t cur, spdid_t s, int owntc, int u1, asndcap_
 }
 
 u32_t
-capmgr_ext_aep_create_intern(spdid_t cur, spdid_t s, int tidx, int owntc, arcvcap_t *dstrcvret, u32_t *rcvtcret)
+capmgr_ext_aep_create_intern(arcvcap_t *dstrcvret, u32_t *rcvtcret, spdid_t cur, spdid_t s, int tidx, int owntc)
 {
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
@@ -204,7 +204,7 @@ capmgr_ext_aep_create_intern(spdid_t cur, spdid_t s, int tidx, int owntc, arcvca
 }
 
 u32_t
-capmgr_aep_create_intern(spdid_t cur, int tidx, int owntc, int u1, arcvcap_t *rcvret, tcap_t *tcret)
+capmgr_aep_create_intern(arcvcap_t *rcvret, tcap_t *tcret, spdid_t cur, int tidx, int owntc)
 {
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);

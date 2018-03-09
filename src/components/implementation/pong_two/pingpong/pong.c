@@ -49,11 +49,11 @@ call_args(int p1, int p2, int p3, int p4)
 }
 
 void
-call_3rets(int p1, int p2, int p3, int p4, int *p5, int *p6)
+call_3rets(int *r2, int *r3, int p1, int p2, int p3, int p4)
 {
 	printc("In call_3rets() in pong interface.\n p1:%d p2:%d p3:%d p4:%d \n", p1, p2, p3, p4);
-	*p5 = p1 - p2 - p3 - p4;
-	*p6 = p1 + p2 + p3 + p4;
+	*r2 = p1 - p2 - p3 - p4;
+	*r3 = p1 + p2 + p3 + p4;
 	return;
 }
 

@@ -25,16 +25,16 @@ memmgr_heap_page_allocn_intern(spdid_t cur, unsigned int npages)
 }
 
 int
-memmgr_shared_page_allocn_intern(spdid_t cur, int num, int u1, int u2, vaddr_t *pgaddr, int *u3)
+memmgr_shared_page_allocn_intern(vaddr_t *pgaddr, int *unused, spdid_t cur, int npages)
 {
 	struct cap_comp_info  *cur_rci = cap_info_comp_find(cur);
 	struct cap_shmem_info *cur_shi = cap_info_shmem_info(cur_rci);
 	int shmidx = -1;
 
-	if (!cur_rci || !cap_info_init_check(cur_rci)) return 0;
-	if (!cur_shi) return 0;
+	if (!cur_rci || !cap_info_init_check(cur_rci)) goto done;
+	if (!cur_shi) goto done;
 
-	shmidx = cap_shmem_region_alloc(cur_shi, num);
+	shmidx = cap_shmem_region_alloc(cur_shi, npages);
 	if (shmidx < 0) goto done;
 
 	*pgaddr = cap_shmem_region_vaddr(cur_shi, shmidx);
@@ -44,7 +44,7 @@ done:
 }
 
 int
-memmgr_shared_page_map_intern(spdid_t cur, int idx, int u1, int u2, vaddr_t *pgaddr, int *u3)
+memmgr_shared_page_map_intern(vaddr_t *pgaddr, int *unused, spdid_t cur, int idx)
 {
 	struct cap_comp_info  *cur_rci = cap_info_comp_find(cur);
 	struct cap_shmem_info *cur_shi = cap_info_shmem_info(cur_rci);

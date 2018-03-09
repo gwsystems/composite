@@ -49,14 +49,16 @@ name##_inv:                       \
 name##_rets_inv:                       \
 	COS_ASM_GET_STACK              \
 	pushl $0;                      \
-	movl %esp, -8(%esp);           \
 	pushl $0;                      \
-	movl %esp, -8(%esp);           \
-	subl $8, %esp;                 \
 	pushl %ebp;                    \
 	xor %ebp, %ebp;		       \
 	pushl %edi;                    \
 	pushl %esi;                    \
+	pushl %ebx;                    \
+	movl %esp, %ebx;               \
+	addl $20, %ebx;                \
+	pushl %ebx;                    \
+	subl $4, %ebx;                 \
 	pushl %ebx;                    \
 	call name ;                    \
 	addl $24, %esp;                \
@@ -96,14 +98,16 @@ name##_inv:                             \
 name##_rets_inv:                             \
 	COS_ASM_GET_STACK                    \
 	pushl $0;                            \
-	movl %esp, -8(%esp);                 \
 	pushl $0;                            \
-	movl %esp, -8(%esp);                 \
-	subl $8, %esp;                       \
 	pushl %ebp;                          \
 	xor %ebp, %ebp;		             \
 	pushl %edi;                          \
 	pushl %esi;                          \
+	pushl %ecx;                          \
+	movl %esp, %ecx;                     \
+	addl $20, %ecx;                      \
+	pushl %ecx;                          \
+	subl $4, %ecx;                       \
 	pushl %ecx;                          \
 	call name ;                          \
 	addl $24, %esp;                      \

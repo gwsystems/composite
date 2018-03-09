@@ -591,7 +591,7 @@ __hypercall_resource_access_check(spdid_t dstid, spdid_t srcid, int capmgr_ignor
 }
 
 word_t
-hypercall_entry(spdid_t client, int op, word_t arg3, word_t arg4, word_t *ret2, word_t *ret3)
+hypercall_entry(word_t *ret2, word_t *ret3, spdid_t client, int op, word_t arg3, word_t arg4)
 {
 	int ret1 = 0;
 
