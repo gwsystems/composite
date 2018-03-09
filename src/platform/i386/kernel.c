@@ -181,20 +181,20 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 void
 smp_kmain(void)
 {
-	volatile int cpuid = get_cpuid();
+	volatile int cpu_id = get_cpuid();
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
-	printk("Initialize CPU %d\n", cpuid);
-	tss_init(cpuid);
-	gdt_init(cpuid);
-	idt_init(cpuid);
+	printk("Initialize CPU %d\n", cpu_id);
+	tss_init(cpu_id);
+	gdt_init(cpu_id);
+	idt_init(cpu_id);
 
 	paging_init();
-	kern_boot_comp(cpuid);
+	kern_boot_comp(cpu_id);
 	lapic_init();
 	lapic_timer_init();
 
-	printk("New CPU %d Booted\n", cpuid);
-	cores_ready[cpuid] = 1;
+	printk("New CPU %d Booted\n", cpu_id);
+	cores_ready[cpu_id] = 1;
 	// waiting for all cored booted
 	while(bsp_ready == 0);
 	while(1);
