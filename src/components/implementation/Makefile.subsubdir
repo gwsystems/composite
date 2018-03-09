@@ -74,7 +74,7 @@ $(COMPONENT): $(OBJS)
 #	$(info |     [LD]   $@: Loading stubs and cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
 	$(info |     [LD]   $(COMPNAME) ($@): Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $^)
 	@$(LD) $(LDFLAGS) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(IF_CLIENT_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
-	@$(MUSLCC) $@.$(TMP_STR) $(MUSLCFLAGS) -Xlinker -r -o $@.$(TMP_STR2)
+	@$(MUSLCC) $@.$(TMP_STR) $(MUSLCFLAGS) -Xlinker -melf_i386 -o $@.$(TMP_STR2)
 	@$(LD) $(LDFLAGS) -r -T $(COMP_LD_SCRIPT) -o $@ $@.$(TMP_STR2)
 	@rm $@.$(TMP_STR) $@.$(TMP_STR2)
 	@cp $@ c.o

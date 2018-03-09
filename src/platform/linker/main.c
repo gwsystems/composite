@@ -88,7 +88,6 @@ main(int argc, char *argv[])
 		dependencies = "";
 	else
 		*(dependencies - 1) = '\0';
-	// printf("comps: %s\ndeps: %s\n", servs, dependencies);
 
 	if (!servs) {
 		printl(PRINT_HIGH, "You must specify at least one service.\n");

@@ -562,6 +562,11 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 	if (tcap_budgets_update(cos_info, thd_curr, tc_curr, &now)) {
 		assert(!tcap_is_active(tc_curr) && tcap_expended(tc_curr));
 
+		/*
+		 * FIXME: child scheduler should abide by parent's timeouts.
+		 * for now, we set timeout to 0 to use the budget of the tcap for timer interrupt programming.
+		 */
+		timeout = 0;
 		if (timer_intr_context) tc_next= thd_rcvcap_tcap(thd_next);
 
 		/* how about the scheduler's tcap? */
@@ -925,8 +930,9 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 		return thd_introspect(((struct cap_thd *)ch)->t, op, retval);
 	case CAP_TCAP:
 		return tcap_introspect(((struct cap_tcap *)ch)->tcap, op, retval);
+	default:
+		return -EINVAL;
 	}
-	return -EINVAL;
 }
 
 #define ENABLE_KERNEL_PRINT
@@ -953,10 +959,10 @@ composite_syscall_handler(struct pt_regs *regs)
 	cap = __userregs_getcap(regs);
 	thd = thd_current(cos_info);
 
-	/* printk("thd %d calling cap %d (ip %x, sp %x), operation %d: %x, %x, %x, %x\n", thd->tid, cap, */
-	/*        __userregs_getip(regs), __userregs_getsp(regs), __userregs_getop(regs), */
-	/*        __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
-
+	/* printk("thd %d calling cap %d (ip %x, sp %x), operation %d: %x, %x, %x, %x\n", thd->tid, cap,
+	 *        __userregs_getip(regs), __userregs_getsp(regs), __userregs_getop(regs),
+	 *        __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs));
+	 */
 
 	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
@@ -1007,6 +1013,8 @@ composite_syscall_handler(struct pt_regs *regs)
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
+	default:
+		break;
 	}
 
 	/* slowpath restbl (captbl and pgtbl) operations */
@@ -1254,8 +1262,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_SINVACTIVATE: {
 			capid_t dest_comp_cap = __userregs_get2(regs);
 			vaddr_t entry_addr    = __userregs_get3(regs);
+			unsigned long token   = __userregs_get4(regs);
 
-			ret = sinv_activate(ct, cap, capin, dest_comp_cap, entry_addr);
+			ret = sinv_activate(ct, cap, capin, dest_comp_cap, entry_addr, token);
 			break;
 		}
 		case CAPTBL_OP_SINVDEACTIVATE: {

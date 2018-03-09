@@ -40,8 +40,9 @@ typedef u32_t         sched_tok_t;
  */
 #define TCAP_TIME_QUANTUM_ORD 12
 #define TCAP_TIME_MAX_ORD (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
-#define TCAP_TIME_MAX_BITS(c) ((c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
+#define TCAP_TIME_MAX_BITS(c) (((u64_t)c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
 #define TCAP_TIME_NIL 0
+
 static inline cycles_t
 tcap_time2cyc(tcap_time_t c, cycles_t curr)
 {
@@ -194,11 +195,11 @@ __captbl_cap2sz(cap_t c)
 	case CAP_THD:
 	case CAP_TCAP:
 		return CAP_SZ_16B;
-	case CAP_SINV:
 	case CAP_CAPTBL:
 	case CAP_PGTBL:
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 		return CAP_SZ_32B;
+	case CAP_SINV:
 	case CAP_COMP:
 	case CAP_ASND:
 	case CAP_ARCV:
@@ -249,7 +250,8 @@ enum
 	BOOT_CAPTBL_COMP0_CT           = 20,
 	BOOT_CAPTBL_COMP0_PT           = 22,
 	BOOT_CAPTBL_COMP0_COMP         = 24,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
+	BOOT_CAPTBL_SINV_CAP           = 28,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 32,
 	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + (NUM_CPU_COS + 1) * CAP16B_IDSZ,
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + (NUM_CPU_COS + 1) * CAP16B_IDSZ,
                                                          CAPMAX_ENTRY_SZ),

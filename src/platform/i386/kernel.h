@@ -18,6 +18,7 @@ void console_init(void);
 #endif
 
 #ifdef ENABLE_VGA
+void vga_high_init(void);
 void vga_init(void);
 void vga_puts(const char *str);
 #endif

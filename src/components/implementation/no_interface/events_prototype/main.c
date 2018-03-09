@@ -31,6 +31,18 @@ sl_thd_curr_rs()
 	return sl_thd_curr();
 }
 
+thdid_t
+sl_thdid_rs()
+{
+	return sl_thdid();
+}
+
+struct sl_thd *
+sl_thd_lkup_rs(thdid_t tid)
+{
+	return sl_thd_lkup(tid);
+}
+
 microsec_t
 sl_cyc2usec_rs(cycles_t cyc)
 {
@@ -120,6 +132,8 @@ assign_thread_data(struct sl_thd *thread)
 	thdid_t              thdid  = thread->thdid;
 
 	/* HACK: We setup some thread specific data to make musl stuff work with sl threads */
+	backing_thread_data[thdid].tid = thdid;
+	backing_thread_data[thdid].robust_list.head = &backing_thread_data[thdid].robust_list.head;
 	backing_thread_data[thdid].tsd = calloc(PTHREAD_KEYS_MAX, sizeof(void*));
 
 	thread_data[thdid] = &backing_thread_data[thdid];

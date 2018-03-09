@@ -97,10 +97,15 @@ process_ring(struct xcore_ring *ring)
 static inline int
 cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd)
 {
-	struct xcore_ring *  ring = &IPI_cap_dest[dest].IPI_source[get_cpuid()];
-	u32_t                tail = ring->sender;
+	struct xcore_ring *  ring;
+	u32_t                tail;
 	u32_t                delta;
 	struct ipi_cap_data *data;
+
+	if (unlikely(dest >= NUM_CPU)) return -1;
+
+	ring = &IPI_cap_dest[dest].IPI_source[get_cpuid()];
+	tail = ring->sender;
 
 	delta = (tail + 1) & IPI_RING_MASK;
 	data  = &ring->ring[tail];

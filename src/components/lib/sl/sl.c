@@ -12,6 +12,7 @@
 #include <cos_kernel_api.h>
 
 struct sl_global sl_global_data;
+static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
 
 /*
  * These functions are removed from the inlined fast-paths of the
@@ -31,7 +32,8 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 		if (!ps_cas(&g->lock.u.v, cached->v, csi->v)) return 1;
 	}
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	if ((ret = cos_defswitch(csi->s.owner, t->prio, g->timeout_next, tok))) return ret;
+	if ((ret = cos_defswitch(csi->s.owner, t->prio, csi->s.owner == sl_thd_thdcap(g->sched_thd) ? 
+				 TCAP_TIME_NIL : g->timeout_next, tok))) return ret;
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
 
 	return 1;
@@ -46,7 +48,7 @@ sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched
 
 	if (!ps_cas(&g->lock.u.v, cached->v, 0)) return 1;
 	/* let the scheduler thread decide which thread to run next, inheriting our budget/priority */
-	cos_defswitch(g->sched_thdcap, t->prio, g->timeout_next, tok);
+	cos_defswitch(g->sched_thdcap, t->prio, TCAP_TIME_NIL, tok);
 
 	return 0;
 }
@@ -468,7 +470,8 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 
 	sl_cs_enter();
 	if (is_sched) {
-		t = sl_thd_aep_alloc_intern(NULL, NULL, comp, SL_THD_PROPERTY_OWN_TCAP | SL_THD_PROPERTY_SEND);
+		t = sl_thd_aep_alloc_intern(NULL, NULL, comp,
+				SL_THD_PROPERTY_OWN_TCAP | SL_THD_PROPERTY_SEND);
 	} else {
 		struct cos_aep_info *sa = cos_sched_aep_get(comp), *aep = NULL;
 
@@ -594,10 +597,11 @@ sl_init(microsec_t period)
 	return;
 }
 
-void
-sl_sched_loop(void)
+static void
+sl_sched_loop_intern(int non_block)
 {
-	struct sl_global *g = sl__globals();
+	struct sl_global *g   = sl__globals();
+	rcv_flags_t       rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
 
 	while (1) {
 		int pending;
@@ -614,7 +618,7 @@ sl_sched_loop(void)
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			pending = cos_sched_rcv(g->sched_rcv, RCV_ALL_PENDING, timeout,
+			pending = cos_sched_rcv(g->sched_rcv, rfl, timeout,
 						&rcvd, &tid, &blocked, &cycles, &thd_timeout);
 			if (!tid) goto pending_events;
 
@@ -670,10 +674,22 @@ pending_events:
 			}
 
 			sl_cs_exit();
-		} while (pending);
+		} while (pending > 0);
 
 		if (sl_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
 		sl_cs_exit_schedule_nospin();
 	}
+}
+
+void
+sl_sched_loop(void)
+{
+	sl_sched_loop_intern(0);
+}
+
+void
+sl_sched_loop_nonblock(void)
+{
+	sl_sched_loop_intern(1);
 }

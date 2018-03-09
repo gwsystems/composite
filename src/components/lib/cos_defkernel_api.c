@@ -35,6 +35,19 @@ cos_sched_aep_get(struct cos_defcompinfo *defci)
 	return &(defci->sched_aep);
 }
 
+struct cos_compinfo *
+boot_info(void)
+{
+	struct cos_defcompinfo *dci;
+	struct cos_compinfo    *ci;
+	dci = cos_defcompinfo_curr_get();
+	assert(dci);
+	ci  = cos_compinfo_get(dci);
+	assert(ci);
+
+	return ci;
+}
+
 void
 cos_defcompinfo_init(void)
 {

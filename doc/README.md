@@ -10,6 +10,7 @@ sudo apt-get -y install cmake
 sudo apt-get -y install build-essential  
 sudo apt-get -y install xorriso  
 sudo apt-get -y install curl  
+sudo apt-get -y install python
 ```
 If you want or need Rust on composite, also follow the steps in `rust_with_composite.md`
 ## Getting and building
@@ -34,7 +35,7 @@ When developing:
 $ make
 $ make run RUNSCRIPT=micro_boot.sh run
 ```
-
+Both `micro_boot.sh` and `unit_schedtests.sh` will launch a [QEMU](https://www.qemu.org/documentation/) instance, use `<Ctrl-a x>` to exit.
 ## The `doc` Directory
 
 The only document that is currently up-to-date is the `style_guide/` (and `rust_with_composite.md`),
