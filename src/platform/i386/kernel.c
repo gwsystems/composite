@@ -110,7 +110,6 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		}
 	}
 	/* FIXME: check memory layout vs. the multiboot memory regions... */
-
 	/* Validate the memory layout. */
 	assert(mem_kern_end() <= mem_bootc_start());
 	assert(mem_bootc_end() <= mem_boot_start());

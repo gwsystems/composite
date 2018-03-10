@@ -1,6 +1,9 @@
 #include <stdint.h>
 
 #include "micro_booter.h"
+#include "perfdata.h"
+
+struct perfdata pd;
 
 unsigned int cyc_per_usec;
 
@@ -23,6 +26,8 @@ test_thds_perf(void)
 	long long start_swt_cycles = 0, end_swt_cycles = 0;
 	int       i;
 
+	perfdata_init(&pd, "Thd_Swtch");
+
 	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL);
 	assert(ts);
 	cos_thd_switch(ts);
@@ -30,9 +35,11 @@ test_thds_perf(void)
 	rdtscll(start_swt_cycles);
 	for (i = 0; i < ITER; i++) {
 		cos_thd_switch(ts);
+		rdtscll(end_swt_cycles);
+		perfdata_add(&pd, (double)((end_swt_cycles - start_swt_cycles)/2LL));
+		total_swt_cycles += ((end_swt_cycles - start_swt_cycles) / 2LL);
 	}
-	rdtscll(end_swt_cycles);
-	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
+
 
 	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n", total_swt_cycles, (long long)ITER,
 	       (total_swt_cycles / (long long)ITER));
@@ -128,19 +135,25 @@ async_thd_parent_perf(void *thdcap)
 	long long start_asnd_cycles = 0, end_arcv_cycles = 0;
 	int       i;
 
+	perfdata_init(&pd, "ASND/RCV");
 	cos_asnd(sc, 1);
 
 	rdtscll(start_asnd_cycles);
 	for (i = 0; i < ITER; i++) {
 		cos_asnd(sc, 1);
+		rdtscll(end_arcv_cycles);
+		total_asnd_cycles += (end_arcv_cycles - start_asnd_cycles) / 2;
+		perfdata_add(&pd, (end_arcv_cycles - start_asnd_cycles) / 2);
+
 	}
-	rdtscll(end_arcv_cycles);
-	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
 
 	PRINTC("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n", total_asnd_cycles, (long long)(ITER),
 	       (total_asnd_cycles / (long long)(ITER)));
 
 	async_test_flag = 0;
+	perfdata_calc(&pd);
+	perfdata_print(&pd);
+
 	while (1) cos_thd_switch(tc);
 }
 
@@ -321,6 +334,51 @@ spinner(void *d)
 {
 	while (1)
 		;
+}
+
+#define TEST_USEC_INTERVAL 1000 /* in microseconds */
+#define TEST_HPET_ITERS   ITER 
+cycles_t iat_vals[TEST_HPET_ITERS - 1];
+
+static void
+test_hpet_timer(void)
+{
+	int      i;
+	thdcap_t tc;
+	cycles_t c = 0, p = 0, t = 0;
+
+	PRINTC("Starting HPET timer test.\n");
+	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
+	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, BOOT_CAPTBL_SELF_INITRCV_BASE, TEST_USEC_INTERVAL);
+
+
+	for (i = 0 ; i <= TEST_HPET_ITERS ; i++) {
+		thdid_t     tid;
+		int         blocked;
+		cycles_t    cycles;
+
+		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, TCAP_TIME_NIL, 0, cos_sched_sync());
+		p     = c;
+		rdtscll(c);
+		if (i > 0) {
+			t += c-p;
+			iat_vals[i - 1] = c - p;
+		}
+
+		//while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
+	}
+	printc("FIRST HPET PERIOD: %llu\n", hpet_first_period());
+
+	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
+
+	for (i = 0 ; i < TEST_HPET_ITERS ; i += 10) {
+		PRINTC("%llu ", iat_vals[i]);
+	}
+
+	PRINTC("\nAverage inter-arrival time (%d microseconds) = %lld\n",
+	       TEST_USEC_INTERVAL, t/TEST_HPET_ITERS);
+
+	PRINTC("Timer test completed.\nSuccess.\n");
 }
 
 static void
@@ -809,6 +867,7 @@ test_inv_perf(void)
 	long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL;
 	unsigned int ret;
 
+	perfdata_init(&pd, "SINV");
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc > 0);
 	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
@@ -824,6 +883,7 @@ test_inv_perf(void)
 		call_cap_mb(ic, 1, 2, 3);
 		rdtscll(end_cycles);
 		total_inv_cycles += (midinv_cycles - start_cycles);
+		perfdata_add(&pd, (midinv_cycles - start_cycles));
 		total_ret_cycles += (end_cycles - midinv_cycles);
 	}
 
@@ -856,27 +916,25 @@ test_run_mb(void)
 {
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	test_timer();
-	test_budgets();
-
-	test_thds();
-	test_thds_perf();
-
-	test_mem();
-
-	test_async_endpoints();
-	test_async_endpoints_perf();
-
-	test_inv();
-	test_inv_perf();
-
-	test_captbl_expand();
-
-	/*
-	 * FIXME: Preemption stack mechanism in the kernel is disabled.
-	 * test_wakeup();
-	 * test_preemption();
-	 */
+	test_hpet_timer();
+//	test_timer();
+//	test_budgets();
+//
+//	test_thds();
+//	test_thds_perf();
+//
+//	test_mem();
+//
+//	test_async_endpoints();
+//	test_async_endpoints_perf();
+//
+//	test_inv();
+//	test_inv_perf();
+//
+//	test_captbl_expand();
+//
+//	test_wakeup();
+//	test_preemption();
 }
 
 static void

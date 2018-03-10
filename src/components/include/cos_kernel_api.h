@@ -43,6 +43,7 @@
 #include <cos_component.h>
 #include <cos_debug.h>
 /* Types mainly used for documentation */
+#if 0
 typedef capid_t sinvcap_t;
 typedef capid_t sretcap_t;
 typedef capid_t asndcap_t;
@@ -53,6 +54,7 @@ typedef capid_t compcap_t;
 typedef capid_t captblcap_t;
 typedef capid_t pgtblcap_t;
 typedef capid_t hwcap_t;
+#endif
 
 /* Memory source information */
 struct cos_meminfo {
@@ -87,6 +89,7 @@ void cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long
 void cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz);
 /* expand *only* the pgtbl-internal nodes */
 vaddr_t cos_pgtbl_intern_alloc(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz);
+
 /*
  * Expand the page-table with a node at lvl, and return the pgtbl
  * capability to that node.  This also adjusts the frontier, so it
@@ -153,6 +156,7 @@ int cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd);
 int cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout, int *rcvd, thdid_t *thdid, int *blocked, cycles_t *cycles, tcap_time_t *thd_timeout);
 
 int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
+int cos_introspect64(struct cos_compinfo *ci, capid_t cap, unsigned long op, u64_t *value);
 
 int cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4);
 
@@ -178,13 +182,17 @@ int cos_tcap_transfer(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t pri
 int cos_tcap_delegate(asndcap_t dst, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags);
 int cos_tcap_merge(tcap_t dst, tcap_t rm);
 
+capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
+
 /* Hardware (interrupts) operations */
 hwcap_t cos_hw_alloc(struct cos_compinfo *ci, u32_t bitmap);
+int     cos_hw_periodic_attach(hwcap_t hwc, arcvcap_t rcvcap, unsigned int period);
 int     cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t rcvcap);
 int     cos_hw_detach(hwcap_t hwc, hwid_t hwid);
-void *  cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
+void   *cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
 int     cos_hw_cycles_per_usec(hwcap_t hwc);
 int     cos_hw_cycles_thresh(hwcap_t hwc);
+void   *cos_va2pa(struct cos_compinfo *ci, void * vaddr);
 
 capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
 

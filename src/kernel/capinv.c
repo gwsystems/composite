@@ -489,6 +489,10 @@ notify_parent(struct thread *rcv_thd, int send)
 		assert(depth < ARCV_NOTIF_DEPTH);
 
 		thd_rcvcap_evt_enqueue(curr_notif, prev_notif);
+		/*
+		 * If either the thread is not suspended on RCV or
+		 * if it already has pending events. There is no need to notify it's parent of this wakeup.
+		 */
 		if (!(curr_notif->state & THD_STATE_RCVING)) break;
 
 		prev_notif = curr_notif;
@@ -1615,17 +1619,22 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			struct cap_arcv *rcvc;
 			hwid_t           hwid   = __userregs_get1(regs);
 			capid_t          rcvcap = __userregs_get2(regs);
+			u32_t            period = __userregs_get3(regs);
 
 			rcvc = (struct cap_arcv *)captbl_lkup(ci->captbl, rcvcap);
 			if (!CAP_TYPECHK(rcvc, CAP_ARCV)) cos_throw(err, -EINVAL);
 
 			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcvcap);
+			if (!ret && hwid == HW_PERIODIC) chal_hpet_periodic_set(period);
+
 			break;
 		}
 		case CAPTBL_OP_HW_DETACH: {
 			hwid_t hwid = __userregs_get1(regs);
 
 			ret = hw_detach_rcvcap((struct cap_hw *)ch, hwid);
+			if (!ret && hwid == HW_PERIODIC) chal_hpet_disable();
+
 			break;
 		}
 		case CAPTBL_OP_HW_MAP: {

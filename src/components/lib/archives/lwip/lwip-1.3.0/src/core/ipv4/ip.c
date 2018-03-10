@@ -69,10 +69,11 @@ struct netif *
 ip_route(struct ip_addr *dest)
 {
   struct netif *netif;
+  printf("ip_route, found\n");
 
   /* iterate through netifs */
   for(netif = netif_list; netif != NULL; netif = netif->next) {
-    /* network mask matches? */
+	  /* network mask matches? */
     if (netif_is_up(netif)) {
       if (ip_addr_netcmp(dest, &(netif->ip_addr), &(netif->netmask))) {
         /* return netif on which to forward IP packet */
@@ -475,7 +476,6 @@ ip_output_if(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 {
   struct ip_hdr *iphdr;
   static u16_t ip_id = 0;
-
   snmp_inc_ipoutrequests();
 
   /* Should the IP header be generated or is it already included in p? */
@@ -532,7 +532,6 @@ ip_output_if(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
   ip_debug_print(p);
 
   LWIP_DEBUGF(IP_DEBUG, ("netif->output()"));
-
   return netif->output(netif, p, dest);
 }
 

@@ -1,0 +1,16 @@
+[package]
+name = "rust_src"
+version = "0.1.0"
+authors = ["Alexander Maloney <maloney.a12@gmail.com>"]
+
+[dependencies]
+lib_composite = "0.6"
+
+[lib]
+crate-type = ["staticlib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

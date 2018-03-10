@@ -160,6 +160,7 @@ static inline tcap_res_t
 tcap_consume(struct tcap *t, tcap_res_t cycles)
 {
 	assert(t);
+	//printk("%s:%d - %lu: %lu\n", __func__, __LINE__, cycles, t->budget.cycles);
 	if (TCAP_RES_IS_INF(t->budget.cycles)) return 0;
 	if (cycles >= t->budget.cycles || tcap_cycles_same(cycles, t->budget.cycles)) {
 		t->budget.cycles = 0;

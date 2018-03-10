@@ -91,9 +91,12 @@ int chal_attempt_ainv(struct async_cap *acap);
 void chal_send_ipi(int cpuid);
 
 /* static const struct cos_trans_fns *trans_fns = NULL; */
-void chal_idle(void);
-void chal_timer_set(cycles_t cycles);
-void chal_timer_disable(void);
+void     chal_idle(void);
+void     chal_timer_set(cycles_t cycles);
+void     chal_timer_disable(void);
+void     chal_hpet_periodic_set(unsigned long);
+void     chal_hpet_disable(void);
+cycles_t chal_hpet_first_period(void);
 
 void chal_init(void);
 

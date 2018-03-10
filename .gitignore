@@ -6,6 +6,7 @@
 *.ko
 *.cmd
 *.a
+*.bin
 *~
 *.sw*
 *#
@@ -15,6 +16,7 @@
 .exported_interfaces
 composite_new
 *.out
+data.iso
 tags
 src/components/lib/musl-1.1.11/bin/musl-gcc
 src/kernel/include/shared/cpu_ghz.h
@@ -23,6 +25,7 @@ src/PLATFORM_ID
 modules.order
 .depend
 *.img
+*.out
 transfer/
 GPATH
 GRTAGS
@@ -32,3 +35,4 @@ GTAGS
 .clang_complete
 Vagrantfile
 provision.sh
+sl_bind_check

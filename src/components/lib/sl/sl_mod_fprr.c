@@ -27,11 +27,19 @@ sl_mod_schedule(void)
 		t = ps_list_head_first_d(&threads[i], struct sl_thd_policy);
 
 		/*
+		 * FIXME: NO RR!!
+		 * Works for this test because, VKERNEL has threads at different prios.
+		 * Timer sub has threads at different prios.
+		 * Only RK needs non preemptive and commenting this satisfies all requirements for now
+		 * BUTTTTTTTTTTT, THIS IS NOT THE SOLUTION.!
+		 * WONDER IF THERE IS A SOLUTION FOR FORKING! CANNOT LINK TO MULTIPLE LIBS I'M SURE! SO???
+		 */
+		/*
 		 * We want to move the selected thread to the back of the list.
 		 * Otherwise fprr won't be truly round robin
 		 */
-		ps_list_rem_d(t);
-		ps_list_head_append_d(&threads[i], t);
+		//ps_list_rem_d(t);
+		//ps_list_head_append_d(&threads[i], t);
 
 		return t;
 	}

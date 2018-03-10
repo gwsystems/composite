@@ -9,8 +9,8 @@ int nwrite(spdid_t spdid, channel_id to, size_t sz);
 int replica_confirm(spdid_t spdid);
 
 // Todo: make this not look like shitty java getter code
-cbuf_t get_write_buf(spdid_t spdid);
-cbuf_t get_read_buf(spdid_t spdid);
+//FIXME cbuf_t get_write_buf(spdid_t spdid);
+//FIXME cbuf_t get_read_buf(spdid_t spdid);
 
 /* 
  * Confirm to the voter that we are ready to be forked 

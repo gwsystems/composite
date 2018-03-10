@@ -30,8 +30,8 @@ vkernel_hypercall(int a, int b, int c)
 		printc("VM%d EXIT\n", i);
 		sl_thd_free(vmx_info[i].inithd);
 
-		/* TODO: Free all the resources allocated for this VM! -Initial capabilites, I/O Capabilities etc */	
-		
+		/* TODO: Free all the resources allocated for this VM! -Initial capabilites, I/O Capabilities etc */
+
 		printc("VM %d ERROR!!!!!", i);
 		break;
 	}

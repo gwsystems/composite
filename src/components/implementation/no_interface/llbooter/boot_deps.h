@@ -151,6 +151,7 @@ boot_newcomp_definfo_init(spdid_t spdid, compcap_t cc, boot_comp_flag_t comp_fla
 		assert(child_aep->thd);
 
 		init_thds[spdid] = child_aep->thd;
+		new_comp_cap_info[spdid].special_type = comp_flags;
 
 		child_aep->tc = cos_tcap_alloc(boot_info());
 		assert(child_aep->tc);
@@ -266,6 +267,7 @@ boot_done(void)
 	 * invoke the booter in boot_thd_done where it will itself switch
 	 * to the next component that needs to be initialized.
 	 */
+
 	assert(0);
 }
 
@@ -345,7 +347,8 @@ boot_sinv_fn(boot_hyp_op_t op, void *arg1, void *arg2, void *arg3)
 		ret = boot_pgtbl_cap_transfer((int)arg1, (int)arg2, (int)arg3);
 		break;
 	case BOOT_HYP_NUM_COMPS:
-		ret = num_cobj - 1;
+		/* num_cobj doesn't include the booter itself */
+		ret = num_cobj;
 		break;
 	case BOOT_HYP_SINV_CAP:
 		printc("Sinv cap request not implemented\n");

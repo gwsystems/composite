@@ -1,0 +1,2213 @@
+From 664f4863d33d0af29be0b393a08946c5d4008e8f Mon Sep 17 00:00:00 2001
+From: Robert Gifford <robertgif@gmail.com>
+Date: Mon, 15 Jan 2018 14:56:27 -0500
+Subject: [PATCH] Create a new patch file
+
+---
+ sys/kern/init_main.c                    |    7 +-
+ sys/kern/vfs_vnode.c                    |  131 ++--
+ sys/net/Makefile                        |    4 +-
+ sys/net/if_cnic.c                       | 1243 +++++++++++++++++++++++++++++++
+ sys/net/if_cnic.h                       |   44 ++
+ sys/net/pktqueue.c                      |   39 +-
+ sys/net/pktqueue.h                      |    3 +
+ sys/netinet/ip_icmp.c                   |   12 +-
+ sys/netinet/ip_input.c                  |   46 +-
+ sys/netinet/ip_output.c                 |   14 +-
+ sys/rump/dev/lib/libpci/Makefile        |   13 +-
+ sys/rump/dev/lib/libpci/pci_user.h      |    2 +-
+ sys/rump/librump/rumpkern/intr.c        |   11 +-
+ sys/rump/librump/rumpkern/rump.c        |    4 +-
+ sys/rump/librump/rumpvfs/rump_vfs.c     |   10 +-
+ sys/rump/net/lib/libtap/Makefile        |    2 +
+ sys/rump/net/lib/libtap/tap_component.c |   45 +-
+ 17 files changed, 1516 insertions(+), 114 deletions(-)
+ create mode 100644 sys/net/if_cnic.c
+ create mode 100644 sys/net/if_cnic.h
+
+diff --git a/sys/kern/init_main.c b/sys/kern/init_main.c
+index dbdc10c..30df56b 100644
+--- a/sys/kern/init_main.c
++++ b/sys/kern/init_main.c
+@@ -687,9 +687,10 @@ main(void)
+ 		panic("fork pagedaemon");
+ 
+ 	/* Create the filesystem syncer kernel thread. */
+-	if (kthread_create(PRI_IOFLUSH, KTHREAD_MPSAFE, NULL, sched_sync,
+-	    NULL, NULL, "ioflush"))
+-		panic("fork syncer");
++	/* RG kill this thread */
++	//if (kthread_create(PRI_IOFLUSH, KTHREAD_MPSAFE, NULL, sched_sync,
++	//    NULL, NULL, "ioflush"))
++	//	panic("fork syncer");
+ 
+ 	/* Create the aiodone daemon kernel thread. */
+ 	if (workqueue_create(&uvm.aiodone_queue, "aiodoned",
+diff --git a/sys/kern/vfs_vnode.c b/sys/kern/vfs_vnode.c
+index 3895543..4100e86 100644
+--- a/sys/kern/vfs_vnode.c
++++ b/sys/kern/vfs_vnode.c
+@@ -194,8 +194,8 @@ static void		vcache_init(void);
+ static void		vcache_reinit(void);
+ static void		vclean(vnode_t *);
+ static void		vrelel(vnode_t *, int);
+-static void		vdrain_thread(void *);
+-static void		vrele_thread(void *);
++//static void		vdrain_thread(void *);
++//static void		vrele_thread(void *);
+ static void		vnpanic(vnode_t *, const char *, ...)
+     __printflike(2, 3);
+ static void		vwait(vnode_t *, int);
+@@ -207,7 +207,7 @@ extern struct vfsops	dead_vfsops;
+ void
+ vfs_vnode_sysinit(void)
+ {
+-	int error __diagused;
++	//int error __diagused;
+ 
+ 	vnode_cache = pool_cache_init(sizeof(vnode_t), 0, 0, 0, "vnodepl",
+ 	    NULL, IPL_NONE, NULL, NULL, NULL);
+@@ -227,12 +227,13 @@ vfs_vnode_sysinit(void)
+ 	mutex_init(&vrele_lock, MUTEX_DEFAULT, IPL_NONE);
+ 	cv_init(&vdrain_cv, "vdrain");
+ 	cv_init(&vrele_cv, "vrele");
+-	error = kthread_create(PRI_VM, KTHREAD_MPSAFE, NULL, vdrain_thread,
+-	    NULL, NULL, "vdrain");
+-	KASSERT(error == 0);
+-	error = kthread_create(PRI_VM, KTHREAD_MPSAFE, NULL, vrele_thread,
+-	    NULL, &vrele_lwp, "vrele");
+-	KASSERT(error == 0);
++	/* RG fuck that thread */
++//	error = kthread_create(PRI_VM, KTHREAD_MPSAFE, NULL, vdrain_thread,
++//	    NULL, NULL, "vdrain");
++//	KASSERT(error == 0);
++//	error = kthread_create(PRI_VM, KTHREAD_MPSAFE, NULL, vrele_thread,
++//	    NULL, &vrele_lwp, "vrele");
++//	KASSERT(error == 0);
+ }
+ 
+ /*
+@@ -456,25 +457,25 @@ ungetnewvnode(vnode_t *vp)
+ /*
+  * Helper thread to keep the number of vnodes below desiredvnodes.
+  */
+-static void
+-vdrain_thread(void *cookie)
+-{
+-	int error;
+-
+-	mutex_enter(&vnode_free_list_lock);
+-
+-	for (;;) {
+-		cv_timedwait(&vdrain_cv, &vnode_free_list_lock, hz);
+-		while (numvnodes > desiredvnodes) {
+-			error = cleanvnode();
+-			if (error)
+-				kpause("vndsbusy", false, hz, NULL);
+-			mutex_enter(&vnode_free_list_lock);
+-			if (error)
+-				break;
+-		}
+-	}
+-}
++//static void
++//vdrain_thread(void *cookie)
++//{
++//	int error;
++//
++//	mutex_enter(&vnode_free_list_lock);
++//
++//	for (;;) {
++//		cv_timedwait(&vdrain_cv, &vnode_free_list_lock, hz);
++//		while (numvnodes > desiredvnodes) {
++//			error = cleanvnode();
++//			if (error)
++//				kpause("vndsbusy", false, hz, NULL);
++//			mutex_enter(&vnode_free_list_lock);
++//			if (error)
++//				break;
++//		}
++//	}
++//}
+ 
+ /*
+  * Remove a vnode from its freelist.
+@@ -834,43 +835,43 @@ vrele_async(vnode_t *vp)
+ 	vrelel(vp, VRELEL_ASYNC_RELE);
+ }
+ 
+-static void
+-vrele_thread(void *cookie)
+-{
+-	vnodelst_t skip_list;
+-	vnode_t *vp;
+-	struct mount *mp;
+-
+-	TAILQ_INIT(&skip_list);
+-
+-	mutex_enter(&vrele_lock);
+-	for (;;) {
+-		while (TAILQ_EMPTY(&vrele_list)) {
+-			vrele_gen++;
+-			cv_broadcast(&vrele_cv);
+-			cv_timedwait(&vrele_cv, &vrele_lock, hz);
+-			TAILQ_CONCAT(&vrele_list, &skip_list, v_freelist);
+-		}
+-		vp = TAILQ_FIRST(&vrele_list);
+-		mp = vp->v_mount;
+-		TAILQ_REMOVE(&vrele_list, vp, v_freelist);
+-		if (fstrans_start_nowait(mp, FSTRANS_LAZY) != 0) {
+-			TAILQ_INSERT_TAIL(&skip_list, vp, v_freelist);
+-			continue;
+-		}
+-		vrele_pending--;
+-		mutex_exit(&vrele_lock);
+-
+-		/*
+-		 * If not the last reference, then ignore the vnode
+-		 * and look for more work.
+-		 */
+-		mutex_enter(vp->v_interlock);
+-		vrelel(vp, 0);
+-		fstrans_done(mp);
+-		mutex_enter(&vrele_lock);
+-	}
+-}
++//static void
++//vrele_thread(void *cookie)
++//{
++//	vnodelst_t skip_list;
++//	vnode_t *vp;
++//	struct mount *mp;
++//
++//	TAILQ_INIT(&skip_list);
++//
++//	mutex_enter(&vrele_lock);
++//	for (;;) {
++//		while (TAILQ_EMPTY(&vrele_list)) {
++//			vrele_gen++;
++//			cv_broadcast(&vrele_cv);
++//			cv_timedwait(&vrele_cv, &vrele_lock, hz);
++//			TAILQ_CONCAT(&vrele_list, &skip_list, v_freelist);
++//		}
++//		vp = TAILQ_FIRST(&vrele_list);
++//		mp = vp->v_mount;
++//		TAILQ_REMOVE(&vrele_list, vp, v_freelist);
++//		if (fstrans_start_nowait(mp, FSTRANS_LAZY) != 0) {
++//			TAILQ_INSERT_TAIL(&skip_list, vp, v_freelist);
++//			continue;
++//		}
++//		vrele_pending--;
++//		mutex_exit(&vrele_lock);
++//
++//		/*
++//		 * If not the last reference, then ignore the vnode
++//		 * and look for more work.
++//		 */
++//		mutex_enter(vp->v_interlock);
++//		vrelel(vp, 0);
++//		fstrans_done(mp);
++//		mutex_enter(&vrele_lock);
++//	}
++//}
+ 
+ void
+ vrele_flush(void)
+diff --git a/sys/net/Makefile b/sys/net/Makefile
+index 7ba90fa..b846802 100644
+--- a/sys/net/Makefile
++++ b/sys/net/Makefile
+@@ -1,6 +1,6 @@
+ #	$NetBSD: Makefile,v 1.32 2012/10/27 22:36:14 alnsn Exp $
+ 
+-INCSDIR= /usr/include/net
++INCSDIR= /usr/include/net 
+ 
+ INCS=	bpf.h bpfjit.h bpfdesc.h dlt.h ethertypes.h if.h if_arc.h if_arp.h \
+ 	if_atm.h if_bridgevar.h if_dl.h if_ether.h if_etherip.h if_fddi.h if_gif.h \
+@@ -10,6 +10,8 @@ INCS=	bpf.h bpfjit.h bpfdesc.h dlt.h ethertypes.h if.h if_arc.h if_arp.h \
+ 	netisr.h pfil.h pfkeyv2.h pfvar.h ppp-comp.h ppp_defs.h radix.h \
+ 	raw_cb.h route.h slcompress.h slip.h zlib.h
+ 
++
++
+ SUBDIR=	agr npf
+ 
+ .include <bsd.kinc.mk>
+diff --git a/sys/net/if_cnic.c b/sys/net/if_cnic.c
+new file mode 100644
+index 0000000..3920f2d
+--- /dev/null
++++ b/sys/net/if_cnic.c
+@@ -0,0 +1,1243 @@
++/* All rights go the NetBSD, this is simply a copy of if_tun.c with tun namespace replaced with cnic */
++
++#include <sys/cdefs.h>
++
++#include "opt_inet.h"
++
++#include <sys/param.h>
++#include <sys/proc.h>
++#include <sys/systm.h>
++#include <sys/mbuf.h>
++#include <sys/buf.h>
++#include <sys/protosw.h>
++#include <sys/socket.h>
++#include <sys/ioctl.h>
++#include <sys/errno.h>
++#include <sys/syslog.h>
++#include <sys/select.h>
++#include <sys/poll.h>
++#include <sys/file.h>
++#include <sys/signalvar.h>
++#include <sys/conf.h>
++#include <sys/kauth.h>
++#include <sys/mutex.h>
++#include <sys/malloc.h>
++#include <sys/cpu.h>
++#include <rump/dev/lib/libpci/pci_user.h>
++
++#include <net/if.h>
++#include <net/if_types.h>
++#include <net/netisr.h>
++#include <net/route.h>
++#include <net/if_ether.h>
++
++
++#ifdef INET
++#include <netinet/in.h>
++#include <netinet/in_systm.h>
++#include <netinet/in_var.h>
++#include <netinet/ip.h>
++#include <netinet/if_inarp.h>
++#endif
++
++#include <sys/time.h>
++#include <net/bpf.h>
++
++#include <net/if_cnic.h>
++
++#define CNICDEBUG	if (cnicdebug) printf
++int	cnicdebug = 0;
++extern int ifqmaxlen;
++void	cnicattach(int);
++extern int rump_vmid;
++static LIST_HEAD(, cnic_softc) cnic_softc_list;
++static LIST_HEAD(, cnic_softc) cnicz_softc_list;
++static kmutex_t cnic_softc_lock;
++
++static int	cnic_ioctl(struct ifnet *, u_long, void *);
++static int	cnic_output(struct ifnet *, struct mbuf *,
++			const struct sockaddr *, struct rtentry *rt);
++static int	cnic_clone_create(struct if_clone *, int);
++static int	cnic_clone_destroy(struct ifnet *);
++
++/* RG */
++static void cnic_input(struct ifnet *unused, struct mbuf *m);
++
++static struct if_clone cnic_cloner =
++    IF_CLONE_INITIALIZER("cnic", cnic_clone_create, cnic_clone_destroy);
++
++static void cnicattach0(struct cnic_softc *);
++static void cnicinit(struct cnic_softc *);
++static void cnic_i_softintr(void *);
++static void cnic_o_softintr(void *);
++#ifdef ALTQ
++static void cnicstart(struct ifnet *);
++#endif
++static struct cnic_softc *cnic_find_unit(dev_t);
++static struct cnic_softc *cnic_find_zunit(int);
++
++static dev_type_open(cnicopen);
++static dev_type_close(cnicclose);
++static dev_type_read(cnicread);
++static dev_type_write(cnicwrite);
++static dev_type_ioctl(cnicioctl);
++static dev_type_poll(cnicpoll);
++static dev_type_kqfilter(cnickqfilter);
++
++/* VKern functions  */
++int cnic_vk_intr_0(void * arg);
++int cnic_vk_intr_1(void * arg);
++int cnic_vk_intr_2(void * arg);
++int cnic_vk_dequeue(struct cnic_softc * ifp, int srcvm);
++
++const struct cdevsw cnic_cdevsw = {
++	.d_open = cnicopen,
++	.d_close = cnicclose,
++	.d_read = cnicread,
++	.d_write = cnicwrite,
++	.d_ioctl = cnicioctl,
++	.d_stop = nostop,
++	.d_tty = notty,
++	.d_poll = cnicpoll,
++	.d_mmap = nommap,
++	.d_kqfilter = cnickqfilter,
++	.d_discard = nodiscard,
++	.d_flag = D_OTHER
++};
++
++
++void
++cnicattach(int unused)
++{
++
++	mutex_init(&cnic_softc_lock, MUTEX_DEFAULT, IPL_NET);
++	LIST_INIT(&cnic_softc_list);
++	LIST_INIT(&cnicz_softc_list);
++	if_clone_attach(&cnic_cloner);
++}
++
++/*
++ * Find driver instance from dev_t.
++ * Returns with tp locked (if found).
++ */
++static struct cnic_softc *
++cnic_find_unit(dev_t dev)
++{
++	struct cnic_softc *tp;
++	int unit = minor(dev);
++
++	mutex_enter(&cnic_softc_lock);
++	LIST_FOREACH(tp, &cnic_softc_list, cnic_list)
++		if (unit == tp->cnic_unit)
++			break;
++	if (tp)
++		mutex_enter(&tp->cnic_lock);
++	mutex_exit(&cnic_softc_lock);
++
++	return (tp);
++}
++
++/*
++ * Find zombie driver instance by unit number.
++ * Remove tp from list and return it unlocked (if found).
++ */
++static struct cnic_softc *
++cnic_find_zunit(int unit)
++{
++	struct cnic_softc *tp;
++
++	mutex_enter(&cnic_softc_lock);
++	LIST_FOREACH(tp, &cnicz_softc_list, cnic_list)
++		if (unit == tp->cnic_unit)
++			break;
++	if (tp)
++		LIST_REMOVE(tp, cnic_list);
++	mutex_exit(&cnic_softc_lock);
++#ifdef DIAGNOSTIC
++	if (tp != NULL && (tp->cnic_flags & (CNIC_INITED|CNIC_OPEN)) != CNIC_OPEN)
++		printf("cnic%d: inconsistent flags: %x\n", unit, tp->cnic_flags);
++#endif
++
++	return (tp);
++}
++
++static int
++cnic_clone_create(struct if_clone *ifc, int unit)
++{
++	struct cnic_softc *tp;
++
++	if ((tp = cnic_find_zunit(unit)) == NULL) {
++		/* Allocate a new instance */
++		tp = malloc(sizeof(*tp), m_devbuf, M_WAITOK|M_ZERO);
++
++		tp->cnic_unit = unit;
++		mutex_init(&tp->cnic_lock, MUTEX_DEFAULT, IPL_NET);
++		selinit(&tp->cnic_rsel);
++		selinit(&tp->cnic_wsel);
++	} else {
++		/* Revive cnicnel instance; clear ifp part */
++		(void)memset(&tp->cnic_if, 0, sizeof(struct ifnet));
++	}
++
++	if_initname(&tp->cnic_if, ifc->ifc_name, unit);
++	cnicattach0(tp);
++	tp->cnic_flags |= CNIC_INITED;
++	tp->cnic_osih = softint_establish(SOFTINT_CLOCK, cnic_o_softintr, tp);
++	tp->cnic_isih = softint_establish(SOFTINT_CLOCK, cnic_i_softintr, tp);
++
++	mutex_enter(&cnic_softc_lock);
++	LIST_INSERT_HEAD(&cnic_softc_list, tp, cnic_list);
++	mutex_exit(&cnic_softc_lock);
++
++	return (0);
++}
++
++static void
++cnicattach0(struct cnic_softc *tp)
++{
++	struct ifnet *ifp;
++
++	ifp = &tp->cnic_if;
++	ifp->if_softc = tp;
++	ifp->if_mtu = CNICMTU;
++	ifp->if_ioctl = cnic_ioctl;
++	ifp->if_output = cnic_output;
++	//ifp->if_input  = ether_input;
++	ifp->if_input  = cnic_input;
++#ifdef ALTQ
++	ifp->if_start = cnicstart;
++#endif
++	ifp->if_flags = IFF_POINTOPOINT;
++	ifp->if_type = IFT_TUNNEL;
++	ifp->if_snd.ifq_maxlen = ifqmaxlen;
++	ifp->if_collisions = 0;
++	ifp->if_ierrors = 0;
++	ifp->if_oerrors = 0;
++	ifp->if_ipackets = 0;
++	ifp->if_opackets = 0;
++	ifp->if_ibytes   = 0;
++	ifp->if_obytes   = 0;
++	ifp->if_dlt = DLT_NULL;
++	IFQ_SET_READY(&ifp->if_snd);
++	if_attach(ifp);
++	if_alloc_sadl(ifp);
++
++	//establish irq lines for rcving
++	if(!strcmp(ifp->if_xname, "cnic0")) {
++		rumpcomp_pci_irq_establish(13, cnic_vk_intr_1, tp);
++
++	} else if(!strcmp(ifp->if_xname, "cnic1")) {
++		rumpcomp_pci_irq_establish(15, cnic_vk_intr_2, tp);
++	} else {
++		rumpcomp_pci_irq_establish(12, cnic_vk_intr_0, tp);
++	}
++	
++	bpf_attach(ifp, DLT_NULL, sizeof(uint32_t));
++}
++
++static int
++cnic_clone_destroy(struct ifnet *ifp)
++{
++	struct cnic_softc *tp = (void *)ifp;
++	int zombie = 0;
++
++	IF_PURGE(&ifp->if_snd);
++	ifp->if_flags &= ~IFF_RUNNING;
++
++	mutex_enter(&cnic_softc_lock);
++	mutex_enter(&tp->cnic_lock);
++	LIST_REMOVE(tp, cnic_list);
++	if (tp->cnic_flags & CNIC_OPEN) {
++		/* Hang on to storage until last close */
++		zombie = 1;
++		tp->cnic_flags &= ~CNIC_INITED;
++		LIST_INSERT_HEAD(&cnicz_softc_list, tp, cnic_list);
++	}
++	mutex_exit(&cnic_softc_lock);
++
++	if (tp->cnic_flags & CNIC_RWAIT) {
++		tp->cnic_flags &= ~CNIC_RWAIT;
++		wakeup((void *)tp);
++	}
++	selnotify(&tp->cnic_rsel, 0, 0);
++
++	mutex_exit(&tp->cnic_lock);
++
++	if (tp->cnic_flags & CNIC_ASYNC && tp->cnic_pgid)
++		fownsignal(tp->cnic_pgid, SIGIO, POLL_HUP, 0, NULL);
++
++	bpf_detach(ifp);
++	if_detach(ifp);
++
++	if (!zombie) {
++		seldestroy(&tp->cnic_rsel);
++		seldestroy(&tp->cnic_wsel);
++		softint_disestablish(tp->cnic_osih);
++		softint_disestablish(tp->cnic_isih);
++		mutex_destroy(&tp->cnic_lock);
++		free(tp, M_DEVBUF);
++	}
++
++	return (0);
++}
++
++/*
++ * cnicnel open - must be superuser & the device must be
++ * configured in
++ */
++
++struct ifnet *global_ifp = 0;
++
++static int
++cnicopen(dev_t dev, int flag, int mode, struct lwp *l)
++{
++	struct ifnet	*ifp;
++	struct cnic_softc *tp;
++	int	error;
++
++	error = kauth_authorize_network(l->l_cred, KAUTH_NETWORK_INTERFACE_TUN,
++	    KAUTH_REQ_NETWORK_INTERFACE_TUN_ADD, NULL, NULL, NULL);
++	if (error)
++		return (error);
++
++	tp = cnic_find_unit(dev);
++
++	if (tp == NULL) {
++		(void)cnic_clone_create(&cnic_cloner, minor(dev));
++		tp = cnic_find_unit(dev);
++		if (tp == NULL) {
++			error = ENXIO;
++			goto out_nolock;
++		}
++	}
++
++	if (tp->cnic_flags & CNIC_OPEN) {
++		error = EBUSY;
++		goto out;
++	}
++
++	ifp = &tp->cnic_if;
++	global_ifp = ifp;
++	tp->cnic_flags |= CNIC_OPEN;
++	CNICDEBUG("%s: open\n", ifp->if_xname);
++out:
++	mutex_exit(&tp->cnic_lock);
++out_nolock:
++	return (error);
++}
++
++/*
++ * cnicclose - close the device - mark i/f down & delete
++ * routing info
++ */
++int
++cnicclose(dev_t dev, int flag, int mode,
++    struct lwp *l)
++{
++	struct cnic_softc *tp;
++	struct ifnet	*ifp;
++
++	if ((tp = cnic_find_zunit(minor(dev))) != NULL) {
++		/* interface was "destroyed" before the close */
++		seldestroy(&tp->cnic_rsel);
++		seldestroy(&tp->cnic_wsel);
++		softint_disestablish(tp->cnic_osih);
++		softint_disestablish(tp->cnic_isih);
++		mutex_destroy(&tp->cnic_lock);
++		free(tp, M_DEVBUF);
++		goto out_nolock;
++	}
++
++	if ((tp = cnic_find_unit(dev)) == NULL)
++		goto out_nolock;
++
++	ifp = &tp->cnic_if;
++
++	tp->cnic_flags &= ~CNIC_OPEN;
++
++	tp->cnic_pgid = 0;
++	selnotify(&tp->cnic_rsel, 0, 0);
++
++	CNICDEBUG ("%s: closed\n", ifp->if_xname);
++	mutex_exit(&tp->cnic_lock);
++
++	/*
++	 * junk all pending output
++	 */
++	IFQ_PURGE(&ifp->if_snd);
++
++	if (ifp->if_flags & IFF_UP) {
++		if_down(ifp);
++		if (ifp->if_flags & IFF_RUNNING) {
++			/* find internet addresses and delete routes */
++			struct ifaddr *ifa;
++			IFADDR_FOREACH(ifa, ifp) {
++#if defined(INET) || defined(INET6)
++				if (ifa->ifa_addr->sa_family == AF_INET ||
++				    ifa->ifa_addr->sa_family == AF_INET6) {
++					rtinit(ifa, (int)RTM_DELETE,
++					       tp->cnic_flags & CNIC_DSTADDR
++							? RTF_HOST
++							: 0);
++				}
++#endif
++			}
++		}
++	}
++out_nolock:
++	return (0);
++}
++
++/*
++ * Call at splnet().
++ */
++static void
++cnicinit(struct cnic_softc *tp)
++{
++	struct ifnet	*ifp = &tp->cnic_if;
++	struct ifaddr	*ifa;
++
++	CNICDEBUG("%s: cnicinit\n", ifp->if_xname);
++
++	mutex_enter(&tp->cnic_lock);
++	ifp->if_flags |= IFF_UP | IFF_RUNNING;
++
++	tp->cnic_flags &= ~(CNIC_IASET|CNIC_DSTADDR);
++	IFADDR_FOREACH(ifa, ifp) {
++#ifdef INET
++		if (ifa->ifa_addr->sa_family == AF_INET) {
++			struct sockaddr_in *sin;
++
++			sin = satosin(ifa->ifa_addr);
++			if (sin && sin->sin_addr.s_addr)
++				tp->cnic_flags |= CNIC_IASET;
++
++			if (ifp->if_flags & IFF_POINTOPOINT) {
++				sin = satosin(ifa->ifa_dstaddr);
++				if (sin && sin->sin_addr.s_addr)
++					tp->cnic_flags |= CNIC_DSTADDR;
++			}
++		}
++#endif
++#ifdef INET6
++		if (ifa->ifa_addr->sa_family == AF_INET6) {
++			struct sockaddr_in6 *sin;
++
++			sin = (struct sockaddr_in6 *)ifa->ifa_addr;
++			if (!IN6_IS_ADDR_UNSPECIFIED(&sin->sin6_addr))
++				tp->cnic_flags |= CNIC_IASET;
++
++			if (ifp->if_flags & IFF_POINTOPOINT) {
++				sin = (struct sockaddr_in6 *)ifa->ifa_dstaddr;
++				if (sin &&
++				    !IN6_IS_ADDR_UNSPECIFIED(&sin->sin6_addr))
++					tp->cnic_flags |= CNIC_DSTADDR;
++			} else
++				tp->cnic_flags &= ~CNIC_DSTADDR;
++		}
++#endif /* INET6 */
++	}
++	mutex_exit(&tp->cnic_lock);
++}
++
++/*
++ * Process an ioctl request.
++ */
++static int
++cnic_ioctl(struct ifnet *ifp, u_long cmd, void *data)
++{
++	int		error = 0, s;
++	struct cnic_softc *tp = (struct cnic_softc *)(ifp->if_softc);
++	struct ifreq *ifr = (struct ifreq *)data;
++	struct ifaddr *ifa = (struct ifaddr *)data;
++
++	s = splnet();
++
++	switch (cmd) {
++	case SIOCINITIFADDR:
++		cnicinit(tp);
++		ifa->ifa_rtrequest = p2p_rtrequest;
++		CNICDEBUG("%s: address set\n", ifp->if_xname);
++		break;
++	case SIOCSIFBRDADDR:
++		CNICDEBUG("%s: broadcast address set\n", ifp->if_xname);
++		break;
++	case SIOCSIFMTU:
++		if (ifr->ifr_mtu > CNICMTU || ifr->ifr_mtu < 576) {
++			error = EINVAL;
++			break;
++		}
++		CNICDEBUG("%s: interface mtu set\n", ifp->if_xname);
++		if ((error = ifioctl_common(ifp, cmd, data)) == ENETRESET)
++			error = 0;
++		break;
++	case SIOCADDMULTI:
++	case SIOCDELMULTI:
++		if (ifr == NULL) {
++	        	error = EAFNOSUPPORT;           /* XXX */
++			break;
++		}
++		switch (ifreq_getaddr(cmd, ifr)->sa_family) {
++#ifdef INET
++		case AF_INET:
++			break;
++#endif
++#ifdef INET6
++		case AF_INET6:
++			break;
++#endif
++		default:
++			error = EAFNOSUPPORT;
++			break;
++		}
++		break;
++	default:
++		error = ifioctl_common(ifp, cmd, data);
++	}
++
++	splx(s);
++	return (error);
++}
++
++/*
++ * cnic_output - queue packets from higher level ready to put out.
++ */
++static int
++cnic_output(struct ifnet *ifp, struct mbuf *m0, const struct sockaddr *dst,
++    struct rtentry *rt)
++{
++	//printf("VM%d- cnic_output\n", rump_vmid);
++	struct cnic_softc *tp = ifp->if_softc;
++	int		s;
++	int		error = 0;
++#if defined(INET) || defined(INET6)
++	int		mlen;
++	uint32_t	*af;
++#endif
++	
++	ALTQ_DECL(struct altq_pktattr pktattr;)
++
++	s = splnet();
++	mutex_enter(&tp->cnic_lock);
++
++	if ((tp->cnic_flags & CNIC_READY) != CNIC_READY) {
++		CNICDEBUG ("%s: not ready 0%o\n", ifp->if_xname,
++			  tp->cnic_flags);
++		error = EHOSTDOWN;
++		goto out;
++	}
++	
++	/*
++	 * if the queueing discipline needs packet classification,
++	 * do it before prepending link headers.
++	 */
++	IFQ_CLASSIFY(&ifp->if_snd, m0, dst->sa_family, &pktattr);
++	
++	bpf_mtap_af(ifp, dst->sa_family, m0);
++
++	switch(dst->sa_family) {
++#ifdef INET6
++	case AF_INET6:
++#endif
++#ifdef INET
++	case AF_INET:
++#endif
++#if defined(INET) || defined(INET6)
++		if (tp->cnic_flags & CNIC_PREPADDR) {
++			/* Simple link-layer header */
++			M_PREPEND(m0, dst->sa_len, M_DONTWAIT);
++			if (m0 == NULL) {
++				IF_DROP(&ifp->if_snd);
++				error = ENOBUFS;
++				goto out;
++			}
++			bcopy(dst, mtod(m0, char *), dst->sa_len);
++		}
++
++		if (tp->cnic_flags & CNIC_IFHEAD) {
++			/* Prepend the address family */
++			M_PREPEND(m0, sizeof(*af), M_DONTWAIT);
++			if (m0 == NULL) {
++				IF_DROP(&ifp->if_snd);
++				error = ENOBUFS;
++				goto out;
++			}
++			af = mtod(m0,uint32_t *);
++			*af = htonl(dst->sa_family);
++		} else {
++#ifdef INET
++			if (dst->sa_family != AF_INET)
++#endif
++			{
++				error = EAFNOSUPPORT;
++				goto out;
++			}
++		}
++	/* FALLTHROUGH */
++	case AF_UNSPEC:
++			
++		if(!strcmp(ifp->if_xname, "cnic0")){
++			/* Copy data from m0 into test */
++			//m_copydata(m0, 0, m0->m_pkthdr.len, test);
++			cos_pktq_enqueue((void *)m0, m0->m_pkthdr.len, 1);	
++			/* kern_free */
++			m_freem(m0);
++			m0 = NULL;
++			goto out;
++		}else if(!strcmp(ifp->if_xname, "cnic1")){
++			//printf("\nSending packet from DOM0 to VM2\n");
++			cos_pktq_enqueue((void *)m0, m0->m_pkthdr.len, 2);	
++			/* kern_free */
++			m_freem(m0);
++			m0 = NULL;
++			goto out;
++		}else{
++			//printf("Sending packet from VM%d to DOM0\n", rump_vmid);
++			cos_pktq_enqueue((void *)m0, m0->m_pkthdr.len, 0);	
++			/* kern_free */
++			m_freem(m0);
++			m0 = NULL;
++			goto out;
++		}
++		
++		if (error) {
++			ifp->if_collisions++;
++			error = EAFNOSUPPORT;
++			m0 = NULL;
++			goto out;
++		}
++		
++		mlen = m0->m_pkthdr.len;
++		ifp->if_opackets++;
++		ifp->if_obytes += mlen;
++		break;
++#endif
++	default:
++		error = EAFNOSUPPORT;
++		goto out;
++	}
++
++	if (tp->cnic_flags & CNIC_RWAIT) {
++		tp->cnic_flags &= ~CNIC_RWAIT;
++		wakeup((void *)tp);
++	}
++	if (tp->cnic_flags & CNIC_ASYNC && tp->cnic_pgid){
++		softint_schedule(tp->cnic_isih);
++	}
++
++	selnotify(&tp->cnic_rsel, 0, 0);
++out:
++	mutex_exit(&tp->cnic_lock);
++	splx(s);
++
++	if (error && m0) {
++		assert(0);
++		m_freem(m0);
++	}
++	return 0;
++}
++
++static void
++cnic_i_softintr(void *cookie)
++{
++	struct cnic_softc *tp = cookie;
++
++	if (tp->cnic_flags & CNIC_ASYNC && tp->cnic_pgid)
++		fownsignal(tp->cnic_pgid, SIGIO, POLL_IN, POLLIN|POLLRDNORM,
++		    NULL);
++}
++
++static void
++cnic_o_softintr(void *cookie)
++{
++	struct cnic_softc *tp = cookie;
++
++	if (tp->cnic_flags & CNIC_ASYNC && tp->cnic_pgid)
++		fownsignal(tp->cnic_pgid, SIGIO, POLL_OUT, POLLOUT|POLLWRNORM,
++		    NULL);
++}
++
++/*
++ * the cdevsw interface is now pretty minimal.
++ */
++int
++cnicioctl(dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
++{
++	struct cnic_softc *tp;
++	int s, error = 0;
++
++	s = splnet();
++	tp = cnic_find_unit(dev);
++
++	/* interface was "destroyed" already */
++	if (tp == NULL) {
++		error = ENXIO;
++		goto out_nolock;
++	}
++
++	switch (cmd) {
++	case CNICSDEBUG:
++		cnicdebug = *(int *)data;
++		break;
++
++	case CNICGDEBUG:
++		*(int *)data = cnicdebug;
++		break;
++
++	case CNICSIFMODE:
++		switch (*(int *)data & (IFF_POINTOPOINT|IFF_BROADCAST)) {
++		case IFF_POINTOPOINT:
++		case IFF_BROADCAST:
++			if (tp->cnic_if.if_flags & IFF_UP) {
++				error = EBUSY;
++				goto out;
++			}
++			tp->cnic_if.if_flags &=
++				~(IFF_BROADCAST|IFF_POINTOPOINT|IFF_MULTICAST);
++			tp->cnic_if.if_flags |= *(int *)data;
++			break;
++		default:
++			error = EINVAL;
++			goto out;
++		}
++		break;
++
++	case CNICSLMODE:
++		if (*(int *)data) {
++			tp->cnic_flags |= CNIC_PREPADDR;
++			tp->cnic_flags &= ~CNIC_IFHEAD;
++		} else
++			tp->cnic_flags &= ~CNIC_PREPADDR;
++		break;
++
++	case CNICSIFHEAD:
++		if (*(int *)data) {
++			tp->cnic_flags |= CNIC_IFHEAD;
++			tp->cnic_flags &= ~CNIC_PREPADDR;
++		} else
++			tp->cnic_flags &= ~CNIC_IFHEAD;
++		break;
++
++	case CNICGIFHEAD:
++		*(int *)data = (tp->cnic_flags & CNIC_IFHEAD);
++		break;
++
++	case FIONBIO:
++		if (*(int *)data)
++			tp->cnic_flags |= CNIC_NBIO;
++		else
++			tp->cnic_flags &= ~CNIC_NBIO;
++		break;
++
++	case FIOASYNC:
++		if (*(int *)data)
++			tp->cnic_flags |= CNIC_ASYNC;
++		else
++			tp->cnic_flags &= ~CNIC_ASYNC;
++		break;
++
++	case FIONREAD:
++		if (tp->cnic_if.if_snd.ifq_head)
++			*(int *)data = tp->cnic_if.if_snd.ifq_head->m_pkthdr.len;
++		else
++			*(int *)data = 0;
++		break;
++
++	case TIOCSPGRP:
++	case FIOSETOWN:
++		error = fsetown(&tp->cnic_pgid, cmd, data);
++		break;
++
++	case TIOCGPGRP:
++	case FIOGETOWN:
++		error = fgetown(tp->cnic_pgid, cmd, data);
++		break;
++
++	default:
++		error = ENOTTY;
++	}
++
++out:
++	mutex_exit(&tp->cnic_lock);
++out_nolock:
++	splx(s);
++	return (error);
++}
++
++/*
++ * The cdevsw read interface - reads a packet at a time, or at
++ * least as much of a packet as can be read.
++ */
++int
++cnicread(dev_t dev, struct uio *uio, int ioflag)
++{
++	printf("cnic read\n");
++	if(1) return 0;	
++	struct cnic_softc *tp;
++	struct ifnet	*ifp;
++	struct mbuf	*m, *m0;
++	int		error = 0, len, s, index;
++
++	s = splnet();
++	tp = cnic_find_unit(dev);
++
++	/* interface was "destroyed" already */
++	if (tp == NULL) {
++		error = ENXIO;
++		goto out_nolock;
++	}
++
++	index = tp->cnic_if.if_index;
++	ifp = &tp->cnic_if;
++
++	CNICDEBUG ("%s: read\n", ifp->if_xname);
++	if ((tp->cnic_flags & CNIC_READY) != CNIC_READY) {
++		CNICDEBUG ("%s: not ready 0%o\n", ifp->if_xname, tp->cnic_flags);
++		error = EHOSTDOWN;
++		goto out;
++	}
++
++	tp->cnic_flags &= ~CNIC_RWAIT;
++	
++	do {
++		IFQ_DEQUEUE(&ifp->if_snd, m0);
++		if (m0 == 0) {
++			if (tp->cnic_flags & CNIC_NBIO) {
++				error = EWOULDBLOCK;
++				goto out;
++			}
++			tp->cnic_flags |= CNIC_RWAIT;
++			if (mtsleep((void *)tp, PZERO|PCATCH|PNORELOCK,
++					"cnicread", 0, &tp->cnic_lock) != 0) {
++				error = EINTR;
++				goto out_nolock;
++			} else {
++				/*
++				 * Maybe the interface was destroyed while
++				 * we were sleeping, so let's ensure that
++				 * we're looking at the same (valid) cnic
++				 * interface before looping.
++				 */
++				tp = cnic_find_unit(dev);
++				if (tp == NULL) {
++					error = ENXIO;
++					goto out_nolock;
++				}
++				if (tp->cnic_if.if_index != index) {
++					error = ENXIO;
++					goto out;
++				}
++			}
++		}
++	} while (m0 == 0);
++	
++	mutex_exit(&tp->cnic_lock);
++	splx(s);
++
++	/* Copy the mbuf chain */
++	while (m0 && uio->uio_resid > 0 && error == 0) {
++		len = min(uio->uio_resid, m0->m_len);
++		if (len != 0)
++			error = uiomove(mtod(m0, void *), len, uio);
++		MFREE(m0, m);
++		m0 = m;
++	}
++
++	if (m0) {
++		CNICDEBUG("Dropping mbuf\n");
++		m_freem(m0);
++	}
++	if (error)
++		ifp->if_ierrors++;
++
++	return (error);
++
++out:
++	mutex_exit(&tp->cnic_lock);
++out_nolock:
++	splx(s);
++	return (error);
++}
++
++/*
++ * the cdevsw write interface - an atomic write is a packet - or else!
++ */
++int
++cnicwrite(dev_t dev, struct uio *uio, int ioflag)
++{
++	printf("cnicwrite\n");
++	if(1) return 0;
++	
++	struct cnic_softc *tp;
++	struct ifnet	*ifp;
++	struct mbuf	*top, **mp, *m;
++	pktqueue_t	*pktq;
++	struct sockaddr	dst;
++	int		error = 0, s, tlen, mlen;
++	uint32_t	family;
++
++	s = splnet();
++	tp = cnic_find_unit(dev);
++
++	/* interface was "destroyed" already */
++	if (tp == NULL) {
++		error = ENXIO;
++		goto out_nolock;
++	}
++
++	/* Unlock until we've got the data */
++	mutex_exit(&tp->cnic_lock);
++	splx(s);
++
++	ifp = &tp->cnic_if;
++
++	CNICDEBUG("%s: cnicwrite\n", ifp->if_xname);
++
++	if (tp->cnic_flags & CNIC_PREPADDR) {
++		if (uio->uio_resid < sizeof(dst)) {
++			error = EIO;
++			goto out0;
++		}
++		error = uiomove((void *)&dst, sizeof(dst), uio);
++		if (dst.sa_len > sizeof(dst)) {
++			/* Duh.. */
++			char discard;
++			int n = dst.sa_len - sizeof(dst);
++			while (n--)
++				if ((error = uiomove(&discard, 1, uio)) != 0) {
++					goto out0;
++				}
++		}
++	} else if (tp->cnic_flags & CNIC_IFHEAD) {
++		if (uio->uio_resid < sizeof(family)){
++			error = EIO;
++			goto out0;
++		}
++		error = uiomove((void *)&family, sizeof(family), uio);
++		dst.sa_family = ntohl(family);
++	} else {
++#ifdef INET
++		dst.sa_family = AF_INET;
++#endif
++	}
++
++	if (uio->uio_resid > CNICMTU) {
++		CNICDEBUG("%s: len=%lu!\n", ifp->if_xname,
++		    (unsigned long)uio->uio_resid);
++		error = EIO;
++		goto out0;
++	}
++
++	switch (dst.sa_family) {
++#ifdef INET
++	case AF_INET:
++		pktq = ip_pktq;
++		break;
++#endif
++#ifdef INET6
++	case AF_INET6:
++		pktq = ip6_pktq;
++		break;
++#endif
++	default:
++		error = EAFNOSUPPORT;
++		goto out0;
++	}
++
++	tlen = uio->uio_resid;
++
++	/* get a header mbuf */
++	MGETHDR(m, M_DONTWAIT, MT_DATA);
++	if (m == NULL) {
++		error = ENOBUFS;
++		goto out0;
++	}
++	mlen = MHLEN;
++
++	top = NULL;
++	mp = &top;
++	while (error == 0 && uio->uio_resid > 0) {
++		m->m_len = min(mlen, uio->uio_resid);
++		error = uiomove(mtod(m, void *), m->m_len, uio);
++		*mp = m;
++		mp = &m->m_next;
++		if (error == 0 && uio->uio_resid > 0) {
++			MGET(m, M_DONTWAIT, MT_DATA);
++			if (m == NULL) {
++				error = ENOBUFS;
++				break;
++			}
++			mlen = MLEN;
++		}
++	}
++	if (error) {
++		if (top != NULL)
++			m_freem (top);
++		ifp->if_ierrors++;
++		goto out0;
++	}
++	
++	top->m_pkthdr.len = tlen;
++	top->m_pkthdr.rcvif = ifp;
++
++	bpf_mtap_af(ifp, dst.sa_family, top);
++
++	s = splnet();
++	mutex_enter(&tp->cnic_lock);
++	if ((tp->cnic_flags & CNIC_INITED) == 0) {
++		/* Interface was destroyed */
++		error = ENXIO;
++		goto out;
++	}
++
++	if (__predict_false(!pktq_enqueue(pktq, top, 0))) {
++		ifp->if_collisions++;
++		mutex_exit(&tp->cnic_lock);
++		error = ENOBUFS;
++		m_freem(top);
++		goto out_nolock;
++	}
++	ifp->if_ipackets++;
++	ifp->if_ibytes += tlen;
++out:
++	mutex_exit(&tp->cnic_lock);
++out_nolock:
++	splx(s);
++out0:
++	return (error);
++}
++
++#ifdef ALTQ
++/*
++ * Start packet transmission on the interface.
++ * when the interface queue is rate-limited by ALTQ or TBR,
++ * if_start is needed to drain packets from the queue in order
++ * to notify readers when outgoing packets become ready.
++ *
++ * Should be called at splnet.
++ */
++static void
++cnicstart(struct ifnet *ifp)
++{
++	struct cnic_softc *tp = ifp->if_softc;
++
++	if (!ALTQ_IS_ENABLED(&ifp->if_snd) && !TBR_IS_ENABLED(&ifp->if_snd))
++		return;
++
++	mutex_enter(&tp->cnic_lock);
++	if (!IF_IS_EMPTY(&ifp->if_snd)) {
++		if (tp->cnic_flags & CNIC_RWAIT) {
++			tp->cnic_flags &= ~CNIC_RWAIT;
++			wakeup((void *)tp);
++		}
++		if (tp->cnic_flags & CNIC_ASYNC && tp->cnic_pgid)
++			softint_schedule(tp->cnic_osih);
++
++		selnotify(&tp->cnic_rsel, 0, 0);
++	}
++	mutex_exit(&tp->cnic_lock);
++}
++#endif /* ALTQ */
++/*
++ * cnicpoll - the poll interface, this is only useful on reads
++ * really. The write detect always returns true, write never blocks
++ * anyway, it either accepts the packet or drops it.
++ */
++int
++cnicpoll(dev_t dev, int events, struct lwp *l)
++{
++	struct cnic_softc *tp;
++	struct ifnet	*ifp;
++	int		s, revents = 0;
++
++	s = splnet();
++	tp = cnic_find_unit(dev);
++
++	/* interface was "destroyed" already */
++	if (tp == NULL)
++		goto out_nolock;
++
++	ifp = &tp->cnic_if;
++
++	CNICDEBUG("%s: cnicpoll\n", ifp->if_xname);
++
++	if (events & (POLLIN | POLLRDNORM)) {
++		if (!IFQ_IS_EMPTY(&ifp->if_snd)) {
++			CNICDEBUG("%s: cnicpoll q=%d\n", ifp->if_xname,
++			    ifp->if_snd.ifq_len);
++			revents |= events & (POLLIN | POLLRDNORM);
++		} else {
++			CNICDEBUG("%s: cnicpoll waiting\n", ifp->if_xname);
++			selrecord(l, &tp->cnic_rsel);
++		}
++	}
++
++	if (events & (POLLOUT | POLLWRNORM))
++		revents |= events & (POLLOUT | POLLWRNORM);
++
++	mutex_exit(&tp->cnic_lock);
++out_nolock:
++	splx(s);
++	return (revents);
++}
++
++static void
++filt_cnicrdetach(struct knote *kn)
++{
++	struct cnic_softc *tp = kn->kn_hook;
++	int s;
++
++	s = splnet();
++	SLIST_REMOVE(&tp->cnic_rsel.sel_klist, kn, knote, kn_selnext);
++	splx(s);
++}
++
++static int
++filt_cnicread(struct knote *kn, long hint)
++{
++	struct cnic_softc *tp = kn->kn_hook;
++	struct ifnet *ifp = &tp->cnic_if;
++	struct mbuf *m;
++	int s;
++
++	s = splnet();
++	IF_POLL(&ifp->if_snd, m);
++	if (m == NULL) {
++		splx(s);
++		return (0);
++	}
++
++	for (kn->kn_data = 0; m != NULL; m = m->m_next)
++		kn->kn_data += m->m_len;
++
++	splx(s);
++	return (1);
++}
++
++static const struct filterops cnicread_filtops =
++	{ 1, NULL, filt_cnicrdetach, filt_cnicread };
++
++static const struct filterops cnic_seltrue_filtops =
++	{ 1, NULL, filt_cnicrdetach, filt_seltrue };
++
++int
++cnickqfilter(dev_t dev, struct knote *kn)
++{
++	struct cnic_softc *tp;
++	struct klist *klist;
++	int rv = 0, s;
++
++	s = splnet();
++	tp = cnic_find_unit(dev);
++	if (tp == NULL)
++		goto out_nolock;
++
++	switch (kn->kn_filter) {
++	case EVFILT_READ:
++		klist = &tp->cnic_rsel.sel_klist;
++		kn->kn_fop = &cnicread_filtops;
++		break;
++
++	case EVFILT_WRITE:
++		klist = &tp->cnic_rsel.sel_klist;
++		kn->kn_fop = &cnic_seltrue_filtops;
++		break;
++
++	default:
++		rv = EINVAL;
++		goto out;
++	}
++
++	kn->kn_hook = tp;
++
++	SLIST_INSERT_HEAD(klist, kn, kn_selnext);
++
++out:
++	mutex_exit(&tp->cnic_lock);
++out_nolock:
++	splx(s);
++	return (rv);
++}
++
++
++extern int vmid;
++
++//For rcving from DOM0
++extern unsigned int rump_dom0_rcv;
++int 
++cnic_vk_intr_0(void * arg)
++{
++	//printf("VM%d- packet recieved from DOM0\n", rump_vmid);
++	struct cnic_softc* tp = arg;
++	cnic_vk_dequeue(tp, 0);	
++	return 1;
++}
++
++//For rcving from VM1
++int 
++cnic_vk_intr_1(void * arg)
++{
++	//printf("VM%d- packet recieved from VM1\n", rump_vmid);
++	struct cnic_softc* tp = arg;
++	cnic_vk_dequeue(tp, 1);
++	return 1;
++}
++
++
++//For rcving from VM2
++int 
++cnic_vk_intr_2(void * arg)
++{
++	//printf("VM%d- packet recieved from VM2\n", rump_vmid);
++	struct cnic_softc* tp = arg;
++	cnic_vk_dequeue(tp, 2);	
++	return 1;
++}
++
++int
++cnic_vk_dequeue(struct cnic_softc* tp, int srcvm)
++{
++	struct ifnet * ifp = &tp->cnic_if;
++
++	//alloc+dequeue mbuf
++	struct mbuf *m;
++	void *pktdata;
++	int size;
++	
++	/* Handle all packets until we are ring_buffer is empty */
++	size = cos_pktq_dequeue_size(srcvm);
++	pktdata = cos_pktq_dequeue(srcvm, size);
++	while (pktdata) {
++		/* pktdata is valid, size better not be 0*/
++		assert(size > 0);
++		
++		MGETHDR(m, M_NOWAIT, MT_DATA);
++		assert(m != NULL);
++		MEXTADD(m, pktdata, size, m_MBUF, NULL, NULL);
++		assert(m->m_data != NULL);
++		
++		/* set mbuf ifnet to passed in arg from intr */
++		m->m_pkthdr.rcvif = ifp;
++		m->m_len = m->m_pkthdr.len = size;
++		ifp->if_ipackets++;
++		ifp->if_flags |= IFF_RUNNING;
++		ifp->if_flags |= IFF_UP;
++		
++		/* Pass it off to a function that can get the packet into the networking stack */
++		(*ifp->if_input)(ifp, m);
++
++		size = cos_pktq_dequeue_size(srcvm);
++		pktdata = cos_pktq_dequeue(srcvm, size);
++	}
++	assert (pktdata == NULL);
++
++	return 1;
++}
++
++static void
++cnic_input(struct ifnet *unused, struct mbuf *m)
++{ 
++	if (__predict_false(!pktq_enqueue(ip_pktq, m, 0))) {
++		m_freem(m);
++	}
++}
+diff --git a/sys/net/if_cnic.h b/sys/net/if_cnic.h
+new file mode 100644
+index 0000000..3dc220c
+--- /dev/null
++++ b/sys/net/if_cnic.h
+@@ -0,0 +1,44 @@
++#ifndef _NET_IF_CNIC_H_
++#define _NET_IF_CNIC_H_
++
++#ifdef _KERNEL
++struct cnic_softc {
++	struct	ifnet cnic_if;		/* the interface */
++
++	u_short	cnic_flags;		/* misc flags */
++#define	CNIC_OPEN	0x0001
++#define	CNIC_INITED	0x0002
++#define	CNIC_RCOLL	0x0004
++#define	CNIC_IASET	0x0008
++#define	CNIC_DSTADDR	0x0010
++#define	CNIC_RWAIT	0x0040
++#define	CNIC_ASYNC	0x0080
++#define	CNIC_NBIO	0x0100
++#define	CNIC_PREPADDR	0x0200
++#define	CNIC_IFHEAD	0x0400
++
++#define	CNIC_READY	(CNIC_OPEN | CNIC_INITED | CNIC_IASET)
++
++	pid_t	cnic_pgid;		/* PID or process group ID */
++	struct	selinfo	cnic_rsel;	/* read select */
++	struct	selinfo	cnic_wsel;	/* write select (not used) */
++	int	cnic_unit;		/* the tunnel unit number */
++	kmutex_t cnic_lock;		/* lock for this tunnel */
++	LIST_ENTRY(cnic_softc) cnic_list;	/* list of all tuns */
++	void	*cnic_osih;		/* soft interrupt handle */
++	void	*cnic_isih;		/* soft interrupt handle */
++};
++#endif	/* _KERNEL */
++
++/* Maximum packet size */
++#define	CNICMTU		1500
++
++/* ioctl's for get/set debug */
++#define	CNICSDEBUG	_IOW('t', 90, int)
++#define	CNICGDEBUG	_IOR('t', 89, int)
++#define	CNICSIFMODE	_IOW('t', 88, int)
++#define	CNICSLMODE	_IOW('t', 87, int)
++#define	CNICSIFHEAD	_IOW('t', 66, int)
++#define	CNICGIFHEAD	_IOR('t', 65, int)
++
++#endif /* !_NET_IF_TUN_H_ */
+diff --git a/sys/net/pktqueue.c b/sys/net/pktqueue.c
+index cf3f96d..5549b72 100644
+--- a/sys/net/pktqueue.c
++++ b/sys/net/pktqueue.c
+@@ -48,9 +48,10 @@ __KERNEL_RCSID(0, "$NetBSD: pktqueue.c,v 1.8 2014/07/04 01:50:22 ozaki-r Exp $")
+ #include <sys/mbuf.h>
+ #include <sys/proc.h>
+ #include <sys/percpu.h>
+-
+ #include <net/pktqueue.h>
+-
++#include <rump/rumpuser.h>
++#include "../../../platform/cos/cosrun.h"
++extern int rump_vmid;
+ /*
+  * WARNING: update this if struct pktqueue changes.
+  */
+@@ -107,6 +108,7 @@ pktq_create(size_t maxlen, void (*intrh)(void *), void *sc)
+ 	if ((pc = percpu_alloc(sizeof(pktq_counters_t))) == NULL) {
+ 		return NULL;
+ 	}
++	
+ 	if ((sih = softint_establish(sflags, intrh, sc)) == NULL) {
+ 		percpu_free(pc, sizeof(pktq_counters_t));
+ 		return NULL;
+@@ -197,7 +199,6 @@ pktq_rps_hash(const struct mbuf *m __unused)
+ 	 */
+ 	return 0;
+ }
+-
+ /*
+  * pktq_enqueue: inject the packet into the end of the queue.
+  *
+@@ -205,6 +206,17 @@ pktq_rps_hash(const struct mbuf *m __unused)
+  * => Consumes the packet and returns true on success.
+  * => Returns false on failure; caller is responsible to free the packet.
+  */
++
++bool
++cos_pktq_enqueue(struct mbuf *m, int size, int to_vmid)
++{
++	KASSERT(kpreempt_disabled());
++
++	/* TODO */
++	
++	return true;
++}
++
+ bool
+ pktq_enqueue(pktqueue_t *pq, struct mbuf *m, const u_int hash __unused)
+ {
+@@ -213,7 +225,6 @@ pktq_enqueue(pktqueue_t *pq, struct mbuf *m, const u_int hash __unused)
+ #else
+ 	const unsigned cpuid = hash % ncpu;
+ #endif
+-
+ 	KASSERT(kpreempt_disabled());
+ 
+ 	if (__predict_false(!pcq_put(pq->pq_queue[cpuid], m))) {
+@@ -225,22 +236,38 @@ pktq_enqueue(pktqueue_t *pq, struct mbuf *m, const u_int hash __unused)
+ 	return true;
+ }
+ 
++int
++cos_pktq_dequeue_size(int srcvm)
++{ 
++	/* TODO */
++	return -1;
++}
++
+ /*
+  * pktq_dequeue: take a packet from the queue.
+  *
+  * => Must be called with preemption disabled.
+  * => Must ensure there are not concurrent dequeue calls.
+  */
++
++void *
++cos_pktq_dequeue(int srcvm, int size)
++{
++	/* TODO */
++	
++	return NULL;	
++}
++
+ struct mbuf *
+ pktq_dequeue(pktqueue_t *pq)
+ {
+ 	const struct cpu_info *ci = curcpu();
+ 	const unsigned cpuid = cpu_index(ci);
+ 	struct mbuf *m;
+-
++	
+ 	m = pcq_get(pq->pq_queue[cpuid]);
+ 	if (__predict_false(m == PKTQ_MARKER)) {
+-		/* Note the marker entry. */
++		// Note the marker entry. 
+ 		atomic_inc_uint(&pq->pq_barrier);
+ 		return NULL;
+ 	}
+diff --git a/sys/net/pktqueue.h b/sys/net/pktqueue.h
+index c50d8c2..842fcfd 100644
+--- a/sys/net/pktqueue.h
++++ b/sys/net/pktqueue.h
+@@ -48,7 +48,10 @@ pktqueue_t *	pktq_create(size_t, void (*)(void *), void *);
+ void		pktq_destroy(pktqueue_t *);
+ 
+ bool		pktq_enqueue(pktqueue_t *, struct mbuf *, const u_int);
++bool		cos_pktq_enqueue(struct mbuf *m, int size, int to_vmid);
+ struct mbuf *	pktq_dequeue(pktqueue_t *);
++void *		cos_pktq_dequeue(int srcvm, int size);
++int 		cos_pktq_dequeue_size(int srcvm);
+ void		pktq_barrier(pktqueue_t *);
+ void		pktq_flush(pktqueue_t *);
+ int		pktq_set_maxlen(pktqueue_t *, size_t);
+diff --git a/sys/netinet/ip_icmp.c b/sys/netinet/ip_icmp.c
+index 3531ce2..58df697 100644
+--- a/sys/netinet/ip_icmp.c
++++ b/sys/netinet/ip_icmp.c
+@@ -217,6 +217,7 @@ void
+ icmp_error(struct mbuf *n, int type, int code, n_long dest,
+     int destmtu)
+ {
++	//printf("icmp_error\n");
+ 	struct ip *oip = mtod(n, struct ip *), *nip;
+ 	unsigned oiplen = oip->ip_hl << 2;
+ 	struct icmp *icp;
+@@ -381,9 +382,12 @@ struct sockaddr_in icmpmask = {
+ /*
+  * Process a received ICMP message.
+  */
++extern int rump_dom0_rcv;
++extern int rump_vmid;
+ void
+ icmp_input(struct mbuf *m, ...)
+ {
++//	printf("VM%d- icmp_input\n", rump_vmid);	
+ 	int proto;
+ 	struct icmp *icp;
+ 	struct ip *ip = mtod(m, struct ip *);
+@@ -400,7 +404,6 @@ icmp_input(struct mbuf *m, ...)
+ 	hlen = va_arg(ap, int);
+ 	proto = va_arg(ap, int);
+ 	va_end(ap);
+-
+ 	/*
+ 	 * Locate icmp structure in mbuf, and check
+ 	 * that not corrupted and of at least minimum length.
+@@ -414,6 +417,7 @@ icmp_input(struct mbuf *m, ...)
+ 		    icmplen);
+ 	}
+ #endif
++	
+ 	if (icmplen < ICMP_MINLEN) {
+ 		ICMP_STATINC(ICMP_STAT_TOOSHORT);
+ 		goto freeit;
+@@ -677,6 +681,7 @@ freeit:
+ void
+ icmp_reflect(struct mbuf *m)
+ {
++	//printf("VM%d- icmp_reflect\n", rump_vmid);
+ 	struct ip *ip = mtod(m, struct ip *);
+ 	struct in_ifaddr *ia;
+ 	struct ifaddr *ifa;
+@@ -907,10 +912,11 @@ icmp_send(struct mbuf *m, struct mbuf *opts)
+ #ifdef ICMPPRINTFS
+ 	if (icmpprintfs) {
+ 		char sbuf[INET_ADDRSTRLEN], dbuf[INET_ADDRSTRLEN];
+-		printf("icmp_send to destination `%s' from `%s'\n",
+-		    IN_PRINT(dbuf, &ip->ip_dst), IN_PRINT(sbuf, &ip->ip_src));
++		printf("VM%d- icmp_send to destination '%s' from '%s'\n",rump_vmid,	
++    		IN_PRINT(dbuf, &ip->ip_dst), IN_PRINT(sbuf, &ip->ip_src));
+ 	}
+ #endif
++	
+ 	(void)ip_output(m, opts, NULL, 0, NULL, NULL);
+ }
+ 
+diff --git a/sys/netinet/ip_input.c b/sys/netinet/ip_input.c
+index b6200ce..3181493 100644
+--- a/sys/netinet/ip_input.c
++++ b/sys/netinet/ip_input.c
+@@ -135,6 +135,7 @@ __KERNEL_RCSID(0, "$NetBSD: ip_input.c,v 1.322 2015/05/02 20:22:12 joerg Exp $")
+ #include <netinet/in_gif.h>
+ #include "gif.h"
+ #include <net/if_gre.h>
++
+ #include "gre.h"
+ 
+ #ifdef MROUTING
+@@ -297,10 +298,10 @@ void
+ ip_init(void)
+ {
+ 	const struct protosw *pr;
+-
++	
+ 	in_init();
+ 	sysctl_net_inet_ip_setup(NULL);
+-
++	
+ 	pr = pffindproto(PF_INET, IPPROTO_RAW, SOCK_RAW);
+ 	KASSERT(pr != NULL);
+ 
+@@ -338,14 +339,15 @@ ip_init(void)
+ 	ipstat_percpu = percpu_alloc(sizeof(uint64_t) * IP_NSTATS);
+ }
+ 
++extern int rump_vmid;
++
+ /*
+  * IP software interrupt routine.
+  */
+-static void
++void
+ ipintr(void *arg __unused)
+ {
+ 	struct mbuf *m;
+-
+ 	KASSERT(cpu_softintr_p());
+ 
+ 	mutex_enter(softnet_lock);
+@@ -373,11 +375,10 @@ ip_input(struct mbuf *m)
+ 
+ 	KASSERTMSG(cpu_softintr_p(), "ip_input: not in the software "
+ 	    "interrupt handler; synchronization assumptions violated");
+-
+ 	MCLAIM(m, &ip_rx_mowner);
+ 	KASSERT((m->m_flags & M_PKTHDR) != 0);
+ 	ifp = m->m_pkthdr.rcvif;
+-
++	
+ 	/*
+ 	 * If no IP addresses have been set yet but the interfaces
+ 	 * are receiving, can't do anything with incoming packets yet.
+@@ -386,8 +387,8 @@ ip_input(struct mbuf *m)
+ 	if (!TAILQ_FIRST(&in_ifaddrhead)) {
+ 		goto bad;
+ 	}
++	
+ 	IP_STATINC(IP_STAT_TOTAL);
+-
+ 	/*
+ 	 * If the IP header is not aligned, slurp it up into a new
+ 	 * mbuf with space for link headers, in the event we forward
+@@ -407,11 +408,14 @@ ip_input(struct mbuf *m)
+ 			return;
+ 		}
+ 	}
++	
+ 	ip = mtod(m, struct ip *);
++	
+ 	if (ip->ip_v != IPVERSION) {
+ 		IP_STATINC(IP_STAT_BADVERS);
+ 		goto bad;
+ 	}
++	
+ 	hlen = ip->ip_hl << 2;
+ 	if (hlen < sizeof(struct ip)) {	/* minimum header length */
+ 		IP_STATINC(IP_STAT_BADHLEN);
+@@ -424,7 +428,6 @@ ip_input(struct mbuf *m)
+ 		}
+ 		ip = mtod(m, struct ip *);
+ 	}
+-
+ 	/*
+ 	 * RFC1122: packets with a multicast source address are
+ 	 * not allowed.
+@@ -442,7 +445,7 @@ ip_input(struct mbuf *m)
+ 			goto bad;
+ 		}
+ 	}
+-
++	
+ 	switch (m->m_pkthdr.csum_flags &
+ 		((ifp->if_csum_flags_rx & M_CSUM_IPv4) |
+ 		 M_CSUM_IPv4_BAD)) {
+@@ -463,15 +466,16 @@ ip_input(struct mbuf *m)
+ 		if (__predict_true(!(ifp->if_flags & IFF_LOOPBACK) ||
+ 		    ip_do_loopback_cksum)) {
+ 			INET_CSUM_COUNTER_INCR(&ip_swcsum);
+-			if (in_cksum(m, hlen) != 0)
++			if (in_cksum(m, hlen) != 0){
+ 				goto badcsum;
++			}
+ 		}
+ 		break;
+ 	}
+ 
+ 	/* Retrieve the packet length. */
+ 	len = ntohs(ip->ip_len);
+-
++	
+ 	/*
+ 	 * Check for additional length bogosity
+ 	 */
+@@ -608,8 +612,11 @@ ip_input(struct mbuf *m)
+ 				downmatch++;
+ 		}
+ 	}
+-	if (ia != NULL)
++	
++	if (ia != NULL) {
+ 		goto ours;
++	}
++	
+ 	if (ifp->if_flags & IFF_BROADCAST) {
+ 		IFADDR_FOREACH(ifa, ifp) {
+ 			if (ifa->ifa_addr->sa_family != AF_INET)
+@@ -624,14 +631,17 @@ ip_input(struct mbuf *m)
+ 			     * either for subnet or net.
+ 			     */
+ 			    ip->ip_dst.s_addr == ia->ia_subnet ||
+-			    ip->ip_dst.s_addr == ia->ia_net)
++			    ip->ip_dst.s_addr == ia->ia_net) {
++				
+ 				goto ours;
+ 			/*
+ 			 * An interface with IP address zero accepts
+ 			 * all packets that arrive on that interface.
+ 			 */
+-			if (in_nullhost(ia->ia_addr.sin_addr))
++			}
++			if (in_nullhost(ia->ia_addr.sin_addr)) {
+ 				goto ours;
++			}
+ 		}
+ 	}
+ 	if (IN_MULTICAST(ip->ip_dst.s_addr)) {
+@@ -683,8 +693,9 @@ ip_input(struct mbuf *m)
+ 		goto ours;
+ 	}
+ 	if (ip->ip_dst.s_addr == INADDR_BROADCAST ||
+-	    in_nullhost(ip->ip_dst))
++	    in_nullhost(ip->ip_dst)) {
+ 		goto ours;
++	}
+ 
+ 	/*
+ 	 * Not for us; forward if possible and desirable.
+@@ -721,6 +732,7 @@ ip_input(struct mbuf *m)
+ 	return;
+ 
+ ours:
++	
+ 	/*
+ 	 * If offset or IP_MF are set, must reassemble.
+ 	 */
+@@ -777,10 +789,12 @@ ours:
+ 	SOFTNET_UNLOCK();
+ 	return;
+ bad:
++	printf("VM%d ip_input bad packet\n", rump_vmid);
+ 	m_freem(m);
+ 	return;
+ 
+ badcsum:
++	printf("bad checksum\n");	
+ 	IP_STATINC(IP_STAT_BADSUM);
+ 	m_freem(m);
+ }
+@@ -1035,6 +1049,7 @@ ip_dooptions(struct mbuf *m)
+ 			code = ICMP_UNREACH_SRCFAIL;
+ 			goto bad;
+ 		}
++		printf("ip_input calling ip_forward %d\n", __LINE__);
+ 		ip_forward(m, 1);
+ 		return true;
+ 	}
+@@ -1270,6 +1285,7 @@ ip_forward(struct mbuf *m, int srcrt)
+ 		}
+ 	}
+ 
++	if(rump_vmid == 1) printf("VM%d- ip_forward\n", rump_vmid);	
+ 	error = ip_output(m, NULL, &ipforward_rt,
+ 	    (IP_FORWARDING | (ip_directedbcast ? IP_ALLOWBROADCAST : 0)),
+ 	    NULL, NULL);
+diff --git a/sys/netinet/ip_output.c b/sys/netinet/ip_output.c
+index 36f9ad1..5192d0b 100644
+--- a/sys/netinet/ip_output.c
++++ b/sys/netinet/ip_output.c
+@@ -113,7 +113,7 @@ __KERNEL_RCSID(0, "$NetBSD: ip_output.c,v 1.238 2015/04/27 10:14:44 ozaki-r Exp
+ #include <net/if.h>
+ #include <net/route.h>
+ #include <net/pfil.h>
+-
++#include <net/pktqueue.h>
+ #include <netinet/in.h>
+ #include <netinet/in_systm.h>
+ #include <netinet/ip.h>
+@@ -154,9 +154,12 @@ int	ip_do_loopback_cksum = 0;
+  * The mbuf chain containing the packet will be freed.
+  * The mbuf opt, if present, will not be freed.
+  */
++extern int rump_vmid;
++
+ int
+ ip_output(struct mbuf *m0, ...)
+ {
++//	printf("VM%d- ip_output\n", rump_vmid);
+ 	struct rtentry *rt;
+ 	struct ip *ip;
+ 	struct ifnet *ifp;
+@@ -183,6 +186,7 @@ ip_output(struct mbuf *m0, ...)
+ 		struct sockaddr		dst;
+ 		struct sockaddr_in	dst4;
+ 	} u;
++	
+ 	struct sockaddr *rdst = &u.dst;	/* real IP destination, as opposed
+ 					 * to the nexthop
+ 					 */
+@@ -208,8 +212,9 @@ ip_output(struct mbuf *m0, ...)
+ 		if (len >= sizeof(struct ip))
+ 			hlen = len;
+ 	}
++	
+ 	ip = mtod(m, struct ip *);
+-
++	
+ 	/*
+ 	 * Fill in IP header.
+ 	 */
+@@ -222,7 +227,6 @@ ip_output(struct mbuf *m0, ...)
+ 	} else {
+ 		hlen = ip->ip_hl << 2;
+ 	}
+-
+ 	/*
+ 	 * Route packet.
+ 	 */
+@@ -242,7 +246,6 @@ ip_output(struct mbuf *m0, ...)
+ 	if (dst && (dst->sin_family != AF_INET ||
+ 	    !in_hosteq(dst->sin_addr, ip->ip_dst)))
+ 		rtcache_free(ro);
+-
+ 	if ((rt = rtcache_validate(ro)) == NULL &&
+ 	    (rt = rtcache_update(ro, 1)) == NULL) {
+ 		dst = &u.dst4;
+@@ -509,7 +512,6 @@ sendit:
+ 	 */
+ 	INADDR_TO_IA(ip->ip_src, ia);
+ #endif
+-
+ 	/* Maybe skip checksums on loopback interfaces. */
+ 	if (IN_NEED_CHECKSUM(ifp, M_CSUM_IPv4)) {
+ 		m->m_pkthdr.csum_flags |= M_CSUM_IPv4;
+@@ -659,6 +661,7 @@ done:
+ #endif
+ 	return error;
+ bad:
++	printf("VM%d- ip_output, bad packet\n");
+ 	m_freem(m);
+ 	goto done;
+ }
+@@ -854,7 +857,6 @@ ip_insertoptions(struct mbuf *m, struct mbuf *opt, int *phlen)
+ 	struct mbuf *n;
+ 	struct ip *ip = mtod(m, struct ip *);
+ 	unsigned optlen;
+-
+ 	optlen = opt->m_len - sizeof(p->ipopt_dst);
+ 	if (optlen + ntohs(ip->ip_len) > IP_MAXPACKET)
+ 		return (m);		/* XXX should fail */
+diff --git a/sys/rump/dev/lib/libpci/Makefile b/sys/rump/dev/lib/libpci/Makefile
+index dab23f9..b7fe95c 100644
+--- a/sys/rump/dev/lib/libpci/Makefile
++++ b/sys/rump/dev/lib/libpci/Makefile
+@@ -29,18 +29,29 @@ CPPFLAGS+= -I${RUMPTOP}/librump/rumpvfs
+ .error RUMP_PCI_IOSPACE defined in Makefile.  Use userfeatures.h instead.
+ .endif
+ 
+-.PATH:			${RUMPCOMP_USER_PATH.rumpdev_pci}
++MYPATH=                 ${RUMPCOMP_USER_PATH.rumpdev_pci}
++MYPATH+=                ${RUMPCOMP_USER_PATH_rumpdev_pci}
++.PATH:                  ${MYPATH}
+ RUMPCOMP_USER_SRCS=	${RUMPCOMP_USER_SRCS.rumpdev_pci}
++RUMPCOMP_USER_SRCS+=	${RUMPCOMP_USER_SRCS_rumpdev_pci}
+ MYDIR:=			${.PARSEDIR}
+ RUMPCOMP_USER_CPPFLAGS=	-I${MYDIR}
+ RUMPCOMP_USER_CPPFLAGS+=${RUMPCOMP_USER_CPPFLAGS.rumpdev_pci}
++RUMPCOMP_USER_CPPFLAGS+=${RUMPCOMP_USER_CPPFLAGS_rumpdev_pci}
+ RUMPCOMP_USER_CFLAGS=	${RUMPCOMP_USER_CFLAGS.rumpdev_pci}
++RUMPCOMP_USER_CFLAGS+=	${RUMPCOMP_USER_CFLAGS_rumpdev_pci}
+ 
+ CPPFLAGS+=		${RUMPCOMP_CPPFLAGS.rumpdev_pci}
++CPPFLAGS+=		${RUMPCOMP_CPPFLAGS_rumpdev_pci}
+ 
+ # XXX: messy
+ .undef RUMPKERN_ONLY
+ 
++.ifdef RUMPCOMP_MAKEFILEINC_rumpdev_pci
++.warning RUMPCOMP_MAKEFILEINC interface is unstable and may change
++.include "${RUMPCOMP_MAKEFILEINC_rumpdev_pci}"
++.endif
++
+ .include "${RUMPTOP}/Makefile.rump"
+ .include <bsd.lib.mk>
+ .include <bsd.klinks.mk>
+diff --git a/sys/rump/dev/lib/libpci/pci_user.h b/sys/rump/dev/lib/libpci/pci_user.h
+index a683f88..214dcba 100644
+--- a/sys/rump/dev/lib/libpci/pci_user.h
++++ b/sys/rump/dev/lib/libpci/pci_user.h
+@@ -9,7 +9,7 @@
+  *	must be provided.
+  */
+ 
+-#include "rumpcomp_userfeatures_pci.h"
++#include "../../../../../../platform/cos/pci/rumpcomp_userfeatures_pci.h"
+ 
+ void *rumpcomp_pci_map(unsigned long, unsigned long);
+ int rumpcomp_pci_confread(unsigned, unsigned, unsigned, int, unsigned int *);
+diff --git a/sys/rump/librump/rumpkern/intr.c b/sys/rump/librump/rumpkern/intr.c
+index 434326b..b99b584 100644
+--- a/sys/rump/librump/rumpkern/intr.c
++++ b/sys/rump/librump/rumpkern/intr.c
+@@ -276,6 +276,8 @@ rump_intr_init(int numcpu)
+ 	ncpu_final = numcpu;
+ }
+ 
++extern int rump_vmid;
++
+ void
+ softint_init(struct cpu_info *ci)
+ {
+@@ -318,9 +320,11 @@ softint_init(struct cpu_info *ci)
+ 	}
+ 
+ 	/* well, not really a "soft" interrupt ... */
+-	if ((rv = kthread_create(PRI_NONE, KTHREAD_MPSAFE,
+-	    ci, doclock, NULL, NULL, "rumpclk%d", ci->ci_index)) != 0)
+-		panic("clock thread creation failed: %d", rv);
++	if (rump_vmid == 0) {
++		if ((rv = kthread_create(PRI_NONE, KTHREAD_MPSAFE,
++		    ci, doclock, NULL, NULL, "rumpclk%d", ci->ci_index)) != 0)
++			panic("clock thread creation failed: %d", rv);
++	}
+ 
+ 	/* not one either, but at least a softint helper */
+ 	rumpuser_mutex_init(&sicpumtx, RUMPUSER_MTX_SPIN);
+@@ -399,6 +403,7 @@ softint_schedule(void *arg)
+ void
+ softint_schedule_cpu(void *arg, struct cpu_info *ci_tgt)
+ {
++
+ 	struct softint *si = arg;
+ 	struct cpu_info *ci_cur = curcpu();
+ 	struct softint_percpu *sip;
+diff --git a/sys/rump/librump/rumpkern/rump.c b/sys/rump/librump/rumpkern/rump.c
+index 22dc71f..3f8bc8d 100644
+--- a/sys/rump/librump/rumpkern/rump.c
++++ b/sys/rump/librump/rumpkern/rump.c
+@@ -246,7 +246,9 @@ rump_init(void)
+ 	long nsec;
+ 	struct lwp *l, *initlwp;
+ 	int i, numcpu;
+-
++	extern int rump_vmid;
++	
++	rumpuser_dprintf("rump_init, vmid: %d\n", rump_vmid);
+ 	/* not reentrant */
+ 	if (rump_inited)
+ 		return 0;
+diff --git a/sys/rump/librump/rumpvfs/rump_vfs.c b/sys/rump/librump/rumpvfs/rump_vfs.c
+index beeefde..eea8d7d 100644
+--- a/sys/rump/librump/rumpvfs/rump_vfs.c
++++ b/sys/rump/librump/rumpvfs/rump_vfs.c
+@@ -95,7 +95,8 @@ RUMP_COMPONENT(RUMP__FACTION_VFS)
+ 	extern struct vfsops rumpfs_vfsops;
+ 	char buf[64];
+ 	char *mbase;
+-	int rv, i;
++	int i;
++	//int rv;
+ 
+ 	/* initialize indirect interfaces */
+ 	rump_vfs_fini = fini;
+@@ -145,9 +146,10 @@ RUMP_COMPONENT(RUMP__FACTION_VFS)
+ 	rump_proc_vfs_release = pvfs_rele;
+ 
+ 	if (rump_threads) {
+-		if ((rv = kthread_create(PRI_IOFLUSH, KTHREAD_MPSAFE, NULL,
+-		    sched_sync, NULL, NULL, "ioflush")) != 0)
+-			panic("syncer thread create failed: %d", rv);
++		/* RG fuck that thread */
++		//if ((rv = kthread_create(PRI_IOFLUSH, KTHREAD_MPSAFE, NULL,
++		//    sched_sync, NULL, NULL, "ioflush")) != 0)
++		//	panic("syncer thread create failed: %d", rv);
+ 	} else {
+ 		syncdelay = 0;
+ 	}
+diff --git a/sys/rump/net/lib/libtap/Makefile b/sys/rump/net/lib/libtap/Makefile
+index c475477..012e2c0 100644
+--- a/sys/rump/net/lib/libtap/Makefile
++++ b/sys/rump/net/lib/libtap/Makefile
+@@ -6,6 +6,8 @@
+ LIB=	rumpnet_tap
+ 
+ SRCS=	if_tap.c
++#RG addition to support tun devices within tap component
++SRCS+=  if_cnic.c
+ 
+ SRCS+=	tap_component.c
+ 
+diff --git a/sys/rump/net/lib/libtap/tap_component.c b/sys/rump/net/lib/libtap/tap_component.c
+index 6d9a1f5..f0b4559 100644
+--- a/sys/rump/net/lib/libtap/tap_component.c
++++ b/sys/rump/net/lib/libtap/tap_component.c
+@@ -36,29 +36,64 @@ __KERNEL_RCSID(0, "$NetBSD: tap_component.c,v 1.1 2015/05/29 12:32:23 pooka Exp
+ #include "rump_net_private.h"
+ #include "rump_vfs_private.h"
+ 
++#include <rump/rumpuser.h>
++
+ CFDRIVER_DECL(tap, DV_IFNET, NULL);
+ 
+ void tapattach(int);
++void cnicattach(int);
+ 
+ RUMP_COMPONENT(RUMP_COMPONENT_NET_IF)
+ {
++
++/*----------------------------------*/
++	/*first tap*/
+ 	extern const struct cdevsw tap_cdevsw;
+-	devmajor_t bmaj, cmaj;
++	devmajor_t bmaj_tap, cmaj_tap;
+ 	int error;
+ 
+ 	config_cfdriver_attach(&tap_cd);
+ 	tapattach(0);
+ 
+-	bmaj = cmaj = NODEVMAJOR;
+-	error = devsw_attach("tap", NULL, &bmaj, &tap_cdevsw, &cmaj);
++	bmaj_tap = cmaj_tap = NODEVMAJOR;
++	error = devsw_attach("tap", NULL, &bmaj_tap, &tap_cdevsw, &cmaj_tap);
+ 	if (error != 0)
+ 		panic("tap devsw attach failed: %d", error);
+ 
+-	error = rump_vfs_makeonedevnode(S_IFCHR, "/dev/tap", cmaj, 0xfffff);
++	error = rump_vfs_makeonedevnode(S_IFCHR, "/dev/tap", cmaj_tap, 0xfffff);
+ 	if (error != 0)
+ 		panic("cannot create tap device node: %d", error);
+ 
+-	error = rump_vfs_makedevnodes(S_IFCHR, "/dev/tap", '0', cmaj, 0, 4);
++	error = rump_vfs_makedevnodes(S_IFCHR, "/dev/tap", '0', cmaj_tap, 0, 4);
+ 	if (error != 0)
+ 		panic("cannot create tap[0-4] device node: %d", error);
++
++	
++	
++	
++	
++	
++	/* ----- TUN ----- */
++	/* RG: attepting to add cnic to the tap component for rump */
++	rumpuser_dprintf("----- Hello! Greetings from the tap source code! -----\n");
++	rumpuser_dprintf("----- Attempting to make cnic device node /dev/cnic -----\n");
++
++	extern const struct cdevsw cnic_cdevsw;
++	devmajor_t bmaj_cnic, cmaj_cnic;
++
++	//config_cfdriver_attach(&tap_cd);
++	cnicattach(0);
++
++	bmaj_cnic = cmaj_cnic = NODEVMAJOR;
++	error = devsw_attach("cnic", NULL, &bmaj_cnic, &cnic_cdevsw, &cmaj_cnic);
++	if (error != 0)
++		panic("cnic devsw attach failed: %d", error);
++
++	error = rump_vfs_makeonedevnode(S_IFCHR, "/dev/cnic", cmaj_cnic, 0xfffff);
++	if (error != 0)
++		panic("cannot create cnic device node: %d", error);
++
++	error = rump_vfs_makedevnodes(S_IFCHR, "/dev/cnic", '0', cmaj_cnic, 0, 4);
++	if (error != 0)
++		panic("cannot create cnic[0-4] device node: %d", error);
+ }
+-- 
+2.7.4
+

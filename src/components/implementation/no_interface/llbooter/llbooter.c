@@ -1,5 +1,6 @@
 #include <cos_component.h>
 #include <cobj_format.h>
+#include <string.h>
 #include "boot_deps.h"
 #include "comp_config.h"
 
@@ -278,13 +279,13 @@ boot_create_cap_system(void)
 		if (boot_comp_map(h, spdid, ci, pt)) BUG();
 
 		/* check for hardcoded "sl_" prefix in c obj to determine which cap image we create */
-		comp_flags  = boot_check_scheduler(h->name);
+		comp_flags = boot_check_scheduler(h->name);
 		/* Check for shdmem component */
-		comp_flags  |= boot_check_shdmem(h->name);
+		comp_flags |= boot_check_shdmem(h->name);
 
 		boot_newcomp_create(spdid, new_comp_cap_info[spdid].compinfo, comp_flags);
 		printc("\nComp %d (%s) comp_flags=%d created @ %x!\n\n",
-			h->id, h->name, comp_flags, sect->vaddr);
+			spdid, h->name, comp_flags, sect->vaddr);
 	}
 
 
