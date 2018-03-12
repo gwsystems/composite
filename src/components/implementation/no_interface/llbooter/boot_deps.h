@@ -255,8 +255,18 @@ boot_comp_sched_set(spdid_t spdid)
 	struct cos_aep_info *child_aep = boot_spd_initaep_get(spdid);
 	int i = 0;
 
+	if (!capmgr_spdid) goto set;
+	/*
+	 * if there is capmgr in the system, set it to be the first (index == 0) to initialize
+	 */
+	if (spdid == capmgr_spdid) goto done;
+	i = 1;
+
+set:
 	while (schedule[i] != 0) i++;
 	assert(i < MAX_NUM_COMPS);
+
+done:
 	schedule[i] = child_aep->thd;
 }
 
