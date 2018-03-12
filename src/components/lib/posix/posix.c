@@ -269,7 +269,7 @@ static void
 setup_thread_area(struct sl_thd *thread, void* data)
 {
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	thdid_t thdid = thread->thdid;
+	thdid_t thdid = sl_thd_thdid(thread);
 
 	backing_data[thdid] = data;
 
@@ -295,7 +295,7 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 	if (tls) {
 		setup_thread_area(thd, tls);
 	}
-	return thd->thdid;
+	return sl_thd_thdid(thd);
 }
 
 #define FUTEX_WAIT		0

@@ -33,23 +33,35 @@ char *test_strs[TEST_STR_NUM] = {
 					"Goodbye",
 				};
 
-static void
-test_shmem(void)
+static int
+test_mem_readwrite(vaddr_t addr, unsigned int size)
 {
-	int idx = 0, i, npages = 0;
-	vaddr_t addr;
+	unsigned int i;
 
-	npages = memmgr_shared_page_map(idx, &addr);
-	PRINTC("Mapped shared @ %d:%lx, pages:%d\n", idx, addr, npages);
-
-	assert(idx == 0); /* know that other comp created this before me. */
-	for (i = 0; i < TEST_N_SHMEM_PAGES; i++) {
+	for (i = 0; i < size; i++) {
 		vaddr_t page = addr + i * PAGE_SIZE;
 		const char *str = test_strs[i % TEST_STR_NUM];
 
-		assert(strcmp((char *)page, str) == 0);
+		memset((void *)page, 0, TEST_STR_MAX_LEN + 1);
+		strcpy((char *)page, str);
+
+		if (strcmp((char *)page, str) != 0) return 1;
 	}
-	PRINTC("Read %d shared pages done\n", TEST_N_SHMEM_PAGES);
+
+	return 0;
+}
+
+static void
+test_shmem(void)
+{
+	int idx = 0, npages = 0;
+	vaddr_t addr;
+	int failure = 0;
+
+	npages = memmgr_shared_page_map(idx, &addr);
+	/* know that other comp created this before me. */
+	if (idx != 0 || npages == 0 || test_mem_readwrite(addr, TEST_N_SHMEM_PAGES)) failure = 1;
+	PRINTC("%s: shared memory map capmgr unit test\n", failure ? "FAILURE" : "SUCCESS");
 }
 
 void
@@ -58,12 +70,10 @@ cos_init(void)
 	spdid_t child;
 	comp_flag_t childflag;
 
-	PRINTC("Unit-test for capability manager shared memory interface\n");
 	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflag) == -1);
 
 	/* assuming this runs (initialization) after unit_capmgr component */
 	test_shmem();
-	PRINTC("Unit-test done.\n");
 	hypercall_comp_init_done();
 
 	SPIN();
