@@ -37,15 +37,19 @@ test_thds(void)
 {
 	int i = 0;
 	thdid_t tid;
+	int failure = 0;
 
 	for (; i < TEST_N_THDS; i++) {
 		test_ts[i] = capmgr_thd_create(__test_thd_fn, (void *)i, &tid);
 		assert(test_ts[i]);
 
 		cos_thd_switch(test_ts[i]);
-		assert(thd_run_flag == i);
+		if (thd_run_flag != i) {
+			failure = 1;
+			break;
+		}
 	}
-	PRINTC("Creation/switch %d threads done.\n", TEST_N_THDS);
+	PRINTC("%s: thread capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
 }
 
 #define TEST_N_HEAP_PAGES 2048
@@ -62,40 +66,46 @@ char *test_strs[TEST_STR_NUM] = {
 					"Goodbye",
 				};
 
-static void
-test_mem(void)
+static int
+test_mem_readwrite(vaddr_t addr, unsigned int size)
 {
-	int idx;
-	int i;
-	vaddr_t addr, haddr;
+	unsigned int i;
 
-	haddr = memmgr_heap_page_allocn(TEST_N_HEAP_PAGES);
-	PRINTC("Alloc'd heap @ %lx, pages:%d\n", haddr, TEST_N_HEAP_PAGES);
-	for (i = 0; i < TEST_N_HEAP_PAGES; i++) {
-		vaddr_t page = haddr + i * PAGE_SIZE;
-		const char *str = test_strs[i % TEST_STR_NUM];
-
-		memset((void *)page, 0, TEST_STR_MAX_LEN + 1);
-		strcpy((char *)page, str);
-
-		assert(strcmp((char *)page, str) == 0);
-	}
-	PRINTC("Read/write %d pages done\n", TEST_N_HEAP_PAGES);
-
-	idx = memmgr_shared_page_allocn(TEST_N_SHMEM_PAGES, &addr);
-	PRINTC("Alloc'd shared @ %d:%lx, pages:%d\n", idx, addr, TEST_N_SHMEM_PAGES);
-
-	assert(idx == 0); /* to create a reader and test */
-	for (i = 0; i < TEST_N_SHMEM_PAGES; i++) {
+	for (i = 0; i < size; i++) {
 		vaddr_t page = addr + i * PAGE_SIZE;
 		const char *str = test_strs[i % TEST_STR_NUM];
 
 		memset((void *)page, 0, TEST_STR_MAX_LEN + 1);
 		strcpy((char *)page, str);
 
-		assert(strcmp((char *)page, str) == 0);
+		if (strcmp((char *)page, str) != 0) return 1;
 	}
-	PRINTC("Read/write %d pages done\n", TEST_N_SHMEM_PAGES);
+
+	return 0;
+}
+
+static void
+test_heapmem(void)
+{
+	vaddr_t haddr;
+	int failure = 0;
+
+	haddr = memmgr_heap_page_allocn(TEST_N_HEAP_PAGES);
+	if (!haddr || test_mem_readwrite(haddr, TEST_N_HEAP_PAGES)) failure = 1;
+	PRINTC("%s: heap allocation capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
+}
+
+static void
+test_sharedmem(void)
+{
+	int idx;
+	vaddr_t addr;
+	int failure = 0;
+
+	idx = memmgr_shared_page_allocn(TEST_N_SHMEM_PAGES, &addr);
+	/* expect idx == 0 to create a reader(shared memory map unit test */
+	if (idx != 0 || test_mem_readwrite(addr, TEST_N_SHMEM_PAGES)) failure = 1;
+	PRINTC("%s: shared memory allocation capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
 }
 
 void
@@ -104,12 +114,11 @@ cos_init(void)
 	spdid_t child;
 	comp_flag_t childflag;
 
-	PRINTC("Unit-test for capability manager\n");
 	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflag) == -1);
 
 	test_thds();
-	test_mem();
-	PRINTC("Unit-test done.\n");
+	test_sharedmem();
+	test_heapmem();
 	hypercall_comp_init_done();
 
 	SPIN();
