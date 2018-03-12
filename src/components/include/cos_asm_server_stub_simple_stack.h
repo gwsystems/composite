@@ -76,12 +76,11 @@ name##_rets_inv:                       \
 .type  name##_inv, @function ;          \
 .align 16 ;                             \
 name##_inv:                             \
-	COS_ASM_GET_STACK               \
+	COS_ASM_GET_STACK_INVTOKEN      \
 	pushl %ebp;                     \
 	xor %ebp, %ebp;                 \
 	pushl %edi;                     \
 	pushl %esi;                     \
-	pushl %ecx;                     \
 	call name ;                     \
 	addl $16, %esp;                 \
 	                                \
@@ -96,14 +95,13 @@ name##_inv:                             \
 .type  name##_rets_inv, @function ;          \
 .align 16 ;                                  \
 name##_rets_inv:                             \
-	COS_ASM_GET_STACK                    \
+	COS_ASM_GET_STACK_INVTOKEN           \
 	pushl $0;                            \
 	pushl $0;                            \
 	pushl %ebp;                          \
 	xor %ebp, %ebp;		             \
 	pushl %edi;                          \
 	pushl %esi;                          \
-	pushl %ecx;                          \
 	movl %esp, %ecx;                     \
 	addl $20, %ecx;                      \
 	pushl %ecx;                          \

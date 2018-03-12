@@ -6,8 +6,9 @@
 #include "cap_info.h"
 
 vaddr_t
-memmgr_heap_page_allocn_intern(spdid_t cur, unsigned int npages)
+memmgr_heap_page_allocn(unsigned int npages)
 {
+	spdid_t cur = cos_inv_token();
 	struct cos_compinfo  *cap_ci  = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct cap_comp_info *cur_rci = cap_info_comp_find(cur);
 	struct cos_compinfo  *cur_ci  = cap_info_ci(cur_rci);
@@ -25,8 +26,9 @@ memmgr_heap_page_allocn_intern(spdid_t cur, unsigned int npages)
 }
 
 int
-memmgr_shared_page_allocn_intern(vaddr_t *pgaddr, int *unused, spdid_t cur, int npages)
+memmgr_shared_page_allocn_intern(vaddr_t *pgaddr, int *unused, int npages)
 {
+	spdid_t cur = cos_inv_token();
 	struct cap_comp_info  *cur_rci = cap_info_comp_find(cur);
 	struct cap_shmem_info *cur_shi = cap_info_shmem_info(cur_rci);
 	int shmidx = -1;
@@ -44,8 +46,9 @@ done:
 }
 
 int
-memmgr_shared_page_map_intern(vaddr_t *pgaddr, int *unused, spdid_t cur, int idx)
+memmgr_shared_page_map_intern(vaddr_t *pgaddr, int *unused, int idx)
 {
+	spdid_t cur = cos_inv_token();
 	struct cap_comp_info  *cur_rci = cap_info_comp_find(cur);
 	struct cap_shmem_info *cur_shi = cap_info_shmem_info(cur_rci);
 	int num_pages = 0;

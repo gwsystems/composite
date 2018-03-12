@@ -8,8 +8,9 @@
 #define __RET_THDID_THDCAP(ret, thdcap, thdid) (ret = (thdid << 16) | (thdcap))
 
 u32_t
-capmgr_thd_create_intern(spdid_t cur, int idx)
+capmgr_thd_create_intern(int idx)
 {
+	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *r       = cap_info_comp_find(cur);
@@ -31,8 +32,9 @@ capmgr_thd_create_intern(spdid_t cur, int idx)
 }
 
 u32_t
-capmgr_ext_thd_create_intern(spdid_t cur, spdid_t s, int idx)
+capmgr_ext_thd_create_intern(spdid_t s, int idx)
 {
+	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
@@ -59,8 +61,9 @@ capmgr_ext_thd_create_intern(spdid_t cur, spdid_t s, int idx)
 }
 
 u32_t
-capmgr_initthd_create_intern(spdid_t cur, spdid_t s)
+capmgr_initthd_create_intern(spdid_t s)
 {
+	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
@@ -91,8 +94,9 @@ capmgr_initthd_create_intern(spdid_t cur, spdid_t s)
 }
 
 u32_t
-capmgr_initaep_create_intern(asndcap_t *sndret, u32_t *rcvtcret, spdid_t cur, spdid_t s, int owntc)
+capmgr_initaep_create_intern(asndcap_t *sndret, u32_t *rcvtcret, spdid_t s, int owntc)
 {
+	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
@@ -147,8 +151,9 @@ capmgr_initaep_create_intern(asndcap_t *sndret, u32_t *rcvtcret, spdid_t cur, sp
 }
 
 u32_t
-capmgr_ext_aep_create_intern(arcvcap_t *dstrcvret, u32_t *rcvtcret, spdid_t cur, spdid_t s, int tidx, int owntc)
+capmgr_ext_aep_create_intern(arcvcap_t *dstrcvret, u32_t *rcvtcret, spdid_t s, int tidx, int owntc)
 {
+	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
@@ -204,8 +209,9 @@ capmgr_ext_aep_create_intern(arcvcap_t *dstrcvret, u32_t *rcvtcret, spdid_t cur,
 }
 
 u32_t
-capmgr_aep_create_intern(arcvcap_t *rcvret, tcap_t *tcret, spdid_t cur, int tidx, int owntc)
+capmgr_aep_create_intern(arcvcap_t *rcvret, tcap_t *tcret, int tidx, int owntc)
 {
+	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
@@ -243,8 +249,9 @@ capmgr_aep_create_intern(arcvcap_t *rcvret, tcap_t *tcret, spdid_t cur, int tidx
 }
 
 thdcap_t
-capmgr_thd_retrieve_intern(spdid_t cur, spdid_t s, thdid_t tid)
+capmgr_thd_retrieve(spdid_t s, thdid_t tid)
 {
+	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
@@ -269,8 +276,9 @@ done:
 }
 
 u32_t
-capmgr_thd_retrieve_next_intern(spdid_t cur, spdid_t s)
+capmgr_thd_retrieve_next_intern(spdid_t s)
 {
+	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
@@ -301,8 +309,9 @@ done:
 
 /* TODO: use thdid? or rcvcap? */
 asndcap_t
-capmgr_asnd_create_intern(spdid_t cur, spdid_t s, thdid_t tid /* thd with rcvcap */)
+capmgr_asnd_create(spdid_t s, thdid_t tid /* thd with rcvcap */)
 {
+	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);

@@ -6,9 +6,9 @@
 #include <sl.h>
 #include <res_spec.h>
 
-int sched_thd_wakeup(thdid_t t);
-int sched_thd_block(thdid_t dep_t);
-int sched_thd_block_timeout(thdid_t dep_t, cycles_t abs_timeout);
+int      sched_thd_wakeup(thdid_t t);
+int      sched_thd_block(thdid_t dep_t);
+cycles_t sched_thd_block_timeout(thdid_t dep_t, cycles_t abs_timeout);
 
 thdid_t sched_thd_create(cos_thd_fn_t fn, void *data);
 thdid_t sched_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc);

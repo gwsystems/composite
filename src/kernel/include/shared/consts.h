@@ -136,5 +136,6 @@ struct pt_regs {
  * offsets below are used to access CPU and thread IDs. */
 #define CPUID_OFFSET 1
 #define THDID_OFFSET 2
+#define INVTOKEN_OFFSET 3
 
 #endif

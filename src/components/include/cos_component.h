@@ -180,6 +180,12 @@ cos_get_thd_id(void)
 	return get_stk_data(THDID_OFFSET);
 }
 
+static inline token_t
+cos_inv_token(void)
+{
+	return get_stk_data(INVTOKEN_OFFSET);
+}
+
 typedef u16_t cos_thdid_t;
 
 static cos_thdid_t

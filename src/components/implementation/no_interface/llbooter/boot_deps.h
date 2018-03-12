@@ -183,7 +183,7 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 	struct cos_compinfo *compinfo  = boot_spd_compinfo_get(spdid);
 	struct comp_cap_info *spdinfo  = boot_spd_compcapinfo_get(spdid);
 	/* TODO: Purge rest of booter of spdid convention */
-	unsigned long token = (unsigned long)spdid;
+	token_t token = (token_t)spdid;
 
 	/*
 	 * Loop through all undefined symbs
@@ -335,7 +335,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	sinvcap_t   sinv;
 	thdcap_t    main_thd;
 	int         i = 0;
-	unsigned long token = (unsigned long) spdid;
+	token_t token = (token_t)spdid;
 	int ret;
 
 	cc = cos_comp_alloc(boot_info, ct, pt, (vaddr_t)spdinfo->upcall_entry);
@@ -591,9 +591,12 @@ __hypercall_resource_access_check(spdid_t dstid, spdid_t srcid, int capmgr_ignor
 }
 
 word_t
-hypercall_entry(word_t *ret2, word_t *ret3, spdid_t client, int op, word_t arg3, word_t arg4)
+hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
 {
 	int ret1 = 0;
+	spdid_t client = cos_inv_token();
+
+	if (!client) return -EINVAL;
 
 	switch(op) {
 	case HYPERCALL_COMP_INIT_DONE:

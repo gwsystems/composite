@@ -20,7 +20,7 @@ struct cap_sinv {
 	struct cap_header h;
 	struct comp_info  comp_info;
 	vaddr_t           entry_addr;
-	unsigned long 	  token;
+	token_t           token;
 } __attribute__((packed));
 
 struct cap_sret {
@@ -51,7 +51,7 @@ struct cap_arcv {
 } __attribute__((packed));
 
 static int
-sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, vaddr_t entry_addr, unsigned long token)
+sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, vaddr_t entry_addr, token_t token)
 {
 	struct cap_sinv *sinvc;
 	struct cap_comp *compc;

@@ -9,8 +9,9 @@ extern unsigned int self_init;
 static int num_child_init = 0;
 
 int
-schedinit_child_intern(spdid_t c)
+schedinit_child(void)
 {
+	spdid_t c = cos_inv_token();
 	thdcap_t thdcap = 0;
 	thdid_t  thdid  = 0;
 	struct cos_defcompinfo *dci;
@@ -36,7 +37,7 @@ schedinit_child_intern(spdid_t c)
 		t = sl_thd_ext_init(thdcap, 0, 0, 0);
 		if (!t) return -1;
 	} while (thdid);
-	num_child_init ++;
+	num_child_init++;
 
 	return 0;
 }

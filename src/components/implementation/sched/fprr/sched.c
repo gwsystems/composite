@@ -4,8 +4,10 @@
 #include "sched_info.h"
 
 int
-sched_thd_wakeup_intern(spdid_t c, thdid_t t)
+sched_thd_wakeup(thdid_t t)
 {
+	spdid_t c = cos_inv_token();
+
 	if (!c || !sched_childinfo_find(c)) return -1;
 	sl_thd_wakeup(t);
 
@@ -13,8 +15,10 @@ sched_thd_wakeup_intern(spdid_t c, thdid_t t)
 }
 
 int
-sched_thd_block_intern(spdid_t c, thdid_t deptid)
+sched_thd_block(thdid_t deptid)
 {
+	spdid_t c = cos_inv_token();
+
 	if (!c || !sched_childinfo_find(c)) return -1;
 	sl_thd_block(deptid);
 
@@ -22,18 +26,23 @@ sched_thd_block_intern(spdid_t c, thdid_t deptid)
 }
 
 int
-sched_thd_block_timeout_intern(spdid_t c, thdid_t deptid, u32_t hi, u32_t lo)
+sched_thd_block_timeout_intern(u32_t *elapsed_hi, u32_t *elapsed_lo, thdid_t deptid, u32_t hi, u32_t lo)
 {
+	spdid_t c = cos_inv_token();
+	cycles_t elapsed = 0;
+
 	if (!c || !sched_childinfo_find(c)) return -1;
-	/* TODO: return time elapsed */
-	sl_thd_block_timeout(deptid, ((cycles_t)hi << 32 | (cycles_t)lo));
+	elapsed = sl_thd_block_timeout(deptid, ((cycles_t)hi << 32 | (cycles_t)lo));
+	*elapsed_hi = (elapsed >> 32);
+	*elapsed_lo = (elapsed << 32) >> 32;
 
 	return 0;
 }
 
 thdid_t
-sched_thd_create_intern(spdid_t c, int idx)
+sched_thd_create_intern(int idx)
 {
+	spdid_t c = cos_inv_token();
 	struct cos_defcompinfo *dci;
 	struct sl_thd *t = NULL;
 
@@ -48,8 +57,9 @@ sched_thd_create_intern(spdid_t c, int idx)
 }
 
 thdid_t
-sched_aep_create_intern(arcvcap_t *extrcv, int *unused, spdid_t c, int idx, int owntc)
+sched_aep_create_intern(arcvcap_t *extrcv, int *unused, int idx, int owntc)
 {
+	spdid_t c = cos_inv_token();
 	struct cos_defcompinfo *dci;
 	struct sl_thd *t = NULL;
 
@@ -64,8 +74,9 @@ sched_aep_create_intern(arcvcap_t *extrcv, int *unused, spdid_t c, int idx, int 
 }
 
 int
-sched_thd_param_set_intern(spdid_t c, thdid_t tid, sched_param_t sp)
+sched_thd_param_set(thdid_t tid, sched_param_t sp)
 {
+	spdid_t c = cos_inv_token();
 	struct sl_thd *t = sl_thd_lkup(tid);
 
 	if (!c || !sched_childinfo_find(c)) return -1;
@@ -76,8 +87,9 @@ sched_thd_param_set_intern(spdid_t c, thdid_t tid, sched_param_t sp)
 }
 
 int
-sched_thd_delete_intern(spdid_t c, thdid_t tid)
+sched_thd_delete(thdid_t tid)
 {
+	spdid_t c = cos_inv_token();
 	struct sl_thd *t = sl_thd_lkup(tid);
 
 	if (!c || !sched_childinfo_find(c)) return -1;
@@ -89,8 +101,10 @@ sched_thd_delete_intern(spdid_t c, thdid_t tid)
 }
 
 int
-sched_thd_exit_intern(spdid_t c)
+sched_thd_exit(void)
 {
+	spdid_t c = cos_inv_token();
+
 	if (!c || !sched_childinfo_find(c)) return -1;
 	sl_thd_exit();
 

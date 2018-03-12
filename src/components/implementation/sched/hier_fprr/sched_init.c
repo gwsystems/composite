@@ -5,14 +5,15 @@
 #include <sl.h>
 #include "sched_info.h"
 
-extern int parent_schedinit_child_intern(spdid_t c);
+extern int parent_schedinit_child(void);
 
 extern unsigned int self_init;
 static int num_child_init = 0;
 
 int
-schedinit_child_intern(spdid_t c)
+schedinit_child(void)
 {
+	spdid_t c = cos_inv_token();
 	thdcap_t thdcap = 0;
 	thdid_t  thdid  = 0;
 	struct cos_defcompinfo *dci;
@@ -38,7 +39,7 @@ schedinit_child_intern(spdid_t c)
 		t = sl_thd_ext_init(thdcap, 0, 0, 0);
 		if (!t) return -1;
 	} while (thdid);
-	num_child_init ++;
+	num_child_init++;
 
 	return 0;
 }
@@ -50,7 +51,7 @@ schedinit_self(void)
 
 	/* if my init is done and i've all child inits */
 	if (self_init && num_child_init == sched_num_child_get())
-		return parent_schedinit_child_intern(cos_spd_id());
+		return parent_schedinit_child();
 
 
 	return 0;
