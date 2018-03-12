@@ -1,11 +1,11 @@
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text
-cos_asm_server_stub_token(sched_thd_wakeup);
-cos_asm_server_stub_token(sched_thd_block);
-cos_asm_server_stub_token_rets(sched_thd_block_timeout_intern);
-cos_asm_server_stub_token(sched_thd_create_intern);
-cos_asm_server_stub_token_rets(sched_aep_create_intern);
-cos_asm_server_stub_token(sched_thd_param_set);
-cos_asm_server_stub_token(sched_thd_exit);
-cos_asm_server_stub_token(sched_thd_delete);
+cos_asm_server_stub(sched_thd_wakeup);
+cos_asm_server_stub(sched_thd_block);
+cos_asm_server_stub_rets(sched_thd_block_timeout_intern);
+cos_asm_server_stub(sched_thd_create_intern);
+cos_asm_server_stub_rets(sched_aep_create_intern);
+cos_asm_server_stub(sched_thd_param_set);
+cos_asm_server_stub(sched_thd_exit);
+cos_asm_server_stub(sched_thd_delete);

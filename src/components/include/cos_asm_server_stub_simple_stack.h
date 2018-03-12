@@ -22,24 +22,23 @@
 
 /* clang-format off */
 
-#define cos_asm_server_stub(name) \
-.globl name##_inv ;               \
-.type  name##_inv, @function ;    \
-.align 16 ;                       \
-name##_inv:                       \
-	COS_ASM_GET_STACK         \
-	pushl %ebp;               \
-	xor %ebp, %ebp;           \
-	pushl %edi;               \
-	pushl %esi;               \
-	pushl %ebx;               \
-	call name ;               \
-	addl $16, %esp;           \
-	                          \
-	movl %eax, %ecx;          \
-	movl $RET_CAP, %eax;      \
-	COS_ASM_RET_STACK         \
-	                          \
+#define cos_asm_server_stub(name)  \
+.globl name##_inv ;                \
+.type  name##_inv, @function ;     \
+.align 16 ;                        \
+name##_inv:                        \
+	COS_ASM_GET_STACK_INVTOKEN \
+	pushl %ebp;                \
+	xor %ebp, %ebp;            \
+	pushl %edi;                \
+	pushl %esi;                \
+	call name ;                \
+	addl $16, %esp;            \
+	                           \
+	movl %eax, %ecx;           \
+	movl $RET_CAP, %eax;       \
+	COS_ASM_RET_STACK          \
+	                           \
 	sysenter;
 
 #define cos_asm_server_stub_rets(name) \
@@ -47,19 +46,18 @@ name##_inv:                       \
 .type  name##_rets_inv, @function ;    \
 .align 16 ;                            \
 name##_rets_inv:                       \
-	COS_ASM_GET_STACK              \
+	COS_ASM_GET_STACK_INVTOKEN     \
 	pushl $0;                      \
 	pushl $0;                      \
 	pushl %ebp;                    \
 	xor %ebp, %ebp;		       \
 	pushl %edi;                    \
 	pushl %esi;                    \
-	pushl %ebx;                    \
-	movl %esp, %ebx;               \
-	addl $20, %ebx;                \
-	pushl %ebx;                    \
-	subl $4, %ebx;                 \
-	pushl %ebx;                    \
+	movl %esp, %ecx;               \
+	addl $20, %ecx;                \
+	pushl %ecx;                    \
+	subl $4, %ecx;                 \
+	pushl %ecx;                    \
 	call name ;                    \
 	addl $24, %esp;                \
 	popl %esi;                     \
@@ -69,53 +67,6 @@ name##_rets_inv:                       \
 	movl $RET_CAP, %eax;           \
 	COS_ASM_RET_STACK              \
 	                               \
-	sysenter;
-
-#define cos_asm_server_stub_token(name) \
-.globl name##_inv ;                     \
-.type  name##_inv, @function ;          \
-.align 16 ;                             \
-name##_inv:                             \
-	COS_ASM_GET_STACK_INVTOKEN      \
-	pushl %ebp;                     \
-	xor %ebp, %ebp;                 \
-	pushl %edi;                     \
-	pushl %esi;                     \
-	call name ;                     \
-	addl $16, %esp;                 \
-	                                \
-	movl %eax, %ecx;                \
-	movl $RET_CAP, %eax;            \
-	COS_ASM_RET_STACK               \
-	                                \
-	sysenter;
-
-#define cos_asm_server_stub_token_rets(name) \
-.globl name##_rets_inv ;                     \
-.type  name##_rets_inv, @function ;          \
-.align 16 ;                                  \
-name##_rets_inv:                             \
-	COS_ASM_GET_STACK_INVTOKEN           \
-	pushl $0;                            \
-	pushl $0;                            \
-	pushl %ebp;                          \
-	xor %ebp, %ebp;		             \
-	pushl %edi;                          \
-	pushl %esi;                          \
-	movl %esp, %ecx;                     \
-	addl $20, %ecx;                      \
-	pushl %ecx;                          \
-	subl $4, %ecx;                       \
-	pushl %ecx;                          \
-	call name ;                          \
-	addl $24, %esp;                      \
-	popl %esi;                           \
-	popl %edi;                           \
-	                                     \
-	movl %eax, %ecx;                     \
-	movl $RET_CAP, %eax;                 \
-	COS_ASM_RET_STACK                    \
-	                                     \
 	sysenter;
 /* clang-format on */
 
