@@ -3,7 +3,7 @@
 #include <cos_defkernel_api.h>
 #include <memmgr.h>
 #include <capmgr.h>
-#include "cap_info.h"
+#include <cap_info.h>
 #include <hypercall.h>
 #include <sl.h>
 

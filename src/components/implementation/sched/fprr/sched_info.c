@@ -1,6 +1,6 @@
 #include <cos_kernel_api.h>
 #include <ps.h>
-#include "sched_info.h"
+#include <sched_info.h>
 
 #define SCHED_MAX_CHILD_COMPS 8
 static struct sched_childinfo childinfo[SCHED_MAX_CHILD_COMPS];

@@ -1,7 +1,7 @@
 #include <cos_defkernel_api.h>
 #include <sched.h>
 #include <sl.h>
-#include "sched_info.h"
+#include <sched_info.h>
 
 int
 sched_thd_wakeup(thdid_t t)

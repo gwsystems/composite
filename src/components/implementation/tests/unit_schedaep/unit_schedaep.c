@@ -43,7 +43,6 @@ __test_parent(arcvcap_t rcv, void *data)
 	assert(ret == 0);
 
 	parent_sent = 1;
-
 	ret = cos_asnd(__childasnd, 1);
 	assert(ret == 0);
 
@@ -76,7 +75,7 @@ test_aeps(void)
 	ret = cos_asnd(__parentasnd, 1);
 	assert(ret == 0);
 
-	PRINTC("%s: sched component aep scheduling unit tests\n", parent_sent == 0 || child_rcvd == 0 ? "FAILURE" : "SUCCESS");
+	PRINTC("%s: sched component aep scheduling unit tests\n", (parent_sent == 0 || child_rcvd == 0) ? "FAILURE" : "SUCCESS");
 }
 
 void

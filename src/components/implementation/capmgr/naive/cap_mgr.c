@@ -3,7 +3,7 @@
 #include <cos_defkernel_api.h>
 #include <sl.h>
 #include <capmgr.h>
-#include "cap_info.h"
+#include <cap_info.h>
 
 #define __RET_THDID_THDCAP(ret, thdcap, thdid) (ret = (thdid << 16) | (thdcap))
 

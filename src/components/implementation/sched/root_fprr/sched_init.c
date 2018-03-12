@@ -3,7 +3,7 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <sl.h>
-#include "sched_info.h"
+#include <sched_info.h>
 
 extern unsigned int self_init;
 static int num_child_init = 0;

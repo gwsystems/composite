@@ -1,7 +1,7 @@
 #include <sl.h>
 #include <res_spec.h>
 #include <hypercall.h>
-#include "sched_info.h"
+#include <sched_info.h>
 
 #define FIXED_PRIO 1
 

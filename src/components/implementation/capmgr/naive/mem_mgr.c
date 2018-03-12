@@ -3,7 +3,7 @@
 #include <cos_defkernel_api.h>
 #include <sl.h>
 #include <memmgr.h>
-#include "cap_info.h"
+#include <cap_info.h>
 
 vaddr_t
 memmgr_heap_page_allocn(unsigned int npages)

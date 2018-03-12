@@ -1,5 +1,5 @@
 #include <cos_kernel_api.h>
-#include "cap_info.h"
+#include <cap_info.h>
 
 static struct cap_comp_info capci[MAX_NUM_COMPS + 1]; /* includes booter information also, so +1 */
 static unsigned int cap_comp_count;

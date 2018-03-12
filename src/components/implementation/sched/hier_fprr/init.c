@@ -1,7 +1,7 @@
 #include <sl.h>
 #include <res_spec.h>
 #include <hypercall.h>
-#include "sched_info.h"
+#include <sched_info.h>
 
 u32_t cycs_per_usec = 0;
 unsigned int self_init = 0;
