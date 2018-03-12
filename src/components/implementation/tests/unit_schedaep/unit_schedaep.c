@@ -16,6 +16,7 @@ static struct cos_aep_info taeps[TEST_N_AEPS];
 static asndcap_t __childasnd;
 
 static u32_t cycs_per_usec = 0;
+static int parent_sent = 0, child_rcvd = 0;
 
 static void
 __test_child(arcvcap_t rcv, void *data)
@@ -26,8 +27,8 @@ __test_child(arcvcap_t rcv, void *data)
 	ret = cos_rcv(rcv, 0, NULL);
 	assert(ret == 0);
 
-	PRINTC("Child-aep received event.\n");
 	/* do nothing */
+	child_rcvd = 1;
 
 	sched_thd_exit();
 }
@@ -40,7 +41,8 @@ __test_parent(arcvcap_t rcv, void *data)
 	assert(taeps[(int)data].rcv == rcv);
 	ret = cos_rcv(rcv, 0, NULL);
 	assert(ret == 0);
-	PRINTC("Parent-aep received event.\n");
+
+	parent_sent = 1;
 
 	ret = cos_asnd(__childasnd, 1);
 	assert(ret == 0);
@@ -55,8 +57,6 @@ test_aeps(void)
 	asndcap_t __parentasnd;
 	int ret;
 	int i = 0;
-
-	PRINTC("Testing AEP creation/activation\n");
 
 	tidp = sched_aep_create(&taeps[i], __test_parent, (void *)i, 0);
 	assert(tidp);
@@ -73,11 +73,10 @@ test_aeps(void)
 	sched_thd_param_set(tidp, sched_param_pack(SCHEDP_PRIO, TEST_PRIO));
 	sched_thd_param_set(tidc, sched_param_pack(SCHEDP_PRIO, TEST_PRIO));
 
-	PRINTC("Sending event to parent-aep\n");
 	ret = cos_asnd(__parentasnd, 1);
 	assert(ret == 0);
 
-	PRINTC("Done.\n");
+	PRINTC("%s: sched component aep scheduling unit tests\n", parent_sent == 0 || child_rcvd == 0 ? "FAILURE" : "SUCCESS");
 }
 
 void
