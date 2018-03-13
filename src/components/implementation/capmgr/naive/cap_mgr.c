@@ -5,17 +5,15 @@
 #include <capmgr.h>
 #include <cap_info.h>
 
-#define __RET_THDID_THDCAP(ret, thdcap, thdid) (ret = (thdid << 16) | (thdcap))
-
-u32_t
-capmgr_thd_create_intern(int idx)
+thdcap_t
+capmgr_thd_create_intern(thdid_t *tid, int *unused, int idx)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *r       = cap_info_comp_find(cur);
 	struct sl_thd *rt = NULL, *t = NULL;
-	int ret;
+	thdcap_t thdcap = 0;
 
 	if (!r || !cap_info_init_check(r)) return 0;
 	if (!cap_info_is_sched(cur)) return 0;
@@ -23,16 +21,21 @@ capmgr_thd_create_intern(int idx)
 
 	t = sl_thd_ext_idx_alloc(cap_info_dci(r), idx);
 	if (!t) return 0;
+	thdcap = cos_cap_cpy(cap_info_ci(r), cap_ci, CAP_THD, sl_thd_thdcap(t));
+	if (!thdcap) goto err;
+
 	cap_info_thd_init(r, t);
+	*tid = sl_thd_thdid(t);
 
-	ret = cos_cap_cpy(cap_info_ci(r), cap_ci, CAP_THD, sl_thd_thdcap(t));
-	__RET_THDID_THDCAP(ret, ret, sl_thd_thdid(t));
+	return thdcap;
+err:
+	sl_thd_free(t);
 
-	return ret;
+	return 0;
 }
 
-u32_t
-capmgr_ext_thd_create_intern(spdid_t s, int idx)
+thdcap_t
+capmgr_ext_thd_create_intern(thdid_t *tid, int *unused, spdid_t s, int idx)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -40,7 +43,7 @@ capmgr_ext_thd_create_intern(spdid_t s, int idx)
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
 	struct sl_thd *t = NULL;
-	int ret;
+	thdcap_t thdcap = 0;
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!rs || !cap_info_init_check(rs)) return 0;
@@ -50,18 +53,23 @@ capmgr_ext_thd_create_intern(spdid_t s, int idx)
 
 	t = sl_thd_ext_idx_alloc(cap_info_dci(rs), idx);
 	if (!t) return 0;
+	thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
+	if (!thdcap) goto err;
+
 	cap_info_thd_init(rc, t);
 	cap_info_thd_init(rs, t);
-
-	ret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
+	*tid = sl_thd_thdid(t);
 	/* child is not a scheduler, don't copy into child */
-	__RET_THDID_THDCAP(ret, ret, sl_thd_thdid(t));
 
-	return ret;
+	return thdcap;
+err:
+	sl_thd_free(t);
+
+	return 0;
 }
 
-u32_t
-capmgr_initthd_create_intern(spdid_t s)
+thdcap_t
+capmgr_initthd_create_intern(thdid_t *tid, int *unused, spdid_t s)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -69,7 +77,7 @@ capmgr_initthd_create_intern(spdid_t s)
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
 	struct sl_thd *t = NULL;
-	int ret;
+	thdcap_t thdcap = 0;
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!rs || !cap_info_init_check(rs)) return 0;
@@ -78,23 +86,25 @@ capmgr_initthd_create_intern(spdid_t s)
 
 	t = sl_thd_child_initaep_alloc(cap_info_dci(rs), 0, 0);
 	if (!t) return 0;
-	cap_info_thd_init(rc, t);
-	cap_info_initthd_init(rs, t);
-
 	/* child is not a scheduler, don't copy into child */
 	/* parent only needs the thdcap */
-	ret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
-	if (!ret) return 0;
+	thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
+	if (!thdcap) goto err;
 
-	rs->p_initthdcap = ret;
-	rs->initthdid    = sl_thd_thdid(t);
-	__RET_THDID_THDCAP(ret, ret, sl_thd_thdid(t));
+	cap_info_thd_init(rc, t);
+	cap_info_initthd_init(rs, t);
+	rs->p_initthdcap = thdcap;
+	rs->initthdid    = *tid = sl_thd_thdid(t);
 
-	return ret;
+	return thdcap;
+err:
+	sl_thd_free(t);
+
+	return 0;
 }
 
-u32_t
-capmgr_initaep_create_intern(asndcap_t *sndret, u32_t *rcvtcret, spdid_t s, int owntc)
+thdcap_t
+capmgr_initaep_create_intern(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, int owntc)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -102,9 +112,12 @@ capmgr_initaep_create_intern(asndcap_t *sndret, u32_t *rcvtcret, spdid_t s, int 
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
 	struct sl_thd *t = NULL, *rinit = NULL;
+	int ret;
 	tcap_t tc;
 	arcvcap_t rcv;
-	int ret;
+	asndcap_t snd;
+	thdcap_t thdcap = 0;
+	thdid_t tid;
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!rs || !cap_info_init_check(rs)) return 0;
@@ -115,43 +128,46 @@ capmgr_initaep_create_intern(asndcap_t *sndret, u32_t *rcvtcret, spdid_t s, int 
 	if (!rinit) return 0;
 	t = sl_thd_ext_child_initaep_alloc(cap_info_dci(rs), rinit, 1);
 	if (!t) return 0;
-	cap_info_thd_init(rc, t);
-	cap_info_initthd_init(rs, t);
-
 	/* child is a scheduler.. copy initcaps */
 	ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITTHD_BASE, cap_ci, sl_thd_thdcap(t));
-	if (ret) return 0;
+	if (ret) goto err;
 	ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITRCV_BASE, cap_ci, sl_thd_rcvcap(t));
-	if (ret) return 0;
+	if (ret) goto err;
 	if (owntc) {
 		ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITTCAP_BASE, cap_ci, sl_thd_tcap(t));
-		if (ret) return 0;
+		if (ret) goto err;
 	} else {
 		/* if it's a scheduler.. use parent's tcap (current spdid) */
 		ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITTCAP_BASE, cap_ci, sl_thd_tcap(rinit));
-		if (ret) return 0;
+		if (ret) goto err;
 	}
 
 	/* parent needs tcap/rcv to manage time. thd/asnd to activate. */
 	ret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
-	if (!ret) return 0;
-
-	rs->p_initthdcap = ret;
-	rs->initthdid    = sl_thd_thdid(t);
+	if (!ret) goto err;
 	rcv = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ARCV, sl_thd_rcvcap(t));
-	if (!rcv) return 0;
+	if (!rcv) goto err;
 	tc = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_TCAP, sl_thd_tcap(t));
-	if (!tc) return 0;
+	if (!tc) goto err;
+	snd = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, sl_thd_asndcap(t));
+	if (!snd) goto err;
 
-	*rcvtcret = (rcv << 16) | (tc);
-	*sndret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, sl_thd_asndcap(t));
-	__RET_THDID_THDCAP(ret, ret, sl_thd_thdid(t));
+	cap_info_thd_init(rc, t);
+	cap_info_initthd_init(rs, t);
+	rs->p_initthdcap = thdcap = ret;
+	rs->initthdid    = tid    = sl_thd_thdid(t);
+	*rcvtcret  = (rcv << 16) | (tc);
+	*sndtidret = (snd << 16) | (tid);
 
-	return ret;
+	return thdcap;
+err:
+	sl_thd_free(t);
+
+	return 0;
 }
 
-u32_t
-capmgr_ext_aep_create_intern(arcvcap_t *dstrcvret, u32_t *rcvtcret, spdid_t s, int tidx, int owntc)
+thdcap_t
+capmgr_ext_aep_create_intern(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, int tidx, int owntc)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -160,6 +176,7 @@ capmgr_ext_aep_create_intern(arcvcap_t *dstrcvret, u32_t *rcvtcret, spdid_t s, i
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
 	struct sl_thd *t = NULL, *rinit = NULL;
 	arcvcap_t srcrcv, dstrcv;
+	thdcap_t thdcap = 0;
 	tcap_t tc;
 	int ret;
 
@@ -173,18 +190,15 @@ capmgr_ext_aep_create_intern(arcvcap_t *dstrcvret, u32_t *rcvtcret, spdid_t s, i
 
 	t = sl_thd_extaep_idx_alloc(cap_info_dci(rs), rinit, tidx, owntc, &srcrcv);
 	if (!t) return 0;
-	cap_info_thd_init(rc, t);
-	cap_info_thd_init(rs, t);
-
 	/* cur is a scheduler, copy thdcap */
 	ret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
-	if (!ret) return 0;
+	if (!ret) goto err;
 	/*
 	 * for aep thread.. rcv cap should be accessible in the destination component,
 	 * so we return that cap so the scheduler can init proper structucap of the dest component.
 	 */
-	*dstrcvret = cos_cap_cpy(cap_info_ci(rs), cap_ci, CAP_ARCV, sl_thd_rcvcap(t));
-	if (!(*dstrcvret)) return 0;
+	dstrcv = cos_cap_cpy(cap_info_ci(rs), cap_ci, CAP_ARCV, sl_thd_rcvcap(t));
+	if (!dstrcv) goto err;
 
 	if (owntc) {
 		/*
@@ -192,10 +206,10 @@ capmgr_ext_aep_create_intern(arcvcap_t *dstrcvret, u32_t *rcvtcret, spdid_t s, i
 		 * complexity: sl data-structure to keep both rcvs? one to return to user, one to keep!
 		 */
 		srcrcv = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ARCV, sl_thd_rcvcap(t));
-		if (!srcrcv) return 0;
+		if (!srcrcv) goto err;
 
 		tc = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_TCAP, sl_thd_tcap(t));
-		if (!tc) return 0;
+		if (!tc) goto err;
 
 		/* TODO: size check before packing */
 		*rcvtcret = (srcrcv << 16) | (tc);
@@ -203,13 +217,21 @@ capmgr_ext_aep_create_intern(arcvcap_t *dstrcvret, u32_t *rcvtcret, spdid_t s, i
 		/* copy sched tc (offset) pcapumably INITTCAP */
 		*rcvtcret = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 	}
-	__RET_THDID_THDCAP(ret, ret, sl_thd_thdid(t));
 
-	return ret;
+	cap_info_thd_init(rc, t);
+	cap_info_thd_init(rs, t);
+	*drcvtidret = (dstrcv << 16 | sl_thd_thdid(t));
+	thdcap = ret;
+
+	return thdcap;
+err:
+	sl_thd_free(t);
+
+	return 0;
 }
 
-u32_t
-capmgr_aep_create_intern(arcvcap_t *rcvret, tcap_t *tcret, int tidx, int owntc)
+thdcap_t
+capmgr_aep_create_intern(thdid_t *tid, u32_t *tcrcvret, int tidx, int owntc)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -217,6 +239,8 @@ capmgr_aep_create_intern(arcvcap_t *rcvret, tcap_t *tcret, int tidx, int owntc)
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct sl_thd *t = NULL, *rinit = NULL;
 	arcvcap_t rcv;
+	thdcap_t thdcap = 0;
+	tcap_t tc;
 	int ret;
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
@@ -228,24 +252,31 @@ capmgr_aep_create_intern(arcvcap_t *rcvret, tcap_t *tcret, int tidx, int owntc)
 
 	t = sl_thd_extaep_idx_alloc(cap_info_dci(rc), rinit, tidx, owntc, &rcv);
 	if (!t) return 0;
-	cap_info_thd_init(rc, t);
-
 	/* current is a sched, so copy */
 	ret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
-	if (!ret) return 0;
+	if (!ret) goto err;
 
-	*rcvret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ARCV, sl_thd_rcvcap(t));
-	if (!(*rcvret)) return 0;
+	rcv = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ARCV, sl_thd_rcvcap(t));
+	if (!rcv) goto err;
 
 	if (owntc) {
-		*tcret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_TCAP, sl_thd_tcap(t));
+		tc = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_TCAP, sl_thd_tcap(t));
+		if (!tc) goto err;
 	} else {
 		/* copy sched tc (offset) pcapumably INITTCAP */
-		*tcret = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+		tc = BOOT_CAPTBL_SELF_INITTCAP_BASE;
 	}
-	__RET_THDID_THDCAP(ret, ret, sl_thd_thdid(t));
 
-	return ret;
+	cap_info_thd_init(rc, t);
+	*tcrcvret = (tc << 16 | rcv);
+	*tid      = sl_thd_thdid(t);
+	thdcap    = ret;
+
+	return thdcap;
+err:
+	sl_thd_free(t);
+
+	return 0;
 }
 
 thdcap_t
@@ -257,26 +288,21 @@ capmgr_thd_retrieve(spdid_t s, thdid_t tid)
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
 	struct sl_thd          *ti      = cap_info_thd_find(rs, tid);
-	int ret;
+	thdcap_t thdcap = 0;
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!rs || !cap_info_init_check(rs)) return 0;
 	if (!cap_info_is_sched(cur) || !cap_info_is_child(rc, s)) return 0;
 	if (!ti || !sl_thd_thdcap(ti)) return 0;
 
-	if (tid == rs->initthdid) {
-		ret = rs->p_initthdcap;
-		goto done;
-	}
+	if (tid == rs->initthdid) thdcap = rs->p_initthdcap;
+	else                      thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
 
-	ret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
-
-done:
-	return ret;
+	return thdcap;
 }
 
-u32_t
-capmgr_thd_retrieve_next_intern(spdid_t s)
+thdcap_t
+capmgr_thd_retrieve_next_intern(thdid_t *tid, int *unused, spdid_t s)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -284,8 +310,7 @@ capmgr_thd_retrieve_next_intern(spdid_t s)
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
 	struct sl_thd *ti = NULL;
-	thdcap_t thd = 0;
-	u32_t    ret = 0;
+	thdcap_t thdcap = 0;
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!rs || !cap_info_init_check(rs)) return 0;
@@ -294,18 +319,18 @@ capmgr_thd_retrieve_next_intern(spdid_t s)
 	if (ti == NULL) return 0;
 
 	if (sl_thd_thdid(ti) == rs->initthdid) {
-		thd = rs->p_initthdcap;
-		goto done;
+		thdcap = rs->p_initthdcap;
+	} else {
+		thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
+		if (!thdcap) goto err;
+		/* add to parent's array, for grand-parent's walk-through */
+		cap_info_thd_init(rc, ti);
 	}
-	thd = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
-	if (!thd) return 0;
-	/* add to parent's array, for grand-parent's walk-through */
-	cap_info_thd_init(rc, ti);
+	*tid = sl_thd_thdid(ti);
 
-done:
-	__RET_THDID_THDCAP(ret, thd, sl_thd_thdid(ti));
-
-	return ret;
+	return thdcap;
+err:
+	return 0;
 }
 
 /* TODO: use thdid? or rcvcap? */
@@ -318,8 +343,7 @@ capmgr_asnd_create(spdid_t s, thdid_t tid /* thd with rcvcap */)
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
 	struct sl_thd          *ti      = cap_info_thd_find(rs, tid);
-	asndcap_t snd;
-	int ret;
+	asndcap_t snd = 0, sndret = 0;
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!rs || !cap_info_init_check(rs)) return 0;
@@ -329,8 +353,7 @@ capmgr_asnd_create(spdid_t s, thdid_t tid /* thd with rcvcap */)
 
 	snd = cos_asnd_alloc(cap_ci, sl_thd_rcvcap(ti), cap_ci->captbl_cap);
 	if (!snd) return 0;
+	sndret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, snd);
 
-	ret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, snd);
-
-	return ret;
+	return sndret;
 }

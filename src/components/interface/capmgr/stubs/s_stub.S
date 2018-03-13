@@ -1,12 +1,12 @@
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text
-cos_asm_server_stub(capmgr_initthd_create_intern)
+cos_asm_server_stub_rets(capmgr_initthd_create_intern)
 cos_asm_server_stub_rets(capmgr_initaep_create_intern)
-cos_asm_server_stub(capmgr_thd_create_intern)
-cos_asm_server_stub(capmgr_ext_thd_create_intern)
+cos_asm_server_stub_rets(capmgr_thd_create_intern)
+cos_asm_server_stub_rets(capmgr_ext_thd_create_intern)
 cos_asm_server_stub(capmgr_thd_retrieve)
-cos_asm_server_stub(capmgr_thd_retrieve_next_intern)
+cos_asm_server_stub_rets(capmgr_thd_retrieve_next_intern)
 cos_asm_server_stub_rets(capmgr_aep_create_intern)
 cos_asm_server_stub_rets(capmgr_ext_aep_create_intern)
 cos_asm_server_stub(capmgr_asnd_create)

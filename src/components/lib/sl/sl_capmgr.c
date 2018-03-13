@@ -52,8 +52,8 @@ sl_thd_ext_idx_alloc_intern(struct cos_defcompinfo *comp, int idx)
 	struct cos_compinfo    *ci    = cos_compinfo_get(dci);
 	struct sl_thd          *t     = NULL;
 	struct cos_aep_info    *aep   = NULL;
-	thdcap_t thdcap;
-	thdid_t tid;
+	thdcap_t thdcap = 0;
+	thdid_t tid = 0;
 
 	if (comp == NULL || comp->id == 0) goto done;
 
@@ -78,8 +78,8 @@ sl_thd_alloc_intern(cos_thd_fn_t fn, void *data)
 	struct cos_compinfo    *ci  = &dci->ci;
 	struct sl_thd          *t   = NULL;
 	struct cos_aep_info    *aep = NULL;
-	thdcap_t thdcap;
-	thdid_t tid;
+	thdcap_t thdcap = 0;
+	thdid_t tid = 0;
 
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
@@ -102,7 +102,6 @@ sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *scht
 	struct cos_compinfo    *ci  = &dci->ci;
 	struct sl_thd          *t   = NULL;
 	struct cos_aep_info    *aep = NULL;
-	thdid_t                 tid;
 	int                     ret;
 	int                     owntc = 0;
 
@@ -197,7 +196,7 @@ sl_thd_childaep_alloc_intern(struct cos_defcompinfo *comp, sl_thd_property_t prp
 	asndcap_t               snd = 0;
 	struct cos_aep_info    *aep = NULL;
 	struct cos_aep_info    *sa  = NULL;
-	thdid_t                 tid;
+	thdid_t                 tid = 0;
 	int                     ret;
 	int                     owntc = 0;
 
