@@ -5,6 +5,7 @@
 #define SCHED_MAX_CHILD_COMPS 8
 static struct sched_childinfo childinfo[SCHED_MAX_CHILD_COMPS];
 static int sched_num_child = 0;
+static int sched_num_childsched = 0;
 
 struct sched_childinfo *
 sched_childinfo_find(spdid_t id)
@@ -30,6 +31,8 @@ sched_childinfo_alloc(spdid_t id, compcap_t compcap, comp_flag_t flags)
 	sci = &childinfo[idx];
 	dci = sched_child_defci_get(sci);
 
+	if (flags & COMP_FLAG_SCHED) ps_faa((unsigned long *)&sched_num_childsched, 1);
+
 	if (compcap) {
 		struct cos_compinfo *ci = cos_compinfo_get(dci);
 
@@ -38,6 +41,7 @@ sched_childinfo_alloc(spdid_t id, compcap_t compcap, comp_flag_t flags)
 		cos_defcompinfo_childid_init(dci, id);
 	}
 	sci->id = id;
+	sci->flags = flags;
 
 	return sci;
 }
@@ -46,6 +50,12 @@ int
 sched_num_child_get(void)
 {
 	return sched_num_child;
+}
+
+int
+sched_num_childsched_get(void)
+{
+	return sched_num_childsched;
 }
 
 void

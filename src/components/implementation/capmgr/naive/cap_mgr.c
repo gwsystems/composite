@@ -283,15 +283,16 @@ capmgr_thd_retrieve_next_intern(spdid_t s)
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
-	struct sl_thd          *ti      = cap_info_thd_next(rs);
+	struct sl_thd *ti = NULL;
 	thdcap_t thd = 0;
 	u32_t    ret = 0;
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!rs || !cap_info_init_check(rs)) return 0;
 	if (!cap_info_is_sched(cur) || !cap_info_is_child(rc, s)) return 0;
-
+	ti = cap_info_thd_next(rs);
 	if (ti == NULL) return 0;
+
 	if (sl_thd_thdid(ti) == rs->initthdid) {
 		thd = rs->p_initthdcap;
 		goto done;

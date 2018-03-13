@@ -7,7 +7,11 @@ u32_t cycs_per_usec = 0;
 unsigned int self_init = 0;
 extern int schedinit_self(void);
 
-#define FIXED_PRIO 1
+#define INITIALIZE_PRIO 1
+#define INITIALIZE_BUDGET_MS 2000
+#define INITIALIZE_PERIOD_MS 4000
+
+#define FIXED_PRIO 2
 #define FIXED_BUDGET_MS 2000
 #define FIXED_PERIOD_MS 10000
 
@@ -64,7 +68,9 @@ cos_init(void)
 	assert(sched_num_child_get()); /* at least 1 child component */
 	__initializer_thd = sl_thd_alloc(__init_done, NULL);
 	assert(__initializer_thd);
-	sl_thd_param_set(__initializer_thd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
+	sl_thd_param_set(__initializer_thd, sched_param_pack(SCHEDP_PRIO, INITIALIZE_PRIO));
+	sl_thd_param_set(__initializer_thd, sched_param_pack(SCHEDP_WINDOW, INITIALIZE_BUDGET_MS));
+	sl_thd_param_set(__initializer_thd, sched_param_pack(SCHEDP_BUDGET, INITIALIZE_PERIOD_MS));
 
 	self_init = 1;
 

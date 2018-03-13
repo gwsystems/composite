@@ -22,7 +22,6 @@ capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid)
 	thdcap_t thd;
 
 	ret = capmgr_thd_retrieve_next_intern(child);
-	if (!ret) return ret;
 	__THDID_THDCAP(ret, *tid, thd);
 
 	return thd;

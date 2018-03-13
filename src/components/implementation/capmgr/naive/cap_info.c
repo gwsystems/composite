@@ -40,10 +40,8 @@ cap_info_thd_find(struct cap_comp_info *rci, thdid_t tid)
 struct sl_thd *
 cap_info_thd_next(struct cap_comp_info *rci)
 {
-	if (!rci || !cap_info_init_check(rci)) return NULL;
-	if (rci->p_thd_iterator < rci->thd_used) {
-		return (rci->thdinfo[ps_faa((long unsigned *)&(rci->p_thd_iterator), 1)]);
-	}
+	if (!rci || !cap_info_init_check(rci))   return NULL;
+	if (rci->p_thd_iterator < rci->thd_used) return (rci->thdinfo[ps_faa((long unsigned *)&(rci->p_thd_iterator), 1)]);
 
 	return NULL;
 }

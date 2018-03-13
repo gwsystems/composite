@@ -12,8 +12,7 @@ int
 schedinit_child(void)
 {
 	spdid_t c = cos_inv_token();
-	thdcap_t thdcap = 0;
-	thdid_t  thdid  = 0;
+	thdid_t thdid = 0;
 	struct cos_defcompinfo *dci;
 	struct sched_childinfo *ci;
 
@@ -27,6 +26,7 @@ schedinit_child(void)
 	/* thd retrieve */
 	do {
 		struct sl_thd *t = NULL;
+		thdcap_t thdcap = 0;
 
 		thdcap = capmgr_thd_retrieve_next(c, &thdid);
 		if (!thdid) break;
@@ -46,8 +46,7 @@ int
 schedinit_self(void)
 {
 	/* if my init is done and i've all child inits */
-	if (self_init && num_child_init == sched_num_child_get())
-		return 1;
+	if (self_init && num_child_init == sched_num_childsched_get()) return 0;
 
-	return 0;
+	return 1;
 }

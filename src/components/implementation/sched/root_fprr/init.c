@@ -7,7 +7,11 @@ u32_t cycs_per_usec = 0;
 unsigned int self_init = 0;
 extern int schedinit_self(void);
 
-#define FIXED_PRIO 1
+#define INITIALIZE_PRIO 1
+#define INITIALIZE_PERIOD_MS (4000)
+#define INITIALIZE_BUDGET_MS (2000)
+
+#define FIXED_PRIO 2
 #define FIXED_PERIOD_MS (10000)
 #define FIXED_BUDGET_MS (4000)
 
@@ -54,9 +58,9 @@ cos_init(void)
 		assert(initthd);
 		sched_child_initthd_set(schedinfo, initthd);
 
-		sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
-		sl_thd_param_set(initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
-		sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
+		sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, INITIALIZE_PRIO));
+		sl_thd_param_set(initthd, sched_param_pack(SCHEDP_WINDOW, INITIALIZE_PERIOD_MS));
+		sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, INITIALIZE_BUDGET_MS));
 
 		if (!remaining) break;
 	}
@@ -65,6 +69,8 @@ cos_init(void)
 	__initializer_thd = sl_thd_alloc(__init_done, NULL);
 	assert(__initializer_thd);
 	sl_thd_param_set(__initializer_thd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
+	sl_thd_param_set(__initializer_thd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
+	sl_thd_param_set(__initializer_thd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
 
 	self_init = 1;
 	hypercall_comp_init_done();
