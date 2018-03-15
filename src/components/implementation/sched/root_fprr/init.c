@@ -4,8 +4,6 @@
 #include <sched_info.h>
 
 u32_t cycs_per_usec = 0;
-unsigned int self_init = 0;
-extern int schedinit_self(void);
 
 #define INITIALIZE_PRIO 1
 #define INITIALIZE_PERIOD_MS (4000)
@@ -16,6 +14,15 @@ extern int schedinit_self(void);
 #define FIXED_BUDGET_MS (4000)
 
 static struct sl_thd *__initializer_thd = NULL;
+
+static int
+schedinit_self(void)
+{
+	/* if my init is done and i've all child inits */
+	if (self_init && num_child_init == sched_num_childsched_get()) return 0;
+
+	return 1;
+}
 
 static void
 __init_done(void *d)

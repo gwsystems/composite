@@ -16,10 +16,12 @@ struct sched_childinfo {
 
 struct sched_childinfo *sched_childinfo_find(spdid_t spdid);
 struct sched_childinfo *sched_childinfo_alloc(spdid_t id, compcap_t compcap, comp_flag_t flags);
-int sched_num_child_get(void);
-int sched_num_childsched_get(void);
+unsigned int sched_num_child_get(void);
+unsigned int sched_num_childsched_get(void);
 void sched_childinfo_init(void);
 void sched_childinfo_init_raw(void);
+
+extern unsigned int self_init, num_child_init;
 
 static inline struct cos_defcompinfo *
 sched_child_defci_get(struct sched_childinfo *sci)

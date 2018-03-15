@@ -6,8 +6,10 @@
 
 #define SCHED_MAX_CHILD_COMPS 8
 static struct sched_childinfo childinfo[SCHED_MAX_CHILD_COMPS];
-static int sched_num_child = 0;
-static int sched_num_childsched = 0;
+static unsigned int sched_num_child = 0;
+static unsigned int sched_num_childsched = 0;
+
+unsigned int self_init = 0, num_child_init = 0;
 
 /* implementation specific initialization per child */
 extern void sched_child_init(struct sched_childinfo *schedci);
@@ -15,7 +17,7 @@ extern void sched_child_init(struct sched_childinfo *schedci);
 struct sched_childinfo *
 sched_childinfo_find(spdid_t id)
 {
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < sched_num_child; i ++) {
 		if (childinfo[i].id == id) return &(childinfo[i]);
@@ -51,13 +53,13 @@ sched_childinfo_alloc(spdid_t id, compcap_t compcap, comp_flag_t flags)
 	return sci;
 }
 
-int
+unsigned int
 sched_num_child_get(void)
 {
 	return sched_num_child;
 }
 
-int
+unsigned int
 sched_num_childsched_get(void)
 {
 	return sched_num_childsched;

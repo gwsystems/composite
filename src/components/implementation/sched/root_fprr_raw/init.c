@@ -7,6 +7,13 @@
 
 u32_t cycs_per_usec = 0;
 
+/* using raw kernel api. this api from capmgr cannot be linked to or used */
+thdcap_t
+capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid)
+{
+	assert(0);
+}
+
 void
 sched_child_init(struct sched_childinfo *schedci)
 {

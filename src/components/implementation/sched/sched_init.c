@@ -1,14 +1,11 @@
-#include <capmgr.h>
 #include <schedinit.h>
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <sl.h>
 #include <sched_info.h>
 
-extern int parent_schedinit_child(void);
-
-extern unsigned int self_init;
-static int num_child_init = 0;
+extern unsigned int self_init, num_child_init;
+extern thdcap_t capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid);
 
 int
 schedinit_child(void)
@@ -42,17 +39,4 @@ schedinit_child(void)
 	num_child_init++;
 
 	return 0;
-}
-
-int
-schedinit_self(void)
-{
-	/* if my init is done and i've all child inits */
-	if (self_init && num_child_init == sched_num_childsched_get()) {
-		if (parent_schedinit_child() < 0) assert(0);
-
-		return 0;
-	}
-
-	return 1;
 }

@@ -1,7 +1,7 @@
 #!/bin/sh
 
 cp llboot_comp.o llboot.o
-cp fprr_rawsched.o boot.o
+cp root_fprr_raw.o boot.o
 cp unit_schedcomp_test.o test_sched1.o
 cp unit_schedcomp_test.o test_sched2.o
 cp unit_schedcomp_test.o test_sched3.o
