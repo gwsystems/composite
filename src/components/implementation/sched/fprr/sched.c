@@ -40,7 +40,7 @@ sched_thd_block_timeout_cserialized(u32_t *elapsed_hi, u32_t *elapsed_lo, thdid_
 }
 
 thdid_t
-sched_thd_create_cserialized(int idx)
+sched_thd_create_cserialized(thdclosure_index_t idx)
 {
 	spdid_t c = cos_inv_token();
 	struct cos_defcompinfo *dci;
@@ -57,7 +57,7 @@ sched_thd_create_cserialized(int idx)
 }
 
 thdid_t
-sched_aep_create_cserialized(arcvcap_t *extrcv, int *unused, int idx, int owntc)
+sched_aep_create_cserialized(arcvcap_t *extrcv, int *unused, thdclosure_index_t idx, int owntc)
 {
 	spdid_t c = cos_inv_token();
 	struct cos_defcompinfo *dci;

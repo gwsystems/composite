@@ -46,7 +46,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_ext_idx_alloc_intern(struct cos_defcompinfo *comp, int idx)
+sl_thd_ext_idx_alloc_intern(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 {
 	struct cos_defcompinfo *dci   = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(dci);
@@ -92,7 +92,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *schthd, int idx, sl_thd_property_t prps, arcvcap_t *extrcv)
+sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *schthd, thdclosure_index_t idx, sl_thd_property_t prps, arcvcap_t *extrcv)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
@@ -196,7 +196,7 @@ sl_thd_ext_childaep_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *sc
 	assert(prps & SL_THD_PROPERTY_SEND);
 
 	if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_child_initaep_alloc_ext(comp, sl_thd_aepinfo(sched));
-	else                                 ret = cos_child_initaep_tcap_alloc_ext(comp, sl_thd_tcap(sched), sl_thd_aepinfo(sched)); 
+	else                                 ret = cos_child_initaep_tcap_alloc_ext(comp, sl_thd_tcap(sched), sl_thd_aepinfo(sched));
 	if (ret) goto done;
 
 	snd = cos_asnd_alloc(ci, sa->rcv, ci->captbl_cap);
@@ -228,7 +228,7 @@ sl_thd_childaep_alloc_intern(struct cos_defcompinfo *comp, sl_thd_property_t prp
 
 	if (prps & SL_THD_PROPERTY_SEND) {
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_child_initaep_alloc(comp);
-		else                                 ret = cos_child_initaep_tcap_alloc(comp, sl_thd_tcap(g->sched_thd)); 
+		else                                 ret = cos_child_initaep_tcap_alloc(comp, sl_thd_tcap(g->sched_thd));
 		snd = cos_asnd_alloc(ci, sa->rcv, ci->captbl_cap);
 		assert(snd);
 	} else {
@@ -338,7 +338,7 @@ sl_thd_ext_child_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sche
 }
 
 struct sl_thd *
-sl_thd_ext_idx_alloc(struct cos_defcompinfo *comp, int idx)
+sl_thd_ext_idx_alloc(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 {
 	struct sl_thd *t = NULL;
 
@@ -350,7 +350,7 @@ sl_thd_ext_idx_alloc(struct cos_defcompinfo *comp, int idx)
 }
 
 struct sl_thd *
-sl_thd_extaep_idx_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched, int idx, int own_tcap, arcvcap_t *extrcv)
+sl_thd_extaep_idx_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched, thdclosure_index_t idx, int own_tcap, arcvcap_t *extrcv)
 {
 	struct sl_thd *t = NULL;
 
@@ -369,7 +369,7 @@ sl_thd_ext_init(thdcap_t thd, tcap_t tc, arcvcap_t rcv, asndcap_t snd)
 	sl_thd_property_t props = 0;
 
 	if (snd) props |= SL_THD_PROPERTY_SEND;
-	if (tc != sl_thd_tcap(g->sched_thd)) props |= SL_THD_PROPERTY_OWN_TCAP; 
+	if (tc != sl_thd_tcap(g->sched_thd)) props |= SL_THD_PROPERTY_OWN_TCAP;
 
 	sl_cs_enter();
 	t = sl_thd_ext_init_intern(thd, tc, rcv, snd, props);

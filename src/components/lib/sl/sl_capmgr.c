@@ -46,7 +46,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_ext_idx_alloc_intern(struct cos_defcompinfo *comp, int idx)
+sl_thd_ext_idx_alloc_intern(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 {
 	struct cos_defcompinfo *dci   = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(dci);
@@ -96,7 +96,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *schthd, int idx, sl_thd_property_t prps, arcvcap_t *extrcv)
+sl_thd_extaep_idx_alloc_intern(struct cos_defcompinfo *comp, struct sl_thd *schthd, thdclosure_index_t idx, sl_thd_property_t prps, arcvcap_t *extrcv)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
@@ -307,7 +307,7 @@ sl_thd_ext_child_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sche
 }
 
 struct sl_thd *
-sl_thd_ext_idx_alloc(struct cos_defcompinfo *comp, int idx)
+sl_thd_ext_idx_alloc(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 {
 	struct sl_thd *t = NULL;
 
@@ -319,7 +319,7 @@ sl_thd_ext_idx_alloc(struct cos_defcompinfo *comp, int idx)
 }
 
 struct sl_thd *
-sl_thd_extaep_idx_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched, int idx, int own_tcap, arcvcap_t *extrcv)
+sl_thd_extaep_idx_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched, thdclosure_index_t idx, int own_tcap, arcvcap_t *extrcv)
 {
 	struct sl_thd *t = NULL;
 

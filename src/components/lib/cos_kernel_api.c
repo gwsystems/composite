@@ -523,7 +523,7 @@ __alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
 }
 
 static thdcap_t
-__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
+__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init_data)
 {
 	vaddr_t kmem;
 	capid_t cap;
@@ -545,7 +545,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 #include <cos_thd_init.h>
 
 thdcap_t
-cos_thd_alloc_idx(struct cos_compinfo *ci, compcap_t comp, int idx)
+cos_thd_alloc_idx(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx)
 {
 	if (idx < 1) return 0;
 

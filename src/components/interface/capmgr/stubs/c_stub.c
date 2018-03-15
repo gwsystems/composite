@@ -4,10 +4,10 @@
 #include <cos_defkernel_api.h>
 
 thdcap_t capmgr_initthd_create_cserialized(thdid_t *tid, int *unused, spdid_t s);
-thdcap_t capmgr_thd_create_cserialized(thdid_t *tid, int *unused, int idx);
-thdcap_t capmgr_ext_thd_create_cserialized(thdid_t *tid, int *unused, spdid_t s, int idx);
-thdcap_t capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, int idx, int owntc);
-thdcap_t capmgr_ext_aep_create_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, int idx, int owntc);
+thdcap_t capmgr_thd_create_cserialized(thdid_t *tid, int *unused, thdclosure_index_t idx);
+thdcap_t capmgr_ext_thd_create_cserialized(thdid_t *tid, int *unused, spdid_t s, thdclosure_index_t idx);
+thdcap_t capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t idx, int owntc);
+thdcap_t capmgr_ext_aep_create_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, thdclosure_index_t idx, int owntc);
 thdcap_t capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, int owntc);
 thdcap_t capmgr_thd_retrieve_next_cserialized(thdid_t *tid, int *unused, spdid_t s);
 
@@ -31,7 +31,7 @@ thdcap_t
 capmgr_thd_create(cos_thd_fn_t fn, void *data, thdid_t *tid)
 {
 	int unused;
-	int idx = cos_thd_init_alloc(fn, data);
+	thdclosure_index_t idx = cos_thd_init_alloc(fn, data);
 
 	if (idx < 1) return 0;
 
@@ -39,7 +39,7 @@ capmgr_thd_create(cos_thd_fn_t fn, void *data, thdid_t *tid)
 }
 
 thdcap_t
-capmgr_ext_thd_create(spdid_t child, int idx, thdid_t *tid)
+capmgr_ext_thd_create(spdid_t child, thdclosure_index_t idx, thdid_t *tid)
 {
 	int unused;
 
@@ -54,7 +54,7 @@ capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int 
 	arcvcap_t rcv = 0;
 	tcap_t tc = 0;
 	thdid_t tid = 0;
-	int idx = cos_thd_init_alloc(cos_aepthd_fn, (void *)aep);
+	thdclosure_index_t idx = cos_thd_init_alloc(cos_aepthd_fn, (void *)aep);
 
 	if (idx < 1) return 0;
 
@@ -72,7 +72,7 @@ capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int 
 }
 
 thdcap_t
-capmgr_ext_aep_create(spdid_t child, struct cos_aep_info *aep, int idx, int owntc, arcvcap_t *extrcv)
+capmgr_ext_aep_create(spdid_t child, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, arcvcap_t *extrcv)
 {
 	u32_t drcvtidret = 0;
 	u32_t tcrcvret = 0;

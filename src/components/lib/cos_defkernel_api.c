@@ -214,7 +214,7 @@ cos_child_initaep_tcap_alloc_ext(struct cos_defcompinfo *child_dci, tcap_t tc, s
 }
 
 int
-cos_aep_idx_alloc_ext(struct cos_aep_info *aep, int idx, struct cos_defcompinfo *dst_dci, struct cos_aep_info *sched_aep)
+cos_aep_idx_alloc_ext(struct cos_aep_info *aep, thdclosure_index_t idx, struct cos_defcompinfo *dst_dci, struct cos_aep_info *sched_aep)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
@@ -227,7 +227,7 @@ cos_aep_idx_alloc_ext(struct cos_aep_info *aep, int idx, struct cos_defcompinfo 
 }
 
 int
-cos_aep_idx_tcap_alloc_ext(struct cos_aep_info *aep, tcap_t tc, int idx, struct cos_defcompinfo *dst_dci, struct cos_aep_info *sched_aep)
+cos_aep_idx_tcap_alloc_ext(struct cos_aep_info *aep, tcap_t tc, thdclosure_index_t idx, struct cos_defcompinfo *dst_dci, struct cos_aep_info *sched_aep)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_compinfo *   ci        = cos_compinfo_get(defci);

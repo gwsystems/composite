@@ -6,7 +6,7 @@
 #include <cap_info.h>
 
 thdcap_t
-capmgr_thd_create_cserialized(thdid_t *tid, int *unused, int idx)
+capmgr_thd_create_cserialized(thdid_t *tid, int *unused, thdclosure_index_t idx)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -35,7 +35,7 @@ err:
 }
 
 thdcap_t
-capmgr_ext_thd_create_cserialized(thdid_t *tid, int *unused, spdid_t s, int idx)
+capmgr_ext_thd_create_cserialized(thdid_t *tid, int *unused, spdid_t s, thdclosure_index_t idx)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -167,7 +167,7 @@ err:
 }
 
 thdcap_t
-capmgr_ext_aep_create_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, int tidx, int owntc)
+capmgr_ext_aep_create_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, thdclosure_index_t tidx, int owntc)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -231,7 +231,7 @@ err:
 }
 
 thdcap_t
-capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, int tidx, int owntc)
+capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t tidx, int owntc)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();

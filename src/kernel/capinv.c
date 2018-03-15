@@ -1183,11 +1183,11 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_THDACTIVATE: {
-			capid_t thd_cap    = __userregs_get1(regs) & 0xFFFF;
-			int     init_data  = __userregs_get1(regs) >> 16;
-			capid_t pgtbl_cap  = __userregs_get2(regs);
-			capid_t pgtbl_addr = __userregs_get3(regs);
-			capid_t compcap    = __userregs_get4(regs);
+			thdclosure_index_t init_data  = __userregs_get1(regs) >> 16;
+			capid_t thd_cap               = __userregs_get1(regs) & 0xFFFF;
+			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t pgtbl_addr            = __userregs_get3(regs);
+			capid_t compcap               = __userregs_get4(regs);
 
 			struct thread *thd;
 			unsigned long *pte = NULL;
