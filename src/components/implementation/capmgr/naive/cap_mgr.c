@@ -6,7 +6,7 @@
 #include <cap_info.h>
 
 thdcap_t
-capmgr_thd_create_intern(thdid_t *tid, int *unused, int idx)
+capmgr_thd_create_cserialized(thdid_t *tid, int *unused, int idx)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -35,7 +35,7 @@ err:
 }
 
 thdcap_t
-capmgr_ext_thd_create_intern(thdid_t *tid, int *unused, spdid_t s, int idx)
+capmgr_ext_thd_create_cserialized(thdid_t *tid, int *unused, spdid_t s, int idx)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -69,7 +69,7 @@ err:
 }
 
 thdcap_t
-capmgr_initthd_create_intern(thdid_t *tid, int *unused, spdid_t s)
+capmgr_initthd_create_cserialized(thdid_t *tid, int *unused, spdid_t s)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -104,7 +104,7 @@ err:
 }
 
 thdcap_t
-capmgr_initaep_create_intern(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, int owntc)
+capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, int owntc)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -167,7 +167,7 @@ err:
 }
 
 thdcap_t
-capmgr_ext_aep_create_intern(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, int tidx, int owntc)
+capmgr_ext_aep_create_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, int tidx, int owntc)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -231,7 +231,7 @@ err:
 }
 
 thdcap_t
-capmgr_aep_create_intern(thdid_t *tid, u32_t *tcrcvret, int tidx, int owntc)
+capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, int tidx, int owntc)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -302,7 +302,7 @@ capmgr_thd_retrieve(spdid_t s, thdid_t tid)
 }
 
 thdcap_t
-capmgr_thd_retrieve_next_intern(thdid_t *tid, int *unused, spdid_t s)
+capmgr_thd_retrieve_next_cserialized(thdid_t *tid, int *unused, spdid_t s)
 {
 	spdid_t cur = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();

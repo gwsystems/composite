@@ -26,7 +26,7 @@ sched_thd_block(thdid_t deptid)
 }
 
 int
-sched_thd_block_timeout_intern(u32_t *elapsed_hi, u32_t *elapsed_lo, thdid_t deptid, u32_t hi, u32_t lo)
+sched_thd_block_timeout_cserialized(u32_t *elapsed_hi, u32_t *elapsed_lo, thdid_t deptid, u32_t hi, u32_t lo)
 {
 	spdid_t c = cos_inv_token();
 	cycles_t elapsed = 0;
@@ -40,7 +40,7 @@ sched_thd_block_timeout_intern(u32_t *elapsed_hi, u32_t *elapsed_lo, thdid_t dep
 }
 
 thdid_t
-sched_thd_create_intern(int idx)
+sched_thd_create_cserialized(int idx)
 {
 	spdid_t c = cos_inv_token();
 	struct cos_defcompinfo *dci;
@@ -57,7 +57,7 @@ sched_thd_create_intern(int idx)
 }
 
 thdid_t
-sched_aep_create_intern(arcvcap_t *extrcv, int *unused, int idx, int owntc)
+sched_aep_create_cserialized(arcvcap_t *extrcv, int *unused, int idx, int owntc)
 {
 	spdid_t c = cos_inv_token();
 	struct cos_defcompinfo *dci;
