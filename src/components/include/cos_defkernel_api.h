@@ -48,6 +48,19 @@ struct cos_defcompinfo {
 	struct cos_aep_info sched_aep;
 };
 
+static void
+cos_aepthd_fn(void *data)
+{
+	struct cos_aep_info *aep_info = (struct cos_aep_info *)data;
+	cos_aepthd_fn_t      aep_fn   = aep_info->fn;
+	void *               fn_data  = aep_info->data;
+
+	(aep_fn)(aep_info->rcv, fn_data);
+
+	/* TODO: handling destruction */
+	assert(0);
+}
+
 /* Only spdid is required when using manager interfaces. */
 void cos_defcompinfo_childid_init(struct cos_defcompinfo *defci, spdid_t id);
 

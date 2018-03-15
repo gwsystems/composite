@@ -29,20 +29,10 @@ sched_thd_create(cos_thd_fn_t fn, void *data)
 	return sched_thd_create_cserialized(idx);
 }
 
-static void
-__sched_aep_fn(void *data)
-{
-	struct cos_aep_info *ai = (struct cos_aep_info *)data;
-	cos_aepthd_fn_t      fn = ai->fn;
-	void *               fndata = ai->data;
-
-	(fn)(ai->rcv, fndata);
-}
-
 thdid_t
 sched_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc)
 {
-	int idx = cos_thd_init_alloc(__sched_aep_fn, (void *)aep);
+	int idx = cos_thd_init_alloc(cos_aepthd_fn, (void *)aep);
 	arcvcap_t rcv;
 	int ret;
 	int unused;

@@ -46,16 +46,6 @@ capmgr_ext_thd_create(spdid_t child, int idx, thdid_t *tid)
 	return capmgr_ext_thd_create_cserialized(tid, &unused, child, idx);
 }
 
-static void
-__capmgr_aep_fn(void *data)
-{
-	struct cos_aep_info *ai    = (struct cos_aep_info *)data;
-	cos_aepthd_fn_t      fn    = ai->fn;
-	void *               fdata = ai->data;
-
-	(fn)(ai->rcv, fdata);
-}
-
 thdcap_t
 capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc)
 {
@@ -64,7 +54,7 @@ capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int 
 	arcvcap_t rcv = 0;
 	tcap_t tc = 0;
 	thdid_t tid = 0;
-	int idx = cos_thd_init_alloc(__capmgr_aep_fn, (void *)aep);
+	int idx = cos_thd_init_alloc(cos_aepthd_fn, (void *)aep);
 
 	if (idx < 1) return 0;
 

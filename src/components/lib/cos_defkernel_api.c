@@ -213,16 +213,6 @@ cos_child_initaep_tcap_alloc_ext(struct cos_defcompinfo *child_dci, tcap_t tc, s
 	return 0;
 }
 
-static void
-__aepthd_fn(void *data)
-{
-	struct cos_aep_info *aep_info = (struct cos_aep_info *)data;
-	cos_aepthd_fn_t      aep_fn   = aep_info->fn;
-	void *               fn_data  = aep_info->data;
-
-	(aep_fn)(aep_info->rcv, fn_data);
-}
-
 int
 cos_aep_idx_alloc_ext(struct cos_aep_info *aep, int idx, struct cos_defcompinfo *dst_dci, struct cos_aep_info *sched_aep)
 {
@@ -283,7 +273,7 @@ cos_aep_tcap_alloc(struct cos_aep_info *aep, tcap_t tc, cos_aepthd_fn_t fn, void
 	assert(curr_defci_init_status == INITIALIZED);
 	memset(aep, 0, sizeof(struct cos_aep_info));
 
-	aep->thd = cos_thd_alloc(ci, ci->comp_cap, __aepthd_fn, (void *)aep);
+	aep->thd = cos_thd_alloc(ci, ci->comp_cap, cos_aepthd_fn, (void *)aep);
 	assert(aep->thd);
 
 	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
