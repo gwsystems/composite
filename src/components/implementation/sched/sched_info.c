@@ -1,11 +1,16 @@
 #include <cos_kernel_api.h>
 #include <ps.h>
 #include <sched_info.h>
+#include <hypercall.h>
+#include <sl.h>
 
 #define SCHED_MAX_CHILD_COMPS 8
 static struct sched_childinfo childinfo[SCHED_MAX_CHILD_COMPS];
 static int sched_num_child = 0;
 static int sched_num_childsched = 0;
+
+/* implementation specific initialization per child */
+extern void sched_child_init(struct sched_childinfo *schedci);
 
 struct sched_childinfo *
 sched_childinfo_find(spdid_t id)
@@ -58,8 +63,47 @@ sched_num_childsched_get(void)
 	return sched_num_childsched;
 }
 
+static void
+sched_childinfo_init_intern(int is_raw)
+{
+	int remaining = 0;
+	spdid_t child;
+	comp_flag_t childflags;
+
+	memset(childinfo, 0, sizeof(struct sched_childinfo) * SCHED_MAX_CHILD_COMPS);
+
+        while ((remaining = hypercall_comp_child_next(cos_spd_id(), &child, &childflags)) >= 0) {
+                struct cos_defcompinfo *child_dci = NULL;
+                struct sched_childinfo *schedinfo = NULL;
+                struct sl_thd          *initthd   = NULL;
+		compcap_t               compcap   = 0;
+
+                PRINTC("Initializing child component %u, is_sched=%d\n", child, childflags & COMP_FLAG_SCHED);
+		if (is_raw) compcap = hypercall_comp_compcap_get(child);
+
+                schedinfo = sched_childinfo_alloc(child, compcap, childflags);
+                assert(schedinfo);
+                child_dci = sched_child_defci_get(schedinfo);
+
+                initthd = sl_thd_child_initaep_alloc(child_dci, childflags & COMP_FLAG_SCHED, childflags & COMP_FLAG_SCHED ? 1 : 0);
+                assert(initthd);
+                sched_child_initthd_set(schedinfo, initthd);
+
+		sched_child_init(schedinfo);
+                if (!remaining) break;
+        }
+
+        assert(sched_num_child_get()); /* at least 1 child component */
+}
+
 void
 sched_childinfo_init(void)
 {
-	memset(childinfo, 0, sizeof(struct sched_childinfo) * SCHED_MAX_CHILD_COMPS);
+	sched_childinfo_init_intern(0);
+}
+
+void
+sched_childinfo_init_raw(void)
+{
+	sched_childinfo_init_intern(1);
 }
