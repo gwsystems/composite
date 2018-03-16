@@ -545,7 +545,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 #include <cos_thd_init.h>
 
 thdcap_t
-cos_thd_alloc_idx(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx)
+cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx)
 {
 	if (idx < 1) return 0;
 

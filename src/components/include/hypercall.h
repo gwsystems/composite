@@ -15,7 +15,7 @@ enum hypercall_cntl {
 	HYPERCALL_COMP_PGTBLCAP_GET,
 	HYPERCALL_COMP_CAPFRONTIER_GET,
 
-	HYPERCALL_COMP_INITTHD_GET,
+	HYPERCALL_COMP_INITAEP_GET,
 	HYPERCALL_COMP_CHILD_NEXT,
 
 	HYPERCALL_NUMCOMPS_GET,
@@ -47,24 +47,36 @@ hypercall_comp_init_done(void)
 
 /* Note: This API can be called ONLY by components that manage capability resources */
 static inline int
-hypercall_comp_initthd_get(spdid_t spdid, int is_sched, thdcap_t *thdslot, arcvcap_t *rcvslot, tcap_t *tcslot)
+hypercall_comp_initaep_get(spdid_t spdid, int is_sched, struct cos_aep_info *aep)
 {
+	thdcap_t  thdslot = 0;
+	arcvcap_t rcvslot = 0;
+	tcap_t    tcslot  = 0;
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	int ret = 0;
 
-	*thdslot = cos_capid_bump_alloc(ci, CAP_THD);
-	assert(*thdslot);
+	thdslot = cos_capid_bump_alloc(ci, CAP_THD);
+	assert(thdslot);
 
 	if (is_sched) {
-		*rcvslot = cos_capid_bump_alloc(ci, CAP_ARCV);
-		assert(*rcvslot);
+		rcvslot = cos_capid_bump_alloc(ci, CAP_ARCV);
+		assert(rcvslot);
 
-		*tcslot = cos_capid_bump_alloc(ci, CAP_TCAP);
-		assert(*tcslot);
+		tcslot = cos_capid_bump_alloc(ci, CAP_TCAP);
+		assert(tcslot);
 	}
 
 	/* capid_t though is unsigned long, only assuming it occupies 16bits for packing */
-	return cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INITTHD_GET,
-			      spdid << 16 | (*thdslot), (*rcvslot) << 16 | (*tcslot));
+	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INITAEP_GET,
+			spdid << 16 | thdslot, rcvslot << 16 | tcslot);
+	if (ret) return ret;
+
+	aep->thd = thdslot;
+	aep->rcv = rcvslot;
+	aep->tc  = tcslot;
+	aep->tid = cos_introspect(ci, thdslot, THD_GET_TID);
+
+	return 0;
 }
 
 /* Note: This API can be called ONLY by components that manage capability resources */

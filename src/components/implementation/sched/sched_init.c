@@ -25,15 +25,18 @@ schedinit_child(void)
 	/* thd retrieve */
 	do {
 		struct sl_thd *t = NULL;
-		thdcap_t thdcap = 0;
+		struct cos_aep_info aep;
 
-		thdcap = capmgr_thd_retrieve_next(c, &thdid);
+		memset(&aep, 0, sizeof(struct cos_aep_info));
+		aep.thd = capmgr_thd_retrieve_next(c, &thdid);
 		if (!thdid) break;
 		t = sl_thd_lkup(thdid);
 		/* already in? only init thd, coz it's created by this sched! */
 		if (unlikely(t)) continue;
 
-		t = sl_thd_ext_init(thdcap, 0, 0, 0);
+		aep.tid = thdid;
+		aep.tc  = sl_thd_tcap(sl__globals()->sched_thd);
+		t = sl_thd_init_ext(&aep, sched_child_initthd_get(ci));
 		if (!t) return -1;
 	} while (thdid);
 	num_child_init++;

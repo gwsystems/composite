@@ -18,9 +18,6 @@ capmgr_comp_info_iter(void)
 
 	do {
 		spdid_t csid = 0, psid = 0;
-		thdcap_t thdslot = 0;
-		arcvcap_t rcvslot = 0;
-		tcap_t tcslot = 0;
 		struct cap_comp_info *rci = NULL;
 		struct sl_thd *ithd = NULL;
 		u64_t chbits = 0, chschbits = 0;
@@ -33,6 +30,9 @@ capmgr_comp_info_iter(void)
 		int remain_child = 0;
 		spdid_t childid;
 		comp_flag_t ch_flags;
+		struct cos_aep_info aep;
+
+		memset(&aep, 0, sizeof(struct cos_aep_info));
 
 		remaining = hypercall_comp_info_next(&pgtslot, &captslot, &ccslot, &csid, &psid);
 		if (remaining < 0) {
@@ -44,7 +44,7 @@ capmgr_comp_info_iter(void)
 		if (csid == 0 || (csid != cos_spd_id() && cap_info_is_child(btinfo, csid))) {
 			is_sched = (csid == 0 || cap_info_is_sched_child(btinfo, csid)) ? 1 : 0;
 
-			ret = hypercall_comp_initthd_get(csid, is_sched, &thdslot, &rcvslot, &tcslot);
+			ret = hypercall_comp_initaep_get(csid, is_sched, &aep);
 			assert(ret == 0);
 		}
 
@@ -64,8 +64,8 @@ capmgr_comp_info_iter(void)
 			if (!remain_child) break;
 		}
 
-		if (thdslot) {
-			ithd = sl_thd_ext_init(thdslot, tcslot, rcvslot, 0);
+		if (aep.thd) {
+			ithd = sl_thd_init_ext(&aep, NULL);
 			assert(ithd);
 
 			cap_info_initthd_init(rci, ithd);

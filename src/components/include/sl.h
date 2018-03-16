@@ -256,17 +256,10 @@ struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap);
  */
 struct sl_thd *sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched);
 
-/*
- * This API creates a sl_thd object for the child component including init aep capabilities.
- */
-struct sl_thd *sl_thd_child_initaep_alloc(struct cos_defcompinfo *comp, int is_sched, int own_tcap);
-struct sl_thd *sl_thd_ext_child_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *schthd, int own_tcap);
+struct sl_thd *sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap);
+struct sl_thd *sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, arcvcap_t *extrcv);
 
-/* class of API used by managers creating threads for components in those components */
-struct sl_thd *sl_thd_ext_idx_alloc(struct cos_defcompinfo *comp, thdclosure_index_t idx);
-struct sl_thd *sl_thd_extaep_idx_alloc(struct cos_defcompinfo *comp, struct sl_thd *schthd, thdclosure_index_t idx, int own_tcap, arcvcap_t *extrcv);
-
-struct sl_thd *sl_thd_ext_init(thdcap_t t, tcap_t tc, arcvcap_t r, asndcap_t s);
+struct sl_thd *sl_thd_init_ext(struct cos_aep_info *aep, struct sl_thd *sched_thd);
 
 void           sl_thd_free(struct sl_thd *t);
 void           sl_thd_exit();

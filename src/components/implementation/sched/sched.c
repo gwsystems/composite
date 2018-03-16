@@ -50,7 +50,7 @@ sched_thd_create_cserialized(thdclosure_index_t idx)
 	dci = sched_child_defci_get(sched_childinfo_find(c));
 	if (!dci) return 0;
 
-	t = sl_thd_ext_idx_alloc(dci, idx);
+	t = sl_thd_aep_alloc_ext(dci, NULL, idx, 0, 0, NULL);
 	if (!t) return 0;
 
 	return sl_thd_thdid(t);
@@ -67,7 +67,7 @@ sched_aep_create_cserialized(arcvcap_t *extrcv, int *unused, thdclosure_index_t 
 	dci = sched_child_defci_get(sched_childinfo_find(c));
 	if (!dci) return 0;
 
-	t = sl_thd_extaep_idx_alloc(dci, sl__globals()->sched_thd, idx, owntc, extrcv);
+	t = sl_thd_aep_alloc_ext(dci, NULL, idx, 1, owntc, extrcv);
 	if (!t) return 0;
 
 	return sl_thd_thdid(t);

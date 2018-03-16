@@ -479,7 +479,7 @@ done:
 }
 
 static inline int
-boot_comp_initthd_get(spdid_t dstid, spdid_t srcid, thdcap_t thdslot, arcvcap_t rcvslot, tcap_t tcslot)
+boot_comp_initaep_get(spdid_t dstid, spdid_t srcid, thdcap_t thdslot, arcvcap_t rcvslot, tcap_t tcslot)
 {
 	struct comp_sched_info *si = NULL;
 	int ret = -1;
@@ -652,7 +652,7 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
 
 		break;
 	}
-	case HYPERCALL_COMP_INITTHD_GET:
+	case HYPERCALL_COMP_INITAEP_GET:
 	{
 		spdid_t   srcid   = arg3 >> 16;
 		thdcap_t  thdslot = (arg3 << 16) >> 16;
@@ -660,7 +660,7 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
 		arcvcap_t rcvslot = arg4 >> 16;
 
 		if (!__hypercall_resource_access_check(client, srcid, 0)) return -EACCES;
-		ret1 = boot_comp_initthd_get(client, srcid, thdslot, rcvslot, tcslot);
+		ret1 = boot_comp_initaep_get(client, srcid, thdslot, rcvslot, tcslot);
 
 		break;
 	}
