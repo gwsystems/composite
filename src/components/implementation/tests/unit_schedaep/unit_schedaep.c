@@ -49,6 +49,9 @@ __test_parent(arcvcap_t rcv, void *data)
 	sched_thd_exit();
 }
 
+#define PARENT_AEPKEY 1
+#define CHILD_AEPKEY  2
+
 static void
 test_aeps(void)
 {
@@ -57,16 +60,16 @@ test_aeps(void)
 	int ret;
 	int i = 0;
 
-	tidp = sched_aep_create(&taeps[i], __test_parent, (void *)i, 0);
+	tidp = sched_aep_create(&taeps[i], __test_parent, (void *)i, 0, PARENT_AEPKEY);
 	assert(tidp);
 
 	i ++;
-	tidc = sched_aep_create(&taeps[i], __test_child, (void *)i, 0);
+	tidc = sched_aep_create(&taeps[i], __test_child, (void *)i, 0, CHILD_AEPKEY);
 	assert(tidc);
 
 	__childasnd = capmgr_asnd_create(cos_spd_id(), tidc);
 	assert(__childasnd);
-	__parentasnd = capmgr_asnd_create(cos_spd_id(), tidp);
+	__parentasnd = capmgr_asnd_key_create(PARENT_AEPKEY);
 	assert(__parentasnd);
 
 	sched_thd_param_set(tidp, sched_param_pack(SCHEDP_PRIO, TEST_PRIO));

@@ -22,6 +22,11 @@ struct cap_shmem_glb_info {
 	int region_npages[MEMMGR_MAX_SHMEM_REGIONS]; /* number of pages allocated per region with array index as the shared-memory identifier */
 };
 
+struct cap_aepkey_info {
+	struct sl_thd *slaep; /* contains rcvcap, thdid, thdcap. */
+	asndcap_t      sndcap;
+} cap_aepkeys[CAPMGR_AEPKEYS_MAX];
+
 /* per component shared memory region information */
 struct cap_shmem_info {
 	struct cos_compinfo *cinfo; /* points to cap_comp_info.defci.ci, to use the same frontier for shared regions */
@@ -49,8 +54,8 @@ struct cap_comp_info {
 struct cap_comp_info *cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
 					 capid_t cap_frontier, vaddr_t heap_frontier, spdid_t sched_spdid);
 
-struct sl_thd *cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t);
-struct sl_thd *cap_info_initthd_init(struct cap_comp_info *rci, struct sl_thd *t);
+struct sl_thd *cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_aepkey_t key);
+struct sl_thd *cap_info_initthd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_aepkey_t key);
 
 struct cap_comp_info *cap_info_comp_find(spdid_t s);
 struct sl_thd *cap_info_thd_find(struct cap_comp_info *r, thdid_t t);
@@ -62,6 +67,10 @@ void cap_info_init(void);
 int cap_shmem_region_alloc(struct cap_shmem_info *rcur, int num_pages);
 int cap_shmem_region_map(struct cap_shmem_info *rcur, int id);
 vaddr_t cap_shmem_region_vaddr(struct cap_shmem_info *rsh, int id);
+
+struct cap_aepkey_info *cap_info_aepkey_get(cos_aepkey_t key);
+void cap_aepkey_set(cos_aepkey_t key, struct sl_thd *t);
+asndcap_t cap_aepkey_asnd_get(cos_aepkey_t key);
 
 static inline struct cos_compinfo *
 cap_info_ci(struct cap_comp_info *r)

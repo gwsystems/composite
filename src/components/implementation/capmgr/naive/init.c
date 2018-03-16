@@ -68,9 +68,9 @@ capmgr_comp_info_iter(void)
 			ithd = sl_thd_init_ext(&aep, NULL);
 			assert(ithd);
 
-			cap_info_initthd_init(rci, ithd);
+			cap_info_initthd_init(rci, ithd, 0);
 		} else if (cos_spd_id() == spdid) {
-			cap_info_initthd_init(rci, sl__globals()->sched_thd);
+			cap_info_initthd_init(rci, sl__globals()->sched_thd, 0);
 		}
 	} while (remaining > 0);
 

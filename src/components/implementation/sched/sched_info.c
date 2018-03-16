@@ -74,28 +74,28 @@ sched_childinfo_init_intern(int is_raw)
 
 	memset(childinfo, 0, sizeof(struct sched_childinfo) * SCHED_MAX_CHILD_COMPS);
 
-        while ((remaining = hypercall_comp_child_next(cos_spd_id(), &child, &childflags)) >= 0) {
-                struct cos_defcompinfo *child_dci = NULL;
-                struct sched_childinfo *schedinfo = NULL;
-                struct sl_thd          *initthd   = NULL;
+	while ((remaining = hypercall_comp_child_next(cos_spd_id(), &child, &childflags)) >= 0) {
+		struct cos_defcompinfo *child_dci = NULL;
+		struct sched_childinfo *schedinfo = NULL;
+		struct sl_thd          *initthd   = NULL;
 		compcap_t               compcap   = 0;
 
-                PRINTC("Initializing child component %u, is_sched=%d\n", child, childflags & COMP_FLAG_SCHED);
+		PRINTC("Initializing child component %u, is_sched=%d\n", child, childflags & COMP_FLAG_SCHED);
 		if (is_raw) compcap = hypercall_comp_compcap_get(child);
 
-                schedinfo = sched_childinfo_alloc(child, compcap, childflags);
-                assert(schedinfo);
-                child_dci = sched_child_defci_get(schedinfo);
+		schedinfo = sched_childinfo_alloc(child, compcap, childflags);
+		assert(schedinfo);
+		child_dci = sched_child_defci_get(schedinfo);
 
-                initthd = sl_thd_initaep_alloc(child_dci, NULL, childflags & COMP_FLAG_SCHED, childflags & COMP_FLAG_SCHED ? 1 : 0);
-                assert(initthd);
-                sched_child_initthd_set(schedinfo, initthd);
+		initthd = sl_thd_initaep_alloc(child_dci, NULL, childflags & COMP_FLAG_SCHED, childflags & COMP_FLAG_SCHED ? 1 : 0, 0);
+		assert(initthd);
+		sched_child_initthd_set(schedinfo, initthd);
 
 		sched_child_init(schedinfo);
-                if (!remaining) break;
-        }
+		if (!remaining) break;
+	}
 
-        assert(sched_num_child_get()); /* at least 1 child component */
+	assert(sched_num_child_get()); /* at least 1 child component */
 }
 
 void
