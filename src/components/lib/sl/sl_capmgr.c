@@ -271,14 +271,11 @@ sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thd
 }
 
 struct sl_thd *
-sl_thd_init_ext(struct cos_aep_info *aepthd, struct sl_thd *sched)
+sl_thd_init_ext_no_cs(struct cos_aep_info *aepthd, struct sl_thd *sched)
 {
-	struct sl_thd       *t   = NULL;
 	struct cos_aep_info *aep = NULL;
+	struct sl_thd       *t   = NULL;
 
-	if (!aepthd || !aepthd->thd || !aepthd->tid) return NULL;
-
-	sl_cs_enter();
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 
@@ -287,7 +284,57 @@ sl_thd_init_ext(struct cos_aep_info *aepthd, struct sl_thd *sched)
 	t = sl_thd_alloc_init(aep, 0, 0);
 
 done:
+	return t;
+}
+
+struct sl_thd *
+sl_thd_init_ext(struct cos_aep_info *aepthd, struct sl_thd *sched)
+{
+	struct sl_thd *t = NULL;
+
+	if (!aepthd || !aepthd->thd || !aepthd->tid) return NULL;
+
+	sl_cs_enter();
+	t = sl_thd_init_ext_no_cs(aepthd, sched);
 	sl_cs_exit();
+
+	return t;
+}
+
+struct sl_thd *
+sl_thd_retrieve(thdid_t tid)
+{
+	struct sl_thd       *t      = sl_mod_thd_get(sl_thd_lookup_backend(tid));
+	spdid_t              client = cos_inv_token();
+	struct cos_aep_info  aep;
+
+	if (t) return t;
+	/* this can only happen for invocations */
+	assert(client);
+
+	memset(&aep, 0, sizeof(struct cos_aep_info));
+	/*
+	 * laziest case: tid == sl_thdid()/cos_thdid()
+	 * current thread has invoked it's parent (this component) but
+	 * the parent does not have any information about this child.
+	 * Here we do a thread allocation without using sl_cs_enter could be a problem!
+	 */
+	if (tid != sl_thdid()) {
+		struct sl_thd *curr = sl_thd_curr();
+
+		/* well, the current thread info must be available */
+		assert(curr);
+		/* FIXME: We have a `sl_thd_lkup/curr()` abuse, they're used both within and outside of cs */
+		/* sl_cs_enter(); */
+	}
+
+	aep.thd = capmgr_thd_retrieve(client, tid);
+	assert(aep.thd); /* this thread must be a child thread and capmgr must know it! */
+	aep.tid = tid;
+	aep.tc  = sl__globals()->sched_tcap;
+	t = sl_thd_init_ext_no_cs(&aep, NULL);
+
+	/* if (tid != sl_thdid()) sl_cs_exit(); */
 
 	return t;
 }

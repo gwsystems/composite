@@ -81,12 +81,15 @@ sl_thd_setprio(struct sl_thd *t, tcap_prio_t p)
 	t->prio = p;
 }
 
+/* for lazy retrieval of a child component thread in the parent */
+extern struct sl_thd *sl_thd_retrieve(thdid_t tid);
+
 static inline struct sl_thd *
 sl_thd_lkup(thdid_t tid)
 {
 	assert(tid != 0);
 	if (unlikely(tid > MAX_NUM_THREADS)) return NULL;
-	return sl_mod_thd_get(sl_thd_lookup_backend(tid));
+	return sl_thd_retrieve(tid);
 }
 
 static inline thdid_t

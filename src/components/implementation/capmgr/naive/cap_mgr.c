@@ -295,10 +295,17 @@ capmgr_thd_retrieve(spdid_t s, thdid_t tid)
 	if (!cap_info_is_sched(cur) || !cap_info_is_child(rc, s)) return 0;
 	if (!ti || !sl_thd_thdcap(ti)) return 0;
 
-	if (tid == rs->initthdid) thdcap = rs->p_initthdcap;
-	else                      thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
+	if (tid == rs->initthdid) {
+		thdcap = rs->p_initthdcap;
+	} else {
+		thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
+		if (!thdcap) goto err;
+		cap_info_thd_init(rc, ti);
+	}
 
 	return thdcap;
+err:
+	return 0;
 }
 
 thdcap_t

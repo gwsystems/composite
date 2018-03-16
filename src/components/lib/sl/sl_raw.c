@@ -287,6 +287,12 @@ done:
 	return t;
 }
 
+struct sl_thd *
+sl_thd_retrieve(thdid_t tid)
+{
+	return sl_mod_thd_get(sl_thd_lookup_backend(tid));
+}
+
 void
 sl_thd_free(struct sl_thd *t)
 {
