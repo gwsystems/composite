@@ -183,7 +183,7 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 	struct cos_compinfo *compinfo  = boot_spd_compinfo_get(spdid);
 	struct comp_cap_info *spdinfo  = boot_spd_compcapinfo_get(spdid);
 	/* TODO: Purge rest of booter of spdid convention */
-	token_t token = (token_t)spdid;
+	invtoken_t token = (invtoken_t)spdid;
 
 	/*
 	 * Loop through all undefined symbs
@@ -345,7 +345,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	sinvcap_t   sinv;
 	thdcap_t    main_thd;
 	int         i = 0;
-	token_t token = (token_t)spdid;
+	invtoken_t token = (invtoken_t)spdid;
 	int ret;
 
 	cc = cos_comp_alloc(boot_info, ct, pt, (vaddr_t)spdinfo->upcall_entry);

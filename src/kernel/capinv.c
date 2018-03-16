@@ -1261,9 +1261,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_SINVACTIVATE: {
-			capid_t dest_comp_cap = __userregs_get2(regs);
-			vaddr_t entry_addr    = __userregs_get3(regs);
-			token_t token         = __userregs_get4(regs);
+			capid_t    dest_comp_cap = __userregs_get2(regs);
+			vaddr_t    entry_addr    = __userregs_get3(regs);
+			invtoken_t token         = __userregs_get4(regs);
 
 			ret = sinv_activate(ct, cap, capin, dest_comp_cap, entry_addr, token);
 			break;

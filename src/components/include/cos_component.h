@@ -180,7 +180,7 @@ cos_get_thd_id(void)
 	return get_stk_data(THDID_OFFSET);
 }
 
-static inline token_t
+static inline invtoken_t
 cos_inv_token(void)
 {
 	return get_stk_data(INVTOKEN_OFFSET);
