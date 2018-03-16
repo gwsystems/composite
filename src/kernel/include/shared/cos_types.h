@@ -452,4 +452,10 @@ typedef unsigned int isolation_level_t;
 #define LLBOOT_RESERVED_UNTYPED_SZ (1<<24) /* 16 MB = reserved untyped size with booter if there is a capability manager */
 #define CAPMGR_MIN_UNTYPED_SZ      (1<<26) /* 64 MB = minimum untyped size for the capability manager in the system */
 
+/* for simplicity, keep these multiples of PGD_RANGE */
+#define MEMMGR_COMP_MAX_HEAP     (1<<25) /* 32MB */
+#define MEMMGR_MAX_SHMEM_REGIONS 1024
+#define MEMMGR_MAX_SHMEM_SIZE    (1<<22) /* 4MB */
+#define MEMMGR_SHMEM_BASE        (0x80000000)
+
 #endif /* TYPES_H */

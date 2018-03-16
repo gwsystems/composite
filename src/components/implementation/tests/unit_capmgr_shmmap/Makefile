@@ -4,7 +4,7 @@ COMPONENT=unitcapmgr_shmmap.o
 INTERFACES=
 DEPENDENCIES=capmgr
 IF_LIB=
-ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_defkernel_api
+ADDITIONAL_LIBS=-lcobj_format $(LIBCOSDEFKERN) 
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o

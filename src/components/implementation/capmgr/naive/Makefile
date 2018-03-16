@@ -4,7 +4,7 @@ COMPONENT=capmgr.o
 INTERFACES=capmgr
 DEPENDENCIES=
 IF_LIB=
-ADDITIONAL_LIBS=-lcos_defkernel_api -lcos_kernel_api -lsl_raw -lsl_sched -lheap -lsl_mod_fprr -lsl_thd_static_backend
+ADDITIONAL_LIBS=$(LIBSLRAW) -lsl_mod_fprr -lsl_thd_static_backend
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o
