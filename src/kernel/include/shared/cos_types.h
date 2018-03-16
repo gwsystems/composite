@@ -454,8 +454,8 @@ typedef unsigned int isolation_level_t;
 
 /* for simplicity, keep these multiples of PGD_RANGE */
 #define MEMMGR_COMP_MAX_HEAP     (1<<25) /* 32MB */
-#define MEMMGR_MAX_SHMEM_REGIONS 1024
 #define MEMMGR_MAX_SHMEM_SIZE    (1<<22) /* 4MB */
-#define MEMMGR_SHMEM_BASE        (0x80000000)
+#define MEMMGR_COMP_MAX_SHMEM    MEMMGR_MAX_SHMEM_SIZE
+#define MEMMGR_MAX_SHMEM_REGIONS 1024
 
 #endif /* TYPES_H */

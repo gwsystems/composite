@@ -17,7 +17,7 @@ capmgr_comp_info_iter(void)
 	int num_comps = 0;
 
 	do {
-		spdid_t csid = 0, psid = 0;
+		spdid_t spdid = 0, sched_spdid = 0;
 		struct cap_comp_info *rci = NULL;
 		struct sl_thd *ithd = NULL;
 		u64_t chbits = 0, chschbits = 0;
@@ -34,27 +34,27 @@ capmgr_comp_info_iter(void)
 
 		memset(&aep, 0, sizeof(struct cos_aep_info));
 
-		remaining = hypercall_comp_info_next(&pgtslot, &captslot, &ccslot, &csid, &psid);
+		remaining = hypercall_comp_info_next(&pgtslot, &captslot, &ccslot, &spdid, &sched_spdid);
 		if (remaining < 0) {
 			assert(remaining == -1); /* iterator end */
 			break;
 		}
 
 		num_comps ++;
-		if (csid == 0 || (csid != cos_spd_id() && cap_info_is_child(btinfo, csid))) {
-			is_sched = (csid == 0 || cap_info_is_sched_child(btinfo, csid)) ? 1 : 0;
+		if (spdid == 0 || (spdid != cos_spd_id() && cap_info_is_child(btinfo, spdid))) {
+			is_sched = (spdid == 0 || cap_info_is_sched_child(btinfo, spdid)) ? 1 : 0;
 
-			ret = hypercall_comp_initaep_get(csid, is_sched, &aep);
+			ret = hypercall_comp_initaep_get(spdid, is_sched, &aep);
 			assert(ret == 0);
 		}
 
-		ret = hypercall_comp_frontier_get(csid, &vasfr, &capfr);
+		ret = hypercall_comp_frontier_get(spdid, &vasfr, &capfr);
 		assert(ret == 0);
 
-		rci = cap_info_comp_init(csid, captslot, pgtslot, ccslot, capfr, vasfr, (vaddr_t)MEMMGR_SHMEM_BASE, psid);
+		rci = cap_info_comp_init(spdid, captslot, pgtslot, ccslot, capfr, vasfr, sched_spdid);
 		assert(rci);
 
-		while ((remain_child = hypercall_comp_child_next(csid, &childid, &ch_flags)) >= 0) {
+		while ((remain_child = hypercall_comp_child_next(spdid, &childid, &ch_flags)) >= 0) {
 			bitmap_set(rci->child_bitmap, childid - 1);
 			if (ch_flags & COMP_FLAG_SCHED) {
 				bitmap_set(rci->child_sched_bitmap, childid - 1);
@@ -69,7 +69,7 @@ capmgr_comp_info_iter(void)
 			assert(ithd);
 
 			cap_info_initthd_init(rci, ithd);
-		} else if (cos_spd_id() == csid) {
+		} else if (cos_spd_id() == spdid) {
 			cap_info_initthd_init(rci, sl__globals()->sched_thd);
 		}
 	} while (remaining > 0);

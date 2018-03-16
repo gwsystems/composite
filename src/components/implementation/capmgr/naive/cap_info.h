@@ -24,7 +24,8 @@ struct cap_shmem_glb_info {
 
 /* per component shared memory region information */
 struct cap_shmem_info {
-	struct cos_compinfo shcinfo; /* used for heap_frontier == shared_mem_froniter, with same pgtbl capability of a component */
+	struct cos_compinfo *cinfo; /* points to cap_comp_info.defci.ci, to use the same frontier for shared regions */
+	int total_pages; /* track total pages alloc'ed/mapped to limit shmem usage */
 
 	vaddr_t shm_addr[MEMMGR_MAX_SHMEM_REGIONS]; /* virtual address mapped in the component with array index as the global shared memory identifier */
 };
@@ -45,9 +46,8 @@ struct cap_comp_info {
 	thdid_t  initthdid; /* init thread's tid */
 };
 
-struct cap_comp_info *cap_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
-					 capid_t cap_frontier, vaddr_t heap_frontier, vaddr_t shared_frontier,
-					 spdid_t par_sid);
+struct cap_comp_info *cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
+					 capid_t cap_frontier, vaddr_t heap_frontier, spdid_t sched_spdid);
 
 struct sl_thd *cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t);
 struct sl_thd *cap_info_initthd_init(struct cap_comp_info *rci, struct sl_thd *t);
@@ -122,7 +122,7 @@ cap_info_shmem_info(struct cap_comp_info *r)
 static inline struct cos_compinfo *
 cap_info_shmem_ci(struct cap_shmem_info *r)
 {
-	return &(r->shcinfo);
+	return r->cinfo;
 }
 
 static inline int

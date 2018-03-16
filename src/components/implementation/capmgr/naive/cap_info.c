@@ -13,9 +13,9 @@ __cap_info_shmglb_info(void)
 }
 
 struct cap_comp_info *
-cap_info_comp_find(spdid_t sid)
+cap_info_comp_find(spdid_t spdid)
 {
-	return &capci[sid];
+	return &capci[spdid];
 }
 
 unsigned int
@@ -47,17 +47,16 @@ cap_info_thd_next(struct cap_comp_info *rci)
 }
 
 struct cap_comp_info *
-cap_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
-		   capid_t cap_frontier, vaddr_t heap_frontier, vaddr_t shared_frontier, spdid_t psid)
+cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
+		   capid_t cap_frontier, vaddr_t heap_frontier, spdid_t sched_spdid)
 {
-	struct cos_compinfo       *ci      = cos_compinfo_get(&(capci[sid].defci));
-	struct cap_shmem_info     *cap_shi = cap_info_shmem_info(&capci[sid]);
-	struct cos_compinfo       *sh_ci   = cap_info_shmem_ci(cap_shi);
+	struct cos_compinfo       *ci      = cos_compinfo_get(&(capci[spdid].defci));
+	struct cap_shmem_info     *cap_shi = cap_info_shmem_info(&capci[spdid]);
 	struct cap_shmem_glb_info *rglb    = __cap_info_shmglb_info();
 
-	capci[sid].cid      = sid;
-	capci[sid].thd_used = 1;
-	capci[sid].parent   = &capci[psid];
+	capci[spdid].cid      = spdid;
+	capci[spdid].thd_used = 1;
+	capci[spdid].parent   = &capci[sched_spdid];
 
 	cos_meminfo_init(&ci->mi, 0, 0, 0);
 	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, compcap, heap_frontier, cap_frontier,
@@ -65,14 +64,12 @@ cap_info_comp_init(spdid_t sid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, co
 
 	memset(rglb, 0, sizeof(struct cap_shmem_glb_info));
 	memset(cap_shi, 0, sizeof(struct cap_shmem_info));
-	cos_meminfo_init(&sh_ci->mi, 0, 0, 0);
-	cos_compinfo_init(sh_ci, pgtbl_cap, 0, 0, shared_frontier, 0,
-			  cos_compinfo_get(cos_defcompinfo_curr_get()));
+	cap_shi->cinfo = ci;
 
-	capci[sid].initflag = 1;
+	capci[spdid].initflag = 1;
 	ps_faa((long unsigned *)&cap_comp_count, 1);
 
-	return &capci[sid];
+	return &capci[spdid];
 }
 
 struct sl_thd *
@@ -134,8 +131,8 @@ static int
 __cap_cos_shared_page_mapn(struct cos_compinfo *rci, int num_pages, vaddr_t capvaddr, vaddr_t *compvaddr)
 {
 	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	vaddr_t dst_pg;
-	int off = 0;
+	int                  off    = 0;
+	vaddr_t              dst_pg;
 
 	assert(capvaddr);
 	if (!capvaddr) return -1;
@@ -150,8 +147,8 @@ static int
 __cap_cos_shared_page_allocn(struct cos_compinfo *rci, int num_pages, vaddr_t *capvaddr, vaddr_t *compvaddr)
 {
 	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	int off = 0;
-	vaddr_t src_pg, dst_pg;
+	int                  off    = 0;
+	vaddr_t              src_pg, dst_pg;
 
 	*capvaddr = src_pg = (vaddr_t)cos_page_bump_allocn(cap_ci, num_pages * PAGE_SIZE);
 	if (!(*capvaddr)) return -1;
@@ -164,14 +161,15 @@ __cap_cos_shared_page_allocn(struct cos_compinfo *rci, int num_pages, vaddr_t *c
 int
 cap_shmem_region_alloc(struct cap_shmem_info *rsh, int num_pages)
 {
-	struct cos_compinfo       *rsh_ci = cap_info_shmem_ci(rsh);
-	struct cap_shmem_glb_info *rglb   = __cap_info_shmglb_info();
-	int alloc_idx = -1, fidx, ret;
-	vaddr_t cap_addr, comp_addr;
+	struct cos_compinfo       *rsh_ci    = cap_info_shmem_ci(rsh);
+	struct cap_shmem_glb_info *rglb      = __cap_info_shmglb_info();
+	int                        alloc_idx = -1, fidx, ret;
+	vaddr_t                    cap_addr, comp_addr;
 
 	if (!rsh) goto done;
 	/* limits check */
 	if ((rglb->total_pages + num_pages) * PAGE_SIZE > MEMMGR_MAX_SHMEM_SIZE) goto done;
+	if ((rsh->total_pages + num_pages) * PAGE_SIZE > MEMMGR_COMP_MAX_SHMEM) goto done;
 	fidx = ps_faa((long unsigned *)&(rglb->free_region_id), 1);
 	if (fidx >= MEMMGR_MAX_SHMEM_REGIONS) goto done;
 
@@ -181,6 +179,7 @@ cap_shmem_region_alloc(struct cap_shmem_info *rsh, int num_pages)
 
 	rglb->region_npages[fidx] = num_pages;
 	ps_faa((long unsigned *)&(rglb->total_pages), num_pages);
+	ps_faa((long unsigned *)&(rsh->total_pages), num_pages);
 
 	ret = __cap_cos_shared_page_allocn(rsh_ci, num_pages, &cap_addr, &comp_addr);
 	if (ret) goto done;
@@ -196,16 +195,19 @@ done:
 int
 cap_shmem_region_map(struct cap_shmem_info *rsh, int idx)
 {
-	struct cos_compinfo       *rsh_ci = cap_info_shmem_ci(rsh);
-	struct cap_shmem_glb_info *rglb   = __cap_info_shmglb_info();
-	vaddr_t cap_addr = __cap_info_shm_capmgr_vaddr(idx), comp_addr;
-	int ret = -1;
+	struct cos_compinfo       *rsh_ci    = cap_info_shmem_ci(rsh);
+	struct cap_shmem_glb_info *rglb      = __cap_info_shmglb_info();
+	vaddr_t                    cap_addr  = __cap_info_shm_capmgr_vaddr(idx), comp_addr;
+	unsigned long              num_pages = 0;
+	int                        ret       = -1;
 
 	if (!rsh) return 0;
 	if (idx >= MEMMGR_MAX_SHMEM_REGIONS) return 0;
 	if (!cap_addr || rsh->shm_addr[idx] != 0) return 0;
+	num_pages = rglb->region_npages[idx];
+	if ((rsh->total_pages + num_pages) * PAGE_SIZE > MEMMGR_COMP_MAX_SHMEM) return 0;
 
-	ret = __cap_cos_shared_page_mapn(rsh_ci, rglb->region_npages[idx], cap_addr, &comp_addr);
+	ret = __cap_cos_shared_page_mapn(rsh_ci, num_pages, cap_addr, &comp_addr);
 	if (ret) return 0;
 	rsh->shm_addr[idx] = comp_addr;
 
