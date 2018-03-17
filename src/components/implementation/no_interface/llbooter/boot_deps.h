@@ -138,7 +138,7 @@ boot_capmgr_mem_alloc(void)
 
 	mem_sz = round_up_to_pgd_page(boot_info->mi.untyped_frontier - (boot_info->mi.untyped_ptr + LLBOOT_RESERVED_UNTYPED_SZ));
 	assert(mem_sz >= CAPMGR_MIN_UNTYPED_SZ);
-	PRINTC("Allocating %lu MB untyped memory to capability manager[=%u]\n", mem_sz/(1024*1024), capmgr_spdid);
+	PRINTLOG(PRINT_DEBUG, "Allocating %lu MB untyped memory to capability manager[=%u]\n", mem_sz/(1024*1024), capmgr_spdid);
 
 	cos_meminfo_alloc(capmgr_info, BOOT_MEM_KM_BASE, mem_sz);
 }
@@ -379,26 +379,26 @@ boot_done(void)
 	struct cos_aep_info *root_aep = NULL;
 	int ret;
 
-	PRINTC("Booter: done creating system.\n");
-	PRINTC("********************************\n");
+	PRINTLOG(PRINT_DEBUG, "Booter: done creating system.\n");
+	PRINTLOG(PRINT_DEBUG, "********************************\n");
 	cos_thd_switch(schedule[sched_cur]);
-	PRINTC("Booter: done initializing child components.\n");
+	PRINTLOG(PRINT_DEBUG, "Booter: done initializing child components.\n");
 
 	if (root_spdid) {
 		/* NOTE: Chronos delegations would replace this in some experiments! */
 		root_aep = boot_spd_initaep_get(root_spdid);
 
-		PRINTC("Root scheduler is %u, switching to it now!\n", root_spdid);
+		PRINTLOG(PRINT_DEBUG, "Root scheduler is %u, switching to it now!\n", root_spdid);
 		ret = cos_tcap_transfer(root_aep->rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, LLBOOT_ROOTSCHED_PRIO);
 		assert(ret == 0);
 
 		ret = cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOTSCHED_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
-		PRINTC("ERROR: Root scheduler returned.\n");
+		PRINTLOG(PRINT_ERROR, "Root scheduler returned.\n");
 		assert(0);
 	}
 
-	PRINTC("No root scheduler in the system. Spinning!\n");
-	while (1) ;
+	PRINTLOG(PRINT_WARN, "No root scheduler in the system. Spinning!\n");
+	SPIN();
 }
 
 void
@@ -409,7 +409,7 @@ boot_thd_done(spdid_t c)
 	assert(si->parent_spdid == 0);
 	ps_faa((long unsigned *)&sched_cur, 1);
 
-	PRINTC("Component %d initialized!\n", c);
+	PRINTLOG(PRINT_DEBUG, "Component %d initialized!\n", c);
 	if (schedule[sched_cur] != 0) {
 		cos_thd_switch(schedule[sched_cur]);
 	} else {

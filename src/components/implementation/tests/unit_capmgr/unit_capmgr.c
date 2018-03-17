@@ -13,12 +13,6 @@
 #include <memmgr.h>
 #include <hypercall.h>
 
-#define SPIN()            \
-	do {              \
-		while (1) \
-			; \
-	} while (0)
-
 static cycles_t cycs_per_usec;
 
 #define TEST_N_THDS 5
@@ -49,7 +43,7 @@ test_thds(void)
 			break;
 		}
 	}
-	PRINTC("%s: thread capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
+	PRINTLOG(PRINT_DEBUG, "%s: thread capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
 }
 
 #define TEST_N_HEAP_PAGES 2048
@@ -59,12 +53,12 @@ test_thds(void)
 #define TEST_STR_NUM 5
 
 char *test_strs[TEST_STR_NUM] = {
-					"Hello",
-					"Welcome",
-					"Hi",
-					"Howdy",
-					"Goodbye",
-				};
+	"Hello",
+	"Welcome",
+	"Hi",
+	"Howdy",
+	"Goodbye",
+};
 
 static int
 test_mem_readwrite(vaddr_t addr, unsigned int size)
@@ -92,7 +86,7 @@ test_heapmem(void)
 
 	haddr = memmgr_heap_page_allocn(TEST_N_HEAP_PAGES);
 	if (!haddr || test_mem_readwrite(haddr, TEST_N_HEAP_PAGES)) failure = 1;
-	PRINTC("%s: heap allocation capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
+	PRINTLOG(PRINT_DEBUG, "%s: heap allocation capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
 }
 
 static void
@@ -105,7 +99,7 @@ test_sharedmem(void)
 	idx = memmgr_shared_page_allocn(TEST_N_SHMEM_PAGES, &addr);
 	/* expect idx == 0 to create a reader(shared memory map unit test */
 	if (idx != 0 || test_mem_readwrite(addr, TEST_N_SHMEM_PAGES)) failure = 1;
-	PRINTC("%s: shared memory allocation capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
+	PRINTLOG(PRINT_DEBUG, "%s: shared memory allocation capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
 }
 
 void
@@ -121,7 +115,6 @@ cos_init(void)
 	test_heapmem();
 	hypercall_comp_init_done();
 
-	SPIN();
-
-	return;
+	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
+	assert(0);
 }

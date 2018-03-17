@@ -80,7 +80,7 @@ sched_childinfo_init_intern(int is_raw)
 		struct sl_thd          *initthd   = NULL;
 		compcap_t               compcap   = 0;
 
-		PRINTC("Initializing child component %u, is_sched=%d\n", child, childflags & COMP_FLAG_SCHED);
+		PRINTLOG(PRINT_DEBUG, "Initializing child component %u, is_sched=%d\n", child, childflags & COMP_FLAG_SCHED);
 		if (is_raw) compcap = hypercall_comp_compcap_get(child);
 
 		schedinfo = sched_childinfo_alloc(child, compcap, childflags);

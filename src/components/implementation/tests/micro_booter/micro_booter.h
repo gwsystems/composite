@@ -23,12 +23,6 @@
 		int i = num / den;                              \
 	} while (0);
 
-#define SPIN()            \
-	do {              \
-		while (1) \
-			; \
-	} while (0)
-
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016, Phani Gadepalli and Gabriel Parmer, GWU, gparmer@gwu.edu.
+ * Copyright 2018, Phani Gadepalli and Gabriel Parmer, GWU, gparmer@gwu.edu.
  *
  * This uses a two clause BSD License.
  */
@@ -131,11 +131,11 @@ static void
 run_tests()
 {
 	test_highest_is_scheduled();
-	PRINTC("Test successful! Highest was scheduled only!\n");
+	PRINTLOG(PRINT_DEBUG, "Test successful! Highest was scheduled only!\n");
 	test_swapping();
-	PRINTC("Test successful! We swapped back and forth!\n");
+	PRINTLOG(PRINT_DEBUG, "Test successful! We swapped back and forth!\n");
 
-	PRINTC("Done testing, spinning...\n");
+	PRINTLOG(PRINT_DEBUG, "Done testing, spinning...\n");
 	SPIN();
 }
 
@@ -148,7 +148,7 @@ cos_init(void)
 
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	PRINTC("Unit-test scheduling manager component\n");
+	PRINTLOG(PRINT_DEBUG, "Unit-test scheduling manager component\n");
 	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflag) == -1);
 
 	testtid = sched_thd_create(run_tests, NULL);
@@ -162,5 +162,6 @@ cos_init(void)
 	}
 
 	/* should never get here */
+	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
 	assert(0);
 }

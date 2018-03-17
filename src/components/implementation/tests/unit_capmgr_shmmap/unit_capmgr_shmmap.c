@@ -13,12 +13,6 @@
 #include <memmgr.h>
 #include <hypercall.h>
 
-#define SPIN()            \
-	do {              \
-		while (1) \
-			; \
-	} while (0)
-
 static cycles_t cycs_per_usec;
 
 #define TEST_N_SHMEM_PAGES 64
@@ -26,12 +20,12 @@ static cycles_t cycs_per_usec;
 #define TEST_STR_NUM 5
 
 char *test_strs[TEST_STR_NUM] = {
-					"Hello",
-					"Welcome",
-					"Hi",
-					"Howdy",
-					"Goodbye",
-				};
+	"Hello",
+	"Welcome",
+	"Hi",
+	"Howdy",
+	"Goodbye",
+};
 
 static int
 test_mem_readwrite(vaddr_t addr, unsigned int size)
@@ -61,7 +55,7 @@ test_shmem(void)
 	npages = memmgr_shared_page_map(idx, &addr);
 	/* know that other comp created this before me. */
 	if (idx != 0 || npages == 0 || test_mem_readwrite(addr, TEST_N_SHMEM_PAGES)) failure = 1;
-	PRINTC("%s: shared memory map capmgr unit test\n", failure ? "FAILURE" : "SUCCESS");
+	PRINTLOG(PRINT_DEBUG, "%s: shared memory map capmgr unit test\n", failure ? "FAILURE" : "SUCCESS");
 }
 
 void
@@ -76,7 +70,6 @@ cos_init(void)
 	test_shmem();
 	hypercall_comp_init_done();
 
-	SPIN();
-
-	return;
+	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
+	assert(0);
 }

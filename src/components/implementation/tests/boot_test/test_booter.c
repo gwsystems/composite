@@ -6,9 +6,10 @@
 void
 cos_init(void)
 {
-	PRINTC("Dummy component booted.\n");
+	PRINTLOG(PRINT_DEBUG, "Dummy component booted.\n");
 
 	hypercall_comp_init_done();
 
-	while (1) ;
+	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
+	assert(0);
 }

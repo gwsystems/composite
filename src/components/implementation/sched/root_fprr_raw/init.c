@@ -32,7 +32,7 @@ cos_init(void)
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
-	PRINTC("CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
@@ -43,6 +43,6 @@ cos_init(void)
 
 	sl_sched_loop_nonblock();
 
-	PRINTC("ERROR: Should never have reached this point!!!\n");
+	PRINTLOG(PRINT_ERROR, "Should never have reached this point!!!\n");
 	assert(0);
 }

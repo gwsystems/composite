@@ -77,10 +77,4 @@ static inline thdid_t
 sl_thd_thdid(struct sl_thd *t)
 { return sl_thd_aepinfo(t)->tid; }
 
-#define SPIN()            \
-	do {              \
-		while (1) \
-			; \
-	} while (0)
-
 #endif /* SL_THD_H */

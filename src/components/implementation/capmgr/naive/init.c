@@ -74,7 +74,7 @@ capmgr_comp_info_iter(void)
 		}
 	} while (remaining > 0);
 
-	for (i = 0; i < (int)MAX_NUM_COMP_WORDS; i++) PRINTC("Scheduler bitmap[%d]: %u\n", i, cap_info_schedbmp[i]);
+	for (i = 0; i < (int)MAX_NUM_COMP_WORDS; i++) PRINTLOG(PRINT_DEBUG, "Scheduler bitmap[%d]: %u\n", i, cap_info_schedbmp[i]);
 	assert(num_comps == hypercall_numcomps_get());
 }
 
@@ -89,7 +89,7 @@ cos_init(void)
 	comp_flag_t ch_flags;
 	int ret = 0;
 
-	PRINTC("CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 	ret = hypercall_comp_frontier_get(cos_spd_id(), &heap_frontier, &cap_frontier);
 	assert(ret == 0);
 
@@ -104,9 +104,10 @@ cos_init(void)
 	cap_info_init();
 	capmgr_comp_info_iter();
 
-	PRINTC("Initialized CAPABILITY MANAGER\n");
+	PRINTLOG(PRINT_DEBUG, "Initialized CAPABILITY MANAGER\n");
 
 	hypercall_comp_init_done();
-	PRINTC("SPINNING\n");
-	while (1) ;
+
+	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
+	assert(0);
 }

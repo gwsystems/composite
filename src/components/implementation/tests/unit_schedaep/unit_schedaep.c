@@ -1,5 +1,5 @@
 /*
- * Copyright 2016, Phani Gadepalli and Gabriel Parmer, GWU, gparmer@gwu.edu.
+ * Copyright 2018, Phani Gadepalli and Gabriel Parmer, GWU, gparmer@gwu.edu.
  *
  * This uses a two clause BSD License.
  */
@@ -78,7 +78,7 @@ test_aeps(void)
 	ret = cos_asnd(__parentasnd, 1);
 	assert(ret == 0);
 
-	PRINTC("%s: sched component aep scheduling unit tests\n", (parent_sent == 0 || child_rcvd == 0) ? "FAILURE" : "SUCCESS");
+	PRINTLOG(PRINT_DEBUG, "%s: sched component aep scheduling unit tests\n", (parent_sent == 0 || child_rcvd == 0) ? "FAILURE" : "SUCCESS");
 }
 
 void

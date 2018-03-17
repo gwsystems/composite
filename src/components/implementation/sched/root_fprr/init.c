@@ -28,7 +28,7 @@ static void
 __init_done(void *d)
 {
 	while (schedinit_self()) sl_thd_block_periodic(0);
-	PRINTC("SELF (inc. CHILD) INIT DONE.\n");
+	PRINTLOG(PRINT_DEBUG, "SELF (inc. CHILD) INIT DONE.\n");
 	sl_thd_exit();
 
 	assert(0);
@@ -56,7 +56,7 @@ cos_init(void)
 	spdid_t child;
 	comp_flag_t childflags;
 
-	PRINTC("CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
@@ -74,7 +74,7 @@ cos_init(void)
 
 	sl_sched_loop_nonblock();
 
-	PRINTC("ERROR: Should never have reached this point!!!\n");
+	PRINTLOG(PRINT_ERROR, "Should never have reached this point!!!\n");
 	assert(0);
 }
 
