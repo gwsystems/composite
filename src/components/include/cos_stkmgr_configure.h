@@ -3,6 +3,6 @@
 
 // Must be 1 or nothing, this is a very
 // fragile system
-#define ENABLE_STACK_MANAGER 1
+//#define ENABLE_STACK_MANAGER 1
 
 #endif

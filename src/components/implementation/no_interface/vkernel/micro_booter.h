@@ -19,6 +19,7 @@
 	} while (0)
 
 
+#undef PRINTC
 #define PRINTC(fmt, args...) printc("%d: " fmt, vmid, ##args)
 #define ITER 10000
 #define TEST_NTHDS 5
