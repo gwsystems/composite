@@ -17,7 +17,7 @@ typedef enum {
 	SL_THD_FREE = 0,
 	SL_THD_BLOCKED,
 	SL_THD_BLOCKED_TIMEOUT,
-	SL_THD_WOKEN, /* Unused because kernel may send redundant scheduling events! if a race causes a wakeup before the inevitable block */
+	SL_THD_WOKEN, /* Used for user level scheduling races where a thread is woken before it has a chance to block */
 	SL_THD_RUNNABLE,
 	SL_THD_DYING,
 } sl_thd_state_t;

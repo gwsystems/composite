@@ -371,7 +371,7 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
 				  g->timeout_next, g->sched_rcv, tok);
 	} else {
-		return cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ? 
+		return cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ?
 				     TCAP_TIME_NIL : g->timeout_next, tok);
 	}
 }
@@ -447,7 +447,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
 			tcap_res_t currbudget = 0;
-			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);  
+			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);
 
 			ret = 0;
 			currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
@@ -462,7 +462,8 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		}
 	}
 
-	assert(t->state == SL_THD_RUNNABLE);
+	//WOKE is subset of RUNNABLE so should be safe to dispatch to
+	assert(t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
 	sl_cs_exit();
 
 	ret = sl_thd_activate(t, tok);
@@ -470,7 +471,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 * dispatch failed with -EPERM because tcap associated with thread t does not have budget.
 	 * Block the thread until it's next replenishment and return to the scheduler thread.
 	 *
-	 * If the thread is not replenished by the scheduler (replenished "only" by 
+	 * If the thread is not replenished by the scheduler (replenished "only" by
 	 * the inter-component delegations), block till next timeout and try again.
 	 */
 	if (unlikely(ret == -EPERM)) {
@@ -522,7 +523,7 @@ sl_cs_exit_switchto(struct sl_thd *to)
  * library-internal data-structures, and then the ability for the
  * scheduler thread to start its scheduling loop.
  *
- * sl_init(period); <- using `period` for scheduler periodic timeouts 
+ * sl_init(period); <- using `period` for scheduler periodic timeouts
  * sl_*;            <- use the sl_api here
  * ...
  * sl_sched_loop(); <- loop here. or using sl_sched_loop_nonblock();
@@ -538,11 +539,11 @@ void sl_sched_loop(void) __attribute__((noreturn));
  * with a RCV_NONBLOCK flag, the kernel returns to the calling thread immediately if
  * there are no pending events.
  *
- * This is useful for the system scheduler in a hierarchical settings where 
- * booter (perhaps only doing simple chronos delegations) hands off the 
+ * This is useful for the system scheduler in a hierarchical settings where
+ * booter (perhaps only doing simple chronos delegations) hands off the
  * system scheduling responsibility to another component.
  *
- * Note: sl_sched_loop_nonblock has same semantics as sl_sched_loop for 
+ * Note: sl_sched_loop_nonblock has same semantics as sl_sched_loop for
  * booter receive (INITRCV) end-point at the kernel level.
  */
 void sl_sched_loop_nonblock(void) __attribute__((noreturn));
