@@ -5,6 +5,7 @@
 #include <cos_types.h>
 #include <micro_booter.h>
 #include <rk.h>
+#include <tlsmgr.h>
 
 #define IN_PORT  9998
 #define OUT_PORT 9999
@@ -78,6 +79,7 @@ int
 udpserv_main(void)
 {
 	rk_socketcall_init();
+	tls_thread_area_init();
 
 	printc("Starting udp-server [in:%d out:%d]\n", IN_PORT, OUT_PORT);
 	__test_udp_server();

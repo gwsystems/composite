@@ -13,12 +13,6 @@ int shm_map(unsigned int spdid, unsigned int id);
 #define SHM_MAX_REGIONS 1000
 #define SHM_BASE_ADDR 0x80000000
 
-/*
- * Array of all components that may call down to shdmem api.
- * Since booter and shdmem handler are the same component,
- * have the booter initialize this array during booting process
- */
-
 struct shm_info {
 	struct cos_compinfo cinfo;
 	vaddr_t shm_frontier;
@@ -27,6 +21,11 @@ struct shm_info {
 	int init;
 };
 
+/*
+ * Array of all components that may call down to shdmem api.
+ * Since booter and shdmem handler are the same component,
+ * have the booter initialize this array during booting process
+ */
 struct shm_info shm_infos[MAX_NUM_COMPS];
 
 #endif /* SHDMEM_H */

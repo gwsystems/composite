@@ -11,8 +11,6 @@
  * The server component should then map in memory upon the request of the client component
  */
 
-#define SHMEM_TOKEN 1
-
 static vaddr_t shm_master_regions[SHM_MAX_REGIONS];
 /* Until we have to implement the deallocate, just increment this */
 static unsigned int shm_master_idx = 0;
@@ -21,6 +19,8 @@ static unsigned int shm_master_idx = 0;
 struct cos_compinfo *shm_cinfo;
 
 extern struct cos_component_information cos_comp_info;
+
+unsigned int shmem_token;
 
 /* --------------------------- Private Functions --------------------------- */
 static void
@@ -65,28 +65,28 @@ __create_shm_info(unsigned int spdid, int pgtbl_cap)
 }
 
 void
-__get_pgtbls()
+__get_pgtbls(void)
 {
 	capid_t cap_index;
-	int num_comps = -1;
-	int i;
+	size_t num_comps = -1;
+	size_t i;
 
-	/* Get the number of pagetables available to use to copy */
+	/* Get the number of page tables available to use to copy */
 	num_comps = (int)cos_sinv(BOOT_CAPTBL_SINV_CAP, BOOT_HYP_NUM_COMPS, 0, 0, 0);
 	assert(num_comps);
-	printc("We need to tansfer %d pgtbls...\n", num_comps-1);
+	printc("We need to transfer %d pgtbls...\n", num_comps-1);
 
 	for (i = 1 ; i <= num_comps ; i++) {
 		/* Already have access to my own page table */
-		if (i == SHMEM_TOKEN) continue;
+		if (i == shmem_token) continue;
 
 		cap_index = (unsigned int)cos_hypervisor_hypercall(BOOT_HYP_PGTBL_CAP,
-				(void *)SHMEM_TOKEN, (void *)i, (void *)shm_cinfo);
+				(void *)shmem_token, (void *)i, (void *)shm_cinfo);
 		assert(cap_index > 0);
 		__create_shm_info(i, cap_index);
 	}
 
-	printc("Done transfering pgtbls\n");
+	printc("Done transferring pgtbls\n");
 
 }
 
@@ -201,11 +201,10 @@ cos_init(void)
 {
 	struct cos_defcompinfo *dci;
 	struct cos_config_info_t *my_info;
-	int ret;
 
 	printc("Welcome to the shdmem component\n");
-	printc("Getting cos_compinfo for ourselves...");
 	printc("cos_component_information spdid: %ld\n", cos_comp_info.cos_this_spd_id);
+	shmem_token = cos_comp_info.cos_this_spd_id;
 
 	dci = cos_defcompinfo_curr_get();
 	assert(dci);
@@ -217,10 +216,10 @@ cos_init(void)
 			BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_compinfo_init(shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
 			BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(),
-			BOOT_CAPTBL_FREE, shm_cinfo);	
+			BOOT_CAPTBL_FREE, shm_cinfo);
 
 	/* Get access to the page tables from the booter of the components we will be servicing */
-	__get_pgtbls(shm_cinfo);
+	__get_pgtbls();
 
 	printc("Fetching boot configuration information\n");
 	my_info = cos_init_args();

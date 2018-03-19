@@ -158,6 +158,8 @@ cos_init(void)
 	ci  = cos_compinfo_get(dci);
 	assert(ci);
 
+	cos_defcompinfo_init();
+
 	currci = ci;
 
 	cycs_per_usec = (cycles_t)cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);

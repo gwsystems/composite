@@ -56,7 +56,7 @@ cd ../
 
 # Combine COSOBJ and application
 objcopy --weaken $PROGDIR/$PROG.o
-ld -melf_i386 -r -o app.tmp $PROGDIR/$PROG.o $SRCDIR/$COSOBJ
+cp $SRCDIR/$COSOBJ ./app.tmp
 
 # Defined in both cos and rk, localize one of them.
 for sym in "${localizesymsrc[@]}"
@@ -89,4 +89,3 @@ else
 	echo "RUNNING THE SYSTEM ON QEMU INSTEAD"
 	./$QEMURK rumpkernboot.sh
 fi
-

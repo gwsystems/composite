@@ -268,27 +268,6 @@ cos_set_tid_address(int *tidptr)
  * };
  */
 
-//void* backing_data[SL_MAX_NUM_THDS];
-//
-static void
-setup_thread_area(struct sl_thd *thread, void* data)
-{
-	printc("%s\n", __func__);
-//	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-//	thdid_t thdid = thread->thdid;
-//
-//	backing_data[thdid] = data;
-//
-//	cos_thd_mod(ci, sl_thd_thdcap(thread), &backing_data[thdid]);
-}
-
-int
-cos_set_thread_area(void* data)
-{
-	setup_thread_area(sl_thd_curr(), data);
-	return 0;
-}
-
 int
 cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, void *tls, pid_t *ctid)
 {
@@ -300,7 +279,11 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 
 	struct sl_thd * thd = sl_thd_alloc((cos_thd_fn_t) func, arg);
 	if (tls) {
-		setup_thread_area(thd, tls);
+		/*
+		 * We need to call into the TLS Manager but we can't do
+		 * an automated synchronous invocation from here.
+		 * FIXME by adding a hard-coded sinv into TLS Manager
+		 */
 	}
 	return thd->thdid;
 }
@@ -498,7 +481,6 @@ syscall_emulation_setup(void)
 
 	libc_syscall_override((cos_syscall_t)cos_gettid, __NR_gettid);
 	libc_syscall_override((cos_syscall_t)cos_tkill, __NR_tkill);
-	libc_syscall_override((cos_syscall_t)cos_set_thread_area, __NR_set_thread_area);
 	libc_syscall_override((cos_syscall_t)cos_set_tid_address, __NR_set_tid_address);
 	libc_syscall_override((cos_syscall_t)cos_clone, __NR_clone);
 	libc_syscall_override((cos_syscall_t)cos_futex, __NR_futex);

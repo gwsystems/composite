@@ -12,6 +12,7 @@
 #include <vk_types.h>
 #include <vk_api.h>
 #include <llbooter_inv.h>
+#include <tlsmgr.h>
 
 #include "rump_cos_alloc.h"
 #include "rk_sched.h"
@@ -48,6 +49,7 @@ cos2rump_setup(void)
 	crcalls.rump_cpu_sched_switch_viathd    = rk_rump_thd_yield_to;
 	crcalls.rump_memfree			= cos_memfree;
 	crcalls.rump_tls_init			= cos_tls_init;
+	crcalls.rump_tls_alloc			= cos_tls_alloc;
 	crcalls.rump_va2pa			= cos_vatpa;
 	crcalls.rump_pa2va			= cos_pa2va;
 	crcalls.rump_resume                     = rk_sched_loop;
@@ -222,6 +224,26 @@ cos_tls_init(unsigned long tp, thdcap_t tc)
 	return cos_thd_mod(currci, tc, (void *)tp);
 }
 
+extern int tcboffset;
+extern int tdatasize;
+extern int tbsssize;
+extern const char *_tdata_start_cpy;
+
+void *
+cos_tls_alloc(struct bmk_thread *thread)
+{
+	char *tlsmem;
+
+	tlsmem = tlsmgr_alloc(thread->cos_tid);
+
+	memcpy(tlsmem, _tdata_start_cpy, tdatasize); //copy from alloc to tlsmem
+	memset(tlsmem + tdatasize, 0, tbsssize);
+
+	printc("done\n");
+
+	return tlsmem + tcboffset;
+}
+
 void
 cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void (*f)(void *), void *arg,
@@ -240,10 +262,10 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		 * this is based off an assumption that the RK that does networking
 		 * is always spdid 4
 		 */
-		if (cos_spdid_get() == 4) {
-			printc("In cnic RK, skipping lwp thread initialization\n");
-			return;
-		}
+		//if (cos_spdid_get() == 4) {
+		//	printc("In cnic RK, skipping lwp thread initialization\n");
+		//	return;
+		//}
 
 		struct cos_defcompinfo *dci;
 		struct cos_compinfo    *ci;
@@ -255,7 +277,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		assert(ci);
 
 		/* FIXME, hard coding in the udpserver's spdid */
-		int udpserver_id = 3;
+		int udpserver_id = 4;
 		int cap_index = (int)cos_hypervisor_hypercall(BOOT_HYP_COMP_CAP,
 							     (void *)cos_spdid_get(),
 							     (void *)udpserver_id, ci);

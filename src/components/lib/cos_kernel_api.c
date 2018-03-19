@@ -896,7 +896,7 @@ cos_introspect64(struct cos_compinfo *ci, capid_t cap, unsigned long op, u64_t *
 {
 	int ret;
 	unsigned long a, b, c;
-	
+
 	ret = call_cap_retvals_asm(ci->captbl_cap, CAPTBL_OP_INTROSPECT64, cap, (int)op, 0, 0, &a, &b, &c);
 	if (!ret) *value = ((u64_t)a) << 32 | ((u64_t)b);
 

@@ -1,4 +1,4 @@
 INTERFACES=netbsd
-DEPENDENCIES=rk shdmem
+DEPENDENCIES=rk shdmem tlsmgr
 
 include ../Makefile.subdir
