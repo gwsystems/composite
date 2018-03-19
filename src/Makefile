@@ -2,8 +2,19 @@ MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
 default: | all cp
+	$(info Going!)
 
-all: comps plat
+all: | extern comps plat
+
+.PHONY: extern
+extern:
+	$(info )
+	$(info ***********************************************)
+	$(info *********** Building External Libs ************)
+	$(info ***********************************************)
+	$(info )
+	$(shell cd extern && python make.py >&2)
+
 
 comps:
 	$(info )

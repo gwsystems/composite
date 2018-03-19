@@ -3,7 +3,7 @@ ASM_OBJS=
 COMPONENT=cFE_booter.o
 INTERFACES=cFE
 DEPENDENCIES=resmgr
-IF_LIB:=./composite_cFE.o $(wildcard test/*.o)
+IF_LIB:=./composite_cFE.o ./cFE_fs.o $(wildcard test/*.o)
 ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_defkernel_api -lsl_resmgr -lsl_sched -lheap -lsl_lock
 
 include ../../Makefile.subsubdir
