@@ -114,6 +114,13 @@ sl_cs_owner(void)
 	return sl__globals()->lock.u.s.owner == sl_thd_thdcap(sl_thd_curr());
 }
 
+static inline int
+sl_is_runnable(struct sl_thd *t)
+{
+	/* WOKE threads are still runnable */
+	return (t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
+}
+
 /* ...not part of the public API */
 /*
  * @csi: current critical section value
@@ -462,8 +469,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		}
 	}
 
-	//WOKE is subset of RUNNABLE so should be safe to dispatch to
-	assert(t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
+	assert(sl_is_runnable(t));
 	sl_cs_exit();
 
 	ret = sl_thd_activate(t, tok);
