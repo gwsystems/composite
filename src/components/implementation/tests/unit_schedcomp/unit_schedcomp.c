@@ -1,5 +1,5 @@
 /*
- * Copyright 2016, Phani Gadepalli and Gabriel Parmer, GWU, gparmer@gwu.edu.
+ * Copyright 2018, Phani Gadepalli and Gabriel Parmer, GWU, gparmer@gwu.edu.
  *
  * This uses a two clause BSD License.
  */
@@ -7,7 +7,7 @@
 #include <llprint.h>
 #include <res_spec.h>
 #include <hypercall.h>
-#include <schedmgr.h>
+#include <sched.h>
 
 #define SL_FPRR_NPRIOS 32
 
@@ -23,7 +23,7 @@ static void
 low_thread_fn()
 {
 	lowest_was_scheduled = 1;
-	schedmgr_thd_exit();
+	sched_thd_exit();
 }
 
 static cycles_t
@@ -54,13 +54,13 @@ high_thread_fn()
 	thdid_t lowtid;
 	cycles_t deadline;
 
-	lowtid = schedmgr_thd_create(low_thread_fn, NULL);
-	schedmgr_thd_param_set(lowtid, sched_param_pack(SCHEDP_PRIO, LOW_PRIORITY));
+	lowtid = sched_thd_create(low_thread_fn, NULL);
+	sched_thd_param_set(lowtid, sched_param_pack(SCHEDP_PRIO, LOW_PRIORITY));
 
 	deadline = now() + usec2cyc(10 * 1000 * 1000);
 	while (now() < deadline) {}
 	assert(!lowest_was_scheduled);
-	schedmgr_thd_exit();
+	sched_thd_exit();
 }
 
 static void
@@ -69,11 +69,11 @@ test_highest_is_scheduled(void)
 	thdid_t hitid;
 	cycles_t wakeup;
 
-	hitid = schedmgr_thd_create(high_thread_fn, NULL);
-	schedmgr_thd_param_set(hitid, sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+	hitid = sched_thd_create(high_thread_fn, NULL);
+	sched_thd_param_set(hitid, sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
 	wakeup = now() + usec2cyc(1000 * 1000);
-	schedmgr_thd_block_timeout(0, wakeup);
+	sched_thd_block_timeout(0, wakeup);
 }
 
 static int thd1_ran = 0;
@@ -99,19 +99,19 @@ allocator_thread_fn()
 	thdid_t tid1, tid2;
 	cycles_t wakeup;
 
-	tid1 = schedmgr_thd_create(thd1_fn, NULL);
-	schedmgr_thd_param_set(tid1, sched_param_pack(SCHEDP_PRIO, LOW_PRIORITY));
+	tid1 = sched_thd_create(thd1_fn, NULL);
+	sched_thd_param_set(tid1, sched_param_pack(SCHEDP_PRIO, LOW_PRIORITY));
 
-	tid2 = schedmgr_thd_create(thd2_fn, NULL);
-	schedmgr_thd_param_set(tid2, sched_param_pack(SCHEDP_PRIO, LOW_PRIORITY));
+	tid2 = sched_thd_create(thd2_fn, NULL);
+	sched_thd_param_set(tid2, sched_param_pack(SCHEDP_PRIO, LOW_PRIORITY));
 
 	wakeup = now() + usec2cyc(1000 * 1000);
-	schedmgr_thd_block_timeout(0, wakeup);
+	sched_thd_block_timeout(0, wakeup);
 
-	schedmgr_thd_delete(tid1);
-	schedmgr_thd_delete(tid2);
+	sched_thd_delete(tid1);
+	sched_thd_delete(tid2);
 
-	schedmgr_thd_exit();
+	sched_thd_exit();
 }
 
 static void
@@ -120,22 +120,22 @@ test_swapping(void)
 	thdid_t alloctid;
 	cycles_t wakeup;
 
-	alloctid = schedmgr_thd_create(allocator_thread_fn, NULL);
-	schedmgr_thd_param_set(alloctid, sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+	alloctid = sched_thd_create(allocator_thread_fn, NULL);
+	sched_thd_param_set(alloctid, sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
 	wakeup = now() + usec2cyc(100 * 1000);
-	schedmgr_thd_block_timeout(0, wakeup);
+	sched_thd_block_timeout(0, wakeup);
 }
 
 static void
 run_tests()
 {
 	test_highest_is_scheduled();
-	PRINTC("Test successful! Highest was scheduled only!\n");
+	PRINTLOG(PRINT_DEBUG, "Test successful! Highest was scheduled only!\n");
 	test_swapping();
-	PRINTC("Test successful! We swapped back and forth!\n");
+	PRINTLOG(PRINT_DEBUG, "Test successful! We swapped back and forth!\n");
 
-	PRINTC("Done testing, spinning...\n");
+	PRINTLOG(PRINT_DEBUG, "Done testing, spinning...\n");
 	SPIN();
 }
 
@@ -143,22 +143,25 @@ void
 cos_init(void)
 {
 	thdid_t testtid;
-	u64_t childbits = 0;
+	spdid_t child;
+	comp_flag_t childflag;
 
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	PRINTC("Unit-test scheduling component\n");
-	hypercall_comp_children_get(cos_spd_id(), &childbits);
-	assert(!childbits);
+	PRINTLOG(PRINT_DEBUG, "Unit-test scheduling manager component\n");
+	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflag) == -1);
 
-	testtid = schedmgr_thd_create(run_tests, NULL);
-	schedmgr_thd_param_set(testtid, sched_param_pack(SCHEDP_PRIO, LOWEST_PRIORITY));
+	testtid = sched_thd_create(run_tests, NULL);
+	sched_thd_param_set(testtid, sched_param_pack(SCHEDP_PRIO, LOWEST_PRIORITY));
 
 	while (1) {
 		cycles_t wakeup;
 
 		wakeup = now() + usec2cyc(1000 * 1000);
-		schedmgr_thd_block_timeout(0, wakeup);
+		sched_thd_block_timeout(0, wakeup);
 	}
-	return;
+
+	/* should never get here */
+	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
+	assert(0);
 }

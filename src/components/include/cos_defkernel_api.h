@@ -33,6 +33,7 @@ typedef void (*cos_aepthd_fn_t)(arcvcap_t, void *);
 struct cos_aep_info {
 	tcap_t          tc;
 	thdcap_t        thd;
+	thdid_t         tid;
 	arcvcap_t       rcv;
 	cos_aepthd_fn_t fn;
 	void *          data;
@@ -40,12 +41,27 @@ struct cos_aep_info {
 
 /* Default Component information */
 struct cos_defcompinfo {
-	spdid_t id;
-	struct cos_compinfo ci;
+	union {
+		spdid_t id;
+		struct cos_compinfo ci;
+	};
 	struct cos_aep_info sched_aep;
 };
 
-/* ugly hack to get resmgr to work with current sl interface */
+static void
+cos_aepthd_fn(void *data)
+{
+	struct cos_aep_info *aep_info = (struct cos_aep_info *)data;
+	cos_aepthd_fn_t      aep_fn   = aep_info->fn;
+	void *               fn_data  = aep_info->data;
+
+	(aep_fn)(aep_info->rcv, fn_data);
+
+	/* TODO: handling destruction */
+	assert(0);
+}
+
+/* Only spdid is required when using manager interfaces. */
 void cos_defcompinfo_childid_init(struct cos_defcompinfo *defci, spdid_t id);
 
 /*
@@ -91,14 +107,30 @@ int cos_aep_alloc(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data);
  */
 int cos_aep_tcap_alloc(struct cos_aep_info *aep, tcap_t tc, cos_aepthd_fn_t fn, void *data);
 
-int cos_child_initthd_alloc(struct cos_defcompinfo *child_dci);
-int cos_child_initaep_alloc(struct cos_defcompinfo *child_dci);
-int cos_child_initaep_tcap_alloc(struct cos_defcompinfo *child_dci, tcap_t tc);
-int cos_child_initaep_alloc_ext(struct cos_defcompinfo *child_dci, struct cos_aep_info *sched);
-int cos_child_initaep_tcap_alloc_ext(struct cos_defcompinfo *child_dci, tcap_t tc, struct cos_aep_info *sched);
+/*
+ * cos_initaep_alloc: create an initaep in the @child_dci and using sched->rcv as the parent, sets up cos_sched_ape_get(@child_dci) with the init capabilities.
+ * 		      if @sched == NULL, use the current scheduler in cos_sched_aep_get(cos_defcompinfo_get_cur()).
+ *                    if @is_sched == 0, creates only the init thread (does not need @sched parameter)
+ */
+int cos_initaep_alloc(struct cos_defcompinfo *child_dci, struct cos_aep_info *sched, int is_sched);
+/*
+ * cos_initaep_tcap_alloc: same as cos_initaep_alloc with is_sched == 1, except it doesn't create a new tcap,
+ *			   uses the tcap passed in @tc.
+ */
+int cos_initaep_tcap_alloc(struct cos_defcompinfo *child_dci, tcap_t tc, struct cos_aep_info *sched);
 
-int cos_aep_idx_tcap_alloc_ext(struct cos_aep_info *aep, tcap_t tc, int idx, struct cos_defcompinfo *dstdci, struct cos_aep_info *sched_aep);
-int cos_aep_idx_alloc_ext(struct cos_aep_info *aep, int idx, struct cos_defcompinfo *dstdci, struct cos_aep_info *sched_aep);
+/*
+ * cos_aep_alloc_ext: creates a new async activation end-point which includes thread, tcap and rcv capabilities in the child_dci component using sched_aep->rcv.
+ *		      if @child_dci == NULL, create in the current component.
+ */
+int cos_aep_alloc_ext(struct cos_aep_info *aep, struct cos_defcompinfo *child_dci, struct cos_aep_info *sched_aep, thdclosure_index_t idx);
+
+/*
+ * cos_aep_alloc_ext: creates a new async activation end-point which includes thread, tcap and rcv capabilities in the child_dci component using sched_aep->rcv.
+ *		      if @child_dci == NULL, create in the current component.
+ */
+int cos_aep_tcap_alloc_ext(struct cos_aep_info *aep, struct cos_defcompinfo *child_dci, struct cos_aep_info *sched_aep, tcap_t tc, thdclosure_index_t idx);
+
 /*
  * cos_defswitch: thread switch api using the default scheduling tcap and rcv.
  */

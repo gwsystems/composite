@@ -333,7 +333,7 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 }
 
 static int
-thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, int init_data)
+thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
 	struct cap_thd            *tc;

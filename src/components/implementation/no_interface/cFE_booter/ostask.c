@@ -43,12 +43,12 @@ void OS_SchedulerStart(cos_thd_fn_t main_delegate) {
     struct sl_thd* main_delegate_thread = sl_thd_alloc(main_delegate, NULL);
     union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = MAIN_DELEGATE_THREAD_PRIORITY}};
     sl_thd_param_set(main_delegate_thread, sp.v);
-    main_delegate_thread_id = main_delegate_thread->thdid;
+    main_delegate_thread_id = sl_thd_thdid(main_delegate_thread);
 
     struct sl_thd_policy* policy = sl_mod_thd_policy_get(main_delegate_thread);
     strcpy(policy->osal_task_prop.name, "MAIN_THREAD");
     policy->osal_task_prop.priority = MAIN_DELEGATE_THREAD_PRIORITY;
-    policy->osal_task_prop.OStask_id = (uint32) main_delegate_thread->thdid;
+    policy->osal_task_prop.OStask_id = (uint32) sl_thd_thdid(main_delegate_thread);
 
     struct sl_thd *timer_thd = sl_thd_alloc(timer_fn_1hz, NULL);
     union sched_param_union spperiod = {.c = {.type = SCHEDP_WINDOW, .value = HZ_PAUSE }};
@@ -127,10 +127,10 @@ int32 OS_TaskCreate(uint32 *task_id, const char *task_name,
     policy->osal_task_prop.creator = OS_TaskGetId();
     policy->osal_task_prop.stack_size = stack_size;
     policy->osal_task_prop.priority = priority;
-    policy->osal_task_prop.OStask_id = (uint32) thd->thdid;
+    policy->osal_task_prop.OStask_id = (uint32) sl_thd_thdid(thd);
     policy->delete_handler = NULL;
 
-    *task_id = (uint32) thd->thdid;
+    *task_id = (uint32) sl_thd_thdid(thd);
 
     return OS_SUCCESS;
 }

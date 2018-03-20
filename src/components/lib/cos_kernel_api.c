@@ -31,7 +31,7 @@ __compinfo_metacap(struct cos_compinfo *ci)
 	return ci->memsrc;
 }
 
-void
+static inline void
 cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
 {
 	ci->vas_frontier = heap_ptr;
@@ -523,7 +523,7 @@ __alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
 }
 
 static thdcap_t
-__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
+__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init_data)
 {
 	vaddr_t kmem;
 	capid_t cap;
@@ -545,7 +545,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 #include <cos_thd_init.h>
 
 thdcap_t
-cos_thd_alloc_idx(struct cos_compinfo *ci, compcap_t comp, int idx)
+cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx)
 {
 	if (idx < 1) return 0;
 
@@ -645,7 +645,7 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 }
 
 sinvcap_t
-cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, unsigned long token)
+cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, invtoken_t token)
 {
 	capid_t cap;
 
@@ -847,18 +847,29 @@ cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd)
 }
 
 vaddr_t
-cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src)
+cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz)
 {
-	vaddr_t dst;
+	size_t i;
+	vaddr_t dst, first_dst;
 
 	assert(srcci && dstci);
+	assert(sz && (sz % PAGE_SIZE == 0));
 
-	dst = __page_bump_valloc(dstci, PAGE_SIZE);
+	dst = __page_bump_valloc(dstci, sz);
 	if (unlikely(!dst)) return 0;
+	first_dst = dst;
 
-	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) BUG();
+	for (i = 0; i < sz; i += PAGE_SIZE, src += PAGE_SIZE, dst += PAGE_SIZE) {
+		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) BUG();
+	}
 
-	return dst;
+	return first_dst;
+}
+
+vaddr_t
+cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src)
+{
+	return cos_mem_aliasn(dstci, srcci, src, PAGE_SIZE);
 }
 
 int

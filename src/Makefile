@@ -1,12 +1,11 @@
 MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
+.PHONY: default all extern comps plat
 default: | all cp
-	$(info Going!)
 
 all: | extern comps plat
 
-.PHONY: extern
 extern:
 	$(info )
 	$(info ***********************************************)

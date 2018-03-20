@@ -34,13 +34,13 @@ void launch_other_component(int child_id, int is_library)
     struct cos_defcompinfo dci;
     cos_defcompinfo_childid_init(&dci, child_id);
 
-    struct sl_thd *t = sl_thd_child_initaep_alloc(&dci, 0, 1);
+    struct sl_thd *t = sl_thd_comp_init(&dci, 0);
     if (is_library) {
         sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, 1));
-        sl_thd_yield(t->thdid);
+        sl_thd_yield(sl_thd_thdid(t));
     } else {
-        id_overrides[t->thdid] = sl_thdid();
-        while(1) sl_thd_yield(t->thdid);
+        id_overrides[sl_thd_thdid(t)] = sl_thdid();
+        while(1) sl_thd_yield(sl_thd_thdid(t));
     }
 }
 

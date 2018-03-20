@@ -47,3 +47,8 @@ ASFLAGS=-m32 $(INC_PATH) $(SHARED_FLAGS)
 
 SERVER_STUB=s_stub.o
 CLIENT_STUB=c_stub.o
+
+LIBCOSDEFKERN=-lcos_kernel_api -lcos_defkernel_api
+LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap
+LIBSLCAPMGR=$(LIBSLCORE) -lsl_capmgr
+LIBSLRAW=$(LIBSLCORE) -lsl_raw

@@ -1,4 +1,7 @@
+#include <stdio.h>
+
 #include <cos_component.h>
+#include <cos_debug.h>
 #include <cos_types.h>
 
 #include <memmgr.h>

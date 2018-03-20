@@ -13,7 +13,7 @@
 
 struct sl_global sl_global_data;
 static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
-extern struct sl_thd *sl_thd_alloc_init(thdid_t tid, struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps);
+extern struct sl_thd *sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps);
 
 /*
  * These functions are removed from the inlined fast-paths of the
@@ -33,7 +33,7 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 		if (!ps_cas(&g->lock.u.v, cached->v, csi->v)) return 1;
 	}
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	if ((ret = cos_defswitch(csi->s.owner, t->prio, csi->s.owner == sl_thd_thdcap(g->sched_thd) ? 
+	if ((ret = cos_defswitch(csi->s.owner, t->prio, csi->s.owner == sl_thd_thdcap(g->sched_thd) ?
 				 TCAP_TIME_NIL : g->timeout_next, tok))) return ret;
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
 
@@ -104,7 +104,7 @@ sl_timeout_remove(struct sl_thd *t)
 }
 
 void
-sl_thd_free_intern(struct sl_thd *t)
+sl_thd_free_no_cs(struct sl_thd *t)
 {
         struct sl_thd *ct = sl_thd_curr();
 
@@ -269,7 +269,7 @@ sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 {
 	assert(t);
 
-	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1; 
+	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1;
 
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	t->state = SL_THD_RUNNABLE;
@@ -425,7 +425,7 @@ sl_init(microsec_t period)
 	sl_timeout_init(period);
 
 	/* Create the scheduler thread for us. cos_sched_aep_get() is from global(static) memory */
-	g->sched_thd       = sl_thd_alloc_init(cos_thdid(), cos_sched_aep_get(dci), 0, 0);
+	g->sched_thd       = sl_thd_alloc_init(cos_sched_aep_get(dci), 0, 0);
 	assert(g->sched_thd);
 	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_BASE;
 	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_BASE;

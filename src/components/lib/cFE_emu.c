@@ -1,7 +1,8 @@
 #include <stdarg.h>
 
+#include <cos_debug.h>
 #include <llprint.h>
-#include "../interface/resmgr/memmgr.h"
+#include "../interface/capmgr/memmgr.h"
 
 #include <cfe_error.h>
 #include <cfe_evs.h>
