@@ -1,11 +1,12 @@
 #include "osfilesys.h"
 #include "tar.h"
 #include <string.h>
+#include <cos_debug.h>
 
 //should be overwritten by linking step in build process
-__attribute__((weak)) char _binary_cFEfs_tar_size = 0;
-__attribute__((weak)) char _binary_cFEfs_tar_start = 0;
-__attribute__((weak)) char _binary_cFEfs_tar_end = 0;
+__attribute__((weak)) char _binary_cFE_fs_tar_size = 0;
+__attribute__((weak)) char _binary_cFE_fs_tar_start = 0;
+__attribute__((weak)) char _binary_cFE_fs_tar_end = 0;
 
 //locations and size of tar
 char      *tar_start;
@@ -45,18 +46,18 @@ static uint32 oct_to_dec(char *oct)
 uint32 tar_load()
 {
     // First make sure that symbols have been overwritten by linking process
-    if (!_binary_cFEfs_tar_start)
+    if (!_binary_cFE_fs_tar_start)
         return OS_FS_ERR_DRIVE_NOT_CREATED;
     // Next check that file size is greater than 0
-    if (&_binary_cFEfs_tar_size == 0)
+    if (&_binary_cFE_fs_tar_size == 0)
         return OS_FS_ERR_DRIVE_NOT_CREATED;
     // Check that the end of the tar is after the start
-    if (&_binary_cFEfs_tar_end < &_binary_cFEfs_tar_start)
+    if (&_binary_cFE_fs_tar_end < &_binary_cFE_fs_tar_start)
         return OS_FS_ERR_DRIVE_NOT_CREATED;
 
-    tar_size    = (size_t) &_binary_cFEfs_tar_size;
-    tar_start   = &_binary_cFEfs_tar_start;
-    tar_end     = &_binary_cFEfs_tar_end;
+    tar_size    = (size_t) &_binary_cFE_fs_tar_size;
+    tar_start   = &_binary_cFE_fs_tar_start;
+    tar_end     = &_binary_cFE_fs_tar_end;
 
     return  OS_FS_SUCCESS;
 }
