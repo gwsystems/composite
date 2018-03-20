@@ -1,7 +1,7 @@
 MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
-.PHONY: default all extern comps plat
+.PHONY: default all extern comps plat init_extern
 default: | all cp
 
 all: | extern comps plat
@@ -14,6 +14,14 @@ extern:
 	$(info )
 	$(shell cd extern && python make.py >&2)
 
+init_extern:
+	$(info )
+	$(info ***********************************************)
+	$(info ********** Setting up External Libs ***********)
+	$(info ***********************************************)
+	$(info )
+	bash -c 'cd extern/cFE/; source setvars.sh; cd ../..; make -C extern/cFE/build/cpu1 config'
+	$(shell cd extern && python make.py -p >&2)
 
 comps:
 	$(info )
@@ -46,8 +54,12 @@ distclean: clean
 	$(MAKE) $(MAKEFLAGS) -C components distclean
 	@rm -f `pwd`/../transfer/*
 
-init:
+init: | ensure_config init_extern init_composite
+
+ensure_config:
 	test -f PLATFORM_ID || $(MAKE) $(MAKEFLAGS) config
+
+init_composite:
 	$(MAKE) $(MAKEFLAGS) -C components init
 	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform init
 

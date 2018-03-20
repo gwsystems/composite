@@ -4,13 +4,14 @@ import argparse
 import os
 import shutil
 import subprocess as sp
+import sys
 
 # Load command line arguments.
 parser = argparse.ArgumentParser(description='Copy cFE files over to Composite and build Composite with cFE support.')
 parser.add_argument('-c', '--clean', dest='clean', action='store_true', help='Clean the Composite build directory before building it.')
 parser.add_argument('-i', '--ignore-clock-skew', dest='skew', action='store_true', help='Ignore clock skew warnings when building.')
-parser.add_argument('-f', '--first-time', dest='first', action='store_true', help='Also run init steps when building.')
 parser.add_argument('-u', '--unit-tests', dest='unit_tests', action='store_true', help='Build unit tests.')
+parser.add_argument('-p', '--copy-only', dest='copy_only', action='store_true', help='Don\'t build the cFE, just copy headers')
 
 args = parser.parse_args()
 
@@ -135,6 +136,9 @@ if args.unit_tests:
     for folder in OSAL_UT_HEADERS_TO_COPY:
         shutil.copytree(OSAL_UT_DIR + folder, COMPOSITE_CFE_UT_DESTINATION + folder)
         print "Copied {} to {}".format(folder, COMPOSITE_CFE_UT_DESTINATION)
+
+if args.copy_only:
+    sys.exit(0)
 
 print "=== Building cFE ==="
 
