@@ -117,7 +117,7 @@ if not os.path.exists(COMPOSITE_CFE_HEADER_DESTINATION):
     print "cFE header destination folder not found. Creating it now."
     os.makedirs(COMPOSITE_CFE_HEADER_DESTINATION)
 for header in CFE_HEADERS_TO_COPY:
-    sp.check_call("cp -r " + CFE_DIR + header + " " + COMPOSITE_CFE_HEADER_DESTINATION, shell=True)
+    sp.check_call("cp -ur " + CFE_DIR + header + " " + COMPOSITE_CFE_HEADER_DESTINATION, shell=True)
 
 if args.unit_tests:
     print "=== Building unit tests ==="

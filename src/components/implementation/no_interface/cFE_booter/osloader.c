@@ -31,10 +31,10 @@ int32 OS_ModuleUnload(uint32 module_id)
 
 void launch_other_component(int child_id, int is_library)
 {
-    struct cos_defcompinfo dci;
-    cos_defcompinfo_childid_init(&dci, child_id);
+    struct cos_defcompinfo child_dci;
+    cos_defcompinfo_childid_init(&child_dci, child_id);
 
-    struct sl_thd *t = sl_thd_comp_init(&dci, 0);
+    struct sl_thd *t = sl_thd_initaep_alloc(&child_dci, NULL, 0, 0, 0);
     if (is_library) {
         sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, 1));
         sl_thd_yield(sl_thd_thdid(t));
