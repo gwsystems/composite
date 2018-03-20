@@ -29,6 +29,7 @@
 
 /* DPDK data structures */
 struct rte_mempool;
+struct rte_mbuf;
 
 /* DPDK functions */
 extern int rte_eal_init(int, char**);
@@ -41,5 +42,29 @@ extern struct rte_mempool* rte_pktmbuf_pool_create(
         u16_t data_room_size,
         int socket_id
 );
+extern int rte_eth_dev_cos_setup_ports(unsigned nb_ports,
+        struct rte_mempool *mp);
+/* extern u16_t rte_eth_rx_burst( */
+/*         u16_t port_id, */
+/*         u16_t queue_id, */
+/*         struct rte_mbuf **rx_pkts, */
+/*         const u16_t nb_pkts */
+/* ); */
+/* extern  u16_t rte_eth_tx_burst( */
+/*         u16_t port_id, */
+/*         u16_t queue_id, */
+/*         struct rte_mbuf **tx_pkts, */
+/*         const u16_t nb_pkts */
+/* ); */
+
+extern int rte_pktmbuf_alloc_bulk_cos(
+        struct rte_mempool *pool,
+        struct rte_mbuf **mbufs,
+        unsigned count
+);
+extern u16_t rte_eth_rx_burst_cos(u8_t port_id, u16_t queue_id,
+        struct rte_mbuf **rx_pkts, u16_t nb_pkts);
+extern u16_t rte_eth_tx_burst_cos(u8_t port_id, u16_t queue_id,
+        struct rte_mbuf **tx_pkts, u16_t nb_pkts);
 
 #endif /* NINF_H */
