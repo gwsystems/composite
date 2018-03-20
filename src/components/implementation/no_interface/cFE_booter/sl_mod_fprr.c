@@ -5,30 +5,31 @@
 #include <sl_mod_policy.h>
 #include <sl_plugins.h>
 
-#define SL_FPRR_NPRIOS         257
-#define SL_FPRR_PRIO_HIGHEST   0
-#define SL_FPRR_PRIO_LOWEST    (SL_FPRR_NPRIOS-1)
+#define SL_FPRR_NPRIOS 257
+#define SL_FPRR_PRIO_HIGHEST 0
+#define SL_FPRR_PRIO_LOWEST (SL_FPRR_NPRIOS - 1)
 
-#define SL_FPRR_PERIOD_US_MIN  SL_MIN_PERIOD_US
+#define SL_FPRR_PERIOD_US_MIN SL_MIN_PERIOD_US
 
 struct ps_list_head threads[SL_FPRR_NPRIOS];
 
 /* No RR yet */
 void
 sl_mod_execution(struct sl_thd_policy *t, cycles_t cycles)
-{ }
+{
+}
 
 struct sl_thd_policy *
 sl_mod_schedule(void)
 {
-	int i;
+	int                   i;
 	struct sl_thd_policy *t;
 
-	for (i = 0 ; i < SL_FPRR_NPRIOS ; i++) {
+	for (i = 0; i < SL_FPRR_NPRIOS; i++) {
 		if (ps_list_head_empty(&threads[i])) continue;
 		t = ps_list_head_first_d(&threads[i], struct sl_thd_policy);
 
-		struct sl_thd *thd  = sl_mod_thd_get(t);
+		struct sl_thd *thd = sl_mod_thd_get(t);
 
 		/*
 		 * We want to move the selected thread to the back of the list.
@@ -77,44 +78,43 @@ sl_mod_thd_create(struct sl_thd_policy *t)
 
 void
 sl_mod_thd_delete(struct sl_thd_policy *t)
-{ ps_list_rem_d(t); }
+{
+	ps_list_rem_d(t);
+}
 
 void
 sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned int v)
 {
 	switch (type) {
-	case SCHEDP_PRIO:
-	{
+	case SCHEDP_PRIO: {
 		assert(v < SL_FPRR_NPRIOS);
-		ps_list_rem_d(t); 	/* if we're already on a list, and we're updating priority */
+		ps_list_rem_d(t); /* if we're already on a list, and we're updating priority */
 		t->priority = v;
 		ps_list_head_append_d(&threads[t->priority], t);
 		sl_thd_setprio(sl_mod_thd_get(t), t->priority);
 
 		break;
 	}
-	case SCHEDP_WINDOW:
-	{
+	case SCHEDP_WINDOW: {
 		struct sl_thd *td = sl_mod_thd_get(t);
 
 		assert(v >= SL_FPRR_PERIOD_US_MIN);
-		t->period_usec    = v;
-		t->period         = sl_usec2cyc(v);
+		t->period_usec = v;
+		t->period      = sl_usec2cyc(v);
 		/* FIXME: synchronize periods for all tasks */
 
 		break;
 	}
-	default: assert(0);
+	default:
+		assert(0);
 	}
 }
 
 void
 sl_mod_init(void)
 {
-	int i;
+	int            i;
 	struct sl_thd *t;
 
-	for (i = 0 ; i < SL_FPRR_NPRIOS ; i++) {
-		ps_list_head_init(&threads[i]);
-	}
+	for (i = 0; i < SL_FPRR_NPRIOS; i++) { ps_list_head_init(&threads[i]); }
 }

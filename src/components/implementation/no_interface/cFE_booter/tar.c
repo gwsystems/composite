@@ -3,35 +3,37 @@
 #include <string.h>
 #include <cos_debug.h>
 
-//should be overwritten by linking step in build process
-__attribute__((weak)) char _binary_cFE_fs_tar_size = 0;
+// should be overwritten by linking step in build process
+__attribute__((weak)) char _binary_cFE_fs_tar_size  = 0;
 __attribute__((weak)) char _binary_cFE_fs_tar_start = 0;
-__attribute__((weak)) char _binary_cFE_fs_tar_end = 0;
+__attribute__((weak)) char _binary_cFE_fs_tar_end   = 0;
 
-//locations and size of tar
-char      *tar_start;
-char      *tar_end;
-size_t    tar_size;
+// locations and size of tar
+char * tar_start;
+char * tar_end;
+size_t tar_size;
 
-static uint32 round_to_blocksize(uint32 offset)
+static uint32
+round_to_blocksize(uint32 offset)
 {
-    if (offset % TAR_BLOCKSIZE) return offset + (TAR_BLOCKSIZE - (offset % TAR_BLOCKSIZE));
-    return offset;
+	if (offset % TAR_BLOCKSIZE) return offset + (TAR_BLOCKSIZE - (offset % TAR_BLOCKSIZE));
+	return offset;
 }
 
-//used to convert filesize in oct char string to dec, adapted from old fs code by gparmer
-static uint32 oct_to_dec(char *oct)
+// used to convert filesize in oct char string to dec, adapted from old fs code by gparmer
+static uint32
+oct_to_dec(char *oct)
 {
-    int32 i, base;
-    int32 tot;
-    i = strlen(oct) - 1;
-    for (base = 1, tot = 0 ; i >= 0 ; i--, base *= 8) {
-        char val = oct[i];
-        assert(val <= '7' && val >= '0');
-        val = val - '0';
-        tot = tot + (val * base);
-    }
-    return tot;
+	int32 i, base;
+	int32 tot;
+	i = strlen(oct) - 1;
+	for (base = 1, tot = 0; i >= 0; i--, base *= 8) {
+		char val = oct[i];
+		assert(val <= '7' && val >= '0');
+		val = val - '0';
+		tot = tot + (val * base);
+	}
+	return tot;
 }
 
 
@@ -43,23 +45,21 @@ static uint32 oct_to_dec(char *oct)
  * process.  Next checks that the size is greater than 0.  Finally checks that
  * the end of the tar is after the start
  */
-uint32 tar_load()
+uint32
+tar_load()
 {
-    // First make sure that symbols have been overwritten by linking process
-    if (!_binary_cFE_fs_tar_start)
-        return OS_FS_ERR_DRIVE_NOT_CREATED;
-    // Next check that file size is greater than 0
-    if (&_binary_cFE_fs_tar_size == 0)
-        return OS_FS_ERR_DRIVE_NOT_CREATED;
-    // Check that the end of the tar is after the start
-    if (&_binary_cFE_fs_tar_end < &_binary_cFE_fs_tar_start)
-        return OS_FS_ERR_DRIVE_NOT_CREATED;
+	// First make sure that symbols have been overwritten by linking process
+	if (!_binary_cFE_fs_tar_start) return OS_FS_ERR_DRIVE_NOT_CREATED;
+	// Next check that file size is greater than 0
+	if (&_binary_cFE_fs_tar_size == 0) return OS_FS_ERR_DRIVE_NOT_CREATED;
+	// Check that the end of the tar is after the start
+	if (&_binary_cFE_fs_tar_end < &_binary_cFE_fs_tar_start) return OS_FS_ERR_DRIVE_NOT_CREATED;
 
-    tar_size    = (size_t) &_binary_cFE_fs_tar_size;
-    tar_start   = &_binary_cFE_fs_tar_start;
-    tar_end     = &_binary_cFE_fs_tar_end;
+	tar_size  = (size_t)&_binary_cFE_fs_tar_size;
+	tar_start = &_binary_cFE_fs_tar_start;
+	tar_end   = &_binary_cFE_fs_tar_end;
 
-    return  OS_FS_SUCCESS;
+	return OS_FS_SUCCESS;
 }
 
 
@@ -69,65 +69,65 @@ uint32 tar_load()
  * Postcondition: A proper error code is returned OR the tar is represented in memory
  * at the currently open filesystem
  */
-uint32 tar_parse()
+uint32
+tar_parse()
 {
-    assert(tar_start && tar_end);
-    assert(tar_size < INT32_MAX);
-    assert(tar_end - tar_start > 0);
-    assert(tar_size == (size_t) (tar_end - tar_start));
-    uint32 offset = 0;
-    struct fsobj *o;
+	assert(tar_start && tar_end);
+	assert(tar_size < INT32_MAX);
+	assert(tar_end - tar_start > 0);
+	assert(tar_size == (size_t)(tar_end - tar_start));
+	uint32        offset = 0;
+	struct fsobj *o;
 
-    while (offset + tar_start < tar_end) {
-        if (file_get_new(&o)) return OS_FS_ERR_DRIVE_NOT_CREATED;
+	while (offset + tar_start < tar_end) {
+		if (file_get_new(&o)) return OS_FS_ERR_DRIVE_NOT_CREATED;
 
-        //tar ends after two empty records
-        if ( !(offset + tar_start)[0] && !(offset + tar_start)[TAR_BLOCKSIZE]) {
-            o->ino = 0;
-            return OS_FS_SUCCESS;
-        }
-        if (tar_hdr_read(offset, o)) return OS_FS_ERR_DRIVE_NOT_CREATED;
-        if (file_insert(o, offset + tar_start) != OS_FS_SUCCESS) return OS_FS_ERR_DRIVE_NOT_CREATED;
+		// tar ends after two empty records
+		if (!(offset + tar_start)[0] && !(offset + tar_start)[TAR_BLOCKSIZE]) {
+			o->ino = 0;
+			return OS_FS_SUCCESS;
+		}
+		if (tar_hdr_read(offset, o)) return OS_FS_ERR_DRIVE_NOT_CREATED;
+		if (file_insert(o, offset + tar_start) != OS_FS_SUCCESS) return OS_FS_ERR_DRIVE_NOT_CREATED;
 
-        /*
-         * data is aligned to 512 byte blocks.  a header is 500 bytes, and
-         * the file's data begins exactly after the header
-         * therefor the next header is 500 + o->size rounded up to a mult of 512
-         */
-         offset += round_to_blocksize(o->size + 500);
-    }
-    //tar ends before two empty records are found
-    return OS_FS_ERROR;
+		/*
+		 * data is aligned to 512 byte blocks.  a header is 500 bytes, and
+		 * the file's data begins exactly after the header
+		 * therefor the next header is 500 + o->size rounded up to a mult of 512
+		 */
+		offset += round_to_blocksize(o->size + 500);
+	}
+	// tar ends before two empty records are found
+	return OS_FS_ERROR;
 }
 
 /*
  * Copies information from a tar file header to a fsobj
  */
-uint32 tar_hdr_read(uint32 tar_offset, struct fsobj *file)
+uint32
+tar_hdr_read(uint32 tar_offset, struct fsobj *file)
 {
-    assert(tar_offset < tar_size);
-    assert(file->ino > 0);
+	assert(tar_offset < tar_size);
+	assert(file->ino > 0);
 
-    struct f_part *part;
-    part_get_new(&part);
-    file->memtype = STATIC;
+	struct f_part *part;
+	part_get_new(&part);
+	file->memtype = STATIC;
 
-    char *location = tar_start;
-    location += tar_offset;
-    memmove(location + 1, location, strlen(location));
-    location[0] = '/';
-    file->name = path_to_name(location);
+	char *location = tar_start;
+	location += tar_offset;
+	memmove(location + 1, location, strlen(location));
+	location[0] = '/';
+	file->name  = path_to_name(location);
 
-    if (*(location + strlen(location) - 1) == '/') {
-        file->type              = FSOBJ_DIR;
-        file->size              = 0;
-    }
-    else{
-        file->type              = FSOBJ_FILE;
-        file->size              = oct_to_dec(location + 124);
-        file->file_part         = part;
-        file->file_part->data   = location + 500;
-    }
-    return OS_FS_SUCCESS;
+	if (*(location + strlen(location) - 1) == '/') {
+		file->type = FSOBJ_DIR;
+		file->size = 0;
+	} else {
+		file->type            = FSOBJ_FILE;
+		file->size            = oct_to_dec(location + 124);
+		file->file_part       = part;
+		file->file_part->data = location + 500;
+	}
+	return OS_FS_SUCCESS;
 }
-

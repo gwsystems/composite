@@ -38,15 +38,18 @@ sl_thd_alloc_aep_backend(void)
 
 void
 sl_thd_free_backend(struct sl_thd_policy *t)
-{ }
+{
+}
 
 void
 sl_thd_index_add_backend(struct sl_thd_policy *t)
-{ }
+{
+}
 
 void
 sl_thd_index_rem_backend(struct sl_thd_policy *t)
-{ }
+{
+}
 
 struct sl_thd_policy *
 sl_thd_lookup_backend(thdid_t tid)
@@ -60,7 +63,7 @@ sl_thd_init_backend(void)
 {
 	assert(SL_MAX_NUM_THDS <= MAX_NUM_THREADS);
 
-	memset(__sl_threads, 0, sizeof(struct sl_thd_policy)*SL_MAX_NUM_THDS);
-	memset(__sl_aep_infos, 0, sizeof(struct cos_aep_info)*SL_MAX_NUM_THDS);
+	memset(__sl_threads, 0, sizeof(struct sl_thd_policy) * SL_MAX_NUM_THDS);
+	memset(__sl_aep_infos, 0, sizeof(struct cos_aep_info) * SL_MAX_NUM_THDS);
 	__sl_aep_free_off = 0;
 }

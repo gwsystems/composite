@@ -926,7 +926,6 @@ cos_thd_mod(struct cos_compinfo *ci, thdcap_t tc, void *tlsaddr)
 int
 cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 {
-	assert(ci->captbl_cap);
 	return call_cap_op(ci->captbl_cap, CAPTBL_OP_INTROSPECT, cap, (int)op, 0, 0);
 }
 

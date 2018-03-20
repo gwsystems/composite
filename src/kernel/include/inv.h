@@ -307,12 +307,10 @@ static inline void
 sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *cos_info)
 {
 	struct comp_info *ci;
-	unsigned long     ip = 0, sp = 0;
+	unsigned long     ip, sp;
 
 	ci = thd_invstk_pop(thd, &ip, &sp, cos_info);
-	if (unlikely(!ci || !ip || !sp)) {
-		printk("cos: sync return failed, thd_invstk_pop(thd = %p, cos_info = %p) gives (ip = %p, sp = %p, ci = %p), which is invalid\n",
-		 		thd, cos_info, ip, sp, ci);
+	if (unlikely(!ci)) {
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
 		return;
 	}

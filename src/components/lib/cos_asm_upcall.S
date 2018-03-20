@@ -8,9 +8,9 @@
  */
 
 #define __ASM__
+#include <consts.h>
 
 #include "../../kernel/include/asm_ipc_defs.h"
-#include <consts.h>
 #include <cos_asm_stacks.h>
 
 #define IPRETURN 4

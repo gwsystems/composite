@@ -16,15 +16,19 @@ struct sl_thd_policy {
 
 	// cFE specific fields
 	osal_task_entry delete_handler;
-	OS_task_prop_t osal_task_prop;
+	OS_task_prop_t  osal_task_prop;
 };
 
 static inline struct sl_thd *
 sl_mod_thd_get(struct sl_thd_policy *tp)
-{ return &tp->thd; }
+{
+	return &tp->thd;
+}
 
 static inline struct sl_thd_policy *
 sl_mod_thd_policy_get(struct sl_thd *t)
-{ return ps_container(t, struct sl_thd_policy, thd); }
+{
+	return ps_container(t, struct sl_thd_policy, thd);
+}
 
 #endif /* SL_CUSTOM_MOD_POLICY_H */
