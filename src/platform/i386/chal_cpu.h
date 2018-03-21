@@ -92,7 +92,7 @@ static void
 chal_cpu_init(void)
 {
 	u32_t cr4 = chal_cpu_cr4_get();
-	int cpu_id = get_cpuid();
+	cpuid_t cpu_id = get_cpuid();
 
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
 	writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);

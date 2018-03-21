@@ -16,7 +16,6 @@
 
 struct mem_layout glb_memlayout;
 volatile int cores_ready[NUM_CPU];
-volatile int bsp_ready = 0;
 
 static int
 xdtoi(char c)
@@ -137,9 +136,9 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
 	unsigned long max;
 
-	tss_init(0);
-	gdt_init(0);
-	idt_init(0);
+	tss_init(INIT_CORE);
+	gdt_init(INIT_CORE);
+	idt_init(INIT_CORE);
 
 #ifdef ENABLE_SERIAL
 	serial_init();
@@ -166,12 +165,12 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	/* uses virtual address for VGA. should be after paging_init() */
 	vga_high_init();
 #endif
-	kern_boot_comp(0);
+	kern_boot_comp(INIT_CORE);
 	timer_init();
 	lapic_init();
 	lapic_timer_init();
 	smp_init(cores_ready);
-	bsp_ready = 1;
+	cores_ready[INIT_CORE] = 1;
 	kern_boot_upcall();
 
 	/* should not get here... */
@@ -183,6 +182,7 @@ smp_kmain(void)
 {
 	volatile int cpu_id = get_cpuid();
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
+
 	printk("Initialize CPU %d\n", cpu_id);
 	tss_init(cpu_id);
 	gdt_init(cpu_id);
@@ -195,11 +195,12 @@ smp_kmain(void)
 
 	printk("New CPU %d Booted\n", cpu_id);
 	cores_ready[cpu_id] = 1;
-	// waiting for all cored booted
-	while(bsp_ready == 0);
-	while(1);
+	/* waiting for all cored booted */
+	while(cores_ready[INIT_CORE] == 0);
+
 	kern_boot_upcall();
-	while(1);
+
+	while(1) ;
 }
 
 void

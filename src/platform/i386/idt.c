@@ -46,21 +46,21 @@ struct idt_ptr {
 
 extern void idt_flush(u32_t);
 
-struct idt_entry idt_entries[NUM_CPU][NUM_IDT_ENTRIES];
-struct idt_ptr   idt_ptr[NUM_CPU];
+struct idt_entry idt_entries[NUM_IDT_ENTRIES];
+struct idt_ptr   idt_ptr;
 
 static void
 idt_set_gate(u8_t num, u32_t base, u16_t sel, u8_t flags)
 {
 	int cpu_id = get_cpuid();
-	idt_entries[cpu_id][num].base_lo = base & 0xFFFF;
-	idt_entries[cpu_id][num].base_hi = (base >> 16) & 0xFFFF;
+	idt_entries[num].base_lo = base & 0xFFFF;
+	idt_entries[num].base_hi = (base >> 16) & 0xFFFF;
 
-	idt_entries[cpu_id][num].sel  = sel;
-	idt_entries[cpu_id][num].zero = 0;
+	idt_entries[num].sel  = sel;
+	idt_entries[num].zero = 0;
 
 	/* FIXME: This does not yet allow for mode switching */
-	idt_entries[cpu_id][num].flags = flags /* | 0x60 */;
+	idt_entries[num].flags = flags /* | 0x60 */;
 	// The OR is used for ring once we get usermode up and running
 }
 
@@ -95,9 +95,9 @@ remap_irq_table(void)
 void
 idt_init(const u32_t cpu_id)
 {
-	idt_ptr[cpu_id].limit = (sizeof(struct idt_entry) * NUM_IDT_ENTRIES) - 1;
-	idt_ptr[cpu_id].base  = (u32_t)&(idt_entries[cpu_id]);
-	memset(&(idt_entries[cpu_id]), 0, sizeof(struct idt_entry) * NUM_IDT_ENTRIES);
+	idt_ptr.limit = (sizeof(struct idt_entry) * NUM_IDT_ENTRIES) - 1;
+	idt_ptr.base  = (u32_t)&(idt_entries);
+	memset(&(idt_entries), 0, sizeof(struct idt_entry) * NUM_IDT_ENTRIES);
 
 	outb(0x20, 0x11);
 	outb(0xA0, 0x11);
@@ -169,8 +169,8 @@ idt_init(const u32_t cpu_id)
 		unsigned long  base;
 	} __attribute__((__packed__)) idtr;
 
-	idtr.length = idt_ptr[cpu_id].limit;
-	idtr.base   = (unsigned long)(&(idt_entries[cpu_id]));
+	idtr.length = idt_ptr.limit;
+	idtr.base   = (unsigned long)(&(idt_entries));
 
 	/* asm volatile("lidt (%0)" : : "p"(&idtr)); */
 	idt_flush((u32_t)&idtr);
