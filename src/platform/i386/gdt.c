@@ -31,7 +31,7 @@ chal_tls_update(vaddr_t addr)
  * user-mode selectors or a TSS, but we need both now.
  */
 void
-gdt_init(const u32_t cpu_id)
+gdt_init(const cpuid_t cpu_id)
 {
 	u64_t gdtr_operand;
 

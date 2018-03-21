@@ -4,6 +4,7 @@
 #include "string.h"
 #include "boot_comp.h"
 #include "mem_layout.h"
+#include "chal_cpu.h"
 
 #include <captbl.h>
 #include <retype_tbl.h>
@@ -180,7 +181,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 void
 smp_kmain(void)
 {
-	volatile int cpu_id = get_cpuid();
+	volatile cpuid_t cpu_id = get_cpuid();
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 
 	printk("Initialize CPU %d\n", cpu_id);
@@ -188,7 +189,7 @@ smp_kmain(void)
 	gdt_init(cpu_id);
 	idt_init(cpu_id);
 
-	paging_init();
+	chal_cpu_init();
 	kern_boot_comp(cpu_id);
 	lapic_init();
 	lapic_timer_init();
@@ -197,6 +198,9 @@ smp_kmain(void)
 	cores_ready[cpu_id] = 1;
 	/* waiting for all cored booted */
 	while(cores_ready[INIT_CORE] == 0);
+
+	/* FIXME: cos_kernel_api has some apis which do not support multicore, we need to fix that before remove this */
+	while(1) ;
 
 	kern_boot_upcall();
 

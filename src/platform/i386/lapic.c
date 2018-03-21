@@ -116,7 +116,7 @@ u32_t               lapic_timer_calib_init   = 0;
 static void
 lapic_write_reg(u32_t off, u32_t val)
 {
-	*(u32_t volatile *)(lapic + off) = val;
+	*(volatile u32_t *)(lapic + off) = val;
 }
 
 static void
@@ -128,7 +128,7 @@ lapic_ack(void)
 static u32_t
 lapic_read_reg(u32_t off)
 {
-	return *(u32_t volatile *)(lapic + off);
+	return *(volatile u32_t *)(lapic + off);
 }
 
 static int
@@ -427,6 +427,7 @@ delay_us(u32_t us)
 	unsigned long long hz = CPU_GHZ, hz_per_us = hz * 1000;
 	unsigned long long end;
 	volatile unsigned long long tsc;
+
 	rdtscll(tsc);
 	end = tsc + (hz_per_us * us);
 	while (1) {
@@ -440,21 +441,21 @@ delay_us(u32_t us)
 extern char smppatchstart, smppatchend, smpstack, stack;
 
 void
-smp_bootall(volatile int *cores_ready)
+smp_boot_all_ap(volatile int *cores_ready)
 {
 	int i;
 	u32_t ret;
 	char **stackpatch;
 
 	/*
-	 * Set up the processor boot-up code .  Use SMC to create the
+	 * Set up the processor boot-up code.  Use SMC to create the
 	 * smp loader code with the stack address inlined into it at
 	 * an address that real-mode 16-bit code can execute
 	 */
 	memcpy((char *)chal_pa2va(SMP_BOOT_PATCH_ADDR), &smppatchstart, &smppatchend - &smppatchstart);
 	stackpatch  = (char **)chal_pa2va(SMP_BOOT_PATCH_ADDR + (&smpstack - &smppatchstart));
 
-	for (i = 1 ; i < ncpus ; i++) {
+	for (i = 1; i < ncpus; i++) {
 		struct cos_cpu_local_info *cli;
 		int j;
 
@@ -478,15 +479,15 @@ smp_bootall(volatile int *cores_ready)
 		lapic_ipi_send(apicids[i], LAPIC_ICR_LEVEL | LAPIC_ICR_INIT);
 		/* ...wait for 10 ms... */
 		delay_us(10000);
-		for (j = 0 ; j < 2 ; j++) {
+		for (j = 0; j < 2; j++) {
 			/* ...send startup IPIs... */
 			assert(!(SMP_BOOT_PATCH_ADDR >> 12 & ~0xFF)); /* some address validation */
 			lapic_ipi_send(apicids[i], LAPIC_ICR_SIPI | (SMP_BOOT_PATCH_ADDR >> 12));
-			/* ...wait for 20 us... */
+			/* ...wait for 200 us... */
 			delay_us(200);
 		}
-		// waiting for booting
-		while(*(int volatile *)(cores_ready + i) == 0);
+		/* waiting for AP's booting */
+		while(*(volatile int *)(cores_ready + i) == 0);
 	}
 	ret = lapic_read_reg(LAPIC_ESR);
 	if (ret) printk("SMP Bootup: LAPIC error status register is %x\n", ret);
@@ -498,5 +499,5 @@ smp_bootall(volatile int *cores_ready)
 void
 smp_init(volatile int *cores_ready)
 {
-	smp_bootall(cores_ready);
+	smp_boot_all_ap(cores_ready);
 }

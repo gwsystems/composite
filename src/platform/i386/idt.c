@@ -93,7 +93,7 @@ remap_irq_table(void)
 #endif
 
 void
-idt_init(const u32_t cpu_id)
+idt_init(const cpuid_t cpu_id)
 {
 	idt_ptr.limit = (sizeof(struct idt_entry) * NUM_IDT_ENTRIES) - 1;
 	idt_ptr.base  = (u32_t)&(idt_entries);
