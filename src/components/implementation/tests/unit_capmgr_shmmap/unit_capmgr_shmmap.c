@@ -48,13 +48,14 @@ test_mem_readwrite(vaddr_t addr, unsigned int size)
 static void
 test_shmem(void)
 {
-	int idx = 0, npages = 0;
+	cbuf_t id = 1;
+	u32_t npages = 0;
 	vaddr_t addr;
 	int failure = 0;
 
-	npages = memmgr_shared_page_map(idx, &addr);
+	npages = memmgr_shared_page_map(id, &addr);
 	/* know that other comp created this before me. */
-	if (idx != 0 || npages == 0 || test_mem_readwrite(addr, TEST_N_SHMEM_PAGES)) failure = 1;
+	if (id != 1 || npages == 0 || test_mem_readwrite(addr, TEST_N_SHMEM_PAGES)) failure = 1;
 	PRINTLOG(PRINT_DEBUG, "%s: shared memory map capmgr unit test\n", failure ? "FAILURE" : "SUCCESS");
 }
 

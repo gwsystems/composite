@@ -25,41 +25,41 @@ memmgr_heap_page_allocn(unsigned int npages)
 	return dst_pg;
 }
 
-int
-memmgr_shared_page_allocn_cserialized(vaddr_t *pgaddr, int *unused, int npages)
+cbuf_t
+memmgr_shared_page_allocn_cserialized(vaddr_t *pgaddr, int *unused, u32_t npages)
 {
 	spdid_t cur = cos_inv_token();
 	struct cap_comp_info  *cur_rci = cap_info_comp_find(cur);
 	struct cap_shmem_info *cur_shi = cap_info_shmem_info(cur_rci);
-	int shmidx = -1;
+	cbuf_t shmid = 0;
 
 	if (!cur_rci || !cap_info_init_check(cur_rci)) goto done;
 	if (!cur_shi) goto done;
 
-	shmidx = cap_shmem_region_alloc(cur_shi, npages);
-	if (shmidx < 0) goto done;
+	shmid = cap_shmem_region_alloc(cur_shi, npages);
+	if (!shmid) goto done;
 
-	*pgaddr = cap_shmem_region_vaddr(cur_shi, shmidx);
+	*pgaddr = cap_shmem_region_vaddr(cur_shi, shmid);
 
 done:
-	return shmidx;
+	return shmid;
 }
 
-int
-memmgr_shared_page_map_cserialized(vaddr_t *pgaddr, int *unused, int idx)
+u32_t
+memmgr_shared_page_map_cserialized(vaddr_t *pgaddr, int *unused, cbuf_t id)
 {
 	spdid_t cur = cos_inv_token();
 	struct cap_comp_info  *cur_rci = cap_info_comp_find(cur);
 	struct cap_shmem_info *cur_shi = cap_info_shmem_info(cur_rci);
-	int num_pages = 0;
+	u32_t num_pages = 0;
 
 	if (!cur_rci || !cap_info_init_check(cur_rci)) return 0;
 	if (!cur_shi) return 0;
 
-	num_pages = cap_shmem_region_map(cur_shi, idx);
+	num_pages = cap_shmem_region_map(cur_shi, id);
 	if (num_pages == 0) goto done;
 
-	*pgaddr = cap_shmem_region_vaddr(cur_shi, idx);
+	*pgaddr = cap_shmem_region_vaddr(cur_shi, id);
 	assert(*pgaddr);
 
 done:
