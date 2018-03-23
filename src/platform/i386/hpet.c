@@ -3,7 +3,6 @@
 #include <hw.h>
 
 #include "isr.h"
-#include "io.h"
 #include "kernel.h"
 #include "chal/cpuid.h"
 
