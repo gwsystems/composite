@@ -4,7 +4,7 @@ COMPONENT=sample_lib.o
 INTERFACES=
 DEPENDENCIES=cFE capmgr
 IF_LIB:=./cFE_sample_lib.o
-ADDITIONAL_LIBS=-lcos_kernel_api -lcFE_emu
+ADDITIONAL_LIBS=-lcos_kernel_api
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o

@@ -7,21 +7,7 @@ default: | all cp
 all: | extern comps plat
 
 extern:
-	$(info )
-	$(info ***********************************************)
-	$(info *********** Building External Libs ************)
-	$(info ***********************************************)
-	$(info )
-	$(shell cd extern && python make.py >&2)
-
-init_extern:
-	$(info )
-	$(info ***********************************************)
-	$(info ********** Setting up External Libs ***********)
-	$(info ***********************************************)
-	$(info )
-	bash -c 'cd extern/cFE/; source setvars.sh; cd ../..; make -C extern/cFE/build/cpu1 config'
-	$(shell cd extern && python make.py -p >&2)
+	$(MAKE) $(MAKEFLAGS) -C extern
 
 comps:
 	$(info )
@@ -58,6 +44,9 @@ init: | ensure_config init_extern init_composite
 
 ensure_config:
 	test -f PLATFORM_ID || $(MAKE) $(MAKEFLAGS) config
+
+init_extern:
+	$(MAKE) $(MAKEFLAGS) -C extern init
 
 init_composite:
 	$(MAKE) $(MAKEFLAGS) -C components init

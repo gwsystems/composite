@@ -17,8 +17,10 @@ emu_backend_request_memory(spdid_t client)
 {
 	vaddr_t our_addr = 0;
 	int     id       = memmgr_shared_page_alloc(&our_addr);
+
 	assert(our_addr);
 	shared_regions[client] = (void *)our_addr;
+	
 	return id;
 }
 
