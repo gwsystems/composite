@@ -219,12 +219,6 @@ captbl_idsize(cap_t c)
 	return 1 << __captbl_cap2sz(c);
 }
 
-static inline unsigned long
-captbl_per_cpu_offset(cpuid_t cpu_id, cap_t c)
-{
-	return captbl_idsize(c) * cpu_id;
-}
-
 /*
  * LLBooter initial captbl setup:
  * 0 = sret,
@@ -271,6 +265,24 @@ enum
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
+
+static inline unsigned long
+captbl_thd_offset(cpuid_t cpu_id)
+{
+	return BOOT_CAPTBL_SELF_INITTHD_BASE + CAP16B_IDSZ * cpu_id;
+}
+
+static inline unsigned long
+captbl_tcap_offset(cpuid_t cpu_id)
+{
+	return BOOT_CAPTBL_SELF_INITTCAP_BASE + CAP16B_IDSZ * cpu_id;
+}
+
+static inline unsigned long
+captbl_arcv_offset(cpuid_t cpu_id)
+{
+	return BOOT_CAPTBL_SELF_INITRCV_BASE + CAP64B_IDSZ * cpu_id;
+}
 
 enum
 {
