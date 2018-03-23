@@ -172,6 +172,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	lapic_timer_init();
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
+
 	kern_boot_upcall();
 
 	/* should not get here... */
@@ -198,9 +199,6 @@ smp_kmain(void)
 	cores_ready[cpu_id] = 1;
 	/* waiting for all cored booted */
 	while(cores_ready[INIT_CORE] == 0);
-
-	/* FIXME: cos_kernel_api has some apis which do not support multicore, we need to fix that before remove this */
-	while(1) ;
 
 	kern_boot_upcall();
 

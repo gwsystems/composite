@@ -161,7 +161,7 @@ idt_init(const cpuid_t cpu_id)
 	idt_set_gate(HW_ID29, (u32_t)handler_hw_60, 0x08, 0x8E);
 	idt_set_gate(HW_ID30, (u32_t)handler_hw_61, 0x08, 0x8E);
 	idt_set_gate(HW_ID31, (u32_t)handler_hw_62, 0x08, 0x8E);
-	idt_set_gate(HW_ID32, (u32_t)handler_hw_63, 0x08, 0x8E);
+	idt_set_gate(HW_LAPIC_SPURIOUS, (u32_t)lapic_spurious_irq, 0x08, 0x8E);
 	idt_set_gate(HW_LAPIC_TIMER, (u32_t)lapic_timer_irq, 0x08, 0x8E);
 
 	struct {

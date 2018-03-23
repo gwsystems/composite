@@ -171,6 +171,10 @@ typedef capid_t tcap_t;
  * memory).
  */
 typedef enum { CAP_SZ_16B = 0, CAP_SZ_32B, CAP_SZ_64B, CAP_SZ_ERR } cap_sz_t;
+
+/* Don't use unsigned type. We use negative values for error cases. */
+typedef int cpuid_t;
+
 /* the shift offset for the *_SZ_* values */
 #define CAP_SZ_OFF 4
 /* The allowed amap bits of each size */
@@ -213,6 +217,12 @@ static inline unsigned long
 captbl_idsize(cap_t c)
 {
 	return 1 << __captbl_cap2sz(c);
+}
+
+static inline unsigned long
+captbl_per_cpu_offset(cpuid_t cpu_id, cap_t c)
+{
+	return captbl_idsize(c) * cpu_id;
 }
 
 /*
@@ -279,8 +289,6 @@ enum
 	/* tcap budget */
 	TCAP_GET_BUDGET,
 };
-
-typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */
 
 /* Macro used to define per core variables */
 #define PERCPU(type, name)       \

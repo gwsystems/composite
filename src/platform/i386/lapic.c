@@ -254,7 +254,7 @@ lapic_init(void)
 	u32_t version;
 
 	assert(lapic);
-	lapic_write_reg(LAPIC_SIV_REG, LAPIC_SIV_ENABLE);
+	lapic_write_reg(LAPIC_SIV_REG, LAPIC_SIV_ENABLE | HW_LAPIC_SPURIOUS);
 
 	version = lapic_read_reg(LAPIC_VERSION_REG);
 	/* don't want to deal with booting up using CMOS */
@@ -318,6 +318,13 @@ lapic_set_page(u32_t page)
 	lapic = (void *)(page * (1 << 22) | ((u32_t)lapic & ((1 << 22) - 1)));
 
 	printk("\tSet LAPIC @ %p\n", lapic);
+}
+
+int
+lapic_spurious_handler(struct pt_regs *regs)
+{
+	printk("\n\n spurious irq happened on cpu%d @ %x\n", get_cpuid(), regs->ip);
+	return 1;
 }
 
 int
