@@ -146,11 +146,12 @@ sl_timeout_init(microsec_t period)
 }
 
 /*
- * @return: 1 if it's already WOKEN.
- *	    0 if it successfully blocked in this call.
+ * sl_thd_sched_block_no_cs: This API is only used by the scheduling thread to block an AEP thread.
+ *                           AEP thread scheduling events could be redundant.
+ * @return: 0 if it successfully blocked in this call.
  */
 int
-sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
+sl_thd_sched_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
 {
 	assert(t);
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
@@ -166,10 +167,34 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 		goto update;
 	}
 
-	assert(t->state == SL_THD_RUNNABLE);
+	assert(t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
 	sl_mod_block(sl_mod_thd_policy_get(t));
 
 update:
+	t->state = block_type;
+	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
+
+	return 0;
+}
+
+/*
+ * @return: 1 if it's already WOKEN.
+ *	    0 if it successfully blocked in this call.
+ */
+int
+sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
+{
+	assert(t);
+	assert(cos_thdid() == sl_thd_thdid(t)); /* only current thread is allowed to block itself */
+	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
+
+	if (unlikely(t->state == SL_THD_WOKEN)) {
+		t->state = SL_THD_RUNNABLE;
+		return 1;
+	}
+
+	assert(t->state == SL_THD_RUNNABLE);
+	sl_mod_block(sl_mod_thd_policy_get(t));
 	t->state = block_type;
 	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
 
@@ -206,12 +231,10 @@ sl_thd_block_timeout_intern(thdid_t tid, cycles_t timeout)
 
 	sl_cs_enter();
 	t = sl_thd_curr();
-
 	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, timeout)) {
 		sl_cs_exit();
 		return 1;
 	}
-
 	sl_cs_exit_schedule();
 
 	return 0;
@@ -261,6 +284,36 @@ done:
 }
 
 /*
+ * sl_thd_sched_wakeup_no_cs: This API is only used by the scheduling thread to wakeup an AEP thread.
+ *                           AEP thread scheduling events could be redundant.
+ * @return: 1 if it's already WOKEN or RUNNABLE.
+ *	    0 if it successfully blocked in this call.
+ */
+int
+sl_thd_sched_wakeup_no_cs(struct sl_thd *t)
+{
+	assert(t);
+
+	/*
+	 * If a thread was preempted and scheduler updated it to RUNNABLE status and if that AEP
+	 * was activated again (perhaps by tcap preemption logic) and expired it's budget, it could
+	 * result in the scheduler having a redundant WAKEUP event.
+	 *
+	 * Thread could be in WOKEN state:
+	 * Perhaps the thread was blocked waiting for a lock and was woken up by another thread and
+	 * and then scheduler sees some redundant wakeup event through "asnd" or "tcap budget expiry".
+	 */
+	if (unlikely(t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN)) return 1;
+
+	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
+	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
+	t->state = SL_THD_RUNNABLE;
+	sl_mod_wakeup(sl_mod_thd_policy_get(t));
+
+	return 0;
+}
+
+/*
  * @return: 1 if it's already RUNNABLE.
  *          0 if it was woken up in this call
  */
@@ -269,7 +322,10 @@ sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 {
 	assert(t);
 
-	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1;
+	if (unlikely(t->state == SL_THD_RUNNABLE)) {
+		t->state = SL_THD_WOKEN;
+		return 1;
+	}
 
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	t->state = SL_THD_RUNNABLE;
@@ -282,6 +338,7 @@ int
 sl_thd_wakeup_no_cs(struct sl_thd *t)
 {
 	assert(t);
+	assert(sl_thdid() != sl_thd_thdid(t)); /* current thread is not allowed to wake itself up */
 
 	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
 	return sl_thd_wakeup_no_cs_rm(t);
@@ -508,10 +565,10 @@ pending_events:
 							state       = SL_THD_BLOCKED_TIMEOUT;
 							abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
 						}
-						sl_thd_block_no_cs(t, state, abs_timeout);
+						sl_thd_sched_block_no_cs(t, state, abs_timeout);
 					}
 				} else {
-					sl_thd_wakeup_no_cs(t);
+					sl_thd_sched_wakeup_no_cs(t);
 				}
 			}
 
