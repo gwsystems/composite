@@ -5,7 +5,6 @@
  * Public License v2.
  */
 
-//#include <cos_asm_server_stub.h>
 #define __ASM__
 #include <consts.h>
 #include <cos_asm_server_stub_simple_stack.h>
@@ -20,15 +19,22 @@ cos_asm_server_stub(CFE_ES_RegisterApp)
 
 cos_asm_server_stub(CFE_SB_Subscribe)
 
+// Emulated methods
 cos_asm_server_stub(emu_backend_request_memory)
-cos_asm_server_stub(emu_CFE_EVS_Register)
-cos_asm_server_stub(emu_CFE_SB_CreatePipe)
-cos_asm_server_stub(emu_CFE_SB_InitMsg)
-cos_asm_server_stub(emu_CFE_EVS_SendEvent)
+
 cos_asm_server_stub(emu_CFE_ES_RunLoop)
-cos_asm_server_stub(emu_CFE_SB_RcvMsg)
-cos_asm_server_stub(emu_CFE_SB_GetTotalMsgLength)
-cos_asm_server_stub(emu_CFE_SB_SendMsg)
+
+cos_asm_server_stub(emu_CFE_EVS_Register)
+cos_asm_server_stub(emu_CFE_EVS_SendEvent)
+
+cos_asm_server_stub(emu_CFE_SB_CreatePipe)
 cos_asm_server_stub(emu_CFE_SB_GetCmdCode)
 cos_asm_server_stub(emu_CFE_SB_GetMsgId)
+cos_asm_server_stub(emu_CFE_SB_GetTotalMsgLength)
+cos_asm_server_stub(emu_CFE_SB_InitMsg)
+cos_asm_server_stub(emu_CFE_SB_RcvMsg)
+cos_asm_server_stub(emu_CFE_SB_SendMsg)
 cos_asm_server_stub(emu_CFE_SB_TimeStampMsg)
+
+cos_asm_server_stub(emu_CFE_TIME_GetTime)
+cos_asm_server_stub(emu_CFE_TIME_Print)

@@ -40,28 +40,29 @@ union shared_region {
 	struct {
 		char Msg[EMU_BUF_SIZE];
 	} cfe_sb_msg;
+	CFE_TIME_SysTime_t time;
+	struct {
+		char PrintBuffer[CFE_TIME_PRINTED_STRING_SIZE];
+		CFE_TIME_SysTime_t TimeToPrint;
+	} cfe_time_print;
 };
 
 int emu_backend_request_memory(spdid_t client);
 
-int32 emu_CFE_EVS_Register(spdid_t sp);
-
-int32 emu_CFE_SB_CreatePipe(spdid_t client);
-
-void emu_CFE_SB_InitMsg(spdid_t client);
-
-int32 emu_CFE_EVS_SendEvent(spdid_t client);
-
 int32 emu_CFE_ES_RunLoop(spdid_t client);
 
-int32 emu_CFE_SB_RcvMsg(spdid_t client);
+int32 emu_CFE_EVS_Register(spdid_t sp);
+int32 emu_CFE_EVS_SendEvent(spdid_t client);
 
-uint16 emu_CFE_SB_GetTotalMsgLength(spdid_t client);
-
-int32 emu_CFE_SB_SendMsg(spdid_t client);
-
+int32 emu_CFE_SB_CreatePipe(spdid_t client);
 uint16 emu_CFE_SB_GetCmdCode(spdid_t client);
-
 CFE_SB_MsgId_t emu_CFE_SB_GetMsgId(spdid_t client);
-
+uint16 emu_CFE_SB_GetTotalMsgLength(spdid_t client);
+void emu_CFE_SB_InitMsg(spdid_t client);
+int32 emu_CFE_SB_RcvMsg(spdid_t client);
+int32 emu_CFE_SB_SendMsg(spdid_t client);
 void emu_CFE_SB_TimeStampMsg(spdid_t client);
+
+void emu_CFE_TIME_GetTime(spdid_t client);
+
+void emu_CFE_TIME_Print(spdid_t client);

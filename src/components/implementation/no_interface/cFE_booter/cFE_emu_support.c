@@ -14,7 +14,7 @@ union shared_region *shared_regions[16];
 
 int
 emu_backend_request_memory(spdid_t client)
-{	
+{
 	vaddr_t our_addr = 0;
 	int     id       = memmgr_shared_page_alloc(&our_addr);
 
@@ -22,6 +22,13 @@ emu_backend_request_memory(spdid_t client)
 	shared_regions[client] = (void *)our_addr;
 
 	return id;
+}
+
+int32
+emu_CFE_ES_RunLoop(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_RunLoop(&s->cfe_es_runLoop.RunStatus);
 }
 
 int32
@@ -40,14 +47,6 @@ emu_CFE_SB_CreatePipe(spdid_t client)
 	                         s->cfe_sb_createPipe.PipeName);
 }
 
-void
-emu_CFE_SB_InitMsg(spdid_t client)
-{
-	union shared_region *s = shared_regions[client];
-	CFE_SB_InitMsg(s->cfe_sb_initMsg.MsgBuffer, s->cfe_sb_initMsg.MsgId, s->cfe_sb_initMsg.Length,
-	               s->cfe_sb_initMsg.Clear);
-}
-
 int32
 emu_CFE_EVS_SendEvent(spdid_t client)
 {
@@ -56,11 +55,34 @@ emu_CFE_EVS_SendEvent(spdid_t client)
 	                         s->cfe_evs_sendEvent.Msg);
 }
 
-int32
-emu_CFE_ES_RunLoop(spdid_t client)
+
+uint16
+emu_CFE_SB_GetCmdCode(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
-	return CFE_ES_RunLoop(&s->cfe_es_runLoop.RunStatus);
+	return CFE_SB_GetCmdCode((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
+}
+
+CFE_SB_MsgId_t
+emu_CFE_SB_GetMsgId(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_SB_GetMsgId((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
+}
+
+uint16
+emu_CFE_SB_GetTotalMsgLength(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_SB_GetTotalMsgLength(&s->cfe_sb_getMsgLen.Msg);
+}
+
+void
+emu_CFE_SB_InitMsg(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	CFE_SB_InitMsg(s->cfe_sb_initMsg.MsgBuffer, s->cfe_sb_initMsg.MsgId, s->cfe_sb_initMsg.Length,
+	               s->cfe_sb_initMsg.Clear);
 }
 
 int32
@@ -82,13 +104,6 @@ emu_CFE_SB_RcvMsg(spdid_t client)
 	return result;
 }
 
-uint16
-emu_CFE_SB_GetTotalMsgLength(spdid_t client)
-{
-	union shared_region *s = shared_regions[client];
-	return CFE_SB_GetTotalMsgLength(&s->cfe_sb_getMsgLen.Msg);
-}
-
 int32
 emu_CFE_SB_SendMsg(spdid_t client)
 {
@@ -96,24 +111,23 @@ emu_CFE_SB_SendMsg(spdid_t client)
 	return CFE_SB_SendMsg((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
 }
 
-uint16
-emu_CFE_SB_GetCmdCode(spdid_t client)
-{
-	union shared_region *s = shared_regions[client];
-	return CFE_SB_GetCmdCode((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
-}
-
-CFE_SB_MsgId_t
-emu_CFE_SB_GetMsgId(spdid_t client)
-{
-	union shared_region *s = shared_regions[client];
-	return CFE_SB_GetMsgId((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
-}
-
-
 void
 emu_CFE_SB_TimeStampMsg(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
 	CFE_SB_TimeStampMsg((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
+}
+
+
+void
+emu_CFE_TIME_GetTime(spdid_t client) {
+	union shared_region *s = shared_regions[client];
+	s->time = CFE_TIME_GetTime();
+}
+
+void
+emu_CFE_TIME_Print(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	CFE_TIME_Print(s->cfe_time_print.PrintBuffer, s->cfe_time_print.TimeToPrint);
 }
