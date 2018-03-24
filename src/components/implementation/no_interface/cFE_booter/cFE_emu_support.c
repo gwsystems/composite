@@ -6,21 +6,21 @@
 
 #include <memmgr.h>
 
-#include <cfe_error.h>
-
 #include <cFE_emu.h>
+
+#include <cfe_error.h>
 
 union shared_region *shared_regions[16];
 
 int
 emu_backend_request_memory(spdid_t client)
-{
+{	
 	vaddr_t our_addr = 0;
 	int     id       = memmgr_shared_page_alloc(&our_addr);
 
 	assert(our_addr);
 	shared_regions[client] = (void *)our_addr;
-	
+
 	return id;
 }
 

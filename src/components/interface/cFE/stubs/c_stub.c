@@ -1,11 +1,13 @@
 #include <stdarg.h>
 
+#include <cos_component.h>
 #include <cos_debug.h>
 #include <llprint.h>
 #include "../interface/capmgr/memmgr.h"
 
 #include <cfe_error.h>
 #include <cfe_evs.h>
+#include <cfe_time.h>
 
 #include <cFE_emu.h>
 
