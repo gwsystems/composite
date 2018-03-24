@@ -26,7 +26,7 @@
 #include <chal.h>
 #include "kernel.h"
 #include "string.h"
-#include "io.h"
+#include "chal/io.h"
 #include "isr.h"
 
 /* The number of columns. */
