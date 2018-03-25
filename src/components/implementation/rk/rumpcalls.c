@@ -227,13 +227,10 @@ cos_tls_alloc(struct bmk_thread *thread)
 {
 	char *tlsmem;
 
-	printc("COS_TLS_ALLOC...");
 	tlsmem = memmgr_tls_alloc(thread->cos_tid);
 
 	memcpy(tlsmem, _tdata_start_cpy, tdatasize); //copy from alloc to tlsmem
 	memset(tlsmem + tdatasize, 0, tbsssize);
-
-	printc("DONE\n");
 
 	return tlsmem + tcboffset;
 }
