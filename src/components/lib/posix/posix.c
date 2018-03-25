@@ -268,6 +268,24 @@ cos_set_tid_address(int *tidptr)
  * };
  */
 
+static void
+setup_thread_area(struct sl_thd *thread, void* data)
+{
+	//struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	//thdid_t thdid = sl_thd_thdid(thread);
+
+	//backing_data[thdid] = data;
+
+	//cos_thd_mod(ci, sl_thd_thdcap(thread), &backing_data[thdid]);
+}
+
+int
+cos_set_thread_area(void* data)
+{
+	setup_thread_area(sl_thd_curr(), data);
+	return 0;
+}
+
 int
 cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, void *tls, pid_t *ctid)
 {
@@ -285,7 +303,7 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 		 * FIXME by adding a hard-coded sinv into TLS Manager
 		 */
 	}
-	return thd->thdid;
+	return sl_thd_thdid(thd);
 }
 
 #define FUTEX_WAIT		0
@@ -444,13 +462,14 @@ cos_futex(int *uaddr, int op, int val,
 void
 pre_syscall_default_setup()
 {
-	printc("pre_syscall_default_setup\n");
+	printc("pre_syscall_default_setup...");
 
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
 	cos_defcompinfo_init();
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	printc("done\n");
 //	sl_init(SL_MIN_PERIOD_US);
 }
 

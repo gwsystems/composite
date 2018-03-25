@@ -3,9 +3,9 @@
 #include <sys/socket.h>
 #include <rk_inv_api.h>
 #include <cos_types.h>
-#include <micro_booter.h>
+#include <cos_kernel_api.h>
 #include <rk.h>
-#include <tlsmgr.h>
+#include <memmgr.h>
 
 #define IN_PORT  9998
 #define OUT_PORT 9999
@@ -79,7 +79,6 @@ int
 udpserv_main(void)
 {
 	rk_socketcall_init();
-	tls_thread_area_init();
 
 	printc("Starting udp-server [in:%d out:%d]\n", IN_PORT, OUT_PORT);
 	__test_udp_server();
@@ -97,7 +96,7 @@ cos_init(void)
 
 	/* Test RK entry */
 	printc("calling rk_inv_entry\n");
-	rk_entry(RK_GET_BOOT_DONE, 0, 0, 0);
+	get_boot_done();
 	test_entry(0, 1, 2, 3);
 
 	udpserv_main();

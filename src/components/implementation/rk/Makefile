@@ -2,7 +2,7 @@ C_OBJS=rk_kypercall.c, rk_inv_api.c, rk_sched.c, rk_stubs.c, rump_booter.c, rump
 ASM_OBJS=inv.o, start.o
 COMPONENT=rk.o
 INTERFACES=rk
-DEPENDENCIES=shdmem tlsmgr
+DEPENDENCIES=capmgr
 
 include ../Makefile.subdir
 

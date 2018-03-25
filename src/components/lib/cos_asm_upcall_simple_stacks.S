@@ -36,13 +36,21 @@ cos_static_stack_end:
 cos_upcall_entry:
 	COS_ASM_GET_STACK
 
+	pushl $0
+	movl %esp, -8(%esp)
+	pushl $0
+	movl %esp, -8(%esp)
+	subl $8, %esp
 	pushl %esi
 	pushl %edi
 	pushl %ebx
 	xor %ebp, %ebp
 	pushl %ecx /* option */
 	call cos_upcall_fn
-	addl $16, %esp
+	addl $24, %esp
+
+	popl %esi
+	popl %edi
 
 	movl %eax, %ecx
 	movl $RET_CAP, %eax /* return capability */

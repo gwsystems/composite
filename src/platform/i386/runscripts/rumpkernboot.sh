@@ -1,7 +1,5 @@
 #!/bin/sh
 
-# FIXME HACK used to test tlsmgr component without having a dedicated scheduler component
-cp tlsmgr.o sl_tlsmgr.o
-
-cp llboot_test.o llboot.o
-./cos_linker "llboot.o, ;sl_tlsmgr.o, ;shmem.o, ;sl_rumpcos.o, ;udpserv.o, :sl_rumpcos.o-shmem.o;udpserv.o-sl_rumpcos.o;udpserv.o-shmem.o;sl_rumpcos.o-sl_tlsmgr.o" ./gen_client_stub -v
+cp root_fprr.o boot.o
+cp llboot_comp.o llboot.o
+./cos_linker "llboot.o, ;capmgr.o, ;*rumpcos.o, ;udpserv.o, ;*boot.o, :boot.o-capmgr.o;rumpcos.o-capmgr.o|[parent_]boot.o;udpserv.o-rumpcos.o;udpserv.o-capmgr.o" ./gen_client_stub -v
