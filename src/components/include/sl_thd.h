@@ -36,7 +36,6 @@ struct event_info {
 struct sl_thd {
 	sl_thd_state_t       state;
 	sl_thd_property_t    properties;
-	thdid_t              thdid;
 	struct cos_aep_info *aepinfo;
 	asndcap_t            sndcap;
 	tcap_prio_t          prio;
@@ -74,10 +73,8 @@ static inline asndcap_t
 sl_thd_asndcap(struct sl_thd *t)
 { return t->sndcap; }
 
-#define SPIN()            \
-	do {              \
-		while (1) \
-			; \
-	} while (0)
+static inline thdid_t
+sl_thd_thdid(struct sl_thd *t)
+{ return sl_thd_aepinfo(t)->tid; }
 
 #endif /* SL_THD_H */

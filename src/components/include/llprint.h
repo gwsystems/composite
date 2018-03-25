@@ -38,4 +38,29 @@ printc(char *fmt, ...)
 	return ret;
 }
 
+typedef enum {
+	PRINT_ERROR = 0, /* print only error messages */
+	PRINT_WARN,	 /* print errors and warnings */
+	PRINT_DEBUG	 /* print errors, warnings and debug messages */
+} cos_print_level_t;
+
+#ifndef PRINT_LEVEL_MAX
+#define PRINT_LEVEL_MAX 3
+#endif
+
+extern cos_print_level_t  cos_print_level;
+extern int                cos_print_lvl_str;
+extern const char        *cos_print_str[];
+
+/* Prints with current spdid and the thdid */
+#define PRINTC(format, ...) printc("%lu,%u=> " format, cos_spd_id(), cos_thdid(), ## __VA_ARGS__)
+/* Prints only if @level is <= cos_print_level */
+#define PRINTLOG(level, format, ...)                                                          \
+	{                                                                                     \
+		if (level <= cos_print_level) {                                               \
+			PRINTC("%s" format,                                                   \
+			       cos_print_lvl_str ? cos_print_str[level] : "", ##__VA_ARGS__); \
+		}                                                                             \
+	}
+
 #endif /* LLPRINT_H */

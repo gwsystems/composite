@@ -80,7 +80,7 @@ vk_vm_sched_init(struct vms_info *vminfo)
 	sl_thd_param_set(vminfo->inithd, spsameT.v);
 
 	printc("\tsl_thd 0x%x created for thread = cap:%x, id=%u\n", (unsigned int)(vminfo->inithd),
-	       (unsigned int)sl_thd_thdcap(vminfo->inithd), (vminfo->inithd)->thdid);
+	       (unsigned int)sl_thd_thdcap(vminfo->inithd), sl_thd_thdid(vminfo->inithd));
 }
 
 void
@@ -136,24 +136,18 @@ vk_vm_io_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkernel
 void
 vk_vm_virtmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long start_ptr, unsigned long range)
 {
-	vaddr_t src_pg;
+	vaddr_t src_pg, dst_pg;
 	struct cos_compinfo *vmcinfo = cos_compinfo_get(&(vminfo->dci));
 	struct cos_compinfo *vk_cinfo = cos_compinfo_get(cos_defcompinfo_curr_get());
-	vaddr_t addr;
 
 	assert(vminfo && vkinfo);
 
 	src_pg = (vaddr_t)cos_page_bump_allocn(vk_cinfo, range);
 	assert(src_pg);
 
-	for (addr = 0; addr < range; addr += PAGE_SIZE, src_pg += PAGE_SIZE) {
-		vaddr_t dst_pg;
-
-		memcpy((void *)src_pg, (void *)(start_ptr + addr), PAGE_SIZE);
-
-		dst_pg = cos_mem_alias(vmcinfo, vk_cinfo, src_pg);
-		assert(dst_pg);
-	}
+	memcpy((void *)src_pg, (void *)start_ptr, range);
+	dst_pg = cos_mem_aliasn(vmcinfo, vk_cinfo, src_pg, range);
+	assert(dst_pg);
 }
 
 void
@@ -168,12 +162,8 @@ vk_vm_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned
 	src_pg = (vaddr_t)cos_page_bump_allocn(&vkinfo->shm_cinfo, shm_sz);
 	assert(src_pg);
 
-	for (addr = shm_ptr; addr < (shm_ptr + shm_sz); addr += PAGE_SIZE, src_pg += PAGE_SIZE) {
-		assert(src_pg == addr);
-
-		dst_pg = cos_mem_alias(&vminfo->shm_cinfo, &vkinfo->shm_cinfo, src_pg);
-		assert(dst_pg && dst_pg == addr);
-	}
+	dst_pg = cos_mem_aliasn(&vminfo->shm_cinfo, &vkinfo->shm_cinfo, src_pg, shm_sz);
+	assert(dst_pg);
 
 	return;
 }
@@ -181,18 +171,13 @@ vk_vm_shmem_alloc(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned
 void
 vk_vm_shmem_map(struct vms_info *vminfo, struct vkernel_info *vkinfo, unsigned long shm_ptr, unsigned long shm_sz)
 {
-	vaddr_t src_pg = (shm_sz * vminfo->id) + shm_ptr, dst_pg, addr;
+	vaddr_t src_pg = (shm_sz * vminfo->id) + shm_ptr, dst_pg;
 
 	assert(vminfo && vminfo->id && vkinfo);
 	assert(shm_ptr == round_up_to_pgd_page(shm_ptr));
 
-	for (addr = shm_ptr; addr < (shm_ptr + shm_sz); addr += PAGE_SIZE, src_pg += PAGE_SIZE) {
-		/* VMx: mapping in only a section of shared-memory to share with VM0 */
-		assert(src_pg);
-
-		dst_pg = cos_mem_alias(&vminfo->shm_cinfo, &vkinfo->shm_cinfo, src_pg);
-		assert(dst_pg && dst_pg == addr);
-	}
+	dst_pg = cos_mem_aliasn(&vminfo->shm_cinfo, &vkinfo->shm_cinfo, src_pg, shm_sz);
+	assert(dst_pg);
 
 	return;
 }

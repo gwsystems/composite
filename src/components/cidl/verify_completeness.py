@@ -49,7 +49,7 @@ for line in lines:
     data = re.split("=", line)
     if data[0] == "DEPENDENCIES":
        deps = re.split(" ", data[1])
-       deps.append("stkmgr")
+       #deps.append("stkmgr")
        for d in deps:
        	   if d == "":
 	      continue
@@ -87,9 +87,9 @@ dangling = []
 for undef in fndeps:
     found = 0
     for exp in fnexps:
-    	if undef + "_inv" == exp:
-	   found = 1
-	   break
+        if undef + "_rets_inv" == exp or undef + "_inv" == exp:
+           found = 1
+           break
     if found == 0:
        dangling.append(undef)
 

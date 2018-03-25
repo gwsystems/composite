@@ -3,7 +3,7 @@
 #include <sys/socket.h>
 #include <rk_inv_api.h>
 #include <cos_types.h>
-#include <micro_booter.h>
+#include <cos_kernel_api.h>
 #include <rk.h>
 
 #define IN_PORT  9998
@@ -95,7 +95,7 @@ cos_init(void)
 
 	/* Test RK entry */
 	printc("calling rk_inv_entry\n");
-	rk_entry(RK_GET_BOOT_DONE, 0, 0, 0);
+	get_boot_done();
 	test_entry(0, 1, 2, 3);
 
 	udpserv_main();

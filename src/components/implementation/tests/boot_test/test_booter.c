@@ -1,23 +1,16 @@
 #include <cos_kernel_api.h>
 #include <cos_component.h>
 #include <llprint.h>
-#include <llbooter_inv.h>
-
-#include "boot_deps.h"
+#include <cos_types.h>
+#include <hypercall.h>
 
 void
 cos_init(void)
 {
-	struct cos_config_info_t *my_info;
+	PRINTLOG(PRINT_DEBUG, "Dummy component booted.\n");
 
-	prints("\n|*****************************|\n");
-	prints(" Wecome to test_boot component!\n");
-	prints("|*****************************|\n");
+	hypercall_comp_init_done();
 
-	printc("Fetching boot configuration information\n");
-	my_info = cos_init_args();
-	printc("Greeting key: %s\n", my_info->kvp[GREETING_KEY].key);
-	printc("Greeting value: %s\n", my_info->kvp[GREETING_KEY].value);
-
-	cos_hypervisor_hypercall(BOOT_HYP_INIT_DONE, 0, 0, 0);
+	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
+	assert(0);
 }
