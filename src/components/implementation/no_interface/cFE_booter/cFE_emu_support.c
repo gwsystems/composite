@@ -25,6 +25,34 @@ emu_backend_request_memory(spdid_t client)
 }
 
 int32
+emu_CFE_ES_GetGenCount(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_GetGenCount(s->cfe_es_getGenCount.CounterId, &s->cfe_es_getGenCount.Count);
+}
+
+int32
+emu_CFE_ES_GetGenCounterIDByName(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_GetGenCounterIDByName(&s->cfe_es_getGenCounterIDByName.CounterId, s->cfe_es_getGenCounterIDByName.CounterName);
+}
+
+int32
+emu_CFE_ES_GetResetType(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_GetResetType(&s->cfe_es_getResetType.ResetSubtype);
+}
+
+int32
+emu_CFE_ES_GetTaskInfo(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_GetTaskInfo(&s->cfe_es_getTaskInfo.TaskInfo, s->cfe_es_getTaskInfo.TaskId);
+}
+
+int32
 emu_CFE_ES_RunLoop(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
@@ -70,6 +98,14 @@ emu_CFE_SB_GetMsgId(spdid_t client)
 	return CFE_SB_GetMsgId((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
 }
 
+void
+emu_CFE_SB_GetMsgTime(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	CFE_TIME_SysTime_t time = CFE_SB_GetMsgTime((CFE_SB_MsgPtr_t)&s->cfe_sb_msg.Msg);
+	s->time = time;
+}
+
 uint16
 emu_CFE_SB_GetTotalMsgLength(spdid_t client)
 {
@@ -105,6 +141,13 @@ emu_CFE_SB_RcvMsg(spdid_t client)
 }
 
 int32
+emu_CFE_SB_SetCmdCode(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_SB_SetCmdCode((CFE_SB_MsgPtr_t)s->cfe_sb_setCmdCode.Msg, s->cfe_sb_setCmdCode.CmdCode);
+}
+
+int32
 emu_CFE_SB_SendMsg(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
@@ -118,6 +161,26 @@ emu_CFE_SB_TimeStampMsg(spdid_t client)
 	CFE_SB_TimeStampMsg((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
 }
 
+boolean
+emu_CFE_SB_ValidateChecksum(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_SB_ValidateChecksum((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
+}
+
+void
+emu_CFE_TIME_Add(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	s->cfe_time_add.Result = CFE_TIME_Add(s->cfe_time_add.Time1, s->cfe_time_add.Time2);
+}
+
+void
+emu_CFE_TIME_Compare(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	s->cfe_time_compare.Result = CFE_TIME_Compare(s->cfe_time_compare.Time1, s->cfe_time_compare.Time2);
+}
 
 void
 emu_CFE_TIME_GetTime(spdid_t client) {

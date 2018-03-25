@@ -27,6 +27,43 @@ do_emulation_setup(spdid_t id)
 	shared_region = (void *)client_addr;
 }
 
+
+// FIXME: Be more careful about user supplied pointers
+int32
+CFE_ES_GetGenCount(uint32 CounterId, uint32 *Count)
+{
+	shared_region->cfe_es_getGenCount.CounterId = CounterId;
+	int32 result = emu_CFE_ES_GetGenCount(spdid);
+	*Count = shared_region->cfe_es_getGenCount.Count;
+	return result;
+}
+
+int32
+CFE_ES_GetGenCounterIDByName(uint32 *CounterIdPtr, const char *CounterName)
+{
+	strcpy(shared_region->cfe_es_getGenCounterIDByName.CounterName, CounterName);
+	int32 result = emu_CFE_ES_GetGenCounterIDByName(spdid);
+	*CounterIdPtr = shared_region->cfe_es_getGenCounterIDByName.CounterId;
+	return result;
+}
+
+int32
+CFE_ES_GetResetType(uint32 *ResetSubtypePtr)
+{
+	int32 result = emu_CFE_ES_GetResetType(spdid);
+	*ResetSubtypePtr = shared_region->cfe_es_getResetType.ResetSubtype;
+	return result;
+}
+
+int32
+CFE_ES_GetTaskInfo(CFE_ES_TaskInfo_t *TaskInfo, uint32 TaskId)
+{
+	shared_region->cfe_es_getTaskInfo.TaskId = TaskId;
+	int32 result = emu_CFE_ES_GetTaskInfo(spdid);
+	*TaskInfo = shared_region->cfe_es_getTaskInfo.TaskInfo;
+	return result;
+}
+
 int32
 CFE_ES_RunLoop(uint32 *RunStatus)
 {
@@ -94,6 +131,18 @@ CFE_SB_GetMsgId(CFE_SB_MsgPtr_t MsgPtr)
 	return emu_CFE_SB_GetMsgId(spdid);
 }
 
+
+CFE_TIME_SysTime_t
+CFE_SB_GetMsgTime(CFE_SB_MsgPtr_t MsgPtr)
+{
+	uint16 msg_len = CFE_SB_GetTotalMsgLength(MsgPtr);
+	assert(msg_len <= EMU_BUF_SIZE);
+	char *msg_ptr = (char *)MsgPtr;
+	memcpy(shared_region->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
+	emu_CFE_SB_GetMsgTime(spdid);
+	return shared_region->time;
+}
+
 uint16
 CFE_SB_GetTotalMsgLength(CFE_SB_MsgPtr_t MsgPtr)
 {
@@ -138,6 +187,21 @@ CFE_SB_RcvMsg(CFE_SB_MsgPtr_t *BufPtr, CFE_SB_PipeId_t PipeId, int32 TimeOut)
 	return result;
 }
 
+int32 CFE_SB_SetCmdCode(CFE_SB_MsgPtr_t MsgPtr, uint16 CmdCode)
+{
+	uint16 msg_len = CFE_SB_GetTotalMsgLength(MsgPtr);
+	assert(msg_len <= EMU_BUF_SIZE);
+	char *msg_ptr = (char *)MsgPtr;
+
+	memcpy(shared_region->cfe_sb_setCmdCode.Msg, msg_ptr, (size_t)msg_len);
+	shared_region->cfe_sb_setCmdCode.CmdCode = CmdCode;
+
+	int32 result = emu_CFE_SB_SetCmdCode(spdid);
+	/* TODO: Verify we can assume the msg_len won't change */
+	memcpy(msg_ptr, shared_region->cfe_sb_setCmdCode.Msg, msg_len);
+	return result;
+}
+
 int32
 CFE_SB_SendMsg(CFE_SB_Msg_t *MsgPtr)
 {
@@ -158,6 +222,34 @@ CFE_SB_TimeStampMsg(CFE_SB_MsgPtr_t MsgPtr)
 	memcpy(shared_region->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
 	emu_CFE_SB_TimeStampMsg(spdid);
 	memcpy(msg_ptr, shared_region->cfe_sb_msg.Msg, (size_t)msg_len);
+}
+
+boolean
+CFE_SB_ValidateChecksum (CFE_SB_MsgPtr_t MsgPtr)
+{
+	uint16 msg_len = CFE_SB_GetTotalMsgLength(MsgPtr);
+	assert(msg_len <= EMU_BUF_SIZE);
+	char *msg_ptr = (char *)MsgPtr;
+	memcpy(shared_region->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
+	return emu_CFE_SB_ValidateChecksum(spdid);
+}
+
+CFE_TIME_SysTime_t
+CFE_TIME_Add(CFE_TIME_SysTime_t Time1, CFE_TIME_SysTime_t Time2)
+{
+	shared_region->cfe_time_add.Time1 = Time1;
+	shared_region->cfe_time_add.Time2 = Time2;
+	emu_CFE_TIME_Add(spdid);
+	return shared_region->cfe_time_add.Result;
+}
+
+CFE_TIME_Compare_t
+CFE_TIME_Compare(CFE_TIME_SysTime_t Time1, CFE_TIME_SysTime_t Time2)
+{
+	shared_region->cfe_time_compare.Time1 = Time1;
+	shared_region->cfe_time_compare.Time2 = Time2;
+	emu_CFE_TIME_Compare(spdid);
+	return shared_region->cfe_time_compare.Result;
 }
 
 CFE_TIME_SysTime_t

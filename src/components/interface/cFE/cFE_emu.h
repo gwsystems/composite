@@ -4,6 +4,7 @@
 
 #define EMU_BUF_SIZE 512
 
+/* TODO: Alphabetize me! */
 union shared_region {
 	struct {
 		CFE_EVS_BinFilter_t filters[CFE_EVS_MAX_EVENT_FILTERS];
@@ -45,10 +46,43 @@ union shared_region {
 		char PrintBuffer[CFE_TIME_PRINTED_STRING_SIZE];
 		CFE_TIME_SysTime_t TimeToPrint;
 	} cfe_time_print;
+	struct {
+		char Msg[EMU_BUF_SIZE];
+		uint16 CmdCode;
+	} cfe_sb_setCmdCode;
+	struct {
+		CFE_TIME_SysTime_t Time1;
+		CFE_TIME_SysTime_t Time2;
+		CFE_TIME_SysTime_t Result;
+	} cfe_time_add;
+	struct {
+		CFE_TIME_SysTime_t Time1;
+		CFE_TIME_SysTime_t Time2;
+		CFE_TIME_Compare_t Result;
+	} cfe_time_compare;
+	struct {
+		CFE_ES_TaskInfo_t TaskInfo;
+		uint32 TaskId;
+	} cfe_es_getTaskInfo;
+	struct {
+		uint32 ResetSubtype;
+	} cfe_es_getResetType;
+	struct {
+		uint32 CounterId;
+		uint32 Count;
+	} cfe_es_getGenCount;
+	struct {
+		uint32 CounterId;
+		char CounterName[EMU_BUF_SIZE];
+	} cfe_es_getGenCounterIDByName;
 };
 
 int emu_backend_request_memory(spdid_t client);
 
+int32 emu_CFE_ES_GetGenCount(spdid_t client);
+int32 emu_CFE_ES_GetGenCounterIDByName(spdid_t client);
+int32 emu_CFE_ES_GetResetType(spdid_t client);
+int32 emu_CFE_ES_GetTaskInfo(spdid_t client);
 int32 emu_CFE_ES_RunLoop(spdid_t client);
 
 int32 emu_CFE_EVS_Register(spdid_t sp);
@@ -57,12 +91,16 @@ int32 emu_CFE_EVS_SendEvent(spdid_t client);
 int32 emu_CFE_SB_CreatePipe(spdid_t client);
 uint16 emu_CFE_SB_GetCmdCode(spdid_t client);
 CFE_SB_MsgId_t emu_CFE_SB_GetMsgId(spdid_t client);
+void emu_CFE_SB_GetMsgTime(spdid_t client);
 uint16 emu_CFE_SB_GetTotalMsgLength(spdid_t client);
 void emu_CFE_SB_InitMsg(spdid_t client);
 int32 emu_CFE_SB_RcvMsg(spdid_t client);
+int32 emu_CFE_SB_SetCmdCode(spdid_t client);
 int32 emu_CFE_SB_SendMsg(spdid_t client);
 void emu_CFE_SB_TimeStampMsg(spdid_t client);
+boolean emu_CFE_SB_ValidateChecksum(spdid_t client);
 
+void emu_CFE_TIME_Add(spdid_t client);
+void emu_CFE_TIME_Compare(spdid_t client);
 void emu_CFE_TIME_GetTime(spdid_t client);
-
 void emu_CFE_TIME_Print(spdid_t client);
