@@ -39,6 +39,9 @@ hextol(const char *s)
 
 extern u8_t end; /* from the linker script */
 
+#define MEM_KB_ONLY(x) (((x) & ((1 << 20) - 1)) >> 10)
+#define MEM_MB_ONLY(x) ((x) >> 20)
+
 void
 kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 {
@@ -91,22 +94,20 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		struct multiboot_mem_list *mem      = &mems[i];
 		u8_t *                     mod_end  = glb_memlayout.mod_end;
 		u8_t *                     mem_addr = chal_pa2va((paddr_t)mem->addr);
-		unsigned long              mem_len  = (mem->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ : mem->len); /* maximum allowed */ 
+		unsigned long              mem_len  = (mem->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ : mem->len); /* maximum allowed */
 
-		if (mem->addr > BOOT_KERN_MEMSCAN_MAX || mem->addr + mem_len > BOOT_KERN_MEMSCAN_MAX) {
-			printk("\tScanned maximum allowed regions\n");
-			break;
-		}
-		printk("\t- %d (%s): [%08llx, %08llx) sz = [%08lldKB, %ldKB)\n", i, mem->type == 1 ? "Available" : "Reserved ", mem->addr,
-		       mem->addr + mem->len, mem->len/1024, mem_len/1024);
+		printk("\t- %d (%s): [%08llx, %08llx) sz = %ldMB + %ldKB\n", i, mem->type == 1 ? "Available" : "Reserved ", mem->addr,
+		       mem->addr + mem->len, MEM_MB_ONLY((u32_t)mem->len), MEM_KB_ONLY((u32_t)mem->len));
+
+		if (mem->addr > COS_PHYMEM_END_PA || mem->addr + mem_len > COS_PHYMEM_END_PA) continue;
 
 		/* is this the memory region we'll use for component memory? */
 		if (mem->type == 1 && mod_end >= mem_addr && mod_end < (mem_addr + mem_len)) {
 			unsigned long sz = (mem_addr + mem_len) - mod_end;
 
 			glb_memlayout.kmem_end = mem_addr + mem_len;
-			printk("\t  memory available at boot time: %lx (%ld MB + %ld KB)\n", sz, sz >> 20,
-			       (sz & ((1 << 20) - 1)) >> 10);
+			printk("\t  memory usable at boot time: %lx (%ld MB + %ld KB)\n", sz, MEM_MB_ONLY(sz),
+			       MEM_KB_ONLY(sz));
 		}
 	}
 	/* FIXME: check memory layout vs. the multiboot memory regions... */
@@ -124,7 +125,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 
 	wastage += mem_boot_start() - mem_bootc_end();
 
-	printk("\tAmount of wasted memory due to layout is %u MB + 0x%x B\n", wastage >> 20, wastage & ((1 << 20) - 1));
+	printk("\tAmount of wasted memory due to layout is %u MB + 0x%x B\n", MEM_MB_ONLY(wastage), wastage & ((1 << 20) - 1));
 
 	assert(STK_INFO_SZ == sizeof(struct cos_cpu_local_info));
 }
