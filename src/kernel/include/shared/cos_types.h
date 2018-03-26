@@ -266,6 +266,10 @@ enum
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
 
+#define BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE (captbl_tcap_offset(cos_cpuid()))
+#define BOOT_CAPTBL_SELF_INITTHD_CPU_BASE (captbl_thd_offset(cos_cpuid()))
+#define BOOT_CAPTBL_SELF_INITRCV_CPU_BASE (captbl_arcv_offset(cos_cpuid()))
+
 static inline unsigned long
 captbl_thd_offset(cpuid_t cpu_id)
 {

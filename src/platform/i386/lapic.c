@@ -107,7 +107,7 @@ enum lapic_timer_div_by_config
 
 static volatile void *lapic             = (void *)APIC_DEFAULT_PHYS;
 static unsigned int   lapic_timer_mode  = LAPIC_TSC_DEADLINE;
-static unsigned int   lapic_is_disabled = 1;
+static unsigned int   lapic_is_disabled[NUM_CPU];
 
 static unsigned int lapic_cycs_thresh        = 0;
 static u32_t        lapic_cpu_to_timer_ratio = 0;
@@ -116,18 +116,22 @@ u32_t               lapic_timer_calib_init   = 0;
 static void
 lapic_write_reg(u32_t off, u32_t val)
 {
+	assert(lapic);
+
 	*(volatile u32_t *)(lapic + off) = val;
 }
 
 static void
 lapic_ack(void)
 {
-	if (lapic) lapic_write_reg(LAPIC_EOI_REG, 0);
+	lapic_write_reg(LAPIC_EOI_REG, 0);
 }
 
 static u32_t
 lapic_read_reg(u32_t off)
 {
+	assert(lapic);
+
 	return *(volatile u32_t *)(lapic + off);
 }
 
@@ -262,6 +266,7 @@ lapic_init(void)
 	/* lapic_write_reg(LAPIC_LINT0, LAPIC_INT_MASKED); */
 	/* lapic_write_reg(LAPIC_LINT1, LAPIC_INT_MASKED); */
 	/* if ((version >> 16) >= 4) lapic_write_reg(LAPIC_PCINT, LAPIC_INT_MASKED); */
+	lapic_timer_init();
 
 	lapic_write_reg(LAPIC_ESR, 0);
 	lapic_write_reg(LAPIC_ESR, 0);
@@ -273,7 +278,7 @@ lapic_init(void)
 void
 lapic_disable_timer(int timer_type)
 {
-	if (lapic_is_disabled) return;
+	if (lapic_is_disabled[get_cpuid()]) return;
 
 	if (timer_type == LAPIC_ONESHOT) {
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
@@ -284,7 +289,7 @@ lapic_disable_timer(int timer_type)
 		assert(0);
 	}
 
-	lapic_is_disabled = 1;
+	lapic_is_disabled[get_cpuid()] = 1;
 }
 
 void
@@ -292,6 +297,7 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 {
 	u64_t now;
 
+	assert(lapic_timer_calib_init == 0);
 	rdtscll(now);
 	if (deadline < now || (deadline - now) < LAPIC_TIMER_MIN) deadline = now + LAPIC_TIMER_MIN;
 
@@ -309,7 +315,7 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 		assert(0);
 	}
 
-	lapic_is_disabled = 0;
+	lapic_is_disabled[get_cpuid()] = 0;
 }
 
 void
@@ -323,7 +329,6 @@ lapic_set_page(u32_t page)
 int
 lapic_spurious_handler(struct pt_regs *regs)
 {
-	printk("\n\n spurious irq happened on cpu%d @ %x\n", get_cpuid(), regs->ip);
 	return 1;
 }
 
@@ -356,7 +361,7 @@ lapic_timer_calibration(u32_t ratio)
 	/* reset INIT counter, and unmask timer */
 	lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
 	lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) & ~LAPIC_TIMER_MASKED);
-	lapic_is_disabled = 1;
+	lapic_is_disabled[get_cpuid()] = 1;
 
 	printk("LAPIC: Timer calibrated - CPU Cycles to APIC Timer Ratio is %u\n", lapic_cpu_to_timer_ratio);
 }
@@ -393,26 +398,35 @@ lapic_timer_init(void)
 
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_ONESHOT_MODE);
-		lapic_timer_mode = LAPIC_ONESHOT;
 
 		/* Set the timer and mask it, so timer interrupt is not fired - for timer calibration through HPET */
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, LAPIC_TIMER_CALIB_VAL);
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) | LAPIC_TIMER_MASKED);
-		lapic_timer_calib_init = 1;
-		lapic_cycs_thresh      = LAPIC_ONESHOT_THRESH;
+		if (get_cpuid() == INIT_CORE) {
+			lapic_timer_mode       = LAPIC_ONESHOT;
+			lapic_timer_calib_init = 1;
+			lapic_cycs_thresh      = LAPIC_ONESHOT_THRESH;
+		}
 	} else {
 		printk("LAPIC: Configuring TSC-Deadline Mode!\n");
 
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_TSCDEADLINE_MODE);
-		lapic_timer_mode  = LAPIC_TSC_DEADLINE;
-		lapic_cycs_thresh = LAPIC_TSCDEADLINE_THRESH;
+		if (get_cpuid() == INIT_CORE) {
+			lapic_timer_mode  = LAPIC_TSC_DEADLINE;
+			lapic_cycs_thresh = LAPIC_TSCDEADLINE_THRESH;
+		}
 	}
 
 	/* Set the divisor */
 	lapic_write_reg(LAPIC_DIV_CONF_REG, LAPIC_DIV_BY_1);
 
-	lapic_ack();
+	if (get_cpuid() != INIT_CORE) {
+		/* reset INIT counter, and unmask timer */
+		lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
+		lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) & ~LAPIC_TIMER_MASKED);
+		lapic_is_disabled[get_cpuid()] = 1;
+	}
 }
 
 static int
@@ -500,7 +514,6 @@ smp_boot_all_ap(volatile int *cores_ready)
 	if (ret) printk("SMP Bootup: LAPIC error status register is %x\n", ret);
 	lapic_write_reg(LAPIC_ESR, 0);
 	lapic_read_reg(LAPIC_ESR);
-
 }
 
 void

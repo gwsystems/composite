@@ -169,7 +169,6 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	kern_boot_comp(INIT_CORE);
 	timer_init();
 	lapic_init();
-	lapic_timer_init();
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
 
@@ -193,7 +192,6 @@ smp_kmain(void)
 	chal_cpu_init();
 	kern_boot_comp(cpu_id);
 	lapic_init();
-	lapic_timer_init();
 
 	printk("New CPU %d Booted\n", cpu_id);
 	cores_ready[cpu_id] = 1;
