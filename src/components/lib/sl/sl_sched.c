@@ -11,7 +11,7 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 
-struct sl_global sl_global_data;
+struct sl_global sl_global_data[NUM_CPU] CACHE_ALIGNED;
 static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
 extern struct sl_thd *sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps);
 
@@ -66,11 +66,11 @@ struct timeout_heap {
 	void        *data[SL_MAX_NUM_THDS];
 };
 
-static struct timeout_heap timeout_heap;
+static struct timeout_heap timeout_heap[NUM_CPU];
 
 struct heap *
 sl_timeout_heap(void)
-{ return &timeout_heap.h; }
+{ return &timeout_heap[cos_cpuid()].h; }
 
 static inline void
 sl_timeout_block(struct sl_thd *t, cycles_t timeout)
@@ -141,7 +141,7 @@ sl_timeout_init(microsec_t period)
 	assert(period >= SL_MIN_PERIOD_US);
 
 	sl_timeout_period(period);
-	memset(&timeout_heap, 0, sizeof(struct timeout_heap));
+	memset(&timeout_heap[cos_cpuid()], 0, sizeof(struct timeout_heap));
 	heap_init(sl_timeout_heap(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
 }
 

@@ -67,12 +67,12 @@ struct sl_global {
 	struct ps_list_head event_head; /* all pending events for sched end-point */
 };
 
-extern struct sl_global sl_global_data;
+extern struct sl_global sl_global_data[];
 
 static inline struct sl_global *
 sl__globals(void)
 {
-	return &sl_global_data;
+	return &(sl_global_data[cos_cpuid()]);
 }
 
 static inline void

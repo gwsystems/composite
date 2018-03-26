@@ -45,7 +45,7 @@ struct cos_defcompinfo {
 		spdid_t id;
 		struct cos_compinfo ci;
 	};
-	struct cos_aep_info sched_aep;
+	struct cos_aep_info sched_aep[NUM_CPU];
 };
 
 static void
