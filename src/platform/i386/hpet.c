@@ -132,6 +132,9 @@ timer_calibration(void)
 	static u64_t cycle = 0, tot = 0, prev;
 	static u32_t apic_curr = 0, apic_tot = 0, apic_prev;
 
+	/* calibration only on BSP */
+	assert(get_cpuid() == INIT_CORE);
+
 	prev      = cycle;
 	apic_prev = apic_curr;
 	rdtscll(cycle);

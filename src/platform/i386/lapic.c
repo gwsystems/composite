@@ -106,7 +106,7 @@ enum lapic_timer_div_by_config
 
 static volatile void *lapic             = (void *)APIC_DEFAULT_PHYS;
 static unsigned int   lapic_timer_mode  = LAPIC_TSC_DEADLINE;
-static unsigned int   lapic_is_disabled[NUM_CPU];
+static unsigned int   lapic_is_disabled[NUM_CPU] CACHE_ALIGNED;
 
 static unsigned int lapic_cycs_thresh        = 0;
 static u32_t        lapic_cpu_to_timer_ratio = 0;
