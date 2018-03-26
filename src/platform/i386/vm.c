@@ -100,7 +100,12 @@ kern_setup_image(void)
 		lapic = lapic_find_localaddr(acpi_find_apic());
 		if (lapic) {
 			page             = round_up_to_pgd_page(lapic & 0xffffffff) - (1 << 22);
-			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
+			/*
+			 * Intel specification:
+			 * For correct APIC operation, this address space must be mapped to an area of memory
+			 * that has been designated as strong uncacheable (UC).
+			 */
+			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL | PGTBL_NOCACHE;
 			lapic_set_page(j);
 			j++;
 		}
