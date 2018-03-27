@@ -45,6 +45,7 @@ capmgr_comp_info_iter_cpu(void)
 		rci_sched = cap_info_comp_find(sched_spdid);
 		assert(rci_sched && cap_info_init_check(rci_sched));
 		rci->parent[cos_cpuid()] = rci_sched;
+		rci->thd_used[cos_cpuid()] = 1;
 
 		while ((remain_child = hypercall_comp_child_next(spdid, &childid, &ch_flags)) >= 0) {
 			bitmap_set(rci->child_bitmap[cos_cpuid()], childid - 1);

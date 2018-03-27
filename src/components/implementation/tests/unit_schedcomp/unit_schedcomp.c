@@ -16,13 +16,13 @@
 #define LOW_PRIORITY (LOWEST_PRIORITY - 1)
 #define HIGH_PRIORITY (LOWEST_PRIORITY - 10)
 
-static int lowest_was_scheduled = 0;
+static int lowest_was_scheduled[NUM_CPU];
 static u32_t cycs_per_usec = 0;
 
 static void
 low_thread_fn()
 {
-	lowest_was_scheduled = 1;
+	lowest_was_scheduled[cos_cpuid()] = 1;
 	sched_thd_exit();
 }
 
@@ -59,7 +59,7 @@ high_thread_fn()
 
 	deadline = now() + usec2cyc(10 * 1000 * 1000);
 	while (now() < deadline) {}
-	assert(!lowest_was_scheduled);
+	assert(!lowest_was_scheduled[cos_cpuid()]);
 	sched_thd_exit();
 }
 
@@ -76,20 +76,20 @@ test_highest_is_scheduled(void)
 	sched_thd_block_timeout(0, wakeup);
 }
 
-static int thd1_ran = 0;
-static int thd2_ran = 0;
+static int thd1_ran[NUM_CPU];
+static int thd2_ran[NUM_CPU];
 
 static void
 thd1_fn()
 {
-	thd1_ran = 1;
+	thd1_ran[cos_cpuid()] = 1;
 	while (1);
 }
 
 static void
 thd2_fn()
 {
-	thd2_ran = 1;
+	thd2_ran[cos_cpuid()] = 1;
 	while (1);
 }
 

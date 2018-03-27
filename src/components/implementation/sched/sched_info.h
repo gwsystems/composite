@@ -21,7 +21,7 @@ unsigned int sched_num_childsched_get(void);
 void sched_childinfo_init(void);
 void sched_childinfo_init_raw(void);
 
-extern unsigned int self_init, num_child_init;
+extern unsigned int self_init[], num_child_init[];
 
 static inline struct cos_defcompinfo *
 sched_child_defci_get(struct sched_childinfo *sci)

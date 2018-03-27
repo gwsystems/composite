@@ -66,7 +66,7 @@ struct timeout_heap {
 	void        *data[SL_MAX_NUM_THDS];
 };
 
-static struct timeout_heap timeout_heap[NUM_CPU];
+static struct timeout_heap timeout_heap[NUM_CPU] CACHE_ALIGNED;
 
 struct heap *
 sl_timeout_heap(void)

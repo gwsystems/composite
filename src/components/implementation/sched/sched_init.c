@@ -4,7 +4,7 @@
 #include <sl.h>
 #include <sched_info.h>
 
-extern unsigned int self_init, num_child_init;
+extern unsigned int num_child_init[];
 extern thdcap_t capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid);
 
 int
@@ -39,7 +39,7 @@ schedinit_child(void)
 		t = sl_thd_init_ext(&aep, sched_child_initthd_get(ci));
 		if (!t) return -1;
 	} while (thdid);
-	num_child_init++;
+	num_child_init[cos_cpuid()]++;
 
 	return 0;
 }

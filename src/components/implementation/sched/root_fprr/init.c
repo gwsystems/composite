@@ -13,13 +13,13 @@ u32_t cycs_per_usec = 0;
 #define FIXED_PERIOD_MS (10000)
 #define FIXED_BUDGET_MS (4000)
 
-static struct sl_thd *__initializer_thd = NULL;
+static struct sl_thd *__initializer_thd[NUM_CPU] CACHE_ALIGNED;
 
 static int
 schedinit_self(void)
 {
 	/* if my init is done and i've all child inits */
-	if (self_init && num_child_init == sched_num_childsched_get()) return 0;
+	if (self_init[cos_cpuid()] && num_child_init[cos_cpuid()] == sched_num_childsched_get()) return 0;
 
 	return 1;
 }
@@ -52,24 +52,30 @@ cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
-	int i, remaining;
-	spdid_t child;
-	comp_flag_t childflags;
+	static int first_time = 1, init_done = 0;
 
 	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
-	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_defcompinfo_init();
+	if (first_time) {
+		first_time = 0;
+		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+		cos_defcompinfo_init();
+		init_done = 1;
+	} else {
+		while (!init_done) ;
+
+		cos_defcompinfo_sched_init();
+	}
 
 	sl_init(SL_MIN_PERIOD_US);
 	sched_childinfo_init();
-	__initializer_thd = sl_thd_alloc(__init_done, NULL);
-	assert(__initializer_thd);
-	sl_thd_param_set(__initializer_thd, sched_param_pack(SCHEDP_PRIO, INITIALIZE_PRIO));
-	sl_thd_param_set(__initializer_thd, sched_param_pack(SCHEDP_WINDOW, INITIALIZE_BUDGET_MS));
-	sl_thd_param_set(__initializer_thd, sched_param_pack(SCHEDP_BUDGET, INITIALIZE_PERIOD_MS));
+	__initializer_thd[cos_cpuid()] = sl_thd_alloc(__init_done, NULL);
+	assert(__initializer_thd[cos_cpuid()]);
+	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, INITIALIZE_PRIO));
+	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_WINDOW, INITIALIZE_BUDGET_MS));
+	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_BUDGET, INITIALIZE_PERIOD_MS));
 
-	self_init = 1;
+	self_init[cos_cpuid()] = 1;
 	hypercall_comp_init_done();
 
 	sl_sched_loop_nonblock();
@@ -77,4 +83,3 @@ cos_init(void)
 	PRINTLOG(PRINT_ERROR, "Should never have reached this point!!!\n");
 	assert(0);
 }
-

@@ -437,7 +437,7 @@ boot_comp_capinfo_init(void)
 	}
 }
 
-static int init_core_load_done = 0, core_boot_done[NUM_CPU] = { 0 };
+static int init_core_load_done = 0, init_core_boot_done = 0, core_boot_done[NUM_CPU] = { 0 };
 
 void
 cos_init(void)
@@ -488,6 +488,7 @@ cos_init(void)
 		}
 
 		boot_done();
+		init_core_boot_done = 1;
 		boot_root_sched_run();
 	} else {
 		while (!init_core_load_done) ;
@@ -506,6 +507,7 @@ cos_init(void)
 			while (!core_boot_done[i]) ;
 		}
 
+		while (!init_core_boot_done) ;
 		boot_done();
 		boot_root_sched_run();
 	}
