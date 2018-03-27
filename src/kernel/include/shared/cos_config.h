@@ -41,7 +41,7 @@
 
 #define BOOT_COMP_MAX_SZ (1 << 24) /* 16 MB for the booter component */
 
-#define NUM_CPU 2
+#define NUM_CPU 4
 
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 

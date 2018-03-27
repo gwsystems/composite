@@ -487,7 +487,7 @@ smp_boot_all_ap(volatile int *cores_ready)
 		printk("\nBooting AP %d\n", i);
 		/* Application Processor (AP) startup sequence: */
 		/* ...make sure that we pass this core's stack */
-		*stackpatch = &stack + ((PAGE_SIZE * (i + 1)) + (PAGE_SIZE - STK_INFO_OFF));
+		*stackpatch = &stack + ((PAGE_SIZE * i) + (PAGE_SIZE - STK_INFO_OFF));
 		/* ...initialize the coreid of the new processor */
 		cli         = (struct cos_cpu_local_info *)*stackpatch;
 		cli->cpuid  = i; /* the rest is initialized during the bootup process */
