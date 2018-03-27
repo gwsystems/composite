@@ -7,6 +7,7 @@
 
 #include <cfe_error.h>
 #include <cfe_evs.h>
+#include <cfe_fs.h>
 #include <cfe_time.h>
 
 #include <cFE_emu.h>
@@ -99,6 +100,26 @@ CFE_EVS_SendEvent(uint16 EventID, uint16 EventType, const char *Spec, ...)
 	shared_region->cfe_evs_sendEvent.EventType = EventType;
 
 	return emu_CFE_EVS_SendEvent(spdid);
+}
+
+int32
+CFE_FS_Decompress(const char *SourceFile, const char *DestinationFile)
+{
+	assert(strlen(SourceFile) < EMU_BUF_SIZE);
+	assert(strlen(DestinationFile) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->cfe_fs_decompress.SourceFile, SourceFile);
+	strcpy(shared_region->cfe_fs_decompress.DestinationFile, DestinationFile);
+	return emu_CFE_FS_Decompress(spdid);
+}
+
+int32
+CFE_FS_WriteHeader(int32 FileDes, CFE_FS_Header_t *Hdr)
+{
+	shared_region->cfe_fs_writeHeader.FileDes = FileDes;
+	int32 result = emu_CFE_FS_WriteHeader(spdid);
+	*Hdr = shared_region->cfe_fs_writeHeader.Hdr;
+	return result;
 }
 
 int32
@@ -267,6 +288,214 @@ CFE_TIME_Print(char *PrintBuffer, CFE_TIME_SysTime_t TimeToPrint)
 	memcpy(PrintBuffer, shared_region->cfe_time_print.PrintBuffer, CFE_TIME_PRINTED_STRING_SIZE);
 }
 
+int32
+OS_cp(const char *src, const char *dest)
+{
+	assert(strlen(src) < EMU_BUF_SIZE);
+	assert(strlen(dest) < EMU_BUF_SIZE);
+	strcpy(shared_region->os_cp.src, src);
+	strcpy(shared_region->os_cp.dest, dest);
+	return emu_OS_cp(spdid);
+}
+
+int32
+OS_creat(const char *path, int32 access)
+{
+	assert(strlen(path) <  EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_creat.path, path);
+	shared_region->os_creat.access = access;
+	return emu_OS_creat(spdid);
+}
+
+int32
+OS_FDGetInfo(int32 filedes, OS_FDTableEntry *fd_prop)
+{
+	shared_region->os_FDGetInfo.filedes = filedes;
+	int32 result = emu_OS_FDGetInfo(spdid);
+	*fd_prop = shared_region->os_FDGetInfo.fd_prop;
+	return result;
+}
+
+int32
+OS_fsBytesFree(const char *name, uint64 *bytes_free)
+{
+	assert(strlen(name) <  EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_fsBytesFree.name, name);
+	int32 result = emu_OS_fsBytesFree(spdid);
+	*bytes_free = shared_region->os_fsBytesFree.bytes_free;
+
+	return result;
+}
+
+int32
+OS_mkdir(const char *path, uint32 access)
+{
+	assert(strlen(path) <  EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_mkdir.path, path);
+	shared_region->os_mkdir.access = access;
+	return emu_OS_mkdir(spdid);
+}
+
+int32
+OS_mv(const char *src, const char *dest)
+{
+	assert(strlen(src) < EMU_BUF_SIZE);
+	assert(strlen(dest) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_mv.src, src);
+	strcpy(shared_region->os_mv.dest, dest);
+	return emu_OS_mv(spdid);
+}
+
+os_dirp_t
+OS_opendir(const char *path)
+{
+	assert(strlen(path) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_opendir.path, path);
+	return emu_OS_opendir(spdid);
+}
+
+int32
+OS_read(int32 filedes, void *buffer, uint32 nbytes)
+{
+	assert(nbytes <= EMU_BUF_SIZE);
+
+	shared_region->os_read.filedes = filedes;
+	shared_region->os_read.nbytes = nbytes;
+	int32 result = emu_OS_read(spdid);
+	memcpy(buffer, shared_region->os_read.buffer, nbytes);
+	return result;
+}
+
+int32
+OS_remove(const char *path)
+{
+	assert(strlen(path) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_remove.path, path);
+	return emu_OS_remove(spdid);
+}
+
+
+os_dirent_t buffered_dirent;
+
+os_dirent_t*
+OS_readdir(os_dirp_t directory)
+{
+	shared_region->os_readdir.directory = directory;
+	emu_OS_readdir(spdid);
+	buffered_dirent = shared_region->os_readdir.dirent;
+	return &buffered_dirent;
+}
+
+int32
+OS_rename(const char *old_filename, const char *new_filename)
+{
+	assert(strlen(old_filename) < EMU_BUF_SIZE);
+	assert(strlen(new_filename) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_rename.old_filename, old_filename);
+	strcpy(shared_region->os_rename.new_filename, new_filename);
+	return emu_OS_rename(spdid);
+}
+
+int32
+OS_rmdir(const char *path)
+{
+	assert(strlen(path) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_rmdir.path, path);
+	return emu_OS_rmdir(spdid);
+}
+
+int32
+OS_stat(const char *path, os_fstat_t *filestats)
+{
+	assert(strlen(path) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_stat.path, path);
+	int32 result = emu_OS_stat(spdid);
+	*filestats = shared_region->os_stat.filestats;
+	return result;
+}
+
+int32
+OS_write(int32 filedes, void *buffer, uint32 nbytes)
+{
+	assert(nbytes <  EMU_BUF_SIZE);
+	shared_region->os_write.filedes = filedes;
+	memcpy(shared_region->os_write.buffer, buffer, nbytes);
+	shared_region->os_write.nbytes = nbytes;
+	return emu_OS_write(spdid);
+}
+
+
+int32
+OS_BinSemCreate(uint32 *sem_id, const char *sem_name, uint32 sem_initial_value, uint32 options)
+{
+	assert(strlen(sem_name) <  EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_semCreate.sem_name, sem_name);
+	shared_region->os_semCreate.sem_initial_value = sem_initial_value;
+	shared_region->os_semCreate.options = options;
+	int32 result = emu_OS_BinSemCreate(spdid);
+	*sem_id = shared_region->os_semCreate.sem_id;
+	return result;
+}
+
+int32
+OS_CountSemCreate(uint32 *sem_id, const char *sem_name, uint32 sem_initial_value, uint32 options)
+{
+	assert(strlen(sem_name) <  EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_semCreate.sem_name, sem_name);
+	shared_region->os_semCreate.sem_initial_value = sem_initial_value;
+	shared_region->os_semCreate.options = options;
+	int32 result = emu_OS_CountSemCreate(spdid);
+	*sem_id = shared_region->os_semCreate.sem_id;
+	return result;
+}
+
+int32
+OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
+{
+	assert(strlen(sem_name) <  EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_mutSemCreate.sem_name, sem_name);
+	shared_region->os_mutSemCreate.options = options;
+	int32 result = emu_OS_MutSemCreate(spdid);
+	*sem_id = shared_region->os_mutSemCreate.sem_id;
+
+	return result;
+}
+
+int32
+OS_TaskGetIdByName(uint32 *task_id, const char *task_name)
+{
+	assert(strlen(task_name) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_taskGetIdByName.task_name, task_name);
+	int32 result = emu_OS_TaskGetIdByName(spdid);
+	*task_id = shared_region->os_taskGetIdByName.task_id;
+	return result;
+}
+
+int32
+OS_SymbolLookup(cpuaddr *symbol_address, const char *symbol_name)
+{
+	assert(strlen(symbol_name) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_symbolLookup.symbol_name, symbol_name);
+	int32 result = emu_OS_SymbolLookup(spdid);
+	*symbol_address = shared_region->os_symbolLookup.symbol_address;
+	return result;
+}
+
+/* Methods that are completly emulated */
 // FIXME: Query the cFE to decide whether printf is enabled
 int is_printf_enabled = 1;
 

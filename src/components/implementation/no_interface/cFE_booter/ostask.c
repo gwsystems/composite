@@ -14,7 +14,6 @@
 void
 timer_fn_1hz(void *d)
 {
-	int      first = 0;
 	cycles_t now, start;
 
 	rdtscll(start);

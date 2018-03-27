@@ -1,6 +1,7 @@
 #include <cos_types.h>
 
 #include <cfe_evs.h>
+#include <cfe_fs.h>
 
 #define EMU_BUF_SIZE 512
 
@@ -75,6 +76,88 @@ union shared_region {
 		uint32 CounterId;
 		char CounterName[EMU_BUF_SIZE];
 	} cfe_es_getGenCounterIDByName;
+	struct {
+		int32 FileDes;
+		CFE_FS_Header_t Hdr;
+	} cfe_fs_writeHeader;
+	struct {
+		char SourceFile[EMU_BUF_SIZE];
+		char DestinationFile[EMU_BUF_SIZE];
+	} cfe_fs_decompress;
+	struct {
+		char path[EMU_BUF_SIZE];
+		int32 access;
+	} os_creat;
+	struct {
+		int32 filedes;
+		char buffer[EMU_BUF_SIZE];
+		uint32 nbytes;
+	} os_write;
+	struct {
+		cpuaddr symbol_address;
+		char symbol_name[EMU_BUF_SIZE];
+	} os_symbolLookup;
+	struct {
+		uint32 sem_id;
+		char sem_name[EMU_BUF_SIZE];
+		uint32 sem_initial_value;
+		uint32 options;
+	} os_semCreate;
+	struct {
+		char src[EMU_BUF_SIZE];
+		char dest[EMU_BUF_SIZE];
+	} os_cp;
+	struct {
+		int32 filedes;
+		OS_FDTableEntry fd_prop;
+	} os_FDGetInfo;
+	struct {
+		char name[EMU_BUF_SIZE];
+		uint64 bytes_free;
+	} os_fsBytesFree;
+	struct {
+		char path[EMU_BUF_SIZE];
+		uint32 access;
+	} os_mkdir;
+	struct {
+		uint32 sem_id;
+		char sem_name[EMU_BUF_SIZE];
+		uint32 options;
+	} os_mutSemCreate;
+	struct {
+		char src[EMU_BUF_SIZE];
+		char dest[EMU_BUF_SIZE];
+	} os_mv;
+	struct {
+		char path[EMU_BUF_SIZE];
+	} os_opendir;
+	struct {
+		int32 filedes;
+		char buffer[EMU_BUF_SIZE];
+		uint32 nbytes;
+	} os_read;
+	struct {
+		char path[EMU_BUF_SIZE];
+	} os_remove;
+	struct {
+		char old_filename[EMU_BUF_SIZE];
+		char new_filename[EMU_BUF_SIZE];
+	} os_rename;
+	struct {
+		char path[EMU_BUF_SIZE];
+	} os_rmdir;
+	struct {
+		char path[EMU_BUF_SIZE];
+		os_fstat_t filestats;
+	} os_stat;
+	struct {
+		os_dirp_t directory;
+		os_dirent_t dirent;
+	} os_readdir;
+	struct {
+		uint32 task_id;
+		char task_name[EMU_BUF_SIZE];
+	} os_taskGetIdByName;
 };
 
 int emu_backend_request_memory(spdid_t client);
@@ -87,6 +170,9 @@ int32 emu_CFE_ES_RunLoop(spdid_t client);
 
 int32 emu_CFE_EVS_Register(spdid_t sp);
 int32 emu_CFE_EVS_SendEvent(spdid_t client);
+
+int32 emu_CFE_FS_Decompress(spdid_t client);
+int32 emu_CFE_FS_WriteHeader(spdid_t client);
 
 int32 emu_CFE_SB_CreatePipe(spdid_t client);
 uint16 emu_CFE_SB_GetCmdCode(spdid_t client);
@@ -104,3 +190,25 @@ void emu_CFE_TIME_Add(spdid_t client);
 void emu_CFE_TIME_Compare(spdid_t client);
 void emu_CFE_TIME_GetTime(spdid_t client);
 void emu_CFE_TIME_Print(spdid_t client);
+
+int32 emu_OS_cp(spdid_t client);
+int32 emu_OS_creat(spdid_t client);
+int32 emu_OS_FDGetInfo(spdid_t client);
+int32 emu_OS_fsBytesFree(spdid_t client);
+int32 emu_OS_mkdir(spdid_t client);
+int32 emu_OS_mv(spdid_t client);
+os_dirp_t emu_OS_opendir(spdid_t client);
+int32 emu_OS_read(spdid_t client);
+void emu_OS_readdir(spdid_t client);
+int32 emu_OS_remove(spdid_t client);
+int32 emu_OS_rename(spdid_t client);
+int32 emu_OS_rmdir(spdid_t client);
+int32 emu_OS_stat(spdid_t client);
+int32 emu_OS_write(spdid_t client);
+
+int32 emu_OS_BinSemCreate(spdid_t client);
+int32 emu_OS_CountSemCreate(spdid_t client);
+int32 emu_OS_MutSemCreate(spdid_t client);
+int32 emu_OS_TaskGetIdByName(spdid_t client);
+
+int32 emu_OS_SymbolLookup(spdid_t client);

@@ -4,7 +4,7 @@ COMPONENT=cFE_booter.o
 INTERFACES=cFE
 DEPENDENCIES=capmgr
 IF_LIB:=./composite_cFE.o ./cFE_fs.o $(wildcard test/*.o)
-ADDITIONAL_LIBS=-lcobj_format $(LIBSLCAPMGR) -lheap -lsl_lock -lsl_thd_static_backend
+ADDITIONAL_LIBS=-lcobj_format $(LIBSLCAPMGR) -lheap -lsl_lock
 
 include ../../Makefile.subsubdir
 CFLAGS += -I./gen -I ./test/shared $(CPPFLAGS)

@@ -11,8 +11,6 @@
 
 .text
 
-cos_asm_server_stub(OS_IdleLoop)
-
 cos_asm_server_stub(CFE_ES_DeleteApp)
 cos_asm_server_stub(CFE_ES_ExitApp)
 cos_asm_server_stub(CFE_ES_PerfLogAdd)
@@ -31,6 +29,18 @@ cos_asm_server_stub(CFE_TBL_NotifyByMessage)
 
 cos_asm_server_stub(CFE_TIME_FS2CFESeconds)
 
+cos_asm_server_stub(OS_CountSemGive)
+cos_asm_server_stub(OS_CountSemTake)
+cos_asm_server_stub(OS_IdleLoop)
+cos_asm_server_stub(OS_MutSemGive)
+cos_asm_server_stub(OS_MutSemTake)
+
+// FS methods
+// Relies on the assumption that dirp_t are never dereferenced outside the cFE
+cos_asm_server_stub(OS_closedir)
+cos_asm_server_stub(OS_lseek)
+cos_asm_server_stub(OS_rewinddir)
+
 // Emulated methods
 cos_asm_server_stub(emu_backend_request_memory)
 
@@ -42,6 +52,9 @@ cos_asm_server_stub(emu_CFE_ES_RunLoop)
 
 cos_asm_server_stub(emu_CFE_EVS_Register)
 cos_asm_server_stub(emu_CFE_EVS_SendEvent)
+
+cos_asm_server_stub(emu_CFE_FS_Decompress)
+cos_asm_server_stub(emu_CFE_FS_WriteHeader)
 
 cos_asm_server_stub(emu_CFE_SB_CreatePipe)
 cos_asm_server_stub(emu_CFE_SB_GetCmdCode)
@@ -59,3 +72,25 @@ cos_asm_server_stub(emu_CFE_TIME_Add)
 cos_asm_server_stub(emu_CFE_TIME_Compare)
 cos_asm_server_stub(emu_CFE_TIME_GetTime)
 cos_asm_server_stub(emu_CFE_TIME_Print)
+
+cos_asm_server_stub(emu_OS_cp)
+cos_asm_server_stub(emu_OS_creat)
+cos_asm_server_stub(emu_OS_FDGetInfo)
+cos_asm_server_stub(emu_OS_fsBytesFree)
+cos_asm_server_stub(emu_OS_mkdir)
+cos_asm_server_stub(emu_OS_opendir)
+cos_asm_server_stub(emu_OS_mv)
+cos_asm_server_stub(emu_OS_read)
+cos_asm_server_stub(emu_OS_readdir)
+cos_asm_server_stub(emu_OS_remove)
+cos_asm_server_stub(emu_OS_rename)
+cos_asm_server_stub(emu_OS_rmdir)
+cos_asm_server_stub(emu_OS_stat)
+cos_asm_server_stub(emu_OS_write)
+
+cos_asm_server_stub(emu_OS_BinSemCreate)
+cos_asm_server_stub(emu_OS_CountSemCreate)
+cos_asm_server_stub(emu_OS_MutSemCreate)
+cos_asm_server_stub(emu_OS_TaskGetIdByName)
+
+cos_asm_server_stub(emu_OS_SymbolLookup)

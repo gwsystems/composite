@@ -68,6 +68,21 @@ emu_CFE_EVS_Register(spdid_t client)
 }
 
 int32
+emu_CFE_FS_Decompress(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_FS_Decompress(s->cfe_fs_decompress.SourceFile, s->cfe_fs_decompress.DestinationFile);
+}
+
+
+int32
+emu_CFE_FS_WriteHeader(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_FS_WriteHeader(s->cfe_fs_writeHeader.FileDes, &s->cfe_fs_writeHeader.Hdr);
+}
+
+int32
 emu_CFE_SB_CreatePipe(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
@@ -193,4 +208,136 @@ emu_CFE_TIME_Print(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
 	CFE_TIME_Print(s->cfe_time_print.PrintBuffer, s->cfe_time_print.TimeToPrint);
+}
+
+int32
+emu_OS_cp(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_cp(s->os_cp.src, s->os_cp.dest);
+}
+
+int32
+emu_OS_creat(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_creat(s->os_creat.path, s->os_creat.access);
+}
+
+int32
+emu_OS_FDGetInfo(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_FDGetInfo(s->os_FDGetInfo.filedes, &s->os_FDGetInfo.fd_prop);
+}
+
+int32
+emu_OS_fsBytesFree(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_fsBytesFree(s->os_fsBytesFree.name, &s->os_fsBytesFree.bytes_free);
+}
+
+int32
+emu_OS_mkdir(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_mkdir(s->os_mkdir.path, s->os_mkdir.access);
+}
+
+os_dirp_t
+emu_OS_opendir(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_opendir(s->os_opendir.path);
+}
+
+int32
+emu_OS_mv(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_mv(s->os_cp.src, s->os_cp.dest);
+}
+
+int32
+emu_OS_read(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_read(s->os_read.filedes, s->os_read.buffer, s->os_read.nbytes);
+}
+
+void
+emu_OS_readdir(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	s->os_readdir.dirent = *OS_readdir(s->os_readdir.directory);
+}
+
+int32
+emu_OS_remove(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_remove(s->os_remove.path);
+}
+
+int32
+emu_OS_rename(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_rename(s->os_rename.old_filename, s->os_rename.new_filename);
+}
+
+int32
+emu_OS_rmdir(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_rmdir(s->os_rmdir.path);
+}
+
+int32
+emu_OS_stat(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_stat(s->os_stat.path, &s->os_stat.filestats);
+}
+
+int32
+emu_OS_write(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_write(s->os_write.filedes, s->os_write.buffer, s->os_write.nbytes);
+}
+
+int32
+emu_OS_BinSemCreate(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_BinSemCreate(&s->os_semCreate.sem_id, s->os_semCreate.sem_name, s->os_semCreate.sem_initial_value, s->os_semCreate.options);
+}
+
+int32
+emu_OS_CountSemCreate(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_CountSemCreate(&s->os_semCreate.sem_id, s->os_semCreate.sem_name, s->os_semCreate.sem_initial_value, s->os_semCreate.options);
+}
+
+int32 emu_OS_MutSemCreate(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_MutSemCreate(&s->os_mutSemCreate.sem_id, s->os_mutSemCreate.sem_name, s->os_mutSemCreate.options);
+}
+
+int32
+emu_OS_TaskGetIdByName(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_TaskGetIdByName(&s->os_taskGetIdByName.task_id, s->os_taskGetIdByName.task_name);
+}
+
+int32
+emu_OS_SymbolLookup(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_SymbolLookup(&s->os_symbolLookup.symbol_address, s->os_symbolLookup.symbol_name);
 }
