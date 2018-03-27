@@ -1,6 +1,7 @@
 #ifndef MEMMGR_H
 #define MEMMGR_H
 
+#include <cos_kernel_api.h>
 #include <cos_types.h>
 
 vaddr_t memmgr_heap_page_alloc(void);
