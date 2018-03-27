@@ -494,14 +494,16 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 
 		assert(t != globals->sched_thd);
 
-		sl_cs_enter();
-		if (likely(t->period)) abs_timeout = t->last_replenish + t->period;
-		/*
-		 * thread ran out of budget, cannot be scheduled until later.
-		 * could be RUNNABLE/WOKEN but cannot run right now!
-		 */
-		sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
-		sl_cs_exit();
+		if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
+			sl_cs_enter();
+			if (likely(t->period)) abs_timeout = t->last_replenish + t->period;
+			/*
+			 * thread ran out of budget, cannot be scheduled until later.
+			 * could be RUNNABLE/WOKEN but cannot run right now!
+			 */
+			sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
+			sl_cs_exit();
+		}
 
 		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok);
 	}
