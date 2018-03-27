@@ -40,6 +40,8 @@ struct ioapic_cntl {
 int ncpus = 1;
 int apicids[NUM_CPU];
 
+#define CMOS_PORT    0x70
+
 #define LAPIC_ID_REG             0x020 /* APIC id */
 #define LAPIC_VERSION_REG        0x030 /* version */
 #define LAPIC_TP_REG             0x080 /* Task Priority Register */
@@ -477,7 +479,16 @@ smp_boot_all_ap(volatile int *cores_ready)
 
 	for (i = 1; i < ncpus; i++) {
 		struct cos_cpu_local_info *cli;
-		int j;
+		int 	j;
+		u16_t   *warm_reset_vec;
+
+		/* init shutdown code */
+		outb(CMOS_PORT, 0xF);
+		outb(CMOS_PORT+1, 0x0A);
+		/* Warm reset vector */
+		warm_reset_vec = (u16_t *)chal_pa2va((0x467));
+		warm_reset_vec[0] = 0;
+		warm_reset_vec[1] = SMP_BOOT_PATCH_ADDR >> 4;
 
 		ret = lapic_read_reg(LAPIC_ESR);
 		if (ret) printk("SMP Bootup: LAPIC error status register is %x\n", ret);
@@ -507,7 +518,7 @@ smp_boot_all_ap(volatile int *cores_ready)
 			delay_us(200);
 		}
 		/* waiting for AP's booting */
-		while(*(volatile int *)(cores_ready + i) == 0);
+		while(*(volatile int *)(cores_ready + i) == 0) ;
 	}
 	ret = lapic_read_reg(LAPIC_ESR);
 	if (ret) printk("SMP Bootup: LAPIC error status register is %x\n", ret);
