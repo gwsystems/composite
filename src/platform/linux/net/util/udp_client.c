@@ -27,10 +27,11 @@ void construct_header(char *msg)
 	unsigned long long time;
 	unsigned int *int_msg = (unsigned int *)msg;
 	unsigned long long *ll_msg = (unsigned long long *)msg;
-	
+
 	rdtscll(time);
 	int_msg[0] = seqno;
-	ll_msg[1] = time;
+	int_msg[1] = 9;
+	ll_msg[2] = time;
 //	printf("sending message %d with timestamp %lld\n", seqno, time);
 	seqno++;
 
@@ -181,7 +182,7 @@ int main(int argc, char *argv[])
 
 	start_timers();
 
-	while (1) {
+//	while (1) {
 		int i;
 		
 		construct_header(msg);
@@ -200,7 +201,12 @@ int main(int argc, char *argv[])
 			foo++;
 		}
 		//nanosleep(&ts, NULL);
-	}
+		
+		int k = 0;
+		for (k = 0; k < 8; k++) {
+			printf("msg[%d]:%u\n", k, ((unsigned int *)rcv_msg)[k]) ;
+		}
+//	}
 
 	return 0;
 }

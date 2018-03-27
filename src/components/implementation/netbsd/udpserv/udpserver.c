@@ -8,7 +8,7 @@
 
 #define IN_PORT  9998
 #define OUT_PORT 9999
-#define MSG_SZ   16
+#define MSG_SZ   32
 #define TP_INFO_MS (unsigned long long)(10*1000) //5secs
 #define HPET_REQ_US (100*1000) //100ms
 #define HPET_REQ_BUDGET_US (500) //0.5ms
@@ -18,6 +18,30 @@ extern int vmid;
 extern struct cos_component_information cos_comp_info;
 
 static char __msg[MSG_SZ + 1] = { '\0' };
+unsigned char script[100];
+
+static int
+update_script()
+{
+	printc("update_script\n");
+	int i = 0;
+	
+	int sz = MSG_SZ/4;
+
+	for (i = 0; i < sz; i++) {
+		script[i] = i+1;
+	}
+	script[sz] = '\0';
+
+	for (i = 0; i < sz ; i++) {
+		
+		if (script[i] == '\0') break;
+		((unsigned int *)__msg)[i] = script[i];
+		printc("msg[%d]: %u \n", i ,((unsigned int *)__msg)[i] );
+	}
+
+	return 0;
+}
 
 static int
 __test_udp_server(void)
@@ -54,14 +78,19 @@ __test_udp_server(void)
 	do {
 		struct sockaddr sa;
 		socklen_t len = sizeof(struct sockaddr);
-
+		printc("going to recieve now:\n");
 		if (recvfrom(fdr, __msg, msg_size, 0, &sa, &len) != msg_size) {
 			printc("read");
 			continue;
 		}
-		printc("Received-msg: seqno:%u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned long long *)__msg)[1]);
+		
+		printc("A Received-msg: seqno:%u msg: %u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned int *)__msg)[1], ((unsigned long long *)__msg)[1]);
 		/* Reply to the sender */
+
 		soutput.sin_addr.s_addr = ((struct sockaddr_in*)&sa)->sin_addr.s_addr;
+		memset(__msg, 0, MSG_SZ);
+		
+		update_script();
 		if (sendto(fd, __msg, msg_size, 0, (struct sockaddr*)&soutput, sizeof(soutput)) < 0) {
 			printc("sendto");
 			continue;
