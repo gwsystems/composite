@@ -107,7 +107,6 @@ chal_init(void)
 	a = (a >> 8) & ((1<<7)-1);
 	if (a) printk("\tMSR Frequency: %d (* 100Mhz)\n", a);
 
-//	for (i = 0; i < NUM_CPU; i++) free_thd_id[i] = 1;
 	free_thd_id = 1;
 
 	chal_kernel_mem_pa = chal_va2pa(mem_kmem_start());
