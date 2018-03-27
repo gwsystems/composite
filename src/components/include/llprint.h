@@ -6,11 +6,12 @@
 #include <string.h>
 
 #include <cos_component.h>
+#include <cos_serial.h>
 
 static void
 cos_llprint(char *s, int len)
 {
-	call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0);
+	cos_serial_putb(s, len);
 }
 
 static int

@@ -1,4 +1,3 @@
-#include "io.h"
 #include "kernel.h"
 #include "chal_cpu.h"
 #include "isr.h"

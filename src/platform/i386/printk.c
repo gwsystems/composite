@@ -1,5 +1,4 @@
 #include "string.h"
-#include "io.h"
 #include "kernel.h"
 
 #define PRINTK_BUFFER 1024

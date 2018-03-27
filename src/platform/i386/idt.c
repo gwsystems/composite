@@ -1,7 +1,7 @@
 #include "kernel.h"
 #include "string.h"
 #include "isr.h"
-#include "io.h"
+#include "chal/io.h"
 
 /* Information taken from: http://wiki.osdev.org/PIC */
 /* FIXME:  Remove magic numbers and replace with this */
