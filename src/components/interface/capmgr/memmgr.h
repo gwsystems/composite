@@ -1,6 +1,7 @@
 #ifndef MEMMGR_H
 #define MEMMGR_H
 
+#include <cos_kernel_api.h>
 #include <cos_types.h>
 
 vaddr_t memmgr_va2pa(vaddr_t vaddr);
@@ -13,8 +14,8 @@ int memmgr_shared_page_alloc(vaddr_t *pgaddr);
 int memmgr_shared_page_allocn(int num_pages, vaddr_t *pgaddr);
 int memmgr_shared_page_map(int id, vaddr_t *pgaddr);
 
-/* This magic number is the tls size defined in RK */
-#define TLS_AREA_SIZE 36
+/* This magic number is double the tls size defined in RK */
+#define TLS_AREA_SIZE 32
 #define TLS_NUM_PAGES (round_up_to_page(TLS_AREA_SIZE * MAX_NUM_THREADS) / PAGE_SIZE)
 #define TLS_BASE_ADDR 0x70000000
 
@@ -29,6 +30,8 @@ void *memmgr_tls_alloc(unsigned int dst_tid);
 static void *
 memmgr_tls_alloc_and_set(void *area)
 {
+	printc("memmgr_tls_alloc_and_set spinning\n");
+	while (1);
 	//void *addr;
 	//struct cos_defcompinfo *dci;
 	//struct cos_compinfo    *ci;

@@ -56,7 +56,7 @@ cd ../
 
 # Combine COSOBJ and application
 objcopy --weaken $PROGDIR/$PROG.o
-cp $SRCDIR/$COSOBJ ./app.tmp
+ld -melf_i386 -r -o app.tmp $PROGDIR/$PROG.o $SRCDIR/$COSOBJ
 
 # Defined in both cos and rk, localize one of them.
 for sym in "${localizesymsrc[@]}"

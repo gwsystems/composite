@@ -78,7 +78,6 @@ capmgr_comp_info_iter(void)
 		 * Set tls region for this component
 		 * Expand the 2nd level pte within this component's page table at our new range
 		 */
-		printc("Setting up tls memory region now...");
 		tmp.pgtbl_cap = pgtslot;
 		tmp.memsrc    = ci;
 		ret = (int)cos_pgtbl_intern_alloc(&tmp, pgtslot, TLS_BASE_ADDR,
@@ -94,8 +93,6 @@ capmgr_comp_info_iter(void)
 			assert(!ret);
 			offset += PAGE_SIZE;
 		}
-		printc("done\n");
-
 	} while (remaining > 0);
 
 	for (i = 0; i < (int)MAX_NUM_COMP_WORDS; i++) PRINTLOG(PRINT_DEBUG, "Scheduler bitmap[%d]: %u\n", i, cap_info_schedbmp[i]);
