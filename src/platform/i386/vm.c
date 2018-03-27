@@ -76,6 +76,11 @@ kern_setup_image(void)
 		boot_comp_pgd[i / PGD_RANGE] = 0; /* unmap lower addresses */
 	}
 
+	#ifdef ENABLE_VGA
+		/* uses virtual address for VGA */
+		vga_high_init();
+	#endif
+
 	/* FIXME: Ugly hack to get the physical page with the ACPI RSDT mapped */
 	printk("ACPI initialization\n");
 	void *rsdt = acpi_find_rsdt();
