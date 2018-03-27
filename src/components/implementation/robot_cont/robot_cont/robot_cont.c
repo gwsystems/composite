@@ -1,4 +1,5 @@
 #include <llprint.h>
+#include <llbooter_inv.h>
 
 #include <robot_cont.h>
 #include <shdmem.h>
@@ -15,7 +16,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#include <camera.h>
+//#include <camera.h>
 #define NORTH 0
 #define EAST 1
 #define SOUTH 2
@@ -29,6 +30,13 @@ struct rp {
 	unsigned long direction;
 };
 struct rp rpos;
+
+int
+update_script(int x)
+{
+	printc("Updating script! \n");
+	return 0;
+}
 
 int
 create_movement(int xf, int yf) {
@@ -178,7 +186,7 @@ send_task(int x, int y) {
 	printc("Send script to udp\n");
 	
 	printc("Checking location via camera: \n");
-	position = check_location_image(x, y);
+//	position = check_location_image(x, y);
 
 	if (position) {
 		printc("Camera in correct location\n");
@@ -199,13 +207,6 @@ cos_init(void)
 	rpos.y = 0;
 	rpos.direction = EAST;	
 
-	char * test = "Hello";
-	shmid = shm_allocate(3, 1);
-	printc("shmid: %d \n", shmid);
-	shm_vaddr = shm_get_vaddr(3, 0);
-	printc("shm_vaddr: %p \n", shm_vaddr);
-
-	memcpy(shm_vaddr, test, 5);
 
 	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 2, 3, 4);
 }

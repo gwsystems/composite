@@ -4,6 +4,7 @@
 #include <robot_cont.h>
 #include <cos_alloc.h>
 #include <shdmem.h>
+#include <llbooter_inv.h>
 
 int shmid;
 vaddr_t shm_vaddr; 

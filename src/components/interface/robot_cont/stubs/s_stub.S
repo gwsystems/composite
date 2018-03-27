@@ -9,3 +9,4 @@
 
 .text
 cos_asm_server_stub(send_task)
+cos_asm_server_stub(update_script)

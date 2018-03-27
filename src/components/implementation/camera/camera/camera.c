@@ -15,6 +15,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#include <llbooter_inv.h>
+
 #define NORTH 0
 #define EAST 1
 #define SOUTH 2
