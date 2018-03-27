@@ -4,7 +4,7 @@
 #include "mem_layout.h"
 #include "chal_cpu.h"
 
-u32_t        free_thd_id[NUM_CPU];
+u32_t        free_thd_id;
 char         timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 extern void *cos_kmem, *cos_kmem_base;
 
@@ -107,7 +107,8 @@ chal_init(void)
 	a = (a >> 8) & ((1<<7)-1);
 	if (a) printk("\tMSR Frequency: %d (* 100Mhz)\n", a);
 
-	for (i = 0; i < NUM_CPU; i++) free_thd_id[i] = 1;
+//	for (i = 0; i < NUM_CPU; i++) free_thd_id[i] = 1;
+	free_thd_id = 1;
 
 	chal_kernel_mem_pa = chal_va2pa(mem_kmem_start());
 }

@@ -3,7 +3,7 @@
 
 static struct cap_comp_info capci[MAX_NUM_COMPS + 1]; /* includes booter information also, so +1 */
 static unsigned int cap_comp_count;
-u32_t cap_info_schedbmp[MAX_NUM_COMP_WORDS];
+u32_t cap_info_schedbmp[NUM_CPU][MAX_NUM_COMP_WORDS];
 static struct cap_shmem_glb_info cap_shmglbinfo;
 
 static inline struct cap_shmem_glb_info *
@@ -30,8 +30,8 @@ cap_info_thd_find(struct cap_comp_info *rci, thdid_t tid)
 	int i;
 
 	if (!rci || !cap_info_init_check(rci)) return NULL;
-	for (i = 0; i < rci->thd_used; i++) {
-		if (sl_thd_thdid(rci->thdinfo[i]) == tid) return rci->thdinfo[i];
+	for (i = 0; i < rci->thd_used[cos_cpuid()]; i++) {
+		if (sl_thd_thdid(rci->thdinfo[cos_cpuid()][i]) == tid) return rci->thdinfo[cos_cpuid()][i];
 	}
 
 	return NULL;
@@ -41,7 +41,9 @@ struct sl_thd *
 cap_info_thd_next(struct cap_comp_info *rci)
 {
 	if (!rci || !cap_info_init_check(rci))   return NULL;
-	if (rci->p_thd_iterator < rci->thd_used) return (rci->thdinfo[ps_faa((long unsigned *)&(rci->p_thd_iterator), 1)]);
+	if (rci->p_thd_iterator[cos_cpuid()] < rci->thd_used[cos_cpuid()]) {
+		return (rci->thdinfo[cos_cpuid()][ps_faa((long unsigned *)&(rci->p_thd_iterator[cos_cpuid()]), 1)]);
+	}
 
 	return NULL;
 }
@@ -54,13 +56,13 @@ cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, 
 	struct cap_shmem_info     *cap_shi = cap_info_shmem_info(&capci[spdid]);
 	struct cap_shmem_glb_info *rglb    = __cap_info_shmglb_info();
 
-	capci[spdid].cid      = spdid;
-	capci[spdid].thd_used = 1;
-	capci[spdid].parent   = &capci[sched_spdid];
+	capci[spdid].thd_used[cos_cpuid()] = 1;
+	capci[spdid].parent[cos_cpuid()]   = &capci[sched_spdid];
 
+	capci[spdid].cid = spdid;
 	cos_meminfo_init(&ci->mi, 0, 0, 0);
 	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, compcap, heap_frontier, cap_frontier,
-			  cos_compinfo_get(cos_defcompinfo_curr_get()));
+			cos_compinfo_get(cos_defcompinfo_curr_get()));
 
 	memset(rglb, 0, sizeof(struct cap_shmem_glb_info));
 	memset(cap_shi, 0, sizeof(struct cap_shmem_info));
@@ -87,7 +89,7 @@ cap_aepkey_set(cos_aepkey_t key, struct sl_thd *t)
 
 	if (!ak || ak->slaep) return;
 	ak->slaep  = t;
-	ak->sndcap = sl_thd_asndcap(t);
+	ak->sndcap[cos_cpuid()] = 0;
 }
 
 asndcap_t
@@ -97,11 +99,11 @@ cap_aepkey_asnd_get(cos_aepkey_t key)
 	struct cap_aepkey_info *ak     = cap_aepkey_get(key);
 
 	if (!ak) return 0;
-	if (ak->sndcap) return ak->sndcap;
-	ak->sndcap = cos_asnd_alloc(cap_ci, sl_thd_rcvcap(ak->slaep), cap_ci->captbl_cap);
-	assert(ak->sndcap);
+	if (ak->sndcap[cos_cpuid()]) return ak->sndcap[cos_cpuid()];
+	ak->sndcap[cos_cpuid()] = cos_asnd_alloc(cap_ci, sl_thd_rcvcap(ak->slaep), cap_ci->captbl_cap);
+	assert(ak->sndcap[cos_cpuid()]);
 
-	return ak->sndcap;
+	return ak->sndcap[cos_cpuid()];
 }
 
 struct sl_thd *
@@ -110,11 +112,11 @@ cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_aepkey_t key)
 	int off;
 
 	if (!rci || !cap_info_init_check(rci)) return NULL;
-	if (rci->thd_used >= CAP_INFO_COMP_MAX_THREADS) return NULL;
+	if (rci->thd_used[cos_cpuid()] >= CAP_INFO_COMP_MAX_THREADS) return NULL;
 	if (!t) return NULL;
 
-	off = ps_faa((long unsigned *)&(rci->thd_used), 1);
-	rci->thdinfo[off] = t;
+	off = ps_faa((long unsigned *)&(rci->thd_used[cos_cpuid()]), 1);
+	rci->thdinfo[cos_cpuid()][off] = t;
 	cap_aepkey_set(key, t);
 
 	return t;
@@ -124,10 +126,10 @@ struct sl_thd *
 cap_info_initthd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_aepkey_t key)
 {
 	if (!rci || !cap_info_init_check(rci)) return NULL;
-	if (rci->thd_used >= CAP_INFO_COMP_MAX_THREADS) return NULL;
+	if (rci->thd_used[cos_cpuid()] >= CAP_INFO_COMP_MAX_THREADS) return NULL;
 	if (!t) return NULL;
 
-	rci->thdinfo[0] = t;
+	rci->thdinfo[cos_cpuid()][0] = t;
 	cap_aepkey_set(key, t);
 
 	return t;
@@ -138,14 +140,14 @@ cap_info_initthd(struct cap_comp_info *rci)
 {
 	if (!rci) return NULL;
 
-	return rci->thdinfo[0];
+	return rci->thdinfo[cos_cpuid()][0];
 }
 
 void
 cap_info_init(void)
 {
 	cap_comp_count = 0;
-	memset(cap_info_schedbmp, 0, sizeof(u32_t) * MAX_NUM_COMP_WORDS);
+	memset(cap_info_schedbmp, 0, sizeof(u32_t) * MAX_NUM_COMP_WORDS * NUM_CPU);
 	memset(capci, 0, sizeof(struct cap_comp_info)*(MAX_NUM_COMPS+1));
 	memset(cap_aepkeys, 0, sizeof(struct cap_aepkey_info) * CAPMGR_AEPKEYS_MAX);
 }

@@ -786,7 +786,7 @@ cos_thd_wakeup(thdcap_t thd, tcap_t tc, tcap_prio_t prio, tcap_res_t res)
 sched_tok_t
 cos_sched_sync(void)
 {
-	static sched_tok_t stok[NUM_CPU];
+	static sched_tok_t stok[NUM_CPU] CACHE_ALIGNED;
 
 	return ps_faa((unsigned long *)&stok[cos_cpuid()], 1);
 }
@@ -994,6 +994,7 @@ cos_hw_cycles_per_usec(hwcap_t hwc)
 	static int cycs = 0;
 
 	while (!cycs) cycs = call_cap_op(hwc, CAPTBL_OP_HW_CYC_USEC, 0, 0, 0, 0);
+
 	return cycs;
 }
 

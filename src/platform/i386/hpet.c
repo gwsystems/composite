@@ -175,6 +175,8 @@ timer_calibration(void)
 int
 chal_cyc_usec(void)
 {
+	if (lapic_timer_calib_init) return 0;
+
 	return cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL;
 }
 

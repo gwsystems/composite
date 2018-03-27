@@ -136,7 +136,7 @@ cos_print_level_set(cos_print_level_t lvl, int print_str)
 /*
  * Cos thread creation data structures.
  */
-struct __thd_init_data __thd_init_data[NUM_CPU][COS_THD_INIT_REGION_SIZE] CACHE_ALIGNED;
+struct __thd_init_data __thd_init_data[COS_THD_INIT_REGION_SIZE] CACHE_ALIGNED;
 
 static void
 cos_thd_entry_exec(u32_t idx)
@@ -144,11 +144,11 @@ cos_thd_entry_exec(u32_t idx)
 	void (*fn)(void *);
 	void *data;
 
-	fn   = __thd_init_data[cos_cpuid()][idx].fn;
-	data = __thd_init_data[cos_cpuid()][idx].data;
+	fn   = __thd_init_data[idx].fn;
+	data = __thd_init_data[idx].data;
 	/* and release the entry... might need a barrier here. */
-	__thd_init_data[cos_cpuid()][idx].data = NULL;
-	__thd_init_data[cos_cpuid()][idx].fn   = NULL;
+	__thd_init_data[idx].data = NULL;
+	__thd_init_data[idx].fn   = NULL;
 
 	(fn)(data);
 }

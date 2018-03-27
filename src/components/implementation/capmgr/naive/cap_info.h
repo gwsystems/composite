@@ -12,7 +12,7 @@
 #define CAP_INFO_COMP_MAX_SUBTREE 8
 #define CAP_INFO_COMP_MAX_THREADS (MAX_NUM_THREADS*CAP_INFO_COMP_MAX_SUBTREE)
 
-extern u32_t cap_info_schedbmp[];
+extern u32_t cap_info_schedbmp[][MAX_NUM_COMP_WORDS];
 
 /* shared memory region information */
 struct cap_shmem_glb_info {
@@ -24,7 +24,7 @@ struct cap_shmem_glb_info {
 
 struct cap_aepkey_info {
 	struct sl_thd *slaep; /* contains rcvcap, thdid, thdcap. */
-	asndcap_t      sndcap;
+	asndcap_t      sndcap[NUM_CPU] CACHE_ALIGNED; /* per-core send-cap */
 } cap_aepkeys[CAPMGR_AEPKEYS_MAX];
 
 /* per component shared memory region information */
@@ -37,18 +37,19 @@ struct cap_shmem_info {
 
 struct cap_comp_info {
 	spdid_t cid;
-	int thd_used;
+	int thd_used[NUM_CPU] CACHE_ALIGNED;
 	struct cos_defcompinfo defci;
 	struct cap_shmem_info shminfo;
-	struct sl_thd *thdinfo[CAP_INFO_COMP_MAX_THREADS]; /* including threads from components in subtree. */
+	struct sl_thd *thdinfo[NUM_CPU][CAP_INFO_COMP_MAX_THREADS] CACHE_ALIGNED; /* including threads from components in subtree. */
 	int initflag;
-	u32_t child_bitmap[MAX_NUM_COMP_WORDS];
-	u32_t child_sched_bitmap[MAX_NUM_COMP_WORDS];
+	/* for core-specific hierarchies */
+	u32_t child_bitmap[NUM_CPU][MAX_NUM_COMP_WORDS] CACHE_ALIGNED;
+	u32_t child_sched_bitmap[NUM_CPU][MAX_NUM_COMP_WORDS] CACHE_ALIGNED;
 
-	struct cap_comp_info *parent;
-	int p_thd_iterator; /* iterator for parent to get all threads created by capmgr in this component so far! */
-	thdcap_t p_initthdcap; /* init thread's cap in parent */
-	thdid_t  initthdid; /* init thread's tid */
+	struct cap_comp_info *parent[NUM_CPU] CACHE_ALIGNED;
+	int p_thd_iterator[NUM_CPU] CACHE_ALIGNED; /* iterator for parent to get all threads created by capmgr in this component so far! */
+	thdcap_t p_initthdcap[NUM_CPU] CACHE_ALIGNED; /* init thread's cap in parent */
+	thdid_t  initthdid[NUM_CPU] CACHE_ALIGNED; /* init thread's tid */
 };
 
 struct cap_comp_info *cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
@@ -87,13 +88,13 @@ cap_info_dci(struct cap_comp_info *r)
 static inline struct cap_comp_info *
 cap_info_parent(struct cap_comp_info *r)
 {
-	return r->parent;
+	return r->parent[cos_cpuid()];
 }
 
 static inline int
 cap_info_is_parent(struct cap_comp_info *r, spdid_t p)
 {
-	if (cap_info_parent(r)) return (r->parent->cid == p);
+	if (cap_info_parent(r)) return (r->parent[cos_cpuid()]->cid == p);
 
 	return 0;
 }
@@ -103,7 +104,7 @@ cap_info_is_sched(spdid_t c)
 {
 	if (!c) return 1; /* llbooter! */
 
-	return bitmap_check(cap_info_schedbmp, c - 1);
+	return bitmap_check(cap_info_schedbmp[cos_cpuid()], c - 1);
 }
 
 static inline int
@@ -111,7 +112,7 @@ cap_info_is_child(struct cap_comp_info *r, spdid_t c)
 {
 	if (!c) return 0;
 
-	return bitmap_check(r->child_bitmap, c - 1);
+	return bitmap_check(r->child_bitmap[cos_cpuid()], c - 1);
 }
 
 static inline int
@@ -119,7 +120,7 @@ cap_info_is_sched_child(struct cap_comp_info *r, spdid_t c)
 {
 	if (!c) return 0;
 
-	return bitmap_check(r->child_sched_bitmap, c - 1);
+	return bitmap_check(r->child_sched_bitmap[cos_cpuid()], c - 1);
 }
 
 static inline struct cap_shmem_info *

@@ -88,6 +88,10 @@ void cos_defcompinfo_init(void);
 void cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rcv, pgtblcap_t pgtbl_cap,
                               captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier);
 
+/* for AP cores */
+void cos_defcompinfo_sched_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rcv);
+void cos_defcompinfo_sched_init(void);
+
 /*
  * cos_defcompinfo_child_alloc: called to create a new child component including initial capabilities like pgtbl,
  * captbl, compcap, aep. if is_sched is set, scheduling end-point will also be created for the child component, else,

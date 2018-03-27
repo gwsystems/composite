@@ -67,7 +67,7 @@ cos_init(void)
 	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflag) == -1);
 
 	/* assuming this runs (initialization) after unit_capmgr component */
-	test_shmem();
+	if (NUM_CPU == 1 || cos_cpuid() == 1) test_shmem(); /* run map on AP */
 	hypercall_comp_init_done();
 
 	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");

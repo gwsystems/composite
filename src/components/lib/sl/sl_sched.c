@@ -427,9 +427,9 @@ sl_init(microsec_t period)
 	/* Create the scheduler thread for us. cos_sched_aep_get() is from global(static) memory */
 	g->sched_thd       = sl_thd_alloc_init(cos_sched_aep_get(dci), 0, 0);
 	assert(g->sched_thd);
-	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_BASE;
-	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-	g->sched_rcv       = BOOT_CAPTBL_SELF_INITRCV_BASE;
+	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_CPU_BASE;
+	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;
+	g->sched_rcv       = BOOT_CAPTBL_SELF_INITRCV_CPU_BASE;
 	g->sched_thd->prio = 0;
 	ps_list_head_init(&g->event_head);
 

@@ -93,8 +93,8 @@ capmgr_initthd_create_cserialized(thdid_t *tid, int *unused, spdid_t s)
 
 	cap_info_thd_init(rc, t, 0);
 	cap_info_initthd_init(rs, t, 0);
-	rs->p_initthdcap = thdcap;
-	rs->initthdid    = *tid = sl_thd_thdid(t);
+	rs->p_initthdcap[cos_cpuid()] = thdcap;
+	rs->initthdid[cos_cpuid()]    = *tid = sl_thd_thdid(t);
 
 	return thdcap;
 err:
@@ -129,16 +129,16 @@ capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, 
 	t = sl_thd_initaep_alloc(cap_info_dci(rs), rinit, 1, owntc, 0);
 	if (!t) return 0;
 	/* child is a scheduler.. copy initcaps */
-	ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITTHD_BASE, cap_ci, sl_thd_thdcap(t));
+	ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, cap_ci, sl_thd_thdcap(t));
 	if (ret) goto err;
-	ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITRCV_BASE, cap_ci, sl_thd_rcvcap(t));
+	ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cap_ci, sl_thd_rcvcap(t));
 	if (ret) goto err;
 	if (owntc) {
-		ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITTCAP_BASE, cap_ci, sl_thd_tcap(t));
+		ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, cap_ci, sl_thd_tcap(t));
 		if (ret) goto err;
 	} else {
 		/* if it's a scheduler.. use parent's tcap (current spdid) */
-		ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITTCAP_BASE, cap_ci, sl_thd_tcap(rinit));
+		ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, cap_ci, sl_thd_tcap(rinit));
 		if (ret) goto err;
 	}
 
@@ -154,8 +154,8 @@ capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, 
 
 	cap_info_thd_init(rc, t, key);
 	cap_info_initthd_init(rs, t, 0);
-	rs->p_initthdcap = thdcap = ret;
-	rs->initthdid    = tid    = sl_thd_thdid(t);
+	rs->p_initthdcap[cos_cpuid()] = thdcap = ret;
+	rs->initthdid[cos_cpuid()]    = tid    = sl_thd_thdid(t);
 	*rcvtcret  = (rcv << 16) | (tc);
 	*sndtidret = (snd << 16) | (tid);
 
@@ -217,7 +217,7 @@ capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s,
 		*rcvtcret = (srcrcv << 16) | (tc);
 	} else {
 		/* copy sched tc (offset) pcapumably INITTCAP */
-		*rcvtcret = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+		*rcvtcret = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;
 	}
 
 	cap_info_thd_init(rc, t, key);
@@ -266,7 +266,7 @@ capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t 
 		if (!tc) goto err;
 	} else {
 		/* copy sched tc (offset) pcapumably INITTCAP */
-		tc = BOOT_CAPTBL_SELF_INITTCAP_BASE;
+		tc = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;
 	}
 
 	cap_info_thd_init(rc, t, key);
@@ -297,8 +297,8 @@ capmgr_thd_retrieve(spdid_t s, thdid_t tid)
 	if (!cap_info_is_sched(cur) || !cap_info_is_child(rc, s)) return 0;
 	if (!ti || !sl_thd_thdcap(ti)) return 0;
 
-	if (tid == rs->initthdid) {
-		thdcap = rs->p_initthdcap;
+	if (tid == rs->initthdid[cos_cpuid()]) {
+		thdcap = rs->p_initthdcap[cos_cpuid()];
 	} else {
 		thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
 		if (!thdcap) goto err;
@@ -327,8 +327,8 @@ capmgr_thd_retrieve_next_cserialized(thdid_t *tid, int *unused, spdid_t s)
 	ti = cap_info_thd_next(rs);
 	if (ti == NULL) return 0;
 
-	if (sl_thd_thdid(ti) == rs->initthdid) {
-		thdcap = rs->p_initthdcap;
+	if (sl_thd_thdid(ti) == rs->initthdid[cos_cpuid()]) {
+		thdcap = rs->p_initthdcap[cos_cpuid()];
 	} else {
 		thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
 		if (!thdcap) goto err;

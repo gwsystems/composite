@@ -11,7 +11,7 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 
-extern struct sl_global sl_global_data;
+extern struct sl_global sl_global_data[];
 extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_no_cs(struct sl_thd *t);
 
