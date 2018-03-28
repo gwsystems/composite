@@ -32,7 +32,7 @@ enum {
 
 struct sl_thd *rk_rump_thd_init(struct cos_aep_info *aep);
 struct sl_thd *rk_rump_thd_alloc(cos_thd_fn_t f, void *d);
-struct sl_thd *rk_intr_aep_alloc(cos_aepthd_fn_t f, void *d, int own_tcap);
+struct sl_thd *rk_intr_aep_alloc(cos_aepthd_fn_t f, void *d, int own_tcap, cos_aepkey_t key);
 struct sl_thd *rk_intr_aep_init(struct cos_aep_info *aep, int own_tcap);
 
 void rk_sched_init(microsec_t period);

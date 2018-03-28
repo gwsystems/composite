@@ -5,10 +5,11 @@
 
 extern struct __thd_init_data __thd_init_data[COS_THD_INIT_REGION_SIZE];
 
-static inline int
+static inline thdclosure_index_t
 __init_data_alloc(void *fn, void *data)
 {
-	int i, ret, tried = 0;
+	int ret, tried = 0;
+	thdclosure_index_t i;
 
 	assert(fn);
 again:
@@ -36,7 +37,7 @@ again:
 }
 
 static inline void
-__clear_thd_init_data(int idx)
+__clear_thd_init_data(thdclosure_index_t idx)
 {
 	assert(idx > 0 && idx <= COS_THD_INIT_REGION_SIZE && __thd_init_data[idx].fn);
 	idx--; /* See comments in __init_data_alloc*/
@@ -47,7 +48,7 @@ __clear_thd_init_data(int idx)
 }
 
 /* See comments of cos_thd_create_remote. */
-static int
+static thdclosure_index_t
 cos_thd_init_alloc(void *fn, void *data)
 {
 	if (!fn) return -1;
@@ -60,7 +61,7 @@ cos_thd_init_alloc(void *fn, void *data)
  * thread creation failed for some reason.
  */
 static void
-cos_thd_init_free(int idx)
+cos_thd_init_free(thdclosure_index_t idx)
 {
 	if (idx > COS_THD_INIT_REGION_SIZE || idx <= 0 || !__thd_init_data[idx].fn) return;
 
