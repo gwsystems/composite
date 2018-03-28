@@ -191,7 +191,7 @@ lapic_intsrc_iter(unsigned char *madt)
 			struct lapic_cntl *l = (struct lapic_cntl *)h;
 
 			assert(l->header.len == sizeof(struct lapic_cntl));
-			printk("\tLAPIC found: coreid %d, apicid %d\n", l->proc_id, l->apic_id);
+			printk("\tLAPIC found: coreid %d, apicid %d flags %d\n", l->proc_id, l->apic_id, l->flags);
 
 			if (l->apic_id != us && l->flags && ncpus < NUM_CPU && NUM_CPU > 1) {
 				apicids[off++] = l->apic_id;
