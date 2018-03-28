@@ -7,6 +7,7 @@
 u32_t        free_thd_id;
 char         timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 extern void *cos_kmem, *cos_kmem_base;
+u32_t        chal_msr_mhz = 0;
 
 paddr_t chal_kernel_mem_pa;
 
@@ -105,7 +106,10 @@ chal_init(void)
 
 	readmsr(MSR_PLATFORM_INFO, &a, &b);
 	a = (a >> 8) & ((1<<7)-1);
-	if (a) printk("\tMSR Frequency: %d (* 100Mhz)\n", a);
+	if (a) {
+		printk("\tMSR Frequency: %d (* 100Mhz)\n", a);
+		chal_msr_mhz = a * 100;
+	}
 
 	free_thd_id = 1;
 

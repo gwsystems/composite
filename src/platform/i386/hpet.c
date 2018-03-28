@@ -89,11 +89,12 @@ volatile struct hpet_timer {
 #define FEMPTO_PER_PICO 1000UL
 #define TIMER_CALIBRATION_ITER 256
 #define TIMER_ERROR_BOUND_FACTOR 256
-static int           timer_calibration_init   = 1;
+static int           timer_calibration_init   = 0;
 static unsigned long timer_cycles_per_hpetcyc = TIMER_ERROR_BOUND_FACTOR;
 static unsigned long cycles_per_tick;
 static unsigned long hpetcyc_per_tick;
 #define ULONG_MAX 4294967295UL
+extern u32_t chal_msr_mhz;
 
 static inline u64_t
 timer_cpu2hpet_cycles(u64_t cycles)
@@ -292,5 +293,14 @@ timer_init(void)
 	 * Set the timer as specified.  This assumes that the cycle
 	 * specification is in hpet cycles (not cpu cycles).
 	 */
+	if (chal_msr_mhz && !lapic_timer_calib_init) {
+		cycles_per_tick          = chal_msr_mhz * TIMER_DEFAULT_US_INTERARRIVAL;
+		timer_cycles_per_hpetcyc = cycles_per_tick / hpetcyc_per_tick;
+		printk("Timer not calibrated, instead computed using MSR frequency value\n");
+
+		return;
+	}
+
+	timer_calibration_init = 1;
 	timer_set(TIMER_PERIODIC, hpetcyc_per_tick);
 }

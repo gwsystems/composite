@@ -148,7 +148,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	u32_t          hw_bitmap = 0xFFFFFFFF;
 
 	assert(cpu_id >= 0);
-	if (cpu_id > 0) {
+	if (NUM_CPU > 1 && cpu_id > 0) {
 		assert(glb_boot_ct);
 		pgtbl_update(pgtbl);
 		kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
