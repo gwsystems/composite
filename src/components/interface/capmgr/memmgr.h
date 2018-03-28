@@ -20,49 +20,17 @@ int memmgr_shared_page_map(int id, vaddr_t *pgaddr);
 #define TLS_BASE_ADDR 0x70000000
 
 void *memmgr_tls_alloc(unsigned int dst_tid);
+void *_memmgr_tls_alloc_and_set(void *area);
 
-/*
- * Define function in header such that calling cos_thd_mod
- * can use one's own captbl. This way I can prevent having to
- * copy captbls into the tls manager component and just have the
- * invoking components do it themselves
- */
 static void *
 memmgr_tls_alloc_and_set(void *area)
 {
-	printc("memmgr_tls_alloc_and_set spinning\n");
-	while (1);
-	//void *addr;
-	//struct cos_defcompinfo *dci;
-	//struct cos_compinfo    *ci;
-	//unsigned int dst_thdcap;
-	//int tid;
+	void *addr = _memmgr_tls_alloc_and_set(area);
 
-	//dci = cos_defcompinfo_curr_get();
-	//assert(dci);
-	//ci  = cos_compinfo_get(dci);
-	//assert(ci);
+	/* Set area within addr for this tid */
+	*(void **)addr = area;
 
-	//dst_thdcap = sl_thd_curr()->aepinfo->thd;
-
-	//tid = cos_introspect(ci, dst_thdcap, THD_GET_TID);
-
-	//addr = tlsmgr_alloc(tid);
-	//assert(addr);
-
-	//if (area) memcpy(addr, area, TLS_AREA_SIZE);
-
-	//cos_thd_mod(ci, dst_thdcap, addr);
-
-	return 0;
+	return addr;
 }
-
-/*
- * Used to overwrite libc syscall to set_thread_area
- * TODO make this a default thing in all components that need libposix
- */
-//static void
-//tls_thread_area_init(void)
-//{ posix_syscall_override((cos_syscall_t)tlsmgr_alloc_and_set, __NR_set_thread_area); }
 
 #endif /* MEMMGR_H */

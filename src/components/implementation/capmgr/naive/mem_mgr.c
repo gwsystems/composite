@@ -93,10 +93,34 @@ done:
 	return num_pages;
 }
 
+/* These functions return the address at which the gs register is set to */
 void *
 memmgr_tls_alloc(unsigned int dst_tid)
 {
 	/* Just return the vaddr range for this tid */
 	assert(dst_tid < MAX_NUM_THREADS);
 	return TLS_BASE_ADDR + (void *)(TLS_AREA_SIZE * dst_tid);
+}
+
+void *
+_memmgr_tls_alloc_and_set(void *area)
+{
+	spdid_t cur = cos_inv_token();
+	struct cap_comp_info  *cur_rci = cap_info_comp_find(cur);
+	struct cos_compinfo  *rci      = cap_info_ci(cur_rci);
+	struct cos_compinfo  *cur_ci   = cos_compinfo_get(cos_defcompinfo_curr_get());
+	void *addr;
+	unsigned int dst_thdcap;
+	int tid;
+
+	assert(cur_ci && rci);
+
+	dst_thdcap = sl_thd_curr()->aepinfo->thd;
+	tid        = cos_introspect(cur_ci, dst_thdcap, THD_GET_TID);
+	addr       = memmgr_tls_alloc(tid);
+	assert(addr);
+
+	cos_thd_mod(rci, dst_thdcap, addr);
+
+	return addr;
 }
