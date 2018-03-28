@@ -193,7 +193,7 @@ lapic_intsrc_iter(unsigned char *madt)
 			assert(l->header.len == sizeof(struct lapic_cntl));
 			printk("\tLAPIC found: coreid %d, apicid %d\n", l->proc_id, l->apic_id);
 
-			if (l->proc_id != us && l->flags && ncpus < NUM_CPU && NUM_CPU > 1) {
+			if (l->apic_id != us && l->flags && ncpus < NUM_CPU && NUM_CPU > 1) {
 				apicids[off++] = l->apic_id;
 				ncpus++;
 			}
@@ -486,7 +486,7 @@ smp_boot_all_ap(volatile int *cores_ready)
 		outb(CMOS_PORT, 0xF);
 		outb(CMOS_PORT+1, 0x0A);
 		/* Warm reset vector */
-		warm_reset_vec = (u16_t *)chal_pa2va((0x467));
+		warm_reset_vec = (u16_t *)chal_pa2va((0x40 << 4 | 0x67));
 		warm_reset_vec[0] = 0;
 		warm_reset_vec[1] = SMP_BOOT_PATCH_ADDR >> 4;
 
@@ -495,7 +495,7 @@ smp_boot_all_ap(volatile int *cores_ready)
 		lapic_write_reg(LAPIC_ESR, 0);
 		lapic_read_reg(LAPIC_ESR);
 
-		printk("\nBooting AP %d\n", i);
+		printk("\nBooting AP %d with apic_id %d\n", i, apicids[i]);
 		/* Application Processor (AP) startup sequence: */
 		/* ...make sure that we pass this core's stack */
 		*stackpatch = &stack + ((PAGE_SIZE * i) + (PAGE_SIZE - STK_INFO_OFF));

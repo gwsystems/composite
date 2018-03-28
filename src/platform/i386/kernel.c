@@ -182,7 +182,7 @@ smp_kmain(void)
 	volatile cpuid_t cpu_id = get_cpuid();
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 
-	printk("Initialize CPU %d\n", cpu_id);
+	printk("Initializing CPU %d\n", cpu_id);
 	tss_init(cpu_id);
 	gdt_init(cpu_id);
 	idt_init(cpu_id);
