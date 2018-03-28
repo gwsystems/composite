@@ -1,8 +1,6 @@
 #ifndef IO_H
 #define IO_H
 
-#include "shared/cos_types.h"
-
 /**
  * Write byte to specific port
  */

@@ -1024,29 +1024,20 @@ cos_hw_cycles_thresh(hwcap_t hwc)
 void *
 cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 {
-	size_t  sz;
-	vaddr_t fva, va;
+	size_t  sz, i;
+	vaddr_t va;
 
 	assert(ci && hwc && pa && len);
 
 	sz = round_up_to_page(len);
+	va = __page_bump_valloc(ci, sz);
+	if (unlikely(!va)) return NULL;
 
-	fva = __page_bump_valloc(ci, PAGE_SIZE);
-	va  = fva;
-
-	while (1) {
-		if (unlikely(!va)) return NULL;
-
-		if (call_cap_op(hwc, CAPTBL_OP_HW_MAP, ci->pgtbl_cap, va, pa, 0)) BUG();
-
-		sz -= PAGE_SIZE;
-		pa += PAGE_SIZE;
-
-		if (sz <= 0) break;
-		va = __page_bump_valloc(ci, PAGE_SIZE);
+	for (i = 0; i < sz; i += PAGE_SIZE) {
+		if (call_cap_op(hwc, CAPTBL_OP_HW_MAP, ci->pgtbl_cap, va + i, pa + i, 0)) BUG();
 	}
 
-	return (void *)fva;
+	return (void *)va;
 }
 
 void *
