@@ -251,42 +251,29 @@ enum
 	BOOT_CAPTBL_PHYSM_PTE       = 16,
 	BOOT_CAPTBL_KM_PTE          = 18,
 
-	BOOT_CAPTBL_COMP0_CT           = 20,
-	BOOT_CAPTBL_COMP0_PT           = 22,
-	BOOT_CAPTBL_COMP0_COMP         = 24,
-	BOOT_CAPTBL_SINV_CAP           = 28,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 32,
-	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ,
-	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU * CAP16B_IDSZ,
+	BOOT_CAPTBL_SINV_CAP           = 20,
+	BOOT_CAPTBL_SELF_INITHW_BASE   = 24,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
+	/*
+	 * NOTE: kernel doesn't support sharing a cache-line across cores,
+	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU
+	 */
+	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP64B_IDSZ,
                                                          CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
-                                                        CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
+	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
 
-#define BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE (captbl_tcap_offset(cos_cpuid()))
-#define BOOT_CAPTBL_SELF_INITTHD_CPU_BASE (captbl_thd_offset(cos_cpuid()))
-#define BOOT_CAPTBL_SELF_INITRCV_CPU_BASE (captbl_arcv_offset(cos_cpuid()))
+#define BOOT_CAPTBL_SELF_INITTCAP_BASE (BOOT_CAPTBL_SELF_INITTHD_BASE + CAP16B_IDSZ)
 
-static inline unsigned long
-captbl_thd_offset(cpuid_t cpu_id)
-{
-	return BOOT_CAPTBL_SELF_INITTHD_BASE + CAP16B_IDSZ * cpu_id;
-}
+#define BOOT_CAPTBL_SELF_INITTHD_CPU_BASE (BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cos_cpuid()))
+#define BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE (BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cos_cpuid()))
+#define BOOT_CAPTBL_SELF_INITRCV_CPU_BASE (BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cos_cpuid()))
 
-static inline unsigned long
-captbl_tcap_offset(cpuid_t cpu_id)
-{
-	return BOOT_CAPTBL_SELF_INITTCAP_BASE + CAP16B_IDSZ * cpu_id;
-}
-
-static inline unsigned long
-captbl_arcv_offset(cpuid_t cpu_id)
-{
-	return BOOT_CAPTBL_SELF_INITRCV_BASE + CAP64B_IDSZ * cpu_id;
-}
+#define BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE + cpuid * CAP64B_IDSZ)
+#define BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) + CAP16B_IDSZ)
+#define BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITRCV_BASE + cpuid * CAP64B_IDSZ)
 
 enum
 {

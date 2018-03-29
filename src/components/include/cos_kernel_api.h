@@ -67,8 +67,8 @@ struct cos_compinfo {
 	capid_t pgtbl_cap, captbl_cap, comp_cap;
 	/* the frontier of unallocated caps, and the allocated captbl range */
 	capid_t cap_frontier, caprange_frontier;
-	/* the frontier for each of the various sizes of capability */
-	capid_t cap16_frontier, cap32_frontier, cap64_frontier;
+	/* the frontier for each of the various sizes of capability per core! */
+	capid_t cap16_frontier[NUM_CPU], cap32_frontier[NUM_CPU], cap64_frontier;
 	/* heap pointer equivalent, and range of allocated PTEs */
 	vaddr_t vas_frontier, vasrange_frontier;
 	/* the source of memory */

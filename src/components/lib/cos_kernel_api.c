@@ -47,6 +47,9 @@ cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
 static inline void
 cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier)
 {
+	int i;
+
+	assert(round_up_to_pow2(cap_frontier, CAPMAX_ENTRY_SZ) == cap_frontier);
 	ci->cap_frontier = cap_frontier;
 
 	/*
@@ -58,7 +61,11 @@ cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier)
 	} else {
 		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ);
 	}
-	ci->cap16_frontier = ci->cap32_frontier = ci->cap64_frontier = cap_frontier;
+	ci->cap64_frontier = cap_frontier;
+
+	for (i = 0; i < NUM_CPU; i++) {
+		ci->cap16_frontier[i] = ci->cap32_frontier[i] = cap_frontier;
+	}
 }
 
 void
@@ -159,7 +166,7 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 	/* do we manage our own resources, or does a separate meta? */
 	int     self_resources = (meta == ci);
-	capid_t frontier;
+	capid_t frontier, range_frontier;
 
 	capid_t captblcap;
 	capid_t captblid_add;
@@ -195,9 +202,9 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	 */
 
 	if (self_resources)
-		frontier = ci->caprange_frontier - CAPMAX_ENTRY_SZ;
+		frontier = ps_load(&ci->caprange_frontier) - CAPMAX_ENTRY_SZ;
 	else
-		frontier = ci->caprange_frontier;
+		frontier = ps_load(&ci->caprange_frontier);
 	assert(ci->cap_frontier <= frontier);
 
 	/* Common case: */
@@ -213,7 +220,7 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 		captblcap = __capid_bump_alloc(meta, CAP_CAPTBL);
 		assert(captblcap);
 	}
-	captblid_add = ci->caprange_frontier;
+	captblid_add = ps_load(&ci->caprange_frontier);
 	assert(captblid_add % CAPTBL_EXPAND_SZ == 0);
 
 	printd("__capid_captbl_check_expand->pre-captblactivate (%d)\n", CAPTBL_OP_CAPTBLACTIVATE);
@@ -236,8 +243,9 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	}
 
 	/* Success!  Advance the frontiers. */
-	ci->cap_frontier      = ci->caprange_frontier;
-	ci->caprange_frontier = ci->caprange_frontier + (CAPTBL_EXPAND_SZ * 2);
+	frontier       = ps_load(&ci->cap_frontier);
+	range_frontier = ps_faa(&ci->caprange_frontier, CAPTBL_EXPAND_SZ * 2);
+	ps_cas(&ci->cap_frontier, frontier, range_frontier);
 
 	return 0;
 }
@@ -245,8 +253,6 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 static capid_t
 __capid_bump_alloc_generic(struct cos_compinfo *ci, capid_t *capsz_frontier, cap_sz_t sz)
 {
-	capid_t ret;
-
 	printd("__capid_bump_alloc_generic\n");
 
 	/*
@@ -254,15 +260,11 @@ __capid_bump_alloc_generic(struct cos_compinfo *ci, capid_t *capsz_frontier, cap
 	 * this size of capability?
 	 */
 	if (*capsz_frontier % CAPMAX_ENTRY_SZ == 0) {
-		*capsz_frontier = ci->cap_frontier;
-		ci->cap_frontier += CAPMAX_ENTRY_SZ;
 		if (__capid_captbl_check_expand(ci)) return 0;
+		*capsz_frontier = ps_faa(&ci->cap_frontier, CAPMAX_ENTRY_SZ);
 	}
 
-	ret = *capsz_frontier;
-	*capsz_frontier += sz;
-
-	return ret;
+	return ps_faa(capsz_frontier, sz);
 }
 
 capid_t
@@ -280,10 +282,10 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 
 	switch (sz) {
 	case CAP16B_IDSZ:
-		frontier = &ci->cap16_frontier;
+		frontier = &ci->cap16_frontier[cos_cpuid()];
 		break;
 	case CAP32B_IDSZ:
-		frontier = &ci->cap32_frontier;
+		frontier = &ci->cap32_frontier[cos_cpuid()];
 		break;
 	case CAP64B_IDSZ:
 		frontier = &ci->cap64_frontier;

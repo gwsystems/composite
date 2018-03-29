@@ -444,7 +444,6 @@ cos_init(void)
 {
 	struct cobj_header *h;
 	int cycs = 0, i;
-	static int core = 1;
 
 	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
@@ -492,7 +491,6 @@ cos_init(void)
 		boot_root_sched_run();
 	} else {
 		while (!core_init_done[INIT_CORE]) ;
-		while (core != cos_cpuid()) ;
 
 		PRINTLOG(PRINT_DEBUG, "Low-level boot-up start\n");
 		boot_init_sched();
@@ -502,7 +500,6 @@ cos_init(void)
 		boot_comp_preparse_name();
 		boot_create_cap_system();
 		boot_child_info_print();
-		ps_faa((unsigned long *)&core, 1);
 		core_init_done[cos_cpuid()] = 1;
 
 		while (!init_core_alloc_done) ;
