@@ -5,6 +5,7 @@
 #include <cos_types.h>
 #include <cos_kernel_api.h>
 #include <rk.h>
+#include <memmgr.h>
 
 #define IN_PORT  9998
 #define OUT_PORT 9999

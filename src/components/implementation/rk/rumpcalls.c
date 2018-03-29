@@ -49,6 +49,7 @@ cos2rump_setup(void)
 	crcalls.rump_cpu_sched_switch_viathd    = rk_rump_thd_yield_to;
 	crcalls.rump_memfree			= cos_memfree;
 	crcalls.rump_tls_init			= cos_tls_init;
+	crcalls.rump_tls_alloc			= cos_tls_alloc;
 	crcalls.rump_va2pa			= cos_vatpa;
 	crcalls.rump_pa2va			= cos_pa2va;
 	crcalls.rump_resume                     = rk_sched_loop;
@@ -216,6 +217,20 @@ cos_tls_init(unsigned long tp, thdcap_t tc)
 	return cos_thd_mod(currci, tc, (void *)tp);
 }
 
+extern int tcboffset;
+extern int tdatasize;
+extern int tbsssize;
+extern const char *_tdata_start_cpy;
+
+void *
+cos_tls_alloc(struct bmk_thread *thread)
+{
+	char *tlsmem;
+
+	tlsmem = memmgr_tls_alloc(thread->cos_tid);
+	return tlsmem + tcboffset;
+}
+
 void
 cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void (*f)(void *), void *arg,
@@ -224,31 +239,20 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	struct sl_thd *t = NULL;
 	int ret;
 
-	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p, in spdid: %d\n", thread->bt_name, f,
-			cos_spdid_get());
+	/*
+	 * printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p, in spdid: %d\n", thread->bt_name, f,
+	 *	   cos_spdid_get());
+	 */
 
 	/* Check to see if we are creating the thread for our application */
 	if (!strcmp(thread->bt_name, "user_lwp")) {
-		/*
-		 * FIXME, remove this hack and use real system configuration
-		 * this is based off an assumption that the RK that does networking
-		 * is always spdid 4
-		 */
-		if (cos_spdid_get() == 4) {
-			printc("In cnic RK, skipping lwp thread initialization\n");
-			return;
-		}
-
-		/* FIXME, hard coding in the udpserver's spdid */
 		int udpserver_id = 3;
 		thdcap_t thd;
 		thdid_t tid;
 		struct cos_defcompinfo udpserver_comp;
 
-		printc("Allocating a thread for udpserver\n");
 		thd = capmgr_initthd_create(udpserver_id, &tid);
 		assert(thd);
-		printc("thd: %lu\n", thd);
 
 		udpserver_comp.id = udpserver_id;
 		udpserver_comp.sched_aep.thd = thd;
@@ -260,7 +264,6 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	} else {
 		t = rk_rump_thd_alloc(f, arg);
 		assert(t);
-		printc(" thdcap: %lu, id:%u\n", sl_thd_thdcap(t), t->aepinfo->tid);
 	}
 
 	set_cos_thddata(thread, sl_thd_thdcap(t), t->aepinfo->tid);
@@ -316,7 +319,7 @@ void *
 cos_pa2va(void * pa, unsigned long len)
 {
 	printc("cos_pa2va\n");
-	return (void *)cos_hw_map(currci, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)pa, (unsigned int)len);
+	return (void *)memmgr_pa2va_map((paddr_t)pa, len);
 }
 
 void

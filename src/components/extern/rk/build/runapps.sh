@@ -89,4 +89,3 @@ else
 	echo "RUNNING THE SYSTEM ON QEMU INSTEAD"
 	./$QEMURK rumpkernboot.sh
 fi
-

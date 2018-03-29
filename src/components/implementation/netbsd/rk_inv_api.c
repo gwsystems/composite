@@ -205,11 +205,6 @@ rk_socketcall_init(void)
 {
 	assert(spdid != 0);
 
-	/*
-	 * Should only need this if a libc application is booted from the RK,
-	 * it is currently not, it is booted by the llbooter
-	 */
-
 	posix_syscall_override((cos_syscall_t)rk_socketcall, __NR_socketcall);
 
 	return 0;

@@ -18,15 +18,16 @@ capmgr_comp_info_iter(void)
 
 	do {
 		spdid_t spdid = 0, sched_spdid = 0;
+		struct cos_compinfo tmp;
 		struct cap_comp_info *rci = NULL;
 		struct sl_thd *ithd = NULL;
 		u64_t chbits = 0, chschbits = 0;
 		pgtblcap_t pgtslot = 0;
 		captblcap_t captslot = 0;
 		compcap_t ccslot = 0;
-		vaddr_t vasfr = 0;
+		vaddr_t vasfr = 0, src_pg;
 		capid_t capfr = 0;
-		int ret = 0, is_sched = 0;
+		int ret = 0, is_sched = 0, offset = 0;
 		int remain_child = 0;
 		spdid_t childid;
 		comp_flag_t ch_flags;
@@ -71,6 +72,26 @@ capmgr_comp_info_iter(void)
 			cap_info_initthd_init(rci, ithd, 0);
 		} else if (cos_spd_id() == spdid) {
 			cap_info_initthd_init(rci, sl__globals()->sched_thd, 0);
+		}
+
+		/*
+		 * Set tls region for this component
+		 * Expand the 2nd level pte within this component's page table at our new range
+		 */
+		tmp.pgtbl_cap = pgtslot;
+		tmp.memsrc    = ci;
+		ret = (int)cos_pgtbl_intern_alloc(&tmp, pgtslot, TLS_BASE_ADDR,
+					     PAGE_SIZE * TLS_NUM_PAGES);
+		assert(ret);
+
+		/* Place desired number of pages at this new range */
+		offset = 0;
+		for (i = 0 ; i < (signed)TLS_NUM_PAGES ; i++) {
+			src_pg = (vaddr_t)cos_page_bump_alloc(ci);
+			assert(src_pg);
+			ret = cos_mem_alias_at(&tmp, TLS_BASE_ADDR + offset, ci, src_pg);
+			assert(!ret);
+			offset += PAGE_SIZE;
 		}
 	} while (remaining > 0);
 
