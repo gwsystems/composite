@@ -437,13 +437,14 @@ boot_comp_capinfo_init(void)
 	}
 }
 
-static int init_core_load_done = 0, init_core_boot_done = 0, core_boot_done[NUM_CPU] = { 0 };
+static int init_core_alloc_done = 0, core_init_done[NUM_CPU] = { 0 };
 
 void
 cos_init(void)
 {
 	struct cobj_header *h;
 	int cycs = 0, i;
+	static int core = 1;
 
 	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
@@ -457,7 +458,7 @@ cos_init(void)
 		h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
 		num_cobj = (int)cos_comp_info.cos_poly[1];
 
-		PRINTLOG(PRINT_DEBUG, "CPU%d low-level boot-up start\n", INIT_CORE);
+		PRINTLOG(PRINT_DEBUG, "Low-level boot-up start\n");
 		PRINTLOG(PRINT_DEBUG, "num cobjs: %d\n", num_cobj);
 		assert(num_cobj <= MAX_NUM_SPDS);
 
@@ -471,11 +472,10 @@ cos_init(void)
 		boot_bootcomp_init();
 		boot_create_cap_system();
 		boot_child_info_print();
-		init_core_load_done = 1;
-		core_boot_done[cos_cpuid()] = 1;
+		core_init_done[cos_cpuid()] = 1;
 
 		for (i = 1; i < NUM_CPU; i++) {
-			while (!core_boot_done[i]) ;
+			while (!core_init_done[i]) ;
 		}
 
 		/* All cores initialized. Create untyped space for memory manager. */
@@ -486,14 +486,15 @@ cos_init(void)
 				boot_comp_mem_alloc(i);
 			}
 		}
+		init_core_alloc_done = 1;
 
 		boot_done();
-		init_core_boot_done = 1;
 		boot_root_sched_run();
 	} else {
-		while (!init_core_load_done) ;
+		while (!core_init_done[INIT_CORE]) ;
+		while (core != cos_cpuid()) ;
 
-		PRINTLOG(PRINT_DEBUG, "CPU%ld low-level boot-up start\n", cos_cpuid());
+		PRINTLOG(PRINT_DEBUG, "Low-level boot-up start\n");
 		boot_init_sched();
 		boot_comp_capinfo_init();
 		boot_parse_init_args();
@@ -501,14 +502,14 @@ cos_init(void)
 		boot_comp_preparse_name();
 		boot_create_cap_system();
 		boot_child_info_print();
-		core_boot_done[cos_cpuid()] = 1;
+		ps_faa((unsigned long *)&core, 1);
+		core_init_done[cos_cpuid()] = 1;
 
-		for (i = 0; i < NUM_CPU; i++) {
-			while (!core_boot_done[i]) ;
-		}
-
-		while (!init_core_boot_done) ;
+		while (!init_core_alloc_done) ;
 		boot_done();
 		boot_root_sched_run();
 	}
+
+	PRINTLOG(PRINT_WARN, "Booter spinning!\n");
+	SPIN();
 }

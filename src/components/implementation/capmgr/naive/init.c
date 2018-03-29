@@ -153,6 +153,7 @@ cos_init(void)
 	capid_t cap_frontier = 0;
 	vaddr_t heap_frontier = 0;
 	spdid_t child;
+	static int core = 1;
 	comp_flag_t ch_flags;
 	int ret = 0, i;
 
@@ -170,10 +171,12 @@ cos_init(void)
 		capmgr_comp_info_iter();
 	} else {
 		while (!capmgr_init_core_done) ; /* WAIT FOR INIT CORE TO BE DONE */
+		while (core != cos_cpuid()) ; /* continue only if it's this CORE's turn */
 
 		cos_defcompinfo_sched_init();
 		sl_init(SL_MIN_PERIOD_US);
 		capmgr_comp_info_iter_cpu();
+		ps_faa((unsigned long *)&core, 1);
 	}
 	assert(hypercall_comp_child_next(cos_spd_id(), &child, &ch_flags) == -1);
 

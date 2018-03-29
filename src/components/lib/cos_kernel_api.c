@@ -399,8 +399,9 @@ __cos_meminfo_populate(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned lo
 	retaddr = __bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz);
 	assert(retaddr == untyped_ptr);
 
-	start_addr                = meta->mi.untyped_frontier - untyped_sz;
-	meta->mi.untyped_frontier = start_addr;
+	/* untyped mem from current bump pointer */
+	start_addr = ps_faa(&(meta->mi.untyped_ptr), untyped_sz);
+	ps_faa(&(meta->mi.untyped_frontier), untyped_sz);
 
 	for (addr = untyped_ptr; addr < untyped_ptr + untyped_sz; addr += PAGE_SIZE, start_addr += PAGE_SIZE) {
 		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMMOVE, start_addr, ci->mi.pgtbl_cap, addr, 0)) BUG();
