@@ -49,7 +49,7 @@ static void
 test_shmem(void)
 {
 	cbuf_t id = 1;
-	u32_t npages = 0;
+	unsigned long npages = 0;
 	vaddr_t addr;
 	int failure = 0;
 
