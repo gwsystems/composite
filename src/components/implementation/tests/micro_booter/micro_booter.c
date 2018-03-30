@@ -22,6 +22,9 @@ cos_init(void)
 {
 	int cycs, i;
 	static int first_init = 1, init_done = 0;
+	static int cpu_counter = 0;
+
+	cos_faa(&cpu_counter, 1);
 
 	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	printc("\t%d cycles per microsecond\n", cycs);
@@ -44,7 +47,7 @@ cos_init(void)
 
 	/* NOTE: This is just to make sense of the output on HW! To understand that microbooter runs to completion on all cores! */
 	test_done[cos_cpuid()] = 1;
-	for (i = 0; i < NUM_CPU; i++) {
+	for (i = 0; i < cpu_counter; i++) {
 		while (!test_done[i]) ;
 	}
 

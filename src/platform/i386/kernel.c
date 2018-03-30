@@ -165,8 +165,8 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	paging_init();
 
 	kern_boot_comp(INIT_CORE);
-	timer_init();
 	lapic_init();
+	timer_init();
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
 
