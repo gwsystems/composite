@@ -41,7 +41,7 @@ struct sl_thd *
 cap_info_thd_next(struct cap_comp_info *rci)
 {
 	if (!rci || !cap_info_init_check(rci))   return NULL;
-	if (rci->p_thd_iterator < rci->thd_used) return (rci->thdinfo[ps_faa((long unsigned *)&(rci->p_thd_iterator), 1)]);
+	if (rci->p_thd_iterator < rci->thd_used) return (rci->thdinfo[ps_faa((unsigned long *)&(rci->p_thd_iterator), 1)]);
 
 	return NULL;
 }
@@ -67,7 +67,7 @@ cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, 
 	cap_shi->cinfo = ci;
 
 	capci[spdid].initflag = 1;
-	ps_faa((long unsigned *)&cap_comp_count, 1);
+	ps_faa((unsigned long *)&cap_comp_count, 1);
 
 	return &capci[spdid];
 }
@@ -113,7 +113,7 @@ cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_aepkey_t key)
 	if (rci->thd_used >= CAP_INFO_COMP_MAX_THREADS) return NULL;
 	if (!t) return NULL;
 
-	off = ps_faa((long unsigned *)&(rci->thd_used), 1);
+	off = ps_faa((unsigned long *)&(rci->thd_used), 1);
 	rci->thdinfo[off] = t;
 	cap_aepkey_set(key, t);
 
@@ -163,11 +163,9 @@ __cap_info_shm_capmgr_vaddr_set(cbuf_t id, vaddr_t v)
 }
 
 static int
-__cap_cos_shared_page_mapn(struct cos_compinfo *rci, u32_t num_pages, vaddr_t capvaddr, vaddr_t *compvaddr)
+__cap_cos_shared_page_mapn(struct cos_compinfo *rci, unsigned long num_pages, vaddr_t capvaddr, vaddr_t *compvaddr)
 {
 	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	int                  off    = 0;
-	vaddr_t              dst_pg;
 
 	assert(capvaddr);
 	if (!capvaddr) return -1;
@@ -179,11 +177,10 @@ __cap_cos_shared_page_mapn(struct cos_compinfo *rci, u32_t num_pages, vaddr_t ca
 }
 
 static int
-__cap_cos_shared_page_allocn(struct cos_compinfo *rci, u32_t num_pages, vaddr_t *capvaddr, vaddr_t *compvaddr)
+__cap_cos_shared_page_allocn(struct cos_compinfo *rci, unsigned long num_pages, vaddr_t *capvaddr, vaddr_t *compvaddr)
 {
 	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	int                  off    = 0;
-	vaddr_t              src_pg, dst_pg;
+	vaddr_t              src_pg;
 
 	*capvaddr = src_pg = (vaddr_t)cos_page_bump_allocn(cap_ci, num_pages * PAGE_SIZE);
 	if (!(*capvaddr)) return -1;
@@ -194,7 +191,7 @@ __cap_cos_shared_page_allocn(struct cos_compinfo *rci, u32_t num_pages, vaddr_t 
 }
 
 cbuf_t
-cap_shmem_region_alloc(struct cap_shmem_info *rsh, u32_t num_pages)
+cap_shmem_region_alloc(struct cap_shmem_info *rsh, unsigned long num_pages)
 {
 	struct cos_compinfo       *rsh_ci    = cap_info_shmem_ci(rsh);
 	struct cap_shmem_glb_info *rglb      = __cap_info_shmglb_info();
@@ -215,8 +212,8 @@ cap_shmem_region_alloc(struct cap_shmem_info *rsh, u32_t num_pages)
 	if (cap_shmem_region_vaddr(rsh, fid)) goto done;
 
 	rglb->region_npages[fid - 1] = num_pages;
-	ps_faa((unsigned long *)&(rglb->total_pages), num_pages);
-	ps_faa((unsigned long *)&(rsh->total_pages), num_pages);
+	ps_faa(&(rglb->total_pages), num_pages);
+	ps_faa(&(rsh->total_pages), num_pages);
 
 	ret = __cap_cos_shared_page_allocn(rsh_ci, num_pages, &cap_addr, &comp_addr);
 	if (ret) goto done;
@@ -229,13 +226,13 @@ done:
 	return alloc_id;
 }
 
-u32_t
+unsigned long
 cap_shmem_region_map(struct cap_shmem_info *rsh, cbuf_t id)
 {
 	struct cos_compinfo       *rsh_ci    = cap_info_shmem_ci(rsh);
 	struct cap_shmem_glb_info *rglb      = __cap_info_shmglb_info();
 	vaddr_t                    cap_addr  = __cap_info_shm_capmgr_vaddr(id), comp_addr;
-	u32_t                      num_pages = 0;
+	unsigned long              num_pages = 0;
 	int                        ret       = -1;
 
 	if (!rsh) return 0;

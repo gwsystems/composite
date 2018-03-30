@@ -115,8 +115,8 @@ capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_ae
 	return aep->thd;
 }
 
-cbuf_t memmgr_shared_page_allocn_cserialized(vaddr_t *pgaddr, int *unused, u32_t num_pages);
-u32_t  memmgr_shared_page_map_cserialized(vaddr_t *pgaddr, int *unused, cbuf_t id);
+cbuf_t memmgr_shared_page_allocn_cserialized(vaddr_t *pgaddr, int *unused, unsigned long num_pages);
+unsigned long memmgr_shared_page_map_cserialized(vaddr_t *pgaddr, int *unused, cbuf_t id);
 
 vaddr_t
 memmgr_heap_page_alloc(void)
@@ -125,7 +125,7 @@ memmgr_heap_page_alloc(void)
 }
 
 cbuf_t
-memmgr_shared_page_allocn(u32_t num_pages, vaddr_t *pgaddr)
+memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr)
 {
 	int unused = 0;
 
@@ -138,7 +138,7 @@ memmgr_shared_page_alloc(vaddr_t *pgaddr)
 	return memmgr_shared_page_allocn(1, pgaddr);
 }
 
-u32_t
+unsigned long
 memmgr_shared_page_map(cbuf_t id, vaddr_t *pgaddr)
 {
 	int unused = 0;
