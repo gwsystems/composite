@@ -14,14 +14,14 @@
 void
 timer_fn_1hz(void *d)
 {
-	cycles_t now, start;
+	cycles_t now, first_deadline;
 
-	rdtscll(start);
-	start += sl_usec2cyc(HZ_PAUSE);
+	rdtscll(now);
+	first_deadline = now + sl_usec2cyc(HZ_PAUSE);
 
 	while (1) {
 		rdtscll(now);
-		if (now > start) {
+		if (now > first_deadline) {
 			CFE_TIME_Local1HzISR(); /* input param is signum. but CFE_PSP_TimerHandler doesn't seem to use
 			                           it. */
 		}

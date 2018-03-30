@@ -1,5 +1,5 @@
-#ifndef _cFE_util_
-#define _cFE_util_
+#ifndef _CFE_UTIL_
+#define _CFE_UTIL_
 
 #include <stdio.h>
 #include <string.h>

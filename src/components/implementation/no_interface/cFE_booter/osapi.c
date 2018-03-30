@@ -19,18 +19,17 @@ int have_initialized = 0;
 int32
 OS_API_Init(void)
 {
-	if (!have_initialized) {
-		cos_defcompinfo_init();
-		struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-		struct cos_compinfo *   ci    = cos_compinfo_get(defci);
-		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	if (have_initialized) return OS_SUCCESS;
 
-		OS_FS_Init();
+	cos_defcompinfo_init();
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
+	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 
-		OS_ModuleTableInit();
+	OS_FS_Init();
+	OS_ModuleTableInit();
 
-		have_initialized = 1;
-	}
+	have_initialized = 1;
 
 	return OS_SUCCESS;
 }
@@ -68,9 +67,10 @@ OS_DeleteAllObjects(void)
 */
 
 int32
-OS_Milli2Ticks(uint32 milli_seconds)
+OS_Milli2Ticks(uint32 milliseconds)
 {
-	return (int32)(CFE_PSP_GetTimerTicksPerSecond() * milli_seconds) / 1000;
+	uint32 ticks_per_millisecond = CFE_PSP_GetTimerTicksPerSecond() / 1000;
+	return (int32) (ticks_per_millisecond * milliseconds);
 }
 
 int32
@@ -116,7 +116,6 @@ OS_GetLocalTime(OS_time_t *time_struct)
 	*time_struct = local_time;
 
 	return OS_SUCCESS;
-
 } /* end OS_GetLocalTime */
 
 int32
@@ -412,16 +411,16 @@ int is_printf_enabled = TRUE;
 void
 OS_printf(const char *string, ...)
 {
-	if (is_printf_enabled) {
-		char    s[OS_BUFFER_SIZE];
-		va_list arg_ptr;
-		int     ret, len = OS_BUFFER_SIZE;
+	if (!is_printf_enabled) return;
 
-		va_start(arg_ptr, string);
-		ret = vsnprintf(s, len, string, arg_ptr);
-		va_end(arg_ptr);
-		llprint(s, ret);
-	}
+	char    s[OS_BUFFER_SIZE];
+	va_list arg_ptr;
+	int     ret, len = OS_BUFFER_SIZE;
+
+	va_start(arg_ptr, string);
+	ret = vsnprintf(s, len, string, arg_ptr);
+	va_end(arg_ptr);
+	llprint(s, ret);
 }
 
 void
