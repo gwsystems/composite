@@ -39,6 +39,13 @@ timer_fn_1hz(void *d)
 /*  We need to keep track of this to check if register or delete handler calls are invalid */
 thdid_t main_delegate_thread_id;
 
+struct cfe_task_info {
+	osal_task_entry delete_handler;
+	OS_task_prop_t  osal_task_prop;
+};
+
+struct cfe_task_info cfe_tasks[SL_MAX_NUM_THDS] = {{0}};
+
 void
 OS_SchedulerStart(cos_thd_fn_t main_delegate)
 {
@@ -49,10 +56,10 @@ OS_SchedulerStart(cos_thd_fn_t main_delegate)
 	sl_thd_param_set(main_delegate_thread, sp.v);
 	main_delegate_thread_id = sl_thd_thdid(main_delegate_thread);
 
-	struct sl_thd_policy *policy = sl_mod_thd_policy_get(main_delegate_thread);
-	strcpy(policy->osal_task_prop.name, "MAIN_THREAD");
-	policy->osal_task_prop.priority  = MAIN_DELEGATE_THREAD_PRIORITY;
-	policy->osal_task_prop.OStask_id = (uint32)sl_thd_thdid(main_delegate_thread);
+	struct cfe_task_info *task_info = &cfe_tasks[main_delegate_thread_id];
+	strcpy(task_info->osal_task_prop.name, "MAIN_THREAD");
+	task_info->osal_task_prop.priority  = MAIN_DELEGATE_THREAD_PRIORITY;
+	task_info->osal_task_prop.OStask_id = (uint32)sl_thd_thdid(main_delegate_thread);
 
 	struct sl_thd *         timer_thd = sl_thd_alloc(timer_fn_1hz, NULL);
 	union sched_param_union spperiod  = {.c = {.type = SCHEDP_WINDOW, .value = HZ_PAUSE}};
@@ -110,13 +117,13 @@ OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_p
 	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = priority}};
 	sl_thd_param_set(thd, sp.v);
 
-	struct sl_thd_policy *policy = sl_mod_thd_policy_get(thd);
-	strcpy(policy->osal_task_prop.name, task_name);
-	policy->osal_task_prop.creator    = OS_TaskGetId();
-	policy->osal_task_prop.stack_size = stack_size;
-	policy->osal_task_prop.priority   = priority;
-	policy->osal_task_prop.OStask_id  = (uint32)sl_thd_thdid(thd);
-	policy->delete_handler            = NULL;
+	struct cfe_task_info *task_info = &cfe_tasks[sl_thd_thdid(thd)];
+	strcpy(task_info->osal_task_prop.name, task_name);
+	task_info->osal_task_prop.creator    = OS_TaskGetId();
+	task_info->osal_task_prop.stack_size = stack_size;
+	task_info->osal_task_prop.priority   = priority;
+	task_info->osal_task_prop.OStask_id  = (uint32)sl_thd_thdid(thd);
+	task_info->delete_handler            = NULL;
 
 	*task_id = (uint32)sl_thd_thdid(thd);
 
@@ -129,9 +136,9 @@ OS_TaskDelete(uint32 task_id)
 	struct sl_thd *thd = sl_thd_lkup(task_id);
 	if (!thd) { return OS_ERR_INVALID_ID; }
 
-	struct sl_thd_policy *thd_policy = sl_mod_thd_policy_get(thd);
+	struct cfe_task_info *task_info = &cfe_tasks[task_id];
 
-	osal_task_entry delete_handler = thd_policy->delete_handler;
+	osal_task_entry delete_handler = task_info->delete_handler;
 	if (delete_handler) { delete_handler(); }
 
 	sl_thd_free(thd);
@@ -159,7 +166,10 @@ int32
 OS_TaskInstallDeleteHandler(osal_task_entry function_pointer)
 {
 	if (OS_TaskGetId() == main_delegate_thread_id) { return OS_ERR_INVALID_ID; }
-	sl_mod_thd_policy_get(sl_thd_curr())->delete_handler = function_pointer;
+
+	struct cfe_task_info *task_info = &cfe_tasks[sl_thd_thdid(sl_thd_curr())];
+	task_info->delete_handler = function_pointer;
+
 	return OS_SUCCESS;
 }
 
@@ -197,8 +207,19 @@ OS_TaskRegister(void)
 int32
 OS_TaskGetIdByName(uint32 *task_id, const char *task_name)
 {
-	// FIXME: Implement this
-	return OS_ERR_NOT_IMPLEMENTED;
+	if (!task_id || !task_name) return OS_INVALID_POINTER;
+
+	thdid_t i;
+	for (i = 1; i < SL_MAX_NUM_THDS; i++) {
+		struct sl_thd *thd = sl_thd_lkup(i);
+		if (!thd || thd->state == SL_THD_FREE) continue;
+		if (strcmp(cfe_tasks[i].osal_task_prop.name, task_name) == 0) {
+			*task_id = i;
+			return OS_SUCCESS;
+		}
+	}
+
+	return OS_ERR_NAME_NOT_FOUND;
 }
 
 int32
@@ -207,12 +228,13 @@ OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop)
 	if (!task_prop) { return OS_INVALID_POINTER; }
 
 	struct sl_thd *thd = sl_thd_lkup(task_id);
+
 	// TODO: Fix this ugly workaround
 	if (!thd || thd->state == SL_THD_FREE) { return OS_ERR_INVALID_ID; }
-	struct sl_thd_policy *thd_policy = sl_mod_thd_policy_get(thd);
-	assert(thd_policy);
 
-	*task_prop = thd_policy->osal_task_prop;
+	struct cfe_task_info *task_info = &cfe_tasks[task_id];
+	*task_prop = task_info->osal_task_prop;
+
 	return OS_SUCCESS;
 }
 
