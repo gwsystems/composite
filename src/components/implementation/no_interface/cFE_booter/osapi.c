@@ -195,8 +195,9 @@ OS_FPUExcGetMask(uint32 *mask)
 }
 
 /*
-** Interrupt API
-*/
+ * Interrupt API
+ * The disabling APIs always work, since interrupts are always disabled
+ */
 int32
 OS_IntAttachHandler(uint32 InterruptNumber, osal_task_entry InterruptHandler, int32 parameter)
 {
@@ -207,29 +208,25 @@ OS_IntAttachHandler(uint32 InterruptNumber, osal_task_entry InterruptHandler, in
 int32
 OS_IntUnlock(int32 IntLevel)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
-	return 0;
+	return OS_SUCCESS;
 }
 
 int32
 OS_IntLock(void)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
-	return 0;
+	return OS_SUCCESS;
 }
 
 int32
 OS_IntEnable(int32 Level)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
-	return 0;
+	return OS_SUCCESS;
 }
 
 int32
 OS_IntDisable(int32 Level)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
-	return 0;
+	return OS_SUCCESS;
 }
 
 int32

@@ -32,6 +32,15 @@ OS_ModuleUnload(uint32 module_id)
 	return OS_SUCCESS;
 }
 
+int32
+get_this_threads_priority()
+{
+	OS_task_prop_t prop;
+	int32 result = OS_TaskGetInfo(sl_thdid(), &prop);
+	assert(result == OS_SUCCESS);
+	return prop.priority;
+}
+
 void
 launch_other_component(int child_id, int is_library)
 {
@@ -49,7 +58,8 @@ launch_other_component(int child_id, int is_library)
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, 1));
 		sl_thd_yield(sl_thd_thdid(t));
 	} else {
-		while (1) sl_thd_yield(sl_thd_thdid(t));
+		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, get_this_threads_priority()));
+		OS_TaskExit();
 	}
 }
 
