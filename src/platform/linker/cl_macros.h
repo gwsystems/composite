@@ -22,9 +22,11 @@
 #define NUM_ATOMIC_SYMBS 10
 #define NUM_KERN_SYMBS 1
 
-#define CAP_CLIENT_STUB_DEFAULT "SS_ipc_client_marshal_args"
-#define CAP_CLIENT_STUB_POSTPEND "_call"
-#define CAP_SERVER_STUB_POSTPEND "_inv"
+#define CAP_CLIENT_STUB_DEFAULT       "SS_ipc_client_marshal_args"
+#define CAP_CLIENT_STUB_RETS          "SS_ipc_client_marshal_args_rets"
+#define CAP_CLIENT_STUB_POSTPEND      "_call"
+#define CAP_SERVER_STUB_POSTPEND_RETS "_rets_inv"
+#define CAP_SERVER_STUB_POSTPEND      "_inv"
 
 #define BASE_SERVICE_ADDRESS SERVICE_START
 #define DEFAULT_SERVICE_SIZE SERVICE_SIZE
@@ -38,6 +40,7 @@
 #define MAX_SYMBOLS (1024 * 64)
 #define MAX_TRUSTED 32
 #define MAX_SYMB_LEN 256
+#define MAX_FILE_NAME_LEN 512
 
 #define bfd_sect_size(bfd, x) (bfd_get_section_size(x) / bfd_octets_per_byte(bfd))
 

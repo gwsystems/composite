@@ -68,6 +68,7 @@ struct pt_regs {
 
 #define MAX_NUM_COMPS 64
 #define MAX_NUM_SPDS (MAX_NUM_COMPS) /* Legacy code still has this. */
+#define MAX_NUM_COMP_WORDS (MAX_NUM_COMPS/(8*sizeof(u32_t)))
 
 #define MAX_STATIC_CAP 256
 #define MAX_NUM_ACAP 256
@@ -135,5 +136,6 @@ struct pt_regs {
  * offsets below are used to access CPU and thread IDs. */
 #define CPUID_OFFSET 1
 #define THDID_OFFSET 2
+#define INVTOKEN_OFFSET 3
 
 #endif

@@ -553,8 +553,7 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
            struct tcap *tc_next, tcap_time_t timeout, struct comp_info *ci, struct cos_cpu_local_info *cos_info,
            int timer_intr_context)
 {
-	struct thread *thc, *thn;
-	struct tcap *  tc, *tn;
+	struct thread *thd_sched;
 	cycles_t       now;
 	int            switch_away = 0;
 
@@ -586,9 +585,11 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		 * choose the current thread's scheduler as next thread.
 		 *
 		 * Note: If the timer interrupt was indeed for a timeout but the current tcap
-		 *       has expended, then budget expiry condition takes priority. 
+		 *       has expended, then budget expiry condition takes priority.
 		 */
-		thd_next = thd_scheduler(thd_curr);
+		if (thd_bound2rcvcap(thd_curr)
+		    && thd_rcvcap_isreferenced(thd_curr)) thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
+		else                                      thd_next = thd_scheduler(thd_curr);
 		/* tc_next is tc_curr */
 	}
 
@@ -615,10 +616,10 @@ cap_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struc
 	return cap_update(regs, curr, next, tcap_current(cos_info), next_tcap, timeout, ci, cos_info, 0);
 }
 
-static int 
+static int
 cap_sched_tok_validate(struct thread *rcvt, sched_tok_t usr_tok, struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
-	assert(rcvt && usr_tok < ~0U);	
+	assert(rcvt && usr_tok < ~0U);
 
 	/* race-condition check for user-level thread switches */
 	if (thd_rcvcap_get_counter(rcvt) > usr_tok) return -EAGAIN;
@@ -930,8 +931,9 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 		return thd_introspect(((struct cap_thd *)ch)->t, op, retval);
 	case CAP_TCAP:
 		return tcap_introspect(((struct cap_tcap *)ch)->tcap, op, retval);
+	default:
+		return -EINVAL;
 	}
-	return -EINVAL;
 }
 
 #define ENABLE_KERNEL_PRINT
@@ -1012,6 +1014,8 @@ composite_syscall_handler(struct pt_regs *regs)
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
+	default:
+		break;
 	}
 
 	/* slowpath restbl (captbl and pgtbl) operations */
@@ -1179,11 +1183,11 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_THDACTIVATE: {
-			capid_t thd_cap    = __userregs_get1(regs) & 0xFFFF;
-			int     init_data  = __userregs_get1(regs) >> 16;
-			capid_t pgtbl_cap  = __userregs_get2(regs);
-			capid_t pgtbl_addr = __userregs_get3(regs);
-			capid_t compcap    = __userregs_get4(regs);
+			thdclosure_index_t init_data  = __userregs_get1(regs) >> 16;
+			capid_t thd_cap               = __userregs_get1(regs) & 0xFFFF;
+			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t pgtbl_addr            = __userregs_get3(regs);
+			capid_t compcap               = __userregs_get4(regs);
 
 			struct thread *thd;
 			unsigned long *pte = NULL;
@@ -1257,10 +1261,11 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_SINVACTIVATE: {
-			capid_t dest_comp_cap = __userregs_get2(regs);
-			vaddr_t entry_addr    = __userregs_get3(regs);
+			capid_t    dest_comp_cap = __userregs_get2(regs);
+			vaddr_t    entry_addr    = __userregs_get3(regs);
+			invtoken_t token         = __userregs_get4(regs);
 
-			ret = sinv_activate(ct, cap, capin, dest_comp_cap, entry_addr);
+			ret = sinv_activate(ct, cap, capin, dest_comp_cap, entry_addr, token);
 			break;
 		}
 		case CAPTBL_OP_SINVDEACTIVATE: {
@@ -1553,7 +1558,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			n = asnd_process(rthd, thd, tcapdst, tcap_current(cos_info), &tcap_next, yield, cos_info);
 			if (n != thd) {
 				/*
-				 * FIXME: set scheduler for rcv thread with DELEG_YIELD and 
+				 * FIXME: set scheduler for rcv thread with DELEG_YIELD and
 				 *        when we have room for sched_rcv with this API
 				 *
 				 *        Also, scheduling token validation!

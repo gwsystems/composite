@@ -5,6 +5,8 @@
 #include <cos_defkernel_api.h>
 #include <cos_kernel_api.h>
 
+#include <memmgr.h>
+
 #include "gen/common_types.h"
 #include "gen/osapi.h"
 #include "gen/osapi-os-filesys.h"
@@ -18,30 +20,33 @@
 #define MAX_NUM_DIRENT 10
 
 // a page is 4096, size of f_part is 5 values * 4 bytes
-#define F_PART_DATA_SIZE (4096-sizeof(struct f_part))
+#define F_PART_DATA_SIZE (4096 - sizeof(struct f_part))
 
-enum fsobj_type {
-    FSOBJ_FILE,
-    FSOBJ_DIR,
+enum fsobj_type
+{
+	FSOBJ_FILE,
+	FSOBJ_DIR,
 };
 
-enum fs_permissions {
-    NONE =    0,
-    READ =    0x001,
-    WRITE =   0x010,
-    EXECUTE = 0x100,
-    ALL = READ | WRITE | EXECUTE,
+enum fs_permissions
+{
+	NONE    = 0,
+	READ    = 0x001,
+	WRITE   = 0x010,
+	EXECUTE = 0x100,
+	ALL     = READ | WRITE | EXECUTE,
 };
 
 struct file_position {
-    struct f_part *open_part;  //part of file being read/written to
-    uint32 part_offset;         //offset into part's data
-    uint32 file_offset;         //position within file as a whole
+	struct f_part *open_part;   // part of file being read/written to
+	uint32         part_offset; // offset into part's data
+	uint32         file_offset; // position within file as a whole
 };
 
-enum fpart_alloc_type {
-    STATIC,
-    DYNAMIC,
+enum fpart_alloc_type
+{
+	STATIC,
+	DYNAMIC,
 };
 
 /*
@@ -51,90 +56,90 @@ enum fpart_alloc_type {
  */
 
 struct fsobj {
-    char *name;
-    int32 ino; // 0 for free file
-    enum fsobj_type type; /* dir vs file, determines the type of FD position */
-    size_t size;
-    uint32 refcnt; //number of filedes which have it opened
-    enum fs_permissions permission; // most permissive possible status it may be opened with
-    enum fpart_alloc_type memtype;
-    struct f_part *file_part;
-    struct fsobj *next, *prev;
-    struct fsobj *child, *parent; // child != NULL iff type = dir
+	char *                name;
+	int32                 ino;  // 0 for free file
+	enum fsobj_type       type; /* dir vs file, determines the type of FD position */
+	size_t                size;
+	uint32                refcnt;     // number of filedes which have it opened
+	enum fs_permissions   permission; // most permissive possible status it may be opened with
+	enum fpart_alloc_type memtype;
+	struct f_part *       file_part;
+	struct fsobj *        next, *prev;
+	struct fsobj *        child, *parent; // child != NULL iff type = dir
 };
 
 struct f_part {
-    struct fsobj *file;
-    struct f_part *next, *prev;
-    char *data;
+	struct fsobj * file;
+	struct f_part *next, *prev;
+	char *         data;
 };
 
 /*
-  * The state of a directory stream is either iterating through list of files,
-  * at one of two special paths, or at the end of the stream.  The two special
-  * paths are '.' and '..' and the occur at the end of the list of files
+ * The state of a directory stream is either iterating through list of files,
+ * at one of two special paths, or at the end of the stream.  The two special
+ * paths are '.' and '..' and the occur at the end of the list of files
  */
-enum dir_stream_status {
-    NORMAL,
-    CUR_DIR_LINK,
-    PARENT_DIR_LINK,
-    END_OF_STREAM,
+enum dir_stream_status
+{
+	NORMAL,
+	CUR_DIR_LINK,
+	PARENT_DIR_LINK,
+	END_OF_STREAM,
 };
 
 // offset into linked list of children
 struct dir_position {
-    struct fsobj *open_dir;     /* Stream is children of open_dir */
-    struct fsobj *cur;          /* refers to current (last returned) file in dir stream */
-    enum dir_stream_status status; /* indicates if special file or end of stream */
-    os_dirent_t dirent;         /* I really don't like storing this here. */
+	struct fsobj *         open_dir; /* Stream is children of open_dir */
+	struct fsobj *         cur;      /* refers to current (last returned) file in dir stream */
+	enum dir_stream_status status;   /* indicates if special file or end of stream */
+	os_dirent_t            dirent;   /* I really don't like storing this here. */
 };
 
 /*
  * The type being used must be consistent with fsobj->type
  */
 union fd_position {
-    struct dir_position dir_pos;
-    struct file_position file_pos;
+	struct dir_position  dir_pos;
+	struct file_position file_pos;
 };
 
 // Currently this filedes is used only for dir streams, and not real filedes
 // TODO: Switch non-dir to table based filedes
 struct fd {
-    int32 ino;
-    enum fs_permissions access;  /* must be < or == permissive as file->permission */
-    union fd_position position; /* the type of position is determined by file->type */
-    struct fsobj *file;
+	int32               ino;
+	enum fs_permissions access;   /* must be < or == permissive as file->permission */
+	union fd_position   position; /* the type of position is determined by file->type */
+	struct fsobj *      file;
 };
 
 struct fs {
-    char *devname;
-    char *volname;
-    char *mountpoint;
-    uint32 blocksize;
-    uint32 numblocks;
-    struct fsobj *root;
+	char *        devname;
+	char *        volname;
+	char *        mountpoint;
+	uint32        blocksize;
+	uint32        numblocks;
+	struct fsobj *root;
 };
 
-static char *path_to_name(char *path)
+static char *
+path_to_name(char *path)
 {
-    assert(path);
-    uint32 path_len = strlen(path), offset;
-    assert(path_len > 1);
+	assert(path);
+	uint32 path_len = strlen(path), offset;
+	assert(path_len > 1);
 
-    //remove one or more '/' at the end of path
-    while(path[strlen(path) - 1] == '/'){
-        path[strlen(path) - 1] = 0;
-    }
+	// remove one or more '/' at the end of path
+	while (path[strlen(path) - 1] == '/') { path[strlen(path) - 1] = 0; }
 
-    // iterate from right to left through the path until you find a '/'
-    // everything you have iterated through is the name of the file
-    for ( offset = path_len - 2 ; path[offset] != '/' && offset > 0 ; offset--) {
-        //do nothing
-    }
-    char *name = path + offset +1;
+	// iterate from right to left through the path until you find a '/'
+	// everything you have iterated through is the name of the file
+	for (offset = path_len - 2; path[offset] != '/' && offset > 0; offset--) {
+		// do nothing
+	}
+	char *name = path + offset + 1;
 
-    assert(0 < strlen(name));
-    return name;
+	assert(0 < strlen(name));
+	return name;
 }
 
 /******************************************************************************
@@ -187,7 +192,7 @@ uint32 permission_COS_to_cFE(enum fs_permissions permission);
 /******************************************************************************
 ** dirent Level Methods
 ******************************************************************************/
-//int32 newfd_get(int32 ino);
+// int32 newfd_get(int32 ino);
 
 int32 dir_open(char *path);
 

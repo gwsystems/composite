@@ -49,7 +49,7 @@ syscall_emulation_setup()
 CWEAKSYMB long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f, long g)
 {
-	printc("Default syscall handler called (syscall: %d), faulting!\n", syscall_num);
+	printc("Default syscall handler callled (syscall: %d), faulting!", syscall_num);
 	assert(0);
 	return 0;
 }
@@ -117,6 +117,22 @@ cos_thd_entry_static(u32_t idx)
 	return 0;
 }
 
+const char *cos_print_str[PRINT_LEVEL_MAX] = {
+	"ERR:",
+	"WARN:",
+	"DBG:",
+};
+
+cos_print_level_t cos_print_level   = PRINT_ERROR;
+int               cos_print_lvl_str = 0;
+
+CWEAKSYMB void
+cos_print_level_set(cos_print_level_t lvl, int print_str)
+{
+	cos_print_level   = lvl;
+	cos_print_lvl_str = print_str;
+}
+
 /*
  * Cos thread creation data structures.
  */
@@ -144,6 +160,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 	if (first) {
 		first = 0;
+		cos_print_level_set(PRINT_DEBUG, 1);
 		/* The syscall enumlator might need something to be setup before it can work */
 		pre_syscall_setup();
 		/* libc needs syscall emulation to work */

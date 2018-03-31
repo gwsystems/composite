@@ -4,9 +4,10 @@
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  */
+ 
+ #define __ASM__
+ #include <consts.h>
 
-#define __ASM__
-#include <consts.h>
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text
@@ -18,3 +19,5 @@ cos_asm_server_stub(call_four)
 
 cos_asm_server_stub(call_arg)
 cos_asm_server_stub(call_args)
+
+cos_asm_server_stub_rets(call_3rets)

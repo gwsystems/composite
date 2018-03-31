@@ -1,14 +1,15 @@
 #include <cos_kernel_api.h>
 #include <llprint.h>
-
-#include "boot_deps.h"
+#include <cos_types.h>
+#include <hypercall.h>
 
 void
 cos_init(void)
 {
-	prints("\n|*****************************|\n");
-	prints(" Wecome to test_boot component!\n");
-	prints("|*****************************|\n");
+	PRINTLOG(PRINT_DEBUG, "Dummy component booted.\n");
 
-	cos_sinv(BOOT_SINV_CAP, 1, 2, 3, 4);
+	hypercall_comp_init_done();
+
+	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
+	assert(0);
 }

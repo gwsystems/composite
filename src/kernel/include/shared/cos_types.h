@@ -40,8 +40,9 @@ typedef u32_t         sched_tok_t;
  */
 #define TCAP_TIME_QUANTUM_ORD 12
 #define TCAP_TIME_MAX_ORD (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
-#define TCAP_TIME_MAX_BITS(c) ((c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
+#define TCAP_TIME_MAX_BITS(c) (((u64_t)c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
 #define TCAP_TIME_NIL 0
+
 static inline cycles_t
 tcap_time2cyc(tcap_time_t c, cycles_t curr)
 {
@@ -194,11 +195,11 @@ __captbl_cap2sz(cap_t c)
 	case CAP_THD:
 	case CAP_TCAP:
 		return CAP_SZ_16B;
-	case CAP_SINV:
 	case CAP_CAPTBL:
 	case CAP_PGTBL:
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 		return CAP_SZ_32B;
+	case CAP_SINV:
 	case CAP_COMP:
 	case CAP_ASND:
 	case CAP_ARCV:
@@ -249,14 +250,14 @@ enum
 	BOOT_CAPTBL_COMP0_CT           = 20,
 	BOOT_CAPTBL_COMP0_PT           = 22,
 	BOOT_CAPTBL_COMP0_COMP         = 24,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
+	BOOT_CAPTBL_SINV_CAP           = 28,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 32,
 	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS * CAP16B_IDSZ,
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU_COS * CAP16B_IDSZ,
                                                          CAPMAX_ENTRY_SZ),
 	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS * CAP64B_IDSZ,
                                                         CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_SINV_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
-	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SINV_CAP + CAP32B_IDSZ,
+	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
@@ -327,6 +328,8 @@ typedef unsigned int  page_index_t;
 typedef unsigned short int spdid_t;
 typedef unsigned short int compid_t;
 typedef unsigned short int thdid_t;
+typedef spdid_t            invtoken_t;
+typedef int                thdclosure_index_t;
 
 struct restartable_atomic_sequence {
 	vaddr_t start, end;
@@ -395,6 +398,11 @@ typedef enum {
 	COS_UPCALL_QUARANTINE
 } upcall_type_t;
 
+typedef enum {
+	COMP_FLAG_SCHED  = 1,      /* component is a scheduler */
+	COMP_FLAG_CAPMGR = (1<<1), /* component is a capability manager */
+} comp_flag_t;
+
 enum
 {
 	MAPPING_RO   = 0,
@@ -437,5 +445,20 @@ typedef enum {
 /* invalid type, can NOT be used in data structures, only for return values. */
 #define IL_INV (~0)
 typedef unsigned int isolation_level_t;
+
+#define INTERFACE_UNDEF_SYMBS 64 /* maxiumum undefined symbols in a cobj */
+#define LLBOOT_ROOTSCHED_PRIO 1  /* root scheduler priority for llbooter dispatch */
+#define LLBOOT_NEWCOMP_UNTYPED_SZ  (1<<24) /* 16 MB = untyped size per component if there is no capability manager */
+#define LLBOOT_RESERVED_UNTYPED_SZ (1<<24) /* 16 MB = reserved untyped size with booter if there is a capability manager */
+#define CAPMGR_MIN_UNTYPED_SZ      (1<<26) /* 64 MB = minimum untyped size for the capability manager in the system */
+
+/* for simplicity, keep these multiples of PGD_RANGE */
+#define MEMMGR_COMP_MAX_HEAP     (1<<25) /* 32MB */
+#define MEMMGR_MAX_SHMEM_SIZE    (1<<22) /* 4MB */
+#define MEMMGR_COMP_MAX_SHMEM    MEMMGR_MAX_SHMEM_SIZE
+#define MEMMGR_MAX_SHMEM_REGIONS 1024
+#define CAPMGR_AEPKEYS_MAX       (1<<15)
+
+typedef unsigned short int cos_aepkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KEY NAMESPACE */
 
 #endif /* TYPES_H */
