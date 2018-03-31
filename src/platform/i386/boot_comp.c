@@ -38,6 +38,12 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	ptes  = mem_boot_alloc(nptes);
 	assert(ptes);
 
+	if (!uvm && range < COS_MEM_KERN_PA_SZ) {
+		printk("Insufficient %s memory! Available:%luMB, Required:%luMB\n", label, range >> 20, COS_MEM_KERN_PA_SZ >> 20);
+		printk("Reconfigure \"COS_MEM_KERN_PA_SZ\" to %luMB\n", range >> 20);
+		assert(0);
+	}
+
 	printk("\tCreating %d %s PTEs for PGD @ 0x%x from [%x,%x) to [%x,%x).\n", nptes, label,
 	       chal_pa2va((paddr_t)pgtbl), kern_vaddr, kern_vaddr + range, user_vaddr, user_vaddr + range);
 

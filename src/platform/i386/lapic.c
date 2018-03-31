@@ -215,6 +215,12 @@ lapic_intsrc_iter(unsigned char *madt)
 		}
 	}
 	printk("\tAPICs processed, %d cores\n", ncpus);
+
+	if (ncpus != NUM_CPU) {
+		printk("Number of LAPICs processed =%d not meeting the requirement = %d\n", ncpus, NUM_CPU);
+		printk("Please reconfigure NUM_CPU in Composite/HW-BIOS\n");
+		assert(0);
+	}
 }
 
 u32_t

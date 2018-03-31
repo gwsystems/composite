@@ -74,6 +74,8 @@ struct cos_compinfo {
 	/* the source of memory */
 	struct cos_compinfo *memsrc; /* might be self-referential */
 	struct cos_meminfo   mi;     /* only populated for the component with real memory */
+
+	unsigned long cap_lock, mem_lock; /* binary semaphores */
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,

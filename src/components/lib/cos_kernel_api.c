@@ -17,6 +17,36 @@
 #define printd(...)
 #endif
 
+
+/* perhaps templates? */
+static inline void
+cos_caplock_take(struct cos_compinfo *ci)
+{
+	while (!ps_cas(&ci->cap_lock, 0, 1)) ;
+}
+
+static inline void
+cos_caplock_give(struct cos_compinfo *ci)
+{
+	/* only give if you've taken! */
+	/* TODO: ps_cas outside of assert! */
+	assert(ps_cas(&ci->cap_lock, 1, 0));
+}
+
+static inline void
+cos_memlock_take(struct cos_compinfo *ci)
+{
+	while (!ps_cas(&ci->mem_lock, 0, 1)) ;
+}
+
+static inline void
+cos_memlock_give(struct cos_compinfo *ci)
+{
+	/* only give if you've taken! */
+	/* TODO: ps_cas outside of assert! */
+	assert(ps_cas(&ci->mem_lock, 1, 0));
+}
+
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz, pgtblcap_t pgtbl_cap)
 {
@@ -84,6 +114,10 @@ cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t cap
 
 	cos_vasfrontier_init(ci, heap_ptr);
 	cos_capfrontier_init(ci, cap_frontier);
+
+	/* binary semaphore! 0 = unlocked, 1 = locked! */
+	ci->cap_lock = 0;
+	ci->mem_lock = 0; /* FIXME: 2 locks? be very careful with deadlocks! */
 }
 
 /**************** [Memory Capability Allocation Functions] ***************/
@@ -101,6 +135,8 @@ __mem_bump_alloc(struct cos_compinfo *__ci, int km, int retype)
 	ci = __compinfo_metacap(__ci);
 	assert(ci && ci == __compinfo_metacap(__ci));
 
+	cos_memlock_take(ci);
+
 	if (km) {
 		ptr      = &ci->mi.kmem_ptr;
 		frontier = &ci->mi.kmem_frontier;
@@ -115,7 +151,7 @@ __mem_bump_alloc(struct cos_compinfo *__ci, int km, int retype)
 		vaddr_t ptr_tmp = *ptr, front_tmp = *frontier;
 
 		/* TODO: expand frontier if introspection says there is more memory */
-		if (ci->mi.untyped_ptr == ci->mi.untyped_frontier) return 0;
+		if (ci->mi.untyped_ptr == ci->mi.untyped_frontier) goto error;
 		/* this is the overall frontier, so we know we can use this value... */
 		ret = ps_faa(&ci->mi.untyped_ptr, RETYPE_MEM_SIZE);
 		/* failure here means that someone else already advanced the frontier/ptr */
@@ -127,10 +163,14 @@ __mem_bump_alloc(struct cos_compinfo *__ci, int km, int retype)
 	if (retype && (ret % RETYPE_MEM_SIZE == 0)) {
 		/* are we dealing with a kernel memory allocation? */
 		syscall_op_t op = km ? CAPTBL_OP_MEM_RETYPE2KERN : CAPTBL_OP_MEM_RETYPE2USER;
-		if (call_cap_op(ci->mi.pgtbl_cap, op, ret, 0, 0, 0)) return 0;
+		if (call_cap_op(ci->mi.pgtbl_cap, op, ret, 0, 0, 0)) goto error;
 	}
 
+	cos_memlock_give(ci);
 	return ret;
+error:
+	cos_memlock_give(ci);
+	return 0;
 }
 
 static vaddr_t
@@ -167,6 +207,7 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	/* do we manage our own resources, or does a separate meta? */
 	int     self_resources = (meta == ci);
 	capid_t frontier, range_frontier;
+	static unsigned long lock = 0;
 
 	capid_t captblcap;
 	capid_t captblid_add;
@@ -208,7 +249,7 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	assert(ci->cap_frontier <= frontier);
 
 	/* Common case: */
-	if (likely(ci->cap_frontier != frontier)) return 0;
+	if (likely(ci->cap_frontier != frontier)) goto done;
 
 	kmem = __kmem_bump_alloc(ci);
 	assert(kmem); /* FIXME: should have a failure semantics for capids */
@@ -226,8 +267,8 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	printd("__capid_captbl_check_expand->pre-captblactivate (%d)\n", CAPTBL_OP_CAPTBLACTIVATE);
 	/* captbl internal node allocated with the resource provider's captbls */
 	if (call_cap_op(meta->captbl_cap, CAPTBL_OP_CAPTBLACTIVATE, captblcap, meta->mi.pgtbl_cap, kmem, 1)) {
-		assert(0); /* race condition? */
-		return -1;
+	//	assert(0); /* race condition? */
+		goto error;
 	}
 	printd("__capid_captbl_check_expand->post-captblactivate\n");
 	/*
@@ -238,8 +279,8 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 
 	/* Construct captbl */
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_CONS, captblcap, captblid_add, 0, 0)) {
-		assert(0); /* race? */
-		return -1;
+	//	assert(0); /* race? */
+		goto error;
 	}
 
 	/* Success!  Advance the frontiers. */
@@ -247,24 +288,37 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	range_frontier = ps_faa(&ci->caprange_frontier, CAPTBL_EXPAND_SZ * 2);
 	ps_cas(&ci->cap_frontier, frontier, range_frontier);
 
+done:
 	return 0;
+
+error:
+	return -1;
 }
 
 static capid_t
 __capid_bump_alloc_generic(struct cos_compinfo *ci, capid_t *capsz_frontier, cap_sz_t sz)
 {
 	printd("__capid_bump_alloc_generic\n");
+	capid_t ret;
 
+	cos_caplock_take(ci);
 	/*
 	 * Do we need a new cache-line in the capability table for
 	 * this size of capability?
 	 */
 	if (*capsz_frontier % CAPMAX_ENTRY_SZ == 0) {
-		if (__capid_captbl_check_expand(ci)) return 0;
+		if (__capid_captbl_check_expand(ci)) goto error;
 		*capsz_frontier = ps_faa(&ci->cap_frontier, CAPMAX_ENTRY_SZ);
 	}
 
-	return ps_faa(capsz_frontier, sz);
+	ret = ps_faa(capsz_frontier, sz);
+	cos_caplock_give(ci);
+
+	return ret;
+error:
+	cos_caplock_give(ci);
+	return 0;
+
 }
 
 capid_t
