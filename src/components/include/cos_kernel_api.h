@@ -42,6 +42,7 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
+#include <ps_plat.h>
 /* Types mainly used for documentation */
 typedef capid_t sinvcap_t;
 typedef capid_t sretcap_t;
@@ -75,7 +76,7 @@ struct cos_compinfo {
 	struct cos_compinfo *memsrc; /* might be self-referential */
 	struct cos_meminfo   mi;     /* only populated for the component with real memory */
 
-	unsigned long cap_lock, mem_lock; /* binary semaphores */
+	struct ps_lock cap_lock, mem_lock; /* locks to protect the cap frontier and mem frontier updates */
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
