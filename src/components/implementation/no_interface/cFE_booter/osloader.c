@@ -39,11 +39,16 @@ launch_other_component(int child_id, int is_library)
 	cos_defcompinfo_childid_init(&child_dci, child_id);
 
 	struct sl_thd *t = sl_thd_initaep_alloc(&child_dci, NULL, 0, 0, 0);
+
+	/* We need to override the delegate thread id, so the cFE think it's this thread
+	 * Otherwise cFE application id detection is broken
+	 */
+	id_overrides[sl_thd_thdid(t)] = sl_thdid();
+
 	if (is_library) {
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, 1));
 		sl_thd_yield(sl_thd_thdid(t));
 	} else {
-		id_overrides[sl_thd_thdid(t)] = sl_thdid();
 		while (1) sl_thd_yield(sl_thd_thdid(t));
 	}
 }

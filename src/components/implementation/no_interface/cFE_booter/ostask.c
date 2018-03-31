@@ -34,6 +34,9 @@ timer_fn_1hz(void *d)
 ** Internal Task helper functions
 */
 
+/* We delegate the main thread of execution to a different thread
+ * (the main thread needs to run the scheduling loop)
+ */
 #define MAIN_DELEGATE_THREAD_PRIORITY 2
 
 /*  We need to keep track of this to check if register or delete handler calls are invalid */
@@ -150,6 +153,7 @@ uint32
 OS_TaskGetId(void)
 {
 	thdid_t real_id           = sl_thdid();
+	/* Sometimes we need to disguise a thread as another thread... */
 	thdid_t possible_override = id_overrides[real_id];
 	if (possible_override) return possible_override;
 	return real_id;
