@@ -871,7 +871,7 @@ test_run_mb(void)
 	test_thds();
 	test_thds_perf();
 
-//	test_mem();
+	test_mem();
 
 	test_async_endpoints();
 	test_async_endpoints_perf();

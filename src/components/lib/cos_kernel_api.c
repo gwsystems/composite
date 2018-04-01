@@ -87,6 +87,7 @@ cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t cap
 
 	ps_lock_init(&ci->cap_lock);
 	ps_lock_init(&ci->mem_lock);
+	ps_lock_init(&ci->va_lock);
 }
 
 /**************** [Memory Capability Allocation Functions] ***************/
@@ -331,7 +332,10 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 		pte_cap    = __capid_bump_alloc(meta, CAP_PGTBL);
 		ptemem_cap = __kmem_bump_alloc(meta);
 		/* TODO: handle the case of running out of memory */
-		if (pte_cap == 0 || ptemem_cap == 0) return 0;
+		if (pte_cap == 0 || ptemem_cap == 0) {
+			assert(0);
+			return 0;
+		}
 
 		/* PTE */
 		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, pte_cap, meta->mi.pgtbl_cap, ptemem_cap,
@@ -380,10 +384,11 @@ cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int lvl)
 
 	assert(lvl > 0);
 
-	if (ci->vasrange_frontier != round_to_pgd_page(mem_ptr)) return 0;
+	ps_lock_take(&ci->va_lock);
+	if (ci->vasrange_frontier != round_to_pgd_page(mem_ptr)) goto error;
 
 	cap = __bump_mem_expand_intern(ci, ci->pgtbl_cap, mem_ptr, 0);
-	if (!cap) return 0;
+	if (!cap) goto error;
 
 	while (1) {
 		vaddr_t tmp = ps_load(&ci->vasrange_frontier);
@@ -393,20 +398,34 @@ cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int lvl)
 		ps_cas(&ci->vasrange_frontier, tmp, tmp + PGD_RANGE);
 	}
 
+	ps_lock_release(&ci->va_lock);
+
 	return cap;
+error:
+	ps_lock_release(&ci->va_lock);
+	return 0;
 }
 
 int
 cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem)
 {
-	if (ci->vasrange_frontier != round_to_pgd_page(mem)) return -1;
+	ps_lock_take(&ci->va_lock);
+	if (ci->vasrange_frontier != round_to_pgd_page(mem)) goto error;
 
-	if ((unsigned long)ps_faa(&ci->vasrange_frontier, PGD_RANGE) > round_to_pgd_page(mem)) return -1;
-	if ((unsigned long)ps_faa(&ci->vas_frontier, PGD_RANGE) > round_to_pgd_page(mem)) return -1;
+	if ((unsigned long)ps_faa(&ci->vasrange_frontier, PGD_RANGE) > round_to_pgd_page(mem)) goto error;
+	if ((unsigned long)ps_faa(&ci->vas_frontier, PGD_RANGE) > round_to_pgd_page(mem)) goto error;
 
-	if (__bump_mem_expand_intern(ci, ci->pgtbl_cap, mem, intern) != intern) return 1;
+	if (__bump_mem_expand_intern(ci, ci->pgtbl_cap, mem, intern) != intern) {
+		ps_lock_release(&ci->va_lock);
+		return 1;
+	}
 
+	ps_lock_release(&ci->va_lock);
 	return 0;
+
+error:
+	ps_lock_release(&ci->va_lock);
+	return -1;
 }
 
 static void
@@ -421,9 +440,11 @@ __cos_meminfo_populate(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned lo
 	retaddr = __bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz);
 	assert(retaddr == untyped_ptr);
 
+	ps_lock_take(&ci->mem_lock);
 	/* untyped mem from current bump pointer */
 	start_addr = ps_faa(&(meta->mi.untyped_ptr), untyped_sz);
 	ps_faa(&(meta->mi.untyped_frontier), untyped_sz);
+	ps_lock_release(&ci->mem_lock);
 
 	for (addr = untyped_ptr; addr < untyped_ptr + untyped_sz; addr += PAGE_SIZE, start_addr += PAGE_SIZE) {
 		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMMOVE, start_addr, ci->mi.pgtbl_cap, addr, 0)) BUG();
@@ -475,7 +496,13 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 static vaddr_t
 __page_bump_valloc(struct cos_compinfo *ci, size_t sz)
 {
-	return __page_bump_mem_alloc(ci, &ci->vas_frontier, &ci->vasrange_frontier, sz);
+	vaddr_t ret_addr = 0;
+
+	ps_lock_take(&ci->va_lock);
+	ret_addr = __page_bump_mem_alloc(ci, &ci->vas_frontier, &ci->vasrange_frontier, sz);
+	ps_lock_release(&ci->va_lock);
+
+	return ret_addr;
 }
 
 static vaddr_t

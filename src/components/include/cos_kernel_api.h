@@ -76,7 +76,8 @@ struct cos_compinfo {
 	struct cos_compinfo *memsrc; /* might be self-referential */
 	struct cos_meminfo   mi;     /* only populated for the component with real memory */
 
-	struct ps_lock cap_lock, mem_lock; /* locks to protect the cap frontier and mem frontier updates */
+	struct ps_lock cap_lock, mem_lock; /* locks to make the cap frontier and mem frontier updates and expands atomic */
+	struct ps_lock va_lock; /* lock to make the vas frontier and bump expands for vas atomic */
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
