@@ -268,7 +268,7 @@ enum
 
 /* To get more memory, we need many PTE caps in the captbl. So give
  * multiple pages to it. 5 is enough for 512 MBs.*/
-#define BOOT_CAPTBL_NPAGES ((BOOT_CAPTBL_FREE + 127) / 128)
+#define BOOT_CAPTBL_NPAGES ((BOOT_CAPTBL_FREE + CAPTBL_EXPAND_SZ + CAPTBL_EXPAND_SZ * 2 - 1) / (CAPTBL_EXPAND_SZ * 2))
 
 #define BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE (captbl_tcap_offset(cos_cpuid()))
 #define BOOT_CAPTBL_SELF_INITTHD_CPU_BASE (captbl_thd_offset(cos_cpuid()))
