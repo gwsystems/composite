@@ -59,7 +59,8 @@ cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier)
 	if (cap_frontier < CAPTBL_EXPAND_SZ) {
 		ci->caprange_frontier = round_up_to_pow2(cap_frontier, CAPTBL_EXPAND_SZ);
 	} else {
-		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ);
+		/* caprange_frontier should be rounded up to CAPTBL_EXPAND_SZ * 2 */
+		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ * 2) - CAPTBL_EXPAND_SZ;
 	}
 	ci->cap64_frontier = cap_frontier;
 
