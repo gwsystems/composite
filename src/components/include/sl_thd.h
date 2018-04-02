@@ -35,6 +35,27 @@ struct event_info {
 
 struct sl_thd {
 	sl_thd_state_t       state;
+	/*
+	 * sched_blocked is used only for threads that are AEPs (call cos_rcv).
+	 * Kernel activations of these AEP threads cannot be fully controlled by the
+	 * scheduler and depends on the global quality of the TCap associated with this
+	 * AEP at any point.
+	 *
+	 * Therefore, this is really not a thread state that the scheduler controls!
+	 * if a thread has sched_blocked set, it doesn't mean that it isn't running!
+	 * But if the thread uses any of `sl` block/yield, this should first be reset and
+	 * the thread must be put back to run-queue before doing anything!!
+	 *
+	 * Another important detail is, SCHED_WAKEUP event from the kernel resets this.
+	 * If sched_blocked == 0, then SCHED WAKEUP does not touch any of the thread states!
+	 * This is because, a thread could have woken up without the scheduler's knowledge
+	 * through tcap mechanism and may have eventually tried to block/acquire a lock/futex
+	 * etc which would then block the thread at user-level. A SCHED WAKEUP external event
+	 * should not wake it up causing it to enter a critical section when it isn't meant to!
+	 *
+	 * This is the strongest motivation towards not having this as a Thread STATE!
+	 */
+	int                  sched_blocked;
 	sl_thd_property_t    properties;
 	struct cos_aep_info *aepinfo;
 	asndcap_t            sndcap;

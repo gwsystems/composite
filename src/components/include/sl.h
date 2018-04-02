@@ -239,6 +239,10 @@ cycles_t sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout);
  *           +ve - number of periods elapsed. (1 if it wokeup exactly at timeout = next period)
  */
 unsigned int sl_thd_block_periodic(thdid_t tid);
+/*
+ * block the thread for it's tcap expiry until next period if it's a thread with it's own tcap..
+ */
+void         sl_thd_block_expiry(struct sl_thd *t);
 int          sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t abs_timeout);
 int          sl_thd_sched_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t abs_timeout);
 
@@ -490,21 +494,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 * the inter-component delegations), block till next timeout and try again.
 	 */
 	if (unlikely(ret == -EPERM)) {
-		cycles_t abs_timeout = globals->timer_next;
-
-		assert(t != globals->sched_thd);
-
-		if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
-			sl_cs_enter();
-			if (likely(t->period)) abs_timeout = t->last_replenish + t->period;
-			/*
-			 * thread ran out of budget, cannot be scheduled until later.
-			 * could be RUNNABLE/WOKEN but cannot run right now!
-			 */
-			sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
-			sl_cs_exit();
-		}
-
+		sl_thd_block_expiry(t);
 		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok);
 	}
 
