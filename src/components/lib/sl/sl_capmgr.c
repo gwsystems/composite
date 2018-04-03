@@ -12,7 +12,6 @@
 #include <cos_kernel_api.h>
 #include "../../interface/capmgr/capmgr.h"
 
-extern struct sl_global sl_global_data[];
 extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_no_cs(struct sl_thd *t);
 
@@ -113,7 +112,7 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 
 		aep->thd = capmgr_thd_create_ext(comp->id, idx, &aep->tid);
 		if (!aep->thd) goto done;
-		aep->tc  = sl_thd_tcap(sl__globals()->sched_thd);
+		aep->tc  = sl_thd_tcap(sl__globals_cpu()->sched_thd);
 
 		t = sl_thd_alloc_init(aep, 0, 0);
 		sl_mod_thd_create(sl_mod_thd_policy_get(t));
@@ -330,7 +329,7 @@ sl_thd_retrieve(thdid_t tid)
 	aep.thd = capmgr_thd_retrieve(client, tid);
 	assert(aep.thd); /* this thread must be a child thread and capmgr must know it! */
 	aep.tid = tid;
-	aep.tc  = sl__globals()->sched_tcap;
+	aep.tc  = sl__globals_cpu()->sched_tcap;
 	t = sl_thd_init_ext_no_cs(&aep, NULL);
 
 	/* if (tid != sl_thdid()) sl_cs_exit(); */

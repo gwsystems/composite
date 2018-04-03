@@ -63,7 +63,7 @@ capmgr_comp_info_iter_cpu(void)
 
 			cap_info_initthd_init(rci, ithd, 0);
 		} else if (cos_spd_id() == spdid) {
-			cap_info_initthd_init(rci, sl__globals()->sched_thd, 0);
+			cap_info_initthd_init(rci, sl__globals_cpu()->sched_thd, 0);
 		}
 	} while (remaining > 0);
 
@@ -136,7 +136,7 @@ capmgr_comp_info_iter(void)
 
 			cap_info_initthd_init(rci, ithd, 0);
 		} else if (cos_spd_id() == spdid) {
-			cap_info_initthd_init(rci, sl__globals()->sched_thd, 0);
+			cap_info_initthd_init(rci, sl__globals_cpu()->sched_thd, 0);
 		}
 	} while (remaining > 0);
 

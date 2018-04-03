@@ -35,7 +35,7 @@ schedinit_child(void)
 		if (unlikely(t)) continue;
 
 		aep.tid = thdid;
-		aep.tc  = sl_thd_tcap(sl__globals()->sched_thd);
+		aep.tc  = sl_thd_tcap(sl__globals_cpu()->sched_thd);
 		t = sl_thd_init_ext(&aep, sched_child_initthd_get(ci));
 		if (!t) return -1;
 	} while (thdid);

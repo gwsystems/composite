@@ -11,7 +11,7 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 
-struct sl_global sl_global_data[NUM_CPU] CACHE_ALIGNED;
+struct sl_global_cpu sl_global_cpu_data[NUM_CPU] CACHE_ALIGNED;
 static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
 extern struct sl_thd *sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps);
 
@@ -22,8 +22,8 @@ extern struct sl_thd *sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndc
 int
 sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok)
 {
-	struct sl_thd    *t = sl_thd_curr();
-	struct sl_global *g = sl__globals();
+	struct sl_thd        *t = sl_thd_curr();
+	struct sl_global_cpu *g = sl__globals_cpu();
 	int ret;
 
 	/* recursive locks are not allowed */
@@ -44,8 +44,8 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 int
 sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched_tok_t tok)
 {
-	struct sl_thd    *t = sl_thd_curr();
-	struct sl_global *g = sl__globals();
+	struct sl_thd        *t = sl_thd_curr();
+	struct sl_global_cpu *g = sl__globals_cpu();
 
 	if (!ps_cas(&g->lock.u.v, cached->v, 0)) return 1;
 	/* let the scheduler thread decide which thread to run next, inheriting our budget/priority */
@@ -339,7 +339,7 @@ sl_thd_event_info_reset(struct sl_thd *t)
 static inline void
 sl_thd_event_enqueue(struct sl_thd *t, int blocked, cycles_t cycles, tcap_time_t timeout)
 {
-	struct sl_global *g = sl__globals();
+	struct sl_global_cpu *g = sl__globals_cpu();
 
 	if (ps_list_singleton(t, SL_THD_EVENT_LIST)) ps_list_head_append(&g->event_head, t, SL_THD_EVENT_LIST);
 
@@ -398,7 +398,7 @@ sl_timeout_period(microsec_t period)
 {
 	cycles_t p = sl_usec2cyc(period);
 
-	sl__globals()->period = p;
+	sl__globals_cpu()->period = p;
 	sl_timeout_relative(p);
 }
 
@@ -411,11 +411,11 @@ void
 sl_init(microsec_t period)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct sl_global       *g   = sl__globals();
+	struct sl_global_cpu   *g   = sl__globals_cpu();
 
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
-	memset(g, 0, sizeof(struct sl_global));
+	memset(g, 0, sizeof(struct sl_global_cpu));
 
 	g->cyc_per_usec    = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	g->lock.u.v        = 0;
@@ -442,8 +442,8 @@ sl_init(microsec_t period)
 static void
 sl_sched_loop_intern(int non_block)
 {
-	struct sl_global *g   = sl__globals();
-	rcv_flags_t       rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
+	struct sl_global_cpu *g   = sl__globals_cpu();
+	rcv_flags_t           rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
 
 	while (1) {
 		int pending;

@@ -11,7 +11,6 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 
-extern struct sl_global sl_global_data[];
 extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_no_cs(struct sl_thd *t);
 
@@ -140,8 +139,8 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 
 	/* NOTE: Cannot use stack-allocated cos_aep_info struct here */
 	if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data);
-	else                                 ret = cos_aep_tcap_alloc(aep, sl_thd_aepinfo(sl__globals()->sched_thd)->tc,
-			fn, data);
+	else                                 ret = cos_aep_tcap_alloc(aep, sl_thd_aepinfo(sl__globals_cpu()->sched_thd)->tc,
+			                                              fn, data);
 	if (ret) goto done;
 
 	t = sl_thd_alloc_init(aep, 0, prps);

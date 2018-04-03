@@ -9,7 +9,7 @@
 
 #define SL_FPRR_PERIOD_US_MIN  SL_MIN_PERIOD_US
 
-struct ps_list_head threads[NUM_CPU][SL_FPRR_NPRIOS];
+struct ps_list_head threads[NUM_CPU][SL_FPRR_NPRIOS] CACHE_ALIGNED;
 
 /* No RR yet */
 void

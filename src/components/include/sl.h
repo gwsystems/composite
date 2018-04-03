@@ -50,7 +50,7 @@ struct sl_cs {
 	} u;
 };
 
-struct sl_global {
+struct sl_global_cpu {
 	struct sl_cs lock;
 
 	thdcap_t       sched_thdcap;
@@ -67,12 +67,12 @@ struct sl_global {
 	struct ps_list_head event_head; /* all pending events for sched end-point */
 };
 
-extern struct sl_global sl_global_data[];
+extern struct sl_global_cpu sl_global_cpu_data[];
 
-static inline struct sl_global *
-sl__globals(void)
+static inline struct sl_global_cpu *
+sl__globals_cpu(void)
 {
-	return &(sl_global_data[cos_cpuid()]);
+	return &(sl_global_cpu_data[cos_cpuid()]);
 }
 
 static inline void
@@ -114,7 +114,7 @@ sl_thd_curr(void)
 static inline int
 sl_cs_owner(void)
 {
-	return sl__globals()->lock.u.s.owner == sl_thd_thdcap(sl_thd_curr());
+	return sl__globals_cpu()->lock.u.s.owner == sl_thd_thdcap(sl_thd_curr());
 }
 
 /* ...not part of the public API */
@@ -150,7 +150,7 @@ sl_cs_enter_nospin(void)
 
 	assert(t);
 	tok      = cos_sched_sync();
-	csi.v    = sl__globals()->lock.u.v;
+	csi.v    = sl__globals_cpu()->lock.u.v;
 	cached.v = csi.v;
 
 	if (unlikely(csi.s.owner)) {
@@ -158,7 +158,7 @@ sl_cs_enter_nospin(void)
 	}
 
 	csi.s.owner = sl_thd_thdcap(t);
-	if (!ps_cas(&sl__globals()->lock.u.v, cached.v, csi.v)) return 1;
+	if (!ps_cas(&sl__globals_cpu()->lock.u.v, cached.v, csi.v)) return 1;
 
 	return 0;
 }
@@ -201,7 +201,7 @@ sl_cs_exit(void)
 
 retry:
 	tok      = cos_sched_sync();
-	csi.v    = sl__globals()->lock.u.v;
+	csi.v    = sl__globals_cpu()->lock.u.v;
 	cached.v = csi.v;
 
 	if (unlikely(csi.s.contention)) {
@@ -209,7 +209,7 @@ retry:
 		return;
 	}
 
-	if (!ps_cas(&sl__globals()->lock.u.v, cached.v, 0)) goto retry;
+	if (!ps_cas(&sl__globals_cpu()->lock.u.v, cached.v, 0)) goto retry;
 }
 
 /*
@@ -272,13 +272,13 @@ void sl_thd_param_set(struct sl_thd *t, sched_param_t sp);
 static inline microsec_t
 sl_cyc2usec(cycles_t cyc)
 {
-	return cyc / sl__globals()->cyc_per_usec;
+	return cyc / sl__globals_cpu()->cyc_per_usec;
 }
 
 static inline cycles_t
 sl_usec2cyc(microsec_t usec)
 {
-	return usec * sl__globals()->cyc_per_usec;
+	return usec * sl__globals_cpu()->cyc_per_usec;
 }
 
 static inline cycles_t
@@ -310,14 +310,14 @@ void sl_timeout_period(cycles_t period);
 static inline cycles_t
 sl_timeout_period_get(void)
 {
-	return sl__globals()->period;
+	return sl__globals_cpu()->period;
 }
 
 static inline void
 sl_timeout_oneshot(cycles_t absolute_us)
 {
-	sl__globals()->timer_next   = absolute_us;
-	sl__globals()->timeout_next = tcap_cyc2time(absolute_us);
+	sl__globals_cpu()->timer_next   = absolute_us;
+	sl__globals_cpu()->timeout_next = tcap_cyc2time(absolute_us);
 }
 
 static inline void
@@ -371,7 +371,7 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
-	struct sl_global       *g   = sl__globals();
+	struct sl_global_cpu   *g   = sl__globals_cpu();
 
 	if (t->properties & SL_THD_PROPERTY_SEND) {
 		return cos_sched_asnd(t->sndcap, g->timeout_next, g->sched_rcv, tok);
@@ -415,7 +415,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	struct cos_compinfo *ci = &dci->ci;
 	struct sl_thd_policy *pt;
 	struct sl_thd *       t;
-	struct sl_global *    globals = sl__globals();
+	struct sl_global_cpu *globals = sl__globals_cpu();
 	sched_tok_t           tok;
 	cycles_t              now;
 	s64_t                 offset;
@@ -444,14 +444,14 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	if (likely(!to)) {
 		pt = sl_mod_schedule();
 		if (unlikely(!pt))
-			t = sl__globals()->idle_thd;
+			t = sl__globals_cpu()->idle_thd;
 		else
 			t = sl_mod_thd_get(pt);
 	}
 
 	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {
 		assert(t->period);
-		assert(sl_thd_tcap(t) != sl__globals()->sched_tcap);
+		assert(sl_thd_tcap(t) != sl__globals_cpu()->sched_tcap);
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
 			tcap_res_t currbudget = 0;
@@ -463,7 +463,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			if (!cycles_same(currbudget, t->budget, SL_CYCS_DIFF) && currbudget < t->budget) {
 				tcap_res_t transfer = t->budget - currbudget;
 
-				ret = cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals()->sched_tcap, transfer, t->prio);
+				ret = cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals_cpu()->sched_tcap, transfer, t->prio);
 			}
 
 			if (likely(ret == 0)) t->last_replenish = replenish;
