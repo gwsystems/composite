@@ -1,4 +1,4 @@
-C_OBJS=ninf.o
+C_OBJS=ninf.o util.o
 ASM_OBJS=
 COMPONENT=network_interface_nf.o
 INTERFACES=
