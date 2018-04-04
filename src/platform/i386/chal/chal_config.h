@@ -46,6 +46,7 @@ typedef enum {
 	HW_ID30,
 	HW_ID31,
 	HW_LAPIC_SPURIOUS,
+	HW_IPI_ASND    = 254, /* ipi interrupt for asnd */
 	HW_LAPIC_TIMER = 255, /* Local APIC TSC-DEADLINE mode - Timer interrupts */
 } hwid_t;
 
