@@ -81,7 +81,7 @@ $(COMPONENT): $(OBJS)
 
 %.o:%.c
 	$(info |     [CC]   $<: Compiling)
-	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
+	@$(MUSLCC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
        
 %.o:%.cc
 	$(info |     [CXX]  $<: Compiling)
@@ -97,7 +97,7 @@ $(COMPONENT): $(OBJS)
 %.d:%.c
 #	$(info |     [DEP]  Creating dependency file for $<)
 	@set -e; rm -f $@; \
-	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
+	$(MUSLCC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 	
