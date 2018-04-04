@@ -80,43 +80,14 @@ dpdk_init(void)
 	return 0;
 }
 
-int g_dbg = -1;
-void
-cos_init(void)
+static void
+ninf_bride(void)
 {
-	ninf_info = cos_compinfo_get(cos_defcompinfo_curr_get());
-	printc("dbg 0 ninf info %p\n", ninf_info);
-	int ret, i;
-	/* struct rte_mbuf *mbufs_init[BURST_SIZE]; */
 	struct rte_mbuf *mbufs[BURST_SIZE];
 	u8_t port;
 	int tot_rx = 0, tot_tx = 0;
 
-	ret = dpdk_init();
-	if (ret < 0) {
-		printc("DPDK EAL init return error %d \n", ret);
-		goto halt;
-	}
-	if (nb_ports < 2) {
-		printc("Too few ports\n");
-		goto halt;
-	}
-
-	/* if(rte_pktmbuf_alloc_bulk_cos(mbuf_pool, mbufs_init, BURST_SIZE)) { */
-	/* 	printc("Couldn't allocate packets\n"); */
-	/* 	goto halt; */
-	/* } */
-	check_all_ports_link_status(nb_ports, 3);
-
-	/* for(port = 0, i=0; i < N_LOOP; i++) { */
 	while (1) {
-		/* Current logic is written for packets to be
-		 * sent out one port and into the other on the same
-		 * network card.
-		 * TODO: write generic logic for testing
-		 * TODO: free pkts so buffers don't overflow
-		 * */
-		/* port = !port; */
 		for(port=0; port<2; port++) {
 			const u16_t nb_rx = rte_eth_rx_burst(port, 0, mbufs, BURST_SIZE);
 			tot_rx += nb_rx;
@@ -137,19 +108,63 @@ cos_init(void)
 				/* print_ether_addr(mbufs[0]); */
 				const u16_t nb_tx = rte_eth_tx_burst(!port, 0, mbufs, nb_rx);
 				assert(nb_tx != 0);
-				/* printc("Port %d sent %d packets d %d\n", port, nb_tx, g_dbg); */
-
-				/* printc("Port %d sent %d packets\n", !port, nb_tx); */
 				tot_tx += nb_tx;
-				/* printc("Total TX: %d \n", tot_tx); */
 			}
 		}
 	}
 	printc("going to SPIN\n");
+	SPIN();
+}
+
+static void
+ninf_pktgen_client(void)
+{
+	struct rte_mbuf *mbufs[BURST_SIZE];
+	u8_t port;
+	u16_t nb_rx, nb_tx;
+
+	while (1) {
+		for(port=0; port<2; port++) {
+			nb_rx = rte_eth_rx_burst(port, 0, mbufs, BURST_SIZE);
+			if (nb_rx) {
+				nb_tx = rte_eth_tx_burst(port, 0, mbufs, nb_rx);
+				assert(nb_tx != 0);
+			}
+		}
+	}
+	printc("going to SPIN\n");
+	SPIN();
+}
+
+void
+cos_init(void)
+{
+	int ret;
+	/* struct rte_mbuf *mbufs_init[BURST_SIZE]; */
+
+	ninf_info = cos_compinfo_get(cos_defcompinfo_curr_get());
+	ret = dpdk_init();
+	if (ret < 0) {
+		printc("DPDK EAL init return error %d \n", ret);
+		goto halt;
+	}
+	if (nb_ports < 2) {
+		printc("Too few ports\n");
+		goto halt;
+	}
+
+	/* if(rte_pktmbuf_alloc_bulk_cos(mbuf_pool, mbufs_init, BURST_SIZE)) { */
+	/* 	printc("Couldn't allocate packets\n"); */
+	/* 	goto halt; */
+	/* } */
+	check_all_ports_link_status(nb_ports, 3);
+
+	/* ninf_bride(); */
+	ninf_pktgen_client();
 
 halt:
+	printc("going to SPIN\n");
 	SPIN();
-
-	return;
+	return ;
 }
 
