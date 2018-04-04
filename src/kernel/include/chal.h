@@ -88,7 +88,7 @@ int chal_attempt_arcv(struct cap_arcv *arcv);
 int chal_attempt_ainv(struct async_cap *acap);
 
 /* IPI sending */
-void chal_send_ipi(int cpuid);
+void chal_send_ipi(int cpu_id);
 
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 void chal_idle(void);

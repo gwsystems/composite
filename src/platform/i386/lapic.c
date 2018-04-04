@@ -76,6 +76,8 @@ int apicids[NUM_CPU];
 #define LAPIC_ICR_STATUS         (1 << 12)
 #define LAPIC_ICR_INIT           0x500     /* INIT */
 #define LAPIC_ICR_SIPI           0x600     /* Startup IPI */
+#define LAPIC_ICR_FIXED          0x000     /* fixed IPI */
+#define LAPIC_IPI_ASND_VEC       HW_LAPIC_IPI_ASND /* interrupt vec for asnd ipi */
 
 #define IA32_MSR_TSC_DEADLINE 0x000006e0
 
@@ -447,6 +449,12 @@ lapic_ipi_send(u32_t dest, u32_t vect_flags)
 	lapic_read_reg(LAPIC_ICR);
 
 	return 0;
+}
+void
+lapic_asnd_ipi_send(const cpuid_t cpu_id)
+{
+	lapic_ipi_send(cpu_id, LAPIC_ICR_FIXED | LAPIC_IPI_ASND_VEC);
+	return;
 }
 
 /* HACK: assume that the HZ of the processor is equivalent to that on the computer used for compilation. */
