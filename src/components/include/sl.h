@@ -37,6 +37,7 @@
 #include <sl_plugins.h>
 #include <sl_thd.h>
 #include <sl_consts.h>
+#include <sl_xcpu.h>
 #include <heap.h>
 
 /* Critical section (cs) API to protect scheduler data-structures */

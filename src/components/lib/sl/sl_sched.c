@@ -7,13 +7,17 @@
 
 #include <ps.h>
 #include <sl.h>
+#include <sl_xcpu.h>
 #include <sl_mod_policy.h>
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
+#include <bitmap.h>
 
+struct sl_global sl_global_data;
 struct sl_global_cpu sl_global_cpu_data[NUM_CPU] CACHE_ALIGNED;
 static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
 extern struct sl_thd *sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps);
+extern int sl_xcpu_process_no_cs(void);
 
 /*
  * These functions are removed from the inlined fast-paths of the
@@ -407,12 +411,42 @@ void
 sl_idle(void *d)
 { while (1) ; }
 
+/* call from the user? */
+static void
+sl_global_init(u32_t *cpu_bmp)
+{
+	struct sl_global *g = sl__globals();
+	unsigned int i = 0;
+
+	memset(g, 0, sizeof(struct sl_global));
+
+	for (i = 0; i < NUM_CPU; i++) {
+		if (!bitmap_check(cpu_bmp, i)) continue;
+
+		bitmap_set(g->cpu_bmp, i);
+		ck_ring_init(sl__ring(i), SL_XCPU_RING_SIZE);
+	}
+}
+
 void
 sl_init(microsec_t period)
 {
+	int i;
+	static unsigned long first = 1, init_done = 0;
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
 	struct sl_global_cpu   *g   = sl__globals_cpu();
+	u32_t cpu_bmp[(NUM_CPU + 7)/8] = { 0 }; /* TODO! pass from the user! */
 
+	if (ps_cas(&first, 1, 0)) {
+		bitmap_set_contig(cpu_bmp, 0, NUM_CPU, 1);
+		sl_global_init(cpu_bmp);
+
+		ps_faa(&init_done, 1);
+	} else {
+		/* wait until global ring buffers are initialized correctly! */
+		while (!ps_load(&init_done)) ;
+	}
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
 	memset(g, 0, sizeof(struct sl_global_cpu));
@@ -435,6 +469,17 @@ sl_init(microsec_t period)
 
 	g->idle_thd        = sl_thd_alloc(sl_idle, NULL);
 	assert(g->idle_thd);
+
+	for (i = 0; i < NUM_CPU; i++) {
+		asndcap_t snd;
+
+		if (i == cos_cpuid()) continue;
+		if (!bitmap_check(sl__globals()->cpu_bmp, i)) continue;
+
+		snd = cos_asnd_alloc(ci, BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(i), ci->captbl_cap);
+		assert(snd);
+		sl__globals()->xcpu_asnd[cos_cpuid()][i] = snd;
+	}
 
 	return;
 }
@@ -479,7 +524,7 @@ sl_sched_loop_intern(int non_block)
 			sl_thd_event_enqueue(t, blocked, cycles, thd_timeout);
 
 pending_events:
-			if (ps_list_head_empty(&g->event_head)) continue;
+			if (ps_list_head_empty(&g->event_head) && ck_ring_size(sl__ring_curr()) == 0) continue;
 
 			/*
 			 * receiving scheduler notifications is not in critical section mainly for
@@ -514,6 +559,9 @@ pending_events:
 					sl_thd_wakeup_no_cs(t);
 				}
 			}
+
+			/* process cross-core requests */
+			sl_xcpu_process_no_cs();
 
 			sl_cs_exit();
 		} while (pending > 0);

@@ -44,7 +44,7 @@ done:
 	return t;
 }
 
-static struct sl_thd *
+struct sl_thd *
 sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();

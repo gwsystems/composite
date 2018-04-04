@@ -248,3 +248,6 @@ struct cos_component_information cos_comp_info __attribute__((
                          .cos_poly = {
                            0,
                          }};
+
+/* FIXME: ck linking says undefined. checked online and made sure -fno-PIC is set through --without-pic configuration but this still occurs. */
+void *_GLOBAL_OFFSET_TABLE_ = NULL;

@@ -10,7 +10,7 @@ SIMPLE_STKLIB=simple_stklib.o
 CINC_ENV=$(CINC)
 export CINC_ENV
 
-.PHONY: all sl ps
+.PHONY: all sl ps ck
 all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl
 
 # we have to compile these without dietlibc so that there are not
@@ -49,6 +49,7 @@ distclean:
 # with a new shell.
 	make -C posix clean
 	make -C libcxx clean
+	make -C ck uninstall
 
 musl:
 	cd musl-1.1.11; ./configure "CFLAGS=-m32 -O3" "LDFLAGS=-Wl,-melf_i386" --disable-shared --target=i386; cd ..
@@ -59,7 +60,11 @@ ps:
 	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
 
 
-init: clean distclean musl ps all
+ck:
+	make -C ck all
+	make -C ck install
+
+init: clean distclean musl ck ps all
 # keep the following commands in one line. Same as above.
 	make -C posix
 	make -C libcxx
