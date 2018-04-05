@@ -57,7 +57,7 @@ sched_thd_create_cserialized(thdclosure_index_t idx)
 }
 
 thdid_t
-sched_aep_create_cserialized(arcvcap_t *extrcv, int *unused, thdclosure_index_t idx, int owntc, cos_aepkey_t key)
+sched_aep_create_cserialized(arcvcap_t *extrcv, int *unused, thdclosure_index_t idx, int owntc, cos_channelkey_t key)
 {
 	spdid_t c = cos_inv_token();
 	struct cos_defcompinfo *dci;

@@ -104,7 +104,7 @@ err:
 }
 
 thdcap_t
-capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, int owntc, cos_aepkey_t key)
+capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, int owntc, cos_channelkey_t key)
 {
 	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -167,7 +167,7 @@ err:
 }
 
 thdcap_t
-capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, thdclosure_index_t tidx, u32_t owntc_aepkey)
+capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, thdclosure_index_t tidx, u32_t owntc_chkey)
 {
 	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -176,8 +176,8 @@ capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s,
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
 	struct sl_thd          *t       = NULL, *rinit = NULL;
 	thdcap_t                thdcap  = 0;
-	int                     owntc   = (int)(owntc_aepkey >> 16);
-	cos_aepkey_t            key     = (cos_aepkey_t)((owntc_aepkey << 16) >> 16);
+	int                     owntc   = (int)(owntc_chkey >> 16);
+	cos_channelkey_t        key     = (cos_channelkey_t)((owntc_chkey << 16) >> 16);
 	arcvcap_t               srcrcv, dstrcv;
 	tcap_t                  tc;
 	int                     ret;
@@ -233,7 +233,7 @@ err:
 }
 
 thdcap_t
-capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t tidx, int owntc, cos_aepkey_t key)
+capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t tidx, int owntc, cos_channelkey_t key)
 {
 	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -368,7 +368,7 @@ capmgr_asnd_create(spdid_t s, thdid_t tid /* thd with rcvcap */)
 }
 
 asndcap_t
-capmgr_asnd_key_create(cos_aepkey_t key)
+capmgr_asnd_key_create(cos_channelkey_t key)
 {
 	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -378,7 +378,7 @@ capmgr_asnd_key_create(cos_aepkey_t key)
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!key) return 0;
-	snd = cap_aepkey_asnd_get(key);
+	snd = cap_channelaep_asnd_get(key);
 	if (!snd) return 0;
 	sndret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, snd);
 

@@ -72,18 +72,18 @@ cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, 
 	return &capci[spdid];
 }
 
-struct cap_aepkey_info *
-cap_aepkey_get(cos_aepkey_t key)
+struct cap_channelaep_info *
+cap_channelaep_get(cos_channelkey_t key)
 {
 	if (key == 0) return NULL;
 
-	return &cap_aepkeys[key - 1];
+	return &cap_channelaeps[key - 1];
 }
 
 void
-cap_aepkey_set(cos_aepkey_t key, struct sl_thd *t)
+cap_channelaep_set(cos_channelkey_t key, struct sl_thd *t)
 {
-	struct cap_aepkey_info *ak = cap_aepkey_get(key);
+	struct cap_channelaep_info *ak = cap_channelaep_get(key);
 
 	if (!ak || ak->slaep) return;
 	ak->slaep  = t;
@@ -91,10 +91,10 @@ cap_aepkey_set(cos_aepkey_t key, struct sl_thd *t)
 }
 
 asndcap_t
-cap_aepkey_asnd_get(cos_aepkey_t key)
+cap_channelaep_asnd_get(cos_channelkey_t key)
 {
-	struct cos_compinfo    *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	struct cap_aepkey_info *ak     = cap_aepkey_get(key);
+	struct cos_compinfo        *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	struct cap_channelaep_info *ak     = cap_channelaep_get(key);
 
 	if (!ak) return 0;
 	if (ak->sndcap) return ak->sndcap;
@@ -105,7 +105,7 @@ cap_aepkey_asnd_get(cos_aepkey_t key)
 }
 
 struct sl_thd *
-cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_aepkey_t key)
+cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_channelkey_t key)
 {
 	int off;
 
@@ -115,20 +115,20 @@ cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_aepkey_t key)
 
 	off = ps_faa((unsigned long *)&(rci->thd_used), 1);
 	rci->thdinfo[off] = t;
-	cap_aepkey_set(key, t);
+	cap_channelaep_set(key, t);
 
 	return t;
 }
 
 struct sl_thd *
-cap_info_initthd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_aepkey_t key)
+cap_info_initthd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_channelkey_t key)
 {
 	if (!rci || !cap_info_init_check(rci)) return NULL;
 	if (rci->thd_used >= CAP_INFO_COMP_MAX_THREADS) return NULL;
 	if (!t) return NULL;
 
 	rci->thdinfo[0] = t;
-	cap_aepkey_set(key, t);
+	cap_channelaep_set(key, t);
 
 	return t;
 }
@@ -147,7 +147,7 @@ cap_info_init(void)
 	cap_comp_count = 0;
 	memset(cap_info_schedbmp, 0, sizeof(u32_t) * MAX_NUM_COMP_WORDS);
 	memset(capci, 0, sizeof(struct cap_comp_info)*(MAX_NUM_COMPS+1));
-	memset(cap_aepkeys, 0, sizeof(struct cap_aepkey_info) * CAPMGR_AEPKEYS_MAX);
+	memset(cap_channelaeps, 0, sizeof(struct cap_channelaep_info) * CAPMGR_AEPKEYS_MAX);
 }
 
 static inline vaddr_t
