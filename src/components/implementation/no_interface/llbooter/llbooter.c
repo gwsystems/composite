@@ -287,6 +287,7 @@ boot_comp_name_parse(spdid_t s, const char *name)
 		root_spdid[cos_cpuid()] = s;
 	} else if (!capmgr_spdid && strcmp(name, BOOT_CAPMGR) == 0) {
 		capmgr_spdid = s;
+		si->flags |= COMP_FLAG_SCHED;
 		si->flags |= COMP_FLAG_CAPMGR;
 	}
 
@@ -407,6 +408,7 @@ boot_child_info_print(void)
 void
 boot_parse_init_args(void)
 {
+	struct comp_sched_info *cap_si = boot_spd_comp_schedinfo_get(capmgr_spdid);
 	int i = 1;
 
 	for (; i <= num_cobj; i++) {
@@ -420,6 +422,11 @@ boot_parse_init_args(void)
 		bitmap_set(schedspdsi->child_bitmap, spdid - 1);
 		schedspdsi->flags |= COMP_FLAG_SCHED;
 		schedspdsi->num_child++;
+	}
+
+	if (capmgr_spdid && !cap_si->flags) {
+		cap_si->flags |= COMP_FLAG_SCHED;
+		cap_si->flags |= COMP_FLAG_CAPMGR;
 	}
 }
 

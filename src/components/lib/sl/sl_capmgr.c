@@ -11,9 +11,28 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 #include "../../interface/capmgr/capmgr.h"
+#include <bitmap.h>
 
 extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_no_cs(struct sl_thd *t);
+
+void
+sl_xcpu_asnd_alloc(void)
+{
+	int i;
+
+	for (i = 0; i < NUM_CPU; i++) {
+		asndcap_t snd;
+		thdid_t tid;
+
+		if (i == cos_cpuid()) continue;
+		if (!bitmap_check(sl__globals()->cpu_bmp, i)) continue;
+
+		snd = capmgr_asnd_rcv_create(BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(i));
+		assert(snd);
+		sl__globals()->xcpu_asnd[cos_cpuid()][i] = snd;
+	}
+}
 
 struct sl_thd *
 sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps)

@@ -13,6 +13,7 @@ thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosur
 thdcap_t  capmgr_thd_retrieve(spdid_t child, thdid_t t);
 thdcap_t  capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid);
 asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t);
+asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv);
 asndcap_t capmgr_asnd_key_create(cos_channelkey_t key);
 
 #endif /* CAPMGR_H */

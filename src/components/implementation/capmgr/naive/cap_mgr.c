@@ -342,7 +342,6 @@ err:
 	return 0;
 }
 
-/* TODO: use thdid? or rcvcap? */
 asndcap_t
 capmgr_asnd_create(spdid_t s, thdid_t tid /* thd with rcvcap */)
 {
@@ -361,6 +360,25 @@ capmgr_asnd_create(spdid_t s, thdid_t tid /* thd with rcvcap */)
 	if (!cap_info_is_sched(cur) && cur != s) return 0;
 
 	snd = cos_asnd_alloc(cap_ci, sl_thd_rcvcap(ti), cap_ci->captbl_cap);
+	if (!snd) return 0;
+	sndret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, snd);
+
+	return sndret;
+}
+
+asndcap_t
+capmgr_asnd_rcv_create(arcvcap_t rcv)
+{
+	spdid_t                 cur     = cos_inv_token();
+	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
+	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
+	asndcap_t               snd     = 0, sndret = 0;
+
+	if (!rc || !cap_info_init_check(rc)) return 0;
+	if (!cap_info_is_sched(cur)) return 0;
+
+	snd = cos_asnd_alloc(cap_ci, rcv, cap_info_ci(rc)->captbl_cap);
 	if (!snd) return 0;
 	sndret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, snd);
 

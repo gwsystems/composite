@@ -10,9 +10,29 @@
 #include <sl_mod_policy.h>
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
+#include <bitmap.h>
 
 extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_no_cs(struct sl_thd *t);
+
+void
+sl_xcpu_asnd_alloc(void)
+{
+        struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+        struct cos_compinfo    *ci  = cos_compinfo_get(dci);
+	int i;
+
+	for (i = 0; i < NUM_CPU; i++) {
+		asndcap_t snd;
+
+		if (i == cos_cpuid()) continue;
+		if (!bitmap_check(sl__globals()->cpu_bmp, i)) continue;
+
+		snd = cos_asnd_alloc(ci, BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(i), ci->captbl_cap);
+		assert(snd);
+		sl__globals()->xcpu_asnd[cos_cpuid()][i] = snd;
+	}
+}
 
 struct sl_thd *
 sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps)

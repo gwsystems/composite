@@ -323,7 +323,7 @@ boot_newcomp_init_caps(spdid_t spdid)
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, boot_info, BOOT_CAPTBL_SELF_INITHW_BASE);
 	assert(ret == 0);
 
-	if (capmgr_spdid && (compsi->flags & COMP_FLAG_SCHED)) {
+	if (!capmgr_spdid || (compsi->flags & COMP_FLAG_SCHED)) {
 		/*
 		 * FIXME:
 		 * This is an ugly hack to allow components to do cos_introspect()
@@ -344,8 +344,6 @@ boot_newcomp_init_caps(spdid_t spdid)
 		 * if there is no capmgr in the system, allow every component to manage its resources.
 		 */
 		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_PT, boot_info, ci->pgtbl_cap);
-		assert(ret == 0);
-		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_CT, boot_info, ci->captbl_cap);
 		assert(ret == 0);
 		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_COMP, boot_info, ci->comp_cap);
 		assert(ret == 0);

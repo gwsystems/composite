@@ -18,6 +18,7 @@ struct sl_global_cpu sl_global_cpu_data[NUM_CPU] CACHE_ALIGNED;
 static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
 extern struct sl_thd *sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps);
 extern int sl_xcpu_process_no_cs(void);
+extern void sl_xcpu_asnd_alloc(void);
 
 /*
  * These functions are removed from the inlined fast-paths of the
@@ -470,16 +471,7 @@ sl_init(microsec_t period)
 	g->idle_thd        = sl_thd_alloc(sl_idle, NULL);
 	assert(g->idle_thd);
 
-	for (i = 0; i < NUM_CPU; i++) {
-		asndcap_t snd;
-
-		if (i == cos_cpuid()) continue;
-		if (!bitmap_check(sl__globals()->cpu_bmp, i)) continue;
-
-		snd = cos_asnd_alloc(ci, BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(i), ci->captbl_cap);
-		assert(snd);
-		sl__globals()->xcpu_asnd[cos_cpuid()][i] = snd;
-	}
+	sl_xcpu_asnd_alloc();
 
 	return;
 }
