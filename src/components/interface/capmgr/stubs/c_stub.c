@@ -4,9 +4,9 @@
 #include <cos_defkernel_api.h>
 
 thdcap_t capmgr_initthd_create_cserialized(thdid_t *tid, int *unused, spdid_t s);
-thdcap_t capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, int owntc, cos_aepkey_t key);
+thdcap_t capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, int owntc, cos_channelkey_t key);
 thdcap_t capmgr_thd_create_cserialized(thdid_t *tid, int *unused, thdclosure_index_t idx);
-thdcap_t capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t idx, int owntc, cos_aepkey_t key);
+thdcap_t capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t idx, int owntc, cos_channelkey_t key);
 thdcap_t capmgr_thd_create_ext_cserialized(thdid_t *tid, int *unused, spdid_t s, thdclosure_index_t idx);
 thdcap_t capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, thdclosure_index_t idx, u32_t owntc_aepkey);
 thdcap_t capmgr_thd_retrieve_next_cserialized(thdid_t *tid, int *unused, spdid_t s);
@@ -47,7 +47,7 @@ capmgr_thd_create_ext(spdid_t child, thdclosure_index_t idx, thdid_t *tid)
 }
 
 thdcap_t
-capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc, cos_aepkey_t key)
+capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc, cos_channelkey_t key)
 {
 	u32_t tcrcvret = 0;
 	thdcap_t thd = 0;
@@ -72,7 +72,7 @@ capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int 
 }
 
 thdcap_t
-capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_aepkey_t key, arcvcap_t *extrcv)
+capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, arcvcap_t *extrcv)
 {
 	u32_t drcvtidret = 0;
 	u32_t tcrcvret = 0;
@@ -95,7 +95,7 @@ capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *aep, thdclosure_index_
 }
 
 thdcap_t
-capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_aepkey_t key, asndcap_t *snd)
+capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, asndcap_t *snd)
 {
 	thdcap_t thd = 0;
 	u32_t sndtidret = 0, rcvtcret = 0;
@@ -115,8 +115,8 @@ capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_ae
 	return aep->thd;
 }
 
-int memmgr_shared_page_allocn_cserialized(vaddr_t *pgaddr, int *unused, int num_pages);
-int memmgr_shared_page_map_cserialized(vaddr_t *pgaddr, int *unused, int id);
+cbuf_t memmgr_shared_page_allocn_cserialized(vaddr_t *pgaddr, int *unused, unsigned long num_pages);
+unsigned long memmgr_shared_page_map_cserialized(vaddr_t *pgaddr, int *unused, cbuf_t id);
 
 vaddr_t
 memmgr_heap_page_alloc(void)
@@ -124,22 +124,22 @@ memmgr_heap_page_alloc(void)
 	return memmgr_heap_page_allocn(1);
 }
 
-int
-memmgr_shared_page_allocn(int num_pages, vaddr_t *pgaddr)
+cbuf_t
+memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr)
 {
 	int unused = 0;
 
 	return memmgr_shared_page_allocn_cserialized(pgaddr, &unused, num_pages);
 }
 
-int
+cbuf_t
 memmgr_shared_page_alloc(vaddr_t *pgaddr)
 {
 	return memmgr_shared_page_allocn(1, pgaddr);
 }
 
-int
-memmgr_shared_page_map(int id, vaddr_t *pgaddr)
+unsigned long
+memmgr_shared_page_map(cbuf_t id, vaddr_t *pgaddr)
 {
 	int unused = 0;
 

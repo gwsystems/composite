@@ -33,7 +33,7 @@ struct sl_xcpu_request {
 			cos_thd_fn_t            fn;
 			void                   *data;
 			int                     own_tcap;
-			cos_aepkey_t            key;
+			cos_channelkey_t        key;
 		} sl_xcpu_req_aep_alloc;
 		struct {
 			thdclosure_index_t      idx; /* TODO: create thread in another component ? */
@@ -42,7 +42,7 @@ struct sl_xcpu_request {
 		struct {
 			thdclosure_index_t      idx;
 			int                     own_tcap;
-			cos_aepkey_t            key;
+			cos_channelkey_t        key;
 			struct cos_defcompinfo *dci;
 		} sl_xcpu_req_aep_alloc_ext;
 		struct {
@@ -101,9 +101,9 @@ sl__ring_buffer_curr(void)
 /* perhaps move these to sl.h? */
 int sl_xcpu_thd_alloc(cpuid_t cpu, cos_thd_fn_t fn, void *data, sched_param_t params[]);
 int sl_xcpu_thd_alloc_ext(cpuid_t cpu, struct cos_defcompinfo *dci, thdclosure_index_t idx, sched_param_t params[]);
-int sl_xcpu_aep_alloc(cpuid_t cpu, cos_thd_fn_t fn, void *data, int own_tcap, cos_aepkey_t key, sched_param_t params[]);
-int sl_xcpu_aep_alloc_ext(cpuid_t cpu, struct cos_defcompinfo *dci, thdclosure_index_t idx, int own_tcap, cos_aepkey_t key, sched_param_t params[]);
-int sl_xcpu_initaep_alloc(cpuid_t cpu, struct cos_defcompinfo *dci, int own_tcap, cos_aepkey_t key, sched_param_t params[]);
-int sl_xcpu_initaep_alloc_ext(cpuid_t cpu, struct cos_defcompinfo *dci, struct cos_defcompinfo *sched, int own_tcap, cos_aepkey_t key, sched_param_t params[]);
+int sl_xcpu_aep_alloc(cpuid_t cpu, cos_thd_fn_t fn, void *data, int own_tcap, cos_channelkey_t key, sched_param_t params[]);
+int sl_xcpu_aep_alloc_ext(cpuid_t cpu, struct cos_defcompinfo *dci, thdclosure_index_t idx, int own_tcap, cos_channelkey_t key, sched_param_t params[]);
+int sl_xcpu_initaep_alloc(cpuid_t cpu, struct cos_defcompinfo *dci, int own_tcap, cos_channelkey_t key, sched_param_t params[]);
+int sl_xcpu_initaep_alloc_ext(cpuid_t cpu, struct cos_defcompinfo *dci, struct cos_defcompinfo *sched, int own_tcap, cos_channelkey_t key, sched_param_t params[]);
 
 #endif /* SL_XCPU_H */

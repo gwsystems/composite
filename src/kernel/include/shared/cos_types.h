@@ -473,6 +473,6 @@ typedef unsigned int isolation_level_t;
 #define MEMMGR_MAX_SHMEM_REGIONS 1024
 #define CAPMGR_AEPKEYS_MAX       (1<<15)
 
-typedef unsigned short int cos_aepkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KEY NAMESPACE */
+typedef unsigned short int cos_channelkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KEY NAMESPACE */
 
 #endif /* TYPES_H */
