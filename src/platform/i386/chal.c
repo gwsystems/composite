@@ -44,6 +44,7 @@ void
 chal_send_ipi(int cpu_id)
 {
 	lapic_asnd_ipi_send(cpu_id);
+	return;
 }
 
 void

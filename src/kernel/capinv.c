@@ -82,7 +82,6 @@ done:
 	return 0;
 }
 
-void cos_cap_ipi_handling(void);
 void
 cos_cap_ipi_handling(void)
 {
@@ -720,7 +719,11 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 	/* IPI notification to another core */
 	if (asnd->arcv_cpuid != curr_cpu) {
 		assert(!srcv);
-		return cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
+
+		ret = cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
+		if (unlikely(ret < 0)) return ret;
+
+		return cap_thd_switch(regs, thd, thd, ci, cos_info);
 	}
 	arcv = __cap_asnd_to_arcv(asnd);
 	if (unlikely(!arcv)) return -EINVAL;
