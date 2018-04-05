@@ -16,9 +16,10 @@ extern u32_t cap_info_schedbmp[];
 
 /* shared memory region information */
 struct cap_shmem_glb_info {
-	cbuf_t        free_region_id; /* free global identifier */
-	unsigned long total_pages;    /* total number of pages allocated in all shared-mem regions */
-	unsigned long region_npages[MEMMGR_MAX_SHMEM_REGIONS]; /* number of pages allocated per region with array index as the shared-memory identifier */
+	cbuf_t           free_region_id; /* free global identifier */
+	unsigned long    total_pages;    /* total number of pages allocated in all shared-mem regions */
+	unsigned long    region_npages[MEMMGR_MAX_SHMEM_REGIONS]; /* number of pages allocated per region with array index as the shared-memory identifier */
+	cos_channelkey_t region_keys[MEMMGR_MAX_SHMEM_REGIONS]; /* if key > 0, be able to map shmem region with key for a static namespace == key!! */
 };
 
 struct cap_channelaep_info {
@@ -62,10 +63,12 @@ struct sl_thd        *cap_info_initthd(struct cap_comp_info *r);
 unsigned int          cap_info_count(void);
 void                  cap_info_init(void);
 
-cbuf_t        cap_shmem_region_alloc(struct cap_shmem_info *rcur, unsigned long num_pages);
-unsigned long cap_shmem_region_map(struct cap_shmem_info *rcur, cbuf_t id);
-vaddr_t       cap_shmem_region_vaddr(struct cap_shmem_info *rsh, cbuf_t id);
-void          cap_shmem_region_vaddr_set(struct cap_shmem_info *rsh, cbuf_t id, vaddr_t addr);
+cbuf_t   cap_shmem_region_alloc(struct cap_shmem_info *rcur, cos_channelkey_t key, unsigned long num_pages);
+cbuf_t   cap_shmem_region_map(struct cap_shmem_info *rcur, cbuf_t id, cos_channelkey_t key, unsigned long *num_pages);
+vaddr_t  cap_shmem_region_vaddr(struct cap_shmem_info *rsh, cbuf_t id);
+void     cap_shmem_region_vaddr_set(struct cap_shmem_info *rsh, cbuf_t id, vaddr_t addr);
+cbuf_t   cap_shmem_region_find(cos_channelkey_t key);
+int      cap_shmem_region_key_set(cbuf_t id, cos_channelkey_t key);
 
 struct cap_channelaep_info *cap_info_channelaep_get(cos_channelkey_t key);
 void                        cap_channelaep_set(cos_channelkey_t key, struct sl_thd *t);

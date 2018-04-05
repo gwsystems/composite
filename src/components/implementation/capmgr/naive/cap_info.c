@@ -190,8 +190,38 @@ __cap_cos_shared_page_allocn(struct cos_compinfo *rci, unsigned long num_pages, 
 	return 0;
 }
 
+int
+cap_shmem_region_key_set(cbuf_t id, cos_channelkey_t key)
+{
+	struct cap_shmem_glb_info *rglb = __cap_info_shmglb_info();
+
+	if (id > rglb->free_region_id) return -1;
+	if (rglb->region_npages[id - 1]) return -1;
+
+	if (!ps_cas((unsigned long *)&rglb->region_keys[id - 1], 0, key)) return -1;
+
+	return 0;
+}
+
 cbuf_t
-cap_shmem_region_alloc(struct cap_shmem_info *rsh, unsigned long num_pages)
+cap_shmem_region_find(cos_channelkey_t key)
+{
+	struct cap_shmem_glb_info *rglb = __cap_info_shmglb_info();
+	cbuf_t id = 0;
+	cbuf_t i, free = rglb->free_region_id;
+
+	for (i = 1; i <= free; i++) {
+		if (ps_load((unsigned long *)&rglb->region_keys[i - 1]) == key) {
+			id = i;
+			break;
+		}
+	}
+
+	return id;
+}
+
+cbuf_t
+cap_shmem_region_alloc(struct cap_shmem_info *rsh, cos_channelkey_t key, unsigned long num_pages)
 {
 	struct cos_compinfo       *rsh_ci    = cap_info_shmem_ci(rsh);
 	struct cap_shmem_glb_info *rglb      = __cap_info_shmglb_info();
@@ -210,6 +240,7 @@ cap_shmem_region_alloc(struct cap_shmem_info *rsh, unsigned long num_pages)
 	/* check id unused */
 	if (__cap_info_shm_capmgr_vaddr(fid)) goto done;
 	if (cap_shmem_region_vaddr(rsh, fid)) goto done;
+	if (key && cap_shmem_region_key_set(fid, key)) goto done;
 
 	rglb->region_npages[fid - 1] = num_pages;
 	ps_faa(&(rglb->total_pages), num_pages);
@@ -226,26 +257,35 @@ done:
 	return alloc_id;
 }
 
-unsigned long
-cap_shmem_region_map(struct cap_shmem_info *rsh, cbuf_t id)
+cbuf_t
+cap_shmem_region_map(struct cap_shmem_info *rsh, cbuf_t id, cos_channelkey_t key, unsigned long *num_pages)
 {
 	struct cos_compinfo       *rsh_ci    = cap_info_shmem_ci(rsh);
 	struct cap_shmem_glb_info *rglb      = __cap_info_shmglb_info();
-	vaddr_t                    cap_addr  = __cap_info_shm_capmgr_vaddr(id), comp_addr;
-	unsigned long              num_pages = 0;
+	vaddr_t                    cap_addr  = 0, comp_addr;
+	unsigned long              npages    = 0;
 	int                        ret       = -1;
 
 	if (!rsh) return 0;
+	if (key) id = cap_shmem_region_find(key);
 	if (!id || id > MEMMGR_MAX_SHMEM_REGIONS) return 0;
-	if (!cap_addr || cap_shmem_region_vaddr(rsh, id)) return 0;
-	num_pages = rglb->region_npages[id - 1];
-	if ((rsh->total_pages + num_pages) * PAGE_SIZE > MEMMGR_COMP_MAX_SHMEM) return 0;
+	cap_addr  = __cap_info_shm_capmgr_vaddr(id);
+	if (!cap_addr) return 0;
+	npages = rglb->region_npages[id - 1];
 
-	ret = __cap_cos_shared_page_mapn(rsh_ci, num_pages, cap_addr, &comp_addr);
+	/* if already mapped in this component, just return the mapped shm, instead of an error! */
+	if (cap_shmem_region_vaddr(rsh, id)) goto done;
+
+	if ((rsh->total_pages + npages) * PAGE_SIZE > MEMMGR_COMP_MAX_SHMEM) return 0;
+	ret = __cap_cos_shared_page_mapn(rsh_ci, npages, cap_addr, &comp_addr);
 	if (ret) return 0;
+
 	cap_shmem_region_vaddr_set(rsh, id, comp_addr);
 
-	return rglb->region_npages[id - 1];
+done:
+	*num_pages = npages;
+
+	return id;
 }
 
 vaddr_t
