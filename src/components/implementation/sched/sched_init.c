@@ -30,7 +30,7 @@ schedinit_child(void)
 	if (!init) return 0;
 	tcur = sl_thd_curr();
 	if (!tcur) return 0;
-	/* assert(tcur->schedthd == init); */
+	assert(tcur->schedthd == init);
 
 	/* thd retrieve */
 	do {
