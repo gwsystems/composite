@@ -338,11 +338,13 @@ lapic_spurious_handler(struct pt_regs *regs)
 int
 lapic_ipi_asnd_handler(struct pt_regs *regs)
 {
-	cos_cap_ipi_handling();
+	int ret;
+
+	ret = cos_cap_ipi_handling(regs);
 
 	lapic_ack();
 
-	return 1;
+	return ret;
 }
 
 int

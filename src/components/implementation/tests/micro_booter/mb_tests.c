@@ -851,12 +851,51 @@ test_captbl_expand(void)
 	PRINTC("Captbl expand SUCCESS.\n");
 }
 
+volatile asndcap_t ipi_asnd_global[NUM_CPU][NUM_CPU];
+
+static void
+test_ipi()
+{
+	arcvcap_t arcv;
+	asndcap_t asnd;
+	int       ret = 0, rcvd;
+	int	  i;
+
+	PRINTC("Creating asnd_cap for IPI test.\n");
+	for (i = 0; i < NUM_CPU; i++) {
+		asndcap_t snd;
+
+		if (i == cos_cpuid()) continue;
+
+		snd = cos_asnd_alloc(&booter_info, captbl_arcv_offset(i), booter_info.captbl_cap);
+		assert(snd);
+		ipi_asnd_global[cos_cpuid()][i] = snd;
+	}
+
+	PRINTC("Sending remote asnd\n");
+	for (i = 0; i < NUM_CPU; i++) {
+
+		if (i == cos_cpuid()) continue;
+
+		cos_asnd(ipi_asnd_global[cos_cpuid()][i], 0);
+	}
+	PRINTC("Rcving from remote asnd.\n");
+	while (ret < NUM_CPU - 1) {
+		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, &rcvd);
+		ret += rcvd;
+	}
+	PRINTC("Remote Async end-point test successful.\n");
+
+	return;
+}
+
 /* Executed in micro_booter environment */
 void
 test_run_mb(void)
 {
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
+	test_ipi();
 	test_timer();
 	test_budgets();
 
