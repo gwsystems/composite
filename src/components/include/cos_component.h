@@ -384,4 +384,6 @@ struct __thd_init_data {
 	void *data;
 };
 
+typedef u32_t cbuf_t; /* TODO: remove when we have cbuf.h */
+
 #endif

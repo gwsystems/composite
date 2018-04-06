@@ -41,7 +41,7 @@ struct sl_thd *
 cap_info_thd_next(struct cap_comp_info *rci)
 {
 	if (!rci || !cap_info_init_check(rci))   return NULL;
-	if (rci->p_thd_iterator < rci->thd_used) return (rci->thdinfo[ps_faa((long unsigned *)&(rci->p_thd_iterator), 1)]);
+	if (rci->p_thd_iterator < rci->thd_used) return (rci->thdinfo[ps_faa((unsigned long *)&(rci->p_thd_iterator), 1)]);
 
 	return NULL;
 }
@@ -67,7 +67,7 @@ cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, 
 	cap_shi->cinfo = ci;
 
 	capci[spdid].initflag = 1;
-	ps_faa((long unsigned *)&cap_comp_count, 1);
+	ps_faa((unsigned long *)&cap_comp_count, 1);
 
 	return &capci[spdid];
 }
@@ -113,7 +113,7 @@ cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_aepkey_t key)
 	if (rci->thd_used >= CAP_INFO_COMP_MAX_THREADS) return NULL;
 	if (!t) return NULL;
 
-	off = ps_faa((long unsigned *)&(rci->thd_used), 1);
+	off = ps_faa((unsigned long *)&(rci->thd_used), 1);
 	rci->thdinfo[off] = t;
 	cap_aepkey_set(key, t);
 
@@ -151,23 +151,21 @@ cap_info_init(void)
 }
 
 static inline vaddr_t
-__cap_info_shm_capmgr_vaddr(int id)
+__cap_info_shm_capmgr_vaddr(cbuf_t id)
 {
-	return capci[cos_spd_id()].shminfo.shm_addr[id];
+	return capci[cos_spd_id()].shminfo.shm_addr[id - 1];
 }
 
 static inline void
-__cap_info_shm_capmgr_vaddr_set(int id, vaddr_t v)
+__cap_info_shm_capmgr_vaddr_set(cbuf_t id, vaddr_t v)
 {
-	capci[cos_spd_id()].shminfo.shm_addr[id] = v;
+	capci[cos_spd_id()].shminfo.shm_addr[id - 1] = v;
 }
 
 static int
-__cap_cos_shared_page_mapn(struct cos_compinfo *rci, int num_pages, vaddr_t capvaddr, vaddr_t *compvaddr)
+__cap_cos_shared_page_mapn(struct cos_compinfo *rci, unsigned long num_pages, vaddr_t capvaddr, vaddr_t *compvaddr)
 {
 	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	int                  off    = 0;
-	vaddr_t              dst_pg;
 
 	assert(capvaddr);
 	if (!capvaddr) return -1;
@@ -179,11 +177,10 @@ __cap_cos_shared_page_mapn(struct cos_compinfo *rci, int num_pages, vaddr_t capv
 }
 
 static int
-__cap_cos_shared_page_allocn(struct cos_compinfo *rci, int num_pages, vaddr_t *capvaddr, vaddr_t *compvaddr)
+__cap_cos_shared_page_allocn(struct cos_compinfo *rci, unsigned long num_pages, vaddr_t *capvaddr, vaddr_t *compvaddr)
 {
 	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	int                  off    = 0;
-	vaddr_t              src_pg, dst_pg;
+	vaddr_t              src_pg;
 
 	*capvaddr = src_pg = (vaddr_t)cos_page_bump_allocn(cap_ci, num_pages * PAGE_SIZE);
 	if (!(*capvaddr)) return -1;
@@ -193,64 +190,72 @@ __cap_cos_shared_page_allocn(struct cos_compinfo *rci, int num_pages, vaddr_t *c
 	return 0;
 }
 
-int
-cap_shmem_region_alloc(struct cap_shmem_info *rsh, int num_pages)
+cbuf_t
+cap_shmem_region_alloc(struct cap_shmem_info *rsh, unsigned long num_pages)
 {
 	struct cos_compinfo       *rsh_ci    = cap_info_shmem_ci(rsh);
 	struct cap_shmem_glb_info *rglb      = __cap_info_shmglb_info();
-	int                        alloc_idx = -1, fidx, ret;
+	int                        ret;
+	cbuf_t                     alloc_id = 0, fid;
 	vaddr_t                    cap_addr, comp_addr;
 
 	if (!rsh) goto done;
 	/* limits check */
 	if ((rglb->total_pages + num_pages) * PAGE_SIZE > MEMMGR_MAX_SHMEM_SIZE) goto done;
 	if ((rsh->total_pages + num_pages) * PAGE_SIZE > MEMMGR_COMP_MAX_SHMEM) goto done;
-	fidx = ps_faa((long unsigned *)&(rglb->free_region_id), 1);
-	if (fidx >= MEMMGR_MAX_SHMEM_REGIONS) goto done;
+	fid = ps_faa((unsigned long *)&(rglb->free_region_id), 1);
+	fid++;
+	if (fid > MEMMGR_MAX_SHMEM_REGIONS) goto done;
 
 	/* check id unused */
-	if (__cap_info_shm_capmgr_vaddr(fidx) != 0) goto done;
-	if (rsh->shm_addr[fidx] != 0) goto done;
+	if (__cap_info_shm_capmgr_vaddr(fid)) goto done;
+	if (cap_shmem_region_vaddr(rsh, fid)) goto done;
 
-	rglb->region_npages[fidx] = num_pages;
-	ps_faa((long unsigned *)&(rglb->total_pages), num_pages);
-	ps_faa((long unsigned *)&(rsh->total_pages), num_pages);
+	rglb->region_npages[fid - 1] = num_pages;
+	ps_faa(&(rglb->total_pages), num_pages);
+	ps_faa(&(rsh->total_pages), num_pages);
 
 	ret = __cap_cos_shared_page_allocn(rsh_ci, num_pages, &cap_addr, &comp_addr);
 	if (ret) goto done;
 
-	__cap_info_shm_capmgr_vaddr_set(fidx, cap_addr);
-	rsh->shm_addr[fidx] = comp_addr;
-	alloc_idx = fidx;
+	__cap_info_shm_capmgr_vaddr_set(fid, cap_addr);
+	cap_shmem_region_vaddr_set(rsh, fid, comp_addr);
+	alloc_id = fid;
 
 done:
-	return alloc_idx;
+	return alloc_id;
 }
 
-int
-cap_shmem_region_map(struct cap_shmem_info *rsh, int idx)
+unsigned long
+cap_shmem_region_map(struct cap_shmem_info *rsh, cbuf_t id)
 {
 	struct cos_compinfo       *rsh_ci    = cap_info_shmem_ci(rsh);
 	struct cap_shmem_glb_info *rglb      = __cap_info_shmglb_info();
-	vaddr_t                    cap_addr  = __cap_info_shm_capmgr_vaddr(idx), comp_addr;
+	vaddr_t                    cap_addr  = __cap_info_shm_capmgr_vaddr(id), comp_addr;
 	unsigned long              num_pages = 0;
 	int                        ret       = -1;
 
 	if (!rsh) return 0;
-	if (idx >= MEMMGR_MAX_SHMEM_REGIONS) return 0;
-	if (!cap_addr || rsh->shm_addr[idx] != 0) return 0;
-	num_pages = rglb->region_npages[idx];
+	if (!id || id > MEMMGR_MAX_SHMEM_REGIONS) return 0;
+	if (!cap_addr || cap_shmem_region_vaddr(rsh, id)) return 0;
+	num_pages = rglb->region_npages[id - 1];
 	if ((rsh->total_pages + num_pages) * PAGE_SIZE > MEMMGR_COMP_MAX_SHMEM) return 0;
 
 	ret = __cap_cos_shared_page_mapn(rsh_ci, num_pages, cap_addr, &comp_addr);
 	if (ret) return 0;
-	rsh->shm_addr[idx] = comp_addr;
+	cap_shmem_region_vaddr_set(rsh, id, comp_addr);
 
-	return rglb->region_npages[idx];
+	return rglb->region_npages[id - 1];
 }
 
 vaddr_t
-cap_shmem_region_vaddr(struct cap_shmem_info *rsh, int id)
+cap_shmem_region_vaddr(struct cap_shmem_info *rsh, cbuf_t id)
 {
-	return rsh->shm_addr[id];
+	return rsh->shm_addr[id - 1];
+}
+
+void
+cap_shmem_region_vaddr_set(struct cap_shmem_info *rsh, cbuf_t id, vaddr_t addr)
+{
+	rsh->shm_addr[id - 1] = addr;
 }
