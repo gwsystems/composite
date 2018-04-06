@@ -8,6 +8,7 @@
 #include <ps.h>
 #include <sl.h>
 #include <sl_xcpu.h>
+#include <sl_child.h>
 #include <sl_mod_policy.h>
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
@@ -160,6 +161,11 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	assert(t);
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
 
+	if (t->schedthd) {
+		sl_parent_notif_block_no_cs(t->schedthd, t);
+
+		return 0;
+	}
 	/*
 	 * If an AEP/a child COMP was blocked and an interrupt caused it to wakeup and run
 	 * but blocks itself before the scheduler could see the wakeup event.. Scheduler
@@ -273,6 +279,12 @@ int
 sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 {
 	assert(t);
+
+	if (t->schedthd) {
+		sl_parent_notif_wakeup_no_cs(t->schedthd, t);
+
+		return 0;
+	}
 
 	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1;
 
@@ -491,6 +503,7 @@ sl_sched_loop_intern(int non_block)
 			cycles_t       cycles;
 			tcap_time_t    timeout = g->timeout_next, thd_timeout;
 			struct sl_thd *t = NULL, *tn = NULL;
+			struct sl_child_notification notif;
 
 			/*
 			 * a child scheduler may receive both scheduling notifications (block/unblock
@@ -516,7 +529,9 @@ sl_sched_loop_intern(int non_block)
 			sl_thd_event_enqueue(t, blocked, cycles, thd_timeout);
 
 pending_events:
-			if (ps_list_head_empty(&g->event_head) && ck_ring_size(sl__ring_curr()) == 0) continue;
+			if (ps_list_head_empty(&g->event_head) &&
+			    ck_ring_size(sl__ring_curr()) == 0 &&
+			    sl_child_notif_empty()) continue;
 
 			/*
 			 * receiving scheduler notifications is not in critical section mainly for
@@ -550,6 +565,15 @@ pending_events:
 				} else {
 					sl_thd_wakeup_no_cs(t);
 				}
+			}
+
+			/* process notifications from the parent of my threads */
+			while (sl_child_notif_dequeue(&notif)) {
+				PRINTC("NOTIF FROM PARENT FOR %d\n", notif.tid);
+				struct sl_thd *t = sl_thd_lkup(notif.tid);
+
+				if (notif.type == SL_CHILD_THD_BLOCK) sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0);
+				else                                  sl_thd_wakeup_no_cs(t);
 			}
 
 			/* process cross-core requests */

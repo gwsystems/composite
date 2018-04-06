@@ -90,7 +90,23 @@ sl_thd_lkup(thdid_t tid)
 {
 	assert(tid != 0);
 	if (unlikely(tid > MAX_NUM_THREADS)) return NULL;
+
 	return sl_thd_retrieve(tid);
+}
+
+/* only see if it's already sl_thd initialized */
+static inline struct sl_thd *
+sl_thd_try_lkup(thdid_t tid)
+{
+	struct sl_thd *t = NULL;
+
+	assert(tid != 0);
+	if (unlikely(tid > MAX_NUM_THREADS)) return NULL;
+
+	t = sl_mod_thd_get(sl_thd_lookup_backend(tid));
+	if (!sl_thd_aepinfo(t)) return NULL;
+
+	return t;
 }
 
 static inline thdid_t

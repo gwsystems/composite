@@ -38,16 +38,22 @@ struct sl_thd {
 	sl_thd_property_t    properties;
 	struct cos_aep_info *aepinfo;
 	asndcap_t            sndcap;
-	tcap_prio_t          prio;
 	struct sl_thd       *dependency;
+	struct sl_thd       *schedthd;
 
-	tcap_res_t budget;        /* budget if this thread has it's own tcap */
-	cycles_t   last_replenish;
-	cycles_t   period;
-	cycles_t   periodic_cycs; /* for implicit periodic timeouts */
-	cycles_t   timeout_cycs;  /* next timeout - used in timeout API */
-	cycles_t   wakeup_cycs;   /* actual last wakeup - used in timeout API for jitter information, etc */
-	int        timeout_idx;   /* timeout heap index, used in timeout API */
+	/* TODO: unionize! lot of unused members for a child thd */
+	cbuf_t              shmid;
+	struct ck_ring      *ch_ring;
+	struct sl_child_notification *ch_ringbuf;
+
+	tcap_prio_t prio;
+	tcap_res_t  budget;        /* budget if this thread has it's own tcap */
+	cycles_t    last_replenish;
+	cycles_t    period;
+	cycles_t    periodic_cycs; /* for implicit periodic timeouts */
+	cycles_t    timeout_cycs;  /* next timeout - used in timeout API */
+	cycles_t    wakeup_cycs;   /* actual last wakeup - used in timeout API for jitter information, etc */
+	int         timeout_idx;   /* timeout heap index, used in timeout API */
 
 	struct event_info event_info;
 	struct ps_list    SL_THD_EVENT_LIST; /* list of events for the scheduler end-point */

@@ -2,9 +2,10 @@
 #include <res_spec.h>
 #include <hypercall.h>
 #include <sched_info.h>
+#include <sl_child.h>
 
 u32_t cycs_per_usec = 0;
-extern int parent_schedinit_child(void);
+extern cbuf_t parent_schedinit_child(void);
 
 #define INITIALIZE_PRIO 1
 #define INITIALIZE_BUDGET_MS 2000
@@ -19,9 +20,14 @@ static struct sl_thd *__initializer_thd[NUM_CPU] CACHE_ALIGNED;
 static int
 schedinit_self(void)
 {
+	cbuf_t id;
+
 	/* if my init is done and i've all child inits */
 	if (self_init[cos_cpuid()] && num_child_init[cos_cpuid()] == sched_num_childsched_get()) {
-		if (parent_schedinit_child() < 0) assert(0);
+		id = parent_schedinit_child();
+		if (sl_child_notif_map(id)) {
+			PRINTLOG(PRINT_WARN, "PARENT NOTIFs WILL NOT WORK!\n");
+		}
 
 		return 0;
 	}

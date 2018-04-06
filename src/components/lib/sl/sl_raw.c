@@ -15,6 +15,18 @@
 extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_no_cs(struct sl_thd *t);
 
+cbuf_t
+sl_shm_alloc(vaddr_t *addr)
+{
+	return 0;
+}
+
+vaddr_t
+sl_shm_map(cbuf_t id)
+{
+        return 0;
+}
+
 void
 sl_xcpu_asnd_alloc(void)
 {

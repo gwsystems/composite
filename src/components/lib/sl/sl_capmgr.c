@@ -11,10 +11,30 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 #include "../../interface/capmgr/capmgr.h"
+#include "../../interface/capmgr/memmgr.h"
 #include <bitmap.h>
+#include <sl_child.h>
 
 extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_no_cs(struct sl_thd *t);
+
+cbuf_t
+sl_shm_alloc(vaddr_t *addr)
+{
+	return memmgr_shared_page_allocn(SL_CHILD_SHM_PAGES, addr);
+}
+
+vaddr_t
+sl_shm_map(cbuf_t id)
+{
+	vaddr_t ret = 0;
+	unsigned long npages = 0;
+
+	npages = memmgr_shared_page_map(id, &ret);
+	assert(npages == SL_CHILD_SHM_PAGES);
+
+	return ret;
+}
 
 void
 sl_xcpu_asnd_alloc(void)
@@ -297,8 +317,11 @@ sl_thd_init_ext_no_cs(struct cos_aep_info *aepthd, struct sl_thd *sched)
 	if (!aep) goto done;
 
 	*aep = *aepthd;
-	/* TODO: use sched info for parent -> child notifications */
 	t = sl_thd_alloc_init(aep, 0, 0);
+	if (!t) goto done;
+
+	/* use sched info for parent -> child notifications */
+	t->schedthd = sched;
 
 done:
 	return t;
@@ -325,8 +348,8 @@ sl_thd_retrieve(thdid_t tid)
 	spdid_t              client = cos_inv_token();
 	struct cos_aep_info  aep;
 
-	if (t) return t;
-	/* this can only happen for invocations */
+	if (t && sl_thd_aepinfo(t)) return t;
+	if (tid >= SL_MAX_NUM_THDS) return NULL;
 	assert(client);
 
 	memset(&aep, 0, sizeof(struct cos_aep_info));
@@ -345,10 +368,12 @@ sl_thd_retrieve(thdid_t tid)
 		/* sl_cs_enter(); */
 	}
 
+	/* TODO: should really find in the child components of this component and return the child tid also */
 	aep.thd = capmgr_thd_retrieve(client, tid);
 	assert(aep.thd); /* this thread must be a child thread and capmgr must know it! */
 	aep.tid = tid;
 	aep.tc  = sl__globals_cpu()->sched_tcap;
+	/* TODO: get the child thdid to notify from the capmgr! */
 	t = sl_thd_init_ext_no_cs(&aep, NULL);
 
 	/* if (tid != sl_thdid()) sl_cs_exit(); */

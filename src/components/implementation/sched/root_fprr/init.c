@@ -29,6 +29,7 @@ __init_done(void *d)
 {
 	while (schedinit_self()) sl_thd_block_periodic(0);
 	PRINTLOG(PRINT_DEBUG, "SELF (inc. CHILD) INIT DONE.\n");
+
 	sl_thd_exit();
 
 	assert(0);
