@@ -16,10 +16,9 @@ extern u32_t cap_info_schedbmp[];
 
 /* shared memory region information */
 struct cap_shmem_glb_info {
-	int free_region_id; /* free global identifier */
-	int total_pages;    /* total number of pages allocated in all shared-mem regions */
-
-	int region_npages[MEMMGR_MAX_SHMEM_REGIONS]; /* number of pages allocated per region with array index as the shared-memory identifier */
+	cbuf_t        free_region_id; /* free global identifier */
+	unsigned long total_pages;    /* total number of pages allocated in all shared-mem regions */
+	unsigned long region_npages[MEMMGR_MAX_SHMEM_REGIONS]; /* number of pages allocated per region with array index as the shared-memory identifier */
 };
 
 struct cap_aepkey_info {
@@ -30,9 +29,8 @@ struct cap_aepkey_info {
 /* per component shared memory region information */
 struct cap_shmem_info {
 	struct cos_compinfo *cinfo; /* points to cap_comp_info.defci.ci, to use the same frontier for shared regions */
-	int total_pages; /* track total pages alloc'ed/mapped to limit shmem usage */
-
-	vaddr_t shm_addr[MEMMGR_MAX_SHMEM_REGIONS]; /* virtual address mapped in the component with array index as the global shared memory identifier */
+	unsigned long        total_pages; /* track total pages alloc'ed/mapped to limit shmem usage */
+	vaddr_t              shm_addr[MEMMGR_MAX_SHMEM_REGIONS]; /* virtual address mapped in the component with array index as the global shared memory identifier */
 };
 
 struct cap_comp_info {
@@ -58,19 +56,20 @@ struct sl_thd *cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t, co
 struct sl_thd *cap_info_initthd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_aepkey_t key);
 
 struct cap_comp_info *cap_info_comp_find(spdid_t s);
-struct sl_thd *cap_info_thd_find(struct cap_comp_info *r, thdid_t t);
-struct sl_thd *cap_info_thd_next(struct cap_comp_info *r);
-struct sl_thd *cap_info_initthd(struct cap_comp_info *r);
-unsigned int cap_info_count(void);
-void cap_info_init(void);
+struct sl_thd        *cap_info_thd_find(struct cap_comp_info *r, thdid_t t);
+struct sl_thd        *cap_info_thd_next(struct cap_comp_info *r);
+struct sl_thd        *cap_info_initthd(struct cap_comp_info *r);
+unsigned int          cap_info_count(void);
+void                  cap_info_init(void);
 
-int cap_shmem_region_alloc(struct cap_shmem_info *rcur, int num_pages);
-int cap_shmem_region_map(struct cap_shmem_info *rcur, int id);
-vaddr_t cap_shmem_region_vaddr(struct cap_shmem_info *rsh, int id);
+cbuf_t        cap_shmem_region_alloc(struct cap_shmem_info *rcur, unsigned long num_pages);
+unsigned long cap_shmem_region_map(struct cap_shmem_info *rcur, cbuf_t id);
+vaddr_t       cap_shmem_region_vaddr(struct cap_shmem_info *rsh, cbuf_t id);
+void          cap_shmem_region_vaddr_set(struct cap_shmem_info *rsh, cbuf_t id, vaddr_t addr);
 
 struct cap_aepkey_info *cap_info_aepkey_get(cos_aepkey_t key);
-void cap_aepkey_set(cos_aepkey_t key, struct sl_thd *t);
-asndcap_t cap_aepkey_asnd_get(cos_aepkey_t key);
+void                    cap_aepkey_set(cos_aepkey_t key, struct sl_thd *t);
+asndcap_t               cap_aepkey_asnd_get(cos_aepkey_t key);
 
 static inline struct cos_compinfo *
 cap_info_ci(struct cap_comp_info *r)
