@@ -282,7 +282,7 @@ err:
 }
 
 thdcap_t
-capmgr_thd_retrieve(spdid_t s, thdid_t tid)
+capmgr_thd_retrieve_cserialized(thdid_t *inittid, int *unused, spdid_t s, thdid_t tid)
 {
 	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -298,12 +298,13 @@ capmgr_thd_retrieve(spdid_t s, thdid_t tid)
 	if (!ti || !sl_thd_thdcap(ti)) return 0;
 
 	if (tid == rs->initthdid[cos_cpuid()]) {
-		thdcap = rs->p_initthdcap[cos_cpuid()];
+		thdcap   = rs->p_initthdcap[cos_cpuid()];
 	} else {
 		thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
 		if (!thdcap) goto err;
 		cap_info_thd_init(rc, ti, 0);
 	}
+	*inittid = rs->initthdid[cos_cpuid()];
 
 	return thdcap;
 err:

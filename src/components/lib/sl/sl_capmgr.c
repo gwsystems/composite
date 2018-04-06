@@ -346,6 +346,8 @@ sl_thd_retrieve(thdid_t tid)
 {
 	struct sl_thd       *t      = sl_mod_thd_get(sl_thd_lookup_backend(tid));
 	spdid_t              client = cos_inv_token();
+	thdid_t              itid   = 0;
+	struct sl_thd       *it     = NULL;
 	struct cos_aep_info  aep;
 
 	if (t && sl_thd_aepinfo(t)) return t;
@@ -362,19 +364,20 @@ sl_thd_retrieve(thdid_t tid)
 	if (tid != sl_thdid()) {
 		struct sl_thd *curr = sl_thd_curr();
 
-		/* well, the current thread info must be available */
+		/* well, the current thread info must be retrieved/available */
 		assert(curr);
 		/* FIXME: We have a `sl_thd_lkup/curr()` abuse, they're used both within and outside of cs */
 		/* sl_cs_enter(); */
 	}
 
-	/* TODO: should really find in the child components of this component and return the child tid also */
-	aep.thd = capmgr_thd_retrieve(client, tid);
-	assert(aep.thd); /* this thread must be a child thread and capmgr must know it! */
+	aep.thd = capmgr_thd_retrieve(client, tid, &itid);
+	assert(aep.thd && itid); /* this thread must be a child thread and capmgr must know it! */
+	/* "client"'s initthd must be initialized! */
+	it = sl_thd_try_lkup(itid);
+	assert(it);
 	aep.tid = tid;
 	aep.tc  = sl__globals_cpu()->sched_tcap;
-	/* TODO: get the child thdid to notify from the capmgr! */
-	t = sl_thd_init_ext_no_cs(&aep, NULL);
+	t = sl_thd_init_ext_no_cs(&aep, it);
 
 	/* if (tid != sl_thdid()) sl_cs_exit(); */
 

@@ -10,6 +10,15 @@ thdcap_t capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure
 thdcap_t capmgr_thd_create_ext_cserialized(thdid_t *tid, int *unused, spdid_t s, thdclosure_index_t idx);
 thdcap_t capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, thdclosure_index_t idx, u32_t owntc_aepkey);
 thdcap_t capmgr_thd_retrieve_next_cserialized(thdid_t *tid, int *unused, spdid_t s);
+thdcap_t capmgr_thd_retrieve_cserialized(thdid_t *inittid, int *unused, spdid_t s, thdid_t tid);
+
+thdcap_t
+capmgr_thd_retrieve(spdid_t child, thdid_t tid, thdid_t *inittid)
+{
+	int unused;
+
+	return capmgr_thd_retrieve_cserialized(inittid, &unused, child, tid);
+}
 
 thdcap_t
 capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid)
