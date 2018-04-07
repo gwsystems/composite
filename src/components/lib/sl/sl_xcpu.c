@@ -22,7 +22,8 @@ sl_xcpu_thd_alloc(cpuid_t cpu, cos_thd_fn_t fn, void *data, sched_param_t params
 	asndcap_t snd = 0;
 	struct sl_xcpu_request req;
 
-	if (!bitmap_check(sl__globals()->cpu_bmp, cpu)) return -1;
+	if (cpu != cos_cpuid()) return -EINVAL;
+	if (!bitmap_check(sl__globals()->cpu_bmp, cpu)) return -EINVAL;
 
 	sl_cs_enter();
 
@@ -30,7 +31,7 @@ sl_xcpu_thd_alloc(cpuid_t cpu, cos_thd_fn_t fn, void *data, sched_param_t params
 	memcpy(req.params, params, sizeof(sched_param_t) * sz);
 	req.param_count = sz;
 	if (ck_ring_enqueue_mpsc_xcpu(sl__ring(cpu), sl__ring_buffer(cpu), &req) != true) {
-		ret = -1;
+		ret = -ENOMEM;
 	} else {
 		snd = sl__globals()->xcpu_asnd[cos_cpuid()][cpu];
 		assert(snd);
@@ -47,31 +48,31 @@ sl_xcpu_thd_alloc(cpuid_t cpu, cos_thd_fn_t fn, void *data, sched_param_t params
 int
 sl_xcpu_thd_alloc_ext(cpuid_t cpu, struct cos_defcompinfo *dci, thdclosure_index_t idx, sched_param_t params[])
 {
-	return -1;
+	return -ENOTSUP;
 }
 
 int
 sl_xcpu_aep_alloc(cpuid_t cpu, cos_thd_fn_t fn, void *data, int own_tcap, cos_channelkey_t key, sched_param_t params[])
 {
-	return -1;
+	return -ENOTSUP;
 }
 
 int
 sl_xcpu_aep_alloc_ext(cpuid_t cpu, struct cos_defcompinfo *dci, thdclosure_index_t idx, int own_tcap, cos_channelkey_t key, sched_param_t params[])
 {
-	return -1;
+	return -ENOTSUP;
 }
 
 int
 sl_xcpu_initaep_alloc(cpuid_t cpu, struct cos_defcompinfo *dci, int own_tcap, cos_channelkey_t key, sched_param_t params[])
 {
-	return -1;
+	return -ENOTSUP;
 }
 
 int
 sl_xcpu_initaep_alloc_ext(cpuid_t cpu, struct cos_defcompinfo *dci, struct cos_defcompinfo *sched, int own_tcap, cos_channelkey_t key, sched_param_t params[])
 {
-	return -1;
+	return -ENOTSUP;
 }
 
 int
@@ -81,6 +82,8 @@ sl_xcpu_process_no_cs(void)
 	struct sl_xcpu_request xcpu_req;
 
 	while (ck_ring_dequeue_mpsc_xcpu(sl__ring_curr(), sl__ring_buffer_curr(), &xcpu_req) == true) {
+
+		assert(xcpu_req.client != cos_cpuid());
 		switch(xcpu_req.type) {
 		case SL_XCPU_THD_ALLOC:
 		{
