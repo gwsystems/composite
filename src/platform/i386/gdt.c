@@ -4,7 +4,10 @@
 #include "tss.h"
 #include "chal_asm_inc.h"
 
-static volatile u64_t gdt[SEL_CNT] __attribute__((aligned(sizeof(u64_t))));
+struct gdt_aligned {
+        u64_t seg_descs[SEL_CNT];
+} __attribute__((aligned(CACHE_LINE)));
+static volatile struct gdt_aligned gdt[NUM_CPU];
 
 /* GDT helpers. */
 static u64_t make_code_desc(int dpl);
@@ -16,7 +19,9 @@ static u64_t make_gdtr_operand(u16_t limit, void *base);
 void
 chal_tls_update(vaddr_t addr)
 {
-	gdt[SEL_UGSEG / sizeof *gdt] = make_data_desc_at(3, (u32_t)addr);
+	int cpu_id = get_cpuid();
+
+	gdt[cpu_id].seg_descs[SEL_UGSEG / sizeof *gdt[cpu_id].seg_descs] = make_data_desc_at(3, (u32_t)addr);
 	/* force the reload of the segment cache */
 	asm volatile("movl %0, %%gs" : : "q"(SEL_UGSEG));
 }
@@ -26,25 +31,25 @@ chal_tls_update(vaddr_t addr)
  * user-mode selectors or a TSS, but we need both now.
  */
 void
-gdt_init(void)
+gdt_init(const cpuid_t cpu_id)
 {
 	u64_t gdtr_operand;
 
 	/* Initialize GDT. */
-	gdt[SEL_NULL / sizeof *gdt]  = 0;
-	gdt[SEL_KCSEG / sizeof *gdt] = make_code_desc(0);
-	gdt[SEL_KDSEG / sizeof *gdt] = make_data_desc(0);
-	gdt[SEL_UCSEG / sizeof *gdt] = make_code_desc(3);
-	gdt[SEL_UDSEG / sizeof *gdt] = make_data_desc(3);
-	gdt[SEL_TSS / sizeof *gdt]   = make_tss_desc(&tss);
-	gdt[SEL_UGSEG / sizeof *gdt] = make_data_desc(3);
+	gdt[cpu_id].seg_descs[SEL_NULL / sizeof *gdt[cpu_id].seg_descs]  = 0;
+	gdt[cpu_id].seg_descs[SEL_KCSEG / sizeof *gdt[cpu_id].seg_descs] = make_code_desc(0);
+	gdt[cpu_id].seg_descs[SEL_KDSEG / sizeof *gdt[cpu_id].seg_descs] = make_data_desc(0);
+	gdt[cpu_id].seg_descs[SEL_UCSEG / sizeof *gdt[cpu_id].seg_descs] = make_code_desc(3);
+	gdt[cpu_id].seg_descs[SEL_UDSEG / sizeof *gdt[cpu_id].seg_descs] = make_data_desc(3);
+	gdt[cpu_id].seg_descs[SEL_TSS / sizeof *gdt[cpu_id].seg_descs]   = make_tss_desc(&(tss[cpu_id]));
+	gdt[cpu_id].seg_descs[SEL_UGSEG / sizeof *gdt[cpu_id].seg_descs] = make_data_desc(3);
 
 	/*
 	 * Load GDTR, TR.  See [IA32-v3a] 2.4.1 "Global Descriptor
 	 * Table Register (GDTR)", 2.4.4 "Task Register (TR)", and
 	 * 6.2.4 "Task Register".
 	 */
-	gdtr_operand = make_gdtr_operand(sizeof gdt - 1, (void *)gdt);
+	gdtr_operand = make_gdtr_operand(sizeof gdt[cpu_id] - 1, (void *)(gdt + cpu_id));
 	asm volatile("lgdt %0" : : "m"(gdtr_operand));
 	asm volatile("ltr %w0" : : "q"(SEL_TSS));
 }
