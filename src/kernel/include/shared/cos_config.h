@@ -17,6 +17,7 @@
 
 #include "cpu_ghz.h"
 
+#define NUM_CPU 1
 
 /*
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
@@ -36,8 +37,6 @@
 #define COS_PHYMEM_END_PA ((1 << 30) - COS_HW_MMIO_MAX_SZ) /* Maximum usable physical memory */
 
 #define BOOT_COMP_MAX_SZ (1 << 24) /* 16 MB for the booter component */
-
-#define NUM_CPU 1
 
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 

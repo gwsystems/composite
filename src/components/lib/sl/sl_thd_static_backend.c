@@ -11,10 +11,10 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 
-static struct sl_thd_policy __sl_threads[NUM_CPU][SL_MAX_NUM_THDS] CACHE_ALIGNED;
+static struct sl_thd_policy __sl_threads[NUM_CPU][SL_MAX_NUM_THDS];
 
-static struct cos_aep_info __sl_aep_infos[NUM_CPU][SL_MAX_NUM_THDS] CACHE_ALIGNED;
-static u32_t               __sl_aep_free_off[NUM_CPU] CACHE_ALIGNED;
+static struct cos_aep_info __sl_aep_infos[NUM_CPU][SL_MAX_NUM_THDS];
+static u32_t               __sl_aep_free_off[NUM_CPU];
 
 /* Default implementations of backend functions */
 struct sl_thd_policy *

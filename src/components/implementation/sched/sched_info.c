@@ -5,7 +5,7 @@
 #include <sl.h>
 
 #define SCHED_MAX_CHILD_COMPS 8
-static struct sched_childinfo childinfo[NUM_CPU][SCHED_MAX_CHILD_COMPS] CACHE_ALIGNED;
+static struct sched_childinfo childinfo[NUM_CPU][SCHED_MAX_CHILD_COMPS];
 static unsigned int sched_num_child[NUM_CPU] CACHE_ALIGNED;
 static unsigned int sched_num_childsched[NUM_CPU] CACHE_ALIGNED;
 

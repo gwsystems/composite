@@ -21,6 +21,7 @@ capmgr_comp_info_iter_cpu(void)
 	do {
 		spdid_t spdid = num_comps, sched_spdid = 0;
 		struct cap_comp_info *rci = cap_info_comp_find(spdid), *rci_sched = NULL;
+		struct cap_comp_cpu_info *rci_cpu = NULL;
 		struct sl_thd *ithd = NULL;
 		u64_t chbits = 0, chschbits = 0;
 		int ret = 0, is_sched = 0;
@@ -32,6 +33,7 @@ capmgr_comp_info_iter_cpu(void)
 		memset(&aep, 0, sizeof(struct cos_aep_info));
 		assert(rci);
 		assert(cap_info_init_check(rci));
+		rci_cpu = cap_info_cpu_local(rci);
 
 		num_comps++;
 		remaining--;
@@ -44,13 +46,13 @@ capmgr_comp_info_iter_cpu(void)
 
 		rci_sched = cap_info_comp_find(sched_spdid);
 		assert(rci_sched && cap_info_init_check(rci_sched));
-		rci->parent[cos_cpuid()] = rci_sched;
-		rci->thd_used[cos_cpuid()] = 1;
+		rci_cpu->parent = rci_sched;
+		rci_cpu->thd_used = 1;
 
 		while ((remain_child = hypercall_comp_child_next(spdid, &childid, &ch_flags)) >= 0) {
-			bitmap_set(rci->child_bitmap[cos_cpuid()], childid - 1);
+			bitmap_set(rci_cpu->child_bitmap, childid - 1);
 			if (ch_flags & COMP_FLAG_SCHED) {
-				bitmap_set(rci->child_sched_bitmap[cos_cpuid()], childid - 1);
+				bitmap_set(rci_cpu->child_sched_bitmap, childid - 1);
 				bitmap_set(cap_info_schedbmp[cos_cpuid()], childid - 1);
 			}
 
@@ -86,6 +88,7 @@ capmgr_comp_info_iter(void)
 		spdid_t spdid = 0, sched_spdid = 0;
 		struct cap_comp_info *rci = NULL;
 		struct sl_thd *ithd = NULL;
+		struct cap_comp_cpu_info *rci_cpu = NULL;
 		u64_t chbits = 0, chschbits = 0;
 		pgtblcap_t pgtslot = 0;
 		captblcap_t captslot = 0;
@@ -119,11 +122,12 @@ capmgr_comp_info_iter(void)
 
 		rci = cap_info_comp_init(spdid, captslot, pgtslot, ccslot, capfr, vasfr, sched_spdid);
 		assert(rci);
+		rci_cpu = cap_info_cpu_local(rci);
 
 		while ((remain_child = hypercall_comp_child_next(spdid, &childid, &ch_flags)) >= 0) {
-			bitmap_set(rci->child_bitmap[cos_cpuid()], childid - 1);
+			bitmap_set(rci_cpu->child_bitmap, childid - 1);
 			if (ch_flags & COMP_FLAG_SCHED) {
-				bitmap_set(rci->child_sched_bitmap[cos_cpuid()], childid - 1);
+				bitmap_set(rci_cpu->child_sched_bitmap, childid - 1);
 				bitmap_set(cap_info_schedbmp[cos_cpuid()], childid - 1);
 			}
 

@@ -12,7 +12,7 @@ struct sched_childinfo {
 	struct sl_thd         *initthd;
 	comp_flag_t            flags;
 	spdid_t                id;
-};
+} CACHE_ALIGNED;
 
 struct sched_childinfo *sched_childinfo_find(spdid_t spdid);
 struct sched_childinfo *sched_childinfo_alloc(spdid_t id, compcap_t compcap, comp_flag_t flags);

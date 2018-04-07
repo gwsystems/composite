@@ -35,7 +35,7 @@ struct comp_cap_info {
 	vaddr_t                 addr_start;
 	vaddr_t                 vaddr_mapped_in_booter;
 	vaddr_t                 upcall_entry;
-	struct comp_sched_info *schedinfo[NUM_CPU] CACHE_ALIGNED;
+	struct comp_sched_info *schedinfo[NUM_CPU];
 } new_comp_cap_info[MAX_NUM_SPDS];
 
 int                   schedule[NUM_CPU][MAX_NUM_SPDS];

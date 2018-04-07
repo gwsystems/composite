@@ -28,10 +28,13 @@ struct sl_thd *
 cap_info_thd_find(struct cap_comp_info *rci, thdid_t tid)
 {
 	int i;
+	struct cap_comp_cpu_info *rci_cpu = NULL;
 
 	if (!rci || !cap_info_init_check(rci)) return NULL;
-	for (i = 0; i < rci->thd_used[cos_cpuid()]; i++) {
-		if (sl_thd_thdid(rci->thdinfo[cos_cpuid()][i]) == tid) return rci->thdinfo[cos_cpuid()][i];
+
+	rci_cpu = cap_info_cpu_local(rci);
+	for (i = 0; i < rci_cpu->thd_used; i++) {
+		if (sl_thd_thdid(rci_cpu->thdinfo[i]) == tid) return rci_cpu->thdinfo[i];
 	}
 
 	return NULL;
@@ -40,9 +43,12 @@ cap_info_thd_find(struct cap_comp_info *rci, thdid_t tid)
 struct sl_thd *
 cap_info_thd_next(struct cap_comp_info *rci)
 {
-	if (!rci || !cap_info_init_check(rci))   return NULL;
-	if (rci->p_thd_iterator[cos_cpuid()] < rci->thd_used[cos_cpuid()]) {
-		return (rci->thdinfo[cos_cpuid()][ps_faa((long unsigned *)&(rci->p_thd_iterator[cos_cpuid()]), 1)]);
+	struct cap_comp_cpu_info *rci_cpu = NULL;
+
+	if (!rci || !cap_info_init_check(rci)) return NULL;
+	rci_cpu = cap_info_cpu_local(rci);
+	if (rci_cpu->p_thd_iterator < rci_cpu->thd_used) {
+		return (rci_cpu->thdinfo[ps_faa((long unsigned *)&(rci_cpu->p_thd_iterator), 1)]);
 	}
 
 	return NULL;
@@ -55,9 +61,10 @@ cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, 
 	struct cos_compinfo       *ci      = cos_compinfo_get(&(capci[spdid].defci));
 	struct cap_shmem_info     *cap_shi = cap_info_shmem_info(&capci[spdid]);
 	struct cap_shmem_glb_info *rglb    = __cap_info_shmglb_info();
+	struct cap_comp_cpu_info  *rci_cpu = cap_info_cpu_local(&capci[spdid]);
 
-	capci[spdid].thd_used[cos_cpuid()] = 1;
-	capci[spdid].parent[cos_cpuid()]   = &capci[sched_spdid];
+	rci_cpu->thd_used = 1;
+	rci_cpu->parent   = &capci[sched_spdid];
 
 	capci[spdid].cid = spdid;
 	cos_meminfo_init(&ci->mi, 0, 0, 0);
@@ -87,8 +94,8 @@ cap_channelaep_set(cos_channelkey_t key, struct sl_thd *t)
 {
 	struct cap_channelaep_info *ak = cap_channelaep_get(key);
 
-	if (!ak || ak->slaep) return;
-	ak->slaep  = t;
+	if (!ak || ak->rcvcap) return;
+	ak->rcvcap              = sl_thd_rcvcap(t);
 	ak->sndcap[cos_cpuid()] = 0;
 }
 
@@ -100,7 +107,7 @@ cap_channelaep_asnd_get(cos_channelkey_t key)
 
 	if (!ak) return 0;
 	if (ak->sndcap[cos_cpuid()]) return ak->sndcap[cos_cpuid()];
-	ak->sndcap[cos_cpuid()] = cos_asnd_alloc(cap_ci, sl_thd_rcvcap(ak->slaep), cap_ci->captbl_cap);
+	ak->sndcap[cos_cpuid()] = cos_asnd_alloc(cap_ci, ak->rcvcap, cap_ci->captbl_cap);
 	assert(ak->sndcap[cos_cpuid()]);
 
 	return ak->sndcap[cos_cpuid()];
@@ -110,13 +117,15 @@ struct sl_thd *
 cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_channelkey_t key)
 {
 	int off;
+	struct cap_comp_cpu_info *rci_cpu = NULL;
 
 	if (!rci || !cap_info_init_check(rci)) return NULL;
-	if (rci->thd_used[cos_cpuid()] >= CAP_INFO_COMP_MAX_THREADS) return NULL;
+	rci_cpu = cap_info_cpu_local(rci);
+	if (rci_cpu->thd_used >= CAP_INFO_MAX_THREADS) return NULL;
 	if (!t) return NULL;
 
-	off = ps_faa((long unsigned *)&(rci->thd_used[cos_cpuid()]), 1);
-	rci->thdinfo[cos_cpuid()][off] = t;
+	off = ps_faa((long unsigned *)&(rci_cpu->thd_used), 1);
+	rci_cpu->thdinfo[off] = t;
 	cap_channelaep_set(key, t);
 
 	return t;
@@ -125,11 +134,14 @@ cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_channelkey_t 
 struct sl_thd *
 cap_info_initthd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_channelkey_t key)
 {
+	struct cap_comp_cpu_info *rci_cpu = NULL;
+
 	if (!rci || !cap_info_init_check(rci)) return NULL;
-	if (rci->thd_used[cos_cpuid()] >= CAP_INFO_COMP_MAX_THREADS) return NULL;
+	rci_cpu = cap_info_cpu_local(rci);
+	if (rci_cpu->thd_used >= CAP_INFO_MAX_THREADS) return NULL;
 	if (!t) return NULL;
 
-	rci->thdinfo[cos_cpuid()][0] = t;
+	rci_cpu->thdinfo[0] = t;
 	cap_channelaep_set(key, t);
 
 	return t;
@@ -140,7 +152,7 @@ cap_info_initthd(struct cap_comp_info *rci)
 {
 	if (!rci) return NULL;
 
-	return rci->thdinfo[cos_cpuid()][0];
+	return cap_info_cpu_local(rci)->thdinfo[0];
 }
 
 void
