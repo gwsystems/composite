@@ -432,8 +432,9 @@ lapic_timer_init(void)
 		/* reset INIT counter, and unmask timer */
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) & ~LAPIC_TIMER_MASKED);
-		lapic_is_disabled[get_cpuid()] = 1;
 	}
+
+	lapic_is_disabled[get_cpuid()] = 1;
 }
 
 static int
