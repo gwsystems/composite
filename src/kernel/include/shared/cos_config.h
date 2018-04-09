@@ -29,7 +29,10 @@
 #define COS_MEM_COMP_START_VA ((1 << 30) + (1 << 22)) /* 1GB + 4MB (a relic) */
 #define COS_MEM_KERN_START_VA (0xc0000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
 
-#define COS_MEM_KERN_VA_SZ (1 << 24) /* 16 MB from KERN_START_VA + end of kernel image onward */
+#define COS_HW_MMIO_MAX_SZ (1 << 27) /* Assuming a MAX of 128MB for MMIO. */
+#define COS_PHYMEM_MAX_SZ ((1 << 30) - (1 << 22) - COS_HW_MMIO_MAX_SZ) /* 1GB - 4MB - MMIO sz */
+
+#define COS_PHYMEM_END_PA ((1 << 30) - COS_HW_MMIO_MAX_SZ) /* Maximum usable physical memory */
 
 /* To get more memory, we need many PTE caps in the captbl. So give
  * multiple pages to it. 5 is enough for 512 MBs.*/

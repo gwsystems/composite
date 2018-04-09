@@ -10,7 +10,8 @@
 #include <rumpcalls.h>
 #include <vk_types.h>
 #include <llprint.h>
-#include <llbooter_inv.h>
+#include <hypercall.h>
+#include <memmgr.h>
 
 #include "rk_json_cfg.h"
 #include "rk_sched.h"
@@ -49,7 +50,7 @@ rk_alloc_initmem_all(void)
 	printc("Looking to get %d pages\n", max_rk);
 
 	void *curpage;
-	void *nxtpage = cos_page_bump_alloc(currci);
+	void *nxtpage = (void *)memmgr_heap_page_alloc();;
 	int  *nxtpage_test = (int *)nxtpage;
 	*nxtpage_test = 1;
 
@@ -58,7 +59,7 @@ rk_alloc_initmem_all(void)
 		int *curpage_test = (int *)nxtpage;
 		*curpage_test = 1;
 
-		nxtpage = cos_page_bump_alloc(currci);
+		nxtpage = (void *)memmgr_heap_page_alloc();;
 		count++;
 	}
 
@@ -73,6 +74,7 @@ void
 rk_hw_irq_alloc(void)
 {
 	int i;
+	int ret;
 
 	assert(vmid == 0);
 
@@ -80,10 +82,12 @@ rk_hw_irq_alloc(void)
 		struct sl_thd *t = NULL;
 		struct cos_aep_info tmpaep;
 
-		t = rk_intr_aep_alloc(cos_irqthd_handler, (void *)i, 0);
+		/* TODO, check to make sure this is the right key for the irq... */
+		t = rk_intr_aep_alloc(cos_irqthd_handler, (void *)i, 0, 0);
 		assert(t);
 
-		cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, sl_thd_rcvcap(t));
+		ret = cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, sl_thd_rcvcap(t));
+		assert(!ret);
 	}
 }
 
@@ -101,7 +105,7 @@ rk_alloc_run(char *cmdline)
 	 * Before bmk_pgalloc_loadmem is called, I need to alloc memory till we have enough or till failure
 	 * the start and end locations in memory to bmk_pgalloc
 	 */
-	void *minptr = cos_page_bump_alloc(currci);
+	void *minptr = (void *)memmgr_heap_page_alloc();
 	int *mintest = (int *)minptr;
 	*mintest = 1;
 
@@ -145,9 +149,11 @@ void
 cos_init(void)
 {
 
-	long cap_frontier = -1;
+	long unsigned cap_frontier = -1;
+	long unsigned vas_frontier = -1;
 	struct cos_defcompinfo *dci;
 	struct cos_compinfo    *ci;
+	struct cos_config_info_t *my_info;
 	int ret = -1;
 
 	printc("rumpkernel cos_init\n");
@@ -156,6 +162,8 @@ cos_init(void)
 	assert(dci);
 	ci  = cos_compinfo_get(dci);
 	assert(ci);
+
+	cos_defcompinfo_init();
 
 	currci = ci;
 
@@ -171,9 +179,8 @@ cos_init(void)
 	spdid = cos_spdid_get();
 	printc("spdid: %d\n", spdid);
 
-	cap_frontier = cos_hypervisor_hypercall(BOOT_HYP_CAP_FRONTIER, (void *)cos_spdid_get(),
-						0, 0);
-	assert(cap_frontier > 0);
+	ret = hypercall_comp_frontier_get(cos_spdid_get(), &vas_frontier, &cap_frontier);
+	assert(!ret);
 	printc("done\n");
 
 	cos_compinfo_init(ci, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
@@ -181,7 +188,15 @@ cos_init(void)
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ,
 			BOOT_CAPTBL_SELF_UNTYPED_PT);
 
+	printc("Fetching boot configuration information\n");
+	my_info = cos_init_args();
+	printc("Greeting key: %s\n", my_info->kvp[GREETING_KEY].key);
+	printc("Greeting value: %s\n", my_info->kvp[GREETING_KEY].value);
+
 	printc("Setting up RK\n");
 	rump_booter_init((void *)0);
+
+	/* Error, should not get here */
+	assert(0);
 	return;
 }

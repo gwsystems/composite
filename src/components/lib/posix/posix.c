@@ -255,39 +255,14 @@ cos_set_tid_address(int *tidptr)
 	return 0;
 }
 
-/* struct user_desc {
- *     int		  entry_number; // Ignore
- *     unsigned int  base_addr; // Pass to cos thread mod
- *     unsigned int  limit; // Ignore
- *     unsigned int  seg_32bit:1;
- *     unsigned int  contents:2;
- *     unsigned int  read_exec_only:1;
- *     unsigned int  limit_in_pages:1;
- *     unsigned int  seg_not_present:1;
- *     unsigned int  useable:1;
- * };
+/*
+ * TLS is managed by capmgr component, if something needs tls, it should use capmgr
+ * Stub needed as libc_init expects there to be something to setup tls, although it doesn't
+ * do anything with tls immediately
  */
-
-//void* backing_data[SL_MAX_NUM_THDS];
-//
-static void
-setup_thread_area(struct sl_thd *thread, void* data)
-{
-	printc("%s\n", __func__);
-//	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-//	thdid_t thdid = thread->thdid;
-//
-//	backing_data[thdid] = data;
-//
-//	cos_thd_mod(ci, sl_thd_thdcap(thread), &backing_data[thdid]);
-}
-
 int
-cos_set_thread_area(void* data)
-{
-	setup_thread_area(sl_thd_curr(), data);
-	return 0;
-}
+cos_set_thread_area_stub(void* data)
+{ return 0; }
 
 int
 cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, void *tls, pid_t *ctid)
@@ -300,9 +275,11 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 
 	struct sl_thd * thd = sl_thd_alloc((cos_thd_fn_t) func, arg);
 	if (tls) {
-		setup_thread_area(thd, tls);
+		/* Make sure TLS is managed by */
+		printc("ERROR: %s needs tls, handle this with capmgr component\n", __func__);
+		assert(0);
 	}
-	return thd->thdid;
+	return sl_thd_thdid(thd);
 }
 
 #define FUTEX_WAIT		0
@@ -461,13 +438,14 @@ cos_futex(int *uaddr, int op, int val,
 void
 pre_syscall_default_setup()
 {
-	printc("pre_syscall_default_setup\n");
+	printc("pre_syscall_default_setup...");
 
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
 	cos_defcompinfo_init();
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	printc("done\n");
 //	sl_init(SL_MIN_PERIOD_US);
 }
 
@@ -498,7 +476,7 @@ syscall_emulation_setup(void)
 
 	libc_syscall_override((cos_syscall_t)cos_gettid, __NR_gettid);
 	libc_syscall_override((cos_syscall_t)cos_tkill, __NR_tkill);
-	libc_syscall_override((cos_syscall_t)cos_set_thread_area, __NR_set_thread_area);
+	libc_syscall_override((cos_syscall_t)cos_set_thread_area_stub, __NR_set_thread_area);
 	libc_syscall_override((cos_syscall_t)cos_set_tid_address, __NR_set_tid_address);
 	libc_syscall_override((cos_syscall_t)cos_clone, __NR_clone);
 	libc_syscall_override((cos_syscall_t)cos_futex, __NR_futex);

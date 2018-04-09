@@ -2,6 +2,7 @@
 #include <vk_types.h>
 #include "rk_sched.h"
 #include <llprint.h>
+
 /*
  * TODO: Doesn't look like we need a recursive lock!
  * Wonder why we had "cos_nesting" before!
@@ -62,8 +63,8 @@ rk_rump_thd_init(struct cos_aep_info *aep)
 {
 	struct sl_thd *t = NULL;
 
-	t = sl_thd_init(aep, 0);
-	assert(t);	
+	t = sl_thd_init_ext(aep, NULL);
+	assert(t);
 
 	rk_rump_thd_param_set(t);
 
@@ -105,7 +106,7 @@ rk_rump_thd_alloc(cos_thd_fn_t fn, void *data)
 	struct sl_thd *t = NULL;
 
 	t = sl_thd_alloc(fn, data);
-	assert(t);	
+	assert(t);
 
 	rk_rump_thd_param_set(t);
 
@@ -113,11 +114,11 @@ rk_rump_thd_alloc(cos_thd_fn_t fn, void *data)
 }
 
 struct sl_thd *
-rk_intr_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap)
+rk_intr_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_aepkey_t key)
 {
 	struct sl_thd *t = NULL;
 
-	t = sl_thd_aep_alloc(fn, data, own_tcap);
+	t = sl_thd_aep_alloc(fn, data, own_tcap, key);
 	assert(t);
 
 	rk_intr_thd_param_set(t, own_tcap);
@@ -130,7 +131,7 @@ rk_intr_aep_init(struct cos_aep_info *aep, int own_tcap)
 {
 	struct sl_thd *t = NULL;
 
-	t = sl_thd_init(aep, own_tcap);
+	t = sl_thd_init_ext(aep, NULL);
 	assert(t);
 
 	rk_intr_thd_param_set(t, own_tcap);
@@ -151,20 +152,11 @@ rk_rump_thd_yield_to(struct bmk_thread *c, struct bmk_thread *n)
 	sl_thd_yield(ntid);
 }
 
-#ifdef CHRONOS_ENABLED
-#undef CHRONOS_ENABLED
-#endif
-
 void
 rk_sched_loop(void)
 {
-	printc("STARTING RK SCHED!\n");
-#if defined(CHRONOS_ENABLED)
-	/* FAIL immediately? That's what we're doing here */
-	while (1) ;
-#else
-	sl_sched_loop();
-#endif
+	printc("STARTING RK SL LOOP\n");
+	sl_sched_loop_nonblock();
 }
 
 void

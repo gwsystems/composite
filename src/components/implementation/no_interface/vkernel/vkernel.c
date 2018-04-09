@@ -7,12 +7,6 @@
 #include "vk_types.h"
 #include "vk_api.h"
 
-#define SPIN()            \
-	do {              \
-		while (1) \
-			; \
-	} while (0)
-
 extern vaddr_t cos_upcall_entry;
 extern void    vm_init(void *);
 extern void   *__inv_vkernel_hypercallfn(int a, int b, int c);

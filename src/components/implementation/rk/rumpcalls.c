@@ -11,7 +11,8 @@
 #include <rumpcalls.h>
 #include <vk_types.h>
 #include <vk_api.h>
-#include <llbooter_inv.h>
+#include <memmgr.h>
+#include <capmgr.h>
 
 #include "rump_cos_alloc.h"
 #include "rk_sched.h"
@@ -48,6 +49,7 @@ cos2rump_setup(void)
 	crcalls.rump_cpu_sched_switch_viathd    = rk_rump_thd_yield_to;
 	crcalls.rump_memfree			= cos_memfree;
 	crcalls.rump_tls_init			= cos_tls_init;
+	crcalls.rump_tls_alloc			= cos_tls_alloc;
 	crcalls.rump_va2pa			= cos_vatpa;
 	crcalls.rump_pa2va			= cos_pa2va;
 	crcalls.rump_resume                     = rk_sched_loop;
@@ -133,16 +135,13 @@ __cpu_intr_ack(void)
 
 void
 cos_cpu_intr_ack(void)
-{
-	__cpu_intr_ack();
-}
+{ __cpu_intr_ack(); }
 
 /* irq */
 void
 cos_irqthd_handler(arcvcap_t rcvc, void *line)
 {
 	int which = (int)line;
-//	static int count;
 
 	printc("=[%d]", which);
 	while(1) {
@@ -154,13 +153,9 @@ cos_irqthd_handler(arcvcap_t rcvc, void *line)
 		 * multiple queuing of events to process all data (if there are multiple events pending)
 		 */
 		cos_rcv(rcvc, RCV_ALL_PENDING, &rcvd);
-//		cos_rcv(rcvc, 0, NULL);
-
-//		count ++;
-//		if (count % 1000 == 0) printc("..i%d..", count);
 
 		/*
-		 * This only wakes up isr_thread. 
+		 * This only wakes up isr_thread.
 		 * Now, using sl_thd_wakeup. So, don't need to disable interrupts around this!
 		 */
 		bmk_isr(which);
@@ -222,6 +217,20 @@ cos_tls_init(unsigned long tp, thdcap_t tc)
 	return cos_thd_mod(currci, tc, (void *)tp);
 }
 
+extern int tcboffset;
+extern int tdatasize;
+extern int tbsssize;
+extern const char *_tdata_start_cpy;
+
+void *
+cos_tls_alloc(struct bmk_thread *thread)
+{
+	char *tlsmem;
+
+	tlsmem = memmgr_tls_alloc(thread->cos_tid);
+	return tlsmem + tcboffset;
+}
+
 void
 cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void (*f)(void *), void *arg,
@@ -230,53 +239,34 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	struct sl_thd *t = NULL;
 	int ret;
 
-	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p, in spdid: %d\n", thread->bt_name, f,
-			cos_spdid_get());
+	/*
+	 * printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p, in spdid: %d\n", thread->bt_name, f,
+	 *	   cos_spdid_get());
+	 */
 
 	/* Check to see if we are creating the thread for our application */
 	if (!strcmp(thread->bt_name, "user_lwp")) {
-		/*
-		 * FIXME, remove this hack and use real system configuration
-		 * this is based off an assumption that the RK that does networking
-		 * is always spdid 4
-		 */
-		if (cos_spdid_get() == 4) {
-			printc("In cnic RK, skipping lwp thread initialization\n");
-			return;
-		}
-
-		struct cos_defcompinfo *dci;
-		struct cos_compinfo    *ci;
-		thdcap_t thd;
-		struct cos_aep_info udpserv_aep;
-		dci = cos_defcompinfo_curr_get();
-		assert(dci);
-		ci  = cos_compinfo_get(dci);
-		assert(ci);
-
-		/* FIXME, hard coding in the udpserver's spdid */
 		int udpserver_id = 3;
-		int cap_index = (int)cos_hypervisor_hypercall(BOOT_HYP_COMP_CAP,
-							     (void *)cos_spdid_get(),
-							     (void *)udpserver_id, ci);
-		assert(cap_index > 0);
-		printc("cap_index: %d\n", cap_index);
-		printc("Allocating a thread using comp cap of udpserver\n");
-		thd = cos_initthd_alloc(ci, cap_index);
-		assert(thd);
-		printc("thd: %lu\n", thd);
+		thdcap_t thd;
+		thdid_t tid;
+		struct cos_defcompinfo udpserver_comp;
 
-		udpserv_aep.thd = thd;
-		t = sl_thd_init(&udpserv_aep, 0);
+		thd = capmgr_initthd_create(udpserver_id, &tid);
+		assert(thd);
+
+		udpserver_comp.id = udpserver_id;
+		udpserver_comp.sched_aep.thd = thd;
+		udpserver_comp.sched_aep.tid = tid;
+
+		t = sl_thd_comp_init(&udpserver_comp, 0);
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_RUMP_THD_PRIO));
 
 	} else {
 		t = rk_rump_thd_alloc(f, arg);
 		assert(t);
-		printc(" thdcap: %lu, id:%u\n", sl_thd_thdcap(t), t->thdid);
 	}
 
-	set_cos_thddata(thread, sl_thd_thdcap(t), t->thdid);
+	set_cos_thddata(thread, sl_thd_thdcap(t), t->aepinfo->tid);
 }
 
 /* Return monotonic time since RK per VM initiation in nanoseconds */
@@ -323,11 +313,14 @@ cos_cpu_clock_now(void)
 
 void *
 cos_vatpa(void * vaddr)
-{ return cos_va2pa(currci, vaddr); }
+{ return (void *)memmgr_va2pa((vaddr_t)vaddr); }
 
 void *
 cos_pa2va(void * pa, unsigned long len)
-{ return (void *)cos_hw_map(currci, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)pa, (unsigned int)len); }
+{
+	printc("cos_pa2va\n");
+	return (void *)memmgr_pa2va_map((paddr_t)pa, len);
+}
 
 void
 cos_vm_exit(void)
@@ -344,36 +337,6 @@ void
 cos_vm_yield(void)
 { cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
 
-/* System Calls */
-
-/* FIXME rename two tests below */
-void
-cos_shmem_test(void)
-{
-	/* TODO: redo after setting up generic shared memory */
-	//sinvcap_t sinv;
-	//int shm_id;
-	//vaddr_t my_page;
-
-	///* Test is from User component to Kernel Component only */
-	//assert(cos_spdid_get() == 1);
-
-	///* Allocate user component a shared page to use */
-	//shm_id = shmem_allocate_invoke();
-
-	///* Get vaddr for that shm_id and write 'a' to it */
-	//my_page = shmem_get_vaddr_invoke(shm_id);
-	//assert(my_page);
-	//printc("User component shared mem vaddr: %p\n", (void *)my_page);
-	//*(char *)my_page = 'a';
-
-	///* Go to kernel, map in shared mem page, read 'a', write 'b' */
-	//rk_inv_op2(shm_id);
-
-	///* Read 'b' in our page */
-	/* printc("Return from kernel component, reading %p + 1: %c\n", \*/
-	//	(void *)my_page, *((char *)my_page + 1));
-}
 
 int _spdid = -1;
 void

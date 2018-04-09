@@ -3,7 +3,7 @@ PROG=$1
 SRCDIR=../../../implementation/rk/cnic/
 PROGDIR=../../../implementation/netbsd/$PROG
 COSOBJ=cnic.o
-FINALOBJ=sl_rumpcos.o
+FINALOBJ=rumpcos.o
 QEMURK=qemu_rk.sh
 TRANSFERDIR=../../../../../transfer/
 
@@ -89,4 +89,3 @@ else
 	echo "RUNNING THE SYSTEM ON QEMU INSTEAD"
 	./$QEMURK rumpkernboot.sh
 fi
-

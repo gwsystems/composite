@@ -348,6 +348,8 @@ typedef unsigned int  page_index_t;
 typedef unsigned short int spdid_t;
 typedef unsigned short int compid_t;
 typedef unsigned short int thdid_t;
+typedef spdid_t            invtoken_t;
+typedef int                thdclosure_index_t;
 
 struct restartable_atomic_sequence {
 	vaddr_t start, end;
@@ -384,6 +386,26 @@ struct cos_stack_freelists {
 	struct stack_fl freelists[COMP_INFO_STACK_FREELISTS];
 };
 
+/*
+ * enum for defining the beginning set number of keys that all components will
+ * share in common.
+ */
+enum
+{
+	COMP_KEY = 0,
+	GREETING_KEY,
+	/* After this, the key values are free to use as components need them */
+};
+
+struct kv {
+	char key[KEY_LENGTH];
+	char value[VALUE_LENGTH];
+};
+
+struct cos_config_info_t {
+	struct kv kvp[KEY_VALUE_PAIRS];
+};
+
 /* move this to the stack manager assembly file, and use the ASM_... to access the relinquish variable */
 //#define ASM_OFFSET_TO_STK_RELINQ (sizeof(struct cos_stack_freelists) + sizeof(u32_t) * COMP_INFO_TMEM_STK_RELINQ)
 //#define ASM_OFFSET_TO_STK_RELINQ 8
@@ -394,6 +416,7 @@ struct cos_stack_freelists {
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;
+	struct cos_config_info_t   cos_config_info;
 	long                       cos_this_spd_id;
 	u32_t                      cos_tmem_relinquish[COMP_INFO_TMEM];
 	u32_t                      cos_tmem_available[COMP_INFO_TMEM];
@@ -405,7 +428,6 @@ struct cos_component_information {
 	vaddr_t                            cos_user_caps;
 	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS / 2];
 	vaddr_t                            cos_poly[COMP_INFO_POLY_NUM];
-	char                               init_string[COMP_INFO_INIT_STR_LEN];
 } __attribute__((aligned(PAGE_SIZE)));
 
 typedef enum {
@@ -415,6 +437,11 @@ typedef enum {
 	COS_UPCALL_UNHANDLED_FAULT,
 	COS_UPCALL_QUARANTINE
 } upcall_type_t;
+
+typedef enum {
+	COMP_FLAG_SCHED  = 1,      /* component is a scheduler */
+	COMP_FLAG_CAPMGR = (1<<1), /* component is a capability manager */
+} comp_flag_t;
 
 enum
 {
@@ -458,5 +485,20 @@ typedef enum {
 /* invalid type, can NOT be used in data structures, only for return values. */
 #define IL_INV (~0)
 typedef unsigned int isolation_level_t;
+
+#define INTERFACE_UNDEF_SYMBS 64 /* maxiumum undefined symbols in a cobj */
+#define LLBOOT_ROOTSCHED_PRIO 1  /* root scheduler priority for llbooter dispatch */
+#define LLBOOT_NEWCOMP_UNTYPED_SZ  (1<<24) /* 16 MB = untyped size per component if there is no capability manager */
+#define LLBOOT_RESERVED_UNTYPED_SZ (1<<24) /* 16 MB = reserved untyped size with booter if there is a capability manager */
+#define CAPMGR_MIN_UNTYPED_SZ      (1<<26) /* 64 MB = minimum untyped size for the capability manager in the system */
+
+/* for simplicity, keep these multiples of PGD_RANGE */
+#define MEMMGR_COMP_MAX_HEAP     (1<<25) /* 32MB */
+#define MEMMGR_MAX_SHMEM_SIZE    (1<<22) /* 4MB */
+#define MEMMGR_COMP_MAX_SHMEM    MEMMGR_MAX_SHMEM_SIZE
+#define MEMMGR_MAX_SHMEM_REGIONS 1024
+#define CAPMGR_AEPKEYS_MAX       (1<<15)
+
+typedef unsigned short int cos_aepkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KEY NAMESPACE */
 
 #endif /* TYPES_H */

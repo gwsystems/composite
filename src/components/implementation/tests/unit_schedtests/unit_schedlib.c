@@ -63,7 +63,7 @@ test_high(void *data)
 	struct sl_thd *t = data;
 
 	while (1) {
-		sl_thd_yield(t->thdid);
+		sl_thd_yield(sl_thd_thdid(t));
 		printc("h");
 	}
 }
