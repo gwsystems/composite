@@ -146,8 +146,9 @@ sl_timeout_init(microsec_t period)
 }
 
 /*
- * sl_thd_sched_block_no_cs: This API is only used by the scheduling thread to block an AEP thread.
- *                           AEP thread scheduling events could be redundant.
+ * This API is only used by the scheduling thread to block an AEP thread.
+ * AEP thread scheduling events could be redundant.
+ *
  * @return: 0 if it successfully blocked in this call.
  */
 int
@@ -328,8 +329,9 @@ sl_thd_block_expiry(struct sl_thd *t)
 }
 
 /*
- * sl_thd_sched_wakeup_no_cs: This API is only used by the scheduling thread to wakeup an AEP thread.
- *                           AEP thread scheduling events could be redundant.
+ * This API is only used by the scheduling thread to wakeup an AEP thread.
+ * AEP thread scheduling events could be redundant.
+ *
  * @return: 1 if it's already WOKEN or RUNNABLE.
  *	    0 if it successfully blocked in this call.
  */
