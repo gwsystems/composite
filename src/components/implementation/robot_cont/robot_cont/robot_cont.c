@@ -2,6 +2,7 @@
 #include <cos_defkernel_api.h>
 #include <sched.h>
 #include <memmgr.h>
+#include <udpserver.h>
 
 #include <robot_cont.h>
 
@@ -175,6 +176,7 @@ send_task(int x, int y) {
 //	printc("Checking location via camera: \n");
 //	position = check_location_image(x, y);
 //	printc("new position: %d, %d\n", rpos.x, rpos.y);
+	udpserv_script(0);
 	printc("\n");
 	
 	return 0;

@@ -15,3 +15,5 @@
 //cos_asm_server_stub_spdid(netif_event_xmit)
 //
 //cos_asm_server_stub(netif_upcall_cyc)
+
+cos_asm_server_stub(udpserv_script)

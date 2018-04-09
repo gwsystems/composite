@@ -7,6 +7,8 @@
 #include <rk.h>
 #include <memmgr.h>
 
+#include <udpserver.h>
+
 #define IN_PORT  9998
 #define OUT_PORT 9999
 #define MSG_SZ   32
@@ -20,6 +22,13 @@ extern struct cos_component_information cos_comp_info;
 
 static char __msg[MSG_SZ + 1] = { '\0' };
 unsigned char script[100];
+
+int
+udpserv_script(int shdmemid)
+{
+	printc("udpserv_script\n");
+	return 0;
+}
 
 static int
 update_script()
