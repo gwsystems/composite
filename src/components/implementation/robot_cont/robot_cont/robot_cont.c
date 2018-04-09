@@ -150,9 +150,9 @@ create_movement(int xf, int yf) {
 		script[1] = sidx - 1;
 
 //		printc("script length: %d: \n", sidx - 1);
-		for (i = 0; i < sidx ; i ++) {
-			printc("%u ", script[i]);
-		}
+	//	for (i = 0; i < sidx ; i ++) {
+	//		printc("%u ", script[i]);
+	//	}
 		printc("\n");
 
 //	} else if (ychange < 0) {
@@ -160,6 +160,10 @@ create_movement(int xf, int yf) {
 //		/* check angle */
 //	}
 
+	/* copy generated script into shared memory for the udpserver, and notify it of an update */
+	memcpy((unsigned char *)shmem_addr, script, sidx);	
+	udpserv_script(sidx);
+	
 	rpos.x = xf;
 	rpos.y = yf;	
 	
@@ -167,20 +171,12 @@ create_movement(int xf, int yf) {
 }
 
 int
-send_task(int x, int y) {
-
-	int position = 0;
-	char * test = "testing robot_cont";
-
+send_task(int x, int y) 
+{
 	printc("send_task\n");
-	if (!shmem_addr) {
-		printc("Gateway not ready yet\n");
-		return;
-	}
-	printc("(udpserver->robot_cont): %s \n", (char *) shmem_addr);
-
-	memcpy((char *)shmem_addr, test, 18);	
-	udpserv_script(0);
+	if (!shmem_addr) return -1;
+	
+	create_movement(3,3);
 	printc("\n");
 	
 	return 0;

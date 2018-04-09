@@ -27,18 +27,24 @@ vaddr_t shdmem_addr;
 static char __msg[MSG_SZ + 1] = { '\0' };
 unsigned char script[100];
 
+/* Will be mdae asynchronous: notifies udp server of a script update */
 int
 udpserv_script(int shdmemid)
 {
 	printc("udpserv_script\n");
-	printc("(robot_cont->udpserver):%s\n", (char *)shdmem_addr);
 
-	char * test = "testingudp";
-	memcpy((char *)shdmem_addr, test, 10);
+	int i = 0;
+	unsigned char * test_string = (unsigned char *)shdmem_addr;
+
+	printc("script serving: ");
+	for (i = 0; i < 8; i ++) {
+		printc("%u, ", test_string[i]);
+	}
 
 	return 0;
 }
 
+/* Used for internal testing, will be replaced by above fn */
 static int
 update_script()
 {
@@ -107,8 +113,8 @@ __test_udp_server(void)
 		/* Reply to the sender */
 
 		soutput.sin_addr.s_addr = ((struct sockaddr_in*)&sa)->sin_addr.s_addr;
+
 		memset(__msg, 0, MSG_SZ);
-		
 		update_script();
 		if (sendto(fd, __msg, msg_size, 0, (struct sockaddr*)&soutput, sizeof(soutput)) < 0) {
 			printc("sendto");
