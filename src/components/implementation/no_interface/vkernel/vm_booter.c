@@ -7,8 +7,8 @@ struct cos_compinfo booter_info;
  * the capability for the thread switched to upon termination.
  * FIXME: not exit thread for now
  */
-thdcap_t      termthd = BOOT_CAPTBL_SELF_INITTHD_BASE; 
-unsigned long tls_test[TEST_NTHDS];
+thdcap_t      termthd[NUM_CPU] = { 0 };
+unsigned long tls_test[NUM_CPU][TEST_NTHDS];
 
 #include <llprint.h>
 
