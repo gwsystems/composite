@@ -384,6 +384,7 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
 	struct sl_global       *g   = sl__globals();
+	int ret = 0;
 
 	if (t->properties & SL_THD_PROPERTY_SEND) {
 		return cos_sched_asnd(t->sndcap, g->timeout_next, g->sched_rcv, tok);
@@ -391,8 +392,15 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
 				  g->timeout_next, g->sched_rcv, tok);
 	} else {
-		return cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ?
-				     TCAP_TIME_NIL : g->timeout_next, tok);
+		ret = cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ?
+				    TCAP_TIME_NIL : g->timeout_next, tok);
+		if (likely(t != g->sched_thd || ret != -EPERM)) return ret;
+
+		/*
+		 * Attempting to activate scheduler thread failed for no budget in it's tcap.
+		 * Force switch to the scheduler with current tcap.
+		 */
+		return cos_switch(sl_thd_thdcap(g->sched_thd), 0, t->prio, 0, g->sched_rcv, tok);
 	}
 }
 
@@ -451,7 +459,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 */
 	if (unlikely(to)) {
 		t = to;
-		if (!sl_thd_is_runnable(t)) to= NULL;
+		if (!sl_thd_is_runnable(t)) to = NULL;
 	}
 	if (likely(!to)) {
 		pt = sl_mod_schedule();

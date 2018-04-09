@@ -167,13 +167,13 @@ sl_thd_sched_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t t
 		goto update;
 	}
 
-	assert(t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
+	assert(sl_thd_is_runnable(t));
 	sl_mod_block(sl_mod_thd_policy_get(t));
 
 update:
 	t->state = block_type;
 	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
-	t->sched_blocked = 1;
+	t->rcv_suspended = 1;
 
 	return 0;
 }
@@ -185,8 +185,8 @@ update:
 static inline int
 sl_thd_sched_unblock_no_cs(struct sl_thd *t)
 {
-	if (unlikely(!t->sched_blocked)) return 0;
-	t->sched_blocked = 0;
+	if (unlikely(!t->rcv_suspended)) return 0;
+	t->rcv_suspended = 0;
 	if (unlikely(t->state != SL_THD_BLOCKED && t->state != SL_THD_BLOCKED_TIMEOUT)) return 0;
 
 	if (likely(t->state == SL_THD_BLOCKED_TIMEOUT)) sl_timeout_remove(t);
@@ -208,12 +208,12 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
 
 	if (unlikely(t->state == SL_THD_WOKEN)) {
-		assert(!t->sched_blocked);
+		assert(!t->rcv_suspended);
 		t->state = SL_THD_RUNNABLE;
 		return 1;
 	}
 
-	/* does the scheduler think I was blocked on cos_rcv? */
+	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
 	sl_thd_sched_unblock_no_cs(t);
 	assert(t->state == SL_THD_RUNNABLE);
 	sl_mod_block(sl_mod_thd_policy_get(t));
@@ -312,17 +312,17 @@ sl_thd_block_expiry(struct sl_thd *t)
 
 	assert(t != sl__globals()->sched_thd);
 	if (!(t->properties & SL_THD_PROPERTY_OWN_TCAP)) {
-		assert(!t->sched_blocked);
+		assert(!t->rcv_suspended);
 		return;
 	}
 	assert(t->period);
 
 	sl_cs_enter();
 
-	/* does the scheduler think "t" was blocked on cos_rcv? */
+	/* reset rcv_suspended if the scheduler thinks "t" was suspended on cos_rcv previously */
 	sl_thd_sched_unblock_no_cs(t);
 	sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
-	t->sched_blocked = 0;
+	t->rcv_suspended = 0;
 
 	sl_cs_exit();
 }
@@ -338,8 +338,8 @@ sl_thd_sched_wakeup_no_cs(struct sl_thd *t)
 {
 	assert(t);
 
-	if (unlikely(!t->sched_blocked)) return 1; /* not blocked on cos_rcv, so don't mess with user-level thread states */
-	t->sched_blocked = 0;
+	if (unlikely(!t->rcv_suspended)) return 1; /* not blocked on cos_rcv, so don't mess with user-level thread states */
+	t->rcv_suspended = 0;
 	/*
 	 * If a thread was preempted and scheduler updated it to RUNNABLE status and if that AEP
 	 * was activated again (perhaps by tcap preemption logic) and expired it's budget, it could
@@ -371,7 +371,7 @@ sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	t->state = SL_THD_RUNNABLE;
 	sl_mod_wakeup(sl_mod_thd_policy_get(t));
-	t->sched_blocked = 0;
+	t->rcv_suspended = 0;
 
 	return 0;
 }
@@ -380,18 +380,11 @@ int
 sl_thd_wakeup_no_cs(struct sl_thd *t)
 {
 	assert(t);
-	assert(sl_thdid() != sl_thd_thdid(t)); /* current thread is not allowed to wake itself up */
+	assert(sl_thd_curr() != t); /* current thread is not allowed to wake itself up */
 
-	if (unlikely(t->state == SL_THD_RUNNABLE)) {
+	if (unlikely(sl_thd_is_runnable(t))) {
+		/* t->state == SL_THD_WOKEN? multiple wakeups? */
 		t->state = SL_THD_WOKEN;
-		return 1;
-	} else if (unlikely(t->state == SL_THD_WOKEN)) {
-		/*
-		 * For some reason, in the voter test a thread is woken up twice on an already RUNNING thread.
-		 * I do not know the reason for that happening.. But,
-		 * wonder if this is "common" for ex, in case of a single producer multiple consumers.
-		 */
-		t->state = SL_THD_RUNNABLE;
 		return 1;
 	}
 
@@ -423,7 +416,7 @@ sl_thd_yield_cs_exit(thdid_t tid)
 {
 	struct sl_thd *t = sl_thd_curr();
 
-	/* does the scheduler think I was blocked on cos_rcv? */
+	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
 	sl_thd_sched_unblock_no_cs(t);
 	if (tid) {
 		struct sl_thd *to = sl_thd_lkup(tid);

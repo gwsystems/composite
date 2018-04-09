@@ -36,26 +36,43 @@ struct event_info {
 struct sl_thd {
 	sl_thd_state_t       state;
 	/*
-	 * sched_blocked is used only for threads that are AEPs (call cos_rcv).
-	 * Kernel activations of these AEP threads cannot be fully controlled by the
-	 * scheduler and depends on the global quality of the TCap associated with this
-	 * AEP at any point.
+	 * rcv_suspended: Tracks the kernel state of the AEP threads for whether they're
+	 *                suspended on cos_rcv or not.
+	 *		  rcv_suspended is used only for threads that are AEPs (call cos_rcv).
 	 *
-	 * Therefore, this is really not a thread state that the scheduler controls!
-	 * if a thread has sched_blocked set, it doesn't mean that it isn't running!
+	 * Activations of these AEP threads cannot be fully controlled by the
+	 * scheduler and depends on the global quality of the TCap associated with this
+	 * AEP at any point an `asnd` happens to this AEP.
+	 *
+	 * Therefore, this is really not a thread state that the scheduler controls.
+	 * if a thread has rcv_suspended set, it doesn't mean that it isn't running.
 	 * But if the thread uses any of `sl` block/yield, this should first be reset and
 	 * the thread must be put back to run-queue before doing anything!!
 	 *
-	 * Another important detail is, SCHED_WAKEUP event from the kernel resets this.
-	 * If sched_blocked == 0, then SCHED WAKEUP does not touch any of the thread states!
-	 * This is because, a thread could have woken up without the scheduler's knowledge
-	 * through tcap mechanism and may have eventually tried to block/acquire a lock/futex
-	 * etc which would then block the thread at user-level. A SCHED WAKEUP external event
-	 * should not wake it up causing it to enter a critical section when it isn't meant to!
+	 * Another important detail is, when the scheduler receives a "unblocked" event, it
+	 * resets this. If rcv_suspended == 0, then the scheduler does not modify the thread states!
+	 * This is because, a thread could have run without the scheduler's knowledge through the
+	 * tcap mechanism and may have eventually tried to block/acquire a lock/futex
+	 * which would then block the thread at user-level. A kernel scheduling event
+	 * should not cause it to change to RUNNABLE state and enter a critical section when
+	 * it isn't it's turn!
 	 *
-	 * This is the strongest motivation towards not having this as a Thread STATE!
+	 * This is the strongest motivation towards not combining user-level and kernel-level
+	 * thread states.
+	 *
+	 * To sum up:
+	 * if rcv_suspended: A thread could "still" be calling block/yield and therefore be
+	 *                   in a RUNNABLE/BLOCKED/BLOCKED_TIMEOUT states. It could also be
+	 *                   woken up at the user-level if there is another high-prio thread
+	 *                   and that gets to run before scheduler is activated up on this
+	 *                   thread calls block/yield and it then wakes this thread up.
+	 * if !rcv_suspended: A thread could be in any state and also be in cos_rcv.
+	 *
+	 * The only thing this captures is, "unblocking" a thread from cos_rcv or "blocking" it
+	 * on cos_rcv from a scheduler's context. BLOCKing a thread when the scheduler processes
+	 * a "blocked" kernel event, clears any prior thread states and sets it to be BLOCKED/BLOCKED_TIMEOUT.
 	 */
-	int                  sched_blocked;
+	int                  rcv_suspended;
 	sl_thd_property_t    properties;
 	struct cos_aep_info *aepinfo;
 	asndcap_t            sndcap;
