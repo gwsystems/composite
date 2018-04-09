@@ -1,8 +1,6 @@
 #include <cos_kernel_api.h>
-//#include <robot_sched.h>
 #include <cos_types.h>
 #include <cobj_format.h>
-#include <llbooter_inv.h>
 
 void cos_init(void)
 {
@@ -21,6 +19,5 @@ void cos_init(void)
 		}
 		itr ++;
 	}
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 2, 3, 4);
 	return;
 }

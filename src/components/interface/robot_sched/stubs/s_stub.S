@@ -9,4 +9,4 @@
 
 .text
 
-cos_asm_server_stub_token(assign_task)
+//cos_asm_server_stub_spdid(assign_task)

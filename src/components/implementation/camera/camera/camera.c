@@ -1,7 +1,6 @@
 #include <llprint.h>
 
 #include <camera.h>
-#include <shdmem.h>
 #include <posix.h>
 #include <sl.h>
 #include <sl_lock.h>
@@ -14,8 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-
-#include <llbooter_inv.h>
 
 #define NORTH 0
 #define EAST 1
@@ -153,5 +150,4 @@ cos_init(void)
 	printc("Image Start Addr: %d\n",&_binary_greenroomba_jpg_start);
 	printc("Image End Addr: %d\n",&_binary_greenroomba_jpg_end);
 	
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 2, 3, 4);
 }

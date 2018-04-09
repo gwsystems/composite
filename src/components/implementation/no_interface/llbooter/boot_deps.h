@@ -45,9 +45,6 @@ struct comp_cap_info {
 	struct comp_sched_info *schedinfo;
 } new_comp_cap_info[MAX_NUM_SPDS];
 
-int                   schedule[MAX_NUM_SPDS];
-volatile unsigned int sched_cur = 0;
-
 static inline struct comp_cap_info *
 boot_spd_compcapinfo_get(spdid_t spdid)
 {

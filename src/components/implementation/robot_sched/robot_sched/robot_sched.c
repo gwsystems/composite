@@ -3,8 +3,6 @@
 #include <llprint.h>
 #include <robot_cont.h>
 #include <cos_alloc.h>
-#include <shdmem.h>
-#include <llbooter_inv.h>
 
 int shmid;
 vaddr_t shm_vaddr; 
@@ -32,7 +30,6 @@ cos_init(void)
 	printc("shm_vaddr: %p\n", shm_vaddr);
 
 	printc("test: %s \n", (char *)shm_vaddr);
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 2, 3, 4);
 	return;
 }
 

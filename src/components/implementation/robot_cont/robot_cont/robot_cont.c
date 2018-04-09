@@ -1,8 +1,6 @@
 #include <llprint.h>
-#include <llbooter_inv.h>
 
 #include <robot_cont.h>
-#include <shdmem.h>
 #include <posix.h>
 #include <sl.h>
 #include <sl_lock.h>
@@ -208,5 +206,4 @@ cos_init(void)
 	rpos.direction = EAST;	
 
 
-	cos_sinv(BOOT_CAPTBL_SINV_CAP, INIT_DONE, 2, 3, 4);
 }
