@@ -1,6 +1,7 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <sched.h>
+#include <memmgr.h>
 
 #include <robot_cont.h>
 
@@ -14,6 +15,8 @@ struct rp {
 	unsigned long direction;
 };
 struct rp rpos;
+
+vaddr_t shmem_addr;
 
 int
 update_script(int x)
@@ -165,18 +168,13 @@ send_task(int x, int y) {
 
 	int position=0;
 
-	create_movement(x, y);
+	printc("send_task\n");
+	printc("(car_mgr->robot_cont) shmem: %s \n", (char *) shmem_addr);
+//	create_movement(x, y);
 
-	printc("Send script to udp\n");
-	
-	printc("Checking location via camera: \n");
+//	printc("Checking location via camera: \n");
 //	position = check_location_image(x, y);
-
-	if (position) {
-		printc("Camera in correct location\n");
-	}
-
-	printc("new position: %d, %d\n", rpos.x, rpos.y);
+//	printc("new position: %d, %d\n", rpos.x, rpos.y);
 	printc("\n");
 	
 	return 0;
@@ -190,6 +188,10 @@ cos_init(void)
 	rpos.x = 0;
 	rpos.y = 0;
 	rpos.direction = EAST;	
+	
+	int ret = memmgr_shared_page_map(0, &shmem_addr);
+	assert(ret > -1 && shmem_addr);
 
+	/* We only want to be sinv'd into */
 	sched_thd_block(0);
 }
