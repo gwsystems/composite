@@ -155,8 +155,8 @@ rk_rump_thd_yield_to(struct bmk_thread *c, struct bmk_thread *n)
 void
 rk_sched_loop(void)
 {
-	printc("STARTING RK SL LOOP\n");
-	schedinit_child();
+	printc("STARTING RK SL LOOP BLOCKING with schedinit\n");
+	//schedinit_child();
 	sl_sched_loop();
 }
 

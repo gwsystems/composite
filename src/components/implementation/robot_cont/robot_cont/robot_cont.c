@@ -1,27 +1,13 @@
-#include <llprint.h>
+#include <cos_kernel_api.h>
+#include <cos_defkernel_api.h>
+#include <sched.h>
 
 #include <robot_cont.h>
-#include <posix.h>
-#include <sl.h>
-#include <sl_lock.h>
-#include <sl_thd.h>
 
-#include <locale.h>
-#include <limits.h>
-#include <pthread.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-
-//#include <camera.h>
 #define NORTH 0
 #define EAST 1
 #define SOUTH 2
 #define WEST 3
-
-int shmid;
-vaddr_t shm_vaddr;
 
 struct rp {
 	int x, y;
@@ -177,7 +163,7 @@ create_movement(int xf, int yf) {
 int
 send_task(int x, int y) {
 
-	int position;
+	int position=0;
 
 	create_movement(x, y);
 
@@ -205,5 +191,5 @@ cos_init(void)
 	rpos.y = 0;
 	rpos.direction = EAST;	
 
-
+	sched_thd_block(0);
 }
