@@ -1,8 +1,10 @@
 #include <cos_kernel_api.h>
+#include <cos_component.h>
 #include <cos_defkernel_api.h>
 #include <sched.h>
 #include <memmgr.h>
 #include <udpserver.h>
+#include <sched.h>
 
 #include <robot_cont.h>
 
@@ -17,7 +19,7 @@ struct rp {
 };
 struct rp rpos;
 
-vaddr_t shmem_addr;
+vaddr_t shmem_addr = NULL;
 
 int
 update_script(int x)
@@ -167,15 +169,17 @@ create_movement(int xf, int yf) {
 int
 send_task(int x, int y) {
 
-	int position=0;
+	int position = 0;
+	char * test = "testing robot_cont";
 
 	printc("send_task\n");
-	printc("(car_mgr->robot_cont) shmem: %s \n", (char *) shmem_addr);
-//	create_movement(x, y);
+	if (!shmem_addr) {
+		printc("Gateway not ready yet\n");
+		return;
+	}
+	printc("(udpserver->robot_cont): %s \n", (char *) shmem_addr);
 
-//	printc("Checking location via camera: \n");
-//	position = check_location_image(x, y);
-//	printc("new position: %d, %d\n", rpos.x, rpos.y);
+	memcpy((char *)shmem_addr, test, 18);	
 	udpserv_script(0);
 	printc("\n");
 	
@@ -186,14 +190,26 @@ void
 cos_init(void)
 {
 	printc("\nWelcome to the robot_cont component\n");
-	
+	int ret;
+	cycles_t wakeup, now, cycs_per_usec;
+	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+
 	rpos.x = 0;
 	rpos.y = 0;
 	rpos.direction = EAST;	
 	
-	int ret = memmgr_shared_page_map(0, &shmem_addr);
-	assert(ret > -1 && shmem_addr);
+	ret = memmgr_shared_page_map(0, &shmem_addr);
 
-	/* We only want to be sinv'd into */
+	/* Ensure udp server is booted before we return */
+	while (!shmem_addr) {
+		ret = memmgr_shared_page_map(0, &shmem_addr);
+		if (shmem_addr != NULL) break;
+		rdtscll(now);
+		wakeup = now + (2000 * 1000 * cycs_per_usec);
+
+		sched_thd_block_timeout(0, wakeup);
+	}
+	
+	printc("robot_cont init done\n");
 	sched_thd_block(0);
 }

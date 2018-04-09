@@ -11,18 +11,9 @@ car_main(void)
 	printc("car main, blocking.\n");
 
 	cycles_t wakeup, now, cycs_per_usec;
-	vaddr_t shmem_addr;
 	int shmem_id;
 
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-
-	shmem_id = memmgr_shared_page_alloc(&shmem_addr);	
-	assert(shmem_id > -1 && shmem_addr > 0);
-	printc("shdmemid: %d\n", shmem_id);
-
-	char * string = "testing";
-
-	memcpy((char *)shmem_addr, string, 7);
 
 	while(1) {
 		rdtscll(now);

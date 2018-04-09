@@ -4,6 +4,7 @@
 #include <rk_inv_api.h>
 #include <cos_types.h>
 #include <cos_kernel_api.h>
+#include <cos_defkernel_api.h>
 #include <rk.h>
 #include <memmgr.h>
 
@@ -20,6 +21,9 @@ int spdid;
 extern int vmid;
 extern struct cos_component_information cos_comp_info;
 
+int shdmem_id;
+vaddr_t shdmem_addr;
+
 static char __msg[MSG_SZ + 1] = { '\0' };
 unsigned char script[100];
 
@@ -27,6 +31,11 @@ int
 udpserv_script(int shdmemid)
 {
 	printc("udpserv_script\n");
+	printc("(robot_cont->udpserver):%s\n", (char *)shdmem_addr);
+
+	char * test = "testingudp";
+	memcpy((char *)shdmem_addr, test, 10);
+
 	return 0;
 }
 
@@ -137,5 +146,16 @@ cos_init(void)
 	get_boot_done();
 	test_entry(0, 1, 2, 3);
 
+	shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
+	assert(shdmem_id  -1 && shdmem_addr > 0);
+	printc("shdmemid: %d \n", shdmem_id);
+
+	char * test = "testingudp";
+	memcpy((char *)shdmem_addr, test, 10);
+
 	udpserv_main();
 }
+
+
+
+
