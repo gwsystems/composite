@@ -2,7 +2,7 @@
 # placed in the .rodata section as opposed to .rodata.str1.x | x in
 # uints
 #
-# -Xlinker -r is used to pass flags into the linker, in this case to
+
 # prevent musllibc from creating an executable and linking in many of
 # its normal symbols
 

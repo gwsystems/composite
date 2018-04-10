@@ -44,7 +44,12 @@ localizesymdst=( "_start"
 if [ "$PROG" == "" ]; then
 	echo Please input an application name;
 	echo Valid choices include:
-	ls ../../../implementation/netbsd | grep -v "Makefile"
+	pushd ../../../implementation/netbsd > /dev/null
+	echo
+	ls -1d */
+	echo
+	popd > /dev/null
+	echo Do no include \"/\" in your selection
 	exit;
 fi
 
@@ -55,8 +60,16 @@ make all
 cd ../
 
 # Combine COSOBJ and application
-objcopy --weaken $PROGDIR/$PROG.o
-ld -melf_i386 -r -o app.tmp $PROGDIR/$PROG.o $SRCDIR/$COSOBJ
+cp $PROGDIR/$PROG.o ./tmp.o
+objcopy --weaken ./tmp.o
+objcopy -L listen ./tmp.o
+objcopy -L getpid ./tmp.o
+objcopy -L malloc ./tmp.o
+objcopy -L calloc ./tmp.o
+objcopy -L free ./tmp.o
+objcopy -L mmap ./tmp.o
+objcopy -L strdup ./tmp.o
+ld -melf_i386 -r -o app.tmp tmp.o $SRCDIR/$COSOBJ
 
 # Defined in both cos and rk, localize one of them.
 for sym in "${localizesymsrc[@]}"
@@ -87,5 +100,6 @@ if [ "$USB_DEV" = "block special file" ]; then
 else
 	echo "NO /dev/sdb: $USB_DEV"
 	echo "RUNNING THE SYSTEM ON QEMU INSTEAD"
-	./$QEMURK rumpkernboot.sh
+	echo "$PROG"_rumpboot.sh
+	./$QEMURK "$PROG"_rumpboot.sh
 fi

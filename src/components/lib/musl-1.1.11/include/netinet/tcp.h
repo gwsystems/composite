@@ -3,6 +3,17 @@
 
 #include <features.h>
 
+/*
+ * RG, HACK shouldn't be making a change in musl, but iperf
+ * application needs at least a struct defined here and this
+ * isn't included unless _GNU_SOURCE is defined. Within musl
+ * itself, _GNU_SOURCE is defined for many of the tests written,
+ * but I don't know how to utilize this outside of musl compilation
+ * itself. For now, hack this in.
+ * DANGER, TEST TO MAKE SURE THIS DOESN'T BREAK OTHER PROJECTS
+ */
+#define _GNU_SOURCE 1
+
 #define TCP_NODELAY 1
 #define TCP_MAXSEG	 2
 #define TCP_CORK	 3

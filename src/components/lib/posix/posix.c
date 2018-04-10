@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <sys/utsname.h>
 
 #include <cos_component.h>
 #include <cos_defkernel_api.h>
@@ -46,9 +47,10 @@ cos_write(int fd, const void *buf, size_t count)
 {
 	/* You shouldn't write to stdin anyway, so don't bother special casing it */
 	if (fd == 1 || fd == 2) {
-		sl_lock_take(&stdout_lock);
+		/* Don't do locks for now, we don't have thdcap for userlevels threads */
+		//sl_lock_take(&stdout_lock);
 		write_bytes_to_stdout((const char *) buf, count);
-		sl_lock_release(&stdout_lock);
+		//sl_lock_release(&stdout_lock);
 		return count;
 	} else {
 		printc("fd: %d not supported!\n", fd);
@@ -60,13 +62,14 @@ ssize_t
 cos_writev(int fd, const struct iovec *iov, int iovcnt)
 {
 	if (fd == 1 || fd == 2) {
-		sl_lock_take(&stdout_lock);
+		/* Don't do locks for now, we don't have thdcap for userlevels threads */
+		//sl_lock_take(&stdout_lock);
 		int i;
 		ssize_t ret = 0;
 		for(i=0; i<iovcnt; i++) {
 			ret += write_bytes_to_stdout((const void *)iov[i].iov_base, iov[i].iov_len);
 		}
-		sl_lock_release(&stdout_lock);
+		//sl_lock_release(&stdout_lock);
 		return ret;
 	} else {
 		printc("fd: %d not supported!\n", fd);
@@ -100,6 +103,7 @@ void *
 cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 	void *ret=0;
+	printc("%s\n", __func__);
 
 	if (addr != NULL) {
 		printc("parameter void *addr is not supported!\n");
@@ -149,6 +153,15 @@ cos_mremap(void *old_address, size_t old_size, size_t new_size, int flags)
 	printc("mremap not implemented\n");
 	errno = ENOSYS;
 	return (void*) -1;
+}
+
+int
+cos_rt_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
+{
+	/* Musl uses this at thread create time */
+	printc("rt_sigaction not implemented\n");
+	errno = ENOSYS;
+	return -1;
 }
 
 int
@@ -435,6 +448,25 @@ cos_futex(int *uaddr, int op, int val,
 	return result;
 }
 
+char *_sysname = "Composite";
+char *_nodename = "fuck if I know";
+char *_release = "lolol we don't have a release";
+char *_version = "> 9000";
+char *_machine = "my VM";
+
+int
+cos_uname(struct utsname *buf)
+{
+	printc("%s\n", __func__);
+	memcpy(buf->sysname, _sysname, 65);
+	memcpy(buf->nodename, _nodename, 65);
+	memcpy(buf->release, _release, 65);
+	memcpy(buf->version, _version, 65);
+	memcpy(buf->machine, _machine, 65);
+
+	return 0;
+}
+
 void
 pre_syscall_default_setup()
 {
@@ -472,7 +504,10 @@ syscall_emulation_setup(void)
 	libc_syscall_override((cos_syscall_t)cos_nanosleep, __NR_nanosleep);
 
 	libc_syscall_override((cos_syscall_t)cos_rt_sigprocmask, __NR_rt_sigprocmask);
+	libc_syscall_override((cos_syscall_t)cos_rt_sigaction, __NR_rt_sigaction);
 	libc_syscall_override((cos_syscall_t)cos_mprotect, __NR_mprotect);
+
+	libc_syscall_override((cos_syscall_t)cos_uname, __NR_uname);
 
 	libc_syscall_override((cos_syscall_t)cos_gettid, __NR_gettid);
 	libc_syscall_override((cos_syscall_t)cos_tkill, __NR_tkill);
@@ -486,7 +521,9 @@ long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f)
 {
 	assert(syscall_num <= SYSCALL_NUM_MAX);
-	/* printc("Making syscall %d\n", syscall_num); */
+	//printc("Making syscall %d\n", syscall_num);
+	//printc("args a: %ld, b: %ld, c: %ld, d: %ld, e: %ld, f: %ld\n",
+	//	a, b, c, d, e, f);
 	if (!cos_syscalls[syscall_num]){
 		printc("WARNING: Thread %u calling unimplemented system call %d\n", cos_thdid(), syscall_num);
 		assert(0);

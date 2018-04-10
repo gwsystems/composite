@@ -63,10 +63,16 @@ void *__expand_heap(size_t *pn)
 
 	size_t min = (size_t)PAGE_SIZE << mmap_step/2;
 	if (n < min) n = min;
+
+	printf("%s, calling mmap, flags: %d\n", __func__,
+		MAP_PRIVATE|MAP_ANONYMOUS);
 	void *area = __mmap(0, n, PROT_READ|PROT_WRITE,
 		MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+	printf("%s, area: %p\n", __func__, area);
+
 	if (area == MAP_FAILED) return 0;
 	*pn = n;
 	mmap_step++;
+	printf("%s, %d\n", __func__, __LINE__);
 	return area;
 }

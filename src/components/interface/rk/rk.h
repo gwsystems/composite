@@ -9,5 +9,11 @@ int     rk_bind(int socketfd, int shdmem_id, unsigned addrlen);
 /* TODO rename parameters to include information about what is being packed */
 ssize_t rk_recvfrom(int arg1, int arg2, int arg3);
 ssize_t rk_sendto(int arg1, int arg2, int arg3);
+int     rk_setsockopt(int arg1, int arg2, int arg3);
+void   *rk_mmap(int arg1, int arg2, int arg3);
+long    rk_write(int arg1, int arg2, int arg3);
+int     rk_listen(int arg1, int arg2);
+int     rk_clock_gettime(int arg1, int arg2);
+int	rk_select(int arg1, int arg2);
 
 #endif /* RK_H */

@@ -3,16 +3,24 @@
 #include <cringbuf.h>
 #include <sinv_calls.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <rumpcalls.h>
 #include <vk_types.h>
 #include <llprint.h>
 #include <rk.h>
 #include <memmgr.h>
 
-int rump___sysimpl_socket30(int, int, int);
-int rump___sysimpl_bind(int, const struct sockaddr *, socklen_t);
+int     rump___sysimpl_socket30(int, int, int);
+int     rump___sysimpl_bind(int, const struct sockaddr *, socklen_t);
 ssize_t rump___sysimpl_recvfrom(int, void *, size_t, int, struct sockaddr *, socklen_t *);
 ssize_t rump___sysimpl_sendto(int, const void *, size_t, int, const struct sockaddr *, socklen_t);
+int     rump___sysimpl_setsockopt(int, int, int, const void *, socklen_t);
+int     rump___sysimpl_listen(int, int);
+int     rump___sysimpl_clock_gettime50(clockid_t, struct timespec *);
+int     rump___sysimpl_select50(int nd, fd_set *, fd_set *, fd_set *, struct timeval *);
+ssize_t rump___sysimpl_write(int, const void *, size_t);
+void   *rump_mmap(void *, size_t, int, int, int, off_t);
 
 /* These synchronous invocations involve calls to and from a RumpKernel */
 //extern struct cringbuf *vmrb;
@@ -47,6 +55,38 @@ test_fs(int arg1, int arg2, int arg3, int arg4)
 
         return ret;
 
+}
+
+int
+rk_select(int arg1, int arg2)
+{
+
+	int nd = arg1, ret;
+	int shdmem_id = arg2;
+	static int old_shdmem_id = -1;
+	static vaddr_t buff = 0;
+	vaddr_t tmp;
+	fd_set *in, *ou, *ex;
+	struct timeval *tv;
+
+	if (old_shdmem_id != shdmem_id || !buff) {
+		old_shdmem_id = shdmem_id;
+		ret = memmgr_shared_page_map(shdmem_id, &buff);
+		assert(ret);
+	}
+
+	assert(buff && (old_shdmem_id == shdmem_id));
+
+	tmp = buff;
+	in = (fd_set *)tmp;
+	tmp += sizeof(fd_set);
+	ou = (fd_set *)tmp;
+	tmp += sizeof(fd_set);
+	ex = (fd_set *)tmp;
+	tmp += sizeof(fd_set);
+	tv = (struct timeval *)tmp;
+
+	return rump___sysimpl_select50(nd, in, ou, ex, tv);
 }
 
 int
@@ -162,4 +202,109 @@ rk_sendto(int arg1, int arg2, int arg3)
 	assert(sock);
 
 	return rump___sysimpl_sendto(sockfd, buff, len, flags, sock, addrlen);
+}
+
+int
+rk_setsockopt(int arg1, int arg2, int arg3)
+{
+	int sockfd, level, optname, shdmem_id, ret;
+	static void *optval = NULL;
+	static int old_shdmem_id = -1;
+	socklen_t optlen;
+
+	sockfd     = (arg1 >> 16);
+	level      = (arg1 << 16) >> 16;
+	optname    = (arg2 >> 16);
+	shdmem_id  = (arg2 << 16) >> 16;
+	optlen     = arg3;
+
+	if (optval == NULL || old_shdmem_id != shdmem_id) {
+		old_shdmem_id = shdmem_id;
+		ret = memmgr_shared_page_map(shdmem_id, &optval);
+		assert(ret);
+	}
+
+	assert(optval && (shdmem_id == old_shdmem_id));
+
+	return rump___sysimpl_setsockopt(sockfd, level, optname, (const void *)optval, optlen);
+}
+
+void *
+rk_mmap(int arg1, int arg2, int arg3)
+{
+	void *addr, *ret;
+	size_t len;
+	int prot, flags, fd;
+	off_t off;
+
+	addr  = (void *)(arg1 >> 16);
+	len   = (size_t)((arg1 << 16) >> 16);
+	prot  = arg2 >> 16;
+	flags = (arg2 << 16) >> 16;
+	fd    = arg3 >> 16;
+	off   = (off_t)((arg3 << 16) >> 16);
+
+	ret = rump_mmap(addr, len, prot, flags, fd, off);
+
+	return ret;
+}
+
+long
+rk_write(int arg1, int arg2, int arg3)
+{
+	int fd, shdmem_id, ret;
+	static const void *buf = NULL;
+	static int old_shdmem_id = -1;
+	size_t nbyte;
+
+	fd        = arg1;
+	shdmem_id = arg2;
+	nbyte     = (size_t)arg3;
+
+	if (buf == NULL || old_shdmem_id != shdmem_id) {
+		old_shdmem_id = shdmem_id;
+		ret = memmgr_shared_page_map(shdmem_id, &buf);
+		assert(ret);
+	}
+
+	assert(buf && (shdmem_id == old_shdmem_id));
+
+	return (long)rump___sysimpl_write(fd, buf, nbyte);
+}
+
+int
+rk_listen(int arg1, int arg2)
+{
+	int s, backlog;
+
+	s       = arg1;
+	backlog = arg2;
+
+	return rump___sysimpl_listen(s, backlog);
+}
+
+int
+rk_clock_gettime(int arg1, int arg2)
+{
+	int shdmem_id, ret;
+	clockid_t clock_id;
+	static struct timespec *tp = NULL;
+	static int old_shdmem_id = -1;
+
+	clock_id  = (clockid_t)arg1;
+	shdmem_id = arg2;
+
+	/* TODO, make this a function */
+	if (tp == NULL || old_shdmem_id != shdmem_id) {
+		old_shdmem_id = shdmem_id;
+		ret = memmgr_shared_page_map(shdmem_id, &tp);
+		assert(ret);
+	}
+
+	assert(tp && (shdmem_id == old_shdmem_id));
+
+	/* Per process clock 2 is not supported, user real-time clock */
+	if (clock_id == 2) clock_id = 0;
+
+	return rump___sysimpl_clock_gettime50(clock_id, tp);
 }
