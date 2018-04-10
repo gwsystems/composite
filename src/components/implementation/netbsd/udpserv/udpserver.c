@@ -51,18 +51,22 @@ update_script()
 {
 	printc("update_script\n");
 	int i = 0;
-	
+	static int num = 0;
+
 	int sz = MSG_SZ/4;
 
 	script[sz] = '\0';
 
-	for (i = 0; i < sz ; i++) {
+	script[0] = num;
+	((unsigned int *)__msg)[0] = script[0];
+
+	for (i = 1; i < sz ; i++) {
 		
 		//if (script[i] == '\0') break;
-		((unsigned int *)__msg)[i] = script[i];
+		((unsigned int *)__msg)[i] = script[i] + num;
 		printc("msg[%d]: %u \n", i ,((unsigned int *)__msg)[i] );
 	}
-
+	num++;
 	return 0;
 }
 

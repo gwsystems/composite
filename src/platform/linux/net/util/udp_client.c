@@ -20,6 +20,7 @@
 unsigned long long max = 0, min = (unsigned long long)-1, tot = 0, cnt = 0;
 int rcv = 0;
 char *rcv_msg;
+int script[18];
 
 void construct_header(char *msg)
 {
@@ -182,7 +183,7 @@ int main(int argc, char *argv[])
 
 	start_timers();
 
-//	while (1) {
+	while (1) {
 		int i;
 		
 		construct_header(msg);
@@ -202,11 +203,24 @@ int main(int argc, char *argv[])
 		}
 		//nanosleep(&ts, NULL);
 		
-		int k = 0;
-		for (k = 0; k < 8; k++) {
-			printf("msg[%d]:%u\n", k, ((unsigned int *)rcv_msg)[k]) ;
+		if (((unsigned int *)rcv_msg)[0] > 3 ) break;
+		int j = 0;
+		int l = 0;
+		int script_num = ((unsigned int *)rcv_msg)[0];
+	
+		for (j = 6*script_num; j < (6*script_num)+6 ; j ++) {
+			script[j] = ((unsigned int *)rcv_msg)[l];
+			l++;
 		}
-//	}
+
+		//printf("msg[0]:%u\n", ((unsigned int *)rcv_msg)[0]) ;
+	}
+	
+	int k = 0;
+	for (k = 0; k < 18; k++) {
+		if (k%6==0 && k != 0) printf("\n");
+		printf("script[%d]:%d\n", k, script[k]) ;
+	}
 
 	return 0;
 }
