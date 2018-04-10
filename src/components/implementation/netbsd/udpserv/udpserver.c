@@ -39,6 +39,7 @@ udpserv_script(int shdmemid)
 	printc("script serving: ");
 	for (i = 0; i < 8; i ++) {
 		printc("%u, ", test_string[i]);
+		script[i] = (int)test_string[i];
 	}
 
 	return 0;
@@ -53,14 +54,11 @@ update_script()
 	
 	int sz = MSG_SZ/4;
 
-	for (i = 0; i < sz; i++) {
-		script[i] = i+1;
-	}
 	script[sz] = '\0';
 
 	for (i = 0; i < sz ; i++) {
 		
-		if (script[i] == '\0') break;
+		//if (script[i] == '\0') break;
 		((unsigned int *)__msg)[i] = script[i];
 		printc("msg[%d]: %u \n", i ,((unsigned int *)__msg)[i] );
 	}
