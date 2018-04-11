@@ -6,17 +6,19 @@
 #include "isr.h"
 #include "chal_cpu.h"
 
+#define PRINTK(format, ...) printk("(CPU%ld:) " format, get_cpuid(), ## __VA_ARGS__)
+
 void
 print_regs_state(struct pt_regs *regs)
 {
-	printk("\n\nCPU%d registers:\n", get_cpuid());
-	printk("General registers-> EAX: %x, EBX: %x, ECX: %x, EDX: %x\n", regs->ax, regs->bx, regs->cx, regs->dx);
-	printk("Segment registers-> CS: %x, DS: %x, ES: %x, FS: %x, GS: %x, SS: %x\n", regs->cs, regs->ds, regs->es,
+	PRINTK("registers:\n");
+	PRINTK("General registers-> EAX: %x, EBX: %x, ECX: %x, EDX: %x\n", regs->ax, regs->bx, regs->cx, regs->dx);
+	PRINTK("Segment registers-> CS: %x, DS: %x, ES: %x, FS: %x, GS: %x, SS: %x\n", regs->cs, regs->ds, regs->es,
 	       regs->fs, regs->gs, regs->ss);
-	printk("Index registers-> ESI: %x, EDI: %x, EIP: %x, ESP: %x, EBP: %x\n", regs->si, regs->di, regs->ip,
+	PRINTK("Index registers-> ESI: %x, EDI: %x, EIP: %x, ESP: %x, EBP: %x\n", regs->si, regs->di, regs->ip,
 	       regs->sp, regs->bp);
-	printk("Indicator-> EFLAGS: %x\n", regs->flags);
-	printk("(Exception Error Code-> ORIG_AX: %x)\n", regs->orig_ax);
+	PRINTK("Indicator-> EFLAGS: %x\n", regs->flags);
+	PRINTK("(Exception Error Code-> ORIG_AX: %x)\n", regs->orig_ax);
 }
 
 int
