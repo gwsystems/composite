@@ -459,7 +459,7 @@ lapic_ipi_send(u32_t dest, u32_t vect_flags)
 void
 lapic_asnd_ipi_send(const cpuid_t cpu_id)
 {
-	lapic_ipi_send(cpu_id, LAPIC_ICR_FIXED | LAPIC_IPI_ASND_VEC);
+	lapic_ipi_send(apicids[cpu_id], LAPIC_ICR_FIXED | LAPIC_IPI_ASND_VEC);
 	return;
 }
 

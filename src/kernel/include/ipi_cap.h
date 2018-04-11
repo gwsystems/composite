@@ -17,7 +17,7 @@
  * Ring size should be power of 2
  * We have N*N rings (N= # of cpus).
  */
-#define IPI_RING_SIZE (16)
+#define IPI_RING_SIZE (64)
 #define IPI_RING_MASK (IPI_RING_SIZE - 1);
 
 struct ipi_cap_data {
