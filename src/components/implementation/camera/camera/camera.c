@@ -1,24 +1,18 @@
 #include <llprint.h>
 
 #include <camera.h>
-#include <posix.h>
-#include <sl.h>
-#include <sl_lock.h>
-#include <sl_thd.h>
+#include <cos_alloc.h>
 
-#include <locale.h>
-#include <limits.h>
-#include <pthread.h>
+//#include <stdio.h>
+//#include <stdlib.h>
+//#include <stdint.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
+#include "jpeglib.h"
 
 #define NORTH 0
 #define EAST 1
 #define SOUTH 2
 #define WEST 3
-#include "jpeglib.h"
 
 extern const char _binary_greenroomba_jpg_start;
 extern const char _binary_greenroomba_jpg_end;
@@ -149,5 +143,5 @@ cos_init(void)
 	printc("Image  Size: %d\n", &_binary_greenroomba_jpg_size);
 	printc("Image Start Addr: %d\n",&_binary_greenroomba_jpg_start);
 	printc("Image End Addr: %d\n",&_binary_greenroomba_jpg_end);
-	
+	sched_thd_block(0);	
 }
