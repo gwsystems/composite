@@ -256,6 +256,19 @@ arcv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 	return cap_capdeactivate(t, capin, CAP_ARCV, lid);
 }
 
+static inline int
+arcv_introspect(struct cap_arcv *r, unsigned long op, unsigned long *retval)
+{
+	switch (op) {
+	case ARCV_GET_CPUID:
+		*retval = r->cpuid;
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
 /*
  * Invocation (call and return) fast path.  We want this to be as
  * optimized as possible.  The only two optimizations not yet

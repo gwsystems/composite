@@ -932,6 +932,8 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 		return thd_introspect(((struct cap_thd *)ch)->t, op, retval);
 	case CAP_TCAP:
 		return tcap_introspect(((struct cap_tcap *)ch)->tcap, op, retval);
+	case CAP_ARCV:
+		return arcv_introspect(((struct cap_arcv *)ch), op, retval);
 	default:
 		return -EINVAL;
 	}

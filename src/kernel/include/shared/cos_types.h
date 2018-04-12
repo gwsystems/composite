@@ -299,6 +299,12 @@ enum
 	TCAP_GET_BUDGET,
 };
 
+enum
+{
+	/* arcv CPU id */
+	ARCV_GET_CPUID,
+};
+
 /* Macro used to define per core variables */
 #define PERCPU(type, name)       \
 	PERCPU_DECL(type, name); \
