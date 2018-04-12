@@ -37,9 +37,9 @@ udpserv_script(int shdmemid)
 	unsigned char * test_string = (unsigned char *)shdmem_addr;
 
 	printc("script serving: ");
-	for (i = 0; i < 8; i ++) {
+	for (i = 0; i < MSG_SZ; i ++) {
 		printc("%u, ", test_string[i]);
-		script[i] = (int)test_string[i];
+		script[i] = (unsigned char)test_string[i];
 	}
 
 	return 0;
@@ -53,25 +53,25 @@ update_script()
 	int i = 0;
 	static int num = 0;
 
-	int sz = MSG_SZ/4;
+	int sz = MSG_SZ;
 
 	script[sz] = '\0';
 
 	script[0] = num;
-	((unsigned int *)__msg)[0] = script[0];
+	((unsigned char*)__msg)[0] = script[0];
 
 	for (i = 1; i < sz ; i++) {
 		
 		//if (script[i] == '\0') break;
-		((unsigned int *)__msg)[i] = script[i] + num;
-		printc("msg[%d]: %u \n", i ,((unsigned int *)__msg)[i] );
+		((unsigned char*)__msg)[i] = script[i] + num;
+		printc("msg[%d]: %u \n", i ,((unsigned char*)__msg)[i] );
 	}
 	num++;
 	return 0;
 }
 
 static int
-__test_udp_server(void)
+udp_server_start(void)
 {
 	int fd, fdr;
 	struct sockaddr_in soutput, sinput;
@@ -136,7 +136,7 @@ udpserv_main(void)
 	rk_socketcall_init();
 
 	printc("Starting udp-server [in:%d out:%d]\n", IN_PORT, OUT_PORT);
-	__test_udp_server();
+	udp_server_start();
 
 	return 0;
 }
