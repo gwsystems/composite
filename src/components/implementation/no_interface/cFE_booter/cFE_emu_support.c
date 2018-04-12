@@ -25,6 +25,28 @@ emu_backend_request_memory(spdid_t client)
 }
 
 int32
+emu_CFE_ES_CalculateCRC(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_CalculateCRC(s->cfe_es_calculateCRC.Data, s->cfe_es_calculateCRC.DataLength,
+	                           s->cfe_es_calculateCRC.InputCRC, s->cfe_es_calculateCRC.TypeCRC);
+}
+
+int32
+emu_CFE_ES_GetAppIDByName(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_GetAppIDByName(&s->cfe_es_getAppIDByName.AppId, s->cfe_es_getAppIDByName.AppName);
+}
+
+int32
+emu_CFE_ES_GetAppInfo(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_GetAppInfo(&s->cfe_es_getAppInfo.AppInfo, s->cfe_es_getAppInfo.AppId);
+}
+
+int32
 emu_CFE_ES_GetGenCount(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
@@ -57,6 +79,13 @@ emu_CFE_ES_RunLoop(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
 	return CFE_ES_RunLoop(&s->cfe_es_runLoop.RunStatus);
+}
+
+int32
+emu_CFE_ES_WriteToSysLog(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_WriteToSysLog("%s", s->cfe_es_writeToSysLog.String);
 }
 
 int32
@@ -169,6 +198,14 @@ emu_CFE_SB_SendMsg(spdid_t client)
 	return CFE_SB_SendMsg((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
 }
 
+int32
+emu_CFE_SB_SubscribeEx(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_SB_SubscribeEx(s->cfe_sb_subscribeEx.MsgId, s->cfe_sb_subscribeEx.PipeId,
+ 	                          s->cfe_sb_subscribeEx.Quality, s->cfe_sb_subscribeEx.MsgLim);
+}
+
 void
 emu_CFE_SB_TimeStampMsg(spdid_t client)
 {
@@ -243,6 +280,13 @@ emu_OS_mkdir(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
 	return OS_mkdir(s->os_mkdir.path, s->os_mkdir.access);
+}
+
+int32
+emu_OS_open(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return OS_open(s->os_open.path, s->os_open.access, s->os_open.mode);
 }
 
 os_dirp_t

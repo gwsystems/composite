@@ -14,6 +14,8 @@
 
 union shared_region *shared_region;
 spdid_t              spdid;
+// NOTE: This is tagged as currently unused in the docs
+CFE_SB_Qos_t				 CFE_SB_Default_Qos = { 0 };
 
 void
 do_emulation_setup(spdid_t id)
@@ -26,10 +28,42 @@ do_emulation_setup(spdid_t id)
 	memmgr_shared_page_map(region_id, &client_addr);
 	assert(client_addr);
 	shared_region = (void *)client_addr;
+
+
 }
 
-
 // FIXME: Be more careful about user supplied pointers
+// FIXME: Take a lock in each function, so shared memory can't be corrupted
+uint32
+CFE_ES_CalculateCRC(const void *DataPtr, uint32 DataLength, uint32 InputCRC, uint32 TypeCRC)
+{
+	assert(DataLength < EMU_BUF_SIZE);
+	memcpy(shared_region->cfe_es_calculateCRC.Data, DataPtr, DataLength);
+	shared_region->cfe_es_calculateCRC.InputCRC = InputCRC;
+	shared_region->cfe_es_calculateCRC.TypeCRC = TypeCRC;
+	return emu_CFE_ES_CalculateCRC(spdid);
+}
+
+int32
+CFE_ES_GetAppIDByName(uint32 *AppIdPtr, const char *AppName)
+{
+	assert(strlen(AppName) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->cfe_es_getAppIDByName.AppName, AppName);
+	int32 result = emu_CFE_ES_GetAppIDByName(spdid);
+	*AppIdPtr = shared_region->cfe_es_getAppIDByName.AppId;
+	return result;
+}
+
+int32
+CFE_ES_GetAppInfo(CFE_ES_AppInfo_t *AppInfo, uint32 AppId)
+{
+	shared_region->cfe_es_getAppInfo.AppId = AppId;
+	int32 result = emu_CFE_ES_GetAppInfo(spdid);
+	*AppInfo = shared_region->cfe_es_getAppInfo.AppInfo;
+	return result;
+}
+
 int32
 CFE_ES_GetGenCount(uint32 CounterId, uint32 *Count)
 {
@@ -72,6 +106,18 @@ CFE_ES_RunLoop(uint32 *RunStatus)
 	int32 result                            = emu_CFE_ES_RunLoop(spdid);
 	*RunStatus                              = shared_region->cfe_es_runLoop.RunStatus;
 	return result;
+}
+
+int32
+CFE_ES_WriteToSysLog(const char *SpecStringPtr, ...)
+{
+	va_list arg_ptr;
+	int     ret, len = OS_BUFFER_SIZE;
+
+	va_start(arg_ptr, SpecStringPtr);
+	vsnprintf(shared_region->cfe_es_writeToSysLog.String, len, SpecStringPtr, arg_ptr);
+	va_end(arg_ptr);
+	return emu_CFE_ES_WriteToSysLog(spdid);
 }
 
 int32 CFE_EVS_Register(void * Filters,           /* Pointer to an array of filters */
@@ -120,6 +166,19 @@ CFE_FS_WriteHeader(int32 FileDes, CFE_FS_Header_t *Hdr)
 	int32 result = emu_CFE_FS_WriteHeader(spdid);
 	*Hdr = shared_region->cfe_fs_writeHeader.Hdr;
 	return result;
+}
+
+int32
+CFE_PSP_MemCpy(void *dest, void *src, uint32 n)
+{
+	memcpy(dest, src, n);
+	return CFE_PSP_SUCCESS;
+}
+
+int32 CFE_PSP_MemSet(void *dest, uint8 value, uint32 n)
+{
+	memset(dest, value, n);
+	return CFE_PSP_SUCCESS;
 }
 
 int32
@@ -233,6 +292,15 @@ CFE_SB_SendMsg(CFE_SB_Msg_t *MsgPtr)
 	return emu_CFE_SB_SendMsg(spdid);
 }
 
+int32
+CFE_SB_SubscribeEx(CFE_SB_MsgId_t MsgId, CFE_SB_PipeId_t PipeId, CFE_SB_Qos_t Quality, uint16 MsgLim)
+{
+	shared_region->cfe_sb_subscribeEx.MsgId = MsgId;
+	shared_region->cfe_sb_subscribeEx.PipeId = PipeId;
+	shared_region->cfe_sb_subscribeEx.Quality = Quality;
+	shared_region->cfe_sb_subscribeEx.MsgLim = MsgLim;
+	return emu_CFE_SB_SubscribeEx(spdid);
+}
 
 void
 CFE_SB_TimeStampMsg(CFE_SB_MsgPtr_t MsgPtr)
@@ -350,6 +418,18 @@ OS_mv(const char *src, const char *dest)
 	return emu_OS_mv(spdid);
 }
 
+int32
+OS_open(const char *path, int32 access, uint32 mode)
+{
+	assert(strlen(path) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_open.path, path);
+	shared_region->os_open.access = access;
+	shared_region->os_open.mode = mode;
+
+	return emu_OS_open(spdid);
+}
+
 os_dirp_t
 OS_opendir(const char *path)
 {
@@ -432,7 +512,6 @@ OS_write(int32 filedes, void *buffer, uint32 nbytes)
 	shared_region->os_write.nbytes = nbytes;
 	return emu_OS_write(spdid);
 }
-
 
 int32
 OS_BinSemCreate(uint32 *sem_id, const char *sem_name, uint32 sem_initial_value, uint32 options)

@@ -158,15 +158,47 @@ union shared_region {
 		uint32 task_id;
 		char task_name[EMU_BUF_SIZE];
 	} os_taskGetIdByName;
+	struct {
+		char String[EMU_BUF_SIZE];
+	} cfe_es_writeToSysLog;
+	struct {
+		char path[EMU_BUF_SIZE];
+		int32 access;
+		uint32 mode;
+	} os_open;
+	struct {
+		char Data[EMU_BUF_SIZE];
+		uint32 DataLength;
+		uint32 InputCRC;
+		uint32 TypeCRC;
+	} cfe_es_calculateCRC;
+	struct {
+		uint32 AppId;
+		char AppName[EMU_BUF_SIZE];
+	} cfe_es_getAppIDByName;
+	struct {
+		CFE_ES_AppInfo_t AppInfo;
+		uint32 AppId;
+	} cfe_es_getAppInfo;
+	struct {
+		CFE_SB_MsgId_t MsgId;
+		CFE_SB_PipeId_t PipeId;
+		CFE_SB_Qos_t Quality;
+		uint16 MsgLim;
+	} cfe_sb_subscribeEx;
 };
 
 int emu_backend_request_memory(spdid_t client);
 
+int32 emu_CFE_ES_CalculateCRC(spdid_t client);
+int32 emu_CFE_ES_GetAppIDByName(spdid_t client);
+int32 emu_CFE_ES_GetAppInfo(spdid_t client);
 int32 emu_CFE_ES_GetGenCount(spdid_t client);
 int32 emu_CFE_ES_GetGenCounterIDByName(spdid_t client);
 int32 emu_CFE_ES_GetResetType(spdid_t client);
 int32 emu_CFE_ES_GetTaskInfo(spdid_t client);
 int32 emu_CFE_ES_RunLoop(spdid_t client);
+int32 emu_CFE_ES_WriteToSysLog(spdid_t client);
 
 int32 emu_CFE_EVS_Register(spdid_t sp);
 int32 emu_CFE_EVS_SendEvent(spdid_t client);
@@ -183,6 +215,7 @@ void emu_CFE_SB_InitMsg(spdid_t client);
 int32 emu_CFE_SB_RcvMsg(spdid_t client);
 int32 emu_CFE_SB_SetCmdCode(spdid_t client);
 int32 emu_CFE_SB_SendMsg(spdid_t client);
+int32 emu_CFE_SB_SubscribeEx(spdid_t client);
 void emu_CFE_SB_TimeStampMsg(spdid_t client);
 boolean emu_CFE_SB_ValidateChecksum(spdid_t client);
 
@@ -197,6 +230,7 @@ int32 emu_OS_FDGetInfo(spdid_t client);
 int32 emu_OS_fsBytesFree(spdid_t client);
 int32 emu_OS_mkdir(spdid_t client);
 int32 emu_OS_mv(spdid_t client);
+int32 emu_OS_open(spdid_t client);
 os_dirp_t emu_OS_opendir(spdid_t client);
 int32 emu_OS_read(spdid_t client);
 void emu_OS_readdir(spdid_t client);
