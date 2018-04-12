@@ -19,8 +19,10 @@
 
 unsigned long long max = 0, min = (unsigned long long)-1, tot = 0, cnt = 0;
 int rcv = 0;
-char *rcv_msg;
-int script[18];
+unsigned char *rcv_msg;
+int script[100];
+
+#define MSG_SZ 31
 
 void construct_header(char *msg)
 {
@@ -186,8 +188,6 @@ int main(int argc, char *argv[])
 	while (1) {
 		int i;
 		
-		construct_header(msg);
-		
 		if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
 		    errno != EINTR) {
 			perror("sendto");
@@ -201,26 +201,30 @@ int main(int argc, char *argv[])
 			}
 			foo++;
 		}
-		//nanosleep(&ts, NULL);
-		
-		if (((unsigned int *)rcv_msg)[0] > 3 ) break;
+
 		int j = 0;
-		int l = 0;
-		int script_num = ((unsigned int *)rcv_msg)[0];
-	
-		for (j = 6*script_num; j < (6*script_num)+6 ; j ++) {
-			script[j] = ((unsigned int *)rcv_msg)[l];
+		int l = 1;
+		int script_num = ((unsigned char *)rcv_msg)[0];
+
+		/* Store message into local script at corresponding place */	
+		for (j = MSG_SZ*script_num; j < (MSG_SZ*script_num)+MSG_SZ ; j ++) {
+			if (((unsigned char *)rcv_msg)[l] == 66 ) break;
+			script[j] = ((unsigned char *)rcv_msg)[l];
 			l++;
 		}
 
-		//printf("msg[0]:%u\n", ((unsigned int *)rcv_msg)[0]) ;
+		/* Print entirety of recieved script */
+		if (((unsigned char *)rcv_msg)[l] == 66 ) {
+			int k = 0;
+			for (k = 0; k < j; k++) {
+				if (k%MSG_SZ == 0 && k != 0) printf("\n");
+				printf("%d, ", script[k]) ;
+			}
+	
+			break;
+		}
 	}
 	
-	int k = 0;
-	for (k = 0; k < 18; k++) {
-		if (k%6==0 && k != 0) printf("\n");
-		printf("script[%d]:%d\n", k, script[k]) ;
-	}
 
 	return 0;
 }

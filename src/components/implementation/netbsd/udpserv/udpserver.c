@@ -24,8 +24,9 @@ extern struct cos_component_information cos_comp_info;
 int shdmem_id;
 vaddr_t shdmem_addr;
 
+#define MAX_SCRIPT_SZ 100
 static char __msg[MSG_SZ + 1] = { '\0' };
-unsigned char script[100];
+unsigned char script[MAX_SCRIPT_SZ];
 
 /* Will be mdae asynchronous: notifies udp server of a script update */
 int
@@ -34,12 +35,12 @@ udpserv_script(int shdmemid)
 	printc("udpserv_script\n");
 
 	int i = 0;
-	unsigned char * test_string = (unsigned char *)shdmem_addr;
+	unsigned char * shm_ptr = (unsigned char *)shdmem_addr;
 
 	printc("script serving: ");
-	for (i = 0; i < MSG_SZ; i ++) {
-		printc("%u, ", test_string[i]);
-		script[i] = (unsigned char)test_string[i];
+	for (i = 0; i < MAX_SCRIPT_SZ; i ++) {
+		script[i] = (unsigned char)shm_ptr[i];
+		printc("%u, ", script[i]);
 	}
 
 	return 0;
@@ -49,22 +50,23 @@ udpserv_script(int shdmemid)
 static int
 update_script()
 {
-	printc("update_script\n");
 	int i = 0;
+	int j = 0;
+	
 	static int num = 0;
-
 	int sz = MSG_SZ;
 
 	script[sz] = '\0';
-
-	script[0] = num;
-	((unsigned char*)__msg)[0] = script[0];
-
+	j = MSG_SZ*num;
+        
+	/* First char indicates index into script this message is */
+	((unsigned char*)__msg)[i] = num;
 	for (i = 1; i < sz ; i++) {
-		
-		//if (script[i] == '\0') break;
-		((unsigned char*)__msg)[i] = script[i] + num;
-		printc("msg[%d]: %u \n", i ,((unsigned char*)__msg)[i] );
+	
+		/* 66 is arbitrary number picked to denote script end */	
+		if (script[i] == 66) break;
+		((unsigned char*)__msg)[i] = script[j];
+		j++;
 	}
 	num++;
 	return 0;
@@ -105,7 +107,6 @@ udp_server_start(void)
 	do {
 		struct sockaddr sa;
 		socklen_t len = sizeof(struct sockaddr);
-		printc("going to recieve now:\n");
 		if (recvfrom(fdr, __msg, msg_size, 0, &sa, &len) != msg_size) {
 			printc("read");
 			continue;
