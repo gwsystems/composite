@@ -303,6 +303,8 @@ enum
 {
 	/* arcv CPU id */
 	ARCV_GET_CPUID,
+	/* TID of the thread arcv is associated with */
+	ARCV_GET_THDID,
 };
 
 /* Macro used to define per core variables */

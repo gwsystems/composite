@@ -152,6 +152,7 @@ capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, 
 	snd = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, sl_thd_asndcap(t));
 	if (!snd) goto err;
 
+	cap_comminfo_init(t, 0, 0);
 	cap_info_thd_init(rc, t, key);
 	cap_info_initthd_init(rs, t, 0);
 	cap_info_cpu_local(rs)->p_initthdcap = thdcap = ret;
@@ -220,6 +221,7 @@ capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s,
 		*rcvtcret = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;
 	}
 
+	cap_comminfo_init(t, 0, 0);
 	cap_info_thd_init(rc, t, key);
 	cap_info_thd_init(rs, t, 0);
 	*drcvtidret = (dstrcv << 16 | sl_thd_thdid(t));
@@ -269,6 +271,7 @@ capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t 
 		tc = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;
 	}
 
+	cap_comminfo_init(t, 0, 0);
 	cap_info_thd_init(rc, t, key);
 	*tcrcvret = (tc << 16 | rcv);
 	*tid      = sl_thd_thdid(t);
@@ -356,19 +359,23 @@ capmgr_asnd_create(spdid_t s, thdid_t tid /* thd with rcvcap */)
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
 	struct sl_thd          *ti      = cap_info_thd_find(rs, tid);
-	asndcap_t               snd     = 0, sndret = 0;
+	capid_t                 cap     = 0, capret = 0;
+	cap_t                   type    = 0;
+	struct cap_comm_info   *comm    = NULL;
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!rs || !cap_info_init_check(rs)) return 0;
 	if (!ti || !sl_thd_rcvcap(ti)) return 0;
 	/* either scheduler creates the sndcap or the component creates itself as it has access to rcvcap */
 	if (!cap_info_is_sched(cur) && cur != s) return 0;
+	comm = cap_comm_tid_lkup(sl_thd_thdid(ti));
+	if (!comm) return 0;
 
-	snd = cos_asnd_alloc(cap_ci, sl_thd_rcvcap(ti), cap_ci->captbl_cap);
-	if (!snd) return 0;
-	sndret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, snd);
+	type = cap_comminfo_xcoresnd_create(comm, &cap);
+	if (!type || !cap) return 0;
+	capret = cos_cap_cpy(cap_info_ci(rc), cap_ci, type, cap);
 
-	return sndret;
+	return (asndcap_t)capret;
 }
 
 asndcap_t
@@ -378,16 +385,20 @@ capmgr_asnd_rcv_create(arcvcap_t rcv)
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
-	asndcap_t               snd     = 0, sndret = 0;
+	capid_t                 cap     = 0, capret = 0;
+	cap_t                   type    = 0;
+	struct cap_comm_info   *comm    = NULL;
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!cap_info_is_sched(cur)) return 0;
+	comm = cap_comm_rcv_lkup(rcv);
+	if (!comm || !comm->rcvcap) return 0;
 
-	snd = cos_asnd_alloc(cap_ci, rcv, cap_info_ci(rc)->captbl_cap);
-	if (!snd) return 0;
-	sndret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, snd);
+	type = cap_comminfo_xcoresnd_create(comm, &cap);
+	if (!type || !cap) return 0;
+	capret = cos_cap_cpy(cap_info_ci(rc), cap_ci, type, cap);
 
-	return sndret;
+	return (asndcap_t)capret;
 }
 
 asndcap_t
@@ -397,13 +408,14 @@ capmgr_asnd_key_create(cos_channelkey_t key)
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
-	asndcap_t               snd     = 0, sndret = 0;
+	capid_t                 cap     = 0, capret = 0;
+	cap_t                   type    = 0;
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!key) return 0;
-	snd = cap_channelaep_asnd_get(key);
-	if (!snd) return 0;
-	sndret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, snd);
+	type = cap_channelaep_asnd_get(key, &cap);
+	if (!cap || !type) return 0;
+	capret = cos_cap_cpy(cap_info_ci(rc), cap_ci, type, cap);
 
-	return sndret;
+	return (asndcap_t)capret;
 }

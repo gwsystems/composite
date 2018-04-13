@@ -21,9 +21,17 @@ struct cap_shmem_glb_info {
 	cos_channelkey_t region_keys[MEMMGR_MAX_SHMEM_REGIONS]; /* if key > 0, be able to map shmem region with key for a static namespace == key!! */
 };
 
+struct cap_comm_info {
+	arcvcap_t  rcvcap; /* rcv capid in capmgr! */
+	cpuid_t    rcvcpuid;
+	cycles_t   ipiwin, ipiwin_start; /* TODO: synchronize TSC on all cores */
+	u32_t      ipicnt, ipimax;
+	asndcap_t  sndcap[NUM_CPU]; /* for cross-core asnds */
+	sinvcap_t  sinvcap[NUM_CPU]; /* for each core (except for the same core!) */
+} cap_comminfo[CAP_INFO_MAX_THREADS];
+
 struct cap_channelaep_info {
-	arcvcap_t rcvcap;
-	asndcap_t sndcap[NUM_CPU]; /* per-core send-cap */
+	struct cap_comm_info *comminfo;
 } cap_channelaeps[CAPMGR_AEPKEYS_MAX];
 
 /* per component shared memory region information */
@@ -74,9 +82,14 @@ void     cap_shmem_region_vaddr_set(struct cap_shmem_info *rsh, cbuf_t id, vaddr
 cbuf_t   cap_shmem_region_find(cos_channelkey_t key);
 int      cap_shmem_region_key_set(cbuf_t id, cos_channelkey_t key);
 
+struct cap_comm_info *cap_comminfo_init(struct sl_thd *t, microsec_t ipi_window, u32_t ipi_max);
+struct cap_comm_info *cap_comm_tid_lkup(thdid_t tid);
+struct cap_comm_info *cap_comm_rcv_lkup(arcvcap_t rcv);
+cap_t  cap_comminfo_xcoresnd_create(struct cap_comm_info *comm, capid_t *cap);
+
 struct cap_channelaep_info *cap_info_channelaep_get(cos_channelkey_t key);
 void                        cap_channelaep_set(cos_channelkey_t key, struct sl_thd *t);
-asndcap_t                   cap_channelaep_asnd_get(cos_channelkey_t key);
+cap_t                       cap_channelaep_asnd_get(cos_channelkey_t key, capid_t *cap);
 
 static inline struct cos_compinfo *
 cap_info_ci(struct cap_comp_info *r)

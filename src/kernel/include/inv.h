@@ -263,6 +263,9 @@ arcv_introspect(struct cap_arcv *r, unsigned long op, unsigned long *retval)
 	case ARCV_GET_CPUID:
 		*retval = r->cpuid;
 		break;
+	case ARCV_GET_THDID:
+		*retval = r->thd->tid;
+		break;
 	default:
 		return -EINVAL;
 	}

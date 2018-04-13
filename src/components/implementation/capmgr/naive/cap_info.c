@@ -5,6 +5,7 @@ static struct cap_comp_info capci[MAX_NUM_COMPS + 1]; /* includes booter informa
 static unsigned int cap_comp_count;
 u32_t cap_info_schedbmp[NUM_CPU][MAX_NUM_COMP_WORDS];
 static struct cap_shmem_glb_info cap_shmglbinfo;
+extern int cap_xcore_asnd_inv(struct cap_comm_info *c, word_t a, word_t b, int yield);
 
 static inline struct cap_shmem_glb_info *
 __cap_info_shmglb_info(void)
@@ -81,6 +82,102 @@ cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, 
 	return &capci[spdid];
 }
 
+struct cap_comm_info *
+cap_comm_tid_lkup(thdid_t tid)
+{
+	return &cap_comminfo[tid];
+}
+
+struct cap_comm_info *
+cap_comm_rcv_lkup(arcvcap_t rcv)
+{
+	/* FIXME: this is for global- thread id namespace */
+	thdid_t tid = cos_introspect(cos_compinfo_get(cos_defcompinfo_curr_get()), rcv, ARCV_GET_THDID);
+
+	return cap_comm_tid_lkup(tid);
+}
+
+struct cap_comm_info *
+cap_comminfo_init(struct sl_thd *t, microsec_t ipi_window, u32_t ipi_max)
+{
+	cycles_t now;
+	struct cap_comm_info *cmi = NULL;
+
+	if (!sl_thd_rcvcap(t)) return NULL;
+	cmi = cap_comm_tid_lkup(sl_thd_thdid(t));
+	if (!cmi) return NULL;
+	assert(!cmi->rcvcap);
+
+	rdtscll(now);
+	cmi->rcvcap              = sl_thd_rcvcap(t);
+	cmi->rcvcpuid            = cos_cpuid();
+	cmi->ipiwin              = sl_usec2cyc(ipi_window);
+	cmi->ipiwin_start        = now;
+	cmi->ipimax              = ipi_max;
+	cmi->sndcap[cos_cpuid()] = sl_thd_asndcap(t);
+
+	return cmi;
+}
+
+static inline asndcap_t
+cap_comminfo_asnd_create(struct cap_comm_info *comm)
+{
+	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	asndcap_t snd;
+
+	if (!comm || !comm->rcvcap) return 0;
+	if (comm->rcvcpuid != cos_cpuid()) return 0;
+	if (comm->sndcap[cos_cpuid()]) goto done;
+
+	snd = cos_asnd_alloc(cap_ci, comm->rcvcap, cap_ci->captbl_cap);
+	assert(snd);
+	/* if this fails, someone else was able to update.. we have a wasted slot here but! */
+	ps_cas(&comm->sndcap[cos_cpuid()], 0, snd);
+
+done:
+	return comm->sndcap[cos_cpuid()];
+}
+
+static inline sinvcap_t
+cap_comminfo_sinv_create(struct cap_comm_info *comm)
+{
+	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	sinvcap_t sinv;
+
+	if (!comm || !comm->rcvcap) return 0;
+	if (comm->rcvcpuid == cos_cpuid()) return 0;
+	if (comm->sinvcap[cos_cpuid()]) goto done;
+
+	sinv = cos_sinv_alloc(cap_ci, cap_ci->comp_cap, (vaddr_t)cap_xcore_asnd_inv, (unsigned long)comm);
+	assert(sinv);
+
+	/* if this fails, someone else was able to update.. we have a wasted slot here but! */
+	ps_cas(&comm->sinvcap[cos_cpuid()], 0, sinv);
+
+done:
+	return comm->sinvcap[cos_cpuid()];
+}
+
+cap_t
+cap_comminfo_xcoresnd_create(struct cap_comm_info *comm, capid_t *cap)
+{
+	cap_t type = 0;
+
+	if (!comm || !comm->rcvcap) return 0;
+
+	if (comm->rcvcpuid == cos_cpuid()) {
+		*cap = cap_comminfo_asnd_create(comm);
+		assert(*cap);
+		type = CAP_ASND;
+	} else {
+		*cap = cap_comminfo_sinv_create(comm);
+		assert(*cap);
+		type = CAP_SINV;
+	}
+
+	return type;
+}
+
 struct cap_channelaep_info *
 cap_channelaep_get(cos_channelkey_t key)
 {
@@ -92,25 +189,27 @@ cap_channelaep_get(cos_channelkey_t key)
 void
 cap_channelaep_set(cos_channelkey_t key, struct sl_thd *t)
 {
-	struct cap_channelaep_info *ak = cap_channelaep_get(key);
+	struct cap_channelaep_info *ak  = cap_channelaep_get(key);
 
-	if (!ak || ak->rcvcap) return;
-	ak->rcvcap              = sl_thd_rcvcap(t);
-	ak->sndcap[cos_cpuid()] = 0;
+	if (!ak) return;
+	/* info should be filled at AEP creation */
+	ak->comminfo = cap_comm_tid_lkup(sl_thd_thdid(t));
+	assert(ak->comminfo && ak->comminfo->rcvcap);
 }
 
-asndcap_t
-cap_channelaep_asnd_get(cos_channelkey_t key)
+cap_t
+cap_channelaep_asnd_get(cos_channelkey_t key, capid_t *cap)
 {
 	struct cos_compinfo        *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct cap_channelaep_info *ak     = cap_channelaep_get(key);
+	struct cap_comm_info       *cmi    = NULL;
+	cap_t type = 0;
 
-	if (!ak) return 0;
-	if (ak->sndcap[cos_cpuid()]) return ak->sndcap[cos_cpuid()];
-	ak->sndcap[cos_cpuid()] = cos_asnd_alloc(cap_ci, ak->rcvcap, cap_ci->captbl_cap);
-	assert(ak->sndcap[cos_cpuid()]);
+	if (!ak || !key) return 0;
+	cmi = ak->comminfo;
+	assert(cmi && cmi->rcvcap);
 
-	return ak->sndcap[cos_cpuid()];
+	return cap_comminfo_xcoresnd_create(cmi, cap);
 }
 
 struct sl_thd *
@@ -162,6 +261,7 @@ cap_info_init(void)
 	memset(cap_info_schedbmp, 0, sizeof(u32_t) * MAX_NUM_COMP_WORDS * NUM_CPU);
 	memset(capci, 0, sizeof(struct cap_comp_info)*(MAX_NUM_COMPS+1));
 	memset(cap_channelaeps, 0, sizeof(struct cap_channelaep_info) * CAPMGR_AEPKEYS_MAX);
+	memset(cap_comminfo, 0, sizeof(struct cap_comm_info) * CAP_INFO_MAX_THREADS);
 }
 
 static inline vaddr_t
