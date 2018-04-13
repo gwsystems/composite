@@ -391,7 +391,7 @@ capmgr_asnd_rcv_create(arcvcap_t rcv)
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!cap_info_is_sched(cur)) return 0;
-	comm = cap_comm_rcv_lkup(rcv);
+	comm = cap_comm_rcv_lkup(cap_info_ci(rc), rcv);
 	if (!comm || !comm->rcvcap) return 0;
 
 	type = cap_comminfo_xcoresnd_create(comm, &cap);
