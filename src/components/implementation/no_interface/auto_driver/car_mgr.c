@@ -17,14 +17,15 @@ car_main(void)
 
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	while(1) {
-		rdtscll(now);
-		wakeup = now + (8000 * 1000 * cycs_per_usec);
-		printc("Auto Driver 1 Sending new task\n");
-		sched_thd_block_timeout(0, wakeup);
+//	while(1) {
+//		rdtscll(now);
+//		wakeup = now + (8000 * 1000 * cycs_per_usec);
+//		printc("Auto Driver 1 Sending new task\n");
+//		sched_thd_block_timeout(0, wakeup);
 		send_task(3,2);
-	}
+//	}
 
+		sched_thd_block(0);
 }
 
 void
@@ -37,6 +38,7 @@ driver_aep(arcvcap_t rcv, void * data)
 		ret = cos_rcv(rcv, 0, NULL);
 		assert(ret == 0);
 		printc("driver_aep post cos_rcv\n");
+		send_task(3,2);
 
 	}
 }
