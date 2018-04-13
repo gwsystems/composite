@@ -7,6 +7,7 @@
 #include <capmgr.h>
 
 #include <robot_cont.h>
+#include <gateway_spec.h>
 
 #define DRIVER_AEPKEY 1
 
@@ -22,12 +23,12 @@ struct rp {
 };
 struct rp rpos;
 
+struct cos_aep_info taeps;
 vaddr_t shmem_addr = NULL;
 
 int
 update_script(int x)
 {
-	printc("Updating script! \n");
 	return 0;
 }
 
@@ -75,16 +76,38 @@ send_task(int x, int y)
 }
 
 void
+task_complete_aep(arcvcap_t rcv, void * data)
+{
+	int ret;
+
+	printc("task_complete_aep\n");
+	while(1) {
+		ret = cos_rcv(rcv, 0, NULL);
+		assert(ret == 0);
+		printc("task_complete_aep rcv'd notification\n");
+	}
+}
+
+void
 cos_init(void)
 {
 	printc("\nWelcome to the robot_cont component\n");
 	int ret;
+	thdid_t tidp;
+	int i = 0;
 	cycles_t wakeup, now, cycs_per_usec;
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	rpos.x = 0;
 	rpos.y = 0;
 	rpos.direction = EAST;	
+	
+	printc("robot_cont aep created!\n");
+	tidp = sched_aep_create(&taeps, task_complete_aep, (void *)i, 0, ROBOT_CONT_AEP_KEY);	
+	assert(tidp);
+	printc("robot_cont aep created!\n");
+	sched_thd_param_set(tidp, sched_param_pack(SCHEDP_PRIO, AEP_PRIO));
+	printc("robot_cont aep created!\n");
 	
 	ret = memmgr_shared_page_map(0, &shmem_addr);
 
@@ -100,9 +123,8 @@ cos_init(void)
 
 	driver_asnd = capmgr_asnd_key_create(1);
 	assert(driver_asnd);
-
-	printc("Created asnd cap for robot_cont\n");
 	cos_asnd(driver_asnd, DRIVER_AEPKEY);
+
 
 	printc("robot_cont init done\n");
 	sched_thd_block(0);

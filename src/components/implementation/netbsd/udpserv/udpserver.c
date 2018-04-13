@@ -7,6 +7,8 @@
 #include <cos_defkernel_api.h>
 #include <rk.h>
 #include <memmgr.h>
+#include <capmgr.h>
+#include <sched.h>
 
 #include <udpserver.h>
 #include <gateway_spec.h>
@@ -27,6 +29,8 @@ vaddr_t shdmem_addr;
 
 static char __msg[MSG_SZ + 1] = { '\0' };
 unsigned char script[MAX_SCRIPT_SZ];
+
+asndcap_t robot_cont_asnd;
 
 /* Will be mdae asynchronous: notifies udp server of a script update */
 int
@@ -90,7 +94,7 @@ update_script()
 static void
 check_task_done(int x, int y) {
 	printc("Roomba claims task is done (%d, %d) \n", x, y);
-
+	cos_asnd(robot_cont_asnd, ROBOT_CONT_AEP_KEY);
 }
 
 static int
@@ -184,6 +188,12 @@ cos_init(void)
 
 	char * test = "testingudp";
 	memcpy((char *)shdmem_addr, test, 10);
+
+	/* Setup AEP to robot_cont */
+	printc("creating asnd in udp\n");
+	robot_cont_asnd = capmgr_asnd_key_create(ROBOT_CONT_AEP_KEY);
+	assert(robot_cont_asnd);
+	cos_asnd(robot_cont_asnd, ROBOT_CONT_AEP_KEY);
 
 	udpserv_main();
 }
