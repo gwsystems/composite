@@ -43,7 +43,6 @@ udpserv_script(int shdmemid)
 
 	for (i = 0; i < MAX_SCRIPT_SZ; i ++) {
 		script[i] = (unsigned char)shm_ptr[i];
-//		printc("%u, ", script[i]);
 	}
 
 	return 0;
@@ -75,25 +74,26 @@ update_script()
 	((unsigned char*)__msg)[i] = num;
 	for (i = 1; i < sz ; i++) {
 	
-		/* 66 is arbitrary number picked to denote script end */	
-		//printc("script:msg %u, ", script[j]);
 		((unsigned char*)__msg)[i] = script[j];
-		if (script[j] == 66) {
+		if (script[j] == SCRIPT_END) {
 			/* Reset num and script */
-			printc("RESETTING SCRIPT\n");
-			num = 0;
-			reset_script();
+			num = -1;
 			break;
 		}
 		j++;
 	}
-	num++;
+	
+	if (num == -1) num = 0;
+	else num++;
+
 	return 0;
 }
 
 static void
 check_task_done(int x, int y) {
 	printc("Roomba claims task is done (%d, %d) \n", x, y);
+	printc("\nRESETTING SCRIPT\n");
+	reset_script();
 	cos_asnd(robot_cont_asnd, ROBOT_CONT_AEP_KEY);
 }
 
@@ -137,21 +137,22 @@ udp_server_start(void)
 			continue;
 		}
 
-		if (((unsigned int *)__msg)[0] == TASK_DONE) check_task_done(0, 1);		
+		if (((unsigned int *)__msg)[0] == TASK_DONE) {
+			memset(__msg, 0, MSG_SZ);
+			check_task_done(0, 1);		
+		} else {
+			memset(__msg, 0, MSG_SZ);
+			update_script();
+		}
 	
-		//printc("A Received-msg: seqno:%u msg: %u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned int *)__msg)[1], ((unsigned long long *)__msg)[1]);
 		/* Reply to the sender */
-
 		soutput.sin_addr.s_addr = ((struct sockaddr_in*)&sa)->sin_addr.s_addr;
 
-		memset(__msg, 0, MSG_SZ);
-		update_script();
 		if (sendto(fd, __msg, msg_size, 0, (struct sockaddr*)&soutput, sizeof(soutput)) < 0) {
 			printc("sendto");
 			continue;
 		}
 
-		printc("Sent-msg: seqno:%u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned long long *)__msg)[1]);
 
 	} while (1) ;
 
