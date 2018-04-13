@@ -9,6 +9,7 @@
 #include <memmgr.h>
 
 #include <udpserver.h>
+#include <gateway_spec.h>
 
 #define IN_PORT  9998
 #define OUT_PORT 9999
@@ -24,7 +25,6 @@ extern struct cos_component_information cos_comp_info;
 int shdmem_id;
 vaddr_t shdmem_addr;
 
-#define MAX_SCRIPT_SZ 100
 static char __msg[MSG_SZ + 1] = { '\0' };
 unsigned char script[MAX_SCRIPT_SZ];
 
@@ -37,13 +37,21 @@ udpserv_script(int shdmemid)
 	int i = 0;
 	unsigned char * shm_ptr = (unsigned char *)shdmem_addr;
 
-	printc("script serving: ");
 	for (i = 0; i < MAX_SCRIPT_SZ; i ++) {
 		script[i] = (unsigned char)shm_ptr[i];
-		printc("%u, ", script[i]);
+//		printc("%u, ", script[i]);
 	}
 
 	return 0;
+}
+
+static void
+reset_script(void)
+{
+	int i = 0;
+	for (i = 0; i < MAX_SCRIPT_SZ; i++) {
+		script[i] = 0;
+	}
 }
 
 /* Used for internal testing, will be replaced by above fn */
@@ -64,12 +72,25 @@ update_script()
 	for (i = 1; i < sz ; i++) {
 	
 		/* 66 is arbitrary number picked to denote script end */	
-		if (script[i] == 66) break;
+		//printc("script:msg %u, ", script[j]);
 		((unsigned char*)__msg)[i] = script[j];
+		if (script[j] == 66) {
+			/* Reset num and script */
+			printc("RESETTING SCRIPT\n");
+			num = 0;
+			reset_script();
+			break;
+		}
 		j++;
 	}
 	num++;
 	return 0;
+}
+
+static void
+check_task_done(int x, int y) {
+	printc("Roomba claims task is done (%d, %d) \n", x, y);
+
 }
 
 static int
@@ -111,8 +132,10 @@ udp_server_start(void)
 			printc("read");
 			continue;
 		}
-		
-		printc("A Received-msg: seqno:%u msg: %u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned int *)__msg)[1], ((unsigned long long *)__msg)[1]);
+
+		if (((unsigned int *)__msg)[0] == TASK_DONE) check_task_done(0, 1);		
+	
+		//printc("A Received-msg: seqno:%u msg: %u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned int *)__msg)[1], ((unsigned long long *)__msg)[1]);
 		/* Reply to the sender */
 
 		soutput.sin_addr.s_addr = ((struct sockaddr_in*)&sa)->sin_addr.s_addr;

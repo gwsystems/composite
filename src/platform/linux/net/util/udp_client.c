@@ -104,6 +104,20 @@ void do_recv_proc(int fd, int msg_sz)
 	} while (-1 != ret);
 }
 
+void
+create_wifi_str(void )
+{
+
+	char str[80];
+	char *new = "4";
+	strcpy(str, "echo -n '");
+	strcat(str, new);
+	strcat(str, "' | nc -4u -w1 192.168.137.51 2390");
+	
+	/*length 44?*/
+	printf("str: %s \n", str);
+}
+
 void start_timers()
 {
 	struct itimerval itv;
@@ -140,6 +154,8 @@ int main(int argc, char *argv[])
 	int msg_size;
 	char *msg;
 	int sleep_val;
+
+	create_wifi_str();
 
 	if (argc != 5 && argc != 6) {
 		printf("Usage: %s <ip> <port> <msg size> <sleep_val> <opt:rcv_port>\n", argv[0]);
@@ -221,6 +237,14 @@ int main(int argc, char *argv[])
 				printf("%d, ", script[k]) ;
 			}
 	
+			((unsigned int *)msg)[0] = 99;			
+			if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
+			    errno != EINTR) {
+				perror("sendto");
+				return -1;
+			}
+			free(msg);
+			free(rcv_msg);
 			break;
 		}
 	}

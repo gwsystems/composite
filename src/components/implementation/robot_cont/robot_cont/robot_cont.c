@@ -4,13 +4,17 @@
 #include <memmgr.h>
 #include <udpserver.h>
 #include <sched.h>
+#include <capmgr.h>
 
 #include <robot_cont.h>
+
+#define DRIVER_AEPKEY 1
 
 #define NORTH 0
 #define EAST 1
 #define SOUTH 2
 #define WEST 3
+asndcap_t driver_asnd;
 
 struct rp {
 	int x, y;
@@ -46,6 +50,7 @@ create_movement(int xf, int yf) {
                     137, 1, 44, 0, 1, 157, 0, 85, 137, 0, 0, 0, 0,
                     137, 1, 44, 128, 0, 156, 1, 144, 137, 0, 0, 0, 0, 66, 0,0,0,0,0,0
                   };	
+
 	memcpy((unsigned char *)shmem_addr, script, 100);	
 	udpserv_script(93);
 	
@@ -63,6 +68,8 @@ send_task(int x, int y)
 	
 	create_movement(3,3);
 	printc("\n");
+	
+	cos_asnd(driver_asnd, DRIVER_AEPKEY);
 	
 	return 0;
 }
@@ -90,7 +97,13 @@ cos_init(void)
 
 		sched_thd_block_timeout(0, wakeup);
 	}
-	
+
+	driver_asnd = capmgr_asnd_key_create(1);
+	assert(driver_asnd);
+
+	printc("Created asnd cap for robot_cont\n");
+	cos_asnd(driver_asnd, DRIVER_AEPKEY);
+
 	printc("robot_cont init done\n");
 	sched_thd_block(0);
 }
