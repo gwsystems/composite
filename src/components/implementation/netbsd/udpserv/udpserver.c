@@ -78,7 +78,7 @@ __test_udp_server(void)
 int
 udpserv_main(void)
 {
-	rk_socketcall_init();
+	rk_libcmod_init();
 
 	printc("Starting udp-server [in:%d out:%d]\n", IN_PORT, OUT_PORT);
 	__test_udp_server();
