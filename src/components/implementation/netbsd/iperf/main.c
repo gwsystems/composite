@@ -207,7 +207,7 @@ cos_init(void)
 	printc("Calling printf...\n");
 	printf("testing, testing, this is printf\n");
 
-	char *argv[10];
+	char *argv[3];
 	argv[0] = "iperf.o";
 	argv[1] = "-s"; /* server mode */
 	argv[2] = "-4"; /* Specify ipv4 */
