@@ -2,10 +2,14 @@
 
 #include <camera.h>
 #include <cos_alloc.h>
+#include <cos_component.h>
 
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <memmgr.h>
+
+#include <sched.h>
 
 #include "jpeglib.h"
 
@@ -65,18 +69,6 @@ int check_green(int *triple, int x, int y) {  //1 green, 0 not green
 
 
 
-int
-check_location_image(int x, int y) {
-
-	read_jpeg_file();
-	if (x == 1 && y == 1) return track[0];
-	if (x == 1 && y == 0) return track[1];
-	if (x == 0 && y == 0) return track[2];
-	if (x == 0 && y == 1) return track[3];
-
-	return 0;
-}
-
 int 
 read_jpeg_file(void) //char *filename )
 {
@@ -133,7 +125,17 @@ read_jpeg_file(void) //char *filename )
  return 1;
 }
 
+int
+check_location_image(int x, int y) {
 
+	read_jpeg_file();
+	if (x == 1 && y == 1) return track[0];
+	if (x == 1 && y == 0) return track[1];
+	if (x == 0 && y == 0) return track[2];
+	if (x == 0 && y == 1) return track[3];
+
+	return 0;
+}
 
 void
 cos_init(void)
@@ -143,5 +145,6 @@ cos_init(void)
 	printc("Image  Size: %d\n", &_binary_greenroomba_jpg_size);
 	printc("Image Start Addr: %d\n",&_binary_greenroomba_jpg_start);
 	printc("Image End Addr: %d\n",&_binary_greenroomba_jpg_end);
+	read_jpeg_file();
 	sched_thd_block(0);	
 }

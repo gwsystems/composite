@@ -15,8 +15,10 @@
 #include <sl.h>
 #include <sl_lock.h>
 #include <sl_thd.h>
-
 #include <posix.h>
+//#include <memmgr.h>
+
+extern vaddr_t memmgr_heap_page_allocn(unsigned int num_pages);
 
 volatile int *null_ptr = NULL;
 #define ABORT() do {int i = *null_ptr;} while(0)
@@ -100,6 +102,7 @@ void *
 cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 	void *ret=0;
+	size_t num_pages;
 
 	if (addr != NULL) {
 		printc("parameter void *addr is not supported!\n");
@@ -112,7 +115,10 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		return MAP_FAILED;
 	}
 
-	addr = (void *)cos_page_bump_allocn(&cos_defcompinfo_curr_get()->ci, length);
+	assert(length % PAGE_SIZE == 0);
+	num_pages = length/PAGE_SIZE; 
+	addr = (void *)memmgr_heap_page_allocn(num_pages);
+	//addr = (void *)cos_page_bump_allocn(&cos_defcompinfo_curr_get()->ci, length);
 	if (!addr){
 		ret = (void *) -1;
 	} else {
