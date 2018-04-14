@@ -1,7 +1,7 @@
 #ifndef PIC_H
 #define PIC_H
 
-#include "io.h"
+#include "chal/io.h"
 
 void pic_init(void);
 void pic_enable(void);

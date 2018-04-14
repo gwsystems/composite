@@ -17,6 +17,9 @@ struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED LARGE_BSS;
 u32_t boot_comp_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER,
                                                                [KERN_INIT_PGD_IDX] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE
                                                                                      | PGTBL_SUPER};
+u32_t boot_ap_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER,
+                                                               [KERN_INIT_PGD_IDX] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE
+                                                                                     | PGTBL_SUPER};
 
 void
 kern_retype_initial(void)
@@ -55,13 +58,13 @@ u8_t *mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 static unsigned long vm_pgd_idx = COS_MEM_KERN_START_VA / PGD_RANGE;
 
 int
-vm_map_superpage(u32_t addr)
+vm_map_superpage(u32_t addr, int nocache)
 {
 	int idx = vm_pgd_idx;
 	u32_t page;
-	
+
 	page = round_to_pgd_page(addr);
-	boot_comp_pgd[idx] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
+	boot_comp_pgd[idx] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL | (nocache ? PGTBL_NOCACHE : 0);
 	vm_pgd_idx ++;
 
 	return idx;
@@ -72,6 +75,7 @@ kern_setup_image(void)
 {
 	unsigned long i, j;
 	paddr_t       kern_pa_start, kern_pa_end;
+	int cpu_id = get_cpuid();
 
 	printk("\tSetting up initial page directory.\n");
 	kern_pa_start = round_to_pgd_page(chal_va2pa(mem_kern_start())); /* likely 0 */
@@ -88,6 +92,10 @@ kern_setup_image(void)
 	}
 
 	vm_pgd_idx = j;
+	#ifdef ENABLE_VGA
+		/* uses virtual address for VGA */
+		vga_high_init();
+	#endif
 
 	/* FIXME: Ugly hack to get the physical page with the ACPI RSDT mapped */
 	printk("ACPI initialization\n");
@@ -97,14 +105,19 @@ kern_setup_image(void)
 		u64_t hpet;
 
 		page             = round_up_to_pgd_page(rsdt) - (1 << 22);
-		acpi_set_rsdt_page(vm_map_superpage(page));
+		acpi_set_rsdt_page(vm_map_superpage(page, 0));
 
 		hpet = hpet_find(acpi_find_hpet());
-		if (hpet) hpet_set_page(vm_map_superpage(hpet));
+		if (hpet) hpet_set_page(vm_map_superpage(hpet, 0));
 
 		/* lapic memory map */
 		lapic = lapic_find_localaddr(acpi_find_apic());
-		if (lapic) lapic_set_page(vm_map_superpage(lapic));
+		/*
+		 * Intel specification:
+		 * For correct APIC operation, this address space must be mapped to an area of memory
+		 * that has been designated as strong uncacheable (UC).
+		 */
+		if (lapic) lapic_set_page(vm_map_superpage(lapic, 1));
 	}
 
 	j = vm_pgd_idx;

@@ -1,7 +1,8 @@
 include Makefile.src Makefile.comp
 
-LIB_OBJS=sl.o sl_mod_fprr.o sl_lock.o sl_thd_static_backend.o
+LIB_OBJS=sl_capmgr.o sl_raw.o sl_sched.o sl_mod_fprr.o sl_lock.o sl_thd_static_backend.o
 LIBS=$(LIB_OBJS:%.o=%.a)
+CINC+=-m32
 
 .PHONY: all clean
 all: $(LIBS)

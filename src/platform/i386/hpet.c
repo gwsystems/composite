@@ -3,7 +3,6 @@
 #include <hw.h>
 
 #include "isr.h"
-#include "io.h"
 #include "kernel.h"
 #include "chal/cpuid.h"
 
@@ -92,10 +91,11 @@ volatile struct hpet_timer {
 #define HPET_CALIBRATION_ITER 256
 #define HPET_ERROR_BOUND_FACTOR 256
 #define HPET_DEFAULT_PERIOD_US 1000 /* US = microseconds */
-static int           hpet_calibration_init   = 1;
+static int           hpet_calibration_init   = 0;
 static unsigned long hpet_cpucyc_per_hpetcyc = HPET_ERROR_BOUND_FACTOR;
 static unsigned long hpet_cpucyc_per_tick;
 static unsigned long hpet_hpetcyc_per_tick;
+extern u32_t chal_msr_mhz;
 
 static inline u64_t
 hpet_cpu2hpet_cycles(u64_t cycles)
@@ -289,7 +289,15 @@ hpet_init(void)
 	 * Set the timer as specified.  This assumes that the cycle
 	 * specification is in hpet cycles (not cpu cycles).
 	 */
-	hpet_set(HPET_PERIODIC, hpet_hpetcyc_per_tick);
+	if (chal_msr_mhz && !lapic_timer_calib_init) {
+		hpet_cpucyc_per_tick    = chal_msr_mhz * HPET_DEFAULT_PERIOD_US;
+		hpet_cpucyc_per_hpetcyc = hpet_cpucyc_per_tick / hpet_hpetcyc_per_tick;
+		printk("Timer not calibrated, instead computed using MSR frequency value\n");
 
+		return;
+	}
+
+	hpet_calibration_init = 1;
+	hpet_set(HPET_PERIODIC, hpet_hpetcyc_per_tick);
 	chal_irq_enable(HW_HPET_PERIODIC);
 }

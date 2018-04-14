@@ -296,7 +296,7 @@ ioapic_iter(struct ioapic_cntl *io)
 	ioapic_count ++;
 	ioapicinfo[tmp_count].io_vaddr = (volatile void *)(io->ioapic_phys_addr);
 	ioapicinfo[tmp_count].ioapicid = io->ioapic_id;
-	ioapic_set_page(&(ioapicinfo[tmp_count]), vm_map_superpage((u32_t)(ioapicinfo[tmp_count].io_vaddr)));
+	ioapic_set_page(&(ioapicinfo[tmp_count]), vm_map_superpage((u32_t)(ioapicinfo[tmp_count].io_vaddr), 0));
 
 	ver   = ioapic_reg_read(&ioapicinfo[tmp_count], IOAPIC_IOAPICVER);
 	ioent = ((ver >> 16) & 0xFF) + 1;

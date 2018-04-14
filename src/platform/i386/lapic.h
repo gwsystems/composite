@@ -13,6 +13,7 @@ u32_t        lapic_get_ccr(void);
 void         lapic_timer_calibration(u32_t ratio);
 extern u32_t lapic_timer_calib_init;
 
-void smp_init(void);
+void lapic_init(void);
+void smp_init(volatile int *cores_ready);
 
 #endif /* LAPIC_H */

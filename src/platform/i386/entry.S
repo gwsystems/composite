@@ -162,7 +162,7 @@ IRQ_ID(59)
 IRQ_ID(60)
 IRQ_ID(61)
 IRQ_ID(62)
-IRQ_ID(63)
+IRQ(lapic_spurious)
 IRQ(lapic_timer)
 
 /*

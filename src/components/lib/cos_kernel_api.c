@@ -31,6 +31,37 @@ __compinfo_metacap(struct cos_compinfo *ci)
 	return ci->memsrc;
 }
 
+static inline void
+cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
+{
+	ci->vas_frontier = heap_ptr;
+	/*
+	 * The first allocation should trigger PTE allocation, unless
+	 * it is in the middle of a PGD, in which case we assume one
+	 * is already allocated.
+	 */
+	ci->vasrange_frontier = round_up_to_pgd_page(heap_ptr);
+	assert(ci->vasrange_frontier == round_up_to_pgd_page(ci->vasrange_frontier));
+}
+
+static inline void
+cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier)
+{
+	ci->cap_frontier = cap_frontier;
+
+	/*
+	 * captbls are initialized populated with a single
+	 * second-level node.
+	 */
+	if (cap_frontier < CAPTBL_EXPAND_SZ) {
+		ci->caprange_frontier = round_up_to_pow2(cap_frontier, CAPTBL_EXPAND_SZ);
+	} else {
+		/* caprange_frontier should be rounded up to CAPTBL_EXPAND_SZ * 2 */
+		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ * 2) - CAPTBL_EXPAND_SZ;
+	}
+	ci->cap16_frontier = ci->cap32_frontier = ci->cap64_frontier = cap_frontier;
+}
+
 void
 cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
                   vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources)
@@ -44,25 +75,9 @@ cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t cap
 	ci->pgtbl_cap    = pgtbl_cap;
 	ci->captbl_cap   = captbl_cap;
 	ci->comp_cap     = comp_cap;
-	ci->vas_frontier = heap_ptr;
-	ci->cap_frontier = cap_frontier;
-	/*
-	 * The first allocation should trigger PTE allocation, unless
-	 * it is in the middle of a PGD, in which case we assume one
-	 * is already allocated.
-	 */
-	ci->vasrange_frontier = round_up_to_pgd_page(heap_ptr);
-	assert(ci->vasrange_frontier == round_up_to_pgd_page(ci->vasrange_frontier));
-	/*
-	 * captbls are initialized populated with a single
-	 * second-level node.
-	 */
-	if (cap_frontier < CAPTBL_EXPAND_SZ) {
-		ci->caprange_frontier = round_up_to_pow2(cap_frontier, CAPTBL_EXPAND_SZ);
-	} else {
-		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ);
-	}
-	ci->cap16_frontier = ci->cap32_frontier = ci->cap64_frontier = cap_frontier;
+
+	cos_vasfrontier_init(ci, heap_ptr);
+	cos_capfrontier_init(ci, cap_frontier);
 }
 
 /**************** [Memory Capability Allocation Functions] ***************/
@@ -250,6 +265,10 @@ __capid_bump_alloc_generic(struct cos_compinfo *ci, capid_t *capsz_frontier, cap
 
 	return ret;
 }
+
+capid_t
+cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
+{ return __capid_bump_alloc(ci, cap); }
 
 /* allocate a new capid in the booter. */
 static capid_t
@@ -505,7 +524,7 @@ __alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
 }
 
 static thdcap_t
-__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
+__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init_data)
 {
 	vaddr_t kmem;
 	capid_t cap;
@@ -525,6 +544,14 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 }
 
 #include <cos_thd_init.h>
+
+thdcap_t
+cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx)
+{
+	if (idx < 1) return 0;
+
+	return __cos_thd_alloc(ci, comp, idx);
+}
 
 thdcap_t
 cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data)
@@ -619,7 +646,7 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 }
 
 sinvcap_t
-cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, unsigned long token)
+cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, invtoken_t token)
 {
 	capid_t cap;
 
@@ -638,6 +665,12 @@ int
 cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
 	return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4);
+}
+
+int
+cos_sinv_rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret2, word_t *ret3)
+{
+	return call_cap_2retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret2, ret3);
 }
 
 /*
@@ -815,18 +848,29 @@ cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd)
 }
 
 vaddr_t
-cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src)
+cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz)
 {
-	vaddr_t dst;
+	size_t i;
+	vaddr_t dst, first_dst;
 
 	assert(srcci && dstci);
+	assert(sz && (sz % PAGE_SIZE == 0));
 
-	dst = __page_bump_valloc(dstci, PAGE_SIZE);
+	dst = __page_bump_valloc(dstci, sz);
 	if (unlikely(!dst)) return 0;
+	first_dst = dst;
 
-	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) BUG();
+	for (i = 0; i < sz; i += PAGE_SIZE, src += PAGE_SIZE, dst += PAGE_SIZE) {
+		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) BUG();
+	}
 
-	return dst;
+	return first_dst;
+}
+
+vaddr_t
+cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src)
+{
+	return cos_mem_aliasn(dstci, srcci, src, PAGE_SIZE);
 }
 
 int
@@ -962,27 +1006,18 @@ cos_hw_cycles_thresh(hwcap_t hwc)
 void *
 cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 {
-	size_t  sz;
-	vaddr_t fva, va;
+	size_t  sz, i;
+	vaddr_t va;
 
 	assert(ci && hwc && pa && len);
 
 	sz = round_up_to_page(len);
+	va = __page_bump_valloc(ci, sz);
+	if (unlikely(!va)) return NULL;
 
-	fva = __page_bump_valloc(ci, PAGE_SIZE);
-	va  = fva;
-
-	while (1) {
-		if (unlikely(!va)) return NULL;
-
-		if (call_cap_op(hwc, CAPTBL_OP_HW_MAP, ci->pgtbl_cap, va, pa, 0)) BUG();
-
-		sz -= PAGE_SIZE;
-		pa += PAGE_SIZE;
-
-		if (sz <= 0) break;
-		va = __page_bump_valloc(ci, PAGE_SIZE);
+	for (i = 0; i < sz; i += PAGE_SIZE) {
+		if (call_cap_op(hwc, CAPTBL_OP_HW_MAP, ci->pgtbl_cap, va + i, pa + i, 0)) BUG();
 	}
 
-	return (void *)fva;
+	return (void *)va;
 }

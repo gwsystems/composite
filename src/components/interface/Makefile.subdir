@@ -26,30 +26,30 @@ expgen:
 # symbol conflicts and this is why we have the %.a here and don't
 # output a .a file.
 %.a:%.o
-#	$(info |     [AR]   Creating library file lib$(IFNAME).a from $<)
-#	$(info |     [AR]   lib$(IFNAME).a: create library $<)
+	$(info |     [AR]   Creating library file lib$(IFNAME).a from $<)
+	$(info |     [AR]   lib$(IFNAME).a: create library $<)
 	@$(AR) cr lib$(IFNAME).a $<
 
 %.o:%.c
-#	$(info |     [CC]   Compiling c file $^ into $@)
+	$(info |     [CC]   Compiling c file $^ into $@)
 	@$(CC) $(CFLAGS) $(INCLUDES) $(CINC) $(DEP_INC) -c -o $(@) $<
 
 %.o:%.S
-#	$(info |     [AS]   Compiling assembly file $^ into $@)
+	$(info |     [AS]   Compiling assembly file $^ into $@)
 	@$(AS) $(ASFLAGS) -c -o $@ $^
 
 server_stubs: $(S_STUB_OBJS)
-#	$(if $(S_STUB_OBJS), $(info |     [LD]   Creating server stubs for $(IFNAME)))
+	$(if $(S_STUB_OBJS), $(info |     [LD]   Creating server stubs for $(IFNAME)))
 	@$(if $(S_STUB_OBJS), $(LD) $(LDFLAGS) -r -o $(SERVER_STUB) $^)
 
 client_stubs: $(C_STUB_OBJS)
-#	$(if $(C_STUB_OBJS), $(info |     [LD]   Creating client stubs from $(IFNAME)))
+	$(if $(C_STUB_OBJS), $(info |     [LD]   Creating client stubs from $(IFNAME)))
 	@$(if $(C_STUB_OBJS), $(LD) $(LDFLAGS) -r -o $(CLIENT_STUB) $^)
 
 stubs: server_stubs client_stubs
 
 clean:
-#	$(info |     [RM]   Cleaning up interface directory for $(IFNAME))
+	$(info |     [RM]   Cleaning up interface directory for $(IFNAME))
 	@$(RM) -f a.out *.o *.a *.d *~ $(STUB_DIR)/*.o $(FNEXP_FILE)
 
 fresh: clean all

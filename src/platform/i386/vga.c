@@ -26,7 +26,7 @@
 #include <chal.h>
 #include "kernel.h"
 #include "string.h"
-#include "io.h"
+#include "chal/io.h"
 #include "isr.h"
 
 /* The number of columns. */
@@ -199,15 +199,19 @@ puts(unsigned char *text)
 }
 
 /*
- * Clear the screen and initialize VIDEO, XPOS and YPOS.
  * VIDEO virtual address set to HIGH address.
  */
 void
+vga_high_init(void)
+{
+	video = chal_pa2va(VIDEO);
+}
+
+/* Clear the screen and initialize VIDEO, XPOS and YPOS. */
+void
 vga_init(void)
 {
-	int i = 0;
-
-	video = chal_pa2va(VIDEO);
+	video = (unsigned char *) VIDEO;
 
 	csr_x = 0;
 	csr_y = 0;

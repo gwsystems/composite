@@ -3,12 +3,17 @@ ASM_OBJS=
 COMPONENT=rust_test.o
 INTERFACES=
 DEPENDENCIES=
-ADDITIONAL_LIBS=-lcobj_format -lcos_defkernel_api -lcos_kernel_api -lsl -lheap -lsl_thd_static_backend -lsl_lock -lsl_mod_fprr
+ADDITIONAL_LIBS=-lcobj_format -lcos_defkernel_api -lcos_kernel_api -lsl_raw -lsl_sched -lheap -lsl_thd_static_backend -lsl_lock -lsl_mod_fprr
 OBJLIBS += $(POSIX_LIB)
 
-export XARGO_RUST_SRC=$(shell rustc --print sysroot)/lib/rustlib/src/rust/src/
-export RUSTFLAGS=-L ../../../../lib/musl-1.1.11/lib/ -L lib
 CRATE_DIR=events
+
+XARGO_RUST_SRC=$(shell rustc --print sysroot)/lib/rustlib/src/rust/src/
+RUSTFLAGS=-L $(shell pwd)/../../../lib/musl-1.1.11/lib/ -L $(shell pwd)/$(CRATE_DIR)/lib
+RUST_TARGET_PATH=$(shell pwd)/$(CRATE_DIR)
+export XARGO_RUST_SRC
+export RUSTFLAGS
+export RUST_TARGET_PATH
 
 IF_LIB:=lib$(CRATE_DIR).a
 

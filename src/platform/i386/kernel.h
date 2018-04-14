@@ -3,6 +3,7 @@
 
 #include <shared/cos_config.h>
 #include <shared/cos_types.h>
+#include <shared/util.h>
 #include "chal.h"
 #include "multiboot.h"
 
@@ -18,14 +19,12 @@
 #include "pic.h"
 #include "ioapic.h"
 
-void  tss_init(void);
-void  idt_init(void);
-void  gdt_init(void);
-void  user_init(void);
-
-void  paging_init(void);
-void  kern_paging_map_init(void *pa);
-int   vm_map_superpage(u32_t addr);
+int vm_map_superpage(u32_t addr, int nocache);
+void kern_paging_map_init(void *);
+void paging_init(void);
+void tss_init(cpuid_t);
+void gdt_init(cpuid_t);
+void idt_init(cpuid_t);
 
 void tls_update(u32_t addr);
 

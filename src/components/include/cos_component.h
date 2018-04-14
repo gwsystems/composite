@@ -78,6 +78,37 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int a
 }
 
 static inline int
+call_cap_2retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
+			 unsigned long *r1, unsigned long *r2)
+{
+	long fault = 0;
+	int  ret;
+
+	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
+	cap_no += op;
+
+	__asm__ __volatile__("pushl %%ebp\n\t"		\
+	                     "movl %%esp, %%ebp\n\t"	\
+	                     "movl $1f, %%ecx\n\t"	\
+	                     "sysenter\n\t"		\
+	                     ".align 8\n\t"		\
+	                     "jmp 2f\n\t"		\
+	                     ".align 8\n\t"		\
+	                     "1:\n\t"			\
+	                     "movl $0, %%ecx\n\t"	\
+	                     "jmp 3f\n\t"		\
+	                     "2:\n\t"			\
+	                     "movl $1, %%ecx\n\t"	\
+	                     "3:\n\t"			\
+	                     "popl %%ebp\n\t"		\
+	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2)
+	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
+	                     : "memory", "cc");
+
+	return ret;
+}
+
+static inline int
 cap_switch_thd(u32_t cap_no)
 {
 	return call_cap_asm(cap_no, 0, 0, 0, 0, 0);
@@ -147,6 +178,12 @@ cos_get_thd_id(void)
 	 * see comments in the get_stk_data above.
 	 */
 	return get_stk_data(THDID_OFFSET);
+}
+
+static inline invtoken_t
+cos_inv_token(void)
+{
+	return get_stk_data(INVTOKEN_OFFSET);
 }
 
 typedef u16_t cos_thdid_t;
@@ -346,5 +383,7 @@ struct __thd_init_data {
 	void *fn;
 	void *data;
 };
+
+typedef u32_t cbuf_t; /* TODO: remove when we have cbuf.h */
 
 #endif
