@@ -188,8 +188,8 @@ cpu_util(double pcpu[3])
     double userdiff;
     double systemdiff;
 
-    /* XXX BUG! */
-    printf("ERROR, skipping %s, getrusage stubbed in netbsd\n", __func__);
+    /* FIXME, no timing results server side */
+    printf("WARNING, skipping %s, getrusage stubbed in netbsd\n", __func__);
     return;
 
     if (pcpu == NULL) {

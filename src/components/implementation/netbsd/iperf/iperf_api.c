@@ -548,21 +548,15 @@ iperf_on_connect(struct iperf_test *test)
     socklen_t len;
     int opt;
 
-    printf("%s, %d\n", __FILE__, __LINE__);
     now_secs = time((time_t*) 0);
-    printf("%s, %d\n", __FILE__, __LINE__);
-    printf("Skipping strftime for tls reasons\n");
+    printf("WARNING, skipping strftime for tls reasons\n");
     //(void) strftime(now_str, sizeof(now_str), rfc1123_fmt, gmtime(&now_secs));
-    printf("%s, %d\n", __FILE__, __LINE__);
     if (test->json_output)
 	cJSON_AddItemToObject(test->json_start, "timestamp", iperf_json_printf("time: %s  timesecs: %d", now_str, (int64_t) now_secs));
     else if (test->verbose)
 	iprintf(test, report_time, now_str);
-    printf("%s, %d\n", __FILE__, __LINE__);
 
-    printf("%s, %d\n", __FILE__, __LINE__);
     if (test->role == 'c') {
-	printf("%s, %d\n", __FILE__, __LINE__);
 	if (test->json_output)
 	    cJSON_AddItemToObject(test->json_start, "connecting_to", iperf_json_printf("host: %s  port: %d", test->server_hostname, (int64_t) test->server_port));
 	else {
@@ -570,9 +564,7 @@ iperf_on_connect(struct iperf_test *test)
 	    if (test->reverse)
 		iprintf(test, report_reverse, test->server_hostname);
 	}
-	printf("%s, %d\n", __FILE__, __LINE__);
     } else {
-	printf("%s, %d\n", __FILE__, __LINE__);
         len = sizeof(sa);
         getpeername(test->ctrl_sck, (struct sockaddr *) &sa, &len);
         if (getsockdomain(test->ctrl_sck) == AF_INET) {
@@ -590,9 +582,7 @@ iperf_on_connect(struct iperf_test *test)
 	else
 	    iprintf(test, report_accepted, ipr, port);
     }
-    printf("%s, %d\n", __FILE__, __LINE__);
     if (test->json_output) {
-        printf("%s, %d\n", __FILE__, __LINE__);
 	cJSON_AddStringToObject(test->json_start, "cookie", test->cookie);
         if (test->protocol->id == SOCK_STREAM) {
 	    if (test->settings->mss)
@@ -604,7 +594,6 @@ iperf_on_connect(struct iperf_test *test)
 	    }
 	}
     } else if (test->verbose) {
-        printf("%s, %d\n", __FILE__, __LINE__);
         iprintf(test, report_cookie, test->cookie);
         if (test->protocol->id == SOCK_STREAM) {
             if (test->settings->mss)

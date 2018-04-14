@@ -59,7 +59,7 @@ rk_inv_write(int fd, const void *buf, size_t nbyte)
 	}
 	assert(shdmem_id > -1 && shdmem_addr > 0);
 
-	memcpy(shdmem_addr, buf, nbyte);
+	memcpy((void *)shdmem_addr, buf, nbyte);
 
 	return rk_write(fd, shdmem_id, nbyte);
 }
@@ -75,7 +75,7 @@ rk_inv_unlink(const char *path)
 	}
 	assert(shdmem_id > -1 && shdmem_addr > 0);
 
-	memcpy(shdmem_addr, path, 100);
+	memcpy((void *)shdmem_addr, path, 100);
 
 	return rk_unlink(shdmem_id);
 }
@@ -99,7 +99,7 @@ rk_inv_read(int fd, const void *buf, size_t nbyte)
 	ret = rk_read(fd, shdmem_id, nbyte);
 
 	assert(ret <= PAGE_SIZE);
-	memcpy(buf, shdmem_addr, ret);
+	memcpy((void *)buf, (void *)shdmem_addr, ret);
 
 	return ret;
 }
@@ -115,7 +115,7 @@ rk_inv_open(const char *path, int flags, mode_t mode)
 	}
 	assert(shdmem_id > -1 && shdmem_addr > 0);
 
-	memcpy(shdmem_addr, path, 100);
+	memcpy((void *)shdmem_addr, path, 100);
 
 	printc("path: %s\n", path);
 	return rk_open(shdmem_id, flags, mode);
@@ -139,7 +139,7 @@ rk_inv_clock_gettime(clockid_t clock_id, struct timespec *tp)
 	assert(!ret);
 
 	/* Copy shdmem back into tp */
-	memcpy(tp, shdmem_addr, sizeof(struct timespec));
+	memcpy(tp, (void *)shdmem_addr, sizeof(struct timespec));
 
 	return ret;
 }
@@ -172,35 +172,35 @@ rk_inv_select(int nd, fd_set *in, fd_set *ou, fd_set *ex, struct timeval *tv)
 	 * to shared memory we need something to keep track of which of the values were null
 	 */
 
-	null_array = shdmem_addr;
+	null_array = (void *)shdmem_addr;
 	__set_valid(null_array);
 	tmp = shdmem_addr + (sizeof(int) * 4);
 
-	if (in) memcpy(tmp, in, sizeof(fd_set));
+	if (in) memcpy((void *)tmp, in, sizeof(fd_set));
 	else null_array[0] = 0;
 	tmp += sizeof(fd_set);
 
-	if (ou) memcpy(tmp, ou, sizeof(fd_set));
+	if (ou) memcpy((void *)tmp, ou, sizeof(fd_set));
 	else null_array[1] = 0;
 	tmp += sizeof(fd_set);
 
-	if (ex) memcpy(tmp, ex, sizeof(fd_set));
+	if (ex) memcpy((void *)tmp, ex, sizeof(fd_set));
 	else null_array[2] = 0;
 	tmp += sizeof(fd_set);
 
-	if (tv) memcpy(tmp, tv, sizeof(struct timeval));
+	if (tv) memcpy((void *)tmp, tv, sizeof(struct timeval));
 	else null_array[3] = 0;
 
 	ret = rk_select(nd, shdmem_id);
 
 	tmp = shdmem_addr + (sizeof(int) * 4);
-	if(in) memcpy(in, tmp, sizeof(fd_set));
+	if(in) memcpy(in, (void *)tmp, sizeof(fd_set));
 	tmp += sizeof(fd_set);
-	if(ou) memcpy(ou, tmp, sizeof(fd_set));
+	if(ou) memcpy(ou, (void *)tmp, sizeof(fd_set));
 	tmp += sizeof(fd_set);
-	if(ex) memcpy(ex, tmp, sizeof(fd_set));
+	if(ex) memcpy(ex, (void *)tmp, sizeof(fd_set));
 	tmp += sizeof(fd_set);
-	if(tv) memcpy(tv, tmp, sizeof(struct timeval));
+	if(tv) memcpy(tv, (void *)tmp, sizeof(struct timeval));
 
 	return ret;
 }
@@ -350,17 +350,17 @@ rk_socketcall(int call, unsigned long *args)
 
 			/* Copy into shdmem */
 			tmp = shdmem_addr;
-			memcpy(tmp, addr, sizeof(struct sockaddr));
+			memcpy((void *)tmp, addr, sizeof(struct sockaddr));
 			tmp += sizeof(struct sockaddr);
-			memcpy(tmp, addrlen, sizeof(vaddr_t));
+			memcpy((void *)tmp, addrlen, sizeof(vaddr_t));
 
 			ret = rk_inv_accept(s, shdmem_id);
 
 			/* Copy out of shdmem */
 			tmp = shdmem_addr;
-			memcpy(addr, tmp, sizeof(struct sockaddr));
+			memcpy(addr, (void *)tmp, sizeof(struct sockaddr));
 			tmp += sizeof(struct sockaddr);
-			memcpy(addrlen, tmp, sizeof(vaddr_t));
+			memcpy(addrlen, (void *)tmp, sizeof(vaddr_t));
 
 			break;
 		}
@@ -385,17 +385,17 @@ rk_socketcall(int call, unsigned long *args)
 
 			/* Copy into shdmem */
 			tmp = shdmem_addr;
-			memcpy(tmp, asa, sizeof(struct sockaddr));
+			memcpy((void *)tmp, asa, sizeof(struct sockaddr));
 			tmp += sizeof(struct sockaddr);
-			memcpy(tmp, alen, sizeof(socklen_t));
+			memcpy((void *)tmp, alen, sizeof(socklen_t));
 
 			ret = rk_inv_getsockname(fdes, shdmem_id);
 
 			/* Copy out of shdmem */
 			tmp = shdmem_addr;
-			memcpy(asa, tmp, sizeof(struct sockaddr));
+			memcpy(asa, (void *)tmp, sizeof(struct sockaddr));
 			tmp += sizeof(struct sockaddr);
-			memcpy(alen, tmp, sizeof(socklen_t));
+			memcpy(alen, (void *)tmp, sizeof(socklen_t));
 
 			break;
 		}
@@ -420,17 +420,17 @@ rk_socketcall(int call, unsigned long *args)
 
 			/* Copy into shdmem */
 			tmp = shdmem_addr;
-			memcpy(tmp, asa, sizeof(struct sockaddr));
+			memcpy((void *)tmp, asa, sizeof(struct sockaddr));
 			tmp += sizeof(struct sockaddr);
-			memcpy(tmp, alen, sizeof(socklen_t));
+			memcpy((void *)tmp, alen, sizeof(socklen_t));
 
 			ret = rk_inv_getpeername(fdes, shdmem_id);
 
 			/* Copy out of shdmem */
 			tmp = shdmem_addr;
-			memcpy(asa, tmp, sizeof(struct sockaddr));
+			memcpy(asa, (void *)tmp, sizeof(struct sockaddr));
 			tmp += sizeof(struct sockaddr);
-			memcpy(alen, tmp, sizeof(socklen_t));
+			memcpy(alen, (void *)tmp, sizeof(socklen_t));
 
 			break;
 		}
@@ -541,11 +541,11 @@ rk_socketcall(int call, unsigned long *args)
 
 			assert(shdmem_id > -1 && shdmem_addr > 0);
 
-			memcpy(shdmem_addr, optval, optlen);
+			memcpy((void *)shdmem_addr, optval, optlen);
 
 			ret = (int)rk_inv_setsockopt(sockfd, level, optname, shdmem_id, optlen);
 
-			memcpy(optval, shdmem_addr, optlen);
+			memcpy((void *)optval, (void *)shdmem_addr, optlen);
 
 			break;
 		}

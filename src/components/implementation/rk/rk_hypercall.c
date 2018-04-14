@@ -89,8 +89,8 @@ rk_select(int arg1, int arg2)
 
 	assert(buf && (old_shdmem_id == shdmem_id));
 
-	null_array = buf;
-	tmp = null_array + 4;
+	null_array = (int *)buf;
+	tmp = (vaddr_t)null_array + (sizeof(int) * 4);
 
 	if (null_array[0]) in = (fd_set *)tmp;
 	tmp += sizeof(fd_set);
@@ -158,7 +158,7 @@ rk_open(int arg1, int arg2, int arg3)
 
 	if (buf == NULL || old_shdmem_id != shdmem_id) {
 		old_shdmem_id = shdmem_id;
-		ret = memmgr_shared_page_map(shdmem_id, &buf);
+		ret = memmgr_shared_page_map(shdmem_id, (vaddr_t *)&buf);
 		assert(ret);
 	}
 
@@ -182,7 +182,7 @@ rk_unlink(int arg1)
 
 	if (buf == NULL || old_shdmem_id != shdmem_id) {
 		old_shdmem_id = shdmem_id;
-		ret = memmgr_shared_page_map(shdmem_id, &buf);
+		ret = memmgr_shared_page_map(shdmem_id, (vaddr_t *)&buf);
 		assert(ret);
 	}
 
@@ -312,7 +312,7 @@ rk_setsockopt(int arg1, int arg2, int arg3)
 
 	if (optval == NULL || old_shdmem_id != shdmem_id) {
 		old_shdmem_id = shdmem_id;
-		ret = memmgr_shared_page_map(shdmem_id, &optval);
+		ret = memmgr_shared_page_map(shdmem_id, (vaddr_t *)&optval);
 		assert(ret);
 	}
 
@@ -355,7 +355,7 @@ rk_write(int arg1, int arg2, int arg3)
 
 	if (buf == NULL || old_shdmem_id != shdmem_id) {
 		old_shdmem_id = shdmem_id;
-		ret = memmgr_shared_page_map(shdmem_id, &buf);
+		ret = memmgr_shared_page_map(shdmem_id, (vaddr_t *)&buf);
 		assert(ret);
 	}
 
@@ -378,7 +378,7 @@ rk_read(int arg1, int arg2, int arg3)
 
 	if (buf == NULL || old_shdmem_id != shdmem_id) {
 		old_shdmem_id = shdmem_id;
-		ret = memmgr_shared_page_map(shdmem_id, &buf);
+		ret = memmgr_shared_page_map(shdmem_id, (vaddr_t *)&buf);
 		assert(ret);
 	}
 
@@ -412,7 +412,7 @@ rk_clock_gettime(int arg1, int arg2)
 	/* TODO, make this a function */
 	if (tp == NULL || old_shdmem_id != shdmem_id) {
 		old_shdmem_id = shdmem_id;
-		ret = memmgr_shared_page_map(shdmem_id, &tp);
+		ret = memmgr_shared_page_map(shdmem_id, (vaddr_t *)&tp);
 		assert(ret);
 	}
 
