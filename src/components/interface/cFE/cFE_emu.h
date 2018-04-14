@@ -186,17 +186,33 @@ union shared_region {
 		CFE_SB_Qos_t Quality;
 		uint16 MsgLim;
 	} cfe_sb_subscribeEx;
+	struct {
+		CFE_ES_CDSHandle_t CDS_Handle;
+		int32 BlockSize;
+		char Name[EMU_BUF_SIZE];
+	} cfe_es_registerCDS;
+	struct {
+		CFE_ES_CDSHandle_t CDSHandle;
+		char DataToCopy[EMU_BUF_SIZE];
+	} cfe_es_copyToCDS;
+	struct {
+		CFE_ES_CDSHandle_t CDSHandle;
+		char RestoreToMemory[EMU_BUF_SIZE];
+	} cfe_es_restoreFromCDS;
 };
 
 int emu_backend_request_memory(spdid_t client);
 
 int32 emu_CFE_ES_CalculateCRC(spdid_t client);
+int32 emu_CFE_ES_CopyToCDS(spdid_t client);
 int32 emu_CFE_ES_GetAppIDByName(spdid_t client);
 int32 emu_CFE_ES_GetAppInfo(spdid_t client);
 int32 emu_CFE_ES_GetGenCount(spdid_t client);
 int32 emu_CFE_ES_GetGenCounterIDByName(spdid_t client);
 int32 emu_CFE_ES_GetResetType(spdid_t client);
 int32 emu_CFE_ES_GetTaskInfo(spdid_t client);
+int32 emu_CFE_ES_RegisterCDS(spdid_t client);
+int32 emu_CFE_ES_RestoreFromCDS(spdid_t client);
 int32 emu_CFE_ES_RunLoop(spdid_t client);
 int32 emu_CFE_ES_WriteToSysLog(spdid_t client);
 

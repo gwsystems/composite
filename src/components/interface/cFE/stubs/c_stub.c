@@ -14,8 +14,10 @@
 
 union shared_region *shared_region;
 spdid_t              spdid;
+
 // NOTE: This is tagged as currently unused in the docs
 CFE_SB_Qos_t				 CFE_SB_Default_Qos = { 0 };
+size_t CDS_sizes[CFE_ES_CDS_MAX_NUM_ENTRIES] = { 0 };
 
 void
 do_emulation_setup(spdid_t id)
@@ -28,8 +30,6 @@ do_emulation_setup(spdid_t id)
 	memmgr_shared_page_map(region_id, &client_addr);
 	assert(client_addr);
 	shared_region = (void *)client_addr;
-
-
 }
 
 // FIXME: Be more careful about user supplied pointers
@@ -42,6 +42,21 @@ CFE_ES_CalculateCRC(const void *DataPtr, uint32 DataLength, uint32 InputCRC, uin
 	shared_region->cfe_es_calculateCRC.InputCRC = InputCRC;
 	shared_region->cfe_es_calculateCRC.TypeCRC = TypeCRC;
 	return emu_CFE_ES_CalculateCRC(spdid);
+}
+
+int32
+CFE_ES_CopyToCDS(CFE_ES_CDSHandle_t CDSHandle, void * DataToCopy)
+{
+	/* CDSHandle is unsigned, so it can't be invalid by being negative */
+	assert(CDSHandle < CFE_ES_CDS_MAX_NUM_ENTRIES);
+
+	shared_region->cfe_es_copyToCDS.CDSHandle = CDSHandle;
+
+	size_t data_size = CDS_sizes[CDSHandle];
+	assert(data_size <= EMU_BUF_SIZE);
+	memcpy(shared_region->cfe_es_copyToCDS.DataToCopy, DataToCopy, data_size);
+
+	return emu_CFE_ES_CopyToCDS(spdid);
 }
 
 int32
@@ -96,6 +111,42 @@ CFE_ES_GetTaskInfo(CFE_ES_TaskInfo_t *TaskInfo, uint32 TaskId)
 	shared_region->cfe_es_getTaskInfo.TaskId = TaskId;
 	int32 result = emu_CFE_ES_GetTaskInfo(spdid);
 	*TaskInfo = shared_region->cfe_es_getTaskInfo.TaskInfo;
+	return result;
+}
+
+int32
+CFE_ES_RegisterCDS(CFE_ES_CDSHandle_t *HandlePtr, int32 BlockSize, const char *Name)
+{
+	assert(strlen(Name) < EMU_BUF_SIZE);
+
+	shared_region->cfe_es_registerCDS.BlockSize = BlockSize;
+	strcpy(shared_region->cfe_es_registerCDS.Name, Name);
+
+	int32 result = emu_CFE_ES_RegisterCDS(spdid);
+	if (result == CFE_SUCCESS) {
+		CFE_ES_CDSHandle_t handle = shared_region->cfe_es_registerCDS.CDS_Handle;
+		CDS_sizes[handle] = BlockSize;
+		*HandlePtr = handle;
+	}
+	return result;
+}
+
+int32
+CFE_ES_RestoreFromCDS(void *RestoreToMemory, CFE_ES_CDSHandle_t CDSHandle)
+{
+	shared_region->cfe_es_restoreFromCDS.CDSHandle = CDSHandle;
+
+	int32 result = emu_CFE_ES_RestoreFromCDS(spdid);
+
+	if (result == CFE_SUCCESS) {
+		/* CDSHandle is unsigned, so it can't be invalid by being negative */
+		assert(CDSHandle < CFE_ES_CDS_MAX_NUM_ENTRIES);
+		size_t data_size = CDS_sizes[CDSHandle];
+		assert(data_size <= EMU_BUF_SIZE);
+
+		memcpy(RestoreToMemory, shared_region->cfe_es_restoreFromCDS.RestoreToMemory, data_size);
+	}
+
 	return result;
 }
 

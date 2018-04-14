@@ -33,6 +33,14 @@ emu_CFE_ES_CalculateCRC(spdid_t client)
 }
 
 int32
+emu_CFE_ES_CopyToCDS(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_CopyToCDS(s->cfe_es_copyToCDS.CDSHandle, s->cfe_es_copyToCDS.DataToCopy);
+}
+
+
+int32
 emu_CFE_ES_GetAppIDByName(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
@@ -73,6 +81,21 @@ emu_CFE_ES_GetTaskInfo(spdid_t client)
 	union shared_region *s = shared_regions[client];
 	return CFE_ES_GetTaskInfo(&s->cfe_es_getTaskInfo.TaskInfo, s->cfe_es_getTaskInfo.TaskId);
 }
+
+int32
+emu_CFE_ES_RegisterCDS(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_RegisterCDS(&s->cfe_es_registerCDS.CDS_Handle, s->cfe_es_registerCDS.BlockSize, s->cfe_es_registerCDS.Name);
+}
+
+int32
+emu_CFE_ES_RestoreFromCDS(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_RestoreFromCDS(s->cfe_es_restoreFromCDS.RestoreToMemory, s->cfe_es_restoreFromCDS.CDSHandle);
+}
+
 
 int32
 emu_CFE_ES_RunLoop(spdid_t client)
