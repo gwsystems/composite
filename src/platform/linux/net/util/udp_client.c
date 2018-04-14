@@ -9,6 +9,7 @@
 #include <malloc.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include <sys/time.h>
 #include <signal.h>
@@ -23,6 +24,7 @@ unsigned char *rcv_msg;
 int script[100];
 
 #define MSG_SZ 31
+#define JPEG_REQ 77
 
 void construct_header(char *msg)
 {
@@ -145,6 +147,33 @@ void start_timers()
 	return;
 }
 
+FILE *fp;
+unsigned long msg_s;
+char * buf;
+
+int
+read_jpeg(void)
+{
+	printf("reading in jpeg\n");
+	fp = fopen("greenroomba.jpg", "rb");
+	assert(fp);
+	printf("fseek\n");
+	fseek(fp, 0, SEEK_END);
+	msg_s = ftell(fp);
+	printf("jpeg size: %lu \n", msg_s);
+	rewind(fp);
+
+	buf = (char *)malloc(sizeof(char)*(msg_s));
+	
+	char s;
+	int num_read = 0;
+	while(( num_read = fread(&s, 1, 1, fp))) {
+		strncat(buf, &s, 1);
+	}
+
+	fclose(fp);
+}
+
 int foo = 0;
 
 int main(int argc, char *argv[])
@@ -218,6 +247,23 @@ int main(int argc, char *argv[])
 			foo++;
 		}
 
+
+		/* Server has requested an image */
+		if (((unsigned char *)rcv_msg)[0] == JPEG_REQ) {
+			
+			read_jpeg();
+
+			((unsigned int *)msg)[0] = 79;			
+			if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
+			    errno != EINTR) {
+				return -1;
+			}
+
+			/* Send jpeg in buf */
+
+			break;
+		}
+
 		int j = 0;
 		int l = 1;
 		int script_num = ((unsigned char *)rcv_msg)[0];
@@ -243,11 +289,60 @@ int main(int argc, char *argv[])
 				perror("sendto");
 				return -1;
 			}
-			free(msg);
-			free(rcv_msg);
-			break;
+		//	free(msg);
+		//	free(rcv_msg);
+		//	break;
 		}
 	}
+
+	/* For script sending/recving */	
+//	while (1) {
+//		int i;
+//		
+//		if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
+//		    errno != EINTR) {
+//			perror("sendto");
+//			return -1;
+//		}
+//		msg_sent++;
+//		
+//		for (i=0 ; i < sleep_val ; i++) {
+//			if (argc == 6) {
+//				do_recv_proc(fdr, msg_size);
+//			}
+//			foo++;
+//		}
+//
+//		int j = 0;
+//		int l = 1;
+//		int script_num = ((unsigned char *)rcv_msg)[0];
+//
+//		/* Store message into local script at corresponding place */	
+//		for (j = MSG_SZ*script_num; j < (MSG_SZ*script_num)+MSG_SZ ; j ++) {
+//			if (((unsigned char *)rcv_msg)[l] == 66 ) break;
+//			script[j] = ((unsigned char *)rcv_msg)[l];
+//			l++;
+//		}
+//
+//		/* Print entirety of recieved script */
+//		if (((unsigned char *)rcv_msg)[l] == 66 ) {
+//			int k = 0;
+//			for (k = 0; k < j; k++) {
+//				if (k%MSG_SZ == 0 && k != 0) printf("\n");
+//				printf("%d, ", script[k]) ;
+//			}
+//	
+//			((unsigned int *)msg)[0] = 99;			
+//			if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
+//			    errno != EINTR) {
+//				perror("sendto");
+//				return -1;
+//			}
+//			free(msg);
+//			free(rcv_msg);
+//			break;
+//		}
+//	}
 	
 
 	return 0;
