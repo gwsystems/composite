@@ -89,10 +89,4 @@ content_get(char *path, int *content_len)
 	*content_len = sizeof(resp);
 
 	return resp;
-err_free:
-	free(resp);
-err_close:
-	close(content_fd);
-err:
-	return error_resp(path, content_len);
 }
