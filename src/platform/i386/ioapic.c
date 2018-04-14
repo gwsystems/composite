@@ -343,7 +343,8 @@ ioapic_init(void)
 	 * The discussion in the above forum suggest modern PCIe devices bypass IOAPIC and send
 	 * interrupts directly to the core. For legacy PCI, we probably need to read some APIC tables.
 	 *
-	 * Update: I've tested by porting IOAPIC to RK on Qemu, udpserver test went OK.
-	 *         But on HW, I can't get even "ping" to work. TODO: Debugging!
+	 * Update: with BMK_SCREW_INTERRUPT_ROUTING, got Rumpkernel to boot fine on HW as well.
+	 * The effect of that BMK_SCREW_INTERRUPT_ROUTING is mostly in the BMK intr.c to use an array of lists vs
+	 * single list. It doesn't change how NetBSD does interrupt processing.
 	 */
 }
