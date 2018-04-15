@@ -60,7 +60,7 @@ create_movement(int xf, int yf) {
 
 
 	/* Verify Script with Camera component */
-	udpserv_script(8, 4);
+	udpserv_script(REQ_JPEG, 4);
 	int ret = check_location_image(0, 0);
 	while (!ret) {
 		printc("image unavailable\n");
@@ -70,11 +70,11 @@ create_movement(int xf, int yf) {
 		
 		ret = check_location_image(0, 0);
 	}
-	printc("Image Available, in robot_cont\n");
+	printc("Image Checks out, send script\n");
 
 	printc("shmem: %p \n", (char *) shmem_addr);
 	memcpy((unsigned char *)shmem_addr, script, 100);	
-	udpserv_script(93, 8);
+	udpserv_script(SEND_SCRIPT, 8);
 	
 	rpos.x = xf;
 	rpos.y = yf;	

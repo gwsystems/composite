@@ -17,3 +17,5 @@
 #define TASK_DONE 99
 #define REQ_JPEG 77
 #define RECV_JPEG 79
+#define SEND_SCRIPT 80
+

@@ -25,6 +25,7 @@ int script[100];
 
 #define MSG_SZ 31
 #define JPEG_REQ 77
+#define SEND_SCRIPT 80
 
 void construct_header(char *msg)
 {
@@ -306,57 +307,24 @@ int main(int argc, char *argv[])
 
 			//break;
 		}
+		
+		/* Server is going to send a script */
+		if (((unsigned char *)rcv_msg)[0] == SEND_SCRIPT) {
+			int j;
+			printf("Recvd script\n");
+			for (j = 0; j < 100 ; j ++) {
+				if (((unsigned char *)rcv_msg)[j+1] == 66 ) break;
+				script[j] = ((unsigned char *)rcv_msg)[j+1];
+			}
+		}
 	
 	}
 
-	/* For script sending/recving */	
-//	while (1) {
-//		int i;
-//		
-//		if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
-//		    errno != EINTR) {
-//			perror("sendto");
-//			return -1;
-//		}
-//		msg_sent++;
-//		
-//		for (i=0 ; i < sleep_val ; i++) {
-//			if (argc == 6) {
-//				do_recv_proc(fdr, msg_size);
-//			}
-//			foo++;
-//		}
-//
-//		int j = 0;
-//		int l = 1;
-//		int script_num = ((unsigned char *)rcv_msg)[0];
-//
-//		/* Store message into local script at corresponding place */	
-//		for (j = MSG_SZ*script_num; j < (MSG_SZ*script_num)+MSG_SZ ; j ++) {
-//			if (((unsigned char *)rcv_msg)[l] == 66 ) break;
-//			script[j] = ((unsigned char *)rcv_msg)[l];
-//			l++;
-//		}
-//
-//		/* Print entirety of recieved script */
-//		if (((unsigned char *)rcv_msg)[l] == 66 ) {
-//			int k = 0;
-//			for (k = 0; k < j; k++) {
-//				if (k%MSG_SZ == 0 && k != 0) printf("\n");
-//				printf("%d, ", script[k]) ;
-//			}
-//	
-//			((unsigned int *)msg)[0] = 99;			
-//			if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
-//			    errno != EINTR) {
-//				perror("sendto");
-//				return -1;
-//			}
-//			free(msg);
-//			free(rcv_msg);
-//			break;
-//		}
-//	}
+	int j;
+	printf("Recvd script\n");
+	for (j = 0; j < 100 ; j ++) {
+		printf("%d : %d\n", j, script[j]);
+	}
 	
 
 	return 0;
