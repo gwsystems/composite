@@ -46,17 +46,17 @@ void construct_header(char *msg)
 unsigned int msg_sent = 0, msg_rcved;
 void signal_handler(int signo)
 {
-	printf("Messages sent/sec: %d", msg_sent);
+	//printf("Messages sent/sec: %d", msg_sent);
 	if (rcv) {
-		printf(", avg response time: %lld, WC: %lld, min: %lld, received/sent:%d\n", 
-		       cnt == 0 ? 0 : tot/cnt, 
-		       max, min, 
-		       msg_sent == 0 ? 0 : (unsigned int)(msg_rcved*100)/(unsigned int)msg_sent);
+	//	printf(", avg response time: %lld, WC: %lld, min: %lld, received/sent:%d\n", 
+	//	       cnt == 0 ? 0 : tot/cnt, 
+	//	       max, min, 
+	//	       msg_sent == 0 ? 0 : (unsigned int)(msg_rcved*100)/(unsigned int)msg_sent);
 		tot = cnt = max = 0;
 		min = (unsigned long long)-1;
 		msg_rcved = 0;
 	} else {
-		printf("\n");
+	//	printf("\n");
 	}
 	msg_sent = 0;
 }
@@ -148,7 +148,7 @@ void start_timers()
 }
 
 FILE *fp;
-unsigned long msg_s;
+unsigned long jpg_s;
 char * buf;
 
 int
@@ -159,11 +159,11 @@ read_jpeg(void)
 	assert(fp);
 	printf("fseek\n");
 	fseek(fp, 0, SEEK_END);
-	msg_s = ftell(fp);
-	printf("jpeg size: %lu \n", msg_s);
+	jpg_s = ftell(fp);
+	printf("jpeg size: %lu \n", jpg_s);
 	rewind(fp);
 
-	buf = (char *)malloc(sizeof(char)*(msg_s));
+	buf = (char *)malloc(sizeof(char)*(jpg_s));
 	
 	char s;
 	int num_read = 0;
@@ -247,6 +247,9 @@ int main(int argc, char *argv[])
 			foo++;
 		}
 
+		/* Send jpeg in buf */
+		unsigned long sent = 0;
+		int b = 0;
 
 		/* Server has requested an image */
 		if (((unsigned char *)rcv_msg)[0] == JPEG_REQ) {
@@ -259,9 +262,49 @@ int main(int argc, char *argv[])
 				return -1;
 			}
 
-			/* Send jpeg in buf */
 
-			break;
+			printf("jpg_size: %lu \n", jpg_s);
+			printf("msg_size: %d \n", msg_size);
+			while ( (sent+msg_size) < jpg_s) {
+				for (b = 0; b < msg_size; b++) {
+					msg[b] = buf[sent + b];
+				}
+				if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
+				    errno != EINTR) {
+					return -1;
+				}
+
+				for (i=0 ; i < sleep_val ; i++) {
+					if (argc == 6) {
+						do_recv_proc(fdr, msg_size);
+					}
+					foo++;
+				}
+				sent+= msg_size;
+				//printf("%lu : %02x , ", sent, (unsigned char)msg[7]);
+			}	
+			
+			printf("sent: %lu \n", sent);
+
+			//break;
+		}
+	
+		for (b = 0; b < (jpg_s - sent); b++) {
+			msg[b] = buf[sent + b];
+		}
+		sent += b;
+		printf("jpg_size: %lu  sent: %lu  \n", jpg_s, sent);	
+
+		if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
+		    errno != EINTR) {
+			return -1;
+		}
+
+		for (i=0 ; i < sleep_val ; i++) {
+			if (argc == 6) {
+				do_recv_proc(fdr, msg_size);
+			}
+			foo++;
 		}
 
 		int j = 0;

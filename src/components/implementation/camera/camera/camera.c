@@ -10,6 +10,7 @@
 #include <memmgr.h>
 
 #include <sched.h>
+#include <gateway_spec.h>
 
 #include "jpeglib.h"
 
@@ -17,6 +18,9 @@
 #define EAST 1
 #define SOUTH 2
 #define WEST 3
+
+int shdmem_id;
+vaddr_t shdmem_addr;
 
 extern const char _binary_greenroomba_jpg_start;
 extern const char _binary_greenroomba_jpg_end;
@@ -128,11 +132,12 @@ read_jpeg_file(void) //char *filename )
 int
 check_location_image(int x, int y) {
 
-	read_jpeg_file();
-	if (x == 1 && y == 1) return track[0];
-	if (x == 1 && y == 0) return track[1];
-	if (x == 0 && y == 0) return track[2];
-	if (x == 0 && y == 1) return track[3];
+	printc("check_location_image\n");
+//	read_jpeg_file();
+//	if (x == 1 && y == 1) return track[0];
+//	if (x == 1 && y == 0) return track[1];
+//	if (x == 0 && y == 0) return track[2];
+//	if (x == 0 && y == 1) return track[3];
 
 	return 0;
 }
@@ -141,10 +146,17 @@ void
 cos_init(void)
 {
 	printc("\nWelcome to the Camera component\n");
+//	printc("Image  Size: %d\n", &_binary_greenroomba_jpg_size);
+//	printc("Image Start Addr: %d\n",&_binary_greenroomba_jpg_start);
+//	printc("Image End Addr: %d\n",&_binary_greenroomba_jpg_end);
 
-	printc("Image  Size: %d\n", &_binary_greenroomba_jpg_size);
-	printc("Image Start Addr: %d\n",&_binary_greenroomba_jpg_start);
-	printc("Image End Addr: %d\n",&_binary_greenroomba_jpg_end);
+	/* Create shared mem between Camera and udpserve */	
+	printc("creating sharedmem region\n");
+	shdmem_id = memmgr_shared_page_allocn(39, &shdmem_addr);
+	assert(shdmem_id == CAMERA_UDP_SHMEM_ID && shdmem_addr);
+	char *test = "testing camera shdmem";
+	memcpy((char *)shdmem_addr, test, 21);
+
 	read_jpeg_file();
 	sched_thd_block(0);	
 }

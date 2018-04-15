@@ -9,13 +9,14 @@
 #include <memmgr.h>
 #include <capmgr.h>
 #include <sched.h>
+#include <camera.h>
 
 #include <udpserver.h>
 #include <gateway_spec.h>
 
 #define IN_PORT  9998
 #define OUT_PORT 9999
-#define MSG_SZ   32
+#define MSG_SZ   1024
 #define TP_INFO_MS (unsigned long long)(10*1000) //5secs
 #define HPET_REQ_US (100*1000) //100ms
 #define HPET_REQ_BUDGET_US (500) //0.5ms
@@ -24,8 +25,11 @@ int spdid;
 extern int vmid;
 extern struct cos_component_information cos_comp_info;
 
+int recv_jpeg = 0;
+
 int shdmem_id;
 vaddr_t shdmem_addr;
+vaddr_t camera_shdmem_addr;
 
 static char __msg[MSG_SZ + 1] = { '\0' };
 unsigned char script[MAX_SCRIPT_SZ];
@@ -36,8 +40,6 @@ asndcap_t robot_cont_asnd;
 int
 udpserv_script(int shdmemid)
 {
-	printc("udpserv_script\n");
-
 	int i = 0;
 	unsigned char * shm_ptr = (unsigned char *)shdmem_addr;
 
@@ -57,7 +59,6 @@ reset_script(void)
 	}
 }
 
-/* Used for internal testing, will be replaced by above fn */
 static int
 update_script()
 {
@@ -73,7 +74,6 @@ update_script()
 	/* First char indicates index into script this message is */
 	((unsigned char*)__msg)[i] = num;
 	for (i = 1; i < sz ; i++) {
-	
 		((unsigned char*)__msg)[i] = script[j];
 		if (script[j] == SCRIPT_END) {
 			/* Reset num and script */
@@ -90,11 +90,22 @@ update_script()
 }
 
 static void
-check_task_done(int x, int y) {
+check_task_done(int x, int y) 
+{
 	printc("Roomba claims task is done (%d, %d) \n", x, y);
-	printc("\nRESETTING SCRIPT\n");
+	printc("RESETTING SCRIPT\n");
 	reset_script();
 	cos_asnd(robot_cont_asnd, ROBOT_CONT_AEP_KEY);
+}
+
+static void
+store_jpeg(void)
+{
+	//static char * addr = (char *)shdmem_addr;
+	static int stored = 0;
+	memcpy((char *)camera_shdmem_addr + stored, __msg, MSG_SZ);
+	stored += MSG_SZ;
+	if (stored > 155803) check_location_image(0,0);
 }
 
 static int
@@ -137,12 +148,23 @@ udp_server_start(void)
 			continue;
 		}
 
+		if (recv_jpeg == 1) {
+			store_jpeg();
+		}
+
 		if (((unsigned int *)__msg)[0] == TASK_DONE) {
 			memset(__msg, 0, MSG_SZ);
+			/* Request Image */
+			((unsigned int *)__msg)[0] = REQ_JPEG;
 			check_task_done(0, 1);		
-		} else {
-			memset(__msg, 0, MSG_SZ);
-			update_script();
+		
+		} else if(((unsigned int *)__msg)[0] == RECV_JPEG) {
+			printc("Recving jpeg now: \n");	
+			recv_jpeg = 1;
+		} else if (recv_jpeg != 1) {
+//			memset(__msg, 0, MSG_SZ);
+//			update_script();
+			((unsigned int *)__msg)[0] = REQ_JPEG;
 		}
 	
 		/* Reply to the sender */
@@ -179,23 +201,29 @@ cos_init(void)
 	spdid = cos_comp_info.cos_this_spd_id;
 
 	/* Test RK entry */
-	printc("calling rk_inv_entry\n");
 	get_boot_done();
 	test_entry(0, 1, 2, 3);
 
+	/* Robot Cont Shared memory */
 	shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-	assert(shdmem_id  -1 && shdmem_addr > 0);
-	printc("shdmemid: %d \n", shdmem_id);
-
+	assert(shdmem_id == ROBOTCONT_UDP_SHMEM_ID && shdmem_addr > 0);
 	char * test = "testingudp";
 	memcpy((char *)shdmem_addr, test, 10);
+	
+	/* Map Camera shared memory */
+	memmgr_shared_page_map(CAMERA_UDP_SHMEM_ID, &camera_shdmem_addr);
+	assert(camera_shdmem_addr);
+	printc("Camera shmem test: %s \n", (char *)camera_shdmem_addr);
+
+
 
 	/* Setup AEP to robot_cont */
-	printc("creating asnd in udp\n");
+	printc("Creating asnd in udp\n");
 	robot_cont_asnd = capmgr_asnd_key_create(ROBOT_CONT_AEP_KEY);
 	assert(robot_cont_asnd);
 	cos_asnd(robot_cont_asnd, ROBOT_CONT_AEP_KEY);
 
+	printc("\n************ Starting udp server ***********\n");
 	udpserv_main();
 }
 
