@@ -50,9 +50,10 @@ create_movement(int xf, int yf) {
                     137, 1, 44, 128, 0, 156, 3, 32, 137, 0, 0, 0, 0,
                     137, 1, 44, 128, 0, 156, 3, 32, 137, 0, 0, 0, 0,
                     137, 1, 44, 0, 1, 157, 0, 85, 137, 0, 0, 0, 0,
-                    137, 1, 44, 128, 0, 156, 1, 144, 137, 0, 0, 0, 0, 66, 0,0,0,0,0,0
+                    137, 1, 44, 128, 0, 156, 1, 144, 137, 0, 0, 0, 0, SCRIPT_END, 0,0,0,0,0,0
                   };	
 
+	printc("shmem: %p \n", (char *) shmem_addr);
 	memcpy((unsigned char *)shmem_addr, script, 100);	
 	udpserv_script(93);
 	
@@ -85,7 +86,7 @@ task_complete_aep(arcvcap_t rcv, void * data)
 	while(1) {
 		ret = cos_rcv(rcv, 0, NULL);
 		assert(ret == 0);
-		printc("task_complete_aep rcv'd notification\n");
+		printc("robot_cont: Task Complete\n");
 		if (first) cos_asnd(driver_asnd, DRIVER_AEPKEY);
 		first = 1;
 	}
@@ -95,7 +96,6 @@ void
 cos_init(void)
 {
 	printc("\nWelcome to the robot_cont component\n");
-	int ret;
 	thdid_t tidp;
 	int i = 0;
 	cycles_t wakeup, now, cycs_per_usec;
@@ -113,16 +113,16 @@ cos_init(void)
 	assert(tidp);
 	sched_thd_param_set(tidp, sched_param_pack(SCHEDP_PRIO, AEP_PRIO));
 	
-	ret = memmgr_shared_page_map(0, &shmem_addr);
 
 	/* Ensure udp server is booted before we return */
+	/* Having udp init sharedmem ensures shdmem_id is hardcoded (I know- we'll fix it later) */
+	memmgr_shared_page_map(0, &shmem_addr);
 	while (!shmem_addr) {
-		ret = memmgr_shared_page_map(0, &shmem_addr);
-		if (shmem_addr != NULL) break;
 		rdtscll(now);
 		wakeup = now + (2000 * 1000 * cycs_per_usec);
-
 		sched_thd_block_timeout(0, wakeup);
+		
+		memmgr_shared_page_map(ROBOTCONT_UDP_SHMEM_ID, &shmem_addr);
 	}
 
 	driver_asnd = capmgr_asnd_key_create(1);

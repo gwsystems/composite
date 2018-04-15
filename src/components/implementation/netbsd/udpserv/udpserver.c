@@ -103,9 +103,13 @@ store_jpeg(void)
 {
 	//static char * addr = (char *)shdmem_addr;
 	static int stored = 0;
+	if (stored > 155803) {
+		check_location_image(0,0);
+		recv_jpeg = 0;
+		return;
+	}
 	memcpy((char *)camera_shdmem_addr + stored, __msg, MSG_SZ);
 	stored += MSG_SZ;
-	if (stored > 155803) check_location_image(0,0);
 }
 
 static int

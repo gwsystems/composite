@@ -10,22 +10,8 @@ struct cos_aep_info taeps[2];
 void
 car_main(void)
 {
-	printc("car main, blocking.\n");
-
-	cycles_t wakeup, now, cycs_per_usec;
-	int shmem_id;
-
-	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-
-//	while(1) {
-//		rdtscll(now);
-//		wakeup = now + (8000 * 1000 * cycs_per_usec);
-//		printc("Auto Driver 1 Sending new task\n");
-//		sched_thd_block_timeout(0, wakeup);
-		send_task(3,2);
-//	}
-
-		sched_thd_block(0);
+	send_task(3,2);
+	sched_thd_block(0);
 }
 
 void
