@@ -1,4 +1,4 @@
 INTERFACES=netbsd
-DEPENDENCIES=rk capmgr camera
+DEPENDENCIES=rk capmgr
 
 include ../Makefile.subdir

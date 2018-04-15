@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
 
 		/* Server has requested an image */
 		if (((unsigned char *)rcv_msg)[0] == JPEG_REQ) {
-			
+			printf("Server requested an image\n");	
 			read_jpeg();
 
 			((unsigned int *)msg)[0] = 79;			
@@ -284,58 +284,29 @@ int main(int argc, char *argv[])
 				//printf("%lu : %02x , ", sent, (unsigned char)msg[7]);
 			}	
 			
-			printf("sent: %lu \n", sent);
+
+			for (b = 0; b < (jpg_s - sent); b++) {
+				msg[b] = buf[sent + b];
+			}
+			sent += b;
+
+			if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
+			    errno != EINTR) {
+				return -1;
+			}
+		
+			printf("jpg_size: %lu  sent: %lu  \n", jpg_s, sent);	
+			
+			for (i=0 ; i < sleep_val ; i++) {
+				if (argc == 6) {
+					do_recv_proc(fdr, msg_size);
+				}
+				foo++;
+			}
 
 			//break;
 		}
 	
-		for (b = 0; b < (jpg_s - sent); b++) {
-			msg[b] = buf[sent + b];
-		}
-		sent += b;
-		printf("jpg_size: %lu  sent: %lu  \n", jpg_s, sent);	
-
-		if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
-		    errno != EINTR) {
-			return -1;
-		}
-
-		for (i=0 ; i < sleep_val ; i++) {
-			if (argc == 6) {
-				do_recv_proc(fdr, msg_size);
-			}
-			foo++;
-		}
-
-		int j = 0;
-		int l = 1;
-		int script_num = ((unsigned char *)rcv_msg)[0];
-
-		/* Store message into local script at corresponding place */	
-		for (j = MSG_SZ*script_num; j < (MSG_SZ*script_num)+MSG_SZ ; j ++) {
-			if (((unsigned char *)rcv_msg)[l] == 66 ) break;
-			script[j] = ((unsigned char *)rcv_msg)[l];
-			l++;
-		}
-
-		/* Print entirety of recieved script */
-		if (((unsigned char *)rcv_msg)[l] == 66 ) {
-			int k = 0;
-			for (k = 0; k < j; k++) {
-				if (k%MSG_SZ == 0 && k != 0) printf("\n");
-				printf("%d, ", script[k]) ;
-			}
-	
-			((unsigned int *)msg)[0] = 99;			
-			if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
-			    errno != EINTR) {
-				perror("sendto");
-				return -1;
-			}
-		//	free(msg);
-		//	free(rcv_msg);
-		//	break;
-		}
 	}
 
 	/* For script sending/recving */	

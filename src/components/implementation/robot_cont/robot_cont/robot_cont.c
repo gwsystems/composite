@@ -6,6 +6,8 @@
 #include <sched.h>
 #include <capmgr.h>
 
+#include <camera.h>
+
 #include <robot_cont.h>
 #include <gateway_spec.h>
 
@@ -15,7 +17,9 @@
 #define EAST 1
 #define SOUTH 2
 #define WEST 3
+
 asndcap_t driver_asnd;
+cycles_t cycs_per_usec;
 
 struct rp {
 	int x, y;
@@ -39,6 +43,7 @@ create_movement(int xf, int yf) {
 	int ychange = yf - rpos.y;
 	int xchange = xf - rpos.x;
 	int i;
+	cycles_t wakeup, now;
 	
 	/* roomba scripts can be 100 bytes long */
 	/* copy generated script into shared memory for the udpserver, and notify it of an update */
@@ -53,9 +58,23 @@ create_movement(int xf, int yf) {
                     137, 1, 44, 128, 0, 156, 1, 144, 137, 0, 0, 0, 0, SCRIPT_END, 0,0,0,0,0,0
                   };	
 
+
+	/* Verify Script with Camera component */
+	udpserv_script(8, 4);
+	int ret = check_location_image(0, 0);
+	while (!ret) {
+		printc("image unavailable\n");
+		rdtscll(now);
+		wakeup = now + (10000 * 1000 * cycs_per_usec);
+		sched_thd_block_timeout(0, wakeup);
+		
+		ret = check_location_image(0, 0);
+	}
+	printc("Image Available, in robot_cont\n");
+
 	printc("shmem: %p \n", (char *) shmem_addr);
 	memcpy((unsigned char *)shmem_addr, script, 100);	
-	udpserv_script(93);
+	udpserv_script(93, 8);
 	
 	rpos.x = xf;
 	rpos.y = yf;	
@@ -66,9 +85,11 @@ create_movement(int xf, int yf) {
 int
 send_task(int x, int y) 
 {
-	printc("send_task\n");
-	if (!shmem_addr) return -1;
-	
+	static int task_in_progress = 0;
+	if (!shmem_addr || task_in_progress) return -1;
+
+	printc("\nsend_task\n");
+	task_in_progress = 1;	
 	create_movement(3,3);
 	printc("\n");
 	
@@ -98,16 +119,13 @@ cos_init(void)
 	printc("\nWelcome to the robot_cont component\n");
 	thdid_t tidp;
 	int i = 0;
-	cycles_t wakeup, now, cycs_per_usec;
+	cycles_t wakeup, now;
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	rpos.x = 0;
 	rpos.y = 0;
 	rpos.direction = EAST;	
 	
-//	thdid_t tiddumb;
-//	tiddumb = sched_aep_create(&taepsdumb, task_complete_aep, (void *)1, 0, ROBOT_CONT_AEP_KEY);	
-
 	printc("robot_cont aep created!\n");
 	tidp = sched_aep_create(&taeps, task_complete_aep, (void *)i, 0, ROBOT_CONT_AEP_KEY);	
 	assert(tidp);
@@ -125,10 +143,10 @@ cos_init(void)
 		memmgr_shared_page_map(ROBOTCONT_UDP_SHMEM_ID, &shmem_addr);
 	}
 
-	driver_asnd = capmgr_asnd_key_create(1);
-	assert(driver_asnd);
-	cos_asnd(driver_asnd, DRIVER_AEPKEY);
-
+//	driver_asnd = capmgr_asnd_key_create(1);
+//	assert(driver_asnd);
+//	cos_asnd(driver_asnd, DRIVER_AEPKEY);
+	
 	printc("robot_cont init done\n");
 	sched_thd_block(0);
 }

@@ -4,6 +4,7 @@
 #ifndef UDPSERVER_H
 #define UDPSERVER_H
 
-int udpserver_script(int shdmemid);
+int udpserv_script(int shdmemid, int test);
+//int udpserv_request_image(int compid);
 
 #endif

@@ -156,7 +156,7 @@ void
 rk_sched_loop(void)
 {
 	printc("STARTING RK SL LOOP BLOCKING with schedinit\n");
-	//schedinit_child();
+	schedinit_child();
 	sl_sched_loop();
 }
 

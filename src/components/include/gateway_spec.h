@@ -6,6 +6,7 @@
 /* Coordinate AEP's between components */
 #define AEP_PRIO 1
 #define ROBOT_CONT_AEP_KEY 18
+#define IMAGE_AEP_KEY 3
 
 /* Shmem id's */
 #define CAMERA_UDP_SHMEM_ID 0

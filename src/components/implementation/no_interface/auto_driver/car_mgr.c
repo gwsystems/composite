@@ -10,7 +10,17 @@ struct cos_aep_info taeps[2];
 void
 car_main(void)
 {
-	send_task(3,2);
+	cycles_t wakeup, now;
+	cycles_t cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+
+	while (1) {
+		send_task(3, 2);
+		
+		rdtscll(now);
+		wakeup = now + (5000 * 1000 * cycs_per_usec);
+		sched_thd_block_timeout(0, wakeup);
+	}
+
 	sched_thd_block(0);
 }
 
@@ -38,14 +48,13 @@ cos_init(void)
 	printc("\n--------------- Welcome to the car_mgr component -------\n");
 
 	thdid_t tidp;
-	asndcap_t parentasnd;
 	int i = 0;
 
-	printc("Creating aep for driver\n");
-	tidp = sched_aep_create(&taeps[1], driver_aep, (void *)i, 0, DRIVER_AEPKEY);
-	assert(tidp);
-	printc("Created aep for driver\n");
-	sched_thd_param_set(tidp, sched_param_pack(SCHEDP_PRIO, DRIVER_PRIO));
+//	printc("Creating aep for driver\n");
+//	tidp = sched_aep_create(&taeps[1], driver_aep, (void *)i, 0, DRIVER_AEPKEY);
+//	assert(tidp);
+//	printc("Created aep for driver\n");
+//	sched_thd_param_set(tidp, sched_param_pack(SCHEDP_PRIO, DRIVER_PRIO));
 
 	car_main();	
 	

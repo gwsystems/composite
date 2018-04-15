@@ -12,6 +12,8 @@
 #include <sched.h>
 #include <gateway_spec.h>
 
+#include <udpserver.h>
+
 #include "jpeglib.h"
 
 #define JPEG_SZ 155803
@@ -20,6 +22,9 @@
 #define EAST 1
 #define SOUTH 2
 #define WEST 3
+
+int image_available = 0;
+struct cos_aep_info taeps;
 
 int shdmem_id;
 vaddr_t shdmem_addr;
@@ -128,8 +133,8 @@ read_jpeg_file(void) //char *filename )
 	 	y++;
  	 }
 
- jpeg_finish_decompress( &cinfo );
- jpeg_destroy_decompress( &cinfo );
+	jpeg_finish_decompress( &cinfo );
+	jpeg_destroy_decompress( &cinfo );
  
  return 1;
 }
@@ -137,30 +142,54 @@ read_jpeg_file(void) //char *filename )
 int
 check_location_image(int x, int y) {
 
-	printc("check_location_image\n");
+	if (!image_available) {
+		return 0;
+	}
 
-	jpeg_data_start = (char *)shdmem_addr;
+	return 1;
+}
 
-	read_jpeg_file();
-	
-	return 0;
+void
+camera_image_available(arcvcap_t rcv, void * data)
+{
+	printc("camera image available init\n");
+	int ret;
+	static int first = 1;
+
+	while(1) {
+		ret = cos_rcv(rcv, 0, NULL);
+		assert(ret == 0);
+		if (first) {
+			first = 0;
+			continue;
+		}
+
+		printc("camera image available\n");
+		jpeg_data_start = (char *)shdmem_addr;
+		read_jpeg_file();
+		image_available = 1;	
+		
+	}
 }
 
 void
 cos_init(void)
 {
 	printc("\nWelcome to the Camera component\n");
-	printc("Image  Size: %d\n", &_binary_greenroomba_jpg_size);
-	printc("Image Start Addr: %d\n",&_binary_greenroomba_jpg_start);
-	printc("Image End Addr: %d\n",&_binary_greenroomba_jpg_end);
 
 	/* Create shared mem between Camera and udpserve */	
-	printc("creating sharedmem region\n");
 	shdmem_id = memmgr_shared_page_allocn(39, &shdmem_addr);
 	assert(shdmem_id == CAMERA_UDP_SHMEM_ID && shdmem_addr);
 	char *test = "testing camera shdmem";
 	memcpy((char *)shdmem_addr, test, 21);
 
-//	read_jpeg_file();
+	/* Create AEP for requesting image from server */
+	thdid_t tidp;
+	int i = 0;
+	tidp = sched_aep_create(&taeps, camera_image_available, (void *)i, 0, IMAGE_AEP_KEY);
+	assert(tidp);
+	sched_thd_param_set(tidp, sched_param_pack(SCHEDP_PRIO, AEP_PRIO));
+
+	printc("Camera comp blocking\n");
 	sched_thd_block(0);	
 }
