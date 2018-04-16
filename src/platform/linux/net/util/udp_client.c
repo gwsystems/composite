@@ -15,6 +15,8 @@
 #include <signal.h>
 #include <time.h>
 
+#include "genjpeg.h"
+
 #define rdtscll(val) \
         __asm__ __volatile__("rdtsc" : "=A" (val))
 
@@ -27,59 +29,23 @@ int script[100];
 #define JPEG_REQ 77
 #define SEND_SCRIPT 80
 
-void construct_header(char *msg)
-{
-	static unsigned int seqno = 1;
-	unsigned long long time;
-	unsigned int *int_msg = (unsigned int *)msg;
-	unsigned long long *ll_msg = (unsigned long long *)msg;
-
-	rdtscll(time);
-	int_msg[0] = seqno;
-	int_msg[1] = 9;
-	ll_msg[2] = time;
-//	printf("sending message %d with timestamp %lld\n", seqno, time);
-	seqno++;
-
-	return;
-}
-
 unsigned int msg_sent = 0, msg_rcved;
-void signal_handler(int signo)
+
+void 
+signal_handler(int signo)
 {
-	//printf("Messages sent/sec: %d", msg_sent);
 	if (rcv) {
-	//	printf(", avg response time: %lld, WC: %lld, min: %lld, received/sent:%d\n", 
-	//	       cnt == 0 ? 0 : tot/cnt, 
-	//	       max, min, 
-	//	       msg_sent == 0 ? 0 : (unsigned int)(msg_rcved*100)/(unsigned int)msg_sent);
 		tot = cnt = max = 0;
 		min = (unsigned long long)-1;
 		msg_rcved = 0;
 	} else {
-	//	printf("\n");
+	
 	}
 	msg_sent = 0;
 }
 
-int socket_nonblock(int fd)
-{
-	int flags;
-
-	if ((flags = fcntl(fd, F_GETFL, 0)) < 0)
-	{
-		perror("retrieving flags for socket");
-		return -1;
-	}
-	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
-	{
-		perror("setting socket's flags to nonblocking");
-		return -1;
-	}
-	return 0;
-}
-
-void do_recv_proc(int fd, int msg_sz)
+void 
+do_recv_proc(int fd, int msg_sz)
 {
 	int ret;
 
@@ -148,11 +114,11 @@ send_script()
 	printf("post: %s \n", post);
         system(post);
         
-	printf("%s\n", post);
         return 0;
 }
 
-void start_timers()
+void 
+start_timers()
 {
 	struct itimerval itv;
 	struct sigaction sa;
@@ -186,6 +152,7 @@ unsigned char * buf;
 int
 read_jpeg(void)
 {
+	createjpeg();
 	printf("reading in jpeg\n");
 	fp = fopen("obstacleman.jpg", "rb");
 	assert(fp);
@@ -205,16 +172,14 @@ read_jpeg(void)
 
 int foo = 0;
 
-int main(int argc, char *argv[])
+int 
+main(int argc, char *argv[])
 {
-	//send_script();
 	int fd, fdr;
 	struct sockaddr_in sa;
 	int msg_size;
 	char *msg;
 	int sleep_val;
-
-	//create_wifi_str();
 
 	if (argc != 5 && argc != 6) {
 		printf("Usage: %s <ip> <port> <msg size> <sleep_val> <opt:rcv_port>\n", argv[0]);
@@ -243,9 +208,6 @@ int main(int argc, char *argv[])
 			perror("Establishing receive socket");
 			return -1;
 		}
-		/*if (socket_nonblock(fdr)) {
-			return -1;
-		}*/
 		memset(&si, 0, sizeof(si));
 		si.sin_family      = AF_INET;
 		si.sin_port        = htons(atoi(argv[5]));
