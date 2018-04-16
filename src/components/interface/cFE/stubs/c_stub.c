@@ -110,6 +110,31 @@ CFE_ES_CopyToCDS(CFE_ES_CDSHandle_t CDSHandle, void * DataToCopy)
 }
 
 int32
+CFE_ES_CreateChildTask(uint32 *TaskIdPtr, const char *TaskName,
+                       CFE_ES_ChildTaskMainFuncPtr_t FunctionPtr, uint32 *StackPtr,
+					   uint32 StackSize, uint32 Priority, uint32 Flags)
+{
+	int32 result;
+	thdclosure_index_t idx = cos_thd_init_alloc(FunctionPtr, NULL);
+
+	assert(strlen(TaskName) < EMU_BUF_SIZE);
+	strcpy(shared_region->cfe_es_createChildTask.TaskName, TaskName);
+
+	emu_stash(idx, spdid);
+
+	shared_region->cfe_es_createChildTask.FunctionPtr = STASH_MAGIC_VALUE;
+	shared_region->cfe_es_createChildTask.Priority = Priority;
+	shared_region->cfe_es_createChildTask.Flags = Flags;
+
+	result = emu_CFE_ES_CreateChildTask(spdid);
+	*TaskIdPtr = shared_region->cfe_es_createChildTask.TaskId;
+
+	emu_stash_clear();
+
+	return result;
+}
+
+int32
 CFE_ES_GetAppIDByName(uint32 *AppIdPtr, const char *AppName)
 {
 	int32 result;

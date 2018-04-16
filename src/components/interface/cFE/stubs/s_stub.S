@@ -13,6 +13,7 @@
 
 cos_asm_server_stub(CFE_ES_DeleteApp)
 cos_asm_server_stub(CFE_ES_ExitApp)
+cos_asm_server_stub(CFE_ES_ExitChildTask)
 cos_asm_server_stub(CFE_ES_PerfLogAdd)
 cos_asm_server_stub(CFE_ES_RegisterApp)
 cos_asm_server_stub(CFE_ES_RegisterChildTask)
@@ -28,8 +29,6 @@ cos_asm_server_stub(CFE_PSP_WatchdogService)
 cos_asm_server_stub(CFE_SB_Subscribe)
 cos_asm_server_stub(CFE_SB_Unsubscribe)
 cos_asm_server_stub(CFE_SB_UnsubscribeLocal)
-
-cos_asm_server_stub(CFE_TBL_NotifyByMessage)
 
 cos_asm_server_stub(CFE_TIME_FS2CFESeconds)
 
@@ -51,8 +50,12 @@ cos_asm_server_stub(emu_request_memory)
 cos_asm_server_stub(emu_create_aep_thread)
 cos_asm_server_stub(emu_is_printf_enabled)
 
+cos_asm_server_stub(emu_stash)
+cos_asm_server_stub(emu_stash_clear)
+
 cos_asm_server_stub(emu_CFE_ES_CalculateCRC)
 cos_asm_server_stub(emu_CFE_ES_CopyToCDS)
+cos_asm_server_stub(emu_CFE_ES_CreateChildTask)
 cos_asm_server_stub(emu_CFE_ES_GetAppIDByName)
 cos_asm_server_stub(emu_CFE_ES_GetAppInfo)
 cos_asm_server_stub(emu_CFE_ES_GetGenCount)

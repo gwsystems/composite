@@ -2,6 +2,8 @@
 #include <sl.h>
 #include <sl_lock.h>
 
+#include <cFE_emu.h>
+
 #include "cFE_util.h"
 #include "ostask.h"
 
@@ -112,6 +114,7 @@ OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_p
 	struct sl_thd *       thd;
 	sched_param_t         sp;
 	struct cfe_task_info *task_info;
+	struct cos_defcompinfo child_dci;
 
 	if (task_id == NULL || task_name == NULL || function_pointer == NULL) { return OS_INVALID_POINTER; }
 
@@ -121,8 +124,23 @@ OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_p
 
 	if (priority > 255 || priority < 1) { return OS_ERR_INVALID_PRIORITY; }
 
-	thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
-	assert(thd);
+	/* If the create call is rooted in another component, STASH_MAGIC_VALUE will be passed as the function_pointer  */
+	if (function_pointer == STASH_MAGIC_VALUE) {
+		/* Since we know this is rooted in another component, we take the values from the stash */
+		thdclosure_index_t idx = emu_stash_retrieve_thdclosure();
+		spdid_t spdid = emu_stash_retrieve_spdid();
+
+		printc("task create in server (task_name = %s, fp = %p, idx = %d, spdid = %d)\n", task_name, function_pointer, idx, spdid);
+
+		cos_defcompinfo_childid_init(&child_dci, spdid);
+
+		thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 0, 0, 0, NULL);
+		assert(thd);
+	} else {
+		thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
+		assert(thd);
+	}
+
 	sp = sched_param_pack(SCHEDP_PRIO, priority);
 	sl_thd_param_set(thd, sp);
 

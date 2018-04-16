@@ -49,16 +49,56 @@ emu_request_memory(spdid_t client)
 	return id;
 }
 
-
 void
 emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key)
 {
+	struct sl_thd *thd;
+	sched_param_t aep_priority;
 	struct cos_defcompinfo child_dci;
+
 	cos_defcompinfo_childid_init(&child_dci, client);
 
-	sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 1, 0, key, NULL);
+	thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 1, 0, key, NULL);
+	assert(thd);
+
+	aep_priority = sched_param_pack(SCHEDP_PRIO, CFE_TIME_1HZ_TASK_PRIORITY);
+	sl_thd_param_set(thd, aep_priority);
 }
 
+/* Methods for stashing and retrieving a idx, spdid pair
+ * This is done when a OS_TaskCreate call is rooted in another component
+ */
+struct {
+	thdclosure_index_t idx;
+	spdid_t spdid;
+} stashed_task_values;
+
+void
+emu_stash(thdclosure_index_t idx, spdid_t spdid)
+{
+	assert(stashed_task_values.idx == 0 && stashed_task_values.spdid == 0);
+	stashed_task_values.idx = idx;
+	stashed_task_values.spdid = spdid;
+}
+
+void emu_stash_clear()
+{
+	stashed_task_values.idx = 0;
+	stashed_task_values.spdid = 0;
+}
+
+
+thdclosure_index_t
+emu_stash_retrieve_thdclosure()
+{
+	return stashed_task_values.idx;
+}
+
+spdid_t
+emu_stash_retrieve_spdid()
+{
+	return stashed_task_values.spdid;
+}
 
 int32
 emu_CFE_ES_CalculateCRC(spdid_t client)
@@ -73,6 +113,15 @@ emu_CFE_ES_CopyToCDS(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
 	return CFE_ES_CopyToCDS(s->cfe_es_copyToCDS.CDSHandle, s->cfe_es_copyToCDS.DataToCopy);
+}
+
+int32
+emu_CFE_ES_CreateChildTask(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_ES_CreateChildTask(&s->cfe_es_createChildTask.TaskId, s->cfe_es_createChildTask.TaskName,
+	                       s->cfe_es_createChildTask.FunctionPtr, NULL,
+						   0, s->cfe_es_createChildTask.Priority, s->cfe_es_createChildTask.Flags);
 }
 
 

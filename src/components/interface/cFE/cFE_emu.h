@@ -1,3 +1,8 @@
+#ifndef _CFE_EMU_
+#define _CFE_EMU_
+
+#include <stdint.h>
+
 #include <cos_types.h>
 
 #include <cfe_evs.h>
@@ -199,14 +204,29 @@ union shared_region {
 		CFE_ES_CDSHandle_t CDSHandle;
 		char RestoreToMemory[EMU_BUF_SIZE];
 	} cfe_es_restoreFromCDS;
+	struct {
+		uint32 TaskId;
+		char TaskName[EMU_BUF_SIZE];
+		CFE_ES_ChildTaskMainFuncPtr_t FunctionPtr;
+		uint32 Priority;
+		uint32 Flags;
+	} cfe_es_createChildTask;
 };
 
 int emu_request_memory(spdid_t client);
 void emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key);
 int emu_is_printf_enabled();
 
+#define STASH_MAGIC_VALUE ((void *) 0xBEAFBEAF)
+
+void emu_stash(thdclosure_index_t idx, spdid_t spdid);
+thdclosure_index_t emu_stash_retrieve_thdclosure();
+spdid_t emu_stash_retrieve_spdid();
+void emu_stash_clear();
+
 int32 emu_CFE_ES_CalculateCRC(spdid_t client);
 int32 emu_CFE_ES_CopyToCDS(spdid_t client);
+int32 emu_CFE_ES_CreateChildTask(spdid_t client);
 int32 emu_CFE_ES_GetAppIDByName(spdid_t client);
 int32 emu_CFE_ES_GetAppInfo(spdid_t client);
 int32 emu_CFE_ES_GetGenCount(spdid_t client);
@@ -265,3 +285,5 @@ int32 emu_OS_MutSemCreate(spdid_t client);
 int32 emu_OS_TaskGetIdByName(spdid_t client);
 
 int32 emu_OS_SymbolLookup(spdid_t client);
+
+#endif
