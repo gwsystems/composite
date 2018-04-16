@@ -19,3 +19,5 @@
 #define RECV_JPEG 79
 #define SEND_SCRIPT 80
 
+
+#define JPG_SZ 151462

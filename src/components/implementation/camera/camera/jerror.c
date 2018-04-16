@@ -94,6 +94,7 @@ error_exit (j_common_ptr cinfo)
  * not just not use this routine.
  */
 
+#include <llprint.h>
 METHODDEF(void)
 output_message (j_common_ptr cinfo)
 {
@@ -108,7 +109,7 @@ output_message (j_common_ptr cinfo)
 	     MB_OK | MB_ICONERROR);
 #else
   /* Send it to stderr, adding a newline */
-  fprintf(stderr, "%s\n", buffer);
+  printc("stderr: %s \n", buffer);
 #endif
 }
 

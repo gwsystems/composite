@@ -19,7 +19,6 @@
 #define JPEG_INTERNALS
 #include "jinclude.h"
 #include "jpeglib.h"
-#include <llprint.h>
 
 /*
  * Initialization of a JPEG decompression object.

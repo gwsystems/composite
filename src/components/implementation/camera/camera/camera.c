@@ -25,19 +25,19 @@
 
 int image_available = 0;
 struct cos_aep_info taeps;
-
+char * buf;
 int shdmem_id;
 vaddr_t shdmem_addr;
 
-extern const char _binary_greenroomba_jpg_start;
-extern const char _binary_greenroomba_jpg_end;
-extern int _binary_greenroomba_jpg_size;
+char * jpeg_data_start;
 
 struct rp {
 	int x, y;
 	unsigned long direction;
 };
 struct rp rpos;
+
+int read_jpeg_file(void);
 
 unsigned char *raw_image = NULL;
 int width;
@@ -47,6 +47,13 @@ int color_space; //or JCS_GRAYSCALE for grayscale images
 int **map;
 int *location;
 int track[4] = {-1,-1,-1,-1};
+int track9[9] = {0,0,0,0,0,0,0,0,0};
+int obstacles[9] = {0,0,0,0,0,0,0,0,0};
+int orange = 0;
+
+extern const char _binary_greenroomba_jpg_start;
+extern int _binary_greenroomba_jpg_size;
+
 int init_map(int height, int width) {
   int i;
   int **m = (int**)malloc(sizeof(int*)*width);
@@ -58,7 +65,9 @@ int init_map(int height, int width) {
   return 1;
 }
 
-int check_quadrant(int x, int y) {
+int 
+check_quadrant(int x, int y) 
+{
 	if(y >= 0 && y < height/2 && x >=0 && x < width/2) return 0;
 	if(y >= 0 && y < height/2 && x > width/2 && x < width) return 1;
 	if(y >=height/2 && y < height/2 && x >=width/2 && x < width) return 2;
@@ -66,22 +75,154 @@ int check_quadrant(int x, int y) {
 	return -1;
 }
 
-int check_green(int *triple, int x, int y) {  //1 green, 0 not green
-  if(triple[0] < 100 && triple[1] > 240 && triple[2] < 100) {
-    map[x][y] = 1;
-    return 1;
-  } else {
-    map[x][y] = 0;
-    track[check_quadrant(x, y)] = 1;
-    return 0;
-  }
-  return -1;
+int 
+check_section(int x, int y) 
+{ //replacement for check_qudrant
+	if(y >= 0 && y < height/3 && x >=0 && x < width/3) return 1;
+	if(y >= 0 && y < height/3 && x > width/3 && x < 2*(width/3)) return 2;
+	if(y >= 0 && y < height/3 && x >=2*(width/3) && x < width) return 3;
+	if(y >= height/3 && y < 2*(height/3) && x >=0 && x < width/3) return 4;
+	if(y >= height/3 && y < 2*(height/3) && x >=width/3 && x < 2*(width/3)) return 5;
+	if(y >= height/3 && y < 2*(height/3) && x >=2*(width/3) && x < width) return 6;	
+	if(y >= 2*(height/3) && y < height && x >=0 && x < width/3) return 7;	
+	if(y >= 2*(height/3) && y < height && x >=width/3 && x < 2*(width/3)) return 8;
+	if(y >= 2*(height/3) && y < height && x >=2*(width/3) && x < width) return 9;
+	return -1;
+}
+
+/*
+q1 q2 q3
+q4 q5 q6
+q7 q8 q9
+00 10 20
+01 11 21
+02 12 22
+*/
+int 
+check_obstacles(int *triple, int x, int y) 
+{
+	/*
+	Checking for "obstacles"
+	255-165-0 orange
+	255-140-0 dark orange
+	*/
+	if(triple[0] > 240 && triple[1] >130 && triple[1] < 180 && triple[2] < 50) {
+		obstacles[check_section(x,y)] = 1;
+	}
+	else {
+	  	map[x][y] = 0;
+	}
+	return 0;
 }
 
 
-char * jpeg_data_start;
-char * jpeg_data_end;
-int jpeg_data_sz = 155803;
+int 
+ret_obstacles() 
+{
+	printc("ret_obstacles\n");
+	
+	//memset(obstacles, 0, 9*sizeof(int));
+	orange = 1;
+	read_jpeg_file();
+	int i;
+	orange = 0;
+	for(i = 0; i < 9; i++) {
+		if(obstacles[i]) return i;
+	}
+	return -1; //obstacles;
+}
+
+//new way of doing it, with 9 sections
+int 
+det_col(int *triple, int x, int y) 
+{ //determine_color
+	//check front color //green?
+	if(triple[0] < 100 && triple[1] > 240 && triple[2] < 100) {
+	   map[x][y] = 1;
+	   track9[check_section(x,y)] = 1;
+	   return 1;
+	}
+	
+	//check back color //red?
+	if(triple[0] > 240 && triple[1] < 100 && triple[2] < 100) {
+	   map[x][y] = 2;
+	   track9[check_section(x,y)] = 1;
+	   return 2;
+	}
+	
+	return 0;
+}
+
+int det_orient() { //determine_orientation
+	int xc, yc;
+	int i, j, k;
+	printc("in det_orient\n");
+	for(i = 0 ; i < width; i++) {
+	  for(j = 0; j < height; j++) {
+	      if (map[i][j] == 0) continue;
+	      //for each col that one of the colors is in, check to see if the other color is in the same col
+	      if (map[i][j] == 1) { // if green
+	        for(k = j; k < height; k++) {
+	/*NORTH*/  if (map[i][k] == 2) {
+	      	 printc("NORTH\n");
+	      	return 0; //green above red
+	           }
+	        }
+	      } 
+	      if (map[i][j] == 2) {
+	        for(k = j; k < height; k++) {
+	/*SOUTH*/  if (map[i][k] == 1) {
+	      	printc("SOUTH\n"); 
+	      	return 2; //green below red
+	           }
+	        }
+	      } 
+	      //repeat for the row
+	      if (map[i][j] == 1) {
+	        for(k = i; k < width; k++) {
+	/*WEST*/ if (map[k][j] == 2) { 
+	      	printc("WEST\n"); 
+	      	return 3; //green left of red
+	         }
+	        }
+	      } 
+	      if (map[i][j] == 2) {
+	        for(k = i; k < width; k++) {
+	/*EAST*/ if (map[k][j] == 1) {
+	      	printc("EAST\n"); 
+	      	return 2; //green right of red
+	         }
+	        }
+	      }
+	  }
+	}
+	return -1; 
+}
+
+int
+det_location_9(int x, int y) {
+
+	read_jpeg_file();
+	int i;
+	for(i = 0 ; i< 9; i++) {
+	  if(track9[i]) printc("Section %d\n", i);
+	}
+	printc("%d\n", det_orient());
+	return 0;
+}
+
+int
+printmap(void){
+	int i;
+	int j;
+	for (i = 0; i < width; i++) {
+		for(j = 0; j < height;j++) {
+			printc("%d ", map[i][j]);
+		}
+		printc("\n");
+	}
+	return 0;
+}
 
 int 
 read_jpeg_file(void) //char *filename )
@@ -92,13 +233,19 @@ read_jpeg_file(void) //char *filename )
 	JSAMPARRAY colormap;
 	unsigned long location = 0;
 	int i = 0;
-	
 	cinfo.quantize_colors = TRUE;
 	cinfo.err = jpeg_std_error( &jerr );
 	jpeg_create_decompress( &cinfo );
-	jpeg_stdio_src( &cinfo, (FILE*) jpeg_data_start );
-	jpeg_read_header( &cinfo, TRUE );
+
+	printc("read_jpeg\n");
+
+	FILE * fp = fmemopen(jpeg_data_start, JPG_SZ, "rb");
+	assert(fp);
+	jpeg_stdio_src( &cinfo, fp);
 	
+	jpeg_read_header( &cinfo, TRUE );
+
+	printc("start decompress with our real data\n");
 	jpeg_start_decompress( &cinfo );
 	
 	raw_image = (unsigned char*)malloc( cinfo.output_width*cinfo.output_height*cinfo.num_components );
@@ -115,7 +262,7 @@ read_jpeg_file(void) //char *filename )
 		x = 0;
 		int triple[3];
 		jpeg_read_scanlines( &cinfo, row_pointer, 1 );
-//		printc("cinfo.num_components: %d\n", cinfo.num_components);
+		//printc("cinfo.num_components: %d\n", cinfo.num_components);
 		for( i=0; (unsigned int)i<cinfo.image_width*cinfo.num_components;i++) {
 			 raw_image[location++] = row_pointer[0][i];
 
@@ -126,15 +273,17 @@ read_jpeg_file(void) //char *filename )
 			 }
 		         int test = row_pointer[0][i];
 		         if(i%cinfo.num_components == 2) {
-		              check_green(triple, y, x);
+		              //check_green(triple, y, x);
+   		              if(!orange) det_col(triple, x, y);
+			      else check_obstacles(triple, x, y); 
 		              x++;
 		         }
 		}
 	 	y++;
  	 }
 
-	jpeg_finish_decompress( &cinfo );
-	jpeg_destroy_decompress( &cinfo );
+ 	jpeg_finish_decompress( &cinfo );
+ 	jpeg_destroy_decompress( &cinfo );
  
  return 1;
 }
@@ -166,7 +315,9 @@ camera_image_available(arcvcap_t rcv, void * data)
 
 		printc("camera image available\n");
 		jpeg_data_start = (char *)shdmem_addr;
-		read_jpeg_file();
+		printc("jpeg_data_start: %p \n", jpeg_data_start);
+		//det_location_9(0, 0);
+		ret_obstacles();
 		image_available = 1;	
 		
 	}

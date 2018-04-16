@@ -32,7 +32,7 @@ struct sockaddr_in soutput, sinput;
 
 int recv_jpeg = 0;
 int send_jpeg = 0;
-
+int send_script = 0;
 
 int shdmem_id;
 vaddr_t shdmem_addr;
@@ -61,10 +61,13 @@ udpserv_request_image(int compid)
 int
 udpserv_script(int shdmemid, int test)
 {
-	if (test == 8) {
+	if (test == REQ_JPEG) {
 		udpserv_request_image(shdmemid);
 		return 0;
 	}
+
+	if (test == SEND_SCRIPT) printc("SENDING SCRIPT\n");
+	send_script = 1;
 
 	int i = 0;
 	unsigned char * shm_ptr = (unsigned char *)shdmem_addr;
@@ -91,27 +94,22 @@ update_script()
 	int i = 0;
 	int j = 0;
 	
-	static int num = 0;
-	int sz = MSG_SZ;
+	int sz = MAX_SCRIPT_SZ;
 
-	script[sz] = '\0';
-	j = MSG_SZ*num;
-        
-	/* First char indicates index into script this message is */
-	((unsigned char*)__msg)[i] = num;
+	/* First char indicates this message is a script */
 	for (i = 1; i < sz ; i++) {
+		//printc("%u , \n", script[j]);
 		((unsigned char*)__msg)[i] = script[j];
+	
 		if (script[j] == SCRIPT_END) {
 			/* Reset num and script */
-			num = -1;
+			printc("reached end of script: %d \n", j);
 			break;
 		}
+
 		j++;
 	}
 	
-	if (num == -1) num = 0;
-	else num++;
-
 	return 0;
 }
 
@@ -130,7 +128,10 @@ store_jpeg(void)
 	//static char * addr = (char *)shdmem_addr;
 	static int stored = 0;
 	
-	if (stored > 155803) {
+	memcpy((char *)camera_shdmem_addr + stored, __msg, MSG_SZ);
+	stored += MSG_SZ;
+	
+	if (stored > JPG_SZ) {
 		printc("stored\n");
 		recv_jpeg = 0;
 
@@ -138,8 +139,6 @@ store_jpeg(void)
 		return;
 	}
 
-	memcpy((char *)camera_shdmem_addr + stored, __msg, MSG_SZ);
-	stored += MSG_SZ;
 }
 
 static int
@@ -201,6 +200,12 @@ udp_server_start(void)
 
 		if (send_jpeg == 1) {
 			((unsigned int *)__msg)[0] = REQ_JPEG;
+		}
+		
+		if (send_script == 1) {
+			((unsigned int *)__msg)[0] = SEND_SCRIPT;
+			update_script();
+			send_script = 0;
 		}
 
 		/* Reply to the sender */

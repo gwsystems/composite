@@ -150,27 +150,24 @@ void start_timers()
 
 FILE *fp;
 unsigned long jpg_s;
-char * buf;
+unsigned char * buf;
 
 int
 read_jpeg(void)
 {
 	printf("reading in jpeg\n");
-	fp = fopen("greenroomba.jpg", "rb");
+	fp = fopen("obstacleman.jpg", "rb");
 	assert(fp);
-	printf("fseek\n");
+	
 	fseek(fp, 0, SEEK_END);
 	jpg_s = ftell(fp);
+
 	printf("jpeg size: %lu \n", jpg_s);
 	rewind(fp);
 
 	buf = (char *)malloc(sizeof(char)*(jpg_s));
-	
-	char s;
-	int num_read = 0;
-	while(( num_read = fread(&s, 1, 1, fp))) {
-		strncat(buf, &s, 1);
-	}
+
+	fread(buf, jpg_s, sizeof(unsigned char), fp);
 
 	fclose(fp);
 }
