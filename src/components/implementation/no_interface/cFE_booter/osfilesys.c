@@ -26,21 +26,23 @@ struct fd    fd_tbl[OS_MAX_NUM_OPEN_FILES + 1];
 ** fsobj Level Methods
 ******************************************************************************/
 
-// checks if a file descriptor is valid and in use
+/* checks if a file descriptor is valid and in use */
 int32
 chk_fd(int32 FD)
 {
+	struct fd *filedes;
+
 	if (FD > OS_MAX_NUM_OPEN_FILES) return OS_FS_ERR_INVALID_FD;
 	if (FD <= 0) return OS_FS_ERR_INVALID_FD;
 
-	struct fd *filedes = &fd_tbl[FD];
+	filedes = &fd_tbl[FD];
 	if (!filedes->file) return OS_FS_ERR_INVALID_FD;
 	if (filedes->ino == 0 || filedes->file->ino == 0) return OS_FS_ERR_INVALID_FD;
 	assert(filedes->ino == filedes->file->ino);
 	return OS_FS_SUCCESS;
 }
 
-// finds the next free file
+/* finds the next free file */
 uint32
 file_get_new(struct fsobj **o)
 {
@@ -49,8 +51,8 @@ file_get_new(struct fsobj **o)
 	if (count == MAX_NUM_FILES) return OS_FS_ERROR;
 	*o = &files[count];
 
-	**o = (struct fsobj){// ino needs to be unique and nonzero, so ino is defined as index+1
-	                     .ino = count + 1};
+	/* ino needs to be unique and nonzero, so ino is defined as index+1 */
+	**o = (struct fsobj){.ino = count + 1};
 	return OS_FS_SUCCESS;
 }
 
@@ -59,7 +61,7 @@ file_insert(struct fsobj *o, char *path)
 {
 	assert(o && path && openfs);
 
-	// paths should always begin with '/' but we do not need it here
+	/* paths should always begin with '/' but we do not need it here */
 	if (path[0] != '/') return OS_FS_ERR_PATH_INVALID;
 	path++;
 
@@ -71,7 +73,7 @@ file_insert(struct fsobj *o, char *path)
 	assert(openfs->root->ino);
 	struct fsobj *cur = openfs->root;
 
-	// token is the current directory in path
+	/* token is the current directory in path */
 	char path_temp[OS_MAX_PATH_LEN * 2];
 	strcpy(path_temp, path);
 	const char delim[2] = "/";
@@ -79,14 +81,14 @@ file_insert(struct fsobj *o, char *path)
 
 	if (strcmp(token, cur->name) != 0) return OS_FS_ERR_PATH_INVALID;
 
-	// loop terminates when it finds a place to put o or determines path is invalid
+	/* loop terminates when it finds a place to put o or determines path is invalid */
 	while (1) {
 		if (token == NULL) { return OS_FS_ERR_PATH_INVALID; }
 		assert(cur->name);
 
-		// if there is no child, then insert as child
+		/* if there is no child, then insert as child */
 		if (!cur->child) {
-			// if the next part of the path is not o->name or there is a part after it, bad path
+			/* if the next part of the path is not o->name or there is a part after it, bad path */
 			token = strtok(NULL, delim);
 			if (strcmp(token, o->name) != 0 || strtok(NULL, delim) != NULL) {
 				return OS_FS_ERR_PATH_INVALID;
@@ -101,16 +103,17 @@ file_insert(struct fsobj *o, char *path)
 		cur   = cur->child;
 		token = strtok(NULL, delim);
 
-		// precondition: cur is the first in a non-empty list of children
-		// postcondition: cur is an ancestor of o or o has been inserted in list
-		// while cur is not ancestor of o
+		/* precondition: cur is the first in a non-empty list of children
+		 * postcondition: cur is an ancestor of o or o has been inserted in list
+		 * while cur is not ancestor of o
+		 */
 		while (strcmp(token, cur->name) != 0) {
 			if (cur->next == NULL) {
-				// if the next part of the path is o->name or there is a part after it, bad path
+				/* if the next part of the path is o->name or there is a part after it, bad path */
 				if (strcmp(token, o->name) != 0 || strtok(NULL, delim) != NULL) {
 					return OS_FS_ERR_PATH_INVALID;
 				}
-				// insert o as the last child in a linked list of children
+				/* insert o as the last child in a linked list of children */
 				cur->next = o;
 				o->prev   = cur;
 				o->parent = cur->parent;
@@ -124,12 +127,12 @@ file_insert(struct fsobj *o, char *path)
 	return 0;
 }
 
-// Internally, FDs are considered unused when ino == 0
+/* Internally, FDs are considered unused when ino == 0 */
 static int32
 fd_get(int32 ino)
 {
-	uint32     count = 1;
 	struct fd *filedes;
+	uint32     count = 1;
 
 	while (count <= OS_MAX_NUM_OPEN_FILES + 1 && fd_tbl[count].ino != 0) { count++; }
 	if (count == OS_MAX_NUM_OPEN_FILES + 1) return OS_FS_ERROR;
@@ -143,20 +146,23 @@ fd_get(int32 ino)
 int32
 file_open(char *path, enum fs_permissions permission)
 {
+	int32         FD;
+	struct fsobj *file;
+	struct fd *   filedes;
+
 	assert(openfs);
 	if (!openfs->root) return OS_FS_ERROR;
 	if (!path) return OS_FS_ERR_INVALID_POINTER;
 
-	// find the file
-	struct fsobj *file = file_find(path);
+	file = file_find(path);
 	if (!file) return OS_FS_ERR_PATH_INVALID;
 	if (file->type != FSOBJ_FILE) return OS_FS_ERROR;
 
-	// get a new fd
-	int32 FD = fd_get(file->ino);
+	/* get a new fd */
+	FD = fd_get(file->ino);
 	if (FD == OS_FS_ERROR) { return OS_FS_ERR_NO_FREE_FDS; }
 
-	struct fd *filedes = &fd_tbl[FD];
+	filedes = &fd_tbl[FD];
 
 	filedes->access                        = permission;
 	filedes->file                          = file;
@@ -186,8 +192,8 @@ file_close(int32 FD)
 int32
 file_close_by_name(char *path)
 {
-	struct fsobj *file = file_find(path);
 	int           i;
+	struct fsobj *file = file_find(path);
 
 	for (i = 0; i < OS_MAX_NUM_OPEN_FILES + 1; i++) {
 		if (fd_tbl[i].file == file) {
@@ -199,8 +205,9 @@ file_close_by_name(char *path)
 	return OS_FS_ERROR;
 }
 
-// converts from the cFE defined permission constants to internal permission type
-// unknown permissions return NONE, cFE should treat none as an error
+/* converts from the cFE defined permission constants to internal permission type
+ * unknown permissions return NONE, cFE should treat none as an error
+ */
 enum fs_permissions
 permission_cFE_to_cos(uint32 permission)
 {
@@ -235,7 +242,6 @@ permission_cos_to_cFE(enum fs_permissions permission)
 	return 0;
 }
 
-// checks if a path is the right format for a path, and if it exists
 int32
 path_exists(const char *path)
 {
@@ -245,7 +251,6 @@ path_exists(const char *path)
 	return OS_FS_SUCCESS;
 }
 
-// checks if a path is the correct format, for example to be inserted
 int32
 path_isvalid(const char *path)
 {
@@ -265,8 +270,10 @@ path_isvalid(const char *path)
 int32
 path_translate(char *virt, char *local)
 {
+	int32 ret;
+
 	if (!virt || !local) return OS_FS_ERR_INVALID_POINTER;
-	int32 ret = path_isvalid(virt);
+	ret = path_isvalid(virt);
 	if (ret != OS_FS_SUCCESS) return ret;
 	if (!openfs->root) return OS_FS_ERR_PATH_INVALID;
 	ret = path_exists(virt);
@@ -282,9 +289,6 @@ path_translate(char *virt, char *local)
 uint32
 part_get_new(struct f_part **part)
 {
-	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *   ci    = &defci->ci;
-
 	*part = (void *)memmgr_heap_page_alloc();
 
 	assert(part != NULL);
@@ -310,7 +314,7 @@ file_read(int32 FD, void *buffer, uint32 nbytes)
 	struct file_position *position = &filedes->position.file_pos;
 	struct f_part *       part     = position->open_part;
 
-	// nbytes > number of bytes left in file, only number left are read
+	/* nbytes > number of bytes left in file, only number left are read */
 	if (nbytes > o->size - position->file_offset) { nbytes = o->size - position->file_offset; }
 
 	if (nbytes == OS_FS_SUCCESS) return 0;
@@ -318,7 +322,7 @@ file_read(int32 FD, void *buffer, uint32 nbytes)
 
 	if (o->memtype == DYNAMIC) {
 		while (1) {
-			// read_size is the length of a continuous segment to be read from
+			/* read_size is the length of a continuous segment to be read from */
 			uint32 read_size = F_PART_DATA_SIZE - position->file_offset;
 			part             = position->open_part;
 			assert(part);
@@ -348,7 +352,7 @@ file_read(int32 FD, void *buffer, uint32 nbytes)
 				position->part_offset = 0;
 				return nbytes;
 
-				// bytes_to_read < the continuous space left on f_part
+				/* bytes_to_read < the continuous space left on f_part */
 			} else {
 				memcpy(buffer, position->open_part->data + position->part_offset, bytes_to_read);
 				position->part_offset += bytes_to_read;
@@ -372,8 +376,12 @@ file_read(int32 FD, void *buffer, uint32 nbytes)
 int32
 file_write(int32 FD, void *buffer, uint32 nbytes)
 {
+	int32  ret;
+	uint32 bytes_to_write;
+	uint32 bytes_remaining;
+
 	if (!buffer) return OS_FS_ERR_INVALID_POINTER;
-	int32 ret = chk_fd(FD);
+	ret = chk_fd(FD);
 	if (ret != OS_FS_SUCCESS) return ret;
 
 	struct fd *           filedes  = &fd_tbl[FD];
@@ -385,10 +393,10 @@ file_write(int32 FD, void *buffer, uint32 nbytes)
 	if (o->type == FSOBJ_DIR) return OS_FS_ERROR;
 	if (nbytes == 0) return 0;
 
-	uint32 bytes_to_write  = nbytes;
-	uint32 bytes_remaining = F_PART_DATA_SIZE - position->part_offset;
+	bytes_to_write  = nbytes;
+	bytes_remaining = F_PART_DATA_SIZE - position->part_offset;
 
-	// while there are enough bytes to be written to fill a f_part
+	/* while there are enough bytes to be written to fill a f_part */
 	while (bytes_to_write > bytes_remaining) {
 		memcpy(position->open_part->data + position->part_offset, buffer, bytes_remaining);
 		position->file_offset += bytes_remaining;
@@ -407,7 +415,7 @@ file_write(int32 FD, void *buffer, uint32 nbytes)
 		position->open_part = position->open_part->next;
 		bytes_remaining     = F_PART_DATA_SIZE - position->part_offset;
 	}
-	// bytes_to_write < bytes_remaining
+	/* bytes_to_write < bytes_remaining */
 	memcpy(position->open_part->data, buffer, bytes_to_write);
 	position->part_offset += bytes_to_write;
 	position->file_offset += bytes_to_write;
@@ -418,24 +426,27 @@ file_write(int32 FD, void *buffer, uint32 nbytes)
 struct fsobj *
 file_find(char *path)
 {
+	char          path_temp[OS_MAX_PATH_LEN * 2];
+	const char    delim[2] = "/";
+	char *        token;
+	struct fsobj *cur;
+
 	assert(path);
-	// paths should always begin with '/' dir names do not
+	/* paths should always begin with '/' dir names do not */
 	if (path[0] != '/') return NULL;
 	path++;
 
-	// token is the current directory in path
-	char path_temp[OS_MAX_PATH_LEN * 2];
+	/* token is the current directory in path */
 	strcpy(path_temp, path);
-	const char delim[2] = "/";
-	char *     token    = strtok(path_temp, delim);
+	token = strtok(path_temp, delim);
 
 	if (!openfs || !openfs->root) return NULL;
-	struct fsobj *cur = openfs->root;
+	cur = openfs->root;
 	assert(cur && cur->name);
 	if (strcmp(token, cur->name) != 0) return NULL;
 
 	while (1) {
-		// iterate through linked list of children until ancestor is found
+		/* iterate through linked list of children until ancestor is found */
 		while (strcmp(token, cur->name) != 0) {
 			if (!cur->next) return NULL;
 			cur = cur->next;
@@ -452,9 +463,10 @@ file_find(char *path)
 int32
 file_create(char *path, enum fs_permissions permission)
 {
+	struct fsobj *o;
+
 	assert(path);
 
-	struct fsobj *o;
 	if (file_get_new(&o) != OS_FS_SUCCESS) return OS_FS_ERROR;
 	o->name       = path_to_name(path);
 	o->type       = FSOBJ_FILE;
@@ -479,6 +491,7 @@ int32
 file_remove(char *path)
 {
 	struct fsobj *file = file_find(path);
+
 	if (!file) return OS_FS_ERR_PATH_INVALID;
 	file_rm(file);
 	return OS_FS_SUCCESS;
@@ -488,17 +501,20 @@ int32
 file_rename(char *old_filename, char *new_filename)
 {
 	struct fsobj *file = file_find(old_filename);
+
 	if (!file) return OS_FS_ERR_PATH_INVALID;
 	file->name = path_to_name(new_filename);
 	return OS_FS_SUCCESS;
 }
 
-// This is part of but not a full posix implementation,
-// stat has a lot of fields not applicable to us
+/* This is part of but not a full posix implementation,
+ * stat has a lot of fields not applicable to us
+ */
 int32
 file_stat(char *path, os_fstat_t *filestats)
 {
 	struct fsobj *file = file_find(path);
+
 	if (!file) return OS_FS_ERROR;
 	*filestats =
 	  (os_fstat_t){.st_dev = 0, .st_ino = file->ino, .st_size = file->size, .st_blksize = F_PART_DATA_SIZE};
@@ -512,16 +528,16 @@ file_stat(char *path, os_fstat_t *filestats)
 int32
 file_lseek(int32 FD, int32 offset, uint32 whence)
 {
-	int32 ret = chk_fd(FD);
+	uint32 target_offset = 0;
+	int32  ret           = chk_fd(FD);
+
 	if (ret != OS_FS_SUCCESS) return ret;
 
 	struct fd *           filedes  = &fd_tbl[FD];
 	struct fsobj *        o        = filedes->file;
 	struct file_position *position = &filedes->position.file_pos;
 
-	uint32 target_offset = 0;
-
-	// wasnt sure if it should be legal to pass negative offset, went with yes
+	/* wasnt sure if it should be legal to pass negative offset, went with yes */
 	if (whence == SEEK_SET) {
 		if (offset < 0) return OS_FS_ERROR;
 		target_offset = offset;
@@ -534,14 +550,15 @@ file_lseek(int32 FD, int32 offset, uint32 whence)
 	} else {
 		return OS_FS_ERROR;
 	}
-	// you cannot write past the end of a static file
+
+	/* you cannot write past the end of a static file */
 	if (target_offset > o->size && o->memtype == STATIC) { return OS_FS_ERROR; }
 
 	position->open_part   = o->file_part;
 	position->file_offset = 0;
 
 	while (target_offset - position->file_offset > F_PART_DATA_SIZE) {
-		// seeking past the end of a file writes zeros until that position
+		/* seeking past the end of a file writes zeros until that position */
 		if (position->open_part->next == NULL) {
 			struct f_part *part;
 			part_get_new(&part);
@@ -563,25 +580,30 @@ file_lseek(int32 FD, int32 offset, uint32 whence)
 int32
 file_cp(char *src, char *dest)
 {
+	int32       fd_src;
+	int32       fd_dest;
+	int32       to_copy;
+	int32       read_size, write_size;
 	static char copy_buffer[F_PART_DATA_SIZE];
 
-	int32 fd_src = file_open(src, READ);
+	fd_src = file_open(src, READ);
 	if (chk_fd(fd_src) != OS_FS_SUCCESS) return fd_src;
 
-	// if the dest already exists, overwrite it
-	int32 fd_dest = file_open(dest, WRITE);
+	/* if the dest already exists, overwrite it */
+	fd_dest = file_open(dest, WRITE);
 	if (chk_fd(fd_dest) == OS_FS_SUCCESS) {
-		// writing size to zero effectivly deletes all the old data
+		/* writing size to zero effectivly deletes all the old data */
 		fd_tbl[fd_dest].file->size = 0;
 	} else {
 		fd_dest = file_create(dest, fd_tbl[fd_src].file->permission);
 	}
 	if (chk_fd(fd_dest) != OS_FS_SUCCESS) return fd_dest;
 
-	int32 to_copy   = fd_tbl[fd_src].file->size;
-	int32 read_size = 0, write_size = 0;
+	to_copy    = fd_tbl[fd_src].file->size;
+	read_size  = 0;
+	write_size = 0;
 
-	// TODO: copy buffer is aggressively not thread safe, take a lock
+	/* TODO: copy buffer is aggressively not thread safe, take a lock */
 	while (to_copy > 0) {
 		if (to_copy > (int32)F_PART_DATA_SIZE) {
 			read_size = F_PART_DATA_SIZE;
@@ -624,10 +646,12 @@ file_mv(char *src, char *dest)
 int32
 file_FDGetInfo(int32 FD, OS_FDTableEntry *fd_prop)
 {
-	int32 ret = chk_fd(FD);
+	struct fd *filedes;
+	int32      ret = chk_fd(FD);
+
 	if (ret != OS_FS_SUCCESS) return OS_FS_ERR_INVALID_FD;
 
-	struct fd *filedes = &fd_tbl[FD];
+	filedes = &fd_tbl[FD];
 	if (filedes->ino == 0) return OS_FS_ERR_INVALID_FD;
 
 	fd_prop->OSfd = FD;
@@ -645,24 +669,28 @@ file_FDGetInfo(int32 FD, OS_FDTableEntry *fd_prop)
 int32
 dir_open(char *path)
 {
-	struct fsobj *file;
+	int32                FD;
+	struct fsobj *       file;
+	struct fd *          filedes;
+	struct dir_position *position;
+
 	file = file_find(path);
 	if (!file) return 0;
 	if (file->ino == 0) return 0;
 	if (file->type != FSOBJ_DIR) return 0;
 
-	int32 FD = fd_get(file->ino);
+	FD = fd_get(file->ino);
 	if (FD > OS_MAX_NUM_OPEN_FILES + 1 || FD <= 0) return 0;
 	file->refcnt++;
 
-	struct fd *filedes = &fd_tbl[FD];
-	filedes->access    = READ;
-	filedes->file      = file;
+	filedes         = &fd_tbl[FD];
+	filedes->access = READ;
+	filedes->file   = file;
 
-	struct dir_position *position = &filedes->position.dir_pos;
-	position->open_dir            = file;
-	position->cur                 = file;
-	position->status              = NORMAL;
+	position           = &filedes->position.dir_pos;
+	position->open_dir = file;
+	position->cur      = file;
+	position->status   = NORMAL;
 
 	return FD;
 }
@@ -670,8 +698,10 @@ dir_open(char *path)
 uint32
 dir_close(int32 FD)
 {
+	struct fd *filedes;
+
 	if (FD > OS_MAX_NUM_OPEN_FILES + 1 || FD <= 0) return OS_FS_ERROR;
-	struct fd *filedes = &fd_tbl[FD];
+	filedes = &fd_tbl[FD];
 
 	filedes->ino = 0;
 	return OS_FS_SUCCESS;
@@ -680,13 +710,15 @@ dir_close(int32 FD)
 void
 dir_rewind(int32 FD)
 {
+	struct fd *filedes;
+
 	if (FD >= OS_MAX_NUM_OPEN_FILES || FD <= 0) return;
-	struct fd *filedes = &fd_tbl[FD];
+	filedes = &fd_tbl[FD];
 
 	if (filedes->ino == 0) return;
 	if (filedes->file->type != FSOBJ_DIR) return;
 
-	// cur == open_dir indicates that stream is in initial position, prior to first read
+	/* cur == open_dir indicates that stream is in initial position, prior to first read */
 	filedes->position.dir_pos.cur    = filedes->position.dir_pos.open_dir;
 	filedes->position.dir_pos.status = NORMAL;
 }
@@ -694,13 +726,16 @@ dir_rewind(int32 FD)
 os_dirent_t *
 dir_read(int32 FD)
 {
+	struct fd *  filedes;
+	os_dirent_t *dir;
+
 	if (FD > OS_MAX_NUM_OPEN_FILES + 1 || FD <= 0) return NULL;
-	struct fd *filedes = &fd_tbl[FD];
+	filedes = &fd_tbl[FD];
 
 	if (filedes->ino == 0) return NULL;
 	if (filedes->file->type != FSOBJ_DIR) return NULL;
 
-	os_dirent_t *dir = &filedes->position.dir_pos.dirent;
+	dir = &filedes->position.dir_pos.dirent;
 
 	switch (filedes->position.dir_pos.status) {
 	case NORMAL:
@@ -742,8 +777,10 @@ dir_read(int32 FD)
 int32
 file_mkdir(char *path)
 {
-	assert(path);
 	struct fsobj *o;
+
+	assert(path);
+
 	if (file_get_new(&o)) return OS_FS_ERR_DRIVE_NOT_CREATED;
 	o->name   = path_to_name(path);
 	o->type   = FSOBJ_DIR;
@@ -759,12 +796,17 @@ file_mkdir(char *path)
 int32
 file_rmdir(char *path)
 {
+	struct fsobj *root;
+	struct fsobj *cur;
+
 	assert(path);
-	struct fsobj *root = file_find(path);
+
+	root = file_find(path);
+	cur  = root;
 	if (!root) return OS_FS_ERROR;
-	struct fsobj *cur = root;
+
 	while (root->child) {
-		// if cur is the last leaf in a list
+		/* if cur is the last leaf in a list */
 		if (!cur->next && !cur->child) {
 			if (cur->prev != NULL) {
 				assert(cur->prev->next == cur);
@@ -777,7 +819,7 @@ file_rmdir(char *path)
 			}
 		} else if (cur->child != NULL) {
 			cur = cur->child;
-		} else { // cur->next !=NULL
+		} else {
 			cur = cur->next;
 		}
 	}
@@ -788,34 +830,35 @@ file_rmdir(char *path)
 int32
 file_rm(struct fsobj *o)
 {
-	// TODO, pass an error back out of library if someone implicitly tries to close open file
-	// assert(o->refcnt == 0);
+	/* TODO, pass an error back out of library if someone implicitly tries to close open file */
+	/* assert(o->refcnt == 0); */
 	assert(o && o->child == NULL);
-	// if o is first in list of children, update parent link to it
+	/* if o is first in list of children, update parent link to it */
 	if (o->prev == NULL && o->parent) {
 		assert(o->parent->child == o);
-		// if next = null this still works
+		/* if next = null this still works */
 		o->parent->child = o->next;
 	}
 
-	// update link from prev still work if next or prev = null
+	/* update link from prev still work if next or prev = null */
 	if (o->prev) {
 		assert(o->prev->next == o);
 		o->prev->next = o->next;
 	}
-	// update link from next
+	/* update link from next */
 	if (o->next) {
 		assert(o->next->prev == o);
 		o->next->prev = o->prev;
 	}
-	// there should now be no links within the fs to o
-	// we do not do deallocate file data but we do reuse fsobj
+	/* there should now be no links within the fs to o
+	 * we do not do deallocate file data but we do reuse fsobj
+	 */
 	*o = (struct fsobj){.name = NULL};
 
 	return OS_FS_SUCCESS;
 }
 
-// close all of the open FDs associated with file
+/* close all of the open FDs associated with file */
 int32
 file_close_by_ino(int32 ino)
 {
@@ -833,13 +876,16 @@ file_close_by_ino(int32 ino)
 uint32
 fs_mount(char *devname, char *mountpoint)
 {
-	assert(devname);
 	uint32 i;
+
+	assert(devname);
+
 	for (i = 0; i < MAX_NUM_FS && filesystems[i].devname != NULL; i++) {
 		if (!strcmp(filesystems[i].devname, devname)) {
-			// This is a bad hack that I have not found a solution to
-			// basically mount should fail if already mounted
-			// but to load tar I need to pre-mount the first filesystem
+			/* This is a bad hack that I have not found a solution to
+			 * basically mount should fail if already mounted
+			 * but to load tar I need to pre-mount the first filesystem
+			 */
 			if (strcmp(mountpoint, "/ram") && filesystems[i].root) return OS_FS_ERROR;
 			struct fsobj *o;
 			if (file_get_new(&o)) return OS_FS_ERROR;
@@ -857,6 +903,7 @@ uint32
 fs_unmount(char *mountpoint)
 {
 	uint32 i;
+
 	assert(mountpoint);
 	for (i = 0; i < MAX_NUM_FS && filesystems[i].mountpoint != NULL; i++) {
 		if (mountpoint != NULL && !strcmp(filesystems[i].mountpoint, mountpoint)) {
@@ -871,6 +918,7 @@ uint32
 fs_init(char *devname, char *volname, uint32 blocksize, uint32 numblocks)
 {
 	uint32 count = 0, ret = 0;
+
 	if (!devname) return OS_FS_ERR_INVALID_POINTER;
 	if (blocksize == 0 || numblocks == 0) return OS_FS_ERROR;
 	if (strlen(devname) >= OS_FS_DEV_NAME_LEN || strlen(volname) >= OS_FS_VOL_NAME_LEN) return OS_FS_ERROR;
@@ -892,9 +940,10 @@ fs_init(char *devname, char *volname, uint32 blocksize, uint32 numblocks)
 int32
 fs_remove(char *devname)
 {
+	uint32 i;
+
 	if (!devname) return OS_FS_ERR_INVALID_POINTER;
 
-	uint32 i;
 	for (i = 0; i < MAX_NUM_FS && filesystems[i].devname != NULL; i++) {
 		if (devname && filesystems[i].devname && !strcmp(filesystems[i].devname, devname)) {
 			filesystems[i].devname    = NULL;
@@ -926,8 +975,9 @@ fs_get_drive_name(char *PhysDriveName, char *MountPoint)
 int32
 fs_get_info(os_fsinfo_t *filesys_info)
 {
-	filesys_info->MaxFds = MAX_NUM_FILES;
 	uint32 i, count = 0;
+
+	filesys_info->MaxFds = MAX_NUM_FILES;
 	for (i = 0; i < MAX_NUM_FILES; i++) {
 		if (files[i].ino == 0) count++;
 	}

@@ -15,18 +15,18 @@
 
 union shared_region *shared_regions[16];
 
-int have_registered_sync_callback = 0;
+int       have_registered_sync_callback = 0;
 asndcap_t sync_callback_delegates[CFE_TIME_MAX_NUM_SYNCH_FUNCS];
 
 int32
 sync_callback_handler()
 {
-	int i;
+	int       i;
+	asndcap_t callback;
+
 	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++) {
-		asndcap_t callback = sync_callback_delegates[i];
-		if (callback) {
-			cos_asnd(callback, 1);
-		}
+		callback = sync_callback_delegates[i];
+		if (callback) { cos_asnd(callback, 1); }
 	}
 	return CFE_SUCCESS;
 }
@@ -40,8 +40,8 @@ emu_request_memory(spdid_t client)
 	assert(our_addr);
 	shared_regions[client] = (void *)our_addr;
 
-	// FIXME: This is broken if applications can stop (because then the handler could get auto-deregistered)
-	if (!have_registered_sync_callback){
+	/* FIXME: This is broken if applications can stop (because then the handler could get auto-deregistered) */
+	if (!have_registered_sync_callback) {
 		CFE_TIME_RegisterSynchCallback(sync_callback_handler);
 		have_registered_sync_callback = 1;
 	}
@@ -101,7 +101,8 @@ int32
 emu_CFE_ES_GetGenCounterIDByName(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
-	return CFE_ES_GetGenCounterIDByName(&s->cfe_es_getGenCounterIDByName.CounterId, s->cfe_es_getGenCounterIDByName.CounterName);
+	return CFE_ES_GetGenCounterIDByName(&s->cfe_es_getGenCounterIDByName.CounterId,
+	                                    s->cfe_es_getGenCounterIDByName.CounterName);
 }
 
 int32
@@ -122,7 +123,8 @@ int32
 emu_CFE_ES_RegisterCDS(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
-	return CFE_ES_RegisterCDS(&s->cfe_es_registerCDS.CDS_Handle, s->cfe_es_registerCDS.BlockSize, s->cfe_es_registerCDS.Name);
+	return CFE_ES_RegisterCDS(&s->cfe_es_registerCDS.CDS_Handle, s->cfe_es_registerCDS.BlockSize,
+	                          s->cfe_es_registerCDS.Name);
 }
 
 int32
@@ -203,9 +205,9 @@ emu_CFE_SB_GetMsgId(spdid_t client)
 void
 emu_CFE_SB_GetMsgTime(spdid_t client)
 {
-	union shared_region *s = shared_regions[client];
-	CFE_TIME_SysTime_t time = CFE_SB_GetMsgTime((CFE_SB_MsgPtr_t)&s->cfe_sb_msg.Msg);
-	s->time = time;
+	union shared_region *s    = shared_regions[client];
+	CFE_TIME_SysTime_t   time = CFE_SB_GetMsgTime((CFE_SB_MsgPtr_t)&s->cfe_sb_msg.Msg);
+	s->time                   = time;
 }
 
 uint16
@@ -227,15 +229,15 @@ int32
 emu_CFE_SB_RcvMsg(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
-
-	CFE_SB_MsgPtr_t BufPtr;
-	int32           result = CFE_SB_RcvMsg(&BufPtr, s->cfe_sb_rcvMsg.PipeId, s->cfe_sb_rcvMsg.TimeOut);
+	CFE_SB_MsgPtr_t      BufPtr;
+	int32                result = CFE_SB_RcvMsg(&BufPtr, s->cfe_sb_rcvMsg.PipeId, s->cfe_sb_rcvMsg.TimeOut);
+	int                  len;
 
 	/* We want to save the message contents to the shared region
 	 * But we need to be sure there is something to copy, so we check the call was successful
 	 */
 	if (result == CFE_SUCCESS) {
-		int len = CFE_SB_GetTotalMsgLength(BufPtr);
+		len = CFE_SB_GetTotalMsgLength(BufPtr);
 		assert(len <= EMU_BUF_SIZE);
 		memcpy(s->cfe_sb_rcvMsg.Msg, (char *)BufPtr, len);
 	}
@@ -261,7 +263,7 @@ emu_CFE_SB_SubscribeEx(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
 	return CFE_SB_SubscribeEx(s->cfe_sb_subscribeEx.MsgId, s->cfe_sb_subscribeEx.PipeId,
- 	                          s->cfe_sb_subscribeEx.Quality, s->cfe_sb_subscribeEx.MsgLim);
+	                          s->cfe_sb_subscribeEx.Quality, s->cfe_sb_subscribeEx.MsgLim);
 }
 
 void
@@ -288,14 +290,15 @@ emu_CFE_TIME_Add(spdid_t client)
 void
 emu_CFE_TIME_Compare(spdid_t client)
 {
-	union shared_region *s = shared_regions[client];
+	union shared_region *s     = shared_regions[client];
 	s->cfe_time_compare.Result = CFE_TIME_Compare(s->cfe_time_compare.Time1, s->cfe_time_compare.Time2);
 }
 
 void
-emu_CFE_TIME_GetTime(spdid_t client) {
+emu_CFE_TIME_GetTime(spdid_t client)
+{
 	union shared_region *s = shared_regions[client];
-	s->time = CFE_TIME_GetTime();
+	s->time                = CFE_TIME_GetTime();
 }
 
 void
@@ -309,8 +312,7 @@ int32
 emu_CFE_TIME_RegisterSynchCallback(cos_aepkey_t key)
 {
 	int i;
-	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++)
-	{
+	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++) {
 		if (!sync_callback_delegates[i]) {
 			sync_callback_delegates[i] = capmgr_asnd_key_create(key);
 			return CFE_SUCCESS;
@@ -386,7 +388,7 @@ void
 emu_OS_readdir(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
-	s->os_readdir.dirent = *OS_readdir(s->os_readdir.directory);
+	s->os_readdir.dirent   = *OS_readdir(s->os_readdir.directory);
 }
 
 int32
@@ -428,17 +430,20 @@ int32
 emu_OS_BinSemCreate(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
-	return OS_BinSemCreate(&s->os_semCreate.sem_id, s->os_semCreate.sem_name, s->os_semCreate.sem_initial_value, s->os_semCreate.options);
+	return OS_BinSemCreate(&s->os_semCreate.sem_id, s->os_semCreate.sem_name, s->os_semCreate.sem_initial_value,
+	                       s->os_semCreate.options);
 }
 
 int32
 emu_OS_CountSemCreate(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
-	return OS_CountSemCreate(&s->os_semCreate.sem_id, s->os_semCreate.sem_name, s->os_semCreate.sem_initial_value, s->os_semCreate.options);
+	return OS_CountSemCreate(&s->os_semCreate.sem_id, s->os_semCreate.sem_name, s->os_semCreate.sem_initial_value,
+	                         s->os_semCreate.options);
 }
 
-int32 emu_OS_MutSemCreate(spdid_t client)
+int32
+emu_OS_MutSemCreate(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
 	return OS_MutSemCreate(&s->os_mutSemCreate.sem_id, s->os_mutSemCreate.sem_name, s->os_mutSemCreate.options);

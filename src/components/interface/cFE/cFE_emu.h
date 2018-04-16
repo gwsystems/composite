@@ -203,6 +203,7 @@ union shared_region {
 
 int emu_request_memory(spdid_t client);
 void emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key);
+int emu_is_printf_enabled();
 
 int32 emu_CFE_ES_CalculateCRC(spdid_t client);
 int32 emu_CFE_ES_CopyToCDS(spdid_t client);

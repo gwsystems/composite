@@ -21,18 +21,15 @@ timer_fn_1hz(void *d)
 
 	while (1) {
 		rdtscll(now);
-		if (now > first_deadline) {
-			CFE_TIME_Local1HzISR(); /* input param is signum. but CFE_PSP_TimerHandler doesn't seem to use
-			                           it. */
-		}
+		if (now > first_deadline) { CFE_TIME_Local1HzISR(); }
 
 		sl_thd_block_periodic(0);
 	}
 }
 
 /*
-** Internal Task helper functions
-*/
+ * Internal Task helper functions
+ */
 
 /* We delegate the main thread of execution to a different thread
  * (the main thread needs to run the scheduling loop)
@@ -52,23 +49,30 @@ struct cfe_task_info cfe_tasks[SL_MAX_NUM_THDS] = {{0}};
 void
 OS_SchedulerStart(cos_thd_fn_t main_delegate)
 {
+	struct sl_thd *       main_delegate_thread;
+	sched_param_t         sp;
+	struct cfe_task_info *task_info;
+	struct sl_thd *       timer_thd;
+	sched_param_t         timer_window;
+	sched_param_t         timer_priority;
+
 	sl_init(SL_MIN_PERIOD_US);
 
-	struct sl_thd *         main_delegate_thread = sl_thd_alloc(main_delegate, NULL);
-	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = MAIN_DELEGATE_THREAD_PRIORITY}};
-	sl_thd_param_set(main_delegate_thread, sp.v);
+	main_delegate_thread = sl_thd_alloc(main_delegate, NULL);
+	sp                   = sched_param_pack(SCHEDP_PRIO, MAIN_DELEGATE_THREAD_PRIORITY);
+	sl_thd_param_set(main_delegate_thread, sp);
 	main_delegate_thread_id = sl_thd_thdid(main_delegate_thread);
 
-	struct cfe_task_info *task_info = &cfe_tasks[main_delegate_thread_id];
+	task_info = &cfe_tasks[main_delegate_thread_id];
 	strcpy(task_info->osal_task_prop.name, "MAIN_THREAD");
 	task_info->osal_task_prop.priority  = MAIN_DELEGATE_THREAD_PRIORITY;
 	task_info->osal_task_prop.OStask_id = (uint32)sl_thd_thdid(main_delegate_thread);
 
-	struct sl_thd *         timer_thd = sl_thd_alloc(timer_fn_1hz, NULL);
-	union sched_param_union spperiod  = {.c = {.type = SCHEDP_WINDOW, .value = HZ_PAUSE}};
-	union sched_param_union spprio    = {.c = {.type = SCHEDP_PRIO, .value = MAIN_DELEGATE_THREAD_PRIORITY + 1}};
-	sl_thd_param_set(timer_thd, spperiod.v);
-	sl_thd_param_set(timer_thd, spprio.v);
+	timer_thd      = sl_thd_alloc(timer_fn_1hz, NULL);
+	timer_window   = sched_param_pack(SCHEDP_WINDOW, HZ_PAUSE);
+	timer_priority = sched_param_pack(SCHEDP_PRIO, MAIN_DELEGATE_THREAD_PRIORITY + 1);
+	sl_thd_param_set(timer_thd, timer_window);
+	sl_thd_param_set(timer_thd, timer_priority);
 
 	sl_sched_loop();
 }
@@ -97,15 +101,17 @@ is_thread_name_taken(const char *name)
 }
 
 /*
-** Task API
-*/
+ * Task API
+ */
 
-/* NOTE: Flags here aren't implemented, but I can't find an implementation that does */
+/* NOTE: We don't do flags, but I can't find an implementation that does */
 int32
 OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_pointer, uint32 *stack_pointer,
               uint32 stack_size, uint32 priority, uint32 flags)
 {
-	/* TODO: Verify that we don't need to take the cs here */
+	struct sl_thd *       thd;
+	sched_param_t         sp;
+	struct cfe_task_info *task_info;
 
 	if (task_id == NULL || task_name == NULL || function_pointer == NULL) { return OS_INVALID_POINTER; }
 
@@ -115,12 +121,12 @@ OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_p
 
 	if (priority > 255 || priority < 1) { return OS_ERR_INVALID_PRIORITY; }
 
-	struct sl_thd *thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
+	thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
 	assert(thd);
-	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = priority}};
-	sl_thd_param_set(thd, sp.v);
+	sp = sched_param_pack(SCHEDP_PRIO, priority);
+	sl_thd_param_set(thd, sp);
 
-	struct cfe_task_info *task_info = &cfe_tasks[sl_thd_thdid(thd)];
+	task_info = &cfe_tasks[sl_thd_thdid(thd)];
 	strcpy(task_info->osal_task_prop.name, task_name);
 	task_info->osal_task_prop.creator    = OS_TaskGetId();
 	task_info->osal_task_prop.stack_size = stack_size;
@@ -136,12 +142,15 @@ OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_p
 int32
 OS_TaskDelete(uint32 task_id)
 {
-	struct sl_thd *thd = sl_thd_lkup(task_id);
+	struct cfe_task_info *task_info;
+	struct sl_thd *       thd = sl_thd_lkup(task_id);
+	osal_task_entry       delete_handler;
+
 	if (!thd) { return OS_ERR_INVALID_ID; }
 
-	struct cfe_task_info *task_info = &cfe_tasks[task_id];
+	task_info = &cfe_tasks[task_id];
 
-	osal_task_entry delete_handler = task_info->delete_handler;
+	delete_handler = task_info->delete_handler;
 	if (delete_handler) { delete_handler(); }
 
 	sl_thd_free(thd);
@@ -152,7 +161,7 @@ OS_TaskDelete(uint32 task_id)
 uint32
 OS_TaskGetId(void)
 {
-	thdid_t real_id           = sl_thdid();
+	thdid_t real_id = sl_thdid();
 	/* Sometimes we need to disguise a thread as another thread... */
 	thdid_t possible_override = id_overrides[real_id];
 	if (possible_override) return possible_override;
@@ -169,9 +178,11 @@ OS_TaskExit(void)
 int32
 OS_TaskInstallDeleteHandler(osal_task_entry function_pointer)
 {
+	struct cfe_task_info *task_info;
+
 	if (OS_TaskGetId() == main_delegate_thread_id) { return OS_ERR_INVALID_ID; }
 
-	struct cfe_task_info *task_info = &cfe_tasks[sl_thd_thdid(sl_thd_curr())];
+	task_info                 = &cfe_tasks[sl_thd_thdid(sl_thd_curr())];
 	task_info->delete_handler = function_pointer;
 
 	return OS_SUCCESS;
@@ -188,13 +199,16 @@ OS_TaskDelay(uint32 millisecond)
 int32
 OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
 {
+	struct sl_thd *thd;
+	sched_param_t  sp;
+
 	if (new_priority > 255 || new_priority < 1) { return OS_ERR_INVALID_PRIORITY; }
 
-	struct sl_thd *thd = sl_thd_lkup(task_id);
+	thd = sl_thd_lkup(task_id);
 	if (!thd) { return OS_ERR_INVALID_ID; }
 
-	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = new_priority}};
-	sl_thd_param_set(thd, sp.v);
+	sp = sched_param_pack(SCHEDP_PRIO, new_priority);
+	sl_thd_param_set(thd, sp);
 
 	return OS_SUCCESS;
 }
@@ -211,9 +225,10 @@ OS_TaskRegister(void)
 int32
 OS_TaskGetIdByName(uint32 *task_id, const char *task_name)
 {
+	thdid_t i;
+
 	if (!task_id || !task_name) return OS_INVALID_POINTER;
 
-	thdid_t i;
 	for (i = 1; i < SL_MAX_NUM_THDS; i++) {
 		struct sl_thd *thd = sl_thd_lkup(i);
 		if (!thd || thd->state == SL_THD_FREE) continue;
@@ -229,29 +244,31 @@ OS_TaskGetIdByName(uint32 *task_id, const char *task_name)
 int32
 OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop)
 {
+	struct sl_thd *thd;
+
 	if (!task_prop) { return OS_INVALID_POINTER; }
 
-	struct sl_thd *thd = sl_thd_lkup(task_id);
+	thd = sl_thd_lkup(task_id);
 
-	// TODO: Fix this ugly workaround
+	/* TODO: Fix this ugly workaround */
 	if (!thd || thd->state == SL_THD_FREE) { return OS_ERR_INVALID_ID; }
 
 	struct cfe_task_info *task_info = &cfe_tasks[task_id];
-	*task_prop = task_info->osal_task_prop;
+	*task_prop                      = task_info->osal_task_prop;
 
 	return OS_SUCCESS;
 }
 
 /*
-** Main thread waiting API
-*/
+ * Main thread waiting API
+ */
 
 /*
-** OS-specific background thread implementation - waits forever for events to occur.
-**
-** This should be called from the BSP main routine / initial thread after all other
-** board / application initialization has taken place and all other tasks are running.
-*/
+ * OS-specific background thread implementation - waits forever for events to occur.
+ *
+ * This should be called from the BSP main routine / initial thread after all other
+ * board / application initialization has taken place and all other tasks are running.
+ */
 void
 OS_IdleLoop(void)
 {
@@ -259,20 +276,20 @@ OS_IdleLoop(void)
 }
 
 /*
-** OS_ApplicationShutdown() provides a means for a user-created thread to request the orderly
-** shutdown of the whole system, such as part of a user-commanded reset command.
-** This is preferred over e.g. ApplicationExit() which exits immediately and does not
-** provide for any means to clean up first.
-*/
+ * OS_ApplicationShutdown() provides a means for a user-created thread to request the orderly
+ * shutdown of the whole system, such as part of a user-commanded reset command.
+ * This is preferred over e.g. ApplicationExit() which exits immediately and does not
+ * provide for any means to clean up first.
+ */
 void
 OS_ApplicationShutdown(uint8 flag)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 }
 
 /*
-** Mutex API
-*/
+ * Mutex API
+ */
 
 struct mutex {
 	int               used;
@@ -286,7 +303,8 @@ struct mutex   mutexes[OS_MAX_MUTEXES];
 int32
 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 {
-	int32 result = OS_SUCCESS;
+	uint32 id;
+	int32  result = OS_SUCCESS;
 
 	sl_lock_take(&mutex_data_lock);
 
@@ -300,7 +318,6 @@ OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 		goto exit;
 	}
 
-	uint32 id;
 	for (id = 0; id < OS_MAX_MUTEXES; id++) {
 		if (mutexes[id].used && strcmp(sem_name, mutexes[id].prop.name) == 0) {
 			result = OS_ERR_NAME_TAKEN;
@@ -346,7 +363,6 @@ OS_MutSemGive(uint32 sem_id)
 int32
 OS_MutSemTake(uint32 sem_id)
 {
-
 	sl_lock_take(&mutex_data_lock);
 	if (sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
 		sl_lock_release(&mutex_data_lock);
@@ -363,6 +379,7 @@ int32
 OS_MutSemDelete(uint32 sem_id)
 {
 	int32 result = OS_SUCCESS;
+
 	sl_lock_take(&mutex_data_lock);
 
 	if (sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
@@ -385,6 +402,7 @@ exit:
 int32
 OS_MutSemGetIdByName(uint32 *sem_id, const char *sem_name)
 {
+	int   i;
 	int32 result = OS_SUCCESS;
 
 	sl_lock_take(&mutex_data_lock);
@@ -399,7 +417,6 @@ OS_MutSemGetIdByName(uint32 *sem_id, const char *sem_name)
 		goto exit;
 	}
 
-	int i;
 	for (i = 0; i < OS_MAX_MUTEXES; i++) {
 		if (mutexes[i].used && (strcmp(mutexes[i].prop.name, (char *)sem_name) == 0)) {
 			*sem_id = i;
@@ -419,6 +436,7 @@ int32
 OS_MutSemGetInfo(uint32 sem_id, OS_mut_sem_prop_t *mut_prop)
 {
 	int32 result = OS_SUCCESS;
+
 	sl_lock_take(&mutex_data_lock);
 
 	if (!mut_prop) {
@@ -439,30 +457,30 @@ exit:
 }
 
 /*
-** Semaphore API
-*/
+ * Semaphore API
+ */
 
 struct semaphore {
 	int used;
 
-	uint32 count;
+	uint32  count;
 	thdid_t holder;
 
 	uint32 creator;
 	char   name[OS_MAX_API_NAME];
 };
 
-struct sl_lock   semaphore_data_lock = SL_LOCK_STATIC_INIT();
+struct sl_lock semaphore_data_lock = SL_LOCK_STATIC_INIT();
 
 struct semaphore binary_semaphores[OS_MAX_BIN_SEMAPHORES];
 struct semaphore counting_semaphores[OS_MAX_COUNT_SEMAPHORES];
 
-// Generic semaphore methods
 int32
 OS_SemaphoreCreate(struct semaphore *semaphores, uint32 max_semaphores, uint32 *sem_id, const char *sem_name,
                    uint32 sem_initial_value, uint32 options)
 {
-	int32 result = OS_SUCCESS;
+	uint32 id;
+	int32  result = OS_SUCCESS;
 
 	sl_lock_take(&semaphore_data_lock);
 
@@ -476,7 +494,6 @@ OS_SemaphoreCreate(struct semaphore *semaphores, uint32 max_semaphores, uint32 *
 		goto exit;
 	}
 
-	uint32 id;
 	for (id = 0; id < max_semaphores; id++) {
 		if (semaphores[id].used && strcmp(sem_name, semaphores[id].name) == 0) {
 			result = OS_ERR_NAME_TAKEN;
@@ -508,7 +525,7 @@ exit:
 int32
 OS_SemaphoreFlush(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem_id)
 {
-	PANIC("Unimplemented method!");
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
@@ -526,9 +543,7 @@ OS_SemaphoreGive(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem
 	}
 
 	semaphores[sem_id].count += 1;
-	if (semaphores[sem_id].holder == sl_thdid()) {
-		semaphores[sem_id].holder = 0;
-	}
+	if (semaphores[sem_id].holder == sl_thdid()) { semaphores[sem_id].holder = 0; }
 
 exit:
 	sl_lock_release(&semaphore_data_lock);
@@ -567,9 +582,7 @@ OS_SemaphoreTake(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem
 		goto exit;
 	}
 
-	if (semaphores[sem_id].holder == 0) {
-		semaphores[sem_id].holder = sl_thdid();
-	}
+	if (semaphores[sem_id].holder == 0) { semaphores[sem_id].holder = sl_thdid(); }
 
 	semaphores[sem_id].count -= 1;
 
@@ -609,9 +622,7 @@ OS_SemaphoreTimedWait(struct semaphore *semaphores, uint32 max_semaphores, uint3
 		goto exit;
 	}
 
-	if (semaphores[sem_id].holder == 0) {
-		semaphores[sem_id].holder = sl_thdid();
-	}
+	if (semaphores[sem_id].holder == 0) { semaphores[sem_id].holder = sl_thdid(); }
 
 	semaphores[sem_id].count -= 1;
 
@@ -643,7 +654,8 @@ exit:
 int32
 OS_SemaphoreGetIdByName(struct semaphore *semaphores, uint32 max_semaphores, uint32 *sem_id, const char *sem_name)
 {
-	int32 result = OS_SUCCESS;
+	uint32 i;
+	int32  result = OS_SUCCESS;
 
 	sl_lock_take(&semaphore_data_lock);
 
@@ -657,7 +669,6 @@ OS_SemaphoreGetIdByName(struct semaphore *semaphores, uint32 max_semaphores, uin
 		goto exit;
 	}
 
-	uint32 i;
 	for (i = 0; i < max_semaphores; i++) {
 		if (semaphores[i].used && (strcmp(semaphores[i].name, (char *)sem_name) == 0)) {
 			*sem_id = i;
@@ -666,7 +677,8 @@ OS_SemaphoreGetIdByName(struct semaphore *semaphores, uint32 max_semaphores, uin
 	}
 
 	/* The name was not found in the table,
-	 *  or it was, and the sem_id isn't valid anymore */
+	 *  or it was, and the sem_id isn't valid anymore
+	 */
 	result = OS_ERR_NAME_NOT_FOUND;
 exit:
 	sl_lock_release(&semaphore_data_lock);
@@ -674,7 +686,7 @@ exit:
 }
 
 
-// Binary semaphore methods
+/* Binary semaphore methods */
 int32
 OS_BinSemCreate(uint32 *sem_id, const char *sem_name, uint32 sem_initial_value, uint32 options)
 {

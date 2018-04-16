@@ -49,6 +49,7 @@ cos_asm_server_stub(OS_rewinddir)
 // Emulated methods
 cos_asm_server_stub(emu_request_memory)
 cos_asm_server_stub(emu_create_aep_thread)
+cos_asm_server_stub(emu_is_printf_enabled)
 
 cos_asm_server_stub(emu_CFE_ES_CalculateCRC)
 cos_asm_server_stub(emu_CFE_ES_CopyToCDS)

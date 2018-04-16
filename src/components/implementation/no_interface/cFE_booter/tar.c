@@ -3,12 +3,12 @@
 #include <string.h>
 #include <cos_debug.h>
 
-// should be overwritten by linking step in build process
+/* should be overwritten by linking step in build process */
 __attribute__((weak)) char _binary_cFE_fs_tar_size  = 0;
 __attribute__((weak)) char _binary_cFE_fs_tar_start = 0;
 __attribute__((weak)) char _binary_cFE_fs_tar_end   = 0;
 
-// locations and size of tar
+/* locations and size of tar */
 char * tar_start;
 char * tar_end;
 size_t tar_size;
@@ -20,7 +20,7 @@ round_to_blocksize(uint32 offset)
 	return offset;
 }
 
-// used to convert filesize in oct char string to dec, adapted from old fs code by gparmer
+/* used to convert filesize in oct char string to dec, adapted from old fs code by gparmer */
 static uint32
 oct_to_dec(char *oct)
 {
@@ -48,11 +48,11 @@ oct_to_dec(char *oct)
 uint32
 tar_load()
 {
-	// First make sure that symbols have been overwritten by linking process
+	/* First make sure that symbols have been overwritten by linking process */
 	if (!_binary_cFE_fs_tar_start) return OS_FS_ERR_DRIVE_NOT_CREATED;
-	// Next check that file size is greater than 0
+	/* Next check that file size is greater than 0 */
 	if (&_binary_cFE_fs_tar_size == 0) return OS_FS_ERR_DRIVE_NOT_CREATED;
-	// Check that the end of the tar is after the start
+	/* Check that the end of the tar is after the start */
 	if (&_binary_cFE_fs_tar_end < &_binary_cFE_fs_tar_start) return OS_FS_ERR_DRIVE_NOT_CREATED;
 
 	tar_size  = (size_t)&_binary_cFE_fs_tar_size;
@@ -72,17 +72,18 @@ tar_load()
 uint32
 tar_parse()
 {
+	uint32        offset = 0;
+	struct fsobj *o;
+
 	assert(tar_start && tar_end);
 	assert(tar_size < INT32_MAX);
 	assert(tar_end - tar_start > 0);
 	assert(tar_size == (size_t)(tar_end - tar_start));
-	uint32        offset = 0;
-	struct fsobj *o;
 
 	while (offset + tar_start < tar_end) {
 		if (file_get_new(&o)) return OS_FS_ERR_DRIVE_NOT_CREATED;
 
-		// tar ends after two empty records
+		/* tar ends after two empty records */
 		if (!(offset + tar_start)[0] && !(offset + tar_start)[TAR_BLOCKSIZE]) {
 			o->ino = 0;
 			return OS_FS_SUCCESS;
@@ -97,7 +98,7 @@ tar_parse()
 		 */
 		offset += round_to_blocksize(o->size + 500);
 	}
-	// tar ends before two empty records are found
+	/* tar ends before two empty records are found */
 	return OS_FS_ERROR;
 }
 
@@ -107,14 +108,16 @@ tar_parse()
 uint32
 tar_hdr_read(uint32 tar_offset, struct fsobj *file)
 {
+	char *         location;
+	struct f_part *part;
+
 	assert(tar_offset < tar_size);
 	assert(file->ino > 0);
 
-	struct f_part *part;
 	part_get_new(&part);
 	file->memtype = STATIC;
 
-	char *location = tar_start;
+	location = tar_start;
 	location += tar_offset;
 	memmove(location + 1, location, strlen(location));
 	location[0] = '/';

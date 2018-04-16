@@ -12,18 +12,21 @@
 #include "cFE_util.h"
 
 /*
-** Initialization of API
-*/
+ * Initialization of API
+ */
 int have_initialized = 0;
 
 int32
 OS_API_Init(void)
 {
+	struct cos_defcompinfo *defci;
+	struct cos_compinfo *   ci;
+
 	if (have_initialized) return OS_SUCCESS;
 
 	cos_defcompinfo_init();
-	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
+	defci = cos_defcompinfo_curr_get();
+	ci    = cos_compinfo_get(defci);
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 
 	OS_FS_Init();
@@ -35,10 +38,10 @@ OS_API_Init(void)
 }
 
 /*
-** OS_DeleteAllObjects() provides a means to clean up all resources allocated by this
-** instance of OSAL.  It would typically be used during an orderly shutdown but may also
-** be helpful for testing purposes.
-*/
+ * OS_DeleteAllObjects() provides a means to clean up all resources allocated by this
+ * instance of OSAL.  It would typically be used during an orderly shutdown but may also
+ * be helpful for testing purposes.
+ */
 void
 OS_DeleteAllObjects(void)
 {
@@ -49,10 +52,10 @@ OS_DeleteAllObjects(void)
 	 * {
 	 *     OS_TaskDelete(i);
 	 * }
-     * for (i = 0; i < OS_MAX_TIMERS; ++i)
-     * {
-     *     OS_TimerDelete(i);
-     * } */
+	 * for (i = 0; i < OS_MAX_TIMERS; ++i)
+	 * {
+	 *     OS_TimerDelete(i);
+	 * } */
 	for (i = 0; i < OS_MAX_QUEUES; ++i) { OS_QueueDelete(i); }
 	for (i = 0; i < OS_MAX_MUTEXES; ++i) { OS_MutSemDelete(i); }
 	for (i = 0; i < OS_MAX_COUNT_SEMAPHORES; ++i) { OS_CountSemDelete(i); }
@@ -63,14 +66,14 @@ OS_DeleteAllObjects(void)
 
 
 /*
-** OS Time/Tick related API
-*/
+ * OS Time/Tick related API
+ */
 
 int32
 OS_Milli2Ticks(uint32 milliseconds)
 {
 	uint32 ticks_per_millisecond = CFE_PSP_GetTimerTicksPerSecond() / 1000;
-	return (int32) (ticks_per_millisecond * milliseconds);
+	return (int32)(ticks_per_millisecond * milliseconds);
 }
 
 int32
@@ -130,13 +133,13 @@ OS_SetLocalTime(OS_time_t *time_struct)
 } /*end OS_SetLocalTime */
 
 /*
-** Exception API
-*/
+ * Exception API
+ */
 
 int32
 OS_ExcAttachHandler(uint32 ExceptionNumber, void (*ExceptionHandler)(uint32, const void *, uint32), int32 parameter)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
@@ -144,53 +147,53 @@ OS_ExcAttachHandler(uint32 ExceptionNumber, void (*ExceptionHandler)(uint32, con
 int32
 OS_ExcEnable(int32 ExceptionNumber)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 int32
 OS_ExcDisable(int32 ExceptionNumber)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 /*
-** Floating Point Unit API
-*/
+ * Floating Point Unit API
+ */
 
 int32
 OS_FPUExcAttachHandler(uint32 ExceptionNumber, void *ExceptionHandler, int32 parameter)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 int32
 OS_FPUExcEnable(int32 ExceptionNumber)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 int32
 OS_FPUExcDisable(int32 ExceptionNumber)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 int32
 OS_FPUExcSetMask(uint32 mask)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 int32
 OS_FPUExcGetMask(uint32 *mask)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
@@ -201,7 +204,7 @@ OS_FPUExcGetMask(uint32 *mask)
 int32
 OS_IntAttachHandler(uint32 InterruptNumber, osal_task_entry InterruptHandler, int32 parameter)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
@@ -232,83 +235,83 @@ OS_IntDisable(int32 Level)
 int32
 OS_IntSetMask(uint32 mask)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 int32
 OS_IntGetMask(uint32 *mask)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 int32
 OS_IntAck(int32 InterruptNumber)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 /*
-** Shared memory API
-*/
+ * Shared memory API
+ */
 int32
 OS_ShMemInit(void)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 int32
 OS_ShMemCreate(uint32 *Id, uint32 NBytes, const char *SegName)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 int32
 OS_ShMemSemTake(uint32 Id)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 int32
 OS_ShMemSemGive(uint32 Id)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 int32
 OS_ShMemAttach(cpuaddr *Address, uint32 Id)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 int32
 OS_ShMemGetIdByName(uint32 *ShMemId, const char *SegName)
 {
-	PANIC("Unimplemented method!"); // TODO: Implement me!
+	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
 }
 
 /*
-** Heap API
-*/
+ * Heap API
+ */
 int32
 OS_HeapGetInfo(OS_heap_prop_t *heap_prop)
 {
-	// FIXME: Implement me!
+	/* TODO: Implement me! */
 	return OS_ERR_NOT_IMPLEMENTED;
 }
 
 /*
-** API for useful debugging function
-** (Implementation stolen from the posix osapi)
-*/
+ * API for useful debugging function
+ * (Implementation stolen from the posix osapi)
+ */
 
 int32
 OS_GetErrorName(int32 error_num, os_err_name_t *err_name)
@@ -401,18 +404,25 @@ OS_GetErrorName(int32 error_num, os_err_name_t *err_name)
 
 
 /*
-** Abstraction for printf statements
-*/
+ * Abstraction for printf statements
+ */
 int is_printf_enabled = TRUE;
+
+/* We expose this function so that app components can use it  */
+int
+emu_is_printf_enabled()
+{
+	return is_printf_enabled;
+}
 
 void
 OS_printf(const char *string, ...)
 {
-	if (!is_printf_enabled) return;
-
 	char    s[OS_BUFFER_SIZE];
 	va_list arg_ptr;
 	int     ret, len = OS_BUFFER_SIZE;
+
+	if (!is_printf_enabled) return;
 
 	va_start(arg_ptr, string);
 	ret = vsnprintf(s, len, string, arg_ptr);
@@ -442,10 +452,10 @@ OS_printf_enable(void)
 }
 
 /*
-** Call to exit the running application
-** Normally embedded applications run forever, but for debugging purposes
-** (unit testing for example) this is needed in order to end the test
-*/
+ * Call to exit the running application
+ * Normally embedded applications run forever, but for debugging purposes
+ * (unit testing for example) this is needed in order to end the test
+ */
 void
 OS_ApplicationExit(int32 Status)
 {
