@@ -107,18 +107,49 @@ void do_recv_proc(int fd, int msg_sz)
 	} while (-1 != ret);
 }
 
-void
-create_wifi_str(void )
+char * 
+build_script() 
 {
+        int i;
+       // unsigned char script[100] = {152, 28, 137, 1, 44, 0, 180, 137, 1, 44, 128, 0, 156, 1, 144, 137, 1, 44, 0, 1, 157, 0, 90, 137, 1, 44, 128, 156, 3, 232, 153};
 
-	char str[80];
-	char *new = "4";
-	strcpy(str, "echo -n '");
-	strcat(str, new);
-	strcat(str, "' | nc -4u -w1 192.168.137.51 2390");
-	
-	/*length 44?*/
-	printf("str: %s \n", str);
+        char *buf = (char*) malloc(200*sizeof(char));
+        char * pre = "echo -n '";
+        char* post = "' | nc -4u -w1 192.168.137.51 2390";
+        memcpy(buf, pre, 9);
+        for(i = 0; i < script[1]+3; i++) {
+                snprintf(&buf[strlen(buf)], 20*sizeof(char), "%d \0", script[i]);
+        }
+        snprintf(&buf[strlen(buf)], 400*sizeof(char), "%s", post);
+
+        return buf;
+}
+
+//void
+//create_wifi_str(void )
+//{
+//
+//	char str[80];
+//	char *new = "4";
+//	strcpy(str, "echo -n '");
+//	strcat(str, new);
+//	strcat(str, "' | nc -4u -w1 192.168.137.51 2390");
+//	
+//	/*length 44?*/
+//	printf("str: %s \n", str);
+//}
+
+int 
+send_script() 
+{
+        char* post;
+        
+	post = build_script();
+	printf("post: %s \n", post);
+        system(post);
+        
+	printf("%s\n", post);
+        return 0;
 }
 
 void start_timers()
@@ -176,13 +207,14 @@ int foo = 0;
 
 int main(int argc, char *argv[])
 {
+	//send_script();
 	int fd, fdr;
 	struct sockaddr_in sa;
 	int msg_size;
 	char *msg;
 	int sleep_val;
 
-	create_wifi_str();
+	//create_wifi_str();
 
 	if (argc != 5 && argc != 6) {
 		printf("Usage: %s <ip> <port> <msg size> <sleep_val> <opt:rcv_port>\n", argv[0]);
@@ -313,6 +345,7 @@ int main(int argc, char *argv[])
 				if (((unsigned char *)rcv_msg)[j+1] == 66 ) break;
 				script[j] = ((unsigned char *)rcv_msg)[j+1];
 			}
+			send_script();
 		}
 	
 	}
