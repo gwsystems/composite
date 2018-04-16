@@ -448,7 +448,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 		if (!end) end = &cobj_name[COBJ_NAME_SZ-1];
 		*end = '\0';
 		h = cobj_create(0, cobj_name, nsects, size, nsymbs, ncaps, mem, obj_size,
-				ret_data->scheduler ? COBJ_INIT_THD : 0);
+				ret_data->is_scheduler ? COBJ_INIT_THD : 0);
 		if (!h) {
 			printl(PRINT_HIGH, "boot component: couldn't create cobj.\n");
 			return -1;

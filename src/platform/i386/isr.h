@@ -2,7 +2,7 @@
 #define ISR_H
 
 #include "shared/cos_types.h"
-#include "io.h"
+#include "chal/io.h"
 #include "chal_asm_inc.h"
 #include <inv.h>
 
@@ -80,7 +80,7 @@ extern void handler_hw_59(struct pt_regs *);
 extern void handler_hw_60(struct pt_regs *);
 extern void handler_hw_61(struct pt_regs *);
 extern void handler_hw_62(struct pt_regs *);
-extern void handler_hw_63(struct pt_regs *);
+extern void lapic_spurious_irq(struct pt_regs *);
 extern void lapic_timer_irq(struct pt_regs *);
 
 static void

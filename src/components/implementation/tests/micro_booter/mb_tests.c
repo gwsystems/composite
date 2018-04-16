@@ -7,10 +7,10 @@ unsigned int cyc_per_usec;
 static void
 thd_fn_perf(void *d)
 {
-	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 
 	while (1) {
-		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	}
 	PRINTC("Error, shouldn't get here!\n");
 }
@@ -41,10 +41,11 @@ test_thds_perf(void)
 static void
 thd_fn(void *d)
 {
-	PRINTC("\tNew thread %d with argument %d, capid %ld\n", cos_thdid(), (int)d, tls_test[(int)d]);
+	PRINTC("\tNew thread %d with argument %d, capid %ld\n",
+	       cos_thdid(), (int)d, tls_test[cos_cpuid()][(int)d]);
 	/* Test the TLS support! */
-	assert(tls_get(0) == tls_test[(int)d]);
-	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	assert(tls_get(0) == tls_test[cos_cpuid()][(int)d]);
+	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	PRINTC("Error, shouldn't get here!\n");
 }
 
@@ -57,8 +58,8 @@ test_thds(void)
 	for (i = 0; i < TEST_NTHDS; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
 		assert(ts[i]);
-		tls_test[i] = i;
-		cos_thd_mod(&booter_info, ts[i], &tls_test[i]);
+		tls_test[cos_cpuid()][i] = i;
+		cos_thd_mod(&booter_info, ts[i], &tls_test[cos_cpuid()][i]);
 		PRINTC("switchto %d\n", (int)ts[i]);
 		cos_thd_switch(ts[i]);
 	}
@@ -99,15 +100,15 @@ test_mem(void)
 	PRINTC("SUCCESS: Atomically allocated and zeroed %d pages.\n", TEST_NPAGES);
 }
 
-volatile arcvcap_t rcc_global, rcp_global;
-volatile asndcap_t scp_global;
-int                async_test_flag = 0;
+volatile arcvcap_t rcc_global[NUM_CPU], rcp_global[NUM_CPU];
+volatile asndcap_t scp_global[NUM_CPU];
+int                async_test_flag[NUM_CPU] = { 0 };
 
 static void
 async_thd_fn_perf(void *thdcap)
 {
 	thdcap_t  tc = (thdcap_t)thdcap;
-	arcvcap_t rc = rcc_global;
+	arcvcap_t rc = rcc_global[cos_cpuid()];
 	int       i;
 
 	cos_rcv(rc, 0, NULL);
@@ -123,7 +124,7 @@ static void
 async_thd_parent_perf(void *thdcap)
 {
 	thdcap_t  tc                = (thdcap_t)thdcap;
-	asndcap_t sc                = scp_global;
+	asndcap_t sc                = scp_global[cos_cpuid()];
 	long long total_asnd_cycles = 0;
 	long long start_asnd_cycles = 0, end_arcv_cycles = 0;
 	int       i;
@@ -140,7 +141,7 @@ async_thd_parent_perf(void *thdcap)
 	PRINTC("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n", total_asnd_cycles, (long long)(ITER),
 	       (total_asnd_cycles / (long long)(ITER)));
 
-	async_test_flag = 0;
+	async_test_flag[cos_cpuid()] = 0;
 	while (1) cos_thd_switch(tc);
 }
 
@@ -150,7 +151,7 @@ static void
 async_thd_fn(void *thdcap)
 {
 	thdcap_t  tc = (thdcap_t)thdcap;
-	arcvcap_t rc = rcc_global;
+	arcvcap_t rc = rcc_global[cos_cpuid()];
 	int       pending, rcvd;
 
 	PRINTC("Asynchronous event thread handler.\n");
@@ -191,8 +192,8 @@ static void
 async_thd_parent(void *thdcap)
 {
 	thdcap_t    tc = (thdcap_t)thdcap;
-	arcvcap_t   rc = rcp_global;
-	asndcap_t   sc = scp_global;
+	arcvcap_t   rc = rcp_global[cos_cpuid()];
+	asndcap_t   sc = scp_global[cos_cpuid()];
 	int         ret, pending;
 	thdid_t     tid;
 	int         blocked, rcvd;
@@ -227,7 +228,7 @@ async_thd_parent(void *thdcap)
 	PRINTC("--> pending %d, thdid %d, blocked %d, cycles %lld, timeout %lu (now=%llu, abs:%llu)\n",
 	       pending, tid, blocked, cycles, thd_timeout, now, tcap_time2cyc(thd_timeout, now));
 
-	async_test_flag = 0;
+	async_test_flag[cos_cpuid()] = 0;
 	while (1) cos_thd_switch(tc);
 }
 
@@ -243,13 +244,13 @@ test_async_endpoints(void)
 	PRINTC("Creating threads, and async end-points.\n");
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent,
-	                    (void *)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	                    (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	assert(tcp);
 	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
-	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
 	assert(rcp);
-	if ((ret = cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX))) {
+	if ((ret = cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX))) {
 		PRINTC("transfer failed: %d\n", ret);
 		assert(0);
 	}
@@ -261,19 +262,19 @@ test_async_endpoints(void)
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
-	if (cos_tcap_transfer(rcc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1)) assert(0);
+	if (cos_tcap_transfer(rcc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1)) assert(0);
 
 	/* make the snd channel to the child */
-	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
-	assert(scp_global);
+	scp_global[cos_cpuid()] = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
+	assert(scp_global[cos_cpuid()]);
 	scr = cos_asnd_alloc(&booter_info, rcp, booter_info.captbl_cap);
 	assert(scr);
 
-	rcc_global = rcc;
-	rcp_global = rcp;
+	rcc_global[cos_cpuid()] = rcc;
+	rcp_global[cos_cpuid()] = rcp;
 
-	async_test_flag = 1;
-	while (async_test_flag) cos_asnd(scr, 1);
+	async_test_flag[cos_cpuid()] = 1;
+	while (async_test_flag[cos_cpuid()]) cos_asnd(scr, 1);
 
 	PRINTC("Async end-point test successful.\n");
 	PRINTC("Test done.\n");
@@ -288,13 +289,13 @@ test_async_endpoints_perf(void)
 
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf,
-	                    (void *)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	                    (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	assert(tcp);
 	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
-	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
 	assert(rcp);
-	if (cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1)) assert(0);
+	if (cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1)) assert(0);
 
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void *)tcp);
@@ -303,17 +304,17 @@ test_async_endpoints_perf(void)
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
-	if (cos_tcap_transfer(rcc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX)) assert(0);
+	if (cos_tcap_transfer(rcc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX)) assert(0);
 
 	/* make the snd channel to the child */
-	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
-	assert(scp_global);
+	scp_global[cos_cpuid()] = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
+	assert(scp_global[cos_cpuid()]);
 
-	rcc_global = rcc;
-	rcp_global = rcp;
+	rcc_global[cos_cpuid()] = rcc;
+	rcp_global[cos_cpuid()] = rcp;
 
-	async_test_flag = 1;
-	while (async_test_flag) cos_thd_switch(tcp);
+	async_test_flag[cos_cpuid()] = 1;
+	while (async_test_flag[cos_cpuid()]) cos_thd_switch(tcp);
 }
 
 static void
@@ -341,13 +342,13 @@ test_timer(void)
 
 		rdtscll(now);
 		timer = tcap_cyc2time(now + 1000 * cyc_per_usec);
-		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_BASE,
+		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
 		           cos_sched_sync());
 		p = c;
 		rdtscll(c);
 		if (i > 0) t += c - p;
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING, 0,
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
 				     &rcvd, &tid, &blocked, &cycles, &thd_timeout) != 0)
 			;
 	}
@@ -355,7 +356,7 @@ test_timer(void)
 	PRINTC("\tCycles per tick (1000 microseconds) = %lld, cycles threshold = %u\n", t / 16,
 	       (unsigned int)cos_hw_cycles_thresh(BOOT_CAPTBL_SELF_INITHW_BASE));
 
-	PRINTC("Timer test completed.\nSuccess.\n");
+	PRINTC("Timer test completed. Success.\n");
 }
 
 struct exec_cluster {
@@ -371,7 +372,7 @@ struct exec_cluster {
 struct budget_test_data {
 	/* p=parent, c=child, g=grand-child */
 	struct exec_cluster p, c, g;
-} bt, mbt;
+} bt[NUM_CPU], mbt[NUM_CPU];
 
 static void
 exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t parentc)
@@ -409,29 +410,29 @@ test_budgets_single(void)
 
 	PRINTC("Starting single-level budget test.\n");
 
-	exec_cluster_alloc(&bt.p, parent, &bt.p, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	exec_cluster_alloc(&bt.c, spinner, &bt.c, bt.p.rc);
+	exec_cluster_alloc(&bt[cos_cpuid()].p, parent, &bt[cos_cpuid()].p, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
+	exec_cluster_alloc(&bt[cos_cpuid()].c, spinner, &bt[cos_cpuid()].c, bt[cos_cpuid()].p.rc);
 
 	PRINTC("Budget switch latencies: ");
 	for (i = 1; i < 10; i++) {
 		cycles_t    s, e;
 		thdid_t     tid;
-		int         blocked;
+		int         blocked, ret;
 		cycles_t    cycles;
 		tcap_time_t thd_timeout;
 
-		if (cos_tcap_transfer(bt.c.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, i * 100000, TCAP_PRIO_MAX + 2))
-			assert(0);
+		ret = cos_tcap_transfer(bt[cos_cpuid()].c.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, i * 100000, TCAP_PRIO_MAX + 2);
+		if (ret) assert(0);
 
 		rdtscll(s);
-		if (cos_switch(bt.c.tc, bt.c.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE,
+		if (cos_switch(bt[cos_cpuid()].c.tc, bt[cos_cpuid()].c.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
 		               cos_sched_sync()))
 			assert(0);
 		rdtscll(e);
-		PRINTC("%lld,\t", e - s);
+		PRINTC("\t%lld\n", e - s);
 
 		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, 0, NULL, &tid, &blocked, &cycles, &thd_timeout) != 0)
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0, NULL, &tid, &blocked, &cycles, &thd_timeout) != 0)
 			;
 	}
 	PRINTC("Done.\n");
@@ -444,9 +445,9 @@ test_budgets_multi(void)
 
 	PRINTC("Starting multi-level budget test.\n");
 
-	exec_cluster_alloc(&mbt.p, spinner_cyc, &(mbt.p.cyc), BOOT_CAPTBL_SELF_INITRCV_BASE);
-	exec_cluster_alloc(&mbt.c, spinner_cyc, &(mbt.c.cyc), mbt.p.rc);
-	exec_cluster_alloc(&mbt.g, spinner_cyc, &(mbt.g.cyc), mbt.c.rc);
+	exec_cluster_alloc(&mbt[cos_cpuid()].p, spinner_cyc, &(mbt[cos_cpuid()].p.cyc), BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
+	exec_cluster_alloc(&mbt[cos_cpuid()].c, spinner_cyc, &(mbt[cos_cpuid()].c.cyc), mbt[cos_cpuid()].p.rc);
+	exec_cluster_alloc(&mbt[cos_cpuid()].g, spinner_cyc, &(mbt[cos_cpuid()].g.cyc), mbt[cos_cpuid()].c.rc);
 
 	PRINTC("Budget switch latencies:\n");
 	for (i = 1; i < 10; i++) {
@@ -462,20 +463,20 @@ test_budgets_multi(void)
 		else
 			res = i * 800000;
 
-		if (cos_tcap_transfer(mbt.p.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, res, TCAP_PRIO_MAX + 2)) assert(0);
-		if (cos_tcap_transfer(mbt.c.rc, mbt.p.tcc, res / 2, TCAP_PRIO_MAX + 2)) assert(0);
-		if (cos_tcap_transfer(mbt.g.rc, mbt.c.tcc, res / 4, TCAP_PRIO_MAX + 2)) assert(0);
+		if (cos_tcap_transfer(mbt[cos_cpuid()].p.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, res, TCAP_PRIO_MAX + 2)) assert(0);
+		if (cos_tcap_transfer(mbt[cos_cpuid()].c.rc, mbt[cos_cpuid()].p.tcc, res / 2, TCAP_PRIO_MAX + 2)) assert(0);
+		if (cos_tcap_transfer(mbt[cos_cpuid()].g.rc, mbt[cos_cpuid()].c.tcc, res / 4, TCAP_PRIO_MAX + 2)) assert(0);
 
-		mbt.p.cyc = mbt.c.cyc = mbt.g.cyc = 0;
+		mbt[cos_cpuid()].p.cyc = mbt[cos_cpuid()].c.cyc = mbt[cos_cpuid()].g.cyc = 0;
 		rdtscll(s);
-		if (cos_switch(mbt.g.tc, mbt.g.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE,
+		if (cos_switch(mbt[cos_cpuid()].g.tc, mbt[cos_cpuid()].g.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
 		               cos_sched_sync()))
 			assert(0);
 		rdtscll(e);
-		PRINTC("g:%llu c:%llu p:%llu => %llu,\t", mbt.g.cyc - s, mbt.c.cyc - s, mbt.p.cyc - s, e - s);
 
-		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, 0, NULL, &tid, &blocked, &cycles, &thd_timeout);
-		PRINTC("%d=%llu\n", tid, cycles);
+		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0, NULL, &tid, &blocked, &cycles, &thd_timeout);
+		PRINTC("g:%llu c:%llu p:%llu => %llu, %d=%llu\n", mbt[cos_cpuid()].g.cyc - s, mbt[cos_cpuid()].c.cyc - s,
+		       mbt[cos_cpuid()].p.cyc - s, e - s, tid, cycles);
 	}
 	PRINTC("Done.\n");
 }
@@ -498,12 +499,12 @@ test_budgets(void)
 struct activation_test_data {
 	/* p = preempted, s = scheduler, i = interrupt, w = worker */
 	struct exec_cluster p, s, i, w;
-} wat, pat;
+} wat[NUM_CPU], pat[NUM_CPU];
 
-int wakeup_test_start  = 0;
-int wakeup_budget_test = 0;
-int active_seq         = 0;
-int final_seq          = 2;
+int wakeup_test_start[NUM_CPU]  = { 0 };
+int wakeup_budget_test[NUM_CPU] = { 0 };
+int active_seq[NUM_CPU]         = { 0 };
+int final_seq[NUM_CPU]          = { 0 };
 
 static void
 seq_expected_order_set(struct exec_cluster *e, int seq)
@@ -515,9 +516,9 @@ static void
 seq_order_check(struct exec_cluster *e)
 {
 	assert(e->xseq >= 0);
-	assert(e->xseq == active_seq);
+	assert(e->xseq == active_seq[cos_cpuid()]);
 
-	active_seq++;
+	active_seq[cos_cpuid()]++;
 }
 
 /* worker thread thats awoken by intr_thd */
@@ -528,12 +529,12 @@ worker_thd(void *d)
 
 	while (1) {
 		seq_order_check(e);
-		if (wakeup_budget_test) {
+		if (wakeup_budget_test[cos_cpuid()]) {
 			rdtscll(e->cyc);
 			while (1)
 				;
 		} else {
-			cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0, 0, 0);
+			cos_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, 0, 0);
 		}
 	}
 }
@@ -548,7 +549,7 @@ intr_thd(void *d)
 	while (1) {
 		cos_rcv(e->rc, 0, NULL);
 		seq_order_check(e);
-		cos_thd_wakeup(w->tc, w->tcc, w->prio, wakeup_budget_test ? TEST_WAKEUP_BUDGET : 0);
+		cos_thd_wakeup(w->tc, w->tcc, w->prio, wakeup_budget_test[cos_cpuid()] ? TEST_WAKEUP_BUDGET : 0);
 	}
 }
 
@@ -565,7 +566,7 @@ intr_sched_thd(void *d)
 	while (1) {
 		cos_sched_rcv(e->rc, 0, 0, NULL, &tid, &blocked, &cycs, &thd_timeout);
 		seq_order_check(e);
-		if (wakeup_budget_test) {
+		if (wakeup_budget_test[cos_cpuid()]) {
 			struct exec_cluster *w = &(((struct activation_test_data *)d)->w);
 			rdtscll(e->cyc);
 			printc(" | preempted worker @ %llu, budget: %lu=%lu |", e->cyc,
@@ -582,13 +583,13 @@ preempted_thd(void *d)
 	struct exec_cluster *i = &(((struct activation_test_data *)d)->i);
 
 	while (1) {
-		if (wakeup_test_start) wakeup_test_start = 0;
+		if (wakeup_test_start[cos_cpuid()]) wakeup_test_start[cos_cpuid()] = 0;
 
 		cos_asnd(i->sc, 1);
 
-		if (!wakeup_test_start) {
+		if (!wakeup_test_start[cos_cpuid()]) {
 			seq_order_check(e);
-			cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 0, 0, 0);
+			cos_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, 0, 0);
 		}
 	}
 }
@@ -597,7 +598,7 @@ static void
 test_wakeup_case(struct activation_test_data *at, tcap_prio_t pprio, tcap_prio_t iprio, tcap_prio_t wprio, int pseq,
                  int iseq, int wseq)
 {
-	active_seq = 0;
+	active_seq[cos_cpuid()] = 0;
 	at->i.prio = iprio;
 	seq_expected_order_set(&at->i, iseq);
 	at->w.prio = wprio;
@@ -605,13 +606,13 @@ test_wakeup_case(struct activation_test_data *at, tcap_prio_t pprio, tcap_prio_t
 	at->p.prio = pprio;
 	seq_expected_order_set(&at->p, pseq);
 
-	if (cos_tcap_transfer(at->p.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->p.prio)) assert(0);
-	if (cos_tcap_transfer(at->i.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->i.prio)) assert(0);
-	if (cos_tcap_transfer(at->w.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->w.prio)) assert(0);
-	wakeup_test_start = 1;
+	if (cos_tcap_transfer(at->p.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, at->p.prio)) assert(0);
+	if (cos_tcap_transfer(at->i.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, at->i.prio)) assert(0);
+	if (cos_tcap_transfer(at->w.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, at->w.prio)) assert(0);
+	wakeup_test_start[cos_cpuid()] = 1;
 	cos_switch(at->p.tc, at->p.tcc, at->p.prio, TCAP_TIME_NIL, 0, 0);
 
-	assert(active_seq == final_seq);
+	assert(active_seq[cos_cpuid()] == final_seq[cos_cpuid()]);
 	PRINTC(" - SUCCESS.\n");
 }
 
@@ -619,14 +620,14 @@ static void
 test_wakeup(void)
 {
 	PRINTC("Testing Wakeup\n");
-	exec_cluster_alloc(&wat.s, intr_sched_thd, &wat, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	exec_cluster_alloc(&wat.p, preempted_thd, &wat, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	exec_cluster_alloc(&wat.i, intr_thd, &wat, wat.s.rc);
-	exec_cluster_alloc(&wat.w, worker_thd, &wat, wat.s.rc);
-	wat.s.prio = TEST_PRIO_HIGH;        /* scheduler's prio doesn't matter */
-	seq_expected_order_set(&wat.s, -1); /* scheduler should not be activated */
-	if (cos_tcap_transfer(wat.s.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, wat.s.prio)) assert(0);
-	final_seq = 2;
+	exec_cluster_alloc(&wat[cos_cpuid()].s, intr_sched_thd, &wat[cos_cpuid()], BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
+	exec_cluster_alloc(&wat[cos_cpuid()].p, preempted_thd, &wat[cos_cpuid()], BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
+	exec_cluster_alloc(&wat[cos_cpuid()].i, intr_thd, &wat[cos_cpuid()], wat[cos_cpuid()].s.rc);
+	exec_cluster_alloc(&wat[cos_cpuid()].w, worker_thd, &wat[cos_cpuid()], wat[cos_cpuid()].s.rc);
+	wat[cos_cpuid()].s.prio = TEST_PRIO_HIGH;        /* scheduler's prio doesn't matter */
+	seq_expected_order_set(&wat[cos_cpuid()].s, -1); /* scheduler should not be activated */
+	if (cos_tcap_transfer(wat[cos_cpuid()].s.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, wat[cos_cpuid()].s.prio)) assert(0);
+	final_seq[cos_cpuid()] = 2;
 
 	/*
 	 * test case 1: intr_thd = H, worker_thd = M, preempted_thd = L
@@ -635,7 +636,7 @@ test_wakeup(void)
 	 * - cos_rcv from intr_thd should activate worker_thd.
 	 */
 	PRINTC(" Test - Intr = H, Worker = M, Preempted = L");
-	test_wakeup_case(&wat, TEST_PRIO_LOW, TEST_PRIO_HIGH, TEST_PRIO_MED, -1, 0, 1);
+	test_wakeup_case(&wat[cos_cpuid()], TEST_PRIO_LOW, TEST_PRIO_HIGH, TEST_PRIO_MED, -1, 0, 1);
 
 	/*
 	 * test case 2: worker_thd = H, intr_thd = M, preempted_thd = L
@@ -644,7 +645,7 @@ test_wakeup(void)
 	 * - cos_rcv from intr_thd should activate worker_thd.
 	 */
 	PRINTC(" Test - Worker = H, Intr = M, Preempted = L");
-	test_wakeup_case(&wat, TEST_PRIO_LOW, TEST_PRIO_MED, TEST_PRIO_HIGH, -1, 0, 1);
+	test_wakeup_case(&wat[cos_cpuid()], TEST_PRIO_LOW, TEST_PRIO_MED, TEST_PRIO_HIGH, -1, 0, 1);
 
 	/*
 	 * test case 3: intr_thd = H, preempted_thd = M, worker_thd = L
@@ -653,7 +654,7 @@ test_wakeup(void)
 	 * - cos_rcv from intr_thd should activate preempted_thd.
 	 */
 	PRINTC(" Test - Intr = H, Preempted = M, Worker = L");
-	test_wakeup_case(&wat, TEST_PRIO_MED, TEST_PRIO_HIGH, TEST_PRIO_LOW, 1, 0, -1);
+	test_wakeup_case(&wat[cos_cpuid()], TEST_PRIO_MED, TEST_PRIO_HIGH, TEST_PRIO_LOW, 1, 0, -1);
 
 	/*
 	 * test case 4: intr_thd = H, worker_thd = M, preempted_thd = L
@@ -664,12 +665,12 @@ test_wakeup(void)
 	 * - worker thread should be preempted after (budget==timeout) and that should activate it's scheduler.
 	 */
 	PRINTC(" Test Wakeup with Budget -");
-	wakeup_budget_test = 1;
-	seq_expected_order_set(&wat.s, 2); /* scheduler should be activated for worker timeout */
-	final_seq = 3;
-	test_wakeup_case(&wat, TEST_PRIO_LOW, TEST_PRIO_HIGH, TEST_PRIO_MED, -1, 0, 1);
+	wakeup_budget_test[cos_cpuid()] = 1;
+	seq_expected_order_set(&wat[cos_cpuid()].s, 2); /* scheduler should be activated for worker timeout */
+	final_seq[cos_cpuid()] = 3;
+	test_wakeup_case(&wat[cos_cpuid()], TEST_PRIO_LOW, TEST_PRIO_HIGH, TEST_PRIO_MED, -1, 0, 1);
 
-	wakeup_test_start = 0;
+	wakeup_test_start[cos_cpuid()] = 0;
 	PRINTC("Done.\n");
 }
 
@@ -700,18 +701,18 @@ sender_thd(void *d)
 static void
 test_preemption_case(struct activation_test_data *at, tcap_prio_t iprio, tcap_prio_t wprio, int iseq, int wseq)
 {
-	active_seq = 0;
-	final_seq  = 2;
+	active_seq[cos_cpuid()] = 0;
+	final_seq[cos_cpuid()]  = 2;
 	at->i.prio = iprio;
 	seq_expected_order_set(&at->i, iseq);
 	at->w.prio = wprio;
 	seq_expected_order_set(&at->w, wseq);
 
-	if (cos_tcap_transfer(at->i.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->i.prio)) assert(0);
-	if (cos_tcap_transfer(at->w.rc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, at->w.prio)) assert(0);
+	if (cos_tcap_transfer(at->i.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, at->i.prio)) assert(0);
+	if (cos_tcap_transfer(at->w.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, at->w.prio)) assert(0);
 	cos_switch(at->i.tc, at->i.tcc, at->i.prio, TCAP_TIME_NIL, 0, 0);
 
-	assert(active_seq == final_seq);
+	assert(active_seq[cos_cpuid()] == final_seq[cos_cpuid()]);
 	PRINTC(" - SUCCESS.\n");
 }
 
@@ -719,8 +720,8 @@ static void
 test_preemption(void)
 {
 	PRINTC("Testing Preemption\n");
-	exec_cluster_alloc(&pat.i, sender_thd, &pat, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	exec_cluster_alloc(&pat.w, receiver_thd, &pat, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	exec_cluster_alloc(&pat[cos_cpuid()].i, sender_thd, &pat[cos_cpuid()], BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
+	exec_cluster_alloc(&pat[cos_cpuid()].w, receiver_thd, &pat[cos_cpuid()], BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
 
 	/*
 	 * test case 1: Sender = H, Receiver: L
@@ -730,7 +731,7 @@ test_preemption(void)
 	 * - cos_rcv from sender should activate receiver thread.
 	 */
 	PRINTC(" Test - Sender = H, Receiver = L");
-	test_preemption_case(&pat, TEST_PRIO_HIGH, TEST_PRIO_LOW, 0, 1);
+	test_preemption_case(&pat[cos_cpuid()], TEST_PRIO_HIGH, TEST_PRIO_LOW, 0, 1);
 
 	/*
 	 * test case 2: Sender = L, Receiver: H
@@ -740,17 +741,17 @@ test_preemption(void)
 	 * - cos_rcv from receiver should activate sender thread.
 	 */
 	PRINTC(" Test - Sender = L, Receiver = H");
-	test_preemption_case(&pat, TEST_PRIO_LOW, TEST_PRIO_HIGH, 1, 0);
+	test_preemption_case(&pat[cos_cpuid()], TEST_PRIO_LOW, TEST_PRIO_HIGH, 1, 0);
 
 	PRINTC("Done.\n");
 }
 
-long long midinv_cycles = 0LL;
+long long midinv_cycles[NUM_CPU] = { 0LL };
 
 int
 test_serverfn(int a, int b, int c)
 {
-	rdtscll(midinv_cycles);
+	rdtscll(midinv_cycles[cos_cpuid()]);
 	return 0xDEADBEEF;
 }
 
@@ -819,12 +820,12 @@ test_inv_perf(void)
 	for (i = 0; i < ITER; i++) {
 		long long start_cycles = 0LL, end_cycles = 0LL;
 
-		midinv_cycles = 0LL;
+		midinv_cycles[cos_cpuid()] = 0LL;
 		rdtscll(start_cycles);
 		call_cap_mb(ic, 1, 2, 3);
 		rdtscll(end_cycles);
-		total_inv_cycles += (midinv_cycles - start_cycles);
-		total_ret_cycles += (end_cycles - midinv_cycles);
+		total_inv_cycles += (midinv_cycles[cos_cpuid()] - start_cycles);
+		total_ret_cycles += (end_cycles - midinv_cycles[cos_cpuid()]);
 	}
 
 	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n", total_inv_cycles, (long long)(ITER),
@@ -887,14 +888,14 @@ block_vm(void)
 	tcap_time_t timeout, thd_timeout;
 	thdid_t tid;
 
-	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING | RCV_NON_BLOCKING, 0,
+	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING | RCV_NON_BLOCKING, 0,
 			     &rcvd, &tid, &blocked, &cycles, &thd_timeout) > 0)
 		;
 
 	rdtscll(now);
 	now += (1000 * cyc_per_usec);
 	timeout = tcap_cyc2time(now);
-	cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING, timeout, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
+	cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, timeout, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
 }
 
 /*

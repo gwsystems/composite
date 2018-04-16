@@ -14,6 +14,9 @@
 
 extern u8_t *boot_comp_pgd;
 
+void *thd_mem[NUM_CPU], *tcap_mem[NUM_CPU];
+struct captbl *glb_boot_ct;
+
 int
 boot_nptes(unsigned int sz)
 {
@@ -84,7 +87,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 
 /* FIXME:  loops to create threads/tcaps/rcv caps per core. */
 static void
-kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
+kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cpu_id)
 {
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	struct thread *            t        = thd_mem;
@@ -94,18 +97,20 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 	struct cap_pgtbl *         cap_pt;
 	pgtbl_t                    pgtbl;
 
+	assert(cpu_id >= 0);
+	assert(cos_info->cpuid == (u32_t)cpu_id);
 	assert(sizeof(struct cos_cpu_local_info) == STK_INFO_SZ);
 	memset(cos_info, 0, sizeof(struct cos_cpu_local_info));
-	cos_info->cpuid          = 0;
+	cos_info->cpuid          = cpu_id;
 	cos_info->invstk_top     = 0;
 	cos_info->overflow_check = 0xDEADBEEF;
-
-	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE, thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
+	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, captbl_thd_offset(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
 	assert(!ret);
 
 	tcap_active_init(cos_info);
-	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE, tcap_mem);
+	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, captbl_tcap_offset(cpu_id), tcap_mem);
 	assert(!ret);
+
 	tc->budget.cycles = TCAP_RES_INF; /* Chronos's got all the time in the world */
 	tc->perm_prio     = 0;
 	tcap_setprio(tc, 0);                              /* Chronos gets preempted by no one! */
@@ -118,8 +123,8 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 	thd_current_update(t, t, cos_info);
 	thd_scheduler_set(t, t);
 
-	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE, BOOT_CAPTBL_SELF_COMP,
-	                    BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 1);
+	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, captbl_arcv_offset(cpu_id), BOOT_CAPTBL_SELF_COMP,
+	                    captbl_thd_offset(cpu_id), captbl_tcap_offset(cpu_id), 0, 1);
 	assert(!ret);
 
 	/*
@@ -136,42 +141,50 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 }
 
 void
-kern_boot_comp(void)
+kern_boot_comp(const cpuid_t cpu_id)
 {
 	int            ret = 0, nkmemptes;
-	struct captbl *ct;
 	unsigned int   i;
 	u8_t *         boot_comp_captbl;
-	void *         thd_mem, *tcap_mem;
 	pgtbl_t        pgtbl     = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
 	u32_t          hw_bitmap = 0xFFFFFFFF;
+
+	assert(cpu_id >= 0);
+	if (NUM_CPU > 1 && cpu_id > 0) {
+		assert(glb_boot_ct);
+		pgtbl_update(pgtbl);
+		kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
+		return;
+	}
 
 	printk("Setting up the booter component.\n");
 
 	boot_comp_captbl = mem_boot_alloc(BOOT_CAPTBL_NPAGES);
 	assert(boot_comp_captbl);
-	ct = captbl_create(boot_comp_captbl);
-	assert(ct);
+	glb_boot_ct = captbl_create(boot_comp_captbl);
+	assert(glb_boot_ct);
 
 	/* expand the captbl to use multiple pages. */
 	for (i = PAGE_SIZE; i < BOOT_CAPTBL_NPAGES * PAGE_SIZE; i += PAGE_SIZE) {
 		captbl_init(boot_comp_captbl + i, 1);
-		ret = captbl_expand(ct, (i - PAGE_SIZE / 2) / CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + i);
+		ret = captbl_expand(glb_boot_ct, (i - PAGE_SIZE / 2) / CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + i);
 		assert(!ret);
 		captbl_init(boot_comp_captbl + PAGE_SIZE + PAGE_SIZE / 2, 1);
-		ret = captbl_expand(ct, i / CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + i + PAGE_SIZE / 2);
+		ret = captbl_expand(glb_boot_ct, i / CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + i + PAGE_SIZE / 2);
 		assert(!ret);
 	}
 
-	thd_mem  = mem_boot_alloc(1);
-	tcap_mem = mem_boot_alloc(1);
-	assert(thd_mem && tcap_mem);
+	for (i = 0; i < NUM_CPU; i++) {
+		thd_mem[i]  = mem_boot_alloc(1);
+		tcap_mem[i] = mem_boot_alloc(1);
+		assert(thd_mem[i] && tcap_mem[i]);
+	}
 
-	if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) assert(0);
-	if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) assert(0);
+	if (captbl_activate_boot(glb_boot_ct, BOOT_CAPTBL_SELF_CT)) assert(0);
+	if (sret_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) assert(0);
 
 	hw_asndcap_init();
-	if (hw_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITHW_BASE, hw_bitmap)) assert(0);
+	if (hw_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITHW_BASE, hw_bitmap)) assert(0);
 
 	/*
 	 * separate pgd for boot component virtual memory
@@ -180,10 +193,10 @@ kern_boot_comp(void)
 	assert(boot_vm_pgd);
 	memcpy((void *)boot_vm_pgd + KERNEL_PGD_REGION_OFFSET, (void *)(&boot_comp_pgd) + KERNEL_PGD_REGION_OFFSET,
 	       KERNEL_PGD_REGION_SIZE);
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (pgtbl_t)chal_va2pa(boot_vm_pgd), 0))
+	if (pgtbl_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (pgtbl_t)chal_va2pa(boot_vm_pgd), 0))
 		assert(0);
 
-	ret = boot_pgtbl_mappings_add(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(),
+	ret = boot_pgtbl_mappings_add(glb_boot_ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(),
 	                              (unsigned long)mem_bootc_vaddr(), mem_bootc_end() - mem_bootc_start(), 1);
 	assert(ret == 0);
 
@@ -194,9 +207,9 @@ kern_boot_comp(void)
 	 * Need to account for the pages that will be allocated as
 	 * PTEs
 	 */
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_UNTYPED_PT, pgtbl, 0)) assert(0);
+	if (pgtbl_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_UNTYPED_PT, pgtbl, 0)) assert(0);
 	nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
-	ret       = boot_pgtbl_mappings_add(ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
+	ret       = boot_pgtbl_mappings_add(glb_boot_ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
                                       mem_boot_nalloc_end(nkmemptes), BOOT_MEM_KM_BASE,
                                       mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
 	assert(ret == 0);
@@ -206,12 +219,12 @@ kern_boot_comp(void)
 	/* Shut off further bump allocations */
 	glb_memlayout.allocs_avail = 0;
 
-	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
+	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
 	                  (vaddr_t)mem_bootc_entry(), NULL))
 		assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
-	kern_boot_thd(ct, thd_mem, tcap_mem);
+	kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
 
 	printk("\tBoot component initialization complete.\n");
 }
@@ -223,8 +236,13 @@ kern_boot_upcall(void)
 	u32_t flags = 0;
 	void *p;
 
-	printk("Upcall into boot component at ip 0x%x\n", entry);
-	printk("------------------[ Kernel boot complete ]------------------\n");
+	assert(get_cpuid() >= 0);
+	printk("Upcall into boot component at ip 0x%x for cpu: %d with tid: %d\n", entry, get_cpuid(), thd_current(cos_cpu_local_info())->tid);
+	/* only print complete msg for BSP */
+	if (get_cpuid() == 0) {
+		printk("------------------[ Kernel boot complete ]------------------\n");
+	}
+
 	chal_user_upcall(entry, thd_current(cos_cpu_local_info())->tid, get_cpuid());
 	assert(0); /* should never get here! */
 }

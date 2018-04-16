@@ -33,6 +33,6 @@ struct tss {
 	u16_t bitmap;
 };
 
-extern struct tss tss;
+extern struct tss tss[NUM_CPU];
 
 #endif /* TSS_H */

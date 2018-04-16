@@ -18,6 +18,9 @@ struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED LARGE_BSS;
 u32_t boot_comp_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | X86_PRESENT | X86_WRITABLE | X86_SUPER,
                                                                [KERN_INIT_PGD_IDX] = 0 | X86_PRESENT | X86_WRITABLE
                                                                                      | X86_SUPER};
+u32_t boot_ap_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | X86_PRESENT | X86_WRITABLE | X86_SUPER,
+                                                               [KERN_INIT_PGD_IDX] = 0 | X86_PRESENT | X86_WRITABLE
+                                                                                     | X86_SUPER};
 
 void
 kern_retype_initial(void)
@@ -58,6 +61,7 @@ kern_setup_image(void)
 {
 	unsigned long i, j;
 	paddr_t       kern_pa_start, kern_pa_end;
+	int cpu_id = get_cpuid();
 
 	printk("\tSetting up initial page directory.\n");
 	kern_pa_start = round_to_pgd_page(chal_va2pa(mem_kern_start())); /* likely 0 */
@@ -72,6 +76,11 @@ kern_setup_image(void)
 		boot_comp_pgd[j]             = i | X86_PRESENT | X86_WRITABLE | X86_SUPER | X86_GLOBAL;
 		boot_comp_pgd[i / PGD_RANGE] = 0; /* unmap lower addresses */
 	}
+
+	#ifdef ENABLE_VGA
+		/* uses virtual address for VGA */
+		vga_high_init();
+	#endif
 
 	/* FIXME: Ugly hack to get the physical page with the ACPI RSDT mapped */
 	printk("ACPI initialization\n");
@@ -97,7 +106,12 @@ kern_setup_image(void)
 		lapic = lapic_find_localaddr(acpi_find_apic());
 		if (lapic) {
 			page             = round_up_to_pgd_page(lapic & 0xffffffff) - (1 << 22);
-			boot_comp_pgd[j] = page | X86_PRESENT | X86_WRITABLE | X86_SUPER | X86_GLOBAL;
+			/*
+			 * Intel specification:
+			 * For correct APIC operation, this address space must be mapped to an area of memory
+			 * that has been designated as strong uncacheable (UC).
+			 */
+			boot_comp_pgd[j] = page | X86_PRESENT | X86_WRITABLE | X86_SUPER | X86_GLOBAL | X86_NOCACHE;
 			lapic_set_page(j);
 			j++;
 		}

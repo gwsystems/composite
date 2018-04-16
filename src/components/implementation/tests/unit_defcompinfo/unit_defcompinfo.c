@@ -12,12 +12,6 @@
 #include <cos_debug.h>
 #include <cobj_format.h>
 
-#define SPIN()            \
-	do {              \
-		while (1) \
-			; \
-	} while (0)
-
 #define CHILD_COMP_COUNT 2
 #define CHILD_UNTYPED_SIZE (1 << 24)
 #define CHILD_SCHED_ID 0

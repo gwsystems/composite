@@ -40,6 +40,11 @@ __cos_noret(void)
 	while (1)
 		;
 }
+
+#ifndef SPIN
+#define SPIN() __cos_noret()
+#endif
+
 #define assert(node)                                  \
 	do {                                              \
 		if (unlikely(!(node))) {                      \

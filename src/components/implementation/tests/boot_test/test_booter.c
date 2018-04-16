@@ -1,15 +1,15 @@
 #include <cos_kernel_api.h>
 #include <llprint.h>
-#include <llbooter_inv.h>
-
-#include "boot_deps.h"
+#include <cos_types.h>
+#include <hypercall.h>
 
 void
 cos_init(void)
 {
-	prints("\n|*****************************|\n");
-	prints(" Wecome to test_boot component!\n");
-	prints("|*****************************|\n");
+	PRINTLOG(PRINT_DEBUG, "Dummy component booted.\n");
 
-	cos_hypervisor_hypercall(BOOT_HYP_INIT_DONE, 0, 0, 0);
+	hypercall_comp_init_done();
+
+	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
+	assert(0);
 }
