@@ -2,7 +2,10 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
+#include <cos_kernel_api.h>
+#include <cos_thd_init.h>
 #include <llprint.h>
+#include <sl.h>
 #include "../interface/capmgr/memmgr.h"
 
 #include <cfe_error.h>
@@ -12,25 +15,64 @@
 
 #include <cFE_emu.h>
 
+#define BASE_AEP_KEY 0xBEAFCAFE
+
 union shared_region *shared_region;
 spdid_t              spdid;
+cos_aepkey_t		 time_sync_key;
 
 // NOTE: This is tagged as currently unused in the docs
 CFE_SB_Qos_t				 CFE_SB_Default_Qos = { 0 };
-size_t CDS_sizes[CFE_ES_CDS_MAX_NUM_ENTRIES] = { 0 };
+size_t CDS_sizes[CFE_ES_CDS_MAX_NUM_ENTRIES];
+
+int sync_callbacks_are_setup = 0;
+CFE_TIME_SynchCallbackPtr_t sync_callbacks[CFE_TIME_MAX_NUM_SYNCH_FUNCS];
 
 void
 do_emulation_setup(spdid_t id)
 {
 	spdid = id;
 
-	int region_id = emu_backend_request_memory(id);
+	int region_id = emu_request_memory(id);
 
 	vaddr_t client_addr = 0;
 	memmgr_shared_page_map(region_id, &client_addr);
 	assert(client_addr);
 	shared_region = (void *)client_addr;
+
+	time_sync_key = BASE_AEP_KEY + id;
 }
+
+void
+handle_sync_callbacks(arcvcap_t rcv, void *data)
+{
+	while (1) {
+		int pending = cos_rcv(rcv, 0, NULL);
+		if (pending) {
+			int i;
+			for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++) {
+				if (sync_callbacks[i]){
+					sync_callbacks[i]();
+				}
+			}
+		}
+	}
+}
+
+void
+ensure_sync_callbacks_are_setup()
+{
+	if (!sync_callbacks_are_setup)
+	{
+		thdclosure_index_t idx = cos_thd_init_alloc(handle_sync_callbacks, NULL);
+		emu_create_aep_thread(spdid, idx, time_sync_key);
+
+		int32 result = emu_CFE_TIME_RegisterSynchCallback(time_sync_key);
+		assert(result == CFE_SUCCESS);
+		sync_callbacks_are_setup = 1;
+	}
+}
+
 
 // FIXME: Be more careful about user supplied pointers
 // FIXME: Take a lock in each function, so shared memory can't be corrupted
@@ -405,6 +447,36 @@ CFE_TIME_Print(char *PrintBuffer, CFE_TIME_SysTime_t TimeToPrint)
 	shared_region->cfe_time_print.TimeToPrint = TimeToPrint;
 	emu_CFE_TIME_Print(spdid);
 	memcpy(PrintBuffer, shared_region->cfe_time_print.PrintBuffer, CFE_TIME_PRINTED_STRING_SIZE);
+}
+
+int32
+CFE_TIME_RegisterSynchCallback(CFE_TIME_SynchCallbackPtr_t CallbackFuncPtr)
+{
+	ensure_sync_callbacks_are_setup();
+
+	int i;
+	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++)
+	{
+		if (!sync_callbacks[i]) {
+			sync_callbacks[i] = CallbackFuncPtr;
+			return CFE_SUCCESS;
+		}
+	}
+	return CFE_TIME_TOO_MANY_SYNCH_CALLBACKS;
+}
+
+int32
+CFE_TIME_UnregisterSynchCallback(CFE_TIME_SynchCallbackPtr_t CallbackFuncPtr)
+{
+	int i;
+	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++)
+	{
+		if (sync_callbacks[i] == CallbackFuncPtr) {
+			sync_callbacks[i] = NULL;
+			return CFE_SUCCESS;
+		}
+	}
+	return CFE_TIME_CALLBACK_NOT_REGISTERED;
 }
 
 int32

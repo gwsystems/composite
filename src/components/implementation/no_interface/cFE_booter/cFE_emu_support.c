@@ -2,8 +2,11 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
+#include <cos_kernel_api.h>
 #include <cos_types.h>
+#include <sl.h>
 
+#include <capmgr.h>
 #include <memmgr.h>
 
 #include <cFE_emu.h>
@@ -12,8 +15,24 @@
 
 union shared_region *shared_regions[16];
 
+int have_registered_sync_callback = 0;
+asndcap_t sync_callback_delegates[CFE_TIME_MAX_NUM_SYNCH_FUNCS];
+
+int32
+sync_callback_handler()
+{
+	int i;
+	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++) {
+		asndcap_t callback = sync_callback_delegates[i];
+		if (callback) {
+			cos_asnd(callback, 1);
+		}
+	}
+	return CFE_SUCCESS;
+}
+
 int
-emu_backend_request_memory(spdid_t client)
+emu_request_memory(spdid_t client)
 {
 	vaddr_t our_addr = 0;
 	int     id       = memmgr_shared_page_alloc(&our_addr);
@@ -21,8 +40,25 @@ emu_backend_request_memory(spdid_t client)
 	assert(our_addr);
 	shared_regions[client] = (void *)our_addr;
 
+	// FIXME: This is broken if applications can stop (because then the handler could get auto-deregistered)
+	if (!have_registered_sync_callback){
+		CFE_TIME_RegisterSynchCallback(sync_callback_handler);
+		have_registered_sync_callback = 1;
+	}
+
 	return id;
 }
+
+
+void
+emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key)
+{
+	struct cos_defcompinfo child_dci;
+	cos_defcompinfo_childid_init(&child_dci, client);
+
+	sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 1, 0, key, NULL);
+}
+
 
 int32
 emu_CFE_ES_CalculateCRC(spdid_t client)
@@ -150,7 +186,6 @@ emu_CFE_EVS_SendEvent(spdid_t client)
 	                         s->cfe_evs_sendEvent.Msg);
 }
 
-
 uint16
 emu_CFE_SB_GetCmdCode(spdid_t client)
 {
@@ -268,6 +303,20 @@ emu_CFE_TIME_Print(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
 	CFE_TIME_Print(s->cfe_time_print.PrintBuffer, s->cfe_time_print.TimeToPrint);
+}
+
+int32
+emu_CFE_TIME_RegisterSynchCallback(cos_aepkey_t key)
+{
+	int i;
+	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++)
+	{
+		if (!sync_callback_delegates[i]) {
+			sync_callback_delegates[i] = capmgr_asnd_key_create(key);
+			return CFE_SUCCESS;
+		}
+	}
+	return CFE_TIME_TOO_MANY_SYNCH_CALLBACKS;
 }
 
 int32

@@ -47,7 +47,8 @@ cos_asm_server_stub(OS_lseek)
 cos_asm_server_stub(OS_rewinddir)
 
 // Emulated methods
-cos_asm_server_stub(emu_backend_request_memory)
+cos_asm_server_stub(emu_request_memory)
+cos_asm_server_stub(emu_create_aep_thread)
 
 cos_asm_server_stub(emu_CFE_ES_CalculateCRC)
 cos_asm_server_stub(emu_CFE_ES_CopyToCDS)
@@ -85,6 +86,7 @@ cos_asm_server_stub(emu_CFE_TIME_Add)
 cos_asm_server_stub(emu_CFE_TIME_Compare)
 cos_asm_server_stub(emu_CFE_TIME_GetTime)
 cos_asm_server_stub(emu_CFE_TIME_Print)
+cos_asm_server_stub(emu_CFE_TIME_RegisterSynchCallback)
 
 cos_asm_server_stub(emu_OS_cp)
 cos_asm_server_stub(emu_OS_creat)
