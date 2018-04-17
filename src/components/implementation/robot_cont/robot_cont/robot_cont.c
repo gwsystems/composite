@@ -44,21 +44,62 @@ create_movement(int xf, int yf) {
 	int xchange = xf - rpos.x;
 	int i;
 	cycles_t wakeup, now;
-	
+	int exp_roomba_location;
+
 	/* roomba scripts can be 100 bytes long */
 	/* copy generated script into shared memory for the udpserver, and notify it of an update */
 
-	unsigned char script[100] = { 152, 91,
-                    137, 1, 44, 0, 1, 157, 0, 88, 137, 0, 0, 0, 0,
-                    137, 1, 44, 128, 0, 156, 1, 144, 137, 0, 0, 0, 0,
-                    137, 1, 44, 0, 1, 157, 0, 85, 137, 0, 0, 0, 0,
-                    137, 1, 44, 128, 0, 156, 3, 32, 137, 0, 0, 0, 0,
-                    137, 1, 44, 128, 0, 156, 3, 32, 137, 0, 0, 0, 0,
-                    137, 1, 44, 0, 1, 157, 0, 85, 137, 0, 0, 0, 0,
-                    137, 1, 44, 128, 0, 156, 1, 144, 137, 0, 0, 0, 0, SCRIPT_END, 0,0,0,0,0,0
-                  };	
+	/* Forward 1 small block */
+	char straight [8] = {137, 1, 44, 128, 0, 156, 1, 144};
+	/* Forward 1 large block */
+	char straight_l [8] = {137, 1, 44, 128, 0, 156, 3, 232};
+	/* Clockwise 90 degrees */
+	char east [8] = {137, 1, 44, 255, 255, 157, 255, 166};
+	/* Counter clockwise 180 degrees */
+	char east_180 [8] = {137, 1, 44, 0, 1, 157, 0, 180};
+	/* 90 counter clock */
+	char east_90 [8] = {137, 1, 44, 0, 1, 157, 0, 90};
 
+	unsigned char script[100] = {152, 29, 137, 0, 200, 0,   1, 157, 0, 90,  // Left turn 90
+					      137, 0, 200, 128, 0, 156, 1, 144, // Forward one block
+					      137, 1, 44, 0,   1, 157, 0, 90,  // Left turn 90
+//					      137, 1, 44, 128, 0, 156, 3, 232, // Forward 1 EW block
+//					      137, 1, 44, 128, 0, 156, 1, 144, // Forward 1 NS block
+//					      137, 1, 44, 0,   1, 157, 0, 90,  // Left turn 90
+//					      137, 1, 44, 128, 0, 156, 1, 144, // Forward one block
+					      137, 0, 0,  0,   0, 153, SCRIPT_END};
 
+	/* TODO: Insert logic for determination */
+	exp_roomba_location = 3;
+
+#ifdef DEMO1
+	printc("Demo1:\n");
+	
+	/* Verify Script with Camera component */
+	udpserv_script(REQ_JPEG, 4);
+
+	int ret = check_location_image(0, 0);
+	while (!ret) {
+		printc("loading image data\n");
+		rdtscll(now);
+		wakeup = now + (10000 * 1000 * cycs_per_usec);
+		sched_thd_block_timeout(0, wakeup);
+		
+		ret = check_location_image(0, 0);
+	}
+
+	if (ret != 7 && ret != 8) printc("Image Checks out, send script\n");
+
+	printc("shmem: %p \n", (char *) shmem_addr);
+	memcpy((unsigned char *)shmem_addr, script, 100);	
+	udpserv_script(SEND_SCRIPT, 8);
+	
+#elif DEMO2
+	printc("Demo2:\n");
+	printc("shmem: %p \n", (char *) shmem_addr);
+	memcpy((unsigned char *)shmem_addr, script, 100);	
+	udpserv_script(SEND_SCRIPT, 8);
+	
 	/* Verify Script with Camera component */
 	udpserv_script(REQ_JPEG, 4);
 	int ret = check_location_image(0, 0);
@@ -72,10 +113,14 @@ create_movement(int xf, int yf) {
 	}
 	printc("Image Checks out, send script\n");
 
-	printc("shmem: %p \n", (char *) shmem_addr);
-	memcpy((unsigned char *)shmem_addr, script, 100);	
-	udpserv_script(SEND_SCRIPT, 8);
-	
+	if (ret != exp_roomba_location) {
+		printc("ROOMBA COMPROMISED, ABORT: %d\n", ret);
+		printc("shmem: %p \n", (char *) shmem_addr);
+		memcpy((unsigned char *)shmem_addr, script, 100);	
+		udpserv_script(SEND_SHUTDOWN, 8);
+	}
+#endif
+
 	rpos.x = xf;
 	rpos.y = yf;	
 	

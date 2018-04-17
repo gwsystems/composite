@@ -51,6 +51,8 @@ int track9[9] = {0,0,0,0,0,0,0,0,0};
 int obstacles[9] = {0,0,0,0,0,0,0,0,0};
 int orange = 0;
 
+int roomba_location = -1;
+
 extern const char _binary_greenroomba_jpg_start;
 extern int _binary_greenroomba_jpg_size;
 
@@ -107,7 +109,7 @@ check_obstacles(int *triple, int x, int y)
 	255-140-0 dark orange
 	*/
 	if(triple[0] > 240 && triple[1] >130 && triple[1] < 180 && triple[2] < 50) {
-		obstacles[check_section(x,y)] = 1;
+		obstacles[check_section(x,y)-1] = 1;
 	}
 	else {
 	  	map[x][y] = 0;
@@ -115,6 +117,24 @@ check_obstacles(int *triple, int x, int y)
 	return 0;
 }
 
+int 
+locate_roomba(void) 
+{
+	printc("locate roomba\n");
+	
+	orange = 1;
+	read_jpeg_file();
+	int i;
+	orange = 0;
+	for(i = 0; i < 9; i++) {
+		if(obstacles[i]) {
+			printc("Roomba Found!: %d \n", i);
+			roomba_location = i;
+		       	return i;
+		}
+	}
+	return -1; //obstacles;
+}
 
 int 
 ret_obstacles() 
@@ -127,7 +147,10 @@ ret_obstacles()
 	int i;
 	orange = 0;
 	for(i = 0; i < 9; i++) {
-		if(obstacles[i]) return i;
+		if(obstacles[i]) {
+			printc("obstacle found: %d \n", i);
+		       	return i;
+		}
 	}
 	return -1; //obstacles;
 }
@@ -197,18 +220,6 @@ int det_orient() { //determine_orientation
 	  }
 	}
 	return -1; 
-}
-
-int
-det_location_9(int x, int y) {
-
-	read_jpeg_file();
-	int i;
-	for(i = 0 ; i< 9; i++) {
-	  if(track9[i]) printc("Section %d\n", i);
-	}
-	printc("%d\n", det_orient());
-	return 0;
 }
 
 int
@@ -295,7 +306,7 @@ check_location_image(int x, int y) {
 		return 0;
 	}
 
-	return 1;
+	return roomba_location;
 }
 
 void
@@ -316,8 +327,12 @@ camera_image_available(arcvcap_t rcv, void * data)
 		printc("camera image available\n");
 		jpeg_data_start = (char *)shdmem_addr;
 		printc("jpeg_data_start: %p \n", jpeg_data_start);
-		//det_location_9(0, 0);
-		ret_obstacles();
+		/* Demo 1 */
+		//ret_obstacles();
+
+		/* Demo 2 */
+		locate_roomba();
+
 		image_available = 1;	
 		
 	}

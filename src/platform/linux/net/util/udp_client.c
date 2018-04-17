@@ -23,7 +23,6 @@ int rcv = 0;
 unsigned char *rcv_msg;
 int script[100];
 
-#define MSG_SZ 31
 #define JPEG_REQ 77
 #define SEND_SCRIPT 80
 
@@ -75,33 +74,20 @@ char *
 build_script() 
 {
         int i;
-       // unsigned char script[100] = {152, 28, 137, 1, 44, 0, 180, 137, 1, 44, 128, 0, 156, 1, 144, 137, 1, 44, 0, 1, 157, 0, 90, 137, 1, 44, 128, 156, 3, 232, 153};
 
-        char *buf = (char*) malloc(200*sizeof(char));
+        char * sbuf = (char*) malloc(800*sizeof(char));
         char * pre = "echo -n '";
-        char* post = "' | nc -4u -w1 192.168.137.51 2390";
-        memcpy(buf, pre, 9);
+        char * post = "' | nc -4u -w1 192.168.248.103 2390";
+	static int count = 0;
+        memcpy(sbuf, pre, 9);
         for(i = 0; i < script[1]+3; i++) {
-                snprintf(&buf[strlen(buf)], 20*sizeof(char), "%d \0", script[i]);
+                snprintf(&sbuf[strlen(sbuf)], 20*sizeof(char), "%d ", script[i]);
+		count += 20;
         }
-        snprintf(&buf[strlen(buf)], 400*sizeof(char), "%s", post);
+        snprintf(&sbuf[strlen(sbuf)], 400*sizeof(char), "%s", post);
 
-        return buf;
+        return sbuf;
 }
-
-//void
-//create_wifi_str(void )
-//{
-//
-//	char str[80];
-//	char *new = "4";
-//	strcpy(str, "echo -n '");
-//	strcat(str, new);
-//	strcat(str, "' | nc -4u -w1 192.168.137.51 2390");
-//	
-//	/*length 44?*/
-//	printf("str: %s \n", str);
-//}
 
 void
 req_jpeg(void)
@@ -112,9 +98,17 @@ req_jpeg(void)
 int 
 send_script() 
 {
-        char* post;
-        
-	post = build_script();
+    	char * post = build_script();	
+    	printf("post: %s \n", post);
+
+        system(post);
+        return 0;
+}
+
+int 
+send_shutdown() 
+{
+        char* post = "echo -n 'stop' | nc -4u -w1 192.168.248.103 2390";
 	printf("post: %s \n", post);
         system(post);
         
@@ -165,12 +159,17 @@ read_jpeg(void)
 
 	printf("jpeg size: %lu \n", jpg_s);
 	rewind(fp);
-
+	printf("after rewind\n");
 	buf = (char *)malloc(sizeof(char)*(jpg_s));
+	printf("after malloc?\n");
+	assert(buf);
 
+
+	printf("jpeg size: %lu \n", jpg_s);
 	fread(buf, jpg_s, sizeof(unsigned char), fp);
 
 	fclose(fp);
+	printf("jpeg read\n");
 }
 
 int foo = 0;
@@ -184,7 +183,7 @@ main(int argc, char *argv[])
 	char *msg;
 	int sleep_val;
 
-	req_jpeg();
+	//send_script();
 	if (argc != 5 && argc != 6) {
 		printf("Usage: %s <ip> <port> <msg size> <sleep_val> <opt:rcv_port>\n", argv[0]);
 		return -1;
@@ -251,7 +250,8 @@ main(int argc, char *argv[])
 		if (((unsigned char *)rcv_msg)[0] == JPEG_REQ) {
 			printf("Server requested an image\n");	
 			req_jpeg();
-
+			read_jpeg();
+			printf("sending jpeg\n");
 			((unsigned int *)msg)[0] = 79;			
 			if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
 			    errno != EINTR) {
@@ -292,19 +292,18 @@ main(int argc, char *argv[])
 			}
 		
 			printf("jpg_size: %lu  sent: %lu  \n", jpg_s, sent);	
-			
-			for (i=0 ; i < sleep_val ; i++) {
-				if (argc == 6) {
-					do_recv_proc(fdr, msg_size);
-				}
-				foo++;
-			}
+			//free(buf);
+		//	for (i=0 ; i < sleep_val ; i++) {
+		//		if (argc == 6) {
+		//			do_recv_proc(fdr, msg_size);
+		//		}
+		//		foo++;
+		//	}
 
 			//break;
 		}
-		
+		else if (((unsigned char *)rcv_msg)[0] == SEND_SCRIPT) {
 		/* Server is going to send a script */
-		if (((unsigned char *)rcv_msg)[0] == SEND_SCRIPT) {
 			int j;
 			printf("Recvd script\n");
 			for (j = 0; j < 100 ; j ++) {
@@ -312,6 +311,11 @@ main(int argc, char *argv[])
 				script[j] = ((unsigned char *)rcv_msg)[j+1];
 			}
 			send_script();
+		} else if (((unsigned char *)rcv_msg)[0] == 81) {
+			/* Shut Roomba Down */
+			int j;
+			printf("Recvd SHUT DOWN COMMAND\n");
+			send_shutdown();
 		}
 	
 	}

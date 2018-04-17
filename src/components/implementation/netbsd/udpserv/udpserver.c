@@ -17,7 +17,7 @@
 
 #define IN_PORT  9998
 #define OUT_PORT 9999
-#define MSG_SZ   1024
+#define MSG_SZ   4000
 #define TP_INFO_MS (unsigned long long)(10*1000) //5secs
 #define HPET_REQ_US (100*1000) //100ms
 #define HPET_REQ_BUDGET_US (500) //0.5ms
@@ -33,6 +33,7 @@ struct sockaddr_in soutput, sinput;
 int recv_jpeg = 0;
 int send_jpeg = 0;
 int send_script = 0;
+int send_shutdown = 0;
 
 int shdmem_id;
 vaddr_t shdmem_addr;
@@ -66,8 +67,15 @@ udpserv_script(int shdmemid, int test)
 		return 0;
 	}
 
-	if (test == SEND_SCRIPT) printc("SENDING SCRIPT\n");
-	send_script = 1;
+	if (test == SEND_SCRIPT) {
+		printc("SENDING SCRIPT\n");
+		send_script = 1;
+	}
+	
+	if (test == SEND_SHUTDOWN) {
+		printc("SENDING SHUTDOWN\n");
+		send_shutdown = 1;
+	}
 
 	int i = 0;
 	unsigned char * shm_ptr = (unsigned char *)shdmem_addr;
@@ -127,12 +135,14 @@ store_jpeg(void)
 {
 	//static char * addr = (char *)shdmem_addr;
 	static int stored = 0;
-	
+	static int count = 0;
+
 	memcpy((char *)camera_shdmem_addr + stored, __msg, MSG_SZ);
 	stored += MSG_SZ;
-	
+
+	count++;	
 	if (stored > JPG_SZ) {
-		printc("stored\n");
+		printc("stored in: %d \n", count);
 		recv_jpeg = 0;
 
 		cos_asnd(image_ready_asnd, IMAGE_AEP_KEY);
@@ -198,14 +208,22 @@ udp_server_start(void)
 			recv_jpeg = 1;
 		}
 
-		if (send_jpeg == 1) {
+		if (send_jpeg) {
 			((unsigned int *)__msg)[0] = REQ_JPEG;
 		}
 		
-		if (send_script == 1) {
+		if (send_script) {
+			printc("UDP: Sending script\n");
 			((unsigned int *)__msg)[0] = SEND_SCRIPT;
 			update_script();
 			send_script = 0;
+		}
+		
+		if (send_shutdown) {
+			printc("UDP: Sending shutdown\n");
+			((unsigned int *)__msg)[0] = SEND_SHUTDOWN;
+			update_script();
+			send_shutdown = 0;
 		}
 
 		/* Reply to the sender */
