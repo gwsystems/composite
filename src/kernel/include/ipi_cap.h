@@ -17,7 +17,7 @@
  * Ring size should be power of 2
  * We have N*N rings (N= # of cpus).
  */
-#define IPI_RING_SIZE (16)
+#define IPI_RING_SIZE (64)
 #define IPI_RING_MASK (IPI_RING_SIZE - 1);
 
 struct ipi_cap_data {
@@ -66,32 +66,27 @@ cos_ipi_ring_dequeue(struct xcore_ring *ring, struct ipi_cap_data *ret)
 	return 1;
 }
 
-static inline void
-handle_ipi_arcv(struct ipi_cap_data *data)
+static inline struct cap_arcv *
+get_ipi_arcv(struct ipi_cap_data *data)
 {
 	struct comp_info *ci = &data->comp_info;
-	struct cap_arcv * arcv;
+	struct cap_arcv  *arcv;
 	/* FIXME: check epoch and liveness! */
 
 	assert(ci->captbl);
 	arcv = (struct cap_arcv *)captbl_lkup(ci->captbl, data->arcv_capid);
 	if (unlikely(arcv->h.type != CAP_ARCV)) {
 		printk("cos: IPI handling received invalid arcv cap %d\n", (int)data->arcv_capid);
-		return;
+		return 0;
 	}
-
 	/* Activate the associated thread. */
-	chal_attempt_arcv(arcv);
+	return arcv;
 }
 
 static inline void
 process_ring(struct xcore_ring *ring)
 {
-	struct ipi_cap_data data;
-
-	while ((cos_ipi_ring_dequeue(ring, &data)) != 0) {
-		handle_ipi_arcv(&data);
-	}
+	return;
 }
 
 static inline int

@@ -41,8 +41,10 @@ chal_attempt_arcv(struct cap_arcv *arcv)
 }
 
 void
-chal_send_ipi(int cpuid)
+chal_send_ipi(int cpu_id)
 {
+	lapic_asnd_ipi_send(cpu_id);
+	return;
 }
 
 void
