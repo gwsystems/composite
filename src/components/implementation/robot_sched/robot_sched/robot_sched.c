@@ -12,7 +12,7 @@ assign_task(unsigned long token, int x, int y) {
 	printc("Assign task in robot sched\n");
 	printc("Car_mgr %d requested task: (%d,%d)  \n", token, x, y); 
 
-	send_task(x, y);
+	send_task(token, x, y);
 
 	return 1;
 }
