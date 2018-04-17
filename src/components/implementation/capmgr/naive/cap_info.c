@@ -111,9 +111,9 @@ cap_comminfo_init(struct sl_thd *t, microsec_t ipi_window, u32_t ipi_max)
 	rdtscll(now);
 	cmi->rcvcap              = sl_thd_rcvcap(t);
 	cmi->rcvcpuid            = cos_cpuid();
-	cmi->ipiwin              = ipi_window ? sl_usec2cyc(ipi_window) : sl_usec2cyc(CAPMGR_IPIWIN_DEFAULT_US);
+	cmi->ipiwin              = sl_usec2cyc(ipi_window);
 	cmi->ipiwin_start        = now;
-	cmi->ipimax              = ipi_max ? ipi_max : CAPMGR_IPIMAX_DEFAULT;
+	cmi->ipimax              = ipi_max;
 	cmi->sndcap[cos_cpuid()] = sl_thd_asndcap(t);
 
 	return cmi;

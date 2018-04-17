@@ -19,7 +19,7 @@ capmgr_thd_create_cserialized(thdid_t *tid, int *unused, thdclosure_index_t idx)
 	if (!cap_info_is_sched(cur)) return 0;
 	if (idx <= 0) return 0;
 
-	t = sl_thd_aep_alloc_ext(cap_info_dci(r), NULL, idx, 0, 0, 0, NULL);
+	t = sl_thd_aep_alloc_ext(cap_info_dci(r), NULL, idx, 0, 0, 0, 0, 0, NULL);
 	if (!t) return 0;
 	thdcap = cos_cap_cpy(cap_info_ci(r), cap_ci, CAP_THD, sl_thd_thdcap(t));
 	if (!thdcap) goto err;
@@ -51,7 +51,7 @@ capmgr_thd_create_ext_cserialized(thdid_t *tid, int *unused, spdid_t s, thdclosu
 	if (cap_info_is_sched(s)) return 0;
 	if (idx <= 0) return 0;
 
-	t = sl_thd_aep_alloc_ext(cap_info_dci(rs), NULL, idx, 0, 0, 0, NULL);
+	t = sl_thd_aep_alloc_ext(cap_info_dci(rs), NULL, idx, 0, 0, 0, 0, 0, NULL);
 	if (!t) return 0;
 	thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
 	if (!thdcap) goto err;
@@ -84,7 +84,7 @@ capmgr_initthd_create_cserialized(thdid_t *tid, int *unused, spdid_t s)
 	if (!cap_info_is_sched(cur) || !cap_info_is_child(rc, s)) return 0;
 	if (cap_info_is_sched(s)) return 0;
 
-	t = sl_thd_initaep_alloc(cap_info_dci(rs), NULL, 0, 0, 0);
+	t = sl_thd_initaep_alloc(cap_info_dci(rs), NULL, 0, 0, 0, 0, 0);
 	if (!t) return 0;
 	/* child is not a scheduler, don't copy into child */
 	/* parent only needs the thdcap */
@@ -104,15 +104,19 @@ err:
 }
 
 thdcap_t
-capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, int owntc, cos_channelkey_t key)
+capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, u32_t spdid_owntc, u32_t key_ipimax, u32_t ipiwin32b)
 {
-	spdid_t                 cur     = cos_inv_token();
+	spdid_t                 cur     = cos_inv_token(), s = (spdid_owntc << 16) >> 16;
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
 	struct sl_thd          *t       = NULL, *rinit = NULL;
 	thdcap_t                thdcap  = 0;
+	int                     owntc   = (spdid_owntc << 16) >> 16;
+	cos_channelkey_t        key     = key_ipimax >> 16;
+	u32_t                   ipimax  = (key_ipimax << 16) >> 16;
+	microsec_t              ipiwin  = (microsec_t)ipiwin32b;
 	int                     ret;
 	tcap_t                  tc;
 	arcvcap_t               rcv;
@@ -126,7 +130,7 @@ capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, 
 
 	rinit = cap_info_initthd(rc);
 	if (!rinit) return 0;
-	t = sl_thd_initaep_alloc(cap_info_dci(rs), rinit, 1, owntc, 0);
+	t = sl_thd_initaep_alloc(cap_info_dci(rs), rinit, 1, owntc, 0, 0, 0);
 	if (!t) return 0;
 	/* child is a scheduler.. copy initcaps */
 	ret = cos_cap_cpy_at(cap_info_ci(rs), BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, cap_ci, sl_thd_thdcap(t));
@@ -152,7 +156,7 @@ capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, 
 	snd = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, sl_thd_asndcap(t));
 	if (!snd) goto err;
 
-	cap_comminfo_init(t, 0, 0);
+	cap_comminfo_init(t, ipiwin, ipimax);
 	cap_info_thd_init(rc, t, key);
 	cap_info_initthd_init(rs, t, 0);
 	cap_info_cpu_local(rs)->p_initthdcap = thdcap = ret;
@@ -168,17 +172,21 @@ err:
 }
 
 thdcap_t
-capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, thdclosure_index_t tidx, u32_t owntc_chkey)
+capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, u32_t owntc_spdid_thdidx, u32_t chkey_ipimax, u32_t ipiwin32b)
 {
 	spdid_t                 cur     = cos_inv_token();
+	spdid_t                 s       = (owntc_spdid_thdidx << 1) >> 17;
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
+	thdclosure_index_t      tidx    = (owntc_spdid_thdidx << 16) >> 16;
+	int                     owntc   = (owntc_spdid_thdidx >> 30);
 	struct sl_thd          *t       = NULL, *rinit = NULL;
 	thdcap_t                thdcap  = 0;
-	int                     owntc   = (int)(owntc_chkey >> 16);
-	cos_channelkey_t        key     = (cos_channelkey_t)((owntc_chkey << 16) >> 16);
+	cos_channelkey_t        key     = chkey_ipimax >> 16;
+	u32_t                   ipimax  = (chkey_ipimax << 16) >> 16;
+	microsec_t              ipiwin  = (microsec_t)ipiwin32b;
 	arcvcap_t               srcrcv, dstrcv;
 	tcap_t                  tc;
 	int                     ret;
@@ -191,7 +199,7 @@ capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s,
 	rinit = cap_info_initthd(rc);
 	if (!rinit) return 0;
 
-	t = sl_thd_aep_alloc_ext(cap_info_dci(rs), rinit, tidx, 1, owntc, 0, &srcrcv);
+	t = sl_thd_aep_alloc_ext(cap_info_dci(rs), rinit, tidx, 1, owntc, 0, 0, 0, &srcrcv);
 	if (!t) return 0;
 	/* cur is a scheduler, copy thdcap */
 	ret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
@@ -221,7 +229,7 @@ capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s,
 		*rcvtcret = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;
 	}
 
-	cap_comminfo_init(t, 0, 0);
+	cap_comminfo_init(t, ipiwin, ipimax);
 	cap_info_thd_init(rc, t, key);
 	cap_info_thd_init(rs, t, 0);
 	*drcvtidret = (dstrcv << 16 | sl_thd_thdid(t));
@@ -235,12 +243,17 @@ err:
 }
 
 thdcap_t
-capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t tidx, int owntc, cos_channelkey_t key)
+capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, u32_t owntc_tidx, u32_t key_ipimax, u32_t ipiwin32b)
 {
 	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
+	thdclosure_index_t      tidx    = (owntc_tidx << 16) >> 16;
+	int                     owntc   = owntc_tidx >> 16;
+	cos_channelkey_t        key     = key_ipimax >> 16;
+	u32_t                   ipimax  = (key_ipimax << 16) >> 16;
+	microsec_t              ipiwin  = (microsec_t)ipiwin32b;
 	struct sl_thd          *t       = NULL, *rinit = NULL;
 	thdcap_t                thdcap  = 0;
 	arcvcap_t               rcv;
@@ -254,7 +267,7 @@ capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t 
 	rinit = cap_info_initthd(rc);
 	if (!rinit) return 0;
 
-	t = sl_thd_aep_alloc_ext(cap_info_dci(rc), rinit, tidx, 1, owntc, 0, &rcv);
+	t = sl_thd_aep_alloc_ext(cap_info_dci(rc), rinit, tidx, 1, owntc, 0, 0, 0, &rcv);
 	if (!t) return 0;
 	/* current is a sched, so copy */
 	ret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
@@ -271,7 +284,7 @@ capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t 
 		tc = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;
 	}
 
-	cap_comminfo_init(t, 0, 0);
+	cap_comminfo_init(t, ipiwin, ipimax);
 	cap_info_thd_init(rc, t, key);
 	*tcrcvret = (tc << 16 | rcv);
 	*tid      = sl_thd_thdid(t);

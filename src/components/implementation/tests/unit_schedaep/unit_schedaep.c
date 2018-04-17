@@ -60,11 +60,11 @@ test_aeps(void)
 	int ret;
 	int i = 0;
 
-	tidp = sched_aep_create(&taeps[cos_cpuid()][i], __test_parent, (void *)i, 0, PARENT_AEPKEY);
+	tidp = sched_aep_create(&taeps[cos_cpuid()][i], __test_parent, (void *)i, 0, PARENT_AEPKEY, 0, 0);
 	assert(tidp);
 
 	i ++;
-	tidc = sched_aep_create(&taeps[cos_cpuid()][i], __test_child, (void *)i, 0, CHILD_AEPKEY);
+	tidc = sched_aep_create(&taeps[cos_cpuid()][i], __test_child, (void *)i, 0, CHILD_AEPKEY, 0, 0);
 	assert(tidc);
 
 	__childasnd[cos_cpuid()] = capmgr_asnd_create(cos_spd_id(), tidc);

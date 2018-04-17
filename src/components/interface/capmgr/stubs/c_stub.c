@@ -4,11 +4,11 @@
 #include <cos_defkernel_api.h>
 
 thdcap_t capmgr_initthd_create_cserialized(thdid_t *tid, int *unused, spdid_t s);
-thdcap_t capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, int owntc, cos_channelkey_t key);
+thdcap_t capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, u32_t spdid_owntc, u32_t key_ipimax, u32_t ipiwin32b);
 thdcap_t capmgr_thd_create_cserialized(thdid_t *tid, int *unused, thdclosure_index_t idx);
-thdcap_t capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t idx, int owntc, cos_channelkey_t key);
+thdcap_t capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, u32_t spdid_owntc_thdidx, u32_t chkey_ipimax, u32_t ipiwin32b);
 thdcap_t capmgr_thd_create_ext_cserialized(thdid_t *tid, int *unused, spdid_t s, thdclosure_index_t idx);
-thdcap_t capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, thdclosure_index_t idx, u32_t owntc_aepkey);
+thdcap_t capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, u32_t owntc_tidx, u32_t key_ipimax, u32_t ipiwin32b);
 thdcap_t capmgr_thd_retrieve_next_cserialized(thdid_t *tid, int *unused, spdid_t s);
 thdcap_t capmgr_thd_retrieve_cserialized(thdid_t *inittid, int *unused, spdid_t s, thdid_t tid);
 
@@ -56,7 +56,7 @@ capmgr_thd_create_ext(spdid_t child, thdclosure_index_t idx, thdid_t *tid)
 }
 
 thdcap_t
-capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc, cos_channelkey_t key)
+capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
 {
 	u32_t tcrcvret = 0;
 	thdcap_t thd = 0;
@@ -64,10 +64,13 @@ capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int 
 	tcap_t tc = 0;
 	thdid_t tid = 0;
 	thdclosure_index_t idx = cos_thd_init_alloc(cos_aepthd_fn, (void *)aep);
+	u32_t owntc_idx = (owntc << 16) | idx;
+	u32_t key_ipimax = (key << 16) | ((ipimax << 16) >> 16);
+	u32_t ipiwin32b = (u32_t)ipiwin;
 
 	if (idx < 1) return 0;
 
-	thd = capmgr_aep_create_cserialized(&tid, &tcrcvret, idx, owntc, key);
+	thd = capmgr_aep_create_cserialized(&tid, &tcrcvret, owntc_idx, key_ipimax, ipiwin32b);
 	if (!thd) return 0;
 
 	aep->fn   = fn;
@@ -81,15 +84,17 @@ capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int 
 }
 
 thdcap_t
-capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, arcvcap_t *extrcv)
+capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
 {
 	u32_t drcvtidret = 0;
 	u32_t tcrcvret = 0;
 	thdid_t tid = 0;
 	thdcap_t thd = 0;
-	u32_t owntc_aepkey = (owntc << 16) | (key);
+	u32_t owntc_spdid_thdidx = (owntc << 30) | (((child << 17) >> 17) << 16) | ((idx << 16) >> 16);
+	u32_t key_ipimax = (key << 16) | ((ipimax << 16) >> 16);
+	u32_t ipiwin32b  = (u32_t)ipiwin;
 
-	thd = capmgr_aep_create_ext_cserialized(&drcvtidret, &tcrcvret, child, idx, owntc_aepkey);
+	thd = capmgr_aep_create_ext_cserialized(&drcvtidret, &tcrcvret, owntc_spdid_thdidx, key_ipimax, ipiwin32b);
 	if (!thd) return thd;
 
 	aep->fn   = NULL;
@@ -104,12 +109,15 @@ capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *aep, thdclosure_index_
 }
 
 thdcap_t
-capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, asndcap_t *snd)
+capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *snd)
 {
+	u32_t child_owntc = (child << 16) | owntc;
+	u32_t key_ipimax  = (key << 16) >> ipimax;
+	u32_t ipiwin32b   = (u32_t)ipiwin;
 	thdcap_t thd = 0;
 	u32_t sndtidret = 0, rcvtcret = 0;
 
-	thd = capmgr_initaep_create_cserialized(&sndtidret, &rcvtcret, child, owntc, key);
+	thd = capmgr_initaep_create_cserialized(&sndtidret, &rcvtcret, child_owntc, key_ipimax, ipiwin32b);
 	if (!thd) return thd;
 
 	aep->fn   = NULL;

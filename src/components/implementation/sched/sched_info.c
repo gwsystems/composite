@@ -90,7 +90,7 @@ sched_childinfo_init_intern(int is_raw)
 		assert(schedinfo);
 		child_dci = sched_child_defci_get(schedinfo);
 
-		initthd = sl_thd_initaep_alloc(child_dci, NULL, childflags & COMP_FLAG_SCHED, childflags & COMP_FLAG_SCHED ? 1 : 0, 0);
+		initthd = sl_thd_initaep_alloc(child_dci, NULL, childflags & COMP_FLAG_SCHED, childflags & COMP_FLAG_SCHED ? 1 : 0, 0, 0, 0);
 		assert(initthd);
 		sched_child_initthd_set(schedinfo, initthd);
 
