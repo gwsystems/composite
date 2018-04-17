@@ -869,13 +869,15 @@ test_ipi()
 	int       ret = 0, rcvd;
 	int	  i;
 
+	if (NUM_CPU == 1) return;
+
 	PRINTC("Creating asnd_cap for IPI test.\n");
 	for (i = 0; i < NUM_CPU; i++) {
 		asndcap_t snd;
 
 		if (i == cos_cpuid()) continue;
 
-		snd = cos_asnd_alloc(&booter_info, captbl_arcv_offset(i), booter_info.captbl_cap);
+		snd = cos_asnd_alloc(&booter_info, BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(i), booter_info.captbl_cap);
 		assert(snd);
 		ipi_asnd_global[cos_cpuid()][i] = snd;
 	}
