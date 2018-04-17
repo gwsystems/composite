@@ -299,5 +299,5 @@ hpet_init(void)
 
 	hpet_calibration_init = 1;
 	hpet_set(HPET_PERIODIC, hpet_hpetcyc_per_tick);
-	chal_irq_enable(HW_HPET_PERIODIC);
+	chal_irq_enable(HW_HPET_PERIODIC, 0);
 }

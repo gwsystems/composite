@@ -34,8 +34,8 @@ printc(char *fmt, ...)
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
-	cos_llprint(s, ret);
-
+	// cos_llprint(s, ret);
+	cos_print(s, ret);
 	return ret;
 }
 

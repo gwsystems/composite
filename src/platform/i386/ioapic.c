@@ -174,7 +174,7 @@ ioapic_int_entry_read(struct ioapic_info *io, u8_t off)
 }
 
 static inline void
-ioapic_int_mask_set(int gsi, int mask)
+ioapic_int_mask_set(int gsi, int mask, int dest)
 {
 	struct ioapic_info *io = ioapic_findbygsi(gsi);
 	union ioapic_int_redir_entry entry;
@@ -185,6 +185,7 @@ ioapic_int_mask_set(int gsi, int mask)
 	off = gsi - io->glbint_base;
 	entry = ioapic_int_entry_read(io, off);
 	entry.mask = mask ? 1 : 0;
+	entry.destination = apicids[dest];
 	ioapic_int_entry_write(io, off, entry);
 	entry = ioapic_int_entry_read(io, off);
 }
@@ -210,13 +211,13 @@ ioapic_int_gsi(int gsi)
 void
 ioapic_int_mask(int gsi)
 {
-	ioapic_int_mask_set(ioapic_int_gsi(gsi), 1);
+	ioapic_int_mask_set(ioapic_int_gsi(gsi), 1, 0);
 }
 
 void
-ioapic_int_unmask(int gsi)
+ioapic_int_unmask(int gsi, int dest)
 {
-	ioapic_int_mask_set(ioapic_int_gsi(gsi), 0);
+	ioapic_int_mask_set(ioapic_int_gsi(gsi), 0, dest);
 }
 
 void
@@ -316,10 +317,10 @@ ioapic_iter(struct ioapic_cntl *io)
 }
 
 void
-chal_irq_enable(int irq)
+chal_irq_enable(int irq, int dest)
 {
 	if (irq - HW_IRQ_START >= (int)ioapic_int_count) return;
-	ioapic_int_unmask(irq - HW_IRQ_START);
+	ioapic_int_unmask(irq - HW_IRQ_START, dest);
 }
 
 void

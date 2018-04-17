@@ -40,6 +40,7 @@ serial_handler(struct pt_regs *r)
 {
 	char serial;
 	int  preempt = 1;
+	static int chg = 0;
 
 	lapic_ack();
 
@@ -71,7 +72,9 @@ serial_handler(struct pt_regs *r)
 		break;
 	}
 
-	printk("Serial: %d\n", serial);
+	PRINTK("Serial: %d\n", serial);
+	chal_irq_enable(HW_SERIAL, chg);
+	chg = !chg;
 	// printk("%c", serial);
 	return preempt;
 }

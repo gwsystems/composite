@@ -857,21 +857,21 @@ test_run_mb(void)
 {
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	test_timer();
-	test_budgets();
-
-	test_thds();
-	test_thds_perf();
-
-	test_mem();
-
-	test_async_endpoints();
-	test_async_endpoints_perf();
-
-	test_inv();
-	test_inv_perf();
-
-	test_captbl_expand();
+	// test_timer();
+	// test_budgets();
+	//
+	// test_thds();
+	// test_thds_perf();
+	//
+	// test_mem();
+	//
+	// test_async_endpoints();
+	// test_async_endpoints_perf();
+	//
+	// test_inv();
+	// test_inv_perf();
+	//
+	// test_captbl_expand();
 
 	/*
 	 * FIXME: Preemption stack mechanism in the kernel is disabled.
