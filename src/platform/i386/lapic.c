@@ -287,6 +287,7 @@ lapic_init(void)
 void
 lapic_disable_timer(int timer_type)
 {
+	assert(lapic_timer_calib_init == 0);
 	if (lapic_is_disabled[get_cpuid()]) return;
 
 	if (timer_type == LAPIC_ONESHOT) {
