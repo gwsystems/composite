@@ -8,34 +8,29 @@
 #include <sl.h>
 #include "../interface/capmgr/memmgr.h"
 
-#include <cfe_error.h>
-#include <cfe_evs.h>
-#include <cfe_fs.h>
-#include <cfe_time.h>
-
 #include <cFE_emu.h>
 
 #define BASE_AEP_KEY 0xBEAFCAFE
 
 union shared_region *shared_region;
 spdid_t              spdid;
-cos_aepkey_t		 time_sync_key;
+cos_aepkey_t         time_sync_key;
 
 /* We could copy this from the cFE, but it's zero intialized there
  * Also it's totally unused (according to cFE documentation)
  */
-CFE_SB_Qos_t CFE_SB_Default_Qos = { 0 };
+CFE_SB_Qos_t CFE_SB_Default_Qos = {0};
 
-size_t       CDS_sizes[CFE_ES_CDS_MAX_NUM_ENTRIES] = { 0 };
+size_t CDS_sizes[CFE_ES_CDS_MAX_NUM_ENTRIES] = {0};
 
-int sync_callbacks_are_setup = 0;
+int                         sync_callbacks_are_setup = 0;
 CFE_TIME_SynchCallbackPtr_t sync_callbacks[CFE_TIME_MAX_NUM_SYNCH_FUNCS];
 
 void
 do_emulation_setup(spdid_t id)
 {
 	vaddr_t client_addr;
-	int region_id = emu_request_memory(id);
+	int     region_id = emu_request_memory(id);
 
 	spdid = id;
 
@@ -56,9 +51,7 @@ handle_sync_callbacks(arcvcap_t rcv, void *data)
 		if (pending) {
 			int i;
 			for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++) {
-				if (sync_callbacks[i]){
-					sync_callbacks[i]();
-				}
+				if (sync_callbacks[i]) { sync_callbacks[i](); }
 			}
 		}
 	}
@@ -67,9 +60,8 @@ handle_sync_callbacks(arcvcap_t rcv, void *data)
 void
 ensure_sync_callbacks_are_setup()
 {
-	if (!sync_callbacks_are_setup)
-	{
-		int32 result;
+	if (!sync_callbacks_are_setup) {
+		int32              result;
 		thdclosure_index_t idx = cos_thd_init_alloc(handle_sync_callbacks, NULL);
 		emu_create_aep_thread(spdid, idx, time_sync_key);
 
@@ -82,6 +74,7 @@ ensure_sync_callbacks_are_setup()
 
 /* FIXME: Be more careful about user supplied pointers
  * FIXME: Take a lock in each function, so shared memory can't be corrupted
+ * FIXME: Don't pass spdid, use the builtin functionality instead
  */
 uint32
 CFE_ES_CalculateCRC(const void *DataPtr, uint32 DataLength, uint32 InputCRC, uint32 TypeCRC)
@@ -89,12 +82,12 @@ CFE_ES_CalculateCRC(const void *DataPtr, uint32 DataLength, uint32 InputCRC, uin
 	assert(DataLength < EMU_BUF_SIZE);
 	memcpy(shared_region->cfe_es_calculateCRC.Data, DataPtr, DataLength);
 	shared_region->cfe_es_calculateCRC.InputCRC = InputCRC;
-	shared_region->cfe_es_calculateCRC.TypeCRC = TypeCRC;
+	shared_region->cfe_es_calculateCRC.TypeCRC  = TypeCRC;
 	return emu_CFE_ES_CalculateCRC(spdid);
 }
 
 int32
-CFE_ES_CopyToCDS(CFE_ES_CDSHandle_t CDSHandle, void * DataToCopy)
+CFE_ES_CopyToCDS(CFE_ES_CDSHandle_t CDSHandle, void *DataToCopy)
 {
 	size_t data_size;
 
@@ -110,11 +103,10 @@ CFE_ES_CopyToCDS(CFE_ES_CDSHandle_t CDSHandle, void * DataToCopy)
 }
 
 int32
-CFE_ES_CreateChildTask(uint32 *TaskIdPtr, const char *TaskName,
-                       CFE_ES_ChildTaskMainFuncPtr_t FunctionPtr, uint32 *StackPtr,
-					   uint32 StackSize, uint32 Priority, uint32 Flags)
+CFE_ES_CreateChildTask(uint32 *TaskIdPtr, const char *TaskName, CFE_ES_ChildTaskMainFuncPtr_t FunctionPtr,
+                       uint32 *StackPtr, uint32 StackSize, uint32 Priority, uint32 Flags)
 {
-	int32 result;
+	int32              result;
 	thdclosure_index_t idx = cos_thd_init_alloc(FunctionPtr, NULL);
 
 	assert(strlen(TaskName) < EMU_BUF_SIZE);
@@ -123,10 +115,10 @@ CFE_ES_CreateChildTask(uint32 *TaskIdPtr, const char *TaskName,
 	emu_stash(idx, spdid);
 
 	shared_region->cfe_es_createChildTask.FunctionPtr = STASH_MAGIC_VALUE;
-	shared_region->cfe_es_createChildTask.Priority = Priority;
-	shared_region->cfe_es_createChildTask.Flags = Flags;
+	shared_region->cfe_es_createChildTask.Priority    = Priority;
+	shared_region->cfe_es_createChildTask.Flags       = Flags;
 
-	result = emu_CFE_ES_CreateChildTask(spdid);
+	result     = emu_CFE_ES_CreateChildTask(spdid);
 	*TaskIdPtr = shared_region->cfe_es_createChildTask.TaskId;
 
 	emu_stash_clear();
@@ -142,7 +134,7 @@ CFE_ES_GetAppIDByName(uint32 *AppIdPtr, const char *AppName)
 	assert(strlen(AppName) < EMU_BUF_SIZE);
 
 	strcpy(shared_region->cfe_es_getAppIDByName.AppName, AppName);
-	result = emu_CFE_ES_GetAppIDByName(spdid);
+	result    = emu_CFE_ES_GetAppIDByName(spdid);
 	*AppIdPtr = shared_region->cfe_es_getAppIDByName.AppId;
 
 	return result;
@@ -154,8 +146,8 @@ CFE_ES_GetAppInfo(CFE_ES_AppInfo_t *AppInfo, uint32 AppId)
 	int32 result;
 
 	shared_region->cfe_es_getAppInfo.AppId = AppId;
-	result = emu_CFE_ES_GetAppInfo(spdid);
-	*AppInfo = shared_region->cfe_es_getAppInfo.AppInfo;
+	result                                 = emu_CFE_ES_GetAppInfo(spdid);
+	*AppInfo                               = shared_region->cfe_es_getAppInfo.AppInfo;
 
 	return result;
 }
@@ -166,8 +158,8 @@ CFE_ES_GetGenCount(uint32 CounterId, uint32 *Count)
 	int32 result;
 
 	shared_region->cfe_es_getGenCount.CounterId = CounterId;
-	result = emu_CFE_ES_GetGenCount(spdid);
-	*Count = shared_region->cfe_es_getGenCount.Count;
+	result                                      = emu_CFE_ES_GetGenCount(spdid);
+	*Count                                      = shared_region->cfe_es_getGenCount.Count;
 
 	return result;
 }
@@ -178,7 +170,7 @@ CFE_ES_GetGenCounterIDByName(uint32 *CounterIdPtr, const char *CounterName)
 	int32 result;
 
 	strcpy(shared_region->cfe_es_getGenCounterIDByName.CounterName, CounterName);
-	result = emu_CFE_ES_GetGenCounterIDByName(spdid);
+	result        = emu_CFE_ES_GetGenCounterIDByName(spdid);
 	*CounterIdPtr = shared_region->cfe_es_getGenCounterIDByName.CounterId;
 
 	return result;
@@ -199,8 +191,8 @@ CFE_ES_GetTaskInfo(CFE_ES_TaskInfo_t *TaskInfo, uint32 TaskId)
 	int32 result;
 
 	shared_region->cfe_es_getTaskInfo.TaskId = TaskId;
-	result = emu_CFE_ES_GetTaskInfo(spdid);
-	*TaskInfo = shared_region->cfe_es_getTaskInfo.TaskInfo;
+	result                                   = emu_CFE_ES_GetTaskInfo(spdid);
+	*TaskInfo                                = shared_region->cfe_es_getTaskInfo.TaskInfo;
 	return result;
 }
 
@@ -217,8 +209,8 @@ CFE_ES_RegisterCDS(CFE_ES_CDSHandle_t *HandlePtr, int32 BlockSize, const char *N
 	result = emu_CFE_ES_RegisterCDS(spdid);
 	if (result == CFE_SUCCESS) {
 		CFE_ES_CDSHandle_t handle = shared_region->cfe_es_registerCDS.CDS_Handle;
-		CDS_sizes[handle] = BlockSize;
-		*HandlePtr = handle;
+		CDS_sizes[handle]         = BlockSize;
+		*HandlePtr                = handle;
 	}
 	return result;
 }
@@ -226,7 +218,7 @@ CFE_ES_RegisterCDS(CFE_ES_CDSHandle_t *HandlePtr, int32 BlockSize, const char *N
 int32
 CFE_ES_RestoreFromCDS(void *RestoreToMemory, CFE_ES_CDSHandle_t CDSHandle)
 {
-	int32 result;
+	int32  result;
 	size_t data_size;
 
 	shared_region->cfe_es_restoreFromCDS.CDSHandle = CDSHandle;
@@ -278,9 +270,7 @@ int32 CFE_EVS_Register(void * Filters,           /* Pointer to an array of filte
 	if (FilterScheme != CFE_EVS_BINARY_FILTER) { return CFE_EVS_UNKNOWN_FILTER; }
 	bin_filters = Filters;
 
-	for (i = 0; i < NumFilteredEvents; i++) {
-		shared_region->cfe_evs_register.filters[i] = bin_filters[i];
-	}
+	for (i = 0; i < NumFilteredEvents; i++) { shared_region->cfe_evs_register.filters[i] = bin_filters[i]; }
 
 	shared_region->cfe_evs_register.NumEventFilters = NumFilteredEvents;
 	shared_region->cfe_evs_register.FilterScheme    = FilterScheme;
@@ -319,8 +309,8 @@ CFE_FS_WriteHeader(int32 FileDes, CFE_FS_Header_t *Hdr)
 {
 	int32 result;
 	shared_region->cfe_fs_writeHeader.FileDes = FileDes;
-	result = emu_CFE_FS_WriteHeader(spdid);
-	*Hdr = shared_region->cfe_fs_writeHeader.Hdr;
+	result                                    = emu_CFE_FS_WriteHeader(spdid);
+	*Hdr                                      = shared_region->cfe_fs_writeHeader.Hdr;
 	return result;
 }
 
@@ -331,7 +321,8 @@ CFE_PSP_MemCpy(void *dest, void *src, uint32 n)
 	return CFE_PSP_SUCCESS;
 }
 
-int32 CFE_PSP_MemSet(void *dest, uint8 value, uint32 n)
+int32
+CFE_PSP_MemSet(void *dest, uint8 value, uint32 n)
 {
 	memset(dest, value, n);
 	return CFE_PSP_SUCCESS;
@@ -344,7 +335,7 @@ CFE_SB_CreatePipe(CFE_SB_PipeId_t *PipeIdPtr, uint16 Depth, const char *PipeName
 
 	shared_region->cfe_sb_createPipe.Depth = Depth;
 	strncpy(shared_region->cfe_sb_createPipe.PipeName, PipeName, OS_MAX_API_NAME);
-	result  = emu_CFE_SB_CreatePipe(spdid);
+	result     = emu_CFE_SB_CreatePipe(spdid);
 	*PipeIdPtr = shared_region->cfe_sb_createPipe.PipeId;
 	return result;
 }
@@ -352,7 +343,7 @@ CFE_SB_CreatePipe(CFE_SB_PipeId_t *PipeIdPtr, uint16 Depth, const char *PipeName
 uint16
 CFE_SB_GetCmdCode(CFE_SB_MsgPtr_t MsgPtr)
 {
-	char *msg_ptr;
+	char * msg_ptr;
 	uint16 msg_len = CFE_SB_GetTotalMsgLength(MsgPtr);
 
 	assert(msg_len <= EMU_BUF_SIZE);
@@ -364,7 +355,7 @@ CFE_SB_GetCmdCode(CFE_SB_MsgPtr_t MsgPtr)
 CFE_SB_MsgId_t
 CFE_SB_GetMsgId(CFE_SB_MsgPtr_t MsgPtr)
 {
-	char *msg_ptr;
+	char * msg_ptr;
 	uint16 msg_len = CFE_SB_GetTotalMsgLength(MsgPtr);
 
 	assert(msg_len <= EMU_BUF_SIZE);
@@ -377,7 +368,7 @@ CFE_SB_GetMsgId(CFE_SB_MsgPtr_t MsgPtr)
 CFE_TIME_SysTime_t
 CFE_SB_GetMsgTime(CFE_SB_MsgPtr_t MsgPtr)
 {
-	char *msg_ptr;
+	char * msg_ptr;
 	uint16 msg_len = CFE_SB_GetTotalMsgLength(MsgPtr);
 
 	assert(msg_len <= EMU_BUF_SIZE);
@@ -435,10 +426,11 @@ CFE_SB_RcvMsg(CFE_SB_MsgPtr_t *BufPtr, CFE_SB_PipeId_t PipeId, int32 TimeOut)
 	return result;
 }
 
-int32 CFE_SB_SetCmdCode(CFE_SB_MsgPtr_t MsgPtr, uint16 CmdCode)
+int32
+CFE_SB_SetCmdCode(CFE_SB_MsgPtr_t MsgPtr, uint16 CmdCode)
 {
-	int32 result;
-	char *msg_ptr;
+	int32  result;
+	char * msg_ptr;
 	uint16 msg_len = CFE_SB_GetTotalMsgLength(MsgPtr);
 
 	assert(msg_len <= EMU_BUF_SIZE);
@@ -456,7 +448,7 @@ int32 CFE_SB_SetCmdCode(CFE_SB_MsgPtr_t MsgPtr, uint16 CmdCode)
 int32
 CFE_SB_SendMsg(CFE_SB_Msg_t *MsgPtr)
 {
-	char *msg_ptr;
+	char * msg_ptr;
 	uint16 msg_len = CFE_SB_GetTotalMsgLength(MsgPtr);
 
 	assert(msg_len <= EMU_BUF_SIZE);
@@ -469,17 +461,17 @@ CFE_SB_SendMsg(CFE_SB_Msg_t *MsgPtr)
 int32
 CFE_SB_SubscribeEx(CFE_SB_MsgId_t MsgId, CFE_SB_PipeId_t PipeId, CFE_SB_Qos_t Quality, uint16 MsgLim)
 {
-	shared_region->cfe_sb_subscribeEx.MsgId = MsgId;
-	shared_region->cfe_sb_subscribeEx.PipeId = PipeId;
+	shared_region->cfe_sb_subscribeEx.MsgId   = MsgId;
+	shared_region->cfe_sb_subscribeEx.PipeId  = PipeId;
 	shared_region->cfe_sb_subscribeEx.Quality = Quality;
-	shared_region->cfe_sb_subscribeEx.MsgLim = MsgLim;
+	shared_region->cfe_sb_subscribeEx.MsgLim  = MsgLim;
 	return emu_CFE_SB_SubscribeEx(spdid);
 }
 
 void
 CFE_SB_TimeStampMsg(CFE_SB_MsgPtr_t MsgPtr)
 {
-	char *msg_ptr;
+	char * msg_ptr;
 	uint16 msg_len = CFE_SB_GetTotalMsgLength(MsgPtr);
 
 	assert(msg_len <= EMU_BUF_SIZE);
@@ -490,9 +482,9 @@ CFE_SB_TimeStampMsg(CFE_SB_MsgPtr_t MsgPtr)
 }
 
 boolean
-CFE_SB_ValidateChecksum (CFE_SB_MsgPtr_t MsgPtr)
+CFE_SB_ValidateChecksum(CFE_SB_MsgPtr_t MsgPtr)
 {
-	char *msg_ptr;
+	char * msg_ptr;
 	uint16 msg_len = CFE_SB_GetTotalMsgLength(MsgPtr);
 
 	assert(msg_len <= EMU_BUF_SIZE);
@@ -500,6 +492,94 @@ CFE_SB_ValidateChecksum (CFE_SB_MsgPtr_t MsgPtr)
 	memcpy(shared_region->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
 
 	return emu_CFE_SB_ValidateChecksum(spdid);
+}
+
+struct {
+	size_t size;
+	char   buffer[EMU_BUF_SIZE];
+} table_info[CFE_TBL_MAX_NUM_HANDLES];
+
+int32
+CFE_TBL_GetAddress(void **TblPtr, CFE_TBL_Handle_t TblHandle)
+{
+	int32 result;
+
+	shared_region->cfe_tbl_getAddress.TblHandle = TblHandle;
+
+	result = emu_CFE_TBL_GetAddress(spdid);
+
+	if (result == CFE_SUCCESS || result == CFE_TBL_INFO_UPDATED) {
+		memcpy(table_info[TblHandle].buffer, shared_region->cfe_tbl_getAddress.Buffer,
+		       table_info[TblHandle].size);
+
+		*TblPtr = table_info[TblHandle].buffer;
+	}
+
+	return result;
+}
+
+int32
+CFE_TBL_GetInfo(CFE_TBL_Info_t *TblInfoPtr, const char *TblName)
+{
+	int32 result;
+
+	assert(strlen(TblName) < EMU_BUF_SIZE);
+	strcpy(shared_region->cfe_tbl_getInfo.TblName, TblName);
+
+	result = emu_CFE_TBL_GetInfo(spdid);
+	if (result == CFE_SUCCESS) { *TblInfoPtr = shared_region->cfe_tbl_getInfo.TblInfo; }
+	return result;
+}
+
+int32
+CFE_TBL_Load(CFE_TBL_Handle_t TblHandle, CFE_TBL_SrcEnum_t SrcType, const void *SrcDataPtr)
+{
+	shared_region->cfe_tbl_load.TblHandle = TblHandle;
+	shared_region->cfe_tbl_load.SrcType   = SrcType;
+
+	if (SrcType == CFE_TBL_SRC_FILE) {
+		assert(strlen(SrcDataPtr) < EMU_BUF_SIZE);
+		strcpy(shared_region->cfe_tbl_load.SrcData, SrcDataPtr);
+	} else if (SrcType == CFE_TBL_SRC_ADDRESS) {
+		assert(TblHandle < CFE_TBL_MAX_NUM_HANDLES);
+		memcpy(shared_region->cfe_tbl_load.SrcData, SrcDataPtr, table_info[TblHandle].size);
+	} else {
+		return CFE_TBL_ERR_ILLEGAL_SRC_TYPE;
+	}
+	return emu_CFE_TBL_Load(spdid);
+}
+
+int32
+CFE_TBL_Modified(CFE_TBL_Handle_t TblHandle)
+{
+	assert(TblHandle < CFE_TBL_MAX_NUM_HANDLES);
+	memcpy(shared_region->cfe_tbl_modified.Buffer, table_info[TblHandle].buffer, table_info[TblHandle].size);
+
+	shared_region->cfe_tbl_modified.TblHandle = TblHandle;
+
+	return emu_CFE_TBL_Modified(spdid);
+}
+
+int32
+CFE_TBL_Register(CFE_TBL_Handle_t *TblHandlePtr, const char *Name, uint32 TblSize, uint16 TblOptionFlags,
+                 CFE_TBL_CallbackFuncPtr_t TblValidationFuncPtr)
+{
+	int32 result;
+
+	assert(strlen(Name) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->cfe_tbl_register.Name, Name);
+	shared_region->cfe_tbl_register.TblSize        = TblSize;
+	shared_region->cfe_tbl_register.TblOptionFlags = TblOptionFlags;
+	/* FIXME: Validation callbacks barely matter, implement them later */
+
+	result = emu_CFE_TBL_Register(spdid);
+	if (result == CFE_SUCCESS || result == CFE_TBL_INFO_RECOVERED_TBL) {
+		table_info[shared_region->cfe_tbl_register.TblHandle].size = TblSize;
+		assert(TblSize <= EMU_BUF_SIZE);
+	}
+
+	return result;
 }
 
 CFE_TIME_SysTime_t
@@ -541,8 +621,7 @@ CFE_TIME_RegisterSynchCallback(CFE_TIME_SynchCallbackPtr_t CallbackFuncPtr)
 	int i;
 	ensure_sync_callbacks_are_setup();
 
-	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++)
-	{
+	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++) {
 		if (!sync_callbacks[i]) {
 			sync_callbacks[i] = CallbackFuncPtr;
 			return CFE_SUCCESS;
@@ -555,8 +634,7 @@ int32
 CFE_TIME_UnregisterSynchCallback(CFE_TIME_SynchCallbackPtr_t CallbackFuncPtr)
 {
 	int i;
-	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++)
-	{
+	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++) {
 		if (sync_callbacks[i] == CallbackFuncPtr) {
 			sync_callbacks[i] = NULL;
 			return CFE_SUCCESS;
@@ -578,7 +656,7 @@ OS_cp(const char *src, const char *dest)
 int32
 OS_creat(const char *path, int32 access)
 {
-	assert(strlen(path) <  EMU_BUF_SIZE);
+	assert(strlen(path) < EMU_BUF_SIZE);
 
 	strcpy(shared_region->os_creat.path, path);
 	shared_region->os_creat.access = access;
@@ -591,8 +669,8 @@ OS_FDGetInfo(int32 filedes, OS_FDTableEntry *fd_prop)
 	int32 result;
 
 	shared_region->os_FDGetInfo.filedes = filedes;
-	result = emu_OS_FDGetInfo(spdid);
-	*fd_prop = shared_region->os_FDGetInfo.fd_prop;
+	result                              = emu_OS_FDGetInfo(spdid);
+	*fd_prop                            = shared_region->os_FDGetInfo.fd_prop;
 	return result;
 }
 
@@ -601,10 +679,10 @@ OS_fsBytesFree(const char *name, uint64 *bytes_free)
 {
 	int32 result;
 
-	assert(strlen(name) <  EMU_BUF_SIZE);
+	assert(strlen(name) < EMU_BUF_SIZE);
 
 	strcpy(shared_region->os_fsBytesFree.name, name);
-	result = emu_OS_fsBytesFree(spdid);
+	result      = emu_OS_fsBytesFree(spdid);
 	*bytes_free = shared_region->os_fsBytesFree.bytes_free;
 
 	return result;
@@ -613,7 +691,7 @@ OS_fsBytesFree(const char *name, uint64 *bytes_free)
 int32
 OS_mkdir(const char *path, uint32 access)
 {
-	assert(strlen(path) <  EMU_BUF_SIZE);
+	assert(strlen(path) < EMU_BUF_SIZE);
 
 	strcpy(shared_region->os_mkdir.path, path);
 	shared_region->os_mkdir.access = access;
@@ -638,7 +716,7 @@ OS_open(const char *path, int32 access, uint32 mode)
 
 	strcpy(shared_region->os_open.path, path);
 	shared_region->os_open.access = access;
-	shared_region->os_open.mode = mode;
+	shared_region->os_open.mode   = mode;
 
 	return emu_OS_open(spdid);
 }
@@ -660,8 +738,8 @@ OS_read(int32 filedes, void *buffer, uint32 nbytes)
 	assert(nbytes <= EMU_BUF_SIZE);
 
 	shared_region->os_read.filedes = filedes;
-	shared_region->os_read.nbytes = nbytes;
-	result = emu_OS_read(spdid);
+	shared_region->os_read.nbytes  = nbytes;
+	result                         = emu_OS_read(spdid);
 	memcpy(buffer, shared_region->os_read.buffer, nbytes);
 	return result;
 }
@@ -678,7 +756,7 @@ OS_remove(const char *path)
 
 os_dirent_t buffered_dirent;
 
-os_dirent_t*
+os_dirent_t *
 OS_readdir(os_dirp_t directory)
 {
 	shared_region->os_readdir.directory = directory;
@@ -715,7 +793,7 @@ OS_stat(const char *path, os_fstat_t *filestats)
 	assert(strlen(path) < EMU_BUF_SIZE);
 
 	strcpy(shared_region->os_stat.path, path);
-	result = emu_OS_stat(spdid);
+	result     = emu_OS_stat(spdid);
 	*filestats = shared_region->os_stat.filestats;
 	return result;
 }
@@ -723,7 +801,7 @@ OS_stat(const char *path, os_fstat_t *filestats)
 int32
 OS_write(int32 filedes, void *buffer, uint32 nbytes)
 {
-	assert(nbytes <  EMU_BUF_SIZE);
+	assert(nbytes < EMU_BUF_SIZE);
 	shared_region->os_write.filedes = filedes;
 	memcpy(shared_region->os_write.buffer, buffer, nbytes);
 	shared_region->os_write.nbytes = nbytes;
@@ -735,13 +813,13 @@ OS_BinSemCreate(uint32 *sem_id, const char *sem_name, uint32 sem_initial_value, 
 {
 	int32 result;
 
-	assert(strlen(sem_name) <  EMU_BUF_SIZE);
+	assert(strlen(sem_name) < EMU_BUF_SIZE);
 
 	strcpy(shared_region->os_semCreate.sem_name, sem_name);
 	shared_region->os_semCreate.sem_initial_value = sem_initial_value;
-	shared_region->os_semCreate.options = options;
-	result = emu_OS_BinSemCreate(spdid);
-	*sem_id = shared_region->os_semCreate.sem_id;
+	shared_region->os_semCreate.options           = options;
+	result                                        = emu_OS_BinSemCreate(spdid);
+	*sem_id                                       = shared_region->os_semCreate.sem_id;
 	return result;
 }
 
@@ -750,13 +828,13 @@ OS_CountSemCreate(uint32 *sem_id, const char *sem_name, uint32 sem_initial_value
 {
 	int32 result;
 
-	assert(strlen(sem_name) <  EMU_BUF_SIZE);
+	assert(strlen(sem_name) < EMU_BUF_SIZE);
 
 	strcpy(shared_region->os_semCreate.sem_name, sem_name);
 	shared_region->os_semCreate.sem_initial_value = sem_initial_value;
-	shared_region->os_semCreate.options = options;
-	result = emu_OS_CountSemCreate(spdid);
-	*sem_id = shared_region->os_semCreate.sem_id;
+	shared_region->os_semCreate.options           = options;
+	result                                        = emu_OS_CountSemCreate(spdid);
+	*sem_id                                       = shared_region->os_semCreate.sem_id;
 	return result;
 }
 
@@ -765,12 +843,12 @@ OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 {
 	int32 result;
 
-	assert(strlen(sem_name) <  EMU_BUF_SIZE);
+	assert(strlen(sem_name) < EMU_BUF_SIZE);
 
 	strcpy(shared_region->os_mutSemCreate.sem_name, sem_name);
 	shared_region->os_mutSemCreate.options = options;
-	result = emu_OS_MutSemCreate(spdid);
-	*sem_id = shared_region->os_mutSemCreate.sem_id;
+	result                                 = emu_OS_MutSemCreate(spdid);
+	*sem_id                                = shared_region->os_mutSemCreate.sem_id;
 
 	return result;
 }
@@ -783,7 +861,7 @@ OS_TaskGetIdByName(uint32 *task_id, const char *task_name)
 	assert(strlen(task_name) < EMU_BUF_SIZE);
 
 	strcpy(shared_region->os_taskGetIdByName.task_name, task_name);
-	result = emu_OS_TaskGetIdByName(spdid);
+	result   = emu_OS_TaskGetIdByName(spdid);
 	*task_id = shared_region->os_taskGetIdByName.task_id;
 	return result;
 }
@@ -796,7 +874,7 @@ OS_SymbolLookup(cpuaddr *symbol_address, const char *symbol_name)
 	assert(strlen(symbol_name) < EMU_BUF_SIZE);
 
 	strcpy(shared_region->os_symbolLookup.symbol_name, symbol_name);
-	result = emu_OS_SymbolLookup(spdid);
+	result          = emu_OS_SymbolLookup(spdid);
 	*symbol_address = shared_region->os_symbolLookup.symbol_address;
 	return result;
 }

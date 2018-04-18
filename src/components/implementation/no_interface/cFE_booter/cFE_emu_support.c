@@ -52,8 +52,8 @@ emu_request_memory(spdid_t client)
 void
 emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key)
 {
-	struct sl_thd *thd;
-	sched_param_t aep_priority;
+	struct sl_thd *        thd;
+	sched_param_t          aep_priority;
 	struct cos_defcompinfo child_dci;
 
 	cos_defcompinfo_childid_init(&child_dci, client);
@@ -70,20 +70,21 @@ emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key)
  */
 struct {
 	thdclosure_index_t idx;
-	spdid_t spdid;
+	spdid_t            spdid;
 } stashed_task_values;
 
 void
 emu_stash(thdclosure_index_t idx, spdid_t spdid)
 {
 	assert(stashed_task_values.idx == 0 && stashed_task_values.spdid == 0);
-	stashed_task_values.idx = idx;
+	stashed_task_values.idx   = idx;
 	stashed_task_values.spdid = spdid;
 }
 
-void emu_stash_clear()
+void
+emu_stash_clear()
 {
-	stashed_task_values.idx = 0;
+	stashed_task_values.idx   = 0;
 	stashed_task_values.spdid = 0;
 }
 
@@ -99,6 +100,10 @@ emu_stash_retrieve_spdid()
 {
 	return stashed_task_values.spdid;
 }
+
+/* Methods that wrap cFE methods
+ * They use data in memory shared with the calling component
+ */
 
 int32
 emu_CFE_ES_CalculateCRC(spdid_t client)
@@ -120,8 +125,8 @@ emu_CFE_ES_CreateChildTask(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
 	return CFE_ES_CreateChildTask(&s->cfe_es_createChildTask.TaskId, s->cfe_es_createChildTask.TaskName,
-	                       s->cfe_es_createChildTask.FunctionPtr, NULL,
-						   0, s->cfe_es_createChildTask.Priority, s->cfe_es_createChildTask.Flags);
+	                              s->cfe_es_createChildTask.FunctionPtr, NULL, 0,
+	                              s->cfe_es_createChildTask.Priority, s->cfe_es_createChildTask.Flags);
 }
 
 
@@ -328,6 +333,71 @@ emu_CFE_SB_ValidateChecksum(spdid_t client)
 	union shared_region *s = shared_regions[client];
 	return CFE_SB_ValidateChecksum((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
 }
+
+struct {
+	size_t size;
+	void * tbl_ptr; /* FIXME: Wrap CFE_TBL_ReleaseAddress to set this back to NULL */
+} table_info[CFE_TBL_MAX_NUM_HANDLES];
+
+int32
+emu_CFE_TBL_GetAddress(spdid_t client)
+{
+	union shared_region *s      = shared_regions[client];
+	CFE_TBL_Handle_t     handle = s->cfe_tbl_getAddress.TblHandle;
+	int32                result = CFE_TBL_GetAddress(&table_info[handle].tbl_ptr, handle);
+
+	if (result == CFE_SUCCESS || result == CFE_TBL_INFO_UPDATED) {
+		memcpy(s->cfe_tbl_getAddress.Buffer, table_info[handle].tbl_ptr, table_info[handle].size);
+	}
+
+	return result;
+}
+
+int32
+emu_CFE_TBL_GetInfo(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_TBL_GetInfo(&s->cfe_tbl_getInfo.TblInfo, s->cfe_tbl_getInfo.TblName);
+}
+
+int32
+emu_CFE_TBL_Load(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_TBL_Load(s->cfe_tbl_load.TblHandle, s->cfe_tbl_load.SrcType, s->cfe_tbl_load.SrcData);
+}
+
+int32
+emu_CFE_TBL_Modified(spdid_t client)
+{
+	/* FIXME: We assume the passed data is valid, which isn't safe */
+
+	union shared_region *s       = shared_regions[client];
+	CFE_TBL_Handle_t     handle  = s->cfe_tbl_modified.TblHandle;
+	void *               tbl_ptr = table_info[handle].tbl_ptr;
+	size_t               size    = table_info[handle].size;
+
+	assert(tbl_ptr);
+	memcpy(tbl_ptr, s->cfe_tbl_modified.Buffer, size);
+
+	return CFE_TBL_Modified(handle);
+}
+
+
+int32
+emu_CFE_TBL_Register(spdid_t client)
+{
+	union shared_region *s      = shared_regions[client];
+	int32                result = CFE_TBL_Register(&s->cfe_tbl_register.TblHandle, s->cfe_tbl_register.Name,
+                                        s->cfe_tbl_register.TblSize, s->cfe_tbl_register.TblOptionFlags, NULL);
+
+	if (result == CFE_SUCCESS || result == CFE_TBL_INFO_RECOVERED_TBL) {
+		table_info[s->cfe_tbl_register.TblHandle].size = s->cfe_tbl_register.TblSize;
+	}
+
+	return result;
+}
+
 
 void
 emu_CFE_TIME_Add(spdid_t client)

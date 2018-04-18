@@ -30,6 +30,14 @@ cos_asm_server_stub(CFE_SB_Subscribe)
 cos_asm_server_stub(CFE_SB_Unsubscribe)
 cos_asm_server_stub(CFE_SB_UnsubscribeLocal)
 
+cos_asm_server_stub(CFE_TBL_DumpToBuffer)
+cos_asm_server_stub(CFE_TBL_GetStatus)
+cos_asm_server_stub(CFE_TBL_Manage)
+cos_asm_server_stub(CFE_TBL_NotifyByMessage)
+cos_asm_server_stub(CFE_TBL_ReleaseAddress)
+cos_asm_server_stub(CFE_TBL_Update)
+cos_asm_server_stub(CFE_TBL_Validate)
+
 cos_asm_server_stub(CFE_TIME_FS2CFESeconds)
 
 cos_asm_server_stub(OS_CountSemGive)
@@ -85,6 +93,12 @@ cos_asm_server_stub(emu_CFE_SB_SendMsg)
 cos_asm_server_stub(emu_CFE_SB_SubscribeEx)
 cos_asm_server_stub(emu_CFE_SB_TimeStampMsg)
 cos_asm_server_stub(emu_CFE_SB_ValidateChecksum)
+
+cos_asm_server_stub(emu_CFE_TBL_GetInfo)
+cos_asm_server_stub(emu_CFE_TBL_GetAddress)
+cos_asm_server_stub(emu_CFE_TBL_Modified)
+cos_asm_server_stub(emu_CFE_TBL_Register)
+cos_asm_server_stub(emu_CFE_TBL_Load)
 
 cos_asm_server_stub(emu_CFE_TIME_Add)
 cos_asm_server_stub(emu_CFE_TIME_Compare)
