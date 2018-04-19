@@ -213,10 +213,11 @@ sinv_client_thread_init(thdid_t tid, cos_channelkey_t rcvkey, cos_channelkey_t s
 	cbuf_t id = 0;
 	asndcap_t snd = 0;
 	arcvcap_t rcv = 0;
+	spdid_t child = cos_inv_token() == 0 ? cos_spd_id() : cos_inv_token();
 
 	assert(ps_load(reqaddr) == 0);
 
-	req->clspdid = cos_inv_token(); /* this is done from the scheduler on invocation */
+	req->clspdid = child; /* this is done from the scheduler on invocation */
 	req->rkey = rcvkey;
 	req->skey = skey;
 
@@ -225,6 +226,8 @@ sinv_client_thread_init(thdid_t tid, cos_channelkey_t rcvkey, cos_channelkey_t s
 
 	if (rcvkey) {
 		/* capmgr interface to create a rcvcap for "tid" thread in the scheduler component..*/
+		rcv = capmgr_rcv_create(child, tid, rcvkey, 0, 0); /* TODO: rate- limit */
+		assert(rcv);
 	}
 
 	ret = ps_cas(reqaddr, 0, 1); /* indicate request available */
@@ -248,9 +251,9 @@ sinv_client_thread_init(thdid_t tid, cos_channelkey_t rcvkey, cos_channelkey_t s
 
 	tinfo->rkey     = rcvkey;
 	tinfo->skey     = skey;
-	tinfo->clientid = cos_inv_token();
+	tinfo->clientid = child;
 	tinfo->sndcap   = snd;
-	tinfo->rcvcap   = rcv;
+	tinfo->rcvcap   = rcv; /* cos_rcv in the scheduler */
 	tinfo->shmaddr  = shmaddr;
 
 	return 0;

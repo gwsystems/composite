@@ -12,6 +12,7 @@ thdcap_t  capmgr_thd_create_ext(spdid_t child, thdclosure_index_t idx, thdid_t *
 thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv);
 thdcap_t  capmgr_thd_retrieve(spdid_t child, thdid_t t, thdid_t *inittid);
 thdcap_t  capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid);
+arcvcap_t capmgr_rcv_create(spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax);
 asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t);
 asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv);
 asndcap_t capmgr_asnd_key_create(cos_channelkey_t key);

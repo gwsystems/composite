@@ -363,6 +363,45 @@ err:
 	return 0;
 }
 
+arcvcap_t
+capmgr_rcv_create_cserialized(u32_t spd_tid, u32_t key_ipimax, u32_t ipiwin32b)
+{
+	spdid_t                 cur     = cos_inv_token(), s = (spd_tid >> 16);
+	thdid_t                 tid     = (spd_tid << 16) >> 16;
+	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
+	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
+	struct cap_comp_info   *rs      = cap_info_comp_find(s);
+	struct sl_thd          *ti      = cap_info_thd_find(rs, tid), *rinit = NULL;
+	arcvcap_t               rcv     = 0, rcvret = 0;
+	struct cap_comm_info   *comm    = NULL;
+	cos_channelkey_t        key     = (key_ipimax >> 16);
+	microsec_t              ipiwin  = (microsec_t)ipiwin32b;
+	u32_t                   ipimax  = (key_ipimax << 16) >> 16;
+
+	if (!key) return 0;
+	if (!rc || !cap_info_init_check(rc)) return 0;
+	if (!rs || !cap_info_init_check(rs)) return 0;
+	if (sl_thd_rcvcap(ti)) return 0;
+	/* if it's not the same component.. s must not be a scheduler and cur should be a scheduler */
+	if (cur != s && (!cap_info_is_sched(cur) || cap_info_is_sched(s))) return 0;
+	rinit = cap_info_initthd(rc);
+	if (!rinit) return 0;
+
+	comm = cap_comm_tid_lkup(sl_thd_thdid(ti));
+	if (comm) return 0;
+	rcv = cos_arcv_alloc(cap_ci, sl_thd_thdcap(ti), sl_thd_tcap(ti), cap_ci->comp_cap, sl_thd_rcvcap(rinit));
+	if (!rcv) return 0;
+	sl_thd_aepinfo(ti)->rcv = rcv;
+
+	rcvret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ARCV, rcv);
+	if (!rcvret) return 0;
+
+	cap_comminfo_init(ti, ipiwin, ipimax);
+
+	return rcvret;
+}
+
 asndcap_t
 capmgr_asnd_create(spdid_t s, thdid_t tid /* thd with rcvcap */)
 {

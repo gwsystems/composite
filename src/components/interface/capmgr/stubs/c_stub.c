@@ -11,6 +11,17 @@ thdcap_t capmgr_thd_create_ext_cserialized(thdid_t *tid, int *unused, spdid_t s,
 thdcap_t capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, u32_t owntc_tidx, u32_t key_ipimax, u32_t ipiwin32b);
 thdcap_t capmgr_thd_retrieve_next_cserialized(thdid_t *tid, int *unused, spdid_t s);
 thdcap_t capmgr_thd_retrieve_cserialized(thdid_t *inittid, int *unused, spdid_t s, thdid_t tid);
+arcvcap_t capmgr_rcv_create_cserialized(u32_t spd_tid, u32_t key_ipimax, u32_t ipiwin32b);
+
+arcvcap_t
+capmgr_rcv_create(spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
+{
+	u32_t spd_tid = (child << 16) | tid;
+	u32_t key_ipimax = (key << 16) | ipimax;
+	u32_t ipiwin32b = (u32_t)ipiwin;
+
+	return capmgr_rcv_create_cserialized(spd_tid, key_ipimax, ipiwin32b);
+}
 
 thdcap_t
 capmgr_thd_retrieve(spdid_t child, thdid_t tid, thdid_t *inittid)
