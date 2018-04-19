@@ -30,7 +30,7 @@ kern_retype_initial(void)
 	assert((int)mem_bootc_start() % RETYPE_MEM_NPAGES == 0);
 	assert((int)mem_bootc_end() % RETYPE_MEM_NPAGES == 0);
 	for (k = mem_bootc_start(); k < mem_bootc_end(); k += PAGE_SIZE * RETYPE_MEM_NPAGES) {
-		if (retypetbl_retype2user((void *)(chal_va2pa(k)))) assert(0);
+		if (retypetbl_retype2user((void *)chal_va2pa(k), PAGE_ORDER)) assert(0);
 	}
 }
 
@@ -45,8 +45,7 @@ u8_t *mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 	assert(glb_memlayout.kern_boot_heap <= mem_kmem_end());
 	for (i = (unsigned long)r; i < (unsigned long)glb_memlayout.kern_boot_heap; i += PAGE_SIZE) {
 		if ((unsigned long)i % RETYPE_MEM_NPAGES == 0) {
-			if (retypetbl_retype2kern((void *)chal_va2pa((void *)i))) {
-				die("Retyping to kernel on boot-time heap allocation failed @ 0x%x.\n", i);
+			if (retypetbl_retype2kern((void *)chal_va2pa((void *)i), PAGE_ORDER)) {
 			}
 		}
 	}

@@ -63,7 +63,8 @@ chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned l
 
 	/* pa2va (value in *kern_addr) will return NULL if the page is not kernel accessible */
 	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
-	if (unlikely(retypetbl_kern_ref((void *)(new_v & PGTBL_FRAME_MASK)))) return -EFAULT;
+	/* Now we can only activate 4k pages */
+	if (unlikely(retypetbl_kern_ref((void *)(new_v & PGTBL_FRAME_MASK), PAGE_ORDER))) return -EFAULT;
 
 	/**
          * We keep the cos_frame entry, but mark it as COSKMEM so that
@@ -71,7 +72,7 @@ chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned l
          */
 	if (unlikely(cos_cas((unsigned long *)pte, orig_v, new_v) != CAS_SUCCESS)) {
 		/* restore the ref cnt. */
-		retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK));
+		retypetbl_kern_deref((void *)(orig_v & PGTBL_FRAME_MASK), PAGE_ORDER);
 		return -ECASFAIL;
 	}
 	/**
@@ -254,12 +255,12 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	if (ret) return ret;
 
 	/* ref cnt on the frame. */
-	ret = retypetbl_ref((void *)page);
+	ret = retypetbl_ref((void *)page, PAGE_ORDER);
 	if (ret) return ret;
 
 	ret = __pgtbl_update_leaf(pte, (void *)(page | flags), orig_v);
 	/* restore the refcnt if necessary */
-	if (ret) retypetbl_deref((void *)page);
+	if (ret) retypetbl_deref((void *)page, PAGE_ORDER);
 
 	return ret;
 }
@@ -346,7 +347,7 @@ chal_pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 	if (ret) cos_throw(done, ret);
 
 	/* decrement ref cnt on the frame. */
-	ret = retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK));
+	ret = retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK), PAGE_ORDER);
 	if (ret) cos_throw(done, ret);
 
 done:

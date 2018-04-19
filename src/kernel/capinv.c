@@ -129,7 +129,7 @@ kmem_unalloc(unsigned long *pte)
 	unsigned long old = *pte;
 
 	assert(chal_pgtbl_flag_exist(old, PGTBL_COSKMEM));
-	retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
+	retypetbl_deref((void *)(old & PGTBL_FRAME_MASK), PAGE_ORDER);
 	*pte = chal_pgtbl_flag_clr(*pte, PGTBL_COSKMEM);
 }
 
@@ -282,7 +282,7 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v)
 
 	if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
-	ret = retypetbl_deref((void *)(old_v & PGTBL_FRAME_MASK));
+	ret = retypetbl_kern_deref((void *)(old_v & PGTBL_FRAME_MASK), PAGE_ORDER);
 	if (ret) {
 		/* FIXME: handle this case? */
 		cos_cas(pte, new_v, old_v);
@@ -1440,7 +1440,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
 			if (ret) cos_throw(err, ret);
 
-			ret = retypetbl_retype2user((void *)frame);
+			ret = retypetbl_retype2user((void *)frame, PAGE_ORDER);
 
 			break;
 		}
@@ -1451,7 +1451,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
 			if (ret) cos_throw(err, ret);
 
-			ret = retypetbl_retype2kern((void *)frame);
+			ret = retypetbl_retype2kern((void *)frame, PAGE_ORDER);
 
 			break;
 		}
@@ -1462,7 +1462,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
 			if (ret) cos_throw(err, ret);
 
-			ret = retypetbl_retype2frame((void *)frame);
+			ret = retypetbl_retype2frame((void *)frame, PAGE_ORDER);
 
 			break;
 		}
