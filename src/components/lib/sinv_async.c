@@ -25,9 +25,9 @@ struct sinv_client {
 struct sinv_server {
 	struct sinv_thdinfo sthds[MAX_NUM_THREADS];
 	union {
-		sinv_fn_t      sfn[SINV_NUM_MAX];
-		sinv_rets_fn_t sfnr[SINV_NUM_MAX];
-	};
+		sinv_fn_t      sfn;
+		sinv_rets_fn_t sfnr;
+	} f[SINV_NUM_MAX];
 };
 
 struct sinv_global_data {
@@ -70,10 +70,10 @@ sinv_server_api_init(sinv_num_t num, sinv_fn_t fn, sinv_rets_fn_t fnr)
 	if (!fn && !fnr) return -EINVAL;
 	if (fn && fnr) return -EINVAL; /* only one fn ptr should be set */
 
-	if (sinv_gdata.sdata.sfn[num]) return -EEXIST;
+	if (sinv_gdata.sdata.f[num].sfn) return -EEXIST;
 
-	if (fn) sinv_gdata.sdata.sfn[num]  = fn;
-	else    sinv_gdata.sdata.sfnr[num] = fnr;
+	if (fn) sinv_gdata.sdata.f[num].sfn  = fn;
+	else    sinv_gdata.sdata.f[num].sfnr = fnr;
 
 	return 0;
 }
@@ -104,14 +104,14 @@ sinv_server_fn(arcvcap_t rcv, void *data)
 		switch(req->callno) {
 		case 0: /* FIXME: just a test */
 		{
-			fnr = sinv_gdata.sdata.sfnr[req->callno];
+			fnr = sinv_gdata.sdata.f[req->callno].sfnr;
 			assert(fnr);
 			*retval = (fnr)(&(req->ret2), &(req->ret3), req->arg1, req->arg2, req->arg3);
 			break;
 		}
 		default:
 		{
-			fn  = sinv_gdata.sdata.sfn[req->callno];
+			fn  = sinv_gdata.sdata.f[req->callno].sfn;
 			assert(fn);
 			*retval = (fn)(req->arg1, req->arg2, req->arg3);
 		}
