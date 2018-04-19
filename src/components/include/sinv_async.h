@@ -53,4 +53,9 @@ int sinv_client_thread_init(thdid_t tid, cos_channelkey_t rcvkey, cos_channelkey
 int sinv_client_call(sinv_num_t, word_t a, word_t b, word_t c);
 int sinv_client_rets_call(sinv_num_t, word_t *r2, word_t *r3, word_t a, word_t b, word_t c);
 
+/* Asynchronous communication API */
+typedef sinv_num_t acom_type_t;
+int acom_client_thread_init(thdid_t, arcvcap_t, cos_channelkey_t rkey, cos_channelkey_t skey);
+int acom_client_request(acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio);
+
 #endif /* SINV_ASYNC_H */

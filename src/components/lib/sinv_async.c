@@ -313,3 +313,96 @@ sinv_client_rets_call(sinv_num_t n, word_t *r2, word_t *r3, word_t a, word_t b, 
 {
 	return sinv_client_call_wrets(1, n, a, b, c, r2, r3);
 }
+
+int
+acom_client_thread_init(thdid_t tid, arcvcap_t rcv, cos_channelkey_t rcvkey, cos_channelkey_t skey)
+{
+	unsigned long *reqaddr = (unsigned long *)(sinv_gdata.init_shmaddr);
+	int *retval = (int *)(reqaddr + 1), ret;
+	struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)(reqaddr + 2);
+	struct sinv_thdinfo *tinfo = &sinv_gdata.cdata.cthds[tid];
+	vaddr_t shmaddr = 0;
+	cbuf_t id = 0;
+	asndcap_t snd = 0;
+	spdid_t child = cos_inv_token() == 0 ? cos_spd_id() : cos_inv_token();
+
+	assert(ps_load(reqaddr) == 0);
+	assert(rcvkey && skey && tid && rcv);
+
+	req->clspdid = child; /* this is done from the scheduler on invocation */
+	req->rkey = rcvkey;
+	req->skey = skey;
+
+	id = channel_shared_page_allocn(skey, SINV_REQ_NPAGES, &shmaddr);
+	assert(id && shmaddr);
+
+	ret = ps_cas(reqaddr, 0, 1); /* indicate request available */
+	assert(ret);
+	/* TODO: cos_asnd */
+
+	/* TODO: cos_rcv! */
+	while (ps_load(reqaddr) != 0) {
+		cycles_t now, timeout;
+
+		rdtscll(now);
+		timeout = now + (SINV_SRV_POLL_US * USEC_2_CYC);
+		sched_thd_block_timeout(0, timeout); /* called from the scheduler */
+	}
+
+	/* TODO: UNDO!!! */
+	if (*retval) return *retval;
+
+	snd = capmgr_asnd_key_create(skey);
+	assert(snd);
+
+	tinfo->rkey     = rcvkey;
+	tinfo->skey     = skey;
+	tinfo->clientid = child;
+	tinfo->sndcap   = snd;
+	tinfo->rcvcap   = rcv; /* AEP thread, so rcv with it's rcvcap */
+	tinfo->shmaddr  = shmaddr;
+
+	return 0;
+}
+
+static int
+acomm_client_request(acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio)
+{
+	struct sinv_thdinfo *tinfo = &sinv_gdata.cdata.cthds[cos_thdid()];
+	unsigned long *reqaddr = (unsigned long *)tinfo->shmaddr;
+	int *retval = NULL, ret;
+	struct sinv_call_req *req = NULL;
+
+	assert(t >= 0 && t < SINV_NUM_MAX);
+	assert(reqaddr);
+	assert(tinfo->rcvcap);
+
+	retval = (int *)(reqaddr + 1);
+	req    = (struct sinv_call_req *)(reqaddr + 2);
+
+	req->callno = t;
+	req->arg1   = a;
+	req->arg2   = b;
+	req->arg3   = c;
+
+	ret = ps_cas(reqaddr, 0, 1);
+	assert(ret); /* must be sync.. */
+
+	if (budget) {
+		/* scheduler API for delegation, apps don't have access to "Tcap" */
+	} else {
+		/* cos_asnd(tinfo->sndcap, 0); */
+	}
+
+	while (ps_load(reqaddr) != 0 || cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING, NULL) < 0) {
+		cycles_t now, timeout;
+
+		rdtscll(now);
+		timeout = now + (SINV_SRV_POLL_US * USEC_2_CYC);
+		sched_thd_block_timeout(0, timeout); /* in the app component */
+	}
+
+	assert(ps_load(reqaddr) == 0);
+
+	return *retval;
+}
