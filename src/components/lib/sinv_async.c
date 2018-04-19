@@ -8,72 +8,40 @@
 #define SINV_SRV_POLL_US 500
 #define USEC_2_CYC 2800 /* TODO: move out some generic parts from sl */
 
-struct sinv_thdinfo {
-	cos_channelkey_t rkey;
-	cos_channelkey_t skey;
-
-	spdid_t clientid;
-	vaddr_t shmaddr;
-	asndcap_t sndcap;
-	arcvcap_t rcvcap;
-} CACHE_ALIGNED;
-
-struct sinv_client {
-	struct sinv_thdinfo cthds[MAX_NUM_THREADS];
-};
-
-struct sinv_server {
-	struct sinv_thdinfo sthds[MAX_NUM_THREADS];
-	union {
-		sinv_fn_t      sfn;
-		sinv_rets_fn_t sfnr;
-	} f[SINV_NUM_MAX];
-};
-
-struct sinv_global_data {
-	cos_channelkey_t init_key;
-	vaddr_t          init_shmaddr;
-
-	union {
-		struct sinv_client cdata;
-		struct sinv_server sdata;
-	};
-} sinv_gdata;
-
 static void
-sinv_server_try_map(void)
+sinv_server_try_map(struct sinv_async_info *s)
 {
 	cbuf_t id;
 	vaddr_t addr = 0;
 	unsigned long npg = 0;
 
-	id = channel_shared_page_map(sinv_gdata.init_key, &addr, &npg);
+	id = channel_shared_page_map(s->init_key, &addr, &npg);
 	if (!id) return;
 	assert(id && addr && npg == SINV_INIT_NPAGES);
 
-	sinv_gdata.init_shmaddr = addr;
+	s->init_shmaddr = addr;
 }
 
 void
-sinv_server_init(cos_channelkey_t shm_key)
+sinv_server_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
 {
-	memset(&sinv_gdata, 0, sizeof(struct sinv_global_data));
+	memset(s, 0, sizeof(struct sinv_async_info));
 
-	sinv_gdata.init_key = shm_key;
-	sinv_server_try_map();
+	s->init_key = shm_key;
+	sinv_server_try_map(s);
 }
 
 int
-sinv_server_api_init(sinv_num_t num, sinv_fn_t fn, sinv_rets_fn_t fnr)
+sinv_server_api_init(struct sinv_async_info *s, sinv_num_t num, sinv_fn_t fn, sinv_rets_fn_t fnr)
 {
 	if (num < 0 || num >= SINV_NUM_MAX) return -EINVAL;
 	if (!fn && !fnr) return -EINVAL;
 	if (fn && fnr) return -EINVAL; /* only one fn ptr should be set */
 
-	if (sinv_gdata.sdata.f[num].sfn) return -EEXIST;
+	if (s->sdata.f[num].sfn) return -EEXIST;
 
-	if (fn) sinv_gdata.sdata.f[num].sfn  = fn;
-	else    sinv_gdata.sdata.f[num].sfnr = fnr;
+	if (fn) s->sdata.f[num].sfn  = fn;
+	else    s->sdata.f[num].sfnr = fnr;
 
 	return 0;
 }
@@ -81,9 +49,11 @@ sinv_server_api_init(sinv_num_t num, sinv_fn_t fn, sinv_rets_fn_t fnr)
 void
 sinv_server_fn(arcvcap_t rcv, void *data)
 {
+	struct sinv_async_info *s = (struct sinv_async_info *)data;
+
 	while (1) {
-		unsigned long *reqaddr = (unsigned long *)(sinv_gdata.sdata.sthds[cos_thdid()].shmaddr);
-		asndcap_t snd = sinv_gdata.sdata.sthds[cos_thdid()].sndcap;
+		unsigned long *reqaddr = (unsigned long *)(s->sdata.sthds[cos_thdid()].shmaddr);
+		asndcap_t snd = s->sdata.sthds[cos_thdid()].sndcap;
 		int *retval = (int *)(reqaddr + 1), ret;
 		struct sinv_call_req *req = (struct sinv_call_req *)(reqaddr + 2);
 		sinv_fn_t fn;
@@ -104,14 +74,14 @@ sinv_server_fn(arcvcap_t rcv, void *data)
 		switch(req->callno) {
 		case 0: /* FIXME: just a test */
 		{
-			fnr = sinv_gdata.sdata.f[req->callno].sfnr;
+			fnr = s->sdata.f[req->callno].sfnr;
 			assert(fnr);
 			*retval = (fnr)(&(req->ret2), &(req->ret3), req->arg1, req->arg2, req->arg3);
 			break;
 		}
 		default:
 		{
-			fn  = sinv_gdata.sdata.f[req->callno].sfn;
+			fn  = s->sdata.f[req->callno].sfn;
 			assert(fn);
 			*retval = (fn)(req->arg1, req->arg2, req->arg3);
 		}
@@ -135,12 +105,12 @@ sinv_server_fn(arcvcap_t rcv, void *data)
  *        cos_channelkey_t serverkey, key for shared memory (created by client) and used by aep creation on server side. client should create "asndcap" after return from a request.
  */
 int
-sinv_server_main_loop(void)
+sinv_server_main_loop(struct sinv_async_info *s)
 {
-	while (!sinv_gdata.init_shmaddr) sinv_server_try_map();
+	while (!s->init_shmaddr) sinv_server_try_map(s);
 
 	while (1) {
-		unsigned long *reqaddr = (unsigned long *)(sinv_gdata.init_shmaddr);
+		unsigned long *reqaddr = (unsigned long *)(s->init_shmaddr);
 		int *retval = (int *)(reqaddr + 1), ret;
 		struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)(reqaddr + 2);
 		struct cos_aep_info aep;
@@ -161,7 +131,7 @@ sinv_server_main_loop(void)
 		}
 
 		assert(req->skey);
-		tid = sched_aep_create(&aep, sinv_server_fn, NULL, 1, req->skey, 0, 0);
+		tid = sched_aep_create(&aep, sinv_server_fn, (void *)s, 1, req->skey, 0, 0);
 		assert(tid);
 
 		id = channel_shared_page_map(req->skey, &shmaddr, &npages);
@@ -171,14 +141,14 @@ sinv_server_main_loop(void)
 			snd = capmgr_asnd_key_create(req->rkey);
 			assert(snd);
 
-			sinv_gdata.sdata.sthds[tid].rkey = req->rkey;
+			s->sdata.sthds[tid].rkey = req->rkey;
 		}
 
-		sinv_gdata.sdata.sthds[tid].rcvcap   = aep.rcv;
-		sinv_gdata.sdata.sthds[tid].skey     = req->skey;
-		sinv_gdata.sdata.sthds[tid].sndcap   = snd;
-		sinv_gdata.sdata.sthds[tid].shmaddr  = shmaddr;
-		sinv_gdata.sdata.sthds[tid].clientid = req->clspdid;
+		s->sdata.sthds[tid].rcvcap   = aep.rcv;
+		s->sdata.sthds[tid].skey     = req->skey;
+		s->sdata.sthds[tid].sndcap   = snd;
+		s->sdata.sthds[tid].shmaddr  = shmaddr;
+		s->sdata.sthds[tid].clientid = req->clspdid;
 
 		*retval = 0;
 		ret = ps_cas(reqaddr, 1, 0); /* indicate request completion */
@@ -188,27 +158,27 @@ sinv_server_main_loop(void)
 }
 
 void
-sinv_client_init(cos_channelkey_t shm_key)
+sinv_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
 {
 	cbuf_t id;
 	vaddr_t addr = 0;
 
-	memset(&sinv_gdata, 0, sizeof(struct sinv_global_data));
+	memset(s, 0, sizeof(struct sinv_async_info));
 
 	id = channel_shared_page_allocn(shm_key, SINV_INIT_NPAGES, &addr);
 	assert(id && addr);
 
-	sinv_gdata.init_key     = shm_key;
-	sinv_gdata.init_shmaddr = addr;
+	s->init_key     = shm_key;
+	s->init_shmaddr = addr;
 }
 
 int
-sinv_client_thread_init(thdid_t tid, cos_channelkey_t rcvkey, cos_channelkey_t skey)
+sinv_client_thread_init(struct sinv_async_info *s, thdid_t tid, cos_channelkey_t rcvkey, cos_channelkey_t skey)
 {
-	unsigned long *reqaddr = (unsigned long *)(sinv_gdata.init_shmaddr);
+	unsigned long *reqaddr = (unsigned long *)(s->init_shmaddr);
 	int *retval = (int *)(reqaddr + 1), ret;
 	struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)(reqaddr + 2);
-	struct sinv_thdinfo *tinfo = &sinv_gdata.cdata.cthds[tid];
+	struct sinv_thdinfo *tinfo = &s->cdata.cthds[tid];
 	vaddr_t shmaddr = 0;
 	cbuf_t id = 0;
 	asndcap_t snd = 0;
@@ -260,9 +230,9 @@ sinv_client_thread_init(thdid_t tid, cos_channelkey_t rcvkey, cos_channelkey_t s
 }
 
 static int
-sinv_client_call_wrets(int wrets, sinv_num_t n, word_t a, word_t b, word_t c, word_t *r2, word_t *r3)
+sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_t a, word_t b, word_t c, word_t *r2, word_t *r3)
 {
-	struct sinv_thdinfo *tinfo = &sinv_gdata.cdata.cthds[cos_thdid()];
+	struct sinv_thdinfo *tinfo = &s->cdata.cthds[cos_thdid()];
 	unsigned long *reqaddr = (unsigned long *)tinfo->shmaddr;
 	int *retval = NULL, ret;
 	struct sinv_call_req *req = NULL;
@@ -303,24 +273,24 @@ done:
 }
 
 int
-sinv_client_call(sinv_num_t n, word_t a, word_t b, word_t c)
+sinv_client_call(struct sinv_async_info *s, sinv_num_t n, word_t a, word_t b, word_t c)
 {
-	return sinv_client_call_wrets(0, n, a, b, c, NULL, NULL);
+	return sinv_client_call_wrets(0, s, n, a, b, c, NULL, NULL);
 }
 
 int
-sinv_client_rets_call(sinv_num_t n, word_t *r2, word_t *r3, word_t a, word_t b, word_t c)
+sinv_client_rets_call(struct sinv_async_info *s, sinv_num_t n, word_t *r2, word_t *r3, word_t a, word_t b, word_t c)
 {
-	return sinv_client_call_wrets(1, n, a, b, c, r2, r3);
+	return sinv_client_call_wrets(1, s, n, a, b, c, r2, r3);
 }
 
 int
-acom_client_thread_init(thdid_t tid, arcvcap_t rcv, cos_channelkey_t rcvkey, cos_channelkey_t skey)
+acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, cos_channelkey_t rcvkey, cos_channelkey_t skey)
 {
-	unsigned long *reqaddr = (unsigned long *)(sinv_gdata.init_shmaddr);
+	unsigned long *reqaddr = (unsigned long *)(s->init_shmaddr);
 	int *retval = (int *)(reqaddr + 1), ret;
 	struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)(reqaddr + 2);
-	struct sinv_thdinfo *tinfo = &sinv_gdata.cdata.cthds[tid];
+	struct sinv_thdinfo *tinfo = &s->cdata.cthds[tid];
 	vaddr_t shmaddr = 0;
 	cbuf_t id = 0;
 	asndcap_t snd = 0;
@@ -366,9 +336,9 @@ acom_client_thread_init(thdid_t tid, arcvcap_t rcv, cos_channelkey_t rcvkey, cos
 }
 
 static int
-acomm_client_request(acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio)
+acomm_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio)
 {
-	struct sinv_thdinfo *tinfo = &sinv_gdata.cdata.cthds[cos_thdid()];
+	struct sinv_thdinfo *tinfo = &s->cdata.cthds[cos_thdid()];
 	unsigned long *reqaddr = (unsigned long *)tinfo->shmaddr;
 	int *retval = NULL, ret;
 	struct sinv_call_req *req = NULL;
