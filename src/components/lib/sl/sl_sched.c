@@ -152,11 +152,13 @@ sl_timeout_init(microsec_t period)
 }
 
 /*
- * @return: 1 if it's already WOKEN.
- *	    0 if it successfully blocked in this call.
+ * This API is only used by the scheduling thread to block an AEP thread.
+ * AEP thread scheduling events could be redundant.
+ *
+ * @return: 0 if it successfully blocked in this call.
  */
 int
-sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
+sl_thd_sched_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
 {
 	assert(t);
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
@@ -177,10 +179,56 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 		goto update;
 	}
 
-	assert(t->state == SL_THD_RUNNABLE);
+	assert(sl_thd_is_runnable(t));
 	sl_mod_block(sl_mod_thd_policy_get(t));
 
 update:
+	t->state = block_type;
+	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
+	t->rcv_suspended = 1;
+
+	return 0;
+}
+
+/*
+ * Wake "t" up if it was previously blocked on cos_rcv and got
+ * to run before the scheduler (tcap-activated)!
+ */
+static inline int
+sl_thd_sched_unblock_no_cs(struct sl_thd *t)
+{
+	if (unlikely(!t->rcv_suspended)) return 0;
+	t->rcv_suspended = 0;
+	if (unlikely(t->state != SL_THD_BLOCKED && t->state != SL_THD_BLOCKED_TIMEOUT)) return 0;
+
+	if (likely(t->state == SL_THD_BLOCKED_TIMEOUT)) sl_timeout_remove(t);
+	/* make it RUNNABLE */
+	sl_thd_wakeup_no_cs_rm(t);
+
+	return 1;
+}
+
+/*
+ * @return: 1 if it's already WOKEN.
+ *	    0 if it successfully blocked in this call.
+ */
+int
+sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
+{
+	assert(t);
+	assert(cos_thdid() == sl_thd_thdid(t)); /* only current thread is allowed to block itself */
+	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
+
+	if (unlikely(t->state == SL_THD_WOKEN)) {
+		assert(!t->rcv_suspended);
+		t->state = SL_THD_RUNNABLE;
+		return 1;
+	}
+
+	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
+	sl_thd_sched_unblock_no_cs(t);
+	assert(t->state == SL_THD_RUNNABLE);
+	sl_mod_block(sl_mod_thd_policy_get(t));
 	t->state = block_type;
 	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
 
@@ -217,12 +265,10 @@ sl_thd_block_timeout_intern(thdid_t tid, cycles_t timeout)
 
 	sl_cs_enter();
 	t = sl_thd_curr();
-
 	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, timeout)) {
 		sl_cs_exit();
 		return 1;
 	}
-
 	sl_cs_exit_schedule();
 
 	return 0;
@@ -271,6 +317,61 @@ done:
 	return jitter;
 }
 
+void
+sl_thd_block_expiry(struct sl_thd *t)
+{
+	cycles_t abs_timeout = 0;
+
+	assert(t != sl__globals_cpu()->sched_thd);
+	if (!(t->properties & SL_THD_PROPERTY_OWN_TCAP)) {
+		assert(!t->rcv_suspended);
+		return;
+	}
+	assert(t->period);
+
+	sl_cs_enter();
+
+	/* reset rcv_suspended if the scheduler thinks "t" was suspended on cos_rcv previously */
+	sl_thd_sched_unblock_no_cs(t);
+	sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
+	t->rcv_suspended = 0;
+
+	sl_cs_exit();
+}
+
+/*
+ * This API is only used by the scheduling thread to wakeup an AEP thread.
+ * AEP thread scheduling events could be redundant.
+ *
+ * @return: 1 if it's already WOKEN or RUNNABLE.
+ *	    0 if it successfully blocked in this call.
+ */
+int
+sl_thd_sched_wakeup_no_cs(struct sl_thd *t)
+{
+	assert(t);
+
+	if (unlikely(!t->rcv_suspended)) return 1; /* not blocked on cos_rcv, so don't mess with user-level thread states */
+	t->rcv_suspended = 0;
+	/*
+	 * If a thread was preempted and scheduler updated it to RUNNABLE status and if that AEP
+	 * was activated again (perhaps by tcap preemption logic) and expired it's budget, it could
+	 * result in the scheduler having a redundant WAKEUP event.
+	 *
+	 * Thread could be in WOKEN state:
+	 * Perhaps the thread was blocked waiting for a lock and was woken up by another thread and
+	 * and then scheduler sees some redundant wakeup event through "asnd" or "tcap budget expiry".
+	 */
+	if (unlikely(t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN)) return 1;
+
+	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
+	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
+	t->state = SL_THD_RUNNABLE;
+	sl_mod_wakeup(sl_mod_thd_policy_get(t));
+
+	return 0;
+}
+
 /*
  * @return: 1 if it's already RUNNABLE.
  *          0 if it was woken up in this call
@@ -280,17 +381,10 @@ sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 {
 	assert(t);
 
-	if (t->schedthd) {
-		sl_parent_notif_wakeup_no_cs(t->schedthd, t);
-
-		return 0;
-	}
-
-	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1;
-
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	t->state = SL_THD_RUNNABLE;
 	sl_mod_wakeup(sl_mod_thd_policy_get(t));
+	t->rcv_suspended = 0;
 
 	return 0;
 }
@@ -299,7 +393,21 @@ int
 sl_thd_wakeup_no_cs(struct sl_thd *t)
 {
 	assert(t);
+	assert(sl_thd_curr() != t); /* current thread is not allowed to wake itself up */
 
+	if (t->schedthd) {
+		sl_parent_notif_wakeup_no_cs(t->schedthd, t);
+
+		return 0;
+	}
+
+	if (unlikely(sl_thd_is_runnable(t))) {
+		/* t->state == SL_THD_WOKEN? multiple wakeups? */
+		t->state = SL_THD_WOKEN;
+		return 1;
+	}
+
+	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
 	return sl_thd_wakeup_no_cs_rm(t);
 }
@@ -327,6 +435,8 @@ sl_thd_yield_cs_exit(thdid_t tid)
 {
 	struct sl_thd *t = sl_thd_curr();
 
+	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
+	sl_thd_sched_unblock_no_cs(t);
 	if (tid) {
 		struct sl_thd *to = sl_thd_lkup(tid);
 
@@ -575,10 +685,10 @@ pending_events:
 							state       = SL_THD_BLOCKED_TIMEOUT;
 							abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
 						}
-						sl_thd_block_no_cs(t, state, abs_timeout);
+						sl_thd_sched_block_no_cs(t, state, abs_timeout);
 					}
 				} else {
-					sl_thd_wakeup_no_cs(t);
+					sl_thd_sched_wakeup_no_cs(t);
 				}
 			}
 

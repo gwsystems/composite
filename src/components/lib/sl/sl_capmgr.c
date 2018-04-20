@@ -70,6 +70,7 @@ sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t 
 	t->state          = SL_THD_RUNNABLE;
 	sl_thd_index_add_backend(sl_mod_thd_policy_get(t));
 
+	t->rcv_suspended  = 0;
 	t->budget         = 0;
 	t->last_replenish = 0;
 	t->period         = t->timeout_cycs = t->periodic_cycs = 0;
