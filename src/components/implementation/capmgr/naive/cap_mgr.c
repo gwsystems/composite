@@ -106,7 +106,7 @@ err:
 thdcap_t
 capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, u32_t spdid_owntc, u32_t key_ipimax, u32_t ipiwin32b)
 {
-	spdid_t                 cur     = cos_inv_token(), s = (spdid_owntc << 16) >> 16;
+	spdid_t                 cur     = cos_inv_token(), s = spdid_owntc >> 16;
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
