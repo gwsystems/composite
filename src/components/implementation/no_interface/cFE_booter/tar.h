@@ -1,7 +1,7 @@
 #define TAR_BLOCKSIZE 512
-#define INT32_MAX 0x7FFFFFF // 2^31 - 1
+#define INT32_MAX 0x7FFFFFF /* 2^31 - 1 */
 
-// from GNU
+/*from GNU */
 struct posix_header {   /* byte offset */
 	char name[100];     /*   0 */
 	char mode[8];       /* 100 */

@@ -13,13 +13,14 @@
 
 #include "cFE_util.h"
 
-// Not to be confused with similar OSAL constants.
-// These are only to define size of statically allocated data
+/* Not to be confused with similar OSAL constants.
+ * These are only to define size of statically allocated data
+ */
 #define MAX_NUM_FS NUM_TABLE_ENTRIES
 #define MAX_NUM_FILES 100
 #define MAX_NUM_DIRENT 10
 
-// a page is 4096, size of f_part is 5 values * 4 bytes
+/* a page is 4096, size of f_part is 5 values * 4 bytes */
 #define F_PART_DATA_SIZE (4096 - sizeof(struct f_part))
 
 enum fsobj_type
@@ -124,8 +125,10 @@ struct fs {
 static char *
 path_to_name(char *path)
 {
+	uint32 path_len, offset;
+
 	assert(path);
-	uint32 path_len = strlen(path), offset;
+	path_len = strlen(path);
 	assert(path_len > 1);
 
 	// remove one or more '/' at the end of path

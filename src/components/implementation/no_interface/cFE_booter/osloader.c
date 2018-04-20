@@ -32,19 +32,36 @@ OS_ModuleUnload(uint32 module_id)
 	return OS_SUCCESS;
 }
 
+int32
+get_this_threads_priority()
+{
+	OS_task_prop_t prop;
+	int32          result = OS_TaskGetInfo(sl_thdid(), &prop);
+
+	assert(result == OS_SUCCESS);
+	return prop.priority;
+}
+
 void
 launch_other_component(int child_id, int is_library)
 {
+	struct sl_thd *        t;
 	struct cos_defcompinfo child_dci;
-	cos_defcompinfo_childid_init(&child_dci, child_id);
 
-	struct sl_thd *t = sl_thd_initaep_alloc(&child_dci, NULL, 0, 0, 0);
+	cos_defcompinfo_childid_init(&child_dci, child_id);
+	t = sl_thd_initaep_alloc(&child_dci, NULL, 0, 0, 0);
+
+	/* We need to override the delegate thread id, so the cFE think it's this thread
+	 * Otherwise cFE application id detection is broken
+	 */
+	id_overrides[sl_thd_thdid(t)] = sl_thdid();
+
 	if (is_library) {
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, 1));
 		sl_thd_yield(sl_thd_thdid(t));
 	} else {
-		id_overrides[sl_thd_thdid(t)] = sl_thdid();
-		while (1) sl_thd_yield(sl_thd_thdid(t));
+		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, get_this_threads_priority()));
+		OS_TaskExit();
 	}
 }
 

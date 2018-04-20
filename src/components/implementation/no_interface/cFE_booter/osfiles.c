@@ -12,9 +12,9 @@ int32
 OS_FS_Init(void)
 {
 	os_dirent_t d;
+	uint32      ret = 0;
 
-	uint32 ret = 0;
-	ret        = tar_load();
+	ret = tar_load();
 	if (ret != OS_FS_SUCCESS) return ret;
 	ret = fs_init("/ramdev0", "RAM", 512, 4096);
 	if (ret != OS_FS_SUCCESS) return ret;
@@ -39,8 +39,10 @@ OS_creat(const char *path, int32 access)
 int32
 OS_open(const char *path, int32 access, uint32 mode)
 {
+	int32 ret;
+
 	if (access != OS_READ_WRITE && access != OS_WRITE_ONLY && access != OS_READ_ONLY) { return OS_FS_ERROR; }
-	int32 ret = path_exists(path);
+	ret = path_exists(path);
 	if (ret != OS_FS_SUCCESS) return ret;
 	return file_open((char *)path, access);
 }
@@ -90,8 +92,10 @@ OS_chmod(const char *path, uint32 access)
 int32
 OS_stat(const char *path, os_fstat_t *filestats)
 {
+	int32 ret;
+
 	if (!filestats || !path) return OS_FS_ERR_INVALID_POINTER;
-	int32 ret = path_exists(path);
+	ret = path_exists(path);
 	if (ret != OS_FS_SUCCESS) return ret;
 	return file_stat((char *)path, filestats);
 }
@@ -122,8 +126,10 @@ OS_remove(const char *path)
 int32
 OS_rename(const char *old_filename, const char *new_filename)
 {
+	int32 ret;
+
 	if (!old_filename || !new_filename) return OS_FS_ERR_INVALID_POINTER;
-	int32 ret = path_exists(old_filename);
+	ret = path_exists(old_filename);
 	if (ret != OS_FS_SUCCESS) return ret;
 	ret = path_isvalid(new_filename);
 	if (ret != OS_FS_SUCCESS) return ret;
@@ -138,16 +144,20 @@ OS_rename(const char *old_filename, const char *new_filename)
 int32
 OS_cp(const char *src, const char *dest)
 {
+	int32 ret;
+	char *src_path;
+	char *dest_path;
+
 	if (!src || !dest) return OS_FS_ERR_INVALID_POINTER;
-	char *src_path  = (char *)src;
-	char *dest_path = (char *)dest;
+	src_path  = (char *)src;
+	dest_path = (char *)dest;
 
 	if (strlen(src_path) > OS_MAX_PATH_LEN) return OS_FS_ERR_PATH_TOO_LONG;
 	if (strlen(dest_path) > OS_MAX_PATH_LEN) return OS_FS_ERR_PATH_TOO_LONG;
 	if (strlen(path_to_name(src_path)) > OS_MAX_FILE_NAME) return OS_FS_ERR_NAME_TOO_LONG;
 	if (strlen(path_to_name(dest_path)) > OS_MAX_FILE_NAME) return OS_FS_ERR_NAME_TOO_LONG;
 
-	int32 ret = path_exists(src_path);
+	ret = path_exists(src_path);
 	if (ret != OS_FS_SUCCESS) return ret;
 	ret = path_isvalid(dest_path);
 	if (ret != OS_FS_SUCCESS) return ret;
@@ -161,6 +171,7 @@ OS_cp(const char *src, const char *dest)
 int32
 OS_mv(const char *src, const char *dest)
 {
+	int32 ret;
 	char *src_path  = (char *)src;
 	char *dest_path = (char *)dest;
 
@@ -170,7 +181,7 @@ OS_mv(const char *src, const char *dest)
 	if (strlen(path_to_name(src_path)) > OS_MAX_FILE_NAME) return OS_FS_ERR_NAME_TOO_LONG;
 	if (strlen(path_to_name(dest_path)) > OS_MAX_FILE_NAME) return OS_FS_ERR_NAME_TOO_LONG;
 
-	int32 ret = path_exists(src);
+	ret = path_exists(src);
 	if (ret != OS_FS_SUCCESS) return ret;
 	ret = path_isvalid(dest);
 	if (ret != OS_FS_SUCCESS) return ret;
@@ -196,10 +207,12 @@ OS_FDGetInfo(int32 filedes, OS_FDTableEntry *fd_prop)
 int32
 OS_FileOpenCheck(char *Filename)
 {
-	int32 ret = path_exists(Filename);
+	struct fsobj *file;
+	int32         ret = path_exists(Filename);
+
 	if (ret != OS_FS_SUCCESS) return OS_FS_ERR_INVALID_POINTER;
 
-	struct fsobj *file = file_find(Filename);
+	file = file_find(Filename);
 	if (!file) return OS_INVALID_POINTER;
 	if (file->refcnt == 0) return OS_FS_ERROR;
 	return OS_FS_SUCCESS;
@@ -249,8 +262,9 @@ OS_mkdir(const char *path, uint32 access)
 os_dirp_t
 OS_opendir(const char *path)
 {
+	int32 FD;
 	if (path_exists(path) != OS_FS_SUCCESS) return NULL;
-	int32 FD = dir_open((char *)path);
+	FD = dir_open((char *)path);
 	if (FD == 0) return NULL;
 	return (os_dirp_t)FD;
 }
@@ -350,8 +364,10 @@ OS_rmfs(char *devname)
 int32
 OS_unmount(const char *mountpoint)
 {
+	int32 ret;
+
 	if (!mountpoint) return OS_FS_ERR_INVALID_POINTER;
-	int32 ret = path_exists(mountpoint);
+	ret = path_exists(mountpoint);
 	if (ret != OS_FS_SUCCESS) return ret;
 	return fs_unmount((char *)mountpoint);
 }
@@ -386,8 +402,10 @@ OS_chkfs(const char *name, boolean repair)
 int32
 OS_FS_GetPhysDriveName(char *PhysDriveName, char *MountPoint)
 {
+	int32 ret;
+
 	if (!PhysDriveName || !MountPoint) return OS_FS_ERR_INVALID_POINTER;
-	int32 ret = path_exists(MountPoint);
+	ret = path_exists(MountPoint);
 	if (ret != OS_FS_SUCCESS) return ret;
 	return fs_get_drive_name(PhysDriveName, MountPoint);
 }

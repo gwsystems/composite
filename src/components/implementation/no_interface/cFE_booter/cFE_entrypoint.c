@@ -51,14 +51,10 @@ CFE_PSP_ModuleInit(void)
  */
 struct CFE_PSP_CommandData_t {
 	char ResetType[CFE_PSP_RESET_NAME_LENGTH]; /* Reset type can be "PO" for Power on or "PR" for Processor Reset */
-
-	uint32 SubType; /* Reset Sub Type ( 1 - 5 )  */
-
-	char CpuName[CFE_PSP_CPU_NAME_LENGTH]; /* CPU Name */
-
-	uint32 CpuId; /* CPU ID */
-
-	uint32 SpacecraftId; /* Spacecraft ID */
+	uint32 SubType;                            /* Reset Sub Type ( 1 - 5 )  */
+	char   CpuName[CFE_PSP_CPU_NAME_LENGTH];   /* CPU Name */
+	uint32 CpuId;                              /* CPU ID */
+	uint32 SpacecraftId;                       /* Spacecraft ID */
 };
 
 void
