@@ -66,19 +66,19 @@ chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned l
 	/* Now we can only activate 4k pages */
 	if (unlikely(retypetbl_kern_ref((void *)(new_v & PGTBL_FRAME_MASK), PAGE_ORDER))) return -EFAULT;
 
-	/**
-         * We keep the cos_frame entry, but mark it as COSKMEM so that
+	/*
+	 * We keep the cos_frame entry, but mark it as COSKMEM so that
 	 * we won't use it for other kernel objects.
-         */
+	 */
 	if (unlikely(cos_cas((unsigned long *)pte, orig_v, new_v) != CAS_SUCCESS)) {
 		/* restore the ref cnt. */
 		retypetbl_kern_deref((void *)(orig_v & PGTBL_FRAME_MASK), PAGE_ORDER);
 		return -ECASFAIL;
 	}
-	/**
-         * Return the pte ptr, so that we can release the page if the
+	/*
+	 * Return the pte ptr, so that we can release the page if the
 	 * kobj activation failed later.
-         */
+	 */
 	*pte_ret = (unsigned long *)pte;
 
 	return 0;
