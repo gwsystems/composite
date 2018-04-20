@@ -42,7 +42,7 @@ typedef enum {
 	PGTBL_INTERN_DEF = PGTBL_USER_DEF,
 } pgtbl_flags_t;
 
-/* The page size definitions for composite OS */
+/* The order of page sizes */
 typedef enum {
 	PGSZ_128B = 7,
 	PGSZ_256B,
@@ -62,9 +62,9 @@ typedef enum {
 	PGSZ_4M
 } pgtbl_sz_t;
 
-/* The number of pages in this page table */
+/* The order of numbers of pages */
 typedef enum {
-	PGNO_2    = 1,
+	PGNO_2 = 1,
 	PGNO_4,
 	PGNO_8,
 	PGNO_16,

@@ -89,18 +89,18 @@ chal_tlb_quiescence_check(u64_t timestamp)
 {
 	int i, quiescent = 1;
 
-	/**
-         * Did timer interrupt (which does tlb flush
+	/*
+	 * Did timer interrupt (which does tlb flush
 	 * periodically) happen after unmap? The periodic
 	 * flush happens on all cpus, thus only need to check
 	 * the time stamp of the current core for that case
 	 * (assuming consistent time stamp counters).
-         */
+	 */
 	if (timestamp > tlb_quiescence[get_cpuid()].last_periodic_flush) {
-		/**
-                 * If no periodic flush done yet, did the
+		/*
+		 * If no periodic flush done yet, did the
 		 * mandatory flush happen on all cores?
-                 */
+		 */
 		for (i = 0; i < NUM_CPU_COS; i++) {
 			if (timestamp > tlb_quiescence[i].last_mandatory_flush) {
 				/* no go */
@@ -206,10 +206,10 @@ chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS)
 		cos_throw(err, -ECASFAIL);
 
-	/**
-         * deactivation success. We should either release the
+	/*
+	 * deactivation success. We should either release the
 	 * page, or decrement parent cnt.
-         */
+	 */
 	if (parent == NULL) {
 		/* move the kmem to COSFRAME */
 		ret = kmem_deact_post(pte, old_v);
@@ -453,6 +453,7 @@ pgtbl_t
 chal_pgtbl_create(void *page, void *curr_pgtbl)
 {
 	pgtbl_t ret = pgtbl_alloc(page);
+
 	/* Copying the kernel part of the pgd. */
 	memcpy(page + KERNEL_PGD_REGION_OFFSET, (void *)chal_pa2va((paddr_t)curr_pgtbl) + KERNEL_PGD_REGION_OFFSET,
 	       KERNEL_PGD_REGION_SIZE);

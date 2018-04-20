@@ -187,6 +187,5 @@ pgtbl_check_pgd_absent(pgtbl_t pt, u32_t addr)
 {
 	return __pgtbl_isnull(pgtbl_get_pgd(pt, (u32_t)addr), 0, 0);
 }
-
-#endif
+#endif /* CHAL_PGTBL_H */
 

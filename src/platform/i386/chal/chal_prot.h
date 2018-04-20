@@ -23,5 +23,5 @@ struct cap_pgtbl {
 	struct cap_pgtbl *parent;    /* if !null, points to parent cap */
 	u64_t             frozen_ts; /* timestamp when frozen is set. */
 } __attribute__((packed));
-#endif
+#endif /* CHAL_PROT_H */
 

@@ -72,15 +72,15 @@ config-i386: config-gen
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/i386/chal/ chal
 	@echo "i386" > PLATFORM_ID
 
-config-cmx: config-gen
+config-armcmx: config-gen
 	@echo "#define COS_PLATFORM CMX" >> ./platform/cmx/chal/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/cmx/chal/ chal
-	@echo "cmx" > PLATFORM_ID
+	@echo "armcmx" > PLATFORM_ID
 
-config-crx: config-gen
+config-armcrx: config-gen
 	@echo "#define COS_PLATFORM CRX" >> ./platform/crx/chal/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/crx/chal/ chal
-	@echo "crx" > PLATFORM_ID
+	@echo "armcrx" > PLATFORM_ID
 
 run:
 ifeq ($(RUNSCRIPT),)

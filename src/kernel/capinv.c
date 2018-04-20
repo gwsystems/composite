@@ -276,9 +276,8 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v)
 {
 	int   ret;
 	u32_t new_v;
-
 	/* Unset coskmem bit. Release the kmem frame. */
-        new_v = chal_pgtbl_flag_clr(old_v, PGTBL_COSKMEM);
+	new_v = chal_pgtbl_flag_clr(old_v, PGTBL_COSKMEM);
 
 	if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
@@ -1653,7 +1652,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			pte = pgtbl_lkup_pte(ptc->pgtbl, va, &flags);
 			if (!pte) cos_throw(err, -EINVAL);
 			if (*pte & PGTBL_FRAME_MASK) cos_throw(err, -ENOENT);
-			/* TODO: delete after testing *pte = (PGTBL_FRAME_MASK & pa) | chal_pgtbl_cos2chal(PGTBL_USER_DEF); */
 			*pte = chal_pgtbl_flag_add(PGTBL_FRAME_MASK & pa, PGTBL_USER_DEF);
 
 			ret = 0;

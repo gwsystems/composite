@@ -37,38 +37,24 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 	return chal_pgtbl_deactivate(t, dest_ct_cap, capin, lid, pgtbl_cap, cosframe_addr, root);
 }
 
-/**
- * this works on both kmem and regular user memory: the retypetbl_ref
- * works on both.
- */
 int
 pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
 	return chal_pgtbl_mapping_add(pt, addr, page, flags);
 }
 
-/**
- * This function is only used by the booting code to add cos frames to
- * the pgtbl. It ignores the retype tbl (as we are adding untyped
- * frames). 
- */
 int
 pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
 	return chal_pgtbl_cosframe_add(pt, addr, page, flags);
 }
 
-/* This function updates flags of an existing mapping. */
 int
 pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 {
 	return chal_pgtbl_mapping_mod(pt, addr, flags, prevflags);
 }
 
-/**
- * When we remove a mapping, we need to link the vas to a liv_id,
- * which tracks quiescence for us.
- */
 int
 pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 {
@@ -121,7 +107,6 @@ pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
 	return chal_pgtbl_get_cosframe(pt, frame_addr, cosframe);
 }
 
-/* vaddr -> kaddr */
 vaddr_t
 pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
 {
