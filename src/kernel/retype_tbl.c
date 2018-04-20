@@ -17,7 +17,7 @@
 struct retype_info     retype_tbl[NUM_CPU] CACHE_ALIGNED;
 struct retype_info_glb glb_retype_tbl[N_MEM_SETS << 1] CACHE_ALIGNED;
 
-/*
+/**
  * Currently this is x86 specific. This array is used to find the previous page size's
  * order (the next larger superpage). A value of 0 means there are no such page, a value
  * of -1 means this page size is not supported on this architecture. This table starts at
@@ -240,11 +240,11 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 				temp.refcnt_atom.v = old_temp.refcnt_atom.v;
 				temp.refcnt_atom.user_cnt++;
 				/* 
-		                 * Use CAS to update the word here in case there is a retype/retype race.
-		                 * If another retype retypes the parent, then the type check in this CAS
-		                 * will fail. This CAS makes sure that the parent will not be retyped into
-		                 * something else.
-		                 */
+				 * Use CAS to update the word here in case there is a retype/retype race.
+				 * If another retype retypes the parent, then the type check in this CAS
+				 * will fail. This CAS makes sure that the parent will not be retyped into
+				 * something else.
+				 */
 				if (retypetbl_cas((u32_t*)(walk[page_sizes_super[i]].p_glb), old_temp.refcnt_atom.v, temp.refcnt_atom.v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 				/* This is a simple assignment, because this is the function's local variable */
 				walk[page_sizes_super[i]].inc_cnt = 1;
@@ -263,11 +263,11 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 				temp.refcnt_atom.v = old_temp.refcnt_atom.v;
 				temp.refcnt_atom.kernel_cnt++;
 				/* 
-		                 * Use CAS to update the word here in case there is a retype/retype race.
-		                 * If another retype retypes the parent, then the type check in this CAS
-		                 * will fail. This CAS makes sure that the parent will not be retyped into
-		                 * something else.
-		                 */
+				 * Use CAS to update the word here in case there is a retype/retype race.
+				 * If another retype retypes the parent, then the type check in this CAS
+				 * will fail. This CAS makes sure that the parent will not be retyped into
+				 * something else.
+				 */
 				if (retypetbl_cas((u32_t*)(walk[page_sizes_super[i]].p_glb), old_temp.refcnt_atom.v, temp.refcnt_atom.v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 				/* This is a simple assignment, because this is the function's local variable */
 				walk[page_sizes_super[i]].inc_cnt = 1;
@@ -293,9 +293,11 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 	if (ret != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 	cos_mem_fence();
 
-	/* Set the retyping flag successfully. Now nobody else can
+	/* 
+	 * Set the retyping flag successfully. Now nobody else can
 	 * change this memory set. Update the per-core retype entries
-	 * next. */
+	 * next.
+	 */
 	for (i = 0; i < NUM_CPU; i++) {
 		GET_RETYPE_CPU_ENTRY(i, idx, order)->refcnt_atom.type = type;
 	}
@@ -396,9 +398,11 @@ retypetbl_retype2frame(void *pa, u32_t order)
 	/* Only can retype when there's no more mapping */
 	if (sum != 0) cos_throw(err, -EINVAL);
 
-	/* Before retype any type of memory back to untyped, we need
+	/* 
+	 * Before retype any type of memory back to untyped, we need
 	 * to make sure TLB quiescence has been achieved after the
-	 * last unmapping of any pages in this memory set. */
+	 * last unmapping of any pages in this memory set
+	 */
 	if (!tlb_quiescence_check(last_unmap)) cos_throw(err, -EQUIESCENCE);
 	cos_mem_fence();
 

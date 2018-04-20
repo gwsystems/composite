@@ -469,11 +469,11 @@ chal_pgtbl_quie_check(u32_t orig_v)
 
 	if (orig_v & X86_PGTBL_QUIESCENCE) {
 		lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
-		/**
-                 * An unmap happened at this vaddr before. We need to
+		/*
+		 * An unmap happened at this vaddr before. We need to
 		 * make sure that all cores have done tlb flush before
 		 * creating new mapping.
-                 */
+		 */
 		assert(lid < LTBL_ENTS);
 
 		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
