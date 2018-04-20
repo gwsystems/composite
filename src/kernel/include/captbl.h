@@ -489,6 +489,7 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
 
 int captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr);
+int captbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl);
 int captbl_kmem_scan(struct cap_captbl *cap);
 
 static void
