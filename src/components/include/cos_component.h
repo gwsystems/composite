@@ -12,6 +12,8 @@
 #include <cos_types.h>
 #include <errno.h>
 #include <util.h>
+#include <string.h>
+#include <bitmap.h>
 
 void libc_init();
 
@@ -216,6 +218,35 @@ static inline char *
 cos_init_args(void)
 {
 	return cos_comp_info.init_string;
+}
+
+#define COS_CPUBITMAP_STARTTOK "cpu="
+#define COS_CPUBITMAP_ENDTOK   ","
+#define COS_CPUBITMAP_LEN      (NUM_CPU)
+
+static inline int
+cos_args_cpubmp(u32_t *cpubmp, char *arg)
+{
+	char *start = NULL, *end = NULL;
+	char *restr = arg;
+	int i;
+
+	if (!(start = strtok_r(restr, COS_CPUBITMAP_STARTTOK, &restr))) return -EINVAL;
+	if (strlen(start) < COS_CPUBITMAP_LEN + 1) return -EINVAL;
+	if (strncmp(start + COS_CPUBITMAP_LEN, COS_CPUBITMAP_ENDTOK, strlen(COS_CPUBITMAP_ENDTOK)) != 0) return -EINVAL;
+	*(start + COS_CPUBITMAP_LEN) = '\0';
+
+	for (i = 0; i < (int)strlen(start); i++) {
+		if (start[i] == '1') bitmap_set(cpubmp, i);
+	}
+
+	return 0;
+}
+
+static inline int
+cos_init_args_cpubmp(u32_t *cpubmp)
+{
+	return cos_args_cpubmp(cpubmp, cos_init_args());
 }
 
 #define COS_EXTERN_FN(fn) __cos_extern_##fn

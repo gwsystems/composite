@@ -35,6 +35,7 @@ struct comp_cap_info {
 	vaddr_t                 addr_start;
 	vaddr_t                 vaddr_mapped_in_booter;
 	vaddr_t                 upcall_entry;
+	u32_t                   cpu_bitmap[NUM_CPU_BMP_WORDS];
 	struct comp_sched_info *schedinfo[NUM_CPU];
 } new_comp_cap_info[MAX_NUM_SPDS];
 
@@ -588,6 +589,21 @@ boot_comp_frontier_get(spdid_t dstid, spdid_t srcid, vaddr_t *vasfr, capid_t *ca
 }
 
 static inline int
+boot_comp_cpubitmap_get(spdid_t dstid, u32_t *lo, u32_t *hi)
+{
+	struct comp_cap_info *ci = boot_spd_compcapinfo_get(dstid);
+
+	if (dstid > num_cobj) return -EINVAL;
+
+	assert(NUM_CPU_BMP_WORDS <= 2);
+
+	*lo = ci->cpu_bitmap[0];
+	if (NUM_CPU_BMP_WORDS == 2) *hi = ci->cpu_bitmap[1];
+
+	return 0;
+}
+
+static inline int
 boot_comp_child_next(spdid_t dstid, spdid_t srcid, spdid_t *child, comp_flag_t *flag)
 {
 	struct comp_sched_info *si = boot_spd_comp_schedinfo_get(srcid), *sch = NULL;
@@ -751,6 +767,15 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
 		if (ret1) goto done;
 
 		*ret2 = vasfr;
+
+		break;
+	}
+	case HYPERCALL_COMP_CPUBITMAP_GET:
+	{
+		spdid_t srcid = arg3;
+
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
+		ret1 = boot_comp_cpubitmap_get(srcid, (u32_t *)ret2, (u32_t *)ret3);
 
 		break;
 	}

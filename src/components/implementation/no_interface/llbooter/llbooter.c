@@ -145,8 +145,9 @@ boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info, vaddr_t
 static int
 boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val, char *mem, vaddr_t symb_addr)
 {
-	int                               i;
+	int                               i, found_cpubmp = 0;
 	struct cos_component_information *ci;
+	struct comp_cap_info             *spdinfo = boot_spd_compcapinfo_get(spdid);
 
 	assert(symb_addr == round_to_page(symb_addr));
 	ci = (struct cos_component_information *)(mem);
@@ -158,7 +159,7 @@ boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val, char 
 
 	for (i = 0; init_args[i].spdid; i++) {
 		char *start, *end;
-		int   len;
+		int   len, ret;
 
 		if (init_args[i].spdid != spdid) continue;
 
@@ -170,7 +171,16 @@ boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val, char 
 		len = (int)(end - start);
 		memcpy(&ci->init_string[0], start, len);
 		ci->init_string[len] = '\0';
+
+		ret = cos_args_cpubmp(spdinfo->cpu_bitmap, ci->init_string);
+		if (ret == 0) found_cpubmp = 1;
 	}
+
+	/* if cpubitmap is not specified in the runscript, set it to run on all cores */
+	if (!found_cpubmp) bitmap_set_contig(spdinfo->cpu_bitmap, 0, NUM_CPU, 1);
+	PRINTLOG(PRINT_DEBUG, "Comp %u init-string:%s, init-cpu_bitmap:", spdid, ci->init_string);
+	for (i = 0; i < NUM_CPU; i++) printc("%d", bitmap_check(spdinfo->cpu_bitmap, i));
+	printc("\n");
 
 	return 1;
 }

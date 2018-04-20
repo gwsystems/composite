@@ -18,6 +18,8 @@
 #include "cpu_ghz.h"
 
 #define NUM_CPU 1
+#define NUM_CPU_BMP_BYTES ((NUM_CPU + 7) / 8)
+#define NUM_CPU_BMP_WORDS ((NUM_CPU_BMP_BYTES + 3) / 4)
 
 /*
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
