@@ -191,10 +191,10 @@ chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 
 	if (parent == NULL) {
 		if (!root) cos_throw(err, -EINVAL);
-		/**
-                 * Last reference to the captbl page. Require pgtbl
+		/*
+		 * Last reference to the captbl page. Require pgtbl
 		 * and cos_frame cap to release the kmem page.
-                 */
+		 */
 		ret = kmem_deact_pre(deact_header, t, pgtbl_cap, cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
