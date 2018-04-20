@@ -13,7 +13,7 @@ cos_init(void)
 	PRINTLOG(PRINT_DEBUG, "Dummy component booted.\n");
 	hypercall_comp_cpubitmap_get(cos_spd_id(), cpubmp);
 	PRINTLOG(PRINT_DEBUG, "Comp[%ld] CPU bitmap:", cos_spd_id());
-	for (i = 0; i < NUM_CPU; i++) {
+	for (i = NUM_CPU + 1; i >= 0; i--) {
 		printc("%d", bitmap_check(cpubmp, i));
 	}
 	printc("\n");

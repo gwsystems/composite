@@ -62,7 +62,7 @@ capmgr_comp_info_iter_cpu(void)
 		if (aep.thd) {
 			ithd = sl_thd_init_ext(&aep, NULL);
 			assert(ithd);
-
+			cap_comminfo_init(ithd, 0, 0);
 			cap_info_initthd_init(rci, ithd, 0);
 		} else if (cos_spd_id() == spdid) {
 			cap_info_initthd_init(rci, sl__globals_cpu()->sched_thd, 0);
@@ -137,6 +137,7 @@ capmgr_comp_info_iter(void)
 		if (aep.thd) {
 			ithd = sl_thd_init_ext(&aep, NULL);
 			assert(ithd);
+			cap_comminfo_init(ithd, 0, 0);
 
 			cap_info_initthd_init(rci, ithd, 0);
 		} else if (cos_spd_id() == spdid) {

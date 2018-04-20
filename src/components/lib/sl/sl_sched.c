@@ -460,6 +460,7 @@ sl_init_cpubmp(microsec_t period, u32_t *cpubmp)
 		/* make sure this scheduler is active on this cpu/core */
 		assert(sl_cpu_active());
 	}
+
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
 	memset(g, 0, sizeof(struct sl_global_cpu));
@@ -483,6 +484,7 @@ sl_init_cpubmp(microsec_t period, u32_t *cpubmp)
 	g->idle_thd        = sl_thd_alloc(sl_idle, NULL);
 	assert(g->idle_thd);
 
+	/* all cores that this sched runs on, must be initialized by now so "asnd"s can be created! */
 	sl_xcpu_asnd_alloc();
 
 	return;
