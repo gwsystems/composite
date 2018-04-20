@@ -4,9 +4,9 @@
 #include <sl.h>
 #include <bitmap.h>
 
-#define SL_REQ_THD_ALLOC(req, cpu, fn, data) do {						\
+#define SL_REQ_THD_ALLOC(req, fn, data) do {							\
 						req.type = SL_XCPU_THD_ALLOC;			\
-						req.client = cpu;				\
+						req.client = cos_cpuid();			\
 						req.req_response = 0;				\
 						req.sl_xcpu_req_thd_alloc.fn = fn;		\
 						req.sl_xcpu_req_thd_alloc.data = data;		\
@@ -22,12 +22,12 @@ sl_xcpu_thd_alloc(cpuid_t cpu, cos_thd_fn_t fn, void *data, sched_param_t params
 	asndcap_t snd = 0;
 	struct sl_xcpu_request req;
 
-	if (cpu != cos_cpuid()) return -EINVAL;
+	if (cpu == cos_cpuid()) return -EINVAL;
 	if (!bitmap_check(sl__globals()->cpu_bmp, cpu)) return -EINVAL;
 
 	sl_cs_enter();
 
-	SL_REQ_THD_ALLOC(req, cpu, fn, data);
+	SL_REQ_THD_ALLOC(req, fn, data);
 	memcpy(req.params, params, sizeof(sched_param_t) * sz);
 	req.param_count = sz;
 	if (ck_ring_enqueue_mpsc_xcpu(sl__ring(cpu), sl__ring_buffer(cpu), &req) != true) {
