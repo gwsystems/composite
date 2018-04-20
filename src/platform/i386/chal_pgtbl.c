@@ -496,10 +496,10 @@ chal_pgtbl_init_pte(void *pte)
 	for (i = 0; i < (1 << PGTBL_ORD); i++) vals[i] = 0;
 }
 
+/* FIXME: we need to ensure TLB quiescence for pgtbl cons/decons! */
 int
 chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandid, unsigned long depth)
 {
-	/* FIXME: we need to ensure TLB quiescence for pgtbl cons/decons! */
 	u32_t flags = 0, old_pte, new_pte, old_v, refcnt_flags;
 	unsigned long *    intern;
 	int                ret = 0;
