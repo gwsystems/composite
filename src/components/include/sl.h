@@ -553,6 +553,10 @@ sl_cs_exit_switchto(struct sl_thd *to)
  */
 void sl_init(microsec_t period);
 /*
+ * @cpubmp - cpu/cores on which this scheduler will run on!
+ */
+void sl_init_cpubmp(microsec_t period, u32_t *cpubmp);
+/*
  * sl_sched_loop internally calls the kernel api - cos_sched_rcv
  * which blocks (suspends) the calling thread if there are no pending events.
  */

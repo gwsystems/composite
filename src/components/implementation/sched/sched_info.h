@@ -12,6 +12,7 @@ struct sched_childinfo {
 	struct sl_thd         *initthd;
 	comp_flag_t            flags;
 	spdid_t                id;
+	u32_t                  cpubmp[NUM_CPU_BMP_WORDS];
 } CACHE_ALIGNED;
 
 struct sched_childinfo *sched_childinfo_find(spdid_t spdid);
@@ -42,7 +43,9 @@ sched_child_initthd_get(struct sched_childinfo *sci)
 static inline void
 sched_child_initthd_set(struct sched_childinfo *sci, struct sl_thd *t)
 {
-	if (sci) sci->initthd = t;
+	if (!sci) return;
+
+	sci->initthd = t;
 }
 
 #endif /* SCHED_INFO_H */

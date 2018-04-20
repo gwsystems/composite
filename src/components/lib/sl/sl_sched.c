@@ -442,23 +442,23 @@ sl_global_init(u32_t *cpu_bmp)
 }
 
 void
-sl_init(microsec_t period)
+sl_init_cpubmp(microsec_t period, u32_t *cpubmp)
 {
 	int i;
 	static unsigned long first = 1, init_done = 0;
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
 	struct sl_global_cpu   *g   = sl__globals_cpu();
-	u32_t cpu_bmp[(NUM_CPU + 7)/8] = { 0 }; /* TODO! pass from the user! */
 
 	if (ps_cas(&first, 1, 0)) {
-		bitmap_set_contig(cpu_bmp, 0, NUM_CPU, 1);
-		sl_global_init(cpu_bmp);
+		sl_global_init(cpubmp);
 
 		ps_faa(&init_done, 1);
 	} else {
 		/* wait until global ring buffers are initialized correctly! */
 		while (!ps_load(&init_done)) ;
+		/* make sure this scheduler is active on this cpu/core */
+		assert(sl_cpu_active());
 	}
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
@@ -488,11 +488,24 @@ sl_init(microsec_t period)
 	return;
 }
 
+
+void
+sl_init(microsec_t period)
+{
+	u32_t cpubmp[NUM_CPU_BMP_WORDS] = { 0 };
+
+	/* runs on all cores.. */
+	bitmap_set_contig(cpubmp, 0, NUM_CPU, 1);
+	sl_init_cpubmp(period, cpubmp);
+}
+
 static void
 sl_sched_loop_intern(int non_block)
 {
 	struct sl_global_cpu *g   = sl__globals_cpu();
 	rcv_flags_t           rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
+
+	assert(sl_cpu_active());
 
 	while (1) {
 		int pending;

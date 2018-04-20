@@ -38,8 +38,6 @@ sched_childinfo_alloc(spdid_t id, compcap_t compcap, comp_flag_t flags)
 	sci = &childinfo[cos_cpuid()][idx];
 	dci = sched_child_defci_get(sci);
 
-	if (flags & COMP_FLAG_SCHED) ps_faa((unsigned long *)&sched_num_childsched[cos_cpuid()], 1);
-
 	if (compcap) {
 		struct cos_compinfo *ci = cos_compinfo_get(dci);
 
@@ -89,12 +87,17 @@ sched_childinfo_init_intern(int is_raw)
 		schedinfo = sched_childinfo_alloc(child, compcap, childflags);
 		assert(schedinfo);
 		child_dci = sched_child_defci_get(schedinfo);
+		hypercall_comp_cpubitmap_get(child, schedinfo->cpubmp);
 
-		initthd = sl_thd_initaep_alloc(child_dci, NULL, childflags & COMP_FLAG_SCHED, childflags & COMP_FLAG_SCHED ? 1 : 0, 0, 0, 0);
-		assert(initthd);
-		sched_child_initthd_set(schedinfo, initthd);
+		if (bitmap_check(schedinfo->cpubmp, cos_cpuid())) {
+			initthd = sl_thd_initaep_alloc(child_dci, NULL, childflags & COMP_FLAG_SCHED, childflags & COMP_FLAG_SCHED ? 1 : 0, 0, 0, 0); /* TODO: rate information */
+			assert(initthd);
+			sched_child_initthd_set(schedinfo, initthd);
 
-		sched_child_init(schedinfo);
+			sched_child_init(schedinfo);
+			if (childflags & COMP_FLAG_SCHED) ps_faa((unsigned long *)&sched_num_childsched[cos_cpuid()], 1);
+		}
+
 		if (!remaining) break;
 	}
 

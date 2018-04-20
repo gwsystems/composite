@@ -229,15 +229,21 @@ cos_args_cpubmp(u32_t *cpubmp, char *arg)
 {
 	char *start = NULL, *end = NULL;
 	char *restr = arg;
-	int i;
+	int i, len = 0;
 
-	if (!(start = strtok_r(restr, COS_CPUBITMAP_STARTTOK, &restr))) return -EINVAL;
+	/* if "cpu=" tag is not present.. set the component to be runnable on all cores */
+	if (!arg || !strlen(arg) || !(start = strtok_r(restr, COS_CPUBITMAP_STARTTOK, &restr))) {
+		bitmap_set_contig(cpubmp, 0, NUM_CPU, 1);
+
+		return 0;
+	}
 	if (strlen(start) < COS_CPUBITMAP_LEN + 1) return -EINVAL;
 	if (strncmp(start + COS_CPUBITMAP_LEN, COS_CPUBITMAP_ENDTOK, strlen(COS_CPUBITMAP_ENDTOK)) != 0) return -EINVAL;
 	*(start + COS_CPUBITMAP_LEN) = '\0';
 
-	for (i = 0; i < (int)strlen(start); i++) {
-		if (start[i] == '1') bitmap_set(cpubmp, i);
+	len = strlen(start);
+	for (i = 0; i < len; i++) {
+		if (start[i] == '1') bitmap_set(cpubmp, (len - 1 - i));
 	}
 
 	return 0;

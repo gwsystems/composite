@@ -62,7 +62,7 @@ struct sl_global {
 	struct ck_ring xcpu_ring[NUM_CPU]; /* mpsc ring! */
 
 	struct sl_xcpu_request xcpu_rbuf[NUM_CPU][SL_XCPU_RING_SIZE];
-	u32_t cpu_bmp[(NUM_CPU + 7)/8]; /* bitmap of cpus this scheduler is running on! */
+	u32_t cpu_bmp[NUM_CPU_BMP_WORDS]; /* bitmap of cpus this scheduler is running on! */
 	asndcap_t xcpu_asnd[NUM_CPU][NUM_CPU];
 } CACHE_ALIGNED;
 
@@ -72,6 +72,12 @@ static inline struct sl_global *
 sl__globals(void)
 {
 	return &sl_global_data;
+}
+
+static inline int
+sl_cpu_active(void)
+{
+        return bitmap_check(sl__globals()->cpu_bmp, cos_cpuid());
 }
 
 static inline struct ck_ring *

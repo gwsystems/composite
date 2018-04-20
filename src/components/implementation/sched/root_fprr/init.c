@@ -54,6 +54,7 @@ cos_init(void)
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 	static int first_time = 1, init_done = 0;
+	u32_t cpubmp[NUM_CPU_BMP_WORDS] = { 0 };
 
 	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
@@ -61,6 +62,7 @@ cos_init(void)
 		first_time = 0;
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_defcompinfo_init();
+		cos_init_args_cpubmp(cpubmp);
 		init_done = 1;
 	} else {
 		while (!init_done) ;
@@ -68,7 +70,7 @@ cos_init(void)
 		cos_defcompinfo_sched_init();
 	}
 
-	sl_init(SL_MIN_PERIOD_US);
+	sl_init_cpubmp(SL_MIN_PERIOD_US, cpubmp);
 	sched_childinfo_init();
 	__initializer_thd[cos_cpuid()] = sl_thd_alloc(__init_done, NULL);
 	assert(__initializer_thd[cos_cpuid()]);
