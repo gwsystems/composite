@@ -723,7 +723,8 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 	assert(asnd->arcv_capid);
 	/* IPI notification to another core */
 	if (asnd->arcv_cpuid != curr_cpu) {
-		assert(!srcv && !yield);
+		/* ignore yield flag */
+		assert(!srcv);
 
 		ret = cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
 		if (unlikely(ret < 0)) return ret;

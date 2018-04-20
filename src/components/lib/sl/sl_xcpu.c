@@ -38,10 +38,13 @@ sl_xcpu_thd_alloc(cpuid_t cpu, cos_thd_fn_t fn, void *data, sched_param_t params
 	}
 
 	sl_cs_exit();
-	/* if (!snd) return -1; */
-	/* send an IPI for the request */
-	/* cos_asnd(snd, 0); */
 
+	if (!snd || ret) goto done;
+
+	/* send an IPI for the request */
+	ret = cos_asnd(snd, 1);
+
+done:
 	return ret;
 }
 
