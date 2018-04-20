@@ -170,22 +170,27 @@ run_tests()
 void
 cos_init(void)
 {
-	static unsigned long first = 1, init_done = 0;
+	int i;
+	static unsigned long first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
 	struct sl_thd *testing_thread;
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
 	PRINTC("Unit-test for the scheduling library (sl)\n");
 
-	if (ps_cas(&first, 1, 0)) {
+	if (ps_cas(&first, NUM_CPU + 1, cos_cpuid())) {
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_defcompinfo_init();
-		ps_faa(&init_done, 1);
 	} else {
-		while (!ps_load(&init_done)) ;
+		while (!ps_load(&init_done[first])) ;
 
 		cos_defcompinfo_sched_init();
 	}
+	ps_faa(&init_done[cos_cpuid()], 1);
+	for (i = 0; i < NUM_CPU; i++) {
+		while (!ps_load(&init_done[i])) ;
+	}
+
 	sl_init(SL_MIN_PERIOD_US);
 
 	testing_thread = sl_thd_alloc(run_tests, NULL);
