@@ -143,9 +143,9 @@ page_fault_handler(struct pt_regs *regs)
 	eip        = chal_cpu_fault_ip(regs);
 
 	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%x, ip 0x%x\n", thdid,
-	    errcode & X86_PRESENT ? "present" : "not-present",
-	    errcode & X86_WRITABLE ? "write-fault" : "read-fault", errcode & X86_USER ? "user-mode" : "system",
-	    errcode & X86_WT ? "reserved" : "", errcode & X86_NOCACHE ? "instruction-fetch" : "", fault_addr, eip);
+	    errcode & X86_PGTBL_PRESENT ? "present" : "not-present",
+	    errcode & X86_PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & X86_PGTBL_USER ? "user-mode" : "system",
+	    errcode & X86_PGTBL_WT ? "reserved" : "", errcode & X86_PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, eip);
 
 	return 1;
 }

@@ -3,23 +3,23 @@
 
 /* These code below are for x86 specifically, only used in x86 chal */
 typedef enum {
-	X86_PRESENT    = 1,
-	X86_WRITABLE   = 1 << 1,
-	X86_USER       = 1 << 2,
-	X86_WT         = 1 << 3, /* write-through caching */
-	X86_NOCACHE    = 1 << 4, /* caching disabled */
-	X86_ACCESSED   = 1 << 5,
-	X86_MODIFIED   = 1 << 6,
-	X86_SUPER      = 1 << 7, /* super-page (4MB on x86-32) */
-	X86_GLOBAL     = 1 << 8,
+	X86_PGTBL_PRESENT    = 1,
+	X86_PGTBL_WRITABLE   = 1 << 1,
+	X86_PGTBL_USER       = 1 << 2,
+	X86_PGTBL_WT         = 1 << 3, /* write-through caching */
+	X86_PGTBL_NOCACHE    = 1 << 4, /* caching disabled */
+	X86_PGTBL_ACCESSED   = 1 << 5,
+	X86_PGTBL_MODIFIED   = 1 << 6,
+	X86_PGTBL_SUPER      = 1 << 7, /* super-page (4MB on x86-32) */
+	X86_PGTBL_GLOBAL     = 1 << 8,
 	/* Composite defined bits next*/
-	X86_COSFRAME   = 1 << 9,
-	X86_COSKMEM    = 1 << 10, /* page activated as kernel object */
-	X86_QUIESCENCE = 1 << 11,
+	X86_PGTBL_COSFRAME   = 1 << 9,
+	X86_PGTBL_COSKMEM    = 1 << 10, /* page activated as kernel object */
+	X86_PGTBL_QUIESCENCE = 1 << 11,
 	/* Flag bits done. */
 
-	X86_USER_DEF   = X86_PRESENT | X86_USER | X86_ACCESSED | X86_MODIFIED | X86_WRITABLE,
-	X86_INTERN_DEF = X86_USER_DEF,
+	X86_PGTBL_USER_DEF   = X86_PGTBL_PRESENT | X86_PGTBL_USER | X86_PGTBL_ACCESSED | X86_PGTBL_MODIFIED | X86_PGTBL_WRITABLE,
+	X86_PGTBL_INTERN_DEF = X86_PGTBL_USER_DEF,
 } pgtbl_flags_x86_t;
 
 /**
@@ -51,7 +51,7 @@ __pgtbl_isnull(struct ert_intern *a, void *accum, int isleaf)
 {
 	(void)isleaf;
 	(void)accum;
-	return !(((u32_t)(a->next)) & (X86_PRESENT | X86_COSFRAME));
+	return !(((u32_t)(a->next)) & (X86_PGTBL_PRESENT | X86_PGTBL_COSFRAME));
 }
 static void
 __pgtbl_init(struct ert_intern *a, int isleaf)
@@ -106,7 +106,7 @@ __pgtbl_set(struct ert_intern *a, void *v, void *accum, int isleaf)
 	assert(!isleaf);
 
 	old = (u32_t)a->next;
-	new = (u32_t)chal_va2pa((void *)((u32_t)v & PGTBL_FRAME_MASK)) | X86_INTERN_DEF;
+	new = (u32_t)chal_va2pa((void *)((u32_t)v & PGTBL_FRAME_MASK)) | X86_PGTBL_INTERN_DEF;
 
 	if (!cos_cas((unsigned long *)&a->next, old, new)) return -ECASFAIL;
 
@@ -162,7 +162,7 @@ pgtbl_intern_prune(pgtbl_t pt, u32_t addr)
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & (u32_t)addr) == 0);
 
-	pgd = __pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PRESENT), (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 1, &accum);
+	pgd = __pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 1, &accum);
 	if (!pgd) return NULL;
 	page  = __pgtbl_get((struct ert_intern *)pgd, &accum, 0);
 	accum = 0;
@@ -179,7 +179,7 @@ pgtbl_get_pgd(pgtbl_t pt, u32_t addr)
 	unsigned long accum = 0;
 
 	assert(pt);
-	return __pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PRESENT), (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 1, &accum);
+	return __pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 1, &accum);
 }
 
 static int

@@ -15,12 +15,12 @@ struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED LARGE_BSS;
 struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED LARGE_BSS;
 
 #define KERN_INIT_PGD_IDX (COS_MEM_KERN_START_VA >> PGD_SHIFT)
-u32_t boot_comp_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | X86_PRESENT | X86_WRITABLE | X86_SUPER,
-                                                               [KERN_INIT_PGD_IDX] = 0 | X86_PRESENT | X86_WRITABLE
-                                                                                     | X86_SUPER};
-u32_t boot_ap_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | X86_PRESENT | X86_WRITABLE | X86_SUPER,
-                                                               [KERN_INIT_PGD_IDX] = 0 | X86_PRESENT | X86_WRITABLE
-                                                                                     | X86_SUPER};
+u32_t boot_comp_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
+                                                               [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
+                                                                                       | X86_PGTBL_SUPER};
+u32_t boot_ap_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
+                                                             [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
+                                                                                     | X86_PGTBL_SUPER};
 
 void
 kern_retype_initial(void)
@@ -70,9 +70,9 @@ kern_setup_image(void)
 	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA / PGD_RANGE;
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end); i += PGD_RANGE, j++) {
 		assert(j != KERN_INIT_PGD_IDX
-		       || ((boot_comp_pgd[j] | X86_GLOBAL) & ~(X86_MODIFIED | X86_ACCESSED))
-		            == (i | X86_PRESENT | X86_WRITABLE | X86_SUPER | X86_GLOBAL));
-		boot_comp_pgd[j]             = i | X86_PRESENT | X86_WRITABLE | X86_SUPER | X86_GLOBAL;
+		       || ((boot_comp_pgd[j] | X86_PGTBL_GLOBAL) & ~(X86_PGTBL_MODIFIED | X86_PGTBL_ACCESSED))
+		            == (i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL));
+		boot_comp_pgd[j]             = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 		boot_comp_pgd[i / PGD_RANGE] = 0; /* unmap lower addresses */
 	}
 
@@ -89,14 +89,14 @@ kern_setup_image(void)
 		u64_t hpet;
 
 		page             = round_up_to_pgd_page(rsdt) - (1 << 22);
-		boot_comp_pgd[j] = page | X86_PRESENT | X86_WRITABLE | X86_SUPER | X86_GLOBAL;
+		boot_comp_pgd[j] = page | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 		acpi_set_rsdt_page(j);
 		j++;
 
 		hpet = timer_find_hpet(acpi_find_timer());
 		if (hpet) {
 			page             = round_up_to_pgd_page(hpet & 0xffffffff) - (1 << 22);
-			boot_comp_pgd[j] = page | X86_PRESENT | X86_WRITABLE | X86_SUPER | X86_GLOBAL;
+			boot_comp_pgd[j] = page | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 			timer_set_hpet_page(j);
 			j++;
 		}
@@ -110,7 +110,7 @@ kern_setup_image(void)
 			 * For correct APIC operation, this address space must be mapped to an area of memory
 			 * that has been designated as strong uncacheable (UC).
 			 */
-			boot_comp_pgd[j] = page | X86_PRESENT | X86_WRITABLE | X86_SUPER | X86_GLOBAL | X86_NOCACHE;
+			boot_comp_pgd[j] = page | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL | X86_PGTBL_NOCACHE;
 			lapic_set_page(j);
 			j++;
 		}
@@ -137,12 +137,12 @@ kern_paging_map_init(void *pa)
 	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA / PGD_RANGE;
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end); i += PGD_RANGE, j++) {
 		assert(j != KERN_INIT_PGD_IDX
-		       || ((boot_comp_pgd[j] | X86_GLOBAL) & ~(X86_MODIFIED | X86_ACCESSED))
-		            == (i | X86_PRESENT | X86_WRITABLE | X86_SUPER | X86_GLOBAL));
+		       || ((boot_comp_pgd[j] | X86_PGTBL_GLOBAL) & ~(X86_PGTBL_MODIFIED | X86_PGTBL_ACCESSED))
+		            == (i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL));
 		/* lower mapping */
-		boot_comp_pgd[i / PGD_RANGE] = i | X86_PRESENT | X86_WRITABLE | X86_SUPER | X86_GLOBAL;
+		boot_comp_pgd[i / PGD_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 		/* higher mapping */
-		boot_comp_pgd[j] = i | X86_PRESENT | X86_WRITABLE | X86_SUPER | X86_GLOBAL;
+		boot_comp_pgd[j] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 	}
 }
 

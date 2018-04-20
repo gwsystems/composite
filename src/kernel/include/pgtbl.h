@@ -21,6 +21,27 @@
 #include "chal.h"
 #endif
 
+/* Generic page table flags */
+typedef enum {
+	PGTBL_PRESENT  = 1,
+	PGTBL_WRITABLE = 1 << 1,
+	PGTBL_USER     = 1 << 2,
+	PGTBL_WT       = 1 << 3, /* write-through caching */
+	PGTBL_NOCACHE  = 1 << 4, /* caching disabled */
+	PGTBL_ACCESSED = 1 << 5,
+	PGTBL_MODIFIED = 1 << 6,
+	PGTBL_SUPER    = 1 << 7, /* super-page (4MB on x86-32) */
+	PGTBL_GLOBAL   = 1 << 8,
+	/* Composite defined bits next*/
+	PGTBL_COSFRAME   = 1 << 9,
+	PGTBL_COSKMEM    = 1 << 10, /* page activated as kernel object */
+	PGTBL_QUIESCENCE = 1 << 11,
+	/* Flag bits done. */
+
+	PGTBL_USER_DEF   = PGTBL_PRESENT | PGTBL_USER | PGTBL_ACCESSED | PGTBL_MODIFIED | PGTBL_WRITABLE,
+	PGTBL_INTERN_DEF = PGTBL_USER_DEF,
+} pgtbl_flags_t;
+
 /* The page size definitions for composite OS */
 typedef enum {
 	PGSZ_128B = 7,
@@ -101,10 +122,6 @@ pgtbl_update(pgtbl_t pt)
 	asm volatile("mov %0, %%cr3" : : "r"(pt));
 }
 
-/* FIXME: this should be using cos_config.h defines */
-#define KERNEL_PGD_REGION_OFFSET (PAGE_SIZE - PAGE_SIZE / 4)
-#define KERNEL_PGD_REGION_SIZE (PAGE_SIZE / 4)
-
 static void
 pgtbl_init(void)
 {
@@ -116,4 +133,39 @@ pgtbl_init(void)
 int cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr);
 int pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte);
 
+/* Chal related function prototypes */
+/* Do flag transformations */
+unsigned long  chal_pgtbl_flag_add(unsigned long input, pgtbl_flags_t flags);
+unsigned long  chal_pgtbl_flag_clr(unsigned long input, pgtbl_flags_t flags);
+unsigned long  chal_pgtbl_flag_exist(unsigned long input, pgtbl_flags_t flags);
+unsigned long  chal_pgtbl_flag_all(unsigned long input, pgtbl_flags_t flags);
+
+int            chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte_ret);
+int            chal_tlb_quiescence_check(u64_t timestamp);
+int            chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr);
+int            chal_pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
+int            chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin,
+                                     livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
+
+
+int            chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
+int            chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
+/* This function updates flags of an existing mapping. */
+int            chal_pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags);
+int            chal_pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id);
+int            chal_pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr);
+int            chal_pgtbl_mapping_scan(struct cap_pgtbl *pt);
+void          *chal_pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl);
+int            chal_pgtbl_ispresent(u32_t flags);
+unsigned long *chal_pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags);
+unsigned long *chal_pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags);
+int            chal_pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe);
+pgtbl_t        chal_pgtbl_create(void *page, void *curr_pgtbl);
+int            chal_pgtbl_quie_check(u32_t orig_v);
+void           chal_pgtbl_init_pte(void *pte);
+
+/* Cons & decons functions */
+int            chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandid, unsigned long depth);
+int            chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl);
 #endif /* PGTBL_H */
+

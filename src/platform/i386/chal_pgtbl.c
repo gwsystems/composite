@@ -48,18 +48,18 @@ chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned l
 	assert((PGTBL_FLAG_MASK & addr) == 0);
 
 	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 	                                          PGTBL_DEPTH, &accum);
 	if (unlikely(!pte)) return -ENOENT;
 	if (unlikely(__pgtbl_isnull(pte, 0, 0))) return -ENOENT;
 
 	orig_v = (u32_t)(pte->next);
-	if (unlikely(!(orig_v & X86_COSFRAME))) return -EINVAL; /* can't activate non-frames */
-	if (unlikely(orig_v & X86_COSKMEM)) return -EEXIST;     /* can't re-activate kmem frames */
-	assert(!(orig_v & X86_QUIESCENCE));
+	if (unlikely(!(orig_v & X86_PGTBL_COSFRAME))) return -EINVAL; /* can't activate non-frames */
+	if (unlikely(orig_v & X86_PGTBL_COSKMEM)) return -EEXIST;     /* can't re-activate kmem frames */
+	assert(!(orig_v & X86_PGTBL_QUIESCENCE));
 
 	*kern_addr = (unsigned long)chal_pa2va((paddr_t)(orig_v & PGTBL_FRAME_MASK));
-	new_v      = orig_v | X86_COSKMEM;
+	new_v      = orig_v | X86_PGTBL_COSKMEM;
 
 	/* pa2va (value in *kern_addr) will return NULL if the page is not kernel accessible */
 	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
@@ -138,12 +138,12 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 	if (!pte) return -EINVAL;
 	orig_v = *pte;
 
-	if (!(orig_v & X86_COSFRAME) || (orig_v & X86_COSKMEM)) return -EPERM;
+	if (!(orig_v & X86_PGTBL_COSFRAME) || (orig_v & X86_PGTBL_COSKMEM)) return -EPERM;
 
-	assert(!(orig_v & X86_QUIESCENCE));
+	assert(!(orig_v & X86_PGTBL_QUIESCENCE));
 	cosframe = orig_v & PGTBL_FRAME_MASK;
 
-	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, cosframe, X86_USER_DEF);
+	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, cosframe, X86_PGTBL_USER_DEF);
 
 	return ret;
 }
@@ -242,13 +242,13 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
 	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 	                                          PGTBL_DEPTH, &accum);
 	if (!pte) return -ENOENT;
 	orig_v = (u32_t)(pte->next);
 
-	if (orig_v & X86_PRESENT) return -EEXIST;
-	if (orig_v & X86_COSFRAME) return -EPERM;
+	if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
+	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 
 	/* Quiescence check */
 	ret = pgtbl_quie_check(orig_v);
@@ -276,7 +276,7 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
 	/* get the pte */
-	pte    = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	pte    = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
                                                   PGTBL_DEPTH, &accum);
 	orig_v = (u32_t)(pte->next);
 	assert(orig_v == 0);
@@ -298,7 +298,7 @@ chal_pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
 	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 	                                          PGTBL_DEPTH, &accum);
 	if (__pgtbl_isnull(pte, 0, 0)) return -ENOENT;
 
@@ -336,14 +336,14 @@ chal_pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 	if (unlikely(ret)) goto done;
 
 	/* get the pte */
-	pte    = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	pte    = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
                                                   PGTBL_DEPTH, &accum);
 	orig_v = (u32_t)(pte->next);
-	if (!(orig_v & X86_PRESENT)) return -EEXIST;
-	if (orig_v & X86_COSFRAME) return -EPERM;
+	if (!(orig_v & X86_PGTBL_PRESENT)) return -EEXIST;
+	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 
 
-	ret = __pgtbl_update_leaf(pte, (void *)((liv_id << PGTBL_PAGEIDX_SHIFT) | X86_QUIESCENCE), orig_v);
+	ret = __pgtbl_update_leaf(pte, (void *)((liv_id << PGTBL_PAGEIDX_SHIFT) | X86_PGTBL_QUIESCENCE), orig_v);
 	if (ret) cos_throw(done, ret);
 
 	/* decrement ref cnt on the frame. */
@@ -387,9 +387,9 @@ chal_pgtbl_mapping_scan(struct cap_pgtbl *pt)
 
 	for (i = 0; i < PAGE_SIZE / sizeof(int *); i++) {
 		pte = *(page + i);
-		if (pte & X86_PRESENT || pte & X86_COSFRAME) return -EINVAL;
+		if (pte & X86_PGTBL_PRESENT || pte & X86_PGTBL_COSFRAME) return -EINVAL;
 
-		if (pte & X86_QUIESCENCE) {
+		if (pte & X86_PGTBL_QUIESCENCE) {
 			lid = pte >> PGTBL_PAGEIDX_SHIFT;
 
 			if (ltbl_get_timestamp(lid, &past_ts)) return -EFAULT;
@@ -403,14 +403,14 @@ chal_pgtbl_mapping_scan(struct cap_pgtbl *pt)
 void *
 chal_pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
 {
-	return __pgtbl_lkupani((pgtbl_t)((unsigned long)pt | X86_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, start_lvl,
+	return __pgtbl_lkupani((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, start_lvl,
 	                       end_lvl, flags);
 }
 
 int
 chal_pgtbl_ispresent(u32_t flags)
 {
-	return flags & (X86_PRESENT | X86_COSFRAME);
+	return flags & (X86_PGTBL_PRESENT | X86_PGTBL_COSFRAME);
 }
 
 unsigned long *
@@ -418,7 +418,7 @@ chal_pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags)
 {
 	void *ret;
 
-	ret = __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH + 1,
+	ret = __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH + 1,
 	                     flags);
 	if (!pgtbl_ispresent(*flags)) return NULL;
 	return ret;
@@ -427,7 +427,7 @@ chal_pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags)
 unsigned long *
 chal_pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags)
 {
-	return __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH,
+	return __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH,
 	                      flags);
 }
 
@@ -442,7 +442,7 @@ chal_pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
 	if (!pte) return -EINVAL;
 
 	v = *pte;
-	if (!(v & X86_COSFRAME)) return -EINVAL;
+	if (!(v & X86_PGTBL_COSFRAME)) return -EINVAL;
 
 	*cosframe = v & PGTBL_FRAME_MASK;
 
@@ -466,7 +466,7 @@ chal_pgtbl_quie_check(u32_t orig_v)
 	livenessid_t lid;
 	u64_t        ts;
 
-	if (orig_v & X86_QUIESCENCE) {
+	if (orig_v & X86_PGTBL_QUIESCENCE) {
 		lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
 		/**
                  * An unmap happened at this vaddr before. We need to
@@ -518,7 +518,7 @@ chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandi
 
 	new_pte = (u32_t)chal_va2pa(
 	          (void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK))
-	          | X86_INTERN_DEF;
+	          | X86_PGTBL_INTERN_DEF;
 
 	ret = cos_cas(intern, old_pte, new_pte);
 	if (ret != CAS_SUCCESS) {
@@ -530,5 +530,34 @@ chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandi
 	}
 
 	return ret;
+}
+
+int 
+chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl)
+{
+	unsigned long *    intern, old_v;
+
+	struct cap_pgtbl *pt = (struct cap_pgtbl *)head;
+	u32_t             flags;
+	if (lvl <= pt->lvl) return -EINVAL;
+	intern = pgtbl_lkup_lvl(pt->pgtbl, pruneid, &flags, pt->lvl, lvl);
+
+	if (!intern) return -ENOENT;
+	old_v = *intern;
+
+	if (old_v == 0) return 0; /* return an error here? */
+	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
+	if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
+
+	/* decrement the refcnt */ {
+		struct cap_pgtbl *pt = (struct cap_pgtbl *)sub;
+		u32_t             old_v, l;
+
+		old_v = l = pt->refcnt_flags;
+		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+		cos_faa((int *)&(pt->refcnt_flags), -1);
+	}
+
+	return 0;
 }
 

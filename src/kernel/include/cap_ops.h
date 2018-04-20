@@ -147,57 +147,12 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 	if (unlikely(head->type != sub->type)) return -EPERM;
 
 	if (head->type == CAP_CAPTBL) {
-		struct cap_captbl *ct = (struct cap_captbl *)head;
-
-		if (lvl <= ct->lvl) return -EINVAL;
-		intern = captbl_lkup_lvl(ct->captbl, pruneid, ct->lvl, lvl);
+		return captbl_decons(head, sub, pruneid, lvl);
 	} else if (head->type == CAP_PGTBL) {
-		struct cap_pgtbl *pt = (struct cap_pgtbl *)head;
-		u32_t             flags;
-		if (lvl <= pt->lvl) return -EINVAL;
-		intern = pgtbl_lkup_lvl(pt->pgtbl, pruneid, &flags, pt->lvl, lvl);
-	} else {
-		return -EINVAL;
-	}
+		return chal_pgtbl_decons(head, sub, pruneid, lvl);
+	} 
 
-	if (!intern) return -ENOENT;
-	old_v = *intern;
-
-	if (old_v == 0) return 0; /* return an error here? */
-	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
-	if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
-
-	if (head->type == CAP_CAPTBL) {
-		/* FIXME: we are removing two half pages for captbl. */
-		struct cap_captbl *ct = (struct cap_captbl *)head;
-
-		intern = captbl_lkup_lvl(ct->captbl, pruneid + (PAGE_SIZE / 2 / CAPTBL_LEAFSZ), ct->lvl, lvl);
-		if (!intern) return -ENOENT;
-
-		old_v = *intern;
-		if (old_v == 0) return 0; /* return an error here? */
-		/* commit; note that 0 is "no entry" in both pgtbl and captbl */
-		if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
-	}
-
-	/* decrement the refcnt */
-	if (head->type == CAP_CAPTBL) {
-		struct cap_captbl *ct = (struct cap_captbl *)sub;
-		u32_t              old_v, l;
-
-		old_v = l = ct->refcnt_flags;
-		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
-		cos_faa((int *)&(ct->refcnt_flags), -1);
-	} else {
-		struct cap_pgtbl *pt = (struct cap_pgtbl *)sub;
-		u32_t             old_v, l;
-
-		old_v = l = pt->refcnt_flags;
-		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
-		cos_faa((int *)&(pt->refcnt_flags), -1);
-	}
-
-	return 0;
+	return -EINVAL;
 }
 
 static int
