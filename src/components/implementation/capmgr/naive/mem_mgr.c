@@ -35,7 +35,7 @@ memmgr_shared_page_allocn_cserialized(vaddr_t *pgaddr, int *unused, unsigned lon
 	if (!cur_rci || !cap_info_init_check(cur_rci)) goto done;
 	if (!cur_shi) goto done;
 
-	shmid = cap_shmem_region_alloc(cur_shi, npages);
+	shmid = cap_shmem_region_alloc(cur_shi, 0, npages);
 	if (!shmid) goto done;
 
 	*pgaddr = cap_shmem_region_vaddr(cur_shi, shmid);
@@ -51,12 +51,13 @@ memmgr_shared_page_map_cserialized(vaddr_t *pgaddr, int *unused, cbuf_t id)
 	struct cap_comp_info  *cur_rci = cap_info_comp_find(cur);
 	struct cap_shmem_info *cur_shi = cap_info_shmem_info(cur_rci);
 	unsigned long num_pages = 0;
+	cbuf_t tmpid;
 
 	if (!cur_rci || !cap_info_init_check(cur_rci)) return 0;
 	if (!cur_shi) return 0;
 
-	num_pages = cap_shmem_region_map(cur_shi, id);
-	if (num_pages == 0) goto done;
+	tmpid = cap_shmem_region_map(cur_shi, id, 0, &num_pages);
+	if (tmpid != id || num_pages == 0) goto done;
 
 	*pgaddr = cap_shmem_region_vaddr(cur_shi, id);
 	assert(*pgaddr);

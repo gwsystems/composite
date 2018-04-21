@@ -10,10 +10,41 @@
 #include <sl_mod_policy.h>
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
+#include <bitmap.h>
 
-extern struct sl_global sl_global_data;
 extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_no_cs(struct sl_thd *t);
+
+cbuf_t
+sl_shm_alloc(vaddr_t *addr)
+{
+	return 0;
+}
+
+vaddr_t
+sl_shm_map(cbuf_t id)
+{
+        return 0;
+}
+
+void
+sl_xcpu_asnd_alloc(void)
+{
+        struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+        struct cos_compinfo    *ci  = cos_compinfo_get(dci);
+	int i;
+
+	for (i = 0; i < NUM_CPU; i++) {
+		asndcap_t snd;
+
+		if (i == cos_cpuid()) continue;
+		if (!bitmap_check(sl__globals()->cpu_bmp, i)) continue;
+
+		snd = cos_asnd_alloc(ci, BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(i), ci->captbl_cap);
+		assert(snd);
+		sl__globals()->xcpu_asnd[cos_cpuid()][i] = snd;
+	}
+}
 
 struct sl_thd *
 sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps)
@@ -32,6 +63,7 @@ sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t 
 	t->state          = SL_THD_RUNNABLE;
 	sl_thd_index_add_backend(sl_mod_thd_policy_get(t));
 
+	t->rcv_suspended  = 0;
 	t->budget         = 0;
 	t->last_replenish = 0;
 	t->period         = t->timeout_cycs = t->periodic_cycs = 0;
@@ -45,7 +77,7 @@ done:
 	return t;
 }
 
-static struct sl_thd *
+struct sl_thd *
 sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
@@ -128,7 +160,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, cos_aepkey_t key)
+sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, cos_channelkey_t key)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct sl_thd          *t   = NULL;
@@ -140,8 +172,8 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 
 	/* NOTE: Cannot use stack-allocated cos_aep_info struct here */
 	if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data);
-	else                                 ret = cos_aep_tcap_alloc(aep, sl_thd_aepinfo(sl__globals()->sched_thd)->tc,
-			fn, data);
+	else                                 ret = cos_aep_tcap_alloc(aep, sl_thd_aepinfo(sl__globals_cpu()->sched_thd)->tc,
+			                                              fn, data);
 	if (ret) goto done;
 
 	t = sl_thd_alloc_init(aep, 0, prps);
@@ -152,7 +184,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, thdclosure_index_t idx, sl_thd_property_t prps, cos_aepkey_t key, arcvcap_t *extrcv)
+sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, thdclosure_index_t idx, sl_thd_property_t prps, cos_channelkey_t key, arcvcap_t *extrcv)
 {
 	struct cos_aep_info *aep = NULL;
 	struct sl_thd       *t   = NULL;
@@ -205,7 +237,7 @@ sl_thd_alloc(cos_thd_fn_t fn, void *data)
 }
 
 struct sl_thd *
-sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_aepkey_t key)
+sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_channelkey_t key)
 {
 	struct sl_thd *t = NULL;
 
@@ -232,7 +264,7 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 }
 
 struct sl_thd *
-sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_aepkey_t key)
+sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key)
 {
 	struct sl_thd *t = NULL;
 
@@ -248,7 +280,7 @@ sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int
 }
 
 struct sl_thd *
-sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_aepkey_t key, arcvcap_t *extrcv)
+sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, arcvcap_t *extrcv)
 {
 	struct sl_thd *t = NULL;
 

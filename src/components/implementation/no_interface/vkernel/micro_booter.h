@@ -10,7 +10,6 @@
 
 #include "vk_types.h"
 
-#define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 #define BUG_DIVZERO()                                           \
 	do {                                                    \

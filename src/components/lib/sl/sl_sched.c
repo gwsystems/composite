@@ -7,13 +7,19 @@
 
 #include <ps.h>
 #include <sl.h>
+#include <sl_xcpu.h>
+#include <sl_child.h>
 #include <sl_mod_policy.h>
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
+#include <bitmap.h>
 
 struct sl_global sl_global_data;
+struct sl_global_cpu sl_global_cpu_data[NUM_CPU] CACHE_ALIGNED;
 static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
 extern struct sl_thd *sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps);
+extern int sl_xcpu_process_no_cs(void);
+extern void sl_xcpu_asnd_alloc(void);
 
 /*
  * These functions are removed from the inlined fast-paths of the
@@ -22,8 +28,8 @@ extern struct sl_thd *sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndc
 int
 sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok)
 {
-	struct sl_thd    *t = sl_thd_curr();
-	struct sl_global *g = sl__globals();
+	struct sl_thd        *t = sl_thd_curr();
+	struct sl_global_cpu *g = sl__globals_cpu();
 	int ret;
 
 	/* recursive locks are not allowed */
@@ -44,8 +50,8 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 int
 sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched_tok_t tok)
 {
-	struct sl_thd    *t = sl_thd_curr();
-	struct sl_global *g = sl__globals();
+	struct sl_thd        *t = sl_thd_curr();
+	struct sl_global_cpu *g = sl__globals_cpu();
 
 	if (!ps_cas(&g->lock.u.v, cached->v, 0)) return 1;
 	/* let the scheduler thread decide which thread to run next, inheriting our budget/priority */
@@ -66,11 +72,11 @@ struct timeout_heap {
 	void        *data[SL_MAX_NUM_THDS];
 };
 
-static struct timeout_heap timeout_heap;
+static struct timeout_heap timeout_heap[NUM_CPU] CACHE_ALIGNED;
 
 struct heap *
 sl_timeout_heap(void)
-{ return &timeout_heap.h; }
+{ return &timeout_heap[cos_cpuid()].h; }
 
 static inline void
 sl_timeout_block(struct sl_thd *t, cycles_t timeout)
@@ -141,20 +147,27 @@ sl_timeout_init(microsec_t period)
 	assert(period >= SL_MIN_PERIOD_US);
 
 	sl_timeout_period(period);
-	memset(&timeout_heap, 0, sizeof(struct timeout_heap));
+	memset(&timeout_heap[cos_cpuid()], 0, sizeof(struct timeout_heap));
 	heap_init(sl_timeout_heap(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
 }
 
 /*
- * @return: 1 if it's already WOKEN.
- *	    0 if it successfully blocked in this call.
+ * This API is only used by the scheduling thread to block an AEP thread.
+ * AEP thread scheduling events could be redundant.
+ *
+ * @return: 0 if it successfully blocked in this call.
  */
 int
-sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
+sl_thd_sched_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
 {
 	assert(t);
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
 
+	if (t->schedthd) {
+		sl_parent_notif_block_no_cs(t->schedthd, t);
+
+		return 0;
+	}
 	/*
 	 * If an AEP/a child COMP was blocked and an interrupt caused it to wakeup and run
 	 * but blocks itself before the scheduler could see the wakeup event.. Scheduler
@@ -166,10 +179,56 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 		goto update;
 	}
 
-	assert(t->state == SL_THD_RUNNABLE);
+	assert(sl_thd_is_runnable(t));
 	sl_mod_block(sl_mod_thd_policy_get(t));
 
 update:
+	t->state = block_type;
+	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
+	t->rcv_suspended = 1;
+
+	return 0;
+}
+
+/*
+ * Wake "t" up if it was previously blocked on cos_rcv and got
+ * to run before the scheduler (tcap-activated)!
+ */
+static inline int
+sl_thd_sched_unblock_no_cs(struct sl_thd *t)
+{
+	if (unlikely(!t->rcv_suspended)) return 0;
+	t->rcv_suspended = 0;
+	if (unlikely(t->state != SL_THD_BLOCKED && t->state != SL_THD_BLOCKED_TIMEOUT)) return 0;
+
+	if (likely(t->state == SL_THD_BLOCKED_TIMEOUT)) sl_timeout_remove(t);
+	/* make it RUNNABLE */
+	sl_thd_wakeup_no_cs_rm(t);
+
+	return 1;
+}
+
+/*
+ * @return: 1 if it's already WOKEN.
+ *	    0 if it successfully blocked in this call.
+ */
+int
+sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
+{
+	assert(t);
+	assert(cos_thdid() == sl_thd_thdid(t)); /* only current thread is allowed to block itself */
+	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
+
+	if (unlikely(t->state == SL_THD_WOKEN)) {
+		assert(!t->rcv_suspended);
+		t->state = SL_THD_RUNNABLE;
+		return 1;
+	}
+
+	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
+	sl_thd_sched_unblock_no_cs(t);
+	assert(t->state == SL_THD_RUNNABLE);
+	sl_mod_block(sl_mod_thd_policy_get(t));
 	t->state = block_type;
 	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
 
@@ -206,12 +265,10 @@ sl_thd_block_timeout_intern(thdid_t tid, cycles_t timeout)
 
 	sl_cs_enter();
 	t = sl_thd_curr();
-
 	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, timeout)) {
 		sl_cs_exit();
 		return 1;
 	}
-
 	sl_cs_exit_schedule();
 
 	return 0;
@@ -260,6 +317,61 @@ done:
 	return jitter;
 }
 
+void
+sl_thd_block_expiry(struct sl_thd *t)
+{
+	cycles_t abs_timeout = 0;
+
+	assert(t != sl__globals_cpu()->sched_thd);
+	if (!(t->properties & SL_THD_PROPERTY_OWN_TCAP)) {
+		assert(!t->rcv_suspended);
+		return;
+	}
+	assert(t->period);
+
+	sl_cs_enter();
+
+	/* reset rcv_suspended if the scheduler thinks "t" was suspended on cos_rcv previously */
+	sl_thd_sched_unblock_no_cs(t);
+	sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
+	t->rcv_suspended = 0;
+
+	sl_cs_exit();
+}
+
+/*
+ * This API is only used by the scheduling thread to wakeup an AEP thread.
+ * AEP thread scheduling events could be redundant.
+ *
+ * @return: 1 if it's already WOKEN or RUNNABLE.
+ *	    0 if it successfully blocked in this call.
+ */
+int
+sl_thd_sched_wakeup_no_cs(struct sl_thd *t)
+{
+	assert(t);
+
+	if (unlikely(!t->rcv_suspended)) return 1; /* not blocked on cos_rcv, so don't mess with user-level thread states */
+	t->rcv_suspended = 0;
+	/*
+	 * If a thread was preempted and scheduler updated it to RUNNABLE status and if that AEP
+	 * was activated again (perhaps by tcap preemption logic) and expired it's budget, it could
+	 * result in the scheduler having a redundant WAKEUP event.
+	 *
+	 * Thread could be in WOKEN state:
+	 * Perhaps the thread was blocked waiting for a lock and was woken up by another thread and
+	 * and then scheduler sees some redundant wakeup event through "asnd" or "tcap budget expiry".
+	 */
+	if (unlikely(t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN)) return 1;
+
+	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
+	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
+	t->state = SL_THD_RUNNABLE;
+	sl_mod_wakeup(sl_mod_thd_policy_get(t));
+
+	return 0;
+}
+
 /*
  * @return: 1 if it's already RUNNABLE.
  *          0 if it was woken up in this call
@@ -269,11 +381,10 @@ sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 {
 	assert(t);
 
-	if (unlikely(t->state == SL_THD_RUNNABLE)) return 1;
-
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	t->state = SL_THD_RUNNABLE;
 	sl_mod_wakeup(sl_mod_thd_policy_get(t));
+	t->rcv_suspended = 0;
 
 	return 0;
 }
@@ -282,7 +393,21 @@ int
 sl_thd_wakeup_no_cs(struct sl_thd *t)
 {
 	assert(t);
+	assert(sl_thd_curr() != t); /* current thread is not allowed to wake itself up */
 
+	if (t->schedthd) {
+		sl_parent_notif_wakeup_no_cs(t->schedthd, t);
+
+		return 0;
+	}
+
+	if (unlikely(sl_thd_is_runnable(t))) {
+		/* t->state == SL_THD_WOKEN? multiple wakeups? */
+		t->state = SL_THD_WOKEN;
+		return 1;
+	}
+
+	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
 	return sl_thd_wakeup_no_cs_rm(t);
 }
@@ -310,6 +435,8 @@ sl_thd_yield_cs_exit(thdid_t tid)
 {
 	struct sl_thd *t = sl_thd_curr();
 
+	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
+	sl_thd_sched_unblock_no_cs(t);
 	if (tid) {
 		struct sl_thd *to = sl_thd_lkup(tid);
 
@@ -339,7 +466,7 @@ sl_thd_event_info_reset(struct sl_thd *t)
 static inline void
 sl_thd_event_enqueue(struct sl_thd *t, int blocked, cycles_t cycles, tcap_time_t timeout)
 {
-	struct sl_global *g = sl__globals();
+	struct sl_global_cpu *g = sl__globals_cpu();
 
 	if (ps_list_singleton(t, SL_THD_EVENT_LIST)) ps_list_head_append(&g->event_head, t, SL_THD_EVENT_LIST);
 
@@ -398,7 +525,7 @@ sl_timeout_period(microsec_t period)
 {
 	cycles_t p = sl_usec2cyc(period);
 
-	sl__globals()->period = p;
+	sl__globals_cpu()->period = p;
 	sl_timeout_relative(p);
 }
 
@@ -407,15 +534,45 @@ void
 sl_idle(void *d)
 { while (1) ; }
 
+/* call from the user? */
+static void
+sl_global_init(u32_t *cpu_bmp)
+{
+	struct sl_global *g = sl__globals();
+	unsigned int i = 0;
+
+	memset(g, 0, sizeof(struct sl_global));
+
+	for (i = 0; i < NUM_CPU; i++) {
+		if (!bitmap_check(cpu_bmp, i)) continue;
+
+		bitmap_set(g->cpu_bmp, i);
+		ck_ring_init(sl__ring(i), SL_XCPU_RING_SIZE);
+	}
+}
+
 void
 sl_init(microsec_t period)
 {
+	int i;
+	static unsigned long first = 1, init_done = 0;
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct sl_global       *g   = sl__globals();
+	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
+	struct sl_global_cpu   *g   = sl__globals_cpu();
+	u32_t cpu_bmp[(NUM_CPU + 7)/8] = { 0 }; /* TODO! pass from the user! */
 
+	if (ps_cas(&first, 1, 0)) {
+		bitmap_set_contig(cpu_bmp, 0, NUM_CPU, 1);
+		sl_global_init(cpu_bmp);
+
+		ps_faa(&init_done, 1);
+	} else {
+		/* wait until global ring buffers are initialized correctly! */
+		while (!ps_load(&init_done)) ;
+	}
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
-	memset(g, 0, sizeof(struct sl_global));
+	memset(g, 0, sizeof(struct sl_global_cpu));
 
 	g->cyc_per_usec    = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	g->lock.u.v        = 0;
@@ -427,14 +584,16 @@ sl_init(microsec_t period)
 	/* Create the scheduler thread for us. cos_sched_aep_get() is from global(static) memory */
 	g->sched_thd       = sl_thd_alloc_init(cos_sched_aep_get(dci), 0, 0);
 	assert(g->sched_thd);
-	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_BASE;
-	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_BASE;
-	g->sched_rcv       = BOOT_CAPTBL_SELF_INITRCV_BASE;
+	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_CPU_BASE;
+	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;
+	g->sched_rcv       = BOOT_CAPTBL_SELF_INITRCV_CPU_BASE;
 	g->sched_thd->prio = 0;
 	ps_list_head_init(&g->event_head);
 
 	g->idle_thd        = sl_thd_alloc(sl_idle, NULL);
 	assert(g->idle_thd);
+
+	sl_xcpu_asnd_alloc();
 
 	return;
 }
@@ -442,8 +601,8 @@ sl_init(microsec_t period)
 static void
 sl_sched_loop_intern(int non_block)
 {
-	struct sl_global *g   = sl__globals();
-	rcv_flags_t       rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
+	struct sl_global_cpu *g   = sl__globals_cpu();
+	rcv_flags_t           rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
 
 	while (1) {
 		int pending;
@@ -454,6 +613,7 @@ sl_sched_loop_intern(int non_block)
 			cycles_t       cycles;
 			tcap_time_t    timeout = g->timeout_next, thd_timeout;
 			struct sl_thd *t = NULL, *tn = NULL;
+			struct sl_child_notification notif;
 
 			/*
 			 * a child scheduler may receive both scheduling notifications (block/unblock
@@ -479,7 +639,9 @@ sl_sched_loop_intern(int non_block)
 			sl_thd_event_enqueue(t, blocked, cycles, thd_timeout);
 
 pending_events:
-			if (ps_list_head_empty(&g->event_head)) continue;
+			if (ps_list_head_empty(&g->event_head) &&
+			    ck_ring_size(sl__ring_curr()) == 0 &&
+			    sl_child_notif_empty()) continue;
 
 			/*
 			 * receiving scheduler notifications is not in critical section mainly for
@@ -508,12 +670,24 @@ pending_events:
 							state       = SL_THD_BLOCKED_TIMEOUT;
 							abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
 						}
-						sl_thd_block_no_cs(t, state, abs_timeout);
+						sl_thd_sched_block_no_cs(t, state, abs_timeout);
 					}
 				} else {
-					sl_thd_wakeup_no_cs(t);
+					sl_thd_sched_wakeup_no_cs(t);
 				}
 			}
+
+			/* process notifications from the parent of my threads */
+			while (sl_child_notif_dequeue(&notif)) {
+				PRINTC("NOTIF FROM PARENT FOR %d\n", notif.tid);
+				struct sl_thd *t = sl_thd_lkup(notif.tid);
+
+				if (notif.type == SL_CHILD_THD_BLOCK) sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0);
+				else                                  sl_thd_wakeup_no_cs(t);
+			}
+
+			/* process cross-core requests */
+			sl_xcpu_process_no_cs();
 
 			sl_cs_exit();
 		} while (pending > 0);

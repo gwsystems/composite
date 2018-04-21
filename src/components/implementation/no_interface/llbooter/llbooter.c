@@ -17,8 +17,8 @@ struct deps {
 struct deps deps_list[MAX_DEPS];
 int          ndeps;
 int          num_cobj;
-int          capmgr_spdid;
-int          root_spdid;
+spdid_t      capmgr_spdid;
+spdid_t      root_spdid[NUM_CPU];
 
 /*Component init info*/
 #define INIT_STR_SZ 52
@@ -28,7 +28,7 @@ struct component_init_str {
 	char         init_str[INIT_STR_SZ];
 } __attribute__((packed));
 
-struct component_init_str *init_args;
+struct component_init_str *init_args, *boot_init_args;
 
 static void
 boot_find_cobjs(struct cobj_header *h, int n)
@@ -242,8 +242,8 @@ boot_init_sched(void)
 {
 	int i;
 
-	for (i = 0; i < MAX_NUM_SPDS; i++) schedule[i] = 0;
-	sched_cur = 0;
+	for (i = 0; i < MAX_NUM_SPDS; i++) schedule[cos_cpuid()][i] = 0;
+	sched_cur[cos_cpuid()] = 0;
 }
 
 int
@@ -284,9 +284,10 @@ boot_comp_name_parse(spdid_t s, const char *name)
 
 	if (strcmp(name, BOOT_ROOT_SCHED) == 0) {
 		si->flags |= COMP_FLAG_SCHED;
-		root_spdid = s;
-	} else if (strcmp(name, BOOT_CAPMGR) == 0) {
+		root_spdid[cos_cpuid()] = s;
+	} else if (!capmgr_spdid && strcmp(name, BOOT_CAPMGR) == 0) {
 		capmgr_spdid = s;
+		si->flags |= COMP_FLAG_SCHED;
 		si->flags |= COMP_FLAG_CAPMGR;
 	}
 
@@ -320,7 +321,7 @@ boot_comp_preparse_name(void)
 	}
 
 	PRINTLOG(PRINT_DEBUG, "Capability manager component[=%u] %s!\n", capmgr_spdid, capmgr_spdid ? "found" : "not found");
-	PRINTLOG(PRINT_DEBUG, "Root scheduler component[=%u] %s!\n", root_spdid, root_spdid ? "found" : "not found");
+	PRINTLOG(PRINT_DEBUG, "Root scheduler component[=%u] %s!\n", root_spdid[cos_cpuid()], root_spdid[cos_cpuid()] ? "found" : "not found");
 }
 
 static void
@@ -330,49 +331,61 @@ boot_create_cap_system(void)
 
 	boot_comp_preparse_name();
 
-	for (i = 0; hs[i] != NULL; i++) {
-		struct comp_cap_info *spdinfo;
-		struct cobj_header   *h;
-		struct cobj_sect     *sect;
-		captblcap_t           ct;
-		pgtblcap_t            pt;
-		spdid_t               spdid;
-		vaddr_t               ci = 0;
+	if (cos_cpuid() == INIT_CORE) {
+		for (i = 0; hs[i] != NULL; i++) {
+			struct comp_cap_info *spdinfo;
+			struct cobj_header   *h;
+			struct cobj_sect     *sect;
+			captblcap_t           ct;
+			pgtblcap_t            pt;
+			spdid_t               spdid;
+			vaddr_t               ci = 0;
 
-		h     = hs[i];
-		spdid = h->id;
+			h     = hs[i];
+			spdid = h->id;
 
-		assert(spdid != 0);
-		spdinfo = boot_spd_compcapinfo_get(spdid);
+			assert(spdid != 0);
+			spdinfo = boot_spd_compcapinfo_get(spdid);
 
-		sect                = cobj_sect_get(h, 0);
-		spdinfo->addr_start = sect->vaddr;
-		boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);
+			sect                = cobj_sect_get(h, 0);
+			spdinfo->addr_start = sect->vaddr;
+			boot_compinfo_init(spdid, &ct, &pt, sect->vaddr);
 
-		if (boot_spd_symbs(h, spdid, &ci, &(spdinfo->vaddr_user_caps))) BUG();
-		if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
-		if (boot_comp_map(h, spdid, ci)) BUG();
+			if (boot_spd_symbs(h, spdid, &ci, &(spdinfo->vaddr_user_caps))) BUG();
+			if (boot_spd_inv_cap_alloc(h, spdid)) BUG();
+			if (boot_comp_map(h, spdid, ci)) BUG();
 
-		boot_newcomp_create(spdid, boot_spd_compinfo_get(spdid));
-		PRINTLOG(PRINT_DEBUG, "Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
+			boot_newcomp_create(spdid, boot_spd_compinfo_get(spdid));
+			PRINTLOG(PRINT_DEBUG, "Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
+		}
+
+		/*
+		 * create invocations only after all components are created,
+		 * to be able to resolve forward dependencies.
+		 */
+		for (i = 0; hs[i] != NULL; i++) {
+			struct cobj_header *h;
+			spdid_t             spdid;
+
+			h     = hs[i];
+			spdid = h->id;
+
+			assert(spdid != 0);
+			boot_newcomp_sinv_alloc(spdid);
+			PRINTLOG(PRINT_DEBUG, "Comp %d (%s) undefined symbols resolved!\n", h->id, h->name);
+		}
+	} else {
+		for (i = 0; hs[i] != NULL; i++) {
+			struct cobj_header *h;
+			spdid_t             spdid;
+
+			h     = hs[i];
+			spdid = h->id;
+
+			assert(spdid != 0);
+			boot_sched_caps_init(spdid);
+		}
 	}
-
-	/*
-	 * create invocations only after all components are created,
-	 * to be able to resolve forward dependencies.
-	 */
-	for (i = 0; hs[i] != NULL; i++) {
-		struct cobj_header *h;
-		spdid_t             spdid;
-
-		h     = hs[i];
-		spdid = h->id;
-
-		assert(spdid != 0);
-		boot_newcomp_sinv_alloc(spdid);
-		PRINTLOG(PRINT_DEBUG, "Comp %d (%s) undefined symbols resolved!\n", h->id, h->name);
-	}
-	boot_capmgr_mem_alloc();
 
 	return;
 }
@@ -395,17 +408,25 @@ boot_child_info_print(void)
 void
 boot_parse_init_args(void)
 {
+	struct comp_sched_info *cap_si = boot_spd_comp_schedinfo_get(capmgr_spdid);
 	int i = 1;
 
 	for (; i <= num_cobj; i++) {
-		spdid_t spdid = init_args[i].spdid, schedid = init_args[i].schedid;
+		spdid_t spdid = boot_init_args[i].spdid, schedid = boot_init_args[i].schedid;
 		struct comp_sched_info *spdsi      = boot_spd_comp_schedinfo_get(spdid);
 		struct comp_sched_info *schedspdsi = boot_spd_comp_schedinfo_get(schedid);
 
+		assert(schedspdsi);
+		assert(spdsi);
 		spdsi->parent_spdid = schedid;
 		bitmap_set(schedspdsi->child_bitmap, spdid - 1);
 		schedspdsi->flags |= COMP_FLAG_SCHED;
 		schedspdsi->num_child++;
+	}
+
+	if (capmgr_spdid && !cap_si->flags) {
+		cap_si->flags |= COMP_FLAG_SCHED;
+		cap_si->flags |= COMP_FLAG_CAPMGR;
 	}
 }
 
@@ -414,42 +435,85 @@ boot_comp_capinfo_init(void)
 {
 	int i;
 
-	memset(new_comp_cap_info, 0, sizeof(struct comp_cap_info) * (MAX_NUM_SPDS));
-	memset(comp_schedinfo, 0, sizeof(struct comp_sched_info) * (MAX_NUM_SPDS + 1));
+	memset(comp_schedinfo[cos_cpuid()], 0, sizeof(struct comp_sched_info) * (MAX_NUM_SPDS + 1));
 
 	for (i = 1; i <= MAX_NUM_SPDS; i++) {
 		struct comp_cap_info *spdinfo = boot_spd_compcapinfo_get(i);
 
-		spdinfo->schedinfo = &comp_schedinfo[i];
+		(spdinfo->schedinfo)[cos_cpuid()] = &(comp_schedinfo[cos_cpuid()][i]);
 	}
 }
+
+static int init_core_alloc_done = 0, core_init_done[NUM_CPU] = { 0 };
 
 void
 cos_init(void)
 {
 	struct cobj_header *h;
+	int cycs = 0, i;
 
-	PRINTLOG(PRINT_DEBUG, "Booter for new kernel\n");
+	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	capmgr_spdid = 0;
-	root_spdid = 0;
+        PRINTLOG(PRINT_DEBUG, "%d cycles per microsecond\n", cycs);
 
-	h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
-	num_cobj = (int)cos_comp_info.cos_poly[1];
+	if (cos_cpuid() == INIT_CORE) {
+		capmgr_spdid = 0;
+		memset(root_spdid, 0, sizeof(int) * NUM_CPU);
+		memset(new_comp_cap_info, 0, sizeof(struct comp_cap_info) * (MAX_NUM_SPDS));
 
-	PRINTLOG(PRINT_DEBUG, "num cobjs: %d\n", num_cobj);
-	assert(num_cobj <= MAX_NUM_SPDS);
-	boot_comp_capinfo_init();
+		h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
+		num_cobj = (int)cos_comp_info.cos_poly[1];
 
-	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
-	boot_parse_init_args();
-	init_args++;
+		PRINTLOG(PRINT_DEBUG, "Low-level boot-up start\n");
+		PRINTLOG(PRINT_DEBUG, "num cobjs: %d\n", num_cobj);
+		assert(num_cobj <= MAX_NUM_SPDS);
 
-	boot_init_sched();
-	boot_find_cobjs(h, num_cobj);
-	boot_bootcomp_init();
-	boot_create_cap_system();
-	boot_child_info_print();
+		boot_init_args = init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
+		boot_init_sched();
+		boot_comp_capinfo_init();
+		boot_parse_init_args();
+		init_args++;
 
-	boot_done();
+		boot_find_cobjs(h, num_cobj);
+		boot_bootcomp_init();
+		boot_create_cap_system();
+		boot_child_info_print();
+		core_init_done[cos_cpuid()] = 1;
+
+		for (i = 1; i < NUM_CPU; i++) {
+			while (!core_init_done[i]) ;
+		}
+
+		/* All cores initialized. Create untyped space for memory manager. */
+		if (capmgr_spdid) {
+			boot_capmgr_mem_alloc();
+		} else {
+			for (i = 1; i <= num_cobj; i++) {
+				boot_comp_mem_alloc(i);
+			}
+		}
+		init_core_alloc_done = 1;
+
+		boot_done();
+		boot_root_sched_run();
+	} else {
+		while (!core_init_done[INIT_CORE]) ;
+
+		PRINTLOG(PRINT_DEBUG, "Low-level boot-up start\n");
+		boot_init_sched();
+		boot_comp_capinfo_init();
+		boot_parse_init_args();
+		boot_bootcomp_init();
+		boot_comp_preparse_name();
+		boot_create_cap_system();
+		boot_child_info_print();
+		core_init_done[cos_cpuid()] = 1;
+
+		while (!init_core_alloc_done) ;
+		boot_done();
+		boot_root_sched_run();
+	}
+
+	PRINTLOG(PRINT_WARN, "Booter spinning!\n");
+	SPIN();
 }

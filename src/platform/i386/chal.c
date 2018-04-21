@@ -4,7 +4,7 @@
 #include "mem_layout.h"
 #include "chal_cpu.h"
 
-u32_t        free_thd_id = 1;
+u32_t        free_thd_id;
 char         timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 extern void *cos_kmem, *cos_kmem_base;
 u32_t        chal_msr_mhz = 0;
@@ -57,7 +57,7 @@ chal_init(void)
 	u32_t a, b, c, d;
 	u32_t vendor[4];
 	char *v = (char *)&vendor[0];
-	int   apicid;
+	int   apicid, i;
 
 	printk("Processor information:\n");
 	chal_cpuid(0, &a, &b, &c, &d);
@@ -110,6 +110,8 @@ chal_init(void)
 		printk("\tMSR Frequency: %d (* 100Mhz)\n", a);
 		chal_msr_mhz = a * 100;
 	}
+
+	free_thd_id = 1;
 
 	chal_kernel_mem_pa = chal_va2pa(mem_kmem_start());
 }

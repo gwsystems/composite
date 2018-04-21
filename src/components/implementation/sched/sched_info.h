@@ -12,7 +12,7 @@ struct sched_childinfo {
 	struct sl_thd         *initthd;
 	comp_flag_t            flags;
 	spdid_t                id;
-};
+} CACHE_ALIGNED;
 
 struct sched_childinfo *sched_childinfo_find(spdid_t spdid);
 struct sched_childinfo *sched_childinfo_alloc(spdid_t id, compcap_t compcap, comp_flag_t flags);
@@ -21,7 +21,7 @@ unsigned int sched_num_childsched_get(void);
 void sched_childinfo_init(void);
 void sched_childinfo_init_raw(void);
 
-extern unsigned int self_init, num_child_init;
+extern unsigned int self_init[], num_child_init[];
 
 static inline struct cos_defcompinfo *
 sched_child_defci_get(struct sched_childinfo *sci)

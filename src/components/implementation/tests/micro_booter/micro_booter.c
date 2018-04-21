@@ -32,7 +32,6 @@ cos_init(void)
 		cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 				(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 		init_done = 1;
-
 	}
 
 	while (!init_done) ;

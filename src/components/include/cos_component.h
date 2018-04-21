@@ -133,12 +133,6 @@ cos_print(char *s, int len)
 	call_cap(PRINT_CAP_TEMP, (int) s, len, 0, 0);
 }
 
-/**
- * FIXME: Please remove this since it is no longer needed
- */
-
-extern long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
-
 extern struct cos_component_information cos_comp_info;
 
 static inline long

@@ -75,6 +75,7 @@ test_mem(void)
 	char *      p, *s, *t, *prev;
 	int         i;
 	const char *chk = "SUCCESS";
+	int fail_contiguous = 0;
 
 	p = cos_page_bump_alloc(&booter_info);
 	assert(p);
@@ -88,16 +89,23 @@ test_mem(void)
 	prev = s;
 	for (i = 0; i < TEST_NPAGES; i++) {
 		t = cos_page_bump_alloc(&booter_info);
-		assert(t && t == prev + PAGE_SIZE);
+		assert(t);
+		if (t != prev + PAGE_SIZE) {
+			fail_contiguous = 1;
+		}
 		prev = t;
 	}
-	memset(s, 0, TEST_NPAGES * PAGE_SIZE);
-	PRINTC("SUCCESS: Allocated and zeroed %d pages.\n", TEST_NPAGES);
+	if (!fail_contiguous) {
+		memset(s, 0, TEST_NPAGES * PAGE_SIZE);
+		PRINTC("SUCCESS: Allocated and zeroed %d contiguous pages.\n", TEST_NPAGES);
+	} else if (i == TEST_NPAGES) {
+		PRINTC("FAILURE: Cannot allocate contiguous %d pages.\n", TEST_NPAGES);
+	}
 
 	t = cos_page_bump_allocn(&booter_info, TEST_NPAGES * PAGE_SIZE);
 	assert(t);
 	memset(t, 0, TEST_NPAGES * PAGE_SIZE);
-	PRINTC("SUCCESS: Atomically allocated and zeroed %d pages.\n", TEST_NPAGES);
+	PRINTC("SUCCESS: Atomically allocated and zeroed %d contiguous pages.\n", TEST_NPAGES);
 }
 
 volatile arcvcap_t rcc_global[NUM_CPU], rcp_global[NUM_CPU];

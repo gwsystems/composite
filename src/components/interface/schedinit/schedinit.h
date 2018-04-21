@@ -2,7 +2,9 @@
 #define SCHEDINIT_H
 
 #include <cos_types.h>
+#include <cos_component.h>
 
-int schedinit_child(void);
+/* parent returns the shared memory initialized with ring-buffer for consuming notifications */
+cbuf_t schedinit_child(void);
 
 #endif /* SCHEDINIT_H */

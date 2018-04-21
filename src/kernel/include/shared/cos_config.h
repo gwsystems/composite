@@ -17,6 +17,7 @@
 
 #include "cpu_ghz.h"
 
+#define NUM_CPU 1
 
 /*
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
@@ -25,7 +26,7 @@
  */
 #define COS_MEM_KERN_PA (0x00100000)
 #define COS_MEM_KERN_PA_ORDER (29)
-#define COS_MEM_KERN_PA_SZ (1 << COS_MEM_KERN_PA_ORDER)
+#define COS_MEM_KERN_PA_SZ ((1 << COS_MEM_KERN_PA_ORDER) - (1<<26)) /* FIXME: Need a way to get physical memory size from kernel. Cannot use a hardcoded value, actual memory could be much lower! */
 
 #define COS_MEM_COMP_START_VA ((1 << 30) + (1 << 22)) /* 1GB + 4MB (a relic) */
 #define COS_MEM_KERN_START_VA (0xc0000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
@@ -36,8 +37,6 @@
 #define COS_PHYMEM_END_PA ((1 << 30) - COS_HW_MMIO_MAX_SZ) /* Maximum usable physical memory */
 
 #define BOOT_COMP_MAX_SZ (1 << 24) /* 16 MB for the booter component */
-
-#define NUM_CPU 1
 
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
