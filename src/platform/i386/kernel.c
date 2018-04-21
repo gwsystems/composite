@@ -163,8 +163,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	kern_boot_comp(INIT_CORE);
 	lapic_init();
 	hpet_init();
-	chal_irq_enable(HW_SERIAL, 1);
-	chal_irq_enable(HW_KEYBOARD, 1);
+	chal_irq_enable(HW_SERIAL, 0);
 	pic_init();
 	ioapic_init();
 	smp_init(cores_ready);

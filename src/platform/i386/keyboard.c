@@ -8,7 +8,6 @@ keyboard_handler(struct pt_regs *regs)
 {
         u16_t scancode = 0;
 	int preempt = 1;
-	static int chg = 0;
 
         lapic_ack();
 
@@ -17,9 +16,6 @@ keyboard_handler(struct pt_regs *regs)
         }
         scancode = inb(KEY_DEVICE);
         PRINTK("Keyboard press: %d\n", scancode);
-
-	chal_irq_enable(HW_KEYBOARD, chg);
-	chg = !chg;
 
 	return preempt;
 }

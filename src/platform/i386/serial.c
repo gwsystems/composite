@@ -43,7 +43,7 @@ serial_handler(struct pt_regs *r)
 	static int chg = 0;
 
 	lapic_ack();
-
+	PRINTK("Serial\n");
 	serial = serial_recv();
 
 	/*
@@ -72,9 +72,12 @@ serial_handler(struct pt_regs *r)
 		break;
 	}
 
+	if (chg / NUM_CPU % 2 == 0) chal_irq_enable(HW_SERIAL, chg % NUM_CPU);
+	else chal_irq_disable(HW_SERIAL, chg % NUM_CPU);
+	chg++;
+
 	PRINTK("Serial: %d\n", serial);
-	chal_irq_enable(HW_SERIAL, chg);
-	chg = !chg;
+
 	// printk("%c", serial);
 	return preempt;
 }

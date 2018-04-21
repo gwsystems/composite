@@ -200,20 +200,16 @@ lapic_find_localaddr(void *l)
 static u32_t
 cons_logical_id(const u32_t id)
 {
-	int lid;
 	/*
 	 * FIXME: xAPIC only support 8 bits bitmap for logical destination,
 	 * So we will configure the logical id of cores with id larger than 7
-	 * to 7 which means we should find out a way(x2APIC) to fix this when we
+	 * to 0 which means we should find out a way(x2APIC) to fix this when we
 	 * have more than 8 cores in ioapic.
 	 */
 
-	if (id >= 7) {
-		lid = 7;
-	} else {
-		lid = id;
-	}
-	return (1ul << lid) << LAPIC_LDR_OFFSET;
+	if (id > 7) return 0;
+
+	return (1ul << id) << LAPIC_LDR_OFFSET;
 }
 
 static u32_t

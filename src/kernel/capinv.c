@@ -1630,7 +1630,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			hwid_t hwid = __userregs_get1(regs);
 
 			ret = hw_detach_rcvcap((struct cap_hw *)ch, hwid);
-			if (!ret) chal_irq_disable(hwid);
+			if (!ret) chal_irq_disable(hwid, get_cpuid());
 
 			break;
 		}
