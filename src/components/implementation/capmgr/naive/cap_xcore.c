@@ -2,13 +2,16 @@
 
 /* SINV TOKEN == cap_comm_info pointer */
 int
-cap_xcore_asnd(struct cap_comm_info *commci, int arg2, int arg3, int yield)
+cap_xcore_asnd(int arg2, int arg3, int yield)
 {
-	cycles_t now, win = commci->ipiwin_start;
+	cycles_t now, win;
+	struct cap_comm_info *commci = (struct cap_comm_info *)cos_inv_token();
 
 	if (unlikely(!commci || commci->rcvcpuid == cos_cpuid())) return -EINVAL;
+	if (unlikely(!commci->sndcap[cos_cpuid()])) return -EINVAL;
 	if (unlikely(!commci->ipimax)) goto done;
 
+	win = commci->ipiwin_start;
 	rdtscll(now);
 	if ((win + commci->ipiwin) <= now) {
 		u32_t cnt = ps_load((unsigned long *)&commci->ipicnt);

@@ -183,7 +183,7 @@ sinv_client_thread_init(struct sinv_async_info *s, thdid_t tid, cos_channelkey_t
 	cbuf_t id = 0;
 	asndcap_t snd = 0;
 	arcvcap_t rcv = 0;
-	spdid_t child = cos_inv_token() == 0 ? cos_spd_id() : cos_inv_token();
+	spdid_t child = cos_inv_token() == 0 ? cos_spd_id() : (spdid_t)cos_inv_token();
 
 	assert(ps_load(reqaddr) == 0);
 
@@ -294,7 +294,7 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 	vaddr_t shmaddr = 0;
 	cbuf_t id = 0;
 	asndcap_t snd = 0;
-	spdid_t child = cos_inv_token() == 0 ? cos_spd_id() : cos_inv_token();
+	spdid_t child = cos_inv_token() == 0 ? cos_spd_id() : (spdid_t)cos_inv_token();
 
 	assert(ps_load(reqaddr) == 0);
 	assert(rcvkey && skey && tid && rcv);

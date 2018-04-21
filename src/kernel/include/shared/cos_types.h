@@ -353,7 +353,7 @@ typedef unsigned int  page_index_t;
 typedef unsigned short int spdid_t;
 typedef unsigned short int compid_t;
 typedef unsigned short int thdid_t;
-typedef spdid_t            invtoken_t;
+typedef unsigned long      invtoken_t;
 typedef int                thdclosure_index_t;
 
 struct restartable_atomic_sequence {

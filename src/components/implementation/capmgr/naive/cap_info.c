@@ -5,7 +5,7 @@ static struct cap_comp_info capci[MAX_NUM_COMPS + 1]; /* includes booter informa
 static unsigned int cap_comp_count;
 u32_t cap_info_schedbmp[NUM_CPU][MAX_NUM_COMP_WORDS];
 static struct cap_shmem_glb_info cap_shmglbinfo;
-extern int cap_xcore_asnd_inv(struct cap_comm_info *c, word_t a, word_t b, int yield);
+extern int cap_xcore_asnd_inv(word_t a, word_t b, int yield);
 
 static inline struct cap_shmem_glb_info *
 __cap_info_shmglb_info(void)
@@ -126,7 +126,6 @@ cap_comminfo_asnd_create(struct cap_comm_info *comm)
 	asndcap_t snd;
 
 	if (!comm || !comm->rcvcap) return 0;
-	if (comm->rcvcpuid != cos_cpuid()) return 0;
 	if (comm->sndcap[cos_cpuid()]) goto done;
 
 	snd = cos_asnd_alloc(cap_ci, comm->rcvcap, cap_ci->captbl_cap);
@@ -143,10 +142,14 @@ cap_comminfo_sinv_create(struct cap_comm_info *comm)
 {
 	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	sinvcap_t sinv;
+	asndcap_t snd;
 
 	if (!comm || !comm->rcvcap) return 0;
 	if (comm->rcvcpuid == cos_cpuid()) return 0;
 	if (comm->sinvcap[cos_cpuid()]) goto done;
+
+	snd = cap_comminfo_asnd_create(comm);
+	if (!snd) return 0;
 
 	sinv = cos_sinv_alloc(cap_ci, cap_ci->comp_cap, (vaddr_t)cap_xcore_asnd_inv, (unsigned long)comm);
 	assert(sinv);
@@ -207,7 +210,7 @@ cap_channelaep_asnd_get(cos_channelkey_t key, capid_t *cap)
 
 	if (!ak || !key) return 0;
 	cmi = ak->comminfo;
-	assert(cmi && cmi->rcvcap);
+	if (!cmi || !cmi->rcvcap) return 0;
 
 	return cap_comminfo_xcoresnd_create(cmi, cap);
 }
