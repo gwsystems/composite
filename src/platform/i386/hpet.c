@@ -185,7 +185,7 @@ hpet_periodic_handler(struct pt_regs *regs)
 	if (unlikely(hpet_calibration_init)) hpet_calibration();
 
 	lapic_ack();
-	preempt = cap_hw_asnd(&hw_asnd_caps[HW_HPET_PERIODIC], regs);
+	preempt = cap_hw_asnd(&hw_asnd_caps[get_cpuid()][HW_HPET_PERIODIC], regs);
 	HPET_INT_ENABLE(HPET_PERIODIC);
 
 	return preempt;
@@ -199,7 +199,7 @@ hpet_oneshot_handler(struct pt_regs *regs)
 	assert(!hpet_calibration_init);
 
 	lapic_ack();
-	preempt = cap_hw_asnd(&hw_asnd_caps[HW_HPET_ONESHOT], regs);
+	preempt = cap_hw_asnd(&hw_asnd_caps[get_cpuid()][HW_HPET_ONESHOT], regs);
 	HPET_INT_ENABLE(HPET_ONESHOT);
 
 	return preempt;
@@ -299,5 +299,5 @@ hpet_init(void)
 
 	hpet_calibration_init = 1;
 	hpet_set(HPET_PERIODIC, hpet_hpetcyc_per_tick);
-	chal_irq_enable(HW_HPET_PERIODIC);
+	chal_irq_enable(HW_HPET_PERIODIC, 0);
 }

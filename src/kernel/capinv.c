@@ -1622,7 +1622,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			if (!CAP_TYPECHK(rcvc, CAP_ARCV)) cos_throw(err, -EINVAL);
 
 			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcvcap);
-			if (!ret) chal_irq_enable(hwid);
+			if (!ret) ret = chal_irq_enable(hwid, get_cpuid());
 
 			break;
 		}
@@ -1630,7 +1630,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			hwid_t hwid = __userregs_get1(regs);
 
 			ret = hw_detach_rcvcap((struct cap_hw *)ch, hwid);
-			if (!ret) chal_irq_disable(hwid);
+			if (!ret) ret = chal_irq_disable(hwid, get_cpuid());
 
 			break;
 		}

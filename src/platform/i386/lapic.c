@@ -7,6 +7,7 @@
 
 int ncpus = 1;
 int apicids[NUM_CPU];
+u32_t logical_apicids[NUM_CPU];
 
 #define CMOS_PORT    0x70
 
@@ -14,6 +15,7 @@ int apicids[NUM_CPU];
 #define LAPIC_VERSION_REG        0x030 /* version */
 #define LAPIC_TP_REG             0x080 /* Task Priority Register */
 
+#define LAPIC_LDR_REG            0x0D0 /* Logical destination register */
 #define LAPIC_SIV_REG            0x0F0 /* spurious interrupt vector */
 #define LAPIC_SIV_ENABLE         (1 << 8) /* enable bit in the SIV */
 #define LAPIC_EOI_REG            0x0B0 /* ack, or end-of-interrupt */
@@ -52,6 +54,10 @@ int apicids[NUM_CPU];
 
 #define LAPIC_ONESHOT_THRESH (1 << 12)
 #define LAPIC_TSCDEADLINE_THRESH 0
+
+#define LAPIC_LDR_OFFSET 24
+#define LAPIC_LDR_MAST (0xfful << LAPIC_LDR_OFFSET)
+
 
 extern int timer_process(struct pt_regs *regs);
 
@@ -191,12 +197,40 @@ lapic_find_localaddr(void *l)
 	return addr;
 }
 
+static u32_t
+cons_logical_id(const u32_t id)
+{
+	/*
+	 * FIXME: xAPIC only support 8 bits bitmap for logical destination,
+	 * So we will configure the logical id of cores with id larger than 7
+	 * to 0 which means we should find out a way(x2APIC) to fix this when we
+	 * have more than 8 cores in ioapic.
+	 */
+
+	if (id > 7) return 0;
+
+	return (1ul << id) << LAPIC_LDR_OFFSET;
+}
+
+static u32_t
+lapic_set_ldr(const u32_t id)
+{
+	u32_t lid = cons_logical_id(id);
+
+	lapic_write_reg(LAPIC_LDR_REG, lid | ~LAPIC_LDR_MAST);
+	return lid >> LAPIC_LDR_OFFSET;
+}
+
 void
 lapic_init(void)
 {
 	u32_t version;
 
 	assert(lapic);
+
+	/* setup LDR for logic destination before init lapic */
+	logical_apicids[get_cpuid()] = lapic_set_ldr(get_cpuid());
+
 	lapic_write_reg(LAPIC_SIV_REG, LAPIC_SIV_ENABLE | HW_LAPIC_SPURIOUS);
 
 	version = lapic_read_reg(LAPIC_VERSION_REG);

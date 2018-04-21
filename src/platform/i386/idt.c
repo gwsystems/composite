@@ -49,7 +49,7 @@ hw_handler(struct pt_regs *regs)
 	 *       after user-level interrupt(rcv event) processing?
 	 */
 	lapic_ack();
-	preempt = cap_hw_asnd(&hw_asnd_caps[regs->orig_ax], regs);
+	preempt = cap_hw_asnd(&hw_asnd_caps[get_cpuid()][regs->orig_ax], regs);
 
 	return preempt;
 }
