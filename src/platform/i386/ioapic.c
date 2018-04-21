@@ -317,7 +317,7 @@ ioapic_iter(struct ioapic_cntl *io)
 	}
 }
 
-void
+int
 chal_irq_enable(int irq, cpuid_t cpu_id)
 {
 	int 	            gsi = ioapic_int_gsi(irq - HW_IRQ_START);
@@ -325,13 +325,13 @@ chal_irq_enable(int irq, cpuid_t cpu_id)
 	union ioapic_int_redir_entry entry;
 	u8_t off;
 
-	if (!io) return;
+	if (!io) return -EINVAL;
 
 	off = gsi - io->glbint_base;
 	entry = ioapic_int_entry_read(io, off);
 
 	/* the destination bitmap is 8 bits */
-	if (irq - HW_IRQ_START >= (int)ioapic_int_count || cpu_id > 7) return;
+	if (irq - HW_IRQ_START >= (int)ioapic_int_count || cpu_id > 7) return -EINVAL;
 
 	/* irq should be masked or in logical mode */
 	assert(entry.mask || entry.destmod == IOAPIC_DST_LOGICAL);
@@ -340,9 +340,11 @@ chal_irq_enable(int irq, cpuid_t cpu_id)
 	assert(!entry.mask || !entry.destination);
 
 	ioapic_int_unmask(irq - HW_IRQ_START, entry.destination | (u8_t)logical_apicids[cpu_id]);
+
+	return 0;
 }
 
-void
+int
 chal_irq_disable(int irq, cpuid_t cpu_id)
 {
 	int 	            gsi = ioapic_int_gsi(irq - HW_IRQ_START);
@@ -350,23 +352,24 @@ chal_irq_disable(int irq, cpuid_t cpu_id)
 	union ioapic_int_redir_entry entry;
 	u8_t off;
 
-	if (!io) return;
+	if (!io) return -EINVAL;
 
 	off = gsi - io->glbint_base;
 	entry = ioapic_int_entry_read(io, off);
 
 	/* the destination bitmap is 8 bits */
-	if (irq - HW_IRQ_START >= (int)ioapic_int_count || cpu_id > 7) return;
+	if (irq - HW_IRQ_START >= (int)ioapic_int_count || cpu_id > 7) return -EINVAL;
 
 	assert(entry.mask || entry.destmod == IOAPIC_DST_LOGICAL);
 
 	/* we should disable the irq if we remove the last core */
 	if (!(entry.destination & ~logical_apicids[cpu_id])) {
 		ioapic_int_mask(irq - HW_IRQ_START);
-		return;
+		return 0;
 	}
 
 	ioapic_int_unmask(irq - HW_IRQ_START, entry.destination & ~logical_apicids[cpu_id]);
+	return 0;
 }
 
 void
