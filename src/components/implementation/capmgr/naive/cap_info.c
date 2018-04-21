@@ -110,6 +110,7 @@ cap_comminfo_init(struct sl_thd *t, microsec_t ipi_window, u32_t ipi_max)
 
 	rdtscll(now);
 	cmi->rcvcap              = sl_thd_rcvcap(t);
+	assert(cmi->rcvcap);
 	cmi->rcvcpuid            = cos_cpuid();
 	cmi->ipiwin              = sl_usec2cyc(ipi_window);
 	cmi->ipiwin_start        = now;

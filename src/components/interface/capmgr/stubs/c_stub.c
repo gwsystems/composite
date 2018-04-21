@@ -101,7 +101,7 @@ capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *aep, thdclosure_index_
 	u32_t tcrcvret = 0;
 	thdid_t tid = 0;
 	thdcap_t thd = 0;
-	u32_t owntc_spdid_thdidx = (owntc << 30) | (((child << 17) >> 17) << 16) | ((idx << 16) >> 16);
+	u32_t owntc_spdid_thdidx = (owntc << 31) | (((child << 17) >> 17) << 16) | ((idx << 16) >> 16);
 	u32_t key_ipimax = (key << 16) | ((ipimax << 16) >> 16);
 	u32_t ipiwin32b  = (u32_t)ipiwin;
 

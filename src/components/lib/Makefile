@@ -1,6 +1,6 @@
 include Makefile.src Makefile.comp
 
-LIB_OBJS=heap.o cobj_format.o cos_kernel_api.o cos_defkernel_api.o sinv_async.o
+LIB_OBJS=heap.o cobj_format.o cos_kernel_api.o cos_defkernel_api.o
 LIBS=$(LIB_OBJS:%.o=%.a)
 MANDITORY=c_stub.o cos_asm_upcall.o cos_asm_ainv.o cos_component.o
 MAND=$(MANDITORY_LIB)
@@ -10,8 +10,8 @@ SIMPLE_STKLIB=simple_stklib.o
 CINC_ENV=$(CINC)
 export CINC_ENV
 
-.PHONY: all sl ps ck
-all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl
+.PHONY: all sl ps ck sinv
+all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl sinv
 
 # we have to compile these without dietlibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't
@@ -29,6 +29,9 @@ $(SIMPLE_STKLIB): $(SIMPLE_STACKS)
 
 sl:
 	make $(MAKEFLAGS) -C sl
+
+sinv:
+	make $(MAKEFLAGS) -C sinv_async
 
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)

@@ -3,10 +3,14 @@
 
 #include <cos_types.h>
 #include <cos_kernel_api.h>
+#include <cos_defkernel_api.h>
 
 #define SINV_NUM_MAX 16
 #define SINV_INIT_NPAGES 1
 #define SINV_REQ_NPAGES  1
+
+#define SINV_REQ_SET   1
+#define SINV_REQ_RESET 0
 
 /* TODO: change this to enumeration of invocation functions */
 typedef int sinv_num_t;
@@ -87,6 +91,8 @@ int sinv_client_rets_call(struct sinv_async_info *s, sinv_num_t, word_t *r2, wor
 
 /* Asynchronous communication API */
 typedef sinv_num_t acom_type_t;
+/* @shm_key - client to make "thread" creation requests for server side. (polling only & 1 req at a time) */
+void acom_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key);
 int acom_client_thread_init(struct sinv_async_info *s, thdid_t, arcvcap_t, cos_channelkey_t rkey, cos_channelkey_t skey);
 int acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio);
 

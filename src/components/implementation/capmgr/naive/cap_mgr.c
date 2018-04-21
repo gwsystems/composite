@@ -378,6 +378,7 @@ capmgr_rcv_create_cserialized(u32_t spd_tid, u32_t key_ipimax, u32_t ipiwin32b)
 	cos_channelkey_t        key     = (key_ipimax >> 16);
 	microsec_t              ipiwin  = (microsec_t)ipiwin32b;
 	u32_t                   ipimax  = (key_ipimax << 16) >> 16;
+	tcap_t                  tc      = 0;
 
 	if (!key) return 0;
 	if (!rc || !cap_info_init_check(rc)) return 0;
@@ -389,8 +390,11 @@ capmgr_rcv_create_cserialized(u32_t spd_tid, u32_t key_ipimax, u32_t ipiwin32b)
 	if (!rinit) return 0;
 
 	comm = cap_comm_tid_lkup(sl_thd_thdid(ti));
-	if (comm) return 0;
-	rcv = cos_arcv_alloc(cap_ci, sl_thd_thdcap(ti), sl_thd_tcap(ti), cap_ci->comp_cap, sl_thd_rcvcap(rinit));
+	if (comm && comm->rcvcap) return 0;
+	tc = sl_thd_tcap(ti);
+	if (!tc) tc = sl_thd_tcap(rinit);
+	assert(tc);
+	rcv = cos_arcv_alloc(cap_ci, sl_thd_thdcap(ti), tc, cap_ci->comp_cap, sl_thd_rcvcap(rinit));
 	if (!rcv) return 0;
 	sl_thd_aepinfo(ti)->rcv = rcv;
 
@@ -398,6 +402,7 @@ capmgr_rcv_create_cserialized(u32_t spd_tid, u32_t key_ipimax, u32_t ipiwin32b)
 	if (!rcvret) return 0;
 
 	cap_comminfo_init(ti, ipiwin, ipimax);
+	cap_channelaep_set(key, ti);
 
 	return rcvret;
 }
