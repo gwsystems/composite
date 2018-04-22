@@ -13,23 +13,22 @@
 #include "cc.h"
 #include <assert.h>
 
+/* The retype table walking structure - track our path through the pages of different granularity */
+struct page_record {
+	int inc_cnt;
+	struct retype_entry *p;
+	struct retype_entry_glb *p_glb;
+};
+
 /* The CPU-local data structures */
 struct retype_info     retype_tbl[NUM_CPU] CACHE_ALIGNED;
 struct retype_info_glb glb_retype_tbl[N_RETYPE_SLOTS] CACHE_ALIGNED;
 
 /* The start positions of the tables - also architecture-specific */
-const u32_t retype_slot_base[32] = {
-  /*   0/1B    1/2B    2/4B    3/8B   4/16B   5/32B   6/64B  7/128B  8/256B  9/512B */
-	-1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  /*  10/1K   11/2K   12/4K   13/8K  14/16K  15/32K  16/64K 17/128K 18/256K 19/512K */
-	-1,     -1,      0,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  /*  20/1M   21/2M   22/4M   23/8M  24/16M  25/32M  26/64M 27/128M 28/256M 29/512M */
-	-1,     -1, N_MEM_SETS, -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  /*  30/1G   31/2G */
-	-1,     -1
-};
+const int pos2base[32] = {0, N_MEM_SETS};
 
-const u32_t walk_base[32] = {
+/* Currently this is x86 specific. Convert size orders to position */
+const int order2pos[32] = {
   /*   0/1B    1/2B    2/4B    3/8B   4/16B   5/32B   6/64B  7/128B  8/256B  9/512B */
 	-1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
   /*  10/1K   11/2K   12/4K   13/8K  14/16K  15/32K  16/64K 17/128K 18/256K 19/512K */
@@ -40,34 +39,14 @@ const u32_t walk_base[32] = {
 	-1,     -1
 };
 
-/**
- * Currently this is x86 specific. This array is used to find the previous page size's
- * order (the next larger superpage). A value of 0 means there are no such page, a value
- * of -1 means this page size is not supported on this architecture. This table starts at
- * 1B and ends at 2GB.
- */
-const u32_t page_sizes_super[32] = {
-  /*   0/1B    1/2B    2/4B    3/8B   4/16B   5/32B   6/64B  7/128B  8/256B  9/512B */
-	-1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  /*  10/1K   11/2K   12/4K   13/8K  14/16K  15/32K  16/64K 17/128K 18/256K 19/512K */
-	-1,     -1,     22,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  /*  20/1M   21/2M   22/4M   23/8M  24/16M  25/32M  26/64M 27/128M 28/256M 29/512M */
-	-1,     -1,      0,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  /*  30/1G   31/2G */
-	-1,     -1
-};
+/* Convert position to size orders */
+const int pos2order[2] = {12, 22};
 
-/* This array is to find the next smaller subpage */
-const u32_t page_sizes_small[32] = {
-  /*   0/1B    1/2B    2/4B    3/8B   4/16B   5/32B   6/64B  7/128B  8/256B  9/512B */
-	-1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  /*  10/1K   11/2K   12/4K   13/8K  14/16K  15/32K  16/64K 17/128K 18/256K 19/512K */
-	-1,     -1,      0,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  /*  20/1M   21/2M   22/4M   23/8M  24/16M  25/32M  26/64M 27/128M 28/256M 29/512M */
-	-1,     -1,     12,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  /*  30/1G   31/2G */
-	-1,     -1
-};
+#define POS(order)       (order2pos[order])
+#define BASE(order)      (pos2base[POS(order)])
+#define ORDER(pos)       (pos2order[pos])
+#define SUPER(order)     (pos2order[SUPER_POS(order)])
+#define SMALL(order)     (pos2order[SMALL_POS(order)])
 
 /* This only does reference for kernel typed memory, and we will not check the type */
 int
@@ -110,33 +89,15 @@ retypetbl_kern_deref(void *pa, u32_t order)
 	return 0;
 }
 
-/* Iteration macro for referencing - cannot use inline functions because we need i to rewind */
-#define RETYPETBL_REF_ITERATE(TYPE_Y, TYPE_N) \
-do { \
-	for (i = MAX_PAGE_ORDER; i >= (int)order; i = page_sizes_small[i]) { \
-		walk[walk_base[i]].p = GET_RETYPE_ENTRY(idx, i); \
-		old_temp.refcnt_atom.v = walk[walk_base[i]].p->refcnt_atom.v; \
-		temp.refcnt_atom.v = walk[walk_base[i]].p->refcnt_atom.v; \
-		if (old_temp.refcnt_atom.type == (TYPE_N)) cos_throw(err, -EPERM); \
-		if (old_temp.refcnt_atom.type == (TYPE_Y)) found = 1; \
-		/* Increase or decrease the core-local count with CAS */ \
-		temp.refcnt_atom.ref_cnt++; \
-		if (retypetbl_cas(&(walk[walk_base[i]].p->refcnt_atom.v), old_temp.refcnt_atom.v, temp.refcnt_atom.v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL); \
-		walk[walk_base[i]].inc_cnt = 1; \
-	} \
-	if (!found) cos_throw(err, -EPERM); \
-} \
-while(0)
-
 /* This will not return overflow anymore because the kernel/user counter is large enough */
 int
 retypetbl_ref(void *pa, u32_t order)
 {
 	/* FIXME:This can be very large on stack, consider shrinking it */
 	struct page_record  walk[NUM_PAGE_SIZES];
+	int i, ret, idx, type_y, type_n;
 	struct retype_entry temp, old_temp;
 	int found = 0;
-	int i, ret, idx;
 
 	assert(pa); /* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
@@ -144,40 +105,34 @@ retypetbl_ref(void *pa, u32_t order)
 	idx = GET_MEM_IDX(pa);
 	assert(idx < N_MEM_SETS);
 
-	walk[walk_base[order]].p = GET_RETYPE_ENTRY(idx, order);
-	if ((walk[walk_base[order]].p->refcnt_atom.type != RETYPETBL_USER) &&
-	    (walk[walk_base[order]].p->refcnt_atom.type != RETYPETBL_KERN)) return -EPERM;
+	walk[POS(order)].p = GET_RETYPE_ENTRY(idx, order);
+	if ((walk[POS(order)].p->refcnt_atom.type != RETYPETBL_USER) &&
+	    (walk[POS(order)].p->refcnt_atom.type != RETYPETBL_KERN)) return -EPERM;
 
-	walk[walk_base[MAX_PAGE_ORDER]].p = GET_RETYPE_ENTRY(idx, MAX_PAGE_ORDER);
-	/* See if it is kernel or user */
-	if(walk[walk_base[order]].p->refcnt_atom.type == RETYPETBL_USER) {
-		RETYPETBL_REF_ITERATE(RETYPETBL_USER, RETYPETBL_KERN);
-	} else {
-		RETYPETBL_REF_ITERATE(RETYPETBL_KERN, RETYPETBL_USER);
-	}
+	type_y = walk[POS(order)].p->refcnt_atom.type;
+	if (type_y == RETYPETBL_KERN) type_n = RETYPETBL_USER; else type_n = RETYPETBL_KERN;
 	
+	for (i = POS(MAX_PAGE_ORDER); i >= POS(order); i--) {
+		walk[i].p = GET_RETYPE_ENTRY(idx, ORDER(i));
+		old_temp.refcnt_atom.v = walk[i].p->refcnt_atom.v;
+		temp.refcnt_atom.v = walk[i].p->refcnt_atom.v;
+		if (old_temp.refcnt_atom.type == type_n) cos_throw(err, -EPERM);
+		if (old_temp.refcnt_atom.type == type_y) found = 1;
+		/* Increase or decrease the core-local count with CAS */
+		temp.refcnt_atom.ref_cnt++;
+		if (retypetbl_cas(&(walk[i].p->refcnt_atom.v), old_temp.refcnt_atom.v, temp.refcnt_atom.v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+		walk[i].inc_cnt = 1;
+	}
+	if (!found) cos_throw(err, -EPERM);
+
 	return 0;
 err:
 	/* Prepare to unwind and quit */
-	for (;i != 0; i = page_sizes_super[i]) {
-		if (walk[walk_base[i]].inc_cnt != 0) walk[walk_base[i]].p->refcnt_atom.v--;
+	for ( ; i <= POS(MAX_PAGE_ORDER); i++) {
+		if (walk[i].inc_cnt != 0) walk[i].p->refcnt_atom.v--;
 	}
 	return ret;
 }
-
-/* Iteration macro for dereferencing - cannot use inline functions because we need i to rewind  */
-#define RETYPETBL_DEREF_ITERATE(TYPE_Y, TYPE_N) \
-do { \
-	for (i = MAX_PAGE_ORDER; i >= (int)order; i = page_sizes_small[i]) { \
-		walk[walk_base[i]].p = GET_RETYPE_ENTRY(idx, i); \
-		if (walk[walk_base[i]].p->refcnt_atom.type == (TYPE_N)) cos_throw(err, -EPERM); \
-		if (walk[walk_base[i]].p->refcnt_atom.type == (TYPE_Y)) found = 1; \
-		walk[walk_base[i]].p->refcnt_atom.v--; \
-		walk[walk_base[i]].inc_cnt = 1; \
-	} \
-	if (!found) cos_throw(err, -EPERM); \
-} \
-while(0)
 
 int
 retypetbl_deref(void *pa, u32_t order)
@@ -185,7 +140,7 @@ retypetbl_deref(void *pa, u32_t order)
 	/* FIXME:This can be very large on stack, consider shrinking it */
 	struct page_record walk[NUM_PAGE_SIZES];
 	int found = 0;
-	int i, ret, idx;
+	int i, ret, idx, type_y, type_n;
 
 	assert(pa); /* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
@@ -193,57 +148,34 @@ retypetbl_deref(void *pa, u32_t order)
 	idx = GET_MEM_IDX(pa);
 	assert(idx < N_MEM_SETS);
 
-	walk[walk_base[order]].p = GET_RETYPE_ENTRY(idx, order);
-	if ((walk[walk_base[order]].p->refcnt_atom.type != RETYPETBL_USER) &&
-            (walk[walk_base[order]].p->refcnt_atom.type != RETYPETBL_KERN)) return -EPERM;
+	walk[POS(order)].p = GET_RETYPE_ENTRY(idx, order);
+	if ((walk[POS(order)].p->refcnt_atom.type != RETYPETBL_USER) &&
+	    (walk[POS(order)].p->refcnt_atom.type != RETYPETBL_KERN)) return -EPERM;
 
-	walk[walk_base[MAX_PAGE_ORDER]].p = GET_RETYPE_ENTRY(idx, MAX_PAGE_ORDER);
+	type_y = walk[POS(order)].p->refcnt_atom.type;
+	if (type_y == RETYPETBL_KERN) type_n = RETYPETBL_USER; else type_n = RETYPETBL_KERN;
+
 	/* See if it is kernel or user */
-	if(walk[walk_base[order]].p->refcnt_atom.type == RETYPETBL_USER) {
-		RETYPETBL_DEREF_ITERATE(RETYPETBL_USER, RETYPETBL_KERN);
-	} else {
-		RETYPETBL_DEREF_ITERATE(RETYPETBL_KERN, RETYPETBL_USER);
+	for (i = POS(MAX_PAGE_ORDER); i >= POS(order); i--) {
+		walk[i].p = GET_RETYPE_ENTRY(idx, ORDER(i));
+		if (walk[i].p->refcnt_atom.type == type_n) cos_throw(err, -EPERM);
+		if (walk[i].p->refcnt_atom.type == type_y) found = 1;
+		walk[i].p->refcnt_atom.v--;
+		walk[i].inc_cnt = 1;
 	}
+	if (!found) cos_throw(err, -EPERM);
 
-	rdtscll(walk[walk_base[i]].p->last_unmap);
+	rdtscll(walk[POS(order)].p->last_unmap);
 	cos_mem_fence();
 	
 	return 0;
 err:
 	/* Prepare to unwind and quit */
-	for (;i != 0; i = page_sizes_super[i]) {
-		if (walk[walk_base[i]].inc_cnt != 0) walk[walk_base[i]].p->refcnt_atom.v++;
+	for ( ; i <= POS(MAX_PAGE_ORDER); i++) {
+		if (walk[i].inc_cnt != 0) walk[i].p->refcnt_atom.v++;
 	}
 	return ret;
 }
-
-/* Iteration macro for modifying memory type - cannot use inline functions because we need i to rewind */
-#define MOD_MEM_TYPE_ITERATE(REFCNT) \
-do { \
-	/* Repetitively add the record of a page set to a type, into the level one above it */ \
-	for (i = page_sizes_small[MAX_PAGE_ORDER]; i >= (int)order; i = page_sizes_small[i]) { \
-	        walk[walk_base[i]].p_glb = GET_GLB_RETYPE_ENTRY(idx, i); \
-		walk[walk_base[i]].inc_cnt = 0; \
-		/* Do we need to update the next highest page size count? */ \
-		if (walk[walk_base[i]].p_glb->refcnt_atom.type == RETYPETBL_UNTYPED || walk[walk_base[i]].p_glb->refcnt_atom.REFCNT == 0) { \
-			old_temp.refcnt_atom.v = walk[walk_base[page_sizes_super[i]]].p_glb->refcnt_atom.v; \
-			if (old_temp.refcnt_atom.type != RETYPETBL_UNTYPED) cos_throw(err, -EPERM); \
-			temp.refcnt_atom.v = old_temp.refcnt_atom.v; \
-			temp.refcnt_atom.REFCNT++; \
-			/*  \
-			 * Use CAS to update the word here in case there is a retype/retype race. \
-			 * If another retype retypes the parent, then the type check in this CAS \
-			 * will fail. This CAS makes sure that the parent will not be retyped into \
-			 * something else. \
-			 */ \
-			if (retypetbl_cas((u32_t*)(walk[walk_base[page_sizes_super[i]]].p_glb), old_temp.refcnt_atom.v, temp.refcnt_atom.v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL); \
-			/* This is a simple assignment, because this is the function's local variable */ \
-			walk[walk_base[page_sizes_super[i]]].inc_cnt = 1; \
-		} \
-		if (walk[walk_base[i]].p_glb->refcnt_atom.type != RETYPETBL_UNTYPED) cos_throw(err, -ECASFAIL); \
-	} \
-} \
-while(0)
 
 /* Macro used to change types and clear counts atomically */
 #define ATOMIC_TYPE_SWAP_AND_CLEAR(PTR, OLD_TYPE, NEW_TYPE) \
@@ -261,7 +193,7 @@ static inline int
 mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 {
 	struct page_record      walk[NUM_PAGE_SIZES];
-	int                     i, ret;
+	int                     i, ret, val;
 	u32_t                   idx, old_type;
 	struct retype_entry_glb temp;
 	struct retype_entry_glb old_temp;
@@ -277,8 +209,8 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 	if (type == RETYPETBL_KERN && chal_pa2va((paddr_t)pa) == NULL) return -EINVAL;
 
 	/* Get the global slot */
-        walk[walk_base[MAX_PAGE_ORDER]].p_glb = GET_GLB_RETYPE_ENTRY(idx, MAX_PAGE_ORDER);
-	old_type = walk[walk_base[MAX_PAGE_ORDER]].p_glb->refcnt_atom.type;
+        walk[POS(MAX_PAGE_ORDER)].p_glb = GET_GLB_RETYPE_ENTRY(idx, MAX_PAGE_ORDER);
+	old_type = walk[POS(MAX_PAGE_ORDER)].p_glb->refcnt_atom.type;
 
 	/* only can retype untyped mem sets. */
 	if (unlikely(old_type != RETYPETBL_UNTYPED)) {
@@ -288,11 +220,29 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 			return -EPERM;
 	}
 
-	/* See if we are retyping this to kernel or user level */
-	if (type == RETYPETBL_USER) {
-		MOD_MEM_TYPE_ITERATE(user_cnt);
-	} else {
-		MOD_MEM_TYPE_ITERATE(kernel_cnt);
+	/* Repetitively add the record of a page set to a type, into the level one above it */ 
+	for (i = POS(MAX_PAGE_ORDER) - 1; i >= POS(order); i--) {
+	        walk[i].p_glb = GET_GLB_RETYPE_ENTRY(idx, ORDER(i));
+		walk[i].inc_cnt = 0;
+		/* Do we need to update the next highest page size count? */ 
+		if (walk[i].p_glb->refcnt_atom.type == RETYPETBL_UNTYPED || 
+		    (((type == RETYPETBL_USER) && (walk[i].p_glb->refcnt_atom.user_cnt == 0)) ||
+		     ((type == RETYPETBL_KERN) && (walk[i].p_glb->refcnt_atom.kernel_cnt == 0)))) {
+			old_temp.refcnt_atom.v = walk[i + 1].p_glb->refcnt_atom.v; 
+			if (old_temp.refcnt_atom.type != RETYPETBL_UNTYPED) cos_throw(err, -EPERM); 
+			temp.refcnt_atom.v = old_temp.refcnt_atom.v;
+			if (type == RETYPETBL_USER) temp.refcnt_atom.user_cnt++; else temp.refcnt_atom.kernel_cnt++;
+			/*
+			 * Use CAS to update the word here in case there is a retype/retype race.
+			 * If another retype retypes the parent, then the type check in this CAS
+			 * will fail. This CAS makes sure that the parent will not be retyped into
+			 * something else.
+			 */
+			if (retypetbl_cas((u32_t*)(walk[i + 1].p_glb), old_temp.refcnt_atom.v, temp.refcnt_atom.v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+			/* This is a simple assignment, because this is the function's local variable */
+			walk[i + 1].inc_cnt = 1;
+		}
+		if (walk[i].p_glb->refcnt_atom.type != RETYPETBL_UNTYPED) cos_throw(err, -ECASFAIL);
 	}
 
 	/* typed as the other type? - if there is a retype/retype race */
@@ -302,7 +252,7 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 	}
 
 	/* atomic update with CAS */
-	ATOMIC_TYPE_SWAP_AND_CLEAR(walk[walk_base[order]].p_glb, RETYPETBL_UNTYPED, RETYPETBL_RETYPING);
+	ATOMIC_TYPE_SWAP_AND_CLEAR(walk[POS(order)].p_glb, RETYPETBL_UNTYPED, RETYPETBL_RETYPING);
 	if (ret != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 	cos_mem_fence();
 
@@ -317,20 +267,15 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 	cos_mem_fence();
 
 	/* Now commit the change to the global entry. */
-	ATOMIC_TYPE_SWAP_AND_CLEAR(walk[walk_base[order]].p_glb, RETYPETBL_RETYPING, type);
+	ATOMIC_TYPE_SWAP_AND_CLEAR(walk[POS(order)].p_glb, RETYPETBL_RETYPING, type);
 	assert(ret == CAS_SUCCESS);
 
 	return 0;
 err:
 	/* Prepare to unwind and quit */
-	if (type == RETYPETBL_USER) {
-		for (;i != 0; i = page_sizes_super[i]) {
-			if (walk[walk_base[i]].inc_cnt != 0) cos_faa((int*)walk[walk_base[i]].p_glb, -(1 << RETYPE_ENT_GLB_REFCNT_SZ));
-		}
-	} else {
-		for (;i != 0; i = page_sizes_super[i]) {
-			if (walk[walk_base[i]].inc_cnt != 0) cos_faa((int*)walk[walk_base[i]].p_glb, -1);
-		}
+	if (type == RETYPETBL_USER) val = 1 << RETYPE_ENT_GLB_REFCNT_SZ; else val = 1;
+	for ( ;i <= POS(MAX_PAGE_ORDER); i++) {
+		if (walk[i].inc_cnt != 0) cos_faa((int*)walk[i].p_glb, -val);
 	}
 
 	return ret;
@@ -420,18 +365,11 @@ retypetbl_retype2frame(void *pa, u32_t order)
 	cos_mem_fence();
 
 	/* Repetitively add the record of a page set to a type, into the level one above it */
-	if (old_type == RETYPETBL_USER) {
-		for (j = MAX_PAGE_ORDER; j > (int)order; j = page_sizes_small[j]) {
-			glb_retype_info = GET_GLB_RETYPE_ENTRY(idx, j);
-			/* The following is atomic with FAA */
-			cos_faa((int*)glb_retype_info, -(1 << RETYPE_ENT_GLB_REFCNT_SZ));
-		}
-	} else {
-		for (j = MAX_PAGE_ORDER; j > (int)order; j = page_sizes_small[j]) {
-			glb_retype_info = GET_GLB_RETYPE_ENTRY(idx, j);
-			/* The following is atomic with FAA */
-			cos_faa((int*)glb_retype_info, -1);
-		}
+	if (old_type == RETYPETBL_USER) sum = (1 << RETYPE_ENT_GLB_REFCNT_SZ); else sum = 1;
+	for (j = POS(MAX_PAGE_ORDER); j > POS(order); j--) {
+		glb_retype_info = GET_GLB_RETYPE_ENTRY(idx, ORDER(j));
+		/* The following is atomic with FAA */
+		cos_faa((int*)glb_retype_info, -sum);
 	}
 
 	/* Update all the per-cpu variables one by one */

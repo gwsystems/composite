@@ -42,46 +42,6 @@ typedef enum {
 	PGTBL_INTERN_DEF = PGTBL_USER_DEF,
 } pgtbl_flags_t;
 
-/* The order of page sizes */
-typedef enum {
-	PGSZ_128B = 7,
-	PGSZ_256B,
-	PGSZ_512B,
-	PGSZ_1K,
-	PGSZ_2K,
-	PGSZ_4K,
-	PGSZ_8K,
-	PGSZ_16K,
-	PGSZ_32K,
-	PGSZ_64K,
-	PGSZ_128K,
-	PGSZ_256K,
-	PGSZ_512K,
-	PGSZ_1M,
-	PGSZ_2M,
-	PGSZ_4M
-} pgtbl_sz_t;
-
-/* The order of numbers of pages */
-typedef enum {
-	PGNO_2 = 1,
-	PGNO_4,
-	PGNO_8,
-	PGNO_16,
-	PGNO_32,
-	PGNO_64,
-	PGNO_128,
-	PGNO_256,
-	PGNO_512,
-	PGNO_1K,
-	PGNO_2K,
-	PGNO_4K,
-	PGNO_8K,
-	PGNO_16K,
-	PGNO_32K,
-	PGNO_64K
-} pgtbl_no_t;
-
 struct tlb_quiescence {
 	/* Updated by timer. */
 	u64_t last_periodic_flush;

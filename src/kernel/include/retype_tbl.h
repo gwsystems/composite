@@ -72,13 +72,6 @@ struct retype_entry_glb {
 	u32_t kernel_ref;
 } __attribute__((packed));
 
-/* The retype table walking structure - track our path through the pages of different granularity */
-struct page_record {
-	int inc_cnt;
-	struct retype_entry *p;
-	struct retype_entry_glb *p_glb;
-};
-
 /* When getting kernel memory through Linux, the retype table is
  * partitioned into two parts for kmem and user memory. */
 /* # of mem_sets in total. +1 to be safe. */
@@ -128,7 +121,7 @@ extern struct retype_info_glb glb_retype_tbl[N_RETYPE_SLOTS];
 #define MAX_PAGE_ORDER               22
 #define NUM_PAGE_SIZES               2
 /* get the memory set struct of the current cpu */
-#define GET_RETYPE_POS(idx,order)    (((idx) >> ((order) - MIN_PAGE_ORDER)) + retype_slot_base[order])
+#define GET_RETYPE_POS(idx,order)    (((idx) >> ((order) - MIN_PAGE_ORDER)) + pos2base[order2pos[order]])
 #define GET_RETYPE_ENTRY(idx, order) ((&(retype_tbl[get_cpuid()].mem_set[GET_RETYPE_POS(idx,order)])))
 #define GET_RETYPE_CPU_ENTRY(cpu, idx, order) ((&(retype_tbl[cpu].mem_set[GET_RETYPE_POS(idx,order)])))
 /* get the global memory set struct (used for retyping only). */
