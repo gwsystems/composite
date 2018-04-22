@@ -52,15 +52,13 @@ sinv_client_thread_init(struct sinv_async_info *s, thdid_t tid, cos_channelkey_t
 
 	ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_RESET, SINV_REQ_SET); /* indicate request available */
 	assert(ret);
-	/* TODO: cos_asnd */
 
-	/* TODO: cos_rcv! */
 	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {
 		cycles_t now, timeout;
 
 		rdtscll(now);
 		timeout = now + (SINV_SRV_POLL_US * USEC_2_CYC);
-	//	sl_thd_block_timeout(0, timeout); /* called from the scheduler */
+		sl_thd_block_timeout(0, timeout); /* called from the scheduler */
 	}
 
 	/* TODO: UNDO!!! */
@@ -102,14 +100,14 @@ sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_
 	assert(ret); /* must be sync.. */
 
 	/* TODO: use the scheduler's rate-limiting api */
-	/* cos_asnd(tinfo->sndcap, 0); */
+	cos_asnd(tinfo->sndcap, 1);
 
-	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {// || !tinfo->rcvcap || cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING, NULL) < 0) {
+	while ((tinfo->rcvcap && cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING, NULL) < 0) && (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET)) {
 		cycles_t now, timeout;
 
 		rdtscll(now);
 		timeout = now + (SINV_SRV_POLL_US * USEC_2_CYC);
-	//	sl_thd_block_timeout(0, timeout); /* in the scheduler component */
+		sl_thd_block_timeout(0, timeout); /* in the scheduler component */
 	}
 
 	assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET);

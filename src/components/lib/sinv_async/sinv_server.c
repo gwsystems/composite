@@ -67,13 +67,16 @@ sinv_server_fn(arcvcap_t rcv, void *data)
 		struct sinv_call_req *req = (struct sinv_call_req *)(reqaddr + 2);
 		sinv_fn_t fn;
 		sinv_rets_fn_t fnr;
+		int rcvd = 0;
 
-		while (ps_load((unsigned long *)reqaddr) != SINV_REQ_SET) {// || cos_rcv(rcv, RCV_NON_BLOCKING, NULL) < 0) {
+		while ((cos_rcv(rcv, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
 			cycles_t now, timeout;
+
+			if (ps_load((unsigned long *)reqaddr) == SINV_REQ_SET) break;
 
 			rdtscll(now);
 			timeout = now + (SINV_SRV_POLL_US * USEC_2_CYC);
-		//	sched_thd_block_timeout(0, timeout);
+			sched_thd_block_timeout(0, timeout);
 		}
 
 		assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_SET);
@@ -98,8 +101,8 @@ sinv_server_fn(arcvcap_t rcv, void *data)
 		ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_SET, SINV_REQ_RESET); /* indicate request completion */
 		assert(ret);
 
-		/* TODO: asnd using capmgr interface for rate-limiting? */
-		/* if (snd) cos_asnd(snd, 1); */
+		/* asnd using capmgr interface for rate-limiting? */
+		if (snd) cos_asnd(snd, 1);
 	}
 }
 
@@ -133,13 +136,13 @@ sinv_server_main_loop(struct sinv_async_info *s)
 		assert(aep_slot < MAX_NUM_THREADS);
 		aep = &sinv_aeps[aep_slot];
 		memset(aep, 0, sizeof(struct cos_aep_info));
-		/* TODO: cos_rcv! */
+
 		while (ps_load((unsigned long *)reqaddr) != SINV_REQ_SET) {
 			cycles_t now, timeout;
 
 			rdtscll(now);
 			timeout = now + (SINV_MAIN_POLL_US * USEC_2_CYC);
-		//	sched_thd_block_timeout(0, timeout);
+			sched_thd_block_timeout(0, timeout);
 		}
 
 		assert(req->skey);
@@ -168,6 +171,5 @@ sinv_server_main_loop(struct sinv_async_info *s)
 		*retval = 0;
 		ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_SET, SINV_REQ_RESET); /* indicate request completion */
 		assert(ret);
-		/* TODO: cos_asnd? */
 	}
 }

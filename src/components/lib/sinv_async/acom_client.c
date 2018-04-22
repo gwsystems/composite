@@ -46,9 +46,7 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 
 	ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_RESET, SINV_REQ_SET); /* indicate request available */
 	assert(ret);
-	/* TODO: cos_asnd */
 
-	/* TODO: cos_rcv! */
 	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {
 		cycles_t now, timeout;
 
@@ -78,7 +76,7 @@ acomm_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t 
 {
 	struct sinv_thdinfo *tinfo = &s->cdata.cthds[cos_thdid()];
 	volatile unsigned long *reqaddr = (volatile unsigned long *)tinfo->shmaddr;
-	int *retval = NULL, ret;
+	int *retval = NULL, ret, rcvd = 0;
 	struct sinv_call_req *req = NULL;
 
 	assert(t >= 0 && t < SINV_NUM_MAX);
@@ -96,14 +94,18 @@ acomm_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t 
 	ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_RESET, SINV_REQ_SET);
 	assert(ret); /* must be sync.. */
 
+	assert(tinfo->sndcap);
 	if (budget) {
-		/* scheduler API for delegation, apps don't have access to "Tcap" */
+		/* TODO: scheduler API for delegation, apps don't have access to "Tcap" */
 	} else {
 		/* cos_asnd(tinfo->sndcap, 0); */
 	}
+	cos_asnd(tinfo->sndcap, 1);
 
-	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET || cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING, NULL) < 0) {
+	while ((cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
 		cycles_t now, timeout;
+
+		if (ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET) break;
 
 		rdtscll(now);
 		timeout = now + (SINV_SRV_POLL_US * USEC_2_CYC);
