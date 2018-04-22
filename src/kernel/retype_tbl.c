@@ -183,7 +183,6 @@ atomic_type_swap(void* ptr, int old_type, int new_type, int clear)
 	struct retype_entry temp, old_temp;
 
 	old_temp.refcnt_atom.v = ((struct retype_entry*)(ptr))->refcnt_atom.v;
-
 	if (clear != 0) {
 		temp.refcnt_atom.v = 0;
 	} else {
@@ -253,9 +252,7 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 
 	/* typed as the other type? - if there is a retype/retype race */
 	if (((temp.refcnt_atom.type == RETYPETBL_KERN) && (type == RETYPETBL_USER)) ||
-            ((temp.refcnt_atom.type == RETYPETBL_USER) && (type == RETYPETBL_KERN))) {
-		cos_throw(err, -ECASFAIL);
-	}
+	    ((temp.refcnt_atom.type == RETYPETBL_USER) && (type == RETYPETBL_KERN))) cos_throw(err, -ECASFAIL);
 
 	/* atomic update with CAS */
 	ret = atomic_type_swap(walk[POS(order)].p_glb, RETYPETBL_UNTYPED, RETYPETBL_RETYPING, 1);
