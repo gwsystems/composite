@@ -177,17 +177,23 @@ err:
 	return ret;
 }
 
-/* Macro used to change types and clear counts atomically */
-#define ATOMIC_TYPE_SWAP_AND_CLEAR(PTR, OLD_TYPE, NEW_TYPE) \
-do { \
-	old_temp.refcnt_atom.v = (PTR)->refcnt_atom.v; \
-	old_temp.refcnt_atom.type = (OLD_TYPE); \
-	temp.refcnt_atom.type = (NEW_TYPE); \
-	temp.refcnt_atom.user_cnt = 0; \
-	temp.refcnt_atom.kernel_cnt = 0; \
-	ret = retypetbl_cas((u32_t*)(PTR), old_temp.refcnt_atom.v, temp.refcnt_atom.v); \
-} \
-while(0)
+static inline int
+atomic_type_swap(void* ptr, int old_type, int new_type, int clear)
+{
+	struct retype_entry temp, old_temp;
+
+	old_temp.refcnt_atom.v = ((struct retype_entry*)(ptr))->refcnt_atom.v;
+
+	if (clear != 0) {
+		temp.refcnt_atom.v = 0;
+	} else {
+		temp.refcnt_atom.v = old_temp.refcnt_atom.v;
+	}
+	if (old_type != -1) old_temp.refcnt_atom.type = old_type;
+	temp.refcnt_atom.type = new_type;
+
+	return retypetbl_cas((u32_t*)ptr, old_temp.refcnt_atom.v, temp.refcnt_atom.v);
+}
 
 static inline int
 mod_mem_type(void *pa, u32_t order, const mem_type_t type)
@@ -252,7 +258,7 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 	}
 
 	/* atomic update with CAS */
-	ATOMIC_TYPE_SWAP_AND_CLEAR(walk[POS(order)].p_glb, RETYPETBL_UNTYPED, RETYPETBL_RETYPING);
+	ret = atomic_type_swap(walk[POS(order)].p_glb, RETYPETBL_UNTYPED, RETYPETBL_RETYPING, 1);
 	if (ret != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 	cos_mem_fence();
 
@@ -261,13 +267,11 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 	 * change this memory set. Update the per-core retype entries
 	 * next.
 	 */
-	for (i = 0; i < NUM_CPU; i++) {
-		GET_RETYPE_CPU_ENTRY(i, idx, order)->refcnt_atom.type = type;
-	}
+	for (i = 0; i < NUM_CPU; i++) GET_RETYPE_CPU_ENTRY(i, idx, order)->refcnt_atom.type = type;
 	cos_mem_fence();
 
 	/* Now commit the change to the global entry. */
-	ATOMIC_TYPE_SWAP_AND_CLEAR(walk[POS(order)].p_glb, RETYPETBL_RETYPING, type);
+	ret = atomic_type_swap(walk[POS(order)].p_glb, RETYPETBL_RETYPING, type, 1);
 	assert(ret == CAS_SUCCESS);
 
 	return 0;
@@ -296,23 +300,12 @@ retypetbl_retype2kern(void *pa, u32_t order)
 /* implemented in pgtbl.c */
 int tlb_quiescence_check(u64_t unmap_time);
 
-/* Macro used to change types atomically */
-#define TYPE_SWAP_PREPARE(PTR, OLD_TYPE, NEW_TYPE) \
-do { \
-	old_temp.refcnt_atom.v = (PTR)->refcnt_atom.v; \
-	temp.refcnt_atom.v = old_temp.refcnt_atom.v; \
-	old_temp.refcnt_atom.type = (OLD_TYPE); \
-	temp.refcnt_atom.type = (NEW_TYPE); \
-} \
-while(0)
-
 /* Retype something back to frame */
 int
 retypetbl_retype2frame(void *pa, u32_t order)
 {
 	struct retype_entry_glb *glb_retype_info;
 	struct retype_entry     *retype_info;
-	struct retype_entry     temp, old_temp;
 	union refcnt_atom       local_u;
 	u32_t                   old_v, idx;
 	u64_t                   last_unmap;
@@ -331,15 +324,13 @@ retypetbl_retype2frame(void *pa, u32_t order)
 	if (unlikely(old_type != RETYPETBL_USER && old_type != RETYPETBL_KERN)) return -EPERM;
 
 	/* lock down the memory set we are going to untype */
-	TYPE_SWAP_PREPARE(glb_retype_info, old_temp.refcnt_atom.type, RETYPETBL_RETYPING);
-	ret = retypetbl_cas((u32_t*)glb_retype_info, old_temp.refcnt_atom.v, temp.refcnt_atom.v);
+	ret = atomic_type_swap(glb_retype_info, -1, RETYPETBL_RETYPING, 0);
 	if (ret != CAS_SUCCESS) return ret;
 
 	for (i = 0; i < NUM_CPU; i++) {
 		retype_info = GET_RETYPE_CPU_ENTRY(i, idx, order);
-		TYPE_SWAP_PREPARE(retype_info, old_temp.refcnt_atom.type, RETYPETBL_RETYPING);
 		/* See if we can successfully lock it */
-		if (retypetbl_cas((u32_t*)retype_info, old_temp.refcnt_atom.v, temp.refcnt_atom.v) != CAS_SUCCESS) cos_throw(err, -EINVAL);
+		if (atomic_type_swap(retype_info, -1, RETYPETBL_RETYPING, 0) != CAS_SUCCESS) cos_throw(err, -EINVAL);
 	}
 
 	/* Now all of them are frozen. add up the counts to see this still mapped somewhere */
@@ -377,10 +368,7 @@ retypetbl_retype2frame(void *pa, u32_t order)
 		retype_info = GET_RETYPE_CPU_ENTRY(cpu, idx, order);
 		retype_info->refcnt_atom.v = 0;
 	}
-
-	TYPE_SWAP_PREPARE(glb_retype_info, RETYPETBL_RETYPING, RETYPETBL_UNTYPED);
-	ret = retypetbl_cas((u32_t*)glb_retype_info, old_temp.refcnt_atom.v, temp.refcnt_atom.v);
-	assert(ret == CAS_SUCCESS);
+	assert(atomic_type_swap(glb_retype_info, RETYPETBL_RETYPING, RETYPETBL_UNTYPED, 0) == CAS_SUCCESS);
 
 	return 0;
 err:
@@ -389,18 +377,11 @@ err:
 	 * restore [0, cpu-1]. */
 	for (i--; i >= 0; i--) {
 		retype_info = GET_RETYPE_CPU_ENTRY(i, idx, order);
-		TYPE_SWAP_PREPARE(retype_info, old_temp.refcnt_atom.type, old_type);
-		retypetbl_cas((u32_t*)retype_info, old_temp.refcnt_atom.v, temp.refcnt_atom.v);
+		atomic_type_swap(retype_info, -1, old_type, 0);
 	}
-	/* and global entry. */
-	{
-		int ret_local;
-		/* Restore the global entry to old type before return:
-		 * only us can change it. */
-		TYPE_SWAP_PREPARE(glb_retype_info, RETYPETBL_RETYPING, old_type);
-		ret_local = retypetbl_cas((u32_t*)glb_retype_info, old_temp.refcnt_atom.v, temp.refcnt_atom.v);
-		assert(ret_local == CAS_SUCCESS);
-	}
+	/* Restore the global entry to old type before return:
+	 * only us can change it. */
+	assert(atomic_type_swap(glb_retype_info, RETYPETBL_RETYPING, old_type, 0) == CAS_SUCCESS);
 
 	return ret;
 }
