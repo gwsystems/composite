@@ -99,7 +99,12 @@ sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_
 	ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_RESET, SINV_REQ_SET);
 	assert(ret); /* must be sync.. */
 
-	/* TODO: use the scheduler's rate-limiting api */
+	/*
+	 * TODO: use the scheduler's rate-limiting api
+	 * This is a little complicated and would require a new capmgr interface that
+	 * doesn't automatically create "SINV" capabilities for inter-core communication.
+	 * For simplicity, let capmgr handle rate-limiting.
+	 */
 	cos_asnd(tinfo->sndcap, 1);
 
 	while ((tinfo->rcvcap && cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING, NULL) < 0) && (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET)) {
