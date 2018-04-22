@@ -228,11 +228,13 @@ static inline int
 cos_args_cpubmp(u32_t *cpubmp, char *arg)
 {
 	char *start = NULL, *end = NULL;
-	char *restr = arg;
+	char restr[COMP_INFO_INIT_STR_LEN] = { '\0' }, *rs = restr;
 	int i, len = 0;
 
+	if (!arg || !cpubmp) return -EINVAL;
+	strncpy(restr, arg, COMP_INFO_INIT_STR_LEN);
 	/* if "cpu=" tag is not present.. set the component to be runnable on all cores */
-	if (!arg || !strlen(arg) || !(start = strtok_r(restr, COS_CPUBITMAP_STARTTOK, &restr))) {
+	if (!strlen(arg) || !(start = strtok_r(rs, COS_CPUBITMAP_STARTTOK, &rs))) {
 		bitmap_set_contig(cpubmp, 0, NUM_CPU, 1);
 
 		return 0;
