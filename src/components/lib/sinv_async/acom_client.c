@@ -4,7 +4,7 @@
 #include <../interface/capmgr/capmgr.h>
 #include <../interface/channel/channel.h>
 
-#define SINV_SRV_POLL_US 500
+#define SINV_SRV_POLL_US 1000
 #define USEC_2_CYC 2800 /* TODO: move out some generic parts from sl */
 
 void
@@ -71,8 +71,8 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 	return 0;
 }
 
-static int
-acomm_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio)
+int
+acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio)
 {
 	struct sinv_thdinfo *tinfo = &s->cdata.cthds[cos_thdid()];
 	volatile unsigned long *reqaddr = (volatile unsigned long *)tinfo->shmaddr;
@@ -102,6 +102,7 @@ acomm_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t 
 	}
 	cos_asnd(tinfo->sndcap, 1);
 
+	assert(tinfo->rcvcap);
 	while ((cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
 		cycles_t now, timeout;
 
