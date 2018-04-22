@@ -1652,7 +1652,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			pte = pgtbl_lkup_pte(ptc->pgtbl, va, &flags);
 			if (!pte) cos_throw(err, -EINVAL);
 			if (*pte & PGTBL_FRAME_MASK) cos_throw(err, -ENOENT);
-			*pte = chal_pgtbl_flag_add(PGTBL_FRAME_MASK & pa, PGTBL_USER_DEF);
+			*pte = chal_pgtbl_flag_add(chal_pgtbl_frame(pa), PGTBL_USER_DEF);
 
 			ret = 0;
 			break;

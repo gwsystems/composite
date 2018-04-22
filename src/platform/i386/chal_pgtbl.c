@@ -38,6 +38,12 @@ chal_pgtbl_flag_all(unsigned long input, pgtbl_flags_t flags)
 	return chal_pgtbl_flag_exist(input, flags) == flags;
 }
 
+unsigned long 
+chal_pgtbl_frame(unsigned long input)
+{
+	return PGTBL_FRAME_MASK & input;
+}
+
 int
 chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
@@ -203,8 +209,7 @@ chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 		assert(!pgtbl_cap && !cosframe_addr);
 	}
 
-	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS)
-		cos_throw(err, -ECASFAIL);
+	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	/*
 	 * deactivation success. We should either release the
@@ -277,7 +282,7 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 
 	/* get the pte */
 	pte    = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-                                                  PGTBL_DEPTH, &accum);
+                                                     PGTBL_DEPTH, &accum);
 	orig_v = (u32_t)(pte->next);
 	assert(orig_v == 0);
 
@@ -336,12 +341,11 @@ chal_pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 	if (unlikely(ret)) goto done;
 
 	/* get the pte */
-	pte    = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
                                                   PGTBL_DEPTH, &accum);
 	orig_v = (u32_t)(pte->next);
 	if (!(orig_v & X86_PGTBL_PRESENT)) return -EEXIST;
 	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
-
 
 	ret = __pgtbl_update_leaf(pte, (void *)((liv_id << PGTBL_PAGEIDX_SHIFT) | X86_PGTBL_QUIESCENCE), orig_v);
 	if (ret) cos_throw(done, ret);
@@ -550,14 +554,12 @@ chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t prune
 	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
 	if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
 
-	/* decrement the refcnt */ {
-		struct cap_pgtbl *pt = (struct cap_pgtbl *)sub;
-		u32_t             old_v, l;
-
-		old_v = l = pt->refcnt_flags;
-		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
-		cos_faa((int *)&(pt->refcnt_flags), -1);
-	}
+	/* decrement the refcnt */
+	pt = (struct cap_pgtbl *)sub;
+	u32_t l;
+	l = pt->refcnt_flags;
+	if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+	cos_faa((int *)&(pt->refcnt_flags), -1);
 
 	return 0;
 }

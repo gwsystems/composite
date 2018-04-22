@@ -70,6 +70,7 @@ kern_setup_image(void)
 	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA / PGD_RANGE;
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end); i += PGD_RANGE, j++) {
 		assert(j != KERN_INIT_PGD_IDX
+			/* FIXME: should make a higher-level macro definition to summarize these default settings... */
 		       || ((boot_comp_pgd[j] | X86_PGTBL_GLOBAL) & ~(X86_PGTBL_MODIFIED | X86_PGTBL_ACCESSED))
 		            == (i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL));
 		boot_comp_pgd[j]             = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;

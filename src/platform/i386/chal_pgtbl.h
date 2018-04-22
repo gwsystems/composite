@@ -73,7 +73,6 @@ static inline int
 __pgtbl_setleaf(struct ert_intern *a, void *v)
 {
 	u32_t new, old;
-
 	old = (u32_t)(a->next);
 	new = (u32_t)(v);
 
