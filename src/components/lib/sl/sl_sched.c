@@ -163,11 +163,7 @@ sl_thd_sched_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t t
 	assert(t);
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
 
-	if (t->schedthd) {
-		sl_parent_notif_block_no_cs(t->schedthd, t);
-
-		return 0;
-	}
+	if (t->schedthd) return 0;
 	/*
 	 * If an AEP/a child COMP was blocked and an interrupt caused it to wakeup and run
 	 * but blocks itself before the scheduler could see the wakeup event.. Scheduler
@@ -218,6 +214,11 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	assert(t);
 	assert(cos_thdid() == sl_thd_thdid(t)); /* only current thread is allowed to block itself */
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
+	if (t->schedthd) {
+		sl_parent_notif_block_no_cs(t->schedthd, t);
+
+		return 0;
+	}
 
 	if (unlikely(t->state == SL_THD_WOKEN)) {
 		assert(!t->rcv_suspended);
@@ -323,18 +324,18 @@ sl_thd_block_expiry(struct sl_thd *t)
 	cycles_t abs_timeout = 0;
 
 	assert(t != sl__globals_cpu()->sched_thd);
+	sl_cs_enter();
 	if (!(t->properties & SL_THD_PROPERTY_OWN_TCAP)) {
 		assert(!t->rcv_suspended);
-		return;
+		abs_timeout = sl__globals_cpu()->timeout_next;
+	} else {
+		assert(t->period);
+		abs_timeout = t->last_replenish + t->period;
 	}
-	assert(t->period);
-
-	sl_cs_enter();
 
 	/* reset rcv_suspended if the scheduler thinks "t" was suspended on cos_rcv previously */
 	sl_thd_sched_unblock_no_cs(t);
 	sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED_TIMEOUT, abs_timeout);
-	t->rcv_suspended = 0;
 
 	sl_cs_exit();
 }
