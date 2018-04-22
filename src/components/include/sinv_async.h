@@ -45,11 +45,19 @@ struct sinv_client {
 	struct sinv_thdinfo cthds[MAX_NUM_THREADS];
 };
 
+typedef enum {
+	SINV_FN = 0,
+	SINV_RETS_FN = 1,
+} sinv_fn_type_t;
+
 struct sinv_server {
 	struct sinv_thdinfo sthds[MAX_NUM_THREADS];
-	union {
-		sinv_fn_t      sfn;
-		sinv_rets_fn_t sfnr;
+	struct sinv_fns {
+		sinv_fn_type_t type;
+		union {
+			sinv_fn_t      sfn;
+			sinv_rets_fn_t sfnr;
+		};
 	} f[SINV_NUM_MAX];
 };
 

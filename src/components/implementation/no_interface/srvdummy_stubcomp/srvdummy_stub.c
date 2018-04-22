@@ -11,6 +11,14 @@
 
 struct sinv_async_info sinv_api;
 
+/*
+ * To demonstrate the use of library to make invocations directly
+ * This may not be feasible in some cases, override the
+ * WEAK SYMBOL sinv_server_entry as demonstrated in this file.
+ * Doing so will let you have your own signatures for each function
+ * than the standard INVOCATION signatures.
+ */
+/*
 void
 sinv_srv_dummy_init(struct sinv_async_info *a)
 {
@@ -31,6 +39,36 @@ sinv_srv_dummy_init(struct sinv_async_info *a)
 		}
 	}
 }
+*/
+
+/* override the weak symbol to implement my own invocations */
+int
+sinv_server_entry(struct sinv_async_info *s, struct sinv_call_req *req)
+{
+	int ret;
+
+	assert(s);
+	assert(req);
+	assert(req->callno >= 0 && req->callno < SRV_DUMMY_MAX);
+
+	switch(req->callno) {
+	case SRV_DUMMY_HELLO:
+	{
+		ret = srv_dummy_hello(req->arg1, req->arg2, req->arg3);
+
+		break;
+	}
+	case SRV_DUMMY_GOODBYE:
+	{
+		ret = srv_dummy_goodbye((int *)&(req->ret2), (int *)&(req->ret3), req->arg1, req->arg2, req->arg3);
+
+		break;
+	}
+	default: assert(0);
+	}
+
+	return ret;
+}
 
 void
 cos_init(void)
@@ -43,7 +81,7 @@ cos_init(void)
 
 	if (ps_cas(&first, 1, 0)) {
 		sinv_server_init(&sinv_api, SRV_DUMMY_INSTANCE(SRV_DUMMY_ISTATIC));
-		sinv_srv_dummy_init(&sinv_api);
+		/* sinv_srv_dummy_init(&sinv_api); */
 
 		ps_faa(&init_done, 1);
 	} else {

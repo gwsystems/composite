@@ -49,10 +49,48 @@ sinv_server_api_init(struct sinv_async_info *s, sinv_num_t num, sinv_fn_t fn, si
 
 	if (s->sdata.f[num].sfn) return -EEXIST;
 
-	if (fn) s->sdata.f[num].sfn  = fn;
-	else    s->sdata.f[num].sfnr = fnr;
+	if (fn) {
+		s->sdata.f[num].type = SINV_FN;
+		s->sdata.f[num].sfn  = fn;
+	} else {
+		s->sdata.f[num].type = SINV_RETS_FN;
+		s->sdata.f[num].sfnr = fnr;
+	}
 
 	return 0;
+}
+
+/* for default functionality, inv functions must be initialized */
+CWEAKSYMB int
+sinv_server_entry(struct sinv_async_info *s, struct sinv_call_req *req)
+{
+	int ret = 0;
+
+	assert(s);
+	assert(req);
+	assert(req->callno >= 0 && req->callno < SINV_NUM_MAX);
+
+	switch(s->sdata.f[req->callno].type) {
+	case SINV_RETS_FN:
+	{
+		sinv_rets_fn_t fnr = s->sdata.f[req->callno].sfnr;
+
+		assert(fnr);
+		ret = (fnr)(&(req->ret2), &(req->ret3), req->arg1, req->arg2, req->arg3);
+		break;
+	}
+	case SINV_FN:
+	{
+		sinv_fn_t fn = s->sdata.f[req->callno].sfn;
+
+		assert(fn);
+		ret = (fn)(req->arg1, req->arg2, req->arg3);
+		break;
+	}
+	default: assert(0);
+	}
+
+	return ret;
 }
 
 void
@@ -65,8 +103,6 @@ sinv_server_fn(arcvcap_t rcv, void *data)
 		asndcap_t snd = s->sdata.sthds[cos_thdid()].sndcap;
 		int *retval = (int *)(reqaddr + 1), ret;
 		struct sinv_call_req *req = (struct sinv_call_req *)(reqaddr + 2);
-		sinv_fn_t fn;
-		sinv_rets_fn_t fnr;
 		int rcvd = 0;
 
 		while ((cos_rcv(rcv, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
@@ -80,24 +116,8 @@ sinv_server_fn(arcvcap_t rcv, void *data)
 		}
 
 		assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_SET);
-		assert(req->callno >= 0 && req->callno < SINV_NUM_MAX);
+		*retval = sinv_server_entry(s, req);
 
-		/* TODO: switch case here for interface specific calling convention */
-		switch(req->callno) {
-		case 1: /* FIXME: just a test */
-		{
-			fnr = s->sdata.f[req->callno].sfnr;
-			assert(fnr);
-			*retval = (fnr)(&(req->ret2), &(req->ret3), req->arg1, req->arg2, req->arg3);
-			break;
-		}
-		default:
-		{
-			fn  = s->sdata.f[req->callno].sfn;
-			assert(fn);
-			*retval = (fn)(req->arg1, req->arg2, req->arg3);
-		}
-		}
 		ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_SET, SINV_REQ_RESET); /* indicate request completion */
 		assert(ret);
 
