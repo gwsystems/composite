@@ -108,7 +108,7 @@ extern struct retype_info_glb glb_retype_tbl[N_RETYPE_SLOTS];
 #define PA_BOUNDARY_CHECK()                                                                            \
 	do {                                                                                           \
 		if (unlikely(!(((u32_t)pa >= COS_MEM_START) && ((u32_t)pa < COS_MEM_BOUND))            \
-		             && !(((u32_t)pa >= chal_kernel_mem_pa) && ((u32_t)pa < COS_KMEM_BOUND)))) \
+			     && !(((u32_t)pa >= chal_kernel_mem_pa) && ((u32_t)pa < COS_KMEM_BOUND)))) \
 			return -EINVAL;                                                                \
 	} while (0)
 
