@@ -12,6 +12,10 @@
 #define SINV_REQ_SET   1
 #define SINV_REQ_RESET 0
 
+#define SINV_POLL_ADDR(addr) ((unsigned long *)(addr))
+#define SINV_RET_ADDR(addr) ((unsigned long *)(addr) + 1)
+#define SINV_REQ_ADDR(addr) ((unsigned long *)(addr) + 2)
+
 /* TODO: change this to enumeration of invocation functions */
 typedef int sinv_num_t;
 

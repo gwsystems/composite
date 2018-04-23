@@ -25,9 +25,9 @@ acom_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
 int
 acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, cos_channelkey_t rcvkey, cos_channelkey_t skey)
 {
-	volatile unsigned long *reqaddr = (volatile unsigned long *)(s->init_shmaddr);
-	int *retval = (int *)(reqaddr + 1), ret;
-	struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)(reqaddr + 2);
+	volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(s->init_shmaddr);
+	int *retval = (int *)SINV_RET_ADDR(s->init_shmaddr), ret;
+	struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)SINV_REQ_ADDR(s->init_shmaddr);
 	struct sinv_thdinfo *tinfo = &s->cdata.cthds[tid];
 	vaddr_t shmaddr = 0;
 	cbuf_t id = 0;
@@ -73,7 +73,7 @@ int
 acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio)
 {
 	struct sinv_thdinfo *tinfo = &s->cdata.cthds[cos_thdid()];
-	volatile unsigned long *reqaddr = (volatile unsigned long *)tinfo->shmaddr;
+	volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(tinfo->shmaddr);
 	int *retval = NULL, ret, rcvd = 0;
 	struct sinv_call_req *req = NULL;
 
@@ -81,8 +81,8 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 	assert(reqaddr);
 	assert(tinfo->rcvcap);
 
-	retval = (int *)(reqaddr + 1);
-	req    = (struct sinv_call_req *)(reqaddr + 2);
+	retval = (int *)SINV_RET_ADDR(tinfo->shmaddr);
+	req    = (struct sinv_call_req *)SINV_REQ_ADDR(tinfo->shmaddr);
 
 	req->callno = t;
 	req->arg1   = a;

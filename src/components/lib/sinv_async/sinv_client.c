@@ -25,9 +25,9 @@ sinv_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
 int
 sinv_client_thread_init(struct sinv_async_info *s, thdid_t tid, cos_channelkey_t rcvkey, cos_channelkey_t skey)
 {
-	volatile unsigned long *reqaddr = (volatile unsigned long *)(s->init_shmaddr);
-	int *retval = (int *)(reqaddr + 1), ret;
-	struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)(reqaddr + 2);
+	volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(s->init_shmaddr);
+	int *retval = (int *)SINV_RET_ADDR(s->init_shmaddr), ret;
+	struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)SINV_REQ_ADDR(s->init_shmaddr);
 	struct sinv_thdinfo *tinfo = &s->cdata.cthds[tid];
 	vaddr_t shmaddr = 0;
 	cbuf_t id = 0;
@@ -79,15 +79,15 @@ static int
 sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_t a, word_t b, word_t c, word_t *r2, word_t *r3)
 {
 	struct sinv_thdinfo *tinfo = &s->cdata.cthds[cos_thdid()];
-	volatile unsigned long *reqaddr = (volatile unsigned long *)tinfo->shmaddr;
+	volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(tinfo->shmaddr);
 	int *retval = NULL, ret;
 	struct sinv_call_req *req = NULL;
 
 	assert(n >= 0 && n < SINV_NUM_MAX);
 	assert(reqaddr);
 
-	retval = (int *)(reqaddr + 1);
-	req    = (struct sinv_call_req *)(reqaddr + 2);
+	retval = (int *)SINV_RET_ADDR(tinfo->shmaddr);
+	req    = (struct sinv_call_req *)SINV_REQ_ADDR(tinfo->shmaddr);
 
 	req->callno = n;
 	req->arg1   = a;

@@ -97,12 +97,16 @@ void
 sinv_server_fn(arcvcap_t rcv, void *data)
 {
 	struct sinv_async_info *s = (struct sinv_async_info *)data;
+	struct sinv_thdinfo    *t = NULL;
+
+	assert(s);
+	t = &s->sdata.sthds[cos_thdid()];
 
 	while (1) {
-		volatile unsigned long *reqaddr = (volatile unsigned long *)(s->sdata.sthds[cos_thdid()].shmaddr);
-		asndcap_t snd = s->sdata.sthds[cos_thdid()].sndcap;
-		int *retval = (int *)(reqaddr + 1), ret;
-		struct sinv_call_req *req = (struct sinv_call_req *)(reqaddr + 2);
+		volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(t->shmaddr);
+		asndcap_t snd = t->sndcap;
+		int *retval = (int *)SINV_RET_ADDR(t->shmaddr), ret;
+		struct sinv_call_req *req = (struct sinv_call_req *)SINV_REQ_ADDR(t->shmaddr);
 		int rcvd = 0;
 
 		while ((cos_rcv(rcv, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
@@ -138,9 +142,9 @@ sinv_server_main_loop(struct sinv_async_info *s)
 	while (!s->init_shmaddr) sinv_server_try_map(s);
 
 	while (1) {
-		volatile unsigned long *reqaddr = (volatile unsigned long *)(s->init_shmaddr);
-		int *retval = (int *)(reqaddr + 1), ret;
-		struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)(reqaddr + 2);
+		volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(s->init_shmaddr);
+		int *retval = (int *)SINV_RET_ADDR(s->init_shmaddr), ret;
+		struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)SINV_REQ_ADDR(s->init_shmaddr);
 		int aep_slot = (int)ps_faa((unsigned long *)&sinv_free_aep, 1);
 		struct cos_aep_info *aep = NULL;
 		thdid_t tid = 0;
