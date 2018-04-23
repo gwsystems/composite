@@ -93,8 +93,8 @@ sinv_server_entry(struct sinv_async_info *s, struct sinv_call_req *req)
 	return ret;
 }
 
-void
-sinv_server_fn(arcvcap_t rcv, void *data)
+static void
+sinv_server_aep_fn(arcvcap_t rcv, void *data)
 {
 	struct sinv_async_info *s = (struct sinv_async_info *)data;
 	struct sinv_thdinfo    *t = NULL;
@@ -164,7 +164,7 @@ sinv_server_main_loop(struct sinv_async_info *s)
 		}
 
 		assert(req->skey);
-		tid = sched_aep_create(aep, sinv_server_fn, (void *)s, 0, req->skey, 0, 0);
+		tid = sched_aep_create(aep, sinv_server_aep_fn, (void *)s, 0, req->skey, 0, 0);
 		assert(tid);
 
 		id = channel_shared_page_map(req->skey, &shmaddr, &npages);
