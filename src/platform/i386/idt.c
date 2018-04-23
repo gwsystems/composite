@@ -62,17 +62,6 @@ idt_init(const cpuid_t cpu_id)
 		idt_ptr.base  = (u32_t)&(idt_entries);
 		memset(&(idt_entries), 0, sizeof(struct idt_entry) * NUM_IDT_ENTRIES);
 
-		outb(0x20, 0x11);
-		outb(0xA0, 0x11);
-		outb(0x21, 0x20);
-		outb(0xA1, 0x28);
-		outb(0x21, 0x04);
-		outb(0xA1, 0x02);
-		outb(0x21, 0x01);
-		outb(0xA1, 0x01);
-		outb(0x21, 0x0);
-		outb(0xA1, 0x0);
-
 		idt_set_gate(IRQ_DIV_BY_ZERO_ERR_FAULT, (u32_t)div_by_zero_err_fault_irq, 0x08, 0x8E);
 		idt_set_gate(IRQ_DEBUG_TRAP, (u32_t)debug_trap_irq, 0x08, 0x8E);
 		idt_set_gate(IRQ_BREAKPOINT_TRAP, (u32_t)breakpoint_trap_irq, 0x08, 0x8E);
@@ -93,7 +82,7 @@ idt_init(const cpuid_t cpu_id)
 		idt_set_gate(IRQ_VIRTUALIZATION_EXCEPT_FAULT, (u32_t)virtualization_except_fault_irq, 0x08, 0x8E);
 		idt_set_gate(IRQ_SECURITY_EXCEPT_FAULT, (u32_t)security_except_fault_irq, 0x08, 0x8E);
 
-		idt_set_gate(HW_PERIODIC, (u32_t)periodic_irq, 0x08, 0x8E);
+		idt_set_gate(HW_HPET_PERIODIC, (u32_t)hpet_periodic_irq, 0x08, 0x8E);
 		idt_set_gate(HW_KEYBOARD, (u32_t)keyboard_irq, 0x08, 0x8E);
 		idt_set_gate(HW_ID3, (u32_t)handler_hw_34, 0x08, 0x8E);
 		idt_set_gate(HW_ID4, (u32_t)handler_hw_35, 0x08, 0x8E);
@@ -101,7 +90,7 @@ idt_init(const cpuid_t cpu_id)
 		idt_set_gate(HW_ID6, (u32_t)handler_hw_37, 0x08, 0x8E);
 		idt_set_gate(HW_ID7, (u32_t)handler_hw_38, 0x08, 0x8E);
 		idt_set_gate(HW_ID8, (u32_t)handler_hw_39, 0x08, 0x8E);
-		idt_set_gate(HW_ONESHOT, (u32_t)oneshot_irq, 0x08, 0x8E);
+		idt_set_gate(HW_HPET_ONESHOT, (u32_t)hpet_oneshot_irq, 0x08, 0x8E);
 		idt_set_gate(HW_ID10, (u32_t)handler_hw_41, 0x08, 0x8E);
 		idt_set_gate(HW_ID11, (u32_t)handler_hw_42, 0x08, 0x8E);
 		idt_set_gate(HW_ID12, (u32_t)handler_hw_43, 0x08, 0x8E);
