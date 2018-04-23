@@ -5,10 +5,10 @@
 #include <../interface/capmgr/capmgr.h>
 #include <../interface/channel/channel.h>
 #include <res_spec.h>
+#include <cos_time.h>
 
 #define SINV_SRV_POLL_US 1000
 #define SINV_MAIN_POLL_US 10000
-#define USEC_2_CYC 2800 /* TODO: move out some generic parts from sl */
 
 #define SINV_THD_PRIO 2
 #define SINV_THD_PERIOD_US 10000
@@ -111,7 +111,7 @@ sinv_server_fn(arcvcap_t rcv, void *data)
 			if (ps_load((unsigned long *)reqaddr) == SINV_REQ_SET) break;
 
 			rdtscll(now);
-			timeout = now + (SINV_SRV_POLL_US * USEC_2_CYC);
+			timeout = now + time_usec2cyc(SINV_SRV_POLL_US);
 			sched_thd_block_timeout(0, timeout);
 		}
 
@@ -160,7 +160,7 @@ sinv_server_main_loop(struct sinv_async_info *s)
 			cycles_t now, timeout;
 
 			rdtscll(now);
-			timeout = now + (SINV_MAIN_POLL_US * USEC_2_CYC);
+			timeout = now + time_usec2cyc(SINV_MAIN_POLL_US);
 			sched_thd_block_timeout(0, timeout);
 		}
 

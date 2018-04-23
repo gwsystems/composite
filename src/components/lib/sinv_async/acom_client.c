@@ -1,11 +1,11 @@
 #include <sinv_async.h>
 
+#include <cos_time.h>
 #include <../interface/sched/sched.h>
 #include <../interface/capmgr/capmgr.h>
 #include <../interface/channel/channel.h>
 
 #define SINV_SRV_POLL_US 1000
-#define USEC_2_CYC 2800 /* TODO: move out some generic parts from sl */
 
 void
 acom_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
@@ -51,7 +51,7 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 		cycles_t now, timeout;
 
 		rdtscll(now);
-		timeout = now + (SINV_SRV_POLL_US * USEC_2_CYC);
+		timeout = now + time_usec2cyc(SINV_SRV_POLL_US);
 		sched_thd_block_timeout(0, timeout); /* called from the scheduler */
 	}
 
@@ -109,8 +109,19 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 		if (ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET) break;
 
 		rdtscll(now);
-		timeout = now + (SINV_SRV_POLL_US * USEC_2_CYC);
+		timeout = now + time_usec2cyc(SINV_SRV_POLL_US);
 		sched_thd_block_timeout(0, timeout); /* in the app component */
+
+		/*
+		 * Though this is synchronous, we could bound this by having a kind of
+		 * inbuilt watchdog timer that triggers and returns perhaps -ETIMEDOUT
+		 * if a low-assurance component doesn't respond before the watchdog timer
+		 * triggers.
+		 *
+		 * In such a case, user cannot (should not) make any further requests.
+		 * (simplicity) because, we cannot be sure if the server is still processing
+		 * the previous requests or not and overwriting will just break the server!!
+		 */
 	}
 
 	assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET);

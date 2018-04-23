@@ -3,9 +3,9 @@
 #include <sl.h>
 #include <../interface/capmgr/capmgr.h>
 #include <../interface/channel/channel.h>
+#include <cos_time.h>
 
 #define SINV_SRV_POLL_US 1000
-#define USEC_2_CYC 2800 /* TODO: move out some generic parts from sl */
 
 void
 sinv_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
@@ -57,7 +57,7 @@ sinv_client_thread_init(struct sinv_async_info *s, thdid_t tid, cos_channelkey_t
 		cycles_t now, timeout;
 
 		rdtscll(now);
-		timeout = now + (SINV_SRV_POLL_US * USEC_2_CYC);
+		timeout = now + time_usec2cyc(SINV_SRV_POLL_US);
 		sl_thd_block_timeout(0, timeout); /* called from the scheduler */
 	}
 
@@ -111,7 +111,7 @@ sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_
 		cycles_t now, timeout;
 
 		rdtscll(now);
-		timeout = now + (SINV_SRV_POLL_US * USEC_2_CYC);
+		timeout = now + time_usec2cyc(SINV_SRV_POLL_US);
 		sl_thd_block_timeout(0, timeout); /* in the scheduler component */
 	}
 
