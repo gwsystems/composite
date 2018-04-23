@@ -55,6 +55,21 @@ u8_t *mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 	return r;
 }
 
+static unsigned long vm_pgd_idx = COS_MEM_KERN_START_VA / PGD_RANGE;
+
+int
+vm_map_superpage(u32_t addr, int nocache)
+{
+	int idx = vm_pgd_idx;
+	u32_t page;
+
+	page = round_to_pgd_page(addr);
+	boot_comp_pgd[idx] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL | (nocache ? PGTBL_NOCACHE : 0);
+	vm_pgd_idx ++;
+
+	return idx;
+}
+
 int
 kern_setup_image(void)
 {
@@ -76,6 +91,7 @@ kern_setup_image(void)
 		boot_comp_pgd[i / PGD_RANGE] = 0; /* unmap lower addresses */
 	}
 
+	vm_pgd_idx = j;
 	#ifdef ENABLE_VGA
 		/* uses virtual address for VGA */
 		vga_high_init();
@@ -89,33 +105,22 @@ kern_setup_image(void)
 		u64_t hpet;
 
 		page             = round_up_to_pgd_page(rsdt) - (1 << 22);
-		boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
-		acpi_set_rsdt_page(j);
-		j++;
+		acpi_set_rsdt_page(vm_map_superpage(page, 0));
 
-		hpet = timer_find_hpet(acpi_find_timer());
-		if (hpet) {
-			page             = round_up_to_pgd_page(hpet & 0xffffffff) - (1 << 22);
-			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
-			timer_set_hpet_page(j);
-			j++;
-		}
+		hpet = hpet_find(acpi_find_hpet());
+		if (hpet) hpet_set_page(vm_map_superpage(hpet, 0));
 
 		/* lapic memory map */
 		lapic = lapic_find_localaddr(acpi_find_apic());
-		if (lapic) {
-			page             = round_up_to_pgd_page(lapic & 0xffffffff) - (1 << 22);
-			/*
-			 * Intel specification:
-			 * For correct APIC operation, this address space must be mapped to an area of memory
-			 * that has been designated as strong uncacheable (UC).
-			 */
-			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL | PGTBL_NOCACHE;
-			lapic_set_page(j);
-			j++;
-		}
+		/*
+		 * Intel specification:
+		 * For correct APIC operation, this address space must be mapped to an area of memory
+		 * that has been designated as strong uncacheable (UC).
+		 */
+		if (lapic) lapic_set_page(vm_map_superpage(lapic, 1));
 	}
 
+	j = vm_pgd_idx;
 	for (; j < PAGE_SIZE / sizeof(unsigned int); i += PGD_RANGE, j++) {
 		boot_comp_pgd[j] = boot_comp_pgd[i / PGD_RANGE] = 0;
 	}
