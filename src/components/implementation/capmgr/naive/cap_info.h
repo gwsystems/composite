@@ -1,3 +1,10 @@
+/**
+ * Redistribution of this file is permitted under the BSD two clause license.
+ *
+ * Copyright 2018, The George Washington University
+ * Author: Phani Gadepalli, phanikishoreg@gwu.edu
+ */
+
 #ifndef CAP_INFO_H
 #define CAP_INFO_H
 

@@ -1,3 +1,10 @@
+/**
+ * Redistribution of this file is permitted under the BSD two clause license.
+ *
+ * Copyright 2018, The George Washington University
+ * Author: Phani Gadepalli, phanikishoreg@gwu.edu
+ */
+
 #include <cos_kernel_api.h>
 #include <ps.h>
 #include <sched_info.h>

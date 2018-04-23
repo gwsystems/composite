@@ -1,3 +1,10 @@
+/**
+ * Redistribution of this file is permitted under the BSD two clause license.
+ *
+ * Copyright 2018, The George Washington University
+ * Author: Phani Gadepalli, phanikishoreg@gwu.edu
+ */
+
 #ifndef SINV_ASYNC_H
 #define SINV_ASYNC_H
 
@@ -12,8 +19,18 @@
 #define SINV_REQ_SET   1
 #define SINV_REQ_RESET 0
 
+/*
+ * Client sets SINV_REQ_SET at this address after writing to SINV_REQ_ADDR with the request.
+ * Server polls for SINV_REQ_SET at this address and resets it to SINV_REQ_RESET
+ * after processing the request and saving return value at SINV_RET_ADDR.
+ */
 #define SINV_POLL_ADDR(addr) ((unsigned long *)(addr))
+/* Server saves the integer return value at this address */
 #define SINV_RET_ADDR(addr) ((unsigned long *)(addr) + 1)
+/*
+ * Client writes struct sinv_call_req here at this address.
+ * If client requests for multiple return values, server updates sinv_call_req.ret2 and sinv_call_req.ret3
+ */
 #define SINV_REQ_ADDR(addr) ((unsigned long *)(addr) + 2)
 
 /* TODO: change this to enumeration of invocation functions */

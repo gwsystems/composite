@@ -1,8 +1,8 @@
 /**
  * Redistribution of this file is permitted under the BSD two clause license.
  *
- * Copyright 2017, The George Washington University
- * Author: Gabriel Parmer, gparmer@gwu.edu
+ * Copyright 2018, The George Washington University
+ * Author: Phani Gadepalli, phanikishoreg@gwu.edu
  */
 
 #include <ps.h>

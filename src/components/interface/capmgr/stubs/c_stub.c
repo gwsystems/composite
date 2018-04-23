@@ -1,3 +1,10 @@
+/**
+ * Redistribution of this file is permitted under the BSD two clause license.
+ *
+ * Copyright 2018, The George Washington University
+ * Author: Phani Gadepalli, phanikishoreg@gwu.edu
+ */
+
 #include <memmgr.h>
 #include <capmgr.h>
 #include <cos_thd_init.h>

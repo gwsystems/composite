@@ -1,8 +1,16 @@
+/**
+ * Redistribution of this file is permitted under the BSD two clause license.
+ *
+ * Copyright 2018, The George Washington University
+ * Author: Phani Gadepalli, phanikishoreg@gwu.edu
+ */
+
 #ifndef COS_TIME_H
 #define COS_TIME_H
 
 #include <cos_debug.h>
 #include <cos_types.h>
+#include <cos_kernel_api.h>
 
 static inline cycles_t
 time_cyc_per_usec(void)
