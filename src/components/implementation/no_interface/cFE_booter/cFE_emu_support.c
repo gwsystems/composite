@@ -218,6 +218,12 @@ emu_CFE_FS_Decompress(spdid_t client)
 	return CFE_FS_Decompress(s->cfe_fs_decompress.SourceFile, s->cfe_fs_decompress.DestinationFile);
 }
 
+int32
+emu_CFE_FS_ReadHeader(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_FS_ReadHeader(&s->cfe_fs_writeHeader.Hdr, s->cfe_fs_writeHeader.FileDes);
+}
 
 int32
 emu_CFE_FS_WriteHeader(spdid_t client)

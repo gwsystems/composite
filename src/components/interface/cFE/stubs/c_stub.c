@@ -39,6 +39,9 @@ do_emulation_setup(spdid_t id)
 	shared_region = (void *)client_addr;
 
 	time_sync_key = BASE_AEP_KEY + id;
+
+	/* End with a quick consistency check */
+	assert(sizeof(union shared_region) <= PAGE_SIZE);
 }
 
 void
@@ -305,6 +308,19 @@ CFE_FS_Decompress(const char *SourceFile, const char *DestinationFile)
 }
 
 int32
+CFE_FS_ReadHeader(CFE_FS_Header_t *Hdr, int32 FileDes)
+{
+	int32 result;
+
+	shared_region->cfe_fs_readHeader.FileDes = FileDes;
+
+	result = emu_CFE_FS_ReadHeader(spdid);
+	*Hdr = shared_region->cfe_fs_readHeader.Hdr;
+
+	return result;
+}
+
+int32
 CFE_FS_WriteHeader(int32 FileDes, CFE_FS_Header_t *Hdr)
 {
 	int32 result;
@@ -322,9 +338,74 @@ CFE_PSP_MemCpy(void *dest, void *src, uint32 n)
 }
 
 int32
+CFE_PSP_MemRead8(cpuaddr MemoryAddress, uint8 *ByteValue)
+{
+
+	*ByteValue = *((uint8 *)MemoryAddress) ;
+
+	return CFE_PSP_SUCCESS;
+}
+
+int32
+CFE_PSP_MemRead16(cpuaddr MemoryAddress, uint16 *uint16Value)
+{
+	/* check 16 bit alignment */
+	if (MemoryAddress & 0x00000001) {
+		return CFE_PSP_ERROR_ADDRESS_MISALIGNED;
+	}
+	*uint16Value = *((uint16 *)MemoryAddress) ;
+	return CFE_PSP_SUCCESS;
+}
+
+int32
+CFE_PSP_MemRead32(cpuaddr MemoryAddress, uint32 *uint32Value)
+{
+	/* check 32 bit alignment  */
+	if (MemoryAddress & 0x00000003) {
+		return CFE_PSP_ERROR_ADDRESS_MISALIGNED;
+	}
+	*uint32Value = *((uint32 *)MemoryAddress);
+
+	return CFE_PSP_SUCCESS;
+}
+
+int32
 CFE_PSP_MemSet(void *dest, uint8 value, uint32 n)
 {
 	memset(dest, value, n);
+	return CFE_PSP_SUCCESS;
+}
+
+
+int32
+CFE_PSP_MemWrite8(cpuaddr MemoryAddress, uint8 ByteValue)
+{
+    *((uint8 *)MemoryAddress) = ByteValue;
+	return CFE_PSP_SUCCESS;
+
+}
+
+int32
+CFE_PSP_MemWrite16(cpuaddr MemoryAddress, uint16 uint16Value )
+{
+	/* check 16 bit alignment  , check the 1st lsb */
+	if (MemoryAddress & 0x00000001) {
+		return CFE_PSP_ERROR_ADDRESS_MISALIGNED;
+	}
+	*((uint16 *)MemoryAddress) = uint16Value;
+	return CFE_PSP_SUCCESS;
+}
+
+int32
+CFE_PSP_MemWrite32(cpuaddr MemoryAddress, uint32 uint32Value)
+{
+	/* check 32 bit alignment  */
+	if (MemoryAddress & 0x00000003) {
+		return CFE_PSP_ERROR_ADDRESS_MISALIGNED;
+	}
+
+	*((uint32 *)MemoryAddress) = uint32Value;
+
 	return CFE_PSP_SUCCESS;
 }
 

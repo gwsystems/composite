@@ -11,7 +11,7 @@
 #include <cfe_tbl.h>
 #include <cfe_time.h>
 
-#define EMU_BUF_SIZE 512
+#define EMU_BUF_SIZE 1024
 
 /* TODO: Alphabetize me! */
 union shared_region {
@@ -237,11 +237,14 @@ union shared_region {
 		CFE_TBL_Info_t TblInfo;
 		char           TblName[EMU_BUF_SIZE];
 	} cfe_tbl_getInfo;
+	struct {
+		int32           FileDes;
+		CFE_FS_Header_t Hdr;
+	} cfe_fs_readHeader;
 };
 
 int  emu_request_memory(spdid_t client);
 void emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key);
-int  emu_is_printf_enabled();
 
 #define STASH_MAGIC_VALUE ((void *)0xBEAFBEAF)
 
@@ -249,6 +252,8 @@ void               emu_stash(thdclosure_index_t idx, spdid_t spdid);
 thdclosure_index_t emu_stash_retrieve_thdclosure();
 spdid_t            emu_stash_retrieve_spdid();
 void               emu_stash_clear();
+
+int  emu_is_printf_enabled();
 
 int32 emu_CFE_ES_CalculateCRC(spdid_t client);
 int32 emu_CFE_ES_CopyToCDS(spdid_t client);
@@ -268,6 +273,7 @@ int32 emu_CFE_EVS_Register(spdid_t sp);
 int32 emu_CFE_EVS_SendEvent(spdid_t client);
 
 int32 emu_CFE_FS_Decompress(spdid_t client);
+int32 emu_CFE_FS_ReadHeader(spdid_t client);
 int32 emu_CFE_FS_WriteHeader(spdid_t client);
 
 int32          emu_CFE_SB_CreatePipe(spdid_t client);

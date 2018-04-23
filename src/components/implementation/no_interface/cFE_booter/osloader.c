@@ -70,24 +70,51 @@ launch_other_component(int child_id, int is_library)
 // 1) Do all the cFE stuff
 // 2) Create a component from the app
 // 3) Add an init routine in the component
-// 4) Add a proxy here
+// 4) Add a proxy here (sensitive to runscript changes)
 
 void
-sample_lib_proxy()
+ds_proxy()
 {
-	launch_other_component(1, 1);
+	launch_other_component(1, 0);
 }
 
 void
-sample_app_proxy()
+fm_proxy()
 {
 	launch_other_component(3, 0);
 }
 
 void
-sch_lab_proxy()
+hs_proxy()
+{
+	launch_other_component(6, 0);
+}
+
+void
+mm_proxy()
+{
+	launch_other_component(7, 0);
+}
+
+void
+sc_proxy()
 {
 	launch_other_component(5, 0);
+}
+
+void
+shc_lab_proxy()
+{
+	launch_other_component(8, 0);
+}
+
+int32
+cfs_lib_proxy()
+{
+	/* This is a total fake! CFS Lib doesn't do useful initialization... */
+	OS_printf("CFS Lib Initialized.  Version [FAKE INITIALIZTION]");
+
+	return OS_SUCCESS;
 }
 
 struct symbol_proxy {
@@ -95,10 +122,14 @@ struct symbol_proxy {
 	void *proxy;
 };
 
-#define NUM_PROXIES 3
-struct symbol_proxy proxies[NUM_PROXIES] = {{"SAMPLE_LibInit", sample_lib_proxy},
-                                            {"SAMPLE_AppMain", sample_app_proxy},
-                                            {"SCH_Lab_AppMain", sch_lab_proxy}};
+#define NUM_PROXIES 7
+struct symbol_proxy proxies[NUM_PROXIES] = {{"DS_AppMain", ds_proxy},
+                                            {"FM_AppMain", fm_proxy},
+                                            {"HS_AppMain", hs_proxy},
+											{"MM_AppMain", mm_proxy},
+											{"SC_AppMain", sc_proxy},
+											{"SCH_Lab_AppMain", shc_lab_proxy},
+											{"CFS_LibInit", cfs_lib_proxy}};
 
 int32
 OS_SymbolLookup(cpuaddr *symbol_address, const char *symbol_name)
@@ -123,5 +154,6 @@ int32
 OS_SymbolTableDump(const char *filename, uint32 size_limit)
 {
 	/* Not needed. */
+	assert(0);
 	return OS_ERR_NOT_IMPLEMENTED;
 }
