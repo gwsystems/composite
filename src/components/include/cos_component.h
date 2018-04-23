@@ -15,6 +15,11 @@
 #include <string.h>
 #include <bitmap.h>
 
+/*
+ * dewarn: strtok_r()
+ * reference: feature_test_macro() requirement: _SVID_SOURCE || _BSD_SOURCE || _POSIX_C_SOURCE >= 1 || _XOPEN_SOURCE || _POSIX_SOURCE
+ */
+extern char *strtok_r(char *str, const char *delim, char **saveptr);
 void libc_init();
 
 /* temporary */
@@ -227,7 +232,7 @@ cos_init_args(void)
 static inline int
 cos_args_cpubmp(u32_t *cpubmp, char *arg)
 {
-	char *start = NULL, *end = NULL;
+	char *start = NULL;
 	char restr[COMP_INFO_INIT_STR_LEN] = { '\0' }, *rs = restr;
 	int i, len = 0;
 
