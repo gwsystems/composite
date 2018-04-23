@@ -54,10 +54,8 @@ sinv_client_thread_init(struct sinv_async_info *s, thdid_t tid, cos_channelkey_t
 	assert(ret);
 
 	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {
-		cycles_t now, timeout;
+		cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
 
-		rdtscll(now);
-		timeout = now + time_usec2cyc(SINV_SRV_POLL_US);
 		sl_thd_block_timeout(0, timeout); /* called from the scheduler */
 	}
 
@@ -108,10 +106,8 @@ sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_
 	cos_asnd(tinfo->sndcap, 1);
 
 	while ((tinfo->rcvcap && cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING, NULL) < 0) && (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET)) {
-		cycles_t now, timeout;
+		cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
 
-		rdtscll(now);
-		timeout = now + time_usec2cyc(SINV_SRV_POLL_US);
 		sl_thd_block_timeout(0, timeout); /* in the scheduler component */
 	}
 

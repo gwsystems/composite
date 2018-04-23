@@ -106,12 +106,9 @@ sinv_server_fn(arcvcap_t rcv, void *data)
 		int rcvd = 0;
 
 		while ((cos_rcv(rcv, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
-			cycles_t now, timeout;
+			cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
 
 			if (ps_load((unsigned long *)reqaddr) == SINV_REQ_SET) break;
-
-			rdtscll(now);
-			timeout = now + time_usec2cyc(SINV_SRV_POLL_US);
 			sched_thd_block_timeout(0, timeout);
 		}
 
@@ -157,10 +154,8 @@ sinv_server_main_loop(struct sinv_async_info *s)
 		memset(aep, 0, sizeof(struct cos_aep_info));
 
 		while (ps_load((unsigned long *)reqaddr) != SINV_REQ_SET) {
-			cycles_t now, timeout;
+			cycles_t timeout = time_now() + time_usec2cyc(SINV_MAIN_POLL_US);
 
-			rdtscll(now);
-			timeout = now + time_usec2cyc(SINV_MAIN_POLL_US);
 			sched_thd_block_timeout(0, timeout);
 		}
 

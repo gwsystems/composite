@@ -48,10 +48,8 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 	assert(ret);
 
 	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {
-		cycles_t now, timeout;
+		cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
 
-		rdtscll(now);
-		timeout = now + time_usec2cyc(SINV_SRV_POLL_US);
 		sched_thd_block_timeout(0, timeout); /* called from the scheduler */
 	}
 
@@ -104,12 +102,10 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 
 	assert(tinfo->rcvcap);
 	while ((cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
-		cycles_t now, timeout;
+		cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
 
 		if (ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET) break;
 
-		rdtscll(now);
-		timeout = now + time_usec2cyc(SINV_SRV_POLL_US);
 		sched_thd_block_timeout(0, timeout); /* in the app component */
 
 		/*
