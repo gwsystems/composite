@@ -97,14 +97,14 @@ cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd)
 	u32_t                delta;
 	struct ipi_cap_data *data;
 
-	if (unlikely(dest >= NUM_CPU)) return -1;
+	if (unlikely(dest >= NUM_CPU)) return -EINVAL;
 
 	ring = &IPI_cap_dest[dest].IPI_source[get_cpuid()];
 	tail = ring->sender;
 
 	delta = (tail + 1) & IPI_RING_MASK;
 	data  = &ring->ring[tail];
-	if (unlikely(delta == ring->receiver)) return -1;
+	if (unlikely(delta == ring->receiver)) return -EBUSY;
 
 	data->arcv_capid = asnd->arcv_capid;
 	data->arcv_epoch = asnd->arcv_epoch;
@@ -123,7 +123,7 @@ cos_cap_send_ipi(int cpu, struct cap_asnd *asnd)
 	int ret;
 
 	ret = cos_ipi_ring_enqueue(cpu, asnd);
-	if (unlikely(ret)) return -1;
+	if (unlikely(ret)) return ret;
 
 	chal_send_ipi(cpu);
 
