@@ -50,6 +50,7 @@ cos_asm_server_stub(OS_TaskDelay)
 // FS methods
 // Relies on the assumption that dirp_t are never dereferenced outside the cFE
 cos_asm_server_stub(OS_closedir)
+cos_asm_server_stub(OS_close)
 cos_asm_server_stub(OS_lseek)
 cos_asm_server_stub(OS_rewinddir)
 

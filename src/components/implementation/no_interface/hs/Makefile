@@ -2,7 +2,7 @@
 ASM_OBJS=
 COMPONENT=hs_app.o
 INTERFACES=
-DEPENDENCIES=cFE
+DEPENDENCIES=cFE capmgr
 IF_LIB:=./cFE_hs_app.o ./cFE_hs_cmds.o ./cFE_hs_custom.o ./cFE_hs_monitors.o
 ADDITIONAL_LIBS=-lcos_kernel_api
 

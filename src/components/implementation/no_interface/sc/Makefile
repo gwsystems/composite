@@ -2,7 +2,7 @@
 ASM_OBJS=
 COMPONENT=sc_app.o
 INTERFACES=
-DEPENDENCIES=cFE
+DEPENDENCIES=cFE capmgr
 IF_LIB:=./cFE_sc_app.o ./cFE_sc_atsrq.o ./cFE_sc_cmds.o ./cFE_sc_loads.o ./cFE_sc_rtsrq.o ./cFE_sc_state.o ./cFE_sc_utils.o
 ADDITIONAL_LIBS=-lcos_kernel_api
 
