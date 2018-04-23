@@ -187,4 +187,10 @@ acpi_madt_intsrc_iter(unsigned char *addr)
 	}
 
 	printk("\tMADT => LAPICs=%d, IOAPICs=%d\n", nl, nio);
+
+	if (nl < NUM_CPU) {
+		printk("Number of LAPICs processed =%d not meeting the requirement = %d\n", nl, NUM_CPU);
+		printk("Please reconfigure NUM_CPU in Composite/HW-BIOS\n");
+		assert(0);
+	}
 }

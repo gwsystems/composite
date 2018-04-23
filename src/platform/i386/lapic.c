@@ -150,21 +150,13 @@ void
 lapic_iter(struct lapic_cntl *l)
 {
 	static int off = 1;
-	int us = lapic_apicid();
 
 	assert(l->header.len == sizeof(struct lapic_cntl));
 	printk("\tLAPIC found: coreid %d, apicid %d\n", l->proc_id, l->apic_id);
 
-	if (l->apic_id != us && l->flags && ncpus < NUM_CPU && NUM_CPU > 1) {
+	if (l->apic_id != apicids[INIT_CORE] && l->flags && ncpus < NUM_CPU && NUM_CPU > 1) {
 		apicids[off++] = l->apic_id;
 		ncpus++;
-	}
-	printk("\tAPICs processed, %d cores\n", ncpus);
-
-	if (ncpus != NUM_CPU) {
-		printk("Number of LAPICs processed =%d not meeting the requirement = %d\n", ncpus, NUM_CPU);
-		printk("Please reconfigure NUM_CPU in Composite/HW-BIOS\n");
-		assert(0);
 	}
 }
 
@@ -179,6 +171,7 @@ lapic_find_localaddr(void *l)
 
 	printk("Initializing LAPIC @ %p\n", lapicaddr);
 
+	apicids[INIT_CORE] = lapic_apicid();
 	for (i = 0; i < length; i++) {
 		sum += lapicaddr[i];
 	}
