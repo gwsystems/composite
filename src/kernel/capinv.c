@@ -299,9 +299,12 @@ err:
  * Copy a capability from a location in one captbl/pgtbl to a location
  * in the other.  Fundamental operation used to delegate capabilities.
  * TODO: should limit the types of capabilities this works on.
+ * The capin_from_pos is the subpage index for delegation, order is the
+ * power of 2 of the size of the (sub)page delegated.
+ *
  */
 static inline int
-cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, capid_t capin_from)
+cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, capid_t capin_from, capid_t capin_from_pos, u32_t order)
 {
 	struct cap_header *ctto, *ctfrom;
 	int                sz, ret;
@@ -366,13 +369,39 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 		if (unlikely(!ctto)) return -ENOENT;
 		if (unlikely(ctto->type != cap_type)) return -EINVAL;
 		if (unlikely(((struct cap_pgtbl *)ctto)->refcnt_flags & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
-		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+
+		/* 
+		 * See what kind of delegation we are doing. There are 4 kinds of delegations:
+		 * 1. Superpage -> Smallpage [capin_from_pos < 1024]
+		 * 2. Superpage -> Superpage [capin_from_pos == 0]
+		 * 3. Smallpage -> Smallpage [capin_from_pos == 0]
+		 * 4. Smallpage -> Superpage [prohibited]
+		 */
+		if (capin_from_pos >= 1024) return -EINVAL;
+
+		/* FIXME: branch predictor nightmare */
+		f = pgtbl_lkup_pgd(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 		if (!f) return -ENOENT;
 		old_v = *f;
+		if (chal_pgtbl_flag_exist(old_v, PGTBL_SUPER)) {
+			/* The source is a 4M page */
+			if (order == 12) {
+				old_v += (capin_from_pos << 12);
+			} else if (order == 22) {
+				if (capin_from_pos != 0) return -EINVAL;
+			}
+		} else {
+			/* The source is likely a 4K page */
+			f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+			if (!f) return -ENOENT;
+			old_v = *f;
+			if (capin_from_pos != 0) return -EINVAL;
+			if (order != 12) return -EINVAL;
+		}
 
 		/* Cannot copy frame, or kernel entry. */
 		if (chal_pgtbl_flag_exist(old_v, PGTBL_COSFRAME) || !chal_pgtbl_flag_exist(old_v, PGTBL_USER)) return -EPERM;
-		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags);
+		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags, order);
 	} else {
 		ret = -EINVAL;
 	}
@@ -1320,7 +1349,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t dest_captbl = __userregs_get2(regs);
 			capid_t dest_cap    = __userregs_get3(regs);
 
-			ret = cap_cpy(ct, dest_captbl, dest_cap, from_captbl, from_cap);
+			ret = cap_cpy(ct, dest_captbl, dest_cap, from_captbl, from_cap, 0, 0);
 			break;
 		}
 		case CAPTBL_OP_CONS: {
@@ -1378,7 +1407,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t dest_pt     = __userregs_get2(regs);
 			vaddr_t dest_addr   = __userregs_get3(regs);
 
-			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr);
+			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr, 0, 12);
 
 			break;
 		}

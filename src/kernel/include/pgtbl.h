@@ -56,7 +56,7 @@ extern struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
 int tlb_quiescence_check(u64_t timestamp);
 
 int            pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
-int            pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
+int            pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order);
 int            pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags);
 int            pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id);
 int            pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr);
@@ -64,6 +64,7 @@ void          *pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_
 int            pgtbl_ispresent(u32_t flags);
 unsigned long *pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags);
 unsigned long *pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags);
+unsigned long *pgtbl_lkup_pgd(pgtbl_t pt, u32_t addr, u32_t *flags);
 int            pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe);
 vaddr_t        pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags);
 pgtbl_t        pgtbl_create(void *page, void *curr_pgtbl);
@@ -109,7 +110,7 @@ int            chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_c
                                      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
 
 
-int            chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
+int            chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order);
 int            chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
 /* This function updates flags of an existing mapping. */
 int            chal_pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags);
@@ -120,6 +121,7 @@ void          *chal_pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t s
 int            chal_pgtbl_ispresent(u32_t flags);
 unsigned long *chal_pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags);
 unsigned long *chal_pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags);
+unsigned long *chal_pgtbl_lkup_pgd(pgtbl_t pt, u32_t addr, u32_t *flags);
 int            chal_pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe);
 pgtbl_t        chal_pgtbl_create(void *page, void *curr_pgtbl);
 int            chal_pgtbl_quie_check(u32_t orig_v);

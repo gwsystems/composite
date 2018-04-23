@@ -38,9 +38,9 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 }
 
 int
-pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
+pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order)
 {
-	return chal_pgtbl_mapping_add(pt, addr, page, flags);
+	return chal_pgtbl_mapping_add(pt, addr, page, flags, order);
 }
 
 int
@@ -99,6 +99,12 @@ unsigned long *
 pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags)
 {
 	return chal_pgtbl_lkup_pte(pt, addr, flags);
+}
+
+unsigned long *
+pgtbl_lkup_pgd(pgtbl_t pt, u32_t addr, u32_t *flags)
+{
+	return chal_pgtbl_lkup_pgd(pt, addr, flags);
 }
 
 int

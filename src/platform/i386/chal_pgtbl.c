@@ -149,7 +149,7 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 	assert(!(orig_v & X86_PGTBL_QUIESCENCE));
 	cosframe = orig_v & PGTBL_FRAME_MASK;
 
-	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, cosframe, X86_PGTBL_USER_DEF);
+	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, cosframe, X86_PGTBL_USER_DEF, 12);
 
 	return ret;
 }
@@ -236,7 +236,7 @@ err:
 }
 
 int
-chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
+chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order)
 {
 	int                ret = 0;
 	struct ert_intern *pte;
@@ -246,9 +246,19 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	assert((PGTBL_FLAG_MASK & page) == 0);
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
-	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-	                                          PGTBL_DEPTH, &accum);
+	/* We are trying to add a page of "order" starting at "page" to the target page table */
+	if (order == 12) {
+		/* get the pte */
+		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+							  PGTBL_DEPTH, &accum);
+		/* If the flags passed in included the super flag, get rid of it */
+		flags &= ~X86_PGTBL_SUPER;
+	} else if (order == 22) {
+		/* This is in fact pgd */
+		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+							  1, &accum);
+	} else return -EINVAL;
+	
 	if (!pte) return -ENOENT;
 	orig_v = (u32_t)(pte->next);
 
@@ -260,12 +270,12 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	if (ret) return ret;
 
 	/* ref cnt on the frame. */
-	ret = retypetbl_ref((void *)page, PAGE_ORDER);
+	ret = retypetbl_ref((void *)page, order);
 	if (ret) return ret;
 
 	ret = __pgtbl_update_leaf(pte, (void *)(page | flags), orig_v);
 	/* restore the refcnt if necessary */
-	if (ret) retypetbl_deref((void *)page, PAGE_ORDER);
+	if (ret) retypetbl_deref((void *)page, order);
 
 	return ret;
 }
@@ -433,6 +443,13 @@ chal_pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags)
 {
 	return __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH,
 	                      flags);
+}
+
+unsigned long *
+chal_pgtbl_lkup_pgd(pgtbl_t pt, u32_t addr, u32_t *flags)
+{
+	return __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 1,
+			      &flags);
 }
 
 int
