@@ -9,12 +9,12 @@
 
 #undef assert
 /* On assert, immediately switch to the "exit" thread */
-#define assert(node)                                       \
-	do {                                               \
-		if (unlikely(!(node))) {                   \
-			debug_print("assert error in @ "); \
-			cos_thd_switch(termthd);           \
-		}                                          \
+#define assert(node)                                          \
+	do {                                                  \
+		if (unlikely(!(node))) {                      \
+			debug_print("assert error in @ ");    \
+			cos_thd_switch(termthd[cos_cpuid()]); \
+		}                                             \
 	} while (0)
 
 #define BUG_DIVZERO()                                           \
@@ -27,14 +27,12 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 
-#undef PRINTC
-#define PRINTC printc
 #define ITER 10000
 #define TEST_NTHDS 5
 
 extern struct cos_compinfo booter_info;
-extern thdcap_t            termthd; /* switch to this to shutdown */
-extern unsigned long       tls_test[TEST_NTHDS];
+extern thdcap_t            termthd[]; /* switch to this to shutdown */
+extern unsigned long       tls_test[][TEST_NTHDS];
 extern int                 num, den;
 
 static unsigned long

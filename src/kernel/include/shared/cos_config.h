@@ -34,10 +34,6 @@
 
 #define COS_PHYMEM_END_PA ((1 << 30) - COS_HW_MMIO_MAX_SZ) /* Maximum usable physical memory */
 
-/* To get more memory, we need many PTE caps in the captbl. So give
- * multiple pages to it. 5 is enough for 512 MBs.*/
-#define BOOT_CAPTBL_NPAGES 1
-
 #define BOOT_COMP_MAX_SZ (1 << 24) /* 16 MB for the booter component */
 
 #define NUM_CPU 1

@@ -185,6 +185,10 @@ typedef capid_t tcap_t;
  * memory).
  */
 typedef enum { CAP_SZ_16B = 0, CAP_SZ_32B, CAP_SZ_64B, CAP_SZ_ERR } cap_sz_t;
+
+/* Don't use unsigned type. We use negative values for error cases. */
+typedef int cpuid_t;
+
 /* the shift offset for the *_SZ_* values */
 #define CAP_SZ_OFF 4
 /* The allowed amap bits of each size */
@@ -266,15 +270,44 @@ enum
 	BOOT_CAPTBL_COMP0_COMP         = 24,
 	BOOT_CAPTBL_SINV_CAP           = 28,
 	BOOT_CAPTBL_SELF_INITTHD_BASE  = 32,
-	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS * CAP16B_IDSZ,
-	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU_COS * CAP16B_IDSZ,
+	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ,
+	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU * CAP16B_IDSZ,
                                                          CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS * CAP64B_IDSZ,
+	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
                                                         CAPMAX_ENTRY_SZ),
 	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
+
+/*
+ * The half of the first page of init captbl is devoted to root node. So, the
+ * first page of captbl can contain 128 caps, and every extra page can hold 256
+ * caps.
+ */
+#define BOOT_CAPTBL_NPAGES ((BOOT_CAPTBL_FREE + CAPTBL_EXPAND_SZ + CAPTBL_EXPAND_SZ * 2 - 1) / (CAPTBL_EXPAND_SZ * 2))
+
+#define BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE (captbl_tcap_offset(cos_cpuid()))
+#define BOOT_CAPTBL_SELF_INITTHD_CPU_BASE (captbl_thd_offset(cos_cpuid()))
+#define BOOT_CAPTBL_SELF_INITRCV_CPU_BASE (captbl_arcv_offset(cos_cpuid()))
+
+static inline unsigned long
+captbl_thd_offset(cpuid_t cpu_id)
+{
+	return BOOT_CAPTBL_SELF_INITTHD_BASE + CAP16B_IDSZ * cpu_id;
+}
+
+static inline unsigned long
+captbl_tcap_offset(cpuid_t cpu_id)
+{
+	return BOOT_CAPTBL_SELF_INITTCAP_BASE + CAP16B_IDSZ * cpu_id;
+}
+
+static inline unsigned long
+captbl_arcv_offset(cpuid_t cpu_id)
+{
+	return BOOT_CAPTBL_SELF_INITRCV_BASE + CAP64B_IDSZ * cpu_id;
+}
 
 enum
 {
@@ -293,14 +326,6 @@ enum
 	/* tcap budget */
 	TCAP_GET_BUDGET,
 };
-
-enum
-{
-	/* HPET first interrupt cycs (after calibration) */
-	HW_GET_FIRST_HPET,
-};
-
-typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */
 
 /* Macro used to define per core variables */
 #define PERCPU(type, name)       \

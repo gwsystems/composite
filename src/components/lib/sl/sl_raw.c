@@ -32,6 +32,7 @@ sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t 
 	t->state          = SL_THD_RUNNABLE;
 	sl_thd_index_add_backend(sl_mod_thd_policy_get(t));
 
+	t->rcv_suspended  = 0;
 	t->budget         = 0;
 	t->last_replenish = 0;
 	t->period         = t->timeout_cycs = t->periodic_cycs = 0;
@@ -128,7 +129,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, struct cos_defcompinfo *comp, sl_thd_property_t prps, cos_aepkey_t key)
+sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, cos_aepkey_t key)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct sl_thd          *t   = NULL;
@@ -210,7 +211,7 @@ sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_aepkey_t key)
 	struct sl_thd *t = NULL;
 
 	sl_cs_enter();
-	t = sl_thd_aep_alloc_no_cs(fn, data, NULL, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, 0);
+	t = sl_thd_aep_alloc_no_cs(fn, data, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, 0);
 	sl_cs_exit();
 
 	return t;

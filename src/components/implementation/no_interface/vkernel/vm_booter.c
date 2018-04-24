@@ -7,8 +7,8 @@ struct cos_compinfo booter_info;
  * the capability for the thread switched to upon termination.
  * FIXME: not exit thread for now
  */
-thdcap_t      termthd = BOOT_CAPTBL_SELF_INITTHD_BASE;
-unsigned long tls_test[TEST_NTHDS];
+thdcap_t      termthd[NUM_CPU] = { 0 };
+unsigned long tls_test[NUM_CPU][TEST_NTHDS];
 
 #include <llprint.h>
 
@@ -17,18 +17,6 @@ int num = 1, den = 0;
 
 /* virtual machine id */
 int vmid;
-
-cycles_t
-hpet_first_period(void)
-{
-	int ret;
-	cycles_t start_period = 0;
-
-	while ((ret = cos_introspect64(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_GET_FIRST_HPET, &start_period)) == -EAGAIN) ;
-	if (ret) assert(0);
-
-	return start_period;
-}
 
 void
 vm_init(void *d)

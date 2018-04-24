@@ -103,13 +103,13 @@ test_pa2va_map_only(void)
 static void
 test_sharedmem(void)
 {
-	int idx;
+	cbuf_t id;
 	vaddr_t addr;
 	int failure = 0;
 
-	idx = memmgr_shared_page_allocn(TEST_N_SHMEM_PAGES, &addr);
-	/* expect idx == 0 to create a reader(shared memory map unit test */
-	if (idx != 0 || test_mem_readwrite(addr, TEST_N_SHMEM_PAGES)) failure = 1;
+	id = memmgr_shared_page_allocn(TEST_N_SHMEM_PAGES, &addr);
+	/* expect id == 1 to create a reader(shared memory map unit test */
+	if (id != 1 || test_mem_readwrite(addr, TEST_N_SHMEM_PAGES)) failure = 1;
 	PRINTLOG(PRINT_DEBUG, "%s: shared memory allocation capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
 }
 

@@ -444,6 +444,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	int                  preempt = 0;
 
 	assert(next_ci && curr && next);
+	assert(curr->cpuid == get_cpuid() && next->cpuid == get_cpuid());
 	if (unlikely(curr == next)) return thd_switch_update(curr, regs, 1);
 
 	/* FIXME: trigger fault for the next thread, for now, return error */
@@ -848,7 +849,7 @@ timer_process(struct pt_regs *regs)
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
 	thd_curr = thd_current(cos_info);
-	assert(thd_curr);
+	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	comp = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
 	assert(comp);
 
