@@ -65,7 +65,7 @@ int            pgtbl_ispresent(u32_t flags);
 unsigned long *pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags);
 unsigned long *pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags);
 unsigned long *pgtbl_lkup_pgd(pgtbl_t pt, u32_t addr, u32_t *flags);
-int            pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe);
+int            pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe, vaddr_t *order);
 vaddr_t        pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags);
 pgtbl_t        pgtbl_create(void *page, void *curr_pgtbl);
 int            pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
@@ -91,7 +91,7 @@ pgtbl_init(void)
 	return;
 }
 
-int cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr);
+int cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t index, vaddr_t order);
 int pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte);
 
 /* Chal related function prototypes */
@@ -104,7 +104,7 @@ unsigned long  chal_pgtbl_frame(unsigned long input);
 
 int            chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte_ret);
 int            chal_tlb_quiescence_check(u64_t timestamp);
-int            chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr);
+int            chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t index, vaddr_t order);
 int            chal_pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
 int            chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin,
                                      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
@@ -122,7 +122,7 @@ int            chal_pgtbl_ispresent(u32_t flags);
 unsigned long *chal_pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags);
 unsigned long *chal_pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags);
 unsigned long *chal_pgtbl_lkup_pgd(pgtbl_t pt, u32_t addr, u32_t *flags);
-int            chal_pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe);
+int            chal_pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe, vaddr_t *order);
 pgtbl_t        chal_pgtbl_create(void *page, void *curr_pgtbl);
 int            chal_pgtbl_quie_check(u32_t orig_v);
 void           chal_pgtbl_init_pte(void *pte);

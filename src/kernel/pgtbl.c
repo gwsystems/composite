@@ -19,9 +19,9 @@ tlb_quiescence_check(u64_t timestamp)
 }
 
 int
-cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr)
+cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t index, vaddr_t order)
 {
-	return chal_cap_memactivate(ct, pt, frame_cap, dest_pt, vaddr);
+	return chal_cap_memactivate(ct, pt, frame_cap, dest_pt, vaddr, index, order);
 }
 
 int
@@ -108,9 +108,9 @@ pgtbl_lkup_pgd(pgtbl_t pt, u32_t addr, u32_t *flags)
 }
 
 int
-pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
+pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe, vaddr_t *order)
 {
-	return chal_pgtbl_get_cosframe(pt, frame_addr, cosframe);
+	return chal_pgtbl_get_cosframe(pt, frame_addr, cosframe, order);
 }
 
 vaddr_t

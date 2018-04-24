@@ -304,11 +304,12 @@ err:
  *
  */
 static inline int
-cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, capid_t capin_from, capid_t capin_from_pos, u32_t order)
+cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, capid_t capin_from)
 {
 	struct cap_header *ctto, *ctfrom;
 	int                sz, ret;
 	cap_t              cap_type;
+	u32_t              order;
 
 	ctfrom = captbl_lkup(t, cap_from);
 	if (unlikely(!ctfrom)) return -ENOENT;
@@ -377,26 +378,17 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 		 * 3. Smallpage -> Smallpage [capin_from_pos == 0]
 		 * 4. Smallpage -> Superpage [prohibited]
 		 */
-		if (capin_from_pos >= 1024) return -EINVAL;
-
-		/* FIXME: branch predictor nightmare */
+		/* How big is the current page? */
 		f = pgtbl_lkup_pgd(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 		if (!f) return -ENOENT;
 		old_v = *f;
 		if (chal_pgtbl_flag_exist(old_v, PGTBL_SUPER)) {
-			/* The source is a 4M page */
-			if (order == 12) {
-				old_v += (capin_from_pos << 12);
-			} else if (order == 22) {
-				if (capin_from_pos != 0) return -EINVAL;
-			}
+			order = 22;
 		} else {
-			/* The source is likely a 4K page */
+			order = 12;
 			f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 			if (!f) return -ENOENT;
 			old_v = *f;
-			if (capin_from_pos != 0) return -EINVAL;
-			if (order != 12) return -EINVAL;
 		}
 
 		/* Cannot copy frame, or kernel entry. */
@@ -1349,7 +1341,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t dest_captbl = __userregs_get2(regs);
 			capid_t dest_cap    = __userregs_get3(regs);
 
-			ret = cap_cpy(ct, dest_captbl, dest_cap, from_captbl, from_cap, 0, 0);
+			ret = cap_cpy(ct, dest_captbl, dest_cap, from_captbl, from_cap);
 			break;
 		}
 		case CAPTBL_OP_CONS: {
@@ -1407,8 +1399,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t dest_pt     = __userregs_get2(regs);
 			vaddr_t dest_addr   = __userregs_get3(regs);
 
-			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr, 0, 12);
-
+			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr);
 			break;
 		}
 		case CAPTBL_OP_MEMMOVE: {
@@ -1446,8 +1437,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t frame_cap = __userregs_get1(regs);
 			capid_t dest_pt   = __userregs_get2(regs);
 			vaddr_t vaddr     = __userregs_get3(regs);
+			vaddr_t index     = __userregs_get4(regs) >> 16;
+			vaddr_t order     = __userregs_get4(regs) & 0xFFFF;
 
-			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr);
+			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr, index, order);
 
 			break;
 		}
@@ -1464,33 +1457,36 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_MEM_RETYPE2USER: {
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
+			vaddr_t order;
 
-			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
+			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
-			ret = retypetbl_retype2user((void *)frame, PAGE_ORDER);
+			ret = retypetbl_retype2user((void *)frame, order);
 
 			break;
 		}
 		case CAPTBL_OP_MEM_RETYPE2KERN: {
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
+			vaddr_t order;
 
-			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
+			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
-			ret = retypetbl_retype2kern((void *)frame, PAGE_ORDER);
+			ret = retypetbl_retype2kern((void *)frame, order);
 
 			break;
 		}
 		case CAPTBL_OP_MEM_RETYPE2FRAME: {
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
+			vaddr_t order;
 
-			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
+			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
-			ret = retypetbl_retype2frame((void *)frame, PAGE_ORDER);
+			ret = retypetbl_retype2frame((void *)frame, order);
 
 			break;
 		}

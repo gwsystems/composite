@@ -486,7 +486,7 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz)
 		if (!umem) return 0;
 
 		/* Actually map in the memory. */
-		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, 0)) {
+		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, 12)) {
 			assert(0);
 			return 0;
 		}

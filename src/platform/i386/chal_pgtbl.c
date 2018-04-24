@@ -127,7 +127,7 @@ chal_tlb_quiescence_check(u64_t timestamp)
 }
 
 int
-chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr)
+chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t index, vaddr_t order)
 {
 	unsigned long *    pte, cosframe, orig_v;
 	struct cap_header *dest_pt_h;
@@ -140,16 +140,24 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 	if (dest_pt_h->type != CAP_PGTBL) return -EINVAL;
 	if (((struct cap_pgtbl *)dest_pt_h)->lvl) return -EINVAL;
 
-	pte = pgtbl_lkup_pte(pt->pgtbl, frame_cap, &flags);
+	/* What is the order needed for this? */
+	if (order == 22) {
+		pte = pgtbl_lkup_pgd(pt->pgtbl, frame_cap, &flags);
+	} else if (order == 12) {
+		pte = pgtbl_lkup_pte(pt->pgtbl, frame_cap, &flags);
+	} else return -EINVAL;
+
 	if (!pte) return -EINVAL;
 	orig_v = *pte;
 
+	if ((order == 22) && (!chal_pgtbl_flag_exist(orig_v, X86_PGTBL_SUPER))) return -EINVAL;
 	if (!(orig_v & X86_PGTBL_COSFRAME) || (orig_v & X86_PGTBL_COSKMEM)) return -EPERM;
-
 	assert(!(orig_v & X86_PGTBL_QUIESCENCE));
 	cosframe = orig_v & PGTBL_FRAME_MASK;
+	flags = X86_PGTBL_USER_DEF;
+	if (order == 22) flags |= X86_PGTBL_GLOBAL;
 
-	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, cosframe, X86_PGTBL_USER_DEF, 12);
+	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, cosframe, flags, order);
 
 	return ret;
 }
@@ -245,25 +253,29 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t or
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
 	assert((PGTBL_FRAME_MASK & flags) == 0);
-
-	/* We are trying to add a page of "order" starting at "page" to the target page table */
-	if (order == 12) {
-		/* get the pte */
+	/* 
+	 * FIXME:the current ertrie implementation cannot stop upon detection of super page.
+	 * We have to do this manually, get the PGD first, to make sure that we will not
+	 * dereference the super page as a second-level pointer. Performance bummer.
+	 */
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+						  1, &accum);
+	if (!pte) return -ENOENT;
+	orig_v = *((u32_t*)pte);
+	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
+	/* If we are trying to map a superpage and this position is already occupied */
+	if (order == 22) {
+		if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
+	} else if (order == 12) {
+		if (!(orig_v & X86_PGTBL_PRESENT)) return -EINVAL;
+		if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
 		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 							  PGTBL_DEPTH, &accum);
-		/* If the flags passed in included the super flag, get rid of it */
-		flags &= ~X86_PGTBL_SUPER;
-	} else if (order == 22) {
-		/* This is in fact pgd */
-		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-							  1, &accum);
+		if (!pte) return -ENOENT;
+		orig_v = (u32_t)(pte->next);
+		if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
+		if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 	} else return -EINVAL;
-	
-	if (!pte) return -ENOENT;
-	orig_v = (u32_t)(pte->next);
-
-	if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
-	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 
 	/* Quiescence check */
 	ret = pgtbl_quie_check(orig_v);
@@ -339,6 +351,7 @@ chal_pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 	int                ret;
 	struct ert_intern *pte;
 	unsigned long      orig_v, accum = 0;
+	vaddr_t            order;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & addr) == 0);
@@ -350,18 +363,27 @@ chal_pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 	ret = ltbl_timestamp_update(liv_id);
 	if (unlikely(ret)) goto done;
 
-	/* get the pte */
+	/* Get the PGD to see if we are deleting a superpage */
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-                                                  PGTBL_DEPTH, &accum);
+                                                  1, &accum);
 	orig_v = (u32_t)(pte->next);
 	if (!(orig_v & X86_PGTBL_PRESENT)) return -EEXIST;
 	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
+	if (!(orig_v & X86_PGTBL_SUPER)) {
+		/* There is a pgd here. We are going to delete ptes in it */
+		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+		                                          PGTBL_DEPTH, &accum);
+		orig_v = (u32_t)(pte->next);
+		if (!(orig_v & X86_PGTBL_PRESENT)) return -EEXIST;
+		if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
+		order = 12;
+	} else order = 22;
 
 	ret = __pgtbl_update_leaf(pte, (void *)((liv_id << PGTBL_PAGEIDX_SHIFT) | X86_PGTBL_QUIESCENCE), orig_v);
 	if (ret) cos_throw(done, ret);
 
 	/* decrement ref cnt on the frame. */
-	ret = retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK), PAGE_ORDER);
+	ret = retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK), order);
 	if (ret) cos_throw(done, ret);
 
 done:
@@ -453,16 +475,25 @@ chal_pgtbl_lkup_pgd(pgtbl_t pt, u32_t addr, u32_t *flags)
 }
 
 int
-chal_pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
+chal_pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe, vaddr_t *order)
 {
 	u32_t          flags;
 	unsigned long *pte;
 	paddr_t        v;
 
-	pte = pgtbl_lkup_pte(pt, frame_addr, &flags);
+	/* What is the order of this cosframe? */
+	pte = pgtbl_lkup_pgd(pt, frame_addr, &flags);
 	if (!pte) return -EINVAL;
-
 	v = *pte;
+	if (chal_pgtbl_flag_exist(v, X86_PGTBL_SUPER)) {
+		*order = 22;
+	} else {
+		pte = pgtbl_lkup_pte(pt, frame_addr, &flags);
+		if (!pte) return -EINVAL;
+		v = *pte;
+		*order = 12;
+	}
+	
 	if (!(v & X86_PGTBL_COSFRAME)) return -EINVAL;
 
 	*cosframe = v & PGTBL_FRAME_MASK;
@@ -567,7 +598,9 @@ chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t prune
 	if (!intern) return -ENOENT;
 	old_v = *intern;
 
-	if (old_v == 0) return 0; /* return an error here? */
+	/* Is this really a pte or we are trying to decons on superpages - prohibited? */
+	if (old_v & X86_PGTBL_SUPER) return -EINVAL;
+	if (old_v == 0) return 0; /* FIXME: old comment - return an error here? */
 	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
 	if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
 
