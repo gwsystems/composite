@@ -11,7 +11,10 @@
 #include <cfe_tbl.h>
 #include <cfe_time.h>
 
+#define SHARED_REGION_NUM_PAGES 5
+
 #define EMU_BUF_SIZE 1024
+#define EMU_TBL_BUF_SIZE (4 * 4096)
 
 /* TODO: Alphabetize me! */
 union shared_region {
@@ -222,16 +225,16 @@ union shared_region {
 	} cfe_tbl_register;
 	struct {
 		CFE_TBL_Handle_t TblHandle;
-		char             Buffer[EMU_BUF_SIZE];
+		char             Buffer[EMU_TBL_BUF_SIZE];
 	} cfe_tbl_getAddress;
 	struct {
 		CFE_TBL_Handle_t TblHandle;
-		char             Buffer[EMU_BUF_SIZE];
+		char             Buffer[EMU_TBL_BUF_SIZE];
 	} cfe_tbl_modified;
 	struct {
 		CFE_TBL_Handle_t  TblHandle;
 		CFE_TBL_SrcEnum_t SrcType;
-		char              SrcData[EMU_BUF_SIZE];
+		char              SrcData[EMU_TBL_BUF_SIZE];
 	} cfe_tbl_load;
 	struct {
 		CFE_TBL_Info_t TblInfo;
@@ -244,7 +247,7 @@ union shared_region {
 };
 
 int  emu_request_memory(spdid_t client);
-void emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key);
+arcvcap_t emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key);
 
 #define STASH_MAGIC_VALUE ((void *)0xBEAFBEAF)
 

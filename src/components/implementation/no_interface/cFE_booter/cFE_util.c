@@ -19,7 +19,7 @@ llprint(const char *s, int len)
 void
 panic_impl(const char *function, char *message)
 {
-	printc("cFE panic in %s: %s", function, message);
+	printc("cFE panic in %s: %s\n", function, message);
 	assert(0);
 }
 

@@ -161,10 +161,13 @@ int32
 OS_TaskDelete(uint32 task_id)
 {
 	struct cfe_task_info *task_info;
-	struct sl_thd *       thd = sl_thd_lkup(task_id);
+	struct sl_thd *       thd;
 	osal_task_entry       delete_handler;
 
+	thd = sl_thd_lkup(task_id);
 	if (!thd) { return OS_ERR_INVALID_ID; }
+	/* FIXME: Need to handle the deletion of a thread pretending to be another thread  */
+	if (thd->state == SL_THD_FREE) { return OS_SUCCESS; }
 
 	task_info = &cfe_tasks[task_id];
 

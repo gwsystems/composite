@@ -288,61 +288,131 @@ CFE_PSP_GetCFETextSegmentInfo(cpuaddr *PtrToCFESegment, uint32 *SizeOfCFESegment
  * CFE_PSP_GetCFETextSegmentInfo returns the location and size of the kernel memory.
  */
 
-void
-CFE_PSP_WatchdogInit(void)
-{
-	PANIC("Unimplemented method!"); /* TODO: Implement me! */
-}
-/*
- * CFE_PSP_WatchdogInit configures the watchdog timer.
- */
 
-void
-CFE_PSP_WatchdogEnable(void)
-{
-	PANIC("Unimplemented method!"); /* TODO: Implement me! */
-}
-/*
- * CFE_PSP_WatchdogEnable enables the watchdog timer.
- */
+/* FIXME: The watchdog never actually triggers */
 
-void
-CFE_PSP_WatchdogDisable(void)
-{
-	PANIC("Unimplemented method!"); /* TODO: Implement me! */
-}
 /*
- * CFE_PSP_WatchdogDisable disables the watchdog timer.
- */
+** The watchdog time in milliseconds
+*/
+uint32 CFE_PSP_WatchdogValue = CFE_PSP_WATCHDOG_MAX;
 
-void
-CFE_PSP_WatchdogService(void)
+/*  Function:  CFE_PSP_WatchdogInit()
+**
+**  Purpose:
+**    To setup the timer resolution and/or other settings custom to this platform.
+**
+**  Arguments:
+**
+**  Return:
+*/
+void CFE_PSP_WatchdogInit(void)
 {
-	PANIC("Unimplemented method!"); /* TODO: Implement me! */
-}
-/*
- * CFE_PSP_WatchdogService services the watchdog timer according to the
- * value set in WatchDogSet.
- */
 
-uint32
-CFE_PSP_WatchdogGet(void)
-{
-	PANIC("Unimplemented method!"); /* TODO: Implement me! */
-	return 0;
-}
-/*
- * CFE_PSP_WatchdogGet gets the watchdog time in milliseconds
- */
+	/*
+	** Just set it to a value right now
+	** The pc-linux desktop platform does not actually implement a watchdog
+	** timeout ( but could with a signal )
+	*/
+	CFE_PSP_WatchdogValue = CFE_PSP_WATCHDOG_MAX;
 
-void
-CFE_PSP_WatchdogSet(uint32 WatchdogValue)
-{
-	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 }
-/*
- * CFE_PSP_WatchdogSet sets the watchdog time in milliseconds
+
+
+ /******************************************************************************
+ **  Function:  CFE_PSP_WatchdogEnable()
+ **
+ **  Purpose:
+ **    Enable the watchdog timer
+ **
+ **  Arguments:
+ **
+ **  Return:
  */
+ void CFE_PSP_WatchdogEnable(void)
+ {
+
+ }
+
+
+ /******************************************************************************
+ **  Function:  CFE_PSP_WatchdogDisable()
+ **
+ **  Purpose:
+ **    Disable the watchdog timer
+ **
+ **  Arguments:
+ **
+ **  Return:
+ */
+ void CFE_PSP_WatchdogDisable(void)
+ {
+
+ }
+
+ /******************************************************************************
+ **  Function:  CFE_PSP_WatchdogService()
+ **
+ **  Purpose:
+ **    Load the watchdog timer with a count that corresponds to the millisecond
+ **    time given in the parameter.
+ **
+ **  Arguments:
+ **    None.
+ **
+ **  Return:
+ **    None
+ **
+ **  Notes:
+ **
+ */
+ void CFE_PSP_WatchdogService(void)
+ {
+
+
+ }
+
+ /******************************************************************************
+ **  Function:  CFE_PSP_WatchdogGet
+ **
+ **  Purpose:
+ **    Get the current watchdog value.
+ **
+ **  Arguments:
+ **    none
+ **
+ **  Return:
+ **    the current watchdog value
+ **
+ **  Notes:
+ **
+ */
+ uint32 CFE_PSP_WatchdogGet(void)
+ {
+    return(CFE_PSP_WatchdogValue);
+ }
+
+
+ /******************************************************************************
+ **  Function:  CFE_PSP_WatchdogSet
+ **
+ **  Purpose:
+ **    Get the current watchdog value.
+ **
+ **  Arguments:
+ **    The new watchdog value
+ **
+ **  Return:
+ **    nothing
+ **
+ **  Notes:
+ **
+ */
+ void CFE_PSP_WatchdogSet(uint32 WatchdogValue)
+ {
+
+     CFE_PSP_WatchdogValue = WatchdogValue;
+
+ }
 
 void
 CFE_PSP_Panic(int32 ErrorCode)

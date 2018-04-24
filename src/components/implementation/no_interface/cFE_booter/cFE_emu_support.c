@@ -35,7 +35,7 @@ int
 emu_request_memory(spdid_t client)
 {
 	vaddr_t our_addr = 0;
-	int     id       = memmgr_shared_page_alloc(&our_addr);
+	int     id       = memmgr_shared_page_allocn(SHARED_REGION_NUM_PAGES, &our_addr);
 
 	assert(our_addr);
 	shared_regions[client] = (void *)our_addr;
@@ -49,20 +49,23 @@ emu_request_memory(spdid_t client)
 	return id;
 }
 
-void
+arcvcap_t
 emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key)
 {
 	struct sl_thd *        thd;
 	sched_param_t          aep_priority;
 	struct cos_defcompinfo child_dci;
+	arcvcap_t extrcv;
 
 	cos_defcompinfo_childid_init(&child_dci, client);
 
-	thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 1, 0, key, NULL);
+	thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 1, 0, key, &extrcv);
 	assert(thd);
 
 	aep_priority = sched_param_pack(SCHEDP_PRIO, CFE_TIME_1HZ_TASK_PRIORITY);
 	sl_thd_param_set(thd, aep_priority);
+
+	return extrcv;
 }
 
 /* Methods for stashing and retrieving a idx, spdid pair

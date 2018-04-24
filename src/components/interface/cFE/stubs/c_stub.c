@@ -24,6 +24,7 @@ CFE_SB_Qos_t CFE_SB_Default_Qos = {0};
 size_t CDS_sizes[CFE_ES_CDS_MAX_NUM_ENTRIES] = {0};
 
 int                         sync_callbacks_are_setup = 0;
+arcvcap_t                   sync_callback_rcv = 0;
 CFE_TIME_SynchCallbackPtr_t sync_callbacks[CFE_TIME_MAX_NUM_SYNCH_FUNCS];
 
 void
@@ -41,16 +42,17 @@ do_emulation_setup(spdid_t id)
 	time_sync_key = BASE_AEP_KEY + id;
 
 	/* End with a quick consistency check */
-	assert(sizeof(union shared_region) <= PAGE_SIZE);
+	assert(sizeof(union shared_region) <= SHARED_REGION_NUM_PAGES * PAGE_SIZE);
 }
 
 void
-handle_sync_callbacks(arcvcap_t rcv, void *data)
+handle_sync_callbacks(void *data)
 {
 	int pending;
 
 	while (1) {
-		pending = cos_rcv(rcv, 0, NULL);
+		assert(sync_callback_rcv);
+		pending = cos_rcv(sync_callback_rcv, 0, NULL);
 		if (pending) {
 			int i;
 			for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++) {
@@ -66,7 +68,7 @@ ensure_sync_callbacks_are_setup()
 	if (!sync_callbacks_are_setup) {
 		int32              result;
 		thdclosure_index_t idx = cos_thd_init_alloc(handle_sync_callbacks, NULL);
-		emu_create_aep_thread(spdid, idx, time_sync_key);
+		sync_callback_rcv = emu_create_aep_thread(spdid, idx, time_sync_key);
 
 		result = emu_CFE_TIME_RegisterSynchCallback(time_sync_key);
 		assert(result == CFE_SUCCESS);
@@ -182,9 +184,14 @@ CFE_ES_GetGenCounterIDByName(uint32 *CounterIdPtr, const char *CounterName)
 int32
 CFE_ES_GetResetType(uint32 *ResetSubtypePtr)
 {
-	int32 result = emu_CFE_ES_GetResetType(spdid);
+	int32 result;
 
-	*ResetSubtypePtr = shared_region->cfe_es_getResetType.ResetSubtype;
+	result = emu_CFE_ES_GetResetType(spdid);
+
+	if (ResetSubtypePtr) {
+		*ResetSubtypePtr = shared_region->cfe_es_getResetType.ResetSubtype;
+	}
+
 	return result;
 }
 
@@ -577,7 +584,7 @@ CFE_SB_ValidateChecksum(CFE_SB_MsgPtr_t MsgPtr)
 
 struct {
 	size_t size;
-	char   buffer[EMU_BUF_SIZE];
+	char   buffer[EMU_TBL_BUF_SIZE];
 } table_info[CFE_TBL_MAX_NUM_HANDLES];
 
 int32
@@ -619,7 +626,7 @@ CFE_TBL_Load(CFE_TBL_Handle_t TblHandle, CFE_TBL_SrcEnum_t SrcType, const void *
 	shared_region->cfe_tbl_load.SrcType   = SrcType;
 
 	if (SrcType == CFE_TBL_SRC_FILE) {
-		assert(strlen(SrcDataPtr) < EMU_BUF_SIZE);
+		assert(strlen(SrcDataPtr) < EMU_TBL_BUF_SIZE);
 		strcpy(shared_region->cfe_tbl_load.SrcData, SrcDataPtr);
 	} else if (SrcType == CFE_TBL_SRC_ADDRESS) {
 		assert(TblHandle < CFE_TBL_MAX_NUM_HANDLES);
@@ -657,7 +664,7 @@ CFE_TBL_Register(CFE_TBL_Handle_t *TblHandlePtr, const char *Name, uint32 TblSiz
 	result = emu_CFE_TBL_Register(spdid);
 	if (result == CFE_SUCCESS || result == CFE_TBL_INFO_RECOVERED_TBL) {
 		table_info[shared_region->cfe_tbl_register.TblHandle].size = TblSize;
-		assert(TblSize <= EMU_BUF_SIZE);
+		assert(TblSize <= EMU_TBL_BUF_SIZE);
 	}
 
 	return result;
@@ -700,6 +707,7 @@ int32
 CFE_TIME_RegisterSynchCallback(CFE_TIME_SynchCallbackPtr_t CallbackFuncPtr)
 {
 	int i;
+
 	ensure_sync_callbacks_are_setup();
 
 	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++) {
