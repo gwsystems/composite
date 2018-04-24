@@ -15,17 +15,6 @@
 #include <signal.h>
 #include <time.h>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-#define MSG_SZ 31
-#define JPEG_REQ 77
-#define SEND_SCRIPT 80
-=======
-#include "genjpeg.h"
->>>>>>> parent of 282ccc0... Fix Jpeg request from camera
-
-=======
->>>>>>> parent of c4a3580... implemented bugfix in robot_cont.c from sd-18-hunter2 cam and code cleanup
 #define rdtscll(val) \
         __asm__ __volatile__("rdtsc" : "=A" (val))
 
@@ -114,15 +103,12 @@ build_script()
 //	printf("str: %s \n", str);
 //}
 
-<<<<<<< HEAD
 void
 req_jpeg(void)
 {
         system("avconv -rtsp_transport udp -i 'rtsp://192.168.248.102:554/onvif1' -f image2 -vframes 1 -pix_fmt yuvj420p hey.jpg");
 }
 
-=======
->>>>>>> parent of 282ccc0... Fix Jpeg request from camera
 int 
 send_script() 
 {
@@ -170,9 +156,8 @@ unsigned char * buf;
 int
 read_jpeg(void)
 {
-	createjpeg();
 	printf("reading in jpeg\n");
-	fp = fopen("obstacleman.jpg", "rb");
+	fp = fopen("hey.jpg", "rb");
 	assert(fp);
 	
 	fseek(fp, 0, SEEK_END);
@@ -198,7 +183,7 @@ main(int argc, char *argv[])
 	int msg_size;
 	char *msg;
 	int sleep_val;
-
+	req_jpeg();
 	if (argc != 5 && argc != 6) {
 		printf("Usage: %s <ip> <port> <msg size> <sleep_val> <opt:rcv_port>\n", argv[0]);
 		return -1;
@@ -264,7 +249,7 @@ main(int argc, char *argv[])
 		/* Server has requested an image */
 		if (((unsigned char *)rcv_msg)[0] == JPEG_REQ) {
 			printf("Server requested an image\n");	
-			read_jpeg();
+			req_jpeg();
 
 			((unsigned int *)msg)[0] = 79;			
 			if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
