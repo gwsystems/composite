@@ -3,6 +3,8 @@
 #include <sched.h>
 #include <robot_cont.h>
 
+#include <gateway_spec.h>
+
 #include <memmgr.h>
 
 struct cos_aep_info taeps[2];
@@ -14,7 +16,7 @@ car_main(void)
 	cycles_t cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	while (1) {
-		send_task(3, 2);
+		send_task(0, 3, 2);
 		
 		rdtscll(now);
 		wakeup = now + (5000 * 1000 * cycs_per_usec);
@@ -34,12 +36,11 @@ driver_aep(arcvcap_t rcv, void * data)
 		ret = cos_rcv(rcv, 0, NULL);
 		assert(ret == 0);
 		printc("driver_aep post cos_rcv\n");
-		send_task(3,2);
+		send_task(0, 0,2);
 
 	}
 }
 
-#define DRIVER_AEPKEY 1
 #define DRIVER_PRIO 1
 
 void 
@@ -50,11 +51,11 @@ cos_init(void)
 	thdid_t tidp;
 	int i = 0;
 
-//	printc("Creating aep for driver\n");
-//	tidp = sched_aep_create(&taeps[1], driver_aep, (void *)i, 0, DRIVER_AEPKEY);
-//	assert(tidp);
-//	printc("Created aep for driver\n");
-//	sched_thd_param_set(tidp, sched_param_pack(SCHEDP_PRIO, DRIVER_PRIO));
+	printc("Creating aep for driver\n");
+	tidp = sched_aep_create(&taeps[1], driver_aep, (void *)i, 0, DRIVER_AEP_KEY);
+	assert(tidp);
+	printc("Created aep for driver\n");
+	sched_thd_param_set(tidp, sched_param_pack(SCHEDP_PRIO, DRIVER_PRIO));
 
 	car_main();	
 	

@@ -147,8 +147,8 @@ cos_thd_entry_exec(u32_t idx)
 	fn   = __thd_init_data[idx].fn;
 	data = __thd_init_data[idx].data;
 	/* and release the entry... might need a barrier here. */
-	__thd_init_data[idx].data = NULL;
-	__thd_init_data[idx].fn   = NULL;
+//	__thd_init_data[idx].data = NULL;
+//	__thd_init_data[idx].fn   = NULL;
 
 	(fn)(data);
 }

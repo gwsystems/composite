@@ -90,7 +90,7 @@ rk_recvfrom(int arg1, int arg2, int arg3)
 	int s, buff_shdmem_id, flags, from_shdmem_id, from_addr_len, ret;
 	size_t len;
 
-	printc("RK recvfrom\n");
+	//printc("RK recvfrom\n");
 
 	s = (arg1 >> 16);
 	buff_shdmem_id = (arg1 << 16) >> 16;
@@ -145,7 +145,7 @@ rk_sendto(int arg1, int arg2, int arg3)
 	addr_shdmem_id    = (arg3 >> 16);
 	addrlen           = (arg3 << 16) >> 16;
 
-	printc("RK sendto\n");
+	//printc("RK sendto\n");
 
 	if (shdmem_id == -1 && buff == 0) {
 		shdmem_id = buff_shdmem_id;

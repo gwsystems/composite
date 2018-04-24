@@ -5,6 +5,9 @@
 
 /* Coordinate AEP's between components */
 #define AEP_PRIO 1
+#define DRIVER_PRIO 1
+#define BACKUP_DRIVER_AEP_KEY 7
+#define DRIVER_AEP_KEY 8
 #define ROBOT_CONT_AEP_KEY 18
 #define IMAGE_AEP_KEY 3
 
@@ -22,6 +25,8 @@
 
 #define JPG_SZ 161000
 
+#define BACKUP_COMP 8
+
 #undef DEMO1 
-#define DEMO2 1
-#undef DEMO3
+#undef DEMO2 
+#define DEMO3 1

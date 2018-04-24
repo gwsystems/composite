@@ -77,7 +77,7 @@ build_script()
 
         char * sbuf = (char*) malloc(800*sizeof(char));
         char * pre = "echo -n '";
-        char * post = "' | nc -4u -w1 192.168.248.103 2390";
+        char * post = "' | nc -4u -w1 192.168.137.174 2390";
 	static int count = 0;
         memcpy(sbuf, pre, 9);
         for(i = 0; i < script[1]+3; i++) {

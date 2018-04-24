@@ -246,6 +246,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 
 	/* Check to see if we are creating the thread for our application */
 	if (!strcmp(thread->bt_name, "user_lwp")) {
+		printc("CREATING RK THREAD FOR USER APP\n");
 		int udpserver_id = 3;
 		thdcap_t thd;
 		thdid_t tid;
