@@ -137,7 +137,7 @@ locate_roomba(void)
 }
 
 int 
-ret_obstacles() 
+camera_find_obstacles() 
 {
 	printc("ret_obstacles\n");
 	
@@ -302,11 +302,17 @@ read_jpeg_file(void) //char *filename )
 int
 check_location_image(int x, int y) {
 
+	static int pending = 0;
 	if (!image_available) {
+		if (!pending) {
+			udpserv_script(REQ_JPEG, 0);
+			pending = 1;
+		}
 		return 0;
 	}
+	pending = 1;
 
-	return roomba_location;
+	return 1;
 }
 
 void
@@ -331,7 +337,7 @@ camera_image_available(arcvcap_t rcv, void * data)
 		//ret_obstacles();
 
 		/* Demo 2 */
-		locate_roomba();
+//		locate_roomba();
 
 		image_available = 1;	
 		

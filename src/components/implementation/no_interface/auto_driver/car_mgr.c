@@ -16,10 +16,10 @@ car_main(void)
 	cycles_t cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	while (1) {
-		send_task(0, 3, 2);
+		send_task(0, 2, 2);
 		
 		rdtscll(now);
-		wakeup = now + (5000 * 1000 * cycs_per_usec);
+		wakeup = now + (10000 * 1000 * cycs_per_usec);
 		sched_thd_block_timeout(0, wakeup);
 	}
 

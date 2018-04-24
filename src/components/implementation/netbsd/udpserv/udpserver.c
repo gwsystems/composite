@@ -63,12 +63,13 @@ int
 udpserv_script(int shdmemid, int test)
 {
 	if (test == REQ_JPEG) {
+		printc("REQUESTING JPEG\n");
 		udpserv_request_image(shdmemid);
 		return 0;
 	}
 
 	if (test == SEND_SCRIPT) {
-		printc("SENDING SCRIPT\n");
+		printc("SENDING SCRIPT: %d \n", shdmemid);
 		send_script = 1;
 	}
 	
@@ -106,12 +107,12 @@ update_script()
 
 	/* First char indicates this message is a script */
 	for (i = 1; i < sz ; i++) {
-		//printc("%u , \n", script[j]);
 		((unsigned char*)__msg)[i] = script[j];
+		//printc("%u , ", ((unsigned char*)__msg)[i]);
 	
 		if (script[j] == SCRIPT_END) {
 			/* Reset num and script */
-			printc("reached end of script: %d \n", j);
+			//printc("reached end of script: %d \n", j);
 			break;
 		}
 
@@ -142,10 +143,11 @@ store_jpeg(void)
 
 	count++;	
 	if (stored > JPG_SZ) {
-		printc("stored in: %d \n", count);
+		//printc("stored in: %d \n", count);
 		recv_jpeg = 0;
 
 		cos_asnd(image_ready_asnd, IMAGE_AEP_KEY);
+		stored = 0;
 		return;
 	}
 
@@ -195,31 +197,33 @@ udp_server_start(void)
 			store_jpeg();
 		}
 		
+		/* Recieve routine */	
 		if (((unsigned int *)__msg)[0] == TASK_DONE) {
 
+			printc("task done\n");
 			memset(__msg, 0, MSG_SZ);
-			/* Request Image */
-		//	((unsigned int *)__msg)[0] = REQ_JPEG;
 			check_task_done(0, 1);		
 
 		} else if(((unsigned int *)__msg)[0] == RECV_JPEG) {
 			
 			printc("Recving jpeg now: \n");	
 			recv_jpeg = 1;
-		}
 
-		if (send_jpeg) {
-			((unsigned int *)__msg)[0] = REQ_JPEG;
-		}
-		
-		if (send_script) {
-			printc("UDP: Sending script\n");
-			((unsigned int *)__msg)[0] = SEND_SCRIPT;
-			update_script();
+		} else if(((unsigned char *)__msg)[0] == SCRIPT_RECV_ACK) {
+			printc("Script Recvd by client \n");	
 			send_script = 0;
 		}
-		
-		if (send_shutdown) {
+
+	
+		/* Send routine */	
+		if (send_jpeg) {
+			printc("send jpeg\n");
+			((unsigned int *)__msg)[0] = REQ_JPEG;
+		} else if (send_script) {
+			update_script();
+			((unsigned char *)__msg)[0] = SEND_SCRIPT;
+		} 
+		else if (send_shutdown) {
 			printc("UDP: Sending shutdown\n");
 			((unsigned int *)__msg)[0] = SEND_SHUTDOWN;
 			update_script();

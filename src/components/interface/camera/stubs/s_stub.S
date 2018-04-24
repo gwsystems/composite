@@ -9,3 +9,4 @@
 
 .text
 cos_asm_server_stub(check_location_image)
+cos_asm_server_stub(camera_find_obstacles)

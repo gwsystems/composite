@@ -21,12 +21,13 @@
 #define REQ_JPEG 77
 #define RECV_JPEG 79
 #define SEND_SCRIPT 80
+#define SCRIPT_RECV_ACK 100
 #define SEND_SHUTDOWN 81
 
-#define JPG_SZ 161000
+#define JPG_SZ 152000
 
 #define BACKUP_COMP 8
 
-#undef DEMO1 
+#define DEMO1 1
 #undef DEMO2 
-#define DEMO3 1
+#undef DEMO3 

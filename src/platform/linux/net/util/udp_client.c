@@ -25,6 +25,7 @@ int script[100];
 
 #define JPEG_REQ 77
 #define SEND_SCRIPT 80
+#define SCRIPT_RECV_ACK 100
 
 unsigned int msg_sent = 0, msg_rcved;
 
@@ -151,7 +152,7 @@ int
 read_jpeg(void)
 {
 	printf("reading in jpeg\n");
-	fp = fopen("hey.jpg", "rb");
+	fp = fopen("obstacleman.jpg", "rb");
 	assert(fp);
 	
 	fseek(fp, 0, SEEK_END);
@@ -159,17 +160,13 @@ read_jpeg(void)
 
 	printf("jpeg size: %lu \n", jpg_s);
 	rewind(fp);
-	printf("after rewind\n");
 	buf = (char *)malloc(sizeof(char)*(jpg_s));
-	printf("after malloc?\n");
 	assert(buf);
 
 
-	printf("jpeg size: %lu \n", jpg_s);
 	fread(buf, jpg_s, sizeof(unsigned char), fp);
 
 	fclose(fp);
-	printf("jpeg read\n");
 }
 
 int foo = 0;
@@ -227,7 +224,7 @@ main(int argc, char *argv[])
 
 	while (1) {
 		int i;
-		
+		((unsigned int *)msg)[0] = 0;			
 		if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
 		    errno != EINTR) {
 			perror("sendto");
@@ -241,6 +238,7 @@ main(int argc, char *argv[])
 			}
 			foo++;
 		}
+		//printf("msg: rcd: %d \n", ((unsigned char *)rcv_msg)[0]);
 
 		/* Send jpeg in buf */
 		unsigned long sent = 0;
@@ -249,7 +247,7 @@ main(int argc, char *argv[])
 		/* Server has requested an image */
 		if (((unsigned char *)rcv_msg)[0] == JPEG_REQ) {
 			printf("Server requested an image\n");	
-			req_jpeg();
+			//req_jpeg();
 			read_jpeg();
 			printf("sending jpeg\n");
 			((unsigned int *)msg)[0] = 79;			
@@ -259,8 +257,8 @@ main(int argc, char *argv[])
 			}
 
 
-			printf("jpg_size: %lu \n", jpg_s);
-			printf("msg_size: %d \n", msg_size);
+			//printf("jpg_size: %lu \n", jpg_s);
+			//printf("msg_size: %d \n", msg_size);
 			while ( (sent+msg_size) < jpg_s) {
 				for (b = 0; b < msg_size; b++) {
 					msg[b] = buf[sent + b];
@@ -290,20 +288,13 @@ main(int argc, char *argv[])
 			    errno != EINTR) {
 				return -1;
 			}
-		
-			printf("jpg_size: %lu  sent: %lu  \n", jpg_s, sent);	
-			//free(buf);
-		//	for (i=0 ; i < sleep_val ; i++) {
-		//		if (argc == 6) {
-		//			do_recv_proc(fdr, msg_size);
-		//		}
-		//		foo++;
-		//	}
-
-			//break;
+			
+			printf("jpg sent: %lu  sent: %lu  \n", jpg_s, sent);	
+			
 		}
 		else if (((unsigned char *)rcv_msg)[0] == SEND_SCRIPT) {
-		/* Server is going to send a script */
+
+			/* Server is going to send a script */
 			int j;
 			printf("Recvd script\n");
 			for (j = 0; j < 100 ; j ++) {
@@ -311,11 +302,27 @@ main(int argc, char *argv[])
 				script[j] = ((unsigned char *)rcv_msg)[j+1];
 			}
 			send_script();
+
+			((unsigned char *)msg)[0] = SCRIPT_RECV_ACK;			
+			if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
+			    errno != EINTR) {
+				return -1;
+			}
+			
+			for (i=0 ; i < sleep_val ; i++) {
+				if (argc == 6) {
+					do_recv_proc(fdr, msg_size);
+				}
+				foo++;
+			}
+
 		} else if (((unsigned char *)rcv_msg)[0] == 81) {
 			/* Shut Roomba Down */
 			int j;
 			printf("Recvd SHUT DOWN COMMAND\n");
 			send_shutdown();
+		} else {
+//			printf("recvd message no instruc: %d \n", ((unsigned char *)rcv_msg)[0]);
 		}
 	
 	}

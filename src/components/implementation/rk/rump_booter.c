@@ -85,7 +85,14 @@ rk_hw_irq_alloc(void)
 	rk_intr_aep_alloc(cos_irqthd_handler, (void *)1, 0, 0);
 	rk_intr_aep_alloc(cos_irqthd_handler, (void *)1, 0, 0);
 	rk_intr_aep_alloc(cos_irqthd_handler, (void *)1, 0, 0);
-	
+	rk_intr_aep_alloc(cos_irqthd_handler, (void *)1, 0, 0);
+	rk_intr_aep_alloc(cos_irqthd_handler, (void *)1, 0, 0);
+	rk_intr_aep_alloc(cos_irqthd_handler, (void *)1, 0, 0);
+	rk_intr_aep_alloc(cos_irqthd_handler, (void *)1, 0, 0);
+	rk_intr_aep_alloc(cos_irqthd_handler, (void *)1, 0, 0);
+	rk_intr_aep_alloc(cos_irqthd_handler, (void *)1, 0, 0);
+
+	printc("\n5\n\n");	
 	for (i = HW_ISR_FIRST; i < HW_ISR_LINES; i++) {
 		struct sl_thd *t = NULL;
 		struct cos_aep_info tmpaep;
