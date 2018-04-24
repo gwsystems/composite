@@ -49,11 +49,15 @@
 #define HPET_TN_VAL_SET_CNF (1ll << 6)  /* set to allow directly setting accumulator */
 /* 1 << 7 is reserved */
 #define HPET_TN_32MODE_CNF (1ll << 8)           /* 1 = force 32-bit access to 64-bit timer */
-/* #define HPET_TN_INT_ROUTE_CNF (1<<9:1<<13)*/ /* routing for interrupt */
+#define HPET_TN_INT_ROUTE_CNF (9) 	/* routing for interrupt */
 #define HPET_TN_FSB_EN_CNF (1ll << 14)          /* 1 = deliver interrupts via FSB instead of APIC */
 #define HPET_TN_FSB_INT_DEL_CAP (1ll << 15)     /* read only, 1 = FSB delivery available */
 
 #define HPET_INT_ENABLE(n) (*hpet_interrupt = (0x1 << n)) /* Clears the INT n for level-triggered mode. */
+
+/* vector for interrupts */
+#define HPET_PERIODIC_VEC 0ll
+#define HPET_ONESHOT_VEC 8ll
 
 static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;
@@ -224,10 +228,13 @@ hpet_set(hpet_type_t timer_type, u64_t cycles)
 
 		/* Set a static value to count up to */
 		hpet_timers[timer_type].config = outconfig;
+		hpet_timers[timer_type].config |= HPET_ONESHOT_VEC << HPET_TN_INT_ROUTE_CNF;
 		cycles += HPET_COUNTER;
 	} else {
 		/* Set a periodic value */
 		hpet_timers[timer_type].config = outconfig | HPET_TN_TYPE_CNF | HPET_TN_VAL_SET_CNF;
+		/* Set the interrupt vector for periodic timer */
+		hpet_timers[timer_type].config |= HPET_PERIODIC_VEC << HPET_TN_INT_ROUTE_CNF;
 		/* Reset main counter */
 		HPET_COUNTER = 0x00;
 	}
@@ -287,8 +294,6 @@ hpet_init(void)
 	hpet_hpetcyc_per_tick = (HPET_DEFAULT_PERIOD_US * HPET_PICO_PER_MICRO) / pico_per_hpetcyc;
 
 	printk("Enabling timer @ %p with tick granularity %ld picoseconds\n", hpet, pico_per_hpetcyc);
-	/* Enable legacy interrupt routing */
-	*hpet_config |= HPET_LEG_RT_CNF;
 
 	/*
 	 * Set the timer as specified.  This assumes that the cycle
@@ -305,4 +310,5 @@ hpet_init(void)
 	hpet_calibration_init = 1;
 	hpet_set(HPET_PERIODIC, hpet_hpetcyc_per_tick);
 	chal_irq_enable(HW_HPET_PERIODIC, 0);
+	chal_irq_enable(HW_HPET_ONESHOT, 0);
 }
