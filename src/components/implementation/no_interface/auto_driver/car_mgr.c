@@ -4,7 +4,7 @@
 #include <robot_cont.h>
 
 #include <memmgr.h>
-#define TOKEN 4
+
 struct cos_aep_info taeps[2];
 
 void
@@ -14,7 +14,7 @@ car_main(void)
 	cycles_t cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	while (1) {
-		send_task(TOKEN, 3, 2);
+		send_task(3, 2);
 		
 		rdtscll(now);
 		wakeup = now + (5000 * 1000 * cycs_per_usec);
@@ -34,7 +34,7 @@ driver_aep(arcvcap_t rcv, void * data)
 		ret = cos_rcv(rcv, 0, NULL);
 		assert(ret == 0);
 		printc("driver_aep post cos_rcv\n");
-		send_task(TOKEN, 3,2);
+		send_task(3,2);
 
 	}
 }
