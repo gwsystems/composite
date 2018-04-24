@@ -299,17 +299,15 @@ err:
  * Copy a capability from a location in one captbl/pgtbl to a location
  * in the other.  Fundamental operation used to delegate capabilities.
  * TODO: should limit the types of capabilities this works on.
- * The capin_from_pos is the subpage index for delegation, order is the
- * power of 2 of the size of the (sub)page delegated.
+ * The order is the power of 2 of the size of the (sub)page delegated.
  *
  */
 static inline int
-cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, capid_t capin_from)
+cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, capid_t capin_from, vaddr_t order)
 {
 	struct cap_header *ctto, *ctfrom;
 	int                sz, ret;
 	cap_t              cap_type;
-	u32_t              order;
 
 	ctfrom = captbl_lkup(t, cap_from);
 	if (unlikely(!ctfrom)) return -ENOENT;
@@ -383,9 +381,12 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 		if (!f) return -ENOENT;
 		old_v = *f;
 		if (chal_pgtbl_flag_exist(old_v, PGTBL_SUPER)) {
-			order = 22;
+			if (order != 22) {
+				/* We need to pick a subpage */
+				old_v += EXTRACT_SUB_PAGE(capin_from);
+			}
 		} else {
-			order = 12;
+			if (order != 12) return -EPERM;
 			f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 			if (!f) return -ENOENT;
 			old_v = *f;
@@ -1341,7 +1342,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t dest_captbl = __userregs_get2(regs);
 			capid_t dest_cap    = __userregs_get3(regs);
 
-			ret = cap_cpy(ct, dest_captbl, dest_cap, from_captbl, from_cap);
+			ret = cap_cpy(ct, dest_captbl, dest_cap, from_captbl, from_cap, 0);
 			break;
 		}
 		case CAPTBL_OP_CONS: {
@@ -1398,8 +1399,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t source_addr = __userregs_get1(regs);
 			capid_t dest_pt     = __userregs_get2(regs);
 			vaddr_t dest_addr   = __userregs_get3(regs);
+			vaddr_t order       = __userregs_get4(regs);
 
-			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr);
+			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr, order);
 			break;
 		}
 		case CAPTBL_OP_MEMMOVE: {
@@ -1437,10 +1439,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t frame_cap = __userregs_get1(regs);
 			capid_t dest_pt   = __userregs_get2(regs);
 			vaddr_t vaddr     = __userregs_get3(regs);
-			vaddr_t index     = __userregs_get4(regs) >> 16;
-			vaddr_t order     = __userregs_get4(regs) & 0xFFFF;
+			vaddr_t order     = __userregs_get4(regs);
 
-			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr, index, order);
+			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr, order);
 
 			break;
 		}

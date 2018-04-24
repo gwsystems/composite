@@ -861,7 +861,7 @@ cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t s
 	first_dst = dst;
 
 	for (i = 0; i < sz; i += PAGE_SIZE, src += PAGE_SIZE, dst += PAGE_SIZE) {
-		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) BUG();
+		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 12)) BUG();
 	}
 
 	return first_dst;
@@ -878,7 +878,7 @@ cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *s
 {
 	assert(srcci && dstci);
 
-	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) BUG();
+	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 12)) BUG();
 
 	return 0;
 }

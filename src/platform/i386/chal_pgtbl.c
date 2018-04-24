@@ -134,7 +134,7 @@ chal_tlb_quiescence_check(u64_t timestamp)
 }
 
 int
-chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t index, vaddr_t order)
+chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t order)
 {
 	unsigned long *    pte, cosframe, orig_v;
 	struct cap_header *dest_pt_h;
@@ -148,21 +148,29 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 	if (((struct cap_pgtbl *)dest_pt_h)->lvl) return -EINVAL;
 
 	/* What is the order needed for this? */
-	if (order == 22) {
-		pte = pgtbl_lkup_pgd(pt->pgtbl, frame_cap, &flags);
-	} else if (order == 12) {
-		pte = pgtbl_lkup_pte(pt->pgtbl, frame_cap, &flags);
-	} else return -EINVAL;
-
+	/* We will probably activate a part of a superpage - damn */
+	pte = pgtbl_lkup_pgd(pt->pgtbl, frame_cap, &flags);
 	if (!pte) return -EINVAL;
 	orig_v = *pte;
+	
+	/* We don't allow activating non-frames or kernel entry */
+	if (orig_v & X86_PGTBL_SUPER) {
+		if (order != 22) {
+			/* We need to pick a subpage */
+			orig_v += EXTRACT_SUB_PAGE(frame_cap);
+		}
+	} else {
+		if (order != 12) return -EPERM;
+		pte = pgtbl_lkup_pte(pt->pgtbl, frame_cap, &flags);
+		if (!pte) return -EINVAL;
+		orig_v = *pte;
+	}
 
-	if ((order == 22) && (!chal_pgtbl_flag_exist(orig_v, X86_PGTBL_SUPER))) return -EINVAL;
 	if (!(orig_v & X86_PGTBL_COSFRAME) || (orig_v & X86_PGTBL_COSKMEM)) return -EPERM;
+
 	assert(!(orig_v & X86_PGTBL_QUIESCENCE));
 	cosframe = orig_v & PGTBL_FRAME_MASK;
 	flags = X86_PGTBL_USER_DEF;
-	if (order == 22) flags |= X86_PGTBL_GLOBAL;
 
 	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, cosframe, flags, order);
 

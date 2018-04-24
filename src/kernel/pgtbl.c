@@ -19,9 +19,9 @@ tlb_quiescence_check(u64_t timestamp)
 }
 
 int
-cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t index, vaddr_t order)
+cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t order)
 {
-	return chal_cap_memactivate(ct, pt, frame_cap, dest_pt, vaddr, index, order);
+	return chal_cap_memactivate(ct, pt, frame_cap, dest_pt, vaddr, order);
 }
 
 int

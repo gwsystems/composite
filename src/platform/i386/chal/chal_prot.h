@@ -10,6 +10,9 @@
 #define PGTBL_DEPTH 2
 #define PGTBL_ORD 10
 
+/* FIXME:find a better way to do this */
+#define EXTRACT_SUB_PAGE(super) ((super) & 0x3FF000)
+
 /* Page table related prototypes & structs */
 /* make it an opaque type...not to be touched */
 typedef struct pgtbl *pgtbl_t;
