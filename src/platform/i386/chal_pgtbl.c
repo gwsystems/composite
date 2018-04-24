@@ -53,7 +53,14 @@ chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned l
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & addr) == 0);
 
-	/* get the pte */
+	/* Is this place really a pte? If there is a super page, reject the operation now */
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	                                          1, &accum);
+	if (unlikely(!pte)) return -ENOENT;
+	orig_v = (u32_t)(pte->next);
+	if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
+
+	/* Get the pte */
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 	                                          PGTBL_DEPTH, &accum);
 	if (unlikely(!pte)) return -ENOENT;
