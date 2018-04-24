@@ -31,9 +31,17 @@ struct cos_aep_info taeps;
 struct sockaddr_in soutput, sinput;
 
 int recv_jpeg = 0;
-int send_jpeg = 0;
-int send_script = 0;
-int send_shutdown = 0;
+
+enum serving {
+	pending,
+	rcving_jpeg,
+	snding_jpeg,
+	snding_script,
+	snding_shutdown
+};
+
+enum serving status = pending;
+
 
 int shdmem_id;
 vaddr_t shdmem_addr;
@@ -48,13 +56,13 @@ asndcap_t image_ready_asnd;
 int
 udpserv_request_image(int compid)
 {
-	printc("udpserv: requesting image\n");
+	printc("udpserv: requesting image status: %d \n", status);
 
 	if (recv_jpeg == 1) {
 		printc("image being recvd\n");
 		return 0;	
 	}
-	send_jpeg = 1;	
+	status = snding_jpeg;
 	return 0;
 }
 
@@ -70,12 +78,12 @@ udpserv_script(int shdmemid, int test)
 
 	if (test == SEND_SCRIPT) {
 		printc("SENDING SCRIPT: %d \n", shdmemid);
-		send_script = 1;
+		status = snding_script;
 	}
 	
 	if (test == SEND_SHUTDOWN) {
 		printc("SENDING SHUTDOWN\n");
-		send_shutdown = 1;
+		status = snding_shutdown;
 	}
 
 	int i = 0;
@@ -145,6 +153,7 @@ store_jpeg(void)
 	if (stored > JPG_SZ) {
 		//printc("stored in: %d \n", count);
 		recv_jpeg = 0;
+		status = pending;
 
 		cos_asnd(image_ready_asnd, IMAGE_AEP_KEY);
 		stored = 0;
@@ -192,47 +201,54 @@ udp_server_start(void)
 			continue;
 		}
 
-		if (recv_jpeg == 1) {
-			send_jpeg = 0;
+		if (recv_jpeg) {
+			status = pending;
 			store_jpeg();
 		}
 		
 		/* Recieve routine */	
-		if (((unsigned int *)__msg)[0] == TASK_DONE) {
-
-			printc("task done\n");
-			memset(__msg, 0, MSG_SZ);
-			check_task_done(0, 1);		
-
-		} else if(((unsigned int *)__msg)[0] == RECV_JPEG) {
-			
-			printc("Recving jpeg now: \n");	
-			recv_jpeg = 1;
-
-		} else if(((unsigned char *)__msg)[0] == SCRIPT_RECV_ACK) {
-			printc("Script Recvd by client \n");	
-			send_script = 0;
+		switch(((unsigned int *)__msg)[0]) {
+			case TASK_DONE:
+				printc("task done\n");
+				memset(__msg, 0, MSG_SZ);
+				check_task_done(0, 1);		
+				break;
+			case RECV_JPEG:
+				printc("Recving jpeg now: \n");	
+				recv_jpeg = 1;
+				break;
+			case SCRIPT_RECV_ACK:
+				printc("Script Recvd by client \n");	
+				status = pending;
+				break;
+			default:
+				break;
 		}
 
-	
-		/* Send routine */	
-		if (send_jpeg) {
-			printc("send jpeg\n");
+		/* Serving Routine */	
+		switch(status) {
+		case snding_jpeg:
 			((unsigned int *)__msg)[0] = REQ_JPEG;
-		} else if (send_script) {
+			break;
+		
+		case snding_script:
 			update_script();
 			((unsigned char *)__msg)[0] = SEND_SCRIPT;
-		} 
-		else if (send_shutdown) {
-			printc("UDP: Sending shutdown\n");
+			break;
+		
+		case snding_shutdown:
+			printc("UDP: Sending shutdown: %d \n", status);
 			((unsigned int *)__msg)[0] = SEND_SHUTDOWN;
 			update_script();
-			send_shutdown = 0;
+			status = pending;
+			break;
+		
+		default:
+			break;
 		}
 
 		/* Reply to the sender */
 		soutput.sin_addr.s_addr = ((struct sockaddr_in*)&sa)->sin_addr.s_addr;
-
 		if (sendto(fd, __msg, msg_size, 0, (struct sockaddr*)&soutput, sizeof(soutput)) < 0) {
 			printc("sendto");
 			continue;

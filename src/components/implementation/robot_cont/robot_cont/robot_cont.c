@@ -60,47 +60,45 @@ update_script(int x)
 	return 0;
 }
 
+
 int
-detoury (int* i, int** orange, unsigned long* dir_array,int  xcurr, int ycurr, int xf, int yf)
+detoury(int* i, unsigned long* dir_array, int xcurr, int ycurr, int xf, int yf)
 {
-//since xchange >0 and obstacle at xcurr+1 and ycurr
-                int j = *i;
-                if(yf-ycurr <= 0 && ycurr !=0) { //move NORTH
-                         switch(rpos.direction) {
-                                printc("detoury\n");
-
-                                case NORTH: { dir_array[j] = NORTH; break; }
-                                case EAST: {dir_array[j] = WEST; break; }
-                                case SOUTH: { dir_array[j] = SOUTH; break;}
-                                case WEST: { dir_array[j] = EAST; break; }
-                                                default:
-                                printc("error, no direction?\n");
-                                break;
-                        }
-                        rpos.direction = (rpos.direction + dir_array[j])%4;
-                        ycurr--;
-                        j++;
-                } else {        //godown        
-                         switch(rpos.direction) {
-                                printc("detoury2\n");
-
-                                case NORTH: { dir_array[j] = SOUTH; break; }
-                                case EAST: {dir_array[j] = EAST; break; }
-                                case SOUTH: { dir_array[j] = NORTH; break;}
-                                case WEST: { dir_array[j] = WEST; break; }
-                                                default:
-                                printc("error, no direction?\n");
-                                break;
-
-                        }
-                        rpos.direction = (rpos.direction + dir_array[j])%4;
-                        ycurr++;
-                        j++;
-
-                }
-                *i = j;
-        return ycurr;
+	/* forces a detour around the obstacle since xchange > 0 and obstacle at xcurr+1 and ycurr */
+	int j = *i;
+	if(yf-ycurr <= 0 && ycurr != 0) {
+		/* if yf is still left of ycurr, go north for a detour */
+		switch(rpos.direction) {
+			case NORTH: { dir_array[j] = NORTH; break; }
+			case EAST: {dir_array[j] = WEST; break; }
+			case SOUTH: { dir_array[j] = SOUTH; break;}
+			case WEST: { dir_array[j] = EAST; break; }
+							default:
+			printc("error, no direction?\n");
+			break;
+		}
+		rpos.direction = (rpos.direction + dir_array[j])%4;
+		ycurr--;
+		j++;
+	} else {        
+		/* else go south for a detour */
+		switch(rpos.direction) {
+			case NORTH: { dir_array[j] = SOUTH; break; }
+			case EAST: {dir_array[j] = EAST; break; }
+			case SOUTH: { dir_array[j] = NORTH; break;}
+			case WEST: { dir_array[j] = WEST; break; }
+							default:
+			printc("error, no direction?\n");
+			break;
+		}
+		rpos.direction = (rpos.direction + dir_array[j])%4;
+		ycurr++;
+		j++;
+	}
+	*i = j;
+	return ycurr;
 }
+
 
 unsigned long *
 generate_path(int xchange, int ychange, int xf, int yf)
@@ -206,12 +204,12 @@ generate_path(int xchange, int ychange, int xf, int yf)
 		}
 		if (xchange > 0 && orange[xcurr+1][ycurr]) {
 			printc("detouring\n");
-			//ycurr = detoury(&i, dir_array, xcurr, ycurr, xf, yf);
+			ycurr = detoury(&i, dir_array, xcurr, ycurr, xf, yf);
 			break;
 		}
 		if (xchange < 0 && orange[xcurr-1][ycurr]) {
 			printc("detouring 2\n");
-			//ycurr = detoury(&i, dir_array, xcurr, ycurr, xf, yf);
+			ycurr = detoury(&i, dir_array, xcurr, ycurr, xf, yf);
 			break;
 		}
 	
@@ -356,7 +354,7 @@ create_movement(int xf, int yf)
 	printc("\nGenerate route\n");
 	direction = generate_path(xf - rpos.x, yf - rpos.y, xf, yf);
 	printc("\nGenerate script\n");
-	//generate_script(direction);
+	generate_script(direction);
 
 	printc("shmem: %p \n", (char *) shmem_addr);
 	memcpy((unsigned char *)shmem_addr, t_script, 100);	
