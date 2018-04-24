@@ -365,7 +365,6 @@ test_hpet_timer(void)
 
 		//while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
 	}
-	printc("FIRST HPET PERIOD: %llu\n", hpet_first_period());
 
 	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 

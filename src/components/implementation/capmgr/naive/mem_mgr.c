@@ -6,6 +6,36 @@
 #include <cap_info.h>
 
 vaddr_t
+memmgr_va2pa(vaddr_t vaddr)
+{
+	spdid_t cur = cos_inv_token();
+	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	struct cap_comp_info *cur_rci = cap_info_comp_find(cur);
+	struct cos_compinfo *cur_ci = cap_info_ci(cur_rci);
+
+	return (vaddr_t)cos_va2pa(cur_ci, (void *)vaddr);
+}
+
+vaddr_t
+memmgr_pa2va_map(paddr_t pa, unsigned int len)
+{
+	spdid_t cur = cos_inv_token();
+	struct cap_comp_info *cur_rci = cap_info_comp_find(cur);
+	struct cos_compinfo *cur_ci = cap_info_ci(cur_rci);
+	vaddr_t va = 0;
+
+	if (!cur_rci || !cap_info_init_check(cur_rci) || !cur_ci) {
+		printc("ERROR! %s\n", __func__);
+		return 0;
+	}
+
+	va = (vaddr_t)cos_hw_map(cur_ci, BOOT_CAPTBL_SELF_INITHW_BASE, pa, len);
+
+	return va;
+
+}
+
+vaddr_t
 memmgr_heap_page_allocn(unsigned long npages)
 {
 	spdid_t cur = cos_inv_token();

@@ -52,7 +52,5 @@ tls_set(size_t off, unsigned long val)
 }
 
 extern void test_run_mb(void);
-/* blocks for first period! */
-extern cycles_t hpet_first_period(void);
 
 #endif /* MICRO_BOOTER_H */
