@@ -179,8 +179,6 @@ main(int argc, char *argv[])
 	int msg_size;
 	char *msg;
 	int sleep_val;
-
-	//send_script();
 	if (argc != 5 && argc != 6) {
 		printf("Usage: %s <ip> <port> <msg size> <sleep_val> <opt:rcv_port>\n", argv[0]);
 		return -1;
