@@ -15,6 +15,10 @@
 #include <signal.h>
 #include <time.h>
 
+#define MSG_SZ 31
+#define JPEG_REQ 77
+#define SEND_SCRIPT 80
+
 #define rdtscll(val) \
         __asm__ __volatile__("rdtsc" : "=A" (val))
 
@@ -23,9 +27,9 @@ int rcv = 0;
 unsigned char *rcv_msg;
 int script[100];
 
-#define MSG_SZ 31
-#define JPEG_REQ 77
-#define SEND_SCRIPT 80
+FILE *fp;
+unsigned long jpg_s;
+unsigned char * buf;
 
 unsigned int msg_sent = 0, msg_rcved;
 
@@ -37,7 +41,7 @@ signal_handler(int signo)
 		min = (unsigned long long)-1;
 		msg_rcved = 0;
 	} else {
-	
+
 	}
 	msg_sent = 0;
 }
@@ -74,19 +78,18 @@ do_recv_proc(int fd, int msg_sz)
 char * 
 build_script() 
 {
-        int i;
-       // unsigned char script[100] = {152, 28, 137, 1, 44, 0, 180, 137, 1, 44, 128, 0, 156, 1, 144, 137, 1, 44, 0, 1, 157, 0, 90, 137, 1, 44, 128, 156, 3, 232, 153};
+	int i;
 
-        char *buf = (char*) malloc(200*sizeof(char));
-        char * pre = "echo -n '";
-        char* post = "' | nc -4u -w1 192.168.137.51 2390";
-        memcpy(buf, pre, 9);
-        for(i = 0; i < script[1]+3; i++) {
-                snprintf(&buf[strlen(buf)], 20*sizeof(char), "%d \0", script[i]);
-        }
-        snprintf(&buf[strlen(buf)], 400*sizeof(char), "%s", post);
+	char *buf = (char*) malloc(200*sizeof(char));
+	char * pre = "echo -n '";
+	char* post = "' | nc -4u -w1 192.168.137.51 2390";
+	memcpy(buf, pre, 9);
+	for(i = 0; i < script[1]+3; i++) {
+			snprintf(&buf[strlen(buf)], 20*sizeof(char), "%d \0", script[i]);
+	}
+	snprintf(&buf[strlen(buf)], 400*sizeof(char), "%s", post);
 
-        return buf;
+	return buf;
 }
 
 //void
@@ -106,19 +109,19 @@ build_script()
 void
 req_jpeg(void)
 {
-        system("avconv -rtsp_transport udp -i 'rtsp://192.168.248.102:554/onvif1' -f image2 -vframes 1 -pix_fmt yuvj420p hey.jpg");
+	system("avconv -rtsp_transport udp -i 'rtsp://192.168.248.102:554/onvif1' -f image2 -vframes 1 -pix_fmt yuvj420p hey.jpg");
 }
 
 int 
 send_script() 
 {
-        char* post;
+	char* post;
         
 	post = build_script();
 	printf("post: %s \n", post);
-        system(post);
+	system(post);
         
-        return 0;
+	return 0;
 }
 
 void 
@@ -149,9 +152,6 @@ start_timers()
 	return;
 }
 
-FILE *fp;
-unsigned long jpg_s;
-unsigned char * buf;
 
 int
 read_jpeg(void)

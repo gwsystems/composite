@@ -3,17 +3,13 @@
 #include <camera.h>
 #include <cos_alloc.h>
 #include <cos_component.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <memmgr.h>
-
 #include <sched.h>
 #include <gateway_spec.h>
-
 #include <udpserver.h>
-
 #include "jpeglib.h"
 
 #define JPEG_SZ 155803
@@ -35,6 +31,7 @@ struct rp {
 	int x, y;
 	unsigned long direction;
 };
+
 struct rp rpos;
 
 int read_jpeg_file(void);
@@ -54,20 +51,23 @@ int orange = 0;
 extern const char _binary_greenroomba_jpg_start;
 extern int _binary_greenroomba_jpg_size;
 
-int init_map(int height, int width) {
-  int i;
-  int **m = (int**)malloc(sizeof(int*)*width);
-  for(i = 0; i < width; i++) {
-    m[i] = (int*)malloc(sizeof(int)*height);
-    memset(m[i], '5', height);
-  }
-  map = m;
-  return 1;
+int 
+init_map(int height, int width) {
+	/* initialize map with 5's so we know if something goes wrong if it's not 0,1,2 */
+	int i;
+	int **m = (int**)malloc(sizeof(int*)*width);
+	for(i = 0; i < width; i++) {
+		m[i] = (int*)malloc(sizeof(int)*height);
+		memset(m[i], '5', height);
+	}
+	map = m;
+	return 1;
 }
 
 int 
 check_quadrant(int x, int y) 
 {
+	/* determine the section in which the pixel is in for 4 quadrants */
 	if(y >= 0 && y < height/2 && x >=0 && x < width/2) return 0;
 	if(y >= 0 && y < height/2 && x > width/2 && x < width) return 1;
 	if(y >=height/2 && y < height/2 && x >=width/2 && x < width) return 2;
@@ -77,7 +77,8 @@ check_quadrant(int x, int y)
 
 int 
 check_section(int x, int y) 
-{ //replacement for check_qudrant
+{
+	/* determine the section in which the pixel is in for a map with 9 sectors*/
 	if(y >= 0 && y < height/3 && x >=0 && x < width/3) return 1;
 	if(y >= 0 && y < height/3 && x > width/3 && x < 2*(width/3)) return 2;
 	if(y >= 0 && y < height/3 && x >=2*(width/3) && x < width) return 3;
@@ -91,9 +92,11 @@ check_section(int x, int y)
 }
 
 /*
+sectors corresponding to coordinates
 q1 q2 q3
 q4 q5 q6
 q7 q8 q9
+
 00 10 20
 01 11 21
 02 12 22
@@ -102,7 +105,7 @@ int
 check_obstacles(int *triple, int x, int y) 
 {
 	/*
-	Checking for "obstacles"
+	Checking for "obstacles", in this case, orange cutouts of people
 	255-165-0 orange
 	255-140-0 dark orange
 	*/
@@ -120,8 +123,6 @@ int
 ret_obstacles() 
 {
 	printc("ret_obstacles\n");
-	
-	//memset(obstacles, 0, 9*sizeof(int));
 	orange = 1;
 	read_jpeg_file();
 	int i;
@@ -129,83 +130,89 @@ ret_obstacles()
 	for(i = 0; i < 9; i++) {
 		if(obstacles[i]) return i;
 	}
-	return -1; //obstacles;
+	return -1;
 }
 
-//new way of doing it, with 9 sections
 int 
 det_col(int *triple, int x, int y) 
-{ //determine_color
-	//check front color //green?
+{ 
+	/* determine_color: front color green, back color red */
+	/* give valid range to be considered red */
 	if(triple[0] < 100 && triple[1] > 240 && triple[2] < 100) {
 	   map[x][y] = 1;
 	   track9[check_section(x,y)] = 1;
 	   return 1;
 	}
-	
-	//check back color //red?
+	/* give valid range to be considered red */ 	
 	if(triple[0] > 240 && triple[1] < 100 && triple[2] < 100) {
 	   map[x][y] = 2;
 	   track9[check_section(x,y)] = 1;
 	   return 2;
 	}
-	
 	return 0;
 }
 
-int det_orient() { //determine_orientation
+int 
+det_orient() { 
+	/* determine_orientation: NESW */
 	int xc, yc;
+	/* x-current, y-current */
+
 	int i, j, k;
-	printc("in det_orient\n");
 	for(i = 0 ; i < width; i++) {
-	  for(j = 0; j < height; j++) {
-	      if (map[i][j] == 0) continue;
-	      //for each col that one of the colors is in, check to see if the other color is in the same col
-	      if (map[i][j] == 1) { // if green
-	        for(k = j; k < height; k++) {
-	/*NORTH*/  if (map[i][k] == 2) {
-	      	 printc("NORTH\n");
-	      	return 0; //green above red
-	           }
-	        }
-	      } 
-	      if (map[i][j] == 2) {
-	        for(k = j; k < height; k++) {
-	/*SOUTH*/  if (map[i][k] == 1) {
-	      	printc("SOUTH\n"); 
-	      	return 2; //green below red
-	           }
-	        }
-	      } 
-	      //repeat for the row
-	      if (map[i][j] == 1) {
-	        for(k = i; k < width; k++) {
-	/*WEST*/ if (map[k][j] == 2) { 
-	      	printc("WEST\n"); 
-	      	return 3; //green left of red
-	         }
-	        }
-	      } 
-	      if (map[i][j] == 2) {
-	        for(k = i; k < width; k++) {
-	/*EAST*/ if (map[k][j] == 1) {
-	      	printc("EAST\n"); 
-	      	return 2; //green right of red
-	         }
-	        }
-	      }
-	  }
+		for(j = 0; j < height; j++) {
+			if (map[i][j] == 0) continue;
+			  /* for each column that one of the colors is in, check to see if the other color is in the same column */
+			if (map[i][j] == 1) {
+				for(k = j; k < height; k++) {
+					if (map[i][k] == 2) {
+						/*green above red*/
+						printc("NORTH\n");
+						return 0; 
+					}
+				}
+			} 
+			if (map[i][j] == 2) {
+				for(k = j; k < height; k++) {
+					if (map[i][k] == 1) {
+						/*green below red*/
+						printc("SOUTH\n"); 
+						return 2; 
+					}
+				}
+			} 
+
+			/* repeat for the row */
+			if (map[i][j] == 1) {
+				for(k = i; k < width; k++) {
+					if (map[k][j] == 2) { 
+						/*green left of red*/
+						printc("WEST\n"); 
+						return 3;
+					}
+				}
+			} 
+			if (map[i][j] == 2) {
+				for(k = i; k < width; k++) {
+					if (map[k][j] == 1) {
+						/*green right of red*/
+						printc("EAST\n"); 
+						return 2;
+					}
+				}
+			}
+		}
 	}
 	return -1; 
 }
 
 int
 det_location_9(int x, int y) {
-
+	/* determine location of roomba within map with 9 sectors */
 	read_jpeg_file();
 	int i;
 	for(i = 0 ; i< 9; i++) {
-	  if(track9[i]) printc("Section %d\n", i);
+		if(track9[i]) printc("Section %d\n", i);
 	}
 	printc("%d\n", det_orient());
 	return 0;
@@ -213,6 +220,7 @@ det_location_9(int x, int y) {
 
 int
 printmap(void){
+	/* print jpg map */
 	int i;
 	int j;
 	for (i = 0; i < width; i++) {
@@ -225,8 +233,9 @@ printmap(void){
 }
 
 int 
-read_jpeg_file(void) //char *filename )
+read_jpeg_file(void)
 {
+	/* reads and deconstructs jpg data in shdmem with udp_server */
 	struct jpeg_decompress_struct cinfo;
 	struct jpeg_error_mgr jerr;
 	JSAMPROW row_pointer[1];
@@ -241,11 +250,11 @@ read_jpeg_file(void) //char *filename )
 
 	FILE * fp = fmemopen(jpeg_data_start, JPG_SZ, "rb");
 	assert(fp);
+
 	jpeg_stdio_src( &cinfo, fp);
 	
 	jpeg_read_header( &cinfo, TRUE );
 
-	printc("start decompress with our real data\n");
 	jpeg_start_decompress( &cinfo );
 	
 	raw_image = (unsigned char*)malloc( cinfo.output_width*cinfo.output_height*cinfo.num_components );
@@ -256,9 +265,12 @@ read_jpeg_file(void) //char *filename )
 	int x = 0;
 	int y = 0;
 	 
-	 printc("cinfo.image_height: %d\n", cinfo.image_height);
-	 while( cinfo.output_scanline < cinfo.image_height )
-	 {
+	printc("cinfo.image_height: %d\n", cinfo.image_height);
+	/*  for each pixel/color info in jpg, copy into map 
+		Order: RGB (Red, Green, Blue)
+	*/
+	while( cinfo.output_scanline < cinfo.image_height )
+	{
 		x = 0;
 		int triple[3];
 		jpeg_read_scanlines( &cinfo, row_pointer, 1 );
@@ -266,35 +278,33 @@ read_jpeg_file(void) //char *filename )
 		for( i=0; (unsigned int)i<cinfo.image_width*cinfo.num_components;i++) {
 			 raw_image[location++] = row_pointer[0][i];
 
-		         if (row_pointer[0][i] < 0) {
-		         	triple[i%cinfo.num_components] = 256 + (int)row_pointer[0][i];
+			 if (row_pointer[0][i] < 0) {
+					triple[i%cinfo.num_components] = 256 + (int)row_pointer[0][i];
 			 } else {
-		         	triple[i%cinfo.num_components] = (int)row_pointer[0][i];
+					triple[i%cinfo.num_components] = (int)row_pointer[0][i];
 			 }
-		         int test = row_pointer[0][i];
-		         if(i%cinfo.num_components == 2) {
-		              //check_green(triple, y, x);
-   		              if(!orange) det_col(triple, x, y);
-			      else check_obstacles(triple, x, y); 
-		              x++;
-		         }
+			 // int test = row_pointer[0][i]; /* print to see color value */
+			
+			/* every 3 pixel values, evaluate the combined colors: RGB values */
+			if(i%cinfo.num_components == 2) {
+				if(!orange) det_col(triple, x, y);
+				else check_obstacles(triple, x, y); 
+				x++;
+			}
 		}
-	 	y++;
- 	 }
-
+		y++;
+	}
  	jpeg_finish_decompress( &cinfo );
  	jpeg_destroy_decompress( &cinfo );
- 
- return 1;
+	return 1;
 }
 
 int
 check_location_image(int x, int y) {
-
+	/* call externally */
 	if (!image_available) {
 		return 0;
 	}
-
 	return 1;
 }
 
@@ -319,7 +329,6 @@ camera_image_available(arcvcap_t rcv, void * data)
 		//det_location_9(0, 0);
 		ret_obstacles();
 		image_available = 1;	
-		
 	}
 }
 
