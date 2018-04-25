@@ -23,22 +23,18 @@
 asndcap_t driver_asnd;
 cycles_t cycs_per_usec;
 
+vaddr_t shmem_addr = NULL;
+
+int obstacles[9] = {0,0,0,0,0,0,0,0,0};
+unsigned long dir_array[6] = {5, 5, 5, 5, 5, 5};
+int blacklisted[9];
+unsigned char script[100];
+
 struct rp {
 	int x, y;
 	unsigned long direction;
 };
 struct rp rpos;
-
-struct cos_aep_info taeps;
-struct cos_aep_info taepsdumb;
-vaddr_t shmem_addr = NULL;
-
-int obstacles[9] = {0,0,0,0,0,0,0,0,0};
-unsigned char script[100];
-unsigned long dir_array[6] = {5, 5, 5, 5, 5, 5};
-
-
-int blacklisted[9];
 
 int
 blacklist(int token)
@@ -53,13 +49,6 @@ check_legality(int x, int y)
 	if (x < 0 || x > 2 || y < 0 || y > 2) return 0;
 	return 1;
 }
-
-int
-update_script(int x)
-{
-	return 0;
-}
-
 
 int
 detoury(int* i, unsigned long* dir_array, int xcurr, int ycurr, int xf, int yf)
@@ -99,158 +88,150 @@ detoury(int* i, unsigned long* dir_array, int xcurr, int ycurr, int xf, int yf)
 	return ycurr;
 }
 
-
-unsigned long *
+void
 generate_path(int xchange, int ychange, int xf, int yf)
 {
-	/*
-	 *	mapping follows 2D array visual depiction
-	 *	00 10 20
-	 *	01 11 21
-	 *	02 12 22
-	 */
-	int obstacles[9] = {0,0,0,0,0,0,0,0,0};
-	int l;
-	int orange[3][3] = {{0,0,0},{0,0,0},{0,0,0}};
-	memset(dir_array, 5, 6);
-	
-	int j = camera_find_obstacles();
-	if(j!= -1) obstacles[j] = 1;
-		
-	/*map Section policy to x,y policy*/
-	orange[0][0] = obstacles[0];
-	orange[1][0] = obstacles[1];
-	orange[2][0] = obstacles[2];
-	
-	orange[0][1] = obstacles[3];
-	orange[1][1] = obstacles[4];
-	orange[2][1] = obstacles[5];
-	
-	orange[0][2] = obstacles[6];
-	orange[1][2] = obstacles[7];
-	orange[2][2] = obstacles[8];
-	
-	int xcurr = rpos.x;
-	int ycurr = rpos.y;
-	int i = 0;
-	int w = 0;
-	printc("xcurr %d ycurr %d xf %d yf %d direction %lu\n", xcurr, ycurr, xf, yf, rpos.direction);
-	
-	while(xcurr != xf || ycurr != yf) {
-		if(w > 6) break;
-		w++;
-		xchange = xf - xcurr;
-		ychange = yf - ycurr;
-		printc("%d %d\n", xchange, ychange);
-		if(xchange > 0 && !orange[xcurr+1][ycurr]) {
-			printc("%lu\n", rpos.direction);
-			switch(rpos.direction) {
-				case NORTH: { dir_array[i] = EAST; break; }
-				case EAST: { dir_array[i] = NORTH; break; }
-				case SOUTH: { dir_array[i] = WEST; break;}
-				case WEST: { dir_array[i] = SOUTH; break; }
-				default:
-				printc("error, no direction?\n");
-				break;         
-		 	}
-			rpos.direction = (rpos.direction+ dir_array[i])%4;
-			i++;
-			xcurr++;
-			continue;
-		}
-		if(xchange < 0 && !orange[xcurr-1][ycurr]) { //go w
-			switch(rpos.direction) {
-				case NORTH: { dir_array[i] = WEST; break; }
-				case EAST: {dir_array[i] = SOUTH; break; }
-				case SOUTH: { dir_array[i] = EAST; break;}
-				case WEST: { dir_array[i] = NORTH; break; }
-						default:
-				printc("error, no direction?\n");
-				break;  
-			}
-			rpos.direction = (rpos.direction + dir_array[i])%4;
-			i++;
-			xcurr--;
-			continue;
-		}
-		if(ychange < 0 && !orange[xcurr][ycurr-1]) { //go n
-			switch(rpos.direction) {
-				case NORTH: { dir_array[i] = NORTH; break; }
-				case EAST: {dir_array[i] = WEST; break; }
-				case SOUTH: { dir_array[i] = SOUTH; break;}
-				case WEST: { dir_array[i] = EAST; break; }
-								default:
-				printc("error, no direction?\n");
-				break;
-			}
-			rpos.direction = (rpos.direction + dir_array[i])%4;
-			i++;
-			ycurr--;
-			continue;
-		}
-		if(ychange > 0 && !orange[xcurr][ycurr+1]) { //go s
-			switch(rpos.direction) {
-				case NORTH: { dir_array[i] = SOUTH; break; }
-				case EAST: {dir_array[i] = EAST; break; }
-				case SOUTH: { dir_array[i] = NORTH; break;}
-				case WEST: { dir_array[i] = WEST; break; }
-						default:
-				printc("error, no direction?\n");
-				break;  }
-			rpos.direction = (rpos.direction + dir_array[i])%4;                    
-			i++;
-			ycurr++;
-			continue;
-		}
-		if (xchange > 0 && orange[xcurr+1][ycurr]) {
-			printc("detouring\n");
-			ycurr = detoury(&i, dir_array, xcurr, ycurr, xf, yf);
-			break;
-		}
-		if (xchange < 0 && orange[xcurr-1][ycurr]) {
-			printc("detouring 2\n");
-			ycurr = detoury(&i, dir_array, xcurr, ycurr, xf, yf);
-			break;
-		}
-	
-	}
-	dir_array[i] = -1;
-	
-	int k =0;
-	for (k = 0; k < 6; k++) {
-		printc("end dir_array[%d]: %lu \n", k, dir_array[k]);
-	}	
-	return dir_array;
-}
+    /*
+     *	mapping follows 2D array visual depiction
+     *	00 10 20
+     *	01 11 21
+     *	02 12 22
+     */
+    int obstacles[9] = {0,0,0,0,0,0,0,0,0};
+    int l;
+    int orange[3][3] = {{0,0,0},{0,0,0},{0,0,0}};
+    memset(dir_array, 5, 6);
 
+    int j = camera_find_obstacles();
+    if(j!= -1) obstacles[j] = 1;
+	    
+    /*map Section policy to x,y policy*/
+    orange[0][0] = obstacles[0];
+    orange[1][0] = obstacles[1];
+    orange[2][0] = obstacles[2];
+
+    orange[0][1] = obstacles[3];
+    orange[1][1] = obstacles[4];
+    orange[2][1] = obstacles[5];
+
+    orange[0][2] = obstacles[6];
+    orange[1][2] = obstacles[7];
+    orange[2][2] = obstacles[8];
+
+    int xcurr = rpos.x;
+    int ycurr = rpos.y;
+    int i = 0;
+    int w = 0;
+    printc("xcurr %d ycurr %d xf %d yf %d direction %lu\n", xcurr, ycurr, xf, yf, rpos.direction);
+
+    while(xcurr != xf || ycurr != yf) {
+	if(w > 6) break;
+	w++;
+	xchange = xf - xcurr;
+	ychange = yf - ycurr;
+	printc("%d %d\n", xchange, ychange);
+	if(xchange > 0 && !orange[xcurr+1][ycurr]) {
+	    printc("%lu\n", rpos.direction);
+	    switch(rpos.direction) {
+		case NORTH: { dir_array[i] = EAST; break; }
+		case EAST: { dir_array[i] = NORTH; break; }
+		case SOUTH: { dir_array[i] = WEST; break;}
+		case WEST: { dir_array[i] = SOUTH; break; }
+		default:
+		printc("error, no direction?\n");
+		break;         
+	    }
+	    rpos.direction = (rpos.direction+ dir_array[i])%4;
+	    i++;
+	    xcurr++;
+	    continue;
+	}
+	if(xchange < 0 && !orange[xcurr-1][ycurr]) { //go w
+	    switch(rpos.direction) {
+		case NORTH: { dir_array[i] = WEST; break; }
+		case EAST: {dir_array[i] = SOUTH; break; }
+		case SOUTH: { dir_array[i] = EAST; break;}
+		case WEST: { dir_array[i] = NORTH; break; }
+				default:
+		printc("error, no direction?\n");
+		break;  
+	    }
+	    rpos.direction = (rpos.direction + dir_array[i])%4;
+	    i++;
+	    xcurr--;
+	    continue;
+	}
+	if(ychange < 0 && !orange[xcurr][ycurr-1]) { //go n
+	    switch(rpos.direction) {
+		case NORTH: { dir_array[i] = NORTH; break; }
+		case EAST: {dir_array[i] = WEST; break; }
+		case SOUTH: { dir_array[i] = SOUTH; break;}
+		case WEST: { dir_array[i] = EAST; break; }
+						default:
+		printc("error, no direction?\n");
+		break;
+	    }
+	    rpos.direction = (rpos.direction + dir_array[i])%4;
+	    i++;
+	    ycurr--;
+	    continue;
+	}
+	if(ychange > 0 && !orange[xcurr][ycurr+1]) { //go s
+	    switch(rpos.direction) {
+		case NORTH: { dir_array[i] = SOUTH; break; }
+		case EAST: {dir_array[i] = EAST; break; }
+		case SOUTH: { dir_array[i] = NORTH; break;}
+		case WEST: { dir_array[i] = WEST; break; }
+				default:
+		printc("error, no direction?\n");
+		break;  }
+	    rpos.direction = (rpos.direction + dir_array[i])%4;                    
+	    i++;
+	    ycurr++;
+	    continue;
+	}
+	if (xchange > 0 && orange[xcurr+1][ycurr]) {
+	    printc("detouring\n");
+	    ycurr = detoury(&i, dir_array, xcurr, ycurr, xf, yf);
+	    break;
+    	}
+	if (xchange < 0 && orange[xcurr-1][ycurr]) {
+	    printc("detouring 2\n");
+	    ycurr = detoury(&i, dir_array, xcurr, ycurr, xf, yf);
+	    break;
+	}
+
+    }
+    dir_array[i] = -1;
+}
 
 int
 generate_script(unsigned long* direction) {
 
-	/*All directions operate relative to the robot's "current" position*/
-	int east[8] = {137,1,44,255,255,157,255,166};
-	int south[8] = {137,1,44,0,1,157,0,180};
-	int west[8] = {137,1,44,0,1,157,0,90};
+    /*All directions operate relative to the robot's "current" position*/
+    unsigned char east[8] = {137,1,44,255,255,157,255,166};
+    unsigned char south[8] = {137,1,44,0,1,157,0,180};
+    unsigned char west[8] = {137,1,44,0,1,157,0,90};
 
-	 /*north-south*/
-	int straight_ns[8] = {137,1,44,128,0,156,1,144}; 
+     /*north-south*/
+    unsigned char straight_ns[8] = {137,1,44,128,0,156,1,144}; 
 
-	/*east-west*/
-	int straight_ew[8] = {137,1,44,128,0,156,3,232};
+    /*east-west*/
+    unsigned char straight_ew[8] = {137,1,44,128,0,156,3,232};
 
-	int stop[5] = {137,0,0,0,0};
+    unsigned char stop[5] = {137,0,0,0,0};
 
-	unsigned long currd = rpos.direction;
+    unsigned long currd = rpos.direction;
 
-	int i;
-	int j = 0;
-	int sidx = 0;
-	
-	script[sidx] = SCRIPT_START;
-	/* leave space for size of script */
-	sidx+=2;
+    int i;
+    int j = 0;
+    int sidx = 0;
+    
+    script[sidx] = SCRIPT_START;
+    /* leave space for size of script */
+    sidx+=2;
 
-	while((int)direction[j] != -1) {
+    while((int)direction[j] != -1) {
 		switch (direction[j]) {
 			case NORTH:
 			{
@@ -259,7 +240,7 @@ generate_script(unsigned long* direction) {
 			}
 			case EAST:
 			{
-				printc("EAST\n");
+			printc("EAST\n");
 				memcpy(&script[sidx], east, 8);
 				sidx+=8;
 				break;
@@ -279,11 +260,11 @@ generate_script(unsigned long* direction) {
 				break;
 			}
 			default:
-				printc("error, no direction?\n");
-				break; 	
+			printc("error, no direction?\n");
+			break; 	
 		}	
-		/*If north, means move straight forward.
-		Either way, need to move straight after turning*/
+			/*If north, means move straight forward.
+			Either way, need to move straight after turning*/
 		if (direction[j] == NORTH || direction[j] == SOUTH) {
 			printc("STRAIGHT N-S\n");
 			memcpy(&script[sidx], straight_ns, 8);
@@ -298,19 +279,18 @@ generate_script(unsigned long* direction) {
 		memcpy(&script[sidx], stop, 5);
 		sidx+=5;
 		j++;	
-	}
-	/* start script*/
-	script[sidx] = 153; //TODO: make SCRIPT_END equal 153
-	script[1] = sidx-2;
+    }
+    /* start script*/
+    script[sidx] = 153;
+    script[1] = sidx-2;
 
-	/* print generated script*/
-	for(i = 0; i < sidx; i++) {
-		printc("%u ", script[i]);
-	}
+    /* print generated script*/
+//    for(i = 0; i < sidx; i++) {
+//		printc("%u ", script[i]);
+//    }
 
-	return 0;
+    return 0;
 }
-
 
 int
 create_movement(int xf, int yf) 
@@ -327,21 +307,10 @@ create_movement(int xf, int yf)
 
 #ifdef DEMO1
 	printc("Demo1:\n");
-	unsigned char t_script[100] = { 152, 91,
-                    137, 1, 44, 0, 1, 157, 0, 88, 137, 0, 0, 0, 0,
-                    137, 1, 44, 128, 0, 156, 1, 144, 137, 0, 0, 0, 0,
-                    137, 1, 44, 0, 1, 157, 0, 85, 137, 0, 0, 0, 0,
-                    137, 1, 44, 128, 0, 156, 3, 32, 137, 0, 0, 0, 0,
-                    137, 1, 44, 128, 0, 156, 3, 32, 137, 0, 0, 0, 0,
-                    137, 1, 44, 0, 1, 157, 0, 85, 137, 0, 0, 0, 0,
-                    137, 1, 44, 128, 0, 156, 1, 144, 137, 0, 0, 0, 0, SCRIPT_END, 0,0,0,0,0,0
-                  };	
-
 
 	/* Request obstacle locations from Camera component */
 	int ret = check_location_image(0, 0);
 	while (!ret) {
-	//	printc("loading image data\n");
 		rdtscll(now);
 		wakeup = now + (5000 * 1000 * cycs_per_usec);
 		sched_thd_block_timeout(0, wakeup);
@@ -349,27 +318,22 @@ create_movement(int xf, int yf)
 		ret = check_location_image(0, 0);
 	}
 
+	printc("Generating route\n");
+	generate_path(xf - rpos.x, yf - rpos.y, xf, yf);
+	printc("Generating script\n");
+	generate_script(dir_array);
 
-
-	printc("\nGenerate route\n");
-	direction = generate_path(xf - rpos.x, yf - rpos.y, xf, yf);
-	printc("\nGenerate script\n");
-	generate_script(direction);
-
-	printc("shmem: %p \n", (char *) shmem_addr);
-	memcpy((unsigned char *)shmem_addr, t_script, 100);	
-	udpserv_script(SEND_SCRIPT, 8);
-
-
+	memcpy((unsigned char *)shmem_addr, script, 100);	
+	udpserv_request(SEND_SCRIPT, 8);
 	
 #elif DEMO2
 	printc("Demo2:\n");
 	printc("shmem: %p \n", (char *) shmem_addr);
 	memcpy((unsigned char *)shmem_addr, script, 100);	
-	udpserv_script(SEND_SCRIPT, 8);
+	udpserv_request(SEND_SCRIPT, 8);
 	
 	/* Verify Script with Camera component */
-	udpserv_script(REQ_JPEG, 4);
+	udpserv_request(REQ_JPEG, 4);
 	int ret = check_location_image(0, 0);
 	while (!ret) {
 		printc("image unavailable\n");
@@ -385,32 +349,32 @@ create_movement(int xf, int yf)
 		printc("ROOMBA COMPROMISED, ABORT: %d\n", ret);
 		printc("shmem: %p \n", (char *) shmem_addr);
 		memcpy((unsigned char *)shmem_addr, script, 100);	
-		udpserv_script(SEND_SHUTDOWN, 8);
+		udpserv_request(SEND_SHUTDOWN, 8);
 	}
 #elif DEMO3
 
 	printc("Demo3:\n");
 	
 	/* Verify Script with Camera component */
-//	udpserv_script(REQ_JPEG, 4);
-//	int ret = check_location_image(0, 0);
-//	while (!ret) {
-//		printc("loading image data\n");
-//		rdtscll(now);
-//		wakeup = now + (10000 * 1000 * cycs_per_usec);
-//		sched_thd_block_timeout(0, wakeup);
-//		
-//		ret = check_location_image(0, 0);
-//	}
-//
-//	printc("obstacles: %d \n", ret);
+	udpserv_request(REQ_JPEG, 4);
+	int ret = check_location_image(0, 0);
+	while (!ret) {
+		printc("loading image data\n");
+		rdtscll(now);
+		wakeup = now + (10000 * 1000 * cycs_per_usec);
+		sched_thd_block_timeout(0, wakeup);
+		
+		ret = check_location_image(0, 0);
+	}
+
+	printc("obstacles: %d \n", ret);
 
 	unsigned char tscript[100] = {152, 21, 137, 1, 44, 0, 1, 157, 0, 180, 137, 1, 44, 128, 0, 156, 2, 232, 137, 0, 0, 0, 0, 153, SCRIPT_END};
 	printc("serving: %s\n", &tscript[0]);
 
 	printc("shmem: %p \n", (char *) shmem_addr);
 	memcpy((unsigned char *)shmem_addr, tscript, 100);	
-	udpserv_script(SEND_SCRIPT, 8);
+	udpserv_request(SEND_SCRIPT, 8);
 
 
 #endif
@@ -470,6 +434,8 @@ cos_init(void)
 {
 	printc("\nWelcome to the robot_cont component\n");
 	thdid_t tidp;
+	struct cos_aep_info taeps;
+
 	int i = 0;
 	cycles_t wakeup, now;
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);

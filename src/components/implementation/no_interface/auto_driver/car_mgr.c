@@ -2,9 +2,7 @@
 #include <cos_component.h>
 #include <sched.h>
 #include <robot_cont.h>
-
 #include <gateway_spec.h>
-
 #include <memmgr.h>
 
 struct cos_aep_info taeps[2];

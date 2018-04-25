@@ -11,4 +11,3 @@
 
 .text
 cos_asm_server_stub_token(send_task)
-cos_asm_server_stub(update_script)

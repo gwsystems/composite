@@ -139,16 +139,13 @@ locate_roomba(void)
 int 
 camera_find_obstacles() 
 {
-	printc("ret_obstacles\n");
-	
-	//memset(obstacles, 0, 9*sizeof(int));
 	orange = 1;
 	read_jpeg_file();
 	int i;
 	orange = 0;
 	for(i = 0; i < 9; i++) {
 		if(obstacles[i]) {
-			printc("obstacle found: %d \n", i);
+			printc("obstacle detected: %d \n", i);
 		       	return i;
 		}
 	}
@@ -158,7 +155,8 @@ camera_find_obstacles()
 //new way of doing it, with 9 sections
 int 
 det_col(int *triple, int x, int y) 
-{ //determine_color
+{ 
+	//determine_color
 	//check front color //green?
 	if(triple[0] < 100 && triple[1] > 240 && triple[2] < 100) {
 	   map[x][y] = 1;
@@ -248,7 +246,7 @@ read_jpeg_file(void) //char *filename )
 	cinfo.err = jpeg_std_error( &jerr );
 	jpeg_create_decompress( &cinfo );
 
-	printc("read_jpeg\n");
+	printc("Analyzing jpeg\n");
 
 	FILE * fp = fmemopen(jpeg_data_start, JPG_SZ, "rb");
 	assert(fp);
@@ -256,7 +254,6 @@ read_jpeg_file(void) //char *filename )
 	
 	jpeg_read_header( &cinfo, TRUE );
 
-	printc("start decompress with our real data\n");
 	jpeg_start_decompress( &cinfo );
 	
 	raw_image = (unsigned char*)malloc( cinfo.output_width*cinfo.output_height*cinfo.num_components );
@@ -267,7 +264,6 @@ read_jpeg_file(void) //char *filename )
 	int x = 0;
 	int y = 0;
 	 
-	 printc("cinfo.image_height: %d\n", cinfo.image_height);
 	 while( cinfo.output_scanline < cinfo.image_height )
 	 {
 		x = 0;
@@ -305,7 +301,7 @@ check_location_image(int x, int y) {
 	static int pending = 0;
 	if (!image_available) {
 		if (!pending) {
-			udpserv_script(REQ_JPEG, 0);
+			udpserv_request(REQ_JPEG, 0);
 			pending = 1;
 		}
 		return 0;
@@ -330,13 +326,8 @@ camera_image_available(arcvcap_t rcv, void * data)
 			continue;
 		}
 
-		printc("camera image available\n");
+		printc("Jpeg available\n");
 		jpeg_data_start = (char *)shdmem_addr;
-		printc("jpeg_data_start: %p \n", jpeg_data_start);
-		/* Demo 1 */
-		//ret_obstacles();
-
-		/* Demo 2 */
 //		locate_roomba();
 
 		image_available = 1;	

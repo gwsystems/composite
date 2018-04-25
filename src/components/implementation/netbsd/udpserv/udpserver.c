@@ -7,10 +7,8 @@
 #include <cos_component.h>
 #include <cos_defkernel_api.h>
 #include <rk.h>
-
 #include <memmgr.h>
 #include <capmgr.h>
-//#include <sched.h>
 
 #include <udpserver.h>
 #include <gateway_spec.h>
@@ -26,20 +24,15 @@ int spdid;
 extern int vmid;
 extern struct cos_component_information cos_comp_info;
 
-struct cos_aep_info taeps;
-
 struct sockaddr_in soutput, sinput;
-
-int recv_jpeg = 0;
 
 enum serving {
 	pending,
 	rcving_jpeg,
-	snding_jpeg,
+	req_jpeg,
 	snding_script,
 	snding_shutdown
 };
-
 enum serving status = pending;
 
 
@@ -54,41 +47,29 @@ asndcap_t robot_cont_asnd;
 asndcap_t image_ready_asnd;
 
 int
-udpserv_request_image(int compid)
+udpserv_request(int shdmemid, int request)
 {
-	printc("udpserv: requesting image status: %d \n", status);
-
-	if (recv_jpeg == 1) {
-		printc("image being recvd\n");
-		return 0;	
-	}
-	status = snding_jpeg;
-	return 0;
-}
-
-/* Will be mdae asynchronous: notifies udp server of a script update */
-int
-udpserv_script(int shdmemid, int test)
-{
-	if (test == REQ_JPEG) {
-		printc("REQUESTING JPEG\n");
-		udpserv_request_image(shdmemid);
-		return 0;
-	}
-
-	if (test == SEND_SCRIPT) {
-		printc("SENDING SCRIPT: %d \n", shdmemid);
-		status = snding_script;
-	}
-	
-	if (test == SEND_SHUTDOWN) {
-		printc("SENDING SHUTDOWN\n");
-		status = snding_shutdown;
-	}
-
 	int i = 0;
-	unsigned char * shm_ptr = (unsigned char *)shdmem_addr;
 
+	switch (request) {
+		case REQ_JPEG:
+			printc("REQUESTING JPEG\n");
+			if (status == rcving_jpeg) return 0;	
+			status = req_jpeg;
+			return 0;
+		case SEND_SCRIPT:
+			printc("SENDING SCRIPT: %d \n", shdmemid);
+			status = snding_script;
+			break;
+		case SEND_SHUTDOWN:
+			printc("SENDING SHUTDOWN\n");
+			status = snding_shutdown;
+			break;
+		default:
+			break;
+	}
+
+	unsigned char * shm_ptr = (unsigned char *)shdmem_addr;
 	for (i = 0; i < MAX_SCRIPT_SZ; i ++) {
 		script[i] = (unsigned char)shm_ptr[i];
 	}
@@ -118,11 +99,7 @@ update_script()
 		((unsigned char*)__msg)[i] = script[j];
 		//printc("%u , ", ((unsigned char*)__msg)[i]);
 	
-		if (script[j] == SCRIPT_END) {
-			/* Reset num and script */
-			//printc("reached end of script: %d \n", j);
-			break;
-		}
+		if (script[j] == SCRIPT_END) break;
 
 		j++;
 	}
@@ -142,24 +119,19 @@ check_task_done(int x, int y)
 static void
 store_jpeg(void)
 {
-	//static char * addr = (char *)shdmem_addr;
 	static int stored = 0;
-	static int count = 0;
 
 	memcpy((char *)camera_shdmem_addr + stored, __msg, MSG_SZ);
 	stored += MSG_SZ;
 
-	count++;	
 	if (stored > JPG_SZ) {
 		//printc("stored in: %d \n", count);
-		recv_jpeg = 0;
 		status = pending;
 
 		cos_asnd(image_ready_asnd, IMAGE_AEP_KEY);
 		stored = 0;
 		return;
 	}
-
 }
 
 static int
@@ -201,8 +173,7 @@ udp_server_start(void)
 			continue;
 		}
 
-		if (recv_jpeg) {
-			status = pending;
+		if (status == rcving_jpeg) {
 			store_jpeg();
 		}
 		
@@ -215,7 +186,7 @@ udp_server_start(void)
 				break;
 			case RECV_JPEG:
 				printc("Recving jpeg now: \n");	
-				recv_jpeg = 1;
+				status = rcving_jpeg;
 				break;
 			case SCRIPT_RECV_ACK:
 				printc("Script Recvd by client \n");	
@@ -227,7 +198,7 @@ udp_server_start(void)
 
 		/* Serving Routine */	
 		switch(status) {
-		case snding_jpeg:
+		case req_jpeg:
 			((unsigned int *)__msg)[0] = REQ_JPEG;
 			break;
 		
@@ -239,7 +210,7 @@ udp_server_start(void)
 		case snding_shutdown:
 			printc("UDP: Sending shutdown: %d \n", status);
 			((unsigned int *)__msg)[0] = SEND_SHUTDOWN;
-			update_script();
+			//update_script();
 			status = pending;
 			break;
 		
@@ -253,7 +224,6 @@ udp_server_start(void)
 			printc("sendto");
 			continue;
 		}
-
 
 	} while (1) ;
 
@@ -269,14 +239,6 @@ udpserv_main(void)
 	udp_server_start();
 
 	return 0;
-}
-
-void
-request_image(arcvcap_t rcv, void * data)
-{
-	printc("request_image\n");
-
-	return;
 }
 
 void

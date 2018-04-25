@@ -9,12 +9,4 @@
 
 #include <cos_asm_server_stub.h>
 
-//cos_asm_server_stub_spdid(netif_event_create)
-//cos_asm_server_stub_spdid(netif_event_release)
-//cos_asm_server_stub_spdid(netif_event_wait)
-//cos_asm_server_stub_spdid(netif_event_xmit)
-//
-//cos_asm_server_stub(netif_upcall_cyc)
-
-cos_asm_server_stub_token(udpserv_script)
-//cos_asm_server_stub(udpserv_request_image)
+cos_asm_server_stub_token(udpserv_request)
