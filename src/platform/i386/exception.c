@@ -5,6 +5,7 @@
 #include "string.h"
 #include "isr.h"
 #include "chal_cpu.h"
+#include "chal_pgtbl.h"
 
 #define PRINTK(format, ...) printk("(CPU%ld:) " format, get_cpuid(), ## __VA_ARGS__)
 
@@ -142,9 +143,9 @@ page_fault_handler(struct pt_regs *regs)
 	eip        = chal_cpu_fault_ip(regs);
 
 	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%x, ip 0x%x\n", thdid,
-	    errcode & PGTBL_PRESENT ? "present" : "not-present",
-	    errcode & PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & PGTBL_USER ? "user-mode" : "system",
-	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, eip);
+	    errcode & X86_PGTBL_PRESENT ? "present" : "not-present",
+	    errcode & X86_PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & X86_PGTBL_USER ? "user-mode" : "system",
+	    errcode & X86_PGTBL_WT ? "reserved" : "", errcode & X86_PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, eip);
 
 	return 1;
 }

@@ -15,6 +15,7 @@
 #include "include/tcap.h"
 #include "include/chal/defs.h"
 #include "include/hw.h"
+#include "include/chal/chal_prot.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -127,9 +128,9 @@ kmem_unalloc(unsigned long *pte)
 	 */
 	unsigned long old = *pte;
 
-	assert(old & PGTBL_COSKMEM);
-	retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
-	*pte = old & ~PGTBL_COSKMEM;
+	assert(chal_pgtbl_flag_exist(old, PGTBL_COSKMEM));
+	retypetbl_deref((void *)(old & PGTBL_FRAME_MASK), PAGE_ORDER);
+	*pte = chal_pgtbl_flag_clr(*pte, PGTBL_COSKMEM);
 }
 
 /*
@@ -157,8 +158,8 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 	old_v = *v = **p_pte;
 
 	pa = old_v & PGTBL_FRAME_MASK;
-	if (!(old_v & PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
-	assert(!(old_v & PGTBL_QUIESCENCE));
+	 if (!chal_pgtbl_flag_exist(old_v, PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
+	 assert(!chal_pgtbl_flag_exist(old_v, PGTBL_QUIESCENCE)); 
 
 	/* Scan the page to make sure there's nothing left. */
 	if (ch->type == CAP_CAPTBL) {
@@ -275,12 +276,12 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v)
 {
 	int   ret;
 	u32_t new_v;
-
 	/* Unset coskmem bit. Release the kmem frame. */
-	new_v = old_v & (~PGTBL_COSKMEM);
+	new_v = chal_pgtbl_flag_clr(old_v, PGTBL_COSKMEM);
+
 	if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
-	ret = retypetbl_deref((void *)(old_v & PGTBL_FRAME_MASK));
+	ret = retypetbl_kern_deref((void *)(old_v & PGTBL_FRAME_MASK), PAGE_ORDER);
 	if (ret) {
 		/* FIXME: handle this case? */
 		cos_cas(pte, new_v, old_v);
@@ -298,9 +299,11 @@ err:
  * Copy a capability from a location in one captbl/pgtbl to a location
  * in the other.  Fundamental operation used to delegate capabilities.
  * TODO: should limit the types of capabilities this works on.
+ * The order is the power of 2 of the size of the (sub)page delegated.
+ *
  */
 static inline int
-cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, capid_t capin_from)
+cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, capid_t capin_from, vaddr_t order)
 {
 	struct cap_header *ctto, *ctfrom;
 	int                sz, ret;
@@ -365,14 +368,33 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 		if (unlikely(!ctto)) return -ENOENT;
 		if (unlikely(ctto->type != cap_type)) return -EINVAL;
 		if (unlikely(((struct cap_pgtbl *)ctto)->refcnt_flags & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
-		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+
+		/* 
+		 * See what kind of delegation we are doing. There are 4 kinds of delegations:
+		 * 1. Superpage -> Smallpage [capin_from_pos < 1024]
+		 * 2. Superpage -> Superpage [capin_from_pos == 0]
+		 * 3. Smallpage -> Smallpage [capin_from_pos == 0]
+		 * 4. Smallpage -> Superpage [prohibited]
+		 */
+		/* How big is the current page? */
+		f = pgtbl_lkup_pgd(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 		if (!f) return -ENOENT;
 		old_v = *f;
+		if (chal_pgtbl_flag_exist(old_v, PGTBL_SUPER)) {
+			if (order != 22) {
+				/* We need to pick a subpage */
+				old_v += EXTRACT_SUB_PAGE(capin_from);
+			}
+		} else {
+			if (order != 12) return -EPERM;
+			f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+			if (!f) return -ENOENT;
+			old_v = *f;
+		}
 
 		/* Cannot copy frame, or kernel entry. */
-		if ((old_v & PGTBL_COSFRAME) || !(old_v & PGTBL_USER)) return -EPERM;
-		/* TODO: validate the type is appropriate given the value of *flags */
-		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags);
+		if (chal_pgtbl_flag_exist(old_v, PGTBL_COSFRAME) || !chal_pgtbl_flag_exist(old_v, PGTBL_USER)) return -EPERM;
+		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags, order);
 	} else {
 		ret = -EINVAL;
 	}
@@ -412,8 +434,9 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, c
 		old_v_to = *moveto;
 
 		cos_mem_fence();
-		if ((old_v & PGTBL_COSFRAME) == 0) return -EPERM;
-		if (old_v_to & (PGTBL_COSFRAME | PGTBL_PRESENT)) return -EPERM;
+		if (!chal_pgtbl_flag_exist(old_v, PGTBL_COSFRAME)) return -EPERM;
+		if (chal_pgtbl_flag_exist(old_v_to, PGTBL_COSFRAME | PGTBL_PRESENT)) return -EPERM;
+
 		ret = pgtbl_quie_check(old_v_to);
 		if (ret) return ret;
 
@@ -1319,7 +1342,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t dest_captbl = __userregs_get2(regs);
 			capid_t dest_cap    = __userregs_get3(regs);
 
-			ret = cap_cpy(ct, dest_captbl, dest_cap, from_captbl, from_cap);
+			ret = cap_cpy(ct, dest_captbl, dest_cap, from_captbl, from_cap, 0);
 			break;
 		}
 		case CAPTBL_OP_CONS: {
@@ -1376,9 +1399,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t source_addr = __userregs_get1(regs);
 			capid_t dest_pt     = __userregs_get2(regs);
 			vaddr_t dest_addr   = __userregs_get3(regs);
+			vaddr_t order       = __userregs_get4(regs);
 
-			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr);
-
+			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr, order);
 			break;
 		}
 		case CAPTBL_OP_MEMMOVE: {
@@ -1416,8 +1439,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t frame_cap = __userregs_get1(regs);
 			capid_t dest_pt   = __userregs_get2(regs);
 			vaddr_t vaddr     = __userregs_get3(regs);
+			vaddr_t order     = __userregs_get4(regs);
 
-			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr);
+			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr, order);
 
 			break;
 		}
@@ -1434,33 +1458,36 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_MEM_RETYPE2USER: {
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
+			vaddr_t order;
 
-			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
+			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
-			ret = retypetbl_retype2user((void *)frame);
+			ret = retypetbl_retype2user((void *)frame, order);
 
 			break;
 		}
 		case CAPTBL_OP_MEM_RETYPE2KERN: {
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
+			vaddr_t order;
 
-			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
+			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
-			ret = retypetbl_retype2kern((void *)frame);
+			ret = retypetbl_retype2kern((void *)frame, order);
 
 			break;
 		}
 		case CAPTBL_OP_MEM_RETYPE2FRAME: {
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
+			vaddr_t order;
 
-			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
+			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
-			ret = retypetbl_retype2frame((void *)frame);
+			ret = retypetbl_retype2frame((void *)frame, order);
 
 			break;
 		}
@@ -1651,7 +1678,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			pte = pgtbl_lkup_pte(ptc->pgtbl, va, &flags);
 			if (!pte) cos_throw(err, -EINVAL);
 			if (*pte & PGTBL_FRAME_MASK) cos_throw(err, -ENOENT);
-			*pte = (PGTBL_FRAME_MASK & pa) | PGTBL_USER_DEF;
+			*pte = chal_pgtbl_flag_add(chal_pgtbl_frame(pa), PGTBL_USER_DEF);
 
 			ret = 0;
 			break;

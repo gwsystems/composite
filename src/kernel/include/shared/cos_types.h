@@ -15,7 +15,7 @@
 #define TYPES_H
 
 #include "./consts.h"
-#include "./cos_config.h"
+#include "../chal/shared/cos_config.h"
 #include "./chal_config.h"
 
 #ifndef LLONG_MAX
