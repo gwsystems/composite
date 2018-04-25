@@ -61,6 +61,7 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 
 	aep->thd = capmgr_thd_create(fn, data, &tid);
 	if (!aep->thd) goto done;
+	assert(tid < MAX_NUM_THREADS);
 	aep->tid = tid;
 
 	t = sl_thd_alloc_init(aep, 0, 0);
