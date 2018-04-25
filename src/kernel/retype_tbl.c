@@ -48,7 +48,7 @@ const int pos2order[2] = {12, 22};
 #define SUPER(order)     (pos2order[SUPER_POS(order)])
 #define SMALL(order)     (pos2order[SMALL_POS(order)])
 
-/* This only does reference for kernel typed memory, and we will not check the type */
+/* This only does reference for kernel typed memory */
 int
 retypetbl_kern_ref(void *pa, u32_t order)
 {
@@ -62,7 +62,8 @@ retypetbl_kern_ref(void *pa, u32_t order)
 	assert(idx < N_MEM_SETS);
 
 	p_glb = GET_GLB_RETYPE_ENTRY(idx, order);
-	
+	/* Is this kernel memory? */
+	if (p_glb->refcnt_atom.type != RETYPETBL_KERN) return -EINVAL;
 	/* Atomic with FAA - necessary because of cluster counting */
 	cos_faa((int*)&(p_glb->kernel_ref), 1);
 
@@ -82,20 +83,20 @@ retypetbl_kern_deref(void *pa, u32_t order)
 	assert(idx < N_MEM_SETS);
 
 	p_glb = GET_GLB_RETYPE_ENTRY(idx, order);
-	
+	/* Is this kernel memory? */
+	if (p_glb->refcnt_atom.type != RETYPETBL_KERN) return -EINVAL;
 	/* Atomic with FAA - necessary because of cluster counting */
 	cos_faa((int*)&(p_glb->kernel_ref), -1);
 
 	return 0;
 }
 
-/* This will not return overflow anymore because the kernel/user counter is large enough */
+/* This will only track the number of user counts */
 int
 retypetbl_ref(void *pa, u32_t order)
 {
-	/* FIXME:This can be very large on stack, consider shrinking it */
 	struct page_record  walk[NUM_PAGE_SIZES];
-	int i, ret, idx, type_y, type_n;
+	int i, ret, idx;
 	struct retype_entry temp, old_temp;
 	int found = 0;
 
@@ -105,19 +106,12 @@ retypetbl_ref(void *pa, u32_t order)
 	idx = GET_MEM_IDX(pa);
 	assert(idx < N_MEM_SETS);
 
-	walk[POS(order)].p = GET_RETYPE_ENTRY(idx, order);
-	if ((walk[POS(order)].p->refcnt_atom.type != RETYPETBL_USER) &&
-	    (walk[POS(order)].p->refcnt_atom.type != RETYPETBL_KERN)) return -EPERM;
-
-	type_y = walk[POS(order)].p->refcnt_atom.type;
-	if (type_y == RETYPETBL_KERN) type_n = RETYPETBL_USER; else type_n = RETYPETBL_KERN;
-	
 	for (i = POS(MAX_PAGE_ORDER); i >= POS(order); i--) {
 		walk[i].p = GET_RETYPE_ENTRY(idx, ORDER(i));
 		old_temp.refcnt_atom.v = walk[i].p->refcnt_atom.v;
-		temp.refcnt_atom.v = walk[i].p->refcnt_atom.v;
-		if (old_temp.refcnt_atom.type == type_n) cos_throw(err, -EPERM);
-		if (old_temp.refcnt_atom.type == type_y) found = 1;
+		temp.refcnt_atom.v = old_temp.refcnt_atom.v;
+		if (old_temp.refcnt_atom.type == RETYPETBL_KERN) cos_throw(err, -EPERM);
+		if (old_temp.refcnt_atom.type == RETYPETBL_USER) found = 1;
 		/* Increase or decrease the core-local count with CAS */
 		temp.refcnt_atom.ref_cnt++;
 		if (retypetbl_cas(&(walk[i].p->refcnt_atom.v), old_temp.refcnt_atom.v, temp.refcnt_atom.v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
@@ -137,10 +131,9 @@ err:
 int
 retypetbl_deref(void *pa, u32_t order)
 {
-	/* FIXME:This can be very large on stack, consider shrinking it */
 	struct page_record walk[NUM_PAGE_SIZES];
 	int found = 0;
-	int i, ret, idx, type_y, type_n;
+	int i, ret, idx;
 
 	assert(pa); /* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
@@ -148,18 +141,11 @@ retypetbl_deref(void *pa, u32_t order)
 	idx = GET_MEM_IDX(pa);
 	assert(idx < N_MEM_SETS);
 
-	walk[POS(order)].p = GET_RETYPE_ENTRY(idx, order);
-	if ((walk[POS(order)].p->refcnt_atom.type != RETYPETBL_USER) &&
-	    (walk[POS(order)].p->refcnt_atom.type != RETYPETBL_KERN)) return -EPERM;
-
-	type_y = walk[POS(order)].p->refcnt_atom.type;
-	if (type_y == RETYPETBL_KERN) type_n = RETYPETBL_USER; else type_n = RETYPETBL_KERN;
-
 	/* See if it is kernel or user */
 	for (i = POS(MAX_PAGE_ORDER); i >= POS(order); i--) {
 		walk[i].p = GET_RETYPE_ENTRY(idx, ORDER(i));
-		if (walk[i].p->refcnt_atom.type == type_n) cos_throw(err, -EPERM);
-		if (walk[i].p->refcnt_atom.type == type_y) found = 1;
+		if (walk[i].p->refcnt_atom.type == RETYPETBL_KERN) cos_throw(err, -EPERM);
+		if (walk[i].p->refcnt_atom.type == RETYPETBL_USER) found = 1;
 		walk[i].p->refcnt_atom.v--;
 		walk[i].inc_cnt = 1;
 	}

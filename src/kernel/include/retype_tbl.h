@@ -35,12 +35,12 @@ typedef enum {
 struct retype_entry {
 	union refcnt_atom {
 		struct {
-			mem_type_t type : RETYPE_ENT_TYPE_SZ;
 			/* 
 			 * The ref_cnt is the # of mappings in user space for user
 			 * memory, or # of mappings in kernel space for kernel memory.
 			 */
 			int ref_cnt : RETYPE_ENT_REFCNT_SZ;
+			mem_type_t type : RETYPE_ENT_TYPE_SZ;
 		} __attribute__((packed));
 		u32_t v;
 	} refcnt_atom;
@@ -59,11 +59,11 @@ struct retype_entry {
 struct retype_entry_glb {
 	union refcnt_atom_glb {
 		struct {
-			mem_type_t type : RETYPE_ENT_TYPE_SZ;
-			/* How many smaller subpages are typed as user-level? */
-			int user_cnt : RETYPE_ENT_GLB_REFCNT_SZ;
 			/* How many smaller subpages are typed as kernel? */
 			int kernel_cnt : RETYPE_ENT_GLB_REFCNT_SZ;
+			/* How many smaller subpages are typed as user-level? */
+			int user_cnt : RETYPE_ENT_GLB_REFCNT_SZ;
+			mem_type_t type : RETYPE_ENT_TYPE_SZ;
 		} __attribute__((packed));
 		u32_t v;
 	} refcnt_atom;

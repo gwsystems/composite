@@ -148,11 +148,11 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 	if (((struct cap_pgtbl *)dest_pt_h)->lvl) return -EINVAL;
 
 	/* What is the order needed for this? */
-	/* We will probably activate a part of a superpage - damn */
+	/* We will probably activate a part of a superpage */
 	pte = pgtbl_lkup_pgd(pt->pgtbl, frame_cap, &flags);
 	if (!pte) return -EINVAL;
 	orig_v = *pte;
-	
+
 	/* We don't allow activating non-frames or kernel entry */
 	if (orig_v & X86_PGTBL_SUPER) {
 		if (order != 22) {
@@ -281,6 +281,7 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t or
 	/* If we are trying to map a superpage and this position is already occupied */
 	if (order == 22) {
 		if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
+		flags |= X86_PGTBL_SUPER;
 	} else if (order == 12) {
 		if (!(orig_v & X86_PGTBL_PRESENT)) return -EINVAL;
 		if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
@@ -296,7 +297,7 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t or
 	ret = pgtbl_quie_check(orig_v);
 	if (ret) return ret;
 
-	/* ref cnt on the frame. */
+	/* ref cnt on the frame - always user frame. */
 	ret = retypetbl_ref((void *)page, order);
 	if (ret) return ret;
 
@@ -316,8 +317,6 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t o
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
 	assert((PGTBL_FRAME_MASK & flags) == 0);
-
-
 
 	/* 
 	 * FIXME:the current ertrie implementation cannot stop upon detection of superpage.

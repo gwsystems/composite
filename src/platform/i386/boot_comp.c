@@ -97,14 +97,15 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, 12)) assert(0);
 		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, 12)) assert(0);
 		assert((void *)p == pgtbl_lkup(pgtbl, user_vaddr + i * PAGE_SIZE, &flags));
+		/* FIXME: remove printk("\tnormal - kvaddr 0x%x, paddr 0x%x, uvaddr 0x%x\n",p,pf,mapat); */
 	}
 
-	if (!uvm) {
+	if ((!uvm) && (PERCENT_SUPERPAGE != 0)) {
 		/* We have stopped at a superpage boundary */
 		offset = (chal_va2pa(kern_vaddr + i * PAGE_SIZE) & 0x3FF000) >> 12;
 		if (offset != 0) offset = 1024 - offset;
 	
-		/* Map in additional superpages - alignment is the key */
+		/* Map in additional superpages - alignment is the key. Now no matter what, they will be added as user pages directly */
 		for ( ; i + offset < range / PAGE_SIZE; i += 1024) {
 			u8_t *  p     = kern_vaddr + (i + offset) * PAGE_SIZE;
 			paddr_t pf    = chal_va2pa(p);

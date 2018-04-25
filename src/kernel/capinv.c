@@ -371,15 +371,16 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 
 		/* 
 		 * See what kind of delegation we are doing. There are 4 kinds of delegations:
-		 * 1. Superpage -> Smallpage [capin_from_pos < 1024]
-		 * 2. Superpage -> Superpage [capin_from_pos == 0]
-		 * 3. Smallpage -> Smallpage [capin_from_pos == 0]
+		 * 1. Superpage -> Smallpage [order = 12]
+		 * 2. Superpage -> Superpage [order = 22]
+		 * 3. Smallpage -> Smallpage [order = 12]
 		 * 4. Smallpage -> Superpage [prohibited]
 		 */
 		/* How big is the current page? */
 		f = pgtbl_lkup_pgd(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 		if (!f) return -ENOENT;
 		old_v = *f;
+
 		if (chal_pgtbl_flag_exist(old_v, PGTBL_SUPER)) {
 			if (order != 22) {
 				/* We need to pick a subpage */
@@ -1459,7 +1460,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
 			vaddr_t order;
-
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 

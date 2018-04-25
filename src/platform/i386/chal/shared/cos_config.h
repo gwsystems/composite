@@ -25,7 +25,7 @@
  */
 #define COS_MEM_KERN_PA (0x00100000)
 #define COS_MEM_KERN_PA_ORDER (29)
-#define COS_MEM_KERN_PA_SZ (1 << COS_MEM_KERN_PA_ORDER)
+#define COS_MEM_KERN_PA_SZ ((1 << COS_MEM_KERN_PA_ORDER) + 0xD800000)
 
 #define COS_MEM_COMP_START_VA ((1 << 30) + (1 << 22)) /* 1GB + 4MB (a relic) */
 #define COS_MEM_KERN_START_VA (0xc0000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
