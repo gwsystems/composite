@@ -10,17 +10,6 @@ struct cos_aep_info taeps[2];
 void
 car_main(void)
 {
-	cycles_t wakeup, now;
-	cycles_t cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-
-	while (1) {
-		send_task(0, 2, 2);
-		
-		rdtscll(now);
-		wakeup = now + (10000 * 1000 * cycs_per_usec);
-		sched_thd_block_timeout(0, wakeup);
-	}
-
 	sched_thd_block(0);
 }
 
@@ -28,14 +17,22 @@ void
 driver_aep(arcvcap_t rcv, void * data)
 {
 	int ret;
+	static int demo = 0;
 
 	printc("car_aep_test\n");
 	while(1) {
 		ret = cos_rcv(rcv, 0, NULL);
 		assert(ret == 0);
-		printc("driver_aep post cos_rcv\n");
-		send_task(0, 0,2);
 
+		if (!demo) {
+			demo = 1;
+		} else {
+			printc("Demo done (but can continue if needed)\n");
+			continue;
+		}
+
+		printc("Driver 1 sending task\n");
+		send_task(5, 7, 2);
 	}
 }
 

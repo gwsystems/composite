@@ -20,13 +20,13 @@ driver_aep(arcvcap_t rcv, void * data)
 {
 	int ret;
 
-	printc("car_aep_test\n");
+	printc("Backup Driver AEP Init\n");
 	while(1) {
 		ret = cos_rcv(rcv, 0, NULL);
 		assert(ret == 0);
 
-		printc("driver_aep post cos_rcv\n");
-		send_task(0, 0, 2);
+		printc("Backup Driver sending task\n");
+		send_task(8, 0, 2);
 
 	}
 }

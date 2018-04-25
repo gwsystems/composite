@@ -21,6 +21,7 @@
 #define SCRIPT_START 152
 
 asndcap_t driver_asnd;
+asndcap_t backup_driver_asnd;
 cycles_t cycs_per_usec;
 
 vaddr_t shmem_addr = NULL;
@@ -122,16 +123,13 @@ generate_path(int xchange, int ychange, int xf, int yf)
     int ycurr = rpos.y;
     int i = 0;
     int w = 0;
-    printc("xcurr %d ycurr %d xf %d yf %d direction %lu\n", xcurr, ycurr, xf, yf, rpos.direction);
 
     while(xcurr != xf || ycurr != yf) {
 	if(w > 6) break;
 	w++;
 	xchange = xf - xcurr;
 	ychange = yf - ycurr;
-	printc("%d %d\n", xchange, ychange);
 	if(xchange > 0 && !orange[xcurr+1][ycurr]) {
-	    printc("%lu\n", rpos.direction);
 	    switch(rpos.direction) {
 		case NORTH: { dir_array[i] = EAST; break; }
 		case EAST: { dir_array[i] = NORTH; break; }
@@ -191,14 +189,12 @@ generate_path(int xchange, int ychange, int xf, int yf)
 	    continue;
 	}
 	if (xchange > 0 && orange[xcurr+1][ycurr]) {
-	    printc("detouring\n");
 	    ycurr = detoury(&i, dir_array, xcurr, ycurr, xf, yf);
-	    break;
+	    continue;
     	}
 	if (xchange < 0 && orange[xcurr-1][ycurr]) {
-	    printc("detouring 2\n");
 	    ycurr = detoury(&i, dir_array, xcurr, ycurr, xf, yf);
-	    break;
+	    continue;
 	}
 
     }
@@ -235,26 +231,22 @@ generate_script(unsigned long* direction) {
 		switch (direction[j]) {
 			case NORTH:
 			{
-				printc("NORTH\n");
 				break;
 			}
 			case EAST:
 			{
-			printc("EAST\n");
 				memcpy(&script[sidx], east, 8);
 				sidx+=8;
 				break;
 			}
 			case SOUTH:
 			{
-				printc("SOUTH\n");
 				memcpy(&script[sidx], south, 8);
 				sidx+=8;
 				break;	
 			}
 			case WEST:
 			{
-				printc("WEST\n");
 				memcpy(&script[sidx], west, 8);
 				sidx+=8;	
 				break;
@@ -266,28 +258,21 @@ generate_script(unsigned long* direction) {
 			/*If north, means move straight forward.
 			Either way, need to move straight after turning*/
 		if (direction[j] == NORTH || direction[j] == SOUTH) {
-			printc("STRAIGHT N-S\n");
 			memcpy(&script[sidx], straight_ns, 8);
 			sidx+=8;
 		} else if (direction[j] == EAST || direction[j] == WEST) {
-			printc("STRAIGHT E-W\n");
 			memcpy(&script[sidx], straight_ew, 8);
 			sidx+=8;
 		}
 		
-		/*Then make sure to stop*/
-		memcpy(&script[sidx], stop, 5);
-		sidx+=5;
 		j++;	
     }
+    /*Then make sure to stop*/
+    memcpy(&script[sidx], stop, 5);
+    sidx+=5;
     /* start script*/
     script[sidx] = 153;
     script[1] = sidx-2;
-
-    /* print generated script*/
-//    for(i = 0; i < sidx; i++) {
-//		printc("%u ", script[i]);
-//    }
 
     return 0;
 }
@@ -306,8 +291,6 @@ create_movement(int xf, int yf)
 	unsigned long *direction = (unsigned long *)malloc(6 * sizeof(unsigned long));
 
 #ifdef DEMO1
-	printc("Demo1:\n");
-
 	/* Request obstacle locations from Camera component */
 	int ret = check_location_image(0, 0);
 	while (!ret) {
@@ -390,15 +373,15 @@ send_task(unsigned long token, int x, int y)
 {
 	static int task_in_progress = 0;
 	int legal = 0;
-	if (!shmem_addr || task_in_progress || blacklisted[token]) return -1;
+	if (!shmem_addr || task_in_progress) return -1;
 
-	printc("\n send_task from: %lu \n", token);
+	printc("\n send_task from: %lu to: (%d, %d) \n", token, x, y);
 	legal = check_legality(x, y);
 	
-	if (!legal) {
+	if (!legal || blacklisted[token]) {
 		printc("TASK ILLEGAL\n");
 		printc("BLACKLISTING: %lu DEFERRING to backup \n", token);
-		cos_asnd(driver_asnd, BACKUP_DRIVER_AEP_KEY);
+		cos_asnd(backup_driver_asnd, BACKUP_DRIVER_AEP_KEY);
 		blacklist(token);
 		return -1;
 	}
@@ -423,7 +406,7 @@ task_complete_aep(arcvcap_t rcv, void * data)
 	while(1) {
 		ret = cos_rcv(rcv, 0, NULL);
 		assert(ret == 0);
-		printc("robot_cont: Task Complete\n");
+		printc("robot_cont: task Complete\n");
 		if (first) cos_asnd(driver_asnd, DRIVER_AEP_KEY);
 		first = 1;
 	}
@@ -440,8 +423,8 @@ cos_init(void)
 	cycles_t wakeup, now;
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	rpos.x = 0;
-	rpos.y = 0;
+	rpos.x = 2;
+	rpos.y = 2;
 	rpos.direction = EAST;	
 
 	memset(blacklisted, 0, 9);
@@ -466,9 +449,11 @@ cos_init(void)
 	driver_asnd = capmgr_asnd_key_create(DRIVER_AEP_KEY);
 	assert(driver_asnd);
 	
-	driver_asnd = capmgr_asnd_key_create(BACKUP_DRIVER_AEP_KEY);
+	backup_driver_asnd = capmgr_asnd_key_create(BACKUP_DRIVER_AEP_KEY);
 	assert(driver_asnd);
+
 	
 	printc("robot_cont init done\n");
+	cos_asnd(driver_asnd, DRIVER_AEP_KEY);
 	sched_thd_block(0);
 }

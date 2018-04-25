@@ -27,6 +27,7 @@
 #define JPG_SZ 152000
 
 #define BACKUP_COMP 8
+#define AUTODRIVE_COMP 5
 
 #define DEMO1 1
 #undef DEMO2 

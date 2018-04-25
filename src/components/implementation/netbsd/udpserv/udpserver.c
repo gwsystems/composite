@@ -39,6 +39,7 @@ enum serving status = pending;
 int shdmem_id;
 vaddr_t shdmem_addr;
 vaddr_t camera_shdmem_addr;
+int jpeg_sz = 0;
 
 static char __msg[MSG_SZ + 1] = { '\0' };
 unsigned char script[MAX_SCRIPT_SZ];
@@ -50,6 +51,9 @@ int
 udpserv_request(int shdmemid, int request)
 {
 	int i = 0;
+
+	/* mutex, where art thou, or we should queue tasks intelligently */
+	if (status != pending) return -1;
 
 	switch (request) {
 		case REQ_JPEG:
@@ -110,10 +114,8 @@ update_script()
 static void
 check_task_done(int x, int y) 
 {
-	printc("Roomba claims task is done (%d, %d) \n", x, y);
-	printc("RESETTING SCRIPT\n");
 	reset_script();
-	cos_asnd(robot_cont_asnd, ROBOT_CONT_AEP_KEY);
+	cos_asnd(robot_cont_asnd, AUTODRIVE_COMP);
 }
 
 static void
@@ -124,8 +126,8 @@ store_jpeg(void)
 	memcpy((char *)camera_shdmem_addr + stored, __msg, MSG_SZ);
 	stored += MSG_SZ;
 
-	if (stored > JPG_SZ) {
-		//printc("stored in: %d \n", count);
+	if (stored > jpeg_sz) {
+		printc("stored in: %d \n", stored);
 		status = pending;
 
 		cos_asnd(image_ready_asnd, IMAGE_AEP_KEY);
@@ -179,21 +181,22 @@ udp_server_start(void)
 		
 		/* Recieve routine */	
 		switch(((unsigned int *)__msg)[0]) {
-			case TASK_DONE:
-				printc("task done\n");
-				memset(__msg, 0, MSG_SZ);
-				check_task_done(0, 1);		
-				break;
-			case RECV_JPEG:
-				printc("Recving jpeg now: \n");	
-				status = rcving_jpeg;
-				break;
-			case SCRIPT_RECV_ACK:
-				printc("Script Recvd by client \n");	
-				status = pending;
-				break;
-			default:
-				break;
+		case TASK_DONE:
+			printc("Recvd task done\n");
+			memset(__msg, 0, MSG_SZ);
+			check_task_done(0, 1);		
+			break;
+		case RECV_JPEG:
+			printc("Recving jpeg now: sz: %lu \n", ((unsigned long *)__msg)[1]);
+			jpeg_sz = ((unsigned long *)__msg)[1];
+			status = rcving_jpeg;
+			break;
+		case SCRIPT_RECV_ACK:
+			printc("Script Recvd by client \n");	
+			status = pending;
+			break;
+		default:
+			break;
 		}
 
 		/* Serving Routine */	

@@ -306,8 +306,8 @@ check_location_image(int x, int y) {
 		}
 		return 0;
 	}
-	pending = 1;
-
+	image_available = 0;
+	pending = 0;
 	return 1;
 }
 
@@ -328,10 +328,8 @@ camera_image_available(arcvcap_t rcv, void * data)
 
 		printc("Jpeg available\n");
 		jpeg_data_start = (char *)shdmem_addr;
-//		locate_roomba();
 
 		image_available = 1;	
-		
 	}
 }
 

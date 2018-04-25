@@ -25,6 +25,7 @@ int script[100];
 
 #define JPEG_REQ 77
 #define SEND_SCRIPT 80
+#define TASK_DONE 99
 #define SCRIPT_RECV_ACK 100
 
 unsigned int msg_sent = 0, msg_rcved;
@@ -78,7 +79,7 @@ build_script()
 
         char * sbuf = (char*) malloc(800*sizeof(char));
         char * pre = "echo -n '";
-        char * post = "' | nc -4u -w1 192.168.137.174 2390";
+        char * post = "' | nc -4u -w1 192.168.137.250 2390";
 	static int count = 0;
         memcpy(sbuf, pre, 9);
         for(i = 0; i < script[1]+3; i++) {
@@ -109,7 +110,7 @@ send_script()
 int 
 send_shutdown() 
 {
-        char* post = "echo -n 'stop' | nc -4u -w1 192.168.248.103 2390";
+        char* post = "echo -n 'stop' | nc -4u -w1 192.168.137.250 2390";
 	printf("post: %s \n", post);
         system(post);
         
@@ -249,14 +250,12 @@ main(int argc, char *argv[])
 			read_jpeg();
 			printf("sending jpeg\n");
 			((unsigned int *)msg)[0] = 79;			
+			((unsigned long *)msg)[1] = jpg_s;			
 			if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
 			    errno != EINTR) {
 				return -1;
 			}
 
-
-			//printf("jpg_size: %lu \n", jpg_s);
-			//printf("msg_size: %d \n", msg_size);
 			while ( (sent+msg_size) < jpg_s) {
 				for (b = 0; b < msg_size; b++) {
 					msg[b] = buf[sent + b];
@@ -273,7 +272,6 @@ main(int argc, char *argv[])
 					foo++;
 				}
 				sent+= msg_size;
-				//printf("%lu : %02x , ", sent, (unsigned char)msg[7]);
 			}	
 			
 
@@ -313,16 +311,28 @@ main(int argc, char *argv[])
 				}
 				foo++;
 			}
+		
+			sleep(5);
 
+			((unsigned char *)msg)[0] = TASK_DONE;			
+			if (sendto(fd, msg, msg_size, 0, (struct sockaddr*)&sa, sizeof(sa)) < 0 &&
+			    errno != EINTR) {
+				return -1;
+			}
+			
+			for (i=0 ; i < sleep_val ; i++) {
+				if (argc == 6) {
+					do_recv_proc(fdr, msg_size);
+				}
+				foo++;
+			}
+		
 		} else if (((unsigned char *)rcv_msg)[0] == 81) {
 			/* Shut Roomba Down */
 			int j;
 			printf("Recvd SHUT DOWN COMMAND\n");
 			send_shutdown();
-		} else {
-//			printf("recvd message no instruc: %d \n", ((unsigned char *)rcv_msg)[0]);
 		}
-	
 	}
 
 	int j;
