@@ -55,7 +55,7 @@ extern struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
 
 int tlb_quiescence_check(u64_t timestamp);
 
-int            pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
+int            pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order);
 int            pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order);
 int            pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags);
 int            pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id);
@@ -111,7 +111,7 @@ int            chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_c
 
 
 int            chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order);
-int            chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags);
+int            chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order);
 /* This function updates flags of an existing mapping. */
 int            chal_pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags);
 int            chal_pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id);

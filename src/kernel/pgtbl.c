@@ -44,9 +44,9 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order)
 }
 
 int
-pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
+pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order)
 {
-	return chal_pgtbl_cosframe_add(pt, addr, page, flags);
+	return chal_pgtbl_cosframe_add(pt, addr, page, flags, order);
 }
 
 int

@@ -269,7 +269,7 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t or
 	assert((PGTBL_FLAG_MASK & page) == 0);
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 	/* 
-	 * FIXME:the current ertrie implementation cannot stop upon detection of super page.
+	 * FIXME:the current ertrie implementation cannot stop upon detection of superpage.
 	 * We have to do this manually, get the PGD first, to make sure that we will not
 	 * dereference the super page as a second-level pointer. Performance bummer.
 	 */
@@ -308,7 +308,7 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t or
 }
 
 int
-chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
+chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order)
 {
 	struct ert_intern *pte;
 	u32_t              orig_v, accum = 0;
@@ -317,11 +317,30 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	assert((PGTBL_FLAG_MASK & page) == 0);
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
-	/* get the pte */
-	pte    = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-                                                     PGTBL_DEPTH, &accum);
-	orig_v = (u32_t)(pte->next);
-	assert(orig_v == 0);
+
+
+	/* 
+	 * FIXME:the current ertrie implementation cannot stop upon detection of superpage.
+	 * We have to do this manually, get the PGD first, to make sure that we will not
+	 * dereference the super page as a second-level pointer. Performance bummer.
+	 */
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+						  1, &accum);
+	if (!pte) return -ENOENT;
+	orig_v = *((u32_t*)pte);
+
+	/* If we are trying to map a superpage and this position is already occupied */
+	if (order == 22) {
+		assert(orig_v == 0);
+		flags |= X86_PGTBL_SUPER;
+	} else if (order == 12) {
+		if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
+		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+							  PGTBL_DEPTH, &accum);
+		if (!pte) return -ENOENT;
+		orig_v = (u32_t)(pte->next);
+		assert(orig_v == 0);
+	} else return -EINVAL;
 
 	return __pgtbl_update_leaf(pte, (void *)(page | flags), 0);
 }
