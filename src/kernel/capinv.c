@@ -15,7 +15,7 @@
 #include "include/tcap.h"
 #include "include/chal/defs.h"
 #include "include/hw.h"
-#include "include/chal/chal_prot.h"
+#include "include/chal/chal_proto.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -382,12 +382,12 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 		old_v = *f;
 
 		if (chal_pgtbl_flag_exist(old_v, PGTBL_SUPER)) {
-			if (order != 22) {
+			if (order != SUPER_PAGE_ORDER) {
 				/* We need to pick a subpage */
 				old_v += EXTRACT_SUB_PAGE(capin_from);
 			}
 		} else {
-			if (order != 12) return -EPERM;
+			if (order != PAGE_ORDER) return -EPERM;
 			f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 			if (!f) return -ENOENT;
 			old_v = *f;

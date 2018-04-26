@@ -852,37 +852,42 @@ test_captbl_expand(void)
 }
 
 /* FIXME: values are hard-coded */
-#define TEST_DELEGATION
+#define TEST_SMALL
+#define TEST_SUPERPAGE_FRAME    0x25000000
+#define TEST_SUPERPAGE_VADDR    0x42000000
+#define TEST_SMALLPAGE_VADDR    0x408FF000
+#define TEST_SUPERDELEG_VADDR   0x42400000
 void test_superpages(void)
 {
 	unsigned long i;
 	/* Original mem tests use 0x40C00000 to expand its pgtbl. we cannot use that or it will crash */
-	unsigned long *ptr = (unsigned long*)0x42000000;
-	/* We use the last entry - unlikely to be used by other guys lol */
-	unsigned long *ptr_small = (unsigned long*)0x408FF000;
-	unsigned long *ptr_large = (unsigned long*)0x42400000;
+	unsigned long *ptr = (unsigned long*)TEST_SUPERPAGE_VADDR;
+	/* This will be used by the memory test */
+	unsigned long *ptr_small = (unsigned long*)TEST_SMALLPAGE_VADDR;
+	unsigned long *ptr_large = (unsigned long*)TEST_SUPERDELEG_VADDR;
 	/* Retype this to user */
-	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEM_RETYPE2USER, 0x25000000, 0, 0, 0) != 0) BUG();
+	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEM_RETYPE2USER, TEST_SUPERPAGE_FRAME, 0, 0, 0) != 0) BUG();
 	/* Map a superpage to somewhere we want */
-	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEMACTIVATE, 0x25000000, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr, 22) !=0) BUG();
+	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEMACTIVATE, TEST_SUPERPAGE_FRAME, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr, SUPER_PAGE_ORDER) !=0) BUG();
 
 	/* Do some rw tests on this - write */
 	PRINTC("Doing R/W tests on superpage....\n");
-	for (i = 0; i < (1 << 22) / sizeof(unsigned long); i++) ptr[i] = i;
-	for (i = 0; i < (1 << 22) / sizeof(unsigned long); i++) {
+	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) ptr[i] = i;
+	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
 		if (ptr[i] != i) BUG();
 	}
-#ifdef TEST_DELEGATION
+#ifdef TEST_SMALL
 	PRINTC("Doing delegation test to smaller page...\n");
-	if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, (unsigned long)ptr, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr_small, 12) !=0) BUG();
-	for (i = 0; i < (1 << 12) / sizeof(unsigned long); i++) ptr_small[i] = i;
-	for (i = 0; i < (1 << 12) / sizeof(unsigned long); i++) {
+	if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, (unsigned long)ptr, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr_small, PAGE_ORDER) !=0) BUG();
+	for (i = 0; i < (1 << PAGE_ORDER) / sizeof(unsigned long); i++) ptr_small[i] = i;
+	for (i = 0; i < (1 << PAGE_ORDER) / sizeof(unsigned long); i++) {
 		if (ptr_small[i] != i) BUG();
 	}
 #endif
 	PRINTC("Doing delegation test to super page...\n");
-	if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, (unsigned long)ptr, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr_large, 22) !=0) BUG();
-	for (i = 0; i < (1 << 12) / sizeof(unsigned long); i++) {
+	if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, (unsigned long)ptr, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr_large, SUPER_PAGE_ORDER) !=0) BUG();
+	/* Because we have wrote something in it so we can directly read to validate the content */
+	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
 		if (ptr_large[i] != i) BUG();
 	}
 	PRINTC("Superpage test SUCCESS.\n");
@@ -901,7 +906,7 @@ test_run_mb(void)
 
 	test_thds();
 	test_thds_perf();
-#ifndef TEST_DELEGATION
+#ifndef TEST_SMALL
 	test_mem();
 #endif 
 	test_async_endpoints();

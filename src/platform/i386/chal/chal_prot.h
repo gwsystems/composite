@@ -8,7 +8,7 @@
 #define PGTBL_FLAG_MASK ((1 << PGTBL_PAGEIDX_SHIFT) - 1)
 #define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
 #define PGTBL_DEPTH 2
-#define PGTBL_ORD 10
+#define PGTBL_ENTRY_ORDER 10
 
 /* FIXME:find a better way to do this */
 #define EXTRACT_SUB_PAGE(super) ((super) & 0x3FF000)

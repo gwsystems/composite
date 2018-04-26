@@ -4,7 +4,7 @@
 #include "captbl.h"
 #include "pgtbl.h"
 #include "liveness_tbl.h"
-#include "chal/chal_prot.h"
+#include "chal/chal_proto.h"
 
 /*
  * Capability-table, capability operations for activation and

@@ -158,6 +158,7 @@ int
 captbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl)
 {
 	unsigned long *    intern, old_v;
+	u32_t l;
 	struct cap_captbl *ct = (struct cap_captbl *)head;
 
 	if (lvl <= ct->lvl) return -EINVAL;
@@ -180,7 +181,6 @@ captbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, 
 
 	/* decrement the refcnt */
 	ct = (struct cap_captbl *)sub;
-	u32_t l;
 	l = ct->refcnt_flags;
 	if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 	cos_faa((int *)&(ct->refcnt_flags), -1);

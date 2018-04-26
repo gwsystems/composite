@@ -10,7 +10,7 @@
 #include "cap_ops.h"
 #include "liveness_tbl.h"
 #include "retype_tbl.h"
-#include "chal/chal_prot.h"
+#include "chal/chal_proto.h"
 #include "chal_pgtbl.h"
 
 /* These functions do flag operations */
@@ -155,12 +155,12 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 
 	/* We don't allow activating non-frames or kernel entry */
 	if (orig_v & X86_PGTBL_SUPER) {
-		if (order != 22) {
+		if (order != SUPER_PAGE_ORDER) {
 			/* We need to pick a subpage */
 			orig_v += EXTRACT_SUB_PAGE(frame_cap);
 		}
 	} else {
-		if (order != 12) return -EPERM;
+		if (order != PAGE_ORDER) return -EPERM;
 		pte = pgtbl_lkup_pte(pt->pgtbl, frame_cap, &flags);
 		if (!pte) return -EINVAL;
 		orig_v = *pte;
@@ -279,10 +279,10 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t or
 	orig_v = *((u32_t*)pte);
 	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 	/* If we are trying to map a superpage and this position is already occupied */
-	if (order == 22) {
+	if (order == SUPER_PAGE_ORDER) {
 		if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
 		flags |= X86_PGTBL_SUPER;
-	} else if (order == 12) {
+	} else if (order == PAGE_ORDER) {
 		if (!(orig_v & X86_PGTBL_PRESENT)) return -EINVAL;
 		if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
 		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
@@ -329,10 +329,10 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t o
 	orig_v = *((u32_t*)pte);
 
 	/* If we are trying to map a superpage and this position is already occupied */
-	if (order == 22) {
+	if (order == SUPER_PAGE_ORDER) {
 		assert(orig_v == 0);
 		flags |= X86_PGTBL_SUPER;
-	} else if (order == 12) {
+	} else if (order == PAGE_ORDER) {
 		if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
 		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 							  PGTBL_DEPTH, &accum);
@@ -409,8 +409,8 @@ chal_pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 		orig_v = (u32_t)(pte->next);
 		if (!(orig_v & X86_PGTBL_PRESENT)) return -EEXIST;
 		if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
-		order = 12;
-	} else order = 22;
+		order = PAGE_ORDER;
+	} else order = SUPER_PAGE_ORDER;
 
 	ret = __pgtbl_update_leaf(pte, (void *)((liv_id << PGTBL_PAGEIDX_SHIFT) | X86_PGTBL_QUIESCENCE), orig_v);
 	if (ret) cos_throw(done, ret);
@@ -519,12 +519,12 @@ chal_pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe, vaddr
 	if (!pte) return -EINVAL;
 	v = *pte;
 	if (chal_pgtbl_flag_exist(v, X86_PGTBL_SUPER)) {
-		*order = 22;
+		*order = SUPER_PAGE_ORDER;
 	} else {
 		pte = pgtbl_lkup_pte(pt, frame_addr, &flags);
 		if (!pte) return -EINVAL;
 		v = *pte;
-		*order = 12;
+		*order = PAGE_ORDER;
 	}
 	
 	if (!(v & X86_PGTBL_COSFRAME)) return -EINVAL;
@@ -578,7 +578,7 @@ chal_pgtbl_init_pte(void *pte)
 	int            i;
 	unsigned long *vals = pte;
 
-	for (i = 0; i < (1 << PGTBL_ORD); i++) vals[i] = 0;
+	for (i = 0; i < (1 << PGTBL_ENTRY_ORDER); i++) vals[i] = 0;
 }
 
 /* FIXME: we need to ensure TLB quiescence for pgtbl cons/decons! */

@@ -4,7 +4,7 @@
 #include "include/cap_ops.h"
 #include "include/liveness_tbl.h"
 #include "include/retype_tbl.h"
-#include "chal/chal_prot.h"
+#include "chal/chal_proto.h"
 
 int
 pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
@@ -136,4 +136,3 @@ pgtbl_init_pte(void *pte)
 {
 	return chal_pgtbl_init_pte(pte);
 }
-

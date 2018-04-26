@@ -119,7 +119,7 @@ __pgtbl_getleaf(struct ert_intern *a, void *accum)
 	return __pgtbl_get(a, accum, 1);
 }
 
-ERT_CREATE(__pgtbl, pgtbl, PGTBL_DEPTH, PGTBL_ORD, sizeof(int *), PGTBL_ORD, sizeof(int *), NULL, __pgtbl_init,
+ERT_CREATE(__pgtbl, pgtbl, PGTBL_DEPTH, PGTBL_ENTRY_ORDER, sizeof(int *), PGTBL_ENTRY_ORDER, sizeof(int *), NULL, __pgtbl_init,
            __pgtbl_get, __pgtbl_isnull, __pgtbl_set, __pgtbl_a, __pgtbl_setleaf, __pgtbl_getleaf, ert_defresolve);
 
 static pgtbl_t

@@ -2,7 +2,7 @@
 #include "kernel.h"
 #include "boot_comp.h"
 #include "chal_cpu.h"
-#include "chal/chal_prot.h"
+#include "chal/chal_proto.h"
 #include "chal_pgtbl.h"
 #include "mem_layout.h"
 #include "string.h"
@@ -23,8 +23,6 @@ boot_nptes(unsigned int sz)
 	return round_up_to_pow2(sz, PGD_RANGE) / PGD_RANGE;
 }
 
-/* FIXME: The macro to set a portion of them to super pages - this is 80 percent */
-#define PERCENT_SUPERPAGE     20
 int
 boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *label, void *kern_vaddr,
                         unsigned long user_vaddr, unsigned int range, int uvm)
@@ -43,12 +41,12 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	if ((uvm == 0) && (PERCENT_SUPERPAGE != 0)) {
 		nsupers = nptes * PERCENT_SUPERPAGE / 100;
 		/* If the user initial address is not aligned to 4M, then the number will be further increased by one */
-		if (user_vaddr & 0x3FFFFF) nptes -= 1;
+		if (user_vaddr & SUPER_PAGE_FLAG_MASK) nptes -= 1;
 		nptes -= nsupers;
 		/* Number of virtual address pages lost due to 4MB alignment problems */
-		align = 1024 - ((user_vaddr & 0x3FF000) >> 12);
-		if (align == 1024) align = 0;
-		nsmalls = nptes * 1024 - align;
+		align = PGTBL_ENTRY - ((user_vaddr & SUPER_PAGE_PTE_MASK) >> PAGE_ORDER);
+		if (align == PGTBL_ENTRY) align = 0;
+		nsmalls = nptes * PGTBL_ENTRY - align;
 	} else {
 		nsmalls = range / PAGE_SIZE;
 		nsupers = 0;
@@ -94,24 +92,23 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 		u8_t *  p     = kern_vaddr + i * PAGE_SIZE;
 		paddr_t pf    = chal_va2pa(p);
 		u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
-		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, 12)) assert(0);
-		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, 12)) assert(0);
+		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, PAGE_ORDER)) assert(0);
+		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, PAGE_ORDER)) assert(0);
 		assert((void *)p == pgtbl_lkup(pgtbl, user_vaddr + i * PAGE_SIZE, &flags));
-		/* FIXME: remove printk("\tnormal - kvaddr 0x%x, paddr 0x%x, uvaddr 0x%x\n",p,pf,mapat); */
 	}
 
 	if ((!uvm) && (PERCENT_SUPERPAGE != 0)) {
 		/* We have stopped at a superpage boundary */
-		offset = (chal_va2pa(kern_vaddr + i * PAGE_SIZE) & 0x3FF000) >> 12;
-		if (offset != 0) offset = 1024 - offset;
+		offset = (chal_va2pa(kern_vaddr + i * PAGE_SIZE) & SUPER_PAGE_PTE_MASK) >> PAGE_ORDER;
+		if (offset != 0) offset = PGTBL_ENTRY - offset;
 	
 		/* Map in additional superpages - alignment is the key. Now no matter what, they will be added as user pages directly */
-		for ( ; i + offset < range / PAGE_SIZE; i += 1024) {
+		for ( ; i + offset < range / PAGE_SIZE; i += PGTBL_ENTRY) {
 			u8_t *  p     = kern_vaddr + (i + offset) * PAGE_SIZE;
 			paddr_t pf    = chal_va2pa(p);
 			u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
-			if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, 22)) assert(0);
-			if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, 22)) assert(0);
+			if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, SUPER_PAGE_ORDER)) assert(0);
+			if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, SUPER_PAGE_ORDER)) assert(0);
 			/* Print all superframes so that we know where it is */
 			printk("\tsuperpage - kvaddr 0x%x, paddr 0x%x, uvaddr 0x%x\n",p,pf,mapat);
 			/* FIXME: Unfortunately the function that directly returns kern VA of pgd does not exist, we craft one here */

@@ -43,6 +43,7 @@ struct pt_regs {
 #endif
 #endif
 #define PAGE_ORDER 12
+#define SUPER_PAGE_ORDER 22
 #ifndef __KERNEL__
 #define PAGE_SIZE (1 << PAGE_ORDER)
 #endif

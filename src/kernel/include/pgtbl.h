@@ -15,7 +15,7 @@
 #include "retype_tbl.h"
 #include "liveness_tbl.h"
 #include "chal/defs.h"
-#include "chal/chal_prot.h"
+#include "chal/chal_proto.h"
 
 #ifndef LINUX_TEST
 #include "chal.h"

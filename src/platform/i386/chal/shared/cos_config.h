@@ -17,7 +17,8 @@
 
 #include "cpu_ghz.h"
 
-
+/* FIXME: The macro to set a portion of memory of the booter to super pages */
+#define PERCENT_SUPERPAGE                20
 /*
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
  * it is the PA of the kernel.  If you change this, update the kernel
