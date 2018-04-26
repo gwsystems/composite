@@ -107,12 +107,24 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 			u8_t *  p     = kern_vaddr + (i + offset) * PAGE_SIZE;
 			paddr_t pf    = chal_va2pa(p);
 			u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
-			if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, SUPER_PAGE_ORDER)) assert(0);
-			if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, SUPER_PAGE_ORDER)) assert(0);
+			if (pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, SUPER_PAGE_ORDER)) assert(0);
 			/* Print all superframes so that we know where it is */
 			printk("\tsuperpage - kvaddr 0x%x, paddr 0x%x, uvaddr 0x%x\n",p,pf,mapat);
 			/* FIXME: Unfortunately the function that directly returns kern VA of pgd does not exist, we craft one here */
 			assert((void *)p == chal_pa2va((*pgtbl_lkup_pgd(pgtbl, user_vaddr + i * PAGE_SIZE, &flags)) & PGTBL_FRAME_MASK));
+		}
+		printk("\tCreating %d user-only superpges as well - never retype these to kernel.\n",EXTRA_SUPERPAGES);
+		/* These are all user only pages, and they have definitely no kernel VA. Retyping this to kernel is nonsense */
+		for (nsupers = 0; nsupers < EXTRA_SUPERPAGES; nsupers++) {
+			u8_t *  p     = kern_vaddr + (i + offset) * PAGE_SIZE;
+			paddr_t pf    = chal_va2pa(p);
+			u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
+			if (pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, SUPER_PAGE_ORDER)) assert(0);
+			/* These are all user-only pages */
+			printk("\tuser superpage - paddr 0x%x, uvaddr 0x%x\n",p,pf,mapat);
+			/* FIXME: Unfortunately the function that directly returns kern VA of pgd does not exist, we craft one here */
+			assert((void *)p == chal_pa2va((*pgtbl_lkup_pgd(pgtbl, user_vaddr + i * PAGE_SIZE, &flags)) & PGTBL_FRAME_MASK));
+			i += PGTBL_ENTRY;
 		}
 	}
 	return 0;

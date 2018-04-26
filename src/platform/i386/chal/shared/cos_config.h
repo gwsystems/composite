@@ -18,7 +18,11 @@
 #include "cpu_ghz.h"
 
 /* FIXME: The macro to set a portion of memory of the booter to super pages */
-#define PERCENT_SUPERPAGE                20
+#define PERCENT_SUPERPAGE        20
+#define MAX_USABLE_MEMORY        1700
+/* FIXME: This is a hack - was 0xD800000, now expanded to 1200MB */
+#define EXTRA_MEMORY             ((MAX_USABLE_MEMORY - 512) << 20)
+#define EXTRA_SUPERPAGES         ((MAX_USABLE_MEMORY - 808) / 4)
 /*
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
  * it is the PA of the kernel.  If you change this, update the kernel
@@ -26,7 +30,7 @@
  */
 #define COS_MEM_KERN_PA (0x00100000)
 #define COS_MEM_KERN_PA_ORDER (29)
-#define COS_MEM_KERN_PA_SZ ((1 << COS_MEM_KERN_PA_ORDER) + 0xD800000)
+#define COS_MEM_KERN_PA_SZ ((1 << COS_MEM_KERN_PA_ORDER) + EXTRA_MEMORY)
 
 #define COS_MEM_COMP_START_VA ((1 << 30) + (1 << 22)) /* 1GB + 4MB (a relic) */
 #define COS_MEM_KERN_START_VA (0xc0000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
