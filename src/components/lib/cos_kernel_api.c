@@ -17,11 +17,22 @@
 #define printd(...)
 #endif
 
+/* RSK -- move this to proper location, probably consts.h
+ * At this point I'm following runyu's lead but I don't think is
+ * a good long term solution
+ * */
+#define SUPER_PAGE_ORDER 22
+#define SUPER_PAGE_SIZE (1 << SUPER_PAGE_ORDER)
+#define SUPER_PAGE_NB 36
+#define SUPER_PAGE_START 0x25000000
+
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz, pgtblcap_t pgtbl_cap)
 {
 	mi->untyped_ptr = mi->umem_ptr = mi->kmem_ptr = mi->umem_frontier = mi->kmem_frontier = untyped_ptr;
 	mi->untyped_frontier = untyped_ptr + untyped_sz;
+	mi->super_ptr = SUPER_PAGE_START;
+	mi->super_frontier = mi->super_ptr + (SUPER_PAGE_NB * SUPER_PAGE_SIZE);
 	mi->pgtbl_cap        = pgtbl_cap;
 }
 
@@ -741,6 +752,43 @@ cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz)
 	assert(sz % PAGE_SIZE == 0);
 
 	return (void *)__page_bump_alloc(ci, sz);
+}
+
+static vaddr_t
+__superpage_bump_alloc(struct cos_compinfo *ci, vaddr_t addr)
+{
+	vaddr_t              ret = 0;
+	vaddr_t *            ptr, *frontier;
+
+	ptr      = &ci->mi.super_ptr;
+	frontier = &ci->mi.super_frontier;
+
+	ret = ps_faa(ptr, SUPER_PAGE_SIZE);
+
+	//TODO: RSK -- ensure checks make sense and are sufficient
+	if (ret >= *frontier) return 0;
+
+	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEM_RETYPE2USER, ret, 0, 0, 0)) return 0;
+	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEMACTIVATE, ret, BOOT_CAPTBL_SELF_PT, addr, 22)) return 0;
+
+	return ret;
+}
+
+void *
+cos_booter_allocn_super(struct cos_compinfo *ci, size_t sz, void* vaddr)
+{
+	int i;
+	vaddr_t ret = 0;
+	vaddr_t curr;
+
+	//TODO: check for valid booter component
+
+	assert (sz % SUPER_PAGE_SIZE == 0);
+	for (curr = (vaddr_t)vaddr; curr < (vaddr_t)vaddr + sz; curr += SUPER_PAGE_SIZE) {
+		ret = __superpage_bump_alloc(ci, curr);
+		if (!ret) assert(0);
+	}
+	return vaddr;
 }
 
 capid_t
