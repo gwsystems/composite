@@ -23,16 +23,14 @@
  * */
 #define SUPER_PAGE_ORDER 22
 #define SUPER_PAGE_SIZE (1 << SUPER_PAGE_ORDER)
-#define SUPER_PAGE_NB 36
-#define SUPER_PAGE_START 0x25000000
 
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz, pgtblcap_t pgtbl_cap)
 {
 	mi->untyped_ptr = mi->umem_ptr = mi->kmem_ptr = mi->umem_frontier = mi->kmem_frontier = untyped_ptr;
 	mi->untyped_frontier = untyped_ptr + untyped_sz;
-	mi->super_ptr = SUPER_PAGE_START;
-	mi->super_frontier = mi->super_ptr + (SUPER_PAGE_NB * SUPER_PAGE_SIZE);
+	mi->super_ptr = TEST_SUPERPAGE_FRAME;
+	mi->super_frontier = mi->super_ptr + (EXTRA_SUPERPAGES * SUPER_PAGE_SIZE);
 	mi->pgtbl_cap        = pgtbl_cap;
 }
 

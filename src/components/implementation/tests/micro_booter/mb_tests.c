@@ -853,7 +853,6 @@ test_captbl_expand(void)
 
 /* FIXME: values are hard-coded */
 #define TEST_SMALL
-#define TEST_SUPERPAGE_FRAME    0x4A400000
 #define TEST_SUPERPAGE_VADDR    0x42000000
 #define TEST_SMALLPAGE_VADDR    0x408FF000
 #define TEST_SUPERDELEG_VADDR   0x42400000
@@ -891,9 +890,9 @@ void test_superpages(void)
 	}
 	PRINTC("Initial superpage test SUCCESS.\n");
 
-	PRINTC("Doing expanded testing on superpages...\n");
+	PRINTC("Doing expanded testing on ALL superpages...\n");
 	ptr += (1 << SUPER_PAGE_ORDER);
-	cos_booter_allocn_super(&booter_info, 4 * (1 << SUPER_PAGE_ORDER), ptr);
+	cos_booter_allocn_super(&booter_info, (EXTRA_SUPERPAGES - 1) * (1 << SUPER_PAGE_ORDER), ptr);
 
 	/* Do some rw tests on this - write */
 	PRINTC("Doing R/W tests on superpage....\n");
