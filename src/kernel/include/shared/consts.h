@@ -42,8 +42,9 @@ struct pt_regs {
 // struct pt_regs { int dummy[16]; };
 #endif
 #endif
-#define PAGE_ORDER 12
+#define PAGE_ORDER       12
 #define SUPER_PAGE_ORDER 22
+#define MAX_PA_LIMIT     (1ULL << 32)
 #ifndef __KERNEL__
 #define PAGE_SIZE (1 << PAGE_ORDER)
 #endif
