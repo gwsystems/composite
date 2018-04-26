@@ -853,7 +853,6 @@ test_captbl_expand(void)
 
 /* FIXME: values are hard-coded */
 #define TEST_SMALL
-#define TEST_SUPERPAGE_FRAME    0x4A400000
 #define TEST_SUPERPAGE_VADDR    0x42000000
 #define TEST_SMALLPAGE_VADDR    0x408FF000
 #define TEST_SUPERDELEG_VADDR   0x42400000
@@ -865,10 +864,9 @@ void test_superpages(void)
 	/* This will be used by the memory test */
 	unsigned long *ptr_small = (unsigned long*)TEST_SMALLPAGE_VADDR;
 	unsigned long *ptr_large = (unsigned long*)TEST_SUPERDELEG_VADDR;
+
 	/* Retype this to user */
-	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEM_RETYPE2USER, TEST_SUPERPAGE_FRAME, 0, 0, 0) != 0) BUG();
-	/* Map a superpage to somewhere we want */
-	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEMACTIVATE, TEST_SUPERPAGE_FRAME, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr, SUPER_PAGE_ORDER) !=0) BUG();
+	cos_booter_allocn_super(&booter_info, (1 << SUPER_PAGE_ORDER), ptr);
 
 	/* Do some rw tests on this - write */
 	PRINTC("Doing R/W tests on superpage....\n");
@@ -890,7 +888,19 @@ void test_superpages(void)
 	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
 		if (ptr_large[i] != i) BUG();
 	}
-	PRINTC("Superpage test SUCCESS.\n");
+	PRINTC("Initial superpage test SUCCESS.\n");
+
+	PRINTC("Doing expanded testing on ALL superpages...\n");
+	ptr += (1 << SUPER_PAGE_ORDER);
+	cos_booter_allocn_super(&booter_info, (EXTRA_SUPERPAGES - 1) * (1 << SUPER_PAGE_ORDER), ptr);
+
+	/* Do some rw tests on this - write */
+	PRINTC("Doing R/W tests on superpage....\n");
+	for (i = 0; i < 4 * (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) ptr[i] = i;
+	for (i = 0; i < 4 * (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
+		if (ptr[i] != i) BUG();
+	}
+	PRINTC("Expanded superpage test SUCCESS.\n");
 }
 
 /* Executed in micro_booter environment */

@@ -56,8 +56,8 @@ typedef capid_t hwcap_t;
 
 /* Memory source information */
 struct cos_meminfo {
-	vaddr_t    untyped_ptr, umem_ptr, kmem_ptr;
-	vaddr_t    untyped_frontier, umem_frontier, kmem_frontier;
+	vaddr_t    untyped_ptr, umem_ptr, kmem_ptr, super_ptr;
+	vaddr_t    untyped_frontier, umem_frontier, kmem_frontier, super_frontier;
 	pgtblcap_t pgtbl_cap;
 };
 
@@ -120,6 +120,7 @@ asndcap_t cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t
 
 void *cos_page_bump_alloc(struct cos_compinfo *ci);
 void *cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz);
+void *cos_booter_allocn_super(struct cos_compinfo *ci, size_t sz, void* vaddr);
 
 capid_t cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_t srcctype, capid_t srccap);
 int     cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_compinfo *srcci, capid_t srccap);
