@@ -140,7 +140,7 @@ struct pt_regs {
 #define THDID_OFFSET 2
 #define INVTOKEN_OFFSET 3
 
-/* Info on superpage mappings */
-#define TEST_SUPERPAGE_FRAME    0x4A400000
+/* FIXME: Info on superpage mappings - this should be passed from kernel to userlevel! */
+#define TEST_SUPERPAGE_FRAME    0x10400000
 
 #endif

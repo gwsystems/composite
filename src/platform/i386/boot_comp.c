@@ -32,14 +32,15 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	unsigned int      nptes = 0, i, nsmalls, nsupers, offset, align;
 	struct cap_pgtbl *pte_cap, *pgd_cap;
 	pgtbl_t           pgtbl;
+	int               first = 0;
 
 	pgd_cap = (struct cap_pgtbl *)captbl_lkup(ct, pgdcap);
 	if (!pgd_cap || !CAP_TYPECHK(pgd_cap, CAP_PGTBL)) assert(0);
 	pgtbl = (pgtbl_t)pgd_cap->pgtbl;
 	nptes = boot_nptes(range);
 
-	if ((uvm == 0) && (PERCENT_SUPERPAGE != 0)) {
-		nsupers = nptes * PERCENT_SUPERPAGE / 100;
+	if ((uvm == 0) && (NUM_SUPERPAGES != 0)) {
+		nsupers = NUM_SUPERPAGES;
 		/* If the user initial address is not aligned to 4M, then the number will be further increased by one */
 		if (user_vaddr & SUPER_PAGE_FLAG_MASK) nptes -= 1;
 		nptes -= nsupers;
@@ -97,7 +98,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 		assert((void *)p == pgtbl_lkup(pgtbl, user_vaddr + i * PAGE_SIZE, &flags));
 	}
 
-	if ((!uvm) && (PERCENT_SUPERPAGE != 0)) {
+	if ((!uvm) && (NUM_SUPERPAGES != 0)) {
 		/* We have stopped at a superpage boundary */
 		offset = (chal_va2pa(kern_vaddr + i * PAGE_SIZE) & SUPER_PAGE_PTE_MASK) >> PAGE_ORDER;
 		if (offset != 0) offset = PGTBL_ENTRY - offset;
@@ -109,11 +110,15 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 			u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
 			if (pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, SUPER_PAGE_ORDER)) assert(0);
 			/* Print all superframes so that we know where it is */
-			printk("\tsuperpage - kvaddr 0x%x, paddr 0x%x, uvaddr 0x%x\n",p,pf,mapat);
+			if (first == 0) {
+				first = 1;
+				printk("\tfirst superpage - kvaddr 0x%x, paddr 0x%x, uvaddr 0x%x\n",p,pf,mapat);
+			}
 			/* FIXME: Unfortunately the function that directly returns kern VA of pgd does not exist, we craft one here */
 			assert((void *)p == chal_pa2va((*pgtbl_lkup_pgd(pgtbl, user_vaddr + i * PAGE_SIZE, &flags)) & PGTBL_FRAME_MASK));
 		}
-		printk("\tCreating %d user-only superpges as well - never retype these to kernel.\n",EXTRA_SUPERPAGES);
+		first = 0;
+		printk("\tCreating %d user-only superpages as well - never retype these to kernel.\n",EXTRA_SUPERPAGES);
 		/* These are all user only pages, and they have definitely no kernel VA. Retyping this to kernel is nonsense */
 		for (nsupers = 0; nsupers < EXTRA_SUPERPAGES; nsupers++) {
 			u8_t *  p     = kern_vaddr + (i + offset) * PAGE_SIZE;
@@ -121,7 +126,10 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 			u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
 			if (pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, SUPER_PAGE_ORDER)) assert(0);
 			/* These are all user-only pages */
-			printk("\tuser superpage - paddr 0x%x, uvaddr 0x%x\n",p,pf,mapat);
+			if (first == 0) {
+				first = 1;
+				printk("\tfirst user superpage - no kvaddr, paddr 0x%x, uvaddr 0x%x\n",pf,mapat);
+			}
 			/* FIXME: Unfortunately the function that directly returns kern VA of pgd does not exist, we craft one here */
 			assert((void *)p == chal_pa2va((*pgtbl_lkup_pgd(pgtbl, user_vaddr + i * PAGE_SIZE, &flags)) & PGTBL_FRAME_MASK));
 			i += PGTBL_ENTRY;

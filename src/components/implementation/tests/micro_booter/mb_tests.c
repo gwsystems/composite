@@ -892,12 +892,12 @@ void test_superpages(void)
 
 	PRINTC("Doing expanded testing on ALL superpages...\n");
 	ptr += (1 << SUPER_PAGE_ORDER);
-	cos_booter_allocn_super(&booter_info, (EXTRA_SUPERPAGES - 1) * (1 << SUPER_PAGE_ORDER), ptr);
+	cos_booter_allocn_super(&booter_info, (TOTAL_SUPERPAGES - 2) * (1 << SUPER_PAGE_ORDER), ptr);
 
 	/* Do some rw tests on this - write */
-	PRINTC("Doing R/W tests on superpage....\n");
-	for (i = 0; i < 4 * (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) ptr[i] = i;
-	for (i = 0; i < 4 * (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
+	PRINTC("Doing R/W tests on superpage... This can take some time as we overwrite GBs of memory!\n");
+	for (i = 0; i < (TOTAL_SUPERPAGES - 2) * (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) ptr[i] = i;
+	for (i = 0; i < (TOTAL_SUPERPAGES - 2) * (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
 		if (ptr[i] != i) BUG();
 	}
 	PRINTC("Expanded superpage test SUCCESS.\n");

@@ -30,7 +30,7 @@ cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long unty
 	mi->untyped_ptr = mi->umem_ptr = mi->kmem_ptr = mi->umem_frontier = mi->kmem_frontier = untyped_ptr;
 	mi->untyped_frontier = untyped_ptr + untyped_sz;
 	mi->super_ptr = TEST_SUPERPAGE_FRAME;
-	mi->super_frontier = mi->super_ptr + (EXTRA_SUPERPAGES * SUPER_PAGE_SIZE);
+	mi->super_frontier = mi->super_ptr + (TOTAL_SUPERPAGES * SUPER_PAGE_SIZE);
 	mi->pgtbl_cap        = pgtbl_cap;
 }
 
@@ -767,7 +767,7 @@ __superpage_bump_alloc(struct cos_compinfo *ci, vaddr_t addr)
 	if (ret >= *frontier) return 0;
 
 	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEM_RETYPE2USER, ret, 0, 0, 0)) return 0;
-	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEMACTIVATE, ret, BOOT_CAPTBL_SELF_PT, addr, 22)) return 0;
+	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEMACTIVATE, ret, BOOT_CAPTBL_SELF_PT, addr, SUPER_PAGE_ORDER)) return 0;
 
 	return ret;
 }

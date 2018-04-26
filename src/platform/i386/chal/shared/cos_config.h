@@ -17,12 +17,16 @@
 
 #include "cpu_ghz.h"
 
-/* FIXME: The macro to set a portion of memory of the booter to super pages */
-#define PERCENT_SUPERPAGE        20
+/* 
+ * FIXME: The macro to set a portion of memory of the booter to super pages - 
+ * should be dynamically passed from kernel to userlevel!
+ */
+#define NUM_SUPERPAGES           139 
 #define MAX_USABLE_MEMORY        1700
 /* FIXME: This is a hack - was 0xD800000, now expanded to 1200MB */
 #define EXTRA_MEMORY             ((MAX_USABLE_MEMORY - 512) << 20)
 #define EXTRA_SUPERPAGES         ((MAX_USABLE_MEMORY - 808) / 4)
+#define TOTAL_SUPERPAGES         (NUM_SUPERPAGES + EXTRA_SUPERPAGES - 1)
 /*
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
  * it is the PA of the kernel.  If you change this, update the kernel
