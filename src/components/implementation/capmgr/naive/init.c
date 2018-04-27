@@ -14,7 +14,7 @@
 #include <hypercall.h>
 #include <sl.h>
 
-static int capmgr_init_core_done = 0;
+static volatile int capmgr_init_core_done = 0;
 
 static void
 capmgr_comp_info_init(struct cap_comp_info *rci, spdid_t spdid)

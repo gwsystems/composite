@@ -556,18 +556,18 @@ void
 sl_init_cpubmp(microsec_t period, u32_t *cpubmp)
 {
 	int i;
-	static unsigned long first = 1, init_done = 0;
+	static volatile int first = 1, init_done = 0;
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
 	struct sl_global_cpu   *g   = sl__globals_cpu();
 
-	if (ps_cas(&first, 1, 0)) {
+	if (ps_cas((unsigned long *)&first, 1, 0)) {
 		sl_global_init(cpubmp);
 
-		ps_faa(&init_done, 1);
+		ps_faa((unsigned long *)&init_done, 1);
 	} else {
 		/* wait until global ring buffers are initialized correctly! */
-		while (!ps_load(&init_done)) ;
+		while (!ps_load((unsigned long *)&init_done)) ;
 		/* make sure this scheduler is active on this cpu/core */
 		assert(sl_cpu_active());
 	}
@@ -695,7 +695,6 @@ pending_events:
 
 			/* process notifications from the parent of my threads */
 			while (sl_child_notif_dequeue(&notif)) {
-				PRINTC("NOTIF FROM PARENT FOR %d\n", notif.tid);
 				struct sl_thd *t = sl_thd_lkup(notif.tid);
 
 				if (notif.type == SL_CHILD_THD_BLOCK) sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0);

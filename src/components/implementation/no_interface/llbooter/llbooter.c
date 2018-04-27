@@ -452,7 +452,7 @@ boot_comp_capinfo_init(void)
 	}
 }
 
-static int init_core_alloc_done = 0, core_init_done[NUM_CPU] = { 0 };
+static volatile int init_core_alloc_done = 0, core_init_done[NUM_CPU] = { 0 };
 
 void
 cos_init(void)

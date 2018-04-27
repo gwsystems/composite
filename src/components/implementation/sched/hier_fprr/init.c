@@ -70,28 +70,28 @@ cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
-	static unsigned long first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
+	static volatile int first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
 	static u32_t cpubmp[NUM_CPU_BMP_WORDS] = { 0 };
 	int i;
 
 	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
-	if (ps_cas(&first, NUM_CPU + 1, cos_cpuid())) {
+	if (ps_cas((unsigned long *)&first, NUM_CPU + 1, cos_cpuid())) {
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_defcompinfo_init();
 		cos_init_args_cpubmp(cpubmp);
 	} else {
-		while (!ps_load(&init_done[first])) ;
+		while (!ps_load((unsigned long *)&init_done[first])) ;
 
 		cos_defcompinfo_sched_init();
 	}
-	ps_faa(&init_done[cos_cpuid()], 1);
+	ps_faa((unsigned long *)&init_done[cos_cpuid()], 1);
 
 	/* make sure the INITTHD of the scheduler is created on all cores.. for cross-core sl initialization to work! */
 	for (i = 0; i < NUM_CPU; i++) {
 		if (!bitmap_check(cpubmp, i)) continue;
 
-		while (!ps_load(&init_done[i])) ;
+		while (!ps_load((unsigned long *)&init_done[i])) ;
 	}
 
 	sl_init_cpubmp(SL_MIN_PERIOD_US, cpubmp);
