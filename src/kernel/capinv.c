@@ -382,9 +382,16 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 		old_v = *f;
 
 		if (chal_pgtbl_flag_exist(old_v, PGTBL_SUPER)) {
+			/*
+			 * FIXME: The current ertrie implementation just doesn't seem to return useful
+			 * "flags" for its internal layers. We need to look into this and find out why.
+			 * I suggest get rid of the flags and just use chal_pgtbl_flag in the future.
+			 */
+			flags = chal_pgtbl_flag(old_v);
 			if (order != SUPER_PAGE_ORDER) {
 				/* We need to pick a subpage */
 				old_v += EXTRACT_SUB_PAGE(capin_from);
+				flags &= (~PGTBL_SUPER);
 			}
 		} else {
 			if (order != PAGE_ORDER) return -EPERM;
@@ -1496,12 +1503,18 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			unsigned long *pte;
 			u32_t          flags;
 
-			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
+			/* Is this a pte or a pgd? - print the "flags" out here and you can see that "flags" for PGD just doesn't work */
+			ret = 0;
+			pte = pgtbl_lkup_pgd(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
 
-			if (pte)
-				ret = *pte;
-			else
-				ret = 0;
+			if (pte) {
+				if (chal_pgtbl_flag_exist(*pte, PGTBL_SUPER)) {
+					ret = *pte;
+				} else {
+					pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
+					if (pte) ret = *pte;
+				}
+			}
 
 			break;
 		}

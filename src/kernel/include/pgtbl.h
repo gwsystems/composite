@@ -101,6 +101,7 @@ unsigned long  chal_pgtbl_flag_clr(unsigned long input, pgtbl_flags_t flags);
 unsigned long  chal_pgtbl_flag_exist(unsigned long input, pgtbl_flags_t flags);
 unsigned long  chal_pgtbl_flag_all(unsigned long input, pgtbl_flags_t flags);
 unsigned long  chal_pgtbl_frame(unsigned long input);
+unsigned long  chal_pgtbl_flag(unsigned long input);
 
 int            chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte_ret);
 int            chal_tlb_quiescence_check(u64_t timestamp);

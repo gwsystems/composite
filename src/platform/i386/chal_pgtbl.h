@@ -171,7 +171,7 @@ pgtbl_intern_prune(pgtbl_t pt, u32_t addr)
 	return page;
 }
 
-/* FIXME:  these pgd functions should be replaced with lookup_lvl functions (see below) */
+/* FIXME:  these pgd functions should be replaced with lookup_lvl functions (see below). Consider deleting this because we have lkup now */
 static void *
 pgtbl_get_pgd(pgtbl_t pt, u32_t addr)
 {

@@ -44,6 +44,12 @@ chal_pgtbl_frame(unsigned long input)
 	return PGTBL_FRAME_MASK & input;
 }
 
+unsigned long 
+chal_pgtbl_flag(unsigned long input)
+{
+	return PGTBL_FLAG_MASK & input;
+}
+
 int
 chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
@@ -171,7 +177,6 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 	assert(!(orig_v & X86_PGTBL_QUIESCENCE));
 	cosframe = orig_v & PGTBL_FRAME_MASK;
 	flags = X86_PGTBL_USER_DEF;
-
 	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, cosframe, flags, order);
 
 	return ret;
@@ -503,8 +508,8 @@ chal_pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags)
 unsigned long *
 chal_pgtbl_lkup_pgd(pgtbl_t pt, u32_t addr, u32_t *flags)
 {
-	return __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 1,
-			      &flags);
+	return __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, 1,
+			      flags);
 }
 
 int

@@ -853,9 +853,12 @@ test_captbl_expand(void)
 
 /* FIXME: values are hard-coded */
 #define TEST_SMALL
-#define TEST_SUPERPAGE_VADDR    0x42000000
-#define TEST_SMALLPAGE_VADDR    0x408FF000
-#define TEST_SUPERDELEG_VADDR   0x42400000
+#define TEST_SMALL_OFFSET           0x1000
+#define TEST_SMALL_ACT_OFFSET       0x3000
+#define TEST_SUPERPAGE_VADDR        0x42000000
+#define TEST_SMALLPAGE_VADDR        0x408FE000
+#define TEST_SMALLPAGE_ACT_VADDR    0x408FF000
+#define TEST_SUPERDELEG_VADDR       0x42400000
 void test_superpages(void)
 {
 	unsigned long i;
@@ -874,28 +877,42 @@ void test_superpages(void)
 	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
 		if (ptr[i] != i) BUG();
 	}
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr, 0, 0, 0); 
+	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr, i);
 #ifdef TEST_SMALL
-	PRINTC("Doing delegation test to smaller page...\n");
-	if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, (unsigned long)ptr, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr_small, PAGE_ORDER) !=0) BUG();
-	for (i = 0; i < (1 << PAGE_ORDER) / sizeof(unsigned long); i++) ptr_small[i] = i;
+	PRINTC("Doing delegation test to smaller page....\n");
+	if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, ((unsigned long)ptr) + TEST_SMALL_OFFSET, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr_small, PAGE_ORDER) !=0) BUG();
 	for (i = 0; i < (1 << PAGE_ORDER) / sizeof(unsigned long); i++) {
-		if (ptr_small[i] != i) BUG();
+		if (ptr_small[i] != i + TEST_SMALL_OFFSET / sizeof(unsigned long)) BUG();
 	}
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr_small, 0, 0, 0); 
+	PRINTC("Introspection on delegated smaller page : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr_small, i);
+
+	PRINTC("Doing activation test to smaller page....\n");
+	ptr_small = (unsigned long*)TEST_SMALLPAGE_ACT_VADDR;
+	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEMACTIVATE, TEST_SUPERPAGE_FRAME + TEST_SMALL_ACT_OFFSET, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr_small, PAGE_ORDER) !=0) BUG();
+	for (i = 0; i < (1 << PAGE_ORDER) / sizeof(unsigned long); i++) {
+		if (ptr_small[i] != i + TEST_SMALL_ACT_OFFSET / sizeof(unsigned long)) BUG();
+	}
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr_small, 0, 0, 0); 
+	PRINTC("Introspection on activated smaller page : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr_small, i);
 #endif
-	PRINTC("Doing delegation test to super page...\n");
+	PRINTC("Doing delegation test to superpage....\n");
 	if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, (unsigned long)ptr, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr_large, SUPER_PAGE_ORDER) !=0) BUG();
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr_large, 0, 0, 0); 
+	PRINTC("Introspection on delegated superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr_large, i);
 	/* Because we have wrote something in it so we can directly read to validate the content */
 	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
 		if (ptr_large[i] != i) BUG();
 	}
 	PRINTC("Initial superpage test SUCCESS.\n");
 
-	PRINTC("Doing expanded testing on ALL superpages...\n");
+	PRINTC("Doing expanded testing on ALL superpages....\n");
 	ptr += (1 << SUPER_PAGE_ORDER);
 	cos_booter_allocn_super(&booter_info, (TOTAL_SUPERPAGES - 2) * (1 << SUPER_PAGE_ORDER), ptr);
 
 	/* Do some rw tests on this - write */
-	PRINTC("Doing R/W tests on superpage... This can take some time as we overwrite GBs of memory!\n");
+	PRINTC("Doing R/W tests on superpage.... This can take some time as we overwrite GBs of memory!\n");
 	for (i = 0; i < (TOTAL_SUPERPAGES - 2) * (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) ptr[i] = i;
 	for (i = 0; i < (TOTAL_SUPERPAGES - 2) * (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
 		if (ptr[i] != i) BUG();
