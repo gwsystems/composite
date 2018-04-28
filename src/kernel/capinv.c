@@ -669,41 +669,56 @@ __cap_asnd_to_arcv(struct cap_asnd *asnd)
 }
 
 int
-cos_cap_ipi_handling(struct pt_regs *regs)
+cap_ipi_process(struct pt_regs *regs)
 {
+	struct cos_cpu_local_info  *cos_info = cos_cpu_local_info();
 	struct IPI_receiving_rings *receiver_rings;
 	struct xcore_ring 	   *ring;
 	struct ipi_cap_data 	    data;
 	struct cap_arcv 	   *arcv;
-	struct cos_cpu_local_info  *cos_info = cos_cpu_local_info();
-	struct thread 		   *thd, *rcv_thd;
-	struct tcap 		   *rcv_tcap, *tcap, *tcap_next;
+	struct thread 		   *thd_curr, *thd_next;
+	struct tcap 		   *tcap_curr, *tcap_next;
 	struct comp_info 	   *ci;
-	int                         i;
+	int                         i, scan_base;
+	unsigned long               ip, sp;
 
-	thd 	       = thd_current(cos_info);
+	thd_curr       = thd_next = thd_current(cos_info);
 	receiver_rings = &IPI_cap_dest[get_cpuid()];
-	tcap           = tcap_current(cos_info);
+	tcap_curr      = tcap_next = tcap_current(cos_info);
+	ci             = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
+	assert(ci && ci->captbl);
 
-	int scan_base = receiver_rings->start;
+	scan_base = receiver_rings->start;
 	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
+
 	/* We need to scan the entire buffer once. */
 	for (i = 0; i < NUM_CPU; i++) {
+		struct thread *rcvthd  = NULL;
+		struct tcap   *rcvtcap = NULL;
+
 		ring = &receiver_rings->IPI_source[(scan_base + i) % NUM_CPU];
 
-		if (ring->sender != ring->receiver) {
-			while ((cos_ipi_ring_dequeue(ring, &data)) != 0) {
-				arcv = get_ipi_arcv(&data);
-				assert(arcv);
+		if (ring->sender == ring->receiver) continue;
+		while ((cos_ipi_ring_dequeue(ring, &data)) != 0) {
+			arcv = cos_ipi_arcv_get(&data);
+			assert(arcv);
 
-				rcv_thd = arcv->thd;
-				rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
+			rcvthd  = arcv->thd;
+			rcvtcap = rcvthd->rcvcap.rcvcap_tcap;
+			assert(rcvthd && rcvtcap);
 
-				asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0, cos_info);
-			}
+			/*
+			 * tcap_higher_prio (partial-order qualities) check for "highest" prio so far and the next
+			 * thread in the ring (dequeued item).
+			 */
+			thd_next = asnd_process(rcvthd, thd_next, rcvtcap, tcap_next, &tcap_next, 0, cos_info);
 		}
 	}
-	return 1;
+
+	if (thd_next == thd_curr) return 1;
+	thd_curr->state |= THD_STATE_PREEMPTED;
+
+	return cap_switch(regs, thd_curr, thd_next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
 }
 
 static int
@@ -727,10 +742,12 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 		assert(!srcv);
 
 		ret = cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
-		if (unlikely(ret < 0)) return ret;
+		/* special handling for IPI send */
+		if (likely(ret == 0)) __userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 
-		return cap_thd_switch(regs, thd, thd, ci, cos_info);
+		return ret;
 	}
+
 	arcv = __cap_asnd_to_arcv(asnd);
 	if (unlikely(!arcv)) return -EINVAL;
 

@@ -148,7 +148,7 @@ asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 	return cap_capdeactivate(t, capin, CAP_ASND, lid);
 }
 
-int cos_cap_ipi_handling(struct pt_regs *regs);
+int cap_ipi_process(struct pt_regs *regs);
 
 /* send to a receive end-point within an interrupt */
 int cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs);

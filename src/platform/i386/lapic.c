@@ -37,8 +37,8 @@ struct ioapic_cntl {
 	u32_t                glb_int_num_off; /* I/O APIC's interrupt base number offset  */
 } __attribute__((packed));
 
-int ncpus = 1;
-int apicids[NUM_CPU];
+volatile int ncpus = 1;
+volatile int apicids[NUM_CPU];
 
 #define CMOS_PORT    0x70
 
@@ -112,9 +112,9 @@ static volatile void *lapic             = (void *)APIC_DEFAULT_PHYS;
 static unsigned int   lapic_timer_mode  = LAPIC_TSC_DEADLINE;
 static unsigned int   lapic_is_disabled[NUM_CPU] CACHE_ALIGNED;
 
-static unsigned int lapic_cycs_thresh        = 0;
-static u32_t        lapic_cpu_to_timer_ratio = 0;
-u32_t               lapic_timer_calib_init   = 0;
+static volatile unsigned int lapic_cycs_thresh        = 0;
+static volatile u32_t        lapic_cpu_to_timer_ratio = 0;
+volatile u32_t               lapic_timer_calib_init   = 0;
 
 static void
 lapic_write_reg(u32_t off, u32_t val)
@@ -336,36 +336,6 @@ lapic_set_page(u32_t page)
 	printk("\tSet LAPIC @ %p\n", lapic);
 }
 
-int
-lapic_spurious_handler(struct pt_regs *regs)
-{
-	return 1;
-}
-
-int
-lapic_ipi_asnd_handler(struct pt_regs *regs)
-{
-	int ret;
-
-	ret = cos_cap_ipi_handling(regs);
-
-	lapic_ack();
-
-	return ret;
-}
-
-int
-lapic_timer_handler(struct pt_regs *regs)
-{
-	int preempt = 1;
-
-	lapic_ack();
-
-	preempt = timer_process(regs);
-
-	return preempt;
-}
-
 u32_t
 lapic_get_ccr(void)
 {
@@ -466,8 +436,41 @@ lapic_ipi_send(u32_t dest, u32_t vect_flags)
 void
 lapic_asnd_ipi_send(const cpuid_t cpu_id)
 {
+	assert(ncpus > 1 && cpu_id >= 0 && cpu_id < ncpus);
+
 	lapic_ipi_send(apicids[cpu_id], LAPIC_ICR_FIXED | LAPIC_IPI_ASND_VEC);
+
 	return;
+}
+
+int
+lapic_spurious_handler(struct pt_regs *regs)
+{
+	return 1;
+}
+
+int
+lapic_ipi_asnd_handler(struct pt_regs *regs)
+{
+	int preempt = 1;
+
+	preempt = cap_ipi_process(regs);
+
+	lapic_ack();
+
+	return preempt;
+}
+
+int
+lapic_timer_handler(struct pt_regs *regs)
+{
+	int preempt = 1;
+
+	lapic_ack();
+
+	preempt = timer_process(regs);
+
+	return preempt;
 }
 
 /* HACK: assume that the HZ of the processor is equivalent to that on the computer used for compilation. */
