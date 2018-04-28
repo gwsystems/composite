@@ -867,18 +867,43 @@ void test_superpages(void)
 	/* This will be used by the memory test */
 	unsigned long *ptr_small = (unsigned long*)TEST_SMALLPAGE_VADDR;
 	unsigned long *ptr_large = (unsigned long*)TEST_SUPERDELEG_VADDR;
+	unsigned long *addr;
 
-	/* Retype this to user */
-	cos_booter_allocn_super(&booter_info, (1 << SUPER_PAGE_ORDER), ptr);
+	addr = cos_superpage_bump_allocn(&booter_info, (1 << SUPER_PAGE_ORDER), 1);
 
 	/* Do some rw tests on this - write */
 	PRINTC("Doing R/W tests on superpage....\n");
-	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) ptr[i] = i;
+	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) addr[i] = i;
 	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
-		if (ptr[i] != i) BUG();
+		if (addr[i] != i) BUG();
 	}
-	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr, 0, 0, 0); 
-	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr, i);
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)addr, 0, 0, 0); 
+	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)addr, i);
+
+	/* Single 4k backed by 4mb page  */
+	addr = cos_superpage_bump_allocn(&booter_info, (1 << PAGE_ORDER), 0);
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)addr, 0, 0, 0); 
+
+	/* Second 4k page backed by SAME 4mb page  */
+	addr = cos_superpage_bump_allocn(&booter_info, (1 << PAGE_ORDER), 0);
+	/* if (i != call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)addr, 0, 0, 0)) BUG(); */
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)addr, 0, 0, 0);
+	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)addr, i);
+
+	/* Allocate rest of 4Mb plus one -- crosses 4mb boundary */
+	addr = cos_superpage_bump_allocn(&booter_info, (1 << SUPER_PAGE_ORDER) - PAGE_SIZE, 0);
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)addr, 0, 0, 0);
+	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)addr, i);
+
+	/* Allocate 4mb page with unaligned heap ptr (from previous allocation) */
+	addr = cos_superpage_bump_allocn(&booter_info, (1 << SUPER_PAGE_ORDER), 1);
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)addr, 0, 0, 0);
+	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)addr, i);
+
+	//FIXME: only runs RSK's tests
+	return;
+
+
 #ifdef TEST_SMALL
 	PRINTC("Doing delegation test to smaller page....\n");
 	if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, ((unsigned long)ptr) + TEST_SMALL_OFFSET, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr_small, PAGE_ORDER) !=0) BUG();
@@ -909,7 +934,7 @@ void test_superpages(void)
 
 	PRINTC("Doing expanded testing on ALL superpages....\n");
 	ptr += (1 << SUPER_PAGE_ORDER);
-	cos_booter_allocn_super(&booter_info, (TOTAL_SUPERPAGES - 2) * (1 << SUPER_PAGE_ORDER), ptr);
+	cos_superpage_bump_allocn(&booter_info, (TOTAL_SUPERPAGES - 2) * (1 << SUPER_PAGE_ORDER), 1);
 
 	/* Do some rw tests on this - write */
 	PRINTC("Doing R/W tests on superpage.... This can take some time as we overwrite GBs of memory!\n");
