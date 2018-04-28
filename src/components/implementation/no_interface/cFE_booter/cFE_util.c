@@ -1,20 +1,12 @@
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 
 #include <cos_component.h>
-#include <cos_kernel_api.h>
+#include <cos_debug.h>
 #include <cobj_format.h>
-#include <llprint.h>
 
 #include "gen/osapi.h"
 #include "cFE_util.h"
-
-void
-llprint(const char *s, int len)
-{
-	call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0);
-}
 
 void
 panic_impl(const char *function, char *message)

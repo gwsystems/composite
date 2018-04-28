@@ -1,7 +1,9 @@
+#include <string.h>
+
+#include <cos_debug.h>
+
 #include "osfilesys.h"
 #include "tar.h"
-#include <string.h>
-#include <cos_debug.h>
 
 /* should be overwritten by linking step in build process */
 __attribute__((weak)) char _binary_cFE_fs_tar_size  = 0;
@@ -110,6 +112,7 @@ tar_hdr_read(uint32 tar_offset, struct fsobj *file)
 {
 	char *         location;
 	struct f_part *part;
+	uint32 file_data_offset;
 
 	assert(tar_offset < tar_size);
 	assert(file->ino > 0);
@@ -123,6 +126,10 @@ tar_hdr_read(uint32 tar_offset, struct fsobj *file)
 	location[0] = '/';
 	file->name  = path_to_name(location);
 
+	file_data_offset = round_to_blocksize(tar_offset + 500);
+
+	PRINT_LOG(PRINT_DEBUG, "Found file in tar: name = %s\n", file->name);
+
 	if (*(location + strlen(location) - 1) == '/') {
 		file->type = FSOBJ_DIR;
 		file->size = 0;
@@ -130,7 +137,7 @@ tar_hdr_read(uint32 tar_offset, struct fsobj *file)
 		file->type            = FSOBJ_FILE;
 		file->size            = oct_to_dec(location + 124);
 		file->file_part       = part;
-		file->file_part->data = location + 500;
+		file->file_part->data = tar_start + file_data_offset;
 	}
 	return OS_FS_SUCCESS;
 }

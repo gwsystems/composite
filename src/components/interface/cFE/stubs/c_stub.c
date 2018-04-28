@@ -663,8 +663,10 @@ CFE_TBL_Register(CFE_TBL_Handle_t *TblHandlePtr, const char *Name, uint32 TblSiz
 
 	result = emu_CFE_TBL_Register(spdid);
 	if (result == CFE_SUCCESS || result == CFE_TBL_INFO_RECOVERED_TBL) {
-		table_info[shared_region->cfe_tbl_register.TblHandle].size = TblSize;
 		assert(TblSize <= EMU_TBL_BUF_SIZE);
+
+		table_info[shared_region->cfe_tbl_register.TblHandle].size = TblSize;
+		*TblHandlePtr = shared_region->cfe_tbl_register.TblHandle;
 	}
 
 	return result;
