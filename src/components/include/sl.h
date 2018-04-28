@@ -339,8 +339,8 @@ sl_timeout_period_get(void)
 static inline void
 sl_timeout_oneshot(cycles_t absolute_us)
 {
-	sl__globals_cpu()->timer_next   = 0;//= absolute_us;
-	sl__globals_cpu()->timeout_next = 0;//tcap_cyc2time(absolute_us);
+	sl__globals_cpu()->timer_next   = absolute_us;
+	sl__globals_cpu()->timeout_next = tcap_cyc2time(absolute_us);
 }
 
 static inline void
@@ -352,13 +352,13 @@ sl_timeout_relative(cycles_t offset)
 static inline void
 sl_timeout_expended(microsec_t now, microsec_t oldtimeout)
 {
-//	cycles_t offset;
-//
-//	assert(now >= oldtimeout);
-//
-//	/* in virtual environments, or with very small periods, we might miss more than one period */
-//	offset = (now - oldtimeout) % sl_timeout_period_get();
-//	sl_timeout_oneshot(now + sl_timeout_period_get() - offset);
+	cycles_t offset;
+
+	assert(now >= oldtimeout);
+
+	/* in virtual environments, or with very small periods, we might miss more than one period */
+	offset = (now - oldtimeout) % sl_timeout_period_get();
+	sl_timeout_oneshot(now + sl_timeout_period_get() - offset);
 }
 
 /* to get timeout heap. not a public api */
@@ -481,8 +481,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	if (likely(!to)) {
 		pt = sl_mod_schedule();
 		if (unlikely(!pt))
-			//t = sl__globals_cpu()->idle_thd;
-			t = sl__globals_cpu()->sched_thd;
+			t = sl__globals_cpu()->idle_thd;
 		else
 			t = sl_mod_thd_get(pt);
 	}
