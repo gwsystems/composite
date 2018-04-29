@@ -15,6 +15,7 @@
 void
 rk_curr_thd_set_prio(int prio)
 {
+	printc("%s\n", __func__);
 	struct sl_thd *t = sl_thd_curr();
 	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = prio}};
 
@@ -24,6 +25,7 @@ rk_curr_thd_set_prio(int prio)
 static int
 rk_rump_thd_param_set(struct sl_thd *t)
 {
+	printc("%s\n", __func__);
 	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = RK_RUMP_THD_PRIO}};
 
 	sl_thd_param_set(t, spprio.v);
@@ -34,6 +36,7 @@ rk_rump_thd_param_set(struct sl_thd *t)
 static int
 rk_intr_thd_param_set(struct sl_thd *t, int own_tcap)
 {
+	printc("%s\n", __func__);
 	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = RK_INTR_THD_PRIO}};
 
 	sl_thd_param_set(t, spprio.v);
@@ -47,6 +50,7 @@ rk_intr_thd_param_set(struct sl_thd *t, int own_tcap)
 static int
 rk_subsys_thd_param_set(struct sl_thd *t)
 {
+	printc("%s\n", __func__);
 	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = TIMER_PRIO}};
 	union sched_param_union spexec = {.c = {.type = SCHEDP_BUDGET, .value = TM_SUB_BUDGET_US}};
 	union sched_param_union spperiod = {.c = {.type = SCHEDP_WINDOW, .value = TM_SUB_PERIOD_US}};
@@ -61,6 +65,7 @@ rk_subsys_thd_param_set(struct sl_thd *t)
 struct sl_thd *
 rk_rump_thd_init(struct cos_aep_info *aep)
 {
+	printc("%s\n", __func__);
 	struct sl_thd *t = NULL;
 
 	t = sl_thd_init_ext(aep, NULL);
@@ -74,6 +79,7 @@ rk_rump_thd_init(struct cos_aep_info *aep)
 static struct sl_thd *
 rk_subsys_thd_init(thdcap_t thd, arcvcap_t rcv, tcap_t tc, asndcap_t snd, int is_sched)
 {
+	printc("%s\n", __func__);
 	static int only_once = 0;
 	struct cos_defcompinfo sub_defci;
 	struct cos_compinfo *subci = cos_compinfo_get(&sub_defci);
@@ -103,6 +109,7 @@ rk_subsys_thd_init(thdcap_t thd, arcvcap_t rcv, tcap_t tc, asndcap_t snd, int is
 struct sl_thd *
 rk_rump_thd_alloc(cos_thd_fn_t fn, void *data)
 {
+	printc("%s\n", __func__);
 	struct sl_thd *t = NULL;
 
 	t = sl_thd_alloc(fn, data);
@@ -116,6 +123,7 @@ rk_rump_thd_alloc(cos_thd_fn_t fn, void *data)
 struct sl_thd *
 rk_intr_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_aepkey_t key)
 {
+	printc("%s\n", __func__);
 	struct sl_thd *t = NULL;
 
 	t = sl_thd_aep_alloc(fn, data, own_tcap, key);
@@ -129,6 +137,7 @@ rk_intr_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_aepkey_t key
 struct sl_thd *
 rk_intr_aep_init(struct cos_aep_info *aep, int own_tcap)
 {
+	printc("%s\n", __func__);
 	struct sl_thd *t = NULL;
 
 	t = sl_thd_init_ext(aep, NULL);
@@ -142,6 +151,7 @@ rk_intr_aep_init(struct cos_aep_info *aep, int own_tcap)
 void
 rk_rump_thd_yield_to(struct bmk_thread *c, struct bmk_thread *n)
 {
+	printc("%s\n", __func__);
 	struct sl_thd *curr = sl_thd_curr();
 	thdid_t ntid = get_cos_thdid(n), ctid = get_cos_thdid(c);
 	struct sl_thd *t = sl_thd_lkup(ntid);
@@ -170,12 +180,14 @@ rk_sched_init(microsec_t period)
 void
 rk_rump_thd_wakeup(struct bmk_thread *w)
 {
+	printc("%s, thidid: %d\n", __func__, get_cos_thdid(w));
 	sl_thd_wakeup(get_cos_thdid(w));
 }
 
 int
 rk_rump_thd_block_timeout(struct bmk_thread *c, unsigned long long timeout)
 {
+	printc("%s\n", __func__);
 	assert(get_cos_thdid(c) == cos_thdid());
 
 	if (sl_thd_block_timeout(0, timeout)) return 1;
@@ -186,6 +198,7 @@ rk_rump_thd_block_timeout(struct bmk_thread *c, unsigned long long timeout)
 void
 rk_rump_thd_block(struct bmk_thread *c)
 {
+	printc("%s\n", __func__);
 	assert(get_cos_thdid(c) == cos_thdid());
 
 	sl_thd_block(0);
@@ -194,12 +207,14 @@ rk_rump_thd_block(struct bmk_thread *c)
 void
 rk_rump_thd_yield(void)
 {
+	printc("%s\n", __func__);
 	sl_thd_yield(0);
 }
 
 void
 rk_rump_thd_exit(void)
 {
+	printc("%s\n", __func__);
 	sl_thd_exit();
 }
 

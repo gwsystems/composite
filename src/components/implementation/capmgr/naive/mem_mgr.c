@@ -30,6 +30,7 @@ memmgr_pa2va_map(paddr_t pa, unsigned int len)
 	}
 
 	va = (vaddr_t)cos_hw_map(cur_ci, BOOT_CAPTBL_SELF_INITHW_BASE, pa, len);
+	printc("pa: %p, va: %p, len: %u\n", (void *)pa, (void *)va, len);
 
 	return va;
 
@@ -99,9 +100,13 @@ done:
 void *
 memmgr_tls_alloc(unsigned int dst_tid)
 {
+	void *ret;
+
 	/* Just return the vaddr range for this tid */
 	assert(dst_tid < MAX_NUM_THREADS);
-	return TLS_BASE_ADDR + (void *)(TLS_AREA_SIZE * dst_tid);
+	ret = TLS_BASE_ADDR + (void *)(TLS_AREA_SIZE * dst_tid);
+
+	return ret;
 }
 
 void *

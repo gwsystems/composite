@@ -158,6 +158,7 @@ cos_irqthd_handler(arcvcap_t rcvc, void *line)
 		 * This only wakes up isr_thread.
 		 * Now, using sl_thd_wakeup. So, don't need to disable interrupts around this!
 		 */
+		printc("%s, which: %d\n", which);
 		bmk_isr(which);
 	}
 }
@@ -239,10 +240,10 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	struct sl_thd *t = NULL;
 	int ret;
 
-	/*
-	 * printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p, in spdid: %d\n", thread->bt_name, f,
-	 *	   cos_spdid_get());
-	 */
+
+	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p, in spdid: %d\n", thread->bt_name, f,
+	        cos_spdid_get());
+
 
 	/* Check to see if we are creating the thread for our application */
 	if (!strcmp(thread->bt_name, "user_lwp")) {
@@ -266,6 +267,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		assert(t);
 	}
 
+	printc("new thread id: %d\n", sl_thd_thdid(t));
 	set_cos_thddata(thread, sl_thd_thdcap(t), t->aepinfo->tid);
 }
 
@@ -326,6 +328,7 @@ void
 cos_vm_exit(void)
 {
 	/* TODO this should be oen of the functions that rumpbooter interface exports when it becomes its own interface */
+	printc("current thread id: %d\n", sl_thd_thdid(sl_thd_curr()));
 	//vk_vm_exit();
 }
 

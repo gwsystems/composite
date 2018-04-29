@@ -89,6 +89,7 @@ capmgr_comp_info_iter(void)
 		for (i = 0 ; i < (signed)TLS_NUM_PAGES ; i++) {
 			src_pg = (vaddr_t)cos_page_bump_alloc(ci);
 			assert(src_pg);
+			cos_memset((void *)src_pg, 0, PAGE_SIZE);
 			ret = cos_mem_alias_at(&tmp, TLS_BASE_ADDR + offset, ci, src_pg);
 			assert(!ret);
 			offset += PAGE_SIZE;
