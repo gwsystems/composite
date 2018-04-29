@@ -158,6 +158,62 @@ __untyped_bump_alloc(struct cos_compinfo *ci)
 	return __mem_bump_alloc(ci, 1, 0);
 }
 
+static int
+__cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, int superpage)
+{
+	int order;
+	assert(srcci && dstci);
+
+	order = (superpage) ? SUPER_PAGE_ORDER : PAGE_ORDER;
+
+	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, order)) BUG();
+
+	return 0;
+}
+
+static vaddr_t
+__superpage_mem_bump_alloc(struct cos_compinfo *ci, vaddr_t addr, int order)
+{
+	vaddr_t              inc, ret = 0;
+	vaddr_t              *ptr, frontier;
+
+	ptr      = &ci->mi.super_ptr;
+	frontier = ci->mi.super_frontier;
+
+	/* Note: this creates a hole! */
+	if (order == SUPER_PAGE_ORDER) {
+	    inc = round_up_to_pgd_page(*ptr + 1) - *ptr; /* RSK -- get the diff to add */
+	} else {
+		inc = 1 << order;
+	}
+	ret = ps_faa(ptr, inc);
+
+	/* RSK -- sanity check */
+    assert(*ptr % (1 << order) == 0);
+	if (ret >= frontier) return 0;
+
+	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEMACTIVATE, *ptr, BOOT_CAPTBL_SELF_PT, addr, order)) return 0;
+
+	return ret;
+}
+
+/* NOTE: Not advisable to call this in non-booter components such as FWPs. If you would like to be able to use this
+ * functionality in something other than a booter (DPDK, FWP Manager), please talk to @rskennedy! */
+static vaddr_t
+__superpage_mem_bump_allocn(struct cos_compinfo *ci, size_t sz, vaddr_t vaddr, int order)
+{
+	int i, active_page_sz;
+	vaddr_t ret = 0;
+	vaddr_t ptr;
+
+	active_page_sz = 1 << order;
+	for (ptr = vaddr; ptr < vaddr + sz; ptr += active_page_sz) {
+		ret = __superpage_mem_bump_alloc(ci, ptr, order);
+		if (!ret) assert(0);
+	}
+	return vaddr;
+}
+
 /**************** [Capability Allocation Functions] ****************/
 
 static capid_t __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
@@ -466,6 +522,25 @@ __page_bump_valloc(struct cos_compinfo *ci, size_t sz)
 }
 
 static vaddr_t
+__superpage_bump_valloc(struct cos_compinfo *ci, size_t sz) {
+	vaddr_t inc, ret = 0;
+	vaddr_t *ptr, *frontier;
+
+	ptr      = &ci->vas_frontier;
+	frontier = &ci->vasrange_frontier;
+
+	/* RSK -- expand heap frontier if necessary */
+	if (*ptr + sz > *frontier) {
+		inc = round_up_to_pgd_page(*ptr + sz) - *frontier;
+		ret = ps_faa(frontier, inc);
+	}
+	inc = round_up_to_pgd_page(*ptr + sz) - *ptr;
+	ret = ps_faa(ptr, inc);
+
+	return round_up_to_pgd_page(ret);
+}
+
+static vaddr_t
 __page_bump_alloc(struct cos_compinfo *ci, size_t sz)
 {
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
@@ -752,73 +827,11 @@ cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz)
 	return (void *)__page_bump_alloc(ci, sz);
 }
 
-static vaddr_t
-__superpage_bump_alloc(struct cos_compinfo *ci, vaddr_t addr, int order)
-{
-	vaddr_t              inc, ret = 0;
-	vaddr_t              *ptr, frontier;
-
-	ptr      = &ci->mi.super_ptr;
-	frontier = ci->mi.super_frontier;
-
-	//TODO: replace with cas
-	/* Note: this creates a hole! */
-	if (order == SUPER_PAGE_ORDER) {
-		// RSK -- here I get the diff to add
-	    inc = round_up_to_pgd_page(*ptr + 1) - *ptr;
-	} else {
-		inc = 1 << order;
-	}
-	ret = ps_faa(ptr, inc);
-
-	//TODO: RSK -- ensure checks make sense and are sufficient
-	// sanity check
-    assert(*ptr % (1 << order) == 0);
-	if (ret >= frontier) return 0;
-
-	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEMACTIVATE, ret, BOOT_CAPTBL_SELF_PT, addr, order)) return 0;
-
-	return ret;
-}
-
-/* TODO: make this static and add '__' */
-vaddr_t
-cos_booter_allocn_super(struct cos_compinfo *ci, size_t sz, vaddr_t vaddr, int order)
-{
-	int i, page_size;
-	vaddr_t ret = 0;
-	vaddr_t ptr;
-
-	//TODO: check for valid booter component
-
-	page_size = 1 << order;
-	for (ptr = vaddr; ptr < vaddr + sz; ptr += page_size) {
-		ret = __superpage_bump_alloc(ci, ptr, order);
-		if (!ret) assert(0);
-	}
-	return vaddr;
-}
-
-static vaddr_t
-__superpage_bump_valloc(struct cos_compinfo *ci, size_t sz) {
-	vaddr_t inc, ret = 0;
-	vaddr_t *ptr, *frontier;
-
-	ptr      = &ci->vas_frontier;
-	frontier = &ci->vasrange_frontier;
-
-	/* RSK -- expand heap frontier if necessary */
-	if (*ptr + sz > *frontier) {
-		inc = round_up_to_pgd_page(*ptr + sz) - *frontier;
-		ret = ps_faa(frontier, inc);
-	}
-	inc = round_up_to_pgd_page(*ptr + sz) - *ptr;
-	ret = ps_faa(ptr, inc);
-
-	return ret;
-}
-
-
+/* Allocates 4k pages backed by superpages or explicitly mapped superpages.
+ * Note that any range of explicitly mapped superpages will begin at the next 4MB
+ * interval, so the rest of the memory in the current 4MB space will be virtually
+ * inaccessible. Careful not to waste memory!
+ *   */
 void *
 cos_superpage_bump_allocn(struct cos_compinfo *ci, size_t sz, int superpage_aligned)
 {
@@ -831,7 +844,6 @@ cos_superpage_bump_allocn(struct cos_compinfo *ci, size_t sz, int superpage_alig
 	/*
 	 * Allocate the virtual address range to map into.  This is
 	 * atomic, so we will get a contiguous range of sz.
-	 * FIXME: Is this true?
 	 */
 	if (superpage_aligned) {
 		heap_vaddr = __superpage_bump_valloc(ci, sz);
@@ -842,25 +854,17 @@ cos_superpage_bump_allocn(struct cos_compinfo *ci, size_t sz, int superpage_alig
 	heap_limit = heap_vaddr + sz;
 	assert(heap_limit > heap_vaddr);
 
-	return (void *)cos_booter_allocn_super(ci, sz, heap_vaddr, order);
+	return (void *)__superpage_mem_bump_allocn(ci, sz, heap_vaddr, order);
 }
 
 void
 cos_retype_all_superpages(struct cos_compinfo *ci)
 {
-	vaddr_t ptr, frontier, ret;
+	vaddr_t ptr;
 	int i;
 
 	ptr = ci->mi.super_ptr;
-	frontier = ci->mi.super_frontier;
-	frontier++;
 
-	//FIXME: this is a microbooter hack
-	printc("INTROSPECT\n");
-	printc("%x \n", call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, ci->vas_frontier, 0, 0, 0));
-	ps_cas(&ci->vas_frontier, ci->vas_frontier, 0x42000000);
-	printc("%x \n", call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, ci->vas_frontier, 0, 0, 0));
-	// FIXME: why is the last page broken
 	for (i = 0; i < TOTAL_SUPERPAGES - 1; i++) {
 		if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEM_RETYPE2USER, ptr, 0, 0, 0)) assert(0);
 		ptr += SUPER_PAGE_SIZE;
@@ -1000,12 +1004,9 @@ cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t sr
 int
 cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src)
 {
-	assert(srcci && dstci);
-
-	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, PAGE_ORDER)) BUG();
-
-	return 0;
+	return __cos_mem_alias_at(dstci, dst, srcci, src, 0);
 }
+
 
 int
 cos_mem_remove(pgtblcap_t pt, vaddr_t addr)

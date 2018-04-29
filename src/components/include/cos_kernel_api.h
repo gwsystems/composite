@@ -120,7 +120,7 @@ asndcap_t cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t
 
 void *cos_page_bump_alloc(struct cos_compinfo *ci);
 void *cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz);
-void *cos_superpage_bump_allocn(struct cos_compinfo *ci, size_t sz, int superpage_aligned);
+void *cos_superpage_bump_allocn(struct cos_compinfo *ci, size_t sz, int aligned);
 void cos_retype_all_superpages(struct cos_compinfo *ci);
 
 capid_t cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_t srcctype, capid_t srccap);
