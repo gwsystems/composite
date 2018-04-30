@@ -959,7 +959,7 @@ test_superpages_user_api(void)
 	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr, i);
 	superpage_ent = i / (1 << SUPER_PAGE_ORDER);
 	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)(ptr + size), 0, 0, 0);
-	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr, i);
+	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)(ptr + size), i);
 	/* Check to make sure introspection returns correct DIFFERENT 4MB pages */
 	if (superpage_ent == i / (1 << SUPER_PAGE_ORDER)) BUG();
 	PRINTC("SUCCESS: Introspection works over 4MB boundaries!\n");
