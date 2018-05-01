@@ -37,7 +37,8 @@ static volatile int testing = 0;
 /* enable only one of these */
 #undef RCV_UB_TEST
 #undef SND_UB_TEST
-#define RPC_UB_TEST
+#undef RPC_UB_TEST
+#undef CN_SND_ONLY
 
 static void
 hiprio_c0_lat_fn(arcvcap_t r, void *d)
@@ -60,7 +61,7 @@ hiprio_c0_lat_fn(arcvcap_t r, void *d)
 		if (now - last >= IPI_MIN_THRESH) {
 			count ++;
 			total += now - last;
-			if (count == IPI_TEST_ITERS) {
+			if (unlikely(count == IPI_TEST_ITERS)) {
 				PRINTC("IPI LATENCY (min:%u), WC:%llu(p:%llu), AVG:%llu(total:%llu, iter:%lu)\n",
 				       IPI_MIN_THRESH, wc, pwc, total / count, total, count);
 				testing = 0;
@@ -109,13 +110,14 @@ hiprio_cn_lat_fn(arcvcap_t r, void *d)
 			sndwc  = en - st;
 		}
 
-		if (iters == IPI_TEST_ITERS) {
+		if (unlikely(iters == IPI_TEST_ITERS)) {
 			PRINTC("SND WC:%llu(p:%llu), AVG:%llu(total:%llu, iter:%lu)\n",
 			       sndwc, sndpwc, sndtot / iters, sndtot, iters);
 			testing = 0;
 		}
 #endif
 
+#ifndef CN_SND_ONLY
 		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
 		assert(pending == 0 && rcvd == 1);
 		rdtscll(rpcen);
@@ -127,11 +129,12 @@ hiprio_cn_lat_fn(arcvcap_t r, void *d)
 			rpcwc  = rpcen - st;
 		}
 
-		if (iters == IPI_TEST_ITERS) {
+		if (unlikely(iters == IPI_TEST_ITERS)) {
 			PRINTC("RPC WC:%llu(p:%llu), AVG:%llu(total:%llu, iter:%lu)\n",
 			       rpcwc, rpcpwc, rpctot / iters, rpctot, iters);
 			testing = 0;
 		}
+#endif
 #endif
 	}
 
@@ -251,14 +254,14 @@ hiprio_rate_c0_fn(arcvcap_t r, void *d)
 		if (now - last >= IPI_MIN_THRESH) ipi_rate[ipi_winidx]++;
 
 		if (now - ipi_win_st >= sl_usec2cyc(WINDOW_US)) {
-			if (ipi_winidx < WINDOW_SZ - 1) ipi_winidx ++;
+			if (ipi_winidx < WINDOW_SZ - 1) {
+				ipi_winidx++;
+				ipi_rate[ipi_winidx] = 0;
+			}
 			ipi_win_st = now;
 		}
 
-		rdtscll(n2);
-		if (n2 - now >= IPI_MIN_THRESH) ipi_rate[ipi_winidx]++;
-
-		if (now - ipi_print_st >= sl_usec2cyc(PRINT_US)) {
+		if (unlikely(now - ipi_print_st >= sl_usec2cyc(PRINT_US))) {
 			unsigned long i, tot = 0;
 
 			PRINTC("Rate: (win:%uus, period:%uus, wc:%llu pwc:%llu): ", WINDOW_US, PRINT_US, wc, pwc);
@@ -268,17 +271,17 @@ hiprio_rate_c0_fn(arcvcap_t r, void *d)
 			}
 			printc("[%lu]\n", tot);
 			ipi_winidx = 0;
-			niters ++;
+			ipi_rate[ipi_winidx] = 0;
+			niters++;
 			rdtscll(now);
 			ipi_win_st = ipi_print_st = now;
 
-			if (niters >= IPI_TEST_ITERS) {
+			if (unlikely(niters >= IPI_TEST_ITERS)) {
 				testing = 0;
 				break;
 			}
 		}
-
-		rdtscll(last);
+		last = now;
 	}
 
 	sl_thd_exit();
@@ -320,11 +323,15 @@ hiprio_rate_cn_fn(arcvcap_t r, void *d)
 
 		if (unlikely(testing == 0)) break;
 
-		ret = cos_asnd(snd, 0);
+		do {
+			ret = cos_asnd(snd, 0);
+		} while (ret == -EBUSY);
 		assert(ret == 0);
 
+#ifndef CN_SND_ONLY
 		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
 		assert(pending == 0 && rcvd == 1);
+#endif
 	}
 
 	sl_thd_exit();
@@ -396,7 +403,7 @@ test_rate_setup(void)
 #endif
 }
 
-#undef MICRO_IPI_FIRST_RUN
+#define MICRO_IPI_FIRST_RUN
 
 void
 cos_init(void)
