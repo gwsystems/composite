@@ -93,6 +93,7 @@ USB_DEV=`stat --format "%F" /dev/sdb`
 
 if [ "$USB_DEV" = "block special file" ]; then
 	echo "GENERATING ISO"
+	echo "$PROG"_rumpboot.sh
 	./geniso.sh "$PROG"_rumpboot.sh
 	echo "WRITIING ISO IMAGE to /dev/sdb: $USB_DEV"
 	sudo dd bs=8M if=composite.iso of=/dev/sdb

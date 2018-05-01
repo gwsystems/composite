@@ -163,9 +163,9 @@ netannounce(int domain, int proto, char *local, int port)
 	}
 
 	opt = 1;
-	printf("SOL_SOCKET in musl: %d, SOL_SOCKET in RK: %d\n", SOL_SOCKET, (int)0xffff);
+	printf("SOL_SOCKET in musl: %d, SOL_SOCKET in RK: %d\n", SOL_SOCKET, 65535);
 	printf("SO_REUSEADDR in musl: %d, SO_REUSEADDR in RK: %d\n", SO_REUSEADDR, (int)0x0004);
-	if (setsockopt(s, 0xffff, 0x0004,
+	if (setsockopt(s, 65535, 0x0004,
 			(char *) &opt, sizeof(opt)) < 0) {
 		close(s);
 		freeaddrinfo(res);

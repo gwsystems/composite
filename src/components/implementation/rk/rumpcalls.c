@@ -20,6 +20,7 @@
 extern int vmid;
 extern struct cos_compinfo *currci;
 extern struct cos_rumpcalls crcalls;
+void __cos_print(char *s, int len);
 
 /* Mapping the functions from rumpkernel to composite */
 void
@@ -29,7 +30,7 @@ cos2rump_setup(void)
 
 	crcalls.rump_cpu_clock_now		= cos_cpu_clock_now;
 	crcalls.rump_vm_clock_now		= cos_vm_clock_now;
-	crcalls.rump_cos_print			= cos_print;
+	crcalls.rump_cos_print			= __cos_print;
 	crcalls.rump_vsnprintf			= vsnprintf;
 	crcalls.rump_strcmp			= strcmp;
 	crcalls.rump_strncpy			= strncpy;
@@ -50,6 +51,7 @@ cos2rump_setup(void)
 	crcalls.rump_memfree			= cos_memfree;
 	crcalls.rump_tls_init			= cos_tls_init;
 	crcalls.rump_tls_alloc			= cos_tls_alloc;
+	crcalls.rump_tls_fetch			= cos_tls_fetch;
 	crcalls.rump_va2pa			= cos_vatpa;
 	crcalls.rump_pa2va			= cos_pa2va;
 	crcalls.rump_resume                     = rk_sched_loop;
@@ -77,6 +79,13 @@ static int slen = -1;
 static char str[STR_LEN_MAX + 1];
 
 extern cycles_t cycs_per_usec;
+
+void
+__cos_print(char *s, int len)
+{
+	if (len > 1) printc("(%d): ", cos_thdid());
+	cos_print(s, len);
+}
 
 static inline void
 __reset_str(void)
@@ -158,7 +167,6 @@ cos_irqthd_handler(arcvcap_t rcvc, void *line)
 		 * This only wakes up isr_thread.
 		 * Now, using sl_thd_wakeup. So, don't need to disable interrupts around this!
 		 */
-		printc("%s, which: %d\n", which);
 		bmk_isr(which);
 	}
 }
@@ -229,6 +237,23 @@ cos_tls_alloc(struct bmk_thread *thread)
 	char *tlsmem;
 
 	tlsmem = memmgr_tls_alloc(thread->cos_tid);
+
+	cos_memset((void *)(tlsmem + tdatasize), 0, tbsssize);
+
+	return tlsmem + tcboffset;
+}
+
+void *
+cos_tls_fetch(struct bmk_thread *thread)
+{
+	char *tlsmem;
+
+	/*
+	 * Doesn't allocate new memory, just returns the vaddr pointer to this threads tls region...
+	 * Could be named better :P
+	 */
+	tlsmem = memmgr_tls_alloc(thread->cos_tid);
+
 	return tlsmem + tcboffset;
 }
 

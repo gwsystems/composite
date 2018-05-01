@@ -98,6 +98,7 @@ struct cos_rumpcalls
 	void   (*rump_cpu_sched_switch_viathd)(struct bmk_thread *prev, struct bmk_thread *next);
 	int    (*rump_tls_init)(unsigned long tp, capid_t tc); /* thdcap_t == capid_t*/
 	void*  (*rump_tls_alloc)(struct bmk_thread *thread);
+	void*  (*rump_tls_fetch)(struct bmk_thread *thread);
 	void*  (*rump_va2pa)(void *addr);
 	void*  (*rump_pa2va)(void *addr, unsigned long len);
 	void   (*rump_resume)(void);
@@ -165,6 +166,7 @@ void cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 void cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next);
 int cos_tls_init(unsigned long tp, thdcap_t tc);
 void *cos_tls_alloc(struct bmk_thread *thread);
+void *cos_tls_fetch(struct bmk_thread *thread);
 void cos_resume(void);
 
 #endif /* RUMPCALLS_H */

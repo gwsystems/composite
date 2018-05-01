@@ -124,6 +124,7 @@ rk_alloc_run(char *cmdline)
 void
 rump_booter_init(void *d)
 {
+	char *script;
 	printc("~~~~~ vmid: %d ~~~~~\n", vmid);
 	assert(vmid == 0);
 
@@ -135,7 +136,13 @@ rump_booter_init(void *d)
 	rk_hw_irq_alloc();
 
 	/* We pass in the json config string to the RK */
-	rk_alloc_run(RK_JSON_DEFAULT_HW);
+	script = RK_JSON_DEFAULT_HW;
+	if (!strcmp(script, RK_JSON_DEFAULT_HW)) {
+		printc("CONFIGURING RK TO RUN ON BAREMETAL\n");
+	} else if (!strcmp(script, RK_JSON_DEFAULT_QEMU)) {
+		printc("CONFIGURING RK TO RUN ON QEMU\n");
+	}
+	rk_alloc_run(script);
 	printc("\nRumpKernel Boot done.\n");
 
 	cos_vm_exit();

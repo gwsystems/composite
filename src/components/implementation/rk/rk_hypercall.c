@@ -318,6 +318,8 @@ rk_setsockopt(int arg1, int arg2, int arg3)
 
 	assert(optval && (shdmem_id == old_shdmem_id));
 
+	if (level == -1) level = 65535;
+
 	return rump___sysimpl_setsockopt(sockfd, level, optname, (const void *)optval, optlen);
 }
 
