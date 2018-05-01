@@ -12,6 +12,10 @@
 #include <capmgr.h>
 #include <hypercall.h>
 
+/* enable only one of these */
+#define TEST_LATENCY
+#undef TEST_RATE
+
 #define HI_PRIO TCAP_PRIO_MAX
 #define LOW_PRIO (HI_PRIO + 1)
 
@@ -28,9 +32,12 @@ static volatile asndcap_t c0_cn_asnd[NUM_CPU] = { 0 }, cn_c0_asnd[NUM_CPU] = { 0
 static volatile arcvcap_t c0_rcv[NUM_CPU] = { 0 }, cn_rcv[NUM_CPU] = { 0 };
 static volatile int testing = 0;
 
-#undef TEST_LATENCY
 #define LAT_C0 0
 #define LAT_C1 1
+/* enable only one of these */
+#undef RCV_UB_TEST
+#undef SND_UB_TEST
+#define RPC_UB_TEST
 
 static void
 hiprio_c0_lat_fn(arcvcap_t r, void *d)
@@ -49,6 +56,7 @@ hiprio_c0_lat_fn(arcvcap_t r, void *d)
 		assert(pending == 0 && rcvd == 1);
 		rdtscll(now);
 
+#ifdef RCV_UB_TEST
 		if (now - last >= IPI_MIN_THRESH) {
 			count ++;
 			total += now - last;
@@ -62,6 +70,7 @@ hiprio_c0_lat_fn(arcvcap_t r, void *d)
 			pwc = wc;
 			wc = now - last;
 		}
+#endif
 
 		ret = cos_asnd(snd, 0);
 		assert(ret == 0);
@@ -75,19 +84,55 @@ static void
 hiprio_cn_lat_fn(arcvcap_t r, void *d)
 {
 	asndcap_t snd = cn_c0_asnd[(int)d];
+	cycles_t sndtot = 0, sndwc = 0, sndpwc = 0;
+	cycles_t rpctot = 0, rpcwc = 0, rpcpwc = 0;
+	unsigned long iters = 0;
 
 	assert(snd);
 
 	while (1) {
+		cycles_t st, en, rpcen;
 		int pending = 0, rcvd = 0, ret = 0;
 
 		if (unlikely(testing == 0)) break;
 
+		rdtscll(st);
 		ret = cos_asnd(snd, 0);
 		assert(ret == 0);
+		rdtscll(en);
+
+#ifdef SND_UB_TEST
+		iters ++;
+		sndtot += (en - st);
+		if (en - st > sndwc) {
+			sndpwc = sndwc;
+			sndwc  = en - st;
+		}
+
+		if (iters == IPI_TEST_ITERS) {
+			PRINTC("SND WC:%llu(p:%llu), AVG:%llu(total:%llu, iter:%lu)\n",
+			       sndwc, sndpwc, sndtot / iters, sndtot, iters);
+			testing = 0;
+		}
+#endif
 
 		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
 		assert(pending == 0 && rcvd == 1);
+		rdtscll(rpcen);
+#ifdef RPC_UB_TEST
+		iters ++;
+		rpctot += (rpcen - st);
+		if (rpcen - st > rpcwc) {
+			rpcpwc = rpcwc;
+			rpcwc  = rpcen - st;
+		}
+
+		if (iters == IPI_TEST_ITERS) {
+			PRINTC("RPC WC:%llu(p:%llu), AVG:%llu(total:%llu, iter:%lu)\n",
+			       rpcwc, rpcpwc, rpctot / iters, rpctot, iters);
+			testing = 0;
+		}
+#endif
 	}
 
 	sl_thd_exit();
@@ -177,7 +222,6 @@ test_latency_setup(void)
 #define WINDOW_US 1000
 #define PRINT_US  1000000
 
-#define TEST_RATE
 #define RATE_C0 0
 
 #define WINDOW_SZ (PRINT_US/WINDOW_US)
@@ -352,7 +396,7 @@ test_rate_setup(void)
 #endif
 }
 
-#define MICRO_IPI_FIRST_RUN
+#undef MICRO_IPI_FIRST_RUN
 
 void
 cos_init(void)
