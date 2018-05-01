@@ -556,10 +556,11 @@ void
 sl_init_cpubmp(microsec_t period, u32_t *cpubmp)
 {
 	int i;
-	static volatile int first = 1, init_done = 0;
-	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
-	struct sl_global_cpu   *g   = sl__globals_cpu();
+	static volatile int first    = 1, init_done = 0;
+	struct cos_defcompinfo *dci  = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci   = cos_compinfo_get(dci);
+	struct sl_global_cpu   *g    = sl__globals_cpu();
+	struct cos_aep_info    *saep = cos_sched_aep_get(dci);
 
 	if (ps_cas((unsigned long *)&first, 1, 0)) {
 		sl_global_init(cpubmp);
@@ -584,12 +585,13 @@ sl_init_cpubmp(microsec_t period, u32_t *cpubmp)
 	sl_timeout_init(period);
 
 	/* Create the scheduler thread for us. cos_sched_aep_get() is from global(static) memory */
-	g->sched_thd       = sl_thd_alloc_init(cos_sched_aep_get(dci), 0, 0);
+	g->sched_thd       = sl_thd_alloc_init(saep, 0, 0);
 	assert(g->sched_thd);
-	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_CPU_BASE;
-	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;
-	g->sched_rcv       = BOOT_CAPTBL_SELF_INITRCV_CPU_BASE;
-	g->sched_thd->prio = 0;
+	g->sched_thdcap    = saep->thd;
+	g->sched_tcap      = saep->tc;
+	g->sched_rcv       = saep->rcv;
+	assert(g->sched_rcv);
+	g->sched_thd->prio = TCAP_PRIO_MAX;
 	ps_list_head_init(&g->event_head);
 
 	g->idle_thd        = sl_thd_alloc(sl_idle, NULL);

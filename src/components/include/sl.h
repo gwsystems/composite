@@ -449,14 +449,14 @@ static inline int
 sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *ci = &dci->ci;
-	struct sl_thd_policy *pt;
-	struct sl_thd *       t;
-	struct sl_global_cpu *globals = sl__globals_cpu();
-	sched_tok_t           tok;
-	cycles_t              now;
-	s64_t                 offset;
-	int                   ret;
+	struct cos_compinfo    *ci = &dci->ci;
+	struct sl_thd_policy   *pt;
+	struct sl_thd *         t;
+	struct sl_global_cpu   *globals = sl__globals_cpu();
+	sched_tok_t             tok;
+	cycles_t                now;
+	s64_t                   offset;
+	int                     ret;
 
 	/* Don't abuse this, it is only to enable the tight loop around this function for races... */
 	if (unlikely(!sl_cs_owner())) sl_cs_enter();
@@ -481,14 +481,14 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	if (likely(!to)) {
 		pt = sl_mod_schedule();
 		if (unlikely(!pt))
-			t = sl__globals_cpu()->idle_thd;
+			t = globals->idle_thd;
 		else
 			t = sl_mod_thd_get(pt);
 	}
 
 	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {
 		assert(t->period);
-		assert(sl_thd_tcap(t) != sl__globals_cpu()->sched_tcap);
+		assert(sl_thd_tcap(t) != globals->sched_tcap);
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
 			tcap_res_t currbudget = 0;
@@ -500,7 +500,9 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			if (!cycles_same(currbudget, t->budget, SL_CYCS_DIFF) && currbudget < t->budget) {
 				tcap_res_t transfer = t->budget - currbudget;
 
-				ret = cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals_cpu()->sched_tcap, transfer, t->prio);
+				/* tcap_transfer will assign sched_tcap's prio to t's tcap if t->prio == 0, which we don't want. */
+				assert(t->prio >= TCAP_PRIO_MAX && t->prio <= TCAP_PRIO_MIN);
+				ret = cos_tcap_transfer(sl_thd_rcvcap(t), globals->sched_tcap, transfer, t->prio);
 			}
 
 			if (likely(ret == 0)) t->last_replenish = replenish;
