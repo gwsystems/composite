@@ -30,7 +30,6 @@ typedef unsigned long tcap_time_t;
 typedef u64_t         tcap_prio_t;
 typedef u64_t         tcap_uid_t;
 typedef u32_t         sched_tok_t;
-#define PRINT_CAP_TEMP (1 << 14)
 
 /*
  * The assumption in the following is that cycles_t are higher
@@ -243,6 +242,7 @@ captbl_idsize(cap_t c)
 enum
 {
 	BOOT_CAPTBL_SRET            = 0,
+	BOOT_CAPTBL_PRINT_HACK      = 2, /* This slot is not used for any capability and SRET is 16B (1slot).. */
 	BOOT_CAPTBL_SELF_CT         = 4,
 	BOOT_CAPTBL_SELF_PT         = 6,
 	BOOT_CAPTBL_SELF_COMP       = 8,
@@ -488,5 +488,14 @@ typedef unsigned int isolation_level_t;
 #define IPIMAX_DEFAULT    (64) /* IPIs per ms for each RCV ep */
 
 typedef unsigned short int cos_channelkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KEY NAMESPACE */
+
+/*
+ * BOOT_CAPTBL_PRINT_HACK == 2, a slot that is not going to be used!!
+ * we can remove this when we want only user-level prints from user-level.
+ *
+ * This is a fix in reaction to a bug found in edgeos test with high scalability,
+ * with too many capabilities making (1<<14) a valid slot!
+ */
+#define PRINT_CAP_TEMP (BOOT_CAPTBL_PRINT_HACK)
 
 #endif /* TYPES_H */
