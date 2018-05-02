@@ -411,10 +411,11 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 	} else {
 		ret = cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ?
 				    TCAP_TIME_NIL : g->timeout_next, tok);
-		if (likely(t != g->sched_thd || ret != -EPERM)) return ret;
+		if (likely(t != g->sched_thd && t != g->idle_thd)) return ret;
+		if (unlikely(ret != -EPERM)) return ret;
 
 		/*
-		 * Attempting to activate scheduler thread failed for no budget in it's tcap.
+		 * Attempting to activate scheduler thread or idle thread failed for no budget in it's tcap.
 		 * Force switch to the scheduler with current tcap.
 		 */
 		return cos_switch(sl_thd_thdcap(g->sched_thd), 0, t->prio, 0, g->sched_rcv, tok);
@@ -521,6 +522,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 * the inter-component delegations), block till next timeout and try again.
 	 */
 	if (unlikely(ret == -EPERM)) {
+		assert(t != globals->sched_thd && t != globals->idle_thd);
 		sl_thd_block_expiry(t);
 		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok);
 	}

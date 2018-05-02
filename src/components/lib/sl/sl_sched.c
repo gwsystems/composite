@@ -161,6 +161,7 @@ int
 sl_thd_sched_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
 {
 	assert(t);
+	assert(t != sl__globals_cpu()->idle_thd && t != sl__globals_cpu()->sched_thd);
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
 
 	if (t->schedthd) return 0;
@@ -212,8 +213,10 @@ int
 sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
 {
 	assert(t);
-	assert(cos_thdid() == sl_thd_thdid(t)); /* only current thread is allowed to block itself */
+	assert(t != sl__globals_cpu()->idle_thd && t != sl__globals_cpu()->sched_thd);
+	assert(sl_thd_curr() == t); /* only current thread is allowed to block itself */
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
+
 	if (t->schedthd) {
 		sl_parent_notif_block_no_cs(t->schedthd, t);
 
@@ -323,7 +326,7 @@ sl_thd_block_expiry(struct sl_thd *t)
 {
 	cycles_t abs_timeout = 0;
 
-	assert(t != sl__globals_cpu()->sched_thd);
+	assert(t != sl__globals_cpu()->idle_thd && t != sl__globals_cpu()->sched_thd);
 	sl_cs_enter();
 	if (!(t->properties & SL_THD_PROPERTY_OWN_TCAP)) {
 		assert(!t->rcv_suspended);
@@ -381,6 +384,7 @@ int
 sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 {
 	assert(t);
+	assert(t != sl__globals_cpu()->idle_thd && t != sl__globals_cpu()->sched_thd);
 
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	t->state = SL_THD_RUNNABLE;
@@ -444,7 +448,7 @@ sl_thd_yield_cs_exit(thdid_t tid)
 		assert(to);
 		sl_cs_exit_switchto(to);
 	} else {
-		sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
+		if (likely(t != sl__globals_cpu()->sched_thd && t != sl__globals_cpu()->idle_thd)) sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
 		sl_cs_exit_schedule();
 	}
 }
