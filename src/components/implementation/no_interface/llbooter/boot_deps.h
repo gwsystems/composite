@@ -398,8 +398,8 @@ boot_done(void)
 		PRINTLOG(PRINT_DEBUG, "Root scheduler is %u, switching to it now!\n", root_spdid);
 		ret = cos_tcap_transfer(root_aep->rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, LLBOOT_ROOTSCHED_PRIO);
 		assert(ret == 0);
-
-		ret = cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOTSCHED_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
+		while(1)
+			cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOTSCHED_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
 		PRINTLOG(PRINT_ERROR, "Root scheduler returned.\n");
 		assert(0);
 	}

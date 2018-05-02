@@ -11,6 +11,7 @@
 *.sw*
 *#
 .#*
+**/.DS_Store
 .fn_dependencies
 .fn_exports
 .exported_interfaces
@@ -31,6 +32,7 @@ GPATH
 GRTAGS
 GSYMS
 GTAGS
+tools/.vagrant
 .vagrant
 .clang_complete
 Vagrantfile
