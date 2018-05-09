@@ -71,7 +71,6 @@ rk_ftruncate(int arg1, int arg2)
 int
 rk_select(int arg1, int arg2)
 {
-
 	int nd = arg1, ret;
 	int shdmem_id = arg2;
 	static int old_shdmem_id = -1;
@@ -167,6 +166,8 @@ rk_open(int arg1, int arg2, int arg3)
 	path = buf;
 
 	printc("path: %s, flags: %d, mode: %d\n", path, flags, mode);
+	/* RK values for O_RDWR, O_CREAT, O_EXCL because they differ from musl */
+	flags = 0x00000002 | 0x00000200 | 0x00000800;
 	return rump___sysimpl_open(path, flags, mode);
 }
 

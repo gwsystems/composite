@@ -475,6 +475,7 @@ iperf_run_server(struct iperf_test *test)
 		(void) gettimeofday(&now, NULL);
 		timeout = tmr_timeout(&now);
 		result = select(test->max_fd + 1, &read_set, &write_set, NULL, timeout);
+
 		if (result < 0 && errno != EINTR) {
 			cleanup_server(test);
 			i_errno = IESELECT;
@@ -531,7 +532,6 @@ iperf_run_server(struct iperf_test *test)
 						}
 
 						streams_accepted++;
-						printf("test->on_new_stream: %p\n", test->on_new_stream);
 						if (test->on_new_stream)
 							test->on_new_stream(sp);
 					}

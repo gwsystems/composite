@@ -449,7 +449,7 @@ cos_futex(int *uaddr, int op, int val,
 }
 
 char *_sysname = "Composite";
-char *_nodename = "fuck if I know";
+char *_nodename = "fack if I know";
 char *_release = "lolol we don't have a release";
 char *_version = "> 9000";
 char *_machine = "my VM";
