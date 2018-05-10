@@ -183,7 +183,8 @@ tmr_timeout( struct timeval* nowP )
 	usecs = 0;
     timeout.tv_sec = usecs / 1000000LL;
     timeout.tv_usec = usecs % 1000000LL;
-    return &timeout;
+    //return &timeout;
+    return NULL;
 }
 
 

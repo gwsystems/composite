@@ -31,6 +31,7 @@ localizesymsrc=( "__fpclassifyl"
 		"__init_array_end"
 		"__init_array_start"
 		"fputc"
+		"puts"
 		)
 localizesymdst=( "_start"
 		"exit"

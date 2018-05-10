@@ -155,7 +155,7 @@ rk_rump_thd_yield_to(struct bmk_thread *c, struct bmk_thread *n)
 void
 rk_sched_loop(void)
 {
-	sl_sched_loop_nonblock();
+	sl_sched_loop();
 }
 
 void

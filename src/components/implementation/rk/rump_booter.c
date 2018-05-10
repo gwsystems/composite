@@ -12,6 +12,7 @@
 #include <llprint.h>
 #include <hypercall.h>
 #include <memmgr.h>
+#include <schedinit.h>
 
 #include "rk_json_cfg.h"
 #include "rk_sched.h"
@@ -135,8 +136,11 @@ rump_booter_init(void *d)
 	printc("\nSetting up arcv for hw irq\n");
 	rk_hw_irq_alloc();
 
+	printc("Notifying parent scheduler...\n");
+	schedinit_child();
+
 	/* We pass in the json config string to the RK */
-	script = RK_JSON_DEFAULT_HW;
+	script = RK_JSON_DEFAULT_QEMU;
 	if (!strcmp(script, RK_JSON_DEFAULT_HW)) {
 		printc("CONFIGURING RK TO RUN ON BAREMETAL\n");
 	} else if (!strcmp(script, RK_JSON_DEFAULT_QEMU)) {
