@@ -140,7 +140,7 @@ rump_booter_init(void *d)
 	schedinit_child();
 
 	/* We pass in the json config string to the RK */
-	script = RK_JSON_DEFAULT_QEMU;
+	script = RK_JSON_DEFAULT_HW;
 	if (!strcmp(script, RK_JSON_DEFAULT_HW)) {
 		printc("CONFIGURING RK TO RUN ON BAREMETAL\n");
 	} else if (!strcmp(script, RK_JSON_DEFAULT_QEMU)) {

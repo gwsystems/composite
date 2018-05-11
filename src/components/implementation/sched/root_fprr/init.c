@@ -45,6 +45,10 @@ sched_child_init(struct sched_childinfo *schedci)
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
+
+	printc("Giving child thread infinite tcap\n");
+	cos_tcap_transfer(schedci->defcinfo.sched_aep.rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE,
+			  TCAP_RES_INF, SCHEDP_PRIO);
 }
 
 void

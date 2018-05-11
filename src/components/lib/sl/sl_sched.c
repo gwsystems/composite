@@ -518,7 +518,11 @@ sl_timeout_period(microsec_t period)
 /* engage space heater mode */
 void
 sl_idle(void *d)
-{ while (1) ; }
+{
+	while (1) {
+		printc("idle\n");
+	}
+}
 
 void
 sl_init(microsec_t period)
