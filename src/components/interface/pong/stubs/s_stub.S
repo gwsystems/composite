@@ -4,14 +4,12 @@
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  */
- 
- #define __ASM__
- #include <consts.h>
 
+#define __ASM__
+#include <consts.h>
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text
-
 cos_asm_server_stub(call)
 cos_asm_server_stub(call_two)
 cos_asm_server_stub(call_three)

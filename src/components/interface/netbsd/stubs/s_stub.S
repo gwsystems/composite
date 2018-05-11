@@ -7,6 +7,8 @@
  * Author: Gabriel Parmer, gabep1@cs.bu.edu
  */
 
+#define __ASM__
+#include <consts.h>
 #include <cos_asm_server_stub.h>
 
 //cos_asm_server_stub_spdid(netif_event_create)
