@@ -93,12 +93,12 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid)
 			} else {
 				boot_deps_map_sect(spdid, &map_daddr);
 			}
-			assert(dest_daddr == map_daddr);
 			prev_map = dest_daddr;
 			dest_daddr += PAGE_SIZE;
 			left -= PAGE_SIZE;
 		}
 	}
+	boot_deps_map_sect(spdid, &map_daddr);
 
 	return 0;
 }
@@ -113,7 +113,7 @@ boot_spd_end(struct cobj_header *h)
 	max_sect = h->nsect - 1;
 	sect     = cobj_sect_get(h, max_sect);
 
-	return sect->vaddr + round_up_to_page(sect->bytes);
+	return sect->vaddr + round_up_to_page(sect->bytes) + PAGE_SIZE;
 }
 
 int

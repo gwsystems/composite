@@ -4,3 +4,6 @@
 [submodule "src/components/extern/rk/rumprun"]
 	path = src/components/extern/rk/rumprun
 	url = https://github.com/gwsystems/rumprun.git
+[submodule "src/extern/cFE"]
+	path = src/extern/cFE
+	url = https://github.com/Others/cFE.git

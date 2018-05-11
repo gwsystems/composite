@@ -511,7 +511,7 @@ typedef enum {
 #define IL_INV (~0)
 typedef unsigned int isolation_level_t;
 
-#define INTERFACE_UNDEF_SYMBS 64 /* maxiumum undefined symbols in a cobj */
+#define INTERFACE_UNDEF_SYMBS 128 /* maxiumum undefined symbols in a cobj */
 #define LLBOOT_ROOTSCHED_PRIO 1  /* root scheduler priority for llbooter dispatch */
 #define LLBOOT_NEWCOMP_UNTYPED_SZ  (1<<24) /* 16 MB = untyped size per component if there is no capability manager */
 #define LLBOOT_RESERVED_UNTYPED_SZ (1<<24) /* 16 MB = reserved untyped size with booter if there is a capability manager */

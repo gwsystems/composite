@@ -1,9 +1,13 @@
 MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
+.PHONY: default all extern comps plat init_extern
 default: | all cp
 
-all: comps plat
+all: | extern comps plat
+
+extern:
+	$(MAKE) $(MAKEFLAGS) -C extern
 
 comps:
 	$(info )
@@ -36,8 +40,15 @@ distclean: clean
 	$(MAKE) $(MAKEFLAGS) -C components distclean
 	@rm -f `pwd`/../transfer/*
 
-init:
+init: | ensure_config init_extern init_composite
+
+ensure_config:
 	test -f PLATFORM_ID || $(MAKE) $(MAKEFLAGS) config
+
+init_extern:
+	$(MAKE) $(MAKEFLAGS) -C extern init
+
+init_composite:
 	$(MAKE) $(MAKEFLAGS) -C components init
 	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform init
 
