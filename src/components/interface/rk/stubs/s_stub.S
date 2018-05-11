@@ -5,10 +5,11 @@
  * Public License v2.
  */
 
+#define __ASM__
+#include <consts.h>
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text
-
 cos_asm_server_stub(cos_sinv)
 cos_asm_server_stub(rk_sendto)
 cos_asm_server_stub(rk_recvfrom)
