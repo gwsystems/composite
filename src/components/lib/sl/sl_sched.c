@@ -488,6 +488,8 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 
 	sched_param_get(sp, &type, &value);
 
+	printc("value: %d\n", value);
+
 	switch (type) {
 	case SCHEDP_WINDOW:
 	{

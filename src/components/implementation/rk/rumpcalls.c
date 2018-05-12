@@ -162,6 +162,7 @@ cos_irqthd_handler(arcvcap_t rcvc, void *line)
 		 * multiple queuing of events to process all data (if there are multiple events pending)
 		 */
 		cos_rcv(rcvc, RCV_ALL_PENDING, &rcvd);
+		printc("WAKING UP INTR THREAD: %d\n", which);
 
 		/*
 		 * This only wakes up isr_thread.

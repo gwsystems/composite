@@ -140,8 +140,8 @@ rump_booter_init(void *d)
 	schedinit_child();
 
 	/* We pass in the json config string to the RK */
-	script = RK_JSON_DEFAULT_HW;
-	if (!strcmp(script, RK_JSON_DEFAULT_HW)) {
+	script = RK_JSON_DEFAULT_QEMU;
+	if (!strcmp(script, RK_JSON_DEFAULT_QEMU)) {
 		printc("CONFIGURING RK TO RUN ON BAREMETAL\n");
 	} else if (!strcmp(script, RK_JSON_DEFAULT_QEMU)) {
 		printc("CONFIGURING RK TO RUN ON QEMU\n");
@@ -184,7 +184,6 @@ cos_init(void)
 	 * We don't know how many sinv's have been allocated for us,
 	 * so switch back to booter to get the frontier value
 	 */
-
 	printc("Fetching cap frontier from booter...");
 	cos_spdid_set(cos_comp_info.cos_this_spd_id);
 	spdid = cos_spdid_get();

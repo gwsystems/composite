@@ -75,37 +75,37 @@ launch_other_component(int child_id, int is_library)
 void
 ds_proxy()
 {
-	launch_other_component(1, 0);
+	launch_other_component(6, 0);
 }
 
 void
 fm_proxy()
 {
-	launch_other_component(3, 0);
+	launch_other_component(7, 0);
 }
 
 void
 hs_proxy()
 {
-	launch_other_component(6, 0);
+	launch_other_component(9, 0);
 }
 
 void
 mm_proxy()
 {
-	launch_other_component(7, 0);
+	launch_other_component(10, 0);
 }
 
 void
 sc_proxy()
 {
-	launch_other_component(5, 0);
+	launch_other_component(8, 0);
 }
 
 void
 shc_lab_proxy()
 {
-	launch_other_component(8, 0);
+	launch_other_component(11, 0);
 }
 
 int32

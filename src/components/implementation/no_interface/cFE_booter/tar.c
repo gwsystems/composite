@@ -82,7 +82,7 @@ tar_parse()
 	assert(tar_end - tar_start > 0);
 	assert(tar_size == (size_t)(tar_end - tar_start));
 
-	while (offset + tar_start < tar_end) {
+	while ((offset + tar_start) < tar_end) {
 		if (file_get_new(&o)) return OS_FS_ERR_DRIVE_NOT_CREATED;
 
 		/* tar ends after two empty records */
@@ -90,6 +90,13 @@ tar_parse()
 			o->ino = 0;
 			return OS_FS_SUCCESS;
 		}
+
+		/* Edge case where the current block is NULL however there is valid blocks afterwards */
+		if (!(offset + tar_start)[0]) {
+			offset += TAR_BLOCKSIZE;
+			continue;
+		}
+
 		if (tar_hdr_read(offset, o)) return OS_FS_ERR_DRIVE_NOT_CREATED;
 		if (file_insert(o, offset + tar_start) != OS_FS_SUCCESS) return OS_FS_ERR_DRIVE_NOT_CREATED;
 

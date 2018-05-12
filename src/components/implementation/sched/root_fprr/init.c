@@ -42,13 +42,10 @@ sched_child_init(struct sched_childinfo *schedci)
 	assert(schedci);
 	initthd = sched_child_initthd_get(schedci);
 	assert(initthd);
+
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
-
-	printc("Giving child thread infinite tcap\n");
-	cos_tcap_transfer(schedci->defcinfo.sched_aep.rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE,
-			  TCAP_RES_INF, SCHEDP_PRIO);
 }
 
 void
@@ -65,7 +62,7 @@ cos_init(void)
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
 
-	sl_init(SL_MIN_PERIOD_US);
+	sl_init(SL_MIN_PERIOD_US * 2);
 	sched_childinfo_init();
 	__initializer_thd = sl_thd_alloc(__init_done, NULL);
 	assert(__initializer_thd);

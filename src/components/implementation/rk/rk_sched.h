@@ -8,7 +8,7 @@
 #include <sl_thd.h>
 #include <rumpcalls.h>
 
-#define RK_SCHED_PERIOD_US PARENT_PERIOD_US
+#define RK_SCHED_PERIOD_US CHILD_PERIOD_US
 
 #if defined(CHRONOS_ENABLED)
 /*
