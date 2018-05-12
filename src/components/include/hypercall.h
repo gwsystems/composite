@@ -19,6 +19,7 @@ enum hypercall_cntl {
 	HYPERCALL_COMP_CHILD_NEXT,
 
 	HYPERCALL_NUMCOMPS_GET,
+	HYPERCALL_COMP_ID_GET,
 };
 
 static inline int
@@ -190,6 +191,35 @@ static inline int
 hypercall_numcomps_get(void)
 {
 	return cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_NUMCOMPS_GET, 0, 0);
+}
+
+static inline spdid_t
+hypercall_comp_id_get(char *comp_name)
+{
+	int ret;
+	/* We pack the string into two words */
+	assert(comp_name && strlen(comp_name) <= 8);
+
+	/* Create zero initialized buffer (must be 9 in case the string is 8 bytes + terminator) */
+	char b[9];
+	memset(b, 0, 9);
+
+	/* Copy string to buffer */
+	strcpy(b, comp_name);
+
+	word_t word_1 = b[0];
+	word_1 = (word_1 << 8) | b[1];
+	word_1 = (word_1 << 8) | b[2];
+	word_1 = (word_1 << 8) | b[3];
+
+	word_t word_2 = b[4];
+	word_2 = (word_2 << 8) | b[5];
+	word_2 = (word_2 << 8) | b[6];
+	word_2 = (word_2 << 8) | b[7];
+
+	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_ID_GET, word_1, word_2);
+
+	return ret;
 }
 
 #endif /* HYPERCALL_H */

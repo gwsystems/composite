@@ -43,10 +43,12 @@ get_this_threads_priority()
 }
 
 void
-launch_other_component(int child_id, int is_library)
+launch_other_component(spdid_t child_id, int is_library)
 {
 	struct sl_thd *        t;
 	struct cos_defcompinfo child_dci;
+
+	assert(child_id > 0);
 
 	cos_defcompinfo_childid_init(&child_dci, child_id);
 	t = sl_thd_initaep_alloc(&child_dci, NULL, 0, 0, 0);
@@ -75,37 +77,37 @@ launch_other_component(int child_id, int is_library)
 void
 ds_proxy()
 {
-	launch_other_component(6, 0);
+	launch_other_component(hypercall_comp_id_get("ds"), 0);
 }
 
 void
 fm_proxy()
 {
-	launch_other_component(7, 0);
+	launch_other_component(hypercall_comp_id_get("fm"), 0);
 }
 
 void
 hs_proxy()
 {
-	launch_other_component(9, 0);
+	launch_other_component(hypercall_comp_id_get("hs"), 0);
 }
 
 void
 mm_proxy()
 {
-	launch_other_component(10, 0);
+	launch_other_component(hypercall_comp_id_get("mm"), 0);
 }
 
 void
 sc_proxy()
 {
-	launch_other_component(8, 0);
+	launch_other_component(hypercall_comp_id_get("sc"), 0);
 }
 
 void
 shc_lab_proxy()
 {
-	launch_other_component(11, 0);
+	launch_other_component(hypercall_comp_id_get("sch_lab"), 0);
 }
 
 int32
