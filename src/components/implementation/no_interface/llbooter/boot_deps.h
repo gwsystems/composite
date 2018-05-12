@@ -734,6 +734,31 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
 		ret1 = num_cobj + 1; /* including booter */
 		break;
 	}
+	case HYPERCALL_COMP_ID_GET:
+	{
+		int i;
+		char b[9];
+
+		b[0] = (arg3 >> 24) & 0xFF;
+		b[1] = (arg3 >> 16) & 0xFF;
+		b[2] = (arg3 >> 8) & 0xFF;
+		b[3] = arg3 & 0xFF;
+
+		b[4] = (arg4 >> 24) & 0xFF;
+		b[5] = (arg4 >> 16) & 0xFF;
+		b[6] = (arg4 >> 8) & 0xFF;
+		b[7] = arg4 & 0xFF;
+		b[8] = '\0';
+
+		ret1 = 0;
+		for (i = 0; hs[i] != NULL; i++) {
+			if (strcmp(b, hs[i]->name) == 0) {
+				ret1 = i + 1;
+				break;
+			}
+		}
+		break;
+	}
 	default:
 	{
 		return -EINVAL;
