@@ -26,8 +26,7 @@ sl_mod_schedule(void)
 		if (ps_list_head_empty(&threads[i])) continue;
 		t = ps_list_head_first_d(&threads[i], struct sl_thd_policy);
 
-		ps_list_rem_d(t);
-		ps_list_head_append_d(&threads[i], t);
+		/* Unlike fprr, we don't remove from the runq here */
 
 		return t;
 	}

@@ -73,8 +73,7 @@ serial_handler(struct pt_regs *r)
 		break;
 	}
 
-	printk("Serial: %d\n", serial);
-	// printk("%c", serial);
+	printk("Serial: %c\n", serial);
 	return preempt;
 }
 

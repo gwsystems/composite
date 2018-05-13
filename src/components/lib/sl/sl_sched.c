@@ -488,6 +488,8 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 
 	sched_param_get(sp, &type, &value);
 
+	printc("value: %d\n", value);
+
 	switch (type) {
 	case SCHEDP_WINDOW:
 	{
@@ -518,7 +520,11 @@ sl_timeout_period(microsec_t period)
 /* engage space heater mode */
 void
 sl_idle(void *d)
-{ while (1) ; }
+{
+	while (1) {
+		printc("idle\n");
+	}
+}
 
 void
 sl_init(microsec_t period)

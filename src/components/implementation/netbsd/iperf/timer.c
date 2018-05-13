@@ -171,7 +171,7 @@ tmr_timeout( struct timeval* nowP )
 {
     struct timeval now;
     int64_t usecs;
-    static struct timeval timeout;
+    //static struct timeval timeout;
 
     getnow( nowP, &now );
     /* Since the list is sorted, we only need to look at the first timer. */
@@ -181,8 +181,8 @@ tmr_timeout( struct timeval* nowP )
 	    ( timers->time.tv_usec - now.tv_usec );
     if ( usecs <= 0 )
 	usecs = 0;
-    timeout.tv_sec = usecs / 1000000LL;
-    timeout.tv_usec = usecs % 1000000LL;
+    //timeout.tv_sec = usecs / 1000000LL;
+    //timeout.tv_usec = usecs % 1000000LL;
     //return &timeout;
     return NULL;
 }
