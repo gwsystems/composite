@@ -40,6 +40,7 @@ localizesymdst=( "_start"
 		"recvfrom"
 		"sendto"
 		"printf"
+		"_GLOBAL_OFFSET_TABLE_"
 		)
 
 if [ "$PROG" == "" ]; then

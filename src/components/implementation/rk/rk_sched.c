@@ -114,11 +114,11 @@ rk_rump_thd_alloc(cos_thd_fn_t fn, void *data)
 }
 
 struct sl_thd *
-rk_intr_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_aepkey_t key)
+rk_intr_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_channelkey_t key)
 {
 	struct sl_thd *t = NULL;
 
-	t = sl_thd_aep_alloc(fn, data, own_tcap, key);
+	t = sl_thd_aep_alloc(fn, data, own_tcap, key, 0, 0);
 	assert(t);
 
 	rk_intr_thd_param_set(t, own_tcap);

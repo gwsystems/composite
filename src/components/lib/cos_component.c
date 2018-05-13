@@ -11,6 +11,7 @@
 #include <consts.h>
 #include <cos_component.h>
 #include <cos_debug.h>
+#include <cos_kernel_api.h>
 
 #include <ps.h>
 
@@ -172,6 +173,13 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		constructors_execute();
 	}
 
+	/*
+	 * if it's the first component.. wait for timer calibration
+	 * NOTE: for "fork"ing components and not updating "spdid"s, this call will just fail and should be fine.
+	 */
+	if (cos_spd_id() == 0) {
+		cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	}
 
 	switch (t) {
 	case COS_UPCALL_THD_CREATE:
@@ -250,3 +258,6 @@ struct cos_component_information cos_comp_info __attribute__((
                          .cos_poly = {
                            0,
                          }};
+
+/* FIXME: ck linking says undefined. checked online and made sure -fno-PIC is set through --without-pic configuration but this still occurs. */
+void *_GLOBAL_OFFSET_TABLE_ = NULL;

@@ -247,7 +247,7 @@ union shared_region {
 };
 
 int  emu_request_memory(spdid_t client);
-arcvcap_t emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key);
+arcvcap_t emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_channelkey_t key);
 
 #define STASH_MAGIC_VALUE ((void *)0xBEAFBEAF)
 
@@ -302,7 +302,7 @@ void  emu_CFE_TIME_Add(spdid_t client);
 void  emu_CFE_TIME_Compare(spdid_t client);
 void  emu_CFE_TIME_GetTime(spdid_t client);
 void  emu_CFE_TIME_Print(spdid_t client);
-int32 emu_CFE_TIME_RegisterSynchCallback(cos_aepkey_t key);
+int32 emu_CFE_TIME_RegisterSynchCallback(cos_channelkey_t key);
 
 int32     emu_OS_cp(spdid_t client);
 int32     emu_OS_creat(spdid_t client);

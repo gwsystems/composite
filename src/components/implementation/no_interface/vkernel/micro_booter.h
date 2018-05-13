@@ -10,7 +10,6 @@
 
 #include "vk_types.h"
 
-#define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 #define BUG_DIVZERO()                                           \
 	do {                                                    \
@@ -47,5 +46,10 @@ tls_set(size_t off, unsigned long val)
 }
 
 extern void test_run_vk(void);
+
+static void
+test_ipi_full(void)
+{
+}
 
 #endif /* MICRO_BOOTER_H */

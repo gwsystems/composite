@@ -1,8 +1,8 @@
 /**
  * Redistribution of this file is permitted under the BSD two clause license.
  *
- * Copyright 2017, The George Washington University
- * Author: Gabriel Parmer, gparmer@gwu.edu
+ * Copyright 2018, The George Washington University
+ * Author: Phani Gadepalli, phanikishoreg@gwu.edu
  */
 
 #include <ps.h>
@@ -11,10 +11,48 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 #include "../../interface/capmgr/capmgr.h"
+#include "../../interface/capmgr/memmgr.h"
+#include <bitmap.h>
+#include <sl_child.h>
 
-extern struct sl_global sl_global_data;
 extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_no_cs(struct sl_thd *t);
+
+cbuf_t
+sl_shm_alloc(vaddr_t *addr)
+{
+	return memmgr_shared_page_allocn(SL_CHILD_SHM_PAGES, addr);
+}
+
+vaddr_t
+sl_shm_map(cbuf_t id)
+{
+	vaddr_t ret = 0;
+	unsigned long npages = 0;
+
+	npages = memmgr_shared_page_map(id, &ret);
+	assert(npages == SL_CHILD_SHM_PAGES);
+
+	return ret;
+}
+
+void
+sl_xcpu_asnd_alloc(void)
+{
+	int i;
+
+	for (i = 0; i < NUM_CPU; i++) {
+		asndcap_t snd;
+		thdid_t tid;
+
+		if (i == cos_cpuid()) continue;
+		if (!bitmap_check(sl__globals()->cpu_bmp, i)) continue;
+
+		snd = capmgr_asnd_rcv_create(BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(i));
+		assert(snd);
+		sl__globals()->xcpu_asnd[cos_cpuid()][i] = snd;
+	}
+}
 
 struct sl_thd *
 sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps)
@@ -46,7 +84,7 @@ done:
 	return t;
 }
 
-static struct sl_thd *
+struct sl_thd *
 sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
@@ -72,7 +110,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_comp_init_no_cs(struct cos_defcompinfo *comp, sl_thd_property_t prps, asndcap_t snd, cos_aepkey_t key)
+sl_thd_comp_init_no_cs(struct cos_defcompinfo *comp, sl_thd_property_t prps, asndcap_t snd, cos_channelkey_t key)
 {
 	struct cos_aep_info *sa  = cos_sched_aep_get(comp);
 	struct cos_aep_info *aep = NULL;
@@ -115,7 +153,7 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 
 		aep->thd = capmgr_thd_create_ext(comp->id, idx, &aep->tid);
 		if (!aep->thd) goto done;
-		aep->tc  = sl_thd_tcap(sl__globals()->sched_thd);
+		aep->tc  = sl_thd_tcap(sl__globals_cpu()->sched_thd);
 
 		t = sl_thd_alloc_init(aep, 0, 0);
 		sl_mod_thd_create(sl_mod_thd_policy_get(t));
@@ -136,7 +174,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, thdclosure_index_t idx, sl_thd_property_t prps, cos_aepkey_t key, arcvcap_t *extrcv)
+sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, thdclosure_index_t idx, sl_thd_property_t prps, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
 {
 	struct cos_aep_info *aep = NULL;
 	struct sl_thd       *t   = NULL;
@@ -151,7 +189,7 @@ sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, t
 		aep = cos_sched_aep_get(comp);
 
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
-		thd = capmgr_initaep_create(comp->id, aep, owntc, key, &snd);
+		thd = capmgr_initaep_create(comp->id, aep, owntc, key, ipiwin, ipimax, &snd);
 		if (!thd) goto done;
 
 		t = sl_thd_comp_init_no_cs(comp, prps, snd, key);
@@ -161,7 +199,7 @@ sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, t
 		if (!aep) goto done;
 
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
-		capmgr_aep_create_ext(comp->id, aep, idx, owntc, key, extrcv);
+		capmgr_aep_create_ext(comp->id, aep, idx, owntc, key, ipiwin, ipimax, extrcv);
 		if (!aep->thd) goto done;
 
 		t = sl_thd_alloc_init(aep, 0, prps);
@@ -173,7 +211,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, cos_aepkey_t key)
+sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
 {
 	struct sl_thd       *t     = NULL;
 	struct cos_aep_info *aep   = NULL;
@@ -183,7 +221,7 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 	if (!aep) goto done;
 
 	if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
-	capmgr_aep_create(aep, fn, data, owntc, key);
+	capmgr_aep_create(aep, fn, data, owntc, key, ipiwin, ipimax);
 	if (aep->thd == 0) goto done;
 
 	t = sl_thd_alloc_init(aep, 0, prps);
@@ -206,12 +244,12 @@ sl_thd_alloc(cos_thd_fn_t fn, void *data)
 }
 
 struct sl_thd *
-sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_aepkey_t key)
+sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
 {
 	struct sl_thd *t = NULL;
 
 	sl_cs_enter();
-	t = sl_thd_aep_alloc_no_cs(fn, data, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, key);
+	t = sl_thd_aep_alloc_no_cs(fn, data, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, key, ipiwin, ipimax);
 	sl_cs_exit();
 
 	return t;
@@ -233,7 +271,7 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 }
 
 struct sl_thd *
-sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_aepkey_t key)
+sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
 {
 	struct sl_thd *t = NULL;
 
@@ -244,7 +282,7 @@ sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int
 		t = sl_thd_alloc_ext_no_cs(comp, 0);
 	} else {
 		t = sl_thd_aep_alloc_ext_no_cs(comp, sched_thd, 0, (is_sched ? SL_THD_PROPERTY_SEND : 0)
-					       | (own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0), key, NULL);
+					       | (own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0), key, ipiwin, ipimax, NULL);
 	}
 	sl_cs_exit();
 
@@ -252,7 +290,7 @@ sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int
 }
 
 struct sl_thd *
-sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_aepkey_t key, arcvcap_t *extrcv)
+sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
 {
 	struct sl_thd *t = NULL;
 
@@ -262,7 +300,7 @@ sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thd
 	sl_cs_enter();
 	if (!is_aep) own_tcap = 0;
 	if (is_aep) {
-		t = sl_thd_aep_alloc_ext_no_cs(comp, sched_thd, idx, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, key, extrcv);
+		t = sl_thd_aep_alloc_ext_no_cs(comp, sched_thd, idx, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, key, ipiwin, ipimax, extrcv);
 	} else {
 		t = sl_thd_alloc_ext_no_cs(comp, idx);
 	}
@@ -281,8 +319,11 @@ sl_thd_init_ext_no_cs(struct cos_aep_info *aepthd, struct sl_thd *sched)
 	if (!aep) goto done;
 
 	*aep = *aepthd;
-	/* TODO: use sched info for parent -> child notifications */
 	t = sl_thd_alloc_init(aep, 0, 0);
+	if (!t) goto done;
+
+	/* use sched info for parent -> child notifications */
+	t->schedthd = sched;
 
 done:
 	return t;
@@ -307,10 +348,12 @@ sl_thd_retrieve(thdid_t tid)
 {
 	struct sl_thd       *t      = sl_mod_thd_get(sl_thd_lookup_backend(tid));
 	spdid_t              client = cos_inv_token();
+	thdid_t              itid   = 0;
+	struct sl_thd       *it     = NULL;
 	struct cos_aep_info  aep;
 
-	if (t) return t;
-	/* this can only happen for invocations */
+	if (t && sl_thd_aepinfo(t)) return t;
+	if (tid >= SL_MAX_NUM_THDS) return NULL;
 	assert(client);
 
 	memset(&aep, 0, sizeof(struct cos_aep_info));
@@ -323,17 +366,20 @@ sl_thd_retrieve(thdid_t tid)
 	if (tid != sl_thdid()) {
 		struct sl_thd *curr = sl_thd_curr();
 
-		/* well, the current thread info must be available */
+		/* well, the current thread info must be retrieved/available */
 		assert(curr);
 		/* FIXME: We have a `sl_thd_lkup/curr()` abuse, they're used both within and outside of cs */
 		/* sl_cs_enter(); */
 	}
 
-	aep.thd = capmgr_thd_retrieve(client, tid);
-	assert(aep.thd); /* this thread must be a child thread and capmgr must know it! */
+	aep.thd = capmgr_thd_retrieve(client, tid, &itid);
+	assert(aep.thd && itid); /* this thread must be a child thread and capmgr must know it! */
+	/* "client"'s initthd must be initialized! */
+	it = sl_thd_try_lkup(itid);
+	assert(it);
 	aep.tid = tid;
-	aep.tc  = sl__globals()->sched_tcap;
-	t = sl_thd_init_ext_no_cs(&aep, NULL);
+	aep.tc  = sl__globals_cpu()->sched_tcap;
+	t = sl_thd_init_ext_no_cs(&aep, it);
 
 	/* if (tid != sl_thdid()) sl_cs_exit(); */
 

@@ -29,7 +29,7 @@ void
 gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *services)
 {
 	int  pid = getpid();
-	char tmp_str[2048];
+	char tmp_str[4096];
 
 	while (services) {
 		int               i;
