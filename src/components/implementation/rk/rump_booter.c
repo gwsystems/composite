@@ -87,8 +87,15 @@ rk_hw_irq_alloc(void)
 		t = rk_intr_aep_alloc(cos_irqthd_handler, (void *)i, 0, 0);
 		assert(t);
 
-		ret = cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, sl_thd_rcvcap(t));
+		/*
+		 * rcvcap is created by the capmgr in the capmgr component..
+		 * the captbl information in the kernel will be capmgr captbl.
+		 * passing the cap offset from here may very well map to some other capability in capmgr!!
+		 * It must be co-incidence that it works for some cases!!
+		 */
+		ret = capmgr_hw_attach(32 + i, sl_thd_thdid(t));
 		assert(!ret);
+		printc("attach:%d, %u, %u\n", i + 32, sl_thd_thdid(t), sl_thd_rcvcap(t));
 	}
 }
 
@@ -137,7 +144,7 @@ rump_booter_init(void *d)
 	rk_hw_irq_alloc();
 
 	printc("Notifying parent scheduler...\n");
-	schedinit_child();
+	//schedinit_child();
 
 	/* We pass in the json config string to the RK */
 	script = RK_JSON_DEFAULT_QEMU;

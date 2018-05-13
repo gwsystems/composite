@@ -15,4 +15,7 @@ thdcap_t  capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid);
 asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t);
 asndcap_t capmgr_asnd_key_create(cos_aepkey_t key);
 
+int capmgr_hw_attach(hwid_t hwid, thdid_t tid);
+int capmgr_hw_detach(hwid_t hwid);
+
 #endif /* CAPMGR_H */
