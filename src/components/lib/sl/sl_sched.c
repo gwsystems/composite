@@ -621,8 +621,9 @@ sl_init(microsec_t period)
 {
 	u32_t cpubmp[NUM_CPU_BMP_WORDS] = { 0 };
 
-	/* runs on all cores.. */
-	bitmap_set_contig(cpubmp, 0, NUM_CPU, 1);
+	/* parse the initstring and if for some reason it fails, set to run on all cores */
+	if (cos_init_args_cpubmp(cpubmp)) bitmap_set_contig(cpubmp, 0, NUM_CPU, 1);
+
 	sl_init_cpubmp(period, cpubmp);
 }
 
