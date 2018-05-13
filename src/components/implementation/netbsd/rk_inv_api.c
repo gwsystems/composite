@@ -331,15 +331,15 @@ rk_socketcall(int call, unsigned long *args)
 		}
 		case 5: { /* accept */
 			int s;
-			struct sockaddr * restrict addr;
-			socklen_t * restrict addrlen;
+			struct sockaddr *addr;
+			socklen_t *addrlen;
 			static int shdmem_id = -1;
 			static vaddr_t shdmem_addr = 0;
 			vaddr_t tmp;
 
 			s       = *args;
-			addr    = (struct sockaddr * restrict)*(args + 1);
-			addrlen = (socklen_t * restrict)*(args + 2);
+			addr    = (struct sockaddr *)*(args + 1);
+			addrlen = (socklen_t *)*(args + 2);
 
 			/* TODO make this a function */
 			if (shdmem_id < 0 && !shdmem_addr) {
