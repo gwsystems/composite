@@ -119,19 +119,34 @@ cfs_lib_proxy()
 	return OS_SUCCESS;
 }
 
+void
+f42_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("f42"), 0);
+}
+
+void
+i42_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("i42"), 0);
+}
+
+
 struct symbol_proxy {
 	char *symbol_name;
 	void *proxy;
 };
 
-#define NUM_PROXIES 7
+#define NUM_PROXIES 9
 struct symbol_proxy proxies[NUM_PROXIES] = {{"DS_AppMain", ds_proxy},
                                             {"FM_AppMain", fm_proxy},
                                             {"HS_AppMain", hs_proxy},
 											{"MM_AppMain", mm_proxy},
 											{"SC_AppMain", sc_proxy},
 											{"SCH_Lab_AppMain", shc_lab_proxy},
-											{"CFS_LibInit", cfs_lib_proxy}};
+											{"CFS_LibInit", cfs_lib_proxy},
+										    {"F42_AppMain", f42_proxy},
+										    {"I42_AppMain", i42_proxy}};
 
 int32
 OS_SymbolLookup(cpuaddr *symbol_address, const char *symbol_name)

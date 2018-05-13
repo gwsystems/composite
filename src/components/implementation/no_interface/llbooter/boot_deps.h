@@ -752,8 +752,9 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
 
 		ret1 = 0;
 		for (i = 0; hs[i] != NULL; i++) {
-			if (strcmp(b, hs[i]->name) == 0) {
-				ret1 = i + 1;
+			struct cobj_header *h = hs[i];
+			if (strcmp(b, h->name) == 0) {
+				ret1 = h->id;
 				break;
 			}
 		}

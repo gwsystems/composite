@@ -215,6 +215,14 @@ emu_CFE_EVS_Register(spdid_t client)
 }
 
 int32
+emu_CFE_EVS_SendEvent(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_EVS_SendEvent(s->cfe_evs_sendEvent.EventID, s->cfe_evs_sendEvent.EventType, "%s",
+	                         s->cfe_evs_sendEvent.Msg);
+}
+
+int32
 emu_CFE_FS_Decompress(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
@@ -243,12 +251,11 @@ emu_CFE_SB_CreatePipe(spdid_t client)
 	                         s->cfe_sb_createPipe.PipeName);
 }
 
-int32
-emu_CFE_EVS_SendEvent(spdid_t client)
+uint16
+emu_CFE_SB_GetChecksum(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
-	return CFE_EVS_SendEvent(s->cfe_evs_sendEvent.EventID, s->cfe_evs_sendEvent.EventType, "%s",
-	                         s->cfe_evs_sendEvent.Msg);
+	return CFE_SB_GetChecksum((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
 }
 
 uint16
@@ -278,6 +285,13 @@ emu_CFE_SB_GetTotalMsgLength(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
 	return CFE_SB_GetTotalMsgLength(&s->cfe_sb_getMsgLen.Msg);
+}
+
+uint16
+emu_CFE_SB_GetUserDataLength(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	return CFE_SB_GetUserDataLength((CFE_SB_MsgPtr_t)s->cfe_sb_msg.Msg);
 }
 
 void

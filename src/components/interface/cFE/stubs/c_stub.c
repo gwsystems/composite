@@ -429,6 +429,18 @@ CFE_SB_CreatePipe(CFE_SB_PipeId_t *PipeIdPtr, uint16 Depth, const char *PipeName
 }
 
 uint16
+CFE_SB_GetChecksum(CFE_SB_MsgPtr_t MsgPtr)
+{
+	char * msg_ptr;
+	uint16 msg_len = CFE_SB_GetTotalMsgLength(MsgPtr);
+
+	assert(msg_len <= EMU_BUF_SIZE);
+	msg_ptr = (char *)MsgPtr;
+	memcpy(shared_region->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
+	return emu_CFE_SB_GetChecksum(spdid);
+}
+
+uint16
 CFE_SB_GetCmdCode(CFE_SB_MsgPtr_t MsgPtr)
 {
 	char * msg_ptr;
@@ -471,6 +483,18 @@ CFE_SB_GetTotalMsgLength(CFE_SB_MsgPtr_t MsgPtr)
 {
 	shared_region->cfe_sb_getMsgLen.Msg = *MsgPtr;
 	return emu_CFE_SB_GetTotalMsgLength(spdid);
+}
+
+uint16
+CFE_SB_GetUserDataLength(CFE_SB_MsgPtr_t MsgPtr)
+{
+	char * msg_ptr;
+	uint16 msg_len = CFE_SB_GetTotalMsgLength(MsgPtr);
+
+	assert(msg_len <= EMU_BUF_SIZE);
+	msg_ptr = (char *)MsgPtr;
+	memcpy(shared_region->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
+	return emu_CFE_SB_GetUserDataLength(spdid);
 }
 
 void
@@ -942,6 +966,13 @@ OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 	*sem_id                                = shared_region->os_mutSemCreate.sem_id;
 
 	return result;
+}
+
+int32
+OS_TaskInstallDeleteHandler(osal_task_entry function_pointer)
+{
+	OS_printf("OS_TaskInstallDeleteHandler called but unimplemented...\n");
+	return OS_SUCCESS;
 }
 
 int32

@@ -280,10 +280,12 @@ int32 emu_CFE_FS_ReadHeader(spdid_t client);
 int32 emu_CFE_FS_WriteHeader(spdid_t client);
 
 int32          emu_CFE_SB_CreatePipe(spdid_t client);
+uint16         emu_CFE_SB_GetChecksum(spdid_t client);
 uint16         emu_CFE_SB_GetCmdCode(spdid_t client);
 CFE_SB_MsgId_t emu_CFE_SB_GetMsgId(spdid_t client);
 void           emu_CFE_SB_GetMsgTime(spdid_t client);
 uint16         emu_CFE_SB_GetTotalMsgLength(spdid_t client);
+uint16         emu_CFE_SB_GetUserDataLength(spdid_t client);
 void           emu_CFE_SB_InitMsg(spdid_t client);
 int32          emu_CFE_SB_RcvMsg(spdid_t client);
 int32          emu_CFE_SB_SetCmdCode(spdid_t client);
