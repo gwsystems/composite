@@ -86,7 +86,7 @@ hw_handler(struct pt_regs *regs)
 	int preempt = 1;
 	u32_t count = 0;
 
-	//printk("%d", regs->orig_ax);
+	printk("%d\n", regs->orig_ax);
 
 	/*
 	 * TODO: ack here? or

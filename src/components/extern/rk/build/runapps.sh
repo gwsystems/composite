@@ -1,11 +1,11 @@
 #!/bin/bash
 PROG=$1
 SRCDIR=../../../implementation/rk/cnic/
-PROGDIR=../../../implementation/netbsd/$PROG
 COSOBJ=cnic.o
 FINALOBJ=rumpcos.o
 QEMURK=qemu_rk.sh
 TRANSFERDIR=../../../../../transfer/
+RUNSCRIPT="$PROG"_rumpboot.sh
 
 cp ./$QEMURK ./$TRANSFERDIR
 
@@ -48,11 +48,19 @@ if [ "$PROG" == "" ]; then
 	pushd ../../../implementation/netbsd > /dev/null
 	echo
 	ls -1d */
+	echo "cfe_rk_http/"
 	echo
 	popd > /dev/null
 	echo Do no include \"/\" in your selection
 	exit;
 fi
+
+if [ "$PROG" == "cfe_rk_http" ]; then
+	PROG=http
+	RUNSCRIPT=cfe_rk_http_rumpboot.sh
+fi
+
+PROGDIR=../../../implementation/netbsd/"$PROG"
 
 # Compile RK stub
 cd rk_stub
@@ -95,13 +103,13 @@ USB_DEV=`stat --format "%F" /dev/sdb`
 if [ "$USB_DEV" = "block special file" ]; then
 	echo "GENERATING ISO"
 	echo "$PROG"_rumpboot.sh
-	./geniso.sh "$PROG"_rumpboot.sh
+	./geniso.sh "$RUNSCRIPT"
 	echo "WRITIING ISO IMAGE to /dev/sdb: $USB_DEV"
 	sudo dd bs=8M if=composite.iso of=/dev/sdb
 	sync
 else
 	echo "NO /dev/sdb: $USB_DEV"
 	echo "RUNNING THE SYSTEM ON QEMU INSTEAD"
-	echo "$PROG"_rumpboot.sh
-	./$QEMURK "$PROG"_rumpboot.sh
+	echo "$RUNSCRIPT"
+	./$QEMURK "$RUNSCRIPT"
 fi

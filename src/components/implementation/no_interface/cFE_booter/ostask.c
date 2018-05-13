@@ -1,4 +1,5 @@
 #include <cos_kernel_api.h>
+#include <schedinit.h>
 #include <sl.h>
 #include <sl_lock.h>
 
@@ -76,6 +77,7 @@ OS_SchedulerStart(cos_thd_fn_t main_delegate)
 	sl_thd_param_set(timer_thd, timer_window);
 	sl_thd_param_set(timer_thd, timer_priority);
 
+	schedinit_child();
 	sl_sched_loop();
 }
 

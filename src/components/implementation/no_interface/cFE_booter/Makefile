@@ -2,7 +2,7 @@
 ASM_OBJS=
 COMPONENT=cFE_booter.o
 INTERFACES=cFE
-DEPENDENCIES=capmgr
+DEPENDENCIES=capmgr schedinit
 IF_LIB:=./composite_cFE.o ./cFE_fs.o $(wildcard test/*.o)
 ADDITIONAL_LIBS=-lcobj_format $(LIBSLCAPMGR) -lheap -lsl_lock -lsl_thd_static_backend
 
