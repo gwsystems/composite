@@ -698,16 +698,9 @@ __cap_asnd_to_arcv(struct cap_asnd *asnd)
 {
 	struct cap_arcv *arcv;
 
-	if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) {
-		printk("%s, %d\n", __func__, __LINE__);
-		return NULL;
-	}
+	if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) return NULL;
 	arcv = (struct cap_arcv *)captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid);
-	if (unlikely(!CAP_TYPECHK(arcv, CAP_ARCV))) {
-		printk("arcv: %d does not equal %d, is not a CAP_ARCV\n", arcv->h.type, CAP_ARCV);
-		printk("%s, %d\n", __func__, __LINE__);
-		return NULL;
-	}
+	if (unlikely(!arcv || !CAP_TYPECHK(arcv, CAP_ARCV))) return NULL;
 	/* FIXME: check arcv epoch + liveness */
 
 	return arcv;
@@ -796,7 +789,6 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	}
 
 	arcv = __cap_asnd_to_arcv(asnd);
-	printk("%s, %d, arcv: %p\n", __func__, __LINE__, arcv);
 	if (unlikely(!arcv)) return 1;
 
 	cos_info = cos_cpu_local_info();
@@ -812,12 +804,9 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	assert(rcv_tcap && tcap);
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0, cos_info);
-	printk("%s, %d\n", __func__, __LINE__);
 	if (next == thd) return 1;
 	thd->state |= THD_STATE_PREEMPTED;
 
-	printk("%s, %d\n", __func__, __LINE__);
-	printk("next: %p, thd: %p, tcap_next: p\n", next, thd, tcap_next);
 	return cap_switch(regs, thd, next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
 }
 

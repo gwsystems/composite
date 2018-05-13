@@ -384,3 +384,31 @@ capmgr_asnd_key_create(cos_aepkey_t key)
 
 	return sndret;
 }
+
+int
+capmgr_hw_attach(hwid_t hwid, thdid_t tid)
+{
+	spdid_t                 cur     = cos_inv_token();
+	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
+	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
+	struct sl_thd          *ti      = cap_info_thd_find(rc, tid);
+
+	if (!rc || !cap_info_init_check(rc)) return -EINVAL;
+	if (!ti || !sl_thd_rcvcap(ti)) return -EINVAL;
+
+	return cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, hwid, sl_thd_rcvcap(ti));
+}
+
+int
+capmgr_hw_detach(hwid_t hwid)
+{
+	spdid_t                 cur     = cos_inv_token();
+	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
+	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
+
+	if (!rc || !cap_info_init_check(rc)) return -EINVAL;
+
+	return cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, hwid);
+}
