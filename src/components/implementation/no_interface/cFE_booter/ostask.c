@@ -136,7 +136,7 @@ OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_p
 
 		cos_defcompinfo_childid_init(&child_dci, spdid);
 
-		thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 0, 0, 0, NULL);
+		thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 0, 0, 0, 0, 0, NULL);
 		assert(thd);
 	} else {
 		thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);

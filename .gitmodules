@@ -7,3 +7,6 @@
 [submodule "src/extern/cFE"]
 	path = src/extern/cFE
 	url = https://github.com/Others/cFE.git
+[submodule "src/components/lib/ck/ck"]
+	path = src/components/lib/ck/ck
+	url = https://github.com/gwsystems/ck.git

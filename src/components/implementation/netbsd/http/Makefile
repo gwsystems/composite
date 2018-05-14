@@ -4,7 +4,7 @@ COMPONENT=http.o
 INTERFACES=netbsd
 DEPENDENCIES=rk capmgr
 IF_LIB=
-ADDITIONAL_LIBS=-lcos_defkernel_api -lsl_sched -lsl_capmgr -lcos_kernel_api -lsl_mod_fprr -lsl_thd_static_backend -lheap
+ADDITIONAL_LIBS=$(LIBSLCAPMGR) -lsl_mod_fprr -lsl_thd_static_backend -lheap
 OBJLIBS+=$(POSIX_LIB)
 
 include ../../Makefile.subsubdir

@@ -138,6 +138,9 @@ timer_calibration(void)
 	static u64_t cycle = 0, tot = 0, prev;
 	static u32_t apic_curr = 0, apic_tot = 0, apic_prev;
 
+	/* calibration only on BSP */
+	assert(get_cpuid() == INIT_CORE);
+
 	prev      = cycle;
 	apic_prev = apic_curr;
 	rdtscll(cycle);
@@ -178,6 +181,7 @@ timer_calibration(void)
 int
 chal_cyc_usec(void)
 {
+	if (lapic_timer_calib_init) return 0;
 	if (cycles_per_tick) return __USECS_CEIL__(cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL, 100);
 	else                 return 0;
 }
@@ -229,7 +233,7 @@ oneshot_handler(struct pt_regs *regs)
 void
 timer_set(timer_type_t timer_type, u64_t cycles)
 {
-	
+
 	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF;
 
 	/* Disable timer interrupts */
@@ -310,8 +314,8 @@ chal_hpet_periodic_set(unsigned long usecs_period)
 cycles_t
 chal_hpet_first_period(void)
 {
-//	printk("f=%llu..\n", first_hpet_period); 
-	return first_hpet_period; 
+//	printk("f=%llu..\n", first_hpet_period);
+	return first_hpet_period;
 }
 
 void

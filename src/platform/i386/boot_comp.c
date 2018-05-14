@@ -39,6 +39,12 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	ptes  = mem_boot_alloc(nptes);
 	assert(ptes);
 
+	if (!uvm && range < COS_MEM_KERN_PA_SZ) {
+		printk("Insufficient %s memory! Available:%luMB, Required:%luMB\n", label, range >> 20, COS_MEM_KERN_PA_SZ >> 20);
+		printk("Reconfigure \"COS_MEM_KERN_PA_SZ\" to %luMB\n", range >> 20);
+		assert(0);
+	}
+
 	printk("\tCreating %d %s PTEs for PGD @ 0x%x from [%x,%x) to [%x,%x).\n", nptes, label,
 	       chal_pa2va((paddr_t)pgtbl), kern_vaddr, kern_vaddr + range, user_vaddr, user_vaddr + range);
 
@@ -103,11 +109,11 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	cos_info->cpuid          = cpu_id;
 	cos_info->invstk_top     = 0;
 	cos_info->overflow_check = 0xDEADBEEF;
-	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, captbl_thd_offset(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
+	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
 	assert(!ret);
 
 	tcap_active_init(cos_info);
-	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, captbl_tcap_offset(cpu_id), tcap_mem);
+	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpu_id), tcap_mem);
 	assert(!ret);
 
 	tc->budget.cycles = TCAP_RES_INF; /* Chronos's got all the time in the world */
@@ -122,8 +128,8 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	thd_current_update(t, t, cos_info);
 	thd_scheduler_set(t, t);
 
-	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, captbl_arcv_offset(cpu_id), BOOT_CAPTBL_SELF_COMP,
-	                    captbl_thd_offset(cpu_id), captbl_tcap_offset(cpu_id), 0, 1);
+	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cpu_id), BOOT_CAPTBL_SELF_COMP,
+	                    BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpu_id), 0, 1);
 	assert(!ret);
 
 	/*

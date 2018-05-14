@@ -12,6 +12,7 @@
 #include <llprint.h>
 #include <hypercall.h>
 #include <memmgr.h>
+#include <capmgr.h>
 #include <schedinit.h>
 #include <capmgr.h>
 
@@ -96,7 +97,6 @@ rk_hw_irq_alloc(void)
 		 */
 		ret = capmgr_hw_attach(32 + i, sl_thd_thdid(t));
 		assert(!ret);
-		printc("attach:%d, %u, %lu\n", i + 32, sl_thd_thdid(t), sl_thd_rcvcap(t));
 	}
 }
 
@@ -207,7 +207,7 @@ cos_init(void)
 			BOOT_CAPTBL_SELF_UNTYPED_PT);
 
 	printc("Fetching boot configuration information\n");
-	my_info = cos_init_args();
+	my_info = cos_config_info_args();
 	printc("Greeting key: %s\n", my_info->kvp[GREETING_KEY].key);
 	printc("Greeting value: %s\n", my_info->kvp[GREETING_KEY].value);
 

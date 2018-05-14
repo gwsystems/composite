@@ -199,8 +199,8 @@ cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct sym
 
 	s_stub = spd_contains_symb(exporter, tmp);
 	if (NULL == s_stub) {
-		printl(PRINT_HIGH, "Could not find server stub (%s) for function %s in service %s to satisfy %s.\n",
-		       tmp, exp_symb->name, exporter->obj, service->obj);
+		//printl(PRINT_HIGH, "Could not find server stub (%s) for function %s in service %s to satisfy %s.\n",
+		//       tmp, exp_symb->name, exporter->obj, service->obj);
 		if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", exp_symb->name, CAP_SERVER_STUB_POSTPEND)) {
 			printl(PRINT_HIGH, "symbol name %s too long to become server capability\n", exp_symb->name);
 			return -1;

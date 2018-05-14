@@ -40,6 +40,9 @@ localizesymdst=( "_start"
 		"recvfrom"
 		"sendto"
 		"printf"
+		"strcspn"
+		"strspn"
+		"_GLOBAL_OFFSET_TABLE_"
 		)
 
 if [ "$PROG" == "" ]; then
@@ -58,6 +61,9 @@ fi
 if [ "$PROG" == "cfe_rk_http" ]; then
 	PROG=http
 	RUNSCRIPT=cfe_rk_http_rumpboot.sh
+elif [ "$PROG" == "cfe_rk_http_smp" ]; then
+	PROG=http
+	RUNSCRIPT=cfe_rk_http_smp_rumpboot.sh
 fi
 
 PROGDIR=../../../implementation/netbsd/"$PROG"

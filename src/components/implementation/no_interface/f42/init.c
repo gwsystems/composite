@@ -128,7 +128,7 @@ long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f, long g)
 {
     if (syscall_num == __NR_mmap || syscall_num == __NR_mmap2) {
-        return cos_mmap((void *)a, (size_t)b, (int)c, (int)d, (int)e, (off_t)f);
+        return (long)cos_mmap((void *)a, (size_t)b, (int)c, (int)d, (int)e, (off_t)f);
     }
 
     if (syscall_num == __NR_brk) {

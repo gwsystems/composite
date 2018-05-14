@@ -2,13 +2,14 @@
 #define ASSERT_H
 
 #include "chal.h"
+#include "chal/cpuid.h"
 #include "cc.h"
 
 /* A not so nice way of oopsing */
-#define die(fmt, ...)                       \
-	do {                                \
-		printk(fmt, ##__VA_ARGS__); \
-		chal_khalt();               \
+#define die(fmt, ...)                                            \
+	do {                                                     \
+		printk("(%d) " fmt, get_cpuid(), ##__VA_ARGS__); \
+		chal_khalt();                                    \
 	} while (0)
 
 #ifdef assert

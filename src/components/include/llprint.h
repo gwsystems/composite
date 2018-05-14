@@ -19,7 +19,7 @@ prints(char *s)
 {
 	size_t len = strlen(s);
 
-	cos_llprint(s, len);
+	cos_print(s, len); /* use syscall to print, so it prints to vga as well */
 
 	return len;
 }
