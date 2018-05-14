@@ -1,7 +1,7 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
-#include <rk_inv_api.h>
+#include <rk_inv.h>
 #include <cos_types.h>
 #include <cos_kernel_api.h>
 #include <rk.h>

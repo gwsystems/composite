@@ -7,6 +7,12 @@ QEMURK=qemu_rk.sh
 TRANSFERDIR=../../../../../transfer/
 RUNSCRIPT="$PROG"_rumpboot.sh
 
+rkapps=( "udpserv"
+	 "http"
+	 "iperf"
+	 "cfe_rk_http"
+	)
+
 cp ./$QEMURK ./$TRANSFERDIR
 
 localizesymsrc=( "__fpclassifyl"
@@ -48,13 +54,17 @@ localizesymdst=( "_start"
 if [ "$PROG" == "" ]; then
 	echo Please input an application name;
 	echo Valid choices include:
-	pushd ../../../implementation/netbsd > /dev/null
-	echo
-	ls -1d */
-	echo "cfe_rk_http/"
-	echo
-	popd > /dev/null
-	echo Do no include \"/\" in your selection
+	for a in "${rkapps[@]}"
+	do
+	echo $a
+	done
+#	pushd ../../../implementation/no_interface > /dev/null
+#	echo
+#	ls -1d */
+#	echo "cfe_rk_http/"
+#	echo
+#	popd > /dev/null
+#	echo Do no include \"/\" in your selection
 	exit;
 fi
 
@@ -66,7 +76,7 @@ elif [ "$PROG" == "cfe_rk_http_smp" ]; then
 	RUNSCRIPT=cfe_rk_http_smp_rumpboot.sh
 fi
 
-PROGDIR=../../../implementation/netbsd/"$PROG"
+PROGDIR=../../../implementation/no_interface/"$PROG"
 
 # Compile RK stub
 cd rk_stub

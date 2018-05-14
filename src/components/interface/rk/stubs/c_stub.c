@@ -1,20 +1,15 @@
-#include <rk_inv_api.h>
+#include <rk_inv.h>
 #include <cos_types.h>
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
-#include <posix.h>
-#include <rumpcalls.h>
-#include <vk_types.h>
 #include <llprint.h>
 #include <rk.h>
 #include <string.h>
-#include <memmgr.h>
+#include "../capmgr/memmgr.h"
 #include <sys/mman.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-
-extern int spdid;
 
 void *
 rk_inv_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
@@ -48,7 +43,7 @@ rk_inv_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 	return ret;
 }
 
-long
+ssize_t
 rk_inv_write(int fd, const void *buf, size_t nbyte)
 {
 	static int shdmem_id = -1;
@@ -84,8 +79,8 @@ int
 rk_inv_ftruncate(int fd, off_t length)
 { return rk_ftruncate(fd, length); }
 
-long
-rk_inv_read(int fd, const void *buf, size_t nbyte)
+ssize_t
+rk_inv_read(int fd, void *buf, size_t nbyte)
 {
 	static int shdmem_id = -1;
 	static vaddr_t shdmem_addr = 0;
@@ -206,72 +201,7 @@ rk_inv_select(int nd, fd_set *in, fd_set *ou, fd_set *ex, struct timeval *tv)
 }
 
 int
-rk_inv_op1(void)
-{ return test_entry(0, 0, 0, 0); }
-
-int
-rk_inv_get_boot_done(void)
-{ return get_boot_done(); }
-
-int
-rk_inv_socket(int domain, int type, int protocol)
-{ return rk_socket(domain, type, protocol); }
-
-int
-rk_inv_bind(int sockfd, int shdmem_id, socklen_t addrlen)
-{ return rk_bind(sockfd, shdmem_id, addrlen); }
-
-int
-rk_inv_listen(int s, int backlog)
-{ return rk_listen(s, backlog); }
-
-
-ssize_t
-rk_inv_recvfrom(int s, int buff_shdmem_id, size_t len, int flags, int from_shdmem_id, int fromlenaddr_shdmem_id)
-{
-	assert(s <= 0xFFFF);
-	assert(buff_shdmem_id <= 0xFFFF);
-	assert(len <= 0xFFFF);
-	assert(flags <= 0xFFFF);
-	assert(from_shdmem_id <= 0xFFFF);
-	assert(fromlenaddr_shdmem_id <= 0xFFFF);
-
-	return (ssize_t)rk_recvfrom((s << 16) | buff_shdmem_id, (len << 16) | flags,
-			(from_shdmem_id << 16) | fromlenaddr_shdmem_id);
-}
-
-ssize_t
-rk_inv_sendto(int sockfd, int buff_shdmem_id, size_t len, int flags, int addr_shdmem_id, socklen_t addrlen)
-{
-	assert(sockfd <= 0xFFFF);
-	assert(buff_shdmem_id <= 0xFFFF);
-	assert(len <= 0xFFFF);
-	assert(flags <= 0xFFFF);
-	assert(addr_shdmem_id <= (int)0xFFFF);
-	assert(addrlen <= (int)0xFFFF);
-
-	return (ssize_t)rk_sendto((sockfd << 16) | buff_shdmem_id, (len << 16) | flags,
-			(addr_shdmem_id << 16) | addrlen);
-}
-
-int
-rk_inv_setsockopt(int sockfd, int level, int optname, int shdmem_id, socklen_t optlen)
-{ return rk_setsockopt((sockfd << 16) | level, (optname << 16) | shdmem_id, optlen); }
-
-int
-rk_inv_accept(int s, int shdmem_id)
-{ return rk_accept(s, shdmem_id); }
-
-int
-rk_inv_getsockname(int fdes, int shdmem_id)
-{ return rk_getsockname(fdes, shdmem_id); }
-
-int
-rk_inv_getpeername(int fdes, int shdmem_id)
-{ return rk_getpeername(fdes, shdmem_id); }
-
-int
-rk_socketcall(int call, unsigned long *args)
+rk_inv_socketcall(int call, unsigned long *args)
 {
 	int ret = -1;
 	/*
@@ -289,7 +219,7 @@ rk_socketcall(int call, unsigned long *args)
 			type       = *(args + 1);
 			protocol   = *(args + 2);
 
-			ret = rk_inv_socket(domain, type, protocol);
+			ret = rk_socket(domain, type, protocol);
 
 			break;
 		}
@@ -315,7 +245,7 @@ rk_socketcall(int call, unsigned long *args)
 			assert(shdmem_id > -1 && shdmem_addr > 0);
 
 			memcpy((void * __restrict__)shdmem_addr, addr, addrlen);
-			ret = rk_inv_bind(sockfd, shdmem_id, addrlen);
+			ret = rk_bind(sockfd, shdmem_id, addrlen);
 
 			break;
 		}
@@ -325,7 +255,7 @@ rk_socketcall(int call, unsigned long *args)
 			s       = *args;
 			backlog = *(args + 1);
 
-			ret = rk_inv_listen(s, backlog);
+			ret = rk_listen(s, backlog);
 
 			break;
 		}
@@ -354,7 +284,7 @@ rk_socketcall(int call, unsigned long *args)
 			tmp += sizeof(struct sockaddr);
 			memcpy((void *)tmp, addrlen, sizeof(vaddr_t));
 
-			ret = rk_inv_accept(s, shdmem_id);
+			ret = rk_accept(s, shdmem_id);
 
 			/* Copy out of shdmem */
 			tmp = shdmem_addr;
@@ -389,7 +319,7 @@ rk_socketcall(int call, unsigned long *args)
 			tmp += sizeof(struct sockaddr);
 			memcpy((void *)tmp, alen, sizeof(socklen_t));
 
-			ret = rk_inv_getsockname(fdes, shdmem_id);
+			ret = rk_getsockname(fdes, shdmem_id);
 
 			/* Copy out of shdmem */
 			tmp = shdmem_addr;
@@ -424,7 +354,7 @@ rk_socketcall(int call, unsigned long *args)
 			tmp += sizeof(struct sockaddr);
 			memcpy((void *)tmp, alen, sizeof(socklen_t));
 
-			ret = rk_inv_getpeername(fdes, shdmem_id);
+			ret = rk_getpeername(fdes, shdmem_id);
 
 			/* Copy out of shdmem */
 			tmp = shdmem_addr;
@@ -471,8 +401,15 @@ rk_socketcall(int call, unsigned long *args)
 			shdmem_sockaddr = (struct sockaddr*)shdmem_addr_tmp;
 			memcpy(shdmem_sockaddr, addr, addrlen);
 
-			ret = (int)rk_inv_sendto(fd, shdmem_id, len, flags,
-			       	 shdmem_id, addrlen);
+			assert(fd <= 0xFFFF);
+			assert(shdmem_id <= 0xFFFF);
+			assert(len <= 0xFFFF);
+			assert(flags <= 0xFFFF);
+			assert(shdmem_id <= (int)0xFFFF);
+			assert(addrlen <= (int)0xFFFF);
+
+			ret = rk_sendto((fd << 16) | shdmem_id, (len << 16) | flags,
+					(shdmem_id << 16) | addrlen);
 
 			break;
 		}
@@ -503,8 +440,15 @@ rk_socketcall(int call, unsigned long *args)
 			assert(canSend == 0);
 			canSend = 1;
 
-			ret = (int)rk_inv_recvfrom(s, shdmem_id, len, flags,
-			       	 shdmem_id, *from_addr_len_ptr);
+			assert(s <= 0xFFFF);
+			assert(shdmem_id <= 0xFFFF);
+			assert(len <= 0xFFFF);
+			assert(flags <= 0xFFFF);
+			assert(shdmem_id <= 0xFFFF);
+			assert((*from_addr_len_ptr) <= 0xFFFF);
+
+			ret = rk_recvfrom((s << 16) | shdmem_id, (len << 16) | flags,
+					  (shdmem_id << 16) | (*from_addr_len_ptr));
 
 			/* TODO, put this in a function */
 			/* Copy buffer back to its original value*/
@@ -543,7 +487,7 @@ rk_socketcall(int call, unsigned long *args)
 
 			memcpy((void *)shdmem_addr, optval, optlen);
 
-			ret = (int)rk_inv_setsockopt(sockfd, level, optname, shdmem_id, optlen);
+			ret = rk_setsockopt((sockfd << 16) | level, (optname << 16) | shdmem_id, optlen);
 
 			memcpy((void *)optval, (void *)shdmem_addr, optlen);
 
@@ -556,24 +500,4 @@ rk_socketcall(int call, unsigned long *args)
 	}
 
 	return ret;
-}
-
-
-int
-rk_libcmod_init(void)
-{
-	assert(spdid != 0);
-
-	posix_syscall_override((cos_syscall_t)rk_socketcall, __NR_socketcall);
-	posix_syscall_override((cos_syscall_t)rk_inv_mmap, __NR_mmap);
-	posix_syscall_override((cos_syscall_t)rk_inv_mmap, __NR_mmap2);
-	posix_syscall_override((cos_syscall_t)rk_inv_write, __NR_write);
-	posix_syscall_override((cos_syscall_t)rk_inv_read, __NR_read);
-	posix_syscall_override((cos_syscall_t)rk_inv_open, __NR_open);
-	posix_syscall_override((cos_syscall_t)rk_inv_unlink, __NR_unlink);
-	posix_syscall_override((cos_syscall_t)rk_inv_clock_gettime, __NR_clock_gettime);
-	posix_syscall_override((cos_syscall_t)rk_inv_select, __NR__newselect);
-	posix_syscall_override((cos_syscall_t)rk_inv_ftruncate, __NR_ftruncate64);
-
-	return 0;
 }
