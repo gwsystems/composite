@@ -51,6 +51,7 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <rk_inv.h>
+#include <rk_libc_override.h>
 
 /*
  * This is the function for handling a _single_ request.  Understand

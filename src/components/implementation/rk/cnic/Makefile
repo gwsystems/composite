@@ -1,6 +1,6 @@
 C_OBJS=../*.c
 COMPONENT=cnic.o
-INTERFACES=rk
+INTERFACES=rk sched
 DEPENDENCIES=capmgr schedinit
 IF_LIB=
 ADDITIONAL_LIBS=$(LIBSLCAPMGR) -lsl_mod_fp -lsl_thd_static_backend -lheap
