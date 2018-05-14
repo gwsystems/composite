@@ -13,6 +13,7 @@
 #include <hypercall.h>
 #include <memmgr.h>
 #include <schedinit.h>
+#include <capmgr.h>
 
 #include "rk_json_cfg.h"
 #include "rk_sched.h"
@@ -95,7 +96,7 @@ rk_hw_irq_alloc(void)
 		 */
 		ret = capmgr_hw_attach(32 + i, sl_thd_thdid(t));
 		assert(!ret);
-		printc("attach:%d, %u, %u\n", i + 32, sl_thd_thdid(t), sl_thd_rcvcap(t));
+		printc("attach:%d, %u, %lu\n", i + 32, sl_thd_thdid(t), sl_thd_rcvcap(t));
 	}
 }
 
@@ -144,7 +145,7 @@ rump_booter_init(void *d)
 	rk_hw_irq_alloc();
 
 	printc("Notifying parent scheduler...\n");
-	//schedinit_child();
+	schedinit_child();
 
 	/* We pass in the json config string to the RK */
 	script = RK_JSON_DEFAULT_QEMU;
