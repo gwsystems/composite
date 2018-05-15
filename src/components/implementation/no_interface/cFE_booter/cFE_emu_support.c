@@ -50,7 +50,7 @@ emu_request_memory(spdid_t client)
 }
 
 arcvcap_t
-emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key)
+emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_channelkey_t key)
 {
 	struct sl_thd *        thd;
 	sched_param_t          aep_priority;
@@ -59,7 +59,7 @@ emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_aepkey_t key)
 
 	cos_defcompinfo_childid_init(&child_dci, client);
 
-	thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 1, 0, key, &extrcv);
+	thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 1, 0, key, 0, 0, &extrcv);
 	assert(thd);
 
 	aep_priority = sched_param_pack(SCHEDP_PRIO, CFE_TIME_1HZ_TASK_PRIORITY);
@@ -451,7 +451,7 @@ emu_CFE_TIME_Print(spdid_t client)
 }
 
 int32
-emu_CFE_TIME_RegisterSynchCallback(cos_aepkey_t key)
+emu_CFE_TIME_RegisterSynchCallback(cos_channelkey_t key)
 {
 	int i;
 	for (i = 0; i < CFE_TIME_MAX_NUM_SYNCH_FUNCS; i++) {

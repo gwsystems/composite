@@ -45,7 +45,7 @@ cos2rump_setup(void)
 	crcalls.rump_memset			= (void *)cos_memset;
 	crcalls.rump_cpu_sched_create		= cos_cpu_sched_create;
 
-	if(!crcalls.rump_cpu_sched_create) printc("SCHED: rump_cpu_sched_create is set to null");
+	if(!crcalls.rump_cpu_sched_create) PRINTC("SCHED: rump_cpu_sched_create is set to null");
 
 	crcalls.rump_cpu_sched_switch_viathd    = rk_rump_thd_yield_to;
 	crcalls.rump_memfree			= cos_memfree;
@@ -162,7 +162,6 @@ cos_irqthd_handler(arcvcap_t rcvc, void *line)
 		 * multiple queuing of events to process all data (if there are multiple events pending)
 		 */
 		cos_rcv(rcvc, RCV_ALL_PENDING, &rcvd);
-		printc("WAKING UP INTR THREAD: %d\n", which);
 
 		/*
 		 * This only wakes up isr_thread.
@@ -179,7 +178,7 @@ rump_bmk_memsize_init(void)
 {
 	/* (1<<20) == 1 MG */
 	bmk_memsize = VM_UNTYPED_SIZE(vmid) - ((1<<20)*2);
-	printc("bmk_memsize: %lu\n", bmk_memsize);
+	PRINTC("bmk_memsize: %lu\n", bmk_memsize);
 }
 
 void
@@ -192,7 +191,7 @@ void *
 cos_memcalloc(size_t n, size_t size)
 {
 
-	printc("cos_memcalloc was called\n");
+	PRINTC("cos_memcalloc was called\n");
 	while(1);
 
 	void *rv;
@@ -208,7 +207,7 @@ cos_memcalloc(size_t n, size_t size)
 void *
 cos_memalloc(size_t nbytes, size_t align)
 {
-	printc("cos_memalloc was called\n");
+	PRINTC("cos_memalloc was called\n");
 	while(1);
 
 	void *rv;
@@ -267,33 +266,30 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	int ret;
 
 
-	printc("cos_cpu_sched_create: thread->bt_name = %s, f: %p, in spdid: %d\n", thread->bt_name, f,
+	PRINTC("cos_cpu_sched_create: thread->bt_name = %s, f: %p, in spdid: %d\n", thread->bt_name, f,
 	        cos_spdid_get());
 
 
 	/* Check to see if we are creating the thread for our application */
 	if (!strcmp(thread->bt_name, "user_lwp")) {
 		int udpserver_id = 3;
-		thdcap_t thd;
-		thdid_t tid;
-		struct cos_defcompinfo udpserver_comp;
+		struct cos_defcompinfo tmpdci;
 
-		thd = capmgr_initthd_create(udpserver_id, &tid);
-		assert(thd);
+		cos_defcompinfo_childid_init(&tmpdci, udpserver_id);
+		PRINTC("%s:%d\n", __func__, __LINE__);
 
-		udpserver_comp.id = udpserver_id;
-		udpserver_comp.sched_aep.thd = thd;
-		udpserver_comp.sched_aep.tid = tid;
-
-		t = sl_thd_comp_init(&udpserver_comp, 0);
+		t = sl_thd_initaep_alloc(&tmpdci, NULL, 0, 0, 0, 0, 0);
+		assert(t);
+		PRINTC("%s:%d\n", __func__, __LINE__);
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_RUMP_THD_PRIO));
+		PRINTC("%s:%d\n", __func__, __LINE__);
 
 	} else {
 		t = rk_rump_thd_alloc(f, arg);
 		assert(t);
 	}
 
-	printc("new thread id: %d\n", sl_thd_thdid(t));
+	PRINTC("new thread id: %d\n", sl_thd_thdid(t));
 	set_cos_thddata(thread, sl_thd_thdcap(t), t->aepinfo->tid);
 }
 
@@ -346,7 +342,7 @@ cos_vatpa(void * vaddr)
 void *
 cos_pa2va(void * pa, unsigned long len)
 {
-	printc("cos_pa2va\n");
+	PRINTC("cos_pa2va\n");
 	return (void *)memmgr_pa2va_map((paddr_t)pa, len);
 }
 
@@ -354,7 +350,7 @@ void
 cos_vm_exit(void)
 {
 	/* TODO this should be oen of the functions that rumpbooter interface exports when it becomes its own interface */
-	printc("current thread id: %d\n", sl_thd_thdid(sl_thd_curr()));
+	PRINTC("current thread id: %d\n", sl_thd_thdid(sl_thd_curr()));
 	//vk_vm_exit();
 }
 

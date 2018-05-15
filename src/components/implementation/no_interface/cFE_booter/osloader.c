@@ -51,7 +51,7 @@ launch_other_component(spdid_t child_id, int is_library)
 	assert(child_id > 0);
 
 	cos_defcompinfo_childid_init(&child_dci, child_id);
-	t = sl_thd_initaep_alloc(&child_dci, NULL, 0, 0, 0);
+	t = sl_thd_initaep_alloc(&child_dci, NULL, 0, 0, 0, 0, 0);
 
 	/* We need to override the delegate thread id, so the cFE think it's this thread
 	 * Otherwise cFE application id detection is broken

@@ -12,7 +12,9 @@
 #include <llprint.h>
 #include <hypercall.h>
 #include <memmgr.h>
+#include <capmgr.h>
 #include <schedinit.h>
+#include <capmgr.h>
 
 #include "rk_json_cfg.h"
 #include "rk_sched.h"
@@ -87,7 +89,13 @@ rk_hw_irq_alloc(void)
 		t = rk_intr_aep_alloc(cos_irqthd_handler, (void *)i, 0, 0);
 		assert(t);
 
-		ret = cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, 32 + i, sl_thd_rcvcap(t));
+		/*
+		 * rcvcap is created by the capmgr in the capmgr component..
+		 * the captbl information in the kernel will be capmgr captbl.
+		 * passing the cap offset from here may very well map to some other capability in capmgr!!
+		 * It must be co-incidence that it works for some cases!!
+		 */
+		ret = capmgr_hw_attach(32 + i, sl_thd_thdid(t));
 		assert(!ret);
 	}
 }
@@ -141,7 +149,7 @@ rump_booter_init(void *d)
 
 	/* We pass in the json config string to the RK */
 	script = RK_JSON_DEFAULT_QEMU;
-	if (!strcmp(script, RK_JSON_DEFAULT_QEMU)) {
+	if (!strcmp(script, RK_JSON_DEFAULT_HW)) {
 		printc("CONFIGURING RK TO RUN ON BAREMETAL\n");
 	} else if (!strcmp(script, RK_JSON_DEFAULT_QEMU)) {
 		printc("CONFIGURING RK TO RUN ON QEMU\n");
@@ -199,7 +207,7 @@ cos_init(void)
 			BOOT_CAPTBL_SELF_UNTYPED_PT);
 
 	printc("Fetching boot configuration information\n");
-	my_info = cos_init_args();
+	my_info = cos_config_info_args();
 	printc("Greeting key: %s\n", my_info->kvp[GREETING_KEY].key);
 	printc("Greeting value: %s\n", my_info->kvp[GREETING_KEY].value);
 

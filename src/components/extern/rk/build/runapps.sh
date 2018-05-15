@@ -7,6 +7,12 @@ QEMURK=qemu_rk.sh
 TRANSFERDIR=../../../../../transfer/
 RUNSCRIPT="$PROG"_rumpboot.sh
 
+rkapps=( "udpserv"
+	 "http"
+	 "iperf"
+	 "cfe_rk_http"
+	)
+
 cp ./$QEMURK ./$TRANSFERDIR
 
 localizesymsrc=( "__fpclassifyl"
@@ -40,27 +46,37 @@ localizesymdst=( "_start"
 		"recvfrom"
 		"sendto"
 		"printf"
+		"strcspn"
+		"strspn"
+		"_GLOBAL_OFFSET_TABLE_"
 		)
 
 if [ "$PROG" == "" ]; then
 	echo Please input an application name;
 	echo Valid choices include:
-	pushd ../../../implementation/netbsd > /dev/null
-	echo
-	ls -1d */
-	echo "cfe_rk_http/"
-	echo
-	popd > /dev/null
-	echo Do no include \"/\" in your selection
+	for a in "${rkapps[@]}"
+	do
+	echo $a
+	done
+#	pushd ../../../implementation/no_interface > /dev/null
+#	echo
+#	ls -1d */
+#	echo "cfe_rk_http/"
+#	echo
+#	popd > /dev/null
+#	echo Do no include \"/\" in your selection
 	exit;
 fi
 
 if [ "$PROG" == "cfe_rk_http" ]; then
 	PROG=http
 	RUNSCRIPT=cfe_rk_http_rumpboot.sh
+elif [ "$PROG" == "cfe_rk_http_smp" ]; then
+	PROG=http
+	RUNSCRIPT=cfe_rk_http_smp_rumpboot.sh
 fi
 
-PROGDIR=../../../implementation/netbsd/"$PROG"
+PROGDIR=../../../implementation/no_interface/"$PROG"
 
 # Compile RK stub
 cd rk_stub
@@ -102,7 +118,7 @@ USB_DEV=`stat --format "%F" /dev/sdb`
 
 if [ "$USB_DEV" = "block special file" ]; then
 	echo "GENERATING ISO"
-	echo "$PROG"_rumpboot.sh
+	echo "$RUNSCRIPT"
 	./geniso.sh "$RUNSCRIPT"
 	echo "WRITIING ISO IMAGE to /dev/sdb: $USB_DEV"
 	sudo dd bs=8M if=composite.iso of=/dev/sdb
