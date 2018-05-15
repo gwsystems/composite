@@ -13,6 +13,7 @@
 
 extern void I42_AppMain();
 extern void OS_IdleLoop();
+extern unsigned int OS_TaskDelay(unsigned int millisecond);
 extern void do_emulation_setup(spdid_t id);
 
 void cos_init(void)
@@ -89,7 +90,6 @@ void *
 cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 	void *ret=0;
-	printc("%s\n", __func__);
 
 	if (addr != NULL) {
 		printc("parameter void *addr is not supported!\n");
@@ -135,7 +135,21 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
         return 0;
     }
 
-    printc("Unimplemented syscall number %d\n", syscall_num);
-    assert(0);
+    OS_TaskDelay(1000);
+    // printc("Unimplemented syscall number %d\n", syscall_num);
+    // assert(0);
 	return 0;
+}
+
+// Hack around thread local data
+static int cancelstate = 0;
+
+int
+pthread_setcancelstate(int new, int *old)
+{
+    if (new > 2) return EINVAL;
+
+    if (old) *old = cancelstate;
+    cancelstate = new;
+    return 0;
 }

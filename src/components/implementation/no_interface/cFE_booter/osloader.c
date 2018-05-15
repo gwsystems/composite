@@ -131,13 +131,18 @@ i42_proxy()
 	launch_other_component(hypercall_comp_id_get("i42"), 0);
 }
 
+void
+tele_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("tele"), 0);
+}
 
 struct symbol_proxy {
 	char *symbol_name;
 	void *proxy;
 };
 
-#define NUM_PROXIES 9
+#define NUM_PROXIES 10
 struct symbol_proxy proxies[NUM_PROXIES] = {{"DS_AppMain", ds_proxy},
                                             {"FM_AppMain", fm_proxy},
                                             {"HS_AppMain", hs_proxy},
@@ -146,7 +151,8 @@ struct symbol_proxy proxies[NUM_PROXIES] = {{"DS_AppMain", ds_proxy},
 											{"SCH_Lab_AppMain", shc_lab_proxy},
 											{"CFS_LibInit", cfs_lib_proxy},
 										    {"F42_AppMain", f42_proxy},
-										    {"I42_AppMain", i42_proxy}};
+										    {"I42_AppMain", i42_proxy},
+										    {"TELE_AppMain", tele_proxy}};
 
 int32
 OS_SymbolLookup(cpuaddr *symbol_address, const char *symbol_name)
