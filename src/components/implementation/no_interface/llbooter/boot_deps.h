@@ -794,7 +794,7 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
 	case HYPERCALL_COMP_ID_GET:
 	{
 		int i;
-		char b[9];
+		char b[HYPERCALL_COMPNAME_MAX + 1] = { '\0' };
 
 		b[0] = (arg3 >> 24) & 0xFF;
 		b[1] = (arg3 >> 16) & 0xFF;

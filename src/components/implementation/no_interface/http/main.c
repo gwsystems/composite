@@ -52,6 +52,7 @@
 #include <cos_defkernel_api.h>
 #include <rk_inv.h>
 #include <rk_libc_override.h>
+#include <schedinit.h>
 
 /*
  * This is the function for handling a _single_ request.  Understand
@@ -112,23 +113,24 @@ extern struct cos_component_information cos_comp_info;
 void
 cos_init(void)
 {
-	printc("Welcome to the simple webserver\n");
-	printc("cos_component_infomration spdid: %ld\n", cos_comp_info.cos_this_spd_id);
+	PRINTC("Welcome to the simple webserver\n");
+	PRINTC("cos_component_infomration spdid: %ld\n", cos_comp_info.cos_this_spd_id);
 
 	spdid = cos_comp_info.cos_this_spd_id;
 
 	/* Using cos_defcompinfo_init to enable us to use printf... */
-	printc("cos_defcompinfo_init\n");
+	PRINTC("cos_defcompinfo_init\n");
 	cos_defcompinfo_init();
 
 	/* Test RK entry */
-	printc("calling rk_inv_entry\n");
+	PRINTC("calling rk_inv_entry\n");
 	get_boot_done();
 	test_entry(0, 1, 2, 3);
 
 	rk_libcmod_init();
+	schedinit_child();
 
-	printc("Calling printf...\n");
+	PRINTC("Calling printf...\n");
 	printf("testing, testing, this is printf\n");
 
 	char *argv[2];

@@ -1,7 +1,7 @@
 #!/bin/bash
 PROG=$1
-SRCDIR=../../../implementation/rk/cnic/
-COSOBJ=cnic.o
+SRCDIR=../../../implementation/rk/default/
+COSOBJ=rk_default.o
 FINALOBJ=rumpcos.o
 QEMURK=qemu_rk.sh
 TRANSFERDIR=../../../../../transfer/
@@ -11,6 +11,7 @@ rkapps=( "udpserv"
 	 "http"
 	 "iperf"
 	 "cfe_rk_http"
+	 "multi_http_iperf"
 	)
 
 cp ./$QEMURK ./$TRANSFERDIR
@@ -74,6 +75,9 @@ if [ "$PROG" == "cfe_rk_http" ]; then
 elif [ "$PROG" == "cfe_rk_http_smp" ]; then
 	PROG=http
 	RUNSCRIPT=cfe_rk_http_smp_rumpboot.sh
+elif [ "$PROG" == "multi_http_udpserv" ]; then
+	PROG=http
+	RUNSCRIPT=multi_http_udpserv_rumpboot.sh
 fi
 
 PROGDIR=../../../implementation/no_interface/"$PROG"

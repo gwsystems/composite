@@ -2,6 +2,7 @@
 #include <vk_types.h>
 #include "rk_sched.h"
 #include <llprint.h>
+#include <hypercall.h>
 
 /*
  * TODO: Doesn't look like we need a recursive lock!
@@ -11,6 +12,19 @@
  */
 //#define CS_RECURSE_LIMIT (1<<5)
 //volatile unsigned int cs_recursive = 0;
+
+#define MAX_APPS 3
+
+/* NOTE: This needs to be updated as we support more apps!! */
+static char *app_names[MAX_APPS] = {
+		"udpserv",
+		"http",
+		"iperf",
+	};
+
+static spdid_t app_spdid[MAX_APPS] = { 0 };
+/* TODO: only a single direct child app?? */
+spdid_t rk_child_app = 0;
 
 void
 rk_curr_thd_set_prio(int prio)
@@ -86,7 +100,6 @@ rk_subsys_thd_init(thdcap_t thd, arcvcap_t rcv, tcap_t tc, asndcap_t snd, int is
 	only_once ++;
 
 	subci->captbl_cap = BOOT_CAPTBL_SELF_CT;
-	printc("%lu %lu %lu %lu\n", thd, tc, rcv, snd);
 	subaep->thd = thd;
 	subaep->rcv = rcv;
 	subaep->tc = tc;
@@ -237,4 +250,76 @@ void
 rk_intr_enable(void)
 {
 	rk_sched_cs_exit();
+}
+
+static void
+rk_app_spdids(void)
+{
+	int i;
+
+	for (i = 0; i < MAX_APPS; i++) {
+		PRINTC("APP: %s len: %d\n", app_names[i], strlen(app_names[i]));
+		spdid_t app = hypercall_comp_id_get(app_names[i]);
+
+		if (!app) continue;
+		app_spdid[i] = app;
+		PRINTC("RK APP in the system: %s spdid: %d\n", app_names[i], app_spdid[i]);
+	}
+}
+
+static char *
+rk_app_find(spdid_t s)
+{
+	int i = 0;
+
+	assert(s);
+	for (i = 0; i < MAX_APPS; i++) {
+		if (app_spdid[i] == s) break;
+	}
+
+	if (i >= MAX_APPS) return NULL;
+
+	return app_names[i];
+}
+
+/* creates initthds for non rumpkernel apps.. for sinv/async communication stub components */
+void
+rk_child_initthd_create(void)
+{
+	int remaining = 0;
+	spdid_t child;
+	comp_flag_t childflags;
+	int num_child = 0;
+
+	rk_app_spdids();
+
+	while ((remaining = hypercall_comp_child_next(cos_spd_id(), &child, &childflags)) >= 0) {
+		struct cos_defcompinfo child_dci;
+		struct sl_thd *t = NULL;
+		char *appname = NULL;
+
+		assert(child);
+		/* no child schedulers on top of RK!! */
+		assert(!(childflags & COMP_FLAG_SCHED));
+		if ((appname = rk_app_find(child)) != NULL) {
+			assert(rk_child_app == 0); /* only a single direct child app? */
+			rk_child_app = child;
+			PRINTC("Direct child RK APP: %s spdid: %u\n", appname, rk_child_app);
+
+			goto done; /* apps taken care from rumpkernel layer */
+		}
+		num_child ++;
+		cos_defcompinfo_childid_init(&child_dci, child);
+
+		t = sl_thd_initaep_alloc(&child_dci, 0, 0, 0, 0, 0, 0);
+		assert(t);
+		/* TODO: prio only matters because they're non-scheduling threads.. */
+		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_STUBINIT_PRIO));
+		PRINTC("Initialized child \"stub\" component: %u, initthd: %u\n", child, sl_thd_thdid(t));
+
+done:
+		if (!remaining) break;
+	}
+
+	PRINTC("Number of \"stub\" child components: %d\n", num_child);
 }

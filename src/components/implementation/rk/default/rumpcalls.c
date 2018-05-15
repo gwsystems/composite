@@ -21,6 +21,7 @@ extern int vmid;
 extern struct cos_compinfo *currci;
 extern struct cos_rumpcalls crcalls;
 void __cos_print(char *s, int len);
+extern spdid_t rk_child_app;
 
 /* Mapping the functions from rumpkernel to composite */
 void
@@ -272,17 +273,14 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 
 	/* Check to see if we are creating the thread for our application */
 	if (!strcmp(thread->bt_name, "user_lwp")) {
-		int udpserver_id = 3;
+		int udpserver_id = rk_child_app;
 		struct cos_defcompinfo tmpdci;
 
 		cos_defcompinfo_childid_init(&tmpdci, udpserver_id);
-		PRINTC("%s:%d\n", __func__, __LINE__);
 
 		t = sl_thd_initaep_alloc(&tmpdci, NULL, 0, 0, 0, 0, 0);
 		assert(t);
-		PRINTC("%s:%d\n", __func__, __LINE__);
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_RUMP_THD_PRIO));
-		PRINTC("%s:%d\n", __func__, __LINE__);
 
 	} else {
 		t = rk_rump_thd_alloc(f, arg);

@@ -17,7 +17,8 @@
 #include <rk_calls.h>
 #include <sched.h>
 
-struct sinv_async_info sinv_api;
+static struct sinv_async_info sinv_api;
+static int instance_key = 0;
 
 void
 sinv_rk_init(struct sinv_async_info *a)
@@ -32,8 +33,6 @@ sinv_rk_init(struct sinv_async_info *a)
 	}
 }
 
-#define RK_CLIENT_INSTANCE 1
-
 void
 cos_init(void)
 {
@@ -44,11 +43,17 @@ cos_init(void)
         assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflag) == -1);
 
 	if (ps_cas(&first, 1, 0)) {
-		sinv_server_init(&sinv_api, RK_CLIENT(RK_CLIENT_INSTANCE));
+		instance_key = rk_args_instance();
+		assert(instance_key > 0);
+
+		sinv_server_init(&sinv_api, RK_CLIENT(instance_key));
 		sinv_rk_init(&sinv_api);
 
 		ps_faa(&init_done, 1);
 	} else {
+		/* only run on one core! */
+		assert(0);
+
 		while (!ps_load(&init_done)) ;
 	}
 

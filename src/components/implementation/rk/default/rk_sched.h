@@ -29,6 +29,7 @@ enum {
 
 #define RK_INTR_THD_PRIO RK_SL_PRIO_MID
 #define RK_RUMP_THD_PRIO RK_SL_PRIO_LOW
+#define RK_STUBINIT_PRIO RK_SL_PRIO_MID /* polling thread for stub comp, perhaps set it between intr and rump.. */
 
 struct sl_thd *rk_rump_thd_init(struct cos_aep_info *aep);
 struct sl_thd *rk_rump_thd_alloc(cos_thd_fn_t f, void *d);
@@ -49,5 +50,6 @@ void rk_curr_thd_set_prio(int prio);
 
 void rk_intr_disable(void);
 void rk_intr_enable(void);
+void rk_child_initthd_create(void);
 
 #endif /* RK_SCHED_H */

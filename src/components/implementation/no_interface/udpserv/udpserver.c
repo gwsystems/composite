@@ -7,6 +7,7 @@
 #include <rk.h>
 #include <rk_inv.h>
 #include <memmgr.h>
+#include <schedinit.h>
 
 #define IN_PORT  9998
 #define OUT_PORT 9999
@@ -80,6 +81,7 @@ int
 udpserv_main(void)
 {
 	rk_libcmod_init();
+	schedinit_child();
 
 	printc("Starting udp-server [in:%d out:%d]\n", IN_PORT, OUT_PORT);
 	__test_udp_server();
@@ -96,9 +98,9 @@ cos_init(void)
 	spdid = cos_comp_info.cos_this_spd_id;
 
 	/* Test RK entry */
-	printc("calling rk_inv_entry\n");
-	get_boot_done();
-	test_entry(0, 1, 2, 3);
+//	printc("calling rk_inv_entry\n");
+//	get_boot_done();
+//	test_entry(0, 1, 2, 3);
 
 	udpserv_main();
 }

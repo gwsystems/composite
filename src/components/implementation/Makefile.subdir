@@ -25,7 +25,7 @@ subdirs:
 
 $(CLIB):$(OBJS)
 ifneq ($(strip $(OBJS)),)
-#	$(info |     [LD]   Creating $(CLIB) for $(INTERFACES))
+	$(info |     [LD]   Creating $(CLIB) for $(INTERFACES))
 	@$(LD) $(LDFLAGS) -r -o $@ $^
 endif
 
@@ -34,7 +34,7 @@ endif
 	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
 
 %.o:%.S
-#	$(info |     [AS]   Compiling assembly file $^ into $@)
+	$(info |     [AS]   Compiling assembly file $^ into $@)
 	$(info |     [AS]   $<: Compiling)
 	@$(AS) $(INCLUDE) $(ASFLAGS) -c -o $@ $^
 
@@ -55,7 +55,7 @@ cp:
 
 .PHONY: clean
 clean:
-#	$(info |     [RM]   Cleaning up implementation directory for interface $(IFNAME))
+	$(info |     [RM]   Cleaning up implementation directory for interface $(IFNAME))
 	@rm -f a.out *.o *.a *.d *.d.* *~
 	@for dir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$dir clean ; \

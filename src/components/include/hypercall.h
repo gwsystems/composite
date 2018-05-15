@@ -209,16 +209,18 @@ hypercall_numcomps_get(void)
 	return cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_NUMCOMPS_GET, 0, 0);
 }
 
+#define HYPERCALL_COMPNAME_MAX 8
+
 static inline spdid_t
 hypercall_comp_id_get(char *comp_name)
 {
 	int ret;
 	/* We pack the string into two words */
-	assert(comp_name && strlen(comp_name) <= 8);
+	assert(comp_name && strlen(comp_name) <= HYPERCALL_COMPNAME_MAX);
 
 	/* Create zero initialized buffer (must be 9 in case the string is 8 bytes + terminator) */
-	char b[9];
-	memset(b, 0, 9);
+	char b[HYPERCALL_COMPNAME_MAX + 1];
+	memset(b, 0, HYPERCALL_COMPNAME_MAX + 1);
 
 	/* Copy string to buffer */
 	strcpy(b, comp_name);

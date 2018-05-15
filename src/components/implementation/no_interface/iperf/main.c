@@ -56,6 +56,7 @@
 #include <rk_inv.h>
 #include <rk_libc_override.h>
 #include <rk.h>
+#include <schedinit.h>
 
 static int run(struct iperf_test *test);
 
@@ -189,23 +190,24 @@ extern struct cos_component_information cos_comp_info;
 void
 cos_init(void)
 {
-	printc("Welcome to iperf\n");
-	printc("cos_component_infomration spdid: %ld\n", cos_comp_info.cos_this_spd_id);
+	PRINTC("Welcome to iperf\n");
+	PRINTC("cos_component_infomration spdid: %ld\n", cos_comp_info.cos_this_spd_id);
 
 	spdid = cos_comp_info.cos_this_spd_id;
 
 	/* Using cos_defcompinfo_init to enable us to use printf... */
-	printc("cos_defcompinfo_init\n");
+	PRINTC("cos_defcompinfo_init\n");
 	cos_defcompinfo_init();
 
 	/* Test RK entry */
-	printc("calling rk_inv_entry\n");
+	PRINTC("calling rk_inv_entry\n");
 	get_boot_done();
 	test_entry(0, 1, 2, 3);
 
 	rk_libcmod_init();
+	schedinit_child();
 
-	printc("Calling printf...\n");
+	PRINTC("Calling printf...\n");
 	printf("testing, testing, this is printf\n");
 
 	char *argv[3];
@@ -214,6 +216,6 @@ cos_init(void)
 	argv[2] = "-4"; /* Specify ipv4 */
 
 	main(3, (char **)argv);
-	printc("iperf done, spinning\n");
+	PRINTC("iperf done, spinning\n");
 	while (1);
 }

@@ -19,7 +19,7 @@
 #include "rk_json_cfg.h"
 #include "rk_sched.h"
 
-
+extern cbuf_t parent_schedinit_child();
 extern struct cos_component_information cos_comp_info;
 
 /* TODO rumpboot component should export this when it is moved to its own interface */
@@ -139,13 +139,15 @@ rump_booter_init(void *d)
 
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();
-	rk_sched_init(RK_SCHED_PERIOD_US);
+
+	PRINTC("Enabling stub components..\n");
+	rk_child_initthd_create();
 
 	printc("\nSetting up arcv for hw irq\n");
 	rk_hw_irq_alloc();
 
 	printc("Notifying parent scheduler...\n");
-	schedinit_child();
+	parent_schedinit_child();
 
 	/* We pass in the json config string to the RK */
 	script = RK_JSON_DEFAULT_QEMU;
@@ -167,7 +169,6 @@ int spdid;
 void
 cos_init(void)
 {
-
 	long unsigned cap_frontier = -1;
 	long unsigned vas_frontier = -1;
 	struct cos_defcompinfo *dci;
@@ -210,6 +211,8 @@ cos_init(void)
 	my_info = cos_config_info_args();
 	printc("Greeting key: %s\n", my_info->kvp[GREETING_KEY].key);
 	printc("Greeting value: %s\n", my_info->kvp[GREETING_KEY].value);
+
+	rk_sched_init(RK_SCHED_PERIOD_US);
 
 	printc("Setting up RK\n");
 	rump_booter_init((void *)0);
