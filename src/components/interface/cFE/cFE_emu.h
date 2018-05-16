@@ -244,10 +244,18 @@ union shared_region {
 		int32           FileDes;
 		CFE_FS_Header_t Hdr;
 	} cfe_fs_readHeader;
+	struct {
+		thdid_t deptid;
+		cycles_t abs_timeout;
+		cycles_t result;
+	} sched_thd_block_timeout;
 };
 
 int  emu_request_memory(spdid_t client);
 arcvcap_t emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_channelkey_t key);
+
+void emu_sched_thd_block_timeout(spdid_t client);
+
 
 #define STASH_MAGIC_VALUE ((void *)0xBEAFBEAF)
 

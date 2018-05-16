@@ -67,6 +67,7 @@ cos_asm_server_stub(OS_rewinddir)
 cos_asm_server_stub(emu_request_memory)
 cos_asm_server_stub(emu_create_aep_thread)
 cos_asm_server_stub(emu_is_printf_enabled)
+cos_asm_server_stub(emu_sched_thd_block_timeout)
 
 cos_asm_server_stub(emu_stash)
 cos_asm_server_stub(emu_stash_clear)

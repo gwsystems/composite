@@ -76,6 +76,16 @@ ensure_sync_callbacks_are_setup()
 	}
 }
 
+cycles_t
+sched_thd_block_timeout(thdid_t deptid, cycles_t abs_timeout)
+{
+	shared_region->sched_thd_block_timeout.deptid = deptid;
+	shared_region->sched_thd_block_timeout.abs_timeout  = abs_timeout;
+
+	emu_sched_thd_block_timeout(spdid);
+	return shared_region->sched_thd_block_timeout.result;
+}
+
 
 /* FIXME: Be more careful about user supplied pointers
  * FIXME: Take a lock in each function, so shared memory can't be corrupted

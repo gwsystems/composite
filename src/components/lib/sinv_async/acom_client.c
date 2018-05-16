@@ -7,6 +7,7 @@
 
 #include <sinv_async.h>
 
+#include <cos_debug.h>
 #include <cos_time.h>
 #include <../interface/sched/sched.h>
 #include <../interface/capmgr/capmgr.h>
@@ -42,7 +43,7 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 	spdid_t child = cos_inv_token() == 0 ? cos_spd_id() : (spdid_t)cos_inv_token();
 
 	assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET);
-	assert(rcvkey && skey && tid && rcv);
+	/* assert(rcvkey && skey && tid && rcv); */
 
 	req->clspdid = child; /* this is done from the scheduler on invocation */
 	req->rkey = rcvkey;

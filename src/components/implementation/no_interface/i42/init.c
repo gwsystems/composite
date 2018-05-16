@@ -8,8 +8,13 @@
 #include <cos_component.h>
 #include <cos_kernel_api.h>
 #include <cos_types.h>
-#include <memmgr.h>
+#include <sinv_async.h>
 
+#include <memmgr.h>
+#include <rk_acom_lib.h>
+#include <rk_types.h>
+
+struct sinv_async_info sinv_info;
 
 extern void I42_AppMain();
 extern void OS_IdleLoop();
@@ -18,10 +23,18 @@ extern void do_emulation_setup(spdid_t id);
 
 void cos_init(void)
 {
+    printc("Starting i42 pre init\n");
     do_emulation_setup(cos_comp_info.cos_this_spd_id);
+
+    printc("acom_client_init\n");
+    acom_client_init(&sinv_info, RK_CLIENT(1));
+    printc("acom_client_thread_init\n");
+    acom_client_thread_init(&sinv_info, cos_thdid(), 0, 0, RK_SKEY(1, 0));
+
     printc("Starting i42 main\n");
     I42_AppMain();
     printc("Ending i42 main\n");
+
     while(1) OS_IdleLoop();
 }
 
@@ -135,10 +148,13 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
         return 0;
     }
 
-    OS_TaskDelay(1000);
-    // printc("Unimplemented syscall number %d\n", syscall_num);
-    // assert(0);
-	return 0;
+    if (syscall_num == __NR_socketcall) {
+        return rk_inv_socketcall_acom(&sinv_info, (int)a, (void*)b, 0, 0);
+    }
+
+    printc("Unimplemented syscall number %d\n", syscall_num);
+    assert(0);
+    return 0;
 }
 
 // Hack around thread local data

@@ -29,8 +29,8 @@ typedef enum {
 #define RK_INV_KEY 'R'
 #define RK_CLIENT(i) (RK_INV_KEY | (i << 10))
 
-#define RK_SKEY(i, t) (RK_CLIENT(i) + t)
-#define RK_RKEY(i, t) ((1 << 9) | (RK_CLIENT(i) + t)
+#define RK_SKEY(i, t) (RK_CLIENT(i) + (t + 1))
+#define RK_RKEY(i, t) ((1 << 9) | (RK_CLIENT(i) + (t + 1)))
 
 #define RK_CLIENT_MAX 3
 
