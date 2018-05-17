@@ -1,17 +1,14 @@
-#!/bin/bash
-PROG=$1
+#/bin/bash
 SRCDIR=../../../implementation/rk/default/
 COSOBJ=rk_default.o
 FINALOBJ=rumpcos.o
 QEMURK=qemu_rk.sh
 TRANSFERDIR=../../../../../transfer/
-RUNSCRIPT="$PROG"_rumpboot.sh
+RUNSCRIPT=micro_boot.sh
 
 rkapps=( "udpserv"
 	 "http"
 	 "iperf"
-	 "cfe_rk_http"
-	 "multi_http_iperf"
 	)
 
 cp ./$QEMURK ./$TRANSFERDIR
@@ -52,70 +49,106 @@ localizesymdst=( "_start"
 		"_GLOBAL_OFFSET_TABLE_"
 		)
 
-if [ "$PROG" == "" ]; then
-	echo Please input an application name;
-	echo Valid choices include:
-	for a in "${rkapps[@]}"
+combine_final_cos()
+{
+	for sym in "${localizesymdst[@]}"
 	do
-	echo $a
+		objcopy -L $sym rk_stub/$1
 	done
-#	pushd ../../../implementation/no_interface > /dev/null
-#	echo
-#	ls -1d */
-#	echo "cfe_rk_http/"
-#	echo
-#	popd > /dev/null
-#	echo Do no include \"/\" in your selection
-	exit;
+
+	# Combine RK stub (all drivers with no application) with applicaiton
+	ld -melf_i386 -r -o $FINALOBJ rk_stub/$@ $SRCDIR/$COSOBJ
+}
+
+combine_symbols_app()
+{
+	#we're not running apps on rk.. they're stubs.. why combine PROG objects here??
+	echo "Combining symbols in the app with rk?? why???"
+	PROG=$1
+	TMPFILE=tmp.o
+	PROGOUT=$2
+	PROGDIR=../../../implementation/no_interface/"$PROG"
+	cp $PROGDIR/$PROG.o $TMPFILE
+	objcopy --weaken  $TMPFILE
+	objcopy -L listen  $TMPFILE
+	objcopy -L getpid  $TMPFILE
+	objcopy -L malloc  $TMPFILE
+	objcopy -L calloc  $TMPFILE
+	objcopy -L free  $TMPFILE
+	objcopy -L mmap  $TMPFILE
+	objcopy -L strdup  $TMPFILE
+	# Combine COSOBJ and application
+	ld -melf_i386 -r -o $PROGOUT $TMPFILE $SRCDIR/$COSOBJ
+	rm $TMPFILE
+
+	# Defined in both cos and rk, localize one of them.
+	for sym in "${localizesymsrc[@]}"
+	do
+		objcopy -L $sym $PROGOUT
+	done
+}
+
+combine_stub_symbols()
+{
+	PROGOUT=$1
+
+	# Defined in both cos and rk, localize one of them.
+	for sym in "${localizesymsrc[@]}"
+	do
+		objcopy -L $sym $PROGOUT
+	done
+}
+
+usage()
+{
+	echo "Usage: $1 <app1>[ <app2> <app3>...]"
+	exit
+}
+
+# single app function!
+combine_single_app()
+{
+	combine_stub_symbols rk_stub/rk_stub.bin
+	combine_final_cos rk_stub.bin
+	RUNSCRIPT="$1"_rumpboot.sh
+}
+
+combine_multi_app()
+{
+	for app in "$@"
+	do
+		RUNARG+=$app
+		RUNARG+="_"
+	done
+	RUNARG+="rumpboot.sh"
+
+	combine_stub_symbols rk_stub/rkmulti.bin
+	combine_final_cos rkmulti.bin
+	RUNSCRIPT=$RUNARG
+} 
+if [ $# -lt 1 ]; then
+	usage $0
+elif [ $# -gt 8 ]; then
+	echo "Rumpkernel doesn't support baking >= 8.."
+	exit
 fi
 
-if [ "$PROG" == "cfe_rk_http" ]; then
-	PROG=http
-	RUNSCRIPT=cfe_rk_http_rumpboot.sh
-elif [ "$PROG" == "cfe_rk_http_smp" ]; then
-	PROG=http
-	RUNSCRIPT=cfe_rk_http_smp_rumpboot.sh
-elif [ "$PROG" == "multi_http_udpserv" ]; then
-	PROG=http
-	RUNSCRIPT=multi_http_udpserv_rumpboot.sh
+cd rk_stub; ./rk_nstubs.sh 8 rm; cd ../
+
+if [ $# -eq 1 ]; then
+	cd rk_stub; make clean; make rk_stub.bin; cd ../
+	combine_single_app $1
+else
+	NUMAPPS=$#
+	APPSTR=$@
+	echo "APPS: $APPSTR"
+	echo "NUMBER: $NUMAPPS"
+	cd rk_stub; ./rk_nstubs.sh $NUMAPPS cp; make clean; make rkmulti.bin; cd ../
+	combine_multi_app $APPSTR
 fi
 
-PROGDIR=../../../implementation/no_interface/"$PROG"
-
-# Compile RK stub
-cd rk_stub
-make clean
-make all
-cd ../
-
-# Combine COSOBJ and application
-cp $PROGDIR/$PROG.o ./tmp.o
-objcopy --weaken ./tmp.o
-objcopy -L listen ./tmp.o
-objcopy -L getpid ./tmp.o
-objcopy -L malloc ./tmp.o
-objcopy -L calloc ./tmp.o
-objcopy -L free ./tmp.o
-objcopy -L mmap ./tmp.o
-objcopy -L strdup ./tmp.o
-ld -melf_i386 -r -o app.tmp tmp.o $SRCDIR/$COSOBJ
-
-# Defined in both cos and rk, localize one of them.
-for sym in "${localizesymsrc[@]}"
-do
-	objcopy -L $sym app.tmp
-done
-
-for sym in "${localizesymdst[@]}"
-do
-	objcopy -L $sym rk_stub/rk_stub.bin
-done
-
-# Combine RK stub (all drivers with no application) with applicaiton
-ld -melf_i386 -r -o $FINALOBJ app.tmp rk_stub/rk_stub.bin
-rm app.tmp
-
-cp $FINALOBJ $TRANSFERDIR
+echo "Runscript: $RUNSCRIPT"
+mv $FINALOBJ $TRANSFERDIR
 
 cd $TRANSFERDIR
 USB_DEV=`stat --format "%F" /dev/sdb`
@@ -133,3 +166,4 @@ else
 	echo "$RUNSCRIPT"
 	./$QEMURK "$RUNSCRIPT"
 fi
+

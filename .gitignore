@@ -41,3 +41,4 @@ sl_bind_check
 src/components/lib/ck/include
 src/components/lib/ck/lib
 src/components/lib/ck/share
+src/platform/linux/*

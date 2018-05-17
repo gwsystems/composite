@@ -21,7 +21,7 @@ extern int vmid;
 extern struct cos_compinfo *currci;
 extern struct cos_rumpcalls crcalls;
 void __cos_print(char *s, int len);
-extern spdid_t rk_child_app;
+extern spdid_t rk_child_app[];
 
 /* Mapping the functions from rumpkernel to composite */
 void
@@ -265,6 +265,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 {
 	struct sl_thd *t = NULL;
 	int ret;
+	int app_id = 0;
 
 
 	PRINTC("cos_cpu_sched_create: thread->bt_name = %s, f: %p, in spdid: %d\n", thread->bt_name, f,
@@ -272,16 +273,20 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 
 
 	/* Check to see if we are creating the thread for our application */
-	if (!strcmp(thread->bt_name, "user_lwp")) {
-		int udpserver_id = rk_child_app;
+	if ((app_id = rk_app_findspd(thread->bt_name))) {
 		struct cos_defcompinfo tmpdci;
 
-		cos_defcompinfo_childid_init(&tmpdci, udpserver_id);
+		PRINTC("Creating initthd in %d\n", app_id);
+		cos_defcompinfo_childid_init(&tmpdci, app_id);
 
 		t = sl_thd_initaep_alloc(&tmpdci, NULL, 0, 0, 0, 0, 0);
 		assert(t);
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_RUMP_THD_PRIO));
-
+	} else if ((t = rk_child_stubcomp_init(thread->bt_name))) {
+		PRINTC("Child component initialized! %s\n", thread->bt_name);
+	} else if ((t = rk_child_fakethd_init(thread->bt_name))) {
+		PRINTC("fake thread creation call for %s\n", thread->bt_name);
+		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_SL_PRIO_MLOW));
 	} else {
 		t = rk_rump_thd_alloc(f, arg);
 		assert(t);

@@ -8,6 +8,9 @@
 #include <cos_defkernel_api.h>
 #include <sched.h>
 #include <sl.h>
+#include <rumpcalls.h>
+#include <vk_types.h>
+#include "rk_sched.h"
 
 int
 sched_thd_wakeup(thdid_t t)
@@ -51,12 +54,20 @@ sched_thd_create_cserialized(thdclosure_index_t idx)
 	spdid_t c = cos_inv_token();
 	struct cos_defcompinfo dci;
 	struct sl_thd *t = NULL;
+	int ret = 0, counter = 0;
+	char name[RK_NAME_MAX] = { '\0' };
 
 	if (!c) return 0;
 	cos_defcompinfo_childid_init(&dci, c);
 
 	t = sl_thd_aep_alloc_ext(&dci, NULL, idx, 0, 0, 0, 0, 0, NULL);
 	if (!t) return 0;
+	strcpy(name, "stub_");
+	do {
+		counter = rk_child_fakereq_set(t, name);
+	} while (counter == -1);
+	ret = fakethd_create(counter, name);
+	assert(ret == 0);
 
 	return sl_thd_thdid(t);
 }
@@ -72,12 +83,21 @@ sched_aep_create_cserialized(arcvcap_t *extrcv, int *unused, u32_t thdidx_owntc,
 	microsec_t          ipiwin = (microsec_t)ipiwin32b;
 	u32_t               ipimax = (key_ipimax << 16) >> 16;
 	cos_channelkey_t    key    = (key_ipimax >> 16);
+	int ret = 0, counter = 0;
+	char name[RK_NAME_MAX] = { '\0' };
 
 	if (!c) return 0;
 	cos_defcompinfo_childid_init(&dci, c);
 
 	t = sl_thd_aep_alloc_ext(&dci, NULL, idx, 1, owntc, key, ipiwin, ipimax, extrcv);
 	if (!t) return 0;
+	strcpy(name, "stub_");
+	do {
+		counter = rk_child_fakereq_set(t, name);
+	} while (counter == -1);
+	ret = fakethd_create(counter, name);
+	assert(ret == 0);
+
 
 	return sl_thd_thdid(t);
 }
@@ -90,7 +110,6 @@ sched_thd_param_set(thdid_t tid, sched_param_t sp)
 
 	if (!c) return -1;
 	if (!t) return -1;
-	sl_thd_param_set(t, sp);
 
 	return 0;
 }

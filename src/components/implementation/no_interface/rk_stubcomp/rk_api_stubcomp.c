@@ -42,6 +42,7 @@ cos_init(void)
 
         assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflag) == -1);
 
+	PRINTC("RK STUBCOMP INIT!\n");
 	if (ps_cas(&first, 1, 0)) {
 		instance_key = rk_args_instance();
 		assert(instance_key > 0);
@@ -57,6 +58,7 @@ cos_init(void)
 		while (!ps_load(&init_done)) ;
 	}
 
+	PRINTC("ENTERING MAIN LOOP\n");
 	sinv_server_main_loop(&sinv_api);
 
 	sched_thd_exit();

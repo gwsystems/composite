@@ -37,7 +37,7 @@ typedef enum {
 #define RK_SKEY(i, t) (RK_CLIENT(i) + t + 1)
 #define RK_RKEY(i, t) ((1 << 9) | (RK_CLIENT(i) + t + 1))
 
-#define RK_CLIENT_MAX (RK_CLIENT3 + 1)
+#define RK_CLIENT_MAX (4)
 
 #define RK_CLIENT_STARTTOK "r"
 #define RK_CLIENT_ENDTOK   ","

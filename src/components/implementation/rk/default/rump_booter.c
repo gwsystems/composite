@@ -13,13 +13,11 @@
 #include <hypercall.h>
 #include <memmgr.h>
 #include <capmgr.h>
-#include <schedinit.h>
 #include <capmgr.h>
 
 #include "rk_json_cfg.h"
 #include "rk_sched.h"
 
-extern cbuf_t parent_schedinit_child();
 extern struct cos_component_information cos_comp_info;
 
 /* TODO rumpboot component should export this when it is moved to its own interface */
@@ -140,22 +138,16 @@ rump_booter_init(void *d)
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();
 
-	PRINTC("Enabling stub components..\n");
-	rk_child_initthd_create();
+	PRINTC("Walking through RK child components..\n");
+	rk_child_initthd_walk();
 
 	printc("\nSetting up arcv for hw irq\n");
 	rk_hw_irq_alloc();
 
-	printc("Notifying parent scheduler...\n");
-	parent_schedinit_child();
-
 	/* We pass in the json config string to the RK */
-	script = RK_JSON_DEFAULT_QEMU;
-	if (!strcmp(script, RK_JSON_DEFAULT_HW)) {
-		printc("CONFIGURING RK TO RUN ON BAREMETAL\n");
-	} else if (!strcmp(script, RK_JSON_DEFAULT_QEMU)) {
-		printc("CONFIGURING RK TO RUN ON QEMU\n");
-	}
+	//script = RK_JSON_UDPSTUB_HTTP_QEMU;
+	script = RK_JSON_HTTP_QEMU;
+	//script = RK_JSON_HTTP_UDPSERV_QEMU;
 	rk_alloc_run(script);
 	printc("\nRumpKernel Boot done.\n");
 

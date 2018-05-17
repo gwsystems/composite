@@ -22,9 +22,10 @@
 #define TM_SUB_PERIOD_US  (10000) //10ms
 
 enum {
-	RK_SL_PRIO_HIGH = 5,
-	RK_SL_PRIO_MID,
-	RK_SL_PRIO_LOW,
+	RK_SL_PRIO_HIGH = 2,
+	RK_SL_PRIO_MID=4,
+	RK_SL_PRIO_MLOW = 5,
+	RK_SL_PRIO_LOW=6,
 };
 
 #define RK_INTR_THD_PRIO RK_SL_PRIO_MID
@@ -50,6 +51,14 @@ void rk_curr_thd_set_prio(int prio);
 
 void rk_intr_disable(void);
 void rk_intr_enable(void);
-void rk_child_initthd_create(void);
+void rk_child_initthd_walk(void);
+struct sl_thd *rk_child_stubcomp_init(char *name);
+struct sl_thd *rk_child_fakethd_init(char *name);
+
+spdid_t rk_app_findspd(char *name);
+spdid_t rk_stub_findspd(char *name);
+spdid_t rk_stub_iter(void);
+
+int rk_child_fakereq_set(struct sl_thd *t, char *reqname);
 
 #endif /* RK_SCHED_H */

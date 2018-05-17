@@ -135,6 +135,7 @@ void  rump_bmk_memsize_init(void);
 void set_cos_thddata(struct bmk_thread *thread, capid_t thd, thdid_t tid);
 capid_t get_cos_thdcap(struct bmk_thread *thread);
 thdid_t get_cos_thdid(struct bmk_thread *thread);
+int fakethd_create(int instance, char *name);
 
 char *get_name(struct bmk_thread *thread);
 long long cos_cpu_clock_now(void);

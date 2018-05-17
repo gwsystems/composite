@@ -1,0 +1,9 @@
+RK_INC += -I../../../../implementation/no_interface/rumpbooter -I../../../../include -I../../../../../kernel/include/shared -I./include/
+RK_CFLAGS += -O3 -m32 $(RK_INC)
+RK_LDFLAGS = -melf_i386 -r
+RK_APPTOOLS = $(shell pwd)/../../rumprun/app-tools/
+RK_CC = $(RK_APPTOOLS)/i486-rumprun-netbsdelf-gcc
+RK_LD = $(RK_APPTOOLS)/i486-rumprun-netbsdelf-ld
+RK_BAKE = $(RK_APPTOOLS)/rumpbake
+RK_RUN = $(RK_APPTOOLS)/rumprun
+RK_RECIPE= $(RK_APPTOOLS)/i486-rumprun-netbsdelf-recipe.s

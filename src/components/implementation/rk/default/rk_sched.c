@@ -3,6 +3,7 @@
 #include "rk_sched.h"
 #include <llprint.h>
 #include <hypercall.h>
+#include <schedinit.h>
 
 /*
  * TODO: Doesn't look like we need a recursive lock!
@@ -13,18 +14,77 @@
 //#define CS_RECURSE_LIMIT (1<<5)
 //volatile unsigned int cs_recursive = 0;
 
-#define MAX_APPS 3
-
 /* NOTE: This needs to be updated as we support more apps!! */
-static char *app_names[MAX_APPS] = {
+static char *app_names[RK_APPS_MAX] = {
 		"udpserv",
 		"http",
 		"iperf",
 	};
 
-static spdid_t app_spdid[MAX_APPS] = { 0 };
-/* TODO: only a single direct child app?? */
-spdid_t rk_child_app = 0;
+static char *stub_names[RK_STUBS_MAX] = {
+		"udpstub",
+		"httpstub",
+		"iprfstub",
+	};
+
+static spdid_t app_spdid[RK_APPS_MAX] = { 0 };
+static spdid_t stub_spdid[RK_STUBS_MAX] = { 0 };
+
+spdid_t rk_child_app[RK_APPS_MAX] = { 0 };
+
+extern cbuf_t parent_schedinit_child();
+
+static struct sl_thd *stubreqs[RK_STUBREQS_MAX] = { NULL };
+
+int
+rk_child_fakereq_set(struct sl_thd *t, char *reqname)
+{
+	int i, instance = -1;
+	assert(t && reqname);
+	assert(strcmp(reqname, "stub_") == 0);
+
+	for (i = 0; i < RK_STUBREQS_MAX; i++) {
+		int ret = 0;
+
+		if (stubreqs[i] != NULL) continue;
+
+		ret = ps_cas((unsigned long *)&stubreqs[i],(unsigned long)NULL, (unsigned long)t);
+		if (ret == 0) continue;
+
+		instance = i;
+		reqname[5] = instance + 48;
+		reqname[6] = '\0';
+	}
+
+	/* -1 if there is no free slot! */
+	return instance;
+}
+
+static void
+rk_child_fakereq_reset(int instance)
+{
+	int ret = 0;
+	struct sl_thd *t = stubreqs[instance];
+
+	assert(t);
+
+	ret = ps_cas((unsigned long *)&stubreqs[instance], (unsigned long)t, (unsigned long)NULL);
+	assert(ret == 1);
+}
+
+static struct sl_thd *
+rk_child_fakereq_get(int instance)
+{
+	struct sl_thd *t = NULL;
+
+	assert(instance >= 0 && instance < RK_STUBREQS_MAX);
+	t = stubreqs[instance];
+	assert(t);
+
+	rk_child_fakereq_reset(instance);
+
+	return t;
+}
 
 void
 rk_curr_thd_set_prio(int prio)
@@ -168,6 +228,9 @@ rk_rump_thd_yield_to(struct bmk_thread *c, struct bmk_thread *n)
 void
 rk_sched_loop(void)
 {
+	printc("Notifying parent scheduler...\n");
+	parent_schedinit_child();
+
 	sl_sched_loop();
 }
 
@@ -257,7 +320,7 @@ rk_app_spdids(void)
 {
 	int i;
 
-	for (i = 0; i < MAX_APPS; i++) {
+	for (i = 0; i < RK_APPS_MAX; i++) {
 		PRINTC("APP: %s len: %d\n", app_names[i], strlen(app_names[i]));
 		spdid_t app = hypercall_comp_id_get(app_names[i]);
 
@@ -267,34 +330,108 @@ rk_app_spdids(void)
 	}
 }
 
+static void
+rk_stub_spdids(void)
+{
+	int i;
+
+	for (i = 0; i < RK_STUBS_MAX; i++) {
+		PRINTC("STUB: %s len: %d\n", stub_names[i], strlen(stub_names[i]));
+		spdid_t stub = hypercall_comp_id_get(stub_names[i]);
+
+		if (!stub) continue;
+		stub_spdid[i] = stub;
+		PRINTC("RK STUB in the system: %s spdid: %d\n", stub_names[i], stub_spdid[i]);
+	}
+}
+
+static char *
+rk_stub_find(spdid_t s)
+{
+	int i = 0;
+
+	assert(s);
+	for (i = 0; i < RK_STUBS_MAX; i++) {
+		if (stub_spdid[i] == s) break;
+	}
+
+	if (i >= RK_STUBS_MAX) return NULL;
+
+	return stub_names[i];
+}
+
+spdid_t
+rk_stub_findspd(char *name)
+{
+	int i = 0;
+
+	assert(name);
+	for (i = 0; i < RK_STUBS_MAX; i++) {
+		if (strcmp(stub_names[i], name) == 0) break;
+	}
+
+	if (i >= RK_APPS_MAX) return 0;
+
+	return stub_spdid[i];
+}
+
+spdid_t
+rk_stub_iter(void)
+{
+	static int i = 0;
+	int j;
+
+	if (i >= RK_STUBS_MAX || !stub_spdid[i]) return 0;
+
+	j = i;
+	i++;
+	return stub_spdid[j];
+}
+
 static char *
 rk_app_find(spdid_t s)
 {
 	int i = 0;
 
 	assert(s);
-	for (i = 0; i < MAX_APPS; i++) {
+	for (i = 0; i < RK_APPS_MAX; i++) {
 		if (app_spdid[i] == s) break;
 	}
 
-	if (i >= MAX_APPS) return NULL;
+	if (i >= RK_APPS_MAX) return NULL;
 
 	return app_names[i];
 }
 
-/* creates initthds for non rumpkernel apps.. for sinv/async communication stub components */
+spdid_t
+rk_app_findspd(char *name)
+{
+	int i = 0;
+
+	assert(name);
+	for (i = 0; i < RK_APPS_MAX; i++) {
+		if (strcmp(app_names[i], name) == 0) break;
+	}
+
+	if (i >= RK_APPS_MAX) return 0;
+
+	return app_spdid[i];
+}
+
 void
-rk_child_initthd_create(void)
+rk_child_initthd_walk(void)
 {
 	int remaining = 0;
 	spdid_t child;
 	comp_flag_t childflags;
 	int num_child = 0;
+	int direct_app = 0;
 
 	rk_app_spdids();
+	rk_stub_spdids();
+	assert(RK_STUBREQS_MAX < 10); /* single digit for avoiding sprintf */
 
 	while ((remaining = hypercall_comp_child_next(cos_spd_id(), &child, &childflags)) >= 0) {
-		struct cos_defcompinfo child_dci;
 		struct sl_thd *t = NULL;
 		char *appname = NULL;
 
@@ -302,24 +439,61 @@ rk_child_initthd_create(void)
 		/* no child schedulers on top of RK!! */
 		assert(!(childflags & COMP_FLAG_SCHED));
 		if ((appname = rk_app_find(child)) != NULL) {
-			assert(rk_child_app == 0); /* only a single direct child app? */
-			rk_child_app = child;
-			PRINTC("Direct child RK APP: %s spdid: %u\n", appname, rk_child_app);
+			//assert(rk_child_app == 0); /* only a single direct child app? */
+			assert(direct_app < RK_APPS_MAX);
+			rk_child_app[direct_app] = child;
+			PRINTC("Direct child RK APP: %s spdid: %u\n", appname, rk_child_app[direct_app]);
+			direct_app++;
 
 			goto done; /* apps taken care from rumpkernel layer */
 		}
+
+		appname = rk_stub_find(child);
+		assert(appname);
 		num_child ++;
-		cos_defcompinfo_childid_init(&child_dci, child);
-
-		t = sl_thd_initaep_alloc(&child_dci, 0, 0, 0, 0, 0, 0);
-		assert(t);
-		/* TODO: prio only matters because they're non-scheduling threads.. */
-		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_STUBINIT_PRIO));
-		PRINTC("Initialized child \"stub\" component: %u, initthd: %u\n", child, sl_thd_thdid(t));
-
 done:
 		if (!remaining) break;
 	}
 
 	PRINTC("Number of \"stub\" child components: %d\n", num_child);
+}
+
+/* creates initthds for non rumpkernel apps.. for sinv/async communication stub components */
+struct sl_thd *
+rk_child_stubcomp_init(char *name)
+{
+	struct cos_defcompinfo child_dci;
+	struct sl_thd *t = NULL;
+	spdid_t child = rk_stub_findspd(name);
+
+	if (!child) return t;
+
+	cos_defcompinfo_childid_init(&child_dci, child);
+
+	t = sl_thd_initaep_alloc(&child_dci, 0, 0, 0, 0, 0, 0);
+	assert(t);
+	/* TODO: prio only matters because they're non-scheduling threads.. */
+	sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_STUBINIT_PRIO));
+	PRINTC("Initialized child \"stub\" %s component: %u, initthd: %u\n", name, child, sl_thd_thdid(t));
+
+	return t;
+}
+
+struct sl_thd *
+rk_child_fakethd_init(char *name)
+{
+	char tmpname[RK_NAME_MAX] = { '\0' }, *t = tmpname;
+	char *tok = NULL;
+	int instance = 0;
+
+	strcpy(tmpname, name);
+	tok = strtok_r(t, "_", &t);
+
+	if (strcmp(tok, "stub") != 0) return NULL;
+	tok = strtok_r(NULL, "_", &t);
+	if (strlen(tok) != 1) return NULL;
+	instance = tok[0] - 48;
+	if (instance < 0 || instance >= RK_STUBREQS_MAX) return NULL;
+
+	return rk_child_fakereq_get(instance);
 }
