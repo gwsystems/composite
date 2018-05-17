@@ -104,6 +104,13 @@ emu_stash_retrieve_spdid()
 	return stashed_task_values.spdid;
 }
 
+void
+emu_sched_thd_block_timeout(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+	s->sched_thd_block_timeout.result = sl_thd_block_timeout(s->sched_thd_block_timeout.deptid, s->sched_thd_block_timeout.abs_timeout);
+}
+
 /* Methods that wrap cFE methods
  * They use data in memory shared with the calling component
  */
