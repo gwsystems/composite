@@ -28,9 +28,7 @@ void cos_init(void)
     printc("Starting i42 pre init\n");
     do_emulation_setup(cos_comp_info.cos_this_spd_id);
 
-    printc("acom_client_init\n");
     acom_client_init(&sinv_info, RK_CLIENT(1));
-    printc("acom_client_thread_init\n");
     acom_client_thread_init(&sinv_info, cos_thdid(), 0, 0, RK_SKEY(1, 0));
 
     printc("Starting i42 main\n");
@@ -144,6 +142,14 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 {
     if (syscall_num == __NR_open) {
         return rk_inv_open_acom(&sinv_info, (const char *)a, (int)b, (mode_t) c, 0, 0);
+    }
+
+    if (syscall_num == __NR_read) {
+        return rk_inv_read_acom(&sinv_info, (int)a, (void *)b, (size_t)c, 0, 0);
+    }
+
+    if (syscall_num == __NR_write) {
+        return rk_inv_write_acom(&sinv_info, (int)a, (void *)b, (size_t)c, 0, 0);
     }
 
     if (syscall_num == __NR_clock_gettime) {
