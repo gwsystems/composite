@@ -336,7 +336,9 @@ cap_shmem_region_find(cos_channelkey_t key)
 	cbuf_t i, free = rglb->free_region_id;
 
 	for (i = 1; i <= free; i++) {
-		if (ps_load((unsigned long *)&rglb->region_keys[i - 1]) == key) {
+		cos_channelkey_t thiskey = ps_load((unsigned long *)&rglb->region_keys[i - 1]);
+
+		if (thiskey == key) {
 			id = i;
 			break;
 		}
