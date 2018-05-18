@@ -21,19 +21,15 @@ extern void OS_IdleLoop();
 extern unsigned int OS_TaskDelay(unsigned int millisecond);
 extern void do_emulation_setup(spdid_t id);
 
-static int instance_key = 0;
-
 void cos_init(void)
 {
     printc("Starting i42 pre init\n");
     do_emulation_setup(cos_comp_info.cos_this_spd_id);
-    instance_key = rk_args_instance();
-    assert(instance_key > 0);
 
     printc("acom_client_init\n");
-    acom_client_init(&sinv_info, RK_CLIENT(instance_key));
+    acom_client_init(&sinv_info, RK_CLIENT(1));
     printc("acom_client_thread_init\n");
-    acom_client_thread_init(&sinv_info, cos_thdid(), 0, 0, RK_SKEY(instance_key, 0));
+    acom_client_thread_init(&sinv_info, cos_thdid(), 0, 0, RK_SKEY(1, 0));
 
     printc("Starting i42 main\n");
     I42_AppMain();
@@ -144,6 +140,10 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f, long g)
 {
+    if (syscall_num == __NR_open) {
+        return rk_inv_open_acom(&sinv_info, (const char *)a, (int)b, (mode_t) c, 0, 0);
+    }
+
     if (syscall_num == __NR_mmap || syscall_num == __NR_mmap2) {
         return (long)cos_mmap((void *)a, (size_t)b, (int)c, (int)d, (int)e, (off_t)f);
     }
