@@ -66,7 +66,9 @@ test_fs(int arg1, int arg2, int arg3, int arg4)
 
 int
 rk_ftruncate(int arg1, int arg2)
-{ return rump___sysimpl_ftruncate(arg1, (off_t)arg2); }
+{
+	return rump___sysimpl_ftruncate(arg1, (off_t)arg2);
+}
 
 int
 rk_select(int arg1, int arg2)
@@ -140,6 +142,72 @@ rk_socket(int domain, int type, int protocol)
 	return rump___sysimpl_socket30(domain, type, protocol);
 }
 
+/* going with robbie's lead.. rk has different flag values?? define them here for mappings */
+#define RK_O_RDONLY     0x00000000
+#define RK_O_WRONLY     0x00000001
+#define RK_O_RDWR       0x00000002
+#define RK_O_CREAT      0x00000200
+#define RK_O_EXCL       0x00000800
+#define RK_O_NOCTTY     0x00008000
+#define RK_O_TRUNC      0x00000400
+#define RK_O_APPEND     0x00000008
+#define RK_O_NONBLOCK   0x00000004
+#define RK_O_DSYNC      0x00010000
+#define RK_O_SYNC       0x00000080
+#define RK_O_RSYNC      0x00020000
+#define RK_O_DIRECTORY  0x00200000
+#define RK_O_NOFOLLOW   0x00000100
+#define RK_O_CLOEXEC    0x00400000
+#define RK_O_ASYNC      0x00000040
+#define RK_O_DIRECT     0x00080000
+#define RK_O_NDELAY RK_O_NONBLOCK
+
+#define MUSL_O_RDONLY         00
+#define MUSL_O_WRONLY         01
+#define MUSL_O_RDWR           02
+#define MUSL_O_CREAT        0100
+#define MUSL_O_EXCL         0200
+#define MUSL_O_NOCTTY       0400
+#define MUSL_O_TRUNC       01000
+#define MUSL_O_APPEND      02000
+#define MUSL_O_NONBLOCK    04000
+#define MUSL_O_DSYNC      010000
+#define MUSL_O_SYNC     04010000
+#define MUSL_O_RSYNC    04010000
+#define MUSL_O_DIRECTORY 0200000
+#define MUSL_O_NOFOLLOW  0400000
+#define MUSL_O_CLOEXEC  02000000
+#define MUSL_O_ASYNC      020000
+#define MUSL_O_DIRECT     040000
+#define MUSL_O_NDELAY MUSL_O_NONBLOCK
+
+static int
+rk_open_flag(int muslflag)
+{
+	int rkflag = 0;
+
+	if (muslflag & MUSL_O_RDONLY)    rkflag |= RK_O_RDONLY;
+	if (muslflag & MUSL_O_WRONLY)    rkflag |= RK_O_WRONLY;
+	if (muslflag & MUSL_O_RDWR)      rkflag |= RK_O_RDWR;
+	if (muslflag & MUSL_O_CREAT)     rkflag |= RK_O_CREAT;
+	if (muslflag & MUSL_O_EXCL)      rkflag |= RK_O_EXCL;
+	if (muslflag & MUSL_O_NOCTTY)    rkflag |= RK_O_NOCTTY;
+	if (muslflag & MUSL_O_TRUNC)     rkflag |= RK_O_TRUNC;
+	if (muslflag & MUSL_O_APPEND)    rkflag |= RK_O_APPEND;
+	if (muslflag & MUSL_O_NONBLOCK)  rkflag |= RK_O_NONBLOCK;
+	if (muslflag & MUSL_O_DSYNC)     rkflag |= RK_O_DSYNC;
+	if (muslflag & MUSL_O_SYNC)      rkflag |= RK_O_SYNC;
+	if (muslflag & MUSL_O_RSYNC)     rkflag |= RK_O_RSYNC;
+	if (muslflag & MUSL_O_DIRECTORY) rkflag |= RK_O_DIRECTORY;
+	if (muslflag & MUSL_O_NOFOLLOW)  rkflag |= RK_O_NOFOLLOW;
+	if (muslflag & MUSL_O_CLOEXEC)   rkflag |= RK_O_CLOEXEC;
+	if (muslflag & MUSL_O_ASYNC)     rkflag |= RK_O_ASYNC;
+	if (muslflag & MUSL_O_DIRECT)    rkflag |= RK_O_DIRECT;
+	if (muslflag & MUSL_O_NDELAY)    rkflag |= RK_O_NDELAY;
+
+	return rkflag;
+}
+
 int
 rk_open(int arg1, int arg2, int arg3)
 {
@@ -165,7 +233,8 @@ rk_open(int arg1, int arg2, int arg3)
 
 	printc("path: %s, flags: %d, mode: %d\n", path, flags, mode);
 	/* RK values for O_RDWR, O_CREAT, O_EXCL because they differ from musl */
-	flags = 0x00000002 | 0x00000200 | 0x00000800;
+	//flags = 0x00000002 | 0x00000200 | 0x00000800;
+	flags = rk_open_flag(flags);
 	return rump___sysimpl_open(path, flags, mode);
 }
 
