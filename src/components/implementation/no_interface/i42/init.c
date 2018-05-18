@@ -4,10 +4,12 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/utsname.h>
+#include <time.h>
 
 #include <cos_component.h>
 #include <cos_kernel_api.h>
 #include <cos_types.h>
+#include <ps.h>
 #include <sinv_async.h>
 
 #include <memmgr.h>
@@ -142,6 +144,15 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 {
     if (syscall_num == __NR_open) {
         return rk_inv_open_acom(&sinv_info, (const char *)a, (int)b, (mode_t) c, 0, 0);
+    }
+
+    if (syscall_num == __NR_clock_gettime) {
+        microsec_t microseconds = ps_tsc() / cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+        time_t seconds = microseconds / 1000000;
+        long rest = microseconds % 1000000;
+
+        *((struct timespec *)b) = (struct timespec) {seconds, rest};
+        return 0;
     }
 
     if (syscall_num == __NR_mmap || syscall_num == __NR_mmap2) {
