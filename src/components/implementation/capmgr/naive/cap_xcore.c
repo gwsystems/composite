@@ -9,7 +9,7 @@
 
 /* SINV TOKEN == cap_comm_info pointer */
 int
-cap_xcore_asnd(int arg2, int arg3, int yield)
+cap_xcore_asnd(int arg1, int arg2, int arg3, int yield)
 {
 	cycles_t now, win;
 	struct cap_comm_info *commci = (struct cap_comm_info *)cos_inv_token();

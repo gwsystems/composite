@@ -29,7 +29,7 @@ hypercall_comp_child_next(spdid_t c, spdid_t *child, comp_flag_t *flags)
 	word_t r2 = 0, r3 = 0;
 	int ret;
 
-	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CHILD_NEXT, c, 0, &r2, &r3);
+	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_CHILD_NEXT, c, 0, 0, &r2, &r3);
 	if (ret < 0) return ret;
 	*child = (spdid_t)r2;
 	*flags = (comp_flag_t)r3;
@@ -44,7 +44,7 @@ hypercall_comp_init_done(void)
 	 * to be used only by the booter child threads
 	 * higher-level components use, schedinit interface to SINV to parent for init
 	 */
-	return cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INIT_DONE, 0, 0);
+	return cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_INIT_DONE, 0, 0, 0);
 }
 
 /* Note: This API can be called ONLY by components that manage capability resources */
@@ -69,8 +69,8 @@ hypercall_comp_initaep_get(spdid_t spdid, int is_sched, struct cos_aep_info *aep
 	}
 
 	/* capid_t though is unsigned long, only assuming it occupies 16bits for packing */
-	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INITAEP_GET,
-			spdid << 16 | thdslot, rcvslot << 16 | tcslot);
+	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_INITAEP_GET,
+			spdid << 16 | thdslot, rcvslot << 16 | tcslot, 0);
 	if (ret) return ret;
 
 	aep->thd = thdslot;
@@ -97,8 +97,8 @@ hypercall_comp_info_get(spdid_t spdid, pgtblcap_t *ptslot, captblcap_t *ctslot, 
 	assert(*compslot);
 
 	/* capid_t though is unsigned long, only assuming it occupies 16bits for packing */
-	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INFO_GET,
-			     spdid << 16 | (*compslot), (*ptslot) << 16 | (*ctslot), &r2, &r3);
+	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_INFO_GET,
+			     spdid << 16 | (*compslot), (*ptslot) << 16 | (*ctslot), 0, &r2, &r3);
 	*parentid = r2;
 
 	return ret;
@@ -120,8 +120,8 @@ hypercall_comp_info_next(pgtblcap_t *ptslot, captblcap_t *ctslot, compcap_t *com
 	assert(*compslot);
 
 	/* capid_t though is unsigned long, only assuming it occupies 16bits for packing */
-	ret =  cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INFO_NEXT,
-			      (*compslot), (*ptslot) << 16 | (*ctslot), &r2, &r3);
+	ret =  cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_INFO_NEXT,
+			      (*compslot), (*ptslot) << 16 | (*ctslot), 0, &r2, &r3);
 	*compid        = r2;
 	*comp_parentid = r3;
 
@@ -132,7 +132,7 @@ hypercall_comp_info_next(pgtblcap_t *ptslot, captblcap_t *ctslot, compcap_t *com
 static inline int
 hypercall_comp_frontier_get(spdid_t spdid, vaddr_t *vasfr, capid_t *capfr)
 {
-	return cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_FRONTIER_GET, spdid, 0, vasfr, capfr);
+	return cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_FRONTIER_GET, spdid, 0, 0, vasfr, capfr);
 }
 
 /* Note: This API can be called ONLY by components that manage capability resources */
@@ -144,7 +144,7 @@ hypercall_comp_compcap_get(spdid_t spdid)
 
 	assert(compslot);
 
-	if (cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_COMPCAP_GET, spdid, compslot)) return 0;
+	if (cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_COMPCAP_GET, spdid, compslot, 0)) return 0;
 
 	return compslot;
 }
@@ -158,7 +158,7 @@ hypercall_comp_captblcap_get(spdid_t spdid)
 
 	assert(ctslot);
 
-	if (cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CAPTBLCAP_GET, spdid, ctslot)) return 0;
+	if (cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_CAPTBLCAP_GET, spdid, ctslot, 0)) return 0;
 
 	return ctslot;
 }
@@ -172,7 +172,7 @@ hypercall_comp_pgtblcap_get(spdid_t spdid)
 
 	assert(ptslot);
 
-	if (cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_PGTBLCAP_GET, spdid, ptslot)) return 0;
+	if (cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_PGTBLCAP_GET, spdid, ptslot, 0)) return 0;
 
 	return ptslot;
 }
@@ -183,7 +183,7 @@ hypercall_comp_capfrontier_get(spdid_t spdid)
 	word_t unused;
 	capid_t cap_frontier;
 
-	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CAPFRONTIER_GET, spdid, 0, &cap_frontier, &unused)) return 0;
+	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_CAPFRONTIER_GET, spdid, 0, 0, &cap_frontier, &unused)) return 0;
 
 	return cap_frontier;
 }
@@ -195,7 +195,7 @@ hypercall_comp_cpubitmap_get(spdid_t spdid, u32_t *bmp)
 
 	assert(NUM_CPU_BMP_WORDS <= 2); /* FIXME: works for up to 64 cores */
 
-	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CPUBITMAP_GET, spdid, 0, &lo, &hi)) return -1;
+	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_CPUBITMAP_GET, spdid, 0, 0, &lo, &hi)) return -1;
 
 	bmp[0] = lo;
 	if (NUM_CPU_BMP_WORDS == 2) bmp[1] = hi;
@@ -206,7 +206,7 @@ hypercall_comp_cpubitmap_get(spdid_t spdid, u32_t *bmp)
 static inline int
 hypercall_numcomps_get(void)
 {
-	return cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_NUMCOMPS_GET, 0, 0);
+	return cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_NUMCOMPS_GET, 0, 0, 0);
 }
 
 #define HYPERCALL_COMPNAME_MAX 8
@@ -235,7 +235,7 @@ hypercall_comp_id_get(char *comp_name)
 	word_2 = (word_2 << 8) | b[6];
 	word_2 = (word_2 << 8) | b[7];
 
-	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_ID_GET, word_1, word_2);
+	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_ID_GET, word_1, word_2, 0);
 
 	return ret;
 }
