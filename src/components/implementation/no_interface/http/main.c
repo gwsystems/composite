@@ -93,6 +93,7 @@ main(int argc, char *argv[])
 	}
 
 	port = atoi(argv[1]);
+	PRINTC("Starting HTTP SERVER [Port: %d]!\n", port);
 	accept_fd = server_create(port);
 	if (accept_fd < 0) return -1;
 
@@ -119,19 +120,10 @@ cos_init(void)
 	spdid = cos_comp_info.cos_this_spd_id;
 
 	/* Using cos_defcompinfo_init to enable us to use printf... */
-	PRINTC("cos_defcompinfo_init\n");
 	cos_defcompinfo_init();
-
-	/* Test RK entry */
-	PRINTC("calling rk_inv_entry\n");
-	get_boot_done();
-	test_entry(0, 1, 2, 3);
 
 	rk_libcmod_init();
 	schedinit_child();
-
-	PRINTC("Calling printf...\n");
-	printf("testing, testing, this is printf\n");
 
 	char *argv[2];
 	argv[0] = "http.o";

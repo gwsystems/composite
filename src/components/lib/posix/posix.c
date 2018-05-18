@@ -28,7 +28,6 @@ static cos_syscall_t cos_syscalls[SYSCALL_NUM_MAX];
 static void
 libc_syscall_override(cos_syscall_t fn, int syscall_num)
 {
-	printc("Overriding syscall %d\n", syscall_num);
 	cos_syscalls[syscall_num] = fn;
 }
 
@@ -80,7 +79,6 @@ cos_writev(int fd, const struct iovec *iov, int iovcnt)
 long
 cos_ioctl(int fd, int request, void *data)
 {
-	printc("%s\n", __func__);
 	/* musl libc does some ioctls to stdout, so just allow these to silently go through */
 	if (fd == 1 || fd == 2) return 0;
 
@@ -103,7 +101,6 @@ void *
 cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 	void *ret=0;
-	printc("%s\n", __func__);
 
 	if (addr != NULL) {
 		printc("parameter void *addr is not supported!\n");
@@ -142,7 +139,6 @@ cos_munmap(void *start, size_t length)
 int
 cos_madvise(void *start, size_t length, int advice)
 {
-	printc("%s\n", __func__);
 	/* We don't do anything with the advice from madvise, but that isn't really a problem */
 	return 0;
 }
@@ -185,14 +181,12 @@ cos_mprotect(void *addr, size_t len, int prot)
 pid_t
 cos_gettid(void)
 {
-	printc("%s\n", __func__);
 	return (pid_t) sl_thdid();
 }
 
 int
 cos_tkill(int tid, int sig)
 {
-	printc("%s\n", __func__);
 	if (sig == SIGABRT || sig == SIGKILL) {
 		printc("Abort requested, complying...\n");
 		ABORT();
@@ -263,7 +257,6 @@ cos_nanosleep(const struct timespec *req, struct timespec *rem)
 long
 cos_set_tid_address(int *tidptr)
 {
-	printc("%s\n", __func__);
 	/* Just do nothing for now and hope that works */
 	return 0;
 }
@@ -280,7 +273,6 @@ cos_set_thread_area_stub(void* data)
 int
 cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, void *tls, pid_t *ctid)
 {
-	printc("%s\n", __func__);
 	if (!func) {
 		errno = EINVAL;
 		return -1;
@@ -457,7 +449,6 @@ char *_machine = "my VM";
 int
 cos_uname(struct utsname *buf)
 {
-	printc("%s\n", __func__);
 	memcpy(buf->sysname, _sysname, 65);
 	memcpy(buf->nodename, _nodename, 65);
 	memcpy(buf->release, _release, 65);
@@ -470,22 +461,17 @@ cos_uname(struct utsname *buf)
 void
 pre_syscall_default_setup()
 {
-	printc("pre_syscall_default_setup...");
 
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
 	cos_defcompinfo_init();
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	printc("done\n");
-//	sl_init(SL_MIN_PERIOD_US);
 }
 
 void
 syscall_emulation_setup(void)
 {
-	printc("syscall_emulation_setup\n");
-
 	int i;
 	for (i = 0; i < SYSCALL_NUM_MAX; i++) {
 		cos_syscalls[i] = 0;
@@ -521,9 +507,6 @@ long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f)
 {
 	assert(syscall_num <= SYSCALL_NUM_MAX);
-	//printc("Making syscall %d\n", syscall_num);
-	//printc("args a: %ld, b: %ld, c: %ld, d: %ld, e: %ld, f: %ld\n",
-	//	a, b, c, d, e, f);
 	if (!cos_syscalls[syscall_num]){
 		printc("WARNING: Thread %u calling unimplemented system call %d\n", cos_thdid(), syscall_num);
 		assert(0);
@@ -535,7 +518,6 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 void
 libc_initialization_handler()
 {
-	printc("libc_init\n");
 	libc_init();
 }
 

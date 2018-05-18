@@ -29,31 +29,29 @@ __test_udp_server(void)
 	struct sockaddr_in soutput, sinput;
 	int msg_size=MSG_SZ;
 	int tp_counter = 0;
+	cycles_t prev = 0, now = 0;
 
 	soutput.sin_family      = AF_INET;
 	soutput.sin_port        = htons(OUT_PORT);
 	soutput.sin_addr.s_addr = htonl(INADDR_ANY);
-	printc("Sending to port %d\n", OUT_PORT);
 	if ((fd = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
 		printc("Error Establishing socket\n");
 		return -1;
 	}
-	printc("fd for socket: %d\n", fd);
 	if ((fdr = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
 		printc("Error Establishing receive socket\n");
 		return -1;
 	}
-	printc("fd for receive socket: %d\n", fdr);
 
 	sinput.sin_family      = AF_INET;
 	sinput.sin_port        = htons(IN_PORT);
 	sinput.sin_addr.s_addr = htonl(INADDR_ANY);
-	printc("binding receive socket to port %d\n", IN_PORT);
 	if (bind(fdr, (struct sockaddr *)&sinput, sizeof(sinput))) {
 		printc("binding receive socket\n");
 		return -1;
 	}
 
+	rdtscll(prev);
 	do {
 		struct sockaddr sa;
 		socklen_t len = sizeof(struct sockaddr);
@@ -62,15 +60,24 @@ __test_udp_server(void)
 			printc("read");
 			continue;
 		}
-		printc("Received-msg: seqno:%u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned long long *)__msg)[1]);
+//		printc("Received-msg: seqno:%u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned long long *)__msg)[1]);
 		/* Reply to the sender */
 		soutput.sin_addr.s_addr = ((struct sockaddr_in*)&sa)->sin_addr.s_addr;
 		if (sendto(fd, __msg, msg_size, 0, (struct sockaddr*)&soutput, sizeof(soutput)) < 0) {
 			printc("sendto");
 			continue;
 		}
+		tp_counter++;
 
-		printc("Sent-msg: seqno:%u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned long long *)__msg)[1]);
+		if (tp_counter == 1000) {
+			rdtscll(now);
+			PRINTC("Sent/rcvd %d in %llu cycles\n", tp_counter, now - prev);
+
+			prev = now;
+			tp_counter = 0;
+		}
+
+//		printc("Sent-msg: seqno:%u time:%llu\n", ((unsigned int *)__msg)[0], ((unsigned long long *)__msg)[1]);
 
 	} while (1) ;
 
@@ -96,11 +103,6 @@ cos_init(void)
 	printc("cos_component_information spdid: %ld\n", cos_comp_info.cos_this_spd_id);
 
 	spdid = cos_comp_info.cos_this_spd_id;
-
-	/* Test RK entry */
-//	printc("calling rk_inv_entry\n");
-//	get_boot_done();
-//	test_entry(0, 1, 2, 3);
 
 	udpserv_main();
 }

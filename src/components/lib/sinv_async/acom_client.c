@@ -43,7 +43,7 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 	spdid_t child = cos_inv_token() == 0 ? cos_spd_id() : (spdid_t)cos_inv_token();
 
 	assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET);
-	/* assert(rcvkey && skey && tid && rcv); */
+	assert(skey && tid);
 
 	req->clspdid = child; /* this is done from the scheduler on invocation */
 	req->rkey = rcvkey;
@@ -87,7 +87,6 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 
 	assert(t >= 0 && t < SINV_NUM_MAX);
 	assert(reqaddr);
-	assert(tinfo->rcvcap);
 
 	retval = (int *)SINV_RET_ADDR(tinfo->shmaddr);
 	req    = (struct sinv_call_req *)SINV_REQ_ADDR(tinfo->shmaddr);
@@ -106,10 +105,8 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 	} else {
 		/* cos_asnd(tinfo->sndcap, 0); */
 	}
-	cos_asnd(tinfo->sndcap, 1);
 
-	assert(tinfo->rcvcap);
-	while ((cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
+	while (!tinfo->rcvcap || (cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
 		cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
 
 		if (ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET) break;

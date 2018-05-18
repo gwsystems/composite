@@ -25,6 +25,7 @@ static char *stub_names[RK_STUBS_MAX] = {
 		"udpstub",
 		"httpstub",
 		"iprfstub",
+		"i42stub",
 	};
 
 static spdid_t app_spdid[RK_APPS_MAX] = { 0 };
@@ -370,7 +371,7 @@ rk_stub_findspd(char *name)
 		if (strcmp(stub_names[i], name) == 0) break;
 	}
 
-	if (i >= RK_APPS_MAX) return 0;
+	if (i >= RK_STUBS_MAX) return 0;
 
 	return stub_spdid[i];
 }

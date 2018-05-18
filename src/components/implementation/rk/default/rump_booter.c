@@ -146,7 +146,8 @@ rump_booter_init(void *d)
 
 	/* We pass in the json config string to the RK */
 	//script = RK_JSON_UDPSTUB_HTTP_QEMU;
-	script = RK_JSON_HTTP_QEMU;
+	script = RK_JSON_I42STUB_HTTP_QEMU;
+	//script = RK_JSON_HTTP_QEMU;
 	//script = RK_JSON_HTTP_UDPSERV_QEMU;
 	rk_alloc_run(script);
 	printc("\nRumpKernel Boot done.\n");

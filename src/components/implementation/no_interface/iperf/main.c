@@ -196,25 +196,17 @@ cos_init(void)
 	spdid = cos_comp_info.cos_this_spd_id;
 
 	/* Using cos_defcompinfo_init to enable us to use printf... */
-	PRINTC("cos_defcompinfo_init\n");
 	cos_defcompinfo_init();
-
-	/* Test RK entry */
-	PRINTC("calling rk_inv_entry\n");
-	get_boot_done();
-	test_entry(0, 1, 2, 3);
 
 	rk_libcmod_init();
 	schedinit_child();
-
-	PRINTC("Calling printf...\n");
-	printf("testing, testing, this is printf\n");
 
 	char *argv[3];
 	argv[0] = "iperf.o";
 	argv[1] = "-s"; /* server mode */
 	argv[2] = "-4"; /* Specify ipv4 */
 
+	PRINTC("Running IPERF with -s -4\n");
 	main(3, (char **)argv);
 	PRINTC("iperf done, spinning\n");
 	while (1);

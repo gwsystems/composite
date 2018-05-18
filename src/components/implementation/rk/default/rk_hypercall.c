@@ -105,7 +105,6 @@ rk_select(int arg1, int arg2)
 int
 rk_accept(int arg1, int arg2)
 {
-
 	int s = arg1, ret;
 	int shdmem_id = arg2;
 	static int old_shdmem_id = -1;
@@ -138,7 +137,6 @@ get_boot_done(void) {
 int
 rk_socket(int domain, int type, int protocol)
 {
-	printc("RK socket\n");
 	return rump___sysimpl_socket30(domain, type, protocol);
 }
 
@@ -197,7 +195,6 @@ rk_unlink(int arg1)
 int
 rk_bind(int sockfd, int shdmem_id, socklen_t socklen)
 {
-	printc("RK bind\n");
 	const struct sockaddr *sock = NULL;
 	int ret;
 	vaddr_t addr;
@@ -222,8 +219,6 @@ rk_recvfrom(int arg1, int arg2, int arg3)
 	socklen_t *from_addr_len_ptr;
 	int s, buff_shdmem_id, flags, from_shdmem_id, from_addr_len, ret;
 	size_t len;
-
-	printc("RK recvfrom\n");
 
 	s = (arg1 >> 16);
 	buff_shdmem_id = (arg1 << 16) >> 16;
@@ -277,8 +272,6 @@ rk_sendto(int arg1, int arg2, int arg3)
 	flags             = (arg2 << 16) >> 16;
 	addr_shdmem_id    = (arg3 >> 16);
 	addrlen           = (arg3 << 16) >> 16;
-
-	printc("RK sendto\n");
 
 	if (shdmem_id == -1 && buff == 0) {
 		shdmem_id = buff_shdmem_id;

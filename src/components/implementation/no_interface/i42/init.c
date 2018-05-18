@@ -21,15 +21,19 @@ extern void OS_IdleLoop();
 extern unsigned int OS_TaskDelay(unsigned int millisecond);
 extern void do_emulation_setup(spdid_t id);
 
+static int instance_key = 0;
+
 void cos_init(void)
 {
     printc("Starting i42 pre init\n");
     do_emulation_setup(cos_comp_info.cos_this_spd_id);
+    instance_key = rk_args_instance();
+    assert(instance_key > 0);
 
     printc("acom_client_init\n");
-    acom_client_init(&sinv_info, RK_CLIENT(1));
+    acom_client_init(&sinv_info, RK_CLIENT(instance_key));
     printc("acom_client_thread_init\n");
-    acom_client_thread_init(&sinv_info, cos_thdid(), 0, 0, RK_SKEY(1, 0));
+    acom_client_thread_init(&sinv_info, cos_thdid(), 0, 0, RK_SKEY(instance_key, 0));
 
     printc("Starting i42 main\n");
     I42_AppMain();

@@ -286,7 +286,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		PRINTC("Child component initialized! %s\n", thread->bt_name);
 	} else if ((t = rk_child_fakethd_init(thread->bt_name))) {
 		PRINTC("fake thread creation call for %s\n", thread->bt_name);
-		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_SL_PRIO_MLOW));
+		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_RUMP_THD_PRIO));
 	} else {
 		t = rk_rump_thd_alloc(f, arg);
 		assert(t);
