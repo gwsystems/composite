@@ -10,6 +10,22 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <rk_socketcall_types.h>
+
+static inline vaddr_t
+rk_get_shm_callvaddr(cbuf_t *shmid)
+{
+	/* non-reentrant.. works for 1 thread at a time only! for now, users to ensure mutual exclusion around it.. */
+	static cbuf_t id_calldata = 0;
+	static vaddr_t addr_calldata = NULL;
+
+	if (unlikely(id_calldata == 0)) id_calldata = memmgr_shared_page_alloc(&addr_calldata);
+
+	assert(id_calldata && addr_calldata);
+	*shmid = id_calldata;
+
+	return addr_calldata;
+}
 
 void *
 rk_inv_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
@@ -46,33 +62,27 @@ rk_inv_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 ssize_t
 rk_inv_write(int fd, const void *buf, size_t nbyte)
 {
-	static int shdmem_id = -1;
-	static vaddr_t shdmem_addr = 0;
+	cbuf_t shmid = 0;
+	vaddr_t shmaddr = NULL;
 
-	if (shdmem_id == -1) {
-		shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-	}
-	assert(shdmem_id > -1 && shdmem_addr > 0);
+	shmaddr = rk_get_shm_callvaddr(&shmid);
 
-	memcpy((void *)shdmem_addr, buf, nbyte);
+	memcpy((void *)shmaddr, buf, nbyte);
 
-	return rk_write(fd, shdmem_id, nbyte);
+	return rk_write(fd, shmid, nbyte);
 }
 
 int
 rk_inv_unlink(const char *path)
 {
-	static int shdmem_id = -1;
-	static vaddr_t shdmem_addr = 0;
+	cbuf_t shmid = 0;
+	vaddr_t shmaddr = NULL;
 
-	if (shdmem_id == -1) {
-		shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-	}
-	assert(shdmem_id > -1 && shdmem_addr > 0);
+	shmaddr = rk_get_shm_callvaddr(&shmid);
 
-	memcpy((void *)shdmem_addr, path, 100);
+	memcpy((void *)shmaddr, path, 100);
 
-	return rk_unlink(shdmem_id);
+	return rk_unlink(shmid);
 }
 
 int
@@ -82,19 +92,17 @@ rk_inv_ftruncate(int fd, off_t length)
 ssize_t
 rk_inv_read(int fd, void *buf, size_t nbyte)
 {
-	static int shdmem_id = -1;
-	static vaddr_t shdmem_addr = 0;
 	long ret;
+	cbuf_t shmid = 0;
+	vaddr_t shmaddr = NULL;
 
-	if (shdmem_id == -1) {
-		shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-	}
-	assert(shdmem_id > -1 && shdmem_addr > 0);
+	shmaddr = rk_get_shm_callvaddr(&shmid);
 
-	ret = rk_read(fd, shdmem_id, nbyte);
+	assert(nbyte <= PAGE_SIZE);
+	ret = rk_read(fd, shmid, nbyte);
 
 	assert(ret <= PAGE_SIZE);
-	memcpy((void *)buf, (void *)shdmem_addr, ret);
+	memcpy((void *)buf, (void *)shmaddr, ret);
 
 	return ret;
 }
@@ -102,39 +110,32 @@ rk_inv_read(int fd, void *buf, size_t nbyte)
 int
 rk_inv_open(const char *path, int flags, mode_t mode)
 {
-	static int shdmem_id = -1;
-	static vaddr_t shdmem_addr = 0;
+	cbuf_t shmid = 0;
+	vaddr_t shmaddr = NULL;
 
-	if (shdmem_id == -1) {
-		shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-	}
-	assert(shdmem_id > -1 && shdmem_addr > 0);
+	shmaddr = rk_get_shm_callvaddr(&shmid);
 
-	memcpy((void *)shdmem_addr, path, 100);
+	memcpy((void *)shmaddr, path, 100);
 
-	printc("path: %s\n", path);
-	return rk_open(shdmem_id, flags, mode);
+	return rk_open(shmid, flags, mode);
 }
 
 int
 rk_inv_clock_gettime(clockid_t clock_id, struct timespec *tp)
 {
-	static int shdmem_id = -1;
-	static vaddr_t shdmem_addr = 0;
+	cbuf_t shmid = 0;
+	vaddr_t shmaddr = NULL;
 	int ret;
 
-	if (shdmem_id == -1) {
-		shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-	}
-	assert(shdmem_id > -1 && shdmem_addr > 0);
+	shmaddr = rk_get_shm_callvaddr(&shmid);
 
-	memcpy((void * __restrict__)shdmem_addr, tp, sizeof(struct timespec));
+	memcpy((void * __restrict__)shmaddr, tp, sizeof(struct timespec));
 
-	ret = rk_clock_gettime(clock_id, shdmem_id);
+	ret = rk_clock_gettime(clock_id, shmid);
 	assert(!ret);
 
 	/* Copy shdmem back into tp */
-	memcpy(tp, (void *)shdmem_addr, sizeof(struct timespec));
+	memcpy(tp, (void *)shmaddr, sizeof(struct timespec));
 
 	return ret;
 }
@@ -149,16 +150,13 @@ __set_valid(int *null_array)
 int
 rk_inv_select(int nd, fd_set *in, fd_set *ou, fd_set *ex, struct timeval *tv)
 {
-	static int shdmem_id = -1;
-	static vaddr_t shdmem_addr = 0;
+	cbuf_t shmid = 0;
+	vaddr_t shmaddr = NULL;
 	int ret;
 	int *null_array;
 	vaddr_t tmp;
 
-	if (shdmem_id == -1) {
-		shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-	}
-	assert(shdmem_id > -1 && shdmem_addr > 0);
+	shmaddr = rk_get_shm_callvaddr(&shmid);
 
 	/* XXX This is A LOT of copying. Optimize me*/
 
@@ -167,9 +165,9 @@ rk_inv_select(int nd, fd_set *in, fd_set *ou, fd_set *ex, struct timeval *tv)
 	 * to shared memory we need something to keep track of which of the values were null
 	 */
 
-	null_array = (void *)shdmem_addr;
+	null_array = (void *)shmaddr;
 	__set_valid(null_array);
-	tmp = shdmem_addr + (sizeof(int) * 4);
+	tmp = shmaddr + (sizeof(int) * 4);
 
 	if (in) memcpy((void *)tmp, in, sizeof(fd_set));
 	else null_array[0] = 0;
@@ -186,9 +184,9 @@ rk_inv_select(int nd, fd_set *in, fd_set *ou, fd_set *ex, struct timeval *tv)
 	if (tv) memcpy((void *)tmp, tv, sizeof(struct timeval));
 	else null_array[3] = 0;
 
-	ret = rk_select(nd, shdmem_id);
+	ret = rk_select(nd, shmid);
 
-	tmp = shdmem_addr + (sizeof(int) * 4);
+	tmp = shmaddr + (sizeof(int) * 4);
 	if(in) memcpy(in, (void *)tmp, sizeof(fd_set));
 	tmp += sizeof(fd_set);
 	if(ou) memcpy(ou, (void *)tmp, sizeof(fd_set));
@@ -203,7 +201,11 @@ rk_inv_select(int nd, fd_set *in, fd_set *ou, fd_set *ex, struct timeval *tv)
 int
 rk_inv_socketcall(int call, unsigned long *args)
 {
+	cbuf_t shmid = 0;
+	vaddr_t shmaddr = NULL;
 	int ret = -1;
+
+	shmaddr = rk_get_shm_callvaddr(&shmid);
 	/*
 	 * Set and unset by sendto and recvfrom to ensure that only 1 thread
 	 * is sending and recieving packets. This means that we will never have
@@ -212,7 +214,7 @@ rk_inv_socketcall(int call, unsigned long *args)
 	static int canSend = 0;
 
 	switch (call) {
-		case 1: { /* socket */
+		case SOCKETCALL_SOCKET: { /* socket */
 			int domain, type, protocol;
 
 			domain     = *args;
@@ -223,9 +225,10 @@ rk_inv_socketcall(int call, unsigned long *args)
 
 			break;
 		}
-		case 2: { /* bind */
-			int sockfd, shdmem_id;
-			vaddr_t shdmem_addr;
+		case SOCKETCALL_BIND: { /* bind */
+			int sockfd;
+			cbuf_t bindshmid = 0;
+			vaddr_t bindshmaddr = NULL;
 			void *addr;
 			u32_t addrlen;
 
@@ -241,15 +244,15 @@ rk_inv_socketcall(int call, unsigned long *args)
 			 */
 
 			/* TODO make this a function */
-			shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-			assert(shdmem_id > -1 && shdmem_addr > 0);
+			bindshmid = memmgr_shared_page_alloc(&bindshmaddr);
+			assert(bindshmid && bindshmaddr);
 
-			memcpy((void * __restrict__)shdmem_addr, addr, addrlen);
-			ret = rk_bind(sockfd, shdmem_id, addrlen);
+			memcpy((void * __restrict__)bindshmaddr, addr, addrlen);
+			ret = rk_bind(sockfd, bindshmid, addrlen);
 
 			break;
 		}
-		case 4: { /* listen */
+		case SOCKETCALL_LISTEN: { /* listen */
 			int s, backlog;
 
 			s       = *args;
@@ -259,116 +262,87 @@ rk_inv_socketcall(int call, unsigned long *args)
 
 			break;
 		}
-		case 5: { /* accept */
+		case SOCKETCALL_ACCEPT: { /* accept */
 			int s;
 			struct sockaddr *addr;
 			socklen_t *addrlen;
-			static int shdmem_id = -1;
-			static vaddr_t shdmem_addr = 0;
 			vaddr_t tmp;
 
 			s       = *args;
 			addr    = (struct sockaddr *)*(args + 1);
 			addrlen = (socklen_t *)*(args + 2);
 
-			/* TODO make this a function */
-			if (shdmem_id < 0 && !shdmem_addr) {
-				shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-			}
-
-			assert(shdmem_id > -1 && shdmem_addr > 0);
-
 			/* Copy into shdmem */
-			tmp = shdmem_addr;
+			tmp = shmaddr;
 			memcpy((void *)tmp, addr, sizeof(struct sockaddr));
 			tmp += sizeof(struct sockaddr);
 			memcpy((void *)tmp, addrlen, sizeof(vaddr_t));
 
-			ret = rk_accept(s, shdmem_id);
+			ret = rk_accept(s, shmid);
 
 			/* Copy out of shdmem */
-			tmp = shdmem_addr;
+			tmp = shmaddr;
 			memcpy(addr, (void *)tmp, sizeof(struct sockaddr));
 			tmp += sizeof(struct sockaddr);
 			memcpy(addrlen, (void *)tmp, sizeof(vaddr_t));
 
 			break;
 		}
-		case 6: { /* getsockname */
+		case SOCKETCALL_GETSOCKNAME: { /* getsockname */
 			int fdes;
 			struct sockaddr *asa;
 			socklen_t *alen;
-			static int shdmem_id = -1;
-			static vaddr_t shdmem_addr = 0;
 			vaddr_t tmp;
 
 			fdes = *args;
 			asa  = (struct sockaddr *)*(args + 1);
 			alen = (socklen_t *)*(args + 2);
 
-			/* TODO make this a function */
-			if (shdmem_id < 0 && !shdmem_addr) {
-				shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-			}
-
-			assert(shdmem_id > -1 && shdmem_addr > 0);
-
 			/* Copy into shdmem */
-			tmp = shdmem_addr;
+			tmp = shmaddr;
 			memcpy((void *)tmp, asa, sizeof(struct sockaddr));
 			tmp += sizeof(struct sockaddr);
 			memcpy((void *)tmp, alen, sizeof(socklen_t));
 
-			ret = rk_getsockname(fdes, shdmem_id);
+			ret = rk_getsockname(fdes, shmid);
 
 			/* Copy out of shdmem */
-			tmp = shdmem_addr;
+			tmp = shmaddr;
 			memcpy(asa, (void *)tmp, sizeof(struct sockaddr));
 			tmp += sizeof(struct sockaddr);
 			memcpy(alen, (void *)tmp, sizeof(socklen_t));
 
 			break;
 		}
-		case 7: { /* getpeername */
+		case SOCKETCALL_GETPEERNAME: { /* getpeername */
 			int fdes;
 			struct sockaddr *asa;
 			socklen_t *alen;
-			static int shdmem_id = -1;
-			static vaddr_t shdmem_addr = 0;
 			vaddr_t tmp;
 
 			fdes = *args;
 			asa  = (struct sockaddr *)*(args + 1);
 			alen = (socklen_t *)*(args + 2);
 
-			/* TODO make this a function */
-			if (shdmem_id < 0 && !shdmem_addr) {
-				shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-			}
-
-			assert(shdmem_id > -1 && shdmem_addr > 0);
-
 			/* Copy into shdmem */
-			tmp = shdmem_addr;
+			tmp = shmaddr;
 			memcpy((void *)tmp, asa, sizeof(struct sockaddr));
 			tmp += sizeof(struct sockaddr);
 			memcpy((void *)tmp, alen, sizeof(socklen_t));
 
-			ret = rk_getpeername(fdes, shdmem_id);
+			ret = rk_getpeername(fdes, shmid);
 
 			/* Copy out of shdmem */
-			tmp = shdmem_addr;
+			tmp = shmaddr;
 			memcpy(asa, (void *)tmp, sizeof(struct sockaddr));
 			tmp += sizeof(struct sockaddr);
 			memcpy(alen, (void *)tmp, sizeof(socklen_t));
 
 			break;
 		}
-		case 11: { /* sendto */
+		case SOCKETCALL_SENDTO: { /* sendto */
 			int fd, flags;
-			static int shdmem_id = -1;
-			static vaddr_t shdmem_addr = 0;
-			vaddr_t shdmem_addr_tmp;
+			vaddr_t shmaddr_tmp;
 			const void *buff;
 			void *shdmem_buff;
 			size_t len;
@@ -383,41 +357,32 @@ rk_inv_socketcall(int call, unsigned long *args)
 			addr    = (const struct sockaddr *)*(args + 4);
 			addrlen = (socklen_t)*(args + 5);
 
-			/* TODO make this a function */
-			if (shdmem_id < 0 && !shdmem_addr) {
-			        shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-			}
-
-			assert(shdmem_id > -1 && shdmem_addr > 0);
-
 			assert(canSend == 1);
 			canSend = 0;
 
-			shdmem_addr_tmp = shdmem_addr;
-			shdmem_buff = (void *)shdmem_addr_tmp;
+			shmaddr_tmp = shmaddr;
+			shdmem_buff = (void *)shmaddr_tmp;
 			memcpy(shdmem_buff, buff, len);
-			shdmem_addr_tmp += len;
+			shmaddr_tmp += len;
 
-			shdmem_sockaddr = (struct sockaddr*)shdmem_addr_tmp;
+			shdmem_sockaddr = (struct sockaddr*)shmaddr_tmp;
 			memcpy(shdmem_sockaddr, addr, addrlen);
 
 			assert(fd <= 0xFFFF);
-			assert(shdmem_id <= 0xFFFF);
+			assert(shmid <= 0xFFFF);
 			assert(len <= 0xFFFF);
 			assert(flags <= 0xFFFF);
-			assert(shdmem_id <= (int)0xFFFF);
+			assert(shmid <= (int)0xFFFF);
 			assert(addrlen <= (int)0xFFFF);
 
-			ret = rk_sendto((fd << 16) | shdmem_id, (len << 16) | flags,
-					(shdmem_id << 16) | addrlen);
+			ret = rk_sendto((fd << 16) | shmid, (len << 16) | flags,
+					(shmid << 16) | addrlen);
 
 			break;
 		}
-		case 12: { /* recvfrom */
+		case SOCKETCALL_RECVFROM: { /* recvfrom */
 			int s, flags;
-			static int shdmem_id = -1;
-			static vaddr_t shdmem_addr = 0;
-			vaddr_t shdmem_addr_tmp;
+			vaddr_t shmaddr_tmp;
 			void *buff;
 			size_t len;
 			struct sockaddr *from_addr;
@@ -430,46 +395,37 @@ rk_inv_socketcall(int call, unsigned long *args)
 			from_addr         = (struct sockaddr *)*(args + 4);
 			from_addr_len_ptr = (u32_t *)*(args + 5);
 
-			/* TODO make this a function */
-			if (shdmem_id < 0 && !shdmem_addr) {
-			        shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-			}
-
-			assert(shdmem_id > -1 && shdmem_addr > 0);
-
 			assert(canSend == 0);
 			canSend = 1;
 
 			assert(s <= 0xFFFF);
-			assert(shdmem_id <= 0xFFFF);
+			assert(shmid <= 0xFFFF);
 			assert(len <= 0xFFFF);
 			assert(flags <= 0xFFFF);
-			assert(shdmem_id <= 0xFFFF);
+			assert(shmid <= 0xFFFF);
 			assert((*from_addr_len_ptr) <= 0xFFFF);
 
-			ret = rk_recvfrom((s << 16) | shdmem_id, (len << 16) | flags,
-					  (shdmem_id << 16) | (*from_addr_len_ptr));
+			ret = rk_recvfrom((s << 16) | shmid, (len << 16) | flags,
+					  (shmid << 16) | (*from_addr_len_ptr));
 
 			/* TODO, put this in a function */
 			/* Copy buffer back to its original value*/
-			shdmem_addr_tmp = shdmem_addr;
-			memcpy(buff, (const void * __restrict__)shdmem_addr_tmp, ret);
-			shdmem_addr_tmp += len; /* Add overall length of buffer */
+			shmaddr_tmp = shmaddr;
+			memcpy(buff, (const void * __restrict__)shmaddr_tmp, ret);
+			shmaddr_tmp += len; /* Add overall length of buffer */
 
 			/* Set from_addr_len_ptr pointer to be shared memory at right offset */
-			*from_addr_len_ptr = *(u32_t *)shdmem_addr_tmp;
-			shdmem_addr_tmp += sizeof(u32_t *);
+			*from_addr_len_ptr = *(u32_t *)shmaddr_tmp;
+			shmaddr_tmp += sizeof(u32_t *);
 
 			/* Copy from_addr to be shared memory at right offset */
-			memcpy(from_addr, (const void * __restrict__)shdmem_addr_tmp, *from_addr_len_ptr);
+			memcpy(from_addr, (const void * __restrict__)shmaddr_tmp, *from_addr_len_ptr);
 
 			break;
 		}
-		case 14: { /* setsockopt */
+		case SOCKETCALL_SETSOCKOPT: { /* setsockopt */
 			int sockfd, level, optname;
-			static int shdmem_id = -1;
 			const void *optval;
-			static vaddr_t shdmem_addr = 0;
 			socklen_t optlen;
 
 			sockfd            = (int)*args;
@@ -478,18 +434,11 @@ rk_inv_socketcall(int call, unsigned long *args)
 			optval            = (const void *)*(args + 3);
 			optlen            = (socklen_t)*(args + 4);
 
-			/* TODO make this a function */
-			if (shdmem_id < 0 && !shdmem_addr) {
-			        shdmem_id = memmgr_shared_page_alloc(&shdmem_addr);
-			}
+			memcpy((void *)shmaddr, optval, optlen);
 
-			assert(shdmem_id > -1 && shdmem_addr > 0);
+			ret = rk_setsockopt((sockfd << 16) | level, (optname << 16) | shmid, optlen);
 
-			memcpy((void *)shdmem_addr, optval, optlen);
-
-			ret = rk_setsockopt((sockfd << 16) | level, (optname << 16) | shdmem_id, optlen);
-
-			memcpy((void *)optval, (void *)shdmem_addr, optlen);
+			memcpy((void *)optval, (void *)shmaddr, optlen);
 
 			break;
 		}

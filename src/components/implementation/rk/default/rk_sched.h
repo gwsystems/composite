@@ -30,7 +30,7 @@ enum {
 
 #define RK_INTR_THD_PRIO RK_SL_PRIO_MID
 #define RK_RUMP_THD_PRIO RK_SL_PRIO_LOW
-#define RK_STUBINIT_PRIO RK_SL_PRIO_MID /* polling thread for stub comp, perhaps set it between intr and rump.. */
+#define RK_STUBINIT_PRIO RK_SL_PRIO_LOW /* stub comp initthd also in RK runqueue.. so be same prio as RUMP_THDS as RK is non-preemptive.. */
 
 struct sl_thd *rk_rump_thd_init(struct cos_aep_info *aep);
 struct sl_thd *rk_rump_thd_alloc(cos_thd_fn_t f, void *d);
@@ -58,6 +58,7 @@ struct sl_thd *rk_child_fakethd_init(char *name);
 spdid_t rk_app_findspd(char *name);
 spdid_t rk_stub_findspd(char *name);
 spdid_t rk_stub_iter(void);
+void    rk_sched_stub(struct sl_thd *t);
 
 int rk_child_fakereq_set(struct sl_thd *t, char *reqname);
 

@@ -15,6 +15,7 @@
 #define TP_INFO_MS (unsigned long long)(10*1000) //5secs
 #define HPET_REQ_US (100*1000) //100ms
 #define HPET_REQ_BUDGET_US (500) //0.5ms
+#define TP_INFO_COUNTER 100000
 
 int spdid;
 extern int vmid;
@@ -69,7 +70,7 @@ __test_udp_server(void)
 		}
 		tp_counter++;
 
-		if (tp_counter == 1000) {
+		if (tp_counter == TP_INFO_COUNTER) {
 			rdtscll(now);
 			PRINTC("Sent/rcvd %d in %llu cycles\n", tp_counter, now - prev);
 

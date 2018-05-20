@@ -1,4 +1,4 @@
-.PHONY: build, init
+.PHONY: build, init, clean
 
 default: build
 
@@ -19,3 +19,11 @@ build:
 	$(info ***********************************************)
 	$(info )
 	$(shell cd cFE && python make.py >&2)
+
+clean:
+	$(info )
+	$(info ***********************************************)
+	$(info *********** Cleaning External Libs ************)
+	$(info ***********************************************)
+	$(info )
+	$(shell cd cFE && python make.py -c >&2)

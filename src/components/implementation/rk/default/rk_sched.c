@@ -30,6 +30,7 @@ static char *stub_names[RK_STUBS_MAX] = {
 
 static spdid_t app_spdid[RK_APPS_MAX] = { 0 };
 static spdid_t stub_spdid[RK_STUBS_MAX] = { 0 };
+static struct sl_thd *stub_thd[RK_STUBS_MAX] = { NULL };
 
 spdid_t rk_child_app[RK_APPS_MAX] = { 0 };
 
@@ -227,6 +228,20 @@ rk_rump_thd_yield_to(struct bmk_thread *c, struct bmk_thread *n)
 }
 
 void
+rk_sched_stub(struct sl_thd *t)
+{
+	int i = 0;
+
+	for (i = 0; i < RK_STUBS_MAX; i++) {
+		if (stub_thd[i] == t) break;
+	}
+	assert(i < RK_STUBS_MAX);
+
+	/* TODO: prio only matters because they're non-scheduling threads.. */
+	sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_STUBINIT_PRIO));
+}
+
+void
 rk_sched_loop(void)
 {
 	printc("Notifying parent scheduler...\n");
@@ -361,6 +376,24 @@ rk_stub_find(spdid_t s)
 	return stub_names[i];
 }
 
+static int
+rk_stub_setthd(spdid_t s, struct sl_thd *t)
+{
+	int i = 0;
+
+	assert(s && t);
+	for (i = 0; i < RK_STUBS_MAX; i++) {
+		if (stub_spdid[i] != s) continue;
+
+		assert(stub_thd[i] == NULL);
+		stub_thd[i] = t;
+
+		return 0;
+	}
+
+	return -1;
+}
+
 spdid_t
 rk_stub_findspd(char *name)
 {
@@ -465,6 +498,7 @@ rk_child_stubcomp_init(char *name)
 {
 	struct cos_defcompinfo child_dci;
 	struct sl_thd *t = NULL;
+	int ret;
 	spdid_t child = rk_stub_findspd(name);
 
 	if (!child) return t;
@@ -473,8 +507,8 @@ rk_child_stubcomp_init(char *name)
 
 	t = sl_thd_initaep_alloc(&child_dci, 0, 0, 0, 0, 0, 0);
 	assert(t);
-	/* TODO: prio only matters because they're non-scheduling threads.. */
-	sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, RK_STUBINIT_PRIO));
+	ret = rk_stub_setthd(child, t);
+	assert(ret == 0);
 	PRINTC("Initialized child \"stub\" %s component: %u, initthd: %u\n", name, child, sl_thd_thdid(t));
 
 	return t;

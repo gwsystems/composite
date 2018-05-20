@@ -14,11 +14,11 @@ u32_t cycs_per_usec = 0;
 
 #define INITIALIZE_PRIO 1
 #define INITIALIZE_PERIOD_MS (4000)
-#define INITIALIZE_BUDGET_MS (2000)
+#define INITIALIZE_BUDGET_MS (1000)
 
 #define FIXED_PRIO 2
 #define FIXED_PERIOD_MS (10000)
-#define FIXED_BUDGET_MS (4000)
+#define FIXED_BUDGET_MS (10000)
 
 static struct sl_thd *__initializer_thd[NUM_CPU] CACHE_ALIGNED;
 

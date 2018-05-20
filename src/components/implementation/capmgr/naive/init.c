@@ -16,36 +16,27 @@
 
 static volatile int capmgr_init_core_done = 0;
 
+/*
+ * Set tls region for a component
+ */
 static void
 capmgr_comp_tls_init(struct cap_comp_info *rci)
 {
 	struct cos_defcompinfo *defci  = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci     = cos_compinfo_get(defci);
-	struct cos_compinfo tmp;
-	pgtblcap_t pgtbl = cos_compinfo_get(&rci->defci)->pgtbl_cap;
-	vaddr_t src_pg;
-	int offset = 0, ret = 0, i;
+	pgtblcap_t              pgtbl  = cos_compinfo_get(&rci->defci)->pgtbl_cap;
+	size_t                  sz     = TLS_NUM_PAGES * PAGE_SIZE, i;
+	vaddr_t                 src_pg = 0, dst_pg = 0;
+	struct cos_compinfo     tmpcinfo;
 
-	/*
-	 * Set tls region for this component
-	 * Expand the 2nd level pte within this component's page table at our new range
-	 */
-	tmp.pgtbl_cap = pgtbl;
-	tmp.memsrc    = ci;
-	ret = (int)cos_pgtbl_intern_alloc(&tmp, pgtbl, TLS_BASE_ADDR,
-			PAGE_SIZE * TLS_NUM_PAGES);
-	assert(ret);
-
-	/* Place desired number of pages at this new range */
-	offset = 0;
-	for (i = 0 ; i < (signed)TLS_NUM_PAGES ; i++) {
-		src_pg = (vaddr_t)cos_page_bump_alloc(ci);
-		assert(src_pg);
-		cos_memset((void *)src_pg, 0, PAGE_SIZE);
-		ret = cos_mem_alias_at(&tmp, TLS_BASE_ADDR + offset, ci, src_pg);
-		assert(!ret);
-		offset += PAGE_SIZE;
-	}
+	cos_compinfo_init(&tmpcinfo, pgtbl, 0, 0, TLS_BASE_ADDR, 0, ci);
+	/* allocates n pages (== sz bytes) contiguously.. phy addr should really be contiguous too. */
+	src_pg = (vaddr_t)cos_page_bump_allocn(ci, sz);
+	assert(src_pg);
+	memset((void *)src_pg, 0, sz);
+	/* this will expand the second-level pte and alias pages for size in sz */
+	dst_pg = cos_mem_aliasn(&tmpcinfo, ci, src_pg, sz);
+	assert(dst_pg == TLS_BASE_ADDR);
 }
 
 static void
@@ -131,7 +122,6 @@ capmgr_comp_info_iter(void)
 
 	do {
 		spdid_t spdid = 0, sched_spdid = 0;
-		struct cos_compinfo tmp;
 		struct cap_comp_info *rci = NULL;
 		pgtblcap_t pgtslot = 0;
 		captblcap_t captslot = 0;

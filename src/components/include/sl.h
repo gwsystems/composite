@@ -483,14 +483,9 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	if (likely(!to)) {
 		pt = sl_mod_schedule();
 		if (unlikely(!pt))
-			t = globals->idle_thd;
+			t = globals->sched_thd;
 		else
 			t = sl_mod_thd_get(pt);
-	}
-
-	if (t == sl__globals_cpu()->idle_thd) {
-		sl_cs_exit();
-		return -EAGAIN;
 	}
 
 	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {

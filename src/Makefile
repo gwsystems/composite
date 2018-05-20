@@ -35,9 +35,9 @@ clean:
 	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform clean
 	$(MAKE) $(MAKEFLAGS) -C components clean
 
-
 distclean: clean
 	$(MAKE) $(MAKEFLAGS) -C components distclean
+	$(MAKE) $(MAKEFLAGS) -C extern clean
 	@rm -f `pwd`/../transfer/*
 
 init: | ensure_config init_extern init_composite

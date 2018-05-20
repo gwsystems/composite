@@ -24,6 +24,7 @@ sinv_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
 
 	id = channel_shared_page_allocn(shm_key, SINV_INIT_NPAGES, &addr);
 	assert(id && addr);
+	memset((void *)addr, 0, SINV_INIT_NPAGES * PAGE_SIZE);
 
 	s->init_key     = shm_key;
 	s->init_shmaddr = addr;
@@ -50,6 +51,7 @@ sinv_client_thread_init(struct sinv_async_info *s, thdid_t tid, cos_channelkey_t
 
 	id = channel_shared_page_allocn(skey, SINV_REQ_NPAGES, &shmaddr);
 	assert(id && shmaddr);
+	memset((void *)shmaddr, 0, SINV_REQ_NPAGES * PAGE_SIZE);
 
 	if (rcvkey) {
 		/* capmgr interface to create a rcvcap for "tid" thread in the scheduler component..*/

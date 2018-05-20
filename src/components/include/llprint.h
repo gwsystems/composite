@@ -11,7 +11,8 @@
 static void
 cos_llprint(char *s, int len)
 {
-	cos_serial_putb(s, len);
+	/* to serialize rk & cfe prints (single core) */
+	call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0);
 }
 
 static int

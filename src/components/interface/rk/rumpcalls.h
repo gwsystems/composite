@@ -99,7 +99,7 @@ struct cos_rumpcalls
 	int    (*rump_tls_init)(unsigned long tp, capid_t tc); /* thdcap_t == capid_t*/
 	void*  (*rump_tls_alloc)(struct bmk_thread *thread);
 	void*  (*rump_tls_fetch)(struct bmk_thread *thread);
-	void*  (*rump_va2pa)(void *addr);
+	void*  (*rump_va2pa)(void *addr, unsigned long len);
 	void*  (*rump_pa2va)(void *addr, unsigned long len);
 	void   (*rump_resume)(void);
 	void   (*rump_platform_exit)(void);
@@ -117,6 +117,7 @@ struct cos_rumpcalls
 	void   (*rump_cpu_sched_yield)(void);
 	void   (*rump_cpu_sched_exit)(void);
 	void   (*rump_cpu_sched_set_prio)(int prio);
+	void   (*rump_sched_stub)(struct bmk_thread *stbthd);
 };
 
 void* rump_cos_malloc(size_t size);
@@ -143,7 +144,7 @@ long long cos_vm_clock_now(void);
 
 void cos_irqthd_handler(arcvcap_t intrrc, void *line);
 
-void *cos_vatpa(void* addr);
+void *cos_vatpa(void* addr, unsigned long len);
 void *cos_pa2va(void* addr, unsigned long len);
 
 void cos_vm_exit(void);
@@ -169,5 +170,7 @@ int cos_tls_init(unsigned long tp, thdcap_t tc);
 void *cos_tls_alloc(struct bmk_thread *thread);
 void *cos_tls_fetch(struct bmk_thread *thread);
 void cos_resume(void);
+void cache_addr_init(void);
+void rk_cos_sched_stub(struct bmk_thread *stbthd);
 
 #endif /* RUMPCALLS_H */

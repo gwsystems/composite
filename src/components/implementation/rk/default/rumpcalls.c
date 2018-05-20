@@ -71,6 +71,7 @@ cos2rump_setup(void)
 	crcalls.rump_cpu_sched_yield		= rk_rump_thd_yield;
 	crcalls.rump_cpu_sched_exit		= rk_rump_thd_exit;
 	crcalls.rump_cpu_sched_set_prio		= rk_curr_thd_set_prio;
+	crcalls.rump_sched_stub                 = rk_cos_sched_stub;
 
 	return;
 }
@@ -259,6 +260,18 @@ cos_tls_fetch(struct bmk_thread *thread)
 }
 
 void
+rk_cos_sched_stub(struct bmk_thread *thread)
+{
+	struct sl_thd *t = NULL;
+
+	assert(thread);
+	t = sl_thd_lkup(thread->cos_tid);
+	assert(t);
+
+	rk_sched_stub(t);
+}
+
+void
 cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void (*f)(void *), void *arg,
 		void *stack_base, unsigned long stack_size)
@@ -338,15 +351,86 @@ cos_cpu_clock_now(void)
 	return curtime;
 }
 
-void *
-cos_vatpa(void * vaddr)
-{ return (void *)memmgr_va2pa((vaddr_t)vaddr); }
+
+#define ADDR_CACHE_MAX 8
+#define ADDR_CACHE_MINSZ PAGE_SIZE
+struct addr_cache {
+	vaddr_t paddr;
+	vaddr_t vaddr;
+	unsigned long len;
+};
+
+static struct addr_cache addr_cachen[ADDR_CACHE_MAX];
+static u32_t free_cacheline = 0;
+
+static inline void
+cache_addr(vaddr_t va, paddr_t pa, unsigned long len)
+{
+	u32_t line = 0;
+
+	if (free_cacheline > ADDR_CACHE_MAX) return;
+	line = ps_faa((unsigned long *)&free_cacheline, 1);
+
+	if (line < ADDR_CACHE_MAX) {
+		addr_cachen[line].paddr = (vaddr_t)pa;
+		addr_cachen[line].vaddr = (vaddr_t)va;
+		addr_cachen[line].len   = len;
+	}
+}
+
+void
+cache_addr_init(void)
+{
+	memset(addr_cachen, 0, sizeof(struct addr_cache) * ADDR_CACHE_MAX);
+	free_cacheline = 0;
+}
+
+static inline vaddr_t
+cache_addr_find(vaddr_t vaddr)
+{
+	vaddr_t paddr = 0;
+	u32_t line = 0, free_line = free_cacheline;
+
+	free_line = (free_line > ADDR_CACHE_MAX ? ADDR_CACHE_MAX : free_line);
+	for (line = 0; line < free_line; line++) {
+
+		if (vaddr >= addr_cachen[line].vaddr && vaddr <= (addr_cachen[line].vaddr + addr_cachen[line].len)) {
+			paddr = addr_cachen[line].paddr + (vaddr - addr_cachen[line].vaddr);
+
+			return paddr;
+		}
+	}
+
+	return 0;
+}
 
 void *
-cos_pa2va(void * pa, unsigned long len)
+cos_vatpa(void *vaddr, unsigned long len)
 {
-	PRINTC("cos_pa2va\n");
-	return (void *)memmgr_pa2va_map((paddr_t)pa, len);
+	vaddr_t paddr = 0;
+
+	paddr = cache_addr_find((vaddr_t)vaddr);
+
+	if (!paddr) {
+		paddr = (vaddr_t)memmgr_va2pa((vaddr_t)vaddr);
+		assert(paddr);
+		cache_addr((vaddr_t)vaddr, paddr, len ? len : ADDR_CACHE_MINSZ);
+	}
+
+	return (void *)paddr;
+}
+
+void *
+cos_pa2va(void *pa, unsigned long len)
+{
+	void *va = NULL;
+
+	va = (void *)memmgr_pa2va_map((paddr_t)pa, len);
+	assert(va);
+	printc("HW MAP: %lx %lx %lu\n", (vaddr_t)va, (vaddr_t)pa, len);
+	cache_addr((vaddr_t)va, (vaddr_t)pa, len);
+
+	return va;
 }
 
 void
@@ -354,17 +438,21 @@ cos_vm_exit(void)
 {
 	/* TODO this should be oen of the functions that rumpbooter interface exports when it becomes its own interface */
 	PRINTC("current thread id: %d\n", sl_thd_thdid(sl_thd_curr()));
+	assert(0);
 	//vk_vm_exit();
 }
 
 void
 cos_sched_yield(void)
-{ cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
+{
+	sl_thd_yield(sl_thd_thdid(sl__globals_cpu()->sched_thd));
+}
 
 void
 cos_vm_yield(void)
-{ cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); }
-
+{
+	sl_thd_yield(sl_thd_thdid(sl__globals_cpu()->sched_thd));
+}
 
 int _spdid = -1;
 void

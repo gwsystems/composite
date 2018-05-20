@@ -1096,9 +1096,13 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 void *
 cos_va2pa(struct cos_compinfo *ci, void * vaddr)
 {
+	vaddr_t paddr = 0;
+
 	assert(ci || vaddr);
 
-        int paddr = call_cap_op(ci->pgtbl_cap, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
-	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
-        return (void *)paddr;
+	paddr = call_cap_op(ci->pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
+	paddr = (paddr & 0xfffff000) | ((vaddr_t)vaddr & 0x00000fff);
+	assert(paddr);
+
+	return (void *)paddr;
 }
