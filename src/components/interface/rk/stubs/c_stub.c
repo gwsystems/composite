@@ -15,23 +15,22 @@
 static inline vaddr_t
 rk_get_shm_callvaddr(cbuf_t *shmid)
 {
-	/* non-reentrant.. works for 1 thread at a time only! for now, users to ensure mutual exclusion around it.. */
-	static cbuf_t id_calldata = 0;
-	static vaddr_t addr_calldata = NULL;
+	/* reentrant.. each thread will alloc a new shared region.. */
+	static cbuf_t id_calldata[MAX_NUM_THREADS] = { 0 };
+	static vaddr_t addr_calldata[MAX_NUM_THREADS] = { 0 };
 
-	if (unlikely(id_calldata == 0)) id_calldata = memmgr_shared_page_alloc(&addr_calldata);
+	if (unlikely(id_calldata[cos_thdid()] == 0)) id_calldata[cos_thdid()] = memmgr_shared_page_alloc(&addr_calldata[cos_thdid()]);
 
-	assert(id_calldata && addr_calldata);
-	*shmid = id_calldata;
+	assert(id_calldata[cos_thdid()] && addr_calldata[cos_thdid()]);
+	*shmid = id_calldata[cos_thdid()];
 
-	return addr_calldata;
+	return addr_calldata[cos_thdid()];
 }
 
 void *
 rk_inv_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 {
 	void *ret=0;
-	printc("%s\n", __func__);
 
 	if (addr != NULL) {
 		printc("parameter void *addr is not supported!\n");
