@@ -53,8 +53,7 @@ struct tlb_quiescence {
 
 extern struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
 
-int tlb_quiescence_check(u64_t timestamp);
-
+int            tlb_quiescence_check(u64_t timestamp);
 int            pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order);
 int            pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order);
 int            pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags);
@@ -91,6 +90,7 @@ pgtbl_init(void)
 	return;
 }
 
+extern void kmem_unalloc(unsigned long *pte);
 int cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t order);
 int pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte);
 
@@ -110,7 +110,6 @@ int            chal_pgtbl_activate(struct captbl *t, unsigned long cap, unsigned
 int            chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin,
                                      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
 
-
 int            chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order);
 int            chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order);
 /* This function updates flags of an existing mapping. */
@@ -128,6 +127,10 @@ pgtbl_t        chal_pgtbl_create(void *page, void *curr_pgtbl);
 int            chal_pgtbl_quie_check(u32_t orig_v);
 void           chal_pgtbl_init_pte(void *pte);
 
+/* Creation of the table object - not to be confused with activation of cap */
+int            chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_lvl);
+/* Deactivate */
+int            chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa);
 /* Page mapping */
 int            chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pgtbl *ctfrom, capid_t capin_from, cap_t cap_type, vaddr_t order);
 /* Cons & decons functions */

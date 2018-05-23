@@ -587,6 +587,42 @@ chal_pgtbl_init_pte(void *pte)
 }
 
 int
+chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_lvl)
+{
+	pgtbl_t        new_pt, curr_pt;
+	vaddr_t        kmem_addr = 0;
+	unsigned long *pte       = NULL;
+	int            ret;
+
+	ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr, &pte);
+	if (unlikely(ret)) return ret;
+	assert(kmem_addr && pte);
+
+	if (pgtbl_lvl == 0) {
+		/* PGD */
+		struct cap_pgtbl *cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
+		if (!CAP_TYPECHK(cap_pt, CAP_PGTBL)) return -EINVAL;
+
+		curr_pt = cap_pt->pgtbl;
+		assert(curr_pt);
+
+		new_pt = pgtbl_create((void *)kmem_addr, curr_pt);
+		ret    = pgtbl_activate(ct, cap, pt_entry, new_pt, 0);
+	} else if (pgtbl_lvl == 1) {
+		/* PTE */
+		pgtbl_init_pte((void *)kmem_addr);
+		ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, 1);
+	} else {
+		/* Not supported yet. */
+		printk("cos: warning - PGTBL level greater than 2 not supported yet. \n");
+		ret = -1;
+	}
+
+	if (ret) kmem_unalloc(pte);
+	return ret;
+}
+
+int
 chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pgtbl *ctfrom, capid_t capin_from, cap_t cap_type, vaddr_t order)
 {
 	struct cap_header	*ctto;
@@ -611,19 +647,17 @@ chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pg
 	old_v = *f;
 
 	if (chal_pgtbl_flag_exist(old_v, PGTBL_SUPER)) {
-		/*
-		 * FIXME: The current ertrie implementation just doesn't seem to return useful
-		 * "flags" for its internal layers. We need to look into this and find out why.
-		 * I suggest get rid of the flags and just use chal_pgtbl_flag in the future.
-		 */
 		flags = chal_pgtbl_flag(old_v);
 		if (order != SUPER_PAGE_ORDER) {
 			/* We need to pick a subpage */
 			old_v += EXTRACT_SUB_PAGE(capin_from);
 			flags &= (~PGTBL_SUPER);
+		} else {
+			/* If we do superpage to superpage delegation, both addresses must be aligned to 4MB boundary */
+			if ((EXTRACT_SUB_PAGE(capin_from) != 0) || (EXTRACT_SUB_PAGE(capin_to) != 0)) return -EINVAL;
 		}
 	} else {
-		if (order != PAGE_ORDER) return -EPERM;
+		if (order != PAGE_ORDER) return -EINVAL;
 		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 		if (!f) return -ENOENT;
 		old_v = *f;
@@ -718,5 +752,58 @@ chal_pgtbl_introspect(struct cap_header *ch, vaddr_t addr)
 	}
 
 	return ret;
+}
+
+int 
+chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa)
+{
+	struct cap_pgtbl *deact_cap = (struct cap_pgtbl *)ch;
+	void *            page      = deact_cap->pgtbl;
+	u32_t             l         = deact_cap->refcnt_flags;
+	u64_t             curr;
+	int               ret;
+
+	if (chal_pa2va((paddr_t)pa) != page) return -EINVAL;
+
+	/* Require freeze memory and wait for quiescence
+	 * first! */
+	if (!(l & CAP_MEM_FROZEN_FLAG)) return -EQUIESCENCE;
+
+	/* Quiescence check! */
+	if (deact_cap->lvl == 0) {
+		/* top level has tlb quiescence period. */
+		if (!tlb_quiescence_check(deact_cap->frozen_ts)) return -EQUIESCENCE;
+	} else {
+		/* other levels have kernel quiescence
+		 * period. (but the mapping scan will ensure
+		 * tlb quiescence implicitly). */
+		rdtscll(curr);
+		if (!QUIESCENCE_CHECK(curr, deact_cap->frozen_ts, KERN_QUIESCENCE_CYCLES)) return -EQUIESCENCE;
+	}
+
+	/* set the scan flag to avoid concurrent scanning. */
+	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS)
+		return -ECASFAIL;
+
+	if (deact_cap->lvl == 0) {
+		/* PGD: only scan user mapping. */
+		ret = kmem_page_scan(page, PAGE_SIZE - KERNEL_PGD_REGION_SIZE);
+	} else if (deact_cap->lvl == PGTBL_DEPTH - 1) {
+		/* Leaf level, scan mapping. */
+		ret = pgtbl_mapping_scan(deact_cap);
+	} else {
+		/* don't have this with 2-level pgtbl. */
+		ret = kmem_page_scan(page, PAGE_SIZE);
+	}
+
+	if (ret) {
+		/* unset scan and frozen bits. */
+		cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
+		        l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
+		return ret;
+	}
+	cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, l);
+
+	return 0;
 }
 

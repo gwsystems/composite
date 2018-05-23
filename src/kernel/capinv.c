@@ -117,7 +117,7 @@ cos_cap_ipi_handling(void)
 	return;
 }
 
-static void
+void
 kmem_unalloc(unsigned long *pte)
 {
 	/*
@@ -208,52 +208,8 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 		}
 		cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, l);
 	} else if (ch->type == CAP_PGTBL) {
-		struct cap_pgtbl *deact_cap = (struct cap_pgtbl *)ch;
-		void *            page      = deact_cap->pgtbl;
-		u32_t             l         = deact_cap->refcnt_flags;
-
-		if (chal_pa2va((paddr_t)pa) != page) cos_throw(err, -EINVAL);
-
-		/* Require freeze memory and wait for quiescence
-		 * first! */
-		if (!(l & CAP_MEM_FROZEN_FLAG)) {
-			cos_throw(err, -EQUIESCENCE);
-		}
-
-		/* Quiescence check! */
-		if (deact_cap->lvl == 0) {
-			/* top level has tlb quiescence period. */
-			if (!tlb_quiescence_check(deact_cap->frozen_ts)) return -EQUIESCENCE;
-		} else {
-			/* other levels have kernel quiescence
-			 * period. (but the mapping scan will ensure
-			 * tlb quiescence implicitly). */
-			rdtscll(curr);
-			if (!QUIESCENCE_CHECK(curr, deact_cap->frozen_ts, KERN_QUIESCENCE_CYCLES)) return -EQUIESCENCE;
-		}
-
-		/* set the scan flag to avoid concurrent scanning. */
-		if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS)
-			return -ECASFAIL;
-
-		if (deact_cap->lvl == 0) {
-			/* PGD: only scan user mapping. */
-			ret = kmem_page_scan(page, PAGE_SIZE - KERNEL_PGD_REGION_SIZE);
-		} else if (deact_cap->lvl == PGTBL_DEPTH - 1) {
-			/* Leaf level, scan mapping. */
-			ret = pgtbl_mapping_scan(deact_cap);
-		} else {
-			/* don't have this with 2-level pgtbl. */
-			ret = kmem_page_scan(page, PAGE_SIZE);
-		}
-
-		if (ret) {
-			/* unset scan and frozen bits. */
-			cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
-			        l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
-			cos_throw(err, ret);
-		}
-		cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, l);
+		ret = chal_pgtbl_deact_pre(ch, pa);
+		if (ret) cos_throw(err, ret);
 	} else {
 		/* currently only captbl and pgtbl pages need to be
 		 * scanned before deactivation. */
@@ -1122,38 +1078,8 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t kmem_cap  = __userregs_get3(regs);
 			capid_t pgtbl_lvl = __userregs_get4(regs);
 
-			pgtbl_t        new_pt, curr_pt;
-			vaddr_t        kmem_addr = 0;
-			unsigned long *pte       = NULL;
-
-			ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr, &pte);
-			if (unlikely(ret)) cos_throw(err, ret);
-			assert(kmem_addr && pte);
-
-			if (pgtbl_lvl == 0) {
-				/* PGD */
-				struct cap_pgtbl *cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
-				if (!CAP_TYPECHK(cap_pt, CAP_PGTBL)) {
-					ret = -EINVAL;
-					break;
-				}
-
-				curr_pt = cap_pt->pgtbl;
-				assert(curr_pt);
-
-				new_pt = pgtbl_create((void *)kmem_addr, curr_pt);
-				ret    = pgtbl_activate(ct, cap, pt_entry, new_pt, 0);
-			} else if (pgtbl_lvl == 1) {
-				/* PTE */
-				pgtbl_init_pte((void *)kmem_addr);
-				ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, 1);
-			} else {
-				/* Not supported yet. */
-				printk("cos: warning - PGTBL level greater than 2 not supported yet. \n");
-				ret = -1;
-			}
-
-			if (ret) kmem_unalloc(pte);
+			/* FIXME: change lvl to order */
+			ret = chal_pgtbl_pgtblactivate(ct, cap, pt_entry, pgtbl_cap, kmem_cap, pgtbl_lvl);
 
 			break;
 		}
@@ -1426,9 +1352,11 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
 			vaddr_t order;
+
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
+			if (__userregs_get2(regs) != 0) order = __userregs_get2(regs);
 			ret = retypetbl_retype2user((void *)frame, order);
 
 			break;
@@ -1441,6 +1369,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
+			if (__userregs_get2(regs) != 0) order = __userregs_get2(regs);
 			ret = retypetbl_retype2kern((void *)frame, order);
 
 			break;
@@ -1453,6 +1382,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
+			if (__userregs_get2(regs) != 0) order = __userregs_get2(regs);
 			ret = retypetbl_retype2frame((void *)frame, order);
 
 			break;
