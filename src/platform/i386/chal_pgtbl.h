@@ -53,6 +53,16 @@ __pgtbl_isnull(struct ert_intern *a, void *accum, int isleaf)
 	(void)accum;
 	return !(((u32_t)(a->next)) & (X86_PGTBL_PRESENT | X86_PGTBL_COSFRAME));
 }
+static int
+__pgtbl_resolve(struct ert_intern *a, void *accum, int leaf, u32_t order, u32_t sz)
+{
+	(void)a;
+	(void)leaf;
+	(void)order;
+	(void)sz;
+	*(u32_t *)accum = (((u32_t)a->next) & PGTBL_FLAG_MASK);
+	return 1;
+}
 static void
 __pgtbl_init(struct ert_intern *a, int isleaf)
 {
@@ -120,7 +130,7 @@ __pgtbl_getleaf(struct ert_intern *a, void *accum)
 }
 
 ERT_CREATE(__pgtbl, pgtbl, PGTBL_DEPTH, PGTBL_ENTRY_ORDER, sizeof(int *), PGTBL_ENTRY_ORDER, sizeof(int *), NULL, __pgtbl_init,
-           __pgtbl_get, __pgtbl_isnull, __pgtbl_set, __pgtbl_a, __pgtbl_setleaf, __pgtbl_getleaf, ert_defresolve);
+           __pgtbl_get, __pgtbl_isnull, __pgtbl_set, __pgtbl_a, __pgtbl_setleaf, __pgtbl_getleaf, __pgtbl_resolve);
 
 static pgtbl_t
 pgtbl_alloc(void *page)

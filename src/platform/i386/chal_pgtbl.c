@@ -586,6 +586,54 @@ chal_pgtbl_init_pte(void *pte)
 	for (i = 0; i < (1 << PGTBL_ENTRY_ORDER); i++) vals[i] = 0;
 }
 
+int
+chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pgtbl *ctfrom, capid_t capin_from, cap_t cap_type, vaddr_t order)
+{
+	struct cap_header	*ctto;
+	unsigned long		*f, old_v;
+	u32_t			flags;
+
+	ctto = captbl_lkup(t, cap_to);
+	if (unlikely(!ctto)) return -ENOENT;
+	if (unlikely(ctto->type != cap_type)) return -EINVAL;
+	if (unlikely(((struct cap_pgtbl *)ctto)->refcnt_flags & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
+
+	/* 
+	 * See what kind of delegation we are doing. There are 4 kinds of delegations:
+	 * 1. Superpage -> Smallpage [order = 12]
+	 * 2. Superpage -> Superpage [order = 22]
+	 * 3. Smallpage -> Smallpage [order = 12]
+	 * 4. Smallpage -> Superpage [prohibited]
+	 */
+	/* How big is the current page? */
+	f = pgtbl_lkup_pgd(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+	if (!f) return -ENOENT;
+	old_v = *f;
+
+	if (chal_pgtbl_flag_exist(old_v, PGTBL_SUPER)) {
+		/*
+		 * FIXME: The current ertrie implementation just doesn't seem to return useful
+		 * "flags" for its internal layers. We need to look into this and find out why.
+		 * I suggest get rid of the flags and just use chal_pgtbl_flag in the future.
+		 */
+		flags = chal_pgtbl_flag(old_v);
+		if (order != SUPER_PAGE_ORDER) {
+			/* We need to pick a subpage */
+			old_v += EXTRACT_SUB_PAGE(capin_from);
+			flags &= (~PGTBL_SUPER);
+		}
+	} else {
+		if (order != PAGE_ORDER) return -EPERM;
+		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+		if (!f) return -ENOENT;
+		old_v = *f;
+	}
+
+	/* Cannot copy frame, or kernel entry. */
+	if (chal_pgtbl_flag_exist(old_v, PGTBL_COSFRAME) || !chal_pgtbl_flag_exist(old_v, PGTBL_USER)) return -EPERM;
+	return pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags, order);
+}
+
 /* FIXME: we need to ensure TLB quiescence for pgtbl cons/decons! */
 int
 chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandid, unsigned long depth)
@@ -650,5 +698,25 @@ chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t prune
 	cos_faa((int *)&(pt->refcnt_flags), -1);
 
 	return 0;
+}
+
+int
+chal_pgtbl_introspect(struct cap_header *ch, vaddr_t addr)
+{
+	unsigned long *pte;
+	u32_t          flags;
+	int            ret = 0;
+	/* Is this a pte or a pgd? */
+	pte = pgtbl_lkup_pgd(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
+	if (pte) {
+		if (chal_pgtbl_flag_exist(*pte, PGTBL_SUPER)) {
+			ret = *pte;
+		} else {
+			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
+			if (pte) ret = *pte;
+		}
+	}
+
+	return ret;
 }
 

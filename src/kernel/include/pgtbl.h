@@ -128,8 +128,12 @@ pgtbl_t        chal_pgtbl_create(void *page, void *curr_pgtbl);
 int            chal_pgtbl_quie_check(u32_t orig_v);
 void           chal_pgtbl_init_pte(void *pte);
 
+/* Page mapping */
+int            chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pgtbl *ctfrom, capid_t capin_from, cap_t cap_type, vaddr_t order);
 /* Cons & decons functions */
 int            chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandid, unsigned long depth);
 int            chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl);
+/* Introspection */
+int            chal_pgtbl_introspect(struct cap_header *ch, vaddr_t addr);
 #endif /* PGTBL_H */
 
