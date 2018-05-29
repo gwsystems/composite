@@ -44,7 +44,9 @@ struct pt_regs {
 #endif
 #define PAGE_ORDER 12
 #ifndef __KERNEL__
+#ifndef PAGE_SIZE
 #define PAGE_SIZE (1 << PAGE_ORDER)
+#endif
 #endif
 
 #define MAX_SERVICE_DEPTH 31

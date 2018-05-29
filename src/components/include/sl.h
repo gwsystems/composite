@@ -64,6 +64,7 @@ struct sl_global_cpu {
 	cycles_t    period;
 	cycles_t    timer_next;
 	tcap_time_t timeout_next;
+	cycles_t    sched_start, idle_start, idle_last, idle_total;
 
 	struct ps_list_head event_head; /* all pending events for sched end-point */
 };
@@ -482,10 +483,16 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	}
 	if (likely(!to)) {
 		pt = sl_mod_schedule();
-		if (unlikely(!pt))
-			t = globals->sched_thd;
-		else
+		if (unlikely(!pt)) {
+			t = globals->idle_thd;
+			if (likely(globals->idle_start && globals->idle_last > globals->idle_start)) {
+				globals->idle_total += (globals->idle_last - globals->idle_start);
+			}
+			/* could be preempted after this (out of cs)! */
+			globals->idle_start = sl_now();
+		} else {
 			t = sl_mod_thd_get(pt);
+		}
 	}
 
 	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {

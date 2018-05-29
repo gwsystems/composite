@@ -26,6 +26,12 @@ rk_socket_acom(struct sinv_async_info *rk_sinv_info, int domain, int type, int p
 }
 
 static inline int
+rk_connect_acom(struct sinv_async_info *rk_sinv_info, int fd, int shmid, socklen_t addrlen, tcap_res_t r, tcap_prio_t p)
+{
+	return acom_client_request(rk_sinv_info, RK_CONNECT, fd, shmid, addrlen, r, p);
+}
+
+static inline int
 rk_bind_acom(struct sinv_async_info *rk_sinv_info, int socketfd, int shdmem_id, unsigned addrlen, tcap_res_t r, tcap_prio_t p)
 {
 	return acom_client_request(rk_sinv_info, RK_BIND, socketfd, shdmem_id, addrlen, r, p);
@@ -47,6 +53,12 @@ static inline int
 rk_setsockopt_acom(struct sinv_async_info *rk_sinv_info, int arg1, int arg2, int arg3, tcap_res_t r, tcap_prio_t p)
 {
 	return acom_client_request(rk_sinv_info, RK_SETSOCKOPT, arg1, arg2, arg3, r, p);
+}
+
+static inline int
+rk_getsockopt_acom(struct sinv_async_info *rk_sinv_info, int arg1, int arg2, int arg3, tcap_res_t r, tcap_prio_t p)
+{
+	return acom_client_request(rk_sinv_info, RK_GETSOCKOPT, arg1, arg2, arg3, r, p);
 }
 
 static inline void *
@@ -95,6 +107,12 @@ static inline int
 rk_open_acom(struct sinv_async_info *rk_sinv_info, int arg1, int arg2, int arg3, tcap_res_t r, tcap_prio_t p)
 {
 	return acom_client_request(rk_sinv_info, RK_OPEN, arg1, arg2, arg3, r, p);
+}
+
+static inline int
+rk_close_acom(struct sinv_async_info *rk_sinv_info, int fd, tcap_res_t r, tcap_prio_t p)
+{
+	return acom_client_request(rk_sinv_info, RK_CLOSE, fd, 0, 0, r, p);
 }
 
 static inline int
@@ -230,6 +248,13 @@ rk_inv_open_acom(struct sinv_async_info *rk_sinv_info, const char *path, int fla
 	return rk_open_acom(rk_sinv_info, shmid, flags, mode, r, p);
 }
 
+
+static inline int
+rk_inv_close_acom(struct sinv_async_info *rk_sinv_info, int fd, tcap_res_t r, tcap_prio_t p)
+{
+	return rk_close_acom(rk_sinv_info, fd, r, p);
+}
+
 static inline int
 rk_inv_clock_gettime_acom(struct sinv_async_info *rk_sinv_info, clockid_t clock_id, struct timespec *tp, tcap_res_t r, tcap_prio_t p)
 {
@@ -333,6 +358,17 @@ rk_inv_socketcall_acom(struct sinv_async_info *rk_sinv_info, int call, unsigned 
 			protocol   = *(args + 2);
 
 			ret = rk_socket_acom(rk_sinv_info, domain, type, protocol, r, p);
+
+			break;
+		}
+		case SOCKETCALL_CONNECT: {
+			int sockfd = *args;
+			struct sockaddr *addr = (struct sockaddr *)*(args + 1), *saddr = (struct sockaddr *)shmaddr;
+			socklen_t addrlen = (socklen_t)*(args + 2);
+
+			memcpy(saddr, addr, sizeof(struct sockaddr));
+
+			ret = rk_connect_acom(rk_sinv_info, sockfd, shmid, addrlen, r, p);
 
 			break;
 		}
@@ -549,6 +585,24 @@ rk_inv_socketcall_acom(struct sinv_async_info *rk_sinv_info, int call, unsigned 
 			ret = rk_setsockopt_acom(rk_sinv_info, (sockfd << 16) | level, (optname << 16) | shmid, optlen, r, p);
 
 			memcpy((void *)optval, (void *)shmaddr, optlen);
+
+			break;
+		}
+		case SOCKETCALL_GETSOCKOPT: {
+			/* int getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen); */
+			int sockfd = (int)*args, level = (int)*(args + 1), optname = (int)*(args + 2);
+			void *optval = (void *)*(args + 3), *roptval = NULL;
+			socklen_t *optlen = (socklen_t *)*(args + 4), *roptlen = NULL;
+
+			/* output/return values on shared memory */
+			roptlen = (socklen_t *)shmaddr;
+			roptval = (void *)(shmaddr + 4);
+
+			assert(sockfd < (1<<16) && shmid < (1<<16));
+			ret = rk_getsockopt_acom(rk_sinv_info, sockfd << 16 | shmid, level, optname, r, p);
+			/* copy from shared memory to user passed addresses */
+			*optlen = *roptlen;
+			memcpy(optval, roptval, *optlen);
 
 			break;
 		}

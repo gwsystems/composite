@@ -106,10 +106,10 @@ retry:
 	   if (test->protocol->id == Ptcp) {
 	   if (test->settings->socket_bufsize > 0) {
 	   unit_snprintf(ubuf, UNIT_LEN, (double) x, 'A');
-	   if (!test->json_output) 
+	   if (!test->json_output)
 	   iprintf(test, report_window, ubuf);
 	   } else {
-	   if (!test->json_output) 
+	   if (!test->json_output)
 	   iprintf(test, "%s", report_autotune);
 	   }
 	   }
@@ -153,7 +153,7 @@ iperf_accept(struct iperf_test *test)
 			return -1;
 		if (iperf_exchange_parameters(test) < 0)
 			return -1;
-		if (test->server_affinity != -1) 
+		if (test->server_affinity != -1)
 			if (iperf_setaffinity(test, test->server_affinity) != 0)
 				return -1;
 		if (test->on_connect)
@@ -308,7 +308,7 @@ iperf_test_reset(struct iperf_test *test)
 	test->settings->blksize = DEFAULT_TCP_BLKSIZE;
 	test->settings->rate = 0;
 	test->settings->mss = 0;
-	memset(test->cookie, 0, COOKIE_SIZE); 
+	memset(test->cookie, 0, COOKIE_SIZE);
 }
 
 static void
@@ -519,7 +519,7 @@ iperf_run_server(struct iperf_test *test)
 							FD_SET(s, &test->read_set);
 						if (s > test->max_fd) test->max_fd = s;
 
-						/* 
+						/*
 						 * If the protocol isn't UDP, or even if it is but
 						 * we're the receiver, set nonblocking sockets.
 						 * We need this to allow a server receiver to
@@ -542,7 +542,7 @@ iperf_run_server(struct iperf_test *test)
 					if (test->protocol->id != Ptcp) {
 						FD_CLR(test->prot_listener, &test->read_set);
 						close(test->prot_listener);
-					} else { 
+					} else {
 						if (test->no_delay || test->settings->mss || test->settings->socket_bufsize) {
 							FD_CLR(test->listener, &test->read_set);
 							close(test->listener);

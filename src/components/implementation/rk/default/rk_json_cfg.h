@@ -20,6 +20,7 @@
 
 #define RK_JSON_UDPSTUB_HTTP_QEMU "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"udpstub.http\",},\0"
 #define RK_JSON_HTTP_UDPSERV_QEMU "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"http.udpserv\",},\0"
+#define RK_JSON_IPERF_QEMU "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"iperf\",},\0"
 #define RK_JSON_HTTP_QEMU "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"http\",},\0"
 #define RK_JSON_UDPSERV_QEMU "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"udpserv\",},\0"
 #define RK_JSON_HTTP_UDPSERV_IPERF_QEMU "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"http.udpserv.iperf\",},\0"

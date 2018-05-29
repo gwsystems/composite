@@ -13,12 +13,12 @@
 u32_t cycs_per_usec = 0;
 
 #define INITIALIZE_PRIO 1
-#define INITIALIZE_PERIOD_MS (4000)
-#define INITIALIZE_BUDGET_MS (1000)
+#define INITIALIZE_PERIOD_US (10000)
+#define INITIALIZE_BUDGET_US (1000)
 
-#define FIXED_PRIO 2
-#define FIXED_PERIOD_MS (10000)
-#define FIXED_BUDGET_MS (10000)
+#define FIXED_PRIO 1
+#define FIXED_PERIOD_US (5000)
+#define FIXED_BUDGET_US (5000)
 
 static struct sl_thd *__initializer_thd[NUM_CPU] CACHE_ALIGNED;
 
@@ -52,8 +52,8 @@ sched_child_init(struct sched_childinfo *schedci)
 	assert(initthd);
 
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
-	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
-	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
+	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_US));
+	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_US));
 }
 
 void
@@ -85,13 +85,13 @@ cos_init(void)
 		while (!ps_load((unsigned long *)&init_done[i])) ;
 	}
 
-	sl_init_cpubmp(SL_MIN_PERIOD_US * 2, cpubmp);
+	sl_init_cpubmp(SL_MIN_PERIOD_US * 5, cpubmp);
 	sched_childinfo_init();
 	__initializer_thd[cos_cpuid()] = sl_thd_alloc(__init_done, NULL);
 	assert(__initializer_thd[cos_cpuid()]);
 	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, INITIALIZE_PRIO));
-	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_WINDOW, INITIALIZE_BUDGET_MS));
-	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_BUDGET, INITIALIZE_PERIOD_MS));
+	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_WINDOW, INITIALIZE_BUDGET_US));
+	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_BUDGET, INITIALIZE_PERIOD_US));
 
 	self_init[cos_cpuid()] = 1;
 	hypercall_comp_init_done();

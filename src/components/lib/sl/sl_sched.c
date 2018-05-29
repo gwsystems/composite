@@ -537,12 +537,28 @@ sl_timeout_period(microsec_t period)
 	sl_timeout_relative(p);
 }
 
+#define PRINT_WIN_US (10*1000*1000) //10secs
+#define US_TO_S (1000*1000)
+
 /* engage space heater mode */
 void
 sl_idle(void *d)
 {
+	struct sl_global_cpu *g          = sl__globals_cpu();
+	cycles_t              print_last = 0, print_win = sl_usec2cyc(PRINT_WIN_US);
+
+	assert(g->sched_start);
+	print_last = sl_now();
 	while (1) {
-		printc("idle\n");
+		cycles_t now = sl_now();
+
+		g->idle_last = now;
+
+		if (unlikely(now - print_last > print_win)) {
+			PRINTC("Total: %llus Idle: %lluus\n", sl_cyc2usec(now - g->sched_start) / US_TO_S, sl_cyc2usec(g->idle_total));
+			print_last = now;
+//			g->idle_total = 0;
+		}
 	}
 }
 
@@ -634,6 +650,7 @@ sl_sched_loop_intern(int non_block)
 	rcv_flags_t           rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
 
 	assert(sl_cpu_active());
+	g->sched_start = sl_now();
 
 	while (1) {
 		int pending;

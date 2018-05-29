@@ -27,12 +27,8 @@ struct cos_compinfo *currci = NULL;
 //extern int vmid;
 int vmid = 0;
 
-u64_t t_vm_cycs  = 0;
-u64_t t_dom_cycs = 0;
-
 cycles_t cycs_per_usec;
 
-#define RK_TOTAL_MEM (1 << 26) //64MB
 #define HW_ISR_LINES 32
 #define HW_ISR_FIRST 1
 #define RK_IRQ_IO 15
@@ -135,11 +131,11 @@ rump_booter_init(void *d)
 	//script = RK_JSON_UDPSERV_QEMU;
 	//script = RK_JSON_UDPSERV_HW;
 	//script = RK_JSON_IPERF_QEMU;
-	//script = RK_JSON_IPERF_HW;
+	script = RK_JSON_IPERF_HW;
 	//script = RK_JSON_HTTP_QEMU;
 	//script = RK_JSON_HTTP_HW;
 	//script = RK_JSON_I42STUB_HTTP_QEMU;
-	script = RK_JSON_I42STUB_HTTP_HW;
+	//script = RK_JSON_I42STUB_HTTP_HW;
 
 	rk_alloc_run(script);
 	PRINTC("\nRumpKernel Boot done.\n");

@@ -22,6 +22,9 @@ rk_api(rk_api_t api)
 	case RK_SOCKET:
 		apiaddr = (vaddr_t)&rk_socket;
 		break;
+	case RK_CONNECT:
+		apiaddr = (vaddr_t)&rk_connect;
+		break;
 	case RK_BIND:
 		apiaddr = (vaddr_t)&rk_bind;
 		break;
@@ -33,6 +36,9 @@ rk_api(rk_api_t api)
 		break;
 	case RK_SETSOCKOPT:
 		apiaddr = (vaddr_t)&rk_setsockopt;
+		break;
+	case RK_GETSOCKOPT:
+		apiaddr = (vaddr_t)&rk_getsockopt;
 		break;
 	case RK_MMAP:
 		apiaddr = (vaddr_t)&rk_mmap;
@@ -57,6 +63,9 @@ rk_api(rk_api_t api)
 		break;
 	case RK_OPEN:
 		apiaddr = (vaddr_t)&rk_open;
+		break;
+	case RK_CLOSE:
+		apiaddr = (vaddr_t)&rk_close;
 		break;
 	case RK_UNLINK:
 		apiaddr = (vaddr_t)&rk_unlink;

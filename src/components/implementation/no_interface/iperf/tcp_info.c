@@ -27,9 +27,9 @@
 
 /*
  * routines related to collection TCP_INFO using getsockopt()
- * 
+ *
  * Brian Tierney, ESnet  (bltierney@es.net)
- * 
+ *
  * Note that this is only really useful on Linux.
  * XXX: only standard on linux versions 2.4 and later
  #
@@ -76,7 +76,7 @@ has_tcpinfo_retransmits(void)
 #if defined(linux) && defined(TCP_MD5SIG)
     /* TCP_MD5SIG doesn't actually have anything to do with TCP
     ** retransmits, it just showed up in the same rev of the header
-    ** file.  If it's present then struct tcp_info has the 
+    ** file.  If it's present then struct tcp_info has the
     ** tcpi_total_retrans field that we need; if not, not.
     */
     return 1;
@@ -100,7 +100,7 @@ save_tcpinfo(struct iperf_stream *sp, struct iperf_interval_results *irp)
     socklen_t tcp_info_length = sizeof(struct tcp_info);
 
     if (getsockopt(sp->socket, IPPROTO_TCP, TCP_INFO, (void *)&irp->tcpInfo, &tcp_info_length) < 0)
-	iperf_err(sp->test, "getsockopt - %s", strerror(errno));
+	iperf_err(sp->test, "getsockopt");
 
     if (sp->test->debug) {
 	printf("tcpi_snd_cwnd %u tcpi_snd_mss %u tcpi_rtt %u\n",
@@ -169,7 +169,7 @@ build_tcpinfo_message(struct iperf_interval_results *r, char *message)
 #if defined(linux)
     sprintf(message, report_tcpInfo, r->tcpInfo.tcpi_snd_cwnd, r->tcpInfo.tcpi_snd_ssthresh,
 	    r->tcpInfo.tcpi_rcv_ssthresh, r->tcpInfo.tcpi_unacked, r->tcpInfo.tcpi_sacked,
-	    r->tcpInfo.tcpi_lost, r->tcpInfo.tcpi_retrans, r->tcpInfo.tcpi_fackets, 
+	    r->tcpInfo.tcpi_lost, r->tcpInfo.tcpi_retrans, r->tcpInfo.tcpi_fackets,
 	    r->tcpInfo.tcpi_rtt, r->tcpInfo.tcpi_reordering);
 #endif
 #if defined(__FreeBSD__)

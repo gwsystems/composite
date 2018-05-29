@@ -16,7 +16,9 @@ int     rump___sysimpl_bind(int, const struct sockaddr *, socklen_t);
 ssize_t rump___sysimpl_recvfrom(int, void *, size_t, int, struct sockaddr *, socklen_t *);
 ssize_t rump___sysimpl_sendto(int, const void *, size_t, int, const struct sockaddr *, socklen_t);
 int     rump___sysimpl_setsockopt(int, int, int, const void *, socklen_t);
+int     rump___sysimpl_getsockopt(int, int, int, void *, socklen_t *);
 int     rump___sysimpl_listen(int, int);
+int     rump___sysimpl_connect(int, const struct sockaddr *, socklen_t);
 int     rump___sysimpl_clock_gettime50(clockid_t, struct timespec *);
 int     rump___sysimpl_select50(int nd, fd_set *, fd_set *, fd_set *, struct timeval *);
 int     rump___sysimpl_accept(int, struct sockaddr *, socklen_t *);
@@ -28,6 +30,7 @@ int     rump___sysimpl_ftruncate(int, off_t);
 ssize_t rump___sysimpl_write(int, const void *, size_t);
 ssize_t rump___sysimpl_read(int, const void *, size_t);
 void   *rump_mmap(void *, size_t, int, int, int, off_t);
+int     rump___sysimpl_close(int);
 
 /* These synchronous invocations involve calls to and from a RumpKernel */
 //extern struct cringbuf *vmrb;
@@ -148,7 +151,9 @@ rk_accept(int arg1, int arg2)
 	tmp += sizeof(struct sockaddr);
 	anamelen = (socklen_t *)tmp;
 
-	return rump___sysimpl_accept(s, name, anamelen);
+	ret = rump___sysimpl_accept(s, name, anamelen);
+
+	return ret;
 }
 
 int
@@ -256,6 +261,14 @@ rk_open(int arg1, int arg2, int arg3)
 }
 
 int
+rk_close(int fd)
+{
+	if (fd == 0 || fd == 1 || fd == 2) return 0;
+
+	return rump___sysimpl_close(fd);
+}
+
+int
 rk_unlink(int arg1)
 {
 	int shdmem_id, ret;
@@ -278,15 +291,43 @@ rk_unlink(int arg1)
 }
 
 int
-rk_bind(int sockfd, int shdmem_id, socklen_t socklen)
+rk_connect(int sockfd, int shmid, socklen_t addrlen)
 {
-	const struct sockaddr *sock = NULL;
+	static struct sockaddr *addr = NULL;
+	static int old_shmid = 0;
 	int ret = 0;
-	vaddr_t addr;
-	ret = memmgr_shared_page_map(shdmem_id, &addr);
-	assert(ret > 0 && addr);
-	sock = (const struct sockaddr *)addr;
-	return rump___sysimpl_bind(sockfd, sock, socklen);
+
+	if (addr == NULL || old_shmid != shmid) {
+		old_shmid = shmid;
+		addr = (struct sockaddr *)rk_thdcalldata_shm_map(shmid);
+		assert(addr);
+	}
+
+	assert(addr && shmid > 0 && shmid == old_shmid);
+
+	ret = rump___sysimpl_connect(sockfd, addr, addrlen);
+
+	return ret;
+}
+
+int
+rk_bind(int sockfd, int shmid, socklen_t addrlen)
+{
+	static struct sockaddr *addr = NULL;
+	static int old_shmid = 0;
+	int ret = 0;
+
+	if (addr == NULL || old_shmid != shmid) {
+		old_shmid = shmid;
+		addr = (struct sockaddr *)rk_thdcalldata_shm_map(shmid);
+		assert(addr);
+	}
+
+	assert(addr && shmid > 0 && shmid == old_shmid);
+
+	ret = rump___sysimpl_bind(sockfd, addr, addrlen);
+
+	return ret;
 }
 
 ssize_t
@@ -337,7 +378,9 @@ rk_recvfrom(int arg1, int arg2, int arg3)
 	/* Last is the from socket address */
 	from = (struct sockaddr *)my_addr_tmp;
 
-	return rump___sysimpl_recvfrom(s, buff, len, flags, from, from_addr_len_ptr);
+	ret = rump___sysimpl_recvfrom(s, buff, len, flags, from, from_addr_len_ptr);
+
+	return ret;
 }
 
 ssize_t
@@ -375,6 +418,38 @@ rk_sendto(int arg1, int arg2, int arg3)
 	return rump___sysimpl_sendto(sockfd, buff, len, flags, sock, addrlen);
 }
 
+#define RK_SOL_SOCKET     0xffff
+#define RK_SO_REUSEADDR   0x0004
+
+#define MUSL_SOL_SOCKET   1
+#define MUSL_SO_REUSEADDR 2
+
+int
+rk_socklevel_get(int muslvl)
+{
+	switch(muslvl) {
+	case MUSL_SOL_SOCKET: return RK_SOL_SOCKET;
+	default: assert(0);
+	}
+
+	assert(0);
+
+	return -1;
+}
+
+int
+rk_sockoptname_get(int musloptnm)
+{
+	switch(musloptnm) {
+	case MUSL_SO_REUSEADDR: return RK_SO_REUSEADDR;
+	default: assert(0);
+	}
+
+	assert(0);
+
+	return -1;
+}
+
 int
 rk_setsockopt(int arg1, int arg2, int arg3)
 {
@@ -397,9 +472,33 @@ rk_setsockopt(int arg1, int arg2, int arg3)
 
 	assert(optval && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
 
-	if (level == -1) level = 65535;
+	level = rk_socklevel_get(level);
+	optname = rk_sockoptname_get(optname);
 
 	return rump___sysimpl_setsockopt(sockfd, level, optname, (const void *)optval, optlen);
+}
+
+int
+rk_getsockopt(int sockfd_shmid, int level, int optname)
+{
+	int sockfd = (sockfd_shmid >> 16), shdmem_id = (sockfd_shmid << 16) >> 16, ret;
+	static void *optval = NULL;
+	static int old_shdmem_id = 0;
+	socklen_t *optlen = NULL;
+
+
+	if (optlen == NULL || old_shdmem_id != shdmem_id) {
+		old_shdmem_id = shdmem_id;
+		optlen = (socklen_t *)rk_thdcalldata_shm_map(shdmem_id);
+		assert(optlen);
+		optval = (void *)((vaddr_t)optlen + 4);
+	}
+
+	assert(optlen && optval && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
+
+	ret = rump___sysimpl_getsockopt(sockfd, level, optname, optval, optlen);
+
+	return ret;
 }
 
 void *
@@ -532,7 +631,9 @@ rk_getsockname(int arg1, int arg2)
 	tmp += sizeof(struct sockaddr);
 	alen = (socklen_t *)tmp;
 
-	return rump___sysimpl_getsockname(fdes, asa, alen);
+	ret = rump___sysimpl_getsockname(fdes, asa, alen);
+
+	return ret;
 }
 
 int
@@ -562,5 +663,7 @@ rk_getpeername(int arg1, int arg2)
 	tmp += sizeof(struct sockaddr);
 	alen = (socklen_t *)tmp;
 
-	return rump___sysimpl_getpeername(fdes, asa, alen);
+	ret = rump___sysimpl_getpeername(fdes, asa, alen);
+
+	return ret;
 }

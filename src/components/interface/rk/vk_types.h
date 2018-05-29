@@ -6,6 +6,8 @@
 #define RK_NAME_MAX 12
 #define RK_STUBREQS_MAX 6
 
+#define RK_TOTAL_MEM (1 << 26) //64MB
+
 #define VM_COUNT 4                /* total virtual machine count */
 #define APP_START_ID 2
 #define VM_UNTYPED_SIZE(vmid) (vmid == RUMP_SUB ? (1 << 27) : (1<<25))/* untyped memory per vm = 128MB */
@@ -19,8 +21,8 @@
 
 #define HPET_PERIOD_US (10 * 1000)
 
-#define PARENT_PERIOD_US (2*1000)
-#define CHILD_PERIOD_US  (1000)
+#define PARENT_PERIOD_US (20*1000)
+#define CHILD_PERIOD_US  (5*1000)
 
 //#define APP_COMM_SYNC
 #define APP_COMM_ASYNC

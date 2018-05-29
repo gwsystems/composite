@@ -187,9 +187,13 @@ run(struct iperf_test *test)
 int spdid;
 extern struct cos_component_information cos_comp_info;
 
+#define MAX_ARGS 3
+
 void
 cos_init(void)
 {
+	int argc = 0;
+
 	PRINTC("Welcome to iperf\n");
 	PRINTC("cos_component_infomration spdid: %ld\n", cos_comp_info.cos_this_spd_id);
 
@@ -201,13 +205,14 @@ cos_init(void)
 	rk_libcmod_init();
 	schedinit_child();
 
-	char *argv[3];
-	argv[0] = "iperf.o";
-	argv[1] = "-s"; /* server mode */
-	argv[2] = "-4"; /* Specify ipv4 */
+	char *argv[MAX_ARGS];
+	argv[argc++] = "iperf3";
+	argv[argc++] = "-s"; /* server mode */
+	argv[argc++] = "-4"; /* ipv4, I think this is a client option!! */
+	assert(argc > 0 && argc <= MAX_ARGS);
 
-	PRINTC("Running IPERF with -s -4\n");
-	main(3, (char **)argv);
+	PRINTC("Running IPERF as a server\n");
+	main(argc, (char **)argv);
 	PRINTC("iperf done, spinning\n");
 	while (1);
 }

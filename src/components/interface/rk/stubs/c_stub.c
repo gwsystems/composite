@@ -72,6 +72,12 @@ rk_inv_write(int fd, const void *buf, size_t nbyte)
 }
 
 int
+rk_inv_close(int fd)
+{
+	return rk_close(fd);
+}
+
+int
 rk_inv_unlink(const char *path)
 {
 	cbuf_t shmid = 0;
@@ -210,7 +216,6 @@ rk_inv_socketcall(int call, unsigned long *args)
 	 * is sending and recieving packets. This means that we will never have
 	 * have more than 1 packet in the send or recv shdmem page at a given time
 	 */
-	static int canSend = 0;
 
 	switch (call) {
 		case SOCKETCALL_SOCKET: { /* socket */
@@ -224,10 +229,19 @@ rk_inv_socketcall(int call, unsigned long *args)
 
 			break;
 		}
+		case SOCKETCALL_CONNECT: {
+			int sockfd = *args;
+			struct sockaddr *addr = (struct sockaddr *)*(args + 1), *saddr = (struct sockaddr *)shmaddr;
+			socklen_t addrlen = (socklen_t)*(args + 2);
+
+			memcpy(saddr, addr, addrlen);
+
+			ret = rk_connect(sockfd, shmid, addrlen);
+
+			break;
+		}
 		case SOCKETCALL_BIND: { /* bind */
 			int sockfd;
-			cbuf_t bindshmid = 0;
-			vaddr_t bindshmaddr = NULL;
 			void *addr;
 			u32_t addrlen;
 
@@ -235,19 +249,8 @@ rk_inv_socketcall(int call, unsigned long *args)
 			addr    = (void *)*(args + 1);
 			addrlen = *(args + 2);
 
-			/*
-			 * Do stupid shared memory for now
-			 * allocate a page for each bind addr
-			 * don't deallocate. #memLeaksEverywhere
-			 * We don't have to fix this for now as we only have 1 bind
-			 */
-
-			/* TODO make this a function */
-			bindshmid = memmgr_shared_page_alloc(&bindshmaddr);
-			assert(bindshmid && bindshmaddr);
-
-			memcpy((void * __restrict__)bindshmaddr, addr, addrlen);
-			ret = rk_bind(sockfd, bindshmid, addrlen);
+			memcpy((void *)shmaddr, addr, addrlen);
+			ret = rk_bind(sockfd, shmid, addrlen);
 
 			break;
 		}
@@ -356,9 +359,6 @@ rk_inv_socketcall(int call, unsigned long *args)
 			addr    = (const struct sockaddr *)*(args + 4);
 			addrlen = (socklen_t)*(args + 5);
 
-			assert(canSend == 1);
-			canSend = 0;
-
 			shmaddr_tmp = shmaddr;
 			shdmem_buff = (void *)shmaddr_tmp;
 			memcpy(shdmem_buff, buff, len);
@@ -393,9 +393,6 @@ rk_inv_socketcall(int call, unsigned long *args)
 			flags             = *(args + 3);
 			from_addr         = (struct sockaddr *)*(args + 4);
 			from_addr_len_ptr = (u32_t *)*(args + 5);
-
-			assert(canSend == 0);
-			canSend = 1;
 
 			assert(s <= 0xFFFF);
 			assert(shmid <= 0xFFFF);
@@ -438,6 +435,26 @@ rk_inv_socketcall(int call, unsigned long *args)
 			ret = rk_setsockopt((sockfd << 16) | level, (optname << 16) | shmid, optlen);
 
 			memcpy((void *)optval, (void *)shmaddr, optlen);
+
+			break;
+		}
+		case SOCKETCALL_GETSOCKOPT: {
+			/* int getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen); */
+			int sockfd = (int)*args, level = (int)*(args + 1), optname = (int)*(args + 2);
+			void *optval = (void *)*(args + 3), *roptval = NULL;
+			socklen_t *optlen = (socklen_t *)*(args + 4), *roptlen = NULL;
+
+			/* output/return values on shared memory */
+			roptlen = (socklen_t *)shmaddr;
+			/* holds input len */
+			*roptlen = *optlen;
+			roptval = (void *)(shmaddr + 4);
+
+			assert(sockfd < (1<<16) && shmid < (1<<16));
+			ret = rk_getsockopt(sockfd << 16 | shmid, level, optname);
+			/* copy from shared memory to user passed addresses */
+			*optlen = *roptlen;
+			memcpy(optval, roptval, *optlen);
 
 			break;
 		}

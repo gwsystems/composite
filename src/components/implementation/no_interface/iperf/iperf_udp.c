@@ -151,11 +151,11 @@ iperf_udp_send(struct iperf_stream *sp)
 	sec = htonl(before.tv_sec);
 	usec = htonl(before.tv_usec);
 	pcount = htobe64(sp->packet_count);
-	
+
 	memcpy(sp->buffer, &sec, sizeof(sec));
 	memcpy(sp->buffer+4, &usec, sizeof(usec));
 	memcpy(sp->buffer+8, &pcount, sizeof(pcount));
-	
+
     }
     else {
 
@@ -164,11 +164,11 @@ iperf_udp_send(struct iperf_stream *sp)
 	sec = htonl(before.tv_sec);
 	usec = htonl(before.tv_usec);
 	pcount = htonl(sp->packet_count);
-	
+
 	memcpy(sp->buffer, &sec, sizeof(sec));
 	memcpy(sp->buffer+4, &usec, sizeof(usec));
 	memcpy(sp->buffer+8, &pcount, sizeof(pcount));
-	
+
     }
 
     r = Nwrite(sp->socket, sp->buffer, size, Pudp);
@@ -374,7 +374,7 @@ iperf_udp_connect(struct iperf_test *test)
      */
     buf = 123456789;		/* this can be pretty much anything */
     if (write(s, &buf, sizeof(buf)) < 0) {
-        // XXX: Should this be changed to IESTREAMCONNECT? 
+        // XXX: Should this be changed to IESTREAMCONNECT?
         i_errno = IESTREAMWRITE;
         return -1;
     }

@@ -43,6 +43,12 @@ rk_socket(int domain, int type, int protocol)
 }
 
 int
+rk_connect(int fd, int shmid, unsigned addrlen)
+{
+	return sinv_client_call(&sinv_info, RK_CONNECT, fd, shmid, addrlen);
+}
+
+int
 rk_bind(int socketfd, int shdmem_id, unsigned addrlen)
 {
 	return sinv_client_call(&sinv_info, RK_BIND, socketfd, shdmem_id, addrlen);
@@ -64,6 +70,12 @@ int
 rk_setsockopt(int arg1, int arg2, int arg3)
 {
 	return sinv_client_call(&sinv_info, RK_SETSOCKOPT, arg1, arg2, arg3);
+}
+
+int
+rk_getsockopt(int sockfd_shmid, int level, int optname)
+{
+	return sinv_client_call(&sinv_info, RK_GETSOCKOPT, sockfd_shmid, level, optname);
 }
 
 void *
@@ -112,6 +124,12 @@ int
 rk_open(int arg1, int arg2, int arg3)
 {
 	return sinv_client_call(&sinv_info, RK_OPEN, arg1, arg2, arg3);
+}
+
+int
+rk_close(int fd)
+{
+	return sinv_client_call(&sinv_info, RK_CLOSE, fd, 0, 0);
 }
 
 int

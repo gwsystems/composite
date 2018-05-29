@@ -69,7 +69,7 @@ iperf_tcp_recv(struct iperf_stream *sp)
 }
 
 
-/* iperf_tcp_send 
+/* iperf_tcp_send
  *
  * sends the data for TCP
  */
@@ -242,7 +242,7 @@ iperf_tcp_listen(struct iperf_test *test)
 		freeaddrinfo(res);
 		i_errno = IESETCONGESTION;
 		return -1;
-	    } 
+	    }
 	}
 #endif /* HAVE_TCP_CONGESTION */
 #if defined(HAVE_SO_MAX_PACING_RATE)
@@ -280,9 +280,9 @@ iperf_tcp_listen(struct iperf_test *test)
 	if (res->ai_family == AF_INET6 && (test->settings->domain == AF_UNSPEC || test->settings->domain == AF_INET)) {
 	    if (test->settings->domain == AF_UNSPEC)
 		opt = 0;
-	    else 
+	    else
 		opt = 1;
-	    if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, 
+	    if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY,
 			   (char *) &opt, sizeof(opt)) < 0) {
 		saved_errno = errno;
 		close(s);
@@ -312,7 +312,7 @@ iperf_tcp_listen(struct iperf_test *test)
 
         test->listener = s;
     }
-    
+
     return s;
 }
 
@@ -468,7 +468,7 @@ iperf_tcp_connect(struct iperf_test *test)
 		errno = saved_errno;
                 i_errno = IESETFLOW;
                 return -1;
-            } 
+            }
 	}
     }
 #endif /* HAVE_FLOWLABEL */

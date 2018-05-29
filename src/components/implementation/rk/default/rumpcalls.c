@@ -179,7 +179,7 @@ void
 rump_bmk_memsize_init(void)
 {
 	/* (1<<20) == 1 MG */
-	bmk_memsize = VM_UNTYPED_SIZE(vmid) - ((1<<20)*2);
+	bmk_memsize = RK_TOTAL_MEM;
 	PRINTC("bmk_memsize: %lu\n", bmk_memsize);
 }
 
@@ -309,48 +309,23 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	set_cos_thddata(thread, sl_thd_thdcap(t), t->aepinfo->tid);
 }
 
-/* Return monotonic time since RK per VM initiation in nanoseconds */
-extern u64_t t_vm_cycs;
-extern u64_t t_dom_cycs;
-long long
-cos_vm_clock_now(void)
-{
-	u64_t tsc_now = 0;
-	unsigned long long curtime = 0;
-
-	assert(vmid <= 1);
-	if (vmid == 0)      tsc_now = t_dom_cycs;
-	else if (vmid == 1) tsc_now = t_vm_cycs;
-
-	curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
-        curtime = (long long)(curtime * 1000); /* micro to nano seconds */
-
-	assert(cos_spdid_get() <= 1);
-	if (cos_spdid_get() == 0)      tsc_now = t_dom_cycs;
-	else if (cos_spdid_get() == 1) tsc_now = t_vm_cycs;
-
-	curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
-	curtime = (long long)(curtime * 1000); /* micro to nano seconds */
-
-	return curtime;
-}
-
 /* Return monotonic time since RK initiation in nanoseconds */
 long long
 cos_cpu_clock_now(void)
 {
-	u64_t tsc_now = 0;
-	unsigned long long curtime = 0;
-        rdtscll(tsc_now);
+	cycles_t now = 0;
 
-	/* We divide as we have cycles and cycles per micro second */
-        curtime = (long long)(tsc_now / cycs_per_usec); /* cycles to micro seconds */
-        curtime = (long long)(curtime * 1000); /* micro to nano seconds */
+	rdtscll(now);
 
-
-	return curtime;
+	return (sl_cyc2usec(now) * 1000);
 }
 
+/* Return monotonic time since RK per VM initiation in nanoseconds */
+long long
+cos_vm_clock_now(void)
+{
+	return cos_cpu_clock_now();
+}
 
 #define ADDR_CACHE_MAX 8
 #define ADDR_CACHE_MINSZ PAGE_SIZE

@@ -107,15 +107,19 @@ rk_rump_thd_param_set(struct sl_thd *t)
 	return 0;
 }
 
+#define INTR_BUDGET_US 1000
+#define INTR_PERIOD_US 1000
+
 static int
 rk_intr_thd_param_set(struct sl_thd *t, int own_tcap)
 {
 	union sched_param_union spprio = {.c = {.type = SCHEDP_PRIO, .value = RK_INTR_THD_PRIO}};
 
+	if (own_tcap) {
+		sl_thd_param_set(t, sched_param_pack(SCHEDP_WINDOW, INTR_PERIOD_US));
+		sl_thd_param_set(t, sched_param_pack(SCHEDP_BUDGET, INTR_BUDGET_US));
+	}
 	sl_thd_param_set(t, spprio.v);
-
-	assert(own_tcap == 0);
-	/* TODO: perhaps set PERIOD & BUDGET if it has it's own TCAP */
 
 	return 0;
 }

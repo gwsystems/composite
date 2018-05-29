@@ -69,6 +69,7 @@ void bmk_memalloc_init(void);
 void bmk_pgalloc_loadmem(unsigned long min, unsigned long max);
 void bmk_sched_init(void);
 int  bmk_intr_init(void);
+int *bmk_sched_geterrno(void);
 
 extern int boot_thd;
 extern struct cos_rumpcalls crcalls;
