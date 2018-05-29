@@ -1,17 +1,17 @@
-/* ./iperf_config.h.  Generated from iperf_config.h.in by configure.  */
-/* ./iperf_config.h.in.  Generated from configure.ac by autoheader.  */
+/* src/iperf_config.h.  Generated from iperf_config.h.in by configure.  */
+/* src/iperf_config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* Define to 1 if you have the `cpuset_setaffinity' function. */
 /* #undef HAVE_CPUSET_SETAFFINITY */
 
 /* Have CPU affinity support. */
-#define HAVE_CPU_AFFINITY 1
+/* #undef HAVE_CPU_AFFINITY */
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #define HAVE_DLFCN_H 1
 
 /* Have IPv6 flowlabel support. */
-#define HAVE_FLOWLABEL 1
+/* #undef HAVE_FLOWLABEL */
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
@@ -23,16 +23,16 @@
 /* #undef HAVE_NETINET_SCTP_H */
 
 /* Define to 1 if you have the `sched_setaffinity' function. */
-#define HAVE_SCHED_SETAFFINITY 1
+/* #undef HAVE_SCHED_SETAFFINITY */
 
 /* Have SCTP support. */
 /* #undef HAVE_SCTP */
 
 /* Define to 1 if you have the `sendfile' function. */
-#define HAVE_SENDFILE 1
+/* #undef HAVE_SENDFILE */
 
 /* Have SO_MAX_PACING_RATE sockopt. */
-#define HAVE_SO_MAX_PACING_RATE 1
+/* #undef HAVE_SO_MAX_PACING_RATE */
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #define HAVE_STDINT_H 1
@@ -59,7 +59,7 @@
 #define HAVE_SYS_TYPES_H 1
 
 /* Have TCP_CONGESTION sockopt. */
-#define HAVE_TCP_CONGESTION 1
+/* #undef HAVE_TCP_CONGESTION */
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #define HAVE_UNISTD_H 1
