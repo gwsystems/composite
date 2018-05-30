@@ -65,6 +65,9 @@ struct sl_global_cpu {
 	cycles_t    timer_next;
 	tcap_time_t timeout_next;
 	cycles_t    sched_start, idle_start, idle_last, idle_total;
+	cycles_t    print_last, print_win;
+
+	unsigned long long sched_cntr[3];
 
 	struct ps_list_head event_head; /* all pending events for sched end-point */
 };
@@ -396,6 +399,17 @@ sl_thd_is_runnable(struct sl_thd *t)
 	return (t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
 }
 
+static inline void
+sl_thd_cycs_update(struct sl_thd *t, int activate)
+{
+	cycles_t now = sl_now();
+
+	if (unlikely(!t)) return;
+	if (likely(t->act_cycs && now > t->act_cycs)) t->total_cycs += (now - t->act_cycs);
+	if (activate) t->act_cycs = now;
+	else          t->act_cycs = 0;
+}
+
 static inline int
 sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 {
@@ -489,9 +503,10 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 				globals->idle_total += (globals->idle_last - globals->idle_start);
 			}
 			/* could be preempted after this (out of cs)! */
-			globals->idle_start = sl_now();
+			globals->idle_start = now;
 		} else {
 			t = sl_mod_thd_get(pt);
+			sl_thd_cycs_update(t, 1);
 		}
 	}
 

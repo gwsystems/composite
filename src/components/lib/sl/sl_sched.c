@@ -232,6 +232,7 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	}
 
 	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
+	sl_thd_cycs_update(t, 0);
 	sl_thd_sched_unblock_no_cs(t);
 	assert(t->state == SL_THD_RUNNABLE);
 	sl_mod_block(sl_mod_thd_policy_get(t));
@@ -444,6 +445,7 @@ sl_thd_yield_cs_exit(thdid_t tid)
 	struct sl_thd *t = sl_thd_curr();
 
 	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
+	sl_thd_cycs_update(t, 0);
 	sl_thd_sched_unblock_no_cs(t);
 	if (tid) {
 		struct sl_thd *to = sl_thd_lkup(tid);
@@ -540,6 +542,34 @@ sl_timeout_period(microsec_t period)
 #define PRINT_WIN_US (10*1000*1000) //10secs
 #define US_TO_S (1000*1000)
 
+static void
+sl_top(void)
+{
+	struct sl_global_cpu *g   = sl__globals_cpu();
+	cycles_t              now = sl_now();
+
+	if (unlikely(g->print_win == 0)) return;
+
+	if (unlikely(now - g->print_last >= g->print_win)) {
+		int i;
+		g->print_last = now;
+
+		for (i = 1; i < SL_MAX_NUM_THDS; i++) {
+			struct sl_thd *t = sl_mod_thd_get(sl_thd_lookup_backend(i));
+
+			if (!t || !sl_thd_aepinfo(t)) continue;
+			assert(i == sl_thd_thdid(t));
+			if (t->schedthd || !t->total_cycs) continue;
+			PRINTC("TID: %d PRIO:%llu TIME: %llu us %%CPU: %llu\n", i, t->prio, sl_cyc2usec(t->total_cycs), (t->total_cycs * 100) / g->print_win);
+			t->total_cycs = 0;
+		}
+		PRINTC("sl_sched_loop counters: %llu %llu %llu\n", g->sched_cntr[0], g->sched_cntr[1], g->sched_cntr[2]);
+		g->sched_cntr[0] = 0;
+		g->sched_cntr[1] = 0;
+		g->sched_cntr[2] = 0;
+	}
+}
+
 /* engage space heater mode */
 void
 sl_idle(void *d)
@@ -557,7 +587,7 @@ sl_idle(void *d)
 		if (unlikely(now - print_last > print_win)) {
 			PRINTC("Total: %llus Idle: %lluus\n", sl_cyc2usec(now - g->sched_start) / US_TO_S, sl_cyc2usec(g->idle_total));
 			print_last = now;
-//			g->idle_total = 0;
+			g->idle_total = 0;
 		}
 	}
 }
@@ -651,10 +681,15 @@ sl_sched_loop_intern(int non_block)
 
 	assert(sl_cpu_active());
 	g->sched_start = sl_now();
+	g->print_last  = sl_now();
+	g->print_win   = sl_usec2cyc(10*1000*1000); /* every 10 secs */
 
 	while (1) {
 		int pending;
 
+		sl_top();
+
+		g->sched_cntr[0]++;
 		do {
 			thdid_t        tid;
 			int            blocked, rcvd;
@@ -663,6 +698,7 @@ sl_sched_loop_intern(int non_block)
 			struct sl_thd *t = NULL, *tn = NULL;
 			struct sl_child_notification notif;
 
+			g->sched_cntr[1]++;
 			/*
 			 * a child scheduler may receive both scheduling notifications (block/unblock
 			 * states of it's child threads) and normal notifications (mainly activations from
@@ -735,6 +771,7 @@ pending_events:
 
 			/* process cross-core requests */
 			sl_xcpu_process_no_cs();
+			g->sched_cntr[2]++;
 
 			sl_cs_exit();
 		} while (pending > 0);

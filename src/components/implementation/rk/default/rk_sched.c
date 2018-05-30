@@ -267,11 +267,13 @@ rk_rump_thd_wakeup(struct bmk_thread *w)
 }
 
 int
-rk_rump_thd_block_timeout(struct bmk_thread *c, unsigned long long timeout)
+rk_rump_thd_block_timeout(struct bmk_thread *c, unsigned long long timeout_nsec)
 {
+	cycles_t abs_timeout = sl_usec2cyc(timeout_nsec / 1000);
+
 	assert(get_cos_thdid(c) == cos_thdid());
 
-	if (sl_thd_block_timeout(0, timeout)) return 1;
+	if (sl_thd_block_timeout(0, abs_timeout)) return 1;
 
 	return 0;
 }
