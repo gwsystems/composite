@@ -64,8 +64,13 @@ struct sl_global_cpu {
 	cycles_t    period;
 	cycles_t    timer_next;
 	tcap_time_t timeout_next;
-	cycles_t    sched_start, idle_start, idle_last, idle_total;
+	cycles_t    sched_start;
+#ifdef SL_IDLE_USAGE
+	cycles_t    idle_start, idle_last, idle_total;
+#endif
+#ifdef SL_THD_USAGE
 	cycles_t    print_last, print_win;
+#endif
 
 	unsigned long long sched_cntr[3];
 
@@ -400,14 +405,19 @@ sl_thd_is_runnable(struct sl_thd *t)
 }
 
 static inline void
-sl_thd_cycs_update(struct sl_thd *t, int activate)
+sl_thd_cycs_update(struct sl_thd *t, cycles_t cycs, int activate)
 {
+#ifdef SL_THD_USAGE
 	cycles_t now = sl_now();
 
 	if (unlikely(!t)) return;
-	if (likely(t->act_cycs && now > t->act_cycs)) t->total_cycs += (now - t->act_cycs);
+
+	if (cycs)                                  t->total_cycs += cycs;
+	else if (t->act_cycs && now > t->act_cycs) t->total_cycs += (now - t->act_cycs);
+
 	if (activate) t->act_cycs = now;
 	else          t->act_cycs = 0;
+#endif
 }
 
 static inline int
@@ -499,14 +509,16 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		pt = sl_mod_schedule();
 		if (unlikely(!pt)) {
 			t = globals->idle_thd;
+#ifdef SL_IDLE_USAGE
 			if (likely(globals->idle_start && globals->idle_last > globals->idle_start)) {
 				globals->idle_total += (globals->idle_last - globals->idle_start);
 			}
 			/* could be preempted after this (out of cs)! */
 			globals->idle_start = now;
+#endif
 		} else {
 			t = sl_mod_thd_get(pt);
-			sl_thd_cycs_update(t, 1);
+			sl_thd_cycs_update(t, 0, 1);
 		}
 	}
 

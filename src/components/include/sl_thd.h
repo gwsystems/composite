@@ -96,7 +96,9 @@ struct sl_thd {
 	struct event_info event_info;
 	struct ps_list    SL_THD_EVENT_LIST; /* list of events for the scheduler end-point */
 
+#ifdef SL_THD_USAGE
 	cycles_t    act_cycs, total_cycs;
+#endif
 };
 
 static inline struct cos_aep_info *

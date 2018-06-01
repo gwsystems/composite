@@ -7,4 +7,7 @@
 
 #define SL_CYCS_DIFF (1<<14)
 
+#undef SL_THD_USAGE
+#undef SL_IDLE_USAGE
+
 #endif /* SL_CONSTS */

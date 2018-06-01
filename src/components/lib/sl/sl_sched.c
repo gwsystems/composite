@@ -232,7 +232,7 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	}
 
 	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
-	sl_thd_cycs_update(t, 0);
+	sl_thd_cycs_update(t, 0, 0);
 	sl_thd_sched_unblock_no_cs(t);
 	assert(t->state == SL_THD_RUNNABLE);
 	sl_mod_block(sl_mod_thd_policy_get(t));
@@ -445,7 +445,7 @@ sl_thd_yield_cs_exit(thdid_t tid)
 	struct sl_thd *t = sl_thd_curr();
 
 	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
-	sl_thd_cycs_update(t, 0);
+	sl_thd_cycs_update(t, 0, 0);
 	sl_thd_sched_unblock_no_cs(t);
 	if (tid) {
 		struct sl_thd *to = sl_thd_lkup(tid);
@@ -542,9 +542,10 @@ sl_timeout_period(microsec_t period)
 #define PRINT_WIN_US (10*1000*1000) //10secs
 #define US_TO_S (1000*1000)
 
-static void
+static inline void
 sl_top(void)
 {
+#ifdef SL_THD_USAGE
 	struct sl_global_cpu *g   = sl__globals_cpu();
 	cycles_t              now = sl_now();
 
@@ -568,12 +569,14 @@ sl_top(void)
 		g->sched_cntr[1] = 0;
 		g->sched_cntr[2] = 0;
 	}
+#endif
 }
 
 /* engage space heater mode */
 void
 sl_idle(void *d)
 {
+#ifdef SL_IDLE_USAGE
 	struct sl_global_cpu *g          = sl__globals_cpu();
 	cycles_t              print_last = 0, print_win = sl_usec2cyc(PRINT_WIN_US);
 
@@ -590,6 +593,9 @@ sl_idle(void *d)
 			g->idle_total = 0;
 		}
 	}
+#else
+	SPIN();
+#endif
 }
 
 /* call from the user? */
@@ -681,15 +687,19 @@ sl_sched_loop_intern(int non_block)
 
 	assert(sl_cpu_active());
 	g->sched_start = sl_now();
+#ifdef SL_THD_USAGE
 	g->print_last  = sl_now();
 	g->print_win   = sl_usec2cyc(10*1000*1000); /* every 10 secs */
+#endif
 
 	while (1) {
 		int pending;
 
 		sl_top();
 
+#ifdef SL_THD_USAGE
 		g->sched_cntr[0]++;
+#endif
 		do {
 			thdid_t        tid;
 			int            blocked, rcvd;
@@ -698,7 +708,10 @@ sl_sched_loop_intern(int non_block)
 			struct sl_thd *t = NULL, *tn = NULL;
 			struct sl_child_notification notif;
 
+#ifdef SL_THD_USAGE
 			g->sched_cntr[1]++;
+#endif
+
 			/*
 			 * a child scheduler may receive both scheduling notifications (block/unblock
 			 * states of it's child threads) and normal notifications (mainly activations from
@@ -734,22 +747,23 @@ pending_events:
 			 * 2. scheduler events are not acting on the sl_thd or the policy structures, so
 			 *    having finer grained locks around the code that modifies sl_thd states is better.
 			 */
-			if (sl_cs_enter_sched()) continue;
+			if (unlikely(sl_cs_enter_sched())) continue;
 
 			ps_list_foreach_del(&g->event_head, t, tn, SL_THD_EVENT_LIST) {
 				/* remove the event from the list and get event info */
 				sl_thd_event_dequeue(t, &blocked, &cycles, &thd_timeout);
 
 				/* outdated event for a freed thread */
-				if (t->state == SL_THD_FREE) continue;
+				if (unlikely(t->state == SL_THD_FREE)) continue;
 
-				sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
-
+				/* sl_mod_execution(sl_mod_thd_policy_get(t), cycles); */
 				if (blocked) {
 					sl_thd_state_t state = SL_THD_BLOCKED;
 					cycles_t abs_timeout = 0;
 
 					if (likely(cycles)) {
+						sl_thd_cycs_update(t, cycles, 0);
+
 						if (thd_timeout) {
 							state       = SL_THD_BLOCKED_TIMEOUT;
 							abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
@@ -771,12 +785,15 @@ pending_events:
 
 			/* process cross-core requests */
 			sl_xcpu_process_no_cs();
+
+#ifdef SL_THD_USAGE
 			g->sched_cntr[2]++;
+#endif
 
 			sl_cs_exit();
 		} while (pending > 0);
 
-		if (sl_cs_enter_sched()) continue;
+		if (unlikely(sl_cs_enter_sched())) continue;
 		/* If switch returns an inconsistency, we retry anyway */
 		sl_cs_exit_schedule_nospin();
 	}
