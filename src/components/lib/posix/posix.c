@@ -405,6 +405,30 @@ int cos_futex_wake(struct futex_data *futex, int wakeup_count)
 }
 
 int
+cos_gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+	cycles_t now, usecs;
+	static int cycs_usec = 0;
+
+	if (!tv) return -EINVAL;
+	/* ignore tz for now */
+
+	if (unlikely(cycs_usec <= 0)) {
+		cycs_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+
+		return -EPERM;
+	}
+
+	/* FIXME: from after system boot tsc val or from tsc == 0? */
+	rdtscll(now);
+	usecs = (now / cycs_usec);
+	tv->tv_sec  = usecs / (1000 * 1000);
+	tv->tv_usec = usecs % (1000 * 1000);
+
+	return 0;
+}
+
+int
 cos_futex(int *uaddr, int op, int val,
           const struct timespec *timeout, /* or: uint32_t val2 */
 		  int *uaddr2, int val3)
@@ -501,6 +525,7 @@ syscall_emulation_setup(void)
 	libc_syscall_override((cos_syscall_t)cos_set_tid_address, __NR_set_tid_address);
 	libc_syscall_override((cos_syscall_t)cos_clone, __NR_clone);
 	libc_syscall_override((cos_syscall_t)cos_futex, __NR_futex);
+	libc_syscall_override((cos_syscall_t)cos_gettimeofday, __NR_gettimeofday);
 }
 
 long
