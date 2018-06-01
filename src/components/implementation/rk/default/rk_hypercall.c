@@ -32,6 +32,9 @@ ssize_t rump___sysimpl_read(int, const void *, size_t);
 void   *rump_mmap(void *, size_t, int, int, int, off_t);
 int     rump___sysimpl_close(int);
 
+
+#define __SOCKADDR_NOLEN(s) do { if ((s)->sa_family >= (1 << 8)) (s)->sa_family >>= 8; } while (0)
+
 /* These synchronous invocations involve calls to and from a RumpKernel */
 //extern struct cringbuf *vmrb;
 /* TODO when rumpbooter is its own interface, have this as an exported symbol */
@@ -152,6 +155,7 @@ rk_accept(int arg1, int arg2)
 	anamelen = (socklen_t *)tmp;
 
 	ret = rump___sysimpl_accept(s, name, anamelen);
+	__SOCKADDR_NOLEN(name);
 
 	return ret;
 }
@@ -305,6 +309,7 @@ rk_connect(int sockfd, int shmid, socklen_t addrlen)
 
 	assert(addr && shmid > 0 && shmid == old_shmid);
 
+	__SOCKADDR_NOLEN(addr);
 	ret = rump___sysimpl_connect(sockfd, addr, addrlen);
 
 	return ret;
@@ -325,6 +330,7 @@ rk_bind(int sockfd, int shmid, socklen_t addrlen)
 
 	assert(addr && shmid > 0 && shmid == old_shmid);
 
+	__SOCKADDR_NOLEN(addr);
 	ret = rump___sysimpl_bind(sockfd, addr, addrlen);
 
 	return ret;
@@ -379,6 +385,7 @@ rk_recvfrom(int arg1, int arg2, int arg3)
 	from = (struct sockaddr *)my_addr_tmp;
 
 	ret = rump___sysimpl_recvfrom(s, buff, len, flags, from, from_addr_len_ptr);
+	__SOCKADDR_NOLEN(from);
 
 	return ret;
 }
@@ -414,6 +421,7 @@ rk_sendto(int arg1, int arg2, int arg3)
 
 	sock = (const struct sockaddr *)(buff + len);
 	assert(sock);
+	__SOCKADDR_NOLEN((struct sockaddr *)sock);
 
 	return rump___sysimpl_sendto(sockfd, buff, len, flags, sock, addrlen);
 }
@@ -632,6 +640,7 @@ rk_getsockname(int arg1, int arg2)
 	alen = (socklen_t *)tmp;
 
 	ret = rump___sysimpl_getsockname(fdes, asa, alen);
+	__SOCKADDR_NOLEN(asa);
 
 	return ret;
 }
@@ -664,6 +673,7 @@ rk_getpeername(int arg1, int arg2)
 	alen = (socklen_t *)tmp;
 
 	ret = rump___sysimpl_getpeername(fdes, asa, alen);
+	__SOCKADDR_NOLEN(asa);
 
 	return ret;
 }
