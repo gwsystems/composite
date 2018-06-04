@@ -46,6 +46,14 @@
 
 #define BOOT_COMP_MAX_SZ (1 << 24) /* 16 MB for the booter component */
 
+/*
+ * The half of the first page of init captbl is devoted to root node. So, the
+ * first page of captbl can contain 128 caps, and every extra page can hold 256
+ * caps.
+ */
+#define BOOT_CAPTBL_NPAGES ((BOOT_CAPTBL_FREE + CAPTBL_EXPAND_SZ + CAPTBL_EXPAND_SZ * 2 - 1) / (CAPTBL_EXPAND_SZ * 2))
+
+
 #define NUM_CPU 1
 
 #define CPU_TIMER_FREQ 100 // set in your linux .config

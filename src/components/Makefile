@@ -18,10 +18,13 @@ else
 endif
 
 all:
+ifeq ($(PLATFORM), i386)
 	make $(MAKEFLAGS) -C lib
 	make $(MAKEFLAGS) -C interface
 	make $(MAKEFLAGS) -C implementation
-
+else
+	ls
+endif
 cp:
 	make $(MAKEFLAGS) -C implementation cp
 
@@ -40,3 +43,4 @@ init:
 
 idl:
 	$(MAKE) $(MAKEFLAGS) -C interface idl
+

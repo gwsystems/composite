@@ -1,4 +1,5 @@
 include Makefile.src
+$(info platform makeflag $(MAKEFLAGS))
 
 default:
 	$(MAKE) -C $(PLATFORM)
