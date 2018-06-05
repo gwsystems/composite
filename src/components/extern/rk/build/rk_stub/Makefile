@@ -53,6 +53,7 @@ $(RK_APP).o:$(RK_RECIPE_OBJ) $(RK_SRC)
 	@$(RK_CC) $(RK_CFLAGS) -c $(RK_SRC)
 
 clean :
-	rm -f *.o
-	rm -f *.out *.bin
-	rm -f *.tmp
+	$(info | [RM] Cleaning up stub objects)
+	@rm -f *.o
+	@rm -f *.out *.bin
+	@rm -f *.tmp
