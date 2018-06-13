@@ -50,6 +50,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	struct multiboot_mod_list *mods;
 	struct multiboot_mem_list *mems;
 	unsigned int               i, wastage = 0;
+	unsigned int               noncontiguous = 0;
 
 	glb_memlayout.allocs_avail = 1;
 
@@ -100,6 +101,14 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 
 		printk("\t- %d (%s): [%08llx, %08llx) sz = %ldMB + %ldKB\n", i, mem->type == 1 ? "Available" : "Reserved ", mem->addr,
 		       mem->addr + mem->len, MEM_MB_ONLY((u32_t)mem->len), MEM_KB_ONLY((u32_t)mem->len));
+
+		if (mem->type == 1) {
+			noncontiguous++;
+			if (mem->addr < MAX_PA_LIMIT) {
+				/* If we detected more than 2 blocks of memory available and at least one of them is below 4G, break immediately */
+				if (noncontiguous > 2) die("Noncontiguous PA above 16MB is not supported now!\n");
+			}
+		}
 
 		if (mem->addr > COS_PHYMEM_END_PA || mem->addr + mem_len > COS_PHYMEM_END_PA) continue;
 

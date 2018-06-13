@@ -851,20 +851,185 @@ test_captbl_expand(void)
 	PRINTC("Captbl expand SUCCESS.\n");
 }
 
+/* FIXME: values are hard-coded */
+#define TEST_SMALL
+#define TEST_SMALL_OFFSET           0x1000
+#define TEST_SMALL_ACT_OFFSET       0x3000
+#define TEST_SUPERPAGE_VADDR        0x42000000
+#define TEST_SMALLPAGE_VADDR        0x408FE000
+#define TEST_SMALLPAGE_ACT_VADDR    0x408FF000
+#define TEST_SUPERDELEG_VADDR       0x42400000
+
+void
+test_superpages_kernel_api(void)
+{
+
+	unsigned long i;
+	/* Original mem tests use 0x40C00000 to expand its pgtbl. we cannot use that or it will crash */
+	unsigned long *ptr = (unsigned long*)TEST_SUPERPAGE_VADDR;
+	/* This will be used by the memory test */
+	unsigned long *ptr_small = (unsigned long*)TEST_SMALLPAGE_VADDR;
+	unsigned long *ptr_large = (unsigned long*)TEST_SUPERDELEG_VADDR;
+
+	PRINTC("Testing kernel api for superpages.\n");
+
+	/* Activate mem */
+	if(call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEMACTIVATE, TEST_SUPERPAGE_FRAME, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr, SUPER_PAGE_ORDER) != 0) BUG();
+
+	/* Do some rw tests on this - write */
+	PRINTC("Doing R/W tests on superpage....\n");
+	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) ptr[i] = i;
+	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
+		if (ptr[i] != i) BUG();
+	}
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr, 0, 0, 0); 
+	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr, i);
+#ifdef TEST_SMALL
+	PRINTC("Doing delegation test to smaller page....\n");
+	if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, ((unsigned long)ptr) + TEST_SMALL_OFFSET, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr_small, PAGE_ORDER) !=0) BUG();
+	for (i = 0; i < (1 << PAGE_ORDER) / sizeof(unsigned long); i++) {
+		if (ptr_small[i] != i + TEST_SMALL_OFFSET / sizeof(unsigned long)) BUG();
+	}
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr_small, 0, 0, 0); 
+	PRINTC("Introspection on delegated smaller page : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr_small, i);
+
+	PRINTC("Doing activation test to smaller page....\n");
+	ptr_small = (unsigned long*)TEST_SMALLPAGE_ACT_VADDR;
+	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEMACTIVATE, TEST_SUPERPAGE_FRAME + TEST_SMALL_ACT_OFFSET, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr_small, PAGE_ORDER) !=0) BUG();
+	for (i = 0; i < (1 << PAGE_ORDER) / sizeof(unsigned long); i++) {
+		if (ptr_small[i] != i + TEST_SMALL_ACT_OFFSET / sizeof(unsigned long)) BUG();
+	}
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr_small, 0, 0, 0); 
+	PRINTC("Introspection on activated smaller page : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr_small, i);
+#endif
+	PRINTC("Doing delegation test to superpage....\n");
+	if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, (unsigned long)ptr, BOOT_CAPTBL_SELF_PT, (unsigned long)ptr_large, SUPER_PAGE_ORDER) !=0) BUG();
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr_large, 0, 0, 0); 
+	PRINTC("Introspection on delegated superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr_large, i);
+	/* Because we have wrote something in it so we can directly read to validate the content */
+	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
+		if (ptr_large[i] != i) BUG();
+	}
+}
+
+void
+test_superpages_user_api(void)
+{
+	unsigned long i, superpage_ent, size;
+	unsigned long *ptr;
+
+	PRINTC("Testing user api for superpages.\n");
+	ptr = cos_superpage_bump_allocn(&booter_info, (1 << SUPER_PAGE_ORDER), 1);
+
+	/* Do some rw tests on this - write */
+	PRINTC("Doing R/W tests on superpage....\n");
+	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) ptr[i] = i;
+	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
+		if (ptr[i] != i) BUG();
+	}
+	/* Single 4k backed by 4mb page  */
+	PRINTC("SINGLE 4K backed by 4MB page...\n");
+	ptr = cos_superpage_bump_allocn(&booter_info, (1 << PAGE_ORDER), 0);
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr, 0, 0, 0); 
+	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr, i);
+	superpage_ent = i / (1 << SUPER_PAGE_ORDER);
+	for (i = 0; i < (1 << PAGE_ORDER) / sizeof(unsigned long); i++) ptr[i] = i;
+	for (i = 0; i < (1 << PAGE_ORDER) / sizeof(unsigned long); i++) {
+		if (ptr[i] != i) BUG();
+	}
+
+	/* Second 4k page backed by SAME 4mb page  */
+	PRINTC("SECOND 4K backed by SAME 4MB page...\n");
+	ptr = cos_superpage_bump_allocn(&booter_info, (1 << PAGE_ORDER), 0);
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr, 0, 0, 0);
+	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr, i);
+	/* Check to make sure introspection returns correct SAME 4MB pages */
+	if (superpage_ent != i / (1 << SUPER_PAGE_ORDER)) BUG();
+	PRINTC("SUCCESS: sequential 4k allocations use same 4MB page!\n");
+	for (i = 0; i < (1 << PAGE_ORDER) / sizeof(unsigned long); i++) ptr[i] = i;
+	for (i = 0; i < (1 << PAGE_ORDER) / sizeof(unsigned long); i++) {
+		if (ptr[i] != i) BUG();
+	}
+
+	/* Allocate rest of 4Mb plus one -- crosses 4mb boundary */
+	PRINTC("Allocate rest of 4MB plus one -- CROSSES 4MB BOUNDARY...\n");
+	size = (1 << SUPER_PAGE_ORDER) - PAGE_SIZE;
+	ptr = cos_superpage_bump_allocn(&booter_info, size, 0);
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr, 0, 0, 0);
+	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr, i);
+	superpage_ent = i / (1 << SUPER_PAGE_ORDER);
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)(ptr + size), 0, 0, 0);
+	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)(ptr + size), i);
+	/* Check to make sure introspection returns correct DIFFERENT 4MB pages */
+	if (superpage_ent == i / (1 << SUPER_PAGE_ORDER)) BUG();
+	PRINTC("SUCCESS: Introspection works over 4MB boundaries!\n");
+	for (i = 0; i < ((1 << SUPER_PAGE_ORDER) - PAGE_SIZE) / sizeof(unsigned long); i++) ptr[i] = i;
+	for (i = 0; i < ((1 << SUPER_PAGE_ORDER) - PAGE_SIZE) / sizeof(unsigned long); i++) {
+		if (ptr[i] != i) BUG();
+	}
+
+	/* Allocate 4mb page with unaligned heap ptr (from previous allocation) */
+	PRINTC("4MB page with unaligned heap ptr...\n");
+	ptr = cos_superpage_bump_allocn(&booter_info, (1 << SUPER_PAGE_ORDER), 1);
+	i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr, 0, 0, 0);
+	PRINTC("Introspection on superpage : VA 0x%lx content 0x%lx....\n", (unsigned long)ptr, i);
+	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) ptr[i] = i;
+	for (i = 0; i < (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long); i++) {
+		if (ptr[i] != i) BUG();
+	}
+
+	PRINTC("Doing expanded testing on ALL superpages....\n");
+	ptr = cos_superpage_bump_allocn(&booter_info, (TOTAL_SUPERPAGES - 6) * (1 << SUPER_PAGE_ORDER), 1);
+
+	/* Do some rw tests on this - write */
+	PRINTC("Doing R/W tests on superpage.... This can take some time as we overwrite GBs of memory!\n");
+	unsigned long nb_of_writes = (TOTAL_SUPERPAGES - 7) * (1 << SUPER_PAGE_ORDER) / sizeof(unsigned long);
+	PRINTC("Number of writes: %lx \n", nb_of_writes);
+	for (i = 0; i < nb_of_writes ; i++) {
+		ptr[i] = i;
+	}
+	for (i = 0; i < nb_of_writes; i++) {
+		if (ptr[i] != i) {
+			ptr += i;
+			PRINTC("Read failed on entry %lx [%p]\n", i, ptr);
+			i = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (unsigned long)ptr, 0, 0, 0);
+			PRINTC("Introspection on superpage number %lx : VA 0x%lx content 0x%lx....\n",
+					(nb_of_writes * sizeof(unsigned long)) / (2 << SUPER_PAGE_ORDER),
+					(unsigned long)ptr, i);
+			BUG();
+		}
+	}
+	PRINTC("Expanded superpage test SUCCESS.\n");
+}
+
+/* #define KERNEL_TEST */
+void
+test_superpages(void)
+{
+#ifdef KERNEL_TEST
+	test_superpages_kernel_api();
+#else
+	test_superpages_user_api();
+#endif
+	PRINTC("Superpage test SUCCESS.\n");
+}
+
 /* Executed in micro_booter environment */
 void
 test_run_mb(void)
 {
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
+	test_superpages();
+
 	test_timer();
 	test_budgets();
 
 	test_thds();
 	test_thds_perf();
-
+#ifndef TEST_SMALL
 	test_mem();
-
+#endif 
 	test_async_endpoints();
 	test_async_endpoints_perf();
 

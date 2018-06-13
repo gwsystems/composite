@@ -2,6 +2,8 @@
 #include "kernel.h"
 #include "boot_comp.h"
 #include "chal_cpu.h"
+#include "chal/chal_proto.h"
+#include "chal_pgtbl.h"
 #include "mem_layout.h"
 #include "string.h"
 #include <pgtbl.h>
@@ -27,19 +29,36 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 {
 	int               ret;
 	u8_t *            ptes;
-	unsigned int      nptes = 0, i;
+	unsigned int      nptes = 0, i, nsmalls, nsupers, offset, align;
 	struct cap_pgtbl *pte_cap, *pgd_cap;
 	pgtbl_t           pgtbl;
+	int               first = 0;
 
 	pgd_cap = (struct cap_pgtbl *)captbl_lkup(ct, pgdcap);
 	if (!pgd_cap || !CAP_TYPECHK(pgd_cap, CAP_PGTBL)) assert(0);
 	pgtbl = (pgtbl_t)pgd_cap->pgtbl;
 	nptes = boot_nptes(range);
+
+	if ((uvm == 0) && (NUM_SUPERPAGES != 0)) {
+		nsupers = NUM_SUPERPAGES;
+		/* If the user initial address is not aligned to 4M, then the number will be further increased by one */
+		if (user_vaddr & SUPER_PAGE_FLAG_MASK) nptes -= 1;
+		nptes -= nsupers;
+		/* Number of virtual address pages lost due to 4MB alignment problems */
+		align = PGTBL_ENTRY - ((user_vaddr & SUPER_PAGE_PTE_MASK) >> PAGE_ORDER);
+		if (align == PGTBL_ENTRY) align = 0;
+		nsmalls = nptes * PGTBL_ENTRY - align;
+	} else {
+		nsmalls = range / PAGE_SIZE;
+		nsupers = 0;
+		align = 0;
+	}
+
 	ptes  = mem_boot_alloc(nptes);
 	assert(ptes);
 
-	printk("\tCreating %d %s PTEs for PGD @ 0x%x from [%x,%x) to [%x,%x).\n", nptes, label,
-	       chal_pa2va((paddr_t)pgtbl), kern_vaddr, kern_vaddr + range, user_vaddr, user_vaddr + range);
+	printk("\tCreating %d %s PTEs for PGD @ 0x%x from [%x,%x) to [%x,%x), plus %d superpages.\n", nptes, label,
+	       chal_pa2va((paddr_t)pgtbl), kern_vaddr, kern_vaddr + range, user_vaddr, user_vaddr + range, nsupers);
 
 	/*
 	 * Note the use of NULL here.  We aren't actually adding a PTE
@@ -69,17 +88,53 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	}
 
 	printk("\tMapping in %s.\n", label);
-	/* Map in the actual memory. */
-	for (i = 0; i < range / PAGE_SIZE; i++) {
+	/* Map in the actual memory - align to 4MB first */
+	for (i = 0; i < nsmalls; i++) {
 		u8_t *  p     = kern_vaddr + i * PAGE_SIZE;
 		paddr_t pf    = chal_va2pa(p);
 		u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
-
-		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, PGTBL_USER_DEF)) assert(0);
-		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, PGTBL_COSFRAME)) assert(0);
+		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, PAGE_ORDER)) assert(0);
+		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, PAGE_ORDER)) assert(0);
 		assert((void *)p == pgtbl_lkup(pgtbl, user_vaddr + i * PAGE_SIZE, &flags));
 	}
 
+	if ((!uvm) && (NUM_SUPERPAGES != 0)) {
+		/* We have stopped at a superpage boundary */
+		offset = (chal_va2pa(kern_vaddr + i * PAGE_SIZE) & SUPER_PAGE_PTE_MASK) >> PAGE_ORDER;
+		if (offset != 0) offset = PGTBL_ENTRY - offset;
+	
+		/* Map in additional superpages - alignment is the key. Now no matter what, they will be added as user pages directly */
+		for ( ; i + offset < range / PAGE_SIZE; i += PGTBL_ENTRY) {
+			u8_t *  p     = kern_vaddr + (i + offset) * PAGE_SIZE;
+			paddr_t pf    = chal_va2pa(p);
+			u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
+			if (pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, SUPER_PAGE_ORDER)) assert(0);
+			/* Print all superframes so that we know where it is */
+			if (first == 0) {
+				first = 1;
+				printk("\tfirst superpage - kvaddr 0x%x, paddr 0x%x, uvaddr 0x%x\n",p,pf,mapat);
+			}
+			/* FIXME: Unfortunately the function that directly returns kern VA of pgd does not exist, we craft one here */
+			assert((void *)p == chal_pa2va((*pgtbl_lkup_pgd(pgtbl, user_vaddr + i * PAGE_SIZE, &flags)) & PGTBL_FRAME_MASK));
+		}
+		first = 0;
+		printk("\tCreating %d user-only superpages as well - never retype these to kernel.\n",EXTRA_SUPERPAGES);
+		/* These are all user only pages, and they have definitely no kernel VA. Retyping this to kernel is nonsense */
+		for (nsupers = 0; nsupers < EXTRA_SUPERPAGES; nsupers++) {
+			u8_t *  p     = kern_vaddr + (i + offset) * PAGE_SIZE;
+			paddr_t pf    = chal_va2pa(p);
+			u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
+			if (pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, SUPER_PAGE_ORDER)) assert(0);
+			/* These are all user-only pages */
+			if (first == 0) {
+				first = 1;
+				printk("\tfirst user superpage - no kvaddr, paddr 0x%x, uvaddr 0x%x\n",pf,mapat);
+			}
+			/* FIXME: Unfortunately the function that directly returns kern VA of pgd does not exist, we craft one here */
+			assert((void *)p == chal_pa2va((*pgtbl_lkup_pgd(pgtbl, user_vaddr + i * PAGE_SIZE, &flags)) & PGTBL_FRAME_MASK));
+			i += PGTBL_ENTRY;
+		}
+	}
 	return 0;
 }
 

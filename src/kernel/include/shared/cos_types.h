@@ -15,7 +15,7 @@
 #define TYPES_H
 
 #include "./consts.h"
-#include "./cos_config.h"
+#include "../chal/shared/cos_config.h"
 #include "./chal_config.h"
 
 #ifndef LLONG_MAX
@@ -265,13 +265,6 @@ enum
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
-
-/*
- * The half of the first page of init captbl is devoted to root node. So, the
- * first page of captbl can contain 128 caps, and every extra page can hold 256
- * caps.
- */
-#define BOOT_CAPTBL_NPAGES ((BOOT_CAPTBL_FREE + CAPTBL_EXPAND_SZ + CAPTBL_EXPAND_SZ * 2 - 1) / (CAPTBL_EXPAND_SZ * 2))
 
 #define BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE (captbl_tcap_offset(cos_cpuid()))
 #define BOOT_CAPTBL_SELF_INITTHD_CPU_BASE (captbl_thd_offset(cos_cpuid()))

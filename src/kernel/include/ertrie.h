@@ -320,7 +320,6 @@ __ert_walk(struct ert_intern *vi, unsigned long id, void *accum, u32_t lvl, ERT_
  * pointer and returns its destination.  dlimit = depth+1 means that the
  * size of the last-level nodes should be the size of an integer.
  */
-
 static inline CFORCEINLINE void *
 __ert_lookup(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *accum, ERT_CONST_PARAMS)
 {

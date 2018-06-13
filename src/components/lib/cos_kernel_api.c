@@ -17,11 +17,20 @@
 #define printd(...)
 #endif
 
+/* RSK -- move this to proper location, probably consts.h
+ * At this point I'm following runyu's lead but I don't think is
+ * a good long term solution
+ * */
+#define SUPER_PAGE_ORDER 22
+#define SUPER_PAGE_SIZE (1 << SUPER_PAGE_ORDER)
+
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz, pgtblcap_t pgtbl_cap)
 {
 	mi->untyped_ptr = mi->umem_ptr = mi->kmem_ptr = mi->umem_frontier = mi->kmem_frontier = untyped_ptr;
 	mi->untyped_frontier = untyped_ptr + untyped_sz;
+	mi->super_ptr = TEST_SUPERPAGE_FRAME;
+	mi->super_frontier = mi->super_ptr + (TOTAL_SUPERPAGES * SUPER_PAGE_SIZE);
 	mi->pgtbl_cap        = pgtbl_cap;
 }
 
@@ -147,6 +156,62 @@ __untyped_bump_alloc(struct cos_compinfo *ci)
 {
 	printd("__umem_bump_alloc\n");
 	return __mem_bump_alloc(ci, 1, 0);
+}
+
+static int
+__cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, int superpage)
+{
+	int order;
+	assert(srcci && dstci);
+
+	order = (superpage) ? SUPER_PAGE_ORDER : PAGE_ORDER;
+
+	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, order)) BUG();
+
+	return 0;
+}
+
+static vaddr_t
+__superpage_mem_bump_alloc(struct cos_compinfo *ci, vaddr_t addr, int order)
+{
+	vaddr_t              inc, ret = 0;
+	vaddr_t              *ptr, frontier;
+
+	ptr      = &ci->mi.super_ptr;
+	frontier = ci->mi.super_frontier;
+
+	/* Note: this creates a hole! */
+	if (order == SUPER_PAGE_ORDER) {
+	    inc = round_up_to_pgd_page(*ptr + 1) - *ptr; /* RSK -- get the diff to add */
+	} else {
+		inc = 1 << order;
+	}
+	ret = ps_faa(ptr, inc);
+
+	/* RSK -- sanity check */
+    assert(*ptr % (1 << order) == 0);
+	if (ret >= frontier) return 0;
+
+	if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEMACTIVATE, *ptr, BOOT_CAPTBL_SELF_PT, addr, order)) return 0;
+
+	return ret;
+}
+
+/* NOTE: Not advisable to call this in non-booter components such as FWPs. If you would like to be able to use this
+ * functionality in something other than a booter (DPDK, FWP Manager), please talk to @rskennedy! */
+static vaddr_t
+__superpage_mem_bump_allocn(struct cos_compinfo *ci, size_t sz, vaddr_t vaddr, int order)
+{
+	int i, active_page_sz;
+	vaddr_t ret = 0;
+	vaddr_t ptr;
+
+	active_page_sz = 1 << order;
+	for (ptr = vaddr; ptr < vaddr + sz; ptr += active_page_sz) {
+		ret = __superpage_mem_bump_alloc(ci, ptr, order);
+		if (!ret) assert(0);
+	}
+	return vaddr;
 }
 
 /**************** [Capability Allocation Functions] ****************/
@@ -457,6 +522,25 @@ __page_bump_valloc(struct cos_compinfo *ci, size_t sz)
 }
 
 static vaddr_t
+__superpage_bump_valloc(struct cos_compinfo *ci, size_t sz) {
+	vaddr_t inc, ret = 0;
+	vaddr_t *ptr, *frontier;
+
+	ptr      = &ci->vas_frontier;
+	frontier = &ci->vasrange_frontier;
+
+	/* RSK -- expand heap frontier if necessary */
+	if (*ptr + sz > *frontier) {
+		inc = round_up_to_pgd_page(*ptr + sz) - *frontier;
+		ret = ps_faa(frontier, inc);
+	}
+	inc = round_up_to_pgd_page(*ptr + sz) - *ptr;
+	ret = ps_faa(ptr, inc);
+
+	return round_up_to_pgd_page(ret);
+}
+
+static vaddr_t
 __page_bump_alloc(struct cos_compinfo *ci, size_t sz)
 {
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
@@ -486,7 +570,7 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz)
 		if (!umem) return 0;
 
 		/* Actually map in the memory. */
-		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, 0)) {
+		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, PAGE_ORDER)) {
 			assert(0);
 			return 0;
 		}
@@ -743,6 +827,50 @@ cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz)
 	return (void *)__page_bump_alloc(ci, sz);
 }
 
+/* Allocates 4k pages backed by superpages or explicitly mapped superpages.
+ * Note that any range of explicitly mapped superpages will begin at the next 4MB
+ * interval, so the rest of the memory in the current 4MB space will be virtually
+ * inaccessible. Careful not to waste memory!
+ *   */
+void *
+cos_superpage_bump_allocn(struct cos_compinfo *ci, size_t sz, int superpage_aligned)
+{
+	int order;
+	vaddr_t heap_vaddr, heap_cursor, heap_limit;
+
+	order = (superpage_aligned) ? SUPER_PAGE_ORDER : PAGE_ORDER;
+	assert (sz % (1 << order) == 0);
+
+	/*
+	 * Allocate the virtual address range to map into.  This is
+	 * atomic, so we will get a contiguous range of sz.
+	 */
+	if (superpage_aligned) {
+		heap_vaddr = __superpage_bump_valloc(ci, sz);
+	} else {
+		heap_vaddr = __page_bump_valloc(ci, sz);
+	}
+	if (unlikely(!heap_vaddr)) return 0;
+	heap_limit = heap_vaddr + sz;
+	assert(heap_limit > heap_vaddr);
+
+	return (void *)__superpage_mem_bump_allocn(ci, sz, heap_vaddr, order);
+}
+
+void
+cos_retype_all_superpages(struct cos_compinfo *ci)
+{
+	vaddr_t ptr;
+	int i;
+
+	ptr = ci->mi.super_ptr;
+
+	for (i = 0; i < TOTAL_SUPERPAGES - 1; i++) {
+		if (call_cap_op(BOOT_CAPTBL_SELF_UNTYPED_PT, CAPTBL_OP_MEM_RETYPE2USER, ptr, 0, 0, 0)) assert(0);
+		ptr += SUPER_PAGE_SIZE;
+	}
+}
+
 capid_t
 cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_t srcctype, capid_t srccap)
 {
@@ -861,7 +989,7 @@ cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t s
 	first_dst = dst;
 
 	for (i = 0; i < sz; i += PAGE_SIZE, src += PAGE_SIZE, dst += PAGE_SIZE) {
-		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) BUG();
+		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, PAGE_ORDER)) BUG();
 	}
 
 	return first_dst;
@@ -876,12 +1004,9 @@ cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t sr
 int
 cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src)
 {
-	assert(srcci && dstci);
-
-	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) BUG();
-
-	return 0;
+	return __cos_mem_alias_at(dstci, dst, srcci, src, 0);
 }
+
 
 int
 cos_mem_remove(pgtblcap_t pt, vaddr_t addr)

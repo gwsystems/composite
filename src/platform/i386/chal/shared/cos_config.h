@@ -17,7 +17,16 @@
 
 #include "cpu_ghz.h"
 
-
+/* 
+ * FIXME: The macro to set a portion of memory of the booter to super pages - 
+ * should be dynamically passed from kernel to userlevel!
+ */
+#define NUM_SUPERPAGES           139 
+#define MAX_USABLE_MEMORY        1700
+/* FIXME: This is a hack - was 0xD800000, now expanded to 1200MB */
+#define EXTRA_MEMORY             ((MAX_USABLE_MEMORY - 512) << 20)
+#define EXTRA_SUPERPAGES         ((MAX_USABLE_MEMORY - 808) / 4)
+#define TOTAL_SUPERPAGES         (NUM_SUPERPAGES + EXTRA_SUPERPAGES - 1)
 /*
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
  * it is the PA of the kernel.  If you change this, update the kernel
@@ -25,7 +34,7 @@
  */
 #define COS_MEM_KERN_PA (0x00100000)
 #define COS_MEM_KERN_PA_ORDER (29)
-#define COS_MEM_KERN_PA_SZ (1 << COS_MEM_KERN_PA_ORDER)
+#define COS_MEM_KERN_PA_SZ ((1 << COS_MEM_KERN_PA_ORDER) + EXTRA_MEMORY)
 
 #define COS_MEM_COMP_START_VA ((1 << 30) + (1 << 22)) /* 1GB + 4MB (a relic) */
 #define COS_MEM_KERN_START_VA (0xc0000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
@@ -36,6 +45,14 @@
 #define COS_PHYMEM_END_PA ((1 << 30) - COS_HW_MMIO_MAX_SZ) /* Maximum usable physical memory */
 
 #define BOOT_COMP_MAX_SZ (1 << 24) /* 16 MB for the booter component */
+
+/*
+ * The half of the first page of init captbl is devoted to root node. So, the
+ * first page of captbl can contain 128 caps, and every extra page can hold 256
+ * caps.
+ */
+#define BOOT_CAPTBL_NPAGES ((BOOT_CAPTBL_FREE + CAPTBL_EXPAND_SZ + CAPTBL_EXPAND_SZ * 2 - 1) / (CAPTBL_EXPAND_SZ * 2))
+
 
 #define NUM_CPU 1
 

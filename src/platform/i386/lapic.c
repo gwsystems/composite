@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "chal_cpu.h"
 #include "isr.h"
+#include "shared/cpu_ghz.h"
 
 #define APIC_DEFAULT_PHYS 0xfee00000
 #define APIC_HDR_LEN_OFF 0x04
