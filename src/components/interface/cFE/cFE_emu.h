@@ -170,6 +170,22 @@ union shared_region {
 		char   task_name[EMU_BUF_SIZE];
 	} os_taskGetIdByName;
 	struct {
+		uint32 queue_id;
+		char   queue_name[EMU_BUF_SIZE];
+		uint32 queue_depth, data_size, flags;
+	} os_queueCreate;
+	struct {
+		uint32 queue_id;
+		char   queue_name[EMU_BUF_SIZE];
+	} os_queueGetIdByName;
+	struct {
+		uint32 queue_id;
+		char   buffer[EMU_BUF_SIZE];
+		uint32 size;
+		uint32 size_copied;
+		int32  timeout;
+	} os_queueGet;
+	struct {
 		char String[EMU_BUF_SIZE];
 	} cfe_es_writeToSysLog;
 	struct {
@@ -334,6 +350,10 @@ int32 emu_OS_BinSemCreate(spdid_t client);
 int32 emu_OS_CountSemCreate(spdid_t client);
 int32 emu_OS_MutSemCreate(spdid_t client);
 int32 emu_OS_TaskGetIdByName(spdid_t client);
+
+int32 emu_OS_QueueCreate(spdid_t client);
+int32 emu_OS_QueueGet(spdid_t client);
+int32 emu_OS_QueueGetIdByName(spdid_t client);
 
 int32 emu_OS_SymbolLookup(spdid_t client);
 

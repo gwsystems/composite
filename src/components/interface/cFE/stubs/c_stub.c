@@ -999,6 +999,56 @@ OS_TaskGetIdByName(uint32 *task_id, const char *task_name)
 }
 
 int32
+OS_QueueCreate(uint32 *queue_id, const char *queue_name, uint32 queue_depth, uint32 data_size, uint32 flags)
+{
+	int32 result;
+
+	assert(strlen(queue_name) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_queueCreate.queue_name, queue_name);
+	shared_region->os_queueCreate.queue_depth = queue_depth;
+	shared_region->os_queueCreate.data_size   = data_size;
+	shared_region->os_queueCreate.flags       = flags;
+
+	result = emu_OS_QueueCreate(spdid);
+	*queue_id = shared_region->os_queueCreate.queue_id;
+
+	return result;
+}
+
+int32
+OS_QueueGetIdByName(uint32 *queue_id, const char *queue_name)
+{
+	int32 result;
+
+	assert(strlen(queue_name) < EMU_BUF_SIZE);
+
+	strcpy(shared_region->os_queueGetIdByName.queue_name, queue_name);
+	result   = emu_OS_QueueGetIdByName(spdid);
+	*queue_id = shared_region->os_queueGetIdByName.queue_id;
+
+	return result;
+}
+
+int32
+OS_QueueGet(uint32 queue_id, void *data, uint32 size, uint32 *size_copied, int32 timeout)
+{
+	int32 result;
+
+	assert(size < EMU_BUF_SIZE);
+
+	shared_region->os_queueGet.queue_id = queue_id;
+	shared_region->os_queueGet.size     = size;
+	shared_region->os_queueGet.timeout  = timeout;
+
+	result = emu_OS_QueueGet(spdid);
+	*size_copied = shared_region->os_queueGet.size_copied;
+	memcpy(data, (void *)(shared_region->os_queueGet.buffer), *size_copied);
+
+	return result;
+}
+
+int32
 OS_SymbolLookup(cpuaddr *symbol_address, const char *symbol_name)
 {
 	int32 result;

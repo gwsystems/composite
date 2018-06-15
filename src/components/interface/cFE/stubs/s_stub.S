@@ -141,4 +141,8 @@ cos_asm_server_stub(emu_OS_CountSemCreate)
 cos_asm_server_stub(emu_OS_MutSemCreate)
 cos_asm_server_stub(emu_OS_TaskGetIdByName)
 
+cos_asm_server_stub(emu_OS_QueueCreate)
+cos_asm_server_stub(emu_OS_QueueGetIdByName)
+cos_asm_server_stub(emu_OS_QueueGet)
+
 cos_asm_server_stub(emu_OS_SymbolLookup)

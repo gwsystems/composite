@@ -3,6 +3,15 @@
 
 #include <sl.h>
 
+#define HZ_PAUSE (1000 * 1000)
+
+/* We delegate the main thread of execution to a different thread
+ * (the main thread needs to run the scheduling loop)
+ */
+#define MAIN_DELEGATE_THREAD_PRIORITY 2
+#define SENSOREMU_THREAD_PRIORITY 2
+#define TIMER_THREAD_PRIORITY (MAIN_DELEGATE_THREAD_PRIORITY + 1)
+
 /*
  * ThreadId overrides for apps
  */

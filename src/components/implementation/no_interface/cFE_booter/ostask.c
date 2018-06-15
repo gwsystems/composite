@@ -12,8 +12,6 @@
 #include "gen/common_types.h"
 #include "gen/cfe_time.h"
 
-#define HZ_PAUSE (1000 * 1000)
-
 void
 timer_fn_1hz(void *d)
 {
@@ -33,11 +31,6 @@ timer_fn_1hz(void *d)
 /*
  * Internal Task helper functions
  */
-
-/* We delegate the main thread of execution to a different thread
- * (the main thread needs to run the scheduling loop)
- */
-#define MAIN_DELEGATE_THREAD_PRIORITY 2
 
 /*  We need to keep track of this to check if register or delete handler calls are invalid */
 thdid_t main_delegate_thread_id;
@@ -73,7 +66,7 @@ OS_SchedulerStart(cos_thd_fn_t main_delegate)
 
 	timer_thd      = sl_thd_alloc(timer_fn_1hz, NULL);
 	timer_window   = sched_param_pack(SCHEDP_WINDOW, HZ_PAUSE);
-	timer_priority = sched_param_pack(SCHEDP_PRIO, MAIN_DELEGATE_THREAD_PRIORITY + 1);
+	timer_priority = sched_param_pack(SCHEDP_PRIO, TIMER_THREAD_PRIORITY);
 	sl_thd_param_set(timer_thd, timer_window);
 	sl_thd_param_set(timer_thd, timer_priority);
 

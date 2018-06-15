@@ -71,10 +71,13 @@ command_line_set_defaults(struct CFE_PSP_CommandData_t *args)
 uint32                       reset_type;
 struct CFE_PSP_CommandData_t args;
 
+extern void sensoremu_handler(arcvcap_t, void *);
 // This is the delegate function called by the scheduler
 void
 cos_init_delegate(void *data)
 {
+	struct sl_thd *sensoremu_thd;
+
 	OS_printf("CFE_PSP: Doing PSP setup...\n");
 
 #ifdef UNIT_TESTS
@@ -109,6 +112,12 @@ cos_init_delegate(void *data)
 	** Call cFE entry point.
 	*/
 	CFE_ES_MAIN_FUNCTION(reset_type, args.SubType, 1, CFE_ES_NONVOL_STARTUP_FILE);
+
+	OS_printf("CFE_PSP: starting sensor emulation thread..\n");
+	sensoremu_thd = sl_thd_aep_alloc(sensoremu_handler, NULL, 0, 0, 0, 0);
+	assert(sensoremu_thd);
+	sl_thd_param_set(sensoremu_thd, sched_param_pack(SCHEDP_PRIO, SENSOREMU_THREAD_PRIORITY));
+	/* TODO: capmgr_hw_attach() here for HPET interrupt! */
 
 	OS_printf("CFE_PSP: cFE started, main thread sleeping\n");
 

@@ -599,6 +599,30 @@ emu_OS_MutSemCreate(spdid_t client)
 }
 
 int32
+emu_OS_QueueCreate(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+
+	return OS_QueueCreate(&s->os_queueCreate.queue_id, s->os_queueCreate.queue_name, s->os_queueCreate.queue_depth, s->os_queueCreate.data_size, s->os_queueCreate.flags);
+}
+
+int32
+emu_OS_QueueGetIdByName(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+
+	return OS_QueueGetIdByName(&s->os_queueGetIdByName.queue_id, s->os_queueGetIdByName.queue_name);
+}
+
+int32
+emu_OS_QueueGet(spdid_t client)
+{
+	union shared_region *s = shared_regions[client];
+
+	return OS_QueueGet(s->os_queueGet.queue_id, (void *)(s->os_queueGet.buffer), s->os_queueGet.size, &s->os_queueGet.size_copied, s->os_queueGet.timeout);
+}
+
+int32
 emu_OS_TaskGetIdByName(spdid_t client)
 {
 	union shared_region *s = shared_regions[client];
