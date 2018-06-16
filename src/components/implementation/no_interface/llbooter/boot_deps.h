@@ -13,6 +13,15 @@
 /* Assembly function for sinv from new component */
 extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t *ret2, word_t *ret3);
 
+/*Assembly function for sinv for the fault handlers */
+extern word_t fh_div_by_zero_err_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+extern word_t fh_memory_access_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+extern word_t fh_breakpoint_trap_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+extern word_t fh_invalid_instruction_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+extern word_t fh_bound_exceed_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+extern word_t fh_comp_not_exsit_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+extern word_t fh_sinv_invalid_comp_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+
 extern int num_cobj;
 extern int capmgr_spdid;
 extern int root_spdid;
@@ -113,6 +122,63 @@ boot_spd_initaep_get(spdid_t spdid)
 	return cos_sched_aep_get(boot_spd_defcompinfo_get(spdid));
 }
 
+/* The fault handlers*/
+void
+fh_div_by_zero_err(unsigned long sp, unsigned long ip, unsigned long fault_addr)
+{
+	PRINTLOG(PRINT_DEBUG, "in div by zero error fault handler, fault happens in component:%u\n\n", cos_inv_token());
+	call_cap_op(0, 0, 0, 0, 0, 0);
+	return;
+}
+
+void
+fh_memory_access(unsigned long sp, unsigned long ip, unsigned long fault_addr)
+{
+	PRINTLOG(PRINT_DEBUG, "in memory access handler, memory access fault happens in component:%u\n\n", cos_inv_token());
+	call_cap_op(0, 0, 0, 0, 0, 0);
+	return;
+}
+
+void
+fh_breakpoint_trap(unsigned long sp, unsigned long ip, unsigned long fault_addr)
+{
+	PRINTLOG(PRINT_DEBUG, "in breapoint trap handler, breapoint trap happens in component:%u\n\n", cos_inv_token());
+	call_cap_op(0, 0, 0, 0, 0, 0);
+	return;
+}
+
+void
+fh_invalid_instruction(unsigned long sp, unsigned long ip, unsigned long fault_addr)
+{
+	PRINTLOG(PRINT_DEBUG, "in invaild instruction trap handler, invaild instruction happens in component:%u\n\n", cos_inv_token());
+	call_cap_op(0, 0, 0, 0, 0, 0);
+	return;
+}
+
+void
+fh_bound_exceed(unsigned long sp, unsigned long ip, unsigned long fault_addr)
+{
+	PRINTLOG(PRINT_DEBUG, "in bound range exceed fault handler, bound range exceed fault happens in component:%u\n\n", cos_inv_token());
+	call_cap_op(0, 0, 0, 0, 0, 0);
+	return;
+}
+
+void
+fh_comp_not_exsit(unsigned long sp, unsigned long ip, unsigned long fault_addr)
+{
+	PRINTLOG(PRINT_DEBUG, "in component not exists fault handler, component not exists fault happens in component:%u\n\n", cos_inv_token());
+	call_cap_op(0, 0, 0, 0, 0, 0);
+	return;
+}
+
+void
+fh_sinv_invalid_comp(unsigned long sp, unsigned long ip, unsigned long fault_addr)
+{
+	PRINTLOG(PRINT_DEBUG, "in invaild component fault handler, invaild component fault happens in component:%u\n\n", cos_inv_token());
+	call_cap_op(0, 0, 0, 0, 0, 0);
+	return;
+}
+
 static vaddr_t
 boot_deps_map_sect(spdid_t spdid, vaddr_t *mapaddr)
 {
@@ -141,6 +207,22 @@ boot_capmgr_mem_alloc(void)
 	PRINTLOG(PRINT_DEBUG, "Allocating %lu MB untyped memory to capability manager[=%u]\n", mem_sz/(1024*1024), capmgr_spdid);
 
 	cos_meminfo_alloc(capmgr_info, BOOT_MEM_KM_BASE, mem_sz);
+}
+
+static void
+boot_fault_handler_sinv_alloc(spdid_t spdid)
+{
+	invtoken_t  token = (invtoken_t)spdid;
+
+	struct cos_compinfo *comp_info = boot_spd_compinfo_get(spdid);
+	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
+
+	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, BOOT_CAPTBL_FLT_DIVZERO, boot_info->comp_cap, (vaddr_t)fh_div_by_zero_err_inv, token)) BUG();
+	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, BOOT_CAPTBL_FLT_MEM, boot_info->comp_cap, (vaddr_t)fh_memory_access_inv, token)) BUG();
+	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, BOOT_CAPTBL_FLT_BRKPT, boot_info->comp_cap, (vaddr_t)fh_breakpoint_trap_inv, token)) BUG();
+	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, BOOT_CAPTBL_FLT_IVDINS, boot_info->comp_cap, (vaddr_t)fh_invalid_instruction_inv, token)) BUG();
+	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, BOOT_CAPTBL_FLT_BOUND_EXC, boot_info->comp_cap, (vaddr_t)fh_bound_exceed_inv, token)) BUG();
+	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, BOOT_CAPTBL_FLT_COMP_NOT_EXIST, boot_info->comp_cap, (vaddr_t)fh_comp_not_exsit_inv, token)) BUG();
 }
 
 /* Initialize just the captblcap and pgtblcap, due to hack for upcall_fn addr */

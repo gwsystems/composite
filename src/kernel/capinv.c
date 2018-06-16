@@ -969,8 +969,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
 		/* No need to lookup captbl */
-		sret_ret(thd, regs, cos_info);
-		return 0;
+		return sret_ret(thd, regs, cos_info);
 	}
 
 	/* FIXME: use a cap for print */
@@ -994,7 +993,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	}
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
-		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info);
+		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info, 0);
 		return 0;
 	}
 
@@ -1489,8 +1488,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		 * We usually don't have sret cap as we have 0 as the
 		 * default return cap.
 		 */
-		sret_ret(thd, regs, cos_info);
-		return 0;
+		return sret_ret(thd, regs, cos_info);
 	}
 	case CAP_TCAP: {
 		/* TODO: Validate that all tcaps are on the same core */

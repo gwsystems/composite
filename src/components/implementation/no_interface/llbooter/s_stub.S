@@ -1,4 +1,13 @@
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text
+
+cos_asm_server_stub(fh_div_by_zero_err)
+cos_asm_server_stub(fh_memory_access)
+cos_asm_server_stub(fh_breakpoint_trap)
+cos_asm_server_stub(fh_invalid_instruction)
+cos_asm_server_stub(fh_bound_exceed)
+cos_asm_server_stub(fh_comp_not_exsit)
+cos_asm_server_stub(fh_sinv_invalid_comp)
+
 cos_asm_server_stub_rets(hypercall_entry)

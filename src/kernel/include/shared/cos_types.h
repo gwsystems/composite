@@ -223,40 +223,54 @@ captbl_idsize(cap_t c)
  * LLBooter initial captbl setup:
  * 0 = sret,
  * 1-3 = nil,
- * 4-5 = this captbl,
- * 6-7 = our pgtbl root,
- * 8-11 = our component,
- * 12-13 = vm pte for booter
- * 14-15 = untyped memory pgtbl root,
- * 16-17 = vm pte for physical memory,
- * 18-19 = km pte,
- * 20-21 = comp0 captbl,
- * 22-23 = comp0 pgtbl root,
- * 24-27 = comp0 component,
- * 28~(20+2*NCPU) = per core alpha thd
+ * 4-7 = memory fault handler,
+ * 8-11 = divide by zero fault handler,
+ * 12-15 = breapoint fault handler,
+ * 16-19 = invaild instruction fault handler,
+ * 20-23 = bound exceed fault handler,
+ * 24-27 = component not exists fault handler,
+ * 28-31 = sinv to invaild component fault handler,
+ * 32-33 = this captbl,
+ * 34-35 = our pgtbl root,
+ * 36-39 = our component,
+ * 40-41 = vm pte for booter
+ * 42-43 = untyped memory pgtbl root,
+ * 44-45 = vm pte for physical memory,
+ * 46-47 = km pte,
+ * 48-49 = comp0 captbl,
+ * 50-51 = comp0 pgtbl root,
+ * 52-55 = comp0 component,
+ * 56~(48+2*NCPU) = per core alpha thd
  *
  * Initial pgtbl setup (addresses):
  * 1GB+8MB-> = boot component VM
  * 1.5GB-> = kernel memory
  * 2GB-> = system physical memory
  */
-enum
-{
-	BOOT_CAPTBL_SRET            = 0,
-	BOOT_CAPTBL_SELF_CT         = 4,
-	BOOT_CAPTBL_SELF_PT         = 6,
-	BOOT_CAPTBL_SELF_COMP       = 8,
-	BOOT_CAPTBL_BOOTVM_PTE      = 12,
-	BOOT_CAPTBL_SELF_UNTYPED_PT = 14,
-	BOOT_CAPTBL_PHYSM_PTE       = 16,
-	BOOT_CAPTBL_KM_PTE          = 18,
+ enum
+ {
+ 	BOOT_CAPTBL_SRET               = 0,
+ 	BOOT_CAPTBL_FLT_MEM            = 4,
+ 	BOOT_CAPTBL_FLT_DIVZERO        = 8,
+ 	BOOT_CAPTBL_FLT_BRKPT          = 12,
+ 	BOOT_CAPTBL_FLT_IVDINS         = 16,
+ 	BOOT_CAPTBL_FLT_BOUND_EXC      = 20,
+ 	BOOT_CAPTBL_FLT_COMP_NOT_EXIST = 24,
+	BOOT_CAPTBL_FLT_IVD_SINVCOMP   = 28,
+ 	BOOT_CAPTBL_SELF_CT            = 32,
+ 	BOOT_CAPTBL_SELF_PT            = 34,
+ 	BOOT_CAPTBL_SELF_COMP          = 36,
+ 	BOOT_CAPTBL_BOOTVM_PTE         = 40,
+ 	BOOT_CAPTBL_SELF_UNTYPED_PT    = 42,
+ 	BOOT_CAPTBL_PHYSM_PTE          = 44,
+ 	BOOT_CAPTBL_KM_PTE             = 46,
 
-	BOOT_CAPTBL_COMP0_CT           = 20,
-	BOOT_CAPTBL_COMP0_PT           = 22,
-	BOOT_CAPTBL_COMP0_COMP         = 24,
-	BOOT_CAPTBL_SINV_CAP           = 28,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 32,
-	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ,
+ 	BOOT_CAPTBL_COMP0_CT           = 48,
+ 	BOOT_CAPTBL_COMP0_PT           = 50,
+ 	BOOT_CAPTBL_COMP0_COMP         = 52,
+ 	BOOT_CAPTBL_SINV_CAP           = 56,
+ 	BOOT_CAPTBL_SELF_INITTHD_BASE  = 60,
+ 	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ,
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU * CAP16B_IDSZ,
                                                          CAPMAX_ENTRY_SZ),
 	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
