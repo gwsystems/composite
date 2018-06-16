@@ -518,7 +518,7 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 	top  = &thd->invstk[curr_invstk_top(cos_info) + 1];
 	curr_invstk_inc(cos_info);
 	prev->ip          = ip;
-	prev->sp 		  = sp;
+	prev->sp          = sp;
 	prev->fault_flag  = fault_flag;
 	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
 	top->ip = top->sp = top->fault_flag = 0;
