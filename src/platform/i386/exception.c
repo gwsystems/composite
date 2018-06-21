@@ -46,9 +46,10 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 
 	fh = captbl_lkup(cos_info->captbl, cap);
 
-	regs->si  = regs->sp;
-	regs->di  = regs->ip;
-	regs->dx  = fault_addr;
+	regs->bx = regs->sp;
+	regs->si = regs->ip;
+	regs->di = fault_addr;
+	regs->dx = cap;
 
 	fault_flag = 1;
 	if (likely(fh->type == CAP_SINV)){
