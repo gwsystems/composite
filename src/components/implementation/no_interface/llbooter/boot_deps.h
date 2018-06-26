@@ -14,13 +14,13 @@
 extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t arg3, word_t *ret2, word_t *ret3);
 
 /*Assembly function for sinv for the fault handlers */
-extern word_t fh_div_by_zero_err_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
-extern word_t fh_memory_access_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
-extern word_t fh_breakpoint_trap_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
-extern word_t fh_invalid_instruction_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
-extern word_t fh_bound_exceed_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
-extern word_t fh_comp_not_exsit_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
-extern word_t fh_sinv_invalid_comp_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
+extern word_t fh_div_by_zero_err_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+extern word_t fh_memory_access_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+extern word_t fh_breakpoint_trap_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+extern word_t fh_invalid_instruction_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+extern word_t fh_bound_exceed_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+extern word_t fh_comp_not_exsit_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
+extern word_t fh_sinv_invalid_comp_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr);
 
 extern int num_cobj;
 extern int capmgr_spdid;
@@ -124,7 +124,7 @@ boot_spd_initaep_get(spdid_t spdid)
 
 /* The fault handlers*/
 void
-fh_div_by_zero_err(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+fh_div_by_zero_err(unsigned long sp, unsigned long ip, unsigned long fault_addr)
 {
 	PRINTLOG(PRINT_DEBUG, "in div by zero error fault handler, fault happens in component:%u\n\n", cos_inv_token());
 	call_cap_op(0, 0, 0, 0, 0, 0);
@@ -132,15 +132,16 @@ fh_div_by_zero_err(unsigned long sp, unsigned long ip, unsigned long fault_addr,
 }
 
 void
-fh_memory_access(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+fh_memory_access(unsigned long sp, unsigned long ip, unsigned long fault_addr)
 {
 	PRINTLOG(PRINT_DEBUG, "in memory access handler, memory access fault happens in component:%u\n\n", cos_inv_token());
+	//boot_thd_done(cos_inv_token());
 	call_cap_op(0, 0, 0, 0, 0, 0);
 	return;
 }
 
 void
-fh_breakpoint_trap(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+fh_breakpoint_trap(unsigned long sp, unsigned long ip, unsigned long fault_addr)
 {
 	PRINTLOG(PRINT_DEBUG, "in breapoint trap handler, breapoint trap happens in component:%u\n\n", cos_inv_token());
 	call_cap_op(0, 0, 0, 0, 0, 0);
@@ -148,7 +149,7 @@ fh_breakpoint_trap(unsigned long sp, unsigned long ip, unsigned long fault_addr,
 }
 
 void
-fh_invalid_instruction(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+fh_invalid_instruction(unsigned long sp, unsigned long ip, unsigned long fault_addr)
 {
 	PRINTLOG(PRINT_DEBUG, "in invaild instruction trap handler, invaild instruction happens in component:%u\n\n", cos_inv_token());
 	call_cap_op(0, 0, 0, 0, 0, 0);
@@ -156,7 +157,7 @@ fh_invalid_instruction(unsigned long sp, unsigned long ip, unsigned long fault_a
 }
 
 void
-fh_bound_exceed(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+fh_bound_exceed(unsigned long sp, unsigned long ip, unsigned long fault_addr)
 {
 	PRINTLOG(PRINT_DEBUG, "in bound range exceed fault handler, bound range exceed fault happens in component:%u\n\n", cos_inv_token());
 	call_cap_op(0, 0, 0, 0, 0, 0);
@@ -164,7 +165,7 @@ fh_bound_exceed(unsigned long sp, unsigned long ip, unsigned long fault_addr, un
 }
 
 void
-fh_comp_not_exsit(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+fh_comp_not_exsit(unsigned long sp, unsigned long ip, unsigned long fault_addr)
 {
 	PRINTLOG(PRINT_DEBUG, "in component not exists fault handler, component not exists fault happens in component:%u\n\n", cos_inv_token());
 	call_cap_op(0, 0, 0, 0, 0, 0);
@@ -172,7 +173,7 @@ fh_comp_not_exsit(unsigned long sp, unsigned long ip, unsigned long fault_addr, 
 }
 
 void
-fh_sinv_invalid_comp(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+fh_sinv_invalid_comp(unsigned long sp, unsigned long ip, unsigned long fault_addr)
 {
 	PRINTLOG(PRINT_DEBUG, "in invaild component fault handler, invaild component fault happens in component:%u\n\n", cos_inv_token());
 	call_cap_op(0, 0, 0, 0, 0, 0);
@@ -213,6 +214,8 @@ static void
 boot_fault_handler_sinv_alloc(spdid_t spdid)
 {
 	invtoken_t  token = (invtoken_t)spdid;
+
+	printc("spdid: %d\n", spdid);
 
 	struct cos_compinfo *comp_info = boot_spd_compinfo_get(spdid);
 	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();

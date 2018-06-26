@@ -50,7 +50,6 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 	regs->si = regs->ip;
 	regs->di = fault_addr;
 	regs->dx = cap;
-
 	fault_flag = 1;
 	if (likely(fh->type == CAP_SINV)){
 		sinv_call(curr_thd, (struct cap_sinv *)fh, regs, ci, fault_flag);
