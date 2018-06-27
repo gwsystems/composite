@@ -268,7 +268,7 @@ arcv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
  */
 
 static inline void
-sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, struct cos_cpu_local_info *cos_info)
+sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, struct cos_cpu_local_info *cos_info, unsigned long fault_flag)
 {
 	unsigned long ip, sp;
 
@@ -288,7 +288,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 		return;
 	}
 
-	if (unlikely(thd_invstk_push(thd, &sinvc->comp_info, ip, sp, cos_info))) {
+	if (unlikely(thd_invstk_push(thd, &sinvc->comp_info, ip, sp, fault_flag, cos_info))) {
 		__userregs_set(regs, -1, sp, ip);
 		return;
 	}
@@ -303,28 +303,34 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	return;
 }
 
-static inline void
+static inline int
 sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *cos_info)
 {
 	struct comp_info *ci;
 	unsigned long     ip, sp;
+	unsigned long     fault_flag = 1;
 
-	ci = thd_invstk_pop(thd, &ip, &sp, cos_info);
+	ci = thd_invstk_pop(thd, &ip, &sp, &fault_flag, cos_info);
 	if (unlikely(!ci)) {
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
-		return;
+		goto ret;
 	}
 
 	if (unlikely(!ltbl_isalive(&ci->liveness))) {
 		printk("cos: ret comp (liveness %d) doesn't exist!\n", ci->liveness.id);
 		// FIXME: add fault handling here.
 		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
-		return;
+		goto ret;
 	}
-
 	pgtbl_update(ci->pgtbl);
 	/* Set return sp and ip and function return value in eax */
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);
+	ret:
+	if (unlikely(fault_flag)) {
+		copy_all_regs(&(thd->fault_regs), regs);
+		return 1;
+	}
+	return 0;
 }
 
 static void

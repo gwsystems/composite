@@ -21,12 +21,51 @@ print_regs_state(struct pt_regs *regs)
 	PRINTK("(Exception Error Code-> ORIG_AX: %x)\n", regs->orig_ax);
 }
 
+static void
+fault_regs_save(struct pt_regs *regs, struct thread *thd)
+{
+	copy_all_regs(regs, &(thd->fault_regs));
+	PRINTK("Fault registers saved.\n");
+}
+
+int
+fault_handler_sinv(struct pt_regs *regs, capid_t cap)
+{
+	struct cos_cpu_local_info *ci       = cos_cpu_local_info();
+	struct thread             *curr_thd = thd_current(ci);
+	struct cap_header         *fh;
+	struct comp_info          *cos_info;
+	thdid_t                    thdid = curr_thd->tid;
+	unsigned long              ip, sp, fault_flag;
+	u32_t                      fault_addr = 0, errcode, eip;
+
+	print_regs_state(regs);
+	fault_regs_save (regs, curr_thd);
+
+	cos_info = thd_invstk_current(curr_thd, &ip, &sp, ci);
+
+	fh = captbl_lkup(cos_info->captbl, cap);
+
+	regs->bx = regs->sp;
+	regs->si = regs->ip;
+	regs->di = fault_addr;
+	regs->dx = cap;
+
+	fault_flag = 1;
+	if (likely(fh->type == CAP_SINV)){
+		sinv_call(curr_thd, (struct cap_sinv *)fh, regs, ci, fault_flag);
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
 int
 div_by_zero_err_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
-	die("FAULT: Divide by Zero Error\n\n");
-
+	if (!fault_handler_sinv(regs, BOOT_CAPTBL_FLT_DIVZERO)) {
+		die("FAULT: Divide by Zero Error\n");
+	}
 	return 1;
 }
 
@@ -42,9 +81,9 @@ debug_trap_handler(struct pt_regs *regs)
 int
 breakpoint_trap_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
-	die("TRAP: Breakpoint\n");
-
+	if (!fault_handler_sinv(regs, BOOT_CAPTBL_FLT_BRKPT)) {
+		die("TRAP: Breakpoint\n");
+	}
 	return 1;
 }
 
@@ -60,18 +99,18 @@ overflow_trap_handler(struct pt_regs *regs)
 int
 bound_range_exceed_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
-	die("FAULT: Bound Range Exceeded\n");
-
+	if (!fault_handler_sinv(regs, BOOT_CAPTBL_FLT_BOUND_EXC)) {
+		die("FAULT: Bound Range Exceeded\n");
+	}
 	return 1;
 }
 
 int
 invalid_opcode_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
-	die("FAULT: Invalid opcode\n");
-
+	if (!fault_handler_sinv(regs, BOOT_CAPTBL_FLT_IVDINS)) {
+		die("FAULT: Invalid opcode\n");
+	}
 	return 1;
 }
 
@@ -123,29 +162,18 @@ stack_seg_fault_handler(struct pt_regs *regs)
 int
 gen_protect_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
-	die("FAULT: General Protection Fault\n");
-
+	if (!fault_handler_sinv(regs, BOOT_CAPTBL_FLT_MEM)) {
+		die("FAULT: General Protection Fault\n");
+	}
 	return 1;
 }
 
 int
 page_fault_handler(struct pt_regs *regs)
 {
-	u32_t                      fault_addr, errcode = 0, eip = 0;
-	struct cos_cpu_local_info *ci    = cos_cpu_local_info();
-	thdid_t                    thdid = thd_current(ci)->tid;
-
-	print_regs_state(regs);
-	fault_addr = chal_cpu_fault_vaddr(regs);
-	errcode    = chal_cpu_fault_errcode(regs);
-	eip        = chal_cpu_fault_ip(regs);
-
-	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%x, ip 0x%x\n", thdid,
-	    errcode & PGTBL_PRESENT ? "present" : "not-present",
-	    errcode & PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & PGTBL_USER ? "user-mode" : "system",
-	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, eip);
-
+	if (!fault_handler_sinv(regs, BOOT_CAPTBL_FLT_MEM)) {
+		die("FAULT: Page Fault\n");
+	}
 	return 1;
 }
 
