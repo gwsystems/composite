@@ -805,7 +805,13 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4, wo
 		b[5] = (arg4 >> 16) & 0xFF;
 		b[6] = (arg4 >> 8) & 0xFF;
 		b[7] = arg4 & 0xFF;
-		b[8] = '\0';
+
+		b[8] = (arg5 >> 24) & 0xFF;
+		b[9] = (arg5 >> 16) & 0xFF;
+		b[10] = (arg5 >> 8) & 0xFF;
+		b[11] = arg5 & 0xFF;
+
+		b[12] = '\0';
 
 		ret1 = 0;
 		for (i = 0; hs[i] != NULL; i++) {

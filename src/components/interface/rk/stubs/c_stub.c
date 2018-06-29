@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <rk_socketcall_types.h>
+#include <fcntl.h>
 
 static inline vaddr_t
 rk_get_shm_callvaddr(cbuf_t *shmid)
@@ -71,10 +72,47 @@ rk_inv_write(int fd, const void *buf, size_t nbyte)
 	return rk_write(fd, shmid, nbyte);
 }
 
+ssize_t
+rk_inv_writev(int fd, const struct iovec *iov, int iovcnt)
+{
+	cbuf_t shmid = 0;
+	vaddr_t shmaddr = NULL;
+	struct iovec *tmpiov = NULL;
+	int i = 0, off = 0;
+	ssize_t ret;
+	void *tmpbuf = NULL;
+
+	shmaddr = rk_get_shm_callvaddr(&shmid);
+	tmpiov = (struct iovec *)shmaddr;
+	off = sizeof(struct iovec) * iovcnt;
+	memcpy(tmpiov, iov, off);
+	tmpbuf = (void *)(shmaddr + off);
+
+	for (i = 0; i < iovcnt; i++) {
+		if (i) tmpbuf += (tmpiov[i-1].iov_len);
+
+		memcpy(tmpbuf, tmpiov[i].iov_base, tmpiov[i].iov_len);
+		tmpiov[i].iov_base = tmpbuf;
+	}
+
+	ret = rk_writev(fd, iovcnt, shmid);
+
+	return ret;
+}
+
 int
 rk_inv_close(int fd)
 {
 	return rk_close(fd);
+}
+
+int
+rk_inv_fcntl(int fd, int cmd, void *arg)
+{
+	/* TODO: implement complete fcntl */
+	if (cmd != F_SETFL) assert(0);
+
+	return rk_fcntl(fd, cmd, (int)arg);
 }
 
 int
@@ -343,79 +381,55 @@ rk_inv_socketcall(int call, unsigned long *args)
 			break;
 		}
 		case SOCKETCALL_SENDTO: { /* sendto */
-			int fd, flags;
-			vaddr_t shmaddr_tmp;
-			const void *buff;
-			void *shdmem_buff;
-			size_t len;
-			const struct sockaddr *addr;
-			struct sockaddr *shdmem_sockaddr;
-			socklen_t addrlen;
+			int sockfd = *args;
+			void *outptr = (void *)*(args + 1);
+			size_t len = (size_t)*(args + 2);
+			int flags = (int)*(args + 3);
+			struct sockaddr *dest_addr = (struct sockaddr *)*(args + 4);
+			socklen_t addrlen = (socklen_t)*(args + 5);
 
-			fd      = (int)*args;
-			buff    = (const void *)*(args + 1);
-			len     = (size_t)*(args + 2);
-			flags   = (int)*(args + 3);
-			addr    = (const struct sockaddr *)*(args + 4);
-			addrlen = (socklen_t)*(args + 5);
-
-			shmaddr_tmp = shmaddr;
-			shdmem_buff = (void *)shmaddr_tmp;
-			memcpy(shdmem_buff, buff, len);
-			shmaddr_tmp += len;
-
-			shdmem_sockaddr = (struct sockaddr*)shmaddr_tmp;
-			memcpy(shdmem_sockaddr, addr, addrlen);
-
-			assert(fd <= 0xFFFF);
-			assert(shmid <= 0xFFFF);
-			assert(len <= 0xFFFF);
-			assert(flags <= 0xFFFF);
-			assert(shmid <= (int)0xFFFF);
-			assert(addrlen <= (int)0xFFFF);
-
-			ret = rk_sendto((fd << 16) | shmid, (len << 16) | flags,
-					(shmid << 16) | addrlen);
+			*(int *)shmaddr = flags;
+			*(socklen_t *)(shmaddr + 4) = addrlen;
+			memcpy((void *)(shmaddr + 8), dest_addr, sizeof(struct sockaddr_storage));
+			assert(len <= (PAGE_SIZE - 8 - sizeof(struct sockaddr_storage)));
+			memcpy((void *)(shmaddr + 8 + sizeof(struct sockaddr_storage)), outptr, len);
+			ret = rk_sendto(sockfd, len, shmid);
 
 			break;
 		}
 		case SOCKETCALL_RECVFROM: { /* recvfrom */
-			int s, flags;
-			vaddr_t shmaddr_tmp;
-			void *buff;
-			size_t len;
-			struct sockaddr *from_addr;
-			u32_t *from_addr_len_ptr;
+			int sockfd = (int)*args;
+			void *inptr = (void *)*(args + 1), *shmbuf = NULL;
+			size_t len = (size_t)*(args + 2);
+			int flags = (int)*(args + 3);
+			struct sockaddr *src_addr = (struct sockaddr *)*(args + 4);
+			socklen_t *addrlenptr = (socklen_t *)*(args + 5);
 
-			s                 = *args;
-			buff              = (void *)*(args + 1);
-			len               = *(args + 2);
-			flags             = *(args + 3);
-			from_addr         = (struct sockaddr *)*(args + 4);
-			from_addr_len_ptr = (u32_t *)*(args + 5);
+			*(int *)shmaddr = flags;
+			if (src_addr == NULL) {
+				*(int *)(shmaddr + 4) = 0;
+				*(socklen_t *)(shmaddr + 8) = 0;
+			} else {
+				*(int *)(shmaddr + 4) = 1;
+				*(socklen_t *)(shmaddr + 8) = *addrlenptr;
+			}
+			memset((void *)(shmaddr + 12), 0, sizeof(struct sockaddr_storage));
+			shmbuf = (void *)(shmaddr + 12 + sizeof(struct sockaddr_storage));
 
-			assert(s <= 0xFFFF);
-			assert(shmid <= 0xFFFF);
-			assert(len <= 0xFFFF);
-			assert(flags <= 0xFFFF);
-			assert(shmid <= 0xFFFF);
-			assert((*from_addr_len_ptr) <= 0xFFFF);
+			assert(len <= (PAGE_SIZE - (12 + sizeof(struct sockaddr_storage))));
+			memset(shmbuf, 0, len);
 
-			ret = rk_recvfrom((s << 16) | shmid, (len << 16) | flags,
-					  (shmid << 16) | (*from_addr_len_ptr));
+			ret = rk_recvfrom(sockfd, len, shmid);
 
-			/* TODO, put this in a function */
-			/* Copy buffer back to its original value*/
-			shmaddr_tmp = shmaddr;
-			memcpy(buff, (const void * __restrict__)shmaddr_tmp, ret);
-			shmaddr_tmp += len; /* Add overall length of buffer */
+			if (ret < 0) break;
 
-			/* Set from_addr_len_ptr pointer to be shared memory at right offset */
-			*from_addr_len_ptr = *(u32_t *)shmaddr_tmp;
-			shmaddr_tmp += sizeof(u32_t *);
+			if (src_addr) {
+				*addrlenptr = *(socklen_t *)(shmaddr + 8);
+				memcpy(src_addr, (void *)(shmaddr + 12), *addrlenptr);
+			}
 
-			/* Copy from_addr to be shared memory at right offset */
-			memcpy(from_addr, (const void * __restrict__)shmaddr_tmp, *from_addr_len_ptr);
+			if (ret == 0) break;
+			memcpy(inptr, shmbuf, ret);
 
 			break;
 		}

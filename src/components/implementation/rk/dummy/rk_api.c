@@ -90,6 +90,18 @@ rk_write(int arg1, int arg2, int arg3)
 	return sinv_client_call(&sinv_info, RK_WRITE, arg1, arg2, arg3);
 }
 
+int
+rk_fcntl(int arg1, int arg2, int arg3)
+{
+	return sinv_client_call(&sinv_info, RK_FCNTL, arg1, arg2, arg3);
+}
+
+ssize_t
+rk_writev(int fd, int iovcnt, int shmid)
+{
+	return sinv_client_call(&sinv_info, RK_WRITEV, fd, iovcnt, shmid);
+}
+
 long
 rk_read(int arg1, int arg2, int arg3)
 {

@@ -27,6 +27,8 @@ struct queue {
 
 	uint32 head;
 	uint32 tail;
+
+	struct sl_lock lock;
 };
 
 struct queue queues[OS_MAX_QUEUES];
@@ -36,17 +38,19 @@ char queue_data[OS_MAX_QUEUES][MAX_QUEUE_DATA_SIZE];
 int32
 OS_QueueCreate(uint32 *queue_id, const char *queue_name, uint32 queue_depth, uint32 data_size, uint32 flags)
 {
-	int32  i;
+	int32  i, ret = OS_SUCCESS;
 	uint32 qid;
 
 	if (queue_id == NULL || queue_name == NULL) { return OS_INVALID_POINTER; }
 
 	if (strlen(queue_name) >= OS_MAX_API_NAME) { return OS_ERR_NAME_TOO_LONG; }
 
+	sl_lock_take(&queue_lock);
 	/* Check to see if the name is already taken */
 	for (i = 0; i < OS_MAX_QUEUES; i++) {
 		if ((queues[i].used == TRUE) && strcmp((char *)queue_name, queues[i].name) == 0) {
-			return OS_ERR_NAME_TAKEN;
+			ret = OS_ERR_NAME_TAKEN;
+			goto done;
 		}
 	}
 
@@ -56,24 +60,37 @@ OS_QueueCreate(uint32 *queue_id, const char *queue_name, uint32 queue_depth, uin
 	}
 
 	/* Fail if there are too many queues */
-	if (qid >= OS_MAX_QUEUES || queues[qid].used == TRUE) { return OS_ERR_NO_FREE_IDS; }
+	if (qid >= OS_MAX_QUEUES || queues[qid].used == TRUE) {
+		ret = OS_ERR_NO_FREE_IDS;
+		goto done;
+	}
 
 	/* OS_ERROR may also be returned in the event that an OS call fails, but none are used here */
 
+	sl_lock_init(&(queues[qid].lock));
 	*queue_id                   = qid;
 	queues[*queue_id].used      = TRUE;
 	queues[*queue_id].depth     = queue_depth;
 	queues[*queue_id].data_size = data_size;
 	strcpy(queues[*queue_id].name, queue_name);
 
-	return OS_SUCCESS;
+done:
+	sl_lock_release(&queue_lock);
+	return ret;
 }
 
 int32
 OS_QueueDelete(uint32 queue_id)
 {
+	int32 ret = OS_SUCCESS;
+
 	if (queue_id > OS_MAX_QUEUES) { return OS_ERR_INVALID_ID; }
-	if (queues[queue_id].used == FALSE) { return OS_ERR_INVALID_ID; }
+
+	sl_lock_take(&queue_lock);
+	if (queues[queue_id].used == FALSE) {
+		ret = OS_ERR_INVALID_ID;
+		goto done;
+	}
 
 	/* Reset all values in the queue */
 	queues[queue_id].used      = FALSE;
@@ -83,18 +100,29 @@ OS_QueueDelete(uint32 queue_id)
 	queues[queue_id].head = 0;
 	queues[queue_id].tail = 0;
 
-	return OS_SUCCESS;
+done:
+	sl_lock_release(&queue_lock);
+
+	return ret;
 }
 
 int32
 OS_QueuePoll(uint32 queue_id, void *data, uint32 size, uint32 *size_copied)
 {
+	int32 ret = OS_SUCCESS;
 	uint32 i;
 
+	sl_lock_take(&queues[queue_id].lock);
 	/* Check if there are messages to be received */
-	if (queues[queue_id].head == queues[queue_id].tail) { return OS_QUEUE_EMPTY; }
+	if (queues[queue_id].head == queues[queue_id].tail) {
+		ret = OS_QUEUE_EMPTY;
+		goto done;
+	}
 
-	if (size < queues[queue_id].data_size) { return OS_QUEUE_INVALID_SIZE; }
+	if (size < queues[queue_id].data_size) {
+		ret = OS_QUEUE_INVALID_SIZE;
+		goto done;
+	}
 
 	struct queue *cur = &queues[queue_id];
 
@@ -104,7 +132,10 @@ OS_QueuePoll(uint32 queue_id, void *data, uint32 size, uint32 *size_copied)
 	/* Advance the queue head, wrapping if it is passed `depth` */
 	cur->head = (cur->head + 1) % cur->depth;
 
-	return OS_SUCCESS;
+done:
+	sl_lock_release(&queues[queue_id].lock);
+
+	return ret;
 }
 
 int32
@@ -115,17 +146,11 @@ OS_QueueGet(uint32 queue_id, void *data, uint32 size, uint32 *size_copied, int32
 	int32  current_interval;
 	int    result = OS_ERROR;
 
-	sl_lock_take(&queue_lock);
+	if (queue_id > OS_MAX_QUEUES) return OS_ERR_INVALID_ID;
 
-	if (queue_id > OS_MAX_QUEUES || queues[queue_id].used == FALSE) {
-		result = OS_ERR_INVALID_ID;
-		goto exit;
-	}
+	if (data == NULL || size_copied == NULL) return OS_INVALID_POINTER;
 
-	if (data == NULL || size_copied == NULL) {
-		result = OS_INVALID_POINTER;
-		goto exit;
-	}
+	if (queues[queue_id].used == FALSE) return OS_ERR_INVALID_ID;
 
 	/* FIXME: Block instead of poll */
 	if (timeout == OS_CHECK) {
@@ -139,16 +164,14 @@ OS_QueueGet(uint32 queue_id, void *data, uint32 size, uint32 *size_copied, int32
 
 	for (current_interval = 0; current_interval < intervals; current_interval++) {
 		result = OS_QueuePoll(queue_id, data, size, size_copied);
-		if (result == OS_SUCCESS) { goto exit; }
-		sl_lock_release(&queue_lock);
+		if (result == OS_SUCCESS) break;
 		OS_TaskDelay(50);
-		sl_lock_take(&queue_lock);
 	}
 	assert(result != OS_ERROR);
 
 exit:
-	sl_lock_release(&queue_lock);
 	if (result != OS_SUCCESS && timeout != OS_CHECK) { return OS_QUEUE_TIMEOUT; }
+
 	return result;
 }
 
@@ -168,6 +191,7 @@ OS_QueuePut(uint32 queue_id, const void *data, uint32 size, uint32 flags)
 
 	if (data == NULL) { return OS_INVALID_POINTER; }
 
+	sl_lock_take(&queues[queue_id].lock);
 	/* Check if space remains in the queue */
 	if ((queues[queue_id].tail + 1) % queues[queue_id].depth == queues[queue_id].head) { return OS_QUEUE_FULL; }
 
@@ -178,6 +202,7 @@ OS_QueuePut(uint32 queue_id, const void *data, uint32 size, uint32 flags)
 
 	/* Advance the queue tail, wrapping if it is past `depth` */
 	cur->tail = (cur->tail + 1) % cur->depth;
+	sl_lock_release(&queues[queue_id].lock);
 
 	return OS_SUCCESS;
 }
@@ -193,6 +218,7 @@ OS_QueueGetIdByName(uint32 *queue_id, const char *queue_name)
 
 	if (strlen(queue_name) > OS_MAX_API_NAME) { return OS_ERR_NAME_TOO_LONG; }
 
+	sl_lock_take(&queue_lock);
 	for (i = 0; i < OS_MAX_QUEUES; ++i) {
 		if (strcmp(queue_name, queues[i].name) == 0) {
 			*queue_id   = i;
@@ -201,6 +227,7 @@ OS_QueueGetIdByName(uint32 *queue_id, const char *queue_name)
 		}
 	}
 
+	sl_lock_release(&queue_lock);
 	if (queue_found == FALSE) { return OS_ERR_NAME_NOT_FOUND; }
 
 	return OS_SUCCESS;
@@ -218,7 +245,9 @@ OS_QueueGetInfo(uint32 queue_id, OS_queue_prop_t *queue_prop)
 	/* TODO: Identify creator; `0` is a dummy value */
 	queue_prop->creator = 0;
 
+	sl_lock_take(&queues[queue_id].lock);
 	strcpy(queue_prop->name, queues[queue_id].name);
+	sl_lock_release(&queues[queue_id].lock);
 
 	/*
 	 * NOTE: The OSAL documentation claims that there are two additional fields in `OS_queue_prop_t` called `free`

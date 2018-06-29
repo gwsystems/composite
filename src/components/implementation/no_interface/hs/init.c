@@ -5,12 +5,15 @@
 extern void HS_AppMain();
 extern void OS_IdleLoop();
 extern void do_emulation_setup(spdid_t id);
+extern void posix_rk_init(int);
 
 void cos_init(void)
 {
     do_emulation_setup(cos_comp_info.cos_this_spd_id);
-    printc("Starting HS main\n");
+    posix_rk_init(0);
+
+    PRINTC("Starting HS main\n");
     HS_AppMain();
-    printc("Ending HS main\n");
+    PRINTC("Ending HS main\n");
     while(1) OS_IdleLoop();
 }

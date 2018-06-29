@@ -11,9 +11,12 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/uio.h>
 #include <rk_types.h>
 #include <sinv_async.h>
 #include <rk_socketcall_types.h>
+#include <fcntl.h>
+#include <errno.h>
 
 /* call acom_client_init() on rk_sinv_info using RK_CLIENT(instance) as key and make sure there is a stubcomp which listens to requests on "rk" stub side */
 /* call acom_client_thread_init() for every thread that is going to communicate with RK.. because this is ACOM, threads are expected to be AEPS and pass the rcv aep key.. To be unique and consistent use RK_RKEY() api for the key in AEP creation */
@@ -74,6 +77,12 @@ rk_write_acom(struct sinv_async_info *rk_sinv_info, int arg1, int arg2, int arg3
 }
 
 static inline long
+rk_writev_acom(struct sinv_async_info *rk_sinv_info, int arg1, int arg2, int arg3, tcap_res_t r, tcap_prio_t p)
+{
+	return acom_client_request(rk_sinv_info, RK_WRITEV, arg1, arg2, arg3, r, p);
+}
+
+static inline long
 rk_read_acom(struct sinv_async_info *rk_sinv_info, int arg1, int arg2, int arg3, tcap_res_t r, tcap_prio_t p)
 {
 	return acom_client_request(rk_sinv_info, RK_READ, arg1, arg2, arg3, r, p);
@@ -113,6 +122,12 @@ static inline int
 rk_close_acom(struct sinv_async_info *rk_sinv_info, int fd, tcap_res_t r, tcap_prio_t p)
 {
 	return acom_client_request(rk_sinv_info, RK_CLOSE, fd, 0, 0, r, p);
+}
+
+static inline int
+rk_fcntl_acom(struct sinv_async_info *rk_sinv_info, int fd, int cmd, int arg3, tcap_res_t r, tcap_prio_t p)
+{
+	return acom_client_request(rk_sinv_info, RK_FCNTL, fd, cmd, arg3, r, p);
 }
 
 static inline int
@@ -196,6 +211,45 @@ rk_inv_write_acom(struct sinv_async_info *rk_sinv_info, int fd, const void *buf,
 	memcpy((void *)shmaddr, buf, nbyte);
 
 	return rk_write_acom(rk_sinv_info, fd, shmid, nbyte, r, p);
+}
+
+static inline int
+rk_inv_fcntl_acom(struct sinv_async_info *rk_sinv_info, int fd, int cmd, void *arg, tcap_res_t r, tcap_prio_t p)
+{
+	if (cmd != F_SETFL) assert(0);
+
+	return rk_fcntl_acom(rk_sinv_info, fd, cmd, (int)arg, r, p);
+}
+
+static inline ssize_t
+rk_inv_writev_acom(struct sinv_async_info *rk_sinv_info, int fd, const struct iovec *iov, int iovcnt, tcap_res_t r, tcap_prio_t p)
+{
+	cbuf_t shmid = 0;
+	vaddr_t shmaddr = NULL;
+	struct iovec *tmpiov = NULL;
+	int i = 0, off = 0;
+	ssize_t ret, total = 0;
+	void *tmpbuf = NULL;
+
+	shmaddr = rk_get_shm_callvaddr_acom(&shmid);
+	tmpiov = (struct iovec *)shmaddr;
+	off = sizeof(struct iovec) * iovcnt;
+	memcpy(tmpiov, iov, off);
+	total += off;
+	tmpbuf = (void *)(shmaddr + off);
+
+	for (i = 0; i < iovcnt; i++) {
+		if (i) tmpbuf += (tmpiov[i-1].iov_len);
+		total += tmpiov[i].iov_len;
+
+		assert(total <= PAGE_SIZE);
+		memcpy(tmpbuf, tmpiov[i].iov_base, tmpiov[i].iov_len);
+	}
+
+	assert(total <= PAGE_SIZE);
+	ret = rk_writev_acom(rk_sinv_info, fd, iovcnt, shmid, r, p);
+
+	return ret;
 }
 
 static inline int
@@ -342,13 +396,6 @@ rk_inv_socketcall_acom(struct sinv_async_info *rk_sinv_info, int call, unsigned 
 
 	shmaddr = rk_get_shm_callvaddr_acom(&shmid);
 
-	/*
-	 * Set and unset by sendto and recvfrom to ensure that only 1 thread
-	 * is sending and recieving packets. This means that we will never have
-	 * have more than 1 packet in the send or recv shdmem page at a given time
-	 */
-	static int canSend = 0;
-
 	switch (call) {
 		case SOCKETCALL_SOCKET: { /* socket */
 			int domain, type, protocol;
@@ -373,8 +420,7 @@ rk_inv_socketcall_acom(struct sinv_async_info *rk_sinv_info, int call, unsigned 
 			break;
 		}
 		case SOCKETCALL_BIND: { /* bind */
-			int sockfd, bindshmid;
-			vaddr_t bindshmaddr;
+			int sockfd;
 			void *addr;
 			u32_t addrlen;
 
@@ -382,19 +428,8 @@ rk_inv_socketcall_acom(struct sinv_async_info *rk_sinv_info, int call, unsigned 
 			addr    = (void *)*(args + 1);
 			addrlen = *(args + 2);
 
-			/*
-			 * Do stupid shared memory for now
-			 * allocate a page for each bind addr
-			 * don't deallocate. #memLeaksEverywhere
-			 * We don't have to fix this for now as we only have 1 bind
-			 */
-
-			/* TODO make this a function */
-			bindshmid = memmgr_shared_page_alloc(&bindshmaddr);
-			assert(bindshmid > -1 && bindshmaddr > 0);
-
-			memcpy((void * __restrict__)bindshmaddr, addr, addrlen);
-			ret = rk_bind_acom(rk_sinv_info, sockfd, bindshmid, addrlen, r, p);
+			memcpy((void * __restrict__)shmaddr, addr, addrlen);
+			ret = rk_bind_acom(rk_sinv_info, sockfd, shmid, addrlen, r, p);
 
 			break;
 		}
@@ -487,85 +522,52 @@ rk_inv_socketcall_acom(struct sinv_async_info *rk_sinv_info, int call, unsigned 
 			break;
 		}
 		case SOCKETCALL_SENDTO: { /* sendto */
-			int fd, flags;
-			vaddr_t shmaddr_tmp;
-			const void *buff;
-			void *shdmem_buff;
-			size_t len;
-			const struct sockaddr *addr;
-			struct sockaddr *shdmem_sockaddr;
-			socklen_t addrlen;
+			int sockfd = *args;
+			void *outptr = (void *)*(args + 1);
+			size_t len = (size_t)*(args + 2);
+			int flags = (int)*(args + 3);
+			struct sockaddr *dest_addr = (struct sockaddr *)*(args + 4);
+			socklen_t addrlen = (socklen_t)*(args + 5);
 
-			fd      = (int)*args;
-			buff    = (const void *)*(args + 1);
-			len     = (size_t)*(args + 2);
-			flags   = (int)*(args + 3);
-			addr    = (const struct sockaddr *)*(args + 4);
-			addrlen = (socklen_t)*(args + 5);
-
-			assert(canSend == 1);
-			canSend = 0;
-
-			shmaddr_tmp = shmaddr;
-			shdmem_buff = (void *)shmaddr_tmp;
-			memcpy(shdmem_buff, buff, len);
-			shmaddr_tmp += len;
-
-			shdmem_sockaddr = (struct sockaddr*)shmaddr_tmp;
-			memcpy(shdmem_sockaddr, addr, addrlen);
-
-			assert(fd <= 0xFFFF);
-			assert(shmid <= 0xFFFF);
-			assert(len <= 0xFFFF);
-			assert(flags <= 0xFFFF);
-			assert(shmid <= (int)0xFFFF);
-			assert(addrlen <= (int)0xFFFF);
-
-			ret = rk_sendto_acom(rk_sinv_info, (fd << 16) | shmid, (len << 16) | flags,
-					(shmid << 16) | addrlen, r, p);
-
+			*(int *)shmaddr = flags;
+			*(socklen_t *)(shmaddr + 4) = addrlen;
+			memcpy((void *)(shmaddr + 8), dest_addr, sizeof(struct sockaddr_storage));
+			assert(len <= (PAGE_SIZE - 8 - sizeof(struct sockaddr_storage)));
+			memcpy((void *)(shmaddr + 8 + sizeof(struct sockaddr_storage)), outptr, len);
+			ret = rk_sendto_acom(rk_sinv_info, sockfd, len, shmid, r, p);
 			break;
 		}
 		case SOCKETCALL_RECVFROM: { /* recvfrom */
-			int s, flags;
-			vaddr_t shmaddr_tmp;
-			void *buff;
-			size_t len;
-			struct sockaddr *from_addr;
-			u32_t *from_addr_len_ptr;
+			int sockfd = (int)*args;
+			void *inptr = (void *)*(args + 1), *shmbuf = NULL;
+			size_t len = (size_t)*(args + 2);
+			int flags = (int)*(args + 3);
+			struct sockaddr *src_addr = (struct sockaddr *)*(args + 4);
+			socklen_t *addrlenptr = (socklen_t *)*(args + 5);
 
-			s                 = *args;
-			buff              = (void *)*(args + 1);
-			len               = *(args + 2);
-			flags             = *(args + 3);
-			from_addr         = (struct sockaddr *)*(args + 4);
-			from_addr_len_ptr = (u32_t *)*(args + 5);
+			*(int *)shmaddr = flags;
+			if (src_addr == NULL) {
+				*(int *)(shmaddr + 4) = 0;
+				*(socklen_t *)(shmaddr + 8) = 0;
+			} else {
+				*(int *)(shmaddr + 4) = 1;
+				*(socklen_t *)(shmaddr + 8) = *addrlenptr;
+			}
+			memset((void *)(shmaddr + 12), 0, sizeof(struct sockaddr_storage));
+			shmbuf = (void *)(shmaddr + 12 + sizeof(struct sockaddr_storage));
 
-			assert(canSend == 0);
-			canSend = 1;
+			assert(len <= (PAGE_SIZE - (12 + sizeof(struct sockaddr_storage))));
 
-			assert(s <= 0xFFFF);
-			assert(shmid <= 0xFFFF);
-			assert(len <= 0xFFFF);
-			assert(flags <= 0xFFFF);
-			assert(shmid <= 0xFFFF);
-			assert((*from_addr_len_ptr) <= 0xFFFF);
+			ret = rk_recvfrom_acom(rk_sinv_info, sockfd, len, shmid, r, p);
+			if (ret < 0) break;
 
-			ret = rk_recvfrom_acom(rk_sinv_info, (s << 16) | shmid, (len << 16) | flags,
-					  (shmid << 16) | (*from_addr_len_ptr), r, p);
+			if (src_addr) {
+				*addrlenptr = *(socklen_t *)(shmaddr + 8);
+				memcpy(src_addr, (void *)(shmaddr + 12), *addrlenptr);
+			}
 
-			/* TODO, put this in a function */
-			/* Copy buffer back to its original value*/
-			shmaddr_tmp = shmaddr;
-			memcpy(buff, (const void * __restrict__)shmaddr_tmp, ret);
-			shmaddr_tmp += len; /* Add overall length of buffer */
-
-			/* Set from_addr_len_ptr pointer to be shared memory at right offset */
-			*from_addr_len_ptr = *(u32_t *)shmaddr_tmp;
-			shmaddr_tmp += sizeof(u32_t *);
-
-			/* Copy from_addr to be shared memory at right offset */
-			memcpy(from_addr, (const void * __restrict__)shmaddr_tmp, *from_addr_len_ptr);
+			if (ret == 0) break;
+			memcpy(inptr, shmbuf, ret);
 
 			break;
 		}

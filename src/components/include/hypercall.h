@@ -209,7 +209,7 @@ hypercall_numcomps_get(void)
 	return cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_NUMCOMPS_GET, 0, 0, 0);
 }
 
-#define HYPERCALL_COMPNAME_MAX 8
+#define HYPERCALL_COMPNAME_MAX 12
 
 static inline spdid_t
 hypercall_comp_id_get(char *comp_name)
@@ -235,7 +235,12 @@ hypercall_comp_id_get(char *comp_name)
 	word_2 = (word_2 << 8) | b[6];
 	word_2 = (word_2 << 8) | b[7];
 
-	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_ID_GET, word_1, word_2, 0);
+	word_t word_3 = b[8];
+	word_3 = (word_3 << 8) | b[9];
+	word_3 = (word_3 << 8) | b[10];
+	word_3 = (word_3 << 8) | b[11];
+
+	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_ID_GET, word_1, word_2, word_3);
 
 	return ret;
 }

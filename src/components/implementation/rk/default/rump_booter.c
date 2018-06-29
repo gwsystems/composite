@@ -131,11 +131,13 @@ rump_booter_init(void *d)
 	//script = RK_JSON_UDPSERV_QEMU;
 	//script = RK_JSON_UDPSERV_HW;
 	//script = RK_JSON_IPERF_QEMU;
-	script = RK_JSON_IPERF_HW;
+	//script = RK_JSON_IPERF_HW;
 	//script = RK_JSON_HTTP_QEMU;
 	//script = RK_JSON_HTTP_HW;
-	//script = RK_JSON_I42STUB_HTTP_QEMU;
-	//script = RK_JSON_I42STUB_HTTP_HW;
+	script = RK_JSON_KITTOSTUB_KITCISTUB_HTTP_QEMU;
+	//script = RK_JSON_KITTOSTUB_KITCISTUB_HTTP_HW;
+	//script = RK_JSON_KITTOSTUB_KITCISTUB_TFTPSTUB_HTTP_QEMU;
+	//script = RK_JSON_KITTOSTUB_KITCISTUB_TFTPSTUB_HTTP_HW;
 
 	rk_alloc_run(script);
 	PRINTC("\nRumpKernel Boot done.\n");

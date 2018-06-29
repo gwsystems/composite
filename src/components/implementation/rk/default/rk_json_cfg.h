@@ -24,7 +24,8 @@
 #define RK_JSON_HTTP_QEMU "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"http\",},\0"
 #define RK_JSON_UDPSERV_QEMU "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"udpserv\",},\0"
 #define RK_JSON_HTTP_UDPSERV_IPERF_QEMU "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"http.udpserv.iperf\",},\0"
-#define RK_JSON_I42STUB_HTTP_QEMU "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"i42stub.http\",},\0"
+#define RK_JSON_KITTOSTUB_KITCISTUB_HTTP_QEMU "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"kittostub.kitcistub.http\",},\0"
+#define RK_JSON_KITTOSTUB_KITCISTUB_TFTPSTUB_HTTP_QEMU "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"kittostub.kitcistub.tftpstub.http\",},\0"
 
 #define RK_JSON_UDPSTUB_HTTP_HW "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"udpstub.http\",},\0"
 #define RK_JSON_HTTP_UDPSERV_HW "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"http.udpserv\",},\0"
@@ -32,6 +33,7 @@
 #define RK_JSON_HTTP_HW "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"http\",},\0"
 #define RK_JSON_UDPSERV_HW "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"udpserv\",},\0"
 #define RK_JSON_HTTP_UDPSERV_IPERF_HW "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"http.udpserv.iperf\",},\0"
-#define RK_JSON_I42STUB_HTTP_HW "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"i42stub.http\",},\0"
+#define RK_JSON_KITTOSTUB_KITCISTUB_HTTP_HW "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"kittostub.kitcistub.http\",},\0"
+#define RK_JSON_KITTOSTUB_KITCISTUB_TFTPSTUB_HTTP_HW "{,\"net\":{,\"if\":\"wm0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"192.168.0.2\",\"mask\":\"24\",},\"cmdline\":\"kittostub.kitcistub.tftpstub.http\",},\0"
 
 #endif /* RK_JSON_CFG_H */

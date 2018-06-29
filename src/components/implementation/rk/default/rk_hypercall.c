@@ -5,11 +5,13 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/uio.h>
 #include <rumpcalls.h>
 #include <vk_types.h>
 #include <llprint.h>
 #include <rk.h>
 #include <memmgr.h>
+#include <fcntl.h>
 
 int     rump___sysimpl_socket30(int, int, int);
 int     rump___sysimpl_bind(int, const struct sockaddr *, socklen_t);
@@ -31,7 +33,8 @@ ssize_t rump___sysimpl_write(int, const void *, size_t);
 ssize_t rump___sysimpl_read(int, const void *, size_t);
 void   *rump_mmap(void *, size_t, int, int, int, off_t);
 int     rump___sysimpl_close(int);
-
+ssize_t rump___sysimpl_writev(int, const struct iovec *, int);
+int     rump___sysimpl_fcntl(int, int, void *);
 
 #define __SOCKADDR_NOLEN(s) do { if ((s)->sa_family >= (1 << 8)) (s)->sa_family >>= 8; } while (0)
 
@@ -55,7 +58,7 @@ rk_thdcalldata_shm_map(cbuf_t id)
 		id_calldata[cos_thdid()] = id;
 	}
 
-	assert(id_calldata[cos_thdid()] && addr_calldata[cos_thdid()]);
+	assert(id_calldata[cos_thdid()] == id && addr_calldata[cos_thdid()]);
 
 	return addr_calldata[cos_thdid()];
 }
@@ -336,94 +339,106 @@ rk_bind(int sockfd, int shmid, socklen_t addrlen)
 	return ret;
 }
 
-ssize_t
-rk_recvfrom(int arg1, int arg2, int arg3)
+
+#define RK_MSG_OOB         0x0001          /* process out-of-band data */
+#define RK_MSG_PEEK        0x0002          /* peek at incoming message */
+#define RK_MSG_DONTROUTE   0x0004          /* send without using routing tables */
+#define RK_MSG_EOR         0x0008          /* data completes record */
+#define RK_MSG_TRUNC       0x0010          /* data discarded before delivery */
+#define RK_MSG_CTRUNC      0x0020          /* control data lost before delivery */
+#define RK_MSG_WAITALL     0x0040          /* wait for full request or error */
+#define RK_MSG_DONTWAIT    0x0080          /* this message should be nonblocking */
+#define RK_MSG_NOSIGNAL    0x0400          /* do not generate SIGPIPE on EOF */
+#define RK_MSG_CMSG_CLOEXEC 0x0800         /* close on exec receiving fd */
+
+#define MUSL_MSG_OOB       0x0001
+#define MUSL_MSG_PEEK      0x0002
+#define MUSL_MSG_DONTROUTE 0x0004
+#define MUSL_MSG_CTRUNC    0x0008
+#define MUSL_MSG_TRUNC     0x0020
+#define MUSL_MSG_DONTWAIT  0x0040
+#define MUSL_MSG_EOR       0x0080
+#define MUSL_MSG_WAITALL   0x0100
+#define MUSL_MSG_NOSIGNAL  0x4000
+#define MUSL_MSG_CMSG_CLOEXEC 0x40000000
+
+int
+rk_send_rcv_flags(int musl_flag)
 {
-	/*
-	 * TODO, simplify this, this is so ugly because it combines two functions that now
-	 * don't need to be separated
-	 */
-	static int shdmem_id = 0;
-	static vaddr_t my_addr = 0;
-	vaddr_t my_addr_tmp;
-	void *buff;
-	struct sockaddr *from;
-	socklen_t *from_addr_len_ptr;
-	int s, buff_shdmem_id, flags, from_shdmem_id, from_addr_len, ret;
-	size_t len;
+	int rk_flag = 0;
 
-	s = (arg1 >> 16);
-	buff_shdmem_id = (arg1 << 16) >> 16;
-	len = (arg2 >> 16);
-	flags = (arg2 << 16) >> 16;
-	from_shdmem_id = (arg3 >> 16);
-	from_addr_len = (arg3 << 16) >> 16;
+	if (musl_flag & MUSL_MSG_OOB) rk_flag |= RK_MSG_OOB;
+	if (musl_flag & MUSL_MSG_DONTROUTE) rk_flag |= RK_MSG_DONTROUTE;
+	if (musl_flag & MUSL_MSG_PEEK) rk_flag |= RK_MSG_PEEK;
+	if (musl_flag & MUSL_MSG_CTRUNC) rk_flag |= RK_MSG_CTRUNC;
+	if (musl_flag & MUSL_MSG_EOR) rk_flag |= RK_MSG_EOR;
+	if (musl_flag & MUSL_MSG_TRUNC) rk_flag |= RK_MSG_TRUNC;
+	if (musl_flag & MUSL_MSG_WAITALL) rk_flag |= RK_MSG_WAITALL;
+	if (musl_flag & MUSL_MSG_DONTWAIT) rk_flag |= RK_MSG_DONTWAIT;
+	if (musl_flag & MUSL_MSG_NOSIGNAL) rk_flag |= RK_MSG_NOSIGNAL;
+	if (musl_flag & MUSL_MSG_CMSG_CLOEXEC) rk_flag |= RK_MSG_CMSG_CLOEXEC;
+	/* NOTE: not all flags in musl are supported by RK! */
 
-	if (shdmem_id == 0 && my_addr == 0) {
-		shdmem_id = buff_shdmem_id;
-		my_addr = rk_thdcalldata_shm_map(shdmem_id);
-		assert(my_addr);
+	return rk_flag;
+}
+
+ssize_t
+rk_recvfrom(int sockfd, int len, int shmid)
+{
+	void *buf = NULL;
+	static vaddr_t shmaddr = 0;
+	struct sockaddr *src_addr = NULL;
+	socklen_t *addrlen = NULL;
+	static int old_shmid = 0;
+	int flags = 0;
+	ssize_t ret = 0;
+
+	if (old_shmid != shmid && shmaddr == 0) {
+		old_shmid = shmid;
+		shmaddr = rk_thdcalldata_shm_map(shmid);
+		assert(shmaddr);
 	}
+	assert(shmaddr && shmid > 0 && shmid == old_shmid);
 
-	assert(shdmem_id > 0);
-	assert(my_addr > 0);
-	/* We are using only one page, make sure the id is the same */
-	assert(buff_shdmem_id == from_shdmem_id && buff_shdmem_id == shdmem_id);
+	addrlen = (socklen_t *)(shmaddr + 8);
+	if (flags == MUSL_MSG_DONTWAIT) flags = 0;
+	assert(flags == 0); /* TODO: check if a flag can be supported or not! not all are supported or compatible */
+	if (*(int *)(shmaddr + 4) == 1) src_addr = (struct sockaddr *)(shmaddr + 12);
+	buf = (void *)(shmaddr + 12 + sizeof(struct sockaddr_storage));
 
-	/* TODO, put this in a function */
-	/* In the shared memory page, first comes the message buffer for len amount */
-	my_addr_tmp = my_addr;
-	buff = (void *)my_addr_tmp;
-	my_addr_tmp += len;
-
-	/* Second is from addr length ptr */
-	from_addr_len_ptr  = (void *)my_addr_tmp;
-	*from_addr_len_ptr = from_addr_len;
-	my_addr_tmp += sizeof(socklen_t *);
-
-	/* Last is the from socket address */
-	from = (struct sockaddr *)my_addr_tmp;
-
-	ret = rump___sysimpl_recvfrom(s, buff, len, flags, from, from_addr_len_ptr);
-	__SOCKADDR_NOLEN(from);
+	ret = rump___sysimpl_recvfrom(sockfd, buf, len, flags, src_addr, addrlen);
+	if (src_addr) __SOCKADDR_NOLEN(src_addr);
 
 	return ret;
 }
 
 ssize_t
-rk_sendto(int arg1, int arg2, int arg3)
+rk_sendto(int sockfd, int len, int shmid)
 {
-	static int shdmem_id = 0;
-	static const void *buff;
-	const struct sockaddr *sock;
-	vaddr_t addr;
-	int sockfd, flags, buff_shdmem_id, addr_shdmem_id, ret;
-	size_t len;
-	socklen_t addrlen;
+	static int old_shmid = 0;
+	static vaddr_t shmaddr = 0;
+	struct sockaddr *dest_addr = NULL;
+	socklen_t addrlen = 0;
+	void *buf = NULL;
+	ssize_t ret;
+	int flags;
 
-	sockfd            = (arg1 >> 16);
-	buff_shdmem_id    = (arg1 << 16) >> 16;
-	len               = (arg2 >> 16);
-	flags             = (arg2 << 16) >> 16;
-	addr_shdmem_id    = (arg3 >> 16);
-	addrlen           = (arg3 << 16) >> 16;
-
-	if (shdmem_id == 0 && buff == 0) {
-		shdmem_id = buff_shdmem_id;
-		addr = rk_thdcalldata_shm_map(shdmem_id);
-		assert(addr);
-		buff = (const void *)addr;
+	if (old_shmid != shmid && shmaddr == 0) {
+		old_shmid = shmid;
+		shmaddr = rk_thdcalldata_shm_map(shmid);
+		assert(shmaddr);
 	}
+	assert(shmaddr && shmid > 0 && shmid == old_shmid);
 
-	assert(shdmem_id > 0);
-	assert(buff);
-	assert(buff_shdmem_id == addr_shdmem_id && buff_shdmem_id == shdmem_id);
+	flags = rk_send_rcv_flags(*(int *)shmaddr);
+	addrlen = *(socklen_t *)(shmaddr + 4);
+	dest_addr = (struct sockaddr *)(shmaddr + 8);
+	buf = (void *)(shmaddr + 8 + sizeof(struct sockaddr_storage));
+	__SOCKADDR_NOLEN(dest_addr);
 
-	sock = (const struct sockaddr *)(buff + len);
-	assert(sock);
-	__SOCKADDR_NOLEN((struct sockaddr *)sock);
+	ret = rump___sysimpl_sendto(sockfd, (const void *)buf, len, flags, (const struct sockaddr *)dest_addr, addrlen);
 
-	return rump___sysimpl_sendto(sockfd, buff, len, flags, sock, addrlen);
+	return ret;
 }
 
 #define RK_SOL_SOCKET     0xffff
@@ -550,6 +565,53 @@ rk_write(int arg1, int arg2, int arg3)
 	assert(buf && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
 
 	return (long)rump___sysimpl_write(fd, buf, nbyte);
+}
+
+#define MUSL_O_LARGEFILE 0100000
+
+#define RK_F_GETFL         3               /* get file status flags */
+#define RK_F_SETFL         4               /* set file status flags */
+
+#define MUSL_F_GETFL  3
+#define MUSL_F_SETFL  4
+
+int
+rk_fcntl(int fd, int cmd, int arg3)
+{
+	assert(cmd == F_SETFL);
+	assert(arg3 == (MUSL_O_NONBLOCK | MUSL_O_LARGEFILE));
+
+	arg3 = RK_O_NONBLOCK;
+
+	return rump___sysimpl_fcntl(fd, cmd, arg3);
+}
+
+ssize_t
+rk_writev(int fd, int iovcnt, int shmid)
+{
+	int shdmem_id, ret, i = 0;
+	static struct iovec *iobuf = NULL;
+	static int old_shdmem_id = 0;
+	void *tmpbuf = NULL;
+
+	shdmem_id = shmid;
+
+	if (iobuf == NULL || old_shdmem_id != shdmem_id) {
+		old_shdmem_id = shdmem_id;
+		iobuf = (struct iovec *)rk_thdcalldata_shm_map(shdmem_id);
+		assert(iobuf);
+	}
+
+	assert(iobuf && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
+
+	tmpbuf = ((void *)iobuf) + (sizeof(struct iovec) * iovcnt);
+	for (i = 0; i < iovcnt; i++) {
+		/* update shared memory addresses to my virtual addresses! */
+		if (i) tmpbuf += iobuf[i-1].iov_len;
+		iobuf[i].iov_base = tmpbuf;
+	}
+
+	return rump___sysimpl_writev(fd, (const struct iovec *)iobuf, iovcnt);
 }
 
 long

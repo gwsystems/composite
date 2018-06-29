@@ -427,7 +427,7 @@ OS_printf(const char *string, ...)
 	va_start(arg_ptr, string);
 	ret = vsnprintf(s, len, string, arg_ptr);
 	va_end(arg_ptr);
-	cos_llprint(s, ret);
+	PRINTC("%s", s);
 }
 
 void

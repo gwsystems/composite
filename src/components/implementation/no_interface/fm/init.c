@@ -9,8 +9,8 @@ extern void do_emulation_setup(spdid_t id);
 void cos_init(void)
 {
     do_emulation_setup(cos_comp_info.cos_this_spd_id);
-    printc("Starting FM main\n");
+    PRINTC("Starting FM main\n");
     FM_AppMain();
-    printc("Ending FM main\n");
+    PRINTC("Ending FM main\n");
     while(1) OS_IdleLoop();
 }

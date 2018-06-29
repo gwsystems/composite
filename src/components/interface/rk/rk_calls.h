@@ -43,6 +43,9 @@ rk_api(rk_api_t api)
 	case RK_MMAP:
 		apiaddr = (vaddr_t)&rk_mmap;
 		break;
+	case RK_WRITEV:
+		apiaddr = (vaddr_t)&rk_writev;
+		break;
 	case RK_WRITE:
 		apiaddr = (vaddr_t)&rk_write;
 		break;
@@ -64,6 +67,9 @@ rk_api(rk_api_t api)
 	case RK_OPEN:
 		apiaddr = (vaddr_t)&rk_open;
 		break;
+	case RK_FCNTL:
+		apiaddr = (vaddr_t)&rk_fcntl;
+		break;
 	case RK_CLOSE:
 		apiaddr = (vaddr_t)&rk_close;
 		break;
@@ -84,7 +90,5 @@ rk_api(rk_api_t api)
 
 	return apiaddr;
 }
-
-
 
 #endif /* RK_CALLS_H */

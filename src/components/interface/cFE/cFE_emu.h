@@ -13,7 +13,7 @@
 
 #define SHARED_REGION_NUM_PAGES 5
 
-#define EMU_BUF_SIZE 1024
+#define EMU_BUF_SIZE 2048
 #define EMU_TBL_BUF_SIZE (4 * 4096)
 
 /* TODO: Alphabetize me! */
@@ -28,6 +28,9 @@ union shared_region {
 		uint16          Depth;
 		char            PipeName[OS_MAX_API_NAME];
 	} cfe_sb_createPipe;
+	struct {
+		CFE_SB_PipeId_t PipeId;
+	} cfe_sb_deletePipe;
 	struct {
 		char           MsgBuffer[EMU_BUF_SIZE];
 		CFE_SB_MsgId_t MsgId;
@@ -48,8 +51,13 @@ union shared_region {
 		char            Msg[EMU_BUF_SIZE];
 	} cfe_sb_rcvMsg;
 	struct {
-		CFE_SB_Msg_t Msg;
-	} cfe_sb_getMsgLen;
+		char Msg[EMU_BUF_SIZE];
+		CFE_SB_MsgId_t MsgId;
+	} cfe_sb_setMsgId;
+	struct {
+		char Msg[EMU_BUF_SIZE];
+		uint16       TotalLength;
+	} cfe_sb_setTotalMsgLength;
 	struct {
 		char Msg[EMU_BUF_SIZE];
 	} cfe_sb_msg;
@@ -201,6 +209,13 @@ union shared_region {
 	} cfe_es_calculateCRC;
 	struct {
 		uint32 AppId;
+	} cfe_es_getAppID;
+	struct {
+		char   AppName[EMU_BUF_SIZE];
+		uint32 AppId, BufferLength;
+	} cfe_es_getAppName;
+	struct {
+		uint32 AppId;
 		char   AppName[EMU_BUF_SIZE];
 	} cfe_es_getAppIDByName;
 	struct {
@@ -227,6 +242,8 @@ union shared_region {
 		char               RestoreToMemory[EMU_BUF_SIZE];
 	} cfe_es_restoreFromCDS;
 	struct {
+		thdclosure_index_t            idx;
+		thdid_t                       tid;
 		uint32                        TaskId;
 		char                          TaskName[EMU_BUF_SIZE];
 		CFE_ES_ChildTaskMainFuncPtr_t FunctionPtr;
@@ -239,6 +256,10 @@ union shared_region {
 		uint32           TblSize;
 		uint16           TblOptionFlags;
 	} cfe_tbl_register;
+	struct {
+		CFE_TBL_Handle_t TblHandle;
+		char             TblName[EMU_BUF_SIZE];
+	} cfe_tbl_share;
 	struct {
 		CFE_TBL_Handle_t TblHandle;
 		char             Buffer[EMU_TBL_BUF_SIZE];
@@ -267,24 +288,27 @@ union shared_region {
 	} sched_thd_block_timeout;
 };
 
-int  emu_request_memory(spdid_t client);
+/* for current thread or child thread.. to allow multi-threaded INVs to cFE */
+int  emu_request_memory(spdid_t client, thdid_t tid);
 arcvcap_t emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_channelkey_t key);
+thdid_t  emu_create_thread(spdid_t client, thdclosure_index_t idx);
 
 void emu_sched_thd_block_timeout(spdid_t client);
 
 
 #define STASH_MAGIC_VALUE ((void *)0xBEAFBEAF)
 
-void               emu_stash(thdclosure_index_t idx, spdid_t spdid);
 thdclosure_index_t emu_stash_retrieve_thdclosure();
 spdid_t            emu_stash_retrieve_spdid();
-void               emu_stash_clear();
+void               emu_stash_set_thdid(thdid_t tid);
 
 int  emu_is_printf_enabled();
 
 int32 emu_CFE_ES_CalculateCRC(spdid_t client);
 int32 emu_CFE_ES_CopyToCDS(spdid_t client);
 int32 emu_CFE_ES_CreateChildTask(spdid_t client);
+int32 emu_CFE_ES_GetAppID(spdid_t client);
+int32 emu_CFE_ES_GetAppName(spdid_t client);
 int32 emu_CFE_ES_GetAppIDByName(spdid_t client);
 int32 emu_CFE_ES_GetAppInfo(spdid_t client);
 int32 emu_CFE_ES_GetGenCount(spdid_t client);
@@ -304,9 +328,12 @@ int32 emu_CFE_FS_ReadHeader(spdid_t client);
 int32 emu_CFE_FS_WriteHeader(spdid_t client);
 
 int32          emu_CFE_SB_CreatePipe(spdid_t client);
+int32          emu_CFE_SB_DeletePipe(spdid_t client);
 uint16         emu_CFE_SB_GetChecksum(spdid_t client);
+void           emu_CFE_SB_GenerateChecksum(spdid_t client);
 uint16         emu_CFE_SB_GetCmdCode(spdid_t client);
 CFE_SB_MsgId_t emu_CFE_SB_GetMsgId(spdid_t client);
+void           emu_CFE_SB_SetMsgId(spdid_t client);
 void           emu_CFE_SB_GetMsgTime(spdid_t client);
 uint16         emu_CFE_SB_GetTotalMsgLength(spdid_t client);
 uint16         emu_CFE_SB_GetUserDataLength(spdid_t client);
@@ -314,6 +341,7 @@ void           emu_CFE_SB_InitMsg(spdid_t client);
 int32          emu_CFE_SB_RcvMsg(spdid_t client);
 int32          emu_CFE_SB_SetCmdCode(spdid_t client);
 int32          emu_CFE_SB_SendMsg(spdid_t client);
+void           emu_CFE_SB_SetTotalMsgLength(spdid_t client);
 int32          emu_CFE_SB_SubscribeEx(spdid_t client);
 void           emu_CFE_SB_TimeStampMsg(spdid_t client);
 boolean        emu_CFE_SB_ValidateChecksum(spdid_t client);
@@ -321,6 +349,7 @@ boolean        emu_CFE_SB_ValidateChecksum(spdid_t client);
 int32 emu_CFE_TBL_GetAddress(spdid_t client);
 int32 emu_CFE_TBL_GetInfo(spdid_t client);
 int32 emu_CFE_TBL_Load(spdid_t client);
+int32 emu_CFE_TBL_Share(spdid_t client);
 int32 emu_CFE_TBL_Modified(spdid_t client);
 int32 emu_CFE_TBL_Register(spdid_t client);
 

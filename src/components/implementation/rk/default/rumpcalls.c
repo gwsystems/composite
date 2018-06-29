@@ -77,6 +77,7 @@ cos2rump_setup(void)
 }
 
 #define STR_LEN_MAX 127
+#define STR_MIN_PRINTC 8
 static int slen = -1;
 static char str[STR_LEN_MAX + 1];
 
@@ -85,8 +86,9 @@ extern cycles_t cycs_per_usec;
 void
 __cos_print(char *s, int len)
 {
-	if (len > 1) printc("(%d): ", cos_thdid());
-	cos_print(s, len);
+
+	if (len > STR_MIN_PRINTC) PRINTC("%s", s);
+	cos_llprint(s, len);
 }
 
 static inline void

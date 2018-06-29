@@ -9,8 +9,8 @@ extern void do_emulation_setup(spdid_t id);
 void cos_init(void)
 {
     do_emulation_setup(cos_comp_info.cos_this_spd_id);
-    printc("Starting MM main\n");
+    PRINTC("Starting MM main\n");
     MM_AppMain();
-    printc("Ending MM main\n");
+    PRINTC("Ending MM main\n");
     while(1) OS_IdleLoop();
 }

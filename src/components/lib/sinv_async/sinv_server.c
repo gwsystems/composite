@@ -146,7 +146,17 @@ sinv_server_aep_fn(arcvcap_t rcv, void *data)
 int
 sinv_server_main_loop(struct sinv_async_info *s)
 {
-	while (!s->init_shmaddr) sinv_server_try_map(s);
+	PRINTC("%s: mapping shared-memory\n", __func__);
+	while (!s->init_shmaddr) {
+		sinv_server_try_map(s);
+
+		if (!s->init_shmaddr) {
+			cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
+
+			sched_thd_block_timeout(0, timeout);
+		}
+	}
+	PRINTC("%s: Done mapping shared-memory\n", __func__);
 
 	while (1) {
 		volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(s->init_shmaddr);

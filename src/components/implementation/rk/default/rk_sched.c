@@ -24,8 +24,12 @@ static char *app_names[RK_APPS_MAX] = {
 static char *stub_names[RK_STUBS_MAX] = {
 		"udpstub",
 		"httpstub",
-		"iprfstub",
-		"i42stub",
+		"iperfstub",
+		"kitcistub",
+		"kitschstub",
+		"kittostub",
+		"tftpstub",
+		"hsstub",
 	};
 
 static spdid_t app_spdid[RK_APPS_MAX] = { 0 };
@@ -488,6 +492,7 @@ rk_child_initthd_walk(void)
 			goto done; /* apps taken care from rumpkernel layer */
 		}
 
+		PRINTC("STUB CHILD: %u\n", child);
 		appname = rk_stub_find(child);
 		assert(appname);
 		num_child ++;

@@ -15,16 +15,20 @@
 void
 timer_fn_1hz(void *d)
 {
-	cycles_t now, first_deadline;
+	cycles_t next_dl = 0, hztime = sl_usec2cyc(HZ_PAUSE_US), hzelapsed = 0;
 
-	rdtscll(now);
-	first_deadline = now + sl_usec2cyc(HZ_PAUSE);
+	next_dl = hztime + sl_now();
 
 	while (1) {
-		rdtscll(now);
-		if (now > first_deadline) { CFE_TIME_Local1HzISR(); }
+		cycles_t elapsed = sl_thd_block_timeout(0, next_dl);
 
-		sl_thd_block_periodic(0);
+		next_dl = sl_now();
+		while (elapsed > hztime) {
+			CFE_TIME_Local1HzISR();
+			elapsed -= hztime;
+		}
+		CFE_TIME_Local1HzISR();
+		next_dl += (hztime - elapsed);
 	}
 }
 
@@ -65,9 +69,9 @@ OS_SchedulerStart(cos_thd_fn_t main_delegate)
 	task_info->osal_task_prop.OStask_id = (uint32)sl_thd_thdid(main_delegate_thread);
 
 	timer_thd      = sl_thd_alloc(timer_fn_1hz, NULL);
-	timer_window   = sched_param_pack(SCHEDP_WINDOW, HZ_PAUSE);
+//	timer_window   = sched_param_pack(SCHEDP_WINDOW, HZ_PAUSE_US);
 	timer_priority = sched_param_pack(SCHEDP_PRIO, TIMER_THREAD_PRIORITY);
-	sl_thd_param_set(timer_thd, timer_window);
+//	sl_thd_param_set(timer_thd, timer_window);
 	sl_thd_param_set(timer_thd, timer_priority);
 
 	schedinit_child();
@@ -131,6 +135,7 @@ OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_p
 
 		thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 0, 0, 0, 0, 0, NULL);
 		assert(thd);
+		emu_stash_set_thdid(sl_thd_thdid(thd));
 	} else {
 		thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
 		assert(thd);

@@ -75,9 +75,27 @@ launch_other_component(spdid_t child_id, int is_library)
 // 4) Add a proxy here (sensitive to runscript changes)
 
 void
+bm_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("bm"), 0);
+}
+
+void
+cs_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("cs"), 0);
+}
+
+void
 ds_proxy()
 {
 	launch_other_component(hypercall_comp_id_get("ds"), 0);
+}
+
+void
+f42_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("f42"), 0);
 }
 
 void
@@ -87,9 +105,51 @@ fm_proxy()
 }
 
 void
+hc_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("hc"), 0);
+}
+
+void
 hs_proxy()
 {
 	launch_other_component(hypercall_comp_id_get("hs"), 0);
+}
+
+void
+i42_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("i42"), 0);
+}
+
+void
+kit_ci_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("kit_ci"), 0);
+}
+
+void
+kit_sch_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("kit_sch"), 0);
+}
+
+void
+kit_to_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("kit_to"), 0);
+}
+
+void
+lc_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("lc"), 0);
+}
+
+void
+md_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("md"), 0);
 }
 
 void
@@ -105,9 +165,15 @@ sc_proxy()
 }
 
 void
-shc_lab_proxy()
+sim_proxy()
 {
-	launch_other_component(hypercall_comp_id_get("sch_lab"), 0);
+	launch_other_component(hypercall_comp_id_get("sim"), 0);
+}
+
+void
+tftp_proxy()
+{
+	launch_other_component(hypercall_comp_id_get("tftp"), 0);
 }
 
 int32
@@ -119,22 +185,22 @@ cfs_lib_proxy()
 	return OS_SUCCESS;
 }
 
-void
-f42_proxy()
+int32
+expat_lib_proxy()
 {
-	launch_other_component(hypercall_comp_id_get("f42"), 0);
+	/* TODO: does this work like cfs_lib??... */
+	OS_printf("Expat Initialized.  Version [FAKE INITIALIZTION]");
+
+	return OS_SUCCESS;
 }
 
-void
-i42_proxy()
+int32
+osk_app_fw_proxy()
 {
-	launch_other_component(hypercall_comp_id_get("i42"), 0);
-}
+	/* TODO: does this work like cfs_lib??... */
+	OS_printf("OSK_APP_FW Initialized.  Version [FAKE INITIALIZTION]");
 
-void
-tele_proxy()
-{
-	launch_other_component(hypercall_comp_id_get("tele"), 0);
+	return OS_SUCCESS;
 }
 
 struct symbol_proxy {
@@ -142,28 +208,42 @@ struct symbol_proxy {
 	void *proxy;
 };
 
-#define NUM_PROXIES 10
-struct symbol_proxy proxies[NUM_PROXIES] = {{"DS_AppMain", ds_proxy},
+struct symbol_proxy proxies[] = {
+					    {"BM_AppMain", bm_proxy},
+					    {"CS_AppMain", cs_proxy},
+					    {"DS_AppMain", ds_proxy},
+					    {"F42_AppMain", f42_proxy},
                                             {"FM_AppMain", fm_proxy},
+                                            {"HC_AppMain", hc_proxy},
                                             {"HS_AppMain", hs_proxy},
-											{"MM_AppMain", mm_proxy},
-											{"SC_AppMain", sc_proxy},
-											{"SCH_Lab_AppMain", shc_lab_proxy},
-											{"CFS_LibInit", cfs_lib_proxy},
-										    {"F42_AppMain", f42_proxy},
-										    {"I42_AppMain", i42_proxy},
-										    {"TELE_AppMain", tele_proxy}};
+					    {"I42_AppMain", i42_proxy},
+					    {"KIT_CI_AppMain", kit_ci_proxy},
+					    {"KIT_SCH_AppMain", kit_sch_proxy},
+					    {"KIT_TO_AppMain", kit_to_proxy},
+                                            {"LC_AppMain", lc_proxy},
+					    {"MD_AppMain", md_proxy},
+					    {"MM_AppMain", mm_proxy},
+					    {"SC_AppMain", sc_proxy},
+					    {"SIM_AppMain", sim_proxy},
+					    {"TFTP_AppMain", tftp_proxy},
+					    {"CFS_LibInit", cfs_lib_proxy},
+					    {"EXPAT_Init", expat_lib_proxy},
+					    {"OSK_APP_FwInit", osk_app_fw_proxy}
+					   };
 
 int32
 OS_SymbolLookup(cpuaddr *symbol_address, const char *symbol_name)
 {
 	int i;
-	for (i = 0; i < NUM_PROXIES; i++) {
+	int sz = sizeof(proxies)/sizeof(proxies[0]);
+
+	for (i = 0; i < sz; i++) {
 		if (!strcmp(symbol_name, proxies[i].symbol_name)) {
 			*symbol_address = (cpuaddr)proxies[i].proxy;
 			return OS_SUCCESS;
 		}
 	}
+
 	return OS_ERROR;
 }
 

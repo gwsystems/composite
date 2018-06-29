@@ -15,6 +15,7 @@ int     rk_setsockopt(int arg1, int arg2, int arg3);
 int     rk_getsockopt(int sockfd_shmid, int level, int optname);
 void   *rk_mmap(int arg1, int arg2, int arg3);
 long    rk_write(int arg1, int arg2, int arg3);
+ssize_t rk_writev(int fd, int iovcnt, int shmid);
 long    rk_read(int arg1, int arg2, int arg3);
 int     rk_listen(int arg1, int arg2);
 int     rk_clock_gettime(int arg1, int arg2);
@@ -27,5 +28,7 @@ int	rk_getsockname(int arg1, int arg2);
 int	rk_getpeername(int arg1, int arg2);
 int     rk_getsockopt(int sockfd_shmid, int level, int optname);
 int     rk_close(int fd);
+/* arg3 is either shmid or an int value in fcntl call */
+int     rk_fcntl(int fd, int cmd, int arg3);
 
 #endif /* RK_H */

@@ -18,7 +18,9 @@ typedef enum {
 	RK_GETSOCKOPT,
 	RK_MMAP,
 	RK_WRITE,
+	RK_WRITEV,
 	RK_READ,
+	RK_FCNTL,
 	RK_LISTEN,
 	RK_CLOCK_GETTIME,
 	RK_SELECT,
@@ -33,7 +35,7 @@ typedef enum {
 
 #define RK_API_MAX (RK_GETPEERNAME + 1)
 /* FIXME: hardcoded offset.. if these keys overlap, we're screwed.. hard to find bug! */
-#define RK_INV_KEY 'R'
+#define RK_INV_KEY 0
 #define RK_CLIENT(i) (RK_INV_KEY | (i << 10))
 
 /* if t=0, points to mainkey.. so use t+1 always..*/
@@ -63,7 +65,7 @@ rk_args_instance(void)
 
 	instance = atoi(tok2);
 	assert(instance > 0 && instance < RK_CLIENT_MAX);
-	printc("%s:%d %s=>%d\n", __func__, __LINE__, arg, instance);
+	PRINTC("%s:%d %s=>%d\n", __func__, __LINE__, arg, instance);
 
 	return instance;
 }

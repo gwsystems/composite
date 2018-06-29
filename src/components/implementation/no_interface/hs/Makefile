@@ -2,9 +2,9 @@
 ASM_OBJS=
 COMPONENT=hs.o
 INTERFACES=
-DEPENDENCIES=cFE capmgr
-IF_LIB:=./cFE_hs_app.o ./cFE_hs_cmds.o ./cFE_hs_custom.o ./cFE_hs_monitors.o
-ADDITIONAL_LIBS=-lcos_kernel_api
+DEPENDENCIES=cFE capmgr channel
+IF_LIB:=./app_fw_utils.o ./cmdmgr.o ./jsmn.o ./tblmgr.o ./json.o ./osk_app_fw_init.o ./cFE_hs_app.o ./cFE_hs_cmds.o ./cFE_hs_custom.o ./cFE_hs_monitors.o ./cFE_cfs_utils.o
+ADDITIONAL_LIBS=-lcos_kernel_api -lacom_client
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o
