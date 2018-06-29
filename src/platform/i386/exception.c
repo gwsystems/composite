@@ -36,7 +36,7 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 	struct cap_header         *fh;
 	struct comp_info          *cos_info;
 	thdid_t                    thdid = curr_thd->tid;
-	unsigned long              ip, sp, fault_flag;
+	unsigned long              ip, sp;
 	u32_t                      fault_addr = 0, errcode, eip;
 
 	print_regs_state(regs);
@@ -51,21 +51,18 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 	regs->di = fault_addr;
 	regs->dx = cap;
 
-	fault_flag = 1;
 	if (likely(fh->type == CAP_SINV)){
-		sinv_call(curr_thd, (struct cap_sinv *)fh, regs, ci, fault_flag);
-		return 1;
-	} else {
+		sinv_call(curr_thd, (struct cap_sinv *)fh, regs, ci, 1);
 		return 0;
+	} else {
+		return 1;
 	}
 }
 
 int
 div_by_zero_err_fault_handler(struct pt_regs *regs)
 {
-	if (!fault_handler_sinv(regs, BOOT_CAPTBL_FLT_DIVZERO)) {
-		die("FAULT: Divide by Zero Error\n");
-	}
+	fault_handler_sinv(regs, FAULT_CAPTBL_DIVZERO);
 	return 1;
 }
 
@@ -81,9 +78,7 @@ debug_trap_handler(struct pt_regs *regs)
 int
 breakpoint_trap_handler(struct pt_regs *regs)
 {
-	if (!fault_handler_sinv(regs, BOOT_CAPTBL_FLT_BRKPT)) {
-		die("TRAP: Breakpoint\n");
-	}
+	fault_handler_sinv(regs, FAULT_CAPTBL_BRKPT);
 	return 1;
 }
 
@@ -99,18 +94,14 @@ overflow_trap_handler(struct pt_regs *regs)
 int
 bound_range_exceed_fault_handler(struct pt_regs *regs)
 {
-	if (!fault_handler_sinv(regs, BOOT_CAPTBL_FLT_BOUND_EXC)) {
-		die("FAULT: Bound Range Exceeded\n");
-	}
+	fault_handler_sinv(regs, FAULT_CAPTBL_INVSTK);
 	return 1;
 }
 
 int
 invalid_opcode_fault_handler(struct pt_regs *regs)
 {
-	if (!fault_handler_sinv(regs, BOOT_CAPTBL_FLT_IVDINS)) {
-		die("FAULT: Invalid opcode\n");
-	}
+	fault_handler_sinv(regs, FAULT_CAPTBL_INVLD_INS);
 	return 1;
 }
 
@@ -162,18 +153,14 @@ stack_seg_fault_handler(struct pt_regs *regs)
 int
 gen_protect_fault_handler(struct pt_regs *regs)
 {
-	if (!fault_handler_sinv(regs, BOOT_CAPTBL_FLT_MEM)) {
-		die("FAULT: General Protection Fault\n");
-	}
+	fault_handler_sinv(regs, FAULT_CAPTBL_MEM_ACCESS);
 	return 1;
 }
 
 int
 page_fault_handler(struct pt_regs *regs)
 {
-	if (!fault_handler_sinv(regs, BOOT_CAPTBL_FLT_MEM)) {
-		die("FAULT: Page Fault\n");
-	}
+	fault_handler_sinv(regs, FAULT_CAPTBL_MEM_ACCESS);
 	return 1;
 }
 
