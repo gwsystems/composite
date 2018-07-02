@@ -3,12 +3,12 @@ include Makefile.src Makefile.comp
 STUB_DIR=stubs
 S_CSTUBS=$(wildcard $(STUB_DIR)/s_*.c)
 S_SSTUBS=$(wildcard $(STUB_DIR)/s_*.S)
-S_STUB_OBJS=$(S_CSTUBS:%.c=%.o) $(S_SSTUBS:%.S=%.o)
+S_STUB_OBJS=$(strip $(S_CSTUBS:%.c=%.o) $(S_SSTUBS:%.S=%.o))
 C_CSTUBS=$(wildcard $(STUB_DIR)/c_*.c)
-C_STUB_OBJS=$(C_CSTUBS:%.c=%.o)
+C_STUB_OBJS=$(strip $(C_CSTUBS:%.c=%.o))
 IDL_FILES=$(wildcard *.cidl)
 IDL_HEADERS=$(IDL_FILES:%.cidl=%.h)
-STUBS=$(ASM_STUBS) 
+STUBS=$(ASM_STUBS)
 IFNAME=$(lastword $(subst /, ,$(shell pwd)))
 INCLUDES= $(CINC) $(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
 DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
@@ -58,4 +58,3 @@ fresh: clean all
 	$(PONY) $^ > $@
 
 idl: $(IDL_HEADERS)
-

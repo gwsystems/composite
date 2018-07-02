@@ -189,8 +189,8 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 	 * Loop through all undefined symbs
 	 */
 	for (i = 0; i < INTERFACE_UNDEF_SYMBS; i++) {
-		if (spdinfo->ST_user_caps[i].service_entry_inst > 0) {
-			intr_spdid = spdinfo->ST_user_caps[i].invocation_count;
+		if ((int)spdinfo->ST_user_caps[i].data > 0) {
+			intr_spdid = 0; //spdinfo->ST_user_caps[i].invocation_count;
 			assert(intr_spdid); /* booter interface not allowed */
 
 			interface_compinfo = boot_spd_compinfo_get(intr_spdid);
@@ -200,8 +200,8 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 
 			/* Create sinv capability from client to server */
 			sinv = cos_sinv_alloc(compinfo, interface_compinfo->comp_cap,
-				(vaddr_t)spdinfo->ST_user_caps[i].service_entry_inst,
-				token);
+					      (vaddr_t)spdinfo->ST_user_caps[i].data,
+					      token);
 
 			assert(sinv > 0);
 

@@ -28,10 +28,10 @@
 	COS_ASM_GET_STACK_BASIC    \
 	pushl %ecx;
 
-/* clang-format on */
-
 #define COS_ASM_RET_STACK
 
 #define COS_ASM_REQUEST_STACK
+
+/* clang-format on */
 
 #endif

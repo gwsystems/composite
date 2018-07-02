@@ -19,7 +19,7 @@
 #define CHILD_SCHED_PRIO TCAP_PRIO_MAX
 
 int                    is_booter = 1;
-extern vaddr_t         cos_upcall_entry;
+extern vaddr_t         __cosrt_upcall_entry;
 struct cos_defcompinfo child_defci[CHILD_COMP_COUNT];
 static cycles_t        cycs_per_usec;
 
@@ -133,7 +133,7 @@ cos_init(void)
 			assert(child_utpt);
 
 			cos_meminfo_init(&(child_ci->mi), BOOT_MEM_KM_BASE, CHILD_UNTYPED_SIZE, child_utpt);
-			cos_defcompinfo_child_alloc(&child_defci[id], (vaddr_t)&cos_upcall_entry,
+			cos_defcompinfo_child_alloc(&child_defci[id], (vaddr_t)&__cosrt_upcall_entry,
 			                            (vaddr_t)BOOT_MEM_VM_BASE, BOOT_CAPTBL_FREE, is_sched);
 
 			printc("\t\tCopying new capabilities\n");

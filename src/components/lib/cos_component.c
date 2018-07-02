@@ -222,7 +222,7 @@ cos_release_vas_page(void *p)
 extern const vaddr_t cos_atomic_cmpxchg, cos_atomic_cmpxchg_end, cos_atomic_user1, cos_atomic_user1_end,
   cos_atomic_user2, cos_atomic_user2_end, cos_atomic_user3, cos_atomic_user3_end, cos_atomic_user4,
   cos_atomic_user4_end;
-extern const vaddr_t cos_upcall_entry;
+extern const vaddr_t __cosrt_upcall_entry;
 
 extern const vaddr_t cos_ainv_entry;
 
@@ -237,7 +237,7 @@ struct cos_component_information cos_comp_info __attribute__((
                          .cos_heap_ptr            = 0,
                          .cos_heap_limit          = 0,
                          .cos_stacks.freelists[0] = {.freelist = 0, .thd_id = 0},
-                         .cos_upcall_entry        = (vaddr_t)&cos_upcall_entry,
+                         .cos_upcall_entry        = (vaddr_t)&__cosrt_upcall_entry,
                          .cos_async_inv_entry     = (vaddr_t)&cos_ainv_entry,
                          .cos_user_caps           = (vaddr_t)&ST_user_caps,
                          .cos_ras  = {{.start = (vaddr_t)&cos_atomic_cmpxchg, .end = (vaddr_t)&cos_atomic_cmpxchg_end},

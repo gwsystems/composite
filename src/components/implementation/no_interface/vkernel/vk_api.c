@@ -1,6 +1,6 @@
 #include "vk_api.h"
 
-extern vaddr_t cos_upcall_entry;
+extern vaddr_t __cosrt_upcall_entry;
 /* extern functions */
 extern void vm_init(void *);
 extern void dom0_io_fn(void *);
@@ -26,7 +26,7 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	assert(vmutpt);
 
 	cos_meminfo_init(&(vmcinfo->mi), BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, vmutpt);
-	ret = cos_defcompinfo_child_alloc(vmdci, (vaddr_t)&cos_upcall_entry, (vaddr_t)BOOT_MEM_VM_BASE,
+	ret = cos_defcompinfo_child_alloc(vmdci, (vaddr_t)&__cosrt_upcall_entry, (vaddr_t)BOOT_MEM_VM_BASE,
 					  VM_CAPTBL_FREE, 1);
 	cos_compinfo_init(&(vminfo->shm_cinfo), vmcinfo->pgtbl_cap, vmcinfo->captbl_cap, vmcinfo->comp_cap,
 			  (vaddr_t)VK_VM_SHM_BASE, VM_CAPTBL_FREE, vk_cinfo);

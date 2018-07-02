@@ -30,10 +30,10 @@ cos_static_stack:
 cos_static_stack_end:
 
 .text
-.globl cos_upcall_entry
-.type  cos_upcall_entry, @function
+.globl __cosrt_upcall_entry
+.type  __cosrt_upcall_entry, @function
 .align 16
-cos_upcall_entry:
+__cosrt_upcall_entry:
 	COS_ASM_GET_STACK
 
 	pushl $0

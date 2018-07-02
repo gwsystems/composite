@@ -423,8 +423,16 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, c
 
 		ret = cos_cas(moveto, old_v_to, old_v);
 		if (ret != CAS_SUCCESS) {
-			/* FIXME: reverse if the second cas fails. We
-			 * should lock down the moveto slot first. */
+			/*
+			 * FIXME: reverse if the second cas fails. We
+			 * should lock down the moveto slot first.
+			 *
+			 * We need to provide quiescence for the reuse
+			 * of the old slot above so that it *cannot*
+			 * be reused immediately.  Another option
+			 * would be to have a "placeholder" in the
+			 * slot so that it cannot be reused.
+			 */
 			return -ECASFAIL;
 		}
 		ret = 0;

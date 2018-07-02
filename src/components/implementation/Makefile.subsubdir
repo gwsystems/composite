@@ -20,7 +20,11 @@ COMPNAME=$(shell echo $(strip $(COMPLIST)) | sed "s/ /./")
 # link-in.
 LIB_ASM_MANDITORY=$(LIBDIR)/$(MANDITORY_LIB)
 
-IF_INCLUDE=$(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
+# Derive the include paths from both the interface encoded in the
+# directory hierarchy, and the explicit DEPENDENCIES specification
+INTERFACE=$(word $(shell echo $(COMPLEN)-1 | bc), $(COMPPATH))
+IF_INCLUDE=-I$(INTERDIR)/$(INTERFACE) $(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
+
 IF_SERV_STUBS=$(foreach I,$(INTERFACES),$(INTERDIR)/$(I)/$(SERVER_STUB))
 #dependency components added to include listings and linker listings
 DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
@@ -46,6 +50,7 @@ LIB_FLAGS=-L$(LIBDIR) -L$(LIBCXXDIR) $(DEP_LIB) $(LIB_LIBRARIES) $(ADDITIONAL_LI
 
 C_SOURCES=$(C_OBJS:%.o=%.c)
 CXX_SOURCES=$(CXX_OBJS:%.o=%.cc)
+ASM_SOURCES=$(ASM_OBJS:%.o=%.cc)
 #NOTE: assembly files don't have dependencies generated for them
 SOURCE_DEPENDENCIES=$(C_SOURCES:%.c=%.d) $(CXX_SOURCES:%.cc=%.d)
 
@@ -59,7 +64,10 @@ FNDEP_FILE=.fn_dependencies
 IFEXP_FILE=.exported_interfaces
 
 .PHONY: all
-all: $(SOURCE_DEPENDENCIES) $(COMPONENT) fndeps
+all: print $(SOURCE_DEPENDENCIES) $(COMPONENT) fndeps
+
+print:
+	$(info | Component $(COMPNAME):)
 
 fndeps:
 #	@sh $(FNDEP_GEN) c.o > $(FNDEP_FILE)
@@ -82,11 +90,11 @@ $(COMPONENT): $(OBJS)
 %.o:%.c
 	$(info |     [CC]   $<: Compiling)
 	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
-       
+
 %.o:%.cc
 	$(info |     [CXX]  $<: Compiling)
 	@$(CXX) $(INCLUDE) $(LIBSTDCXXINC) $(CXXFLAGS) -o $@ -c $<
-       
+
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)
 #	$(info |     [AS]   $<: Compiling)
@@ -100,7 +108,7 @@ $(COMPONENT): $(OBJS)
 	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
-	
+
 %.d:%.cc
 #	$(info |     [DEP]  Creating dependency file for $<)
 	@set -e; rm -f $@; \

@@ -264,9 +264,9 @@ boot_spd_inv_cap_alloc(struct cobj_header *h, spdid_t spdid)
 
 		/* Create the user cap for the undef symb */
 		inv_cap = (struct usr_inv_cap) {
-			.invocation_fn = (vaddr_t) cap->cstub,
-			.service_entry_inst = (vaddr_t) cap->sstub,
-			.invocation_count = cap->dest_id
+			.invocation_fn = (vaddr_t)cap->cstub,
+			.data          = (void *)cap->sstub,
+//			.invocation_count = cap->dest_id
 		};
 
 		spdinfo->ST_user_caps[cap_offset] = inv_cap;
