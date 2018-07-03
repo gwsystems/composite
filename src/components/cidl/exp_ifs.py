@@ -48,7 +48,7 @@ for inf in ifexps:
     ls = i.readlines()
     iffnexps = iffnexps + ls
 iffnexps = list(set([string.rstrip(x) for x in iffnexps])) # remove duplicates
-iffnexps = [string.replace(x,"_inv", "") for x in iffnexps]
+iffnexps = [string.replace(x,"__cosrt_s_", "") for x in iffnexps]
 
 f = os.popen("nm --extern-only c.o | awk '{if (NF == 3 && ($2 == \"T\" || $2 == \"W\")) {print $3}}'")
 fns = f.readlines()
@@ -61,7 +61,7 @@ for iffn in iffnexps:
     else:
        print(iffn)
 
-iffnexpsrets = [string.replace(x,"_rets", "") for x in iffnexpsrets]
+iffnexpsrets = [string.replace(x,"__cosrt_s_", "") for x in iffnexpsrets]
 for iffn in iffnexpsrets:
     if (iffn not in fns):
        sys.stderr.write("Warning: in component " + cif + "." + comp + ", function " + iffn + " defined in an interface, but not in component\n")

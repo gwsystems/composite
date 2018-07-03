@@ -25,6 +25,8 @@ LIB_ASM_MANDITORY=$(LIBDIR)/$(MANDITORY_LIB)
 INTERFACE=$(word $(shell echo $(COMPLEN)-1 | bc), $(COMPPATH))
 IF_INCLUDE=-I$(INTERDIR)/$(INTERFACE) $(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
 
+# Derive all of the server and client stubs that should be linked into
+# this component
 IF_SERV_STUBS=$(foreach I,$(INTERFACES),$(INTERDIR)/$(I)/$(SERVER_STUB))
 #dependency components added to include listings and linker listings
 DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
