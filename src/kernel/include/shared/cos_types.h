@@ -333,6 +333,24 @@ enum
 {
 	/* thread id */
 	THD_GET_TID,
+	/* get regs */
+	THD_GET_EAX,
+	THD_GET_EBX,
+	THD_GET_ECX,
+	THD_GET_EDX,
+	THD_GET_CS,
+	THD_GET_DS,
+	THD_GET_ES,
+	THD_GET_FS,
+	THD_GET_GS,
+	THD_GET_SS,
+	THD_GET_ESI,
+	THD_GET_EDI,
+	THD_GET_EIP,
+	THD_GET_ESP,
+	THD_GET_EBP,
+	THD_GET_EFLAGS,
+	THD_GET_ORIG_AX,
 };
 
 enum

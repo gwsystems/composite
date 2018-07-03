@@ -993,8 +993,10 @@ composite_syscall_handler(struct pt_regs *regs)
 	}
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
-		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info, 0);
-		return 0;
+		if (likely(cap > FAULT_CAPTBL_HAND_NOT_EXIST)) {
+			sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info, 0);
+			return 0;
+		}
 	}
 
 	/*

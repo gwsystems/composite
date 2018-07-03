@@ -39,7 +39,6 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 	unsigned long              ip, sp;
 	u32_t                      fault_addr = 0, errcode, eip;
 
-	print_regs_state(regs);
 	fault_regs_save (regs, curr_thd);
 
 	cos_info = thd_invstk_current(curr_thd, &ip, &sp, ci);

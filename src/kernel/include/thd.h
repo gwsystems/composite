@@ -595,6 +595,57 @@ thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 	case THD_GET_TID:
 		*retval = t->tid;
 		break;
+	case THD_GET_EAX:
+		*retval = t->fault_regs.ax;
+		break;
+	case THD_GET_EBX:
+		*retval = t->fault_regs.bx;
+		break;
+	case THD_GET_ECX:
+		*retval = t->fault_regs.cx;
+		break;
+	case THD_GET_EDX:
+		*retval = t->fault_regs.dx;
+		break;
+	case THD_GET_CS:
+		*retval = t->fault_regs.cs;
+		break;
+	case THD_GET_DS:
+		*retval = t->fault_regs.ds;
+		break;
+	case THD_GET_ES:
+		*retval = t->fault_regs.es;
+		break;
+	case THD_GET_FS:
+		*retval = t->fault_regs.fs;
+		break;
+	case THD_GET_GS:
+		*retval = t->fault_regs.gs;
+		break;
+	case THD_GET_SS:
+		*retval = t->fault_regs.ss;
+		break;
+	case THD_GET_ESI:
+		*retval = t->fault_regs.si;
+		break;
+	case THD_GET_EDI:
+		*retval = t->fault_regs.di;
+		break;
+	case THD_GET_EIP:
+		*retval = t->fault_regs.ip;
+		break;
+	case THD_GET_ESP:
+		*retval = t->fault_regs.sp;
+		break;
+	case THD_GET_EBP:
+		*retval = t->fault_regs.bp;
+		break;
+	case THD_GET_EFLAGS:
+		*retval = t->fault_regs.flags;
+		break;
+	case THD_GET_ORIG_AX:
+		*retval = t->fault_regs.orig_ax;
+		break;
 	default:
 		return -EINVAL;
 	}
