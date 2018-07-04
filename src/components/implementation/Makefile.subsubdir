@@ -14,6 +14,7 @@ COMPPATH=$(subst /, ,$(shell pwd))
 COMPLEN=$(words $(COMPPATH))
 COMPLIST=$(wordlist $(shell echo $(COMPLEN)-1 | bc), $(COMPLEN), $(COMPPATH))
 COMPNAME=$(shell echo $(strip $(COMPLIST)) | sed "s/ /./")
+COMPOBJ=$(COMPNAME).o
 
 # These are compiled in with the components regardless of if they
 # export an undefined symbol from the component.  They are a manditory
@@ -66,28 +67,27 @@ FNDEP_FILE=.fn_dependencies
 IFEXP_FILE=.exported_interfaces
 
 .PHONY: all
-all: print $(SOURCE_DEPENDENCIES) $(COMPONENT) fndeps
+all: print $(SOURCE_DEPENDENCIES) $(COMPOBJ) fndeps
 
 print:
 	$(info | Component $(COMPNAME):)
 
 fndeps:
 #	@sh $(FNDEP_GEN) c.o > $(FNDEP_FILE)
-	@python $(FNDEP_GEN) > $(FNDEP_FILE)
-	@python $(IFEXP_GEN) > $(IFEXP_FILE)
-	@python $(FNDEP_VERIFY)
+#	@python $(FNDEP_GEN) > $(FNDEP_FILE)
+#	@python $(IFEXP_GEN) > $(IFEXP_FILE)
+#	@python $(FNDEP_VERIFY)
 
 # Jumping through hoops: want to link to our libraries first so that
 # symbols there are used, thus the gcc, and the ld, but then (and only
 # then) do we want to use dietlibc's functions
-$(COMPONENT): $(OBJS)
+$(COMPOBJ): $(OBJS)
 #	$(info |     [LD]   $@: Loading stubs and cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
 	$(info |     [LD]   $(COMPNAME) ($@): Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $^)
-	@$(LD) $(LDFLAGS) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(IF_CLIENT_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
+	$(LD) $(LDFLAGS) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(IF_CLIENT_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
 	@$(MUSLCC) $@.$(TMP_STR) $(MUSLCFLAGS) -Xlinker -melf_i386 -o $@.$(TMP_STR2)
 	@$(LD) $(LDFLAGS) -r -T $(COMP_LD_SCRIPT) -o $@ $@.$(TMP_STR2)
 	@rm $@.$(TMP_STR) $@.$(TMP_STR2)
-	@cp $@ c.o
 
 %.o:%.c
 	$(info |     [CC]   $<: Compiling)
@@ -105,7 +105,6 @@ $(COMPONENT): $(OBJS)
 # see the make manual: create the .d dependencies from include
 # statements.
 %.d:%.c
-#	$(info |     [DEP]  Creating dependency file for $<)
 	@set -e; rm -f $@; \
 	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
@@ -120,9 +119,8 @@ $(COMPONENT): $(OBJS)
 
 .PHONY: cp
 cp:
-	$(info |     [CP]   Copying $(COMPONENT) to $(TRANS_DIR))
-	@cp $(COMPONENT) $(TRANS_DIR)
-	@cp c.o $(TRANS_DIR)/$(COMPNAME).o
+	$(info |     [CP]   Copying $(COMPNAME) to $(TRANS_DIR))
+	@cp $(COMPOBJ) $(TRANS_DIR)/
 
 .PHONY: clean
 clean:
