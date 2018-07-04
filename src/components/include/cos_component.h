@@ -139,7 +139,7 @@ cos_print(char *s, int len)
 
 extern long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
 
-extern struct cos_component_information cos_comp_info;
+extern struct cos_component_information __cosrt_comp_info;
 
 static inline long
 get_stk_data(int offset)
@@ -203,25 +203,25 @@ cos_thdid(void)
 static inline long
 cos_spd_id(void)
 {
-	return cos_comp_info.cos_this_spd_id;
+	return __cosrt_comp_info.cos_this_spd_id;
 }
 
 static inline void *
 cos_get_heap_ptr(void)
 {
-	return (void *)cos_comp_info.cos_heap_ptr;
+	return (void *)__cosrt_comp_info.cos_heap_ptr;
 }
 
 static inline void
 cos_set_heap_ptr(void *addr)
 {
-	cos_comp_info.cos_heap_ptr = (vaddr_t)addr;
+	__cosrt_comp_info.cos_heap_ptr = (vaddr_t)addr;
 }
 
 static inline char *
 cos_init_args(void)
 {
-	return cos_comp_info.init_string;
+	return __cosrt_comp_info.init_string;
 }
 
 #define COS_EXTERN_FN(fn) __cos_extern_##fn
@@ -258,10 +258,10 @@ cos_get_prealloc_page(void)
 	char *h;
 	long  r;
 	do {
-		h = (char *)cos_comp_info.cos_heap_alloc_extent;
-		if (!h || (char *)cos_comp_info.cos_heap_allocated >= h) return NULL;
+		h = (char *)__cosrt_comp_info.cos_heap_alloc_extent;
+		if (!h || (char *)__cosrt_comp_info.cos_heap_allocated >= h) return NULL;
 		r = (long)h + PAGE_SIZE;
-	} while (cos_cmpxchg(&cos_comp_info.cos_heap_allocated, (long)h, r) != r);
+	} while (cos_cmpxchg(&__cosrt_comp_info.cos_heap_allocated, (long)h, r) != r);
 
 	return h;
 }
@@ -274,7 +274,7 @@ extern void  cos_release_vas_page(void *p);
 static inline void
 cos_set_heap_ptr_conditional(void *pre_addr, void *post_addr)
 {
-	cos_cmpxchg(&cos_comp_info.cos_heap_ptr, (long)pre_addr, (long)post_addr);
+	cos_cmpxchg(&__cosrt_comp_info.cos_heap_ptr, (long)pre_addr, (long)post_addr);
 }
 
 /* from linux source in string.h */

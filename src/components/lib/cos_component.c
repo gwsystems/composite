@@ -209,7 +209,7 @@ cos_get_vas_page(void)
 	do {
 		h = cos_get_heap_ptr();
 		r = (long)h + PAGE_SIZE;
-	} while (cos_cmpxchg(&cos_comp_info.cos_heap_ptr, (long)h, r) != r);
+	} while (cos_cmpxchg(&__cosrt_comp_info.cos_heap_ptr, (long)h, r) != r);
 	return h;
 }
 
@@ -232,7 +232,7 @@ CWEAKSYMB vaddr_t ST_user_caps;
  * Much of this is either initialized at load time, or passed to the
  * loader though this structure.
  */
-struct cos_component_information cos_comp_info __attribute__((
+struct cos_component_information __cosrt_comp_info __attribute__((
   section(".cinfo"))) = {.cos_this_spd_id         = 0,
                          .cos_heap_ptr            = 0,
                          .cos_heap_limit          = 0,

@@ -434,14 +434,14 @@ cos_init(void)
 	capmgr_spdid = 0;
 	root_spdid = 0;
 
-	h        = (struct cobj_header *)cos_comp_info.cos_poly[0];
-	num_cobj = (int)cos_comp_info.cos_poly[1];
+	h        = (struct cobj_header *)__cosrt_comp_info.cos_poly[0];
+	num_cobj = (int)__cosrt_comp_info.cos_poly[1];
 
 	PRINTLOG(PRINT_DEBUG, "num cobjs: %d\n", num_cobj);
 	assert(num_cobj <= MAX_NUM_SPDS);
 	boot_comp_capinfo_init();
 
-	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
+	init_args = (struct component_init_str *)__cosrt_comp_info.cos_poly[3];
 	boot_parse_init_args();
 	init_args++;
 
