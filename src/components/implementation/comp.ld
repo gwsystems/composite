@@ -2,6 +2,7 @@ SECTIONS
 {
 	.text : { *(.text*) }
 	.rodata : { *(.rodata*) }
+	.eh_frame : { *(.eh_frame*) }
 	.ctors : {
 		__CTOR_LIST__ = .;
 		LONG((__CTOR_END__ - __CTOR_LIST__) / 4 - 2)
@@ -43,9 +44,10 @@ SECTIONS
 		LONG(0)
 		__CRECOV_END__ = .;
 	}
-	.kmem : { *(.kmem*) }
-	.cinfo : { *(.cinfo*) }
-	.data : { *(.data*) }
+	.data : {
+	      *(.data*);
+	      *(.ucap*);
+	}
 	.bss : { *(.bss*) }
 	.initonce : { *(.initonce*) }
 	.initfile : { *(.initfile*) }

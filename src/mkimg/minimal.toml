@@ -1,0 +1,11 @@
+[system]
+description = "Simple system: ping pong!"
+
+[[components]]
+name = "ping"
+img = "tests.unit_pingpong.o"
+deps = [{srv = "pong", interface = "pong"}]
+
+[[components]]
+name = "pong"
+img = "pong.pingpong.o"

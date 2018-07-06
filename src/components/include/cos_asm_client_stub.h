@@ -25,6 +25,12 @@
 #define __ASM__
 #include <consts.h>
 
+/*
+ * Note that all ucaps are allocated into a separate section so that
+ * they are contiguous.  That section is then collapsed with .data
+ * during the build process (via comp.ld).
+ */
+
 #define cos_asm_client_stub(name)              \
 .text;                                         \
 .globl name;                                   \
