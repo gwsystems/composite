@@ -2,12 +2,4 @@
 
 .text
 
-cos_asm_server_stub(fault_div_by_zero)
-cos_asm_server_stub(fault_memory_access)
-cos_asm_server_stub(fault_breakpoint)
-cos_asm_server_stub(fault_invalid_inst)
-cos_asm_server_stub(fault_invstk)
-cos_asm_server_stub(fault_comp_not_exist)
-cos_asm_server_stub(fault_handler_not_exist)
-
 cos_asm_server_stub_rets(hypercall_entry)

@@ -130,23 +130,23 @@ fault_reg_print(spdid_t spdid)
 	struct cos_aep_info *child_aep = boot_spd_initaep_get(spdid);
 	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
 	
-	fault_regs.ax = cos_introspect(boot_info, child_aep->thd, THD_GET_EAX);
-	fault_regs.bx = cos_introspect(boot_info, child_aep->thd, THD_GET_EBX);
-	fault_regs.cx = cos_introspect(boot_info, child_aep->thd, THD_GET_ECX);
-	fault_regs.dx = cos_introspect(boot_info, child_aep->thd, THD_GET_EDX);
-	fault_regs.cs = cos_introspect(boot_info, child_aep->thd, THD_GET_CS);
-	fault_regs.ds = cos_introspect(boot_info, child_aep->thd, THD_GET_DS);
-	fault_regs.es = cos_introspect(boot_info, child_aep->thd, THD_GET_ES);
-	fault_regs.fs = cos_introspect(boot_info, child_aep->thd, THD_GET_FS);
-	fault_regs.gs = cos_introspect(boot_info, child_aep->thd, THD_GET_GS);
-	fault_regs.ss = cos_introspect(boot_info, child_aep->thd, THD_GET_SS);
-	fault_regs.si = cos_introspect(boot_info, child_aep->thd, THD_GET_ESI);
-	fault_regs.di = cos_introspect(boot_info, child_aep->thd, THD_GET_EDI);
-	fault_regs.ip = cos_introspect(boot_info, child_aep->thd, THD_GET_EIP);
-	fault_regs.sp = cos_introspect(boot_info, child_aep->thd, THD_GET_ESP);
-	fault_regs.bp = cos_introspect(boot_info, child_aep->thd, THD_GET_EBP);
-	fault_regs.flags = cos_introspect(boot_info, child_aep->thd, THD_GET_EFLAGS);
-	fault_regs.orig_ax = cos_introspect(boot_info, child_aep->thd, THD_GET_ORIG_AX);
+	fault_regs.ax = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG1);
+	fault_regs.bx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG2);
+	fault_regs.cx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG3);
+	fault_regs.dx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG4);
+	fault_regs.cs = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG5);
+	fault_regs.ds = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG5);
+	fault_regs.es = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG7);
+	fault_regs.fs = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG8);
+	fault_regs.gs = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG9);
+	fault_regs.ss = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG10);
+	fault_regs.si = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG11);
+	fault_regs.di = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG12);
+	fault_regs.ip = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG13);
+	fault_regs.sp = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG14);
+	fault_regs.bp = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG15);
+	fault_regs.flags = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG16);
+	fault_regs.orig_ax = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG17);
 
 	printc("registers:\n");
 	printc("General register-> EAX: %x, EBX: %x, ECX: %x, EDX: %x\n", (unsigned int)fault_regs.ax, 
@@ -172,6 +172,7 @@ void
 fault_memory_access(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
 	PRINTLOG(PRINT_DEBUG, "in memory access handler, memory access fault happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
 	return;
 }
 
@@ -179,6 +180,7 @@ void
 fault_breakpoint(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
 	PRINTLOG(PRINT_DEBUG, "in breapoint trap handler, breapoint trap happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
 	return;
 }
 
@@ -186,6 +188,7 @@ void
 fault_invalid_inst(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
 	PRINTLOG(PRINT_DEBUG, "in invaild instruction trap handler, invaild instruction happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
 	return;
 }
 
@@ -193,6 +196,7 @@ void
 fault_invstk(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
 	PRINTLOG(PRINT_DEBUG, "in bound range exceed fault handler, bound range exceed fault happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
 	return;
 }
 
@@ -200,6 +204,7 @@ void
 fault_comp_not_exist(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
 	PRINTLOG(PRINT_DEBUG, "in component not exists fault handler, component not exists fault happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
 	return;
 }
 
@@ -207,6 +212,7 @@ void
 fault_handler_not_exist(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
 	PRINTLOG(PRINT_DEBUG, "in invaild component fault handler, invaild component fault happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
 	return;
 }
 

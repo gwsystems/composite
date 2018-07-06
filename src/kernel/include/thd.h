@@ -595,55 +595,55 @@ thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 	case THD_GET_TID:
 		*retval = t->tid;
 		break;
-	case THD_GET_EAX:
+	case THD_GET_FAULT_REG1:
 		*retval = t->fault_regs.ax;
 		break;
-	case THD_GET_EBX:
+	case THD_GET_FAULT_REG2:
 		*retval = t->fault_regs.bx;
 		break;
-	case THD_GET_ECX:
+	case THD_GET_FAULT_REG3:
 		*retval = t->fault_regs.cx;
 		break;
-	case THD_GET_EDX:
+	case THD_GET_FAULT_REG4:
 		*retval = t->fault_regs.dx;
 		break;
-	case THD_GET_CS:
+	case THD_GET_FAULT_REG5:
 		*retval = t->fault_regs.cs;
 		break;
-	case THD_GET_DS:
+	case THD_GET_FAULT_REG6:
 		*retval = t->fault_regs.ds;
 		break;
-	case THD_GET_ES:
+	case THD_GET_FAULT_REG7:
 		*retval = t->fault_regs.es;
 		break;
-	case THD_GET_FS:
+	case THD_GET_FAULT_REG8:
 		*retval = t->fault_regs.fs;
 		break;
-	case THD_GET_GS:
+	case THD_GET_FAULT_REG9:
 		*retval = t->fault_regs.gs;
 		break;
-	case THD_GET_SS:
+	case THD_GET_FAULT_REG10:
 		*retval = t->fault_regs.ss;
 		break;
-	case THD_GET_ESI:
+	case THD_GET_FAULT_REG11:
 		*retval = t->fault_regs.si;
 		break;
-	case THD_GET_EDI:
+	case THD_GET_FAULT_REG12:
 		*retval = t->fault_regs.di;
 		break;
-	case THD_GET_EIP:
+	case THD_GET_FAULT_REG13:
 		*retval = t->fault_regs.ip;
 		break;
-	case THD_GET_ESP:
+	case THD_GET_FAULT_REG14:
 		*retval = t->fault_regs.sp;
 		break;
-	case THD_GET_EBP:
+	case THD_GET_FAULT_REG15:
 		*retval = t->fault_regs.bp;
 		break;
-	case THD_GET_EFLAGS:
+	case THD_GET_FAULT_REG16:
 		*retval = t->fault_regs.flags;
 		break;
-	case THD_GET_ORIG_AX:
+	case THD_GET_FAULT_REG17:
 		*retval = t->fault_regs.orig_ax;
 		break;
 	default:
