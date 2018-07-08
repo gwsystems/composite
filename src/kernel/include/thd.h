@@ -555,7 +555,7 @@ thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs)
 		thd_rcvcap_pending_dec(thd);
 		pending = thd_rcvcap_pending(thd);
 	}
-	__userregs_setretvals(regs, pending, thd_state, cycles, timeout);
+	__userregs_setretvals(regs, pending, thd_state, cycles, timeout, 0);
 }
 
 static inline int

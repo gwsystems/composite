@@ -662,6 +662,19 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, inv
 }
 
 int
+cos_sinv_alloc_at(struct cos_compinfo *srcci, capid_t cap, compcap_t dstcomp, vaddr_t entry, invtoken_t token)
+{
+	printd("cos_sinv_alloc_at\n");
+
+	assert(srcci && dstcomp);
+
+	if (!cap) return 0;
+	if (call_cap_op(srcci->captbl_cap, CAPTBL_OP_SINVACTIVATE, cap, dstcomp, entry, token)) BUG();
+
+	return 0;
+}
+
+int
 cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
 	return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4);

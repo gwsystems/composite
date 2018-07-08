@@ -134,12 +134,6 @@ fault_reg_print(spdid_t spdid)
 	fault_regs.bx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG2);
 	fault_regs.cx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG3);
 	fault_regs.dx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG4);
-	fault_regs.cs = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG5);
-	fault_regs.ds = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG5);
-	fault_regs.es = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG7);
-	fault_regs.fs = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG8);
-	fault_regs.gs = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG9);
-	fault_regs.ss = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG10);
 	fault_regs.si = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG11);
 	fault_regs.di = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG12);
 	fault_regs.ip = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG13);
@@ -151,8 +145,6 @@ fault_reg_print(spdid_t spdid)
 	printc("registers:\n");
 	printc("General register-> EAX: %x, EBX: %x, ECX: %x, EDX: %x\n", (unsigned int)fault_regs.ax, 
 			(unsigned int)fault_regs.bx, (unsigned int)fault_regs.cx, (unsigned int)fault_regs.dx);
-	printc("Segment register-> CS: %x, DS: %x, ES: %x, ", (unsigned int)fault_regs.cs, (unsigned int)fault_regs.ds, (unsigned int)fault_regs.es);
-	printc("FS: %x, GS: %x, SS: %x\n", (unsigned int)fault_regs.fs, (unsigned int)fault_regs.gs, (unsigned int)fault_regs.ss);
 	printc("Index register-> SI: %x, DI: %x, IP: %x, SP: %x, BP: %x\n", (unsigned int)fault_regs.si, (unsigned int)fault_regs.di, 
 			(unsigned int)fault_regs.ip, (unsigned int)fault_regs.sp, (unsigned int)fault_regs.bp);
 	printc("Indicator->EFLAGS: %x\n", (unsigned int)fault_regs.flags);
@@ -250,17 +242,25 @@ static void
 boot_fault_handler_sinv_alloc(spdid_t spdid)
 {
 	invtoken_t  token = (invtoken_t)spdid;
+	int ret = 0;
 
 	struct cos_compinfo *comp_info = boot_spd_compinfo_get(spdid);
 	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
 
-	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, FAULT_CAPTBL_DIVZERO, boot_info->comp_cap, (vaddr_t)fault_div_by_zero_inv, token)) BUG();
-	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, FAULT_CAPTBL_MEM_ACCESS, boot_info->comp_cap, (vaddr_t)fault_memory_access_inv, token)) BUG();
-	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, FAULT_CAPTBL_BRKPT, boot_info->comp_cap, (vaddr_t)fault_breakpoint_inv, token)) BUG();
-	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, FAULT_CAPTBL_INVLD_INS, boot_info->comp_cap, (vaddr_t)fault_invalid_inst_inv, token)) BUG();
-	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, FAULT_CAPTBL_INVSTK, boot_info->comp_cap, (vaddr_t)fault_invstk_inv, token)) BUG();
-	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, FAULT_CAPTBL_COMP_NOT_EXIST, boot_info->comp_cap, (vaddr_t)fault_comp_not_exist_inv, token)) BUG();
-	if (call_cap_op(comp_info->captbl_cap, CAPTBL_OP_SINVACTIVATE, FAULT_CAPTBL_HAND_NOT_EXIST, boot_info->comp_cap, (vaddr_t)fault_handler_not_exist_inv, token)) BUG();
+	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_DIVZERO, boot_info->comp_cap, (vaddr_t)fault_div_by_zero_inv, token);
+	assert(ret == 0);
+	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_MEM_ACCESS, boot_info->comp_cap, (vaddr_t)fault_memory_access_inv, token);
+	assert(ret == 0);
+	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_BRKPT, boot_info->comp_cap, (vaddr_t)fault_breakpoint_inv, token);
+	assert(ret == 0);
+	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_INVLD_INS, boot_info->comp_cap, (vaddr_t)fault_invalid_inst_inv, token);
+	assert(ret == 0);
+	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_INVSTK, boot_info->comp_cap, (vaddr_t)fault_invstk_inv, token);
+	assert(ret == 0);
+	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_COMP_NOT_EXIST, boot_info->comp_cap, (vaddr_t)fault_comp_not_exist_inv, token);
+	assert(ret == 0);
+	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_HAND_NOT_EXIST, boot_info->comp_cap, (vaddr_t)fault_handler_not_exist_inv, token);
+	assert(ret == 0);
 }
 
 /* Initialize just the captblcap and pgtblcap, due to hack for upcall_fn addr */
@@ -473,10 +473,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	compinfo->comp_cap = cc;
 
 	/* Create sinv capability from Userspace to Booter components */
-	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)hypercall_entry_rets_inv, token);
-	assert(sinv > 0);
-
-	ret = cos_cap_cpy_at(compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);
+	ret = cos_sinv_alloc_at(compinfo, BOOT_CAPTBL_SINV_CAP, boot_info->comp_cap, (vaddr_t)hypercall_entry_rets_inv, token);
 	assert(ret == 0);
 
 	boot_newcomp_init_caps(spdid);
