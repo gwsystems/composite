@@ -116,6 +116,13 @@ remap_irq_table(void)
 void
 idt_init(const cpuid_t cpu_id)
 {
+	struct {
+		unsigned short length;
+		unsigned long  base;
+	} __attribute__((__packed__)) idtr;
+
+	if (cpu_id != INIT_CORE) goto update;
+
 	idt_ptr.limit = (sizeof(struct idt_entry) * NUM_IDT_ENTRIES) - 1;
 	idt_ptr.base  = (u32_t)&(idt_entries);
 	memset(&(idt_entries), 0, sizeof(struct idt_entry) * NUM_IDT_ENTRIES);
@@ -186,11 +193,7 @@ idt_init(const cpuid_t cpu_id)
 	idt_set_gate(HW_LAPIC_IPI_ASND, (u32_t)lapic_ipi_asnd_irq, 0x08, 0x8E);
 	idt_set_gate(HW_LAPIC_TIMER, (u32_t)lapic_timer_irq, 0x08, 0x8E);
 
-	struct {
-		unsigned short length;
-		unsigned long  base;
-	} __attribute__((__packed__)) idtr;
-
+update:
 	idtr.length = idt_ptr.limit;
 	idtr.base   = (unsigned long)(&(idt_entries));
 
