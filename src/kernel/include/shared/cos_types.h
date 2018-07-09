@@ -223,13 +223,13 @@ captbl_idsize(cap_t c)
  * LLBooter initial captbl setup:
  * 0 = sret,
  * 1-3 = nil,
- * 4-7 = memory fault handler,
+ * 4-7 = memory access fault handler,
  * 8-11 = divide by zero fault handler,
- * 12-15 = breapoint fault handler,
- * 16-19 = invaild instruction fault handler,
- * 20-23 = bound exceed fault handler,
- * 24-27 = component not exists fault handler,
- * 28-31 = sinv to invaild component fault handler,
+ * 12-15 = breakpoint fault handler,
+ * 16-19 = invalid instruction fault handler,
+ * 20-23 = invstk overflow and underflow fault handler,
+ * 24-27 = component does not exist fault handler,
+ * 28-31 = fault handler does not exist fault handler,
  * 32-33 = this captbl,
  * 34-35 = our pgtbl root,
  * 36-39 = our component,
@@ -240,7 +240,8 @@ captbl_idsize(cap_t c)
  * 48-49 = comp0 captbl,
  * 50-51 = comp0 pgtbl root,
  * 52-55 = comp0 component,
- * 56~(48+2*NCPU) = per core alpha thd
+ * 56~59 = sinv cap to booter,
+ * 60~(48+2*NCPU) = per core alpha thd
  *
  * Initial pgtbl setup (addresses):
  * 1GB+8MB-> = boot component VM

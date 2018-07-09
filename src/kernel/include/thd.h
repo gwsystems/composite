@@ -20,7 +20,7 @@
 
 struct invstk_entry {
 	struct comp_info comp_info;
-	unsigned long    sp, ip, fault_flag; /* to return to */
+	unsigned long    sp, ip, in_fault; /* to return to */
 } HALF_CACHE_ALIGNED;
 
 #define THD_INVSTK_MAXSZ 32
@@ -473,26 +473,24 @@ curr_invstk_top(struct cos_cpu_local_info *cos_info)
 }
 
 static inline struct comp_info *
-thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
+thd_invstk_current_fault(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, unsigned long *in_fault, struct cos_cpu_local_info *cos_info)
 {
 	/* curr_thd should be the current thread! We are using cached invstk_top. */
 	struct invstk_entry *curr;
 
-	curr = &curr_thd->invstk[curr_invstk_top(cos_info)];
-	*ip  = curr->ip;
-	*sp  = curr->sp;
+	curr      = &curr_thd->invstk[curr_invstk_top(cos_info)];
+	*ip       = curr->ip;
+	*sp       = curr->sp;
+	*in_fault = curr->in_fault;
 
 	return &curr->comp_info;
 }
 
 static inline struct comp_info *
-thd_invstk_current_fault(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, unsigned long *fault_flag, struct cos_cpu_local_info *cos_info)
+thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
 {
-	struct invstk_entry *curr;
-
-	curr        = &curr_thd->invstk[curr_invstk_top(cos_info)];
-	*fault_flag = curr->fault_flag;
-	return thd_invstk_current(curr_thd, ip, sp, cos_info);
+	unsigned long in_fault;
+	return thd_invstk_current_fault(curr_thd, ip, sp, &in_fault, cos_info);
 }
 
 static inline pgtbl_t
@@ -507,7 +505,7 @@ thd_current_pgtbl(struct thread *thd)
 }
 
 static inline int
-thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp, unsigned long fault_flag,
+thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp, unsigned long in_fault,
                 struct cos_cpu_local_info *cos_info)
 {
 	struct invstk_entry *top, *prev;
@@ -519,19 +517,19 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 	curr_invstk_inc(cos_info);
 	prev->ip          = ip;
 	prev->sp          = sp;
-	prev->fault_flag  = fault_flag;
+	prev->in_fault  = in_fault;
 	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
-	top->ip = top->sp = top->fault_flag = 0;
+	top->ip = top->sp = top->in_fault = 0;
 
 	return 0;
 }
 
 static inline struct comp_info *
-thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, unsigned long *fault_flag, struct cos_cpu_local_info *cos_info)
+thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, unsigned long *in_fault, struct cos_cpu_local_info *cos_info)
 {
 	if (unlikely(curr_invstk_top(cos_info) == 0)) return NULL;
 	curr_invstk_dec(cos_info);
-	return thd_invstk_current_fault(thd, ip, sp, fault_flag, cos_info);
+	return thd_invstk_current_fault(thd, ip, sp, in_fault, cos_info);
 }
 
 static inline void

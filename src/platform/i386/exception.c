@@ -40,12 +40,10 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 	u32_t                      fault_addr = 0, errcode, eip;
 
 	fault_regs_save (regs, curr_thd);
-
 	cos_info = thd_invstk_current(curr_thd, &ip, &sp, ci);
-
 	fh = captbl_lkup(cos_info->captbl, cap);
 	__userregs_setretvals(regs, 0, regs->sp, regs->ip, fault_addr, cap);
-	
+
 	if (likely(fh->type == CAP_SINV)){
 		sinv_call(curr_thd, (struct cap_sinv *)fh, regs, ci, 1);
 		return 0;
