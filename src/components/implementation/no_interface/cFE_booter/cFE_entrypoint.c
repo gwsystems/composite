@@ -6,6 +6,7 @@
 #include "gen/cfe_psp.h"
 #include "gen/common_types.h"
 #include "gen/osapi.h"
+#include "cFE_sensoremu.h"
 
 #ifdef UNIT_TESTS
 #include "test/shared/ut_main_composite.h"
@@ -117,7 +118,7 @@ cos_init_delegate(void *data)
 	sensoremu_thd = sl_thd_aep_alloc(sensoremu_handler, NULL, 0, 0, 0, 0);
 	assert(sensoremu_thd);
 	sl_thd_param_set(sensoremu_thd, sched_param_pack(SCHEDP_PRIO, SENSOREMU_THREAD_PRIORITY));
-	/* TODO: capmgr_hw_attach() here for HPET interrupt! */
+	capmgr_hw_periodic_attach(sl_thd_thdid(sensoremu_thd), SENSOREMU_INT_US);
 
 	OS_printf("CFE_PSP: cFE started, main thread sleeping\n");
 
