@@ -255,7 +255,11 @@ rk_sched_loop(void)
 	printc("Notifying parent scheduler...\n");
 	parent_schedinit_child();
 
+#ifdef CFE_RK_MULTI_CORE
+	sl_sched_loop_nonblock();
+#else
 	sl_sched_loop();
+#endif
 }
 
 void

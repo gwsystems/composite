@@ -75,7 +75,11 @@ OS_SchedulerStart(cos_thd_fn_t main_delegate)
 	sl_thd_param_set(timer_thd, timer_priority);
 
 	schedinit_child();
+#ifdef CFE_RK_MULTI_CORE
+	sl_sched_loop_nonblock();
+#else
 	sl_sched_loop();
+#endif
 }
 
 void

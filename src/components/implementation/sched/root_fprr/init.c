@@ -18,7 +18,11 @@ u32_t cycs_per_usec = 0;
 
 #define FIXED_PRIO 1
 #define FIXED_PERIOD_US (10000)
+#ifdef CFE_RK_MULTI_CORE
+#define FIXED_BUDGET_US (10000)
+#else
 #define FIXED_BUDGET_US (5000)
+#endif
 
 static struct sl_thd *__initializer_thd[NUM_CPU] CACHE_ALIGNED;
 
@@ -46,11 +50,18 @@ void
 sched_child_init(struct sched_childinfo *schedci)
 {
 	struct sl_thd *initthd = NULL;
+	int ret;
 
 	assert(schedci);
 	initthd = sched_child_initthd_get(schedci);
 	assert(initthd);
 
+#ifdef CFE_RK_MULTI_CORE
+	if ((ret = cos_tcap_transfer(sl_thd_rcvcap(initthd), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX))) {
+		PRINTC("%s: Failed to transfer INF budget\n");
+		assert(0);
+	}
+#endif
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_US));
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_US));

@@ -374,7 +374,7 @@ test_hpet_timer(void)
 		//while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
 	}
 
-	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
+	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_HPET_PERIODIC);
 
 	for (i = 0 ; i < TEST_HPET_ITERS ; i += 10) {
 		PRINTC("%llu ", iat_vals[i]);

@@ -1261,7 +1261,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t tlsaddr = __userregs_get2(regs);
 
 			assert(op_cap->captbl);
-			if (thd_tls_set(op_cap->captbl, thd_cap, tlsaddr, thd)) cos_throw(err, -EINVAL);
+
+			ret = thd_tls_set(op_cap->captbl, thd_cap, tlsaddr, thd);
+			if (unlikely(ret)) cos_throw(err, ret);
+
 			break;
 		}
 		case CAPTBL_OP_THDDEACTIVATE_ROOT: {
@@ -1655,7 +1658,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			if (!CAP_TYPECHK(rcvc, CAP_ARCV)) cos_throw(err, -EINVAL);
 
 			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcvcap);
-			if (!ret && hwid == HW_PERIODIC) chal_hpet_periodic_set(period);
+			if (!ret) {
+				if (hwid == HW_HPET_PERIODIC) chal_hpet_periodic_set(period);
+				ret = chal_irq_enable(hwid, get_cpuid());
+			}
 
 			break;
 		}
@@ -1663,7 +1669,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			hwid_t hwid = __userregs_get1(regs);
 
 			ret = hw_detach_rcvcap((struct cap_hw *)ch, hwid);
-			if (!ret && hwid == HW_PERIODIC) chal_hpet_disable();
+			if (!ret) {
+				if (hwid == HW_HPET_PERIODIC) chal_hpet_disable();
+				ret = chal_irq_disable(hwid, get_cpuid());
+			}
 
 			break;
 		}

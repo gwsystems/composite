@@ -1,44 +1,13 @@
 #include "kernel.h"
 #include "chal_cpu.h"
 #include "isr.h"
+#include "apic_cntl.h"
 
-#define APIC_DEFAULT_PHYS 0xfee00000
-#define APIC_HDR_LEN_OFF 0x04
-#define APIC_CNTRLR_ADDR_OFF 0x24
-#define APIC_CNTRLR_FLAGS_OFF 0x28
-#define APIC_CNTR_ARR_OFF 0x2C
+#define LAPIC_MAX NUM_CPU
 
-/* See 5.2.12 in the ACPI 5.0 Spec */
-enum
-{
-	APIC_CNTL_LAPIC  = 0,
-	APIC_CNTL_IOAPIC = 1,
-};
-
-struct int_cntl_head {
-	u8_t type;
-	u8_t len;
-} __attribute__((packed));
-
-struct lapic_cntl {
-	/* type == APIC_CNTL_LAPIC */
-	struct int_cntl_head header;
-	u8_t                 proc_id;
-	u8_t                 apic_id;
-	u32_t                flags; /* 0 = dead processor */
-} __attribute__((packed));
-
-struct ioapic_cntl {
-	/* type == APIC_CNTL_IOAPIC */
-	struct int_cntl_head header;
-	u8_t                 ioapic_id;
-	u8_t                 reserved;
-	u32_t                ioapic_phys_addr;
-	u32_t                glb_int_num_off; /* I/O APIC's interrupt base number offset  */
-} __attribute__((packed));
-
-volatile int ncpus = 1;
-volatile int apicids[NUM_CPU];
+int ncpus = 1;
+int apicids[NUM_CPU];
+u32_t logical_apicids[NUM_CPU];
 
 #define CMOS_PORT    0x70
 
@@ -46,6 +15,7 @@ volatile int apicids[NUM_CPU];
 #define LAPIC_VERSION_REG        0x030 /* version */
 #define LAPIC_TP_REG             0x080 /* Task Priority Register */
 
+#define LAPIC_LDR_REG            0x0D0 /* Logical destination register */
 #define LAPIC_SIV_REG            0x0F0 /* spurious interrupt vector */
 #define LAPIC_SIV_ENABLE         (1 << 8) /* enable bit in the SIV */
 #define LAPIC_EOI_REG            0x0B0 /* ack, or end-of-interrupt */
@@ -87,6 +57,10 @@ volatile int apicids[NUM_CPU];
 #define LAPIC_ONESHOT_THRESH (1 << 12)
 #define LAPIC_TSCDEADLINE_THRESH 0
 
+#define LAPIC_LDR_OFFSET 24
+#define LAPIC_LDR_MAST (0xfful << LAPIC_LDR_OFFSET)
+
+
 extern int timer_process(struct pt_regs *regs);
 
 enum lapic_timer_type
@@ -124,7 +98,7 @@ lapic_write_reg(u32_t off, u32_t val)
 	*(volatile u32_t *)(lapic + off) = val;
 }
 
-static void
+void
 lapic_ack(void)
 {
 	lapic_write_reg(LAPIC_EOI_REG, 0);
@@ -175,53 +149,16 @@ lapic_apicid(void)
 }
 
 void
-lapic_intsrc_iter(unsigned char *madt)
+lapic_iter(struct lapic_cntl *l)
 {
-	struct int_cntl_head *h   = (struct int_cntl_head *)(madt + APIC_CNTR_ARR_OFF);
-	u32_t                 len = *(u32_t *)(madt + APIC_HDR_LEN_OFF);
-	struct int_cntl_head *end = (struct int_cntl_head *)(madt + len);
-	int                   us = lapic_apicid(), off = 1;
+	static int off = 1;
 
-	apicids[0] = us;
-	printk("\tMADT length %d (base struct %d)\n", len, APIC_CNTR_ARR_OFF);
-	assert(h <= end);
-	for (; h < end; h = (struct int_cntl_head *)((char *)h + h->len)) {
-		/* termination condition */
-		assert(h->len >= sizeof(struct int_cntl_head));
-		switch (h->type) {
-		case APIC_CNTL_LAPIC: {
-			struct lapic_cntl *l = (struct lapic_cntl *)h;
+	assert(l->header.len == sizeof(struct lapic_cntl));
+	printk("\tLAPIC found: coreid %d, apicid %d\n", l->proc_id, l->apic_id);
 
-			assert(l->header.len == sizeof(struct lapic_cntl));
-			printk("\tLAPIC found: coreid %d, apicid %d flags %d\n", l->proc_id, l->apic_id, l->flags);
-
-			if (l->apic_id != us && l->flags && ncpus < NUM_CPU && NUM_CPU > 1) {
-				apicids[off++] = l->apic_id;
-				ncpus++;
-			}
-
-			break;
-		}
-		case APIC_CNTL_IOAPIC: {
-			struct ioapic_cntl *io = (struct ioapic_cntl *)h;
-
-			assert(io->header.len == sizeof(struct ioapic_cntl));
-			printk("\tI/O APIC found: ioapicid %d, addr %x, int offset %d\n", io->ioapic_id,
-			       io->ioapic_phys_addr, io->glb_int_num_off);
-			break;
-		}
-		default:
-			/* See 5.2.12 in the ACPI 5.0 Spec */
-			printk("\tInterrupt controller type %d: ignoring\n", h->type);
-			break;
-		}
-	}
-	printk("\tAPICs processed, %d cores\n", ncpus);
-
-	if (ncpus != NUM_CPU) {
-		printk("Number of LAPICs processed =%d not meeting the requirement = %d\n", ncpus, NUM_CPU);
-		printk("Please reconfigure NUM_CPU in Composite/HW-BIOS\n");
-		assert(0);
+	if (l->apic_id != apicids[INIT_CORE] && l->flags && ncpus < NUM_CPU && NUM_CPU > 1) {
+		apicids[off++] = l->apic_id;
+		ncpus++;
 	}
 }
 
@@ -236,6 +173,7 @@ lapic_find_localaddr(void *l)
 
 	printk("Initializing LAPIC @ %p\n", lapicaddr);
 
+	apicids[INIT_CORE] = lapic_apicid();
 	for (i = 0; i < length; i++) {
 		sum += lapicaddr[i];
 	}
@@ -248,7 +186,7 @@ lapic_find_localaddr(void *l)
 	addr       = *(u32_t *)(lapicaddr + APIC_CNTRLR_ADDR_OFF);
 	apic_flags = *(u32_t *)(lapicaddr + APIC_CNTRLR_FLAGS_OFF);
 	assert(apic_flags == 1); /* we're assuming the PIC exists */
-	lapic_intsrc_iter(lapicaddr);
+	acpi_madt_intsrc_iter(lapicaddr);
 
 	printk("\tChecksum is OK\n");
 	lapic = (void *)(addr);
@@ -261,12 +199,40 @@ lapic_find_localaddr(void *l)
 	return addr;
 }
 
+static u32_t
+cons_logical_id(const u32_t id)
+{
+	/*
+	 * FIXME: xAPIC only support 8 bits bitmap for logical destination,
+	 * So we will configure the logical id of cores with id larger than 7
+	 * to 0 which means we should find out a way(x2APIC) to fix this when we
+	 * have more than 8 cores in ioapic.
+	 */
+
+	if (id > 7) return 0;
+
+	return (1ul << id) << LAPIC_LDR_OFFSET;
+}
+
+static u32_t
+lapic_set_ldr(const u32_t id)
+{
+	u32_t lid = cons_logical_id(id);
+
+	lapic_write_reg(LAPIC_LDR_REG, lid | ~LAPIC_LDR_MAST);
+	return lid >> LAPIC_LDR_OFFSET;
+}
+
 void
 lapic_init(void)
 {
 	u32_t version;
 
 	assert(lapic);
+
+	/* setup LDR for logic destination before init lapic */
+	logical_apicids[get_cpuid()] = lapic_set_ldr(get_cpuid());
+
 	lapic_write_reg(LAPIC_SIV_REG, LAPIC_SIV_ENABLE | HW_LAPIC_SPURIOUS);
 
 	version = lapic_read_reg(LAPIC_VERSION_REG);

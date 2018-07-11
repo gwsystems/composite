@@ -22,12 +22,15 @@ extern struct cos_compinfo *currci;
 extern struct cos_rumpcalls crcalls;
 void __cos_print(char *s, int len);
 extern spdid_t rk_child_app[];
+/*---- This is used for setting tls region of the boot thread! ----*/
+int boot_thd = 0;
 
 /* Mapping the functions from rumpkernel to composite */
 void
 cos2rump_setup(void)
 {
 	rump_bmk_memsize_init();
+	boot_thd = BOOT_CAPTBL_SELF_INITTHD_CPU_BASE;
 
 	crcalls.rump_cpu_clock_now		= cos_cpu_clock_now;
 	crcalls.rump_vm_clock_now		= cos_vm_clock_now;
@@ -88,7 +91,7 @@ __cos_print(char *s, int len)
 {
 
 	if (len > STR_MIN_PRINTC) PRINTC("%s", s);
-	cos_llprint(s, len);
+	else cos_llprint(s, len);
 }
 
 static inline void
@@ -135,13 +138,13 @@ static inline void
 __cpu_intr_ack(void)
 {
 //	static int count;
-
-	__asm__ __volatile(
-		"movb $0x20, %%al\n"
-		"outb %%al, $0xa0\n"
-		"outb %%al, $0x20\n"
-		::: "al");
-
+//
+//	__asm__ __volatile(
+//		"movb $0x20, %%al\n"
+//		"outb %%al, $0xa0\n"
+//		"outb %%al, $0x20\n"
+//		::: "al");
+//
 //	count ++;
 //	if (count % 1000 == 0) printc("..a%d..", count);
 }
@@ -221,13 +224,15 @@ cos_memalloc(size_t nbytes, size_t align)
 	return rv;
 }
 
-/*---- Scheduling ----*/
-int boot_thd = BOOT_CAPTBL_SELF_INITTHD_BASE;
-
 int
 cos_tls_init(unsigned long tp, thdcap_t tc)
 {
-	return cos_thd_mod(currci, tc, (void *)tp);
+	int ret = 0;
+
+	ret = cos_thd_mod(currci, tc, (void *)tp);
+	assert(ret == 0);
+
+	return ret;
 }
 
 extern int tcboffset;
@@ -239,12 +244,13 @@ void *
 cos_tls_alloc(struct bmk_thread *thread)
 {
 	char *tlsmem;
+	void *ret = 0;
 
 	tlsmem = memmgr_tls_alloc(thread->cos_tid);
 
 	cos_memset((void *)(tlsmem + tdatasize), 0, tbsssize);
 
-	return tlsmem + tcboffset;
+	return (void *)(tlsmem + tcboffset);
 }
 
 void *

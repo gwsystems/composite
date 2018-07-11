@@ -31,16 +31,11 @@ memmgr_pa2va_map(paddr_t pa, unsigned int len)
 	struct cos_compinfo *cur_ci = cap_info_ci(cur_rci);
 	vaddr_t va = 0;
 
-	if (!cur_rci || !cap_info_init_check(cur_rci) || !cur_ci) {
-		printc("ERROR! %s\n", __func__);
-		return 0;
-	}
+	if (!cur_rci || !cap_info_init_check(cur_rci) || !cur_ci) return 0;
 
 	va = (vaddr_t)cos_hw_map(cur_ci, BOOT_CAPTBL_SELF_INITHW_BASE, pa, len);
-	printc("pa: %p, va: %p, len: %u\n", (void *)pa, (void *)va, len);
 
 	return va;
-
 }
 
 vaddr_t
@@ -112,7 +107,8 @@ memmgr_tls_alloc(unsigned int dst_tid)
 
 	/* Just return the vaddr range for this tid */
 	assert(dst_tid < MAX_NUM_THREADS);
-	ret = TLS_BASE_ADDR + (void *)(TLS_AREA_SIZE * dst_tid);
+	/* have per-core tls regions */
+	ret = TLS_BASE_ADDR + (TLS_AREA_SIZE * MAX_NUM_CPU_THDS * cos_cpuid()) + (TLS_AREA_SIZE * dst_tid);
 
 	return ret;
 }

@@ -1043,7 +1043,7 @@ cos_tcap_merge(tcap_t dst, tcap_t rm)
 int
 cos_hw_periodic_attach(hwcap_t hwc, arcvcap_t arcv, unsigned int period)
 {
-	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, HW_PERIODIC, arcv, period, 0);
+	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, HW_HPET_PERIODIC, arcv, period, 0);
 }
 
 int

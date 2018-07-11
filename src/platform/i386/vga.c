@@ -44,9 +44,6 @@
 #define VGA_CTL_REG 0x3D4
 #define VGA_DATA_REG 0x3D5
 
-#define KEY_DEVICE 0x60
-#define KEY_PENDING 0x64
-
 /* Variables. */
 /* Save the X position. */
 static int csr_x;
@@ -160,27 +157,6 @@ cls(void)
 	move_csr();
 }
 
-/*
- * VIDEO virtual address set to HIGH address.
- */
-void
-vga_high_init(void)
-{
-	video = chal_pa2va(VIDEO);
-}
-
-/* Clear the screen and initialize VIDEO, XPOS and YPOS. */
-void
-vga_init(void)
-{
-	video = (unsigned char *) VIDEO;
-
-	csr_x = 0;
-	csr_y = 0;
-	cls();
-	printk_register_handler(vga_puts);
-}
-
 /* Put the character C on the screen. */
 static void
 putchar(int c)
@@ -222,16 +198,24 @@ puts(unsigned char *text)
 	move_csr();
 }
 
+/*
+ * VIDEO virtual address set to HIGH address.
+ */
 void
-keyboard_handler(struct pt_regs *regs)
+vga_high_init(void)
 {
-	u16_t scancode = 0;
+	video = chal_pa2va(VIDEO);
+}
 
-	ack_irq(HW_KEYBOARD);
+/* Clear the screen and initialize VIDEO, XPOS and YPOS. */
+void
+vga_init(void)
+{
+	video = (unsigned char *) VIDEO;
 
-	while (inb(KEY_PENDING) & 2) {
-		/* wait for keypress to be ready */
-	}
-	scancode = inb(KEY_DEVICE);
-	printk("Keyboard press: %d\n", scancode);
+	csr_x = 0;
+	csr_y = 0;
+	cls();
+	printk_register_handler(vga_puts);
+	printk("Enabling VGA\n");
 }

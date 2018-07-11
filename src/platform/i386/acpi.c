@@ -2,6 +2,8 @@
 #include "string.h"
 #include "mem_layout.h"
 #include "pgtbl.h"
+#include "apic_cntl.h"
+#include "ioapic.h"
 
 #define RSDP_LO_ADDRESS ((unsigned char *)0xc00E0000)
 #define RSDP_HI_ADDRESS ((unsigned char *)0xc00FFFFF)
@@ -32,9 +34,10 @@ struct rsdt {
 	struct rsdt *entry[0];
 } __attribute__((packed));
 
-extern u8_t *       boot_comp_pgd;
-static u32_t        basepage;
-static struct rsdt *rsdt;
+extern u8_t *         boot_comp_pgd;
+static u32_t          basepage;
+static struct rsdt   *rsdt;
+static unsigned char *madt;
 
 static inline void *
 pa2va(void *pa)
@@ -78,7 +81,7 @@ acpi_find_rsdt(void)
 }
 
 void *
-acpi_find_timer(void)
+acpi_find_hpet(void)
 {
 	pgtbl_t pgtbl = (pgtbl_t)boot_comp_pgd;
 	size_t  i;
@@ -141,4 +144,53 @@ acpi_set_rsdt_page(u32_t page)
 {
 	basepage = page * (1 << 22);
 	rsdt     = (struct rsdt *)pa2va(rsdt);
+}
+
+void
+acpi_madt_intsrc_iter(unsigned char *addr)
+{
+	struct int_cntl_head *h   = NULL, *end = NULL;
+	u32_t                 len = 0;
+	int                   nl  = 0, nio = 0;
+
+	assert(addr);
+	madt = addr;
+	h    = (struct int_cntl_head *)(madt + APIC_CNTR_ARR_OFF);
+	len  = *(u32_t *)(madt + APIC_HDR_LEN_OFF);
+	end  = (struct int_cntl_head *)(madt + len);
+
+	printk("\tMADT length %d (base struct %d)\n", len, APIC_CNTR_ARR_OFF);
+	assert(h <= end);
+	for (; h < end; h = (struct int_cntl_head *)((char *)h + h->len)) {
+		/* termination condition */
+		assert(h->len >= sizeof(struct int_cntl_head));
+		switch (h->type) {
+		case APIC_CNTL_LAPIC: {
+			nl++;
+			lapic_iter((struct lapic_cntl *)h);
+			break;
+		}
+		case APIC_CNTL_IOAPIC: {
+			nio++;
+			ioapic_iter((struct ioapic_cntl *)h);
+			break;
+		}
+		case APIC_CNTL_ISO: {
+			ioapic_int_override((struct intsrcovrride_cntl *)h);
+			break;
+		}
+		default:
+			/* See 5.2.12 in the ACPI 5.0 Spec */
+			printk("\tInterrupt controller type %d: ignoring\n", h->type);
+			break;
+		}
+	}
+
+	printk("\tMADT => LAPICs=%d, IOAPICs=%d\n", nl, nio);
+
+	if (nl < NUM_CPU) {
+		printk("Number of LAPICs processed =%d not meeting the requirement = %d\n", nl, NUM_CPU);
+		printk("Please reconfigure NUM_CPU in Composite/HW-BIOS\n");
+		assert(0);
+	}
 }

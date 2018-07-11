@@ -3,31 +3,6 @@
 #include "isr.h"
 #include "chal/io.h"
 
-/* Information taken from: http://wiki.osdev.org/PIC */
-/* FIXME:  Remove magic numbers and replace with this */
-#define PIC1 0x20
-#define PIC2 0xA0
-#define PIC1_COMMAND PIC1
-#define PIC1_DATA (PIC1 + 1)
-#define PIC2_COMMAND PIC2
-#define PIC2_DATA (PIC2 + 1)
-
-/* reinitialize the PIC controllers, giving them specified vector offsets
-   rather than 8 and 70, as configured by default */
-
-#define ICW1_ICW4 0x01      /* ICW4 (not) needed */
-#define ICW1_SINGLE 0x02    /* Single (cascade) mode */
-#define ICW1_INTERVAL4 0x04 /* Call address interval 4 (8) */
-#define ICW1_LEVEL 0x08     /* Level triggered (edge) mode */
-#define ICW1_INIT 0x10      /* Initialization - required! */
-
-#define ICW4_8086 0x01       /* 8086/88 (MCS-80/85) mode */
-#define ICW4_AUTO 0x02       /* Auto (normal) EOI */
-#define ICW4_BUF_SLAVE 0x08  /* Buffered mode/slave */
-#define ICW4_BUF_MASTER 0x0C /* Buffered mode/master */
-#define ICW4_SFNM 0x10       /* Special fully nested (not) */
-#define ICW1_ICW4 0x01
-
 struct idt_entry {
 	u16_t base_lo; // Lower 16 bits of address to jump too after int
 	u16_t sel;     // Kernel segment selector
@@ -64,54 +39,23 @@ idt_set_gate(u8_t num, u32_t base, u16_t sel, u8_t flags)
 	// The OR is used for ring once we get usermode up and running
 }
 
-void
-chal_mask_irq(int n)
-{ mask_irq(n); }
-
-void
-chal_unmask_irq(int n)
-{ unmask_irq(n); }
-
-void
-chal_mask_irqbmp(u32_t bmp)
-{ mask_irqbmp(bmp); }
-
-void
-chal_unmask_irqbmp(u32_t bmp)
-{ unmask_irqbmp(bmp); }
-
 int
 hw_handler(struct pt_regs *regs)
 {
 	int preempt = 1;
-	u32_t count = 0;
+	//u32_t count = 0;
 
-	//printk("%d\n", regs->orig_ax);
+	//printk("%d -> %d\n", get_cpuid(), regs->orig_ax);
 
 	/*
 	 * TODO: ack here? or
 	 *       after user-level interrupt(rcv event) processing?
 	 */
-	count ++;
-//	if (count % 1000 == 0) printk("..n%lu..", count);
-	//ack_irq(regs->orig_ax);
-	preempt = cap_hw_asnd(&hw_asnd_caps[regs->orig_ax], regs);
+	lapic_ack();
+	preempt = cap_hw_asnd(&hw_asnd_caps[get_cpuid()][regs->orig_ax], regs);
 
 	return preempt;
 }
-
-#if 0
-static inline void
-remap_irq_table(void)
-{
-	u8_t pic1_mask;
-	u8_t pic2_mask;
-
-	// Save masks
-	pic1_mask = inb(PIC1_DATA);
-	pic2_mask = inb(PIC2_DATA);
-}
-#endif
 
 void
 idt_init(const cpuid_t cpu_id)
@@ -158,7 +102,7 @@ idt_init(const cpuid_t cpu_id)
 	idt_set_gate(IRQ_VIRTUALIZATION_EXCEPT_FAULT, (u32_t)virtualization_except_fault_irq, 0x08, 0x8E);
 	idt_set_gate(IRQ_SECURITY_EXCEPT_FAULT, (u32_t)security_except_fault_irq, 0x08, 0x8E);
 
-	idt_set_gate(HW_PERIODIC, (u32_t)periodic_irq, 0x08, 0x8E);
+	idt_set_gate(HW_HPET_PERIODIC, (u32_t)hpet_periodic_irq, 0x08, 0x8E);
 	idt_set_gate(HW_KEYBOARD, (u32_t)keyboard_irq, 0x08, 0x8E);
 	idt_set_gate(HW_ID3, (u32_t)handler_hw_34, 0x08, 0x8E);
 	idt_set_gate(HW_ID4, (u32_t)handler_hw_35, 0x08, 0x8E);
@@ -166,7 +110,7 @@ idt_init(const cpuid_t cpu_id)
 	idt_set_gate(HW_ID6, (u32_t)handler_hw_37, 0x08, 0x8E);
 	idt_set_gate(HW_ID7, (u32_t)handler_hw_38, 0x08, 0x8E);
 	idt_set_gate(HW_ID8, (u32_t)handler_hw_39, 0x08, 0x8E);
-	idt_set_gate(HW_ONESHOT, (u32_t)oneshot_irq, 0x08, 0x8E);
+	idt_set_gate(HW_HPET_ONESHOT, (u32_t)hpet_oneshot_irq, 0x08, 0x8E);
 	idt_set_gate(HW_ID10, (u32_t)handler_hw_41, 0x08, 0x8E);
 	idt_set_gate(HW_ID11, (u32_t)handler_hw_42, 0x08, 0x8E);
 	idt_set_gate(HW_ID12, (u32_t)handler_hw_43, 0x08, 0x8E);

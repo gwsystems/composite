@@ -29,7 +29,7 @@ int vmid = 0;
 
 cycles_t cycs_per_usec;
 
-#define HW_ISR_LINES 32
+#define HW_ISR_LINES 24 /* 1 IOAPIC worth! */
 #define HW_ISR_FIRST 1
 #define RK_IRQ_IO 15
 
