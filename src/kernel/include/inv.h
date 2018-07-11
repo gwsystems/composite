@@ -51,7 +51,7 @@ struct cap_arcv {
 } __attribute__((packed));
 
 static int
-sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, vaddr_t entry_addr, invtoken_t token)
+sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, cap_t type, vaddr_t entry_addr, invtoken_t token)
 {
 	struct cap_sinv *sinvc;
 	struct cap_comp *compc;
@@ -60,14 +60,14 @@ sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, va
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
 
-	sinvc = (struct cap_sinv *)__cap_capactivate_pre(t, cap, capin, CAP_SINV, &ret);
+	sinvc = (struct cap_sinv *)__cap_capactivate_pre(t, cap, capin, type, &ret);
 	if (!sinvc) return ret;
 
 	sinvc->token = token;
 
 	memcpy(&sinvc->comp_info, &compc->info, sizeof(struct comp_info));
 	sinvc->entry_addr = entry_addr;
-	__cap_capactivate_post(&sinvc->h, CAP_SINV);
+	__cap_capactivate_post(&sinvc->h, type);
 
 	return 0;
 }
@@ -325,7 +325,7 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	pgtbl_update(ci->pgtbl);
 	/* Set return sp and ip and function return value in eax */
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);
-	ret:
+ret:
 	if (unlikely(in_fault)) {
 		copy_all_regs(&(thd->fault_regs), regs);
 		return 1;

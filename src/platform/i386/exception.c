@@ -44,7 +44,7 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 	fh = captbl_lkup(cos_info->captbl, cap);
 	__userregs_setretvals(regs, 0, regs->sp, regs->ip, fault_addr, cap);
 
-	if (likely(fh->type == CAP_SINV)){
+	if (likely(fh->type == CAP_SINVFLT)){
 		sinv_call(curr_thd, (struct cap_sinv *)fh, regs, ci, 1);
 		return 0;
 	} else {

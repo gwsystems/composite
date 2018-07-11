@@ -992,7 +992,7 @@ composite_syscall_handler(struct pt_regs *regs)
 		cos_throw(done, 0);
 	}
 	/* fastpath: invocation */
-	if (likely((ch->type == CAP_SINV) && (cap > FAULT_CAPTBL_HAND_NOT_EXIST))) {
+	if (likely((ch->type == CAP_SINV))) {
 		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info, 0);
 		return 0;
 	}
@@ -1265,13 +1265,21 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t    entry_addr    = __userregs_get3(regs);
 			invtoken_t token         = __userregs_get4(regs);
 
-			ret = sinv_activate(ct, cap, capin, dest_comp_cap, entry_addr, token);
+			ret = sinv_activate(ct, cap, capin, dest_comp_cap, CAP_SINV, entry_addr, token);
 			break;
 		}
 		case CAPTBL_OP_SINVDEACTIVATE: {
 			livenessid_t lid = __userregs_get2(regs);
 
 			ret = sinv_deactivate(op_cap, capin, lid);
+			break;
+		}
+		case CAPTBL_OP_FAULTACTIVATE: {
+			capid_t    dest_comp_cap = __userregs_get2(regs);
+			vaddr_t    entry_addr    = __userregs_get3(regs);
+			invtoken_t token         = __userregs_get4(regs);
+
+			ret = sinv_activate(ct, cap, capin, dest_comp_cap, CAP_SINVFLT, entry_addr, token);
 			break;
 		}
 		case CAPTBL_OP_SRETACTIVATE: {

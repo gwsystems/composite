@@ -89,6 +89,7 @@ typedef enum {
 	CAPTBL_OP_COMPDEACTIVATE,
 	CAPTBL_OP_SINVACTIVATE,
 	CAPTBL_OP_SINVDEACTIVATE,
+	CAPTBL_OP_FAULTACTIVATE,
 	CAPTBL_OP_SRETACTIVATE,
 	CAPTBL_OP_SRETDEACTIVATE,
 	CAPTBL_OP_ASNDACTIVATE,
@@ -131,6 +132,7 @@ typedef enum {
 typedef enum {
 	CAP_FREE = 0,
 	CAP_SINV,       /* synchronous communication -- invoke */
+	CAP_SINVFLT,    /* synchronous communication of fault handler -- invoke*/
 	CAP_SRET,       /* synchronous communication -- return */
 	CAP_ASND,       /* async communication; sender */
 	CAP_ARCV,       /* async communication; receiver */
@@ -204,6 +206,7 @@ __captbl_cap2sz(cap_t c)
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 		return CAP_SZ_32B;
 	case CAP_SINV:
+	case CAP_SINVFLT:
 	case CAP_COMP:
 	case CAP_ASND:
 	case CAP_ARCV:

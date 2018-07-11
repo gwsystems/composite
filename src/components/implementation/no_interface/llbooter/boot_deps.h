@@ -247,19 +247,19 @@ boot_fault_handler_sinv_alloc(spdid_t spdid)
 	struct cos_compinfo *comp_info = boot_spd_compinfo_get(spdid);
 	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
 
-	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_DIVZERO, boot_info->comp_cap, (vaddr_t)fault_div_by_zero_inv, token);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_DIVZERO, boot_info->comp_cap, (vaddr_t)fault_div_by_zero_inv, token);
 	assert(ret == 0);
-	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_MEM_ACCESS, boot_info->comp_cap, (vaddr_t)fault_memory_access_inv, token);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_MEM_ACCESS, boot_info->comp_cap, (vaddr_t)fault_memory_access_inv, token);
 	assert(ret == 0);
-	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_BRKPT, boot_info->comp_cap, (vaddr_t)fault_breakpoint_inv, token);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_BRKPT, boot_info->comp_cap, (vaddr_t)fault_breakpoint_inv, token);
 	assert(ret == 0);
-	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_INVLD_INS, boot_info->comp_cap, (vaddr_t)fault_invalid_inst_inv, token);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_INVLD_INS, boot_info->comp_cap, (vaddr_t)fault_invalid_inst_inv, token);
 	assert(ret == 0);
-	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_INVSTK, boot_info->comp_cap, (vaddr_t)fault_invstk_inv, token);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_INVSTK, boot_info->comp_cap, (vaddr_t)fault_invstk_inv, token);
 	assert(ret == 0);
-	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_COMP_NOT_EXIST, boot_info->comp_cap, (vaddr_t)fault_comp_not_exist_inv, token);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_COMP_NOT_EXIST, boot_info->comp_cap, (vaddr_t)fault_comp_not_exist_inv, token);
 	assert(ret == 0);
-	ret = cos_sinv_alloc_at(comp_info, FAULT_CAPTBL_HAND_NOT_EXIST, boot_info->comp_cap, (vaddr_t)fault_handler_not_exist_inv, token);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_HAND_NOT_EXIST, boot_info->comp_cap, (vaddr_t)fault_handler_not_exist_inv, token);
 	assert(ret == 0);
 }
 
@@ -473,7 +473,10 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	compinfo->comp_cap = cc;
 
 	/* Create sinv capability from Userspace to Booter components */
-	ret = cos_sinv_alloc_at(compinfo, BOOT_CAPTBL_SINV_CAP, boot_info->comp_cap, (vaddr_t)hypercall_entry_rets_inv, token);
+	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)hypercall_entry_rets_inv, token);
+	assert(sinv > 0);
+
+	ret = cos_cap_cpy_at(compinfo, BOOT_CAPTBL_SINV_CAP,  boot_info, sinv);
 	assert(ret == 0);
 
 	boot_newcomp_init_caps(spdid);
