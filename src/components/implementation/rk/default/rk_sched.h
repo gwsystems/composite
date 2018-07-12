@@ -51,7 +51,7 @@ void rk_curr_thd_set_prio(int prio);
 
 void rk_intr_disable(void);
 void rk_intr_enable(void);
-void rk_child_initthd_walk(void);
+void rk_child_initthd_walk(char *cmdline);
 struct sl_thd *rk_child_stubcomp_init(char *name);
 struct sl_thd *rk_child_fakethd_init(char *name);
 

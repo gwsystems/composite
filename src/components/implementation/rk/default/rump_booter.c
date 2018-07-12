@@ -17,6 +17,7 @@
 
 #include "rk_json_cfg.h"
 #include "rk_sched.h"
+#include <rk_types.h>
 
 extern struct cos_component_information cos_comp_info;
 
@@ -110,34 +111,29 @@ rk_alloc_run(char *cmdline)
 void
 rump_booter_init(void *d)
 {
-	char *script = NULL;
+	int runtype = rk_args_runtype();
+	char script[RK_JSON_MAXLEN] = { 0 };
+	char cmdline[RK_CHILD_CMDLINE_MAXLEN] = { 0 };
 	PRINTC("~~~~~ vmid: %d ~~~~~\n", vmid);
 	assert(vmid == 0);
 
+	assert(runtype >= 0);
 	PRINTC("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();
 
 	PRINTC("Walking through RK child components..\n");
-	rk_child_initthd_walk();
+	rk_child_initthd_walk(cmdline);
 
 	PRINTC("\nSetting up arcv for hw irq\n");
 	rk_hw_irq_alloc();
 
-	/* We pass in the json config string to the RK */
-	//script = RK_JSON_HTTP_UDPSERV_QEMU;
-	//script = RK_JSON_HTTP_UDPSERV_HW;
-	//script = RK_JSON_UDPSTUB_HTTP_QEMU;
-	//script = RK_JSON_UDPSTUB_HTTP_HW;
-	//script = RK_JSON_UDPSERV_QEMU;
-	//script = RK_JSON_UDPSERV_HW;
-	//script = RK_JSON_IPERF_QEMU;
-	//script = RK_JSON_IPERF_HW;
-	//script = RK_JSON_HTTP_QEMU;
-	//script = RK_JSON_HTTP_HW;
-	//script = RK_JSON_KITTOSTUB_KITCISTUB_HTTP_QEMU;
-	script = RK_JSON_KITTOSTUB_KITCISTUB_HTTP_HW;
-	//script = RK_JSON_KITTOSTUB_KITCISTUB_TFTPSTUB_HTTP_QEMU;
-	//script = RK_JSON_KITTOSTUB_KITCISTUB_TFTPSTUB_HTTP_HW;
+	if ((char)runtype == 'Q') {
+		PRINTC("Alright, running with Qemu json config (with interface:%s ip:%s and cmdline:%s)\n", RK_QEMU_NW_IF, RK_QEMU_NW_IP, cmdline);
+		sprintf(script, RK_JSON_FMT, RK_QEMU_NW_IF, RK_QEMU_NW_IP, cmdline);
+	} else {
+		PRINTC("Running with HW json config (with interface:%s ip:%s and cmdline:%s)\n", RK_HW_NW_IF, RK_HW_NW_IP, cmdline);
+		sprintf(script, RK_JSON_FMT, RK_HW_NW_IF, RK_HW_NW_IP, cmdline);
+	}
 
 	rk_alloc_run(script);
 	PRINTC("\nRumpKernel Boot done.\n");

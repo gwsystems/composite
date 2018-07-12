@@ -467,7 +467,7 @@ rk_app_findspd(char *name)
 }
 
 void
-rk_child_initthd_walk(void)
+rk_child_initthd_walk(char *cmdline)
 {
 	int remaining = 0;
 	spdid_t child;
@@ -501,10 +501,13 @@ rk_child_initthd_walk(void)
 		assert(appname);
 		num_child ++;
 done:
+		strcat(cmdline, appname);
 		if (!remaining) break;
+		strncat(cmdline, ".", 1);
 	}
+	if (cmdline[strlen(cmdline)-1] == '.') cmdline[strlen(cmdline)-1] = '\0';
 
-	PRINTC("Number of \"stub\" child components: %d\n", num_child);
+	PRINTC("Number of \"stub\" child components: %d, cmdline: %s\n", num_child, cmdline);
 }
 
 /* creates initthds for non rumpkernel apps.. for sinv/async communication stub components */

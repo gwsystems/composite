@@ -44,7 +44,7 @@ typedef enum {
 
 #define RK_CLIENT_MAX (4)
 
-#define RK_CLIENT_STARTTOK "r"
+#define RK_CLIENT_STARTTOK 'r'
 #define RK_CLIENT_ENDTOK   ","
 #define RK_CLIENT_LEN      (2) //upto 2 digits..
 
@@ -58,16 +58,41 @@ rk_args_instance(void)
 
 	if (!arg) return -EINVAL;
 	strncpy(rs, arg, COMP_INFO_INIT_STR_LEN);
-	tok1 = strtok_r(rs, RK_CLIENT_STARTTOK, &rs);
-	if (!strlen(arg) || !tok1 || strcmp(tok1, arg) == 0) return -EINVAL;
-	tok2 = strtok_r(tok1, RK_CLIENT_ENDTOK, &tok1);
-	if (!tok2 || strlen(tok2) > RK_CLIENT_LEN) return -EINVAL;
 
-	instance = atoi(tok2);
+	while ((tok1 = strtok_r(rs, RK_CLIENT_ENDTOK, &rs)) != NULL) {
+		if (tok1[0] == RK_CLIENT_STARTTOK) break;
+	}
+	if (!tok1 || strlen(tok1) == 1 || strlen(tok1) > (RK_CLIENT_LEN + 1)) return -EINVAL;
+
+	instance = atoi(&tok1[1]);
 	assert(instance > 0 && instance < RK_CLIENT_MAX);
-	PRINTC("%s:%d %s=>%d\n", __func__, __LINE__, arg, instance);
 
 	return instance;
+}
+
+#define RK_RUNTYPE_STARTTOK 'r'
+#define RK_RUNTYPE_ENDTOK   ","
+#define RK_RUNTYPE_LEN      (1) //1 character Q for QEMU or H for HW
+
+/* return int (typecast to char: 'Q' for QEMU and 'H' for HW on success) */
+static inline int
+rk_args_runtype(void)
+{
+	char *arg = cos_init_args();
+	char *tok1, *tok2;
+	char res[COMP_INFO_INIT_STR_LEN] = { '\0' }, *rs = res;
+	int  len = 0;
+
+	if (!arg) return -EINVAL;
+	strncpy(rs, arg, COMP_INFO_INIT_STR_LEN);
+
+	while ((tok1 = strtok_r(rs, RK_RUNTYPE_ENDTOK, &rs)) != NULL) {
+		if (tok1[0] == RK_RUNTYPE_STARTTOK) break;
+	}
+	if (!tok1 || strlen(tok1) != (RK_RUNTYPE_LEN + 1)) return -EINVAL;
+	if (tok1[1] != 'Q' && tok1[1] != 'H') return -EINVAL;
+
+	return (int)tok1[1];
 }
 
 #endif /* RK_TYPES_H */

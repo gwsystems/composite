@@ -231,25 +231,28 @@ cos_init_args(void)
 	return cos_comp_info.init_string;
 }
 
-#define COS_CPUBITMAP_STARTTOK "c"
+#define COS_CPUBITMAP_STARTTOK 'c'
 #define COS_CPUBITMAP_ENDTOK   ","
 #define COS_CPUBITMAP_LEN      (NUM_CPU)
 
 static inline int
 cos_args_cpubmp(u32_t *cpubmp, char *arg)
 {
-	char *tok1, *tok2;
+	char *tok1 = NULL, *tok2 = NULL;
 	char res[COMP_INFO_INIT_STR_LEN] = { '\0' }, *rs = res;
 	int i, len = 0;
 
 	if (!arg || !cpubmp) return -EINVAL;
 	strncpy(rs, arg, COMP_INFO_INIT_STR_LEN);
-	tok1 = strtok_r(rs, COS_CPUBITMAP_STARTTOK, &rs);
-	/* if "cpu=" tag is not present.. set the component to be runnable on all cores */
-	if (!strlen(arg) || !tok1 || strcmp(tok1, arg) == 0) goto allset;
-	tok2 = strtok_r(tok1, COS_CPUBITMAP_ENDTOK, &tok2);
-	if (!tok2 || strlen(tok2) != COS_CPUBITMAP_LEN) return -EINVAL;
+	if (!strlen(arg)) goto allset;
+	while ((tok1 = strtok_r(rs, COS_CPUBITMAP_ENDTOK, &rs)) != NULL) {
+		if (tok1[0] == COS_CPUBITMAP_STARTTOK) break;
+	}
+	/* if "c" tag is not present.. set the component to be runnable on all cores */
+	if (!tok1) goto allset;
+	if (strlen(tok1) != (COS_CPUBITMAP_LEN + 1)) return -EINVAL;
 
+	tok2 = tok1 + 1;
 	len = strlen(tok2);
 	for (i = 0; i < len; i++) {
 		if (tok2[i] == '1') bitmap_set(cpubmp, (len - 1 - i));
