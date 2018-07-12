@@ -20,7 +20,7 @@
 
 struct invstk_entry {
 	struct comp_info comp_info;
-	unsigned long    sp_fault, ip; /* to return to */
+	unsigned long    sp, ip, in_fault; /* to return to */
 } HALF_CACHE_ALIGNED;
 
 #define THD_INVSTK_MAXSZ 32
@@ -349,7 +349,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
-	thd->invstk[0].ip = thd->invstk[0].sp_fault = 0;
+	thd->invstk[0].ip = thd->invstk[0].sp = thd->invstk[0].in_fault = 0;
 	thd->tid                              = thdid_alloc();
 	thd->refcnt                           = 1;
 	thd->invstk_top                       = 0;
@@ -480,8 +480,8 @@ thd_invstk_current_fault(struct thread *curr_thd, unsigned long *ip, unsigned lo
 
 	curr      = &curr_thd->invstk[curr_invstk_top(cos_info)];
 	*ip       = curr->ip;
-	*sp       = (curr->sp_fault) & ~1;
-	*in_fault = (curr->sp_fault) & 1;
+	*sp       = curr->sp;
+	*in_fault = curr->in_fault;
 
 	return &curr->comp_info;
 }
@@ -515,11 +515,11 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 	prev = &thd->invstk[curr_invstk_top(cos_info)];
 	top  = &thd->invstk[curr_invstk_top(cos_info) + 1];
 	curr_invstk_inc(cos_info);
-	unsigned long sp_fault = (sp & ~1) | in_fault;
 	prev->ip          = ip;
-	prev->sp_fault    = sp_fault;
+	prev->sp          = sp;
+	prev->in_fault    = in_fault;
 	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
-	top->ip = top->sp_fault = 0;
+	top->ip = top->sp = top->in_fault = 0;
 
 	return 0;
 }
