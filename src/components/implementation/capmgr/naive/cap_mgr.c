@@ -500,7 +500,7 @@ capmgr_hw_attach(hwid_t hwid, thdid_t tid)
 }
 
 int
-capmgr_hw_periodic_attach(thdid_t tid, unsigned int period_us)
+capmgr_hw_periodic_attach(hwid_t hwid, thdid_t tid, unsigned int period_us)
 {
 	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -512,7 +512,7 @@ capmgr_hw_periodic_attach(thdid_t tid, unsigned int period_us)
 	if (!rc || !cap_info_init_check(rc)) return -EINVAL;
 	if (!ti || !sl_thd_rcvcap(ti)) return -EINVAL;
 
-	return cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, sl_thd_rcvcap(ti), period_us);
+	return cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, hwid, sl_thd_rcvcap(ti), period_us);
 }
 
 int

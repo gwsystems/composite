@@ -355,7 +355,7 @@ test_hpet_timer(void)
 
 	PRINTC("Starting HPET timer test.\n");
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
-	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, BOOT_CAPTBL_SELF_INITRCV_BASE, TEST_USEC_INTERVAL);
+	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_HPET_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE, TEST_USEC_INTERVAL);
 
 
 	for (i = 0 ; i <= TEST_HPET_ITERS ; i++) {

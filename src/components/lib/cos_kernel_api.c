@@ -1041,9 +1041,12 @@ cos_tcap_merge(tcap_t dst, tcap_t rm)
 }
 
 int
-cos_hw_periodic_attach(hwcap_t hwc, arcvcap_t arcv, unsigned int period)
+cos_hw_periodic_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t arcv, unsigned int period)
 {
-	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, HW_HPET_PERIODIC, arcv, period, 0);
+	/* using 2nd timer with id HW_HPET_ONESHOT for a second periodic timer */
+	assert(hwid == HW_HPET_PERIODIC || hwid == HW_HPET_ONESHOT);
+
+	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, hwid, arcv, period, 0);
 }
 
 int

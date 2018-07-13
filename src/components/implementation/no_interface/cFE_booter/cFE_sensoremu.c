@@ -3,6 +3,8 @@
 #include "gen/common_types.h"
 #include "gen/osapi.h"
 
+#include "ostask.h"
+
 #include "cFE_sensoremu.h"
 
 static const char *sensordump[] = {
@@ -91,13 +93,13 @@ sensoremu_handler(arcvcap_t rcv, void *d)
 		pending = cos_rcv(rcv, 0, NULL);
 		assert(pending >= 0);
 #endif
-
-retry:
+//retry:
 		if (OS_QueuePut(sensoremu_qid, (void *)dmpbuf, strlen(dmpbuf), 0) == OS_QUEUE_FULL) {
-			now = sl_now();
-			abs_timeout = now + rinterval;
-			sl_thd_block_timeout(0, abs_timeout);
-			goto retry;
+			PRINTC("Sensor dump queue full!\n");
+//			now = sl_now();
+//			abs_timeout = now + rinterval;
+//			sl_thd_block_timeout(0, abs_timeout);
+//			goto retry;
 		}
 	}
 }

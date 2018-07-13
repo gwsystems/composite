@@ -64,6 +64,7 @@ rk_hw_irq_alloc(void)
 		struct sl_thd *t = NULL;
 		struct cos_aep_info tmpaep;
 
+		if (i + 32 == HW_HPET_ONESHOT || i + 32 == HW_HPET_PERIODIC) continue;
 		/* TODO, check to make sure this is the right key for the irq... */
 		t = rk_intr_aep_alloc(cos_irqthd_handler, (void *)i, 0, 0);
 		assert(t);

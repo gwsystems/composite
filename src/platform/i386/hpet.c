@@ -56,19 +56,18 @@
 #define HPET_INT_ENABLE(n) (*hpet_interrupt = (0x1 << n)) /* Clears the INT n for level-triggered mode. */
 
 #define __USECS_CEIL__(n, m) (n+(m-(n%m)))
-#define __IGNORE_FIRST_X__  20
 
 static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;
 static volatile u64_t *hpet_interrupt;
-static void *          hpet;
+static void           *hpet;
 
 volatile struct hpet_timer {
 	u64_t config;
 	u64_t compare;
 	u64_t interrupt;
 	u64_t reserved;
-} __attribute__((packed)) * hpet_timers;
+} __attribute__((packed)) *hpet_timers;
 
 /*
  * When determining how many CPU cycles are in a HPET tick, we must
@@ -94,12 +93,14 @@ volatile struct hpet_timer {
 #define HPET_CALIBRATION_ITER 256
 #define HPET_ERROR_BOUND_FACTOR 256
 #define HPET_DEFAULT_PERIOD_US 1000 /* US = microseconds */
+
+#define HPET_NUMBER_TIMERS 2
 static int           hpet_calibration_init   = 0;
 static unsigned long hpet_cpucyc_per_hpetcyc = HPET_ERROR_BOUND_FACTOR;
 static unsigned long hpet_cpucyc_per_tick;
 static unsigned long hpet_hpetcyc_per_tick;
-static unsigned long hpet_periodicity_curr = 0;
-static cycles_t hpet_first_hpet_period = 0;
+static unsigned long hpet_periodicity_curr[HPET_NUMBER_TIMERS] = { 0 };
+static cycles_t hpet_first_hpet_period = 0; /* for timer 0 = HPET_PERIODIC */
 extern u32_t chal_msr_mhz;
 
 static inline u64_t
@@ -183,35 +184,23 @@ hpet_calibration(void)
 int
 chal_cyc_usec(void)
 {
-	if (unlikely(lapic_timer_calib_init)) return 0;
+	if (unlikely(lapic_timer_calib_init || hpet_calibration_init)) return 0;
 
-	if (likely(hpet_cpucyc_per_tick)) return __USECS_CEIL__(hpet_cpucyc_per_tick / HPET_DEFAULT_PERIOD_US, 100);
+	if (likely(hpet_cpucyc_per_tick)) return hpet_cpucyc_per_tick / HPET_DEFAULT_PERIOD_US;
+
 	return 0;
 }
 
 int
 hpet_periodic_handler(struct pt_regs *regs)
 {
-	static u32_t count = 0;
 	int preempt = 1;
 
-	if (unlikely(hpet_calibration_init)) hpet_calibration();
-//	printk("<%d = P>\n", get_cpuid());
-
 	lapic_ack();
-	if (hpet_periodicity_curr) {
-		count ++;
-		if (unlikely(count < __IGNORE_FIRST_X__)) {
-			if (count == __IGNORE_FIRST_X__ - 1) printk(".h=%lu.", count);
-			goto done;
-		}
-		if (!hpet_first_hpet_period) {
-			rdtscll(hpet_first_hpet_period);
-		}
-	}
+	if (unlikely(hpet_calibration_init)) hpet_calibration();
+	if (unlikely(hpet_periodicity_curr[HPET_PERIODIC] && !hpet_first_hpet_period)) rdtscll(hpet_first_hpet_period);
 
 	preempt = cap_hw_asnd(&hw_asnd_caps[get_cpuid()][HW_HPET_PERIODIC], regs);
-done:
 	HPET_INT_ENABLE(HPET_PERIODIC);
 
 	return preempt;
@@ -222,7 +211,7 @@ hpet_oneshot_handler(struct pt_regs *regs)
 {
 	int preempt = 1;
 
-	assert(!hpet_calibration_init);
+	assert(!hpet_calibration_init && hpet_periodicity_curr[HPET_ONESHOT]);
 
 	lapic_ack();
 	preempt = cap_hw_asnd(&hw_asnd_caps[get_cpuid()][HW_HPET_ONESHOT], regs);
@@ -239,22 +228,25 @@ hpet_set(hpet_type_t timer_type, u64_t cycles)
 	/* Disable timer interrupts */
 	*hpet_config &= ~HPET_ENABLE_CNF;
 
+	/* TODO: doesn't work.. at least in legacy mode.. it just fires ONESHOT! */
+	/* using hpet type HPET_ONESHOT for periodic timer */
 	/* Reset main counter */
-	if (timer_type == HPET_ONESHOT) {
-		cycles = hpet_cpu2hpet_cycles(cycles);
-
-		/* Set a static value to count up to */
-		hpet_timers[timer_type].config = outconfig;
-		hpet_timers[timer_type].config |= (HW_HPET_ONESHOT - HW_IRQ_START) << HPET_TN_INT_ROUTE_CNF;
-		cycles += HPET_COUNTER;
-	} else {
+//	if (timer_type == HPET_ONESHOT) {
+//		cycles = hpet_cpu2hpet_cycles(cycles);
+//
+//		/* Set a static value to count up to */
+//		hpet_timers[timer_type].config = outconfig;
+////		hpet_timers[timer_type].config |= (HW_HPET_ONESHOT - HW_IRQ_START) << HPET_TN_INT_ROUTE_CNF;
+//		cycles += HPET_COUNTER;
+//	} else {
 		/* Set a periodic value */
 		hpet_timers[timer_type].config = outconfig | HPET_TN_TYPE_CNF | HPET_TN_VAL_SET_CNF;
 		/* Set the interrupt vector for periodic timer */
-		hpet_timers[timer_type].config |= (HW_HPET_PERIODIC - HW_IRQ_START) << HPET_TN_INT_ROUTE_CNF;
+//		hpet_timers[timer_type].config |= (HW_HPET_PERIODIC - HW_IRQ_START) << HPET_TN_INT_ROUTE_CNF;
 		/* Reset main counter */
+		/* TODO: should you reset counter for each timer? */
 		HPET_COUNTER = 0x00;
-	}
+//	}
 	hpet_timers[timer_type].compare = cycles;
 
 	/* Enable timer interrupts */
@@ -289,28 +281,33 @@ hpet_find(void *timer)
 }
 
 void
-chal_hpet_periodic_set(unsigned long usecs_period)
+chal_hpet_periodic_set(hwid_t hwid, unsigned long usecs_period)
 {
-	if (hpet_periodicity_curr != usecs_period) {
-		hpet_disable(0);
-		hpet_disable(0);
+	hpet_type_t type = 0;
 
-		hpet_periodicity_curr = 0;
+	assert(hwid == HW_HPET_PERIODIC || hwid == HW_HPET_ONESHOT);
+	type = (hwid == HW_HPET_PERIODIC ? HPET_PERIODIC : HPET_ONESHOT);
+
+	if (hpet_periodicity_curr[type] != usecs_period) {
+		hpet_disable(type);
+		hpet_disable(type);
+
+		hpet_periodicity_curr[type] = 0;
 	}
 
-	if (hpet_periodicity_curr == 0) {
-		unsigned long tick_multiple;
-		cycles_t hpetcyc_per_period;
+	if (hpet_periodicity_curr[type] == 0) {
+		unsigned long tick_multiple = 0;
+		cycles_t hpetcyc_per_period = 0;
 
 		assert(hpet_calibration_init == 0);
 		assert((usecs_period >= HPET_DEFAULT_PERIOD_US) && (usecs_period % HPET_DEFAULT_PERIOD_US == 0));
 
 		tick_multiple = usecs_period / HPET_DEFAULT_PERIOD_US;
-		hpetcyc_per_period = hpet_hpetcyc_per_tick * tick_multiple;
-		hpet_periodicity_curr = usecs_period;
-		hpet_set(HPET_PERIODIC, hpetcyc_per_period);
-		hpet_first_hpet_period = 0;
-		printk("Setting HPET Periodicity:%lu hpetcyc_per_period:%llu\n", usecs_period, hpetcyc_per_period);
+		hpetcyc_per_period = (cycles_t)hpet_hpetcyc_per_tick * (cycles_t)tick_multiple;
+		hpet_periodicity_curr[type] = usecs_period;
+		if (type == HPET_PERIODIC) hpet_first_hpet_period = 0;
+		hpet_set(type, hpetcyc_per_period);
+		printk("Setting HPET [%u:%u] Periodicity:%lu hpetcyc_per_period:%llu\n", hwid, type, usecs_period, hpetcyc_per_period);
 	}
 }
 
@@ -321,10 +318,12 @@ chal_hpet_first_period(void)
 }
 
 void
-chal_hpet_disable(void)
+chal_hpet_disable(hwid_t hwid)
 {
-	hpet_disable(0);
-	hpet_disable(0);
+	hpet_type_t type = (hwid == HW_HPET_PERIODIC ? HPET_PERIODIC : HPET_ONESHOT);
+
+	hpet_disable(type);
+	hpet_disable(type);
 }
 
 void
@@ -350,6 +349,15 @@ hpet_init(void)
 	hpet_hpetcyc_per_tick = (HPET_DEFAULT_PERIOD_US * HPET_PICO_PER_MICRO) / pico_per_hpetcyc;
 
 	printk("Enabling timer @ %p with tick granularity %ld picoseconds\n", hpet, pico_per_hpetcyc);
+
+	/*
+	 * FIXME: For some reason, setting to non-legacy mode isn't working well.
+	 * Periodicity of the HPET fired is wrong and any interval configuration
+	 * is still producing the same wrong interval timing.
+	 *
+	 * So, Enable legacy interrupt routing like we had before!
+	 */
+	*hpet_config |= HPET_LEG_RT_CNF;
 
 	/*
 	 * Set the timer as specified.  This assumes that the cycle

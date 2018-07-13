@@ -12,23 +12,34 @@
 #include "gen/common_types.h"
 #include "gen/cfe_time.h"
 
+#include <cos_time.h>
+
+extern int number_apps;
+
 void
 timer_fn_1hz(void *d)
 {
-	cycles_t next_dl = 0, hztime = sl_usec2cyc(HZ_PAUSE_US), hzelapsed = 0;
+	cycles_t start_time = 0, next_deadline = 0, interval = time_usec2cyc(HZ_PAUSE_US);
+	unsigned int timer_counter = 0;
 
-	next_dl = hztime + sl_now();
+	rdtscll(start_time);
+	next_deadline = start_time;
 
 	while (1) {
-		cycles_t elapsed = sl_thd_block_timeout(0, next_dl);
+		cycles_t now, elapsed;
 
-		next_dl = sl_now();
-		while (elapsed > hztime) {
+		next_deadline += interval;
+		elapsed = sl_thd_block_timeout(0, next_deadline);
+
+		while (elapsed > interval) {
+	//		printc("l");
 			CFE_TIME_Local1HzISR();
-			elapsed -= hztime;
+
+			elapsed -= interval;
 		}
+
+	//	printc("L");
 		CFE_TIME_Local1HzISR();
-		next_dl += (hztime - elapsed);
 	}
 }
 
@@ -52,9 +63,6 @@ OS_SchedulerStart(cos_thd_fn_t main_delegate)
 	struct sl_thd *       main_delegate_thread;
 	sched_param_t         sp;
 	struct cfe_task_info *task_info;
-	struct sl_thd *       timer_thd;
-	sched_param_t         timer_window;
-	sched_param_t         timer_priority;
 
 	sl_init(SL_MIN_PERIOD_US);
 
@@ -67,12 +75,6 @@ OS_SchedulerStart(cos_thd_fn_t main_delegate)
 	strcpy(task_info->osal_task_prop.name, "MAIN_THREAD");
 	task_info->osal_task_prop.priority  = MAIN_DELEGATE_THREAD_PRIORITY;
 	task_info->osal_task_prop.OStask_id = (uint32)sl_thd_thdid(main_delegate_thread);
-
-	timer_thd      = sl_thd_alloc(timer_fn_1hz, NULL);
-//	timer_window   = sched_param_pack(SCHEDP_WINDOW, HZ_PAUSE_US);
-	timer_priority = sched_param_pack(SCHEDP_PRIO, TIMER_THREAD_PRIORITY);
-//	sl_thd_param_set(timer_thd, timer_window);
-	sl_thd_param_set(timer_thd, timer_priority);
 
 	schedinit_child();
 #ifdef CFE_RK_MULTI_CORE

@@ -1659,7 +1659,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcvcap);
 			if (!ret) {
-				if (hwid == HW_HPET_PERIODIC) chal_hpet_periodic_set(period);
+				if (hwid == HW_HPET_PERIODIC || hwid == HW_HPET_ONESHOT) chal_hpet_periodic_set(hwid, period);
 				ret = chal_irq_enable(hwid, get_cpuid());
 			}
 
@@ -1670,7 +1670,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			ret = hw_detach_rcvcap((struct cap_hw *)ch, hwid);
 			if (!ret) {
-				if (hwid == HW_HPET_PERIODIC) chal_hpet_disable();
+				if (hwid == HW_HPET_PERIODIC || hwid == HW_HPET_ONESHOT) chal_hpet_disable(hwid);
 				ret = chal_irq_disable(hwid, get_cpuid());
 			}
 

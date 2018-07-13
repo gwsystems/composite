@@ -12,6 +12,7 @@
 #include "cFE_util.h"
 #include "ostask.h"
 
+int number_apps = 0;
 thdid_t id_overrides[SL_MAX_NUM_THDS] = {0};
 
 int32
@@ -63,6 +64,7 @@ launch_other_component(spdid_t child_id, int is_library)
 		sl_thd_yield(sl_thd_thdid(t));
 	} else {
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, get_this_threads_priority()));
+		number_apps++;
 		OS_TaskExit();
 	}
 }
@@ -240,6 +242,7 @@ OS_SymbolLookup(cpuaddr *symbol_address, const char *symbol_name)
 	for (i = 0; i < sz; i++) {
 		if (!strcmp(symbol_name, proxies[i].symbol_name)) {
 			*symbol_address = (cpuaddr)proxies[i].proxy;
+
 			return OS_SUCCESS;
 		}
 	}
