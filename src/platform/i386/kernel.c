@@ -165,6 +165,9 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	chal_irq_enable(HW_SERIAL, 0);
 	pic_init();
 	ioapic_init();
+#ifdef ENABLE_SERIAL
+	serial_late_init();
+#endif
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
 
