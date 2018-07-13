@@ -1,4 +1,7 @@
 LIB_OBJS=
 LIBS=$(LIB_OBJS:%.o=%.a)
 
-include ../Makefile.subdir
+all:
+clean:
+init:
+# include ../Makefile.subdir

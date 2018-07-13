@@ -28,7 +28,7 @@ $(SIMPLE_STKLIB): $(SIMPLE_STACKS)
 	@$(LD) $(LDFLAGS) -r -o $@ $^
 
 sl:
-	make $(MAKEFLAGS) -C sl
+	make -C sl
 
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)

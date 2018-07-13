@@ -1,5 +1,5 @@
-MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
-#$(info Make flags $(MAKEFLAGS))
+#MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
+MAKEOPTIONS=--no-print-directory -I$(PWD)
 
 default: | all cp
 
@@ -11,7 +11,7 @@ comps:
 	$(info ************* Building Components *************)
 	$(info ***********************************************)
 	$(info )
-	$(MAKE) $(MAKEFLAGS) -C components
+	$(MAKE) $(MAKEOPTIONS) -C components
 
 plat:
 	$(info )
@@ -19,27 +19,27 @@ plat:
 	$(info ***** Building $(shell cat PLATFORM_ID) Platform and Kernel *******)
 	$(info ***********************************************)
 	$(info )
-	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform
+	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat PLATFORM_ID) -C platform
 
 cpplat:
-	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform cp
+	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat PLATFORM_ID) -C platform cp
 
 cp: cpplat
-	$(MAKE) $(MAKEFLAGS) -C components cp
+	$(MAKE) $(MAKEOPTIONS) -C components cp
 
 clean:
-	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform clean
-	$(MAKE) $(MAKEFLAGS) -C components clean
+	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat PLATFORM_ID) -C platform clean
+	$(MAKE) $(MAKEOPTIONS) -C components clean
 
 
 distclean: clean
-	$(MAKE) $(MAKEFLAGS) -C components distclean
+	$(MAKE) $(MAKEOPTIONS) -C components distclean
 	@rm -f `pwd`/../transfer/*
 
 init:
-	test -f PLATFORM_ID || $(MAKE) $(MAKEFLAGS) config
-	$(MAKE) $(MAKEFLAGS) -C components init
-	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform init
+	test -f PLATFORM_ID || $(MAKE) $(MAKEOPTIONS) config
+	$(MAKE) $(MAKEOPTIONS) -C components init
+	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat PLATFORM_ID) -C platform init
 
 update:
 	git submodule update --init --recursive
@@ -81,10 +81,10 @@ endif
 	@cd ../transfer && echo "Running" $(RUNSCRIPT) && ./qemu.sh $(RUNSCRIPT)
 
 idl:
-	$(MAKE) $(MAKEFLAGS) -C components idl
+	$(MAKE) $(MAKEOPTIONS) -C components idl
 
 ltests:
-	$(MAKE) $(MAKEFLAGS) -C platform ltests
+	$(MAKE) $(MAKEOPTIONS) -C platform ltests
 
 cltests:
-	$(MAKE) $(MAKEFLAGS) -C platform cltests
+	$(MAKE) $(MAKEOPTIONS) -C platform cltests

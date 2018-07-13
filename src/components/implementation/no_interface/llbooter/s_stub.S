@@ -1,4 +1,4 @@
-#include <cos_asm_server_stub_simple_stack.h>
+#define COS_SERVER_STUBS
+#include <cos_asm_stubs.h>
 
-.text
-cos_asm_server_stub_rets(hypercall_entry)
+cos_asm_stub_fn(hypercall_entry, hypercall_entry)

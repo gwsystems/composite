@@ -16,30 +16,40 @@ pub struct Compose<'a> {
     comp_objs: Vec<CompObject<'a>>
 }
 
+// Get the path to the component implementation directory. Should
+// probably derive this from an environmental var passed in at compile
+// time by the surrounding build system.
+fn comps_base_path() -> String {
+    let mut path = String::from(env!("PWD"));
+
+    // Construct the path to the src directory
+    path.push_str("/../");
+    path.push_str("components/implementation/");
+    path
+}
+
+// Get the path to a component object via its name.  <if>.<name>
+// resolves to src/components/implementation/if/name/if.name.o
+fn comp_path(comp_base: &String, img: &String) -> String {
+    let mut obj_path = comp_base.clone();
+    let mut obj_str = img.clone();
+    let mut obj_subpath = obj_str.replace(".", "/");
+
+    obj_subpath.push_str("/");
+    obj_path.push_str(&obj_subpath);
+    obj_path.push_str(&obj_str);
+    obj_path.push_str(".o");
+    obj_path
+}
+
 impl ComposeSpec {
     pub fn parse_spec(sysspec: String) -> Result<ComposeSpec, String> {
         let sys = CosSystem::parse(sysspec.clone())?;
         let mut bins = BTreeMap::new();
-        let mut path = String::from(env!("PWD"));
-
-        // Construct the path to the src directory
-        path.push_str("/../");
+        let mut comps_path = comps_base_path();
 
         for c in sys.comps().iter() {
-            let mut obj_path = String::new();
-            let mut obj_str = c.img().clone();
-            obj_path.push_str(&path);
-            obj_path.push_str("components/implementation/");
-
-            let mut obj_subpath = obj_str.replace(".", "/");
-            obj_subpath.push_str("/");
-            obj_path.push_str(&obj_subpath);
-
-            obj_path.push_str(&obj_str);
-            obj_path.push_str(".o");
-
-            println!("{}", obj_path);
-
+            let mut obj_path = comp_path(&comps_path, &c.img());
             let obj_contents = dump_file(&obj_path)?;
 
             bins.insert(c.name().clone(), obj_contents);
@@ -47,7 +57,7 @@ impl ComposeSpec {
 
         Ok(ComposeSpec {
             sysspec: sysspec,
-            src_path: path,
+            src_path: comps_path,
             sys: sys,
             binaries: bins,
         })

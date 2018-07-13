@@ -9,64 +9,6 @@
 #ifndef COS_ASM_SERVER_STUB_SIMPLE_STACK_H
 #define COS_ASM_SERVER_STUB_SIMPLE_STACK_H
 
-#include "../../kernel/include/asm_ipc_defs.h"
-//#include <consts.h>
-#include <cos_asm_simple_stacks.h>
 
-/*
- * The register layout is paired with that in ipc.S, %ecx holding the
- * spdid.  We zero out the %ebp so that is we do a stack trace later,
- * we know that when the %ebp is 0, we are at the end of the stack.
- */
-
-/* clang-format off */
-
-#define cos_asm_server_stub(name)		\
-.globl __cosrt_s_##name;			\
-.type  __cosrt_s_##name, @function ;		\
-.align 16 ;					\
-__cosrt_s_##name:				\
-	COS_ASM_GET_STACK_INVTOKEN		\
-	pushl %ebp;				\
-	xor %ebp, %ebp;				\
-	pushl %edi;				\
-	pushl %esi;				\
-	call name ;				\
-	addl $16, %esp;				\
-						\
-	movl %eax, %ecx;			\
-	movl $RET_CAP, %eax;			\
-	COS_ASM_RET_STACK			\
-						\
-	sysenter;
-
-#define cos_asm_server_stub_rets(name)		\
-.globl __cosrt_s_##name;			\
-.type  __cosrt_s_##name, @function ;		\
-.align 16 ;					\
-__cosrt_s_##name:				\
-	COS_ASM_GET_STACK_INVTOKEN		\
-	pushl $0;				\
-	pushl $0;				\
-	pushl %ebp;				\
-	xor %ebp, %ebp;				\
-	pushl %edi;				\
-	pushl %esi;				\
-	movl %esp, %ecx;			\
-	addl $20, %ecx;				\
-	pushl %ecx;				\
-	subl $4, %ecx;				\
-	pushl %ecx;				\
-	call name ;				\
-	addl $24, %esp;				\
-	popl %esi;				\
-	popl %edi;				\
-						\
-	movl %eax, %ecx;			\
-	movl $RET_CAP, %eax;			\
-	COS_ASM_RET_STACK			\
-						\
-	sysenter;
-/* clang-format on */
 
 #endif /* COS_ASM_SERVER_STUB_H */

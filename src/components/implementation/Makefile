@@ -1,6 +1,6 @@
 include Makefile.src Makefile.comp
 SUBDIRS=$(wildcard */)
-MAKEFLAGS=-I$(shell pwd)
+MAKEOPTIONS=-I$(shell pwd)
 
 .PHONY: all
 all:
@@ -8,21 +8,21 @@ all:
 	$(info *********[ Building Implementations ]**********)
 	$(info ***********************************************)
 	@for dir in $(SUBDIRS) ; do \
-		$(MAKE) $(MAKEFLAGS) -C $$dir ; \
+		$(MAKE) $(MAKEOPTIONS) -C $$dir ; \
 	done
 
 .PHONY: cp
 cp:
 	$(info |     [CP]   Copying all components to $(TRANS_DIR))
 	@for dir in $(SUBDIRS) ; do \
-		$(MAKE) $(MAKEFLAGS) -C $$dir cp ; \
+		$(MAKE) $(MAKEOPTIONS) -C $$dir cp ; \
 	done
 
 .PHONY: clean
 clean:
 	$(info |     [RM]   Cleaning up implementation directories)
 	@for dir in $(SUBDIRS) ; do \
-		$(MAKE) $(MAKEFLAGS) -C $$dir clean ; \
+		$(MAKE) $(MAKEOPTIONS) -C $$dir clean ; \
 	done
 
 .PHONY: init

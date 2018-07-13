@@ -1,0 +1,72 @@
+include Makefile.src Makefile.comp
+
+# name scheme: {S,C}_{S,C}STUB...
+# The first group is server/client, the second is assembly/C.
+
+# We're creating three things here: the server stubs, the client
+# stubs, and the user-level capability stubs (similar to the PLT).
+
+# These are the final outputs that might be derived from multiple .c
+# and .S files.
+SERVER_STUB=s_stub.o
+CLIENT_STUB=c_stub.o
+
+# convert stubs.S into separate client and server objects
+SSTUB_FILE=stubs.S
+S_SSTUB_OBJ=s_sstub.o
+C_SSTUB_OBJ=c_sstub.o
+
+# .c stub files
+S_CSTUBS=$(wildcard */s_*.c)
+S_STUB_OBJS=$(strip $(S_CSTUBS:%.c=%.o))
+C_CSTUBS=$(wildcard */c_*.c)
+C_STUB_OBJS=$(strip $(C_CSTUBS:%.c=%.o))
+
+# This is the current interface variant we're compiling (stubs are default)
+IFPATH=$(subst /, ,$(shell pwd))
+VARIANTNAME=$(lastword $(IFPATH))
+IFNAME=$(word $(shell echo $(words $(IFPATH))-1 | bc), $(IFPATH))
+DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
+INCLUDE=-I.. $(DEP_INC) $(CINC)
+
+.PHONY: all
+all: print $(SERVER_STUB) $(CLIENT_STUB)
+
+print:
+	$(info |     Compiling stubs for interface: $(IFNAME), variant: $(VARIANTNAME))
+
+%.o:%.c
+	$(info |     [CC]   Compiling c file $^ into $@)
+	@$(CC) $(CFLAGS) $(DEP_INC) -c -o $(@) $<
+
+$(C_SSTUB_OBJ):$(SSTUB_FILE)
+	$(info |     [AS]   Creating server asm stubs for $(IFNAME))
+	@$(AS) -DCOS_SERVER_STUBS $(ASFLAGS) -c -o $@ $^
+
+$(S_SSTUB_OBJ):$(SSTUB_FILE)
+	$(info |     [AS]   Creating client asm stubs from $(IFNAME))
+	@$(AS) -DCOS_UCAP_STUBS $(ASFLAGS) -c -o $@ $^
+
+# Note: these cannot be static libraries as the symbols aren't
+# referenced in the component
+$(SERVER_STUB): $(S_SSTUB_OBJ) $(S_STUB_OBJS)
+	@$(LD) $(LDFLAGS) -r -o $@ $^
+
+$(CLIENT_STUB): $(C_SSTUB_OBJ) $(C_STUB_OBJ)
+	@$(LD) $(LDFLAGS) -r -o $@ $^
+
+clean:
+	$(info |     [RM]   Cleaning up interface variant directory for $(VARIANTNAME))
+	@$(RM) -f *.o *.a *.d *~
+
+fresh: clean all
+
+%.d:%.c
+	@set -e; rm -f $@; \
+	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+SOURCE_DEPENDENCIES=$($(wildcard *.c):%.c=%.d)
+
+-include $(SOURCE_DEPENDENCIES)

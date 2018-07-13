@@ -1,61 +1,50 @@
 include Makefile.src Makefile.comp
 
-STUB_DIR=stubs
-S_CSTUBS=$(wildcard $(STUB_DIR)/s_*.c)
-S_SSTUBS=$(wildcard $(STUB_DIR)/s_*.S)
-S_STUB_OBJS=$(strip $(S_CSTUBS:%.c=%.o) $(S_SSTUBS:%.S=%.o))
-C_CSTUBS=$(wildcard $(STUB_DIR)/c_*.c)
-C_SSTUBS=$(wildcard $(STUB_DIR)/c_*.S)
-C_STUB_OBJS=$(strip $(C_CSTUBS:%.c=%.o) $(C_SSTUBS:%.S=%.o))
-IDL_FILES=$(wildcard *.cidl)
-IDL_HEADERS=$(IDL_FILES:%.cidl=%.h)
-STUBS=$(ASM_STUBS)
 IFNAME=$(lastword $(subst /, ,$(shell pwd)))
-INCLUDES= $(CINC) $(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
+IFLIB=lib$(IFNAME).a
 DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
+C_OBJS=$(strip $($(wildcard *.c):%.c=%.o))
 
-EXPDEP_GEN=../../cidl/if_exported.sh
-FNEXP_FILE=.fn_exports
+# all the interface variants.  Note that "stubs/" is the default.
+VARIANTS=$(wildcard */)
+
+MAKEOPTIONS=-I$(shell pwd)
 
 .PHONY: all
-all: $(LIBS) stubs expgen
+all: print variants $(IFLIB)
 
-expgen:
-	@sh $(EXPDEP_GEN) > $(FNEXP_FILE)
+print:
+	$(info | Interface $(IFNAME): Compiling stubs and libraries)
 
-# we have to compile these without musllibc so that there are not
+# we have to compile these without musllibc so that there are no
 # symbol conflicts and this is why we have the %.a here and don't
 # output a .a file.
-%.a:%.o
-	$(info |     [AR]   Creating library file lib$(IFNAME).a from $<)
-	$(info |     [AR]   lib$(IFNAME).a: create library $<)
-	@$(AR) cr lib$(IFNAME).a $<
+$(IFLIB):$(C_OBJ)
+	$(if $(C_OBJ), $(info |     [AR]   Creating client library $@ for $(IFNAME)))
+	$(if $(C_OBJ), @$(AR) cr $@ $^)
 
 %.o:%.c
 	$(info |     [CC]   Compiling c file $^ into $@)
-	@$(CC) $(CFLAGS) $(INCLUDES) $(CINC) $(DEP_INC) -c -o $(@) $<
+	@$(CC) $(CFLAGS) $(CINC) $(DEP_INC) -c -o $(@) $<
 
-%.o:%.S
-	$(info |     [AS]   Compiling assembly file $^ into $@)
-	@$(AS) $(ASFLAGS) -c -o $@ $^
-
-server_stubs: $(S_STUB_OBJS)
-	$(if $(S_STUB_OBJS), $(info |     [LD]   Creating server stubs for $(IFNAME)))
-	@$(if $(S_STUB_OBJS), $(LD) $(LDFLAGS) -r -o $(SERVER_STUB) $^)
-
-client_stubs: $(C_STUB_OBJS)
-	$(if $(C_STUB_OBJS), $(info |     [LD]   Creating client stubs from $(IFNAME)))
-	@$(if $(C_STUB_OBJS), $(LD) $(LDFLAGS) -r -o $(CLIENT_STUB) $^)
-
-stubs: server_stubs client_stubs
+variants:
+	@for dir in $(VARIANTS) ; do \
+		$(MAKE) $(MAKEOPTIONS) -C $$dir ; \
+	done
 
 clean:
 	$(info |     [RM]   Cleaning up interface directory for $(IFNAME))
-	@$(RM) -f a.out *.o *.a *.d *~ $(STUB_DIR)/*.o $(FNEXP_FILE)
+	@for dir in $(VARIANTS) ; do \
+		$(MAKE) $(MAKEOPTIONS) -C $$dir clean ; \
+	done
+	@$(RM) -f a.out *.o *.a *.d *~
 
-fresh: clean all
+%.d:%.c
+	@set -e; rm -f $@; \
+	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
 
-%.h:%.cidl
-	$(PONY) $^ > $@
+SOURCE_DEPENDENCIES=$($(wildcard *.c):%.c=%.d)
 
-idl: $(IDL_HEADERS)
+-include $(SOURCE_DEPENDENCIES)
