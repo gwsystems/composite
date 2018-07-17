@@ -1,13 +1,15 @@
-#include <cos_kernel_api.h>
-#include <sl.h>
-#include "gen/common_types.h"
-#include "gen/osapi.h"
-
+#include <string.h>
+#include "osapi.h"
 #include "ostask.h"
+#include <sl.h>
 
-#include "cFE_sensoremu.h"
+#define CFE_PSP_SENSORQ_NAME "SENSORTRACE_QUEUE"
+#define CFE_PSP_SENSORQ_DEPTH 20
+#define CFE_PSP_SENSOR_DATASZ 512
 
-static const char *sensordump[] = {
+static uint32 SensorQid = 0;
+
+static const char *SensorTraceDump[] = {
 "    5.00000000e-01    -1.16562879e-05    -6.21879309e+06     2.69626818e+06     7.66858788e+03    -1.20994435e-08     5.24552142e-09     4.42000922e-32    -1.13136970e-03    -4.20869496e-21     8.35998956e-01    -4.71843178e-13     7.18814907e-13    -5.48731033e-01    -9.99633870e-01     2.48381680e-02     1.07327611e-02    -9.99633870e-01    -1.97274007e-02     1.85190824e-02     6.86409657e-07    -2.17688308e-05     2.99212043e-05     0.00000000e+00     0.00000000e+00     0.00000000e+00 1\n",
 "    5.00000000e-01     3.83429372e+03    -6.21879210e+06     2.69626775e+06     7.66858665e+03     3.98001927e+00    -1.72560803e+00    -1.12467509e-05    -1.04919873e-03     3.03883477e-06     8.35999696e-01     1.49250610e-04    -2.28077568e-04    -5.48729837e-01    -9.99633872e-01     2.48380768e-02     1.07327215e-02    -9.99623643e-01    -1.97266215e-02     1.90638987e-02     6.73380807e-07    -2.17673927e-05     2.99223854e-05    -3.32270233e-09    -1.67697274e-01    -1.12728552e-18 1\n",
 "    5.00000000e-01     7.66858623e+03    -6.21878911e+06     2.69626646e+06     7.66858297e+03     7.96003727e+00    -3.45121552e+00    -2.08418686e-05    -9.73228251e-04     5.63635662e-06     8.36001813e-01     2.87065688e-04    -4.40015563e-04    -5.48726428e-01    -9.99633875e-01     2.48379856e-02     1.07326820e-02    -9.99613922e-01    -1.97245359e-02     1.95690865e-02     6.59135175e-07    -2.17661089e-05     2.99234598e-05    -2.21154547e-03    -3.22997260e-01     8.30418050e-04 1\n",
@@ -59,47 +61,62 @@ static const char *sensordump[] = {
 "    5.00000000e-01     1.84023494e+05    -6.21650074e+06     2.69527429e+06     7.66576111e+03     1.91017461e+02    -8.28190126e+01     1.51211656e-04    -7.43096075e-04    -3.73725090e-05     8.35932641e-01     2.99447701e-03    -4.54193036e-03    -5.48805088e-01    -9.99633999e-01     2.48337753e-02     1.07308699e-02    -9.99372914e-01    -1.97413609e-02     2.93948653e-02    -3.98655296e-07    -2.16870834e-05     2.99604699e-05    -5.55343682e-01    -8.46651967e-01     2.17783476e-01 1\n",
 };
 
-void
-sensoremu_handler(arcvcap_t rcv, void *d)
+/* for some reason, if the queue is created by the i42 app it works fine. if its created before running i42 app, some queue data seem to be messed up! */
+int
+CFE_PSP_SensorInit(void)
 {
-	int nele = sizeof(sensordump) / sizeof(sensordump[0]), diff = 0, curr = 0;
-	uint32 sensoremu_qid = 0;
-	cycles_t interval = sl_usec2cyc(SENSOREMU_INT_US), rinterval = sl_usec2cyc(SENSOREMU_RETRY_US);
-	int32 ret;
+	int ret = OS_QueueCreate(&SensorQid, CFE_PSP_SENSORQ_NAME, CFE_PSP_SENSORQ_DEPTH, CFE_PSP_SENSOR_DATASZ, 0);
 
-	PRINTC("In sensor emulation handler\n");
-
-	ret = OS_QueueCreate(&sensoremu_qid, SENSOREMU_Q_NAME, SENSOREMU_Q_DEPTH, SENSOREMU_DATASZ, 0);
 	if (ret != OS_SUCCESS) {
 		if (ret == OS_ERR_NAME_TAKEN) {
-			ret = OS_QueueGetIdByName(&sensoremu_qid, SENSOREMU_Q_NAME);
+			ret = OS_QueueGetIdByName(&SensorQid, CFE_PSP_SENSORQ_NAME);
+		}
+
+		if (ret != OS_SUCCESS) {
+			OS_printf("Failed to create queue for sensor data transfer\n");
 		}
 	}
 	assert(ret == OS_SUCCESS);
 
+	OS_printf("Sensor Queue ID: %u\n", SensorQid);
+
+	OS_printf("Sensor interrupt thread will be created later in the flow\n");
+
+	return 0;
+}
+
+void
+CFE_PSP_SensorISR(arcvcap_t rcv, void *p)
+{
+	unsigned int trace_curr = 0, trace_sz = sizeof(SensorTraceDump) / sizeof(SensorTraceDump[0]);
+	cycles_t interval = sl_usec2cyc(CFE_PSP_SENSOR_INTERVAL_USEC);
+
+	CFE_PSP_SensorInit();
+
 	while (1) {
-		cycles_t abs_timeout, now;
-		char *dmpbuf = sensordump[curr];
 		int pending;
-		curr++;
-		if (curr == nele) curr = 0;
+		cycles_t now, abs_timeout;
 
 #ifndef SENSOREMU_USE_HPET
-		now = sl_now();
-		abs_timeout = now + interval;
-		sl_thd_block_timeout(0, abs_timeout);
+                now = sl_now();
+                abs_timeout = now + interval;
+                sl_thd_block_timeout(0, abs_timeout);
 
 #else
-		pending = cos_rcv(rcv, 0, NULL);
-		assert(pending >= 0);
+                pending = cos_rcv(rcv, 0, NULL);
+                assert(pending >= 0);
 #endif
-//retry:
-		if (OS_QueuePut(sensoremu_qid, (void *)dmpbuf, strlen(dmpbuf), 0) == OS_QUEUE_FULL) {
-			PRINTC("Sensor dump queue full!\n");
-//			now = sl_now();
-//			abs_timeout = now + rinterval;
-//			sl_thd_block_timeout(0, abs_timeout);
-//			goto retry;
+
+		/* write to queue */
+		if (OS_QueuePut(SensorQid, (void *)SensorTraceDump[trace_curr], strlen(SensorTraceDump[trace_curr]), 0) == OS_QUEUE_FULL) {
+			OS_printf("Sensor queue full!\n");
 		}
+
+		trace_curr++;
+		if (trace_curr >= trace_sz) trace_curr = 0;
 	}
+
+	pthread_exit(NULL);
 }
+
+

@@ -9,8 +9,11 @@
  * (the main thread needs to run the scheduling loop)
  */
 #define MAIN_DELEGATE_THREAD_PRIORITY 2
-#define SENSOREMU_THREAD_PRIORITY (MAIN_DELEGATE_THREAD_PRIORITY + 2)
 #define TIMER_THREAD_PRIORITY (MAIN_DELEGATE_THREAD_PRIORITY + 1)
+
+#define CFE_PSP_SENSOR_INTERVAL_USEC (500*1000) //500ms
+#define SENSOREMU_USE_HPET
+#define CFE_PSP_SENSOR_THDPRIO 4
 
 /*
  * ThreadId overrides for apps
