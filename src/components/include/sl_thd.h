@@ -8,6 +8,7 @@
 #ifndef SL_THD_H
 #define SL_THD_H
 
+#include <sl_consts.h>
 #include <ps.h>
 #include <cos_debug.h>
 
