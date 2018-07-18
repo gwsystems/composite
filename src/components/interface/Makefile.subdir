@@ -21,7 +21,7 @@ print:
 # output a .a file.
 $(IFLIB):$(C_OBJ)
 	$(if $(C_OBJ), $(info |     [AR]   Creating client library $@ for $(IFNAME)))
-	$(if $(C_OBJ), @$(AR) cr $@ $^)
+	@$(if $(C_OBJ), @$(AR) cr $@ $^)
 
 %.o:%.c
 	$(info |     [CC]   Compiling c file $^ into $@)

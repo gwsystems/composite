@@ -1,6 +1,6 @@
-# Note: I have added -fno-merge-constants so that all strings will be
-# placed in the .rodata section as opposed to .rodata.str1.x | x in
-# uints
+# FIXME: Note: I have added -fno-merge-constants so that all strings
+# will be placed in the .rodata section as opposed to .rodata.str1.x |
+# x in uints
 #
 # -Xlinker -r is used to pass flags into the linker, in this case to
 # prevent musllibc from creating an executable and linking in many of
@@ -39,7 +39,6 @@ CXX_OBJS=$(patsubst %.cc,%.o,$(wildcard *.cc))
 ASM_OBJS=$(patsubst %.S,%.o,$(wildcard *.S))
 OBJS=$(CXX_OBJS) $(C_OBJS) $(ASM_OBJS) $(COMPLIB) $(OBJLIBS)
 TMP_STR=tmp
-TMP_STR2=tmp2
 INCLUDE=-I../ $(DEP_INC) $(IF_INCLUDE) $(CINC)
 LIB_LIBRARIES_PRE=$(DEP_LIB_EXIST)
 LIB_LIBRARIES=$(strip $(LIB_LIBRARIES_PRE))
@@ -47,7 +46,6 @@ LIB_FLAGS=-L$(LIBDIR) -L$(LIBCXXDIR) $(DEP_LIB) $(LIB_LIBRARIES) $(ADDITIONAL_LI
 
 C_SOURCES=$(C_OBJS:%.o=%.c)
 CXX_SOURCES=$(CXX_OBJS:%.o=%.cc)
-ASM_SOURCES=$(ASM_OBJS:%.o=%.cc)
 #NOTE: assembly files don't have dependencies generated for them
 SOURCE_DEPENDENCIES=$(C_SOURCES:%.c=%.d) $(CXX_SOURCES:%.cc=%.d)
 
@@ -73,14 +71,23 @@ fndeps:
 #	@python $(FNDEP_VERIFY)
 
 # Jumping through hoops: want to link to our libraries first so that
-# symbols there are used, thus the gcc, and the ld, but then (and only
-# then) do we want to use dietlibc's functions
+# symbols there are used, but then (and only then) do we want to use
+# libc's functions
 $(COMPOBJ): $(OBJS)
 	$(info |     [LD]   $(COMPNAME) ($@): Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $^)
-	@$(LD) $(LDFLAGS) -r -o $@.$(TMP_STR) $^ $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
-	@$(MUSLCC) $@.$(TMP_STR) $(MUSLCFLAGS) -Xlinker -melf_i386 -o $@.$(TMP_STR2)
-	@$(LD) $(LDFLAGS) -r -T $(COMP_LD_SCRIPT) -o $@ $@.$(TMP_STR2)
-	@rm $@.$(TMP_STR) $@.$(TMP_STR2)
+	@$(LD) $(LDFLAGS) -r -o $@ $^ $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
+
+# make COMP_INTERFACE=pong COMP_NAME=pingpong COMP_OBJNAME=IT.WORKS COMP_OUTPUT=pong.pingpong.pong.o component
+
+component:
+	$(info | Sealing $(COMP_OBJNAME) by linking with:)
+	$(info |     Exported interfaces:)
+	$(info |     Interface dependencies:)
+	$(info |     Libraries:)
+	@$(LD) $(LDFLAGS) -r -o $@ $^ $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
+	@$(MUSLCC) $(COMPOBJ) $(MUSLCFLAGS) -Xlinker -melf_i386 -o $(COMPOBJ).$(TMP_STR)
+	@$(LD) $(LDFLAGS) -r -T $(COMP_LD_SCRIPT) -o $(COMP_OUTPUT) $(COMPOBJ).$(TMP_STR)
+	@rm $(COMPOBJ).$(TMP_STR)
 
 %.o:%.c
 	$(info |     [CC]   $<: Compiling)

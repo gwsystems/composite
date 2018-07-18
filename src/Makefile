@@ -5,6 +5,9 @@ default: | all cp
 
 all: comps plat
 
+component:
+	$(MAKE) $(MAKEOPTIONS) -C components component
+
 comps:
 	$(info )
 	$(info ***********************************************)

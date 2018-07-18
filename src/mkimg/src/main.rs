@@ -9,6 +9,7 @@ mod syshelpers;
 mod compobject;
 mod symbols;
 mod compose;
+mod build;
 
 use compose::{ComposeSpec, Compose};
 use compobject::{CompObject, ClientSymb, ServerSymb};

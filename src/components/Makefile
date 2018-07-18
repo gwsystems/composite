@@ -1,6 +1,3 @@
-# Order of which subdirectories are built first matters here.
-# Interface files rely on library files, and component implementations
-# rely on both the interfaces and the libs
 MAKEOPTIONS=-I$(shell pwd)
 
 ENABLE_STK:=${shell grep ENABLE_STACK_MANAGER include/cos_stkmgr_configure.h | awk '{print $$3 }' }
@@ -16,6 +13,10 @@ ifdef ENABLE_STACK_MANAGER
 else
  $(info ####### Stack Manager is Disabled #######)
 endif
+
+# Order of which subdirectories are built first matters here.
+# Interface files rely on library files, and component implementations
+# rely on both the interfaces and the libs
 
 all:
 	$(MAKE) $(MAKEOPTIONS) -C lib
@@ -37,3 +38,6 @@ init:
 	$(MAKE) $(MAKEOPTIONS) -C lib init
 	$(MAKE) $(MAKEOPTIONS) -C interface init
 	$(MAKE) $(MAKEOPTIONS) -C implementation init
+
+component:
+	$(MAKE) $(MAKEOPTIONS) -C implementation component

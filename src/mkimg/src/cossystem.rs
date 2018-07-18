@@ -3,8 +3,8 @@ use toml;
 
 #[derive(Debug, Deserialize)]
 pub struct Dependency {
-    srv: String,
-    interface: String
+    pub srv: String,
+    pub interface: String
 }
 
 #[derive(Debug, Deserialize)]
@@ -15,20 +15,19 @@ pub struct InitArgs {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct InterfaceVariants {
-    interface: String,
-    variant: String
+pub struct InterfaceVariant {
+    pub interface: String,
+    pub variant: Option<String>
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Component {
     name: String,
     img: String,
-    entry_addr: Option<String>,
     baseaddr: Option<String>,
     deps: Option<Vec<Dependency>>,
     initargs: Option<Vec<InitArgs>>,
-    variants: Option<Vec<InterfaceVariants>>
+    interfaces: Option<Vec<InterfaceVariant>>
 }
 
 #[derive(Debug, Deserialize)]
@@ -57,23 +56,31 @@ impl Component {
         Component {
             name: name,
             img: img,
-            entry_addr: None,
             baseaddr: None,
             deps: Some(Vec::new()),
             initargs: None,
-            variants: None
+            interfaces: None
         }
     }
 
-    fn update_deps(&mut self) -> () {
+    fn update_options(&mut self) -> () {
         if self.deps.is_none() {
             let vs = Vec::new();
             self.deps = Some(vs);
+        }
+
+        if self.interfaces.is_none() {
+            let vs = Vec::new();
+            self.interfaces = Some(vs);
         }
     }
 
     pub fn deps(&self) -> &Vec<Dependency> {
         self.deps.as_ref().unwrap()
+    }
+
+    pub fn interfaces(&self) -> &Vec<InterfaceVariant> {
+        self.interfaces.as_ref().unwrap()
     }
 
     pub fn img(&self) -> &String {
@@ -94,7 +101,7 @@ impl CosSystem {
     fn validate(&mut self) -> Result<(), String> {
         self.comps_mut().
             iter_mut().
-            for_each(|c| c.update_deps());
+            for_each(|c| c.update_options());
         let mut fail = false;
         let mut err_accum = String::new();
 

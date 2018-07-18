@@ -11,10 +11,12 @@ include Makefile.src Makefile.comp
 SERVER_STUB=s_stub.o
 CLIENT_STUB=c_stub.o
 
-# convert stubs.S into separate client and server objects
+# convert stubs.S into separate client and server objects.
 SSTUB_FILE=stubs.S
 S_SSTUB_OBJ=s_sstub.o
-C_SSTUB_OBJ=c_sstub.o
+# WARNING: do no change this without changing mkimg
+C_UCAP_STUB_OBJ=c_ucap_stub.o
+
 
 # .c stub files
 S_CSTUBS=$(wildcard */s_*.c)
@@ -39,12 +41,12 @@ print:
 	$(info |     [CC]   Compiling c file $^ into $@)
 	@$(CC) $(CFLAGS) $(DEP_INC) -c -o $(@) $<
 
-$(C_SSTUB_OBJ):$(SSTUB_FILE)
+$(S_SSTUB_OBJ):$(SSTUB_FILE)
 	$(info |     [AS]   Creating server asm stubs for $(IFNAME))
 	@$(AS) -DCOS_SERVER_STUBS $(ASFLAGS) -c -o $@ $^
 
-$(S_SSTUB_OBJ):$(SSTUB_FILE)
-	$(info |     [AS]   Creating client asm stubs from $(IFNAME))
+$(C_UCAP_STUB_OBJ):$(SSTUB_FILE)
+	$(info |     [AS]   Creating client user capability stubs for $(IFNAME))
 	@$(AS) -DCOS_UCAP_STUBS $(ASFLAGS) -c -o $@ $^
 
 # Note: these cannot be static libraries as the symbols aren't
@@ -52,7 +54,7 @@ $(S_SSTUB_OBJ):$(SSTUB_FILE)
 $(SERVER_STUB): $(S_SSTUB_OBJ) $(S_STUB_OBJS)
 	@$(LD) $(LDFLAGS) -r -o $@ $^
 
-$(CLIENT_STUB): $(C_SSTUB_OBJ) $(C_STUB_OBJ)
+$(CLIENT_STUB): $(C_STUB_OBJS) $(C_UCAP_STUB_OBJ)
 	@$(LD) $(LDFLAGS) -r -o $@ $^
 
 clean:

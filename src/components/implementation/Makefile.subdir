@@ -61,6 +61,9 @@ clean:
 		$(MAKE) -C $$dir clean ; \
 	done
 
+component:
+	$(MAKE) -C $(COMP_NAME) component
+
 fresh: clean all
 
 -include $(SOURCE_DEPENDENCIES)

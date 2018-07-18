@@ -1,4 +1,5 @@
 include Makefile.src Makefile.comp
+
 SUBDIRS=$(wildcard */)
 MAKEOPTIONS=-I$(shell pwd)
 
@@ -27,3 +28,6 @@ clean:
 
 .PHONY: init
 init: clean
+
+component:
+	$(MAKE) $(MAKEOPTIONS) -C $(COMP_INTERFACE) component
