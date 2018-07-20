@@ -15,6 +15,9 @@
  * Initialization of API
  */
 int have_initialized = 0;
+static OS_time_t  local_time = (OS_time_t){.seconds = 0, .microsecs = 0};
+//static OS_time_t  local_time = (OS_time_t){.seconds = 1181683060, .microsecs = 0};
+static microsec_t last_time_check = 0;
 
 int32
 OS_API_Init(void)
@@ -28,6 +31,12 @@ OS_API_Init(void)
 	defci = cos_defcompinfo_curr_get();
 	ci    = cos_compinfo_get(defci);
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+
+	rdtscll(last_time_check);
+	PRINTC("%s:%d %llu %u\n", __func__, __LINE__, last_time_check, cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+	last_time_check /= cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	local_time.seconds = last_time_check / 1000000;
+	local_time.microsecs = last_time_check % 1000000;
 
 	OS_FS_Init();
 	OS_ModuleTableInit();
@@ -82,12 +91,11 @@ OS_Tick2Micros(void)
 	return SL_MIN_PERIOD_US;
 }
 
-OS_time_t  local_time;
-microsec_t last_time_check;
-
 OS_time_t
 OS_AdvanceTime(OS_time_t initial_time, microsec_t usec)
 {
+	OS_time_t time;
+
 	microsec_t old_seconds         = (microsec_t)initial_time.seconds;
 	microsec_t old_additional_usec = (microsec_t)initial_time.microsecs;
 
@@ -97,7 +105,9 @@ OS_AdvanceTime(OS_time_t initial_time, microsec_t usec)
 	microsec_t new_seconds         = new_usec / (1000 * 1000);
 	microsec_t new_additional_usec = new_usec % (1000 * 1000);
 
-	return (OS_time_t){.seconds = new_seconds, .microsecs = new_additional_usec};
+	time = (OS_time_t){.seconds = new_seconds, .microsecs = new_additional_usec};
+
+	return time;
 }
 
 int32
@@ -105,19 +115,16 @@ OS_GetLocalTime(OS_time_t *time_struct)
 {
 	if (!time_struct) { return OS_INVALID_POINTER; }
 
-	if (last_time_check == 0) {
-		local_time      = (OS_time_t){.seconds = 1181683060, .microsecs = 0};
-		last_time_check = sl_now_usec();
-	} else {
-		microsec_t current_time = sl_now_usec();
-		microsec_t elapsed_usec = current_time - last_time_check;
+	sl_cs_enter();
+	microsec_t current_time = sl_now_usec();
+	microsec_t elapsed_usec = current_time - last_time_check;
 
-		local_time      = OS_AdvanceTime(local_time, elapsed_usec);
-		last_time_check = current_time;
-	}
+	local_time      = OS_AdvanceTime(local_time, elapsed_usec);
+	last_time_check = current_time;
 
 	*time_struct = local_time;
 
+	sl_cs_exit();
 	return OS_SUCCESS;
 } /* end OS_GetLocalTime */
 
@@ -126,8 +133,10 @@ OS_SetLocalTime(OS_time_t *time_struct)
 {
 	if (!time_struct) { return OS_INVALID_POINTER; }
 
+	sl_cs_exit();
 	local_time      = *time_struct;
 	last_time_check = sl_now_usec();
+	sl_cs_exit();
 
 	return OS_SUCCESS;
 } /*end OS_SetLocalTime */

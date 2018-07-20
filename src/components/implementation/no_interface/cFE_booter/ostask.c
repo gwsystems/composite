@@ -21,6 +21,7 @@ timer_fn_1hz(void *d)
 {
 	cycles_t start_time = 0, next_deadline = 0, interval = time_usec2cyc(HZ_PAUSE_US);
 	unsigned int timer_counter = 0;
+	OS_time_t time;
 
 	rdtscll(start_time);
 	next_deadline = start_time;
@@ -31,6 +32,7 @@ timer_fn_1hz(void *d)
 		next_deadline += interval;
 		elapsed = sl_thd_block_timeout(0, next_deadline);
 
+		OS_GetLocalTime(&time);
 		while (elapsed > interval) {
 	//		printc("l");
 			CFE_TIME_Local1HzISR();
