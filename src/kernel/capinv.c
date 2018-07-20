@@ -793,6 +793,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	tcap = tcap_current(cos_info);
 	assert(thd);
 	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	ci->captbl = (struct captbl *)AND(ci->captbl, ~1);
 	assert(ci && ci->captbl);
 	assert(!(thd->state & THD_STATE_PREEMPTED));
 	rcv_thd  = arcv->thd;
@@ -847,6 +848,7 @@ timer_process(struct pt_regs *regs)
 	thd_curr = thd_current(cos_info);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	comp = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
+	comp->captbl = (struct captbl *)AND(comp->captbl, ~1);
 	assert(comp);
 
 	return expended_process(regs, thd_curr, comp, cos_info, 1);
@@ -875,11 +877,11 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 		return 0;
 	} else if (rflags & RCV_NON_BLOCKING) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-		__userregs_setretvals(regs, -EAGAIN, 0, 0, 0, 0);
+		__userregs_setretvals(regs, -EAGAIN, 0, 0, 0);
 
 		return 0;
 	}
-	__userregs_setretvals(regs, 0, 0, 0, 0, 0);
+	__userregs_setretvals(regs, 0, 0, 0, 0);
 
 	next = notify_parent(thd, 0);
 	/* TODO: should we continue tcap-inheritence policy in this case? */
@@ -979,6 +981,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	}
 
 	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	ci->captbl = (struct captbl *)AND(ci->captbl, ~1);
 	assert(ci && ci->captbl);
 
 	/*
@@ -1066,6 +1069,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 	capin = __userregs_get1(regs);
 
 	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	ci->captbl = (struct captbl *)AND(ci->captbl, ~1);
 	assert(ci && ci->captbl);
 	ct = ci->captbl;
 

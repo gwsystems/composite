@@ -20,10 +20,11 @@
 
 struct invstk_entry {
 	struct comp_info comp_info;
-	unsigned long    sp, ip, in_fault; /* to return to */
+	unsigned long    sp, ip; /* to return to */
 } HALF_CACHE_ALIGNED;
 
 #define THD_INVSTK_MAXSZ 32
+#define AND(arg1, arg2) ((int)arg1 & (int)arg2)
 
 /*
  * This is the data structure embedded in threads that are associated
@@ -349,7 +350,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
-	thd->invstk[0].ip = thd->invstk[0].sp = thd->invstk[0].in_fault = 0;
+	thd->invstk[0].ip = thd->invstk[0].sp;
 	thd->tid                              = thdid_alloc();
 	thd->refcnt                           = 1;
 	thd->invstk_top                       = 0;
@@ -481,8 +482,8 @@ thd_invstk_current_fault(struct thread *curr_thd, unsigned long *ip, unsigned lo
 	curr      = &curr_thd->invstk[curr_invstk_top(cos_info)];
 	*ip       = curr->ip;
 	*sp       = curr->sp;
-	*in_fault = curr->in_fault;
-
+	*in_fault = AND((curr->comp_info).captbl, 1);
+	
 	return &curr->comp_info;
 }
 
@@ -501,25 +502,36 @@ thd_current_pgtbl(struct thread *thd)
 	/* don't use the cached invstk_top here. We need the stack
 	 * pointer of the specified thread. */
 	curr_entry = &thd->invstk[thd->invstk_top];
-	return curr_entry->comp_info.pgtbl;
+	return curr_entry->comp_fault_info.pgtbl;
+}
+
+static inline void
+thd_invstk_modify_current(struct thread *thd, unsigned long ip, unsigned long sp, unsigned long in_fault, 
+						  struct cos_cpu_local_info *cos_info)
+{
+	struct invstk_entry *curr_entry;
+
+	curr_entry = &thd->invstk[curr_invstk_top(cos_info)];
+	curr_entry->ip = ip;
+	curr_entry->sp = sp;
+
+	if (unlikely(in_fault == 1)) {
+		(curr_entry->comp_info).captbl = (struct captbl*)(AND((curr_entry->comp_info).captbl, ~1) | in_fault);
+	}
 }
 
 static inline int
 thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp, unsigned long in_fault,
                 struct cos_cpu_local_info *cos_info)
 {
-	struct invstk_entry *top, *prev;
-
+	struct invstk_entry *top;
 	if (unlikely(curr_invstk_top(cos_info) >= THD_INVSTK_MAXSZ)) return -1;
 
-	prev = &thd->invstk[curr_invstk_top(cos_info)];
+	thd_invstk_modify_current(thd, ip, sp, in_fault, cos_info);
 	top  = &thd->invstk[curr_invstk_top(cos_info) + 1];
 	curr_invstk_inc(cos_info);
-	prev->ip          = ip;
-	prev->sp          = sp;
-	prev->in_fault    = in_fault;
 	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
-	top->ip = top->sp = top->in_fault = 0;
+	top->ip = top->sp = 0;
 
 	return 0;
 }
@@ -553,7 +565,7 @@ thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs)
 		thd_rcvcap_pending_dec(thd);
 		pending = thd_rcvcap_pending(thd);
 	}
-	__userregs_setretvals(regs, pending, thd_state, cycles, timeout, 0);
+	__userregs_setretvals(regs, pending, thd_state, cycles, timeout);
 }
 
 static inline int

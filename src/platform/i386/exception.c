@@ -25,10 +25,9 @@ static void
 fault_regs_save(struct pt_regs *regs, struct thread *thd)
 {
 	copy_all_regs(regs, &(thd->fault_regs));
-	PRINTK("Fault registers saved.\n");
 }
 
-int
+void
 fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 {
 	struct cos_cpu_local_info *ci       = cos_cpu_local_info();
@@ -41,15 +40,19 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 
 	fault_regs_save (regs, curr_thd);
 	cos_info = thd_invstk_current(curr_thd, &ip, &sp, ci);
+	cos_info->captbl = (struct captbl*)AND(cos_info->captbl, ~1);
 	fh = captbl_lkup(cos_info->captbl, cap);
-	__userregs_setretvals(regs, 0, regs->sp, regs->ip, fault_addr, cap);
-
-	if (likely(fh->type == CAP_SINVFLT)){
-		sinv_call(curr_thd, (struct cap_sinv *)fh, regs, ci, 1);
-		return 0;
-	} else {
-		return 1;
+	regs->bx = regs->sp;
+	regs->si = regs->ip;
+	regs->di = fault_addr;
+	regs->dx = cap;
+	
+	if (unlikely(!fh)) {
+		die("FAULT: Fault handler not found\n");
+		return;
 	}
+
+	sinv_call(curr_thd, (struct cap_sinv *)fh, regs, ci, 1);
 }
 
 int

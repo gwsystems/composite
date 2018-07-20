@@ -307,10 +307,12 @@ static inline int
 sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *cos_info)
 {
 	struct comp_info *ci;
-	unsigned long     ip, sp;
+	unsigned long     ip = 0;
+	unsigned long     sp = 0;
 	unsigned long     in_fault = 0;
 
 	ci = thd_invstk_pop(thd, &ip, &sp, &in_fault, cos_info);
+	ci->captbl = (struct captbl*)AND(ci->captbl, ~1);
 	if (unlikely(!ci)) {
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
 		goto ret;
