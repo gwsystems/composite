@@ -306,13 +306,14 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 static inline int
 sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *cos_info)
 {
-	struct comp_info *ci;
-	unsigned long     ip = 0;
-	unsigned long     sp = 0;
-	unsigned long     in_fault = 0;
+	struct comp_info *       ci;
+	struct comp_invstk_info *ci_invstk;
+	unsigned long            ip = 0;
+	unsigned long            sp = 0;
+	unsigned long            in_fault = 0;
 
-	ci = thd_invstk_pop(thd, &ip, &sp, &in_fault, cos_info);
-	ci->captbl = (struct captbl*)AND(ci->captbl, ~1);
+	ci_invstk = thd_invstk_pop(thd, &ip, &sp, &in_fault, cos_info);
+	ci = thd_invstk_comp_info_get(ci_invstk);
 	if (unlikely(!ci)) {
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
 		goto ret;

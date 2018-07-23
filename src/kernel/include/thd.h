@@ -18,8 +18,15 @@
 #include "tcap.h"
 #include "list.h"
 
+struct comp_invstk_info {
+	struct liveness_data		liveness;
+	pgtbl_t						pgtbl;
+	struct captbl*				flaged_captbl;
+	struct cos_sched_data_area *comp_nfo;
+} __attribute__ ((packed));
+
 struct invstk_entry {
-	struct comp_info comp_info;
+	struct comp_invstk_info comp_invstk_info;
 	unsigned long    sp, ip; /* to return to */
 } HALF_CACHE_ALIGNED;
 
@@ -333,6 +340,13 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 	if (unlikely(thd->scheduler_thread != sched)) thd->scheduler_thread = sched;
 }
 
+static inline struct comp_info*
+thd_invstk_comp_info_get(struct comp_invstk_info* comp_invstk_info)
+{
+	comp_invstk_info->flaged_captbl = (struct captbl *)AND(comp_invstk_info->flaged_captbl, (~1));
+	return (struct comp_info *)comp_invstk_info;
+}
+
 static int
 thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data)
 {
@@ -349,7 +363,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	if (!tc) return ret;
 
 	/* initialize the thread */
-	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
+	memcpy(&(thd->invstk[0].comp_invstk_info), &compc->info, sizeof(struct comp_info));
 	thd->invstk[0].ip = thd->invstk[0].sp;
 	thd->tid                              = thdid_alloc();
 	thd->refcnt                           = 1;
@@ -473,7 +487,7 @@ curr_invstk_top(struct cos_cpu_local_info *cos_info)
 	return cos_info->invstk_top;
 }
 
-static inline struct comp_info *
+static inline struct comp_invstk_info *
 thd_invstk_current_fault(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, unsigned long *in_fault, struct cos_cpu_local_info *cos_info)
 {
 	/* curr_thd should be the current thread! We are using cached invstk_top. */
@@ -482,12 +496,12 @@ thd_invstk_current_fault(struct thread *curr_thd, unsigned long *ip, unsigned lo
 	curr      = &curr_thd->invstk[curr_invstk_top(cos_info)];
 	*ip       = curr->ip;
 	*sp       = curr->sp;
-	*in_fault = AND((curr->comp_info).captbl, 1);
+	*in_fault = AND((curr->comp_invstk_info).flaged_captbl, 1);
 	
-	return &curr->comp_info;
+	return &curr->comp_invstk_info;
 }
 
-static inline struct comp_info *
+static inline struct comp_invstk_info *
 thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
 {
 	unsigned long in_fault;
@@ -502,7 +516,7 @@ thd_current_pgtbl(struct thread *thd)
 	/* don't use the cached invstk_top here. We need the stack
 	 * pointer of the specified thread. */
 	curr_entry = &thd->invstk[thd->invstk_top];
-	return curr_entry->comp_fault_info.pgtbl;
+	return curr_entry->comp_invstk_info.pgtbl;
 }
 
 static inline void
@@ -516,7 +530,7 @@ thd_invstk_modify_current(struct thread *thd, unsigned long ip, unsigned long sp
 	curr_entry->sp = sp;
 
 	if (unlikely(in_fault == 1)) {
-		(curr_entry->comp_info).captbl = (struct captbl*)(AND((curr_entry->comp_info).captbl, ~1) | in_fault);
+		(curr_entry->comp_invstk_info).flaged_captbl = (struct captbl*)(AND((curr_entry->comp_invstk_info).flaged_captbl, ~1) | in_fault);
 	}
 }
 
@@ -525,18 +539,19 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
                 struct cos_cpu_local_info *cos_info)
 {
 	struct invstk_entry *top;
+
 	if (unlikely(curr_invstk_top(cos_info) >= THD_INVSTK_MAXSZ)) return -1;
 
 	thd_invstk_modify_current(thd, ip, sp, in_fault, cos_info);
 	top  = &thd->invstk[curr_invstk_top(cos_info) + 1];
 	curr_invstk_inc(cos_info);
-	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
+	memcpy(&top->comp_invstk_info, ci, sizeof(struct comp_info));
 	top->ip = top->sp = 0;
 
 	return 0;
 }
 
-static inline struct comp_info *
+static inline struct comp_invstk_info *
 thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, unsigned long *in_fault, struct cos_cpu_local_info *cos_info)
 {
 	if (unlikely(curr_invstk_top(cos_info) == 0)) return NULL;

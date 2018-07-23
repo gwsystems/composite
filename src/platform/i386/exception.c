@@ -21,7 +21,7 @@ print_regs_state(struct pt_regs *regs)
 	PRINTK("(Exception Error Code-> ORIG_AX: %x)\n", regs->orig_ax);
 }
 
-static void
+void
 fault_regs_save(struct pt_regs *regs, struct thread *thd)
 {
 	copy_all_regs(regs, &(thd->fault_regs));
@@ -31,22 +31,20 @@ void
 fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 {
 	struct cos_cpu_local_info *ci       = cos_cpu_local_info();
-	struct thread             *curr_thd = thd_current(ci);
-	struct cap_header         *fh;
-	struct comp_info          *cos_info;
+	struct thread *            curr_thd = thd_current(ci);
+	struct cap_header *        fh;
+	struct comp_info *         cos_info;
+	struct comp_invstk_info *  cos_invstk_info;
 	thdid_t                    thdid = curr_thd->tid;
 	unsigned long              ip, sp;
 	u32_t                      fault_addr = 0, errcode, eip;
 
 	fault_regs_save (regs, curr_thd);
-	cos_info = thd_invstk_current(curr_thd, &ip, &sp, ci);
-	cos_info->captbl = (struct captbl*)AND(cos_info->captbl, ~1);
+	cos_invstk_info = thd_invstk_current(curr_thd, &ip, &sp, ci);
+	cos_info = thd_invstk_comp_info_get(cos_invstk_info);
 	fh = captbl_lkup(cos_info->captbl, cap);
-	regs->bx = regs->sp;
-	regs->si = regs->ip;
-	regs->di = fault_addr;
-	regs->dx = cap;
-	
+	__userregs_sinvargset(regs, regs->sp, regs->ip, fault_addr, cap);
+
 	if (unlikely(!fh)) {
 		die("FAULT: Fault handler not found\n");
 		return;
