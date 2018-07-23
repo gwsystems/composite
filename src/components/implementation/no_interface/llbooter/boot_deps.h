@@ -238,6 +238,10 @@ boot_capmgr_mem_alloc(void)
 	cos_meminfo_alloc(capmgr_info, BOOT_MEM_KM_BASE, mem_sz);
 }
 
+/* 
+ * The sinv cap belongs to a different type.
+ * So we can get rid of an extra branch in fast path.
+ */
 static void
 boot_fault_handler_sinv_alloc(spdid_t spdid)
 {

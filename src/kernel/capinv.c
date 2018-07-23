@@ -440,6 +440,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
                struct cos_cpu_local_info *cos_info)
 {
 	struct next_thdinfo *nti     = &cos_info->next_ti;
+	/* invstk_top never contains in_fault flag in its captbl. So we can use it as comp_info */
 	struct comp_info *   next_ci = (struct comp_info *)&(next->invstk[next->invstk_top].comp_invstk_info);
 	int                  preempt = 0;
 
@@ -772,7 +773,6 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	struct cos_cpu_local_info *cos_info;
 	struct thread *            rcv_thd, *next, *thd;
 	struct tcap *              rcv_tcap, *tcap, *tcap_next;
-	struct comp_invstk_info *  invstk_ci; 
 	struct comp_info *         ci;
 	unsigned long              ip, sp;
 
@@ -793,8 +793,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	thd  = thd_current(cos_info);
 	tcap = tcap_current(cos_info);
 	assert(thd);
-	invstk_ci = thd_invstk_current(thd, &ip, &sp, cos_info);
-	ci = thd_invstk_comp_info_get(invstk_ci);
+	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
 	assert(!(thd->state & THD_STATE_PREEMPTED));
 	rcv_thd  = arcv->thd;
@@ -841,7 +840,6 @@ timer_process(struct pt_regs *regs)
 	struct cos_cpu_local_info *cos_info;
 	struct thread *            thd_curr;
 	struct comp_info *         comp;
-	struct comp_invstk_info *  comp_invstk; 
 	unsigned long              ip, sp;
 	cycles_t                   now;
 
@@ -849,8 +847,7 @@ timer_process(struct pt_regs *regs)
 	assert(cos_info);
 	thd_curr = thd_current(cos_info);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
-	comp_invstk = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
-	comp = thd_invstk_comp_info_get(comp_invstk);
+	comp = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
 	assert(comp);
 
 	return expended_process(regs, thd_curr, comp, cos_info, 1);
@@ -948,12 +945,11 @@ static int composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch);
 COS_SYSCALL __attribute__((section("__ipc_entry"))) int
 composite_syscall_handler(struct pt_regs *regs)
 {
-	struct cap_header *      ch;
-	struct comp_info *       ci;
-	struct comp_invstk_info *ci_invstk;
-	struct thread *          thd;
-	capid_t                  cap;
-	unsigned long            ip, sp;
+	struct cap_header *ch;
+	struct comp_info * ci;
+	struct thread *    thd;
+	capid_t            cap;
+	unsigned long      ip, sp;
 
 	/*
 	 * We lookup this struct (which is on stack) only once, and
@@ -983,8 +979,7 @@ composite_syscall_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	ci_invstk = thd_invstk_current(thd, &ip, &sp, cos_info);
-	ci = thd_invstk_comp_info_get(ci_invstk);
+	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
 
 	/*
@@ -1048,7 +1043,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 {
 	struct cap_header *        ch;
 	struct comp_info *         ci;
-	struct comp_invstk_info *  ci_invstk;
 	struct captbl *            ct;
 	struct thread *            thd;
 	capid_t                    cap, capin;
@@ -1072,8 +1066,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 	cap   = __userregs_getcap(regs);
 	capin = __userregs_get1(regs);
 
-	ci_invstk = thd_invstk_current(thd, &ip, &sp, cos_info);
-	ci = thd_invstk_comp_info_get(ci_invstk);
+	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
 	ct = ci->captbl;
 

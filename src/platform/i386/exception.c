@@ -34,17 +34,15 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 	struct thread *            curr_thd = thd_current(ci);
 	struct cap_header *        fh;
 	struct comp_info *         cos_info;
-	struct comp_invstk_info *  cos_invstk_info;
 	thdid_t                    thdid = curr_thd->tid;
 	unsigned long              ip, sp;
 	u32_t                      fault_addr = 0, errcode, eip;
 
 	fault_regs_save (regs, curr_thd);
-	cos_invstk_info = thd_invstk_current(curr_thd, &ip, &sp, ci);
-	cos_info = thd_invstk_comp_info_get(cos_invstk_info);
+	cos_info = thd_invstk_current(curr_thd, &ip, &sp, ci);
 	fh = captbl_lkup(cos_info->captbl, cap);
 	__userregs_sinvargset(regs, regs->sp, regs->ip, fault_addr, cap);
-
+	/* This is a software fault and should be fixed in the future. */
 	if (unlikely(!fh)) {
 		die("FAULT: Fault handler not found\n");
 		return;

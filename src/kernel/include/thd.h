@@ -19,9 +19,9 @@
 #include "list.h"
 
 /* 
-* This data structure is similar to comp_info. Because we want to use several
-* insignificant bits in the captbl to provide better alignment.
-*/
+ * This data structure is the same as comp_info. However, it is not comp_info any more, 
+ * because we want to use several insignificant bits in the captbl to provide better alignment.
+ */
 struct comp_invstk_info {
 	struct liveness_data		liveness;
 	pgtbl_t						pgtbl;
@@ -268,7 +268,6 @@ thd_rcvcap_pending(struct thread *t)
 {
 	if (t->rcvcap.pending) return t->rcvcap.pending;
 	return !list_isempty(&t->event_head);
-	;
 }
 
 static sched_tok_t
@@ -492,7 +491,7 @@ curr_invstk_top(struct cos_cpu_local_info *cos_info)
 	return cos_info->invstk_top;
 }
 
-static inline struct comp_invstk_info *
+static inline struct comp_info *
 thd_invstk_current_fault(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, unsigned long *in_fault, struct cos_cpu_local_info *cos_info)
 {
 	/* curr_thd should be the current thread! We are using cached invstk_top. */
@@ -503,10 +502,10 @@ thd_invstk_current_fault(struct thread *curr_thd, unsigned long *ip, unsigned lo
 	*sp       = curr->sp;
 	*in_fault = AND((curr->comp_invstk_info).flaged_captbl, 1);
 	
-	return &curr->comp_invstk_info;
+	return thd_invstk_comp_info_get(&curr->comp_invstk_info);
 }
 
-static inline struct comp_invstk_info *
+static inline struct comp_info *
 thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
 {
 	unsigned long in_fault;
@@ -524,8 +523,11 @@ thd_current_pgtbl(struct thread *thd)
 	return curr_entry->comp_invstk_info.pgtbl;
 }
 
-/* As we have control of captbl, we can use several insignificant bit of captbl to have better stack alignment. 
- * We use the last bit to indicate whether it is a sinv to a fault handler. */
+/*
+ * As we have control of captbl, we can use several insignificant bit of captbl to have better stack alignment. 
+ * We use the last bit to indicate whether it is a sinv to a fault handler. 
+ * The modification of the current invstk_entry includes setting ip, sp, and in_fault flag of the current component.
+ */
 static inline void
 thd_invstk_modify_current(struct thread *thd, unsigned long ip, unsigned long sp, unsigned long in_fault, 
 						  struct cos_cpu_local_info *cos_info)
@@ -541,8 +543,10 @@ thd_invstk_modify_current(struct thread *thd, unsigned long ip, unsigned long sp
 	}
 }
 
-/* To make invstk behavior like a stack.
- * Modify the top of invstk before pushing a new comp_invstk_info into the invstk.*/
+/* 
+ * To make invstk behavior like a stack.
+ * Modify the top of invstk before pushing a new comp_invstk_info into the invstk.
+ */
 static inline int
 thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp, unsigned long in_fault,
                 struct cos_cpu_local_info *cos_info)
@@ -560,11 +564,15 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 	return 0;
 }
 
-static inline struct comp_invstk_info *
+static inline struct comp_info *
 thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, unsigned long *in_fault, struct cos_cpu_local_info *cos_info)
 {
 	if (unlikely(curr_invstk_top(cos_info) == 0)) return NULL;
 	curr_invstk_dec(cos_info);
+	/* 
+	 * This is the only time we might use the in_fault flag.
+	 * We can reset the captbl after we get the in_fault flag.
+	 */
 	return thd_invstk_current_fault(thd, ip, sp, in_fault, cos_info);
 }
 
