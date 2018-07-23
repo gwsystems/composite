@@ -998,7 +998,7 @@ composite_syscall_handler(struct pt_regs *regs)
 		cos_throw(done, 0);
 	}
 	/* fastpath: invocation */
-	if (likely((ch->type == CAP_SINV))) {
+	if (likely(ch->type == CAP_SINV)) {
 		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info, 0);
 		return 0;
 	}

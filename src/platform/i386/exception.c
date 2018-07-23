@@ -57,6 +57,7 @@ int
 div_by_zero_err_fault_handler(struct pt_regs *regs)
 {
 	fault_handler_sinv(regs, FAULT_CAPTBL_DIVZERO);
+
 	return 1;
 }
 
@@ -73,6 +74,7 @@ int
 breakpoint_trap_handler(struct pt_regs *regs)
 {
 	fault_handler_sinv(regs, FAULT_CAPTBL_BRKPT);
+
 	return 1;
 }
 
@@ -89,6 +91,7 @@ int
 bound_range_exceed_fault_handler(struct pt_regs *regs)
 {
 	fault_handler_sinv(regs, FAULT_CAPTBL_INVSTK);
+
 	return 1;
 }
 
@@ -96,6 +99,7 @@ int
 invalid_opcode_fault_handler(struct pt_regs *regs)
 {
 	fault_handler_sinv(regs, FAULT_CAPTBL_INVLD_INS);
+
 	return 1;
 }
 
@@ -148,6 +152,7 @@ int
 gen_protect_fault_handler(struct pt_regs *regs)
 {
 	fault_handler_sinv(regs, FAULT_CAPTBL_MEM_ACCESS);
+
 	return 1;
 }
 
@@ -155,6 +160,7 @@ int
 page_fault_handler(struct pt_regs *regs)
 {
 	fault_handler_sinv(regs, FAULT_CAPTBL_MEM_ACCESS);
+
 	return 1;
 }
 

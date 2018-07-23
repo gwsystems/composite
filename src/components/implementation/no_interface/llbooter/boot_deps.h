@@ -476,7 +476,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)hypercall_entry_rets_inv, token);
 	assert(sinv > 0);
 
-	ret = cos_cap_cpy_at(compinfo, BOOT_CAPTBL_SINV_CAP,  boot_info, sinv);
+	ret = cos_cap_cpy_at(compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);
 	assert(ret == 0);
 
 	boot_newcomp_init_caps(spdid);

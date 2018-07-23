@@ -18,6 +18,10 @@
 #include "tcap.h"
 #include "list.h"
 
+/* 
+* This data structure is similar to comp_info. Because we want to use several
+* insignificant bits in the captbl to provide better alignment.
+*/
 struct comp_invstk_info {
 	struct liveness_data		liveness;
 	pgtbl_t						pgtbl;
@@ -340,6 +344,7 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 	if (unlikely(thd->scheduler_thread != sched)) thd->scheduler_thread = sched;
 }
 
+/* Reset the bit in captbl and return comp_info */
 static inline struct comp_info*
 thd_invstk_comp_info_get(struct comp_invstk_info* comp_invstk_info)
 {
@@ -364,7 +369,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_invstk_info), &compc->info, sizeof(struct comp_info));
-	thd->invstk[0].ip = thd->invstk[0].sp;
+	thd->invstk[0].ip = thd->invstk[0].sp = 0;
 	thd->tid                              = thdid_alloc();
 	thd->refcnt                           = 1;
 	thd->invstk_top                       = 0;
@@ -519,6 +524,8 @@ thd_current_pgtbl(struct thread *thd)
 	return curr_entry->comp_invstk_info.pgtbl;
 }
 
+/* As we have control of captbl, we can use several insignificant bit of captbl to have better stack alignment. 
+ * We use the last bit to indicate whether it is a sinv to a fault handler. */
 static inline void
 thd_invstk_modify_current(struct thread *thd, unsigned long ip, unsigned long sp, unsigned long in_fault, 
 						  struct cos_cpu_local_info *cos_info)
@@ -534,6 +541,8 @@ thd_invstk_modify_current(struct thread *thd, unsigned long ip, unsigned long sp
 	}
 }
 
+/* To make invstk behavior like a stack.
+ * Modify the top of invstk before pushing a new comp_invstk_info into the invstk.*/
 static inline int
 thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp, unsigned long in_fault,
                 struct cos_cpu_local_info *cos_info)

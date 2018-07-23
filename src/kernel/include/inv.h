@@ -325,6 +325,7 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
 		goto ret;
 	}
+
 	pgtbl_update(ci->pgtbl);
 	/* Set return sp and ip and function return value in eax */
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);
