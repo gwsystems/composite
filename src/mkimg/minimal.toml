@@ -7,16 +7,5 @@ img = "tests.unit_pingpong"
 deps = [{srv = "pong", interface = "pong"}]
 
 [[components]]
-name = "ping2"
-img = "tests.unit_pingpong"
-deps = [{srv = "pong2", interface = "testing"}, {srv = "pong", interface = "pong"}]
-
-[[components]]
-name = "pong2"
-img = "tests.unit_pingpong"
-deps = [{srv = "pong", interface = "pong"}]
-interfaces = [{interface = "testing", variant = "foo"}, {interface = "testing2"}]
-
-[[components]]
 name = "pong"
 img = "pong.pingpong"

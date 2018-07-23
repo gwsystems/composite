@@ -1,8 +1,12 @@
 SECTIONS
 {
+	ENTRY(__cosrt_upcall_entry)
+
 	.text : { *(.text*) }
 	.rodata : { *(.rodata*) }
 	.eh_frame : { *(.eh_frame*) }
+
+	. = ALIGN(4096);
 	.ctors : {
 		__CTOR_LIST__ = .;
 		LONG((__CTOR_END__ - __CTOR_LIST__) / 4 - 2)

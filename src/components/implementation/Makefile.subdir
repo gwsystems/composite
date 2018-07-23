@@ -3,17 +3,15 @@ include Makefile.src Makefile.comp
 IFNAME=$(lastword $(subst /, ,$(shell pwd)))
 SUBDIRS=$(wildcard */)
 
-CLIB=complib.o
+CLIB=libs_$(IFNAME).a # s_ for server
 IF_INCLUDE=$(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
-DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/) -I$(INTERDIR)/qfault
+DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
 
-OBJS=$(patsubst %.c,%.o,$(wildcard *.c)) $(patsubst %.S,%.o,$(wildcard *.S))
-TMP_STR=tmp
-INCLUDE=$(DEP_INC) -I../ -I./ $(IF_INCLUDE) $(CINC)
+OBJS=$(patsubst %.c,%.o,$(wildcard *.c)) $(patsubst %.S,%.o,$(wildcard *.S)) $(patsubst %.cc,%.o,$(wildcard *.cc))
+INCLUDE=$(DEP_INC) $(IF_INCLUDE) $(CINC)
 
-SOURCES=$(wildcard *.c)
 #NOTE: assembly files don't have dependencies generated for them
-SOURCE_DEPENDENCIES=$(SOURCES:%.c=%.d)
+SOURCE_DEPENDENCIES=$($(wildcard *.c):%.c=%.d) $($(wildcard *.cc):%.cc=%.d)
 
 .PHONY: all
 all: $(SOURCE_DEPENDENCIES) $(CLIB) subdirs
@@ -25,8 +23,8 @@ subdirs:
 
 $(CLIB):$(OBJS)
 ifneq ($(strip $(OBJS)),)
-#	$(info |     [LD]   Creating $(CLIB) for $(INTERFACES))
-	@$(LD) $(LDFLAGS) -r -o $@ $^
+	$(info |     [AR]   Creating component server library $@ for $(IFNAME))
+	@$(AR) cr $@ $^
 endif
 
 %.o:%.c
@@ -34,9 +32,12 @@ endif
 	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
 
 %.o:%.S
-#	$(info |     [AS]   Compiling assembly file $^ into $@)
 	$(info |     [AS]   $<: Compiling)
 	@$(AS) $(INCLUDE) $(ASFLAGS) -c -o $@ $^
+
+%.o:%.cc
+	$(info |     [CXX]  $<: Compiling)
+	@$(CXX) $(INCLUDE) $(LIBSTDCXXINC) $(CXXFLAGS) -o $@ -c $^
 
 # see the make manual: create the .d dependencies from include
 # statements.

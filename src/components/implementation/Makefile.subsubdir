@@ -24,70 +24,69 @@ LIB_ASM_MANDITORY=$(LIBDIR)/$(MANDITORY_LIB)
 # Derive the include paths from both the interface encoded in the
 # directory hierarchy, and the explicit DEPENDENCIES specification
 INTERFACE=$(word $(shell echo $(COMPLEN)-1 | bc), $(COMPPATH))
-IF_INCLUDE=-I$(INTERDIR)/$(INTERFACE) $(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
+ALL_INTERFACES = $(sort $(INTERFACE) $(INTERFACES)) # sort is for uniq
+# include paths for each interface
+EXPIF_INC_PATHS=$(foreach I,$(ALL_INTERFACES),-I$(INTERDIR)/$(I)/)
+# Server libraries for components that implement an interface (only if they exist).
+EXPIF_LIB_PATHS=$(foreach I,$(ALL_INTERFACES), $(if $(wildcard $(IMPLDIR)/$(I)/libs_$(I).a), -L$(IMPLDIR)/$(I)/)
+EXPIF_LIBS=$(foreach I,$(ALL_INTERFACES), $(if $(wildcard $(IMPLDIR)/$(I)/libs_$(I).a), -ls_$(I))
 
-#dependency components added to include listings and linker listings
-DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
-DEP_LIB=$(foreach D,$(DEPENDENCIES),-L$(INTERDIR)/$(D)/)
-DEP_LIB_EXIST=$(foreach D, $(DEPENDENCIES), $(if $(wildcard $(INTERDIR)/$(D)/*.a), -l$(D)))
+# Paths and libraries derived from the interface dependencies that
+# components have defined (only if the libraries exist).
+DEP_INC_PATHS=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
+DEP_LIB_PATHS=$(foreach D,$(DEPENDENCIES),$(if $(wildcard $(INTERDIR)/$(D)/libc_$(D).a), -L$(INTERDIR)/$(D)/)
+DEP_LIBS=$(foreach D,$(DEPENDENCIES),$(if $(wildcard $(INTERDIR)/$(D)/libc_$(D).a), -lc_$(D))
 
-CLIB=../complib.o
-#COMPLIB=$(if $(wildcard $(CLIB)),$(CLIB))
-COMPLIB=$(IF_LIB) $(wildcard $(CLIB))
 C_OBJS=$(patsubst %.c,%.o,$(wildcard *.c))
 CXX_OBJS=$(patsubst %.cc,%.o,$(wildcard *.cc))
 ASM_OBJS=$(patsubst %.S,%.o,$(wildcard *.S))
-OBJS=$(CXX_OBJS) $(C_OBJS) $(ASM_OBJS) $(COMPLIB) $(OBJLIBS)
-TMP_STR=tmp
-INCLUDE=-I../ $(DEP_INC) $(IF_INCLUDE) $(CINC)
-LIB_LIBRARIES_PRE=$(DEP_LIB_EXIST)
-LIB_LIBRARIES=$(strip $(LIB_LIBRARIES_PRE))
-LIB_FLAGS=-L$(LIBDIR) -L$(LIBCXXDIR) $(DEP_LIB) $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)
+OBJS=$(CXX_OBJS) $(C_OBJS) $(ASM_OBJS) $(OBJLIBS)
 
-C_SOURCES=$(C_OBJS:%.o=%.c)
-CXX_SOURCES=$(CXX_OBJS:%.o=%.cc)
+# put together all of the paths and libraries into command line
+# arguments
+INCLUDE=-I../ $(DEP_INC_PATHS) $(EXPIF_INC_PATHS) $(CINC)
+LIB_FLAGS=-L$(LIBDIR) -L$(LIBCXXDIR) $(EXPIF_LIBS) $(ADDITIONAL_LIBS)
+
 #NOTE: assembly files don't have dependencies generated for them
-SOURCE_DEPENDENCIES=$(C_SOURCES:%.c=%.d) $(CXX_SOURCES:%.cc=%.d)
+SOURCE_DEPENDENCIES=$(C_OBJS:%.o=%.d) $(CXX_OBJS:%.o=%.d)
 
 COMP_LD_SCRIPT=$(IMPLDIR)/comp.ld
 
-FNDEP_DIR=$(CDIR)/cidl
-FNDEP_GEN=$(FNDEP_DIR)/comp_undef.py
-FNDEP_VERIFY=$(FNDEP_DIR)/verify_completeness.py
-IFEXP_GEN=$(FNDEP_DIR)/exp_ifs.py
-FNDEP_FILE=.fn_dependencies
-IFEXP_FILE=.exported_interfaces
-
 .PHONY: all
-all: print $(SOURCE_DEPENDENCIES) $(COMPOBJ) fndeps
+all: print $(SOURCE_DEPENDENCIES) $(COMPOBJ)
 
 print:
 	$(info | Component $(COMPNAME):)
 
-fndeps:
-#	@sh $(FNDEP_GEN) c.o > $(FNDEP_FILE)
-#	@python $(FNDEP_GEN) > $(FNDEP_FILE)
-#	@python $(IFEXP_GEN) > $(IFEXP_FILE)
-#	@python $(FNDEP_VERIFY)
-
 # Jumping through hoops: want to link to our libraries first so that
 # symbols there are used, but then (and only then) do we want to use
-# libc's functions
+# libc's functions as part of the "component" directive
 $(COMPOBJ): $(OBJS)
 	$(info |     [LD]   $(COMPNAME) ($@): Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $^)
 	@$(LD) $(LDFLAGS) -r -o $@ $^ $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
 
 # make COMP_INTERFACE=pong COMP_NAME=pingpong COMP_OBJNAME=IT.WORKS COMP_OUTPUT=pong.pingpong.pong.o component
 
+# These variables direct the compilation and are set by the highest-level make command
+COMP_INTERFACES_CLEAN=$(strip $(subst ", ,$(COMP_INTERFACES))) #"
+COMP_IFDEPS_CLEAN=$(strip $(subst ", ,$(COMP_IFDEPS))) #"
+COMP_LIBDEPS_CLEAN=$(strip $(subst ", ,$(COMP_LIBDEPS))) #"
+
+# The actual lists of objects to be compiled with the components...
+COMP_EXPIF_OBJS=$(foreach I,$(COMP_INTERFACES_CLEAN),$(INTERDIR)/$(I)/s_stub.o)
+COMP_DEP_OBJS=$(foreach D,$(COMP_IFDEPS_CLEAN),$(INTERDIR)/$(D)/c_stub.o)
+
+# NOTE: we're currently ignoring the libraries, which will break if an
+# interface's code requires a library
+
 component:
-	$(info | Sealing $(COMP_OBJNAME) by linking with:)
-	$(info |     Exported interfaces:)
-	$(info |     Interface dependencies:)
-	$(info |     Libraries:)
-	@$(LD) $(LDFLAGS) -r -o $@ $^ $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
-	@$(MUSLCC) $(COMPOBJ) $(MUSLCFLAGS) -Xlinker -melf_i386 -o $(COMPOBJ).$(TMP_STR)
-	@$(LD) $(LDFLAGS) -r -T $(COMP_LD_SCRIPT) -o $(COMP_OUTPUT) $(COMPOBJ).$(TMP_STR)
-	@rm $(COMPOBJ).$(TMP_STR)
+	$(info | Sealing $(COMP_INTERFACE).$(COMP_NAME) for variable $(COMP_VARNAME) by linking with:)
+	$(info |     Exported interfaces: $(COMP_INTERFACES_CLEAN))
+	$(info |     Interface dependencies: $(COMP_IFDEPS_CLEAN))
+	$(info |     Libraries: $(COMP_LIBDEPS_CLEAN) (currently ignored))
+	$(LD) $(LDFLAGS) -r -o $(COMPNAME).linked_libs_ifs.o $(COMPOBJ) $(COMP_EXPIF_OBJS) $(COMP_DEP_OBJS)
+	$(MUSLCC) $(COMPNAME).linked_libs_ifs.o $(MUSLCFLAGS) -Xlinker -melf_i386 -o $(COMPNAME).linked_musl.o
+	$(LD) $(LDFLAGS) -Ttext=$(COMP_BASEADDR) -T $(COMP_LD_SCRIPT) -o $(COMP_OUTPUT) $(COMPNAME).linked_musl.o
 
 %.o:%.c
 	$(info |     [CC]   $<: Compiling)
@@ -125,7 +124,7 @@ cp:
 .PHONY: clean
 clean:
 	$(info |     [RM]   Cleaning up implementation directory for component $(COMPNAME))
-	@rm -f a.out *.o *.a *.d *.d.* *~ $(FNDEP_FILE) $(IFEXP_FILE)
+	@rm -f a.out *.o *.a *.d *.d.* *~
 
 fresh: clean all
 

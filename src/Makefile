@@ -1,5 +1,6 @@
 #MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
-MAKEOPTIONS=--no-print-directory -I$(PWD)
+# Note: can't use $(PWD) here if make -Ced from elsewhere.
+MAKEOPTIONS=--no-print-directory -I$(shell pwd)
 
 default: | all cp
 

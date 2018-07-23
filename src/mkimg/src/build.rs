@@ -1,5 +1,6 @@
 use cossystem::{CosSystem,Component};
 use std::collections::BTreeMap;
+use syshelpers::exec_pipeline;
 
 // Interact with the composite build system to "seal" the components.
 // This requires linking them with all dependencies, and with libc,
@@ -42,44 +43,6 @@ use std::collections::BTreeMap;
 // ...which should output the executable pong.pingpong.pongcomp in the
 // build directory which is the "sealed" version of the component that
 // is ready for loading.
-
-// Get the path to the component implementation directory. Should
-// probably derive this from an environmental var passed in at compile
-// time by the surrounding build system.
-pub fn comps_base_path() -> String {
-    let mut path = String::from(env!("PWD"));
-
-    // Construct the path to the src directory
-    path.push_str("/../");
-    path.push_str("components/implementation/");
-    path
-}
-
-pub fn interface_path(interface: String, variant: Option<String>) -> String {
-    let mut path = String::from(env!("PWD"));
-
-    path.push_str("../");
-    path.push_str("components/interface/");
-    path.push_str(&interface);
-    if let Some(v) = variant {
-        path.push_str(&v);
-    }
-    path
-}
-
-// Get the path to a component object via its name.  <if>.<name>
-// resolves to src/components/implementation/if/name/if.name.o
-pub fn comp_path(comp_base: &String, img: &String) -> String {
-    let mut obj_path = comp_base.clone();
-    let mut obj_str = img.clone();
-    let mut obj_subpath = obj_str.replace(".", "/");
-
-    obj_subpath.push_str("/");
-    obj_path.push_str(&obj_subpath);
-    obj_path.push_str(&obj_str);
-    obj_path.push_str(".o");
-    obj_path
-}
 
 #[derive(Debug)]
 struct ComponentContext {
@@ -139,7 +102,7 @@ impl ComponentContext {
 
         }
         // if not specified in the explicit dependencies, add the default
-        if !found_if {
+        if !found_if && interface != "tests" && interface != "no_interface" {
             compctxt.interface_exports.push((interface, String::from("stubs")));
         }
 
@@ -222,23 +185,27 @@ impl BuildContext {
 
     fn calculate_make_cmds(&mut self) -> () {
         for (n, mut c) in self.comps.iter_mut() {
-            let mut cmd = String::from("make ");
-            let mut ifs = c.interface_exports.iter().fold(String::from("COMP_INTERFACES=\""), |accum, (interf, var)| {
+            let mut cmd = String::from("make -C ../ ");
+            let (_, mut ifs) = c.interface_exports.iter().fold((true, String::from("COMP_INTERFACES=\"")), |(first, accum), (interf, var)| {
                 let mut ifpath = accum.clone();
+                if !first {
+                    ifpath.push_str(" ");
+                }
                 ifpath.push_str(&interf.clone());
                 ifpath.push_str("/");
                 ifpath.push_str(&var.clone());
-                ifpath.push_str(" ");
-                ifpath
+                (false, ifpath)
             });
             ifs.push_str("\" ");
-            let mut if_deps = c.interface_deps.iter().fold(String::from("COMP_IFDEPS=\""), |accum, (interf, srv, var)| {
+            let (_, mut if_deps) = c.interface_deps.iter().fold((true, String::from("COMP_IFDEPS=\"")), |(first, accum), (interf, srv, var)| {
                 let mut ifpath = accum.clone();
+                if !first {
+                    ifpath.push_str(" ");
+                }
                 ifpath.push_str(&interf.clone());
                 ifpath.push_str("/");
                 ifpath.push_str(&var.clone());
-                ifpath.push_str(" ");
-                ifpath
+                (false, ifpath)
             });
             if_deps.push_str("\" ");
             let libs = String::from("");
@@ -250,6 +217,16 @@ impl BuildContext {
             path_name.push_str(" ");
             let mut path_var = String::from("COMP_VARNAME=");
             path_var.push_str(&c.var_name);
+            path_var.push_str(" ");
+            let mut path_output = String::from("COMP_OUTPUT=");
+            path_output.push_str(env!("PWD"));
+            path_output.push_str("/");
+            path_output.push_str(&c.comp_if);
+            path_output.push_str(".");
+            path_output.push_str(&c.comp_name);
+            path_output.push_str(".");
+            path_output.push_str(&c.var_name);
+            let mut base_addr = String::from(" COMP_BASEADDR=0x00400000");
 
             cmd.push_str(&ifs);
             cmd.push_str(&if_deps);
@@ -257,6 +234,8 @@ impl BuildContext {
             cmd.push_str(&path_if);
             cmd.push_str(&path_name);
             cmd.push_str(&path_var);
+            cmd.push_str(&path_output);
+            cmd.push_str(&base_addr);
             cmd.push_str(" component");
 
             println!("{}", cmd);
@@ -265,6 +244,50 @@ impl BuildContext {
     }
 
     pub fn build_components(&mut self) -> () {
-        self.calculate_make_cmds()
+        self.calculate_make_cmds();
+        for (n, c) in self.comps.iter() {
+            let mut cmd = String::from("");
+            cmd.push_str(c.make_cmd.as_ref().unwrap());
+            let (out, err) = exec_pipeline(vec![cmd]);
+            println!("out: {}\nerr: {}", out, err);
+        }
     }
+}
+
+// Get the path to the component implementation directory. Should
+// probably derive this from an environmental var passed in at compile
+// time by the surrounding build system.
+pub fn comps_base_path() -> String {
+    let mut path = String::from(env!("PWD"));
+
+    // Construct the path to the src directory
+    path.push_str("/../");
+    path.push_str("components/implementation/");
+    path
+}
+
+pub fn interface_path(interface: String, variant: Option<String>) -> String {
+    let mut path = String::from(env!("PWD"));
+
+    path.push_str("../");
+    path.push_str("components/interface/");
+    path.push_str(&interface);
+    if let Some(v) = variant {
+        path.push_str(&v);
+    }
+    path
+}
+
+// Get the path to a component object via its name.  <if>.<name>
+// resolves to src/components/implementation/if/name/if.name.o
+pub fn comp_path(comp_base: &String, img: &String) -> String {
+    let mut obj_path = comp_base.clone();
+    let obj_str = img.clone();
+    let mut obj_subpath = obj_str.replace(".", "/");
+
+    obj_subpath.push_str("/");
+    obj_path.push_str(&obj_subpath);
+    obj_path.push_str(&obj_str);
+    obj_path.push_str(".o");
+    obj_path
 }
