@@ -32,8 +32,9 @@ name##_inv:                        \
 	xor %ebp, %ebp;            \
 	pushl %edi;                \
 	pushl %esi;                \
+	pushl %ebx;                \
 	call name ;                \
-	addl $16, %esp;            \
+	addl $20, %esp;            \
 	                           \
 	movl %eax, %ecx;           \
 	movl $RET_CAP, %eax;       \
@@ -53,13 +54,14 @@ name##_rets_inv:                       \
 	xor %ebp, %ebp;		       \
 	pushl %edi;                    \
 	pushl %esi;                    \
+	pushl %ebx;                    \
 	movl %esp, %ecx;               \
-	addl $20, %ecx;                \
+	addl $24, %ecx;                \
 	pushl %ecx;                    \
 	subl $4, %ecx;                 \
 	pushl %ecx;                    \
 	call name ;                    \
-	addl $24, %esp;                \
+	addl $28, %esp;                \
 	popl %esi;                     \
 	popl %edi;                     \
 	                               \

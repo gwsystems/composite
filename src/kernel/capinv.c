@@ -440,7 +440,8 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
                struct cos_cpu_local_info *cos_info)
 {
 	struct next_thdinfo *nti     = &cos_info->next_ti;
-	struct comp_info *   next_ci = &(next->invstk[next->invstk_top].comp_info);
+	/* invstk_top never contains in_fault flag in its captbl. So we can use it as comp_info */
+	struct comp_info *   next_ci = (struct comp_info *)&(next->invstk[next->invstk_top].comp_invstk_info);
 	int                  preempt = 0;
 
 	assert(next_ci && curr && next);
@@ -969,8 +970,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
 		/* No need to lookup captbl */
-		sret_ret(thd, regs, cos_info);
-		return 0;
+		return sret_ret(thd, regs, cos_info);
 	}
 
 	/* FIXME: use a cap for print */
@@ -994,7 +994,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	}
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
-		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info);
+		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info, 0);
 		return 0;
 	}
 
@@ -1266,13 +1266,21 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t    entry_addr    = __userregs_get3(regs);
 			invtoken_t token         = __userregs_get4(regs);
 
-			ret = sinv_activate(ct, cap, capin, dest_comp_cap, entry_addr, token);
+			ret = sinv_activate(ct, cap, capin, dest_comp_cap, CAP_SINV, entry_addr, token);
 			break;
 		}
 		case CAPTBL_OP_SINVDEACTIVATE: {
 			livenessid_t lid = __userregs_get2(regs);
 
 			ret = sinv_deactivate(op_cap, capin, lid);
+			break;
+		}
+		case CAPTBL_OP_FAULTACTIVATE: {
+			capid_t    dest_comp_cap = __userregs_get2(regs);
+			vaddr_t    entry_addr    = __userregs_get3(regs);
+			invtoken_t token         = __userregs_get4(regs);
+
+			ret = sinv_activate(ct, cap, capin, dest_comp_cap, CAP_SINVFLT, entry_addr, token);
 			break;
 		}
 		case CAPTBL_OP_SRETACTIVATE: {
@@ -1489,8 +1497,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		 * We usually don't have sret cap as we have 0 as the
 		 * default return cap.
 		 */
-		sret_ret(thd, regs, cos_info);
-		return 0;
+		return sret_ret(thd, regs, cos_info);
 	}
 	case CAP_TCAP: {
 		/* TODO: Validate that all tcaps are on the same core */

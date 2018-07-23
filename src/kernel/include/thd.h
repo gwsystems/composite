@@ -18,12 +18,24 @@
 #include "tcap.h"
 #include "list.h"
 
+/* 
+ * This data structure is the same as comp_info. However, it is not comp_info any more, 
+ * because we want to use several insignificant bits in the captbl to provide better alignment.
+ */
+struct comp_invstk_info {
+	struct liveness_data		liveness;
+	pgtbl_t						pgtbl;
+	struct captbl*				flaged_captbl;
+	struct cos_sched_data_area *comp_nfo;
+} __attribute__ ((packed));
+
 struct invstk_entry {
-	struct comp_info comp_info;
+	struct comp_invstk_info comp_invstk_info;
 	unsigned long    sp, ip; /* to return to */
 } HALF_CACHE_ALIGNED;
 
 #define THD_INVSTK_MAXSZ 32
+#define AND(arg1, arg2) ((int)arg1 & (int)arg2)
 
 /*
  * This is the data structure embedded in threads that are associated
@@ -256,7 +268,6 @@ thd_rcvcap_pending(struct thread *t)
 {
 	if (t->rcvcap.pending) return t->rcvcap.pending;
 	return !list_isempty(&t->event_head);
-	;
 }
 
 static sched_tok_t
@@ -332,6 +343,14 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 	if (unlikely(thd->scheduler_thread != sched)) thd->scheduler_thread = sched;
 }
 
+/* Reset the bit in captbl and return comp_info */
+static inline struct comp_info*
+thd_invstk_comp_info_get(struct comp_invstk_info* comp_invstk_info)
+{
+	comp_invstk_info->flaged_captbl = (struct captbl *)AND(comp_invstk_info->flaged_captbl, (~1));
+	return (struct comp_info *)comp_invstk_info;
+}
+
 static int
 thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data)
 {
@@ -348,7 +367,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	if (!tc) return ret;
 
 	/* initialize the thread */
-	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
+	memcpy(&(thd->invstk[0].comp_invstk_info), &compc->info, sizeof(struct comp_info));
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
 	thd->tid                              = thdid_alloc();
 	thd->refcnt                           = 1;
@@ -473,16 +492,24 @@ curr_invstk_top(struct cos_cpu_local_info *cos_info)
 }
 
 static inline struct comp_info *
-thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
+thd_invstk_current_fault(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, unsigned long *in_fault, struct cos_cpu_local_info *cos_info)
 {
 	/* curr_thd should be the current thread! We are using cached invstk_top. */
 	struct invstk_entry *curr;
 
-	curr = &curr_thd->invstk[curr_invstk_top(cos_info)];
-	*ip  = curr->ip;
-	*sp  = curr->sp;
+	curr      = &curr_thd->invstk[curr_invstk_top(cos_info)];
+	*ip       = curr->ip;
+	*sp       = curr->sp;
+	*in_fault = AND((curr->comp_invstk_info).flaged_captbl, 1);
+	
+	return thd_invstk_comp_info_get(&curr->comp_invstk_info);
+}
 
-	return &curr->comp_info;
+static inline struct comp_info *
+thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
+{
+	unsigned long in_fault;
+	return thd_invstk_current_fault(curr_thd, ip, sp, &in_fault, cos_info);
 }
 
 static inline pgtbl_t
@@ -493,34 +520,60 @@ thd_current_pgtbl(struct thread *thd)
 	/* don't use the cached invstk_top here. We need the stack
 	 * pointer of the specified thread. */
 	curr_entry = &thd->invstk[thd->invstk_top];
-	return curr_entry->comp_info.pgtbl;
+	return curr_entry->comp_invstk_info.pgtbl;
 }
 
+/*
+ * As we have control of captbl, we can use several insignificant bit of captbl to have better stack alignment. 
+ * We use the last bit to indicate whether it is a sinv to a fault handler. 
+ * The modification of the current invstk_entry includes setting ip, sp, and in_fault flag of the current component.
+ */
+static inline void
+thd_invstk_modify_current(struct thread *thd, unsigned long ip, unsigned long sp, unsigned long in_fault, 
+						  struct cos_cpu_local_info *cos_info)
+{
+	struct invstk_entry *curr_entry;
+
+	curr_entry = &thd->invstk[curr_invstk_top(cos_info)];
+	curr_entry->ip = ip;
+	curr_entry->sp = sp;
+
+	if (unlikely(in_fault == 1)) {
+		(curr_entry->comp_invstk_info).flaged_captbl = (struct captbl*)(AND((curr_entry->comp_invstk_info).flaged_captbl, ~1) | in_fault);
+	}
+}
+
+/* 
+ * To make invstk behavior like a stack.
+ * Modify the top of invstk before pushing a new comp_invstk_info into the invstk.
+ */
 static inline int
-thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp,
+thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp, unsigned long in_fault,
                 struct cos_cpu_local_info *cos_info)
 {
-	struct invstk_entry *top, *prev;
+	struct invstk_entry *top;
 
 	if (unlikely(curr_invstk_top(cos_info) >= THD_INVSTK_MAXSZ)) return -1;
 
-	prev = &thd->invstk[curr_invstk_top(cos_info)];
+	thd_invstk_modify_current(thd, ip, sp, in_fault, cos_info);
 	top  = &thd->invstk[curr_invstk_top(cos_info) + 1];
 	curr_invstk_inc(cos_info);
-	prev->ip = ip;
-	prev->sp = sp;
-	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
+	memcpy(&top->comp_invstk_info, ci, sizeof(struct comp_info));
 	top->ip = top->sp = 0;
 
 	return 0;
 }
 
 static inline struct comp_info *
-thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
+thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, unsigned long *in_fault, struct cos_cpu_local_info *cos_info)
 {
 	if (unlikely(curr_invstk_top(cos_info) == 0)) return NULL;
 	curr_invstk_dec(cos_info);
-	return thd_invstk_current(thd, ip, sp, cos_info);
+	/* 
+	 * This is the only time we might use the in_fault flag.
+	 * We can reset the captbl after we get the in_fault flag.
+	 */
+	return thd_invstk_current_fault(thd, ip, sp, in_fault, cos_info);
 }
 
 static inline void
@@ -583,6 +636,57 @@ thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 	switch (op) {
 	case THD_GET_TID:
 		*retval = t->tid;
+		break;
+	case THD_GET_FAULT_REG1:
+		*retval = t->fault_regs.ax;
+		break;
+	case THD_GET_FAULT_REG2:
+		*retval = t->fault_regs.bx;
+		break;
+	case THD_GET_FAULT_REG3:
+		*retval = t->fault_regs.cx;
+		break;
+	case THD_GET_FAULT_REG4:
+		*retval = t->fault_regs.dx;
+		break;
+	case THD_GET_FAULT_REG5:
+		*retval = t->fault_regs.cs;
+		break;
+	case THD_GET_FAULT_REG6:
+		*retval = t->fault_regs.ds;
+		break;
+	case THD_GET_FAULT_REG7:
+		*retval = t->fault_regs.es;
+		break;
+	case THD_GET_FAULT_REG8:
+		*retval = t->fault_regs.fs;
+		break;
+	case THD_GET_FAULT_REG9:
+		*retval = t->fault_regs.gs;
+		break;
+	case THD_GET_FAULT_REG10:
+		*retval = t->fault_regs.ss;
+		break;
+	case THD_GET_FAULT_REG11:
+		*retval = t->fault_regs.si;
+		break;
+	case THD_GET_FAULT_REG12:
+		*retval = t->fault_regs.di;
+		break;
+	case THD_GET_FAULT_REG13:
+		*retval = t->fault_regs.ip;
+		break;
+	case THD_GET_FAULT_REG14:
+		*retval = t->fault_regs.sp;
+		break;
+	case THD_GET_FAULT_REG15:
+		*retval = t->fault_regs.bp;
+		break;
+	case THD_GET_FAULT_REG16:
+		*retval = t->fault_regs.flags;
+		break;
+	case THD_GET_FAULT_REG17:
+		*retval = t->fault_regs.orig_ax;
 		break;
 	default:
 		return -EINVAL;

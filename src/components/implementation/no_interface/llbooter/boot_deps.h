@@ -11,7 +11,16 @@
 #include <bitmap.h>
 
 /* Assembly function for sinv from new component */
-extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t *ret2, word_t *ret3);
+extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t arg3, word_t *ret2, word_t *ret3);
+
+/* Assembly function for sinv for the fault handlers */
+extern word_t fault_div_by_zero_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
+extern word_t fault_memory_access_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
+extern word_t fault_breakpoint_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
+extern word_t fault_invalid_inst_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
+extern word_t fault_invstk_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
+extern word_t fault_comp_not_exist_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
+extern word_t fault_handler_not_exist_inv(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type);
 
 extern int num_cobj;
 extern int capmgr_spdid;
@@ -113,6 +122,92 @@ boot_spd_initaep_get(spdid_t spdid)
 	return cos_sched_aep_get(boot_spd_defcompinfo_get(spdid));
 }
 
+void
+fault_reg_print(spdid_t spdid)
+{
+	struct pt_regs fault_regs;
+
+	struct cos_aep_info *child_aep = boot_spd_initaep_get(spdid);
+	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
+	
+	fault_regs.ax = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG1);
+	fault_regs.bx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG2);
+	fault_regs.cx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG3);
+	fault_regs.dx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG4);
+	fault_regs.si = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG11);
+	fault_regs.di = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG12);
+	fault_regs.ip = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG13);
+	fault_regs.sp = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG14);
+	fault_regs.bp = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG15);
+	fault_regs.flags = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG16);
+	fault_regs.orig_ax = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG17);
+
+	printc("registers:\n");
+	printc("General register-> EAX: %x, EBX: %x, ECX: %x, EDX: %x\n", (unsigned int)fault_regs.ax, 
+			(unsigned int)fault_regs.bx, (unsigned int)fault_regs.cx, (unsigned int)fault_regs.dx);
+	printc("Index register-> SI: %x, DI: %x, IP: %x, SP: %x, BP: %x\n", (unsigned int)fault_regs.si, (unsigned int)fault_regs.di, 
+			(unsigned int)fault_regs.ip, (unsigned int)fault_regs.sp, (unsigned int)fault_regs.bp);
+	printc("Indicator->EFLAGS: %x\n", (unsigned int)fault_regs.flags);
+	printc("(Exception Error Code->ORIG_AX: %x)\n", (unsigned int)fault_regs.orig_ax);
+}
+
+/* The fault handlers*/
+void
+fault_div_by_zero(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+{
+	PRINTLOG(PRINT_DEBUG, "in div by zero error fault handler, fault happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
+	return;
+}
+
+void
+fault_memory_access(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+{
+	PRINTLOG(PRINT_DEBUG, "in memory access handler, fault happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
+	return;
+}
+
+void
+fault_breakpoint(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+{
+	PRINTLOG(PRINT_DEBUG, "in breakpoint trap handler, fault happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
+	return;
+}
+
+void
+fault_invalid_inst(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+{
+	PRINTLOG(PRINT_DEBUG, "in invalid instruction trap handler, fault happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
+	return;
+}
+
+void
+fault_invstk(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+{
+	PRINTLOG(PRINT_DEBUG, "in invstk overflow and underflow fault handler, fault happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
+	return;
+}
+
+void
+fault_comp_not_exist(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+{
+	PRINTLOG(PRINT_DEBUG, "in component does not exist fault handler, fault happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
+	return;
+}
+
+void
+fault_handler_not_exist(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
+{
+	PRINTLOG(PRINT_DEBUG, "in fault handler does not exist fault handler, fault happens in component:%u\n\n", cos_inv_token());
+	fault_reg_print(cos_inv_token());
+	return;
+}
+
 static vaddr_t
 boot_deps_map_sect(spdid_t spdid, vaddr_t *mapaddr)
 {
@@ -141,6 +236,35 @@ boot_capmgr_mem_alloc(void)
 	PRINTLOG(PRINT_DEBUG, "Allocating %lu MB untyped memory to capability manager[=%u]\n", mem_sz/(1024*1024), capmgr_spdid);
 
 	cos_meminfo_alloc(capmgr_info, BOOT_MEM_KM_BASE, mem_sz);
+}
+
+/* 
+ * The sinv cap belongs to a different type.
+ * So we can get rid of an extra branch in fast path.
+ */
+static void
+boot_fault_handler_sinv_alloc(spdid_t spdid)
+{
+	invtoken_t  token = (invtoken_t)spdid;
+	int ret;
+
+	struct cos_compinfo *comp_info = boot_spd_compinfo_get(spdid);
+	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
+
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_DIVZERO, boot_info->comp_cap, (vaddr_t)fault_div_by_zero_inv, token);
+	assert(ret == 0);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_MEM_ACCESS, boot_info->comp_cap, (vaddr_t)fault_memory_access_inv, token);
+	assert(ret == 0);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_BRKPT, boot_info->comp_cap, (vaddr_t)fault_breakpoint_inv, token);
+	assert(ret == 0);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_INVLD_INS, boot_info->comp_cap, (vaddr_t)fault_invalid_inst_inv, token);
+	assert(ret == 0);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_INVSTK, boot_info->comp_cap, (vaddr_t)fault_invstk_inv, token);
+	assert(ret == 0);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_COMP_NOT_EXIST, boot_info->comp_cap, (vaddr_t)fault_comp_not_exist_inv, token);
+	assert(ret == 0);
+	ret = cos_fault_sinv_alloc_at(comp_info, FAULT_CAPTBL_HAND_NOT_EXIST, boot_info->comp_cap, (vaddr_t)fault_handler_not_exist_inv, token);
+	assert(ret == 0);
 }
 
 /* Initialize just the captblcap and pgtblcap, due to hack for upcall_fn addr */
@@ -601,7 +725,7 @@ __hypercall_resource_access_check(spdid_t dstid, spdid_t srcid, int capmgr_ignor
 }
 
 word_t
-hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
+hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4, word_t arg5)
 {
 	int ret1 = 0;
 	spdid_t client = cos_inv_token();

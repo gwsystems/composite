@@ -89,6 +89,7 @@ typedef enum {
 	CAPTBL_OP_COMPDEACTIVATE,
 	CAPTBL_OP_SINVACTIVATE,
 	CAPTBL_OP_SINVDEACTIVATE,
+	CAPTBL_OP_FAULTACTIVATE,
 	CAPTBL_OP_SRETACTIVATE,
 	CAPTBL_OP_SRETDEACTIVATE,
 	CAPTBL_OP_ASNDACTIVATE,
@@ -131,6 +132,7 @@ typedef enum {
 typedef enum {
 	CAP_FREE = 0,
 	CAP_SINV,       /* synchronous communication -- invoke */
+	CAP_SINVFLT,    /* synchronous communication of fault handler -- invoke*/
 	CAP_SRET,       /* synchronous communication -- return */
 	CAP_ASND,       /* async communication; sender */
 	CAP_ARCV,       /* async communication; receiver */
@@ -204,6 +206,7 @@ __captbl_cap2sz(cap_t c)
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 		return CAP_SZ_32B;
 	case CAP_SINV:
+	case CAP_SINVFLT:
 	case CAP_COMP:
 	case CAP_ASND:
 	case CAP_ARCV:
@@ -223,40 +226,55 @@ captbl_idsize(cap_t c)
  * LLBooter initial captbl setup:
  * 0 = sret,
  * 1-3 = nil,
- * 4-5 = this captbl,
- * 6-7 = our pgtbl root,
- * 8-11 = our component,
- * 12-13 = vm pte for booter
- * 14-15 = untyped memory pgtbl root,
- * 16-17 = vm pte for physical memory,
- * 18-19 = km pte,
- * 20-21 = comp0 captbl,
- * 22-23 = comp0 pgtbl root,
- * 24-27 = comp0 component,
- * 28~(20+2*NCPU) = per core alpha thd
+ * 4-7 = memory access fault handler,
+ * 8-11 = divide by zero fault handler,
+ * 12-15 = breakpoint fault handler,
+ * 16-19 = invalid instruction fault handler,
+ * 20-23 = invstk overflow and underflow fault handler,
+ * 24-27 = component does not exist fault handler,
+ * 28-31 = fault handler does not exist fault handler,
+ * 32-33 = this captbl,
+ * 34-35 = our pgtbl root,
+ * 36-39 = our component,
+ * 40-41 = vm pte for booter
+ * 42-43 = untyped memory pgtbl root,
+ * 44-45 = vm pte for physical memory,
+ * 46-47 = km pte,
+ * 48-49 = comp0 captbl,
+ * 50-51 = comp0 pgtbl root,
+ * 52-55 = comp0 component,
+ * 56~59 = sinv cap to booter,
+ * 60~(48+2*NCPU) = per core alpha thd
  *
  * Initial pgtbl setup (addresses):
  * 1GB+8MB-> = boot component VM
  * 1.5GB-> = kernel memory
  * 2GB-> = system physical memory
  */
-enum
-{
-	BOOT_CAPTBL_SRET            = 0,
-	BOOT_CAPTBL_SELF_CT         = 4,
-	BOOT_CAPTBL_SELF_PT         = 6,
-	BOOT_CAPTBL_SELF_COMP       = 8,
-	BOOT_CAPTBL_BOOTVM_PTE      = 12,
-	BOOT_CAPTBL_SELF_UNTYPED_PT = 14,
-	BOOT_CAPTBL_PHYSM_PTE       = 16,
-	BOOT_CAPTBL_KM_PTE          = 18,
+ enum
+ {
+ 	BOOT_CAPTBL_SRET               = 0,
+ 	BOOT_CAPTBL_FLT_MEM_ACCESS     = 4,
+ 	BOOT_CAPTBL_FLT_DIVZERO        = 8,
+ 	BOOT_CAPTBL_FLT_BRKPT          = 12,
+ 	BOOT_CAPTBL_FLT_INVLD_INS      = 16,
+ 	BOOT_CAPTBL_FLT_INVSTK         = 20,
+ 	BOOT_CAPTBL_FLT_COMP_NOT_EXIST = 24,
+	BOOT_CAPTBL_FLT_HAND_NOT_EXISt = 28,
+ 	BOOT_CAPTBL_SELF_CT            = 32,
+ 	BOOT_CAPTBL_SELF_PT            = 34,
+ 	BOOT_CAPTBL_SELF_COMP          = 36,
+ 	BOOT_CAPTBL_BOOTVM_PTE         = 40,
+ 	BOOT_CAPTBL_SELF_UNTYPED_PT    = 42,
+ 	BOOT_CAPTBL_PHYSM_PTE          = 44,
+ 	BOOT_CAPTBL_KM_PTE             = 46,
 
-	BOOT_CAPTBL_COMP0_CT           = 20,
-	BOOT_CAPTBL_COMP0_PT           = 22,
-	BOOT_CAPTBL_COMP0_COMP         = 24,
-	BOOT_CAPTBL_SINV_CAP           = 28,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 32,
-	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ,
+ 	BOOT_CAPTBL_COMP0_CT           = 48,
+ 	BOOT_CAPTBL_COMP0_PT           = 50,
+ 	BOOT_CAPTBL_COMP0_COMP         = 52,
+ 	BOOT_CAPTBL_SINV_CAP           = 56,
+ 	BOOT_CAPTBL_SELF_INITTHD_BASE  = 60,
+ 	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ,
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU * CAP16B_IDSZ,
                                                          CAPMAX_ENTRY_SZ),
 	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
@@ -264,6 +282,20 @@ enum
 	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
+};
+
+/*
+ * The slots of the sinv to user-level fault handlers.
+ */
+enum
+{
+	FAULT_CAPTBL_MEM_ACCESS        = BOOT_CAPTBL_FLT_MEM_ACCESS,
+	FAULT_CAPTBL_DIVZERO           = BOOT_CAPTBL_FLT_DIVZERO,
+	FAULT_CAPTBL_BRKPT             = BOOT_CAPTBL_FLT_BRKPT,
+	FAULT_CAPTBL_INVLD_INS         = BOOT_CAPTBL_FLT_INVLD_INS,
+	FAULT_CAPTBL_INVSTK            = BOOT_CAPTBL_FLT_INVSTK,
+	FAULT_CAPTBL_COMP_NOT_EXIST    = BOOT_CAPTBL_FLT_COMP_NOT_EXIST,
+	FAULT_CAPTBL_HAND_NOT_EXIST    = BOOT_CAPTBL_FLT_HAND_NOT_EXISt,
 };
 
 /*
@@ -305,6 +337,24 @@ enum
 {
 	/* thread id */
 	THD_GET_TID,
+	/* get regs */
+	THD_GET_FAULT_REG1,
+	THD_GET_FAULT_REG2,
+	THD_GET_FAULT_REG3,
+	THD_GET_FAULT_REG4,
+	THD_GET_FAULT_REG5,
+	THD_GET_FAULT_REG6,
+	THD_GET_FAULT_REG7,
+	THD_GET_FAULT_REG8,
+	THD_GET_FAULT_REG9,
+	THD_GET_FAULT_REG10,
+	THD_GET_FAULT_REG11,
+	THD_GET_FAULT_REG12,
+	THD_GET_FAULT_REG13,
+	THD_GET_FAULT_REG14,
+	THD_GET_FAULT_REG15,
+	THD_GET_FAULT_REG16,
+	THD_GET_FAULT_REG17,
 };
 
 enum
