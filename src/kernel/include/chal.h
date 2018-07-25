@@ -98,6 +98,7 @@ void     chal_hpet_periodic_set(hwid_t, unsigned long);
 void     chal_hpet_disable(hwid_t);
 cycles_t chal_hpet_first_period(void);
 
+void chal_serial_putb(const void *data, int len);
 int chal_irq_disable(int irqline, cpuid_t cpu_id);
 int chal_irq_enable(int irqline, cpuid_t cpu_id);
 

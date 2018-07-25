@@ -41,4 +41,8 @@ sl_bind_check
 src/components/lib/ck/include
 src/components/lib/ck/lib
 src/components/lib/ck/share
-src/platform/linux/*
+src/platform/linux/net/util/ping.sh
+src/platform/linux/net/util/udp_client
+src/platform/linux/util/event_trace/*.txt
+src/platform/linux/util/event_trace/*.dat
+src/platform/linux/util/event_trace/event_trace

@@ -1,6 +1,7 @@
 #ifndef COS_SERIAL_H
 #define COS_SERIAL_H
 
+#include <chal_config.h>
 #include <cos_io.h>
 
 /* code duplicated from platform/i386/serial.c */

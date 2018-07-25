@@ -30,6 +30,7 @@ mkdir -p $GRUB_DIR
 cp $COS_KERNEL $BOOT_DIR
 
 printf 'set timeout=0\n\n' >> $GRUB_CFG
+printf 'GRUB_TERMINAL_OUTPUT=vga_text\n\n' >> $GRUB_CFG
 printf 'menuentry composite {\n' >>$GRUB_CFG
 printf '\tmultiboot /boot/%s\n' $COS_KERNEL >>$GRUB_CFG
 for MODULE in "$COS_MODULES"

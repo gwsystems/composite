@@ -18,15 +18,15 @@ printk_register_handler(void (*handler)(const char *))
 void
 printk(const char *fmt, ...)
 {
-	char         buffer[PRINTK_BUFFER];
-	va_list      args;
-	unsigned int l, i;
-
-	va_start(args, fmt);
-	l = vsprintf(buffer, fmt, args);
-	va_end(args);
-
-	for (i = 0; i < num_handlers; i++) {
-		printk_handlers[i](buffer);
-	}
+//	char         buffer[PRINTK_BUFFER];
+//	va_list      args;
+//	unsigned int l, i;
+//
+//	va_start(args, fmt);
+//	l = vsprintf(buffer, fmt, args);
+//	va_end(args);
+//
+//	for (i = 0; i < num_handlers; i++) {
+//		printk_handlers[i](buffer);
+//	}
 }

@@ -8,10 +8,15 @@
 #include <cos_component.h>
 #include <cos_serial.h>
 
+#define LLPRINT_MAX_LEN 128
+#define LLPRINT_SERIAL_MAX_LEN 512
+
 static void
 cos_llprint(char *s, int len)
 {
-	cos_serial_putb(s, len);
+	if (cos_cpuid()) return;
+//	cos_serial_putb(s, len);
+	cos_print(s, len);
 }
 
 static int
@@ -27,9 +32,9 @@ prints(char *s)
 static int  __attribute__((format(printf, 1, 2)))
 printc(char *fmt, ...)
 {
-	char    s[128];
+	char    s[LLPRINT_MAX_LEN];
 	va_list arg_ptr;
-	size_t  ret, len = 128;
+	size_t  ret, len = LLPRINT_MAX_LEN;
 
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
@@ -80,5 +85,10 @@ log_bytes(cos_print_level_t level, char *message, char *bytes, size_t bytes_coun
 	}
 }
 
+static void
+serial_print(void *d, int len)
+{
+	call_cap(PRINT_CAP_TEMP, (int)d, len, 1 /* serial print */, 0);
+}
 
 #endif /* LLPRINT_H */

@@ -13,6 +13,7 @@
 #include "gen/cfe_time.h"
 
 #include <cos_time.h>
+#include <event_trace.h>
 
 extern int number_apps;
 
@@ -371,37 +372,54 @@ OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 
 exit:
 	sl_lock_release(&mutex_data_lock);
+
 	return result;
 }
 
 int32
 OS_MutSemGive(uint32 sem_id)
 {
+	int32 result = OS_SUCCESS;
+
+	EVTTR_MUTEX_GIVE_START((short)sem_id);
 	sl_lock_take(&mutex_data_lock);
 	if (sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
 		sl_lock_release(&mutex_data_lock);
-		return OS_ERR_INVALID_ID;
+		result = OS_ERR_INVALID_ID;
+
+		goto ret;
 	}
 	sl_lock_release(&mutex_data_lock);
 
 	sl_lock_release(&mutexes[sem_id].lock);
 
-	return OS_SUCCESS;
+ret:
+	EVTTR_MUTEX_GIVE_END((short)sem_id);
+
+	return result;
 }
 
 int32
 OS_MutSemTake(uint32 sem_id)
 {
+	int32 result = OS_SUCCESS;
+
+	EVTTR_MUTEX_TAKE_START((short)sem_id);
 	sl_lock_take(&mutex_data_lock);
 	if (sem_id >= OS_MAX_MUTEXES || !mutexes[sem_id].used) {
 		sl_lock_release(&mutex_data_lock);
-		return OS_ERR_INVALID_ID;
+		result = OS_ERR_INVALID_ID;
+
+		goto ret;
 	}
 	sl_lock_release(&mutex_data_lock);
 
 	sl_lock_take(&mutexes[sem_id].lock);
 
-	return OS_SUCCESS;
+ret:
+	EVTTR_MUTEX_TAKE_END((short)sem_id);
+
+	return result;
 }
 
 int32
@@ -617,6 +635,7 @@ OS_SemaphoreTake(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem
 
 exit:
 	sl_lock_release(&semaphore_data_lock);
+
 	return result;
 }
 
@@ -732,19 +751,37 @@ OS_BinSemFlush(uint32 sem_id)
 int32
 OS_BinSemGive(uint32 sem_id)
 {
-	return OS_SemaphoreGive(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id);
+	int32 result = OS_SUCCESS;
+
+	EVTTR_BINSEM_GIVE_START((short)sem_id);
+	result = OS_SemaphoreGive(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id);
+	EVTTR_BINSEM_GIVE_END((short)sem_id);
+
+	return result;
 }
 
 int32
 OS_BinSemTake(uint32 sem_id)
 {
-	return OS_SemaphoreTake(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id);
+	int32 result = OS_SUCCESS;
+
+	EVTTR_BINSEM_TAKE_START((short)sem_id);
+	result = OS_SemaphoreTake(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id);
+	EVTTR_BINSEM_TAKE_END((short)sem_id);
+
+	return result;
 }
 
 int32
 OS_BinSemTimedWait(uint32 sem_id, uint32 msecs)
 {
-	return OS_SemaphoreTimedWait(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id, msecs);
+	int32 result = OS_SUCCESS;
+
+	EVTTR_BINSEM_TIMEDWAIT_START((short)sem_id);
+	result = OS_SemaphoreTimedWait(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id, msecs);
+	EVTTR_BINSEM_TIMEDWAIT_END((short)sem_id);
+
+	return result;
 }
 
 int32
@@ -796,19 +833,37 @@ OS_CountSemCreate(uint32 *sem_id, const char *sem_name, uint32 sem_initial_value
 int32
 OS_CountSemGive(uint32 sem_id)
 {
-	return OS_SemaphoreGive(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id);
+	int32 result = OS_SUCCESS;
+
+	EVTTR_COUNTSEM_GIVE_START((short)sem_id);
+	result = OS_SemaphoreGive(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id);
+	EVTTR_COUNTSEM_GIVE_END((short)sem_id);
+
+	return result;
 }
 
 int32
 OS_CountSemTake(uint32 sem_id)
 {
-	return OS_SemaphoreTake(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id);
+	int32 result = OS_SUCCESS;
+
+	EVTTR_COUNTSEM_TAKE_START((short)sem_id);
+	result = OS_SemaphoreTake(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id);
+	EVTTR_COUNTSEM_TAKE_END((short)sem_id);
+
+	return result;
 }
 
 int32
 OS_CountSemTimedWait(uint32 sem_id, uint32 msecs)
 {
-	return OS_SemaphoreTimedWait(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id, msecs);
+	int32 result = OS_SUCCESS;
+
+	EVTTR_COUNTSEM_TIMEDWAIT_START((short)sem_id);
+	result = OS_SemaphoreTimedWait(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id, msecs);
+	EVTTR_COUNTSEM_TIMEDWAIT_END((short)sem_id);
+
+	return result;
 }
 
 int32

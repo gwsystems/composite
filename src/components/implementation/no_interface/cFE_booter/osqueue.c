@@ -8,6 +8,7 @@
 #include <sl_lock.h>
 
 #include <string.h>
+#include <event_trace.h>
 
 #define MAX_QUEUE_DATA_SIZE (1024 * 1024)
 
@@ -146,11 +147,21 @@ OS_QueueGet(uint32 queue_id, void *data, uint32 size, uint32 *size_copied, int32
 	int32  current_interval;
 	int    result = OS_ERROR;
 
-	if (queue_id > OS_MAX_QUEUES) return OS_ERR_INVALID_ID;
+	EVTTR_QUEUE_DEQ_START((short)queue_id);
+	if (queue_id > OS_MAX_QUEUES) {
+		result = OS_ERR_INVALID_ID;
+		goto ret;
+	}
 
-	if (data == NULL || size_copied == NULL) return OS_INVALID_POINTER;
+	if (data == NULL || size_copied == NULL) {
+		result = OS_INVALID_POINTER;
+		goto ret;
+	}
 
-	if (queues[queue_id].used == FALSE) return OS_ERR_INVALID_ID;
+	if (queues[queue_id].used == FALSE) {
+		result = OS_ERR_INVALID_ID;
+		goto ret;
+	}
 
 	/* FIXME: Block instead of poll */
 	if (timeout == OS_CHECK) {
@@ -172,6 +183,9 @@ OS_QueueGet(uint32 queue_id, void *data, uint32 size, uint32 *size_copied, int32
 exit:
 	if (result != OS_SUCCESS && timeout != OS_CHECK) { return OS_QUEUE_TIMEOUT; }
 
+ret:
+	EVTTR_QUEUE_DEQ_END((short)queue_id);
+
 	return result;
 }
 
@@ -182,18 +196,32 @@ exit:
 int32
 OS_QueuePut(uint32 queue_id, const void *data, uint32 size, uint32 flags)
 {
+	int32         result = OS_SUCCESS;
 	uint32        i;
 	struct queue *cur;
 
-	if (queue_id > OS_MAX_QUEUES) { return OS_ERR_INVALID_ID; }
+	EVTTR_QUEUE_ENQ_START((short)queue_id);
+	if (queue_id > OS_MAX_QUEUES) {
+		result = OS_ERR_INVALID_ID;
+		goto ret;
+	}
 
-	if (queues[queue_id].used == FALSE) { return OS_ERR_INVALID_ID; }
+	if (queues[queue_id].used == FALSE) {
+		result = OS_ERR_INVALID_ID;
+		goto ret;
+	}
 
-	if (data == NULL) { return OS_INVALID_POINTER; }
+	if (data == NULL) {
+		result = OS_INVALID_POINTER;
+		goto ret;
+	}
 
 	sl_lock_take(&queues[queue_id].lock);
 	/* Check if space remains in the queue */
-	if ((queues[queue_id].tail + 1) % queues[queue_id].depth == queues[queue_id].head) { return OS_QUEUE_FULL; }
+	if ((queues[queue_id].tail + 1) % queues[queue_id].depth == queues[queue_id].head) {
+		result = OS_QUEUE_FULL;
+		goto done;
+	}
 
 	cur = &queues[queue_id];
 
@@ -202,9 +230,14 @@ OS_QueuePut(uint32 queue_id, const void *data, uint32 size, uint32 flags)
 
 	/* Advance the queue tail, wrapping if it is past `depth` */
 	cur->tail = (cur->tail + 1) % cur->depth;
+
+done:
 	sl_lock_release(&queues[queue_id].lock);
 
-	return OS_SUCCESS;
+ret:
+	EVTTR_QUEUE_ENQ_END((short)queue_id);
+
+	return result;
 }
 
 

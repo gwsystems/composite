@@ -33,7 +33,6 @@ OS_API_Init(void)
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 
 	rdtscll(last_time_check);
-	PRINTC("%s:%d %llu %u\n", __func__, __LINE__, last_time_check, cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 	last_time_check /= cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	local_time.seconds = last_time_check / 1000000;
 	local_time.microsecs = last_time_check % 1000000;

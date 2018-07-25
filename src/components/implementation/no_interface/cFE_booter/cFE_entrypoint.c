@@ -146,6 +146,7 @@ void
 cos_init(void)
 {
 	command_line_set_defaults(&args);
+	event_trace_init();
 
 	/*
 	** Set the reset type

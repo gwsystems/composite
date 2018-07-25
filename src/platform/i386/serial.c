@@ -5,6 +5,8 @@
 #include "isr.h"
 #include "kernel.h"
 
+void serial_puts(const char *s);
+
 enum serial_ports
 {
 	SERIAL_PORT_A = 0x3F8,
@@ -33,6 +35,16 @@ void
 serial_puts(const char *s)
 {
 	for (; *s != '\0'; s++) serial_send(*s);
+}
+
+void
+chal_serial_putb(const void *d, int len)
+{
+#ifdef ENABLE_SERIAL
+	int i = 0;
+
+	for (; i < len; i++) serial_send(*(char *)(d+i));
+#endif
 }
 
 int
@@ -71,7 +83,7 @@ serial_handler(struct pt_regs *r)
 		break;
 	}
 
-	PRINTK("Serial: %c\n", serial);
+//	PRINTK("Serial: %c\n", serial);
 
 	return preempt;
 }
@@ -84,7 +96,8 @@ serial_init(void)
 	/* We will initialize the first serial port */
 	outb(SERIAL_PORT_A + 1, 0x00);
 	outb(SERIAL_PORT_A + 3, 0x80); /* Enable divisor mode */
-	outb(SERIAL_PORT_A + 0, 0x03); /* Div Low:  03 Set the port to 38400 bps */
+	//outb(SERIAL_PORT_A + 0, 0x03); /* Div Low:  03 Set the port to 38400 bps */
+	outb(SERIAL_PORT_A + 0, 0x01); /* Div Low:  01 Set the port to 115200 bps */
 	outb(SERIAL_PORT_A + 1, 0x00); /* Div High: 00 */
 	outb(SERIAL_PORT_A + 3, 0x03);
 	outb(SERIAL_PORT_A + 2, 0xC7);
@@ -97,6 +110,6 @@ serial_init(void)
 void
 serial_late_init(void)
 {
-	chal_irq_enable(HW_SERIAL, 0);
+//	chal_irq_enable(HW_SERIAL, 0);
 	chal_irq_enable(HW_KEYBOARD, 0);
 }
