@@ -35,6 +35,7 @@ use std::process;
 // - COMP_INTERFACE - this component's interface directory
 // - COMP_NAME - which component implementation to use
 // - COMP_VARNAME - the name of the component's variable in the sysspec
+// - COMP_BASEADDR - the base address of .text for the component
 //
 // In the end, this should result in a command line for each component
 // along these (artificial) lines:
@@ -128,6 +129,11 @@ impl ComponentContext {
             Ok(())
         }
     }
+
+    pub fn deps(&self) -> Vec<(String, String)> {
+        // return the inteface, and dependency, but not the variant
+        self.interface_deps.iter().map(|(i, s, v)| (s.clone(), i.clone())).collect()
+    }
 }
 
 fn comp_build_obj_path(builddir: &String, interface: &String, comp_impl: &String, varname: &String) -> String {
@@ -181,6 +187,14 @@ impl BuildContext {
         BuildContext {
             comps: ctxt,
             builddir: builddir
+        }
+    }
+
+    // Return (server, interface) dependency pairs
+    pub fn comp_deps(&self, name: &String) -> Option<Vec<(String, String)>> {
+        match self.comps.get(name) {
+            Some(c) => Some(c.deps()),
+            None => None
         }
     }
 

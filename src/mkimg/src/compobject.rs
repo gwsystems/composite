@@ -12,11 +12,11 @@ pub struct ClientSymb {
 }
 
 impl ClientSymb {
-    pub fn name(&self) -> &String{
+    pub fn name(&self) -> &String {
         &self.name
     }
 
-    pub fn func_addr(&self) -> u64{
+    pub fn func_addr(&self) -> u64 {
         self.func_addr
     }
 
@@ -31,7 +31,7 @@ pub struct ServerSymb {
 }
 
 impl ServerSymb {
-    pub fn name(&self) -> &String{
+    pub fn name(&self) -> &String {
         &self.name
     }
 
@@ -96,10 +96,7 @@ impl<'a> CompObject<'a> {
 }
 
 fn symb_address<'a>(e: &ElfFile<'a>, symb: &'a Entry32) -> u64 {
-    symb.value() + match symb.get_section_header(e, 0) {
-        Ok(sect) => sect.address(),
-        _ => 0
-    }
+    symb.value()
 }
 
 fn global_variables<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Vec<Symb<'a>> {

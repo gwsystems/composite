@@ -5,6 +5,7 @@ description = "Simple system: ping pong!"
 name = "ping"
 img = "tests.unit_pingpong"
 deps = [{srv = "pong", interface = "pong"}]
+baseaddr = "0x1600000"
 
 [[components]]
 name = "pong"

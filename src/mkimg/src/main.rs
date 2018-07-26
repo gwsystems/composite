@@ -3,6 +3,7 @@ extern crate pipers;
 #[macro_use]
 extern crate serde_derive;
 extern crate xmas_elf;
+//extern crate tar;
 
 mod cossystem;
 mod syshelpers;
@@ -38,7 +39,8 @@ pub fn main() -> () {
     match ComposeSpec::parse_spec(arg1.unwrap()) {
         Ok(sysspec) => {
             let sys = Compose::parse_binaries(&sysspec).unwrap();
-            sys.components().iter().for_each(|ref c| comp_print(&c));
+            sys.components().iter().for_each(|(s, ref c)| comp_print(&c));
+            println!("{:?}", sys.sinvs());
             println!("System Specification:\n{:#?}", sysspec.sysspec_output())
         },
         Err(s) => println!("{}", s)
