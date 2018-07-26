@@ -176,7 +176,7 @@ impl BuildContext {
             ctxt.insert(c.name().clone(), c_ctxt);
         }
 
-        let builddir = format!("{}/cos_build_{}/", String::from(env!("PWD")), process::id());
+        let builddir = format!("{}/cos_build_{}/", env!("PWD"), process::id());
 
         BuildContext {
             comps: ctxt,
@@ -213,7 +213,7 @@ impl BuildContext {
         let tmpdir = match(reset_dir(self.builddir.clone())) {
             Ok(_) => self.builddir.clone(),
             Err(_) => {
-                self.builddir = format!("{}/", String::from(env!("PWD")));
+                self.builddir = format!("{}/", env!("PWD"));
                 self.builddir.clone()
             }
         };
@@ -267,36 +267,18 @@ impl BuildContext {
 // probably derive this from an environmental var passed in at compile
 // time by the surrounding build system.
 pub fn comps_base_path() -> String {
-    let mut path = String::from(env!("PWD"));
-
-    // Construct the path to the src directory
-    path.push_str("/../");
-    path.push_str("components/implementation/");
-    path
+    format!("{}/../components/implementation/", env!("PWD"))
 }
 
 pub fn interface_path(interface: String, variant: Option<String>) -> String {
-    let mut path = String::from(env!("PWD"));
-
-    path.push_str("../");
-    path.push_str("components/interface/");
-    path.push_str(&interface);
-    if let Some(v) = variant {
-        path.push_str(&v);
-    }
-    path
+    format!("{}/../components/interface/{}/{}/", env!("PWD"), interface, match variant {
+        Some(v) => v.clone(),
+        None => String::from("stubs")
+    })
 }
 
 // Get the path to a component object via its name.  <if>.<name>
 // resolves to src/components/implementation/if/name/if.name.o
-pub fn comp_path(comp_base: &String, img: &String) -> String {
-    let mut obj_path = comp_base.clone();
-    let obj_str = img.clone();
-    let mut obj_subpath = obj_str.replace(".", "/");
-
-    obj_subpath.push_str("/");
-    obj_path.push_str(&obj_subpath);
-    obj_path.push_str(&obj_str);
-    obj_path.push_str(".o");
-    obj_path
+pub fn comp_path(img: &String) -> String {
+    format!("{}{}/{}.o", comps_base_path(), img.clone().replace(".", "/"), img.clone())
 }
