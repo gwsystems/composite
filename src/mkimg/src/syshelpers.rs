@@ -54,7 +54,8 @@ pub fn emit_file(name: &String, output: &[u8]) -> Result<(), String> {
 
 // remove directory, all contents, and remake it
 pub fn reset_dir(dirname: String) -> Result<(), String> {
-    fs::remove_dir_all(&dirname).unwrap();
+    assert!(dirname != "/");    // small sanity check
+    fs::remove_dir_all(&dirname); // failure here is fine; we're creating next anyway
     match fs::create_dir(&dirname) {
         Ok(_) => Ok(()),
         Err(_) => Err(String::from(format!("Could create directory {}\n", dirname)))

@@ -90,6 +90,10 @@ impl Component {
     pub fn name(&self) -> &String {
         &self.name
     }
+
+    pub fn baseaddr(&self) -> &Option<String> {
+        &self.baseaddr
+    }
 }
 
 impl CosSystem {

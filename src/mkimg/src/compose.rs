@@ -30,7 +30,7 @@ impl ComposeSpec {
         build_ctxt.build_components();
 
         for c in sys.comps().iter() {
-            let mut obj_path = comp_path(&comps_path, &c.img());
+            let obj_path = build_ctxt.comp_obj_path(c.name()).unwrap();
             let obj_contents = dump_file(&obj_path)?;
 
             bins.insert(c.name().clone(), obj_contents);

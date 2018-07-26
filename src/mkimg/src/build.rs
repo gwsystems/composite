@@ -1,6 +1,7 @@
 use cossystem::{CosSystem,Component};
 use std::collections::BTreeMap;
-use syshelpers::exec_pipeline;
+use syshelpers::{exec_pipeline,reset_dir};
+use std::process;
 
 // Interact with the composite build system to "seal" the components.
 // This requires linking them with all dependencies, and with libc,
@@ -50,6 +51,7 @@ struct ComponentContext {
     comp_if: String,            // component interface directory
     var_name: String,           // the sysspec name
     make_cmd: Option<String>,
+    base_addr: String,          // base address of component in hex
     interface_exports: Vec<(String, String)>, // interface/variant pairs
     interface_deps: Vec<(String, String, String)>,    // interface/server/variant pairs derived from server
 
@@ -58,7 +60,8 @@ struct ComponentContext {
 }
 
 pub struct BuildContext {
-    comps: BTreeMap<String, ComponentContext> // component variable name and context
+    comps: BTreeMap<String, ComponentContext>, // component variable name and context
+    builddir: String
 }
 
 fn comp_interface_name(img: &String) -> (String, String) {
@@ -81,6 +84,10 @@ impl ComponentContext {
             comp_name: name,
             comp_if: interface.clone(),
             var_name: comp.name().clone(),
+            base_addr: match comp.baseaddr() {
+                Some(ref s) => s.clone(),
+                None => String::from("0x00400000")
+            },
             make_cmd: None,
             interface_exports: Vec::new(),
             interface_deps: Vec::new(),
@@ -121,6 +128,10 @@ impl ComponentContext {
             Ok(())
         }
     }
+}
+
+fn comp_build_obj_path(builddir: &String, interface: &String, comp_impl: &String, varname: &String) -> String {
+    format!("{}{}.{}.{}", &builddir, &interface, &comp_impl, &varname)
 }
 
 impl BuildContext {
@@ -165,9 +176,23 @@ impl BuildContext {
             ctxt.insert(c.name().clone(), c_ctxt);
         }
 
+        let builddir = format!("{}/cos_build_{}/", String::from(env!("PWD")), process::id());
+
         BuildContext {
-            comps: ctxt
+            comps: ctxt,
+            builddir: builddir
         }
+    }
+
+    pub fn comp_obj_path(&self, varname: &String) -> Result<String, String> {
+        let c = match self.comps.get(varname) {
+            Some(ref comp) => comp.clone(),
+            None => return Err(format!("Error: Could not find component {}.\n", varname))
+        };
+        assert!(&c.var_name == varname);
+        let path = comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name);
+
+        Ok(path)
     }
 
     pub fn validate_deps(&self) -> Result<(), String> {
@@ -183,60 +208,44 @@ impl BuildContext {
         }
     }
 
-    fn calculate_make_cmds(&mut self) -> () {
-        for (n, mut c) in self.comps.iter_mut() {
-            let mut cmd = String::from("make -C ../ ");
-            let (_, mut ifs) = c.interface_exports.iter().fold((true, String::from("COMP_INTERFACES=\"")), |(first, accum), (interf, var)| {
-                let mut ifpath = accum.clone();
-                if !first {
-                    ifpath.push_str(" ");
-                }
-                ifpath.push_str(&interf.clone());
-                ifpath.push_str("/");
-                ifpath.push_str(&var.clone());
-                (false, ifpath)
-            });
-            ifs.push_str("\" ");
-            let (_, mut if_deps) = c.interface_deps.iter().fold((true, String::from("COMP_IFDEPS=\"")), |(first, accum), (interf, srv, var)| {
-                let mut ifpath = accum.clone();
-                if !first {
-                    ifpath.push_str(" ");
-                }
-                ifpath.push_str(&interf.clone());
-                ifpath.push_str("/");
-                ifpath.push_str(&var.clone());
-                (false, ifpath)
-            });
-            if_deps.push_str("\" ");
-            let libs = String::from("");
-            let mut path_if = String::from("COMP_INTERFACE=");
-            path_if.push_str(&c.comp_if);
-            path_if.push_str(" ");
-            let mut path_name = String::from("COMP_NAME=");
-            path_name.push_str(&c.comp_name);
-            path_name.push_str(" ");
-            let mut path_var = String::from("COMP_VARNAME=");
-            path_var.push_str(&c.var_name);
-            path_var.push_str(" ");
-            let mut path_output = String::from("COMP_OUTPUT=");
-            path_output.push_str(env!("PWD"));
-            path_output.push_str("/");
-            path_output.push_str(&c.comp_if);
-            path_output.push_str(".");
-            path_output.push_str(&c.comp_name);
-            path_output.push_str(".");
-            path_output.push_str(&c.var_name);
-            let mut base_addr = String::from(" COMP_BASEADDR=0x00400000");
+    fn refresh_build_dir(&mut self) -> () {
+        // clear out the build directory, or use the current directory if we can't
+        let tmpdir = match(reset_dir(self.builddir.clone())) {
+            Ok(_) => self.builddir.clone(),
+            Err(_) => {
+                self.builddir = format!("{}/", String::from(env!("PWD")));
+                self.builddir.clone()
+            }
+        };
+    }
 
-            cmd.push_str(&ifs);
-            cmd.push_str(&if_deps);
-            cmd.push_str(&libs);
-            cmd.push_str(&path_if);
-            cmd.push_str(&path_name);
-            cmd.push_str(&path_var);
-            cmd.push_str(&path_output);
-            cmd.push_str(&base_addr);
-            cmd.push_str(" component");
+    fn calculate_make_cmds(&mut self) -> () {
+        self.refresh_build_dir();
+
+        for (n, mut c) in self.comps.iter_mut() {
+            let (_, mut ifs) = c.interface_exports.iter().fold((true, String::from("")), |(first, accum), (interf, var)| {
+                let mut ifpath = accum.clone();
+                if !first {
+                    ifpath.push_str(" ");
+                }
+                ifpath.push_str(&interf.clone());
+                ifpath.push_str("/");
+                ifpath.push_str(&var.clone());
+                (false, ifpath)
+            });
+            let (_, mut if_deps) = c.interface_deps.iter().fold((true, String::from("")), |(first, accum), (interf, srv, var)| {
+                let mut ifpath = accum.clone();
+                if !first {
+                    ifpath.push_str(" ");
+                }
+                ifpath.push_str(&interf.clone());
+                ifpath.push_str("/");
+                ifpath.push_str(&var.clone());
+                (false, ifpath)
+            });
+
+            let cmd = format!(r#"make -C ../ COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={} component"#,
+            ifs, if_deps, &c.comp_if, &c.comp_name, &c.var_name, &comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name), &c.base_addr);
 
             println!("{}", cmd);
             c.make_cmd = Some(cmd);
