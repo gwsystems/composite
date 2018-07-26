@@ -53,7 +53,8 @@ pub struct Sinv {
 pub struct Compose<'a> {
     spec: &'a ComposeSpec,
     comp_objs: BTreeMap<String, CompObject<'a>>,
-    sinvs: Vec<Sinv>
+    sinvs: Vec<Sinv>,
+    ids: BTreeMap<String, u32>
 }
 
 impl ComposeSpec {
@@ -134,10 +135,54 @@ impl<'a> Compose<'a> {
             }
         }
 
+        // Find a total order of components based on the dependency
+        // relation...
+        let mut tot_ord = Vec::new();
+        // which components are still remaining without an placement
+        // in the total order?
+        let mut remaining: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for (n, _) in cs.iter() {
+            remaining.insert(n.clone(), spec.build_ctxt.comp_deps(n).unwrap().iter().map(|(d, _)| d.clone()).collect());
+        }
+        let ncomps = remaining.len();
+        loop {
+            let mut no_deps = Vec::new();
+            for (n, ds) in remaining.iter() {
+                let mut found = false;
+                for d in ds.iter() {
+                    if let Some(_) = remaining.get(d) {
+                        found = true;
+                        break;
+                    }
+                }
+                if !found {
+                    no_deps.push(n.clone());
+                }
+            }
+            // Did we find a cycle?  TODO error out properly
+            let len = no_deps.len();
+            assert!(len > 0);
+            for j in 0..len {
+                remaining.remove(&no_deps[j]);
+                tot_ord.push(no_deps[j].clone());
+            }
+            if remaining.len() == 0 {
+                break;
+            }
+        }
+        let mut ids = BTreeMap::new();
+        let mut id = 1;
+        for c in tot_ord {
+            ids.insert(c, id);
+            id = id + 1;
+        }
+        println!("Component id assignment, and initialization schedule: {:?}", ids);
+
         Ok(Compose {
             spec: spec,
             comp_objs: cs,
-            sinvs: sinvs
+            sinvs: sinvs,
+            ids: ids
         })
     }
 
