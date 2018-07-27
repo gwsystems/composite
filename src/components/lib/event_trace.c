@@ -13,7 +13,7 @@ const char *syscall_msg[] = {
 	"sys: asynchronous send start\n",
 	"sys: asynchronous send end\n",
 	"sys: scheduler asynchronous send start\n",
-	"sys: scheduler asynchronous send end\n"
+	"sys: scheduler asynchronous send end\n",
 };
 
 const char *sl_msg[] = {
@@ -24,40 +24,43 @@ const char *sl_msg[] = {
 	"sl: yield start, directed=%u\n",
 	"sl: yield end\n",
 	"sl: wakeup start, wakeup=%u\n",
-	"sl: wakeup end\n"
+	"sl: wakeup end\n",
 };
 
 const char *queue_msg[] = {
 	"queue: id=%u enqueue start\n",
 	"queue: id=%u enqueue end\n",
 	"queue: id=%u dequeue start\n",
-	"queue: id=%u dequeue end\n"
+	"queue: id=%u dequeue end\n",
 };
 
 const char *mutex_msg[] = {
 	"mutex: id=%u take start\n",
 	"mutex: id=%u take end\n",
 	"mutex: id=%u give start\n",
-	"mutex: id=%u give end\n"
+	"mutex: id=%u give end\n",
 };
 
 const char *binsem_msg[] = {
 	"binsem: id=%u take start\n",
 	"binsem: id=%u take end\n",
 	"binsem: id=%u give start\n",
-	"binsem: id=%u give end\n"
+	"binsem: id=%u give end\n",
 	"binsem: id=%u timedwait start\n",
-	"binsem: id=%u timedwait end\n"
+	"binsem: id=%u timedwait end\n",
 };
 
 const char *countsem_msg[] = {
 	"countsem: id=%u take start\n",
 	"countsem: id=%u take end\n",
 	"countsem: id=%u give start\n",
-	"countsem: id=%u give end\n"
+	"countsem: id=%u give end\n",
 	"countsem: id=%u timedwait start\n",
-	"countsem: id=%u timedwait end\n"
+	"countsem: id=%u timedwait end\n",
 };
+
+#define EVTTRACE_HDR_SZ (sizeof(unsigned int) * 2 + sizeof(unsigned long long))
+#define EVTTRACE_MSG_LEN 128
 
 #ifndef LINUX_DECODE
 
@@ -74,18 +77,30 @@ static struct ck_ring evttrace_ring;
 static struct event_trace_info evttrace_buf[EVTTRACE_RING_SIZE];
 /* for now, using it for only serial writes */
 static struct ps_lock evttrace_lock;
+unsigned long long evttrace_st_tsc = 0;
+unsigned int evttrace_cpu_cycs_usec = 0;
 
 /* TODO: no locks yet. could interleave here! */
 void
 event_trace_init(void)
 {
+	unsigned char tracehdr[EVTTRACE_HDR_SZ] = { 0 };
 	unsigned int magic = EVENT_TRACE_START_MAGIC;
+	unsigned int cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	unsigned long long st_tsc = 0;
 
 	PRINTC("Event trace initialization!\n");
 	ps_lock_init(&evttrace_lock);
 	memset(evttrace_buf, 0, sizeof(struct event_trace_info) * EVTTRACE_RING_SIZE);
 	ck_ring_init(&evttrace_ring, EVTTRACE_RING_SIZE);
-	serial_print((void *)&magic, sizeof(unsigned int));
+	rdtscll(st_tsc);
+	memcpy(tracehdr, &magic, sizeof(unsigned int));
+	memcpy(tracehdr + sizeof(unsigned int), &cycs, sizeof(unsigned int));
+	memcpy(tracehdr + (sizeof(unsigned int) * 2), &st_tsc, sizeof(unsigned long long));
+	evttrace_st_tsc = st_tsc;
+	evttrace_cpu_cycs_usec = cycs;
+
+	serial_print((void *)&tracehdr, EVTTRACE_HDR_SZ);
 
 	evttrace_initialized = 1;
 }
@@ -153,20 +168,23 @@ void
 event_decode(void *trace, int sz)
 {
 #ifdef EVTTRACE_DEBUG_TRACE
-#define TARGET_US_CYCS 3400
 
 	struct event_trace_info *evt = NULL;
 	int curr = 0, eisz = sizeof(struct event_trace_info);
 
 	assert(evttrace_initialized);
 	assert(sz >= eisz);
+	assert(evttrace_cpu_cycs_usec > 0);
 
 	do {
-		char trace_msg[128] = { 0 };
+		char trace_msg[EVTTRACE_MSG_LEN] = { 0 };
+		unsigned long long tsc = 0;
 
 		evt = (struct event_trace_info *)(trace + curr);
-
-		sprintf(trace_msg, "[%LF] thread=%u, ", ((long double)evt->ts/(long double)TARGET_US_CYCS), evt->thdid);
+		memset(trace_msg, 0, EVTTRACE_MSG_LEN);
+		tsc = evt->ts;
+		tsc -= evttrace_st_tsc;
+		sprintf(trace_msg, "[%LF] thread=%u, ", ((long double)tsc/(long double)evttrace_cpu_cycs_usec), evt->thdid);
 
 		switch(evt->type) {
 			case SYSCALL_EVENT:
@@ -306,8 +324,8 @@ event_decode(void *trace, int sz)
 #include <stdlib.h>
 #include <string.h>
 
-#define TARGET_US_CYCS (3400*1000) /* CHANGE THIS TO MATCH THE TRACE'S TARGET MACHINE */
-#define TRACE_MSG_SZ   128
+unsigned long long evttrace_st_tsc = 0;
+unsigned int evttrace_cpu_cycs_usec = 0;
 
 void
 event_trace_init(void)
@@ -326,11 +344,16 @@ event_decode(void *trace, int sz)
 	assert(sz >= eisz);
 
 	do {
-		char trace_msg[TRACE_MSG_SZ] = { 0 };
+		char trace_msg[EVTTRACE_MSG_LEN] = { 0 };
+		unsigned long long tsc = 0;
 
 		evt = (struct event_trace_info *)(trace + curr);
+		memset(trace_msg, 0, EVTTRACE_MSG_LEN);
 
-		sprintf(trace_msg, "[%LF] thread=%u, ", ((long double)evt->ts/(long double)TARGET_US_CYCS), evt->thdid);
+		tsc = evt->ts;
+		//tsc -= evttrace_st_tsc;
+		sprintf(trace_msg, "[%llu] thread=%u, ", tsc, evt->thdid);
+		//sprintf(trace_msg, "[%.2LF] thread=%u, ", ((long double)tsc/(long double)evttrace_cpu_cycs_usec), evt->thdid);
 
 		switch(evt->type) {
 			case SYSCALL_EVENT:
@@ -488,7 +511,7 @@ convert_hex_to_bin(char *trace, char *trace_bin)
 }
 
 static void *
-trace_check_magic(char *trace_bin, unsigned int *sz)
+trace_check_hdr(char *trace_bin, unsigned int *sz)
 {
 	unsigned int start_off = 0;
 
@@ -498,6 +521,16 @@ trace_check_magic(char *trace_bin, unsigned int *sz)
 
 	if (start_off + sizeof(unsigned int) >= *sz) assert(0);
 	start_off += sizeof(unsigned int);
+
+	evttrace_cpu_cycs_usec = *((unsigned int *)((unsigned char *)trace_bin + start_off));
+	start_off += sizeof(unsigned int);
+
+	assert(evttrace_cpu_cycs_usec);
+
+	evttrace_st_tsc = *((unsigned long long *)((unsigned char *)trace_bin + start_off));
+	start_off += sizeof(unsigned long long);
+	printf("Start time (event trace init): %llu\nCPU cycles per usecs: %u\n", evttrace_st_tsc, evttrace_cpu_cycs_usec);
+	printf("******************************\n");
 
 	*sz -= start_off;
 
@@ -545,7 +578,7 @@ main(int argc, char **argv)
 	close(fd);
 	trace_sz = convert_hex_to_bin(trace, trace_bin);
 	printf("******************************\n");
-	event_decode(trace_check_magic(trace_bin, &trace_sz), trace_sz);
+	event_decode(trace_check_hdr(trace_bin, &trace_sz), trace_sz);
 	printf("******************************\n");
 
 	return 0;
