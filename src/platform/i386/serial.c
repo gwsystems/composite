@@ -91,7 +91,7 @@ serial_handler(struct pt_regs *r)
 void
 serial_init(void)
 {
-	printk_register_handler(serial_puts);
+	printk_register_handler(PRINTK_SERIAL, serial_puts);
 
 	/* We will initialize the first serial port */
 	outb(SERIAL_PORT_A + 1, 0x00);

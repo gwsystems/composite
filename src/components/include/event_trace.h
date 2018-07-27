@@ -1,3 +1,7 @@
+#ifndef EVENT_TRACE_ENABLE
+#define EVENT_TRACE_ENABLE
+#endif
+
 #ifndef EVENT_TRACE_H
 #define EVENT_TRACE_H
 
@@ -91,11 +95,13 @@ struct event_trace_info {
 	unsigned long long ts;
 
 	unsigned short thdid;
-	unsigned short objid; /* TODO */
+	unsigned short objid;
 };
 
 #ifndef LINUX_DECODE
 #include <ck_ring.h>
+#include <cos_component.h>
+#include <cos_kernel_api.h>
 
 CK_RING_PROTOTYPE(evttrace, event_trace_info);
 #endif
@@ -107,400 +113,52 @@ void event_trace_init(void);
 int event_trace(struct event_trace_info *ei);
 void event_decode(void *trace, int sz);
 
-/*
- * TODO:
- * 1. optimized API to allow compiler optimizations.
- * 2. macro API so the tracing feature can be disabled.
- */
-#define EVTTR_SYSCALL_THDSW_START(dst) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = SYSCALL_EVENT;		\
-				ei.sub_type = SYSCALL_THD_SWITCH_START;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = dst;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
+static inline void
+event_info_trace(unsigned short type, unsigned short sub_type, unsigned short objid)
+{
+#ifdef EVENT_TRACE_ENABLE
+	struct event_trace_info ei = { .type = type, .sub_type = sub_type, .thdid = cos_thdid(), .objid = objid };
 
-#define EVTTR_SYSCALL_THDSW_END() 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = SYSCALL_EVENT;		\
-				ei.sub_type = SYSCALL_THD_SWITCH_END;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = 0;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
+	rdtscll(ei.ts);
 
-#define EVTTR_SL_BLOCK_START(dst) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = SL_EVENT;			\
-				ei.sub_type = SL_BLOCK_START;		\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = dst;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
+	event_trace(&ei);
+#endif
+}
 
-#define EVTTR_SL_BLOCK_END()	 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = SL_EVENT;			\
-				ei.sub_type = SL_BLOCK_END;		\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = 0;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
+#define EVTTR_SYSCALL_THDSW_START(dst)      event_info_trace(SYSCALL_EVENT, SYSCALL_THD_SWITCH_START, dst)
+#define EVTTR_SYSCALL_THDSW_END()           event_info_trace(SYSCALL_EVENT, SYSCALL_THD_SWITCH_END, 0)
 
-#define EVTTR_SL_BLOCK_TIMEOUT_START(dst)				\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = SL_EVENT;			\
-				ei.sub_type = SL_BLOCK_TIMEOUT_START;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = dst;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
+#define EVTTR_SL_BLOCK_START(dst)           event_info_trace(SL_EVENT, SL_BLOCK_START, dst)
+#define EVTTR_SL_BLOCK_END()                event_info_trace(SL_EVENT, SL_BLOCK_END, 0)
+#define EVTTR_SL_BLOCK_TIMEOUT_START(dst)   event_info_trace(SL_EVENT, SL_BLOCK_TIMEOUT_START, dst)
+#define EVTTR_SL_BLOCK_TIMEOUT_END()        event_info_trace(SL_EVENT, SL_BLOCK_TIMEOUT_END, 0)
+#define EVTTR_SL_WAKEUP_START(dst)          event_info_trace(SL_EVENT, SL_WAKEUP_START, dst)
+#define EVTTR_SL_WAKEUP_END()               event_info_trace(SL_EVENT, SL_WAKEUP_END, 0)
+#define EVTTR_SL_YIELD_START(dst)           event_info_trace(SL_EVENT, SL_YIELD_START, dst)
+#define EVTTR_SL_YIELD_END()                event_info_trace(SL_EVENT, SL_YIELD_END, 0)
 
-#define EVTTR_SL_BLOCK_TIMEOUT_END() 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = SL_EVENT;			\
-				ei.sub_type = SL_BLOCK_TIMEOUT_END;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = 0;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
+#define EVTTR_QUEUE_ENQ_START(obj)          event_info_trace(QUEUE_EVENT, QUEUE_ENQUEUE_START, obj)
+#define EVTTR_QUEUE_ENQ_END(obj)            event_info_trace(QUEUE_EVENT, QUEUE_ENQUEUE_END, obj)
+#define EVTTR_QUEUE_DEQ_START(obj)          event_info_trace(QUEUE_EVENT, QUEUE_DEQUEUE_START, obj)
+#define EVTTR_QUEUE_DEQ_END(obj)            event_info_trace(QUEUE_EVENT, QUEUE_DEQUEUE_END, obj)
 
-#define EVTTR_SL_WAKEUP_START(dst) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = SL_EVENT;			\
-				ei.sub_type = SL_WAKEUP_START;		\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = dst;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
+#define EVTTR_MUTEX_TAKE_START(obj)         event_info_trace(MUTEX_EVENT, MUTEX_TAKE_START, obj)
+#define EVTTR_MUTEX_TAKE_END(obj)           event_info_trace(MUTEX_EVENT, MUTEX_TAKE_END, obj)
+#define EVTTR_MUTEX_GIVE_START(obj)         event_info_trace(MUTEX_EVENT, MUTEX_GIVE_START, obj)
+#define EVTTR_MUTEX_GIVE_END(obj)           event_info_trace(MUTEX_EVENT, MUTEX_GIVE_END, obj)
 
-#define EVTTR_SL_WAKEUP_END()	 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = SL_EVENT;			\
-				ei.sub_type = SL_WAKEUP_END;		\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = 0;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
+#define EVTTR_BINSEM_TAKE_START(obj)        event_info_trace(BINSEM_EVENT, BINSEM_TAKE_START, obj)
+#define EVTTR_BINSEM_TAKE_END(obj)          event_info_trace(BINSEM_EVENT, BINSEM_TAKE_END, obj)
+#define EVTTR_BINSEM_GIVE_START(obj)        event_info_trace(BINSEM_EVENT, BINSEM_GIVE_START, obj)
+#define EVTTR_BINSEM_GIVE_END(obj)          event_info_trace(BINSEM_EVENT, BINSEM_GIVE_END, obj)
+#define EVTTR_BINSEM_TIMEDWAIT_START(obj)   event_info_trace(BINSEM_EVENT, BINSEM_TIMEDWAIT_START, obj)
+#define EVTTR_BINSEM_TIMEDWAIT_END(obj)     event_info_trace(BINSEM_EVENT, BINSEM_TIMEDWAIT_END, obj)
 
-#define EVTTR_SL_YIELD_START(dst) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = SL_EVENT;			\
-				ei.sub_type = SL_YIELD_START;		\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = dst;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_SL_YIELD_END()	 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = SL_EVENT;			\
-				ei.sub_type = SL_YIELD_END;		\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = 0;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_QUEUE_ENQ_START(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = QUEUE_EVENT;			\
-				ei.sub_type = QUEUE_ENQUEUE_START;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_QUEUE_ENQ_END(obj)	 				\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = QUEUE_EVENT;			\
-				ei.sub_type = QUEUE_ENQUEUE_END;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_QUEUE_DEQ_START(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = QUEUE_EVENT;			\
-				ei.sub_type = QUEUE_DEQUEUE_START;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_QUEUE_DEQ_END(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = QUEUE_EVENT;			\
-				ei.sub_type = QUEUE_DEQUEUE_END;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_MUTEX_TAKE_START(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = MUTEX_EVENT;			\
-				ei.sub_type = MUTEX_TAKE_START;		\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_MUTEX_TAKE_END(obj)	 				\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = MUTEX_EVENT;			\
-				ei.sub_type = MUTEX_TAKE_END;		\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_MUTEX_GIVE_START(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = MUTEX_EVENT;			\
-				ei.sub_type = MUTEX_GIVE_START;		\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_MUTEX_GIVE_END(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = MUTEX_EVENT;			\
-				ei.sub_type = MUTEX_GIVE_END;		\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_BINSEM_TAKE_START(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = BINSEM_EVENT;			\
-				ei.sub_type = BINSEM_TAKE_START;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_BINSEM_TAKE_END(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = BINSEM_EVENT;			\
-				ei.sub_type = BINSEM_TAKE_END;		\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_BINSEM_GIVE_START(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = BINSEM_EVENT;			\
-				ei.sub_type = BINSEM_GIVE_START;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_BINSEM_GIVE_END(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = BINSEM_EVENT;			\
-				ei.sub_type = BINSEM_GIVE_END;		\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_BINSEM_TIMEDWAIT_START(obj)				\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = BINSEM_EVENT;			\
-				ei.sub_type = BINSEM_TIMEDWAIT_START;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_BINSEM_TIMEDWAIT_END(obj)					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = BINSEM_EVENT;			\
-				ei.sub_type = BINSEM_TIMEDWAIT_END;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_COUNTSEM_TAKE_START(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = COUNTSEM_EVENT;		\
-				ei.sub_type = COUNTSEM_TAKE_START;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_COUNTSEM_TAKE_END(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = COUNTSEM_EVENT;		\
-				ei.sub_type = COUNTSEM_TAKE_END;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_COUNTSEM_GIVE_START(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = COUNTSEM_EVENT;		\
-				ei.sub_type = COUNTSEM_GIVE_START;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_COUNTSEM_GIVE_END(obj) 					\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = COUNTSEM_EVENT;		\
-				ei.sub_type = COUNTSEM_GIVE_END;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_COUNTSEM_TIMEDWAIT_START(obj)				\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = COUNTSEM_EVENT;		\
-				ei.sub_type = COUNTSEM_TIMEDWAIT_START;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
-#define EVTTR_COUNTSEM_TIMEDWAIT_END(obj)				\
-			do {						\
-				struct event_trace_info ei;		\
-									\
-				ei.type = COUNTSEM_EVENT;		\
-				ei.sub_type = COUNTSEM_TIMEDWAIT_END;	\
-				rdtscll(ei.ts);				\
-				ei.thdid = cos_thdid();			\
-				ei.objid = obj;				\
-									\
-				event_trace(&ei);			\
-			} while (0)
-
+#define EVTTR_COUNTSEM_TAKE_START(obj)      event_info_trace(COUNTSEM_EVENT, COUNTSEM_TAKE_START, obj)
+#define EVTTR_COUNTSEM_TAKE_END(obj)        event_info_trace(COUNTSEM_EVENT, COUNTSEM_TAKE_END, obj)
+#define EVTTR_COUNTSEM_GIVE_START(obj)      event_info_trace(COUNTSEM_EVENT, COUNTSEM_GIVE_START, obj)
+#define EVTTR_COUNTSEM_GIVE_END(obj)        event_info_trace(COUNTSEM_EVENT, COUNTSEM_GIVE_END, obj)
+#define EVTTR_COUNTSEM_TIMEDWAIT_START(obj) event_info_trace(COUNTSEM_EVENT, COUNTSEM_TIMEDWAIT_START, obj)
+#define EVTTR_COUNTSEM_TIMEDWAIT_END(obj)   event_info_trace(COUNTSEM_EVENT, COUNTSEM_TIMEDWAIT_END, obj)
 
 #endif /* EVENT_TRACE_H */

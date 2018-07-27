@@ -18,6 +18,7 @@
 #include "lapic.h"
 #include "pic.h"
 #include "ioapic.h"
+#include "printk.h"
 
 int vm_map_superpage(u32_t addr, int nocache);
 void kern_paging_map_init(void *);
@@ -27,8 +28,6 @@ void gdt_init(cpuid_t);
 void idt_init(cpuid_t);
 
 void tls_update(u32_t addr);
-
-int printk_register_handler(void (*handler)(const char *));
 
 void khalt(void);
 

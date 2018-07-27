@@ -150,8 +150,8 @@ event_flush(void)
 int
 event_trace(struct event_trace_info *ei)
 {
-
-	assert(evttrace_initialized);
+	/* don't log yet or don't log for components that don't initialize, ex: sl events only for cFE..*/
+	if (unlikely(evttrace_initialized == 0)) return 0;
 
 retry:
 	/* mpmc because any thread could enqueue events and dequeue(flush out to serial) */
