@@ -104,20 +104,14 @@ rk_select(int arg1, int arg2)
 {
 	int nd = arg1, ret;
 	int shdmem_id = arg2;
-	static int old_shdmem_id = 0;
 	static vaddr_t buf = 0;
 	vaddr_t tmp;
 	fd_set *in = NULL, *ou = NULL, *ex = NULL;
 	struct timeval *tv = NULL;
 	int *null_array;
 
-	if (old_shdmem_id != shdmem_id || !buf) {
-		old_shdmem_id = shdmem_id;
-		buf = rk_thdcalldata_shm_map(shdmem_id);
-		assert(buf);
-	}
-
-	assert(buf && shdmem_id > 0 && (old_shdmem_id == shdmem_id));
+	buf = rk_thdcalldata_shm_map(shdmem_id);
+	assert(buf && shdmem_id > 0);
 
 	null_array = (int *)buf;
 	tmp = (vaddr_t)null_array + (sizeof(int) * 4);
@@ -138,19 +132,13 @@ rk_accept(int arg1, int arg2)
 {
 	int s = arg1, ret;
 	int shdmem_id = arg2;
-	static int old_shdmem_id = 0;
-	static vaddr_t buff = 0;
+	vaddr_t buff = 0;
 	vaddr_t tmp;
 	struct sockaddr *name;
 	socklen_t *anamelen;
 
-	if (old_shdmem_id != shdmem_id || !buff) {
-		old_shdmem_id = shdmem_id;
-		buff = rk_thdcalldata_shm_map(shdmem_id);
-		assert(buff);
-	}
-
-	assert(buff && shdmem_id > 0 && (old_shdmem_id == shdmem_id));
+	buff = rk_thdcalldata_shm_map(shdmem_id);
+	assert(buff && shdmem_id > 0);
 
 	tmp = buff;
 	name = (struct sockaddr *)tmp;
@@ -246,20 +234,14 @@ rk_open(int arg1, int arg2, int arg3)
 	int shdmem_id, ret, flags;
 	mode_t mode;
 	const char *path;
-	static const void *buf = NULL;
-	static int old_shdmem_id = 0;
+	const void *buf = NULL;
 
 	shdmem_id = arg1;
 	flags     = arg2;
 	mode    = (mode_t)arg3;
 
-	if (buf == NULL || old_shdmem_id != shdmem_id) {
-		old_shdmem_id = shdmem_id;
-		buf = (void *)rk_thdcalldata_shm_map(shdmem_id);
-		assert(buf);
-	}
-
-	assert(buf && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
+	buf = (void *)rk_thdcalldata_shm_map(shdmem_id);
+	assert(buf && shdmem_id > 0);
 
 	path = buf;
 
@@ -279,19 +261,13 @@ int
 rk_unlink(int arg1)
 {
 	int shdmem_id, ret;
-	static int old_shdmem_id = 0;
 	const char *path;
-	static const void *buf = NULL;
+	const void *buf = NULL;
 
 	shdmem_id = arg1;
 
-	if (buf == NULL || old_shdmem_id != shdmem_id) {
-		old_shdmem_id = shdmem_id;
-		buf = (void *)rk_thdcalldata_shm_map(shdmem_id);
-		assert(buf);
-	}
-
-	assert(buf && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
+	buf = (void *)rk_thdcalldata_shm_map(shdmem_id);
+	assert(buf && shdmem_id > 0);
 
 	path = buf;
 	return rump___sysimpl_unlink(path);
@@ -300,17 +276,11 @@ rk_unlink(int arg1)
 int
 rk_connect(int sockfd, int shmid, socklen_t addrlen)
 {
-	static struct sockaddr *addr = NULL;
-	static int old_shmid = 0;
+	struct sockaddr *addr = NULL;
 	int ret = 0;
 
-	if (addr == NULL || old_shmid != shmid) {
-		old_shmid = shmid;
-		addr = (struct sockaddr *)rk_thdcalldata_shm_map(shmid);
-		assert(addr);
-	}
-
-	assert(addr && shmid > 0 && shmid == old_shmid);
+	addr = (struct sockaddr *)rk_thdcalldata_shm_map(shmid);
+	assert(addr && shmid > 0);
 
 	__SOCKADDR_NOLEN(addr);
 	ret = rump___sysimpl_connect(sockfd, addr, addrlen);
@@ -321,17 +291,11 @@ rk_connect(int sockfd, int shmid, socklen_t addrlen)
 int
 rk_bind(int sockfd, int shmid, socklen_t addrlen)
 {
-	static struct sockaddr *addr = NULL;
-	static int old_shmid = 0;
+	struct sockaddr *addr = NULL;
 	int ret = 0;
 
-	if (addr == NULL || old_shmid != shmid) {
-		old_shmid = shmid;
-		addr = (struct sockaddr *)rk_thdcalldata_shm_map(shmid);
-		assert(addr);
-	}
-
-	assert(addr && shmid > 0 && shmid == old_shmid);
+	addr = (struct sockaddr *)rk_thdcalldata_shm_map(shmid);
+	assert(addr && shmid > 0);
 
 	__SOCKADDR_NOLEN(addr);
 	ret = rump___sysimpl_bind(sockfd, addr, addrlen);
@@ -386,19 +350,14 @@ ssize_t
 rk_recvfrom(int sockfd, int len, int shmid)
 {
 	void *buf = NULL;
-	static vaddr_t shmaddr = 0;
+	vaddr_t shmaddr = 0;
 	struct sockaddr *src_addr = NULL;
 	socklen_t *addrlen = NULL;
-	static int old_shmid = 0;
 	int flags = 0;
 	ssize_t ret = 0;
 
-	if (old_shmid != shmid && shmaddr == 0) {
-		old_shmid = shmid;
-		shmaddr = rk_thdcalldata_shm_map(shmid);
-		assert(shmaddr);
-	}
-	assert(shmaddr && shmid > 0 && shmid == old_shmid);
+	shmaddr = rk_thdcalldata_shm_map(shmid);
+	assert(shmaddr && shmid > 0);
 
 	addrlen = (socklen_t *)(shmaddr + 8);
 	if (flags == MUSL_MSG_DONTWAIT) flags = 0;
@@ -415,20 +374,15 @@ rk_recvfrom(int sockfd, int len, int shmid)
 ssize_t
 rk_sendto(int sockfd, int len, int shmid)
 {
-	static int old_shmid = 0;
-	static vaddr_t shmaddr = 0;
+	vaddr_t shmaddr = 0;
 	struct sockaddr *dest_addr = NULL;
 	socklen_t addrlen = 0;
 	void *buf = NULL;
 	ssize_t ret;
 	int flags;
 
-	if (old_shmid != shmid && shmaddr == 0) {
-		old_shmid = shmid;
-		shmaddr = rk_thdcalldata_shm_map(shmid);
-		assert(shmaddr);
-	}
-	assert(shmaddr && shmid > 0 && shmid == old_shmid);
+	shmaddr = rk_thdcalldata_shm_map(shmid);
+	assert(shmaddr && shmid > 0);
 
 	flags = rk_send_rcv_flags(*(int *)shmaddr);
 	addrlen = *(socklen_t *)(shmaddr + 4);
@@ -477,8 +431,7 @@ int
 rk_setsockopt(int arg1, int arg2, int arg3)
 {
 	int sockfd, level, optname, shdmem_id, ret;
-	static void *optval = NULL;
-	static int old_shdmem_id = 0;
+	void *optval = NULL;
 	socklen_t optlen;
 
 	sockfd     = (arg1 >> 16);
@@ -487,13 +440,8 @@ rk_setsockopt(int arg1, int arg2, int arg3)
 	shdmem_id  = (arg2 << 16) >> 16;
 	optlen     = arg3;
 
-	if (optval == NULL || old_shdmem_id != shdmem_id) {
-		old_shdmem_id = shdmem_id;
-		optval = (void *)rk_thdcalldata_shm_map(shdmem_id);
-		assert(optval);
-	}
-
-	assert(optval && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
+	optval = (void *)rk_thdcalldata_shm_map(shdmem_id);
+	assert(optval && shdmem_id > 0);
 
 	level = rk_socklevel_get(level);
 	optname = rk_sockoptname_get(optname);
@@ -505,19 +453,14 @@ int
 rk_getsockopt(int sockfd_shmid, int level, int optname)
 {
 	int sockfd = (sockfd_shmid >> 16), shdmem_id = (sockfd_shmid << 16) >> 16, ret;
-	static void *optval = NULL;
-	static int old_shdmem_id = 0;
+	void *optval = NULL;
 	socklen_t *optlen = NULL;
 
 
-	if (optlen == NULL || old_shdmem_id != shdmem_id) {
-		old_shdmem_id = shdmem_id;
-		optlen = (socklen_t *)rk_thdcalldata_shm_map(shdmem_id);
-		assert(optlen);
-		optval = (void *)((vaddr_t)optlen + 4);
-	}
-
-	assert(optlen && optval && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
+	optlen = (socklen_t *)rk_thdcalldata_shm_map(shdmem_id);
+	assert(optlen);
+	optval = (void *)((vaddr_t)optlen + 4);
+	assert(optlen && optval && shdmem_id > 0);
 
 	ret = rump___sysimpl_getsockopt(sockfd, level, optname, optval, optlen);
 
@@ -548,21 +491,15 @@ long
 rk_write(int arg1, int arg2, int arg3)
 {
 	int fd, shdmem_id, ret;
-	static const void *buf = NULL;
-	static int old_shdmem_id = 0;
+	const void *buf = NULL;
 	size_t nbyte;
 
 	fd        = arg1;
 	shdmem_id = arg2;
 	nbyte     = (size_t)arg3;
 
-	if (buf == NULL || old_shdmem_id != shdmem_id) {
-		old_shdmem_id = shdmem_id;
-		buf = (void *)rk_thdcalldata_shm_map(shdmem_id);
-		assert(buf);
-	}
-
-	assert(buf && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
+	buf = (void *)rk_thdcalldata_shm_map(shdmem_id);
+	assert(buf && shdmem_id > 0);
 
 	return (long)rump___sysimpl_write(fd, buf, nbyte);
 }
@@ -590,19 +527,13 @@ ssize_t
 rk_writev(int fd, int iovcnt, int shmid)
 {
 	int shdmem_id, ret, i = 0;
-	static struct iovec *iobuf = NULL;
-	static int old_shdmem_id = 0;
+	struct iovec *iobuf = NULL;
 	void *tmpbuf = NULL;
 
 	shdmem_id = shmid;
 
-	if (iobuf == NULL || old_shdmem_id != shdmem_id) {
-		old_shdmem_id = shdmem_id;
-		iobuf = (struct iovec *)rk_thdcalldata_shm_map(shdmem_id);
-		assert(iobuf);
-	}
-
-	assert(iobuf && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
+	iobuf = (struct iovec *)rk_thdcalldata_shm_map(shdmem_id);
+	assert(iobuf && shdmem_id > 0);
 
 	tmpbuf = ((void *)iobuf) + (sizeof(struct iovec) * iovcnt);
 	for (i = 0; i < iovcnt; i++) {
@@ -618,21 +549,15 @@ long
 rk_read(int arg1, int arg2, int arg3)
 {
 	int fd, shdmem_id, ret;
-	static const void *buf = NULL;
-	static int old_shdmem_id = 0;
+	const void *buf = NULL;
 	size_t nbyte;
 
 	fd        = arg1;
 	shdmem_id = arg2;
 	nbyte     = (size_t)arg3;
 
-	if (buf == NULL || old_shdmem_id != shdmem_id) {
-		old_shdmem_id = shdmem_id;
-		buf = (void *)rk_thdcalldata_shm_map(shdmem_id);
-		assert(buf);
-	}
-
-	assert(buf && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
+	buf = (void *)rk_thdcalldata_shm_map(shdmem_id);
+	assert(buf && shdmem_id > 0);
 
 	return (long)rump___sysimpl_read(fd, buf, nbyte);
 }
@@ -653,20 +578,13 @@ rk_clock_gettime(int arg1, int arg2)
 {
 	int shdmem_id, ret;
 	clockid_t clock_id;
-	static struct timespec *tp = NULL;
-	static int old_shdmem_id = 0;
+	struct timespec *tp = NULL;
 
 	clock_id  = (clockid_t)arg1;
 	shdmem_id = arg2;
 
-	/* TODO, make this a function */
-	if (tp == NULL || old_shdmem_id != shdmem_id) {
-		old_shdmem_id = shdmem_id;
-		tp = (struct timespec *)rk_thdcalldata_shm_map(shdmem_id);
-		assert(tp);
-	}
-
-	assert(tp && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
+	tp = (struct timespec *)rk_thdcalldata_shm_map(shdmem_id);
+	assert(tp && shdmem_id > 0);
 
 	/* Per process clock 2 is not supported, user real-time clock */
 	if (clock_id == 2) clock_id = 0;
@@ -678,8 +596,7 @@ int
 rk_getsockname(int arg1, int arg2)
 {
 	int shdmem_id, ret, fdes;
-	static int old_shdmem_id = 0;
-	static vaddr_t buf = 0;
+	vaddr_t buf = 0;
 	struct sockaddr *asa;
 	socklen_t *alen;
 	vaddr_t tmp;
@@ -687,14 +604,8 @@ rk_getsockname(int arg1, int arg2)
 	fdes      = arg1;
 	shdmem_id = arg2;
 
-	/* TODO, make this a function */
-	if (old_shdmem_id != shdmem_id) {
-		old_shdmem_id = shdmem_id;
-		buf = rk_thdcalldata_shm_map(shdmem_id);
-		assert(buf);
-	}
-
-	assert(buf && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
+	buf = rk_thdcalldata_shm_map(shdmem_id);
+	assert(buf && shdmem_id > 0);
 
 	tmp  = buf;
 	asa  = (struct sockaddr *)tmp;
@@ -711,8 +622,7 @@ int
 rk_getpeername(int arg1, int arg2)
 {
 	int shdmem_id, ret, fdes;
-	static int old_shdmem_id = 0;
-	static vaddr_t buf = 0;
+	vaddr_t buf = 0;
 	struct sockaddr *asa;
 	socklen_t *alen;
 	vaddr_t tmp;
@@ -720,14 +630,8 @@ rk_getpeername(int arg1, int arg2)
 	fdes      = arg1;
 	shdmem_id = arg2;
 
-	/* TODO, make this a function */
-	if (old_shdmem_id != shdmem_id) {
-		old_shdmem_id = shdmem_id;
-		buf = rk_thdcalldata_shm_map(shdmem_id);
-		assert(buf);
-	}
-
-	assert(buf && shdmem_id > 0 && (shdmem_id == old_shdmem_id));
+	buf = rk_thdcalldata_shm_map(shdmem_id);
+	assert(buf && shdmem_id > 0);
 
 	tmp  = buf;
 	asa  = (struct sockaddr *)tmp;
