@@ -48,3 +48,7 @@ pub fn booter_serialize_args(comp: &Compose) -> String {
 
     top.serialize()
 }
+
+pub fn booter_tar_dirkey() -> String {
+    String::from("binaries")
+}

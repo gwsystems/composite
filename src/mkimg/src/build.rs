@@ -2,6 +2,11 @@ use cossystem::{CosSystem,Component};
 use std::collections::BTreeMap;
 use syshelpers::{exec_pipeline,reset_dir};
 use std::process;
+use tar::Builder;
+use std::fs::File;
+use std::io::prelude::*;
+use compose::Compose;
+use booter::{booter_serialize_args, booter_tar_dirkey};
 
 // Interact with the composite build system to "seal" the components.
 // This requires linking them with all dependencies, and with libc,
@@ -64,6 +69,7 @@ struct ComponentContext {
 
 pub struct BuildContext {
     comps: BTreeMap<String, ComponentContext>, // component variable name and context
+    booter: ComponentContext,
     builddir: String
 }
 
@@ -196,6 +202,8 @@ impl BuildContext {
 
         BuildContext {
             comps: ctxt,
+            // hard-code the booter for now:
+            booter: ComponentContext::new_minimal(&String::from("no_interface"), &String::from("llbooter"), &String::from("booter")),
             builddir: builddir
         }
     }
@@ -252,7 +260,7 @@ impl BuildContext {
     fn calculate_make_cmds(&mut self) -> () {
         self.refresh_build_dir();
 
-        for (n, mut c) in self.comps.iter_mut() {
+        fn comp_gen_make_cmd(c: &mut ComponentContext, builddir: &String) -> () {
             let (_, mut ifs) = c.interface_exports.iter().fold((true, String::from("")), |(first, accum), (interf, var)| {
                 let mut ifpath = accum.clone();
                 if !first {
@@ -275,11 +283,16 @@ impl BuildContext {
             });
 
             let cmd = format!(r#"make -C ../ COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={} component"#,
-            ifs, if_deps, &c.comp_if, &c.comp_name, &c.var_name, &comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name), &c.base_addr);
+            ifs, if_deps, &c.comp_if, &c.comp_name, &c.var_name, &comp_build_obj_path(&builddir, &c.comp_if, &c.comp_name, &c.var_name), &c.base_addr);
 
             println!("Make command for component {}: {}", c.var_name, cmd);
             c.make_cmd = Some(cmd);
         }
+
+        for (n, mut c) in self.comps.iter_mut() {
+            comp_gen_make_cmd(&mut c, &self.builddir);
+        }
+        comp_gen_make_cmd(&mut self.booter, &self.builddir);
     }
 
     pub fn build_components(&mut self) -> () {
@@ -292,6 +305,28 @@ impl BuildContext {
 {}\nComponent compilation errors:
 {}", n, out, err);
         }
+    }
+
+    pub fn gen_booter(&self, compose: &Compose) -> () {
+        let tar_path = format!("{}/booter_bins.tar", self.builddir);
+        let initargs_path = format!("{}/booter_initargs.c", self.builddir);
+
+        // populate the tarball for the booter
+        let file = File::create(&tar_path).unwrap();
+        let mut ar = Builder::new(file);
+        for (n, c) in self.comps.iter() {
+            let path = comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name);
+            let name = comp_obj_name(&c.comp_if, &c.comp_name, &c.var_name);
+            let mut f = File::open(path).unwrap(); //  should not fail: we just build this
+            ar.append_file(format!("{}/{}", booter_tar_dirkey(), name), &mut f).unwrap(); // FIXME: error handling
+        }
+
+        // let mut cmd = String::from("");
+        // cmd.push_str(self.booter.make_cmd.as_ref().unwrap());
+        // let (out, err) = exec_pipeline(vec![cmd]);
+
+        let mut initargs_file = File::create(&initargs_path).unwrap();
+        initargs_file.write_all(booter_serialize_args(&compose).as_bytes()).unwrap();
     }
 }
 

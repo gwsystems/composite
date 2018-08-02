@@ -3,7 +3,7 @@ extern crate pipers;
 #[macro_use]
 extern crate serde_derive;
 extern crate xmas_elf;
-//extern crate tar;
+extern crate tar;
 
 mod cossystem;
 mod syshelpers;

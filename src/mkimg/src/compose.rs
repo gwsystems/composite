@@ -27,7 +27,6 @@ use syshelpers::{dump_file, emit_file, reset_dir, exec_pipeline};
 use cossystem::{CosSystem};
 use compobject::CompObject;
 use build::{BuildContext,comps_base_path, interface_path, comp_path};
-use booter::{booter_serialize_args};
 use std::collections::BTreeMap;
 use std::env;
 
@@ -55,8 +54,7 @@ pub struct Compose<'a> {
     spec: &'a ComposeSpec,
     comp_objs: BTreeMap<String, CompObject<'a>>,
     sinvs: Vec<Sinv>,
-    ids: BTreeMap<String, (String, u32)>, // varname -> (imgname, index)
-    booter_info: Option<String>
+    ids: BTreeMap<String, (String, u32)> // varname -> (imgname, index)
 }
 
 impl ComposeSpec {
@@ -96,6 +94,7 @@ impl<'a> Compose<'a> {
     pub fn parse_binaries(spec: &'a ComposeSpec) -> Result<Compose<'a>, String> {
         let mut cs = BTreeMap::new();
 
+        // build all of the component objects associated with the component binaries
         for c in spec.sys.comps().iter() {
             cs.insert(c.name().clone(), CompObject::parse(c.name().clone(), spec.binaries.get(c.name()).unwrap())?);
         }
@@ -183,11 +182,10 @@ impl<'a> Compose<'a> {
             spec: spec,
             comp_objs: cs,
             sinvs: sinvs,
-            ids: ids,
-            booter_info: None
+            ids: ids
         };
 
-        all.booter_info = Some(booter_serialize_args(&all));
+        spec.build_ctxt.gen_booter(&all);
         Ok(all)
     }
 
