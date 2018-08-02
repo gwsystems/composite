@@ -27,6 +27,7 @@ use syshelpers::{dump_file, emit_file, reset_dir, exec_pipeline};
 use cossystem::{CosSystem};
 use compobject::CompObject;
 use build::{BuildContext,comps_base_path, interface_path, comp_path};
+use booter::{booter_serialize_args};
 use std::collections::BTreeMap;
 use std::env;
 
@@ -42,19 +43,20 @@ pub struct ComposeSpec {
 // invocations between a client and server for a single function
 #[derive(Debug)]
 pub struct Sinv {
-    name: String,
-    client: String,
-    server: String,
-    c_fn_addr: u64,
-    c_ucap_addr: u64,
-    s_fn_addr: u64
+    pub name: String,
+    pub client: u32,
+    pub server: u32,
+    pub c_fn_addr: u64,
+    pub c_ucap_addr: u64,
+    pub s_fn_addr: u64
 }
 
 pub struct Compose<'a> {
     spec: &'a ComposeSpec,
     comp_objs: BTreeMap<String, CompObject<'a>>,
     sinvs: Vec<Sinv>,
-    ids: BTreeMap<String, u32>
+    ids: BTreeMap<String, (String, u32)>, // varname -> (imgname, index)
+    booter_info: Option<String>
 }
 
 impl ComposeSpec {
@@ -98,43 +100,6 @@ impl<'a> Compose<'a> {
             cs.insert(c.name().clone(), CompObject::parse(c.name().clone(), spec.binaries.get(c.name()).unwrap())?);
         }
 
-        // We have completed all dependencies, and now have the
-        // objects for symbol processing.  Time to create the sinv
-        // dependencies.
-        let mut sinvs = Vec::new();
-        for (n, c) in cs.iter() {
-            let cli = cs.get(n).unwrap();
-            for (s, i) in spec.build_ctxt.comp_deps(n).unwrap().iter() {
-                let srv = cs.get(s).unwrap();
-                let mut cnt = 0;
-
-                for dep in cli.dependencies().iter() {
-                    for exp in srv.exported().iter() {
-                        if dep.name() == exp.name() {
-                            sinvs.push(Sinv {
-                                name: dep.name().clone(),
-                                client: n.clone(),
-                                server: s.clone(),
-                                c_fn_addr: dep.func_addr(),
-                                c_ucap_addr: dep.ucap_addr(),
-                                s_fn_addr: exp.addr()
-                            });
-                            cnt = cnt + 1;
-                            break;
-                        }
-                    }
-                }
-                // We had better have satisified all of the
-                // dependencies!  We should have essentially validated
-                // this through the component linking phase
-                // (i.e. there should have been compiler errors there
-                // if this weren't true, so this really is an internal
-                // data-structure/consistency problem for this
-                // program.
-                assert!(cli.dependencies().len() == cnt);
-            }
-        }
-
         // Find a total order of components based on the dependency
         // relation...
         let mut tot_ord = Vec::new();
@@ -173,17 +138,57 @@ impl<'a> Compose<'a> {
         let mut ids = BTreeMap::new();
         let mut id = 1;
         for c in tot_ord {
-            ids.insert(c, id);
+            ids.insert(c.clone(), (spec.build_ctxt.comp_obj_name(&c).unwrap(), id));
             id = id + 1;
         }
-        println!("Component id assignment, and initialization schedule: {:?}", ids);
 
-        Ok(Compose {
+        // We have completed all dependencies, and now have the
+        // objects for symbol processing.  Time to create the sinv
+        // dependencies.
+        let mut sinvs = Vec::new();
+        for (n, c) in cs.iter() {
+            let cli = cs.get(n).unwrap();
+            for (s, i) in spec.build_ctxt.comp_deps(n).unwrap().iter() {
+                let srv = cs.get(s).unwrap();
+                let mut cnt = 0;
+
+                for dep in cli.dependencies().iter() {
+                    for exp in srv.exported().iter() {
+                        if dep.name() == exp.name() {
+                            sinvs.push(Sinv {
+                                name: dep.name().clone(),
+                                client: (*ids.get(n).unwrap()).1, // use the integer id here
+                                server: (*ids.get(s).unwrap()).1, // ...and here
+                                c_fn_addr: dep.func_addr(),
+                                c_ucap_addr: dep.ucap_addr(),
+                                s_fn_addr: exp.addr()
+                            });
+                            cnt = cnt + 1;
+                            break;
+                        }
+                    }
+                }
+                // We had better have satisified all of the
+                // dependencies!  We should have essentially validated
+                // this through the component linking phase
+                // (i.e. there should have been compiler errors there
+                // if this weren't true, so this really is an internal
+                // data-structure/consistency problem for this
+                // program.
+                assert!(cli.dependencies().len() == cnt);
+            }
+        }
+
+        let mut all = Compose {
             spec: spec,
             comp_objs: cs,
             sinvs: sinvs,
-            ids: ids
-        })
+            ids: ids,
+            booter_info: None
+        };
+
+        all.booter_info = Some(booter_serialize_args(&all));
+        Ok(all)
     }
 
     pub fn components(&'a self) -> &'a BTreeMap<String, CompObject<'a>> {
@@ -194,8 +199,7 @@ impl<'a> Compose<'a> {
         &self.sinvs
     }
 
-    // sect_addrs is a vector of tuples of "section name", "address" pairs
-    // fn relink(obj: String, sect_addrs: Vec<(String, String)>, tolink: Vec<String>) -> String {
-
-    // }
+    pub fn ids(&'a self) -> &'a BTreeMap<String, (String, u32)> {
+        &self.ids
+    }
 }

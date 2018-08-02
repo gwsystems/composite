@@ -32,7 +32,7 @@ pub struct Component {
 
 #[derive(Debug, Deserialize)]
 pub struct SysInfo {
-    description: String,
+    description: String
 }
 
 #[derive(Debug, Deserialize)]

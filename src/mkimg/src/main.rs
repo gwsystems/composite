@@ -11,6 +11,8 @@ mod compobject;
 mod symbols;
 mod compose;
 mod build;
+mod booter;
+mod initargs;
 
 use compose::{ComposeSpec, Compose};
 use compobject::{CompObject, ClientSymb, ServerSymb};
@@ -40,7 +42,6 @@ pub fn main() -> () {
         Ok(sysspec) => {
             let sys = Compose::parse_binaries(&sysspec).unwrap();
             sys.components().iter().for_each(|(s, ref c)| comp_print(&c));
-            println!("{:?}", sys.sinvs());
             println!("System Specification:\n{:#?}", sysspec.sysspec_output())
         },
         Err(s) => println!("{}", s)

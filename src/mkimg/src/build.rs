@@ -36,6 +36,8 @@ use std::process;
 // - COMP_NAME - which component implementation to use
 // - COMP_VARNAME - the name of the component's variable in the sysspec
 // - COMP_BASEADDR - the base address of .text for the component
+// - COMP_INITARGS_FILE - the path to the generated initial arguments .c file
+// - COMP_TAR_FILE - the path to an initargs tarball to compile into the component
 //
 // In the end, this should result in a command line for each component
 // along these (artificial) lines:
@@ -74,27 +76,31 @@ fn comp_interface_name(img: &String) -> (String, String) {
 }
 
 impl ComponentContext {
-    // Build up context for the componet based on information only
+    pub fn new_minimal(interface: &String, name: &String, varname: &String) -> ComponentContext {
+        ComponentContext {
+            comp_name: name.clone(),
+            comp_if: interface.clone(),
+            var_name: varname.clone(),
+            base_addr: String::from("0x00400000"),
+            make_cmd: None,
+            interface_exports: Vec::new(),
+            interface_deps: Vec::new(),
+            interface_servers: Vec::new(),
+            library_deps: Vec::new()
+        }
+    }
+
+    // Build up context for the component based on information only
     // from its individual specification.  Another phase is necessary
     // to build the rest of the context from the global specification
     // considering *all* components (see comp_global_context in
     // BuildContext).
     pub fn new(comp: &Component) -> ComponentContext {
         let (interface, name) = comp_interface_name(&comp.img());
-        let mut compctxt = ComponentContext {
-            comp_name: name,
-            comp_if: interface.clone(),
-            var_name: comp.name().clone(),
-            base_addr: match comp.baseaddr() {
-                Some(ref s) => s.clone(),
-                None => String::from("0x00400000")
-            },
-            make_cmd: None,
-            interface_exports: Vec::new(),
-            interface_deps: Vec::new(),
-            interface_servers: Vec::new(),
-            library_deps: Vec::new()
-        };
+        let mut compctxt = ComponentContext::new_minimal(&interface, &name, &comp.name());
+        if let Some(ref s) = comp.baseaddr() {
+            compctxt.base_addr = s.clone()
+        }
         let mut found_if = false;
 
         // populate all of the initial values from the system specification
@@ -136,8 +142,12 @@ impl ComponentContext {
     }
 }
 
+fn comp_obj_name(interface: &String, comp_impl: &String, varname: &String) -> String {
+    format!("{}.{}.{}", &interface, &comp_impl, &varname)
+}
+
 fn comp_build_obj_path(builddir: &String, interface: &String, comp_impl: &String, varname: &String) -> String {
-    format!("{}{}.{}.{}", &builddir, &interface, &comp_impl, &varname)
+    format!("{}{}", &builddir, comp_obj_name(interface, comp_impl, varname))
 }
 
 impl BuildContext {
@@ -198,15 +208,21 @@ impl BuildContext {
         }
     }
 
-    pub fn comp_obj_path(&self, varname: &String) -> Result<String, String> {
-        let c = match self.comps.get(varname) {
-            Some(ref comp) => comp.clone(),
-            None => return Err(format!("Error: Could not find component {}.\n", varname))
-        };
-        assert!(&c.var_name == varname);
-        let path = comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name);
+    pub fn comp_obj_name(&self, varname: &String) -> Result<String, String> {
+        match self.comps.get(varname) {
+            Some(ref c) => Ok(comp_obj_name(&c.comp_if, &c.comp_name, &c.var_name)),
+            None => Err(format!("Error: Could not find component {}.\n", varname))
+        }
+    }
 
-        Ok(path)
+    pub fn comp_obj_path(&self, varname: &String) -> Result<String, String> {
+        match self.comps.get(varname) {
+            Some(ref c) => {
+                assert!(&c.var_name == varname);
+                Ok(comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name))
+            },
+            None => return Err(format!("Error: Could not find component {}.\n", varname))
+        }
     }
 
     pub fn validate_deps(&self) -> Result<(), String> {
@@ -261,7 +277,7 @@ impl BuildContext {
             let cmd = format!(r#"make -C ../ COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={} component"#,
             ifs, if_deps, &c.comp_if, &c.comp_name, &c.var_name, &comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name), &c.base_addr);
 
-            println!("{}", cmd);
+            println!("Make command for component {}: {}", c.var_name, cmd);
             c.make_cmd = Some(cmd);
         }
     }
@@ -272,7 +288,9 @@ impl BuildContext {
             let mut cmd = String::from("");
             cmd.push_str(c.make_cmd.as_ref().unwrap());
             let (out, err) = exec_pipeline(vec![cmd]);
-            println!("out: {}\nerr: {}", out, err);
+            println!("Component {} compilation output:
+{}\nComponent compilation errors:
+{}", n, out, err);
         }
     }
 }
