@@ -247,3 +247,14 @@ struct cos_component_information __cosrt_comp_info =
 		       {.start = (vaddr_t)&cos_atomic_user4, .end = (vaddr_t)&cos_atomic_user4_end}},
 	  .cos_poly = {0,}
 	};
+
+char *
+cos_initargs_tar(void)
+{
+	/* Tar files are at least one record, which is 512 bytes */
+	if (_binary_tar_binary_end - _binary_tar_binary_start < 512) return NULL;
+	return _binary_tar_binary_start;
+}
+
+CWEAKSYMB char _binary_tar_binary_start[];
+CWEAKSYMB char _binary_tar_binary_end[];

@@ -257,42 +257,49 @@ impl BuildContext {
         };
     }
 
+    fn comp_gen_make_cmd(c: &ComponentContext, builddir: &String, initargsfile: Option<String>, tarfile: Option<String>) -> String {
+        let (_, mut ifs) = c.interface_exports.iter().fold((true, String::from("")), |(first, accum), (interf, var)| {
+            let mut ifpath = accum.clone();
+            if !first {
+                ifpath.push_str(" ");
+            }
+            ifpath.push_str(&interf.clone());
+            ifpath.push_str("/");
+            ifpath.push_str(&var.clone());
+            (false, ifpath)
+        });
+        let (_, mut if_deps) = c.interface_deps.iter().fold((true, String::from("")), |(first, accum), (interf, srv, var)| {
+            let mut ifpath = accum.clone();
+            if !first {
+                ifpath.push_str(" ");
+            }
+            ifpath.push_str(&interf.clone());
+            ifpath.push_str("/");
+            ifpath.push_str(&var.clone());
+            (false, ifpath)
+        });
+
+        let mut optional_cmds = String::from("");
+        if let Some(s) = initargsfile {
+            optional_cmds.push_str(&format!("COMP_INITARGS_FILE={} ", s));
+        }
+        if let Some(s) = tarfile {
+            optional_cmds.push_str(&format!("COMP_TAR_FILE={} ", s));
+        }
+
+        let cmd = format!(r#"make -C ../ COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={} {} component"#,
+                          ifs, if_deps, &c.comp_if, &c.comp_name, &c.var_name, &comp_build_obj_path(&builddir, &c.comp_if, &c.comp_name, &c.var_name), &c.base_addr, &optional_cmds);
+
+        println!("Make command for component {}: {}", c.var_name, cmd);
+        cmd
+    }
+
     fn calculate_make_cmds(&mut self) -> () {
         self.refresh_build_dir();
 
-        fn comp_gen_make_cmd(c: &mut ComponentContext, builddir: &String) -> () {
-            let (_, mut ifs) = c.interface_exports.iter().fold((true, String::from("")), |(first, accum), (interf, var)| {
-                let mut ifpath = accum.clone();
-                if !first {
-                    ifpath.push_str(" ");
-                }
-                ifpath.push_str(&interf.clone());
-                ifpath.push_str("/");
-                ifpath.push_str(&var.clone());
-                (false, ifpath)
-            });
-            let (_, mut if_deps) = c.interface_deps.iter().fold((true, String::from("")), |(first, accum), (interf, srv, var)| {
-                let mut ifpath = accum.clone();
-                if !first {
-                    ifpath.push_str(" ");
-                }
-                ifpath.push_str(&interf.clone());
-                ifpath.push_str("/");
-                ifpath.push_str(&var.clone());
-                (false, ifpath)
-            });
-
-            let cmd = format!(r#"make -C ../ COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={} component"#,
-            ifs, if_deps, &c.comp_if, &c.comp_name, &c.var_name, &comp_build_obj_path(&builddir, &c.comp_if, &c.comp_name, &c.var_name), &c.base_addr);
-
-            println!("Make command for component {}: {}", c.var_name, cmd);
-            c.make_cmd = Some(cmd);
-        }
-
         for (n, mut c) in self.comps.iter_mut() {
-            comp_gen_make_cmd(&mut c, &self.builddir);
+            c.make_cmd = Some(BuildContext::comp_gen_make_cmd(&c, &self.builddir, None, None));
         }
-        comp_gen_make_cmd(&mut self.booter, &self.builddir);
     }
 
     pub fn build_components(&mut self) -> () {
@@ -308,8 +315,8 @@ impl BuildContext {
     }
 
     pub fn gen_booter(&self, compose: &Compose) -> () {
-        let tar_path = format!("{}/booter_bins.tar", self.builddir);
-        let initargs_path = format!("{}/booter_initargs.c", self.builddir);
+        let tar_path = format!("{}booter_bins.tar", self.builddir);
+        let initargs_path = format!("{}booter_initargs.c", self.builddir);
 
         // populate the tarball for the booter
         let file = File::create(&tar_path).unwrap();
@@ -321,12 +328,14 @@ impl BuildContext {
             ar.append_file(format!("{}/{}", booter_tar_dirkey(), name), &mut f).unwrap(); // FIXME: error handling
         }
 
-        // let mut cmd = String::from("");
-        // cmd.push_str(self.booter.make_cmd.as_ref().unwrap());
-        // let (out, err) = exec_pipeline(vec![cmd]);
-
         let mut initargs_file = File::create(&initargs_path).unwrap();
         initargs_file.write_all(booter_serialize_args(&compose).as_bytes()).unwrap();
+
+        let cmd = BuildContext::comp_gen_make_cmd(&self.booter, &self.builddir, Some(initargs_path), Some(tar_path));
+        let (out, err) = exec_pipeline(vec![cmd]);
+        println!("Booter compilation output:
+{}\nComponent compilation errors:
+{}", out, err);
     }
 }
 

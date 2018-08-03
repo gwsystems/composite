@@ -14,6 +14,7 @@
 #include <util.h>
 
 void libc_init();
+char *cos_initargs_tar();
 
 /* temporary */
 static inline int

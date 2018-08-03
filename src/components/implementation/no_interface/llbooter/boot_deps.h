@@ -11,7 +11,7 @@
 #include <bitmap.h>
 
 /* Assembly function for sinv from new component */
-extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t *ret2, word_t *ret3);
+extern word_t __cosrt_s_hypercall_entry(spdid_t cur, int op, word_t arg1, word_t arg2, word_t *ret2, word_t *ret3);
 
 extern int num_cobj;
 extern int capmgr_spdid;
@@ -353,7 +353,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	compinfo->comp_cap = cc;
 
 	/* Create sinv capability from Userspace to Booter components */
-	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)hypercall_entry_rets_inv, token);
+	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)__cosrt_s_hypercall_entry, token);
 	assert(sinv > 0);
 
 	ret = cos_cap_cpy_at(compinfo, BOOT_CAPTBL_SINV_CAP, boot_info, sinv);

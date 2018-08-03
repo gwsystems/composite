@@ -28,8 +28,8 @@ ALL_INTERFACES = $(sort $(INTERFACE) $(INTERFACES)) # sort is for uniq
 # include paths for each interface
 EXPIF_INC_PATHS=$(foreach I,$(ALL_INTERFACES),-I$(INTERDIR)/$(I)/)
 # Server libraries for components that implement an interface (only if they exist).
-EXPIF_LIB_PATHS=$(foreach I,$(ALL_INTERFACES), $(if $(wildcard $(IMPLDIR)/$(I)/libs_$(I).a), -L$(IMPLDIR)/$(I)/)
-EXPIF_LIBS=$(foreach I,$(ALL_INTERFACES), $(if $(wildcard $(IMPLDIR)/$(I)/libs_$(I).a), -ls_$(I))
+EXPIF_LIB_PATHS=$(foreach I,$(ALL_INTERFACES), $(if $(wildcard $(IMPLDIR)/$(I)/libs_$(I).a), -L$(IMPLDIR)/$(I)/))
+EXPIF_LIBS=$(foreach I,$(ALL_INTERFACES), $(if $(wildcard $(IMPLDIR)/$(I)/libs_$(I).a), -ls_$(I)))
 
 # Paths and libraries derived from the interface dependencies that
 # components have defined (only if the libraries exist).
@@ -45,7 +45,7 @@ OBJS=$(CXX_OBJS) $(C_OBJS) $(ASM_OBJS) $(OBJLIBS)
 # put together all of the paths and libraries into command line
 # arguments
 INCLUDE=-I../ $(DEP_INC_PATHS) $(EXPIF_INC_PATHS) $(CINC)
-LIB_FLAGS=-L$(LIBDIR) -L$(LIBCXXDIR) $(EXPIF_LIBS) $(ADDITIONAL_LIBS)
+LIB_FLAGS=-L$(LIBDIR) -L$(LIBCXXDIR) $(EXPIF_LIB_PATHS) $(EXPIF_LIBS) $(ADDITIONAL_LIBS)
 
 #NOTE: assembly files don't have dependencies generated for them
 SOURCE_DEPENDENCIES=$(C_OBJS:%.o=%.d) $(CXX_OBJS:%.o=%.d)
@@ -84,7 +84,10 @@ component:
 	$(info |     Exported interfaces: $(COMP_INTERFACES_CLEAN))
 	$(info |     Interface dependencies: $(COMP_IFDEPS_CLEAN))
 	$(info |     Libraries: $(COMP_LIBDEPS_CLEAN) (currently ignored))
-	$(LD) $(LDFLAGS) -r -o $(COMPNAME).linked_libs_ifs.o $(COMPOBJ) $(COMP_EXPIF_OBJS) $(COMP_DEP_OBJS)
+	$(if $(COMP_INITARGS_FILE), $(CC) $(INCLUDE) $(CFLAGS) -c -o $(COMP_INITARGS_FILE:%.c=%.o) $(COMP_INITARGS_FILE))
+	$(if $(COMP_TAR_FILE), cp $(COMP_TAR_FILE) tar_binary)
+	$(if $(COMP_TAR_FILE), $(LD) -r -b binary tar_binary -o $(COMP_TAR_FILE).o; rm tar_binary)
+	$(LD) $(LDFLAGS) -r -o $(COMPNAME).linked_libs_ifs.o $(COMPOBJ) $(COMP_EXPIF_OBJS) $(COMP_DEP_OBJS) $(if $(COMP_INITARGS_FILE), $(COMP_INITARGS_FILE:%.c=%.o)) $(if $(COMP_TAR_FILE), $(COMP_TAR_FILE).o)
 	$(MUSLCC) $(COMPNAME).linked_libs_ifs.o $(MUSLCFLAGS) -Xlinker -melf_i386 -o $(COMPNAME).linked_musl.o
 	$(LD) $(LDFLAGS) -Ttext=$(COMP_BASEADDR) -T $(COMP_LD_SCRIPT) -o $(COMP_OUTPUT) $(COMPNAME).linked_musl.o
 
