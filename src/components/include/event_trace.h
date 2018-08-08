@@ -112,6 +112,7 @@ void event_trace_init(void);
  */
 int event_trace(struct event_trace_info *ei);
 void event_decode(void *trace, int sz);
+int event_flush(void);
 
 static inline void
 event_info_trace(unsigned short type, unsigned short sub_type, unsigned short objid)

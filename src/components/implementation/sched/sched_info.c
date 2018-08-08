@@ -16,7 +16,8 @@ static struct sched_childinfo childinfo[NUM_CPU][SCHED_MAX_CHILD_COMPS];
 static unsigned int sched_num_child[NUM_CPU] CACHE_ALIGNED;
 static unsigned int sched_num_childsched[NUM_CPU] CACHE_ALIGNED;
 
-unsigned int self_init[NUM_CPU] CACHE_ALIGNED, num_child_init[NUM_CPU] CACHE_ALIGNED;
+unsigned int self_init[NUM_CPU] CACHE_ALIGNED;
+volatile unsigned int num_child_init[NUM_CPU] CACHE_ALIGNED;
 
 /* implementation specific initialization per child */
 extern void sched_child_init(struct sched_childinfo *schedci);

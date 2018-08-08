@@ -8,7 +8,7 @@
 /* We delegate the main thread of execution to a different thread
  * (the main thread needs to run the scheduling loop)
  */
-#define MAIN_DELEGATE_THREAD_PRIORITY 2
+#define MAIN_DELEGATE_THREAD_PRIORITY 1
 #define TIMER_THREAD_PRIORITY (MAIN_DELEGATE_THREAD_PRIORITY + 1)
 
 #define CFE_PSP_SENSOR_INTERVAL_USEC (500*1000) //500ms

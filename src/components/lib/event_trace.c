@@ -66,21 +66,24 @@ const char *countsem_msg[] = {
 
 #include <ck_ring.h>
 #include <cos_serial.h>
-#include <ps_plat.h>
+#include <sl_lock.h>
 
-#define EVTTRACE_RING_SIZE 1024
+#define EVTTRACE_RETRY_MAX 10
+#define EVTTRACE_RING_SIZE 512
+#define EVTTRACE_RINGBUF_SIZE (sizeof(struct event_trace_info) * EVTTRACE_RING_SIZE)
+#define EVTTRACE_BATCH_SIZE 128
+#define EVTTRACE_BATCHBUF_SIZE (sizeof(struct event_trace_info) * EVTTRACE_BATCH_SIZE)
 /*
  * FIXME:
  * For now, tracing only in this component.
  */
 static struct ck_ring evttrace_ring;
 static struct event_trace_info evttrace_buf[EVTTRACE_RING_SIZE];
-/* for now, using it for only serial writes */
-static struct ps_lock evttrace_lock;
 unsigned long long evttrace_st_tsc = 0;
 unsigned int evttrace_cpu_cycs_usec = 0;
+/* skipped: how many failed retry. queued: how many were written to ring buffer. logged: how many were written to serial output */
+static unsigned long long skipped = 0, queued = 0, logged = 0;
 
-/* TODO: no locks yet. could interleave here! */
 void
 event_trace_init(void)
 {
@@ -90,8 +93,7 @@ event_trace_init(void)
 	unsigned long long st_tsc = 0;
 
 	PRINTC("Event trace initialization!\n");
-	ps_lock_init(&evttrace_lock);
-	memset(evttrace_buf, 0, sizeof(struct event_trace_info) * EVTTRACE_RING_SIZE);
+	memset(evttrace_buf, 0, EVTTRACE_RINGBUF_SIZE);
 	ck_ring_init(&evttrace_ring, EVTTRACE_RING_SIZE);
 	rdtscll(st_tsc);
 	memcpy(tracehdr, &magic, sizeof(unsigned int));
@@ -105,44 +107,60 @@ event_trace_init(void)
 	evttrace_initialized = 1;
 }
 
-static int
+#define EVTTRACE_BATCH_OUTPUT
+int
 event_flush(void)
 {
-	unsigned char flush_buf[LLPRINT_SERIAL_MAX_LEN] = { 0 };
-	struct event_trace_info evtinfo;
-	int count = 0, max = LLPRINT_SERIAL_MAX_LEN / sizeof(struct event_trace_info), ret_count = 0;
+	unsigned char flush_buf[EVTTRACE_BATCHBUF_SIZE] = { 0 };
+	unsigned int count = 0, ret_count = 0, batch_sz = 0;
 
-	assert(evttrace_initialized);
+	if (unlikely(evttrace_initialized == 0)) return 0;
 
-	memset(flush_buf, 0, LLPRINT_SERIAL_MAX_LEN);
-	while (ck_ring_dequeue_mpmc_evttrace(&evttrace_ring, evttrace_buf, &evtinfo) == true) {
+	batch_sz = ck_ring_size(&evttrace_ring);
 
+	batch_sz = batch_sz > EVTTRACE_BATCH_SIZE ? EVTTRACE_BATCH_SIZE : batch_sz;
 
-		/* batch writing to serial */
-		memcpy(flush_buf + (sizeof(struct event_trace_info) * count), &evtinfo, sizeof(struct event_trace_info));
-		count++;
-		assert(count <= max);
+#ifdef EVTTRACE_BATCH_OUTPUT
+	while (count < batch_sz) {
+		struct event_trace_info evtinfo;
+		int retry_count = 0, ret;
 
-		if (count == max) {
-			ret_count += count;
-			count = 0;
-#ifndef EVTTRACE_DEBUG_TRACE
-			serial_print(flush_buf, sizeof(struct event_trace_info) * max);
-#else
-			event_decode((void *)flush_buf, sizeof(struct event_trace_info) * max);
-#endif
-			memset(flush_buf, 0, LLPRINT_SERIAL_MAX_LEN);
+retry:
+		ret = ck_ring_trydequeue_mpmc_evttrace(&evttrace_ring, evttrace_buf, &evtinfo);
+
+		/* as long as there is data in the queue */
+		if (ret != true) {
+			retry_count++;
+
+			if (likely(retry_count < EVTTRACE_RETRY_MAX)) goto retry;
+
+			break;
 		}
+
+		memcpy(flush_buf + (sizeof(struct event_trace_info) * count), &evtinfo, sizeof(struct event_trace_info));
+#else
+		serial_print((void *)&evtinfo, sizeof(struct event_trace_info));
+#endif
+		count++;
 	}
 
-	ret_count += count;
-	if (count) {
-#ifndef EVTTRACE_DEBUG_TRACE
-		serial_print(flush_buf, sizeof(struct event_trace_info) * count);
-#else
-		event_decode((void *)flush_buf, sizeof(struct event_trace_info) * count);
-#endif
+	ret_count = count;
+
+#if 0
+//#ifdef EVTTRACE_BATCH_OUTPUT
+	batch_sz = LLPRINT_SERIAL_MAX_LEN / sizeof(struct event_trace_info);
+
+	count = 0;
+	while (count < ret_count) {
+		int len = ret_count - count;
+
+		len = len > batch_sz ? batch_sz : len;
+		serial_print(flush_buf + (sizeof(struct event_trace_info) * count), sizeof(struct event_trace_info) * len);
+
+		count += len;
 	}
+#endif
+	logged += ret_count;
 
 	return ret_count;
 }
@@ -150,6 +168,8 @@ event_flush(void)
 int
 event_trace(struct event_trace_info *ei)
 {
+	int count = 0;
+
 	/* don't log yet or don't log for components that don't initialize, ex: sl events only for cFE..*/
 	if (unlikely(evttrace_initialized == 0)) return 0;
 
@@ -158,7 +178,22 @@ retry:
 	if (ck_ring_enqueue_mpmc_evttrace(&evttrace_ring, evttrace_buf, ei) != true) {
 		event_flush();
 
+		count++;
+		/* TODO: perhaps spit out number of skipped msgs or write directly to serial or something?? */
+		if (unlikely(count >= EVTTRACE_RETRY_MAX)) {
+			skipped++;
+			return -1;
+		}
+
 		goto retry;
+	}
+
+	queued++;
+	if (unlikely(queued % 10000 == 0)) {
+		char buff[80] = { 0 };
+
+		sprintf(buff, "Skipped: %llu, Queued: %llu, Logged: %llu\n", skipped, queued, logged);
+		cos_print(buff, strlen(buff));
 	}
 
 	return 0;
@@ -333,6 +368,10 @@ event_trace_init(void)
 
 int
 event_trace(struct event_trace_info *ei)
+{ assert(0); }
+
+int
+event_flush(void)
 { assert(0); }
 
 void
@@ -577,6 +616,7 @@ main(int argc, char **argv)
 	}
 	close(fd);
 	trace_sz = convert_hex_to_bin(trace, trace_bin);
+	printf("Original size: %u\nTrace size: %u\n", tsb.st_size, trace_sz);
 	printf("******************************\n");
 	event_decode(trace_check_hdr(trace_bin, &trace_sz), trace_sz);
 	printf("******************************\n");

@@ -91,7 +91,7 @@ __cos_print(char *s, int len)
 {
 
 	if (len > STR_MIN_PRINTC) PRINTC("%s", s);
-	else cos_llprint(s, len);
+	else printc("%s", s);
 }
 
 static inline void

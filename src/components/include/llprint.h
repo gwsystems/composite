@@ -9,13 +9,11 @@
 #include <cos_serial.h>
 
 #define LLPRINT_MAX_LEN 128
-#define LLPRINT_SERIAL_MAX_LEN 512
+#define LLPRINT_SERIAL_MAX_LEN 128
 
 static void
 cos_llprint(char *s, int len)
 {
-	if (cos_cpuid()) return;
-//	cos_serial_putb(s, len);
 	cos_print(s, len);
 }
 

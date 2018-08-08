@@ -1,6 +1,6 @@
 include Makefile.src Makefile.comp
 
-LIB_OBJS=heap.o cobj_format.o cos_kernel_api.o cos_defkernel_api.o event_trace.o
+LIB_OBJS=heap.o cobj_format.o cos_kernel_api.o cos_defkernel_api.o
 LIBS=$(LIB_OBJS:%.o=%.a)
 MANDITORY=c_stub.o cos_asm_upcall.o cos_asm_ainv.o cos_component.o
 MAND=$(MANDITORY_LIB)
@@ -10,8 +10,8 @@ SIMPLE_STKLIB=simple_stklib.o
 CINC_ENV=$(CINC)
 export CINC_ENV
 
-.PHONY: all sl ps ck sinv
-all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl sinv
+.PHONY: all sl ps ck sinv evttrace
+all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl sinv evttrace
 
 # we have to compile these without dietlibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't
@@ -32,6 +32,11 @@ sl:
 
 sinv:
 	make $(MAKEFLAGS) -C sinv_async
+
+evttrace:event_trace.c
+	$(info |     [CC]   Creating library file event_trace.a from event_trace.o)
+	@$(CC) $(CFLAGS) $(CINC) -o event_trace.a -c event_trace.c
+	@$(AR) cr libevent_trace.a event_trace.a
 
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)

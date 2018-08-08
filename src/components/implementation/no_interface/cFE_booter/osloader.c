@@ -60,7 +60,7 @@ launch_other_component(spdid_t child_id, int is_library)
 	id_overrides[sl_thd_thdid(t)] = sl_thdid();
 
 	if (is_library) {
-		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, 1));
+		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, 3));
 		sl_thd_yield(sl_thd_thdid(t));
 	} else {
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, get_this_threads_priority()));

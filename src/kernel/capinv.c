@@ -1045,10 +1045,8 @@ composite_syscall_handler(struct pt_regs *regs)
 	 * which is at timer tick granularity.
 	 */
 	ch = captbl_lkup(ci->captbl, cap);
-	if (unlikely(!ch)) {
-		printk("cos: cap %d not found!\n", (int)cap);
-		cos_throw(done, 0);
-	}
+	/* FIXME: not an error?? */
+	if (unlikely(!ch)) cos_throw(done, 0);
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
 		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info);

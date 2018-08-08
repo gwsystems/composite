@@ -24,6 +24,9 @@ u32_t cycs_per_usec = 0;
 #define FIXED_BUDGET_US (5000)
 #endif
 
+#define CFE_CORE 0
+#define RK_CORE 1
+
 static struct sl_thd *__initializer_thd[NUM_CPU] CACHE_ALIGNED;
 
 static int
@@ -98,6 +101,12 @@ cos_init(void)
 
 	sl_init_cpubmp(SL_MIN_PERIOD_US * 5, cpubmp);
 	sched_childinfo_init();
+
+	if (cos_cpuid() == CFE_CORE) {
+		/* wait for RK to initialize */
+		while (num_child_init[RK_CORE] == 0) ;
+	}
+
 	__initializer_thd[cos_cpuid()] = sl_thd_alloc(__init_done, NULL);
 	assert(__initializer_thd[cos_cpuid()]);
 	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, INITIALIZE_PRIO));

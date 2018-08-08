@@ -5,7 +5,6 @@
 #define PRINTK_BUFFER 1024
 
 static void (*printk_handlers[PRINTK_MAX_HANDLERS])(const char *);
-static unsigned num_handlers = 0;
 
 int
 printk_register_handler(printk_t type, void (*handler)(const char *))

@@ -12,7 +12,7 @@
 #include <sched_info.h>
 #include <sl_child.h>
 
-extern unsigned int num_child_init[];
+extern volatile unsigned int num_child_init[];
 extern thdcap_t capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid);
 
 cbuf_t

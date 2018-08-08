@@ -34,7 +34,9 @@ serial_send(char out)
 void
 serial_puts(const char *s)
 {
+#ifdef ENABLE_SERIAL
 	for (; *s != '\0'; s++) serial_send(*s);
+#endif
 }
 
 void
