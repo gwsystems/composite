@@ -6,6 +6,9 @@
 #define EVENT_TRACE_H
 
 #define EVENT_TRACE_START_MAGIC 0xdeadbeef
+#define EVENT_TRACE_REMOTE
+#define EVENT_TRACE_INPORT 10205
+#define EVENT_TRACE_OUTPORT 10206
 
 enum {
 	SYSCALL_EVENT,
@@ -98,20 +101,36 @@ struct event_trace_info {
 	unsigned short objid;
 };
 
+void event_decode(void *trace, int sz);
+
 #ifndef LINUX_DECODE
+
+#define EVENT_TRACE_REMOTE
 #include <ck_ring.h>
 #include <cos_component.h>
 #include <cos_kernel_api.h>
 
 CK_RING_PROTOTYPE(evttrace, event_trace_info);
-#endif
 
+#ifndef EVENT_TRACE_REMOTE
 void event_trace_init(void);
+#else
+
+#define EVENT_TRACE_KEY 0xdead
+#define EVENT_TRACE_NPAGES 4
+
+typedef int (*evttrace_write_fn_t)(unsigned char *buf, unsigned int bufsz);
+
+/* server that is producing events. */
+void event_trace_server_init(void);
+/* remote client that is consuming events. */
+void event_trace_client_init(evttrace_write_fn_t fn);
+
+#endif
 /*
  *@return 0 - successful, 1 - failed to trace event
  */
 int event_trace(struct event_trace_info *ei);
-void event_decode(void *trace, int sz);
 int event_flush(void);
 
 static inline void
@@ -161,5 +180,8 @@ event_info_trace(unsigned short type, unsigned short sub_type, unsigned short ob
 #define EVTTR_COUNTSEM_GIVE_END(obj)        event_info_trace(COUNTSEM_EVENT, COUNTSEM_GIVE_END, obj)
 #define EVTTR_COUNTSEM_TIMEDWAIT_START(obj) event_info_trace(COUNTSEM_EVENT, COUNTSEM_TIMEDWAIT_START, obj)
 #define EVTTR_COUNTSEM_TIMEDWAIT_END(obj)   event_info_trace(COUNTSEM_EVENT, COUNTSEM_TIMEDWAIT_END, obj)
+#else
+void *event_trace_check_hdr(void *buf, unsigned int *sz);
+#endif
 
 #endif /* EVENT_TRACE_H */

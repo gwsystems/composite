@@ -7,6 +7,7 @@
 #include "gen/common_types.h"
 #include "gen/osapi.h"
 #include <capmgr.h>
+#include <event_trace.h>
 
 #ifdef UNIT_TESTS
 #include "test/shared/ut_main_composite.h"
@@ -146,7 +147,13 @@ void
 cos_init(void)
 {
 	command_line_set_defaults(&args);
+
+#ifndef EVENT_TRACE_REMOTE
 	event_trace_init();
+#else
+	/* hope that the rk thread is initialized by now! */
+	event_trace_server_init();
+#endif
 
 	/*
 	** Set the reset type

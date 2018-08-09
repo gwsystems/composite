@@ -48,14 +48,14 @@ sl_mod_wakeup(struct sl_thd_policy *t)
 {
 	assert(ps_list_singleton_d(t));
 
-	ps_list_head_append_d(&threads[cos_cpuid()][t->priority - 1], t);
+	ps_list_head_append_d(&threads[cos_cpuid()][t->priority], t);
 }
 
 void
 sl_mod_yield(struct sl_thd_policy *t, struct sl_thd_policy *yield_to)
 {
 	ps_list_rem_d(t);
-	ps_list_head_append_d(&threads[cos_cpuid()][t->priority - 1], t);
+	ps_list_head_append_d(&threads[cos_cpuid()][t->priority], t);
 }
 
 void
@@ -81,7 +81,7 @@ sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned 
 		assert(v >= SL_FPRR_PRIO_HIGHEST && v <= SL_FPRR_PRIO_LOWEST);
 		ps_list_rem_d(t); /* if we're already on a list, and we're updating priority */
 		t->priority = v;
-		ps_list_head_append_d(&threads[cos_cpuid()][t->priority - 1], t);
+		ps_list_head_append_d(&threads[cos_cpuid()][t->priority], t);
 		sl_thd_setprio(sl_mod_thd_get(t), t->priority);
 
 		break;

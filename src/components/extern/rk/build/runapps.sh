@@ -9,6 +9,7 @@ RUNSCRIPT=micro_boot.sh
 rkapps=( "udpserv"
 	 "http"
 	 "iperf"
+	 "udptrace"
 	)
 
 cp ./$QEMURK ./$TRANSFERDIR

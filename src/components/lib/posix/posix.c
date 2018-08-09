@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/utsname.h>
+#include <sys/time.h>
 
 #include <cos_component.h>
 #include <cos_defkernel_api.h>
@@ -351,8 +352,8 @@ struct sl_lock futex_lock = SL_LOCK_STATIC_INIT();
 int
 cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct timespec *timeout)
 {
-	cycles_t   deadline;
-	microsec_t wait_time;
+	cycles_t   deadline = 0;
+	microsec_t wait_time = 0;
 	struct futex_waiter waiter = (struct futex_waiter) {
 		.thdid = sl_thdid()
 	};

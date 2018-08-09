@@ -19,6 +19,7 @@ static char *app_names[RK_APPS_MAX] = {
 		"udpserv",
 		"http",
 		"iperf",
+		"udptrace",
 	};
 
 static char *stub_names[RK_STUBS_MAX] = {

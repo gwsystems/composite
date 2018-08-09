@@ -1,7 +1,7 @@
 #ifndef VK_TYPES_H
 #define VK_TYPES_H
 
-#define RK_APPS_MAX 3
+#define RK_APPS_MAX 4
 #define RK_STUBS_MAX 8
 #define RK_NAME_MAX 12
 #define RK_STUBREQS_MAX 6
