@@ -35,6 +35,7 @@ thdid_t os_timer_thdid = 0;
 #define TIMERS_MAX 4
 #define TIMER_PERIOD_US (10*1000)
 #define TIMER_ACCURACY_US 0
+#define TIMER_EXPIRY_THRESH (1<<12)
 
 struct cfe_os_timers {
 	char name[TIMER_NAME_MAX];
@@ -80,14 +81,21 @@ alloc_timer(const char *name, OS_TimerCallback_t cbkfn)
 int32
 set_timer(uint32 timerid, uint32 start_us, uint32 interval_us)
 {
-	if (timerid >= free_timer) return -1;
+	if (unlikely(timerid >= free_timer)) return -1;
 
-	if (start_us < TIMER_ACCURACY_US) start_us = TIMER_ACCURACY_US;
-	if (interval_us < TIMER_ACCURACY_US) interval_us = TIMER_ACCURACY_US;
+	if (unlikely(start_us > 0 && start_us < TIMER_ACCURACY_US)) start_us = TIMER_ACCURACY_US;
+	if (unlikely(interval_us > 0 && interval_us < TIMER_ACCURACY_US)) interval_us = TIMER_ACCURACY_US;
+
 	/* FIXME: lock to update the ds. */
-	ntimers[timerid].start_usec = start_us;
-	ntimers[timerid].interval_usec = interval_us;
-	ntimers[timerid].next_deadline = time_now() + time_usec2cyc(ntimers[timerid].interval_usec);
+	if (likely(start_us)) {
+		ntimers[timerid].start_usec = start_us;
+		ntimers[timerid].interval_usec = interval_us;
+		ntimers[timerid].next_deadline = time_now() + time_usec2cyc(ntimers[timerid].start_usec);
+	} else {
+		ntimers[timerid].start_usec = 0;
+		ntimers[timerid].interval_usec = 0;
+		ntimers[timerid].next_deadline = 0;
+	}
 
 	return 0;
 }
@@ -119,18 +127,21 @@ timer_handler_fn(void)
 		cycles_t now = time_now();
 
 		for (i = 0; i < freecnt; i++) {
-			if (ntimers[i].next_deadline < now) continue;
+			/* if timer is not armed */
+			if (unlikely(!ntimers[i].next_deadline)) continue;
+			/* if the deadline is in the future */
+			if (likely(ntimers[i].next_deadline > (now + TIMER_EXPIRY_THRESH))) continue;
 
 			/* FIXME: account for lost intervals! */
 			/* use last_active to see how much time passed! */
 			ntimers[i].last_active = now;
 			/* for simplicity for now */
-			ntimers[i].next_deadline = now + time_usec2cyc(ntimers[i].interval_usec);
+			ntimers[i].next_deadline += time_usec2cyc(ntimers[i].interval_usec);
 			(ntimers[i].callbkptr)(i);
 		}
 
 		now = time_now();
-		if (next_interval < now) {
+		if (likely(next_interval < now)) {
 			next_interval = (now + interval) - ((now - next_interval) % interval);
 		}
 
