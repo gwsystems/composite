@@ -1,7 +1,7 @@
-#ifndef EVENT_TRACE_ENABLE
-#define EVENT_TRACE_ENABLE
-#endif
-
+//#ifndef EVENT_TRACE_ENABLE
+//#define EVENT_TRACE_ENABLE
+//#endif
+//
 #ifndef EVENT_TRACE_H
 #define EVENT_TRACE_H
 

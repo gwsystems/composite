@@ -67,7 +67,7 @@ OS_SchedulerStart(cos_thd_fn_t main_delegate)
 	sched_param_t         sp;
 	struct cfe_task_info *task_info;
 
-	sl_init(SL_MIN_PERIOD_US);
+	sl_init(SCHED_PERIOD_US);
 
 	main_delegate_thread = sl_thd_alloc(main_delegate, NULL);
 	sp                   = sched_param_pack(SCHEDP_PRIO, MAIN_DELEGATE_THREAD_PRIORITY);

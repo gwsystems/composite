@@ -3,6 +3,8 @@
 
 #include <sl.h>
 
+#define SCHED_PERIOD_US SL_MIN_PERIOD_US
+
 #define HZ_PAUSE_US (1000*1000) //1 sec
 
 /* We delegate the main thread of execution to a different thread

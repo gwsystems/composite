@@ -4,6 +4,7 @@
 #include <sl.h>
 #include <sl_consts.h>
 
+#include "ostask.h"
 #include "gen/osapi.h"
 #include "gen/cfe_psp.h"
 #include "gen/cfe_time.h"
@@ -87,7 +88,7 @@ OS_Milli2Ticks(uint32 milliseconds)
 int32
 OS_Tick2Micros(void)
 {
-	return SL_MIN_PERIOD_US;
+	return SCHED_PERIOD_US;
 }
 
 OS_time_t

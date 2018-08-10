@@ -89,6 +89,7 @@ static struct event_trace_info evttrace_buf[EVTTRACE_RING_SIZE];
 void
 event_trace_init(void)
 {
+#ifdef EVENT_TRACE_ENABLE
 	unsigned char tracehdr[EVTTRACE_HDR_SZ] = { 0 };
 	unsigned int magic = EVENT_TRACE_START_MAGIC;
 	unsigned int cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
@@ -107,6 +108,7 @@ event_trace_init(void)
 	serial_print((void *)&tracehdr, EVTTRACE_HDR_SZ);
 
 	evttrace_initialized = 1;
+#endif
 }
 
 #define EVTTRACE_BATCH_OUTPUT
@@ -216,6 +218,7 @@ static evttrace_write_fn_t evttrace_write_fn = NULL;
 void
 event_trace_server_init(void)
 {
+#ifdef EVENT_TRACE_ENABLE
 	unsigned long npages = 0;
 
 	/* wait for the client to create shm */
@@ -229,11 +232,13 @@ event_trace_server_init(void)
 	assert(ck_ring_capacity(evttrace_ring) == EVTTRACE_RING_SIZE);
 	PRINTC("Server init done!\n");
 	evttrace_initialized = 1;
+#endif
 }
 
 void
 event_trace_client_init(evttrace_write_fn_t wrfn)
 {
+#ifdef EVENT_TRACE_ENABLE
 	unsigned char tracehdr[EVTTRACE_HDR_SZ] = { 0 };
 	unsigned int magic = EVENT_TRACE_START_MAGIC;
 	unsigned int cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
@@ -260,6 +265,7 @@ event_trace_client_init(evttrace_write_fn_t wrfn)
 
 	PRINTC("Client init done!\n");
 	evttrace_initialized = 1;
+#endif
 }
 
 #define EVTTRACE_BATCH_OUTPUT
@@ -299,6 +305,7 @@ event_flush(void)
 	if (likely(ret_count)) evttrace_write_fn(flush_buf, ret_count * sizeof(struct event_trace_info));
 #endif
 	logged += ret_count;
+	if (unlikely(logged % 10000 == 0)) PRINTC("Logged: %llu\n", logged);
 
 	return ret_count;
 }
@@ -325,7 +332,7 @@ retry:
 	}
 
 	queued++;
-	if (unlikely(queued % 10000 == 0)) PRINTC("Skipped: %llu, Queued: %llu, Logged: %llu\n", skipped, queued, logged);
+	if (unlikely(queued % 10000 == 0)) PRINTC("Skipped: %llu, Queued: %llu\n", skipped, queued);
 
 	return 0;
 }

@@ -33,7 +33,8 @@ thdid_t os_timer_thdid = 0;
 
 #define TIMER_NAME_MAX 32
 #define TIMERS_MAX 4
-#define TIMER_PERIOD_US (SL_MIN_PERIOD_US)
+#define TIMER_PERIOD_US (10*1000)
+#define TIMER_ACCURACY_US 0
 
 struct cfe_os_timers {
 	char name[TIMER_NAME_MAX];
@@ -81,8 +82,8 @@ set_timer(uint32 timerid, uint32 start_us, uint32 interval_us)
 {
 	if (timerid >= free_timer) return -1;
 
-	if (start_us > 0 && start_us < TIMER_PERIOD_US) start_us = TIMER_PERIOD_US;
-	if (interval_us > 0 && interval_us < TIMER_PERIOD_US) interval_us = TIMER_PERIOD_US;
+	if (start_us < TIMER_ACCURACY_US) start_us = TIMER_ACCURACY_US;
+	if (interval_us < TIMER_ACCURACY_US) interval_us = TIMER_ACCURACY_US;
 	/* FIXME: lock to update the ds. */
 	ntimers[timerid].start_usec = start_us;
 	ntimers[timerid].interval_usec = interval_us;
@@ -1310,7 +1311,7 @@ OS_TimerCreate(uint32 *timer_id, const char *timer_name, uint32 *clock_accuracy,
 		os_timer_thdid = emu_create_thread(spdid, idx);
 	}
 
-	*clock_accuracy = TIMER_PERIOD_US;
+	*clock_accuracy = TIMER_ACCURACY_US;
 	*timer_id = alloc_timer(timer_name, callback_ptr);
 
 	return OS_SUCCESS;

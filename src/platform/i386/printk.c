@@ -27,8 +27,8 @@ printk(const char *fmt, ...)
 	l = vsprintf(buffer, fmt, args);
 	va_end(args);
 
-//	for (i = 0; i < PRINTK_MAX_HANDLERS; i++) {
-//		if (printk_handlers[i]) printk_handlers[i](buffer);
-//	}
-	if (printk_handlers[PRINTK_VGA]) printk_handlers[PRINTK_VGA](buffer);
+	for (i = 0; i < PRINTK_MAX_HANDLERS; i++) {
+		if (printk_handlers[i]) printk_handlers[i](buffer);
+	}
+//	if (printk_handlers[PRINTK_VGA]) printk_handlers[PRINTK_VGA](buffer);
 }
