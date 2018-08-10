@@ -447,6 +447,7 @@ sl_thd_yield_cs_exit(thdid_t tid)
 	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
 	sl_thd_cycs_update(t, 0, 0);
 	sl_thd_sched_unblock_no_cs(t);
+	//if (likely(t != sl__globals_cpu()->sched_thd && t != sl__globals_cpu()->idle_thd)) sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
 	if (tid) {
 		struct sl_thd *to = sl_thd_lkup(tid);
 

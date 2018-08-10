@@ -476,8 +476,8 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci = &dci->ci;
-	struct sl_thd_policy   *pt;
-	struct sl_thd *         t;
+	struct sl_thd_policy   *pt = NULL;
+	struct sl_thd *         t = NULL;
 	struct sl_global_cpu   *globals = sl__globals_cpu();
 	sched_tok_t             tok;
 	cycles_t                now;
@@ -522,6 +522,29 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		}
 	}
 
+//	pt = sl_mod_schedule();
+//	if (likely(pt)) t = sl_mod_thd_get(pt);
+//	/*
+//	 * yield to the requested thread only if it's of higher prio than the schedulable thread!
+//	 * TODO: priority inheritance case??
+//	 */
+//	if (unlikely(to && t && sl_thd_is_runnable(to))) {
+//		if (to->prio <= to->prio || (to->prio > t->prio && t == sl_thd_curr())) t = to;
+//	}
+//
+//	if (unlikely(!t)) {
+//		t = globals->idle_thd;
+//#ifdef SL_IDLE_USAGE
+//		if (likely(globals->idle_start && globals->idle_last > globals->idle_start)) {
+//			globals->idle_total += (globals->idle_last - globals->idle_start);
+//		}
+//		/* could be preempted after this (out of cs)! */
+//		globals->idle_start = now;
+//#endif
+//	} else {
+//		sl_thd_cycs_update(t, 0, 1);
+//	}
+
 	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {
 		assert(t->period);
 		assert(sl_thd_tcap(t) != globals->sched_tcap);
@@ -547,6 +570,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 
 	assert(sl_thd_is_runnable(t));
 	sl_cs_exit();
+	if (unlikely(sl_thd_curr() == t)) return 0;
 
 	ret = sl_thd_activate(t, tok);
 	/*
