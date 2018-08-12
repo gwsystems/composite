@@ -1,6 +1,9 @@
 #ifndef INITARGS_H
 #define INITARGS_H
 
+#include <tar.h>
+#include <initargs.h>
+
 /*
  * A very simple nested K/V representation for retrieving initial
  * arguments to components.
@@ -11,14 +14,17 @@
  * - Keys should not include '/' characters.
  */
 
-#include <string.h>
+typedef enum {
+	ARGS_KV,
+	ARGS_TAR
+} args_type_t;
 
 typedef enum {
 	VTYPE_STR,
 	VTYPE_ARR,
-} args_valtype_t;
+} kv_valtype_t;
 
-union args_val {
+union kv_val {
 	const char *str;
 	struct {
 		const int sz;
@@ -26,149 +32,50 @@ union args_val {
 	} arr;
 };
 
-struct initargs {
+struct kv_entry {
 	const char *key;
-	const args_valtype_t vtype;
-	const union args_val val;
+	const kv_valtype_t vtype;
+	const union kv_val val;
 };
 
-struct initargs_iter {
-	const struct initargs *start;
+struct kv_iter {
+	struct kv_entry *start;
 	int curr, len;
 };
 
-extern const struct initargs __initargs_top;
-
 /*
- * Operations on a specific K/V entry.  If you know that it should
- * contain a K/V pair with a value that resolves to a string, you can
- * use args_value successfully.
- *
- * Note that all functions in this API can take the kv argument as
- * NULL to ease error checking to be only required on the final
- * values.
+ * This is the structure that holds persistent data that the caller
+ * must save to avoid memory allocation.
  */
+struct initargs {
+	args_type_t type;
+	union {
+		struct kv_entry *kv_ent;
+		struct tar_entry tar_ent;
+	} d;
+};
 
-/* The key associated with a specific entry */
-const char *
-args_key(const struct initargs *kv)
-{
-	if (!kv) return NULL;
-	return kv->key;
-}
+struct initargs_iter {
+	args_type_t type;
+	union {
+		struct kv_iter kv_i;
+		struct tar_iter tar_i;
+	} i;
+};
 
-/* And the value, but only if it is a string (NULL otherwise) */
-const char *
-args_value(const struct initargs *kv)
-{
-	if (!kv) return NULL;
-	switch (kv->vtype) {
-	case VTYPE_STR: return kv->val.str;
-	case VTYPE_ARR: return NULL;
-	default: 	return NULL;
-	}
-}
-
+/* Query the arguments, passing a path (/-delimited) */
+const char *args_get(const char *path, int *str_len);
+int args_get_entry(const char *path, struct initargs *entry);
+/* Access the k/v of a given entry */
+const char *args_key(const struct initargs *entry, int *str_len);
+const char *args_value(const struct initargs *entry);
+/* Iterate through the entries, particularly in a map. */
+int args_len(const struct initargs *kv);
 /*
- * Operations on maps: get their size, index into them, and lookup an
- * entry by key.
+ * Both of the following return 1 if an entry is found, and it is
+ * populated in first, 0 otherwise.
  */
-
-/* Length of the K/V map (= 1 for a K/V with a string value) */
-static int
-__args_len(const struct initargs *kv)
-{
-	if (!kv) return 0;
-	switch (kv->vtype) {
-	case VTYPE_STR: return 1;
-	case VTYPE_ARR: return kv->val.arr.sz;
-	default:        return 0;
-	}
-}
-
-/* Index into a K/V map to get the Nth value. */
-static const struct initargs *
-__args_index(const struct initargs *kv, int idx)
-{
-	if (!kv) return NULL;
-	if (idx >= __args_len(kv) || idx < 0) return NULL;
-	if (kv->vtype == VTYPE_STR) return kv;
-	return kv->val.arr.kvs[idx];
-}
-
-const struct initargs *
-args_iter_next(struct initargs_iter *i)
-{
-	if (i->curr == i->len) return NULL;
-	return __args_index(i->start, i->curr++);
-}
-
-/*
- * Initialize the iterator through (hopefully) the K/V store.  Note:
- * this returns the first item in the K/V store
- */
-const struct initargs *
-args_iter(const struct initargs *kv, struct initargs_iter *i)
-{
-	*i = (struct initargs_iter){
-		.start = kv,
-		.curr  = 0,
-		.len   = __args_len(kv)
-	};
-	return args_iter_next(i);
-}
-
-/*
- * Lookup a key in a K/V map and return the corresponding entry.  Note
- * that this lookup is somewhat unique in that it will lookup the key
- * as a string (null terminated), or as a part of a path (up to and
- * not including a '/').  This enables this function to be used to
- * walk through the data-structure guided by a path through the k/v.
- */
-const struct initargs *
-args_lkup_entry(const struct initargs *kv, char *path)
-{
-	struct initargs_iter i;
-	const struct initargs *curr;
-	unsigned int len;
-	char *slash, *key = path;
-
-	if (!kv || !key) return NULL;
-	/* Iterate through the path... */
-	do {
-		slash = strchr(key, '/');
-		len = slash ? (unsigned int)(slash - key) : strlen(key);
-
-		/* ...and look the key up in the KV */
-		for (curr = args_iter(kv, &i) ; curr ; curr = args_iter_next(&i)) {
-			const char *k = args_key(curr);
-
-			if (strncmp(k, key, len) == 0 && strlen(k) == len) return curr;
-		}
-
-		if (slash) key = slash + 1;
-	} while (slash && *key != '\0');
-
-	return NULL;
-}
-
-/*
- * The "base-case" API where we need to do the initial lookup in the
- * KV map.  This requires basing the search in some structure:
- * __initargs_top.  This supports searching by a "path" through the
- * structure, which is just a /-separated set of keys used to lookup
- * in the corresponding maps.
- */
-static const struct initargs *
-args_get_entry(char *path)
-{
-	return args_lkup_entry(&__initargs_top, path);
-}
-
-static const char *
-args_get(char *path)
-{
-	return args_value(args_get_entry(path));
-}
+int args_iter(const struct initargs *kv, struct initargs_iter *i, struct initargs *first);
+int args_iter_next(struct initargs_iter *i, struct initargs *next);
 
 #endif /* INITARGS_H */
