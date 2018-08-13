@@ -1,7 +1,9 @@
+//#ifndef EVENT_LINUX_DECODE
 //#ifndef EVENT_TRACE_ENABLE
 //#define EVENT_TRACE_ENABLE
 //#endif
-//
+//#endif
+
 #ifndef EVENT_TRACE_H
 #define EVENT_TRACE_H
 
@@ -9,6 +11,7 @@
 #define EVENT_TRACE_REMOTE
 #define EVENT_TRACE_INPORT 10205
 #define EVENT_TRACE_OUTPORT 10206
+#define EVENT_TRACE_HOSTIP  "192.168.0.1"
 
 enum {
 	SYSCALL_EVENT,
@@ -95,17 +98,18 @@ struct event_trace_info {
 	unsigned short type;
 	unsigned short sub_type;
 
-	unsigned long long ts;
-
 	unsigned short thdid;
 	unsigned short objid;
+
+	unsigned long long ts;
+
+	/* keep this struct a power of 2, if required by padding. */
 };
 
 void event_decode(void *trace, int sz);
 
-#ifndef LINUX_DECODE
+#ifndef EVENT_LINUX_DECODE
 
-#define EVENT_TRACE_REMOTE
 #include <ck_ring.h>
 #include <cos_component.h>
 #include <cos_kernel_api.h>
@@ -117,7 +121,7 @@ void event_trace_init(void);
 #else
 
 #define EVENT_TRACE_KEY 0xdead
-#define EVENT_TRACE_NPAGES 4
+#define EVENT_TRACE_NPAGES 5
 
 typedef int (*evttrace_write_fn_t)(unsigned char *buf, unsigned int bufsz);
 

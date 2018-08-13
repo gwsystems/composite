@@ -39,8 +39,6 @@ udp_event_trace_init(void)
 	socklen_t client_salen = sizeof(struct sockaddr);
 	char buf[CLIBUF_SZ] = { 0 };
 
-	printc("entering event trace loop\n");
-
 	soutput.sin_family      = AF_INET;
 	soutput.sin_port        = htons(EVENT_TRACE_OUTPORT);
 	soutput.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -69,6 +67,12 @@ udp_event_trace_init(void)
 	soutput.sin_addr.s_addr = ((struct sockaddr_in*)&client_sa)->sin_addr.s_addr;
 
 	printc("Recvfrom success: [%s]\nStarting to flush out events!\n", buf);
+
+#ifdef EVENT_TRACE_REMOTE
+	event_trace_client_init(udp_writeout);
+#else
+	assert(0);
+#endif
 }
 
 static int
@@ -100,11 +104,6 @@ cos_init(void)
 	rk_libcmod_init();
 
 	udp_event_trace_init();
-#ifdef EVENT_TRACE_REMOTE
-	event_trace_client_init(udp_writeout);
-#else
-	assert(0);
-#endif
 	schedinit_child();
 
 	udp_event_trace_loop();

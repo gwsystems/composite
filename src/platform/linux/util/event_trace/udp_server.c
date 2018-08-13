@@ -1,4 +1,4 @@
-#ifdef LINUX_DECODE
+#ifdef EVENT_LINUX_DECODE
 #include <assert.h>
 #include <sys/types.h>
 #include <sys/socket.h>

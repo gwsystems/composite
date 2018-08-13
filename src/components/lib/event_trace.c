@@ -1,6 +1,5 @@
 #include <event_trace.h>
 
-#undef EVTTRACE_DEBUG_TRACE
 const char *syscall_msg[] = {
 	"sys: thread switch start, switch to=%u\n",
 	"sys: thread switch end\n",
@@ -60,18 +59,22 @@ const char *countsem_msg[] = {
 #define EVTTRACE_HDR_SZ (sizeof(unsigned int) * 2 + sizeof(unsigned long long))
 #define EVTTRACE_MSG_LEN 128
 
-#ifndef LINUX_DECODE
+#ifndef EVENT_LINUX_DECODE
 
 #include <ck_ring.h>
 
+#define EVTTRACE_BATCH_OUTPUT
+#undef EVTTRACE_DEBUG_TRACE
+#define EVTTRACE_RETRY_MAX 10
 /* skipped: how many failed retry. queued: how many were written to ring buffer. logged: how many were written to serial output */
 static unsigned long long skipped = 0, queued = 0, logged = 0;
 static int evttrace_initialized = 0;
 static unsigned long long evttrace_st_tsc = 0;
 static unsigned int evttrace_cpu_cycs_usec = 0;
-#define EVTTRACE_RETRY_MAX 10
+static unsigned char tracehdr[EVTTRACE_HDR_SZ] = { 0 };
 
 #ifndef EVENT_TRACE_REMOTE
+
 #include <cos_serial.h>
 #include <sl_lock.h>
 
@@ -111,7 +114,6 @@ event_trace_init(void)
 #endif
 }
 
-#define EVTTRACE_BATCH_OUTPUT
 int
 event_flush(void)
 {
@@ -204,15 +206,19 @@ retry:
 #include "../interface/channel/channel.h"
 
 static cbuf_t evttrace_shmid = 0;
-static vaddr_t evttrace_vaddr = 0;
-static struct ck_ring *evttrace_ring = NULL;
-static struct event_trace_info *evttrace_buf = NULL;
+static volatile vaddr_t evttrace_vaddr = 0;
+static volatile struct ck_ring *evttrace_ring = NULL;
+static volatile struct event_trace_info *evttrace_buf = NULL;
 static evttrace_write_fn_t evttrace_write_fn = NULL;
 
-#define EVTTRACE_RINGBUF_SIZE (EVENT_TRACE_NPAGES * PAGE_SIZE - (sizeof(struct ck_ring)) - sizeof(unsigned int))
+#define EVTTRACE_RING ((struct ck_ring *)evttrace_ring)
+#define EVTTRACE_BUF ((struct event_trace_info *)evttrace_buf)
+
+/* NPAGES must be = (power of 2) + 1 */
+#define EVTTRACE_RINGBUF_SIZE ((EVENT_TRACE_NPAGES-1) * PAGE_SIZE)
 #define EVTTRACE_RING_SIZE (EVTTRACE_RINGBUF_SIZE / sizeof(struct event_trace_info))
 
-#define EVTTRACE_BATCHBUF_SIZE 1400 /* MTU - approx UDP header size */
+#define EVTTRACE_BATCHBUF_SIZE 1024 /* MTU - approx UDP header size */
 #define EVTTRACE_BATCH_SIZE (EVTTRACE_BATCHBUF_SIZE / sizeof(struct event_trace_info))
 
 void
@@ -222,15 +228,16 @@ event_trace_server_init(void)
 	unsigned long npages = 0;
 
 	/* wait for the client to create shm */
-	while (!evttrace_shmid) evttrace_shmid = channel_shared_page_map(EVENT_TRACE_KEY, &evttrace_vaddr, &npages);
+	while (!evttrace_shmid) evttrace_shmid = channel_shared_page_map(EVENT_TRACE_KEY, (vaddr_t *)&evttrace_vaddr, &npages);
 	assert(evttrace_shmid && evttrace_vaddr && npages == EVENT_TRACE_NPAGES);
-	evttrace_buf = (struct event_trace_info *)evttrace_vaddr;
-	evttrace_ring = (struct ck_ring *)(evttrace_vaddr + EVTTRACE_RINGBUF_SIZE);
-
 	/* wait for the client to init. */
-	while (ps_load((unsigned long *)(evttrace_vaddr + EVTTRACE_RINGBUF_SIZE + sizeof(struct ck_ring))) != 1) ;
-	assert(ck_ring_capacity(evttrace_ring) == EVTTRACE_RING_SIZE);
-	PRINTC("Server init done!\n");
+	while (ps_load((unsigned long *)(evttrace_vaddr)) != evttrace_shmid) ;
+	/* 1 page pretty much wasted! */
+	evttrace_buf = (volatile struct event_trace_info *)(evttrace_vaddr + PAGE_SIZE);
+	evttrace_ring = (volatile struct ck_ring *)(evttrace_vaddr + sizeof(unsigned long));
+
+	PRINTC("Server init done! [capacity: %u]\n", ck_ring_capacity(EVTTRACE_RING));
+	assert(ck_ring_capacity(EVTTRACE_RING) == EVTTRACE_RING_SIZE);
 	evttrace_initialized = 1;
 #endif
 }
@@ -239,7 +246,6 @@ void
 event_trace_client_init(evttrace_write_fn_t wrfn)
 {
 #ifdef EVENT_TRACE_ENABLE
-	unsigned char tracehdr[EVTTRACE_HDR_SZ] = { 0 };
 	unsigned int magic = EVENT_TRACE_START_MAGIC;
 	unsigned int cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	unsigned long long st_tsc = 0;
@@ -254,58 +260,59 @@ event_trace_client_init(evttrace_write_fn_t wrfn)
 
 	evttrace_shmid = channel_shared_page_allocn(EVENT_TRACE_KEY, EVENT_TRACE_NPAGES, (vaddr_t *)&evttrace_vaddr);
 	assert(evttrace_shmid && evttrace_vaddr);
+	memset((void *)evttrace_vaddr, 0, EVENT_TRACE_NPAGES * PAGE_SIZE);
 
-	evttrace_buf = (struct event_trace_info *)evttrace_vaddr;
-	memset(evttrace_buf, 0, EVENT_TRACE_NPAGES * PAGE_SIZE);
-	evttrace_ring = (struct ck_ring *)(evttrace_vaddr + EVTTRACE_RINGBUF_SIZE);
+	evttrace_ring = (volatile struct ck_ring *)(evttrace_vaddr + sizeof(unsigned long));
+	ck_ring_init(EVTTRACE_RING, EVTTRACE_RING_SIZE);
+	/* 1 page pretty much wasted! */
+	evttrace_buf = (volatile struct event_trace_info *)(evttrace_vaddr + PAGE_SIZE);
 
-	ck_ring_init(evttrace_ring, EVTTRACE_RING_SIZE);
 	evttrace_write_fn = wrfn;
-	ps_faa((unsigned long *)(evttrace_vaddr + EVTTRACE_RINGBUF_SIZE + sizeof(struct ck_ring)), 1);
 
-	PRINTC("Client init done!\n");
+	PRINTC("Client init done! [capacity: %u]\n", ck_ring_capacity(EVTTRACE_RING));
+	ps_cas((unsigned long *)(evttrace_vaddr), 0, evttrace_shmid);
 	evttrace_initialized = 1;
 #endif
 }
 
-#define EVTTRACE_BATCH_OUTPUT
 int
 event_flush(void)
 {
+	static int first = 1;
 	unsigned char flush_buf[EVTTRACE_BATCHBUF_SIZE] = { 0 };
 	unsigned int count = 0, ret_count = 0;
 
 	if (unlikely(evttrace_initialized == 0)) return 0;
-	/* try to batch process.. less workload */
-	if (ck_ring_size(evttrace_ring) < EVTTRACE_BATCH_SIZE) return 0;
 
 	memset(flush_buf, 0, EVTTRACE_BATCHBUF_SIZE);
 
-	while (count < EVTTRACE_BATCH_SIZE) {
-		struct event_trace_info evtinfo;
-		int ret;
+	/* mpsc because multiple cfe threads can write. only one rk thread will read */
+	while (ck_ring_dequeue_mpsc_evttrace(evttrace_ring, evttrace_buf,
+	       (struct event_trace_info *)(flush_buf + (count * sizeof(struct event_trace_info)))) == true) {
 
-		/* mpsc because multiple cfe threads can write. only one rk thread will read */
-		ret = ck_ring_dequeue_mpsc_evttrace(evttrace_ring, evttrace_buf, &evtinfo);
-
-		/* as long as there is data in the queue */
-		if (ret != true) break;
-
-#ifdef EVTTRACE_BATCH_OUTPUT
-		memcpy(flush_buf + (sizeof(struct event_trace_info) * count), &evtinfo, sizeof(struct event_trace_info));
+#ifndef EVTTRACE_BATCH_OUTPUT
+#ifdef EVTTRACE_DEBUG_TRACE
+		event_decode(flush_buf + (count * sizeof(struct event_trace_info)), sizeof(struct event_trace_info));
 #else
-		evttrace_write_fn(&evtinfo, sizeof(struct event_trace_info));
+		evttrace_write_fn(flush_buf + (count * sizeof(struct event_trace_info)), sizeof(struct event_trace_info));
+#endif
 #endif
 		count++;
+
+		if (unlikely(count >= EVTTRACE_BATCH_SIZE)) break;
 	}
 
 	ret_count = count;
 
 #ifdef EVTTRACE_BATCH_OUTPUT
+#ifdef EVTTRACE_DEBUG_TRACE
+	if (likely(ret_count)) event_decode(flush_buf, ret_count * sizeof(struct event_trace_info));
+#else
 	if (likely(ret_count)) evttrace_write_fn(flush_buf, ret_count * sizeof(struct event_trace_info));
 #endif
+#endif
 	logged += ret_count;
-	if (unlikely(logged % 10000 == 0)) PRINTC("Logged: %llu\n", logged);
+	if (unlikely(ret_count && logged % 100000 == 0)) PRINTC("Logged: %llu\n", logged);
 
 	return ret_count;
 }
@@ -320,7 +327,7 @@ event_trace(struct event_trace_info *ei)
 
 retry:
 	/* mpsc because multiple cfe threads can write. only one rk thread will read */
-	if (ck_ring_enqueue_mpsc_evttrace(evttrace_ring, evttrace_buf, ei) != true) {
+	if (ck_ring_enqueue_mpsc_evttrace(EVTTRACE_RING, EVTTRACE_BUF, ei) != true) {
 		count++;
 		/* TODO: perhaps spit out number of skipped msgs or write directly to serial or something?? */
 		if (unlikely(count >= EVTTRACE_RETRY_MAX)) {
@@ -332,7 +339,7 @@ retry:
 	}
 
 	queued++;
-	if (unlikely(queued % 10000 == 0)) PRINTC("Skipped: %llu, Queued: %llu\n", skipped, queued);
+	if (unlikely(queued % 100000 == 0)) PRINTC("Skipped: %llu, Queued: %llu\n", skipped, queued);
 
 	return 0;
 }
@@ -349,16 +356,15 @@ event_decode(void *trace, int sz)
 
 	assert(evttrace_initialized);
 	assert(sz >= eisz);
-	assert(evttrace_cpu_cycs_usec > 0);
+//	assert(evttrace_cpu_cycs_usec > 0);
 
 	do {
 		char trace_msg[EVTTRACE_MSG_LEN] = { 0 };
 		unsigned long long tsc = 0;
 
 		evt = (struct event_trace_info *)(trace + curr);
-		memset(trace_msg, 0, EVTTRACE_MSG_LEN);
 		tsc = evt->ts;
-		tsc -= evttrace_st_tsc;
+		//tsc -= evttrace_st_tsc;
 		sprintf(trace_msg, "[%LF] thread=%u, ", ((long double)tsc/(long double)evttrace_cpu_cycs_usec), evt->thdid);
 
 		switch(evt->type) {
@@ -542,7 +548,9 @@ event_decode(void *trace, int sz)
 							strncat(trace_msg, syscall_msg[evt->sub_type], strlen(syscall_msg[evt->sub_type]));
 							fprintf(stdout, "%s", trace_msg);
 							break;
-						default: assert(0);
+						default:
+							fprintf(stdout, "Not an event\n");
+							break;
 					}
 					break;
 				}
@@ -563,7 +571,9 @@ event_decode(void *trace, int sz)
 							strncat(trace_msg, sl_msg[evt->sub_type], strlen(sl_msg[evt->sub_type]));
 							fprintf(stdout, "%s", trace_msg);
 							break;
-						default: assert(0);
+						default:
+							fprintf(stdout, "Not an event\n");
+							break;
 					}
 
 					break;
@@ -578,7 +588,9 @@ event_decode(void *trace, int sz)
 							strncat(trace_msg, queue_msg[evt->sub_type], strlen(queue_msg[evt->sub_type]));
 							fprintf(stdout, trace_msg, evt->objid);
 							break;
-						default: assert(0);
+						default:
+							fprintf(stdout, "Not an event\n");
+							break;
 					}
 
 					break;
@@ -593,7 +605,9 @@ event_decode(void *trace, int sz)
 							strncat(trace_msg, mutex_msg[evt->sub_type], strlen(mutex_msg[evt->sub_type]));
 							fprintf(stdout, trace_msg, evt->objid);
 							break;
-						default: assert(0);
+						default:
+							fprintf(stdout, "Not an event\n");
+							break;
 					}
 
 					break;
@@ -610,7 +624,9 @@ event_decode(void *trace, int sz)
 							strncat(trace_msg, binsem_msg[evt->sub_type], strlen(binsem_msg[evt->sub_type]));
 							fprintf(stdout, trace_msg, evt->objid);
 							break;
-						default: assert(0);
+						default:
+							fprintf(stdout, "Not an event\n");
+							break;
 					}
 
 					break;
@@ -627,7 +643,9 @@ event_decode(void *trace, int sz)
 							strncat(trace_msg, countsem_msg[evt->sub_type], strlen(countsem_msg[evt->sub_type]));
 							fprintf(stdout, trace_msg, evt->objid);
 							break;
-						default: assert(0);
+						default:
+							fprintf(stdout, "Not an event\n");
+							break;
 					}
 
 					break;
@@ -704,6 +722,7 @@ event_trace_check_hdr(void *trace_bin, unsigned int *sz)
 	return (void *)((unsigned char *)trace_bin + start_off);
 }
 
+#ifdef EVENT_TRACE_REMOTE
 int
 main(int argc, char **argv)
 {
@@ -716,5 +735,60 @@ main(int argc, char **argv)
 
 	return 0;
 }
+#else
+
+int
+main(int argc, char **argv)
+{
+	int fd = -1;
+	void *trace = NULL, *trace_bin = NULL;
+	struct stat tsb;
+	unsigned int trace_sz = 0;
+	char *skip = NULL;
+
+	if (argc != 2) {
+		printf("Usage: %s <input_file_path>\n", argv[0]);
+		goto abort;
+	}
+
+	fd = open(argv[1], O_RDONLY);
+	if (fd < 0) {
+		perror("open");
+		goto abort;
+	}
+
+	if (fstat(fd, &tsb) > 0) {
+		perror("fstat");
+		goto error;
+	}
+
+	trace = malloc(tsb.st_size);
+	trace_bin = malloc(tsb.st_size);
+	if (!trace || !trace_bin) {
+		printf("malloc failed\n");
+		goto error;
+	}
+
+	memset(trace, 0, tsb.st_size);
+	memset(trace_bin, 0, tsb.st_size);
+	if (read(fd, trace, tsb.st_size) != tsb.st_size) {
+		perror("read");
+		goto error;
+	}
+	close(fd);
+	trace_sz = convert_hex_to_bin(trace, trace_bin);
+	printf("Original size: %u\nTrace size: %u\n", tsb.st_size, trace_sz);
+	printf("******************************\n");
+	event_decode(event_trace_check_hdr(trace_bin, &trace_sz), trace_sz);
+	printf("******************************\n");
+
+	return 0;
+
+error:
+	close(fd);
+abort:
+	exit(1);
+}
+#endif
 
 #endif
