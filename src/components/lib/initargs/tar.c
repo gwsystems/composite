@@ -4,16 +4,27 @@
  * All rights reserved.  Redistribution of this file is permitted
  * under the BSD 2 clause license.
  */
-#include <stdio.h>
 
 #include <tar.h>
 #include <string.h>
-#ifdef TAR_TEST
+#if defined(TAR_TEST) || defined(ARGS_TEST)
 #define round_to_pow2(x, pow2) (((unsigned long)(x)) & (~(pow2 - 1)))
 #define round_up_to_pow2(x, pow2) (round_to_pow2(((unsigned long)x) + pow2 - 1, pow2))
 #else
-#include <const.h>
+#include <consts.h>
 #endif
+
+static inline int
+tar_is_file(struct tar_record *r)
+{
+	return *r->linkflag == '0' || *r->linkflag == '\0';
+}
+
+static inline int
+tar_is_dir(struct tar_record *r)
+{
+	return *r->linkflag == '5';
+}
 
 /* We are at the end of an archive when we have two empty records. */
 static inline int
@@ -109,10 +120,10 @@ tar_path(struct tar_entry *ent)
  * API mimics strcmp, 0 == match
  */
 static int
-tar_pathcmp(struct tar_entry *ent, const char *path)
+tar_pathcmp(struct tar_entry *ent, char *path)
 {
 	char *p, *end;
-	const char *key;
+	char *key;
 	int ignore, cmp;
 	size_t len;
 
@@ -154,24 +165,22 @@ tar_path_iter_next(struct tar_entry *path, struct tar_record **iter)
 {
 	struct tar_record *r;
 
-//	printf("tar_path_iter_next: starting path %s\n", path->record->name);
 	if (!tar_valid(path) || iter == NULL || *iter == NULL) return NULL;
 
 	for (r = *iter; r && !tar_end(r) && tar_pathcmp(path, r->name); r = tar_next_record(r)) ;
 	if (tar_end(r)) return NULL;
 	*iter = tar_next_record(r);
-//	printf("\tmatches: %s\n", r->name);
 
 	return r;
 }
 
-const char *
+char *
 tar_key(struct tar_entry *ent, int *str_len)
 {
 	return tar_nesting(ent->nesting_lvl, ent->record->name, str_len);
 }
 
-const char *
+char *
 tar_value(struct tar_entry *ent)
 {
 	if (!tar_valid(ent)) return NULL;
@@ -190,20 +199,25 @@ tar_value_sz(struct tar_entry *ent)
 }
 
 int
+tar_is_value(struct tar_entry *ent)
+{
+	if (!tar_valid(ent)) return 0;
+
+	return tar_is_file(ent->record);
+}
+
+int
 tar_iter_next(struct tar_iter *i, struct tar_entry *next)
 {
 	struct tar_record *r;
 
 	if (!i || !tar_valid(&i->entry)) return 0;
 
-//	printf("iter_next: iter with %s\n", i->entry.record->name);
 	r = tar_path_iter_next(&i->entry, &i->iter_rec);
 	if (!r) return 0;
 
 	next->nesting_lvl = i->entry.nesting_lvl;
 	next->record = r;
-
-//	printf("iter_next: return record %p, %s\n", next->record, next->record->name);
 
 	return 1;
 }
@@ -241,8 +255,8 @@ tar_len(struct tar_entry *start)
 	return cnt;
 }
 
-extern struct tar_record _binary_booter_bins_tar_start[];
-extern struct tar_record _binary_booter_bins_tar_end[];
+struct tar_record _binary_booter_bins_tar_start[0] __attribute__((weak));
+struct tar_record _binary_booter_bins_tar_end[0] __attribute__((weak));
 
 struct tar_entry __tar_root = {
 	.nesting_lvl = -1, 	/* tar archives don't start paths with a '/' */
@@ -252,7 +266,7 @@ struct tar_entry __tar_root = {
 struct tar_entry *
 tar_root(void)
 {
-	if (_binary_booter_bins_tar_end - _binary_booter_bins_tar_start < 2) return NULL;
+	if ((char *)_binary_booter_bins_tar_end - (char *)_binary_booter_bins_tar_start < 512) return NULL;
 
 	return &__tar_root;
 }

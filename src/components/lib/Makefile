@@ -10,8 +10,8 @@ SIMPLE_STKLIB=simple_stklib.o
 CINC_ENV=$(CINC)
 export CINC_ENV
 
-.PHONY: all sl ps
-all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl
+.PHONY: all libs ps
+all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) libs
 
 # we have to compile these without dietlibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't
@@ -27,8 +27,9 @@ $(MAND): $(MANDITORY)
 $(SIMPLE_STKLIB): $(SIMPLE_STACKS)
 	@$(LD) $(LDFLAGS) -r -o $@ $^
 
-sl:
+libs:
 	make -C sl
+	make -C initargs
 
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)

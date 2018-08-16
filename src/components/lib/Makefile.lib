@@ -1,0 +1,23 @@
+include Makefile.src Makefile.comp
+
+CFILES=$(wildcard *.c)
+OBJS=$(CFILES:%.c=%.o)
+
+all: $(LIBTARGET)
+
+%.a: $(OBJS)
+	$(info |     [CC]   Creating library file $@ from $^)
+	@$(AR) cr $@ $^
+	@cp $@ ../
+
+%.o:%.S
+	$(info |     [AS]   Compiling assembly file $^ into $@)
+	@$(AS) $(ASFLAGS) $(CINC) -c -o $@ $^
+
+%.o:%.c
+	$(info |     [CC]   Compiling C file $^ into $@)
+	@$(CC) $(CFLAGS) $(CINC) -o $@ -c $^
+
+clean:
+	$(info |     [RM]   Cleaning up directory)
+	@rm -f a.out *.o *.a *.d *~

@@ -22,11 +22,7 @@ impl VarNamespace {
     fn fresh_name(&mut self) -> String {
         let id = self.id;
         self.id = self.id + 1;
-        if (id == 0) {
-            String::from("__initargs_top")
-        } else {
-            format!("__initargs_autogen_{}", id)
-        }
+        format!("__initargs_autogen_{}", id)
     }
 }
 
@@ -40,7 +36,7 @@ impl ArgsKV {
     }
 
     pub fn new_top(val: Vec<ArgsKV>) -> ArgsKV {
-        ArgsKV { key: String::from("args"), val: ArgsValType::Arr(val) }
+        ArgsKV { key: String::from("_"), val: ArgsValType::Arr(val) }
     }
 
     // This provides code generation for the data-structure containing
@@ -50,7 +46,7 @@ impl ArgsKV {
         match &self {
             ArgsKV { key: k, val: ArgsValType::Str(ref s) } => { // base case
                 let kv_name = ns.fresh_name();
-                (format!(r#"static const struct initargs {} = {{ key: "{}", vtype: VTYPE_STR, val: {{ str: "{}" }} }};
+                (format!(r#"static const struct kv_entry {} = {{ key: "{}", vtype: VTYPE_STR, val: {{ str: "{}" }} }};
 "#, kv_name, k, s),
                  vec![format!("&{}", kv_name)])
             },
@@ -67,8 +63,8 @@ impl ArgsKV {
 
                     (format!("{}{}", t, t1), exprs)
                 });
-                (format!(r#"{}static const struct initargs *{}[] = {{{}}};
-const struct initargs {} = {{ key: "{}", vtype: VTYPE_ARR, val: {{ arr: {{ sz: {}, kvs: {} }} }} }};
+                (format!(r#"{}static struct kv_entry *{}[] = {{{}}};
+static struct kv_entry {} = {{ key: "{}", vtype: VTYPE_ARR, val: {{ arr: {{ sz: {}, kvs: {} }} }} }};
 "#,
                          strs.0, arr_name, strs.1.join(", "), arr_val_name, k, kvs.len(), arr_name),
                  vec![format!("&{}", arr_val_name)])
@@ -82,6 +78,7 @@ const struct initargs {} = {{ key: "{}", vtype: VTYPE_ARR, val: {{ arr: {{ sz: {
         let mut ns = VarNamespace::new();
 
         format!("#include <initargs.h>
-{}", self.serialize_rec(&mut ns).0)
+{}
+struct initargs __initargs_root = {{ type: ARGS_IMPL_KV, d: {{ kv_ent: __initargs_autogen_0 }} }};", self.serialize_rec(&mut ns).0)
     }
 }

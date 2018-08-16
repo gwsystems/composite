@@ -2,7 +2,6 @@
 #define INITARGS_H
 
 #include <tar.h>
-#include <initargs.h>
 
 /*
  * A very simple nested K/V representation for retrieving initial
@@ -15,27 +14,34 @@
  */
 
 typedef enum {
-	ARGS_KV,
-	ARGS_TAR
+	ARGS_ERR = 0,
+	ARGS_MAP,
+	ARGS_VAL
 } args_type_t;
+
+typedef enum {
+	ARGS_IMPL_KV,
+	ARGS_IMPL_TAR
+} args_impltype_t;
 
 typedef enum {
 	VTYPE_STR,
 	VTYPE_ARR,
 } kv_valtype_t;
 
+struct kv_entry;
 union kv_val {
-	const char *str;
+	char *str;
 	struct {
-		const int sz;
-		const struct initargs **kvs;
+		int sz;
+		struct kv_entry **kvs;
 	} arr;
 };
 
 struct kv_entry {
-	const char *key;
-	const kv_valtype_t vtype;
-	const union kv_val val;
+	char *key;
+	kv_valtype_t vtype;
+	union kv_val val;
 };
 
 struct kv_iter {
@@ -48,7 +54,7 @@ struct kv_iter {
  * must save to avoid memory allocation.
  */
 struct initargs {
-	args_type_t type;
+	args_impltype_t type;
 	union {
 		struct kv_entry *kv_ent;
 		struct tar_entry tar_ent;
@@ -56,7 +62,7 @@ struct initargs {
 };
 
 struct initargs_iter {
-	args_type_t type;
+	args_impltype_t type;
 	union {
 		struct kv_iter kv_i;
 		struct tar_iter tar_i;
@@ -64,18 +70,14 @@ struct initargs_iter {
 };
 
 /* Query the arguments, passing a path (/-delimited) */
-const char *args_get(const char *path, int *str_len);
-int args_get_entry(const char *path, struct initargs *entry);
+char *args_get(char *path);
+int args_get_entry(char *path, struct initargs *entry);
 /* Access the k/v of a given entry */
-const char *args_key(const struct initargs *entry, int *str_len);
-const char *args_value(const struct initargs *entry);
+ char *args_key(struct initargs *entry, int *str_len);
+ char *args_value(struct initargs *entry);
 /* Iterate through the entries, particularly in a map. */
-int args_len(const struct initargs *kv);
-/*
- * Both of the following return 1 if an entry is found, and it is
- * populated in first, 0 otherwise.
- */
-int args_iter(const struct initargs *kv, struct initargs_iter *i, struct initargs *first);
+int args_len(struct initargs *kv);
+int args_iter(struct initargs *kv, struct initargs_iter *i, struct initargs *first);
 int args_iter_next(struct initargs_iter *i, struct initargs *next);
 
 #endif /* INITARGS_H */

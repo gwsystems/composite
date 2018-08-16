@@ -34,18 +34,6 @@ struct tar_record {
 	char pad[255];
 };
 
-static inline int
-tar_is_file(struct tar_record *r)
-{
-	return *r->linkflag == '0' || *r->linkflag == '\0';
-}
-
-static inline int
-tar_is_dir(struct tar_record *r)
-{
-	return *r->linkflag == '5';
-}
-
 struct tar_entry {
 	int nesting_lvl;
 	struct tar_record *record; /* mainly used for the path */
@@ -56,10 +44,11 @@ struct tar_iter {
 	struct tar_record *iter_rec; /* ...and iterate through the tarball */
 };
 
-const char *tar_key(struct tar_entry *ent, int *str_len);
-const char *tar_value(struct tar_entry *ent);
+char *tar_key(struct tar_entry *ent, int *str_len);
+char *tar_value(struct tar_entry *ent);
 int tar_value_sz(struct tar_entry *ent);
 int tar_len(struct tar_entry *ent);
+int tar_is_value(struct tar_entry *ent);
 
 /* create the iterator for a directory, and return the first entry */
 int tar_iter(struct tar_entry *ent, struct tar_iter *i, struct tar_entry *first);
