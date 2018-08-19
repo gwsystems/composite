@@ -11,7 +11,7 @@
 #include <bitmap.h>
 
 /* Assembly function for sinv from new component */
-extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t *ret2, word_t *ret3);
+extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t arg3, word_t *ret2, word_t *ret3);
 
 extern int num_cobj;
 extern int capmgr_spdid;
@@ -601,7 +601,7 @@ __hypercall_resource_access_check(spdid_t dstid, spdid_t srcid, int capmgr_ignor
 }
 
 word_t
-hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
+hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4, word_t arg5)
 {
 	int ret1 = 0;
 	spdid_t client = cos_inv_token();
