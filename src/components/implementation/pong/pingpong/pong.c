@@ -42,9 +42,9 @@ call_arg(int p1)
 }
 
 void
-call_args(int p1, int p2, int p3)
+call_args(int p1, int p2, int p3, int p4)
 {
-	PRINTLOG(PRINT_DEBUG, "In call_args() in pong interface, client:%lu. args: p1:%d p2:%d p3:%d\n", cos_inv_token(), p1, p2, p3);
+	PRINTLOG(PRINT_DEBUG, "In call_args() in pong interface, client:%u. args: p1:%d p2:%d p3:%d p4:%d\n", cos_inv_token(), p1, p2, p3, p4);
 	return;
 }
 
