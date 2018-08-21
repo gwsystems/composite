@@ -1,3 +1,25 @@
+diff --git a/sys/dev/pci/pci.c b/sys/dev/pci/pci.c
+index d407586..ec1274c 100644
+--- a/sys/dev/pci/pci.c
++++ b/sys/dev/pci/pci.c
+@@ -354,7 +354,7 @@ pci_probe_device(struct pci_softc *sc, pcitag_t tag,
+ 				nr->r_flags = BUS_SPACE_MAP_LINEAR |
+ 					      BUS_SPACE_MAP_PREFETCHABLE;
+ 			}
+-			
++
+ 		}
+ 	}
+ 
+@@ -604,7 +604,7 @@ pci_enumerate_bus(struct pci_softc *sc, const int *locators,
+ 	const struct pci_quirkdata *qd;
+ 	pcireg_t id, bhlcr;
+ 	pcitag_t tag;
+-	uint8_t devs[32];
++	uint8_t devs[64];
+ 	int i, n;
+ 
+ 	n = pci_bus_devorder(sc->sc_pc, sc->sc_bus, devs, __arraycount(devs));
 diff --git a/sys/kern/init_main.c b/sys/kern/init_main.c
 index dbdc10c..30df56b 100644
 --- a/sys/kern/init_main.c
@@ -1602,6 +1624,19 @@ index a683f88..214dcba 100644
  
  void *rumpcomp_pci_map(unsigned long, unsigned long);
  int rumpcomp_pci_confread(unsigned, unsigned, unsigned, int, unsigned int *);
+diff --git a/sys/rump/dev/lib/libpci/rumpdev_pci.c b/sys/rump/dev/lib/libpci/rumpdev_pci.c
+index 249076a..499d347 100644
+--- a/sys/rump/dev/lib/libpci/rumpdev_pci.c
++++ b/sys/rump/dev/lib/libpci/rumpdev_pci.c
+@@ -47,7 +47,7 @@ int
+ pci_bus_maxdevs(pci_chipset_tag_t pc, int busno)
+ {
+ 
+-	return 32;
++	return 64;
+ }
+ 
+ pcitag_t
 diff --git a/sys/rump/librump/rumpkern/intr.c b/sys/rump/librump/rumpkern/intr.c
 index 434326b..2904a3c 100644
 --- a/sys/rump/librump/rumpkern/intr.c

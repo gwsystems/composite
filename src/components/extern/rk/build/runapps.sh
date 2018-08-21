@@ -6,12 +6,6 @@ QEMURK=qemu_rk.sh
 TRANSFERDIR=../../../../../transfer/
 RUNSCRIPT=micro_boot.sh
 
-rkapps=( "udpserv"
-	 "http"
-	 "iperf"
-	 "udptrace"
-	)
-
 cp ./$QEMURK ./$TRANSFERDIR
 
 localizesymsrc=( "__fpclassifyl"

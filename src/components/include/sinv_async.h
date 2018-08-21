@@ -12,7 +12,7 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 
-#define SINV_NUM_MAX 16
+#define SINV_NUM_MAX 32
 #define SINV_INIT_NPAGES 1
 #define SINV_REQ_NPAGES  1
 

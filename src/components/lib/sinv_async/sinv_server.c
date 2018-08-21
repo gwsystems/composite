@@ -129,7 +129,7 @@ sinv_server_aep_fn(arcvcap_t rcv, void *data)
 		ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_SET, SINV_REQ_RESET); /* indicate request completion */
 		assert(ret);
 
-		if (snd) cos_asnd(snd, 0);
+		//if (snd) cos_asnd(snd, 0);
 	}
 }
 
