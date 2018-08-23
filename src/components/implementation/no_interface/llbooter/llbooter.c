@@ -190,7 +190,10 @@ boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val, char 
 
 	/* returns full-bitmap(all bits set to 1) if not specified in the runscript */
 	ret = cos_args_cpubmp(spdinfo->cpu_bitmap, ci->init_string);
-	assert(ret == 0);
+	if (ret != 0)  {
+		PRINTC("Something wrong with the %u's CPU bitmap\n", spdid);
+		assert(0);
+	}
 	PRINTLOG(PRINT_DEBUG, "Comp %u init-string:%s, init-cpu_bitmap:", spdid, ci->init_string);
 	for (i = NUM_CPU-1; i >= 0; i--) printc("%d", bitmap_check(spdinfo->cpu_bitmap, i) ? 1 : 0);
 	printc("\n");
