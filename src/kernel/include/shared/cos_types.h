@@ -534,6 +534,11 @@ typedef unsigned short int cos_channelkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KE
  */
 #define PRINT_CAP_TEMP (BOOT_CAPTBL_PRINT_HACK)
 
+#define CFE_COMP_NAME   "cFE"
+#define RK_COMP_NAME    "rumpcos"
+#define CFE_INITRCV_KEY 0x7ffe
+#define RK_INITRCV_KEY  0x7ffd
+
 #define CFE_RK_MULTI_CORE
 
 #endif /* TYPES_H */

@@ -15,7 +15,7 @@
 #define SINV_SRV_POLL_US 1000
 
 void
-sinv_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
+sinv_client_init_sndkey(struct sinv_async_info *s, cos_channelkey_t shm_key, cos_channelkey_t snd_key)
 {
 	cbuf_t id;
 	vaddr_t addr = 0;
@@ -28,6 +28,14 @@ sinv_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
 
 	s->init_key     = shm_key;
 	s->init_shmaddr = addr;
+	s->snd_key      = snd_key;
+}
+
+
+void
+sinv_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
+{
+	sinv_client_init_sndkey(s, shm_key, 0);
 }
 
 int
@@ -43,11 +51,10 @@ sinv_client_thread_init(struct sinv_async_info *s, thdid_t tid, cos_channelkey_t
 	arcvcap_t rcv = 0;
 	spdid_t child = cos_inv_token() == 0 ? cos_spd_id() : (spdid_t)cos_inv_token();
 
-	assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET);
-
 	req->clspdid = child; /* this is done from the scheduler on invocation */
-	req->rkey = rcvkey;
-	req->skey = skey;
+	req->rkey    = rcvkey;
+	req->skey    = skey;
+	req->snd_key = s->snd_key;
 
 	id = channel_shared_page_allocn(skey, SINV_REQ_NPAGES, &shmaddr);
 	assert(id && shmaddr);
@@ -68,10 +75,12 @@ sinv_client_thread_init(struct sinv_async_info *s, thdid_t tid, cos_channelkey_t
 		sl_thd_block_timeout(0, timeout); /* called from the scheduler */
 	}
 
+	assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET);
 	/* TODO: UNDO!!! */
 	if (*retval) return *retval;
 
-	snd = capmgr_asnd_key_create(skey);
+	if (req->ret_sndkey) snd = capmgr_asnd_key_create(req->ret_sndkey);
+	else                 snd = capmgr_asnd_key_create(skey);
 	assert(snd);
 
 	tinfo->rkey     = rcvkey;
@@ -89,7 +98,7 @@ sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_
 {
 	struct sinv_thdinfo *tinfo = &s->cdata.cthds[cos_thdid()];
 	volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(tinfo->shmaddr);
-	int *retval = NULL, ret;
+	int *retval = NULL, ret, rcvd;
 	struct sinv_call_req *req = NULL;
 
 	assert(n >= 0 && n < SINV_NUM_MAX);
@@ -103,6 +112,8 @@ sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_
 	req->arg2   = b;
 	req->arg3   = c;
 
+	assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET);
+
 	ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_RESET, SINV_REQ_SET);
 	assert(ret); /* must be sync.. */
 
@@ -112,12 +123,13 @@ sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_
 	 * doesn't automatically create "SINV" capabilities for inter-core communication.
 	 * For simplicity, let capmgr handle rate-limiting.
 	 */
-//	cos_asnd(tinfo->sndcap, 1);
+	cos_asnd(tinfo->sndcap, 0);
 
-	while ((tinfo->rcvcap && cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING, NULL) < 0) && (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET)) {
+	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {
 		cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
 
 		sl_thd_block_timeout(0, timeout); /* in the scheduler component */
+		if (tinfo->rcvcap) cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
 	}
 
 	assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET);

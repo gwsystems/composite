@@ -16,7 +16,7 @@
 #define SINV_SRV_POLL_US 1000
 
 void
-acom_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
+acom_client_init_sndkey(struct sinv_async_info *s, cos_channelkey_t shm_key, cos_channelkey_t snd_key)
 {
 	cbuf_t id;
 	vaddr_t addr = 0;
@@ -29,6 +29,14 @@ acom_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
 
 	s->init_key     = shm_key;
 	s->init_shmaddr = addr;
+	s->snd_key      = snd_key;
+}
+
+
+void
+acom_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
+{
+	acom_client_init_sndkey(s, shm_key, 0);
 }
 
 int
@@ -47,8 +55,9 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 	assert(skey && tid);
 
 	req->clspdid = child; /* this is done from the scheduler on invocation */
-	req->rkey = rcvkey;
-	req->skey = skey;
+	req->rkey    = rcvkey;
+	req->skey    = skey;
+	req->snd_key = s->snd_key;
 
 	id = channel_shared_page_allocn(skey, SINV_REQ_NPAGES, &shmaddr);
 	assert(id && shmaddr);
@@ -66,7 +75,8 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 	/* TODO: UNDO!!! */
 	if (*retval) return *retval;
 
-	snd = capmgr_asnd_key_create(skey);
+	if (req->ret_sndkey) snd = capmgr_asnd_key_create(req->ret_sndkey);
+	else                 snd = capmgr_asnd_key_create(skey);
 	assert(snd);
 
 	tinfo->rkey     = rcvkey;
@@ -105,13 +115,11 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 	if (budget) {
 		/* TODO: scheduler API for delegation, apps don't have access to "Tcap" */
 	} else {
-		/* cos_asnd(tinfo->sndcap, 0); */
+		cos_asnd(tinfo->sndcap, 0);
 	}
 
-	while (!tinfo->rcvcap || (cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
+	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {
 		cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
-
-		if (ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET) break;
 
 		sched_thd_block_timeout(0, timeout); /* in the app component */
 
@@ -125,6 +133,7 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 		 * (simplicity) because, we cannot be sure if the server is still processing
 		 * the previous requests or not and overwriting will just break the server!!
 		 */
+		if (tinfo->rcvcap) cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
 	}
 
 	assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET);

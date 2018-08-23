@@ -234,6 +234,36 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
 	sl_thd_cycs_update(t, 0, 0);
 	sl_thd_sched_unblock_no_cs(t);
+
+	/*
+	 * If a thread (aep specifically) explicitly calls sl_thd_block versions to block itself..
+	 * (I say explicitly here to not include a call to sl_thd_block version from any locking mechanism rather is directly called by in the thread's code..)
+	 * Ideally, it would not block-forever unless is waiting for an explicit sl_thd_wakeup..
+	 * So, lets consider only the case of sl_thd_block with timeout versions..
+	 * Here is the problem:
+	 * If it receives a notification (asnd) and kernel decides (tcap) to run it immediately and
+	 * if it tries to block again.. (lets say polling on some shared condition..)..
+	 * then it won't be in SL_THD_RUNNABLE state or will not be modified by sl_thd_sched_unblock_no_cs..
+	 * so we need to take care of that here..
+	 *
+	 * It gets complicated if the thread was not run by the kernel immediately.. instead when the
+	 * scheduler receives a "wakeup notification".. scheduler sees that it was not blocked on
+	 * cos_rcv, so it ain't going to touch it's state..!!!
+	 * So if it's a timeout version, it has to wait for the timeout expiry..
+	 * if it's not a timeout version, it has to wait for it's explicit "sl_thd_wakeup".. it here is the thread that blocked.."t" in this function..
+	 *
+	 * I don't really know how to handle this.. as it seem to really mess with the idea that we
+	 * want to keep the kernel states and user-level states separately..
+	 * I see one way that is more complex.. involving to know if the thread is "locked/not"..
+	 * If it's locked.. then don't touch thread states.. if it's not a lock.. then modify the thread
+	 * states on "asnd" wakeup..
+	 */
+	if (unlikely(t->state == SL_THD_BLOCKED_TIMEOUT || t->state == SL_THD_BLOCKED)) {
+		if (likely(t->state == SL_THD_BLOCKED_TIMEOUT)) sl_timeout_remove(t);
+		/* make it RUNNABLE */
+		sl_thd_wakeup_no_cs_rm(t);
+	}
+
 	assert(t->state == SL_THD_RUNNABLE);
 	sl_mod_block(sl_mod_thd_policy_get(t));
 	t->state = block_type;

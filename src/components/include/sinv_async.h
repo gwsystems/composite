@@ -50,6 +50,9 @@ struct sinv_thdcrt_req {
 
 	cos_channelkey_t rkey;
 	cos_channelkey_t skey;
+	cos_channelkey_t snd_key;
+
+	cos_channelkey_t ret_sndkey; /* by server */
 };
 
 struct sinv_thdinfo {
@@ -58,7 +61,7 @@ struct sinv_thdinfo {
 
 	spdid_t clientid;
 	vaddr_t shmaddr;
-	asndcap_t sndcap;
+	asndcap_t sndcap; /* if we have a snd_key, sndcap will use that. */
 	arcvcap_t rcvcap;
 } CACHE_ALIGNED;
 
@@ -84,6 +87,7 @@ struct sinv_server {
 
 struct sinv_async_info {
 	cos_channelkey_t init_key;
+	cos_channelkey_t snd_key;
 	vaddr_t          init_shmaddr;
 
 	union {
@@ -95,6 +99,8 @@ struct sinv_async_info {
 /* SERVER API */
 /* @shm_key - server maps shm to service thread creation requests. (polling only & 1 req at a time) */
 void sinv_server_init(struct sinv_async_info *s, cos_channelkey_t shm_key);
+/* @snd_key - all "asnds" from a client should use this key */
+void sinv_server_init_sndkey(struct sinv_async_info *s, cos_channelkey_t shm_key, cos_channelkey_t snd_key);
 /*
  * if the inv function returns multiple return values, set @fnr to appropriate fn and @fn == NULL
  * if the inv function returns only a single value, set @fn to appropriate fn and @fnr == NULL
@@ -103,10 +109,14 @@ void sinv_server_init(struct sinv_async_info *s, cos_channelkey_t shm_key);
  */
 int sinv_server_api_init(struct sinv_async_info *s, sinv_num_t num, sinv_fn_t fn, sinv_rets_fn_t fnr);
 int sinv_server_main_loop(struct sinv_async_info *s) __attribute__((noreturn));
+/* return after looping for n requests */
+int sinv_server_main_nrequests(struct sinv_async_info *s, unsigned int nrequests);
 
 /* CLIENT API */
 /* @shm_key - client to make "thread" creation requests for server side. (polling only & 1 req at a time) */
 void sinv_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key);
+/* @snd_key - all "asnds" from the server should use this key */
+void sinv_client_init_sndkey(struct sinv_async_info *s, cos_channelkey_t shm_key, cos_channelkey_t snd_key);
 /*
  * This API makes a cross-core request to create AEP thread on the server side..
  * (Does to synchronously to create "asndcap" for client requests.
@@ -122,6 +132,7 @@ int sinv_client_rets_call(struct sinv_async_info *s, sinv_num_t, word_t *r2, wor
 typedef sinv_num_t acom_type_t;
 /* @shm_key - client to make "thread" creation requests for server side. (polling only & 1 req at a time) */
 void acom_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key);
+void acom_client_init_sndkey(struct sinv_async_info *s, cos_channelkey_t shm_key, cos_channelkey_t snd_key);
 int acom_client_thread_init(struct sinv_async_info *s, thdid_t, arcvcap_t, cos_channelkey_t rkey, cos_channelkey_t skey);
 int acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio);
 

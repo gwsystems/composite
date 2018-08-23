@@ -39,12 +39,19 @@ sinv_server_try_map(struct sinv_async_info *s)
 }
 
 void
-sinv_server_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
+sinv_server_init_sndkey(struct sinv_async_info *s, cos_channelkey_t shm_key, cos_channelkey_t snd_key)
 {
 	memset(s, 0, sizeof(struct sinv_async_info));
 
 	s->init_key = shm_key;
 	sinv_server_try_map(s);
+	s->snd_key  = snd_key;
+}
+
+void
+sinv_server_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
+{
+	sinv_server_init_sndkey(s, shm_key, 0);
 }
 
 int
@@ -116,21 +123,93 @@ sinv_server_aep_fn(arcvcap_t rcv, void *data)
 		struct sinv_call_req *req = (struct sinv_call_req *)SINV_REQ_ADDR(t->shmaddr);
 		int rcvd = 0;
 
-		while ((cos_rcv(rcv, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
+		while (ps_load((unsigned long *)reqaddr) != SINV_REQ_SET) {
 			cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
 
-			if (ps_load((unsigned long *)reqaddr) == SINV_REQ_SET) break;
 			sched_thd_block_timeout(0, timeout);
+			cos_rcv(rcv, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
 		}
 
 		assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_SET);
 		*retval = sinv_server_entry(s, req);
-
 		ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_SET, SINV_REQ_RESET); /* indicate request completion */
 		assert(ret);
 
-		//if (snd) cos_asnd(snd, 0);
+		if (snd) cos_asnd(snd, 0);
 	}
+}
+
+static inline int
+sinv_server_main_prep(struct sinv_async_info *s)
+{
+	PRINTC("%s: mapping shared-memory\n", __func__);
+	while (!s->init_shmaddr) {
+		sinv_server_try_map(s);
+
+		if (!s->init_shmaddr) {
+			cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
+
+			sched_thd_block_timeout(0, timeout);
+		}
+	}
+	PRINTC("%s: Done mapping shared-memory\n", __func__);
+
+	return 0;
+}
+
+static inline int
+sinv_server_main_req_process(struct sinv_async_info *s)
+{
+	volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(s->init_shmaddr);
+	int *retval = (int *)SINV_RET_ADDR(s->init_shmaddr), ret;
+	struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)SINV_REQ_ADDR(s->init_shmaddr);
+	int aep_slot = (int)ps_faa((unsigned long *)&sinv_free_aep, 1);
+	struct cos_aep_info *aep = NULL;
+	thdid_t tid = 0;
+	asndcap_t snd = 0;
+	cbuf_t id = 0;
+	vaddr_t shmaddr = 0;
+	unsigned long npages = 0;
+
+	assert(aep_slot < MAX_NUM_THREADS);
+	aep = &sinv_aeps[aep_slot];
+	memset(aep, 0, sizeof(struct cos_aep_info));
+
+	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_SET) {
+		cycles_t timeout = time_now() + time_usec2cyc(SINV_MAIN_POLL_US);
+
+		sched_thd_block_timeout(0, timeout);
+	}
+
+	assert(req->skey);
+	tid = sched_aep_create(aep, sinv_server_aep_fn, (void *)s, 0, req->skey, 0, 0);
+	assert(tid);
+
+	id = channel_shared_page_map(req->skey, &shmaddr, &npages);
+	assert(id && shmaddr && npages == SINV_REQ_NPAGES);
+
+	if (req->snd_key) {
+		snd = capmgr_asnd_key_create(req->snd_key);
+		assert(snd);
+	} else if (req->rkey) {
+		snd = capmgr_asnd_key_create(req->rkey);
+		assert(snd);
+	}
+
+	s->sdata.sthds[tid].rkey     = req->rkey;
+	s->sdata.sthds[tid].rcvcap   = aep->rcv;
+	s->sdata.sthds[tid].skey     = req->skey;
+	s->sdata.sthds[tid].sndcap   = snd;
+	s->sdata.sthds[tid].shmaddr  = shmaddr;
+	s->sdata.sthds[tid].clientid = req->clspdid;
+	sched_thd_param_set(tid, sched_param_pack(SCHEDP_WINDOW, SINV_THD_PERIOD_US));
+	sched_thd_param_set(tid, sched_param_pack(SCHEDP_BUDGET, SINV_THD_BUDGET_US));
+	sched_thd_param_set(tid, sched_param_pack(SCHEDP_PRIO, SINV_THD_PRIO));
+	req->ret_sndkey = s->snd_key;
+
+	*retval = 0;
+	ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_SET, SINV_REQ_RESET); /* indicate request completion */
+	assert(ret);
 }
 
 /*
@@ -146,65 +225,27 @@ sinv_server_aep_fn(arcvcap_t rcv, void *data)
 int
 sinv_server_main_loop(struct sinv_async_info *s)
 {
-	PRINTC("%s: mapping shared-memory\n", __func__);
-	while (!s->init_shmaddr) {
-		sinv_server_try_map(s);
-
-		if (!s->init_shmaddr) {
-			cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
-
-			sched_thd_block_timeout(0, timeout);
-		}
-	}
-	PRINTC("%s: Done mapping shared-memory\n", __func__);
-
+	sinv_server_main_prep(s);
+	PRINTC("Starting main loop\n");
 	while (1) {
-		volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(s->init_shmaddr);
-		int *retval = (int *)SINV_RET_ADDR(s->init_shmaddr), ret;
-		struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)SINV_REQ_ADDR(s->init_shmaddr);
-		int aep_slot = (int)ps_faa((unsigned long *)&sinv_free_aep, 1);
-		struct cos_aep_info *aep = NULL;
-		thdid_t tid = 0;
-		asndcap_t snd = 0;
-		cbuf_t id = 0;
-		vaddr_t shmaddr = 0;
-		unsigned long npages = 0;
-
-		assert(aep_slot < MAX_NUM_THREADS);
-		aep = &sinv_aeps[aep_slot];
-		memset(aep, 0, sizeof(struct cos_aep_info));
-
-		while (ps_load((unsigned long *)reqaddr) != SINV_REQ_SET) {
-			cycles_t timeout = time_now() + time_usec2cyc(SINV_MAIN_POLL_US);
-
-			sched_thd_block_timeout(0, timeout);
-		}
-
-		assert(req->skey);
-		tid = sched_aep_create(aep, sinv_server_aep_fn, (void *)s, 0, req->skey, 0, 0);
-		assert(tid);
-
-		id = channel_shared_page_map(req->skey, &shmaddr, &npages);
-		assert(id && shmaddr && npages == SINV_REQ_NPAGES);
-
-		if (req->rkey) {
-			snd = capmgr_asnd_key_create(req->rkey);
-			assert(snd);
-
-			s->sdata.sthds[tid].rkey = req->rkey;
-		}
-
-		s->sdata.sthds[tid].rcvcap   = aep->rcv;
-		s->sdata.sthds[tid].skey     = req->skey;
-		s->sdata.sthds[tid].sndcap   = snd;
-		s->sdata.sthds[tid].shmaddr  = shmaddr;
-		s->sdata.sthds[tid].clientid = req->clspdid;
-		sched_thd_param_set(tid, sched_param_pack(SCHEDP_WINDOW, SINV_THD_PERIOD_US));
-		sched_thd_param_set(tid, sched_param_pack(SCHEDP_BUDGET, SINV_THD_BUDGET_US));
-		sched_thd_param_set(tid, sched_param_pack(SCHEDP_PRIO, SINV_THD_PRIO));
-
-		*retval = 0;
-		ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_SET, SINV_REQ_RESET); /* indicate request completion */
-		assert(ret);
+		sinv_server_main_req_process(s);
 	}
+	PRINTC("Ending main loop\n");
+
+	return 0;
+}
+
+int
+sinv_server_main_nrequests(struct sinv_async_info *s, unsigned int nrequests)
+{
+	sinv_server_main_prep(s);
+	PRINTC("Starting main loop [%u]\n", nrequests);
+	while (nrequests > 0) {
+		sinv_server_main_req_process(s);
+
+		nrequests--;
+	}
+	PRINTC("Ending main loop\n");
+
+	return 0;
 }

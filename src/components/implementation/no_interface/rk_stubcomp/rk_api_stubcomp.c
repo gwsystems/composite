@@ -47,7 +47,8 @@ cos_init(void)
 		instance_key = rk_args_instance();
 		assert(instance_key > 0);
 
-		sinv_server_init(&sinv_api, RK_CLIENT(instance_key));
+		/* because RK is non-preemptive. request notif should be sent to initthd or scheduling thread */
+		sinv_server_init_sndkey(&sinv_api, RK_CLIENT(instance_key), RK_INITRCV_KEY);
 		sinv_rk_init(&sinv_api);
 
 		ps_faa(&init_done, 1);
@@ -59,7 +60,9 @@ cos_init(void)
 	}
 
 	PRINTC("ENTERING MAIN LOOP\n");
-	sinv_server_main_loop(&sinv_api);
+	/* serving only 1 cFE thread! */
+	sinv_server_main_nrequests(&sinv_api, 1);
 
+	/* remove from scheduling queue after that */
 	sched_thd_exit();
 }
