@@ -83,4 +83,14 @@ hw_detach_rcvcap(struct cap_hw *hwc, hwid_t hwid)
 	return 0;
 }
 
+static inline int
+hw_introspect(struct cap_hw *hwc, unsigned long op, unsigned long *retval)
+{
+        switch(op) {
+        case HW_CACHE_FLUSH: chal_flush_cache(); *retval = 0; break;
+        default: return -EINVAL;
+        }
+        return 0;
+}
+
 #endif /* HW_H */

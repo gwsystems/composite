@@ -321,6 +321,12 @@ enum
 	ARCV_GET_THDID,
 };
 
+enum
+{
+	/* flush caches */
+	HW_CACHE_FLUSH,
+};
+
 /* Macro used to define per core variables */
 #define PERCPU(type, name)       \
 	PERCPU_DECL(type, name); \
