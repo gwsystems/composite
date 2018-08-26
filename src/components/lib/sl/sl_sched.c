@@ -13,6 +13,7 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 #include <bitmap.h>
+#include <event_trace.h>
 
 struct sl_global sl_global_data;
 struct sl_global_cpu sl_global_cpu_data[NUM_CPU] CACHE_ALIGNED;
@@ -277,6 +278,7 @@ sl_thd_block(thdid_t tid)
 {
 	struct sl_thd *t;
 
+	EVTTR_SL_BLOCK_START(tid);
 	/* TODO: dependencies not yet supported */
 	assert(!tid);
 
@@ -288,6 +290,7 @@ sl_thd_block(thdid_t tid)
 	}
 	sl_cs_exit_schedule();
 
+	EVTTR_SL_BLOCK_END();
 	return;
 }
 
@@ -317,6 +320,7 @@ sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout)
 	cycles_t jitter  = 0, wcycs, tcycs;
 	struct sl_thd *t = sl_thd_curr();
 
+	EVTTR_SL_BLOCK_TIMEOUT_START(tid);
 	/* TODO: dependencies not yet supported */
 	assert(!tid);
 
@@ -331,6 +335,7 @@ sl_thd_block_timeout(thdid_t tid, cycles_t abs_timeout)
 	if (wcycs > tcycs) jitter = wcycs - tcycs;
 
 done:
+	EVTTR_SL_BLOCK_TIMEOUT_END();
 	return jitter;
 }
 
@@ -456,6 +461,7 @@ sl_thd_wakeup(thdid_t tid)
 {
 	struct sl_thd *t;
 
+	EVTTR_SL_WAKEUP_START(tid);
 	sl_cs_enter();
 	t = sl_thd_lkup(tid);
 	if (unlikely(!t)) goto done;
@@ -463,9 +469,12 @@ sl_thd_wakeup(thdid_t tid)
 	if (sl_thd_wakeup_no_cs(t)) goto done;
 	sl_cs_exit_schedule();
 
+	EVTTR_SL_WAKEUP_END();
 	return;
 done:
 	sl_cs_exit();
+
+	EVTTR_SL_WAKEUP_END();
 	return;
 }
 
@@ -491,8 +500,10 @@ sl_thd_yield_cs_exit(thdid_t tid)
 void
 sl_thd_yield(thdid_t tid)
 {
+	EVTTR_SL_YIELD_START(tid);
 	sl_cs_enter();
 	sl_thd_yield_cs_exit(tid);
+	EVTTR_SL_YIELD_END();
 }
 
 void

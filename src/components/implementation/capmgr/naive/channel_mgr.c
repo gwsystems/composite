@@ -51,3 +51,24 @@ channel_shared_page_map_cserialized(vaddr_t *pgaddr, unsigned long *num_pages, c
 done:
 	return id;
 }
+
+cbuf_t
+channel_shared_page_alloc(cos_channelkey_t key, vaddr_t *pgaddr)
+{
+	assert(0);
+	return 0;
+}
+
+cbuf_t
+channel_shared_page_allocn(cos_channelkey_t key, unsigned long num_pages, vaddr_t *pgaddr)
+{
+	assert(0);
+	return 0;
+}
+
+cbuf_t
+channel_shared_page_map(cos_channelkey_t key, vaddr_t *pgaddr, unsigned long *num_pages)
+{
+	assert(0);
+	return 0;
+}

@@ -1,6 +1,6 @@
 COMPONENT=microipi.o
 INTERFACES=
-DEPENDENCIES=capmgr
+DEPENDENCIES=capmgr channel
 IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format $(LIBSLCAPMGR) -lsl_thd_static_backend -lsl_mod_fprr
 

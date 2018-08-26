@@ -1,6 +1,6 @@
 COMPONENT=unit_fprr_test.o
 INTERFACES=
-DEPENDENCIES=
+DEPENDENCIES=channel
 IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format $(LIBSLRAW) -lsl_thd_static_backend -lsl_mod_fprr
 

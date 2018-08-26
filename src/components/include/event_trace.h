@@ -121,7 +121,7 @@ void event_trace_init(void);
 #else
 
 #define EVENT_TRACE_KEY 0xdead
-#define EVENT_TRACE_NPAGES 5
+#define EVENT_TRACE_NPAGES 16
 
 typedef int (*evttrace_write_fn_t)(unsigned char *buf, unsigned int bufsz);
 
@@ -135,6 +135,7 @@ void event_trace_client_init(evttrace_write_fn_t fn);
  *@return 0 - successful, 1 - failed to trace event
  */
 int event_trace(struct event_trace_info *ei);
+
 int event_flush(void);
 
 static inline void
