@@ -27,7 +27,7 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 
-#define ITER 10000
+#define ITER 1000000
 #define TEST_NTHDS 5
 
 extern struct cos_compinfo booter_info;
@@ -53,5 +53,6 @@ tls_set(size_t off, unsigned long val)
 
 extern void test_run_mb(void);
 extern void test_ipi_full(void);
+extern void test_run_perf(void);
 
 #endif /* MICRO_BOOTER_H */

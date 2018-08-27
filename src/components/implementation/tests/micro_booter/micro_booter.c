@@ -47,6 +47,8 @@ cos_init(void)
 	for (i = 0; i < NUM_CPU; i++) {
 		while (!test_done[i]) ;
 	}
+	while (cos_cpuid()) ; /* test only on 1 core! */
+	test_run_perf();
 
 	PRINTC("Micro Booter done.\n");
 

@@ -13,7 +13,7 @@
  */
 
 #ifndef PERF_VAL_MAX_SZ
-#define PERF_VAL_MAX_SZ    100
+#define PERF_VAL_MAX_SZ    1000000
 #endif
 
 #define PERF_VAL_MIN_SZ    10
@@ -106,7 +106,7 @@ __swap(double* xs, int i, int j)
 }
 
 /*
- * merge two sorted subs xs[i, m) and xs[j...n) to working area xs[w...] 
+ * merge two sorted subs xs[i, m) and xs[j...n) to working area xs[w...]
  */
 static void
 __workarea_merge(double* xs, int i, int m, int j, int n, int w)
@@ -117,8 +117,8 @@ __workarea_merge(double* xs, int i, int m, int j, int n, int w)
 }
 
 
-/* 
- * sort xs[l, u), and put result to working area w. 
+/*
+ * sort xs[l, u), and put result to working area w.
  * constraint, len(w) == u - l
  */
 static void
@@ -239,8 +239,8 @@ perfdata_99ptile(struct perfdata *pd)
 static void
 perfdata_print(struct perfdata *pd)
 {
-	printc("PD:%s-sz:%d,SD:%.2f,Mean:%.2f,99%%:%.2f\n", 
-		pd->name, pd->sz, pd->sd, pd->avg, pd->ptiles[PTILE_99]);
+	printc("PD:%s-sz:%d,SD:%.2f,Mean:%.2f,99%%:%.2f,WC:%.2f\n",
+		pd->name, pd->sz, pd->sd, pd->avg, perfdata_99ptile(pd), perfdata_max(pd));
 }
 
 #endif /* PERFDATA_H */
