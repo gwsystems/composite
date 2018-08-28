@@ -589,12 +589,14 @@ cos_init(void)
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_defcompinfo_init();
 
+#ifndef TEST_IPC
 #ifdef MICRO_IPI_FIRST_RUN
 		PRINTC("MAKE SURE YOU MODIFY SL FOR THE FOLLOWING TEST TO WORK WELL\n");
 		PRINTC("MAKE SURE YOU DON'T RUN IDLE THREAD IF NO THREAD IS READY TO RUN\n");
 		PRINTC("SET TIMEOUT PARAM IN ALL COS_SWITCH TO 0. THIS IS DONE BY SETTING timeout_next to 0 IN SL\n");
 		PRINTC("ONCE YOU DO ALL THAT, UNDEF FIRST_RUN AND RECOMPILE. :-)\n");
 		assert(0);
+#endif
 #endif
 	} else {
 		while (!ps_load(&init_done[first])) ;
