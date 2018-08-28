@@ -590,6 +590,7 @@ sl_top(void)
 	struct sl_global_cpu *g   = sl__globals_cpu();
 	cycles_t              now = sl_now();
 
+	if (likely(sl__globals()->usage_logging == 0)) return;
 	if (unlikely(g->print_win == 0)) return;
 
 	if (unlikely(now - g->print_last >= g->print_win)) {
@@ -621,18 +622,22 @@ sl_idle(void *d)
 	struct sl_global_cpu *g          = sl__globals_cpu();
 	cycles_t              print_last = 0, print_win = sl_usec2cyc(PRINT_WIN_US);
 
-	assert(g->sched_start);
-	print_last = sl_now();
-	while (1) {
-		cycles_t now = sl_now();
+	if (sl__globals()->usage_logging) {
+		assert(g->sched_start);
+		print_last = sl_now();
+		while (1) {
+			cycles_t now = sl_now();
 
-		g->idle_last = now;
+			g->idle_last = now;
 
-		if (unlikely(now - print_last > print_win)) {
-			PRINTC("Total: %llus Idle: %lluus\n", sl_cyc2usec(now - g->sched_start) / US_TO_S, sl_cyc2usec(g->idle_total));
-			print_last = now;
-			g->idle_total = 0;
+			if (unlikely(now - print_last > print_win)) {
+				PRINTC("Total: %llus Idle: %lluus\n", sl_cyc2usec(now - g->sched_start) / US_TO_S, sl_cyc2usec(g->idle_total));
+				print_last = now;
+				g->idle_total = 0;
+			}
 		}
+	} else {
+		SPIN();
 	}
 #else
 	SPIN();

@@ -520,6 +520,8 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			t = sl_mod_thd_get(pt);
 			sl_thd_cycs_update(t, 0, 1);
 		}
+	} else {
+		sl_thd_cycs_update(to, 0, 1);
 	}
 
 	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {

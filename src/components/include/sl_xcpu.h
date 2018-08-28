@@ -71,6 +71,7 @@ struct sl_global {
 	struct sl_xcpu_request xcpu_rbuf[NUM_CPU][SL_XCPU_RING_SIZE];
 	u32_t cpu_bmp[NUM_CPU_BMP_WORDS]; /* bitmap of cpus this scheduler is running on! */
 	asndcap_t xcpu_asnd[NUM_CPU][NUM_CPU];
+	int       usage_logging;
 } CACHE_ALIGNED;
 
 extern struct sl_global sl_global_data;
@@ -79,6 +80,18 @@ static inline struct sl_global *
 sl__globals(void)
 {
 	return &sl_global_data;
+}
+
+static inline void
+sl_usage_enable(void)
+{
+	sl__globals()->usage_logging = 1;
+}
+
+static inline void
+sl_usage_disable(void)
+{
+	sl__globals()->usage_logging = 0;
 }
 
 static inline int
