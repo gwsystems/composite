@@ -123,8 +123,10 @@ cos_init_delegate(void *data)
 	sl_thd_param_set(timer1hz_thd, sched_param_pack(SCHEDP_PRIO, TIMER_THREAD_PRIORITY));
 
 	OS_printf("CFE_PSP: starting sensor emulation thread..\n");
-	sensoremu_thd = sl_thd_aep_alloc(CFE_PSP_SensorISR, NULL, 0, 0, 0, 0);
+	sensoremu_thd = sl_thd_aep_alloc(CFE_PSP_SensorISR, NULL, 1, 0, 0, 0);
 	assert(sensoremu_thd);
+	sl_thd_param_set(sensoremu_thd, sched_param_pack(SCHEDP_WINDOW, CFE_PSP_SENSOR_INTERVAL_USEC));
+	sl_thd_param_set(sensoremu_thd, sched_param_pack(SCHEDP_BUDGET, CFE_PSP_SENSOR_BUDGET_USEC));
 	sl_thd_param_set(sensoremu_thd, sched_param_pack(SCHEDP_PRIO, CFE_PSP_SENSOR_THDPRIO));
 #ifdef SENSOREMU_USE_HPET
 	capmgr_hw_periodic_attach(HW_HPET_PERIODIC, sl_thd_thdid(sensoremu_thd), CFE_PSP_SENSOR_INTERVAL_USEC);

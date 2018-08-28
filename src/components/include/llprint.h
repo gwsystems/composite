@@ -14,7 +14,7 @@
 static void
 cos_llprint(char *s, int len)
 {
-	cos_print(s, len);
+	cos_serial_puts(s);
 }
 
 static int

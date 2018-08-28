@@ -94,7 +94,7 @@ CFE_PSP_SensorISR(arcvcap_t rcv, void *p)
 	CFE_PSP_SensorInit();
 
 	while (1) {
-		int pending;
+		int pending, rcvd = 1;
 		cycles_t now, abs_timeout;
 		char data[CFE_PSP_SENSOR_DATASZ] = { 0 };
 		char time[32] = { 0 };
@@ -105,21 +105,24 @@ CFE_PSP_SensorISR(arcvcap_t rcv, void *p)
                 sl_thd_block_timeout(0, abs_timeout);
 
 #else
-                pending = cos_rcv(rcv, 0, NULL);
-                assert(pending >= 0);
+                pending = cos_rcv(rcv, RCV_ALL_PENDING, &rcvd);
+                assert(pending == 0 && rcvd >= 1);
 #endif
-		strcpy(data, SensorTraceDump[trace_curr]);
-		/* for RTT measurements */
-		sprintf(time, "%llu\n", sl_now());
-		strcat(data, time);
-		//PRINTC("%s\n", data);
-		/* write to queue */
-		if (OS_QueuePut(SensorQid, (void *)data, strlen(data), 0) == OS_QUEUE_FULL) {
-			OS_printf("Sensor queue full!\n");
-		}
+		while (rcvd > 0) {
+			strcpy(data, SensorTraceDump[trace_curr]);
+			/* for RTT measurements */
+			sprintf(time, "%llu\n", sl_now());
+			strcat(data, time);
+			//PRINTC("%s\n", data);
+			/* write to queue */
+			if (OS_QueuePut(SensorQid, (void *)data, strlen(data), 0) == OS_QUEUE_FULL) {
+				OS_printf("Sensor queue full!\n");
+			}
 
-		trace_curr++;
-		if (trace_curr >= trace_sz) trace_curr = 0;
+			trace_curr++;
+			if (trace_curr >= trace_sz) trace_curr = 0;
+			rcvd--;
+		}
 	}
 
 	pthread_exit(NULL);

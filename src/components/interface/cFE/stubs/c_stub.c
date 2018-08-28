@@ -33,7 +33,7 @@ thdid_t os_timer_thdid = 0;
 
 #define TIMER_NAME_MAX 32
 #define TIMERS_MAX 4
-#define TIMER_PERIOD_US (10*1000)
+#define TIMER_PERIOD_US (5*1000)
 #define TIMER_ACCURACY_US 0
 #define TIMER_EXPIRY_THRESH (1<<12)
 
