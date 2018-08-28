@@ -28,6 +28,9 @@ int capmgr_hw_attach(hwid_t hwid, thdid_t tid);
 int capmgr_hw_periodic_attach(hwid_t hwid, thdid_t tid, unsigned int period_us);
 int capmgr_hw_detach(hwid_t hwid);
 
-void capmgr_ipi_print(void);
+/*
+ * @type: 1 for capmgr counters, 0 for kernel counters
+ */
+int capmgr_core_ipi_counters_get(cpuid_t core, unsigned int type, unsigned int *sndctr, unsigned int *rcvctr);
 
 #endif /* CAPMGR_H */

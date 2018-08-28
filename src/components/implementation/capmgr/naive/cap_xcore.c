@@ -46,30 +46,37 @@ done:
 	return cos_asnd(commci->sndcap[cos_cpuid()], yield);
 }
 
-void
-cap_xcore_ipi_print(void)
+int
+cap_xcore_ipi_ctrs_get(cpuid_t core, unsigned int type, unsigned int *sndctr, unsigned int *rcvctr)
 {
-	int i = 0;
+	int ret = 0;
 
-	printc("====================================\n");
-	printc("IPI Info:\n");
-	for (i = 0; i < NUM_CPU; i ++) {
-		unsigned int k_snd = 0, k_rcv = 0;
+	if (type > 1) return -EINVAL;
+	if (core >= NUM_CPU) return -EINVAL;
+
+	/* capmgr counters return */
+	if (type == 1) {
+		*sndctr = ps_load(&ipi_snd_counters[core]);
+		*rcvctr = ps_load(&ipi_rcv_counters[core]);
+	} else {
 		unsigned int k_snd_op = 0, k_rcv_op = 0;
 
-		switch(i) {
+		switch(core) {
 			case 0: k_snd_op = HW_CORE0_IPI_SND_GET; k_rcv_op = HW_CORE0_IPI_RCV_GET; break;
 			case 1: k_snd_op = HW_CORE1_IPI_SND_GET; k_rcv_op = HW_CORE1_IPI_RCV_GET; break;
 			case 2: k_snd_op = HW_CORE2_IPI_SND_GET; k_rcv_op = HW_CORE2_IPI_RCV_GET; break;
 			case 3: k_snd_op = HW_CORE3_IPI_SND_GET; k_rcv_op = HW_CORE3_IPI_RCV_GET; break;
 			case 4: k_snd_op = HW_CORE4_IPI_SND_GET; k_rcv_op = HW_CORE4_IPI_RCV_GET; break;
 			case 5: k_snd_op = HW_CORE5_IPI_SND_GET; k_rcv_op = HW_CORE5_IPI_RCV_GET; break;
-			default: assert(0);
+			default: return -EINVAL;
 		}
-		k_snd = cos_introspect(cos_compinfo_get(cos_defcompinfo_curr_get()), BOOT_CAPTBL_SELF_INITHW_BASE, k_snd_op);
-		k_rcv = cos_introspect(cos_compinfo_get(cos_defcompinfo_curr_get()), BOOT_CAPTBL_SELF_INITHW_BASE, k_rcv_op);
-
-		printc("CPU%d = %lu sent / %lu rcvd (kernel: %lu/%lu)\n", i, ipi_snd_counters[i], ipi_rcv_counters[i], k_snd, k_rcv);
+		ret = cos_introspect(cos_compinfo_get(cos_defcompinfo_curr_get()), BOOT_CAPTBL_SELF_INITHW_BASE, k_snd_op);
+		if (ret < 0) return ret;
+		*sndctr = ret;
+		ret = cos_introspect(cos_compinfo_get(cos_defcompinfo_curr_get()), BOOT_CAPTBL_SELF_INITHW_BASE, k_rcv_op);
+		if (ret < 0) return ret;
+		*rcvctr = ret;
 	}
-	printc("====================================\n");
+
+	return ret;
 }

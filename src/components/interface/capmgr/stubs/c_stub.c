@@ -19,6 +19,7 @@ thdcap_t capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, u32_t ownt
 thdcap_t capmgr_thd_retrieve_next_cserialized(thdid_t *tid, int *unused, spdid_t s);
 thdcap_t capmgr_thd_retrieve_cserialized(thdid_t *inittid, int *unused, spdid_t s, thdid_t tid);
 arcvcap_t capmgr_rcv_create_cserialized(u32_t spd_tid, u32_t key_ipimax, u32_t ipiwin32b);
+int capmgr_core_ipi_counters_get_cserialized(unsigned int *sndctr, unsigned int *rcvctr, cpuid_t core, unsigned int type);
 
 arcvcap_t
 capmgr_rcv_create(spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
@@ -149,6 +150,13 @@ capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_ch
 	/* initcaps are copied to INITXXX offsets in the dst component */
 	return aep->thd;
 }
+
+int
+capmgr_core_ipi_counters_get(cpuid_t core, unsigned int type, unsigned int *sndctr, unsigned int *rcvctr)
+{
+	return capmgr_core_ipi_counters_get_cserialized(sndctr, rcvctr, core, type);
+}
+
 
 cbuf_t memmgr_shared_page_allocn_cserialized(vaddr_t *pgaddr, int *unused, unsigned long num_pages);
 unsigned long memmgr_shared_page_map_cserialized(vaddr_t *pgaddr, int *unused, cbuf_t id);

@@ -414,6 +414,24 @@ static volatile struct perfdata pd[3];
 #endif
 
 static void
+print_ipi_info(void)
+{
+	int i = 0;
+
+	printc("====================================\n");
+	printc("IPI Info:\n");
+	for (i = 0; i < NUM_CPU; i ++) {
+		unsigned int k_snd = 0, k_rcv = 0, c_snd = 0, c_rcv = 0;
+
+		capmgr_core_ipi_counters_get(i, 0, &k_snd, &k_rcv);
+		capmgr_core_ipi_counters_get(i, 1, &c_snd, &c_rcv);
+
+		printc("CPU%d = %lu sent / %lu rcvd (kernel: %lu/%lu)\n", i, c_snd, c_rcv, k_snd, k_rcv);
+	}
+	printc("====================================\n");
+}
+
+static void
 c0_ipc_fn(arcvcap_t r, void *d)
 {
 	asndcap_t snd = c0_cn_asnd[cos_cpuid()];
@@ -478,7 +496,7 @@ c0_ipc_fn(arcvcap_t r, void *d)
 //	perfdata_calc(&pd[2]);
 //	perfdata_print(&pd[2]);
 #endif
-	capmgr_ipi_print();
+	print_ipi_info();
 
 	sl_thd_exit();
 }
@@ -555,7 +573,7 @@ test_ipc_setup(void)
 #endif
 }
 
-#define MICRO_IPI_FIRST_RUN
+#undef MICRO_IPI_FIRST_RUN
 
 void
 cos_init(void)

@@ -26,7 +26,7 @@ cos_asm_server_stub(capmgr_asnd_key_create)
 cos_asm_server_stub(capmgr_hw_attach)
 cos_asm_server_stub(capmgr_hw_periodic_attach)
 cos_asm_server_stub(capmgr_hw_detach)
-cos_asm_server_stub(capmgr_ipi_print)
+cos_asm_server_stub_rets(capmgr_core_ipi_counters_get_cserialized)
 
 cos_asm_server_stub(memmgr_tls_alloc)
 cos_asm_server_stub(_memmgr_tls_alloc_and_set)

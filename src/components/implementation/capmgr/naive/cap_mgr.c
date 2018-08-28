@@ -13,6 +13,8 @@
 #include <cap_info.h>
 
 extern void cap_xcore_ipi_print(void);
+extern int cap_xcore_ipi_ctrs_get(cpuid_t core, int type, unsigned int *sndctr, unsigned int *rcvctr);
+
 
 thdcap_t
 capmgr_thd_create_cserialized(thdid_t *tid, int *unused, thdclosure_index_t idx)
@@ -530,8 +532,8 @@ capmgr_hw_detach(hwid_t hwid)
 	return cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, hwid);
 }
 
-void
-capmgr_ipi_print(void)
+int
+capmgr_core_ipi_counters_get_cserialized(unsigned int *sndctr, unsigned int *rcvctr, cpuid_t core, int type)
 {
-	cap_xcore_ipi_print();
+	return cap_xcore_ipi_ctrs_get(core, type, sndctr, rcvctr);
 }
