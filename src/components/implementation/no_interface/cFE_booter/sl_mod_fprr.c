@@ -5,9 +5,9 @@
 #include <sl_mod_policy.h>
 #include <sl_plugins.h>
 
-#define SL_FPRR_NPRIOS 257
-#define SL_FPRR_PRIO_HIGHEST 0
-#define SL_FPRR_PRIO_LOWEST (SL_FPRR_NPRIOS - 1)
+#define SL_FPRR_NPRIOS 256
+#define SL_FPRR_PRIO_HIGHEST 1
+#define SL_FPRR_PRIO_LOWEST (SL_FPRR_NPRIOS)
 
 #define SL_FPRR_PERIOD_US_MIN SL_MIN_PERIOD_US
 
@@ -48,14 +48,14 @@ sl_mod_wakeup(struct sl_thd_policy *t)
 {
 	assert(ps_list_singleton_d(t));
 
-	ps_list_head_append_d(&threads[cos_cpuid()][t->priority], t);
+	ps_list_head_append_d(&threads[cos_cpuid()][t->priority - 1], t);
 }
 
 void
 sl_mod_yield(struct sl_thd_policy *t, struct sl_thd_policy *yield_to)
 {
 	ps_list_rem_d(t);
-	ps_list_head_append_d(&threads[cos_cpuid()][t->priority], t);
+	ps_list_head_append_d(&threads[cos_cpuid()][t->priority - 1], t);
 }
 
 void
@@ -81,7 +81,7 @@ sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned 
 		assert(v >= SL_FPRR_PRIO_HIGHEST && v <= SL_FPRR_PRIO_LOWEST);
 		ps_list_rem_d(t); /* if we're already on a list, and we're updating priority */
 		t->priority = v;
-		ps_list_head_append_d(&threads[cos_cpuid()][t->priority], t);
+		ps_list_head_append_d(&threads[cos_cpuid()][t->priority - 1], t);
 		sl_thd_setprio(sl_mod_thd_get(t), t->priority);
 
 		break;
