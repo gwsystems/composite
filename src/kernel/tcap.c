@@ -139,6 +139,7 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t
 	tcap_uid_t d, s;
 	int        si  = -1;
 	int        ret = 0;
+	tcap_prio_t tmp_src_prio = 0;
 	/* doing this in-place is too much of a pain */
 	struct tcap_sched_info deleg_tmp[TCAP_MAX_DELEGATIONS];
 
@@ -157,6 +158,9 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t
 		dst->perm_prio             = prio;
 		return 0;
 	}
+	/* use permanent prio for delegations */
+	tmp_src_prio = tcap_sched_info(src)->prio;
+	tcap_sched_info(src)->prio = src->perm_prio;
 	if (!prio) prio = tcap_sched_info(src)->prio;
 
 	for (i = 0, j = 0, ndelegs = 0; i < dst->ndelegs || j < src->ndelegs; ndelegs++) {
@@ -199,6 +203,8 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, tcap_prio_t
 	dst->curr_sched_off        = si;
 	dst->perm_prio             = prio;
 	tcap_sched_info(dst)->prio = prio;
+	/* restore temporary prio */
+	tcap_sched_info(src)->prio = tmp_src_prio;
 	/*
 	 * TODO: Logic to differentiate between scheduler and non-scheduler tcaps!
 	 *       non-scheduler tcaps to have curr_sched_off set to their schedulers and no dedicated uids.
