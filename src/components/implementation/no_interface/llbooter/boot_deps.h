@@ -9,6 +9,7 @@
 #include <res_spec.h>
 #include <ps.h>
 #include <bitmap.h>
+#include <fault_handler.h>
 
 /* Assembly function for sinv from new component */
 extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t arg3, word_t *ret2, word_t *ret3);

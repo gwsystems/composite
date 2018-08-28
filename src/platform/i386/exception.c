@@ -7,6 +7,7 @@
 #include "chal_cpu.h"
 
 #define PRINTK(format, ...) printk("(CPU%ld:) " format, get_cpuid(), ## __VA_ARGS__)
+#define FLT_SINV(regs, cap) fault_handler_sinv(regs, cap)
 
 void
 print_regs_state(struct pt_regs *regs)
@@ -38,11 +39,11 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 	unsigned long              ip, sp;
 	u32_t                      fault_addr = 0, errcode, eip;
 
-	fault_regs_save (regs, curr_thd);
+	fault_regs_save(regs, curr_thd);
 	cos_info = thd_invstk_current(curr_thd, &ip, &sp, ci);
 	fh = captbl_lkup(cos_info->captbl, cap);
 	__userregs_sinvargset(regs, regs->sp, regs->ip, fault_addr, cap);
-	/* This is a software fault and should be fixed in the future. */
+	/* FIXME: This is a software fault and should be fixed in the future. */
 	if (unlikely(!fh)) {
 		die("FAULT: Fault handler not found\n");
 		return;
@@ -54,7 +55,7 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 int
 div_by_zero_err_fault_handler(struct pt_regs *regs)
 {
-	fault_handler_sinv(regs, FAULT_CAPTBL_DIVZERO);
+	FLT_SINV(regs, FAULT_CAPTBL_DIVZERO);
 
 	return 1;
 }
@@ -71,7 +72,7 @@ debug_trap_handler(struct pt_regs *regs)
 int
 breakpoint_trap_handler(struct pt_regs *regs)
 {
-	fault_handler_sinv(regs, FAULT_CAPTBL_BRKPT);
+	FLT_SINV(regs, FAULT_CAPTBL_BRKPT);
 
 	return 1;
 }
@@ -88,7 +89,7 @@ overflow_trap_handler(struct pt_regs *regs)
 int
 bound_range_exceed_fault_handler(struct pt_regs *regs)
 {
-	fault_handler_sinv(regs, FAULT_CAPTBL_INVSTK);
+	FLT_SINV(regs, FAULT_CAPTBL_INVSTK);
 
 	return 1;
 }
@@ -96,7 +97,7 @@ bound_range_exceed_fault_handler(struct pt_regs *regs)
 int
 invalid_opcode_fault_handler(struct pt_regs *regs)
 {
-	fault_handler_sinv(regs, FAULT_CAPTBL_INVLD_INS);
+	FLT_SINV(regs, FAULT_CAPTBL_INVLD_INS);
 
 	return 1;
 }
@@ -149,7 +150,7 @@ stack_seg_fault_handler(struct pt_regs *regs)
 int
 gen_protect_fault_handler(struct pt_regs *regs)
 {
-	fault_handler_sinv(regs, FAULT_CAPTBL_MEM_ACCESS);
+	FLT_SINV(regs, FAULT_CAPTBL_MEM_ACCESS);
 
 	return 1;
 }
@@ -157,8 +158,8 @@ gen_protect_fault_handler(struct pt_regs *regs)
 int
 page_fault_handler(struct pt_regs *regs)
 {
-	fault_handler_sinv(regs, FAULT_CAPTBL_MEM_ACCESS);
-
+	FLT_SINV(regs, FAULT_CAPTBL_MEM_ACCESS);
+s
 	return 1;
 }
 

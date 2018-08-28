@@ -287,8 +287,7 @@ captbl_idsize(cap_t c)
 /*
  * The slots of the sinv to user-level fault handlers.
  */
-enum
-{
+typedef enum {
 	FAULT_CAPTBL_MEM_ACCESS        = BOOT_CAPTBL_FLT_MEM_ACCESS,
 	FAULT_CAPTBL_DIVZERO           = BOOT_CAPTBL_FLT_DIVZERO,
 	FAULT_CAPTBL_BRKPT             = BOOT_CAPTBL_FLT_BRKPT,
@@ -296,7 +295,7 @@ enum
 	FAULT_CAPTBL_INVSTK            = BOOT_CAPTBL_FLT_INVSTK,
 	FAULT_CAPTBL_COMP_NOT_EXIST    = BOOT_CAPTBL_FLT_COMP_NOT_EXIST,
 	FAULT_CAPTBL_HAND_NOT_EXIST    = BOOT_CAPTBL_FLT_HAND_NOT_EXISt,
-};
+} cap_flt_off;
 
 /*
  * The half of the first page of init captbl is devoted to root node. So, the
@@ -333,8 +332,7 @@ enum
 	BOOT_MEM_KM_BASE = PGD_SIZE, /* kernel & user memory @ 4M, pgd aligned start address */
 };
 
-enum
-{
+typedef enum {
 	/* thread id */
 	THD_GET_TID,
 	/* get regs */
@@ -355,7 +353,7 @@ enum
 	THD_GET_FAULT_REG15,
 	THD_GET_FAULT_REG16,
 	THD_GET_FAULT_REG17,
-};
+} cap_thdop_t;
 
 enum
 {
