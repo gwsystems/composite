@@ -1,3 +1,4 @@
+#include "chal/chal_config.h"
 #include "kernel.h"
 #include "chal_cpu.h"
 #include "isr.h"
@@ -60,7 +61,6 @@ u32_t logical_apicids[NUM_CPU];
 #define LAPIC_LDR_OFFSET 24
 #define LAPIC_LDR_MAST (0xfful << LAPIC_LDR_OFFSET)
 
-
 extern int timer_process(struct pt_regs *regs);
 
 enum lapic_timer_type
@@ -85,6 +85,9 @@ enum lapic_timer_div_by_config
 static volatile void *lapic             = (void *)APIC_DEFAULT_PHYS;
 static unsigned int   lapic_timer_mode  = LAPIC_TSC_DEADLINE;
 static unsigned int   lapic_is_disabled[NUM_CPU] CACHE_ALIGNED;
+
+static atomic_t lapic_asnd_ipi_snd_counter[NUM_CPU] CACHE_ALIGNED;
+static atomic_t lapic_asnd_ipi_rcv_counter[NUM_CPU] CACHE_ALIGNED;
 
 static volatile unsigned int lapic_cycs_thresh        = 0;
 static volatile u32_t        lapic_cpu_to_timer_ratio = 0;
@@ -337,6 +340,22 @@ chal_timer_disable(void)
 }
 
 unsigned int
+chal_core_ipi_snd_get(cpuid_t cpu)
+{
+	if (cpu >= NUM_CPU) return -1;
+
+	return lapic_asnd_ipi_snd_counter[cpu].counter;
+}
+
+unsigned int
+chal_core_ipi_rcv_get(cpuid_t cpu)
+{
+	if (cpu >= NUM_CPU) return -1;
+
+	return lapic_asnd_ipi_rcv_counter[cpu].counter;
+}
+
+unsigned int
 chal_cyc_thresh(void)
 {
 	return lapic_cycs_thresh;
@@ -404,6 +423,8 @@ lapic_asnd_ipi_send(const cpuid_t cpu_id)
 {
 	assert(ncpus > 1 && cpu_id >= 0 && cpu_id < ncpus);
 
+	/* how many sent by this CPU */
+	atomic_inc(&lapic_asnd_ipi_snd_counter[get_cpuid()]);
 	lapic_ipi_send(apicids[cpu_id], LAPIC_ICR_FIXED | LAPIC_IPI_ASND_VEC);
 
 	return;
@@ -420,6 +441,8 @@ lapic_ipi_asnd_handler(struct pt_regs *regs)
 {
 	int preempt = 1;
 
+	/* how many recvd by this CPU */
+	atomic_inc(&lapic_asnd_ipi_rcv_counter[get_cpuid()]);
 	preempt = cap_ipi_process(regs);
 
 	lapic_ack();

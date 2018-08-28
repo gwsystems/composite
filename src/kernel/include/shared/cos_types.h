@@ -325,6 +325,20 @@ enum
 {
 	/* flush caches */
 	HW_CACHE_FLUSH,
+	/* get information about number of ipis */
+	/* FIXME: use args in introspect syscall and pass core id there.. */
+	HW_CORE0_IPI_SND_GET,
+	HW_CORE0_IPI_RCV_GET,
+	HW_CORE1_IPI_SND_GET,
+	HW_CORE1_IPI_RCV_GET,
+	HW_CORE2_IPI_SND_GET,
+	HW_CORE2_IPI_RCV_GET,
+	HW_CORE3_IPI_SND_GET,
+	HW_CORE3_IPI_RCV_GET,
+	HW_CORE4_IPI_SND_GET,
+	HW_CORE4_IPI_RCV_GET,
+	HW_CORE5_IPI_SND_GET,
+	HW_CORE5_IPI_RCV_GET,
 };
 
 /* Macro used to define per core variables */

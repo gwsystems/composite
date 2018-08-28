@@ -28,4 +28,6 @@ int capmgr_hw_attach(hwid_t hwid, thdid_t tid);
 int capmgr_hw_periodic_attach(hwid_t hwid, thdid_t tid, unsigned int period_us);
 int capmgr_hw_detach(hwid_t hwid);
 
+void capmgr_ipi_print(void);
+
 #endif /* CAPMGR_H */

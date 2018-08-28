@@ -12,6 +12,8 @@
 #include <capmgr.h>
 #include <cap_info.h>
 
+extern void cap_xcore_ipi_print(void);
+
 thdcap_t
 capmgr_thd_create_cserialized(thdid_t *tid, int *unused, thdclosure_index_t idx)
 {
@@ -526,4 +528,10 @@ capmgr_hw_detach(hwid_t hwid)
 	if (!rc || !cap_info_init_check(rc)) return -EINVAL;
 
 	return cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, hwid);
+}
+
+void
+capmgr_ipi_print(void)
+{
+	cap_xcore_ipi_print();
 }

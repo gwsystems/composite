@@ -11,9 +11,11 @@
 #include <sl.h>
 #include <capmgr.h>
 #include <hypercall.h>
+#include "perfdata.h"
 
 /* enable only one of these */
-#define TEST_LATENCY
+#define TEST_IPC
+#undef TEST_LATENCY
 #undef TEST_RATE
 
 #define HI_PRIO TCAP_PRIO_MAX
@@ -403,6 +405,156 @@ test_rate_setup(void)
 #endif
 }
 
+volatile cycles_t c0_start = 0, c0_end = 0, c0_mid = 0, c1_start = 0, c1_end = 0, c1_mid = 0;
+
+#define TEST_IPC_ITERS 1000000
+
+#ifdef TEST_IPC
+static volatile struct perfdata pd[3];
+#endif
+
+static void
+c0_ipc_fn(arcvcap_t r, void *d)
+{
+	asndcap_t snd = c0_cn_asnd[cos_cpuid()];
+	int iters;
+	cycles_t rtt_total = 0, one_total = 0, rtt_wc = 0, one_wc = 0, rone_total = 0, rone_wc = 0;
+
+	assert(snd);
+	rdtscll(c0_start);
+#ifdef TEST_IPC
+	perfdata_init((struct perfdata *)&pd[0], "RPC(0<->1)");
+	perfdata_init((struct perfdata *)&pd[1], "IPC(0->1)");
+//	perfdata_init((struct perfdata *)&pd[0], "IPC(0<-1)");
+#endif
+	c0_end = c0_mid = c1_start = c1_mid = c1_end = c0_start;
+
+	testing = 1;
+
+	while (1) {
+		int pending = 0, rcvd = 0, ret = 0;
+		cycles_t rtt_diff, one_diff = 0, rone_diff = 0;
+
+		rdtscll(c0_start);
+		ret = cos_asnd(snd, 0);
+		assert(ret == 0);
+
+		rdtscll(c0_mid);
+		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
+		assert(pending == 0 && rcvd == 1);
+		rdtscll(c0_end);
+
+		rtt_diff = (c0_end - c0_start);
+		one_diff = (c1_mid - c0_start);
+		rone_diff = (c0_end - c1_mid);
+#ifdef TEST_IPC
+		perfdata_add(&pd[0], rtt_diff);
+		perfdata_add(&pd[1], one_diff);
+//		perfdata_add(&pd[2], rone_diff);
+#endif
+		//if (rtt_diff > rtt_wc) rtt_wc = rtt_diff;
+		//if (one_diff > one_wc) one_wc = one_diff;
+		//if (rone_diff > rone_wc) rone_wc = rone_diff;
+		//rtt_total += rtt_diff;
+		//one_total += one_diff;
+		//rone_total += rone_diff;
+
+		iters++;
+		if (iters >= TEST_IPC_ITERS) break;
+	}
+
+	testing = 0;
+	//print stats..
+//	PRINTC("IPC RTT = AVG: %llu, WC: %llu, ITERS: %llu\n", rtt_total / iters, rtt_wc, iters);
+//	PRINTC("IPC ONEWAY = AVG: %llu, WC: %llu, ITERS: %llu\n", one_total / iters, one_wc, iters);
+//	PRINTC("IPC ONEWAY (RET) = AVG: %llu, WC: %llu, ITERS: %llu\n", rone_total / iters, rone_wc, iters);
+#ifdef TEST_IPC
+	perfdata_calc(&pd[0]);
+	perfdata_print(&pd[0]);
+
+	perfdata_calc(&pd[1]);
+	perfdata_print(&pd[1]);
+
+//	perfdata_calc(&pd[2]);
+//	perfdata_print(&pd[2]);
+#endif
+	capmgr_ipi_print();
+
+	sl_thd_exit();
+}
+
+static void
+c1_ipc_fn(arcvcap_t r, void *d)
+{
+	asndcap_t snd = cn_c0_asnd[cos_cpuid()];
+
+	assert(snd);
+	while (testing == 0) ;
+
+	while (1) {
+		int pending = 0, rcvd = 0, ret = 0;
+
+		if (unlikely(testing == 0)) break;
+
+		rdtscll(c1_start);
+		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
+		assert(pending == 0 && rcvd == 1);
+
+		rdtscll(c1_mid);
+		ret = cos_asnd(snd, 0);
+		assert(ret == 0);
+		rdtscll(c1_end);
+	}
+
+	sl_thd_exit();
+}
+
+static void
+test_ipc_setup(void)
+{
+#ifdef TEST_IPC
+	static volatile int cdone[NUM_CPU] = { 0 };
+	int i, ret;
+	struct sl_thd *t = NULL;
+	asndcap_t snd = 0;
+
+	assert(NUM_CPU == 2); /* use only 2 cores for this test! */
+
+	if (cos_cpuid() == 0) {
+		t = sl_thd_aep_alloc(c0_ipc_fn, (void *)cos_cpuid(), 1, 0, 0, 0);
+		assert(t);
+		c0_rcv[cos_cpuid()] = sl_thd_rcvcap(t);
+
+		while (!cn_rcv[1]) ;
+
+		snd = capmgr_asnd_rcv_create(cn_rcv[1]);
+		assert(snd);
+		c0_cn_asnd[cos_cpuid()] = snd;
+	} else {
+		t = sl_thd_aep_alloc(c1_ipc_fn, (void *)cos_cpuid(), 1, 0, 0, 0);
+		assert(t);
+		cn_rcv[cos_cpuid()] = sl_thd_rcvcap(t);
+
+		while (!c0_rcv[0]) ;
+
+		snd = capmgr_asnd_rcv_create(c0_rcv[0]);
+		assert(snd);
+		cn_c0_asnd[cos_cpuid()] = snd;
+	}
+
+	ret = cos_tcap_transfer(sl_thd_rcvcap(t), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, LOW_PRIO);
+	assert(ret == 0);
+	sl_thd_param_set(t, sched_param_pack(SCHEDP_WINDOW, AEP_PERIOD_US));
+	sl_thd_param_set(t, sched_param_pack(SCHEDP_BUDGET, AEP_BUDGET_US));
+	sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, LOW_PRIO));
+
+	ps_faa((unsigned long *)&cdone[cos_cpuid()], 1);
+	for (i = 0; i < NUM_CPU; i++) {
+		while (!ps_load((unsigned long *)&cdone[i])) ;
+	}
+#endif
+}
+
 #define MICRO_IPI_FIRST_RUN
 
 void
@@ -439,6 +591,7 @@ cos_init(void)
 	sl_init(SCHED_PERIOD_US);
         hypercall_comp_init_done();
 
+	test_ipc_setup();
 	test_latency_setup();
 	test_rate_setup();
 
