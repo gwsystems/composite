@@ -593,6 +593,29 @@ exit:
 	return result;
 }
 
+/* called with semaphore internal lock taken and returns with lock taken.. */
+static void
+OS_SemLockTake(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem_id)
+{
+	thdid_t holder = semaphores[sem_id].holder;
+
+	sl_lock_release(&semaphores[sem_id].lock);
+	/* We want to run someone else here, preferably one of the semaphore holders */
+	sl_thd_yield(holder);
+	sl_lock_take(&semaphores[sem_id].lock);
+	if (semaphores[sem_id].count < 1) {
+		sl_lock_release(&semaphores[sem_id].lock);
+		/* If the semaphore holder is blocked, we might just get scheduled again
+		 * Optimally we would switch to an unblocked holder, but we aren't storing them all
+		 * And even if we did, what if all of them were blocked?
+		 * Under fprr, in that situation, we'd just spin in this loop forever
+		 * Thus, we use this OS_TaskDelay hack, to get us removed from the runqueue temporarily
+		 */
+		OS_TaskDelay(1);
+		sl_lock_take(&semaphores[sem_id].lock);
+	}
+}
+
 int32
 OS_SemaphoreTake(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem_id)
 {
@@ -604,20 +627,7 @@ OS_SemaphoreTake(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem
 	}
 
 	sl_lock_take(&semaphores[sem_id].lock);
-	while (semaphores[sem_id].count < 1) {
-		thdid_t holder = semaphores[sem_id].holder;
-		sl_lock_release(&semaphores[sem_id].lock);
-		/* We want to run someone else here, preferably one of the semaphore holders */
-		sl_thd_yield(holder);
-		/* If the semaphore holder is blocked, we might just get scheduled again
-		 * Optimally we would switch to an unblocked holder, but we aren't storing them all
-		 * And even if we did, what if all of them were blocked?
-		 * Under fprr, in that situation, we'd just spin in this loop forever
-		 * Thus, we use this OS_TaskDelay hack, to get us removed from the runqueue temporarily
-		 */
-		OS_TaskDelay(1);
-		sl_lock_take(&semaphores[sem_id].lock);
-	}
+	while (semaphores[sem_id].count < 1) OS_SemLockTake(semaphores, max_semaphores, sem_id);
 
 	assert(semaphores[sem_id].used);
 	if (semaphores[sem_id].holder == 0) { semaphores[sem_id].holder = sl_thdid(); }
@@ -643,13 +653,7 @@ OS_SemaphoreTimedWait(struct semaphore *semaphores, uint32 max_semaphores, uint3
 	}
 
 	sl_lock_take(&semaphores[sem_id].lock);
-	while (semaphores[sem_id].count < 1 && (sl_now() - start_time) < max_wait) {
-		thdid_t holder = semaphores[sem_id].holder;
-		sl_lock_release(&semaphores[sem_id].lock);
-		sl_thd_yield(holder);
-		OS_TaskDelay(1);
-		sl_lock_take(&semaphores[sem_id].lock);
-	}
+	while (semaphores[sem_id].count < 1 && (sl_now() - start_time) < max_wait) OS_SemLockTake(semaphores, max_semaphores, sem_id);
 
 	assert(semaphores[sem_id].used);
 	if (semaphores[sem_id].count < 1) {
