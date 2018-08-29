@@ -59,21 +59,10 @@ cap_xcore_ipi_ctrs_get(cpuid_t core, unsigned int type, unsigned int *sndctr, un
 		*sndctr = ps_load(&ipi_snd_counters[core]);
 		*rcvctr = ps_load(&ipi_rcv_counters[core]);
 	} else {
-		unsigned int k_snd_op = 0, k_rcv_op = 0;
-
-		switch(core) {
-			case 0: k_snd_op = HW_CORE0_IPI_SND_GET; k_rcv_op = HW_CORE0_IPI_RCV_GET; break;
-			case 1: k_snd_op = HW_CORE1_IPI_SND_GET; k_rcv_op = HW_CORE1_IPI_RCV_GET; break;
-			case 2: k_snd_op = HW_CORE2_IPI_SND_GET; k_rcv_op = HW_CORE2_IPI_RCV_GET; break;
-			case 3: k_snd_op = HW_CORE3_IPI_SND_GET; k_rcv_op = HW_CORE3_IPI_RCV_GET; break;
-			case 4: k_snd_op = HW_CORE4_IPI_SND_GET; k_rcv_op = HW_CORE4_IPI_RCV_GET; break;
-			case 5: k_snd_op = HW_CORE5_IPI_SND_GET; k_rcv_op = HW_CORE5_IPI_RCV_GET; break;
-			default: return -EINVAL;
-		}
-		ret = cos_introspect(cos_compinfo_get(cos_defcompinfo_curr_get()), BOOT_CAPTBL_SELF_INITHW_BASE, k_snd_op);
+		ret = cos_introspect(cos_compinfo_get(cos_defcompinfo_curr_get()), BOOT_CAPTBL_SELF_INITHW_BASE, HW_CORE_IPI_SND_GET, core);
 		if (ret < 0) return ret;
 		*sndctr = ret;
-		ret = cos_introspect(cos_compinfo_get(cos_defcompinfo_curr_get()), BOOT_CAPTBL_SELF_INITHW_BASE, k_rcv_op);
+		ret = cos_introspect(cos_compinfo_get(cos_defcompinfo_curr_get()), BOOT_CAPTBL_SELF_INITHW_BASE, HW_CORE_IPI_RCV_GET, core);
 		if (ret < 0) return ret;
 		*rcvctr = ret;
 	}

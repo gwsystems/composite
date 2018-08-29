@@ -127,7 +127,7 @@ _memmgr_tls_alloc_and_set(void *area)
 	assert(cur_ci && rci);
 
 	dst_thdcap = sl_thd_curr()->aepinfo->thd;
-	tid        = cos_introspect(cur_ci, dst_thdcap, THD_GET_TID);
+	tid        = cos_introspect(cur_ci, dst_thdcap, THD_GET_TID, 0);
 	addr       = memmgr_tls_alloc(tid);
 	assert(addr);
 

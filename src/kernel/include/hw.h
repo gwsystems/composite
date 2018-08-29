@@ -84,23 +84,12 @@ hw_detach_rcvcap(struct cap_hw *hwc, hwid_t hwid)
 }
 
 static inline int
-hw_introspect(struct cap_hw *hwc, unsigned long op, unsigned long *retval)
+hw_introspect(struct cap_hw *hwc, unsigned long op, unsigned long a, unsigned long *retval)
 {
         switch(op) {
         case HW_CACHE_FLUSH: chal_flush_cache(); *retval = 0; break;
-	/* FIXME/TODO: use args in introspection syscall */
-	case HW_CORE0_IPI_SND_GET: *retval = chal_core_ipi_snd_get(0); break;
-	case HW_CORE0_IPI_RCV_GET: *retval = chal_core_ipi_rcv_get(0); break;
-	case HW_CORE1_IPI_SND_GET: *retval = chal_core_ipi_snd_get(1); break;
-	case HW_CORE1_IPI_RCV_GET: *retval = chal_core_ipi_rcv_get(1); break;
-	case HW_CORE2_IPI_SND_GET: *retval = chal_core_ipi_snd_get(2); break;
-	case HW_CORE2_IPI_RCV_GET: *retval = chal_core_ipi_rcv_get(2); break;
-	case HW_CORE3_IPI_SND_GET: *retval = chal_core_ipi_snd_get(3); break;
-	case HW_CORE3_IPI_RCV_GET: *retval = chal_core_ipi_rcv_get(3); break;
-	case HW_CORE4_IPI_SND_GET: *retval = chal_core_ipi_snd_get(4); break;
-	case HW_CORE4_IPI_RCV_GET: *retval = chal_core_ipi_rcv_get(4); break;
-	case HW_CORE5_IPI_SND_GET: *retval = chal_core_ipi_snd_get(5); break;
-	case HW_CORE5_IPI_RCV_GET: *retval = chal_core_ipi_rcv_get(5); break;
+	case HW_CORE_IPI_SND_GET: *retval = chal_core_ipi_snd_get(a); break;
+	case HW_CORE_IPI_RCV_GET: *retval = chal_core_ipi_rcv_get(a); break;
         default: return -EINVAL;
         }
         return 0;

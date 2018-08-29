@@ -533,7 +533,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);
 
 			ret = 0;
-			currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
+			currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET, 0);
 
 			if (!cycles_same(currbudget, t->budget, SL_CYCS_DIFF) && currbudget < t->budget) {
 				tcap_res_t transfer = t->budget - currbudget;

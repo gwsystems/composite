@@ -977,9 +977,9 @@ cos_thd_mod(struct cos_compinfo *ci, thdcap_t tc, void *tlsaddr)
 
 /* FIXME: problems when we got to 64 bit systems with the return value */
 int
-cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
+cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op, unsigned long arg)
 {
-	return call_cap_op(ci->captbl_cap, CAPTBL_OP_INTROSPECT, cap, (int)op, 0, 0);
+	return call_cap_op(ci->captbl_cap, CAPTBL_OP_INTROSPECT, cap, (int)op, arg, 0);
 }
 
 int

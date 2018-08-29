@@ -972,7 +972,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 }
 
 static int
-cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval)
+cap_introspect(struct captbl *ct, capid_t capid, u32_t op, u32_t a, unsigned long *retval)
 {
 	struct cap_header *ch = captbl_lkup(ct, capid);
 
@@ -986,7 +986,7 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 	case CAP_ARCV:
 		return arcv_introspect(((struct cap_arcv *)ch), op, retval);
 	case CAP_HW:
-		return hw_introspect(((struct cap_hw*)ch), op, retval);
+		return hw_introspect(((struct cap_hw*)ch), op, a, retval);
 	default:
 		return -EINVAL;
 	}
@@ -1402,9 +1402,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			struct captbl *ctin   = op_cap->captbl;
 			unsigned long  retval = 0;
 			u32_t          op     = __userregs_get2(regs);
+			u32_t          a      = __userregs_get3(regs);
 			assert(ctin);
 
-			ret = cap_introspect(ctin, capin, op, &retval);
+			ret = cap_introspect(ctin, capin, op, a, &retval);
 			if (!ret) ret= retval;
 
 			break;

@@ -74,7 +74,7 @@ cos_defcompinfo_sched_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sc
 	sched_aep->rcv  = sched_rcv;
 	sched_aep->fn   = NULL;
 	sched_aep->data = NULL;
-	sched_aep->tid  = cos_introspect(ci, sched_thd, THD_GET_TID);
+	sched_aep->tid  = cos_introspect(ci, sched_thd, THD_GET_TID, 0);
 }
 
 void
@@ -101,7 +101,7 @@ cos_aep_alloc_intern(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci, 
 	else if (idx > 0) aep->thd = cos_thd_alloc_ext(ci, dst_ci->comp_cap, idx);
 	else              aep->thd = cos_thd_alloc(ci, dst_ci->comp_cap, cos_aepthd_fn, (void *)aep);
 	assert(aep->thd);
-	aep->tid  = cos_introspect(ci, aep->thd, THD_GET_TID);
+	aep->tid  = cos_introspect(ci, aep->thd, THD_GET_TID, 0);
 	if (!sched && is_init) return 0;
 
 	if (tc) {

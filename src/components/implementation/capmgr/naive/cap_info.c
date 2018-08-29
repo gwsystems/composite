@@ -99,7 +99,7 @@ struct cap_comm_info *
 cap_comm_rcv_lkup(struct cos_compinfo *ci, arcvcap_t rcv)
 {
 	/* FIXME: this is for global- thread id namespace */
-	thdid_t tid = cos_introspect(ci, rcv, ARCV_GET_THDID);
+	thdid_t tid = cos_introspect(ci, rcv, ARCV_GET_THDID, 0);
 
 	return cap_comm_tid_lkup(tid);
 }

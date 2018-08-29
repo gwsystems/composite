@@ -160,7 +160,7 @@ int cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd);
 /* returns the same value as cos_rcv, but also information about scheduling events */
 int cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout, int *rcvd, thdid_t *thdid, int *blocked, cycles_t *cycles, tcap_time_t *thd_timeout);
 
-int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
+int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op, unsigned long arg);
 int cos_introspect64(struct cos_compinfo *ci, capid_t cap, unsigned long op, u64_t *value);
 
 int cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4);

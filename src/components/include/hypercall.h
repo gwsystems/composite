@@ -76,7 +76,7 @@ hypercall_comp_initaep_get(spdid_t spdid, int is_sched, struct cos_aep_info *aep
 	aep->thd = thdslot;
 	aep->rcv = rcvslot;
 	aep->tc  = tcslot;
-	aep->tid = cos_introspect(ci, thdslot, THD_GET_TID);
+	aep->tid = cos_introspect(ci, thdslot, THD_GET_TID, 0);
 
 	return 0;
 }

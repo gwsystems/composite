@@ -407,7 +407,7 @@ test_rate_setup(void)
 
 volatile cycles_t c0_start = 0, c0_end = 0, c0_mid = 0, c1_start = 0, c1_end = 0, c1_mid = 0;
 
-#define TEST_IPC_ITERS 1000000
+#define TEST_IPC_ITERS 100
 
 #ifdef TEST_IPC
 static volatile struct perfdata pd[3];

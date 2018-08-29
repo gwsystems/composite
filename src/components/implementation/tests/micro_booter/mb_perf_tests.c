@@ -36,7 +36,7 @@ test_intr_latency_perf(void)
 
 //	rdtscll(now);
 //	timer = tcap_cyc2time(now + INTR_LATENCY_CYCS * cyc_per_usec);
-	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH);
+	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 
 	for (i = 0 ; i < INTR_LATENCY_ITER ; i++) {
 		cycles_t cycles;
@@ -80,7 +80,7 @@ test_timer_intr_latency_perf(void)
 
 	rdtscll(now);
 	timer = tcap_cyc2time(now + INTR_LATENCY_CYCS * cyc_per_usec);
-	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH);
+	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 
 	for (i = 0 ; i < INTR_LATENCY_ITER ; i++) {
 		cycles_t cycles;
@@ -158,7 +158,7 @@ test_thds_perf(int with_apic_timer_prog)
 	rdtscll(now);
 	timer = tcap_cyc2time(now + timeout[cos_cpuid()]);
 	cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, apic_timer_overhead_test[cos_cpuid()] ? timer : TCAP_TIME_NIL, 0, 0);
-	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH);
+	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 
 	for (i = 0 ; i < ITER ; i++) {
 		rdtscll(start_swt_cycles);
@@ -258,7 +258,7 @@ async_thd_parent_perf(void *thdcap)
 
 	perfdata_init(&pd[cos_cpuid()], "ASND/RCV");
 	cos_asnd(sc, 1);
-	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH);
+	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 
 	for (i = 0 ; i < ITER ; i++) {
 		rdtscll(start_asnd_cycles);
@@ -352,7 +352,7 @@ test_sched_activation_perf(void)
 	assert(sc);
 
 	cos_asnd(sc, 1);
-	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH);
+	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 
 	for (i = 0 ; i < ITER ; i++) {
 		cos_asnd(sc, 1);
@@ -427,7 +427,7 @@ test_inv_perf(void)
 	assert(ic > 0);
 	ret = call_cap_mb(ic, 1, 2, 3);
 	assert(ret == 0xDEADBEEF);
-	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH);
+	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 
 	for (i = 0 ; i < ITER ; i++) {
 		long long start_cycles = 0LL, end_cycles = 0LL;
@@ -613,11 +613,11 @@ test_tcaps_perf(void)
 	for ( i = 0; i < (int)(sizeof(ndelegs)/sizeof(ndelegs[0])); i ++) {
 		PRINTC("Tcaps-ubench for ndelegs = %d\n", ndelegs[i]);
 		tcap_perf_test_ndeleg(ndelegs[i]);
-		cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH);
+		cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 		tcap_perf_test_transfer();
-		cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH);
+		cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 		tcap_perf_test_delegate(0);
-		cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH);
+		cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 		tcap_perf_test_delegate(1);
 	}
 }

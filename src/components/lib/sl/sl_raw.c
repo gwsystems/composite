@@ -93,7 +93,7 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 
 	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data);
 	if (!aep->thd) goto done;
-	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
+	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID, 0);
 	if (!aep->tid) goto done;
 	assert(aep->tid < MAX_NUM_THREADS);
 
@@ -146,7 +146,7 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 
 		aep->thd = cos_thd_alloc_ext(ci, compci->comp_cap, idx);
 		if (!aep->thd) goto done;
-		aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
+		aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID, 0);
 		if (!aep->tid) goto done;
 
 		t = sl_thd_alloc_init(aep, 0, 0);

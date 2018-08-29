@@ -65,7 +65,7 @@ test_rcv_crt(void)
 
 		test_rcvs[cos_cpuid()][i] = rcv;
 		test_rthds[cos_cpuid()][i] = thd;
-		test_rtids[cos_cpuid()][i] = cos_introspect(&booter_info, thd, THD_GET_TID);
+		test_rtids[cos_cpuid()][i] = cos_introspect(&booter_info, thd, THD_GET_TID, 0);
 	}
 	rcv_crt[cos_cpuid()] = 1;
 
@@ -349,7 +349,7 @@ test_ipi_full(void)
 		assert(r);
 
 		thd[cos_cpuid()] = t;
-		tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
+		tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID, 0);
 		rcv[cos_cpuid()] = r;
 #if defined(TEST_1_TO_1) && defined(TEST_RT)
 		while(!rcv[TEST_SND_CORE]) ;
@@ -372,7 +372,7 @@ test_ipi_full(void)
 		assert(r);
 
 		thd[cos_cpuid()] = t;
-		tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
+		tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID, 0);
 		rcv[cos_cpuid()] = r;
 #endif
 #endif
