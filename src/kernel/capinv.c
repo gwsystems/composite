@@ -720,9 +720,28 @@ cap_ipi_process(struct pt_regs *regs)
 	for (i = 0; i < NUM_CPU; i++) {
 		struct thread *rcvthd  = NULL;
 		struct tcap   *rcvtcap = NULL;
+		int    cur_base        = (scan_base + i) % NUM_CPU;
 
-		ring = &receiver_rings->IPI_source[(scan_base + i) % NUM_CPU];
+		/* we currently don't have a mechanism that requires/allows IPIs on the same core */
+		if (unlikely(cur_base == get_cpuid())) continue;
+		ring = &receiver_rings->IPI_source[cur_base];
 
+		/*
+		 * can we still be starving this core and potentially (other coreS)??:
+		 * scenario: dequeue returns an item, we process it..before we hit dequeue again,
+		 * if the other core "i" sends another request..dequeue returns that item..keep at it..
+		 * you'll never end this loop!!!
+		 * what I think we need to do is, preload the tail with core "i"..
+		 * process upto that tail and move forward with the next core..
+		 *
+		 * This is also a subtle processing:
+		 * 1. we could always be prioritizing the current core with its request..
+		 *    especially when we "end" processing one core, we'd potentially be
+		 *    processing NUM_ELEMENTS * (n-1) cores before getting to this core even
+		 *    if this core only had 1 entry when we processed..
+		 * My idea would be some sort of core "priorities" per core..
+		 * that would be more complex, is it worth putting that in?? not clear to me
+		 */
 		while ((cos_ipi_ring_dequeue(ring, &data)) != 0) {
 			arcv = cos_ipi_arcv_get(&data);
 			assert(arcv);
