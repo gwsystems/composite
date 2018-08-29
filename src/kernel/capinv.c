@@ -704,7 +704,7 @@ cap_ipi_process(struct pt_regs *regs)
 	struct thread 		   *thd_curr, *thd_next;
 	struct tcap 		   *tcap_curr, *tcap_next;
 	struct comp_info 	   *ci;
-	int                         i, scan_base;
+	int                         i, scan_count = 0;
 	unsigned long               ip, sp;
 
 	thd_curr       = thd_next = thd_current(cos_info);
@@ -713,14 +713,11 @@ cap_ipi_process(struct pt_regs *regs)
 	ci             = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
 
-	scan_base = receiver_rings->start;
-	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
-
 	/* We need to scan the entire buffer once. */
-	for (i = 0; i < NUM_CPU; i++) {
+	for (i = receiver_rings->start; scan_count < NUM_CPU; i++, scan_count++) {
 		struct thread *rcvthd  = NULL;
 		struct tcap   *rcvtcap = NULL;
-		int    cur_base        = (scan_base + i) % NUM_CPU;
+		int    cur_base        = i % NUM_CPU;
 
 		/* we currently don't have a mechanism that requires/allows IPIs on the same core */
 		if (unlikely(cur_base == get_cpuid())) continue;
@@ -757,6 +754,7 @@ cap_ipi_process(struct pt_regs *regs)
 			thd_next = asnd_process(rcvthd, thd_next, rcvtcap, tcap_next, &tcap_next, 0, cos_info);
 		}
 	}
+	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
 
 	if (thd_next == thd_curr) return 1;
 	thd_curr->state |= THD_STATE_PREEMPTED;
