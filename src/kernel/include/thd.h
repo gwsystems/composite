@@ -19,8 +19,14 @@
 #include "list.h"
 
 /* 
- * This data structure is the same as comp_info. However, it is not comp_info any more, 
- * because we want to use several insignificant bits in the captbl to provide better alignment.
+ * 1. This data structure is designed to replace the comp_info used in invstk_entry.
+ * The reason for using comp_invstk_info instead of comp_info is we want to set a flag
+ * into the captbl pointer of comp_info to achieve better alignment.
+ * 2. We plan to set a bit into the captbl pointer because captbls are perfectly aligned 
+ * which means the last few bits of captbl is always "0". By this design, we can achieve
+ * both better cache line alignment and structure alignment.
+ * 3. Another advantage of using this structure is if comp_info needs to be changed in
+ * the future, we do not have to change comp_invstk_info.
  */
 struct comp_invstk_info {
 	struct comp_info comp_info;
@@ -339,7 +345,10 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 	if (unlikely(thd->scheduler_thread != sched)) thd->scheduler_thread = sched;
 }
 
-/* Reset the bit in captbl and return comp_info */
+/* 
+ * This function is used to reset the bit in captbl and return comp_info. 
+ * Refer to the comments of structure comp_invstk_info to see more about this design. 
+ */
 static inline struct comp_info *
 thd_invstk_comp_info_reset(struct comp_invstk_info* comp_invstk_info)
 {
@@ -489,6 +498,10 @@ curr_invstk_top(struct cos_cpu_local_info *cos_info)
 	return cos_info->invstk_top;
 }
 
+/* 
+ * This function aims to get the "in_fault" flag. 
+ * Refer to the comments of comp_invstk_info to see more about this design.
+ */
 static inline struct comp_info *
 thd_invstk_current_fault(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, unsigned long *in_fault, struct cos_cpu_local_info *cos_info)
 {
@@ -523,9 +536,8 @@ thd_current_pgtbl(struct thread *thd)
 }
 
 /*
- * The length of comp_info 16 bytes, so 4 comp_info can perfectly fit into a cache line. If we add a flag into the comp_info struct, the cache line
- * We use the last bit to indicate whether it is a sinv to a fault handler. 
- * The modification of the current invstk_entry includes setting ip, sp, and in_fault flag of the current component.
+ * This function will be called by thd_invstk_push to modify the current top entry of invstk.
+ * This modification will include the modification of the ip, sp, and in_fault flag.
  */
 static inline void
 thd_invstk_modify_current(struct thread *thd, unsigned long ip, unsigned long sp, unsigned long in_fault, 
@@ -542,8 +554,9 @@ thd_invstk_modify_current(struct thread *thd, unsigned long ip, unsigned long sp
 	curr_comp_info->captbl = (struct captbl*)(((unsigned long)curr_comp_info->captbl & (~1u)) | in_fault);
 }
 
-/* 
- * Modify the top of invstk before pushing a new comp_invstk_info into the invstk. By this means the push operation of invstk behaviors more like a normal stack.
+/*
+ * The push operation of invstk has been divided into two steps. First, modify the top of the invstk
+ * by calling the thd_invstk_modify_current fucntion. Then push a new invstk_entry into the invstk.
  */
 static inline int
 thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp, unsigned long in_fault,

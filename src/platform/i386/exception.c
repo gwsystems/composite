@@ -159,7 +159,7 @@ int
 page_fault_handler(struct pt_regs *regs)
 {
 	FLT_SINV(regs, FAULT_CAPTBL_MEM_ACCESS);
-s
+	
 	return 1;
 }
 
