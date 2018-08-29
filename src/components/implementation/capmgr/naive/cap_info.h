@@ -35,18 +35,20 @@ struct cap_comm_info {
 	u32_t      ipicnt, ipimax;
 	asndcap_t  sndcap[NUM_CPU]; /* for cross-core asnds */
 	sinvcap_t  sinvcap[NUM_CPU]; /* for each core (except for the same core!) */
-} cap_comminfo[CAP_INFO_MAX_THREADS];
+} CACHE_ALIGNED;
+struct cap_comm_info cap_comminfo[CAP_INFO_MAX_THREADS];
 
 struct cap_channelaep_info {
 	struct cap_comm_info *comminfo;
-} cap_channelaeps[CAPMGR_AEPKEYS_MAX];
+} CACHE_ALIGNED;
+struct cap_channelaep_info cap_channelaeps[CAPMGR_AEPKEYS_MAX];
 
 /* per component shared memory region information */
 struct cap_shmem_info {
 	struct cos_compinfo *cinfo; /* points to cap_comp_info.defci.ci, to use the same frontier for shared regions */
 	unsigned long        total_pages; /* track total pages alloc'ed/mapped to limit shmem usage */
 	vaddr_t              shm_addr[MEMMGR_MAX_SHMEM_REGIONS]; /* virtual address mapped in the component with array index as the global shared memory identifier */
-};
+} CACHE_ALIGNED;
 
 struct cap_comp_cpu_info {
 	int thd_used;
@@ -67,7 +69,7 @@ struct cap_comp_info {
 	int initflag;
 
 	struct cap_comp_cpu_info cpu_local[NUM_CPU];
-};
+} CACHE_ALIGNED;
 
 struct cap_comp_info *cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
 					 capid_t cap_frontier, vaddr_t heap_frontier, spdid_t sched_spdid);

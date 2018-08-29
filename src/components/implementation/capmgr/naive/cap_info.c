@@ -8,9 +8,9 @@
 #include <cos_kernel_api.h>
 #include <cap_info.h>
 
-static struct cap_comp_info capci[MAX_NUM_COMPS + 1]; /* includes booter information also, so +1 */
+static struct cap_comp_info capci[MAX_NUM_COMPS + 1] CACHE_ALIGNED; /* includes booter information also, so +1 */
 static unsigned int cap_comp_count;
-u32_t cap_info_schedbmp[NUM_CPU][MAX_NUM_COMP_WORDS];
+u32_t cap_info_schedbmp[NUM_CPU][MAX_NUM_COMP_WORDS] CACHE_ALIGNED;
 static struct cap_shmem_glb_info cap_shmglbinfo;
 extern int cap_xcore_asnd_inv(word_t a, word_t b, word_t c, int yield);
 
