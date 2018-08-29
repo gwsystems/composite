@@ -19,7 +19,7 @@
 
 #define SINV_THD_PRIO 2
 #define SINV_THD_PERIOD_US 10000
-#define SINV_THD_BUDGET_US 4000
+#define SINV_THD_BUDGET_US 10000
 
 static struct cos_aep_info sinv_aeps[MAX_NUM_THREADS];
 static int sinv_free_aep = 0;
@@ -112,6 +112,7 @@ sinv_server_aep_fn(arcvcap_t rcv, void *data)
 {
 	struct sinv_async_info *s = (struct sinv_async_info *)data;
 	struct sinv_thdinfo    *t = NULL;
+	cycles_t interval = time_usec2cyc(SINV_SRV_POLL_US);
 
 	assert(s);
 	t = &s->sdata.sthds[cos_thdid()];
@@ -124,7 +125,7 @@ sinv_server_aep_fn(arcvcap_t rcv, void *data)
 		int rcvd = 0;
 
 		while (ps_load((unsigned long *)reqaddr) != SINV_REQ_SET) {
-			cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
+			cycles_t timeout = time_now() + interval;
 
 			sched_thd_block_timeout(0, timeout);
 			cos_rcv(rcv, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
@@ -142,7 +143,6 @@ sinv_server_aep_fn(arcvcap_t rcv, void *data)
 static inline int
 sinv_server_main_prep(struct sinv_async_info *s)
 {
-	PRINTC("%s: mapping shared-memory\n", __func__);
 	while (!s->init_shmaddr) {
 		sinv_server_try_map(s);
 
@@ -152,7 +152,6 @@ sinv_server_main_prep(struct sinv_async_info *s)
 			sched_thd_block_timeout(0, timeout);
 		}
 	}
-	PRINTC("%s: Done mapping shared-memory\n", __func__);
 
 	return 0;
 }
@@ -182,7 +181,7 @@ sinv_server_main_req_process(struct sinv_async_info *s)
 	}
 
 	assert(req->skey);
-	tid = sched_aep_create(aep, sinv_server_aep_fn, (void *)s, 0, req->skey, 0, 0);
+	tid = sched_aep_create(aep, sinv_server_aep_fn, (void *)s, 0, req->skey, SINV_IPI_WIN_US, SINV_IPI_RATE);
 	assert(tid);
 
 	id = channel_shared_page_map(req->skey, &shmaddr, &npages);
@@ -226,11 +225,9 @@ int
 sinv_server_main_loop(struct sinv_async_info *s)
 {
 	sinv_server_main_prep(s);
-	PRINTC("Starting main loop\n");
 	while (1) {
 		sinv_server_main_req_process(s);
 	}
-	PRINTC("Ending main loop\n");
 
 	return 0;
 }
@@ -239,13 +236,11 @@ int
 sinv_server_main_nrequests(struct sinv_async_info *s, unsigned int nrequests)
 {
 	sinv_server_main_prep(s);
-	PRINTC("Starting main loop [%u]\n", nrequests);
 	while (nrequests > 0) {
 		sinv_server_main_req_process(s);
 
 		nrequests--;
 	}
-	PRINTC("Ending main loop\n");
 
 	return 0;
 }

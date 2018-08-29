@@ -77,6 +77,8 @@ sinv_server_entry(struct sinv_async_info *s, struct sinv_call_req *req)
 	return ret;
 }
 
+#define TEST_XCORE_UBENCH
+
 void
 cos_init(void)
 {
@@ -96,7 +98,11 @@ cos_init(void)
 	}
 
 	schedinit_child();
+#ifndef TEST_XCORE_UBENCH
 	sinv_server_main_loop(&sinv_api);
+#else
+	sinv_server_main_nrequests(&sinv_api, 1);
+#endif
 
 	sched_thd_exit();
 }

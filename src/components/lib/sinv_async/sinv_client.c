@@ -31,7 +31,6 @@ sinv_client_init_sndkey(struct sinv_async_info *s, cos_channelkey_t shm_key, cos
 	s->snd_key      = snd_key;
 }
 
-
 void
 sinv_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key)
 {
@@ -62,7 +61,7 @@ sinv_client_thread_init(struct sinv_async_info *s, thdid_t tid, cos_channelkey_t
 
 	if (rcvkey) {
 		/* capmgr interface to create a rcvcap for "tid" thread in the scheduler component..*/
-		rcv = capmgr_rcv_create(child, tid, rcvkey, 0, 0); /* TODO: rate- limit */
+		rcv = capmgr_rcv_create(child, tid, rcvkey, SINV_IPI_WIN_US, SINV_IPI_RATE); /* TODO: rate- limit */
 		assert(rcv);
 	}
 
@@ -100,6 +99,7 @@ sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_
 	volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(tinfo->shmaddr);
 	int *retval = NULL, ret, rcvd;
 	struct sinv_call_req *req = NULL;
+	cycles_t interval = time_usec2cyc(SINV_SRV_POLL_US);
 
 	assert(n >= 0 && n < SINV_NUM_MAX);
 	assert(reqaddr);
@@ -126,7 +126,7 @@ sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_
 	cos_asnd(tinfo->sndcap, 0);
 
 	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {
-		cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
+		cycles_t timeout = time_now() + interval;
 
 		sl_thd_block_timeout(0, timeout); /* in the scheduler component */
 		if (tinfo->rcvcap) cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);

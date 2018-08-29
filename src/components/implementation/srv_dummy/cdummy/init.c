@@ -20,7 +20,7 @@ extern cbuf_t parent_schedinit_child(void);
 #define INITIALIZE_PERIOD_MS 4000
 
 #define FIXED_PRIO 2
-#define FIXED_BUDGET_MS 2000
+#define FIXED_BUDGET_MS 10000
 #define FIXED_PERIOD_MS 10000
 
 static struct sl_thd *__initializer_thd[NUM_CPU] CACHE_ALIGNED;
@@ -107,7 +107,11 @@ cos_init(void)
 
 	self_init[cos_cpuid()] = 1;
 
+#ifdef CFE_RK_MULTI_CORE
+	sl_sched_loop_nonblock();
+#else
 	sl_sched_loop();
+#endif
 
 	PRINTLOG(PRINT_ERROR, "Should never have reached this point!!!\n");
 	assert(0);

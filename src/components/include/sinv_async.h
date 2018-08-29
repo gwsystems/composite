@@ -16,6 +16,14 @@
 #define SINV_INIT_NPAGES 1
 #define SINV_REQ_NPAGES  1
 
+#if 0
+#define SINV_IPI_RATE 1
+#define SINV_IPI_WIN_US (10000) //10ms
+#else
+#define SINV_IPI_RATE 0
+#define SINV_IPI_WIN_US 0
+#endif
+
 #define SINV_REQ_SET   1
 #define SINV_REQ_RESET 0
 
@@ -26,12 +34,12 @@
  */
 #define SINV_POLL_ADDR(addr) ((unsigned long *)(addr))
 /* Server saves the integer return value at this address */
-#define SINV_RET_ADDR(addr) ((unsigned long *)(addr) + 1)
+#define SINV_RET_ADDR(addr) (SINV_POLL_ADDR(addr) + 1)
 /*
  * Client writes struct sinv_call_req here at this address.
  * If client requests for multiple return values, server updates sinv_call_req.ret2 and sinv_call_req.ret3
  */
-#define SINV_REQ_ADDR(addr) ((unsigned long *)(addr) + 2)
+#define SINV_REQ_ADDR(addr) (SINV_RET_ADDR(addr) + 1)
 
 /* TODO: change this to enumeration of invocation functions */
 typedef int sinv_num_t;

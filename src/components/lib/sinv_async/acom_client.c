@@ -50,6 +50,7 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 	cbuf_t id = 0;
 	asndcap_t snd = 0;
 	spdid_t child = cos_inv_token() == 0 ? cos_spd_id() : (spdid_t)cos_inv_token();
+	cycles_t interval = time_usec2cyc(SINV_SRV_POLL_US);
 
 	assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET);
 	assert(skey && tid);
@@ -67,7 +68,7 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 	assert(ret);
 
 	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {
-		cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
+		cycles_t timeout = time_now() + interval;
 
 		sched_thd_block_timeout(0, timeout); /* called from the scheduler */
 	}
@@ -96,6 +97,7 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 	volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(tinfo->shmaddr);
 	int *retval = NULL, ret, rcvd = 0;
 	struct sinv_call_req *req = NULL;
+	cycles_t interval = time_usec2cyc(SINV_SRV_POLL_US);
 
 	assert(t >= 0 && t < SINV_NUM_MAX);
 	assert(reqaddr);
@@ -119,7 +121,7 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 	}
 
 	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {
-		cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
+		cycles_t timeout = time_now() + interval;
 
 		sched_thd_block_timeout(0, timeout); /* in the app component */
 
