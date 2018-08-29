@@ -723,7 +723,6 @@ cap_ipi_process(struct pt_regs *regs)
 
 		ring = &receiver_rings->IPI_source[(scan_base + i) % NUM_CPU];
 
-		if (ring->sender == ring->receiver) continue;
 		while ((cos_ipi_ring_dequeue(ring, &data)) != 0) {
 			arcv = cos_ipi_arcv_get(&data);
 			assert(arcv);

@@ -18,7 +18,7 @@
  * We have N*N rings (N= # of cpus).
  */
 #define IPI_RING_SIZE (16)
-#define IPI_RING_MASK (IPI_RING_SIZE - 1);
+#define IPI_RING_MASK (IPI_RING_SIZE - 1)
 
 struct ipi_cap_data {
 	capid_t          arcv_capid;
@@ -76,8 +76,8 @@ cos_ipi_arcv_get(struct ipi_cap_data *data)
 	assert(ci->captbl);
 	arcv = (struct cap_arcv *)captbl_lkup(ci->captbl, data->arcv_capid);
 	if (unlikely(arcv->h.type != CAP_ARCV)) {
-		printk("cos: IPI handling received invalid arcv cap %d\n", (int)data->arcv_capid);
-		return 0;
+		/* printk("cos: IPI handling received invalid arcv cap %d\n", (int)data->arcv_capid); */
+		return NULL;
 	}
 
 	return arcv;
@@ -87,6 +87,15 @@ static inline void
 process_ring(struct xcore_ring *ring)
 {
 	return;
+}
+
+static inline u32_t
+cos_ipi_ring_size(struct xcore_ring *ring)
+{
+	u32_t p = ring->sender;
+	u32_t c = ring->receiver;
+
+	return ((p - c) & IPI_RING_MASK);
 }
 
 static inline int
@@ -111,6 +120,8 @@ cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd)
 	memcpy(&data->comp_info, &asnd->comp_info, sizeof(struct comp_info));
 
 	ring->sender = delta;
+	/* don't send ipi if there are 2 or more pending requests */
+	if (cos_ipi_ring_size(ring) >= 2) return 1;
 
 	cos_mem_fence();
 
@@ -123,7 +134,8 @@ cos_cap_send_ipi(int cpu, struct cap_asnd *asnd)
 	int ret;
 
 	ret = cos_ipi_ring_enqueue(cpu, asnd);
-	if (unlikely(ret)) return ret;
+	if (unlikely(ret < 0)) return ret;
+	if (likely(ret > 0)) return 0;
 
 	chal_send_ipi(cpu);
 
