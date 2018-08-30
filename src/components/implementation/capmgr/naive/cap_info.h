@@ -91,10 +91,11 @@ void     cap_shmem_region_vaddr_set(struct cap_shmem_info *rsh, cbuf_t id, vaddr
 cbuf_t   cap_shmem_region_find(cos_channelkey_t key);
 int      cap_shmem_region_key_set(cbuf_t id, cos_channelkey_t key);
 
-struct cap_comm_info *cap_comminfo_init(struct sl_thd *t, microsec_t ipi_window, u32_t ipi_max);
-struct cap_comm_info *cap_comm_tid_lkup(thdid_t tid);
-struct cap_comm_info *cap_comm_rcv_lkup(struct cos_compinfo *ci, arcvcap_t rcv);
-cap_t  cap_comminfo_xcoresnd_create(struct cap_comm_info *comm, capid_t *cap);
+struct    cap_comm_info *cap_comminfo_init(struct sl_thd *t, microsec_t ipi_window, u32_t ipi_max);
+struct    cap_comm_info *cap_comm_tid_lkup(thdid_t tid);
+struct    cap_comm_info *cap_comm_rcv_lkup(struct cos_compinfo *ci, arcvcap_t rcv);
+cap_t     cap_comminfo_xcoresnd_create(struct cap_comm_info *comm, capid_t *cap);
+asndcap_t cap_comminfo_asnd_create(struct cap_comm_info *comm);
 
 struct cap_channelaep_info *cap_info_channelaep_get(cos_channelkey_t key);
 void                        cap_channelaep_set(cos_channelkey_t key, struct sl_thd *t);

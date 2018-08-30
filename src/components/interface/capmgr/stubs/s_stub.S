@@ -21,6 +21,7 @@ cos_asm_server_stub_rets(capmgr_thd_retrieve_next_cserialized)
 cos_asm_server_stub(capmgr_rcv_create_cserialized)
 cos_asm_server_stub(capmgr_asnd_create)
 cos_asm_server_stub(capmgr_asnd_rcv_create)
+cos_asm_server_stub(capmgr_asnd_rcv_create_raw)
 cos_asm_server_stub(capmgr_asnd_key_create)
 
 cos_asm_server_stub(capmgr_hw_attach)

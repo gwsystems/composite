@@ -127,7 +127,7 @@ cap_comminfo_init(struct sl_thd *t, microsec_t ipi_window, u32_t ipi_max)
 	return cmi;
 }
 
-static inline asndcap_t
+asndcap_t
 cap_comminfo_asnd_create(struct cap_comm_info *comm)
 {
 	struct cos_compinfo *cap_ci = cos_compinfo_get(cos_defcompinfo_curr_get());

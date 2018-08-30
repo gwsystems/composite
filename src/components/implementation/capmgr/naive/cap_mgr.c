@@ -470,6 +470,28 @@ capmgr_asnd_rcv_create(arcvcap_t rcv)
 }
 
 asndcap_t
+capmgr_asnd_rcv_create_raw(arcvcap_t rcv)
+{
+	spdid_t                 cur     = cos_inv_token();
+	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
+	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
+	capid_t                 cap     = 0, capret = 0;
+	struct cap_comm_info   *comm    = NULL;
+
+	if (!rc || !cap_info_init_check(rc)) return 0;
+	if (!cap_info_is_sched(cur)) return 0;
+	comm = cap_comm_rcv_lkup(cap_info_ci(rc), rcv);
+	if (!comm || !comm->rcvcap) return 0;
+
+	cap = cap_comminfo_asnd_create(comm);
+	if (!cap) return 0;
+	capret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, cap);
+
+	return (asndcap_t)capret;
+}
+
+asndcap_t
 capmgr_asnd_key_create(cos_channelkey_t key)
 {
 	spdid_t                 cur     = cos_inv_token();
