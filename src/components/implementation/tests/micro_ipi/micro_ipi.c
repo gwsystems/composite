@@ -12,9 +12,12 @@
 #include <capmgr.h>
 #include <hypercall.h>
 #include "perfdata.h"
+#include <simple_sl.h>
 
+#define TEST_SIMPLE_SCHED
 /* enable only one of these */
 #define TEST_IPC
+#undef TEST_IPC_RAW
 #undef TEST_LATENCY
 #undef TEST_RATE
 
@@ -407,7 +410,7 @@ test_rate_setup(void)
 
 volatile cycles_t c0_start = 0, c0_end = 0, c0_mid = 0, c1_start = 0, c1_end = 0, c1_mid = 0;
 
-#define TEST_IPC_ITERS 100
+#define TEST_IPC_ITERS 1000000
 
 #ifdef TEST_IPC
 static volatile struct perfdata pd[3];
@@ -498,6 +501,9 @@ c0_ipc_fn(arcvcap_t r, void *d)
 #endif
 	print_ipi_info();
 
+#ifdef TEST_SIMPLE_SCHED
+	simple_sl_thd_exit();
+#endif
 	sl_thd_exit();
 }
 
@@ -524,6 +530,9 @@ c1_ipc_fn(arcvcap_t r, void *d)
 		rdtscll(c1_end);
 	}
 
+#ifdef TEST_SIMPLE_SCHED
+	simple_sl_thd_exit();
+#endif
 	sl_thd_exit();
 }
 
@@ -541,21 +550,35 @@ test_ipc_setup(void)
 	if (cos_cpuid() == 0) {
 		t = sl_thd_aep_alloc(c0_ipc_fn, (void *)cos_cpuid(), 1, 0, 0, 0);
 		assert(t);
+#ifdef TEST_SIMPLE_SCHED
+		simple_sl_thd_init_ext(sl_thd_thdid(t), 0, sl_thd_thdcap(t), sl_thd_rcvcap(t), 0);
+#endif
 		c0_rcv[cos_cpuid()] = sl_thd_rcvcap(t);
 
 		while (!cn_rcv[1]) ;
 
+#ifdef TEST_IPC_RAW
+		snd = capmgr_asnd_rcv_create_raw(cn_rcv[1]);
+#else
 		snd = capmgr_asnd_rcv_create(cn_rcv[1]);
+#endif
 		assert(snd);
 		c0_cn_asnd[cos_cpuid()] = snd;
 	} else {
 		t = sl_thd_aep_alloc(c1_ipc_fn, (void *)cos_cpuid(), 1, 0, 0, 0);
 		assert(t);
+#ifdef TEST_SIMPLE_SCHED
+		simple_sl_thd_init_ext(sl_thd_thdid(t), 0, sl_thd_thdcap(t), sl_thd_rcvcap(t), 0);
+#endif
 		cn_rcv[cos_cpuid()] = sl_thd_rcvcap(t);
 
 		while (!c0_rcv[0]) ;
 
+#ifdef TEST_IPC_RAW
+		snd = capmgr_asnd_rcv_create_raw(c0_rcv[0]);
+#else
 		snd = capmgr_asnd_rcv_create(c0_rcv[0]);
+#endif
 		assert(snd);
 		cn_c0_asnd[cos_cpuid()] = snd;
 	}
@@ -608,6 +631,9 @@ cos_init(void)
 		while (!ps_load(&init_done[i])) ;
 	}
 
+#ifdef TEST_SIMPLE_SCHED
+	simple_sl_init();
+#endif
 	sl_init(SCHED_PERIOD_US);
         hypercall_comp_init_done();
 
@@ -615,7 +641,15 @@ cos_init(void)
 	test_latency_setup();
 	test_rate_setup();
 
+#ifdef TEST_IPC
+#ifndef TEST_SIMPLE_SCHED
 	sl_sched_loop_nonblock();
+#else
+	simple_sl_sched_loop_nonblock();
+#endif
+#else
+	sl_sched_loop_nonblock();
+#endif
 
 	assert(0);
 
