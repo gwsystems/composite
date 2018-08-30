@@ -16,7 +16,7 @@ static struct sockaddr_in soutput, sinput;
 static int fd, fdr;
 
 #define CLIBUF_SZ 16
-#define TRACE_FLUSH_SLEEP_US 10000
+#define TRACE_FLUSH_SLEEP_US 500
 
 int
 udp_writeout(unsigned char *buf, unsigned int sz)
