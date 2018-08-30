@@ -8,8 +8,8 @@
 #include <cos_component.h>
 #include <cos_serial.h>
 
-#define LLPRINT_MAX_LEN 128
-#define LLPRINT_SERIAL_MAX_LEN 128
+#define LLPRINT_MAX_LEN PRINT_MAX_LEN
+#define LLPRINT_SERIAL_MAX_LEN (PRINT_MAX_LEN <= 64 ? PRINT_MAX_LEN : PRINT_MAX_LEN >> 2)
 
 static void
 cos_llprint(char *s, int len)

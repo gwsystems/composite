@@ -542,6 +542,7 @@ typedef unsigned short int cos_channelkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KE
  * with too many capabilities making (1<<14) a valid slot!
  */
 #define PRINT_CAP_TEMP (BOOT_CAPTBL_PRINT_HACK)
+#define PRINT_MAX_LEN  512
 
 #define CFE_COMP_NAME   "cFE"
 #define RK_COMP_NAME    "rumpcos"

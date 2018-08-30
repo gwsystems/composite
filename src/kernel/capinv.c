@@ -35,20 +35,19 @@ tlb_mandatory_flush(void *arg)
 	tlb_quiescence[get_cpuid()].last_mandatory_flush = t;
 }
 
-#define MAX_LEN 512
 extern char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 static inline int
 printfn(struct pt_regs *regs)
 {
 	char *str;
 	int   len;
-	char  kern_buf[MAX_LEN];
+	char  kern_buf[PRINT_MAX_LEN];
 
 	str = (char *)__userregs_get1(regs);
 	len = __userregs_get2(regs);
 
 	if (len < 1) goto done;
-	if (len >= MAX_LEN) len = MAX_LEN - 1;
+	if (len >= PRINT_MAX_LEN) len = PRINT_MAX_LEN - 1;
 	memcpy(kern_buf, str, len);
 
 	/*
