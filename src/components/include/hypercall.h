@@ -194,7 +194,7 @@ hypercall_comp_cpubitmap_get(spdid_t spdid, u32_t *bmp)
 
 	assert(NUM_CPU_BMP_WORDS <= 2); /* FIXME: works for up to 64 cores */
 
-	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CPUBITMAP_GET, spdid, 0, &lo, &hi)) return -1;
+	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_CPUBITMAP_GET, spdid, 0, 0, &lo, &hi)) return -1;
 
 	bmp[0] = lo;
 	if (NUM_CPU_BMP_WORDS == 2) bmp[1] = hi;
