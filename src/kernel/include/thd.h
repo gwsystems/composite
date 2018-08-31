@@ -499,7 +499,7 @@ curr_invstk_top(struct cos_cpu_local_info *cos_info)
 }
 
 /* 
- * This function aims to get the "in_fault" flag. 
+ * This function aims to output the "in_fault" flag and return comp_info with the bit in captbl reset.
  * Refer to the comments of comp_invstk_info to see more about this design.
  */
 static inline struct comp_info *
@@ -580,10 +580,7 @@ thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, unsigne
 {
 	if (unlikely(curr_invstk_top(cos_info) == 0)) return NULL;
 	curr_invstk_dec(cos_info);
-	/* 
-	 * This is the only time we might use the in_fault flag.
-	 * We can reset the captbl after we get the in_fault flag.
-	 */
+
 	return thd_invstk_current_fault(thd, ip, sp, in_fault, cos_info);
 }
 
