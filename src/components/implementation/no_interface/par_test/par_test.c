@@ -21,22 +21,25 @@
 static int lowest_was_scheduled[NUM_CPU];
 static u32_t cycs_per_usec = 0;
 
-static int thd1_ran[NUM_CPU];
-static int thd2_ran[NUM_CPU];
-
 static void
 thd1_fn()
 {
-	printc("1");
-	thd1_ran[cos_cpuid()] = 1;
+	int i;
+	for (i=1; i<=10; ++i) {
+	  printc("l");
+        }
+
 	sched_thd_exit();
 }
 
 static void
 thd2_fn()
 {
-	printc("2");
-	thd2_ran[cos_cpuid()] = 1;
+	int i;
+	for (i=1; i<=10; ++i) {
+	  printc("h");
+        }
+
 	sched_thd_exit();
 }
 
@@ -52,16 +55,17 @@ allocator_thread_fn()
 	sched_thd_param_set(tid1, sched_param_pack(SCHEDP_PRIO, LOW_PRIORITY));
 
 	tid2 = sched_thd_create(thd2_fn, NULL);
-	sched_thd_param_set(tid2, sched_param_pack(SCHEDP_PRIO, LOW_PRIORITY));
+	sched_thd_param_set(tid2, sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
 	wakeup = time_now() + time_usec2cyc(1000 * 1000);
 	sched_thd_block_timeout(0, wakeup);
 
-	/* Don't delete threads, since they are going to exit - if they only loop, delete */
+
+        /* Don't delete unless threads run forever */
         /*
 	sched_thd_delete(tid1);
 	sched_thd_delete(tid2);
-        */
+	*/
 
 	sched_thd_exit();
 }
