@@ -10,6 +10,10 @@
 #include <hypercall.h>
 #include <sched.h>
 #include <cos_time.h>
+#include <workgen.h>
+
+#define LOW_WORK_us 2000
+#define HIGH_WORK_us 1000
 
 #define SL_FPRR_NPRIOS 32
 
@@ -26,7 +30,7 @@ thd1_fn()
 {
 	int i;
 	for (i=1; i<=10; ++i) {
-	  printc("l");
+	  printc("[l %llu]", workgen_usecs (LOW_WORK_us));
         }
 
 	sched_thd_exit();
@@ -37,7 +41,7 @@ thd2_fn()
 {
 	int i;
 	for (i=1; i<=10; ++i) {
-	  printc("h");
+	  printc("[h %llu]", workgen_usecs (HIGH_WORK_us));
         }
 
 	sched_thd_exit();
