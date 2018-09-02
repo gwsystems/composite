@@ -37,4 +37,7 @@ As part of this pull request, I've considered the following:
 
 I've tested the code using the following test programs (provide list here):
 
--
+- [ ] micro_booter
+- [ ] unit_pingpong
+- [ ] unit_schedtests
+- [ ] ...(add others here)
