@@ -20,9 +20,15 @@
 #define IPI_RING_SIZE (16)
 #define IPI_RING_MASK (IPI_RING_SIZE - 1)
 
+#undef UBENCH_SND
+#undef UBENCH_SNDRCV
+
 struct ipi_cap_data {
 	capid_t          arcv_capid;
 	capid_t          arcv_epoch;
+#ifdef UBENCH_SNDRCV
+	cycles_t         snd_tsc;
+#endif
 	struct comp_info comp_info;
 };
 
@@ -50,9 +56,17 @@ struct IPI_receiving_rings {
 
 struct IPI_receiving_rings IPI_cap_dest[NUM_CPU] CACHE_ALIGNED;
 
+#define IPI_RAW_LAT_ITERS 1000000
+#define IPI_RAW_LAT_CORE 0
+#ifdef UBENCH_SNDRCV
+static cycles_t sndrcv_total_tsc = 0, sndrcv_wc_tsc = 0;
+static unsigned int sndrcv_iters = 0;
+#endif
+
 static inline u32_t
 cos_ipi_ring_dequeue(struct xcore_ring *ring, struct ipi_cap_data *ret)
 {
+	cycles_t now, diff;
 	/* printk("core %d ring : %x, sender %d, receiver %d\n", get_cpuid(), ring, ring->sender.tail,
 	 * ring->receiver.head); */
 
@@ -60,6 +74,20 @@ cos_ipi_ring_dequeue(struct xcore_ring *ring, struct ipi_cap_data *ret)
 	memcpy(ret, &ring->ring[ring->receiver], sizeof(struct ipi_cap_data));
 
 	ring->receiver = (ring->receiver + 1) & IPI_RING_MASK;
+#ifdef UBENCH_SNDRCV
+	if (get_cpuid() == IPI_RAW_LAT_CORE) {
+		rdtscll(now);
+		diff = now - ret->snd_tsc;
+		sndrcv_total_tsc += diff;
+		if (sndrcv_wc_tsc < diff) sndrcv_wc_tsc = diff;
+		sndrcv_iters++;
+		if (sndrcv_iters == IPI_RAW_LAT_ITERS) {
+			printk("[IPI TOTAL:%llu ITERS:%u WC:%llu]\n", sndrcv_total_tsc, sndrcv_iters, sndrcv_wc_tsc);
+			sndrcv_iters = 0;
+			sndrcv_wc_tsc = sndrcv_total_tsc = 0;
+		}
+	}
+#endif
 
 	cos_mem_fence();
 
@@ -117,27 +145,51 @@ cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd)
 
 	data->arcv_capid = asnd->arcv_capid;
 	data->arcv_epoch = asnd->arcv_epoch;
+#ifdef UBENCH_SNDRCV
+	rdtscll(data->snd_tsc);
+#endif
 	memcpy(&data->comp_info, &asnd->comp_info, sizeof(struct comp_info));
 
 	ring->sender = delta;
-	/* don't send ipi if there are 2 or more pending requests */
-	if (cos_ipi_ring_size(ring) >= 2) return 1;
+	///* don't send ipi if there are 2 or more pending requests */
+	//if (cos_ipi_ring_size(ring) >= 2) return 1;
 
 	cos_mem_fence();
 
 	return 0;
 }
 
+#ifdef UBENCH_SND
+static cycles_t snd_total_tsc = 0, snd_wc_tsc = 0;
+static unsigned int snd_iters = 0;
+#endif
+
 static int
 cos_cap_send_ipi(int cpu, struct cap_asnd *asnd)
 {
 	int ret;
+	cycles_t st, end, diff;
 
 	ret = cos_ipi_ring_enqueue(cpu, asnd);
 	if (unlikely(ret < 0)) return ret;
 	if (likely(ret > 0)) return 0;
 
+	rdtscll(st);
 	chal_send_ipi(cpu);
+	rdtscll(end);
+#ifdef UBENCH_SND
+	if (get_cpuid() == IPI_RAW_LAT_CORE) {
+		diff = end - st;
+		snd_total_tsc += diff;
+		if (snd_wc_tsc < diff) snd_wc_tsc = diff;
+		snd_iters++;
+		if (snd_iters == IPI_RAW_LAT_ITERS) {
+			printk("[IPI TOTAL:%llu ITERS:%u WC:%llu]\n", snd_total_tsc, snd_iters, snd_wc_tsc);
+			snd_iters = 0;
+			snd_wc_tsc = snd_total_tsc = 0;
+		}
+	}
+#endif
 
 	return 0;
 }

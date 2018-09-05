@@ -14,7 +14,9 @@
 #include "perfdata.h"
 #include <simple_sl.h>
 
+/* FIXME: these defines are just getting uglier..*/
 #define TEST_SIMPLE_SCHED
+#undef TEST_IPI_BATCHING
 /* enable only one of these */
 #define TEST_IPC
 #undef TEST_IPC_RAW
@@ -410,7 +412,7 @@ test_rate_setup(void)
 
 volatile cycles_t c0_start = 0, c0_end = 0, c0_mid = 0, c1_start = 0, c1_end = 0, c1_mid = 0;
 
-#define TEST_IPC_ITERS 1000000
+#define TEST_IPC_ITERS 2500000
 
 #ifdef TEST_IPC
 static volatile struct perfdata pd[3];
@@ -451,6 +453,9 @@ c0_ipc_fn(arcvcap_t r, void *d)
 	c0_end = c0_mid = c1_start = c1_mid = c1_end = c0_start;
 
 	testing = 1;
+#ifdef TEST_IPI_BATCHING
+	cos_rcv(r, 0, NULL);
+#endif
 
 	while (1) {
 		int pending = 0, rcvd = 0, ret = 0;
@@ -460,18 +465,22 @@ c0_ipc_fn(arcvcap_t r, void *d)
 		ret = cos_asnd(snd, 0);
 		assert(ret == 0);
 
+#ifndef TEST_IPI_BATCHING
 		rdtscll(c0_mid);
 		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
 		assert(pending == 0 && rcvd == 1);
 		rdtscll(c0_end);
+#endif
 
 		rtt_diff = (c0_end - c0_start);
 		one_diff = (c1_mid - c0_start);
 		rone_diff = (c0_end - c1_mid);
 #ifdef TEST_IPC
+#ifndef TEST_IPI_BATCHING
 		perfdata_add(&pd[0], rtt_diff);
 		perfdata_add(&pd[1], one_diff);
 //		perfdata_add(&pd[2], rone_diff);
+#endif
 #endif
 		//if (rtt_diff > rtt_wc) rtt_wc = rtt_diff;
 		//if (one_diff > one_wc) one_wc = one_diff;
@@ -481,7 +490,17 @@ c0_ipc_fn(arcvcap_t r, void *d)
 		//rone_total += rone_diff;
 
 		iters++;
-		if (iters >= TEST_IPC_ITERS) break;
+		if (iters >= TEST_IPC_ITERS)
+#ifndef TEST_IPI_BATCHING
+		{
+			break;
+		}
+#else
+		{
+			print_ipi_info();
+			iters = 0;
+		}
+#endif
 	}
 
 	testing = 0;
@@ -490,6 +509,7 @@ c0_ipc_fn(arcvcap_t r, void *d)
 //	PRINTC("IPC ONEWAY = AVG: %llu, WC: %llu, ITERS: %llu\n", one_total / iters, one_wc, iters);
 //	PRINTC("IPC ONEWAY (RET) = AVG: %llu, WC: %llu, ITERS: %llu\n", rone_total / iters, rone_wc, iters);
 #ifdef TEST_IPC
+#ifndef TEST_IPI_BATCHING
 	perfdata_calc(&pd[0]);
 	perfdata_print(&pd[0]);
 
@@ -498,6 +518,7 @@ c0_ipc_fn(arcvcap_t r, void *d)
 
 //	perfdata_calc(&pd[2]);
 //	perfdata_print(&pd[2]);
+#endif
 #endif
 	print_ipi_info();
 
@@ -513,6 +534,9 @@ c1_ipc_fn(arcvcap_t r, void *d)
 	asndcap_t snd = cn_c0_asnd[cos_cpuid()];
 
 	assert(snd);
+#ifdef TEST_IPI_BATCHING
+	cos_asnd(snd, 0);
+#endif
 	while (testing == 0) ;
 
 	while (1) {
@@ -522,12 +546,14 @@ c1_ipc_fn(arcvcap_t r, void *d)
 
 		rdtscll(c1_start);
 		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
-		assert(pending == 0 && rcvd == 1);
+		assert(pending == 0 && rcvd >= 1);
 
 		rdtscll(c1_mid);
+#ifndef TEST_IPI_BATCHING
 		ret = cos_asnd(snd, 0);
 		assert(ret == 0);
 		rdtscll(c1_end);
+#endif
 	}
 
 #ifdef TEST_SIMPLE_SCHED
