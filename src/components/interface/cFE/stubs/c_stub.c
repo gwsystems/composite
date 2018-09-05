@@ -629,7 +629,8 @@ CFE_SB_GetChecksum(CFE_SB_MsgPtr_t MsgPtr)
 
 	assert(msg_len <= EMU_BUF_SIZE);
 	msg_ptr = (char *)MsgPtr;
-	memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
+	/* CFE_SB_GetTotalMsgLength does a memcpy to cfe_sb_msg.Msg! */
+	//memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
 
 	return emu_CFE_SB_GetChecksum(spdid);
 }
@@ -659,7 +660,8 @@ CFE_SB_GetCmdCode(CFE_SB_MsgPtr_t MsgPtr)
 
 	assert(msg_len <= EMU_BUF_SIZE);
 	msg_ptr = (char *)MsgPtr;
-	memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
+	/* CFE_SB_GetTotalMsgLength does a memcpy to cfe_sb_msg.Msg! */
+	//memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
 	return emu_CFE_SB_GetCmdCode(spdid);
 }
 
@@ -686,7 +688,8 @@ CFE_SB_GetMsgId(CFE_SB_MsgPtr_t MsgPtr)
 
 	assert(msg_len <= EMU_BUF_SIZE);
 	msg_ptr = (char *)MsgPtr;
-	memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
+	/* CFE_SB_GetTotalMsgLength does a memcpy to cfe_sb_msg.Msg! */
+	//memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
 
 	return emu_CFE_SB_GetMsgId(spdid);
 }
@@ -700,7 +703,8 @@ CFE_SB_GetMsgTime(CFE_SB_MsgPtr_t MsgPtr)
 
 	assert(msg_len <= EMU_BUF_SIZE);
 	msg_ptr = (char *)MsgPtr;
-	memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
+	/* CFE_SB_GetTotalMsgLength does a memcpy to cfe_sb_msg.Msg! */
+	//memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
 	emu_CFE_SB_GetMsgTime(spdid);
 	return shared_region[cos_thdid()]->time;
 }
@@ -737,7 +741,8 @@ CFE_SB_GetUserDataLength(CFE_SB_MsgPtr_t MsgPtr)
 
 	assert(msg_len <= EMU_BUF_SIZE);
 	msg_ptr = (char *)MsgPtr;
-	memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
+	/* CFE_SB_GetTotalMsgLength does a memcpy to cfe_sb_msg.Msg! */
+	//memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
 	return emu_CFE_SB_GetUserDataLength(spdid);
 }
 
@@ -811,7 +816,8 @@ CFE_SB_SendMsg(CFE_SB_Msg_t *MsgPtr)
 
 	assert(msg_len <= EMU_BUF_SIZE);
 	msg_ptr = (char *)MsgPtr;
-	memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
+	/* CFE_SB_GetTotalMsgLength does a memcpy to cfe_sb_msg.Msg! */
+	//memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
 
 	result = emu_CFE_SB_SendMsg(spdid);
 
@@ -836,7 +842,8 @@ CFE_SB_TimeStampMsg(CFE_SB_MsgPtr_t MsgPtr)
 
 	assert(msg_len <= EMU_BUF_SIZE);
 	msg_ptr = (char *)MsgPtr;
-	memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
+	/* CFE_SB_GetTotalMsgLength does a memcpy to cfe_sb_msg.Msg! */
+	//memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
 	emu_CFE_SB_TimeStampMsg(spdid);
 	memcpy(msg_ptr, shared_region[cos_thdid()]->cfe_sb_msg.Msg, (size_t)msg_len);
 }
@@ -849,7 +856,8 @@ CFE_SB_ValidateChecksum(CFE_SB_MsgPtr_t MsgPtr)
 
 	assert(msg_len <= EMU_BUF_SIZE);
 	msg_ptr = (char *)MsgPtr;
-	memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
+	/* CFE_SB_GetTotalMsgLength does a memcpy to cfe_sb_msg.Msg! */
+	//memcpy(shared_region[cos_thdid()]->cfe_sb_msg.Msg, msg_ptr, (size_t)msg_len);
 
 	return emu_CFE_SB_ValidateChecksum(spdid);
 }

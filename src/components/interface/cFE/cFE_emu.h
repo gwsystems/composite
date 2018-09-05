@@ -13,7 +13,7 @@
 
 #define SHARED_REGION_NUM_PAGES 5
 
-#define EMU_BUF_SIZE 2048
+#define EMU_BUF_SIZE 1024
 #define EMU_TBL_BUF_SIZE (4 * 4096)
 
 /* TODO: Alphabetize me! */
