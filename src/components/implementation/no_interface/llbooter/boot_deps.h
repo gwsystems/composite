@@ -131,16 +131,16 @@ fault_reg_print(spdid_t spdid)
 	struct cos_aep_info *child_aep = boot_spd_initaep_get(spdid);
 	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
 	
-	fault_regs.ax = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG1);
-	fault_regs.bx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG2);
-	fault_regs.cx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG3);
-	fault_regs.dx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG4);
-	fault_regs.si = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG11);
-	fault_regs.di = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG12);
-	fault_regs.ip = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG13);
-	fault_regs.sp = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG14);
-	fault_regs.bp = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG15);
-	fault_regs.flags = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG16);
+	fault_regs.ax = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG0);
+	fault_regs.bx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG1);
+	fault_regs.cx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG2);
+	fault_regs.dx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG3);
+	fault_regs.si = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG10);
+	fault_regs.di = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG11);
+	fault_regs.ip = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG12);
+	fault_regs.sp = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG13);
+	fault_regs.bp = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG14);
+	fault_regs.flags = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG15);
 
 	printc("registers:\n");
 	printc("General registers-> EAX: %x, EBX: %x, ECX: %x, EDX: %x, SI: %x, DI: %x\n", (unsigned int)fault_regs.ax, 
