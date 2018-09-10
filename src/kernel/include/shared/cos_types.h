@@ -132,7 +132,7 @@ typedef enum {
 typedef enum {
 	CAP_FREE = 0,
 	CAP_SINV,       /* synchronous communication -- invoke */
-	CAP_SINVFLT,    /* synchronous communication of fault handler -- invoke*/
+	CAP_FLT,        /* communication of fault handler -- invoke*/
 	CAP_SRET,       /* synchronous communication -- return */
 	CAP_ASND,       /* async communication; sender */
 	CAP_ARCV,       /* async communication; receiver */
@@ -206,7 +206,7 @@ __captbl_cap2sz(cap_t c)
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 		return CAP_SZ_32B;
 	case CAP_SINV:
-	case CAP_SINVFLT:
+	case CAP_FLT:
 	case CAP_COMP:
 	case CAP_ASND:
 	case CAP_ARCV:
@@ -240,10 +240,7 @@ captbl_idsize(cap_t c)
  * 42-43 = untyped memory pgtbl root,
  * 44-45 = vm pte for physical memory,
  * 46-47 = km pte,
- * 48-49 = comp0 captbl,
- * 50-51 = comp0 pgtbl root,
- * 52-55 = comp0 component,
- * 56~59 = sinv cap to booter,
+ * 48~51 = sinv cap to booter,
  * 60~(48+2*NCPU) = per core alpha thd
  *
  * Initial pgtbl setup (addresses):
@@ -269,11 +266,8 @@ captbl_idsize(cap_t c)
  	BOOT_CAPTBL_PHYSM_PTE          = 44,
  	BOOT_CAPTBL_KM_PTE             = 46,
 
- 	BOOT_CAPTBL_COMP0_CT           = 48,
- 	BOOT_CAPTBL_COMP0_PT           = 50,
- 	BOOT_CAPTBL_COMP0_COMP         = 52,
- 	BOOT_CAPTBL_SINV_CAP           = 56,
- 	BOOT_CAPTBL_SELF_INITTHD_BASE  = 60,
+ 	BOOT_CAPTBL_SINV_CAP           = 48,
+ 	BOOT_CAPTBL_SELF_INITTHD_BASE  = 52,
  	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ,
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU * CAP16B_IDSZ,
                                                          CAPMAX_ENTRY_SZ),
@@ -288,13 +282,13 @@ captbl_idsize(cap_t c)
  * The slots of the sinv to user-level fault handlers.
  */
 typedef enum {
-	FAULT_CAPTBL_MEM_ACCESS        = BOOT_CAPTBL_FLT_MEM_ACCESS,
-	FAULT_CAPTBL_DIVZERO           = BOOT_CAPTBL_FLT_DIVZERO,
-	FAULT_CAPTBL_BRKPT             = BOOT_CAPTBL_FLT_BRKPT,
-	FAULT_CAPTBL_INVLD_INS         = BOOT_CAPTBL_FLT_INVLD_INS,
-	FAULT_CAPTBL_INVSTK            = BOOT_CAPTBL_FLT_INVSTK,
-	FAULT_CAPTBL_COMP_NOT_EXIST    = BOOT_CAPTBL_FLT_COMP_NOT_EXIST,
-	FAULT_CAPTBL_HAND_NOT_EXIST    = BOOT_CAPTBL_FLT_HAND_NOT_EXISt,
+	COMP_CAPTBL_FLT_MEM_ACCESS     = BOOT_CAPTBL_FLT_MEM_ACCESS,
+	COMP_CAPTBL_FLT_DIVZERO        = BOOT_CAPTBL_FLT_DIVZERO,
+	COMP_CAPTBL_FLT_BRKPT          = BOOT_CAPTBL_FLT_BRKPT,
+	COMP_CAPTBL_FLT_INVLD_INS      = BOOT_CAPTBL_FLT_INVLD_INS,
+	COMP_CAPTBL_FLT_INVSTK         = BOOT_CAPTBL_FLT_INVSTK,
+	COMP_CAPTBL_FLT_COMP_NOT_EXIST = BOOT_CAPTBL_FLT_COMP_NOT_EXIST,
+	COMP_CAPTBL_FLT_HAND_NOT_EXIST = BOOT_CAPTBL_FLT_HAND_NOT_EXISt,
 } cap_flt_off;
 
 /*
@@ -336,6 +330,7 @@ typedef enum {
 	/* thread id */
 	THD_GET_TID,
 	/* get regs */
+	THD_GET_FAULT_REG0,
 	THD_GET_FAULT_REG1,
 	THD_GET_FAULT_REG2,
 	THD_GET_FAULT_REG3,
@@ -351,8 +346,6 @@ typedef enum {
 	THD_GET_FAULT_REG13,
 	THD_GET_FAULT_REG14,
 	THD_GET_FAULT_REG15,
-	THD_GET_FAULT_REG16,
-	THD_GET_FAULT_REG17,
 } cap_thdop_t;
 
 enum

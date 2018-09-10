@@ -7,17 +7,15 @@
 #include "chal_cpu.h"
 
 #define PRINTK(format, ...) printk("(CPU%ld:) " format, get_cpuid(), ## __VA_ARGS__)
-#define FLT_SINV(regs, cap) fault_handler_sinv(regs, cap)
 
 void
 print_regs_state(struct pt_regs *regs)
 {
 	PRINTK("registers:\n");
 	PRINTK("General registers-> EAX: %x, EBX: %x, ECX: %x, EDX: %x\n", regs->ax, regs->bx, regs->cx, regs->dx);
-	PRINTK("Segment registers-> CS: %x, DS: %x, ES: %x, FS: %x, GS: %x, SS: %x\n", regs->cs, regs->ds, regs->es,
-	       regs->fs, regs->gs, regs->ss);
-	PRINTK("Index registers-> ESI: %x, EDI: %x, EIP: %x, ESP: %x, EBP: %x\n", regs->si, regs->di, regs->ip,
-	       regs->sp, regs->bp);
+	PRINTK("Segment registers-> CS: %x, DS: %x, ES: %x, FS: %x, GS: %x, SS: %x, ESI: %x, EDI: %x \n", regs->cs, regs->ds, regs->es,
+	       regs->fs, regs->gs, regs->ss, regs->si, regs->di);
+	PRINTK("Index registers-> EIP: %x, ESP: %x, EBP: %x\n", regs->ip, regs->sp, regs->bp);
 	PRINTK("Indicator-> EFLAGS: %x\n", regs->flags);
 	PRINTK("(Exception Error Code-> ORIG_AX: %x)\n", regs->orig_ax);
 }
@@ -40,7 +38,7 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 	u32_t                      fault_addr = 0, errcode, eip;
 
 	fault_regs_save(regs, curr_thd);
-	cos_info = thd_invstk_current(curr_thd, &ip, &sp, ci);
+	cos_info = thd_invstk_current(curr_thd, ci, &ip, &sp);
 	fh = captbl_lkup(cos_info->captbl, cap);
 	__userregs_sinvargset(regs, regs->sp, regs->ip, fault_addr, cap);
 	/* FIXME: This is a software fault and should be fixed in the future. */
@@ -55,7 +53,7 @@ fault_handler_sinv(struct pt_regs *regs, capid_t cap)
 int
 div_by_zero_err_fault_handler(struct pt_regs *regs)
 {
-	FLT_SINV(regs, FAULT_CAPTBL_DIVZERO);
+	fault_handler_sinv(regs, COMP_CAPTBL_FLT_DIVZERO);
 
 	return 1;
 }
@@ -72,7 +70,7 @@ debug_trap_handler(struct pt_regs *regs)
 int
 breakpoint_trap_handler(struct pt_regs *regs)
 {
-	FLT_SINV(regs, FAULT_CAPTBL_BRKPT);
+	fault_handler_sinv(regs, COMP_CAPTBL_FLT_BRKPT);
 
 	return 1;
 }
@@ -89,7 +87,7 @@ overflow_trap_handler(struct pt_regs *regs)
 int
 bound_range_exceed_fault_handler(struct pt_regs *regs)
 {
-	FLT_SINV(regs, FAULT_CAPTBL_INVSTK);
+	fault_handler_sinv(regs, COMP_CAPTBL_FLT_INVSTK);
 
 	return 1;
 }
@@ -97,7 +95,7 @@ bound_range_exceed_fault_handler(struct pt_regs *regs)
 int
 invalid_opcode_fault_handler(struct pt_regs *regs)
 {
-	FLT_SINV(regs, FAULT_CAPTBL_INVLD_INS);
+	fault_handler_sinv(regs, COMP_CAPTBL_FLT_INVLD_INS);
 
 	return 1;
 }
@@ -150,7 +148,7 @@ stack_seg_fault_handler(struct pt_regs *regs)
 int
 gen_protect_fault_handler(struct pt_regs *regs)
 {
-	FLT_SINV(regs, FAULT_CAPTBL_MEM_ACCESS);
+	fault_handler_sinv(regs, COMP_CAPTBL_FLT_MEM_ACCESS);
 
 	return 1;
 }
@@ -158,7 +156,7 @@ gen_protect_fault_handler(struct pt_regs *regs)
 int
 page_fault_handler(struct pt_regs *regs)
 {
-	FLT_SINV(regs, FAULT_CAPTBL_MEM_ACCESS);
+	fault_handler_sinv(regs, COMP_CAPTBL_FLT_MEM_ACCESS);
 	
 	return 1;
 }

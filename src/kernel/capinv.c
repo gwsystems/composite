@@ -793,7 +793,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	thd  = thd_current(cos_info);
 	tcap = tcap_current(cos_info);
 	assert(thd);
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	ci = thd_invstk_current(thd, cos_info, &ip, &sp);
 	assert(ci && ci->captbl);
 	assert(!(thd->state & THD_STATE_PREEMPTED));
 	rcv_thd  = arcv->thd;
@@ -847,7 +847,7 @@ timer_process(struct pt_regs *regs)
 	assert(cos_info);
 	thd_curr = thd_current(cos_info);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
-	comp = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
+	comp = thd_invstk_current(thd_curr, cos_info, &ip, &sp);
 	assert(comp);
 
 	return expended_process(regs, thd_curr, comp, cos_info, 1);
@@ -979,7 +979,7 @@ composite_syscall_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	ci = thd_invstk_current(thd, cos_info, &ip, &sp);
 	assert(ci && ci->captbl);
 
 	/*
@@ -1066,7 +1066,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 	cap   = __userregs_getcap(regs);
 	capin = __userregs_get1(regs);
 
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	ci = thd_invstk_current(thd, cos_info, &ip, &sp);
 	assert(ci && ci->captbl);
 	ct = ci->captbl;
 
@@ -1280,7 +1280,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t    entry_addr    = __userregs_get3(regs);
 			invtoken_t token         = __userregs_get4(regs);
 
-			ret = sinv_activate(ct, cap, capin, dest_comp_cap, CAP_SINVFLT, entry_addr, token);
+			ret = sinv_activate(ct, cap, capin, dest_comp_cap, CAP_FLT, entry_addr, token);
 			break;
 		}
 		case CAPTBL_OP_SRETACTIVATE: {
