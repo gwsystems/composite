@@ -115,7 +115,7 @@ static int apic_timer_overhead_test[NUM_CPU] CACHE_ALIGNED = { 0 };
 static cycles_t timeout[NUM_CPU] CACHE_ALIGNED = { 0 };
 
 static void
-thd_fn_perf(void *d)
+thd_fn_perf_timeout(void *d)
 {
 	cycles_t now;
 	tcap_time_t timer;
@@ -123,12 +123,26 @@ thd_fn_perf(void *d)
 	assert(timeout[cos_cpuid()]);
 	rdtscll(now);
 	timer = tcap_cyc2time(now + timeout[cos_cpuid()]);
-	cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, apic_timer_overhead_test[cos_cpuid()] ? timer : TCAP_TIME_NIL, 0, 0);
+	cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, timer, 0, 0);
 
 	while (1) {
 		rdtscll(now);
 		timer = tcap_cyc2time(now + timeout[cos_cpuid()]);
-		cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, apic_timer_overhead_test[cos_cpuid()] ? timer : TCAP_TIME_NIL, 0, 0);
+		cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, timer, 0, 0);
+	}
+	PRINTC("Error, shouldn't get here!\n");
+}
+
+static void
+thd_fn_perf(void *d)
+{
+	cycles_t now;
+	tcap_time_t timer;
+
+	cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
+
+	while (1) {
+		cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
 	}
 	PRINTC("Error, shouldn't get here!\n");
 }
@@ -145,36 +159,56 @@ test_thds_perf(int with_apic_timer_prog)
 	cycles_t now;
 	tcap_time_t timer;
 
-	if (with_apic_timer_prog) perfdata_init(&pd[cos_cpuid()], "Thd_Swtch(T)");
-	else                      perfdata_init(&pd[cos_cpuid()], "Thd_Swtch");
-
 	timeout[cos_cpuid()] = (cycles_t)TIMEOUT_CYCS * (cycles_t)cyc_per_usec;
-	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL);
-	assert(ts);
-
-	if (with_apic_timer_prog) apic_timer_overhead_test[cos_cpuid()] = 1;
-	else apic_timer_overhead_test[cos_cpuid()] = 0;
-
-	rdtscll(now);
-	timer = tcap_cyc2time(now + timeout[cos_cpuid()]);
-	cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, apic_timer_overhead_test[cos_cpuid()] ? timer : TCAP_TIME_NIL, 0, 0);
-	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
-
-	for (i = 0 ; i < ITER ; i++) {
-		rdtscll(start_swt_cycles);
-
+	if (with_apic_timer_prog) {
+		perfdata_init(&pd[cos_cpuid()], "Thd_Swtch(T)");
+		ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf_timeout, NULL);
+		assert(ts);
+		apic_timer_overhead_test[cos_cpuid()] = 1;
 		rdtscll(now);
 		timer = tcap_cyc2time(now + timeout[cos_cpuid()]);
-		cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, apic_timer_overhead_test[cos_cpuid()] ? timer : TCAP_TIME_NIL, 0, 0);
-		rdtscll(end_swt_cycles);
-		curr_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
-		perfdata_add(&pd[cos_cpuid()], (double)curr_swt_cycles);
+		cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, timer, 0, 0);
+		cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 
-		//total_swt_cycles += curr_swt_cycles;
-		//if (curr_swt_cycles > wcet_swt_cycles) {
-		//	pwcet_swt_cycles = wcet_swt_cycles;
-		//	wcet_swt_cycles = curr_swt_cycles;
-		//}
+		for (i = 0 ; i < ITER ; i++) {
+			rdtscll(start_swt_cycles);
+
+			rdtscll(now);
+			timer = tcap_cyc2time(now + timeout[cos_cpuid()]);
+			cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, timer, 0, 0);
+			rdtscll(end_swt_cycles);
+			curr_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
+			perfdata_add(&pd[cos_cpuid()], (double)curr_swt_cycles);
+
+			//total_swt_cycles += curr_swt_cycles;
+			//if (curr_swt_cycles > wcet_swt_cycles) {
+			//	pwcet_swt_cycles = wcet_swt_cycles;
+			//	wcet_swt_cycles = curr_swt_cycles;
+			//}
+		}
+	} else {
+		perfdata_init(&pd[cos_cpuid()], "Thd_Swtch");
+		ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL);
+		assert(ts);
+		apic_timer_overhead_test[cos_cpuid()] = 0;
+		cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
+		cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
+
+		for (i = 0 ; i < ITER ; i++) {
+			rdtscll(start_swt_cycles);
+
+			cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
+			rdtscll(end_swt_cycles);
+			curr_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
+			perfdata_add(&pd[cos_cpuid()], (double)curr_swt_cycles);
+
+			//total_swt_cycles += curr_swt_cycles;
+			//if (curr_swt_cycles > wcet_swt_cycles) {
+			//	pwcet_swt_cycles = wcet_swt_cycles;
+			//	wcet_swt_cycles = curr_swt_cycles;
+			//}
+		}
+
 	}
 
 	//PRINTC("THD SWTCH WCET:%lld(prev:%lld), Average (Total: %lld / Iterations: %lld ): %lld\n", wcet_swt_cycles, pwcet_swt_cycles, total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));
@@ -670,10 +704,10 @@ test_tcaps_perf(void)
 void
 test_run_perf(void)
 {
-	test_thds_perf(0);
-	test_thds_perf(1);
-
-	test_async_endpoints_perf();
+//	test_thds_perf(0);
+//	test_thds_perf(1);
+//
+//	test_async_endpoints_perf();
 //	test_sched_activation_perf();
 //
 	test_inv_perf();

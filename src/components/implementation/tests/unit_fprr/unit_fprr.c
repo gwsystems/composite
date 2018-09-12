@@ -8,11 +8,13 @@
 #include <llprint.h>
 #include <res_spec.h>
 #include <sl.h>
+#include <perfdata.h>
 
+#define TEST_SL_YIELD_UBENCH
 /* Ensure this is the same as what is in sl_mod_fprr.c */
-#define SL_FPRR_NPRIOS 32
+#define FPRR_NPRIOS 32
 
-#define LOWEST_PRIORITY (SL_FPRR_NPRIOS - 1)
+#define LOWEST_PRIORITY (FPRR_NPRIOS - 1)
 
 #define LOW_PRIORITY (LOWEST_PRIORITY - 1)
 #define HIGH_PRIORITY (LOWEST_PRIORITY - 10)
@@ -167,6 +169,44 @@ run_tests()
 	sl_thd_exit();
 }
 
+#define TEST_ITERS 1000000
+static struct perfdata pd;
+static unsigned int iters = 0;
+
+static void
+thd_perf2_fn(void)
+{
+	while (iters < TEST_ITERS) sl_thd_yield(0);
+
+	sl_thd_exit();
+}
+
+static void
+thd_perf1_fn(void)
+{
+	cycles_t st, end, diff;
+	PRINTC("sl_thd_yield() ubench\n");
+
+	while (1) {
+		rdtscll(st);
+		sl_thd_yield(0);
+		rdtscll(end);
+
+		diff = (end - st) / 2;
+
+		perfdata_add(&pd, diff);
+		iters++;
+
+		if (iters == TEST_ITERS) break;
+	}
+
+	perfdata_calc(&pd);
+	perfdata_print(&pd);
+	sl_thd_exit();
+}
+
+#define TEST_SL_YIELD_PERIOD_US 100*1000 //100ms, high enough so it doesn't interfere with the measurement.
+
 void
 cos_init(void)
 {
@@ -191,11 +231,24 @@ cos_init(void)
 		while (!ps_load(&init_done[i])) ;
 	}
 
+#ifndef TEST_SL_YIELD_UBENCH
 	sl_init(SL_MIN_PERIOD_US);
 
 	testing_thread = sl_thd_alloc(run_tests, NULL);
 	sl_thd_param_set(testing_thread, sched_param_pack(SCHEDP_PRIO, LOWEST_PRIORITY));
 
+#else
+	assert(NUM_CPU == 1);
+	sl_init(SL_MIN_PERIOD_US);
+	perfdata_init(&pd, "SL Yield");
+	struct sl_thd *perf_thd1, *perf_thd2;
+
+	perf_thd1 = sl_thd_alloc(thd_perf1_fn, NULL);
+	sl_thd_param_set(perf_thd1, sched_param_pack(SCHEDP_PRIO, LOW_PRIORITY));
+
+	perf_thd2 = sl_thd_alloc(thd_perf2_fn, NULL);
+	sl_thd_param_set(perf_thd2, sched_param_pack(SCHEDP_PRIO, LOW_PRIORITY));
+#endif
 	sl_sched_loop();
 
 	assert(0);

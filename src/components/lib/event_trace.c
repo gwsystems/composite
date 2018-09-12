@@ -202,8 +202,10 @@ retry:
 
 #else
 
+#ifdef EVENT_TRACE_ENABLE
 /* you should add channel and capmgr to your interface dependency list */
 #include "../interface/channel/channel.h"
+#endif
 
 static cbuf_t evttrace_shmid = 0;
 static volatile vaddr_t evttrace_vaddr = 0;

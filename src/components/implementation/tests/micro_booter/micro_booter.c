@@ -16,6 +16,7 @@ term_fn(void *d)
 }
 
 
+extern int cyc_per_usec;
 static int test_done[NUM_CPU];
 
 void
@@ -24,7 +25,7 @@ cos_init(void)
 	int cycs, i;
 	static int first_init = 1, init_done = 0;
 
-	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	cycs = cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	printc("\t%d cycles per microsecond\n", cycs);
 
 	if (first_init) {
@@ -40,7 +41,7 @@ cos_init(void)
 	termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 	assert(termthd[cos_cpuid()]);
 	PRINTC("Micro Booter started.\n");
-	test_run_mb();
+	//test_run_mb();
 
 	/* NOTE: This is just to make sense of the output on HW! To understand that microbooter runs to completion on all cores! */
 	test_done[cos_cpuid()] = 1;

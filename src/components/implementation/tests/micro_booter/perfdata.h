@@ -47,11 +47,11 @@ perfdata_init(struct perfdata *pd, const char *nm)
 static void
 __perfdata_print_values(struct perfdata *pd)
 {
-#ifdef PERF_DATA_DEBUG
+//#ifdef PERF_DATA_DEBUG
 	int i;
 
 	for (i = 0 ; i < pd->sz ; i++) printc("%.2f\n", pd->values[i]);
-#endif
+//#endif
 }
 
 static inline int
@@ -190,22 +190,22 @@ __bubble_sort(double data[], int sz)
 static void
 perfdata_calc(struct perfdata *pd)
 {
-	int i, j;
-
-	__inplace_merge_sort(pd->values, 0, pd->sz);
-
-	pd->min = pd->values[0];
-	pd->max = pd->values[pd->sz - 1];
-	pd->avg = pd->total / pd->sz;
-
-	for (i = 0 ; i < pd->sz ; i++) pd->var += (pd->values[i] - pd->avg) * (pd->values[i] - pd->avg);
-	pd->var /= pd->sz;
-
-	pd->sd = __sqroot(pd->var);
-
-	pd->ptiles[PTILE_90] = pd->values[(int)((pd->sz * 90) / 100) - 1];
-	pd->ptiles[PTILE_95] = pd->values[(int)((pd->sz * 95) / 100) - 1];
-	pd->ptiles[PTILE_99] = pd->values[(int)((pd->sz * 99) / 100) - 1];
+//	int i, j;
+//
+//	__inplace_merge_sort(pd->values, 0, pd->sz);
+//
+//	pd->min = pd->values[0];
+//	pd->max = pd->values[pd->sz - 1];
+//	pd->avg = pd->total / pd->sz;
+//
+//	for (i = 0 ; i < pd->sz ; i++) pd->var += (pd->values[i] - pd->avg) * (pd->values[i] - pd->avg);
+//	pd->var /= pd->sz;
+//
+//	pd->sd = __sqroot(pd->var);
+//
+//	pd->ptiles[PTILE_90] = pd->values[(int)((pd->sz * 90) / 100) - 1];
+//	pd->ptiles[PTILE_95] = pd->values[(int)((pd->sz * 95) / 100) - 1];
+//	pd->ptiles[PTILE_99] = pd->values[(int)((pd->sz * 99) / 100) - 1];
 }
 
 static double
@@ -239,8 +239,9 @@ perfdata_99ptile(struct perfdata *pd)
 static void
 perfdata_print(struct perfdata *pd)
 {
-	printc("PD:%s-sz:%d,SD:%.2f,Mean:%.2f,99%%:%.2f,WC:%.2f\n",
-		pd->name, pd->sz, pd->sd, pd->avg, perfdata_99ptile(pd), perfdata_max(pd));
+//	printc("PD:%s-sz:%d,SD:%.2f,Mean:%.2f,99%%:%.2f,WC:%.2f\n",
+//		pd->name, pd->sz, pd->sd, pd->avg, perfdata_99ptile(pd), perfdata_max(pd));
+	__perfdata_print_values(pd);
 }
 
 #endif /* PERFDATA_H */

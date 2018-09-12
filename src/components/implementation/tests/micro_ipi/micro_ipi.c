@@ -412,7 +412,7 @@ test_rate_setup(void)
 
 volatile cycles_t c0_start = 0, c0_end = 0, c0_mid = 0, c1_start = 0, c1_end = 0, c1_mid = 0;
 
-#define TEST_IPC_ITERS 2500000
+#define TEST_IPC_ITERS 1000000
 
 #ifdef TEST_IPC
 static volatile struct perfdata pd[3];
@@ -513,6 +513,7 @@ c0_ipc_fn(arcvcap_t r, void *d)
 	perfdata_calc(&pd[0]);
 	perfdata_print(&pd[0]);
 
+	PRINTC("Next set of data\n");
 	perfdata_calc(&pd[1]);
 	perfdata_print(&pd[1]);
 
