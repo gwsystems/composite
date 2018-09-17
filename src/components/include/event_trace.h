@@ -3,7 +3,7 @@
 //#define EVENT_TRACE_ENABLE
 //#endif
 //#endif
-
+//
 #ifndef EVENT_TRACE_H
 #define EVENT_TRACE_H
 
@@ -121,7 +121,7 @@ void event_trace_init(void);
 #else
 
 #define EVENT_TRACE_KEY 0xdead
-#define EVENT_TRACE_NPAGES 16
+#define EVENT_TRACE_NPAGES (32+1) /* one page wasted for in-place ring data */
 
 typedef int (*evttrace_write_fn_t)(unsigned char *buf, unsigned int bufsz);
 

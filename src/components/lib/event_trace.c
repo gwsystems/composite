@@ -277,8 +277,8 @@ event_trace_client_init(evttrace_write_fn_t wrfn)
 #endif
 }
 
-int
-event_flush(void)
+static int
+event_batch_process(int *processed)
 {
 	static int first = 1;
 	unsigned char flush_buf[EVTTRACE_BATCHBUF_SIZE] = { 0 };
@@ -289,7 +289,7 @@ event_flush(void)
 	memset(flush_buf, 0, EVTTRACE_BATCHBUF_SIZE);
 
 	/* mpsc because multiple cfe threads can write. only one rk thread will read */
-	while (ck_ring_dequeue_mpsc_evttrace(evttrace_ring, evttrace_buf,
+	while (ck_ring_dequeue_mpsc_evttrace(EVTTRACE_RING, EVTTRACE_BUF,
 	       (struct event_trace_info *)(flush_buf + (count * sizeof(struct event_trace_info)))) == true) {
 
 #ifndef EVTTRACE_BATCH_OUTPUT
@@ -305,6 +305,7 @@ event_flush(void)
 	}
 
 	ret_count = count;
+	*processed = ret_count;
 
 #ifdef EVTTRACE_BATCH_OUTPUT
 #ifdef EVTTRACE_DEBUG_TRACE
@@ -316,7 +317,18 @@ event_flush(void)
 	logged += ret_count;
 	if (unlikely(ret_count && logged % 100000 == 0)) PRINTC("Logged: %llu\n", logged);
 
-	return ret_count;
+	return ck_ring_size(EVTTRACE_RING);
+}
+
+int
+event_flush(void)
+{
+	int processed = 0, total_processed = 0;
+
+	if (unlikely(evttrace_initialized == 0)) return 0;
+	while (event_batch_process(&processed)) total_processed += processed;
+
+	return total_processed;
 }
 
 int
