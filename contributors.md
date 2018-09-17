@@ -12,6 +12,7 @@ The current primary contributors to _Composite_
 - **Yuxin Ren** -- PhD student at GWU working on parallelism and memory management
 - **Phani Kishore Gadepalli** -- PhD student at GWU working on the Speck kernel, and low-level support
 - **Runyu Pan** -- MS student working on Cortex-M support
+- **Wenyuan Shao** -- PhD student at GWU working on fault handlers, and edge computing support.
 - **Robert Gifford and Lucas Baier** -- Undergraduate students at GWU working to provide rump kernel and TCap support
 - **Gregor Peach, Joseph Espy, Zach Day** -- Undergraduates working Satellite software (cFE)
 - **Vlad Nitu** -- PhD student at Toulouse University, France working on network function OS.
@@ -20,6 +21,7 @@ The current primary contributors to _Composite_
 Significant past contributors
 -----------------------------
 
+- **Zheng Yang** -- MS student who worked on hardware support for efficient multicore parallelism.
 - **Teo Georgiev** -- MS Graduate working on CBufs and execution redundancy
 - **Jiguo Song** -- PhD Graduate at GWU working on fault tolerance (C^3, Superglue, and C'Mon)
 - **Qi Wang** -- PhD Graduate at GWU working on predictable parallelism (FJOS and Speck), now at Facebook
