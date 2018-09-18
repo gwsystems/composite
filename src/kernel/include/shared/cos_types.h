@@ -246,10 +246,10 @@ captbl_idsize(cap_t c)
  * 1.5GB-> = kernel memory
  * 2GB-> = system physical memory
  */
- enum
- {
- 	BOOT_CAPTBL_SRET               = 0,
-	BOOT_CAPTBL_PRINT_HACK      = 2, /* This slot is not used for any capability and SRET is 16B (1slot).. */
+enum
+{
+	BOOT_CAPTBL_SRET               = 0,
+	BOOT_CAPTBL_PRINT_HACK         = 2, /* This slot is not used for any capability and SRET is 16B (1slot).. */
  	BOOT_CAPTBL_FLT_MEM_ACCESS     = 4,
  	BOOT_CAPTBL_FLT_DIVZERO        = 8,
  	BOOT_CAPTBL_FLT_BRKPT          = 12,
