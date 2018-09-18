@@ -42,6 +42,7 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
+#include <ps_plat.h>
 /* Types mainly used for documentation */
 typedef capid_t sinvcap_t;
 typedef capid_t sretcap_t;
@@ -67,13 +68,16 @@ struct cos_compinfo {
 	capid_t pgtbl_cap, captbl_cap, comp_cap;
 	/* the frontier of unallocated caps, and the allocated captbl range */
 	capid_t cap_frontier, caprange_frontier;
-	/* the frontier for each of the various sizes of capability */
-	capid_t cap16_frontier, cap32_frontier, cap64_frontier;
+	/* the frontier for each of the various sizes of capability per core! */
+	capid_t cap16_frontier[NUM_CPU], cap32_frontier[NUM_CPU], cap64_frontier;
 	/* heap pointer equivalent, and range of allocated PTEs */
 	vaddr_t vas_frontier, vasrange_frontier;
 	/* the source of memory */
 	struct cos_compinfo *memsrc; /* might be self-referential */
 	struct cos_meminfo   mi;     /* only populated for the component with real memory */
+
+	struct ps_lock cap_lock, mem_lock; /* locks to make the cap frontier and mem frontier updates and expands atomic */
+	struct ps_lock va_lock; /* lock to make the vas frontier and bump expands for vas atomic */
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,

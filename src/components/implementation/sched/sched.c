@@ -1,3 +1,10 @@
+/**
+ * Redistribution of this file is permitted under the BSD two clause license.
+ *
+ * Copyright 2018, The George Washington University
+ * Author: Phani Gadepalli, phanikishoreg@gwu.edu
+ */
+
 #include <cos_defkernel_api.h>
 #include <sched.h>
 #include <sl.h>
@@ -50,24 +57,29 @@ sched_thd_create_cserialized(thdclosure_index_t idx)
 	dci = sched_child_defci_get(sched_childinfo_find(c));
 	if (!dci) return 0;
 
-	t = sl_thd_aep_alloc_ext(dci, NULL, idx, 0, 0, 0, NULL);
+	t = sl_thd_aep_alloc_ext(dci, NULL, idx, 0, 0, 0, 0, 0, NULL);
 	if (!t) return 0;
 
 	return sl_thd_thdid(t);
 }
 
 thdid_t
-sched_aep_create_cserialized(arcvcap_t *extrcv, int *unused, thdclosure_index_t idx, int owntc, cos_aepkey_t key)
+sched_aep_create_cserialized(arcvcap_t *extrcv, int *unused, u32_t thdidx_owntc, u32_t key_ipimax, u32_t ipiwin32b)
 {
 	spdid_t c = cos_inv_token();
 	struct cos_defcompinfo *dci;
-	struct sl_thd *t = NULL;
+	struct sl_thd      *t      = NULL;
+	int                 owntc  = (thdidx_owntc << 16) >> 16;
+	thdclosure_index_t  idx    = (thdidx_owntc >> 16);
+	microsec_t          ipiwin = (microsec_t)ipiwin32b;
+	u32_t               ipimax = (key_ipimax << 16) >> 16;
+	cos_channelkey_t    key    = (key_ipimax >> 16);
 
 	if (!c) return 0;
 	dci = sched_child_defci_get(sched_childinfo_find(c));
 	if (!dci) return 0;
 
-	t = sl_thd_aep_alloc_ext(dci, NULL, idx, 1, owntc, key, extrcv);
+	t = sl_thd_aep_alloc_ext(dci, NULL, idx, 1, owntc, key, ipiwin, ipimax, extrcv);
 	if (!t) return 0;
 
 	return sl_thd_thdid(t);

@@ -1,3 +1,10 @@
+/**
+ * Redistribution of this file is permitted under the BSD two clause license.
+ *
+ * Copyright 2018, The George Washington University
+ * Author: Phani Gadepalli, phanikishoreg@gwu.edu
+ */
+
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text
@@ -7,9 +14,11 @@ cos_asm_server_stub_rets(capmgr_thd_create_cserialized)
 cos_asm_server_stub_rets(capmgr_aep_create_cserialized)
 cos_asm_server_stub_rets(capmgr_thd_create_ext_cserialized)
 cos_asm_server_stub_rets(capmgr_aep_create_ext_cserialized)
-cos_asm_server_stub(capmgr_thd_retrieve)
+cos_asm_server_stub_rets(capmgr_thd_retrieve_cserialized)
 cos_asm_server_stub_rets(capmgr_thd_retrieve_next_cserialized)
+cos_asm_server_stub(capmgr_rcv_create_cserialized)
 cos_asm_server_stub(capmgr_asnd_create)
+cos_asm_server_stub(capmgr_asnd_rcv_create)
 cos_asm_server_stub(capmgr_asnd_key_create)
 
 cos_asm_server_stub(memmgr_heap_page_allocn)

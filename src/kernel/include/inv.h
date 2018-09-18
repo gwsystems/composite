@@ -148,6 +148,8 @@ asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 	return cap_capdeactivate(t, capin, CAP_ASND, lid);
 }
 
+int cap_ipi_process(struct pt_regs *regs);
+
 /* send to a receive end-point within an interrupt */
 int cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs);
 
@@ -254,6 +256,22 @@ arcv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 	if (__arcv_teardown(arcvc, arcvc->thd)) return -EBUSY;
 
 	return cap_capdeactivate(t, capin, CAP_ARCV, lid);
+}
+
+static inline int
+arcv_introspect(struct cap_arcv *r, unsigned long op, unsigned long *retval)
+{
+	switch (op) {
+	case ARCV_GET_CPUID:
+		*retval = r->cpuid;
+		break;
+	case ARCV_GET_THDID:
+		*retval = r->thd->tid;
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
 }
 
 /*

@@ -10,7 +10,7 @@ struct sl_thd_policy {
 	microsec_t     period_usec;
 	cycles_t       period;
 	struct ps_list list;
-};
+} CACHE_ALIGNED;
 
 static inline struct sl_thd *
 sl_mod_thd_get(struct sl_thd_policy *tp)

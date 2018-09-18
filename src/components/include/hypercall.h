@@ -17,6 +17,7 @@ enum hypercall_cntl {
 
 	HYPERCALL_COMP_INITAEP_GET,
 	HYPERCALL_COMP_CHILD_NEXT,
+	HYPERCALL_COMP_CPUBITMAP_GET,
 
 	HYPERCALL_NUMCOMPS_GET,
 };
@@ -184,6 +185,21 @@ hypercall_comp_capfrontier_get(spdid_t spdid)
 	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_CAPFRONTIER_GET, spdid, 0, 0, &cap_frontier, &unused)) return 0;
 
 	return cap_frontier;
+}
+
+static inline int
+hypercall_comp_cpubitmap_get(spdid_t spdid, u32_t *bmp)
+{
+	word_t hi = 0, lo = 0;
+
+	assert(NUM_CPU_BMP_WORDS <= 2); /* FIXME: works for up to 64 cores */
+
+	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_CPUBITMAP_GET, spdid, 0, 0, &lo, &hi)) return -1;
+
+	bmp[0] = lo;
+	if (NUM_CPU_BMP_WORDS == 2) bmp[1] = hi;
+
+	return 0;
 }
 
 static inline int

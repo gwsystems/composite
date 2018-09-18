@@ -75,6 +75,7 @@ test_mem(void)
 	char *      p, *s, *t, *prev;
 	int         i;
 	const char *chk = "SUCCESS";
+	int fail_contiguous = 0;
 
 	p = cos_page_bump_alloc(&booter_info);
 	assert(p);
@@ -88,16 +89,23 @@ test_mem(void)
 	prev = s;
 	for (i = 0; i < TEST_NPAGES; i++) {
 		t = cos_page_bump_alloc(&booter_info);
-		assert(t && t == prev + PAGE_SIZE);
+		assert(t);
+		if (t != prev + PAGE_SIZE) {
+			fail_contiguous = 1;
+		}
 		prev = t;
 	}
-	memset(s, 0, TEST_NPAGES * PAGE_SIZE);
-	PRINTC("SUCCESS: Allocated and zeroed %d pages.\n", TEST_NPAGES);
+	if (!fail_contiguous) {
+		memset(s, 0, TEST_NPAGES * PAGE_SIZE);
+		PRINTC("SUCCESS: Allocated and zeroed %d contiguous pages.\n", TEST_NPAGES);
+	} else if (i == TEST_NPAGES) {
+		PRINTC("FAILURE: Cannot allocate contiguous %d pages.\n", TEST_NPAGES);
+	}
 
 	t = cos_page_bump_allocn(&booter_info, TEST_NPAGES * PAGE_SIZE);
 	assert(t);
 	memset(t, 0, TEST_NPAGES * PAGE_SIZE);
-	PRINTC("SUCCESS: Atomically allocated and zeroed %d pages.\n", TEST_NPAGES);
+	PRINTC("SUCCESS: Atomically allocated and zeroed %d contiguous pages.\n", TEST_NPAGES);
 }
 
 volatile arcvcap_t rcc_global[NUM_CPU], rcp_global[NUM_CPU];
@@ -851,12 +859,59 @@ test_captbl_expand(void)
 	PRINTC("Captbl expand SUCCESS.\n");
 }
 
+volatile asndcap_t ipi_initasnd_global[NUM_CPU][NUM_CPU];
+
+static void
+test_ipi()
+{
+	arcvcap_t arcv;
+	asndcap_t asnd;
+	int       ret = 0;
+	int	  i;
+
+	if (NUM_CPU == 1) return;
+
+#if 1
+	test_ipi_full();
+#else
+	PRINTC("Creating asnd_cap for IPI test.\n");
+	for (i = 0; i < NUM_CPU; i++) {
+		asndcap_t snd;
+
+		if (i == cos_cpuid()) continue;
+
+		snd = cos_asnd_alloc(&booter_info, BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(i), booter_info.captbl_cap);
+		assert(snd);
+		ipi_initasnd_global[cos_cpuid()][i] = snd;
+	}
+
+	PRINTC("Sending remote asnd\n");
+	for (i = 0; i < NUM_CPU; i++) {
+
+		if (i == cos_cpuid()) continue;
+
+		cos_asnd(ipi_initasnd_global[cos_cpuid()][i], 0);
+	}
+	PRINTC("Rcving from remote asnd.\n");
+	while (ret < NUM_CPU - 1) {
+		int rcvd = 0;
+
+		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, &rcvd);
+		ret += rcvd;
+	}
+	PRINTC("Remote Async end-point test successful.\n");
+#endif
+
+	return;
+}
+
 /* Executed in micro_booter environment */
 void
 test_run_mb(void)
 {
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
+	/* test_ipi(); */
 	test_timer();
 	test_budgets();
 

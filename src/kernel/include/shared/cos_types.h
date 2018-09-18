@@ -30,7 +30,6 @@ typedef unsigned long tcap_time_t;
 typedef u64_t         tcap_prio_t;
 typedef u64_t         tcap_uid_t;
 typedef u32_t         sched_tok_t;
-#define PRINT_CAP_TEMP (1 << 14)
 
 /*
  * The assumption in the following is that cycles_t are higher
@@ -240,8 +239,7 @@ captbl_idsize(cap_t c)
  * 42-43 = untyped memory pgtbl root,
  * 44-45 = vm pte for physical memory,
  * 46-47 = km pte,
- * 48~51 = sinv cap to booter,
- * 60~(48+2*NCPU) = per core alpha thd
+ * 48~(48+2*NCPU) = per core alpha thd
  *
  * Initial pgtbl setup (addresses):
  * 1GB+8MB-> = boot component VM
@@ -251,6 +249,7 @@ captbl_idsize(cap_t c)
  enum
  {
  	BOOT_CAPTBL_SRET               = 0,
+	BOOT_CAPTBL_PRINT_HACK      = 2, /* This slot is not used for any capability and SRET is 16B (1slot).. */
  	BOOT_CAPTBL_FLT_MEM_ACCESS     = 4,
  	BOOT_CAPTBL_FLT_DIVZERO        = 8,
  	BOOT_CAPTBL_FLT_BRKPT          = 12,
@@ -267,16 +266,24 @@ captbl_idsize(cap_t c)
  	BOOT_CAPTBL_KM_PTE             = 46,
 
  	BOOT_CAPTBL_SINV_CAP           = 48,
- 	BOOT_CAPTBL_SELF_INITTHD_BASE  = 52,
+	BOOT_CAPTBL_SELF_INITHW_BASE   = 52,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 56,
  	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ,
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU * CAP16B_IDSZ,
                                                          CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
-                                                        CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
+	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
+
+#define BOOT_CAPTBL_SELF_INITTCAP_BASE (BOOT_CAPTBL_SELF_INITTHD_BASE + CAP16B_IDSZ)
+#define BOOT_CAPTBL_SELF_INITTHD_CPU_BASE (BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cos_cpuid()))
+#define BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE (BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cos_cpuid()))
+#define BOOT_CAPTBL_SELF_INITRCV_CPU_BASE (BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cos_cpuid()))
+
+#define BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE + cpuid * CAP64B_IDSZ)
+#define BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) + CAP16B_IDSZ)
+#define BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITRCV_BASE + cpuid * CAP64B_IDSZ)
 
 /*
  * The slots of the sinv to user-level fault handlers.
@@ -297,28 +304,6 @@ typedef enum {
  * caps.
  */
 #define BOOT_CAPTBL_NPAGES ((BOOT_CAPTBL_FREE + CAPTBL_EXPAND_SZ + CAPTBL_EXPAND_SZ * 2 - 1) / (CAPTBL_EXPAND_SZ * 2))
-
-#define BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE (captbl_tcap_offset(cos_cpuid()))
-#define BOOT_CAPTBL_SELF_INITTHD_CPU_BASE (captbl_thd_offset(cos_cpuid()))
-#define BOOT_CAPTBL_SELF_INITRCV_CPU_BASE (captbl_arcv_offset(cos_cpuid()))
-
-static inline unsigned long
-captbl_thd_offset(cpuid_t cpu_id)
-{
-	return BOOT_CAPTBL_SELF_INITTHD_BASE + CAP16B_IDSZ * cpu_id;
-}
-
-static inline unsigned long
-captbl_tcap_offset(cpuid_t cpu_id)
-{
-	return BOOT_CAPTBL_SELF_INITTCAP_BASE + CAP16B_IDSZ * cpu_id;
-}
-
-static inline unsigned long
-captbl_arcv_offset(cpuid_t cpu_id)
-{
-	return BOOT_CAPTBL_SELF_INITRCV_BASE + CAP64B_IDSZ * cpu_id;
-}
 
 enum
 {
@@ -352,6 +337,14 @@ enum
 {
 	/* tcap budget */
 	TCAP_GET_BUDGET,
+};
+
+enum
+{
+	/* arcv CPU id */
+	ARCV_GET_CPUID,
+	/* TID of the thread arcv is associated with */
+	ARCV_GET_THDID,
 };
 
 /* Macro used to define per core variables */
@@ -400,7 +393,7 @@ typedef unsigned int  page_index_t;
 typedef unsigned short int spdid_t;
 typedef unsigned short int compid_t;
 typedef unsigned short int thdid_t;
-typedef spdid_t            invtoken_t;
+typedef unsigned long      invtoken_t;
 typedef int                thdclosure_index_t;
 
 struct restartable_atomic_sequence {
@@ -531,6 +524,18 @@ typedef unsigned int isolation_level_t;
 #define MEMMGR_MAX_SHMEM_REGIONS 1024
 #define CAPMGR_AEPKEYS_MAX       (1<<15)
 
-typedef unsigned short int cos_aepkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KEY NAMESPACE */
+#define IPIWIN_DEFAULT_US (1000) /* 1ms */
+#define IPIMAX_DEFAULT    (64) /* IPIs per ms for each RCV ep */
+
+typedef unsigned short int cos_channelkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KEY NAMESPACE */
+
+/*
+ * BOOT_CAPTBL_PRINT_HACK == 2, a slot that is not going to be used!!
+ * we can remove this when we want only user-level prints from user-level.
+ *
+ * This is a fix in reaction to a bug found in edgeos test with high scalability,
+ * with too many capabilities making (1<<14) a valid slot!
+ */
+#define PRINT_CAP_TEMP (BOOT_CAPTBL_PRINT_HACK)
 
 #endif /* TYPES_H */

@@ -11,19 +11,18 @@
 #include <cos_defkernel_api.h>
 #include <capmgr.h>
 #include <memmgr.h>
+#include <channel.h>
 #include <hypercall.h>
 
 static cycles_t cycs_per_usec;
 
 #define TEST_N_THDS 5
-static thdcap_t test_ts[TEST_N_THDS] = { 0 };
-static int thd_run_flag = 0;
+static thdcap_t test_ts[NUM_CPU][TEST_N_THDS];
 
 static void
 __test_thd_fn(void *d)
 {
-	thd_run_flag = (int)d;
-	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 }
 
 static void
@@ -34,11 +33,10 @@ test_thds(void)
 	int failure = 0;
 
 	for (; i < TEST_N_THDS; i++) {
-		test_ts[i] = capmgr_thd_create(__test_thd_fn, (void *)i, &tid);
-		assert(test_ts[i]);
+		test_ts[cos_cpuid()][i] = capmgr_thd_create(__test_thd_fn, (void *)i, &tid);
+		assert(test_ts[cos_cpuid()][i]);
 
-		cos_thd_switch(test_ts[i]);
-		if (thd_run_flag != i) {
+		if (cos_thd_switch(test_ts[cos_cpuid()][i])) {
 			failure = 1;
 			break;
 		}
@@ -102,6 +100,21 @@ test_sharedmem(void)
 	PRINTLOG(PRINT_DEBUG, "%s: shared memory allocation capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
 }
 
+#define SHMCHANNEL_KEY 0xff
+
+static void
+test_shmem_channel(void)
+{
+	cbuf_t id;
+	vaddr_t addr;
+	int failure = 0;
+
+	id = channel_shared_page_allocn(SHMCHANNEL_KEY, TEST_N_SHMEM_PAGES, &addr);
+	/* testing after test_sharedmem() */
+	if (id <= 1 || test_mem_readwrite(addr, TEST_N_SHMEM_PAGES)) failure = 1;
+	PRINTLOG(PRINT_DEBUG, "%s: shared memory channel allocation capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
+}
+
 void
 cos_init(void)
 {
@@ -111,7 +124,10 @@ cos_init(void)
 	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflag) == -1);
 
 	test_thds();
-	test_sharedmem();
+	if (cos_cpuid() == INIT_CORE) {
+		test_sharedmem();
+		test_shmem_channel();
+	}
 	test_heapmem();
 	hypercall_comp_init_done();
 

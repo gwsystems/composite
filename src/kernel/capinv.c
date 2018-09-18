@@ -82,40 +82,6 @@ done:
 	return 0;
 }
 
-void cos_cap_ipi_handling(void);
-void
-cos_cap_ipi_handling(void)
-{
-	int                         idx, end;
-	struct IPI_receiving_rings *receiver_rings;
-	struct xcore_ring *         ring;
-
-	receiver_rings = &IPI_cap_dest[get_cpuid()];
-
-	/* We need to scan the entire buffer once. */
-	idx                   = receiver_rings->start;
-	end                   = receiver_rings->start - 1; // end is int type. could be -1.
-	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
-
-	/* scan the first half */
-	for (; idx < NUM_CPU; idx++) {
-		ring = &receiver_rings->IPI_source[idx];
-		if (ring->sender != ring->receiver) {
-			process_ring(ring);
-		}
-	}
-
-	/* and scan the second half */
-	for (idx = 0; idx <= end; idx++) {
-		ring = &receiver_rings->IPI_source[idx];
-		if (ring->sender != ring->receiver) {
-			process_ring(ring);
-		}
-	}
-
-	return;
-}
-
 static void
 kmem_unalloc(unsigned long *pte)
 {
@@ -703,6 +669,59 @@ __cap_asnd_to_arcv(struct cap_asnd *asnd)
 	return arcv;
 }
 
+int
+cap_ipi_process(struct pt_regs *regs)
+{
+	struct cos_cpu_local_info  *cos_info = cos_cpu_local_info();
+	struct IPI_receiving_rings *receiver_rings;
+	struct xcore_ring 	   *ring;
+	struct ipi_cap_data 	    data;
+	struct cap_arcv 	   *arcv;
+	struct thread 		   *thd_curr, *thd_next;
+	struct tcap 		   *tcap_curr, *tcap_next;
+	struct comp_info 	   *ci;
+	int                         i, scan_base;
+	unsigned long               ip, sp;
+
+	thd_curr       = thd_next = thd_current(cos_info);
+	receiver_rings = &IPI_cap_dest[get_cpuid()];
+	tcap_curr      = tcap_next = tcap_current(cos_info);
+	ci             = thd_invstk_current(thd_curr, cos_info, &ip, &sp);
+	assert(ci && ci->captbl);
+
+	scan_base = receiver_rings->start;
+	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
+
+	/* We need to scan the entire buffer once. */
+	for (i = 0; i < NUM_CPU; i++) {
+		struct thread *rcvthd  = NULL;
+		struct tcap   *rcvtcap = NULL;
+
+		ring = &receiver_rings->IPI_source[(scan_base + i) % NUM_CPU];
+
+		if (ring->sender == ring->receiver) continue;
+		while ((cos_ipi_ring_dequeue(ring, &data)) != 0) {
+			arcv = cos_ipi_arcv_get(&data);
+			assert(arcv);
+
+			rcvthd  = arcv->thd;
+			rcvtcap = rcvthd->rcvcap.rcvcap_tcap;
+			assert(rcvthd && rcvtcap);
+
+			/*
+			 * tcap_higher_prio (partial-order qualities) check for "highest" prio so far and the next
+			 * thread in the ring (dequeued item).
+			 */
+			thd_next = asnd_process(rcvthd, thd_next, rcvtcap, tcap_next, &tcap_next, 0, cos_info);
+		}
+	}
+
+	if (thd_next == thd_curr) return 1;
+	thd_curr->state |= THD_STATE_PREEMPTED;
+
+	return cap_switch(regs, thd_curr, thd_next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
+}
+
 static int
 cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, struct comp_info *ci,
             struct cos_cpu_local_info *cos_info)
@@ -720,9 +739,16 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 	assert(asnd->arcv_capid);
 	/* IPI notification to another core */
 	if (asnd->arcv_cpuid != curr_cpu) {
+		/* ignore yield flag */
 		assert(!srcv);
-		return cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
+
+		ret = cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
+		/* special handling for IPI send */
+		if (likely(ret == 0)) __userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
+
+		return ret;
 	}
+
 	arcv = __cap_asnd_to_arcv(asnd);
 	if (unlikely(!arcv)) return -EINVAL;
 
@@ -933,6 +959,8 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 		return thd_introspect(((struct cap_thd *)ch)->t, op, retval);
 	case CAP_TCAP:
 		return tcap_introspect(((struct cap_tcap *)ch)->tcap, op, retval);
+	case CAP_ARCV:
+		return arcv_introspect(((struct cap_arcv *)ch), op, retval);
 	default:
 		return -EINVAL;
 	}
