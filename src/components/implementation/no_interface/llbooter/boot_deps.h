@@ -145,8 +145,8 @@ fault_reg_print(spdid_t spdid)
 
 	printc("registers:\n");
 	printc("General registers-> EAX: %x, EBX: %x, ECX: %x, EDX: %x, SI: %x, DI: %x\n", (unsigned int)fault_regs.ax, 
-			(unsigned int)fault_regs.bx, (unsigned int)fault_regs.cx, (unsigned int)fault_regs.dx, (unsigned int)fault_regs.si,
-			(unsigned int)fault_regs.di);
+            (unsigned int)fault_regs.bx, (unsigned int)fault_regs.cx, (unsigned int)fault_regs.dx, (unsigned int)fault_regs.si,
+            (unsigned int)fault_regs.di);
 	printc("Index registers-> IP: %x, SP: %x, BP: %x\n", (unsigned int)fault_regs.ip, (unsigned int)fault_regs.sp,
             (unsigned int)fault_regs.bp);
 	printc("Indicator->EFLAGS: %x\n", (unsigned int)fault_regs.flags);
