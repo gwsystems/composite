@@ -88,6 +88,7 @@ typedef enum {
 	CAPTBL_OP_COMPDEACTIVATE,
 	CAPTBL_OP_SINVACTIVATE,
 	CAPTBL_OP_SINVDEACTIVATE,
+	CAPTBL_OP_FAULTACTIVATE,
 	CAPTBL_OP_SRETACTIVATE,
 	CAPTBL_OP_SRETDEACTIVATE,
 	CAPTBL_OP_ASNDACTIVATE,
@@ -130,6 +131,7 @@ typedef enum {
 typedef enum {
 	CAP_FREE = 0,
 	CAP_SINV,       /* synchronous communication -- invoke */
+	CAP_FLT,        /* communication of fault handler -- invoke*/
 	CAP_SRET,       /* synchronous communication -- return */
 	CAP_ASND,       /* async communication; sender */
 	CAP_ARCV,       /* async communication; receiver */
@@ -203,6 +205,7 @@ __captbl_cap2sz(cap_t c)
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 		return CAP_SZ_32B;
 	case CAP_SINV:
+	case CAP_FLT:
 	case CAP_COMP:
 	case CAP_ASND:
 	case CAP_ARCV:
@@ -222,43 +225,51 @@ captbl_idsize(cap_t c)
  * LLBooter initial captbl setup:
  * 0 = sret,
  * 1-3 = nil,
- * 4-5 = this captbl,
- * 6-7 = our pgtbl root,
- * 8-11 = our component,
- * 12-13 = vm pte for booter
- * 14-15 = untyped memory pgtbl root,
- * 16-17 = vm pte for physical memory,
- * 18-19 = km pte,
- * 20-21 = comp0 captbl,
- * 22-23 = comp0 pgtbl root,
- * 24-27 = comp0 component,
- * 28~(20+2*NCPU) = per core alpha thd
+ * 4-7 = memory access fault handler,
+ * 8-11 = divide by zero fault handler,
+ * 12-15 = breakpoint fault handler,
+ * 16-19 = invalid instruction fault handler,
+ * 20-23 = invstk overflow and underflow fault handler,
+ * 24-27 = component does not exist fault handler,
+ * 28-31 = fault handler does not exist fault handler,
+ * 32-33 = this captbl,
+ * 34-35 = our pgtbl root,
+ * 36-39 = our component,
+ * 40-41 = vm pte for booter
+ * 42-43 = untyped memory pgtbl root,
+ * 44-45 = vm pte for physical memory,
+ * 46-47 = km pte,
+ * 48~(48+2*NCPU) = per core alpha thd
  *
  * Initial pgtbl setup (addresses):
  * 1GB+8MB-> = boot component VM
  * 1.5GB-> = kernel memory
  * 2GB-> = system physical memory
  */
-enum
-{
-	BOOT_CAPTBL_SRET            = 0,
+ enum
+ {
+ 	BOOT_CAPTBL_SRET               = 0,
 	BOOT_CAPTBL_PRINT_HACK      = 2, /* This slot is not used for any capability and SRET is 16B (1slot).. */
-	BOOT_CAPTBL_SELF_CT         = 4,
-	BOOT_CAPTBL_SELF_PT         = 6,
-	BOOT_CAPTBL_SELF_COMP       = 8,
-	BOOT_CAPTBL_BOOTVM_PTE      = 12,
-	BOOT_CAPTBL_SELF_UNTYPED_PT = 14,
-	BOOT_CAPTBL_PHYSM_PTE       = 16,
-	BOOT_CAPTBL_KM_PTE          = 18,
+ 	BOOT_CAPTBL_FLT_MEM_ACCESS     = 4,
+ 	BOOT_CAPTBL_FLT_DIVZERO        = 8,
+ 	BOOT_CAPTBL_FLT_BRKPT          = 12,
+ 	BOOT_CAPTBL_FLT_INVLD_INS      = 16,
+ 	BOOT_CAPTBL_FLT_INVSTK         = 20,
+ 	BOOT_CAPTBL_FLT_COMP_NOT_EXIST = 24,
+	BOOT_CAPTBL_FLT_HAND_NOT_EXISt = 28,
+ 	BOOT_CAPTBL_SELF_CT            = 32,
+ 	BOOT_CAPTBL_SELF_PT            = 34,
+ 	BOOT_CAPTBL_SELF_COMP          = 36,
+ 	BOOT_CAPTBL_BOOTVM_PTE         = 40,
+ 	BOOT_CAPTBL_SELF_UNTYPED_PT    = 42,
+ 	BOOT_CAPTBL_PHYSM_PTE          = 44,
+ 	BOOT_CAPTBL_KM_PTE             = 46,
 
-	BOOT_CAPTBL_SINV_CAP           = 20,
-	BOOT_CAPTBL_SELF_INITHW_BASE   = 24,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
-	/*
-	 * NOTE: kernel doesn't support sharing a cache-line across cores,
-	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU
-	 */
-	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP64B_IDSZ,
+ 	BOOT_CAPTBL_SINV_CAP           = 48,
+	BOOT_CAPTBL_SELF_INITHW_BASE   = 52,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 56,
+ 	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ,
+	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU * CAP16B_IDSZ,
                                                          CAPMAX_ENTRY_SZ),
 	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
 	/* round up to next entry */
@@ -275,6 +286,19 @@ enum
 #define BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITRCV_BASE + cpuid * CAP64B_IDSZ)
 
 /*
+ * The slots of the sinv to user-level fault handlers.
+ */
+typedef enum {
+	COMP_CAPTBL_FLT_MEM_ACCESS     = BOOT_CAPTBL_FLT_MEM_ACCESS,
+	COMP_CAPTBL_FLT_DIVZERO        = BOOT_CAPTBL_FLT_DIVZERO,
+	COMP_CAPTBL_FLT_BRKPT          = BOOT_CAPTBL_FLT_BRKPT,
+	COMP_CAPTBL_FLT_INVLD_INS      = BOOT_CAPTBL_FLT_INVLD_INS,
+	COMP_CAPTBL_FLT_INVSTK         = BOOT_CAPTBL_FLT_INVSTK,
+	COMP_CAPTBL_FLT_COMP_NOT_EXIST = BOOT_CAPTBL_FLT_COMP_NOT_EXIST,
+	COMP_CAPTBL_FLT_HAND_NOT_EXIST = BOOT_CAPTBL_FLT_HAND_NOT_EXISt,
+} cap_flt_off;
+
+/*
  * The half of the first page of init captbl is devoted to root node. So, the
  * first page of captbl can contain 128 caps, and every extra page can hold 256
  * caps.
@@ -287,11 +311,27 @@ enum
 	BOOT_MEM_KM_BASE = PGD_SIZE, /* kernel & user memory @ 4M, pgd aligned start address */
 };
 
-enum
-{
+typedef enum {
 	/* thread id */
 	THD_GET_TID,
-};
+	/* get regs */
+	THD_GET_FAULT_REG0,
+	THD_GET_FAULT_REG1,
+	THD_GET_FAULT_REG2,
+	THD_GET_FAULT_REG3,
+	THD_GET_FAULT_REG4,
+	THD_GET_FAULT_REG5,
+	THD_GET_FAULT_REG6,
+	THD_GET_FAULT_REG7,
+	THD_GET_FAULT_REG8,
+	THD_GET_FAULT_REG9,
+	THD_GET_FAULT_REG10,
+	THD_GET_FAULT_REG11,
+	THD_GET_FAULT_REG12,
+	THD_GET_FAULT_REG13,
+	THD_GET_FAULT_REG14,
+	THD_GET_FAULT_REG15,
+} cap_thdop_t;
 
 enum
 {

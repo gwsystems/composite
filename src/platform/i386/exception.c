@@ -13,19 +13,47 @@ print_regs_state(struct pt_regs *regs)
 {
 	PRINTK("registers:\n");
 	PRINTK("General registers-> EAX: %x, EBX: %x, ECX: %x, EDX: %x\n", regs->ax, regs->bx, regs->cx, regs->dx);
-	PRINTK("Segment registers-> CS: %x, DS: %x, ES: %x, FS: %x, GS: %x, SS: %x\n", regs->cs, regs->ds, regs->es,
-	       regs->fs, regs->gs, regs->ss);
-	PRINTK("Index registers-> ESI: %x, EDI: %x, EIP: %x, ESP: %x, EBP: %x\n", regs->si, regs->di, regs->ip,
-	       regs->sp, regs->bp);
+	PRINTK("Segment registers-> CS: %x, DS: %x, ES: %x, FS: %x, GS: %x, SS: %x, ESI: %x, EDI: %x \n", regs->cs, regs->ds, regs->es,
+	       regs->fs, regs->gs, regs->ss, regs->si, regs->di);
+	PRINTK("Index registers-> EIP: %x, ESP: %x, EBP: %x\n", regs->ip, regs->sp, regs->bp);
 	PRINTK("Indicator-> EFLAGS: %x\n", regs->flags);
 	PRINTK("(Exception Error Code-> ORIG_AX: %x)\n", regs->orig_ax);
+}
+
+void
+fault_regs_save(struct pt_regs *regs, struct thread *thd)
+{
+	copy_all_regs(regs, &(thd->fault_regs));
+}
+
+void
+fault_handler_sinv(struct pt_regs *regs, capid_t cap)
+{
+	struct cos_cpu_local_info *ci       = cos_cpu_local_info();
+	struct thread *            curr_thd = thd_current(ci);
+	struct cap_header *        fh;
+	struct comp_info *         cos_info;
+	thdid_t                    thdid = curr_thd->tid;
+	unsigned long              ip, sp;
+	u32_t                      fault_addr = 0, errcode, eip;
+
+	fault_regs_save(regs, curr_thd);
+	cos_info = thd_invstk_current(curr_thd, ci, &ip, &sp);
+	fh = captbl_lkup(cos_info->captbl, cap);
+	__userregs_sinvargset(regs, regs->sp, regs->ip, fault_addr, cap);
+	/* FIXME: This is a software fault and should be fixed in the future. */
+	if (unlikely(!fh)) {
+		die("FAULT: Fault handler not found\n");
+		return;
+	}
+
+	sinv_call(curr_thd, (struct cap_sinv *)fh, regs, ci, 1);
 }
 
 int
 div_by_zero_err_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
-	die("FAULT: Divide by Zero Error\n\n");
+	fault_handler_sinv(regs, COMP_CAPTBL_FLT_DIVZERO);
 
 	return 1;
 }
@@ -42,8 +70,7 @@ debug_trap_handler(struct pt_regs *regs)
 int
 breakpoint_trap_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
-	die("TRAP: Breakpoint\n");
+	fault_handler_sinv(regs, COMP_CAPTBL_FLT_BRKPT);
 
 	return 1;
 }
@@ -60,8 +87,7 @@ overflow_trap_handler(struct pt_regs *regs)
 int
 bound_range_exceed_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
-	die("FAULT: Bound Range Exceeded\n");
+	fault_handler_sinv(regs, COMP_CAPTBL_FLT_INVSTK);
 
 	return 1;
 }
@@ -69,8 +95,7 @@ bound_range_exceed_fault_handler(struct pt_regs *regs)
 int
 invalid_opcode_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
-	die("FAULT: Invalid opcode\n");
+	fault_handler_sinv(regs, COMP_CAPTBL_FLT_INVLD_INS);
 
 	return 1;
 }
@@ -123,8 +148,7 @@ stack_seg_fault_handler(struct pt_regs *regs)
 int
 gen_protect_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
-	die("FAULT: General Protection Fault\n");
+	fault_handler_sinv(regs, COMP_CAPTBL_FLT_MEM_ACCESS);
 
 	return 1;
 }
@@ -132,20 +156,8 @@ gen_protect_fault_handler(struct pt_regs *regs)
 int
 page_fault_handler(struct pt_regs *regs)
 {
-	u32_t                      fault_addr, errcode = 0, eip = 0;
-	struct cos_cpu_local_info *ci    = cos_cpu_local_info();
-	thdid_t                    thdid = thd_current(ci)->tid;
-
-	print_regs_state(regs);
-	fault_addr = chal_cpu_fault_vaddr(regs);
-	errcode    = chal_cpu_fault_errcode(regs);
-	eip        = chal_cpu_fault_ip(regs);
-
-	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%x, ip 0x%x\n", thdid,
-	    errcode & PGTBL_PRESENT ? "present" : "not-present",
-	    errcode & PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & PGTBL_USER ? "user-mode" : "system",
-	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, eip);
-
+	fault_handler_sinv(regs, COMP_CAPTBL_FLT_MEM_ACCESS);
+	
 	return 1;
 }
 

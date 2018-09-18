@@ -406,7 +406,8 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
                struct cos_cpu_local_info *cos_info)
 {
 	struct next_thdinfo *nti     = &cos_info->next_ti;
-	struct comp_info *   next_ci = &(next->invstk[next->invstk_top].comp_info);
+	/* invstk_top never contains in_fault flag in its captbl. So we can use it as comp_info */
+	struct comp_info *   next_ci = (struct comp_info *)&(next->invstk[next->invstk_top].comp_invstk_info);
 	int                  preempt = 0;
 
 	assert(next_ci && curr && next);
@@ -685,7 +686,7 @@ cap_ipi_process(struct pt_regs *regs)
 	thd_curr       = thd_next = thd_current(cos_info);
 	receiver_rings = &IPI_cap_dest[get_cpuid()];
 	tcap_curr      = tcap_next = tcap_current(cos_info);
-	ci             = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
+	ci             = thd_invstk_current(thd_curr, cos_info, &ip, &sp);
 	assert(ci && ci->captbl);
 
 	scan_base = receiver_rings->start;
@@ -818,7 +819,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	thd  = thd_current(cos_info);
 	tcap = tcap_current(cos_info);
 	assert(thd);
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	ci = thd_invstk_current(thd, cos_info, &ip, &sp);
 	assert(ci && ci->captbl);
 	assert(!(thd->state & THD_STATE_PREEMPTED));
 	rcv_thd  = arcv->thd;
@@ -872,7 +873,7 @@ timer_process(struct pt_regs *regs)
 	assert(cos_info);
 	thd_curr = thd_current(cos_info);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
-	comp = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
+	comp = thd_invstk_current(thd_curr, cos_info, &ip, &sp);
 	assert(comp);
 
 	return expended_process(regs, thd_curr, comp, cos_info, 1);
@@ -997,8 +998,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
 		/* No need to lookup captbl */
-		sret_ret(thd, regs, cos_info);
-		return 0;
+		return sret_ret(thd, regs, cos_info);
 	}
 
 	/* FIXME: use a cap for print */
@@ -1007,7 +1007,7 @@ composite_syscall_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	ci = thd_invstk_current(thd, cos_info, &ip, &sp);
 	assert(ci && ci->captbl);
 
 	/*
@@ -1022,7 +1022,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	}
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
-		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info);
+		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info, 0);
 		return 0;
 	}
 
@@ -1094,7 +1094,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 	cap   = __userregs_getcap(regs);
 	capin = __userregs_get1(regs);
 
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	ci = thd_invstk_current(thd, cos_info, &ip, &sp);
 	assert(ci && ci->captbl);
 	ct = ci->captbl;
 
@@ -1294,13 +1294,21 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t    entry_addr    = __userregs_get3(regs);
 			invtoken_t token         = __userregs_get4(regs);
 
-			ret = sinv_activate(ct, cap, capin, dest_comp_cap, entry_addr, token);
+			ret = sinv_activate(ct, cap, capin, dest_comp_cap, CAP_SINV, entry_addr, token);
 			break;
 		}
 		case CAPTBL_OP_SINVDEACTIVATE: {
 			livenessid_t lid = __userregs_get2(regs);
 
 			ret = sinv_deactivate(op_cap, capin, lid);
+			break;
+		}
+		case CAPTBL_OP_FAULTACTIVATE: {
+			capid_t    dest_comp_cap = __userregs_get2(regs);
+			vaddr_t    entry_addr    = __userregs_get3(regs);
+			invtoken_t token         = __userregs_get4(regs);
+
+			ret = sinv_activate(ct, cap, capin, dest_comp_cap, CAP_FLT, entry_addr, token);
 			break;
 		}
 		case CAPTBL_OP_SRETACTIVATE: {
@@ -1517,8 +1525,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		 * We usually don't have sret cap as we have 0 as the
 		 * default return cap.
 		 */
-		sret_ret(thd, regs, cos_info);
-		return 0;
+		return sret_ret(thd, regs, cos_info);
 	}
 	case CAP_TCAP: {
 		/* TODO: Validate that all tcaps are on the same core */
