@@ -22,11 +22,12 @@
  * Comp_invstk_info contains all information to identify which component to
  * return into (via sret). It is similar to comp_info. The reason why using
  * comp_invstk_info instead of comp_info is that we need to track if current
- * invocation is due to an explicit sinv, or due to an exception or fault, as
+ * invocation is due to an explicit sinv or due to an exception or fault, as
  * the return protocol for each is different.
  * Thus, in this structure we use the lowest-order bit in the captbl to store
- * a flag which indicates this invocation is due to an exception (or fault), or not.
- * Because captbl is 4096-byte aligned, the last 12 bit of captbl are always '0'.
+ * a flag which indicates this invocation is due to an exception (or fault) or not.
+ * We could use the lowest-order bit because captbl is 4096-byte aligned, 
+ * the last 12 bits of captbl are always '0'. 
  * Though this design makes it a bit complex, it keeps the structure 16-byte aligned.
  */
 struct comp_invstk_info {
@@ -347,7 +348,7 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 }
 
 /* 
- * This function is used to reset the invocation flag (indicates it is an explicit sinv or fault/exception).
+ * This function is used to reset the invocation flag (if it is an explicit sinv or fault/exception).
  */
 static inline struct comp_info *
 thd_invstk_comp_info_reset(struct comp_invstk_info* comp_invstk_info)

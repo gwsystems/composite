@@ -156,7 +156,7 @@ fault_reg_print(spdid_t spdid)
 void
 fault_div_by_zero(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
-	PRINTLOG(PRINT_ERROR, "in div by zero error fault handler, fault happens in component:%u\n\n", cos_inv_token());
+	PRINTLOG(PRINT_ERROR, "in div by zero error fault handler, fault happens in component:%u\n\n", (unsigned int)cos_inv_token());
 	fault_reg_print(cos_inv_token());
 	return;
 }
@@ -164,7 +164,7 @@ fault_div_by_zero(unsigned long sp, unsigned long ip, unsigned long fault_addr, 
 void
 fault_memory_access(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
-	PRINTLOG(PRINT_ERROR, "in memory access handler, fault happens in component:%u\n\n", cos_inv_token());
+	PRINTLOG(PRINT_ERROR, "in memory access handler, fault happens in component:%u\n\n", (unsigned int)cos_inv_token());
 	fault_reg_print(cos_inv_token());
 	return;
 }
@@ -172,7 +172,7 @@ fault_memory_access(unsigned long sp, unsigned long ip, unsigned long fault_addr
 void
 fault_breakpoint(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
-	PRINTLOG(PRINT_ERROR, "in breakpoint trap handler, fault happens in component:%u\n\n", cos_inv_token());
+	PRINTLOG(PRINT_ERROR, "in breakpoint trap handler, fault happens in component:%u\n\n", (unsigned int)cos_inv_token());
 	fault_reg_print(cos_inv_token());
 	return;
 }
@@ -180,7 +180,7 @@ fault_breakpoint(unsigned long sp, unsigned long ip, unsigned long fault_addr, u
 void
 fault_invalid_inst(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
-	PRINTLOG(PRINT_ERROR, "in invalid instruction trap handler, fault happens in component:%u\n\n", cos_inv_token());
+	PRINTLOG(PRINT_ERROR, "in invalid instruction trap handler, fault happens in component:%u\n\n", (unsigned int)cos_inv_token());
 	fault_reg_print(cos_inv_token());
 	return;
 }
@@ -188,7 +188,7 @@ fault_invalid_inst(unsigned long sp, unsigned long ip, unsigned long fault_addr,
 void
 fault_invstk(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
-	PRINTLOG(PRINT_ERROR, "in invstk overflow and underflow fault handler, fault happens in component:%u\n\n", cos_inv_token());
+	PRINTLOG(PRINT_ERROR, "in invstk overflow and underflow fault handler, fault happens in component:%u\n\n", (unsigned int)cos_inv_token());
 	fault_reg_print(cos_inv_token());
 	return;
 }
@@ -196,7 +196,7 @@ fault_invstk(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsig
 void
 fault_comp_not_exist(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
-	PRINTLOG(PRINT_ERROR, "in component does not exist fault handler, fault happens in component:%u\n\n", cos_inv_token());
+	PRINTLOG(PRINT_ERROR, "in component does not exist fault handler, fault happens in component:%u\n\n", (unsigned int)cos_inv_token());
 	fault_reg_print(cos_inv_token());
 	return;
 }
@@ -204,7 +204,7 @@ fault_comp_not_exist(unsigned long sp, unsigned long ip, unsigned long fault_add
 void
 fault_handler_not_exist(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
-	PRINTLOG(PRINT_ERROR, "in fault handler does not exist fault handler, fault happens in component:%u\n\n", cos_inv_token());
+	PRINTLOG(PRINT_ERROR, "in fault handler does not exist fault handler, fault happens in component:%u\n\n", (unsigned int)cos_inv_token());
 	fault_reg_print(cos_inv_token());
 	return;
 }
