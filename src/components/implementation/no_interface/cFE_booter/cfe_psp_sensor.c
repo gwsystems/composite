@@ -106,7 +106,7 @@ CFE_PSP_SensorISR(arcvcap_t rcv, void *p)
 
 #else
                 pending = cos_rcv(rcv, RCV_ALL_PENDING, &rcvd);
-                assert(pending == 0 && rcvd >= 1);
+                assert(pending == 0 && rcvd == 1);
 #endif
 		while (rcvd > 0) {
 			strcpy(data, SensorTraceDump[trace_curr]);

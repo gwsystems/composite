@@ -15,9 +15,9 @@
 #include <cos_time.h>
 
 #define SINV_SRV_POLL_US 1000
-#define SINV_MAIN_POLL_US 10000
+#define SINV_MAIN_POLL_US 5000
 
-#define SINV_THD_PRIO 2
+#define SINV_THD_PRIO 4
 #define SINV_THD_PERIOD_US 10000
 #define SINV_THD_BUDGET_US 10000
 

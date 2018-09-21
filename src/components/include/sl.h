@@ -524,7 +524,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		sl_thd_cycs_update(to, 0, 1);
 	}
 
-	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {
+	if ((t->properties & SL_THD_PROPERTY_OWN_TCAP) && t->budget) {
 		assert(t->period);
 		assert(sl_thd_tcap(t) != globals->sched_tcap);
 
