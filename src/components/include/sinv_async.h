@@ -135,6 +135,8 @@ void sinv_client_init_sndkey(struct sinv_async_info *s, cos_channelkey_t shm_key
 int sinv_client_thread_init(struct sinv_async_info *s, thdid_t tid, cos_channelkey_t rcvkey, cos_channelkey_t shm_snd_key);
 int sinv_client_call(struct sinv_async_info *s, sinv_num_t, word_t a, word_t b, word_t c);
 int sinv_client_rets_call(struct sinv_async_info *s, sinv_num_t, word_t *r2, word_t *r3, word_t a, word_t b, word_t c);
+int sinv_client_call_spin(struct sinv_async_info *s, sinv_num_t, word_t a, word_t b, word_t c);
+int sinv_client_rets_call_spin(struct sinv_async_info *s, sinv_num_t, word_t *r2, word_t *r3, word_t a, word_t b, word_t c);
 
 /* Asynchronous communication API */
 typedef sinv_num_t acom_type_t;
@@ -143,5 +145,6 @@ void acom_client_init(struct sinv_async_info *s, cos_channelkey_t shm_key);
 void acom_client_init_sndkey(struct sinv_async_info *s, cos_channelkey_t shm_key, cos_channelkey_t snd_key);
 int acom_client_thread_init(struct sinv_async_info *s, thdid_t, arcvcap_t, cos_channelkey_t rkey, cos_channelkey_t skey);
 int acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio);
+int acom_client_request_spin(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio);
 
 #endif /* SINV_ASYNC_H */

@@ -102,7 +102,7 @@ cos_init(void)
 	sl_init_cpubmp(SL_MIN_PERIOD_US * 5, cpubmp);
 	sched_childinfo_init();
 
-	if (cos_cpuid() == CFE_CORE) {
+	if (NUM_CPU > 1 && cos_cpuid() == CFE_CORE) {
 		/* wait for RK to initialize */
 		while (num_child_init[RK_CORE] == 0) ;
 	}

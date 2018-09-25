@@ -14,8 +14,9 @@
 #include <res_spec.h>
 #include <cos_time.h>
 
-#define SINV_SRV_POLL_US 1000
+#define SINV_SRV_POLL_US 100
 #define SINV_MAIN_POLL_US 5000
+#define SINV_SRV_SPIN_COUNT 32
 
 #define SINV_THD_PRIO 4
 #define SINV_THD_PERIOD_US 10000
@@ -122,14 +123,20 @@ sinv_server_aep_fn(arcvcap_t rcv, void *data)
 		asndcap_t snd = t->sndcap;
 		int *retval = (int *)SINV_RET_ADDR(t->shmaddr), ret;
 		struct sinv_call_req *req = (struct sinv_call_req *)SINV_REQ_ADDR(t->shmaddr);
+		int retry_spin = 0;
 		int rcvd = 0;
 
 		while (ps_load((unsigned long *)reqaddr) != SINV_REQ_SET) {
-			cycles_t timeout = time_now() + interval;
+			retry_spin++;
 
-			sched_thd_block_timeout(0, timeout);
-			cos_rcv(rcv, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
+			if (retry_spin >= SINV_SRV_SPIN_COUNT) {
+				cycles_t timeout = time_now() + interval;
+
+				retry_spin = 0;
+				sched_thd_block_timeout(0, timeout);
+			}
 		}
+		cos_rcv(rcv, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
 
 		assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_SET);
 		*retval = sinv_server_entry(s, req);

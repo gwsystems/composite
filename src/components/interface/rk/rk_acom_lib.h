@@ -18,6 +18,11 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#ifndef RK_MAX_PAGES
+#define RK_MAX_PAGES 32 /* per thread, max number of pages */
+#define RK_MAX_SZ (RK_MAX_PAGES * PAGE_SIZE)
+#endif
+
 /* call acom_client_init() on rk_sinv_info using RK_CLIENT(instance) as key and make sure there is a stubcomp which listens to requests on "rk" stub side */
 /* call acom_client_thread_init() for every thread that is going to communicate with RK.. because this is ACOM, threads are expected to be AEPS and pass the rcv aep key.. To be unique and consistent use RK_RKEY() api for the key in AEP creation */
 /* link to -lacom_client library!! */
@@ -160,7 +165,7 @@ rk_get_shm_callvaddr_acom(cbuf_t *shmid)
 	static cbuf_t id_calldata[MAX_NUM_THREADS] = { 0 };
 	static vaddr_t addr_calldata[MAX_NUM_THREADS] = { 0 };
 
-	if (unlikely(id_calldata[cos_thdid()] == 0)) id_calldata[cos_thdid()] = memmgr_shared_page_alloc(&addr_calldata[cos_thdid()]);
+	if (unlikely(id_calldata[cos_thdid()] == 0)) id_calldata[cos_thdid()] = memmgr_shared_page_allocn(RK_MAX_PAGES, &addr_calldata[cos_thdid()]);
 
 	assert(id_calldata[cos_thdid()] && addr_calldata[cos_thdid()]);
 	*shmid = id_calldata[cos_thdid()];
@@ -242,11 +247,11 @@ rk_inv_writev_acom(struct sinv_async_info *rk_sinv_info, int fd, const struct io
 		if (i) tmpbuf += (tmpiov[i-1].iov_len);
 		total += tmpiov[i].iov_len;
 
-		assert(total <= PAGE_SIZE);
+		assert(total <= RK_MAX_SZ);
 		memcpy(tmpbuf, tmpiov[i].iov_base, tmpiov[i].iov_len);
 	}
 
-	assert(total <= PAGE_SIZE);
+	assert(total <= RK_MAX_SZ);
 	ret = rk_writev_acom(rk_sinv_info, fd, iovcnt, shmid, r, p);
 
 	return ret;
@@ -279,10 +284,10 @@ rk_inv_read_acom(struct sinv_async_info *rk_sinv_info, int fd, void *buf, size_t
 
 	shmaddr = rk_get_shm_callvaddr_acom(&shmid);
 
-	assert(nbyte <= PAGE_SIZE);
+	assert(nbyte <= RK_MAX_SZ);
 	ret = rk_read_acom(rk_sinv_info, fd, shmid, nbyte, r, p);
 
-	assert(ret <= PAGE_SIZE);
+	assert(ret <= RK_MAX_SZ);
 	memcpy((void *)buf, (void *)shmaddr, ret);
 
 	return ret;
@@ -532,7 +537,7 @@ rk_inv_socketcall_acom(struct sinv_async_info *rk_sinv_info, int call, unsigned 
 			*(int *)shmaddr = flags;
 			*(socklen_t *)(shmaddr + 4) = addrlen;
 			memcpy((void *)(shmaddr + 8), dest_addr, sizeof(struct sockaddr_storage));
-			assert(len <= (PAGE_SIZE - 8 - sizeof(struct sockaddr_storage)));
+			assert(len <= (RK_MAX_SZ - 8 - sizeof(struct sockaddr_storage)));
 			memcpy((void *)(shmaddr + 8 + sizeof(struct sockaddr_storage)), outptr, len);
 			ret = rk_sendto_acom(rk_sinv_info, sockfd, len, shmid, r, p);
 			break;
@@ -556,7 +561,7 @@ rk_inv_socketcall_acom(struct sinv_async_info *rk_sinv_info, int call, unsigned 
 			memset((void *)(shmaddr + 12), 0, sizeof(struct sockaddr_storage));
 			shmbuf = (void *)(shmaddr + 12 + sizeof(struct sockaddr_storage));
 
-			assert(len <= (PAGE_SIZE - (12 + sizeof(struct sockaddr_storage))));
+			assert(len <= (RK_MAX_SZ - (12 + sizeof(struct sockaddr_storage))));
 
 			ret = rk_recvfrom_acom(rk_sinv_info, sockfd, len, shmid, r, p);
 			if (ret < 0) break;

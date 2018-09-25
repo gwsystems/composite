@@ -91,7 +91,7 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 }
 
 int
-acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio)
+acom_client_request_intern(int spin, struct sinv_async_info *s, acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio)
 {
 	struct sinv_thdinfo *tinfo = &s->cdata.cthds[cos_thdid()];
 	volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(tinfo->shmaddr);
@@ -121,10 +121,11 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 	}
 
 	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {
-		cycles_t timeout = time_now() + interval;
+		if (!spin) {
+			cycles_t timeout = time_now() + interval;
 
-		sched_thd_block_timeout(0, timeout); /* in the app component */
-
+			sched_thd_block_timeout(0, timeout); /* in the app component */
+		}
 		/*
 		 * Though this is synchronous, we could bound this by having a kind of
 		 * inbuilt watchdog timer that triggers and returns perhaps -ETIMEDOUT
@@ -135,10 +136,22 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 		 * (simplicity) because, we cannot be sure if the server is still processing
 		 * the previous requests or not and overwriting will just break the server!!
 		 */
-		if (tinfo->rcvcap) cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
 	}
+	if (tinfo->rcvcap) cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
 
 	assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET);
 
 	return *retval;
+}
+
+int
+acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio)
+{
+	return acom_client_request_intern(0, s, t, a, b, c, budget, prio);
+}
+
+int
+acom_client_request_spin(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b, word_t c, tcap_res_t budget, tcap_prio_t prio)
+{
+	return acom_client_request_intern(1, s, t, a, b, c, budget, prio);
 }

@@ -53,7 +53,7 @@ rk_thdcalldata_shm_map(cbuf_t id)
 	assert(id);
 	if (unlikely(id_calldata[cos_thdid()] == 0)) {
 		npages = memmgr_shared_page_map(id, &addr_calldata[cos_thdid()]);
-		assert(npages >= 1);
+		assert(npages == RK_MAX_PAGES);
 
 		id_calldata[cos_thdid()] = id;
 	}

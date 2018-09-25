@@ -20,7 +20,7 @@ rk_get_shm_callvaddr(cbuf_t *shmid)
 	static cbuf_t id_calldata[MAX_NUM_THREADS] = { 0 };
 	static vaddr_t addr_calldata[MAX_NUM_THREADS] = { 0 };
 
-	if (unlikely(id_calldata[cos_thdid()] == 0)) id_calldata[cos_thdid()] = memmgr_shared_page_alloc(&addr_calldata[cos_thdid()]);
+	if (unlikely(id_calldata[cos_thdid()] == 0)) id_calldata[cos_thdid()] = memmgr_shared_page_allocn(RK_MAX_PAGES, &addr_calldata[cos_thdid()]);
 
 	assert(id_calldata[cos_thdid()] && addr_calldata[cos_thdid()]);
 	*shmid = id_calldata[cos_thdid()];
@@ -141,10 +141,10 @@ rk_inv_read(int fd, void *buf, size_t nbyte)
 
 	shmaddr = rk_get_shm_callvaddr(&shmid);
 
-	assert(nbyte <= PAGE_SIZE);
+	assert(nbyte <= RK_MAX_SZ);
 	ret = rk_read(fd, shmid, nbyte);
 
-	assert(ret <= PAGE_SIZE);
+	assert(ret <= RK_MAX_SZ);
 	memcpy((void *)buf, (void *)shmaddr, ret);
 
 	return ret;
@@ -391,7 +391,7 @@ rk_inv_socketcall(int call, unsigned long *args)
 			*(int *)shmaddr = flags;
 			*(socklen_t *)(shmaddr + 4) = addrlen;
 			memcpy((void *)(shmaddr + 8), dest_addr, sizeof(struct sockaddr_storage));
-			assert(len <= (PAGE_SIZE - 8 - sizeof(struct sockaddr_storage)));
+			assert(len <= (RK_MAX_SZ - 8 - sizeof(struct sockaddr_storage)));
 			memcpy((void *)(shmaddr + 8 + sizeof(struct sockaddr_storage)), outptr, len);
 			ret = rk_sendto(sockfd, len, shmid);
 
@@ -416,7 +416,7 @@ rk_inv_socketcall(int call, unsigned long *args)
 			memset((void *)(shmaddr + 12), 0, sizeof(struct sockaddr_storage));
 			shmbuf = (void *)(shmaddr + 12 + sizeof(struct sockaddr_storage));
 
-			assert(len <= (PAGE_SIZE - (12 + sizeof(struct sockaddr_storage))));
+			assert(len <= (RK_MAX_SZ - (12 + sizeof(struct sockaddr_storage))));
 			memset(shmbuf, 0, len);
 
 			ret = rk_recvfrom(sockfd, len, shmid);

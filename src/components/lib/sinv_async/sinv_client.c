@@ -13,6 +13,7 @@
 #include <cos_time.h>
 
 #define SINV_SRV_POLL_US 1000
+#define SINV_SRV_SPIN_COUNT 32
 
 void
 sinv_client_init_sndkey(struct sinv_async_info *s, cos_channelkey_t shm_key, cos_channelkey_t snd_key)
@@ -93,13 +94,14 @@ sinv_client_thread_init(struct sinv_async_info *s, thdid_t tid, cos_channelkey_t
 }
 
 static int
-sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_t a, word_t b, word_t c, word_t *r2, word_t *r3)
+sinv_client_call_wrets(int wrets, int spin, struct sinv_async_info *s, sinv_num_t n, word_t a, word_t b, word_t c, word_t *r2, word_t *r3)
 {
 	struct sinv_thdinfo *tinfo = &s->cdata.cthds[cos_thdid()];
 	volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(tinfo->shmaddr);
 	int *retval = NULL, ret, rcvd;
 	struct sinv_call_req *req = NULL;
 	cycles_t interval = time_usec2cyc(SINV_SRV_POLL_US);
+	int retry_spin = 0;
 
 	assert(n >= 0 && n < SINV_NUM_MAX);
 	assert(reqaddr);
@@ -126,11 +128,16 @@ sinv_client_call_wrets(int wrets, struct sinv_async_info *s, sinv_num_t n, word_
 	cos_asnd(tinfo->sndcap, 0);
 
 	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {
-		cycles_t timeout = time_now() + interval;
+		retry_spin++;
 
-		sl_thd_block_timeout(0, timeout); /* in the scheduler component */
-		if (tinfo->rcvcap) cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
+		if (!spin && retry_spin >= SINV_SRV_SPIN_COUNT) {
+			cycles_t timeout = time_now() + interval;
+
+			retry_spin = 0;
+			sl_thd_block_timeout(0, timeout); /* in the scheduler component */
+		}
 	}
+	if (tinfo->rcvcap) cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
 
 	assert(ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET);
 	if (!wrets) goto done;
@@ -145,11 +152,23 @@ done:
 int
 sinv_client_call(struct sinv_async_info *s, sinv_num_t n, word_t a, word_t b, word_t c)
 {
-	return sinv_client_call_wrets(0, s, n, a, b, c, NULL, NULL);
+	return sinv_client_call_wrets(0, 0, s, n, a, b, c, NULL, NULL);
 }
 
 int
 sinv_client_rets_call(struct sinv_async_info *s, sinv_num_t n, word_t *r2, word_t *r3, word_t a, word_t b, word_t c)
 {
-	return sinv_client_call_wrets(1, s, n, a, b, c, r2, r3);
+	return sinv_client_call_wrets(1, 0, s, n, a, b, c, r2, r3);
+}
+
+int
+sinv_client_call_spin(struct sinv_async_info *s, sinv_num_t n, word_t a, word_t b, word_t c)
+{
+	return sinv_client_call_wrets(0, 1, s, n, a, b, c, NULL, NULL);
+}
+
+int
+sinv_client_rets_call_spin(struct sinv_async_info *s, sinv_num_t n, word_t *r2, word_t *r3, word_t a, word_t b, word_t c)
+{
+	return sinv_client_call_wrets(1, 1, s, n, a, b, c, r2, r3);
 }
