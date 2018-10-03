@@ -680,6 +680,10 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4, wo
 	switch(op) {
 	case HYPERCALL_COMP_INIT_DONE:
 	{
+		struct comp_sched_info *si = boot_spd_comp_schedinfo_get(client);
+
+		if (si->parent_spdid != 0) return -EINVAL;
+
 		boot_thd_done(client);
 		break;
 	}

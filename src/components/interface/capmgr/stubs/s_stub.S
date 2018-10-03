@@ -23,6 +23,7 @@ cos_asm_server_stub(capmgr_asnd_create)
 cos_asm_server_stub(capmgr_asnd_rcv_create)
 cos_asm_server_stub(capmgr_asnd_rcv_create_raw)
 cos_asm_server_stub(capmgr_asnd_key_create)
+cos_asm_server_stub(capmgr_asnd_key_create_raw)
 
 cos_asm_server_stub(capmgr_hw_attach)
 cos_asm_server_stub(capmgr_hw_periodic_attach)

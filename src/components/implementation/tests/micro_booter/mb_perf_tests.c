@@ -32,7 +32,7 @@ test_intr_latency_perf(void)
 	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner_cycs1, (void *)&spin_cycs[cos_cpuid()]);
 	assert(ts);
 
-//	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, BOOT_CAPTBL_SELF_INITRCV_BASE, TEST_USEC_INTERVAL);
+//	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, TEST_USEC_INTERVAL);
 
 //	rdtscll(now);
 //	timer = tcap_cyc2time(now + INTR_LATENCY_CYCS * cyc_per_usec);
@@ -46,7 +46,7 @@ test_intr_latency_perf(void)
 
 		//rdtscll(now);
 		//timer = tcap_cyc2time(now + INTR_LATENCY_CYCS * cyc_per_usec);
-		cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, 0, 0, 0);
+		cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, 0, 0, 0);
 
 		rdtscll(intr_cycs);
 		curr_cycles = (intr_cycs - spin_cycs[cos_cpuid()]);
@@ -56,7 +56,7 @@ test_intr_latency_perf(void)
 		}
 		total_cycles += curr_cycles;
 
-	//	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &blocked, &cycles) != 0) ;
+	//	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, &tid, &blocked, &cycles) != 0) ;
 	}
 
 	PRINTC("HPET Interrupt Latency WCET:%lld(prev:%lld) Average:%lld (Total:%lld)\n",
@@ -91,7 +91,7 @@ test_timer_intr_latency_perf(void)
 
 		rdtscll(now);
 		timer = tcap_cyc2time(now + INTR_LATENCY_CYCS * cyc_per_usec);
-		cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, timer, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+		cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync());
 
 		rdtscll(intr_cycs);
 		curr_cycles = (intr_cycs - spin_cycs[cos_cpuid()]);
@@ -101,7 +101,7 @@ test_timer_intr_latency_perf(void)
 		}
 		total_cycles += curr_cycles;
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, RCV_ALL_PENDING, timeout,
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, timeout,
 				     &rcvd, &tid, &blocked, &cycles, &thd_timeout) > 0) ;
 	}
 
@@ -117,18 +117,21 @@ static cycles_t timeout[NUM_CPU] CACHE_ALIGNED = { 0 };
 static void
 thd_fn_perf_timeout(void *d)
 {
+	cycles_t *st = (cycles_t *)d;
 	cycles_t now;
 	tcap_time_t timer;
 
 	assert(timeout[cos_cpuid()]);
 	rdtscll(now);
 	timer = tcap_cyc2time(now + timeout[cos_cpuid()]);
-	cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, timer, 0, 0);
+	rdtscll(*st);
+	cos_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, timer, 0, 0);
 
 	while (1) {
 		rdtscll(now);
 		timer = tcap_cyc2time(now + timeout[cos_cpuid()]);
-		cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, timer, 0, 0);
+		rdtscll(*st);
+		cos_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, timer, 0, 0);
 	}
 	PRINTC("Error, shouldn't get here!\n");
 }
@@ -136,17 +139,20 @@ thd_fn_perf_timeout(void *d)
 static void
 thd_fn_perf(void *d)
 {
-	cycles_t now;
+	cycles_t *st = (cycles_t *)d;
 	tcap_time_t timer;
 
-	cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
+	rdtscll(*st);
+	cos_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
 
 	while (1) {
-		cos_switch(BOOT_CAPTBL_SELF_INITTHD_BASE, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
+		rdtscll(*st);
+		cos_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
 	}
 	PRINTC("Error, shouldn't get here!\n");
 }
 
+static volatile int thd_test_ready[NUM_CPU] = { 0 };
 static void
 test_thds_perf(int with_apic_timer_prog)
 {
@@ -162,7 +168,7 @@ test_thds_perf(int with_apic_timer_prog)
 	timeout[cos_cpuid()] = (cycles_t)TIMEOUT_CYCS * (cycles_t)cyc_per_usec;
 	if (with_apic_timer_prog) {
 		perfdata_init(&pd[cos_cpuid()], "Thd_Swtch(T)");
-		ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf_timeout, NULL);
+		ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf_timeout, (void *)&start_swt_cycles);
 		assert(ts);
 		apic_timer_overhead_test[cos_cpuid()] = 1;
 		rdtscll(now);
@@ -172,12 +178,13 @@ test_thds_perf(int with_apic_timer_prog)
 
 		for (i = 0 ; i < ITER ; i++) {
 			rdtscll(start_swt_cycles);
+			end_swt_cycles = start_swt_cycles;
 
 			rdtscll(now);
 			timer = tcap_cyc2time(now + timeout[cos_cpuid()]);
-			cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, timer, 0, 0);
+			cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, timer, 0, 0);
 			rdtscll(end_swt_cycles);
-			curr_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
+			curr_swt_cycles = (end_swt_cycles - start_swt_cycles);
 			perfdata_add(&pd[cos_cpuid()], (double)curr_swt_cycles);
 
 			//total_swt_cycles += curr_swt_cycles;
@@ -188,32 +195,43 @@ test_thds_perf(int with_apic_timer_prog)
 		}
 	} else {
 		perfdata_init(&pd[cos_cpuid()], "Thd_Swtch");
-		ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL);
+		ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, (void *)&start_swt_cycles);
 		assert(ts);
 		apic_timer_overhead_test[cos_cpuid()] = 0;
-		cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
+		cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
 		cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
+		thd_test_ready[cos_cpuid()] = 1;
+		for (i = 0; i < NUM_CPU; i++) {
+			while (!thd_test_ready[i]) ;
+		}
 
 		for (i = 0 ; i < ITER ; i++) {
-			rdtscll(start_swt_cycles);
+			if (cos_cpuid() == 0) {
+				rdtscll(start_swt_cycles);
+				end_swt_cycles = start_swt_cycles;
 
-			cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
-			rdtscll(end_swt_cycles);
-			curr_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
-			perfdata_add(&pd[cos_cpuid()], (double)curr_swt_cycles);
+				cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
+				rdtscll(end_swt_cycles);
+				curr_swt_cycles = (end_swt_cycles - start_swt_cycles);
+				perfdata_add(&pd[cos_cpuid()], (double)curr_swt_cycles);
 
-			//total_swt_cycles += curr_swt_cycles;
-			//if (curr_swt_cycles > wcet_swt_cycles) {
-			//	pwcet_swt_cycles = wcet_swt_cycles;
-			//	wcet_swt_cycles = curr_swt_cycles;
-			//}
+				//total_swt_cycles += curr_swt_cycles;
+				//if (curr_swt_cycles > wcet_swt_cycles) {
+				//	pwcet_swt_cycles = wcet_swt_cycles;
+				//	wcet_swt_cycles = curr_swt_cycles;
+				//}
+			} else {
+				cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
+			}
 		}
 
 	}
 
 	//PRINTC("THD SWTCH WCET:%lld(prev:%lld), Average (Total: %lld / Iterations: %lld ): %lld\n", wcet_swt_cycles, pwcet_swt_cycles, total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));
-	perfdata_calc(&pd[cos_cpuid()]);
-	perfdata_print(&pd[cos_cpuid()]);
+	if (cos_cpuid() == 0) {
+		perfdata_calc(&pd[cos_cpuid()]);
+		perfdata_print(&pd[cos_cpuid()]);
+	}
 }
 
 //static void
@@ -325,13 +343,13 @@ test_async_endpoints_perf(void)
 	arcvcap_t rcp, rcc;
 
 	/* parent rcv capabilities */
-	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf, (void*)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	assert(tcp);
 	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
-	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
 	assert(rcp);
-	if (cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1)) assert(0);
+	if (cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1)) assert(0);
 
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void*)tcp);
@@ -340,7 +358,7 @@ test_async_endpoints_perf(void)
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
-	if (cos_tcap_transfer(rcc, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX)) assert(0);
+	if (cos_tcap_transfer(rcc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX)) assert(0);
 
 	/* make the snd channel to the child */
 	scp_global[cos_cpuid()] = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
@@ -376,9 +394,9 @@ test_sched_activation_perf(void)
 
 	perfdata_init(&pd[cos_cpuid()], "Sched ACT");
 	/* child rcv capabilities */
-	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, child_thd_fn, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, child_thd_fn, (void*)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	assert(tcc);
-	child_rcv[cos_cpuid()] = cos_arcv_alloc(&booter_info, tcc, BOOT_CAPTBL_SELF_INITTCAP_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	child_rcv[cos_cpuid()] = cos_arcv_alloc(&booter_info, tcc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
 	assert(child_rcv[cos_cpuid()]);
 
 	/* make the snd channel to the child */
@@ -506,10 +524,10 @@ static volatile long long total_tcap_cycles[NUM_CPU] CACHE_ALIGNED = { 0 }, star
 static void
 tcap_test_fn(void *d)
 {
-	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	while (1) {
 		rdtscll(end_tcap_cycles[cos_cpuid()]);
-		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	}
 }
 
@@ -531,10 +549,10 @@ tcap_perf_test_prepare(void)
 		assert(thds[cos_cpuid()][i]);
 		cos_thd_switch(thds[cos_cpuid()][i]);
 
-		rcvs[cos_cpuid()][i] = cos_arcv_alloc(&booter_info, thds[cos_cpuid()][i], tcs[cos_cpuid()][i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+		rcvs[cos_cpuid()][i] = cos_arcv_alloc(&booter_info, thds[cos_cpuid()][i], tcs[cos_cpuid()][i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
 		assert(rcvs[cos_cpuid()][i]);
 
-		ret = cos_tcap_transfer(rcvs[cos_cpuid()][i], BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, TCAP_PRIO_MAX);
+		ret = cos_tcap_transfer(rcvs[cos_cpuid()][i], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX);
 		assert(ret == 0);
 	}
 
@@ -704,13 +722,13 @@ test_tcaps_perf(void)
 void
 test_run_perf(void)
 {
-//	test_thds_perf(0);
+	test_thds_perf(0);
 //	test_thds_perf(1);
 //
 //	test_async_endpoints_perf();
 //	test_sched_activation_perf();
 //
-	test_inv_perf();
+//	test_inv_perf();
 //
 //	test_tcaps_perf();
 //	test_intr_latency_perf();

@@ -510,6 +510,28 @@ capmgr_asnd_key_create(cos_channelkey_t key)
 	return (asndcap_t)capret;
 }
 
+asndcap_t
+capmgr_asnd_key_create_raw(cos_channelkey_t key)
+{
+	spdid_t                     cur     = cos_inv_token();
+	struct cos_defcompinfo     *cap_dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo        *cap_ci  = cos_compinfo_get(cap_dci);
+	struct cap_comp_info       *rc      = cap_info_comp_find(cur);
+	capid_t                     cap     = 0, capret = 0;
+	struct cap_channelaep_info *ak      = cap_channelaep_get(key);
+	struct cap_comm_info       *cmi     = NULL;
+
+	if (!rc || !cap_info_init_check(rc)) return 0;
+	if (!key || !ak) return 0;
+	cmi = ak->comminfo;
+	if (!cmi || !cmi->rcvcap) return 0;
+	cap = cap_comminfo_asnd_create(cmi);
+	if (!cap) return 0;
+	capret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ASND, cap);
+
+	return (asndcap_t)capret;
+}
+
 int
 capmgr_hw_attach(hwid_t hwid, thdid_t tid)
 {

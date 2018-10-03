@@ -13,6 +13,7 @@
 #include <cap_info.h>
 #include <hypercall.h>
 #include <sl.h>
+#include "spinlib.h"
 
 static volatile int capmgr_init_core_done = 0;
 
@@ -164,8 +165,9 @@ cos_init(void)
 	spdid_t child;
 	comp_flag_t ch_flags;
 	int ret = 0, i;
+	unsigned int cycs_per_us = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cycs_per_us);
 	ret = hypercall_comp_frontier_get(cos_spd_id(), &heap_frontier, &cap_frontier);
 	assert(ret == 0);
 
@@ -176,6 +178,7 @@ cos_init(void)
 				BOOT_CAPTBL_SELF_COMP, heap_frontier, cap_frontier);
 		cap_info_init();
 		sl_init(SL_MIN_PERIOD_US);
+		spinlib_calib(cycs_per_us);
 		capmgr_comp_info_iter();
 	} else {
 		while (!capmgr_init_core_done) ; /* WAIT FOR INIT CORE TO BE DONE */

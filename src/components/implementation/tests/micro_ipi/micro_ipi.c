@@ -15,13 +15,19 @@
 #include <simple_sl.h>
 
 /* FIXME: these defines are just getting uglier..*/
-#define TEST_SIMPLE_SCHED
+#undef TEST_SIMPLE_SCHED
 #undef TEST_IPI_BATCHING
 /* enable only one of these */
-#define TEST_IPC
+#undef TEST_IPC
 #undef TEST_IPC_RAW
 #undef TEST_LATENCY
-#undef TEST_RATE
+#define TEST_RATE
+
+#ifdef TEST_IPC
+static volatile struct perfdata pd[3];
+#else
+static volatile struct perfdata pd;
+#endif
 
 #define HI_PRIO TCAP_PRIO_MAX
 #define LOW_PRIO (HI_PRIO + 1)
@@ -45,7 +51,7 @@ static volatile int testing = 0;
 #undef RCV_UB_TEST
 #undef SND_UB_TEST
 #undef RPC_UB_TEST
-#undef CN_SND_ONLY
+#define CN_SND_ONLY
 
 static void
 hiprio_c0_lat_fn(arcvcap_t r, void *d)
@@ -229,10 +235,10 @@ test_latency_setup(void)
 #endif
 }
 
+#define MEASURE_DL
+#ifndef MEASURE_DL
 #define WINDOW_US 1000
 #define PRINT_US  1000000
-
-#define RATE_C0 0
 
 #define WINDOW_SZ (PRINT_US/WINDOW_US)
 volatile unsigned long ipi_rate[WINDOW_SZ] = { 0 }, ipi_winidx = 0;
@@ -293,6 +299,69 @@ hiprio_rate_c0_fn(arcvcap_t r, void *d)
 
 	sl_thd_exit();
 }
+#else
+
+#define RATE_C0 0
+/*
+ * NOTE: Run spinlib in composite on baremetal with no timers, etc (micro_booter level),
+ * get the number of iterations to spin for a given number of micro-seconds..
+ * use that value here.. do the same for all envs (linux, cos, fiasco, and seL4).
+ * and further adjust to make it more accurate.
+ *
+ * NOTE: I've tested ITERS_10US with multiples 2, 3 and 4 and the amount of spin
+ * is 20us, 30us and 40us respectively without interference.
+ */
+#define ITERS_10US 5850
+#define MULTIPLE   2
+#undef NOINTERFERENCE_TEST
+
+#define SPIN_ITERS (ITERS_10US*MULTIPLE) //note
+#ifdef TEST_IPC_RAW
+#define NITERS     1
+#else
+#define NITERS     1000
+#endif
+
+volatile unsigned int niters = 0;
+
+static void __spin_fn(void) __attribute__ ((optimize("O0")));
+
+static void
+__spin_fn(void)
+{
+	unsigned int spin = 0;
+
+	while (spin < SPIN_ITERS) {
+		__asm__ __volatile__("nop": : :"memory");
+		spin++;
+	}
+}
+
+static void
+hiprio_rate_c0_fn(arcvcap_t r, void *d)
+{
+	perfdata_init(&pd, "DLs");
+	PRINTC("HI!\n");
+	testing = 1;
+	while (niters < NITERS) {
+		cycles_t st = 0, en = 0;
+
+		rdtscll(st);
+		__spin_fn();
+		rdtscll(en);
+
+		perfdata_add(&pd, en - st);
+		niters++;
+	}
+
+	testing = 0;
+	perfdata_calc(&pd);
+	perfdata_print(&pd);
+
+	sl_thd_exit();
+}
+
+#endif
 
 static void
 loprio_rate_c0_fn(arcvcap_t r, void *d)
@@ -310,8 +379,10 @@ loprio_rate_c0_fn(arcvcap_t r, void *d)
 		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
 		assert(pending == 0 && rcvd == 1);
 
+#ifndef CN_SND_ONLY
 		ret = cos_asnd(snd, 0);
 		assert(ret == 0);
+#endif
 	}
 
 	sl_thd_exit();
@@ -330,10 +401,10 @@ hiprio_rate_cn_fn(arcvcap_t r, void *d)
 
 		if (unlikely(testing == 0)) break;
 
-		do {
+	//	do {
 			ret = cos_asnd(snd, 0);
-		} while (ret == -EBUSY);
-		assert(ret == 0);
+	//	} while (unlikely(ret == -EBUSY));
+	//	assert(ret == 0);
 
 #ifndef CN_SND_ONLY
 		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
@@ -358,6 +429,7 @@ test_rate_setup(void)
 		hi = sl_thd_aep_alloc(hiprio_rate_c0_fn, NULL, 1, 0, 0, 0);
 		assert(hi);
 
+#ifndef NOINTERFERENCE_TEST
 		for (i = 1; i < NUM_CPU; i++) {
 			assert(i != RATE_C0);
 
@@ -367,7 +439,11 @@ test_rate_setup(void)
 
 			while (!cn_rcv[i]) ;
 
+#ifdef TEST_IPC_RAW
+			snd = capmgr_asnd_rcv_create_raw(cn_rcv[i]);
+#else
 			snd = capmgr_asnd_rcv_create(cn_rcv[i]);
+#endif
 			assert(snd);
 			c0_cn_asnd[i] = snd;
 			ret = cos_tcap_transfer(sl_thd_rcvcap(lo[i]), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, LOW_PRIO);
@@ -376,13 +452,14 @@ test_rate_setup(void)
 			sl_thd_param_set(lo[i], sched_param_pack(SCHEDP_BUDGET, AEP_BUDGET_US));
 			sl_thd_param_set(lo[i], sched_param_pack(SCHEDP_PRIO, LOW_PRIO));
 		}
-
+#endif
 		ret = cos_tcap_transfer(sl_thd_rcvcap(hi), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, HI_PRIO);
 		assert(ret == 0);
 		sl_thd_param_set(hi, sched_param_pack(SCHEDP_WINDOW, AEP_PERIOD_US));
 		sl_thd_param_set(hi, sched_param_pack(SCHEDP_BUDGET, AEP_BUDGET_US));
 		sl_thd_param_set(hi, sched_param_pack(SCHEDP_PRIO, HI_PRIO));
 	} else {
+#ifndef NOINTERFERENCE_TEST
 		struct sl_thd *hi = NULL;
 		asndcap_t snd = 0;
 
@@ -392,7 +469,11 @@ test_rate_setup(void)
 
 		while (!c0_rcv[cos_cpuid()]) ;
 
+#ifdef TEST_IPC_RAW
+		snd = capmgr_asnd_rcv_create_raw(c0_rcv[cos_cpuid()]);
+#else
 		snd = capmgr_asnd_rcv_create(c0_rcv[cos_cpuid()]);
+#endif
 		assert(snd);
 		cn_c0_asnd[cos_cpuid()] = snd;
 
@@ -401,6 +482,7 @@ test_rate_setup(void)
 		sl_thd_param_set(hi, sched_param_pack(SCHEDP_WINDOW, AEP_PERIOD_US));
 		sl_thd_param_set(hi, sched_param_pack(SCHEDP_BUDGET, AEP_BUDGET_US));
 		sl_thd_param_set(hi, sched_param_pack(SCHEDP_PRIO, HI_PRIO));
+#endif
 	}
 
 	ps_faa((unsigned long *)&cdone[cos_cpuid()], 1);
@@ -413,10 +495,6 @@ test_rate_setup(void)
 volatile cycles_t c0_start = 0, c0_end = 0, c0_mid = 0, c1_start = 0, c1_end = 0, c1_mid = 0;
 
 #define TEST_IPC_ITERS 1000000
-
-#ifdef TEST_IPC
-static volatile struct perfdata pd[3];
-#endif
 
 static void
 print_ipi_info(void)
@@ -636,6 +714,7 @@ cos_init(void)
 	assert(NUM_CPU > 1);
 
 	if (ps_cas(&first, NUM_CPU + 1, cos_cpuid())) {
+		PRINTC("In MICRO_IPI COMPONENT\n");
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_defcompinfo_init();
 
@@ -664,8 +743,8 @@ cos_init(void)
 	sl_init(SCHED_PERIOD_US);
         hypercall_comp_init_done();
 
-	test_ipc_setup();
-	test_latency_setup();
+	//test_ipc_setup();
+	//test_latency_setup();
 	test_rate_setup();
 
 #ifdef TEST_IPC

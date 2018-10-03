@@ -24,6 +24,7 @@ asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t);
 asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv);
 asndcap_t capmgr_asnd_rcv_create_raw(arcvcap_t rcv); /* creates raw asnd cap instead of sinv cap for cross-core comm. */
 asndcap_t capmgr_asnd_key_create(cos_channelkey_t key);
+asndcap_t capmgr_asnd_key_create_raw(cos_channelkey_t key);
 
 int capmgr_hw_attach(hwid_t hwid, thdid_t tid);
 int capmgr_hw_periodic_attach(hwid_t hwid, thdid_t tid, unsigned int period_us);

@@ -9,7 +9,9 @@
 #include <hypercall.h>
 #include <sched.h>
 #include <cos_time.h>
+#include <workload.h>
 
+#define WORKUSECS 1000
 #define SL_FPRR_NPRIOS 32
 
 #define LOWEST_PRIORITY (SL_FPRR_NPRIOS - 1)
@@ -62,14 +64,26 @@ static void
 thd1_fn()
 {
 	thd1_ran[cos_cpuid()] = 1;
-	while (1);
+	while (1) {
+		microsec_t elapsed = 0;
+
+		elapsed = workload_usecs(WORKUSECS);
+		printc("{%llu}", elapsed);
+		assert(elapsed >= WORKUSECS);
+	}
 }
 
 static void
 thd2_fn()
 {
 	thd2_ran[cos_cpuid()] = 1;
-	while (1);
+	while (1) {
+		microsec_t elapsed = 0;
+
+		elapsed = workload_usecs(WORKUSECS);
+		printc("[%llu]", elapsed);
+		assert(elapsed >= WORKUSECS);
+	}
 }
 
 static void

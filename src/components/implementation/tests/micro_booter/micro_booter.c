@@ -23,7 +23,7 @@ void
 cos_init(void)
 {
 	int cycs, i;
-	static int first_init = 1, init_done = 0;
+	static volatile int first_init = 1, init_done = 0;
 
 	cycs = cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	printc("\t%d cycles per microsecond\n", cycs);
