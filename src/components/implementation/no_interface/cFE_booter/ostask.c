@@ -57,6 +57,8 @@ struct cfe_task_info {
 };
 
 struct cfe_task_info cfe_tasks[SL_MAX_NUM_THDS] = {{0}};
+struct sl_thd *sensoremu_thd = NULL;
+extern void CFE_PSP_SensorISR(arcvcap_t, void *);
 
 void
 OS_SchedulerStart(cos_thd_fn_t main_delegate)
@@ -78,7 +80,10 @@ OS_SchedulerStart(cos_thd_fn_t main_delegate)
 	task_info->osal_task_prop.priority  = MAIN_DELEGATE_THREAD_PRIORITY;
 	task_info->osal_task_prop.OStask_id = (uint32)sl_thd_thdid(main_delegate_thread);
 
+	sensoremu_thd = sl_thd_aep_alloc(CFE_PSP_SensorISR, NULL, 1, CFE_HPET_SH_KEY, 0, 0);
+	assert(sensoremu_thd);
 	schedinit_child();
+	PRINTC("Done with initialization. Starting scheduling loop\n");
 #ifdef CFE_RK_MULTI_CORE
 	sl_sched_loop_nonblock();
 #else

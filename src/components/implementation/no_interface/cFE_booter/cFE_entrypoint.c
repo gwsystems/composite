@@ -73,13 +73,12 @@ command_line_set_defaults(struct CFE_PSP_CommandData_t *args)
 uint32                       reset_type;
 struct CFE_PSP_CommandData_t args;
 
-extern void CFE_PSP_SensorISR(arcvcap_t, void *);
+extern struct sl_thd *sensoremu_thd;
 extern void timer_fn_1hz(void *);
 // This is the delegate function called by the scheduler
 void
 cos_init_delegate(void *data)
 {
-	struct sl_thd *sensoremu_thd;
 	struct sl_thd *timer1hz_thd;
 
 	OS_printf("CFE_PSP: Doing PSP setup...\n");
@@ -123,13 +122,14 @@ cos_init_delegate(void *data)
 	sl_thd_param_set(timer1hz_thd, sched_param_pack(SCHEDP_PRIO, TIMER_THREAD_PRIORITY));
 
 	OS_printf("CFE_PSP: starting sensor emulation thread..\n");
-	sensoremu_thd = sl_thd_aep_alloc(CFE_PSP_SensorISR, NULL, 1, 0, 0, 0);
 	assert(sensoremu_thd);
 	sl_thd_param_set(sensoremu_thd, sched_param_pack(SCHEDP_WINDOW, CFE_PSP_SENSOR_INTERVAL_USEC));
 	sl_thd_param_set(sensoremu_thd, sched_param_pack(SCHEDP_BUDGET, CFE_PSP_SENSOR_BUDGET_USEC));
 	sl_thd_param_set(sensoremu_thd, sched_param_pack(SCHEDP_PRIO, CFE_PSP_SENSOR_THDPRIO));
+#ifndef CFE_HPET_IN_ROOTSCHED
 #ifdef SENSOREMU_USE_HPET
 	capmgr_hw_periodic_attach(HW_HPET_PERIODIC, sl_thd_thdid(sensoremu_thd), CFE_PSP_SENSOR_INTERVAL_USEC);
+#endif
 #endif
 
 	OS_printf("CFE_PSP: cFE started, main thread sleeping\n");

@@ -54,6 +54,24 @@ static volatile int testing = 0;
 #define CN_SND_ONLY
 
 static void
+print_ipi_info(void)
+{
+	int i = 0;
+
+	printc("====================================\n");
+	printc("IPI Info:\n");
+	for (i = 0; i < NUM_CPU; i ++) {
+		unsigned int k_snd = 0, k_rcv = 0, c_snd = 0, c_rcv = 0;
+
+		capmgr_core_ipi_counters_get(i, 0, &k_snd, &k_rcv);
+		capmgr_core_ipi_counters_get(i, 1, &c_snd, &c_rcv);
+
+		printc("CPU%d = %lu sent / %lu rcvd (kernel: %lu/%lu)\n", i, c_snd, c_rcv, k_snd, k_rcv);
+	}
+	printc("====================================\n");
+}
+
+static void
 hiprio_c0_lat_fn(arcvcap_t r, void *d)
 {
 	asndcap_t snd = c0_cn_asnd[(int)d];
@@ -319,7 +337,7 @@ hiprio_rate_c0_fn(arcvcap_t r, void *d)
 #ifdef TEST_IPC_RAW
 #define NITERS     1
 #else
-#define NITERS     1000
+#define NITERS     20
 #endif
 
 volatile unsigned int niters = 0;
@@ -357,6 +375,7 @@ hiprio_rate_c0_fn(arcvcap_t r, void *d)
 	testing = 0;
 	perfdata_calc(&pd);
 	perfdata_print(&pd);
+	print_ipi_info();
 
 	sl_thd_exit();
 }
@@ -495,24 +514,6 @@ test_rate_setup(void)
 volatile cycles_t c0_start = 0, c0_end = 0, c0_mid = 0, c1_start = 0, c1_end = 0, c1_mid = 0;
 
 #define TEST_IPC_ITERS 1000000
-
-static void
-print_ipi_info(void)
-{
-	int i = 0;
-
-	printc("====================================\n");
-	printc("IPI Info:\n");
-	for (i = 0; i < NUM_CPU; i ++) {
-		unsigned int k_snd = 0, k_rcv = 0, c_snd = 0, c_rcv = 0;
-
-		capmgr_core_ipi_counters_get(i, 0, &k_snd, &k_rcv);
-		capmgr_core_ipi_counters_get(i, 1, &c_snd, &c_rcv);
-
-		printc("CPU%d = %lu sent / %lu rcvd (kernel: %lu/%lu)\n", i, c_snd, c_rcv, k_snd, k_rcv);
-	}
-	printc("====================================\n");
-}
 
 static void
 c0_ipc_fn(arcvcap_t r, void *d)

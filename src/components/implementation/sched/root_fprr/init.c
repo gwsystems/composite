@@ -12,11 +12,11 @@
 
 u32_t cycs_per_usec = 0;
 
-#define INITIALIZE_PRIO 1
+#define INITIALIZE_PRIO 2
 #define INITIALIZE_PERIOD_US (10000)
 #define INITIALIZE_BUDGET_US (1000)
 
-#define FIXED_PRIO 1
+#define FIXED_PRIO 2
 #define FIXED_PERIOD_US (10000)
 #ifdef CFE_RK_MULTI_CORE
 #define FIXED_BUDGET_US (10000)
@@ -42,6 +42,7 @@ static void
 __init_done(void *d)
 {
 	while (schedinit_self()) sl_thd_block_periodic(0);
+
 	PRINTLOG(PRINT_DEBUG, "SELF (inc. CHILD) INIT DONE.\n");
 
 	sl_thd_exit();
@@ -60,7 +61,7 @@ sched_child_init(struct sched_childinfo *schedci)
 	assert(initthd);
 
 #ifdef CFE_RK_MULTI_CORE
-	if ((ret = cos_tcap_transfer(sl_thd_rcvcap(initthd), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX))) {
+	if ((ret = cos_tcap_transfer(sl_thd_rcvcap(initthd), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, FIXED_PRIO))) {
 		PRINTC("%s: Failed to transfer INF budget\n");
 		assert(0);
 	}
@@ -102,6 +103,13 @@ cos_init(void)
 	sl_init_cpubmp(SL_MIN_PERIOD_US * 5, cpubmp);
 	sched_childinfo_init();
 
+#ifdef CFE_HPET_IN_ROOTSCHED
+	if (cos_cpuid() == CFE_CORE) {
+		hpet_ring_init();
+		hpet_thd_init();
+	}
+#endif
+
 	if (NUM_CPU > 1 && cos_cpuid() == CFE_CORE) {
 		/* wait for RK to initialize */
 		while (num_child_init[RK_CORE] == 0) ;
@@ -115,6 +123,10 @@ cos_init(void)
 
 	self_init[cos_cpuid()] = 1;
 	hypercall_comp_init_done();
+
+#ifdef CFE_HPET_IN_ROOTSCHED
+	if (cos_cpuid() == CFE_CORE) hpet_attach();
+#endif
 
 	sl_sched_loop_nonblock();
 

@@ -320,6 +320,7 @@ chal_hpet_first_period(void)
 void
 chal_hpet_disable(hwid_t hwid)
 {
+	printk("Disabling HPET %u\n", hwid);
 	hpet_type_t type = (hwid == HW_HPET_PERIODIC ? HPET_PERIODIC : HPET_ONESHOT);
 
 	hpet_disable(type);

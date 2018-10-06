@@ -549,6 +549,10 @@ typedef unsigned short int cos_channelkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KE
 #define CFE_INITRCV_KEY 0x7ffe
 #define RK_INITRCV_KEY  0x7ffd
 
+#define CFE_HPET_SH_KEY 0x8fff
+
 #define CFE_RK_MULTI_CORE
+#undef CFE_HPET_IN_ROOTSCHED
+#define CFE_HPET_RING_NPAGES (4+1)
 
 #endif /* TYPES_H */

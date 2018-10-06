@@ -17,7 +17,7 @@ term_fn(void *d)
 
 
 extern int cyc_per_usec;
-static int test_done[NUM_CPU];
+static volatile int test_done[NUM_CPU];
 
 void
 cos_init(void)
@@ -48,7 +48,7 @@ cos_init(void)
 	for (i = 0; i < NUM_CPU; i++) {
 		while (!test_done[i]) ;
 	}
-	while (cos_cpuid()) ; /* test only on 1 core! */
+	//while (cos_cpuid()) ; /* test only on 1 core! */
 	test_run_perf();
 
 	PRINTC("Micro Booter done.\n");

@@ -3,6 +3,18 @@
 #include "ostask.h"
 #include <sl.h>
 
+#ifdef CFE_HPET_IN_ROOTSCHED
+#include <ck_ring.h>
+#include <channel.h>
+#include <inplace_ring.h>
+
+static cbuf_t cfeshid = 0;
+static vaddr_t cfeshaddr = 0;
+static struct ck_ring *cfering = NULL;
+
+INPLACE_RING_BUILTIN(cycles, cycles_t);
+#endif
+
 #define CFE_PSP_SENSORQ_NAME "SENSORTRACE_QUEUE"
 #define CFE_PSP_SENSORQ_DEPTH 20
 #define CFE_PSP_SENSOR_DATASZ 550
@@ -65,6 +77,16 @@ static const char *SensorTraceDump[] = {
 int
 CFE_PSP_SensorInit(void)
 {
+#ifdef CFE_HPET_IN_ROOTSCHED
+	unsigned long npage = 0;
+
+	cfeshid = channel_shared_page_map(CFE_HPET_SH_KEY, &cfeshaddr, &npage);
+	assert(cfeshid && cfeshaddr && npage == CFE_HPET_RING_NPAGES);
+
+	cfering = inplace_ring_cycles(cfeshaddr, ((CFE_HPET_RING_NPAGES - 1) * PAGE_SIZE) + sizeof(struct ck_ring));
+	OS_printf("Ready to receive activations from HPET in ROOT SCHED. cbuf ID: %u\n", cfeshid);
+#endif
+
 	int ret = OS_QueueCreate(&SensorQid, CFE_PSP_SENSORQ_NAME, CFE_PSP_SENSORQ_DEPTH, CFE_PSP_SENSOR_DATASZ, 0);
 
 	if (ret != OS_SUCCESS) {
@@ -106,12 +128,24 @@ CFE_PSP_SensorISR(arcvcap_t rcv, void *p)
 
 #else
                 pending = cos_rcv(rcv, RCV_ALL_PENDING, &rcvd);
-                assert(pending == 0 && rcvd == 1);
+		/*
+		 * just a validation to hope that there is always only one entry to pull
+		 * if this fails, we're activating too late, missing deadlines already!
+		 */
+                assert(pending == 0);
+		assert(rcvd == 1);
 #endif
 		while (rcvd > 0) {
+			cycles_t st_time = 0;
+
 			strcpy(data, SensorTraceDump[trace_curr]);
+#ifdef CFE_HPET_IN_ROOTSCHED
+			inplace_ring_deq_spsc_cycles(cfeshaddr, cfering, &st_time);
+#else
+			st_time = sl_now();
+#endif
 			/* for RTT measurements */
-			sprintf(time, "%llu\n", sl_now());
+			sprintf(time, "%llu\n", st_time);
 			strcat(data, time);
 			//PRINTC("%s\n", data);
 			/* write to queue */
@@ -127,5 +161,3 @@ CFE_PSP_SensorISR(arcvcap_t rcv, void *p)
 
 	pthread_exit(NULL);
 }
-
-

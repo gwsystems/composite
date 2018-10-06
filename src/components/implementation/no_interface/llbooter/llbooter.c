@@ -481,6 +481,9 @@ cos_init(void)
 	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
         PRINTLOG(PRINT_DEBUG, "%d cycles per microsecond\n", cycs);
+#ifdef COS_BOOT_USE_HPET
+	cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_HPET_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 1000);
+#endif
 
 	if (cos_cpuid() == INIT_CORE) {
 		capmgr_spdid = 0;
@@ -519,9 +522,6 @@ cos_init(void)
 			}
 		}
 		init_core_alloc_done = 1;
-
-		boot_done();
-		boot_root_sched_run();
 	} else {
 		while (!core_init_done[INIT_CORE]) ;
 
@@ -536,9 +536,12 @@ cos_init(void)
 		core_init_done[cos_cpuid()] = 1;
 
 		while (!init_core_alloc_done) ;
-		boot_done();
-		boot_root_sched_run();
 	}
+#ifdef COS_BOOT_USE_HPET
+	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_HPET_PERIODIC);
+#endif
+	boot_done();
+	boot_root_sched_run();
 
 	PRINTLOG(PRINT_WARN, "Booter spinning!\n");
 	SPIN();
