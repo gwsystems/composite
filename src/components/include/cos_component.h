@@ -250,13 +250,11 @@ cos_args_cpubmp(u32_t *cpubmp, char *arg)
 	}
 	/* if "c" tag is not present.. set the component to be runnable on all cores */
 	if (!tok1) goto allset;
-	if (strlen(tok1) != (COS_CPUBITMAP_LEN + 1)) return -EINVAL;
+	if (strlen(tok1) <= 1 || strlen(tok1) > NUM_CPU+1) return -EINVAL;
 
 	tok2 = tok1 + 1;
 	len = strlen(tok2);
-	for (i = 0; i < len; i++) {
-		if (tok2[i] == '1') bitmap_set(cpubmp, (len - 1 - i));
-	}
+	for (i = len - 1; i >= 0; i--) if (tok2[i] == '1') bitmap_set(cpubmp, len - i - 1);
 
 	return 0;
 

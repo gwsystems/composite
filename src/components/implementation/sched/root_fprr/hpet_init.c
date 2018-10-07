@@ -62,7 +62,7 @@ hpet_attach(void)
 	int ret;
 
 	if ((ret = cos_tcap_transfer(sl_thd_rcvcap(cfehpetthd), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, HPET_PRIO))) {
-		PRINTC("%s: Failed to transfer INF budget\n");
+		PRINTC("Failed to transfer INF budget\n");
 		assert(0);
 	}
 

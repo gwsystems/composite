@@ -8,9 +8,14 @@
 #include <channel.h>
 #include <inplace_ring.h>
 
+#define RTT_ITERS_TEST 3001
+
 static cbuf_t cfeshid = 0;
 static vaddr_t cfeshaddr = 0;
 static struct ck_ring *cfering = NULL;
+
+static cycles_t sensor_latency[RTT_ITERS_TEST] = { 0 };
+static unsigned int sensor_iters = 0;
 
 INPLACE_RING_BUILTIN(cycles, cycles_t);
 #endif
@@ -141,6 +146,9 @@ CFE_PSP_SensorISR(arcvcap_t rcv, void *p)
 			strcpy(data, SensorTraceDump[trace_curr]);
 #ifdef CFE_HPET_IN_ROOTSCHED
 			inplace_ring_deq_spsc_cycles(cfeshaddr, cfering, &st_time);
+
+			if (likely(sensor_iters < RTT_ITERS_TEST)) sensor_latency[sensor_iters] = sl_now() - st_time;
+			sensor_iters++;
 #else
 			st_time = sl_now();
 #endif
@@ -157,6 +165,19 @@ CFE_PSP_SensorISR(arcvcap_t rcv, void *p)
 			if (trace_curr >= trace_sz) trace_curr = 0;
 			rcvd--;
 		}
+
+#ifdef CFE_HPET_IN_ROOTSCHED
+		if (unlikely(sensor_iters >= RTT_ITERS_TEST)) {
+			int i;
+
+			PRINTC("Sensor delivery latency\n");
+			for (i = 0; i < RTT_ITERS_TEST; i++) {
+				PRINTC("%llu\n", sensor_latency[i]);
+			}
+
+			sensor_iters = 0;
+		}
+#endif
 	}
 
 	pthread_exit(NULL);

@@ -24,6 +24,7 @@ u32_t cycs_per_usec = 0;
 #define FIXED_BUDGET_US (5000)
 #endif
 
+#define HPET_CORE 0
 #define CFE_CORE 0
 #define RK_CORE 1
 
@@ -62,7 +63,7 @@ sched_child_init(struct sched_childinfo *schedci)
 
 #ifdef CFE_RK_MULTI_CORE
 	if ((ret = cos_tcap_transfer(sl_thd_rcvcap(initthd), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, FIXED_PRIO))) {
-		PRINTC("%s: Failed to transfer INF budget\n");
+		PRINTC("Failed to transfer INF budget\n");
 		assert(0);
 	}
 #endif
@@ -79,6 +80,7 @@ cos_init(void)
 	static volatile int first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
 	static u32_t cpubmp[NUM_CPU_BMP_WORDS] = { 0 };
 	int i;
+	static volatile int hpet_init_done = NUM_CPU;
 
 	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
@@ -100,32 +102,53 @@ cos_init(void)
 		while (!ps_load((unsigned long *)&init_done[i])) ;
 	}
 
+#ifdef CFE_IPI_IF_TEST
+	if (cos_cpuid() >= 2) /* sending cores starting this number */ {
+		sl_init_cpubmp(SL_MIN_PERIOD_US * 5, cpubmp);
+	} else {
+		sl_init_cpubmp(SL_MIN_PERIOD_US * 100, cpubmp);
+	}
+#else
 	sl_init_cpubmp(SL_MIN_PERIOD_US * 5, cpubmp);
+#endif
 	sched_childinfo_init();
 
 #ifdef CFE_HPET_IN_ROOTSCHED
-	if (cos_cpuid() == CFE_CORE) {
+	if (cos_cpuid() == HPET_CORE) {
 		hpet_ring_init();
 		hpet_thd_init();
+		hpet_init_done = HPET_CORE;
+	}
+	if (cos_cpuid() == CFE_CORE) {
+		while (hpet_init_done != HPET_CORE) ;
 	}
 #endif
+	PRINTC("W");
 
 	if (NUM_CPU > 1 && cos_cpuid() == CFE_CORE) {
 		/* wait for RK to initialize */
 		while (num_child_init[RK_CORE] == 0) ;
 	}
+	PRINTC("T");
 
-	__initializer_thd[cos_cpuid()] = sl_thd_alloc(__init_done, NULL);
-	assert(__initializer_thd[cos_cpuid()]);
-	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, INITIALIZE_PRIO));
-	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_WINDOW, INITIALIZE_BUDGET_US));
-	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_BUDGET, INITIALIZE_PERIOD_US));
+	if (sched_num_childsched_get() >= 1) {
+		__initializer_thd[cos_cpuid()] = sl_thd_alloc(__init_done, NULL);
+		assert(__initializer_thd[cos_cpuid()]);
+		sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, INITIALIZE_PRIO));
+		sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_WINDOW, INITIALIZE_BUDGET_US));
+		sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_BUDGET, INITIALIZE_PERIOD_US));
+	}
 
+	PRINTC("F");
 	self_init[cos_cpuid()] = 1;
 	hypercall_comp_init_done();
 
+#ifdef CFE_IPI_IF_TEST
+	ipi_test_init();
+#endif
+
 #ifdef CFE_HPET_IN_ROOTSCHED
-	if (cos_cpuid() == CFE_CORE) hpet_attach();
+	if (cos_cpuid() == HPET_CORE) hpet_attach();
 #endif
 
 	sl_sched_loop_nonblock();

@@ -116,7 +116,7 @@ sched_childinfo_init_intern(int is_raw)
 		if (!remaining) break;
 	}
 
-	assert(sched_num_child_get()); /* at least 1 child component */
+//	assert(sched_num_child_get()); /* at least 1 child component */
 }
 
 void

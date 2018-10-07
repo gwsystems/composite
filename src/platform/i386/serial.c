@@ -81,6 +81,17 @@ serial_handler(struct pt_regs *r)
 		hpet_set(HPET_PERIODIC, 100000000);
 		hpet_set(HPET_PERIODIC, 100000000);
 		break;
+	case 'i':
+	{
+		int i;
+
+		if (get_cpuid()) break;
+		for (i = 0; i < NUM_CPU; i++) {
+			printk("CPU%u sent:%lu/rcvd:%lu\n", i, chal_core_ipi_snd_get(i), chal_core_ipi_rcv_get(i));
+		}
+
+		break;
+	}
 	default:
 		break;
 	}
@@ -112,6 +123,6 @@ serial_init(void)
 void
 serial_late_init(void)
 {
-//	chal_irq_enable(HW_SERIAL, 0);
+	chal_irq_enable(HW_SERIAL, 0);
 	chal_irq_enable(HW_KEYBOARD, 0);
 }
