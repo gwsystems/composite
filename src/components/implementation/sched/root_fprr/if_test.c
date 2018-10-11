@@ -6,6 +6,8 @@
 #define RCV_CORE 0
 #define SND_CORE_ST 2 /* 2 to NUM_CPU */
 
+#define SND_RCV_SZ ((NUM_CPU > (SND_CORE_ST + 1)) ? (NUM_CPU - SND_CORE_ST) : 1)
+
 #define RCV_PRIO 30
 #define SND_PRIO 1
 
@@ -23,8 +25,8 @@
 
 #define TEST_WAIT_TIME_US (20*1000*1000) //50secs
 
-static volatile arcvcap_t c0_rcvs[NUM_CPU-SND_CORE_ST] CACHE_ALIGNED = { 0 };
-static volatile asndcap_t cn_snds[NUM_CPU-SND_CORE_ST] CACHE_ALIGNED = { 0 };
+static volatile arcvcap_t c0_rcvs[SND_RCV_SZ] CACHE_ALIGNED = { 0 };
+static volatile asndcap_t cn_snds[SND_RCV_SZ] CACHE_ALIGNED = { 0 };
 
 static void
 rcv_fn(arcvcap_t r, void *d)
@@ -62,10 +64,10 @@ ipi_test_init(void)
 	assert(NUM_CPU >= 3);
 
 	if (cos_cpuid() == 0) { /* BETTER BE CFE HERE */
-		struct sl_thd *rcv_thds[NUM_CPU-SND_CORE_ST] = { NULL };
+		struct sl_thd *rcv_thds[SND_RCV_SZ] = { NULL };
 		int i, ret;
 
-		for (i = 0; i < NUM_CPU-SND_CORE_ST; i++) {
+		for (i = 0; i < SND_RCV_SZ; i++) {
 			PRINTC("Creating %d rcv thread\n", i);
 			rcv_thds[i] = sl_thd_aep_alloc(rcv_fn, NULL, 1, 0, IPI_PERIOD_US, IPI_RATE);
 			assert(rcv_thds[i]);
