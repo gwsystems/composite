@@ -24,6 +24,7 @@ extern struct sl_thd *sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data);
 int
 sl_xcpu_thd_alloc(cpuid_t cpu, cos_thd_fn_t fn, void *data, sched_param_t params[])
 {
+#if NUM_CPU > 1
 	int i, sz = sizeof(params) / sizeof(params[0]);
 	int ret = 0;
 	asndcap_t snd = 0;
@@ -53,6 +54,9 @@ sl_xcpu_thd_alloc(cpuid_t cpu, cos_thd_fn_t fn, void *data, sched_param_t params
 
 done:
 	return ret;
+#else
+	return -ENOTSUP;
+#endif
 }
 
 int
@@ -91,6 +95,7 @@ sl_xcpu_process_no_cs(void)
 	int num = 0;
 	struct sl_xcpu_request xcpu_req;
 
+#if NUM_CPU > 1
 	while (ck_ring_dequeue_mpsc_xcpu(sl__ring_curr(), sl__ring_buffer_curr(), &xcpu_req) == true) {
 
 		assert(xcpu_req.client != cos_cpuid());
@@ -125,6 +130,7 @@ sl_xcpu_process_no_cs(void)
 		}
 		num ++;
 	}
+#endif
 
 	return num; /* number of requests processed */
 }
