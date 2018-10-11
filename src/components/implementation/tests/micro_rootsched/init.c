@@ -18,6 +18,8 @@ u32_t cycs_per_usec = 0;
 #define FIXED_PERIOD_US (10000)
 #define FIXED_BUDGET_US (10000)
 
+#define SCHED_PERIOD_US (SL_MIN_PERIOD_US*100)
+
 void
 sched_child_init(struct sched_childinfo *schedci)
 {
@@ -110,7 +112,7 @@ cos_init(void)
 		while (!ps_load((unsigned long *)&init_done[i])) ;
 	}
 
-	sl_init_cpubmp(SL_MIN_PERIOD_US * 100, cpubmp);
+	sl_init_cpubmp(SCHED_PERIOD_US, cpubmp);
 	sched_childinfo_init();
 
 #ifdef VM_IPC_TEST

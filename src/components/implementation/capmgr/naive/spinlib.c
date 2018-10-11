@@ -1,3 +1,4 @@
+#include <cos_rdtsc.h>
 #include "spinlib.h"
 
 #define SPINLIB_CALIB 512
@@ -20,27 +21,6 @@ void spinlib_std_iters(void) __attribute__((optimize("O0")));
 
 #define SPINLIB_USE_STDITERS
 
-#define rdtscpll(var) do { \
-    u32_t low, high; \
-    asm volatile( \
-        "movl $0, %%eax \n" \
-        "movl $0, %%ecx \n" \
-        "cpuid \n" \
-        "rdtsc \n" \
-        "movl %%edx, %0 \n" \
-        "movl %%eax, %1 \n" \
-        "movl $0, %%eax \n" \
-        "movl $0, %%ecx \n" \
-        "cpuid \n" \
-        : \
-         "=r"(high), \
-         "=r"(low) \
-        : \
-        : "eax", "ebx", "ecx", "edx" \
-    ); \
-    (var) = (((u64_t)high) << 32ull) | ((u64_t)low); \
-} while(0)
-
 static void
 spinlib_calib_test(void)
 {
@@ -51,27 +31,27 @@ spinlib_calib_test(void)
 		cycles_t st, end, elapsed_cycs, elus = 0, spincycs = 0, spiniters = 0;
 		unsigned long long niters = 0;
 
-		rdtscpll(st);
+		cos_rdtscp(st);
 		niters = spinlib_usecs_intern(test_us[i]);
-		rdtscpll(end);
+		cos_rdtscp(end);
 		elapsed_cycs = end - st - spinlib_rdtscp_avg_ovhd;
 		elus = elapsed_cycs / spinlib_cycs_per_us;
 
 		PRINTC("SPIN %lluus => elapsed :%llucycs %lluus %lluiters\n", test_us[i], elapsed_cycs, elapsed_cycs / spinlib_cycs_per_us, niters);
 
 		spiniters = (niters / elus) * test_us[i];
-		rdtscpll(st);
+		cos_rdtscp(st);
 		spinlib_niters(spiniters);
-		rdtscpll(end);
+		cos_rdtscp(end);
 		elapsed_cycs = end - st - spinlib_rdtscp_avg_ovhd;
 		elus = elapsed_cycs / spinlib_cycs_per_us;
 
 		PRINTC("SPIN %lluus => elapsed :%llucycs %lluus %lluiters\n", test_us[i], elapsed_cycs, elapsed_cycs / spinlib_cycs_per_us, spiniters);
 
 		spincycs = (elapsed_cycs / elus) * test_us[i];
-		rdtscpll(st);
+		cos_rdtscp(st);
 		spinlib_cycles(spincycs);
-		rdtscpll(end);
+		cos_rdtscp(end);
 		elapsed_cycs = end - st - spinlib_rdtscp_avg_ovhd;
 
 		PRINTC("SPIN %llucycs => elapsed :%llucycs %lluus\n", spincycs, elapsed_cycs, elapsed_cycs / spinlib_cycs_per_us);
@@ -110,8 +90,8 @@ spinlib_calib_rdtscp(void)
 	volatile cycles_t st, en;
 
 	for (i = 0; i < SPINLIB_RDTSCP_CALIB_ITERS; i++) {
-		rdtscpll(st);
-		rdtscpll(en);
+		cos_rdtscp(st);
+		cos_rdtscp(en);
 		total += en - st;
 	}
 
@@ -132,9 +112,9 @@ spinlib_calib(unsigned int cycs_per_us)
 	while (iters < SPINLIB_CALIB) {
 		cycles_t start, end;
 
-		rdtscpll(start);
+		cos_rdtscp(start);
 		spinlib_std_iters();
-		rdtscpll(end);
+		cos_rdtscp(end);
 
 		total_cycs += (end - start - (spinlib_rdtscp_avg_ovhd * 2));
 		iters ++;
