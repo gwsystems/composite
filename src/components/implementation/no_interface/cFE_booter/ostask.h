@@ -18,6 +18,8 @@
 #define SENSOREMU_USE_HPET
 #define CFE_PSP_SENSOR_THDPRIO 4
 
+#define CFE_INVERT_PRIO 128
+
 /*
  * ThreadId overrides for apps
  */

@@ -131,6 +131,7 @@ cos_init_delegate(void *data)
 	capmgr_hw_periodic_attach(HW_HPET_PERIODIC, sl_thd_thdid(sensoremu_thd), CFE_PSP_SENSOR_INTERVAL_USEC);
 #endif
 #endif
+	CFE_PSP_SensorInit();
 
 	OS_printf("CFE_PSP: cFE started, main thread sleeping\n");
 

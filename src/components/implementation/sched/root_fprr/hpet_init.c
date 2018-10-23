@@ -15,7 +15,7 @@ static struct ck_ring *cfering = NULL;
 /* TODO: share these macros with the cFE component */
 #define HPET_PRIO 1
 #define HPET_PERIOD_US (500*1000)
-#define HPET_SKIP_N 20
+#define HPET_SKIP_N CFE_HPET_SKIP_N
 INPLACE_RING_BUILTIN(cycles, cycles_t);
 
 void

@@ -1,4 +1,5 @@
 #include <cos_rdtsc.h>
+#include <cos_time.h>
 #include "spinlib.h"
 
 #define SPINLIB_CALIB 512
@@ -20,6 +21,21 @@ void spinlib_cycles(cycles_t cycs) __attribute__((optimize("O0")));
 void spinlib_std_iters(void) __attribute__((optimize("O0")));
 
 #define SPINLIB_USE_STDITERS
+
+#define SPIN_ITERS_1MS 577200
+#define SPIN_ITERS SPIN_ITERS_1MS
+static void __spin_fn(void) __attribute__ ((optimize("O0")));
+
+static void
+__spin_fn(void)
+{
+	unsigned int spin = 0;
+
+	while (spin < SPIN_ITERS) {
+		__asm__ __volatile__("nop": : :"memory");
+		spin++;
+	}
+}
 
 static void
 spinlib_calib_test(void)
@@ -55,7 +71,14 @@ spinlib_calib_test(void)
 		elapsed_cycs = end - st - spinlib_rdtscp_avg_ovhd;
 
 		PRINTC("SPIN %llucycs => elapsed :%llucycs %lluus\n", spincycs, elapsed_cycs, elapsed_cycs / spinlib_cycs_per_us);
+
+		rdtscll(st);
+		__spin_fn();
+		rdtscll(end);
+		PRINTC("SPIN %u iters: %llu cycles, %llu us\n", SPIN_ITERS_1MS, end - st, time_cyc2usec(end - st));
 	}
+
+
 }
 
 void

@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include <string.h>
-
+#include <cos_rdtsc.h>
 #include <cos_debug.h>
 #include <llprint.h>
 
@@ -34,6 +34,7 @@ extern struct cos_compinfo booter_info;
 extern thdcap_t            termthd[]; /* switch to this to shutdown */
 extern unsigned long       tls_test[][TEST_NTHDS];
 extern int                 num, den;
+extern cycles_t rdtscp_min, rdtscp_avg, rdtscp_max;
 
 static unsigned long
 tls_get(size_t off)

@@ -19,6 +19,8 @@ term_fn(void *d)
 extern int cyc_per_usec;
 static volatile int test_done[NUM_CPU];
 
+cycles_t rdtscp_min = 0, rdtscp_avg = 0, rdtscp_max = 0;
+
 void
 cos_init(void)
 {
@@ -30,9 +32,13 @@ cos_init(void)
 
 	if (first_init) {
 		first_init = 0;
+
 		cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 				(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
+
+		cos_rdtscp_calib(&rdtscp_min, &rdtscp_avg, &rdtscp_max);
+		PRINTC("RDTSCP Calib, MIN:%llu, MAX:%llu, AVG:%llu\n", rdtscp_min, rdtscp_max, rdtscp_avg);
 		init_done = 1;
 	}
 
@@ -51,7 +57,7 @@ cos_init(void)
 	//while (cos_cpuid()) ; /* test only on 1 core! */
 	test_run_perf();
 
-	PRINTC("Micro Booter done.\n");
+	//PRINTC("Micro Booter done.\n");
 
 	cos_thd_switch(termthd[cos_cpuid()]);
 

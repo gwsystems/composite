@@ -26,7 +26,7 @@ u32_t cycs_per_usec = 0;
 #define FIXED_BUDGET_US (5000)
 #endif
 
-#undef CFE_TEST
+#define CFE_TEST
 
 #define HPET_CORE 0
 #define CFE_CORE 0
@@ -111,13 +111,13 @@ cos_init(void)
 
 #ifdef CFE_TEST
 #ifdef CFE_IPI_IF_TEST
-	if (cos_cpuid() >= 2) /* sending cores starting this number */ {
-		sl_init_cpubmp(SL_MIN_PERIOD_US * 5, cpubmp);
+	if (cos_cpuid() < 2) /* sending cores starting this number */ {
+		sl_init_cpubmp(SL_MIN_PERIOD_US * 10, cpubmp);
 	} else {
 		sl_init_cpubmp(SL_MIN_PERIOD_US * 100, cpubmp);
 	}
 #else
-	sl_init_cpubmp(SL_MIN_PERIOD_US * 5, cpubmp);
+	sl_init_cpubmp(SL_MIN_PERIOD_US * 10, cpubmp);
 #endif
 #else
 	sl_init_cpubmp(SL_MIN_PERIOD_US, cpubmp);

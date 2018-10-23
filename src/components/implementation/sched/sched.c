@@ -10,6 +10,8 @@
 #include <sl.h>
 #include <sched_info.h>
 
+#undef TEST_INF
+
 int
 sched_thd_wakeup(thdid_t t)
 {
@@ -81,6 +83,15 @@ sched_aep_create_cserialized(arcvcap_t *extrcv, int *unused, u32_t thdidx_owntc,
 
 	t = sl_thd_aep_alloc_ext(dci, NULL, idx, 1, owntc, key, ipiwin, ipimax, extrcv);
 	if (!t) return 0;
+
+#ifdef TEST_INF
+	if (owntc) {
+		int ret = 0;
+
+		ret = cos_tcap_transfer(sl_thd_rcvcap(t), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX);
+		assert(ret == 0);
+	}
+#endif
 
 	return sl_thd_thdid(t);
 }

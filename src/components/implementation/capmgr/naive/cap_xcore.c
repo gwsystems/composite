@@ -21,6 +21,7 @@ cap_xcore_asnd(int arg1, int arg2, int arg3, int yield)
 	if (unlikely(!commci->sndcap[cos_cpuid()])) return -EINVAL;
 	if (unlikely(!commci->ipimax)) goto done;
 
+//	ps_lock_take(&commci->rl_lock);
 	win = commci->ipiwin_start;
 	rdtscll(now);
 	if ((win + commci->ipiwin) <= now) {
@@ -34,11 +35,13 @@ cap_xcore_asnd(int arg1, int arg2, int arg3, int yield)
 		if (__sync_bool_compare_and_swap(&commci->ipiwin_start,
 						 win, now) == true) ps_cas((unsigned long *)&commci->ipicnt, cnt, 0);
 	} else if(commci->ipicnt >= commci->ipimax) {
+//		ps_lock_release(&commci->rl_lock);
 		return -EDQUOT;
 	}
 
 	ps_faa((unsigned long *)&commci->ipicnt, 1);
 
+//	ps_lock_release(&commci->rl_lock);
 done:
 	ps_faa(&ipi_snd_counters[cos_cpuid()], 1);
 	ps_faa(&ipi_rcv_counters[commci->rcvcpuid], 1);

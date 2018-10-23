@@ -14,7 +14,7 @@
 
 u32_t cycs_per_usec = 0;
 
-#define FIXED_PRIO 1
+#define FIXED_PRIO 2
 #define FIXED_PERIOD_US (10000)
 #define FIXED_BUDGET_US (10000)
 
@@ -39,27 +39,54 @@ sched_child_init(struct sched_childinfo *schedci)
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_US));
 }
 
-#ifdef VM_IPC_TEST
+#ifdef VM_IPC
+static cycles_t test_cycs[TEST_VM_ITERS] = { 0 };
+static unsigned int test_iters = 0;
+
 void
 __server_fn(arcvcap_t r, void *d)
 {
+	int i;
 	asndcap_t clientasnd = 0;
 
-#ifdef TEST_IPC_RAW
+	cos_rcv(r, 0, NULL);
+#ifdef IPC_RAW
 	while (clientasnd == 0) clientasnd = capmgr_asnd_key_create_raw(CLIENT_XXX_AEPKEY);
 #else
 	while (clientasnd == 0) clientasnd = capmgr_asnd_key_create(CLIENT_XXX_AEPKEY);
 #endif
+	//cos_asnd(clientasnd, 1);
+	PRINTC("Starting test\n");
 
 	while (1) {
-		int pending = 0, rcvd = 0, ret = 0;
+		cycles_t st, en;
+		int pending = 0, rcvd = 0, ret = 0, blkd = 0;
+		thdid_t tid;
+		cycles_t cycs;
+		tcap_time_t timeout;
+
+		rdtscll(st);
+		ret = cos_asnd(clientasnd, 1);
+		assert(ret == 0);
 
 		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
+		//pending = cos_sched_rcv(r, RCV_ALL_PENDING | RCV_NON_BLOCK, 0, &rcvd, &tid, &blkd, &cycs, &timeout);
+		//assert(pending != -EAGAIN);
 		assert(pending == 0 && rcvd >= 1);
+		rdtscll(en);
 
-		ret = cos_asnd(clientasnd, 0);
-		assert(ret == 0);
+		test_cycs[test_iters] = en - st;
+		test_iters++;
+
+		if (unlikely(test_iters == TEST_VM_ITERS)) break;
 	}
+
+	for (i = 0; i < TEST_VM_ITERS; i++) {
+		printc("%llu\n", test_cycs[i]);
+	}
+	printc("-------------------------------\n");
+
+	sl_thd_exit();
 }
 
 void
@@ -77,7 +104,7 @@ test_aep_create(void)
 		assert(0);
 	}
 
-	sl_thd_param_set(__srv_thd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
+	sl_thd_param_set(__srv_thd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO-1));
 	sl_thd_param_set(__srv_thd, sched_param_pack(SCHEDP_WINDOW, FIXED_BUDGET_US));
 	sl_thd_param_set(__srv_thd, sched_param_pack(SCHEDP_BUDGET, FIXED_PERIOD_US));
 }
@@ -115,7 +142,7 @@ cos_init(void)
 	sl_init_cpubmp(SCHED_PERIOD_US, cpubmp);
 	sched_childinfo_init();
 
-#ifdef VM_IPC_TEST
+#ifdef VM_IPC
 	test_aep_create();
 #endif
 

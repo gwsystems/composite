@@ -7,13 +7,15 @@
 #define SERVER_CORE 0
 #define CLIENT_CORE 0
 
-#define TEST_VM_ITERS 1000
+#define TEST_VM_ITERS 100
 
-#undef TEST_IPC
+#define TEST_IPC
 #undef IPC_RAW
-#undef VM_IPC
+#define VM_IPC
 
-#define TEST_INT
+#undef TEST_INT
 #define TEST_INT_PERIOD_US 10000 //10ms
+
+#define SHM_KEY 10
 
 #endif

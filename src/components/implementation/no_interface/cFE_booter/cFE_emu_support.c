@@ -6,6 +6,7 @@
 #include <cos_types.h>
 #include <sl.h>
 
+#include "ostask.h"
 #include <capmgr.h>
 #include <memmgr.h>
 
@@ -64,7 +65,7 @@ emu_create_aep_thread(spdid_t client, thdclosure_index_t idx, cos_channelkey_t k
 	thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 1, 0, key, 0, 0, &extrcv);
 	assert(thd);
 
-	aep_priority = sched_param_pack(SCHEDP_PRIO, CFE_TIME_1HZ_TASK_PRIORITY);
+	aep_priority = sched_param_pack(SCHEDP_PRIO, CFE_INVERT_PRIO - CFE_TIME_1HZ_TASK_PRIORITY);
 	sl_thd_param_set(thd, aep_priority);
 
 	return extrcv;
@@ -83,7 +84,7 @@ emu_create_thread(spdid_t client, thdclosure_index_t idx)
 	thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 0, 0, 0, 0, 0, NULL);
 	assert(thd);
 
-	thd_priority = sched_param_pack(SCHEDP_PRIO, CFE_TIME_1HZ_TASK_PRIORITY);
+	thd_priority = sched_param_pack(SCHEDP_PRIO, CFE_INVERT_PRIO - CFE_TIME_1HZ_TASK_PRIORITY);
 	sl_thd_param_set(thd, thd_priority);
 
 	return sl_thd_thdid(thd);

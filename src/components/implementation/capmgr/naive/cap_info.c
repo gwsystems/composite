@@ -123,6 +123,7 @@ cap_comminfo_init(struct sl_thd *t, microsec_t ipi_window, u32_t ipi_max)
 	cmi->ipiwin_start        = now;
 	cmi->ipimax              = ipi_max;
 	cmi->sndcap[cos_cpuid()] = sl_thd_asndcap(t);
+	ps_lock_init(&cmi->rl_lock);
 
 	return cmi;
 }

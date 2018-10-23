@@ -549,6 +549,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 
 	assert(sl_thd_is_runnable(t));
 	sl_cs_exit();
+	//if (unlikely(t == globals->idle_thd)) t = globals->sched_thd;
 	if (unlikely(sl_thd_curr() == t)) return 0;
 
 	ret = sl_thd_activate(t, tok);

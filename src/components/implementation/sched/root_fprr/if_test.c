@@ -23,9 +23,15 @@
 #define IPI_PERIOD_US 0
 #endif
 
-#define TEST_WAIT_TIME_US (20*1000*1000) //50secs
+#define TEST_WAIT_TIME_US (10*1000*1000) //5s
 
+#define ONE_RCV
+
+#ifndef ONE_RCV
 static volatile arcvcap_t c0_rcvs[SND_RCV_SZ] CACHE_ALIGNED = { 0 };
+#else
+static volatile arcvcap_t c0_rcv = 0;
+#endif
 static volatile asndcap_t cn_snds[SND_RCV_SZ] CACHE_ALIGNED = { 0 };
 
 static void
@@ -38,6 +44,9 @@ rcv_fn(arcvcap_t r, void *d)
 		assert(0); /* this should not activate.. is lower prio than anything else! */
 		assert(pending == 0 && rcvd >= 1);
 	}
+
+	assert(0);
+	sl_thd_exit();
 }
 
 static void
@@ -47,6 +56,7 @@ snd_fn(arcvcap_t r, void *d)
 
 	PRINTC("Waiting for %llu usecs\n", (cycles_t)TEST_WAIT_TIME_US);
 	sl_thd_block_timeout(0, sl_now() + sl_usec2cyc(TEST_WAIT_TIME_US));
+	PRINTC("Go...\n");
 
 	while (1) {
 		int ret = cos_asnd(s, 0);
@@ -54,6 +64,9 @@ snd_fn(arcvcap_t r, void *d)
 		/* 0 on success.. -EBUSY if kernel fails to enq to ipi ring.. -EDQUOT if capmgr rate-limit triggers.. */
 		assert(ret == 0 || ret == -EBUSY || ret == -EDQUOT);
 	}
+	assert(0);
+
+	sl_thd_exit();
 }
 
 void
@@ -64,6 +77,7 @@ ipi_test_init(void)
 	assert(NUM_CPU >= 3);
 
 	if (cos_cpuid() == 0) { /* BETTER BE CFE HERE */
+#ifndef ONE_RCV
 		struct sl_thd *rcv_thds[SND_RCV_SZ] = { NULL };
 		int i, ret;
 
@@ -87,6 +101,29 @@ ipi_test_init(void)
 			while (cn_snds[i] == 0) ;
 			PRINTC("Double Done..\n");
 		}
+#else
+		struct sl_thd *rcv_thd = NULL;
+		int i = 0, ret;
+
+		PRINTC("Creating rcv thread\n");
+		rcv_thd = sl_thd_aep_alloc(rcv_fn, NULL, 1, 0, IPI_PERIOD_US, IPI_RATE);
+		assert(rcv_thd);
+
+		if ((ret = cos_tcap_transfer(sl_thd_rcvcap(rcv_thd), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MIN))) {
+			PRINTC("FAILED TO TRANSFER INF BUDGET\n");
+			assert(0);
+		}
+		/* perhaps not register for scheduling??, all we need is rcvcaps.. no scheduling required.. we'll know if the kernel decides to run anyway! */
+		/* we don't want these threads to run if cFE has nothing to run so I think it is probably correct to not register! */
+		//sl_thd_param_set(rcv_thd, sched_param_pack(SCHEDP_WINDOW, TEST_PERIOD_US));
+		//sl_thd_param_set(rcv_thd, sched_param_pack(SCHEDP_PRIO, RCV_PRIO));
+
+		c0_rcv = sl_thd_rcvcap(rcv_thd);
+		assert(c0_rcv);
+		PRINTC("Done..\n");
+		for (i = 0; i < SND_RCV_SZ; i++) while (cn_snds[i] == 0) ;
+		PRINTC("Double Done..\n");
+#endif
 	} else if (cos_cpuid() >= SND_CORE_ST) {
 		PRINTC("Creating snd thread\n");
 		struct sl_thd *snd_thd = NULL;
@@ -99,13 +136,19 @@ ipi_test_init(void)
 			PRINTC("FAILED TO TRANSFER INF BUDGET\n");
 			assert(0);
 		}
-		sl_thd_param_set(snd_thd, sched_param_pack(SCHEDP_WINDOW, TEST_PERIOD_US));
+//		sl_thd_param_set(snd_thd, sched_param_pack(SCHEDP_WINDOW, TEST_PERIOD_US));
 		sl_thd_param_set(snd_thd, sched_param_pack(SCHEDP_PRIO, SND_PRIO));
 
 		PRINTC("Done..\n");
+#ifndef ONE_RCV
 		while (c0_rcvs[i] == 0) ;
 
 		cn_snds[i] = capmgr_asnd_rcv_create(c0_rcvs[i]);
+#else
+		while (c0_rcv == 0) ;
+
+		cn_snds[i] = capmgr_asnd_rcv_create(c0_rcv);
+#endif
 		assert(cn_snds[i]);
 		PRINTC("Double Done..\n");
 	}

@@ -20,8 +20,8 @@
 #define SCHED_OVHD_TEST
 #define WITH_HITHD
 
-#define LO_PRIO 2
-#define HI_PRIO 1
+#define LO_PRIO 3
+#define HI_PRIO 2
 
 static volatile int testing = 1;
 static struct perfdata pd;
@@ -31,11 +31,11 @@ static struct perfdata pd;
 #define HI_POLL_US_2 10000
 #define HI_POLL_US_3 100000
 
-#define HI_PERIOD_US HI_POLL_US_1
+#define HI_PERIOD_US HI_POLL_US_3
 
 #define SPINITERS_10US (5850)
 #define SPINITERS_TIMES (100*1000*10) //10s
-#define LO_SPIN_ITERS 10
+#define LO_SPIN_ITERS 5
 
 static void __spin_fn(void) __attribute__ ((optimize("O0")));
 
@@ -58,16 +58,8 @@ test_hi_fn(void *d)
 #ifndef WITH_HITHD
 	assert(0);
 #endif
-	cycles_t st = time_now(), interval = time_usec2cyc(HI_PERIOD_US), abs_timeout = st + interval;
-
 	while (likely(spin_iters < LO_SPIN_ITERS)) {
-		cycles_t now;
-
-		sched_thd_block_timeout(0, abs_timeout);
-
-		//abs_timeout += interval;
-		now = time_now();
-		abs_timeout = now + interval - ((now - st) % interval);
+		sched_thd_block_timeout(0, time_now() + time_usec2cyc(HI_PERIOD_US));
 	}
 
 	sched_thd_exit();
@@ -107,11 +99,11 @@ test_sched_ovhd(void)
 	assert(NUM_CPU == 1);
 
 	PRINTC("Creating threads for sched overhead test\n");
-#ifdef WITH_HITHD
-	hi = sched_thd_create(test_hi_fn, NULL);
-	assert(hi);
-	sched_thd_param_set(hi, hp.v);
-#endif
+//#ifdef WITH_HITHD
+//	hi = sched_thd_create(test_hi_fn, NULL);
+//	assert(hi);
+//	sched_thd_param_set(hi, hp.v);
+//#endif
 
 	lo = sched_thd_create(test_lo_fn, NULL);
 	assert(lo);
@@ -133,9 +125,18 @@ cos_init(void)
 	for (i = 0; i < NUM_CPU; i++) {
 		while (!ps_load(&init_done[i])) ;
 	}
-
+#ifdef WITH_HITHD
 	test_sched_ovhd();
+#endif
 	schedinit_child();
+
+#ifdef WITH_HITHD
+	/* root sched sets prio to 2 */
+	/* lo prio is set to 3 */
+	test_hi_fn(NULL);
+#else
+	test_lo_fn(NULL);
+#endif
 
 	sched_thd_exit();
 	assert(0);

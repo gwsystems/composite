@@ -3,6 +3,7 @@
 
 static struct perfdata pd[NUM_CPU] CACHE_ALIGNED;
 extern unsigned int cyc_per_usec;
+static struct perfdata pd_ret;
 
 #define INTR_LATENCY_CYCS 100
 #define INTR_LATENCY_ITER 1000000
@@ -124,14 +125,25 @@ thd_fn_perf_timeout(void *d)
 	assert(timeout[cos_cpuid()]);
 	rdtscll(now);
 	timer = tcap_cyc2time(now + timeout[cos_cpuid()]);
-	rdtscll(*st);
+	cos_rdtscp(*st);
 	cos_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, timer, 0, 0);
 
 	while (1) {
 		rdtscll(now);
 		timer = tcap_cyc2time(now + timeout[cos_cpuid()]);
-		rdtscll(*st);
+		cos_rdtscp(*st);
 		cos_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, timer, 0, 0);
+	}
+	PRINTC("Error, shouldn't get here!\n");
+}
+
+static void
+thd_fn_switchonly(void *d)
+{
+	cos_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
+
+	while (1) {
+		cos_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
 	}
 	PRINTC("Error, shouldn't get here!\n");
 }
@@ -142,11 +154,11 @@ thd_fn_perf(void *d)
 	cycles_t *st = (cycles_t *)d;
 	tcap_time_t timer;
 
-	rdtscll(*st);
+	cos_rdtscp(*st);
 	cos_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
 
 	while (1) {
-		rdtscll(*st);
+		cos_rdtscp(*st);
 		cos_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
 	}
 	PRINTC("Error, shouldn't get here!\n");
@@ -168,7 +180,7 @@ test_thds_perf(int with_apic_timer_prog)
 	timeout[cos_cpuid()] = (cycles_t)TIMEOUT_CYCS * (cycles_t)cyc_per_usec;
 	if (with_apic_timer_prog) {
 		perfdata_init(&pd[cos_cpuid()], "Thd_Swtch(T)");
-		ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf_timeout, (void *)&start_swt_cycles);
+		ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf_timeout, (void *)&end_swt_cycles);
 		assert(ts);
 		apic_timer_overhead_test[cos_cpuid()] = 1;
 		rdtscll(now);
@@ -177,14 +189,14 @@ test_thds_perf(int with_apic_timer_prog)
 		cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 
 		for (i = 0 ; i < ITER ; i++) {
-			rdtscll(start_swt_cycles);
-			end_swt_cycles = start_swt_cycles;
+			start_swt_cycles = 0;
 
 			rdtscll(now);
 			timer = tcap_cyc2time(now + timeout[cos_cpuid()]);
+			cos_rdtscp(start_swt_cycles);
 			cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, timer, 0, 0);
-			rdtscll(end_swt_cycles);
-			curr_swt_cycles = (end_swt_cycles - start_swt_cycles);
+			//cos_rdtscp(end_swt_cycles);
+			curr_swt_cycles = (end_swt_cycles - start_swt_cycles - rdtscp_min);
 			perfdata_add(&pd[cos_cpuid()], (double)curr_swt_cycles);
 
 			//total_swt_cycles += curr_swt_cycles;
@@ -195,7 +207,8 @@ test_thds_perf(int with_apic_timer_prog)
 		}
 	} else {
 		perfdata_init(&pd[cos_cpuid()], "Thd_Swtch");
-		ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, (void *)&start_swt_cycles);
+		if (cos_cpuid() == 0) ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, (void *)&start_swt_cycles);
+		else ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_switchonly, NULL);
 		assert(ts);
 		apic_timer_overhead_test[cos_cpuid()] = 0;
 		cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
@@ -207,12 +220,13 @@ test_thds_perf(int with_apic_timer_prog)
 
 		for (i = 0 ; i < ITER ; i++) {
 			if (cos_cpuid() == 0) {
-				rdtscll(start_swt_cycles);
+				cos_rdtscp(start_swt_cycles);
 				end_swt_cycles = start_swt_cycles;
 
+				/* start_swt_cycles computed in worker thd - thd_fn_perf */
 				cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX, TCAP_TIME_NIL, 0, 0);
-				rdtscll(end_swt_cycles);
-				curr_swt_cycles = (end_swt_cycles - start_swt_cycles);
+				cos_rdtscp(end_swt_cycles);
+				curr_swt_cycles = (end_swt_cycles - start_swt_cycles - rdtscp_min);
 				perfdata_add(&pd[cos_cpuid()], (double)curr_swt_cycles);
 
 				//total_swt_cycles += curr_swt_cycles;
@@ -313,11 +327,11 @@ async_thd_parent_perf(void *thdcap)
 	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 
 	for (i = 0 ; i < ITER ; i++) {
-		rdtscll(start_asnd_cycles);
+		cos_rdtscp(start_asnd_cycles);
 		cos_asnd(sc, 1);
-		rdtscll(end_arcv_cycles);
+		cos_rdtscp(end_arcv_cycles);
 
-		curr_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
+		curr_asnd_cycles = (end_arcv_cycles - start_asnd_cycles - rdtscp_min) / 2;
 		perfdata_add(&pd[cos_cpuid()], curr_asnd_cycles);
 	//	total_asnd_cycles += curr_asnd_cycles;
 	//	if (curr_asnd_cycles > wcet_asnd_cycles) {
@@ -458,9 +472,14 @@ int call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
 	return ret;
 }
 
+static volatile int inv_test_ready[NUM_CPU] = { 0 };
+static volatile int inv_testing = 1;
+
+static volatile compcap_t inv_cc = 0;
 static void
 test_inv_perf(void)
 {
+	static volatile int first = NUM_CPU + 1;
 	compcap_t cc;
 	sinvcap_t ic;
 	int i;
@@ -472,45 +491,73 @@ test_inv_perf(void)
 	unsigned int ret;
 	int iiter = 0, riter = 0;
 
-	perfdata_init(&pd[cos_cpuid()], "SINV+RET");
-	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
-	assert(cc > 0);
+	if (cos_cpuid() == 0 && ps_cas(&first, NUM_CPU + 1, cos_cpuid())) {
+		cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
+		assert(cc > 0);
+		inv_cc = cc;
+	} else {
+		while (inv_cc == 0) ;
+		cc = inv_cc;
+	}
+	PRINTC("ready!\n");
 	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
 	assert(ic > 0);
 	ret = call_cap_mb(ic, 1, 2, 3);
 	assert(ret == 0xDEADBEEF);
-	cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
 
-	for (i = 0 ; i < ITER ; i++) {
-		long long start_cycles = 0LL, end_cycles = 0LL;
-
-		midinv_cycles[cos_cpuid()] = 0LL;
-		rdtscll(start_cycles);
-		call_cap_mb(ic, 1, 2, 3);
-		rdtscll(end_cycles);
-		curr_inv_cycles = (midinv_cycles[cos_cpuid()] - start_cycles);
-		curr_ret_cycles = (end_cycles - midinv_cycles[cos_cpuid()]);
-		//total_inv_cycles += curr_inv_cycles;
-		//total_ret_cycles += curr_ret_cycles;
-
-		perfdata_add(&pd[cos_cpuid()], curr_inv_cycles + curr_ret_cycles);
-		//if (curr_inv_cycles > wcet_inv_cycles) {
-		//	iiter = i;
-		//	pwcet_inv_cycles = wcet_inv_cycles;
-		//	wcet_inv_cycles = curr_inv_cycles;
-		//}
-
-		//if (curr_ret_cycles > wcet_ret_cycles) {
-		//	riter = i;
-		//	pwcet_ret_cycles = wcet_ret_cycles;
-		//	wcet_ret_cycles = curr_ret_cycles;
-		//}
+	inv_test_ready[cos_cpuid()] = 1;
+	for (i = 0; i < NUM_CPU; i++) {
+		while (!inv_test_ready[i]) ;
 	}
 
-	//PRINTC("SINV WCET:%llu:%d:%llu, Average (Total: %lld / Iterations: %lld ): %lld\n", wcet_inv_cycles, iiter, pwcet_inv_cycles, total_inv_cycles, (long long) (ITER), (total_inv_cycles / (long long)(ITER)));
-	//PRINTC("SRET WCET:%llu:%d:%llu, Average (Total: %lld / Iterations: %lld ): %lld\n", wcet_ret_cycles, riter, pwcet_ret_cycles, total_ret_cycles, (long long) (ITER), (total_ret_cycles / (long long)(ITER)));
-	perfdata_calc(&pd[cos_cpuid()]);
-	perfdata_print(&pd[cos_cpuid()]);
+	if (cos_cpuid() == 0) {
+		cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, HW_CACHE_FLUSH, 0);
+		perfdata_init(&pd[cos_cpuid()], "SINV");
+		perfdata_init(&pd_ret, "SRET");
+		for (i = 0 ; i < ITER ; i++) {
+			long long start_cycles = 0LL, end_cycles = 0LL;
+
+			midinv_cycles[cos_cpuid()] = 0LL;
+			rdtscll(start_cycles);
+			//cos_rdtscp(start_cycles);
+			call_cap_mb(ic, 1, 2, 3);
+			rdtscll(end_cycles);
+			//cos_rdtscp(end_cycles);
+			curr_inv_cycles = (midinv_cycles[cos_cpuid()] - start_cycles);
+			curr_ret_cycles = (end_cycles - midinv_cycles[cos_cpuid()]);
+			//total_inv_cycles += curr_inv_cycles;
+			//total_ret_cycles += curr_ret_cycles;
+			perfdata_add(&pd[cos_cpuid()], curr_inv_cycles);
+			perfdata_add(&pd_ret, curr_ret_cycles);
+
+			//perfdata_add(&pd[cos_cpuid()], end_cycles - start_cycles - rdtscp_min);
+			//perfdata_add(&pd[cos_cpuid()], curr_inv_cycles + curr_ret_cycles);
+			//if (curr_inv_cycles > wcet_inv_cycles) {
+			//	iiter = i;
+			//	pwcet_inv_cycles = wcet_inv_cycles;
+			//	wcet_inv_cycles = curr_inv_cycles;
+			//}
+
+			//if (curr_ret_cycles > wcet_ret_cycles) {
+			//	riter = i;
+			//	pwcet_ret_cycles = wcet_ret_cycles;
+			//	wcet_ret_cycles = curr_ret_cycles;
+			//}
+		}
+		inv_testing = 0;
+
+		//PRINTC("SINV WCET:%llu:%d:%llu, Average (Total: %lld / Iterations: %lld ): %lld\n", wcet_inv_cycles, iiter, pwcet_inv_cycles, total_inv_cycles, (long long) (ITER), (total_inv_cycles / (long long)(ITER)));
+		//PRINTC("SRET WCET:%llu:%d:%llu, Average (Total: %lld / Iterations: %lld ): %lld\n", wcet_ret_cycles, riter, pwcet_ret_cycles, total_ret_cycles, (long long) (ITER), (total_ret_cycles / (long long)(ITER)));
+		printc("INV=======>\n");
+		perfdata_calc(&pd[cos_cpuid()]);
+		perfdata_print(&pd[cos_cpuid()]);
+
+		printc("RET=======>\n");
+		perfdata_calc(&pd_ret);
+		perfdata_print(&pd_ret);
+	} else {
+		while (inv_testing) call_cap_mb(ic, 1, 2, 3);
+	}
 }
 
 /* Make sure TCAP_MAX_DELEGATIONS = TEST_MAX_DELEGS-1 to be able to test upto MAX levels*/
@@ -722,13 +769,13 @@ test_tcaps_perf(void)
 void
 test_run_perf(void)
 {
-	test_thds_perf(0);
+//	test_thds_perf(0);
 //	test_thds_perf(1);
 //
 //	test_async_endpoints_perf();
 //	test_sched_activation_perf();
 //
-//	test_inv_perf();
+	test_inv_perf();
 //
 //	test_tcaps_perf();
 //	test_intr_latency_perf();

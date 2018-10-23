@@ -16,7 +16,7 @@
 #include "test_vm.h"
 #include <chal_config.h>
 
-#define HI_PRIO TCAP_PRIO_MAX
+#define HI_PRIO (TCAP_PRIO_MAX)
 #define LOW_PRIO (HI_PRIO + 1)
 
 #define AEP_BUDGET_US 10000
@@ -43,25 +43,32 @@ client_fn(arcvcap_t r, void *d)
 	asndcap_t snd = sndcaps[SERVER_ID];
 	int iters;
 
-#ifdef VM_IPC_TEST
-#ifdef TEST_IPC_RAW
+#ifdef VM_IPC
+	PRINTC("REadying up!\n");
+#ifdef IPC_RAW
+	PRINTC("RAW!\n");
 	while (!snd) snd = capmgr_asnd_key_create_raw(SERVER_XXX_AEPKEY);
 #else
 	while (!snd) snd = capmgr_asnd_key_create(SERVER_XXX_AEPKEY);
 #endif
+	cos_asnd(snd, 1);
+	//cos_rcv(r, 0, NULL);
 #endif
 
 	assert(snd);
 	rdtscll(c0_start);
+#ifndef VM_IPC
 	perfdata_init((struct perfdata *)&pd, "RPC(0<->1)");
+#endif
 	c0_end = c0_mid = c1_start = c1_mid = c1_end = c0_start;
 
 	while (1) {
 		int pending = 0, rcvd = 0, ret = 0;
 		cycles_t rtt_diff, one_diff = 0;
 
+#ifndef VM_IPC
 		rdtscll(c0_start);
-		ret = cos_asnd(snd, 0);
+		ret = cos_asnd(snd, 1);
 		assert(ret == 0);
 
 		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
@@ -76,11 +83,20 @@ client_fn(arcvcap_t r, void *d)
 		{
 			break;
 		}
+#else
+		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
+		assert(pending == 0 && rcvd == 1);
+
+		ret = cos_asnd(snd, 1);
+		assert(ret == 0);
+#endif
 	}
 
+#ifndef VM_IPC
 	//print stats..
 	perfdata_calc(&pd);
 	perfdata_print(&pd);
+#endif
 
 	sl_thd_exit();
 }
@@ -98,7 +114,7 @@ server_fn(arcvcap_t r, void *d)
 		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
 		assert(pending == 0 && rcvd >= 1);
 
-		ret = cos_asnd(snd, 0);
+		ret = cos_asnd(snd, 1);
 		assert(ret == 0);
 	}
 
@@ -108,6 +124,7 @@ server_fn(arcvcap_t r, void *d)
 static void
 test_ipc_setup(void)
 {
+	struct sl_thd *ct = NULL;
 	static volatile int cdone[NUM_CPU] = { 0 };
 	int i, ret;
 	asndcap_t snd = 0;
@@ -117,7 +134,7 @@ test_ipc_setup(void)
 	if (cos_cpuid() == CLIENT_CORE) {
 		struct sl_thd *t = NULL;
 
-#ifndef VM_IPC_TEST
+#ifndef VM_IPC
 		t = sl_thd_aep_alloc(client_fn, (void *)cos_cpuid(), 1, 0, 0, 0);
 #else
 		t = sl_thd_aep_alloc(client_fn, (void *)cos_cpuid(), 1, CLIENT_XXX_AEPKEY, 0, 0);
@@ -130,9 +147,10 @@ test_ipc_setup(void)
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_WINDOW, AEP_PERIOD_US));
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_BUDGET, AEP_BUDGET_US));
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, CLIENT_PRIO));
+		ct = t;
 	}
 
-#ifndef VM_IPC_TEST
+#ifndef VM_IPC
 	if (cos_cpuid() == SERVER_CORE) {
 		struct sl_thd *t = NULL;
 
@@ -149,10 +167,11 @@ test_ipc_setup(void)
 #endif
 
 	if (cos_cpuid() == CLIENT_CORE) {
-#ifndef VM_IPC_TEST
+#ifndef VM_IPC
 		while (!rcvcaps[SERVER_ID]) ;
 
-#ifdef TEST_IPC_RAW
+#ifdef IPC_RAW
+	PRINTC("RAW!\n");
 		snd = capmgr_asnd_rcv_create_raw(rcvcaps[SERVER_ID]);
 #else
 		snd = capmgr_asnd_rcv_create(rcvcaps[SERVER_ID]);
@@ -164,7 +183,8 @@ test_ipc_setup(void)
 	if (cos_cpuid() == SERVER_CORE) {
 		while (!rcvcaps[CLIENT_ID]) ;
 
-#ifdef TEST_IPC_RAW
+#ifdef IPC_RAW
+	PRINTC("RAW!\n");
 		snd = capmgr_asnd_rcv_create_raw(rcvcaps[CLIENT_ID]);
 #else
 		snd = capmgr_asnd_rcv_create(rcvcaps[CLIENT_ID]);
@@ -179,6 +199,14 @@ test_ipc_setup(void)
 	}
 
 	PRINTC("Done\n");
+
+#ifdef VM_IPC
+	if (cos_cpuid() == CLIENT_CORE) {
+		assert(ct);
+
+		cos_thd_switch(sl_thd_thdcap(ct));
+	}
+#endif
 }
 
 static volatile cycles_t timenw = 0;
@@ -261,6 +289,10 @@ void
 cos_init(void)
 {
 	int i;
+	int rcvd, blckd;
+	tcap_time_t thdtout;
+	thdid_t tid;
+	cycles_t cycles;
 	static unsigned long first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
@@ -289,7 +321,11 @@ cos_init(void)
 #endif
 
 	PRINTC("Starting scheduling\n");
+#ifndef VM_IPC
 	sl_sched_loop_nonblock();
+#else
+	while (1) cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, tcap_cyc2time(sl_now() + sl_usec2cyc(1000000)), &rcvd, &tid, &blckd, &cycles, &thdtout);
+#endif
 
 	assert(0);
 

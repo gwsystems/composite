@@ -152,7 +152,7 @@ cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd)
 
 	ring->sender = delta;
 	/* don't send ipi if there are 2 or more pending requests */
-	if (cos_ipi_ring_size(ring) >= 2) return 1;
+	//if (cos_ipi_ring_size(ring) >= 2) return 1;
 
 	cos_mem_fence();
 

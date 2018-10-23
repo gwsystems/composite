@@ -14,13 +14,19 @@
 u32_t cycs_per_usec = 0;
 extern cbuf_t parent_schedinit_child(void);
 
-#define INITIALIZE_PRIO 1
-#define INITIALIZE_BUDGET_MS 2000
-#define INITIALIZE_PERIOD_MS 4000
+#define INITIALIZE_PRIO 2
+#define INITIALIZE_PERIOD_US (10000)
+#define INITIALIZE_BUDGET_US (1000)
+
+#define INF_BUDGET
 
 #define FIXED_PRIO 2
-#define FIXED_BUDGET_MS 2000
-#define FIXED_PERIOD_MS 10000
+#define FIXED_PERIOD_US (10000)
+#ifdef INF_BUDGET
+#define FIXED_BUDGET_US (10000)
+#else
+#define FIXED_BUDGET_US (5000)
+#endif
 
 static struct sl_thd *__initializer_thd[NUM_CPU] CACHE_ALIGNED;
 
@@ -56,13 +62,24 @@ void
 sched_child_init(struct sched_childinfo *schedci)
 {
 	struct sl_thd *initthd = NULL;
+	int ret;
 
 	assert(schedci);
 	initthd = sched_child_initthd_get(schedci);
 	assert(initthd);
+
+	if (schedci->flags & COMP_FLAG_SCHED) {
+#ifdef INF_BUDGET
+		if ((ret = cos_tcap_transfer(sl_thd_rcvcap(initthd), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, FIXED_PRIO))) {
+			PRINTC("Failed to transfer INF budget\n");
+			assert(0);
+		}
+#endif
+		sl_thd_param_set(initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_US));
+		sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_US));
+	}
+
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
-	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
-	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
 }
 
 void
@@ -96,11 +113,13 @@ cos_init(void)
 
 	sl_init_cpubmp(SL_MIN_PERIOD_US, cpubmp);
 	sched_childinfo_init();
-	__initializer_thd[cos_cpuid()] = sl_thd_alloc(__init_done, NULL);
-	assert(__initializer_thd[cos_cpuid()]);
-	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, INITIALIZE_PRIO));
-	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_WINDOW, INITIALIZE_BUDGET_MS));
-	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_BUDGET, INITIALIZE_PERIOD_MS));
+	if (sched_num_childsched_get() >= 1) {
+		__initializer_thd[cos_cpuid()] = sl_thd_alloc(__init_done, NULL);
+		assert(__initializer_thd[cos_cpuid()]);
+		sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, INITIALIZE_PRIO));
+		sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_WINDOW, INITIALIZE_BUDGET_US));
+		sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_BUDGET, INITIALIZE_PERIOD_US));
+	}
 
 	self_init[cos_cpuid()] = 1;
 

@@ -39,7 +39,7 @@ static struct perfdata pd;
 
 #define SPINITERS_10US (5850)
 #define SPINITERS_TIMES (100*1000*10) //10s
-#define LO_SPIN_ITERS 10
+#define LO_SPIN_ITERS 5
 
 static void __spin_fn(void) __attribute__ ((optimize("O0")));
 
@@ -63,7 +63,8 @@ test_hi_fn(void *d)
 	assert(0);
 #endif
 	while (likely(spin_iters < LO_SPIN_ITERS)) {
-		sl_thd_block_periodic(0);
+		//sl_thd_block_periodic(0);
+		sl_thd_block_timeout(0, sl_now() + sl_usec2cyc(HI_PERIOD_US));
 	}
 
 	sl_thd_exit();
@@ -109,7 +110,7 @@ test_sched_ovhd(void)
 #ifdef WITH_HITHD
 	hi = sl_thd_alloc(test_hi_fn, NULL);
 	assert(hi);
-	sl_thd_param_set(hi, hpp.v);
+	//sl_thd_param_set(hi, hpp.v);
 	sl_thd_param_set(hi, hp.v);
 #endif
 

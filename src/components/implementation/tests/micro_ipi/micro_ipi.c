@@ -23,6 +23,17 @@
 #undef TEST_LATENCY
 #define TEST_RATE
 
+#define TEST_RTL
+#ifdef TEST_RTL
+#define TEST_RCV_MAX 100
+#define TEST_RCV_US  1000
+#else
+#define TEST_RCV_MAX 0
+#define TEST_RCV_US  0
+#endif
+
+extern void test_latency_new(void);
+
 #ifdef TEST_IPC
 static volatile struct perfdata pd[3];
 #else
@@ -329,15 +340,18 @@ hiprio_rate_c0_fn(arcvcap_t r, void *d)
  * NOTE: I've tested ITERS_10US with multiples 2, 3 and 4 and the amount of spin
  * is 20us, 30us and 40us respectively without interference.
  */
-#define ITERS_10US 5850
-#define MULTIPLE   2
+/* changing from 5850 to 5772 as the actual spin is 1014us for 1ms vs what 10.14 (about) would be for 10us. particularly important when studying the interference from like just 1ipi.. so! */
+#define ITERS_10US 5772
+#define MULTIPLE   100 //1ms RTL IPI test!
 #undef NOINTERFERENCE_TEST
+
+#define ONE_RCV
 
 #define SPIN_ITERS (ITERS_10US*MULTIPLE) //note
 #ifdef TEST_IPC_RAW
 #define NITERS     1
 #else
-#define NITERS     20
+#define NITERS     1
 #endif
 
 volatile unsigned int niters = 0;
@@ -385,9 +399,11 @@ hiprio_rate_c0_fn(arcvcap_t r, void *d)
 static void
 loprio_rate_c0_fn(arcvcap_t r, void *d)
 {
+#ifndef ONE_RCV
 	asndcap_t snd = c0_cn_asnd[(int)d];
 
 	assert(snd);
+#endif
 	while (testing == 0) ;
 
 	while (1) {
@@ -398,10 +414,13 @@ loprio_rate_c0_fn(arcvcap_t r, void *d)
 		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
 		assert(pending == 0 && rcvd == 1);
 
-#ifndef CN_SND_ONLY
-		ret = cos_asnd(snd, 0);
-		assert(ret == 0);
-#endif
+		assert(0);
+//#ifndef ONE_RCV
+//#ifndef CN_SND_ONLY
+//		ret = cos_asnd(snd, 0);
+//		assert(ret == 0);
+//#endif
+//#endif
 	}
 
 	sl_thd_exit();
@@ -425,10 +444,10 @@ hiprio_rate_cn_fn(arcvcap_t r, void *d)
 	//	} while (unlikely(ret == -EBUSY));
 	//	assert(ret == 0);
 
-#ifndef CN_SND_ONLY
-		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
-		assert(pending == 0 && rcvd == 1);
-#endif
+//#ifndef CN_SND_ONLY
+//		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
+//		assert(pending == 0 && rcvd == 1);
+//#endif
 	}
 
 	sl_thd_exit();
@@ -442,17 +461,24 @@ test_rate_setup(void)
 	int i, ret;
 
 	if (cos_cpuid() == RATE_C0) {
-		struct sl_thd *lo[NUM_CPU] = { NULL }, *hi = NULL;
+		PRINTC("Rate-limiting params: %uipis/%uus\n", TEST_RCV_MAX, TEST_RCV_US);
+#ifdef ONE_RCV
+		struct sl_thd *lo = NULL;
+#else
+		struct sl_thd *lo[NUM_CPU] = { NULL };
+#endif
+		struct sl_thd *hi = NULL;
 		asndcap_t snd = 0;
 
 		hi = sl_thd_aep_alloc(hiprio_rate_c0_fn, NULL, 1, 0, 0, 0);
 		assert(hi);
 
+#ifndef ONE_RCV
 #ifndef NOINTERFERENCE_TEST
 		for (i = 1; i < NUM_CPU; i++) {
 			assert(i != RATE_C0);
 
-			lo[i] = sl_thd_aep_alloc(loprio_rate_c0_fn, (void *)i, 1, 0, 0, 0);
+			lo[i] = sl_thd_aep_alloc(loprio_rate_c0_fn, (void *)i, 1, 0, TEST_RCV_US, TEST_RCV_MAX);
 			assert(lo[i]);
 			c0_rcv[i] = sl_thd_rcvcap(lo[i]);
 
@@ -471,6 +497,20 @@ test_rate_setup(void)
 			sl_thd_param_set(lo[i], sched_param_pack(SCHEDP_BUDGET, AEP_BUDGET_US));
 			sl_thd_param_set(lo[i], sched_param_pack(SCHEDP_PRIO, LOW_PRIO));
 		}
+#endif
+#else
+		lo = sl_thd_aep_alloc(loprio_rate_c0_fn, (void *)1, 1, 0, TEST_RCV_US, TEST_RCV_MAX);
+		assert(lo);
+		for (i = 1; i < NUM_CPU; i++) {
+			c0_rcv[i] = sl_thd_rcvcap(lo);
+			while (!cn_rcv[i]) ;
+		}
+		ret = cos_tcap_transfer(sl_thd_rcvcap(lo), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, LOW_PRIO);
+		assert(ret == 0);
+		sl_thd_param_set(lo, sched_param_pack(SCHEDP_WINDOW, AEP_PERIOD_US));
+		sl_thd_param_set(lo, sched_param_pack(SCHEDP_BUDGET, AEP_BUDGET_US));
+		sl_thd_param_set(lo, sched_param_pack(SCHEDP_PRIO, LOW_PRIO));
+
 #endif
 		ret = cos_tcap_transfer(sl_thd_rcvcap(hi), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, HI_PRIO);
 		assert(ret == 0);
@@ -746,7 +786,8 @@ cos_init(void)
 
 	//test_ipc_setup();
 	//test_latency_setup();
-	test_rate_setup();
+	//test_rate_setup();
+	test_latency_new();
 
 #ifdef TEST_IPC
 #ifndef TEST_SIMPLE_SCHED

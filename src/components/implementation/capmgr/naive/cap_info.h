@@ -15,6 +15,7 @@
 #include <capmgr.h>
 #include <memmgr.h>
 #include <bitmap.h>
+#include <ps_plat.h>
 
 #define CAP_INFO_MAX_THREADS (MAX_NUM_THREADS)
 
@@ -35,6 +36,7 @@ struct cap_comm_info {
 	u32_t      ipicnt, ipimax;
 	asndcap_t  sndcap[NUM_CPU]; /* for cross-core asnds */
 	sinvcap_t  sinvcap[NUM_CPU]; /* for each core (except for the same core!) */
+	struct ps_lock rl_lock; /* rate-limiting lock */
 } CACHE_ALIGNED;
 struct cap_comm_info cap_comminfo[CAP_INFO_MAX_THREADS];
 

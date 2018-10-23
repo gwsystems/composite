@@ -114,6 +114,7 @@ is_thread_name_taken(const char *name)
 	return FALSE;
 }
 
+
 /*
  * Task API
  */
@@ -134,7 +135,7 @@ OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_p
 
 	if (is_thread_name_taken(task_name)) { return OS_ERR_NAME_TAKEN; }
 
-	if (priority > 255 || priority < 1) { return OS_ERR_INVALID_PRIORITY; }
+	if (priority > CFE_INVERT_PRIO || priority < 1) { return OS_ERR_INVALID_PRIORITY; }
 
 	/* If the create call is rooted in another component, STASH_MAGIC_VALUE will be passed as the function_pointer  */
 	if (function_pointer == STASH_MAGIC_VALUE) {
@@ -154,14 +155,14 @@ OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_p
 		assert(thd);
 	}
 
-	sp = sched_param_pack(SCHEDP_PRIO, priority);
+	sp = sched_param_pack(SCHEDP_PRIO, CFE_INVERT_PRIO - priority);
 	sl_thd_param_set(thd, sp);
 
 	task_info = &cfe_tasks[sl_thd_thdid(thd)];
 	strcpy(task_info->osal_task_prop.name, task_name);
 	task_info->osal_task_prop.creator    = OS_TaskGetId();
 	task_info->osal_task_prop.stack_size = stack_size;
-	task_info->osal_task_prop.priority   = priority;
+	task_info->osal_task_prop.priority   = CFE_INVERT_PRIO - priority;
 	task_info->osal_task_prop.OStask_id  = (uint32)sl_thd_thdid(thd);
 	task_info->delete_handler            = NULL;
 
