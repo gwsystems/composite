@@ -4,8 +4,9 @@
 #include <sl_consts.h>
 #include <sl_mod_policy.h>
 #include <sl_plugins.h>
+#include <ostask.h>
 
-#define SL_FPRR_NPRIOS 128
+#define SL_FPRR_NPRIOS CFE_PRIO_MAXNUM
 #define SL_FPRR_PRIO_HIGHEST 1
 #define SL_FPRR_PRIO_LOWEST (SL_FPRR_NPRIOS)
 
