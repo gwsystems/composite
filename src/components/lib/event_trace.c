@@ -315,7 +315,7 @@ event_batch_process(int *processed)
 #endif
 #endif
 	logged += ret_count;
-	if (unlikely(ret_count && logged % 100000 == 0)) PRINTC("Logged: %llu\n", logged);
+	if (unlikely(ret_count && logged % 100000 == 0)) printc("x");//PRINTC("Logged: %llu\n", logged);
 
 	return ck_ring_size(EVTTRACE_RING);
 }
@@ -335,6 +335,7 @@ int
 event_trace(struct event_trace_info *ei)
 {
 	int count = 0;
+	static int last_skipped = 0;
 
 	/* don't log yet or don't log for components that don't initialize, ex: sl events only for cFE..*/
 	if (unlikely(evttrace_initialized == 0)) return 0;
@@ -353,7 +354,8 @@ retry:
 	}
 
 	queued++;
-	if (unlikely(queued % 100000 == 0)) PRINTC("Skipped: %llu, Queued: %llu\n", skipped, queued);
+	if (unlikely(queued % 100000 == 0)) printc("%s", (skipped - last_skipped) ? "z" : "y");//PRINTC("Skipped: %llu, Queued: %llu\n", skipped, queued);
+	last_skipped = skipped;
 
 	return 0;
 }

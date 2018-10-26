@@ -11,6 +11,7 @@
 #include <event_trace.h>
 #include <sched.h>
 #include <cos_time.h>
+#include <workload.h>
 
 static struct sockaddr_in soutput, sinput;
 static int fd, fdr;
@@ -18,9 +19,13 @@ static int fd, fdr;
 #define CLIBUF_SZ 16
 #define TRACE_FLUSH_SLEEP_US 500
 
+#undef UDP_TRACE_ENABLE
+
 int
 udp_writeout(unsigned char *buf, unsigned int sz)
 {
+	static int first = 1;
+#ifdef UDP_TRACE_ENABLE
 	struct sockaddr sa;
 	socklen_t len = sizeof(struct sockaddr);
 
@@ -28,6 +33,20 @@ udp_writeout(unsigned char *buf, unsigned int sz)
 		printc("sendto");
 		assert(0);
 	}
+#else
+	static unsigned long num_read = 0;
+
+	/* first writeout has header info. */
+	if (unlikely(first)) {
+		first = 0;
+	} else {
+		assert(sz && sz % sizeof(struct event_trace_info) == 0);
+		num_read += (sz / sizeof(struct event_trace_info));
+
+		if (unlikely(num_read % 1000000)) printc(".");
+	//	workload_usecs(10);
+	}
+#endif
 
 	return sz;
 }
@@ -35,6 +54,7 @@ udp_writeout(unsigned char *buf, unsigned int sz)
 static int
 udp_event_trace_init(void)
 {
+#ifdef UDP_TRACE_ENABLE
 	struct sockaddr client_sa;
 	socklen_t client_salen = sizeof(struct sockaddr);
 	char buf[CLIBUF_SZ] = { 0 };
@@ -67,6 +87,7 @@ udp_event_trace_init(void)
 	soutput.sin_addr.s_addr = ((struct sockaddr_in*)&client_sa)->sin_addr.s_addr;
 
 	printc("Recvfrom success: [%s]\nStarting to flush out events!\n", buf);
+#endif
 
 #ifdef EVENT_TRACE_REMOTE
 	event_trace_client_init(udp_writeout);
@@ -89,8 +110,11 @@ udp_event_trace_loop(void)
 		event_flush();
 		rdtscll(abs_sleep);
 
+		/* more like, if qemu, just keep getting data as much as you can. do we care about COSMOS interaction? remember, rk side is non-preemptive. */
+//#ifdef UDP_TRACE_ENABLE
 		/* perhaps sleep for a bit? */
 		sched_thd_block_timeout(0, abs_sleep + time_usec2cyc(TRACE_FLUSH_SLEEP_US));
+//#endif
 	}
 
 	return -1;

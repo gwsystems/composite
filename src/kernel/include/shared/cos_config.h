@@ -102,6 +102,6 @@
 #define ENABLE_VGA
 #define ENABLE_SERIAL
 
-#undef COS_BOOT_USE_HPET
+#define COS_BOOT_USE_HPET
 
 #endif /* COS_CONFIG_H */
