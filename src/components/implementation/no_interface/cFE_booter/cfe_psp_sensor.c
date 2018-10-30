@@ -132,19 +132,25 @@ CFE_PSP_SensorISR(arcvcap_t rcv, void *p)
                 sl_thd_block_timeout(0, abs_timeout);
 
 #else
+		rcvd = 0;
                 pending = cos_rcv(rcv, RCV_ALL_PENDING, &rcvd);
 		/*
 		 * just a validation to hope that there is always only one entry to pull
 		 * if this fails, we're activating too late, missing deadlines already!
 		 */
                 assert(pending == 0);
-		assert(rcvd == 1);
+		assert(rcvd >= 1);
 #ifndef CFE_HPET_IN_ROOTSCHED
 		if (unlikely(first == 1)) {
 			counter += rcvd;
 
-			if (counter < SKIP_N) continue;
-			else                  first = 0;
+			if (counter < SKIP_N) {
+				continue;
+			} else {
+				first = 0;
+				rcvd = counter - SKIP_N + 1;
+				assert(rcvd >= 1);
+			}
 		}
 #endif
 #endif

@@ -20,7 +20,7 @@ unsigned long long spinlib_usecs_intern(cycles_t usecs) __attribute__((optimize(
 void spinlib_cycles(cycles_t cycs) __attribute__((optimize("O0")));
 void spinlib_std_iters(void) __attribute__((optimize("O0")));
 
-#define SPINLIB_USE_STDITERS
+#undef SPINLIB_USE_STDITERS
 
 #define SPIN_ITERS_1MS 577200
 #define SPIN_ITERS SPIN_ITERS_1MS
@@ -47,28 +47,30 @@ spinlib_calib_test(void)
 		cycles_t st, end, elapsed_cycs, elus = 0, spincycs = 0, spiniters = 0;
 		unsigned long long niters = 0;
 
-		cos_rdtscp(st);
+		cos_rdtsc(st);
 		niters = spinlib_usecs_intern(test_us[i]);
-		cos_rdtscp(end);
-		elapsed_cycs = end - st - spinlib_rdtscp_avg_ovhd;
+		cos_rdtsc(end);
+		elapsed_cycs = end - st;
 		elus = elapsed_cycs / spinlib_cycs_per_us;
 
 		PRINTC("SPIN %lluus => elapsed :%llucycs %lluus %lluiters\n", test_us[i], elapsed_cycs, elapsed_cycs / spinlib_cycs_per_us, niters);
+		if (!elus) continue;
 
 		spiniters = (niters / elus) * test_us[i];
-		cos_rdtscp(st);
+		cos_rdtsc(st);
 		spinlib_niters(spiniters);
-		cos_rdtscp(end);
-		elapsed_cycs = end - st - spinlib_rdtscp_avg_ovhd;
+		cos_rdtsc(end);
+		elapsed_cycs = end - st;
 		elus = elapsed_cycs / spinlib_cycs_per_us;
 
 		PRINTC("SPIN %lluus => elapsed :%llucycs %lluus %lluiters\n", test_us[i], elapsed_cycs, elapsed_cycs / spinlib_cycs_per_us, spiniters);
+		if (!elus) continue;
 
 		spincycs = (elapsed_cycs / elus) * test_us[i];
-		cos_rdtscp(st);
+		cos_rdtsc(st);
 		spinlib_cycles(spincycs);
-		cos_rdtscp(end);
-		elapsed_cycs = end - st - spinlib_rdtscp_avg_ovhd;
+		cos_rdtsc(end);
+		elapsed_cycs = end - st;
 
 		PRINTC("SPIN %llucycs => elapsed :%llucycs %lluus\n", spincycs, elapsed_cycs, elapsed_cycs / spinlib_cycs_per_us);
 
@@ -77,8 +79,6 @@ spinlib_calib_test(void)
 		rdtscll(end);
 		PRINTC("SPIN %u iters: %llu cycles, %llu us\n", SPIN_ITERS_1MS, end - st, time_cyc2usec(end - st));
 	}
-
-
 }
 
 void
@@ -135,11 +135,11 @@ spinlib_calib(unsigned int cycs_per_us)
 	while (iters < SPINLIB_CALIB) {
 		cycles_t start, end;
 
-		cos_rdtscp(start);
+		cos_rdtsc(start);
 		spinlib_std_iters();
-		cos_rdtscp(end);
+		cos_rdtsc(end);
 
-		total_cycs += (end - start - (spinlib_rdtscp_avg_ovhd * 2));
+		total_cycs += (end - start);
 		iters ++;
 	}
 

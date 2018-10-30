@@ -145,20 +145,32 @@ fi
 echo "Runscript: $RUNSCRIPT"
 mv $FINALOBJ $TRANSFERDIR
 
+echo "Switching to $TRANSFERDIR"
 cd $TRANSFERDIR
-USB_DEV=`stat --format "%F" /dev/sdb`
 
-if [ "$USB_DEV" = "block special file" ]; then
-	echo "GENERATING ISO"
-	echo "$RUNSCRIPT"
+echo -n "Do you want to run on Qemu? (Y/n)"
+read run
+
+if [ "${run,,}" = "n" ]; then
+	echo "Ok. Modifying $RUNSCRIPT to run on HW!"
+	sed -i 's/rQ/rH/g' $RUNSCRIPT
+	echo "Generating composite.iso now."
 	./geniso.sh "$RUNSCRIPT"
-	echo "WRITIING ISO IMAGE to /dev/sdb: $USB_DEV"
-	sudo dd bs=8M if=composite.iso of=/dev/sdb
-	sync
+	echo "USB device to flash to? (Hit ENTER to skip!) [ex: /dev/sdb]"
+	read flash
+	if [ "${flash,,}" != "" ]; then
+		if [ -b "${flash}" ]; then
+			sudo dd if=composite.iso of="${flash}" bs=8M
+		else
+			echo "Can't! Device $flash doesn't exist!"
+			echo "Flash using \"dd if=composite.iso of=<destination_device> bs=8M\""
+		fi
+	else
+		echo "Flash using \"dd if=composite.iso of=<destination_device> bs=8M\""
+	fi
 else
-	echo "NO /dev/sdb: $USB_DEV"
-	echo "RUNNING THE SYSTEM ON QEMU INSTEAD"
-	echo "$RUNSCRIPT"
+	echo "Ok. Modifying $RUNSCRIPT to run on Qemu!"
+	sed -i 's/rH/rQ/g' $RUNSCRIPT
+	echo "Executing on Qemu now. Stop using ctrl-a + x"
 	./$QEMURK "$RUNSCRIPT"
 fi
-

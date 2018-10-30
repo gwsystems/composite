@@ -102,6 +102,7 @@
 #define ENABLE_VGA
 #define ENABLE_SERIAL
 
-#define COS_BOOT_USE_HPET
+/* Looks like KVM based Qemu execution doesn't need this hack! */
+#undef COS_BOOT_USE_HPET
 
 #endif /* COS_CONFIG_H */

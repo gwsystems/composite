@@ -42,9 +42,6 @@ udp_writeout(unsigned char *buf, unsigned int sz)
 	} else {
 		assert(sz && sz % sizeof(struct event_trace_info) == 0);
 		num_read += (sz / sizeof(struct event_trace_info));
-
-		if (unlikely(num_read % 1000000)) printc(".");
-	//	workload_usecs(10);
 	}
 #endif
 
@@ -110,11 +107,8 @@ udp_event_trace_loop(void)
 		event_flush();
 		rdtscll(abs_sleep);
 
-		/* more like, if qemu, just keep getting data as much as you can. do we care about COSMOS interaction? remember, rk side is non-preemptive. */
-//#ifdef UDP_TRACE_ENABLE
 		/* perhaps sleep for a bit? */
 		sched_thd_block_timeout(0, abs_sleep + time_usec2cyc(TRACE_FLUSH_SLEEP_US));
-//#endif
 	}
 
 	return -1;

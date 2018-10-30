@@ -22,6 +22,7 @@ if ! [ -f $COS_KERNEL ]; then
   exit 1
 fi
 
+rm -f $COS_ISO
 if [ -d $ISO_DIR ]; then
   rm -rf $ISO_DIR
 fi
