@@ -20,26 +20,18 @@ extern int number_apps;
 void
 timer_fn_1hz(void *d)
 {
-	cycles_t start_time = 0, next_deadline = 0, interval = time_usec2cyc(HZ_PAUSE_US);
-	unsigned int timer_counter = 0;
+	cycles_t start_time = 0, interval = time_usec2cyc(HZ_PAUSE_US);
 	OS_time_t time;
 
 	rdtscll(start_time);
-	next_deadline = start_time;
 
 	while (1) {
-		cycles_t now, elapsed;
+		cycles_t now = sl_now(), next_deadline;
 
-		next_deadline += interval;
-		elapsed = sl_thd_block_timeout(0, next_deadline);
+		next_deadline = now + interval - ((now - start_time) % interval);
+		sl_thd_block_timeout(0, next_deadline);
 
 		OS_GetLocalTime(&time);
-		while (elapsed > interval) {
-			CFE_TIME_Local1HzISR();
-
-			elapsed -= interval;
-		}
-
 		CFE_TIME_Local1HzISR();
 	}
 }
@@ -135,7 +127,7 @@ OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_p
 
 	if (is_thread_name_taken(task_name)) { return OS_ERR_NAME_TAKEN; }
 
-	if (priority > CFE_INVERT_PRIO || priority < 1) { return OS_ERR_INVALID_PRIORITY; }
+	if (priority > CFE_PRIO_MAXNUM || priority < CFE_PRIO_MINNUM) { return OS_ERR_INVALID_PRIORITY; }
 
 	/* If the create call is rooted in another component, STASH_MAGIC_VALUE will be passed as the function_pointer  */
 	if (function_pointer == STASH_MAGIC_VALUE) {
@@ -240,12 +232,12 @@ OS_TaskSetPriority(uint32 task_id, uint32 new_priority)
 	struct sl_thd *thd;
 	sched_param_t  sp;
 
-	if (new_priority > 255 || new_priority < 1) { return OS_ERR_INVALID_PRIORITY; }
+	if (new_priority > CFE_PRIO_MAXNUM || new_priority < CFE_PRIO_MINNUM) { return OS_ERR_INVALID_PRIORITY; }
 
 	thd = sl_thd_lkup(task_id);
 	if (!thd) { return OS_ERR_INVALID_ID; }
 
-	sp = sched_param_pack(SCHEDP_PRIO, new_priority);
+	sp = sched_param_pack(SCHEDP_PRIO, CFE_INVERT_PRIO - new_priority);
 	sl_thd_param_set(thd, sp);
 
 	return OS_SUCCESS;
@@ -517,6 +509,8 @@ struct semaphore {
 
 	/* Ideally, should be a priority sorted list of waiters, not just the first! */
 	volatile thdid_t first_waiter;
+	/* this should ideally be a priority sorted list of holders for counting sem! */
+	volatile thdid_t holder;
 
 	uint32 creator;
 	char   name[OS_MAX_API_NAME];
@@ -569,6 +563,7 @@ OS_SemaphoreCreate(struct semaphore *semaphores, uint32 max_semaphores, uint32 *
 	semaphores[id].creator = sl_thdid();
 	semaphores[id].count   = sem_initial_value;
 	semaphores[id].first_waiter = 0;
+	semaphores[id].holder       = 0;
 	strcpy(semaphores[id].name, sem_name);
 	sl_lock_init(&semaphores[id].lock);
 
@@ -601,6 +596,7 @@ OS_SemaphoreGive(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem
 	(semaphores[sem_id].count)++;
 	wakeup_tid = semaphores[sem_id].first_waiter;
 	assert(semaphores[sem_id].count <= OS_SEM_MAX_VAL);
+	if (semaphores[sem_id].holder == cos_thdid()) semaphores[sem_id].holder = 0;
 	sl_lock_release(&semaphores[sem_id].lock);
 	if (likely(wakeup_tid)) sl_thd_wakeup(wakeup_tid);
 
@@ -614,6 +610,7 @@ int32
 OS_SemaphoreTake(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem_id)
 {
 	int32 result = OS_SUCCESS;
+	microsec_t wait_time = sl_usec2cyc(OS_SEM_WAIT_US);
 
 	if (sem_id >= max_semaphores || !semaphores[sem_id].used) {
 		result = OS_ERR_INVALID_ID;
@@ -622,21 +619,31 @@ OS_SemaphoreTake(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem
 
 	sl_lock_take(&semaphores[sem_id].lock);
 	while (semaphores[sem_id].count == 0) {
+		thdid_t holder_tid = semaphores[sem_id].holder;
 
 		if (semaphores[sem_id].first_waiter == 0) semaphores[sem_id].first_waiter = sl_thdid();
+
 		sl_lock_release(&semaphores[sem_id].lock);
-		sl_thd_block(0);
+		if (likely(holder_tid)) sl_thd_yield(holder_tid);
+
 		sl_lock_take(&semaphores[sem_id].lock);
+		if (unlikely(semaphores[sem_id].count == 0)) {
+			sl_lock_release(&semaphores[sem_id].lock);
+			sl_thd_block_timeout(0, sl_now() + wait_time);
+			sl_lock_take(&semaphores[sem_id].lock);
+		} else {
+			break;
+		}
 	}
 
 	assert(semaphores[sem_id].used);
 	(semaphores[sem_id].count)--;
+	if (semaphores[sem_id].holder == 0) semaphores[sem_id].holder = cos_thdid();
 
 	assert(semaphores[sem_id].count <= OS_SEM_MAX_VAL);
 	sl_lock_release(&semaphores[sem_id].lock);
 
 exit:
-
 	return result;
 }
 
@@ -655,14 +662,22 @@ OS_SemaphoreTimedWait(struct semaphore *semaphores, uint32 max_semaphores, uint3
 	sl_lock_take(&semaphores[sem_id].lock);
 	while (semaphores[sem_id].count == 0 && (sl_now() - start_time) < max_wait) {
 		cycles_t waitcycs = 0;
+		thdid_t holder_tid = semaphores[sem_id].holder;
 
 		if (semaphores[sem_id].first_waiter == 0) semaphores[sem_id].first_waiter = sl_thdid();
 		sl_lock_release(&semaphores[sem_id].lock);
+		if (likely(holder_tid)) sl_thd_yield(holder_tid);
 
-		waitcycs = sl_now() + sl_usec2cyc(OS_SEM_WAIT_US);
-		if (unlikely(waitcycs > max_wait)) waitcycs = max_wait;
-		sl_thd_block_timeout(0, waitcycs);
 		sl_lock_take(&semaphores[sem_id].lock);
+		if (unlikely(semaphores[sem_id].count == 0)) {
+			waitcycs = sl_now() + sl_usec2cyc(OS_SEM_WAIT_US);
+			if (unlikely(waitcycs > max_wait)) waitcycs = max_wait;
+			sl_lock_release(&semaphores[sem_id].lock);
+			sl_thd_block_timeout(0, waitcycs);
+			sl_lock_take(&semaphores[sem_id].lock);
+		} else {
+			break;
+		}
 	}
 
 	assert(semaphores[sem_id].used);
@@ -672,6 +687,7 @@ OS_SemaphoreTimedWait(struct semaphore *semaphores, uint32 max_semaphores, uint3
 	}
 
 	(semaphores[sem_id].count)--;
+	if (semaphores[sem_id].holder == 0) semaphores[sem_id].holder = cos_thdid();
 
 done:
 	assert(semaphores[sem_id].count <= OS_SEM_MAX_VAL);
