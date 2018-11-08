@@ -71,6 +71,14 @@ sl_mod_thd_delete(struct sl_thd_policy *t)
 { ps_list_rem_d(t); }
 
 void
+sl_mod_thd_insert(struct sl_thd_policy *t)
+{ ps_list_head_append_d(&threads[cos_cpuid()][t->priority - 1], t); }
+
+void
+sl_mod_thd_remove(struct sl_thd_policy *t)
+{ ps_list_rem_d(t); }
+
+void
 sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned int v)
 {
 	switch (type) {

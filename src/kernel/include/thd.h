@@ -578,11 +578,38 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 }
 
 static inline int
-thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
+thd_introspect(struct thread *t, unsigned long op, unsigned long a, unsigned long *retval)
 {
 	switch (op) {
 	case THD_GET_TID:
 		*retval = t->tid;
+		break;
+	case THD_GET_INVTOP:
+		*retval = t->invstk_top;
+		break;
+	case THD_SET_IP:
+		t->regs.ip = a;
+		*retval = 0;
+		break;
+	case THD_SET_INV0IP:
+		t->invstk[0].ip = a;
+		*retval = 0;
+		break;
+	case THD_SET_AX:
+		t->regs.ax = a;
+		*retval = 0;
+		break;
+	case THD_SET_BX:
+		t->regs.bx = a;
+		*retval = 0;
+		break;
+	case THD_SET_CX:
+		t->regs.cx = a;
+		*retval = 0;
+		break;
+	case THD_SET_DX:
+		t->regs.dx = a;
+		*retval = 0;
 		break;
 	default:
 		return -EINVAL;

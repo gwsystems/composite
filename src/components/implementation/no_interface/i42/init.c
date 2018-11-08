@@ -12,6 +12,7 @@
 #include <ps.h>
 
 #include <memmgr.h>
+#include <cos_recovery.h>
 
 extern void I42_AppMain();
 extern void OS_IdleLoop();

@@ -305,12 +305,27 @@ enum
 {
 	/* thread id */
 	THD_GET_TID,
+	/* top (index) of invocation stack */
+	THD_GET_INVTOP,
+	THD_SET_IP,
+	/* set ip on inv top = 0, so the thread executes at a given "IP" on SINV RET */
+	THD_SET_INV0IP,
+	THD_SET_AX,
+	THD_SET_BX,
+	THD_SET_CX,
+	THD_SET_DX,
 };
 
 enum
 {
 	/* tcap budget */
 	TCAP_GET_BUDGET,
+};
+
+enum
+{
+	/* comp entry addr */
+	COMP_GET_ENTRY,
 };
 
 enum
@@ -550,6 +565,7 @@ typedef unsigned short int cos_channelkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KE
 #define RK_INITRCV_KEY  0x7ffd
 
 #define CFE_HPET_SH_KEY 0x8fff
+#define CFE_REBOOT_REQ_KEY 0x8ffe
 
 #define CFE_RK_MULTI_CORE
 #undef CFE_HPET_IN_ROOTSCHED

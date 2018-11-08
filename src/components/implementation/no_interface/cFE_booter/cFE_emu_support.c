@@ -13,12 +13,14 @@
 #include <cFE_emu.h>
 
 #include <cfe_error.h>
+#include "cFE_bookkeep.h"
 
 /* shared memory regions per thread.. */
 static union shared_region *shared_regions[MAX_NUM_THREADS] = { NULL };
 
 int       have_registered_sync_callback = 0;
 asndcap_t sync_callback_delegates[CFE_TIME_MAX_NUM_SYNCH_FUNCS];
+extern int reboot_requested[];
 
 int32
 sync_callback_handler()
@@ -332,12 +334,18 @@ emu_CFE_FS_WriteHeader(spdid_t client)
 int32
 emu_CFE_SB_CreatePipe(spdid_t client)
 {
+	int32 ret;
 	union shared_region *s = shared_regions[cos_thdid()];
 
 	assert(s);
+	ret = cfe_bookkeep_res_find(CFE_RES_SBPIPE, s->cfe_sb_createPipe.PipeName, &s->cfe_sb_createPipe.PipeId);
+	if (ret == 0) return CFE_SUCCESS; /* TODO: check status to return! OS_SUCCESS? SB_XXX? */
 
-	return CFE_SB_CreatePipe(&s->cfe_sb_createPipe.PipeId, s->cfe_sb_createPipe.Depth,
+	ret = CFE_SB_CreatePipe(&s->cfe_sb_createPipe.PipeId, s->cfe_sb_createPipe.Depth,
 	                         s->cfe_sb_createPipe.PipeName);
+	if (ret == CFE_SUCCESS) cfe_bookkeep_res_name_set(CFE_RES_SBPIPE, s->cfe_sb_createPipe.PipeId, s->cfe_sb_createPipe.PipeName);
+
+	return ret;
 }
 
 int32
@@ -829,9 +837,17 @@ emu_OS_write(spdid_t client)
 int32
 emu_OS_BinSemCreate(spdid_t client)
 {
+	int32 ret;
 	union shared_region *s = shared_regions[cos_thdid()];
 
 	assert(s);
+	ret = cfe_bookkeep_res_find(CFE_RES_BINSEM, s->os_semCreate.sem_name, &s->os_semCreate.sem_id);
+	if (ret == 0) {
+		int status = cfe_bookkeep_res_status(CFE_RES_BINSEM, s->os_semCreate.sem_id);
+
+		if (status & CFE_RES_LOCKED) OS_BinSemGive(s->os_semCreate.sem_id);
+		return OS_SUCCESS;
+	}
 
 	return OS_BinSemCreate(&s->os_semCreate.sem_id, s->os_semCreate.sem_name, s->os_semCreate.sem_initial_value,
 	                       s->os_semCreate.options);
@@ -840,9 +856,17 @@ emu_OS_BinSemCreate(spdid_t client)
 int32
 emu_OS_CountSemCreate(spdid_t client)
 {
+	int32 ret;
 	union shared_region *s = shared_regions[cos_thdid()];
 
 	assert(s);
+	ret = cfe_bookkeep_res_find(CFE_RES_COUNTSEM, s->os_semCreate.sem_name, &s->os_semCreate.sem_id);
+	if (ret == 0) {
+		int status = cfe_bookkeep_res_status(CFE_RES_COUNTSEM, s->os_semCreate.sem_id);
+
+		if (status & CFE_RES_LOCKED) OS_CountSemGive(s->os_semCreate.sem_id);
+		return OS_SUCCESS;
+	}
 
 	return OS_CountSemCreate(&s->os_semCreate.sem_id, s->os_semCreate.sem_name, s->os_semCreate.sem_initial_value,
 	                         s->os_semCreate.options);
@@ -851,9 +875,17 @@ emu_OS_CountSemCreate(spdid_t client)
 int32
 emu_OS_MutSemCreate(spdid_t client)
 {
+	int32 ret;
 	union shared_region *s = shared_regions[cos_thdid()];
 
 	assert(s);
+	ret = cfe_bookkeep_res_find(CFE_RES_MUTEX, s->os_mutSemCreate.sem_name, &s->os_mutSemCreate.sem_id);
+	if (ret == 0) {
+		int status = cfe_bookkeep_res_status(CFE_RES_MUTEX, s->os_semCreate.sem_id);
+
+		if (status & CFE_RES_LOCKED) OS_MutSemGive(s->os_semCreate.sem_id);
+		return OS_SUCCESS;
+	}
 
 	return OS_MutSemCreate(&s->os_mutSemCreate.sem_id, s->os_mutSemCreate.sem_name, s->os_mutSemCreate.options);
 }
@@ -861,9 +893,12 @@ emu_OS_MutSemCreate(spdid_t client)
 int32
 emu_OS_QueueCreate(spdid_t client)
 {
+	int32 ret;
 	union shared_region *s = shared_regions[cos_thdid()];
 
 	assert(s);
+	ret = cfe_bookkeep_res_find(CFE_RES_QUEUE, s->os_queueCreate.queue_name, &s->os_queueCreate.queue_id);
+	if (ret == 0) return OS_SUCCESS;
 
 	return OS_QueueCreate(&s->os_queueCreate.queue_id, s->os_queueCreate.queue_name, s->os_queueCreate.queue_depth, s->os_queueCreate.data_size, s->os_queueCreate.flags);
 }

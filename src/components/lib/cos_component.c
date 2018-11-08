@@ -118,6 +118,13 @@ cos_thd_entry_static(u32_t idx)
 	return 0;
 }
 
+CWEAKSYMB int
+cos_thd_reset_entry(u32_t idx)
+{
+	assert(0);
+	return 0;
+}
+
 const char *cos_print_str[PRINT_LEVEL_COUNT] = {
 	"ERR: ",
 	"WARN: ",
@@ -127,6 +134,8 @@ const char *cos_print_str[PRINT_LEVEL_COUNT] = {
 
 cos_print_level_t cos_print_level   = PRINT_ERROR;
 int               cos_print_lvl_str = 0;
+
+int comp_thd_entered[MAX_NUM_THREADS] CACHE_ALIGNED;
 
 CWEAKSYMB void
 cos_print_level_set(cos_print_level_t lvl, int print_str)
@@ -160,6 +169,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	static int first = 1;
 
+	assert(cos_thdid() && comp_thd_entered[cos_thdid()] == 0);
+	comp_thd_entered[cos_thdid()] = 1;
 	if (first) {
 		first = 0;
 		cos_print_level_set(PRINT_DEBUG, 1);

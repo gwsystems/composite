@@ -47,6 +47,7 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 	struct sinv_thdcrt_req *req = (struct sinv_thdcrt_req *)SINV_REQ_ADDR(s->init_shmaddr);
 	struct sinv_thdinfo *tinfo = &s->cdata.cthds[tid];
 	vaddr_t shmaddr = 0;
+	unsigned long npages = 0;
 	cbuf_t id = 0;
 	asndcap_t snd = 0;
 	spdid_t child = cos_inv_token() == 0 ? cos_spd_id() : (spdid_t)cos_inv_token();
@@ -60,6 +61,12 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 	req->skey    = skey;
 	req->snd_key = s->snd_key;
 
+	id = channel_shared_page_map(skey, &shmaddr, &npages);
+	if (id && shmaddr) {
+		assert(npages = SINV_REQ_NPAGES);
+		/* FIXME: this is a hack, we actually need to get the information about the channel! */
+		goto done;
+	}
 	id = channel_shared_page_allocn(skey, SINV_REQ_NPAGES, &shmaddr);
 	assert(id && shmaddr);
 	memset((void *)shmaddr, 0, SINV_REQ_NPAGES * PAGE_SIZE);
@@ -80,6 +87,7 @@ acom_client_thread_init(struct sinv_async_info *s, thdid_t tid, arcvcap_t rcv, c
 	else                 snd = capmgr_asnd_key_create(skey);
 	assert(snd);
 
+done:
 	tinfo->rkey     = rcvkey;
 	tinfo->skey     = skey;
 	tinfo->clientid = child;
@@ -113,11 +121,12 @@ acom_client_request_intern(int spin, struct sinv_async_info *s, acom_type_t t, w
 	ret = ps_cas((unsigned long *)reqaddr, SINV_REQ_RESET, SINV_REQ_SET);
 	assert(ret); /* must be sync.. */
 
-	assert(tinfo->sndcap);
+	/* FIXME: rebooting an application needs to be taken care of! */
+	/* assert(tinfo->sndcap); */
 	if (budget) {
 		/* TODO: scheduler API for delegation, apps don't have access to "Tcap" */
 	} else {
-		cos_asnd(tinfo->sndcap, 0);
+		if (tinfo->sndcap) cos_asnd(tinfo->sndcap, 0);
 	}
 
 	while (ps_load((unsigned long *)reqaddr) != SINV_REQ_RESET) {

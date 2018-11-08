@@ -20,6 +20,7 @@ typedef enum {
 	SL_THD_BLOCKED_TIMEOUT,
 	SL_THD_WOKEN, /* if a race causes a wakeup before the inevitable block */
 	SL_THD_RUNNABLE,
+	SL_THD_STOPPED, /* states, STOPPED to RUNNABLE or DYING/FREE. All other requests, ignore! TCaps could allow ASYNC thds to run, and that thread could call BLOCK! */
 	SL_THD_DYING,
 } sl_thd_state_t;
 

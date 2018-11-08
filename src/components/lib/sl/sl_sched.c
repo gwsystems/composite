@@ -123,12 +123,93 @@ sl_thd_free_no_cs(struct sl_thd *t)
         t->state = SL_THD_FREE;
         /* TODO: add logic for the graveyard to delay this deallocation if t == current */
         sl_thd_free_backend(sl_mod_thd_policy_get(t));
+	if (t != ct && t->state != SL_THD_STOPPED && t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {
+		/*
+		 * if AEP and has it's own tcap,
+		 * then transfer to main-tcap what budget it could have! so it won't be activated!
+		 * unfortunately, this could mean, our scheduler has more time!
+		 *                we have time from that thread that could have been delegated for a request processing.
+		 *                we could pollute our global priorities! should have an "idle tcap" to transfer really!
+		 *
+		 * more importantly, this wont work if an AEP was created and is using the scheduler tcap. it may still be activated by other "asnds".
+		 */
+		int ret = cos_tcap_transfer(sl__globals_cpu()->sched_rcv, sl_thd_tcap(t), 0, TCAP_PRIO_MAX);
+
+		assert(ret == 0);
+	}
 
         /* thread should not continue to run if it deletes itself. */
         if (unlikely(t == ct)) {
                 while (1) sl_cs_exit_schedule();
                 /* FIXME: should never get here, but tcap mechanism can let a child scheduler run! */
         }
+}
+
+static inline void
+sl_thd_stop_no_cs(struct sl_thd *t)
+{
+	struct sl_thd *ct = sl_thd_curr();
+
+	assert(t && ct != t);
+	assert(t->state != SL_THD_FREE && t->state != SL_THD_STOPPED);
+
+	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
+	sl_mod_thd_remove(sl_mod_thd_policy_get(t));
+	t->state = SL_THD_STOPPED;
+	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {
+		/*
+		 * if AEP and has it's own tcap,
+		 * then transfer to main-tcap what budget it could have! so it won't be activated!
+		 * unfortunately, this could mean, our scheduler has more time!
+		 *                we have time from that thread that could have been delegated for a request processing.
+		 *                we could pollute our global priorities! should have an "idle tcap" to transfer really!
+		 *
+		 * more importantly, this wont work if an AEP was created and is using the scheduler tcap. it may still be activated by other "asnds".
+		 * plus, it won't work if someone else tries to delegate when it's stopped.
+		 */
+		int ret = cos_tcap_transfer(sl__globals_cpu()->sched_rcv, sl_thd_tcap(t), 0, TCAP_PRIO_MAX);
+
+		assert(ret == 0);
+	}
+}
+
+static inline void
+sl_thd_resume_no_cs(struct sl_thd *t)
+{
+	struct sl_thd *ct = sl_thd_curr();
+
+	assert(t && ct != t);
+	assert(t->state == SL_THD_STOPPED);
+
+	t->state = SL_THD_RUNNABLE;
+	/* TODO: replenish right-away if its with SL_THD_PROPERTY_OWN_TCAP? */
+	sl_mod_thd_insert(sl_mod_thd_policy_get(t));
+}
+
+void
+sl_thd_stop(thdid_t tid)
+{
+	struct sl_thd *t = NULL;
+
+	assert(tid);
+
+	sl_cs_enter();
+	t = sl_thd_lkup(tid);
+	sl_thd_stop_no_cs(t);
+	sl_cs_exit();
+}
+
+void
+sl_thd_resume(thdid_t tid)
+{
+	struct sl_thd *t = NULL;
+
+	assert(tid);
+
+	sl_cs_enter();
+	t = sl_thd_lkup(tid);
+	sl_thd_resume_no_cs(t);
+	sl_cs_exit();
 }
 
 static int
@@ -218,6 +299,8 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	assert(t);
 	assert(t != sl__globals_cpu()->idle_thd && t != sl__globals_cpu()->sched_thd);
 	assert(sl_thd_curr() == t); /* only current thread is allowed to block itself */
+	/* tcap could let a thread run and that could try to block. lets see! */
+	assert(t->state != SL_THD_FREE && t->state != SL_THD_STOPPED);
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
 
 	if (t->schedthd) {
@@ -445,6 +528,7 @@ sl_thd_wakeup_no_cs(struct sl_thd *t)
 		return 0;
 	}
 
+	if (unlikely(t->state == SL_THD_STOPPED || t->state == SL_THD_FREE)) return 1;
 	if (unlikely(sl_thd_is_runnable(t))) {
 		/* t->state == SL_THD_WOKEN? multiple wakeups? */
 		t->state = SL_THD_WOKEN;
@@ -483,6 +567,7 @@ sl_thd_yield_cs_exit(thdid_t tid)
 {
 	struct sl_thd *t = sl_thd_curr();
 
+	assert(t->state != SL_THD_FREE && t->state != SL_THD_STOPPED);
 	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
 	sl_thd_cycs_update(t, 0, 0);
 	sl_thd_sched_unblock_no_cs(t);
@@ -490,7 +575,8 @@ sl_thd_yield_cs_exit(thdid_t tid)
 		struct sl_thd *to = sl_thd_lkup(tid);
 
 		assert(to);
-		sl_cs_exit_switchto(to);
+		if (unlikely(to->state == SL_THD_FREE || to->state == SL_THD_STOPPED)) sl_cs_exit_schedule();
+		else                                                                   sl_cs_exit_switchto(to);
 	} else {
 		if (likely(t != sl__globals_cpu()->sched_thd && t != sl__globals_cpu()->idle_thd)) sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
 		sl_cs_exit_schedule();
@@ -799,8 +885,8 @@ pending_events:
 				/* remove the event from the list and get event info */
 				sl_thd_event_dequeue(t, &blocked, &cycles, &thd_timeout);
 
-				/* outdated event for a freed thread */
-				if (unlikely(t->state == SL_THD_FREE)) continue;
+				/* outdated event for a freed thread or don't let a stopped thread run */
+				if (unlikely(t->state == SL_THD_FREE || t->state == SL_THD_STOPPED)) continue;
 
 				/* sl_mod_execution(sl_mod_thd_policy_get(t), cycles); */
 				if (blocked) {

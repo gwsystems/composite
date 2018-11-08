@@ -107,4 +107,14 @@ comp_init(void)
 	assert(sizeof(struct cap_comp) <= __captbl_cap2bytes(CAP_COMP));
 }
 
+static inline int
+comp_introspect(struct cap_comp *cc, unsigned long op, unsigned long a, unsigned long *retval)
+{
+	switch(op) {
+	case COMP_GET_ENTRY: *retval = cc->entry_addr; break;
+	default: return -EINVAL;
+	}
+	return 0;
+}
+
 #endif /* COMPONENT_H */

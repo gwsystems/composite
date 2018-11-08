@@ -53,5 +53,8 @@ void sl_mod_thd_create(struct sl_thd_policy *t);
 void sl_mod_thd_delete(struct sl_thd_policy *t);
 void sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned int val);
 void sl_mod_init(void);
+/* unlike create and delete which could reset data structures, insert and remove only remove/insert from runqueues. */
+void sl_mod_thd_insert(struct sl_thd_policy *t);
+void sl_mod_thd_remove(struct sl_thd_policy *t);
 
 #endif /* SL_PLUGINS_H */

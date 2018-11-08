@@ -995,13 +995,15 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, u32_t a, unsigned lon
 
 	switch (ch->type) {
 	case CAP_THD:
-		return thd_introspect(((struct cap_thd *)ch)->t, op, retval);
+		return thd_introspect(((struct cap_thd *)ch)->t, op, a, retval);
 	case CAP_TCAP:
 		return tcap_introspect(((struct cap_tcap *)ch)->tcap, op, retval);
 	case CAP_ARCV:
 		return arcv_introspect(((struct cap_arcv *)ch), op, retval);
 	case CAP_HW:
 		return hw_introspect(((struct cap_hw*)ch), op, a, retval);
+	case CAP_COMP:
+		return comp_introspect(((struct cap_comp*)ch), op, a, retval);
 	default:
 		return -EINVAL;
 	}

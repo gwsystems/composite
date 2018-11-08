@@ -16,10 +16,9 @@ extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t 
 extern int num_cobj;
 extern spdid_t capmgr_spdid;
 extern spdid_t root_spdid[];
+extern int boot_comp_remap_memory(spdid_t spdid);
 
 struct cobj_header *hs[MAX_NUM_COMPS + 1];
-
-#define UDP_SPDID 3
 
 typedef enum {
 	BOOT_COMP_FLAG_SCHED = 1,
@@ -839,6 +838,15 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4, wo
 				break;
 			}
 		}
+		break;
+	}
+	case HYPERCALL_COMP_REBOOT:
+	{
+		spdid_t srcid = arg3;
+
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
+		ret1 = boot_comp_remap_memory(srcid);
+
 		break;
 	}
 	default:

@@ -51,7 +51,9 @@ rk_thdcalldata_shm_map(cbuf_t id)
 	unsigned long npages = 0;
 
 	assert(id);
-	if (unlikely(id_calldata[cos_thdid()] == 0)) {
+	/* FIXME: component rebooted can alloc new shm and use it! */
+	if (unlikely(id_calldata[cos_thdid()] != id)) {
+		assert(id);
 		npages = memmgr_shared_page_map(id, &addr_calldata[cos_thdid()]);
 		assert(npages == RK_MAX_PAGES);
 

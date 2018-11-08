@@ -9,6 +9,7 @@
 
 #include <string.h>
 #include <event_trace.h>
+#include "cFE_bookkeep.h"
 
 #define MAX_QUEUE_DATA_SIZE (1024 * 1024)
 
@@ -77,6 +78,7 @@ OS_QueueCreate(uint32 *queue_id, const char *queue_name, uint32 queue_depth, uin
 	queues[*queue_id].data_size = data_size;
 	queues[*queue_id].wait_thd  = 0;
 	strcpy(queues[*queue_id].name, queue_name);
+	cfe_bookkeep_res_name_set(CFE_RES_QUEUE, qid, queue_name);
 
 done:
 	sl_lock_release(&queue_lock);
@@ -263,6 +265,7 @@ OS_QueueGetIdByName(uint32 *queue_id, const char *queue_name)
 	for (i = 0; i < OS_MAX_QUEUES; ++i) {
 		if (strcmp(queue_name, queues[i].name) == 0) {
 			*queue_id   = i;
+			cfe_bookkeep_res_name_set(CFE_RES_QUEUE, i, queue_name);
 			queue_found = TRUE;
 			break;
 		}

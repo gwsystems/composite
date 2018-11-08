@@ -1,6 +1,7 @@
 #include <cos_component.h>
 #include <cos_kernel_api.h>
 #include <cos_types.h>
+#include <cos_recovery.h>
 
 extern void KIT_CI_AppMain();
 extern void OS_IdleLoop();

@@ -254,6 +254,37 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	return 0;
 }
 
+/* This remaps the whole memory including CS! */
+int
+boot_comp_remap_memory(spdid_t spdid)
+{
+	struct cobj_header *h;
+	vaddr_t comp_info;
+	int i, found = 0;
+
+	for (i = 0; hs[i] != NULL; i++) {
+		struct comp_cap_info *spdinfo;
+		struct cobj_header   *h;
+		struct cobj_sect     *sect;
+		vaddr_t               ci = 0;
+
+		h = hs[i];
+		if (spdid != h->id) continue;
+		found = 1;
+
+		assert(spdid != 0);
+		spdinfo = boot_spd_compcapinfo_get(spdid);
+
+		sect = cobj_sect_get(h, 0);
+		if (boot_spd_symbs(h, spdid, &ci, &(spdinfo->vaddr_user_caps))) BUG();
+		boot_comp_map_populate(h, spdid, ci);
+	}
+
+	if (found == 0) return -EINVAL;
+
+	return 0;
+}
+
 int
 boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {

@@ -11,6 +11,7 @@
 
 #include "cFE_util.h"
 #include "ostask.h"
+#include "cFE_bookkeep.h"
 
 int number_apps = 0;
 thdid_t id_overrides[SL_MAX_NUM_THDS] = {0};
@@ -53,6 +54,7 @@ launch_other_component(spdid_t child_id, int is_library)
 
 	cos_defcompinfo_childid_init(&child_dci, child_id);
 	t = sl_thd_initaep_alloc(&child_dci, NULL, 0, 0, 0, 0, 0);
+	assert(t);
 
 	/* We need to override the delegate thread id, so the cFE think it's this thread
 	 * Otherwise cFE application id detection is broken
@@ -60,11 +62,12 @@ launch_other_component(spdid_t child_id, int is_library)
 	id_overrides[sl_thd_thdid(t)] = sl_thdid();
 
 	if (is_library) {
-		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, 3));
+		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, LIBRARY_THREAD_PRIORITY));
 		sl_thd_yield(sl_thd_thdid(t));
 	} else {
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, get_this_threads_priority()));
 		number_apps++;
+		cfe_bookkeep_app_set(child_id, 0 /* todo: app id */, t);
 		OS_TaskExit();
 	}
 }

@@ -10,6 +10,7 @@
 #include <cos_types.h>
 #include <memmgr.h>
 
+#include <cos_recovery.h>
 
 extern void F42_AppMain();
 extern void OS_IdleLoop();

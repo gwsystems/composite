@@ -30,6 +30,7 @@ int capmgr_hw_attach(hwid_t hwid, thdid_t tid);
 int capmgr_hw_periodic_attach(hwid_t hwid, thdid_t tid, unsigned int period_us);
 int capmgr_hw_detach(hwid_t hwid);
 
+int capmgr_thd_reset_entry(spdid_t child, thdid_t tid, thdclosure_index_t idx, vaddr_t entry, unsigned long *r2, unsigned long *r3);
 /*
  * @type: 1 for capmgr counters, 0 for kernel counters
  */

@@ -17,6 +17,9 @@
 #define printd(...)
 #endif
 
+extern int comp_thd_entered[];
+extern int cos_thd_reset_entry(thdclosure_index_t);
+
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz, pgtblcap_t pgtbl_cap)
 {
@@ -716,12 +719,22 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, inv
 
 int
 cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
-{ return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4); }
+{
+	int ret = call_cap_op(sinv, 0, arg1, arg2, arg3, arg4);
+
+	if (unlikely(cos_inv_token() == 0 && comp_thd_entered[cos_thdid()] == 0)) cos_thd_reset_entry(0);
+
+	return ret;
+}
 
 int
 cos_sinv_rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret2, word_t *ret3)
 {
-	return call_cap_2retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret2, ret3);
+	int ret = call_cap_2retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret2, ret3);
+
+	if (unlikely(cos_inv_token() == 0 && comp_thd_entered[cos_thdid()] == 0)) cos_thd_reset_entry(0);
+
+	return ret;
 }
 
 /*

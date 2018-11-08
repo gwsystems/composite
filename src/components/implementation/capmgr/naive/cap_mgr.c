@@ -581,3 +581,71 @@ capmgr_core_ipi_counters_get_cserialized(unsigned int *sndctr, unsigned int *rcv
 {
 	return cap_xcore_ipi_ctrs_get(core, type, sndctr, rcvctr);
 }
+
+int
+capmgr_thd_reset_entry_cserialized(unsigned long *r2, unsigned long *r3, spdid_t s, u32_t tid_idx, vaddr_t entry)
+{
+	spdid_t                   cur     = cos_inv_token();
+	struct cos_defcompinfo   *cap_dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo      *cap_ci  = cos_compinfo_get(cap_dci);
+	struct cap_comp_info     *rc      = cap_info_comp_find(cur);
+	struct cap_comp_info     *rs      = cap_info_comp_find(s);
+	struct sl_thd            *ti      = NULL;
+	struct cap_comp_cpu_info *rs_cpu  = NULL;
+	thdcap_t                  thdcap  = 0;
+	vaddr_t                   comp_entry = 0;
+	thdid_t                   tid = (tid_idx >> 16);
+	thdclosure_index_t        idx     = (tid_idx << 16) >> 16;
+	unsigned long             ip, ax, bx, cx, dx;
+
+	if (s == cur) {
+		assert(tid == 0);
+		tid = cos_thdid();
+	}
+	if (!rc || !cap_info_init_check(rc)) return 0;
+	if (!rs || !cap_info_init_check(rs)) return 0;
+	if (s != cur && (!cap_info_is_sched(cur) || !cap_info_is_child(rc, s))) return 0;
+	ti = cap_info_thd_find(rs, tid);
+	if (!ti || !sl_thd_thdcap(ti)) return 0;
+	rs_cpu = cap_info_cpu_local(rs);
+	comp_entry  = cos_introspect(cap_ci, cap_info_ci(rs)->comp_cap, COMP_GET_ENTRY, 0);
+	if (entry == 0) entry = comp_entry;
+
+	thdcap = sl_thd_thdcap(ti);
+	if (tid == rs_cpu->initthdid) {
+		int ret, invtop = cos_introspect(cap_ci, thdcap, THD_GET_INVTOP, 0);
+
+		assert(idx == 0);
+		/* if another comp is request reset, make sure the thread is not in an invocation! */
+		if (cur != s && invtop != 0) return 1;
+
+		if (cur == s) {
+			/* TODO: current comp reseting it's other threads? */
+			assert(invtop == 1 && tid == cos_thdid());
+			*r2 = (cos_cpuid() << 16) | tid;
+			*r3 = comp_entry;
+			/* because we're in an invocation from the current thread, set it's INV0IP. */
+			ret = cos_introspect(cap_ci, thdcap, THD_SET_INV0IP, entry);
+			assert(ret == 0);
+
+			return idx;
+		}
+
+		/* NOTE: if something ever runs that thread while this is happening, it could literally crash! */
+		assert(tid != cos_thdid());
+		ret = cos_introspect(cap_ci, thdcap, THD_SET_IP, entry);
+		assert(ret == 0);
+		ret = cos_introspect(cap_ci, thdcap, THD_SET_AX, (cos_cpuid() << 16) | tid);
+		assert(ret == 0);
+		ret = cos_introspect(cap_ci, thdcap, THD_SET_BX, idx);
+		assert(ret == 0);
+		ret = cos_introspect(cap_ci, thdcap, THD_SET_CX, COS_UPCALL_THD_CREATE);
+		assert(ret == 0);
+		ret = cos_introspect(cap_ci, thdcap, THD_SET_DX, entry);
+		assert(ret == 0);
+	} else {
+		assert(0);
+	}
+
+	return 0;
+}

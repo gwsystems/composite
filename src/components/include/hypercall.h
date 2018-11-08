@@ -21,6 +21,8 @@ enum hypercall_cntl {
 
 	HYPERCALL_NUMCOMPS_GET,
 	HYPERCALL_COMP_ID_GET,
+
+	HYPERCALL_COMP_REBOOT,
 };
 
 static inline int
@@ -243,6 +245,12 @@ hypercall_comp_id_get(char *comp_name)
 	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_ID_GET, word_1, word_2, word_3);
 
 	return ret;
+}
+
+static inline int
+hypercall_comp_reboot(spdid_t s)
+{
+	return cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_REBOOT, s, 0, 0);
 }
 
 #endif /* HYPERCALL_H */

@@ -296,6 +296,9 @@ struct sl_thd *sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd 
 
 struct sl_thd *sl_thd_init_ext(struct cos_aep_info *aep, struct sl_thd *sched_thd);
 
+void           sl_thd_stop(thdid_t tid);
+void           sl_thd_resume(thdid_t tid);
+
 void           sl_thd_free(struct sl_thd *t);
 void           sl_thd_exit();
 

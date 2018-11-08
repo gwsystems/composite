@@ -11,11 +11,15 @@
 #include "gen/osapi.h"
 #include "gen/common_types.h"
 #include "gen/cfe_time.h"
+#include "cFE_bookkeep.h"
 
+#include <channel.h>
 #include <cos_time.h>
 #include <event_trace.h>
 
 extern int number_apps;
+
+extern void reboot_req_fn(arcvcap_t r, void *d);
 
 void
 timer_fn_1hz(void *d)
@@ -63,13 +67,14 @@ extern void CFE_PSP_SensorISR(arcvcap_t, void *);
 void
 OS_SchedulerStart(cos_thd_fn_t main_delegate)
 {
-	struct sl_thd *       main_delegate_thread;
+	struct sl_thd        *main_delegate_thread, *reboot_req_thd;
 	sched_param_t         sp;
 	struct cfe_task_info *task_info;
 
 	sl_init(SCHED_PERIOD_US);
 	sl_usage_enable();
 
+	cfe_bookkeep_init();
 	main_delegate_thread = sl_thd_alloc(main_delegate, NULL);
 	sp                   = sched_param_pack(SCHEDP_PRIO, MAIN_DELEGATE_THREAD_PRIORITY);
 	sl_thd_param_set(main_delegate_thread, sp);
@@ -82,6 +87,10 @@ OS_SchedulerStart(cos_thd_fn_t main_delegate)
 
 	sensoremu_thd = sl_thd_aep_alloc(CFE_PSP_SensorISR, NULL, 1, CFE_HPET_SH_KEY, 0, 0);
 	assert(sensoremu_thd);
+	/* thread waiting on reboot requests, requests are asynchronosly sent by another component perhaps running on another core! */
+	reboot_req_thd = sl_thd_aep_alloc(reboot_req_fn, NULL, 0, CFE_REBOOT_REQ_KEY, 0, 0);
+	assert(reboot_req_thd);
+	sl_thd_param_set(reboot_req_thd, sched_param_pack(SCHEDP_PRIO, REBOOT_THREAD_PRIORITY));
 	schedinit_child();
 	PRINTC("Done with initialization. Starting scheduling loop\n");
 #ifdef CFE_RK_MULTI_CORE
@@ -149,6 +158,7 @@ OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_p
 
 		thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 0, 0, 0, 0, 0, NULL);
 		assert(thd);
+		cfe_bookkeep_thd_set(thd);
 		emu_stash_set_thdid(sl_thd_thdid(thd));
 	} else {
 		thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
@@ -377,6 +387,7 @@ OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options)
 	sl_lock_init(&mutexes[id].lock);
 	mutexes[id].prop.creator = sl_thdid();
 	strcpy(mutexes[id].prop.name, sem_name);
+	cfe_bookkeep_res_name_set(CFE_RES_MUTEX, id, sem_name);
 
 exit:
 	sl_lock_release(&mutex_data_lock);
@@ -396,6 +407,7 @@ OS_MutSemGive(uint32 sem_id)
 		goto ret;
 	}
 
+	cfe_bookkeep_res_status_reset(CFE_RES_MUTEX, sem_id, CFE_RES_LOCKED);
 	sl_lock_release(&mutexes[sem_id].lock);
 
 ret:
@@ -417,6 +429,7 @@ OS_MutSemTake(uint32 sem_id)
 	}
 
 	sl_lock_take(&mutexes[sem_id].lock);
+	cfe_bookkeep_res_status_set(CFE_RES_MUTEX, sem_id, CFE_RES_LOCKED);
 
 ret:
 	EVTTR_MUTEX_TAKE_END((short)sem_id);
@@ -469,6 +482,7 @@ OS_MutSemGetIdByName(uint32 *sem_id, const char *sem_name)
 	for (i = 0; i < OS_MAX_MUTEXES; i++) {
 		if (mutexes[i].used && (strcmp(mutexes[i].prop.name, (char *)sem_name) == 0)) {
 			*sem_id = i;
+			cfe_bookkeep_res_name_set(CFE_RES_MUTEX, i, sem_name);
 			goto exit;
 		}
 	}
@@ -529,10 +543,16 @@ struct sl_lock semaphore_data_lock = SL_LOCK_STATIC_INIT();
 struct semaphore binary_semaphores[OS_MAX_BIN_SEMAPHORES];
 struct semaphore counting_semaphores[OS_MAX_COUNT_SEMAPHORES];
 
+typedef enum {
+	SEM_TYPE_BIN = 0,
+	SEM_TYPE_COUNT,
+} sem_type_t;
+
 int32
-OS_SemaphoreCreate(struct semaphore *semaphores, uint32 max_semaphores, uint32 *sem_id, const char *sem_name,
+OS_SemaphoreCreate(sem_type_t t, uint32 max_semaphores, uint32 *sem_id, const char *sem_name,
                    uint32 sem_initial_value, uint32 options)
 {
+	struct semaphore *semaphores = (t == SEM_TYPE_BIN ? binary_semaphores : counting_semaphores);
 	uint32 id;
 	int32  result = OS_SUCCESS;
 
@@ -571,6 +591,7 @@ OS_SemaphoreCreate(struct semaphore *semaphores, uint32 max_semaphores, uint32 *
 	semaphores[id].first_waiter = 0;
 	strcpy(semaphores[id].name, sem_name);
 	sl_lock_init(&semaphores[id].lock);
+	cfe_bookkeep_res_name_set(t == SEM_TYPE_BIN ? CFE_RES_BINSEM : CFE_RES_COUNTSEM, id, sem_name);
 
 exit:
 	sl_lock_release(&semaphore_data_lock);
@@ -578,7 +599,7 @@ exit:
 }
 
 int32
-OS_SemaphoreFlush(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem_id)
+OS_SemaphoreFlush(sem_type_t t, uint32 max_semaphores, uint32 sem_id)
 {
 	PANIC("Unimplemented method!"); /* TODO: Implement me! */
 	return 0;
@@ -586,8 +607,9 @@ OS_SemaphoreFlush(struct semaphore *semaphores, uint32 max_semaphores, uint32 se
 
 
 int32
-OS_SemaphoreGive(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem_id)
+OS_SemaphoreGive(sem_type_t t, uint32 max_semaphores, uint32 sem_id)
 {
+	struct semaphore *semaphores = (t == SEM_TYPE_BIN ? binary_semaphores : counting_semaphores);
 	int32 result = OS_SUCCESS;
 	thdid_t wakeup_tid = 0;
 
@@ -601,6 +623,7 @@ OS_SemaphoreGive(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem
 	(semaphores[sem_id].count)++;
 	wakeup_tid = semaphores[sem_id].first_waiter;
 	assert(semaphores[sem_id].count <= OS_SEM_MAX_VAL);
+	cfe_bookkeep_res_status_reset(t == SEM_TYPE_BIN ? CFE_RES_BINSEM : CFE_RES_COUNTSEM, sem_id, CFE_RES_LOCKED);
 	sl_lock_release(&semaphores[sem_id].lock);
 	if (likely(wakeup_tid)) sl_thd_wakeup(wakeup_tid);
 
@@ -611,8 +634,9 @@ exit:
 #define OS_SEM_WAIT_US 5000
 
 int32
-OS_SemaphoreTake(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem_id)
+OS_SemaphoreTake(sem_type_t t, uint32 max_semaphores, uint32 sem_id)
 {
+	struct semaphore *semaphores = (t == SEM_TYPE_BIN ? binary_semaphores : counting_semaphores);
 	int32 result = OS_SUCCESS;
 
 	if (sem_id >= max_semaphores || !semaphores[sem_id].used) {
@@ -632,6 +656,7 @@ OS_SemaphoreTake(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem
 	assert(semaphores[sem_id].used);
 	(semaphores[sem_id].count)--;
 
+	cfe_bookkeep_res_status_set(t == SEM_TYPE_BIN ? CFE_RES_BINSEM : CFE_RES_COUNTSEM, sem_id, CFE_RES_LOCKED);
 	assert(semaphores[sem_id].count <= OS_SEM_MAX_VAL);
 	sl_lock_release(&semaphores[sem_id].lock);
 
@@ -641,8 +666,9 @@ exit:
 }
 
 int32
-OS_SemaphoreTimedWait(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem_id, uint32 msecs)
+OS_SemaphoreTimedWait(sem_type_t t, uint32 max_semaphores, uint32 sem_id, uint32 msecs)
 {
+	struct semaphore *semaphores = (t == SEM_TYPE_BIN ? binary_semaphores : counting_semaphores);
 	int32      result     = OS_SUCCESS;
 	microsec_t start_time = sl_now();
 	microsec_t max_wait   = sl_usec2cyc(msecs * 1000);
@@ -671,6 +697,7 @@ OS_SemaphoreTimedWait(struct semaphore *semaphores, uint32 max_semaphores, uint3
 		goto done;
 	}
 
+	cfe_bookkeep_res_status_set(t == SEM_TYPE_BIN ? CFE_RES_BINSEM : CFE_RES_COUNTSEM, sem_id, CFE_RES_LOCKED);
 	(semaphores[sem_id].count)--;
 
 done:
@@ -682,8 +709,9 @@ exit:
 }
 
 int32
-OS_SemaphoreDelete(struct semaphore *semaphores, uint32 max_semaphores, uint32 sem_id)
+OS_SemaphoreDelete(sem_type_t t, uint32 max_semaphores, uint32 sem_id)
 {
+	struct semaphore *semaphores = (t == SEM_TYPE_BIN ? binary_semaphores : counting_semaphores);
 	int32 result = OS_SUCCESS;
 	sl_lock_take(&semaphore_data_lock);
 
@@ -701,8 +729,9 @@ exit:
 }
 
 int32
-OS_SemaphoreGetIdByName(struct semaphore *semaphores, uint32 max_semaphores, uint32 *sem_id, const char *sem_name)
+OS_SemaphoreGetIdByName(sem_type_t t, uint32 max_semaphores, uint32 *sem_id, const char *sem_name)
 {
+	struct semaphore *semaphores = (t == SEM_TYPE_BIN ? binary_semaphores : counting_semaphores);
 	uint32 i;
 	int32  result = OS_SUCCESS;
 
@@ -721,6 +750,8 @@ OS_SemaphoreGetIdByName(struct semaphore *semaphores, uint32 max_semaphores, uin
 	for (i = 0; i < max_semaphores; i++) {
 		if (semaphores[i].used && (strcmp(semaphores[i].name, (char *)sem_name) == 0)) {
 			*sem_id = i;
+
+			cfe_bookkeep_res_name_set(t == SEM_TYPE_BIN ? CFE_RES_BINSEM : CFE_RES_COUNTSEM, i, sem_name);
 			goto exit;
 		}
 	}
@@ -739,14 +770,14 @@ exit:
 int32
 OS_BinSemCreate(uint32 *sem_id, const char *sem_name, uint32 sem_initial_value, uint32 options)
 {
-	return OS_SemaphoreCreate(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id, sem_name, sem_initial_value,
+	return OS_SemaphoreCreate(SEM_TYPE_BIN, OS_MAX_BIN_SEMAPHORES, sem_id, sem_name, sem_initial_value,
 	                          options);
 }
 
 int32
 OS_BinSemFlush(uint32 sem_id)
 {
-	return OS_SemaphoreFlush(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id);
+	return OS_SemaphoreFlush(SEM_TYPE_BIN, OS_MAX_BIN_SEMAPHORES, sem_id);
 }
 
 int32
@@ -755,7 +786,7 @@ OS_BinSemGive(uint32 sem_id)
 	int32 result = OS_SUCCESS;
 
 	EVTTR_BINSEM_GIVE_START((short)sem_id);
-	result = OS_SemaphoreGive(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id);
+	result = OS_SemaphoreGive(SEM_TYPE_BIN, OS_MAX_BIN_SEMAPHORES, sem_id);
 	EVTTR_BINSEM_GIVE_END((short)sem_id);
 
 	return result;
@@ -767,7 +798,7 @@ OS_BinSemTake(uint32 sem_id)
 	int32 result = OS_SUCCESS;
 
 	EVTTR_BINSEM_TAKE_START((short)sem_id);
-	result = OS_SemaphoreTake(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id);
+	result = OS_SemaphoreTake(SEM_TYPE_BIN, OS_MAX_BIN_SEMAPHORES, sem_id);
 	EVTTR_BINSEM_TAKE_END((short)sem_id);
 
 	return result;
@@ -779,7 +810,7 @@ OS_BinSemTimedWait(uint32 sem_id, uint32 msecs)
 	int32 result = OS_SUCCESS;
 
 	EVTTR_BINSEM_TIMEDWAIT_START((short)sem_id);
-	result = OS_SemaphoreTimedWait(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id, msecs);
+	result = OS_SemaphoreTimedWait(SEM_TYPE_BIN, OS_MAX_BIN_SEMAPHORES, sem_id, msecs);
 	EVTTR_BINSEM_TIMEDWAIT_END((short)sem_id);
 
 	return result;
@@ -788,13 +819,13 @@ OS_BinSemTimedWait(uint32 sem_id, uint32 msecs)
 int32
 OS_BinSemDelete(uint32 sem_id)
 {
-	return OS_SemaphoreDelete(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id);
+	return OS_SemaphoreDelete(SEM_TYPE_BIN, OS_MAX_BIN_SEMAPHORES, sem_id);
 }
 
 int32
 OS_BinSemGetIdByName(uint32 *sem_id, const char *sem_name)
 {
-	return OS_SemaphoreGetIdByName(binary_semaphores, OS_MAX_BIN_SEMAPHORES, sem_id, sem_name);
+	return OS_SemaphoreGetIdByName(SEM_TYPE_BIN, OS_MAX_BIN_SEMAPHORES, sem_id, sem_name);
 }
 
 int32
@@ -827,7 +858,7 @@ exit:
 int32
 OS_CountSemCreate(uint32 *sem_id, const char *sem_name, uint32 sem_initial_value, uint32 options)
 {
-	return OS_SemaphoreCreate(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id, sem_name, sem_initial_value,
+	return OS_SemaphoreCreate(SEM_TYPE_COUNT, OS_MAX_COUNT_SEMAPHORES, sem_id, sem_name, sem_initial_value,
 	                          options);
 }
 
@@ -837,7 +868,7 @@ OS_CountSemGive(uint32 sem_id)
 	int32 result = OS_SUCCESS;
 
 	EVTTR_COUNTSEM_GIVE_START((short)sem_id);
-	result = OS_SemaphoreGive(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id);
+	result = OS_SemaphoreGive(SEM_TYPE_COUNT, OS_MAX_COUNT_SEMAPHORES, sem_id);
 	EVTTR_COUNTSEM_GIVE_END((short)sem_id);
 
 	return result;
@@ -849,7 +880,7 @@ OS_CountSemTake(uint32 sem_id)
 	int32 result = OS_SUCCESS;
 
 	EVTTR_COUNTSEM_TAKE_START((short)sem_id);
-	result = OS_SemaphoreTake(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id);
+	result = OS_SemaphoreTake(SEM_TYPE_COUNT, OS_MAX_COUNT_SEMAPHORES, sem_id);
 	EVTTR_COUNTSEM_TAKE_END((short)sem_id);
 
 	return result;
@@ -861,7 +892,7 @@ OS_CountSemTimedWait(uint32 sem_id, uint32 msecs)
 	int32 result = OS_SUCCESS;
 
 	EVTTR_COUNTSEM_TIMEDWAIT_START((short)sem_id);
-	result = OS_SemaphoreTimedWait(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id, msecs);
+	result = OS_SemaphoreTimedWait(SEM_TYPE_COUNT, OS_MAX_COUNT_SEMAPHORES, sem_id, msecs);
 	EVTTR_COUNTSEM_TIMEDWAIT_END((short)sem_id);
 
 	return result;
@@ -870,13 +901,13 @@ OS_CountSemTimedWait(uint32 sem_id, uint32 msecs)
 int32
 OS_CountSemDelete(uint32 sem_id)
 {
-	return OS_SemaphoreDelete(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id);
+	return OS_SemaphoreDelete(SEM_TYPE_COUNT, OS_MAX_COUNT_SEMAPHORES, sem_id);
 }
 
 int32
 OS_CountSemGetIdByName(uint32 *sem_id, const char *sem_name)
 {
-	return OS_SemaphoreGetIdByName(counting_semaphores, OS_MAX_COUNT_SEMAPHORES, sem_id, sem_name);
+	return OS_SemaphoreGetIdByName(SEM_TYPE_COUNT, OS_MAX_COUNT_SEMAPHORES, sem_id, sem_name);
 }
 
 int32
