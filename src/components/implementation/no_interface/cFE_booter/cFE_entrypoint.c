@@ -120,6 +120,7 @@ cos_init_delegate(void *data)
 	timer1hz_thd = sl_thd_alloc(timer_fn_1hz, NULL);
 	assert(timer1hz_thd);
 	sl_thd_param_set(timer1hz_thd, sched_param_pack(SCHEDP_PRIO, TIMER_THREAD_PRIORITY));
+	OS_printf("Thread id of 1HZ TIMER: %u\n", sl_thd_thdid(timer1hz_thd));
 
 	OS_printf("CFE_PSP: starting sensor emulation thread..\n");
 	assert(sensoremu_thd);

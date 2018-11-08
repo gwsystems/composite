@@ -20,8 +20,9 @@
 #define SENSOREMU_USE_HPET
 #define CFE_PSP_SENSOR_THDPRIO 4
 
-#define CFE_PRIO_MAXNUM 256
-#define CFE_INVERT_PRIO CFE_PRIO_MAXNUM
+#define CFE_PRIO_MINNUM 1
+#define CFE_PRIO_MAXNUM 255
+#define CFE_INVERT_PRIO (CFE_PRIO_MAXNUM+1)
 
 /*
  * ThreadId overrides for apps
