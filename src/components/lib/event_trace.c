@@ -202,6 +202,7 @@ retry:
 
 #else
 
+#include <sl_lock.h>
 #ifdef EVENT_TRACE_ENABLE
 /* you should add channel and capmgr to your interface dependency list */
 #include "../interface/channel/channel.h"
@@ -212,6 +213,10 @@ static volatile vaddr_t evttrace_vaddr = 0;
 static volatile struct ck_ring *evttrace_ring = NULL;
 static volatile struct event_trace_info *evttrace_buf = NULL;
 static evttrace_write_fn_t evttrace_write_fn = NULL;
+static volatile struct sl_lock evttrace_wlock = SL_LOCK_STATIC_INIT();
+
+#define EVTTRACE_WLOCK_TAKE() (sl_lock_take(&evttrace_wlock))
+#define EVTTRACE_WLOCK_GIVE() (sl_lock_release(&evttrace_wlock))
 
 #define EVTTRACE_RING ((struct ck_ring *)evttrace_ring)
 #define EVTTRACE_BUF ((struct event_trace_info *)evttrace_buf)
@@ -290,12 +295,12 @@ event_trace_client_init(evttrace_write_fn_t wrfn)
 	evttrace_write_fn = wrfn;
 	/* test max enq in ck rings */
 	for (i = 0; i < EVTTRACE_RING_SIZE-1; i++) {
-		int ret = ck_ring_enqueue_mpsc_evttrace(EVTTRACE_RING, EVTTRACE_BUF, &ei);
+		int ret = ck_ring_enqueue_spsc_evttrace(EVTTRACE_RING, EVTTRACE_BUF, &ei);
 
 		assert(ret == true);
 	}
 
-	i = ck_ring_enqueue_mpsc_evttrace(EVTTRACE_RING, EVTTRACE_BUF, &ei);
+	i = ck_ring_enqueue_spsc_evttrace(EVTTRACE_RING, EVTTRACE_BUF, &ei);
 	assert(i == false);
 
 	PRINTC("Client init done! [capacity: %u][size:%u]\n", ck_ring_capacity(EVTTRACE_RING), ck_ring_size(EVTTRACE_RING));
@@ -336,7 +341,7 @@ event_batch_process(int *processed)
 
 	memset(&eti, 0, sizeof(struct event_trace_info));
 	/* mpsc because multiple cfe threads can write. only one rk thread will read */
-	while (ck_ring_dequeue_mpsc_evttrace(EVTTRACE_RING, EVTTRACE_BUF, &eti) == true) {
+	while (ck_ring_dequeue_spsc_evttrace(EVTTRACE_RING, EVTTRACE_BUF, &eti) == true) {
 
 #ifdef EVTTRACE_DEBUG_TRACE
 		event_decode(&eti, sizeof(struct event_trace_info));
@@ -376,9 +381,10 @@ event_trace(struct event_trace_info *ei)
 	/* don't log yet or don't log for components that don't initialize, ex: sl events only for cFE..*/
 	if (unlikely(evttrace_initialized == 0)) return 0;
 
+	EVTTRACE_WLOCK_TAKE();
 retry:
 	/* mpsc because multiple cfe threads can write. only one rk thread will read */
-	if (ck_ring_enqueue_mpsc_evttrace(EVTTRACE_RING, EVTTRACE_BUF, ei) != true) {
+	if (ck_ring_enqueue_spsc_evttrace(EVTTRACE_RING, EVTTRACE_BUF, ei) != true) {
 		count++;
 		/* TODO: perhaps spit out number of skipped msgs or write directly to serial or something?? */
 		if (unlikely(count >= EVTTRACE_RETRY_MAX)) {
@@ -393,6 +399,7 @@ retry:
 	queued++;
 
 done:
+	EVTTRACE_WLOCK_GIVE();
 	if (unlikely(ret == -1)) printc("?");
 	else if (unlikely(queued % 100000 == 0)) printc("%s", (skipped - last_skipped) ? "!" : "#");
 	last_skipped = skipped;
