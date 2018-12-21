@@ -31,6 +31,7 @@ struct cfe_bookkeep_info {
 	struct sl_thd *thds[MAX_NUM_THREADS];
 	unsigned int appid;
 	thdid_t      inittid;
+	int          in_use;
 
 	struct cfe_resource_status queues[OS_MAX_QUEUES];
 	struct cfe_resource_status mutexes[OS_MAX_MUTEXES];
@@ -67,5 +68,7 @@ void cfe_bookkeep_res_status_reset(cfe_res_t r, unsigned int id, int flag);
 int cfe_bookkeep_res_status(cfe_res_t r, unsigned int id);
 void cfe_bookkeep_res_name_set(cfe_res_t r, unsigned int id, char *name);
 int cfe_bookkeep_res_find(cfe_res_t r, char *name, unsigned int *id);
+
+spdid_t cfe_bookkeep_thdapp_get(thdid_t);
 
 #endif /* CFE_BOOKKEEP_H */

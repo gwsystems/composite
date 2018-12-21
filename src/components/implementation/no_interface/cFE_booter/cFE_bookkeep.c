@@ -16,6 +16,7 @@ cfe_bookkeep_app_set(spdid_t s, unsigned int appid, struct sl_thd *initthd)
 	cfe_bkinfo[s].appid = appid;
 	cfe_bkinfo[s].inittid = sl_thd_thdid(initthd);
 	cfe_bkinfo[s].thds[sl_thd_thdid(initthd)] = initthd;
+	cfe_bkinfo[s].in_use = 1;
 }
 
 unsigned int
@@ -107,4 +108,30 @@ cfe_bookkeep_res_find(cfe_res_t r, char *name, unsigned int *id)
 	if (i == max) return -EINVAL;
 
 	return 0;
+}
+
+spdid_t
+cfe_bookkeep_thdapp_get(thdid_t tid)
+{
+	int i = 0;
+	spdid_t s = 0;
+
+	for (i = 0; i < MAX_NUM_SPDS; i++) {
+		int j;
+
+		if (!cfe_bkinfo[i].in_use) continue;
+
+		for (j = 0; j < MAX_NUM_THREADS; j++) {
+			if (!cfe_bkinfo[i].thds[j]) continue;
+
+			if (sl_thd_thdid(cfe_bkinfo[i].thds[j]) != tid) continue;
+
+			s = i;
+			break;
+		}
+
+		if (s) break;
+	}
+
+	return s;
 }

@@ -53,7 +53,20 @@ reboot_req_fn(arcvcap_t r, void *d)
 
 		assert(*head < MAX_REQS && *tail < MAX_REQS);
 		while (*head < *tail) {
-			spdid_t s = *((spdid_t *)(addr + 12 + ((*head)*sizeof(spdid_t))));
+			spdid_t s = 0;
+			thdid_t t = 0;
+			unsigned int req = *((unsigned int *)(addr + 12 + ((*head)*sizeof(unsigned int))));
+
+			if (req >> 16) {
+				t = ((req << 16) >> 16);
+				assert(t);
+				PRINTC("Request with thread: %u\n", t);
+
+				s = cfe_bookkeep_thdapp_get(t);
+				assert(s);
+			} else {
+				s = (spdid_t)req;
+			}
 
 			PRINTC("Request for reboot: %u\n", s);
 			assert(s);
@@ -65,5 +78,3 @@ reboot_req_fn(arcvcap_t r, void *d)
 		}
 	}
 }
-
-

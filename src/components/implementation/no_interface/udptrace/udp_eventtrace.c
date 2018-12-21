@@ -42,8 +42,14 @@ static char *cfe_apps[] = {
 //	"i42", /* should not fail, not tested!, high-critical task. theoretically, can't just reboot this app! */
 };
 
+/*
+ * NOTE: This is only for a naive test!!..
+ * test rebooting a component with it's thread id, should be consistent across executions, tested on Qemu..
+ */
+#define TEST_KITTO_THD_ID 94
+
 int
-udp_request_reboot(char *app)
+udp_request_rebootcomp(char *app)
 {
 	static int first_req = 1;
 	static vaddr_t reqaddr = NULL;
@@ -54,6 +60,7 @@ udp_request_reboot(char *app)
 	unsigned int cur_val = 0;
 	static int *ret = NULL;
 	static asndcap_t snd = 0;
+	unsigned int *req = NULL;
 
 	if (unlikely(shmid == 0)) {
 		shmid = channel_shared_page_map(CFE_REBOOT_REQ_KEY, &reqaddr, &npages);
@@ -73,7 +80,51 @@ udp_request_reboot(char *app)
 	s = hypercall_comp_id_get(app);
 	PRINTC("Requested to reboot: %s, %u\n", app, s);
 	assert(s > 0);
-	*(spdid_t *)(reqaddr + 12 + ((cur_val)*sizeof(spdid_t))) = s;
+	req = (unsigned int *)(reqaddr + 12 + ((cur_val)*sizeof(unsigned int)));
+	/* for req with comp id, only have lower order 16bits set */
+	assert(s < (1<<15));
+	*req = s;
+	cos_asnd(snd, 1);
+
+	if (unlikely(first_req == 1)) first_req = 0;
+
+	return 0;
+}
+
+/* FIXME: remove duplicate code between this func and xxx_rebootcomp func */
+int
+udp_request_rebootthd(thdid_t tid)
+{
+	static int first_req = 1;
+	static vaddr_t reqaddr = NULL;
+	static cbuf_t shmid = 0;
+	static unsigned long npages = 0;
+	static unsigned int *tail = NULL;
+	unsigned int cur_val = 0;
+	static int *ret = NULL;
+	static asndcap_t snd = 0;
+	unsigned int *req = NULL;
+
+	if (unlikely(shmid == 0)) {
+		shmid = channel_shared_page_map(CFE_REBOOT_REQ_KEY, &reqaddr, &npages);
+		if (shmid == 0) return -1;
+
+		assert(reqaddr && npages == 1);
+		tail = (unsigned int *)(reqaddr + 4);
+		ret = (int *)(reqaddr + 8);
+		snd = capmgr_asnd_key_create(CFE_REBOOT_REQ_KEY);
+		assert(snd);
+	}
+
+	/* reboot func is busy! lets try again later */
+	if (unlikely(first_req == 0 && *ret == 0)) return 0;
+	/* single producer!! */
+	cur_val = (unsigned int)ps_faa((unsigned long *)tail, 1);
+	PRINTC("Requested to reboot (with thd): %u\n", tid);
+	assert(tid > 0);
+	req = (unsigned int *)(reqaddr + 12 + ((cur_val)*sizeof(unsigned int)));
+	/* set higher order 16bits to non-zero, to identify that it's a thread-identified reboot request */
+	*req = (1 << 16) | tid;
 	cos_asnd(snd, 1);
 
 	if (unlikely(first_req == 1)) first_req = 0;
@@ -114,7 +165,16 @@ udp_writeout(unsigned char *buf, unsigned int sz)
 		int sz = sizeof(cfe_apps)/sizeof(cfe_apps[0]);
 
 		test_last_reboot = now;
-		udp_request_reboot(cfe_apps[reboot_count % sz]);
+		/*
+		 * uncomment udp_request_rebootcomp() for rebooting
+		 * a component using a component name/id.
+		 *
+		 * uncomment udp_request_rebootthd() for rebooting
+		 * a component identified by one of it's thread id
+		 * (tested only kit_to which is single threaded!)..
+		 */
+		//udp_request_rebootcomp(cfe_apps[reboot_count % sz]);
+		udp_request_rebootthd(TEST_KITTO_THD_ID);
 		reboot_count++;
 	}
 #endif
