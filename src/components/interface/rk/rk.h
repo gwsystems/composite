@@ -6,6 +6,7 @@
 #define RK_MAX_SZ (RK_MAX_PAGES * PAGE_SIZE)
 #endif
 
+int     rk_init(int shmid);
 int     test_entry(int arg1, int arg2, int arg3, int arg4);
 int     test_fs(int arg1, int arg2, int arg3, int arg4);
 int     get_boot_done(void);

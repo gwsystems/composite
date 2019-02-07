@@ -28,6 +28,12 @@
 /* link to -lacom_client library!! */
 
 static inline int
+rk_init_acom(struct sinv_async_info *rk_sinv_info, int shmid, tcap_res_t r, tcap_prio_t p)
+{
+	return acom_client_request(rk_sinv_info, RK_INIT, shmid, 0, 0, r, p);
+}
+
+static inline int
 rk_socket_acom(struct sinv_async_info *rk_sinv_info, int domain, int type, int protocol, tcap_res_t r, tcap_prio_t p)
 {
 	return acom_client_request(rk_sinv_info, RK_SOCKET, domain, type, protocol, r, p);
@@ -171,6 +177,17 @@ rk_get_shm_callvaddr_acom(cbuf_t *shmid)
 	*shmid = id_calldata[cos_thdid()];
 
 	return addr_calldata[cos_thdid()];
+}
+
+static inline int
+rk_inv_init_acom(struct sinv_async_info *rk_sinv_info, tcap_res_t r, tcap_prio_t p)
+{
+	cbuf_t id = 0;
+	vaddr_t addr = 0;
+
+	addr = rk_get_shm_callvaddr_acom(&id);
+
+	return rk_init_acom(rk_sinv_info, id, r, p);
 }
 
 static inline void *

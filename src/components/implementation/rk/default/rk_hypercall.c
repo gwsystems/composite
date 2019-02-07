@@ -12,6 +12,7 @@
 #include <rk.h>
 #include <memmgr.h>
 #include <fcntl.h>
+#include <rk_thddata.h>
 
 int     rump___sysimpl_socket30(int, int, int);
 int     rump___sysimpl_bind(int, const struct sockaddr *, socklen_t);
@@ -39,30 +40,17 @@ int     rump___sysimpl_fcntl(int, int, void *);
 #define __SOCKADDR_NOLEN(s) do { if ((s)->sa_family >= (1 << 8)) (s)->sa_family >>= 8; } while (0)
 
 /* These synchronous invocations involve calls to and from a RumpKernel */
-//extern struct cringbuf *vmrb;
-/* TODO when rumpbooter is its own interface, have this as an exported symbol */
-struct cringbuf *vmrb = NULL;
 
 static vaddr_t
 rk_thdcalldata_shm_map(cbuf_t id)
 {
-	static cbuf_t id_calldata[MAX_NUM_THREADS] = { 0 };
-	static vaddr_t addr_calldata[MAX_NUM_THREADS] = { 0 };
-	unsigned long npages = 0;
+	return rk_thddata_shm_get(&id);
+}
 
-	assert(id);
-	/* FIXME: component rebooted can alloc new shm and use it! */
-	if (unlikely(id_calldata[cos_thdid()] != id)) {
-		assert(id);
-		npages = memmgr_shared_page_map(id, &addr_calldata[cos_thdid()]);
-		assert(npages == RK_MAX_PAGES);
-
-		id_calldata[cos_thdid()] = id;
-	}
-
-	assert(id_calldata[cos_thdid()] == id && addr_calldata[cos_thdid()]);
-
-	return addr_calldata[cos_thdid()];
+int
+rk_init(int id)
+{
+	return rk_thddata_shm_get((cbuf_t *)&id);
 }
 
 int
@@ -161,7 +149,13 @@ get_boot_done(void) {
 int
 rk_socket(int domain, int type, int protocol)
 {
-	return rump___sysimpl_socket30(domain, type, protocol);
+	int ret = 0, ret2 = 0;
+
+	ret = rump___sysimpl_socket30(domain, type, protocol);
+	if (ret >= 0) ret2 = rk_thddata_sock_set(ret);
+	assert(ret2 >= 0);
+
+	return ret;
 }
 
 /* going with robbie's lead.. rk has different flag values?? define them here for mappings */

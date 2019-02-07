@@ -27,6 +27,8 @@ posix_rk_thd_init(thdid_t tid)
 	assert(rk_instance > 0);
 	acom_client_thread_init(&sinv_info, tid, 0, 0, RK_SKEY(rk_instance, rk_thd_instance));
 	rk_thd_instance++;
+
+	rk_inv_init_acom(&sinv_info, 0, 0);
 }
 
 void

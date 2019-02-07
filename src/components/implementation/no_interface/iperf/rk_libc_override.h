@@ -19,6 +19,8 @@ rk_libcmod_init(void)
 	posix_syscall_override((cos_syscall_t)rk_inv_select, __NR__newselect);
 	posix_syscall_override((cos_syscall_t)rk_inv_ftruncate, __NR_ftruncate64);
 
+	rk_inv_init();
+
 	return 0;
 }
 

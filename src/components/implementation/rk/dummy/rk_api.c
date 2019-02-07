@@ -37,6 +37,12 @@ get_boot_done(void)
 }
 
 int
+rk_init(int shmid)
+{
+	return sinv_client_call(&sinv_info, RK_INIT, shmid, 0, 0);
+}
+
+int
 rk_socket(int domain, int type, int protocol)
 {
 	return sinv_client_call(&sinv_info, RK_SOCKET, domain, type, protocol);

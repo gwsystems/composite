@@ -18,6 +18,7 @@
 #include "rk_json_cfg.h"
 #include "rk_sched.h"
 #include <rk_types.h>
+#include <rk_thddata.h>
 
 extern struct cos_component_information cos_comp_info;
 
@@ -190,6 +191,7 @@ cos_init(void)
 	PRINTC("Greeting key: %s\n", my_info->kvp[GREETING_KEY].key);
 	PRINTC("Greeting value: %s\n", my_info->kvp[GREETING_KEY].value);
 
+	rk_thddata_init();
 	rk_sched_init(RK_SCHED_PERIOD_US);
 
 	PRINTC("Setting up RK\n");

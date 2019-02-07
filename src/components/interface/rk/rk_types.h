@@ -9,6 +9,7 @@ typedef enum {
 	TEST_ENTRY = 0,
 	TEST_FS,
 	GET_BOOT_DONE,
+	RK_INIT,
 	RK_SOCKET,
 	RK_CONNECT,
 	RK_BIND,

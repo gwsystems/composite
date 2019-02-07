@@ -29,7 +29,7 @@ static cycles_t test_last_reboot = 0;
 
 static char *cfe_apps[] = {
 	"kit_to", /* reboots fine. needs the cosmos side to do "Enable Telemetry" after reboot and everything just works! */
-//	"kit_ci", /* TODO: socket connection not working on reboot. perhaps more bookkeeping? */
+	"kit_ci", /* reboots fine now. telemetry output connection (obviously) is not affected on ci reboot!!  */
 //	"kit_sch", /* multi-threaded.. reboot limitation! */
 //	"ds", /* TODO: Test */
 //	"fm", /* multi-threaded.. reboot limitation! */

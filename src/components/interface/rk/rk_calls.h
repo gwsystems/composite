@@ -19,6 +19,9 @@ rk_api(rk_api_t api)
 	case GET_BOOT_DONE:
 		apiaddr = (vaddr_t)&get_boot_done;
 		break;
+	case RK_INIT:
+		apiaddr = (vaddr_t)&rk_init;
+		break;
 	case RK_SOCKET:
 		apiaddr = (vaddr_t)&rk_socket;
 		break;

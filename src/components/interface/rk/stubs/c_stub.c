@@ -28,6 +28,17 @@ rk_get_shm_callvaddr(cbuf_t *shmid)
 	return addr_calldata[cos_thdid()];
 }
 
+int
+rk_inv_init(void)
+{
+	vaddr_t addr;
+	cbuf_t id;
+
+	addr = rk_get_shm_callvaddr(&id);
+
+	return rk_init(id);
+}
+
 void *
 rk_inv_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 {
