@@ -3,11 +3,13 @@
 struct cos_compinfo booter_info;
 thdcap_t            termthd[NUM_CPU] = { 0 }; /* switch to this to shutdown */
 unsigned long       tls_test[NUM_CPU][TEST_NTHDS];
+unsigned long	    thd_test[TEST_NTHDS];
 
 #include <llprint.h>
 
 /* For Div-by-zero test */
 int num = 1, den = 0;
+int count = 0;
 
 void
 term_fn(void *d)
