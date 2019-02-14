@@ -40,6 +40,9 @@
 #include <sl_xcpu.h>
 #include <heap.h>
 
+extern int thd_dispatch_slowpath(struct sl_thd *t, sched_tok_t tok);
+extern int sl_thd_dispatch_slowpath(struct sl_thd *t, sched_tok_t tok);
+
 /* Critical section (cs) API to protect scheduler data-structures */
 struct sl_cs {
 	union sl_cs_intern {
@@ -49,6 +52,13 @@ struct sl_cs {
 		} PS_PACKED   s;
 		unsigned long v;
 	} u;
+};
+
+struct sl_scb_info {
+	thdcap_t curr_thd;
+	tcap_prio_t curr_prio;
+
+	cycles_t timer_next;
 };
 
 struct sl_global_cpu {
@@ -65,6 +75,7 @@ struct sl_global_cpu {
 	cycles_t    timer_next;
 	tcap_time_t timeout_next;
 
+	struct sl_scb_info scb_info;
 	struct ps_list_head event_head; /* all pending events for sched end-point */
 };
 
@@ -74,6 +85,12 @@ static inline struct sl_global_cpu *
 sl__globals_cpu(void)
 {
 	return &(sl_global_cpu_data[cos_cpuid()]);
+}
+
+static inline struct sl_scb_info *
+sl_scb_info_cpu(void)
+{
+	return &(sl__globals_cpu()->scb_info);
 }
 
 static inline void
@@ -341,6 +358,8 @@ sl_timeout_oneshot(cycles_t absolute_us)
 {
 	sl__globals_cpu()->timer_next   = absolute_us;
 	sl__globals_cpu()->timeout_next = tcap_cyc2time(absolute_us);
+
+	sl_scb_info_cpu()->timer_next   = absolute_us;
 }
 
 static inline void
@@ -396,11 +415,37 @@ sl_thd_is_runnable(struct sl_thd *t)
 }
 
 static inline int
+sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
+{
+	struct sl_scb_info *scb = sl_scb_info_cpu();
+
+	__asm__ __volatile__ (				\
+		"movl $2f, (%%eax)\n\t"			\
+		"movl %%esp, 4(%%eax)\n\t"		\
+		"cmp $0, 4(%%ebx)\n\t"			\
+		"je 1f\n\t"				\
+		"movl %%edx, (%%ecx)\n\t"		\
+		"movl 4(%%ebx), %%esp\n\t"		\
+		"jmp *(%%ebx)\n\t"			\
+		"1:\n\t"				\
+		"call thd_dispatch_slowpath\n\t"	\
+		"2:\n\t"				\
+		"movl $0, 4(%%ebx)\n\t"			\
+		:
+		: "a" (sl_thd_dcbinfo(curr)), "b" (sl_thd_dcbinfo(next)), "S" (next), "D" (tok),
+		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
+		: "memory", "cc");
+
+	return 0;
+}
+
+static inline int
 sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
 	struct sl_global_cpu   *g   = sl__globals_cpu();
+	struct sl_scb_info     *scb = sl_scb_info_cpu();
 	int ret = 0;
 
 	if (t->properties & SL_THD_PROPERTY_SEND) {
@@ -409,15 +454,8 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
 				  g->timeout_next, g->sched_rcv, tok);
 	} else {
-		ret = cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ?
-				    TCAP_TIME_NIL : g->timeout_next, tok);
-		if (likely(t != g->sched_thd || ret != -EPERM)) return ret;
-
-		/*
-		 * Attempting to activate scheduler thread failed for no budget in it's tcap.
-		 * Force switch to the scheduler with current tcap.
-		 */
-		return cos_switch(sl_thd_thdcap(g->sched_thd), 0, t->prio, 0, g->sched_rcv, tok);
+		return sl_thd_dispatch(t, tok, sl_thd_curr());
+		//return sl_thd_dispatch_slowpath(t, tok);
 	}
 }
 

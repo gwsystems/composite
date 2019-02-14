@@ -190,6 +190,15 @@ update:
 	return 0;
 }
 
+int
+sl_thd_dispatch_slowpath(struct sl_thd *t, sched_tok_t tok)
+{
+	struct sl_global_cpu *g = sl__globals_cpu();
+
+	/* no timeouts for now! */
+	return cos_switch(sl_thd_thdcap(t), g->sched_tcap, t->prio, TCAP_TIME_NIL /*t == g->sched_thd ? TCAP_TIME_NIL : g->timeout_next*/, 0 /* don't switch to scheduler in the middle of this! */, tok);
+}
+
 /*
  * Wake "t" up if it was previously blocked on cos_rcv and got
  * to run before the scheduler (tcap-activated)!

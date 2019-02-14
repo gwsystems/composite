@@ -31,6 +31,59 @@
 #define N_TESTTHDS 8
 #define WORKITERS 10000
 
+#define N_TESTTHDS_PERF 2
+#define PERF_ITERS 1000000
+
+static volatile cycles_t mid_cycs = 0;
+static volatile int testing = 1;
+
+void
+test_thd_perffn(void *data)
+{
+	cycles_t start_cycs = 0, end_cycs = 0, wc_cycs = 0, total_cycs = 0;
+	unsigned int i = 0;
+
+	rdtscll(start_cycs);
+	sl_thd_yield(0);
+	rdtscll(end_cycs);
+	assert(mid_cycs && mid_cycs > start_cycs && mid_cycs < end_cycs);
+
+	for (i = 0; i < PERF_ITERS; i++) {
+		cycles_t diff1_cycs = 0, diff2_cycs = 0;
+
+		mid_cycs = 0;
+		rdtscll(start_cycs);
+		sl_thd_yield(0);
+		rdtscll(end_cycs);
+		assert(mid_cycs && mid_cycs > start_cycs && mid_cycs < end_cycs);
+
+		diff1_cycs = mid_cycs - start_cycs;
+		diff2_cycs = end_cycs - mid_cycs;
+
+		if (diff1_cycs > wc_cycs) wc_cycs = diff1_cycs;
+		if (diff2_cycs > wc_cycs) wc_cycs = diff2_cycs;
+		total_cycs += (diff1_cycs + diff2_cycs);
+	}
+
+	PRINTC("SWITCH UBENCH: avg: %llu, wc: %llu, iters:%u\n", (total_cycs / (2 * PERF_ITERS)), wc_cycs, PERF_ITERS);
+	testing = 0;
+	/* done testing! let the spinfn cleanup! */
+	sl_thd_yield(0);
+
+	sl_thd_exit();
+}
+
+void
+test_thd_spinfn(void *data)
+{
+	while (likely(testing)) {
+		rdtscll(mid_cycs);
+		sl_thd_yield(0);
+	}
+
+	sl_thd_exit();
+}
+
 void
 test_thd_fn(void *data)
 {
@@ -44,6 +97,22 @@ test_thd_fn(void *data)
 }
 
 void
+test_yield_perf(void)
+{
+	int                     i;
+	struct sl_thd *         threads[N_TESTTHDS_PERF];
+	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = 31}};
+
+	for (i = 0; i < N_TESTTHDS_PERF; i++) {
+		if (i == 1) threads[i] = sl_thd_alloc(test_thd_perffn, (void *)&threads[0]);
+		else        threads[i] = sl_thd_alloc(test_thd_spinfn, NULL);
+		assert(threads[i]);
+		sl_thd_param_set(threads[i], sp.v);
+		PRINTC("Thread %u:%lu created\n", sl_thd_thdid(threads[i]), sl_thd_thdcap(threads[i]));
+	}
+}
+
+void
 test_yields(void)
 {
 	int                     i;
@@ -51,9 +120,10 @@ test_yields(void)
 	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = 10}};
 
 	for (i = 0; i < N_TESTTHDS; i++) {
-		threads[i] = sl_thd_alloc(test_thd_fn, (void *)(intptr_t)(i + 1));
+		threads[i] = sl_thd_alloc(test_thd_fn, (void *)i);
 		assert(threads[i]);
 		sl_thd_param_set(threads[i], sp.v);
+		PRINTC("Thread %u:%lu created\n", sl_thd_thdid(threads[i]), sl_thd_thdcap(threads[i]));
 	}
 }
 
@@ -151,9 +221,10 @@ cos_init(void)
 	cos_defcompinfo_init();
 	sl_init(SL_MIN_PERIOD_US);
 
-	//	test_yields();
-	//	test_blocking_directed_yield();
-	test_timeout_wakeup();
+	test_yield_perf();
+	//test_yields();
+	//test_blocking_directed_yield();
+	//test_timeout_wakeup();
 
 	sl_sched_loop_nonblock();
 
