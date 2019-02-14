@@ -362,7 +362,7 @@ struct sl_lock futex_lock = SL_LOCK_STATIC_INIT();
 int
 cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct timespec *timeout)
 {
-	cycles_t   deadline;
+	cycles_t   deadline = sl_now();
 	microsec_t wait_time;
 	struct futex_waiter waiter = (struct futex_waiter) {
 		.thdid = sl_thdid()
