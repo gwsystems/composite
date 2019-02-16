@@ -423,7 +423,7 @@ test_asnd_fn_1(void *d)
             bc = global_time[1] - global_time[0];
         }
         
-        PRINTC("LOL WC: %llu, %llu, %llu\n", bc, wc, (global_time[1]-global_time[0]));
+//        PRINTC("LOL WC: %llu, %llu, %llu\n", bc, wc, (global_time[1]-global_time[0]));
     
     }
     PRINTC("LOL WC: %llu, %llu, %llu\n", bc, wc, tot/TEST_IPI_ITERS);
@@ -444,11 +444,7 @@ test_sched_loop_1(void)
 
         if(cos_cpuid() == TEST_RCV_CORE){
             do {
-                if(cos_cpuid() == TEST_SND_CORE)
-
-                    ret = cos_switch(thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync());
-                else
-                    ret = cos_switch(spinner_thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX + 2, 0, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync());
+                ret = cos_switch(spinner_thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX + 2, 0, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync());
             } while (ret == -EAGAIN);
         }
         while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
@@ -468,11 +464,7 @@ done:
 
         if(cos_cpuid() == TEST_SND_CORE) {
             do {
-                if(cos_cpuid() == TEST_SND_CORE)
-
-                    ret = cos_switch(thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync());
-                else
-                    ret = cos_switch(spinner_thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX + 2, 0, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync());
+                ret = cos_switch(thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync());
             } while (ret == -EAGAIN);
         }
 	}
