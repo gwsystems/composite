@@ -364,11 +364,9 @@ static void
 rcv_spinner(void *d)
 {
     while (!done_test){
-//    while(1){
         rdtscll(global_time[0]);
     }
 
-//    while (1) test_rcv(r)
     while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 }
 
@@ -422,9 +420,6 @@ test_asnd_fn_1(void *d)
         if (global_time[1] - global_time[0] < bc || bc == 0){
             bc = global_time[1] - global_time[0];
         }
-        
-//        PRINTC("LOL WC: %llu, %llu, %llu\n", bc, wc, (global_time[1]-global_time[0]));
-    
     }
     PRINTC("LOL WC: %llu, %llu, %llu\n", bc, wc, tot/TEST_IPI_ITERS);
     EXPECT_LLU_LT((long long unsigned)((tot / TEST_IPI_ITERS) * MAX_THRS), wc , "Test IPI Multi-Core MAX");
@@ -472,6 +467,62 @@ done:
 }
 
 
+
+// RCV TEST #2
+
+static void
+rcv_spinner_2(void *d)
+{
+    int i = 0;
+    while (!done_test){
+        rdtscll(global_time[(i++%2)]);
+    }
+
+    PRINTC("D\n");
+    while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
+}
+
+static void
+test_asnd_fn_2(void *d)
+{
+    PRINTC("TEST %d\n",__LINE__);
+    cycles_t tot = 0, mask = 0, time = 0, wc = 0, bc = 0;
+    int iters = 0;
+
+    arcvcap_t r = rcv[cos_cpuid()];
+    asndcap_t s = asnd[cos_cpuid()];
+
+    for(iters = 0; iters < TEST_IPI_ITERS; iters++) {
+
+        test_asnd(s);
+        time = global_time[1] - global_time[0];
+
+        // Fast ABS()
+
+        mask = (time >> (sizeof(int) * CHAR_BIT - 1));
+        time = (time + mask) ^ mask;
+
+        if(time != 28)
+            PRINTC("TIME: %llu\n", time);
+
+//        test_asnd(s);
+//        test_rcv(r);
+
+        tot += time;
+        if (time > wc) {
+            wc = time;
+        }
+        if ( time < bc || bc == 0){
+            bc = time;
+        }
+    }
+    PRINTC("LOL WC: %llu, %llu, %llu\n", bc, wc, tot/TEST_IPI_ITERS);
+    EXPECT_LLU_LT((long long unsigned)((tot / TEST_IPI_ITERS) * MAX_THRS), wc , "Test IPI Multi-Core MAX");
+    EXPECT_LLU_LT(bc * (unsigned) MIN_THRS, (long long unsigned)(tot / TEST_IPI_ITERS), "Test IPI Multi-Core MIN");
+    done_test = 1;
+    while(1) test_rcv(r);
+}
+
 void
 test_ipi_full(void)
 {
@@ -490,6 +541,7 @@ test_ipi_full(void)
 		tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
 		rcv[cos_cpuid()] = r;
 		while(!rcv[TEST_SND_CORE]) ;
+        done_test = 0;
 
 		s = cos_asnd_alloc(&booter_info, rcv[TEST_SND_CORE], booter_info.captbl_cap);
 		assert(s);
@@ -502,7 +554,7 @@ test_ipi_full(void)
         while(1);
 
         rcv[TEST_SND_CORE] = 0;
-*/
+
         // Test RCV 1: Close Loop at lower priority => Measure route with switching
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn_1, NULL);
@@ -517,11 +569,41 @@ test_ipi_full(void)
 		tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
 		rcv[cos_cpuid()] = r;
 		while(!rcv[TEST_SND_CORE]) ;
+        done_test = 0;
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL);
         assert(t);
-//		r = cos_arcv_alloc(&booter_info, t, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
-//		assert(r);
+
+        spinner_thd[cos_cpuid()] = t;
+
+		s = cos_asnd_alloc(&booter_info, rcv[TEST_SND_CORE], booter_info.captbl_cap);
+		assert(s);
+		asnd[cos_cpuid()] = s;
+		test_sync_asnd();
+        test_sched_loop_1();
+
+        rcv[TEST_SND_CORE] = 0;
+        global_time[0] = 0;
+        global_time[1] = 0;
+*/
+        // Test RCV 2: Close Loop at higher priority => Measure Kernel involvement
+
+        t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn_1, NULL);
+		assert(t);
+
+		r = cos_arcv_alloc(&booter_info, t, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
+		assert(r);
+
+        cos_tcap_transfer(r, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 5);
+
+		thd[cos_cpuid()] = t;
+		tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
+		rcv[cos_cpuid()] = r;
+		while(!rcv[TEST_SND_CORE]) ;
+        done_test = 0;
+
+        t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner_2, NULL);
+        assert(t);
 
         spinner_thd[cos_cpuid()] = t;
 
@@ -531,8 +613,7 @@ test_ipi_full(void)
 		test_sync_asnd();
 //        PRINTC("TEST %d\n",__LINE__);
         test_sched_loop_1();
-
-        PRINTC("WAS %d\n",__LINE__);
+//        PRINTC("WAS %d\n",__LINE__);
         while(1);
 
     } else {
@@ -549,6 +630,7 @@ test_ipi_full(void)
 		tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
 		rcv[cos_cpuid()] = r;
 		while(!rcv[TEST_RCV_CORE]) ;
+        while(done_test);
 
 		s = cos_asnd_alloc(&booter_info, rcv[TEST_RCV_CORE], booter_info.captbl_cap);
 		assert(s);
@@ -563,7 +645,7 @@ test_ipi_full(void)
 
 
         rcv[TEST_RCV_CORE] = 0;
-*/
+
         // Test RCV1: Corresponding Send
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn_1, NULL);
@@ -576,6 +658,32 @@ test_ipi_full(void)
 		tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
 		rcv[cos_cpuid()] = r;
 		while(!rcv[TEST_RCV_CORE]) ;
+        while(done_test);
+
+		s = cos_asnd_alloc(&booter_info, rcv[TEST_RCV_CORE], booter_info.captbl_cap);
+		assert(s);
+		asnd[cos_cpuid()] = s;
+
+		test_sync_asnd();
+//		test_asnd_main();
+		test_sched_loop_1();
+
+
+        rcv[TEST_RCV_CORE] = 0;
+*/
+        // Test RCV2: Corresponding Send
+
+        t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn_2, NULL);
+		assert(t);
+
+		r = cos_arcv_alloc(&booter_info, t, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
+		assert(r);
+
+		thd[cos_cpuid()] = t;
+		tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
+		rcv[cos_cpuid()] = r;
+		while(!rcv[TEST_RCV_CORE]) ;
+        while(done_test);
 
 		s = cos_asnd_alloc(&booter_info, rcv[TEST_RCV_CORE], booter_info.captbl_cap);
 		assert(s);
