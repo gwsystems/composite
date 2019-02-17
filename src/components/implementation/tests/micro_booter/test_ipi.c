@@ -474,8 +474,15 @@ static void
 rcv_spinner_2(void *d)
 {
     int i = 0;
+    cycles_t now = 0, prev = 0;
+    rdtscll(now);
+    prev = now;
     while (!done_test){
-        rdtscll(global_time[(i++%2)]);
+          rdtscll(now);
+//        rdtscll(global_time[(i++%2)]);
+//          if((now - prev) != 28)
+            PRINTC("NOW: %llu\n", now - prev);
+          prev = now;
     }
 
     PRINTC("D\n");
@@ -485,15 +492,15 @@ rcv_spinner_2(void *d)
 static void
 test_asnd_fn_2(void *d)
 {
-    PRINTC("TEST %d\n",__LINE__);
+//    PRINTC("TEST %d\n",__LINE__);
     cycles_t tot = 0, mask = 0, time = 0, wc = 0, bc = 0;
     int iters = 0;
 
     arcvcap_t r = rcv[cos_cpuid()];
     asndcap_t s = asnd[cos_cpuid()];
 
-    for(iters = 0; iters < TEST_IPI_ITERS; iters++) {
-
+//    for(iters = 0; iters < TEST_IPI_ITERS; iters++) {
+        for(;;){
         test_asnd(s);
         time = global_time[1] - global_time[0];
 
@@ -502,8 +509,8 @@ test_asnd_fn_2(void *d)
         mask = (time >> (sizeof(int) * CHAR_BIT - 1));
         time = (time + mask) ^ mask;
 
-        if(time != 28)
-            PRINTC("TIME: %llu\n", time);
+//        if(time != 28)
+//            PRINTC("TIME: %llu\n", time);
 
 //        test_asnd(s);
 //        test_rcv(r);
@@ -516,9 +523,9 @@ test_asnd_fn_2(void *d)
             bc = time;
         }
     }
-    PRINTC("LOL WC: %llu, %llu, %llu\n", bc, wc, tot/TEST_IPI_ITERS);
-    EXPECT_LLU_LT((long long unsigned)((tot / TEST_IPI_ITERS) * MAX_THRS), wc , "Test IPI Multi-Core MAX");
-    EXPECT_LLU_LT(bc * (unsigned) MIN_THRS, (long long unsigned)(tot / TEST_IPI_ITERS), "Test IPI Multi-Core MIN");
+//    PRINTC("LOLs WC: %llu, %llu, %llu\n", bc, wc, tot/TEST_IPI_ITERS);
+//    EXPECT_LLU_LT((long long unsigned)((tot / TEST_IPI_ITERS) * MAX_THRS), wc , "Test IPI Multi-Core MAX");
+//    EXPECT_LLU_LT(bc * (unsigned) MIN_THRS, (long long unsigned)(tot / TEST_IPI_ITERS), "Test IPI Multi-Core MIN");
     done_test = 1;
     while(1) test_rcv(r);
 }
@@ -691,9 +698,9 @@ test_ipi_full(void)
 
 		test_sync_asnd();
 //		test_asnd_main();
-        PRINTC("TEST %d\n",__LINE__);
+//        PRINTC("TEST %d\n",__LINE__);
 		test_sched_loop_1();
-        PRINTC("TEST %d\n",__LINE__);
+//        PRINTC("TEST %d\n",__LINE__);
         while(1);
 	}
 }
