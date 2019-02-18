@@ -12,6 +12,7 @@
 
 extern u8_t *boot_comp_pgd;
 
+vaddr_t dcb_addr[NUM_CPU];
 void *thd_mem[NUM_CPU], *tcap_mem[NUM_CPU];
 struct captbl *glb_boot_ct;
 
@@ -23,7 +24,7 @@ boot_nptes(unsigned int sz)
 
 int
 boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *label, void *kern_vaddr,
-                        unsigned long user_vaddr, unsigned int range, int uvm)
+                        unsigned long user_vaddr, unsigned int range, int uvm, unsigned long *scb_uaddr)
 {
 	int               ret;
 	u8_t *            ptes;
@@ -34,7 +35,8 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	pgd_cap = (struct cap_pgtbl *)captbl_lkup(ct, pgdcap);
 	if (!pgd_cap || !CAP_TYPECHK(pgd_cap, CAP_PGTBL)) assert(0);
 	pgtbl = (pgtbl_t)pgd_cap->pgtbl;
-	nptes = boot_nptes(range);
+	if (!uvm) nptes = boot_nptes(range);
+	else      nptes = boot_nptes(range + COS_SCB_SIZE);
 	ptes  = mem_boot_alloc(nptes);
 	assert(ptes);
 
@@ -85,13 +87,42 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, PGTBL_COSFRAME)) assert(0);
 		assert((void *)p == pgtbl_lkup(pgtbl, user_vaddr + i * PAGE_SIZE, &flags));
 	}
+	if (uvm) {
+		unsigned int j;
+		u8_t   *p;
+		paddr_t pf;
+		u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
+
+		assert(i == range / PAGE_SIZE);
+		assert(COS_SCB_SIZE == PAGE_SIZE); /* FIXME: for prototype impl! */
+		p = mem_boot_alloc(1);
+		assert(p);
+		pf = chal_va2pa(p);
+
+		if (pgtbl_mapping_add(pgtbl, mapat, pf, PGTBL_USER_DEF)) assert(0);
+		*scb_uaddr = (unsigned long)mapat;
+		i++;
+
+		for (j = 0; j < NUM_CPU; j++, i++) {
+			unsigned long *pte = NULL, flags;
+			mapat = (u32_t)user_vaddr + i * PAGE_SIZE;
+			p = mem_boot_alloc(1);
+			assert(p);
+			pf = chal_va2pa(p);
+			if (pgtbl_mapping_add(pgtbl, mapat, pf, PGTBL_USER_DEF)) assert(0);
+
+			dcb_addr[j] = (unsigned long)p;
+			pte = pgtbl_lkup(pgtbl, mapat, (u32_t *)&flags);
+			assert((void *)p == pte);
+		}
+	}
 
 	return 0;
 }
 
 /* FIXME:  loops to create threads/tcaps/rcv caps per core. */
 static void
-kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cpu_id)
+kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, vaddr_t dcb_addr, const cpuid_t cpu_id)
 {
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	struct thread *            t        = thd_mem;
@@ -108,7 +139,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	cos_info->cpuid          = cpu_id;
 	cos_info->invstk_top     = 0;
 	cos_info->overflow_check = 0xDEADBEEF;
-	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
+	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0, dcb_addr);
 	assert(!ret);
 
 	tcap_active_init(cos_info);
@@ -152,12 +183,13 @@ kern_boot_comp(const cpuid_t cpu_id)
 	u8_t *         boot_comp_captbl;
 	pgtbl_t        pgtbl     = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
 	u32_t          hw_bitmap = 0xFFFFFFFF;
+	vaddr_t        scb_uaddr  = 0;
 
 	assert(cpu_id >= 0);
 	if (NUM_CPU > 1 && cpu_id > 0) {
 		assert(glb_boot_ct);
 		pgtbl_update(pgtbl);
-		kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
+		kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], dcb_addr[cpu_id], cpu_id);
 		return;
 	}
 
@@ -201,8 +233,8 @@ kern_boot_comp(const cpuid_t cpu_id)
 		assert(0);
 
 	ret = boot_pgtbl_mappings_add(glb_boot_ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(),
-	                              (unsigned long)mem_bootc_vaddr(), mem_bootc_end() - mem_bootc_start(), 1);
-	assert(ret == 0);
+	                              (unsigned long)mem_bootc_vaddr(), mem_bootc_end() - mem_bootc_start(), 1, &scb_uaddr);
+	assert(ret == 0 && scb_uaddr);
 
 	/*
 	 * This _must_ be the last allocation.  The bump pointer
@@ -215,7 +247,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
 	ret       = boot_pgtbl_mappings_add(glb_boot_ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
                                       mem_boot_nalloc_end(nkmemptes), BOOT_MEM_KM_BASE,
-                                      mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
+                                      mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0, 0);
 	assert(ret == 0);
 
 	printk("\tCapability table and page-table created.\n");
@@ -224,11 +256,11 @@ kern_boot_comp(const cpuid_t cpu_id)
 	glb_memlayout.allocs_avail = 0;
 
 	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
-	                  (vaddr_t)mem_bootc_entry(), NULL))
+	                  (vaddr_t)mem_bootc_entry(), scb_uaddr))
 		assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
-	kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
+	kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], dcb_addr[cpu_id], cpu_id);
 
 	printk("\tBoot component initialization complete.\n");
 }

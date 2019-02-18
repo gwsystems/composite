@@ -29,6 +29,7 @@ capmgr_comp_info_iter_cpu(void)
 		spdid_t childid;
 		comp_flag_t ch_flags;
 		struct cos_aep_info aep;
+		vaddr_t initdcbpg = 0;
 
 		memset(&aep, 0, sizeof(struct cos_aep_info));
 		assert(rci);
@@ -40,7 +41,7 @@ capmgr_comp_info_iter_cpu(void)
 		if (spdid == 0 || (spdid != cos_spd_id() && cap_info_is_child(btinfo, spdid))) {
 			is_sched = (spdid == 0 || cap_info_is_sched_child(btinfo, spdid)) ? 1 : 0;
 
-			ret = hypercall_comp_initaep_get(spdid, is_sched, &aep);
+			ret = hypercall_comp_initaep_get(spdid, is_sched, &aep, &sched_spdid);
 			assert(ret == 0);
 		}
 
@@ -57,6 +58,12 @@ capmgr_comp_info_iter_cpu(void)
 			}
 
 			if (!remain_child) break;
+		}
+
+		if (sched_spdid == 0) {
+			initdcbpg = hypercall_initdcb_get(spdid);
+			assert(initdcbpg);
+			rci_cpu->initdcbpg = initdcbpg;
 		}
 
 		if (aep.thd) {
@@ -100,6 +107,7 @@ capmgr_comp_info_iter(void)
 		spdid_t childid;
 		comp_flag_t ch_flags;
 		struct cos_aep_info aep;
+		vaddr_t initdcbpg = 0;
 
 		memset(&aep, 0, sizeof(struct cos_aep_info));
 
@@ -111,10 +119,12 @@ capmgr_comp_info_iter(void)
 
 		num_comps ++;
 		if (spdid == 0 || (spdid != cos_spd_id() && cap_info_is_child(btinfo, spdid))) {
+			spdid_t ss = 0;
+
 			is_sched = (spdid == 0 || cap_info_is_sched_child(btinfo, spdid)) ? 1 : 0;
 
-			ret = hypercall_comp_initaep_get(spdid, is_sched, &aep);
-			assert(ret == 0);
+			ret = hypercall_comp_initaep_get(spdid, is_sched, &aep, &ss);
+			assert(ret == 0 && ss == sched_spdid);
 		}
 
 		ret = hypercall_comp_frontier_get(spdid, &vasfr, &capfr);
@@ -132,6 +142,12 @@ capmgr_comp_info_iter(void)
 			}
 
 			if (!remain_child) break;
+		}
+
+		if (sched_spdid == 0) {
+			initdcbpg = hypercall_initdcb_get(spdid);
+			assert(initdcbpg);
+			rci_cpu->initdcbpg = initdcbpg;
 		}
 
 		if (aep.thd) {

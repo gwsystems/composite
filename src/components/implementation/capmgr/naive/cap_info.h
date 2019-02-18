@@ -43,6 +43,8 @@ struct cap_comp_cpu_info {
 	int p_thd_iterator; /* iterator for parent to get all threads created by capmgr in this component so far! */
 	thdcap_t p_initthdcap; /* init thread's cap in parent */
 	thdid_t  initthdid; /* init thread's tid */
+
+	vaddr_t  initdcbpg;
 } CACHE_ALIGNED;
 
 struct cap_comp_info {

@@ -214,15 +214,17 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		}
 
 		if (sect->flags & COBJ_SECT_CINFO) {
+			int k;
+
 			assert((left % PAGE_SIZE) == 0);
 			assert(comp_info == (dest_daddr + (((left/PAGE_SIZE)-1)*PAGE_SIZE)));
 			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info - init_daddr), comp_info);
 			ci = (struct cos_component_information *)(start_addr + (comp_info - init_daddr));
+			spdinfo->cobj_info = ci;
 
 			hinfo = boot_spd_compcapinfo_get(h->id);
 			hinfo->upcall_entry = ci->cos_upcall_entry;
 		}
-
 	}
 
 	return 0;

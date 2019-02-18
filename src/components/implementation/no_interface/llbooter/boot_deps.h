@@ -29,13 +29,15 @@ struct comp_sched_info {
 
 /* The booter uses this to keep track of each comp */
 struct comp_cap_info {
-	struct cos_defcompinfo  def_cinfo;
-	struct usr_inv_cap      ST_user_caps[INTERFACE_UNDEF_SYMBS];
-	vaddr_t                 vaddr_user_caps; /* vaddr of user caps table in comp */
-	vaddr_t                 addr_start;
-	vaddr_t                 vaddr_mapped_in_booter;
-	vaddr_t                 upcall_entry;
-	struct comp_sched_info *schedinfo[NUM_CPU];
+	struct cos_defcompinfo            def_cinfo;
+	struct usr_inv_cap                ST_user_caps[INTERFACE_UNDEF_SYMBS];
+	vaddr_t                           vaddr_user_caps; /* vaddr of user caps table in comp */
+	vaddr_t                           addr_start;
+	vaddr_t                           vaddr_mapped_in_booter;
+	vaddr_t                           upcall_entry;
+	vaddr_t                           scbpg, initdcbpg[NUM_CPU];
+	struct comp_sched_info           *schedinfo[NUM_CPU];
+	struct cos_component_information *cobj_info;
 } new_comp_cap_info[MAX_NUM_SPDS];
 
 int                   schedule[NUM_CPU][MAX_NUM_SPDS];
@@ -53,6 +55,14 @@ static inline struct comp_sched_info *
 boot_spd_comp_schedinfo_curr_get(void)
 {
 	return &comp_schedinfo[cos_cpuid()][0];
+}
+
+static inline struct cos_component_information *
+boot_spd_comp_cobj_info_get(spdid_t spdid)
+{
+	assert(spdid && spdid <= MAX_NUM_SPDS);
+
+	return boot_spd_compcapinfo_get(spdid)->cobj_info;
 }
 
 static inline struct comp_sched_info *
@@ -146,12 +156,36 @@ boot_capmgr_mem_alloc(void)
 void
 boot_comp_mem_alloc(spdid_t spdid)
 {
-	struct cos_compinfo *compinfo = boot_spd_compinfo_get(spdid);
-	struct cos_compinfo *boot_info   = boot_spd_compinfo_curr_get();
+	struct cos_compinfo *compinfo  = boot_spd_compinfo_get(spdid);
+	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
 	unsigned long mem_sz = capmgr_spdid ? CAPMGR_MIN_UNTYPED_SZ : LLBOOT_NEWCOMP_UNTYPED_SZ;
 
 	if (capmgr_spdid) return;
 	cos_meminfo_alloc(compinfo, BOOT_MEM_KM_BASE, mem_sz);
+}
+
+static void
+boot_comp_scb_alloc(spdid_t spdid)
+{
+	struct comp_cap_info   *spdinfo  = boot_spd_compcapinfo_get(spdid);
+	struct cos_compinfo    *compinfo = boot_spd_compinfo_get(spdid);
+	struct comp_sched_info *spdsi    = boot_spd_comp_schedinfo_get(spdid);
+
+	spdinfo->scbpg = (vaddr_t)cos_scbpg_bump_allocn(compinfo, COS_SCB_SIZE);
+	assert(spdinfo->scbpg);
+}
+
+/* TODO: Should booter create that INITDCB page for all components for each core? */
+static void
+boot_comp_dcb_alloc(spdid_t spdid)
+{
+	int i;
+	struct comp_cap_info   *spdinfo  = boot_spd_compcapinfo_get(spdid);
+	struct cos_compinfo    *compinfo = boot_spd_compinfo_get(spdid);
+	struct comp_sched_info *spdsi    = boot_spd_comp_schedinfo_get(spdid);
+
+	spdinfo->initdcbpg[cos_cpuid()] = (vaddr_t)cos_dcbpg_bump_allocn(compinfo, PAGE_SIZE);
+	assert(spdinfo->initdcbpg[cos_cpuid()]);
 }
 
 /* Initialize just the captblcap and pgtblcap, due to hack for upcall_fn addr */
@@ -189,8 +223,8 @@ boot_newcomp_sinv_alloc(spdid_t spdid)
 	int i = 0;
 	int intr_spdid;
 	void *user_cap_vaddr;
-	struct cos_compinfo *interface_compinfo;
-	struct cos_compinfo *compinfo  = boot_spd_compinfo_get(spdid);
+	struct cos_compinfo  *interface_compinfo;
+	struct cos_compinfo  *compinfo = boot_spd_compinfo_get(spdid);
 	struct comp_cap_info *spdinfo  = boot_spd_compcapinfo_get(spdid);
 	/* TODO: Purge rest of booter of spdid convention */
 	invtoken_t token = (invtoken_t)spdid;
@@ -240,8 +274,10 @@ boot_newcomp_defcinfo_init(spdid_t spdid)
 	struct cos_compinfo    *child_ci  = boot_spd_compinfo_get(spdid);
 	struct cos_compinfo    *boot_info = boot_spd_compinfo_curr_get();
 	struct comp_sched_info *spdsi     = boot_spd_comp_schedinfo_get(spdid);
+	struct comp_cap_info   *spdinfo   = boot_spd_compcapinfo_get(spdid);
 
-	child_aep->thd = cos_initthd_alloc(boot_info, child_ci->comp_cap);
+	boot_comp_dcb_alloc(spdid);
+	child_aep->thd = cos_initthd_alloc(boot_info, child_ci->comp_cap, child_ci->pgtbl_cap, spdinfo->initdcbpg[cos_cpuid()]);
 	assert(child_aep->thd);
 
 	if (spdsi->flags & COMP_FLAG_SCHED) {
@@ -359,6 +395,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	struct cos_compinfo *compinfo  = boot_spd_compinfo_get(spdid);
 	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
 	struct comp_cap_info *spdinfo  = boot_spd_compcapinfo_get(spdid);
+	struct cos_component_information *cobj_info = boot_spd_comp_cobj_info_get(spdid);
 	captblcap_t ct = compinfo->captbl_cap;
 	pgtblcap_t  pt = compinfo->pgtbl_cap;
 	compcap_t   cc;
@@ -368,9 +405,11 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	invtoken_t token = (invtoken_t)spdid;
 	int ret;
 
-	cc = cos_comp_alloc(boot_info, ct, pt, (vaddr_t)spdinfo->upcall_entry);
+	boot_comp_scb_alloc(spdid);
+	cc = cos_comp_alloc(boot_info, ct, pt, (vaddr_t)spdinfo->upcall_entry, spdinfo->scbpg);
 	assert(cc);
 	compinfo->comp_cap = cc;
+	cobj_info->cos_scb_data = (struct cos_scb_info *)spdinfo->scbpg;
 
 	/* Create sinv capability from Userspace to Booter components */
 	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)hypercall_entry_rets_inv, token);
@@ -511,7 +550,7 @@ done:
 }
 
 static inline int
-boot_comp_initaep_get(spdid_t dstid, spdid_t srcid, thdcap_t thdslot, arcvcap_t rcvslot, tcap_t tcslot)
+boot_comp_initaep_get(spdid_t dstid, spdid_t srcid, thdcap_t thdslot, arcvcap_t rcvslot, tcap_t tcslot, spdid_t *parent)
 {
 	struct comp_sched_info *si = NULL;
 	int ret = -1;
@@ -529,6 +568,8 @@ boot_comp_initaep_get(spdid_t dstid, spdid_t srcid, thdcap_t thdslot, arcvcap_t 
 	ret = boot_comp_cap_cpy_at(dstid, rcvslot, srcid, CAP_ARCV);
 	if (ret) goto done;
 	ret = boot_comp_cap_cpy_at(dstid, tcslot, srcid, CAP_TCAP);
+
+	*parent = si->parent_spdid;
 
 done:
 	return ret;
@@ -690,9 +731,12 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
 		thdcap_t  thdslot = (arg3 << 16) >> 16;
 		tcap_t    tcslot  = (arg4 << 16) >> 16;;
 		arcvcap_t rcvslot = arg4 >> 16;
+		spdid_t   parent_spdid = 0;
 
 		if (!__hypercall_resource_access_check(client, srcid, 0)) return -EACCES;
-		ret1 = boot_comp_initaep_get(client, srcid, thdslot, rcvslot, tcslot);
+		ret1 = boot_comp_initaep_get(client, srcid, thdslot, rcvslot, tcslot, &parent_spdid);
+
+		*ret2 = (word_t)parent_spdid;
 
 		break;
 	}
@@ -753,6 +797,17 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
 		*ret2 = vasfr;
 
 		break;
+	}
+	case HYPERCALL_COMP_INITDCB_GET:
+	{
+		spdid_t compid = arg3;
+		struct comp_cap_info *compinfo = NULL;
+
+		if (!__hypercall_resource_access_check(client, compid, 0)) return 0;
+		if (!compid || compid > num_cobj) return 0;
+		compinfo = boot_spd_compcapinfo_get(compid);
+
+		return compinfo->initdcbpg[cos_cpuid()];
 	}
 	case HYPERCALL_NUMCOMPS_GET:
 	{

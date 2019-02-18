@@ -24,6 +24,36 @@ memmgr_heap_page_allocn(unsigned long npages)
 	return dst_pg;
 }
 
+vaddr_t
+memmgr_dcbpage_allocn(unsigned long npages)
+{
+	spdid_t cur = cos_inv_token();
+	struct cos_compinfo  *cap_ci  = cos_compinfo_get(cos_defcompinfo_curr_get());
+	struct cap_comp_info *cur_rci = cap_info_comp_find(cur);
+	struct cos_compinfo  *cur_ci  = cap_info_ci(cur_rci);
+	vaddr_t pg;
+
+	if (!cur_rci || !cap_info_init_check(cur_rci)) return 0;
+	if (!cur_ci) return 0;
+
+	pg = (vaddr_t)cos_dcbpg_bump_allocn(cur_ci, npages * PAGE_SIZE);
+
+	return pg;
+}
+
+vaddr_t
+memmgr_initdcbpage_retrieve(void)
+{
+	spdid_t cur = cos_inv_token();
+	struct cap_comp_info *cur_rci     = cap_info_comp_find(cur);
+	struct cap_comp_cpu_info *rci_cpu = cap_info_cpu_local(cur_rci);
+
+	/* this should have been initialized either through the booter for capmgr/root-sched or by the capmgr on inithrd creation in cur component */
+	assert(rci_cpu->initdcbpg);
+
+	return rci_cpu->initdcbpg;
+}
+
 cbuf_t
 memmgr_shared_page_allocn_cserialized(vaddr_t *pgaddr, int *unused, unsigned long npages)
 {

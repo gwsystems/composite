@@ -17,7 +17,7 @@ struct comp_info {
 	struct liveness_data        liveness;
 	pgtbl_t                     pgtbl;
 	struct captbl *             captbl;
-	struct cos_sched_data_area *comp_nfo;
+	struct cos_scb_info        *scb_data;
 } __attribute__((packed));
 
 struct cap_comp {
@@ -30,13 +30,14 @@ struct cap_comp {
 
 static int
 comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, capid_t pgtbl_cap, livenessid_t lid,
-              vaddr_t entry_addr, struct cos_sched_data_area *sa)
+              vaddr_t entry_addr, vaddr_t scb_uaddr)
 {
 	struct cap_comp *  compc;
 	struct cap_pgtbl * ptc;
 	struct cap_captbl *ctc;
-	u32_t              v;
+	u32_t              v, flags;
 	int                ret = 0;
+	vaddr_t            scb_kaddr = 0;
 
 	ctc = (struct cap_captbl *)captbl_lkup(t, captbl_cap);
 	if (unlikely(!ctc || ctc->h.type != CAP_CAPTBL || ctc->lvl > 0)) return -EINVAL;
@@ -46,6 +47,9 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	v = ptc->refcnt_flags;
 	if (v & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 	if (cos_cas((unsigned long *)&ptc->refcnt_flags, v, v + 1) != CAS_SUCCESS) return -ECASFAIL;
+
+	scb_kaddr = (vaddr_t)pgtbl_lkup(((struct cap_pgtbl *)ptc)->pgtbl, scb_uaddr, &flags);
+	assert(scb_kaddr);
 
 	v = ctc->refcnt_flags;
 	if (v & CAP_MEM_FROZEN_FLAG) cos_throw(undo_ptc, -EINVAL);
@@ -60,7 +64,8 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	compc->entry_addr    = entry_addr;
 	compc->info.pgtbl    = ptc->pgtbl;
 	compc->info.captbl   = ctc->captbl;
-	compc->info.comp_nfo = sa;
+	compc->info.scb_data = (struct cos_scb_info *)scb_kaddr;
+	memset(compc->info.scb_data, 0, PAGE_SIZE);
 	compc->pgd           = ptc;
 	compc->ct_top        = ctc;
 	ltbl_get(lid, &compc->info.liveness);
@@ -105,6 +110,19 @@ static void
 comp_init(void)
 {
 	assert(sizeof(struct cap_comp) <= __captbl_cap2bytes(CAP_COMP));
+}
+
+static inline int
+comp_introspect(struct cap_comp *t, unsigned long op, unsigned long *retval)
+{
+	switch (op) {
+	case COMP_GET_SCB_CURTHD:
+		*retval = t->info.scb_data->curr_thd;
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
 }
 
 #endif /* COMPONENT_H */

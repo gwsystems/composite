@@ -14,5 +14,7 @@ cos_asm_server_stub(capmgr_asnd_rcv_create)
 cos_asm_server_stub(capmgr_asnd_key_create)
 
 cos_asm_server_stub(memmgr_heap_page_allocn)
+cos_asm_server_stub(memmgr_initdcbpage_retrieve)
+cos_asm_server_stub(memmgr_dcbpage_allocn)
 cos_asm_server_stub_rets(memmgr_shared_page_allocn_cserialized)
 cos_asm_server_stub_rets(memmgr_shared_page_map_cserialized)

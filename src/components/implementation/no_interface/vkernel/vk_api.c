@@ -1,3 +1,4 @@
+#include <cos_dcb.h>
 #include "vk_api.h"
 
 extern vaddr_t cos_upcall_entry;
@@ -5,6 +6,12 @@ extern vaddr_t cos_upcall_entry;
 extern void vm_init(void *);
 extern void dom0_io_fn(void *);
 extern void vm_io_fn(void *);
+
+struct cos_dcb_info *
+cos_dcb_info_get(void)
+{
+	return cos_dcb_info_assign();
+}
 
 static struct cos_aep_info *
 vm_schedaep_get(struct vms_info *vminfo)
@@ -19,6 +26,7 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	struct cos_aep_info    *initaep  = cos_sched_aep_get(vmdci);
 	pgtblcap_t              vmutpt;
 	int                     ret;
+	vaddr_t                 scbpg, initdcbpg;
 
 	assert(vminfo && vkinfo);
 
@@ -27,7 +35,7 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 
 	cos_meminfo_init(&(vmcinfo->mi), BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, vmutpt);
 	ret = cos_defcompinfo_child_alloc(vmdci, (vaddr_t)&cos_upcall_entry, (vaddr_t)BOOT_MEM_VM_BASE,
-					  VM_CAPTBL_FREE, 1);
+					  VM_CAPTBL_FREE, 1, &initdcbpg, &scbpg);
 	cos_compinfo_init(&(vminfo->shm_cinfo), vmcinfo->pgtbl_cap, vmcinfo->captbl_cap, vmcinfo->comp_cap,
 			  (vaddr_t)VK_VM_SHM_BASE, VM_CAPTBL_FREE, vk_cinfo);
 
@@ -99,7 +107,7 @@ vk_vm_io_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkernel
 	assert(vminfo->id && !dom0info->id);
 	assert(vmidx >= 0 && vmidx <= VM_COUNT - 1);
 
-	d0io->iothds[vmidx] = cos_thd_alloc(vkcinfo, d0cinfo->comp_cap, dom0_io_fn, (void *)vminfo->id);
+	d0io->iothds[vmidx] = cos_thd_alloc(vkcinfo, d0cinfo->comp_cap, dom0_io_fn, (void *)vminfo->id, 0, 0);
 	assert(d0io->iothds[vmidx]);
 	d0io->iotcaps[vmidx] = cos_tcap_alloc(vkcinfo);
 	assert(d0io->iotcaps[vmidx]);
@@ -113,7 +121,7 @@ vk_vm_io_init(struct vms_info *vminfo, struct vms_info *dom0info, struct vkernel
 	ret = cos_cap_cpy_at(d0cinfo, dom0_vio_rcvcap(vminfo->id), vkcinfo, d0io->iorcvs[vmidx]);
 	assert(ret == 0);
 
-	vio->iothd = cos_thd_alloc(vkcinfo, vmcinfo->comp_cap, vm_io_fn, (void *)vminfo->id);
+	vio->iothd = cos_thd_alloc(vkcinfo, vmcinfo->comp_cap, vm_io_fn, (void *)vminfo->id, 0, 0);
 	assert(vio->iothd);
 	vio->iorcv = cos_arcv_alloc(vkcinfo, vio->iothd, vmaep->tc, vkcinfo->comp_cap, vmaep->rcv);
 	assert(vio->iorcv);

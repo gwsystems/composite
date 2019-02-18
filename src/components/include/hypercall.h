@@ -14,6 +14,7 @@ enum hypercall_cntl {
 	HYPERCALL_COMP_CAPTBLCAP_GET,
 	HYPERCALL_COMP_PGTBLCAP_GET,
 	HYPERCALL_COMP_CAPFRONTIER_GET,
+	HYPERCALL_COMP_INITDCB_GET, /* per-core, each core. only for threads created by llbooter */
 
 	HYPERCALL_COMP_INITAEP_GET,
 	HYPERCALL_COMP_CHILD_NEXT,
@@ -47,11 +48,12 @@ hypercall_comp_init_done(void)
 
 /* Note: This API can be called ONLY by components that manage capability resources */
 static inline int
-hypercall_comp_initaep_get(spdid_t spdid, int is_sched, struct cos_aep_info *aep)
+hypercall_comp_initaep_get(spdid_t spdid, int is_sched, struct cos_aep_info *aep, spdid_t *parent_spdid)
 {
 	thdcap_t  thdslot = 0;
 	arcvcap_t rcvslot = 0;
 	tcap_t    tcslot  = 0;
+	word_t    r3 = 0;
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	int ret = 0;
 
@@ -67,8 +69,8 @@ hypercall_comp_initaep_get(spdid_t spdid, int is_sched, struct cos_aep_info *aep
 	}
 
 	/* capid_t though is unsigned long, only assuming it occupies 16bits for packing */
-	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INITAEP_GET,
-			spdid << 16 | thdslot, rcvslot << 16 | tcslot);
+	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INITAEP_GET,
+			    spdid << 16 | thdslot, rcvslot << 16 | tcslot, (word_t *)&parent_spdid, &r3);
 	if (ret) return ret;
 
 	aep->thd = thdslot;
@@ -96,7 +98,7 @@ hypercall_comp_info_get(spdid_t spdid, pgtblcap_t *ptslot, captblcap_t *ctslot, 
 
 	/* capid_t though is unsigned long, only assuming it occupies 16bits for packing */
 	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INFO_GET,
-			     spdid << 16 | (*compslot), (*ptslot) << 16 | (*ctslot), &r2, &r3);
+			    spdid << 16 | (*compslot), (*ptslot) << 16 | (*ctslot), &r2, &r3);
 	*parentid = r2;
 
 	return ret;
@@ -184,6 +186,12 @@ hypercall_comp_capfrontier_get(spdid_t spdid)
 	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CAPFRONTIER_GET, spdid, 0, &cap_frontier, &unused)) return 0;
 
 	return cap_frontier;
+}
+
+static inline vaddr_t
+hypercall_initdcb_get(spdid_t spdid)
+{
+	return (vaddr_t)cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INITDCB_GET, spdid, 0);
 }
 
 static inline int

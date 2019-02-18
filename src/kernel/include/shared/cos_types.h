@@ -291,12 +291,20 @@ enum
 {
 	/* thread id */
 	THD_GET_TID,
+	THD_GET_DCB_IP,
+	THD_GET_DCB_SP,
 };
 
 enum
 {
 	/* tcap budget */
 	TCAP_GET_BUDGET,
+};
+
+enum
+{
+	/* get current thread info from scb */
+	COMP_GET_SCB_CURTHD,
 };
 
 /* Macro used to define per core variables */
@@ -390,6 +398,16 @@ struct cos_stack_freelists {
 /* #error "Assembly in <fill in file name here> requires that COMP_INFO_STACK_FREELISTS != 1 ||
  * COMP_INFO_TMEM_STK_RELINQ != 0.  Change the defines, or change the assembly" */
 /* #endif */
+struct cos_scb_info {
+	capid_t     curr_thd;
+	cycles_t    timer_next;
+	sched_tok_t sched_tok;
+} CACHE_ALIGNED;
+
+struct cos_dcb_info {
+	unsigned long ip;
+	unsigned long sp;
+} __attribute__((packed));
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;
@@ -400,7 +418,7 @@ struct cos_component_information {
 	vaddr_t                    cos_heap_allocated, cos_heap_alloc_extent;
 	vaddr_t                    cos_upcall_entry;
 	vaddr_t                    cos_async_inv_entry;
-	//	struct cos_sched_data_area *cos_sched_data_area;
+	struct cos_scb_info               *cos_scb_data;
 	vaddr_t                            cos_user_caps;
 	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS / 2];
 	vaddr_t                            cos_poly[COMP_INFO_POLY_NUM];

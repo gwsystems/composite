@@ -33,11 +33,6 @@ struct event_info {
 	tcap_time_t timeout;
 };
 
-struct sl_dcb_info {
-	unsigned long ip;
-	unsigned long sp;
-} __attribute__((__packed__));
-
 struct sl_thd {
 	sl_thd_state_t       state;
 	/*
@@ -101,20 +96,20 @@ struct sl_thd {
 	struct event_info event_info;
 	struct ps_list    SL_THD_EVENT_LIST; /* list of events for the scheduler end-point */
 
-	struct sl_dcb_info dcb;
+	struct cos_dcb_info *dcb;
 };
 
-static inline struct sl_dcb_info *
+static inline struct cos_dcb_info *
 sl_thd_dcbinfo(struct sl_thd *t)
-{ return &t->dcb; }
+{ return t->dcb; }
 
 static inline unsigned long *
 sl_thd_ip(struct sl_thd *t)
-{ return &t->dcb.ip; }
+{ return &t->dcb->ip; }
 
 static inline unsigned long *
 sl_thd_sp(struct sl_thd *t)
-{ return &t->dcb.sp; }
+{ return &t->dcb->sp; }
 
 static inline struct cos_aep_info *
 sl_thd_aepinfo(struct sl_thd *t)

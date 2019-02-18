@@ -13,11 +13,12 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 #include <bitmap.h>
+#include <cos_dcb.h>
 
 struct sl_global sl_global_data;
 struct sl_global_cpu sl_global_cpu_data[NUM_CPU] CACHE_ALIGNED;
 static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
-extern struct sl_thd *sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps);
+extern struct sl_thd *sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps, struct cos_dcb_info *dcb);
 extern int sl_xcpu_process_no_cs(void);
 extern void sl_xcpu_asnd_alloc(void);
 
@@ -551,6 +552,7 @@ sl_global_init(u32_t *cpu_bmp)
 	unsigned int i = 0;
 
 	memset(g, 0, sizeof(struct sl_global));
+	assert(sizeof(struct cos_scb_info) * NUM_CPU <= COS_SCB_SIZE && COS_SCB_SIZE == PAGE_SIZE);
 
 	for (i = 0; i < NUM_CPU; i++) {
 		if (!bitmap_check(cpu_bmp, i)) continue;
@@ -558,6 +560,7 @@ sl_global_init(u32_t *cpu_bmp)
 		bitmap_set(g->cpu_bmp, i);
 		ck_ring_init(sl__ring(i), SL_XCPU_RING_SIZE);
 	}
+	g->scb_area = (struct cos_scb_info *)cos_scb_info_get();
 }
 
 void
@@ -583,15 +586,17 @@ sl_init(microsec_t period)
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
 	memset(g, 0, sizeof(struct sl_global_cpu));
 
-	g->cyc_per_usec    = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-	g->lock.u.v        = 0;
+	g->cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	g->lock.u.v     = 0;
+	g->scb_info     = ((sl__globals()->scb_area) + cos_cpuid());
 
 	sl_thd_init_backend();
 	sl_mod_init();
 	sl_timeout_init(period);
 
 	/* Create the scheduler thread for us. cos_sched_aep_get() is from global(static) memory */
-	g->sched_thd       = sl_thd_alloc_init(cos_sched_aep_get(dci), 0, 0);
+	cos_dcb_info_init();
+	g->sched_thd       = sl_thd_alloc_init(cos_sched_aep_get(dci), 0, 0, (struct cos_dcb_info *)cos_init_dcb_get());
 	assert(g->sched_thd);
 	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_CPU_BASE;
 	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;

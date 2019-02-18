@@ -203,12 +203,36 @@ cos_spd_id(void)
 static inline void *
 cos_get_heap_ptr(void)
 {
-	return (void *)cos_comp_info.cos_heap_ptr;
+	/* page at heap_ptr is actually the SCB_PAGE for the booter alone! */
+	unsigned int off = (cos_spd_id() == 0 ? (COS_SCB_SIZE + (PAGE_SIZE * NUM_CPU)) : 0);
+	void *heap_ptr = ((void *)(cos_comp_info.cos_heap_ptr + off));
+
+	return heap_ptr;
+}
+
+static inline struct cos_scb_info *
+cos_scb_info_get(void)
+{
+	struct cos_scb_info *scb_info = cos_comp_info.cos_scb_data;
+
+	if (cos_spd_id() == 0) scb_info = (struct cos_scb_info *)(cos_comp_info.cos_heap_ptr);
+
+	return scb_info;
+}
+
+static inline struct cos_dcb_info *
+cos_init_dcb_get(void)
+{
+	/* created at boot-time for the first component in the system! */
+	if (cos_spd_id() == 0) return (struct cos_dcb_info *)(cos_comp_info.cos_heap_ptr + COS_SCB_SIZE + (PAGE_SIZE * cos_cpuid()));
+
+	return NULL;
 }
 
 static inline void
 cos_set_heap_ptr(void *addr)
 {
+	/* FIXME: fix this for the hack if it's not going to work! */
 	cos_comp_info.cos_heap_ptr = (vaddr_t)addr;
 }
 

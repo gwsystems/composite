@@ -54,13 +54,6 @@ struct sl_cs {
 	} u;
 };
 
-struct sl_scb_info {
-	thdcap_t curr_thd;
-	tcap_prio_t curr_prio;
-
-	cycles_t timer_next;
-};
-
 struct sl_global_cpu {
 	struct sl_cs lock;
 
@@ -75,7 +68,7 @@ struct sl_global_cpu {
 	cycles_t    timer_next;
 	tcap_time_t timeout_next;
 
-	struct sl_scb_info scb_info;
+	struct cos_scb_info *scb_info;
 	struct ps_list_head event_head; /* all pending events for sched end-point */
 };
 
@@ -87,10 +80,10 @@ sl__globals_cpu(void)
 	return &(sl_global_cpu_data[cos_cpuid()]);
 }
 
-static inline struct sl_scb_info *
+static inline struct cos_scb_info *
 sl_scb_info_cpu(void)
 {
-	return &(sl__globals_cpu()->scb_info);
+	return (sl__globals_cpu()->scb_info);
 }
 
 static inline void
@@ -299,8 +292,8 @@ struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, co
  */
 struct sl_thd *sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched);
 
-struct sl_thd *sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key);
-struct sl_thd *sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, arcvcap_t *extrcv);
+struct sl_thd *sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, vaddr_t dcbuaddr);
+struct sl_thd *sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, vaddr_t dcbuaddr, arcvcap_t *extrcv);
 
 struct sl_thd *sl_thd_init_ext(struct cos_aep_info *aep, struct sl_thd *sched_thd);
 
@@ -417,7 +410,7 @@ sl_thd_is_runnable(struct sl_thd *t)
 static inline int
 sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
-	struct sl_scb_info *scb = sl_scb_info_cpu();
+	struct cos_scb_info *scb = sl_scb_info_cpu();
 
 	__asm__ __volatile__ (				\
 		"movl $2f, (%%eax)\n\t"			\
@@ -445,7 +438,6 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
 	struct sl_global_cpu   *g   = sl__globals_cpu();
-	struct sl_scb_info     *scb = sl_scb_info_cpu();
 	int ret = 0;
 
 	if (t->properties & SL_THD_PROPERTY_SEND) {
@@ -455,7 +447,6 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 				  g->timeout_next, g->sched_rcv, tok);
 	} else {
 		return sl_thd_dispatch(t, tok, sl_thd_curr());
-		//return sl_thd_dispatch_slowpath(t, tok);
 	}
 }
 

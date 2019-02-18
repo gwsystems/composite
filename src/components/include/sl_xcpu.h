@@ -64,6 +64,7 @@ struct sl_global {
 	struct sl_xcpu_request xcpu_rbuf[NUM_CPU][SL_XCPU_RING_SIZE];
 	u32_t cpu_bmp[(NUM_CPU + 7)/8]; /* bitmap of cpus this scheduler is running on! */
 	asndcap_t xcpu_asnd[NUM_CPU][NUM_CPU];
+	struct cos_scb_info *scb_area;
 } CACHE_ALIGNED;
 
 extern struct sl_global sl_global_data;

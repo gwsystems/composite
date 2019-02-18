@@ -69,6 +69,7 @@ struct thread {
 	tcap_time_t    timeout;
 	struct thread *interrupted_thread;
 	struct thread *scheduler_thread;
+	struct cos_dcb_info *dcbinfo;
 
 	/* rcv end-point data-structures */
 	struct rcvcap_info rcvcap;
@@ -333,7 +334,7 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 }
 
 static int
-thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data)
+thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data, unsigned long dcbkaddr)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
 	struct cap_thd            *tc;
@@ -354,6 +355,8 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->refcnt                           = 1;
 	thd->invstk_top                       = 0;
 	thd->cpuid                            = get_cpuid();
+	thd->dcbinfo                          = (struct cos_dcb_info *)dcbkaddr;
+	memset(thd->dcbinfo, 0, sizeof(struct cos_dcb_info));
 	assert(thd->tid <= MAX_NUM_THREADS);
 	thd_scheduler_set(thd, thd_current(cli));
 
@@ -583,6 +586,14 @@ thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 	switch (op) {
 	case THD_GET_TID:
 		*retval = t->tid;
+		break;
+	case THD_GET_DCB_IP:
+		*retval = t->dcbinfo->ip;
+		printk("%lx\n", t->dcbinfo->ip);
+		break;
+	case THD_GET_DCB_SP:
+		*retval = t->dcbinfo->sp;
+		printk("%lx\n", t->dcbinfo->sp);
 		break;
 	default:
 		return -EINVAL;

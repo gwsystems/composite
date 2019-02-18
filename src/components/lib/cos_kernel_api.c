@@ -507,7 +507,7 @@ __page_bump_valloc(struct cos_compinfo *ci, size_t sz)
 }
 
 static vaddr_t
-__page_bump_alloc(struct cos_compinfo *ci, size_t sz)
+__page_bump_alloc(struct cos_compinfo *ci, size_t sz, int shared)
 {
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 	vaddr_t              heap_vaddr, heap_cursor, heap_limit;
@@ -532,7 +532,7 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz)
 	for (heap_cursor = heap_vaddr; heap_cursor < heap_limit; heap_cursor += PAGE_SIZE) {
 		vaddr_t umem;
 
-		umem = __umem_bump_alloc(ci);
+		umem = shared ? __kmem_bump_alloc(ci) : __umem_bump_alloc(ci);
 		if (!umem) return 0;
 
 		/* Actually map in the memory. */
@@ -574,7 +574,7 @@ __alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
 }
 
 static thdcap_t
-__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init_data)
+__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init_data, pgtblcap_t ptcap, vaddr_t dcbaddr)
 {
 	vaddr_t kmem;
 	capid_t cap;
@@ -584,10 +584,11 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	assert(ci && comp > 0);
 
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
-	assert(!(init_data & ~((1 << 16) - 1)));
-	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap,
-	                __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, comp))
+	assert(!(init_data & ~((1 << 12) - 1)));
+	assert(kmem && (round_to_page(kmem) == kmem));
+
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, __compinfo_metacap(ci)->mi.pgtbl_cap | (cap << 16),
+			kmem | init_data, comp << 16 | ptcap, dcbaddr))
 		BUG();
 
 	return cap;
@@ -596,30 +597,30 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 #include <cos_thd_init.h>
 
 thdcap_t
-cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx)
+cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx, pgtblcap_t ptcap, vaddr_t dcbaddr)
 {
 	if (idx < 1) return 0;
 
-	return __cos_thd_alloc(ci, comp, idx);
+	return __cos_thd_alloc(ci, comp, idx, ptcap, dcbaddr);
 }
 
 thdcap_t
-cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data)
+cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data, pgtblcap_t ptcap, vaddr_t dcbaddr)
 {
 	int      idx = cos_thd_init_alloc(fn, data);
 	thdcap_t ret;
 
 	if (idx < 1) return 0;
-	ret = __cos_thd_alloc(ci, comp, idx);
+	ret = __cos_thd_alloc(ci, comp, idx, ptcap, dcbaddr);
 	if (!ret) cos_thd_init_free(idx);
 
 	return ret;
 }
 
 thdcap_t
-cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp)
+cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp, pgtblcap_t ptcap, vaddr_t dcbaddr)
 {
-	return __cos_thd_alloc(ci, comp, 0);
+	return __cos_thd_alloc(ci, comp, 0, ptcap, dcbaddr);
 }
 
 captblcap_t
@@ -657,25 +658,25 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 }
 
 compcap_t
-cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry)
+cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, vaddr_t scbpg)
 {
 	capid_t cap;
 	u32_t   lid = livenessid_bump_alloc();
 
 	printd("cos_comp_alloc\n");
 
-	assert(ci && ctc && ptc && lid);
+	assert(ci && ctc && ptc && lid && scbpg);
 
 	cap = __capid_bump_alloc(ci, CAP_COMP);
 	if (!cap) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, cap, (ctc << 16) | ptc, lid, entry)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, (lid << 16) | cap, (ctc << 16) | ptc, scbpg, entry)) BUG();
 
 	return cap;
 }
 
 int
 cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
-                   struct cos_compinfo *ci_resources)
+                   struct cos_compinfo *ci_resources, vaddr_t *scbpg)
 {
 	pgtblcap_t  ptc;
 	captblcap_t ctc;
@@ -687,10 +688,13 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 	assert(ptc);
 	ctc = cos_captbl_alloc(ci_resources);
 	assert(ctc);
-	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry);
-	assert(compc);
+	cos_compinfo_init(ci, ptc, ctc, 0, heap_ptr, cap_frontier, ci_resources);
+	*scbpg = (vaddr_t)cos_scbpg_bump_allocn(ci, COS_SCB_SIZE);
+	assert(*scbpg);
 
-	cos_compinfo_init(ci, ptc, ctc, compc, heap_ptr, cap_frontier, ci_resources);
+	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry, *scbpg);
+	assert(compc);
+	ci->comp_cap = compc;
 
 	return 0;
 }
@@ -779,10 +783,29 @@ cos_hw_alloc(struct cos_compinfo *ci, u32_t bitmap)
 	return cap;
 }
 
+/* TODO: Can we alias/etc on this page with this logic? */
+void *
+cos_dcbpg_bump_allocn(struct cos_compinfo *ci, size_t sz)
+{
+	assert(sz == PAGE_SIZE);
+	/* assert(sz % PAGE_SIZE == 0); */
+
+	return (void *)__page_bump_alloc(ci, sz, 1);
+}
+
+void *
+cos_scbpg_bump_allocn(struct cos_compinfo *ci, size_t sz)
+{
+	assert(sz == PAGE_SIZE);
+	/* assert(sz % PAGE_SIZE == 0); */
+
+	return (void *)__page_bump_alloc(ci, sz, 1);
+}
+
 void *
 cos_page_bump_alloc(struct cos_compinfo *ci)
 {
-	return (void *)__page_bump_alloc(ci, PAGE_SIZE);
+	return (void *)__page_bump_alloc(ci, PAGE_SIZE, 0);
 }
 
 void *
@@ -790,7 +813,7 @@ cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz)
 {
 	assert(sz % PAGE_SIZE == 0);
 
-	return (void *)__page_bump_alloc(ci, sz);
+	return (void *)__page_bump_alloc(ci, sz, 0);
 }
 
 capid_t

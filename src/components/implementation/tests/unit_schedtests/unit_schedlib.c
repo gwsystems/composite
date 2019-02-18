@@ -40,6 +40,8 @@ static volatile int testing = 1;
 void
 test_thd_perffn(void *data)
 {
+	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	thdcap_t thdc = 0;
 	cycles_t start_cycs = 0, end_cycs = 0, wc_cycs = 0, total_cycs = 0;
 	unsigned int i = 0;
 
@@ -68,6 +70,9 @@ test_thd_perffn(void *data)
 	PRINTC("SWITCH UBENCH: avg: %llu, wc: %llu, iters:%u\n", (total_cycs / (2 * PERF_ITERS)), wc_cycs, PERF_ITERS);
 	testing = 0;
 	/* done testing! let the spinfn cleanup! */
+	PRINTC("CURR THD: %u\n", (unsigned int)cos_introspect(ci, ci->comp_cap, COMP_GET_SCB_CURTHD));
+	thdc = sl_thd_thdcap(sl_thd_curr());
+	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)thdc, (unsigned long)cos_introspect(ci, thdc, THD_GET_DCB_IP), (unsigned long)cos_introspect(ci, thdc, THD_GET_DCB_SP));
 	sl_thd_yield(0);
 
 	sl_thd_exit();
@@ -76,11 +81,17 @@ test_thd_perffn(void *data)
 void
 test_thd_spinfn(void *data)
 {
+	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	thdcap_t thdc = 0;
+
 	while (likely(testing)) {
 		rdtscll(mid_cycs);
 		sl_thd_yield(0);
 	}
 
+	thdc = sl_thd_thdcap(sl_thd_curr());
+	PRINTC("CURR THD: %u\n", (unsigned int)cos_introspect(ci, ci->comp_cap, COMP_GET_SCB_CURTHD));
+	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)thdc, (unsigned long)cos_introspect(ci, thdc, THD_GET_DCB_IP), (unsigned long)cos_introspect(ci, thdc, THD_GET_DCB_SP));
 	sl_thd_exit();
 }
 
@@ -100,8 +111,13 @@ void
 test_yield_perf(void)
 {
 	int                     i;
-	struct sl_thd *         threads[N_TESTTHDS_PERF];
+	struct sl_thd          *threads[N_TESTTHDS_PERF];
+	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = 31}};
+	struct cos_scb_info *scb_info = cos_scb_info_get();
+
+	scb_info->curr_thd = BOOT_CAPTBL_SELF_INITTHD_CPU_BASE;
+	PRINTC("CURR THD: %u\n", (unsigned int)cos_introspect(ci, ci->comp_cap, COMP_GET_SCB_CURTHD));
 
 	for (i = 0; i < N_TESTTHDS_PERF; i++) {
 		if (i == 1) threads[i] = sl_thd_alloc(test_thd_perffn, (void *)&threads[0]);
@@ -109,6 +125,7 @@ test_yield_perf(void)
 		assert(threads[i]);
 		sl_thd_param_set(threads[i], sp.v);
 		PRINTC("Thread %u:%lu created\n", sl_thd_thdid(threads[i]), sl_thd_thdcap(threads[i]));
+		PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)sl_thd_thdcap(threads[i]), (unsigned long)cos_introspect(ci, sl_thd_thdcap(threads[i]), THD_GET_DCB_IP), (unsigned long)cos_introspect(ci, sl_thd_thdcap(threads[i]), THD_GET_DCB_SP));
 	}
 }
 
