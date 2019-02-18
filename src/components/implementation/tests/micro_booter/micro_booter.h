@@ -49,6 +49,7 @@
 
 #define ITER 10000
 #define TEST_NTHDS 5
+#define CHAR_BIT 8
 
 extern struct cos_compinfo booter_info;
 extern thdcap_t            termthd[]; /* switch to this to shutdown */

@@ -5,6 +5,8 @@
 extern int _expect_llu(int predicate, char *str, long long unsigned a, long long unsigned b, char *errcmp, char *testname, char *file, int line);
 extern int _expect_ll(int predicate, char *str, long long a, long long b, char *errcmp, char *testname, char *file, int line);
 
+extern void clear_sched(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout);
+
 /* only one of the following tests must be enable at a time */
 /* each core snd to all other cores through N threads.. and rcv from n threads.. */
 #undef TEST_N_TO_N
@@ -439,7 +441,8 @@ test_sched_loop_1(void)
 
         if(cos_cpuid() == TEST_RCV_CORE){
             do {
-                ret = cos_switch(spinner_thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX + 2, 0, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync());
+                ret = cos_switch(spinner_thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX + 2, 0, 0, cos_sched_sync());
+                PRINTC("NFL: %d\n", ret);
             } while (ret == -EAGAIN);
         }
         while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
@@ -473,6 +476,11 @@ done:
 static void
 rcv_spinner_2(void *d)
 {
+	arcvcap_t r = rcv[cos_cpuid()];
+	asndcap_t s = asnd[cos_cpuid()];
+
+    test_asnd(s);
+
     int i = 0;
     cycles_t now = 0, prev = 0;
     rdtscll(now);
@@ -498,6 +506,8 @@ test_asnd_fn_2(void *d)
 
     arcvcap_t r = rcv[cos_cpuid()];
     asndcap_t s = asnd[cos_cpuid()];
+
+    test_rcv(r);
 
 //    for(iters = 0; iters < TEST_IPI_ITERS; iters++) {
         for(;;){
