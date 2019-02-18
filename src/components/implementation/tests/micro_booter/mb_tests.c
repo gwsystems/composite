@@ -3,6 +3,7 @@
 #include "micro_booter.h"
 
 #define debug 0
+#undef PERF
 
 unsigned int cyc_per_usec;
 
