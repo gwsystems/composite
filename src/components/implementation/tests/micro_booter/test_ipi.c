@@ -252,11 +252,15 @@ test_rcv_fn(void *d)
 static void
 test_sched_loop(void)
 {
-	while (1) {
-		int blocked, rcvd, pending, ret;
-		cycles_t cycles;
-		tcap_time_t timeout, thd_timeout;
-		thdid_t thdid;
+    int blocked, rcvd, pending, ret;
+    cycles_t cycles;
+    tcap_time_t timeout, thd_timeout;
+    thdid_t thdid;
+
+    // Clear Scheduler
+    clear_sched(&rcvd, &thdid, &blocked, &cycles, &thd_timeout);
+
+    while (1) {
 
 		while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
 						&rcvd, &thdid, &blocked, &cycles, &thd_timeout)) >= 0) {
@@ -433,16 +437,20 @@ test_asnd_fn_1(void *d)
 static void
 test_sched_loop_1(void)
 {
-	while (1) {
-		int blocked, rcvd, pending, ret;
-		cycles_t cycles;
-		tcap_time_t timeout, thd_timeout;
-		thdid_t thdid;
+    int blocked, rcvd, pending, ret;
+    cycles_t cycles;
+    tcap_time_t timeout, thd_timeout;
+    thdid_t thdid;
+
+    // Clear Scheduler
+    clear_sched(&rcvd, &thdid, &blocked, &cycles, &thd_timeout);
+
+    while (1) {
 
         if(cos_cpuid() == TEST_RCV_CORE){
             do {
-                ret = cos_switch(spinner_thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX + 2, 0, 0, cos_sched_sync());
-                PRINTC("NFL: %d\n", ret);
+                ret = cos_switch(spinner_thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX + 2, 0, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync());
+//                PRINTC("NFL: %d\n", ret);
             } while (ret == -EAGAIN);
         }
         while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
@@ -478,8 +486,15 @@ rcv_spinner_2(void *d)
 {
 	arcvcap_t r = rcv[cos_cpuid()];
 	asndcap_t s = asnd[cos_cpuid()];
+	int ret = 0;
 
-    test_asnd(s);
+    PRINTC("D\n");
+//    test_asnd(s);
+
+	ret = cos_asnd(s, 0);
+	assert(ret == 0 || ret == -EBUSY);
+
+    PRINTC("ST\n");
 
     int i = 0;
     cycles_t now = 0, prev = 0;
@@ -507,7 +522,10 @@ test_asnd_fn_2(void *d)
     arcvcap_t r = rcv[cos_cpuid()];
     asndcap_t s = asnd[cos_cpuid()];
 
+
+//        PRINTC("plp %d\n",__LINE__);
     test_rcv(r);
+//        PRINTC("sls %d\n",__LINE__);
 
 //    for(iters = 0; iters < TEST_IPI_ITERS; iters++) {
         for(;;){
