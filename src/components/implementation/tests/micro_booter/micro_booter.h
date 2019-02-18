@@ -35,8 +35,6 @@
 
 #define EXPECT_LL_LT(a, b, name) EXPECT_LL((a) > (b), "%lld",  "<=", (a), (b), name)
 
-//	_expect_ll((boole), (": " #a " " errcmp " " #b " (evaluated to " printstr errcmp printstr  ")"), a, b)
-
 #define BUG_DIVZERO()                                           \
 	do {                                                    \
 		debug_print("Testing divide by zero fault @ "); \
