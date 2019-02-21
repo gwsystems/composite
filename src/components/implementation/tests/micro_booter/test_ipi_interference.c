@@ -43,7 +43,7 @@ test_rcv(arcvcap_t r)
 {
 	int pending = 0, rcvd = 0;
 
-    assert(0);
+//    assert(0);
 
 	pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
 	assert(pending == 0);
@@ -157,18 +157,25 @@ rcv_spinner(void *d)
     PRINTC("ST\n");
 
     int i = 0;
-    cycles_t now = 0, prev = 0;
+    cycles_t now = 0, prev = 0, tot_avg = 0;
     rdtscll(now);
     prev = now;
     while (!done_test){
           rdtscll(now);
 //        rdtscll(global_time[(i++%2)]);
-//          if((now - prev) != 28)
-            PRINTC("NOW: %llu\n", now - prev);
+/*          if((now - prev) > 30){
+            tot_avg += now - prev;
+              i++;
+          }
+          if(i > TEST_IPI_ITERS)
+            break;
+*/
+          tot_avg += now - prev;
           prev = now;
     }
 
-    PRINTC("D\n");
+    PRINTC("D %llu %llu\n", tot_avg ,tot_avg / TEST_IPI_ITERS);
+    while(!done_test);
     while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 }
 
@@ -184,11 +191,11 @@ test_asnd_fn(void *d)
 
 
 //        PRINTC("plp %d\n",__LINE__);
-    test_rcv(r);
+        test_rcv(r);
 //        PRINTC("sls %d\n",__LINE__);
 
-//    for(iters = 0; iters < TEST_IPI_ITERS; iters++) {
-        for(;;){
+    for(iters = 0; iters < TEST_IPI_ITERS; iters++) {
+//        for(;;){
         test_asnd(s);
         time = global_time[1] - global_time[0];
 
@@ -229,13 +236,15 @@ test_ipi_interference(void)
 
 	if (cos_cpuid() == TEST_RCV_CORE) {
 
-        rcv[TEST_SND_CORE] = 0;
-        global_time[0] = 0;
-        global_time[1] = 0;
+//        rcv[TEST_SND_CORE] = 0;
+//        global_time[0] = 0;
+//        global_time[1] = 0;
 
         // Test RCV 2: Close Loop at higher priority => Measure Kernel involvement
         tcc = cos_tcap_alloc(&booter_info);
         assert(tcc);
+
+        PRINTC("TESTES\n");
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL);
 		assert(t);
@@ -248,8 +257,9 @@ test_ipi_interference(void)
 		thd[cos_cpuid()] = t;
 		tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
 		rcv[cos_cpuid()] = r;
+        PRINTC("TEST %d\n",__LINE__);
 		while(!rcv[TEST_SND_CORE]) ;
-        done_test = 0;
+//        done_test = 0;
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL);
         assert(t);
@@ -260,7 +270,7 @@ test_ipi_interference(void)
 		assert(s);
 		asnd[cos_cpuid()] = s;
 		test_sync_asnd();
-//        PRINTC("TEST %d\n",__LINE__);
+        PRINTC("TEST %d\n",__LINE__);
         test_sched_loop();
 //        PRINTC("WAS %d\n",__LINE__);
         while(1);
@@ -269,7 +279,7 @@ test_ipi_interference(void)
 
 		if (cos_cpuid() != TEST_SND_CORE) return;
 
-        rcv[TEST_RCV_CORE] = 0;
+  //      rcv[TEST_RCV_CORE] = 0;
         // Test RCV2: Corresponding Send
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL);
@@ -282,7 +292,7 @@ test_ipi_interference(void)
 		tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
 		rcv[cos_cpuid()] = r;
 		while(!rcv[TEST_RCV_CORE]) ;
-        while(done_test);
+ //       while(done_test);
 
 		s = cos_asnd_alloc(&booter_info, rcv[TEST_RCV_CORE], booter_info.captbl_cap);
 		assert(s);
