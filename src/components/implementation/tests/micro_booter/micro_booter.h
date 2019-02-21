@@ -72,7 +72,7 @@ tls_set(size_t off, unsigned long val)
 }
 
 extern void test_run_mb(void);
-extern void test_run_timer(void);
 extern void test_ipi_full(void);
+extern void test_ipi_interference(void);
 
 #endif /* MICRO_BOOTER_H */

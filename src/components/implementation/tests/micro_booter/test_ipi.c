@@ -194,24 +194,24 @@ done:			if(!pending) break;
 #define TEST_SND_CORE 1
 #define TEST_IPI_ITERS 1000000
 
-volatile asndcap_t asnd[NUM_CPU] = { 0 };
-volatile arcvcap_t rcv[NUM_CPU] = { 0 };
-volatile thdcap_t  thd[NUM_CPU] = { 0 };
-volatile thdid_t   tid[NUM_CPU] = { 0 };
-volatile int       blkd[NUM_CPU] = { 0 };
+static volatile asndcap_t asnd[NUM_CPU] = { 0 };
+static volatile arcvcap_t rcv[NUM_CPU] = { 0 };
+static volatile thdcap_t  thd[NUM_CPU] = { 0 };
+static volatile thdid_t   tid[NUM_CPU] = { 0 };
+static volatile int       blkd[NUM_CPU] = { 0 };
 
-volatile unsigned long long total_rcvd[NUM_CPU] = { 0 };
-volatile unsigned long long total_sent[NUM_CPU] = { 0 };
+static volatile unsigned long long total_rcvd[NUM_CPU] = { 0 };
+static volatile unsigned long long total_sent[NUM_CPU] = { 0 };
 
 #define MAX_THRS 4
 #define MIN_THRS 1
 
-volatile thdcap_t  spinner_thd[NUM_CPU] = { 0 };
-volatile cycles_t  global_time[2] = { 0 };
+static volatile thdcap_t  spinner_thd[NUM_CPU] = { 0 };
+static volatile cycles_t  global_time[2] = { 0 };
 
-volatile int       done_test = 0;
-volatile int       ret_enable = 1;
-volatile int       pending_rcv = 0;
+static volatile int       done_test = 0;
+static volatile int       ret_enable = 1;
+static volatile int       pending_rcv = 0;
 
 static void
 test_rcv(arcvcap_t r)

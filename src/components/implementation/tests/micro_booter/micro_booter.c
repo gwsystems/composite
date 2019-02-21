@@ -42,7 +42,8 @@ cos_init(void)
 	assert(termthd[cos_cpuid()]);
 	PRINTC("Micro Booter started.\n");
 //	test_run_mb();
-    test_ipi_full();
+//  test_ipi_full();
+    test_ipi_interference();
 	/* NOTE: This is just to make sense of the output on HW! To understand that microbooter runs to completion on all cores! */
 	test_done[cos_cpuid()] = 1;
 	for (i = 0; i < NUM_CPU; i++) {
