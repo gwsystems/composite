@@ -191,15 +191,6 @@ update:
 	return 0;
 }
 
-int
-sl_thd_dispatch_slowpath(struct sl_thd *t, sched_tok_t tok)
-{
-	struct sl_global_cpu *g = sl__globals_cpu();
-
-	/* no timeouts for now! */
-	return cos_switch(sl_thd_thdcap(t), g->sched_tcap, t->prio, TCAP_TIME_NIL /*t == g->sched_thd ? TCAP_TIME_NIL : g->timeout_next*/, 0 /* don't switch to scheduler in the middle of this! */, tok);
-}
-
 /*
  * Wake "t" up if it was previously blocked on cos_rcv and got
  * to run before the scheduler (tcap-activated)!
@@ -603,6 +594,8 @@ sl_init(microsec_t period)
 	g->sched_rcv       = BOOT_CAPTBL_SELF_INITRCV_CPU_BASE;
 	g->sched_thd->prio = 0;
 	ps_list_head_init(&g->event_head);
+	assert(cos_thdid() == sl_thd_thdid(g->sched_thd));
+	g->scb_info->curr_thd = 0;
 
 	g->idle_thd        = sl_thd_alloc(sl_idle, NULL);
 	assert(g->idle_thd);
@@ -722,4 +715,10 @@ void
 sl_sched_loop_nonblock(void)
 {
 	sl_sched_loop_intern(1);
+}
+
+int
+sl_thd_kern_dispatch(thdcap_t t)
+{
+	return cos_thd_switch(t);
 }

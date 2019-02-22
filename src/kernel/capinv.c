@@ -82,6 +82,44 @@ done:
 	return 0;
 }
 
+static struct thread *
+cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, struct comp_info **ci_ptr)
+{
+	struct thread  *thd = thd_current(cos_info);
+	struct cap_thd *ch_ult;
+	struct thread  *ulthd;
+	capid_t         ultc;
+	int             invstk_top;
+
+	*ci_ptr = thd_invstk_current_compinfo(thd, cos_info, &invstk_top);
+
+	/* no user-level thread switches in invocations! */
+	if (unlikely(invstk_top)) goto done;
+
+	assert(*ci_ptr && (*ci_ptr)->captbl);
+
+	if (unlikely(!(*ci_ptr)->scb_data)) goto done;
+
+	ultc   = (*ci_ptr)->scb_data->curr_thd;
+	if (!ultc) goto done;
+	ch_ult = (struct cap_thd *)captbl_lkup((*ci_ptr)->captbl, ultc);
+	/* TODO: use kernel curr thread? or sched thread in that component? */
+	if (unlikely(!CAP_TYPECHK_CORE(ch_ult, CAP_THD))) return NULL;
+
+	/* reset inconsistency from user-level thd! */
+	(*ci_ptr)->scb_data->curr_thd = 0;
+
+	ulthd = ch_ult->t;
+	assert(ulthd->dcbinfo);
+	if (ulthd == thd) goto done;
+
+	thd_current_update(ulthd, thd, cos_info);
+	thd = ulthd;
+
+done:
+	return thd;
+}
+
 void cos_cap_ipi_handling(void);
 void
 cos_cap_ipi_handling(void)
@@ -768,12 +806,11 @@ int
 cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 {
 	int                        curr_cpu = get_cpuid();
-	struct cap_arcv *          arcv;
+	struct cap_arcv           *arcv;
 	struct cos_cpu_local_info *cos_info;
-	struct thread *            rcv_thd, *next, *thd;
-	struct tcap *              rcv_tcap, *tcap, *tcap_next;
-	struct comp_info *         ci;
-	unsigned long              ip, sp;
+	struct thread             *rcv_thd, *next, *thd;
+	struct tcap               *rcv_tcap, *tcap, *tcap_next;
+	struct comp_info          *ci;
 
 	if (!CAP_TYPECHK(asnd, CAP_ASND)) return 1;
 	assert(asnd->arcv_capid);
@@ -789,12 +826,10 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
-	thd  = thd_current(cos_info);
-	tcap = tcap_current(cos_info);
-	assert(thd);
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
-	assert(ci && ci->captbl);
+	thd = cap_ulthd_restore(regs, cos_info, &ci);
+	assert(thd && ci && ci->captbl);
 	assert(!(thd->state & THD_STATE_PREEMPTED));
+	tcap = tcap_current(cos_info);
 	rcv_thd  = arcv->thd;
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
@@ -837,16 +872,13 @@ int
 timer_process(struct pt_regs *regs)
 {
 	struct cos_cpu_local_info *cos_info;
-	struct thread *            thd_curr;
-	struct comp_info *         comp;
-	unsigned long              ip, sp;
-	cycles_t                   now;
+	struct thread             *thd_curr;
+	struct comp_info          *comp = NULL;
 
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
-	thd_curr = thd_current(cos_info);
+	thd_curr = cap_ulthd_restore(regs, cos_info, &comp);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
-	comp = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
 	assert(comp);
 
 	return expended_process(regs, thd_curr, comp, cos_info, 1);
@@ -950,7 +982,6 @@ composite_syscall_handler(struct pt_regs *regs)
 	struct comp_info * ci;
 	struct thread *    thd;
 	capid_t            cap;
-	unsigned long      ip, sp;
 
 	/*
 	 * We lookup this struct (which is on stack) only once, and
@@ -960,8 +991,10 @@ composite_syscall_handler(struct pt_regs *regs)
 	int                        ret        = -ENOENT;
 	int                        thd_switch = 0;
 
+	/* Definitely do it for all the fast-path calls. */
+	thd = cap_ulthd_restore(regs, cos_info, &ci);
+	assert(thd);
 	cap = __userregs_getcap(regs);
-	thd = thd_current(cos_info);
 
 	/* printk("thd %d calling cap %d (ip %x, sp %x), operation %d: %x, %x, %x, %x\n", thd->tid, cap,
 	 *        __userregs_getip(regs), __userregs_getsp(regs), __userregs_getop(regs),
@@ -981,14 +1014,12 @@ composite_syscall_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
-	assert(ci && ci->captbl);
-
 	/*
 	 * We don't check the liveness of the current component
 	 * because it's guaranteed by component quiescence period,
 	 * which is at timer tick granularity.
 	 */
+	assert(ci && ci->captbl);
 	ch = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
 		printk("cos: cap %d not found!\n", (int)cap);

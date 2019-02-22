@@ -405,7 +405,7 @@ struct cos_scb_info {
 } CACHE_ALIGNED;
 
 struct cos_dcb_info {
-	unsigned long ip;
+	unsigned long ip, ip_kret;
 	unsigned long sp;
 } __attribute__((packed));
 

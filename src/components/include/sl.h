@@ -40,9 +40,6 @@
 #include <sl_xcpu.h>
 #include <heap.h>
 
-extern int thd_dispatch_slowpath(struct sl_thd *t, sched_tok_t tok);
-extern int sl_thd_dispatch_slowpath(struct sl_thd *t, sched_tok_t tok);
-
 /* Critical section (cs) API to protect scheduler data-structures */
 struct sl_cs {
 	union sl_cs_intern {
@@ -407,25 +404,48 @@ sl_thd_is_runnable(struct sl_thd *t)
 	return (t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
 }
 
+int sl_thd_kern_dispatch(thdcap_t t);
+
 static inline int
 sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
 	struct cos_scb_info *scb = sl_scb_info_cpu();
 
 	__asm__ __volatile__ (				\
+		"pushl %%eax\n\t"			\
+		"pushl %%ebx\n\t"			\
+		"pushl %%ecx\n\t"			\
+		"pushl %%edx\n\t"			\
+		"pushl %%esi\n\t"			\
+		"pushl %%edi\n\t"			\
 		"movl $2f, (%%eax)\n\t"			\
-		"movl %%esp, 4(%%eax)\n\t"		\
-		"cmp $0, 4(%%ebx)\n\t"			\
+		"movl $3f, 4(%%eax)\n\t"		\
+		"movl %%esp, 8(%%eax)\n\t"		\
+		"cmp $0, 8(%%ebx)\n\t"			\
 		"je 1f\n\t"				\
 		"movl %%edx, (%%ecx)\n\t"		\
-		"movl 4(%%ebx), %%esp\n\t"		\
+		"movl 8(%%ebx), %%esp\n\t"		\
 		"jmp *(%%ebx)\n\t"			\
 		"1:\n\t"				\
-		"call thd_dispatch_slowpath\n\t"	\
+		"pushl %%ebp\n\t"			\
+		"movl %%esp, %%ebp\n\t"			\
+		"pushl %%edx\n\t"			\
+		"call sl_thd_kern_dispatch\n\t"		\
+		"addl $4, %%esp\n\t"			\
+		"popl %%ebp\n\t"			\
+		"jmp 3f\n\t"				\
 		"2:\n\t"				\
-		"movl $0, 4(%%ebx)\n\t"			\
+		"movl $0, 8(%%ebx)\n\t"			\
+		"3:\n\t"				\
+		"popl %%edi\n\t"			\
+		"popl %%esi\n\t"			\
+		"popl %%edx\n\t"			\
+		"popl %%ecx\n\t"			\
+		"popl %%ebx\n\t"			\
+		"popl %%eax\n\t"			\
 		:
-		: "a" (sl_thd_dcbinfo(curr)), "b" (sl_thd_dcbinfo(next)), "S" (next), "D" (tok),
+		: "a" (sl_thd_dcbinfo(curr)), "b" (sl_thd_dcbinfo(next)),
+		  "S" ((u32_t)((u64_t)tok >> 32)), "D" ((u32_t)(((u64_t)tok << 32) >> 32)),
 		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
 		: "memory", "cc");
 
@@ -446,6 +466,7 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
 				  g->timeout_next, g->sched_rcv, tok);
 	} else {
+		/* TODO: can't use if you're reprogramming a timer/prio */
 		return sl_thd_dispatch(t, tok, sl_thd_curr());
 	}
 }

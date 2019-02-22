@@ -476,6 +476,21 @@ curr_invstk_top(struct cos_cpu_local_info *cos_info)
 }
 
 static inline struct comp_info *
+thd_invstk_peek_compinfo(struct thread *curr_thd, struct cos_cpu_local_info *cos_info, int peek_index)
+{
+	/* curr_thd should be the current thread! We are using cached invstk_top. */
+	return &(curr_thd->invstk[peek_index].comp_info);
+}
+
+static inline struct comp_info *
+thd_invstk_current_compinfo(struct thread *curr_thd, struct cos_cpu_local_info *cos_info, int *invstk_top)
+{
+	*invstk_top = curr_invstk_top(cos_info);
+
+	return &(curr_thd->invstk[*invstk_top].comp_info);
+}
+
+static inline struct comp_info *
 thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
 {
 	/* curr_thd should be the current thread! We are using cached invstk_top. */
@@ -573,6 +588,17 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		 */
 	}
 
+	if (thd->dcbinfo && thd->dcbinfo->sp) {
+		if (!preempt) {
+			regs->dx = regs->ip = thd->dcbinfo->ip_kret;
+			regs->cx = regs->sp = thd->dcbinfo->sp;
+		} else {
+			regs->ip = thd->dcbinfo->ip_kret;
+			regs->sp = thd->dcbinfo->sp;
+		}
+		thd->dcbinfo->sp = 0;
+	}
+
 	if (issame && preempt == 0) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 	}
@@ -589,11 +615,9 @@ thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 		break;
 	case THD_GET_DCB_IP:
 		*retval = t->dcbinfo->ip;
-		printk("%lx\n", t->dcbinfo->ip);
 		break;
 	case THD_GET_DCB_SP:
 		*retval = t->dcbinfo->sp;
-		printk("%lx\n", t->dcbinfo->sp);
 		break;
 	default:
 		return -EINVAL;
