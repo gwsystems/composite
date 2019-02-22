@@ -411,13 +411,10 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
 	struct cos_scb_info *scb = sl_scb_info_cpu();
 
+	/* TODO: remove 3f label and use dcb->ip + OFFSET for kernel jump */
+	/* TODO: token check outside the assembly */
+
 	__asm__ __volatile__ (				\
-		"pushl %%eax\n\t"			\
-		"pushl %%ebx\n\t"			\
-		"pushl %%ecx\n\t"			\
-		"pushl %%edx\n\t"			\
-		"pushl %%esi\n\t"			\
-		"pushl %%edi\n\t"			\
 		"movl $2f, (%%eax)\n\t"			\
 		"movl $3f, 4(%%eax)\n\t"		\
 		"movl %%esp, 8(%%eax)\n\t"		\
@@ -437,12 +434,6 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 		"2:\n\t"				\
 		"movl $0, 8(%%ebx)\n\t"			\
 		"3:\n\t"				\
-		"popl %%edi\n\t"			\
-		"popl %%esi\n\t"			\
-		"popl %%edx\n\t"			\
-		"popl %%ecx\n\t"			\
-		"popl %%ebx\n\t"			\
-		"popl %%eax\n\t"			\
 		:
 		: "a" (sl_thd_dcbinfo(curr)), "b" (sl_thd_dcbinfo(next)),
 		  "S" ((u32_t)((u64_t)tok >> 32)), "D" ((u32_t)(((u64_t)tok << 32) >> 32)),
@@ -559,6 +550,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 
 	assert(sl_thd_is_runnable(t));
 	sl_cs_exit();
+	if (t == sl_thd_curr()) return 0;
 
 	ret = sl_thd_activate(t, tok);
 	/*

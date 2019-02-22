@@ -82,7 +82,8 @@ done:
 	return 0;
 }
 
-static struct thread *
+/* TODO: inline fast path and force non-inlined slow-path */
+static inline struct thread *
 cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, struct comp_info **ci_ptr)
 {
 	struct thread  *thd = thd_current(cos_info);
@@ -94,7 +95,7 @@ cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, str
 	*ci_ptr = thd_invstk_current_compinfo(thd, cos_info, &invstk_top);
 
 	/* no user-level thread switches in invocations! */
-	if (unlikely(invstk_top)) goto done;
+	/* if (unlikely(invstk_top)) goto done; */
 
 	assert(*ci_ptr && (*ci_ptr)->captbl);
 
@@ -103,8 +104,7 @@ cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, str
 	ultc   = (*ci_ptr)->scb_data->curr_thd;
 	if (!ultc) goto done;
 	ch_ult = (struct cap_thd *)captbl_lkup((*ci_ptr)->captbl, ultc);
-	/* TODO: use kernel curr thread? or sched thread in that component? */
-	if (unlikely(!CAP_TYPECHK_CORE(ch_ult, CAP_THD))) return NULL;
+	if (unlikely(!CAP_TYPECHK_CORE(ch_ult, CAP_THD))) goto done;
 
 	/* reset inconsistency from user-level thd! */
 	(*ci_ptr)->scb_data->curr_thd = 0;
@@ -112,6 +112,7 @@ cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, str
 	ulthd = ch_ult->t;
 	assert(ulthd->dcbinfo);
 	if (ulthd == thd) goto done;
+	/* TODO: check if the threads are running in the same component.. */
 
 	thd_current_update(ulthd, thd, cos_info);
 	thd = ulthd;
