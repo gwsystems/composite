@@ -56,18 +56,6 @@ test_asnd(asndcap_t s)
 }
 
 static void
-test_rcv_fn(void *d)
-{
-	arcvcap_t r = rcv[cos_cpuid()];
-	asndcap_t s = asnd[cos_cpuid()];
-
-	while (1) {
-		test_rcv(r);
-		test_asnd(s);
-	}
-}
-
-static void
 test_sync_asnd(void)
 {
 	int i;
@@ -103,7 +91,7 @@ test_rcv_1(arcvcap_t r)
 }
 
 static void
-test_rcv_fn_1(void *d)
+test_rcv_fn(void *d)
 {
 	arcvcap_t r = rcv[cos_cpuid()];
 	asndcap_t s = asnd[cos_cpuid()];
@@ -115,7 +103,7 @@ test_rcv_fn_1(void *d)
 }
 
 static void
-test_asnd_fn_1(void *d)
+test_asnd_fn(void *d)
 {
     cycles_t tot = 0, mask = 0, time = 0,wc = 0, bc = 0;
     int iters = 0;
@@ -209,7 +197,7 @@ test_ipi_switch(void)
         if (EXPECT_LL_LT(1, tcc, "Allocation"))
             return;
 
-        t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn_1, NULL);
+        t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL);
         if (EXPECT_LL_LT(1, t, "Allocation"))
             return;
 
@@ -243,7 +231,7 @@ test_ipi_switch(void)
 
         // Test RCV1: Corresponding Send
 
-        t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn_1, NULL);
+        t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL);
         if (EXPECT_LL_LT(1, t, "Allocation"))
             return;
 
