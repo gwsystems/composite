@@ -7,11 +7,7 @@ extern int _expect_ll(int predicate, char *str, long long a, long long b, char *
 
 extern void clear_sched(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout);
 
-/* only one of the following tests must be enable at a time */
-/* each core snd to all other cores through N threads.. and rcv from n threads.. */
-/* one core has 1 thread on rcv.. all other cores just asnd to that one core */
-
-/* just one core asnd to just another rcv on other core.. all other cores do nothing */
+/* Test RCV 2: Close Loop at higher priority => Measure Kernel involvement */
 
 extern unsigned int cyc_per_usec;
 

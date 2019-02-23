@@ -6,6 +6,8 @@ extern int _expect_llu(int predicate, char *str, long long unsigned a, long long
 extern int _expect_ll(int predicate, char *str, long long a, long long b, char *errcmp, char *testname, char *file, int line);
 extern void clear_sched(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout);
 
+/* Test Sender Time + Receiver Time Roundtrip */
+
 #define TEST_RCV_CORE 0
 #define TEST_SND_CORE 1
 #define TEST_IPI_ITERS 1000000
