@@ -45,6 +45,7 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 
+#define PERF
 #define ITER 10000
 #define TEST_NTHDS 5
 #define CHAR_BIT 8
@@ -72,7 +73,9 @@ tls_set(size_t off, unsigned long val)
 }
 
 extern void test_run_mb(void);
-extern void test_ipi_full(void);
+extern void test_ipi_n_n(void);
 extern void test_ipi_interference(void);
+extern void test_ipi_switch(void);
+extern void test_ipi_roundtime(void);
 
 #endif /* MICRO_BOOTER_H */
