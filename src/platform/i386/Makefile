@@ -5,7 +5,7 @@ LD := ld -m elf_i386
 AS := as --32 -g
 
 INCPATH := ../../kernel/include
-INCS    := -I$(INCPATH)
+INCS    := -I$(INCPATH) -I$(INCPATH)/shared/
 CFLAGS  := -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone $(INCS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 

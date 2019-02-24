@@ -1,0 +1,121 @@
+#ifndef SIMPLE_ELF_H
+#define SIMPLE_ELF_H
+
+/*
+ * Simple ELF object parser that focuses on only reading the program
+ * headers required to get the object's memory, and the information to
+ * load it into a new address space.  This includes information for a
+ * number of contiguous loadable regions with: virtual address, offset
+ * in the elf object, size in the elf object, size in memory (which,
+ * due to BSS might be larger than it is in the object), and access
+ * rights (read, write, execute).
+ */
+
+#include <cos_types.h>
+
+/* ELF File Header */
+struct elf_hdr {
+	unsigned char e_ident[16];       /* Magic number and other info */
+	u16_t         e_type;            /* Object file type */
+	u16_t         e_machine;         /* Architecture */
+	u32_t         e_version;         /* Object file version */
+	u32_t         e_entry;           /* Entry point virtual address */
+	u32_t         e_phoff;           /* Program header table file offset */
+	u32_t         e_shoff;           /* Section header table file offset */
+	u32_t         e_flags;           /* Processor-specific flags */
+	u16_t         e_ehsize;          /* ELF header size in bytes */
+	u16_t         e_phentsize;       /* Program header table entry size */
+	u16_t         e_phnum;           /* Program header table entry count */
+	u16_t         e_shentsize;       /* Section header table entry size */
+	u16_t         e_shnum;           /* Section header table entry count */
+	u16_t         e_shstrndx;        /* Section header string table index */
+};
+
+#define ELF_PH_LOAD 0x1
+
+struct elf32_proghdr {
+	u32_t    p_type;                 /* Segment type */
+	u32_t    p_offset;               /* Segment file offset */
+	u32_t    p_vaddr;                /* Segment virtual address */
+	u32_t    p_paddr;                /* Segment physical address */
+	u32_t    p_filesz;               /* Segment size in file */
+	u32_t    p_memsz;                /* Segment size in memory */
+	u32_t    p_flags;                /* Segment flags */
+	u32_t    p_align;                /* Segment alignment */
+};
+
+typedef enum {
+	ELF_PH_X = 0x1,
+	ELF_PH_W = 0x2,
+	ELF_PH_R = 0x4,
+	ELF_PH_RW = (ELF_PH_R | ELF_PH_W),
+	ELF_PH_CODE = (ELF_PH_R | ELF_PH_X)
+} elf_memaccess_t;
+
+struct elf_contig_mem {
+	vaddr_t vstart; 	         /* starting virtual address */
+	void   *mem;		         /* address of the memory */
+	unsigned long objsz, sz;         /* size of the memory in obj, and in mem */
+	elf_memaccess_t access;
+};
+
+static inline int
+elf_chk_format(struct elf_hdr *hdr)
+{
+	unsigned char *s = hdr->e_ident;
+
+	/* Format:  "0x7fELF1" where the 1 is for 32 bit */
+	if (s[0] != 0x7f || s[1] != 'E' || s[2] != 'L' || s[3] != 'F' || s[4] != 1) return -1;
+	return 0;
+}
+
+/*
+ * Returns the address of the entry function, or 0 on error.
+ */
+static inline vaddr_t
+elf_entry_addr(struct elf_hdr *hdr)
+{
+	if (elf_chk_format(hdr)) return 0;
+
+	return (vaddr_t)hdr->e_entry;
+}
+
+/*
+ * Get the nmem-th contiguous memory region in the binary.  Return -1
+ * if the elf object isn't shaped correctly, 1 if there aren't `nmem`
+ * regions, and 0 if `mem` is properly populated.
+ */
+static inline int
+elf_contig_mem(struct elf_hdr *hdr, unsigned int nmem, struct elf_contig_mem *mem)
+{
+	struct elf32_proghdr *proghdr, *memsect = NULL;
+	u32_t off;
+	unsigned int i, cntmem;
+
+	if (elf_chk_format(hdr) ||
+	    hdr->e_phentsize != sizeof(struct elf32_proghdr)) return -1;
+
+	proghdr = (struct elf32_proghdr *)((char *)hdr + hdr->e_phoff);
+
+	for (i = 0, cntmem = 0; i < hdr->e_phnum && cntmem <= nmem; i++) {
+		if (proghdr[i].p_type != ELF_PH_LOAD) continue;
+		if (cntmem == nmem) {
+			memsect = &proghdr[i];
+			break;
+		}
+		cntmem++;
+	}
+	if (memsect == NULL) return 1;
+
+	*mem = (struct elf_contig_mem){
+		.vstart = memsect->p_vaddr,
+		.mem    = (char *)hdr + memsect->p_offset,
+		.objsz  = memsect->p_filesz,
+		.sz     = memsect->p_memsz,
+		.access = memsect->p_flags
+	};
+
+	return 0;
+}
+
+#endif	/* SIMPLE_ELF_H */

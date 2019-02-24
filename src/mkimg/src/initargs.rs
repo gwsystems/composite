@@ -46,7 +46,7 @@ impl ArgsKV {
         match &self {
             ArgsKV { key: k, val: ArgsValType::Str(ref s) } => { // base case
                 let kv_name = ns.fresh_name();
-                (format!(r#"static const struct kv_entry {} = {{ key: "{}", vtype: VTYPE_STR, val: {{ str: "{}" }} }};
+                (format!(r#"static struct kv_entry {} = {{ key: "{}", vtype: VTYPE_STR, val: {{ str: "{}" }} }};
 "#, kv_name, k, s),
                  vec![format!("&{}", kv_name)])
             },
@@ -79,6 +79,6 @@ static struct kv_entry {} = {{ key: "{}", vtype: VTYPE_ARR, val: {{ arr: {{ sz: 
 
         format!("#include <initargs.h>
 {}
-struct initargs __initargs_root = {{ type: ARGS_IMPL_KV, d: {{ kv_ent: __initargs_autogen_0 }} }};", self.serialize_rec(&mut ns).0)
+struct initargs __initargs_root = {{ type: ARGS_IMPL_KV, d: {{ kv_ent: &__initargs_autogen_0 }} }};", self.serialize_rec(&mut ns).0)
     }
 }

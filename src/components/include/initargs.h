@@ -73,10 +73,14 @@ struct initargs_iter {
 char *args_get(char *path);
 int args_get_entry(char *path, struct initargs *entry);
 /* Access the k/v of a given entry */
- char *args_key(struct initargs *entry, int *str_len);
- char *args_value(struct initargs *entry);
+char *args_key(struct initargs *entry, int *str_len);
+char *args_value(struct initargs *entry);
+args_type_t args_type(struct initargs *ent);
 /* Iterate through the entries, particularly in a map. */
 int args_len(struct initargs *kv);
+typedef void (*args_visitor_fn_t)(struct initargs *ent, void *data);
+int args_foreach(struct initargs *ent, args_visitor_fn_t fn, void *data);
+
 int args_iter(struct initargs *kv, struct initargs_iter *i, struct initargs *first);
 int args_iter_next(struct initargs_iter *i, struct initargs *next);
 

@@ -34,7 +34,7 @@
  */
 
 struct mem_layout {
-	u8_t *kern_end, *mod_start, *mod_end, *bootc_entry, *bootc_vaddr, *kern_boot_heap, *kmem_end;
+	u8_t *kern_end, *mod_start, *mod_end, *bootc_entry, *kern_boot_heap, *kmem_end;
 	int   allocs_avail;
 };
 extern struct mem_layout glb_memlayout;
@@ -58,16 +58,6 @@ static inline u8_t *
 mem_bootc_end(void)
 {
 	return glb_memlayout.mod_end;
-}
-static inline u8_t *
-mem_bootc_entry(void)
-{
-	return glb_memlayout.bootc_entry;
-}
-static inline u8_t *
-mem_bootc_vaddr(void)
-{
-	return glb_memlayout.bootc_vaddr;
 }
 static inline u8_t *
 mem_boot_start(void)

@@ -214,7 +214,7 @@ args_lkup_entry(struct initargs *arg, char *path, struct initargs *ret)
 	return -1;
 }
 
-int
+args_type_t
 args_type(struct initargs *ent)
 {
 	switch (ent->type) {

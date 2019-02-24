@@ -12,32 +12,9 @@
 #include <thd.h>
 
 #define ADDR_STR_LEN 8
-#define CMDLINE_MAX_LEN 32
-#define CMDLINE_REQ_LEN (ADDR_STR_LEN * 2 + 1)
 
 struct mem_layout glb_memlayout;
 volatile int cores_ready[NUM_CPU];
-
-static int
-xdtoi(char c)
-{
-	if ('0' <= c && c <= '9') return c - '0';
-	if ('a' <= c && c <= 'f') return c - 'a' + 10;
-	if ('A' <= c && c <= 'F') return c - 'A' + 10;
-	return 0;
-}
-
-static u32_t
-hextol(const char *s)
-{
-	int i, r = 0;
-
-	for (i = 0; i < 8; i++) {
-		r = (r * 0x10) + xdtoi(s[i]);
-	}
-
-	return r;
-}
 
 extern u8_t end; /* from the linker script */
 
@@ -73,21 +50,12 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	printk("\tModules:\n");
 	for (i = 0; i < mb->mods_count; i++) {
 		struct multiboot_mod_list *mod         = &mods[i];
-		char *                     cmdline     = (char *)mod->cmdline;
-		int                        cmdline_len = strnlen((const char *)cmdline, CMDLINE_MAX_LEN);
-		int                        addr_offset = cmdline_len - CMDLINE_REQ_LEN;
 
-		printk("\t- %d: [%08x, %08x) : %s", i, mod->mod_start, mod->mod_end, mod->cmdline);
-		assert(cmdline_len >= CMDLINE_REQ_LEN);
-		assert(cmdline[addr_offset + ADDR_STR_LEN] == '-');
+		printk("\t- %d: [%08x, %08x)", i, mod->mod_start, mod->mod_end);
 
 		/* These values have to be higher-half addresses */
 		glb_memlayout.mod_start = chal_pa2va((paddr_t)mod->mod_start);
 		glb_memlayout.mod_end   = chal_pa2va((paddr_t)mod->mod_end);
-
-		glb_memlayout.bootc_vaddr = (void *)hextol((char *)(cmdline + addr_offset));
-		glb_memlayout.bootc_entry = (void *)hextol((char *)(cmdline + addr_offset + ADDR_STR_LEN + 1));
-		printk(" @ virtual address %p, _start = %p.\n", glb_memlayout.bootc_vaddr, glb_memlayout.bootc_entry);
 	}
 	glb_memlayout.kern_boot_heap = mem_boot_start();
 
@@ -123,7 +91,6 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	assert(mem_utmem_start() >= mem_kmem_start());
 	assert(mem_utmem_start() >= mem_boot_end());
 	assert(mem_utmem_end() <= mem_kmem_end());
-	assert(mem_bootc_entry() - mem_bootc_vaddr() <= mem_bootc_end() - mem_bootc_start());
 
 	wastage += mem_boot_start() - mem_bootc_end();
 
@@ -167,6 +134,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	kern_boot_comp(INIT_CORE);
 	lapic_init();
 	timer_init();
+
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
 

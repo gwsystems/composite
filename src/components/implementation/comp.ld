@@ -52,7 +52,8 @@ SECTIONS
 	      *(.data*);
 	      *(.ucap*);
 	}
-	.bss : { *(.bss*) }
 	.initonce : { *(.initonce*) }
 	.initfile : { *(.initfile*) }
+
+	.bss : { *(.bss*) }
 }

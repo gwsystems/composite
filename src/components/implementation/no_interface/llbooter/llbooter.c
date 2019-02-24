@@ -4,6 +4,7 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <stdlib.h>
+#include <initargs.h>
 
 #include "boot_deps.h"
 
@@ -425,9 +426,24 @@ boot_comp_capinfo_init(void)
 }
 
 void
+printcomps(struct initargs *comp, void *data)
+{
+	int keysz;
+	printc("Component binary found: %s\n", args_key(comp, &keysz));
+}
+
+void
 cos_init(void)
 {
 	struct cobj_header *h;
+	struct initargs comps;
+	int ret;
+
+	ret = args_get_entry("binaries", &comps);
+	assert(!ret);
+	ret = args_foreach(&comps, printcomps, NULL);
+	assert(!ret);
+
 
 	PRINTLOG(PRINT_DEBUG, "Booter for new kernel\n");
 

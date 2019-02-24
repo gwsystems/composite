@@ -96,7 +96,8 @@ impl<'a> Compose<'a> {
 
         // build all of the component objects associated with the component binaries
         for c in spec.sys.comps().iter() {
-            cs.insert(c.name().clone(), CompObject::parse(c.name().clone(), spec.binaries.get(c.name()).unwrap())?);
+            cs.insert(c.name().clone(),
+                      CompObject::parse(c.name().clone(), spec.binaries.get(c.name()).unwrap())?);
         }
 
         // Find a total order of components based on the dependency

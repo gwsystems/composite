@@ -43,6 +43,7 @@ clean:
 	$(info |     [RM]   Cleaning up directory)
 	@rm -f a.out *.o *.a *.d *~
 	make -C sl clean
+	make -C initargs clean
 
 distclean:
 	make -C musl-1.1.11 distclean
