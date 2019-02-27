@@ -321,12 +321,15 @@ impl BuildContext {
         // populate the tarball for the booter
         let file = File::create(&tar_path).unwrap();
         let mut ar = Builder::new(file);
+
+        ar.append_dir("binaries/", "binaries/").unwrap(); // FIXME: error handling
         for (n, c) in self.comps.iter() {
             let path = comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name);
             let name = comp_obj_name(&c.comp_if, &c.comp_name, &c.var_name);
             let mut f = File::open(path).unwrap(); //  should not fail: we just build this
             ar.append_file(format!("{}/{}", booter_tar_dirkey(), name), &mut f).unwrap(); // FIXME: error handling
         }
+        ar.finish().unwrap(); // FIXME: error handling
 
         let mut initargs_file = File::create(&initargs_path).unwrap();
         initargs_file.write_all(booter_serialize_args(&compose).as_bytes()).unwrap();

@@ -426,24 +426,38 @@ boot_comp_capinfo_init(void)
 }
 
 void
-printcomps(struct initargs *comp, void *data)
+printcomps(void)
 {
-	int keysz;
-	printc("Component binary found: %s\n", args_key(comp, &keysz));
+	int keylen;
+	struct initargs comps, curr;
+	struct initargs_iter i;
+	int cont, ret;
+
+	ret = args_get_entry("components", &comps);
+	assert(!ret);
+
+	printc("Components (and initialization schedule):\n");
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		printc("\t%d: %s\n", atoi(args_key(&curr, &keylen)), args_value(&curr));
+	}
+
+	ret = args_get_entry("binaries", &comps);
+	assert(!ret);
+
+	printc("Binaries (%d):\n", args_len(&comps));
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		printc("\t%s (0x%p)\n", args_key(&curr, &keylen), args_value(&curr));
+	}
+
+	return;
 }
 
 void
 cos_init(void)
 {
 	struct cobj_header *h;
-	struct initargs comps;
-	int ret;
 
-	ret = args_get_entry("binaries", &comps);
-	assert(!ret);
-	ret = args_foreach(&comps, printcomps, NULL);
-	assert(!ret);
-
+	printcomps();
 
 	PRINTLOG(PRINT_DEBUG, "Booter for new kernel\n");
 

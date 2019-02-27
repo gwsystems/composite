@@ -389,14 +389,24 @@ void
 tar_test(void)
 {
 	char *val;
-	struct initargs entry;
+	struct initargs entry, e;
+	struct initargs_iter i;
+	int cont;
 
-	val = args_get("dir2/subdir2/file3");
-	if (expect(val != NULL, "Lookup of tar file dir2/subdir2/file3")) {
+	if (args_get_entry("binaries", &entry)) printf("The fuck\n");
+	printf("binaries length: %d\n", args_len(&entry));
+	for (cont = args_iter(&entry, &i, &e) ; cont ; cont = args_iter_next(&i, &e)) {
+		int len;
+		printf("Binary: %s\n", args_key(&e, &len));
+	}
+	printf("Success!\n");
+
+	val = args_get("binaries/dir2/subdir2/file3");
+	if (expect(val != NULL, "Lookup of tar file binaries/dir2/subdir2/file3")) {
 		expect(!strcmp(val, "file3 contents\n"), "checking contents of file3");
 	}
 
-	if (expect(args_get_entry("dir2", &entry) == 0, "Looking up the dir2 tar subdirectory")) {
+	if (expect(args_get_entry("binaries/dir2", &entry) == 0, "Looking up the binaries/dir2 tar subdirectory")) {
 		expect(args_type(&entry) == ARGS_MAP, "Checking that dir2 is a map");
 		expect(args_len(&entry) == 2, "Checking that dir2 contains 2 entries");
 		expect(!strcmp(args_get_from("subdir2/file4", &entry), "file4 contents\n"), "args_get_from to get and check file4 contents");
@@ -426,32 +436,34 @@ struct initargs __initargs_root __attribute__((weak)) = { type: ARGS_IMPL_KV, d:
 /*** Testing this uses the following Makefile:
 
 COMPDIR=/home/gparmer/research/composite/src/components
+TAR_FILE=crt_init.tar
 
 all: tartest argstest
 
 tartest: tar_bin.o
-	gcc -Wall -Wextra -DTAR_TEST -I$(COMPDIR)/include/ -g $(COMPDIR)/lib/tar.c tar_bin.o -o tartest
+	gcc -Wall -Wextra -DTAR_TEST -I$(COMPDIR)/include/ -g $(COMPDIR)/lib/initargs/tar.c tar_bin.o -o tartest
 
 argstest: tar_bin.o
-	gcc -Wall -Wextra -DARGS_TEST -I$(COMPDIR)/include/ -g $(COMPDIR)/lib/tar.c -c -o tar_test.o
-	gcc -Wall -Wextra -DARGS_TEST -I$(COMPDIR)/include/ -g $(COMPDIR)/lib/initargs.c -c -o initargs_test.o
+	gcc -Wall -Wextra -DARGS_TEST -I$(COMPDIR)/include/ -g $(COMPDIR)/lib/initargs/tar.c -c -o tar_test.o
+	gcc -Wall -Wextra -DARGS_TEST -I$(COMPDIR)/include/ -g $(COMPDIR)/lib/initargs/initargs.c -c -o initargs_test.o
 	gcc tar_test.o initargs_test.o tar_bin.o -g -o argstest
 
 tar_bin.o: tartest.tar
-	cp tartest.tar booter_bins.tar
-	ld -r -b binary booter_bins.tar -o tar_bin.o
-	rm booter_bins.tar
+	cp tartest.tar $(TAR_FILE)
+	ld -r -b binary $(TAR_FILE) -o tar_bin.o
+	rm $(TAR_FILE)
 
 tartest.tar:
-	mkdir dir1 dir2 dir3
-	mkdir dir2/subdir1 dir2/subdir2 dir3/subdir3
-	echo "file1 contents" > dir1/file1
-	echo "file2 contents" > dir2/subdir1/file2
-	echo "file3 contents" > dir2/subdir2/file3
-	echo "file4 contents" > dir2/subdir2/file4
-	echo "file5 contents" > dir3/subdir3/file5
-	tar cvf tartest.tar dir1 dir2 dir3
-	rm -rf dir1 dir2 dir3
+	mkdir binaries
+	mkdir binaries/dir1 binaries/dir2 binaries/dir3
+	mkdir binaries/dir2/subdir1 binaries/dir2/subdir2 binaries/dir3/subdir3
+	echo "file1 contents" > binaries/dir1/file1
+	echo "file2 contents" > binaries/dir2/subdir1/file2
+	echo "file3 contents" > binaries/dir2/subdir2/file3
+	echo "file4 contents" > binaries/dir2/subdir2/file4
+	echo "file5 contents" > binaries/dir3/subdir3/file5
+	tar cvf tartest.tar binaries
+	rm -rf binaries
 
 clean:
 	rm -rf *.o tartest.tar argstest tartest

@@ -8,6 +8,7 @@
 #include <tar.h>
 #include <string.h>
 #if defined(TAR_TEST) || defined(ARGS_TEST)
+#include <stdio.h>
 #define round_to_pow2(x, pow2) (((unsigned long)(x)) & (~(pow2 - 1)))
 #define round_up_to_pow2(x, pow2) (round_to_pow2(((unsigned long)x) + pow2 - 1, pow2))
 #else
@@ -61,7 +62,7 @@ oct2dec(char *oct)
 }
 
 /* return the next record, or NULL if THIS record doesn't exist. */
-static inline struct tar_record *
+static struct tar_record *
 tar_next_record(struct tar_record *r)
 {
 	int sz, n_records;
@@ -74,7 +75,7 @@ tar_next_record(struct tar_record *r)
 	return &r[n_records + 1];
 }
 
-static int
+static inline int
 tar_valid(struct tar_entry *ent)
 {
 	return !(!ent || !ent->record || tar_end(ent->record));
@@ -146,7 +147,7 @@ tar_pathcmp(struct tar_entry *ent, char *path)
 	len = (int)(key - path);
 	cmp = strncmp(p, path, len);
 done:
-	end   = strchr(key, '/');
+	end = strchr(key, '/');
 	/*
 	 * We have a match if 1. the strings match, and 2. we have a
 	 * file (no /), or we have a directory (nothing after the /).
@@ -255,18 +256,24 @@ tar_len(struct tar_entry *start)
 	return cnt;
 }
 
-struct tar_record _binary_booter_bins_tar_start[0] __attribute__((weak));
-struct tar_record _binary_booter_bins_tar_end[0] __attribute__((weak));
+struct tar_record _binary_crt_init_tar_start[0] __attribute__((weak));
+struct tar_record _binary_crt_init_tar_end[0] __attribute__((weak));
 
 struct tar_entry __tar_root = {
 	.nesting_lvl = -1, 	/* tar archives don't start paths with a '/' */
-	.record = _binary_booter_bins_tar_start
+	.record = _binary_crt_init_tar_start
 };
+
+static inline unsigned int
+tar_sz(void)
+{
+	return (unsigned int)((char *)_binary_crt_init_tar_end - (char *)_binary_crt_init_tar_start);
+}
 
 struct tar_entry *
 tar_root(void)
 {
-	if ((char *)_binary_booter_bins_tar_end - (char *)_binary_booter_bins_tar_start < 512) return NULL;
+	if ((char *)_binary_crt_init_tar_end - (char *)_binary_crt_init_tar_start < 512) return NULL;
 
 	return &__tar_root;
 }
@@ -290,8 +297,8 @@ foreach(struct tar_entry *root, visitor_fn_t fn, void *data)
 	}
 }
 
-#define PATH_LEN 2
-char *path[PATH_LEN] = {"dir2", "subdir2"};
+#define PATH_LEN 3
+char *path[PATH_LEN] = {"binaries", "dir2", "subdir2"};
 struct file_cont {
 	char filename[16];
 	char contents[32];
@@ -332,14 +339,23 @@ path_recur(struct tar_entry *ent, void *off)
 	}
 }
 
+void
+dump_tar(struct tar_record *r)
+{
+	printf("Tar dump:\n");
+	for ( ; r ; r = tar_next_record(r)) {
+		printf("\tname: %s [%c]\n", r->name, *r->linkflag);
+	}
+}
+
 int
 main(void)
 {
 	struct tar_entry *root = tar_root();
 	int i;
 
-	if (tar_len(root) != 3) {
-		printf("FAILURE: top level should have three objects, but reports %d.\n",
+	if (tar_len(root) != 1) {
+		printf("FAILURE: top level should have one objects, but reports %d.\n",
 		       tar_len(root));
 		failure = 1;
 	}
@@ -356,36 +372,11 @@ main(void)
 		printf("SUCCESS: all tests passed.\n");
 	}
 
+	dump_tar(root->record);
+
 	return 0;
 }
 
-/*** Makefile used to test (yes, it is ugly): ***
-
-COMPDIR=/home/gparmer/research/composite/src/components
-
-all: tar_bin.o
-	gcc -Wall -Wextra -DTAR_TEST -I$(COMPDIR)/include/ $(COMPDIR)/lib/tar.c -c -o tar_test.o
-	gcc tar_test.o tar_bin.o -o a.out
-
-tar_bin.o: tartest.tar
-	cp tartest.tar booter_bins.tar
-	ld -r -b binary booter_bins.tar -o tar_bin.o
-	rm booter_bins.tar
-
-tartest.tar:
-	mkdir dir1 dir2 dir3
-	mkdir dir2/subdir1 dir2/subdir2
-	echo "file1 contents" > dir1/file1
-	echo "file2 contents" > dir2/subdir1/file2
-	echo "file3 contents" > dir2/subdir2/file3
-	echo "file4 contents" > dir2/subdir2/file4
-	echo "file5 contents" > dir3/file5
-	tar cvf tartest.tar dir1 dir2 dir3
-	rm -rf dir1 dir2 dir3
-
-clean:
-	rm -rf *.o tartest.tar a.out
-
-*** end Makefile used to test ***/
+/*** Makefile used to test this is in initargs.c ***/
 
 #endif
