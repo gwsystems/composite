@@ -411,17 +411,15 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
 	struct cos_scb_info *scb = sl_scb_info_cpu();
 
-	/* TODO: remove 3f label and use dcb->ip + OFFSET for kernel jump */
 	/* TODO: token check outside the assembly */
 
 	__asm__ __volatile__ (				\
 		"movl $2f, (%%eax)\n\t"			\
-		"movl $3f, 4(%%eax)\n\t"		\
-		"movl %%esp, 8(%%eax)\n\t"		\
-		"cmp $0, 8(%%ebx)\n\t"			\
+		"movl %%esp, 4(%%eax)\n\t"		\
+		"cmp $0, 4(%%ebx)\n\t"			\
 		"je 1f\n\t"				\
 		"movl %%edx, (%%ecx)\n\t"		\
-		"movl 8(%%ebx), %%esp\n\t"		\
+		"movl 4(%%ebx), %%esp\n\t"		\
 		"jmp *(%%ebx)\n\t"			\
 		"1:\n\t"				\
 		"pushl %%ebp\n\t"			\
@@ -431,8 +429,10 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 		"addl $4, %%esp\n\t"			\
 		"popl %%ebp\n\t"			\
 		"jmp 3f\n\t"				\
+		".align 4\n\t"				\
 		"2:\n\t"				\
-		"movl $0, 8(%%ebx)\n\t"			\
+		"movl $0, 4(%%ebx)\n\t"			\
+		".align 4\n\t"				\
 		"3:\n\t"				\
 		:
 		: "a" (sl_thd_dcbinfo(curr)), "b" (sl_thd_dcbinfo(next)),
