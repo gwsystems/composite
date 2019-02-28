@@ -411,7 +411,21 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
 	struct cos_scb_info *scb = sl_scb_info_cpu();
 
-	/* TODO: token check outside the assembly */
+	/*
+	 * jump labels in the asm routine:
+	 *
+	 * 1: slowpath dispatch using cos_thd_switch to switch to a thread
+	 *    if the dcb sp of the next thread is reset.
+	 *
+	 * 2: if user-level dispatch routine completed successfully so
+	 *    the register states still retained and in the dispatched thread
+	 *    we reset its dcb sp!
+	 *
+	 * 3: if user-level dispatch was either preempted in the middle
+	 *    of this routine or kernel at some point had to switch to a
+	 *    thread that co-operatively switched away from this routine.
+	 *    NOTE: kernel takes care of resetting dcb sp in this case!
+	 */
 
 	__asm__ __volatile__ (				\
 		"movl $2f, (%%eax)\n\t"			\
@@ -440,7 +454,7 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
 		: "memory", "cc");
 
-	return 0;
+	return sl_scb_info_cpu()->sched_tok != tok ? -EAGAIN : 0;
 }
 
 static inline int

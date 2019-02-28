@@ -220,6 +220,12 @@ cos_scb_info_get(void)
 	return scb_info;
 }
 
+static inline struct cos_scb_info *
+cos_scb_info_get_core(void)
+{
+	return cos_scb_info_get() + cos_cpuid();
+}
+
 static inline struct cos_dcb_info *
 cos_init_dcb_get(void)
 {

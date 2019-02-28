@@ -90,7 +90,7 @@ test_thd_fn(void *data)
 	while (1) {
 		int workiters = WORKITERS * ((int)data);
 
-		printc("%d", (int)data);
+		printc("%c", 'a' + (int)data);
 		//SPIN(workiters);
 		sl_thd_yield(0);
 	}

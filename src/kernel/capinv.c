@@ -84,13 +84,14 @@ done:
 
 /* TODO: inline fast path and force non-inlined slow-path */
 static inline struct thread *
-cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, struct comp_info **ci_ptr)
+cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, int interrupt, struct comp_info **ci_ptr)
 {
-	struct thread  *thd = thd_current(cos_info);
-	struct cap_thd *ch_ult;
-	struct thread  *ulthd;
-	capid_t         ultc;
-	int             invstk_top;
+	struct thread       *thd = thd_current(cos_info);
+	struct cap_thd      *ch_ult;
+	struct thread       *ulthd;
+	capid_t              ultc;
+	int                  invstk_top;
+	struct cos_scb_info *scb_core = NULL; /* per-core scb_info */
 
 	*ci_ptr = thd_invstk_current_compinfo(thd, cos_info, &invstk_top);
 
@@ -100,14 +101,20 @@ cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, str
 	assert(*ci_ptr && (*ci_ptr)->captbl);
 
 	if (unlikely(!(*ci_ptr)->scb_data)) goto done;
+	scb_core = (((*ci_ptr)->scb_data) + get_cpuid());
 
-	ultc   = (*ci_ptr)->scb_data->curr_thd;
+	if (unlikely(interrupt)) {
+		assert(scb_core->sched_tok < ~0U);
+		cos_faa((int *)&(scb_core->sched_tok), 1);
+	}
+
+	ultc   = scb_core->curr_thd;
 	if (!ultc) goto done;
 	ch_ult = (struct cap_thd *)captbl_lkup((*ci_ptr)->captbl, ultc);
 	if (unlikely(!CAP_TYPECHK_CORE(ch_ult, CAP_THD))) goto done;
 
 	/* reset inconsistency from user-level thd! */
-	(*ci_ptr)->scb_data->curr_thd = 0;
+	scb_core->curr_thd = 0;
 
 	ulthd = ch_ult->t;
 	assert(ulthd->dcbinfo);
@@ -121,7 +128,6 @@ done:
 	return thd;
 }
 
-void cos_cap_ipi_handling(void);
 void
 cos_cap_ipi_handling(void)
 {
@@ -659,11 +665,19 @@ cap_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struc
 static int
 cap_sched_tok_validate(struct thread *rcvt, sched_tok_t usr_tok, struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
+	struct cos_scb_info *scb_core = ci->scb_data + get_cpuid();
+
 	assert(rcvt && usr_tok < ~0U);
 
-	/* race-condition check for user-level thread switches */
-	if (thd_rcvcap_get_counter(rcvt) > usr_tok) return -EAGAIN;
-	thd_rcvcap_set_counter(rcvt, usr_tok);
+	/*
+	 * Kernel increments the sched_tok on preemption only.
+	 * The rest is all co-operative, so if sched_tok in scb page
+	 * increments after someone fetching a tok, then check for that!
+	 *
+	 * FIXME: make sure we're checking the scb of the scheduling component and not in any other component.
+	 *        I don't know if the comp_info here is of the scheduling component!
+	 */
+	if (unlikely(scb_core->sched_tok != usr_tok)) return -EAGAIN;
 
 	return 0;
 }
@@ -827,7 +841,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
-	thd = cap_ulthd_restore(regs, cos_info, &ci);
+	thd = cap_ulthd_restore(regs, cos_info, 1, &ci);
 	assert(thd && ci && ci->captbl);
 	assert(!(thd->state & THD_STATE_PREEMPTED));
 	tcap = tcap_current(cos_info);
@@ -878,7 +892,7 @@ timer_process(struct pt_regs *regs)
 
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
-	thd_curr = cap_ulthd_restore(regs, cos_info, &comp);
+	thd_curr = cap_ulthd_restore(regs, cos_info, 1, &comp);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	assert(comp);
 
@@ -993,7 +1007,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	int                        thd_switch = 0;
 
 	/* Definitely do it for all the fast-path calls. */
-	thd = cap_ulthd_restore(regs, cos_info, &ci);
+	thd = cap_ulthd_restore(regs, cos_info, 0, &ci);
 	assert(thd);
 	cap = __userregs_getcap(regs);
 
