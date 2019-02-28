@@ -72,6 +72,10 @@ struct initargs_iter {
 /* Query the arguments, passing a path (/-delimited) */
 char *args_get(char *path);
 int args_get_entry(char *path, struct initargs *entry);
+/* ...and if you already have a node, search *from* there */
+char *args_get_from(char *path, struct initargs *from);
+int args_get_entry_from(char *path, struct initargs *from, struct initargs *ent);
+
 /* Access the k/v of a given entry */
 char *args_key(struct initargs *entry, int *str_len);
 char *args_value(struct initargs *entry);

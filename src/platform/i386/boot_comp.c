@@ -187,7 +187,7 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 
 	/* allocate bss memory, including the last sub-page of .data */
 	bss_sz     = round_up_to_page(s[1].sz - round_up_to_page(s[1].objsz));
-	bss_offset = round_up_to_page(s[1].objsz) - round_to_page(s[1].objsz);
+	bss_offset = round_up_to_page(s[1].sz) - round_to_page(s[1].objsz);
 	bss_pages  = (bss_sz + bss_offset)/PAGE_SIZE;
 	bss = mem_boot_alloc(bss_pages);
 	assert(bss);

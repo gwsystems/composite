@@ -363,17 +363,6 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 }
 
 static void
-boot_bootcomp_init(void)
-{
-	struct cos_compinfo    *boot_info = boot_spd_compinfo_curr_get();
-	struct comp_sched_info *bootsi    = boot_spd_comp_schedinfo_curr_get();
-
-	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_defcompinfo_init();
-	bootsi->flags |= COMP_FLAG_SCHED;
-}
-
-static void
 boot_done(void)
 {
 	struct cos_aep_info *root_aep = NULL;

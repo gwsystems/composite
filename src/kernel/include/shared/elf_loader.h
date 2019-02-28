@@ -118,4 +118,48 @@ elf_contig_mem(struct elf_hdr *hdr, unsigned int nmem, struct elf_contig_mem *me
 	return 0;
 }
 
+/*
+ * This function ASSUMES that the elf object has only two sections,
+ * one for RO data, and one for RW. It assumes the RO section appears
+ * first in the object. It will alias the RO section from the elf
+ * object, but will allocate new memory for the data + BSS sections.
+ *
+ * return -1 if this assumption doesn't hold, or the elf is corrupted.
+ * return 0 on success, populating the return values. With these
+ * values, creation of the component is simple:
+ *
+ * mmap(..., ro_src, ro_sz);
+ * mem = alloc(data_sz + bss_sz);
+ * memcpy(mem, data_src, data_sz);
+ * memset(mem + data_sz, 0, bss_sz);
+ * mmap(..., mem, data_sz + bss_sz);
+ *
+ * Note that separate allocation of RO/RW pages is a straightforward extension.
+ */
+static inline int
+elf_load_info(struct elf_hdr *hdr, vaddr_t *ro_addr, size_t *ro_sz, char **ro_src,
+	      vaddr_t *rw_addr, size_t *data_sz, char **data_src, size_t *bss_sz)
+{
+	struct elf_contig_mem s[2] = {};
+
+	/* RO + Code */
+	if (elf_contig_mem(hdr, 0, &s[0]) ||
+	    s[0].objsz != s[0].sz || s[0].access != ELF_PH_CODE) return -1;
+	/* Data + BSS, note that the data should immediately follow the code */
+	if (elf_contig_mem(hdr, 1, &s[1]) ||
+	    s[1].access != ELF_PH_RW || round_up_to_page(s[0].vstart + s[0].sz) != s[1].vstart) return -1;
+
+	*ro_addr  = s[0].vstart;
+	*ro_sz    = s[0].sz;
+	*ro_src   = s[0].mem;
+
+	*rw_addr  = s[1].vstart;
+	*data_sz  = s[1].objsz;
+	*data_src = s[1].mem;
+	*bss_sz   = s[1].sz - *data_sz;
+
+	return 0;
+}
+
+
 #endif	/* SIMPLE_ELF_H */

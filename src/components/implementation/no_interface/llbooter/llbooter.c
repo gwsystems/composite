@@ -425,61 +425,238 @@ boot_comp_capinfo_init(void)
 	}
 }
 
+#include <elf_loader.h>
+#include <cos_defkernel_api.h>
+
+#ifndef BOOTER_MAX_SINV
+#define BOOTER_MAX_SINV 256
+#endif
+#ifndef INITARGS_MAX_PATHNAME
+#define INITARGS_MAX_PATHNAME 512
+#endif
+
+typedef enum {
+	CRT_COMP_SCHED       = 1, 	/* is this a scheduler? */
+	CRT_COMP_DELEG       = 1<<1,	/* does this component require delegating management capabilities to it? */
+	CRT_COMP_DERIVED     = 1<<2, 	/* derived from another component */
+	CRT_COMP_SCHED_DELEG = 1<<4,	/* is the system thread initialization delegated to this component? */
+} crt_comp_flags_t;
+
+struct crt_comp {
+	crt_comp_flags_t flags;
+	char *name;
+	compid_t id;
+	vaddr_t entry_addr;
+	struct crt_comp *sched_parent; /* iff flags & CRT_COMP_SCHED */
+
+	struct crt_sinv *sinvs;
+	int n_sinvs;
+
+	struct elf_hdr *elf_hdr;
+	struct cos_defcompinfo comp_res;
+};
+
 void
-printcomps(void)
+crt_comp_init(struct crt_comp *comp, char *name, compid_t id)
 {
-	int keylen;
+	*comp = (struct crt_comp) {
+		.name = name,
+		.id   = id,
+	};
+}
+
+void
+crt_comp_elf(struct crt_comp *c, struct elf_hdr *elf_hdr)
+{
+	struct cos_compinfo *ci = cos_compinfo_get(&c->comp_res);
+
+	c->elf_hdr    = elf_hdr;
+	c->entry_addr = elf_entry_addr(elf_hdr);
+}
+
+/*
+ * Actually create the process including all the resource tables, and
+ * memory.
+ *
+ * Return 0 on success, -errno on failure -- either of elf parsing, or
+ * of memory allocation.
+ */
+int
+crt_comp_construct(struct crt_comp *c)
+{
+	vaddr_t ro_addr, rw_addr;
+	size_t  ro_sz,   rw_sz, data_sz, bss_sz, tot_sz;
+	char   *ro_src, *data_src, *mem;
+	int     ret;
+	struct cos_compinfo *ci      = cos_compinfo_get(&c->comp_res);
+	struct cos_compinfo *root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+
+	assert(root_ci);
+	if (!c->elf_hdr) return -1;
+
+	if (elf_load_info(c->elf_hdr, &ro_addr, &ro_sz, &ro_src, &rw_addr, &data_sz, &data_src, &bss_sz)) return -1;
+
+	ret = cos_compinfo_alloc(ci, ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, boot_spd_compinfo_curr_get());
+	assert(!ret);
+
+	tot_sz = round_up_to_page(ro_sz) + round_up_to_page(data_sz + bss_sz);
+	mem = cos_page_bump_allocn(ci, tot_sz);
+	assert(mem);
+
+	memcpy(mem, ro_src, ro_sz);
+	memcpy(mem + ro_sz, data_src, data_sz);
+	memset(mem + ro_sz + data_sz, 0, bss_sz);
+
+	/* FIXME: separate map of RO and RW */
+	if (ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, tot_sz)) return -1;
+
+	return 0;
+}
+
+struct crt_sinv {
+	char *name;
+	struct crt_comp *server, *client;
+	vaddr_t c_fn_addr, c_ucap_addr;
+	vaddr_t s_fn_addr;
+};
+
+void
+crt_sinv_init(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client,
+	      vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr)
+{
+	*sinv = (struct crt_sinv) {
+		.name        = name,
+		.server      = server,
+		.client      = client,
+		.c_fn_addr   = c_fn_addr,
+		.c_ucap_addr = c_ucap_addr,
+		.s_fn_addr   = s_fn_addr
+	};
+
+	return;
+}
+
+/* Booter's additive information about the component */
+struct boot_comp {
+	struct crt_comp comp;
+};
+static struct boot_comp boot_comps[MAX_NUM_COMPS];
+/* All synchronous invocations */
+static struct crt_sinv  boot_sinvs[BOOTER_MAX_SINV];
+
+static void
+comps_init(void)
+{
 	struct initargs comps, curr;
 	struct initargs_iter i;
-	int cont, ret;
+	int cont, ret, j;
+	int comp_idx = 0, sinv_idx = 0;
 
 	ret = args_get_entry("components", &comps);
 	assert(!ret);
 
 	printc("Components (and initialization schedule):\n");
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		printc("\t%d: %s\n", atoi(args_key(&curr, &keylen)), args_value(&curr));
+		int keylen;
+		int   idx  = atoi(args_key(&curr, &keylen));
+		char *name = args_value(&curr);
+		struct crt_comp *comp;
+
+		assert(idx < MAX_NUM_COMPS && idx >= 0);
+		assert(name);
+
+		comp = &boot_comps[idx].comp;
+		crt_comp_init(comp, name, idx);
+
+		printc("\t%d: %s\n", idx, name);
 	}
 
 	ret = args_get_entry("binaries", &comps);
 	assert(!ret);
 
-	printc("Binaries (%d):\n", args_len(&comps));
-	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		printc("\t%s (0x%p)\n", args_key(&curr, &keylen), args_value(&curr));
+	for (j = 0 ; boot_comps[j].comp.name ; j++) {
+		struct elf_hdr *elf;
+		char path[INITARGS_MAX_PATHNAME];
+		struct crt_comp *c = &boot_comps[j].comp;
+		char *root = "binaries/";
+		int   len  = strlen(root);
+
+		strcpy(path, root);
+		strncat(path, c->name, INITARGS_MAX_PATHNAME - len);
+
+		crt_comp_elf(c, (struct elf_hdr *)args_get(path));
 	}
 
+	printc("Binaries (%d):\n", args_len(&comps));
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		int keylen;
+
+		printc("\t%s @ 0x%p\n", args_key(&curr, &keylen), args_value(&curr));
+	}
+
+	ret = args_get_entry("sinvs", &comps);
+	assert(!ret);
+
+	printc("Synchronous invocations (%d):\n", args_len(&comps));
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		struct crt_sinv *sinv;
+		int serv_idx = atoi(args_get_from("server", &curr));
+		int cli_idx  = atoi(args_get_from("client", &curr));
+
+		assert(sinv_idx < BOOTER_MAX_SINV);
+		sinv = &boot_sinvs[sinv_idx];
+		sinv_idx++;	/* bump pointer allocation */
+
+		crt_sinv_init(sinv, args_get_from("name", &curr), &boot_comps[serv_idx].comp, &boot_comps[cli_idx].comp,
+			      strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
+			      strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+
+		printc("\t%s (%d->%d):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
+		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
+	}
+
+	for (j = 0 ; boot_comps[j].comp.name ; j++) {
+		if (crt_comp_construct(&boot_comps[j].comp)) {
+			printc("Error constructing the resource tables and image of component %s.\n",
+			       boot_comps[j].comp.name);
+		}
+	}
+
+	printc("DONE!\n");
+
 	return;
+}
+
+static void
+booter_init(void)
+{
+	struct cos_compinfo    *boot_info = boot_spd_compinfo_curr_get();
+	struct comp_sched_info *bootsi    = boot_spd_comp_schedinfo_curr_get();
+
+	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_defcompinfo_init();
+	bootsi->flags |= COMP_FLAG_SCHED;
 }
 
 void
 cos_init(void)
 {
-	struct cobj_header *h;
-
-	printcomps();
-
-	PRINTLOG(PRINT_DEBUG, "Booter for new kernel\n");
-
-	capmgr_spdid = 0;
-	root_spdid = 0;
-
-	h        = (struct cobj_header *)__cosrt_comp_info.cos_poly[0];
-	num_cobj = (int)__cosrt_comp_info.cos_poly[1];
+	booter_init();
+	comps_init();
 
 	PRINTLOG(PRINT_DEBUG, "num cobjs: %d\n", num_cobj);
-	assert(num_cobj <= MAX_NUM_SPDS);
-	boot_comp_capinfo_init();
+	/* assert(num_cobj <= MAX_NUM_SPDS); */
+	/* boot_comp_capinfo_init(); */
 
-	init_args = (struct component_init_str *)__cosrt_comp_info.cos_poly[3];
-	boot_parse_init_args();
-	init_args++;
+	/* init_args = (struct component_init_str *)__cosrt_comp_info.cos_poly[3]; */
+	/* boot_parse_init_args(); */
+	/* init_args++; */
 
-	boot_init_sched();
-	boot_find_cobjs(h, num_cobj);
-	boot_bootcomp_init();
-	boot_create_cap_system();
-	boot_child_info_print();
+	/* boot_init_sched(); */
+	/* boot_find_cobjs(h, num_cobj); */
+	/* boot_bootcomp_init(); */
+	/* boot_create_cap_system(); */
+	/* boot_child_info_print(); */
 
-	boot_done();
+	/* boot_done(); */
 }
