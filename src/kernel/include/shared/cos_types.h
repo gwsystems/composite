@@ -368,9 +368,9 @@ struct restartable_atomic_sequence {
 
 /* see explanation in spd.h */
 struct usr_inv_cap {
-	vaddr_t      invocation_fn;
-	unsigned int cap_no;
-	void        *data;
+	vaddr_t       invocation_fn;
+	unsigned long cap_no;
+	void         *data;
 };
 
 #define COMP_INFO_POLY_NUM 10

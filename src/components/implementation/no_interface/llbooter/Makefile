@@ -1,5 +1,4 @@
 COMPONENT=llbooter.o
-ASM_OBJS=s_stub.o
 COMPONENT=llboot_comp.o
 INTERFACES=
 DEPENDENCIES=
