@@ -324,7 +324,15 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 
 	/*
 	 * Construct the second level of the pgtbl...ignore errors due
-	 * to races as they constitute "helping"
+	 * to races as they constitute "helping".
+	 *
+	 * FIXME:
+	 * 1. if we *do* actually return an error, this seems this
+	 *    seems to cause errors with allocations that start PGD
+	 *    aligned in that they end up doing a double alloc for elf
+	 *    creation.
+	 * 2. We should clean up by deactivating the pgtbl we just
+	 *    activated...or at least cache it for future use.
 	 */
 	call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, mem_ptr, 0, 0);
 

@@ -219,7 +219,6 @@ booter_init(void)
 {
 	struct cos_compinfo *boot_info = cos_compinfo_get(cos_defcompinfo_curr_get());
 
-	printc("Heap pointer @ %p\n", cos_get_heap_ptr());
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
 }
