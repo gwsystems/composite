@@ -56,4 +56,6 @@ SECTIONS
 	.initfile : { *(.initfile*) }
 
 	.bss : { *(.bss*) }
+
+	__crt_static_heap_ptr = .;
 }

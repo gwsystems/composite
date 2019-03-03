@@ -42,63 +42,53 @@ crt_comp_init(struct crt_comp *comp, char *name, compid_t id)
 	};
 }
 
-void
-crt_comp_elf(struct crt_comp *c, struct elf_hdr *elf_hdr)
-{
-	struct cos_compinfo *ci = cos_compinfo_get(&c->comp_res);
-
-	c->elf_hdr    = elf_hdr;
-	c->entry_addr = elf_entry_addr(elf_hdr);
-}
-
 /*
- * Actually create the process including all the resource tables, and
- * memory.
+ * Create the component from the elf object including all the resource
+ * tables, and memory.
+ *
+ * Notes:
+ * - The capability tables are empty.
+ * - `name` is *not* copied, so it is borrowed from within `c`. Copy
+ *   it manually if you can't guarantee it will stay alive.
  *
  * Return 0 on success, -errno on failure -- either of elf parsing, or
  * of memory allocation.
  */
 int
-crt_comp_construct(struct crt_comp *c)
+crt_comp_construct(struct crt_comp *c, char *name, compid_t id, struct elf_hdr *elf_hdr)
 {
 	size_t  ro_sz,   rw_sz, data_sz, bss_sz, tot_sz;
 	char   *ro_src, *data_src, *mem;
 	int     ret;
-	struct cos_compinfo *ci      = cos_compinfo_get(&c->comp_res);
-	struct cos_compinfo *root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	struct cos_compinfo *ci, *root_ci;
 
-	assert(root_ci);
-	if (!c->elf_hdr) return -1;
+	c->name       = name;
+	c->id         = id;
+	c->elf_hdr    = elf_hdr;
+	c->entry_addr = elf_entry_addr(elf_hdr);
 
-	if (elf_load_info(c->elf_hdr, &c->ro_addr, &ro_sz, &ro_src, &c->rw_addr, &data_sz, &data_src, &bss_sz)) return -1;
+	ci            = cos_compinfo_get(&c->comp_res);
+	root_ci       = cos_compinfo_get(cos_defcompinfo_curr_get());
 
-	printc("\tElf object for %s (0x%lx bytes):\n", c->name, round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz));
-	printc("\t\tro [0x%lx, 0x%lx), data [0x%lx, 0x%lx), bss [0x%lx, 0x%lx).\n",
+	if (elf_load_info(c->elf_hdr, &c->ro_addr, &ro_sz, &ro_src, &c->rw_addr, &data_sz, &data_src, &bss_sz)) return -EINVAL;
+
+	printc("\t\tElf object: ro [0x%lx, 0x%lx), data [0x%lx, 0x%lx), bss [0x%lx, 0x%lx).\n",
 	       c->ro_addr, c->ro_addr + ro_sz, c->rw_addr, c->rw_addr + data_sz, c->rw_addr + data_sz, c->rw_addr + data_sz + bss_sz);
 
 	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
 	assert(!ret);
 
-	tot_sz = round_up_to_page(ro_sz) + round_up_to_page(data_sz + bss_sz);
-	mem = cos_page_bump_allocn(ci, tot_sz);
-	assert(mem);
+	tot_sz = round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz);
+	mem    = cos_page_bump_allocn(root_ci, tot_sz);
+	if (!mem) return -ENOMEM;
 	c->mem = mem;
 
-	{
-		unsigned int i;
-		printc("Touching %d pages:\n", tot_sz);
-		for (i = 0 ; i < tot_sz * PAGE_SIZE ; i++) {
-			mem[i] = 0;
-			if (i % 4096 == 0) printc("\tTouching page @ %p\n", &mem[i]);
-		}
-	}
-
 	memcpy(mem, ro_src, ro_sz);
-	memcpy(mem + ro_sz, data_src, data_sz);
-	memset(mem + ro_sz + data_sz, 0, bss_sz);
+	memcpy(mem + round_up_to_page(ro_sz), data_src, data_sz);
+	memset(mem + round_up_to_page(ro_sz) + data_sz, 0, bss_sz);
 
 	/* FIXME: separate map of RO and RW */
-	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, tot_sz)) return -1;
+	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, tot_sz)) return -ENOMEM;
 
 	return 0;
 }
@@ -174,32 +164,24 @@ comps_init(void)
 
 	printc("Components (and initialization schedule):\n");
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		int keylen;
+		struct crt_comp *comp;
+		struct elf_hdr  *elf;
+		int   keylen;
 		int   idx  = atoi(args_key(&curr, &keylen));
 		char *name = args_value(&curr);
-		struct crt_comp *comp;
-
-		struct elf_hdr *elf;
-		char path[INITARGS_MAX_PATHNAME];
 		char *root = "binaries/";
 		int   len  = strlen(root);
+		char  path[INITARGS_MAX_PATHNAME];
 
-		assert(idx < MAX_NUM_COMPS && idx >= 0);
-		assert(name);
-
-		comp = &boot_comps[idx-1].comp; /* there is no component id 0 */
-		crt_comp_init(comp, name, idx);
+		assert(idx < MAX_NUM_COMPS && idx > 0 && name);
 
 		strcpy(path, root);
 		strncat(path, name, INITARGS_MAX_PATHNAME - len);
 
-		crt_comp_elf(comp, (struct elf_hdr *)args_get(path));
-
-		printc("\t%d: %s @ x%p\n", idx, name, args_get(path));
-
-		if (crt_comp_construct(comp)) {
+		comp = &boot_comps[idx-1].comp; /* there is no component id 0 */
+		if (crt_comp_construct(comp, name, idx, (struct elf_hdr *)args_get(path))) {
 			printc("Error constructing the resource tables and image of component %s.\n", comp->name);
-			assert(0);
+			BUG();
 		}
 		assert(cos_compinfo_get(&comp->comp_res)->comp_cap);
 	}
@@ -237,6 +219,7 @@ booter_init(void)
 {
 	struct cos_compinfo *boot_info = cos_compinfo_get(cos_defcompinfo_curr_get());
 
+	printc("Heap pointer @ %p\n", cos_get_heap_ptr());
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
 }

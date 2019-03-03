@@ -170,10 +170,10 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 		 unsigned int range)
 {
 	struct elf_contig_mem s[3] = {};
-	unsigned long  bss_sz;	  /* derived from the section information for .data */
+	unsigned long  bss_sz;	   /* derived from the section information for .data */
 	unsigned int   bss_pages;
 	unsigned int   bss_offset; /* offset into the last page that includes .data information */
-	unsigned char *bss;	  /* memory array for the last bit of .data and .bss */
+	unsigned char *bss;	   /* memory array for the last bit of .data and .bss */
 
 	/* RO + Code */
 	if (elf_contig_mem((struct elf_hdr *)kern_vaddr, 0, &s[0])) assert(0);
@@ -185,12 +185,14 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 	/* the data should immediately follow code */
 	assert(round_up_to_page(s[0].vstart + s[0].sz) == s[1].vstart);
 
-	/* allocate bss memory, including the last sub-page of .data */
-	bss_sz     = round_up_to_page(s[1].sz - round_up_to_page(s[1].objsz));
-	bss_offset = round_up_to_page(s[1].sz) - round_to_page(s[1].objsz);
-	bss_pages  = (bss_sz + bss_offset)/PAGE_SIZE;
+	/* allocate bss memory, including the last sub-page of .data (assumes .data is page-aligned) */
+	assert(s[1].vstart % PAGE_SIZE == 0);
+	bss_pages  = (round_up_to_page(s[1].sz) - round_to_page(s[1].objsz))/PAGE_SIZE;
+	bss_sz     = (round_up_to_page(s[1].sz) - s[1].objsz);
+	bss_offset = s[1].objsz % PAGE_SIZE; //round_up_to_page(s[1].sz) - round_to_page(s[1].objsz);
 	bss = mem_boot_alloc(bss_pages);
 	assert(bss);
+
 	memcpy(bss, s[1].mem + round_to_page(s[1].objsz), bss_offset);
 	memset(bss + bss_offset, 0, bss_sz);
 

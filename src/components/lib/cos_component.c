@@ -160,6 +160,18 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 	if (first) {
 		first = 0;
+
+		/*
+		 * Use the heap pointer as calculated from the linker
+		 * script *if* the loader doesn't pass in its own
+		 * value.
+		 */
+		if (__cosrt_comp_info.cos_heap_ptr == 0) {
+			extern const vaddr_t __crt_static_heap_ptr;
+
+			__cosrt_comp_info.cos_heap_ptr = round_up_to_page((vaddr_t)&__crt_static_heap_ptr);
+		}
+
 		cos_print_level_set(PRINT_DEBUG, 1);
 		/* The syscall enumlator might need something to be setup before it can work */
 		pre_syscall_setup();
