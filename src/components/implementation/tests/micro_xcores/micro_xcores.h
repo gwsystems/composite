@@ -1,5 +1,5 @@
-#ifndef MICRO_BOOTER_H
-#define MICRO_BOOTER_H
+#ifndef MICRO_XCORES_H
+#define MICRO_XCORES_H
 
 #include <stdio.h>
 #include <string.h>
@@ -45,34 +45,16 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 
-#define PERF
 #define ITER 10000
 #define TEST_NTHDS 5
 #define CHAR_BIT 8
 
 extern struct cos_compinfo booter_info;
 extern thdcap_t            termthd[]; /* switch to this to shutdown */
-extern unsigned long       tls_test[][TEST_NTHDS];
-extern unsigned long       thd_test[TEST_NTHDS];
-extern int                 num, den, count;
 
-static unsigned long
-tls_get(size_t off)
-{
-	unsigned long val;
+extern void test_ipi_n_n(void);
+extern void test_ipi_interference(void);
+extern void test_ipi_switch(void);
+extern void test_ipi_roundtrip(void);
 
-	__asm__ __volatile__("movl %%gs:(%1), %0" : "=r"(val) : "r"(off) :);
-
-	return val;
-}
-
-static void
-tls_set(size_t off, unsigned long val)
-{
-	__asm__ __volatile__("movl %0, %%gs:(%1)" : : "r"(val), "r"(off) : "memory");
-}
-
-extern void test_run_mb(void);
-extern void test_run_perf_mb(void);
-
-#endif /* MICRO_BOOTER_H */
+#endif /* MICRO_XCORES_H */

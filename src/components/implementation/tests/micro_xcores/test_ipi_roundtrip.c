@@ -1,10 +1,10 @@
 #include <stdint.h>
 
-#include "micro_booter.h"
+#include "micro_xcores.h"
 
 extern int _expect_llu(int predicate, char *str, long long unsigned a, long long unsigned b, char *errcmp, char *testname, char *file, int line);
 extern int _expect_ll(int predicate, char *str, long long a, long long b, char *errcmp, char *testname, char *file, int line);
-extern void clear_sched(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout);
+extern void sched_events_clear(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout);
 
 /* Test Sender Time + Receiver Time Roundtrip */
 
@@ -70,7 +70,7 @@ test_sched_loop(void)
     thdid_t thdid;
 
     // Clear Scheduler
-    clear_sched(&rcvd, &thdid, &blocked, &cycles, &thd_timeout);
+    sched_events_clear(&rcvd, &thdid, &blocked, &cycles, &thd_timeout);
 
     while (1) {
 
@@ -128,10 +128,9 @@ test_asnd_fn(void *d)
         }
     }
 
-#if defined(PERF)
     PRINTC("SEND TIME: %llu, WC: %llu, Iter: %d\n", tot_send/TEST_IPI_ITERS, send_wc, TEST_IPI_ITERS);
     PRINTC("ROUNDTRIP: %llu, WC: %llu, BC: %llu, Iter %d\n", bc/2, wc/2, tot/TEST_IPI_ITERS/2, TEST_IPI_ITERS);
-#endif
+
     EXPECT_LLU_LT((long long unsigned)((tot_send / TEST_IPI_ITERS) * MAX_THRS), send_wc, "Test IPI SEND TIME");
     EXPECT_LLU_LT((long long unsigned)((tot / TEST_IPI_ITERS) / 2 * MAX_THRS), wc / 2, "Test IPI ROUNDTRIP MAX");
     EXPECT_LLU_LT(bc / 2 * (unsigned) MIN_THRS, (long long unsigned)((tot / TEST_IPI_ITERS) / 2), "Test IPI ROUNDTRIP MIN");
@@ -150,7 +149,7 @@ test_sync_asnd(void)
 }
 
 void
-test_ipi_roundtime(void)
+test_ipi_roundtrip(void)
 {
     arcvcap_t r = 0;
     asndcap_t s = 0;

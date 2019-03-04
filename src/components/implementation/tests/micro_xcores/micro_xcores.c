@@ -1,9 +1,7 @@
-#include "micro_booter.h"
+#include "micro_xcores.h"
 
 struct cos_compinfo booter_info;
 thdcap_t            termthd[NUM_CPU] = { 0 }; /* switch to this to shutdown */
-unsigned long       tls_test[NUM_CPU][TEST_NTHDS];
-unsigned long	    thd_test[TEST_NTHDS];
 
 #include <llprint.h>
 
@@ -40,20 +38,23 @@ cos_init(void)
 
 	termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 	assert(termthd[cos_cpuid()]);
-	PRINTC("Micro Booter started.\n");
+    if(cos_cpuid() == 0) PRINTC("Micro Booter Xcore started.\n");
 
-    // BOOTER TESTS
-    test_run_mb();
-	PRINTC("Micro Booter Perf started.\n");
-    test_run_perf_mb();
+    // IPI TESTS
+    test_ipi_roundtrip();
+    test_ipi_switch();
+    test_ipi_interference();
 
-    /* NOTE: This is just to make sense of the output on HW! To understand that microbooter runs to completion on all cores! */
+    // IPI N to N
+    //test_ipi_full();
+
+	/* NOTE: This is just to make sense of the output on HW! To understand that microbooter runs to completion on all cores! */
 	test_done[cos_cpuid()] = 1;
 	for (i = 0; i < NUM_CPU; i++) {
 		while (!test_done[i]) ;
 	}
 
-	PRINTC("Micro Booter done.\n");
+    if(cos_cpuid() == 0) PRINTC("Micro Booter Xcore done.\n");
 
 	cos_thd_switch(termthd[cos_cpuid()]);
 

@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-#include "micro_booter.h"
+#include "micro_xcores.h"
 
 extern int _expect_llu(int predicate, char *str, long long unsigned a, long long unsigned b, char *errcmp, char *testname, char *file, int line);
 extern int _expect_ll(int predicate, char *str, long long a, long long b, char *errcmp, char *testname, char *file, int line);
