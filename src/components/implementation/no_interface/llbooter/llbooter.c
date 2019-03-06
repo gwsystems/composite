@@ -125,7 +125,7 @@ crt_sinv_construct(struct crt_sinv *sinv)
 	unsigned int ucap_off;
 	struct usr_inv_cap *ucap;
 
-	assert(cli && srv && srv->comp_cap);
+	assert(cli && cli->memsrc && srv && srv->memsrc && srv->comp_cap);
 
 	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, sinv->client->id);
 	assert(sinv->sinv_cap);
