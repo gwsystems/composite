@@ -7,9 +7,6 @@
 #define MAX_THDS 4  			/* Max Threshold Multiplier */
 #define MIN_THDS 1  			/* Min Threshold Multiplier */
 #define GRANULARITY 1000 		/* Granularity*/
-#define TEST_ITER 16
-
-unsigned int cyc_per_usec;
 
 int
 _expect_llu(int predicate, char *str, long long unsigned a,
@@ -164,22 +161,16 @@ spinner(void *d)
 }
 
 void
-sched_events_clear(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout)
-{
-	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
-			     rcvd, tid, blocked, cycles, thd_timeout) != 0)
-		;
-}
-
-void
-sched_events_clearing(void)
+sched_events_clear(void)
 {
     thdid_t     tid;
 	int	    blocked, rcvd;
 	cycles_t    cycles, now;
 	tcap_time_t timer, thd_timeout;
 
-	sched_events_clear(&rcvd, &tid, &blocked, &cycles, &thd_timeout);
+	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
+			     &rcvd, &tid, &blocked, &cycles, &thd_timeout) != 0)
+		;
 
 }
 
@@ -187,7 +178,7 @@ static void
 test_timer(void)
 {
 	thdcap_t    tc;
-	cycles_t    c = 0, p = 0, t = 0;
+	cycles_t    c = 0, p = 0, t = 0, min = 0, max = 0;
 	int	        i, ret;
     cycles_t    s, e;
 	thdid_t     tid;
@@ -210,8 +201,21 @@ test_timer(void)
 			t += c - p;
 		}
 
-		sched_events_clearing();
+        if ( c - p > max ){
+            max = c - p;
+        }
+
+        if ( c - p < min || min == 0){
+            min = c - p;
+        }
+		sched_events_clear();
 	}
+
+	result.test_timer.avg = (long long unsigned)(t/TEST_ITER);
+    result.test_timer.expected = (unsigned)(GRANULARITY * cyc_per_usec);
+    result.test_timer.max = (long long unsigned) max;
+    result.test_timer.min = (long long unsigned) min;
+
 	EXPECT_LLU_LT((long long unsigned)(t/TEST_ITER),
             (unsigned)(GRANULARITY * cyc_per_usec * MAX_THDS), "Test Timer MAX");
 	EXPECT_LLU_LT((unsigned)(GRANULARITY * cyc_per_usec * MIN_THDS),
@@ -229,7 +233,7 @@ test_timer(void)
 
 	EXPECT_LLU_LT((long long unsigned)(c-p), (unsigned)(GRANULARITY * cyc_per_usec), "Test Timer Past");
 
-	sched_events_clearing();
+	sched_events_clear();
 
 	/* TIMER NOW */
 	c = 0, p = 0;
@@ -249,8 +253,7 @@ test_timer(void)
 
 	EXPECT_LLU_LT((long long unsigned)cycles, (long long unsigned)(c-p), "Test sched_rcv");
 
-	sched_events_clearing();
-
+	sched_events_clear();
 }
 
 struct exec_cluster {
@@ -299,7 +302,7 @@ spinner_cyc(void *d)
 	while (1) rdtscll(*p);
 }
 
-#define EXEC_TIME 100
+#define TIMER_TIME 100
 
 static void
 test_2timers(void)
@@ -315,7 +318,7 @@ test_2timers(void)
 				    /* Timer > TCAP */
 
 	ret = cos_tcap_transfer(bt[cos_cpuid()].c.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE,
-            GRANULARITY * EXEC_TIME, TCAP_PRIO_MAX + 2);
+            GRANULARITY * TIMER_TIME, TCAP_PRIO_MAX + 2);
 	if (EXPECT_LL_NEQ(0, ret, "2 timer test")) return;
 
 	rdtscll(s);
@@ -327,12 +330,12 @@ test_2timers(void)
 	}
 	rdtscll(e);
 
-	EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * cyc_per_usec),
+    EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * cyc_per_usec),
         "2 Test Timer: timer > TCAP");
-	EXPECT_LLU_LT((unsigned)(GRANULARITY * EXEC_TIME), (long long unsigned)(e-s),
+	EXPECT_LLU_LT((unsigned)(GRANULARITY * TIMER_TIME), (long long unsigned)(e-s),
         "2 Test Timer: Interreupt Under");
 
-	sched_events_clearing();
+	sched_events_clear();
 
 					/* Timer < TCAP */
 
@@ -341,24 +344,26 @@ test_2timers(void)
 	if (EXPECT_LL_NEQ(0, ret, "2 timer test")) return;
 
 	rdtscll(s);
-	timer = tcap_cyc2time(s + GRANULARITY * EXEC_TIME);
+	timer = tcap_cyc2time(s + GRANULARITY * TIMER_TIME);
 	if (EXPECT_LL_NEQ(0, cos_switch(bt[cos_cpuid()].c.tc, bt[cos_cpuid()].c.tcc, TCAP_PRIO_MAX + 2,
             timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync()), "2 timer test")) return;
 
 	rdtscll(e);
 
-	EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * cyc_per_usec), "2 Test Timer: timer < TCAP");
-	EXPECT_LLU_LT((unsigned)(GRANULARITY * EXEC_TIME),(long long unsigned)(e-s) ,"2 Test Timer: Interreupt Under");
+    EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * cyc_per_usec), "2 Test Timer: timer < TCAP");
+	EXPECT_LLU_LT((unsigned)(GRANULARITY * TIMER_TIME),(long long unsigned)(e-s) ,"2 Test Timer: Interreupt Under");
 
-	sched_events_clearing();
+	sched_events_clear();
 }
 
-#define EXEC_BUDGET_TIME 100
+#define BUDGET_TIME 100
 
 static void
 test_budgets_single(void)
 {
 	int i;
+	cycles_t    s = 0, e = 0, t = 0, max = 0, min = 0;
+	int	        ret;
 
 	if (EXPECT_LL_NEQ(0, exec_cluster_alloc(&bt[cos_cpuid()].p, parent, &bt[cos_cpuid()].p,
             BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "Single budget test")) return;
@@ -366,14 +371,9 @@ test_budgets_single(void)
             bt[cos_cpuid()].p.rc), "Single budget test")) return;
 
 	for (i = 1; i <= TEST_ITER; i++) {
-		cycles_t    s, e;
-		thdid_t     tid;
-		int	    blocked, ret;
-		cycles_t    cycles;
-		tcap_time_t thd_timeout;
 
 		ret = cos_tcap_transfer(bt[cos_cpuid()].c.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE,
-            i * GRANULARITY * EXEC_BUDGET_TIME, TCAP_PRIO_MAX + 2);
+            GRANULARITY * BUDGET_TIME, TCAP_PRIO_MAX + 2);
 		if (EXPECT_LL_NEQ(0, ret, "Single budget test")) return;
 
 		rdtscll(s);
@@ -385,14 +385,27 @@ test_budgets_single(void)
 		rdtscll(e);
 
 		if (i > 1) {
-			EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(i * GRANULARITY * EXEC_BUDGET_TIME * MAX_THDS), "Test Timer Budget MAX");
-			EXPECT_LLU_LT((unsigned)(i * GRANULARITY * EXEC_BUDGET_TIME * MIN_THDS), (long long unsigned)(e-s), "Test Timer Budget MIN");
+
+			t += e - s;
+
+            if ( e - s > max ){
+                max = e - s;
+            }
+
+            if ( e - s < min || min == 0){
+                min = e - s;
+            }
+
+			EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * BUDGET_TIME * MAX_THDS), "Test Timer Budget MAX");
+			EXPECT_LLU_LT((unsigned)(GRANULARITY * BUDGET_TIME * MIN_THDS), (long long unsigned)(e-s), "Test Timer Budget MIN");
 		}
 
-	    sched_events_clearing();
-		//while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0, NULL, &tid, &blocked, &cycles, &thd_timeout) != 0)
-		//	;
+	    sched_events_clear();
 	}
+	result.budgets_single.avg = (long long unsigned) t;
+	result.budgets_single.max = (long long unsigned) max;
+	result.budgets_single.min = (long long unsigned) min;
+    result.budgets_single.expected = (unsigned)(GRANULARITY * BUDGET_TIME);
 }
 
 static void
@@ -737,7 +750,6 @@ test_run_mb(void)
 	test_async_endpoints();
 	test_inv();
 	test_captbl_expands();
-
 }
 
 static void

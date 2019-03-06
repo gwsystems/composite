@@ -21,6 +21,8 @@ async_thd_fn_perf(void *thdcap)
 
 	for (i = 0; i < ITER + 1; i++) {
 		cos_rcv(rc, 0, NULL);
+		cos_thd_switch(tc);
+
 	}
 
 	ret = cos_thd_switch(tc);
@@ -30,23 +32,31 @@ async_thd_fn_perf(void *thdcap)
 static void
 async_thd_parent_perf(void *thdcap)
 {
-	thdcap_t  tc                = (thdcap_t)thdcap;
-	asndcap_t sc                = scp_global[cos_cpuid()];
-	long long total_asnd_cycles = 0;
-	long long start_asnd_cycles = 0, end_arcv_cycles = 0;
+	thdcap_t  tc = (thdcap_t)thdcap;
+	asndcap_t sc = scp_global[cos_cpuid()];
+	long long e	= 0, s = 0, t = 0,max = 0, min = 0;
 	int       i;
 
 	cos_asnd(sc, 1);
 
-	rdtscll(start_asnd_cycles);
 	for (i = 0; i < ITER; i++) {
+		rdtscll(s);
 		cos_asnd(sc, 1);
-	}
-	rdtscll(end_arcv_cycles);
-	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
+		rdtscll(e);
 
-	PRINTC("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n",
-            total_asnd_cycles, (long long)(ITER), (total_asnd_cycles / (long long)(ITER)));
+		t += e - s;
+
+		if( e - s > max){
+			max = e - s;
+		}
+
+		if( e - s < min || min == 0){
+			min = e - s;
+		}
+	}
+
+	PRINTC("Test Async Endpoints Rountrip Time: \t AVG:%llu, MAX:%llu, MIN:%llu, ITER:%lld\n",
+		  (long long unsigned)(t / ITER), (long long unsigned) max, (long long unsigned) min, (long long) ITER);
 
 	async_test_flag_[cos_cpuid()] = 0;
 	while (1) cos_thd_switch(tc);
@@ -138,7 +148,9 @@ test_inv_perf(void)
 	compcap_t    cc;
 	sinvcap_t    ic;
 	int          i;
-	long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL;
+	long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL, inv_max = 0LL, inv_min = 0LL;
+	long long 	 ret_max = 0LL, ret_min = 0LL;
+	long long	 time = 0LL, mask = 0LL;
 	unsigned int ret;
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
@@ -155,16 +167,52 @@ test_inv_perf(void)
 		rdtscll(start_cycles);
 		call_cap_mb(ic, 1, 2, 3);
 		rdtscll(end_cycles);
-		total_inv_cycles += (midinv_cycles[cos_cpuid()] - start_cycles);
+
+		/* FAST ABS */
+		time = (midinv_cycles[cos_cpuid()] - start_cycles);
+		mask = (time >> (sizeof(int) * CHAR_BIT - 1));
+        time = (time + mask) ^ mask;
+
+		total_inv_cycles += time;
+		if (time > inv_max){
+			inv_max = time;
+		}
+
+		if (time < inv_min || inv_min == 0){
+			inv_min = time;
+		}
+
 		total_ret_cycles += (end_cycles - midinv_cycles[cos_cpuid()]);
+		if (end_cycles - midinv_cycles[cos_cpuid()] > ret_max){
+			ret_max = end_cycles - midinv_cycles[cos_cpuid()];
+		}
+
+		if (end_cycles - midinv_cycles[cos_cpuid()] < ret_min || ret_min == 0){
+			ret_min = end_cycles - midinv_cycles[cos_cpuid()];
+		}
 	}
 
-	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n", total_inv_cycles, (long long)(ITER),
-	       (total_inv_cycles / (long long)(ITER)));
-	PRINTC("Average SRET (Total: %lld / Iterations: %lld ): %lld\n", total_ret_cycles, (long long)(ITER),
-	       (total_ret_cycles / (long long)(ITER)));
+	PRINTC("Test SINV:\t\t\t\t AVG:%lld, MAX:%lld, MIN:%lld, ITER:%lld\n", 
+	        (total_inv_cycles / (long long)(ITER)), inv_max, inv_min, (long long) ITER);
+	PRINTC("Test SRET:\t\t\t\t AVG:%lld, MAX:%lld, MIN:%lld, ITER:%lld\n", 
+	        (total_ret_cycles / (long long)(ITER)), ret_max, ret_min, (long long) ITER);
+//
+//
+//	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n", total_inv_cycles, (long long)(ITER),
+//	       (total_inv_cycles / (long long)(ITER)));
+//	PRINTC("Average SRET (Total: %lld / Iterations: %lld ): %lld\n", total_ret_cycles, (long long)(ITER),
+//	       (total_ret_cycles / (long long)(ITER)));
 }
 
+void
+test_print_ubench(void)
+{
+	PRINTC("Test Timer: \t\t\t\t AVG:%llu, MAX:%llu, MIN:%llu, ITER:%lld\n",
+		    result.test_timer.avg, result.test_timer.max, result.test_timer.min, (long long) TEST_ITER);
+	PRINTC("Test Single Budgets: \t\t\t AVG:%llu, MAX:%llu, MIN:%llu, ITER:%lld\n",
+	        result.budgets_single.avg, result.budgets_single.max, result.budgets_single.min, (long long) TEST_ITER);
+
+}
 
 void
 test_run_perf_mb(void)
@@ -172,5 +220,6 @@ test_run_perf_mb(void)
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	test_async_endpoints_perf();
 	test_inv_perf();
+	test_print_ubench();
 
 }

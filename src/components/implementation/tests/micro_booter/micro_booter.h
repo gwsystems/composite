@@ -49,6 +49,23 @@
 #define ITER 10000
 #define TEST_NTHDS 5
 #define CHAR_BIT 8
+#define TEST_ITER 16
+
+unsigned int cyc_per_usec;
+
+struct timers {
+	long long unsigned avg;
+	long long unsigned max;
+	long long unsigned min;
+	unsigned 		   expected;
+};
+
+struct results {
+	struct timers test_timer;
+    struct timers budgets_single;
+};
+
+struct results result;
 
 extern struct cos_compinfo booter_info;
 extern thdcap_t            termthd[]; /* switch to this to shutdown */
