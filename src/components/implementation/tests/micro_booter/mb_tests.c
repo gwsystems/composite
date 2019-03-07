@@ -8,14 +8,16 @@
 #define MIN_THDS 1  			/* Min Threshold Multiplier */
 #define GRANULARITY 1000 		/* Granularity*/
 
+static int failure = 0;
+
 int
 _expect_llu(int predicate, char *str, long long unsigned a,
         long long unsigned b, char *errcmp, char *testname, char * file, int line)
 {
 	if (predicate) {
-		PRINTC("%s Failure: %s @ %d: ",
+		PRINTC("Failure: %s %s @ %d: ",
 			 testname, file, line);
-		printc("(%s %lld", str, a);
+		printc("%s %lld", str, a);
 		printc(" %s %lld)\n", errcmp, b);
 		return -1;
 	}
@@ -27,9 +29,9 @@ _expect_ll(int predicate, char *str, long long a,
         long long b, char *errcmp, char *testname, char * file, int line)
 {
 	if (predicate) {
-		PRINTC("%s Failure: %s @ %d: ",
+		PRINTC("Failure: %s %s @ %d: ",
 			 testname, file, line);
-		printc("(%s %lld", str, a);
+		printc("%s %lld", str, a);
 		printc(" %s %lld)\n", errcmp, b);
 		return -1;
 	}
@@ -41,7 +43,7 @@ test_thd_arg(void *d)
 {
 	int ret = 0;
 
-	EXPECT_LL_NEQ((int)d, THD_ARG, "Thread: Argument / Creation");
+	if (EXPECT_LL_NEQ((int)d, THD_ARG, "Thread Creation: Argument Incorrect")) failure = 1;
 	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	PRINTC("Error, shouldn't get here!\n");
 }
@@ -54,9 +56,15 @@ test_thds_create_switch(void)
     int      ret;
 
 	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_thd_arg, (void *)i);
-	if (EXPECT_LL_LT(1, ts, "Thread Creation Failed")) return;
+	if (EXPECT_LL_LT(1, ts, "Thread Creation: Cannot Allocate")) {
+        return;
+    }
 	ret = cos_thd_switch(ts);
     EXPECT_LL_NEQ(0, ret, "COS Switch Error");
+
+    CHECK_STATUS_FLAG();
+    PRINTC("TEST %s: \t\tSuccess\n", __func__);
+    EXIT_FN();
 }
 
 static void
@@ -71,7 +79,7 @@ thd_fn_mthds_ring(void *d)
 	if (!next) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 
 	ret = cos_thd_switch(thd_test[next]);
-    EXPECT_LL_NEQ(0, ret, "COS Switch Error");
+    if (EXPECT_LL_NEQ(0, ret, "Thread Ring: COS Switch Error")) failure = 1;
 
 	while (1) {
 		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
@@ -89,13 +97,21 @@ test_mthds_ring(void)
 
 	for (i = 0; i < TEST_NTHDS; i++) {
 		thd_test[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_mthds_ring, (void *)i);
-		if (EXPECT_LL_LT(1, thd_test[i], "Classic Multithreaded Test")) return;
+		if (EXPECT_LL_LT(1, thd_test[i], "Thread Ring: Cannot Allocate")) {
+            return;
+        }
 	}
 
 	ret = cos_thd_switch(thd_test[0]);
-    EXPECT_LL_NEQ(0, ret, "COS Switch Error");
+    EXPECT_LL_NEQ(0, ret, "Thread Ring: COS Switch Error");
 
-	if (EXPECT_LL_NEQ(count, TEST_NTHDS, "Ring Multithread test")) return;
+	if (EXPECT_LL_NEQ(count, TEST_NTHDS, "Thread Ring: Failure # of THDS")) {
+        return;
+    }
+
+    CHECK_STATUS_FLAG();
+    PRINTC("TEST %s: \t\t\tSuccess\n", __func__);
+    EXIT_FN();
 }
 
 static void
@@ -117,18 +133,24 @@ test_mthds_classic(void)
 	int	      i, ret;
 
 	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_mthds_classic, NULL);
-	if (EXPECT_LL_LT(1, ts, "Classic Multithreaded Test")) return;
+	if (EXPECT_LL_LT(1, ts, "Thread Classic: Cannot Allocate")) {
+        return;
+    }
 
 	for (i = 0; i < ITER; i++) {
 		ret = cos_thd_switch(ts);
-        EXPECT_LL_NEQ(0, ret, "COS Switch Error");
-	}
+        if(EXPECT_LL_NEQ(0, ret, "Thread Classic: COS Switch Error")) return;
+    }
+    CHECK_STATUS_FLAG();
+    PRINTC("TEST %s: \t\tSuccess\n", __func__);
+    EXIT_FN();
 }
 
 static void
 thd_tls(void *d)
 {
-	EXPECT_LLU_NEQ((long unsigned)tls_get(0), (long unsigned)tls_test[cos_cpuid()][(int)d], "TLS Test");
+	if (EXPECT_LLU_NEQ((long unsigned)tls_get(0), (long unsigned)tls_test[cos_cpuid()][(int)d],
+        "Thread TLS: ARG not correct")) failure = 1;
 	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	EXPECT_LL_NEQ(1, 0, "Error, shouldn't get here!\n");
 }
@@ -143,12 +165,18 @@ test_thds_tls(void)
 
 	for (i = 0; i < TEST_NTHDS; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_tls, (void *)i);
-		if (EXPECT_LL_LT(1, ts[i], "Classic Multithreaded Test")) return;
+		if (EXPECT_LL_LT(1, ts[i], "Thread TLS: Cannot Allocate")) {
+            return;
+        }
 		tls_test[cos_cpuid()][i] = i;
 		cos_thd_mod(&booter_info, ts[i], &tls_test[cos_cpuid()][i]);
 		ret = cos_thd_switch(ts[i]);
-        EXPECT_LL_NEQ(0, ret, "COS Switch Error");
+        if (EXPECT_LL_NEQ(0, ret, "Thread TLS: COS Switch Error")) return;
 	}
+
+    CHECK_STATUS_FLAG();
+    PRINTC("TEST %s: \t\t\tSuccess\n", __func__);
+    EXIT_FN();
 }
 
 #define TEST_NPAGES (1024 * 2) 		/* Testing with 8MB for now */
@@ -188,8 +216,7 @@ test_timer(void)
 
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 
-	for (i = 0; i <= TEST_ITER; i++)
-	{
+	for (i = 0; i <= TEST_ITER; i++){
 
 		rdtscll(now);
 		timer = tcap_cyc2time(now + GRANULARITY * cyc_per_usec);
@@ -216,10 +243,12 @@ test_timer(void)
     result.test_timer.max = (long long unsigned) max;
     result.test_timer.min = (long long unsigned) min;
 
-	EXPECT_LLU_LT((long long unsigned)(t/TEST_ITER),
-            (unsigned)(GRANULARITY * cyc_per_usec * MAX_THDS), "Test Timer MAX");
-	EXPECT_LLU_LT((unsigned)(GRANULARITY * cyc_per_usec * MIN_THDS),
-            (long long unsigned)(t/TEST_ITER), "Test Timer MIN");
+	if (EXPECT_LLU_LT((long long unsigned)(t/TEST_ITER),
+            (unsigned)(GRANULARITY * cyc_per_usec * MAX_THDS), "Timer: Failure on  MAX") ||
+	    EXPECT_LLU_LT((unsigned)(GRANULARITY * cyc_per_usec * MIN_THDS),
+            (long long unsigned)(t/TEST_ITER), "Timer: failure on MIN")) {
+        return;
+    }
 
 	/* TIMER IN PAST */
 	c = 0, p = 0;
@@ -231,7 +260,9 @@ test_timer(void)
 	p = c;
 	rdtscll(c);
 
-	EXPECT_LLU_LT((long long unsigned)(c-p), (unsigned)(GRANULARITY * cyc_per_usec), "Test Timer Past");
+	if (EXPECT_LLU_LT((long long unsigned)(c-p), (unsigned)(GRANULARITY * cyc_per_usec), "Timer: Past")) {
+        return;
+    }
 
 	sched_events_clear();
 
@@ -245,15 +276,18 @@ test_timer(void)
 	p = c;
 	rdtscll(c);
 
-	EXPECT_LLU_LT((long long unsigned)(c-p), (unsigned)(GRANULARITY * cyc_per_usec), "Test Timer Now");
+	if (EXPECT_LLU_LT((long long unsigned)(c-p), (unsigned)(GRANULARITY * cyc_per_usec), "Timer:  Now")) {
+        return;
+    }
 
 	cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
 		&rcvd, &tid, &blocked, &cycles, &thd_timeout)
 		;
 
-	EXPECT_LLU_LT((long long unsigned)cycles, (long long unsigned)(c-p), "Test sched_rcv");
+	EXPECT_LLU_LT((long long unsigned)cycles, (long long unsigned)(c-p), "Timer: Cycles time");
 
 	sched_events_clear();
+    PRINTC("TEST %s: \t\t\tSuccess\n", __func__);
 }
 
 struct exec_cluster {
@@ -311,29 +345,37 @@ test_2timers(void)
 	cycles_t    s, e, timer;
 
     if (EXPECT_LL_NEQ(0, exec_cluster_alloc(&bt[cos_cpuid()].p, parent, &bt[cos_cpuid()].p,
-            BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "2 timer test")) return;
+            BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "TCAP v. Timer: Cannot Allocate")) {
+        return;
+    }
 	if (EXPECT_LL_NEQ(0, exec_cluster_alloc(&bt[cos_cpuid()].c, spinner, &bt[cos_cpuid()].c,
-                bt[cos_cpuid()].p.rc), "2 timer test")) return;
+                bt[cos_cpuid()].p.rc), "TCAP v. Timer: Cannot Allocate")) {
+        return;
+    }
 
 				    /* Timer > TCAP */
 
 	ret = cos_tcap_transfer(bt[cos_cpuid()].c.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE,
             GRANULARITY * TIMER_TIME, TCAP_PRIO_MAX + 2);
-	if (EXPECT_LL_NEQ(0, ret, "2 timer test")) return;
+	if (EXPECT_LL_NEQ(0, ret, "TCAP v. Timer : TCAP Transfer")) {
+        return;
+    }
 
 	rdtscll(s);
 	timer = tcap_cyc2time(s + GRANULARITY * cyc_per_usec);
 	if (cos_switch(bt[cos_cpuid()].c.tc, bt[cos_cpuid()].c.tcc, TCAP_PRIO_MAX + 2,
             timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync())) {
-		EXPECT_LL_NEQ(0, 1, "2 timer test");
-		return;
-	}
+		EXPECT_LL_NEQ(0, 1, "TCAP v. Timer: COS Switch");
+	    return;
+    }
 	rdtscll(e);
 
-    EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * cyc_per_usec),
-        "2 Test Timer: timer > TCAP");
-	EXPECT_LLU_LT((unsigned)(GRANULARITY * TIMER_TIME), (long long unsigned)(e-s),
-        "2 Test Timer: Interreupt Under");
+    if (EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * cyc_per_usec),
+        "TCAP v. Timer: Timer > TCAP") ||
+	    EXPECT_LLU_LT((unsigned)(GRANULARITY * TIMER_TIME), (long long unsigned)(e-s),
+        "TCAP v. Timer: Interreupt Under")) {
+        return;
+    }
 
 	sched_events_clear();
 
@@ -341,19 +383,26 @@ test_2timers(void)
 
 	ret = cos_tcap_transfer(bt[cos_cpuid()].c.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE,
             GRANULARITY * cyc_per_usec, TCAP_PRIO_MAX + 2);
-	if (EXPECT_LL_NEQ(0, ret, "2 timer test")) return;
+	if (EXPECT_LL_NEQ(0, ret, "TCAP v. Timer: TCAP Transfer")) {
+        return;
+    }
 
 	rdtscll(s);
 	timer = tcap_cyc2time(s + GRANULARITY * TIMER_TIME);
 	if (EXPECT_LL_NEQ(0, cos_switch(bt[cos_cpuid()].c.tc, bt[cos_cpuid()].c.tcc, TCAP_PRIO_MAX + 2,
-            timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync()), "2 timer test")) return;
+            timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync()), "TCAP v. TImer: COS Switch")) {
+        return;
+    }
 
 	rdtscll(e);
 
-    EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * cyc_per_usec), "2 Test Timer: timer < TCAP");
-	EXPECT_LLU_LT((unsigned)(GRANULARITY * TIMER_TIME),(long long unsigned)(e-s) ,"2 Test Timer: Interreupt Under");
+    if (EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * cyc_per_usec), "TCAP v. Timer: Timer < TCAP") ||
+	    EXPECT_LLU_LT((unsigned)(GRANULARITY * TIMER_TIME),(long long unsigned)(e-s) ,"TCAP v. Timer: Interreupt Under")) {
+        return;
+    }
 
 	sched_events_clear();
+    PRINTC("TEST %s: \t\t\tSuccess\n", __func__);
 }
 
 #define BUDGET_TIME 100
@@ -366,22 +415,25 @@ test_budgets_single(void)
 	int	        ret;
 
 	if (EXPECT_LL_NEQ(0, exec_cluster_alloc(&bt[cos_cpuid()].p, parent, &bt[cos_cpuid()].p,
-            BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "Single budget test")) return;
-	if (EXPECT_LL_NEQ(0, exec_cluster_alloc(&bt[cos_cpuid()].c, spinner, &bt[cos_cpuid()].c,
-            bt[cos_cpuid()].p.rc), "Single budget test")) return;
-
+            BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "Single Budget: Cannot Allocate") ||
+	    EXPECT_LL_NEQ(0, exec_cluster_alloc(&bt[cos_cpuid()].c, spinner, &bt[cos_cpuid()].c,
+            bt[cos_cpuid()].p.rc), "Single Budget: Cannot Allocate")) {
+        return;
+    }
 	for (i = 1; i <= TEST_ITER; i++) {
 
 		ret = cos_tcap_transfer(bt[cos_cpuid()].c.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE,
             GRANULARITY * BUDGET_TIME, TCAP_PRIO_MAX + 2);
-		if (EXPECT_LL_NEQ(0, ret, "Single budget test")) return;
+		if (EXPECT_LL_NEQ(0, ret, "Single Budget: TCAP Transfer")) {
+            return;
+        }
 
 		rdtscll(s);
 		if (cos_switch(bt[cos_cpuid()].c.tc, bt[cos_cpuid()].c.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL,
             BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync())){
-			EXPECT_LL_NEQ(0, 1, "Single Budget test");
-			return;
-		}
+			EXPECT_LL_NEQ(0, 1, "Single Budget: COS Switch");
+		    return;
+        }
 		rdtscll(e);
 
 		if (i > 1) {
@@ -396,16 +448,22 @@ test_budgets_single(void)
                 min = e - s;
             }
 
-			EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * BUDGET_TIME * MAX_THDS), "Test Timer Budget MAX");
-			EXPECT_LLU_LT((unsigned)(GRANULARITY * BUDGET_TIME * MIN_THDS), (long long unsigned)(e-s), "Test Timer Budget MIN");
+			if (EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * BUDGET_TIME * MAX_THDS),
+                    "Single Budget: MAX Bound") ||
+			    EXPECT_LLU_LT((unsigned)(GRANULARITY * BUDGET_TIME * MIN_THDS), (long long unsigned)(e-s),
+                    "Single Budget: MIN Bound")) {
+                return;
+            }
 		}
 
 	    sched_events_clear();
 	}
+
 	result.budgets_single.avg = (long long unsigned) t;
 	result.budgets_single.max = (long long unsigned) max;
 	result.budgets_single.min = (long long unsigned) min;
     result.budgets_single.expected = (unsigned)(GRANULARITY * BUDGET_TIME);
+    PRINTC("TEST %s: \t\tSuccess\n", __func__);
 }
 
 static void
@@ -414,11 +472,13 @@ test_budgets_multi(void)
 	int i;
 
 	if(EXPECT_LL_NEQ(0, exec_cluster_alloc(&mbt[cos_cpuid()].p, spinner_cyc, &(mbt[cos_cpuid()].p.cyc),
-            BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "Multi Budget test")) return;
-	if(EXPECT_LL_NEQ(0, exec_cluster_alloc(&mbt[cos_cpuid()].c, spinner_cyc, &(mbt[cos_cpuid()].c.cyc),
-            mbt[cos_cpuid()].p.rc), "Multi Budget test")) return;
-	if(EXPECT_LL_NEQ(0, exec_cluster_alloc(&mbt[cos_cpuid()].g, spinner_cyc, &(mbt[cos_cpuid()].g.cyc),
-            mbt[cos_cpuid()].c.rc), "Multi Budget test")) return;
+            BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "Multi Budget: Cannot Allocate") ||
+	   EXPECT_LL_NEQ(0, exec_cluster_alloc(&mbt[cos_cpuid()].c, spinner_cyc, &(mbt[cos_cpuid()].c.cyc),
+            mbt[cos_cpuid()].p.rc), "Multi Budget: Cannot Allocate") ||
+	   EXPECT_LL_NEQ(0, exec_cluster_alloc(&mbt[cos_cpuid()].g, spinner_cyc, &(mbt[cos_cpuid()].g.cyc),
+            mbt[cos_cpuid()].c.rc), "Multi Budget: Cannot allocate")) {
+        return;
+    }
 
 	for (i = 1; i <= TEST_ITER; i++) {
 		tcap_res_t  res;
@@ -434,17 +494,19 @@ test_budgets_multi(void)
 			res = i * GRANULARITY * 800;
 
 		if (EXPECT_LL_NEQ(0, cos_tcap_transfer(mbt[cos_cpuid()].p.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE,
-            res, TCAP_PRIO_MAX + 2), "Multi Budget test")) return;
-		if (EXPECT_LL_NEQ(0, cos_tcap_transfer(mbt[cos_cpuid()].c.rc, mbt[cos_cpuid()].p.tcc, res / 2,
-            TCAP_PRIO_MAX + 2), "Multi Budget test")) return;
-		if (EXPECT_LL_NEQ(0, cos_tcap_transfer(mbt[cos_cpuid()].g.rc, mbt[cos_cpuid()].c.tcc, res / 4,
-            TCAP_PRIO_MAX + 2), "Multi Budget test")) return;
+                res, TCAP_PRIO_MAX + 2), "Multi Budget: TCAP Transfer") ||
+		    EXPECT_LL_NEQ(0, cos_tcap_transfer(mbt[cos_cpuid()].c.rc, mbt[cos_cpuid()].p.tcc, res / 2,
+                TCAP_PRIO_MAX + 2), "Multi Budget: TCAP Transfer") ||
+		    EXPECT_LL_NEQ(0, cos_tcap_transfer(mbt[cos_cpuid()].g.rc, mbt[cos_cpuid()].c.tcc, res / 4,
+                TCAP_PRIO_MAX + 2), "Multi Budget: TCAP Transfer")) {
+            return;
+        }
 
 		mbt[cos_cpuid()].p.cyc = mbt[cos_cpuid()].c.cyc = mbt[cos_cpuid()].g.cyc = 0;
 		rdtscll(s);
 		if (cos_switch(mbt[cos_cpuid()].g.tc, mbt[cos_cpuid()].g.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL,
             BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync())) {
-			EXPECT_LL_NEQ(0, 1, "Multi Budget test");
+			EXPECT_LL_NEQ(0, 1, "Multi Budget: COS Switch");
 			return;
 		}
 		rdtscll(e);
@@ -452,15 +514,18 @@ test_budgets_multi(void)
 		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0, NULL, &tid, &blocked, &cycles, &thd_timeout);
 
 		if ( i > 1) {
-			EXPECT_LLU_LT((mbt[cos_cpuid()].g.cyc - s), (res / 4 * MAX_THDS), "Test Timer Budget G");
-			EXPECT_LLU_LT(mbt[cos_cpuid()].g.cyc - s, res / 4 * MAX_THDS, "Test Timer Budget G MAX");
-			EXPECT_LLU_LT(res / 4 * MIN_THDS, mbt[cos_cpuid()].g.cyc - s, "Test Timer Budget G MIN");
-			EXPECT_LLU_LT(mbt[cos_cpuid()].c.cyc - s, res / 2 * MAX_THDS, "Test Timer Budget C MAX");
-			EXPECT_LLU_LT(res / 2 * MIN_THDS, mbt[cos_cpuid()].c.cyc - s, "Test Timer Budget C MIN");
-			EXPECT_LLU_LT(mbt[cos_cpuid()].p.cyc - s, res * MAX_THDS, "Test Timer Budget P MAX");
-			EXPECT_LLU_LT(res * MIN_THDS, mbt[cos_cpuid()].p.cyc - s, "Test Timer Budget P MIN");
+			if (EXPECT_LLU_LT((mbt[cos_cpuid()].g.cyc - s), (res / 4 * MAX_THDS), "Multi Budget: G") ||
+			    EXPECT_LLU_LT(mbt[cos_cpuid()].g.cyc - s, res / 4 * MAX_THDS, "Multi Budget: G MAX Bound") ||
+			    EXPECT_LLU_LT(res / 4 * MIN_THDS, mbt[cos_cpuid()].g.cyc - s, "Multi Budget: G MIN Bound") ||
+			    EXPECT_LLU_LT(mbt[cos_cpuid()].c.cyc - s, res / 2 * MAX_THDS, "Multi Budget: C MAX Bound") ||
+			    EXPECT_LLU_LT(res / 2 * MIN_THDS, mbt[cos_cpuid()].c.cyc - s, "Multi Budget: C MIN Bound") ||
+			    EXPECT_LLU_LT(mbt[cos_cpuid()].p.cyc - s, res * MAX_THDS, "Multi Budget: P MAX Bound")     ||
+			    EXPECT_LLU_LT(res * MIN_THDS, mbt[cos_cpuid()].p.cyc - s, "Multi Budget: P MIN BOund")) {
+                return;
+            }
 		}
 	}
+    PRINTC("TEST %s: \t\tSuccess\n", __func__);
 }
 
 static void
@@ -484,12 +549,12 @@ test_mem_alloc(void)
 
 	p = cos_page_bump_alloc(&booter_info);
 	if (p == NULL) {
-		EXPECT_LL_NEQ(0, 1, "Memory Test");
+		EXPECT_LL_NEQ(0, 1, "Memory Test: Cannot Allocate");
 		return;
 	}
 	strcpy(p, chk);
 
-	if (EXPECT_LL_NEQ(0, strcmp(chk, p), "Memory Test")) {
+	if (EXPECT_LL_NEQ(0, strcmp(chk, p), "Memory Test: Wrong STRCPY")) {
 		return;
 	}
 
@@ -499,7 +564,7 @@ test_mem_alloc(void)
 	for (i = 0; i < TEST_NPAGES; i++) {
 		t = cos_page_bump_alloc(&booter_info);
 		if (t == NULL){
-			EXPECT_LL_EQ(0, 1, "Memory Test");
+			EXPECT_LL_EQ(0, 1, "Memory Test: Cannot Allocate");
 			return;
 		}
 		if (t != prev + PAGE_SIZE) {
@@ -509,16 +574,17 @@ test_mem_alloc(void)
 	}
 	if (!fail_contiguous) {
 		memset(s, 0, TEST_NPAGES * PAGE_SIZE);
-	} else if (EXPECT_LL_EQ(i, TEST_NPAGES,"Memory Test\tallocate contiguous")) {
+	} else if (EXPECT_LL_EQ(i, TEST_NPAGES,"Memory Test: Cannot Allocate contiguous")) {
 		return;
 	}
 
 	t = cos_page_bump_allocn(&booter_info, TEST_NPAGES * PAGE_SIZE);
 	if (t == NULL) {
-		EXPECT_LL_NEQ(0, 1, "Memory Test");
+		EXPECT_LL_NEQ(0, 1, "Memory Test: Cannot Allocate");
 		return;
 	}
 	memset(t, 0, TEST_NPAGES * PAGE_SIZE);
+    PRINTC("TEST %s: \t\t\tSuccess\n", __func__);
 }
 
 static volatile arcvcap_t rcc_global[NUM_CPU], rcp_global[NUM_CPU];
@@ -535,37 +601,39 @@ async_thd_fn(void *thdcap)
 	int       pending, rcvd, ret;
 
 	pending = cos_rcv(rc, RCV_NON_BLOCKING, NULL);
-	EXPECT_LL_NEQ(3, pending, "Test Async Endpoints");
+	if (EXPECT_LL_NEQ(3, pending, "Test Async Endpoints")) failure = 1;
 
 	pending = cos_rcv(rc, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
-	EXPECT_LL_NEQ(0, pending, "Test Async Endpoints");
+	if (EXPECT_LL_NEQ(0, pending, "Test Async Endpoints")) failure = 1;
 
 	pending = cos_rcv(rc, RCV_ALL_PENDING, &rcvd);
 
     /* switch */
-	EXPECT_LL_NEQ(0, pending, "Test Async Endpoints");
+	if (EXPECT_LL_NEQ(0, pending, "Test Async Endpoints")) failure = 1;
 
 	pending = cos_rcv(rc, 0, NULL);
 
     /* switch */
-	EXPECT_LL_NEQ(0, pending, "Test Async Endpoints");
+	if (EXPECT_LL_NEQ(0, pending, "Test Async Endpoints")) failure = 1;
 
 	pending = cos_rcv(rc, 0, NULL);
 
     /* switch */
-	EXPECT_LL_NEQ(0, pending, "Test Async Endpoints");
+	if (EXPECT_LL_NEQ(0, pending, "Test Async Endpoints")) failure = 1;
 
 	pending = cos_rcv(rc, RCV_NON_BLOCKING, NULL);
-	EXPECT_LL_NEQ(pending, -EAGAIN, "Test Async Endpoints");
+	if (EXPECT_LL_NEQ(pending, -EAGAIN, "Test Async Endpoints")) failure = 1;
 
 	pending = cos_rcv(rc, 0, NULL);
 
     /* switch */
-	EXPECT_LL_NEQ(0, 1, "Test Async Endpoints");
+	if (EXPECT_LL_NEQ(0, 1, "Test Async Endpoints")) failure = 1;
 
 	ret = cos_thd_switch(tc);
-    EXPECT_LL_NEQ(0, ret, "COS Switch Error");
-	EXPECT_LL_NEQ(0, 1, "Test Async Endpoints");
+    if (EXPECT_LL_NEQ(0, ret, "COS Switch Error") ||
+	    EXPECT_LL_NEQ(0, 1, "Test Async Endpoints")) {
+        failure = 1;
+    }
 	while (1) cos_thd_switch(tc);
 }
 
@@ -594,11 +662,11 @@ async_thd_parent(void *thdcap)
 
     /* switch */
 	ret = cos_asnd(sc, 0);
-	EXPECT_LL_NEQ(0, ret, "Test Async Endpoints");
+	if (EXPECT_LL_NEQ(0, ret, "Test Async Endpoints")) failure = 1;
 
     /* switch */
 	ret = cos_asnd(sc, 1);
-	EXPECT_LL_NEQ(0, ret, "Test Async Endpoints");
+	if (EXPECT_LL_NEQ(0, ret, "Test Async Endpoints")) failure = 1;
 
     /* switch */
 	cos_sched_rcv(rc, RCV_ALL_PENDING, 0, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
@@ -620,26 +688,40 @@ test_async_endpoints(void)
 
     tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent,
 	                    (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
-	if(EXPECT_LL_LT(1, tcp, "Test Async Endpoints")) return;
-	tccp = cos_tcap_alloc(&booter_info);
-	if(EXPECT_LL_LT(1, tccp, "Test Async Endpoints")) return;
+	if(EXPECT_LL_LT(1, tcp, "Test Async Endpoints")) {
+	    return;
+    }
+    tccp = cos_tcap_alloc(&booter_info);
+	if(EXPECT_LL_LT(1, tccp, "Test Async Endpoints")) {
+	    return;
+    }
 	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
-	if(EXPECT_LL_LT(1, rcp, "Test Async Endpoints")) return;
+	if(EXPECT_LL_LT(1, rcp, "Test Async Endpoints")) {
+	    return;
+    }
 	if(EXPECT_LL_NEQ(0,cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX),
         "Test Async Endpoints")) {
-		return;
-	}
+	    return;
+    }
 
 	/* child rcv capabilities */
 
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void *)tcp);
-	if(EXPECT_LL_LT(1, tcc, "Test Async Endpoints")) return;
+	if(EXPECT_LL_LT(1, tcc, "Test Async Endpoints")) {
+	    return;
+    }
 	tccc = cos_tcap_alloc(&booter_info);
-	if(EXPECT_LL_LT(1, tccc, "Test Async Endpoints")) return;
+	if(EXPECT_LL_LT(1, tccc, "Test Async Endpoints")) {
+	    return;
+    }
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
-	if(EXPECT_LL_LT(1, rcc, "Test Async Endpoints")) return;
+	if(EXPECT_LL_LT(1, rcc, "Test Async Endpoints")) {
+	    return;
+    }
 	if(EXPECT_LL_NEQ(0,cos_tcap_transfer(rcc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF,
-        TCAP_PRIO_MAX + 1), "Test Async Endpoints")) return;
+        TCAP_PRIO_MAX + 1), "Test Async Endpoints")) {
+	    return;
+    }
 
 	/* make the snd channel to the child */
 
@@ -654,6 +736,9 @@ test_async_endpoints(void)
 	async_test_flag_[cos_cpuid()] = 1;
 	while (async_test_flag_[cos_cpuid()]) cos_asnd(scr, 1);
 
+    CHECK_STATUS_FLAG();
+    PRINTC("TEST %s: \t\tSuccess\n", __func__);
+    EXIT_FN();
 }
 
 static long long midinv_cycles[NUM_CPU] = { 0LL };
@@ -702,12 +787,16 @@ test_inv(void)
 	unsigned int r;
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
-	if(EXPECT_LL_LT(1, cc, "Test Invocation")) return;
+	if (EXPECT_LL_LT(1, cc, "Invocation: Cannot Allocate")) return;
 	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
-	if(EXPECT_LL_LT(1, ic, "Test Invocation")) return;
+	if (EXPECT_LL_LT(1, ic, "Invocation: Cannot Allocate")) return;
 
 	r = call_cap_mb(ic, 1, 2, 3);
-	EXPECT_LLU_NEQ(0xDEADBEEF, r, "Test Invocation");
+	if (EXPECT_LLU_NEQ(0xDEADBEEF, r, "Test Invocation")) return;
+
+    CHECK_STATUS_FLAG();
+    PRINTC("TEST %s: \t\t\t\tSuccess\n", __func__);
+    EXIT_FN();
 }
 
 #define CAPTBL_ITER 1024
@@ -720,13 +809,18 @@ test_captbl_expands(void)
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc);
-	if(EXPECT_LL_LT(1, cc, "Test Capability Table Expansion")) return;
+	if (EXPECT_LL_LT(1, cc, "Capability Table Expansion")) {
+        return;
+    }
 	for (i = 0; i < CAPTBL_ITER; i++) {
 		sinvcap_t ic;
 
 		ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
-		if(EXPECT_LL_LT(1, ic, "Test Capability Table")) return;
+		if(EXPECT_LL_LT(1, ic, "Capability Table: Cannot Allocate")) {
+            return;
+        }
 	}
+    PRINTC("TEST %s: \t\tSuccess\n", __func__);
 }
 
 void

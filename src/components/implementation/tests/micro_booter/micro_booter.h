@@ -9,12 +9,22 @@
 
 #undef assert
 /* On assert, immediately switch to the "exit" thread */
-#define assert(node)                                          \
-	do {                                                  \
-		if (unlikely(!(node))) {                      \
-			debug_print("assert error in @ ");    \
-			cos_thd_switch(termthd[cos_cpuid()]); \
-		}                                             \
+#define assert(node)                                          	\
+	do {                                                  	  	\
+		if (unlikely(!(node))) {                      		  	\
+			debug_print("assert error in @ ");    			  	\
+			cos_thd_switch(termthd[cos_cpuid()]); 			  	\
+		}                                             		    \
+	} while (0)
+
+#define EXIT_FN()												\
+		exit_fn: return;										
+
+#define CHECK_STATUS_FLAG()										\
+	do {														\
+		if (failure) {											\
+			goto exit_fn;										\
+		}														\
 	} while (0)
 
 #undef EXPECT_LLU
