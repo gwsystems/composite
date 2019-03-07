@@ -96,8 +96,6 @@ test_sync_asnd(void)
 	while (!asnd[TEST_RCV_CORE]) ;
 }
 
-// RCV TEST #1
-
 static void
 rcv_spinner(void *d)
 {
@@ -163,10 +161,10 @@ test_asnd_fn(void *d)
         }
     }
 
-    PRINTC("IPI Switch on RCV THD: %llu, BC: %llu, WC: %llu\n", tot/TEST_IPI_ITERS, bc, wc);
+    PRINTC("Test IPI Switch:\t SWITCH AVG: %llu, BC: %llu, WC: %llu\n", tot/TEST_IPI_ITERS, bc, wc);
 
-    EXPECT_LLU_LT((long long unsigned)((tot / TEST_IPI_ITERS) * MAX_THRS), wc , "Test IPI Switch MAX");
-    EXPECT_LLU_LT(bc * (unsigned) MIN_THRS, (long long unsigned)(tot / TEST_IPI_ITERS), "Test IPI Switch MIN");
+    EXPECT_LLU_LT((long long unsigned)((tot / TEST_IPI_ITERS) * MAX_THRS), wc , "IPI Switch: Switch MAX");
+    EXPECT_LLU_LT(bc * (unsigned) MIN_THRS, (long long unsigned)(tot / TEST_IPI_ITERS), "IPI Switch: Switch MIN");
     done_test = 1;
     while(1) test_rcv(r);
 }
@@ -179,7 +177,7 @@ test_sched_loop(void)
     tcap_time_t timeout, thd_timeout;
     thdid_t thdid;
 
-    // Clear Scheduler
+    /* Clear Scheduler */
     sched_events_clear(&rcvd, &thdid, &blocked, &cycles, &thd_timeout);
 
     while (1) {
@@ -222,18 +220,18 @@ test_ipi_switch(void)
 
     if (cos_cpuid() == TEST_RCV_CORE) {
 
-        // Test RCV 1: Close Loop at lower priority => Measure Thread Switching + IPI
+        /* Test RCV 1: Close Loop at lower priority => Measure Thread Switching + IPI */
 
         tcc = cos_tcap_alloc(&booter_info);
-        if (EXPECT_LL_LT(1, tcc, "Allocation"))
+        if (EXPECT_LL_LT(1, tcc, "IPI SWITCH: TCAP Allocation"))
             return;
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL);
-        if (EXPECT_LL_LT(1, t, "Allocation"))
+        if (EXPECT_LL_LT(1, t, "IPI SWITCH: Thread Allocation"))
             return;
 
         r = cos_arcv_alloc(&booter_info, t, tcc, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
-        if (EXPECT_LL_LT(1, r, "Allocation"))
+        if (EXPECT_LL_LT(1, r, "IPI SWITCH: ARCV Allocation"))
             return;
 
         cos_tcap_transfer(r, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX);
@@ -244,13 +242,13 @@ test_ipi_switch(void)
         while(!rcv[TEST_SND_CORE]) ;
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL);
-        if (EXPECT_LL_LT(1, t, "Allocation"))
+        if (EXPECT_LL_LT(1, t, "IPI SWITCH: Thread Allocation"))
             return;
 
         spinner_thd[cos_cpuid()] = t;
 
         s = cos_asnd_alloc(&booter_info, rcv[TEST_SND_CORE], booter_info.captbl_cap);
-        if (EXPECT_LL_LT(1, s, "Allocation"))
+        if (EXPECT_LL_LT(1, s, "IPI SWITCH: ASND Allocation"))
             return;
         asnd[cos_cpuid()] = s;
         test_sync_asnd();
@@ -260,14 +258,14 @@ test_ipi_switch(void)
 
         if (cos_cpuid() != TEST_SND_CORE) return;
 
-        // Test RCV1: Corresponding Send
+        /* Test RCV1: Corresponding Send */
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL);
-        if (EXPECT_LL_LT(1, t, "Allocation"))
+        if (EXPECT_LL_LT(1, t, "IPI SWITCH: Thread Allocation"))
             return;
 
         r = cos_arcv_alloc(&booter_info, t, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
-        if (EXPECT_LL_LT(1, r, "Allocation"))
+        if (EXPECT_LL_LT(1, r, "IPI Switch: ARCV Allocation"))
             return;
 
         thd[cos_cpuid()] = t;
@@ -276,7 +274,7 @@ test_ipi_switch(void)
         while(!rcv[TEST_RCV_CORE]) ;
 
         s = cos_asnd_alloc(&booter_info, rcv[TEST_RCV_CORE], booter_info.captbl_cap);
-        if (EXPECT_LL_LT(1, s, "Allocation"))
+        if (EXPECT_LL_LT(1, s, "IPI SWITCH: ASND Allocation"))
             return;
         asnd[cos_cpuid()] = s;
 

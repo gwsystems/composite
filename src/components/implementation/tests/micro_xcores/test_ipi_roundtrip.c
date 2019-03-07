@@ -33,7 +33,7 @@ test_rcv(arcvcap_t r)
 
 	pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
 	assert(pending == 0);
-    if (EXPECT_LL_LT(1, r, "Allocation"))
+    if (EXPECT_LL_LT(1, r, "IPI Roundtrip: Allocation on RCV"))
         cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 
     total_rcvd[cos_cpuid()] += rcvd;
@@ -69,7 +69,7 @@ test_sched_loop(void)
     tcap_time_t timeout, thd_timeout;
     thdid_t thdid;
 
-    // Clear Scheduler
+    /* Clear Scheduler */
     sched_events_clear(&rcvd, &thdid, &blocked, &cycles, &thd_timeout);
 
     while (1) {
@@ -128,12 +128,12 @@ test_asnd_fn(void *d)
         }
     }
 
-    PRINTC("SEND TIME: %llu, WC: %llu, Iter: %d\n", tot_send/TEST_IPI_ITERS, send_wc, TEST_IPI_ITERS);
-    PRINTC("ROUNDTRIP: %llu, WC: %llu, BC: %llu, Iter %d\n", bc/2, wc/2, tot/TEST_IPI_ITERS/2, TEST_IPI_ITERS);
+    PRINTC("Test IPI Roundtrip:\t SEND TIME AVG: %llu, WC: %llu, Iter: %d\n", tot_send/TEST_IPI_ITERS, send_wc, TEST_IPI_ITERS);
+    PRINTC("Test IPI Roundtrip:\t ROUNDTRIP AVG: %llu, WC: %llu, BC: %llu, Iter %d\n", bc/2, wc/2, tot/TEST_IPI_ITERS/2, TEST_IPI_ITERS);
 
-    EXPECT_LLU_LT((long long unsigned)((tot_send / TEST_IPI_ITERS) * MAX_THRS), send_wc, "Test IPI SEND TIME");
-    EXPECT_LLU_LT((long long unsigned)((tot / TEST_IPI_ITERS) / 2 * MAX_THRS), wc / 2, "Test IPI ROUNDTRIP MAX");
-    EXPECT_LLU_LT(bc / 2 * (unsigned) MIN_THRS, (long long unsigned)((tot / TEST_IPI_ITERS) / 2), "Test IPI ROUNDTRIP MIN");
+    EXPECT_LLU_LT((long long unsigned)((tot_send / TEST_IPI_ITERS) * MAX_THRS), send_wc, "IPI ROUNDTRIP: SEND TIME");
+    EXPECT_LLU_LT((long long unsigned)((tot / TEST_IPI_ITERS) / 2 * MAX_THRS), wc / 2, "IPI ROUNDTRIP: ROUNDTRIP  MAX");
+    EXPECT_LLU_LT(bc / 2 * (unsigned) MIN_THRS, (long long unsigned)((tot / TEST_IPI_ITERS) / 2), "IPI ROUNDTRIP: ROUNDTRIP MIN");
 
     done_test = 1;
     while(1) test_rcv(r);
@@ -159,19 +159,19 @@ test_ipi_roundtrip(void)
 
     if (cos_cpuid() == TEST_RCV_CORE) {
 
-        // Test Sender Time + Receiver Time Roundtrip
+        /* Test Sender Time + Receiver Time Roundtrip */
 
         tcc = cos_tcap_alloc(&booter_info);
-        if (EXPECT_LL_LT(1, tcc, "Allocation"))
+        if (EXPECT_LL_LT(1, tcc, "IPI ROUNDTRIP: TCAP Allocation"))
             return;
 
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL);
-        if (EXPECT_LL_LT(1, t, "Allocation"))
+        if (EXPECT_LL_LT(1, t, "IPI ROUNDTRIP: Thread Allocation"))
             return;
 
         r = cos_arcv_alloc(&booter_info, t, tcc, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
-        if (EXPECT_LL_LT(1, r, "Allocation"))
+        if (EXPECT_LL_LT(1, r, "IPI ROUNDTRIP: ARCV Allocation"))
             return;
 
         cos_tcap_transfer(r, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX);
@@ -182,7 +182,7 @@ test_ipi_roundtrip(void)
         while(!rcv[TEST_SND_CORE]) ;
 
         s = cos_asnd_alloc(&booter_info, rcv[TEST_SND_CORE], booter_info.captbl_cap);
-        if (EXPECT_LL_LT(1, s, "Allocation"))
+        if (EXPECT_LL_LT(1, s, "IPI ROUNDTRIP: ASND Allocation"))
             return;
 
         asnd[cos_cpuid()] = s;
@@ -193,14 +193,14 @@ test_ipi_roundtrip(void)
 
         if (cos_cpuid() != TEST_SND_CORE) return;
 
-        // Test Sender Time
+        /* Test Sender Time */
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL);
-        if (EXPECT_LL_LT(1, t, "Allocation"))
+        if (EXPECT_LL_LT(1, t, "IPI ROUNDTRIP: Thread Allocation"))
             return;
 
         r = cos_arcv_alloc(&booter_info, t, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
-        if (EXPECT_LL_LT(1, r, "Allocation"))
+        if (EXPECT_LL_LT(1, r, "IPI ROUNDTRIP: ARCV Allocation"))
             return;
 
         thd[cos_cpuid()] = t;
@@ -209,7 +209,7 @@ test_ipi_roundtrip(void)
         while(!rcv[TEST_RCV_CORE]) ;
 
         s = cos_asnd_alloc(&booter_info, rcv[TEST_RCV_CORE], booter_info.captbl_cap);
-        if (EXPECT_LL_LT(1, s, "Allocation"))
+        if (EXPECT_LL_LT(1, s, "IPI ROUNDTRIP: ASND Allocation"))
             return;
 
         asnd[cos_cpuid()] = s;

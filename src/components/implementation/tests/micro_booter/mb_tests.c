@@ -150,7 +150,7 @@ static void
 thd_tls(void *d)
 {
 	if (EXPECT_LLU_NEQ((long unsigned)tls_get(0), (long unsigned)tls_test[cos_cpuid()][(int)d],
-        "Thread TLS: ARG not correct")) failure = 1;
+                       "Thread TLS: ARG not correct")) failure = 1;
 	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	EXPECT_LL_NEQ(1, 0, "Error, shouldn't get here!\n");
 }
@@ -197,7 +197,7 @@ sched_events_clear(void)
 	tcap_time_t timer, thd_timeout;
 
 	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
-			     &rcvd, &tid, &blocked, &cycles, &thd_timeout) != 0)
+			             &rcvd, &tid, &blocked, &cycles, &thd_timeout) != 0)
 		;
 
 }
@@ -221,7 +221,7 @@ test_timer(void)
 		rdtscll(now);
 		timer = tcap_cyc2time(now + GRANULARITY * cyc_per_usec);
 		cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
-			   cos_sched_sync());
+			       cos_sched_sync());
 		p = c;
 		rdtscll(c);
 		if (i > 0) {
@@ -243,10 +243,10 @@ test_timer(void)
     result.test_timer.max = (long long unsigned) max;
     result.test_timer.min = (long long unsigned) min;
 
-	if (EXPECT_LLU_LT((long long unsigned)(t/TEST_ITER),
-            (unsigned)(GRANULARITY * cyc_per_usec * MAX_THDS), "Timer: Failure on  MAX") ||
-	    EXPECT_LLU_LT((unsigned)(GRANULARITY * cyc_per_usec * MIN_THDS),
-            (long long unsigned)(t/TEST_ITER), "Timer: failure on MIN")) {
+	if (EXPECT_LLU_LT((long long unsigned)(t/TEST_ITER), (unsigned)(GRANULARITY * cyc_per_usec * MAX_THDS),
+                      "Timer: Failure on  MAX") ||
+	    EXPECT_LLU_LT((unsigned)(GRANULARITY * cyc_per_usec * MIN_THDS), (long long unsigned)(t/TEST_ITER),
+                      "Timer: failure on MIN")) {
         return;
     }
 
@@ -256,7 +256,7 @@ test_timer(void)
 	rdtscll(c);
 	timer = tcap_cyc2time(c - GRANULARITY * cyc_per_usec);
 	cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
-		   cos_sched_sync());
+		       cos_sched_sync());
 	p = c;
 	rdtscll(c);
 
@@ -272,7 +272,7 @@ test_timer(void)
 	rdtscll(c);
 	timer = tcap_cyc2time(c);
 	cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
-		   cos_sched_sync());
+		       cos_sched_sync());
 	p = c;
 	rdtscll(c);
 
@@ -281,8 +281,8 @@ test_timer(void)
     }
 
 	cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
-		&rcvd, &tid, &blocked, &cycles, &thd_timeout)
-		;
+		          &rcvd, &tid, &blocked, &cycles, &thd_timeout)
+		    ;
 
 	EXPECT_LLU_LT((long long unsigned)cycles, (long long unsigned)(c-p), "Timer: Cycles time");
 
@@ -345,18 +345,18 @@ test_2timers(void)
 	cycles_t    s, e, timer;
 
     if (EXPECT_LL_NEQ(0, exec_cluster_alloc(&bt[cos_cpuid()].p, parent, &bt[cos_cpuid()].p,
-            BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "TCAP v. Timer: Cannot Allocate")) {
+                      BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "TCAP v. Timer: Cannot Allocate")) {
         return;
     }
 	if (EXPECT_LL_NEQ(0, exec_cluster_alloc(&bt[cos_cpuid()].c, spinner, &bt[cos_cpuid()].c,
-                bt[cos_cpuid()].p.rc), "TCAP v. Timer: Cannot Allocate")) {
+                      bt[cos_cpuid()].p.rc), "TCAP v. Timer: Cannot Allocate")) {
         return;
     }
 
 				    /* Timer > TCAP */
 
 	ret = cos_tcap_transfer(bt[cos_cpuid()].c.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE,
-            GRANULARITY * TIMER_TIME, TCAP_PRIO_MAX + 2);
+                            GRANULARITY * TIMER_TIME, TCAP_PRIO_MAX + 2);
 	if (EXPECT_LL_NEQ(0, ret, "TCAP v. Timer : TCAP Transfer")) {
         return;
     }
@@ -364,16 +364,16 @@ test_2timers(void)
 	rdtscll(s);
 	timer = tcap_cyc2time(s + GRANULARITY * cyc_per_usec);
 	if (cos_switch(bt[cos_cpuid()].c.tc, bt[cos_cpuid()].c.tcc, TCAP_PRIO_MAX + 2,
-            timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync())) {
+                   timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync())) {
 		EXPECT_LL_NEQ(0, 1, "TCAP v. Timer: COS Switch");
 	    return;
     }
 	rdtscll(e);
 
     if (EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * cyc_per_usec),
-        "TCAP v. Timer: Timer > TCAP") ||
+                      "TCAP v. Timer: Timer > TCAP") ||
 	    EXPECT_LLU_LT((unsigned)(GRANULARITY * TIMER_TIME), (long long unsigned)(e-s),
-        "TCAP v. Timer: Interreupt Under")) {
+                      "TCAP v. Timer: Interreupt Under")) {
         return;
     }
 
@@ -389,15 +389,17 @@ test_2timers(void)
 
 	rdtscll(s);
 	timer = tcap_cyc2time(s + GRANULARITY * TIMER_TIME);
-	if (EXPECT_LL_NEQ(0, cos_switch(bt[cos_cpuid()].c.tc, bt[cos_cpuid()].c.tcc, TCAP_PRIO_MAX + 2,
-            timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync()), "TCAP v. TImer: COS Switch")) {
+	if (EXPECT_LL_NEQ(0, cos_switch(bt[cos_cpuid()].c.tc, bt[cos_cpuid()].c.tcc, TCAP_PRIO_MAX + 2, timer,
+                      BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync()), "TCAP v. TImer: COS Switch")) {
         return;
     }
 
 	rdtscll(e);
 
-    if (EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * cyc_per_usec), "TCAP v. Timer: Timer < TCAP") ||
-	    EXPECT_LLU_LT((unsigned)(GRANULARITY * TIMER_TIME),(long long unsigned)(e-s) ,"TCAP v. Timer: Interreupt Under")) {
+    if (EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * cyc_per_usec),
+                      "TCAP v. Timer: Timer < TCAP") ||
+	    EXPECT_LLU_LT((unsigned)(GRANULARITY * TIMER_TIME), (long long unsigned)(e-s),
+                      "TCAP v. Timer: Interreupt Under")) {
         return;
     }
 
@@ -415,22 +417,22 @@ test_budgets_single(void)
 	int	        ret;
 
 	if (EXPECT_LL_NEQ(0, exec_cluster_alloc(&bt[cos_cpuid()].p, parent, &bt[cos_cpuid()].p,
-            BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "Single Budget: Cannot Allocate") ||
+                      BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "Single Budget: Cannot Allocate") ||
 	    EXPECT_LL_NEQ(0, exec_cluster_alloc(&bt[cos_cpuid()].c, spinner, &bt[cos_cpuid()].c,
-            bt[cos_cpuid()].p.rc), "Single Budget: Cannot Allocate")) {
+                      bt[cos_cpuid()].p.rc), "Single Budget: Cannot Allocate")) {
         return;
     }
 	for (i = 1; i <= TEST_ITER; i++) {
 
 		ret = cos_tcap_transfer(bt[cos_cpuid()].c.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE,
-            GRANULARITY * BUDGET_TIME, TCAP_PRIO_MAX + 2);
+                                GRANULARITY * BUDGET_TIME, TCAP_PRIO_MAX + 2);
 		if (EXPECT_LL_NEQ(0, ret, "Single Budget: TCAP Transfer")) {
             return;
         }
 
 		rdtscll(s);
 		if (cos_switch(bt[cos_cpuid()].c.tc, bt[cos_cpuid()].c.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL,
-            BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync())){
+                       BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync())){
 			EXPECT_LL_NEQ(0, 1, "Single Budget: COS Switch");
 		    return;
         }
@@ -449,9 +451,9 @@ test_budgets_single(void)
             }
 
 			if (EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * BUDGET_TIME * MAX_THDS),
-                    "Single Budget: MAX Bound") ||
+                              "Single Budget: MAX Bound") ||
 			    EXPECT_LLU_LT((unsigned)(GRANULARITY * BUDGET_TIME * MIN_THDS), (long long unsigned)(e-s),
-                    "Single Budget: MIN Bound")) {
+                              "Single Budget: MIN Bound")) {
                 return;
             }
 		}
@@ -472,11 +474,11 @@ test_budgets_multi(void)
 	int i;
 
 	if(EXPECT_LL_NEQ(0, exec_cluster_alloc(&mbt[cos_cpuid()].p, spinner_cyc, &(mbt[cos_cpuid()].p.cyc),
-            BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "Multi Budget: Cannot Allocate") ||
+                     BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "Multi Budget: Cannot Allocate") ||
 	   EXPECT_LL_NEQ(0, exec_cluster_alloc(&mbt[cos_cpuid()].c, spinner_cyc, &(mbt[cos_cpuid()].c.cyc),
-            mbt[cos_cpuid()].p.rc), "Multi Budget: Cannot Allocate") ||
+                     mbt[cos_cpuid()].p.rc), "Multi Budget: Cannot Allocate") ||
 	   EXPECT_LL_NEQ(0, exec_cluster_alloc(&mbt[cos_cpuid()].g, spinner_cyc, &(mbt[cos_cpuid()].g.cyc),
-            mbt[cos_cpuid()].c.rc), "Multi Budget: Cannot allocate")) {
+                     mbt[cos_cpuid()].c.rc), "Multi Budget: Cannot allocate")) {
         return;
     }
 
@@ -494,18 +496,18 @@ test_budgets_multi(void)
 			res = i * GRANULARITY * 800;
 
 		if (EXPECT_LL_NEQ(0, cos_tcap_transfer(mbt[cos_cpuid()].p.rc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE,
-                res, TCAP_PRIO_MAX + 2), "Multi Budget: TCAP Transfer") ||
+                          res, TCAP_PRIO_MAX + 2), "Multi Budget: TCAP Transfer") ||
 		    EXPECT_LL_NEQ(0, cos_tcap_transfer(mbt[cos_cpuid()].c.rc, mbt[cos_cpuid()].p.tcc, res / 2,
-                TCAP_PRIO_MAX + 2), "Multi Budget: TCAP Transfer") ||
+                          TCAP_PRIO_MAX + 2), "Multi Budget: TCAP Transfer") ||
 		    EXPECT_LL_NEQ(0, cos_tcap_transfer(mbt[cos_cpuid()].g.rc, mbt[cos_cpuid()].c.tcc, res / 4,
-                TCAP_PRIO_MAX + 2), "Multi Budget: TCAP Transfer")) {
+                          TCAP_PRIO_MAX + 2), "Multi Budget: TCAP Transfer")) {
             return;
         }
 
 		mbt[cos_cpuid()].p.cyc = mbt[cos_cpuid()].c.cyc = mbt[cos_cpuid()].g.cyc = 0;
 		rdtscll(s);
 		if (cos_switch(mbt[cos_cpuid()].g.tc, mbt[cos_cpuid()].g.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL,
-            BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync())) {
+                       BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync())) {
 			EXPECT_LL_NEQ(0, 1, "Multi Budget: COS Switch");
 			return;
 		}
@@ -700,7 +702,7 @@ test_async_endpoints(void)
 	    return;
     }
 	if(EXPECT_LL_NEQ(0,cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX),
-        "Test Async Endpoints")) {
+                     "Test Async Endpoints")) {
 	    return;
     }
 
@@ -719,7 +721,7 @@ test_async_endpoints(void)
 	    return;
     }
 	if(EXPECT_LL_NEQ(0,cos_tcap_transfer(rcc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF,
-        TCAP_PRIO_MAX + 1), "Test Async Endpoints")) {
+                     TCAP_PRIO_MAX + 1), "Test Async Endpoints")) {
 	    return;
     }
 
@@ -855,12 +857,12 @@ block_vm(void)
 	thdid_t tid;
 
 	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING | RCV_NON_BLOCKING, 0,
-			     &rcvd, &tid, &blocked, &cycles, &thd_timeout) > 0)
-		;
+			             &rcvd, &tid, &blocked, &cycles, &thd_timeout) > 0)
+		    ;
 
 	rdtscll(now);
 	now += (1000 * cyc_per_usec);
 	timeout = tcap_cyc2time(now);
 	cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, timeout,
-        &rcvd, &tid, &blocked, &cycles, &thd_timeout);
+                  &rcvd, &tid, &blocked, &cycles, &thd_timeout);
 }

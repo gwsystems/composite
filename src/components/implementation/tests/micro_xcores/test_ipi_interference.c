@@ -84,7 +84,7 @@ test_sched_loop(void)
     tcap_time_t timeout, thd_timeout;
     thdid_t thdid;
 
-    // Clear Scheduler
+    /* Clear Scheduler */
     sched_events_clear(&rcvd, &thdid, &blocked, &cycles, &thd_timeout);
 
     while (1) {
@@ -117,8 +117,6 @@ done:
 
 }
 
-// RCV TEST #2
-
 static void
 rcv_spinner(void *d)
 {
@@ -145,8 +143,7 @@ rcv_spinner(void *d)
           prev = now;
     }
     done_test = 1;
-    PRINTC("AVG IPI Interrupt: %llu WC: %llu Iter: %d\n", tot_avg / i, wc, i);
-//    while(1) test_rcv(r) ;
+    PRINTC("Test IPI Interrupt:\t INTERRUPT AVG:%llu WC: %llu Iter: %d\n", tot_avg / i, wc, i);
     while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE) ;
 }
 
@@ -187,17 +184,18 @@ test_ipi_interference(void)
 
     if (cos_cpuid() == TEST_RCV_CORE) {
 
-        // Test RCV 2: Close Loop at higher priority => Measure Kernel involvement
+        /* Test RCV 2: Close Loop at higher priority => Measure Kernel involvement */
+
         tcc = cos_tcap_alloc(&booter_info);
-        if (EXPECT_LL_LT(1, tcc, "Allocation"))
+        if (EXPECT_LL_LT(1, tcc, "IPI Interference: TCAP Allocation"))
             return;
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL);
-        if (EXPECT_LL_LT(1, t, "Allocation"))
+        if (EXPECT_LL_LT(1, t, "IPI Inteference: Thread Allocation"))
             return;
 
         r = cos_arcv_alloc(&booter_info, t, tcc, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
-        if (EXPECT_LL_LT(1, r, "Allocation"))
+        if (EXPECT_LL_LT(1, r, "IPI Interference: ARCV Allocation"))
             return;
 
         cos_tcap_transfer(r, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 5);
@@ -208,37 +206,36 @@ test_ipi_interference(void)
         while(!rcv[TEST_SND_CORE]) ;
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL);
-        if (EXPECT_LL_LT(1, t, "Allocation"))
+        if (EXPECT_LL_LT(1, t, "IPI Interference: Thread Allocation"))
             return;
 
         spinner_thd[cos_cpuid()] = t;
 
         s = cos_asnd_alloc(&booter_info, rcv[TEST_SND_CORE], booter_info.captbl_cap);
-        if (EXPECT_LL_LT(1, s, "Allocation"))
+        if (EXPECT_LL_LT(1, s, "IPI Interference: ASND Allocation"))
             return;
 
 
         asnd[cos_cpuid()] = s;
         test_sync_asnd();
         test_sched_loop();
-//        while(1) ;
 
     } else {
 
         if (cos_cpuid() != TEST_SND_CORE) return;
 
-        // Test RCV2: Corresponding Send
+        /* Test RCV2: Corresponding Send */
 
         tcc = cos_tcap_alloc(&booter_info);
-        if (EXPECT_LL_LT(1, tcc, "Allocation"))
+        if (EXPECT_LL_LT(1, tcc, "IPI Interference: TCAP Allocation"))
             return;
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL);
-        if (EXPECT_LL_LT(1, t, "Allocation"))
+        if (EXPECT_LL_LT(1, t, "IPI Interference: Thread Allocation"))
             return;
 
         r = cos_arcv_alloc(&booter_info, t, tcc, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
-        if (EXPECT_LL_LT(1, r, "Allocation"))
+        if (EXPECT_LL_LT(1, r, "IPI Interference: ARCV Allocation"))
             return;
 
         thd[cos_cpuid()] = t;
@@ -247,13 +244,12 @@ test_ipi_interference(void)
         while(!rcv[TEST_RCV_CORE]) ;
 
         s = cos_asnd_alloc(&booter_info, rcv[TEST_RCV_CORE], booter_info.captbl_cap);
-        if (EXPECT_LL_LT(1, s, "Allocation"))
+        if (EXPECT_LL_LT(1, s, "IPI Interference: ASND Allocation"))
             return;
 
         asnd[cos_cpuid()] = s;
 
         test_sync_asnd();
         test_sched_loop();
-//        while(1) ;
     }
 }
