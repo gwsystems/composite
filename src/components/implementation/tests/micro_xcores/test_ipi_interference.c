@@ -114,7 +114,6 @@ done:
             } while (ret == -EAGAIN);
         }
     }
-
 }
 
 static void

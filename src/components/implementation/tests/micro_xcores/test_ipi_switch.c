@@ -6,36 +6,36 @@ int
 _expect_llu(int predicate, char *str, long long unsigned a,
         long long unsigned b, char *errcmp, char *testname, char * file, int line)
 {
-	if (predicate) {
-		PRINTC("%s Failure: %s @ %d: ",
-			 testname, file, line);
-		printc("(%s %lld", str, a);
-		printc(" %s %lld)\n", errcmp, b);
-		return -1;
-	}
-	return 0;
+    if (predicate) {
+        PRINTC("%s Failure: %s @ %d: ",
+             testname, file, line);
+        printc("(%s %lld", str, a);
+        printc(" %s %lld)\n", errcmp, b);
+        return -1;
+    }
+    return 0;
 }
 
 int
 _expect_ll(int predicate, char *str, long long a,
        long long b, char *errcmp, char *testname, char * file, int line)
 {
-	if (predicate) {
-		PRINTC("%s Failure: %s @ %d: ",
-			 testname, file, line);
-		printc("(%s %lld", str, a);
-		printc(" %s %lld)\n", errcmp, b);
-		return -1;
-	}
-	return 0;
+    if (predicate) {
+        PRINTC("%s Failure: %s @ %d: ",
+             testname, file, line);
+        printc("(%s %lld", str, a);
+        printc(" %s %lld)\n", errcmp, b);
+        return -1;
+    }
+    return 0;
 }
 
 void
 sched_events_clear(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout)
 {
-	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
-			     rcvd, tid, blocked, cycles, thd_timeout) != 0)
-		;
+    while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
+                 rcvd, tid, blocked, cycles, thd_timeout) != 0)
+        ;
 }
 
 /* Test RCV 1: Close Loop at lower priority => Measure Thread Switching + IPI */
@@ -68,32 +68,32 @@ static volatile int       ready = 0;
 static void
 test_rcv(arcvcap_t r)
 {
-	int pending = 0, rcvd = 0;
+    int pending = 0, rcvd = 0;
 
-	pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
-	assert(pending == 0);
+    pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
+    assert(pending == 0);
 
-	total_rcvd[cos_cpuid()] += rcvd;
+    total_rcvd[cos_cpuid()] += rcvd;
 }
 
 static void
 test_asnd(asndcap_t s)
 {
-	int ret = 0;
+    int ret = 0;
 
-	ret = cos_asnd(s, 1);
-	assert(ret == 0 || ret == -EBUSY);
+    ret = cos_asnd(s, 1);
+    assert(ret == 0 || ret == -EBUSY);
     ready = 1;
-	if (!ret) total_sent[cos_cpuid()]++;
+    if (!ret) total_sent[cos_cpuid()]++;
 }
 
 static void
 test_sync_asnd(void)
 {
-	int i;
+    int i;
 
-	while (!asnd[TEST_SND_CORE]) ;
-	while (!asnd[TEST_RCV_CORE]) ;
+    while (!asnd[TEST_SND_CORE]) ;
+    while (!asnd[TEST_RCV_CORE]) ;
 }
 
 static void
@@ -110,26 +110,26 @@ rcv_spinner(void *d)
 static void
 test_rcv_1(arcvcap_t r)
 {
-	int pending = 0, rcvd = 0;
+    int pending = 0, rcvd = 0;
 
-	pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
+    pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
     rdtscll(global_time[1]);
     ready = 1;
     assert(pending == 0);
 
-	total_rcvd[cos_cpuid()] += rcvd;
+    total_rcvd[cos_cpuid()] += rcvd;
 }
 
 static void
 test_rcv_fn(void *d)
 {
-	arcvcap_t r = rcv[cos_cpuid()];
-	asndcap_t s = asnd[cos_cpuid()];
+    arcvcap_t r = rcv[cos_cpuid()];
+    asndcap_t s = asnd[cos_cpuid()];
 
-	while (1) {
-		test_rcv_1(r);
-		test_asnd(s);
-	}
+    while (1) {
+        test_rcv_1(r);
+        test_asnd(s);
+    }
 }
 
 static void

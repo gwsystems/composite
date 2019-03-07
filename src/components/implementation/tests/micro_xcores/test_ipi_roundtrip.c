@@ -29,10 +29,10 @@ static volatile int       done_test = 0;
 static void
 test_rcv(arcvcap_t r)
 {
-	int pending = 0, rcvd = 0;
+    int pending = 0, rcvd = 0;
 
-	pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
-	assert(pending == 0);
+    pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
+    assert(pending == 0);
     if (EXPECT_LL_LT(1, r, "IPI Roundtrip: Allocation on RCV"))
         cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 
@@ -42,23 +42,23 @@ test_rcv(arcvcap_t r)
 static void
 test_asnd(asndcap_t s)
 {
-	int ret = 0;
+    int ret = 0;
 
-	ret = cos_asnd(s, 1);
-	assert(ret == 0 || ret == -EBUSY);
-	if (!ret) total_sent[cos_cpuid()]++;
+    ret = cos_asnd(s, 1);
+    assert(ret == 0 || ret == -EBUSY);
+    if (!ret) total_sent[cos_cpuid()]++;
 }
 
 static void
 test_rcv_fn(void *d)
 {
-	arcvcap_t r = rcv[cos_cpuid()];
-	asndcap_t s = asnd[cos_cpuid()];
+    arcvcap_t r = rcv[cos_cpuid()];
+    asndcap_t s = asnd[cos_cpuid()];
 
-	while (1) {
-		test_rcv(r);
-		test_asnd(s);
-	}
+    while (1) {
+        test_rcv(r);
+        test_asnd(s);
+    }
 }
 
 static void
@@ -74,33 +74,32 @@ test_sched_loop(void)
 
     while (1) {
 
-		while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
-						&rcvd, &thdid, &blocked, &cycles, &thd_timeout)) >= 0) {
-			if (!thdid) goto done;
-			assert(thdid == tid[cos_cpuid()]);
-			blkd[cos_cpuid()] = blocked;
+        while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
+                        &rcvd, &thdid, &blocked, &cycles, &thd_timeout)) >= 0) {
+            if (!thdid) goto done;
+            assert(thdid == tid[cos_cpuid()]);
+            blkd[cos_cpuid()] = blocked;
 done:
-			if (!pending) break;
-		}
+            if (!pending) break;
+        }
 
-		if (blkd[cos_cpuid()] && done_test) return;
-		if (blkd[cos_cpuid()]) continue;
+        if (blkd[cos_cpuid()] && done_test) return;
+        if (blkd[cos_cpuid()]) continue;
 
-		do {
-			ret = cos_switch(thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, 0, 0);
-		} while (ret == -EAGAIN);
-	}
-
+        do {
+            ret = cos_switch(thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, 0, 0);
+        } while (ret == -EAGAIN);
+    }
 }
 
 static void
 test_asnd_fn(void *d)
 {
-	cycles_t st = 0, en = 0, tot = 0, wc = 0, bc = 0;
+    cycles_t st = 0, en = 0, tot = 0, wc = 0, bc = 0;
     cycles_t tot_send = 0, send_wc = 0, s_time = 0;
-	int iters = 0;
-	arcvcap_t r = rcv[cos_cpuid()];
-	asndcap_t s = asnd[cos_cpuid()];
+    int iters = 0;
+    arcvcap_t r = rcv[cos_cpuid()];
+    asndcap_t s = asnd[cos_cpuid()];
 
     while(1) {
         rdtscll(st);
@@ -142,10 +141,10 @@ test_asnd_fn(void *d)
 static void
 test_sync_asnd(void)
 {
-	int i;
+    int i;
 
-	while (!asnd[TEST_SND_CORE]) ;
-	while (!asnd[TEST_RCV_CORE]) ;
+    while (!asnd[TEST_SND_CORE]) ;
+    while (!asnd[TEST_RCV_CORE]) ;
 }
 
 void
