@@ -732,3 +732,10 @@ sl_sched_loop_nonblock(void)
 {
 	sl_sched_loop_intern(1);
 }
+
+int
+sl_thd_kern_dispatch(thdcap_t t)
+{
+	//return cos_switch(t, sl__globals_cpu()->sched_tcap, 0, sl__globals_cpu()->timeout_next, sl__globals_cpu()->sched_rcv, cos_sched_sync());
+	return cos_thd_switch(t);
+}

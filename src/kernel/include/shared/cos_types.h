@@ -143,6 +143,12 @@ typedef enum {
 	CAPTBL_OP_HW_TLBFLUSH,
 	CAPTBL_OP_HW_TLBSTALL,
 	CAPTBL_OP_HW_TLBSTALL_RECOUNT
+
+	CAPTBL_OP_SCB_ACTIVATE,
+	CAPTBL_OP_SCB_DEACTIVATE,
+
+	CAPTBL_OP_DCB_ACTIVATE,
+	CAPTBL_OP_DCB_DEACTIVATE,
 } syscall_op_t;
 
 typedef enum {
@@ -160,8 +166,13 @@ typedef enum {
 	CAP_QUIESCENCE, /* when deactivating, set to track quiescence state */
 	CAP_TCAP,       /* tcap captable entry */
 	CAP_HW,         /* hardware (interrupt) */
+	CAP_SCB,	/* Scheduler control block (SCB) */
+	CAP_DCB,	/* Dispatch control block (DCB) */
 } cap_t;
 
+/* maximum size allowed for CAP TYPE in a capability header */
+#define CAP_TYPE_MAXBITS 7
+#define CAP_TYPE_MAX (1 << CAP_TYPE_MAXBITS - 1)
 /* TODO: pervasive use of these macros */
 /* v \in struct cap_* *, type \in cap_t */
 #define CAP_TYPECHK(v, t) ((v) && (v)->h.type == (t))
@@ -210,6 +221,8 @@ typedef int cpuid_t;
 static inline cap_sz_t
 __captbl_cap2sz(cap_t c)
 {
+	/* if (unlikely(c > CAP_TYPE_MAX)) return CAP_SZ_ERR; */
+
 	/* TODO: optimize for invocation and return */
 	switch (c) {
 	case CAP_SRET:
@@ -217,6 +230,8 @@ __captbl_cap2sz(cap_t c)
 	case CAP_TCAP:
 		return CAP_SZ_16B;
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
+	case CAP_SCB:
+	case CAP_DCB:
 		return CAP_SZ_32B;
 	case CAP_SINV:
 	case CAP_COMP:
@@ -270,13 +285,15 @@ enum
 	BOOT_CAPTBL_KM_PTE          = 28,
 
 	BOOT_CAPTBL_SINV_CAP           = 32,
-	BOOT_CAPTBL_SELF_INITHW_BASE   = 36,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 40,
+	BOOT_CAPTBL_SELF_SCB           = 36, /* FIXME: Do we need this? */
+	BOOT_CAPTBL_SELF_INITHW_BASE   = 40,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 44,
 	/*
 	 * NOTE: kernel doesn't support sharing a cache-line across cores,
 	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU
+	 * Update: add per-core INIT DCB cap in to the same cache-line.
 	 */
-	BOOT_CAPTBL_SELF_INITTCAP_BASE = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_SELF_INITTCAP_BASE = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU * CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
 
 	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
@@ -284,13 +301,17 @@ enum
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
 
-#define BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE + cpuid * CAP16B_IDSZ)
+#define BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE + cpuid * CAP64B_IDSZ)
 #define BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTCAP_BASE + cpuid * CAP16B_IDSZ)
 #define BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITRCV_BASE + cpuid * CAP64B_IDSZ)
+#define BOOT_CAPTBL_SELF_INITDCB_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) + CAP32B_IDSZ)
+
+#define BOOT_CAPTBL_SELF_INITDCB_BASE (BOOT_CAPTBL_SELF_INITTHD_BASE + CAP32B_IDSZ)
 
 #define BOOT_CAPTBL_SELF_INITTHD_CPU_BASE (BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cos_cpuid()))
 #define BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE (BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cos_cpuid()))
 #define BOOT_CAPTBL_SELF_INITRCV_CPU_BASE (BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cos_cpuid()))
+#define BOOT_CAPTBL_SELF_INITDCB_CPU_BASE (BOOT_CAPTBL_SELF_INITDCB_BASE_CPU(cos_cpuid()))
 
 /*
  * The half of the first page of init captbl is devoted to root node. So, the

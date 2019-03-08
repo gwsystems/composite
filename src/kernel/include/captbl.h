@@ -55,7 +55,7 @@ typedef enum {
 #define CAP_HEAD_AMAP_SZ 4
 #define CAP_HEAD_SZ_SZ 2
 #define CAP_HEAD_FLAGS_SZ 3
-#define CAP_HEAD_TYPE_SZ 7
+#define CAP_HEAD_TYPE_SZ CAP_TYPE_MAXBITS
 
 /*
  * This is the header for each capability.  Includes information about

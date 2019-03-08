@@ -56,7 +56,7 @@ test_aeps(void)
 		asndcap_t snd;
 
 		printc("\tCreating AEP [%lu]\n", i);
-		ret = cos_aep_tcap_alloc(&(test_aep[i]), BOOT_CAPTBL_SELF_INITTCAP_BASE, aep_thd_fn, (void *)i);
+		ret = cos_aep_tcap_alloc(&(test_aep[i]), BOOT_CAPTBL_SELF_INITTCAP_BASE, aep_thd_fn, (void *)i, 0, 0);
 		assert(ret == 0);
 
 		snd = cos_asnd_alloc(ci, test_aep[i].rcv, ci->captbl_cap);
@@ -125,7 +125,7 @@ cos_init(void)
 		cos_defcompinfo_init();
 
 		for (id = 0; id < CHILD_COMP_COUNT; id++) {
-			vaddr_t              vm_range, addr;
+			vaddr_t              vm_range, addr, dcbaddr;
 			pgtblcap_t           child_utpt;
 			int                  is_sched = ((id == CHILD_SCHED_ID) ? 1 : 0);
 			struct cos_compinfo *child_ci = cos_compinfo_get(&child_defci[id]);
@@ -135,8 +135,10 @@ cos_init(void)
 			assert(child_utpt);
 
 			cos_meminfo_init(&(child_ci->mi), BOOT_MEM_KM_BASE, CHILD_UNTYPED_SIZE, child_utpt);
-			cos_defcompinfo_child_alloc(&child_defci[id], (vaddr_t)&__cosrt_upcall_entry,
-			                            (vaddr_t)BOOT_MEM_VM_BASE, BOOT_CAPTBL_FREE, is_sched);
+			//cos_defcompinfo_child_alloc(&child_defci[id], (vaddr_t)&__cosrt_upcall_entry,
+			//                            (vaddr_t)BOOT_MEM_VM_BASE, BOOT_CAPTBL_FREE, is_sched);
+			cos_defcompinfo_child_alloc(&child_defci[id], (vaddr_t)&cosrt_upcall_entry,
+			                            (vaddr_t)BOOT_MEM_VM_BASE, BOOT_CAPTBL_FREE, is_sched, &dcbaddr);
 
 			printc("\t\tCopying new capabilities\n");
 			ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_CT, ci, child_ci->captbl_cap);
@@ -147,6 +149,7 @@ cos_init(void)
 			assert(ret == 0);
 			ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_COMP, ci, child_ci->comp_cap);
 			assert(ret == 0);
+			/* FIXME: copy BOOT_CAPTBL_SELF_SCB cap?? */
 
 			ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_INITTHD_BASE, ci,
 			                     cos_sched_aep_get(&child_defci[id])->thd);

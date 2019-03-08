@@ -356,6 +356,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	tc->t     = thd;
 	tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD);
+	/* TODO: dcb_thd_ref() */
 
 	return 0;
 }
@@ -412,6 +413,7 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 		ret = kmem_deact_post(pte, old_v);
 		if (ret) cos_throw(err, ret);
 	}
+	/* TODO: dcb_thd_deref() */
 
 	return 0;
 err:
