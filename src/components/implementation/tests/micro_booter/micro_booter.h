@@ -73,6 +73,8 @@ struct timers {
 struct results {
 	struct timers test_timer;
     struct timers budgets_single;
+	struct timers sinv;
+	struct timers sret;
 };
 
 struct results result;

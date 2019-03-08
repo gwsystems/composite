@@ -5,7 +5,7 @@
 #define THD_ARG 666             /* Thread Argument to pass */
 #define NUM_TEST 16             /* Iterator NUM */
 #define MAX_THDS 4              /* Max Threshold Multiplier */
-#define MIN_THDS 1              /* Min Threshold Multiplier */
+#define MIN_THDS 0.5              /* Min Threshold Multiplier */
 #define GRANULARITY 1000        /* Granularity */
 
 static int failure = 0;
@@ -63,7 +63,7 @@ test_thds_create_switch(void)
     EXPECT_LL_NEQ(0, ret, "COS Switch Error");
 
     CHECK_STATUS_FLAG();
-    PRINTC("TEST %s: \t\tSuccess\n", __func__);
+    PRINTC("TEST %s: \t\tSuccess\n", "THD Switch => ARG Passing");
     EXIT_FN();
 }
 
@@ -110,7 +110,7 @@ test_mthds_ring(void)
     }
 
     CHECK_STATUS_FLAG();
-    PRINTC("TEST %s: \t\t\tSuccess\n", __func__);
+    PRINTC("TEST %s: \t\t\tSuccess\n", "THD Switch => RING" );
     EXIT_FN();
 }
 
@@ -142,7 +142,7 @@ test_mthds_classic(void)
         if(EXPECT_LL_NEQ(0, ret, "Thread Classic: COS Switch Error")) return;
     }
     CHECK_STATUS_FLAG();
-    PRINTC("TEST %s: \t\tSuccess\n", __func__);
+    PRINTC("TEST %s: \t\t\tSuccess\n", "THD Switch => Classic");
     EXIT_FN();
 }
 
@@ -175,7 +175,7 @@ test_thds_tls(void)
     }
 
     CHECK_STATUS_FLAG();
-    PRINTC("TEST %s: \t\t\tSuccess\n", __func__);
+    PRINTC("TEST %s: \t\tSuccess\n", "THD Switch => TLS Passing");
     EXIT_FN();
 }
 
@@ -211,7 +211,8 @@ test_timer(void)
     cycles_t    s, e;
     thdid_t     tid;
     int     blocked, rcvd;
-    cycles_t    cycles, now;
+    cycles_t    cycles, now, utime;
+    long long time, mask;
     tcap_time_t timer, thd_timeout;
 
     tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
@@ -224,17 +225,27 @@ test_timer(void)
                    cos_sched_sync());
         p = c;
         rdtscll(c);
+        time = (c - now - (cycles_t)(GRANULARITY * cyc_per_usec));
+		mask = (time >> (sizeof(long long) * CHAR_BIT - 1));
+        utime = (time + mask) ^ mask;
+
         if (i > 0) {
-            t += c - p;
-        }
+            t += utime;
 
-        if ( c - p > max ){
-            max = c - p;
-        }
+            if ( utime > max ){
+                max = utime;
+            }
 
-        if ( c - p < min || min == 0){
-            min = c - p;
-        }
+            if ( utime < min || min == 0){
+                min = utime;
+            }
+            if (EXPECT_LLU_LT((long long unsigned)(c-now), (unsigned)(GRANULARITY * cyc_per_usec * MAX_THDS),
+                            "Timer: Failure on  MAX") ||
+                EXPECT_LLU_LT((unsigned)(GRANULARITY * cyc_per_usec * MIN_THDS), (long long unsigned)(c-now),
+                            "Timer: failure on MIN")) {
+//                return;
+            }
+        }   
         sched_events_clear();
     }
 
@@ -243,12 +254,7 @@ test_timer(void)
     result.test_timer.max = (long long unsigned) max;
     result.test_timer.min = (long long unsigned) min;
 
-    if (EXPECT_LLU_LT((long long unsigned)(t/TEST_ITER), (unsigned)(GRANULARITY * cyc_per_usec * MAX_THDS),
-                      "Timer: Failure on  MAX") ||
-        EXPECT_LLU_LT((unsigned)(GRANULARITY * cyc_per_usec * MIN_THDS), (long long unsigned)(t/TEST_ITER),
-                      "Timer: failure on MIN")) {
-        return;
-    }
+
 
     /* TIMER IN PAST */
     c = 0, p = 0;
@@ -287,7 +293,7 @@ test_timer(void)
     EXPECT_LLU_LT((long long unsigned)cycles, (long long unsigned)(c-p), "Timer: Cycles time");
 
     sched_events_clear();
-    PRINTC("TEST %s: \t\t\tSuccess\n", __func__);
+    PRINTC("TEST %s: \t\t\tSuccess\n", "One-Shot LAPIC Timer");
 }
 
 struct exec_cluster {
@@ -404,7 +410,7 @@ test_2timers(void)
     }
 
     sched_events_clear();
-    PRINTC("TEST %s: \t\t\tSuccess\n", __func__);
+    PRINTC("TEST %s: \t\t\t\tSuccess\n", "TCAP v. Timer");
 }
 
 #define BUDGET_TIME 100
@@ -414,6 +420,7 @@ test_budgets_single(void)
 {
     int i;
     cycles_t    s = 0, e = 0, t = 0, max = 0, min = 0;
+    cycles_t    time, mask;
     int         ret;
 
     if (EXPECT_LL_NEQ(0, exec_cluster_alloc(&bt[cos_cpuid()].p, parent, &bt[cos_cpuid()].p,
@@ -439,15 +446,19 @@ test_budgets_single(void)
         rdtscll(e);
 
         if (i > 1) {
+            		/* FAST ABS */
+		    time = (e - s - (GRANULARITY * BUDGET_TIME));
+		    mask = (time >> (sizeof(cycles_t) * CHAR_BIT - 1));
+            time = (time + mask) ^ mask;
 
-            t += e - s;
+            t += time;
 
-            if ( e - s > max ){
-                max = e - s;
+            if ( time > max ){
+                max = time;
             }
 
-            if ( e - s < min || min == 0){
-                min = e - s;
+            if ( time < min || min == 0){
+                min = time;
             }
 
             if (EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * BUDGET_TIME * MAX_THDS),
@@ -457,15 +468,14 @@ test_budgets_single(void)
                 return;
             }
         }
-
         sched_events_clear();
     }
 
-    result.budgets_single.avg = (long long unsigned) t;
+    result.budgets_single.avg = (long long unsigned) (t/TEST_ITER);
     result.budgets_single.max = (long long unsigned) max;
     result.budgets_single.min = (long long unsigned) min;
     result.budgets_single.expected = (unsigned)(GRANULARITY * BUDGET_TIME);
-    PRINTC("TEST %s: \t\tSuccess\n", __func__);
+    PRINTC("TEST %s: \t\t\t\tSuccess\n", "Simple Budget");
 }
 
 #define RATE_1 1600
@@ -530,7 +540,7 @@ test_budgets_multi(void)
             }
         }
     }
-    PRINTC("TEST %s: \t\tSuccess\n", __func__);
+    PRINTC("TEST %s: \t\t\tSuccess\n", "Hierarchical Budget");
 }
 
 static void
@@ -589,7 +599,7 @@ test_mem_alloc(void)
         return;
     }
     memset(t, 0, TEST_NPAGES * PAGE_SIZE);
-    PRINTC("TEST %s: \t\t\tSuccess\n", __func__);
+    PRINTC("TEST %s: \t\t\tSuccess\n", "Memory Allocation");
 }
 
 static volatile arcvcap_t rcc_global[NUM_CPU], rcp_global[NUM_CPU];
@@ -743,16 +753,16 @@ test_async_endpoints(void)
     while (async_test_flag_[cos_cpuid()]) cos_asnd(scr, 1);
 
     CHECK_STATUS_FLAG();
-    PRINTC("TEST %s: \t\tSuccess\n", __func__);
+    PRINTC("TEST %s: \t\t\tSuccess\n", "Asynchronous Endpoints");
     EXIT_FN();
 }
 
-static long long midinv_cycles[NUM_CPU] = { 0LL };
+static long long midinv_cycle[NUM_CPU] = { 0LL };
 
 int
 test_serverfn(int a, int b, int c)
 {
-    rdtscll(midinv_cycles[cos_cpuid()]);
+    rdtscll(midinv_cycle[cos_cpuid()]);
     return 0xDEADBEEF;
 }
 
@@ -791,6 +801,10 @@ test_inv(void)
     compcap_t    cc;
     sinvcap_t    ic;
     unsigned int r;
+    int          i;
+	long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL, inv_max = 0LL, inv_min = 0LL;
+	long long 	 ret_max = 0LL, ret_min = 0LL;
+	long long	 time = 0LL, mask = 0LL;
 
     cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
     if (EXPECT_LL_LT(1, cc, "Invocation: Cannot Allocate")) return;
@@ -800,8 +814,48 @@ test_inv(void)
     r = call_cap_mb(ic, 1, 2, 3);
     if (EXPECT_LLU_NEQ(0xDEADBEEF, r, "Test Invocation")) return;
 
+	for (i = 0; i < ITER; i++) {
+		long long start_cycles = 0LL, end_cycles = 0LL;
+
+		midinv_cycle[cos_cpuid()] = 0LL;
+		rdtscll(start_cycles);
+		call_cap_mb(ic, 1, 2, 3);
+		rdtscll(end_cycles);
+
+		
+		time = (midinv_cycle[cos_cpuid()] - start_cycles);
+		mask = (time >> (sizeof(long long) * CHAR_BIT - 1));
+        time = (time + mask) ^ mask;
+
+		total_inv_cycles += time;
+		if (time > inv_max){
+			inv_max = time;
+		}
+
+		if (time < inv_min || inv_min == 0){
+			inv_min = time;
+		}
+
+		total_ret_cycles += (end_cycles - midinv_cycle[cos_cpuid()]);
+		if (end_cycles - midinv_cycle[cos_cpuid()] > ret_max){
+			ret_max = end_cycles - midinv_cycle[cos_cpuid()];
+		}
+
+		if (end_cycles - midinv_cycle[cos_cpuid()] < ret_min || ret_min == 0){
+			ret_min = end_cycles - midinv_cycle[cos_cpuid()];
+		}
+	}
+
+    result.sinv.avg = (total_inv_cycles / (long long)(ITER));
+    result.sinv.max = inv_max;
+    result.sinv.min = inv_min;
+
+    result.sret.avg = (total_ret_cycles / (long long)(ITER));
+    result.sret.max = ret_max;
+    result.sret.min = ret_min;
+
     CHECK_STATUS_FLAG();
-    PRINTC("TEST %s: \t\t\t\tSuccess\n", __func__);
+    PRINTC("TEST %s: \t\t\tSuccess\n", "Synchronous Invocations");
     EXIT_FN();
 }
 
@@ -826,7 +880,7 @@ test_captbl_expands(void)
             return;
         }
     }
-    PRINTC("TEST %s: \t\tSuccess\n", __func__);
+    PRINTC("TEST %s: \t\tSuccess\n", "Capability Table Expansion");
 }
 
 void
