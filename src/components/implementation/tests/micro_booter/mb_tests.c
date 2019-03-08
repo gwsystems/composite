@@ -63,7 +63,7 @@ test_thds_create_switch(void)
     EXPECT_LL_NEQ(0, ret, "COS Switch Error");
 
     CHECK_STATUS_FLAG();
-    PRINTC("TEST %s: \t\tSuccess\n", "THD Switch => ARG Passing");
+    PRINTC("\t%s: \t\t\tSuccess\n", "THD => Creation & ARG");
     EXIT_FN();
 }
 
@@ -110,7 +110,7 @@ test_mthds_ring(void)
     }
 
     CHECK_STATUS_FLAG();
-    PRINTC("TEST %s: \t\t\tSuccess\n", "THD Switch => RING" );
+    PRINTC("\t%s: \t\t\tSuccess\n", "THD => Switch Cyclic" );
     EXIT_FN();
 }
 
@@ -142,7 +142,7 @@ test_mthds_classic(void)
         if(EXPECT_LL_NEQ(0, ret, "Thread Classic: COS Switch Error")) return;
     }
     CHECK_STATUS_FLAG();
-    PRINTC("TEST %s: \t\t\tSuccess\n", "THD Switch => Classic");
+    PRINTC("\t%s: \t\tSuccess\n", "THD => Switch in pairs");
     EXIT_FN();
 }
 
@@ -175,7 +175,7 @@ test_thds_tls(void)
     }
 
     CHECK_STATUS_FLAG();
-    PRINTC("TEST %s: \t\tSuccess\n", "THD Switch => TLS Passing");
+    PRINTC("\t%s: \t\t\tSuccess\n", "THD => Creation & TLS");
     EXIT_FN();
 }
 
@@ -243,7 +243,7 @@ test_timer(void)
                             "Timer: Failure on  MAX") ||
                 EXPECT_LLU_LT((unsigned)(GRANULARITY * cyc_per_usec * MIN_THDS), (long long unsigned)(c-now),
                             "Timer: failure on MIN")) {
-//                return;
+                return;
             }
         }   
         sched_events_clear();
@@ -290,10 +290,10 @@ test_timer(void)
                   &rcvd, &tid, &blocked, &cycles, &thd_timeout)
             ;
 
-    EXPECT_LLU_LT((long long unsigned)cycles, (long long unsigned)(c-p), "Timer: Cycles time");
+    EXPECT_LLU_LT((long long unsigned)cycles, (long long unsigned)(c-p), "Timer => Cycles time");
 
     sched_events_clear();
-    PRINTC("TEST %s: \t\t\tSuccess\n", "One-Shot LAPIC Timer");
+    PRINTC("\t%s: \t\t\tSuccess\n", "One-Shot Timeout");
 }
 
 struct exec_cluster {
@@ -410,7 +410,7 @@ test_2timers(void)
     }
 
     sched_events_clear();
-    PRINTC("TEST %s: \t\t\t\tSuccess\n", "TCAP v. Timer");
+    PRINTC("\t%s: \t\tSuccess\n", "Timer => Timeout v. Budget");
 }
 
 #define BUDGET_TIME 100
@@ -475,7 +475,7 @@ test_budgets_single(void)
     result.budgets_single.max = (long long unsigned) max;
     result.budgets_single.min = (long long unsigned) min;
     result.budgets_single.expected = (unsigned)(GRANULARITY * BUDGET_TIME);
-    PRINTC("TEST %s: \t\t\t\tSuccess\n", "Simple Budget");
+    PRINTC("\t%s: \t\t\tSuccess\n", "Timer => Budget based");
 }
 
 #define RATE_1 1600
@@ -540,7 +540,7 @@ test_budgets_multi(void)
             }
         }
     }
-    PRINTC("TEST %s: \t\t\tSuccess\n", "Hierarchical Budget");
+    PRINTC("\t%s: \t\tSuccess\n", "Timer => Hierarchical Budget");
 }
 
 static void
@@ -567,6 +567,7 @@ test_mem_alloc(void)
         EXPECT_LL_NEQ(0, 1, "Memory Test: Cannot Allocate");
         return;
     }
+    PRINTC("\t%s: \t\t\tSuccess\n", "Memory => Allocation");
     strcpy(p, chk);
 
     if (EXPECT_LL_NEQ(0, strcmp(chk, p), "Memory Test: Wrong STRCPY")) {
@@ -599,7 +600,7 @@ test_mem_alloc(void)
         return;
     }
     memset(t, 0, TEST_NPAGES * PAGE_SIZE);
-    PRINTC("TEST %s: \t\t\tSuccess\n", "Memory Allocation");
+    PRINTC("\t%s: \t\t\tSuccess\n", "Memory => R & W");
 }
 
 static volatile arcvcap_t rcc_global[NUM_CPU], rcp_global[NUM_CPU];
@@ -753,7 +754,7 @@ test_async_endpoints(void)
     while (async_test_flag_[cos_cpuid()]) cos_asnd(scr, 1);
 
     CHECK_STATUS_FLAG();
-    PRINTC("TEST %s: \t\t\tSuccess\n", "Asynchronous Endpoints");
+    PRINTC("\t%s: \t\tSuccess\n", "Asynchronous Endpoints");
     EXIT_FN();
 }
 
@@ -855,7 +856,7 @@ test_inv(void)
     result.sret.min = ret_min;
 
     CHECK_STATUS_FLAG();
-    PRINTC("TEST %s: \t\t\tSuccess\n", "Synchronous Invocations");
+    PRINTC("\t%s: \t\tSuccess\n", "Synchronous Invocations");
     EXIT_FN();
 }
 
@@ -880,7 +881,7 @@ test_captbl_expands(void)
             return;
         }
     }
-    PRINTC("TEST %s: \t\tSuccess\n", "Capability Table Expansion");
+    PRINTC("\t%s: \t\tSuccess\n", "Capability Table Expansion");
 }
 
 void

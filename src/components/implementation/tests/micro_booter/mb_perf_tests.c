@@ -4,7 +4,6 @@
 
 extern int _expect_llu(int predicate, char *str, long long unsigned a, long long unsigned b, char *errcmp, char *testname, char *file, int line);
 extern int _expect_ll(int predicate, char *str, long long a, long long b, char *errcmp, char *testname, char *file, int line);
-extern void sched_events_clear(void);
 
 unsigned int cyc_per_usec;
 static volatile arcvcap_t rcc_global[NUM_CPU], rcp_global[NUM_CPU];
@@ -61,7 +60,7 @@ async_thd_parent_perf(void *thdcap)
 		}
 	}
 
-	PRINTC("Test Async Endpoints Roundtrip:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%lld\n",
+	PRINTC("\tAsync Endpoints => Roundtrip:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%lld\n",
 		  (long long unsigned)(t / ITER), (long long unsigned) max, (long long unsigned) min, (long long) ITER);
 
 	t = min = max = 0;
@@ -84,7 +83,7 @@ async_thd_parent_perf(void *thdcap)
 		}
 	}
 
-	PRINTC("Test Async Endpoints Send to RCV Time:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%lld\n",
+	PRINTC("\tAsync Endpoints => One Way:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%lld\n",
 		  (long long unsigned)(t / ITER), (long long unsigned) max, (long long unsigned) min, (long long) ITER);
 
 	async_test_flag_[cos_cpuid()] = 0;
@@ -140,13 +139,13 @@ test_async_endpoints_perf(void)
 void
 test_print_ubench(void)
 {
-	PRINTC("Test SINV:\t\t\t\t\tAVG:%lld, MAX:%lld, MIN:%lld, ITER:%lld\n", 
+	PRINTC("\tSINV:\t\t\t\t\tAVG:%lld, MAX:%lld, MIN:%lld, ITER:%lld\n", 
 	        result.sinv.avg, result.sinv.max, result.sinv.min, (long long) ITER);
-	PRINTC("Test SRET:\t\t\t\t\tAVG:%lld, MAX:%lld, MIN:%lld, ITER:%lld\n", 
+	PRINTC("\tSRET:\t\t\t\t\tAVG:%lld, MAX:%lld, MIN:%lld, ITER:%lld\n", 
 	        result.sret.avg, result.sinv.max, result.sinv.min, (long long) ITER);
-	PRINTC("Test Timer Overhead: \t\t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%lld\n",
+	PRINTC("\tTimer => Timeout Overhead: \t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%lld\n",
 		    result.test_timer.avg, result.test_timer.max, result.test_timer.min, (long long) TEST_ITER);
-	PRINTC("Test Single Budget: \t\t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%lld\n",
+	PRINTC("\tTimer => Budget based: \t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%lld\n",
 	        result.budgets_single.avg, result.budgets_single.max, result.budgets_single.min, (long long) TEST_ITER);
 
 }

@@ -40,11 +40,14 @@ cos_init(void)
 
 	termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 	assert(termthd[cos_cpuid()]);
-	PRINTC("Micro Booter started.\n");
+	PRINTC("Micro Booter\n");
+	printc("\nUnit Test Started:\n\n");
 
     // BOOTER TESTS
     test_run_mb();
-	PRINTC("Micro Booter Perf started.\n");
+
+	printc("\nuBenchamarks started:\n\n");
+
     test_run_perf_mb();
 
     /* NOTE: This is just to make sense of the output on HW! To understand that microbooter runs to completion on all cores! */
@@ -53,6 +56,7 @@ cos_init(void)
 		while (!test_done[i]) ;
 	}
 
+	printc("\n");
 	PRINTC("Micro Booter done.\n");
 
 	cos_thd_switch(termthd[cos_cpuid()]);
