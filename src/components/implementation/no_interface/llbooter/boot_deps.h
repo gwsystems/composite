@@ -164,17 +164,6 @@ boot_comp_mem_alloc(spdid_t spdid)
 	cos_meminfo_alloc(compinfo, BOOT_MEM_KM_BASE, mem_sz);
 }
 
-static void
-boot_comp_scb_alloc(spdid_t spdid)
-{
-	struct comp_cap_info   *spdinfo  = boot_spd_compcapinfo_get(spdid);
-	struct cos_compinfo    *compinfo = boot_spd_compinfo_get(spdid);
-	struct comp_sched_info *spdsi    = boot_spd_comp_schedinfo_get(spdid);
-
-	spdinfo->scbpg = (vaddr_t)cos_scbpg_bump_allocn(compinfo, COS_SCB_SIZE);
-	assert(spdinfo->scbpg);
-}
-
 /* TODO: Should booter create that INITDCB page for all components for each core? */
 static void
 boot_comp_dcb_alloc(spdid_t spdid)
@@ -194,13 +183,20 @@ boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t heap_st
 {
 	struct cos_compinfo *compinfo  = boot_spd_compinfo_get(spdid);
 	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
+	scbcap_t scbc = 0;
+	vaddr_t scb_uaddr = 0;
 
-	*ct = cos_captbl_alloc(boot_info);
+	*ct  = cos_captbl_alloc(boot_info);
 	assert(*ct);
-	*pt = cos_pgtbl_alloc(boot_info);
+	*pt  = cos_pgtbl_alloc(boot_info);
 	assert(*pt);
+	scbc = cos_pgtbl_alloc(boot_info);
+	assert(scbc);
 
-	cos_compinfo_init(compinfo, *pt, *ct, 0, (vaddr_t)heap_start_vaddr, BOOT_CAPTBL_FREE, boot_info);
+	cos_compinfo_init(compinfo, *pt, *ct, 0, scbc, 0, (vaddr_t)heap_start_vaddr, BOOT_CAPTBL_FREE, boot_info);
+	scb_uaddr = cos_page_bump_intern_valloc(compinfo, COS_SCB_SIZE);
+	assert(scb_uaddr);
+	compinfo->scb_vas = scb_uaddr;
 
 	/*
 	 * if this is a capmgr, let it manage its share (ideally rest of system memory) of memory.
@@ -405,11 +401,10 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	invtoken_t token = (invtoken_t)spdid;
 	int ret;
 
-	boot_comp_scb_alloc(spdid);
-	cc = cos_comp_alloc(boot_info, ct, pt, (vaddr_t)spdinfo->upcall_entry, spdinfo->scbpg);
+	/* scb info created on compinfo_init */
+	cc = cos_comp_alloc(boot_info, ct, pt, compinfo->scb_cap, (vaddr_t)spdinfo->upcall_entry, compinfo->scb_vas);
 	assert(cc);
 	compinfo->comp_cap = cc;
-	cobj_info->cos_scb_data = (struct cos_scb_info *)spdinfo->scbpg;
 
 	/* Create sinv capability from Userspace to Booter components */
 	sinv = cos_sinv_alloc(boot_info, boot_info->comp_cap, (vaddr_t)hypercall_entry_rets_inv, token);

@@ -54,6 +54,8 @@ typedef capid_t compcap_t;
 typedef capid_t captblcap_t;
 typedef capid_t pgtblcap_t;
 typedef capid_t hwcap_t;
+typedef capid_t scbcap_t;
+typedef capid_t dcbcap_t;
 
 /* Memory source information */
 struct cos_meminfo {
@@ -65,7 +67,7 @@ struct cos_meminfo {
 /* Component captbl/pgtbl allocation information */
 struct cos_compinfo {
 	/* capabilities to higher-order capability tables (or -1) */
-	capid_t pgtbl_cap, captbl_cap, comp_cap;
+	capid_t pgtbl_cap, captbl_cap, comp_cap, scb_cap;
 	/* the frontier of unallocated caps, and the allocated captbl range */
 	capid_t cap_frontier, caprange_frontier;
 	/* the frontier for each of the various sizes of capability per core! */
@@ -75,13 +77,14 @@ struct cos_compinfo {
 	/* the source of memory */
 	struct cos_compinfo *memsrc; /* might be self-referential */
 	struct cos_meminfo   mi;     /* only populated for the component with real memory */
+	vaddr_t scb_vas;             /* scb virtual address in the component's pgtbl */
 
 	struct ps_lock cap_lock, mem_lock; /* locks to make the cap frontier and mem frontier updates and expands atomic */
 	struct ps_lock va_lock; /* lock to make the vas frontier and bump expands for vas atomic */
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
-                       vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);
+		       scbcap_t scb_cap, vaddr_t scb_vas, vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);
 /*
  * This only needs be called on compinfos that are managing resources
  * (i.e. likely only one).  All of the capabilities will be relative
@@ -108,10 +111,12 @@ int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vadd
  * correctly populate ci (allocating all resources from ci_resources).
  */
 int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
-                               struct cos_compinfo *ci_resources, vaddr_t *scbpg);
+                               struct cos_compinfo *ci_resources);
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
-compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, vaddr_t scbpg);
+compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, scbcap_t scbc, vaddr_t entry, vaddr_t scb_addr);
+scbcap_t    cos_scb_alloc(struct cos_compinfo *ci);
+dcbcap_t    cos_dcb_alloc(struct cos_compinfo *ci, vaddr_t *dcb_uaddr);
 
 typedef void (*cos_thd_fn_t)(void *);
 thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data, pgtblcap_t ptc, vaddr_t dcbuaddr);
@@ -197,5 +202,6 @@ int     cos_hw_cycles_per_usec(hwcap_t hwc);
 int     cos_hw_cycles_thresh(hwcap_t hwc);
 
 capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
+vaddr_t cos_page_bump_intern_valloc(struct cos_compinfo *ci, size_t sz);
 
 #endif /* COS_KERNEL_API_H */

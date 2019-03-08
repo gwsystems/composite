@@ -51,7 +51,7 @@ cos_init(void)
 	 *       Or use some offset into the future in CAPTBL_FREE
 	 */
 	cos_compinfo_init(&vk_info.shm_cinfo, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			  (vaddr_t)VK_VM_SHM_BASE, BOOT_CAPTBL_FREE, ci);
+			  BOOT_CAPTBL_SELF_SCB, (vaddr_t)cos_scb_info_get(), (vaddr_t)VK_VM_SHM_BASE, BOOT_CAPTBL_FREE, ci);
 
 	vk_info.termthd = cos_thd_alloc(vk_cinfo, vk_cinfo->comp_cap, vk_terminate, NULL, 0, 0);
 	assert(vk_info.termthd);

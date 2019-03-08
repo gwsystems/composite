@@ -86,7 +86,7 @@ void cos_defcompinfo_init(void);
  * passed.
  */
 void cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rcv, pgtblcap_t pgtbl_cap,
-                              captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier);
+                              captblcap_t captbl_cap, compcap_t comp_cap, scbcap_t scb_cap, vaddr_t scb_ptr, vaddr_t heap_ptr, capid_t cap_frontier);
 
 /* for AP cores */
 void cos_defcompinfo_sched_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rcv);
@@ -96,10 +96,10 @@ void cos_defcompinfo_sched_init(void);
  * cos_defcompinfo_child_alloc: called to create a new child component including initial capabilities like pgtbl,
  * captbl, compcap, aep. if is_sched is set, scheduling end-point will also be created for the child component, else,
  * the current component's scheduler will remain the scheduler for the child component.
- * NOTE: dcbuaddr is the address in child_dci page-table and scbuaddr too!.
+ * NOTE: dcbuaddr is the address in child_dci page-table!.
  */
 int cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, vaddr_t heap_ptr,
-                                capid_t cap_frontier, int is_sched, vaddr_t *dcbuaddr, vaddr_t *scbuaddr);
+                                capid_t cap_frontier, int is_sched, vaddr_t *dcbuaddr);
 
 /*
  * cos_aep_alloc: creates a new async activation end-point which includes thread, tcap and rcv capabilities.

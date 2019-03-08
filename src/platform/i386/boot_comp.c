@@ -95,11 +95,6 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 
 		assert(i == range / PAGE_SIZE);
 		assert(COS_SCB_SIZE == PAGE_SIZE); /* FIXME: for prototype impl! */
-		p = mem_boot_alloc(1);
-		assert(p);
-		pf = chal_va2pa(p);
-
-		if (pgtbl_mapping_add(pgtbl, mapat, pf, PGTBL_USER_DEF)) assert(0);
 		*scb_uaddr = (unsigned long)mapat;
 		i++;
 
@@ -183,7 +178,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	u8_t *         boot_comp_captbl;
 	pgtbl_t        pgtbl     = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
 	u32_t          hw_bitmap = 0xFFFFFFFF;
-	vaddr_t        scb_uaddr  = 0;
+	vaddr_t        scb_uaddr  = 0, scb_kaddr = 0;
 
 	assert(cpu_id >= 0);
 	if (NUM_CPU > 1 && cpu_id > 0) {
@@ -222,6 +217,8 @@ kern_boot_comp(const cpuid_t cpu_id)
 	hw_asndcap_init();
 	if (hw_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITHW_BASE, hw_bitmap)) assert(0);
 
+	scb_kaddr = (vaddr_t)mem_boot_alloc(1);
+	assert(scb_kaddr);
 	/*
 	 * separate pgd for boot component virtual memory
 	 */
@@ -250,14 +247,15 @@ kern_boot_comp(const cpuid_t cpu_id)
                                       mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0, 0);
 	assert(ret == 0);
 
-	printk("\tCapability table and page-table created.\n");
-
 	/* Shut off further bump allocations */
 	glb_memlayout.allocs_avail = 0;
+	if (scb_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_SCB, scb_kaddr, 0)) assert(0);
+	printk("\tCapability table and page-table created.\n");
 
-	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
-	                  (vaddr_t)mem_bootc_entry(), scb_uaddr))
+	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT,
+	                  BOOT_CAPTBL_SELF_SCB, 0, (vaddr_t)mem_bootc_entry(), scb_uaddr))
 		assert(0);
+
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
 	kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], dcb_addr[cpu_id], cpu_id);

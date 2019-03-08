@@ -42,20 +42,20 @@ cos_defcompinfo_init(void)
 
 	cos_defcompinfo_init_ext(BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE,
 	                         BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
-	                         BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE);
+	                         BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_SCB, (vaddr_t)cos_scb_info_get(), (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE);
 
 }
 
 void
 cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rcv, pgtblcap_t pgtbl_cap,
-                         captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier)
+                         captblcap_t captbl_cap, compcap_t comp_cap, scbcap_t scb_cap, vaddr_t scb_ptr, vaddr_t heap_ptr, capid_t cap_frontier)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
 	if (curr_defci_init_status == INITIALIZED) return;
 
-	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, comp_cap, heap_ptr, cap_frontier, ci);
+	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, comp_cap, scb_cap, scb_ptr, heap_ptr, cap_frontier, ci);
 	curr_defci_init_status = INITIALIZED;
 	cos_defcompinfo_sched_init_ext(sched_tc, sched_thd, sched_rcv);
 }
@@ -121,7 +121,7 @@ cos_aep_alloc_intern(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci, 
 
 int
 cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, vaddr_t heap_ptr, capid_t cap_frontier,
-                            int is_sched, vaddr_t *dcbuaddr, vaddr_t *scbaddr)
+                            int is_sched, vaddr_t *dcbuaddr)
 {
 	int                     ret;
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
@@ -131,7 +131,7 @@ cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, 
 	struct cos_aep_info    *child_aep = cos_sched_aep_get(child_defci);
 
 	assert(curr_defci_init_status == INITIALIZED);
-	ret = cos_compinfo_alloc(child_ci, heap_ptr, cap_frontier, entry, ci, scbaddr);
+	ret = cos_compinfo_alloc(child_ci, heap_ptr, cap_frontier, entry, ci);
 	if (ret) return ret;
 	*dcbuaddr = (vaddr_t)cos_dcbpg_bump_allocn(child_ci, PAGE_SIZE);
 	assert(*dcbuaddr);

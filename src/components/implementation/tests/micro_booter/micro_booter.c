@@ -63,7 +63,7 @@ cos_init(void)
 		first_init = 0;
 		cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-				(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
+				BOOT_CAPTBL_SELF_SCB, (vaddr_t)cos_scb_info_get(), (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 		init_done = 1;
 	}
 
@@ -72,7 +72,7 @@ cos_init(void)
 	initaddr = cos_init_dcb_get();
 	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, (unsigned long)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, THD_GET_DCB_IP), (unsigned long)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, THD_GET_DCB_SP));
 	initaddr->ip = 10;
-	initaddr->sp = 20;
+	initaddr->sp = 0;
 	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, (unsigned long)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, THD_GET_DCB_IP), (unsigned long)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, THD_GET_DCB_SP));
 
 
@@ -81,7 +81,7 @@ cos_init(void)
 	assert(termthd[cos_cpuid()]);
 	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)termthd[cos_cpuid()], (unsigned long)cos_introspect(&booter_info, termthd[cos_cpuid()], THD_GET_DCB_IP), (unsigned long)cos_introspect(&booter_info, termthd[cos_cpuid()], THD_GET_DCB_SP));
 	termaddr->ip = 30;
-	termaddr->sp = 40;
+	termaddr->sp = 0;
 	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)termthd[cos_cpuid()], (unsigned long)cos_introspect(&booter_info, termthd[cos_cpuid()], THD_GET_DCB_IP), (unsigned long)cos_introspect(&booter_info, termthd[cos_cpuid()], THD_GET_DCB_SP));
 	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, (unsigned long)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, THD_GET_DCB_IP), (unsigned long)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, THD_GET_DCB_SP));
 	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)termthd[cos_cpuid()], (unsigned long)cos_introspect(&booter_info, termthd[cos_cpuid()], THD_GET_DCB_IP), (unsigned long)cos_introspect(&booter_info, termthd[cos_cpuid()], THD_GET_DCB_SP));

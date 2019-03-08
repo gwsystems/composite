@@ -825,11 +825,8 @@ test_inv(void)
 	compcap_t    cc;
 	sinvcap_t    ic;
 	unsigned int r;
-	vaddr_t      scbpg;
 
-	scbpg = (vaddr_t)cos_scbpg_bump_allocn(&booter_info, PAGE_SIZE);
-	assert(scbpg);
-	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL, scbpg);
+	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, 0, (vaddr_t)NULL, 0);
 	assert(cc > 0);
 	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
 	assert(ic > 0);
@@ -847,11 +844,8 @@ test_inv_perf(void)
 	int          i;
 	long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL;
 	unsigned int ret;
-	vaddr_t      scbpg;
 
-	scbpg = (vaddr_t)cos_scbpg_bump_allocn(&booter_info, PAGE_SIZE);
-	assert(scbpg);
-	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL, scbpg);
+	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, 0, (vaddr_t)NULL, 0);
 	assert(cc > 0);
 	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
 	assert(ic > 0);
@@ -880,11 +874,8 @@ test_captbl_expand(void)
 {
 	int       i;
 	compcap_t cc;
-	vaddr_t      scbpg;
 
-	scbpg = (vaddr_t)cos_scbpg_bump_allocn(&booter_info, PAGE_SIZE);
-	assert(scbpg);
-	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL, scbpg);
+	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, 0, (vaddr_t)NULL, 0);
 	assert(cc);
 	for (i = 0; i < 1024; i++) {
 		sinvcap_t ic;

@@ -203,8 +203,8 @@ cos_spd_id(void)
 static inline void *
 cos_get_heap_ptr(void)
 {
-	/* page at heap_ptr is actually the SCB_PAGE for the booter alone! */
-	unsigned int off = (cos_spd_id() == 0 ? (COS_SCB_SIZE + (PAGE_SIZE * NUM_CPU)) : 0);
+	/* page at heap_ptr is actually the SCB_PAGE for any component. */
+	unsigned int off = COS_SCB_SIZE + (PAGE_SIZE * NUM_CPU);
 	void *heap_ptr = ((void *)(cos_comp_info.cos_heap_ptr + off));
 
 	return heap_ptr;
@@ -213,11 +213,7 @@ cos_get_heap_ptr(void)
 static inline struct cos_scb_info *
 cos_scb_info_get(void)
 {
-	struct cos_scb_info *scb_info = cos_comp_info.cos_scb_data;
-
-	if (cos_spd_id() == 0) scb_info = (struct cos_scb_info *)(cos_comp_info.cos_heap_ptr);
-
-	return scb_info;
+	return (struct cos_scb_info *)(cos_comp_info.cos_heap_ptr);
 }
 
 static inline struct cos_scb_info *

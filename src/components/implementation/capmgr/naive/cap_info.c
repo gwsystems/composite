@@ -69,7 +69,7 @@ cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, 
 	capci[spdid].cid = spdid;
 	cos_meminfo_init(&ci->mi, 0, 0, 0);
 	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, compcap, heap_frontier, cap_frontier,
-			cos_compinfo_get(cos_defcompinfo_curr_get()));
+			  0, 0, cos_compinfo_get(cos_defcompinfo_curr_get()));
 
 	memset(rglb, 0, sizeof(struct cap_shmem_glb_info));
 	memset(cap_shi, 0, sizeof(struct cap_shmem_info));

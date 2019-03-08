@@ -184,7 +184,7 @@ cos_init(void)
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_defcompinfo_init_ext(BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE,
 				BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
-				BOOT_CAPTBL_SELF_COMP, heap_frontier, cap_frontier);
+				BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_SCB, heap_frontier - COS_SCB_SIZE, heap_frontier, cap_frontier);
 		cap_info_init();
 		sl_init(SL_MIN_PERIOD_US);
 		capmgr_comp_info_iter();
