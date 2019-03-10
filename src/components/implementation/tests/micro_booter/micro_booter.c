@@ -46,7 +46,7 @@ cos_init(void)
     // BOOTER TESTS
     test_run_mb();
 
-	printc("\nuBenchamarks started:\n\n");
+	printc("\nuBenchamarks Started:\n\n");
 
     test_run_perf_mb();
 

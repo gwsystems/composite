@@ -226,7 +226,7 @@ test_timer(void)
         p = c;
         rdtscll(c);
         time = (c - now - (cycles_t)(GRANULARITY * cyc_per_usec));
-		mask = (time >> (sizeof(long long) * CHAR_BIT - 1));
+        mask = (time >> (sizeof(long long) * CHAR_BIT - 1));
         utime = (time + mask) ^ mask;
 
         if (i > 0) {
@@ -446,9 +446,9 @@ test_budgets_single(void)
         rdtscll(e);
 
         if (i > 1) {
-            		/* FAST ABS */
-		    time = (e - s - (GRANULARITY * BUDGET_TIME));
-		    mask = (time >> (sizeof(cycles_t) * CHAR_BIT - 1));
+                    /* FAST ABS */
+            time = (e - s - (GRANULARITY * BUDGET_TIME));
+            mask = (time >> (sizeof(cycles_t) * CHAR_BIT - 1));
             time = (time + mask) ^ mask;
 
             t += time;
@@ -803,9 +803,9 @@ test_inv(void)
     sinvcap_t    ic;
     unsigned int r;
     int          i;
-	long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL, inv_max = 0LL, inv_min = 0LL;
-	long long 	 ret_max = 0LL, ret_min = 0LL;
-	long long	 time = 0LL, mask = 0LL;
+    long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL, inv_max = 0LL, inv_min = 0LL;
+    long long    ret_max = 0LL, ret_min = 0LL;
+    long long    time = 0LL, mask = 0LL;
 
     cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
     if (EXPECT_LL_LT(1, cc, "Invocation: Cannot Allocate")) return;
@@ -815,37 +815,36 @@ test_inv(void)
     r = call_cap_mb(ic, 1, 2, 3);
     if (EXPECT_LLU_NEQ(0xDEADBEEF, r, "Test Invocation")) return;
 
-	for (i = 0; i < ITER; i++) {
-		long long start_cycles = 0LL, end_cycles = 0LL;
+    for (i = 0; i < ITER; i++) {
+        long long start_cycles = 0LL, end_cycles = 0LL;
 
-		midinv_cycle[cos_cpuid()] = 0LL;
-		rdtscll(start_cycles);
-		call_cap_mb(ic, 1, 2, 3);
-		rdtscll(end_cycles);
+        midinv_cycle[cos_cpuid()] = 0LL;
+        rdtscll(start_cycles);
+        call_cap_mb(ic, 1, 2, 3);
+        rdtscll(end_cycles);
 
-		
-		time = (midinv_cycle[cos_cpuid()] - start_cycles);
-		mask = (time >> (sizeof(long long) * CHAR_BIT - 1));
+        time = (midinv_cycle[cos_cpuid()] - start_cycles);
+        mask = (time >> (sizeof(long long) * CHAR_BIT - 1));
         time = (time + mask) ^ mask;
 
-		total_inv_cycles += time;
-		if (time > inv_max){
-			inv_max = time;
-		}
+        total_inv_cycles += time;
+        if (time > inv_max){
+            inv_max = time;
+        }
 
-		if (time < inv_min || inv_min == 0){
-			inv_min = time;
-		}
+        if (time < inv_min || inv_min == 0){
+            inv_min = time;
+        }
 
-		total_ret_cycles += (end_cycles - midinv_cycle[cos_cpuid()]);
-		if (end_cycles - midinv_cycle[cos_cpuid()] > ret_max){
-			ret_max = end_cycles - midinv_cycle[cos_cpuid()];
-		}
+        total_ret_cycles += (end_cycles - midinv_cycle[cos_cpuid()]);
+        if (end_cycles - midinv_cycle[cos_cpuid()] > ret_max){
+            ret_max = end_cycles - midinv_cycle[cos_cpuid()];
+        }
 
-		if (end_cycles - midinv_cycle[cos_cpuid()] < ret_min || ret_min == 0){
-			ret_min = end_cycles - midinv_cycle[cos_cpuid()];
-		}
-	}
+        if (end_cycles - midinv_cycle[cos_cpuid()] < ret_min || ret_min == 0){
+            ret_min = end_cycles - midinv_cycle[cos_cpuid()];
+        }
+    }
 
     result.sinv.avg = (total_inv_cycles / (long long)(ITER));
     result.sinv.max = inv_max;
