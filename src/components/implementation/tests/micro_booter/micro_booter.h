@@ -26,11 +26,11 @@
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
+#include <cos_dcb.h>
 
 #define ITER 10000
 #define TEST_NTHDS 5
 
-extern struct cos_dcb_info *init_dcbinfo[];
 extern struct cos_compinfo booter_info;
 extern thdcap_t            termthd[]; /* switch to this to shutdown */
 extern unsigned long       tls_test[][TEST_NTHDS];
@@ -53,8 +53,5 @@ tls_set(size_t off, unsigned long val)
 }
 
 extern void test_run_mb(void);
-
-void cos_dcb_info_init(void);
-struct cos_dcb_info *cos_dcb_info_get(void);
 
 #endif /* MICRO_BOOTER_H */

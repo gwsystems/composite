@@ -7,12 +7,6 @@ extern void vm_init(void *);
 extern void dom0_io_fn(void *);
 extern void vm_io_fn(void *);
 
-struct cos_dcb_info *
-cos_dcb_info_get(void)
-{
-	return cos_dcb_info_assign();
-}
-
 static struct cos_aep_info *
 vm_schedaep_get(struct vms_info *vminfo)
 { return cos_sched_aep_get(&(vminfo->dci)); }
@@ -37,7 +31,7 @@ vk_vm_create(struct vms_info *vminfo, struct vkernel_info *vkinfo)
 	ret = cos_defcompinfo_child_alloc(vmdci, (vaddr_t)&cos_upcall_entry, (vaddr_t)BOOT_MEM_VM_BASE,
 					  VM_CAPTBL_FREE, 1, &initdcbpg);
 	cos_compinfo_init(&(vminfo->shm_cinfo), vmcinfo->pgtbl_cap, vmcinfo->captbl_cap, vmcinfo->comp_cap,
-			  vmcinfo->scb_cap, (vaddr_t)VK_VM_SHM_BASE, (vaddr_t)(VK_VM_SHM_BASE + COS_SCB_SIZE), VM_CAPTBL_FREE, vk_cinfo);
+			  (vaddr_t)(VK_VM_SHM_BASE + COS_SCB_SIZE), VM_CAPTBL_FREE, vk_cinfo);
 
 	printc("\tCreating and copying initial component capabilities\n");
 	ret = cos_cap_cpy_at(vmcinfo, BOOT_CAPTBL_SELF_CT, vk_cinfo, vmcinfo->captbl_cap);

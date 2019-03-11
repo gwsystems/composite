@@ -90,6 +90,8 @@ struct cap_thd {
 	cpuid_t           cpuid;
 } __attribute__((packed));
 
+#include "dcb.h"
+
 static void
 thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
 {
@@ -334,16 +336,22 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 }
 
 static int
-thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data, unsigned long dcbkaddr)
+thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data, capid_t dcbcap, unsigned short dcboff)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
-	struct cap_thd            *tc;
-	struct cap_comp           *compc;
+	struct cap_thd            *tc = NULL;
+	struct cap_comp           *compc = NULL;
+	struct cap_dcb            *dc = NULL;
 	int                        ret;
 
 	memset(thd, 0, sizeof(struct thread));
 	compc = (struct cap_comp *)captbl_lkup(t, compcap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
+	if (likely(dcbcap)) {
+		dc    = (struct cap_dcb *)captbl_lkup(t, dcbcap);
+		if (unlikely(!dc || dc->h.type != CAP_DCB)) return -EINVAL;
+		if (dcboff > PAGE_SIZE / sizeof(struct cos_dcb_info)) return -EINVAL;
+	}
 
 	tc = (struct cap_thd *)__cap_capactivate_pre(t, cap, capin, CAP_THD, &ret);
 	if (!tc) return ret;
@@ -355,8 +363,12 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->refcnt                           = 1;
 	thd->invstk_top                       = 0;
 	thd->cpuid                            = get_cpuid();
-	thd->dcbinfo                          = (struct cos_dcb_info *)dcbkaddr;
-	memset(thd->dcbinfo, 0, sizeof(struct cos_dcb_info));
+	if (likely(dc)) {
+		ret = dcb_thd_ref(dc, thd);
+		if (ret) goto err; /* TODO: cleanup captbl slot */
+		thd->dcbinfo = (struct cos_dcb_info *)(dc->kern_addr + (dcboff * sizeof(struct cos_dcb_info)));
+		memset(thd->dcbinfo, 0, sizeof(struct cos_dcb_info));
+	}
 	assert(thd->tid <= MAX_NUM_THREADS);
 	thd_scheduler_set(thd, thd_current(cli));
 
@@ -370,18 +382,21 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	tc->t     = thd;
 	tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD);
-	/* TODO: dcb_thd_ref() */
 
 	return 0;
+
+err:
+	return ret;
 }
 
 static int
 thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, livenessid_t lid, capid_t pgtbl_cap,
-               capid_t cosframe_addr, const int root)
+               capid_t cosframe_addr, capid_t dcbcap, const int root)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
-	struct cap_header *        thd_header;
-	struct thread *            thd;
+	struct cap_header         *thd_header;
+	struct thread             *thd;
+	struct cap_dcb            *dcb = NULL;
 	unsigned long              old_v = 0, *pte = NULL;
 	int                        ret;
 
@@ -389,6 +404,10 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 	if (!thd_header || thd_header->type != CAP_THD) cos_throw(err, -EINVAL);
 	thd = ((struct cap_thd *)thd_header)->t;
 	assert(thd->refcnt);
+	if (dcbcap) {
+		dcb = (struct cap_dcb *)captbl_lkup(ct, dcbcap);
+		if (!dcb || dcb->h.type != CAP_DCB) cos_throw(err, -EINVAL);
+	}
 
 	if (thd->refcnt == 1) {
 		if (!root) cos_throw(err, -EINVAL);
@@ -414,6 +433,10 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 		}
 	}
 
+	if (dcb) {
+		ret = dcb_thd_deref(dcb, thd);
+		if (ret) cos_throw(err, ret);
+	}
 	ret = cap_capdeactivate(dest_ct, capin, CAP_THD, lid);
 	if (ret) cos_throw(err, ret);
 
@@ -427,7 +450,6 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 		ret = kmem_deact_post(pte, old_v);
 		if (ret) cos_throw(err, ret);
 	}
-	/* TODO: dcb_thd_deref() */
 
 	return 0;
 err:
@@ -590,7 +612,7 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		 */
 	}
 
-	if (thd->dcbinfo && thd->dcbinfo->sp) {
+	if (likely(thd->dcbinfo && thd->dcbinfo->sp)) {
 		if (!preempt) {
 			regs->dx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
 			regs->cx = regs->sp = thd->dcbinfo->sp;

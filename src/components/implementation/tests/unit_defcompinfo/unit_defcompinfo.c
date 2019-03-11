@@ -56,7 +56,7 @@ test_aeps(void)
 		asndcap_t snd;
 
 		printc("\tCreating AEP [%d]\n", i);
-		ret = cos_aep_tcap_alloc(&(test_aep[i]), BOOT_CAPTBL_SELF_INITTCAP_BASE, aep_thd_fn, (void *)i, 0);
+		ret = cos_aep_tcap_alloc(&(test_aep[i]), BOOT_CAPTBL_SELF_INITTCAP_BASE, aep_thd_fn, (void *)i, 0, 0);
 		assert(ret == 0);
 
 		snd = cos_asnd_alloc(ci, test_aep[i].rcv, ci->captbl_cap);

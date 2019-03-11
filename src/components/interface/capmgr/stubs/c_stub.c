@@ -5,10 +5,12 @@
 
 thdcap_t capmgr_initthd_create_cserialized(thdid_t *tid, int *unused, spdid_t s);
 thdcap_t capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, int owntc, cos_channelkey_t key);
-thdcap_t capmgr_thd_create_cserialized(thdid_t *tid, int *unused, thdclosure_index_t idx);
-thdcap_t capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, thdclosure_index_t idx, int owntc, cos_channelkey_t key);
-thdcap_t capmgr_thd_create_ext_cserialized(thdid_t *tid, int *unused, spdid_t s, thdclosure_index_t idx);
-thdcap_t capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, spdid_t s, thdclosure_index_t idx, u32_t owntc_aepkey);
+thdcap_t capmgr_thd_create_cserialized(struct cos_dcb_info **dcb, thdid_t *tid, thdclosure_index_t idx);
+u32_t    capmgr_aep_create_cserialized(struct cos_dcb_info **dcb, u32_t *tcrcvret, thdclosure_index_t idx, int owntc, cos_channelkey_t key);
+thdcap_t capmgr_thd_create_ext_cserialized(struct cos_dcb_info **dcb, thdid_t *tid, spdid_t s, thdclosure_index_t idx);
+/* rcvcap for spdid = s shall be obtained through a separate call to capmgr! */
+arcvcap_t capmgr_aep_rcv_retrieve_cserialized(spdid_t s, thdid_t tid);
+u32_t    capmgr_aep_create_ext_cserialized(struct cos_dcb_info **dcb, u32_t *rcvtcret, spdid_t s, thdclosure_index_t idx, u32_t owntc_aepkey);
 thdcap_t capmgr_thd_retrieve_next_cserialized(thdid_t *tid, int *unused, spdid_t s);
 thdcap_t capmgr_thd_retrieve_cserialized(thdid_t *inittid, int *unused, spdid_t s, thdid_t tid);
 
@@ -37,28 +39,25 @@ capmgr_initthd_create(spdid_t child, thdid_t *tid)
 }
 
 thdcap_t
-capmgr_thd_create(cos_thd_fn_t fn, void *data, thdid_t *tid)
+capmgr_thd_create(cos_thd_fn_t fn, void *data, thdid_t *tid, struct cos_dcb_info **dcb)
 {
-	int unused;
 	thdclosure_index_t idx = cos_thd_init_alloc(fn, data);
 
 	if (idx < 1) return 0;
 
-	return capmgr_thd_create_cserialized(tid, &unused, idx);
+	return capmgr_thd_create_cserialized(dcb, tid, idx);
 }
 
 thdcap_t
-capmgr_thd_create_ext(spdid_t child, thdclosure_index_t idx, thdid_t *tid)
+capmgr_thd_create_ext(spdid_t child, thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info **dcb)
 {
-	int unused;
-
-	return capmgr_thd_create_ext_cserialized(tid, &unused, child, idx);
+	return capmgr_thd_create_ext_cserialized(dcb, tid, child, idx);
 }
 
 thdcap_t
-capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc, cos_channelkey_t key)
+capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc, cos_channelkey_t key, struct cos_dcb_info **dcb)
 {
-	u32_t tcrcvret = 0;
+	u32_t tcrcvret = 0, thdtidret = 0;
 	thdcap_t thd = 0;
 	arcvcap_t rcv = 0;
 	tcap_t tc = 0;
@@ -67,8 +66,11 @@ capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int 
 
 	if (idx < 1) return 0;
 
-	thd = capmgr_aep_create_cserialized(&tid, &tcrcvret, idx, owntc, key);
-	if (!thd) return 0;
+	thdtidret = capmgr_aep_create_cserialized(dcb, &tcrcvret, idx, owntc, key);
+	if (!thdtidret) return 0;
+	thd = thdtidret >> 16;
+	tid = (thdtidret << 16) >> 16;
+	if (!thd || !tid) return 0;
 
 	aep->fn   = fn;
 	aep->data = data;
@@ -81,24 +83,28 @@ capmgr_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int 
 }
 
 thdcap_t
-capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, arcvcap_t *extrcv)
+capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, struct cos_dcb_info **dcb, arcvcap_t *extrcv)
 {
-	u32_t drcvtidret = 0;
+	u32_t thdtidret = 0;
 	u32_t tcrcvret = 0;
 	thdid_t tid = 0;
 	thdcap_t thd = 0;
 	u32_t owntc_aepkey = (owntc << 16) | (key);
 
-	thd = capmgr_aep_create_ext_cserialized(&drcvtidret, &tcrcvret, child, idx, owntc_aepkey);
-	if (!thd) return thd;
+	thdtidret = capmgr_aep_create_ext_cserialized(dcb, &tcrcvret, child, idx, owntc_aepkey);
+	if (!thdtidret) return thd;
+	thd = thdtidret >> 16;
+	tid = (thdtidret << 16) >> 16;
+	if (!thd || !tid) return 0;
 
 	aep->fn   = NULL;
 	aep->data = NULL;
 	aep->thd  = thd;
-	aep->tid  = (drcvtidret << 16) >> 16;
+	aep->tid  = tid;
 	aep->rcv  = tcrcvret >> 16;
 	aep->tc   = (tcrcvret << 16) >> 16;
-	*extrcv   = drcvtidret >> 16;
+	*extrcv = capmgr_aep_rcv_retrieve_cserialized(child, tid);
+	assert(*extrcv);
 
 	return aep->thd;
 }

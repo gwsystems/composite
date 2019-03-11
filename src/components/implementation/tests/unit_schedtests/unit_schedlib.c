@@ -13,6 +13,7 @@
 #include <cos_defkernel_api.h>
 #include <llprint.h>
 #include <sl.h>
+#include <cos_dcb.h>
 
 /* sl also defines a SPIN macro */
 #undef SPIN
@@ -218,7 +219,8 @@ cos_init(void)
 
 	printc("Unit-test for the scheduling library (sl)\n");
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_defcompinfo_init();
+	cos_defcompinfo_llinit();
+	cos_dcb_info_init_curr();
 	sl_init(SL_MIN_PERIOD_US);
 
 	//test_yield_perf();

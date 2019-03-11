@@ -48,7 +48,7 @@ scb_deactivate(struct cap_captbl *ct, capid_t scbcap, capid_t ptcap, capid_t cos
 	int ret;
 
 	sc = (struct cap_scb *)captbl_lkup(ct->captbl, scbcap);
-	if (sc->h.type != CAP_SCB) return -EINVAL;
+	if (!sc || sc->h.type != CAP_SCB) return -EINVAL;
 
 	/* FIXME: component using this scbcap is still active! how to handle this? */
 	if (sc->compc) return -EPERM;

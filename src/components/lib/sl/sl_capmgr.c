@@ -99,10 +99,8 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
-	dcb = cos_dcb_info_assign();
 
-	/* TODO: use dcb */
-	aep->thd = capmgr_thd_create(fn, data, &tid);
+	aep->thd = capmgr_thd_create(fn, data, &tid, &dcb);
 	if (!aep->thd) goto done;
 	aep->tid = tid;
 
@@ -141,7 +139,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx, vaddr_t dcbuaddr)
+sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx, vaddr_t *dcbuaddr)
 {
 	struct cos_defcompinfo *dci    = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci     = cos_compinfo_get(dci);
@@ -155,7 +153,7 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx, vad
 		aep = sl_thd_alloc_aep_backend();
 		if (!aep) goto done;
 
-		aep->thd = capmgr_thd_create_ext(comp->id, idx, &aep->tid);
+		aep->thd = capmgr_thd_create_ext(comp->id, idx, &aep->tid, (struct cos_dcb_info **)dcbuaddr);
 		if (!aep->thd) goto done;
 		aep->tc  = sl_thd_tcap(sl__globals_cpu()->sched_thd);
 
@@ -178,7 +176,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, thdclosure_index_t idx, sl_thd_property_t prps, cos_channelkey_t key, vaddr_t dcbuaddr, arcvcap_t *extrcv)
+sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, thdclosure_index_t idx, sl_thd_property_t prps, cos_channelkey_t key, vaddr_t *dcbuaddr, arcvcap_t *extrcv)
 {
 	struct cos_aep_info *aep = NULL;
 	struct sl_thd       *t   = NULL;
@@ -203,7 +201,7 @@ sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, t
 		if (!aep) goto done;
 
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
-		capmgr_aep_create_ext(comp->id, aep, idx, owntc, key, extrcv);
+		capmgr_aep_create_ext(comp->id, aep, idx, owntc, key, (struct cos_dcb_info **)dcbuaddr, extrcv);
 		if (!aep->thd) goto done;
 
 		t = sl_thd_alloc_init(aep, 0, prps, NULL);
@@ -224,10 +222,9 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
-	dcb = cos_dcb_info_assign();
 
 	if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
-	capmgr_aep_create(aep, fn, data, owntc, key);
+	capmgr_aep_create(aep, fn, data, owntc, key, &dcb);
 	if (aep->thd == 0) goto done;
 
 	t = sl_thd_alloc_init(aep, 0, prps, dcb);
@@ -277,7 +274,15 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 }
 
 struct sl_thd *
-sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, vaddr_t dcbuaddr)
+sl_thd_initaep_alloc_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, dcbcap_t dcap)
+{
+	PRINTC("UNIMPLEMENTED: Using CAPMGR API which should manage the DCB capabilities\n");
+
+	return NULL;
+}
+
+struct sl_thd *
+sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, vaddr_t *dcbuaddr)
 {
 	struct sl_thd *t = NULL;
 
@@ -295,8 +300,17 @@ sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int
 	return t;
 }
 
+
 struct sl_thd *
-sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, vaddr_t dcbuaddr, arcvcap_t *extrcv)
+sl_thd_aep_alloc_ext_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, dcbcap_t dcap, dcboff_t doff, arcvcap_t *extrcv)
+{
+	PRINTC("UNIMPLEMENTED: Using CAPMGR API which should manage the DCB capabilities\n");
+
+	return NULL;
+}
+
+struct sl_thd *
+sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, vaddr_t *dcbuaddr, arcvcap_t *extrcv)
 {
 	struct sl_thd *t = NULL;
 

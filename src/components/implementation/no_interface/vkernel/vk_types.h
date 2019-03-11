@@ -17,7 +17,7 @@
 #define VM_FIXED_PERIOD_MS 10
 #define VM_FIXED_BUDGET_MS 5
 
-#define VM_CAPTBL_SELF_SINV_BASE         BOOT_CAPTBL_FREE
+#define VM_CAPTBL_SELF_SINV_BASE         LLBOOT_CAPTBL_FREE
 /* VM1~ I/O Capabilities layout */
 #define VM_CAPTBL_SELF_IOTHD_BASE        round_up_to_pow2(VM_CAPTBL_SELF_SINV_BASE + captbl_idsize(CAP_SINV), CAPMAX_ENTRY_SZ)
 #define VM_CAPTBL_SELF_IORCV_BASE        round_up_to_pow2(VM_CAPTBL_SELF_IOTHD_BASE + captbl_idsize(CAP_THD), CAPMAX_ENTRY_SZ)

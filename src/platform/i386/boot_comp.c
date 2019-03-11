@@ -9,11 +9,13 @@
 #include <component.h>
 #include <inv.h>
 #include <hw.h>
+#include <scb.h>
+#include <dcb.h>
 
 extern u8_t *boot_comp_pgd;
 
-vaddr_t dcb_addr[NUM_CPU];
-void *thd_mem[NUM_CPU], *tcap_mem[NUM_CPU];
+vaddr_t dcb_addr, dcb_uaddr;
+void *thd_mem, *tcap_mem;
 struct captbl *glb_boot_ct;
 
 int
@@ -24,7 +26,7 @@ boot_nptes(unsigned int sz)
 
 int
 boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *label, void *kern_vaddr,
-                        unsigned long user_vaddr, unsigned int range, int uvm, unsigned long *scb_uaddr)
+                        unsigned long user_vaddr, unsigned int range, int uvm)
 {
 	int               ret;
 	u8_t *            ptes;
@@ -87,44 +89,22 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, PGTBL_COSFRAME)) assert(0);
 		assert((void *)p == pgtbl_lkup(pgtbl, user_vaddr + i * PAGE_SIZE, &flags));
 	}
-	if (uvm) {
-		unsigned int j;
-		u8_t   *p;
-		paddr_t pf;
-		u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
-
-		assert(i == range / PAGE_SIZE);
-		assert(COS_SCB_SIZE == PAGE_SIZE); /* FIXME: for prototype impl! */
-		*scb_uaddr = (unsigned long)mapat;
-		i++;
-
-		for (j = 0; j < NUM_CPU; j++, i++) {
-			unsigned long *pte = NULL, flags;
-			mapat = (u32_t)user_vaddr + i * PAGE_SIZE;
-			p = mem_boot_alloc(1);
-			assert(p);
-			pf = chal_va2pa(p);
-			if (pgtbl_mapping_add(pgtbl, mapat, pf, PGTBL_USER_DEF)) assert(0);
-
-			dcb_addr[j] = (unsigned long)p;
-			pte = pgtbl_lkup(pgtbl, mapat, (u32_t *)&flags);
-			assert((void *)p == pte);
-		}
-	}
 
 	return 0;
 }
 
-/* FIXME:  loops to create threads/tcaps/rcv caps per core. */
 static void
-kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, vaddr_t dcb_addr, const cpuid_t cpu_id)
+kern_boot_thd(struct captbl *ct, const cpuid_t cpu_id)
 {
+	void                      *tmem     = (void *)((vaddr_t)thd_mem + cpu_id * PAGE_SIZE);
+	void                      *tcmem    = (void *)((vaddr_t)tcap_mem + cpu_id * PAGE_SIZE);
+	vaddr_t                    dcbmem   = dcb_addr + cpu_id * PAGE_SIZE, dcbumem = dcb_uaddr + cpu_id * PAGE_SIZE;
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
-	struct thread *            t        = thd_mem;
-	struct tcap *              tc       = tcap_mem;
+	struct thread             *t        = tmem;
+	struct tcap               *tc       = tcmem;
 	tcap_res_t                 expended;
 	int                        ret;
-	struct cap_pgtbl *         cap_pt;
+	struct cap_pgtbl          *cap_pt;
 	pgtbl_t                    pgtbl;
 
 	assert(cpu_id >= 0);
@@ -134,16 +114,18 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, vaddr_t dcb_addr
 	cos_info->cpuid          = cpu_id;
 	cos_info->invstk_top     = 0;
 	cos_info->overflow_check = 0xDEADBEEF;
-	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0, dcb_addr);
+	ret = dcb_activate(ct, BOOT_CAPTBL_SELF_CT, LLBOOT_CAPTBL_INITDCB_CPU(cpu_id), dcbmem, 0, BOOT_CAPTBL_SELF_PT, dcbumem);
+	assert(!ret);
+	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), tmem, BOOT_CAPTBL_SELF_COMP, 0, LLBOOT_CAPTBL_INITDCB_CPU(cpu_id), 0);
 	assert(!ret);
 
 	tcap_active_init(cos_info);
-	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpu_id), tcap_mem);
+	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpu_id), tcmem);
 	assert(!ret);
 
 	tc->budget.cycles = TCAP_RES_INF; /* Chronos's got all the time in the world */
 	tc->perm_prio     = 0;
-	tcap_setprio(tc, 0);                              /* Chronos gets preempted by no one! */
+	tcap_setprio(tc, 0);              /* Chronos gets preempted by no one! */
 	list_enqueue(&cos_info->tcaps, &tc->active_list); /* Chronos on the TCap active list */
 	cos_info->tcap_uid  = 1;
 	cos_info->cycles    = tsc();
@@ -157,10 +139,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, vaddr_t dcb_addr
 	                    BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpu_id), 0, 1);
 	assert(!ret);
 
-	/*
-	 * boot component's mapped into SELF_PT,
-	 * switching to boot component's pgd
-	 */
+	/* boot component's mapped into SELF_PT, switching to boot component's pgd. */
 	cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, BOOT_CAPTBL_SELF_PT);
 	if (!cap_pt || !CAP_TYPECHK(cap_pt, CAP_PGTBL)) assert(0);
 	pgtbl = cap_pt->pgtbl;
@@ -178,13 +157,13 @@ kern_boot_comp(const cpuid_t cpu_id)
 	u8_t *         boot_comp_captbl;
 	pgtbl_t        pgtbl     = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
 	u32_t          hw_bitmap = 0xFFFFFFFF;
-	vaddr_t        scb_uaddr  = 0, scb_kaddr = 0;
+	vaddr_t        scb_uaddr = 0, scb_kaddr = 0;
 
 	assert(cpu_id >= 0);
 	if (NUM_CPU > 1 && cpu_id > 0) {
 		assert(glb_boot_ct);
 		pgtbl_update(pgtbl);
-		kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], dcb_addr[cpu_id], cpu_id);
+		kern_boot_thd(glb_boot_ct, cpu_id);
 		return;
 	}
 
@@ -205,11 +184,13 @@ kern_boot_comp(const cpuid_t cpu_id)
 		assert(!ret);
 	}
 
-	for (i = 0; i < NUM_CPU; i++) {
-		thd_mem[i]  = mem_boot_alloc(1);
-		tcap_mem[i] = mem_boot_alloc(1);
-		assert(thd_mem[i] && tcap_mem[i]);
-	}
+	scb_kaddr = (vaddr_t)mem_boot_alloc(1);
+	assert(scb_kaddr);
+
+	dcb_addr = (vaddr_t)mem_boot_alloc(NUM_CPU);
+	thd_mem  = mem_boot_alloc(NUM_CPU);
+	tcap_mem = mem_boot_alloc(NUM_CPU);
+	assert(thd_mem && tcap_mem && dcb_addr);
 
 	if (captbl_activate_boot(glb_boot_ct, BOOT_CAPTBL_SELF_CT)) assert(0);
 	if (sret_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) assert(0);
@@ -217,8 +198,6 @@ kern_boot_comp(const cpuid_t cpu_id)
 	hw_asndcap_init();
 	if (hw_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITHW_BASE, hw_bitmap)) assert(0);
 
-	scb_kaddr = (vaddr_t)mem_boot_alloc(1);
-	assert(scb_kaddr);
 	/*
 	 * separate pgd for boot component virtual memory
 	 */
@@ -230,8 +209,11 @@ kern_boot_comp(const cpuid_t cpu_id)
 		assert(0);
 
 	ret = boot_pgtbl_mappings_add(glb_boot_ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(),
-	                              (unsigned long)mem_bootc_vaddr(), mem_bootc_end() - mem_bootc_start(), 1, &scb_uaddr);
-	assert(ret == 0 && scb_uaddr);
+	                              (unsigned long)mem_bootc_vaddr(), mem_bootc_end() - mem_bootc_start(), 1);
+	assert(ret == 0);
+	scb_uaddr = (vaddr_t)(mem_bootc_vaddr() + (mem_bootc_end() - mem_bootc_start()));
+	assert(COS_SCB_SIZE == PAGE_SIZE);
+	dcb_uaddr = scb_uaddr + COS_SCB_SIZE;
 
 	/*
 	 * This _must_ be the last allocation.  The bump pointer
@@ -244,21 +226,22 @@ kern_boot_comp(const cpuid_t cpu_id)
 	nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
 	ret       = boot_pgtbl_mappings_add(glb_boot_ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
                                       mem_boot_nalloc_end(nkmemptes), BOOT_MEM_KM_BASE,
-                                      mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0, 0);
+                                      mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
 	assert(ret == 0);
 
 	/* Shut off further bump allocations */
 	glb_memlayout.allocs_avail = 0;
-	if (scb_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_SCB, scb_kaddr, 0)) assert(0);
+	if (scb_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, LLBOOT_CAPTBL_SCB, scb_kaddr, 0)) assert(0);
+
 	printk("\tCapability table and page-table created.\n");
 
 	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT,
-	                  BOOT_CAPTBL_SELF_SCB, 0, (vaddr_t)mem_bootc_entry(), scb_uaddr))
+			  LLBOOT_CAPTBL_SCB, 0, (vaddr_t)mem_bootc_entry(), scb_uaddr))
 		assert(0);
 
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
-	kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], dcb_addr[cpu_id], cpu_id);
+	kern_boot_thd(glb_boot_ct, cpu_id);
 
 	printk("\tBoot component initialization complete.\n");
 }

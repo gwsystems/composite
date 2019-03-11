@@ -18,37 +18,6 @@ term_fn(void *d)
 
 static int test_done[NUM_CPU];
 
-#define COS_DCB_MAX_PER_PAGE (PAGE_SIZE / sizeof(struct cos_dcb_info))
-static unsigned long free_off[NUM_CPU] = { 0 }, total[NUM_CPU] = { 0 };
-static struct cos_dcb_info *dcb_st[NUM_CPU] = { NULL };
-
-void
-cos_dcb_info_init(void)
-{
-	free_off[cos_cpuid()] = 1;
-
-	dcb_st[cos_cpuid()] = cos_init_dcb_get();
-}
-
-struct cos_dcb_info *
-cos_dcb_info_get(void)
-{
-	unsigned int curr_off = 0;
-
-	curr_off = ps_faa(&free_off[cos_cpuid()], 1);
-	if (curr_off == COS_DCB_MAX_PER_PAGE) {
-		/* will need a version that calls down to capmgr for more pages */
-		dcb_st[cos_cpuid()] = cos_dcbpg_bump_allocn(&booter_info, PAGE_SIZE);
-		assert(dcb_st[cos_cpuid()]);
-
-		free_off[cos_cpuid()] = 0;
-
-		return dcb_st[cos_cpuid()];
-	}
-
-	return (dcb_st[cos_cpuid()] + curr_off);
-}
-
 void
 cos_init(void)
 {
@@ -63,28 +32,14 @@ cos_init(void)
 		first_init = 0;
 		cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-				BOOT_CAPTBL_SELF_SCB, (vaddr_t)cos_scb_info_get(), (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
+				  (vaddr_t)cos_get_heap_ptr(), LLBOOT_CAPTBL_FREE, &booter_info);
 		init_done = 1;
 	}
 
 	while (!init_done) ;
-	cos_dcb_info_init();
-	initaddr = cos_init_dcb_get();
-	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, (unsigned long)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, THD_GET_DCB_IP), (unsigned long)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, THD_GET_DCB_SP));
-	initaddr->ip = 10;
-	initaddr->sp = 0;
-	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, (unsigned long)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, THD_GET_DCB_IP), (unsigned long)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, THD_GET_DCB_SP));
 
-
-	termaddr = cos_dcb_info_get();
-	termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL, booter_info.pgtbl_cap, (vaddr_t)termaddr);
+	termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL, 0, 0);
 	assert(termthd[cos_cpuid()]);
-	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)termthd[cos_cpuid()], (unsigned long)cos_introspect(&booter_info, termthd[cos_cpuid()], THD_GET_DCB_IP), (unsigned long)cos_introspect(&booter_info, termthd[cos_cpuid()], THD_GET_DCB_SP));
-	termaddr->ip = 30;
-	termaddr->sp = 0;
-	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)termthd[cos_cpuid()], (unsigned long)cos_introspect(&booter_info, termthd[cos_cpuid()], THD_GET_DCB_IP), (unsigned long)cos_introspect(&booter_info, termthd[cos_cpuid()], THD_GET_DCB_SP));
-	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, (unsigned long)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, THD_GET_DCB_IP), (unsigned long)cos_introspect(&booter_info, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, THD_GET_DCB_SP));
-	PRINTC("%u DCB IP: %lx, DCB SP: %lx\n", (unsigned int)termthd[cos_cpuid()], (unsigned long)cos_introspect(&booter_info, termthd[cos_cpuid()], THD_GET_DCB_IP), (unsigned long)cos_introspect(&booter_info, termthd[cos_cpuid()], THD_GET_DCB_SP));
 
 	PRINTC("Micro Booter started.\n");
 	test_run_mb();

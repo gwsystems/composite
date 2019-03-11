@@ -47,7 +47,4 @@ tls_set(size_t off, unsigned long val)
 
 extern void test_run_vk(void);
 
-void cos_dcb_info_init(void);
-struct cos_dcb_info *cos_dcb_info_get(void);
-
 #endif /* MICRO_BOOTER_H */

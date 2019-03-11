@@ -16,7 +16,7 @@
 #include "include/chal/defs.h"
 #include "include/hw.h"
 #include "include/scb.h"
-//#include "include/dcb.h"
+#include "include/dcb.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -119,7 +119,7 @@ cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, int
 	scb_core->curr_thd = 0;
 
 	ulthd = ch_ult->t;
-	assert(ulthd->dcbinfo);
+	if (unlikely(ulthd->dcbinfo = NULL)) goto done;
 	if (ulthd == thd) goto done;
 	/* TODO: check if the threads are running in the same component.. */
 
@@ -368,6 +368,8 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 		type = ctfrom->type;
 		sz   = __captbl_cap2bytes(type);
 
+		/* don't allow cap copy on SCB/DCB */
+		if (type == CAP_SCB || type == CAP_DCB) return -EINVAL;
 		ctto = __cap_capactivate_pre(t, cap_to, capin_to, type, &ret);
 		if (!ctto) return -EINVAL;
 
@@ -1234,32 +1236,25 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_THDACTIVATE: {
-			u32_t              reg2         = __userregs_get2(regs);
 			u32_t              reg3         = __userregs_get3(regs);
 			u32_t              reg4         = __userregs_get4(regs);
-			thdclosure_index_t init_data    = (reg2) & (~(~0 << 12));
-			capid_t            pgtbl_addr   = (reg2) & (~0 << 12);
+			capid_t            pgtbl_addr   = __userregs_get2(regs);
+			thdclosure_index_t init_data    = (reg4 << 16) >> 16;
 			capid_t            thd_cap      = (capin >> 16);
 			capid_t            pgtbl_cap    = (capin << 16) >> 16;
 			capid_t            compcap      = (reg3 >> 16);
-			capid_t            dcbpgtbl_cap = (reg3 << 16) >> 16;
-			vaddr_t            dcbuaddr     = reg4, dcbkaddr;
-			unsigned long     *tpte = NULL, *dcbpte = NULL, flags;
-			struct             thread *thd;
+			capid_t            dcb_cap      = (reg3 << 16) >> 16;
+			unsigned short     dcboff       = reg4 >> 16;
+			unsigned long     *tpte = NULL, flags;
+			struct thread     *thd;
 			struct cap_header *ctfrom;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd, &tpte);
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(thd && tpte);
 
-			ctfrom = captbl_lkup(ct, dcbpgtbl_cap);
-			if (unlikely(!ctfrom || ctfrom->type != CAP_PGTBL)) return -EINVAL;
-			dcbpte = pgtbl_lkup(((struct cap_pgtbl *)ctfrom)->pgtbl, (dcbuaddr & (~0 << 12)), (u32_t *)&flags);
-			if (!dcbpte) return -EINVAL;
-			dcbkaddr = ((unsigned long)dcbpte & (~0 << 12)) | (dcbuaddr & ~(~0 << 12));
-
 			/* ret is returned by the overall function */
-			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, dcbkaddr);
+			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, dcb_cap, dcboff);
 			if (ret) kmem_unalloc(tpte);
 
 			break;
@@ -1282,7 +1277,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_THDDEACTIVATE: {
 			livenessid_t lid = __userregs_get2(regs);
 
-			ret = thd_deactivate(ct, op_cap, capin, lid, 0, 0, 0);
+			ret = thd_deactivate(ct, op_cap, capin, lid, 0, 0, 0, 0);
 			break;
 		}
 		case CAPTBL_OP_THDTLSSET: {
@@ -1298,7 +1293,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t      pgtbl_cap     = __userregs_get3(regs);
 			capid_t      cosframe_addr = __userregs_get4(regs);
 
-			ret = thd_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr, 1);
+			ret = thd_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr, 0, 1);
 			break;
 		}
 		case CAPTBL_OP_CAPKMEM_FREEZE: {
@@ -1310,9 +1305,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_COMPACTIVATE: {
 			capid_t      captbl_cap = __userregs_get2(regs) >> 16;
 			capid_t      pgtbl_cap  = __userregs_get2(regs) & 0xFFFF;
-			livenessid_t lid        = (capin >> 16);
+			livenessid_t lid        = capin >> 16;
 			capid_t      comp_cap   = (capin << 16) >> 16;
-			vaddr_t      scb_uaddr  = __userregs_get3(regs) | ~((1 << 12) - 1);
+			vaddr_t      scb_uaddr  = __userregs_get3(regs) & (~0 << 12);
 			vaddr_t      entry_addr = __userregs_get4(regs);
 			capid_t      scb_cap    = __userregs_get3(regs) & ((1 << 12) - 1);
 
@@ -1427,8 +1422,8 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		}
 		case CAPTBL_OP_SCB_ACTIVATE: {
 			capid_t      ptcap  = __userregs_get2(regs);
-			livenessid_t lid    = __userregs_get3(regs);
-			vaddr_t      addr   = __userregs_get4(regs);
+			livenessid_t lid    = __userregs_get4(regs);
+			vaddr_t      addr   = __userregs_get3(regs);
 			unsigned long *pte;
 			struct cos_scb_info *scb;
 
@@ -1449,36 +1444,41 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			break;
 		}
-//		case CAPTBL_OP_DCB_ACTIVATE: {
-//			u32_t        r1      = __userregs_get1(regs);
-//			u32_t        r2      = __userregs_get2(regs);
-//			u32_t        r3      = __userregs_get3(regs);
-//			u32_t        r4      = __userregs_get4(regs);
-//			capid_t      dcbcap  = r1 >> 16;
-//			capid_t      ptcap   = (r1 << 16) >> 16;
-//			livenessid_t lid     = r2 >> 16;
-//			capid_t      ptcapin = (r2 << 16) >> 16;
-//			vaddr_t      kaddr   = r3;
-//			vaddr_t      uaddrin = r4;
-//
-//			ret = dcb_activate(ct, cap, dcbcap, ptcap, kaddr, lid, ptcapin, uaddr);
-//
-//			break;
-//		}
-//		case CAPTBL_OP_DCB_DEACTIVATE: {
-//			u32_t        r2      = __userregs_get2(regs);
-//			u32_t        r3      = __userregs_get3(regs);
-//			u32_t        r4      = __userregs_get4(regs);
-//			livenessid_t lid     = r2 >> 16;
-//			capid_t      ptcap   = (r2 << 16) >> 16;
-//			vaddr_t      cf_addr = r3 & (~0 << 12);
-//			vaddr_t      uaddrin = r4 & (~0 << 12);
-//			capid_t      ptcapin = (r4 << 20) >> 12 | ((r3 << 20) >> 20);
-//
-//			ret = dcb_deactivate(ct, capin, lid, ptcap, cf_addr, ptcapin, uaddrin);
-//
-//			break;
-//		}
+		case CAPTBL_OP_DCB_ACTIVATE: {
+			u32_t        r1      = __userregs_get1(regs);
+			u32_t        r2      = __userregs_get2(regs);
+			u32_t        r3      = __userregs_get3(regs);
+			u32_t        r4      = __userregs_get4(regs);
+			capid_t      dcbcap  = r1 >> 16;
+			capid_t      ptcap   = r2 >> 16;
+			livenessid_t lid     = (r1 << 16) >> 16;
+			capid_t      ptcapin = (r2 << 16) >> 16;
+			vaddr_t      kaddr   = r3;
+			vaddr_t      uaddrin = r4;
+			struct cos_dcb_info *dcb;
+			unsigned long *pte;
+
+			ret = cap_kmem_activate(ct, ptcap, kaddr, (unsigned long *)&dcb, &pte);
+			if (ret) cos_throw(err, ret);
+
+			ret = dcb_activate(ct, cap, dcbcap, (vaddr_t)dcb, lid, ptcapin, uaddrin);
+
+			break;
+		}
+		case CAPTBL_OP_DCB_DEACTIVATE: {
+			u32_t        r2      = __userregs_get2(regs);
+			u32_t        r3      = __userregs_get3(regs);
+			u32_t        r4      = __userregs_get4(regs);
+			livenessid_t lid     = r2 >> 16;
+			capid_t      ptcap   = (r2 << 16) >> 16;
+			vaddr_t      cf_addr = r3 & (~0 << 12);
+			vaddr_t      uaddrin = r4 & (~0 << 12);
+			capid_t      ptcapin = (r4 << 20) >> 12 | ((r3 << 20) >> 20);
+
+			ret = dcb_deactivate(op_cap, capin, lid, ptcap, cf_addr, ptcapin, uaddrin);
+
+			break;
+		}
 		default:
 			goto err;
 		}

@@ -22,6 +22,8 @@ void sched_childinfo_init(void);
 void sched_childinfo_init_raw(void);
 
 extern unsigned int self_init[], num_child_init[];
+extern thdid_t sched_child_thd_create(struct sched_childinfo *schedci, thdclosure_index_t idx);
+extern thdid_t sched_child_aep_create(struct sched_childinfo *schedci, thdclosure_index_t idx, int owntc, cos_channelkey_t key, arcvcap_t *extrcv);
 
 static inline struct cos_defcompinfo *
 sched_child_defci_get(struct sched_childinfo *sci)

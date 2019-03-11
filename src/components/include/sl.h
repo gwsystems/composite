@@ -289,8 +289,10 @@ struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, co
  */
 struct sl_thd *sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched);
 
-struct sl_thd *sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, vaddr_t dcbuaddr);
-struct sl_thd *sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, vaddr_t dcbuaddr, arcvcap_t *extrcv);
+struct sl_thd *sl_thd_initaep_alloc_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, dcbcap_t dcap);
+struct sl_thd *sl_thd_aep_alloc_ext_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, dcbcap_t dcap, dcboff_t doff, arcvcap_t *extrcv);
+struct sl_thd *sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, vaddr_t *dcbaddr);
+struct sl_thd *sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, vaddr_t *dcbaddr, arcvcap_t *extrcv);
 
 struct sl_thd *sl_thd_init_ext(struct cos_aep_info *aep, struct sl_thd *sched_thd);
 
@@ -473,6 +475,8 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 	} else {
 		/* TODO: can't use if you're reprogramming a timer/prio */
 		return sl_thd_dispatch(t, tok, sl_thd_curr());
+		//return cos_switch(sl_thd_thdcap(t), g->sched_tcap, t->prio,
+		//		  g->timeout_next, g->sched_rcv, tok);
 	}
 }
 

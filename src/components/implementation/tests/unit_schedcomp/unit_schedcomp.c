@@ -152,6 +152,7 @@ cos_init(void)
 	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflag) == -1);
 
 	testtid = sched_thd_create(run_tests, NULL);
+	assert(testtid);
 	sched_thd_param_set(testtid, sched_param_pack(SCHEDP_PRIO, LOWEST_PRIORITY));
 
 	while (1) {

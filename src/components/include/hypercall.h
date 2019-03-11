@@ -14,12 +14,13 @@ enum hypercall_cntl {
 	HYPERCALL_COMP_CAPTBLCAP_GET,
 	HYPERCALL_COMP_PGTBLCAP_GET,
 	HYPERCALL_COMP_CAPFRONTIER_GET,
-	HYPERCALL_COMP_INITDCB_GET, /* per-core, each core. only for threads created by llbooter */
 
 	HYPERCALL_COMP_INITAEP_GET,
 	HYPERCALL_COMP_CHILD_NEXT,
 
 	HYPERCALL_NUMCOMPS_GET,
+
+	HYPERCALL_ROOT_INITAEP_SET, /* per-core root-scheduler init-aeps created by capmgr and passed to llbooter */
 };
 
 static inline int
@@ -77,6 +78,18 @@ hypercall_comp_initaep_get(spdid_t spdid, int is_sched, struct cos_aep_info *aep
 	aep->rcv = rcvslot;
 	aep->tc  = tcslot;
 	aep->tid = cos_introspect(ci, thdslot, THD_GET_TID);
+
+	return 0;
+}
+
+static inline int
+hypercall_root_initaep_set(spdid_t spdid, struct cos_aep_info *aep)
+{
+	int ret = 0;
+
+	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_ROOT_INITAEP_SET, spdid << 16 | aep->thd,
+		       aep->rcv << 16 | aep->tc);
+	if (ret) return ret;
 
 	return 0;
 }
@@ -186,12 +199,6 @@ hypercall_comp_capfrontier_get(spdid_t spdid)
 	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CAPFRONTIER_GET, spdid, 0, &cap_frontier, &unused)) return 0;
 
 	return cap_frontier;
-}
-
-static inline vaddr_t
-hypercall_initdcb_get(spdid_t spdid)
-{
-	return (vaddr_t)cos_sinv(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INITDCB_GET, spdid, 0);
 }
 
 static inline int

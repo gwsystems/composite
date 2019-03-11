@@ -75,9 +75,7 @@ sched_childinfo_init_intern(int is_raw)
 	memset(childinfo[cos_cpuid()], 0, sizeof(struct sched_childinfo) * SCHED_MAX_CHILD_COMPS);
 
 	while ((remaining = hypercall_comp_child_next(cos_spd_id(), &child, &childflags)) >= 0) {
-		struct cos_defcompinfo *child_dci = NULL;
 		struct sched_childinfo *schedinfo = NULL;
-		struct sl_thd          *initthd   = NULL;
 		compcap_t               compcap   = 0;
 
 		PRINTLOG(PRINT_DEBUG, "Initializing child component %u, is_sched=%d\n", child, childflags & COMP_FLAG_SCHED);
@@ -88,11 +86,6 @@ sched_childinfo_init_intern(int is_raw)
 
 		schedinfo = sched_childinfo_alloc(child, compcap, childflags);
 		assert(schedinfo);
-		child_dci = sched_child_defci_get(schedinfo);
-
-		initthd = sl_thd_initaep_alloc(child_dci, NULL, childflags & COMP_FLAG_SCHED, childflags & COMP_FLAG_SCHED ? 1 : 0, 0, 0);
-		assert(initthd);
-		sched_child_initthd_set(schedinfo, initthd);
 
 		sched_child_init(schedinfo);
 		if (!remaining) break;

@@ -562,6 +562,7 @@ sl_init(microsec_t period)
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
 	struct sl_global_cpu   *g   = sl__globals_cpu();
+	struct cos_aep_info    *ga  = cos_sched_aep_get(dci);
 	u32_t cpu_bmp[(NUM_CPU + 7)/8] = { 0 }; /* TODO! pass from the user! */
 
 	if (ps_cas(&first, 1, 0)) {
@@ -586,12 +587,11 @@ sl_init(microsec_t period)
 	sl_timeout_init(period);
 
 	/* Create the scheduler thread for us. cos_sched_aep_get() is from global(static) memory */
-	cos_dcb_info_init();
 	g->sched_thd       = sl_thd_alloc_init(cos_sched_aep_get(dci), 0, 0, (struct cos_dcb_info *)cos_init_dcb_get());
 	assert(g->sched_thd);
-	g->sched_thdcap    = BOOT_CAPTBL_SELF_INITTHD_CPU_BASE;
-	g->sched_tcap      = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;
-	g->sched_rcv       = BOOT_CAPTBL_SELF_INITRCV_CPU_BASE;
+	g->sched_thdcap    = ga->thd;
+	g->sched_tcap      = ga->tc;
+	g->sched_rcv       = ga->rcv;
 	g->sched_thd->prio = 0;
 	ps_list_head_init(&g->event_head);
 	assert(cos_thdid() == sl_thd_thdid(g->sched_thd));

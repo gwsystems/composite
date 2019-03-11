@@ -50,7 +50,7 @@ test_thds_perf(void)
 	long long start_swt_cycles = 0, end_swt_cycles = 0;
 	int       i;
 
-	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL, booter_info.pgtbl_cap, (vaddr_t)cos_dcb_info_get());
+	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL, 0, 0);
 	assert(ts);
 	cos_thd_switch(ts);
 
@@ -83,7 +83,7 @@ test_thds(void)
 	intptr_t i;
 
 	for (i = 0; i < TEST_NTHDS; i++) {
-		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i, booter_info.pgtbl_cap, (vaddr_t)cos_dcb_info_get());
+		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i, 0, 0);
 		assert(ts[i]);
 		tls_test[cos_cpuid()][i] = i;
 		cos_thd_mod(&booter_info, ts[i], &tls_test[cos_cpuid()][i]);
@@ -279,7 +279,7 @@ test_async_endpoints(void)
 	PRINTC("Creating threads, and async end-points.\n");
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent,
-	                    (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, booter_info.pgtbl_cap, (vaddr_t)cos_dcb_info_get());
+	                    (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, 0, 0);
 	assert(tcp);
 	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
@@ -291,7 +291,7 @@ test_async_endpoints(void)
 	}
 
 	/* child rcv capabilities */
-	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void *)tcp, booter_info.pgtbl_cap, (vaddr_t)cos_dcb_info_get());
+	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void *)tcp, 0, 0);
 	assert(tcc);
 	tccc = cos_tcap_alloc(&booter_info);
 	assert(tccc);
@@ -324,7 +324,7 @@ test_async_endpoints_perf(void)
 
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf,
-	                    (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, booter_info.pgtbl_cap, (vaddr_t)cos_dcb_info_get());
+	                    (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, 0, 0);
 	assert(tcp);
 	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
@@ -333,7 +333,7 @@ test_async_endpoints_perf(void)
 	if (cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1)) assert(0);
 
 	/* child rcv capabilities */
-	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void *)tcp, booter_info.pgtbl_cap, (vaddr_t)cos_dcb_info_get());
+	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void *)tcp, 0, 0);
 	assert(tcc);
 	tccc = cos_tcap_alloc(&booter_info);
 	assert(tccc);
@@ -367,7 +367,7 @@ test_timer(void)
 	cycles_t c = 0, p = 0, t = 0;
 
 	PRINTC("Starting timer test.\n");
-	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL, booter_info.pgtbl_cap, (vaddr_t)cos_dcb_info_get());
+	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL, 0, 0);
 
 	for (i = 0; i <= 16; i++) {
 		thdid_t     tid;
@@ -414,7 +414,7 @@ exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t p
 {
 	e->tcc = cos_tcap_alloc(&booter_info);
 	assert(e->tcc);
-	e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d, booter_info.pgtbl_cap, (vaddr_t)cos_dcb_info_get());
+	e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d, 0, 0);
 	assert(e->tc);
 	e->rc = cos_arcv_alloc(&booter_info, e->tc, e->tcc, booter_info.comp_cap, parentc);
 	assert(e->rc);

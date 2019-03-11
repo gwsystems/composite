@@ -17,13 +17,28 @@ capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid)
 void
 sched_child_init(struct sched_childinfo *schedci)
 {
-	struct sl_thd *initthd = NULL;
-
 	assert(schedci);
 
-	initthd = sched_child_initthd_get(schedci);
-	assert(initthd);
-	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
+	schedci->initthd = sl_thd_initaep_alloc_dcb(sched_child_defci_get(schedci), NULL, schedci->flags & COMP_FLAG_SCHED, schedci->flags & COMP_FLAG_SCHED ? 1 : 0, 0, 0);
+
+	assert(schedci->initthd);
+	sl_thd_param_set(schedci->initthd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
+}
+
+thdid_t
+sched_child_thd_create(struct sched_childinfo *schedci, thdclosure_index_t idx)
+{
+	struct sl_thd *t = sl_thd_aep_alloc_ext_dcb(sched_child_defci_get(schedci), NULL, idx, 0, 0, 0, 0, 0, NULL);
+
+	return t ? sl_thd_thdid(t) : 0;
+}
+
+thdid_t
+sched_child_aep_create(struct sched_childinfo *schedci, thdclosure_index_t idx, int owntc, cos_channelkey_t key, arcvcap_t *extrcv)
+{
+	struct sl_thd *t = sl_thd_aep_alloc_ext_dcb(sched_child_defci_get(schedci), NULL, idx, 1, owntc, key, 0, 0, extrcv);
+
+	return t ? sl_thd_thdid(t) : 0;
 }
 
 void
