@@ -1,12 +1,18 @@
 #include <stdint.h>
 
 #include "micro_booter.h"
+#include "perfdata.h"
 
 #define THD_ARG 666             /* Thread Argument to pass */
 #define NUM_TEST 16             /* Iterator NUM */
 #define MAX_THDS 4              /* Max Threshold Multiplier */
 #define MIN_THDS 0.5              /* Min Threshold Multiplier */
 #define GRANULARITY 1000        /* Granularity */
+
+struct perfdata result_test_timer;
+struct perfdata result_budgets_single;
+struct perfdata result_sinv;
+struct perfdata result_sret;
 
 static int failure = 0;
 
@@ -206,7 +212,7 @@ static void
 test_timer(void)
 {
     thdcap_t    tc;
-    cycles_t    c = 0, p = 0, t = 0, min = 0, max = 0;
+    cycles_t    c = 0, p = 0;
     int         i, ret;
     cycles_t    s, e;
     thdid_t     tid;
@@ -217,8 +223,9 @@ test_timer(void)
 
     tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 
-    for (i = 0; i <= TEST_ITER; i++){
+    perfdata_init(&result_test_timer, "COS THD => COS_THD_SWITCH");
 
+    for (i = 0; i <= TEST_ITER; i++){
         rdtscll(now);
         timer = tcap_cyc2time(now + GRANULARITY * cyc_per_usec);
         cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
@@ -230,15 +237,8 @@ test_timer(void)
         utime = (time + mask) ^ mask;
 
         if (i > 0) {
-            t += utime;
+            perfdata_add(&result_test_timer, (double)utime);
 
-            if ( utime > max ){
-                max = utime;
-            }
-
-            if ( utime < min || min == 0){
-                min = utime;
-            }
             if (EXPECT_LLU_LT((long long unsigned)(c-now), (unsigned)(GRANULARITY * cyc_per_usec * MAX_THDS),
                             "Timer: Failure on  MAX") ||
                 EXPECT_LLU_LT((unsigned)(GRANULARITY * cyc_per_usec * MIN_THDS), (long long unsigned)(c-now),
@@ -248,13 +248,6 @@ test_timer(void)
         }   
         sched_events_clear();
     }
-
-    result.test_timer.avg = (long long unsigned)(t/TEST_ITER);
-    result.test_timer.expected = (unsigned)(GRANULARITY * cyc_per_usec);
-    result.test_timer.max = (long long unsigned) max;
-    result.test_timer.min = (long long unsigned) min;
-
-
 
     /* TIMER IN PAST */
     c = 0, p = 0;
@@ -419,9 +412,11 @@ static void
 test_budgets_single(void)
 {
     int i;
-    cycles_t    s = 0, e = 0, t = 0, max = 0, min = 0;
+    cycles_t    s = 0, e = 0;
     cycles_t    time, mask;
     int         ret;
+
+    perfdata_init(&result_budgets_single, "Timer => Budget based");
 
     if (EXPECT_LL_NEQ(0, exec_cluster_alloc(&bt[cos_cpuid()].p, parent, &bt[cos_cpuid()].p,
                       BOOT_CAPTBL_SELF_INITRCV_CPU_BASE), "Single Budget: Cannot Allocate") ||
@@ -451,15 +446,7 @@ test_budgets_single(void)
             mask = (time >> (sizeof(cycles_t) * CHAR_BIT - 1));
             time = (time + mask) ^ mask;
 
-            t += time;
-
-            if ( time > max ){
-                max = time;
-            }
-
-            if ( time < min || min == 0){
-                min = time;
-            }
+            perfdata_add(&result_test_timer, (double)time);
 
             if (EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * BUDGET_TIME * MAX_THDS),
                               "Single Budget: MAX Bound") ||
@@ -471,10 +458,6 @@ test_budgets_single(void)
         sched_events_clear();
     }
 
-    result.budgets_single.avg = (long long unsigned) (t/TEST_ITER);
-    result.budgets_single.max = (long long unsigned) max;
-    result.budgets_single.min = (long long unsigned) min;
-    result.budgets_single.expected = (unsigned)(GRANULARITY * BUDGET_TIME);
     PRINTC("\t%s: \t\t\tSuccess\n", "Timer => Budget based");
 }
 
@@ -803,9 +786,11 @@ test_inv(void)
     sinvcap_t    ic;
     unsigned int r;
     int          i;
-    long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL, inv_max = 0LL, inv_min = 0LL;
     long long    ret_max = 0LL, ret_min = 0LL;
     long long    time = 0LL, mask = 0LL;
+
+    perfdata_init(&result_sinv, "SINV");
+    perfdata_init(&result_sret, "SRET");
 
     cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
     if (EXPECT_LL_LT(1, cc, "Invocation: Cannot Allocate")) return;
@@ -827,32 +812,10 @@ test_inv(void)
         mask = (time >> (sizeof(long long) * CHAR_BIT - 1));
         time = (time + mask) ^ mask;
 
-        total_inv_cycles += time;
-        if (time > inv_max){
-            inv_max = time;
-        }
+        perfdata_add(&result_sinv, (double)time);
 
-        if (time < inv_min || inv_min == 0){
-            inv_min = time;
-        }
-
-        total_ret_cycles += (end_cycles - midinv_cycle[cos_cpuid()]);
-        if (end_cycles - midinv_cycle[cos_cpuid()] > ret_max){
-            ret_max = end_cycles - midinv_cycle[cos_cpuid()];
-        }
-
-        if (end_cycles - midinv_cycle[cos_cpuid()] < ret_min || ret_min == 0){
-            ret_min = end_cycles - midinv_cycle[cos_cpuid()];
-        }
+        perfdata_add(&result_sret, (double)(end_cycles - midinv_cycle[cos_cpuid()]));
     }
-
-    result.sinv.avg = (total_inv_cycles / (long long)(ITER));
-    result.sinv.max = inv_max;
-    result.sinv.min = inv_min;
-
-    result.sret.avg = (total_ret_cycles / (long long)(ITER));
-    result.sret.max = ret_max;
-    result.sret.min = ret_min;
 
     CHECK_STATUS_FLAG();
     PRINTC("\t%s: \t\tSuccess\n", "Synchronous Invocations");
