@@ -119,7 +119,7 @@ cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, int
 	scb_core->curr_thd = 0;
 
 	ulthd = ch_ult->t;
-	if (unlikely(ulthd->dcbinfo = NULL)) goto done;
+	if (unlikely(ulthd->dcbinfo == NULL)) goto done;
 	if (ulthd == thd) goto done;
 	/* TODO: check if the threads are running in the same component.. */
 
