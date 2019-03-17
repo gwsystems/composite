@@ -97,9 +97,6 @@ cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, int
 
 	*ci_ptr = thd_invstk_current_compinfo(thd, cos_info, &invstk_top);
 
-	/* no user-level thread switches in invocations! */
-	/* if (unlikely(invstk_top)) goto done; */
-
 	assert(*ci_ptr && (*ci_ptr)->captbl);
 
 	if (unlikely(!(*ci_ptr)->scb_data)) goto done;
@@ -121,7 +118,8 @@ cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, int
 	ulthd = ch_ult->t;
 	if (unlikely(ulthd->dcbinfo == NULL)) goto done;
 	if (ulthd == thd) goto done;
-	/* TODO: check if the threads are running in the same component.. */
+	/* check if kcurr and ucurr threads are both in the same page-table(component) */
+	if (thd_current_pgtbl(ulthd) != thd_current_pgtbl(thd)) goto done;
 
 	thd_current_update(ulthd, thd, cos_info);
 	thd = ulthd;
