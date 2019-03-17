@@ -86,7 +86,7 @@ done:
 
 /* TODO: inline fast path and force non-inlined slow-path */
 static inline struct thread *
-cap_ulthd_restore(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, int interrupt, struct comp_info **ci_ptr)
+cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, int interrupt, struct comp_info **ci_ptr)
 {
 	struct thread       *thd = thd_current(cos_info);
 	struct cap_thd      *ch_ult;
@@ -843,7 +843,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
-	thd = cap_ulthd_restore(regs, cos_info, 1, &ci);
+	thd = cap_ulthd_lazyupdate(regs, cos_info, 1, &ci);
 	assert(thd && ci && ci->captbl);
 	assert(!(thd->state & THD_STATE_PREEMPTED));
 	tcap = tcap_current(cos_info);
@@ -894,7 +894,7 @@ timer_process(struct pt_regs *regs)
 
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
-	thd_curr = cap_ulthd_restore(regs, cos_info, 1, &comp);
+	thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &comp);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	assert(comp);
 
@@ -1009,7 +1009,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	int                        thd_switch = 0;
 
 	/* Definitely do it for all the fast-path calls. */
-	thd = cap_ulthd_restore(regs, cos_info, 0, &ci);
+	thd = cap_ulthd_lazyupdate(regs, cos_info, 0, &ci);
 	assert(thd);
 	cap = __userregs_getcap(regs);
 
