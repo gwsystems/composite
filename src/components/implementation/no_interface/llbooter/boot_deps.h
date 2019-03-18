@@ -304,7 +304,8 @@ boot_sched_caps_init(spdid_t spdid)
 	struct cos_aep_info    *child_aep = boot_spd_initaep_get(spdid);
 	int ret, i;
 
-	if (!capmgr_spdid || capmgr_spdid != spdid) return;
+	/* booter uses capmgr to create initthds in root-schedulers */
+	if (compsi->parent_spdid || (capmgr_spdid && spdid != capmgr_spdid)) return;
 
 	boot_newcomp_defcinfo_init(spdid);
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, boot_info, child_aep->thd);

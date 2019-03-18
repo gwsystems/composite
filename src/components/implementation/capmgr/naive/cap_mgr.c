@@ -130,6 +130,7 @@ capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, 
 	struct cap_comp_info     *rs      = cap_info_comp_find(s);
 	struct cap_comp_cpu_info *rs_cpu  = cap_info_cpu_local(rs);
 	struct cos_compinfo      *rs_ci   = cap_info_ci(rs);
+	struct cos_compinfo      *rc_ci   = cap_info_ci(rc);
 	struct sl_thd            *t       = NULL, *rinit = NULL;
 	thdcap_t                  thdcap  = 0;
 	dcbcap_t                  dcbcap  = 0;
@@ -167,13 +168,13 @@ capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, spdid_t s, 
 	}
 
 	/* parent needs tcap/rcv to manage time. thd/asnd to activate. */
-	ret = cos_cap_cpy(rs_ci, cap_ci, CAP_THD, sl_thd_thdcap(t));
+	ret = cos_cap_cpy(rc_ci, cap_ci, CAP_THD, sl_thd_thdcap(t));
 	if (!ret) goto err;
-	rcv = cos_cap_cpy(rs_ci, cap_ci, CAP_ARCV, sl_thd_rcvcap(t));
+	rcv = cos_cap_cpy(rc_ci, cap_ci, CAP_ARCV, sl_thd_rcvcap(t));
 	if (!rcv) goto err;
-	tc = cos_cap_cpy(rs_ci, cap_ci, CAP_TCAP, sl_thd_tcap(t));
+	tc = cos_cap_cpy(rc_ci, cap_ci, CAP_TCAP, sl_thd_tcap(t));
 	if (!tc) goto err;
-	snd = cos_cap_cpy(rs_ci, cap_ci, CAP_ASND, sl_thd_asndcap(t));
+	snd = cos_cap_cpy(rc_ci, cap_ci, CAP_ASND, sl_thd_asndcap(t));
 	if (!snd) goto err;
 
 	cap_info_thd_init(rc, t, key);
