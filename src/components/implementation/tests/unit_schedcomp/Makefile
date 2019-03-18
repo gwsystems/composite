@@ -1,8 +1,8 @@
 COMPONENT=unit_schedcomp_test.o
 INTERFACES=
-DEPENDENCIES=sched
+DEPENDENCIES=capmgr
 IF_LIB=
-ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api #required for cos_sinv in llboot.h!
+ADDITIONAL_LIBS=$(LIBSLCAPMGR) -lsl_thd_static_backend -lsl_mod_rr -lcos_defkernel_api
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o

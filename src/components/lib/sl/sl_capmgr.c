@@ -103,6 +103,7 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 	aep->thd = capmgr_thd_create(fn, data, &tid, &dcb);
 	if (!aep->thd) goto done;
 	aep->tid = tid;
+	assert(tid && dcb);
 
 	t = sl_thd_alloc_init(aep, 0, 0, dcb);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
@@ -226,6 +227,7 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 	if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
 	capmgr_aep_create(aep, fn, data, owntc, key, &dcb);
 	if (aep->thd == 0) goto done;
+	assert(aep->tid && dcb);
 
 	t = sl_thd_alloc_init(aep, 0, prps, dcb);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));

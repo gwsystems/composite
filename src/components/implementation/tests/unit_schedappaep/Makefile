@@ -1,4 +1,4 @@
-COMPONENT=unit_schedaep_test.o
+COMPONENT=unit_schedappaep_test.o
 INTERFACES=
 DEPENDENCIES=sched capmgr
 IF_LIB=

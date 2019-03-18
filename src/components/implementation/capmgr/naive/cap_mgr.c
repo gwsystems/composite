@@ -31,6 +31,7 @@ capmgr_thd_create_cserialized(struct cos_dcb_info **dcb, thdid_t *tid, thdclosur
 
 	cap_info_thd_init(r, t, 0);
 	*tid = sl_thd_thdid(t);
+	*dcb = (struct cos_dcb_info *)dcbaddr;
 
 	return thdcap;
 err:
@@ -69,6 +70,7 @@ capmgr_thd_create_ext_cserialized(struct cos_dcb_info **dcb, thdid_t *tid, spdid
 	cap_info_thd_init(rc, t, 0);
 	cap_info_thd_init(rs, t, 0);
 	*tid = sl_thd_thdid(t);
+	*dcb = (struct cos_dcb_info *)dcbaddr;
 	/* child is not a scheduler, don't copy into child */
 
 	return thdcap;
@@ -272,6 +274,7 @@ capmgr_aep_create_ext_cserialized(struct cos_dcb_info **dcb, u32_t *rcvtcret, sp
 	cap_info_thd_init(rc, t, key);
 	cap_info_thd_init(rs, t, 0);
 	thdcap = ret << 16 | sl_thd_thdid(t);
+	*dcb = (struct cos_dcb_info *)dcbaddr;
 
 	return thdcap;
 err:
@@ -325,6 +328,7 @@ capmgr_aep_create_cserialized(struct cos_dcb_info **dcb, u32_t *tcrcvret, thdclo
 	cap_info_thd_init(rc, t, key);
 	*tcrcvret = (tc << 16 | rcv);
 	thdcap    = ret << 16 | sl_thd_thdid(t);
+	*dcb = (struct cos_dcb_info *)dcbaddr;
 
 	return thdcap;
 err:

@@ -413,6 +413,7 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
 	struct cos_scb_info *scb = sl_scb_info_cpu();
 
+	assert(sl_thd_dcbinfo(curr) && sl_thd_dcbinfo(next));
 	/*
 	 * jump labels in the asm routine:
 	 *

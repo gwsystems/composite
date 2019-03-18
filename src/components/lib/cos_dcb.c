@@ -10,7 +10,7 @@ cos_dcb_info_init_ext(struct cos_dcbinfo_data *cdi, struct cos_compinfo *ci, dcb
 	memset(cdi, 0, sizeof(struct cos_dcbinfo_data));
 
 	cdi->dcbcaps[0]   = initdcbcap;
-	cdi->dcbaddr[0]   = (vaddr_t)cos_init_dcb_get();
+	cdi->dcbaddr[0]   = initdcbaddr;
 	cdi->curr_cap_off = start_off;
 	cdi->curr_cap     = 0;
 }
