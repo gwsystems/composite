@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "micro_xcores.h"
+#include "perfdata.h"
 
 extern int _expect_llu(int predicate, char *str, long long unsigned a, long long unsigned b, char *errcmp, char *testname, char *file, int line);
 extern int _expect_ll(int predicate, char *str, long long a, long long b, char *errcmp, char *testname, char *file, int line);
@@ -10,10 +11,6 @@ extern void sched_events_clear(int* rcvd, thdid_t* tid, int* blocked, cycles_t* 
 /* Test RCV 2: Close Loop at higher priority => Measure Kernel involvement */
 
 extern unsigned int cyc_per_usec;
-
-#define TEST_RCV_CORE 0
-#define TEST_SND_CORE 1
-#define TEST_IPI_ITERS 10000
 
 static volatile asndcap_t asnd[NUM_CPU] = { 0 };
 static volatile arcvcap_t rcv[NUM_CPU] = { 0 };
@@ -35,6 +32,8 @@ static volatile int       done_measurement = 0;
 static volatile int       test_start = 0;
 static volatile int       ret_enable = 1;
 static volatile int       pending_rcv = 0;
+
+static struct             perfdata pd[NUM_CPU] CACHE_ALIGNED;
 
 static void
 test_rcv(arcvcap_t r)
@@ -122,7 +121,9 @@ rcv_spinner(void *d)
     arcvcap_t r = rcv[cos_cpuid()];
     asndcap_t s = asnd[cos_cpuid()];
     int i = 0;
-    cycles_t now = 0, prev = 0, tot_avg = 0, wc = 0;
+    cycles_t now = 0, prev = 0;
+
+    perfdata_init(&pd[cos_cpuid()], "Test IPI Interrupt");
 
     done_measurement = 0;
     test_start = 1;
@@ -133,16 +134,20 @@ rcv_spinner(void *d)
     for(i = 0; i < TEST_IPI_ITERS; ) {
         rdtscll(now);
           if((now - prev) > 200){
-              tot_avg += now - prev;
-              if (now - prev > wc) {
-                  wc = now - prev;
-              }
+              perfdata_add(&pd[cos_cpuid()], (double)(now - prev));
               i++;
           }
           prev = now;
     }
     done_test = 1;
-    PRINTC("Test IPI Interrupt:\t INTERRUPT AVG:%llu WC: %llu Iter: %d\n", tot_avg / i, wc, i);
+    perfdata_calc(&pd[cos_cpuid()]);
+    PRINTC("Test IPI Interrupt:\t INTERRUPT AVG:%.2f, MAX:%g, MIN:%g, ITER:%d\n",
+            perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]),
+            perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));
+    printc("\t\t\t\t SD:%.2f, 90%%:%g, 95%%:%g, 99%%:%g\n",
+            perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]),
+            perfdata_95ptile(&pd[cos_cpuid()]), perfdata_99ptile(&pd[cos_cpuid()]));
+
     while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE) ;
 }
 

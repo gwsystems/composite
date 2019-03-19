@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "micro_xcores.h"
+#include "perfdata.h"
 
 int
 _expect_llu(int predicate, char *str, long long unsigned a,
@@ -40,10 +41,6 @@ sched_events_clear(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap
 
 /* Test RCV 1: Close Loop at lower priority => Measure Thread Switching + IPI */
 
-#define TEST_RCV_CORE 0
-#define TEST_SND_CORE 1
-#define TEST_IPI_ITERS 1000000
-
 static volatile asndcap_t asnd[NUM_CPU] = { 0 };
 static volatile arcvcap_t rcv[NUM_CPU] = { 0 };
 static volatile thdcap_t  thd[NUM_CPU] = { 0 };
@@ -64,6 +61,8 @@ static volatile int       ret_enable = 1;
 static volatile int       pending_rcv = 0;
 static volatile int       ready = 0;
 
+static struct             perfdata pd[NUM_CPU] CACHE_ALIGNED;
+static struct             perfdata switch_test;
 
 static void
 test_rcv(arcvcap_t r)
@@ -135,11 +134,14 @@ test_rcv_fn(void *d)
 static void
 test_asnd_fn(void *d)
 {
-    cycles_t tot = 0, mask = 0, time = 0,wc = 0, bc = 0;
+    cycles_t mask = 0, time = 0;
+    cycles_t tot = 0,wc = 0, bc = 0;
     int iters = 0;
 
     arcvcap_t r = rcv[cos_cpuid()];
     asndcap_t s = asnd[cos_cpuid()];
+
+    perfdata_init(&switch_test, "Test IPI Switch");
 
     for(iters = 0; iters < TEST_IPI_ITERS; iters++) {
 
@@ -152,6 +154,7 @@ test_asnd_fn(void *d)
 
         ready = 0;
 
+
         tot += time;
         if (time > wc) {
             wc = time;
@@ -159,12 +162,27 @@ test_asnd_fn(void *d)
         if (time < bc || bc == 0) {
             bc = time;
         }
+
+        // BUG
+        perfdata_add(&pd[cos_cpuid()], (double)time);
+
+        perfdata_add(&switch_test, (double)time);
     }
 
-    PRINTC("Test IPI Switch:\t SWITCH AVG: %llu, BC: %llu, WC: %llu\n", tot/TEST_IPI_ITERS, bc, wc);
+    // BUG
+    perfdata_calc(&pd[cos_cpuid()]);
 
-    EXPECT_LLU_LT((long long unsigned)((tot / TEST_IPI_ITERS) * MAX_THRS), wc , "IPI Switch: Switch MAX");
-    EXPECT_LLU_LT(bc * (unsigned) MIN_THRS, (long long unsigned)(tot / TEST_IPI_ITERS), "IPI Switch: Switch MIN");
+    perfdata_calc(&switch_test);
+
+    PRINTC("Test IPI Switch:\t SWITCH AVG: %llu, BC: %llu, WC: %llu\n", tot/TEST_IPI_ITERS, bc, wc);
+    PRINTC("Test IPI Switch\t\t AVG:%.2f, MAX:%g, MIN:%g, ITER:%d\n",
+            perfdata_avg(&switch_test), perfdata_max(&switch_test),
+            perfdata_min(&switch_test), perfdata_sz(&switch_test));
+
+    printc("\t\t\t\t SD:%.2f, 90%%:%g, 95%%:%g, 99%%:%g\n",
+            perfdata_sd(&switch_test),perfdata_90ptile(&switch_test),
+            perfdata_95ptile(&switch_test), perfdata_99ptile(&switch_test));
+
     done_test = 1;
     while(1) test_rcv(r);
 }

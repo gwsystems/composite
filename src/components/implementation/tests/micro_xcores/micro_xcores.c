@@ -41,8 +41,8 @@ cos_init(void)
     if(cos_cpuid() == 0) PRINTC("Micro Booter Xcore started.\n");
 
     // IPI TESTS
-    test_ipi_roundtrip();
     test_ipi_switch();
+    test_ipi_roundtrip();
     test_ipi_interference();
 
     // IPI N to N

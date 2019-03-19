@@ -14,7 +14,7 @@
  */
 
 #ifndef PERF_VAL_MAX_SZ
-#define PERF_VAL_MAX_SZ    100000
+#define PERF_VAL_MAX_SZ    10000
 #endif
 
 #define PERF_VAL_MIN_SZ    10

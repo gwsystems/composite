@@ -16,7 +16,6 @@ static volatile thdcap_t  test_rthds[NUM_CPU][NUM_CPU];
 static volatile thdid_t   test_rtids[NUM_CPU][NUM_CPU];
 static volatile int       test_thd_blkd[NUM_CPU][NUM_CPU];
 #define MIN_THRESH 1000
-#define TEST_IPI_ITERS 1000
 
 static void
 test_ipi_fn(void *d)

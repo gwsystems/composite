@@ -446,7 +446,7 @@ test_budgets_single(void)
             mask = (time >> (sizeof(cycles_t) * CHAR_BIT - 1));
             time = (time + mask) ^ mask;
 
-            perfdata_add(&result_test_timer, (double)time);
+            perfdata_add(&result_budgets_single, (double)time);
 
             if (EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * BUDGET_TIME * MAX_THDS),
                               "Single Budget: MAX Bound") ||

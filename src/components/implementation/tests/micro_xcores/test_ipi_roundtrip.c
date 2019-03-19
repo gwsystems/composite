@@ -1,16 +1,13 @@
 #include <stdint.h>
 
 #include "micro_xcores.h"
+#include "perfdata.h"
 
 extern int _expect_llu(int predicate, char *str, long long unsigned a, long long unsigned b, char *errcmp, char *testname, char *file, int line);
 extern int _expect_ll(int predicate, char *str, long long a, long long b, char *errcmp, char *testname, char *file, int line);
 extern void sched_events_clear(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout);
 
 /* Test Sender Time + Receiver Time Roundtrip */
-
-#define TEST_RCV_CORE 0
-#define TEST_SND_CORE 1
-#define TEST_IPI_ITERS 1000000
 
 static volatile asndcap_t asnd[NUM_CPU] = { 0 };
 static volatile arcvcap_t rcv[NUM_CPU] = { 0 };
@@ -20,6 +17,9 @@ static volatile int       blkd[NUM_CPU] = { 0 };
 
 static volatile unsigned long long total_rcvd[NUM_CPU] = { 0 };
 static volatile unsigned long long total_sent[NUM_CPU] = { 0 };
+
+static struct             perfdata pd[NUM_CPU] CACHE_ALIGNED;
+static struct             perfdata pt[NUM_CPU] CACHE_ALIGNED;
 
 #define MAX_THRS 1
 #define MIN_THRS 1
@@ -95,11 +95,14 @@ done:
 static void
 test_asnd_fn(void *d)
 {
-    cycles_t st = 0, en = 0, tot = 0, wc = 0, bc = 0;
-    cycles_t tot_send = 0, send_wc = 0, s_time = 0;
-    int iters = 0;
+    cycles_t  st = 0, en = 0;
+    cycles_t  s_time = 0;
+    int       iters = 0;
     arcvcap_t r = rcv[cos_cpuid()];
     asndcap_t s = asnd[cos_cpuid()];
+
+    perfdata_init(&pt[cos_cpuid()], "Test IPI Roundtrip: SEND TIME");
+    perfdata_init(&pd[cos_cpuid()], "Test IPI Roundtrip: ROUNTRIP TIME");
 
     while(1) {
         rdtscll(st);
@@ -109,30 +112,29 @@ test_asnd_fn(void *d)
         test_rcv(r);
         rdtscll(en);
 
-        tot_send += (s_time - st);
-        if (en - st > send_wc) {
-            send_wc = s_time - st;
-        }
-
-        tot += (en - st);
-        if (en - st > wc) {
-            wc = en - st;
-        }
-        if (en - st < bc || bc == 0) {
-            bc = en - st;
-        }
+        perfdata_add(&pt[cos_cpuid()], (double)(s_time - st));
+        perfdata_add(&pd[cos_cpuid()], (en - st) / (double)2);
         iters ++;
         if (iters >= TEST_IPI_ITERS) {
             break;
         }
     }
 
-    PRINTC("Test IPI Roundtrip:\t SEND TIME AVG: %llu, WC: %llu, Iter: %d\n", tot_send/TEST_IPI_ITERS, send_wc, TEST_IPI_ITERS);
-    PRINTC("Test IPI Roundtrip:\t ROUNDTRIP AVG: %llu, WC: %llu, BC: %llu, Iter %d\n", bc/2, wc/2, tot/TEST_IPI_ITERS/2, TEST_IPI_ITERS);
+    perfdata_calc(&pt[cos_cpuid()]);
+    PRINTC("Test IPI Roundtrip:\t SEND TIME AVG:%.2f, MAX:%g, MIN:%g, ITER:%d\n",
+            perfdata_avg(&pt[cos_cpuid()]), perfdata_max(&pt[cos_cpuid()]),
+            perfdata_min(&pt[cos_cpuid()]), perfdata_sz(&pt[cos_cpuid()]));
+    printc("\t\t\t\t SD:%.2f, 90%%:%g, 95%%:%g, 99%%:%g\n",
+            perfdata_sd(&pt[cos_cpuid()]),perfdata_90ptile(&pt[cos_cpuid()]),
+            perfdata_95ptile(&pt[cos_cpuid()]), perfdata_99ptile(&pt[cos_cpuid()]));
 
-    EXPECT_LLU_LT((long long unsigned)((tot_send / TEST_IPI_ITERS) * MAX_THRS), send_wc, "IPI ROUNDTRIP: SEND TIME");
-    EXPECT_LLU_LT((long long unsigned)((tot / TEST_IPI_ITERS) / 2 * MAX_THRS), wc / 2, "IPI ROUNDTRIP: ROUNDTRIP  MAX");
-    EXPECT_LLU_LT(bc / 2 * (unsigned) MIN_THRS, (long long unsigned)((tot / TEST_IPI_ITERS) / 2), "IPI ROUNDTRIP: ROUNDTRIP MIN");
+    perfdata_calc(&pd[cos_cpuid()]);
+    PRINTC("Test IPI Roundtrip:\t ROUNDTRIP AVG:%.2f, MAX:%g, MIN:%g, ITER:%d\n",
+            perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]),
+            perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));
+    printc("\t\t\t\t SD:%.2f, 90%%:%g, 95%%:%g, 99%%:%g\n",
+            perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]),
+            perfdata_95ptile(&pd[cos_cpuid()]), perfdata_99ptile(&pd[cos_cpuid()]));
 
     done_test = 1;
     while(1) test_rcv(r);

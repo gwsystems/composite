@@ -66,7 +66,7 @@ test_thds_create_switch(void)
         perfdata_add(&pd[cos_cpuid()], (double)(side_thd - main_thd));
     }
 
-	perfdata_calc(&pd[cos_cpuid()]);
+    perfdata_calc(&pd[cos_cpuid()]);
 
     PRINTC("\tCOS THD => COS_SWITCH:\t\t\tAVG:%.2f, MAX:%g, MIN:%g, ITER:%d\n",
             perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));      
