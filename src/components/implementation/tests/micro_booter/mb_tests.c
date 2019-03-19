@@ -12,7 +12,6 @@
 struct perfdata result_test_timer;
 struct perfdata result_budgets_single;
 struct perfdata result_sinv;
-struct perfdata result_sret;
 
 static int failure = 0;
 
@@ -237,7 +236,7 @@ test_timer(void)
         utime = (time + mask) ^ mask;
 
         if (i > 0) {
-            perfdata_add(&result_test_timer, (double)utime);
+            perfdata_add(&result_test_timer, utime);
 
             if (EXPECT_LLU_LT((long long unsigned)(c-now), (unsigned)(GRANULARITY * cyc_per_usec * MAX_THDS),
                             "Timer: Failure on  MAX") ||
@@ -446,7 +445,7 @@ test_budgets_single(void)
             mask = (time >> (sizeof(cycles_t) * CHAR_BIT - 1));
             time = (time + mask) ^ mask;
 
-            perfdata_add(&result_budgets_single, (double)time);
+            perfdata_add(&result_budgets_single, time);
 
             if (EXPECT_LLU_LT((long long unsigned)(e-s), (unsigned)(GRANULARITY * BUDGET_TIME * MAX_THDS),
                               "Single Budget: MAX Bound") ||
@@ -741,12 +740,9 @@ test_async_endpoints(void)
     EXIT_FN();
 }
 
-static long long midinv_cycle[NUM_CPU] = { 0LL };
-
 int
 test_serverfn(int a, int b, int c)
 {
-    rdtscll(midinv_cycle[cos_cpuid()]);
     return 0xDEADBEEF;
 }
 
@@ -786,11 +782,9 @@ test_inv(void)
     sinvcap_t    ic;
     unsigned int r;
     int          i;
-    long long    ret_max = 0LL, ret_min = 0LL;
-    long long    time = 0LL, mask = 0LL;
+    cycles_t     start_cycles = 0LL, end_cycles = 0LL;
 
     perfdata_init(&result_sinv, "SINV");
-    perfdata_init(&result_sret, "SRET");
 
     cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
     if (EXPECT_LL_LT(1, cc, "Invocation: Cannot Allocate")) return;
@@ -801,20 +795,11 @@ test_inv(void)
     if (EXPECT_LLU_NEQ(0xDEADBEEF, r, "Test Invocation")) return;
 
     for (i = 0; i < ITER; i++) {
-        long long start_cycles = 0LL, end_cycles = 0LL;
-
-        midinv_cycle[cos_cpuid()] = 0LL;
         rdtscll(start_cycles);
         call_cap_mb(ic, 1, 2, 3);
         rdtscll(end_cycles);
 
-        time = (midinv_cycle[cos_cpuid()] - start_cycles);
-        mask = (time >> (sizeof(long long) * CHAR_BIT - 1));
-        time = (time + mask) ^ mask;
-
-        perfdata_add(&result_sinv, (double)time);
-
-        perfdata_add(&result_sret, (double)(end_cycles - midinv_cycle[cos_cpuid()]));
+        perfdata_add(&result_sinv, end_cycles - start_cycles);
     }
 
     CHECK_STATUS_FLAG();

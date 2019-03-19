@@ -1,17 +1,11 @@
 /*
- * Copyright 2017, Phani Gadepalli
+ * Copyright 2017, Phani Gadepalli & Sebastian Foubert
  *
  * This uses a two clause BSD License.
  */
 
 #ifndef PERFDATA_H
 #define PERFDATA_H
-
-/*
- * TODO:
- * 1. Get rid of FPU computation
- * 2. Change API for getting perfdata stats..
- */
 
 #ifndef PERF_VAL_MAX_SZ
 #define PERF_VAL_MAX_SZ    10000
@@ -31,11 +25,11 @@ enum ptile_id {
 
 struct perfdata {
 	char   name[PERF_DATA_NAME];
-	double values[PERF_VAL_MAX_SZ];
+	cycles_t values[PERF_VAL_MAX_SZ];
 	int    sz;
-	double min, max, avg, total;
-	double sd, var;
-	double ptiles[PERF_PTILE_SZ]; /* 90, 95, 99 */
+	cycles_t min, max, avg, total;
+	cycles_t sd, var;
+	cycles_t ptiles[PERF_PTILE_SZ]; /* 90, 95, 99 */
 };
 
 static void
@@ -51,12 +45,12 @@ __perfdata_print_values(struct perfdata *pd)
 #ifdef PERF_DATA_DEBUG
 	int i;
 
-	for (i = 0 ; i < pd->sz ; i++) printc("%.2f\n", pd->values[i]);
+	for (i = 0 ; i < pd->sz ; i++) printc("%llu\n", pd->values[i]);
 #endif
 }
 
 static inline int
-perfdata_add(struct perfdata *pd, double val)
+perfdata_add(struct perfdata *pd, cycles_t val)
 {
 	if (unlikely(pd->sz >= PERF_VAL_MAX_SZ)) return -ENOSPC;
 
@@ -71,10 +65,11 @@ perfdata_add(struct perfdata *pd, double val)
  * From http://stackoverflow.com/questions/3581528/how-is-the-square-root-function-implemented
  * By Argento
  */
-static double
-__sqroot(double n)
+
+static cycles_t
+__sqroot(cycles_t n)
 {
-	double lo = 0, hi = n, mid;
+	cycles_t lo = 0, hi = n, mid;
 	int i;
 
 	for(i = 0 ; i < 1000 ; i++) {
@@ -95,12 +90,12 @@ __sqroot(double n)
  * A in-placed version based on:
  * Jyrki Katajainen, Tomi Pasanen, Jukka Teuhola. ``Practical in-place mergesort''. Nordic Journal of Computing, 1996.
  */
-static void __inplace_merge_sort(double *, int, int);
+static void __inplace_merge_sort(cycles_t *, int, int);
 
 static void
-__swap(double* xs, int i, int j)
+__swap(cycles_t* xs, int i, int j)
 {
-	double tmp = xs[i];
+	cycles_t tmp = xs[i];
 
 	xs[i] = xs[j];
 	xs[j] = tmp;
@@ -110,7 +105,7 @@ __swap(double* xs, int i, int j)
  * merge two sorted subs xs[i, m) and xs[j...n) to working area xs[w...] 
  */
 static void
-__workarea_merge(double* xs, int i, int m, int j, int n, int w)
+__workarea_merge(cycles_t* xs, int i, int m, int j, int n, int w)
 {
 	while (i < m && j < n) __swap(xs, w++, xs[i] < xs[j] ? i++ : j++);
 	while (i < m) __swap(xs, w++, i++);
@@ -123,7 +118,7 @@ __workarea_merge(double* xs, int i, int m, int j, int n, int w)
  * constraint, len(w) == u - l
  */
 static void
-__workarea_sort(double* xs, int l, int u, int w)
+__workarea_sort(cycles_t* xs, int l, int u, int w)
 {
 	int m;
 
@@ -140,7 +135,7 @@ __workarea_sort(double* xs, int l, int u, int w)
 }
 
 static void
-__inplace_merge_sort(double* xs, int l, int u)
+__inplace_merge_sort(cycles_t* xs, int l, int u)
 {
 	int m, n, w;
 
@@ -170,7 +165,7 @@ __inplace_merge_sort(double* xs, int l, int u)
 }
 
 static void
-__bubble_sort(double data[], int sz)
+__bubble_sort(cycles_t data[], int sz)
 {
 	int i;
 
@@ -179,7 +174,7 @@ __bubble_sort(double data[], int sz)
 
 		for (j = 0 ; j < sz - i - 1 ; j ++) {
 			if (data[j] > data[j + 1]) {
-				double tmp = data[j];
+				cycles_t tmp = data[j];
 
 				data[j]     = data[j + 1];
 				data[j + 1] = tmp;
@@ -213,38 +208,38 @@ static int
 perfdata_sz(struct perfdata *pd)
 { return pd->sz; }
 
-static double
+static cycles_t
 perfdata_min(struct perfdata *pd)
 { return pd->min; }
 
-static double
+static cycles_t
 perfdata_max(struct perfdata *pd)
 { return pd->max; }
 
-static double
+static cycles_t
 perfdata_avg(struct perfdata *pd)
 { return pd->avg; }
 
-static double
+static cycles_t
 perfdata_sd(struct perfdata *pd)
 { return pd->sd; }
 
-static double
+static cycles_t
 perfdata_90ptile(struct perfdata *pd)
 { return pd->ptiles[PTILE_90]; }
 
-static double
+static cycles_t
 perfdata_95ptile(struct perfdata *pd)
 { return pd->ptiles[PTILE_95]; }
 
-static double
+static cycles_t
 perfdata_99ptile(struct perfdata *pd)
 { return pd->ptiles[PTILE_99]; }
 
 static void
 perfdata_print(struct perfdata *pd)
 {
-	printc("PD:%s -sz:%d,SD:%.2f,Mean:%.2f,99%%:%.2f, Max: %.2f\n", 
+	printc("PD:%s -sz:%d,SD:%llu,Mean:%llu,99%%:%llu, Max: %llu\n", 
 		pd->name, pd->sz, pd->sd, pd->avg, pd->ptiles[PTILE_99], pd->max);
 }
 

@@ -134,17 +134,17 @@ rcv_spinner(void *d)
     for(i = 0; i < TEST_IPI_ITERS; ) {
         rdtscll(now);
           if((now - prev) > 200){
-              perfdata_add(&pd[cos_cpuid()], (double)(now - prev));
+              perfdata_add(&pd[cos_cpuid()], (now - prev));
               i++;
           }
           prev = now;
     }
     done_test = 1;
     perfdata_calc(&pd[cos_cpuid()]);
-    PRINTC("Test IPI Interrupt:\t INTERRUPT AVG:%.2f, MAX:%g, MIN:%g, ITER:%d\n",
+    PRINTC("Test IPI Interrupt:\t INTERRUPT AVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
             perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]),
             perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));
-    printc("\t\t\t\t SD:%.2f, 90%%:%g, 95%%:%g, 99%%:%g\n",
+    printc("\t\t\t\t SD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
             perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]),
             perfdata_95ptile(&pd[cos_cpuid()]), perfdata_99ptile(&pd[cos_cpuid()]));
 
