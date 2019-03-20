@@ -129,7 +129,7 @@ rcv_spinner(void *d)
 
     for(i = 0; i < TEST_IPI_ITERS; ) {
         rdtscll(now);
-          if((now - prev) > 200){
+          if((now - prev) > 300){
               perfdata_add(&pd[cos_cpuid()], (now - prev));
               i++;
           }
@@ -159,10 +159,12 @@ test_asnd_fn(void *d)
     while(!test_start) ;
 
     while(!done_test){
-        test_asnd(s);
+//        for ( iters = 0; iters < 50; iters ++){
+            test_asnd(s);
+//        }
         rdtscll(now);
         prev = now;
-        while(total_wait_time <= 1000){
+        while(total_wait_time <= 10000){
             rdtscll(now);
             total_wait_time += now - prev;
             prev = now;

@@ -4,7 +4,7 @@ COMPONENT=micro_xcore.o
 INTERFACES=
 DEPENDENCIES=
 IF_LIB=
-ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api
+ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -ltest_framework
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o

@@ -30,7 +30,7 @@ static volatile cycles_t  global_time[2] = { 0 };
 static volatile int       done_test = 0;
 static volatile int       ret_enable = 1;
 static volatile int       pending_rcv = 0;
-static volatile int       ready = 0;
+static volatile int       iters = 0;
 
 static struct             perfdata pd[NUM_CPU] CACHE_ALIGNED;
 
@@ -52,7 +52,6 @@ test_asnd(asndcap_t s)
 
     ret = cos_asnd(s, 1);
     assert(ret == 0 || ret == -EBUSY);
-    ready = 1;
     if (!ret) total_sent[cos_cpuid()]++;
 }
 
@@ -69,7 +68,6 @@ static void
 rcv_spinner(void *d)
 {
     while (!done_test) {
-        while(ready) ;
         rdtscll(global_time[0]);
     }
 
@@ -80,10 +78,33 @@ static void
 test_rcv_1(arcvcap_t r)
 {
     int pending = 0, rcvd = 0;
+    cycles_t mask = 0, time = 0;
 
     pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
     rdtscll(global_time[1]);
-    ready = 1;
+
+    time = (global_time[1] - global_time[0]);
+    mask = (time >> (sizeof(int) * CHAR_BIT - 1));
+    time = (time + mask) ^ mask;
+
+    perfdata_add(&pd[cos_cpuid()], time);
+
+    iters ++;
+
+    if(iters == 10000){
+        perfdata_calc(&pd[cos_cpuid()]);
+
+        PRINTC("Test IPI Switch\t\t AVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
+                perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]),
+                perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));
+
+        printc("\t\t\t\t SD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
+                perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]),
+                perfdata_95ptile(&pd[cos_cpuid()]), perfdata_99ptile(&pd[cos_cpuid()]));
+
+        done_test = 1;
+    }
+
     assert(pending == 0);
 
     total_rcvd[cos_cpuid()] += rcvd;
@@ -94,6 +115,8 @@ test_rcv_fn(void *d)
 {
     arcvcap_t r = rcv[cos_cpuid()];
     asndcap_t s = asnd[cos_cpuid()];
+
+    perfdata_init(&pd[cos_cpuid()], "Test IPI Switch");
 
     while (1) {
         test_rcv_1(r);
@@ -110,33 +133,14 @@ test_asnd_fn(void *d)
     arcvcap_t r = rcv[cos_cpuid()];
     asndcap_t s = asnd[cos_cpuid()];
 
-    perfdata_init(&pd[cos_cpuid()], "Test IPI Switch");
-
     for(iters = 0; iters < TEST_IPI_ITERS; iters++) {
 
+        while(global_time[1] > global_time[0]);
         test_asnd(s);
         test_rcv(r);
-
-        time = (global_time[1] - global_time[0]);
-        mask = (time >> (sizeof(int) * CHAR_BIT - 1));
-        time = (time + mask) ^ mask;
-
-        ready = 0;
-
-        perfdata_add(&pd[cos_cpuid()], time);
     }
 
-    perfdata_calc(&pd[cos_cpuid()]);
-
-    PRINTC("Test IPI Switch\t\t AVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-            perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]),
-            perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));
-
-    printc("\t\t\t\t SD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-            perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]),
-            perfdata_95ptile(&pd[cos_cpuid()]), perfdata_99ptile(&pd[cos_cpuid()]));
-
-    done_test = 1;
+    while(!done_test);
     while(1) test_rcv(r);
 }
 
