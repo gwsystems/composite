@@ -4,7 +4,7 @@ COMPONENT=micro_boot.o
 INTERFACES=
 DEPENDENCIES=
 IF_LIB=
-ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -ltest_framework
+ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api -lcos_expect
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o

@@ -1,5 +1,5 @@
-#ifndef TEST_FRAMEWORK_H
-#define TEST_FRAMEWORK_H
+#ifndef COS_EXPECT_H
+#define COS_EXPECT_H
 
 #include <cos_types.h>
 #include <cos_debug.h>
@@ -30,4 +30,4 @@ int
 _expect_ll(int predicate, char *str, long long a,
            long long b, char *errcmp, char *testname, char * file, int line);
 
-#endif /* TEST_FRAMEWORK_H */
+#endif /* COS_EXPECT_H */
