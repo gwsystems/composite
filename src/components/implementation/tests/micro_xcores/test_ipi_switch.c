@@ -83,10 +83,6 @@ test_rcv_1(arcvcap_t r)
     pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
     rdtscll(global_time[1]);
 
-    time = (global_time[1] - global_time[0]);
-    mask = (time >> (sizeof(int) * CHAR_BIT - 1));
-    time = (time + mask) ^ mask;
-
     assert(pending == 0);
 
     total_rcvd[cos_cpuid()] += rcvd;
