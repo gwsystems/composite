@@ -17,24 +17,6 @@
         }                                             \
     } while (0)
 
-#undef EXPECT_LLU
-#define EXPECT_LLU(boole ,printstr, errcmp, a, b, name) \
-    _expect_llu((boole), (": " #a " " errcmp " " #b " (evaluated to"), a, b, errcmp, name, __FILE__, __LINE__)
-
-#define EXPECT_LLU_NEQ(a, b, name) EXPECT_LLU((a) != (b), "%llu",  "==", (a), (b), name)
-
-#define EXPECT_LLU_LT(a, b, name) EXPECT_LLU((a) > (b), "%llu",  "<=", (a), (b), name)
-
-#undef EXPECT_LL
-#define EXPECT_LL(boole ,printstr, errcmp, a, b, name) \
-    _expect_ll((boole), (": " #a " " errcmp " " #b " (evaluated to"), a, b, errcmp, name, __FILE__, __LINE__)
-
-#define EXPECT_LL_NEQ(a, b, name) EXPECT_LL((a) != (b), "%lld",  "==", (a), (b), name)
-
-#define EXPECT_LL_EQ(a, b, name) EXPECT_LL((a) == (b), "%lld",  "!=", (a), (b), name)
-
-#define EXPECT_LL_LT(a, b, name) EXPECT_LL((a) > (b), "%lld",  "<=", (a), (b), name)
-
 #define BUG_DIVZERO()                                           \
     do {                                                    \
         debug_print("Testing divide by zero fault @ "); \
@@ -44,6 +26,8 @@
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
+#include <perfdata.h>
+#include <test_framework.h>
 
 #define ITER 10000
 #define TEST_NTHDS 5

@@ -1,35 +1,6 @@
 #include <stdint.h>
 
 #include "micro_xcores.h"
-#include "perfdata.h"
-
-int
-_expect_llu(int predicate, char *str, long long unsigned a,
-        long long unsigned b, char *errcmp, char *testname, char * file, int line)
-{
-    if (predicate) {
-        PRINTC("%s Failure: %s @ %d: ",
-             testname, file, line);
-        printc("(%s %lld", str, a);
-        printc(" %s %lld)\n", errcmp, b);
-        return -1;
-    }
-    return 0;
-}
-
-int
-_expect_ll(int predicate, char *str, long long a,
-       long long b, char *errcmp, char *testname, char * file, int line)
-{
-    if (predicate) {
-        PRINTC("%s Failure: %s @ %d: ",
-             testname, file, line);
-        printc("(%s %lld", str, a);
-        printc(" %s %lld)\n", errcmp, b);
-        return -1;
-    }
-    return 0;
-}
 
 void
 sched_events_clear(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout)

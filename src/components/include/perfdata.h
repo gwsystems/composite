@@ -1,11 +1,14 @@
 /*
- * Copyright 2017, Phani Gadepalli & Sebastian Foubert
+ * Copyright 2017, Phani Gadepalli and Sebastian Foubert
  *
  * This uses a two clause BSD License.
  */
 
 #ifndef PERFDATA_H
 #define PERFDATA_H
+
+#include <cos_debug.h>
+#include <llprint.h>
 
 #ifndef PERF_VAL_MAX_SZ
 #define PERF_VAL_MAX_SZ    10000

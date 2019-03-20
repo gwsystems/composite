@@ -1,7 +1,6 @@
 #include <stdint.h>
 
 #include "micro_booter.h"
-#include "perfdata.h"
 
 #define THD_ARG 666             /* Thread Argument to pass */
 #define NUM_TEST 16             /* Iterator NUM */
@@ -13,35 +12,7 @@ struct perfdata result_test_timer;
 struct perfdata result_budgets_single;
 struct perfdata result_sinv;
 
-static int failure = 0;
-
-int
-_expect_llu(int predicate, char *str, long long unsigned a,
-            long long unsigned b, char *errcmp, char *testname, char * file, int line)
-{
-    if (predicate) {
-        PRINTC("Failure: %s %s @ %d: ",
-             testname, file, line);
-        printc("%s %lld", str, a);
-        printc(" %s %lld)\n", errcmp, b);
-        return -1;
-    }
-    return 0;
-}
-
-int
-_expect_ll(int predicate, char *str, long long a,
-           long long b, char *errcmp, char *testname, char * file, int line)
-{
-    if (predicate) {
-        PRINTC("Failure: %s %s @ %d: ",
-             testname, file, line);
-        printc("%s %lld", str, a);
-        printc(" %s %lld)\n", errcmp, b);
-        return -1;
-    }
-    return 0;
-}
+static int      failure = 0;
 
 static void
 test_thd_arg(void *d)
