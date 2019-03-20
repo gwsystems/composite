@@ -78,7 +78,6 @@ static void
 test_rcv_1(arcvcap_t r)
 {
     int pending = 0, rcvd = 0;
-    cycles_t mask = 0;
 
     pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
     rdtscll(global_time[1]);
@@ -104,7 +103,6 @@ test_rcv_fn(void *d)
 static void
 test_asnd_fn(void *d)
 {
-    cycles_t mask = 0, time = 0;
     int iters = 0;
 
     arcvcap_t r = rcv[cos_cpuid()];
