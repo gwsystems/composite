@@ -1,5 +1,5 @@
 /*
- * Copyright 2017, Phani Gadepalli and Sebastian Foubert
+ * Copyright 2019, Phani Gadepalli and Sebastian Foubert
  *
  * This uses a two clause BSD License.
  */
