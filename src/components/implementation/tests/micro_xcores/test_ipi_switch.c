@@ -112,8 +112,8 @@ test_asnd_fn(void *d)
 
     for(iters = 0; iters < TEST_IPI_ITERS; iters++) {
 
-        while(global_time[1] > global_time[0]);
         test_asnd(s);
+        while(global_time[1] > global_time[0]);
         test_rcv(r);
         perfdata_add(&pd, time);
     }
