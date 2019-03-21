@@ -24,10 +24,10 @@ enum hypercall_cntl {
 static inline int
 hypercall_comp_child_next(spdid_t c, spdid_t *child, comp_flag_t *flags)
 {
-	word_t r2 = 0, r3 = 0;
+	word_t r2 = 0, r3 = 0, r4;
 	int ret;
 
-	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CHILD_NEXT, c, 0, &r2, &r3);
+	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CHILD_NEXT, c, 0, &r2, &r3, &r4);
 	if (ret < 0) return ret;
 	*child = (spdid_t)r2;
 	*flags = (comp_flag_t)r3;
@@ -84,7 +84,7 @@ static inline int
 hypercall_comp_info_get(spdid_t spdid, pgtblcap_t *ptslot, captblcap_t *ctslot, compcap_t *compslot, spdid_t *parentid)
 {
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	word_t r2 = 0, r3 = 0;
+	word_t r2 = 0, r3 = 0, r4;
 	int ret = 0;
 
 	*ptslot   = cos_capid_bump_alloc(ci, CAP_PGTBL);
@@ -96,7 +96,7 @@ hypercall_comp_info_get(spdid_t spdid, pgtblcap_t *ptslot, captblcap_t *ctslot, 
 
 	/* capid_t though is unsigned long, only assuming it occupies 16bits for packing */
 	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INFO_GET,
-			     spdid << 16 | (*compslot), (*ptslot) << 16 | (*ctslot), &r2, &r3);
+			    spdid << 16 | (*compslot), (*ptslot) << 16 | (*ctslot), &r2, &r3, &r4);
 	*parentid = r2;
 
 	return ret;
@@ -107,7 +107,7 @@ static inline int
 hypercall_comp_info_next(pgtblcap_t *ptslot, captblcap_t *ctslot, compcap_t *compslot, spdid_t *compid, spdid_t *comp_parentid)
 {
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	word_t r2 = 0, r3 = 0;
+	word_t r2 = 0, r3 = 0, r4;
 	int ret = 0;
 
 	*ptslot   = cos_capid_bump_alloc(ci, CAP_PGTBL);
@@ -119,7 +119,7 @@ hypercall_comp_info_next(pgtblcap_t *ptslot, captblcap_t *ctslot, compcap_t *com
 
 	/* capid_t though is unsigned long, only assuming it occupies 16bits for packing */
 	ret =  cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_INFO_NEXT,
-			      (*compslot), (*ptslot) << 16 | (*ctslot), &r2, &r3);
+			     (*compslot), (*ptslot) << 16 | (*ctslot), &r2, &r3, &r4);
 	*compid        = r2;
 	*comp_parentid = r3;
 
@@ -130,7 +130,9 @@ hypercall_comp_info_next(pgtblcap_t *ptslot, captblcap_t *ctslot, compcap_t *com
 static inline int
 hypercall_comp_frontier_get(spdid_t spdid, vaddr_t *vasfr, capid_t *capfr)
 {
-	return cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_FRONTIER_GET, spdid, 0, vasfr, capfr);
+	word_t ret;
+
+	return cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_FRONTIER_GET, spdid, 0, vasfr, capfr, &ret);
 }
 
 /* Note: This API can be called ONLY by components that manage capability resources */
@@ -181,7 +183,7 @@ hypercall_comp_capfrontier_get(spdid_t spdid)
 	word_t unused;
 	capid_t cap_frontier;
 
-	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CAPFRONTIER_GET, spdid, 0, &cap_frontier, &unused)) return 0;
+	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CAPFRONTIER_GET, spdid, 0, &cap_frontier, &unused, &unused)) return 0;
 
 	return cap_frontier;
 }

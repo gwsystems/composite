@@ -171,9 +171,9 @@ fn symbs_retrieve<'a>(e: &ElfFile<'a>) -> Result<&'a [Entry32], String> {
 }
 
 fn compute_dependencies<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Vec<ClientSymb>, String> {
-    let defstub = defcli_stub_addr(e, symbs)?;
+    let defstub    = defcli_stub_addr(e, symbs)?;
     let ucap_symbs = client_caps(e, symbs);
-    let dep_symbs = client_stubs(e, symbs);
+    let dep_symbs  = client_stubs(e, symbs);
 
     Ok(ucap_symbs.iter()
        .map(|s| {

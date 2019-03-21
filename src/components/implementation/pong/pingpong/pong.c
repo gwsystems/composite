@@ -9,63 +9,50 @@
 void
 call(void)
 {
-	PRINTLOG(PRINT_DEBUG, "In call() in pong interface, client:%u\n", cos_inv_token());
 	return;
 }
 
-void
-call_two(void)
+int
+call_ret(void)
 {
-	PRINTLOG(PRINT_DEBUG, "In call_two() in pong interface, client:%u\n", cos_inv_token());
-	return;
+	return 42;
 }
 
-void
-call_three(void)
-{
-	PRINTLOG(PRINT_DEBUG, "In call_three() in pong interface, client:%u\n", cos_inv_token());
-	return;
-}
-
-void
-call_four(void)
-{
-	PRINTLOG(PRINT_DEBUG, "In call_four() in pong interface, client:%u\n", cos_inv_token());
-	return;
-}
-
-void
+int
 call_arg(int p1)
 {
-	PRINTLOG(PRINT_DEBUG, "In call_arg() in pong interface, client:%u. arg: %d\n", cos_inv_token(), p1);
-	return;
+	return p1;
 }
 
-void
-call_args(int p1, int p2, int p3)
+int
+call_args(int p1, int p2, int p3, int p4)
 {
-	PRINTLOG(PRINT_DEBUG, "In call_args() in pong interface, client:%u. args: p1:%d p2:%d p3:%d\n", cos_inv_token(), p1, p2, p3);
-	return;
+	return p1 + p2 + p3 + p4;
 }
 
-void
-call_3rets(int *r2, int *r3, int p1, int p2, int p3)
+int
+call_argsrets(int p0, int p1, int p2, int p3, int *r0, int *r1)
 {
-	PRINTLOG(PRINT_DEBUG, "In call_3rets() in pong interface, client:%u. args: p1:%d p2:%d p3:%d\n", cos_inv_token(), p1, p2, p3);
-	*r2 = p1 + p2 + p3;
-	*r3 = p1 - p2 - p3;
-	return;
+	*r0 = p0;
+	*r1 = p1;
+
+	return p2;
 }
 
-void
-cos_init(void)
+int
+call_subset(unsigned long p0, unsigned long p1, unsigned long *r0)
 {
-	int ret;
-
-	PRINTLOG(PRINT_DEBUG, "Welcome to the pong component\n");
-
-	hypercall_comp_init_done();
-
-	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
-	assert(0);
+	*r0 = p0 + p1;
+	return -p0 - p1;
 }
+
+thdid_t
+call_ids(compid_t *client, compid_t *serv)
+{
+	*client = (compid_t)cos_inv_token();
+	*serv   = cos_compid();
+
+	return cos_thdid();
+}
+
+/* test a cos_init that doesn't exist */

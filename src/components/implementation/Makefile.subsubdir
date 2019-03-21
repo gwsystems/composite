@@ -75,8 +75,8 @@ COMP_IFDEPS_CLEAN=$(strip $(subst ", ,$(COMP_IFDEPS))) #"
 COMP_LIBDEPS_CLEAN=$(strip $(subst ", ,$(COMP_LIBDEPS))) #"
 
 # The actual lists of objects to be compiled with the components...
-COMP_EXPIF_OBJS=$(foreach I,$(COMP_INTERFACES_CLEAN),$(INTERDIR)/$(I)/s_stub.o)
-COMP_DEP_OBJS=$(foreach D,$(COMP_IFDEPS_CLEAN),$(INTERDIR)/$(D)/c_stub.o)
+COMP_EXPIF_OBJS=$(foreach I,$(COMP_INTERFACES_CLEAN),$(INTERDIR)/$(I)/cosrt_s_stub.o)
+COMP_DEP_OBJS=$(foreach D,$(COMP_IFDEPS_CLEAN),$(INTERDIR)/$(D)/cosrt_c_stub.o)
 
 # NOTE: we're currently ignoring the libraries, which will break if an
 # interface's code requires a library

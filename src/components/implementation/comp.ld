@@ -51,10 +51,9 @@ SECTIONS
 	.data : {
 	      *(.data*);
 	      *(.ucap*);
+	      *(.initonce*);
+	      *(.initfile*);
 	}
-	.initonce : { *(.initonce*) }
-	.initfile : { *(.initfile*) }
-
 	.bss : { *(.bss*) }
 
 	__crt_static_heap_ptr = .;

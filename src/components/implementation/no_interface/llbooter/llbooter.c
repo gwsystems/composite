@@ -18,8 +18,9 @@
 typedef enum {
 	CRT_COMP_SCHED       = 1, 	/* is this a scheduler? */
 	CRT_COMP_DELEG       = 1<<1,	/* does this component require delegating management capabilities to it? */
-	CRT_COMP_DERIVED     = 1<<2, 	/* derived from another component */
-	CRT_COMP_SCHED_DELEG = 1<<4,	/* is the system thread initialization delegated to this component? */
+	CRT_COMP_SCHED_DELEG = 1<<2,	/* is the system thread initialization delegated to this component? */
+	CRT_COMP_DERIVED     = 1<<4, 	/* derived/forked from another component */
+	CRT_COMP_INITIALIZE  = 1<<8,	/* The current component should initialize this component... */
 } crt_comp_flags_t;
 
 struct crt_comp {
@@ -32,15 +33,6 @@ struct crt_comp {
 	struct elf_hdr *elf_hdr;
 	struct cos_defcompinfo comp_res;
 };
-
-void
-crt_comp_init(struct crt_comp *comp, char *name, compid_t id)
-{
-	*comp = (struct crt_comp) {
-		.name = name,
-		.id   = id,
-	};
-}
 
 /*
  * Create the component from the elf object including all the resource
@@ -55,17 +47,20 @@ crt_comp_init(struct crt_comp *comp, char *name, compid_t id)
  * of memory allocation.
  */
 int
-crt_comp_construct(struct crt_comp *c, char *name, compid_t id, struct elf_hdr *elf_hdr)
+crt_comp_create(struct crt_comp *c, char *name, compid_t id, struct elf_hdr *elf_hdr)
 {
 	size_t  ro_sz,   rw_sz, data_sz, bss_sz, tot_sz;
 	char   *ro_src, *data_src, *mem;
 	int     ret;
 	struct cos_compinfo *ci, *root_ci;
 
-	c->name       = name;
-	c->id         = id;
-	c->elf_hdr    = elf_hdr;
-	c->entry_addr = elf_entry_addr(elf_hdr);
+	*c = (struct crt_comp) {
+		.name       = name,
+		.id         = id,
+		.elf_hdr    = elf_hdr,
+		.entry_addr = elf_entry_addr(elf_hdr)
+	};
+	assert(c->entry_addr != 0);
 
 	ci            = cos_compinfo_get(&c->comp_res);
 	root_ci       = cos_compinfo_get(cos_defcompinfo_curr_get());
@@ -101,10 +96,17 @@ struct crt_sinv {
 	sinvcap_t sinv_cap;
 };
 
-void
-crt_sinv_init(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client,
-	      vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr)
+int
+crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client,
+		vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr)
 {
+	struct cos_compinfo *cli = cos_compinfo_get(&client->comp_res);
+	struct cos_compinfo *srv = cos_compinfo_get(&server->comp_res);
+	unsigned int ucap_off;
+	struct usr_inv_cap *ucap;
+
+	assert(cli && cli->memsrc && srv && srv->memsrc && srv->comp_cap);
+
 	*sinv = (struct crt_sinv) {
 		.name        = name,
 		.server      = server,
@@ -114,23 +116,11 @@ crt_sinv_init(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct
 		.s_fn_addr   = s_fn_addr
 	};
 
-	return;
-}
-
-int
-crt_sinv_construct(struct crt_sinv *sinv)
-{
-	struct cos_compinfo *cli = cos_compinfo_get(&sinv->client->comp_res);
-	struct cos_compinfo *srv = cos_compinfo_get(&sinv->server->comp_res);
-	unsigned int ucap_off;
-	struct usr_inv_cap *ucap;
-
-	assert(cli && cli->memsrc && srv && srv->memsrc && srv->comp_cap);
-
 	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, sinv->client->id);
 	assert(sinv->sinv_cap);
 
 	/* poor-mans virtual address translation from client VAS -> our ptrs */
+	assert(sinv->c_ucap_addr - sinv->client->ro_addr > 0);
 	ucap_off = sinv->c_ucap_addr - sinv->client->ro_addr;
 	ucap = (struct usr_inv_cap *)(sinv->client->mem + ucap_off);
 	*ucap = (struct usr_inv_cap) {
@@ -142,6 +132,40 @@ crt_sinv_construct(struct crt_sinv *sinv)
 	return 0;
 }
 
+/*
+ * Create a new thread in the component @c in response to a request
+ * to create the thread from that component (thus passing in the
+ * requested @closure_id.
+ */
+int
+crt_thd_request_create(struct crt_comp *c, thdclosure_index_t closure_id)
+{
+	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *target_ci = cos_compinfo_get(&c->comp_res);
+	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
+	thdcap_t thdcap;
+
+	if (c->flags & CRT_COMP_SCHED) {
+		/* TODO: if c->flags & CRT_COMP_SCHED, create the whole rcv/tcap apparatus */
+		assert(0);
+	} else {
+		assert(target_ci->comp_cap);
+		thdcap = cos_initthd_alloc(cos_compinfo_get(defci), target_ci->comp_cap);
+		sched_aep->thd = thdcap;
+		assert(thdcap);
+	}
+
+	return thdcap;
+}
+
+/*
+ * Create the initial boot thread in the given component.
+ */
+static inline int
+crt_thd_init_create(struct crt_comp *c)
+{
+	return crt_thd_request_create(c, 0);
+}
 
 /* Booter's additive information about the component */
 struct boot_comp {
@@ -166,6 +190,7 @@ comps_init(void)
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct crt_comp *comp;
 		struct elf_hdr  *elf;
+		struct cos_aep_info *aepi;
 		int   keylen;
 		int   idx  = atoi(args_key(&curr, &keylen));
 		char *name = args_value(&curr);
@@ -179,11 +204,14 @@ comps_init(void)
 		strncat(path, name, INITARGS_MAX_PATHNAME - len);
 
 		comp = &boot_comps[idx-1].comp; /* there is no component id 0 */
-		if (crt_comp_construct(comp, name, idx, (struct elf_hdr *)args_get(path))) {
+		if (crt_comp_create(comp, name, idx, (struct elf_hdr *)args_get(path))) {
 			printc("Error constructing the resource tables and image of component %s.\n", comp->name);
 			BUG();
 		}
 		assert(cos_compinfo_get(&comp->comp_res)->comp_cap);
+
+		aepi      = &comp->comp_res.sched_aep;
+		aepi->thd = crt_thd_init_create(comp);
 	}
 
 	ret = args_get_entry("sinvs", &comps);
@@ -199,17 +227,15 @@ comps_init(void)
 		sinv = &boot_sinvs[sinv_idx];
 		sinv_idx++;	/* bump pointer allocation */
 
-		crt_sinv_init(sinv, args_get_from("name", &curr), &boot_comps[serv_idx - 1].comp, &boot_comps[cli_idx - 1].comp,
-			      strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
-			      strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+		crt_sinv_create(sinv, args_get_from("name", &curr), &boot_comps[serv_idx - 1].comp, &boot_comps[cli_idx - 1].comp,
+				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
+				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
 
 		printc("\t%s (%d->%d):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
-
-		crt_sinv_construct(sinv);
 	}
 
-	printc("DONE!\n");
+	printc("Kernel resources created, booting components!\n");
 
 	return;
 }
@@ -221,6 +247,23 @@ booter_init(void)
 
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
+
+	cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+}
+
+void
+execute(void)
+{
+	struct crt_comp *comp;
+
+	comp = &boot_comps[1].comp;
+
+	if (cos_defswitch(comp->comp_res.sched_aep.thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) {
+		BUG();
+	}
+	printc("WTF\n");
+
+	return;
 }
 
 void
@@ -228,6 +271,7 @@ cos_init(void)
 {
 	booter_init();
 	comps_init();
+	execute();
 
 	while (1) ;
 }

@@ -48,8 +48,7 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 }
 
 static inline int
-call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
-			 unsigned long *r1, unsigned long *r2, unsigned long *r3)
+call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *r1, word_t *r2, word_t *r3)
 {
 	long fault = 0;
 	int  ret;
@@ -78,12 +77,11 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int a
 	return ret;
 }
 
-static inline int
-call_cap_2retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
-			 unsigned long *r1, unsigned long *r2)
+static inline word_t
+call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *r1, word_t *r2)
 {
-	long fault = 0;
-	int  ret;
+	long   fault = 0;
+	word_t ret;
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
@@ -189,7 +187,7 @@ cos_inv_token(void)
 
 typedef u16_t cos_thdid_t;
 
-static cos_thdid_t
+static thdid_t
 cos_thdid(void)
 {
 	return cos_get_thd_id();
@@ -205,6 +203,12 @@ static inline long
 cos_spd_id(void)
 {
 	return __cosrt_comp_info.cos_this_spd_id;
+}
+
+static inline compid_t
+cos_compid(void)
+{
+	return cos_spd_id();
 }
 
 static inline void *

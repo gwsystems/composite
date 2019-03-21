@@ -8,8 +8,8 @@ include Makefile.src Makefile.comp
 
 # These are the final outputs that might be derived from multiple .c
 # and .S files.
-SERVER_STUB=s_stub.o
-CLIENT_STUB=c_stub.o
+SERVER_STUB=cosrt_s_stub.o
+CLIENT_STUB=cosrt_c_stub.o
 
 # convert stubs.S into separate client and server objects.
 SSTUB_FILE=stubs.S
@@ -17,19 +17,18 @@ S_SSTUB_OBJ=s_sstub.o
 # WARNING: do no change this without changing mkimg
 C_UCAP_STUB_OBJ=c_ucap_stub.o
 
-
 # .c stub files
-S_CSTUBS=$(wildcard */s_*.c)
-S_STUB_OBJS=$(strip $(S_CSTUBS:%.c=%.o))
-C_CSTUBS=$(wildcard */c_*.c)
-C_STUB_OBJS=$(strip $(C_CSTUBS:%.c=%.o))
+S_CSTUBS=$(wildcard s_*.c)
+S_CSTUB_OBJS=$(strip $(S_CSTUBS:%.c=%.o))
+C_CSTUBS=$(wildcard c_*.c)
+C_CSTUB_OBJS=$(strip $(C_CSTUBS:%.c=%.o))
 
 # This is the current interface variant we're compiling (stubs are default)
 IFPATH=$(subst /, ,$(shell pwd))
 VARIANTNAME=$(lastword $(IFPATH))
 IFNAME=$(word $(shell echo $(words $(IFPATH))-1 | bc), $(IFPATH))
 DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
-INCLUDE=-I.. $(DEP_INC) $(CINC)
+CFLAGS +=-I.. $(DEP_INC)
 
 .PHONY: all
 all: print $(SERVER_STUB) $(CLIENT_STUB)
@@ -51,10 +50,10 @@ $(C_UCAP_STUB_OBJ):$(SSTUB_FILE)
 
 # Note: these cannot be static libraries as the symbols aren't
 # referenced in the component
-$(SERVER_STUB): $(S_SSTUB_OBJ) $(S_STUB_OBJS)
+$(SERVER_STUB): $(S_SSTUB_OBJ) $(S_CSTUB_OBJS)
 	@$(LD) $(LDFLAGS) -r -o $@ $^
 
-$(CLIENT_STUB): $(C_STUB_OBJS) $(C_UCAP_STUB_OBJ)
+$(CLIENT_STUB): $(C_CSTUB_OBJS) $(C_UCAP_STUB_OBJ)
 	@$(LD) $(LDFLAGS) -r -o $@ $^
 
 clean:

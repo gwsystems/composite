@@ -1,34 +1,43 @@
 #include <cos_kernel_api.h>
-#include <pong.h>
 #include <cos_types.h>
-#include <cobj_format.h>
-#include <hypercall.h>
+
+#include <pong.h>
+#include <ps.h>
+
+#define ITER 1024
 
 void cos_init(void)
 {
-	int r1 = 0, r2 = 0;
-	int a = 1, b = 2, c = 3;
+	int r0 = 0, r1 = 0;
+	unsigned long r3 = 0;
+	compid_t us, them;
+	thdid_t tid;
+	int i;
+	ps_tsc_t begin, end;
 
-	PRINTLOG(PRINT_DEBUG, "Welcome to the ping component\n");
-
-	PRINTLOG(PRINT_DEBUG, "Invoking pong interface:\n");
 	call();
-	call_two();
-	call_three();
-	call_four();
+	assert(call_ret() == 42);
+	assert(call_arg(1024) == 1024);
+	assert(call_args(1, 2, 3, 4) == 10);
+	assert(call_argsrets(4, 3, 2, 1, &r0, &r1) == 2);
+	assert(r0 == 4 && r1 == 3);
+	assert(call_subset(8, 16, &r3) == -24 && r3 == 24);
+	tid = call_ids(&us, &them);
+	//assert(cos_thdid() == tid && us != them && us == cos_compid());
 
-	PRINTLOG(PRINT_DEBUG, "Invoking pong interface w/ arguments:\n");
-	call_arg(a);
-	call_args(a, b, c);
+	begin = ps_tsc();
+	for (i = 0; i < ITER; i++) {
+		call();
+	}
+	end = ps_tsc();
+	printc("Fast-path invocation: %llu cycles\n", (end - begin)/ITER);
 
-	PRINTLOG(PRINT_DEBUG, "Invoking pong interface w/ multiple-rets:\n");
-	call_3rets(&r1, &r2, a, b, c);
-	PRINTLOG(PRINT_DEBUG, "Returns=> r1: %d, r2: %d\n", r1, r2);
-	assert(r1 == (a + b + c));
-	assert(r2 == (a - b - c));
+	begin = ps_tsc();
+	for (i = 0; i < ITER; i++) {
+		call_argsrets(0, 0, 0, 0, &r0, &r1);
+	}
+	end = ps_tsc();
+	printc("Three return value invocation: %llu cycles\n", (end - begin)/ITER);
 
-	hypercall_comp_init_done();
-
-	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
-	assert(0);
+	BUG();
 }

@@ -28,8 +28,9 @@ __cosrt_s_##name:				\
 	xor %ebp, %ebp;				\
 	pushl %edi;				\
 	pushl %esi;				\
+	pushl %ebx;				\
 	call name ;				\
-	addl $16, %esp;				\
+ 	/* addl $16, %esp; */			\
 	movl %eax, %ecx;			\
 	movl $RET_CAP, %eax;			\
 	COS_ASM_RET_STACK			\
@@ -38,30 +39,30 @@ __cosrt_s_##name:				\
 
 /*
  * This stub enables three return values (%ecx, %esi, %edi), AND
- * requires that you provide a separate stub function (fn) written in
- * C to choose the calling convention you'd like.
+ * requires that you provide separate stub functions that are
+ * indirectly activated and are written in C (in c_stub.c and s_stub.c
+ * using cos_stubs.h) to choose the calling convention you'd like.
  */
-#define cos_asm_stub_fn(name, fn)		\
+#define cos_asm_stub_indirect(name)		\
 .globl __cosrt_s_##name;			\
 .type  __cosrt_s_##name, @function ;		\
 .align 16 ;					\
 __cosrt_s_##name:				\
-	COS_ASM_GET_STACK_INVTOKEN		\
+        COS_ASM_GET_STACK                       \
 	pushl $0;				\
+	movl  %esp, %ecx;			\
 	pushl $0;				\
+	pushl %esp;				\
+	pushl %ecx;				\
 	pushl %ebp;				\
 	xor %ebp, %ebp;				\
 	pushl %edi;				\
 	pushl %esi;				\
-	movl %esp, %ecx;			\
-	addl $20, %ecx;				\
-	pushl %ecx;				\
-	subl $4, %ecx;				\
-	pushl %ecx;				\
-	call fn ;				\
+	pushl %ebx;				\
+	call __cosrt_s_cstub_##name ;		\
 	addl $24, %esp;				\
-	popl %esi;				\
 	popl %edi;				\
+	popl %esi;				\
 						\
 	movl %eax, %ecx;			\
 	movl $RET_CAP, %eax;			\
@@ -118,7 +119,7 @@ __cosrt_ucap_##name:                           \
         .endr ;				       \
 .text /* start out in the text segment, and always return there */
 
-#define cos_asm_stub_fn(name, fn) cos_asm_stub(name)
+#define cos_asm_stub_indirect(name) cos_asm_stub(name)
 #endif
 
 .text

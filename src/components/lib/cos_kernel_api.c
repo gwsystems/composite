@@ -677,9 +677,15 @@ cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 }
 
 int
-cos_sinv_rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret2, word_t *ret3)
+cos_sinv_rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2, word_t *ret3)
 {
-	return call_cap_2retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret2, ret3);
+	return call_cap_retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret1, ret2, ret3);
+}
+
+int
+cos_sinv_2rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2)
+{
+	return call_cap_2retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret1, ret2);
 }
 
 /*
