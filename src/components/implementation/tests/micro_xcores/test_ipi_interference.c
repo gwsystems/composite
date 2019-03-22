@@ -24,7 +24,6 @@ static volatile thdcap_t  spinner_thd[NUM_CPU] = { 0 };
 static volatile cycles_t  global_time[2] = { 0 };
 
 static volatile int       done_test = 0;
-static volatile int       done_measurement = 0;
 static volatile int       test_start = 0;
 static volatile int       ret_enable = 1;
 static volatile int       pending_rcv = 0;
@@ -121,21 +120,20 @@ rcv_spinner(void *d)
 
     perfdata_init(&pd[cos_cpuid()], "Test IPI Interrupt");
 
-    done_measurement = 0;
-    test_start = 1;
-
     rdtscll(now);
+    test_start = 1;
     prev = now;
 
     for(i = 0; i < TEST_IPI_ITERS; ) {
         rdtscll(now);
-          if((now - prev) > 300){
+          if((now - prev) > 700){
               perfdata_add(&pd[cos_cpuid()], (now - prev));
               i++;
           }
           prev = now;
     }
     done_test = 1;
+
     perfdata_calc(&pd[cos_cpuid()]);
     PRINTC("Test IPI Interrupt:\t INTERRUPT AVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
             perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]),
@@ -159,9 +157,7 @@ test_asnd_fn(void *d)
     while(!test_start) ;
 
     while(!done_test){
-//        for ( iters = 0; iters < 50; iters ++){
-            test_asnd(s);
-//        }
+        test_asnd(s);
         rdtscll(now);
         prev = now;
         while(total_wait_time <= 10000){
