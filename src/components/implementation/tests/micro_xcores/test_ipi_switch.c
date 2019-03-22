@@ -81,6 +81,8 @@ test_rcv_1(arcvcap_t r)
 
     pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
     rdtscll(global_time[1]);
+    time = (global_time[1] - global_time[0]);
+    perfdata_add(&pd, time);
 
     assert(pending == 0);
 
@@ -114,7 +116,7 @@ test_asnd_fn(void *d)
         test_asnd(s);
         while(global_time[1] > global_time[0]);
         test_rcv(r);
-        perfdata_add(&pd, time);
+    //    perfdata_add(&pd, time);
     }
 
     perfdata_calc(&pd);
