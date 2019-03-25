@@ -120,11 +120,11 @@ test_asnd_fn(void *d)
 
     perfdata_calc(&pd);
 
-    PRINTC("Test IPI Switch\t\t AVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
+    PRINTC("Test IPI INTERRUPT W Switch:\t AVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
             perfdata_avg(&pd), perfdata_max(&pd),
             perfdata_min(&pd), perfdata_sz(&pd));
 
-    printc("\t\t\t\t SD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
+    printc("\t\t\t\t\t SD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
             perfdata_sd(&pd),perfdata_90ptile(&pd),
             perfdata_95ptile(&pd), perfdata_99ptile(&pd));
 

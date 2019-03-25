@@ -42,8 +42,8 @@ cos_init(void)
 
     // IPI TESTS
     test_ipi_switch();
-    test_ipi_roundtrip();
     test_ipi_interference();
+    test_ipi_roundtrip();
 
     // IPI N to N
     //test_ipi_full();
