@@ -102,7 +102,6 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 
 	aep->thd = capmgr_thd_create(fn, data, &tid, &dcb);
 	if (!aep->thd) goto done;
-	PRINTC("%s:%d %u %p\n", __func__, __LINE__, aep->tid, dcb);
 	aep->tid = tid;
 	assert(tid && dcb);
 
