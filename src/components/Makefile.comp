@@ -44,8 +44,8 @@ OPT= -g -fvar-tracking
 OPT= -O3
 CFLAGS=-m32 -D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable $(INC_PATH) $(MUSLINC) $(LWIPINC) $(LUAINC) $(OPT) $(SHARED_FLAGS)
 CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
-LDFLAGS=-melf_i386
-MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r
+LDFLAGS=-melf_i386 -no-pie
+MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r -no-pie
 ASFLAGS=-m32 $(INC_PATH) $(SHARED_FLAGS)
 
 SERVER_STUB=s_stub.o
