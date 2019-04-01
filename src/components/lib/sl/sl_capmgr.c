@@ -102,6 +102,7 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 
 	aep->thd = capmgr_thd_create(fn, data, &tid, &dcb);
 	if (!aep->thd) goto done;
+	PRINTC("%s:%d %u %p\n", __func__, __LINE__, aep->tid, dcb);
 	aep->tid = tid;
 	assert(tid && dcb);
 
@@ -366,15 +367,14 @@ sl_thd_init_ext(struct cos_aep_info *aepthd, struct sl_thd *sched)
 }
 
 struct sl_thd *
-sl_thd_retrieve(thdid_t tid)
+sl_thd_retrieve_lazy(thdid_t tid)
 {
-	struct sl_thd       *t      = sl_mod_thd_get(sl_thd_lookup_backend(tid));
+	struct sl_thd       *t;
 	spdid_t              client = cos_inv_token();
 	thdid_t              itid   = 0;
 	struct sl_thd       *it     = NULL;
 	struct cos_aep_info  aep;
 
-	if (t && sl_thd_aepinfo(t)) return t;
 	if (tid >= SL_MAX_NUM_THDS) return NULL;
 	assert(client);
 

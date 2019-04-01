@@ -27,40 +27,40 @@ extern void sl_xcpu_asnd_alloc(void);
  * critical section (cs) code to save on code size/locality
  */
 int
-sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdcap_t curr, sched_tok_t tok)
+sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, struct sl_global_cpu *gcpu, struct sl_thd *curr, sched_tok_t tok)
 {
-	struct sl_thd        *t = sl_thd_curr();
-	struct sl_global_cpu *g = sl__globals_cpu();
+#ifdef SL_CS
 	int ret;
 
 	/* recursive locks are not allowed */
-	assert(csi->s.owner != sl_thd_thdcap(t));
+	assert(csi->s.owner != sl_thd_thdcap(curr));
 	if (!csi->s.contention) {
 		csi->s.contention = 1;
-		if (!ps_cas(&g->lock.u.v, cached->v, csi->v)) return 1;
+		if (!ps_upcas(&gcpu->lock.u.v, cached->v, csi->v)) return 1;
 	}
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	if ((ret = cos_defswitch(csi->s.owner, t->prio, csi->s.owner == sl_thd_thdcap(g->sched_thd) ?
-				 TCAP_TIME_NIL : g->timeout_next, tok))) return ret;
+	if ((ret = cos_defswitch(csi->s.owner, curr->prio, csi->s.owner == sl_thd_thdcap(gcpu->sched_thd) ?
+				 TCAP_TIME_NIL : gcpu->timeout_next, tok))) return ret;
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
+#endif
 
 	return 1;
 }
 
 /* Return 1 if we need a retry, 0 otherwise */
 int
-sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, sched_tok_t tok)
+sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, struct sl_global_cpu *gcpu, sched_tok_t tok)
 {
-	struct sl_thd        *t = sl_thd_curr();
-	struct sl_global_cpu *g = sl__globals_cpu();
-
-	if (!ps_cas(&g->lock.u.v, cached->v, 0)) return 1;
+#ifdef SL_CS
+	if (!ps_upcas(&gcpu->lock.u.v, cached->v, 0)) return 1;
 	/* let the scheduler thread decide which thread to run next, inheriting our budget/priority */
-	cos_defswitch(g->sched_thdcap, t->prio, TCAP_TIME_NIL, tok);
+	cos_defswitch(gcpu->sched_thdcap, sl_thd_curr()->prio, TCAP_TIME_NIL, tok);
+#endif
 
 	return 0;
 }
 
+#ifdef SL_TIMEOUTS
 /* Timeout and wakeup functionality */
 /*
  * TODO:
@@ -110,27 +110,6 @@ sl_timeout_remove(struct sl_thd *t)
 	t->timeout_idx = -1;
 }
 
-void
-sl_thd_free_no_cs(struct sl_thd *t)
-{
-        struct sl_thd *ct = sl_thd_curr();
-
-        assert(t);
-        assert(t->state != SL_THD_FREE);
-        if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
-        sl_thd_index_rem_backend(sl_mod_thd_policy_get(t));
-        sl_mod_thd_delete(sl_mod_thd_policy_get(t));
-        t->state = SL_THD_FREE;
-        /* TODO: add logic for the graveyard to delay this deallocation if t == current */
-        sl_thd_free_backend(sl_mod_thd_policy_get(t));
-
-        /* thread should not continue to run if it deletes itself. */
-        if (unlikely(t == ct)) {
-                while (1) sl_cs_exit_schedule();
-                /* FIXME: should never get here, but tcap mechanism can let a child scheduler run! */
-        }
-}
-
 static int
 __sl_timeout_compare_min(void *a, void *b)
 {
@@ -151,7 +130,46 @@ sl_timeout_init(microsec_t period)
 	memset(&timeout_heap[cos_cpuid()], 0, sizeof(struct timeout_heap));
 	heap_init(sl_timeout_heap(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
 }
+#else
+static inline void
+sl_timeout_remove(struct sl_thd *t)
+{ }
 
+static inline void
+sl_timeout_block(struct sl_thd *t, cycles_t timeout)
+{ }
+
+static void
+sl_timeout_init(microsec_t period)
+{
+	assert(period >= SL_MIN_PERIOD_US);
+
+	sl_timeout_period(period);
+}
+#endif
+
+void
+sl_thd_free_no_cs(struct sl_thd *t)
+{
+        struct sl_thd *ct = sl_thd_curr();
+
+        assert(t);
+        assert(t->state != SL_THD_FREE);
+        if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
+        sl_thd_index_rem_backend(sl_mod_thd_policy_get(t));
+        sl_mod_thd_delete(sl_mod_thd_policy_get(t));
+        t->state = SL_THD_FREE;
+        /* TODO: add logic for the graveyard to delay this deallocation if t == current */
+        sl_thd_free_backend(sl_mod_thd_policy_get(t));
+
+        /* thread should not continue to run if it deletes itself. */
+        if (unlikely(t == ct)) {
+                while (1) {
+			sl_cs_exit_schedule();
+		}
+                /* FIXME: should never get here, but tcap mechanism can let a child scheduler run! */
+        }
+}
 /*
  * This API is only used by the scheduling thread to block an AEP thread.
  * AEP thread scheduling events could be redundant.
@@ -431,17 +449,17 @@ done:
 	return;
 }
 
-void
-sl_thd_yield_cs_exit(thdid_t tid)
+static inline void
+sl_thd_yield_cs_exit_intern(thdid_t tid)
 {
 	struct sl_thd *t = sl_thd_curr();
 
 	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
-	sl_thd_sched_unblock_no_cs(t);
-	if (tid) {
+	//sl_thd_sched_unblock_no_cs(t);
+	if (likely(tid)) {
 		struct sl_thd *to = sl_thd_lkup(tid);
 
-		assert(to);
+		//assert(to);
 		sl_cs_exit_switchto(to);
 	} else {
 		sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
@@ -449,11 +467,18 @@ sl_thd_yield_cs_exit(thdid_t tid)
 	}
 }
 
+
 void
-sl_thd_yield(thdid_t tid)
+sl_thd_yield_cs_exit(thdid_t tid)
+{
+	sl_thd_yield_cs_exit_intern(tid);
+}
+
+void
+sl_thd_yield_intern(thdid_t tid)
 {
 	sl_cs_enter();
-	sl_thd_yield_cs_exit(tid);
+	sl_thd_yield_cs_exit_intern(tid);
 }
 
 void
@@ -527,7 +552,9 @@ sl_timeout_period(microsec_t period)
 	cycles_t p = sl_usec2cyc(period);
 
 	sl__globals_cpu()->period = p;
+#ifdef SL_TIMEOUTS
 	sl_timeout_relative(p);
+#endif
 }
 
 /* engage space heater mode */
@@ -686,7 +713,6 @@ pending_events:
 
 			/* process notifications from the parent of my threads */
 			while (sl_child_notif_dequeue(&notif)) {
-				PRINTC("NOTIF FROM PARENT FOR %d\n", notif.tid);
 				struct sl_thd *t = sl_thd_lkup(notif.tid);
 
 				if (notif.type == SL_CHILD_THD_BLOCK) sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0);
@@ -720,6 +746,7 @@ sl_sched_loop_nonblock(void)
 int
 sl_thd_kern_dispatch(thdcap_t t)
 {
+	PRINTC("K");
 	//return cos_switch(t, sl__globals_cpu()->sched_tcap, 0, sl__globals_cpu()->timeout_next, sl__globals_cpu()->sched_rcv, cos_sched_sync());
 	return cos_thd_switch(t);
 }

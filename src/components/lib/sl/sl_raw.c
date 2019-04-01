@@ -348,9 +348,11 @@ done:
 }
 
 struct sl_thd *
-sl_thd_retrieve(thdid_t tid)
+sl_thd_retrieve_lazy(thdid_t tid)
 {
-	return sl_mod_thd_get(sl_thd_lookup_backend(tid));
+	/* without capmgr, there is no lazy retrieval of threads! */
+	assert(0);
+	return NULL;
 }
 
 void

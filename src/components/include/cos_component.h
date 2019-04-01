@@ -81,7 +81,7 @@ static inline int
 call_cap_2retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
 			 unsigned long *r1, unsigned long *r2)
 {
-	long fault = 0;
+	long fault = 0, ret2, ret3;
 	int  ret;
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
@@ -101,9 +101,12 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int 
 	                     "movl $1, %%ecx\n\t"	\
 	                     "3:\n\t"			\
 	                     "popl %%ebp\n\t"		\
-	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2)
+	                     : "=a"(ret), "=c"(fault), "=S"(ret2), "=D"(ret3)
 	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
 	                     : "memory", "cc");
+
+	*r1 = ret2;
+	*r2 = ret3;
 
 	return ret;
 }
@@ -138,9 +141,8 @@ extern struct cos_component_information cos_comp_info;
 static inline long
 get_stk_data(int offset)
 {
-	unsigned long curr_stk_pointer;
+	unsigned long curr_stk_pointer = 0;
 
-	__asm__("movl %%esp, %0;" : "=r"(curr_stk_pointer));
 	/*
 	 * We save the CPU_ID and thread id in the stack for fast
 	 * access.  We want to find the struct cos_stk (see the stkmgr
@@ -148,7 +150,15 @@ get_stk_data(int offset)
 	 * cpu_id.  This struct is at the _top_ of the current stack,
 	 * and cpu_id is at the top of the struct (it is a u32_t).
 	 */
-	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + COS_STACK_SZ - offset * sizeof(u32_t));
+	return *(long *)((((unsigned long)(&curr_stk_pointer)) & ~(COS_STACK_SZ - 1)) + COS_STACK_SZ - offset * sizeof(u32_t));
+}
+
+static inline void
+set_stk_data(int offset, long val)
+{
+	unsigned long curr_stk_pointer = 0;
+
+	*(long *)((((unsigned long)&curr_stk_pointer) & ~(COS_STACK_SZ - 1)) + COS_STACK_SZ - offset * sizeof(u32_t)) = val;
 }
 
 #define GET_CURR_CPU cos_cpuid()
@@ -186,6 +196,18 @@ static cos_thdid_t
 cos_thdid(void)
 {
 	return cos_get_thd_id();
+}
+
+static void *
+cos_get_slthd_ptr(void)
+{
+	return (void *)get_stk_data(SLTHDPTR_OFFSET);
+}
+
+static void
+cos_set_slthd_ptr(void *ptr)
+{
+	set_stk_data(SLTHDPTR_OFFSET, (long)ptr);
 }
 
 #define ERR_THROW(errval, label) \

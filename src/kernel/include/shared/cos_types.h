@@ -429,11 +429,13 @@ struct cos_scb_info {
 	capid_t     curr_thd;
 	cycles_t    timer_next;
 	sched_tok_t sched_tok;
+	int         reserved_debugging;
 } CACHE_ALIGNED;
 
 struct cos_dcb_info {
 	unsigned long ip;
 	unsigned long sp;
+	int           reserved_debugging;
 } __attribute__((packed));
 
 /*

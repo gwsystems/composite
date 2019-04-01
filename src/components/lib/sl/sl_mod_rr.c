@@ -17,7 +17,7 @@ sl_mod_schedule(void)
 {
 	struct sl_thd_policy *t = NULL;
 
-	if (ps_list_head_empty(&threads[cos_cpuid()])) goto done;
+	if (unlikely(ps_list_head_empty(&threads[cos_cpuid()]))) goto done;
 	t = ps_list_head_first_d(&threads[cos_cpuid()], struct sl_thd_policy);
 	ps_list_rem_d(t);
 	ps_list_head_append_d(&threads[cos_cpuid()], t);

@@ -101,6 +101,7 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 
 	if (unlikely(!(*ci_ptr)->scb_data)) goto done;
 	scb_core = (((*ci_ptr)->scb_data) + get_cpuid());
+	scb_core->reserved_debugging = 0;
 
 	if (unlikely(interrupt)) {
 		assert(scb_core->sched_tok < ~0U);

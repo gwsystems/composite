@@ -17,35 +17,51 @@ thdcap_t capmgr_thd_retrieve_cserialized(thdid_t *inittid, int *unused, spdid_t 
 thdcap_t
 capmgr_thd_retrieve(spdid_t child, thdid_t tid, thdid_t *inittid)
 {
-	int unused;
+	int r1, r2, r3;
 
-	return capmgr_thd_retrieve_cserialized(inittid, &unused, child, tid);
+	r1 = capmgr_thd_retrieve_cserialized((thdid_t *)&r2, &r3, child, tid);
+	*inittid = r2;
+
+	return r1;
 }
 
 thdcap_t
 capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid)
 {
-	int unused;
+	int r1, r2, r3;
 
-	return capmgr_thd_retrieve_next_cserialized(tid, &unused, child);
+	r1 = capmgr_thd_retrieve_next_cserialized((thdid_t *)&r2, &r3, child);
+	*tid = r2;
+
+	return r1;
 }
 
 thdcap_t
 capmgr_initthd_create(spdid_t child, thdid_t *tid)
 {
-	int unused;
+	int r1, r2, r3;
 
-	return capmgr_initthd_create_cserialized(tid, &unused, child);
+	r1 = capmgr_initthd_create_cserialized((thdid_t *)&r2, &r3, child);
+	*tid = r2;
+
+	return r1;
 }
 
 thdcap_t
 capmgr_thd_create(cos_thd_fn_t fn, void *data, thdid_t *tid, struct cos_dcb_info **dcb)
 {
+	int r1, r2, r3;
 	thdclosure_index_t idx = cos_thd_init_alloc(fn, data);
 
-	if (idx < 1) return 0;
+	if (unlikely(idx < 1)) return 0;
 
-	return capmgr_thd_create_cserialized(dcb, tid, idx);
+	r1 = capmgr_thd_create_cserialized((struct cos_dcb_info **)&r2, (thdid_t *)&r3, idx);
+	*dcb = (struct cos_dcb_info *)r2;
+	*tid = r3;
+
+	return r1;
+
+	//return capmgr_thd_create_cserialized(dcb, tid, idx);
 }
 
 thdcap_t
