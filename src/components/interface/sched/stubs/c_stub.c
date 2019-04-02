@@ -33,19 +33,18 @@ thdid_t
 sched_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int owntc, cos_channelkey_t key)
 {
 	thdclosure_index_t idx = cos_thd_init_alloc(cos_aepthd_fn, (void *)aep);
-	arcvcap_t rcv;
-	int ret;
+	int ret, ret2;
 	int unused;
 
 	if (idx < 1) return 0;
 
 	memset(aep, 0, sizeof(struct cos_aep_info));
-	ret = sched_aep_create_cserialized(&rcv, &unused, idx, owntc, key);
+	ret = sched_aep_create_cserialized((arcvcap_t *)&ret2, &unused, idx, owntc, key);
 	if (!ret) return 0;
 
 	aep->fn   = fn;
 	aep->data = data;
-	aep->rcv  = rcv;
+	aep->rcv  = ret2;
 	aep->tid  = ret;
 
 	return ret;

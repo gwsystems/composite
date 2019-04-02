@@ -48,7 +48,7 @@ test_thd_perffn(void *data)
 
 	assert(perf_thd == sl_thd_curr());
 	rdtscll(start_cycs);
-	printc("a");
+	//printc("a");
 	sl_thd_yield(yield_to);
 	//ret = sl_thd_dispatch(spin_thd, cos_sched_sync(), perf_thd);
 	//sl_thd_yield_thd_c(perf_thd, spin_thd);
@@ -68,7 +68,7 @@ test_thd_perffn(void *data)
 		cos_rdtscp(start_cycs);
 		//rdtscll(start_cycs);
 		//ret = sl_thd_dispatch(spin_thd, cos_sched_sync(), perf_thd);
-		printc("a");
+		//printc("a");
 		sl_thd_yield(yield_to);
 		//sl_thd_yield_thd_c(perf_thd, spin_thd);
 		//sl_thd_yield_thd(spin_thd);
@@ -109,7 +109,7 @@ test_thd_spinfn(void *data)
 		//rdtscll(mid_cycs);
 		switched = 1;
 		//sl_thd_dispatch(perf_thd, cos_sched_sync(), spin_thd);
-		printc("b");
+		//printc("b");
 		sl_thd_yield(yield_to);
 		//sl_thd_yield_thd_c(spin_thd, perf_thd);
 		//sl_thd_yield_thd(perf_thd);

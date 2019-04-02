@@ -46,6 +46,7 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	return ret;
 }
 
+/* NOTE: make sure the memory locations r1, r2 & r3 are at least word-sized as the register stores are word-sized! */
 static inline int
 call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
 			 unsigned long *r1, unsigned long *r2, unsigned long *r3)
@@ -77,11 +78,12 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int a
 	return ret;
 }
 
+/* NOTE: make sure the memory locations r1 & r2 are at least word-sized as the register stores are word-sized! */
 static inline int
 call_cap_2retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
 			 unsigned long *r1, unsigned long *r2)
 {
-	long fault = 0, ret2, ret3;
+	long fault = 0;
 	int  ret;
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
@@ -101,12 +103,9 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int 
 	                     "movl $1, %%ecx\n\t"	\
 	                     "3:\n\t"			\
 	                     "popl %%ebp\n\t"		\
-	                     : "=a"(ret), "=c"(fault), "=S"(ret2), "=D"(ret3)
+	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2)
 	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
 	                     : "memory", "cc");
-
-	*r1 = ret2;
-	*r2 = ret3;
 
 	return ret;
 }

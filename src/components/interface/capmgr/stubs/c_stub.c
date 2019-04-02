@@ -60,14 +60,18 @@ capmgr_thd_create(cos_thd_fn_t fn, void *data, thdid_t *tid, struct cos_dcb_info
 	*tid = r3;
 
 	return r1;
-
-	//return capmgr_thd_create_cserialized(dcb, tid, idx);
 }
 
 thdcap_t
 capmgr_thd_create_ext(spdid_t child, thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info **dcb)
 {
-	return capmgr_thd_create_ext_cserialized(dcb, tid, child, idx);
+	int r1, r2, r3;
+
+	r1 = capmgr_thd_create_ext_cserialized((struct cos_dcb_info **)&r2, (thdid_t *)&r3, child, idx);
+	*tid = r3;
+	*dcb = (struct cos_dcb_info *)r2;
+
+	return r1;
 }
 
 thdcap_t
