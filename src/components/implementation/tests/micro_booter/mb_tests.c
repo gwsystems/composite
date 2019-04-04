@@ -186,9 +186,9 @@ test_timer(void)
     int         i, ret;
     cycles_t    s, e;
     thdid_t     tid;
-    int     blocked, rcvd;
+    int         blocked, rcvd;
     cycles_t    cycles, now, utime;
-    long long time, mask;
+    long long   time, mask;
     tcap_time_t timer, thd_timeout;
 
     tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
@@ -215,7 +215,7 @@ test_timer(void)
                             "Timer: failure on MIN")) {
                 return;
             }
-        }   
+        }
         sched_events_clear();
     }
 

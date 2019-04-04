@@ -17,7 +17,7 @@ static void
 spinner(void *d)
 {
     while (1) {
-        rdtscll(side_thd); 
+        rdtscll(side_thd);
         cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
     }
 }
@@ -46,7 +46,7 @@ test_thds_create_switch(void)
     perfdata_calc(&pd[cos_cpuid()]);
 
     PRINTC("\tCOS THD => COS_THD_SWITCH:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-            perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));      
+            perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));
 
     printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
             perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]), perfdata_95ptile(&pd[cos_cpuid()]), perfdata_99ptile(&pd[cos_cpuid()]));
@@ -137,7 +137,7 @@ async_thd_parent_perf(void *thdcap)
 
     PRINTC("\tAsync Endpoints => One Way:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
             perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]),
-            perfdata_sz(&pd[cos_cpuid()]));      
+            perfdata_sz(&pd[cos_cpuid()]));
 
     printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
             perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]), perfdata_95ptile(&pd[cos_cpuid()]),
@@ -200,7 +200,7 @@ test_print_ubench(void)
 
     PRINTC("\tSINV:\t\t\t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
             perfdata_avg(&result_sinv), perfdata_max(&result_sinv), perfdata_min(&result_sinv),
-            perfdata_sz(&result_sinv));      
+            perfdata_sz(&result_sinv));
 
     printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
             perfdata_sd(&result_sinv),perfdata_90ptile(&result_sinv), perfdata_95ptile(&result_sinv),
@@ -210,7 +210,7 @@ test_print_ubench(void)
 
     PRINTC("\tTimer => Timeout Overhead: \t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
             perfdata_avg(&result_test_timer), perfdata_max(&result_test_timer), perfdata_min(&result_test_timer),
-            perfdata_sz(&result_test_timer));      
+            perfdata_sz(&result_test_timer));
 
     printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
             perfdata_sd(&result_test_timer),perfdata_90ptile(&result_test_timer), perfdata_95ptile(&result_test_timer),
@@ -220,7 +220,7 @@ test_print_ubench(void)
 
     PRINTC("\tTimer => Budget based: \t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
             perfdata_avg(&result_budgets_single), perfdata_max(&result_budgets_single), perfdata_min(&result_budgets_single),
-            perfdata_sz(&result_budgets_single));      
+            perfdata_sz(&result_budgets_single));
 
     printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
             perfdata_sd(&result_budgets_single),perfdata_90ptile(&result_budgets_single), perfdata_95ptile(&result_budgets_single),

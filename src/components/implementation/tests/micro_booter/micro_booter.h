@@ -18,7 +18,7 @@
     } while (0)
 
 #define EXIT_FN()                                               \
-        exit_fn: return;                                        
+        exit_fn: return;
 
 #define CHECK_STATUS_FLAG()                                     \
     do {                                                        \
@@ -28,9 +28,9 @@
     } while (0)
 
 #define BUG_DIVZERO()                                           \
-    do {                                                    \
-        debug_print("Testing divide by zero fault @ "); \
-        int i = num / den;                              \
+    do {                                                        \
+        debug_print("Testing divide by zero fault @ ");         \
+        int i = num / den;                                      \
     } while (0);
 
 #include <cos_component.h>
