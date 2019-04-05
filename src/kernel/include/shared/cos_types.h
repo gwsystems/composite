@@ -73,7 +73,6 @@ typedef enum {
 
 typedef enum {
 	RCV_NON_BLOCKING = 1,
-	RCV_ALL_PENDING  = 1 << 1,
 } rcv_flags_t;
 
 #define BOOT_LIVENESS_ID_BASE 2
@@ -425,33 +424,6 @@ struct cos_stack_freelists {
 /* #error "Assembly in <fill in file name here> requires that COMP_INFO_STACK_FREELISTS != 1 ||
  * COMP_INFO_TMEM_STK_RELINQ != 0.  Change the defines, or change the assembly" */
 /* #endif */
-struct cos_scb_info {
-	capid_t     curr_thd;
-	cycles_t    timer_next;
-	sched_tok_t sched_tok;
-	int         reserved_debugging;
-} CACHE_ALIGNED;
-
-struct cos_dcb_info {
-	unsigned long ip;
-	unsigned long sp;
-	int           reserved_debugging;
-} __attribute__((packed));
-
-/*
- * This is the "ip" the kernel uses to update the thread when it sees that the
- * thread is still in user-level dispatch routine.
- * This is the offset of instruction after resetting the "next" thread's "sp" to zero
- * in a purely user-level dispatch.
- *
- * Whenever kernel is switching to a thread which has "sp" non-zero, it would switch
- * to the "ip" saved in the dcb_info and reset the "sp" of the thread that the kernel
- * is dispatching to!
- * This is necessary because, if the kernel is dispatching to a thread that was in the
- * user-level dispatch routine before, then the only registers that it can restore are
- * "ip" and "sp", everything else is either clobbered or saved/loaded at user-level.
- */
-#define DCB_IP_KERN_OFF 8
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;

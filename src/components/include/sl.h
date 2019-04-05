@@ -723,4 +723,99 @@ sl_thd_yield(thdid_t tid)
 	}
 }
 
+/* TODO: where to put this code? */
+static inline int
+__cos_sched_events_present(struct cos_sched_ring *r)
+{
+	PRINTC("%s:%d\n", __func__, __LINE__);
+	return !(r->tail == r->head);
+}
+
+static inline int
+__cos_sched_event_consume(struct cos_sched_ring *r, struct cos_sched_event *e)
+{
+	int f = 0;
+
+	PRINTC("%s:%d\n", __func__, __LINE__);
+	if (!r || !e || !__cos_sched_events_present(r)) return 0;
+	PRINTC("%s:%d\n", __func__, __LINE__);
+
+	f = ps_upfaa((unsigned long *)&r->head, 1);
+
+	memcpy((void *)e, (void *)&(r->event_buf[f]), sizeof(struct cos_sched_event));
+	PRINTC("%s:%d\n", __func__, __LINE__);
+
+	return 1;
+}
+
+static inline int
+sl_sched_rcv_intern(struct cos_sched_event *e, int nonblock)
+{
+	int ret = 0;
+	struct sl_global_cpu *g  = sl__globals_cpu();
+	struct cos_sched_ring *r = &sl_scb_info_cpu()->sched_events;
+
+	PRINTC("%s:%d %p %p %p\n", __func__, __LINE__, g, sl_scb_info_cpu(), r);
+	//memset(e, 0, sizeof(struct cos_sched_event));
+//	if (unlikely(__cos_sched_event_consume(r, e) == 0)) {
+//	PRINTC("%s:%d\n", __func__, __LINE__);
+//		int blocked;
+//		thdid_t tid;
+//		cycles_t cycs;
+//		tcap_time_t timeout;
+//
+//		ret = cos_sched_rcv(g->sched_rcv, nonblock ? RCV_NON_BLOCKING : 0, g->timeout_next,
+//				    &tid, &blocked, &cycs, &timeout);
+//	PRINTC("%s:%d\n", __func__, __LINE__);
+//		if (ret < 0) return ret;
+//
+//	PRINTC("%s:%d\n", __func__, __LINE__);
+//		e->tid = tid;
+//		e->evt.elapsed_cycs = cycs;
+//		e->evt.blocked      = blocked;
+//		e->evt.next_timeout = timeout;
+//	PRINTC("%s:%d\n", __func__, __LINE__);
+//	}
+
+	PRINTC("%s:%d\n", __func__, __LINE__);
+	return __cos_sched_events_present(r);
+}
+
+static inline int
+sl_sched_rcv_nonblock(struct cos_sched_event *e)
+{
+	return sl_sched_rcv_intern(e, 1);
+}
+
+static inline int
+sl_sched_rcv(struct cos_sched_event *e)
+{
+	return sl_sched_rcv_intern(e, 0);
+}
+
+static inline int
+sl_thd_rcv(void)
+{
+	int count = 0;
+	struct sl_thd *t = sl_thd_curr();
+	unsigned long *p = &sl_thd_dcbinfo(t)->pending, q = 0;
+
+check:
+	sl_cs_enter();
+	q = *p;
+	if (q == 0) {
+		count++;
+
+		sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED, 0);
+		sl_cs_exit_switchto(sl__globals_cpu()->sched_thd);
+
+		goto check;
+	}
+
+	ps_upcas(p, q, 0);
+	sl_cs_exit();
+
+	return q;
+}
+
 #endif /* SL_H */

@@ -10,6 +10,7 @@
 
 #include <consts.h>
 #include <cos_types.h>
+#include <cos_sched.h>
 #include <errno.h>
 #include <util.h>
 

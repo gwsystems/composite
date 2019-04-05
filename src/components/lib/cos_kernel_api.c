@@ -933,28 +933,26 @@ cos_asnd(asndcap_t snd, int yield)
 
 int
 cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout,
-	      int *rcvd, thdid_t *thdid, int *blocked, cycles_t *cycles, tcap_time_t *thd_timeout)
+	      thdid_t *thdid, int *blocked, cycles_t *cycles, tcap_time_t *thd_timeout)
 {
 	unsigned long thd_state = 0;
 	unsigned long cyc       = 0;
 	int           ret;
+
+	PRINTC("%s:%d\n", __func__, __LINE__);
 
 	ret = call_cap_retvals_asm(rcv, 0, flags, timeout, 0, 0, &thd_state, &cyc, thd_timeout);
 
 	*blocked = (int)(thd_state >> (sizeof(thd_state) * 8 - 1));
 	*thdid   = (thdid_t)(thd_state & ((1 << (sizeof(thdid_t) * 8)) - 1));
 	*cycles  = cyc;
-
-	if (ret >= 0 && flags & RCV_ALL_PENDING) {
-		*rcvd = (ret >> 1);
-		ret &= 1;
-	}
+	PRINTC("%s:%d\n", __func__, __LINE__);
 
 	return ret;
 }
 
 int
-cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd)
+cos_rcv(arcvcap_t rcv, rcv_flags_t flags)
 {
 	thdid_t     tid = 0;
 	int         blocked;
@@ -962,7 +960,7 @@ cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd)
 	int         ret;
 	tcap_time_t thd_timeout;
 
-	ret = cos_sched_rcv(rcv, flags, 0, rcvd, &tid, &blocked, &cyc, &thd_timeout);
+	ret = cos_sched_rcv(rcv, flags, 0, &tid, &blocked, &cyc, &thd_timeout);
 	assert(tid == 0);
 
 	return ret;

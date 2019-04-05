@@ -46,7 +46,7 @@ dom0_io_fn(void *id)
 {
 	arcvcap_t rcvcap = dom0_vio_rcvcap((unsigned int)id);
 	while (1) {
-		cos_rcv(rcvcap, 0, NULL);
+		cos_rcv(rcvcap, 0);
 	}
 }
 
@@ -55,6 +55,6 @@ vm_io_fn(void *id)
 {
 	arcvcap_t rcvcap = VM_CAPTBL_SELF_IORCV_BASE;
 	while (1) {
-		cos_rcv(rcvcap, 0, NULL);
+		cos_rcv(rcvcap, 0);
 	}
 }

@@ -484,31 +484,31 @@ sl_thd_yield_intern(thdid_t tid)
 void
 sl_thd_event_info_reset(struct sl_thd *t)
 {
-	t->event_info.blocked = 0;
-	t->event_info.cycles  = 0;
-	t->event_info.timeout = 0;
+	t->event_info.blocked      = 0;
+	t->event_info.elapsed_cycs = 0;
+	t->event_info.next_timeout = 0;
 }
 
 static inline void
-sl_thd_event_enqueue(struct sl_thd *t, int blocked, cycles_t cycles, tcap_time_t timeout)
+sl_thd_event_enqueue(struct sl_thd *t, struct cos_thd_event *e)
 {
 	struct sl_global_cpu *g = sl__globals_cpu();
 
 	if (ps_list_singleton(t, SL_THD_EVENT_LIST)) ps_list_head_append(&g->event_head, t, SL_THD_EVENT_LIST);
 
-	t->event_info.blocked  = blocked;
-	t->event_info.cycles  += cycles;
-	t->event_info.timeout  = timeout;
+	t->event_info.blocked       = e->blocked;
+	t->event_info.elapsed_cycs += e->elapsed_cycs;
+	t->event_info.next_timeout  = e->next_timeout;
 }
 
 static inline void
-sl_thd_event_dequeue(struct sl_thd *t, int *blocked, cycles_t *cycles, tcap_time_t *timeout)
+sl_thd_event_dequeue(struct sl_thd *t, struct cos_thd_event *e)
 {
 	ps_list_rem(t, SL_THD_EVENT_LIST);
 
-	*blocked = t->event_info.blocked;
-	*cycles  = t->event_info.cycles;
-	*timeout = t->event_info.timeout;
+	e->blocked      = t->event_info.blocked;
+	e->elapsed_cycs = t->event_info.elapsed_cycs;
+	e->next_timeout = t->event_info.next_timeout;
 	sl_thd_event_info_reset(t);
 }
 
@@ -636,29 +636,26 @@ static void
 sl_sched_loop_intern(int non_block)
 {
 	struct sl_global_cpu *g   = sl__globals_cpu();
-	rcv_flags_t           rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
+	//rcv_flags_t           rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
 
 	while (1) {
 		int pending;
 
 		do {
-			thdid_t        tid;
-			int            blocked, rcvd;
-			cycles_t       cycles;
-			tcap_time_t    timeout = g->timeout_next, thd_timeout;
 			struct sl_thd *t = NULL, *tn = NULL;
 			struct sl_child_notification notif;
+			struct cos_sched_event e = { .tid = 0 };
 
 			/*
 			 * a child scheduler may receive both scheduling notifications (block/unblock
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			pending = cos_sched_rcv(g->sched_rcv, rfl, timeout,
-						&rcvd, &tid, &blocked, &cycles, &thd_timeout);
-			if (!tid) goto pending_events;
+			pending = sl_sched_rcv_intern(&e, non_block);
 
-			t = sl_thd_lkup(tid);
+			if (!e.tid) goto pending_events;
+
+			t = sl_thd_lkup(e.tid);
 			assert(t);
 			/* don't report the idle thread or a freed thread */
 			if (unlikely(t == g->idle_thd || t->state == SL_THD_FREE)) goto pending_events;
@@ -670,7 +667,7 @@ sl_sched_loop_intern(int non_block)
 			 * To avoid dropping events, add the events to the scheduler event list and processing all
 			 * the pending events after the scheduler can successfully take the lock.
 			 */
-			sl_thd_event_enqueue(t, blocked, cycles, thd_timeout);
+			sl_thd_event_enqueue(t, &e.evt);
 
 pending_events:
 			if (ps_list_head_empty(&g->event_head) &&
@@ -688,21 +685,21 @@ pending_events:
 
 			ps_list_foreach_del(&g->event_head, t, tn, SL_THD_EVENT_LIST) {
 				/* remove the event from the list and get event info */
-				sl_thd_event_dequeue(t, &blocked, &cycles, &thd_timeout);
+				sl_thd_event_dequeue(t, &e.evt);
 
 				/* outdated event for a freed thread */
 				if (t->state == SL_THD_FREE) continue;
 
-				sl_mod_execution(sl_mod_thd_policy_get(t), cycles);
+				sl_mod_execution(sl_mod_thd_policy_get(t), e.evt.elapsed_cycs);
 
-				if (blocked) {
+				if (e.evt.blocked) {
 					sl_thd_state_t state = SL_THD_BLOCKED;
 					cycles_t abs_timeout = 0;
 
-					if (likely(cycles)) {
-						if (thd_timeout) {
+					if (likely(e.evt.elapsed_cycs)) {
+						if (e.evt.next_timeout) {
 							state       = SL_THD_BLOCKED_TIMEOUT;
-							abs_timeout = tcap_time2cyc(thd_timeout, sl_now());
+							abs_timeout = tcap_time2cyc(e.evt.next_timeout, sl_now());
 						}
 						sl_thd_sched_block_no_cs(t, state, abs_timeout);
 					}

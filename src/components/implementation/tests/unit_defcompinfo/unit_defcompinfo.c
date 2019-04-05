@@ -35,7 +35,7 @@ aep_thd_fn(arcvcap_t rcv, void *data)
 {
 	printc("\tSwitched to aep %d\n", (int)data);
 	while (1) {
-		cos_rcv(rcv, 0, NULL);
+		cos_rcv(rcv, 0);
 	}
 }
 
@@ -66,7 +66,7 @@ test_aeps(void)
 		                        TCAP_DELEG_YIELD);
 		assert(ret == 0);
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, 0, NULL, &tid, &blocked, &cycs, &thd_timeout))
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, 0, &tid, &blocked, &cycs, &thd_timeout))
 			;
 	}
 
@@ -85,7 +85,7 @@ test_childcomps(void)
 		thdid_t     tid;
 		tcap_time_t thd_timeout;
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, 0, NULL, &tid, &blocked, &cycs, &thd_timeout))
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, 0, &tid, &blocked, &cycs, &thd_timeout))
 			;
 		printc("\tSwitching to [%d] component\n", id);
 		if (id == CHILD_SCHED_ID) {
@@ -208,7 +208,7 @@ cos_init(void)
 		/* TEST BLOCKING */
 		/* TODO: Challenge - how does a component know at runtime if can call cos_rcv or not? - It does not at
 		 * runtime. */
-		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0, NULL);
+		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, 0);
 		printc("\tThis is a simple component\n");
 
 		SPIN();

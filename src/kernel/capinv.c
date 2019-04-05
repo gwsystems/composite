@@ -101,7 +101,6 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 
 	if (unlikely(!(*ci_ptr)->scb_data)) goto done;
 	scb_core = (((*ci_ptr)->scb_data) + get_cpuid());
-	scb_core->reserved_debugging = 0;
 
 	if (unlikely(interrupt)) {
 		assert(scb_core->sched_tok < ~0U);
@@ -582,7 +581,7 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, 
 {
 	struct thread *next;
 
-	thd_rcvcap_pending_inc(rcv_thd);
+	thd_rcvcap_pending_set(rcv_thd);
 	next = notify_process(rcv_thd, thd, rcv_tcap, tcap, tcap_next, yield);
 
 	/*
@@ -714,7 +713,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		ret  = cap_sched_tok_validate(rcvt, usr_counter, ci, cos_info);
 		if (ret) return ret;
 
-		if (thd_rcvcap_pending(rcvt) > 0) {
+		if (thd_rcvcap_pending(rcvt)) {
 			if (thd == rcvt) return -EBUSY;
 
 			next = rcvt;
@@ -797,7 +796,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 		ret  = cap_sched_tok_validate(rcvt, usr_tok, ci, cos_info);
 		if (ret) return ret;
 
-		if (thd_rcvcap_pending(rcvt) > 0) {
+		if (thd_rcvcap_pending(rcvt)) {
 			if (thd == rcvt) return -EBUSY;
 
 			next = rcvt;
@@ -912,23 +911,25 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 	rcv_flags_t          rflags      = __userregs_get1(regs);
 	tcap_time_t          swtimeout   = TCAP_TIME_NIL;
 	tcap_time_t          timeout     = __userregs_get2(regs);
-	int                  all_pending = (!!(rflags & RCV_ALL_PENDING));
 
+	printk("%s:%d\n", __func__, __LINE__);
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
 
 	/* deliver pending notifications? */
 	if (thd_rcvcap_pending(thd)) {
+	printk("%s:%d\n", __func__, __LINE__);
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-		thd_rcvcap_all_pending_set(thd, all_pending);
 		thd_rcvcap_pending_deliver(thd, regs);
 
 		return 0;
 	} else if (rflags & RCV_NON_BLOCKING) {
+	printk("%s:%d\n", __func__, __LINE__);
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 		__userregs_setretvals(regs, -EAGAIN, 0, 0, 0);
 
 		return 0;
 	}
+	printk("%s:%d\n", __func__, __LINE__);
 	__userregs_setretvals(regs, 0, 0, 0, 0);
 
 	next = notify_parent(thd, 0);
@@ -963,7 +964,6 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 	if (likely(thd != next)) {
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state |= THD_STATE_RCVING;
-		thd_rcvcap_all_pending_set(thd, all_pending);
 		thd->timeout = timeout;
 	}
 

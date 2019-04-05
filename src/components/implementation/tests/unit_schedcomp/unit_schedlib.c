@@ -57,7 +57,6 @@ test_thd_perffn(void *data)
 	rdtscll(end_cycs);
 	//assert(mid_cycs && mid_cycs > start_cycs && mid_cycs < end_cycs);
 	assert(switched);
-	sl_scb_info_cpu()->reserved_debugging = 1;
 
 	for (i = 0; i < PERF_ITERS; i++) {
 		cycles_t diff1_cycs = 0, diff2_cycs = 0;
@@ -89,7 +88,6 @@ test_thd_perffn(void *data)
 		total_cycs += diff2_cycs;
 	}
 
-	assert(sl_scb_info_cpu()->reserved_debugging == 1);
 	PRINTC("SWITCH UBENCH (2 switches): avg: %llu, wc: %llu, bc: %llu, iters:%u\n", (total_cycs / (PERF_ITERS)), wc_cycs, bc_cycs, PERF_ITERS);
 	testing = 0;
 	/* done testing! free the spin thread! */

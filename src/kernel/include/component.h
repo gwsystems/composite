@@ -12,6 +12,7 @@
 #include "captbl.h"
 #include "pgtbl.h"
 #include "cap_ops.h"
+#include "shared/cos_sched.h"
 
 struct comp_info {
 	struct liveness_data        liveness;
