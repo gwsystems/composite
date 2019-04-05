@@ -939,14 +939,11 @@ cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout,
 	unsigned long cyc       = 0;
 	int           ret;
 
-	PRINTC("%s:%d\n", __func__, __LINE__);
-
 	ret = call_cap_retvals_asm(rcv, 0, flags, timeout, 0, 0, &thd_state, &cyc, thd_timeout);
 
 	*blocked = (int)(thd_state >> (sizeof(thd_state) * 8 - 1));
 	*thdid   = (thdid_t)(thd_state & ((1 << (sizeof(thdid_t) * 8)) - 1));
 	*cycles  = cyc;
-	PRINTC("%s:%d\n", __func__, __LINE__);
 
 	return ret;
 }

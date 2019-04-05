@@ -73,6 +73,7 @@ typedef enum {
 
 typedef enum {
 	RCV_NON_BLOCKING = 1,
+	RCV_ULONLY       = (1 << 1),
 } rcv_flags_t;
 
 #define BOOT_LIVENESS_ID_BASE 2

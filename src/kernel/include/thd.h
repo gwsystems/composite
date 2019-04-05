@@ -554,13 +554,10 @@ thd_sched_events_produce(struct thread *thd, struct cos_cpu_local_info *cos_info
 	struct cos_sched_ring *r   = NULL;
 	struct comp_info      *c   = NULL;
 
-	printk("%s:%d\n", __func__, __LINE__);
 	if (unlikely(inv_top != 0 || thd->rcvcap.is_init == 0)) return 0;
 
-	printk("%s:%d\n", __func__, __LINE__);
 	c = thd_invstk_peek_compinfo(thd, cos_info, inv_top);
 	if (unlikely(!c || !c->scb_data)) return 0;
-	printk("%s:%d\n", __func__, __LINE__);
 
 	scb = ((c->scb_data) + get_cpuid());
 	r   = &(scb->sched_events);
@@ -568,25 +565,20 @@ thd_sched_events_produce(struct thread *thd, struct cos_cpu_local_info *cos_info
 	 * only produce more if the ring is empty! 
 	 * so the user only calls after dequeueing all previous events. 
 	 */
-	printk("%s:%d\n", __func__, __LINE__);
 	if (unlikely(r->head != r->tail)) return -EAGAIN;
 
-	printk("%s:%d\n", __func__, __LINE__);
 	r->head = r->tail = 0;
 	while (delta < COS_SCHED_EVENT_RING_SIZE) {
-	printk("%s:%d\n", __func__, __LINE__);
 		struct cos_sched_event *e = &(r->event_buf[delta]);
 		unsigned long thd_state;
 
 		if (!thd_state_evt_deliver(thd, &thd_state, (unsigned long *)&(e->evt.elapsed_cycs),
 					(unsigned long *)&(e->evt.next_timeout))) break;
-	printk("%s:%d\n", __func__, __LINE__);
 		e->tid         = (thd_state << 1) >> 1;
 		e->evt.blocked = (thd_state >> 31);
 
 		delta++;
 	}
-	printk("%s:%d\n", __func__, __LINE__);
 
 	r->tail += delta;
 

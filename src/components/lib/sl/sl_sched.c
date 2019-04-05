@@ -14,6 +14,7 @@
 #include <cos_kernel_api.h>
 #include <bitmap.h>
 #include <cos_dcb.h>
+#include <cos_ulsched_rcv.h>
 
 struct sl_global sl_global_data;
 struct sl_global_cpu sl_global_cpu_data[NUM_CPU] CACHE_ALIGNED;
@@ -455,11 +456,10 @@ sl_thd_yield_cs_exit_intern(thdid_t tid)
 	struct sl_thd *t = sl_thd_curr();
 
 	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
-	//sl_thd_sched_unblock_no_cs(t);
+	sl_thd_sched_unblock_no_cs(t);
 	if (likely(tid)) {
 		struct sl_thd *to = sl_thd_lkup(tid);
 
-		//assert(to);
 		sl_cs_exit_switchto(to);
 	} else {
 		sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
@@ -636,7 +636,7 @@ static void
 sl_sched_loop_intern(int non_block)
 {
 	struct sl_global_cpu *g   = sl__globals_cpu();
-	//rcv_flags_t           rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
+	rcv_flags_t           rfl = (non_block ? RCV_NON_BLOCKING : 0);
 
 	while (1) {
 		int pending;
@@ -651,7 +651,7 @@ sl_sched_loop_intern(int non_block)
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			pending = sl_sched_rcv_intern(&e, non_block);
+			pending = cos_ul_sched_rcv(g->sched_rcv, rfl, g->timeout_next, &e);
 
 			if (!e.tid) goto pending_events;
 

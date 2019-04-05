@@ -912,24 +912,20 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 	tcap_time_t          swtimeout   = TCAP_TIME_NIL;
 	tcap_time_t          timeout     = __userregs_get2(regs);
 
-	printk("%s:%d\n", __func__, __LINE__);
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
 
 	/* deliver pending notifications? */
 	if (thd_rcvcap_pending(thd)) {
-	printk("%s:%d\n", __func__, __LINE__);
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 		thd_rcvcap_pending_deliver(thd, regs);
 
 		return 0;
 	} else if (rflags & RCV_NON_BLOCKING) {
-	printk("%s:%d\n", __func__, __LINE__);
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 		__userregs_setretvals(regs, -EAGAIN, 0, 0, 0);
 
 		return 0;
 	}
-	printk("%s:%d\n", __func__, __LINE__);
 	__userregs_setretvals(regs, 0, 0, 0, 0);
 
 	next = notify_parent(thd, 0);

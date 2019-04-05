@@ -15,7 +15,6 @@ struct cos_sched_event {
 } __attribute__((packed));
 
 #define COS_SCHED_EVENT_RING_SIZE 16
-#define COS_SCHED_EVENT_MASK      (COS_SCHED_EVENT_RING_SIZE - 1)
 
 struct cos_sched_ring {
 	int head, tail;
