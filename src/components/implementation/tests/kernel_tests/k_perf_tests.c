@@ -17,7 +17,7 @@ volatile cycles_t         main_thd = 0, side_thd = 0;
 
 /*
  *  Measuremet of COS_SWITCH and COS_THD_SWITCH
- *      Roundtrip measurement of 2 thread that switch back and forth
+ *  Roundtrip measurement of 2 thread that switch back and forth
  */
 
 static void
@@ -78,7 +78,7 @@ test_thds_create_switch(void)
 }
 
 /*
- * Asychronous RCV and SND
+ * Asychronous RCV and SND:
  *   * Roundtrip: 2 Thd that bounce between eachother through cos_rcv() and cos_asnd()
  *   * One way: 1 thd send and 1 thd receives. When the receivers block the sender will be enqueue
  */
