@@ -23,6 +23,9 @@ static struct             perfdata pt[NUM_CPU] CACHE_ALIGNED;
 
 static volatile int       done_test = 0;
 
+#define ARRAY_SIZE 10000
+static cycles_t           results[2][ARRAY_SIZE];
+
 static void
 test_rcv(arcvcap_t r)
 {
@@ -98,10 +101,10 @@ test_asnd_fn(void *d)
     arcvcap_t r = rcv[cos_cpuid()];
     asndcap_t s = asnd[cos_cpuid()];
 
-    perfdata_init(&pt[cos_cpuid()], "Test IPI Roundtrip: SEND TIME");
-    perfdata_init(&pd[cos_cpuid()], "Test IPI Roundtrip: ROUNTRIP TIME");
+    perfdata_init(&pt[cos_cpuid()], "Test IPI Roundtrip: SEND TIME", results[0], ARRAY_SIZE);
+    perfdata_init(&pd[cos_cpuid()], "Test IPI Roundtrip: ROUNTRIP TIME", results[1], ARRAY_SIZE);
 
-    while(1) {
+    while (1) {
         rdtscll(st);
         test_asnd(s);
 
@@ -134,7 +137,7 @@ test_asnd_fn(void *d)
             perfdata_95ptile(&pd[cos_cpuid()]), perfdata_99ptile(&pd[cos_cpuid()]));
 
     done_test = 1;
-    while(1) test_rcv(r);
+    while (1) test_rcv(r);
 }
 
 static void
@@ -177,7 +180,7 @@ test_ipi_roundtrip(void)
         thd[cos_cpuid()] = t;
         tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
         rcv[cos_cpuid()] = r;
-        while(!rcv[TEST_SND_CORE]) ;
+        while (!rcv[TEST_SND_CORE]) ;
 
         s = cos_asnd_alloc(&booter_info, rcv[TEST_SND_CORE], booter_info.captbl_cap);
         if (EXPECT_LL_LT(1, s, "IPI ROUNDTRIP: ASND Allocation"))
@@ -204,7 +207,7 @@ test_ipi_roundtrip(void)
         thd[cos_cpuid()] = t;
         tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
         rcv[cos_cpuid()] = r;
-        while(!rcv[TEST_RCV_CORE]) ;
+        while (!rcv[TEST_RCV_CORE]) ;
 
         s = cos_asnd_alloc(&booter_info, rcv[TEST_RCV_CORE], booter_info.captbl_cap);
         if (EXPECT_LL_LT(1, s, "IPI ROUNDTRIP: ASND Allocation"))

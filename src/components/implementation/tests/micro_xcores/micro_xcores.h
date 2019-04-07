@@ -9,25 +9,19 @@
 
 #undef assert
 /* On assert, immediately switch to the "exit" thread */
-#define assert(node)                                          \
-    do {                                                  \
-        if (unlikely(!(node))) {                      \
-            debug_print("assert error in @ ");    \
-            cos_thd_switch(termthd[cos_cpuid()]); \
-        }                                             \
-    } while (0)
-
-#define BUG_DIVZERO()                                           \
+#define assert(node)                                        \
     do {                                                    \
-        debug_print("Testing divide by zero fault @ "); \
-        int i = num / den;                              \
-    } while (0);
+        if (unlikely(!(node))) {                            \
+            debug_print("assert error in @ ");              \
+            cos_thd_switch(termthd[cos_cpuid()]);           \
+        }                                                   \
+    } while (0)
 
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 #include <perfdata.h>
-#include <cos_expect.h>
+#include <cos_unit.h>
 
 #define ITER 10000
 #define TEST_NTHDS 5

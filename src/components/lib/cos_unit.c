@@ -1,4 +1,4 @@
-#include <cos_expect.h>
+#include <cos_unit.h>
 #include <stdio.h>
 #include <llprint.h>
 
@@ -9,8 +9,7 @@ _expect_llu(int predicate, char *str, long long unsigned a,
     if (predicate) {
         PRINTC("Failure: %s %s @ %d: ",
              testname, file, line);
-        printc("%s %lld", str, a);
-        printc(" %s %lld)\n", errcmp, b);
+        printc("%s %lld %s %lld)\n", str, a, errcmp, b);
         return -1;
     }
     return 0;
@@ -23,8 +22,7 @@ _expect_ll(int predicate, char *str, long long a,
     if (predicate) {
         PRINTC("Failure: %s %s @ %d: ",
              testname, file, line);
-        printc("%s %lld", str, a);
-        printc(" %s %lld)\n", errcmp, b);
+        printc("%s %lld %s %lld)\n", str, a, errcmp, b);
         return -1;
     }
     return 0;

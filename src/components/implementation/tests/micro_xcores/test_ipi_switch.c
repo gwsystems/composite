@@ -34,6 +34,9 @@ static volatile int       pending_rcv = 0;
 
 static struct             perfdata pd;
 
+#define ARRAY_SIZE 10000
+static cycles_t           results[ARRAY_SIZE];
+
 static void
 test_rcv(arcvcap_t r)
 {
@@ -110,10 +113,10 @@ test_asnd_fn(void *d)
     arcvcap_t r = rcv[cos_cpuid()];
     asndcap_t s = asnd[cos_cpuid()];
 
-    perfdata_init(&pd, "Test IPI Switch");
+    perfdata_init(&pd, "Test IPI Switch", results, ARRAY_SIZE);
 
     for(iters = 0; iters < TEST_IPI_ITERS; iters++) {
-        while(global_time[1] > global_time[0]);
+        while (global_time[1] > global_time[0]);
         test_asnd(s);
         test_rcv(r);
     }
@@ -129,7 +132,7 @@ test_asnd_fn(void *d)
             perfdata_95ptile(&pd), perfdata_99ptile(&pd));
 
     done_test = 1;
-    while(1) test_rcv(r);
+    while (1) test_rcv(r);
 }
 
 static void
@@ -202,7 +205,7 @@ test_ipi_switch(void)
         thd[cos_cpuid()] = t;
         tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
         rcv[cos_cpuid()] = r;
-        while(!rcv[TEST_SND_CORE]) ;
+        while (!rcv[TEST_SND_CORE]) ;
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL);
         if (EXPECT_LL_LT(1, t, "IPI SWITCH: Thread Allocation"))
@@ -234,7 +237,7 @@ test_ipi_switch(void)
         thd[cos_cpuid()] = t;
         tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
         rcv[cos_cpuid()] = r;
-        while(!rcv[TEST_RCV_CORE]) ;
+        while (!rcv[TEST_RCV_CORE]) ;
 
         s = cos_asnd_alloc(&booter_info, rcv[TEST_RCV_CORE], booter_info.captbl_cap);
         if (EXPECT_LL_LT(1, s, "IPI SWITCH: ASND Allocation"))

@@ -30,6 +30,9 @@ static volatile int       pending_rcv = 0;
 
 static struct             perfdata pd[NUM_CPU] CACHE_ALIGNED;
 
+#define ARRAY_SIZE 10000
+static cycles_t           results[ARRAY_SIZE];
+
 static void
 test_rcv(arcvcap_t r)
 {
@@ -52,7 +55,7 @@ test_asnd(asndcap_t s)
 }
 
 static void
-test_sync_asnd(void)
+test_asnd_sync(void)
 {
     while (!asnd[TEST_SND_CORE]) ;
     while (!asnd[TEST_RCV_CORE]) ;
@@ -82,14 +85,13 @@ test_sched_loop(void)
     sched_events_clear(&rcvd, &thdid, &blocked, &cycles, &thd_timeout);
 
     while (1) {
-
-        if(cos_cpuid() == TEST_RCV_CORE){
+        if(cos_cpuid() == TEST_RCV_CORE) {
             do {
                 ret = cos_switch(spinner_thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX + 2, 0, 0, 0);
             } while (ret == -EAGAIN);
         }
         while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
-                        &rcvd, &thdid, &blocked, &cycles, &thd_timeout)) >= 0) {
+                                        &rcvd, &thdid, &blocked, &cycles, &thd_timeout)) >= 0) {
             if (!thdid) goto done;
             assert(thdid == tid[cos_cpuid()]);
             blkd[cos_cpuid()] = blocked;
@@ -118,7 +120,7 @@ rcv_spinner(void *d)
     int i = 0;
     cycles_t now = 0, prev = 0;
 
-    perfdata_init(&pd[cos_cpuid()], "Test IPI Interrupt");
+    perfdata_init(&pd[cos_cpuid()], "Test IPI Interrupt", results, ARRAY_SIZE);
 
     rdtscll(now);
     test_start = 1;
@@ -126,11 +128,11 @@ rcv_spinner(void *d)
 
     for(i = 0; i < TEST_IPI_ITERS; ) {
         rdtscll(now);
-          if((now - prev) > 700){
-              perfdata_add(&pd[cos_cpuid()], (now - prev));
-              i++;
-          }
-          prev = now;
+            if((now - prev) > 700) {
+                perfdata_add(&pd[cos_cpuid()], (now - prev));
+                i++;
+            }
+            prev = now;
     }
     done_test = 1;
 
@@ -154,13 +156,13 @@ test_asnd_fn(void *d)
     arcvcap_t r = rcv[cos_cpuid()];
     asndcap_t s = asnd[cos_cpuid()];
 
-    while(!test_start) ;
+    while (!test_start) ;
 
-    while(!done_test){
+    while (!done_test) {
         test_asnd(s);
         rdtscll(now);
         prev = now;
-        while(total_wait_time <= 10000){
+        while (total_wait_time <= 10000) {
             rdtscll(now);
             total_wait_time += now - prev;
             prev = now;
@@ -168,7 +170,7 @@ test_asnd_fn(void *d)
         total_wait_time = 0;
     }
 
-    while(1) test_rcv(r) ;
+    while (1) test_rcv(r) ;
 }
 
 void
@@ -201,7 +203,7 @@ test_ipi_interference(void)
         thd[cos_cpuid()] = t;
         tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
         rcv[cos_cpuid()] = r;
-        while(!rcv[TEST_SND_CORE]) ;
+        while (!rcv[TEST_SND_CORE]) ;
 
         t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL);
         if (EXPECT_LL_LT(1, t, "IPI Interference: Thread Allocation"))
@@ -215,7 +217,7 @@ test_ipi_interference(void)
 
 
         asnd[cos_cpuid()] = s;
-        test_sync_asnd();
+        test_asnd_sync();
         test_sched_loop();
 
     } else {
@@ -239,7 +241,7 @@ test_ipi_interference(void)
         thd[cos_cpuid()] = t;
         tid[cos_cpuid()] = cos_introspect(&booter_info, t, THD_GET_TID);
         rcv[cos_cpuid()] = r;
-        while(!rcv[TEST_RCV_CORE]) ;
+        while (!rcv[TEST_RCV_CORE]) ;
 
         s = cos_asnd_alloc(&booter_info, rcv[TEST_RCV_CORE], booter_info.captbl_cap);
         if (EXPECT_LL_LT(1, s, "IPI Interference: ASND Allocation"))
@@ -247,7 +249,7 @@ test_ipi_interference(void)
 
         asnd[cos_cpuid()] = s;
 
-        test_sync_asnd();
+        test_asnd_sync();
         test_sched_loop();
     }
 }

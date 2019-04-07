@@ -1,5 +1,5 @@
-#ifndef MICRO_BOOTER_H
-#define MICRO_BOOTER_H
+#ifndef KERNEL_TESTS_H
+#define KERNEL_TESTS_H
 
 #include <stdio.h>
 #include <string.h>
@@ -27,17 +27,11 @@
         }                                                       \
     } while (0)
 
-#define BUG_DIVZERO()                                           \
-    do {                                                        \
-        debug_print("Testing divide by zero fault @ ");         \
-        int i = num / den;                                      \
-    } while (0);
-
 #include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 #include <perfdata.h>
-#include <cos_expect.h>
+#include <cos_unit.h>
 
 #define PERF
 #define ITER 10000
@@ -45,26 +39,32 @@
 #define CHAR_BIT 8
 #define TEST_ITER 16
 
+#define THD_ARG 666             /* Thread Argument to pass */
+#define NUM_TEST 16             /* Iterator NUM */
+#define MAX_THDS 4              /* Max Threshold Multiplier */
+#define MIN_THDS 0.5              /* Min Threshold Multiplier */
+#define GRANULARITY 1000        /* Granularity */
+
+#define TEST_NPAGES (1024 * 2)      /* Testing with 8MB for now */
+
 unsigned int cyc_per_usec;
-
-struct timers {
-    long long unsigned avg;
-    long long unsigned max;
-    long long unsigned min;
-    unsigned           expected;
-};
-
-struct results {
-    struct timers budgets_single;
-};
-
-struct results result;
 
 extern struct cos_compinfo booter_info;
 extern thdcap_t            termthd[]; /* switch to this to shutdown */
 extern unsigned long       tls_test[][TEST_NTHDS];
 extern unsigned long       thd_test[TEST_NTHDS];
 extern int                 num, den, count;
+
+struct results {
+    long long unsigned avg;
+    long long unsigned max;
+    long long unsigned min;
+    long long unsigned sd;
+    int                sz;
+    long long unsigned p90tile;
+    long long unsigned p95tile;
+    long long unsigned p99tile;
+};
 
 static unsigned long
 tls_get(size_t off)
@@ -82,7 +82,14 @@ tls_set(size_t off, unsigned long val)
     __asm__ __volatile__("movl %0, %%gs:(%1)" : : "r"(val), "r"(off) : "memory");
 }
 
-extern void test_run_mb(void);
-extern void test_run_perf_mb(void);
+extern void test_run_perf_kernel(void);
+extern void test_timer(void);
+extern void test_tcap_budgets(void);
+extern void test_2timers(void);
+extern void test_thds(void);
+extern void test_mem_alloc(void);
+extern void test_async_endpoints(void);
+extern void test_inv(void);
+extern void test_captbl_expands(void);
 
-#endif /* MICRO_BOOTER_H */
+#endif /* KERNEL_TESTS_H */

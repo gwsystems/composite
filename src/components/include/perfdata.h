@@ -28,17 +28,21 @@ enum ptile_id {
 
 struct perfdata {
 	char   name[PERF_DATA_NAME];
-	cycles_t values[PERF_VAL_MAX_SZ];
+	cycles_t *values;
 	int    sz;
+	int	array_size;
 	cycles_t min, max, avg, total;
 	cycles_t sd, var;
 	cycles_t ptiles[PERF_PTILE_SZ]; /* 90, 95, 99 */
 };
 
 static void
-perfdata_init(struct perfdata *pd, const char *nm)
+perfdata_init(struct perfdata *pd, const char *nm, cycles_t * result_array, int size)
 {
 	memset(pd, 0, sizeof(struct perfdata));
+	memset(result_array, 0, size * sizeof(cycles_t));
+	pd->values = result_array;
+	pd->array_size = size;
 	strncpy(pd->name, nm, PERF_DATA_NAME-1);
 }
 
@@ -55,7 +59,8 @@ __perfdata_print_values(struct perfdata *pd)
 static inline int
 perfdata_add(struct perfdata *pd, cycles_t val)
 {
-	if (unlikely(pd->sz >= PERF_VAL_MAX_SZ)) return -ENOSPC;
+	//if (unlikely(pd->sz >= PERF_VAL_MAX_SZ)) return -ENOSPC;
+	if (unlikely(pd->sz >= pd->array_size)) return -ENOSPC;
 
 	pd->values[pd->sz] = val;
 	pd->total += val;
@@ -70,7 +75,7 @@ perfdata_add(struct perfdata *pd, cycles_t val)
  */
 
 static cycles_t
-__sqroot(cycles_t n)
+__sqrt_ull(cycles_t n)
 {
 	cycles_t lo = 0, hi = n, mid;
 	int i;
@@ -168,25 +173,6 @@ __inplace_merge_sort(cycles_t* xs, int l, int u)
 }
 
 static void
-__bubble_sort(cycles_t data[], int sz)
-{
-	int i;
-
-	for (i = 0 ; i < sz ; i++) {
-		int j;
-
-		for (j = 0 ; j < sz - i - 1 ; j ++) {
-			if (data[j] > data[j + 1]) {
-				cycles_t tmp = data[j];
-
-				data[j]     = data[j + 1];
-				data[j + 1] = tmp;
-			}
-		}
-	}
-}
-
-static void
 perfdata_calc(struct perfdata *pd)
 {
 	int i, j;
@@ -200,7 +186,7 @@ perfdata_calc(struct perfdata *pd)
 	for (i = 0 ; i < pd->sz ; i++) pd->var += (pd->values[i] - pd->avg) * (pd->values[i] - pd->avg);
 	pd->var /= pd->sz;
 
-	pd->sd = __sqroot(pd->var);
+	pd->sd = __sqrt_ull(pd->var);
 
 	pd->ptiles[PTILE_90] = pd->values[(int)((pd->sz * 90) / 100) - 1];
 	pd->ptiles[PTILE_95] = pd->values[(int)((pd->sz * 95) / 100) - 1];
