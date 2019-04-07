@@ -1,5 +1,5 @@
-#ifndef COS_UNIT_H
-#define COS_UNIT_H
+#ifndef COS_UBENCH_H
+#define COS_UBENCH_H
 
 #include <cos_types.h>
 #include <cos_debug.h>
@@ -30,4 +30,4 @@ int
 _expect_ll(int predicate, char *str, long long a,
            long long b, char *errcmp, char *testname, char * file, int line);
 
-#endif /* COS_UNIT_H */
+#endif /* COS_UBENCH_H */
