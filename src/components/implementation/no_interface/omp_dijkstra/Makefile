@@ -1,4 +1,4 @@
-COMPONENT=omp_hello.o
+COMPONENT=omp_dijkstra.o
 INTERFACES=
 DEPENDENCIES=capmgr
 IF_LIB=
