@@ -8,11 +8,12 @@
 #include <llprint.h>
 #include <res_spec.h>
 #include <sl.h>
+#include <cos_dcb.h>
 
 /* Ensure this is the same as what is in sl_mod_fprr.c */
 #define SL_FPRR_NPRIOS 32
 
-#define LOWEST_PRIORITY (SL_FPRR_NPRIOS - 1)
+#define LOWEST_PRIORITY (15)
 
 #define LOW_PRIORITY (LOWEST_PRIORITY - 1)
 #define HIGH_PRIORITY (LOWEST_PRIORITY - 10)
@@ -137,14 +138,18 @@ run_xcore_tests()
 
 	for (i = 0; i < XCORE_THDS; i++) {
 		sched_param_t p[1];
+		struct sl_xcore_thd *t = NULL;
 
 		if (cpu == cos_cpuid()) cpu++;
 		cpu %= NUM_CPU;
 		xcore_thd_data[cos_cpuid()][i] = (cpu << 16) | i;
 
 		p[0] = sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY);
-		ret = sl_xcore_thd_alloc(cpu, test_xcore_fn, (void *)&xcore_thd_data[cos_cpuid()][i], 1, p);
-		if (ret) break;
+		t = sl_xcore_thd_alloc(cpu, test_xcore_fn, (void *)&xcore_thd_data[cos_cpuid()][i], 1, p);
+		if (!t) {
+			ret = -1;
+			break;
+		}
 
 		cpu++;
 	}
@@ -156,10 +161,10 @@ run_xcore_tests()
 static void
 run_tests()
 {
-	test_highest_is_scheduled();
-	PRINTC("%s: Schedule highest priority thread only!\n", high_thd_test_status[cos_cpuid()] ? "FAILURE" : "SUCCESS");
-	test_swapping();
-	PRINTC("%s: Swap back and forth!\n", (thd1_ran[cos_cpuid()] && thd2_ran[cos_cpuid()]) ? "SUCCESS" : "FAILURE");
+//	test_highest_is_scheduled();
+//	PRINTC("%s: Schedule highest priority thread only!\n", high_thd_test_status[cos_cpuid()] ? "FAILURE" : "SUCCESS");
+//	test_swapping();
+//	PRINTC("%s: Swap back and forth!\n", (thd1_ran[cos_cpuid()] && thd2_ran[cos_cpuid()]) ? "SUCCESS" : "FAILURE");
 
 	run_xcore_tests();
 
@@ -170,21 +175,25 @@ run_tests()
 void
 cos_init(void)
 {
-	static unsigned long first = 1, init_done = 0;
+	int i;
+	static unsigned long first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
 	struct sl_thd *testing_thread;
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
 	PRINTC("Unit-test for the scheduling library (sl)\n");
 
-	if (ps_cas(&first, 1, 0)) {
+	if (ps_cas(&first, NUM_CPU + 1, cos_cpuid())) {
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-		cos_defcompinfo_init();
-		ps_faa(&init_done, 1);
+		cos_defcompinfo_llinit();
 	} else {
-		while (!ps_load(&init_done)) ;
+		while (!ps_load(&init_done[first])) ;
 
 		cos_defcompinfo_sched_init();
+	}
+	ps_faa(&init_done[cos_cpuid()], 1);
+	for (i = 0; i < NUM_CPU; i++) {
+		while (!ps_load(&init_done[i])) ;
 	}
 	sl_init(SL_MIN_PERIOD_US);
 

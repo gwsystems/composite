@@ -171,6 +171,14 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		constructors_execute();
 	}
 
+	/*
+	 * if it's the first component.. wait for timer calibration
+	 * NOTE: for "fork"ing components and not updating "spdid"s, this call will just fail and should be fine.
+	 */
+	if (cos_spd_id() == 0) {
+		cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	}
+
 	switch (t) {
 	case COS_UPCALL_THD_CREATE:
 		/* New thread creation method passes in this type. */

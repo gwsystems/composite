@@ -462,7 +462,7 @@ sl_thd_yield_cs_exit_intern(thdid_t tid)
 
 		sl_cs_exit_switchto(to);
 	} else {
-		sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
+		if (likely(t != sl__globals_core()->sched_thd && t != sl__globals_core()->idle_thd)) sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
 		sl_cs_exit_schedule();
 	}
 }

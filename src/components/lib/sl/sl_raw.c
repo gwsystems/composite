@@ -93,7 +93,7 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 	dcap = cos_dcb_info_alloc_curr(&doff, (vaddr_t *)&dcb);
-	assert(dcap);
+	if (dcb && doff) assert(dcap);
 
 	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data, dcap, doff);
 	if (!aep->thd) goto done;
@@ -180,7 +180,7 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 	dcap = cos_dcb_info_alloc_curr(&doff, (vaddr_t *)&dcb);
-	assert(dcap);
+	if (dcb && doff) assert(dcap);
 
 	/* NOTE: Cannot use stack-allocated cos_aep_info struct here */
 	if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data, dcap, doff);
