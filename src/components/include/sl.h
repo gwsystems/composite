@@ -37,7 +37,7 @@
 #include <sl_plugins.h>
 #include <sl_thd.h>
 #include <sl_consts.h>
-#include <sl_xcpu.h>
+#include <sl_xcore.h>
 #include <heap.h>
 
 #undef SL_TIMEOUTS
@@ -54,7 +54,7 @@ struct sl_cs {
 	} u;
 };
 
-struct sl_global_cpu {
+struct sl_global_core {
 	struct sl_cs lock;
 
 	thdcap_t       sched_thdcap;
@@ -72,18 +72,18 @@ struct sl_global_cpu {
 	struct ps_list_head event_head; /* all pending events for sched end-point */
 };
 
-extern struct sl_global_cpu sl_global_cpu_data[];
+extern struct sl_global_core sl_global_core_data[];
 
-static inline struct sl_global_cpu *
-sl__globals_cpu(void)
+static inline struct sl_global_core *
+sl__globals_core(void)
 {
-	return &(sl_global_cpu_data[cos_cpuid()]);
+	return &(sl_global_core_data[cos_cpuid()]);
 }
 
 static inline struct cos_scb_info *
-sl_scb_info_cpu(void)
+sl_scb_info_core(void)
 {
-	return (sl__globals_cpu()->scb_info);
+	return (sl__globals_core()->scb_info);
 }
 
 static inline void
@@ -145,7 +145,7 @@ sl_thd_curr(void)
 static inline int
 sl_cs_owner(void)
 {
-	return sl__globals_cpu()->lock.u.s.owner == sl_thd_thdcap(sl_thd_curr());
+	return sl__globals_core()->lock.u.s.owner == sl_thd_thdcap(sl_thd_curr());
 }
 
 /* ...not part of the public API */
@@ -161,7 +161,7 @@ sl_cs_owner(void)
  *     -ve from cos_defswitch failure, allowing caller for ex: the scheduler thread to
  *     check if it was -EBUSY to first recieve pending notifications before retrying lock.
  */
-int sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, struct sl_global_cpu *gcpu, struct sl_thd *curr, sched_tok_t tok);
+int sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, struct sl_global_core *gcore, struct sl_thd *curr, sched_tok_t tok);
 /*
  * @csi: current critical section value
  * @cached: a cached copy of @csi
@@ -169,28 +169,28 @@ int sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, 
  *
  * @ret: returns 1 if we need a retry, 0 otherwise
  */
-int sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, struct sl_global_cpu *gcpu, sched_tok_t tok);
+int sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, struct sl_global_core *gcore, sched_tok_t tok);
 
 /* Enter into the scheduler critical section */
 static inline int
 sl_cs_enter_nospin(void)
 {
 #ifdef SL_CS
-	struct sl_global_cpu *gcpu = sl__globals_cpu();
-	struct sl_thd         *t   = sl_thd_curr();
+	struct sl_global_core *gcore = sl__globals_core();
+	struct sl_thd         *t     = sl_thd_curr();
 	union sl_cs_intern csi, cached;
 
 	assert(t);
-	csi.v    = gcpu->lock.u.v;
+	csi.v    = gcore->lock.u.v;
 	cached.v = csi.v;
 
 	if (unlikely(csi.s.owner)) {
 		assert(0);
-		return sl_cs_enter_contention(&csi, &cached, gcpu, t, cos_sched_sync());
+		return sl_cs_enter_contention(&csi, &cached, gcore, t, cos_sched_sync());
 	}
 
 	csi.s.owner = sl_thd_thdcap(t);
-	if (!ps_upcas(&gcpu->lock.u.v, cached.v, csi.v)) return 1;
+	if (!ps_upcas(&gcore->lock.u.v, cached.v, csi.v)) return 1;
 #endif
 	return 0;
 }
@@ -227,22 +227,22 @@ static inline void
 sl_cs_exit(void)
 {
 #ifdef SL_CS
-	struct sl_global_cpu *gcpu = sl__globals_cpu();
+	struct sl_global_core *gcore = sl__globals_core();
 	union sl_cs_intern csi, cached;
 
 	assert(sl_cs_owner());
 retry:
-	csi.v    = gcpu->lock.u.v;
+	csi.v    = gcore->lock.u.v;
 	cached.v = csi.v;
 
 	if (unlikely(csi.s.contention)) {
 		assert(0);
-		if (sl_cs_exit_contention(&csi, &cached, gcpu, cos_sched_sync())) goto retry;
+		if (sl_cs_exit_contention(&csi, &cached, gcore, cos_sched_sync())) goto retry;
 
 		return;
 	}
 
-	if (!ps_upcas(&gcpu->lock.u.v, cached.v, 0)) goto retry;
+	if (!ps_upcas(&gcore->lock.u.v, cached.v, 0)) goto retry;
 #endif
 }
 
@@ -315,13 +315,13 @@ void sl_thd_param_set(struct sl_thd *t, sched_param_t sp);
 static inline microsec_t
 sl_cyc2usec(cycles_t cyc)
 {
-	return cyc / sl__globals_cpu()->cyc_per_usec;
+	return cyc / sl__globals_core()->cyc_per_usec;
 }
 
 static inline cycles_t
 sl_usec2cyc(microsec_t usec)
 {
-	return usec * sl__globals_cpu()->cyc_per_usec;
+	return usec * sl__globals_core()->cyc_per_usec;
 }
 
 static inline cycles_t
@@ -353,17 +353,17 @@ void sl_timeout_period(cycles_t period);
 static inline cycles_t
 sl_timeout_period_get(void)
 {
-	return sl__globals_cpu()->period;
+	return sl__globals_core()->period;
 }
 
 #ifdef SL_TIMEOUTS
 static inline void
 sl_timeout_oneshot(cycles_t absolute_us)
 {
-	sl__globals_cpu()->timer_next   = absolute_us;
-	sl__globals_cpu()->timeout_next = tcap_cyc2time(absolute_us);
+	sl__globals_core()->timer_next   = absolute_us;
+	sl__globals_core()->timeout_next = tcap_cyc2time(absolute_us);
 
-	sl_scb_info_cpu()->timer_next   = absolute_us;
+	sl_scb_info_core()->timer_next   = absolute_us;
 }
 
 static inline void
@@ -424,7 +424,7 @@ int sl_thd_kern_dispatch(thdcap_t t);
 static inline int
 sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
-	struct cos_scb_info *scb = sl_scb_info_cpu();
+	struct cos_scb_info *scb = sl_scb_info_core();
 
 	assert(sl_thd_dcbinfo(curr) && sl_thd_dcbinfo(next));
 	/*
@@ -470,7 +470,7 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
 		: "memory", "cc");
 
-	if (likely(sl_scb_info_cpu()->sched_tok == tok)) return 0;
+	if (likely(sl_scb_info_core()->sched_tok == tok)) return 0;
 
 	return -EAGAIN;
 }
@@ -480,7 +480,7 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 {
 //	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 //	struct cos_compinfo    *ci  = &dci->ci;
-//	struct sl_global_cpu   *g   = sl__globals_cpu();
+//	struct sl_global_core  *g   = sl__globals_core();
 //	int ret = 0;
 
 #if 0
@@ -543,12 +543,12 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 {
 //	return sl_thd_dispatch(to, cos_sched_sync(), sl_thd_curr());
 #if 1
-	struct sl_thd        *t = to;
-//	struct sl_global_cpu *globals = sl__globals_cpu();
-	sched_tok_t           tok;
-//	cycles_t              now;
-//	s64_t                 offset;
-//	int                   ret;
+	struct sl_thd         *t = to;
+//	struct sl_global_core *globals = sl__globals_core();
+	sched_tok_t            tok;
+//	cycles_t               now;
+//	s64_t                  offset;
+//	int                    ret;
 
 	/* Don't abuse this, it is only to enable the tight loop around this function for races... */
 #ifdef SL_CS
@@ -579,7 +579,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		struct sl_thd_policy *pt = sl_mod_schedule();
 
 		if (unlikely(!pt))
-			t = sl__globals_cpu()->idle_thd;
+			t = sl__globals_core()->idle_thd;
 		else
 			t = sl_mod_thd_get(pt);
 	}
@@ -589,7 +589,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 		assert(t->period);
-		assert(sl_thd_tcap(t) != sl__globals_cpu()->sched_tcap);
+		assert(sl_thd_tcap(t) != sl__globals_core()->sched_tcap);
 
 		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
 			tcap_res_t currbudget = 0;
@@ -601,7 +601,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			if (!cycles_same(currbudget, t->budget, SL_CYCS_DIFF) && currbudget < t->budget) {
 				tcap_res_t transfer = t->budget - currbudget;
 
-				ret = cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals_cpu()->sched_tcap, transfer, t->prio);
+				ret = cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals_core()->sched_tcap, transfer, t->prio);
 			}
 
 			if (likely(ret == 0)) t->last_replenish = replenish;
@@ -738,7 +738,7 @@ check:
 		if (unlikely(flags & RCV_NON_BLOCKING)) goto done;
 
 		sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED, 0);
-		sl_cs_exit_switchto(sl__globals_cpu()->sched_thd);
+		sl_cs_exit_switchto(sl__globals_core()->sched_thd);
 
 		goto check;
 	}

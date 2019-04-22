@@ -60,6 +60,6 @@ SERVER_STUB=s_stub.o
 CLIENT_STUB=c_stub.o
 
 LIBCOSDEFKERN=-lcos_kernel_api -lcos_defkernel_api
-LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap -lsl_xcpu -lsl_child -lck
+LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap -lsl_xcore -lsl_child -lck
 LIBSLCAPMGR=$(LIBSLCORE) -lsl_capmgr
 LIBSLRAW=$(LIBSLCORE) -lsl_raw -lcos_dcb

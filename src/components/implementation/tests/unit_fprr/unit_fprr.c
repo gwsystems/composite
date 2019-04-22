@@ -106,51 +106,51 @@ test_swapping(void)
 	sl_thd_block_timeout(0, wakeup);
 }
 
-#define XCPU_THDS (NUM_CPU-1)
+#define XCORE_THDS (NUM_CPU-1)
 #define THD_SLEEP_US (100 * 1000)
-volatile unsigned int xcpu_thd_data[NUM_CPU][XCPU_THDS];
-volatile unsigned int xcpu_thd_counter[NUM_CPU];
+volatile unsigned int xcore_thd_data[NUM_CPU][XCORE_THDS];
+volatile unsigned int xcore_thd_counter[NUM_CPU];
 static void
-test_xcpu_fn(void *data)
+test_xcore_fn(void *data)
 {
 	cycles_t wakeup, elapsed;
 	int cpu = *((unsigned int *)data) >> 16;
 	int i   = (*((unsigned int *)data) << 16) >> 16;
 
-	assert(i < XCPU_THDS);
+	assert(i < XCORE_THDS);
 	wakeup = sl_now() + sl_usec2cyc(THD_SLEEP_US);
 	elapsed = sl_thd_block_timeout(0, wakeup);
 
-	if (elapsed) xcpu_thd_counter[cpu] ++;
+	if (elapsed) xcore_thd_counter[cpu] ++;
 	sl_thd_exit();
 }
 
 static void
-run_xcpu_tests()
+run_xcore_tests()
 {
 	int ret = 0, i, cpu = 0;
 
 	if (NUM_CPU == 1) return;
 
-	memset((void *)xcpu_thd_data[cos_cpuid()], 0, sizeof(unsigned int) * XCPU_THDS);
-	xcpu_thd_counter[cos_cpuid()] = 0;
+	memset((void *)xcore_thd_data[cos_cpuid()], 0, sizeof(unsigned int) * XCORE_THDS);
+	xcore_thd_counter[cos_cpuid()] = 0;
 
-	for (i = 0; i < XCPU_THDS; i++) {
+	for (i = 0; i < XCORE_THDS; i++) {
 		sched_param_t p[1];
 
 		if (cpu == cos_cpuid()) cpu++;
 		cpu %= NUM_CPU;
-		xcpu_thd_data[cos_cpuid()][i] = (cpu << 16) | i;
+		xcore_thd_data[cos_cpuid()][i] = (cpu << 16) | i;
 
 		p[0] = sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY);
-		ret = sl_xcpu_thd_alloc(cpu, test_xcpu_fn, (void *)&xcpu_thd_data[cos_cpuid()][i], p);
+		ret = sl_xcore_thd_alloc(cpu, test_xcore_fn, (void *)&xcore_thd_data[cos_cpuid()][i], 1, p);
 		if (ret) break;
 
 		cpu++;
 	}
 
-	PRINTC("%s: Creating cross-CPU threads!\n", ret ? "FAILURE" : "SUCCESS");
-	while (xcpu_thd_counter[cos_cpuid()] != XCPU_THDS) ;
+	PRINTC("%s: Creating cross-core threads!\n", ret ? "FAILURE" : "SUCCESS");
+	while (xcore_thd_counter[cos_cpuid()] != XCORE_THDS) ;
 }
 
 static void
@@ -161,7 +161,7 @@ run_tests()
 	test_swapping();
 	PRINTC("%s: Swap back and forth!\n", (thd1_ran[cos_cpuid()] && thd2_ran[cos_cpuid()]) ? "SUCCESS" : "FAILURE");
 
-	run_xcpu_tests();
+	run_xcore_tests();
 
 	PRINTC("Unit-test done!\n");
 	sl_thd_exit();

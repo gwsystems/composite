@@ -38,7 +38,7 @@ sl_shm_map(cbuf_t id)
 }
 
 void
-sl_xcpu_asnd_alloc(void)
+sl_xcore_asnd_alloc(void)
 {
 	int i;
 
@@ -47,11 +47,11 @@ sl_xcpu_asnd_alloc(void)
 		thdid_t tid;
 
 		if (i == cos_cpuid()) continue;
-		if (!bitmap_check(sl__globals()->cpu_bmp, i)) continue;
+		if (!bitmap_check(sl__globals()->core_bmp, i)) continue;
 
 		snd = capmgr_asnd_rcv_create(BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(i));
 		assert(snd);
-		sl__globals()->xcpu_asnd[cos_cpuid()][i] = snd;
+		sl__globals()->xcore_asnd[cos_cpuid()][i] = snd;
 	}
 }
 
@@ -156,7 +156,7 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx, vad
 
 		aep->thd = capmgr_thd_create_ext(comp->id, idx, &aep->tid, (struct cos_dcb_info **)dcbuaddr);
 		if (!aep->thd) goto done;
-		aep->tc  = sl_thd_tcap(sl__globals_cpu()->sched_thd);
+		aep->tc  = sl_thd_tcap(sl__globals_core()->sched_thd);
 
 		t = sl_thd_alloc_init(aep, 0, 0, NULL);
 		sl_mod_thd_create(sl_mod_thd_policy_get(t));
@@ -399,7 +399,7 @@ sl_thd_retrieve_lazy(thdid_t tid)
 	it = sl_thd_try_lkup(itid);
 	assert(it);
 	aep.tid = tid;
-	aep.tc  = sl__globals_cpu()->sched_tcap;
+	aep.tc  = sl__globals_core()->sched_tcap;
 	t = sl_thd_init_ext_no_cs(&aep, it);
 
 	/* if (tid != sl_thdid()) sl_cs_exit(); */

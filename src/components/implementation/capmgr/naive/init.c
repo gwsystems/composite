@@ -69,7 +69,7 @@ capmgr_comp_info_iter_cpu(void)
 
 			cap_info_initthd_init(rci, ithd, 0);
 		} else if (cos_spd_id() == spdid) {
-			cap_info_initthd_init(rci, sl__globals_cpu()->sched_thd, 0);
+			cap_info_initthd_init(rci, sl__globals_core()->sched_thd, 0);
 		} else if (!sched_spdid && spdid) {
 			struct sl_thd *booter_thd = cap_info_initthd(btinfo);
 			dcbcap_t dcap;
@@ -176,7 +176,7 @@ capmgr_comp_info_iter(void)
 
 			cap_info_initthd_init(rci, ithd, 0);
 		} else if (cos_spd_id() == spdid) {
-			cap_info_initthd_init(rci, sl__globals_cpu()->sched_thd, 0);
+			cap_info_initthd_init(rci, sl__globals_core()->sched_thd, 0);
 		} else if (!sched_spdid && spdid) {
 			struct sl_thd *booter_thd = cap_info_initthd(btinfo);
 			dcbcap_t dcap;

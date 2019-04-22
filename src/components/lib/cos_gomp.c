@@ -54,7 +54,7 @@ GOMP_parallel (void (*fn) (void *), void *data, unsigned num_threads,
 {
 	/* FIXME: improve everything! */
 	unsigned i;
-	unsigned num_done = 0;
+	unsigned long num_done = 0;
 
 	num_threads = _cos_gomp_num_threads(num_threads);
 	assert(num_threads <= MAX_NUM_THREADS);

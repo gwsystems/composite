@@ -460,7 +460,7 @@ cos_init(void)
 
 	if (cos_cpuid() == INIT_CORE) {
 		capmgr_spdid = 0;
-		memset(root_spdid, 0, sizeof(int) * NUM_CPU);
+		memset(root_spdid, 0, sizeof(spdid_t) * NUM_CPU);
 		memset(new_comp_cap_info, 0, sizeof(struct comp_cap_info) * (MAX_NUM_SPDS));
 
 		h        = (struct cobj_header *)cos_comp_info.cos_poly[0];

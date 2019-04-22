@@ -52,7 +52,7 @@ sl_parent_notif_enqueue(struct sl_thd *thd, struct sl_child_notification *notif)
 	return 0;
 }
 
-/* there is only 1 parent per scheduler per cpu */
+/* there is only 1 parent per scheduler per core */
 int
 sl_child_notif_map(cbuf_t id)
 {

@@ -7,7 +7,7 @@
 
 #include <ps.h>
 #include <sl.h>
-#include <sl_xcpu.h>
+#include <sl_xcore.h>
 #include <sl_child.h>
 #include <sl_mod_policy.h>
 #include <cos_debug.h>
@@ -17,18 +17,18 @@
 #include <cos_ulsched_rcv.h>
 
 struct sl_global sl_global_data;
-struct sl_global_cpu sl_global_cpu_data[NUM_CPU] CACHE_ALIGNED;
+struct sl_global_core sl_global_core_data[NUM_CPU] CACHE_ALIGNED;
 static void sl_sched_loop_intern(int non_block) __attribute__((noreturn));
 extern struct sl_thd *sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps, struct cos_dcb_info *dcb);
-extern int sl_xcpu_process_no_cs(void);
-extern void sl_xcpu_asnd_alloc(void);
+extern int sl_xcore_process_no_cs(void);
+extern void sl_xcore_asnd_alloc(void);
 
 /*
  * These functions are removed from the inlined fast-paths of the
  * critical section (cs) code to save on code size/locality
  */
 int
-sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, struct sl_global_cpu *gcpu, struct sl_thd *curr, sched_tok_t tok)
+sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, struct sl_global_core *gcore, struct sl_thd *curr, sched_tok_t tok)
 {
 #ifdef SL_CS
 	int ret;
@@ -37,11 +37,11 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, stru
 	assert(csi->s.owner != sl_thd_thdcap(curr));
 	if (!csi->s.contention) {
 		csi->s.contention = 1;
-		if (!ps_upcas(&gcpu->lock.u.v, cached->v, csi->v)) return 1;
+		if (!ps_upcas(&gcore->lock.u.v, cached->v, csi->v)) return 1;
 	}
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	if ((ret = cos_defswitch(csi->s.owner, curr->prio, csi->s.owner == sl_thd_thdcap(gcpu->sched_thd) ?
-				 TCAP_TIME_NIL : gcpu->timeout_next, tok))) return ret;
+	if ((ret = cos_defswitch(csi->s.owner, curr->prio, csi->s.owner == sl_thd_thdcap(gcore->sched_thd) ?
+				 TCAP_TIME_NIL : gcore->timeout_next, tok))) return ret;
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
 #endif
 
@@ -50,12 +50,12 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, stru
 
 /* Return 1 if we need a retry, 0 otherwise */
 int
-sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, struct sl_global_cpu *gcpu, sched_tok_t tok)
+sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, struct sl_global_core *gcore, sched_tok_t tok)
 {
 #ifdef SL_CS
-	if (!ps_upcas(&gcpu->lock.u.v, cached->v, 0)) return 1;
+	if (!ps_upcas(&gcore->lock.u.v, cached->v, 0)) return 1;
 	/* let the scheduler thread decide which thread to run next, inheriting our budget/priority */
-	cos_defswitch(gcpu->sched_thdcap, sl_thd_curr()->prio, TCAP_TIME_NIL, tok);
+	cos_defswitch(gcore->sched_thdcap, sl_thd_curr()->prio, TCAP_TIME_NIL, tok);
 #endif
 
 	return 0;
@@ -342,7 +342,7 @@ sl_thd_block_expiry(struct sl_thd *t)
 {
 	cycles_t abs_timeout = 0;
 
-	assert(t != sl__globals_cpu()->sched_thd);
+	assert(t != sl__globals_core()->sched_thd);
 	if (!(t->properties & SL_THD_PROPERTY_OWN_TCAP)) {
 		assert(!t->rcv_suspended);
 		return;
@@ -492,7 +492,7 @@ sl_thd_event_info_reset(struct sl_thd *t)
 static inline void
 sl_thd_event_enqueue(struct sl_thd *t, struct cos_thd_event *e)
 {
-	struct sl_global_cpu *g = sl__globals_cpu();
+	struct sl_global_core *g = sl__globals_core();
 
 	if (ps_list_singleton(t, SL_THD_EVENT_LIST)) ps_list_head_append(&g->event_head, t, SL_THD_EVENT_LIST);
 
@@ -551,7 +551,7 @@ sl_timeout_period(microsec_t period)
 {
 	cycles_t p = sl_usec2cyc(period);
 
-	sl__globals_cpu()->period = p;
+	sl__globals_core()->period = p;
 #ifdef SL_TIMEOUTS
 	sl_timeout_relative(p);
 #endif
@@ -564,7 +564,7 @@ sl_idle(void *d)
 
 /* call from the user? */
 static void
-sl_global_init(u32_t *cpu_bmp)
+sl_global_init(u32_t *core_bmp)
 {
 	struct sl_global *g = sl__globals();
 	unsigned int i = 0;
@@ -573,10 +573,10 @@ sl_global_init(u32_t *cpu_bmp)
 	assert(sizeof(struct cos_scb_info) * NUM_CPU <= COS_SCB_SIZE && COS_SCB_SIZE == PAGE_SIZE);
 
 	for (i = 0; i < NUM_CPU; i++) {
-		if (!bitmap_check(cpu_bmp, i)) continue;
+		if (!bitmap_check(core_bmp, i)) continue;
 
-		bitmap_set(g->cpu_bmp, i);
-		ck_ring_init(sl__ring(i), SL_XCPU_RING_SIZE);
+		bitmap_set(g->core_bmp, i);
+		ck_ring_init(sl__ring(i), SL_XCORE_RING_SIZE);
 	}
 	g->scb_area = (struct cos_scb_info *)cos_scb_info_get();
 }
@@ -588,13 +588,13 @@ sl_init(microsec_t period)
 	static unsigned long first = 1, init_done = 0;
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
-	struct sl_global_cpu   *g   = sl__globals_cpu();
+	struct sl_global_core  *g   = sl__globals_core();
 	struct cos_aep_info    *ga  = cos_sched_aep_get(dci);
-	u32_t cpu_bmp[(NUM_CPU + 7)/8] = { 0 }; /* TODO! pass from the user! */
+	u32_t core_bmp[(NUM_CPU + 7)/8] = { 0 }; /* TODO! pass from the user! */
 
 	if (ps_cas(&first, 1, 0)) {
-		bitmap_set_contig(cpu_bmp, 0, NUM_CPU, 1);
-		sl_global_init(cpu_bmp);
+		bitmap_set_contig(core_bmp, 0, NUM_CPU, 1);
+		sl_global_init(core_bmp);
 
 		ps_faa(&init_done, 1);
 	} else {
@@ -603,7 +603,7 @@ sl_init(microsec_t period)
 	}
 	/* must fit in a word */
 	assert(sizeof(struct sl_cs) <= sizeof(unsigned long));
-	memset(g, 0, sizeof(struct sl_global_cpu));
+	memset(g, 0, sizeof(struct sl_global_core));
 
 	g->cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	g->lock.u.v     = 0;
@@ -627,7 +627,7 @@ sl_init(microsec_t period)
 	g->idle_thd        = sl_thd_alloc(sl_idle, NULL);
 	assert(g->idle_thd);
 
-	sl_xcpu_asnd_alloc();
+	sl_xcore_asnd_alloc();
 
 	return;
 }
@@ -635,8 +635,8 @@ sl_init(microsec_t period)
 static void
 sl_sched_loop_intern(int non_block)
 {
-	struct sl_global_cpu *g   = sl__globals_cpu();
-	rcv_flags_t           rfl = (non_block ? RCV_NON_BLOCKING : 0);
+	struct sl_global_core *g   = sl__globals_core();
+	rcv_flags_t            rfl = (non_block ? RCV_NON_BLOCKING : 0);
 
 	while (1) {
 		int pending;
@@ -717,7 +717,7 @@ pending_events:
 			}
 
 			/* process cross-core requests */
-			sl_xcpu_process_no_cs();
+			sl_xcore_process_no_cs();
 
 			sl_cs_exit();
 		} while (pending > 0);
@@ -743,6 +743,6 @@ sl_sched_loop_nonblock(void)
 int
 sl_thd_kern_dispatch(thdcap_t t)
 {
-	//return cos_switch(t, sl__globals_cpu()->sched_tcap, 0, sl__globals_cpu()->timeout_next, sl__globals_cpu()->sched_rcv, cos_sched_sync());
+	//return cos_switch(t, sl__globals_core()->sched_tcap, 0, sl__globals_core()->timeout_next, sl__globals_core()->sched_rcv, cos_sched_sync());
 	return cos_thd_switch(t);
 }

@@ -29,7 +29,7 @@ sl_shm_map(cbuf_t id)
 }
 
 void
-sl_xcpu_asnd_alloc(void)
+sl_xcore_asnd_alloc(void)
 {
         struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
         struct cos_compinfo    *ci  = cos_compinfo_get(dci);
@@ -39,11 +39,11 @@ sl_xcpu_asnd_alloc(void)
 		asndcap_t snd;
 
 		if (i == cos_cpuid()) continue;
-		if (!bitmap_check(sl__globals()->cpu_bmp, i)) continue;
+		if (!bitmap_check(sl__globals()->core_bmp, i)) continue;
 
 		snd = cos_asnd_alloc(ci, BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(i), ci->captbl_cap);
 		assert(snd);
-		sl__globals()->xcpu_asnd[cos_cpuid()][i] = snd;
+		sl__globals()->xcore_asnd[cos_cpuid()][i] = snd;
 	}
 }
 
@@ -184,7 +184,7 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 
 	/* NOTE: Cannot use stack-allocated cos_aep_info struct here */
 	if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data, dcap, doff);
-	else                                 ret = cos_aep_tcap_alloc(aep, sl_thd_aepinfo(sl__globals_cpu()->sched_thd)->tc,
+	else                                 ret = cos_aep_tcap_alloc(aep, sl_thd_aepinfo(sl__globals_core()->sched_thd)->tc,
 			                                              fn, data, dcap, doff);
 	if (ret) goto done;
 
