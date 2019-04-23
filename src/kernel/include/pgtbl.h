@@ -290,6 +290,7 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	                                          PGTBL_DEPTH, &accum);
 	if (!pte) return -ENOENT;
 	orig_v = (u32_t)(pte->next);
+//	printk("%p %x\n", pte, orig_v);
 
 	if (orig_v & PGTBL_PRESENT) return -EEXIST;
 	if (orig_v & PGTBL_COSFRAME) return -EPERM;
@@ -357,6 +358,7 @@ pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
                                                   PGTBL_DEPTH, &accum);
 	orig_v = (u32_t)(pte->next);
 	assert(orig_v == 0);
+//	printk("%x %x %p %x\n", addr, page, pte, orig_v);
 
 	return __pgtbl_update_leaf(pte, (void *)(page | flags), 0);
 }

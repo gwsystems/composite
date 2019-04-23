@@ -72,7 +72,7 @@ typedef enum {
 
 typedef enum {
 	RCV_NON_BLOCKING = 1,
-	RCV_ALL_PENDING  = 1 << 1,
+	RCV_ULONLY       = (1 << 1),
 } rcv_flags_t;
 
 #define BOOT_LIVENESS_ID_BASE 2
@@ -125,6 +125,12 @@ typedef enum {
 	CAPTBL_OP_HW_MAP,
 	CAPTBL_OP_HW_CYC_USEC,
 	CAPTBL_OP_HW_CYC_THRESH,
+
+	CAPTBL_OP_SCB_ACTIVATE,
+	CAPTBL_OP_SCB_DEACTIVATE,
+
+	CAPTBL_OP_DCB_ACTIVATE,
+	CAPTBL_OP_DCB_DEACTIVATE,
 } syscall_op_t;
 
 typedef enum {
@@ -142,8 +148,13 @@ typedef enum {
 	CAP_QUIESCENCE, /* when deactivating, set to track quiescence state */
 	CAP_TCAP,       /* tcap captable entry */
 	CAP_HW,         /* hardware (interrupt) */
+	CAP_SCB,	/* Scheduler control block (SCB) */
+	CAP_DCB,	/* Dispatch control block (DCB) */
 } cap_t;
 
+/* maximum size allowed for CAP TYPE in a capability header */
+#define CAP_TYPE_MAXBITS 7
+#define CAP_TYPE_MAX (1 << CAP_TYPE_MAXBITS - 1)
 /* TODO: pervasive use of these macros */
 /* v \in struct cap_* *, type \in cap_t */
 #define CAP_TYPECHK(v, t) ((v) && (v)->h.type == (t))
@@ -192,12 +203,16 @@ typedef int cpuid_t;
 static inline cap_sz_t
 __captbl_cap2sz(cap_t c)
 {
+	/* if (unlikely(c > CAP_TYPE_MAX)) return CAP_SZ_ERR; */
+
 	/* TODO: optimize for invocation and return */
 	switch (c) {
 	case CAP_SRET:
 	case CAP_THD:
 	case CAP_TCAP:
 		return CAP_SZ_16B;
+	case CAP_SCB:
+	case CAP_DCB:
 	case CAP_CAPTBL:
 	case CAP_PGTBL:
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
@@ -257,6 +272,7 @@ enum
 	/*
 	 * NOTE: kernel doesn't support sharing a cache-line across cores,
 	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU
+	 * Update: add per-core INIT DCB cap in to the same cache-line.
 	 */
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP64B_IDSZ,
                                                          CAPMAX_ENTRY_SZ),
@@ -266,6 +282,7 @@ enum
 };
 
 #define BOOT_CAPTBL_SELF_INITTCAP_BASE (BOOT_CAPTBL_SELF_INITTHD_BASE + CAP16B_IDSZ)
+
 #define BOOT_CAPTBL_SELF_INITTHD_CPU_BASE (BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cos_cpuid()))
 #define BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE (BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cos_cpuid()))
 #define BOOT_CAPTBL_SELF_INITRCV_CPU_BASE (BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cos_cpuid()))
@@ -273,6 +290,16 @@ enum
 #define BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE + cpuid * CAP64B_IDSZ)
 #define BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) + CAP16B_IDSZ)
 #define BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITRCV_BASE + cpuid * CAP64B_IDSZ)
+
+enum llboot_scb_dcb_caps
+{
+	LLBOOT_CAPTBL_SCB     = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
+	LLBOOT_CAPTBL_INITDCB = LLBOOT_CAPTBL_SCB + CAP32B_IDSZ,
+	LLBOOT_CAPTBL_FREE    = round_up_to_pow2(LLBOOT_CAPTBL_INITDCB + (CAP32B_IDSZ * NUM_CPU), CAPMAX_ENTRY_SZ),
+};
+
+#define LLBOOT_CAPTBL_INITDCB_CPU(cpuid) (LLBOOT_CAPTBL_INITDCB + (CAP32B_IDSZ * cpuid))
+#define LLBOOT_CAPTBL_CPU_INITDCB        (LLBOOT_CAPTBL_INITDCB_CPU(cos_cpuid()))
 
 /*
  * The half of the first page of init captbl is devoted to root node. So, the
@@ -291,6 +318,8 @@ enum
 {
 	/* thread id */
 	THD_GET_TID,
+	THD_GET_DCB_IP,
+	THD_GET_DCB_SP,
 };
 
 enum
@@ -305,6 +334,12 @@ enum
 	ARCV_GET_CPUID,
 	/* TID of the thread arcv is associated with */
 	ARCV_GET_THDID,
+};
+
+enum
+{
+	/* get current thread info from scb */
+	COMP_GET_SCB_CURTHD,
 };
 
 /* Macro used to define per core variables */
@@ -408,7 +443,6 @@ struct cos_component_information {
 	vaddr_t                    cos_heap_allocated, cos_heap_alloc_extent;
 	vaddr_t                    cos_upcall_entry;
 	vaddr_t                    cos_async_inv_entry;
-	//	struct cos_sched_data_area *cos_sched_data_area;
 	vaddr_t                            cos_user_caps;
 	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS / 2];
 	vaddr_t                            cos_poly[COMP_INFO_POLY_NUM];

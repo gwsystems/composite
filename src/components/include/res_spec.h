@@ -64,10 +64,10 @@ sched_param_pack(sched_param_type_t type, unsigned int value)
 static inline void
 sched_param_get(sched_param_t sp, sched_param_type_t *type, unsigned int *value)
 {
-	struct sched_param_s s = *(struct sched_param_s *)(void *)&sp;
+	union sched_param_union us = *(union sched_param_union *)&sp;
 
-	*type  = s.type;
-	*value = s.value;
+	*type  = us.c.type;
+	*value = us.c.value;
 }
 
 #endif /* RES_SPEC_H */

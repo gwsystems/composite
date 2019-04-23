@@ -1,3 +1,4 @@
+#include <cos_types.h>
 #include "micro_booter.h"
 
 struct cos_compinfo booter_info;
@@ -22,6 +23,7 @@ cos_init(void)
 {
 	int cycs, i;
 	static int first_init = 1, init_done = 0;
+	struct cos_dcb_info *initaddr, *termaddr;
 
 	cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	printc("\t%d cycles per microsecond\n", cycs);
@@ -30,14 +32,15 @@ cos_init(void)
 		first_init = 0;
 		cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-				(vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
+				  (vaddr_t)cos_get_heap_ptr(), LLBOOT_CAPTBL_FREE, &booter_info);
 		init_done = 1;
 	}
 
 	while (!init_done) ;
 
-	termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
+	termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL, 0, 0);
 	assert(termthd[cos_cpuid()]);
+
 	PRINTC("Micro Booter started.\n");
 	test_run_mb();
 

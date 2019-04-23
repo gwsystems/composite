@@ -26,7 +26,7 @@ __test_child(arcvcap_t rcv, void *data)
 
 	assert(taeps[cos_cpuid()][(int)data].rcv == rcv);
 	while (child_rcvd[cos_cpuid()] < TEST_ITERS) {
-		ret = cos_rcv(rcv, 0, NULL);
+		ret = cos_rcv(rcv, 0);
 		assert(ret >= 0);
 
 		child_rcvd[cos_cpuid()]++;
@@ -43,7 +43,7 @@ __test_parent(arcvcap_t rcv, void *data)
 
 	assert(taeps[cos_cpuid()][(int)data].rcv == rcv);
 	while (parent_sent[cos_cpuid()] < TEST_ITERS) {
-		ret = cos_rcv(rcv, 0, NULL);
+		ret = cos_rcv(rcv, 0);
 		assert(ret >= 0);
 
 		do {

@@ -41,14 +41,17 @@ capmgr_comp_info_init(struct cap_comp_info *rci, spdid_t spdid)
 	if (spdid == 0 || (spdid != cos_spd_id() && cap_info_is_child(btinfo, spdid))) {
 		is_sched = (spdid == 0 || cap_info_is_sched_child(btinfo, spdid)) ? 1 : 0;
 
-		ret = hypercall_comp_initaep_get(spdid, is_sched, &aep);
-		assert(ret == 0);
+		if (!spdid || (spdid && sched_spdid != 0)) {
+			ret = hypercall_comp_initaep_get(spdid, is_sched, &aep, &sched_spdid);
+			assert(ret == 0);
+		}
 	}
 
 	rci_sched = cap_info_comp_find(sched_spdid);
 	assert(rci_sched && cap_info_init_check(rci_sched));
 	rci_cpu->parent = rci_sched;
 	rci_cpu->thd_used = 1;
+	cap_info_cpu_initdcb_init(rci);
 
 	while ((remain_child = hypercall_comp_child_next(spdid, &childid, &ch_flags)) >= 0) {
 		bitmap_set(rci_cpu->child_bitmap, childid - 1);
@@ -66,14 +69,40 @@ capmgr_comp_info_init(struct cap_comp_info *rci, spdid_t spdid)
 		cap_comminfo_init(ithd, 0, 0);
 		cap_info_initthd_init(rci, ithd, 0);
 	} else if (cos_spd_id() == spdid) {
-		cap_info_initthd_init(rci, sl__globals_cpu()->sched_thd, 0);
+		cap_info_initthd_init(rci, sl__globals_core()->sched_thd, 0);
+	} else if (!sched_spdid && spdid) {
+		struct sl_thd *booter_thd = cap_info_initthd(btinfo);
+		dcbcap_t dcap;
+		dcboff_t off = 0;
+		vaddr_t  addr = 0;
+		struct cos_compinfo *rt_ci = cap_info_ci(rci);
+
+		dcap = cos_dcb_info_alloc(&rci_cpu->dcb_data, &off, &addr);
+		if (dcap) assert(off == 0 && addr);
+
+		/* root-scheduler, TODO: rate-limiting? */
+		ithd = sl_thd_initaep_alloc_dcb(cap_info_dci(rci), booter_thd, is_sched, is_sched ? 1 : 0, 0, dcap, 0, 0);
+		assert(ithd);
+
+		ret = cos_cap_cpy_at(rt_ci, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, ci, sl_thd_thdcap(ithd));
+		assert(ret == 0);
+		if (is_sched) {
+			ret = cos_cap_cpy_at(rt_ci, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, ci, sl_thd_tcap(ithd));
+			assert(ret == 0);
+			ret = cos_cap_cpy_at(rt_ci, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, ci, sl_thd_rcvcap(ithd));
+			assert(ret == 0);
+		}
+
+		ret = hypercall_root_initaep_set(spdid, sl_thd_aepinfo(ithd));
+		assert(ret == 0);
+		cap_info_initthd_init(rci, ithd, 0);
 	}
 
 	return;
 }
 
 static void
-capmgr_comp_info_iter_cpu(void)
+capmgr_comp_info_iter_core(void)
 {
 	int remaining = hypercall_numcomps_get(), i;
 	int num_comps = 0;
@@ -153,14 +182,16 @@ cos_init(void)
 				BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
 				BOOT_CAPTBL_SELF_COMP, heap_frontier, cap_frontier);
 		cap_info_init();
+		cos_dcb_info_init_curr();
 		sl_init(SL_MIN_PERIOD_US);
 		capmgr_comp_info_iter();
 	} else {
 		while (!capmgr_init_core_done) ; /* WAIT FOR INIT CORE TO BE DONE */
 
 		cos_defcompinfo_sched_init();
+		cos_dcb_info_init_curr();
 		sl_init(SL_MIN_PERIOD_US);
-		capmgr_comp_info_iter_cpu();
+		capmgr_comp_info_iter_core();
 	}
 	assert(hypercall_comp_child_next(cos_spd_id(), &child, &ch_flags) == -1);
 

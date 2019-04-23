@@ -62,6 +62,27 @@ cap_info_thd_next(struct cap_comp_info *rci)
 	return NULL;
 }
 
+void
+cap_info_cpu_initdcb_init(struct cap_comp_info *rci)
+{
+	dcbcap_t initdcb = 0;
+	unsigned short init_off = 0;
+	vaddr_t  initaddr = 0;
+	struct cos_compinfo *ci = cos_compinfo_get(cap_info_dci(rci));
+	struct cap_comp_cpu_info *rci_cpu = cap_info_cpu_local(rci);
+
+	if (rci->cid == 0 || rci->cid == cos_spd_id()) {
+		cos_dcb_info_init_ext(cap_info_cpu_dcbdata(rci_cpu), 0, 0, 0, 0);
+		return;
+	}
+
+	initaddr = rci->init_dcb_start + cos_cpuid() * PAGE_SIZE;
+	initdcb  = cos_dcb_alloc(cos_compinfo_get(cos_defcompinfo_curr_get()), ci->pgtbl_cap, initaddr);
+	assert(initdcb);
+
+	cos_dcb_info_init_ext(cap_info_cpu_dcbdata(rci_cpu), ci, initdcb, initaddr, init_off);
+}
+
 struct cap_comp_info *
 cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
 		   capid_t cap_frontier, vaddr_t heap_frontier, spdid_t sched_spdid)
@@ -76,12 +97,15 @@ cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, 
 
 	capci[spdid].cid = spdid;
 	cos_meminfo_init(&ci->mi, 0, 0, 0);
-	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, compcap, heap_frontier, cap_frontier,
-			cos_compinfo_get(cos_defcompinfo_curr_get()));
+	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, compcap, heap_frontier,
+			  cap_frontier, cos_compinfo_get(cos_defcompinfo_curr_get()));
 
 	memset(rglb, 0, sizeof(struct cap_shmem_glb_info));
 	memset(cap_shi, 0, sizeof(struct cap_shmem_info));
 	cap_shi->cinfo = ci;
+
+	capci[spdid].init_dcb_start = heap_frontier - (NUM_CPU * PAGE_SIZE);
+	cap_info_cpu_initdcb_init(&capci[spdid]);
 
 	capci[spdid].initflag = 1;
 	ps_faa((unsigned long *)&cap_comp_count, 1);
@@ -336,7 +360,8 @@ cap_shmem_region_find(cos_channelkey_t key)
 	cbuf_t i, free = rglb->free_region_id;
 
 	for (i = 1; i <= free; i++) {
-		if (ps_load((unsigned long *)&rglb->region_keys[i - 1]) == key) {
+		cos_channelkey_t *k = &rglb->region_keys[i - 1];
+		if (ps_load((unsigned long *)k) == (unsigned long)key) {
 			id = i;
 			break;
 		}

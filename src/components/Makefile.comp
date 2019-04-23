@@ -40,8 +40,8 @@ LUAINC=-I$(LUADIR)/src -I$(LUABASE)/cos/include
 
 INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/ -I$(SHAREDINC) -I$(CKINCDIR)
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic
-OPT= -g -fvar-tracking
-#OPT= -O3
+OPT  = -g -fvar-tracking
+OPT += -O3
 CFLAGS=-m32 -D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable $(INC_PATH) $(MUSLINC) $(LWIPINC) $(LUAINC) $(OPT) $(SHARED_FLAGS)
 CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
 LDFLAGS=-melf_i386
@@ -60,6 +60,6 @@ SERVER_STUB=s_stub.o
 CLIENT_STUB=c_stub.o
 
 LIBCOSDEFKERN=-lcos_kernel_api -lcos_defkernel_api
-LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap -lsl_xcpu -lsl_child -lck
+LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap -lsl_xcore -lsl_child -lck
 LIBSLCAPMGR=$(LIBSLCORE) -lsl_capmgr
-LIBSLRAW=$(LIBSLCORE) -lsl_raw
+LIBSLRAW=$(LIBSLCORE) -lsl_raw -lcos_dcb

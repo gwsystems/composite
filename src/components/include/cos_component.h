@@ -10,6 +10,7 @@
 
 #include <consts.h>
 #include <cos_types.h>
+#include <cos_sched.h>
 #include <errno.h>
 #include <util.h>
 #include <string.h>
@@ -53,6 +54,7 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	return ret;
 }
 
+/* NOTE: make sure the memory locations r1, r2 & r3 are at least word-sized as the register stores are word-sized! */
 static inline int
 call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
 			 unsigned long *r1, unsigned long *r2, unsigned long *r3)
@@ -84,6 +86,7 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int a
 	return ret;
 }
 
+/* NOTE: make sure the memory locations r1 & r2 are at least word-sized as the register stores are word-sized! */
 static inline int
 call_cap_2retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
 			 unsigned long *r1, unsigned long *r2)
@@ -145,9 +148,8 @@ extern struct cos_component_information cos_comp_info;
 static inline long
 get_stk_data(int offset)
 {
-	unsigned long curr_stk_pointer;
+	unsigned long curr_stk_pointer = 0;
 
-	__asm__("movl %%esp, %0;" : "=r"(curr_stk_pointer));
 	/*
 	 * We save the CPU_ID and thread id in the stack for fast
 	 * access.  We want to find the struct cos_stk (see the stkmgr
@@ -155,7 +157,15 @@ get_stk_data(int offset)
 	 * cpu_id.  This struct is at the _top_ of the current stack,
 	 * and cpu_id is at the top of the struct (it is a u32_t).
 	 */
-	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + COS_STACK_SZ - offset * sizeof(u32_t));
+	return *(long *)((((unsigned long)(&curr_stk_pointer)) & ~(COS_STACK_SZ - 1)) + COS_STACK_SZ - offset * sizeof(u32_t));
+}
+
+static inline void
+set_stk_data(int offset, long val)
+{
+	unsigned long curr_stk_pointer = 0;
+
+	*(long *)((((unsigned long)&curr_stk_pointer) & ~(COS_STACK_SZ - 1)) + COS_STACK_SZ - offset * sizeof(u32_t)) = val;
 }
 
 #define GET_CURR_CPU cos_cpuid()
@@ -195,6 +205,18 @@ cos_thdid(void)
 	return cos_get_thd_id();
 }
 
+static void *
+cos_get_slthd_ptr(void)
+{
+	return (void *)get_stk_data(SLTHDPTR_OFFSET);
+}
+
+static void
+cos_set_slthd_ptr(void *ptr)
+{
+	set_stk_data(SLTHDPTR_OFFSET, (long)ptr);
+}
+
 #define ERR_THROW(errval, label) \
 	do {                     \
 		ret = errval;    \
@@ -210,12 +232,36 @@ cos_spd_id(void)
 static inline void *
 cos_get_heap_ptr(void)
 {
-	return (void *)cos_comp_info.cos_heap_ptr;
+	/* page at heap_ptr is actually the SCB_PAGE for any component. */
+	unsigned int off = COS_SCB_SIZE + (PAGE_SIZE * NUM_CPU);
+	void *heap_ptr = ((void *)(cos_comp_info.cos_heap_ptr + off));
+
+	return heap_ptr;
+}
+
+static inline struct cos_scb_info *
+cos_scb_info_get(void)
+{
+	return (struct cos_scb_info *)(cos_comp_info.cos_heap_ptr);
+}
+
+static inline struct cos_scb_info *
+cos_scb_info_get_core(void)
+{
+	return cos_scb_info_get() + cos_cpuid();
+}
+
+static inline struct cos_dcb_info *
+cos_init_dcb_get(void)
+{
+	/* created at boot-time for the first component in the system! */
+	return (struct cos_dcb_info *)(cos_comp_info.cos_heap_ptr + COS_SCB_SIZE + (PAGE_SIZE * cos_cpuid()));
 }
 
 static inline void
 cos_set_heap_ptr(void *addr)
 {
+	/* FIXME: fix this for the hack if it's not going to work! */
 	cos_comp_info.cos_heap_ptr = (vaddr_t)addr;
 }
 

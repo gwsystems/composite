@@ -34,7 +34,7 @@ struct invstk_entry {
  */
 struct rcvcap_info {
 	/* how many other arcv end-points send notifications to this one? */
-	int            isbound, pending, refcnt, is_all_pending;
+	int            isbound, pending, refcnt, is_init;
 	sched_tok_t    sched_count;
 	struct tcap *  rcvcap_tcap;      /* This rcvcap's tcap */
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
@@ -69,6 +69,7 @@ struct thread {
 	tcap_time_t    timeout;
 	struct thread *interrupted_thread;
 	struct thread *scheduler_thread;
+	struct cos_dcb_info *dcbinfo;
 
 	/* rcv end-point data-structures */
 	struct rcvcap_info rcvcap;
@@ -88,6 +89,8 @@ struct cap_thd {
 	struct thread *   t;
 	cpuid_t           cpuid;
 } __attribute__((packed));
+
+#include "dcb.h"
 
 static void
 thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
@@ -188,13 +191,13 @@ thd_next_thdinfo_update(struct cos_cpu_local_info *cli, struct thread *thd, stru
 }
 
 static void
-thd_rcvcap_init(struct thread *t)
+thd_rcvcap_init(struct thread *t, int is_init)
 {
 	struct rcvcap_info *rc = &t->rcvcap;
 
 	rc->isbound = rc->pending = rc->refcnt = 0;
-	rc->is_all_pending                     = 0;
 	rc->sched_count                        = 0;
+	rc->is_init                            = is_init;
 	rc->rcvcap_thd_notif                   = NULL;
 }
 
@@ -227,36 +230,11 @@ thd_track_exec(struct thread *t)
 	return !list_empty(&t->event_list);
 }
 
-static void
-thd_rcvcap_all_pending_set(struct thread *t, int val)
-{
-	t->rcvcap.is_all_pending = val;
-}
-
-static int
-thd_rcvcap_all_pending_get(struct thread *t)
-{
-	return t->rcvcap.is_all_pending;
-}
-
-static int
-thd_rcvcap_all_pending(struct thread *t)
-{
-	int pending = t->rcvcap.pending;
-
-	/* receive all pending */
-	t->rcvcap.pending = 0;
-	thd_rcvcap_all_pending_set(t, 0);
-
-	return ((pending << 1) | !list_isempty(&t->event_head));
-}
-
 static int
 thd_rcvcap_pending(struct thread *t)
 {
 	if (t->rcvcap.pending) return t->rcvcap.pending;
 	return !list_isempty(&t->event_head);
-	;
 }
 
 static sched_tok_t
@@ -272,20 +250,17 @@ thd_rcvcap_set_counter(struct thread *t, sched_tok_t cntr)
 }
 
 static void
-thd_rcvcap_pending_inc(struct thread *arcvt)
+thd_rcvcap_pending_set(struct thread *arcvt)
 {
-	arcvt->rcvcap.pending++;
+	arcvt->rcvcap.pending = 1;
+
+	if (likely(arcvt->dcbinfo)) arcvt->dcbinfo->pending = 1;
 }
 
-static int
-thd_rcvcap_pending_dec(struct thread *arcvt)
+static void
+thd_rcvcap_pending_reset(struct thread *arcvt)
 {
-	int pending = arcvt->rcvcap.pending;
-
-	if (pending == 0) return 0;
-	arcvt->rcvcap.pending--;
-
-	return pending;
+	arcvt->rcvcap.pending = 0;
 }
 
 static inline int
@@ -333,16 +308,22 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 }
 
 static int
-thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data)
+thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data, capid_t dcbcap, unsigned short dcboff)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
-	struct cap_thd            *tc;
-	struct cap_comp           *compc;
+	struct cap_thd            *tc = NULL;
+	struct cap_comp           *compc = NULL;
+	struct cap_dcb            *dc = NULL;
 	int                        ret;
 
 	memset(thd, 0, sizeof(struct thread));
 	compc = (struct cap_comp *)captbl_lkup(t, compcap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
+	if (likely(dcbcap)) {
+		dc    = (struct cap_dcb *)captbl_lkup(t, dcbcap);
+		if (unlikely(!dc || dc->h.type != CAP_DCB)) return -EINVAL;
+		if (dcboff > PAGE_SIZE / sizeof(struct cos_dcb_info)) return -EINVAL;
+	}
 
 	tc = (struct cap_thd *)__cap_capactivate_pre(t, cap, capin, CAP_THD, &ret);
 	if (!tc) return ret;
@@ -354,10 +335,17 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->refcnt                           = 1;
 	thd->invstk_top                       = 0;
 	thd->cpuid                            = get_cpuid();
+	if (likely(dc)) {
+		ret = dcb_thd_ref(dc, thd);
+		if (ret) goto err; /* TODO: cleanup captbl slot */
+		thd->dcbinfo = (struct cos_dcb_info *)(dc->kern_addr + (dcboff * sizeof(struct cos_dcb_info)));
+		memset(thd->dcbinfo, 0, sizeof(struct cos_dcb_info));
+	}
 	assert(thd->tid <= MAX_NUM_THREADS);
 	thd_scheduler_set(thd, thd_current(cli));
 
-	thd_rcvcap_init(thd);
+	/* TODO: fix the way to specify scheduler in a component! */
+	thd_rcvcap_init(thd, !init_data);
 	list_head_init(&thd->event_head);
 	list_init(&thd->event_list, thd);
 
@@ -369,15 +357,19 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	__cap_capactivate_post(&tc->h, CAP_THD);
 
 	return 0;
+
+err:
+	return ret;
 }
 
 static int
 thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, livenessid_t lid, capid_t pgtbl_cap,
-               capid_t cosframe_addr, const int root)
+               capid_t cosframe_addr, capid_t dcbcap, const int root)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
-	struct cap_header *        thd_header;
-	struct thread *            thd;
+	struct cap_header         *thd_header;
+	struct thread             *thd;
+	struct cap_dcb            *dcb = NULL;
 	unsigned long              old_v = 0, *pte = NULL;
 	int                        ret;
 
@@ -385,6 +377,10 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 	if (!thd_header || thd_header->type != CAP_THD) cos_throw(err, -EINVAL);
 	thd = ((struct cap_thd *)thd_header)->t;
 	assert(thd->refcnt);
+	if (dcbcap) {
+		dcb = (struct cap_dcb *)captbl_lkup(ct, dcbcap);
+		if (!dcb || dcb->h.type != CAP_DCB) cos_throw(err, -EINVAL);
+	}
 
 	if (thd->refcnt == 1) {
 		if (!root) cos_throw(err, -EINVAL);
@@ -410,6 +406,10 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 		}
 	}
 
+	if (dcb) {
+		ret = dcb_thd_deref(dcb, thd);
+		if (ret) cos_throw(err, ret);
+	}
 	ret = cap_capdeactivate(dest_ct, capin, CAP_THD, lid);
 	if (ret) cos_throw(err, ret);
 
@@ -473,6 +473,21 @@ curr_invstk_top(struct cos_cpu_local_info *cos_info)
 }
 
 static inline struct comp_info *
+thd_invstk_peek_compinfo(struct thread *curr_thd, struct cos_cpu_local_info *cos_info, int peek_index)
+{
+	/* curr_thd should be the current thread! We are using cached invstk_top. */
+	return &(curr_thd->invstk[peek_index].comp_info);
+}
+
+static inline struct comp_info *
+thd_invstk_current_compinfo(struct thread *curr_thd, struct cos_cpu_local_info *cos_info, int *invstk_top)
+{
+	*invstk_top = curr_invstk_top(cos_info);
+
+	return &(curr_thd->invstk[*invstk_top].comp_info);
+}
+
+static inline struct comp_info *
 thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
 {
 	/* curr_thd should be the current thread! We are using cached invstk_top. */
@@ -531,26 +546,60 @@ thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_
 	memcpy(&curr->regs, regs, sizeof(struct pt_regs));
 }
 
+static int
+thd_sched_events_produce(struct thread *thd, struct cos_cpu_local_info *cos_info)
+{
+	int delta = 0, inv_top = curr_invstk_top(cos_info);
+	struct cos_scb_info   *scb = NULL;
+	struct cos_sched_ring *r   = NULL;
+	struct comp_info      *c   = NULL;
+
+	if (unlikely(inv_top != 0 || thd->rcvcap.is_init == 0)) return 0;
+
+	c = thd_invstk_peek_compinfo(thd, cos_info, inv_top);
+	if (unlikely(!c || !c->scb_data)) return 0;
+
+	scb = ((c->scb_data) + get_cpuid());
+	r   = &(scb->sched_events);
+	/* 
+	 * only produce more if the ring is empty! 
+	 * so the user only calls after dequeueing all previous events. 
+	 */
+	if (unlikely(r->head != r->tail)) return -EAGAIN;
+
+	r->head = r->tail = 0;
+	while (delta < COS_SCHED_EVENT_RING_SIZE) {
+		struct cos_sched_event *e = &(r->event_buf[delta]);
+		unsigned long thd_state;
+
+		if (!thd_state_evt_deliver(thd, &thd_state, (unsigned long *)&(e->evt.elapsed_cycs),
+					(unsigned long *)&(e->evt.next_timeout))) break;
+		e->tid         = (thd_state << 1) >> 1;
+		e->evt.blocked = (thd_state >> 31);
+
+		delta++;
+	}
+
+	r->tail += delta;
+
+	return delta;
+}
+
 static inline void
 thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs)
 {
-	unsigned long thd_state = 0, cycles = 0, timeout = 0, pending = 0;
-	int           all_pending = thd_rcvcap_all_pending_get(thd);
+	unsigned long thd_state = 0, cycles = 0, timeout = 0;
 
 	thd_state_evt_deliver(thd, &thd_state, &cycles, &timeout);
-	if (all_pending) {
-		pending = thd_rcvcap_all_pending(thd);
-	} else {
-		thd_rcvcap_pending_dec(thd);
-		pending = thd_rcvcap_pending(thd);
-	}
-	__userregs_setretvals(regs, pending, thd_state, cycles, timeout);
+	thd_rcvcap_pending_reset(thd);
+	thd_sched_events_produce(thd, cos_cpu_local_info());
+	__userregs_setretvals(regs, thd_rcvcap_pending(thd), thd_state, cycles, timeout);
 }
 
 static inline int
 thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 {
-	int preempt = 0;
+	int preempt = 0, pending = 0;
 
 	/* TODO: check FPU */
 	/* fpu_save(thd); */
@@ -562,7 +611,7 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state &= ~THD_STATE_RCVING;
 		thd_rcvcap_pending_deliver(thd, regs);
-
+		pending = thd_rcvcap_pending(thd);
 		/*
 		 * If a scheduler thread was running using child tcap and blocked on RCVING
 		 * and budget expended logic decided to run the scheduler thread with it's
@@ -570,8 +619,19 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		 */
 	}
 
+	if (likely(thd->dcbinfo && thd->dcbinfo->sp)) {
+		if (!preempt) {
+			regs->dx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
+			regs->cx = regs->sp = thd->dcbinfo->sp;
+		} else {
+			regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
+			regs->sp = thd->dcbinfo->sp;
+		}
+		thd->dcbinfo->sp = 0;
+	}
+
 	if (issame && preempt == 0) {
-		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
+		__userregs_set(regs, pending, __userregs_getsp(regs), __userregs_getip(regs));
 	}
 
 	return preempt;
@@ -583,6 +643,12 @@ thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 	switch (op) {
 	case THD_GET_TID:
 		*retval = t->tid;
+		break;
+	case THD_GET_DCB_IP:
+		*retval = t->dcbinfo->ip;
+		break;
+	case THD_GET_DCB_SP:
+		*retval = t->dcbinfo->sp;
 		break;
 	default:
 		return -EINVAL;

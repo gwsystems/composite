@@ -1,3 +1,5 @@
+C_OBJS=unit_fprr.o
+ASM_OBJS=
 COMPONENT=unit_fprr_test.o
 INTERFACES=
 DEPENDENCIES=

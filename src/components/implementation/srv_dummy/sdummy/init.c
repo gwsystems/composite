@@ -94,7 +94,7 @@ cos_init(void)
 		while (!ps_load(&init_done[i])) ;
 	}
 
-	sl_init_cpubmp(SL_MIN_PERIOD_US, cpubmp);
+	sl_init_corebmp(SL_MIN_PERIOD_US, cpubmp);
 	sched_childinfo_init();
 	__initializer_thd[cos_cpuid()] = sl_thd_alloc(__init_done, NULL);
 	assert(__initializer_thd[cos_cpuid()]);

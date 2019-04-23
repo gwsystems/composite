@@ -29,6 +29,7 @@ vm_init(void *d)
 	vmid = cos_sinv(VM_CAPTBL_SELF_SINV_BASE, VK_SERV_VM_ID << 16 | cos_thdid(), 0, 0, 0);
 
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, VM_UNTYPED_SIZE, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	/* FIXME: will need to verify if scb stuff works here */
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 	                  (vaddr_t)cos_get_heap_ptr(), vmid == 0 ? DOM0_CAPTBL_FREE : VM_CAPTBL_FREE, &booter_info);
 
@@ -45,7 +46,7 @@ dom0_io_fn(void *id)
 {
 	arcvcap_t rcvcap = dom0_vio_rcvcap((unsigned int)id);
 	while (1) {
-		cos_rcv(rcvcap, 0, NULL);
+		cos_rcv(rcvcap, 0);
 	}
 }
 
@@ -54,6 +55,6 @@ vm_io_fn(void *id)
 {
 	arcvcap_t rcvcap = VM_CAPTBL_SELF_IORCV_BASE;
 	while (1) {
-		cos_rcv(rcvcap, 0, NULL);
+		cos_rcv(rcvcap, 0);
 	}
 }

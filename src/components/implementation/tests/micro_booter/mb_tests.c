@@ -5,6 +5,33 @@
 unsigned int cyc_per_usec;
 
 static void
+test_scb(void)
+{
+	thdcap_t thdc;
+	struct cos_scb_info *scb_info = cos_scb_info_get();
+
+	scb_info->curr_thd = BOOT_CAPTBL_SELF_INITTHD_CPU_BASE;
+	thdc = cos_introspect(&booter_info, booter_info.comp_cap, COMP_GET_SCB_CURTHD);
+	if (thdc == (thdcap_t)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE) PRINTC("Success: Kernel and user have consistent thdcap set in SCB\n");
+	else PRINTC("Failure: Kernel and user don't have a consistent thdcap in SCB\n");
+}
+
+static void
+test_dcb(void)
+{
+	struct cos_dcb_info *init_dcbpg = cos_init_dcb_get();
+
+	assert(init_dcbpg);
+}
+
+static void
+test_scb_dcb(void)
+{
+	test_scb();
+	test_dcb();
+}
+
+static void
 thd_fn_perf(void *d)
 {
 	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
@@ -23,7 +50,7 @@ test_thds_perf(void)
 	long long start_swt_cycles = 0, end_swt_cycles = 0;
 	int       i;
 
-	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL);
+	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL, 0, 0);
 	assert(ts);
 	cos_thd_switch(ts);
 
@@ -56,7 +83,7 @@ test_thds(void)
 	intptr_t i;
 
 	for (i = 0; i < TEST_NTHDS; i++) {
-		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
+		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i, 0, 0);
 		assert(ts[i]);
 		tls_test[cos_cpuid()][i] = i;
 		cos_thd_mod(&booter_info, ts[i], &tls_test[cos_cpuid()][i]);
@@ -119,10 +146,10 @@ async_thd_fn_perf(void *thdcap)
 	arcvcap_t rc = rcc_global[cos_cpuid()];
 	int       i;
 
-	cos_rcv(rc, 0, NULL);
+	cos_rcv(rc, 0);
 
 	for (i = 0; i < ITER + 1; i++) {
-		cos_rcv(rc, 0, NULL);
+		cos_rcv(rc, 0);
 	}
 
 	cos_thd_switch(tc);
@@ -160,35 +187,27 @@ async_thd_fn(void *thdcap)
 {
 	thdcap_t  tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcc_global[cos_cpuid()];
-	int       pending, rcvd;
+	int       pending;
 
 	PRINTC("Asynchronous event thread handler.\n");
 	PRINTC("<-- rcving (non-blocking)...\n");
-	pending = cos_rcv(rc, RCV_NON_BLOCKING, NULL);
+	pending = cos_rcv(rc, RCV_NON_BLOCKING);
 	PRINTC("<-- pending %d\n", pending);
 
-	PRINTC("<-- rcving (non-blocking & all pending)...\n");
-	pending = cos_rcv(rc, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd);
-	PRINTC("<-- rcvd %d\n", rcvd);
-
-	PRINTC("<-- rcving (all pending)...\n");
-	pending = cos_rcv(rc, RCV_ALL_PENDING, &rcvd);
-	PRINTC("<-- rcvd %d\n", rcvd);
-
 	PRINTC("<-- rcving...\n");
-	pending = cos_rcv(rc, 0, NULL);
+	pending = cos_rcv(rc, 0);
 	PRINTC("<-- pending %d\n", pending);
 	PRINTC("<-- rcving...\n");
-	pending = cos_rcv(rc, 0, NULL);
+	pending = cos_rcv(rc, 0);
 	PRINTC("<-- pending %d\n", pending);
 
 	PRINTC("<-- rcving (non-blocking)...\n");
-	pending = cos_rcv(rc, RCV_NON_BLOCKING, NULL);
+	pending = cos_rcv(rc, RCV_NON_BLOCKING);
 	PRINTC("<-- pending %d\n", pending);
 	assert(pending == -EAGAIN);
 	PRINTC("<-- rcving\n");
 
-	pending = cos_rcv(rc, 0, NULL);
+	pending = cos_rcv(rc, 0);
 	PRINTC("<-- Error: manually returning to snding thread.\n");
 
 	cos_thd_switch(tc);
@@ -204,7 +223,7 @@ async_thd_parent(void *thdcap)
 	asndcap_t   sc = scp_global[cos_cpuid()];
 	int         ret, pending;
 	thdid_t     tid;
-	int         blocked, rcvd;
+	int         blocked;
 	cycles_t    cycles, now;
 	tcap_time_t thd_timeout;
 
@@ -231,7 +250,7 @@ async_thd_parent(void *thdcap)
 
 	PRINTC("--> Back in the asnder.\n");
 	PRINTC("--> receiving to get notifications\n");
-	pending = cos_sched_rcv(rc, RCV_ALL_PENDING, 0, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
+	pending = cos_sched_rcv(rc, 0, 0, &tid, &blocked, &cycles, &thd_timeout);
 	rdtscll(now);
 	PRINTC("--> pending %d, thdid %d, blocked %d, cycles %lld, timeout %lu (now=%llu, abs:%llu)\n",
 	       pending, tid, blocked, cycles, thd_timeout, now, tcap_time2cyc(thd_timeout, now));
@@ -252,7 +271,7 @@ test_async_endpoints(void)
 	PRINTC("Creating threads, and async end-points.\n");
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent,
-	                    (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
+	                    (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, 0, 0);
 	assert(tcp);
 	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
@@ -264,7 +283,7 @@ test_async_endpoints(void)
 	}
 
 	/* child rcv capabilities */
-	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void *)tcp);
+	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void *)tcp, 0, 0);
 	assert(tcc);
 	tccc = cos_tcap_alloc(&booter_info);
 	assert(tccc);
@@ -297,7 +316,7 @@ test_async_endpoints_perf(void)
 
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf,
-	                    (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
+	                    (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, 0, 0);
 	assert(tcp);
 	tccp = cos_tcap_alloc(&booter_info);
 	assert(tccp);
@@ -306,7 +325,7 @@ test_async_endpoints_perf(void)
 	if (cos_tcap_transfer(rcp, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, TCAP_PRIO_MAX + 1)) assert(0);
 
 	/* child rcv capabilities */
-	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void *)tcp);
+	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void *)tcp, 0, 0);
 	assert(tcc);
 	tccc = cos_tcap_alloc(&booter_info);
 	assert(tccc);
@@ -340,11 +359,11 @@ test_timer(void)
 	cycles_t c = 0, p = 0, t = 0;
 
 	PRINTC("Starting timer test.\n");
-	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
+	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL, 0, 0);
 
 	for (i = 0; i <= 16; i++) {
 		thdid_t     tid;
-		int         blocked, rcvd;
+		int         blocked;
 		cycles_t    cycles, now;
 		tcap_time_t timer, thd_timeout;
 
@@ -356,8 +375,8 @@ test_timer(void)
 		rdtscll(c);
 		if (i > 0) t += c - p;
 
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
-				     &rcvd, &tid, &blocked, &cycles, &thd_timeout) != 0)
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0,
+				     &tid, &blocked, &cycles, &thd_timeout) != 0)
 			;
 	}
 
@@ -387,7 +406,7 @@ exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t p
 {
 	e->tcc = cos_tcap_alloc(&booter_info);
 	assert(e->tcc);
-	e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d);
+	e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d, 0, 0);
 	assert(e->tc);
 	e->rc = cos_arcv_alloc(&booter_info, e->tc, e->tcc, booter_info.comp_cap, parentc);
 	assert(e->rc);
@@ -440,7 +459,7 @@ test_budgets_single(void)
 		PRINTC("\t%lld\n", e - s);
 
 		/* FIXME: we should avoid calling this two times in the common case, return "more evts" */
-		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0, NULL, &tid, &blocked, &cycles, &thd_timeout) != 0)
+		while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0, &tid, &blocked, &cycles, &thd_timeout) != 0)
 			;
 	}
 	PRINTC("Done.\n");
@@ -482,7 +501,7 @@ test_budgets_multi(void)
 			assert(0);
 		rdtscll(e);
 
-		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0, NULL, &tid, &blocked, &cycles, &thd_timeout);
+		cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0, &tid, &blocked, &cycles, &thd_timeout);
 		PRINTC("g:%llu c:%llu p:%llu => %llu, %d=%llu\n", mbt[cos_cpuid()].g.cyc - s, mbt[cos_cpuid()].c.cyc - s,
 		       mbt[cos_cpuid()].p.cyc - s, e - s, tid, cycles);
 	}
@@ -555,7 +574,7 @@ intr_thd(void *d)
 	struct exec_cluster *w = &(((struct activation_test_data *)d)->w);
 
 	while (1) {
-		cos_rcv(e->rc, 0, NULL);
+		cos_rcv(e->rc, 0);
 		seq_order_check(e);
 		cos_thd_wakeup(w->tc, w->tcc, w->prio, wakeup_budget_test[cos_cpuid()] ? TEST_WAKEUP_BUDGET : 0);
 	}
@@ -572,7 +591,7 @@ intr_sched_thd(void *d)
 	tcap_time_t          thd_timeout;
 
 	while (1) {
-		cos_sched_rcv(e->rc, 0, 0, NULL, &tid, &blocked, &cycs, &thd_timeout);
+		cos_sched_rcv(e->rc, 0, 0, &tid, &blocked, &cycs, &thd_timeout);
 		seq_order_check(e);
 		if (wakeup_budget_test[cos_cpuid()]) {
 			struct exec_cluster *w = &(((struct activation_test_data *)d)->w);
@@ -688,7 +707,7 @@ receiver_thd(void *d)
 	struct exec_cluster *e = &(((struct activation_test_data *)d)->w);
 
 	while (1) {
-		cos_rcv(e->rc, 0, NULL);
+		cos_rcv(e->rc, 0);
 		seq_order_check(e);
 	}
 }
@@ -702,7 +721,7 @@ sender_thd(void *d)
 	while (1) {
 		cos_asnd(r->sc, 0);
 		seq_order_check(e);
-		cos_rcv(e->rc, 0, NULL);
+		cos_rcv(e->rc, 0);
 	}
 }
 
@@ -799,7 +818,7 @@ test_inv(void)
 	sinvcap_t    ic;
 	unsigned int r;
 
-	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
+	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, 0, (vaddr_t)NULL, 0);
 	assert(cc > 0);
 	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
 	assert(ic > 0);
@@ -818,7 +837,7 @@ test_inv_perf(void)
 	long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL;
 	unsigned int ret;
 
-	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
+	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, 0, (vaddr_t)NULL, 0);
 	assert(cc > 0);
 	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
 	assert(ic > 0);
@@ -848,7 +867,7 @@ test_captbl_expand(void)
 	int       i;
 	compcap_t cc;
 
-	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
+	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, 0, (vaddr_t)NULL, 0);
 	assert(cc);
 	for (i = 0; i < 1024; i++) {
 		sinvcap_t ic;
@@ -915,6 +934,7 @@ test_run_mb(void)
 	test_timer();
 	test_budgets();
 
+	test_scb_dcb();
 	test_thds();
 	test_thds_perf();
 
@@ -938,19 +958,19 @@ test_run_mb(void)
 static void
 block_vm(void)
 {
-	int blocked, rcvd;
+	int blocked;
 	cycles_t cycles, now;
 	tcap_time_t timeout, thd_timeout;
 	thdid_t tid;
 
-	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING | RCV_NON_BLOCKING, 0,
-			     &rcvd, &tid, &blocked, &cycles, &thd_timeout) > 0)
+	while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_NON_BLOCKING, 0,
+			     &tid, &blocked, &cycles, &thd_timeout) > 0)
 		;
 
 	rdtscll(now);
 	now += (1000 * cyc_per_usec);
 	timeout = tcap_cyc2time(now);
-	cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, timeout, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
+	cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, timeout, &tid, &blocked, &cycles, &thd_timeout);
 }
 
 /*

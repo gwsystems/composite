@@ -17,7 +17,7 @@
 
 #include "cpu_ghz.h"
 
-#define NUM_CPU 1
+#define NUM_CPU 2
 #define NUM_CPU_BMP_BYTES ((NUM_CPU + 7) / 8)
 #define NUM_CPU_BMP_WORDS ((NUM_CPU_BMP_BYTES + 3) / 4)
 
@@ -62,6 +62,7 @@
 
 /* Composite user memory uses physical memory above this. */
 #define COS_MEM_START COS_MEM_KERN_PA
+#define COS_SCB_SIZE  (PAGE_SIZE)
 
 /* NUM_CPU_SOCKETS defined in cpu_ghz.h. The information is used for
  * intelligent IPI distribution. */

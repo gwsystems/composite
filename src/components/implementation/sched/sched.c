@@ -50,25 +50,20 @@ thdid_t
 sched_thd_create_cserialized(thdclosure_index_t idx)
 {
 	spdid_t c = cos_inv_token();
-	struct cos_defcompinfo *dci;
-	struct sl_thd *t = NULL;
+	struct sched_childinfo *sci;
 
 	if (!c) return 0;
-	dci = sched_child_defci_get(sched_childinfo_find(c));
-	if (!dci) return 0;
+	sci = sched_childinfo_find(c);
+	if (!sci) return 0;
 
-	t = sl_thd_aep_alloc_ext(dci, NULL, idx, 0, 0, 0, 0, 0, NULL);
-	if (!t) return 0;
-
-	return sl_thd_thdid(t);
+	return sched_child_thd_create(sci, idx);
 }
 
 thdid_t
 sched_aep_create_cserialized(arcvcap_t *extrcv, int *unused, u32_t thdidx_owntc, u32_t key_ipimax, u32_t ipiwin32b)
 {
 	spdid_t c = cos_inv_token();
-	struct cos_defcompinfo *dci;
-	struct sl_thd      *t      = NULL;
+	struct sched_childinfo *sci;
 	int                 owntc  = (thdidx_owntc << 16) >> 16;
 	thdclosure_index_t  idx    = (thdidx_owntc >> 16);
 	microsec_t          ipiwin = (microsec_t)ipiwin32b;
@@ -76,13 +71,10 @@ sched_aep_create_cserialized(arcvcap_t *extrcv, int *unused, u32_t thdidx_owntc,
 	cos_channelkey_t    key    = (key_ipimax >> 16);
 
 	if (!c) return 0;
-	dci = sched_child_defci_get(sched_childinfo_find(c));
-	if (!dci) return 0;
+	sci = sched_childinfo_find(c);
+	if (!sci) return 0;
 
-	t = sl_thd_aep_alloc_ext(dci, NULL, idx, 1, owntc, key, ipiwin, ipimax, extrcv);
-	if (!t) return 0;
-
-	return sl_thd_thdid(t);
+	return sched_child_aep_create(sci, idx, owntc, key, ipiwin, ipimax, extrcv);
 }
 
 int

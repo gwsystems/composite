@@ -27,12 +27,6 @@ typedef enum {
 	SL_THD_PROPERTY_SEND     = (1<<1), /* use asnd to dispatch to this thread */
 } sl_thd_property_t;
 
-struct event_info {
-	int         blocked; /* 1 - blocked. 0 - awoken */
-	cycles_t    cycles;
-	tcap_time_t timeout;
-};
-
 struct sl_thd {
 	sl_thd_state_t       state;
 	/*
@@ -93,9 +87,23 @@ struct sl_thd {
 	cycles_t    wakeup_cycs;   /* actual last wakeup - used in timeout API for jitter information, etc */
 	int         timeout_idx;   /* timeout heap index, used in timeout API */
 
-	struct event_info event_info;
+	struct cos_thd_event event_info;
 	struct ps_list    SL_THD_EVENT_LIST; /* list of events for the scheduler end-point */
+
+	struct cos_dcb_info *dcb;
 };
+
+static inline struct cos_dcb_info *
+sl_thd_dcbinfo(struct sl_thd *t)
+{ return t->dcb; }
+
+static inline unsigned long *
+sl_thd_ip(struct sl_thd *t)
+{ return &t->dcb->ip; }
+
+static inline unsigned long *
+sl_thd_sp(struct sl_thd *t)
+{ return &t->dcb->sp; }
 
 static inline struct cos_aep_info *
 sl_thd_aepinfo(struct sl_thd *t)

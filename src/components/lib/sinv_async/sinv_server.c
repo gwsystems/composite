@@ -114,9 +114,8 @@ sinv_server_aep_fn(arcvcap_t rcv, void *data)
 		asndcap_t snd = t->sndcap;
 		int *retval = (int *)SINV_RET_ADDR(t->shmaddr), ret;
 		struct sinv_call_req *req = (struct sinv_call_req *)SINV_REQ_ADDR(t->shmaddr);
-		int rcvd = 0;
 
-		while ((cos_rcv(rcv, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
+		while ((cos_rcv(rcv, RCV_NON_BLOCKING) < 0)) {
 			cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
 
 			if (ps_load((unsigned long *)reqaddr) == SINV_REQ_SET) break;
