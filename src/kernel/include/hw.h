@@ -17,7 +17,7 @@
 #define HW_IRQ_EXTERNAL_MIN 32
 #define HW_IRQ_EXTERNAL_MAX 63
 
-struct cap_asnd hw_asnd_caps[HW_IRQ_TOTAL];
+struct cap_asnd hw_asnd_caps[NUM_CPU][HW_IRQ_TOTAL];
 
 struct cap_hw {
 	struct cap_header h;
@@ -27,7 +27,7 @@ struct cap_hw {
 static void
 hw_asndcap_init(void)
 {
-	memset(&hw_asnd_caps, 0, sizeof(struct cap_asnd) * HW_IRQ_TOTAL);
+	memset(&hw_asnd_caps, 0, sizeof(struct cap_asnd) * HW_IRQ_TOTAL * NUM_CPU);
 }
 
 /*
@@ -63,9 +63,9 @@ hw_attach_rcvcap(struct cap_hw *hwc, hwid_t hwid, struct cap_arcv *rcvc, capid_t
 {
 	if (hwid < HW_IRQ_EXTERNAL_MIN || hwid > HW_IRQ_EXTERNAL_MAX) return -EINVAL;
 	if (!(hwc->hw_bitmap & (1 << (hwid - HW_IRQ_EXTERNAL_MIN)))) return -EINVAL;
-	if (hw_asnd_caps[hwid].h.type == CAP_ASND) return -EEXIST;
+	if (hw_asnd_caps[get_cpuid()][hwid].h.type == CAP_ASND) return -EEXIST;
 
-	return asnd_construct(&hw_asnd_caps[hwid], rcvc, rcv_cap, 0, 0);
+	return asnd_construct(&hw_asnd_caps[get_cpuid()][hwid], rcvc, rcv_cap, 0, 0);
 }
 
 static int
@@ -78,7 +78,7 @@ hw_detach_rcvcap(struct cap_hw *hwc, hwid_t hwid)
 	 * FIXME: Need to synchronize using __xx_pre and
 	 *        __xx_post perhaps in asnd_deconstruct()
 	 */
-	memset(&hw_asnd_caps[hwid], 0, sizeof(struct cap_asnd));
+	memset(&hw_asnd_caps[get_cpuid()][hwid], 0, sizeof(struct cap_asnd));
 
 	return 0;
 }

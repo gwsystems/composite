@@ -49,7 +49,7 @@ extern void smid_float_pt_except_fault_irq(struct pt_regs *);
 extern void virtualization_except_fault_irq(struct pt_regs *);
 extern void security_except_fault_irq(struct pt_regs *);
 
-extern void periodic_irq(struct pt_regs *);
+extern void hpet_periodic_irq(struct pt_regs *);
 extern void keyboard_irq(struct pt_regs *);
 extern void handler_hw_34(struct pt_regs *);
 extern void handler_hw_35(struct pt_regs *);
@@ -57,7 +57,7 @@ extern void serial_irq(struct pt_regs *);
 extern void handler_hw_37(struct pt_regs *);
 extern void handler_hw_38(struct pt_regs *);
 extern void handler_hw_39(struct pt_regs *);
-extern void oneshot_irq(struct pt_regs *);
+extern void hpet_oneshot_irq(struct pt_regs *);
 extern void handler_hw_41(struct pt_regs *);
 extern void handler_hw_42(struct pt_regs *);
 extern void handler_hw_43(struct pt_regs *);
@@ -83,12 +83,5 @@ extern void handler_hw_62(struct pt_regs *);
 extern void lapic_spurious_irq(struct pt_regs *);
 extern void lapic_ipi_asnd_irq(struct pt_regs *);
 extern void lapic_timer_irq(struct pt_regs *);
-
-static void
-ack_irq(int n)
-{
-	if (n >= 40) outb(0xA0, 0x20); /* Send reset signal to slave */
-	outb(0x20, 0x20);
-}
 
 #endif /* ISR_H */

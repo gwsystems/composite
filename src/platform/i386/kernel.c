@@ -145,9 +145,6 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #ifdef ENABLE_SERIAL
 	serial_init();
 #endif
-#ifdef ENABLE_CONSOLE
-	console_init();
-#endif
 #ifdef ENABLE_VGA
 	vga_init();
 #endif
@@ -163,10 +160,12 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	comp_init();
 	thd_init();
 	paging_init();
-
 	kern_boot_comp(INIT_CORE);
 	lapic_init();
-	timer_init();
+	hpet_init();
+	chal_irq_enable(HW_SERIAL, 0);
+	pic_init();
+	ioapic_init();
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
 
