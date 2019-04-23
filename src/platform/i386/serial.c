@@ -94,3 +94,10 @@ serial_init(void)
 	outb(SERIAL_PORT_A + 1, 0x01); /* Enable interrupts on receive */
 	printk("Enabling serial I/O\n");
 }
+
+void
+serial_late_init(void)
+{
+	chal_irq_enable(HW_SERIAL, 0);
+	chal_irq_enable(HW_KEYBOARD, 0);
+}
