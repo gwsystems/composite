@@ -337,6 +337,8 @@ test_ipi_full(void)
 	asndcap_t s = 0;
 	thdcap_t t = 0;
 
+	if (NUM_CPU < 2) return;
+
 	if (cos_cpuid() == TEST_RCV_CORE) {
 		t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL, 0, 0);
 		assert(t);

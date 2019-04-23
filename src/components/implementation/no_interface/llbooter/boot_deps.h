@@ -255,7 +255,6 @@ boot_newcomp_defcinfo_init(spdid_t spdid)
 	dcbcap_t dcbcap = 0;
 	dcboff_t dcboff = 0;
 
-
 	dcbcap = cos_dcb_alloc(boot_info, child_ci->pgtbl_cap, spdinfo->initdcbpgs + cos_cpuid() * PAGE_SIZE);
 	assert(dcbcap);
 
@@ -839,20 +838,6 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4, wo
 
 		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
 		ret1 = boot_comp_cap_cpy_at(client, ptslot, srcid, CAP_PGTBL);
-
-		break;
-	}
-	case HYPERCALL_COMP_CAPFRONTIER_GET:
-	{
-		vaddr_t vasfr;
-		capid_t capfr;
-		spdid_t srcid = arg3;
-
-		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
-		ret1  = boot_comp_frontier_get(client, srcid, &vasfr, &capfr);
-		if (ret1) goto done;
-
-		*ret2 = vasfr;
 
 		break;
 	}

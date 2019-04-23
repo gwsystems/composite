@@ -63,6 +63,7 @@ _sl_xcore_request_enqueue_no_cs(cpuid_t core, struct sl_xcore_request *rq)
 {
 	int ret = 0;
 	
+	if (unlikely(core >= NUM_CPU)) return -1;
 	if (unlikely(core == cos_cpuid())) return -1;
 	if (unlikely(!bitmap_check(sl__globals()->core_bmp, core))) return -1;
 	ret = ck_ring_enqueue_mpsc_xcore(sl__ring(core), sl__ring_buffer(core), rq);
@@ -77,6 +78,7 @@ _sl_xcore_request_enqueue(cpuid_t core, struct sl_xcore_request *rq)
 	int ret = 0;
 	/* asndcap_t snd = 0; */
 	
+	if (unlikely(core >= NUM_CPU)) return -1;
 	sl_cs_enter();
 	ret = _sl_xcore_request_enqueue_no_cs(core, rq);
 	sl_cs_exit();

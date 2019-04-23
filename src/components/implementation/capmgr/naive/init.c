@@ -51,7 +51,7 @@ capmgr_comp_info_init(struct cap_comp_info *rci, spdid_t spdid)
 	assert(rci_sched && cap_info_init_check(rci_sched));
 	rci_cpu->parent = rci_sched;
 	rci_cpu->thd_used = 1;
-	cap_info_cpu_initdcb_init(rci);
+	if (cos_cpuid() != INIT_CORE) cap_info_cpu_initdcb_init(rci);
 
 	while ((remain_child = hypercall_comp_child_next(spdid, &childid, &ch_flags)) >= 0) {
 		bitmap_set(rci_cpu->child_bitmap, childid - 1);

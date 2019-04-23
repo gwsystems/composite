@@ -576,6 +576,7 @@ sl_global_init(u32_t *core_bmp)
 
 	memset(g, 0, sizeof(struct sl_global));
 	assert(sizeof(struct cos_scb_info) * NUM_CPU <= COS_SCB_SIZE && COS_SCB_SIZE == PAGE_SIZE);
+	g->scb_area = (struct cos_scb_info *)cos_scb_info_get();
 
 	for (i = 0; i < NUM_CPU; i++) {
 		if (!bitmap_check(core_bmp, i)) continue;
@@ -583,20 +584,19 @@ sl_global_init(u32_t *core_bmp)
 		bitmap_set(g->core_bmp, i);
 		ck_ring_init(sl__ring(i), SL_XCORE_RING_SIZE);
 	}
-	g->scb_area = (struct cos_scb_info *)cos_scb_info_get();
 }
 
 void
 sl_init_corebmp(microsec_t period, u32_t *corebmp)
 {
 	int i;
-	static volatile unsigned long  first = 1, init_done = 0;
+	static volatile unsigned long  first = NUM_CPU + 1, init_done = 0;
 	struct cos_defcompinfo        *dci   = cos_defcompinfo_curr_get();
 	struct cos_compinfo           *ci    = cos_compinfo_get(dci);
 	struct sl_global_core         *g     = sl__globals_core();
 	struct cos_aep_info           *ga    = cos_sched_aep_get(dci);
 
-	if (ps_cas((unsigned long *)&first, 1, 0)) {
+	if (ps_cas((unsigned long *)&first, NUM_CPU + 1, cos_cpuid())) {
 		sl_global_init(corebmp);
 		ps_faa((unsigned long *)&init_done, 1);
 	} else {
