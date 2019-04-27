@@ -27,13 +27,13 @@ enum ptile_id {
 };
 
 struct perfdata {
-	char   name[PERF_DATA_NAME];
+	char      name[PERF_DATA_NAME];
 	cycles_t *values;
-	int    sz;
-	int	array_size;
-	cycles_t min, max, avg, total;
-	cycles_t sd, var;
-	cycles_t ptiles[PERF_PTILE_SZ]; /* 90, 95, 99 */
+	int       sz;
+	int	      array_size;
+	cycles_t  min, max, avg, total;
+	cycles_t  sd, var;
+	cycles_t  ptiles[PERF_PTILE_SZ]; /* 90, 95, 99 */
 };
 
 static void
