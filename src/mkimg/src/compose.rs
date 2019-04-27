@@ -62,7 +62,7 @@ impl ComposeSpec {
         let sys = CosSystem::parse(sysspec.clone())?;
         let mut bins = BTreeMap::new();
         let mut comps_path = comps_base_path();
-        let mut build_ctxt = BuildContext::new(&sys.comps());
+        let mut build_ctxt = BuildContext::new(&sys.comps(), sys.booter());
 
         if let Err(s) = build_ctxt.validate_deps() {
             return Err(s);
@@ -151,8 +151,11 @@ impl<'a> Compose<'a> {
             for (s, i) in spec.build_ctxt.comp_deps(n).unwrap().iter() {
                 let srv = cs.get(s).unwrap();
                 let mut cnt = 0;
+                let mut unresolved = Vec::new();
 
                 for dep in cli.dependencies().iter() {
+                    let mut found = false;
+
                     for exp in srv.exported().iter() {
                         if dep.name() == exp.name() {
                             sinvs.push(Sinv {
@@ -164,18 +167,14 @@ impl<'a> Compose<'a> {
                                 s_fn_addr: exp.addr()
                             });
                             cnt = cnt + 1;
+                            found = true;
                             break;
                         }
                     }
+                    if !found {
+                        unresolved.push((dep.name().clone(), cli.name().clone(), srv.name().clone()));
+                    }
                 }
-                // We had better have satisified all of the
-                // dependencies!  We should have essentially validated
-                // this through the component linking phase
-                // (i.e. there should have been compiler errors there
-                // if this weren't true, so this really is an internal
-                // data-structure/consistency problem for this
-                // program.
-                assert!(cli.dependencies().len() == cnt);
             }
         }
 
@@ -200,5 +199,9 @@ impl<'a> Compose<'a> {
 
     pub fn ids(&'a self) -> &'a BTreeMap<String, (String, u32)> {
         &self.ids
+    }
+
+    pub fn booter(&self) -> String {
+        self.spec.sysspec_output().booter().clone()
     }
 }

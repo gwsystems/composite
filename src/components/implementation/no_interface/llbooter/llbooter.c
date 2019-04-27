@@ -8,6 +8,8 @@
 #include <elf_loader.h>
 #include <initargs.h>
 
+#include <init.h>
+
 #ifndef BOOTER_MAX_SINV
 #define BOOTER_MAX_SINV 256
 #endif
@@ -16,11 +18,13 @@
 #endif
 
 typedef enum {
+	CRT_COMP_NONE        = 0,
 	CRT_COMP_SCHED       = 1, 	/* is this a scheduler? */
 	CRT_COMP_DELEG       = 1<<1,	/* does this component require delegating management capabilities to it? */
 	CRT_COMP_SCHED_DELEG = 1<<2,	/* is the system thread initialization delegated to this component? */
 	CRT_COMP_DERIVED     = 1<<4, 	/* derived/forked from another component */
 	CRT_COMP_INITIALIZE  = 1<<8,	/* The current component should initialize this component... */
+	CRT_COMP_BOOTER      = 1<<16,	/* Is this the current component (i.e. the booter)? */
 } crt_comp_flags_t;
 
 struct crt_comp {
@@ -31,7 +35,8 @@ struct crt_comp {
 
 	char *mem;		/* image memory */
 	struct elf_hdr *elf_hdr;
-	struct cos_defcompinfo comp_res;
+	struct cos_defcompinfo *comp_res;
+	struct cos_defcompinfo comp_res_mem;
 };
 
 /*
@@ -55,14 +60,16 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, struct elf_hdr *elf
 	struct cos_compinfo *ci, *root_ci;
 
 	*c = (struct crt_comp) {
+		.flags      = CRT_COMP_NONE,
 		.name       = name,
 		.id         = id,
 		.elf_hdr    = elf_hdr,
-		.entry_addr = elf_entry_addr(elf_hdr)
+		.entry_addr = elf_entry_addr(elf_hdr),
+		.comp_res   = &c->comp_res_mem,
 	};
 	assert(c->entry_addr != 0);
 
-	ci            = cos_compinfo_get(&c->comp_res);
+	ci            = cos_compinfo_get(c->comp_res);
 	root_ci       = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 	if (elf_load_info(c->elf_hdr, &c->ro_addr, &ro_sz, &ro_src, &c->rw_addr, &data_sz, &data_src, &bss_sz)) return -EINVAL;
@@ -88,6 +95,25 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, struct elf_hdr *elf
 	return 0;
 }
 
+int
+crt_booter_create(struct crt_comp *c, char *name, compid_t id)
+{
+	*c = (struct crt_comp) {
+		.flags      = CRT_COMP_BOOTER,
+		.name       = name,
+		.id         = id,
+		.comp_res   = cos_defcompinfo_curr_get(),
+	};
+
+	return 0;
+}
+
+static int
+crt_is_booter(struct crt_comp *c)
+{
+	return c->flags & CRT_COMP_BOOTER;
+}
+
 struct crt_sinv {
 	char *name;
 	struct crt_comp *server, *client;
@@ -100,12 +126,13 @@ int
 crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client,
 		vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr)
 {
-	struct cos_compinfo *cli = cos_compinfo_get(&client->comp_res);
-	struct cos_compinfo *srv = cos_compinfo_get(&server->comp_res);
+	struct cos_compinfo *cli = cos_compinfo_get(client->comp_res);
+	struct cos_compinfo *srv = cos_compinfo_get(server->comp_res);
 	unsigned int ucap_off;
 	struct usr_inv_cap *ucap;
 
 	assert(cli && cli->memsrc && srv && srv->memsrc && srv->comp_cap);
+	assert(!crt_is_booter(client));
 
 	*sinv = (struct crt_sinv) {
 		.name        = name,
@@ -141,7 +168,7 @@ int
 crt_thd_request_create(struct crt_comp *c, thdclosure_index_t closure_id)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *target_ci = cos_compinfo_get(&c->comp_res);
+	struct cos_compinfo    *target_ci = cos_compinfo_get(c->comp_res);
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 	thdcap_t thdcap;
 
@@ -198,20 +225,36 @@ comps_init(void)
 		int   len  = strlen(root);
 		char  path[INITARGS_MAX_PATHNAME];
 
+		printc("%s: %d\n", name, idx);
+
 		assert(idx < MAX_NUM_COMPS && idx > 0 && name);
 
 		strcpy(path, root);
 		strncat(path, name, INITARGS_MAX_PATHNAME - len);
-
 		comp = &boot_comps[idx-1].comp; /* there is no component id 0 */
-		if (crt_comp_create(comp, name, idx, (struct elf_hdr *)args_get(path))) {
-			printc("Error constructing the resource tables and image of component %s.\n", comp->name);
-			BUG();
-		}
-		assert(cos_compinfo_get(&comp->comp_res)->comp_cap);
+		elf  = (struct elf_hdr *)args_get(path);
 
-		aepi      = &comp->comp_res.sched_aep;
-		aepi->thd = crt_thd_init_create(comp);
+		/* FIXME: for now assuming idx == 1 means booter */
+		if (idx == 1) {
+			int ret;
+
+			/* booter should not have an elf object */
+			assert(!elf);
+			ret = crt_booter_create(comp, name, idx);
+			assert(ret == 0);
+		} else {
+			assert(elf);
+			if (crt_comp_create(comp, name, idx, elf)) {
+				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
+				BUG();
+			}
+		}
+		assert(cos_compinfo_get(comp->comp_res)->comp_cap);
+
+		if (!crt_is_booter(comp)) {
+			aepi = &comp->comp_res->sched_aep;
+			aepi->thd = crt_thd_init_create(comp);
+		}
 	}
 
 	ret = args_get_entry("sinvs", &comps);
@@ -256,14 +299,26 @@ execute(void)
 {
 	struct crt_comp *comp;
 
-	comp = &boot_comps[1].comp;
+	comp = &boot_comps[2].comp;
 
-	if (cos_defswitch(comp->comp_res.sched_aep.thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) {
+	if (cos_defswitch(comp->comp_res->sched_aep.thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) {
 		BUG();
 	}
 	printc("WTF\n");
 
 	return;
+}
+
+void
+init_done(void)
+{
+
+}
+
+void
+init_exit(void)
+{
+
 }
 
 void

@@ -40,9 +40,13 @@ pub fn main() -> () {
 
     match ComposeSpec::parse_spec(arg1.unwrap()) {
         Ok(sysspec) => {
-            let sys = Compose::parse_binaries(&sysspec).unwrap();
-            sys.components().iter().for_each(|(s, ref c)| comp_print(&c));
-            println!("System Specification:\n{:#?}", sysspec.sysspec_output())
+            match Compose::parse_binaries(&sysspec) {
+                Ok(sys) => {
+                    sys.components().iter().for_each(|(s, ref c)| comp_print(&c));
+                    println!("System Specification:\n{:#?}", sysspec.sysspec_output())
+                },
+                Err(s) => println!("{}", s)
+            }
         },
         Err(s) => println!("{}", s)
     }

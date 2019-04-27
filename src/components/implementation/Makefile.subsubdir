@@ -70,9 +70,10 @@ $(COMPOBJ): $(OBJS)
 # make COMP_INTERFACE=pong COMP_NAME=pingpong COMP_OBJNAME=IT.WORKS COMP_OUTPUT=pong.pingpong.pong.o component
 
 # These variables direct the compilation and are set by the highest-level make command
-COMP_INTERFACES_CLEAN=$(strip $(subst ", ,$(COMP_INTERFACES))) #"
-COMP_IFDEPS_CLEAN=$(strip $(subst ", ,$(COMP_IFDEPS))) #"
-COMP_LIBDEPS_CLEAN=$(strip $(subst ", ,$(COMP_LIBDEPS))) #"
+# Note that they are all passed in as "if_0/var_0+if_1/var_1+...", so we need to remove the + and the "
+COMP_INTERFACES_CLEAN=$(strip $(subst +, ,$(subst ",,$(COMP_INTERFACES)))) #"
+COMP_IFDEPS_CLEAN=$(strip $(subst +, ,$(subst ",,$(COMP_IFDEPS)))) #"
+COMP_LIBDEPS_CLEAN=$(strip $(subst +, ,$(subst ", ,$(COMP_LIBDEPS)))) #"
 
 # The actual lists of objects to be compiled with the components...
 COMP_EXPIF_OBJS=$(foreach I,$(COMP_INTERFACES_CLEAN),$(INTERDIR)/$(I)/cosrt_s_stub.o)

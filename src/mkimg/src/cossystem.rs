@@ -27,18 +27,20 @@ pub struct Component {
     baseaddr: Option<String>,
     deps: Option<Vec<Dependency>>,
     initargs: Option<Vec<InitArgs>>,
-    interfaces: Option<Vec<InterfaceVariant>>
+    implements: Option<Vec<InterfaceVariant>>
 }
 
 #[derive(Debug, Deserialize)]
 pub struct SysInfo {
-    description: String
+    description: String,        // comment
+    constructor: String         // the booter
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CosSystem {
     system: SysInfo,
     components: Vec<Component>,
+    //aggregates: Vec<Component>  For components of components
 }
 
 impl Dependency {
@@ -59,7 +61,7 @@ impl Component {
             baseaddr: None,
             deps: Some(Vec::new()),
             initargs: None,
-            interfaces: None
+            implements: None
         }
     }
 
@@ -69,10 +71,12 @@ impl Component {
             self.deps = Some(vs);
         }
 
-        if self.interfaces.is_none() {
+        if self.implements.is_none() {
             let vs = Vec::new();
-            self.interfaces = Some(vs);
+            self.implements = Some(vs);
         }
+
+        // TODO: should fill in the default variants here
     }
 
     pub fn deps(&self) -> &Vec<Dependency> {
@@ -80,7 +84,7 @@ impl Component {
     }
 
     pub fn interfaces(&self) -> &Vec<InterfaceVariant> {
-        self.interfaces.as_ref().unwrap()
+        self.implements.as_ref().unwrap()
     }
 
     pub fn img(&self) -> &String {
@@ -123,6 +127,25 @@ impl CosSystem {
             }
         });
 
+        // Does the constructor resolve to a component? Does that
+        // component have zero dependencies?
+        if !self.comps().iter().fold(false, |found, c| {
+            if found {
+                return found;
+            }
+            if c.name != self.system.constructor { return false; }
+
+            if c.deps().len() == 0 {
+                true
+            } else {
+                err_accum.push_str(&format!("Error: Constructor {} has dependencies.", c.name));
+                false
+            }
+        }) {
+            err_accum.push_str(&format!("Error: Appropriate constructor {} not found.", self.system.constructor));
+            fail = true;
+        }
+
         // Validate that all dependencies resolve to a defined
         // component.
         //
@@ -161,6 +184,10 @@ impl CosSystem {
 
     pub fn comps(&self) -> &Vec<Component> {
         &self.components
+    }
+
+    pub fn booter(&self) -> &String {
+        &self.system.constructor
     }
 
     pub fn comps_mut(&mut self) -> &mut Vec<Component> {

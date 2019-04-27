@@ -69,7 +69,7 @@ struct ComponentContext {
 
 pub struct BuildContext {
     comps: BTreeMap<String, ComponentContext>, // component variable name and context
-    booter: ComponentContext,
+    booter: String,
     builddir: String
 }
 
@@ -121,6 +121,7 @@ impl ComponentContext {
             }));
 
         }
+
         // if not specified in the explicit dependencies, add the default
         if !found_if && interface != "tests" && interface != "no_interface" {
             compctxt.interface_exports.push((interface, String::from("stubs")));
@@ -157,7 +158,7 @@ fn comp_build_obj_path(builddir: &String, interface: &String, comp_impl: &String
 }
 
 impl BuildContext {
-    pub fn new(comps: &Vec<Component>) -> BuildContext {
+    pub fn new(comps: &Vec<Component>, booter: &String) -> BuildContext {
         let mut ctxt = BTreeMap::new();
 
         // set up all of the component's interface and variant information...
@@ -174,11 +175,7 @@ impl BuildContext {
                         let mut found = false;
                         for inter in srv.interfaces().iter() {
                             if inter.interface == dep.interface {
-                                // note that the `unwrap` is safe
-                                // since we completed all variants
-                                // when creating the component
-                                // context.
-                                c_ctxt.interface_deps.push((inter.interface.clone(), dep.srv.clone(), inter.variant.clone().unwrap()));
+                                c_ctxt.interface_deps.push((inter.interface.clone(), dep.srv.clone(), inter.variant.clone().unwrap_or(String::from("stubs"))));
                                 found = true;
                                 break;
                             }
@@ -202,9 +199,8 @@ impl BuildContext {
 
         BuildContext {
             comps: ctxt,
-            // hard-code the booter for now:
-            booter: ComponentContext::new_minimal(&String::from("no_interface"), &String::from("llbooter"), &String::from("booter")),
-            builddir: builddir
+            booter: booter.clone(),
+            builddir
         }
     }
 
@@ -261,7 +257,7 @@ impl BuildContext {
         let (_, mut ifs) = c.interface_exports.iter().fold((true, String::from("")), |(first, accum), (interf, var)| {
             let mut ifpath = accum.clone();
             if !first {
-                ifpath.push_str(" ");
+                ifpath.push_str("+");
             }
             ifpath.push_str(&interf.clone());
             ifpath.push_str("/");
@@ -271,7 +267,7 @@ impl BuildContext {
         let (_, mut if_deps) = c.interface_deps.iter().fold((true, String::from("")), |(first, accum), (interf, srv, var)| {
             let mut ifpath = accum.clone();
             if !first {
-                ifpath.push_str(" ");
+                ifpath.push_str("+");
             }
             ifpath.push_str(&interf.clone());
             ifpath.push_str("/");
@@ -290,7 +286,6 @@ impl BuildContext {
         let cmd = format!(r#"make -C ../ COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={} {} component"#,
                           ifs, if_deps, &c.comp_if, &c.comp_name, &c.var_name, &comp_build_obj_path(&builddir, &c.comp_if, &c.comp_name, &c.var_name), &c.base_addr, &optional_cmds);
 
-        println!("Make command for component {}: {}", c.var_name, cmd);
         cmd
     }
 
@@ -305,12 +300,14 @@ impl BuildContext {
     pub fn build_components(&mut self) -> () {
         self.calculate_make_cmds();
         for (n, c) in self.comps.iter() {
+            println!("---[ Component {} ]---", n);
             let mut cmd = String::from("");
             cmd.push_str(c.make_cmd.as_ref().unwrap());
+            println!("{}", cmd);
             let (out, err) = exec_pipeline(vec![cmd]);
             println!("Component {} compilation output:
 {}\nComponent compilation errors:
-{}", n, out, err);
+{}\n", n, out, err);
         }
     }
 
@@ -319,14 +316,18 @@ impl BuildContext {
         let initargs_path = format!("{}booter_initargs.c", self.builddir);
 
         // populate the tarball for the booter
-        let file = File::create(&tar_path).unwrap();
+        let   file = File::create(&tar_path).unwrap();
         let mut ar = Builder::new(file);
 
         ar.append_dir("binaries/", "binaries/").unwrap(); // FIXME: error handling
         for (n, c) in self.comps.iter() {
-            let path = comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name);
-            let name = comp_obj_name(&c.comp_if, &c.comp_name, &c.var_name);
-            let mut f = File::open(path).unwrap(); //  should not fail: we just build this
+            if *n == compose.booter() {
+                continue;
+            }
+
+            let  path = comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name);
+            let  name = comp_obj_name(&c.comp_if, &c.comp_name, &c.var_name);
+            let mut f = File::open(path).unwrap(); //  should not fail: we just built this, TODO: fix race
             ar.append_file(format!("{}/{}", booter_tar_dirkey(), name), &mut f).unwrap(); // FIXME: error handling
         }
         ar.finish().unwrap(); // FIXME: error handling
@@ -334,7 +335,8 @@ impl BuildContext {
         let mut initargs_file = File::create(&initargs_path).unwrap();
         initargs_file.write_all(booter_serialize_args(&compose).as_bytes()).unwrap();
 
-        let cmd = BuildContext::comp_gen_make_cmd(&self.booter, &self.builddir, Some(initargs_path), Some(tar_path));
+        let booter = self.comps.get(&self.booter).unwrap(); // validated in the toml
+        let cmd = BuildContext::comp_gen_make_cmd(&booter, &self.builddir, Some(initargs_path), Some(tar_path));
         let (out, err) = exec_pipeline(vec![cmd]);
         println!("Booter compilation output:
 {}\nComponent compilation errors:
