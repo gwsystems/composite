@@ -1,6 +1,6 @@
 include Makefile.src Makefile.comp
 
-LIB_OBJS=heap.o cobj_format.o cos_kernel_api.o cos_defkernel_api.o cos_dcb.o cos_omp.o cos_gomp.o
+LIB_OBJS=heap.o cobj_format.o cos_kernel_api.o cos_defkernel_api.o cos_dcb.o cos_omp.o
 LIBS=$(LIB_OBJS:%.o=%.a)
 MANDITORY=c_stub.o cos_asm_upcall.o cos_asm_ainv.o cos_component.o
 MAND=$(MANDITORY_LIB)
@@ -10,8 +10,8 @@ SIMPLE_STKLIB=simple_stklib.o
 CINC_ENV=$(CINC)
 export CINC_ENV
 
-.PHONY: all sl ps ck sinv
-all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl sinv
+.PHONY: all sl ps ck sinv cos_gomp posix cxx
+all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl posix sinv cos_gomp
 
 # we have to compile these without dietlibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't
@@ -30,6 +30,9 @@ $(SIMPLE_STKLIB): $(SIMPLE_STACKS)
 sl:
 	make $(MAKEFLAGS) -C sl
 
+cos_gomp:
+	make $(MAKEFLAGS) -C cos_gomp
+
 sinv:
 	make $(MAKEFLAGS) -C sinv_async
 
@@ -42,17 +45,21 @@ sinv:
 	@$(CC) $(CFLAGS) $(CINC) -o $@ -c $^
 
 clean:
-	$(info |     [RM]   Cleaning up directory)
+	$(info |     [RM]   Cleaning up libraries and directories)
 	@rm -f a.out *.o *.a *.d *~
-	make -C sl clean
+	@make -C sl clean
+	@make -C sinv_async clean
+	@make -C posix clean
+	@make -C cos_gomp clean
 
 distclean:
+	$(info |     [RM]   Uninstalling external libraries)
 	make -C musl-1.1.11 distclean
 # keep the following commands in one line. make executes each line
 # with a new shell.
-	make -C posix clean
-	make -C libcxx clean
 	make -C ck uninstall
+	make -C ps clean
+	make -C libcxx clean
 
 musl:
 	cd musl-1.1.11; ./configure "CFLAGS=-m32 -O3" "LDFLAGS=-Wl,-melf_i386" --disable-shared --target=i386; cd ..
@@ -62,12 +69,15 @@ musl:
 ps:
 	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
 
-
 ck:
 	make -C ck all
 	make -C ck install
 
-init: clean distclean musl ck ps all
-# keep the following commands in one line. Same as above.
+posix:
 	make -C posix
+
+cxx:
 	make -C libcxx
+
+init: clean distclean musl ck ps cxx all
+# keep the following commands in one line. Same as above.
