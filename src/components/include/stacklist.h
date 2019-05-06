@@ -1,6 +1,7 @@
 #ifndef STACKLIST_H
 #define STACKLIST_H
 
+#include <cos_component.h>
 #include <ps_list.h>
 
 struct stacklist_head {
@@ -31,6 +32,7 @@ stacklist_add(struct stacklist_head *h, struct stacklist *l)
 {
 	ps_list_init_d(l);
 	ps_list_head_add_d(&h->head, l);
+	l->thdid = cos_thdid();
 }
 
 /* Get a thread to wake up, and remove its record! */

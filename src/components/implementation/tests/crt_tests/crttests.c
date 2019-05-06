@@ -11,38 +11,61 @@
 
 #include <crt_lock.h>
 
-#define LOCK_ITER 10
+#define LOCK_ITER 1000000
 #define NTHDS 4
 struct crt_lock lock;
-struct sl_thd *lock_thds[NTHDS];
+struct sl_thd  *lock_thds[NTHDS] = {NULL, };
+unsigned int    progress[NTHDS] = {0, };
 struct cos_compinfo *ci;
 
-unsigned int
-next_off(unsigned int off)
+thdid_t
+next_thd(void)
 {
-	return cos_thdid() * 7 + 3;
+	return sl_thd_thdid(lock_thds[(unsigned int)(ps_tsc() % NTHDS)]);
 }
+
+volatile thdid_t holder;
 
 void
 lock_thd(void *d)
 {
-	int i;
-	unsigned int off = cos_thdid();
+	int i, cnt, me = -1;
+
+	for (i = 0; i < NTHDS; i++) {
+		if (sl_thd_thdid(lock_thds[i]) != cos_thdid()) continue;
+
+		me = i;
+	}
+	assert(me != -1);
 
 	sl_thd_yield(sl_thd_thdid(lock_thds[1]));
 
 	for (i = 0; i < LOCK_ITER; i++) {
-		off = next_off(off);
-
-		printc("Thread %d: attempt take\n", cos_thdid());
 		crt_lock_take(&lock);
-		printc("switchto %d -> %d\n", cos_thdid(), sl_thd_thdid(lock_thds[off % NTHDS]));
-		sl_thd_yield(sl_thd_thdid(lock_thds[off % NTHDS]));
+
+		progress[me]++;
+		holder = cos_thdid();
+
+		sl_thd_yield(next_thd());
+
+		if (holder != cos_thdid()) {
+			printc("FAILURE\n");
+			BUG();
+		}
 		crt_lock_release(&lock);
-		off = next_off(off);
-		printc("switchto %d -> %d\n", cos_thdid(), sl_thd_thdid(lock_thds[off % NTHDS]));
-		sl_thd_yield(sl_thd_thdid(lock_thds[off % NTHDS]));
+		sl_thd_yield(next_thd());
 	}
+
+	for (i = 0; i < NTHDS; i++) {
+		if (i == me) continue;
+
+		if (progress[i] < LOCK_ITER) {
+			sl_thd_yield(sl_thd_thdid(lock_thds[i]));
+		}
+	}
+
+	printc("SUCCESS!");
+	while (1) ;
 }
 
 void

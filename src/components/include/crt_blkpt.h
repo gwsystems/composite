@@ -131,7 +131,7 @@ typedef enum {
 } crt_blkpt_flags_t;
 
 #define CRT_BLKPT_EPOCH_BLKED_BITS (sizeof(sched_blkpt_epoch_t) * 8)
-#define CRT_BLKPT_BLKED_MASK       ((1 << (CRT_BLKPT_EPOCH_BLKED_BITS - 2)) - 1)
+#define CRT_BLKPT_BLKED_MASK       (1 << (CRT_BLKPT_EPOCH_BLKED_BITS - 2))
 #define CRT_BLKPT_BLKED(e)         ((e) &  CRT_BLKPT_BLKED_MASK)
 #define CRT_BLKPT_EPOCH(e)         ((e) & ~CRT_BLKPT_BLKED_MASK)
 
@@ -250,7 +250,7 @@ crt_blkpt_trigger(struct crt_blkpt *blkpt, crt_blkpt_flags_t flags)
 	 * = max(epoch, ...) (for some wraparound-aware version of
 	 * max).
 	 */
-	sched_blkpt_trigger(blkpt->id, CRT_BLKPT_EPOCH(saved), 0);
+	sched_blkpt_trigger(blkpt->id, CRT_BLKPT_EPOCH(saved + 1), 0);
 }
 
 /* Wake only a single, specified thread (tracked manually in the data-structure) */
@@ -284,7 +284,9 @@ crt_blkpt_wait(struct crt_blkpt *blkpt, crt_blkpt_flags_t flags, struct crt_blkp
 	if (!CRT_BLKPT_BLKED(chkpt->epoch_blocked) &&
 	    !__crt_blkpt_atomic_wait(&blkpt->epoch_blocked, chkpt->epoch_blocked, flags)) return;
 
-	sched_blkpt_block(blkpt->id, CRT_BLKPT_EPOCH(chkpt->epoch_blocked), 0);
+	if (unlikely(sched_blkpt_block(blkpt->id, CRT_BLKPT_EPOCH(chkpt->epoch_blocked), 0))) {
+		BUG(); 		/* we are using a blkpt id that doesn't exist! */
+	}
 }
 
 /*

@@ -12,12 +12,16 @@ static int __blkpt_offset = 1;
 
 #define BLKPT_EPOCH_BLKED_BITS ((sizeof(sched_blkpt_epoch_t) * 8)
 #define BLKPT_EPOCH_DIFF       (BLKPT_EPOCH_BLKED_BITS - 2)/2)
-#define BLKPT_BLKED_MASK       ((1 << (BLKPT_EPOCH_BLKED_BITS - 2)) - 1)
 
+/*
+ * Is cmp > e? This is more complicated than it seems it should be
+ * only because of wrap-around. We have to consider the case that we
+ * have, and that we haven't wrapped around.
+ */
 static int
-blkpt_epoch_expired(sched_blkpt_epoch_t e, sched_blkpt_epoch_t cmp)
+blkpt_epoch_is_higher(sched_blkpt_epoch_t e, sched_blkpt_epoch_t cmp)
 {
-	return (e > cmp && e - cmp > BLKPT_EPOCH_DIFF) || (e < cmp && cmp - e < BLKPT_EPOCH_DIFF);
+	return (e > cmp && (e - cmp) > BLKPT_EPOCH_DIFF) || (e < cmp && (cmp - e) < BLKPT_EPOCH_DIFF);
 }
 
 static struct blkpt_mem *
@@ -73,7 +77,7 @@ sched_blkpt_trigger(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, int singl
 	if (!m) ERR_THROW(-1, unlock);
 
 	/* is the new epoch more recent than the existing? */
-	if (!blkpt_epoch_expired(epoch, m->epoch)) ERR_THROW(0, unlock);
+	if (!blkpt_epoch_is_higher(m->epoch, epoch)) ERR_THROW(0, unlock);
 
 	m->epoch = epoch;
 	while ((tid = stacklist_dequeue(&m->blocked)) != 0) {
@@ -106,7 +110,7 @@ sched_blkpt_block(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, thdid_t dep
 	if (!m) ERR_THROW(-1, unlock);
 
 	/* Outdated event? don't block! */
-	if (blkpt_epoch_expired(m->epoch, epoch)) ERR_THROW(0, unlock);
+	if (blkpt_epoch_is_higher(m->epoch, epoch)) ERR_THROW(0, unlock);
 
 	/* Block! */
 	stacklist_add(&m->blocked, &sl);
