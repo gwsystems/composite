@@ -2,7 +2,7 @@
 #define STACKLIST_H
 
 /**
- * Modified to support multi-core via a Trebor stack. This is not 100%
+ * Modified to support multi-core via a Treiber stack. This is not 100%
  * a great solution as it isn't FIFO. However, we release *all*
  * threads when unlocking, so the priority scheduling should take over
  * at that point.
