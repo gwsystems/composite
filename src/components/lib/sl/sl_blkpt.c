@@ -119,6 +119,7 @@ sched_blkpt_block(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, thdid_t dep
 	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0)) ERR_THROW(-1, unlock);
 
 	sl_cs_exit_schedule();
+	assert(stacklist_is_removed(&sl)); /* we cannot still be on the list */
 
 	return 0;
 unlock:
