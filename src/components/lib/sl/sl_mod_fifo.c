@@ -48,7 +48,6 @@ sl_mod_wakeup(struct sl_thd_policy *t)
 void
 sl_mod_yield(struct sl_thd_policy *t, struct sl_thd_policy *yield_to)
 {
-	/* should yield move the current thread to end of the runQ? don't think so! FIFO scheduler, so yield doesn't change the sched order! */
 	ps_list_rem_d(t);
 	ps_list_head_append_d(&threads[cos_cpuid()], t);
 }

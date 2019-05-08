@@ -91,6 +91,8 @@ struct sl_thd {
 	struct ps_list    SL_THD_EVENT_LIST; /* list of events for the scheduler end-point */
 
 	struct cos_dcb_info *dcb;
+
+	void *part_context; /* used by the parallelism stuff! */
 };
 
 static inline struct cos_dcb_info *

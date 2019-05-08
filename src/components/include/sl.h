@@ -425,10 +425,12 @@ static inline int
 sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
 	struct cos_scb_info *scb = sl_scb_info_core();
+	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr), *nd = sl_thd_dcbinfo(next);
 
-	if (unlikely(!sl_thd_dcbinfo(curr) || !sl_thd_dcbinfo(next))) {
+	if (unlikely(!cd || !nd)) {
 		return sl_thd_kern_dispatch(sl_thd_thdcap(next));
 	}
+
 	/*
 	 * jump labels in the asm routine:
 	 *
@@ -467,7 +469,7 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 		"3:\n\t"				\
 		"popl %%ebp\n\t"			\
 		:
-		: "a" (sl_thd_dcbinfo(curr)), "b" (sl_thd_dcbinfo(next)),
+		: "a" (cd), "b" (nd),
 		  "S" ((u32_t)((u64_t)tok >> 32)), "D" ((u32_t)(((u64_t)tok << 32) >> 32)),
 		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
 		: "memory", "cc");

@@ -5,6 +5,7 @@
  * Author: Phani Gadepalli, phanikishoreg@gwu.edu
  */
 
+#include <part_task.h>
 #include <cos_omp.h>
 #include <cos_kernel_api.h>
 #include <cos_types.h>
@@ -45,23 +46,23 @@ omp_get_max_threads(void)
 __GOMP_NOTHROW int
 omp_get_num_threads(void)
 {
-	/* FIXME: number of threads in the current team! */
-	return omp_get_max_threads();
+	struct sl_thd *t = sl_thd_curr();
+	struct part_task *pt = (struct part_task *)t->part_context;
+
+	if (pt) return pt->nthds;
+
+	return 1;
 }
 
 __GOMP_NOTHROW int
 omp_get_thread_num(void)
 {
-	/* 
-	 * thread number within a team of a parallel construct! 
-	 * master thd will be = 0
-	 * not the physical thread id.
-	 *
-	 * TODO: fetch from team structure?
-	 *
-	 * For now though, a big hack!
-	 */
-	return (cos_thdid() % omp_get_max_threads());
+	struct sl_thd *t = sl_thd_curr();
+	struct part_task *pt = (struct part_task *)t->part_context;
+
+	if (!pt) return 0;
+	
+	return part_task_work_thd_num(pt);
 }
 
 static inline void

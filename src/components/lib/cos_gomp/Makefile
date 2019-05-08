@@ -1,6 +1,6 @@
 include Makefile.src Makefile.comp
 
-OBJS=cos_gomp.o
+OBJS=cos_omp.o cos_gomp.o
 LIB=cos_gomp
 CINC+=-m32
 

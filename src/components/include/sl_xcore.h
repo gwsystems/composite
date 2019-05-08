@@ -84,13 +84,15 @@ CK_RING_PROTOTYPE(xcore, sl_xcore_request);
  * branches around in the code for core-local scheduling!
  * Also, making this struct explicit, makes API use explicit.
  * I should only be able to use: param_set(), wakeup() and perhaps free(). 
+ *
+ * Change my mind! This is a shit ton of wastage with CACHE_ALIGNED!
  */
 struct sl_xcore_thd {
 	thdid_t thd;
 	cpuid_t core;
 
-	asndcap_t asnd;
-};
+	asndcap_t asnd[NUM_CPU];
+} CACHE_ALIGNED;
 
 struct sl_xcore_thd *sl_xcore_thd_lookup(thdid_t tid, cpuid_t core);
 static inline thdid_t

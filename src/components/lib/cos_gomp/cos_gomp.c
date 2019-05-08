@@ -12,84 +12,132 @@
 
 #include <res_spec.h>
 #include <sl.h>
+#include <sl_thd.h>
 #include <sl_lock.h> /* for now, single core lock! */
 #include <cos_omp.h>
 
-#define _THD_FIXED_PRIO 1
-#define _THD_LOCAL_ACTIVATE(t) sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, _THD_FIXED_PRIO))
-static struct sl_lock _cos_gomp_lock = SL_LOCK_STATIC_INIT();
+#include "cos_gomp.h"
+#include <part.h>
 
-static void
-_cos_gomp_thd_fn(void *d)
+#define COS_GOMP_MAX_EXPLICIT_TASKS 1024
+#define COS_GOMP_MAX_IMPLICIT_TASKS 512
+
+static struct part_task _itasks[COS_GOMP_MAX_IMPLICIT_TASKS], _etasks[COS_GOMP_MAX_EXPLICIT_TASKS];
+static unsigned _itask_free, _etask_free;
+
+static inline struct part_task *
+_cos_gomp_alloc_implicit(void)
 {
-	int *ndone = (int *)d;
-	struct sl_thd *t = sl_thd_curr();
-	struct cos_aep_info *a = sl_thd_aepinfo(t);
-	cos_thd_fn_t fn = NULL;
+	unsigned i = ps_faa((unsigned long *)&_itask_free, 1);
 
-	/*
-	 * TODO:
-	 * 1. Understand how gomp works with fn & data and what exactly is being passed!
-	 * 2. If work-stealing.. well, where am I stealing from! (void *d) should help with that!
-	 */
-
-	assert(a->fn);
-	fn = (cos_thd_fn_t)a->fn;
-	fn(a->data);
-	ps_faa((unsigned long *)ndone, 1);
-
-	sl_thd_exit();
+	assert(i < COS_GOMP_MAX_IMPLICIT_TASKS);
+	return &_itasks[i];
 }
 
-static inline unsigned
-_cos_gomp_num_threads(unsigned num_thds)
+static inline struct part_task *
+_cos_gomp_alloc_explicit(void)
 {
-	return num_thds > 0 ? num_thds : (unsigned)omp_get_max_threads();
+	unsigned i = ps_faa((unsigned long *)&_etask_free, 1);
+
+	assert(i < COS_GOMP_MAX_EXPLICIT_TASKS);
+	return &_etasks[i];
+}
+
+void
+cos_gomp_init(void)
+{
+	memset(_itasks, 0, sizeof(struct part_task) * COS_GOMP_MAX_IMPLICIT_TASKS);
+	memset(_etasks, 0, sizeof(struct part_task) * COS_GOMP_MAX_EXPLICIT_TASKS);
+	_itask_free = _etask_free = 0;
+
+	cos_omp_init();
+	part_init();
+}
+
+static inline void
+_gomp_parallel_start(struct part_task *pt, void (*fn) (void *), void *data, unsigned num_threads, unsigned flags)
+{
+	int parent_off;
+	struct sl_thd *t = sl_thd_curr();
+	struct part_task *parent = (struct part_task *)t->part_context;
+
+	num_threads = num_threads ? ((num_threads > COS_GOMP_MAX_THDS) ? COS_GOMP_MAX_THDS : num_threads) : PART_MAX;
+	part_task_init(pt, PART_TASK_T_WORKSHARE, parent, num_threads, fn, data);
+	if (parent) {
+		parent_off = part_task_add_child(parent, pt);
+		assert(parent_off >= 0);
+	}
+	t->part_context = pt;
+
+	if (num_threads > 1) part_list_append(pt);
+}
+
+static inline void
+_gomp_parallel_end(struct part_task *pt)
+{
+	struct sl_thd *t = sl_thd_curr();
+
+	/* implicit barrier */
+	part_task_barrier(pt);
+
+	if (pt->nthds > 1) part_list_remove(pt);
+
+	t->part_context = pt->parent;
+	part_task_remove_child(pt->parent, pt);
 }
 
 /* GOMP_parallel prototype from libgomp within gcc */
 void
 GOMP_parallel (void (*fn) (void *), void *data, unsigned num_threads,
-               unsigned int flags)
+	       unsigned int flags)
 {
-	/* FIXME: improve everything! */
-	unsigned i;
-	unsigned long num_done = 0;
+	struct part_task pt;
 
-	num_threads = _cos_gomp_num_threads(num_threads);
-	assert(num_threads <= MAX_NUM_THREADS);
-	for (i = 1; i < num_threads; i++) {
-		struct sl_thd *t = NULL;
-		struct cos_aep_info *a = NULL;
-
-		/* TODO: any handling of AEPs? */
-		t = sl_thd_alloc(_cos_gomp_thd_fn, (void *)&num_done);
-		assert(t);
-
-		a       = sl_thd_aepinfo(t);
-		a->fn   = (cos_aepthd_fn_t)fn;
-		a->data = data;
-
-		_THD_LOCAL_ACTIVATE(t);
-	}
-
-	sl_thd_yield(0);
-
+	_gomp_parallel_start(&pt, fn, data, num_threads, flags);
 	fn(data);
-	ps_faa((unsigned long *)&num_done, 1);
-	/* TODO: anything else to do in this master? thread */
-
-	while (ps_load((unsigned long *)&num_done) < (unsigned long)num_threads) sl_thd_yield(0);
+	_gomp_parallel_end(&pt);
 }
 
 bool
-GOMP_single_start (void)
+GOMP_single_start(void)
 {
-	static thdid_t t = 0;
+	struct part_task *t = (struct part_task *)sl_thd_curr()->part_context;
+	int i;
+	int coff = part_task_work_thd_num(t);
+	unsigned b = 1 << coff;
 
-	/* TODO: intelligence! */
-	if (ps_cas((unsigned long *)&t, 0, cos_thdid())) return true;
-	if (t == cos_thdid()) return true;
+	assert(coff >= 0 && coff < (int)t->nthds);
+	for (i = t->ws_off[coff] + 1; i < PART_MAX_WORKSHARES; i++) {
+		struct part_workshare *pw = &t->ws[i];
+		unsigned c;
+
+		if (ps_load((unsigned long *)&pw->type) == PART_WORKSHARE_NONE) {
+			/* perhaps one of the threads just converted it to a single */
+			if (!ps_cas((unsigned long *)&pw->type, PART_WORKSHARE_NONE, PART_WORKSHARE_SINGLE)) assert(pw->type == PART_WORKSHARE_SINGLE);
+		}
+		if (ps_load((unsigned long *)&pw->type) != PART_WORKSHARE_SINGLE) continue;
+
+retry_bmp:
+		c = ps_load((unsigned long *)&pw->worker_bmp);
+		/* if already went through this, should not have called start! */
+		assert(!(c & b));
+
+		/* 
+		 * this thd, add to worker bmp to indicate it reached the construct.
+		 * if this is the first to reach, then return "true", else "false".
+		 *
+		 * if cas failed, try again as you have to indicate that this thd
+		 * has done this construct!
+		 */
+		if (ps_cas((unsigned long *)&pw->worker_bmp, c, c | b)) {
+			t->ws_off[coff] = i;
+
+			return c ? false : true;
+		}
+		goto retry_bmp;
+	}
+
+	assert(0); /* exceed the number of workshares? */
 
 	return false;
 }
@@ -97,20 +145,152 @@ GOMP_single_start (void)
 void
 GOMP_barrier (void)
 {
-	/* TODO: intelligence to wait for all threads in the team! */ 
-	sl_thd_yield(0);
+	struct part_task *t = (struct part_task *)sl_thd_curr()->part_context;
+
+	part_task_barrier(t);
+}
+
+static inline bool
+_gomp_loop_dynamic_next(struct part_task *t, struct part_workshare *w, long *s, long *e)
+{
+	long cn, left, wrk = 0;
+
+retry:
+	cn = ps_load((unsigned long *)&w->next);
+	left = w->end - cn;
+
+	if (left == 0) return false;
+	/* todo: incr <= 0 */
+	assert(w->inc > 0);
+
+	wrk = w->chunk_sz;
+	if (left < wrk) wrk = left;
+	if (!ps_cas((unsigned long *)&w->next, cn, cn + wrk)) goto retry;
+
+	*s = cn;
+	*e = cn + wrk;
+
+	return true;
+}
+
+bool
+GOMP_loop_dynamic_start (long start, long end, long incr, long chunk_size,
+			 long *istart, long *iend)
+{
+	struct part_task *t = (struct part_task *)sl_thd_curr()->part_context;
+	int i;
+	int coff = part_task_work_thd_num(t);
+	unsigned b = 1 << coff;
+
+	assert(coff >= 0 && coff < (int)t->nthds);
+	for (i = t->ws_off[coff] + 1; i < PART_MAX_WORKSHARES; i++) {
+		struct part_workshare *pw = &t->ws[i];
+		unsigned c;
+
+		if (ps_load((unsigned long *)&pw->type) == PART_WORKSHARE_NONE) {
+			/* perhaps one of the threads just converted it to a loop */
+			if (!ps_cas((unsigned long *)&pw->type, PART_WORKSHARE_NONE, PART_WORKSHARE_LOOP_DYNAMIC)) assert(pw->type == PART_WORKSHARE_LOOP_DYNAMIC);
+		}
+
+		if (ps_load((unsigned long *)&pw->type) != PART_WORKSHARE_LOOP_DYNAMIC) continue;
+
+retry_bmp:
+		c = ps_load((unsigned long *)&pw->worker_bmp);
+		/* if already went through this, should not have called start! */
+		assert(!(c & b));
+
+		/* 
+		 * this thd, add to worker bmp to indicate it reached the construct.
+		 */
+		if (ps_cas((unsigned long *)&pw->worker_bmp, c, c | b)) t->ws_off[coff] = i;
+		else goto retry_bmp;
+
+		/* all threads participating will initialize to the same values */
+		if (!pw->end) {
+			pw->chunk_sz = chunk_size;
+			pw->inc = incr;
+			pw->st = start;
+			pw->end = end;
+		}
+
+		if (istart && iend) return _gomp_loop_dynamic_next(t, pw, istart, iend);
+		else return true;
+	}
+
+	assert(0);
+
+	return false;
+}
+
+void
+GOMP_parallel_loop_dynamic (void (*fn) (void *), void *data,
+			    unsigned num_threads, long start, long end,
+			    long incr, long chunk_size, unsigned flags)
+{
+	struct part_task pt;
+	bool ret;
+
+	_gomp_parallel_start(&pt, fn, data, num_threads, flags);
+	ret = GOMP_loop_dynamic_start(start, end, incr, chunk_size, NULL, NULL);
+	assert(ret == true);
+
+	fn(data);
+	_gomp_parallel_end(&pt);
+}
+
+bool
+GOMP_loop_dynamic_next (long *istart, long *iend)
+{
+	struct part_task *t = (struct part_task *)sl_thd_curr()->part_context;
+	unsigned coff = part_task_work_thd_num(t);
+	int woff = t->ws_off[coff];
+
+	woff = woff < 0 ? 0 : woff;
+	t->ws_off[coff] = woff;
+	assert(t->ws[woff].type == PART_WORKSHARE_LOOP_DYNAMIC);
+
+	return _gomp_loop_dynamic_next(t, &t->ws[woff], istart, iend);
+}
+
+void
+GOMP_loop_end (void)
+{
+	struct part_task *t = (struct part_task *)sl_thd_curr()->part_context;
+	unsigned coff = part_task_work_thd_num(t);
+	int woff = t->ws_off[coff], c = 0;
+
+	assert(t->ws[woff].type == PART_WORKSHARE_LOOP_DYNAMIC);
+
+	part_task_barrier(t);
+
+//	do {
+//		c = ps_load((unsigned long *)&t->nwsdone);
+//	} while (!ps_cas((unsigned long *)&t->nwsdone, c, c | (1 << woff)));
+}
+
+void
+GOMP_loop_end_nowait (void)
+{
+	struct part_task *t = (struct part_task *)sl_thd_curr()->part_context;
+	unsigned coff = part_task_work_thd_num(t);
+	int woff = t->ws_off[coff], c = 0;
+
+	assert(t->ws[woff].type == PART_WORKSHARE_LOOP_DYNAMIC);
+//	do {
+//		c = ps_load((unsigned long *)&t->nwsdone);
+//	} while (!ps_cas((unsigned long *)&t->nwsdone, c, c | (1 << woff)));
 }
 
 void
 GOMP_critical_start (void)
 {
-	/* TODO: a multi-core lock! */
-	sl_lock_take(&_cos_gomp_lock);
+//	/* TODO: a multi-core lock! */
+//	sl_lock_take(&_cos_gomp_lock);
 }
 
 void
 GOMP_critical_end (void)
 {
-	/* TODO: a multi-core lock! */
-	sl_lock_release(&_cos_gomp_lock);
+//	/* TODO: a multi-core lock! */
+//	sl_lock_release(&_cos_gomp_lock);
 }

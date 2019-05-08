@@ -571,6 +571,7 @@ cos_main(void *d)
 	main();
 }
 
+extern void cos_gomp_init(void);
 void
 cos_init(void *d)
 {
@@ -583,14 +584,12 @@ cos_init(void *d)
 		PRINTC("In OpenMP-based Hello Program!\n");
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_defcompinfo_init();
-		cos_omp_init();
-
 	} else {
 		while (!ps_load((unsigned long *)&init_done[first])) ;
 
 		cos_defcompinfo_sched_init();
-		sl_init(SL_MIN_PERIOD_US*100);
 	}
+	sl_init(SL_MIN_PERIOD_US*100);
 	ps_faa((unsigned long *)&init_done[cos_cpuid()], 1);
 
 	/* make sure the INITTHD of the scheduler is created on all cores.. for cross-core sl initialization to work! */
@@ -601,7 +600,7 @@ cos_init(void *d)
 	if (!cos_cpuid()) {
 		struct sl_thd *t = NULL;
 
-		sl_init(SL_MIN_PERIOD_US*100);
+		cos_gomp_init();
 		t = sl_thd_alloc(cos_main, NULL);
 		assert(t);
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, TCAP_PRIO_MAX));

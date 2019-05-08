@@ -8,10 +8,11 @@
 #ifndef COS_OMP_H
 #define COS_OMP_H
 
+#include <part_task.h>
 #include <cos_types.h>
 #include <omp.h>
 
-#define COS_OMP_MAX_NUM_THREADS (NUM_CPU)
+#define COS_OMP_MAX_NUM_THREADS (PART_MAX_THDS)
 
 struct cos_icv_data_env {
 	unsigned dyn_var;

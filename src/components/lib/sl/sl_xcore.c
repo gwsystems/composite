@@ -7,16 +7,12 @@
 /******************************* Client-side ***************************/
 
 /* static xcore thread backend! mainly for bookkeeping across cores! */
-struct _sl_xcore_thds {
-	struct sl_xcore_thd _thds[MAX_NUM_THREADS];
-} CACHE_ALIGNED;
-
-static struct _sl_xcore_thds _xcore_thds[NUM_CPU];
+static struct sl_xcore_thd _xcore_thds[MAX_NUM_THREADS];
 
 static inline struct sl_xcore_thd *
 _sl_xcore_thd_backend_lookup(thdid_t tid)
 {
-	return &(_xcore_thds[cos_cpuid()]._thds[tid]);
+	return &_xcore_thds[tid];
 }
 
 static inline struct sl_xcore_thd *
@@ -24,14 +20,9 @@ _sl_xcore_thd_backend_init(thdid_t tid, cpuid_t core, asndcap_t snd)
 {
 	struct sl_xcore_thd *t = _sl_xcore_thd_backend_lookup(tid);
 
-	sl_cs_enter();
-	if (unlikely(t->thd)) goto done;
+	if (unlikely(t->thd)) return t;
 	t->thd  = tid;
 	t->core = core;
-	t->asnd = snd;
-
-done:
-	sl_cs_exit();
 
 	return t;
 }
