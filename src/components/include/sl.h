@@ -74,6 +74,10 @@ struct sl_global_core {
 
 extern struct sl_global_core sl_global_core_data[];
 
+typedef u32_t sched_blkpt_id_t;
+#define SCHED_BLKPT_NULL 0
+typedef word_t sched_blkpt_epoch_t;
+
 static inline struct sl_global_core *
 sl__globals_core(void)
 {
@@ -127,6 +131,10 @@ sl_thdid(void)
 	return cos_thdid();
 }
 
+sched_blkpt_id_t sched_blkpt_alloc(void);
+int sched_blkpt_free(sched_blkpt_id_t id);
+int sched_blkpt_trigger(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, int single);
+int sched_blkpt_block(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, thdid_t dependency);
 
 static inline struct sl_thd *
 sl_thd_curr(void)
