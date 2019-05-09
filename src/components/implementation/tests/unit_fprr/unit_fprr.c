@@ -161,12 +161,12 @@ run_xcore_tests()
 static void
 run_tests()
 {
-//	test_highest_is_scheduled();
-//	PRINTC("%s: Schedule highest priority thread only!\n", high_thd_test_status[cos_cpuid()] ? "FAILURE" : "SUCCESS");
-//	test_swapping();
-//	PRINTC("%s: Swap back and forth!\n", (thd1_ran[cos_cpuid()] && thd2_ran[cos_cpuid()]) ? "SUCCESS" : "FAILURE");
+	test_highest_is_scheduled();
+	PRINTC("%s: Schedule highest priority thread only!\n", high_thd_test_status[cos_cpuid()] ? "FAILURE" : "SUCCESS");
+	test_swapping();
+	PRINTC("%s: Swap back and forth!\n", (thd1_ran[cos_cpuid()] && thd2_ran[cos_cpuid()]) ? "SUCCESS" : "FAILURE");
 
-	run_xcore_tests();
+//	run_xcore_tests();
 
 	PRINTC("Unit-test done!\n");
 	sl_thd_exit();
@@ -181,8 +181,6 @@ cos_init(void)
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
-	PRINTC("Unit-test for the scheduling library (sl)\n");
-
 	if (ps_cas(&first, NUM_CPU + 1, cos_cpuid())) {
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_defcompinfo_llinit();
@@ -195,6 +193,8 @@ cos_init(void)
 	for (i = 0; i < NUM_CPU; i++) {
 		while (!ps_load(&init_done[i])) ;
 	}
+
+	PRINTC("Unit-test for the scheduling library (sl)\n");
 
 	sl_init(SL_MIN_PERIOD_US);
 

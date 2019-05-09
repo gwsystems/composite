@@ -40,8 +40,9 @@
 #include <sl_xcore.h>
 #include <heap.h>
 
-#undef SL_TIMEOUTS
+#undef  SL_TIMEOUTS
 #define SL_CS
+#undef  SL_REPLENISH
 
 /* Critical section (cs) API to protect scheduler data-structures */
 struct sl_cs {
@@ -193,7 +194,6 @@ sl_cs_enter_nospin(void)
 	cached.v = csi.v;
 
 	if (unlikely(csi.s.owner)) {
-		assert(0);
 		return sl_cs_enter_contention(&csi, &cached, gcore, t, cos_sched_sync());
 	}
 
@@ -244,7 +244,6 @@ retry:
 	cached.v = csi.v;
 
 	if (unlikely(csi.s.contention)) {
-		assert(0);
 		if (sl_cs_exit_contention(&csi, &cached, gcore, cos_sched_sync())) goto retry;
 
 		return;
@@ -490,12 +489,11 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 static inline int
 sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 {
-//	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-//	struct cos_compinfo    *ci  = &dci->ci;
-//	struct sl_global_core  *g   = sl__globals_core();
-//	int ret = 0;
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = &dci->ci;
+	struct sl_global_core  *g   = sl__globals_core();
+	int ret = 0;
 
-#if 0
 	if (t->properties & SL_THD_PROPERTY_SEND) {
 		return cos_sched_asnd(t->sndcap, g->timeout_next, g->sched_rcv, tok);
 	} else if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
@@ -511,15 +509,9 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 		 * Attempting to activate scheduler thread or idle thread failed for no budget in it's tcap.
 		 * Force switch to the scheduler with current tcap.
 		 */
-		return cos_switch(sl_thd_thdcap(g->sched_thd), 0, t->prio, 0, g->sched_rcv, tok);
-#endif
-		/* TODO: can't use if you're reprogramming a timer/prio */
-		return sl_thd_dispatch(t, tok, sl_thd_curr());
-		//return cos_switch(sl_thd_thdcap(t), g->sched_tcap, t->prio,
-		//		  g->timeout_next, g->sched_rcv, tok);
-#if 0
+		return cos_switch(sl_thd_thdcap(t), g->sched_tcap, t->prio,
+				  g->timeout_next, g->sched_rcv, tok);
 	}
-#endif
 }
 
 static inline int
@@ -563,14 +555,14 @@ sl_cs_exit_schedule_nospin_arg_c(struct sl_thd *curr, struct sl_thd *next)
 static inline int
 sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 {
-//	return sl_thd_dispatch(to, cos_sched_sync(), sl_thd_curr());
-#if 1
 	struct sl_thd         *t = to;
-//	struct sl_global_core *globals = sl__globals_core();
+	struct sl_global_core *globals = sl__globals_core();
 	sched_tok_t            tok;
-//	cycles_t               now;
-//	s64_t                  offset;
-//	int                    ret;
+#if defined(SL_TIMEOUTS) || defined(SL_REPLENISH)
+	cycles_t               now;
+#endif
+	s64_t                  offset;
+	int                    ret;
 
 	/* Don't abuse this, it is only to enable the tight loop around this function for races... */
 #ifdef SL_CS
@@ -578,7 +570,9 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 #endif
 
 	tok    = cos_sched_sync();
-//	now    = sl_now();
+#if defined(SL_TIMEOUTS) || defined(SL_REPLENISH)
+	now    = sl_now();
+#endif
 
 #ifdef SL_TIMEOUTS
 	offset = (s64_t)(globals->timer_next - now);
@@ -606,7 +600,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 			t = sl_mod_thd_get(pt);
 	}
 
-#if 0
+#ifdef SL_REPLENISH
 	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {
 		struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
@@ -640,9 +634,13 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	if (t == sl__globals_core()->idle_thd) t = sl__globals_core()->sched_thd;
 	if (t == sl_thd_curr()) return 0;
 
-	return sl_thd_dispatch(t, tok, sl_thd_curr());
-//	ret = sl_thd_activate(t, tok);
-#if 0
+#ifdef SL_TIMEOUTS
+	ret = sl_thd_activate(t, tok);
+#else
+	ret = sl_thd_dispatch(t, tok, sl_thd_curr());
+#endif
+
+#ifdef SL_REPLENISH 
 	/*
 	 * dispatch failed with -EPERM because tcap associated with thread t does not have budget.
 	 * Block the thread until it's next replenishment and return to the scheduler thread.
@@ -657,8 +655,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	}
 #endif
 
-//	return ret;
-#endif
+	return ret;
 }
 
 static inline int

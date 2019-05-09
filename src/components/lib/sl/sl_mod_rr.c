@@ -5,9 +5,8 @@
 
 #define SL_FPRR_PERIOD_US_MIN  SL_MIN_PERIOD_US
 
-struct ps_list_head threads[NUM_CPU] CACHE_ALIGNED;
+static struct ps_list_head threads[NUM_CPU] CACHE_ALIGNED;
 
-/* No RR yet */
 void
 sl_mod_execution(struct sl_thd_policy *t, cycles_t cycles)
 { }

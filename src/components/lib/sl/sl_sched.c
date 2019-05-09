@@ -531,6 +531,7 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 
 	assert(t);
 
+	sl_cs_enter();
 	sched_param_get(sp, &type, &value);
 
 	switch (type) {
@@ -549,6 +550,7 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 	}
 
 	sl_mod_thd_param_set(sl_mod_thd_policy_get(t), type, value);
+	sl_cs_exit();
 }
 
 void

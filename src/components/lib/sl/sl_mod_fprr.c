@@ -9,9 +9,9 @@
 
 #define SL_FPRR_PERIOD_US_MIN  SL_MIN_PERIOD_US
 
-struct ps_list_head threads[NUM_CPU][SL_FPRR_NPRIOS] CACHE_ALIGNED;
+static unsigned int thdlist_bmp[NUM_CPU] CACHE_ALIGNED;
+static struct ps_list_head threads[NUM_CPU][SL_FPRR_NPRIOS] CACHE_ALIGNED;
 
-/* No RR yet */
 void
 sl_mod_execution(struct sl_thd_policy *t, cycles_t cycles)
 { }
@@ -20,37 +20,59 @@ struct sl_thd_policy *
 sl_mod_schedule(void)
 {
 	int i;
-	struct sl_thd_policy *t;
+	struct sl_thd_policy *t = NULL;
 
-	for (i = 0 ; i < SL_FPRR_NPRIOS ; i++) {
-		if (ps_list_head_empty(&threads[cos_cpuid()][i])) continue;
-		t = ps_list_head_first_d(&threads[cos_cpuid()][i], struct sl_thd_policy);
+	if (unlikely(!thdlist_bmp[cos_cpuid()])) return NULL;
+	i = __builtin_ctz(thdlist_bmp[cos_cpuid()]);
+	assert(i < SL_FPRR_NPRIOS);
+	assert(!ps_list_head_empty(&threads[cos_cpuid()][i]));
+	t = ps_list_head_first_d(&threads[cos_cpuid()][i], struct sl_thd_policy);
+	assert(t);
 
-		/*
-		 * We want to move the selected thread to the back of the list.
-		 * Otherwise fprr won't be truly round robin
-		 */
-		ps_list_rem_d(t);
-		ps_list_head_append_d(&threads[cos_cpuid()][i], t);
+	ps_list_rem_d(t);
+	ps_list_head_append_d(&threads[cos_cpuid()][i], t);
 
-		return t;
-	}
+	return t;
+}
 
-	return NULL;
+static inline void
+__sl_mod_bmp_unset(struct sl_thd_policy *t)
+{
+	unsigned int ctb = ps_load(&thdlist_bmp[cos_cpuid()]);
+	unsigned int p = t->priority - 1, b = 1 << p;
+
+	if (!ps_list_head_empty(&threads[cos_cpuid()][p])) return;
+
+	/* unset from bitmap if there are no threads at this priority */
+	if (unlikely(!ps_upcas(&thdlist_bmp[cos_cpuid()], ctb, ctb & ~b))) assert(0);
+}
+
+static inline void
+__sl_mod_bmp_set(struct sl_thd_policy *t)
+{
+	unsigned int ctb = ps_load(&thdlist_bmp[cos_cpuid()]);
+	unsigned int p = t->priority - 1, b = 1 << p;
+
+	if (unlikely(ctb & b)) return; 
+
+	assert(!ps_list_head_empty(&threads[cos_cpuid()][p]));
+	/* set to bitmap if this is the first element added at this prio! */
+	if (unlikely(!ps_upcas(&thdlist_bmp[cos_cpuid()], ctb, ctb | b))) assert(0);
 }
 
 void
 sl_mod_block(struct sl_thd_policy *t)
 {
 	ps_list_rem_d(t);
+	__sl_mod_bmp_unset(t);
 }
 
 void
 sl_mod_wakeup(struct sl_thd_policy *t)
 {
 	assert(ps_list_singleton_d(t));
-
 	ps_list_head_append_d(&threads[cos_cpuid()][t->priority - 1], t);
+	__sl_mod_bmp_set(t);
 }
 
 void
@@ -72,7 +94,10 @@ sl_mod_thd_create(struct sl_thd_policy *t)
 
 void
 sl_mod_thd_delete(struct sl_thd_policy *t)
-{ ps_list_rem_d(t); }
+{
+	ps_list_rem_d(t); 
+	__sl_mod_bmp_unset(t);
+}
 
 void
 sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned int v)
@@ -81,10 +106,12 @@ sl_mod_thd_param_set(struct sl_thd_policy *t, sched_param_type_t type, unsigned 
 	case SCHEDP_PRIO:
 	{
 		assert(v >= SL_FPRR_PRIO_HIGHEST && v <= SL_FPRR_PRIO_LOWEST);
-		ps_list_rem_d(t); /* if we're already on a list, and we're updating priority */
+		/* should not have been on any prio before, this is FP */
+		assert(ps_list_singleton_d(t));
 		t->priority = v;
-		ps_list_head_append_d(&threads[cos_cpuid()][t->priority - 1], t);
-		sl_thd_setprio(sl_mod_thd_get(t), t->priority);
+		ps_list_head_append_d(&threads[cos_cpuid()][v - 1], t);
+		__sl_mod_bmp_set(t);
+		sl_thd_setprio(sl_mod_thd_get(t), v);
 
 		break;
 	}
@@ -110,6 +137,7 @@ sl_mod_init(void)
 {
 	int i;
 
+	thdlist_bmp[cos_cpuid()] = 0;
 	memset(threads[cos_cpuid()], 0, sizeof(struct ps_list_head) * SL_FPRR_NPRIOS);
 	for (i = 0 ; i < SL_FPRR_NPRIOS ; i++) {
 		ps_list_head_init(&threads[cos_cpuid()][i]);
