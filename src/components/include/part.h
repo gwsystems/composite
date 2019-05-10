@@ -4,8 +4,11 @@
 #include <part_task.h>
 #include <ps_list.h>
 #include <deque.h>
+#include <crt_lock.h>
 
 #include <sl.h>
+
+#define PART_NESTED 0 /* 0 - disabled, 1 - enabled */
 //#include <cirque.h>
 
 DEQUE_PROTOTYPE(part, struct part_task *);
@@ -13,7 +16,9 @@ DEQUE_PROTOTYPE(part, struct part_task *);
 
 extern struct deque_part part_dq_percore[];
 //extern struct cirque_par parcq_global;
+/* FIXME: use stacklist or another stack like data structure? */
 extern struct ps_list_head part_l_global;
+extern struct crt_lock     part_l_lock;
 
 static inline struct deque_part *
 part_deque_curr(void)
@@ -86,10 +91,10 @@ part_deque_steal_any(void)
 		struct part_task *t = NULL;
 
 		i ++;
-		if (c == (unsigned)cos_cpuid()) c = (c + 1) % NUM_CPU;
+		if (unlikely(c == (unsigned)cos_cpuid())) c = (c + 1) % NUM_CPU;
 
 		t = part_deque_steal(c);
-		if (t) return t;
+		if (likely(t)) return t;
 	} while (i < NUM_CPU);
 
 	return NULL;
@@ -121,7 +126,9 @@ part_list_append(struct part_task *t)
 	assert(ps_list_singleton(t, partask));
 	assert(t->type == PART_TASK_T_WORKSHARE);
 
+	crt_lock_take(&part_l_lock);
 	ps_list_head_append(part_list(), t, partask);
+	crt_lock_release(&part_l_lock);
 }
 
 static inline void
@@ -130,44 +137,89 @@ part_list_remove(struct part_task *t)
 	assert(t->type == PART_TASK_T_WORKSHARE);
 	assert(!ps_list_singleton(t, partask));
 
+	crt_lock_take(&part_l_lock);
 	ps_list_rem(t, partask);
+	crt_lock_release(&part_l_lock);
 }
 
 static inline struct part_task *
 part_list_peek(void)
 {
 	struct part_task *t = NULL;
+	int found = 0;
 
-	if (ps_list_head_empty(part_list())) return NULL;
+	crt_lock_take(&part_l_lock);
+	if (unlikely(ps_list_head_empty(part_list()))) goto done;
 	/* not great! traversing from the first element always! */
 	/* TODO: perhaps traverse from the current task? */
 	ps_list_foreach(part_list(), t, partask) {
 		int i;
 
 		assert(t);
-
 		assert(t->type == PART_TASK_T_WORKSHARE);
 		/* coz, master thread adds to list the implicit task and doesn't defer it */
 		i = part_task_work_try(t);
 		assert(i != 0);
 
-		if (i > 0) return t; 
+		if (likely(i > 0 && !ps_load(&t->end))) {
+			found = 1;
+			break;
+		}
 	}
 
-	return NULL;
+done:
+	crt_lock_release(&part_l_lock);
+
+	if (unlikely(!found)) return NULL;
+
+	return t;
 }
 
 void part_init(void);
 
 unsigned part_isready(void);
 
+/* a part_task.h api but uses part_list_remove in the master thread, so here! */
+static inline void
+part_task_end(struct part_task *t)
+{
+	struct sl_thd *ts = sl_thd_curr();
+	int tn = part_task_work_thd_num(t);
+
+	part_task_barrier(t);
+
+	assert(tn >= 0 && t->nthds >= 1);
+	assert(ts->part_context == (void *)t);
+	if (t->nthds == 1) {
+		assert(tn == 0);
+
+		return;
+	}
+
+	if (tn == 0) {
+		if (t->type == PART_TASK_T_WORKSHARE) part_list_remove(t);
+		ts->part_context = t->parent;
+		part_task_remove_child(t->parent, t);
+		ps_faa(&t->end, 1);
+	} else {
+		ps_faa(&t->end, 1);
+		while (ps_load(&t->end) != t->nthds) sl_thd_yield(0);
+
+		ts->part_context = NULL;
+	}
+}
+
+
 static inline void
 part_thd_fn(void *d)
 {
 	struct sl_thd *curr = sl_thd_curr();
 
-	while (!part_isready()) sl_thd_yield(0);
-	while (ps_list_head_empty(part_list())) sl_thd_yield(0);
+	/* parallel runtime not ready? */
+	while (unlikely(!part_isready())) sl_thd_yield(0);
+
+	/* no parallel sections? */
+	while (unlikely(ps_list_head_empty(part_list()))) sl_thd_yield(0);
 
 	while (1) {
 		struct part_task *t = NULL;
@@ -177,35 +229,33 @@ part_thd_fn(void *d)
 
 		/* FIXME: nested parallel needs love! */
 		t = part_list_peek();
-		if (t) goto found;
+		if (likely(t)) goto found;
 
 single:
 		ret = part_deque_pop(t);
-		if (ret == 0) {
+		if (likely(ret == 0)) {
 			assert(t->type != PART_TASK_T_WORKSHARE);
 
 			goto found;
 		}
 
-		if (ret == -EAGAIN) goto single;
+		if (unlikely(ret == -EAGAIN)) goto single;
 
 		t = part_deque_steal_any();
-		if (!t) {
+		if (unlikely(!t)) {
 			sl_thd_yield(0);
 			continue;
 		}
 		assert(t->type != PART_TASK_T_WORKSHARE);
 found:
 		thdnum = part_task_work_try(t);
-		if (thdnum < 0) continue;
+		if (unlikely(thdnum < 0)) continue;
 		if (t->type != PART_TASK_T_WORKSHARE) assert(thdnum == 0);
 		curr->part_context = (void *)t;
 
 		t->cs.fn(t->cs.data);
 
-		if (t->type != PART_TASK_T_WORKSHARE) continue;
-
-		part_task_barrier(t);
+		part_task_end(t);
 	}
 
 	sl_thd_exit();

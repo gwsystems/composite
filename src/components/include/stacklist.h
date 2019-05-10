@@ -12,6 +12,7 @@
 #include <ps.h>
 
 struct stacklist {
+	cpuid_t coreid;
 	thdid_t thdid;
 	struct stacklist *next;
 };
@@ -44,8 +45,9 @@ stacklist_rem(struct stacklist *l)
 static inline void
 stacklist_add(struct stacklist_head *h, struct stacklist *l)
 {
-	l->thdid = cos_thdid();
-	l->next  = NULL;
+	l->coreid = cos_cpuid();
+	l->thdid  = cos_thdid();
+	l->next   = NULL;
 	assert(h);
 
 	while (1) {
@@ -57,8 +59,8 @@ stacklist_add(struct stacklist_head *h, struct stacklist *l)
 }
 
 /* Get a thread to wake up, and remove its record! */
-static inline thdid_t
-stacklist_dequeue(struct stacklist_head *h)
+static inline thdid_t 
+stacklist_dequeue(cpuid_t *core, struct stacklist_head *h)
 {
 	struct stacklist *sl;
 
@@ -76,6 +78,7 @@ stacklist_dequeue(struct stacklist_head *h)
 		if (ps_cas((unsigned long *)&h->head, (unsigned long)sl, (unsigned long)sl->next)) break;
 	}
 	sl->next = NULL;
+	*core    = sl->coreid;
 
 	return sl->thdid;
 }

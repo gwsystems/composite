@@ -524,14 +524,13 @@ sl_thd_exit()
 }
 
 void
-sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
+sl_thd_param_set_no_cs(struct sl_thd *t, sched_param_t sp)
 {
 	sched_param_type_t type;
 	unsigned int       value;
 
 	assert(t);
 
-	sl_cs_enter();
 	sched_param_get(sp, &type, &value);
 
 	switch (type) {
@@ -550,6 +549,16 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 	}
 
 	sl_mod_thd_param_set(sl_mod_thd_policy_get(t), type, value);
+}
+
+void
+sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
+{
+	assert(t);
+
+	sl_cs_enter();
+
+	sl_thd_param_set_no_cs(t, sp);
 	sl_cs_exit();
 }
 

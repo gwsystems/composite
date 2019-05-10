@@ -104,11 +104,15 @@ static inline struct sl_thd *
 sl_thd_lkup(thdid_t tid)
 {
 	struct sl_thd *t;
+	struct sl_xcore_thd *xt;
 
 	if (unlikely(tid < 1 || tid > MAX_NUM_THREADS)) return NULL;
 	t = sl_mod_thd_get(sl_thd_lookup_backend(tid));
 	if (likely(t && sl_thd_aepinfo(t))) return t;
+	xt = sl_xcore_thd_lookup(tid);
+	if (unlikely(xt && xt->core != cos_cpuid())) return NULL;
 
+	/* FIXME: cross-core child threads must be handled in retrieve */
 	return sl_thd_retrieve_lazy(tid);
 }
 

@@ -39,7 +39,7 @@ crt_lock_take(struct crt_lock *l)
 	while (1) {
 		crt_blkpt_checkpoint(&l->blkpt, &chkpt);
 
-		if (ps_cas(&l->owner, 0, (unsigned long)cos_thdid())) {
+		if (ps_cas(&l->owner, 0, (unsigned long)(cos_cpuid() << 16 | cos_thdid()))) {
 			return;	/* success! */
 		}
 		/* failure: try and block */
@@ -50,7 +50,7 @@ crt_lock_take(struct crt_lock *l)
 static inline void
 crt_lock_release(struct crt_lock *l)
 {
-	assert(l->owner == cos_thdid());
+	assert(l->owner == (unsigned long)(cos_cpuid() << 16 | cos_thdid()));
 	l->owner = 0;
 	/* if there are blocked threads, wake 'em up! */
 	crt_blkpt_trigger(&l->blkpt, 0);

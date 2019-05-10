@@ -94,7 +94,8 @@ struct sl_xcore_thd {
 	asndcap_t asnd[NUM_CPU];
 } CACHE_ALIGNED;
 
-struct sl_xcore_thd *sl_xcore_thd_lookup(thdid_t tid, cpuid_t core);
+struct sl_xcore_thd *sl_xcore_thd_lookup(thdid_t tid);
+struct sl_xcore_thd *sl_xcore_thd_lookup_init(thdid_t tid, cpuid_t core);
 static inline thdid_t
 sl_xcore_thd_thdid(struct sl_xcore_thd *t)
 {

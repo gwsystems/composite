@@ -3,6 +3,7 @@
 #include <llprint.h>
 #include <sl.h>
 #include <cos_omp.h>
+#include <hypercall.h>
 
 /******************************************************************************/
 
@@ -60,7 +61,7 @@ int main ( void )
 #if 1
 #pragma omp parallel
   {
-#pragma omp for schedule(dynamic)
+#pragma omp for
   for (id = 0; id < 10; id++) {
 	  PRINTC("id:%u\n", id);
   }
@@ -111,8 +112,8 @@ cos_init(void *d)
 	int i;
 	static volatile unsigned long first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
 
+	PRINTC("In OpenMP-based Hello Program!\n");
 	if (ps_cas((unsigned long *)&first, NUM_CPU + 1, cos_cpuid())) {
-		PRINTC("In OpenMP-based Hello Program!\n");
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_defcompinfo_init();
 	} else {
@@ -120,18 +121,18 @@ cos_init(void *d)
 
 		cos_defcompinfo_sched_init();
 	}
-	sl_init(SL_MIN_PERIOD_US*100);
 	ps_faa((unsigned long *)&init_done[cos_cpuid()], 1);
 
 	/* make sure the INITTHD of the scheduler is created on all cores.. for cross-core sl initialization to work! */
 	for (i = 0; i < NUM_CPU; i++) {
 		while (!ps_load((unsigned long *)&init_done[i])) ;
 	}
+	sl_init(SL_MIN_PERIOD_US*100);
+	cos_gomp_init();
+	hypercall_comp_init_done();
 
 	if (!cos_cpuid()) {
 		struct sl_thd *t = NULL;
-
-		cos_gomp_init();
 
 		t = sl_thd_alloc(cos_main, NULL);
 		assert(t);

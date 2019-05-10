@@ -41,7 +41,7 @@ sched_blkpt_alloc(void)
 
 	sl_cs_enter();
 
-	id = (sched_blkpt_id_t)__blkpt_offset;
+	id = (sched_blkpt_id_t)ps_faa(&__blkpt_offset, 1);
 	m  = blkpt_get(id);
 	if (!m) ERR_THROW(SCHED_BLKPT_NULL, unlock);
 
@@ -49,7 +49,7 @@ sched_blkpt_alloc(void)
 	ret      = id;
 	m->epoch = 0;
 	stacklist_init(&m->blocked);
-	__blkpt_offset++;
+	/* TODO: undo offset if it failed in an multi-core safe way!*/
 unlock:
 	sl_cs_exit();
 
@@ -67,7 +67,7 @@ int
 sched_blkpt_trigger(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, int single)
 {
 	thdid_t tid;
-	struct sl_thd *t;
+	cpuid_t core;
 	struct blkpt_mem *m;
 	int ret = 0;
 
@@ -80,11 +80,22 @@ sched_blkpt_trigger(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, int singl
 	if (!blkpt_epoch_is_higher(m->epoch, epoch)) ERR_THROW(0, unlock);
 
 	m->epoch = epoch;
-	while ((tid = stacklist_dequeue(&m->blocked)) != 0) {
-		t = sl_thd_lkup(tid);
-		assert(t);
+	while ((tid = stacklist_dequeue(&core, &m->blocked)) != 0) {
+		if (core == cos_cpuid()) {
+			struct sl_thd *t = sl_thd_lkup(tid);
 
-		sl_thd_wakeup_no_cs(t); /* ignore retval: process next thread */
+			assert(t);
+
+			sl_thd_wakeup_no_cs(t); /* ignore retval: process next thread */
+		} else {
+			struct sl_xcore_thd *t = sl_xcore_thd_lookup(tid);
+
+			assert(t && t->core == core);
+			/* perhaps sl_xcore_thd_wakeup_no_cs? */
+			sl_cs_exit();
+			sl_xcore_thd_wakeup(t);
+			sl_cs_enter();
+		}
 	}
 	/* most likely we switch to a woken thread here */
 	sl_cs_exit_schedule();

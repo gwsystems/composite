@@ -96,6 +96,7 @@ capmgr_comp_info_init(struct cap_comp_info *rci, spdid_t spdid)
 		ret = hypercall_root_initaep_set(spdid, sl_thd_aepinfo(ithd));
 		assert(ret == 0);
 		cap_info_initthd_init(rci, ithd, 0);
+		cap_comminfo_init(ithd, 0, 0);
 	}
 
 	return;

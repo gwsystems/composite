@@ -8,6 +8,7 @@
 
 /* static xcore thread backend! mainly for bookkeeping across cores! */
 static struct sl_xcore_thd _xcore_thds[MAX_NUM_THREADS];
+extern void sl_thd_param_set_no_cs(struct sl_thd *, sched_param_t);
 
 static inline struct sl_xcore_thd *
 _sl_xcore_thd_backend_lookup(thdid_t tid)
@@ -28,7 +29,7 @@ _sl_xcore_thd_backend_init(thdid_t tid, cpuid_t core, asndcap_t snd)
 }
 
 struct sl_xcore_thd *
-sl_xcore_thd_lookup(thdid_t tid, cpuid_t core)
+sl_xcore_thd_lookup_init(thdid_t tid, cpuid_t core)
 {
 	struct sl_xcore_thd *t = _sl_xcore_thd_backend_lookup(tid);
 
@@ -38,6 +39,12 @@ sl_xcore_thd_lookup(thdid_t tid, cpuid_t core)
 	if (unlikely(t->core != core)) return NULL;
 
 	return t;
+}
+
+struct sl_xcore_thd *
+sl_xcore_thd_lookup(thdid_t tid)
+{
+	return _sl_xcore_thd_backend_lookup(tid);
 }
 
 #define SL_XCORE_REQ(req, typ, resp) do { 				\
@@ -105,7 +112,7 @@ sl_xcore_thd_alloc(cpuid_t core, cos_thd_fn_t fn, void *data, int nparams, sched
 	if (sl_thd_curr() != sl__globals_core()->sched_thd) {
 		sl_thd_block(0);
 	} else {
-		while (!xcore_tid) sl_thd_yield(0);
+		while (!ps_load(&xcore_tid)) ;
 	}
 	assert(xcore_tid);
 	
@@ -181,7 +188,9 @@ sl_xcore_thd_wakeup(struct sl_xcore_thd *t)
 void
 sl_xcore_thd_wakeup_tid(thdid_t tid, cpuid_t core)
 {
-	struct sl_xcore_thd *t = sl_xcore_thd_lookup(tid, core);
+	struct sl_xcore_thd *t = sl_xcore_thd_lookup(tid);
+
+	assert(t->core == core);
 
 	sl_xcore_thd_wakeup(t);
 }
@@ -201,7 +210,7 @@ _sl_xcore_req_thd_alloc_no_cs(struct sl_xcore_request *req)
 	t = sl_thd_alloc_no_cs(fn, data);
 	assert(t);
 	if (likely(req->response)) *((thdid_t *)req->response) = sl_thd_thdid(t);
-	for (i = 0; i < req->sl_xcore_req_thd_alloc.param_count; i++) sl_thd_param_set(t, req->sl_xcore_req_thd_alloc.params[i]);
+	for (i = 0; i < req->sl_xcore_req_thd_alloc.param_count; i++) sl_thd_param_set_no_cs(t, req->sl_xcore_req_thd_alloc.params[i]);
 	_sl_xcore_thd_wakeup_tid_no_cs(req->client_thd, req->client_core);
 
 	return 0;
@@ -213,7 +222,7 @@ _sl_xcore_req_thd_param_set_no_cs(struct sl_xcore_request *req)
 	struct sl_thd *t = sl_thd_lkup(req->sl_xcore_req_thd_param_set.tid);
 
 	if (!t) return -1;
-	sl_thd_param_set(t, req->sl_xcore_req_thd_param_set.param);
+	sl_thd_param_set_no_cs(t, req->sl_xcore_req_thd_param_set.param);
 
 	return 0;
 }
@@ -224,6 +233,7 @@ _sl_xcore_req_thd_wakeup_no_cs(struct sl_xcore_request *req)
 	struct sl_thd *t = sl_thd_lkup(req->sl_xcore_req_thd_param_set.tid);
 
 	if (!t) return -1;
+	if (unlikely(t == sl__globals_core()->sched_thd)) return 0;
 	sl_thd_wakeup_no_cs(t);
 
 	return 0;

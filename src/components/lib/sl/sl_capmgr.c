@@ -81,6 +81,7 @@ sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t 
 	t->prio           = TCAP_PRIO_MIN;
 	ps_list_init(t, SL_THD_EVENT_LIST);
 	sl_thd_event_info_reset(t);
+	sl_xcore_thd_lookup_init(aep->tid, cos_cpuid());
 
 done:
 	return t;
