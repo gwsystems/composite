@@ -12,6 +12,7 @@ struct ps_list_head part_l_global;
 static unsigned part_ready = 0;
 struct crt_lock part_l_lock;
 
+#define PART_DEQUE_SZ 64
 #define _PART_PRIO 1
 #define _PART_PRIO_PACK() sched_param_pack(SCHEDP_PRIO, _PART_PRIO)
 
@@ -28,6 +29,7 @@ part_init(void)
 	if (!ps_cas(&is_first, NUM_CPU, cos_cpuid())) {
 		while (!ps_load(&ds_init_done)) ;
 	} else {
+		for (k = 0; k < NUM_CPU; k++) deque_init_part(&part_dq_percore[k], PART_DEQUE_SZ);
 		ps_list_head_init(&part_l_global);
 		crt_lock_init(&part_l_lock);
 		ps_faa(&ds_init_done, 1);

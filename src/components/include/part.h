@@ -59,12 +59,12 @@ part_deque_push(struct part_task *t)
 }
 
 static inline int
-part_deque_pop(struct part_task *t)
+part_deque_pop(struct part_task **t)
 {
 	int ret;
 
 	sl_cs_enter();
-	ret = deque_pop_part(part_deque_curr(), &t);
+	ret = deque_pop_part(part_deque_curr(), t);
 	sl_cs_exit();
 
 	return ret;
@@ -186,15 +186,22 @@ part_task_end(struct part_task *t)
 	struct sl_thd *ts = sl_thd_curr();
 	int tn = part_task_work_thd_num(t);
 
-	part_task_barrier(t);
-
 	assert(tn >= 0 && t->nthds >= 1);
 	assert(ts->part_context == (void *)t);
 	if (t->nthds == 1) {
+		int i;
+
 		assert(tn == 0);
+		for (i = 0; i < PART_MAX_CHILD; i++) {
+			while (ps_load(&t->child[i])) sl_thd_yield(0);
+		}
+		ps_faa(&t->end, 1);
+		part_task_remove_child(t->parent, t);
+		ts->part_context = 0;
 
 		return;
 	}
+	part_task_barrier(t);
 
 	if (tn == 0) {
 		if (t->type == PART_TASK_T_WORKSHARE) part_list_remove(t);
@@ -218,25 +225,25 @@ part_thd_fn(void *d)
 	/* parallel runtime not ready? */
 	while (unlikely(!part_isready())) sl_thd_yield(0);
 
-	/* no parallel sections? */
-	while (unlikely(ps_list_head_empty(part_list()))) sl_thd_yield(0);
-
 	while (1) {
 		struct part_task *t = NULL;
 		int ret;
-		int thdnum = 0;
+		int thdnum = -1;
 		unsigned thd = cos_cpuid() << 16 | cos_thdid();
 
 		/* FIXME: nested parallel needs love! */
 		t = part_list_peek();
-		if (likely(t)) goto found;
+		if (likely(t)) {
+			thdnum = part_task_work_try(t);
+			if (thdnum >= 0) goto found;
+		}
 
 single:
-		ret = part_deque_pop(t);
+		ret = part_deque_pop(&t);
 		if (likely(ret == 0)) {
-			assert(t->type != PART_TASK_T_WORKSHARE);
-
-			goto found;
+			assert(t && t->type != PART_TASK_T_WORKSHARE);
+			thdnum = part_task_work_try(t);
+			if (thdnum == 0) goto found;
 		}
 
 		if (unlikely(ret == -EAGAIN)) goto single;
@@ -248,7 +255,7 @@ single:
 		}
 		assert(t->type != PART_TASK_T_WORKSHARE);
 found:
-		thdnum = part_task_work_try(t);
+		if (unlikely(thdnum < 0)) thdnum = part_task_work_try(t);
 		if (unlikely(thdnum < 0)) continue;
 		if (t->type != PART_TASK_T_WORKSHARE) assert(thdnum == 0);
 		curr->part_context = (void *)t;

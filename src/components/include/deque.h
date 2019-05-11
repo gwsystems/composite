@@ -37,7 +37,7 @@ deque_init_##name(struct deque_##name *q, size_t sz)					\
 											\
 	if (sz) {									\
 		/* only for size with pow of 2 */					\
-		assert(sz & (sz - 1));							\
+		assert((sz & (sz - 1)) == 0);						\
 		assert(sz <= DEQUE_MAX_SZ);						\
 	} else {									\
 		sz = DEQUE_MAX_SZ;							\
@@ -62,7 +62,7 @@ deque_push_##name(struct deque_##name *q, type *w)					\
 	ps_mem_fence();									\
 	if (!ps_upcas((unsigned long *)&q->bottom, cb, cb + 1)) assert(0);		\
 											\
-	return -EAGAIN;									\
+	return 0;									\
 }											\
 											\
 /* Use mutual exclusion locks around push/pop if multi-threaded. */			\

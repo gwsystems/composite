@@ -59,10 +59,12 @@ int main ( void )
   INSIDE THE PARALLEL REGION, have each thread say hello.
 */
 #if 1
-#pragma omp parallel
+#pragma omp parallel num_threads(2) private(id)
   {
 #pragma omp for
-  for (id = 0; id < 10; id++) {
+  for (id = 0; id < 10; id++) 
+  {
+#pragma omp task
 	  PRINTC("id:%u\n", id);
   }
   }

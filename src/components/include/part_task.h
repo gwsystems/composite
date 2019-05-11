@@ -12,7 +12,7 @@
 #define PART_MAX            4 
 #define PART_MAX_CORE_THDS  4
 #define PART_MAX_THDS       PART_MAX_CORE_THDS*NUM_CPU
-#define PART_MAX_CHILD      PART_MAX
+#define PART_MAX_CHILD      16 
 #define PART_MAX_WORKSHARES 16
 
 typedef void (*part_fn_t)(void *);
@@ -159,7 +159,13 @@ part_task_work_thd_num(struct part_task *t)
 	int i; 
 	unsigned key = PART_CURR_THD;
 
-	if (t->type != PART_TASK_T_WORKSHARE) assert(t->nthds == 1);
+	if (t->type != PART_TASK_T_WORKSHARE) {
+		assert(t->nthds == 1);
+
+		if (t->workers[0] == key) return 0;
+
+		return -1;
+	}
 
 	if (key == t->master) return 0;
 	for (i = 1; i < (int)t->nthds; i++) {
@@ -172,14 +178,20 @@ part_task_work_thd_num(struct part_task *t)
 static inline void
 part_task_barrier(struct part_task *t)
 {
-	struct sl_thd *ts = sl_thd_curr();
 	int tn = part_task_work_thd_num(t);
 	unsigned cin = 0, cout = 0;
 
 	assert(tn >= 0 && t->nthds >= 1);
 
 	if (t->nthds == 1) {
+		int i;
+
 		assert(tn == 0 && t->barrier_in == 0);
+
+		/* wait for all child tasks to complete, including explicit tasks */
+		for (i = 0; i < PART_MAX_CHILD; i++) {
+			while (ps_load(&t->child[i])) sl_thd_yield(0);
+		}
 
 		return;
 	}

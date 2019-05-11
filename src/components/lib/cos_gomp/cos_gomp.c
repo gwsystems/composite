@@ -341,7 +341,7 @@ GOMP_task (void (*fn) (void *), void *data, void (*cpyfn) (void *, void *),
 		else       memcpy(arg, data, arg_size);
 
 		assert(parent);
-		part_task_init(pt, 0, parent, 0, fn, arg);
+		part_task_init(pt, 0, parent, 1, fn, arg);
 		parent_off = part_task_add_child(parent, pt);
 		assert(parent_off >= 0);
 
@@ -354,7 +354,7 @@ GOMP_task (void (*fn) (void *), void *data, void (*cpyfn) (void *, void *),
 		struct part_task pt;
 
 		assert(parent);
-		part_task_init(&pt, 0, parent, 0, fn, data);
+		part_task_init(&pt, 0, parent, 1, fn, data);
 		parent_off = part_task_add_child(parent, &pt);
 		assert(parent_off >= 0);
 
