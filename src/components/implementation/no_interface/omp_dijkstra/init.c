@@ -1,0 +1,1 @@
+../omp_hello/init.c
