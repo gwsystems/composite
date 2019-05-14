@@ -430,6 +430,9 @@ bots_get_params_common(int argc, char **argv)
          cos_exit (100);
       }
    }
+
+   /* always verify? */
+   bots_check_flag = TRUE;
 }
 /***********************************************************************
  * bots_get_params_common: 
