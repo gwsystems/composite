@@ -15,49 +15,18 @@
 #include <sl_thd.h>
 #include <sl_lock.h> /* for now, single core lock! */
 #include <cos_omp.h>
+#include <../../interface/capmgr/memmgr.h>
 
 #include "cos_gomp.h"
 #include <crt_lock.h>
 #include <part.h>
 
-#define COS_GOMP_MAX_EXPLICIT_TASKS 1024
-#define COS_GOMP_MAX_IMPLICIT_TASKS 512
-
-#define COS_GOMP_MAX_ARGS    8
-#define COS_GOMP_MAX_ARG_SZ  64
-#define COS_GOMP_MAX_ARGS_SZ (COS_GOMP_MAX_ARGS * COS_GOMP_MAX_ARG_SZ)
-
-static struct part_task _itasks[COS_GOMP_MAX_IMPLICIT_TASKS], _etasks[COS_GOMP_MAX_EXPLICIT_TASKS];
-static unsigned _itask_free, _etask_free, _etask_data_free;
-static char _etask_data[COS_GOMP_MAX_EXPLICIT_TASKS][COS_GOMP_MAX_ARGS_SZ];
-
 static struct crt_lock _glock; /* global lock for critical sections */
-
-static inline struct part_task *
-_cos_gomp_alloc_implicit(void)
-{
-	unsigned i = ps_faa(&_itask_free, 1);
-
-	assert(i < COS_GOMP_MAX_IMPLICIT_TASKS);
-	return &_itasks[i];
-}
 
 static inline struct part_task *
 _cos_gomp_alloc_explicit(void)
 {
-	unsigned i = ps_faa(&_etask_free, 1);
-
-	assert(i < COS_GOMP_MAX_EXPLICIT_TASKS);
-	return &_etasks[i];
-}
-
-static inline char *
-_cos_gomp_alloc_data_explicit(void)
-{
-	unsigned i = ps_faa(&_etask_data_free, 1);
-
-	assert(i < COS_GOMP_MAX_EXPLICIT_TASKS);
-	return _etask_data[i];
+	return part_task_alloc(0);
 }
 
 void
@@ -66,11 +35,6 @@ cos_gomp_init(void)
 	static int first_one = NUM_CPU, init_done = 0;
 
 	if (ps_cas(&first_one, NUM_CPU, cos_cpuid())) {
-		memset(_itasks, 0, sizeof(struct part_task) * COS_GOMP_MAX_IMPLICIT_TASKS);
-		memset(_etasks, 0, sizeof(struct part_task) * COS_GOMP_MAX_EXPLICIT_TASKS);
-		memset(_etask_data, 0, sizeof(char) * COS_GOMP_MAX_EXPLICIT_TASKS * COS_GOMP_MAX_ARGS_SZ);
-		_itask_free = _etask_free = _etask_data_free = 0;
-
 		crt_lock_init(&_glock);
 		cos_omp_init();
 		init_done = 1;
@@ -87,11 +51,12 @@ _gomp_parallel_start(struct part_task *pt, void (*fn) (void *), void *data, unsi
 	struct sl_thd *t = sl_thd_curr();
 	struct part_task *parent = (struct part_task *)t->part_context;
 
-	num_threads = num_threads ? ((num_threads > COS_GOMP_MAX_THDS) ? COS_GOMP_MAX_THDS : num_threads) : PART_MAX;
+	num_threads = (num_threads == 0 || num_threads > COS_GOMP_MAX_THDS) ? COS_GOMP_MAX_THDS : num_threads;
+
 	/* nesting? */
 	if (unlikely(parent && PART_NESTED == 0)) num_threads = 1;
 
-	part_task_init(pt, PART_TASK_T_WORKSHARE, parent, num_threads, fn, data);
+	part_task_init(pt, PART_TASK_T_WORKSHARE, parent, num_threads, fn, data, NULL);
 	assert(pt->nthds == num_threads);
 	if (unlikely(parent)) {
 		parent_off = part_task_add_child(parent, pt);
@@ -330,18 +295,22 @@ GOMP_task (void (*fn) (void *), void *data, void (*cpyfn) (void *, void *),
 	 * tracking before/after execution of the function.
 	 */
 	/* TODO: depend, flags, etc! */
-	assert(!depend);
+	assert(depend == NULL);
 
 	if (if_clause) {
 		struct part_task *pt = _cos_gomp_alloc_explicit();
-		char *arg = _cos_gomp_alloc_data_explicit();
+		struct part_data *d = part_data_alloc();
+		char *arg = NULL;
 
-		assert(arg_size + arg_align - 1 <= COS_GOMP_MAX_ARGS_SZ);
+		assert(pt && d);
+		assert(arg_size + arg_align - 1 <= PART_MAX_DATA);
+		arg = (char *) (((uintptr_t) d->data + arg_align - 1)
+                                & ~(uintptr_t) (arg_align - 1));
 		if (cpyfn) cpyfn(arg, data);
 		else       memcpy(arg, data, arg_size);
 
 		assert(parent);
-		part_task_init(pt, 0, parent, 1, fn, arg);
+		part_task_init(pt, 0, parent, 1, fn, arg, d);
 		parent_off = part_task_add_child(parent, pt);
 		assert(parent_off >= 0);
 
@@ -354,14 +323,25 @@ GOMP_task (void (*fn) (void *), void *data, void (*cpyfn) (void *, void *),
 		struct part_task pt;
 
 		assert(parent);
-		part_task_init(&pt, 0, parent, 1, fn, data);
+		part_task_init(&pt, 0, parent, 1, fn, data, NULL);
 		parent_off = part_task_add_child(parent, &pt);
 		assert(parent_off >= 0);
+		sl_thd_curr()->part_context = &pt;
+		pt.workers[0] = PART_CURR_THD;
 
-		/* TODO: do I still need to make a copy like in libgomp? */
-		fn(data);
+		if (cpyfn) {
+			char buf[arg_size + arg_align - 1];
+			char *arg = (char *) (((uintptr_t) buf + arg_align - 1)
+					& ~(uintptr_t) (arg_align - 1));
+
+			cpyfn(arg, data);
+			fn(arg);
+		} else {
+			fn(data);
+		}
 
 		part_task_end(&pt);
+		sl_thd_curr()->part_context = pt.parent;
 	}
 }
 
@@ -369,23 +349,7 @@ void
 GOMP_taskwait (void)
 {
 	struct part_task *t = sl_thd_curr()->part_context;
-	int i;
 
-	for (i = 0; i < PART_MAX_CHILD; i++) {
-		struct part_task *ct = t->child[i];
-
-		if (!ct) continue;
-
-		/* 
-		 * TODO:
-		 * Options for explicit tasks: 
-		 * 1. Perhaps run that task here if it has not been picked up by any other thread, 
-		 *    unfortunately we cannot do that with "deque" data-structure!
-		 * 2. Perhaps yield to a free thread that could potentially run that task? 
-		 * 3. Just yield (a task scheduling point = a thread scheduling point), 
-		 *    so other pending work is taken care of before we get to run again!
-		 */
-		while (ct) sl_thd_yield(0);
-	}
+	part_task_wait_children(t);
 	/* no barriers of course! */
 }

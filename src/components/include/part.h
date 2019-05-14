@@ -192,12 +192,13 @@ part_task_end(struct part_task *t)
 		int i;
 
 		assert(tn == 0);
-		for (i = 0; i < PART_MAX_CHILD; i++) {
-			while (ps_load(&t->child[i])) sl_thd_yield(0);
-		}
+		part_task_wait_children(t);
 		ps_faa(&t->end, 1);
 		part_task_remove_child(t->parent, t);
-		ts->part_context = 0;
+		if (t->type == PART_TASK_T_WORKSHARE) {
+			assert(t->workers[tn] == t->master);
+			ts->part_context = t->parent;
+		}
 
 		return;
 	}
@@ -263,6 +264,14 @@ found:
 		t->cs.fn(t->cs.data);
 
 		part_task_end(t);
+		/* free the explicit task! */
+		if (t->type != PART_TASK_T_WORKSHARE) {
+			struct part_data *d = t->data_env;
+
+			part_task_free(t);
+			part_data_free(d);
+		}
+		curr->part_context = NULL;
 	}
 
 	sl_thd_exit();

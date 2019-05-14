@@ -9,8 +9,10 @@
 #define PART_THD(c, t) (cos_cpuid() << 16 | cos_thdid())
 #define PART_CURR_THD  PART_THD(cos_cpuid(), cos_thdid()) 
 
-#define PART_MAX            4 
-#define PART_MAX_CORE_THDS  4
+#define PART_MAX_TASKS      1024
+#define PART_MAX_DATA       512
+#define PART_MAX_PAR_THDS   4
+#define PART_MAX_CORE_THDS  64
 #define PART_MAX_THDS       PART_MAX_CORE_THDS*NUM_CPU
 #define PART_MAX_CHILD      16 
 #define PART_MAX_WORKSHARES 16
@@ -20,6 +22,7 @@ typedef void (*part_fn_t)(void *);
 typedef enum {
 	PART_TASK_S_FREED,
 	PART_TASK_S_ALLOCATED,
+	PART_TASK_S_INITIALIZED,
 	PART_TASK_S_RUNNING,
 	PART_TASK_S_CHILD_WAIT, /* WAIT FOR CHILD TASKS */
 	PART_TASK_S_SIBLING_WAIT, /* WAIT FOR SIBLING TASKS */
@@ -58,6 +61,11 @@ struct part_closure {
 	void     *data;
 };
 
+struct part_data {
+	int flag; /* 0 = not in use, 1 = in use */	
+	char data[PART_MAX_DATA];
+};
+
 struct part_task {
 	part_task_state_t state;
 	part_task_type_t  type;
@@ -66,20 +74,20 @@ struct part_task {
 	struct part_closure   cs;
 
 	unsigned nthds; /* number of threads for this task, 1 in case of non-workshare work */
-	unsigned workers[PART_MAX_THDS]; /* threads sharing this work or thread doing this work! */
-	int ws_off[PART_MAX_THDS]; /* progress of the workshares in each participating thread */
+	unsigned workers[PART_MAX_PAR_THDS]; /* threads sharing this work or thread doing this work! */
+	int ws_off[PART_MAX_PAR_THDS]; /* progress of the workshares in each participating thread */
 	unsigned master; /* coreid << 16 | thdid of the master */
 	unsigned barrier_in, barrier_out, end;
 
-	/* TODO: parent to wait on all child tasks for taskwait synchronization! */
+	struct part_data *data_env; 
 	struct part_task *parent;
-	struct part_task *child[PART_MAX_CHILD];
+	int nchildren;
 
 	struct ps_list partask;
 } CACHE_ALIGNED;
 
 static inline void
-part_task_init(struct part_task *t, part_task_type_t type, struct part_task *p, unsigned nthds, part_fn_t fn, void *data)
+part_task_init(struct part_task *t, part_task_type_t type, struct part_task *p, unsigned nthds, part_fn_t fn, void *data, struct part_data *d)
 {
 	int i;
 
@@ -87,19 +95,27 @@ part_task_init(struct part_task *t, part_task_type_t type, struct part_task *p, 
 
 	ps_list_init(t, partask);
 	t->type = type;
-	t->state = PART_TASK_S_ALLOCATED;
+	t->state = PART_TASK_S_INITIALIZED;
 	t->parent = p;
 	t->nthds = nthds;
+	t->nchildren = 0;
+	t->barrier_in = t->barrier_out = t->end = 0;
+	t->data_env = d;
 
 	t->master = PART_CURR_THD;
 	t->cs.fn = fn;
 	t->cs.data = data;
 
-	for (i = 0; i < PART_MAX_THDS; i++) t->ws_off[i] = -1;
+	for (i = 0; i < PART_MAX_PAR_THDS; i++) t->ws_off[i] = -1;
 
 	/* if it's worksharing, current thread is the master and does take part in the par section */
 	if (type == PART_TASK_T_WORKSHARE) t->workers[0] = t->master;
 }
+
+struct part_task *part_task_alloc(part_task_type_t);
+void part_task_free(struct part_task *);
+struct part_data *part_data_alloc(void);
+void part_data_free(struct part_data *);
 
 static inline int
 part_task_add_child(struct part_task *t, struct part_task *c)
@@ -108,11 +124,10 @@ part_task_add_child(struct part_task *t, struct part_task *c)
 
 	if (unlikely(!t || !c)) return -1;
 
-	for (i = 0; i < PART_MAX_CHILD; i++) {
-		if (likely(t->child[i] == 0 && ps_cas(&t->child[i], 0, (unsigned long)c))) return i;
-	}
-
-	return -1;
+	i = ps_faa(&t->nchildren, 1);
+	assert(i < PART_MAX_CHILD);
+	
+	return i;
 }
 
 static inline void
@@ -121,12 +136,18 @@ part_task_remove_child(struct part_task *t, struct part_task *c)
 	int i;
 
 	if (unlikely(!t || !c)) return;
+	assert(ps_load(&t->nchildren));
 
-	for (i = 0; i < PART_MAX_CHILD; i++) {
-		if (t->child[i] != c) continue;
+	i = ps_faa(&t->nchildren, -1);
+	assert(i > 0);
+}
 
-		if (unlikely(!ps_cas(&t->child[i], (unsigned long)c, 0))) assert(0);
-	}
+static inline void
+part_task_wait_children(struct part_task *t)
+{
+	while (ps_load(&t->nchildren) > 0) sl_thd_yield(0);
+
+	assert(t->nchildren == 0);
 }
 
 static inline int
@@ -189,9 +210,7 @@ part_task_barrier(struct part_task *t)
 		assert(tn == 0 && t->barrier_in == 0);
 
 		/* wait for all child tasks to complete, including explicit tasks */
-		for (i = 0; i < PART_MAX_CHILD; i++) {
-			while (ps_load(&t->child[i])) sl_thd_yield(0);
-		}
+		part_task_wait_children(t);
 
 		return;
 	}
@@ -204,9 +223,7 @@ part_task_barrier(struct part_task *t)
 		int i;
 
 		/* wait for all child tasks to complete, including explicit tasks */
-		for (i = 0; i < PART_MAX_CHILD; i++) {
-			while (ps_load(&t->child[i])) sl_thd_yield(0);
-		}
+		part_task_wait_children(t);
 	} else {
 		/* wait for all sibling tasks to reach in barrier! */
 		while (ps_load(&t->barrier_in) % t->nthds != 0) sl_thd_yield(0);

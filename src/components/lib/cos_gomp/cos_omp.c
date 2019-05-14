@@ -7,6 +7,7 @@
 
 #include <part_task.h>
 #include <cos_omp.h>
+#include <cos_gomp.h>
 #include <cos_kernel_api.h>
 #include <cos_types.h>
 
@@ -40,7 +41,7 @@ omp_get_num_procs(void)
 __GOMP_NOTHROW int
 omp_get_max_threads(void)
 {
-	return COS_OMP_MAX_NUM_THREADS;
+	return COS_GOMP_MAX_THDS;
 }
 
 __GOMP_NOTHROW int

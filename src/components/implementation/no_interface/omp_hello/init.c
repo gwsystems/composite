@@ -7,6 +7,13 @@
 
 int main(void);
 
+void
+cos_exit(int x)
+{
+	PRINTC("Exit code: %d\n", x);
+	while (1) ;
+}
+
 static void
 cos_main(void *d)
 {
@@ -25,7 +32,7 @@ cos_init(void *d)
 	int i;
 	static volatile unsigned long first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
 
-	PRINTC("In OpenMP-based Hello Program!\n");
+	PRINTC("In an OpenMP program!\n");
 	if (ps_cas((unsigned long *)&first, NUM_CPU + 1, cos_cpuid())) {
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_defcompinfo_init();
