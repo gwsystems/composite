@@ -30,6 +30,7 @@
 #include "bots_common.h"
 #include "bots_main.h"
 #include "bots.h"
+#include <cos_time.h>
 
 void
 bots_error(int error, char *message)
@@ -77,9 +78,10 @@ bots_warning(int warning, char *message)
 
 long bots_usecs (void)
 {
-   struct timeval t;
-   gettimeofday(&t,NULL);
-   return t.tv_sec*1000000+t.tv_usec;
+   //struct timeval t;
+   //gettimeofday(&t,NULL);
+   //return t.tv_sec*1000000+t.tv_usec;
+   return (long)time_now_usec();
 }
 
 void

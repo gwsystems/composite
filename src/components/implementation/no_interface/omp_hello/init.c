@@ -31,24 +31,31 @@ cos_init(void *d)
 	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
 	int i;
 	static volatile unsigned long first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
+	static unsigned b1 = 0, b2 = 0, b3 = 0;
 
 	PRINTC("In an OpenMP program!\n");
-	if (ps_cas((unsigned long *)&first, NUM_CPU + 1, cos_cpuid())) {
+	if (ps_cas(&first, NUM_CPU + 1, cos_cpuid())) {
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 		cos_defcompinfo_init();
 	} else {
-		while (!ps_load((unsigned long *)&init_done[first])) ;
+		while (!ps_load(&init_done[first])) ;
 
 		cos_defcompinfo_sched_init();
 	}
-	ps_faa((unsigned long *)&init_done[cos_cpuid()], 1);
+	ps_faa(&init_done[cos_cpuid()], 1);
 
 	/* make sure the INITTHD of the scheduler is created on all cores.. for cross-core sl initialization to work! */
 	for (i = 0; i < NUM_CPU; i++) {
-		while (!ps_load((unsigned long *)&init_done[i])) ;
+		while (!ps_load(&init_done[i])) ;
 	}
 	sl_init(SL_MIN_PERIOD_US*100);
+	/* barrier, wait for sl_init to be done on all cores */
+	ps_faa(&b1, 1);
+	while (ps_load(&b1) != NUM_CPU) ;
 	cos_gomp_init();
+	/* barrier, wait for gomp_init to be done on all cores */
+	ps_faa(&b2, 1);
+	while (ps_load(&b2) != NUM_CPU) ;
 	hypercall_comp_init_done();
 
 	if (!cos_cpuid()) {
@@ -58,6 +65,9 @@ cos_init(void *d)
 		assert(t);
 		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, TCAP_PRIO_MAX));
 	}
+	/* wait for all cores to reach this point, so all threads wait for main thread to be ready! */
+	ps_faa(&b3, 1);
+	while (ps_load(&b3) != NUM_CPU) ;
 
 	sl_sched_loop_nonblock();
 

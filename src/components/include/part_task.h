@@ -9,11 +9,11 @@
 #define PART_THD(c, t) (cos_cpuid() << 16 | cos_thdid())
 #define PART_CURR_THD  PART_THD(cos_cpuid(), cos_thdid()) 
 
-#define PART_MAX_TASKS      1024
-#define PART_MAX_DATA       512
+#define PART_MAX_TASKS      256 
+#define PART_MAX_DATA       128
 #define PART_MAX_PAR_THDS   4
-#define PART_MAX_CORE_THDS  64
-#define PART_MAX_THDS       PART_MAX_CORE_THDS*NUM_CPU
+#define PART_MAX_THDS       128
+#define PART_MAX_CORE_THDS  (PART_MAX_THDS/NUM_CPU)
 #define PART_MAX_CHILD      16 
 #define PART_MAX_WORKSHARES 16
 

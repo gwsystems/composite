@@ -7,13 +7,13 @@
 #include <sl.h>
 #include <sl_xcore.h>
 
-#define PART_MAX_PAGES ((PART_MAX_TASKS * sizeof(struct part_task)) / PAGE_SIZE)
-#define PART_MAX_DATA_PAGES ((PART_MAX_TASKS * sizeof(struct part_data)) / PAGE_SIZE)
+#define PART_MAX_PAGES (((PART_MAX_TASKS * sizeof(struct part_task)) / PAGE_SIZE) + 1)
+#define PART_MAX_DATA_PAGES (((PART_MAX_TASKS * sizeof(struct part_data)) / PAGE_SIZE) + 1)
 
 struct deque_part part_dq_percore[NUM_CPU];
 //struct cirque_par parcq_global;
 struct ps_list_head part_l_global;
-static unsigned part_ready = 0;
+static volatile unsigned part_ready = 0;
 struct crt_lock part_l_lock;
 static struct part_task *part_tasks = NULL;
 static struct part_data *part__data = NULL;
@@ -106,26 +106,25 @@ void
 part_init(void)
 {
 	int k;
-	static int is_first = NUM_CPU, ds_init_done = 0;
+	static volatile int is_first = NUM_CPU;
 	struct sl_thd *it = NULL;
 	struct sl_xcore_thd *xit = NULL;
 	sched_param_t ip = _PART_IDLE_PRIO_PACK();
+	static volatile int all_done = 0;
 
 	ps_list_head_init(&part_thdpool_core[cos_cpuid()]);
-	if (!ps_cas(&is_first, NUM_CPU, cos_cpuid())) {
-		while (!ps_load(&ds_init_done)) ;
-	} else {
+	if (ps_cas(&is_first, NUM_CPU, cos_cpuid())) {
 		for (k = 0; k < NUM_CPU; k++) deque_init_part(&part_dq_percore[k], PART_DEQUE_SZ);
 		part_tasks = (struct part_task *)memmgr_heap_page_allocn(PART_MAX_PAGES);
 		assert(part_tasks);
-
+		memset(part_tasks, 0, PART_MAX_PAGES * PAGE_SIZE);
 
 		part__data = (struct part_data *)memmgr_heap_page_allocn(PART_MAX_DATA_PAGES);
 		assert(part__data);
+		memset(part__data, 0, PART_MAX_DATA_PAGES * PAGE_SIZE);
 
 		ps_list_head_init(&part_l_global);
 		crt_lock_init(&part_l_lock);
-		ps_faa(&ds_init_done, 1);
 	}
 	
 	for (k = 0; k < PART_MAX_CORE_THDS; k++) {
@@ -145,6 +144,9 @@ part_init(void)
 	it = sl_thd_alloc(part_idle_fn, NULL);
 	assert(it);
 	sl_thd_param_set(it, ip);
+
+	ps_faa(&all_done, 1);
+	while (ps_load(&all_done) != NUM_CPU) ;
 
 	ps_faa(&part_ready, 1);
 }
