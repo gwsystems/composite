@@ -20,8 +20,18 @@ static struct part_data *part__data = NULL;
 struct ps_list_head part_thdpool_core[NUM_CPU];
 
 #define PART_DEQUE_SZ 64
-#define _PART_PRIO 1
+#define _PART_PRIO TCAP_PRIO_MAX
 #define _PART_PRIO_PACK() sched_param_pack(SCHEDP_PRIO, _PART_PRIO)
+
+#define _PART_IDLE_PRIO (_PART_PRIO+4)
+#define _PART_IDLE_PRIO_PACK() sched_param_pack(SCHEDP_PRIO, _PART_IDLE_PRIO)
+
+/* idle thread to wakeup when there is nothing to do on this core! */
+static void
+part_idle_fn(void *d)
+{
+	while (1) part_pool_wakeup();
+}
 
 struct part_data *
 part_data_alloc(void)
@@ -97,6 +107,9 @@ part_init(void)
 {
 	int k;
 	static int is_first = NUM_CPU, ds_init_done = 0;
+	struct sl_thd *it = NULL;
+	struct sl_xcore_thd *xit = NULL;
+	sched_param_t ip = _PART_IDLE_PRIO_PACK();
 
 	ps_list_head_init(&part_thdpool_core[cos_cpuid()]);
 	if (!ps_cas(&is_first, NUM_CPU, cos_cpuid())) {
@@ -128,6 +141,10 @@ part_init(void)
 		x = sl_xcore_thd_lookup_init(sl_thd_thdid(t), cos_cpuid());
 		assert(x);
 	}
+
+	it = sl_thd_alloc(part_idle_fn, NULL);
+	assert(it);
+	sl_thd_param_set(it, ip);
 
 	ps_faa(&part_ready, 1);
 }
