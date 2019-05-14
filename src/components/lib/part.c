@@ -17,6 +17,7 @@ static unsigned part_ready = 0;
 struct crt_lock part_l_lock;
 static struct part_task *part_tasks = NULL;
 static struct part_data *part__data = NULL;
+struct ps_list_head part_thdpool_core[NUM_CPU];
 
 #define PART_DEQUE_SZ 64
 #define _PART_PRIO 1
@@ -97,6 +98,7 @@ part_init(void)
 	int k;
 	static int is_first = NUM_CPU, ds_init_done = 0;
 
+	ps_list_head_init(&part_thdpool_core[cos_cpuid()]);
 	if (!ps_cas(&is_first, NUM_CPU, cos_cpuid())) {
 		while (!ps_load(&ds_init_done)) ;
 	} else {

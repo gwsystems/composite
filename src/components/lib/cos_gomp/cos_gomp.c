@@ -64,7 +64,13 @@ _gomp_parallel_start(struct part_task *pt, void (*fn) (void *), void *data, unsi
 	}
 	t->part_context = pt;
 
-	if (unlikely(num_threads > 1)) part_list_append(pt);
+	if (unlikely(num_threads > 1)) {
+		unsigned i;
+
+		part_list_append(pt);
+
+		for (i = 1; i < num_threads; i++) part_pool_wakeup();
+	}
 }
 
 static inline void
@@ -318,6 +324,8 @@ GOMP_task (void (*fn) (void *), void *data, void (*cpyfn) (void *, void *),
 			ret = part_deque_push(pt);
 		} while (ret == -EAGAIN);
 		assert(ret == 0);
+		/* wake up a thread that might potentially run this workload */
+		part_pool_wakeup();
 	} else {
 		/* if_clause is false, task is an included/undeferred task */
 		struct part_task pt;

@@ -19,6 +19,7 @@ extern struct deque_part part_dq_percore[];
 /* FIXME: use stacklist or another stack like data structure? */
 extern struct ps_list_head part_l_global;
 extern struct crt_lock     part_l_lock;
+extern struct ps_list_head part_thdpool_core[];
 
 static inline struct deque_part *
 part_deque_curr(void)
@@ -32,6 +33,12 @@ part_deque_core(cpuid_t c)
 	assert(c < NUM_CPU);
 
 	return &part_dq_percore[c];
+}
+
+static inline struct ps_list_head *
+part_thdpool_curr(void)
+{
+	return &part_thdpool_core[cos_cpuid()];
 }
 
 //static inline struct cirque_par *
@@ -98,6 +105,40 @@ part_deque_steal_any(void)
 	} while (i < NUM_CPU);
 
 	return NULL;
+}
+
+static inline void
+part_pool_wakeup(void)
+{
+	struct sl_thd *t = NULL;
+	int i;
+
+	sl_cs_enter();
+	if (unlikely(ps_list_head_empty(part_thdpool_curr()))) {
+		sl_cs_exit();
+		return;
+	}
+
+	t = ps_list_head_first(part_thdpool_curr(), struct sl_thd, partlist);
+	assert(t != sl_thd_curr());
+	ps_list_rem(t, partlist);
+	sl_cs_exit();
+
+	sl_thd_wakeup(sl_thd_thdid(t));
+}
+
+static inline void
+part_pool_block(void)
+{
+	struct sl_thd *t = sl_thd_curr();
+
+	assert(ps_list_singleton(t, partlist));
+	sl_cs_enter();
+
+	ps_list_head_append(part_thdpool_curr(), t, partlist);
+	sl_cs_exit();
+
+	sl_thd_block(0);
 }
 
 ///* ds memory in a circular queue */
@@ -224,7 +265,7 @@ part_thd_fn(void *d)
 	struct sl_thd *curr = sl_thd_curr();
 
 	/* parallel runtime not ready? */
-	while (unlikely(!part_isready())) sl_thd_yield(0);
+	if (unlikely(!part_isready())) part_pool_block();
 
 	while (1) {
 		struct part_task *t = NULL;
@@ -251,7 +292,8 @@ single:
 
 		t = part_deque_steal_any();
 		if (unlikely(!t)) {
-			sl_thd_yield(0);
+			part_pool_block();
+
 			continue;
 		}
 		assert(t->type != PART_TASK_T_WORKSHARE);

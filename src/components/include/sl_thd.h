@@ -93,6 +93,7 @@ struct sl_thd {
 	struct cos_dcb_info *dcb;
 
 	void *part_context; /* used by the parallelism stuff! */
+	struct ps_list partlist;
 };
 
 static inline struct cos_dcb_info *
