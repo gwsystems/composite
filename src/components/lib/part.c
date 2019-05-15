@@ -151,9 +151,19 @@ part_init(void)
 		assert(x);
 	}
 
+#ifdef PART_ENABLE_BLOCKING
+	sl_cs_enter();
+	/* 
+	 * because it's fifo, all threads would go block 
+	 * themselves up as there is no work yet
+	 * eventually returning to this main thread on core-0, 
+	 * and on all other cores, scheduler would be running!
+	 */
+	sl_cs_exit_schedule(); 
 	it = sl_thd_alloc(part_idle_fn, NULL);
 	assert(it);
 	sl_thd_param_set(it, ip);
+#endif
 
 	ps_faa(&all_done, 1);
 	while (ps_load(&all_done) != NUM_CPU) ;

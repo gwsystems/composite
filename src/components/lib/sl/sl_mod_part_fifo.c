@@ -24,11 +24,18 @@ sl_mod_execution(struct sl_thd_policy *t, cycles_t cycles)
 struct sl_thd_policy *
 sl_mod_schedule(void)
 {
+	struct sl_thd_policy *c = sl_mod_thd_policy_get(sl_thd_curr());
 	struct sl_thd_policy *t = NULL;
 
 	if (unlikely(ps_list_head_empty(&threads[cos_cpuid()]))) goto done;
-	return ps_list_head_first_d(&threads[cos_cpuid()], struct sl_thd_policy);
+	t = ps_list_head_first_d(&threads[cos_cpuid()], struct sl_thd_policy);
 
+	/*
+	 * we're the only thread and we're yielding, that
+	 * means, we don't want to run anymore. run idle thread so it can
+	 * pick someone else and that can do some work!
+	 */
+	if (likely(c != t)) return t;
 done:
 	if (likely(idle_thd[cos_cpuid()])) return idle_thd[cos_cpuid()];
 

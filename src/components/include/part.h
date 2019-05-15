@@ -10,6 +10,7 @@
 #include <sl_xcore.h>
 
 #undef PART_ENABLE_NESTED
+#define PART_ENABLE_BLOCKING
 //#include <cirque.h>
 
 DEQUE_PROTOTYPE(part, struct part_task *);
@@ -118,8 +119,12 @@ part_deque_steal_any(void)
 static inline void
 part_pool_wakeup(void)
 {
+#ifdef PART_ENABLE_BLOCKING
 	struct sl_thd *t = NULL;
 	int i;
+
+	/* we're still not in main parallel, so don't try to wakeup any threads yet! */
+	if (!ps_load(&in_main_parallel)) return;
 
 	sl_cs_enter();
 	if (unlikely(ps_list_head_empty(part_thdpool_curr()))) {
@@ -136,11 +141,13 @@ part_pool_wakeup(void)
 	sl_cs_exit();
 
 	sl_thd_wakeup(sl_thd_thdid(t));
+#endif
 }
 
 static inline void
 part_pool_block(void)
 {
+#ifdef PART_ENABLE_BLOCKING
 	struct sl_thd *t = sl_thd_curr();
 
 	assert(ps_list_singleton(t, partlist));
@@ -150,6 +157,9 @@ part_pool_block(void)
 	sl_cs_exit();
 
 	sl_thd_block(0);
+#else
+	sl_thd_yield(0);
+#endif
 }
 
 ///* ds memory in a circular queue */
@@ -175,46 +185,71 @@ part_pool_block(void)
 static inline void
 part_list_append(struct part_task *t)
 {
-#if defined(PART_ENABLE_NESTED)
-	assert(ps_list_singleton(t, partask));
+	int i, in_nest = 0;
+
 	assert(t->type == PART_TASK_T_WORKSHARE);
 
-	if (t->nthds == 1) return;
-	crt_lock_take(&part_l_lock);
-	ps_list_head_append(part_list(), t, partask);
-	crt_lock_release(&part_l_lock);
-	part_pool_wakeup();
-#endif
-
+#if defined(PART_ENABLE_NESTED)
+	assert(ps_list_singleton(t, partask));
+	/* 
+	 * this is not required to be in a cs. 
+	 * if multiple appends are called, simultaneously, we at least
+	 * have the main outermost parallel block running!.
+	 */
+	if (likely(!ps_list_head_empty(part_list()))) in_nest = 1;
+	/* so other threads can work on this! */
+	if (t->nthds > 1) { 
+		crt_lock_take(&part_l_lock);
+		ps_list_head_append(part_list(), t, partask);
+		crt_lock_release(&part_l_lock);
+	}
+#else
 	if (t != &main_task) {
+		/* without nesting, all child parallel blocks are run just be the encountering threads -master threads */
+		assert(t->nthds == 1); 
 		assert(ps_load(&in_main_parallel));
+
 		return;
 	}
 	assert(ps_load(&in_main_parallel) == 0);
+#endif
+	/* 
+	 * wake up as many threads on this core! 
+	 * some may not get work if other cores pull work before they get to it.
+	 */
+	for (i = 1; i < t->nthds; i++) part_pool_wakeup();
 
-	ps_faa(&in_main_parallel, 1);
+	/* if this is the first time in a parallel, make everyone know */
+	if (likely(!in_nest)) ps_faa(&in_main_parallel, 1);
 }
 
 static inline void
 part_list_remove(struct part_task *t)
 {
-#if defined(PART_ENABLE_NESTED)
+	int in_nest = 0;
+
 	assert(t->type == PART_TASK_T_WORKSHARE);
+	assert(t->nthds > 1);
+#if defined(PART_ENABLE_NESTED)
 	assert(!ps_list_singleton(t, partask));
 
 	crt_lock_take(&part_l_lock);
 	ps_list_rem(t, partask);
+	if (unlikely(!ps_list_head_empty(part_list()))) in_nest = 1;
 	crt_lock_release(&part_l_lock);
-#endif
+#else
+	/* only called for the other parallel region */
 	assert(ps_load(&in_main_parallel));
 	if (t != &main_task) return;
+#endif
 
-	ps_faa(&in_main_parallel, -1);
+	if (likely(!in_nest)) ps_faa(&in_main_parallel, -1);
 }
 
 static inline struct part_task *
 part_list_peek(void)
 {
+	/* there should at least be the outer parallel block for other threads to peek! */
 	if (!ps_load(&in_main_parallel)) return NULL;
 
 #if defined(PART_ENABLE_NESTED)
@@ -308,7 +343,7 @@ part_thd_fn(void *d)
 	struct sl_thd *curr = sl_thd_curr();
 
 	/* parallel runtime not ready? */
-	if (unlikely(!part_isready())) part_pool_block();
+	/* if (unlikely(!part_isready())) part_pool_block(); */
 	/* not in the main parallel block? */
 	while (!ps_load(&in_main_parallel)) part_pool_block();
 
