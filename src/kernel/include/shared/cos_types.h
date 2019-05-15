@@ -84,6 +84,7 @@ typedef enum {
 	CAPTBL_OP_THDACTIVATE,
 	CAPTBL_OP_THDDEACTIVATE,
 	CAPTBL_OP_THDTLSSET,
+	CAPTBL_OP_THDMIGRATE,
 	CAPTBL_OP_COMPACTIVATE,
 	CAPTBL_OP_COMPDEACTIVATE,
 	CAPTBL_OP_SINVACTIVATE,
@@ -208,7 +209,6 @@ __captbl_cap2sz(cap_t c)
 	/* TODO: optimize for invocation and return */
 	switch (c) {
 	case CAP_SRET:
-	case CAP_THD:
 	case CAP_TCAP:
 		return CAP_SZ_16B;
 	case CAP_SCB:
@@ -217,6 +217,7 @@ __captbl_cap2sz(cap_t c)
 	case CAP_PGTBL:
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 		return CAP_SZ_32B;
+	case CAP_THD: /* to allow thread migration across cores using the same capability */
 	case CAP_SINV:
 	case CAP_COMP:
 	case CAP_ASND:

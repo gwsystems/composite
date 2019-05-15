@@ -1316,6 +1316,18 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			break;
 		}
+		case CAPTBL_OP_THDMIGRATE: {
+			u32_t reg2 = __userregs_get2(regs);
+			u32_t reg3 = __userregs_get3(regs);
+
+			if (reg3) {
+				ret = thd_migrate_cap(ct, capin);
+			} else {
+				ret = thd_migrate(ct, capin, reg2);
+			}
+
+			break;
+		}
 		case CAPTBL_OP_TCAP_ACTIVATE: {
 			capid_t        tcap_cap   = __userregs_get1(regs) >> 16;
 			capid_t        pgtbl_cap  = (__userregs_get1(regs) << 16) >> 16;

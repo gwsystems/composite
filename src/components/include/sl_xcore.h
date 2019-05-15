@@ -6,7 +6,9 @@
 #include <cos_defkernel_api.h>
 #include <res_spec.h>
 
-#define SL_XCORE_PARAM_MAX 4
+#define SL_XCORE_PARAM_MAX   4
+#define SL_XCORE_MIGRATE_MAX 16
+#define SL_XCORE_KEEP_MIN    4
 
 typedef enum {
 	SL_XCORE_THD_ALLOC = 0,
@@ -18,13 +20,31 @@ typedef enum {
 
 	SL_XCORE_THD_PARAM_SET,
 	SL_XCORE_THD_WAKEUP,
+
+	SL_XCORE_LOAD_BALANCE,
 } sl_xcore_req_t;
+
+struct sl_xcore_response {
+	/* request type */
+	sl_xcore_req_t type; /* set by the client requesting */
+	/* response fields */
+	volatile int resp_ready;
+	union {
+		struct {
+			thdid_t tid;
+		} sl_xcore_resp_thd_alloc;
+		struct {
+			unsigned nthds;
+			thdid_t tid[SL_XCORE_MIGRATE_MAX];
+		} sl_xcore_resp_load_balance;
+	};
+};
 
 struct sl_xcore_request {
 	sl_xcore_req_t type;         /* request type */
 	cpuid_t        client_core;  /* client cpu making the request */
 	thdid_t        client_thd;
-	vaddr_t        response;     /* response addr */
+	struct sl_xcore_response *response;
 
 	union {
 		struct {
@@ -69,6 +89,9 @@ struct sl_xcore_request {
 		struct {
 			thdid_t tid;
 		} sl_xcore_req_thd_wakeup;
+		struct {
+			int nthds; /* if 0 - migrate as many as the src can */
+		} sl_xcore_req_load_balance;
 	};
 };
 
@@ -114,6 +137,7 @@ struct sl_global {
 	struct sl_xcore_request xcore_rbuf[NUM_CPU][SL_XCORE_RING_SIZE];
 	u32_t core_bmp[(NUM_CPU + 7)/8]; /* bitmap of cores this scheduler is running on! */
 	asndcap_t xcore_asnd[NUM_CPU][NUM_CPU];
+	unsigned nthds_running[NUM_CPU] CACHE_ALIGNED;
 	struct cos_scb_info *scb_area;
 } CACHE_ALIGNED;
 
@@ -164,5 +188,6 @@ struct sl_xcore_thd *sl_xcore_initaep_alloc_ext(cpuid_t core, struct cos_defcomp
 void                 sl_xcore_thd_param_set(struct sl_xcore_thd *t, sched_param_t param);
 void                 sl_xcore_thd_wakeup(struct sl_xcore_thd *t);
 void                 sl_xcore_thd_wakeup_tid(thdid_t tid, cpuid_t core);
+int                  sl_xcore_load_balance(void);
 
 #endif /* SL_XCORE_H */

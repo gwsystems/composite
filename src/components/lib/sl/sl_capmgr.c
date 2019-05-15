@@ -109,6 +109,7 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 
 	t = sl_thd_alloc_init(aep, 0, 0, dcb);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
+	ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), 1);
 
 done:
 	return t;
@@ -136,6 +137,7 @@ sl_thd_comp_init_no_cs(struct cos_defcompinfo *comp, sl_thd_property_t prps, asn
 
 	t = sl_thd_alloc_init(aep, snd, prps, NULL);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
+	ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), 1);
 
 done:
 	return t;
@@ -162,6 +164,7 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx, vad
 
 		t = sl_thd_alloc_init(aep, 0, 0, NULL);
 		sl_mod_thd_create(sl_mod_thd_policy_get(t));
+		ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), 1);
 	} else {
 		struct cos_aep_info *compaep = cos_sched_aep_get(comp);
 
@@ -209,6 +212,7 @@ sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, t
 
 		t = sl_thd_alloc_init(aep, 0, prps, NULL);
 		sl_mod_thd_create(sl_mod_thd_policy_get(t));
+		ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), 1);
 	}
 
 done:
@@ -233,6 +237,7 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 
 	t = sl_thd_alloc_init(aep, 0, prps, dcb);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
+	ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), 1);
 
 done:
 	return t;
@@ -417,4 +422,40 @@ sl_thd_free(struct sl_thd *t)
 	sl_cs_enter();
 	sl_thd_free_no_cs(t);
 	sl_cs_exit();
+}
+
+int
+sl_thd_migrate_no_cs(struct sl_thd *t, cpuid_t core)
+{
+	struct sl_thd_policy *x = NULL;
+	int ret;
+
+	if (t->properties) return -1;
+	if (t->state != SL_THD_RUNNABLE) return -1;
+	/* capmgr should migrate the thdcap as well */
+	ret = capmgr_thd_migrate(sl_thd_thdid(t), sl_thd_thdcap(t), core);
+	if (ret) return -1;
+	sl_mod_thd_delete(sl_mod_thd_policy_get(t));
+	ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), -1);
+
+	x = sl_thd_migrate_backend(sl_mod_thd_policy_get(t), core);
+	if (!x) return -1;
+
+	return 0;
+}
+
+int
+sl_thd_migrate(thdid_t tid, cpuid_t core)
+{
+	int ret;
+	struct sl_thd *c = sl_thd_curr(), *t = sl_thd_lkup(tid);
+
+	if (core == cos_cpuid()) return -1;
+	if (sl_thd_rcvcap(t) || sl_thd_tcap(t)) return -1;
+	assert(c != t);
+	sl_cs_enter();
+	ret = sl_thd_migrate_no_cs(t, core);
+	sl_cs_exit();
+
+	return ret;
 }

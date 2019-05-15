@@ -30,6 +30,18 @@ done:
 	return t;
 }
 
+struct sl_thd_policy *
+sl_mod_last_schedule(void)
+{
+	struct sl_thd_policy *t = NULL;
+
+	if (unlikely(ps_list_head_empty(&threads[cos_cpuid()]))) goto done;
+	t = ps_list_head_last_d(&threads[cos_cpuid()], struct sl_thd_policy);
+
+done:
+	return t;
+}
+
 void
 sl_mod_block(struct sl_thd_policy *t)
 {

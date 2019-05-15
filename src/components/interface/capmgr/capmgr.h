@@ -24,4 +24,6 @@ asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t);
 asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv);
 asndcap_t capmgr_asnd_key_create(cos_channelkey_t key);
 
+int capmgr_thd_migrate(thdid_t tid, thdcap_t tc, cpuid_t core);
+
 #endif /* CAPMGR_H */

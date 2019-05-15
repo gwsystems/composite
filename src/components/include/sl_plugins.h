@@ -16,6 +16,7 @@
  */
 struct sl_thd_policy *sl_thd_alloc_backend(thdid_t tid);
 void                  sl_thd_free_backend(struct sl_thd_policy *t);
+struct sl_thd_policy *sl_thd_migrate_backend(struct sl_thd_policy *t, cpuid_t core);
 /*
  * cos_aep_info structs cannot be stack allocated!
  * The thread_alloc_backened needs to provide struct cos_aep_info without
@@ -42,6 +43,8 @@ static inline struct sl_thd_policy *sl_mod_thd_policy_get(struct sl_thd *t);
 
 void                  sl_mod_execution(struct sl_thd_policy *t, cycles_t cycles);
 struct sl_thd_policy *sl_mod_schedule(void);
+/* give me the thread at the end of the run-queue */
+struct sl_thd_policy *sl_mod_last_schedule(void);
 
 void sl_mod_block(struct sl_thd_policy *t);
 void sl_mod_wakeup(struct sl_thd_policy *t);

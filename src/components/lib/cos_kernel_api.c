@@ -629,6 +629,18 @@ cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp, dcbcap_t dc)
 	return __cos_thd_alloc(ci, comp, 0, dc, 0);
 }
 
+int
+cos_thd_migrate(struct cos_compinfo *ci, thdcap_t t, cpuid_t c)
+{
+	return call_cap_op(ci->captbl_cap, CAPTBL_OP_THDMIGRATE, t, c, 0, 0);
+}
+
+int
+cos_thdcap_migrate(struct cos_compinfo *ci, thdcap_t t)
+{
+	return call_cap_op(ci->captbl_cap, CAPTBL_OP_THDMIGRATE, t, 0, 1, 0);
+}
+
 dcbcap_t
 cos_dcb_alloc(struct cos_compinfo *ci, pgtblcap_t ptcap, vaddr_t uaddr)
 {

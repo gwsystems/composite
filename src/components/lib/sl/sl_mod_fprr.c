@@ -35,6 +35,13 @@ sl_mod_schedule(void)
 	return t;
 }
 
+struct sl_thd_policy *
+sl_mod_last_schedule(void)
+{
+	/* not supported! */
+	return NULL;
+}
+
 static inline void
 __sl_mod_bmp_unset(struct sl_thd_policy *t)
 {

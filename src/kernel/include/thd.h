@@ -362,6 +362,56 @@ err:
 	return ret;
 }
 
+static inline int
+thd_migrate_cap(struct captbl *ct, capid_t thd_cap)
+{
+	struct thread *thd;
+	struct cap_thd *tc;
+
+	/* we migrated the capability to core */
+	tc = (struct cap_thd *)captbl_lkup(ct, thd_cap);
+	if (!tc || tc->h.type != CAP_THD || get_cpuid() != tc->cpuid) return -EINVAL;
+	thd = tc->t;
+	tc->cpuid = thd->cpuid;
+
+	return 0;
+}
+
+static inline int
+thd_migrate(struct captbl *ct, capid_t thd_cap, cpuid_t core)
+{
+	struct thread *thd;
+	struct cap_thd *tc;
+
+	tc = (struct cap_thd *)captbl_lkup(ct, thd_cap);
+	if (!tc || tc->h.type != CAP_THD || get_cpuid() != tc->cpuid) return -EINVAL;
+	thd = tc->t;
+	if (NUM_CPU < 2 || core >= NUM_CPU || core < 0) return -EINVAL;
+	if (tc->cpuid != thd->cpuid) return -EINVAL; /* outdated capability */
+	if (thd->cpuid == core) return -EINVAL; /* already migrated. invalid req */
+	if (thd->cpuid != get_cpuid()) return -EPERM; /* only push migration */
+
+	if (thd_current(cos_cpu_local_info()) == thd) return -EPERM; /* not a running thread! */
+	if (thd->invstk_top > 0) return -EPERM;  /* not if its in an invocation */
+	if (thd_bound2rcvcap(thd) || thd->rcvcap.rcvcap_thd_notif) return -EPERM; /* not if it's an AEP */
+	if (thd->rcvcap.rcvcap_tcap) return -EPERM; /* not if it has its own tcap on this core */
+
+	thd->scheduler_thread = NULL;
+	thd->cpuid = core;
+	/* we also migrated the capability to core */
+	tc->cpuid = core;
+
+	/* 
+	 * TODO:
+	 * given that the thread is not running right now, 
+	 * and we don't allow migrating a thread that's in an invocation for now,
+	 * i think we can find the COREID_OFFSET/CPUID_OFFSET on stack and fix the
+	 * core id right here?? 
+	 */
+
+	return 0;
+}
+
 static int
 thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, livenessid_t lid, capid_t pgtbl_cap,
                capid_t cosframe_addr, capid_t dcbcap, const int root)

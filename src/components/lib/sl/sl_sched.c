@@ -159,6 +159,7 @@ sl_thd_free_no_cs(struct sl_thd *t)
         if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
         sl_thd_index_rem_backend(sl_mod_thd_policy_get(t));
         sl_mod_thd_delete(sl_mod_thd_policy_get(t));
+	ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), -1);
         t->state = SL_THD_FREE;
         /* TODO: add logic for the graveyard to delay this deallocation if t == current */
         sl_thd_free_backend(sl_mod_thd_policy_get(t));
@@ -198,6 +199,7 @@ sl_thd_sched_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t t
 
 	assert(sl_thd_is_runnable(t));
 	sl_mod_block(sl_mod_thd_policy_get(t));
+	ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), -1);
 
 update:
 	t->state = block_type;
@@ -253,6 +255,7 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	sl_thd_sched_unblock_no_cs(t);
 	assert(t->state == SL_THD_RUNNABLE);
 	sl_mod_block(sl_mod_thd_policy_get(t));
+	ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), -1);
 	t->state = block_type;
 	if (block_type == SL_THD_BLOCKED_TIMEOUT) sl_timeout_block(t, timeout);
 
@@ -392,6 +395,7 @@ sl_thd_sched_wakeup_no_cs(struct sl_thd *t)
 	if (t->state == SL_THD_BLOCKED_TIMEOUT) sl_timeout_remove(t);
 	t->state = SL_THD_RUNNABLE;
 	sl_mod_wakeup(sl_mod_thd_policy_get(t));
+	ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), 1);
 
 	return 0;
 }
@@ -409,6 +413,7 @@ sl_thd_wakeup_no_cs_rm(struct sl_thd *t)
 	assert(t->state == SL_THD_BLOCKED || t->state == SL_THD_BLOCKED_TIMEOUT);
 	t->state = SL_THD_RUNNABLE;
 	sl_mod_wakeup(sl_mod_thd_policy_get(t));
+	ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), 1);
 	t->rcv_suspended = 0;
 
 	return 0;

@@ -358,6 +358,32 @@ err:
 	return 0;
 }
 
+int
+capmgr_thd_migrate(thdid_t tid, thdcap_t tc, cpuid_t core)
+{
+	spdid_t                   cur     = cos_inv_token();
+	struct cos_defcompinfo   *cap_dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo      *cap_ci  = cos_compinfo_get(cap_dci);
+	struct cap_comp_info     *rc      = cap_info_comp_find(cur);
+	struct sl_thd            *ti      = cap_info_thd_find(rc, tid);
+	struct cap_comp_cpu_info *rc_cpu  = NULL;
+	int ret;
+
+	if (!rc || !cap_info_init_check(rc)) return -EINVAL;
+	if (!cap_info_is_sched(cur) || !cap_info_is_sched_core(cur, core)) return -EINVAL;
+	if (!ti || !sl_thd_thdcap(ti)) return -EINVAL;
+	rc_cpu = cap_info_cpu_local(rc);
+	if (tid == rc_cpu->initthdid) return -EINVAL;
+
+	ret = cos_thd_migrate(cap_ci, sl_thd_thdcap(ti), core);
+	if (ret) return ret;
+	ret = cos_thdcap_migrate(cap_info_ci(rc), tc);
+	if (ret) return ret;
+	ret = sl_thd_migrate(tid, core);
+
+	return ret;
+}
+
 thdcap_t
 capmgr_thd_retrieve_cserialized(thdid_t *inittid, int *unused, spdid_t s, thdid_t tid)
 {

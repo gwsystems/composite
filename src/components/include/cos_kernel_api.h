@@ -125,6 +125,9 @@ thdcap_t cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_i
 			   dcboff_t dcboff);
 /* Create the initial (cos_init) thread */
 thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp, dcbcap_t dc);
+int cos_thd_migrate(struct cos_compinfo *ci, thdcap_t thdc, cpuid_t core);
+/* update the thdcap to migrated core */
+int cos_thdcap_migrate(struct cos_compinfo *ci, thdcap_t thdc);
 sinvcap_t cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, invtoken_t token);
 arcvcap_t cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap,
 			 arcvcap_t enotif);

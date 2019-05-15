@@ -144,11 +144,18 @@ cap_info_is_parent(struct cap_comp_info *r, spdid_t p)
 }
 
 static inline int
-cap_info_is_sched(spdid_t c)
+cap_info_is_sched_core(spdid_t c, cpuid_t core)
 {
+	if (core >= NUM_CPU) return 0;
 	if (!c) return 1; /* llbooter! */
 
-	return bitmap_check(cap_info_schedbmp[cos_cpuid()], c - 1);
+	return bitmap_check(cap_info_schedbmp[core], c - 1);
+}
+
+static inline int
+cap_info_is_sched(spdid_t c)
+{
+	return cap_info_is_sched_core(c, cos_cpuid());
 }
 
 static inline int

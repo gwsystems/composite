@@ -302,6 +302,10 @@ void sl_thd_yield_intern(thdid_t tid);
 
 void sl_thd_yield_cs_exit(thdid_t tid);
 
+int sl_thd_migrate_no_cs(struct sl_thd *t, cpuid_t core);
+/* @return: 0 - success, -1 - failure */
+int sl_thd_migrate(thdid_t tid, cpuid_t core);
+
 /* The entire thread allocation and free API */
 struct sl_thd *sl_thd_alloc(cos_thd_fn_t fn, void *data);
 struct sl_thd *sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax);
