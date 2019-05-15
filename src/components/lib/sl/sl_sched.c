@@ -61,7 +61,6 @@ sl_cs_exit_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, struc
 	return 0;
 }
 
-#ifdef SL_TIMEOUTS
 /* Timeout and wakeup functionality */
 /*
  * TODO:
@@ -131,23 +130,6 @@ sl_timeout_init(microsec_t period)
 	memset(&timeout_heap[cos_cpuid()], 0, sizeof(struct timeout_heap));
 	heap_init(sl_timeout_heap(), SL_MAX_NUM_THDS, __sl_timeout_compare_min, __sl_timeout_update_idx);
 }
-#else
-static inline void
-sl_timeout_remove(struct sl_thd *t)
-{ }
-
-static inline void
-sl_timeout_block(struct sl_thd *t, cycles_t timeout)
-{ }
-
-static void
-sl_timeout_init(microsec_t period)
-{
-	assert(period >= SL_MIN_PERIOD_US);
-
-	sl_timeout_period(period);
-}
-#endif
 
 void
 sl_thd_free_no_cs(struct sl_thd *t)
@@ -492,6 +474,18 @@ sl_thd_yield_intern(thdid_t tid)
 }
 
 void
+sl_thd_yield_intern_timeout(cycles_t abs_timeout)
+{
+	struct sl_thd *t = sl_thd_curr();
+
+	sl_cs_enter();
+	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
+	sl_thd_sched_unblock_no_cs(t);
+	if (likely(t != sl__globals_core()->sched_thd && t != sl__globals_core()->idle_thd)) sl_mod_yield(sl_mod_thd_policy_get(t), NULL);
+	sl_cs_exit_schedule_timeout(abs_timeout);
+}
+
+void
 sl_thd_event_info_reset(struct sl_thd *t)
 {
 	t->event_info.blocked      = 0;
@@ -573,9 +567,7 @@ sl_timeout_period(microsec_t period)
 	cycles_t p = sl_usec2cyc(period);
 
 	sl__globals_core()->period = p;
-#ifdef SL_TIMEOUTS
 	sl_timeout_relative(p);
-#endif
 }
 
 /* engage space heater mode */
@@ -781,4 +773,36 @@ sl_thd_kern_dispatch(thdcap_t t)
 {
 	//return cos_switch(t, sl__globals_core()->sched_tcap, 0, sl__globals_core()->timeout_next, sl__globals_core()->sched_rcv, cos_sched_sync());
 	return cos_thd_switch(t);
+}
+
+void
+sl_thd_replenish_no_cs(struct sl_thd *t, cycles_t now)
+{
+#ifdef SL_REPLENISH
+	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	tcap_res_t currbudget = 0;
+	cycles_t replenish;
+	int ret;
+
+	if (!(t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget)) return;
+	assert(t->period);
+	assert(sl_thd_tcap(t) != sl__globals_core()->sched_tcap);
+
+	if (!(t->last_replenish == 0 || t->last_replenish + t->period <= now)) return;
+
+	replenish = now - ((now - t->last_replenish) % t->period);
+
+	ret = 0;
+	currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
+
+	if (!cycles_same(currbudget, t->budget, SL_CYCS_DIFF) && currbudget < t->budget) {
+		tcap_res_t transfer = t->budget - currbudget;
+
+		/* tcap_transfer will assign sched_tcap's prio to t's tcap if t->prio == 0, which we don't want. */
+		assert(t->prio >= TCAP_PRIO_MAX && t->prio <= TCAP_PRIO_MIN);
+		ret = cos_tcap_transfer(sl_thd_rcvcap(t), globals->sched_tcap, transfer, t->prio);
+	}
+
+	if (likely(ret == 0)) t->last_replenish = replenish;
+#endif
 }

@@ -40,7 +40,6 @@
 #include <sl_xcore.h>
 #include <heap.h>
 
-#undef  SL_TIMEOUTS
 #define SL_CS
 #undef  SL_REPLENISH
 
@@ -299,6 +298,7 @@ int  sl_thd_sched_wakeup_no_cs(struct sl_thd *t);
 int  sl_thd_wakeup_no_cs_rm(struct sl_thd *t);
 
 void sl_thd_yield_intern(thdid_t tid);
+void sl_thd_yield_intern_timeout(cycles_t abs_timeout);
 
 void sl_thd_yield_cs_exit(thdid_t tid);
 
@@ -371,7 +371,6 @@ sl_timeout_period_get(void)
 	return sl__globals_core()->period;
 }
 
-#ifdef SL_TIMEOUTS
 static inline void
 sl_timeout_oneshot(cycles_t absolute_us)
 {
@@ -406,7 +405,7 @@ struct heap *sl_timeout_heap(void);
 static inline void
 sl_timeout_wakeup_expired(cycles_t now)
 {
-	if (!heap_size(sl_timeout_heap())) return;
+	if (likely(!heap_size(sl_timeout_heap()))) return;
 
 	do {
 		struct sl_thd *tp, *th;
@@ -426,7 +425,6 @@ sl_timeout_wakeup_expired(cycles_t now)
 		sl_thd_wakeup_no_cs_rm(th);
 	} while (heap_size(sl_timeout_heap()));
 }
-#endif
 
 static inline int
 sl_thd_is_runnable(struct sl_thd *t)
@@ -495,7 +493,7 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 }
 
 static inline int
-sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
+sl_thd_activate(struct sl_thd *t, sched_tok_t tok, tcap_time_t timeout)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci  = &dci->ci;
@@ -503,13 +501,13 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 	int ret = 0;
 
 	if (t->properties & SL_THD_PROPERTY_SEND) {
-		return cos_sched_asnd(t->sndcap, g->timeout_next, g->sched_rcv, tok);
+		return cos_sched_asnd(t->sndcap, timeout, g->sched_rcv, tok);
 	} else if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
 		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
-				  g->timeout_next, g->sched_rcv, tok);
+				  timeout, g->sched_rcv, tok);
 	} else {
 		ret = cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ?
-				    TCAP_TIME_NIL : g->timeout_next, tok);
+				    TCAP_TIME_NIL : timeout, tok);
 		if (likely(t != g->sched_thd && t != g->idle_thd)) return ret;
 		if (unlikely(ret != -EPERM)) return ret;
 
@@ -517,8 +515,8 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok)
 		 * Attempting to activate scheduler thread or idle thread failed for no budget in it's tcap.
 		 * Force switch to the scheduler with current tcap.
 		 */
-		return cos_switch(sl_thd_thdcap(t), g->sched_tcap, t->prio,
-				  g->timeout_next, g->sched_rcv, tok);
+		return cos_switch(g->sched_thdcap, g->sched_tcap, t->prio,
+				  timeout, g->sched_rcv, tok);
 	}
 }
 
@@ -536,6 +534,7 @@ sl_cs_exit_schedule_nospin_arg_c(struct sl_thd *curr, struct sl_thd *next)
 	return sl_thd_dispatch(next, tok, curr);
 }
 
+void sl_thd_replenish_no_cs(struct sl_thd *t, cycles_t now);
 /*
  * Do a few things: 1. take the critical section if it isn't already
  * taken, 2. call schedule to find the next thread to run, 3. release
@@ -566,9 +565,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	struct sl_thd         *t = to;
 	struct sl_global_core *globals = sl__globals_core();
 	sched_tok_t            tok;
-#if defined(SL_TIMEOUTS) || defined(SL_REPLENISH)
 	cycles_t               now;
-#endif
 	s64_t                  offset;
 	int                    ret;
 
@@ -578,15 +575,12 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 #endif
 
 	tok    = cos_sched_sync();
-#if defined(SL_TIMEOUTS) || defined(SL_REPLENISH)
 	now    = sl_now();
-#endif
 
-#ifdef SL_TIMEOUTS
+	/* still wakeup without timeouts? that adds to dispatch overhead! */
 	offset = (s64_t)(globals->timer_next - now);
 	if (globals->timer_next && offset <= 0) sl_timeout_expended(now, globals->timer_next);
 	sl_timeout_wakeup_expired(now);
-#endif
 
 	/*
 	 * Once we exit, we can't trust t's memory as it could be
@@ -603,50 +597,22 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		struct sl_thd_policy *pt = sl_mod_schedule();
 
 		if (unlikely(!pt))
-			t = sl__globals_core()->idle_thd;
+			t = globals->sched_thd;
 		else
 			t = sl_mod_thd_get(pt);
 	}
 
 #ifdef SL_REPLENISH
-	if (t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget) {
-		struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-
-		assert(t->period);
-		assert(sl_thd_tcap(t) != sl__globals_core()->sched_tcap);
-
-		if (t->last_replenish == 0 || t->last_replenish + t->period <= now) {
-			tcap_res_t currbudget = 0;
-			cycles_t replenish    = now - ((now - t->last_replenish) % t->period);
-
-			ret = 0;
-			currbudget = (tcap_res_t)cos_introspect(ci, sl_thd_tcap(t), TCAP_GET_BUDGET);
-
-			if (!cycles_same(currbudget, t->budget, SL_CYCS_DIFF) && currbudget < t->budget) {
-				tcap_res_t transfer = t->budget - currbudget;
-
-				/* tcap_transfer will assign sched_tcap's prio to t's tcap if t->prio == 0, which we don't want. */
-				assert(t->prio >= TCAP_PRIO_MAX && t->prio <= TCAP_PRIO_MIN);
-				ret = cos_tcap_transfer(sl_thd_rcvcap(t), globals->sched_tcap, transfer, t->prio);
-			}
-
-			if (likely(ret == 0)) t->last_replenish = replenish;
-		}
-	}
+	sl_thd_replenish_no_cs(t, now);
 #endif
 
 //	assert(t && sl_thd_is_runnable(t));
 #ifdef SL_CS
 	sl_cs_exit();
 #endif
-	if (t == sl__globals_core()->idle_thd) t = sl__globals_core()->sched_thd;
-	if (t == sl_thd_curr()) return 0;
+	if (unlikely(t == sl_thd_curr())) return 0;
 
-#ifdef SL_TIMEOUTS
-	ret = sl_thd_activate(t, tok);
-#else
 	ret = sl_thd_dispatch(t, tok, sl_thd_curr());
-#endif
 
 #ifdef SL_REPLENISH 
 	/*
@@ -659,7 +625,79 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	if (unlikely(ret == -EPERM)) {
 		assert(t != globals->sched_thd && t != globals->idle_thd);
 		sl_thd_block_expiry(t);
-		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok);
+		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok, globals->timeout_next);
+	}
+#endif
+
+	return ret;
+}
+
+static inline int
+sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
+{
+	struct sl_thd         *t = to;
+	struct sl_global_core *globals = sl__globals_core();
+	sched_tok_t            tok;
+	cycles_t               now;
+	s64_t                  offset;
+	int                    ret;
+
+	/* Don't abuse this, it is only to enable the tight loop around this function for races... */
+#ifdef SL_CS
+	if (likely(!sl_cs_owner())) sl_cs_enter();
+#endif
+
+	tok    = cos_sched_sync();
+	now    = sl_now();
+
+	offset = (s64_t)(globals->timer_next - now);
+	if (globals->timer_next && offset <= 0) sl_timeout_expended(now, globals->timer_next);
+	sl_timeout_wakeup_expired(now);
+
+	/*
+	 * Once we exit, we can't trust t's memory as it could be
+	 * deallocated/modified, so cache it locally.  If these values
+	 * are out of date, the scheduler synchronization tok will
+	 * catch it.  This is a little twitchy and subtle, so lets put
+	 * it in a function, here.
+	 */
+	if (likely(to)) {
+		t = to;
+		if (unlikely(!sl_thd_is_runnable(t))) to = NULL;
+	}
+	if (unlikely(!to)) {
+		struct sl_thd_policy *pt = sl_mod_schedule();
+
+		if (unlikely(!pt))
+			t = globals->sched_thd;
+		else
+			t = sl_mod_thd_get(pt);
+	}
+
+#ifdef SL_REPLENISH
+	sl_thd_replenish_no_cs(t, now);
+#endif
+
+//	assert(t && sl_thd_is_runnable(t));
+#ifdef SL_CS
+	sl_cs_exit();
+#endif
+	if (unlikely(t == sl_thd_curr())) return 0;
+
+	ret = sl_thd_activate(t, tok, abs_timeout ? tcap_cyc2time(abs_timeout) : globals->timeout_next);
+
+#ifdef SL_REPLENISH 
+	/*
+	 * dispatch failed with -EPERM because tcap associated with thread t does not have budget.
+	 * Block the thread until it's next replenishment and return to the scheduler thread.
+	 *
+	 * If the thread is not replenished by the scheduler (replenished "only" by
+	 * the inter-component delegations), block till next timeout and try again.
+	 */
+	if (unlikely(ret == -EPERM)) {
+		assert(t != globals->sched_thd && t != globals->idle_thd);
+		sl_thd_block_expiry(t);
+		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok, globals->timeout_next);
 	}
 #endif
 
@@ -690,6 +728,33 @@ sl_cs_exit_switchto(struct sl_thd *to)
 	 */
 	if (sl_cs_exit_schedule_nospin_arg(to)) {
 		sl_cs_exit_schedule();
+	}
+}
+
+static inline int
+sl_cs_exit_schedule_nospin_timeout(cycles_t abs_timeout)
+{
+	return sl_cs_exit_schedule_nospin_arg_timeout(NULL, abs_timeout);
+}
+
+static inline void
+sl_cs_exit_schedule_timeout(cycles_t abs_timeout)
+{
+	while (sl_cs_exit_schedule_nospin_timeout(abs_timeout) && sl_now() < abs_timeout)
+		;
+}
+
+static inline void
+sl_cs_exit_switchto_timeout(struct sl_thd *to, cycles_t abs_timeout)
+{
+	/*
+	 * We only try once, so it is possible that we don't end up
+	 * switching to the desired thread.  However, this is always a
+	 * case that the caller has to consider if the current thread
+	 * has a higher priority than the "to" thread.
+	 */
+	if (sl_cs_exit_schedule_nospin_arg_timeout(to, abs_timeout)) {
+		sl_cs_exit_schedule_timeout(abs_timeout);
 	}
 }
 
@@ -756,6 +821,17 @@ sl_thd_yield(thdid_t tid)
 		sl_cs_exit_switchto(sl_thd_lkup(tid));
 	} else {
 		sl_thd_yield_intern(0);
+	}
+}
+
+static inline void
+sl_thd_yield_timeout(thdid_t tid, cycles_t abs_timeout)
+{
+	if (likely(tid)) {
+		sl_cs_enter();
+		sl_cs_exit_switchto_timeout(sl_thd_lkup(tid), abs_timeout);
+	} else {
+		sl_thd_yield_intern_timeout(abs_timeout);
 	}
 }
 
