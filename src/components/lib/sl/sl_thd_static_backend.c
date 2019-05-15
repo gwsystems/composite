@@ -20,7 +20,7 @@ static u32_t               __sl_aep_free_off[NUM_CPU];
 static inline struct sl_thd_policy *
 sl_thd_alloc_backend_core(cpuid_t core, thdid_t tid)
 {
-	assert(tid < SL_MAX_NUM_THDS);
+	assert(tid < SL_MAX_NUM_THDS && core >= 0 && core < NUM_CPU);
 
 	return &(__sl_threads[core][tid]);
 }
@@ -31,6 +31,7 @@ sl_thd_alloc_aep_backend_core(cpuid_t core)
 	int off = 0;
 	struct cos_aep_info *aep = NULL;
 
+	assert(core < NUM_CPU && core >= 0);
 	off = ps_faa((unsigned long *)&__sl_aep_free_off[core], 1);
 	assert(off < SL_MAX_NUM_THDS);
 	aep = &__sl_aep_infos[core][off];
@@ -41,7 +42,7 @@ sl_thd_alloc_aep_backend_core(cpuid_t core)
 struct sl_thd_policy *
 sl_thd_migrate_backend(struct sl_thd_policy *t, cpuid_t core)
 {
-	assert(core != cos_cpuid() && core < NUM_CPU);
+	assert(core != cos_cpuid() && core >= 0 && core < NUM_CPU);
 
 	struct cos_aep_info *a = sl_thd_alloc_aep_backend_core(core);
 	struct cos_aep_info *b = sl_thd_aepinfo(sl_mod_thd_get(t));
