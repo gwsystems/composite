@@ -9,8 +9,9 @@
 
 #define PART_MAX_PAGES (((PART_MAX_TASKS * sizeof(struct part_task)) / PAGE_SIZE) + 1)
 #define PART_MAX_DATA_PAGES (((PART_MAX_TASKS * sizeof(struct part_data)) / PAGE_SIZE) + 1)
+#define PART_DEQUE_MAX_PAGES ((sizeof(struct deque_part) / PAGE_SIZE) + 1)
 
-struct deque_part part_dq_percore[NUM_CPU];
+struct deque_part *part_dq_percore[NUM_CPU];
 //struct cirque_par parcq_global;
 static volatile unsigned part_ready = 0;
 volatile int in_main_parallel;
@@ -119,7 +120,11 @@ part_init(void)
 
 	ps_list_head_init(&part_thdpool_core[cos_cpuid()]);
 	if (ps_cas(&is_first, NUM_CPU, cos_cpuid())) {
-		for (k = 0; k < NUM_CPU; k++) deque_init_part(&part_dq_percore[k], PART_DEQUE_SZ);
+		for (k = 0; k < NUM_CPU; k++) {
+			part_dq_percore[k] = (struct deque_part *)memmgr_heap_page_allocn(PART_DEQUE_MAX_PAGES);
+			assert(part_dq_percore[k]);
+			deque_init_part(part_dq_percore[k], PART_DEQUE_SZ);
+		}
 		part_tasks = (struct part_task *)memmgr_heap_page_allocn(PART_MAX_PAGES);
 		assert(part_tasks);
 		memset(part_tasks, 0, PART_MAX_PAGES * PAGE_SIZE);

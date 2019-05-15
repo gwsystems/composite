@@ -16,7 +16,7 @@
 DEQUE_PROTOTYPE(part, struct part_task *);
 //CIRQUE_PROTOTYPE(part, struct part_task);
 
-extern struct deque_part part_dq_percore[];
+extern struct deque_part *part_dq_percore[];
 //extern struct cirque_par parcq_global;
 /* FIXME: use stacklist or another stack like data structure? */
 extern struct ps_list_head part_thdpool_core[];
@@ -31,7 +31,7 @@ extern struct part_task main_task;
 static inline struct deque_part *
 part_deque_curr(void)
 {
-	return &part_dq_percore[cos_cpuid()];
+	return part_dq_percore[cos_cpuid()];
 }
 
 static inline struct deque_part *
@@ -39,7 +39,7 @@ part_deque_core(cpuid_t c)
 {
 	assert(c < NUM_CPU);
 
-	return &part_dq_percore[c];
+	return part_dq_percore[c];
 }
 
 static inline struct ps_list_head *
@@ -89,6 +89,7 @@ part_deque_pop(struct part_task **t)
 static inline struct part_task * 
 part_deque_steal(cpuid_t core)
 {
+#if NUM_CPU > 1
 	int ret;
 	struct part_task *t = NULL;
 
@@ -96,11 +97,15 @@ part_deque_steal(cpuid_t core)
 	if (ret) return NULL;
 
 	return t;
+#else
+	return NULL;
+#endif
 }
 
 static inline struct part_task * 
 part_deque_steal_any(void)
 {
+#if NUM_CPU > 1
 	unsigned i = 0, c = (unsigned)(ps_tsc() % NUM_CPU);
 
 	do {
@@ -112,7 +117,7 @@ part_deque_steal_any(void)
 		t = part_deque_steal(c);
 		if (likely(t)) return t;
 	} while (i < NUM_CPU);
-
+#endif
 	return NULL;
 }
 
@@ -335,7 +340,6 @@ part_task_end(struct part_task *t)
 		ts->part_context = NULL;
 	}
 }
-
 
 static inline void
 part_thd_fn(void *d)
