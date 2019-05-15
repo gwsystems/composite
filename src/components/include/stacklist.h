@@ -62,9 +62,7 @@ stacklist_add(struct stacklist_head *h, struct stacklist *l)
 static inline thdid_t 
 stacklist_dequeue(cpuid_t *core, struct stacklist_head *h)
 {
-	struct stacklist *sl;
-
-	if (!h->head) return 0;
+	struct stacklist *sl = NULL;
 
 	/*
 	 * Only a single thread should trigger an event, and dequeue
@@ -72,11 +70,10 @@ stacklist_dequeue(cpuid_t *core, struct stacklist_head *h)
 	 * this, please note that this should *not* iterate more than
 	 * once.
 	 */
-	while (1) {
+	do {
 		sl = ps_load(&h->head);
-
-		if (ps_cas((unsigned long *)&h->head, (unsigned long)sl, (unsigned long)sl->next)) break;
-	}
+		if (unlikely(!sl)) return 0;
+	} while (!ps_cas((unsigned long *)&h->head, (unsigned long)sl, (unsigned long)sl->next));
 	sl->next = NULL;
 	*core    = sl->coreid;
 
