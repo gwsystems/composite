@@ -51,10 +51,14 @@ _gomp_parallel_start(struct part_task *pt, void (*fn) (void *), void *data, unsi
 	struct sl_thd *t = sl_thd_curr();
 	struct part_task *parent = (struct part_task *)t->part_context;
 
+	if (parent) assert(ps_load(&in_main_parallel));
+
 	num_threads = (num_threads == 0 || num_threads > COS_GOMP_MAX_THDS) ? COS_GOMP_MAX_THDS : num_threads;
 
 	/* nesting? */
-	if (unlikely(parent && PART_NESTED == 0)) num_threads = 1;
+#if !defined(PART_ENABLE_NESTED)
+	if (unlikely(parent)) num_threads = 1;
+#endif
 
 	part_task_init(pt, PART_TASK_T_WORKSHARE, parent, num_threads, fn, data, NULL);
 	assert(pt->nthds == num_threads);
@@ -63,14 +67,8 @@ _gomp_parallel_start(struct part_task *pt, void (*fn) (void *), void *data, unsi
 		assert(parent_off >= 0);
 	}
 	t->part_context = pt;
-
-	if (unlikely(num_threads > 1)) {
-		unsigned i;
-
-		part_list_append(pt);
-
-		for (i = 1; i < num_threads; i++) part_pool_wakeup();
-	}
+	/* should not append to workshare list if it's a task with nthds == 1 */
+	part_list_append(pt);
 }
 
 static inline void
@@ -85,11 +83,23 @@ void
 GOMP_parallel (void (*fn) (void *), void *data, unsigned num_threads,
 	       unsigned int flags)
 {
+	struct part_task *prt = NULL;
 	struct part_task pt;
 
-	_gomp_parallel_start(&pt, fn, data, num_threads, flags);
+#if defined(PART_ENABLE_NESTED)
+	prt = &pt
+#else
+	struct sl_thd *t = sl_thd_curr();
+	struct part_task *parent = (struct part_task *)t->part_context;
+
+	/* child parallel will not be nested, will be run by this thread and also not added to the global list */
+	if(parent) prt = &pt;
+	else       prt = &main_task;
+#endif
+
+	_gomp_parallel_start(prt, fn, data, num_threads, flags);
 	fn(data);
-	_gomp_parallel_end(&pt);
+	_gomp_parallel_end(prt);
 }
 
 bool
@@ -221,15 +231,27 @@ GOMP_parallel_loop_dynamic (void (*fn) (void *), void *data,
 			    unsigned num_threads, long start, long end,
 			    long incr, long chunk_size, unsigned flags)
 {
+	struct part_task *prt = NULL;
 	struct part_task pt;
 	bool ret;
 
-	_gomp_parallel_start(&pt, fn, data, num_threads, flags);
+#if defined(PART_ENABLE_NESTED)
+	prt = &pt
+#else
+	struct sl_thd *t = sl_thd_curr();
+	struct part_task *parent = (struct part_task *)t->part_context;
+
+	/* child parallel will not be nested, will be run by this thread and also not added to the global list */
+	if (parent) prt = &pt;
+	else        prt = &main_task;
+#endif
+
+	_gomp_parallel_start(prt, fn, data, num_threads, flags);
 	ret = GOMP_loop_dynamic_start(start, end, incr, chunk_size, NULL, NULL);
 	assert(ret == true);
 
 	fn(data);
-	_gomp_parallel_end(&pt);
+	_gomp_parallel_end(prt);
 }
 
 bool

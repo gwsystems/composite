@@ -12,9 +12,14 @@
 
 struct deque_part part_dq_percore[NUM_CPU];
 //struct cirque_par parcq_global;
-struct ps_list_head part_l_global;
 static volatile unsigned part_ready = 0;
+volatile int in_main_parallel;
+#if defined(PART_ENABLE_NESTED)
 struct crt_lock part_l_lock;
+struct ps_list_head part_l_global;
+#else
+struct part_task main_task;
+#endif
 static struct part_task *part_tasks = NULL;
 static struct part_data *part__data = NULL;
 struct ps_list_head part_thdpool_core[NUM_CPU];
@@ -123,8 +128,13 @@ part_init(void)
 		assert(part__data);
 		memset(part__data, 0, PART_MAX_DATA_PAGES * PAGE_SIZE);
 
+#if defined(PART_ENABLE_NESTED)
 		ps_list_head_init(&part_l_global);
 		crt_lock_init(&part_l_lock);
+#else
+		memset(&main_task, 0, sizeof(main_task));
+#endif
+		in_main_parallel = 0;
 	}
 	
 	for (k = 0; k < PART_MAX_CORE_THDS; k++) {

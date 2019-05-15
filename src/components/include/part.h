@@ -7,8 +7,9 @@
 #include <crt_lock.h>
 
 #include <sl.h>
+#include <sl_xcore.h>
 
-#define PART_NESTED 0 /* 0 - disabled, 1 - enabled */
+#undef PART_ENABLE_NESTED
 //#include <cirque.h>
 
 DEQUE_PROTOTYPE(part, struct part_task *);
@@ -17,9 +18,14 @@ DEQUE_PROTOTYPE(part, struct part_task *);
 extern struct deque_part part_dq_percore[];
 //extern struct cirque_par parcq_global;
 /* FIXME: use stacklist or another stack like data structure? */
+extern struct ps_list_head part_thdpool_core[];
+extern volatile int in_main_parallel;
+#if defined(PART_ENABLE_NESTED)
 extern struct ps_list_head part_l_global;
 extern struct crt_lock     part_l_lock;
-extern struct ps_list_head part_thdpool_core[];
+#else 
+extern struct part_task main_task;
+#endif
 
 static inline struct deque_part *
 part_deque_curr(void)
@@ -47,11 +53,13 @@ part_thdpool_curr(void)
 //	return &parcq_global;
 //}
 
+#if defined(PART_ENABLE_NESTED)
 static inline struct ps_list_head *
 part_list(void)
 {
 	return &part_l_global;
 }
+#endif
 
 static inline int 
 part_deque_push(struct part_task *t)
@@ -116,6 +124,9 @@ part_pool_wakeup(void)
 	sl_cs_enter();
 	if (unlikely(ps_list_head_empty(part_thdpool_curr()))) {
 		sl_cs_exit();
+
+		/* there is nothing in the pool, should we do load-balance? */
+		//sl_xcore_load_balance();
 		return;
 	}
 
@@ -164,28 +175,49 @@ part_pool_block(void)
 static inline void
 part_list_append(struct part_task *t)
 {
+#if defined(PART_ENABLE_NESTED)
 	assert(ps_list_singleton(t, partask));
 	assert(t->type == PART_TASK_T_WORKSHARE);
 
+	if (t->nthds == 1) return;
 	crt_lock_take(&part_l_lock);
 	ps_list_head_append(part_list(), t, partask);
 	crt_lock_release(&part_l_lock);
+	part_pool_wakeup();
+#endif
+
+	if (t != &main_task) {
+		assert(ps_load(&in_main_parallel));
+		return;
+	}
+	assert(ps_load(&in_main_parallel) == 0);
+
+	ps_faa(&in_main_parallel, 1);
 }
 
 static inline void
 part_list_remove(struct part_task *t)
 {
+#if defined(PART_ENABLE_NESTED)
 	assert(t->type == PART_TASK_T_WORKSHARE);
 	assert(!ps_list_singleton(t, partask));
 
 	crt_lock_take(&part_l_lock);
 	ps_list_rem(t, partask);
 	crt_lock_release(&part_l_lock);
+#endif
+	assert(ps_load(&in_main_parallel));
+	if (t != &main_task) return;
+
+	ps_faa(&in_main_parallel, -1);
 }
 
 static inline struct part_task *
 part_list_peek(void)
 {
+	if (!ps_load(&in_main_parallel)) return NULL;
+
+#if defined(PART_ENABLE_NESTED)
 	struct part_task *t = NULL;
 	int found = 0;
 
@@ -214,6 +246,17 @@ done:
 	if (unlikely(!found)) return NULL;
 
 	return t;
+#else
+	int i;
+
+	assert(main_task.type == PART_TASK_T_WORKSHARE);
+	i = part_task_work_try(&main_task);
+	assert(i != 0);
+
+	if (likely(i > 0 && !ps_load(&main_task.end))) return &main_task;
+
+	return NULL;
+#endif
 }
 
 void part_init(void);
@@ -266,6 +309,8 @@ part_thd_fn(void *d)
 
 	/* parallel runtime not ready? */
 	if (unlikely(!part_isready())) part_pool_block();
+	/* not in the main parallel block? */
+	while (!ps_load(&in_main_parallel)) part_pool_block();
 
 	while (1) {
 		struct part_task *t = NULL;
