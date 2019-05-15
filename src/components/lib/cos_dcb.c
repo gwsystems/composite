@@ -5,7 +5,8 @@
 static struct cos_dcbinfo_data _cos_dcbinfo[NUM_CPU];
 
 void
-cos_dcb_info_init_ext(struct cos_dcbinfo_data *cdi, struct cos_compinfo *ci, dcbcap_t initdcbcap, vaddr_t initdcbaddr, dcboff_t start_off)
+cos_dcb_info_init_ext(struct cos_dcbinfo_data *cdi, struct cos_compinfo *ci, 
+		      dcbcap_t initdcbcap, vaddr_t initdcbaddr, dcboff_t start_off)
 {
 	memset(cdi, 0, sizeof(struct cos_dcbinfo_data));
 
@@ -19,7 +20,8 @@ void
 cos_dcb_info_init(struct cos_dcbinfo_data *cdi, struct cos_compinfo *ci)
 {
 	if (cos_spd_id() == 0) {
-		cos_dcb_info_init_ext(cdi, ci, LLBOOT_CAPTBL_CPU_INITDCB, (vaddr_t)cos_init_dcb_get(), 1);
+		cos_dcb_info_init_ext(cdi, ci, LLBOOT_CAPTBL_CPU_INITDCB, 
+				      (vaddr_t)cos_init_dcb_get(), 1);
 	} else {
 		cos_dcb_info_init_ext(cdi, ci, 0, 0, 0);
 	}
@@ -39,7 +41,8 @@ cos_dcb_info_init_curr_ext(dcbcap_t initdcbcap, vaddr_t initdcbaddr, dcboff_t st
 	if (initdcbcap == 0 && initdcbaddr == 0) {
 
 		if (cos_spd_id() == 0) {
-			cos_dcb_info_init_ext(&_cos_dcbinfo[cos_cpuid()], ci, LLBOOT_CAPTBL_CPU_INITDCB, (vaddr_t)cos_init_dcb_get(), 1);
+			cos_dcb_info_init_ext(&_cos_dcbinfo[cos_cpuid()], ci, 
+					      LLBOOT_CAPTBL_CPU_INITDCB, (vaddr_t)cos_init_dcb_get(), 1);
 
 			return;
 		} else {
@@ -76,7 +79,8 @@ cos_dcb_info_alloc(struct cos_dcbinfo_data *cdi, dcboff_t *dcboff, vaddr_t *dcba
 
 		cdi->dcbaddr[curr_off + 1] = cos_page_bump_intern_valloc(cdi->ci, PAGE_SIZE);
 		assert(cdi->dcbaddr[curr_off + 1]);
-		cdi->dcbcaps[curr_off + 1] = cos_dcb_alloc(cos_compinfo_get(cos_defcompinfo_curr_get()), cdi->ci->pgtbl_cap, cdi->dcbaddr[curr_off + 1]);
+		cdi->dcbcaps[curr_off + 1] = cos_dcb_alloc(cos_compinfo_get(cos_defcompinfo_curr_get()), 
+							   cdi->ci->pgtbl_cap, cdi->dcbaddr[curr_off + 1]);
 
 		assert(cdi->dcbcaps[curr_off + 1]);
 		ret = ps_cas((unsigned long *)&cdi->curr_cap, curr_off, curr_off + 1);
