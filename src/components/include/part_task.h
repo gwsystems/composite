@@ -11,7 +11,7 @@
 
 #define PART_MAX_TASKS      256 
 #define PART_MAX_DATA       128
-#define PART_MAX_PAR_THDS   4
+#define PART_MAX_PAR_THDS   NUM_CPU
 #define PART_MAX_THDS       128
 #define PART_MAX_CORE_THDS  (PART_MAX_THDS/NUM_CPU)
 #define PART_MAX_CHILD      16 
@@ -31,7 +31,9 @@ typedef enum {
 } part_task_state_t;
 
 typedef enum {
+	PART_TASK_T_NONE,
 	PART_TASK_T_WORKSHARE = 1, /* task to put in a shared fifo queue */
+	PART_TASK_T_TASK,
 } part_task_type_t;
 
 typedef enum {
@@ -67,6 +69,7 @@ struct part_data {
 };
 
 struct part_task {
+	int id; /* only for debugging */
 	part_task_state_t state;
 	part_task_type_t  type;
 
@@ -89,27 +92,28 @@ struct part_task {
 static inline void
 part_task_init(struct part_task *t, part_task_type_t type, struct part_task *p, unsigned nthds, part_fn_t fn, void *data, struct part_data *d)
 {
-	int i;
+	static unsigned part_id_free = 0;
+	int i, id = ps_faa(&part_id_free, 1);
 
-	memset(t, 0, sizeof(struct part_task));
-
-	ps_list_init(t, partask);
+	assert(type != PART_TASK_T_NONE);
 	t->type = type;
-	t->state = PART_TASK_S_INITIALIZED;
-	t->parent = p;
-	t->nthds = nthds;
-	t->nchildren = 0;
-	t->barrier_in = t->barrier_out = t->end = 0;
-	t->data_env = d;
-
-	t->master = PART_CURR_THD;
+	if (!ps_cas(&t->state, PART_TASK_S_ALLOCATED, PART_TASK_S_INITIALIZED)) assert(0);
+	t->id = id;
+	memset(t->ws, 0, sizeof(struct part_workshare) * PART_MAX_WORKSHARES);
 	t->cs.fn = fn;
 	t->cs.data = data;
-
-	for (i = 0; i < PART_MAX_PAR_THDS; i++) t->ws_off[i] = -1;
-
+	t->nthds = nthds;
+	memset(t->workers, 0, sizeof(unsigned) * PART_MAX_PAR_THDS);
+	t->master = PART_CURR_THD;
 	/* if it's worksharing, current thread is the master and does take part in the par section */
 	if (type == PART_TASK_T_WORKSHARE) t->workers[0] = t->master;
+	for (i = 0; i < PART_MAX_PAR_THDS; i++) t->ws_off[i] = -1;
+	t->barrier_in = t->barrier_out = t->end = 0;
+	t->data_env = d;
+	t->parent = p;
+	t->nchildren = 0;
+
+	ps_list_init(t, partask);
 }
 
 struct part_task *part_task_alloc(part_task_type_t);
@@ -121,6 +125,8 @@ static inline int
 part_task_add_child(struct part_task *t, struct part_task *c)
 {
 	int i;
+
+	assert(t->state == PART_TASK_S_INITIALIZED);
 
 	if (unlikely(!t || !c)) return -1;
 
@@ -136,7 +142,7 @@ part_task_remove_child(struct part_task *t, struct part_task *c)
 	int i;
 
 	if (unlikely(!t || !c)) return;
-	assert(ps_load(&t->nchildren));
+	assert(t->state == PART_TASK_S_INITIALIZED);
 
 	i = ps_faa(&t->nchildren, -1);
 	assert(i > 0);
@@ -145,6 +151,7 @@ part_task_remove_child(struct part_task *t, struct part_task *c)
 static inline void
 part_task_wait_children(struct part_task *t)
 {
+	assert(t->state == PART_TASK_S_INITIALIZED);
 	while (ps_load(&t->nchildren) > 0) sl_thd_yield(0);
 
 	assert(t->nchildren == 0);
@@ -153,22 +160,26 @@ part_task_wait_children(struct part_task *t)
 static inline int
 part_task_work_try(struct part_task *t)
 {
-	unsigned i = 0;
+	unsigned i;
         unsigned key = PART_CURR_THD;
 
-	if (t->type != PART_TASK_T_WORKSHARE) {
+	assert(t->state == PART_TASK_S_INITIALIZED);
+	if (t->type == PART_TASK_T_TASK) {
 		assert(t->nthds == 1);
 	} else {
+		assert(t->type == PART_TASK_T_WORKSHARE);
 		assert(t->master != key && t->master == t->workers[0]);
 		assert(t->nthds >= 1);
 	}
 
-	for (; i < t->nthds; i++)
+	for (i = 0; i < t->nthds; i++)
 	{
-		if (t->workers[i] == key) return i;
-		if (t->workers[i]) continue;
+		unsigned w = ps_load(&t->workers[i]);
 
-		if (likely(ps_cas(&t->workers[i], 0, key))) return i;
+		if (w == key) return i;
+		if (w) continue;
+
+		if (likely(ps_cas(&t->workers[i], w, key))) return i;
 	}
 
 	return -1;
@@ -180,13 +191,15 @@ part_task_work_thd_num(struct part_task *t)
 	int i; 
 	unsigned key = PART_CURR_THD;
 
-	if (t->type != PART_TASK_T_WORKSHARE) {
+	assert(t->state == PART_TASK_S_INITIALIZED);
+	if (t->type == PART_TASK_T_TASK) {
 		assert(t->nthds == 1);
 
-		if (t->workers[0] == key) return 0;
+		if (ps_load(&t->workers[0]) == key) return 0;
 
 		return -1;
 	}
+	assert(t->type == PART_TASK_T_WORKSHARE);
 
 	if (key == t->master) return 0;
 	for (i = 1; i < (int)t->nthds; i++) {
@@ -202,6 +215,7 @@ part_task_barrier(struct part_task *t)
 	int tn = part_task_work_thd_num(t);
 	unsigned cin = 0, cout = 0;
 
+	assert(t->state == PART_TASK_S_INITIALIZED);
 	assert(tn >= 0 && t->nthds >= 1);
 
 	if (t->nthds == 1) {

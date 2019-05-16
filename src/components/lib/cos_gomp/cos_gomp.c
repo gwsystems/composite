@@ -15,7 +15,6 @@
 #include <sl_thd.h>
 #include <sl_lock.h> /* for now, single core lock! */
 #include <cos_omp.h>
-#include <../../interface/capmgr/memmgr.h>
 
 #include "cos_gomp.h"
 #include <crt_lock.h>
@@ -60,6 +59,7 @@ _gomp_parallel_start(struct part_task *pt, void (*fn) (void *), void *data, unsi
 	if (unlikely(parent)) num_threads = 1;
 #endif
 
+	pt->state = PART_TASK_S_ALLOCATED;
 	part_task_init(pt, PART_TASK_T_WORKSHARE, parent, num_threads, fn, data, NULL);
 	assert(pt->nthds == num_threads);
 	if (unlikely(parent)) {
@@ -277,10 +277,6 @@ GOMP_loop_end (void)
 	assert(t->ws[woff].type == PART_WORKSHARE_LOOP_DYNAMIC);
 
 	part_task_barrier(t);
-
-//	do {
-//		c = ps_load(&t->nwsdone);
-//	} while (!ps_cas(&t->nwsdone, c, c | (1 << woff)));
 }
 
 void
@@ -291,9 +287,6 @@ GOMP_loop_end_nowait (void)
 	int woff = t->ws_off[coff], c = 0;
 
 	assert(t->ws[woff].type == PART_WORKSHARE_LOOP_DYNAMIC);
-//	do {
-//		c = ps_load(&t->nwsdone);
-//	} while (!ps_cas(&t->nwsdone, c, c | (1 << woff)));
 }
 
 void
@@ -338,9 +331,10 @@ GOMP_task (void (*fn) (void *), void *data, void (*cpyfn) (void *, void *),
 		else       memcpy(arg, data, arg_size);
 
 		assert(parent);
-		part_task_init(pt, 0, parent, 1, fn, arg, d);
+		part_task_init(pt, PART_TASK_T_TASK, parent, 1, fn, arg, d);
 		parent_off = part_task_add_child(parent, pt);
 		assert(parent_off >= 0);
+		assert(pt->type == PART_TASK_T_TASK);
 
 		do {
 			ret = part_deque_push(pt);
@@ -353,7 +347,7 @@ GOMP_task (void (*fn) (void *), void *data, void (*cpyfn) (void *, void *),
 		struct part_task pt;
 
 		assert(parent);
-		part_task_init(&pt, 0, parent, 1, fn, data, NULL);
+		part_task_init(&pt, PART_TASK_T_TASK, parent, 1, fn, data, NULL);
 		parent_off = part_task_add_child(parent, &pt);
 		assert(parent_off >= 0);
 		sl_thd_curr()->part_context = &pt;

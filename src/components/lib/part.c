@@ -80,7 +80,7 @@ part_task_alloc(part_task_type_t type)
 	for (i = 0; i < PART_MAX_TASKS; i++) {
 		t = part_tasks + i;
 
-		if (t->state != PART_TASK_S_FREED) continue;
+		if (ps_load(&t->state) != PART_TASK_S_FREED) continue;
 
 		/* if this fails, someone else just alloced it! */
 		if (!ps_cas(&t->state, PART_TASK_S_FREED, PART_TASK_S_ALLOCATED)) continue;
@@ -99,8 +99,8 @@ part_task_free(struct part_task *t)
 	if (!t) return;
 
 	do {
-		s = t->state;
-		assert(s != PART_TASK_S_FREED);
+		s = ps_load(&t->state);
+		if (s != PART_TASK_S_INITIALIZED) return;
 	} while (!ps_cas(&t->state, s, PART_TASK_S_FREED));
 }
 

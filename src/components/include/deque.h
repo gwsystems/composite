@@ -60,7 +60,7 @@ deque_push_##name(struct deque_##name *q, type *w)					\
 											\
 	q->wrk[cb] = *w;								\
 	ps_mem_fence();									\
-	if (!ps_upcas((unsigned long *)&q->bottom, cb, cb + 1)) assert(0);		\
+	if (!ps_cas((unsigned long *)&q->bottom, cb, cb + 1)) assert(0);		\
 											\
 	return 0;									\
 }											\
@@ -69,15 +69,16 @@ deque_push_##name(struct deque_##name *q, type *w)					\
 static inline int									\
 deque_pop_##name(struct deque_##name *q, type *w)					\
 {											\
-	long ct = ps_load((unsigned long *)&q->top); 					\
+	long ct = 0, sz = 0;								\
 	long cb = ps_load((unsigned long *)&q->bottom) - 1;				\
-	long sz = cb - ct;								\
 	int ret = 0;									\
 											\
-	if (!ps_upcas((unsigned long *)&q->bottom, cb + 1, cb)) assert(0);		\
+	if (!ps_cas((unsigned long *)&q->bottom, cb + 1, cb)) assert(0);		\
 											\
+	ct = ps_load((unsigned long *)&q->top);						\
+	sz = cb - ct;									\
 	if (sz < 0) {									\
-		if (!ps_cas((unsigned long *)&q->bottom, cb, cb + 1)) assert(0);	\
+		if (!ps_cas((unsigned long *)&q->bottom, cb, ct)) assert(0);		\
 											\
 		return -ENOENT;								\
 	}										\
@@ -86,8 +87,8 @@ deque_pop_##name(struct deque_##name *q, type *w)					\
 	if (sz > 0) return 0;								\
 											\
 	ret = ps_cas((unsigned long *)&q->top, ct, ct + 1);				\
-	if (!ps_upcas((unsigned long *)&q->bottom, cb, ct + 1)) assert(0);		\
-	if (!ret) return -ENOENT;							\
+	if (!ps_cas((unsigned long *)&q->bottom, cb, ct + 1)) assert(0);		\
+	if (!ret) { *w = NULL; return -ENOENT; }					\
 											\
 	return 0;									\
 }											\

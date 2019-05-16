@@ -67,6 +67,7 @@ part_deque_push(struct part_task *t)
 {
 	int ret;
 
+	assert(t->type == PART_TASK_T_TASK);
 	sl_cs_enter();
 	ret = deque_push_part(part_deque_curr(), &t);
 	sl_cs_exit();
@@ -79,9 +80,13 @@ part_deque_pop(struct part_task **t)
 {
 	int ret;
 
+	*t = NULL;
 	sl_cs_enter();
 	ret = deque_pop_part(part_deque_curr(), t);
 	sl_cs_exit();
+	if (unlikely(ret)) *t = NULL;
+
+	if (unlikely(*t && (*t)->type != PART_TASK_T_TASK)) { *t = NULL; ret = -EAGAIN; }
 
 	return ret;
 }
@@ -94,7 +99,8 @@ part_deque_steal(cpuid_t core)
 	struct part_task *t = NULL;
 
 	ret = deque_steal_part(part_deque_core(core), &t);
-	if (ret) return NULL;
+	if (unlikely(ret)) return NULL;
+	assert(t->type == PART_TASK_T_TASK);
 
 	return t;
 #else
@@ -190,7 +196,8 @@ part_pool_block(void)
 static inline void
 part_list_append(struct part_task *t)
 {
-	int i, in_nest = 0;
+	unsigned i;
+	int in_nest = 0;
 
 	assert(t->type == PART_TASK_T_WORKSHARE);
 
@@ -222,7 +229,7 @@ part_list_append(struct part_task *t)
 	 * wake up as many threads on this core! 
 	 * some may not get work if other cores pull work before they get to it.
 	 */
-	for (i = 1; i < t->nthds; i++) part_pool_wakeup();
+	for (i = 0; i < t->nthds; i++) part_pool_wakeup();
 
 	/* if this is the first time in a parallel, make everyone know */
 	if (likely(!in_nest)) ps_faa(&in_main_parallel, 1);
@@ -308,20 +315,23 @@ static inline void
 part_task_end(struct part_task *t)
 {
 	struct sl_thd *ts = sl_thd_curr();
+	struct part_task *p = t->parent;
 	int tn = part_task_work_thd_num(t);
 
-	assert(tn >= 0 && t->nthds >= 1);
+	assert(t->type != PART_TASK_T_NONE);
+	assert(tn >= 0);
+	assert(t->nthds >= 1);
 	assert(ts->part_context == (void *)t);
 	if (t->nthds == 1) {
 		int i;
 
 		assert(tn == 0);
 		part_task_wait_children(t);
-		ps_faa(&t->end, 1);
 		part_task_remove_child(t->parent, t);
+		ps_faa(&t->end, 1);
 		if (t->type == PART_TASK_T_WORKSHARE) {
 			assert(t->workers[tn] == t->master);
-			ts->part_context = t->parent;
+			ts->part_context = p;
 		}
 
 		return;
@@ -330,7 +340,7 @@ part_task_end(struct part_task *t)
 
 	if (tn == 0) {
 		if (t->type == PART_TASK_T_WORKSHARE) part_list_remove(t);
-		ts->part_context = t->parent;
+		ts->part_context = p;
 		part_task_remove_child(t->parent, t);
 		ps_faa(&t->end, 1);
 	} else {
@@ -367,7 +377,7 @@ part_thd_fn(void *d)
 single:
 		ret = part_deque_pop(&t);
 		if (likely(ret == 0)) {
-			assert(t && t->type != PART_TASK_T_WORKSHARE);
+			assert(t && t->type == PART_TASK_T_TASK);
 			thdnum = part_task_work_try(t);
 			if (thdnum == 0) goto found;
 		}
@@ -380,20 +390,22 @@ single:
 
 			continue;
 		}
-		assert(t->type != PART_TASK_T_WORKSHARE);
+		assert(t->type == PART_TASK_T_TASK);
 found:
+		assert(t->type != PART_TASK_T_NONE);
 		if (unlikely(thdnum < 0)) thdnum = part_task_work_try(t);
 		if (unlikely(thdnum < 0)) continue;
-		if (t->type != PART_TASK_T_WORKSHARE) assert(thdnum == 0);
+		if (t->type == PART_TASK_T_TASK) assert(thdnum == 0);
 		curr->part_context = (void *)t;
 
 		t->cs.fn(t->cs.data);
 
 		part_task_end(t);
 		/* free the explicit task! */
-		if (t->type != PART_TASK_T_WORKSHARE) {
+		if (t->type == PART_TASK_T_TASK) {
 			struct part_data *d = t->data_env;
 
+			assert(t->nthds == 1 && t->end == 1);
 			part_task_free(t);
 			part_data_free(d);
 		}
