@@ -325,6 +325,7 @@ GOMP_task (void (*fn) (void *), void *data, void (*cpyfn) (void *, void *),
 
 		assert(pt && d);
 		assert(arg_size + arg_align - 1 <= PART_MAX_DATA);
+		memset(d->data, 0, PART_MAX_DATA);
 		arg = (char *) (((uintptr_t) d->data + arg_align - 1)
                                 & ~(uintptr_t) (arg_align - 1));
 		if (cpyfn) cpyfn(arg, data);
