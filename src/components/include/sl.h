@@ -612,7 +612,12 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 #endif
 	if (unlikely(t == sl_thd_curr())) return 0;
 
-	ret = sl_thd_dispatch(t, tok, sl_thd_curr());
+	/*
+	 * if the periodic timer is already ahead,
+	 * don't reprogram it!
+	 */
+	if (likely(offset > globals->cyc_per_usec)) ret = sl_thd_dispatch(t, tok, sl_thd_curr());
+	else ret = sl_thd_activate(t, tok, globals->timeout_next);
 
 #ifdef SL_REPLENISH 
 	/*
@@ -684,7 +689,20 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 #endif
 	if (unlikely(t == sl_thd_curr())) return 0;
 
-	ret = sl_thd_activate(t, tok, abs_timeout ? tcap_cyc2time(abs_timeout) : globals->timeout_next);
+	/* 
+	 * if the requested timeout is greater than next timeout 
+	 * and timer is already programmed to be over a usec away, don't 
+	 * reprogam it.
+	 *
+	 * else, reprogram for an earlier timeout requested.
+	 */
+	if (likely(offset > globals->cyc_per_usec 
+		   && abs_timeout > globals->timer_next)) {
+		ret = sl_thd_dispatch(t, tok, sl_thd_curr());
+	} else {
+		ret = sl_thd_activate(t, tok, abs_timeout < globals->timer_next 
+				      ? tcap_cyc2time(abs_timeout) : globals->timeout_next);
+	}
 
 #ifdef SL_REPLENISH 
 	/*
