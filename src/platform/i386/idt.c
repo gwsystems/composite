@@ -68,6 +68,17 @@ idt_init(const cpuid_t cpu_id)
 	idt_ptr.base  = (u32_t)&(idt_entries);
 	memset(&(idt_entries), 0, sizeof(struct idt_entry) * NUM_IDT_ENTRIES);
 
+        outb(0x20, 0x11);
+        outb(0xA0, 0x11);
+        outb(0x21, 0x20);
+        outb(0xA1, 0x28);
+        outb(0x21, 0x04);
+        outb(0xA1, 0x02);
+        outb(0x21, 0x01);
+        outb(0xA1, 0x01);
+        outb(0x21, 0x0);
+        outb(0xA1, 0x0);
+
 	idt_set_gate(IRQ_DIV_BY_ZERO_ERR_FAULT, (u32_t)div_by_zero_err_fault_irq, 0x08, 0x8E);
 	idt_set_gate(IRQ_DEBUG_TRAP, (u32_t)debug_trap_irq, 0x08, 0x8E);
 	idt_set_gate(IRQ_BREAKPOINT_TRAP, (u32_t)breakpoint_trap_irq, 0x08, 0x8E);
@@ -120,6 +131,7 @@ idt_init(const cpuid_t cpu_id)
 	idt_set_gate(HW_ID30, (u32_t)handler_hw_61, 0x08, 0x8E);
 	idt_set_gate(HW_ID31, (u32_t)handler_hw_62, 0x08, 0x8E);
 	idt_set_gate(HW_LAPIC_SPURIOUS, (u32_t)lapic_spurious_irq, 0x08, 0x8E);
+	idt_set_gate(HW_LAPIC_IPI_ASND, (u32_t)lapic_ipi_asnd_irq, 0x08, 0x8E);
 	idt_set_gate(HW_LAPIC_TIMER, (u32_t)lapic_timer_irq, 0x08, 0x8E);
 
 update:
