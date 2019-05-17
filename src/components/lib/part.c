@@ -25,7 +25,7 @@ static struct part_task *part_tasks = NULL;
 static struct part_data *part__data = NULL;
 struct ps_list_head part_thdpool_core[NUM_CPU];
 
-#define PART_DEQUE_SZ 64
+#define PART_DEQUE_SZ PART_MAX_TASKS
 #define _PART_PRIO TCAP_PRIO_MAX
 #define _PART_PRIO_PACK() sched_param_pack(SCHEDP_PRIO, _PART_PRIO)
 
@@ -36,7 +36,10 @@ struct ps_list_head part_thdpool_core[NUM_CPU];
 static void
 part_idle_fn(void *d)
 {
-	while (1) part_pool_wakeup();
+	while (1) {
+		part_pool_wakeup();
+		sl_thd_yield_thd(sl__globals_core()->sched_thd);
+	}
 }
 
 struct part_data *

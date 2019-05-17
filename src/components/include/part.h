@@ -138,20 +138,14 @@ part_pool_wakeup(void)
 	if (!ps_load(&in_main_parallel)) return;
 
 	sl_cs_enter();
-	if (unlikely(ps_list_head_empty(part_thdpool_curr()))) {
-		sl_cs_exit();
-
-		/* there is nothing in the pool, should we do load-balance? */
-		//sl_xcore_load_balance();
-		return;
-	}
+	if (unlikely(ps_list_head_empty(part_thdpool_curr()))) goto done;
 
 	t = ps_list_head_first(part_thdpool_curr(), struct sl_thd, partlist);
 	assert(t != sl_thd_curr());
 	ps_list_rem(t, partlist);
-	sl_cs_exit();
-
-	sl_thd_wakeup(sl_thd_thdid(t));
+	sl_thd_wakeup_no_cs(t);
+done:
+	sl_cs_exit_schedule();
 #endif
 }
 
@@ -161,13 +155,12 @@ part_pool_block(void)
 #ifdef PART_ENABLE_BLOCKING
 	struct sl_thd *t = sl_thd_curr();
 
-	assert(ps_list_singleton(t, partlist));
 	sl_cs_enter();
+	if (ps_list_singleton(t, partlist)) ps_list_head_append(part_thdpool_curr(), t, partlist);
+	if (!sl_thd_is_runnable(t)) assert(0);
 
-	ps_list_head_append(part_thdpool_curr(), t, partlist);
-	sl_cs_exit();
-
-	sl_thd_block(0);
+	sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0);
+	sl_cs_exit_schedule();
 #else
 	sl_thd_yield(0);
 #endif
@@ -300,7 +293,7 @@ done:
 	i = part_task_work_try(&main_task);
 	assert(i != 0);
 
-	if (likely(i > 0 && !ps_load(&main_task.end))) return &main_task;
+	if (likely(i > 0 && ps_load(&main_task.end) != main_task.nthds)) return &main_task;
 
 	return NULL;
 #endif
@@ -310,46 +303,82 @@ void part_init(void);
 
 unsigned part_isready(void);
 
-/* a part_task.h api but uses part_list_remove in the master thread, so here! */
 static inline void
-part_task_end(struct part_task *t)
+part_task_barrier(struct part_task *t, int is_end)
 {
 	struct sl_thd *ts = sl_thd_curr();
-	struct part_task *p = t->parent;
-	int tn = part_task_work_thd_num(t);
+	unsigned cbc = 0, cbep = 0;
+	unsigned ec = 0;
+	int is_master = t->master == PART_CURR_THD ? 1 : 0;
 
 	assert(t->type != PART_TASK_T_NONE);
-	assert(tn >= 0);
+	assert(t->state == PART_TASK_S_INITIALIZED);
 	assert(t->nthds >= 1);
-	assert(ts->part_context == (void *)t);
-	if (t->nthds == 1) {
-		int i;
 
-		assert(tn == 0);
+	/* master thread to wait for child threads first, before barrier! */
+	if (is_master) {
+		assert(t->master == PART_CURR_THD);
 		part_task_wait_children(t);
-		part_task_remove_child(t->parent, t);
+	}
+
+	if (t->nthds == 1) {
+		struct part_data *d;
+
+		if (unlikely(!is_end)) return;
+
 		ps_faa(&t->end, 1);
+		/* remove myself from my parent. */
+		part_task_remove_child(t);
 		if (t->type == PART_TASK_T_WORKSHARE) {
-			assert(t->workers[tn] == t->master);
-			ts->part_context = p;
+			assert(is_master);
+			ts->part_context = t->parent;
+
+			return;
 		}
+
+		ts->part_context = NULL;
+		d = t->data_env;
+
+		part_task_free(t);
+		part_data_free(d);
 
 		return;
 	}
-	part_task_barrier(t);
 
-	if (tn == 0) {
-		if (t->type == PART_TASK_T_WORKSHARE) part_list_remove(t);
-		ts->part_context = p;
-		part_task_remove_child(t->parent, t);
-		ps_faa(&t->end, 1);
+	assert(t->type == PART_TASK_T_WORKSHARE);
+
+	cbep = ps_load(&t->barrier_epoch);
+	cbc = ps_faa(&t->barrier, -1);
+	if (cbc > 1) {
+		sl_thd_block(0);
 	} else {
-		ps_faa(&t->end, 1);
-		while (ps_load(&t->end) != t->nthds) sl_thd_yield(0);
+		if (ps_cas(&t->barrier, 0, t->nthds)) ps_faa(&t->barrier_epoch, 1);
+		if (is_master) {
+			part_peer_wakeup(t);
+		} else {
+			part_master_wakeup(t);
+			sl_thd_block(0);
+		}
+	}
+	assert(ps_load(&t->barrier_epoch) == cbep + 1);
 
+	if (!is_end) return;
+	ec = ps_faa(&t->end, 1);
+
+	if (is_master) {
+		while (ps_load(&t->end) != t->nthds) sl_thd_block(0);
+		part_task_remove_child(t);
+		part_list_remove(t);
+		ts->part_context = t->parent;
+	} else {
+		part_master_wakeup(t);
 		ts->part_context = NULL;
 	}
 }
+
+static inline void
+part_task_end(struct part_task *t)
+{ part_task_barrier(t, 1); }
 
 static inline void
 part_thd_fn(void *d)
@@ -359,27 +388,26 @@ part_thd_fn(void *d)
 	/* parallel runtime not ready? */
 	/* if (unlikely(!part_isready())) part_pool_block(); */
 	/* not in the main parallel block? */
-	while (!ps_load(&in_main_parallel)) part_pool_block();
 
 	while (1) {
 		struct part_task *t = NULL;
 		int ret;
-		int thdnum = -1;
-		unsigned thd = cos_cpuid() << 16 | cos_thdid();
+
+		while (!ps_load(&in_main_parallel)) part_pool_block();
 
 		/* FIXME: nested parallel needs love! */
 		t = part_list_peek();
-		if (likely(t)) {
-			thdnum = part_task_work_try(t);
-			if (thdnum >= 0) goto found;
-		}
+		if (likely(t)) goto found;
 
 single:
 		ret = part_deque_pop(&t);
 		if (likely(ret == 0)) {
+			int thdnum = -1;
+
 			assert(t && t->type == PART_TASK_T_TASK);
 			thdnum = part_task_work_try(t);
-			if (thdnum == 0) goto found;
+			assert(thdnum == 0);
+			goto found;
 		}
 
 		if (unlikely(ret == -EAGAIN)) goto single;
@@ -389,27 +417,23 @@ single:
 			part_pool_block();
 
 			continue;
+		} else {
+			int thdnum = -1;
+
+			assert(t->type == PART_TASK_T_TASK);
+			thdnum = part_task_work_try(t);
+			if (thdnum < 0) continue;
+			assert(thdnum == 0);
 		}
-		assert(t->type == PART_TASK_T_TASK);
+
 found:
-		assert(t->type != PART_TASK_T_NONE);
-		if (unlikely(thdnum < 0)) thdnum = part_task_work_try(t);
-		if (unlikely(thdnum < 0)) continue;
-		if (t->type == PART_TASK_T_TASK) assert(thdnum == 0);
+		assert(t);
 		curr->part_context = (void *)t;
 
 		t->cs.fn(t->cs.data);
 
 		part_task_end(t);
-		/* free the explicit task! */
-		if (t->type == PART_TASK_T_TASK) {
-			struct part_data *d = t->data_env;
-
-			assert(t->nthds == 1 && t->end == 1);
-			part_task_free(t);
-			part_data_free(d);
-		}
-		curr->part_context = NULL;
+		assert(curr->part_context == NULL);
 	}
 
 	sl_thd_exit();

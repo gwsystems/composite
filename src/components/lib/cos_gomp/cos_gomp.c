@@ -151,7 +151,7 @@ GOMP_barrier (void)
 {
 	struct part_task *t = (struct part_task *)sl_thd_curr()->part_context;
 
-	part_task_barrier(t);
+	part_task_barrier(t, 0);
 }
 
 static inline bool
@@ -276,7 +276,7 @@ GOMP_loop_end (void)
 
 	assert(t->ws[woff].type == PART_WORKSHARE_LOOP_DYNAMIC);
 
-	part_task_barrier(t);
+	part_task_barrier(t, 0);
 }
 
 void

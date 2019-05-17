@@ -19,7 +19,7 @@
  * PPoPP implementation paper, "Correct and Efficient Work-Stealing for Weak Memory Models"
  * https://www.di.ens.fr/~zappa/readings/ppopp13.pdf
  */
-#define DEQUE_MAX_SZ (1<<15)
+#define DEQUE_MAX_SZ (1<<13)
 
 #define DEQUE_PROTOTYPE(name, type)							\
 struct deque_##name {									\

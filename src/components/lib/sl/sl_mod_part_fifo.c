@@ -30,12 +30,7 @@ sl_mod_schedule(void)
 	if (unlikely(ps_list_head_empty(&threads[cos_cpuid()]))) goto done;
 	t = ps_list_head_first_d(&threads[cos_cpuid()], struct sl_thd_policy);
 
-	/*
-	 * we're the only thread and we're yielding, that
-	 * means, we don't want to run anymore. run idle thread so it can
-	 * pick someone else and that can do some work!
-	 */
-	if (likely(c != t)) return t;
+	return t;
 done:
 	if (likely(idle_thd[cos_cpuid()])) return idle_thd[cos_cpuid()];
 

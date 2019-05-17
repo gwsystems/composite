@@ -6,15 +6,17 @@
 #include <ps_list.h>
 #include <cos_types.h>
 
-#define PART_THD(c, t) (cos_cpuid() << 16 | cos_thdid())
+#define PART_THD(c, t) ((unsigned)(cos_cpuid() << 16 | cos_thdid()))
 #define PART_CURR_THD  PART_THD(cos_cpuid(), cos_thdid()) 
+#define PART_THD_COREID(t) (t >> 16)
+#define PART_THD_THDID(t)  ((t << 16) >> 16)
 
-#define PART_MAX_TASKS      256 
-#define PART_MAX_DATA       128
-#define PART_MAX_PAR_THDS   NUM_CPU
+#define PART_MAX_TASKS      256
+#define PART_MAX_DATA       256
+#define PART_MAX_PAR_THDS   NUM_CPU 
 #define PART_MAX_THDS       128
 #define PART_MAX_CORE_THDS  (PART_MAX_THDS/NUM_CPU)
-#define PART_MAX_CHILD      16 
+#define PART_MAX_CHILD      16
 #define PART_MAX_WORKSHARES 16
 
 typedef void (*part_fn_t)(void *);
@@ -77,10 +79,11 @@ struct part_task {
 	struct part_closure   cs;
 
 	unsigned nthds; /* number of threads for this task, 1 in case of non-workshare work */
+	unsigned nworkers;
 	unsigned workers[PART_MAX_PAR_THDS]; /* threads sharing this work or thread doing this work! */
 	int ws_off[PART_MAX_PAR_THDS]; /* progress of the workshares in each participating thread */
 	unsigned master; /* coreid << 16 | thdid of the master */
-	unsigned barrier_in, barrier_out, end;
+	unsigned end, barrier, barrier_epoch;
 
 	struct part_data *data_env; 
 	struct part_task *parent;
@@ -103,12 +106,17 @@ part_task_init(struct part_task *t, part_task_type_t type, struct part_task *p, 
 	t->cs.fn = fn;
 	t->cs.data = data;
 	t->nthds = nthds;
+	t->nworkers = 0;
 	memset(t->workers, 0, sizeof(unsigned) * PART_MAX_PAR_THDS);
 	t->master = PART_CURR_THD;
 	/* if it's worksharing, current thread is the master and does take part in the par section */
-	if (type == PART_TASK_T_WORKSHARE) t->workers[0] = t->master;
+	if (type == PART_TASK_T_WORKSHARE) {
+		t->nworkers = 1;
+		t->workers[0] = t->master;
+	}
 	for (i = 0; i < PART_MAX_PAR_THDS; i++) t->ws_off[i] = -1;
-	t->barrier_in = t->barrier_out = t->end = 0;
+	t->barrier = t->nthds;
+	t->end = t->barrier_epoch = 0;
 	t->data_env = d;
 	t->parent = p;
 	t->nchildren = 0;
@@ -137,22 +145,46 @@ part_task_add_child(struct part_task *t, struct part_task *c)
 }
 
 static inline void
-part_task_remove_child(struct part_task *t, struct part_task *c)
+part_thd_wakeup(unsigned thd)
 {
+	thdid_t t = PART_THD_THDID(thd);
+	cpuid_t c = PART_THD_COREID(thd);
+
+	assert(c >= 0 && c < NUM_CPU);
+	assert(t < MAX_NUM_THREADS);
+
+	if (thd == PART_CURR_THD) return;
+	if (c != cos_cpuid()) sl_xcore_thd_wakeup_tid(t, c);
+	else                  sl_thd_wakeup(t);
+}
+
+static inline void
+part_task_remove_child(struct part_task *c)
+{
+	struct part_task *p = c->parent;
+	unsigned wkup;
 	int i;
 
-	if (unlikely(!t || !c)) return;
-	assert(t->state == PART_TASK_S_INITIALIZED);
+	if (unlikely(!p)) return;
+	assert(c->state == PART_TASK_S_INITIALIZED);
 
-	i = ps_faa(&t->nchildren, -1);
+	if (c->type == PART_TASK_T_TASK) wkup = c->master;
+	else                             wkup = p->master;
+
+	i = ps_faa(&p->nchildren, -1);
 	assert(i > 0);
+
+	part_thd_wakeup(wkup);
 }
 
 static inline void
 part_task_wait_children(struct part_task *t)
 {
 	assert(t->state == PART_TASK_S_INITIALIZED);
-	while (ps_load(&t->nchildren) > 0) sl_thd_yield(0);
+	if (t->type == PART_TASK_T_WORKSHARE) assert(t->master == PART_CURR_THD);
+	else if (t->type == PART_TASK_T_TASK) assert(t->workers[0] == PART_CURR_THD);
+
+	while (ps_load(&t->nchildren) > 0) sl_thd_block(0);
 
 	assert(t->nchildren == 0);
 }
@@ -160,7 +192,7 @@ part_task_wait_children(struct part_task *t)
 static inline int
 part_task_work_try(struct part_task *t)
 {
-	unsigned i;
+	int i = 0;
         unsigned key = PART_CURR_THD;
 
 	assert(t->state == PART_TASK_S_INITIALIZED);
@@ -172,17 +204,15 @@ part_task_work_try(struct part_task *t)
 		assert(t->nthds >= 1);
 	}
 
-	for (i = 0; i < t->nthds; i++)
-	{
-		unsigned w = ps_load(&t->workers[i]);
+	/* task was finished! */
+	if (unlikely(ps_load(&t->end) == t->nthds)) return -1;
+	/* if you can work with this task */
+	i = ps_faa(&t->nworkers, 1);
+	if (unlikely(i >= (int)t->nthds)) return -1;
 
-		if (w == key) return i;
-		if (w) continue;
+	t->workers[i] = key;
 
-		if (likely(ps_cas(&t->workers[i], w, key))) return i;
-	}
-
-	return -1;
+	return i;
 }
 
 static inline int
@@ -191,8 +221,10 @@ part_task_work_thd_num(struct part_task *t)
 	int i; 
 	unsigned key = PART_CURR_THD;
 
+	assert(t);
+
 	assert(t->state == PART_TASK_S_INITIALIZED);
-	if (t->type == PART_TASK_T_TASK) {
+	if (likely(t->type == PART_TASK_T_TASK)) {
 		assert(t->nthds == 1);
 
 		if (ps_load(&t->workers[0]) == key) return 0;
@@ -210,40 +242,27 @@ part_task_work_thd_num(struct part_task *t)
 }
 
 static inline void
-part_task_barrier(struct part_task *t)
+part_master_wakeup(struct part_task *t)
 {
-	int tn = part_task_work_thd_num(t);
-	unsigned cin = 0, cout = 0;
-
+	assert(t->type == PART_TASK_T_WORKSHARE);
 	assert(t->state == PART_TASK_S_INITIALIZED);
-	assert(tn >= 0 && t->nthds >= 1);
+	assert(t->nthds > 1);
+	assert(t->master && t->master != PART_CURR_THD);
 
-	if (t->nthds == 1) {
-		int i;
+	part_thd_wakeup(t->master);
+}
 
-		assert(tn == 0 && t->barrier_in == 0);
+static inline void
+part_peer_wakeup(struct part_task *t)
+{
+	unsigned i;
 
-		/* wait for all child tasks to complete, including explicit tasks */
-		part_task_wait_children(t);
+	assert(t->type == PART_TASK_T_WORKSHARE);
+	assert(t->state == PART_TASK_S_INITIALIZED);
+	assert(t->nthds > 1);
+	assert(t->master == PART_CURR_THD);
 
-		return;
-	}
-
-	/* wait for all siblings to have seen the previous barrier */
-	while (ps_load(&t->barrier_out) % t->nthds) sl_thd_yield(0);
-
-	cin = ps_faa(&t->barrier_in, 1);
-	if (cin % t->nthds == t->nthds - 1) {
-		int i;
-
-		/* wait for all child tasks to complete, including explicit tasks */
-		part_task_wait_children(t);
-	} else {
-		/* wait for all sibling tasks to reach in barrier! */
-		while (ps_load(&t->barrier_in) % t->nthds != 0) sl_thd_yield(0);
-	}
-
-	ps_faa(&t->barrier_out, 1);
+	for (i = 1; i < t->nthds; i++) part_thd_wakeup(t->workers[i]);
 }
 
 #endif /* PART_TASK_H */
