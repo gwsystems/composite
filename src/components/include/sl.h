@@ -65,7 +65,7 @@ struct sl_global_core {
 
 	int         cyc_per_usec;
 	cycles_t    period;
-	cycles_t    timer_next;
+	cycles_t    timer_next, timer_prev;
 	tcap_time_t timeout_next;
 
 	struct cos_scb_info *scb_info;
@@ -374,10 +374,11 @@ sl_timeout_period_get(void)
 static inline void
 sl_timeout_oneshot(cycles_t absolute_us)
 {
-	sl__globals_core()->timer_next   = absolute_us;
-	sl__globals_core()->timeout_next = tcap_cyc2time(absolute_us);
+	struct sl_global_core *g = sl__globals_core();
 
-	sl_scb_info_core()->timer_next   = absolute_us;
+	g->timer_prev   = g->timer_next;
+	g->timer_next   = absolute_us;
+	g->timeout_next = tcap_cyc2time(absolute_us);
 }
 
 static inline void
@@ -616,7 +617,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 * if the periodic timer is already ahead,
 	 * don't reprogram it!
 	 */
-	if (likely(offset > globals->cyc_per_usec)) ret = sl_thd_dispatch(t, tok, sl_thd_curr());
+	if (likely(offset > globals->cyc_per_usec && globals->timer_prev)) ret = sl_thd_dispatch(t, tok, sl_thd_curr());
 	else ret = sl_thd_activate(t, tok, globals->timeout_next);
 
 #ifdef SL_REPLENISH 
@@ -696,7 +697,7 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 	 *
 	 * else, reprogram for an earlier timeout requested.
 	 */
-	if (likely(offset > globals->cyc_per_usec 
+	if (likely(offset > globals->cyc_per_usec && globals->timer_prev
 		   && abs_timeout > globals->timer_next)) {
 		ret = sl_thd_dispatch(t, tok, sl_thd_curr());
 	} else {
