@@ -78,11 +78,18 @@ static inline int
 _sl_xcore_request_enqueue_no_cs(cpuid_t core, struct sl_xcore_request *rq)
 {
 	int ret = 0;
+//	asndcap_t snd = 0;
 	
 	if (unlikely(core >= NUM_CPU)) return -1;
 	if (unlikely(core == cos_cpuid())) return -1;
 	if (unlikely(!bitmap_check(sl__globals()->core_bmp, core))) return -1;
 	ret = ck_ring_enqueue_mpsc_xcore(sl__ring(core), sl__ring_buffer(core), rq);
+//	snd = sl__globals()->xcore_asnd[cos_cpuid()][core];
+//	assert(snd);
+//
+//	/* send an IPI for the request */
+//	cos_asnd(snd, 0);
+
 	if (unlikely(ret == false)) return -1;
 
 	return 0;
@@ -92,7 +99,6 @@ static inline int
 _sl_xcore_request_enqueue(cpuid_t core, struct sl_xcore_request *rq)
 {
 	int ret = 0;
-	/* asndcap_t snd = 0; */
 	
 	if (unlikely(core >= NUM_CPU)) return -1;
 	sl_cs_enter();
@@ -100,11 +106,6 @@ _sl_xcore_request_enqueue(cpuid_t core, struct sl_xcore_request *rq)
 	sl_cs_exit();
 	if (unlikely(ret)) return -1;
 
-	/* snd = sl__globals()->xcore_asnd[cos_cpuid()][core]; */
-	/* assert(snd); */
-
-	/* send an IPI for the request */
-	/* if (snd) cos_asnd(snd, 0); */
 
 	return 0;
 }

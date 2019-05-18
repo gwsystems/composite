@@ -436,20 +436,50 @@ sl_thd_is_runnable(struct sl_thd *t)
 int sl_thd_kern_dispatch(thdcap_t t);
 
 static inline int
+sl_thd_activate(struct sl_thd *t, sched_tok_t tok, tcap_time_t timeout)
+{
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = &dci->ci;
+	struct sl_global_core  *g   = sl__globals_core();
+	int ret = 0;
+
+	if (t->properties & SL_THD_PROPERTY_SEND) {
+		return cos_sched_asnd(t->sndcap, timeout, g->sched_rcv, tok);
+	} else if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
+		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
+				  timeout, g->sched_rcv, tok);
+	} else {
+		ret = cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ?
+				    TCAP_TIME_NIL : timeout, tok);
+		if (likely(t != g->sched_thd && t != g->idle_thd)) return ret;
+		if (unlikely(ret != -EPERM)) return ret;
+
+		/*
+		 * Attempting to activate scheduler thread or idle thread failed for no budget in it's tcap.
+		 * Force switch to the scheduler with current tcap.
+		 */
+		return cos_switch(g->sched_thdcap, g->sched_tcap, t->prio,
+				  timeout, g->sched_rcv, tok);
+	}
+}
+
+
+
+static inline int
 sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
 	struct cos_scb_info *scb = sl_scb_info_core();
 	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr), *nd = sl_thd_dcbinfo(next);
 
-	if (unlikely(!cd || !nd)) {
-		return sl_thd_kern_dispatch(sl_thd_thdcap(next));
-	}
+	assert(curr != next);
+	if (unlikely(!cd || !nd)) return sl_thd_activate(next, tok, sl__globals_core()->timeout_next);
 
 	/*
 	 * jump labels in the asm routine:
 	 *
 	 * 1: slowpath dispatch using cos_thd_switch to switch to a thread
 	 *    if the dcb sp of the next thread is reset.
+	 *	(inlined slowpath sysenter to debug preemption problem)
 	 *
 	 * 2: if user-level dispatch routine completed successfully so
 	 *    the register states still retained and in the dispatched thread
@@ -461,6 +491,53 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 	 *    NOTE: kernel takes care of resetting dcb sp in this case!
 	 */
 
+	__asm__ __volatile__ (				\
+		"pushl %%eax\n\t"			\
+		"pushl %%ebx\n\t"			\
+		"pushl %%ecx\n\t"			\
+		"pushl %%edx\n\t"			\
+		"pushl %%esi\n\t"			\
+		"pushl %%edi\n\t"			\
+		"pushl %%ebp\n\t"			\
+		"movl %%esp, %%ebp\n\t"			\
+		"movl $2f, (%%eax)\n\t"			\
+		"movl %%esp, 4(%%eax)\n\t"		\
+		"cmp $0, 4(%%ebx)\n\t"			\
+		"je 1f\n\t"				\
+		"movl %%edx, (%%ecx)\n\t"		\
+		"movl 4(%%ebx), %%esp\n\t"		\
+		"jmp *(%%ebx)\n\t"			\
+		".align 4\n\t"				\
+		"1:\n\t"				\
+		"movl $3f, %%ecx\n\t"			\
+		"movl %%edx, %%eax\n\t"			\
+		"inc %%eax\n\t"				\
+		"shl $16, %%eax\n\t"			\
+		"movl $0, %%ebx\n\t"			\
+		"movl $0, %%esi\n\t"			\
+		"movl $0, %%edi\n\t"			\
+		"movl $0, %%edx\n\t"			\
+		"sysenter\n\t"				\
+		"jmp 3f\n\t"				\
+		".align 4\n\t"				\
+		"2:\n\t"				\
+		"movl $0, 4(%%ebx)\n\t"			\
+		".align 4\n\t"				\
+		"3:\n\t"				\
+		"popl %%ebp\n\t"			\
+		"popl %%edi\n\t"			\
+		"popl %%esi\n\t"			\
+		"popl %%edx\n\t"			\
+		"popl %%ecx\n\t"			\
+		"popl %%ebx\n\t"			\
+		"popl %%eax\n\t"			\
+		:
+		: "a" (cd), "b" (nd),
+		  "S" ((u32_t)((u64_t)tok >> 32)), "D" ((u32_t)(((u64_t)tok << 32) >> 32)),
+		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
+		: "memory", "cc");
+
+#if 0
 	__asm__ __volatile__ (				\
 		"pushl %%ebp\n\t"			\
 		"movl $2f, (%%eax)\n\t"			\
@@ -487,38 +564,12 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 		  "S" ((u32_t)((u64_t)tok >> 32)), "D" ((u32_t)(((u64_t)tok << 32) >> 32)),
 		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
 		: "memory", "cc");
+#endif
 
-	if (likely(sl_scb_info_core()->sched_tok == tok)) return 0;
+	//if (likely(sl_scb_info_core()->sched_tok == tok)) return 0;
 
-	return -EAGAIN;
-}
-
-static inline int
-sl_thd_activate(struct sl_thd *t, sched_tok_t tok, tcap_time_t timeout)
-{
-	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci  = &dci->ci;
-	struct sl_global_core  *g   = sl__globals_core();
-	int ret = 0;
-
-	if (t->properties & SL_THD_PROPERTY_SEND) {
-		return cos_sched_asnd(t->sndcap, timeout, g->sched_rcv, tok);
-	} else if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
-		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
-				  timeout, g->sched_rcv, tok);
-	} else {
-		ret = cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ?
-				    TCAP_TIME_NIL : timeout, tok);
-		if (likely(t != g->sched_thd && t != g->idle_thd)) return ret;
-		if (unlikely(ret != -EPERM)) return ret;
-
-		/*
-		 * Attempting to activate scheduler thread or idle thread failed for no budget in it's tcap.
-		 * Force switch to the scheduler with current tcap.
-		 */
-		return cos_switch(g->sched_thdcap, g->sched_tcap, t->prio,
-				  timeout, g->sched_rcv, tok);
-	}
+	return 0;
+	//return -EAGAIN;
 }
 
 static inline int

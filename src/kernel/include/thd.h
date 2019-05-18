@@ -669,14 +669,10 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		 */
 	}
 
-	if (likely(thd->dcbinfo && thd->dcbinfo->sp)) {
-		if (!preempt) {
-			regs->dx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
-			regs->cx = regs->sp = thd->dcbinfo->sp;
-		} else {
-			regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
-			regs->sp = thd->dcbinfo->sp;
-		}
+	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
+		assert(preempt == 0);
+		regs->dx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
+		regs->cx = regs->sp = thd->dcbinfo->sp;
 		thd->dcbinfo->sp = 0;
 	}
 

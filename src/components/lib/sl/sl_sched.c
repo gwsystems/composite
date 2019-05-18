@@ -681,7 +681,7 @@ sl_sched_loop_intern(int non_block)
 			 */
 			pending = cos_ul_sched_rcv(g->sched_rcv, rfl, g->timeout_next, &e);
 
-			if (!e.tid) goto pending_events;
+			if (pending < 0 || !e.tid) goto pending_events;
 
 			t = sl_thd_lkup(e.tid);
 			assert(t);
