@@ -345,11 +345,19 @@ void cilkmerge_par(ELM *low1, ELM *high1, ELM *low2, ELM *high2, ELM *lowdest)
       * the appropriate location
       */
      *(lowdest + lowsize + 1) = *split1;
+#if defined(FORCE_TIED_TASKS)
+#pragma omp task
+     cilkmerge_par(low1, split1 - 1, low2, split2, lowdest);
+#pragma omp task
+     cilkmerge_par(split1 + 1, high1, split2 + 1, high2,
+		     lowdest + lowsize + 2);
+#else
 #pragma omp task untied
      cilkmerge_par(low1, split1 - 1, low2, split2, lowdest);
 #pragma omp task untied
      cilkmerge_par(split1 + 1, high1, split2 + 1, high2,
 		     lowdest + lowsize + 2);
+#endif
 #pragma omp taskwait
 
      return;
@@ -488,7 +496,7 @@ void sort_par ( void )
 	#pragma omp parallel
 	#pragma omp single nowait
 #if defined(FORCE_TIED_TASKS)
-	#pragma omp task untied
+	#pragma omp task
 	     cilksort_par(array, tmp, bots_arg_size);
 #else
 	#pragma omp task untied
