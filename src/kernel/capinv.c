@@ -711,6 +711,10 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	int          ret;
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
+	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
+		assert((unsigned long)regs->cx == thd->dcbinfo->ip + DCB_IP_KERN_OFF);
+		assert((unsigned long)regs->bp == thd->dcbinfo->sp);
+	}
 
 	if (arcv) {
 		struct cap_arcv *arcv_cap;
@@ -779,13 +783,11 @@ cap_ipi_process(struct pt_regs *regs)
 	struct tcap 		   *tcap_curr, *tcap_next;
 	struct comp_info 	   *ci;
 	int                         i, scan_base;
-	unsigned long               ip, sp;
 
-	thd_curr       = thd_next = thd_current(cos_info);
+	thd_next       = thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &ci);
+	assert(ci && ci->captbl);
 	receiver_rings = &IPI_cap_dest[get_cpuid()];
 	tcap_curr      = tcap_next = tcap_current(cos_info);
-	ci             = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
-	assert(ci && ci->captbl);
 
 	scan_base = receiver_rings->start;
 	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
