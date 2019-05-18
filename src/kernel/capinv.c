@@ -783,13 +783,11 @@ cap_ipi_process(struct pt_regs *regs)
 	struct tcap 		   *tcap_curr, *tcap_next;
 	struct comp_info 	   *ci;
 	int                         i, scan_base;
-	unsigned long               ip, sp;
 
 	thd_next       = thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &ci);
+	assert(ci && ci->captbl);
 	receiver_rings = &IPI_cap_dest[get_cpuid()];
 	tcap_curr      = tcap_next = tcap_current(cos_info);
-	ci             = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
-	assert(ci && ci->captbl);
 
 	scan_base = receiver_rings->start;
 	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
