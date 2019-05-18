@@ -356,7 +356,7 @@ part_task_barrier(struct part_task *t, int is_end)
 			part_peer_wakeup(t);
 		} else {
 			part_master_wakeup(t);
-			sl_thd_block(0);
+			//sl_thd_block(0);
 		}
 	}
 	assert(ps_load(&t->barrier_epoch) == cbep + 1);
