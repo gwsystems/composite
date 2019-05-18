@@ -141,7 +141,7 @@ part_pool_wakeup(void)
 	if (unlikely(ps_list_head_empty(part_thdpool_curr()))) goto done;
 
 	t = ps_list_head_first(part_thdpool_curr(), struct sl_thd, partlist);
-	ps_list_rem(t, partlist);
+	/* removal from the list is taken care in mod_part_fifo */
 	if (t == sl_thd_curr()) goto done;
 	sl_thd_wakeup_no_cs(t);
 done:
@@ -155,12 +155,15 @@ part_pool_block(void)
 #ifdef PART_ENABLE_BLOCKING
 	struct sl_thd *t = sl_thd_curr();
 
+	/* very much a replica of sl_thd_block + adding to thread pool in part */
 	sl_cs_enter();
+	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0)) {
+		sl_cs_exit();
+		return;
+	}
 	if (ps_list_singleton(t, partlist)) ps_list_head_append(part_thdpool_curr(), t, partlist);
-	if (!sl_thd_is_runnable(t)) assert(0);
-
-	sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0);
 	sl_cs_exit_schedule();
+	assert(sl_thd_is_runnable(t));
 #else
 	sl_thd_yield(0);
 #endif

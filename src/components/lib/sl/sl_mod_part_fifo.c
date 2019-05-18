@@ -59,10 +59,14 @@ sl_mod_block(struct sl_thd_policy *t)
 void
 sl_mod_wakeup(struct sl_thd_policy *t)
 {
+	struct sl_thd *tm = sl_mod_thd_get(t);
+
 	assert(t != idle_thd[cos_cpuid()]);
 	assert(ps_list_singleton_d(t));
 
 	ps_list_head_append_d(&threads[cos_cpuid()], t);
+	/* remove from partlist used for tracking free pool of tasks on this core! */
+	if (!ps_list_singleton(tm, partlist)) ps_list_rem(tm, partlist);
 }
 
 void
