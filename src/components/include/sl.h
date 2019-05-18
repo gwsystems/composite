@@ -463,8 +463,6 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok, tcap_time_t timeout)
 	}
 }
 
-
-
 static inline int
 sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
@@ -524,35 +522,6 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 		  "S" ((u32_t)((u64_t)tok >> 32)), "D" ((u32_t)(((u64_t)tok << 32) >> 32)),
 		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
 		: "memory", "cc");
-
-#if 0
-	__asm__ __volatile__ (				\
-		"pushl %%ebp\n\t"			\
-		"movl $2f, (%%eax)\n\t"			\
-		"movl %%esp, 4(%%eax)\n\t"		\
-		"cmp $0, 4(%%ebx)\n\t"			\
-		"je 1f\n\t"				\
-		"movl %%edx, (%%ecx)\n\t"		\
-		"movl 4(%%ebx), %%esp\n\t"		\
-		"jmp *(%%ebx)\n\t"			\
-		"1:\n\t"				\
-		"movl %%esp, %%ebp\n\t"			\
-		"pushl %%edx\n\t"			\
-		"call sl_thd_kern_dispatch\n\t"		\
-		"addl $4, %%esp\n\t"			\
-		"jmp 3f\n\t"				\
-		".align 4\n\t"				\
-		"2:\n\t"				\
-		"movl $0, 4(%%ebx)\n\t"			\
-		".align 4\n\t"				\
-		"3:\n\t"				\
-		"popl %%ebp\n\t"			\
-		:
-		: "a" (cd), "b" (nd),
-		  "S" ((u32_t)((u64_t)tok >> 32)), "D" ((u32_t)(((u64_t)tok << 32) >> 32)),
-		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
-		: "memory", "cc");
-#endif
 
 	//if (likely(sl_scb_info_core()->sched_tok == tok)) return 0;
 
