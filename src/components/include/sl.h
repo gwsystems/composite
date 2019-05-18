@@ -523,10 +523,9 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
 		: "memory", "cc");
 
-	//if (likely(sl_scb_info_core()->sched_tok == tok)) return 0;
+	if (likely(sl_scb_info_core()->sched_tok == tok)) return 0;
 
-	return 0;
-	//return -EAGAIN;
+	return -EAGAIN;
 }
 
 static inline int
