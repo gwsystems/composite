@@ -492,12 +492,6 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 	 */
 
 	__asm__ __volatile__ (				\
-		"pushl %%eax\n\t"			\
-		"pushl %%ebx\n\t"			\
-		"pushl %%ecx\n\t"			\
-		"pushl %%edx\n\t"			\
-		"pushl %%esi\n\t"			\
-		"pushl %%edi\n\t"			\
 		"pushl %%ebp\n\t"			\
 		"movl %%esp, %%ebp\n\t"			\
 		"movl $2f, (%%eax)\n\t"			\
@@ -525,12 +519,6 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 		".align 4\n\t"				\
 		"3:\n\t"				\
 		"popl %%ebp\n\t"			\
-		"popl %%edi\n\t"			\
-		"popl %%esi\n\t"			\
-		"popl %%edx\n\t"			\
-		"popl %%ecx\n\t"			\
-		"popl %%ebx\n\t"			\
-		"popl %%eax\n\t"			\
 		:
 		: "a" (cd), "b" (nd),
 		  "S" ((u32_t)((u64_t)tok >> 32)), "D" ((u32_t)(((u64_t)tok << 32) >> 32)),
