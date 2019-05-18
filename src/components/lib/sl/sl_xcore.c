@@ -16,7 +16,10 @@ _sl_xcore_response_wait(struct sl_xcore_response *r)
 	if (sl_thd_curr() != sl__globals_core()->sched_thd) {
 		if (!ps_load(&r->resp_ready)) sl_thd_block(0);
 	} else {
-		while (!ps_load(&r->resp_ready)) ;
+		while (!ps_load(&r->resp_ready)) {
+			if (sl_cs_enter_sched()) continue;
+			sl_cs_exit_schedule_nospin();
+		}
 	}
 	assert(r->resp_ready);
 }
@@ -78,17 +81,17 @@ static inline int
 _sl_xcore_request_enqueue_no_cs(cpuid_t core, struct sl_xcore_request *rq)
 {
 	int ret = 0;
-//	asndcap_t snd = 0;
+	asndcap_t snd = 0;
 	
 	if (unlikely(core >= NUM_CPU)) return -1;
 	if (unlikely(core == cos_cpuid())) return -1;
 	if (unlikely(!bitmap_check(sl__globals()->core_bmp, core))) return -1;
 	ret = ck_ring_enqueue_mpsc_xcore(sl__ring(core), sl__ring_buffer(core), rq);
-//	snd = sl__globals()->xcore_asnd[cos_cpuid()][core];
-//	assert(snd);
-//
+	snd = sl__globals()->xcore_asnd[cos_cpuid()][core];
+	assert(snd);
+
 //	/* send an IPI for the request */
-//	cos_asnd(snd, 0);
+	cos_asnd(snd, 0);
 
 	if (unlikely(ret == false)) return -1;
 
