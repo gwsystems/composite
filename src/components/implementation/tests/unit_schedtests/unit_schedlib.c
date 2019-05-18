@@ -223,8 +223,8 @@ cos_init(void)
 	cos_dcb_info_init_curr();
 	sl_init(SL_MIN_PERIOD_US);
 
-	test_yield_perf();
-	//test_yields();
+	//test_yield_perf();
+	test_yields();
 	//test_blocking_directed_yield();
 	//test_timeout_wakeup();
 

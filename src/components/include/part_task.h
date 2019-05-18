@@ -67,6 +67,7 @@ struct part_closure {
 
 struct part_data {
 	int flag; /* 0 = not in use, 1 = in use */	
+	struct part_data *next_free; /* for explicit data allocation/free */
 	char data[PART_MAX_DATA];
 };
 
@@ -90,6 +91,7 @@ struct part_task {
 	int nchildren;
 
 	struct ps_list partask;
+	struct part_task *next_free; /* for explicit task allocation/free */
 } CACHE_ALIGNED;
 
 static inline void

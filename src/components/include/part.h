@@ -141,11 +141,11 @@ part_pool_wakeup(void)
 	if (unlikely(ps_list_head_empty(part_thdpool_curr()))) goto done;
 
 	t = ps_list_head_first(part_thdpool_curr(), struct sl_thd, partlist);
-	assert(t != sl_thd_curr());
 	ps_list_rem(t, partlist);
+	if (t == sl_thd_curr()) goto done;
 	sl_thd_wakeup_no_cs(t);
 done:
-	sl_cs_exit_schedule();
+	sl_cs_exit();
 #endif
 }
 
@@ -308,7 +308,6 @@ part_task_barrier(struct part_task *t, int is_end)
 {
 	struct sl_thd *ts = sl_thd_curr();
 	unsigned cbc = 0, cbep = 0;
-	unsigned ec = 0;
 	int is_master = t->master == PART_CURR_THD ? 1 : 0;
 
 	assert(t->type != PART_TASK_T_NONE);
@@ -363,7 +362,7 @@ part_task_barrier(struct part_task *t, int is_end)
 	assert(ps_load(&t->barrier_epoch) == cbep + 1);
 
 	if (!is_end) return;
-	ec = ps_faa(&t->end, 1);
+	ps_faa(&t->end, 1);
 
 	if (is_master) {
 		while (ps_load(&t->end) != t->nthds) sl_thd_block(0);

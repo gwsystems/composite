@@ -11,6 +11,7 @@ MUSLBIN=$(MUSLDIR)/bin
 MUSLCC=$(MUSLBIN)/musl-$(CC)
 MUSLINC=-isystem$(MUSLDIR)/include
 
+PSLIBDIR=$(LIBDIR)/ps
 CKDIR=$(LIBDIR)/ck
 CKLIBDIR=$(CKDIR)/lib
 CKINCDIR=$(CKDIR)/include
