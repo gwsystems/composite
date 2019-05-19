@@ -273,7 +273,6 @@ enum
 	/*
 	 * NOTE: kernel doesn't support sharing a cache-line across cores,
 	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU
-	 * Update: add per-core INIT DCB cap in to the same cache-line.
 	 */
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP64B_IDSZ,
                                                          CAPMAX_ENTRY_SZ),
@@ -295,11 +294,11 @@ enum
 enum llboot_scb_dcb_caps
 {
 	LLBOOT_CAPTBL_SCB     = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
-	LLBOOT_CAPTBL_INITDCB = LLBOOT_CAPTBL_SCB + CAP32B_IDSZ,
-	LLBOOT_CAPTBL_FREE    = round_up_to_pow2(LLBOOT_CAPTBL_INITDCB + (CAP32B_IDSZ * NUM_CPU), CAPMAX_ENTRY_SZ),
+	LLBOOT_CAPTBL_INITDCB = LLBOOT_CAPTBL_SCB + CAP64B_IDSZ,
+	LLBOOT_CAPTBL_FREE    = round_up_to_pow2(LLBOOT_CAPTBL_INITDCB + (CAP64B_IDSZ * NUM_CPU), CAPMAX_ENTRY_SZ),
 };
 
-#define LLBOOT_CAPTBL_INITDCB_CPU(cpuid) (LLBOOT_CAPTBL_INITDCB + (CAP32B_IDSZ * cpuid))
+#define LLBOOT_CAPTBL_INITDCB_CPU(cpuid) (LLBOOT_CAPTBL_INITDCB + (CAP64B_IDSZ * cpuid))
 #define LLBOOT_CAPTBL_CPU_INITDCB        (LLBOOT_CAPTBL_INITDCB_CPU(cos_cpuid()))
 
 /*
