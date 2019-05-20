@@ -3,7 +3,7 @@
 #include <llprint.h>
 #include <sl.h>
 #include <cos_omp.h>
-#include <hypercall.h>
+#include <cos_dcb.h>
 
 int main(void);
 
@@ -17,6 +17,7 @@ cos_exit(int x)
 static void
 cos_main(void *d)
 {
+	assert(sl_thd_thdid(sl_thd_curr()) == cos_thdid());
 	main();
 
 	while (1) ;
@@ -36,12 +37,13 @@ cos_init(void *d)
 	PRINTC("In an OpenMP program!\n");
 	if (ps_cas(&first, NUM_CPU + 1, cos_cpuid())) {
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-		cos_defcompinfo_init();
+		cos_defcompinfo_llinit();
 	} else {
 		while (!ps_load(&init_done[first])) ;
 
 		cos_defcompinfo_sched_init();
 	}
+	cos_dcb_info_init_curr();
 	ps_faa(&init_done[cos_cpuid()], 1);
 
 	/* make sure the INITTHD of the scheduler is created on all cores.. for cross-core sl initialization to work! */
@@ -56,7 +58,6 @@ cos_init(void *d)
 	/* barrier, wait for gomp_init to be done on all cores */
 	ps_faa(&b2, 1);
 	while (ps_load(&b2) != NUM_CPU) ;
-	hypercall_comp_init_done();
 
 	if (!cos_cpuid()) {
 		struct sl_thd *t = NULL;

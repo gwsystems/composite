@@ -210,6 +210,7 @@ __captbl_cap2sz(cap_t c)
 	switch (c) {
 	case CAP_SRET:
 	case CAP_TCAP:
+	case CAP_THD:
 		return CAP_SZ_16B;
 	case CAP_SCB:
 	case CAP_DCB:
@@ -217,7 +218,6 @@ __captbl_cap2sz(cap_t c)
 	case CAP_PGTBL:
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 		return CAP_SZ_32B;
-	case CAP_THD: /* to allow thread migration across cores using the same capability */
 	case CAP_SINV:
 	case CAP_COMP:
 	case CAP_ASND:
@@ -273,34 +273,35 @@ enum
 	/*
 	 * NOTE: kernel doesn't support sharing a cache-line across cores,
 	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU
-	 * Update: add per-core INIT DCB cap in to the same cache-line.
 	 */
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP64B_IDSZ,
                                                          CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_SELF_INITTCAP_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
-                                                         CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU * CAP64B_IDSZ,
+	/* BOOT_CAPTBL_SELF_INITTCAP_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
+                                                         CAPMAX_ENTRY_SZ), */
+	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
+
+#define BOOT_CAPTBL_SELF_INITTCAP_BASE BOOT_CAPTBL_SELF_INITTHD_BASE + CAP16B_IDSZ
 
 #define BOOT_CAPTBL_SELF_INITTHD_CPU_BASE (BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cos_cpuid()))
 #define BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE (BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cos_cpuid()))
 #define BOOT_CAPTBL_SELF_INITRCV_CPU_BASE (BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cos_cpuid()))
 
 #define BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE + cpuid * CAP64B_IDSZ)
-#define BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTCAP_BASE + cpuid * CAP64B_IDSZ)
+#define BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) + CAP16B_IDSZ)
 #define BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITRCV_BASE + cpuid * CAP64B_IDSZ)
 
 enum llboot_scb_dcb_caps
 {
 	LLBOOT_CAPTBL_SCB     = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
-	LLBOOT_CAPTBL_INITDCB = LLBOOT_CAPTBL_SCB + CAP32B_IDSZ,
-	LLBOOT_CAPTBL_FREE    = round_up_to_pow2(LLBOOT_CAPTBL_INITDCB + (CAP32B_IDSZ * NUM_CPU), CAPMAX_ENTRY_SZ),
+	LLBOOT_CAPTBL_INITDCB = LLBOOT_CAPTBL_SCB + CAP64B_IDSZ,
+	LLBOOT_CAPTBL_FREE    = round_up_to_pow2(LLBOOT_CAPTBL_INITDCB + (CAP64B_IDSZ * NUM_CPU), CAPMAX_ENTRY_SZ),
 };
 
-#define LLBOOT_CAPTBL_INITDCB_CPU(cpuid) (LLBOOT_CAPTBL_INITDCB + (CAP32B_IDSZ * cpuid))
-#define LLBOOT_CAPTBL_CPU_INITDCB        (LLBOOT_CAPTBL_INITDCB_CPU(cos_cpuid()))
+#define LLBOOT_CAPTBL_INITDCB_CPU(cpuid) (LLBOOT_CAPTBL_INITDCB + (CAP64B_IDSZ * cpuid))
+#define LLBOOT_CAPTBL_CPU_INITDCB        LLBOOT_CAPTBL_INITDCB_CPU(cos_cpuid())
 
 /*
  * The half of the first page of init captbl is devoted to root node. So, the

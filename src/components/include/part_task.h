@@ -13,8 +13,8 @@
 
 #define PART_MAX_TASKS      256
 #define PART_MAX_DATA       256
-#define PART_MAX_PAR_THDS   NUM_CPU 
-#define PART_MAX_THDS       128
+#define PART_MAX_PAR_THDS   NUM_CPU
+#define PART_MAX_THDS       512
 #define PART_MAX_CORE_THDS  (PART_MAX_THDS/NUM_CPU)
 #define PART_MAX_CHILD      16
 #define PART_MAX_WORKSHARES 16
@@ -88,7 +88,8 @@ struct part_task {
 
 	struct part_data *data_env; 
 	struct part_task *parent;
-	int nchildren;
+	/* in data-parallel task, each thread waits for its children. */
+	int nchildren[PART_MAX_PAR_THDS];
 
 	struct ps_list partask;
 	struct part_task *next_free; /* for explicit task allocation/free */
@@ -121,7 +122,7 @@ part_task_init(struct part_task *t, part_task_type_t type, struct part_task *p, 
 	t->end = t->barrier_epoch = 0;
 	t->data_env = d;
 	t->parent = p;
-	t->nchildren = 0;
+	memset(t->nchildren, 0, sizeof(int) * PART_MAX_PAR_THDS);
 
 	ps_list_init(t, partask);
 }
@@ -130,66 +131,6 @@ struct part_task *part_task_alloc(part_task_type_t);
 void part_task_free(struct part_task *);
 struct part_data *part_data_alloc(void);
 void part_data_free(struct part_data *);
-
-static inline int
-part_task_add_child(struct part_task *t, struct part_task *c)
-{
-	int i;
-
-	assert(t->state == PART_TASK_S_INITIALIZED);
-
-	if (unlikely(!t || !c)) return -1;
-
-	i = ps_faa(&t->nchildren, 1);
-	assert(i < PART_MAX_CHILD);
-	
-	return i;
-}
-
-static inline void
-part_thd_wakeup(unsigned thd)
-{
-	thdid_t t = PART_THD_THDID(thd);
-	cpuid_t c = PART_THD_COREID(thd);
-
-	assert(c >= 0 && c < NUM_CPU);
-	assert(t < MAX_NUM_THREADS);
-
-	if (thd == PART_CURR_THD) return;
-	if (c != cos_cpuid()) sl_xcore_thd_wakeup_tid(t, c);
-	else                  sl_thd_wakeup(t);
-}
-
-static inline void
-part_task_remove_child(struct part_task *c)
-{
-	struct part_task *p = c->parent;
-	unsigned wkup;
-	int i;
-
-	if (unlikely(!p)) return;
-	assert(c->state == PART_TASK_S_INITIALIZED);
-
-	if (c->type == PART_TASK_T_TASK) wkup = c->master;
-	else                             wkup = p->master;
-
-	i = ps_faa(&p->nchildren, -1);
-	assert(i > 0);
-
-	part_thd_wakeup(wkup);
-}
-
-static inline void
-part_task_wait_children(struct part_task *t)
-{
-	assert(t->state == PART_TASK_S_INITIALIZED);
-	if (t->type == PART_TASK_T_WORKSHARE) assert(t->master == PART_CURR_THD);
-	else if (t->type == PART_TASK_T_TASK) assert(t->workers[0] == PART_CURR_THD);
-
-	while (ps_load(&t->nchildren) > 0) sl_thd_block(0);
-
-	assert(t->nchildren == 0);
-}
 
 static inline int
 part_task_work_try(struct part_task *t)
@@ -218,10 +159,10 @@ part_task_work_try(struct part_task *t)
 }
 
 static inline int
-part_task_work_thd_num(struct part_task *t)
+part_task_work_thd_num(struct part_task *t, unsigned core_thd)
 {
 	int i; 
-	unsigned key = PART_CURR_THD;
+	unsigned key = core_thd;
 
 	assert(t);
 
@@ -241,6 +182,20 @@ part_task_work_thd_num(struct part_task *t)
 	}
 
 	return -1;
+}
+
+static inline void
+part_thd_wakeup(unsigned thd)
+{
+	thdid_t t = PART_THD_THDID(thd);
+	cpuid_t c = PART_THD_COREID(thd);
+
+	assert(c >= 0 && c < NUM_CPU);
+	assert(t < MAX_NUM_THREADS);
+
+	if (thd == PART_CURR_THD) return;
+	if (c != cos_cpuid()) sl_xcore_thd_wakeup_tid(t, c);
+	else                  sl_thd_wakeup(t);
 }
 
 static inline void
@@ -265,6 +220,58 @@ part_peer_wakeup(struct part_task *t)
 	assert(t->master == PART_CURR_THD);
 
 	for (i = 1; i < t->nthds; i++) part_thd_wakeup(t->workers[i]);
+}
+
+static inline int
+part_task_add_child(struct part_task *t, struct part_task *c)
+{
+	int i;
+	int num = part_task_work_thd_num(t, PART_CURR_THD);
+
+	assert(num >= 0);
+	assert(t->state == PART_TASK_S_INITIALIZED);
+
+	if (unlikely(!t || !c)) return -1;
+
+	i = ps_faa(&t->nchildren[num], 1);
+	assert(i < PART_MAX_CHILD);
+	
+	return i;
+}
+
+static inline void
+part_task_remove_child(struct part_task *c)
+{
+	struct part_task *p = c->parent;
+	unsigned wkup;
+	int i, num;
+
+	if (unlikely(!p)) return;
+	assert(c->state == PART_TASK_S_INITIALIZED);
+
+	if (c->type == PART_TASK_T_TASK) wkup = c->master;
+	else                             wkup = p->master;
+
+	num = part_task_work_thd_num(p, wkup);
+	assert(num >= 0);
+
+	assert(p->nchildren[num] != 0);
+	i = ps_faa(&p->nchildren[num], -1);
+	assert(i > 0);
+
+	/* only the last child to wake up the parent */
+	if (i == 1) part_thd_wakeup(wkup);
+}
+
+static inline void
+part_task_wait_children(struct part_task *t)
+{
+	int num = part_task_work_thd_num(t, PART_CURR_THD);
+
+	assert(num >= 0);
+	assert(t->state == PART_TASK_S_INITIALIZED);
+
+	if (ps_load(&(t->nchildren[num])) > 0) sl_thd_block(0);
 }
 
 #endif /* PART_TASK_H */

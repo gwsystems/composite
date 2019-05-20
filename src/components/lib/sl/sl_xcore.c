@@ -90,7 +90,7 @@ _sl_xcore_request_enqueue_no_cs(cpuid_t core, struct sl_xcore_request *rq)
 	snd = sl__globals()->xcore_asnd[cos_cpuid()][core];
 	assert(snd);
 
-//	/* send an IPI for the request */
+	/* send an IPI for the request */
 	cos_asnd(snd, 0);
 
 	if (unlikely(ret == false)) return -1;

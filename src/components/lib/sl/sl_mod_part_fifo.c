@@ -24,7 +24,6 @@ sl_mod_execution(struct sl_thd_policy *t, cycles_t cycles)
 struct sl_thd_policy *
 sl_mod_schedule(void)
 {
-	struct sl_thd_policy *c = sl_mod_thd_policy_get(sl_thd_curr());
 	struct sl_thd_policy *t = NULL;
 
 	if (unlikely(ps_list_head_empty(&threads[cos_cpuid()]))) goto done;

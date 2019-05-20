@@ -466,7 +466,7 @@ sl_thd_activate(struct sl_thd *t, sched_tok_t tok, tcap_time_t timeout)
 static inline int
 sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
-	struct cos_scb_info *scb = sl_scb_info_core();
+	volatile struct cos_scb_info *scb = sl_scb_info_core();
 	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr), *nd = sl_thd_dcbinfo(next);
 
 	assert(curr != next);
@@ -523,9 +523,10 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
 		: "memory", "cc");
 
-	if (likely(sl_scb_info_core()->sched_tok == tok)) return 0;
+	scb = sl_scb_info_core();
+	if (unlikely(ps_load(&scb->sched_tok) != tok)) return -EAGAIN;
 
-	return -EAGAIN;
+	return 0;
 }
 
 static inline int
@@ -614,7 +615,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	sl_thd_replenish_no_cs(t, now);
 #endif
 
-//	assert(t && sl_thd_is_runnable(t));
+	assert(t && sl_thd_is_runnable(t));
 #ifdef SL_CS
 	sl_cs_exit();
 #endif
@@ -624,8 +625,36 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 * if the periodic timer is already ahead,
 	 * don't reprogram it!
 	 */
-	if (likely(offset > globals->cyc_per_usec && globals->timer_prev)) ret = sl_thd_dispatch(t, tok, sl_thd_curr());
-	else ret = sl_thd_activate(t, tok, globals->timeout_next);
+	if (likely(offset > globals->cyc_per_usec && globals->timer_prev)) {
+		ret = sl_thd_dispatch(t, tok, sl_thd_curr());
+	} else {
+		ret = sl_thd_activate(t, tok, globals->timeout_next);
+	}
+
+	/*
+	 * one observation, in slowpath switch:
+	 *        if the kernel decides to switch over to scheduler thread and
+	 *        later at some point decides to resume this thread, the ret value
+	 *        from the syscall is probably 0, even though token has advanced and
+	 *        the switch this thread intended, did not go through.
+	 *
+	 * there is some wierd race in user-level thread switch:
+	 *        a thread sl_thd_block()'s itself and decides to switch to a runnable
+	 *        thread at user-level.
+	 *        if a preemption occurs and eventually this thread is resumed, 
+	 *        for some reason the token check is not working well.
+	 *
+	 * what is more wierd is, even in slowpath sl_thd_activate(), I see that
+	 * on return from syscall, this thread is not runnable. 
+	 * how is this possible? is there a race? i don't think so.
+	 * only the current thread can block itself, of course this is not true for AEPs.
+	 * But for non AEPs, I don't know why this triggers!
+	 *
+	 * I'll need to rethink about some possible scenario, perhaps some bug in the code
+	 * that returns to this thread when it is not runnable.
+	 * something!!!!
+	 */
+	if (unlikely(!sl_thd_is_runnable(sl_thd_curr()))) return -EAGAIN;
 
 #ifdef SL_REPLENISH 
 	/*
@@ -641,6 +670,8 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok, globals->timeout_next);
 	}
 #endif
+	/* either this thread is runnable at this point or a switch failed */
+	assert(sl_thd_is_runnable(sl_thd_curr()) || ret);
 
 	return ret;
 }
@@ -691,7 +722,7 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 	sl_thd_replenish_no_cs(t, now);
 #endif
 
-//	assert(t && sl_thd_is_runnable(t));
+	assert(t && sl_thd_is_runnable(t));
 #ifdef SL_CS
 	sl_cs_exit();
 #endif
@@ -711,6 +742,7 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 		ret = sl_thd_activate(t, tok, abs_timeout < globals->timer_next 
 				      ? tcap_cyc2time(abs_timeout) : globals->timeout_next);
 	}
+	if (unlikely(!sl_thd_is_runnable(sl_thd_curr()))) return -EAGAIN;
 
 #ifdef SL_REPLENISH 
 	/*

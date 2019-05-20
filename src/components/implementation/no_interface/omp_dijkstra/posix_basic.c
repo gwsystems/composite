@@ -8,10 +8,11 @@
 
 #include <cos_component.h>
 #include <cos_kernel_api.h>
+#include <cos_defkernel_api.h>
 #include <cos_types.h>
 #include <ps.h>
 
-#include <memmgr.h>
+//#include <memmgr.h>
 
 // HACK: The hack to end all hacks
 void *
@@ -37,7 +38,8 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		pages = length / 4096;
 	}
 
-	addr = (void *)memmgr_heap_page_allocn(pages);
+	//addr = (void *)memmgr_heap_page_allocn(pages);
+	addr = (void *)cos_page_bump_allocn(cos_compinfo_get(cos_defcompinfo_curr_get()), pages * PAGE_SIZE);
 	if (!addr){
 		ret = (void *) -1;
 	} else {
