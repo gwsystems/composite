@@ -20,13 +20,13 @@
 
 /* 
  * Comp_invstk_info contains all information to identify which component to
- * return into (via sret). It is similar to comp_info. The reason why using
- * comp_invstk_info instead of comp_info is that we need to track if current
+ * return into (via sret). It is similar to comp_info. The reason why we're using
+ * comp_invstk_info instead of comp_info is that we need to track if the current
  * invocation is due to an explicit sinv or due to an exception or fault, as
  * the return protocol for each is different.
  * Thus, in this structure we use the lowest-order bit in the captbl to store
  * a flag which indicates this invocation is due to an exception (or fault) or not.
- * We could use the lowest-order bit because captbl is 4096-byte aligned, 
+ * We can use the lowest-order bit because captbl is 4096-byte aligned,
  * the last 12 bits of captbl are always '0'. 
  * Though this design makes it a bit complex, it keeps the structure 16-byte aligned.
  */
@@ -356,6 +356,7 @@ thd_invstk_comp_info_reset(struct comp_invstk_info* comp_invstk_info)
 	struct comp_info *comp_info = &comp_invstk_info->comp_info;
 
 	comp_info->captbl = (struct captbl *)((unsigned long)comp_info->captbl & (~1u));
+
 	return comp_info;
 }
 
@@ -543,7 +544,7 @@ thd_invstk_modify_current(struct thread *thd, unsigned long ip, unsigned long sp
                           struct cos_cpu_local_info *cos_info)
 {
 	struct invstk_entry *curr_entry;
-	struct comp_info *   curr_comp_info;
+	struct comp_info    *curr_comp_info;
 
 	curr_entry = &thd->invstk[curr_invstk_top(cos_info)];
 	curr_comp_info = &curr_entry->comp_invstk_info.comp_info;
@@ -636,7 +637,7 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 #define THD_REG_READ(op, reg_name) \
 		case THD_GET_FAULT_##op: \
 			*retval = t->fault_regs.reg_name; \
-			break; \
+			break \
 
 static inline int
 thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
