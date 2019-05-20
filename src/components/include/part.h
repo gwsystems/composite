@@ -157,6 +157,10 @@ part_pool_block(void)
 
 	/* very much a replica of sl_thd_block + adding to thread pool in part */
 	sl_cs_enter();
+	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0)) {
+		sl_cs_exit();
+		return;
+	}
 	if (ps_list_singleton(t, partlist)) ps_list_head_append(part_thdpool_curr(), t, partlist);
 	sl_cs_exit();
 	sl_thd_block(0);

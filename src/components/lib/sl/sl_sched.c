@@ -414,8 +414,23 @@ sl_thd_wakeup_no_cs(struct sl_thd *t)
 		return 0;
 	}
 
-	if (unlikely(sl_thd_is_runnable(t))) {
-		/* t->state == SL_THD_WOKEN? multiple wakeups? */
+//	if (unlikely(sl_thd_is_runnable(t))) {
+//		/* t->state == SL_THD_WOKEN? multiple wakeups? */
+//		t->state = SL_THD_WOKEN;
+//		return 1;
+//	}
+	/*
+	 * TODO: with blockpoints, multiple wakeup problem might go away.
+	 * will try that next!
+	 *
+	 * For now, if a thread creates N tasks and if at least two of them
+	 * complete before master goes to block, which can happen on multi-core
+	 * execution of tasks, then that results in multiple wakeups!
+	 */
+	if (unlikely(t->state == SL_THD_WOKEN)) {
+		t->state = SL_THD_RUNNABLE;
+		return 1;
+	} else if (unlikely(t->state == SL_THD_RUNNABLE)) {
 		t->state = SL_THD_WOKEN;
 		return 1;
 	}
