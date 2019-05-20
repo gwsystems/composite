@@ -14,8 +14,8 @@
 #define PART_MAX_TASKS      256
 #define PART_MAX_DATA       256
 #define PART_MAX_PAR_THDS   NUM_CPU
+#define PART_MAX_CORE_THDS  64
 #define PART_MAX_THDS       512
-#define PART_MAX_CORE_THDS  (PART_MAX_THDS/NUM_CPU)
 #define PART_MAX_CHILD      16
 #define PART_MAX_WORKSHARES 16
 
