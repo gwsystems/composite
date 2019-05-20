@@ -183,9 +183,11 @@ parttask_store_init_all(vaddr_t mem)
 static void
 part_idle_fn(void *d)
 {
+	struct sl_thd *sched = sl__globals_core()->sched_thd, *curr = sl_thd_curr();
+
 	while (1) {
-		part_pool_wakeup();
-		sl_thd_yield_thd(sl__globals_core()->sched_thd);
+		if (likely(ps_load(&in_main_parallel))) part_pool_wakeup();
+		sl_thd_yield_thd(sched);
 	}
 }
 
@@ -308,11 +310,11 @@ part_init(void)
 			assert(part_dq_percore[k]);
 			deque_init_part(part_dq_percore[k], PART_DEQUE_SZ);
 		}
-		ptmem = cos_page_bump_allocn(ci, PART_TASKS_MAX_SZ * NUM_CPU);
+		ptmem = (vaddr_t)cos_page_bump_allocn(ci, PART_TASKS_MAX_SZ * NUM_CPU);
 		assert(ptmem);
 		memset((void *)ptmem, 0, PART_MAX_PAGES * PAGE_SIZE * NUM_CPU);
 
-		pdmem = cos_page_bump_allocn(ci, PART_DATA_MAX_SZ * NUM_CPU);
+		pdmem = (vaddr_t)cos_page_bump_allocn(ci, PART_DATA_MAX_SZ * NUM_CPU);
 		assert(pdmem);
 		memset((void *)pdmem, 0, PART_MAX_DATA_PAGES * PAGE_SIZE * NUM_CPU);
 
@@ -345,6 +347,9 @@ part_init(void)
 	}
 
 #ifdef PART_ENABLE_BLOCKING
+	it = sl_thd_alloc(part_idle_fn, NULL);
+	assert(it);
+	sl_thd_param_set(it, ip);
 	sl_cs_enter();
 	/* 
 	 * because it's fifo, all threads would go block 
@@ -353,9 +358,6 @@ part_init(void)
 	 * and on all other cores, scheduler would be running!
 	 */
 	sl_cs_exit_schedule(); 
-	it = sl_thd_alloc(part_idle_fn, NULL);
-	assert(it);
-	sl_thd_param_set(it, ip);
 #endif
 
 	ps_faa(&all_done, 1);

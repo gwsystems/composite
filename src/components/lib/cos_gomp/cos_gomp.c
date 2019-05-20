@@ -107,7 +107,7 @@ GOMP_single_start(void)
 {
 	struct part_task *t = (struct part_task *)sl_thd_curr()->part_context;
 	int i;
-	int coff = part_task_work_thd_num(t);
+	int coff = part_task_work_thd_num(t, PART_CURR_THD);
 	unsigned b = 1 << coff;
 
 	assert(coff >= 0 && coff < (int)t->nthds);
@@ -183,7 +183,7 @@ GOMP_loop_dynamic_start (long start, long end, long incr, long chunk_size,
 {
 	struct part_task *t = (struct part_task *)sl_thd_curr()->part_context;
 	int i;
-	int coff = part_task_work_thd_num(t);
+	int coff = part_task_work_thd_num(t, PART_CURR_THD);
 	unsigned b = 1 << coff;
 
 	assert(coff >= 0 && coff < (int)t->nthds);
@@ -258,7 +258,7 @@ bool
 GOMP_loop_dynamic_next (long *istart, long *iend)
 {
 	struct part_task *t = (struct part_task *)sl_thd_curr()->part_context;
-	unsigned coff = part_task_work_thd_num(t);
+	unsigned coff = part_task_work_thd_num(t, PART_CURR_THD);
 	int woff = t->ws_off[coff];
 
 	if (unlikely(woff < 0)) t->ws_off[coff] = woff = 0;
@@ -271,7 +271,7 @@ void
 GOMP_loop_end (void)
 {
 	struct part_task *t = (struct part_task *)sl_thd_curr()->part_context;
-	unsigned coff = part_task_work_thd_num(t);
+	unsigned coff = part_task_work_thd_num(t, PART_CURR_THD);
 	int woff = t->ws_off[coff], c = 0;
 
 	assert(t->ws[woff].type == PART_WORKSHARE_LOOP_DYNAMIC);
@@ -283,7 +283,7 @@ void
 GOMP_loop_end_nowait (void)
 {
 	struct part_task *t = (struct part_task *)sl_thd_curr()->part_context;
-	unsigned coff = part_task_work_thd_num(t);
+	unsigned coff = part_task_work_thd_num(t, PART_CURR_THD);
 	int woff = t->ws_off[coff], c = 0;
 
 	assert(t->ws[woff].type == PART_WORKSHARE_LOOP_DYNAMIC);

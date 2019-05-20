@@ -63,7 +63,7 @@ omp_get_thread_num(void)
 
 	if (!pt) return 0;
 	
-	return part_task_work_thd_num(pt);
+	return part_task_work_thd_num(pt, PART_CURR_THD);
 }
 
 static inline void

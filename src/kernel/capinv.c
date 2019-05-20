@@ -123,6 +123,7 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 		if (unlikely(fixthd->dcbinfo && fixthd->dcbinfo->sp)) {
 			regs->ip = fixthd->dcbinfo->ip + DCB_IP_KERN_OFF;
 			regs->sp = fixthd->dcbinfo->sp;
+			regs->dx = 0; /* sched token is in edx! */
 
 			fixthd->dcbinfo->sp = 0;
 		}

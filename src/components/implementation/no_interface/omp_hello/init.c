@@ -17,6 +17,7 @@ cos_exit(int x)
 static void
 cos_main(void *d)
 {
+	assert(sl_thd_thdid(sl_thd_curr()) == cos_thdid());
 	main();
 
 	while (1) ;

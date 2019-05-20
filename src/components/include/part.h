@@ -157,12 +157,9 @@ part_pool_block(void)
 
 	/* very much a replica of sl_thd_block + adding to thread pool in part */
 	sl_cs_enter();
-	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0)) {
-		sl_cs_exit();
-		return;
-	}
 	if (ps_list_singleton(t, partlist)) ps_list_head_append(part_thdpool_curr(), t, partlist);
-	sl_cs_exit_schedule();
+	sl_cs_exit();
+	sl_thd_block(0);
 	assert(sl_thd_is_runnable(t));
 #else
 	sl_thd_yield(0);
@@ -225,7 +222,7 @@ part_list_append(struct part_task *t)
 	 * wake up as many threads on this core! 
 	 * some may not get work if other cores pull work before they get to it.
 	 */
-	for (i = 0; i < t->nthds; i++) part_pool_wakeup();
+	for (i = 1; i < t->nthds; i++) part_pool_wakeup();
 
 	/* if this is the first time in a parallel, make everyone know */
 	if (likely(!in_nest)) ps_faa(&in_main_parallel, 1);
@@ -317,11 +314,7 @@ part_task_barrier(struct part_task *t, int is_end)
 	assert(t->state == PART_TASK_S_INITIALIZED);
 	assert(t->nthds >= 1);
 
-	/* master thread to wait for child threads first, before barrier! */
-	if (is_master) {
-		assert(t->master == PART_CURR_THD);
-		part_task_wait_children(t);
-	}
+	part_task_wait_children(t);
 
 	if (t->nthds == 1) {
 		struct part_data *d;
@@ -355,12 +348,8 @@ part_task_barrier(struct part_task *t, int is_end)
 		sl_thd_block(0);
 	} else {
 		if (ps_cas(&t->barrier, 0, t->nthds)) ps_faa(&t->barrier_epoch, 1);
-		if (is_master) {
-			part_peer_wakeup(t);
-		} else {
-			part_master_wakeup(t);
-			//sl_thd_block(0);
-		}
+		if (is_master) part_peer_wakeup(t);
+		else part_master_wakeup(t);
 	}
 	assert(ps_load(&t->barrier_epoch) == cbep + 1);
 
@@ -395,7 +384,7 @@ part_thd_fn(void *d)
 		struct part_task *t = NULL;
 		int ret;
 
-		while (!ps_load(&in_main_parallel)) part_pool_block();
+		if (!ps_load(&in_main_parallel)) part_pool_block();
 
 		/* FIXME: nested parallel needs love! */
 		t = part_list_peek();

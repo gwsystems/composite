@@ -216,9 +216,9 @@ sl_thd_sched_unblock_no_cs(struct sl_thd *t)
 int
 sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout)
 {
-	assert(t);
+	assert(t && sl_thd_curr() == t); /* only current thread is allowed to block itself */
 	assert(t != sl__globals_core()->idle_thd && t != sl__globals_core()->sched_thd);
-	assert(sl_thd_curr() == t); /* only current thread is allowed to block itself */
+	assert(sl_thd_is_runnable(t));
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
 
 	if (t->schedthd) {
@@ -414,23 +414,8 @@ sl_thd_wakeup_no_cs(struct sl_thd *t)
 		return 0;
 	}
 
-//	if (unlikely(sl_thd_is_runnable(t))) {
-//		/* t->state == SL_THD_WOKEN? multiple wakeups? */
-//		t->state = SL_THD_WOKEN;
-//		return 1;
-//	}
-	/*
-	 * TODO: with blockpoints, multiple wakeup problem might go away.
-	 * will try that next!
-	 *
-	 * For now, if a thread creates N tasks and if at least two of them
-	 * complete before master goes to block, which can happen on multi-core
-	 * execution of tasks, then that results in multiple wakeups!
-	 */
-	if (unlikely(t->state == SL_THD_WOKEN)) {
-		t->state = SL_THD_RUNNABLE;
-		return 1;
-	} else if (unlikely(t->state == SL_THD_RUNNABLE)) {
+	if (unlikely(sl_thd_is_runnable(t))) {
+		/* t->state == SL_THD_WOKEN? multiple wakeups? */
 		t->state = SL_THD_WOKEN;
 		return 1;
 	}
@@ -680,6 +665,7 @@ sl_sched_loop_intern(int non_block)
 	struct sl_global_core *g   = sl__globals_core();
 	rcv_flags_t            rfl = (non_block ? RCV_NON_BLOCKING : 0);
 
+	assert(sl_thd_curr() == g->sched_thd);
 	assert(sl_core_active());
 
 	while (1) {
