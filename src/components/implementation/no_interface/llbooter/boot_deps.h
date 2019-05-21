@@ -132,6 +132,10 @@ fault_reg_print(spdid_t spdid)
 	struct cos_aep_info *child_aep = boot_spd_initaep_get(spdid);
 	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
 	
+	/*
+	 * TODO: make it more portable by making the register an int that goes through a loop
+	 * which is bounded by architecture-specific variables.
+	 */
 	fault_regs.ax = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG0);
 	fault_regs.bx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG1);
 	fault_regs.cx = cos_introspect(boot_info, child_aep->thd, THD_GET_FAULT_REG2);
@@ -185,6 +189,7 @@ fault_invalid_inst(unsigned long sp, unsigned long ip, unsigned long fault_addr,
 	return;
 }
 
+/* TODO: needs to separate overflow and underflow into two fault handlers. */
 void
 fault_invstk(unsigned long sp, unsigned long ip, unsigned long fault_addr, unsigned long fault_type)
 {
