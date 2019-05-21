@@ -11,12 +11,12 @@
 #define PART_THD_COREID(t) (t >> 16)
 #define PART_THD_THDID(t)  ((t << 16) >> 16)
 
-#define PART_MAX_TASKS      256
-#define PART_MAX_DATA       256
+#define PART_MAX_TASKS      2048 
+#define PART_MAX_DATA       2048
 #define PART_MAX_PAR_THDS   NUM_CPU
-#define PART_MAX_CORE_THDS  64
+#define PART_MAX_CORE_THDS  48
 #define PART_MAX_THDS       512
-#define PART_MAX_CHILD      16
+#define PART_MAX_CHILD      1024
 #define PART_MAX_WORKSHARES 16
 
 typedef void (*part_fn_t)(void *);

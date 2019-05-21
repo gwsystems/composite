@@ -83,7 +83,7 @@ extern bots_verbose_mode_t bots_verbose_mode;
 #define bots_message(msg, ...) \
    {\
       if ( bots_verbose_mode >= BOTS_VERBOSE_DEFAULT ) {\
-        PRINTC(msg , ##__VA_ARGS__);\
+        printc(msg , ##__VA_ARGS__);\
       }\
    }
 

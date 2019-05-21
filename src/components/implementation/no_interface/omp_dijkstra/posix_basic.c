@@ -70,7 +70,7 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 		return (long)cos_mmap((void *)a, (size_t)b, (int)c, (int)d, (int)e, (off_t)f);
 	}
 
-	if (syscall_num == __NR_brk) {
+	if (syscall_num == __NR_brk || syscall_num == __NR_munmap) {
 		return 0;
 	}
 
