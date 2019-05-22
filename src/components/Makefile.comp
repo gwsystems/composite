@@ -56,7 +56,6 @@ LDFLAGS+=-no-pie
 CFLAGS+=-fno-pie
 CXXFLAGS+=-fno-pie
 endif
-CFLAGS+=-march=i386 -msse
 
 SERVER_STUB=s_stub.o
 CLIENT_STUB=c_stub.o

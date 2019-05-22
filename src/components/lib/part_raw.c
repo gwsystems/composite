@@ -162,6 +162,21 @@ partdata_store_init_all(vaddr_t mem)
 	}
 }
 
+static inline struct part_data *
+partdata_store_dequeue_any(void)
+{
+	struct part_data *p = NULL;
+	int i = 0;
+
+	for (i = 0; i < NUM_CPU; i++) {
+		p = partdata_store_dequeue(&pd_head[(cos_cpuid() + i) % NUM_CPU]);
+
+		if (p) break;
+	}
+
+	return p;
+}
+
 struct parttask_head pt_head[NUM_CPU];
 
 static inline void
@@ -177,6 +192,21 @@ parttask_store_init_all(vaddr_t mem)
 		
 		for (j = 0; j < PART_MAX_TASKS; j++) parttask_store_add(&pt_head[i], st + j);
 	}
+}
+
+static inline struct part_task *
+parttask_store_dequeue_any(void)
+{
+	struct part_task *p = NULL;
+	int i = 0;
+
+	for (i = 0; i < NUM_CPU; i++) {
+		p = parttask_store_dequeue(&pt_head[(cos_cpuid() + i) % NUM_CPU]);
+
+		if (p) break;
+	}
+
+	return p;
 }
 
 /* idle thread to wakeup when there is nothing to do on this core! */
@@ -197,7 +227,8 @@ part_idle_fn(void *d)
 struct part_data *
 part_data_alloc(void)
 {
-	struct part_data *d = partdata_store_dequeue(&pd_head[cos_cpuid()]);
+	struct part_data *d = partdata_store_dequeue_any();
+	//struct part_data *d = partdata_store_dequeue(&pd_head[cos_cpuid()]);
 
 	if (!d) return d;
 	if (!ps_cas(&d->flag, 0, 1)) assert(0);
@@ -242,7 +273,8 @@ part_data_free(struct part_data *d)
 struct part_task *
 part_task_alloc(part_task_type_t type)
 {
-	struct part_task *t = parttask_store_dequeue(&pt_head[cos_cpuid()]);
+	struct part_task *t = parttask_store_dequeue_any();
+	//struct part_task *t = parttask_store_dequeue(&pt_head[cos_cpuid()]);
 
 	if (!t) return t;
 

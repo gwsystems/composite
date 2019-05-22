@@ -319,9 +319,14 @@ GOMP_task (void (*fn) (void *), void *data, void (*cpyfn) (void *, void *),
 	assert(depend == NULL);
 
 	if (if_clause) {
-		struct part_task *pt = _cos_gomp_alloc_explicit();
-		struct part_data *d = part_data_alloc();
+		struct part_task *pt;
+		struct part_data *d;
 		char *arg = NULL;
+
+		pt = _cos_gomp_alloc_explicit();
+		assert(pt);
+		d = part_data_alloc();
+		assert(d);
 
 		assert(pt && d);
 		assert(arg_size + arg_align - 1 <= PART_MAX_DATA);

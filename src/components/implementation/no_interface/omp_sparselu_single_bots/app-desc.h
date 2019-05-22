@@ -48,9 +48,6 @@ int sparselu_check(float **SEQ, float **BENCH);
 #define KERNEL_SEQ_CALL sparselu_seq_call(SEQ);
 #define KERNEL_SEQ_FINI sparselu_fini(SEQ,"serial");
 
-/*
- * Phani: start with not doing serial!
- */
-#undef BOTS_APP_CHECK_USES_SEQ_RESULT
-//#define KERNEL_CHECK sparselu_check(SEQ,BENCH);
+#define BOTS_APP_CHECK_USES_SEQ_RESULT
+#define KERNEL_CHECK sparselu_check(SEQ,BENCH);
 

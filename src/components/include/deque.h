@@ -19,7 +19,7 @@
  * PPoPP implementation paper, "Correct and Efficient Work-Stealing for Weak Memory Models"
  * https://www.di.ens.fr/~zappa/readings/ppopp13.pdf
  */
-#define DEQUE_MAX_SZ (1<<13)
+#define DEQUE_MAX_SZ (1<<14)
 
 #define DEQUE_PROTOTYPE(name, type)							\
 struct deque_##name {									\
@@ -37,7 +37,7 @@ deque_init_##name(struct deque_##name *q, size_t sz)					\
 											\
 	if (sz) {									\
 		/* only for size with pow of 2 */					\
-		assert((sz & (sz - 1)) == 0);						\
+		/* assert((sz & (sz - 1)) == 0); */					\
 		assert(sz <= DEQUE_MAX_SZ);						\
 	} else {									\
 		sz = DEQUE_MAX_SZ;							\
