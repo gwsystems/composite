@@ -252,15 +252,15 @@ thd_rcvcap_set_counter(struct thread *t, sched_tok_t cntr)
 static void
 thd_rcvcap_pending_set(struct thread *arcvt)
 {
-	arcvt->rcvcap.pending = 1;
-
 	if (likely(arcvt->dcbinfo)) arcvt->dcbinfo->pending = 1;
+	else                        arcvt->rcvcap.pending = 1;
 }
 
 static void
 thd_rcvcap_pending_reset(struct thread *arcvt)
 {
 	arcvt->rcvcap.pending = 0;
+	if (likely(arcvt->dcbinfo)) arcvt->dcbinfo->pending = 0;
 }
 
 static inline int

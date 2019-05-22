@@ -898,14 +898,18 @@ sl_thd_rcv(rcv_flags_t flags)
 {
 	struct sl_thd *t = sl_thd_curr();
 	unsigned long *p = &sl_thd_dcbinfo(t)->pending, q = 0;
+	int ret = 0;
 
 	assert(sl_thd_rcvcap(t));
 check:
 	sl_cs_enter();
-	q = *p;
-	if (q == 0) {
+	/* there no pending event in the dcbinfo->pending */
+	if ((q = ps_load(p)) == 0) {
 		if (unlikely(!(flags & RCV_ULONLY))) goto rcv;
-		if (unlikely(flags & RCV_NON_BLOCKING)) goto done;
+		if (unlikely(flags & RCV_NON_BLOCKING)) {
+			ret = -EAGAIN;
+			goto done;
+		}
 
 		sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED, 0);
 		sl_cs_exit_switchto(sl__globals_core()->sched_thd);
@@ -918,7 +922,7 @@ check:
 done:
 	sl_cs_exit();
 
-	return q;
+	return ret;
 rcv:
 	sl_cs_exit();
 
