@@ -574,7 +574,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	struct sl_thd         *t = to;
 	struct sl_global_core *globals = sl__globals_core();
 	sched_tok_t            tok;
-	cycles_t               now;
+//	cycles_t               now;
 	s64_t                  offset;
 	int                    ret;
 
@@ -584,12 +584,12 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 #endif
 
 	tok    = cos_sched_sync();
-	now    = sl_now();
+//	now    = sl_now();
 
 	/* still wakeup without timeouts? that adds to dispatch overhead! */
-	offset = (s64_t)(globals->timer_next - now);
-	if (globals->timer_next && offset <= 0) sl_timeout_expended(now, globals->timer_next);
-	sl_timeout_wakeup_expired(now);
+//	offset = (s64_t)(globals->timer_next - now);
+//	if (globals->timer_next && offset <= 0) sl_timeout_expended(now, globals->timer_next);
+//	sl_timeout_wakeup_expired(now);
 
 	/*
 	 * Once we exit, we can't trust t's memory as it could be
@@ -625,11 +625,11 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 * if the periodic timer is already ahead,
 	 * don't reprogram it!
 	 */
-	if (likely(offset > globals->cyc_per_usec && globals->timer_prev)) {
+//	if (likely(offset > globals->cyc_per_usec && globals->timer_prev)) {
 		ret = sl_thd_dispatch(t, tok, sl_thd_curr());
-	} else {
-		ret = sl_thd_activate(t, tok, globals->timeout_next);
-	}
+//	} else {
+//		ret = sl_thd_activate(t, tok, globals->timeout_next);
+//	}
 
 	/*
 	 * one observation, in slowpath switch:
@@ -713,7 +713,7 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 		struct sl_thd_policy *pt = sl_mod_schedule();
 
 		if (unlikely(!pt))
-			t = globals->sched_thd;
+			t = globals->idle_thd;
 		else
 			t = sl_mod_thd_get(pt);
 	}
