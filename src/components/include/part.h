@@ -234,8 +234,8 @@ part_list_remove(struct part_task *t)
 	int in_nest = 0;
 
 	assert(t->type == PART_TASK_T_WORKSHARE);
-	assert(t->nthds > 1);
 #if defined(PART_ENABLE_NESTED)
+	assert(t->nthds > 1);
 	assert(!ps_list_singleton(t, partask));
 
 	crt_lock_take(&part_l_lock);
@@ -327,6 +327,7 @@ part_task_barrier(struct part_task *t, int is_end)
 		if (t->type == PART_TASK_T_WORKSHARE) {
 			assert(is_master);
 			ts->part_context = t->parent;
+			part_list_remove(t);
 
 			return;
 		}
@@ -357,7 +358,7 @@ part_task_barrier(struct part_task *t, int is_end)
 			sl_thd_block(0);
 		}
 	}
-	assert(ps_load(&t->barrier_epoch) == cbep + 1);
+	//assert(ps_load(&t->barrier_epoch) == cbep + 1);
 
 	if (!is_end) return;
 	ps_faa(&t->end, 1);
