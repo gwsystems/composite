@@ -35,17 +35,82 @@
 #define N_TESTTHDS_PERF 2
 #define PERF_ITERS 1000000
 
+#define MAGIC_RET 0xDEADBEEF
+
+#define INV_TEST
 static volatile cycles_t mid_cycs = 0;
 static volatile int testing = 1;
+
+
+int
+test_serverfn(int a, int b, int c)
+{
+        //rdtscll(midinv_cycles[cos_cpuid()]);
+        return MAGIC_RET;
+}
+
+extern void *__inv_test_serverfn(int a, int b, int c);
+
+static inline int
+call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
+{
+        int ret;
+
+        /*
+         * Which stack should we use for this invocation?  Simple, use
+         * this stack, at the current sp.  This is essentially a
+         * function call into another component, with odd calling
+         * conventions.
+         */
+        cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
+
+        __asm__ __volatile__("pushl %%ebp\n\t"
+                             "movl %%esp, %%ebp\n\t"
+                             "movl %%esp, %%edx\n\t"
+                             "movl $1f, %%ecx\n\t"
+                             "sysenter\n\t"
+                             "1:\n\t"
+                             "popl %%ebp"
+                             : "=a"(ret)
+                             : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3)
+                             : "memory", "cc", "ecx", "edx");
+
+        return ret;
+}
+
+sinvcap_t sinv_cap = 0;
+
+static inline void
+test_inv_setup(void)
+{
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
+        compcap_t    cc;
+        sinvcap_t    ic;
+        int          i;
+        unsigned int ret;
+
+        cc = cos_comp_alloc(ci, ci->captbl_cap, ci->pgtbl_cap, 0, (vaddr_t)NULL, 0);
+        assert(cc > 0);
+        ic = cos_sinv_alloc(ci, cc, (vaddr_t)__inv_test_serverfn, 0);
+        assert(ic > 0);
+        ret = call_cap_mb(ic, 1, 2, 3);
+        assert(ret == (int)MAGIC_RET);
+
+	sinv_cap = ic;
+}
+
+static struct sl_thd *perf_thd = NULL, *spin_thd = NULL;
 
 void
 test_thd_perffn(void *data)
 {
 	cycles_t start_cycs = 0, end_cycs = 0, wc_cycs = 0, total_cycs = 0;
 	unsigned int i = 0;
+	struct sl_thd *c = sl_thd_curr();
 
 	rdtscll(start_cycs);
-	sl_thd_yield(0);
+	sl_thd_yield_thd(spin_thd);
 	rdtscll(end_cycs);
 	assert(mid_cycs && mid_cycs > start_cycs && mid_cycs < end_cycs);
 
@@ -54,7 +119,7 @@ test_thd_perffn(void *data)
 
 		mid_cycs = 0;
 		rdtscll(start_cycs);
-		sl_thd_yield(0);
+		sl_thd_yield_thd_c(c, spin_thd);
 		rdtscll(end_cycs);
 		assert(mid_cycs && mid_cycs > start_cycs && mid_cycs < end_cycs);
 
@@ -69,7 +134,52 @@ test_thd_perffn(void *data)
 	PRINTC("SWITCH UBENCH: avg: %llu, wc: %llu, iters:%u\n", (total_cycs / (2 * PERF_ITERS)), wc_cycs, PERF_ITERS);
 	testing = 0;
 	/* done testing! let the spinfn cleanup! */
-	sl_thd_yield(0);
+	sl_thd_yield_thd(spin_thd);
+
+	sl_thd_exit();
+}
+
+void
+test_inv_perffn(void *data)
+{
+	cycles_t start_cycs = 0, end_cycs = 0, wc_cycs = 0, total_cycs = 0;
+	unsigned int i = 0;
+	struct sl_thd *c = sl_thd_curr();
+
+	test_inv_setup();
+
+	rdtscll(start_cycs);
+	sl_thd_yield_thd(spin_thd);
+	rdtscll(end_cycs);
+	assert(mid_cycs && mid_cycs > start_cycs && mid_cycs < end_cycs);
+
+	for (i = 0; i < PERF_ITERS; i++) {
+		cycles_t diff_cycs = 0;
+		int ret;
+
+		sl_thd_yield_thd_c(c, spin_thd);
+		mid_cycs = 0;
+		rdtscll(start_cycs);
+		ret = call_cap_mb(sinv_cap, 1, 2, 3);
+		rdtscll(end_cycs);
+		assert(ret == (int)MAGIC_RET);
+//		assert(mid_cycs && mid_cycs > start_cycs && mid_cycs < end_cycs);
+//
+//		diff1_cycs = mid_cycs - start_cycs;
+//		diff2_cycs = end_cycs - mid_cycs;
+//
+//		if (diff1_cycs > wc_cycs) wc_cycs = diff1_cycs;
+//		if (diff2_cycs > wc_cycs) wc_cycs = diff2_cycs;
+//		total_cycs += (diff1_cycs + diff2_cycs);
+		diff_cycs = end_cycs - start_cycs;
+		if (diff_cycs > wc_cycs) wc_cycs = diff_cycs;
+		total_cycs += diff_cycs;
+	}
+
+	PRINTC("INV UBENCH: avg: %llu, wc: %llu, iters:%u\n", (total_cycs / PERF_ITERS), wc_cycs, PERF_ITERS);
+	testing = 0;
+	/* done testing! let the spinfn cleanup! */
+	sl_thd_yield_thd(spin_thd);
 
 	sl_thd_exit();
 }
@@ -77,9 +187,11 @@ test_thd_perffn(void *data)
 void
 test_thd_spinfn(void *data)
 {
+	struct sl_thd *c = sl_thd_curr();
+
 	while (likely(testing)) {
 		rdtscll(mid_cycs);
-		sl_thd_yield(0);
+		sl_thd_yield_thd_c(c, perf_thd);
 	}
 
 	sl_thd_exit();
@@ -105,8 +217,17 @@ test_yield_perf(void)
 	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = 31}};
 
 	for (i = 0; i < N_TESTTHDS_PERF; i++) {
-		if (i == 1) threads[i] = sl_thd_alloc(test_thd_perffn, (void *)&threads[0]);
-		else        threads[i] = sl_thd_alloc(test_thd_spinfn, NULL);
+		if (i == 1) {
+#ifdef INV_TEST
+			threads[i] = sl_thd_alloc(test_inv_perffn, (void *)&threads[0]);
+#else
+			threads[i] = sl_thd_alloc(test_thd_perffn, (void *)&threads[0]);
+#endif
+			perf_thd = threads[i];
+		} else {
+			threads[i] = sl_thd_alloc(test_thd_spinfn, NULL);
+			spin_thd = threads[i];
+		}
 		assert(threads[i]);
 		sl_thd_param_set(threads[i], sp.v);
 		PRINTC("Thread %u:%lu created\n", sl_thd_thdid(threads[i]), sl_thd_thdcap(threads[i]));
@@ -221,10 +342,10 @@ cos_init(void)
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_llinit();
 	cos_dcb_info_init_curr();
-	sl_init(SL_MIN_PERIOD_US);
+	sl_init(SL_MIN_PERIOD_US*100);
 
-	//test_yield_perf();
-	test_yields();
+	test_yield_perf();
+	//test_yields();
 	//test_blocking_directed_yield();
 	//test_timeout_wakeup();
 

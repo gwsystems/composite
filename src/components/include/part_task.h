@@ -11,10 +11,10 @@
 #define PART_THD_COREID(t) (t >> 16)
 #define PART_THD_THDID(t)  ((t << 16) >> 16)
 
-#define PART_MAX_TASKS      2048
-#define PART_MAX_DATA       2048
+#define PART_MAX_TASKS      (NUM_CPU < 4 ? 2048 : 8192)
+#define PART_MAX_DATA       PART_MAX_TASKS 
 #define PART_MAX_PAR_THDS   NUM_CPU
-#define PART_MAX_CORE_THDS  48
+#define PART_MAX_CORE_THDS  (NUM_CPU == 1 ? 200 : (NUM_CPU == 2 ? 128 : (NUM_CPU < 5 ? 64 : 48)))
 #define PART_MAX_THDS       512
 #define PART_MAX_CHILD      1024
 #define PART_MAX_WORKSHARES 16

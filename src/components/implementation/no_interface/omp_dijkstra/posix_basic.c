@@ -17,7 +17,7 @@
  * map random physical addresses to virtual addresses and do whatever with it!
  */
 #define START_PHY round_up_to_page(0x00100000 + COS_PHYMEM_MAX_SZ + PAGE_SIZE)
-#define PHY_MAX (512*1024*1024)
+#define PHY_MAX ((512 * 1024 * 1024) + (256 * 1024 * 1024))
 
 static unsigned free_phy_offset = 0;
 
@@ -26,7 +26,11 @@ __alloc_memory(size_t sz)
 {
 	void *va = NULL;
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	unsigned off = ps_faa(&free_phy_offset, sz);
+	//unsigned off = ps_faa(&free_phy_offset, sz);
+	unsigned off;
+
+try_again:
+	off = ps_load(&free_phy_offset);
 
 	/* 
 	 * first use physical memory hack and 
@@ -36,6 +40,7 @@ __alloc_memory(size_t sz)
 	if (off > PHY_MAX || off + sz > PHY_MAX) {
 		va = cos_page_bump_allocn(ci, round_up_to_page(sz));
 	} else {
+		if (!ps_cas(&free_phy_offset, off, off + sz)) goto try_again;
 		/* use physical memory hack! */
 		va = cos_hw_map(ci, BOOT_CAPTBL_SELF_INITHW_BASE, START_PHY + off, sz);
 	}

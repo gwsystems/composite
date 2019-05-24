@@ -31,12 +31,15 @@ test_scb_dcb(void)
 	test_dcb();
 }
 
+volatile int switched = 0;
+
 static void
 thd_fn_perf(void *d)
 {
 	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 
 	while (1) {
+switched = 1;
 		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	}
 	PRINTC("Error, shouldn't get here!\n");
@@ -46,7 +49,7 @@ static void
 test_thds_perf(void)
 {
 	thdcap_t  ts;
-	long long total_swt_cycles = 0;
+	long long total_swt_cycles = 0, max = 0;
 	long long start_swt_cycles = 0, end_swt_cycles = 0;
 	int       i;
 
@@ -54,15 +57,22 @@ test_thds_perf(void)
 	assert(ts);
 	cos_thd_switch(ts);
 
-	rdtscll(start_swt_cycles);
 	for (i = 0; i < ITER; i++) {
+	cycles_t diff;
+	switched = 0;
+	rdtscll(start_swt_cycles);
 		cos_thd_switch(ts);
-	}
 	rdtscll(end_swt_cycles);
-	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
+		assert(switched);
 
-	PRINTC("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n", total_swt_cycles, (long long)ITER,
-	       (total_swt_cycles / (long long)ITER));
+		diff = end_swt_cycles - start_swt_cycles;
+	total_swt_cycles += diff;
+		if (diff > max) max = diff;
+	}
+	//total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
+
+	PRINTC("Average THD SWTCH (Iters: %lld ): %lld, WC:%llu\n", (long long)ITER,
+	       (total_swt_cycles / (2 * (long long)ITER)), max / 2);
 }
 
 static void
@@ -150,6 +160,7 @@ async_thd_fn_perf(void *thdcap)
 
 	for (i = 0; i < ITER + 1; i++) {
 		cos_rcv(rc, 0);
+		switched = 1;
 	}
 
 	cos_thd_switch(tc);
@@ -160,21 +171,27 @@ async_thd_parent_perf(void *thdcap)
 {
 	thdcap_t  tc                = (thdcap_t)thdcap;
 	asndcap_t sc                = scp_global[cos_cpuid()];
-	long long total_asnd_cycles = 0;
+	long long total_asnd_cycles = 0, max = 0;
 	long long start_asnd_cycles = 0, end_arcv_cycles = 0;
 	int       i;
 
 	cos_asnd(sc, 1);
 
-	rdtscll(start_asnd_cycles);
 	for (i = 0; i < ITER; i++) {
+	cycles_t diff;
+	switched = 0;
+	rdtscll(start_asnd_cycles);
 		cos_asnd(sc, 1);
-	}
 	rdtscll(end_arcv_cycles);
-	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
+	assert(switched);
+	diff = end_arcv_cycles - start_asnd_cycles;
+	if (diff > max) max = diff;
+	total_asnd_cycles += diff;
+	}
+	//total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
 
-	PRINTC("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n", total_asnd_cycles, (long long)(ITER),
-	       (total_asnd_cycles / (long long)(ITER)));
+	PRINTC("Average ASND+ARCV (Iterations: %lld ): %lld, WC: %llu\n", (long long)(ITER),
+	       (total_asnd_cycles / (long long)(ITER)), max);
 
 	async_test_flag[cos_cpuid()] = 0;
 	while (1) cos_thd_switch(tc);
@@ -778,7 +795,7 @@ long long midinv_cycles[NUM_CPU] = { 0LL };
 int
 test_serverfn(int a, int b, int c)
 {
-	rdtscll(midinv_cycles[cos_cpuid()]);
+	//rdtscll(midinv_cycles[cos_cpuid()]);
 	return 0xDEADBEEF;
 }
 
@@ -834,7 +851,7 @@ test_inv_perf(void)
 	compcap_t    cc;
 	sinvcap_t    ic;
 	int          i;
-	long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL;
+	long long    total_inv_cycles = 0LL, total_ret_cycles = 0LL, max_inv = 0, max_ret = 0;
 	unsigned int ret;
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, 0, (vaddr_t)NULL, 0);
@@ -846,19 +863,24 @@ test_inv_perf(void)
 
 	for (i = 0; i < ITER; i++) {
 		long long start_cycles = 0LL, end_cycles = 0LL;
+		long long diff_inv, diff_ret;
 
 		midinv_cycles[cos_cpuid()] = 0LL;
 		rdtscll(start_cycles);
 		call_cap_mb(ic, 1, 2, 3);
 		rdtscll(end_cycles);
-		total_inv_cycles += (midinv_cycles[cos_cpuid()] - start_cycles);
-		total_ret_cycles += (end_cycles - midinv_cycles[cos_cpuid()]);
+//		total_inv_cycles += (midinv_cycles[cos_cpuid()] - start_cycles);
+//		total_ret_cycles += (end_cycles - midinv_cycles[cos_cpuid()]);
+		diff_inv = end_cycles - start_cycles;
+
+		if (diff_inv > max_inv) max_inv = diff_inv;
+		total_inv_cycles += diff_inv;
 	}
 
-	PRINTC("Average SINV (Total: %lld / Iterations: %lld ): %lld\n", total_inv_cycles, (long long)(ITER),
-	       (total_inv_cycles / (long long)(ITER)));
-	PRINTC("Average SRET (Total: %lld / Iterations: %lld ): %lld\n", total_ret_cycles, (long long)(ITER),
-	       (total_ret_cycles / (long long)(ITER)));
+	PRINTC("Average SINV RPC (Iterations: %lld ): %lld, WC:%llu\n", (long long)(ITER),
+	       (total_inv_cycles / (long long)(ITER)), max_inv);
+//	PRINTC("Average SRET (Total: %lld / Iterations: %lld ): %lld\n", total_ret_cycles, (long long)(ITER),
+	       //(total_ret_cycles / (long long)(ITER)));
 }
 
 void
@@ -931,22 +953,22 @@ test_run_mb(void)
 	cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	/* test_ipi(); */
-	test_timer();
-	test_budgets();
-
-	test_scb_dcb();
-	test_thds();
-	test_thds_perf();
-
-	test_mem();
-
-	test_async_endpoints();
-	test_async_endpoints_perf();
-
-	test_inv();
+//	test_timer();
+//	test_budgets();
+//
+//	test_scb_dcb();
+//	test_thds();
+//	test_thds_perf();
+//
+//	test_mem();
+//
+//	test_async_endpoints();
+//	test_async_endpoints_perf();
+//
+//	test_inv();
 	test_inv_perf();
-
-	test_captbl_expand();
+//
+//	test_captbl_expand();
 
 	/*
 	 * FIXME: Preemption stack mechanism in the kernel is disabled.

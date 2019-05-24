@@ -17,7 +17,7 @@
  *       (validated with fiasco so far, it is 10us)
  */
 #define ITERS_10US 5850
-#define MULTIPLE 100
+#define MULTIPLE 10000
 
 #define SPIN_ITERS (ITERS_10US*MULTIPLE)
 
@@ -34,18 +34,18 @@ __spin_fn(void)
         }
 }
 
-#define ITERS 10
+#define ITERS 1000
 
 int main(void)
 {
-	unsigned long long max = 0;
+	unsigned long long max = 0, total = 0;
 	int i;
 	unsigned long long x, y;
 
 	rdtscll(x);
 	__spin_fn();
 	rdtscll(y);
-	printc("%llu:%llu\n", y - x, sl_cyc2usec(y - x));
+	printc("%llu:%llu\n\n\n", y - x, sl_cyc2usec(y - x));
 
 
 	for (i = 0; i < ITERS; i++) {
@@ -54,17 +54,13 @@ int main(void)
 		rdtscll(st);
 		#pragma omp parallel
 		{
-			//printf("(a, %u:%u, %d)\n", sched_getcpu(), GETTID(), omp_get_thread_num());
 			#pragma omp single
 			{
-				//printf("(b, %u:%u, %d)\n", sched_getcpu(), GETTID(), omp_get_thread_num());
 				#pragma omp task
 				{
-					//printf("(c, %u:%u, %d)\n", sched_getcpu(), GETTID(), omp_get_thread_num());
 					#pragma omp task
 					{
 						__spin_fn();
-						//printf("(d, %u:%u, %d)\n", sched_getcpu(), GETTID(), omp_get_thread_num());
 					}
 					#pragma omp taskwait
 				}
@@ -72,23 +68,22 @@ int main(void)
 				#pragma omp task
 				{
 					__spin_fn();
-					//printf("(e, %u:%u, %d)\n", sched_getcpu(), GETTID(), omp_get_thread_num());
 				}
 				__spin_fn();
 				#pragma omp taskwait
 			}
-			//printf("(f, %u:%u, %d)\n", sched_getcpu(), GETTID(), omp_get_thread_num());
 		}
 		rdtscll(en);
 		long diff = en - st;
-		if (diff > 0) {
-		       if (max < diff) max = diff;
-			printc("%llu\n", (en - st) / CYC_US);
-		}
+		assert(diff > 0);
+
+		total += diff;
+		if (diff > max) max = diff;
+		printc("%ld, %ld\n", diff, diff / CYC_US);
 	}
 
-	printc("Max: %llu\n", max / CYC_US);
-//	printf("Time: %llu, %llu\n", en - st, (en -st) / CYC_US);
+	printc("(cyc) Avg: %llu, Max: %llu\n", (total / ITERS), max);
+	printc("(us) Avg: %llu, Max: %llu\n", (total / ITERS) / CYC_US, max / CYC_US);
 
 	return 0;
 }
