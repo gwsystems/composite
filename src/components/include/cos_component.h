@@ -211,6 +211,12 @@ cos_compid(void)
 	return cos_spd_id();
 }
 
+static inline void
+cos_compid_set(compid_t cid)
+{
+	__cosrt_comp_info.cos_this_spd_id = cid;
+}
+
 static inline void *
 cos_get_heap_ptr(void)
 {
@@ -325,6 +331,10 @@ cos_memset(void *s, char c, int count)
 
 #define CFORCEINLINE __attribute__((always_inline))
 #define CWEAKSYMB __attribute__((weak))
+/* Create a weak function alias called "aliasn" which aliases the existing function "name"  */
+#define CFN_WEAKALIAS(aliasn, name)					\
+	extern __typeof (name) aliasn __attribute__((weak, alias(STR(name))));
+
 /*
  * A composite constructor (deconstructor): will be executed before
  * other component execution (after component execution).  CRECOV is a

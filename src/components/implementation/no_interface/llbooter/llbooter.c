@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <limits.h>
 
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
@@ -196,11 +197,52 @@ crt_thd_init_create(struct crt_comp *c)
 
 /* Booter's additive information about the component */
 struct boot_comp {
+	int main_exec; /* does this component have a `main` that wants execution */
 	struct crt_comp comp;
 };
 static struct boot_comp boot_comps[MAX_NUM_COMPS];
+static const  compid_t  sched_root_id  = 2;
+static        int       boot_id_offset = -1;
 /* All synchronous invocations */
 static struct crt_sinv  boot_sinvs[BOOTER_MAX_SINV];
+
+/*
+ * Assumptions: the component with the lowest id *must* be the one
+ * that is passed into this function first. You *can* pass in an id
+ * that is higher than we have components. In that case, this will
+ * return NULL.
+ */
+static struct boot_comp *
+boot_comp_get(compid_t id)
+{
+	assert(id > 0);
+
+	if (boot_id_offset == -1) {
+		boot_id_offset = id;
+	}
+	assert(boot_id_offset <= id);
+	assert(boot_id_offset >= 0 && id >= boot_id_offset);
+
+	return &boot_comps[id - boot_id_offset];
+}
+
+static void
+boot_comp_set_idoffset(int off)
+{
+	boot_id_offset = off;
+}
+
+static struct boot_comp *
+boot_comp_next(compid_t id)
+{
+	struct boot_comp *c = boot_comp_get(id);
+	struct boot_comp *n = boot_comp_get(id + 1);
+
+	assert(c->comp.id == id);
+	if (c->comp.id == 0) return NULL;
+
+	return n;
+}
 
 static void
 comps_init(void)
@@ -209,42 +251,59 @@ comps_init(void)
 	struct initargs_iter i;
 	int cont, ret, j;
 	int comp_idx = 0, sinv_idx = 0;
+	int booter_id;
+
+	/*
+	 * Assume: our component id is the lowest of the ids for all
+	 * components we are set to create, and that we get it from
+	 * mkimg.
+	 */
+	booter_id = atoi(args_get("compid"));
+	cos_compid_set(booter_id);
+	boot_comp_set_idoffset(booter_id);
 
 	ret = args_get_entry("components", &comps);
 	assert(!ret);
-
 	printc("Components (and initialization schedule):\n");
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct crt_comp *comp;
 		struct elf_hdr  *elf;
 		struct cos_aep_info *aepi;
+		struct boot_comp *bc;
 		int   keylen;
-		int   idx  = atoi(args_key(&curr, &keylen));
+		int   id   = atoi(args_key(&curr, &keylen));
 		char *name = args_value(&curr);
 		char *root = "binaries/";
 		int   len  = strlen(root);
 		char  path[INITARGS_MAX_PATHNAME];
 
-		printc("%s: %d\n", name, idx);
+		printc("%s: %d\n", name, id);
 
-		assert(idx < MAX_NUM_COMPS && idx > 0 && name);
+		assert(id < MAX_NUM_COMPS && id > 0 && name);
 
-		strcpy(path, root);
+		memset(path, 0, INITARGS_MAX_PATHNAME);
+		strncat(path, root, len);
+		assert(path[len] == '\0');
 		strncat(path, name, INITARGS_MAX_PATHNAME - len);
-		comp = &boot_comps[idx-1].comp; /* there is no component id 0 */
+		assert(path[INITARGS_MAX_PATHNAME - 1] == '\0'); /* no truncation allowed */
+
+		bc = boot_comp_get(id);
+		assert(bc);
+		bc->main_exec = 0; /* by default, component not considered to have a `main` */
+		comp = &bc->comp;
 		elf  = (struct elf_hdr *)args_get(path);
 
-		/* FIXME: for now assuming idx == 1 means booter */
-		if (idx == 1) {
+		/* FIXME: for now assuming id == 1 means booter */
+		if (id == booter_id) {
 			int ret;
 
 			/* booter should not have an elf object */
 			assert(!elf);
-			ret = crt_booter_create(comp, name, idx);
+			ret = crt_booter_create(comp, name, id);
 			assert(ret == 0);
 		} else {
 			assert(elf);
-			if (crt_comp_create(comp, name, idx, elf)) {
+			if (crt_comp_create(comp, name, id, elf)) {
 				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
 				BUG();
 			}
@@ -263,14 +322,14 @@ comps_init(void)
 	printc("Synchronous invocations (%d):\n", args_len(&comps));
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct crt_sinv *sinv;
-		int serv_idx = atoi(args_get_from("server", &curr));
-		int cli_idx  = atoi(args_get_from("client", &curr));
+		int serv_id = atoi(args_get_from("server", &curr));
+		int cli_id  = atoi(args_get_from("client", &curr));
 
 		assert(sinv_idx < BOOTER_MAX_SINV);
 		sinv = &boot_sinvs[sinv_idx];
 		sinv_idx++;	/* bump pointer allocation */
 
-		crt_sinv_create(sinv, args_get_from("name", &curr), &boot_comps[serv_idx - 1].comp, &boot_comps[cli_idx - 1].comp,
+		crt_sinv_create(sinv, args_get_from("name", &curr), &boot_comp_get(serv_id)->comp, &boot_comp_get(cli_id)->comp,
 				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
 
@@ -297,28 +356,78 @@ booter_init(void)
 void
 execute(void)
 {
+	struct boot_comp *boot, *c;
 	struct crt_comp *comp;
 
-	comp = &boot_comps[2].comp;
+	assert(cos_compid() > 0);
+	boot = boot_comp_get(cos_compid());
+	assert(boot);
+	comp = &boot->comp;
+	assert(comp->id == cos_compid() && crt_is_booter(comp));
 
-	if (cos_defswitch(comp->comp_res->sched_aep.thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) {
-		BUG();
+	/* Initialize components in order of the pre-computed schedule from mkimg */
+	while ((c = boot_comp_next(comp->id))) {
+		comp = &c->comp;
+
+		printc("Initializing component %d.\n", comp->id);
+		assert(comp->comp_res->sched_aep.thd);
+		if (cos_defswitch(comp->comp_res->sched_aep.thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 	}
-	printc("WTF\n");
+
+	/* Execute the main in components, FIFO */
+	while ((c = boot_comp_next(cos_compid()))) {
+		if (!c->main_exec) continue;
+
+		comp = &c->comp;
+		printc("Switching back to thread in component %d.\n", comp->id);
+		assert(comp->comp_res->sched_aep.thd);
+		if (cos_defswitch(comp->comp_res->sched_aep.thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+	}
+
+	printc("Executed main in each component. Halting\n");
+	while (1) ;
+
+	BUG();
 
 	return;
 }
 
 void
-init_done(void)
+init_done(int cont)
 {
+	compid_t client = (compid_t)cos_inv_token();
+	struct boot_comp *c, *n;
 
+	assert(client > 0 && client <= MAX_NUM_COMPS);
+	c = boot_comp_get(client);
+	if (cont) c->main_exec = 1;
+
+	printc("Component %d initialization complete%s.\n", c->comp.id, (cont ? ", awaiting main execution": ""));
+
+	/* switch back to the booter's thread in execute */
+	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+	/* We should only switch back if `cont` != 0, and we want to execute a main */
+	assert(cont);
+	printc("Executing main in component %d.\n", cos_compid());
+
+	return;
 }
 
 void
-init_exit(void)
+init_exit(int retval)
 {
+	compid_t client = (compid_t)cos_inv_token();
+	struct boot_comp *c;
 
+	assert(client > 0 && client <= MAX_NUM_COMPS);
+	c = boot_comp_get(client);
+
+	printc("Component %d has terminated.\n", c->comp.id);
+
+	/* switch back to the booter's thread in execute */
+	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+	BUG();
+	while (1) ;
 }
 
 void

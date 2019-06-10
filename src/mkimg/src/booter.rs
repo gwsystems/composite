@@ -43,6 +43,7 @@ pub fn booter_serialize_args(comp: &Compose) -> String {
     let mut topkv = Vec::new();
     topkv.push(ArgsKV::new_arr(String::from("sinvs"), sinvs));
     topkv.push(ArgsKV::new_arr(String::from("components"), ids));
+    topkv.push(ArgsKV::new_key(String::from("compid"), String::from("1")));
 
     let top = ArgsKV::new_top(topkv);
 

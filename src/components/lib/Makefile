@@ -10,6 +10,9 @@ SIMPLE_STKLIB=simple_stklib.o
 CINC_ENV=$(CINC)
 export CINC_ENV
 
+# HACK: remove with new library structure
+CINC += -I$(INTERDIR)/init/
+
 .PHONY: all libs ps
 all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) libs
 

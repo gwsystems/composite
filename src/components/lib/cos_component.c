@@ -12,20 +12,26 @@
 #include <cos_component.h>
 #include <cos_debug.h>
 
+#include <init.h>
+
 #include <ps.h>
 
 CWEAKSYMB int cos_sched_notifications;
 
-CWEAKSYMB int
-main(void)
+/*
+ * __crt_main is just used to identify if the user has defined their
+ * own main (thus overriding the weak place-holder below)
+ */
+static int
+__crt_main(void)
 {
 	return 0;
 }
+CFN_WEAKALIAS(main, __crt_main);
 
 CWEAKSYMB void
 cos_init(void *arg)
 {
-	main();
 }
 
 /* Intended to be implement by libraries */
@@ -153,6 +159,20 @@ cos_thd_entry_exec(u32_t idx)
 	(fn)(data);
 }
 
+static void
+start_execution(void)
+{
+	cos_init(NULL);
+	/* continue only if there is no user-defined main */
+	init_done(main != __crt_main);
+	assert(main != __crt_main);
+
+	/* ...otherwise, run their main, and exit afterwards */
+	init_exit(main()); 	/* TODO: cmd line arguments */
+
+	BUG();
+}
+
 CWEAKSYMB void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
@@ -192,7 +212,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 			/* arg1 is the thread init data. 0 means
 			 * bootstrap. */
 			if (arg1 == 0) {
-				cos_init(NULL);
+				start_execution();
 			} else {
 				u32_t idx = (int)arg1 - 1;
 				if (idx >= COS_THD_INIT_REGION_SIZE) {
@@ -203,13 +223,13 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 					cos_thd_entry_exec(idx);
 				}
 			}
-			return;
 		}
 	default:
 		/* fault! */
 		assert(0);
-		return;
 	}
+	assert(0); 		/* should *not* return from threads */
+
 	return;
 }
 

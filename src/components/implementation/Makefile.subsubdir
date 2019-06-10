@@ -31,6 +31,8 @@ EXPIF_INC_PATHS=$(foreach I,$(ALL_INTERFACES),-I$(INTERDIR)/$(I)/)
 EXPIF_LIB_PATHS=$(foreach I,$(ALL_INTERFACES), $(if $(wildcard $(IMPLDIR)/$(I)/libs_$(I).a), -L$(IMPLDIR)/$(I)/))
 EXPIF_LIBS=$(foreach I,$(ALL_INTERFACES), $(if $(wildcard $(IMPLDIR)/$(I)/libs_$(I).a), -ls_$(I)))
 
+# every component is dependent on init
+DEPENDENCIES += init
 # Paths and libraries derived from the interface dependencies that
 # components have defined (only if the libraries exist).
 DEP_INC_PATHS=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)

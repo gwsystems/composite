@@ -6,7 +6,8 @@
 
 #define ITER 1024
 
-void cos_init(void)
+void
+cos_init(void)
 {
 	int r0 = 0, r1 = 0;
 	unsigned long r3 = 0;
@@ -22,8 +23,9 @@ void cos_init(void)
 	assert(pong_argsrets(4, 3, 2, 1, &r0, &r1) == 2);
 	assert(r0 == 4 && r1 == 3);
 	assert(pong_subset(8, 16, &r3) == -24 && r3 == 24);
-	tid = pong_ids(&us, &them);
-	//assert(cos_thdid() == tid && us != them && us == cos_compid());
+	// tid = pong_ids(&us, &them);
+	pong_ids(&us, &them);
+	// assert(cos_thdid() == tid && us != them && us == cos_compid());
 
 	begin = ps_tsc();
 	for (i = 0; i < ITER; i++) {
@@ -38,6 +40,4 @@ void cos_init(void)
 	}
 	end = ps_tsc();
 	printc("Three return value invocation: %llu cycles\n", (end - begin)/ITER);
-
-	BUG();
 }

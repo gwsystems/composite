@@ -1,5 +1,6 @@
 use syshelpers::{dump_file};
 use toml;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Deserialize)]
 pub struct Dependency {
@@ -27,7 +28,8 @@ pub struct Component {
     baseaddr: Option<String>,
     deps: Option<Vec<Dependency>>,
     initargs: Option<Vec<InitArgs>>,
-    implements: Option<Vec<InterfaceVariant>>
+    implements: Option<Vec<InterfaceVariant>>,
+    params: Option<BTreeMap<String, String>>
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,7 +63,8 @@ impl Component {
             baseaddr: None,
             deps: Some(Vec::new()),
             initargs: None,
-            implements: None
+            implements: None,
+            params: None
         }
     }
 
