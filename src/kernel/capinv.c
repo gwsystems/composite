@@ -1667,6 +1667,11 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			ret = (int)chal_cyc_thresh();
 			break;
 		}
+		case CAPTBL_OP_HW_SHUTDOWN: {
+			chal_khalt();
+			ret = 0;
+			break;
+		}
 		default:
 			goto err;
 		}

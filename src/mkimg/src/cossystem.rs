@@ -9,10 +9,10 @@ pub struct Dependency {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct InitArgs {
-    key: String,
-    value: String,
-    at: Option<String>
+pub struct Parameters {
+    pub name: String,
+    pub value: String,
+    pub at: Option<String>
 }
 
 #[derive(Debug, Deserialize)]
@@ -27,9 +27,9 @@ pub struct Component {
     img: String,
     baseaddr: Option<String>,
     deps: Option<Vec<Dependency>>,
-    initargs: Option<Vec<InitArgs>>,
+    params: Option<Vec<Parameters>>,
     implements: Option<Vec<InterfaceVariant>>,
-    params: Option<BTreeMap<String, String>>
+    initfs: Option<String>
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,9 +62,9 @@ impl Component {
             img: img,
             baseaddr: None,
             deps: Some(Vec::new()),
-            initargs: None,
             implements: None,
-            params: None
+            params: None,
+            initfs: None
         }
     }
 
@@ -100,6 +100,14 @@ impl Component {
 
     pub fn baseaddr(&self) -> &Option<String> {
         &self.baseaddr
+    }
+
+    pub fn params(&self) -> &Option<Vec<Parameters>> {
+        &self.params
+    }
+
+    pub fn initfs(&self) -> &Option<String> {
+        &self.initfs
     }
 }
 
@@ -162,14 +170,14 @@ impl CosSystem {
                 }
             }
         }
-        // validate that all directed initargs are to declared
+        // validate that all directed params are to declared
         // components
         for c in self.comps() {
-            if let Some(ref args) = c.initargs {
+            if let Some(ref args) = c.params {
                 for ia in args.iter() {
                     if let Some(ref name) = ia.at {
                         if !self.comp_exists(name.to_string()) {
-                            err_accum.push_str(&format!("Error: Cannot find component referenced by directed initargs {} in component {}.",
+                            err_accum.push_str(&format!("Error: Cannot find component referenced by directed params {} in component {}.",
                                                         name, c.name));
                             fail = true;
                         }

@@ -1,8 +1,10 @@
+#[derive(Debug, Clone)]
 enum ArgsValType {
     Str(String),
     Arr(Vec<ArgsKV>)
 }
 
+#[derive(Debug, Clone)]
 pub struct ArgsKV {
     key: String,
     val: ArgsValType

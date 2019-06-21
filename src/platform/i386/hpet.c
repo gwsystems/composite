@@ -148,7 +148,7 @@ timer_calibration(void)
 		cycles_per_tick        = (unsigned long)(tot / TIMER_CALIBRATION_ITER);
 		assert(cycles_per_tick > hpetcyc_per_tick);
 
-		if (lapic_timer_calib_init) {
+		if (lapic_timer_calibrated()) {
 			u32_t cycs_to_apic_ratio = 0, apic_cycs_per_tick = 0;
 
 			apic_cycs_per_tick = apic_tot / TIMER_CALIBRATION_ITER;
@@ -231,43 +231,43 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 	*hpet_config |= HPET_ENABLE_CNF;
 }
 
-u64_t
-timer_find_hpet(void *timer)
+void *
+timer_initialize_hpet(void *timer)
 {
 	u32_t          i;
 	unsigned char  sum      = 0;
 	unsigned char *hpetaddr = timer;
-	u32_t          length   = *(u32_t *)(hpetaddr + HPET_TAB_LENGTH);
+	u32_t          length;
+	u64_t          addr;
 
+	assert(timer);
 	printk("Initializing HPET @ %p\n", hpetaddr);
 
+	length = *(u32_t *)(hpetaddr + HPET_TAB_LENGTH);
 	for (i = 0; i < length; i++) {
 		sum += hpetaddr[i];
 	}
 
-	if (sum == 0) {
-		u64_t addr = *(u64_t *)(hpetaddr + HPET_TAB_ADDRESS);
-		printk("\tChecksum is OK\n");
-		printk("\tAddr: %016llx\n", addr);
-		hpet = (void *)((u32_t)(addr & 0xffffffff));
-		printk("\thpet: %p\n", hpet);
-		return addr;
+	if (sum != 0) {
+		printk("\tInvalid checksum (%d)\n", sum);
+
+		return 0;
 	}
 
-	printk("\tInvalid checksum (%d)\n", sum);
-	return 0;
-}
+	addr = *(u64_t *)(hpetaddr + HPET_TAB_ADDRESS);
+	printk("\tChecksum is OK\n");
+	printk("\tAddr: %016llx\n", addr);
+	hpet = device_map_mem((paddr_t)((u32_t)(addr & 0xffffffff)), 0);
+	printk("\thpet: %p\n", hpet);
 
-void
-timer_set_hpet_page(u32_t page)
-{
-	hpet              = (void *)(page * (1 << 22) | ((u32_t)hpet & ((1 << 22) - 1)));
 	hpet_capabilities = (u32_t *)((unsigned char *)hpet + HPET_CAPABILITIES);
 	hpet_config       = (u64_t *)((unsigned char *)hpet + HPET_CONFIGURATION);
 	hpet_interrupt    = (u64_t *)((unsigned char *)hpet + HPET_INTERRUPT);
 	hpet_timers       = (struct hpet_timer *)((unsigned char *)hpet + HPET_T0_CONFIG);
 
 	printk("\tSet HPET @ %p\n", hpet);
+
+	return hpet;
 }
 
 void
@@ -278,6 +278,7 @@ timer_init(void)
 	assert(hpet_capabilities);
 	pico_per_hpetcyc = hpet_capabilities[1]
 	                   / FEMPTO_PER_PICO; /* bits 32-63 are # of femptoseconds per HPET clock tick */
+	assert(pico_per_hpetcyc > 0);
 	hpetcyc_per_tick = (TIMER_DEFAULT_US_INTERARRIVAL * PICO_PER_MICRO) / pico_per_hpetcyc;
 
 	printk("Enabling timer @ %p with tick granularity %ld picoseconds\n", hpet, pico_per_hpetcyc);
@@ -288,7 +289,7 @@ timer_init(void)
 	 * Set the timer as specified.  This assumes that the cycle
 	 * specification is in hpet cycles (not cpu cycles).
 	 */
-	if (chal_msr_mhz && !lapic_timer_calib_init) {
+	if (chal_msr_mhz && !lapic_timer_calibrated()) {
 		cycles_per_tick          = chal_msr_mhz * TIMER_DEFAULT_US_INTERARRIVAL;
 		timer_cycles_per_hpetcyc = cycles_per_tick / hpetcyc_per_tick;
 		printk("Timer not calibrated, instead computed using MSR frequency value\n");

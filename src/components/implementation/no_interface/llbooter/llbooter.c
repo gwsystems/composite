@@ -239,7 +239,7 @@ boot_comp_next(compid_t id)
 	struct boot_comp *n = boot_comp_get(id + 1);
 
 	assert(c->comp.id == id);
-	if (c->comp.id == 0) return NULL;
+	if (n->comp.id == 0) return NULL;
 
 	return n;
 }
@@ -375,16 +375,18 @@ execute(void)
 	}
 
 	/* Execute the main in components, FIFO */
-	while ((c = boot_comp_next(cos_compid()))) {
+	comp = &boot->comp;
+	while ((c = boot_comp_next(comp->id))) {
+		comp = &c->comp;
 		if (!c->main_exec) continue;
 
-		comp = &c->comp;
 		printc("Switching back to thread in component %d.\n", comp->id);
 		assert(comp->comp_res->sched_aep.thd);
 		if (cos_defswitch(comp->comp_res->sched_aep.thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 	}
 
 	printc("Executed main in each component. Halting\n");
+	cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);
 	while (1) ;
 
 	BUG();

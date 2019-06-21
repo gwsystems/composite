@@ -126,6 +126,7 @@ typedef enum {
 	CAPTBL_OP_HW_MAP,
 	CAPTBL_OP_HW_CYC_USEC,
 	CAPTBL_OP_HW_CYC_THRESH,
+	CAPTBL_OP_HW_SHUTDOWN,
 } syscall_op_t;
 
 typedef enum {

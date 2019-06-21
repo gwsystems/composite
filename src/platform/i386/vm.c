@@ -55,6 +55,12 @@ u8_t *mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 	return r;
 }
 
+/*
+ * Essentially the kernel's heap pointer. Used for device memory
+ * allocation AFTER memory has been allocated for typeable memory.
+ */
+unsigned long kernel_mapped_offset;
+
 int
 kern_setup_image(void)
 {
@@ -68,55 +74,23 @@ kern_setup_image(void)
 	/* ASSUMPTION: The static layout of boot_comp_pgd is identical to a pgd post-pgtbl_alloc */
 	/* FIXME: should use pgtbl_extend instead of directly accessing the pgd array... */
 	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA / PGD_RANGE;
-	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end); i += PGD_RANGE, j++) {
+	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end);
+	     i += PGD_RANGE, j++) {
 		assert(j != KERN_INIT_PGD_IDX
 		       || ((boot_comp_pgd[j] | PGTBL_GLOBAL) & ~(PGTBL_MODIFIED | PGTBL_ACCESSED))
-		            == (i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL));
+		       == (i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL));
 		boot_comp_pgd[j]             = i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
 		boot_comp_pgd[i / PGD_RANGE] = 0; /* unmap lower addresses */
 	}
+
+	kernel_mapped_offset = j;
 
 	#ifdef ENABLE_VGA
 		/* uses virtual address for VGA */
 		vga_high_init();
 	#endif
 
-	/* FIXME: Ugly hack to get the physical page with the ACPI RSDT mapped */
-	printk("ACPI initialization\n");
-	void *rsdt = acpi_find_rsdt();
-	if (rsdt) {
-		u32_t lapic, page;
-		u64_t hpet;
-
-		page             = round_up_to_pgd_page(rsdt) - (1 << 22);
-		boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
-		acpi_set_rsdt_page(j);
-		j++;
-
-		hpet = timer_find_hpet(acpi_find_timer());
-		if (hpet) {
-			page             = round_up_to_pgd_page(hpet & 0xffffffff) - (1 << 22);
-			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
-			timer_set_hpet_page(j);
-			j++;
-		}
-
-		/* lapic memory map */
-		lapic = lapic_find_localaddr(acpi_find_apic());
-		if (lapic) {
-			page             = round_up_to_pgd_page(lapic & 0xffffffff) - (1 << 22);
-			/*
-			 * Intel specification:
-			 * For correct APIC operation, this address space must be mapped to an area of memory
-			 * that has been designated as strong uncacheable (UC).
-			 */
-			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL | PGTBL_NOCACHE;
-			lapic_set_page(j);
-			j++;
-		}
-	}
-
-	for (; j < PAGE_SIZE / sizeof(unsigned int); i += PGD_RANGE, j++) {
+	for (; j < PAGE_SIZE / sizeof(unsigned long); i += PGD_RANGE, j++) {
 		boot_comp_pgd[j] = boot_comp_pgd[i / PGD_RANGE] = 0;
 	}
 
@@ -127,6 +101,87 @@ kern_setup_image(void)
 
 	return 0;
 }
+
+/***
+ * The device API for allocating virtual memory, and accessing the
+ * device. Functions to map the memory, and to translate to virtual
+ * addresses. As devices are often in high physical memory, these are
+ * not the typical implementations, and require a simply
+ * data-structure to track the mappings. We want to avoid memory
+ * allocation (e.g. for PGD nodes) here, so we map super-pages worth
+ * of memory. This uses a non-trivial amount of kernel virtual memory.
+ *
+ * Note that this is relevant for devices that the kernel needs to
+ * access (timers, ACPI, LAPIC, etc...), and NOT the devices that are
+ * accessed from user-level as the hardware capability provides that
+ * mappings in a more conventional way.
+ *
+ * Thus, this is a simple implementation that assumes that we have
+ * relatively few devices that require mapping. We also bound the
+ * number of regions devoted to devices so that we fail fast if
+ * something strange is configured.
+ */
+
+#define DEV_MAPS_MAX 16
+
+int dev_map_off = 0;
+struct dev_map {
+	paddr_t physaddr;
+	void   *virtaddr;
+} dev_mem[DEV_MAPS_MAX];
+
+void *
+device_pa2va(paddr_t dev_addr)
+{
+	int i;
+
+	for (i = 0; i < dev_map_off; i++) {
+		paddr_t rounded = round_to_pgd_page(dev_addr);
+
+		if (round_to_pgd_page(dev_mem[i].physaddr) == rounded) {
+			return (char *)dev_mem[i].virtaddr + (dev_addr - rounded);
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * For a device mapped at a physical address, map it into virtual
+ * memory and return the address. This is very wasteful of physical
+ * memory as it uses PGD ranges (4MB) for the allocations.
+ */
+void *
+device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags)
+{
+	paddr_t rounded;
+	void   *vaddr;
+	unsigned long off = kernel_mapped_offset;
+
+	boot_state_assert(INIT_UT_MEM);
+	vaddr = device_pa2va(dev_addr);
+	if (vaddr) {
+		boot_comp_pgd[(unsigned long)vaddr / PGD_RANGE] |= pt_extra_flags; /* use the union of the flags */
+
+		return vaddr;
+	}
+
+	/* Allocate a PGD region, and map it in */
+	assert(off < PAGE_SIZE / sizeof(unsigned long));
+	rounded = round_up_to_pgd_page(dev_addr) - PGD_RANGE;
+	boot_comp_pgd[off] = rounded | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL | pt_extra_flags;
+	dev_mem[dev_map_off] = (struct dev_map) {
+		.physaddr = rounded,
+		.virtaddr = (void *)(off * PGD_RANGE)
+	};
+	dev_map_off++;
+	kernel_mapped_offset++;
+
+	assert(((unsigned long)device_pa2va(dev_addr) & (PGD_RANGE-1)) == (dev_addr & (PGD_RANGE-1)));
+
+	return device_pa2va(dev_addr);
+}
+
 
 void
 kern_paging_map_init(void *pa)

@@ -13,6 +13,16 @@
 
 #define ADDR_STR_LEN 8
 
+boot_state_t initialization_state = INIT_BOOTED;
+
+void
+boot_state_transition(boot_state_t from, boot_state_t to)
+{
+	assert(initialization_state == from);
+	assert((to - from) == 1); /* transitions must be linear */
+	initialization_state = to;
+}
+
 struct mem_layout glb_memlayout;
 volatile int cores_ready[NUM_CPU];
 
@@ -118,10 +128,13 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #ifdef ENABLE_VGA
 	vga_init();
 #endif
+	boot_state_transition(INIT_BOOTED, INIT_CPU);
+
 	max = MAX((unsigned long)mboot->mods_addr,
 	          MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
 	kern_paging_map_init((void *)(max + PGD_SIZE));
 	kern_memory_setup(mboot, mboot_magic);
+	boot_state_transition(INIT_CPU, INIT_MEM_MAP);
 
 	chal_init();
 	cap_init();
@@ -129,11 +142,17 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	retype_tbl_init();
 	comp_init();
 	thd_init();
-	paging_init();
+	boot_state_transition(INIT_MEM_MAP, INIT_DATA_STRUCT);
 
-	kern_boot_comp(INIT_CORE);
+	paging_init();
+	boot_state_transition(INIT_DATA_STRUCT, INIT_UT_MEM);
+
+	acpi_init();
 	lapic_init();
 	timer_init();
+	boot_state_transition(INIT_UT_MEM, INIT_KMEM);
+
+	kern_boot_comp(INIT_CORE);
 
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
@@ -169,14 +188,20 @@ smp_kmain(void)
 	while(1) ;
 }
 
+extern void shutdown_apm(void);
+
+extern void outw(unsigned short __val, unsigned short __port);
+
 void
 khalt(void)
 {
 	printk("Shutting down...\n");
-	while (1);
-	asm("mov $0x53,%ah");
-	asm("mov $0x07,%al");
-	asm("mov $0x001,%bx");
-	asm("mov $0x03,%cx");
-	asm("int $0x15");
+	/* printk("\ttry acpi\n"); */
+	/* acpi_shutdown(); */
+	/* printk("\ttry apm\n"); */
+	/* shutdown_apm(); */
+	printk("\t...try emulator magic\n");
+	outw(0xB004, 0x0 | 0x2000);
+	printk("\t...spinning\n");
+	while (1) ;
 }

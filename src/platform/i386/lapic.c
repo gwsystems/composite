@@ -112,7 +112,13 @@ static unsigned int   lapic_is_disabled[NUM_CPU];
 
 static unsigned int lapic_cycs_thresh        = 0;
 static u32_t        lapic_cpu_to_timer_ratio = 0;
-u32_t               lapic_timer_calib_init   = 0;
+static u32_t        lapic_timer_calib_init   = 0;
+
+int
+lapic_timer_calibrated(void)
+{
+	return lapic_timer_calib_init;
+}
 
 static void
 lapic_write_reg(u32_t off, u32_t val)
@@ -217,7 +223,7 @@ lapic_intsrc_iter(unsigned char *madt)
 	printk("\tAPICs processed, %d cores\n", ncpus);
 }
 
-u32_t
+int
 lapic_find_localaddr(void *l)
 {
 	u32_t          i;
@@ -234,7 +240,7 @@ lapic_find_localaddr(void *l)
 
 	if (sum != 0) {
 		printk("\tInvalid checksum (%d)\n", sum);
-		return 0;
+		return -1;
 	}
 
 	addr       = *(u32_t *)(lapicaddr + APIC_CNTRLR_ADDR_OFF);
@@ -243,14 +249,14 @@ lapic_find_localaddr(void *l)
 	lapic_intsrc_iter(lapicaddr);
 
 	printk("\tChecksum is OK\n");
-	lapic = (void *)(addr);
+	lapic = device_map_mem((paddr_t)addr, PGTBL_NOCACHE);
 	printk("\tlapic: %p\n", lapic);
 
 	readmsr(MSR_APIC_BASE, &lo, &hi);
 	assert(lo & (1 << 8)); 	/* assume we are the BSP */
 	/* instead of using bit 11 ("enable"), we use the SIV LAPIC control register */
 
-	return addr;
+	return 0;
 }
 
 void
@@ -298,7 +304,7 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 {
 	u64_t now;
 
-	assert(lapic_timer_calib_init == 0);
+	assert(!lapic_timer_calibrated());
 	rdtscll(now);
 	if (deadline < now || (deadline - now) < LAPIC_TIMER_MIN) deadline = now + LAPIC_TIMER_MIN;
 
@@ -354,7 +360,7 @@ lapic_get_ccr(void)
 void
 lapic_timer_calibration(u32_t ratio)
 {
-	assert(ratio && lapic_timer_calib_init);
+	assert(ratio && lapic_timer_calibrated());
 
 	lapic_timer_calib_init   = 0;
 	lapic_cpu_to_timer_ratio = ratio;
@@ -392,10 +398,10 @@ lapic_timer_init(void)
 	u32_t a, b, c, d;
 
 	chal_cpuid(1, &a, &b, &c, &d);
-	if (c & (1 << 21)) printk("LAPIC:  processor supports x2APIC, IGNORED.\n");
+	if (c & (1 << 21)) printk("\tLAPIC:  processor supports x2APIC, IGNORED.\n");
 
 	if (!lapic_tscdeadline_supported()) {
-		printk("LAPIC: TSC-Deadline Mode not supported! Configuring Oneshot Mode!\n");
+		printk("\tLAPIC: TSC-Deadline Mode not supported! Configuring Oneshot Mode!\n");
 
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_ONESHOT_MODE);
@@ -409,7 +415,7 @@ lapic_timer_init(void)
 			lapic_cycs_thresh      = LAPIC_ONESHOT_THRESH;
 		}
 	} else {
-		printk("LAPIC: Configuring TSC-Deadline Mode!\n");
+		printk("\tLAPIC: Configuring TSC-Deadline Mode!\n");
 
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_TSCDEADLINE_MODE);

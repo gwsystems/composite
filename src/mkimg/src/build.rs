@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use compose::Compose;
 use booter::{booter_serialize_args, booter_tar_dirkey};
+use initargs::ArgsKV;
 
 // Interact with the composite build system to "seal" the components.
 // This requires linking them with all dependencies, and with libc,
@@ -58,11 +59,12 @@ struct ComponentContext {
     comp_name: String,          // the component implementation name
     comp_if: String,            // component interface directory
     var_name: String,           // the sysspec name
-    make_cmd: Option<String>,
     base_addr: String,          // base address of component in hex
+    initfs: Option<String>,     // the tarball to use as the initial file-system
+    params: Option<ArgsKV>,     // the parameters for this component
+
     interface_exports: Vec<(String, String)>, // interface/variant pairs
     interface_deps: Vec<(String, String, String)>,    // interface/server/variant pairs derived from server
-
     interface_servers: Vec<(String, String)>, // server/interface pairs to help deriving interface_deps
     library_deps: Vec<String>
 }
@@ -88,7 +90,8 @@ impl ComponentContext {
             comp_if: interface.clone(),
             var_name: varname.clone(),
             base_addr: String::from("0x00400000"),
-            make_cmd: None,
+            initfs: None,
+            params: None,
             interface_exports: Vec::new(),
             interface_deps: Vec::new(),
             interface_servers: Vec::new(),
@@ -131,6 +134,15 @@ impl ComponentContext {
         for dep in comp.deps().iter() {
             compctxt.interface_servers.push((dep.interface.clone(), dep.srv.clone()));
         }
+
+        // convert the initial arguments and parameters into the KV
+        // format of initargs. TODO: add the proper entries for the
+        // "at" clauses.
+        let kvs = comp.params().as_ref()
+            .unwrap_or(&Vec::new()).iter()
+            .map(|p| ArgsKV::new_key(p.name.clone(), p.value.clone()))
+            .collect();
+        compctxt.params = Some(ArgsKV::new_arr(String::from("params"), kvs));
 
         compctxt
     }
@@ -289,20 +301,47 @@ impl BuildContext {
         cmd
     }
 
-    fn calculate_make_cmds(&mut self) -> () {
-        self.refresh_build_dir();
+    // The key within the initargs for the tarball, the path of the
+    // tarball, and the set of paths to the files to include in the
+    // tarball and name of them within the tarball.
+    fn tarball_create(tarball_key: &String, tar_path: &String, contents: Vec<(String, String)>) -> Result<(), String> {
+        let   file = File::create(&tar_path).unwrap();
+        let mut ar = Builder::new(file);
+        let    key = format!("{}/", tarball_key);
 
-        for (n, mut c) in self.comps.iter_mut() {
-            c.make_cmd = Some(BuildContext::comp_gen_make_cmd(&c, &self.builddir, None, None));
-        }
+        ar.append_dir(&key, &key).unwrap(); // FIXME: error handling
+        contents.iter().for_each(|(p, n)| {     // file path, and name for the tarball
+            let mut f = File::open(p).unwrap(); //  should not fail: we just built this, TODO: fix race
+            ar.append_file(format!("{}/{}", tarball_key, n), &mut f).unwrap(); // FIXME: error handling
+        });
+        ar.finish().unwrap(); // FIXME: error handling
+        Ok(())
+    }
+
+    fn initargs_create(initargs_path: &String, args: String) -> Result<(), String> {
+        let mut initargs_file = File::create(&initargs_path).unwrap();
+        initargs_file.write_all(args.as_bytes()).unwrap();
+        Ok(())
     }
 
     pub fn build_components(&mut self) -> () {
-        self.calculate_make_cmds();
+        self.refresh_build_dir();
+
         for (n, c) in self.comps.iter() {
+            let comp_path = comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name);
+            let tar_path = format!("{}_initfs.tar", &comp_path);
+            let mut initargs_path = None;
+
+            if let Some(ref kvs) = c.params {
+                let path = format!("{}_initargs.c", &comp_path);
+                let top  = ArgsKV::new_top(vec!(kvs.clone()));
+                BuildContext::initargs_create(&path, top.serialize());
+                initargs_path = Some(path);
+            }
+
+            let cmd = BuildContext::comp_gen_make_cmd(&c, &self.builddir, initargs_path, None);
+
             println!("---[ Component {} ]---", n);
-            let mut cmd = String::from("");
-            cmd.push_str(c.make_cmd.as_ref().unwrap());
             println!("{}", cmd);
             let (out, err) = exec_pipeline(vec![cmd]);
             println!("Component {} compilation output:
@@ -312,28 +351,24 @@ impl BuildContext {
     }
 
     pub fn gen_booter(&self, compose: &Compose) -> () {
-        let tar_path = format!("{}booter_bins.tar", self.builddir);
-        let initargs_path = format!("{}booter_initargs.c", self.builddir);
+        let b = compose.booter();
+        let booter_comp   = self.comps.get(&b).unwrap();
+        let booter_comp_path = comp_build_obj_path(&self.builddir, &booter_comp.comp_if, &booter_comp.comp_name, &booter_comp.var_name);
+        let tar_path      = format!("{}_initfs.tar", &booter_comp_path);
+        let initargs_path = format!("{}_initargs.c", &booter_comp_path);
 
-        // populate the tarball for the booter
-        let   file = File::create(&tar_path).unwrap();
-        let mut ar = Builder::new(file);
-
-        ar.append_dir("binaries/", "binaries/").unwrap(); // FIXME: error handling
-        for (n, c) in self.comps.iter() {
-            if *n == compose.booter() {
-                continue;
+        let tar_files:Vec<(String, String)> = self.comps.iter().filter_map(|(n, c)| {
+            if *n == b {
+                return None;
             }
 
-            let  path = comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name);
-            let  name = comp_obj_name(&c.comp_if, &c.comp_name, &c.var_name);
-            let mut f = File::open(path).unwrap(); //  should not fail: we just built this, TODO: fix race
-            ar.append_file(format!("{}/{}", booter_tar_dirkey(), name), &mut f).unwrap(); // FIXME: error handling
-        }
-        ar.finish().unwrap(); // FIXME: error handling
+            let path = comp_build_obj_path(&self.builddir, &c.comp_if, &c.comp_name, &c.var_name);
+            let name = comp_obj_name(&c.comp_if, &c.comp_name, &c.var_name);
 
-        let mut initargs_file = File::create(&initargs_path).unwrap();
-        initargs_file.write_all(booter_serialize_args(&compose).as_bytes()).unwrap();
+            Some((path, name))
+        }).collect();
+        BuildContext::tarball_create(&booter_tar_dirkey(), &tar_path, tar_files).unwrap();
+        BuildContext::initargs_create(&initargs_path, booter_serialize_args(&compose)).unwrap();
 
         let booter = self.comps.get(&self.booter).unwrap(); // validated in the toml
         let cmd = BuildContext::comp_gen_make_cmd(&booter, &self.builddir, Some(initargs_path), Some(tar_path));

@@ -189,6 +189,8 @@ int     cos_hw_detach(hwcap_t hwc, hwid_t hwid);
 void   *cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
 int     cos_hw_cycles_per_usec(hwcap_t hwc);
 int     cos_hw_cycles_thresh(hwcap_t hwc);
+void    cos_hw_shutdown(hwcap_t hwc);
+
 
 capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
 

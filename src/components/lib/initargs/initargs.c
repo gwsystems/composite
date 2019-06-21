@@ -393,7 +393,7 @@ tar_test(void)
 	struct initargs_iter i;
 	int cont;
 
-	if (args_get_entry("binaries", &entry)) printf("The fuck\n");
+	if (args_get_entry("binaries", &entry)) printf("\"binaries\" not found in the initargs namespace.\n");
 	printf("binaries length: %d\n", args_len(&entry));
 	for (cont = args_iter(&entry, &i, &e) ; cont ; cont = args_iter_next(&i, &e)) {
 		int len;

@@ -1019,6 +1019,12 @@ cos_hw_cycles_thresh(hwcap_t hwc)
 	return call_cap_op(hwc, CAPTBL_OP_HW_CYC_THRESH, 0, 0, 0, 0);
 }
 
+void
+cos_hw_shutdown(hwcap_t hwc)
+{
+	call_cap_op(hwc, CAPTBL_OP_HW_SHUTDOWN, 0, 0, 0, 0);
+}
+
 void *
 cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 {
