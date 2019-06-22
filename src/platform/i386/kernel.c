@@ -189,19 +189,36 @@ smp_kmain(void)
 }
 
 extern void shutdown_apm(void);
-
 extern void outw(unsigned short __val, unsigned short __port);
 
 void
 khalt(void)
 {
-	printk("Shutting down...\n");
-	/* printk("\ttry acpi\n"); */
-	/* acpi_shutdown(); */
-	/* printk("\ttry apm\n"); */
-	/* shutdown_apm(); */
-	printk("\t...try emulator magic\n");
-	outw(0xB004, 0x0 | 0x2000);
+	static int method = 0;
+
+	if (method == 0) printk("Shutting down...\n");
+	/*
+	 * Use the case statement as we shutdown in the fault handler,
+	 * thus faults on shutdown require that we bypass faulty
+	 * shutdown handlers
+	 */
+	switch(method) {
+	case 0:
+		method++;
+		printk("\ttry acpi");
+		acpi_shutdown();
+		printk("...FAILED\n");
+	case 1:
+		method++;
+		printk("\ttry apm");
+		shutdown_apm();
+		printk("...FAILED\n");
+	case 2:
+		method++;
+		printk("\t...try emulator magic");
+		outw(0xB004, 0x0 | 0x2000);
+		printk("...FAILED\n");
+	}
 	printk("\t...spinning\n");
 	while (1) ;
 }

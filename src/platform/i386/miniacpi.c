@@ -137,24 +137,25 @@ acpi_find_apic(void)
 
 /*
  * Thanks to kaworu @ https://forum.osdev.org/viewtopic.php?t=16990
- * for shutdown code:
+ * for shutdown code. For this structures layout, see 5.2.9 Fixed ACPI
+ * Description Table (FADT) of the ACPI spec.
  */
 struct facp {
 	struct acpi_header head;
-	char   unneeded1[40 - 8];
-	u32_t *dsdt;
-	char   unneeded2[48 - 44];
-	u32_t *smi_cmd;
+	u8_t   _unneeded1[40 - 8]; /* see offsets in spec */
+	paddr_t dsdt;
+	char   _unneeded2[48 - 44];
+	paddr_t smi_cmd;
 	u8_t   acpi_enable;
 	u8_t   acpi_disable;
 	char   unneeded3[64 - 54];
-	u32_t *pm1a_cnt_blk;
-	u32_t *pm1b_cnt_blk;
+	u32_t  pm1a_cnt_blk;
+	u32_t  pm1b_cnt_blk;
 	u8_t   unneeded4[89 - 72];
 	u8_t   pm1_cnt_len;
 } __attribute__((packed));
 
-#define DSDT_HEADER_SZ 36
+#define DSDT_DEFBLK_OFFSET 36  /* offset to the "Definition Block" */
 
 void
 outw(unsigned short __val, unsigned short __port)
@@ -178,39 +179,61 @@ inw(unsigned short __port)
 	return __val;
 }
 
-void
-acpi_shutdown(void)
-{
-	struct facp *facp = acpi_find_resource("FACP");
-	char        *s5_addr;
-	int          dsdt_len;
-	struct acpi_header *dsdt;
+static u32_t  pm1a_cnt;
+static u32_t  pm1b_cnt;
+static u16_t  slp_type_a;
+static u16_t  slp_type_b;
+static u16_t  slp_en;
+static u32_t  smi_cmd;
+static u8_t   acpi_enable;
+static int    shutdown_ready;
 
-	u32_t *smi_cmd;
-	u8_t   acpi_enable;
+void
+acpi_shutdown_init(void)
+{
+	paddr_t facp_pa, dsdt_pa;
+	struct facp *facp = NULL;
+	struct acpi_header *dsdt = NULL;
+
+	char  *s5_addr;
+	int    dsdt_len;
 	u8_t   acpi_disable;
-	u32_t *pm1a_cnt;
-	u32_t *pm1b_cnt;
-	u16_t  slp_type_a;
-	u16_t  slp_type_b;
-	u16_t  slp_en;
 	u8_t   pm1_cnt_len;
 
+	/* ACPI details to be able to shutdown the system */
+	facp = acpi_find_resource("FACP");
 	if (!facp) return;
+	dsdt_pa = facp->dsdt;
+	assert(dsdt_pa);
+	dsdt = (struct acpi_header *)device_map_mem(dsdt_pa, 0);
+	if (acpi_chk_header(dsdt, "DSDT")) {
+		dsdt = NULL;
+		return;
+	}
 
-	dsdt = (struct acpi_header *)facp->dsdt;
-	if (acpi_chk_header(dsdt, "DSDT")) return;
+	printk("\tFound ACPI FACP and DSDT\n");
 
-	dsdt_len = dsdt->len - DSDT_HEADER_SZ;
-	s5_addr  = (char *)facp->dsdt + DSDT_HEADER_SZ;
-	while (0 < dsdt_len--) {
+	dsdt_len = dsdt->len    - DSDT_DEFBLK_OFFSET; /* this is the length of the s5 AML script */
+	s5_addr  = (char *)dsdt + DSDT_DEFBLK_OFFSET;
+
+	/* go till we have 4 bytes left as the signature, "_S5_", takes 4 bytes */
+	while (dsdt_len >= 4) {
+		/* find the correct script */
 		if (!strncmp(s5_addr, "_S5_", 4)) break;
 		s5_addr++;
+		dsdt_len--;
 	}
-	if (dsdt_len == 0) return;
+	if (dsdt_len < 4) {
+		printk("\tCould not find the ACPI \"_S5_\" script for shutdown.\n");
+
+		return;
+	}
 
 	/* check if \_S5 was found and that there is a valid AML structure */
-	if (!((*(s5_addr-1) == 0x08 || (*(s5_addr-2) == 0x08 && *(s5_addr-1) == '\\')) && *(s5_addr+4) == 0x12)) return;
+	if (!((*(s5_addr - 1) == 0x08 || (*(s5_addr - 2) == 0x08 && *(s5_addr - 1) == '\\')) && *(s5_addr + 4) == 0x12)) {
+		printk("\tACPI \"_S5_\" script invalid.\n");
+		return;
+	}
 
 	/* Great, lets find the values to feed into ACPI to reboot */
 	s5_addr += 5;
@@ -235,7 +258,19 @@ acpi_shutdown(void)
 
 	slp_en = 1<<13;
 
-	/* Enable ACPI. Check if acpi is already enabled */
+	shutdown_ready = 1;
+
+	printk("\tFACP and DSDT parsed and will be used for shutdown\n");
+
+	return;
+}
+
+void
+acpi_shutdown(void)
+{
+	if (!shutdown_ready) return;
+
+	/* Enable ACPI. First, check if acpi is already enabled */
 	if (!inw((unsigned int) pm1a_cnt)) {
 		u32_t i;
 		u32_t spin_until = ~0;
@@ -264,8 +299,6 @@ acpi_shutdown(void)
 	if (pm1b_cnt != 0) {
 		outw((unsigned int)pm1b_cnt, slp_type_b | slp_en);
 	}
-
-	return;
 }
 
 extern unsigned long kernel_mapped_offset;
@@ -305,4 +338,8 @@ acpi_init(void)
 		lapic_err = lapic_find_localaddr(apic);
 	}
 	assert(!lapic_err);
+
+	acpi_shutdown_init();
+
+	return;
 }
