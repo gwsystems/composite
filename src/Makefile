@@ -1,6 +1,7 @@
 #MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 # Note: can't use $(PWD) here if make -Ced from elsewhere.
 MAKEOPTIONS=--no-print-directory -I$(shell pwd)
+PLAT_FILE=.PLATFORM_ID
 
 default: | all cp
 
@@ -20,19 +21,19 @@ comps:
 plat:
 	$(info )
 	$(info ***********************************************)
-	$(info ***** Building $(shell cat PLATFORM_ID) Platform and Kernel *******)
+	$(info ***** Building $(shell cat $(PLAT_FILE)) Platform and Kernel *******)
 	$(info ***********************************************)
 	$(info )
-	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat PLATFORM_ID) -C platform
+	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat $(PLAT_FILE)) -C platform
 
 cpplat:
-	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat PLATFORM_ID) -C platform cp
+	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat $(PLAT_FILE)) -C platform cp
 
 cp: cpplat
 	$(MAKE) $(MAKEOPTIONS) -C components cp
 
 clean:
-	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat PLATFORM_ID) -C platform clean
+	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat $(PLAT_FILE)) -C platform clean
 	$(MAKE) $(MAKEOPTIONS) -C components clean
 
 
@@ -41,9 +42,9 @@ distclean: clean
 	@rm -f `pwd`/../transfer/*
 
 init:
-	test -f PLATFORM_ID || $(MAKE) $(MAKEOPTIONS) config
+	test -f $(PLAT_FILE) || $(MAKE) $(MAKEOPTIONS) config
 	$(MAKE) $(MAKEOPTIONS) -C components init
-	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat PLATFORM_ID) -C platform init
+	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat $(PLAT_FILE)) -C platform init
 
 update:
 	git submodule update --init --recursive
@@ -68,13 +69,13 @@ config-linux: config-gen
 	@echo "#define COS_PLATFORM LINUX" >> ./kernel/include/shared/cpu_ghz.h
 	@echo "#define COS_LINUX" >> ./kernel/include/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/linux/module/chal/ chal
-	@echo "linux" > PLATFORM_ID
+	@echo "linux" > $(PLAT_FILE)
 
 # override the default linux chal link
 config-i386: config-gen
 	@echo "#define COS_PLATFORM I386" >> ./kernel/include/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/i386/chal/ chal
-	@echo "i386" > PLATFORM_ID
+	@echo "i386" > $(PLAT_FILE)
 
 run:
 ifeq ($(RUNSCRIPT),)

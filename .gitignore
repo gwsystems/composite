@@ -19,7 +19,7 @@ tags
 src/components/lib/musl-1.1.11/bin/musl-gcc
 src/kernel/include/shared/cpu_ghz.h
 src/Makefile.cosconfig
-src/PLATFORM_ID
+src/.PLATFORM_ID
 modules.order
 .depend
 *.img
