@@ -26,23 +26,28 @@ CCVINC=-I$(CCVDIR)
 
 POSIX_LIB=$(CDIR)/lib/posix/posix.o
 
-#PONY=$(CDIR)/cidl/
-PONY=/bin/echo
-
 LUABASE=$(CDIR)/lib/lua
 LUADIR=$(LUABASE)/lua-5.2.1
 LUAOBJ=$(LUABASE)/cos/lua_lang.o
 LUAINC=-I$(LUADIR)/src -I$(LUABASE)/cos/include
 
 INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/ -I$(SHAREDINC)
-SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic
+SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic -fno-pie
 OPT= -g -fvar-tracking
 #OPT= -O3
 CFLAGS=-m32 -D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable $(INC_PATH) $(MUSLINC) $(LWIPINC) $(LUAINC) $(OPT) $(SHARED_FLAGS)
 CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
-LDFLAGS=-melf_i386
+LDFLAGS=-melf_i386 -no-pic
 MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r
 ASFLAGS=-m32 $(INC_PATH) $(SHARED_FLAGS)
+
+GCC_PIE=$(shell gcc -v 2>&1 | grep -c "\--enable-default-pie")
+ifeq ($(GCC_PIE),1)
+MUSLCFLAGS+=-no-pie
+LDFLAGS+=-no-pie
+CFLAGS+=-fno-pie
+CXXFLAGS+=-fno-pie
+endif
 
 LIBCOSDEFKERN=-lcos_kernel_api -lcos_defkernel_api
 LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap

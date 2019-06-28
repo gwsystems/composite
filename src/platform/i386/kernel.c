@@ -200,7 +200,7 @@ khalt(void)
 	/*
 	 * Use the case statement as we shutdown in the fault handler,
 	 * thus faults on shutdown require that we bypass faulty
-	 * shutdown handlers
+	 * shutdown handlers.
 	 */
 	switch(method) {
 	case 0:
@@ -219,6 +219,7 @@ khalt(void)
 		outw(0xB004, 0x0 | 0x2000);
 		printk("...FAILED\n");
 	}
+	/* last resort */
 	printk("\t...spinning\n");
 	while (1) ;
 }

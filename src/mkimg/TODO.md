@@ -9,3 +9,4 @@
 - Might pass some set of default initargs to *each* component.
     These might include "name", ...
 - Separate out the C defines for the namespacing assumptions on name mangling of stubs, and access them via the FFI to C to ensure they are consistent between the rust and C worlds (e.g. __cosrt_c_cosrtdefault, __cosrt_c_*, __cosrt_ucap*, __cosrt_s_*, __cosrt_s_cstub_*).
+- update the u32s to use an explicit component id type for better documentation

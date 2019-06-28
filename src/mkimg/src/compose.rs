@@ -24,11 +24,14 @@
 
 
 use syshelpers::{dump_file, emit_file, reset_dir, exec_pipeline};
-use cossystem::{CosSystem};
+use cossystem::CosSystem;
 use compobject::CompObject;
-use build::{BuildContext,comps_base_path, interface_path, comp_path};
-use std::collections::BTreeMap;
+use build::{BuildContext, comps_base_path, interface_path, comp_path};
+use resources::{Resource, ComponentId, CoreNum};
+
+use std::collections::{BTreeMap,HashMap};
 use std::env;
+
 
 pub struct ComposeSpec {
     sysspec: String,
@@ -54,7 +57,8 @@ pub struct Compose<'a> {
     spec: &'a ComposeSpec,
     comp_objs: BTreeMap<String, CompObject<'a>>,
     sinvs: Vec<Sinv>,
-    ids: BTreeMap<String, (String, u32)> // varname -> (imgname, index)
+    ids: BTreeMap<String, (String, u32)>, // varname -> (imgname, index)
+    mgrs: HashMap<u32, Vec<Resource>>
 }
 
 impl ComposeSpec {
@@ -182,7 +186,8 @@ impl<'a> Compose<'a> {
             spec: spec,
             comp_objs: cs,
             sinvs: sinvs,
-            ids: ids
+            ids: ids,
+            mgrs: HashMap::new()
         };
 
         spec.build_ctxt.gen_booter(&all);

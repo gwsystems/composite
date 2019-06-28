@@ -184,6 +184,8 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 	assert(s[1].access == ELF_PH_RW);
 	/* the data should immediately follow code */
 	assert(round_up_to_page(s[0].vstart + s[0].sz) == s[1].vstart);
+	/* should be page aligned so that we can map it directly */
+	assert(round_to_page(s[0].mem) == (unsigned int)s[0].mem);
 
 	/* allocate bss memory, including the last sub-page of .data (assumes .data is page-aligned) */
 	assert(s[1].vstart % PAGE_SIZE == 0);

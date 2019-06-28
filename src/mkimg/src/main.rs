@@ -13,6 +13,7 @@ mod compose;
 mod build;
 mod booter;
 mod initargs;
+mod resources;
 
 use compose::{ComposeSpec, Compose};
 use compobject::{CompObject, ClientSymb, ServerSymb};

@@ -1,19 +1,33 @@
+PHDRS
+{
+	headers PT_PHDR PHDRS ;
+ 	interp PT_INTERP ;
+	text PT_LOAD ;
+	data PT_LOAD ;
+}
+
 SECTIONS
 {
 	ENTRY(__cosrt_upcall_entry)
 
-	.text : { *(.text*) }
+	. = SIZEOF_HEADERS;
+
+	.interp : { *(.interp) } :interp
+
+	/* start the text/read-only sections */
+	.text : ALIGN(4096) { *(.text*) } :text
 	.rodata : { *(.rodata*) }
 	.eh_frame : { *(.eh_frame*) }
 
 	. = ALIGN(4096);
+	/* start the data sections */
 	.ctors : {
 		__CTOR_LIST__ = .;
 		LONG((__CTOR_END__ - __CTOR_LIST__) / 4 - 2)
 		*(.ctors)
 		LONG(0)
 		__CTOR_END__ = .;
-	}
+	} :data
 	.dtors : {
 		__DTOR_LIST__ = .;
 		LONG((__DTOR_END__ - __DTOR_LIST__) / 4 - 2)
