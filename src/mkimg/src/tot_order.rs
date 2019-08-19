@@ -1,8 +1,8 @@
+use passes::{BuildState, ComponentId, ComponentName, OrderedSpecPass, SystemState, Transition};
 use std::collections::BTreeMap;
-use passes::{SystemState, Transition, OrderedSpecPass, ComponentId, ComponentName, BuildState};
 
 pub struct CompTotOrd {
-    ids: BTreeMap<ComponentId, ComponentName>
+    ids: BTreeMap<ComponentId, ComponentName>,
 }
 
 impl OrderedSpecPass for CompTotOrd {
@@ -63,8 +63,6 @@ impl Transition for CompTotOrd {
             id = id + 1;
         }
 
-        Ok(Box::new(CompTotOrd {
-            ids: comps
-        }))
+        Ok(Box::new(CompTotOrd { ids: comps }))
     }
 }

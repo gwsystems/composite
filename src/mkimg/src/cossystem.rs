@@ -2,8 +2,11 @@ use std::collections::HashMap;
 use syshelpers::dump_file;
 use toml;
 
-use passes::{SystemState, Transition, SpecificationPass, ComponentName, Component, Dependency, Library, Export, BuildState};
 use initargs::ArgsKV;
+use passes::{
+    BuildState, Component, ComponentName, Dependency, Export, Library, SpecificationPass,
+    SystemState, Transition,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct Dep {
@@ -168,7 +171,10 @@ impl TomlSpecification {
             if c.deps().len() == 0 {
                 true
             } else {
-                err_accum.push_str(&format!("Error: Base constructor {} has dependencies.", c.name));
+                err_accum.push_str(&format!(
+                    "Error: Base constructor {} has dependencies.",
+                    c.name
+                ));
                 false
             }
         }) {
@@ -184,7 +190,11 @@ impl TomlSpecification {
         for c in self.comps() {
             for d in c.deps() {
                 if let Some(ref s) = self.comp(d.get_name()) {
-                    if s.interfaces().iter().find(|i| i.interface == d.interface).is_none() {
+                    if s.interfaces()
+                        .iter()
+                        .find(|i| i.interface == d.interface)
+                        .is_none()
+                    {
                         err_accum.push_str(&format!(
                             "Error: Component {}'s dependency on {} is not exported by any depended on components.",
                             c.name, d.get_name()
@@ -221,12 +231,21 @@ impl TomlSpecification {
             if !self.comps().iter().fold(false, |accum, c2| {
                 c.constructor == "kernel" || c.constructor == c2.name || accum
             }) {
-                err_accum.push_str(&format!("Error: Component {}'s stated constructor ({}) is not a valid component.", c.name, c.constructor));
+                err_accum.push_str(&format!(
+                    "Error: Component {}'s stated constructor ({}) is not a valid component.",
+                    c.name, c.constructor
+                ));
             }
         }
 
-        if self.comps().iter().filter(|c| c.constructor == "kernel").count() != 1 {
-                err_accum.push_str(&format!("Error: the number of base constructors (with constructor = \"kernel\") is not singular."));
+        if self
+            .comps()
+            .iter()
+            .filter(|c| c.constructor == "kernel")
+            .count()
+            != 1
+        {
+            err_accum.push_str(&format!("Error: the number of base constructors (with constructor = \"kernel\") is not singular."));
         }
 
         if fail {
@@ -308,7 +327,11 @@ impl Transition for SystemSpec {
         }
 
         let spec = spec_err.unwrap();
-        let ids = spec.comps().iter().map(|c| ComponentName::new(&c.name, &String::from("global"))).collect();
+        let ids = spec
+            .comps()
+            .iter()
+            .map(|c| ComponentName::new(&c.name, &String::from("global")))
+            .collect();
         // TODO: no libs currently considered
         let libs: HashMap<ComponentName, Vec<Library>> = HashMap::new();
         let mut components: HashMap<ComponentName, Component> = HashMap::new();
@@ -320,9 +343,14 @@ impl Transition for SystemSpec {
                 name: ComponentName::new(&c.name, &String::from("global")),
                 constructor: ComponentName::new(&c.constructor, &String::from("global")),
                 source: c.img.clone(),
-                base_vaddr: c.baseaddr.as_ref().unwrap_or(&String::from("0x00400000")).clone(),
+                base_vaddr: c
+                    .baseaddr
+                    .as_ref()
+                    .unwrap_or(&String::from("0x00400000"))
+                    .clone(),
                 params: c
-                    .params.as_ref()
+                    .params
+                    .as_ref()
                     .unwrap_or(&Vec::new())
                     .iter()
                     .map(|p| ArgsKV::new_key(p.name.clone(), p.value.clone()))
@@ -335,22 +363,32 @@ impl Transition for SystemSpec {
             let ds = c
                 .deps()
                 .iter()
-                .map(|d|
-                     Dependency {
-                         server: ComponentName::new(&d.srv, &String::from("global")),
-                         interface: d.interface.clone(),
-                         // The variant is associated with the server,
-                         // so we have to find the correct server,
-                         // then the correct interface to find the
-                         // variant. Note: the unwraps here are valid
-                         // as they are checked in the validation step
-                         variant: spec.comp(d.srv.clone()).unwrap().interfaces().iter().find(|i| i.interface == d.interface).unwrap().variant.as_ref().unwrap_or(&"stubs".to_string()).clone()
-                     })
+                .map(|d| Dependency {
+                    server: ComponentName::new(&d.srv, &String::from("global")),
+                    interface: d.interface.clone(),
+                    // The variant is associated with the server,
+                    // so we have to find the correct server,
+                    // then the correct interface to find the
+                    // variant. Note: the unwraps here are valid
+                    // as they are checked in the validation step
+                    variant: spec
+                        .comp(d.srv.clone())
+                        .unwrap()
+                        .interfaces()
+                        .iter()
+                        .find(|i| i.interface == d.interface)
+                        .unwrap()
+                        .variant
+                        .as_ref()
+                        .unwrap_or(&"stubs".to_string())
+                        .clone(),
+                })
                 .collect();
             deps.insert(ComponentName::new(&c.name, &String::from("global")), ds);
 
             let es = c
-                .implements.as_ref()
+                .implements
+                .as_ref()
                 .unwrap_or(&Vec::new())
                 .iter()
                 .map(|e| Export {
@@ -366,7 +404,7 @@ impl Transition for SystemSpec {
             components,
             deps,
             libs,
-            exports
+            exports,
         }))
     }
 }

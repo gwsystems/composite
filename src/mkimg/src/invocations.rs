@@ -1,7 +1,10 @@
-use passes::{InvocationsPass, SInv, ComponentId, SystemState, BuildState, TransitionIter, deps, libs, exports, component};
+use passes::{
+    component, deps, exports, libs, BuildState, ComponentId, InvocationsPass, SInv, SystemState,
+    TransitionIter,
+};
 
 pub struct Invocations {
-    invs: Vec<SInv>
+    invs: Vec<SInv>,
 }
 
 fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String> {
@@ -20,13 +23,13 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
                 continue;
             }
 
-            let srv_id = s.get_named().ids().iter().filter_map(|(id, name)| {
-                if *name == d.server {
-                    Some(id)
-                } else {
-                    None
-                }
-            }).next().unwrap();
+            let srv_id = s
+                .get_named()
+                .ids()
+                .iter()
+                .filter_map(|(id, name)| if *name == d.server { Some(id) } else { None })
+                .next()
+                .unwrap();
             match s.get_objs_id(srv_id).server_symbs().get(sname) {
                 Some(ref srv_symbs) => {
                     invs.push(SInv {
@@ -35,11 +38,11 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
                         server: srv_id.clone(),
                         c_fn_addr: symbinfo.func_addr.clone(),
                         c_ucap_addr: symbinfo.ucap_addr.clone(),
-                        s_fn_addr: *srv_symbs.clone()
+                        s_fn_addr: *srv_symbs.clone(),
                     });
                     found = true;
-                },
-                None => continue
+                }
+                None => continue,
             }
         }
 
@@ -63,14 +66,23 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
 }
 
 impl TransitionIter for Invocations {
-    fn transition_iter(id: &ComponentId, s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
+    fn transition_iter(
+        id: &ComponentId,
+        s: &SystemState,
+        b: &mut dyn BuildState,
+    ) -> Result<Box<Self>, String> {
         let curr = s.get_named().ids().get(id).unwrap();
         let mut invs = Vec::new();
 
-        for cid in s.get_named().ids().iter().map(|(cid, _)| cid).filter(|cid| {
-            let c = component(&s, &cid);
-            c.constructor == *curr
-        })
+        for cid in s
+            .get_named()
+            .ids()
+            .iter()
+            .map(|(cid, _)| cid)
+            .filter(|cid| {
+                let c = component(&s, &cid);
+                c.constructor == *curr
+            })
         {
             // Should be true as constructor relationships should be
             // factored into the component id total order
@@ -78,9 +90,7 @@ impl TransitionIter for Invocations {
             invs.append(&mut (sinvs_generate(cid, s)?));
         }
 
-        Ok(Box::new(Invocations {
-            invs
-        }))
+        Ok(Box::new(Invocations { invs }))
     }
 }
 

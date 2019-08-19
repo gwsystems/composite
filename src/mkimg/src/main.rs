@@ -1,31 +1,31 @@
-extern crate toml;
 extern crate pipers;
+extern crate toml;
 #[macro_use]
 extern crate serde_derive;
-extern crate xmas_elf;
-extern crate tar;
 extern crate itertools;
+extern crate tar;
+extern crate xmas_elf;
 
-mod cossystem;
-mod syshelpers;
-mod compobject;
-mod symbols;
-mod invocations;
 mod build;
+mod compobject;
+mod cossystem;
 mod initargs;
-mod resources;
+mod invocations;
 mod passes;
+mod resources;
+mod symbols;
+mod syshelpers;
 mod tot_order;
 
+use build::DefaultBuilder;
+use compobject::{Constructor, ElfObject};
+use cossystem::SystemSpec;
+use initargs::Parameters;
+use invocations::Invocations;
+use passes::{BuildState, ComponentId, SystemState, Transition, TransitionIter};
+use resources::ResAssignPass;
 use std::env;
-use passes::{SystemState, Transition, TransitionIter, BuildState, ComponentId};
-use build::{DefaultBuilder};
-use cossystem::{SystemSpec};
-use tot_order::{CompTotOrd};
-use resources::{ResAssignPass};
-use initargs::{Parameters};
-use compobject::{ElfObject, Constructor};
-use invocations::{Invocations};
+use tot_order::CompTotOrd;
 
 pub fn exec() -> Result<(), String> {
     let mut args = env::args();
@@ -35,7 +35,10 @@ pub fn exec() -> Result<(), String> {
     let arg2 = args.next();
 
     if None == arg1 || None == arg2 {
-        return Err(format!("usage: {} <sysspec>.toml <buildname>", program_name.unwrap()));
+        return Err(format!(
+            "usage: {} <sysspec>.toml <buildname>",
+            program_name.unwrap()
+        ));
     }
 
     let mut sys = SystemState::new(arg1.unwrap());
@@ -46,7 +49,13 @@ pub fn exec() -> Result<(), String> {
     sys.add_named(CompTotOrd::transition(&sys, &mut build)?);
     sys.add_restbls(ResAssignPass::transition(&sys, &mut build)?);
 
-    let reverse_ids: Vec<ComponentId> = sys.get_named().ids().iter().map(|(k, v)| k.clone()).rev().collect();
+    let reverse_ids: Vec<ComponentId> = sys
+        .get_named()
+        .ids()
+        .iter()
+        .map(|(k, v)| k.clone())
+        .rev()
+        .collect();
     for c_id in reverse_ids.iter() {
         sys.add_params_iter(&c_id, Parameters::transition_iter(c_id, &sys, &mut build)?);
         sys.add_objs_iter(&c_id, ElfObject::transition_iter(c_id, &sys, &mut build)?);

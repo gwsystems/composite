@@ -1,20 +1,26 @@
-use xmas_elf::{ElfFile, header, program};
 use xmas_elf::sections;
-use xmas_elf::sections::{SectionData};
-use xmas_elf::symbol_table::{Entry, Entry32, DynEntry32, DynEntry64, Type, Binding};
-use xmas_elf::sections::{SHF_ALLOC, SHF_COMPRESSED, SHF_WRITE, SHF_EXECINSTR, SHF_GROUP, SHF_INFO_LINK, SHF_LINK_ORDER, SHF_MASKOS, SHF_MASKPROC, SHF_MERGE, SHF_OS_NONCONFORMING, SHF_TLS, SHF_STRINGS};
+use xmas_elf::sections::SectionData;
+use xmas_elf::sections::{
+    SHF_ALLOC, SHF_COMPRESSED, SHF_EXECINSTR, SHF_GROUP, SHF_INFO_LINK, SHF_LINK_ORDER, SHF_MASKOS,
+    SHF_MASKPROC, SHF_MERGE, SHF_OS_NONCONFORMING, SHF_STRINGS, SHF_TLS, SHF_WRITE,
+};
+use xmas_elf::symbol_table::{Binding, DynEntry32, DynEntry64, Entry, Entry32, Type};
+use xmas_elf::{header, program, ElfFile};
 
-use symbols::Symb;
-use std::collections::HashMap;
-use passes::{SystemState, BuildState, ObjectsPass, ConstructorPass, Transition, TransitionIter, Component, ComponentId, VAddr, ClientSymb, CompSymbs, ComponentName, component};
-use syshelpers::{dump_file, exec_pipeline};
 use itertools::Itertools;
+use passes::{
+    component, BuildState, ClientSymb, CompSymbs, Component, ComponentId, ComponentName,
+    ConstructorPass, ObjectsPass, SystemState, Transition, TransitionIter, VAddr,
+};
+use std::collections::HashMap;
 use std::fs::File;
+use symbols::Symb;
+use syshelpers::{dump_file, exec_pipeline};
 
 struct ClientSymbol {
     name: String,
     func_addr: u64,
-    ucap_addr: u64
+    ucap_addr: u64,
 }
 
 impl ClientSymbol {
@@ -33,7 +39,7 @@ impl ClientSymbol {
 
 struct ServerSymb {
     name: String,
-    addr: u64
+    addr: u64,
 }
 
 impl ServerSymb {
@@ -53,20 +59,19 @@ struct CompObject {
     compinfo_symb: u64,
     entryfn_symb: u64,
     defclifn_symb: u64,
-
 }
 
 impl CompObject {
     pub fn parse(name: &String, obj: &Vec<u8>) -> Result<CompObject, String> {
         let elf_file = ElfFile::new(obj).unwrap();
-        let symbs    = symbs_retrieve(&elf_file)?;
+        let symbs = symbs_retrieve(&elf_file)?;
 
         let compinfo = compinfo_addr(&elf_file, symbs)?.addr();
-        let entryfn  = entry_addr(&elf_file, symbs)?.addr();
+        let entryfn = entry_addr(&elf_file, symbs)?.addr();
         let defclifn = defcli_stub_addr(&elf_file, symbs)?.addr();
 
-        let exps     = compute_exports(&elf_file, symbs)?;
-        let deps     = compute_dependencies(&elf_file, symbs)?;
+        let exps = compute_exports(&elf_file, symbs)?;
+        let deps = compute_dependencies(&elf_file, symbs)?;
 
         Ok(CompObject {
             name: name.clone(),
@@ -74,7 +79,7 @@ impl CompObject {
             exp_symbs: exps,
             compinfo_symb: compinfo,
             entryfn_symb: entryfn,
-            defclifn_symb: defclifn
+            defclifn_symb: defclifn,
         })
     }
 
@@ -104,28 +109,50 @@ fn symb_address<'a>(e: &ElfFile<'a>, symb: &'a Entry32) -> u64 {
 }
 
 fn global_variables<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Vec<Symb<'a>> {
-    symbs.iter().filter_map(
-        |symb| match (symb.get_name(&e), symb.get_binding(), symb.get_type()) {
-            (Ok(name), Ok(Binding::Global), Ok(Type::NoType)) |
-            (Ok(name), Ok(Binding::Global), Ok(Type::Object)) => Some(Symb::new(name, symb_address(e, symb))),
-            _ => None
-        }
-    ).collect()
+    symbs
+        .iter()
+        .filter_map(
+            |symb| match (symb.get_name(&e), symb.get_binding(), symb.get_type()) {
+                (Ok(name), Ok(Binding::Global), Ok(Type::NoType))
+                | (Ok(name), Ok(Binding::Global), Ok(Type::Object)) => {
+                    Some(Symb::new(name, symb_address(e, symb)))
+                }
+                _ => None,
+            },
+        )
+        .collect()
 }
 
 fn global_functions<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Vec<Symb<'a>> {
-    symbs.iter().filter_map(
-        |symb| match (symb.get_name(&e), symb.get_binding(), symb.get_type()) {
-            (Ok(name), Ok(Binding::Global), Ok(Type::Func)) => Some(Symb::new(name, symb_address(e, symb))),
-            _ => None
-        }
-    ).collect()
+    symbs
+        .iter()
+        .filter_map(
+            |symb| match (symb.get_name(&e), symb.get_binding(), symb.get_type()) {
+                (Ok(name), Ok(Binding::Global), Ok(Type::Func)) => {
+                    Some(Symb::new(name, symb_address(e, symb)))
+                }
+                _ => None,
+            },
+        )
+        .collect()
 }
 
-fn symbol_prefix_filter<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32], prefix: &str, symb_filter: fn(&ElfFile<'a>, &'a [Entry32]) -> Vec<Symb<'a>>) -> Vec<Symb<'a>> {
-    symb_filter(e, symbs).iter().filter_map(
-        |ref symb| if symb.name().starts_with(prefix) { Some(Symb::new(&symb.name()[prefix.len()..], symb.addr())) } else { None }
-    ).collect()
+fn symbol_prefix_filter<'a>(
+    e: &ElfFile<'a>,
+    symbs: &'a [Entry32],
+    prefix: &str,
+    symb_filter: fn(&ElfFile<'a>, &'a [Entry32]) -> Vec<Symb<'a>>,
+) -> Vec<Symb<'a>> {
+    symb_filter(e, symbs)
+        .iter()
+        .filter_map(|ref symb| {
+            if symb.name().starts_with(prefix) {
+                Some(Symb::new(&symb.name()[prefix.len()..], symb.addr()))
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 fn client_caps<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Vec<Symb<'a>> {
@@ -152,66 +179,102 @@ fn unique_symbol<T>(symbs: &mut Vec<T>) -> Option<T> {
 }
 
 fn compinfo_addr<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Symb<'a>, String> {
-    unique_symbol(&mut symbol_prefix_filter(e, symbs, "__cosrt_comp_info", global_variables))
-        .ok_or(String::from("Could not find the __cosrt_upcall_entry function."))
+    unique_symbol(&mut symbol_prefix_filter(
+        e,
+        symbs,
+        "__cosrt_comp_info",
+        global_variables,
+    ))
+    .ok_or(String::from(
+        "Could not find the __cosrt_upcall_entry function.",
+    ))
 }
 
 fn entry_addr<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Symb<'a>, String> {
-    unique_symbol(&mut symbol_prefix_filter(e, symbs, "__cosrt_upcall_entry", global_functions))
-        .ok_or(String::from("Could not find the __cosrt_upcall_entry function."))
+    unique_symbol(&mut symbol_prefix_filter(
+        e,
+        symbs,
+        "__cosrt_upcall_entry",
+        global_functions,
+    ))
+    .ok_or(String::from(
+        "Could not find the __cosrt_upcall_entry function.",
+    ))
 }
 
 fn defcli_stub_addr<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Symb<'a>, String> {
-    unique_symbol(&mut symbol_prefix_filter(e, symbs, "__cosrt_c_cosrtdefault", global_functions))
-        .ok_or(String::from("Could not find the __cosrt_c_cosrtdefault function."))
+    unique_symbol(&mut symbol_prefix_filter(
+        e,
+        symbs,
+        "__cosrt_c_cosrtdefault",
+        global_functions,
+    ))
+    .ok_or(String::from(
+        "Could not find the __cosrt_c_cosrtdefault function.",
+    ))
 }
 
 fn symbs_retrieve<'a>(e: &ElfFile<'a>) -> Result<&'a [Entry32], String> {
     match e.find_section_by_name(".symtab").unwrap().get_data(&e) {
         //Ok(SectionData::DynSymbolTable32(sts)) => section_symbols_print(e, sts),
         Ok(SectionData::SymbolTable32(ref sts)) => Ok(sts),
-        _ => Err(String::from("Could not find the symbol table."))
+        _ => Err(String::from("Could not find the symbol table.")),
     }
 }
 
-fn compute_dependencies<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Vec<ClientSymbol>, String> {
-    let defstub    = defcli_stub_addr(e, symbs)?;
+fn compute_dependencies<'a>(
+    e: &ElfFile<'a>,
+    symbs: &'a [Entry32],
+) -> Result<Vec<ClientSymbol>, String> {
+    let defstub = defcli_stub_addr(e, symbs)?;
     let ucap_symbs = client_caps(e, symbs);
-    let dep_symbs  = client_stubs(e, symbs);
+    let dep_symbs = client_stubs(e, symbs);
 
-    Ok(ucap_symbs.iter().map(|s| {
-        let stub = dep_symbs.iter().fold(None, |found, next| {
-            if next.name() == s.name() {
-                Some(next.addr())
-            } else {
-                found
-            }}).unwrap_or(defstub.addr());
-        ClientSymbol {
-            name: String::from(s.name()),
-            func_addr: stub,
-            ucap_addr: s.addr()
-        }
-    }).collect())
+    Ok(ucap_symbs
+        .iter()
+        .map(|s| {
+            let stub = dep_symbs
+                .iter()
+                .fold(None, |found, next| {
+                    if next.name() == s.name() {
+                        Some(next.addr())
+                    } else {
+                        found
+                    }
+                })
+                .unwrap_or(defstub.addr());
+            ClientSymbol {
+                name: String::from(s.name()),
+                func_addr: stub,
+                ucap_addr: s.addr(),
+            }
+        })
+        .collect())
 }
 
 fn compute_exports<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Vec<ServerSymb>, String> {
-    Ok(server_stubs(e, symbs).iter()
-       .map(|s|
-            ServerSymb {
-                name: String::from(s.name()),
-                addr: s.addr()
-            }
-       ).collect())
+    Ok(server_stubs(e, symbs)
+        .iter()
+        .map(|s| ServerSymb {
+            name: String::from(s.name()),
+            addr: s.addr(),
+        })
+        .collect())
 }
 
 pub struct ElfObject {
     obj_path: String,
     client_symbs: HashMap<String, ClientSymb>,
     server_symbs: HashMap<String, VAddr>,
-    comp_symbs: CompSymbs
+    comp_symbs: CompSymbs,
 }
 
-fn compute_elfobj(id: &ComponentId, obj_path: &String, s: &SystemState, b: &mut dyn BuildState) -> Result<Box<ElfObject>, String> {
+fn compute_elfobj(
+    id: &ComponentId,
+    obj_path: &String,
+    s: &SystemState,
+    b: &mut dyn BuildState,
+) -> Result<Box<ElfObject>, String> {
     let obj_contents = dump_file(&obj_path)?;
     let obj = CompObject::parse(&obj_path, &obj_contents)?;
 
@@ -219,10 +282,13 @@ fn compute_elfobj(id: &ComponentId, obj_path: &String, s: &SystemState, b: &mut 
     let mut server_symbs = HashMap::new();
 
     for d in obj.dependencies().iter() {
-        client_symbs.insert(d.name.clone(), ClientSymb {
-            func_addr: d.func_addr,
-            ucap_addr: d.ucap_addr
-        });
+        client_symbs.insert(
+            d.name.clone(),
+            ClientSymb {
+                func_addr: d.func_addr,
+                ucap_addr: d.ucap_addr,
+            },
+        );
     }
 
     for e in obj.exported().iter() {
@@ -235,14 +301,17 @@ fn compute_elfobj(id: &ComponentId, obj_path: &String, s: &SystemState, b: &mut 
         server_symbs,
         comp_symbs: CompSymbs {
             entry: obj.entryfn_addr(),
-            comp_info: obj.compinfo_addr()
-        }
+            comp_info: obj.compinfo_addr(),
+        },
     }))
 }
 
-
 impl TransitionIter for ElfObject {
-    fn transition_iter(id: &ComponentId, s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
+    fn transition_iter(
+        id: &ComponentId,
+        s: &SystemState,
+        b: &mut dyn BuildState,
+    ) -> Result<Box<Self>, String> {
         let obj_path = b.comp_build(&id, &s)?;
 
         compute_elfobj(&id, &obj_path, &s, b)
@@ -268,7 +337,7 @@ impl ObjectsPass for ElfObject {
 }
 
 pub struct Constructor {
-    obj_path: String
+    obj_path: String,
 }
 
 impl Transition for Constructor {
@@ -311,12 +380,13 @@ impl Transition for Constructor {
         let cp_cmd = format!("cp {} {}", sys_constructor, img_path);
         let (out, err) = exec_pipeline(vec![cp_cmd.clone()]);
         if err.len() != 0 {
-            return Err(format!("Errors copying image (in cmd {}):\n{}", cp_cmd, err));
+            return Err(format!(
+                "Errors copying image (in cmd {}):\n{}",
+                cp_cmd, err
+            ));
         }
 
-        Ok(Box::new(Constructor {
-            obj_path: img_path
-        }))
+        Ok(Box::new(Constructor { obj_path: img_path }))
     }
 }
 

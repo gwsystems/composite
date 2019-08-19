@@ -1,5 +1,5 @@
+use passes::{BuildState, CapTable, ComponentId, ResPass, SystemState, Transition};
 use std::collections::{BTreeMap, HashMap};
-use passes::{ComponentId, BuildState, SystemState, Transition, ResPass, CapTable};
 
 pub type CoreNum = u32;
 
@@ -109,7 +109,7 @@ pub struct Res {
 }
 
 pub struct ResAssignPass {
-    resources: HashMap<ComponentId, CapTable>
+    resources: HashMap<ComponentId, CapTable>,
 }
 
 impl Transition for ResAssignPass {
@@ -121,9 +121,7 @@ impl Transition for ResAssignPass {
             res.insert(k.clone(), BTreeMap::new());
         }
 
-        Ok(Box::new(ResAssignPass {
-            resources: res
-        }))
+        Ok(Box::new(ResAssignPass { resources: res }))
     }
 }
 

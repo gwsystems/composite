@@ -91,7 +91,10 @@ fn constructor_tarball_create(
                 return None;
             }
 
-            Some((b.comp_obj_path(&cid, &s).unwrap(), b.comp_obj_file(&cid, &s)))
+            Some((
+                b.comp_obj_path(&cid, &s).unwrap(),
+                b.comp_obj_file(&cid, &s),
+            ))
         })
         .collect();
     if tar_files.len() == 0 {
@@ -314,14 +317,21 @@ impl BuildState for DefaultBuilder {
         let output_path = self.comp_obj_path(&id, &state)?;
 
         let cmd = comp_gen_make_cmd(&output_path, p.param_prog(), p.param_fs(), &id, &state);
-        let (out, err) = exec_pipeline(vec![cmd]);
+        let (out, err) = exec_pipeline(vec![cmd.clone()]);
         let comp_log = self.comp_file_path(&id, &"compilation.log".to_string(), &state)?;
-        emit_file(&comp_log, format!(
-            "Constructor compilation output:{}\nComponent compilation errors:{}",
-            out, err
-        ).as_bytes());
+        emit_file(
+            &comp_log,
+            format!(
+                "Command: {}\nCompilation output:{}\nComponent compilation errors:{}",
+                cmd, out, err
+            )
+            .as_bytes(),
+        );
         if err.len() != 0 {
-            println!("Errors in compiling component {}. See {}.", &output_path, comp_log)
+            println!(
+                "Errors in compiling component {}. See {}.",
+                &output_path, comp_log
+            )
         }
 
         Ok(output_path)
@@ -336,14 +346,21 @@ impl BuildState for DefaultBuilder {
         let tarfile = constructor_tarball_create(&c, &s, self)?;
 
         let cmd = comp_gen_make_cmd(&binary, &argsfile, &tarfile, &c, &s);
-        let (out, err) = exec_pipeline(vec![cmd]);
+        let (out, err) = exec_pipeline(vec![cmd.clone()]);
         let comp_log = self.comp_file_path(&c, &"constructor_compilation.log".to_string(), &s)?;
-        emit_file(&comp_log, format!(
-            "Constructor compilation output:{}\nComponent compilation errors:{}",
-            out, err
-        ).as_bytes());
+        emit_file(
+            &comp_log,
+            format!(
+                "Command: {}\nConstructor compilation output:{}\nComponent compilation errors:{}",
+                cmd, out, err
+            )
+            .as_bytes(),
+        );
         if err.len() != 0 {
-            println!("Errors in compiling component {}. See {}.", &binary, comp_log)
+            println!(
+                "Errors in compiling component {}. See {}.",
+                &binary, comp_log
+            )
         }
 
         Ok(binary.clone())
