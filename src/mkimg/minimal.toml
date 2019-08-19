@@ -1,11 +1,11 @@
 [system]
 description = "Simple system: ping pong!"
-constructor = "booter"
 
 [[components]]
 name = "booter"
 img  = "no_interface.llbooter"
 implements = [{interface = "init"}]
+constructor = "kernel"
 
 [[components]]
 name = "ping"
@@ -13,9 +13,11 @@ img  = "tests.unit_pingpong"
 deps = [{srv = "pong", interface = "pong"},
         {srv = "booter", interface = "init"}]
 baseaddr = "0x1600000"
+constructor = "booter"
 
 [[components]]
 name = "pong"
 img  = "pong.pingpong"
 deps = [{srv = "booter", interface = "init"}]
 implements = [{interface = "pong"}]
+constructor = "booter"

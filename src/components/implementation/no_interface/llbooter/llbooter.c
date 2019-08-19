@@ -273,7 +273,7 @@ comps_init(void)
 		int   keylen;
 		int   id   = atoi(args_key(&curr, &keylen));
 		char *name = args_value(&curr);
-		char *root = "binaries/";
+		const char *root = "binaries/";
 		int   len  = strlen(root);
 		char  path[INITARGS_MAX_PATHNAME];
 

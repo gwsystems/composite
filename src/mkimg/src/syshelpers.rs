@@ -1,5 +1,4 @@
 use pipers::Pipe;
-use std::path::Path;
 use std::fs;
 
 // FIXME: progs should be a more general iteration type
@@ -53,11 +52,19 @@ pub fn emit_file(name: &String, output: &[u8]) -> Result<(), String> {
 }
 
 // remove directory, all contents, and remake it
-pub fn reset_dir(dirname: String) -> Result<(), String> {
+pub fn reset_dir(dirname: &String) -> Result<(), String> {
     assert!(dirname != "/");    // small sanity check
-    fs::remove_dir_all(&dirname); // failure here is fine; we're creating next anyway
+    let _ = fs::remove_dir_all(&dirname); // failure here is fine; we're creating next anyway
     match fs::create_dir(&dirname) {
         Ok(_) => Ok(()),
-        Err(_) => Err(String::from(format!("Could create directory {}\n", dirname)))
+        Err(_) => Err(String::from(format!("Could not create directory {}\n", dirname)))
+    }
+}
+
+pub fn dir_exists(dirname: &String) -> bool {
+    if let Err(e) = fs::read_dir(&dirname) {
+        false
+    } else {
+        true
     }
 }

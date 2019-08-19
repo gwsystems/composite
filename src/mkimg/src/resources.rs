@@ -1,40 +1,40 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use passes::{ComponentId, BuildState, SystemState, Transition, ResPass, CapTable};
 
 pub type CoreNum = u32;
-pub type ComponentId = u32;
 
 // resources allocated in slices
 pub struct RateSlice {
     slice: u32,
-    prio: u32
+    prio: u32,
 }
 
 // resources allocated over finite or infinite window of time
 pub enum RateWindow {
     Window(u32),
-    Inf
+    Inf,
 }
 
 // For each core, what temporal partitions are required?
 pub struct CPUPartition {
     window: RateWindow,
-    slices: HashMap<u32, RateSlice> // component -> allocation
+    slices: HashMap<u32, RateSlice>, // component -> allocation
 }
 
 pub struct Rate {
     slice: RateSlice,
-    window: RateWindow
+    window: RateWindow,
 }
 
 pub struct SchedParam {
-    alloc: Option<Rate>
+    alloc: Option<Rate>,
 }
 
 // The assignment of components to cores. Which cores are they allowed
 // to create exectution on? Note that this information also needs to
 // get passed to the components themselves.
 pub struct CoreAssignment {
-    cores: HashMap<CoreNum, SchedParam>
+    cores: HashMap<CoreNum, SchedParam>,
 }
 
 // Memory is allocated either as a finite span of memory, or as "the
@@ -42,8 +42,8 @@ pub struct CoreAssignment {
 // memory, and the capability manager is in charge of managing
 // untyped/kernel memory.
 pub enum MemAmnt {
-    Span(u32),                  // should be a multiple of PAGE_SIZE
-    Remaining
+    Span(u32), // should be a multiple of PAGE_SIZE
+    Remaining,
 }
 
 // The mkimg representation of the system's resources, and which
@@ -99,5 +99,36 @@ pub enum Resource {
     // of other components which means it has to have access to their
     // capability tables, and untyped/kernel memory. This is
     // determined by the "cap" interface.
-    Cap(Vec<ComponentId>)
+    Cap(Vec<ComponentId>),
+}
+
+// resource, and parent of the resource pairs
+pub struct Res {
+    resource: Resource,
+    parent: Option<ComponentId>,
+}
+
+pub struct ResAssignPass {
+    resources: HashMap<ComponentId, CapTable>
+}
+
+impl Transition for ResAssignPass {
+    fn transition(s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
+        let mut res = HashMap::new();
+        let ids = s.get_named().ids();
+
+        for (k, v) in ids.iter() {
+            res.insert(k.clone(), BTreeMap::new());
+        }
+
+        Ok(Box::new(ResAssignPass {
+            resources: res
+        }))
+    }
+}
+
+impl ResPass for ResAssignPass {
+    fn cap_tbl(&self, id: &ComponentId) -> &CapTable {
+        self.resources.get(&id).unwrap()
+    }
 }

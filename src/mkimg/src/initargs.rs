@@ -1,5 +1,10 @@
+use std::fs::File;
+use tar::Builder;
+use passes::{SystemState, BuildState, TransitionIter, InitParamPass, ComponentId, component};
+use syshelpers::emit_file;
+
 #[derive(Debug, Clone)]
-enum ArgsValType {
+pub enum ArgsValType {
     Str(String),
     Arr(Vec<ArgsKV>)
 }
@@ -82,5 +87,69 @@ static struct kv_entry {} = {{ key: "{}", vtype: VTYPE_ARR, val: {{ arr: {{ sz: 
         format!("#include <initargs.h>
 {}
 struct initargs __initargs_root = {{ type: ARGS_IMPL_KV, d: {{ kv_ent: &__initargs_autogen_0 }} }};", self.serialize_rec(&mut ns).0)
+    }
+}
+
+
+// The key within the initargs for the tarball, the path of the
+// tarball, and the set of paths to the files to include in the
+// tarball and name of them within the tarball.
+fn tarball_create(tarball_key: &String, tar_path: &String, contents: Vec<(String, String)>) -> Result<(), String> {
+    let   file = File::create(&tar_path).unwrap();
+    let mut ar = Builder::new(file);
+    let    key = format!("{}/", tarball_key);
+
+    ar.append_dir(&key, &key).unwrap(); // FIXME: error handling
+    contents.iter().for_each(|(p, n)| {     // file path, and name for the tarball
+        let mut f = File::open(p).unwrap(); //  should not fail: we just built this, TODO: fix race
+        ar.append_file(format!("{}/{}", tarball_key, n), &mut f).unwrap(); // FIXME: error handling
+    });
+    ar.finish().unwrap(); // FIXME: error handling
+    Ok(())
+}
+
+fn initargs_create(initargs_path: &String, kvs: &Vec<ArgsKV>) -> Result<(), String> {
+    let top  = ArgsKV::new_top(kvs.clone());
+    let args = top.serialize();
+
+    if let Err(s) = emit_file(&initargs_path, args.as_bytes()) {
+        return Err(s);
+    }
+
+    Ok(())
+}
+
+// This is per-component.
+pub struct Parameters {
+    param_file_path: String,
+    tar_file_path: Option<String>,
+    args: Vec<ArgsKV>
+}
+
+impl InitParamPass for Parameters {
+    fn param_prog(&self) -> &String {
+        &self.param_file_path
+    }
+
+    fn param_list(&self) -> &Vec<ArgsKV> {
+        &self.args
+    }
+
+    fn param_fs(&self) -> &Option<String> {
+        &self.tar_file_path
+    }
+}
+
+impl TransitionIter for Parameters {
+    fn transition_iter(id: &ComponentId, s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
+        let argpath = b.comp_file_path(&id, &"initargs.c".to_string(), s)?;
+        let args = &component(s, id).params;
+        initargs_create(&argpath, args)?;
+
+        Ok(Box::new(Parameters {
+            args: args.clone(),
+            param_file_path: argpath,
+            tar_file_path: None
+        }))
     }
 }

@@ -46,7 +46,7 @@ OBJS=$(CXX_OBJS) $(C_OBJS) $(ASM_OBJS) $(OBJLIBS)
 
 # put together all of the paths and libraries into command line
 # arguments
-INCLUDE=-I../ $(DEP_INC_PATHS) $(EXPIF_INC_PATHS) $(CINC)
+INCLUDE=-I../ $(DEP_INC_PATHS) $(EXPIF_INC_PATHS)
 LIB_FLAGS=-L$(LIBDIR) -L$(LIBCXXDIR) $(EXPIF_LIB_PATHS) $(EXPIF_LIBS) $(ADDITIONAL_LIBS)
 
 #NOTE: assembly files don't have dependencies generated for them
@@ -89,7 +89,7 @@ component:
 	$(info |     Exported interfaces: $(COMP_INTERFACES_CLEAN))
 	$(info |     Interface dependencies: $(COMP_IFDEPS_CLEAN))
 	$(info |     Libraries: $(COMP_LIBDEPS_CLEAN) (currently ignored))
-	$(if $(COMP_INITARGS_FILE), $(CC) $(INCLUDE) $(CFLAGS) -c -o $(COMP_INITARGS_FILE:%.c=%.o) $(COMP_INITARGS_FILE))
+	$(if $(COMP_INITARGS_FILE), $(CC) $(INCLUDE) -I$(CDIR)/include/initargs/ $(CFLAGS) -c -o $(COMP_INITARGS_FILE:%.c=%.o) $(COMP_INITARGS_FILE))
 	$(if $(COMP_TAR_FILE), cp $(COMP_TAR_FILE) $(TAR_SYMBOL_NAME))
 	$(if $(COMP_TAR_FILE), $(LD) $(LDFLAGS) -r -b binary $(TAR_SYMBOL_NAME) -o $(COMP_TAR_FILE).o; rm $(TAR_SYMBOL_NAME))
 	$(LD) $(LDFLAGS) -r -o $(COMPNAME).linked_libs_ifs.o $(COMPOBJ) $(COMP_EXPIF_OBJS) $(COMP_DEP_OBJS) $(if $(COMP_INITARGS_FILE), $(COMP_INITARGS_FILE:%.c=%.o)) $(if $(COMP_TAR_FILE), $(COMP_TAR_FILE).o)

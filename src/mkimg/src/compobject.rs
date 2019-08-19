@@ -3,15 +3,21 @@ use xmas_elf::sections;
 use xmas_elf::sections::{SectionData};
 use xmas_elf::symbol_table::{Entry, Entry32, DynEntry32, DynEntry64, Type, Binding};
 use xmas_elf::sections::{SHF_ALLOC, SHF_COMPRESSED, SHF_WRITE, SHF_EXECINSTR, SHF_GROUP, SHF_INFO_LINK, SHF_LINK_ORDER, SHF_MASKOS, SHF_MASKPROC, SHF_MERGE, SHF_OS_NONCONFORMING, SHF_TLS, SHF_STRINGS};
-use symbols::Symb;
 
-pub struct ClientSymb {
+use symbols::Symb;
+use std::collections::HashMap;
+use passes::{SystemState, BuildState, ObjectsPass, ConstructorPass, Transition, TransitionIter, Component, ComponentId, VAddr, ClientSymb, CompSymbs, ComponentName, component};
+use syshelpers::{dump_file, exec_pipeline};
+use itertools::Itertools;
+use std::fs::File;
+
+struct ClientSymbol {
     name: String,
     func_addr: u64,
     ucap_addr: u64
 }
 
-impl ClientSymb {
+impl ClientSymbol {
     pub fn name(&self) -> &String {
         &self.name
     }
@@ -25,7 +31,7 @@ impl ClientSymb {
     }
 }
 
-pub struct ServerSymb {
+struct ServerSymb {
     name: String,
     addr: u64
 }
@@ -40,10 +46,9 @@ impl ServerSymb {
     }
 }
 
-pub struct CompObject<'a> {
+struct CompObject {
     name: String,
-    object: ElfFile<'a>,
-    dep_symbs: Vec<ClientSymb>,
+    dep_symbs: Vec<ClientSymbol>,
     exp_symbs: Vec<ServerSymb>,
     compinfo_symb: u64,
     entryfn_symb: u64,
@@ -51,8 +56,8 @@ pub struct CompObject<'a> {
 
 }
 
-impl<'a> CompObject<'a> {
-    pub fn parse(name: String, obj:&'a Vec<u8>) -> Result<CompObject<'a>, String> {
+impl CompObject {
+    pub fn parse(name: &String, obj: &Vec<u8>) -> Result<CompObject, String> {
         let elf_file = ElfFile::new(obj).unwrap();
         let symbs    = symbs_retrieve(&elf_file)?;
 
@@ -64,8 +69,7 @@ impl<'a> CompObject<'a> {
         let deps     = compute_dependencies(&elf_file, symbs)?;
 
         Ok(CompObject {
-            name: name,
-            object: elf_file,
+            name: name.clone(),
             dep_symbs: deps,
             exp_symbs: exps,
             compinfo_symb: compinfo,
@@ -82,7 +86,7 @@ impl<'a> CompObject<'a> {
         &self.exp_symbs
     }
 
-    pub fn dependencies(&self) -> &Vec<ClientSymb> {
+    pub fn dependencies(&self) -> &Vec<ClientSymbol> {
         &self.dep_symbs
     }
 
@@ -170,25 +174,24 @@ fn symbs_retrieve<'a>(e: &ElfFile<'a>) -> Result<&'a [Entry32], String> {
     }
 }
 
-fn compute_dependencies<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Vec<ClientSymb>, String> {
+fn compute_dependencies<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Vec<ClientSymbol>, String> {
     let defstub    = defcli_stub_addr(e, symbs)?;
     let ucap_symbs = client_caps(e, symbs);
     let dep_symbs  = client_stubs(e, symbs);
 
-    Ok(ucap_symbs.iter()
-       .map(|s| {
-           let stub = dep_symbs.iter().fold(None, |found, next| {
-               if next.name() == s.name() {
-                   Some(next.addr())
-               } else {
-                   found
-               }}).unwrap_or(defstub.addr());
-           ClientSymb {
-               name: String::from(s.name()),
-               func_addr: stub,
-               ucap_addr: s.addr()
-           }
-       }).collect())
+    Ok(ucap_symbs.iter().map(|s| {
+        let stub = dep_symbs.iter().fold(None, |found, next| {
+            if next.name() == s.name() {
+                Some(next.addr())
+            } else {
+                found
+            }}).unwrap_or(defstub.addr());
+        ClientSymbol {
+            name: String::from(s.name()),
+            func_addr: stub,
+            ucap_addr: s.addr()
+        }
+    }).collect())
 }
 
 fn compute_exports<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Vec<ServerSymb>, String> {
@@ -201,115 +204,124 @@ fn compute_exports<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Vec<Serv
        ).collect())
 }
 
-// fn section_symbols_print<'a>(e: &ElfFile<'a>, symbs: &[Entry32]) -> () {
-//     client_caps(e, symbs).iter().for_each(|ref s| println!("{} @ {:x}", s.name(), s.addr()));
-// }
+pub struct ElfObject {
+    obj_path: String,
+    client_symbs: HashMap<String, ClientSymb>,
+    server_symbs: HashMap<String, VAddr>,
+    comp_symbs: CompSymbs
+}
 
-// fn symbols_print(e: &ElfFile) {
-//     let st = e.find_section_by_name(".symtab").unwrap();
-//     match st.get_data(&e) {
-//         //Ok(SectionData::DynSymbolTable32(sts)) => section_symbols_print(e, sts),
-//         Ok(SectionData::SymbolTable32(sts)) => section_symbols_print(e, sts),
-//         _ => ()
-//     }
-//     // let dst = e.find_section_by_name("dynsym").unwrap();
-// }
+fn compute_elfobj(id: &ComponentId, obj_path: &String, s: &SystemState, b: &mut dyn BuildState) -> Result<Box<ElfObject>, String> {
+    let obj_contents = dump_file(&obj_path)?;
+    let obj = CompObject::parse(&obj_path, &obj_contents)?;
 
-// fn display_binary_information<P: AsRef<Path>>(binary_path: P) {
-//     let buf = open_file(binary_path);
-//     let elf_file = ElfFile::new(&buf).unwrap();
-//     println!("{}", elf_file.header);
-//     header::sanity_check(&elf_file).unwrap();
+    let mut client_symbs = HashMap::new();
+    let mut server_symbs = HashMap::new();
 
-//     let mut sect_iter = elf_file.section_iter();
-//     // Skip the first (dummy) section
-//     sect_iter.next();
-//     println!("sections");
-//     for sect in sect_iter {
-//         println!("{}", sect.get_name(&elf_file).unwrap());
-//         println!("{:?}", sect.get_type());
-//         //println!("{}", sect);
-//         sections::sanity_check(sect, &elf_file).unwrap();
+    for d in obj.dependencies().iter() {
+        client_symbs.insert(d.name.clone(), ClientSymb {
+            func_addr: d.func_addr,
+            ucap_addr: d.ucap_addr
+        });
+    }
 
-//         if sect.flags() & SHF_WRITE != 0 {
-//             print!("SHF_WRITE, ");
-//         }
-//         if sect.flags() & SHF_ALLOC != 0 {
-//             print!("SHF_ALLOC, ");
-//         }
-//         if sect.flags() & SHF_EXECINSTR != 0 {
-//             print!("SHF_EXECINSTR, ");
-//         }
-//         if sect.flags() & SHF_MERGE != 0 {
-//             print!("SHF_MERGE, ");
-//         }
-//         if sect.flags() & SHF_STRINGS != 0 {
-//             print!("SHF_STRINGS, ");
-//         }
-//         if sect.flags() & SHF_INFO_LINK != 0 {
-//             print!("SHF_INFO_LINK, ");
-//         }
-//         if sect.flags() & SHF_LINK_ORDER != 0 {
-//             print!("SHF_LINK_ORDER, ");
-//         }
-//         if sect.flags() & SHF_OS_NONCONFORMING != 0 {
-//             print!("SHF_OS_NONCONFORMING, ");
-//         }
-//         if sect.flags() & SHF_GROUP != 0 {
-//             print!("SHF_GROUP, ");
-//         }
-//         if sect.flags() & SHF_TLS != 0 {
-//             print!("SHF_TLS, ");
-//         }
-//         if sect.flags() & SHF_COMPRESSED != 0 {
-//             print!("SHF_COMPRESSED, ");
-//         }
-//         if sect.flags() & SHF_MASKOS != 0 {
-//             print!("SHF_MASKOS, ");
-//         }
-//         if sect.flags() & SHF_MASKPROC != 0 {
-//             print!("SHF_MASKPROC, ");
-//         }
-//         println!("");
+    for e in obj.exported().iter() {
+        server_symbs.insert(e.name.clone(), e.addr);
+    }
 
-//         // if sect.get_type() == ShType::StrTab {
-//         //     println!("{:?}", sect.get_data(&elf_file).to_strings().unwrap());
-//         // }
+    Ok(Box::new(ElfObject {
+        obj_path: obj_path.to_string(),
+        client_symbs,
+        server_symbs,
+        comp_symbs: CompSymbs {
+            entry: obj.entryfn_addr(),
+            comp_info: obj.compinfo_addr()
+        }
+    }))
+}
 
-//         // if sect.get_type() == ShType::SymTab {
-//         //     if let sections::SectionData::SymbolTable64(data) = sect.get_data(&elf_file) {
-//         //         for datum in data {
-//         //             println!("{}", datum.get_name(&elf_file));
-//         //         }
-//         //     } else {
-//         //         unreachable!();
-//         //     }
-//         // }
-//     }
 
-//     symbols_print(&elf_file);
+impl TransitionIter for ElfObject {
+    fn transition_iter(id: &ComponentId, s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
+        let obj_path = b.comp_build(&id, &s)?;
 
-//     let ph_iter = elf_file.program_iter();
-//     println!("\nprogram headers");
-//     for sect in ph_iter {
-//         println!("{:?}", sect.get_type());
-//         program::sanity_check(sect, &elf_file).unwrap();
-//     }
+        compute_elfobj(&id, &obj_path, &s, b)
+    }
+}
 
-//     match elf_file.program_header(0) {
-//         Ok(sect) => {
-//             println!("{}", sect);
-//             match sect.get_data(&elf_file) {
-//                 Ok(program::SegmentData::Note64(header, ptr)) => {
-//                     println!("{}: {:?}", header.name(ptr), header.desc(ptr))
-//                 }
-//                 Ok(_) => (),
-//                 Err(err) => println!("Error: {}", err),
-//             }
-//         }
-//         Err(err) => println!("Error: {}", err),
-//     }
+impl ObjectsPass for ElfObject {
+    fn client_symbs(&self) -> &HashMap<String, ClientSymb> {
+        &self.client_symbs
+    }
 
-//     // let sect = elf_file.find_section_by_name(".rodata.const2794").unwrap();
-//     // println!("{}", sect);
-// }
+    fn server_symbs(&self) -> &HashMap<String, VAddr> {
+        &self.server_symbs
+    }
+
+    fn comp_symbs(&self) -> &CompSymbs {
+        &self.comp_symbs
+    }
+
+    fn comp_path(&self) -> &String {
+        &self.obj_path
+    }
+}
+
+pub struct Constructor {
+    obj_path: String
+}
+
+impl Transition for Constructor {
+    fn transition(s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
+        let spec = s.get_spec();
+        let mut sys_constructor = "".to_string();
+        let constructors: Vec<&ComponentName> = spec
+            .names()
+            .iter()
+            .rev()
+            .map(|n| &spec.component_named(n).constructor)
+            .filter(|c| c.var_name != "kernel")
+            .unique()
+            .collect();
+
+        // Is rust smart enough to elide the actual collect here?
+        // Because of the "return", I don't think so.
+        for c_name in constructors.iter() {
+            // simple reverse map on the id...
+            let (id, _) = s
+                .get_named()
+                .ids()
+                .iter()
+                .find(|(id, name)| *name == *c_name)
+                .unwrap();
+
+            let obj_path = b.constructor_build(&id, &s)?;
+            let obj = compute_elfobj(&id, &obj_path, &s, b)?;
+
+            if obj.server_symbs() != s.get_objs_id(&id).server_symbs() {
+                return Err(format!("Constructor {:?} creation error: Between when the object's synchronous invocations were generated, and when the constructor was synthesized, the code layout changed. This is an internal error, but we cannot proceed.", c_name));
+            }
+
+            if component(&s, &id).constructor.var_name == "kernel" {
+                sys_constructor = obj_path;
+            }
+        }
+
+        let img_path = b.file_path(&"cos.img".to_string())?;
+        let cp_cmd = format!("cp {} {}", sys_constructor, img_path);
+        let (out, err) = exec_pipeline(vec![cp_cmd.clone()]);
+        if err.len() != 0 {
+            return Err(format!("Errors copying image (in cmd {}):\n{}", cp_cmd, err));
+        }
+
+        Ok(Box::new(Constructor {
+            obj_path: img_path
+        }))
+    }
+}
+
+impl ConstructorPass for Constructor {
+    fn image_path(&self) -> &String {
+        &self.obj_path
+    }
+}
