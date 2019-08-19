@@ -63,22 +63,9 @@ pub fn exec() -> Result<(), String> {
     }
     sys.add_constructor(Constructor::transition(&sys, &mut build)?);
 
-    println!("Final object in {}", sys.get_constructor().image_path());
+    println!("System object generated:\n\t{}", sys.get_constructor().image_path());
 
     Ok(())
-
-    // match ComposeSpec::parse_spec(arg1.unwrap()) {
-    //     Ok(sysspec) => {
-    //         println!("System Specification:\n{:#?}", sysspec.sysspec_output());
-    //         match Compose::parse_binaries(sysspec) {
-    //             Ok(sys) => {
-    //                 sys.components().iter().for_each(|(s, ref c)| comp_print(&c))
-    //             },
-    //             Err(s) => println!("{}", s)
-    //         }
-    //     },
-    //     Err(s) => println!("{}", s)
-    // }
 }
 
 pub fn main() -> () {

@@ -59,9 +59,10 @@ fn tarball_create(
 ) -> Result<(), String> {
     let file = File::create(&tar_path).unwrap();
     let mut ar = Builder::new(file);
+    let dir_template = env!("PWD"); // just need *some* directory with read/write perms
     let key = format!("{}/", tarball_key);
 
-    ar.append_dir(&key, &key).unwrap(); // FIXME: error handling
+    ar.append_dir(&key, &dir_template).unwrap(); // FIXME: error handling
     contents.iter().for_each(|(p, n)| {
         // file path, and name for the tarball
         let mut f = File::open(p).unwrap(); //  should not fail: we just built this, TODO: fix race
