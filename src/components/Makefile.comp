@@ -10,6 +10,10 @@ MUSLBIN=$(MUSLDIR)/bin
 MUSLCC=$(MUSLBIN)/musl-$(CC)
 MUSLINC=-isystem$(MUSLDIR)/include
 
+CKDIR=$(LIBDIR)/ck
+CKLIBDIR=$(CKDIR)/lib
+CKINCDIR=$(CKDIR)/include
+
 LIBCXXDIR=$(LIBDIR)/libcxx
 LIBSTDCXXOBJ=$(LIBCXXDIR)/libstdc++.a
 LIBSUPCXXOBJ=$(LIBCXXDIR)/libsupc++.a
@@ -37,6 +41,6 @@ CXXFLAGS+=-fno-pie
 endif
 
 LIBCOSDEFKERN=-lcos_kernel_api -lcos_defkernel_api
-LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap
+LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap -lsl_xcpu -lsl_child -lck
 LIBSLCAPMGR=$(LIBSLCORE) -lsl_capmgr
 LIBSLRAW=$(LIBSLCORE) -lsl_raw

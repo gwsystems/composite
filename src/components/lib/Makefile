@@ -1,6 +1,6 @@
 include Makefile.src Makefile.comp
 
-LIB_OBJS=heap.o cobj_format.o cos_kernel_api.o cos_defkernel_api.o
+LIB_OBJS=heap.o cobj_format.o cos_kernel_api.o cos_defkernel_api.o cos_ubench.o
 LIBS=$(LIB_OBJS:%.o=%.a)
 MANDITORY=c_stub.o cos_asm_upcall.o cos_asm_ainv.o cos_component.o
 MAND=$(MANDITORY_LIB)
@@ -13,8 +13,8 @@ export CINC_ENV
 # HACK: remove with new library structure
 CINC += -I$(INTERDIR)/init/
 
-.PHONY: all libs ps
-all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) libs
+.PHONY: all libs ps ck sinv
+all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) libs sinv
 
 # we have to compile these without dietlibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't
@@ -33,6 +33,9 @@ $(SIMPLE_STKLIB): $(SIMPLE_STACKS)
 libs:
 	make -C sl
 	make -C initargs
+
+sinv:
+	make $(MAKEFLAGS) -C sinv_async
 
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)
@@ -64,7 +67,10 @@ ps:
 	cd ps; ./configure cos x86 general; cd ..; make -C ps config ; make -C ps all
 
 
-init: clean distclean musl ps all
+ck:
+	make -C ck all
+
+init: ck musl ps sinv all
 # keep the following commands in one line. Same as above.
 	make -C posix
 	make -C libcxx

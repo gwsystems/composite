@@ -1,6 +1,5 @@
 #include <cos_kernel_api.h>
 #include <cos_types.h>
-
 #include <pong.h>
 #include <ps.h>
 

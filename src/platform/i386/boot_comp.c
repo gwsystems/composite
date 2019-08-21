@@ -35,11 +35,11 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	cos_info->cpuid          = cpu_id;
 	cos_info->invstk_top     = 0;
 	cos_info->overflow_check = 0xDEADBEEF;
-	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, captbl_thd_offset(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
+	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
 	assert(!ret);
 
 	tcap_active_init(cos_info);
-	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, captbl_tcap_offset(cpu_id), tcap_mem);
+	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpu_id), tcap_mem);
 	assert(!ret);
 
 	tc->budget.cycles = TCAP_RES_INF; /* Chronos's got all the time in the world */
@@ -54,8 +54,8 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	thd_current_update(t, t, cos_info);
 	thd_scheduler_set(t, t);
 
-	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, captbl_arcv_offset(cpu_id), BOOT_CAPTBL_SELF_COMP,
-	                    captbl_thd_offset(cpu_id), captbl_tcap_offset(cpu_id), 0, 1);
+	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cpu_id), BOOT_CAPTBL_SELF_COMP,
+	                    BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpu_id), 0, 1);
 	assert(!ret);
 
 	/*

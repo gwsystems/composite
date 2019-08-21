@@ -37,8 +37,8 @@ struct ioapic_cntl {
 	u32_t                glb_int_num_off; /* I/O APIC's interrupt base number offset  */
 } __attribute__((packed));
 
-int ncpus = 1;
-int apicids[NUM_CPU];
+volatile int ncpus = 1;
+volatile int apicids[NUM_CPU];
 
 #define CMOS_PORT    0x70
 
@@ -76,6 +76,8 @@ int apicids[NUM_CPU];
 #define LAPIC_ICR_STATUS         (1 << 12)
 #define LAPIC_ICR_INIT           0x500     /* INIT */
 #define LAPIC_ICR_SIPI           0x600     /* Startup IPI */
+#define LAPIC_ICR_FIXED          0x000     /* fixed IPI */
+#define LAPIC_IPI_ASND_VEC       HW_LAPIC_IPI_ASND /* interrupt vec for asnd ipi */
 
 #define IA32_MSR_TSC_DEADLINE 0x000006e0
 
@@ -108,7 +110,7 @@ enum lapic_timer_div_by_config
 
 static volatile void *lapic             = (void *)APIC_DEFAULT_PHYS;
 static unsigned int   lapic_timer_mode  = LAPIC_TSC_DEADLINE;
-static unsigned int   lapic_is_disabled[NUM_CPU];
+static unsigned int   lapic_is_disabled[NUM_CPU] CACHE_ALIGNED;
 
 static unsigned int lapic_cycs_thresh        = 0;
 static u32_t        lapic_cpu_to_timer_ratio = 0;
@@ -221,6 +223,12 @@ lapic_intsrc_iter(unsigned char *madt)
 		}
 	}
 	printk("\tAPICs processed, %d cores\n", ncpus);
+
+	if (ncpus != NUM_CPU) {
+		printk("Number of LAPICs processed =%d not meeting the requirement = %d\n", ncpus, NUM_CPU);
+		printk("Please reconfigure NUM_CPU in Composite/HW-BIOS\n");
+		assert(0);
+	}
 }
 
 int
@@ -285,6 +293,7 @@ lapic_init(void)
 void
 lapic_disable_timer(int timer_type)
 {
+	assert(lapic_timer_calib_init == 0);
 	if (lapic_is_disabled[get_cpuid()]) return;
 
 	if (timer_type == LAPIC_ONESHOT) {
@@ -323,32 +332,6 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 	}
 
 	lapic_is_disabled[get_cpuid()] = 0;
-}
-
-void
-lapic_set_page(u32_t page)
-{
-	lapic = (void *)(page * (1 << 22) | ((u32_t)lapic & ((1 << 22) - 1)));
-
-	printk("\tSet LAPIC @ %p\n", lapic);
-}
-
-int
-lapic_spurious_handler(struct pt_regs *regs)
-{
-	return 1;
-}
-
-int
-lapic_timer_handler(struct pt_regs *regs)
-{
-	int preempt = 1;
-
-	lapic_ack();
-
-	preempt = timer_process(regs);
-
-	return preempt;
 }
 
 u32_t
@@ -447,6 +430,45 @@ lapic_ipi_send(u32_t dest, u32_t vect_flags)
 	lapic_read_reg(LAPIC_ICR);
 
 	return 0;
+}
+void
+lapic_asnd_ipi_send(const cpuid_t cpu_id)
+{
+	assert(ncpus > 1 && cpu_id >= 0 && cpu_id < ncpus);
+
+	lapic_ipi_send(apicids[cpu_id], LAPIC_ICR_FIXED | LAPIC_IPI_ASND_VEC);
+
+	return;
+}
+
+int
+lapic_spurious_handler(struct pt_regs *regs)
+{
+	return 1;
+}
+
+int
+lapic_ipi_asnd_handler(struct pt_regs *regs)
+{
+	int preempt = 1;
+
+	preempt = cap_ipi_process(regs);
+
+	lapic_ack();
+
+	return preempt;
+}
+
+int
+lapic_timer_handler(struct pt_regs *regs)
+{
+	int preempt = 1;
+
+	lapic_ack();
+
+	preempt = timer_process(regs);
+
+	return preempt;
 }
 
 /* HACK: assume that the HZ of the processor is equivalent to that on the computer used for compilation. */

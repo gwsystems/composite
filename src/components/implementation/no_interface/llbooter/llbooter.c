@@ -311,7 +311,7 @@ comps_init(void)
 		assert(cos_compinfo_get(comp->comp_res)->comp_cap);
 
 		if (!crt_is_booter(comp)) {
-			aepi = &comp->comp_res->sched_aep;
+			aepi = &comp->comp_res->sched_aep[cos_cpuid()];
 			aepi->thd = crt_thd_init_create(comp);
 		}
 	}
@@ -370,8 +370,8 @@ execute(void)
 		comp = &c->comp;
 
 		printc("Initializing component %d.\n", comp->id);
-		assert(comp->comp_res->sched_aep.thd);
-		if (cos_defswitch(comp->comp_res->sched_aep.thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+		assert(comp->comp_res->sched_aep[cos_cpuid()].thd);
+		if (cos_defswitch(comp->comp_res->sched_aep[cos_cpuid()].thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 	}
 
 	/* Execute the main in components, FIFO */
@@ -381,8 +381,8 @@ execute(void)
 		if (!c->main_exec) continue;
 
 		printc("Switching back to thread in component %d.\n", comp->id);
-		assert(comp->comp_res->sched_aep.thd);
-		if (cos_defswitch(comp->comp_res->sched_aep.thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+		assert(comp->comp_res->sched_aep[cos_cpuid()].thd);
+		if (cos_defswitch(comp->comp_res->sched_aep[cos_cpuid()].thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 	}
 
 	printc("Executed main in each component. Halting\n");
@@ -414,6 +414,8 @@ init_done(int cont)
 
 	return;
 }
+
+static volatile int init_core_alloc_done = 0, core_init_done[NUM_CPU] = { 0 };
 
 void
 init_exit(int retval)

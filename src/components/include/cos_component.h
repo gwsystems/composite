@@ -12,7 +12,14 @@
 #include <cos_types.h>
 #include <errno.h>
 #include <util.h>
+#include <string.h>
+#include <bitmap.h>
 
+/*
+ * dewarn: strtok_r()
+ * reference: feature_test_macro() requirement: _SVID_SOURCE || _BSD_SOURCE || _POSIX_C_SOURCE >= 1 || _XOPEN_SOURCE || _POSIX_SOURCE
+ */
+extern char *strtok_r(char *str, const char *delim, char **saveptr);
 void libc_init();
 char *cos_initargs_tar();
 
@@ -137,7 +144,6 @@ cos_print(char *s, int len)
  */
 
 extern long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
-
 extern struct cos_component_information __cosrt_comp_info;
 
 static inline long
@@ -233,6 +239,47 @@ static inline char *
 cos_init_args(void)
 {
 	return __cosrt_comp_info.init_string;
+}
+
+#define COS_CPUBITMAP_STARTTOK 'c'
+#define COS_CPUBITMAP_ENDTOK   ","
+#define COS_CPUBITMAP_LEN      (NUM_CPU)
+
+static inline int
+cos_args_cpubmp(u32_t *cpubmp, char *arg)
+{
+	char *tok1 = NULL, *tok2 = NULL;
+	char res[COMP_INFO_INIT_STR_LEN] = { '\0' }, *rs = res;
+	int i, len = 0;
+
+	if (!arg || !cpubmp) return -EINVAL;
+	strncpy(rs, arg, COMP_INFO_INIT_STR_LEN);
+	if (!strlen(arg)) goto allset;
+	while ((tok1 = strtok_r(rs, COS_CPUBITMAP_ENDTOK, &rs)) != NULL) {
+		if (tok1[0] == COS_CPUBITMAP_STARTTOK) break;
+	}
+	/* if "c" tag is not present.. set the component to be runnable on all cores */
+	if (!tok1) goto allset;
+	if (strlen(tok1) != (COS_CPUBITMAP_LEN + 1)) return -EINVAL;
+
+	tok2 = tok1 + 1;
+	len = strlen(tok2);
+	for (i = 0; i < len; i++) {
+		if (tok2[i] == '1') bitmap_set(cpubmp, (len - 1 - i));
+	}
+
+	return 0;
+
+allset:
+	bitmap_set_contig(cpubmp, 0, NUM_CPU, 1);
+
+	return 0;
+}
+
+static inline int
+cos_init_args_cpubmp(u32_t *cpubmp)
+{
+	return cos_args_cpubmp(cpubmp, cos_init_args());
 }
 
 #define COS_EXTERN_FN(fn) __cos_extern_##fn

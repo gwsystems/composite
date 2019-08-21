@@ -133,6 +133,9 @@ timer_calibration(void)
 	static u64_t cycle = 0, tot = 0, prev;
 	static u32_t apic_curr = 0, apic_tot = 0, apic_prev;
 
+	/* calibration only on BSP */
+	assert(get_cpuid() == INIT_CORE);
+
 	prev      = cycle;
 	apic_prev = apic_curr;
 	rdtscll(cycle);
@@ -173,6 +176,8 @@ timer_calibration(void)
 int
 chal_cyc_usec(void)
 {
+	if (!lapic_timer_calibrated()) return 0;
+
 	return cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL;
 }
 

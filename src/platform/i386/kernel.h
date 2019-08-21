@@ -86,6 +86,7 @@ void  lapic_set_timer(int timer_type, cycles_t deadline);
 u32_t lapic_get_ccr(void);
 void  lapic_timer_calibration(u32_t ratio);
 int   lapic_timer_calibrated(void);
+void  lapic_asnd_ipi_send(const cpuid_t cpu_id);
 
 void smp_init(volatile int *cores_ready);
 
