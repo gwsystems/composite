@@ -54,7 +54,7 @@ extern int                cos_print_lvl_str;
 extern const char        *cos_print_str[];
 
 /* Prints with current (cpuid, thdid, spdid) */
-#define PRINTC(format, ...) printc("(%ld,%u,%lu) " format, cos_cpuid(), cos_thdid(), cos_spd_id(), ## __VA_ARGS__)
+#define PRINTC(format, ...) printc("(%ld,%lu,%lu) " format, cos_cpuid(), cos_thdid(), cos_compid(), ## __VA_ARGS__)
 /* Prints only if @level is <= cos_print_level */
 #define PRINTLOG(level, format, ...)                                                          \
 	{                                                                                     \

@@ -89,7 +89,7 @@ volatile struct hpet_timer {
 #define FEMPTO_PER_PICO 1000UL
 #define TIMER_CALIBRATION_ITER 256
 #define TIMER_ERROR_BOUND_FACTOR 256
-static int           timer_calibration_init   = 0;
+static int           timer_calibration_init   = 1;
 static unsigned long timer_cycles_per_hpetcyc = TIMER_ERROR_BOUND_FACTOR;
 static unsigned long cycles_per_tick;
 static unsigned long hpetcyc_per_tick;
@@ -151,7 +151,7 @@ timer_calibration(void)
 		cycles_per_tick        = (unsigned long)(tot / TIMER_CALIBRATION_ITER);
 		assert(cycles_per_tick > hpetcyc_per_tick);
 
-		if (lapic_timer_calibrated()) {
+		if (!lapic_timer_calibrated()) {
 			u32_t cycs_to_apic_ratio = 0, apic_cycs_per_tick = 0;
 
 			apic_cycs_per_tick = apic_tot / TIMER_CALIBRATION_ITER;
@@ -297,11 +297,11 @@ timer_init(void)
 	if (chal_msr_mhz && !lapic_timer_calibrated()) {
 		cycles_per_tick          = chal_msr_mhz * TIMER_DEFAULT_US_INTERARRIVAL;
 		timer_cycles_per_hpetcyc = cycles_per_tick / hpetcyc_per_tick;
-		printk("Timer not calibrated, instead computed using MSR frequency value\n");
+		printk("\tTimer calibrated using using MSR frequency value\n");
+		timer_calibration_init = 0;
 
 		return;
 	}
 
-	timer_calibration_init = 1;
 	timer_set(TIMER_PERIODIC, hpetcyc_per_tick);
 }

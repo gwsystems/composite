@@ -352,8 +352,8 @@ typedef unsigned long vaddr_t; /* virtual address */
 typedef unsigned int  page_index_t;
 
 typedef unsigned short int spdid_t;
-typedef unsigned short int compid_t;
-typedef unsigned short int thdid_t;
+typedef unsigned long      compid_t;
+typedef unsigned long      thdid_t;
 typedef unsigned long      invtoken_t;
 typedef int                thdclosure_index_t;
 
@@ -403,7 +403,7 @@ struct cos_stack_freelists {
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;
-	long                       cos_this_spd_id;
+	unsigned long              cos_this_spd_id;
 	u32_t                      cos_tmem_relinquish[COMP_INFO_TMEM];
 	u32_t                      cos_tmem_available[COMP_INFO_TMEM];
 	vaddr_t                    cos_heap_ptr, cos_heap_limit;

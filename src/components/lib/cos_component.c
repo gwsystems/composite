@@ -179,6 +179,11 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	static int first = 1;
 
+	/*
+	 * There should be no concurrency at initialization (the init
+	 * interface ensures this), so atomic operations aren't
+	 * required here to update first.
+	 */
 	if (first) {
 		first = 0;
 
@@ -205,10 +210,10 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	}
 
 	/*
-	 * if it's the first component.. wait for timer calibration
+	 * if it's the first component.. wait for timer calibration.
 	 * NOTE: for "fork"ing components and not updating "spdid"s, this call will just fail and should be fine.
 	 */
-	if (cos_spd_id() == 0) {
+	if (cos_compid_uninitialized()) { /* we must be in the initial booter! */
 		cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	}
 

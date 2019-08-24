@@ -217,6 +217,12 @@ cos_compid(void)
 	return cos_spd_id();
 }
 
+static inline int
+cos_compid_uninitialized(void)
+{
+	return cos_compid() == 0;
+}
+
 static inline void
 cos_compid_set(compid_t cid)
 {

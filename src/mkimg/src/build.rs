@@ -145,7 +145,15 @@ fn constructor_serialize_args(
     }
 
     s.get_named().ids().iter().for_each(|(id, cname)| {
-        ids.push(ArgsKV::new_key(format!("{}", id), b.comp_obj_file(&id, &s)))
+        let info_addr = s.get_objs_id(&id).comp_symbs().comp_info;
+        let cinfo = ArgsKV::new_arr(
+            format!("{}", id),
+            vec!(
+                ArgsKV::new_key("img".to_string(), b.comp_obj_file(&id, &s)),
+                ArgsKV::new_key("info".to_string(), format!("{}", info_addr)),
+            )
+        );
+        ids.push(cinfo)
     });
 
     let mut topkv = Vec::new();

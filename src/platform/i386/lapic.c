@@ -119,7 +119,7 @@ static u32_t        lapic_timer_calib_init   = 0;
 int
 lapic_timer_calibrated(void)
 {
-	return lapic_timer_calib_init;
+	return !lapic_timer_calib_init;
 }
 
 static void
@@ -313,7 +313,7 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 {
 	u64_t now;
 
-	assert(!lapic_timer_calibrated());
+	assert(lapic_timer_calibrated());
 	rdtscll(now);
 	if (deadline < now || (deadline - now) < LAPIC_TIMER_MIN) deadline = now + LAPIC_TIMER_MIN;
 
@@ -343,7 +343,7 @@ lapic_get_ccr(void)
 void
 lapic_timer_calibration(u32_t ratio)
 {
-	assert(ratio && lapic_timer_calibrated());
+	assert(ratio && !lapic_timer_calibrated());
 
 	lapic_timer_calib_init   = 0;
 	lapic_cpu_to_timer_ratio = ratio;

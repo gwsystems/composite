@@ -32,7 +32,7 @@ struct crt_comp {
 	crt_comp_flags_t flags;
 	char *name;
 	compid_t id;
-	vaddr_t entry_addr, ro_addr, rw_addr;
+	vaddr_t entry_addr, ro_addr, rw_addr, info;
 
 	char *mem;		/* image memory */
 	struct elf_hdr *elf_hdr;
@@ -53,12 +53,14 @@ struct crt_comp {
  * of memory allocation.
  */
 int
-crt_comp_create(struct crt_comp *c, char *name, compid_t id, struct elf_hdr *elf_hdr)
+crt_comp_create(struct crt_comp *c, char *name, compid_t id, struct elf_hdr *elf_hdr, vaddr_t info)
 {
 	size_t  ro_sz,   rw_sz, data_sz, bss_sz, tot_sz;
 	char   *ro_src, *data_src, *mem;
 	int     ret;
 	struct cos_compinfo *ci, *root_ci;
+	struct cos_component_information *comp_info;
+	unsigned long info_offset;
 
 	*c = (struct crt_comp) {
 		.flags      = CRT_COMP_NONE,
@@ -67,6 +69,7 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, struct elf_hdr *elf
 		.elf_hdr    = elf_hdr,
 		.entry_addr = elf_entry_addr(elf_hdr),
 		.comp_res   = &c->comp_res_mem,
+		.info       = info
 	};
 	assert(c->entry_addr != 0);
 
@@ -90,6 +93,12 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, struct elf_hdr *elf
 	memcpy(mem + round_up_to_page(ro_sz), data_src, data_sz);
 	memset(mem + round_up_to_page(ro_sz) + data_sz, 0, bss_sz);
 
+	assert(info >= c->rw_addr && info < c->rw_addr + data_sz);
+	info_offset = info - c->rw_addr;
+	comp_info = (struct cos_component_information *)(mem + round_up_to_page(ro_sz) + info_offset);
+	assert(comp_info->cos_this_spd_id == 0);
+	comp_info->cos_this_spd_id = id;
+
 	/* FIXME: separate map of RO and RW */
 	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, tot_sz)) return -ENOMEM;
 
@@ -97,13 +106,14 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, struct elf_hdr *elf
 }
 
 int
-crt_booter_create(struct crt_comp *c, char *name, compid_t id)
+crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
 {
 	*c = (struct crt_comp) {
 		.flags      = CRT_COMP_BOOTER,
 		.name       = name,
 		.id         = id,
 		.comp_res   = cos_defcompinfo_curr_get(),
+		.info       = info
 	};
 
 	return 0;
@@ -202,7 +212,7 @@ struct boot_comp {
 };
 static struct boot_comp boot_comps[MAX_NUM_COMPS];
 static const  compid_t  sched_root_id  = 2;
-static        int       boot_id_offset = -1;
+static        long      boot_id_offset = -1;
 /* All synchronous invocations */
 static struct crt_sinv  boot_sinvs[BOOTER_MAX_SINV];
 
@@ -220,8 +230,9 @@ boot_comp_get(compid_t id)
 	if (boot_id_offset == -1) {
 		boot_id_offset = id;
 	}
-	assert(boot_id_offset <= id);
-	assert(boot_id_offset >= 0 && id >= boot_id_offset);
+	/* casts are OK as we know that boot_id_offset is > 0 now */
+	assert((compid_t)boot_id_offset <= id);
+	assert(boot_id_offset >= 0 && id >= (compid_t)boot_id_offset);
 
 	return &boot_comps[id - boot_id_offset];
 }
@@ -251,16 +262,18 @@ comps_init(void)
 	struct initargs_iter i;
 	int cont, ret, j;
 	int comp_idx = 0, sinv_idx = 0;
-	int booter_id;
 
 	/*
 	 * Assume: our component id is the lowest of the ids for all
 	 * components we are set to create, and that we get it from
 	 * mkimg.
 	 */
-	booter_id = atoi(args_get("compid"));
-	cos_compid_set(booter_id);
-	boot_comp_set_idoffset(booter_id);
+	if (cos_compid_uninitialized()) {
+		int booter_id;
+		booter_id = atoi(args_get("compid"));
+		cos_compid_set(booter_id);
+	}
+	boot_comp_set_idoffset(cos_compid());
 
 	ret = args_get_entry("components", &comps);
 	assert(!ret);
@@ -271,13 +284,14 @@ comps_init(void)
 		struct cos_aep_info *aepi;
 		struct boot_comp *bc;
 		int   keylen;
-		int   id   = atoi(args_key(&curr, &keylen));
-		char *name = args_value(&curr);
+		compid_t id = atoi(args_key(&curr, &keylen));
+		char *name  = args_get_from("img", &curr);
+		vaddr_t info = atol(args_get_from("info", &curr));
 		const char *root = "binaries/";
 		int   len  = strlen(root);
 		char  path[INITARGS_MAX_PATHNAME];
 
-		printc("%s: %d\n", name, id);
+		printc("%s: %lu\n", name, id);
 
 		assert(id < MAX_NUM_COMPS && id > 0 && name);
 
@@ -294,16 +308,16 @@ comps_init(void)
 		elf  = (struct elf_hdr *)args_get(path);
 
 		/* FIXME: for now assuming id == 1 means booter */
-		if (id == booter_id) {
+		if (id == cos_compid()) {
 			int ret;
 
 			/* booter should not have an elf object */
 			assert(!elf);
-			ret = crt_booter_create(comp, name, id);
+			ret = crt_booter_create(comp, name, id, info);
 			assert(ret == 0);
 		} else {
 			assert(elf);
-			if (crt_comp_create(comp, name, id, elf)) {
+			if (crt_comp_create(comp, name, id, elf, info)) {
 				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
 				BUG();
 			}
@@ -333,7 +347,7 @@ comps_init(void)
 				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
 
-		printc("\t%s (%d->%d):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
+		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
 	}
 
@@ -369,7 +383,7 @@ execute(void)
 	while ((c = boot_comp_next(comp->id))) {
 		comp = &c->comp;
 
-		printc("Initializing component %d.\n", comp->id);
+		printc("Initializing component %lu.\n", comp->id);
 		assert(comp->comp_res->sched_aep[cos_cpuid()].thd);
 		if (cos_defswitch(comp->comp_res->sched_aep[cos_cpuid()].thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 	}
@@ -380,7 +394,7 @@ execute(void)
 		comp = &c->comp;
 		if (!c->main_exec) continue;
 
-		printc("Switching back to thread in component %d.\n", comp->id);
+		printc("Switching back to thread in component %lu.\n", comp->id);
 		assert(comp->comp_res->sched_aep[cos_cpuid()].thd);
 		if (cos_defswitch(comp->comp_res->sched_aep[cos_cpuid()].thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 	}
@@ -404,13 +418,13 @@ init_done(int cont)
 	c = boot_comp_get(client);
 	if (cont) c->main_exec = 1;
 
-	printc("Component %d initialization complete%s.\n", c->comp.id, (cont ? ", awaiting main execution": ""));
+	printc("Component %lu initialization complete%s.\n", c->comp.id, (cont ? ", awaiting main execution": ""));
 
 	/* switch back to the booter's thread in execute */
 	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 	/* We should only switch back if `cont` != 0, and we want to execute a main */
 	assert(cont);
-	printc("Executing main in component %d.\n", cos_compid());
+	printc("Executing main in component %lu.\n", cos_compid());
 
 	return;
 }
@@ -426,7 +440,7 @@ init_exit(int retval)
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = boot_comp_get(client);
 
-	printc("Component %d has terminated.\n", c->comp.id);
+	printc("Component %lu has terminated.\n", c->comp.id);
 
 	/* switch back to the booter's thread in execute */
 	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
