@@ -48,7 +48,7 @@ __cosrt_s_##name:				\
 .type  __cosrt_s_##name, @function ;		\
 .align 16 ;					\
 __cosrt_s_##name:				\
-        COS_ASM_GET_STACK                       \
+        COS_ASM_GET_STACK_INVTOKEN              \
 	pushl $0;				\
 	movl  %esp, %ecx;			\
 	pushl $0;				\

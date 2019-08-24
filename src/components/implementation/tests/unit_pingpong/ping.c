@@ -22,9 +22,10 @@ cos_init(void)
 	assert(pong_argsrets(4, 3, 2, 1, &r0, &r1) == 2);
 	assert(r0 == 4 && r1 == 3);
 	assert(pong_subset(8, 16, &r3) == -24 && r3 == 24);
-	// tid = pong_ids(&us, &them);
+	tid = pong_ids(&us, &them);
 	pong_ids(&us, &them);
-	// assert(cos_thdid() == tid && us != them && us == cos_compid());
+	printc("thdid %lu (fn %lu), us %lu, them %lu, compid %lu\n", tid, cos_thdid(), us, them, cos_compid());
+	assert(cos_thdid() == tid && us != them && us == cos_compid());
 
 	begin = ps_tsc();
 	for (i = 0; i < ITER; i++) {
