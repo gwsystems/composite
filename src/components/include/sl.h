@@ -574,7 +574,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	struct sl_thd         *t = to;
 	struct sl_global_core *globals = sl__globals_core();
 	sched_tok_t            tok;
-	cycles_t               now;
+//	cycles_t               now;
 	s64_t                  offset;
 	int                    ret;
 
@@ -584,12 +584,12 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 #endif
 
 	tok    = cos_sched_sync();
-	now    = sl_now();
+//	now    = sl_now();
 
 	/* still wakeup without timeouts? that adds to dispatch overhead! */
-	offset = (s64_t)(globals->timer_next - now);
-	if (globals->timer_next && offset <= 0) sl_timeout_expended(now, globals->timer_next);
-	sl_timeout_wakeup_expired(now);
+//	offset = (s64_t)(globals->timer_next - now);
+//	if (globals->timer_next && offset <= 0) sl_timeout_expended(now, globals->timer_next);
+//	sl_timeout_wakeup_expired(now);
 
 	/*
 	 * Once we exit, we can't trust t's memory as it could be
@@ -625,11 +625,11 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 * if the periodic timer is already ahead,
 	 * don't reprogram it!
 	 */
-	if (likely(offset > globals->cyc_per_usec && globals->timer_prev)) {
+//	if (likely(offset > globals->cyc_per_usec && globals->timer_prev)) {
 		ret = sl_thd_dispatch(t, tok, sl_thd_curr());
-	} else {
-		ret = sl_thd_activate(t, tok, globals->timeout_next);
-	}
+//	} else {
+//		ret = sl_thd_activate(t, tok, globals->timeout_next);
+//	}
 
 	/*
 	 * one observation, in slowpath switch:
@@ -713,7 +713,7 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 		struct sl_thd_policy *pt = sl_mod_schedule();
 
 		if (unlikely(!pt))
-			t = globals->sched_thd;
+			t = globals->idle_thd;
 		else
 			t = sl_mod_thd_get(pt);
 	}
@@ -898,14 +898,18 @@ sl_thd_rcv(rcv_flags_t flags)
 {
 	struct sl_thd *t = sl_thd_curr();
 	unsigned long *p = &sl_thd_dcbinfo(t)->pending, q = 0;
+	int ret = 0;
 
 	assert(sl_thd_rcvcap(t));
 check:
 	sl_cs_enter();
-	q = *p;
-	if (q == 0) {
+	/* there no pending event in the dcbinfo->pending */
+	if ((q = ps_load(p)) == 0) {
 		if (unlikely(!(flags & RCV_ULONLY))) goto rcv;
-		if (unlikely(flags & RCV_NON_BLOCKING)) goto done;
+		if (unlikely(flags & RCV_NON_BLOCKING)) {
+			ret = -EAGAIN;
+			goto done;
+		}
 
 		sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED, 0);
 		sl_cs_exit_switchto(sl__globals_core()->sched_thd);
@@ -918,7 +922,7 @@ check:
 done:
 	sl_cs_exit();
 
-	return q;
+	return ret;
 rcv:
 	sl_cs_exit();
 

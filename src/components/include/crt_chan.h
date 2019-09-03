@@ -93,7 +93,8 @@ __crt_chan_buff_idx(struct crt_chan *c, u32_t v, u32_t wraparound_mask)
 
 static inline int
 __crt_chan_full(struct crt_chan *c, u32_t wraparound_mask)
-{ return c->consumer == __crt_chan_buff_idx(c, c->producer + 1, wraparound_mask); }
+{ return __crt_chan_buff_idx(c, c->consumer, wraparound_mask) == __crt_chan_buff_idx(c, c->producer + 1, wraparound_mask); }
+//{ return c->consumer == __crt_chan_buff_idx(c, c->producer + 1, wraparound_mask); }
 
 static inline int
 __crt_chan_empty(struct crt_chan *c, u32_t wraparound_mask)

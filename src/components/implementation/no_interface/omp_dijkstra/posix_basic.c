@@ -12,6 +12,45 @@
 #include <cos_types.h>
 #include <ps.h>
 
+/*
+ * hack for more memory using the most insecure feature in composite: 
+ * map random physical addresses to virtual addresses and do whatever with it!
+ */
+#define START_PHY round_up_to_page(0x00100000 + COS_PHYMEM_MAX_SZ + PAGE_SIZE)
+#define PHY_MAX ((512 * 1024 * 1024) + (256 * 1024 * 1024))
+
+static unsigned free_phy_offset = 0;
+
+void *
+__alloc_memory(size_t sz)
+{
+	void *va = NULL;
+	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	//unsigned off = ps_faa(&free_phy_offset, sz);
+	unsigned off;
+
+try_again:
+	off = ps_load(&free_phy_offset);
+
+	/* 
+	 * first use physical memory hack and 
+	 * if we run out, then use heap alloc so 
+	 * we don't run out of standard memory first 
+	 */
+	if (off > PHY_MAX || off + sz > PHY_MAX) {
+		va = cos_page_bump_allocn(ci, round_up_to_page(sz));
+	} else {
+		if (!ps_cas(&free_phy_offset, off, off + sz)) goto try_again;
+		/* use physical memory hack! */
+		va = cos_hw_map(ci, BOOT_CAPTBL_SELF_INITHW_BASE, START_PHY + off, sz);
+	}
+
+	assert(va);
+	memset(va, 0, sz);
+
+	return va;
+}
+
 //#include <memmgr.h>
 
 // HACK: The hack to end all hacks
@@ -31,15 +70,9 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		return MAP_FAILED;
 	}
 
-	int pages;
-	if (length % 4096) {
-		pages = length / 4096 + 1;
-	} else {
-		pages = length / 4096;
-	}
-
 	//addr = (void *)memmgr_heap_page_allocn(pages);
-	addr = (void *)cos_page_bump_allocn(cos_compinfo_get(cos_defcompinfo_curr_get()), pages * PAGE_SIZE);
+	addr = __alloc_memory(length);
+//	addr = (void *)cos_page_bump_allocn(cos_compinfo_get(cos_defcompinfo_curr_get()), round_up_to_page(length));
 	if (!addr){
 		ret = (void *) -1;
 	} else {
@@ -70,7 +103,7 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 		return (long)cos_mmap((void *)a, (size_t)b, (int)c, (int)d, (int)e, (off_t)f);
 	}
 
-	if (syscall_num == __NR_brk) {
+	if (syscall_num == __NR_brk || syscall_num == __NR_munmap) {
 		return 0;
 	}
 

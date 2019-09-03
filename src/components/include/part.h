@@ -157,10 +157,6 @@ part_pool_block(void)
 
 	/* very much a replica of sl_thd_block + adding to thread pool in part */
 	sl_cs_enter();
-	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0)) {
-		sl_cs_exit();
-		return;
-	}
 	if (ps_list_singleton(t, partlist)) ps_list_head_append(part_thdpool_curr(), t, partlist);
 	sl_cs_exit();
 	sl_thd_block(0);
@@ -238,8 +234,8 @@ part_list_remove(struct part_task *t)
 	int in_nest = 0;
 
 	assert(t->type == PART_TASK_T_WORKSHARE);
-	assert(t->nthds > 1);
 #if defined(PART_ENABLE_NESTED)
+	assert(t->nthds > 1);
 	assert(!ps_list_singleton(t, partask));
 
 	crt_lock_take(&part_l_lock);
@@ -331,6 +327,7 @@ part_task_barrier(struct part_task *t, int is_end)
 		if (t->type == PART_TASK_T_WORKSHARE) {
 			assert(is_master);
 			ts->part_context = t->parent;
+			part_list_remove(t);
 
 			return;
 		}
@@ -350,23 +347,27 @@ part_task_barrier(struct part_task *t, int is_end)
 	cbc = ps_faa(&t->barrier, -1);
 	if (cbc > 1) {
 		sl_thd_block(0);
+		if (is_master) part_peer_wakeup(t);
 	} else {
 		if (ps_cas(&t->barrier, 0, t->nthds)) ps_faa(&t->barrier_epoch, 1);
-		if (is_master) part_peer_wakeup(t);
-		else part_master_wakeup(t);
+		if (is_master) {
+			part_peer_wakeup(t);
+		}
+		else {
+			part_master_wakeup(t);
+			sl_thd_block(0);
+		}
 	}
-	assert(ps_load(&t->barrier_epoch) == cbep + 1);
+	//assert(ps_load(&t->barrier_epoch) == cbep + 1);
 
 	if (!is_end) return;
 	ps_faa(&t->end, 1);
 
 	if (is_master) {
-		while (ps_load(&t->end) != t->nthds) sl_thd_block(0);
 		part_task_remove_child(t);
 		part_list_remove(t);
 		ts->part_context = t->parent;
 	} else {
-		part_master_wakeup(t);
 		ts->part_context = NULL;
 	}
 }

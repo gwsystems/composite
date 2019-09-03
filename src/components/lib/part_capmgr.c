@@ -184,6 +184,9 @@ part_idle_fn(void *d)
 	struct sl_thd *sched = sl__globals_core()->sched_thd, *curr = sl_thd_curr();
 
 	while (1) {
+		/*
+		 * TODO: threads could be woken up even if there is no work!
+		 */
 		if (likely(ps_load(&in_main_parallel))) part_pool_wakeup();
 		sl_thd_yield_thd(sched);
 	}

@@ -303,10 +303,9 @@ bots_get_params_common(int argc, char **argv)
 #endif
             case 'c': /* set/unset check mode */
                argv[i][1] = '*';
-               //i++;
-               //if (argc == i) { bots_print_usage(); cos_exit(100); }
-               //bots_check_flag = atoi(argv[i]);
-               bots_check_flag = TRUE;
+               i++;
+               if (argc == i) { bots_print_usage(); cos_exit(100); }
+               bots_check_flag = atoi(argv[i]);
                break;
             case 'e': /* include execution message */
                argv[i][1] = '*';

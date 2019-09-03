@@ -49,10 +49,10 @@ test_thd_perffn(void *data)
 	assert(perf_thd == sl_thd_curr());
 	rdtscll(start_cycs);
 	//printc("a");
-	sl_thd_yield(yield_to);
+	//sl_thd_yield(yield_to);
 	//ret = sl_thd_dispatch(spin_thd, cos_sched_sync(), perf_thd);
 	//sl_thd_yield_thd_c(perf_thd, spin_thd);
-	//sl_thd_yield_thd(spin_thd);
+	sl_thd_yield_thd(spin_thd);
 	//assert(ret == 0);
 	rdtscll(end_cycs);
 	//assert(mid_cycs && mid_cycs > start_cycs && mid_cycs < end_cycs);
@@ -64,15 +64,15 @@ test_thd_perffn(void *data)
 		end_cycs = start_cycs = 0;
 		//mid_cycs = 0;
 		switched = 0;
-		cos_rdtscp(start_cycs);
-		//rdtscll(start_cycs);
+		//cos_rdtscp(start_cycs);
+		rdtscll(start_cycs);
 		//ret = sl_thd_dispatch(spin_thd, cos_sched_sync(), perf_thd);
 		//printc("a");
-		sl_thd_yield(yield_to);
+		//sl_thd_yield(yield_to);
 		//sl_thd_yield_thd_c(perf_thd, spin_thd);
-		//sl_thd_yield_thd(spin_thd);
-		//rdtscll(end_cycs);
-		cos_rdtscp(end_cycs);
+		sl_thd_yield_thd(spin_thd);
+		rdtscll(end_cycs);
+		//cos_rdtscp(end_cycs);
 		assert(switched);
 		assert(ret == 0);
 		//assert(mid_cycs && mid_cycs > start_cycs && mid_cycs < end_cycs);
@@ -80,7 +80,7 @@ test_thd_perffn(void *data)
 		//diff1_cycs = mid_cycs - start_cycs;
 		diff2_cycs = end_cycs - start_cycs;
 		assert(diff2_cycs > rdtscp_min);
-		diff2_cycs -= rdtscp_min;
+		//diff2_cycs -= rdtscp_min;
 
 		//if (diff1_cycs > wc_cycs) wc_cycs = diff1_cycs;
 		if (diff2_cycs > wc_cycs) wc_cycs = diff2_cycs;
@@ -88,7 +88,7 @@ test_thd_perffn(void *data)
 		total_cycs += diff2_cycs;
 	}
 
-	PRINTC("SWITCH UBENCH (2 switches): avg: %llu, wc: %llu, bc: %llu, iters:%u\n", (total_cycs / (PERF_ITERS)), wc_cycs, bc_cycs, PERF_ITERS);
+	PRINTC("SWITCH UBENCH : avg: %llu, wc: %llu, bc: %llu, iters:%u\n", (total_cycs / (PERF_ITERS)) / 2, wc_cycs / 2, bc_cycs / 2, PERF_ITERS);
 	testing = 0;
 	/* done testing! free the spin thread! */
 	while (1) ;
@@ -108,9 +108,9 @@ test_thd_spinfn(void *data)
 		switched = 1;
 		//sl_thd_dispatch(perf_thd, cos_sched_sync(), spin_thd);
 		//printc("b");
-		sl_thd_yield(yield_to);
+		//sl_thd_yield(yield_to);
 		//sl_thd_yield_thd_c(spin_thd, perf_thd);
-		//sl_thd_yield_thd(perf_thd);
+		sl_thd_yield_thd(perf_thd);
 	}
 
 	//sl_thd_dispatch(perf_thd, cos_sched_sync(), spin_thd);

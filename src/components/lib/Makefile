@@ -57,9 +57,8 @@ distclean:
 	make -C musl-1.1.11 distclean
 # keep the following commands in one line. make executes each line
 # with a new shell.
-	make -C ck uninstall
-	make -C ps clean
 	make -C libcxx clean
+	make -C ck uninstall
 
 musl:
 	cd musl-1.1.11; ./configure "CFLAGS=-m32 -O3" "LDFLAGS=-Wl,-melf_i386" --disable-shared --target=i386; cd ..

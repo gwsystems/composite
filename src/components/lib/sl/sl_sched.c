@@ -769,7 +769,7 @@ pending_events:
 
 		if (sl_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
-		sl_cs_exit_schedule_nospin();
+		sl_cs_exit_schedule_nospin_timeout(g->timer_next);
 	}
 }
 
