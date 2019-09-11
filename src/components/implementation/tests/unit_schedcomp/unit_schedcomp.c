@@ -8,6 +8,7 @@
 #include <res_spec.h>
 #include <hypercall.h>
 #include <sched.h>
+#include <cos_time.h>
 
 #define SL_FPRR_NPRIOS 32
 
@@ -16,36 +17,14 @@
 #define LOW_PRIORITY (LOWEST_PRIORITY - 1)
 #define HIGH_PRIORITY (LOWEST_PRIORITY - 10)
 
-static int lowest_was_scheduled = 0;
+static int lowest_was_scheduled[NUM_CPU];
 static u32_t cycs_per_usec = 0;
 
 static void
 low_thread_fn()
 {
-	lowest_was_scheduled = 1;
+	lowest_was_scheduled[cos_cpuid()] = 1;
 	sched_thd_exit();
-}
-
-static cycles_t
-now(void)
-{
-	cycles_t nowc;
-
-	rdtscll(nowc);
-
-	return nowc;
-}
-
-static u64_t
-usec2cyc(cycles_t usec)
-{
-	return usec * cycs_per_usec;
-}
-
-static u64_t
-cyc2usec(cycles_t cyc)
-{
-	return cyc / cycs_per_usec;
 }
 
 static void
@@ -57,9 +36,9 @@ high_thread_fn()
 	lowtid = sched_thd_create(low_thread_fn, NULL);
 	sched_thd_param_set(lowtid, sched_param_pack(SCHEDP_PRIO, LOW_PRIORITY));
 
-	deadline = now() + usec2cyc(10 * 1000 * 1000);
-	while (now() < deadline) {}
-	assert(!lowest_was_scheduled);
+	deadline = time_now() + time_usec2cyc(10 * 1000 * 1000);
+	while (time_now() < deadline) {}
+	assert(!lowest_was_scheduled[cos_cpuid()]);
 	sched_thd_exit();
 }
 
@@ -72,24 +51,24 @@ test_highest_is_scheduled(void)
 	hitid = sched_thd_create(high_thread_fn, NULL);
 	sched_thd_param_set(hitid, sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
-	wakeup = now() + usec2cyc(1000 * 1000);
+	wakeup = time_now() + time_usec2cyc(1000 * 1000);
 	sched_thd_block_timeout(0, wakeup);
 }
 
-static int thd1_ran = 0;
-static int thd2_ran = 0;
+static int thd1_ran[NUM_CPU];
+static int thd2_ran[NUM_CPU];
 
 static void
 thd1_fn()
 {
-	thd1_ran = 1;
+	thd1_ran[cos_cpuid()] = 1;
 	while (1);
 }
 
 static void
 thd2_fn()
 {
-	thd2_ran = 1;
+	thd2_ran[cos_cpuid()] = 1;
 	while (1);
 }
 
@@ -105,7 +84,7 @@ allocator_thread_fn()
 	tid2 = sched_thd_create(thd2_fn, NULL);
 	sched_thd_param_set(tid2, sched_param_pack(SCHEDP_PRIO, LOW_PRIORITY));
 
-	wakeup = now() + usec2cyc(1000 * 1000);
+	wakeup = time_now() + time_usec2cyc(1000 * 1000);
 	sched_thd_block_timeout(0, wakeup);
 
 	sched_thd_delete(tid1);
@@ -123,7 +102,7 @@ test_swapping(void)
 	alloctid = sched_thd_create(allocator_thread_fn, NULL);
 	sched_thd_param_set(alloctid, sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
-	wakeup = now() + usec2cyc(100 * 1000);
+	wakeup = time_now() + time_usec2cyc(100 * 1000);
 	sched_thd_block_timeout(0, wakeup);
 }
 
@@ -157,7 +136,7 @@ cos_init(void)
 	while (1) {
 		cycles_t wakeup;
 
-		wakeup = now() + usec2cyc(1000 * 1000);
+		wakeup = time_now() + time_usec2cyc(1000 * 1000);
 		sched_thd_block_timeout(0, wakeup);
 	}
 

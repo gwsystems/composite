@@ -11,11 +11,11 @@
 #include <bitmap.h>
 
 /* Assembly function for sinv from new component */
-extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t *ret2, word_t *ret3);
+extern word_t hypercall_entry_rets_inv(spdid_t cur, int op, word_t arg1, word_t arg2, word_t arg3, word_t *ret2, word_t *ret3);
 
 extern int num_cobj;
-extern int capmgr_spdid;
-extern int root_spdid;
+extern spdid_t capmgr_spdid;
+extern spdid_t root_spdid[];
 
 struct cobj_header *hs[MAX_NUM_SPDS + 1];
 
@@ -25,7 +25,7 @@ struct comp_sched_info {
 	u32_t                child_bitmap[MAX_NUM_COMP_WORDS]; /* bitmap of all child component spdids */
 	unsigned int         num_child;                        /* number of child components */
 	unsigned int         num_child_iter;                   /* iterator for getting child components */
-} comp_schedinfo[MAX_NUM_SPDS + 1];
+} comp_schedinfo[NUM_CPU][MAX_NUM_SPDS + 1] CACHE_ALIGNED;
 
 /* The booter uses this to keep track of each comp */
 struct comp_cap_info {
@@ -35,11 +35,12 @@ struct comp_cap_info {
 	vaddr_t                 addr_start;
 	vaddr_t                 vaddr_mapped_in_booter;
 	vaddr_t                 upcall_entry;
-	struct comp_sched_info *schedinfo;
+	u32_t                   cpu_bitmap[NUM_CPU_BMP_WORDS];
+	struct comp_sched_info *schedinfo[NUM_CPU];
 } new_comp_cap_info[MAX_NUM_SPDS];
 
-int                   schedule[MAX_NUM_SPDS];
-volatile unsigned int sched_cur = 0;
+int                   schedule[NUM_CPU][MAX_NUM_SPDS];
+volatile unsigned int sched_cur[NUM_CPU] = { 0 };
 
 static inline struct comp_cap_info *
 boot_spd_compcapinfo_get(spdid_t spdid)
@@ -52,7 +53,7 @@ boot_spd_compcapinfo_get(spdid_t spdid)
 static inline struct comp_sched_info *
 boot_spd_comp_schedinfo_curr_get(void)
 {
-	return &comp_schedinfo[0];
+	return &comp_schedinfo[cos_cpuid()][0];
 }
 
 static inline struct comp_sched_info *
@@ -62,7 +63,7 @@ boot_spd_comp_schedinfo_get(spdid_t spdid)
 
 	assert(spdid <= MAX_NUM_SPDS);
 
-	return boot_spd_compcapinfo_get(spdid)->schedinfo;
+	return (boot_spd_compcapinfo_get(spdid)->schedinfo)[cos_cpuid()];
 }
 
 static inline struct cos_defcompinfo *
@@ -143,6 +144,17 @@ boot_capmgr_mem_alloc(void)
 	cos_meminfo_alloc(capmgr_info, BOOT_MEM_KM_BASE, mem_sz);
 }
 
+void
+boot_comp_mem_alloc(spdid_t spdid)
+{
+	struct cos_compinfo *compinfo = boot_spd_compinfo_get(spdid);
+	struct cos_compinfo *boot_info   = boot_spd_compinfo_curr_get();
+	unsigned long mem_sz = capmgr_spdid ? CAPMGR_MIN_UNTYPED_SZ : LLBOOT_NEWCOMP_UNTYPED_SZ;
+
+	if (capmgr_spdid) return;
+	cos_meminfo_alloc(compinfo, BOOT_MEM_KM_BASE, mem_sz);
+}
+
 /* Initialize just the captblcap and pgtblcap, due to hack for upcall_fn addr */
 static void
 boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t heap_start_vaddr)
@@ -168,7 +180,6 @@ boot_compinfo_init(spdid_t spdid, captblcap_t *ct, pgtblcap_t *pt, u32_t heap_st
 		utpt = cos_pgtbl_alloc(boot_info);
 		assert(utpt);
 		cos_meminfo_init(&(compinfo->mi), BOOT_MEM_KM_BASE, mem_sz, utpt);
-		if (!capmgr_spdid) cos_meminfo_alloc(compinfo, BOOT_MEM_KM_BASE, mem_sz);
 	}
 }
 
@@ -255,6 +266,7 @@ boot_comp_sched_set(spdid_t spdid)
 	struct cos_aep_info *child_aep = boot_spd_initaep_get(spdid);
 	int i = 0;
 
+	/* capmgr init only on boot core! */
 	if (!capmgr_spdid) goto set;
 	/*
 	 * if there is capmgr in the system, set it to be the first (index == 0) to initialize
@@ -263,11 +275,37 @@ boot_comp_sched_set(spdid_t spdid)
 	i = 1;
 
 set:
-	while (schedule[i] != 0) i++;
+	while (schedule[cos_cpuid()][i] != 0) i++;
 	assert(i < MAX_NUM_COMPS);
 
 done:
-	schedule[i] = child_aep->thd;
+	schedule[cos_cpuid()][i] = child_aep->thd;
+}
+
+static void
+boot_sched_caps_init(spdid_t spdid)
+{
+	struct cos_compinfo    *boot_info = boot_spd_compinfo_curr_get();
+	struct cos_compinfo    *ci        = boot_spd_compinfo_get(spdid);
+	struct comp_sched_info *compsi    = boot_spd_comp_schedinfo_get(spdid);
+	struct cos_aep_info    *child_aep = boot_spd_initaep_get(spdid);
+	int ret, i;
+
+	/* If booter should create the init caps in that component */
+	if (compsi->parent_spdid) return;
+
+	boot_newcomp_defcinfo_init(spdid);
+	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, boot_info, child_aep->thd);
+	assert(ret == 0);
+
+	if (compsi->flags & COMP_FLAG_SCHED) {
+		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, boot_info, child_aep->rcv);
+		assert(ret == 0);
+		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, boot_info, child_aep->tc);
+		assert(ret == 0);
+	}
+
+	boot_comp_sched_set(spdid);
 }
 
 static void
@@ -286,7 +324,7 @@ boot_newcomp_init_caps(spdid_t spdid)
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, boot_info, BOOT_CAPTBL_SELF_INITHW_BASE);
 	assert(ret == 0);
 
-	if (capmgr_spdid && (compsi->flags & COMP_FLAG_SCHED)) {
+	if (!capmgr_spdid || (compsi->flags & COMP_FLAG_SCHED)) {
 		/*
 		 * FIXME:
 		 * This is an ugly hack to allow components to do cos_introspect()
@@ -308,29 +346,12 @@ boot_newcomp_init_caps(spdid_t spdid)
 		 */
 		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_PT, boot_info, ci->pgtbl_cap);
 		assert(ret == 0);
-		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_CT, boot_info, ci->captbl_cap);
-		assert(ret == 0);
 		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_COMP, boot_info, ci->comp_cap);
 		assert(ret == 0);
 		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_UNTYPED_PT, boot_info, ci->mi.pgtbl_cap);
 		assert(ret == 0);
 	}
 
-	/* If booter should create the init caps in that component */
-	if (compsi->parent_spdid) return;
-
-	boot_newcomp_defcinfo_init(spdid);
-	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTHD_BASE, boot_info, child_aep->thd);
-	assert(ret == 0);
-
-	if (compsi->flags & COMP_FLAG_SCHED) {
-		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITRCV_BASE, boot_info, child_aep->rcv);
-		assert(ret == 0);
-		ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITTCAP_BASE, boot_info, child_aep->tc);
-		assert(ret == 0);
-	}
-
-	boot_comp_sched_set(spdid);
 }
 
 static void
@@ -360,45 +381,57 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	assert(ret == 0);
 
 	boot_newcomp_init_caps(spdid);
+	boot_sched_caps_init(spdid);
 }
 
 static void
 boot_bootcomp_init(void)
 {
+	static int first_time = 1;
 	struct cos_compinfo    *boot_info = boot_spd_compinfo_curr_get();
 	struct comp_sched_info *bootsi    = boot_spd_comp_schedinfo_curr_get();
 
-	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_defcompinfo_init();
+	if (first_time) {
+		first_time = 0;
+		cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+		cos_defcompinfo_init();
+	} else {
+		cos_defcompinfo_sched_init();
+	}
+
 	bootsi->flags |= COMP_FLAG_SCHED;
 }
 
 static void
 boot_done(void)
 {
+	PRINTLOG(PRINT_DEBUG, "Booter: done creating system.\n");
+	PRINTLOG(PRINT_DEBUG, "********************************\n");
+	cos_thd_switch(schedule[cos_cpuid()][sched_cur[cos_cpuid()]]);
+	PRINTLOG(PRINT_DEBUG, "Booter: done initializing child components.\n");
+}
+
+void
+boot_root_sched_run(void)
+{
 	struct cos_aep_info *root_aep = NULL;
 	int ret;
 
-	PRINTLOG(PRINT_DEBUG, "Booter: done creating system.\n");
-	PRINTLOG(PRINT_DEBUG, "********************************\n");
-	cos_thd_switch(schedule[sched_cur]);
-	PRINTLOG(PRINT_DEBUG, "Booter: done initializing child components.\n");
-
-	if (root_spdid) {
-		/* NOTE: Chronos delegations would replace this in some experiments! */
-		root_aep = boot_spd_initaep_get(root_spdid);
-
-		PRINTLOG(PRINT_DEBUG, "Root scheduler is %u, switching to it now!\n", root_spdid);
-		ret = cos_tcap_transfer(root_aep->rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE, TCAP_RES_INF, LLBOOT_ROOTSCHED_PRIO);
-		assert(ret == 0);
-
-		ret = cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOTSCHED_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
-		PRINTLOG(PRINT_ERROR, "Root scheduler returned.\n");
-		assert(0);
+	if (!root_spdid[cos_cpuid()]) {
+		PRINTLOG(PRINT_WARN, "No root scheduler!\n");
+		return;
 	}
 
-	PRINTLOG(PRINT_WARN, "No root scheduler in the system. Spinning!\n");
-	SPIN();
+	/* NOTE: Chronos delegations would replace this in some experiments! */
+	root_aep = boot_spd_initaep_get(root_spdid[cos_cpuid()]);
+
+	PRINTLOG(PRINT_DEBUG, "Root scheduler is %u, switching to it now!\n", root_spdid[cos_cpuid()]);
+	ret = cos_tcap_transfer(root_aep->rcv, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, LLBOOT_ROOTSCHED_PRIO);
+	assert(ret == 0);
+
+	ret = cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOTSCHED_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
+	PRINTLOG(PRINT_ERROR, "Root scheduler returned.\n");
+	assert(0);
 }
 
 void
@@ -407,13 +440,13 @@ boot_thd_done(spdid_t c)
 	struct comp_sched_info *si = boot_spd_comp_schedinfo_get(c);
 
 	assert(si->parent_spdid == 0);
-	ps_faa((long unsigned *)&sched_cur, 1);
+	ps_faa((long unsigned *)&sched_cur[cos_cpuid()], 1);
 
 	PRINTLOG(PRINT_DEBUG, "Component %d initialized!\n", c);
-	if (schedule[sched_cur] != 0) {
-		cos_thd_switch(schedule[sched_cur]);
+	if (schedule[cos_cpuid()][sched_cur[cos_cpuid()]] != 0) {
+		cos_thd_switch(schedule[cos_cpuid()][sched_cur[cos_cpuid()]]);
 	} else {
-		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 	}
 }
 
@@ -556,6 +589,21 @@ boot_comp_frontier_get(spdid_t dstid, spdid_t srcid, vaddr_t *vasfr, capid_t *ca
 }
 
 static inline int
+boot_comp_cpubitmap_get(spdid_t dstid, u32_t *lo, u32_t *hi)
+{
+	struct comp_cap_info *ci = boot_spd_compcapinfo_get(dstid);
+
+	if (dstid > num_cobj) return -EINVAL;
+
+	assert(NUM_CPU_BMP_WORDS <= 2);
+
+	*lo = ci->cpu_bitmap[0];
+	if (NUM_CPU_BMP_WORDS == 2) *hi = ci->cpu_bitmap[1];
+
+	return 0;
+}
+
+static inline int
 boot_comp_child_next(spdid_t dstid, spdid_t srcid, spdid_t *child, comp_flag_t *flag)
 {
 	struct comp_sched_info *si = boot_spd_comp_schedinfo_get(srcid), *sch = NULL;
@@ -601,7 +649,7 @@ __hypercall_resource_access_check(spdid_t dstid, spdid_t srcid, int capmgr_ignor
 }
 
 word_t
-hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
+hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4, word_t arg5)
 {
 	int ret1 = 0;
 	spdid_t client = cos_inv_token();
@@ -719,6 +767,15 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4)
 		if (ret1) goto done;
 
 		*ret2 = vasfr;
+
+		break;
+	}
+	case HYPERCALL_COMP_CPUBITMAP_GET:
+	{
+		spdid_t srcid = arg3;
+
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
+		ret1 = boot_comp_cpubitmap_get(srcid, (u32_t *)ret2, (u32_t *)ret3);
 
 		break;
 	}

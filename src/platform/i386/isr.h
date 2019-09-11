@@ -81,6 +81,7 @@ extern void handler_hw_60(struct pt_regs *);
 extern void handler_hw_61(struct pt_regs *);
 extern void handler_hw_62(struct pt_regs *);
 extern void lapic_spurious_irq(struct pt_regs *);
+extern void lapic_ipi_asnd_irq(struct pt_regs *);
 extern void lapic_timer_irq(struct pt_regs *);
 
 static void
