@@ -37,10 +37,10 @@
 
 #define UNDEF_SYMB_TYPE 0x1
 #define EXPORTED_SYMB_TYPE 0x2
-#define MAX_SYMBOLS (1024 * 64)
-#define MAX_TRUSTED 32
-#define MAX_SYMB_LEN 256
-#define MAX_FILE_NAME_LEN 512
+#define MAX_SYMBOLS (1024 * 512)
+#define MAX_TRUSTED 64
+#define MAX_SYMB_LEN 512
+#define MAX_FILE_NAME_LEN 1024
 
 #define bfd_sect_size(bfd, x) (bfd_get_section_size(x) / bfd_octets_per_byte(bfd))
 
