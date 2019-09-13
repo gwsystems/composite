@@ -545,6 +545,17 @@ done:
 }
 
 static inline int
+boot_comp_sched_get(spdid_t dstid, spdid_t srcid)
+{
+	struct comp_sched_info *si = NULL;
+
+	if (srcid > num_cobj || dstid > num_cobj) return -EINVAL;
+	si = boot_spd_comp_schedinfo_get(srcid);
+
+	return si->parent_spdid;
+}
+
+static inline int
 boot_comp_initaep_get(spdid_t dstid, spdid_t srcid, thdcap_t thdslot, arcvcap_t rcvslot, tcap_t tcslot, spdid_t *parent)
 {
 	struct comp_sched_info *si = NULL;
@@ -599,9 +610,9 @@ boot_root_initaep_set(spdid_t dstid, spdid_t srcid, thdcap_t thd, arcvcap_t rcv,
 	a->rcv = cos_cap_cpy(b, c, CAP_ARCV, rcv);
 	assert(a->rcv);
 
+done:
 	boot_comp_sched_set(srcid);
 
-done:
 	return 0;
 }
 
@@ -847,6 +858,15 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4, wo
 
 		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
 		ret1 = boot_comp_cpubitmap_get(srcid, (u32_t *)ret2, (u32_t *)ret3);
+
+		break;
+	}
+	case HYPERCALL_COMP_SCHED_GET:
+	{
+		spdid_t srcid = arg3;
+
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
+		ret1 = boot_comp_sched_get(client, srcid);
 
 		break;
 	}
