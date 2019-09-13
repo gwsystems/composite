@@ -4,9 +4,10 @@
 #include "./cos_types.h"
 
 struct cos_thd_event {
-	u16_t         blocked;
-	u32_t         next_timeout;
-	u64_t         elapsed_cycs;
+	u16_t blocked;
+	u32_t next_timeout;
+	u64_t elapsed_cycs;
+	u64_t epoch; 
 } __attribute__((packed));
 
 struct cos_sched_event {
@@ -25,7 +26,7 @@ struct cos_scb_info {
 	capid_t               curr_thd;
 	cycles_t              timer_next;
 	sched_tok_t           sched_tok;
-	struct cos_sched_ring sched_events;
+	struct cos_sched_ring sched_events; /* kernel-level events only */
 } CACHE_ALIGNED;
 
 struct cos_dcb_info {
