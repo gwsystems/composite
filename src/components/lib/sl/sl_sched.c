@@ -502,37 +502,6 @@ sl_thd_yield_intern_timeout(cycles_t abs_timeout)
 }
 
 void
-sl_thd_event_info_reset(struct sl_thd *t)
-{
-	t->event_info.blocked      = 0;
-	t->event_info.elapsed_cycs = 0;
-	t->event_info.next_timeout = 0;
-}
-
-static inline void
-sl_thd_event_enqueue(struct sl_thd *t, struct cos_thd_event *e)
-{
-	struct sl_global_core *g = sl__globals_core();
-
-	if (ps_list_singleton(t, SL_THD_EVENT_LIST)) ps_list_head_append(&g->event_head, t, SL_THD_EVENT_LIST);
-
-	t->event_info.blocked       = e->blocked;
-	t->event_info.elapsed_cycs += e->elapsed_cycs;
-	t->event_info.next_timeout  = e->next_timeout;
-}
-
-static inline void
-sl_thd_event_dequeue(struct sl_thd *t, struct cos_thd_event *e)
-{
-	ps_list_rem(t, SL_THD_EVENT_LIST);
-
-	e->blocked      = t->event_info.blocked;
-	e->elapsed_cycs = t->event_info.elapsed_cycs;
-	e->next_timeout = t->event_info.next_timeout;
-	sl_thd_event_info_reset(t);
-}
-
-void
 sl_thd_exit()
 {
 	sl_thd_free(sl_thd_curr());
@@ -674,6 +643,67 @@ sl_init(microsec_t period)
 	sl_init_corebmp(period, corebmp);
 }
 
+static inline int
+__sl_sched_events_present(void)
+{
+	struct cos_scb_info *scb = sl_scb_info_core();
+	struct cos_sched_ring *ring = &scb->sched_events;
+
+	return __cos_sched_events_present(ring);
+}
+
+static inline int
+__sl_sched_event_consume(struct cos_sched_event *e)
+{
+	struct cos_scb_info *scb = sl_scb_info_core();
+	struct cos_sched_ring *ring = &scb->sched_events;
+
+	return __cos_sched_event_consume(ring, e);
+}
+
+static inline int
+__sl_sched_rcv(rcv_flags_t rf, struct cos_sched_event *e)
+{
+	struct sl_global_core *g = sl__globals_core();
+	struct sl_thd *curr = sl_thd_curr();
+	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr);
+	int ret = 0;
+
+	assert(curr == g->sched_thd);
+	if (!cd) return cos_ul_sched_rcv(g->sched_rcv, rf, g->timeout_next, e);
+
+	rf |= RCV_ULSCHED_RCV;
+	
+	__asm__ __volatile__ (			\
+		"pushl %%ebp\n\t"		\
+		"movl %%esp, %%ebp\n\t"		\
+		"movl $1f, (%%eax)\n\t"		\
+		"movl %%esp, 4(%%eax)\n\t"	\
+		"movl $2f, %%ecx\n\t"		\
+		"movl %%edx, %%eax\n\t"		\
+		"inc %%eax\n\t"			\
+		"shl $16, %%eax\n\t"		\
+		"movl $0, %%edx\n\t"		\
+		"movl $0, %%esi\n\t"		\
+		"movl $0, %%edi\n\t"		\
+		"sysenter\n\t"			\
+		"jmp 2f\n\t"			\
+		".align 4\n\t"			\
+		"1:\n\t"			\
+		"movl $1, %%eax\n\t"		\
+		"2:\n\t"			\
+		"popl %%ebp\n\t"		\
+		:
+		: "a" (cd), "b" (rf), "c" (g->timeout_next), "d" (g->sched_rcv)
+		: "memory", "cc");
+
+	cd = sl_thd_dcbinfo(sl_thd_curr());
+	cd->sp = 0;
+
+	rf |= RCV_ULONLY;
+	return cos_ul_sched_rcv(g->sched_rcv, rf, g->timeout_next, e);
+}
+
 static void
 sl_sched_loop_intern(int non_block)
 {
@@ -696,7 +726,8 @@ sl_sched_loop_intern(int non_block)
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			pending = cos_ul_sched_rcv(g->sched_rcv, rfl, g->timeout_next, &e);
+			//pending = cos_ul_sched_rcv(g->sched_rcv, rfl, g->timeout_next, &e);
+			pending = __sl_sched_rcv(rfl, &e);
 
 			if (pending < 0 || !e.tid) goto pending_events;
 
@@ -817,7 +848,7 @@ sl_thd_replenish_no_cs(struct sl_thd *t, cycles_t now)
 
 		/* tcap_transfer will assign sched_tcap's prio to t's tcap if t->prio == 0, which we don't want. */
 		assert(t->prio >= TCAP_PRIO_MAX && t->prio <= TCAP_PRIO_MIN);
-		ret = cos_tcap_transfer(sl_thd_rcvcap(t), globals->sched_tcap, transfer, t->prio);
+		ret = cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals_core()->sched_tcap, transfer, t->prio);
 	}
 
 	if (likely(ret == 0)) t->last_replenish = replenish;

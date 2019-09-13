@@ -41,7 +41,7 @@
 #include <heap.h>
 
 #define SL_CS
-#undef  SL_REPLENISH
+#define SL_REPLENISH
 
 /* Critical section (cs) API to protect scheduler data-structures */
 struct sl_cs {
@@ -574,7 +574,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	struct sl_thd         *t = to;
 	struct sl_global_core *globals = sl__globals_core();
 	sched_tok_t            tok;
-//	cycles_t               now;
+	cycles_t               now;
 	s64_t                  offset;
 	int                    ret;
 
@@ -584,7 +584,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 #endif
 
 	tok    = cos_sched_sync();
-//	now    = sl_now();
+	now    = sl_now();
 
 	/* still wakeup without timeouts? that adds to dispatch overhead! */
 //	offset = (s64_t)(globals->timer_next - now);
@@ -893,14 +893,51 @@ sl_thd_yield_timeout(thdid_t tid, cycles_t abs_timeout)
 	}
 }
 
+static inline void
+sl_thd_event_info_reset(struct sl_thd *t)
+{
+	t->event_info.blocked      = 0;
+	t->event_info.elapsed_cycs = 0;
+	t->event_info.next_timeout = 0;
+	t->event_info.epoch        = 0;
+}
+
+static inline void
+sl_thd_event_enqueue(struct sl_thd *t, struct cos_thd_event *e)
+{
+	struct sl_global_core *g = sl__globals_core();
+
+	if (e->epoch <= t->event_info.epoch) return;
+
+	if (ps_list_singleton(t, SL_THD_EVENT_LIST)) ps_list_head_append(&g->event_head, t, SL_THD_EVENT_LIST);
+
+	t->event_info.blocked       = e->blocked;
+	t->event_info.elapsed_cycs += e->elapsed_cycs;
+	t->event_info.next_timeout  = e->next_timeout;
+}
+
+static inline void
+sl_thd_event_dequeue(struct sl_thd *t, struct cos_thd_event *e)
+{
+	ps_list_rem(t, SL_THD_EVENT_LIST);
+
+	e->blocked      = t->event_info.blocked;
+	e->elapsed_cycs = t->event_info.elapsed_cycs;
+	e->next_timeout = t->event_info.next_timeout;
+	sl_thd_event_info_reset(t);
+}
+
 static inline int
 sl_thd_rcv(rcv_flags_t flags)
 {
+	/* FIXME: elapsed_cycs accounting..?? */
+	struct cos_thd_event ev = { .blocked = 1, .next_timeout = 0, .epoch = 0, .elapsed_cycs = 0 };
 	struct sl_thd *t = sl_thd_curr();
 	unsigned long *p = &sl_thd_dcbinfo(t)->pending, q = 0;
 	int ret = 0;
 
 	assert(sl_thd_rcvcap(t));
+	assert(!(flags & RCV_ULSCHED_RCV));
 check:
 	sl_cs_enter();
 	/* there no pending event in the dcbinfo->pending */
@@ -911,7 +948,12 @@ check:
 			goto done;
 		}
 
-		sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED, 0);
+		ev.epoch = sl_now();
+		sl_thd_event_enqueue(t, &ev);
+		/*
+		 * TODO: add event so sched thread will do this?
+		 *  sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED, 0);
+		 */
 		sl_cs_exit_switchto(sl__globals_core()->sched_thd);
 
 		goto check;

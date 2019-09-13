@@ -539,7 +539,9 @@ notify_parent(struct thread *rcv_thd, int send)
 {
 	struct thread *curr_notif = NULL, *prev_notif = NULL, *arcv_notif = NULL;
 	int            depth = 0;
+	cycles_t       now; 
 
+	rdtscll(now);
 	/* hierarchical notifications - upto init (bounded by ARCV_NOTIF_DEPTH) */
 	prev_notif = rcv_thd;
 	curr_notif = arcv_notif = arcv_thd_notif(prev_notif);
@@ -547,6 +549,7 @@ notify_parent(struct thread *rcv_thd, int send)
 	while (curr_notif && curr_notif != prev_notif) {
 		assert(depth < ARCV_NOTIF_DEPTH);
 
+		prev_notif->event_epoch = now;
 		thd_rcvcap_evt_enqueue(curr_notif, prev_notif);
 		if (!(curr_notif->state & THD_STATE_RCVING)) break;
 

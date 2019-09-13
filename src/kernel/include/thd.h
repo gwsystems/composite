@@ -75,6 +75,7 @@ struct thread {
 	struct rcvcap_info rcvcap;
 	struct list        event_head; /* all events for *this* end-point */
 	struct list_node   event_list; /* the list of events for another end-point */
+	u64_t              event_epoch; /* used by user-level for ULSCHED events.. */
 } CACHE_ALIGNED;
 
 /*
@@ -264,7 +265,7 @@ thd_rcvcap_pending_reset(struct thread *arcvt)
 }
 
 static inline int
-thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long *cycles, unsigned long *timeout)
+thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long *cycles, unsigned long *timeout, u64_t *epoch)
 {
 	struct thread *e = thd_rcvcap_evt_dequeue(t);
 
@@ -276,6 +277,8 @@ thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long 
 	e->exec    = 0;
 	*timeout   = e->timeout;
 	e->timeout = 0;
+	*epoch     = e->event_epoch;
+	e->event_epoch = 0;
 
 	return 1;
 }
@@ -607,7 +610,7 @@ thd_sched_events_produce(struct thread *thd, struct cos_cpu_local_info *cos_info
 	if (unlikely(inv_top != 0 || thd->rcvcap.is_init == 0)) return 0;
 
 	c = thd_invstk_peek_compinfo(thd, cos_info, inv_top);
-	if (unlikely(!c || !c->scb_data)) return 0;
+	if (unlikely(!c || !c->scb_data)) return -ENOENT;
 
 	scb = ((c->scb_data) + get_cpuid());
 	r   = &(scb->sched_events);
@@ -623,7 +626,7 @@ thd_sched_events_produce(struct thread *thd, struct cos_cpu_local_info *cos_info
 		unsigned long thd_state;
 
 		if (!thd_state_evt_deliver(thd, &thd_state, (unsigned long *)&(e->evt.elapsed_cycs),
-					(unsigned long *)&(e->evt.next_timeout))) break;
+					(unsigned long *)&(e->evt.next_timeout), &(e->evt.epoch))) break;
 		e->tid         = (thd_state << 1) >> 1;
 		e->evt.blocked = (thd_state >> 31);
 
@@ -639,10 +642,13 @@ static inline void
 thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs)
 {
 	unsigned long thd_state = 0, cycles = 0, timeout = 0;
+	u64_t epoch = 0;
 
-	thd_state_evt_deliver(thd, &thd_state, &cycles, &timeout);
+	/* events only in scb now, no return values... */
 	thd_rcvcap_pending_reset(thd);
-	thd_sched_events_produce(thd, cos_cpu_local_info());
+	if (thd_sched_events_produce(thd, cos_cpu_local_info()) == -ENOENT) {
+		thd_state_evt_deliver(thd, &thd_state, &cycles, &timeout, &epoch);
+	}
 	__userregs_setretvals(regs, thd_rcvcap_pending(thd), thd_state, cycles, timeout);
 }
 

@@ -15,8 +15,8 @@ __cos_sched_event_consume(struct cos_sched_ring *r, struct cos_sched_event *e)
 	int f = 0;
 
 	if (!r || !e || !__cos_sched_events_present(r)) return 0;
-	*e = r->event_buf[f];
 	f = ps_upfaa((unsigned long *)&r->head, 1);
+	*e = r->event_buf[f];
 //	memcpy((void *)e, (void *)&(r->event_buf[f]), sizeof(struct cos_sched_event));
 
 	return 1;
