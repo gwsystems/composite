@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Gregor Peach <gregorpeach@gmail.com>"]
 
 [dependencies]
-lib_composite = "0.6"
+lib_composite = "0.7"
 
 [lib]
 crate-type = ["staticlib"]
