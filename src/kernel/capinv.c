@@ -1820,12 +1820,16 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			struct cap_arcv *rcvc;
 			hwid_t           hwid   = __userregs_get1(regs);
 			capid_t          rcvcap = __userregs_get2(regs);
+			u32_t period = __userregs_get3(regs);
 
 			rcvc = (struct cap_arcv *)captbl_lkup(ci->captbl, rcvcap);
 			if (!CAP_TYPECHK(rcvc, CAP_ARCV)) cos_throw(err, -EINVAL);
 
 			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcvcap);
-			if (!ret) ret = chal_irq_enable(hwid, get_cpuid());
+			if (!ret) {
+				if (hwid == HW_HPET_PERIODIC || hwid == HW_HPET_ONESHOT) chal_hpet_periodic_set(hwid, period);
+				ret = chal_irq_enable(hwid, get_cpuid());
+			}
 
 			break;
 		}
@@ -1833,7 +1837,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			hwid_t hwid = __userregs_get1(regs);
 
 			ret = hw_detach_rcvcap((struct cap_hw *)ch, hwid);
-			if (!ret) ret = chal_irq_disable(hwid, get_cpuid());
+			if (!ret) {
+				if (hwid == HW_HPET_PERIODIC || hwid == HW_HPET_ONESHOT) chal_hpet_disable(hwid);
+				ret = chal_irq_disable(hwid, get_cpuid());
+			}
 
 			break;
 		}
