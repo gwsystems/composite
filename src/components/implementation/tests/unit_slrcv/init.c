@@ -5,7 +5,7 @@
 #include <cos_dcb.h>
 #include <hypercall.h>
 #include <schedinit.h>
-#include "spinlib.h"
+#include <work.h>
 
 static struct sl_xcore_thd *ping;
 static struct sl_xcore_thd *pong;
@@ -22,7 +22,7 @@ ping_fn(void *d)
 		int r = cos_asnd(s, 0);
 
 		assert(r == 0);
-		spinlib_usecs(WORK_US);
+		work_usecs(WORK_US);
 	}
 	sl_thd_exit();
 }
@@ -51,12 +51,12 @@ cos_init(void *d)
 	unsigned int cycs_per_us = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	if (NUM_CPU == 2) {
+		assert(0); // need to rework.. 
 		if (cos_cpuid() == 0) {
 			cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 			cos_defcompinfo_llinit();
 			cos_dcb_info_init_curr();
 			sl_init(SL_MIN_PERIOD_US);
-			spinlib_calib(cycs_per_us);
 
 			struct sl_thd *t = sl_thd_aep_alloc(pong_fn, NULL, 0, 0, 0, 0);
 			assert(t);
@@ -84,7 +84,6 @@ cos_init(void *d)
 		cos_defcompinfo_init();
 		//cos_dcb_info_init_curr();
 		sl_init(SL_MIN_PERIOD_US);
-		spinlib_calib(cycs_per_us);
 
 		struct sl_thd *rt = sl_thd_aep_alloc(pong_fn, NULL, 0, 0, 0, 0);
 		assert(rt);

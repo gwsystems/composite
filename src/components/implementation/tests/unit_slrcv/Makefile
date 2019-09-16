@@ -1,6 +1,6 @@
 COMPONENT=unit_slrcvtest.o
 INTERFACES=
-DEPENDENCIES=capmgr schedinit
+DEPENDENCIES=capmgr schedinit work
 IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format $(LIBSLCAPMGR) -lsl_mod_rr -lsl_thd_static_backend -lcos_dcb
 

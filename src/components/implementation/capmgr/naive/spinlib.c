@@ -76,47 +76,35 @@ spinlib_calib(unsigned int cycs_per_us)
 void
 spinlib_cycles(cycles_t cycs)
 {
-//	unsigned int i = 0;
-//	unsigned int iters = cycs / spinlib_cycs_per_spin_iters;
-//	unsigned int left = cycs % spinlib_cycs_per_spin_iters;
-//
-//	assert(cycs >= spinlib_cycs_per_spin_iters);
-//
-//	/* round off to next cycs/spin */
-//	if (left >= (spinlib_cycs_per_spin_iters / 2)) iters ++;
-//
-//	while (i < iters) {
-//		spinlib_std_iters();
-//		i ++;
-//	}
-	unsigned long long st, en;
+	unsigned int i = 0;
+	unsigned int iters = cycs / spinlib_cycs_per_spin_iters;
+	unsigned int left = cycs % spinlib_cycs_per_spin_iters;
 
-	rdtscll(st);
-	en = st + cycs;
+	assert(cycs >= spinlib_cycs_per_spin_iters);
 
-	// doesn't work with concurrency.. but don't care for now.
-	do {
-		rdtscll(st);
-	} while (st < en);
+	/* round off to next cycs/spin */
+	if (left >= (spinlib_cycs_per_spin_iters / 2)) iters ++;
+
+	while (i < iters) {
+		spinlib_std_iters();
+		i ++;
+	}
 }
 
 void
 spinlib_usecs(cycles_t usecs)
 {
-	unsigned long long cycs = sl_usec2cyc(usecs);
+	unsigned int i = 0;
+	unsigned int iters = usecs / spinlib_usecs_per_spin_iters;
+	unsigned int left = usecs % spinlib_usecs_per_spin_iters;
 
-	spinlib_cycles(cycs);
-//	unsigned int i = 0;
-//	unsigned int iters = usecs / spinlib_usecs_per_spin_iters;
-//	unsigned int left = usecs % spinlib_usecs_per_spin_iters;
-//
-//	assert(usecs >= spinlib_usecs_per_spin_iters);
-//
-//	/* round off to next usec */
-//	if (left >= (spinlib_usecs_per_spin_iters / 2)) iters ++;
-//
-//	while (i < iters) {
-//		spinlib_std_iters();
-//		i ++;
-//	}
+	assert(usecs >= spinlib_usecs_per_spin_iters);
+
+	/* round off to next usec */
+	if (left >= (spinlib_usecs_per_spin_iters / 2)) iters ++;
+
+	while (i < iters) {
+		spinlib_std_iters();
+		i ++;
+	}
 }
