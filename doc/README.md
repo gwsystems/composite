@@ -3,6 +3,7 @@
 ## Tools necessary for Composite
 ```
 sudo apt-get -y install bc  
+sudo apt-get -y install g++
 sudo apt-get -y install gcc-multilib  
 sudo apt-get -y install binutils-dev  
 sudo apt-get -y install qemu-kvm  
