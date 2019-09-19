@@ -7,8 +7,8 @@ Vagrant.configure(2) do |config|
     config.vm.provider "virtualbox" do |v|
         v.name = "composite_dev"
         v.memory = 1024
-        v.cpus = 2
-        v.customize ["modifyvm", :id, "--paravirtprovider", "kvm"]
+        v.cpus = 4
+        v.customize ["modifyvm", :id, "--paravirtprovider", "kvm", "--ioapic", "on"]
     end
 
     # Disable the default syncing
