@@ -22,9 +22,15 @@ Vagrant.configure(2) do |config|
         sudo apt-get -y install git
         sudo apt-get -y install ntp
         sudo apt-get -y install bc
+        sudo apt-get -y install g++
         sudo apt-get -y install gcc-multilib
         sudo apt-get -y install binutils-dev
         sudo apt-get -y install binutils-dev
         sudo apt-get -y install qemu-kvm
+        curl https://sh.rustup.rs -sSf | sh -s -- -y
+        source $HOME/.cargo/env
+        rustup default nightly
+        cargo install xargo
+        rustup component add rust-src
     SHELL
 end
