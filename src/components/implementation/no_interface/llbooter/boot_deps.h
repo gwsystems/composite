@@ -436,6 +436,21 @@ boot_bootcomp_init(void)
 }
 
 static void
+boot_root_sched_transfer(void)
+{
+	struct cos_aep_info *root_aep = NULL;
+	int ret;
+
+	if (!root_spdid[cos_cpuid()]) return;
+
+	root_aep = boot_spd_initaep_get(root_spdid[cos_cpuid()]);
+
+	PRINTLOG(PRINT_DEBUG, "Root scheduler is %u, transferring INF budget now!\n", root_spdid[cos_cpuid()]);
+	ret = cos_tcap_transfer(root_aep->rcv, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, LLBOOT_ROOTSCHED_PRIO);
+	assert(ret == 0);
+}
+
+static void
 boot_done(void)
 {
 	PRINTLOG(PRINT_DEBUG, "Booter: done creating system.\n");
@@ -448,7 +463,6 @@ void
 boot_root_sched_run(void)
 {
 	struct cos_aep_info *root_aep = NULL;
-	int ret;
 
 	if (!root_spdid[cos_cpuid()]) {
 		PRINTLOG(PRINT_WARN, "No root scheduler!\n");
@@ -459,10 +473,7 @@ boot_root_sched_run(void)
 	root_aep = boot_spd_initaep_get(root_spdid[cos_cpuid()]);
 
 	PRINTLOG(PRINT_DEBUG, "Root scheduler is %u, switching to it now!\n", root_spdid[cos_cpuid()]);
-	ret = cos_tcap_transfer(root_aep->rcv, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, LLBOOT_ROOTSCHED_PRIO);
-	assert(ret == 0);
-
-	ret = cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOTSCHED_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
+	cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOTSCHED_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
 	PRINTLOG(PRINT_ERROR, "Root scheduler returned.\n");
 	assert(0);
 }
@@ -609,6 +620,7 @@ boot_root_initaep_set(spdid_t dstid, spdid_t srcid, thdcap_t thd, arcvcap_t rcv,
 	assert(a->tc);
 	a->rcv = cos_cap_cpy(b, c, CAP_ARCV, rcv);
 	assert(a->rcv);
+	if (root_spdid[cos_cpuid()] == srcid) boot_root_sched_transfer();
 
 done:
 	boot_comp_sched_set(srcid);

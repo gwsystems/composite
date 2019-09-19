@@ -665,43 +665,45 @@ static inline int
 __sl_sched_rcv(rcv_flags_t rf, struct cos_sched_event *e)
 {
 	struct sl_global_core *g = sl__globals_core();
-	struct sl_thd *curr = sl_thd_curr();
-	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr);
-	int ret = 0;
-
-	assert(curr == g->sched_thd);
-	if (!cd) return cos_ul_sched_rcv(g->sched_rcv, rf, g->timeout_next, e);
-
-	rf |= RCV_ULSCHED_RCV;
-	
-	__asm__ __volatile__ (			\
-		"pushl %%ebp\n\t"		\
-		"movl %%esp, %%ebp\n\t"		\
-		"movl $1f, (%%eax)\n\t"		\
-		"movl %%esp, 4(%%eax)\n\t"	\
-		"movl $2f, %%ecx\n\t"		\
-		"movl %%edx, %%eax\n\t"		\
-		"inc %%eax\n\t"			\
-		"shl $16, %%eax\n\t"		\
-		"movl $0, %%edx\n\t"		\
-		"movl $0, %%edi\n\t"		\
-		"sysenter\n\t"			\
-		"jmp 2f\n\t"			\
-		".align 4\n\t"			\
-		"1:\n\t"			\
-		"movl $1, %%eax\n\t"		\
-		".align 4\n\t"			\
-		"2:\n\t"			\
-		"popl %%ebp\n\t"		\
-		: "=a" (ret)
-		: "a" (cd), "b" (rf), "S" (g->timeout_next), "d" (g->sched_rcv)
-		: "memory", "cc", "ecx", "edi");
-
-//	if (cos_thdid() == 7) PRINTC("%s:%d %d\n", __func__, __LINE__, ret);
-	cd = sl_thd_dcbinfo(sl_thd_curr());
-	cd->sp = 0;
-
-	rf |= RCV_ULONLY;
+//	struct sl_thd *curr = sl_thd_curr();
+//	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr);
+//	int ret = 0;
+////	if (cos_spd_id() != 4) printc("D");
+//
+//	assert(curr == g->sched_thd);
+//	if (!cd) return cos_ul_sched_rcv(g->sched_rcv, rf, g->timeout_next, e);
+//
+//	rf |= RCV_ULSCHED_RCV;
+//	
+//	__asm__ __volatile__ (			\
+//		"pushl %%ebp\n\t"		\
+//		"movl %%esp, %%ebp\n\t"		\
+//		"movl $1f, (%%eax)\n\t"		\
+//		"movl %%esp, 4(%%eax)\n\t"	\
+//		"movl $2f, %%ecx\n\t"		\
+//		"movl %%edx, %%eax\n\t"		\
+//		"inc %%eax\n\t"			\
+//		"shl $16, %%eax\n\t"		\
+//		"movl $0, %%edx\n\t"		\
+//		"movl $0, %%edi\n\t"		\
+//		"sysenter\n\t"			\
+//		"jmp 2f\n\t"			\
+//		".align 4\n\t"			\
+//		"1:\n\t"			\
+//		"movl $1, %%eax\n\t"		\
+//		".align 4\n\t"			\
+//		"2:\n\t"			\
+//		"popl %%ebp\n\t"		\
+//		: "=a" (ret)
+//		: "a" (cd), "b" (rf), "S" (g->timeout_next), "d" (g->sched_rcv)
+//		: "memory", "cc", "ecx", "edi");
+//
+////	if (cos_spd_id() != 4) printc("E");
+////	if (cos_thdid() == 7) PRINTC("%s:%d %d\n", __func__, __LINE__, ret);
+//	cd = sl_thd_dcbinfo(sl_thd_curr());
+//	cd->sp = 0;
+//
+//	rf |= RCV_ULONLY;
 	return cos_ul_sched_rcv(g->sched_rcv, rf, g->timeout_next, e);
 }
 
@@ -722,13 +724,23 @@ sl_sched_loop_intern(int non_block)
 			struct sl_child_notification notif;
 			struct cos_sched_event e = { .tid = 0 };
 
+			
+	struct sl_thd *curr = sl_thd_curr();
+	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr);
+			assert(cd->sp == 0);
 			/*
 			 * a child scheduler may receive both scheduling notifications (block/unblock
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
 			//pending = cos_ul_sched_rcv(g->sched_rcv, rfl, g->timeout_next, &e);
+//			if (cos_spd_id() != 4) printc("L");
+			//else                   printc("l");
 			pending = __sl_sched_rcv(rfl, &e);
+			assert(cd->sp == 0);
+//			if (cos_spd_id() != 4) printc("M");
+
+			//else                   printc("m");
 
 			if (pending < 0 || !e.tid) goto pending_events;
 

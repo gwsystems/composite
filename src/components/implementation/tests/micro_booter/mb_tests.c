@@ -368,7 +368,7 @@ spinner(void *d)
 		;
 }
 
-#define TEST_USEC_INTERVAL 1000 /* in microseconds */
+#define TEST_USEC_INTERVAL 5000 /* in microseconds */
 #define TEST_HPET_ITERS   1000
 cycles_t iat_vals[TEST_HPET_ITERS - 1];
 

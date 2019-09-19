@@ -23,6 +23,10 @@ cos_asm_server_stub(capmgr_asnd_rcv_create)
 cos_asm_server_stub(capmgr_asnd_key_create)
 cos_asm_server_stub(capmgr_thd_migrate)
 
+cos_asm_server_stub(capmgr_hw_attach)
+cos_asm_server_stub(capmgr_hw_periodic_attach)
+cos_asm_server_stub(capmgr_hw_detach)
+
 cos_asm_server_stub(memmgr_heap_page_allocn)
 cos_asm_server_stub_rets(memmgr_shared_page_allocn_cserialized)
 cos_asm_server_stub_rets(memmgr_shared_page_map_cserialized)

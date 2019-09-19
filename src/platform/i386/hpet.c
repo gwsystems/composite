@@ -195,12 +195,21 @@ int
 hpet_periodic_handler(struct pt_regs *regs)
 {
 	int preempt = 1;
+static int count = 0;
 
 	lapic_ack();
 	if (unlikely(hpet_calibration_init)) hpet_calibration();
-	if (unlikely(hpet_periodicity_curr[HPET_PERIODIC] && !hpet_first_hpet_period)) rdtscll(hpet_first_hpet_period);
+	if (unlikely(hpet_periodicity_curr[HPET_PERIODIC] && !hpet_first_hpet_period)) {
+	count++;
+
+	//printk("Y");
+	if (count < 5) goto done;
+		rdtscll(hpet_first_hpet_period);
+	}
+	//printk("H");
 
 	preempt = cap_hw_asnd(&hw_asnd_caps[get_cpuid()][HW_HPET_PERIODIC], regs);
+done:
 	HPET_INT_ENABLE(HPET_PERIODIC);
 
 	return preempt;
@@ -304,6 +313,7 @@ chal_hpet_periodic_set(hwid_t hwid, unsigned long usecs_period)
 		hpet_periodicity_curr[type] = usecs_period;
 		if (type == HPET_PERIODIC) hpet_first_hpet_period = 0;
 		hpet_set(type, hpetcyc_per_period);
+		chal_irq_enable(HW_HPET_PERIODIC, 0);
 		printk("Setting HPET [%u:%u] Periodicity:%lu hpetcyc_per_period:%llu\n", hwid, type, usecs_period, hpetcyc_per_period);
 	}
 }
@@ -361,13 +371,13 @@ hpet_init(void)
 	 * Set the timer as specified.  This assumes that the cycle
 	 * specification is in hpet cycles (not cpu cycles).
 	 */
-	if (chal_msr_mhz && !lapic_timer_calib_init) {
-		hpet_cpucyc_per_tick    = chal_msr_mhz * HPET_DEFAULT_PERIOD_US;
-		hpet_cpucyc_per_hpetcyc = hpet_cpucyc_per_tick / hpet_hpetcyc_per_tick;
-		printk("Timer not calibrated, instead computed using MSR frequency value\n");
+	//if (chal_msr_mhz && !lapic_timer_calib_init) {
+	//	hpet_cpucyc_per_tick    = chal_msr_mhz * HPET_DEFAULT_PERIOD_US;
+	//	hpet_cpucyc_per_hpetcyc = hpet_cpucyc_per_tick / hpet_hpetcyc_per_tick;
+	//	printk("Timer not calibrated, instead computed using MSR frequency value\n");
 
-		return;
-	}
+	//	return;
+	//}
 
 	hpet_calibration_init = 1;
 	hpet_set(HPET_PERIODIC, hpet_hpetcyc_per_tick);

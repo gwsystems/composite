@@ -26,4 +26,8 @@ asndcap_t capmgr_asnd_key_create(cos_channelkey_t key);
 
 int capmgr_thd_migrate(thdid_t tid, thdcap_t tc, cpuid_t core);
 
+int capmgr_hw_attach(hwid_t hwid, thdid_t tid);
+int capmgr_hw_periodic_attach(hwid_t hwid, thdid_t tid, unsigned int period_us);
+int capmgr_hw_detach(hwid_t hwid);
+
 #endif /* CAPMGR_H */

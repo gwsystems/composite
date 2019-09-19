@@ -37,7 +37,7 @@
 
 #define MAGIC_RET 0xDEADBEEF
 
-#define INV_TEST
+#undef INV_TEST
 static volatile cycles_t mid_cycs = 0;
 static volatile int testing = 1;
 

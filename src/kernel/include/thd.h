@@ -253,15 +253,17 @@ thd_rcvcap_set_counter(struct thread *t, sched_tok_t cntr)
 static void
 thd_rcvcap_pending_set(struct thread *arcvt)
 {
-	if (likely(arcvt->dcbinfo)) arcvt->dcbinfo->pending = 1;
-	else                        arcvt->rcvcap.pending = 1;
+	if (likely(arcvt->dcbinfo)) {
+		arcvt->dcbinfo->pending = 1;
+	//printk("%u:%d\n", arcvt->tid, arcvt->dcbinfo->pending);
+	}
+	else arcvt->rcvcap.pending = 1;
 }
 
 static void
 thd_rcvcap_pending_reset(struct thread *arcvt)
 {
 	arcvt->rcvcap.pending = 0;
-	if (likely(arcvt->dcbinfo)) arcvt->dcbinfo->pending = 0;
 }
 
 static inline int
@@ -660,10 +662,14 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 	/* TODO: check FPU */
 	/* fpu_save(thd); */
 	if (thd->state & THD_STATE_PREEMPTED) {
-		assert(!(thd->state & THD_STATE_RCVING));
+		/* TODO: assert that its a scheduler thread */
+		/* assert(!(thd->state & THD_STATE_RCVING)); */
 		thd->state &= ~THD_STATE_PREEMPTED;
 		preempt = 1;
-	} else if (thd->state & THD_STATE_RCVING) {
+	}
+
+	/* FIXME: can the thread be in race with the kernel? */
+	if (thd->state & THD_STATE_RCVING) {
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state &= ~THD_STATE_RCVING;
 		thd_rcvcap_pending_deliver(thd, regs);

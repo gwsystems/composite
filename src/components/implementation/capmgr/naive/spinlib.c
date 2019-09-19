@@ -29,7 +29,7 @@ spinlib_calib_test(void)
 		rdtscll(end);
 		elapsed_cycs = end - st;
 
-		PRINTC("SPIN %lluus => elapsed :%lluus %llucycs\n", test_us[i], elapsed_cycs, sl_cyc2usec(elapsed_cycs));
+		PRINTC("SPIN %lluus => elapsed :%llucycs %lluus\n", test_us[i], elapsed_cycs, sl_cyc2usec(elapsed_cycs));
 	}
 }
 
