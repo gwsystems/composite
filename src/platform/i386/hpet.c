@@ -371,13 +371,13 @@ hpet_init(void)
 	 * Set the timer as specified.  This assumes that the cycle
 	 * specification is in hpet cycles (not cpu cycles).
 	 */
-	//if (chal_msr_mhz && !lapic_timer_calib_init) {
-	//	hpet_cpucyc_per_tick    = chal_msr_mhz * HPET_DEFAULT_PERIOD_US;
-	//	hpet_cpucyc_per_hpetcyc = hpet_cpucyc_per_tick / hpet_hpetcyc_per_tick;
-	//	printk("Timer not calibrated, instead computed using MSR frequency value\n");
+	if (chal_msr_mhz && !lapic_timer_calib_init) {
+		hpet_cpucyc_per_tick    = chal_msr_mhz * HPET_DEFAULT_PERIOD_US;
+		hpet_cpucyc_per_hpetcyc = hpet_cpucyc_per_tick / hpet_hpetcyc_per_tick;
+		printk("Timer not calibrated, instead computed using MSR frequency value\n");
 
-	//	return;
-	//}
+		return;
+	}
 
 	hpet_calibration_init = 1;
 	hpet_set(HPET_PERIODIC, hpet_hpetcyc_per_tick);

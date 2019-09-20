@@ -18,9 +18,11 @@
 #include <crt_lock.h>
 
 /* Iterations, channels */
-#define CHAN_ITER  1000000
+#define CHAN_ITER  1000
 #define NCHANTHDS  2
 #define CHAN_BATCH 3
+
+unsigned long long iters[CHAN_ITER] = { 0 };
 
 CRT_CHAN_STATIC_ALLOC(c0, int, 4);
 CRT_CHAN_TYPE_PROTOTYPES(test, int, 4);
@@ -127,16 +129,19 @@ volatile unsigned long long end_time;
 //	}
 //}
 
+#define RCV 0
+#define SND 1
+
 void
 test_thd_fn(void *data)
 {
 	cycles_t time;
-	cycles_t iters;
+//	cycles_t iters;
 	cycles_t total = 0, max = 0, diff;
 	int send;
 	int recv;
 	int rounds = 0;
-	if (data!=0) {
+	if (data==RCV) {
 		while (1) {
 			rounds ++;
 			crt_chan_recv_test(c0, &recv);
@@ -145,9 +150,16 @@ test_thd_fn(void *data)
 			diff = end_time - start_time;
 			if (diff > max) max = diff;
 			total += diff;
+			iters[rounds - 1] = diff;
+			//printc("%llu, ", diff);
 
-			if (rounds == 10000) {
-				printc("Avg: %llu, Wc:%llu\n", total / 10000, max);
+			if (rounds == CHAN_ITER) {
+				int i;
+
+				for (i = 0; i < CHAN_ITER; i++) {
+					printc("%llu, ", iters[i]);
+				}
+				printc("\nAvg: %llu, Wc:%llu\n", total / CHAN_ITER, max);
 
 				while (1) ;
 			}
@@ -158,7 +170,6 @@ test_thd_fn(void *data)
 		}
 	}
 	else {
-		crt_chan_init_test(c0);
 		while (1) {
 			send = 0x1234;
 			rdtscll(start_time);
@@ -337,15 +348,19 @@ test_yields(void)
 {
 	int                     i;
 	struct sl_thd *         threads[N_TESTTHDS];
-	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = 10}};
+	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = 0}};
 
+	start_time = end_time = 0;
+
+		crt_chan_init_test(c0);
 	for (i = 0; i < N_TESTTHDS; i++) {
 		threads[i] = sl_thd_alloc(test_thd_fn, (void *)i);
 		assert(threads[i]);
-		if(i != 0)
-			sp.c.value = 10;
+		if (i == RCV) sp.c.value = 2;
+		else          sp.c.value = 5;
 		sl_thd_param_set(threads[i], sp.v);
 		PRINTC("Thread %u:%lu created\n", sl_thd_thdid(threads[i]), sl_thd_thdcap(threads[i]));
+		//sl_thd_yield_thd(threads[i]);
 	}
 }
 
@@ -461,7 +476,7 @@ cos_init(void)
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_llinit();
 	cos_dcb_info_init_curr();
-	sl_init(SL_MIN_PERIOD_US);
+	sl_init(SL_MIN_PERIOD_US*10);
 
 	//test_yield_perf();
 	test_yields();
