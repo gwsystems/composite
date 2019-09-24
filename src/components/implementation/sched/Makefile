@@ -1,3 +1,3 @@
-INTERFACES=sched schedinit
+INTERFACES=sched schedinit crt
 
 include ../Makefile.subdir

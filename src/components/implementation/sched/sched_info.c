@@ -70,6 +70,8 @@ sched_num_childsched_get(void)
 	return sched_num_childsched[cos_cpuid()];
 }
 
+extern void __sched_stdio_init(void);
+
 static void
 sched_childinfo_init_intern(int is_raw)
 {
@@ -78,6 +80,7 @@ sched_childinfo_init_intern(int is_raw)
 	comp_flag_t childflags;
 
 	memset(childinfo[cos_cpuid()], 0, sizeof(struct sched_childinfo) * SCHED_MAX_CHILD_COMPS);
+	__sched_stdio_init();
 
 	while ((remaining = hypercall_comp_child_next(cos_spd_id(), &child, &childflags)) >= 0) {
 		struct sched_childinfo *schedinfo = NULL;
