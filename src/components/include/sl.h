@@ -41,7 +41,7 @@
 #include <heap.h>
 
 #define SL_CS
-#define SL_REPLENISH
+#undef SL_REPLENISH
 
 /* Critical section (cs) API to protect scheduler data-structures */
 struct sl_cs {
@@ -612,7 +612,9 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	struct sl_thd         *t = to, *c = sl_thd_curr();
 	struct sl_global_core *globals = sl__globals_core();
 	sched_tok_t            tok;
+#ifdef SL_REPLENISH
 	cycles_t               now;
+#endif
 	s64_t                  offset;
 	int                    ret;
 
@@ -622,7 +624,9 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 #endif
 
 	tok    = cos_sched_sync();
+#ifdef SL_REPLENISH
 	now    = sl_now();
+#endif
 
 	/*
 	 * Once we exit, we can't trust t's memory as it could be

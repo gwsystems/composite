@@ -295,7 +295,7 @@ static inline void
 thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
 {
 	/* commit the cached data */
-	prev->invstk_top     = cos_info->invstk_top;
+	prev->invstk_top = cos_info->invstk_top;
 	cos_info->invstk_top = next->invstk_top;
 	cos_info->curr_thd   = next;
 }
@@ -535,11 +535,9 @@ thd_invstk_peek_compinfo(struct thread *curr_thd, struct cos_cpu_local_info *cos
 }
 
 static inline struct comp_info *
-thd_invstk_current_compinfo(struct thread *curr_thd, struct cos_cpu_local_info *cos_info, int *invstk_top)
+thd_invstk_current_compinfo(struct thread *curr_thd, struct cos_cpu_local_info *cos_info)
 {
-	*invstk_top = curr_invstk_top(cos_info);
-
-	return &(curr_thd->invstk[*invstk_top].comp_info);
+	return &(curr_thd->invstk[curr_invstk_top(cos_info)].comp_info);
 }
 
 static inline struct comp_info *

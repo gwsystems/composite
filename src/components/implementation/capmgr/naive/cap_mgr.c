@@ -67,7 +67,8 @@ capmgr_thd_create_ext_cserialized(struct cos_dcb_info **dcb, thdid_t *tid, spdid
 	if (cap_info_is_sched(s)) return 0;
 	if (idx <= 0) return 0;
 
-	dcbcap = cos_dcb_info_alloc(cap_info_cpu_dcbdata(cap_info_cpu_local(rs)), &dcboff, &dcbaddr);
+	/* s is not a scheduler, dcbinfo will be in the scheduler component */
+	dcbcap = cos_dcb_info_alloc(cap_info_cpu_dcbdata(cap_info_cpu_local(rc)), &dcboff, &dcbaddr);
 	if (!dcbcap || !dcbaddr || !dcboff) return 0; /* dcboff == 0 for initthd in that comp! */
 	t = sl_thd_aep_alloc_ext_dcb(cap_info_dci(rs), NULL, idx, 0, 0, 0, dcbcap, dcboff, 0, 0, NULL);
 	if (!t) return 0;
@@ -259,7 +260,9 @@ capmgr_aep_create_ext_cserialized(struct cos_dcb_info **dcb, u32_t *rcvtcret, u3
 	rinit = cap_info_initthd(rc);
 	if (!rinit) return 0;
 
-	dcbcap = cos_dcb_info_alloc(cap_info_cpu_dcbdata(cap_info_cpu_local(rs)), &dcboff, &dcbaddr);
+	/* if s is not a scheduler, dcbinfo will be in the scheduler component */
+	//if (cap_info_is_sched(s)) dcbcap = cos_dcb_info_alloc(cap_info_cpu_dcbdata(cap_info_cpu_local(rs)), &dcboff, &dcbaddr);
+	/*else*/ dcbcap = cos_dcb_info_alloc(cap_info_cpu_dcbdata(cap_info_cpu_local(rc)), &dcboff, &dcbaddr);
 	if (!dcbcap || !dcbaddr || !dcboff) return 0; /* dcboff == 0 for initthd in that comp! */
 	t = sl_thd_aep_alloc_ext_dcb(cap_info_dci(rs), rinit, tidx, 1, owntc, 0, dcbcap, dcboff, ipiwin, ipimax, &srcrcv);
 	if (!t) return 0;

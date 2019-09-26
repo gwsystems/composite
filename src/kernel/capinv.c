@@ -94,10 +94,9 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	struct cap_thd      *ch_ult = NULL;
 	struct thread       *ulthd = NULL;
 	capid_t              ultc = 0;
-	int                  invstk_top = 0;
 	struct cos_scb_info *scb_core = NULL; /* per-core scb_info */
 
-	*ci_ptr = thd_invstk_current_compinfo(thd, cos_info, &invstk_top);
+	*ci_ptr = thd_invstk_current_compinfo(thd, cos_info);
 
 	assert(*ci_ptr && (*ci_ptr)->captbl);
 
@@ -113,29 +112,12 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 		if (unlikely(!CAP_TYPECHK_CORE(ch_ult, CAP_THD))) ch_ult = NULL;
 		else                                              ulthd = ch_ult->t;
 	}
-
-	if (unlikely(interrupt)) {
-		struct thread *fixthd = thd;
-
-		assert(scb_core->sched_tok < ~0U);
-		cos_faa((int *)&(scb_core->sched_tok), 1);
-
-		if (ulthd) fixthd = ulthd;
-
-		if (unlikely(fixthd->dcbinfo && fixthd->dcbinfo->sp)) {
-			regs->ip = fixthd->dcbinfo->ip + DCB_IP_KERN_OFF;
-			regs->sp = fixthd->dcbinfo->sp;
-			regs->dx = 0; /* sched token is in edx! */
-
-			fixthd->dcbinfo->sp = 0;
-		}
-	}
 	if (unlikely(!ultc || !ulthd || ulthd->dcbinfo == NULL)) goto done;
 	if (ulthd == thd) goto done;
-	/* check if kcurr and ucurr threads are both in the same page-table(component) */
-	if (thd_current_pgtbl(ulthd) != thd_current_pgtbl(thd)) goto done;
+	
 	thd_current_update(ulthd, thd, cos_info);
 	thd = ulthd;
+	*ci_ptr = thd_invstk_current_compinfo(thd, cos_info);
 
 done:
 	return thd;

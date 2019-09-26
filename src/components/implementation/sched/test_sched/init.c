@@ -15,6 +15,7 @@
 
 u32_t cycs_per_usec = 0;
 cycles_t *int_start = NULL;
+volatile unsigned long *rdy = NULL;
 
 void
 sched_child_init(struct sched_childinfo *schedci)
@@ -38,15 +39,15 @@ CRT_CHAN_STATIC_ALLOC(c1, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 CRT_CHAN_STATIC_ALLOC(c2, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 CRT_CHAN_STATIC_ALLOC(c3, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 
-#define SPDID_INT 1
-#define SPDID_W1  3
-#define SPDID_W3  5
+#define SPDID_INT 5
+#define SPDID_W1  6
+#define SPDID_W3  7
 
-#define PRIO_INT  MAX_PIPE_SZ + 1
-#define PRIO_W0   MAX_PIPE_SZ + 1 - 1
-#define PRIO_W1   MAX_PIPE_SZ + 1 - 2
-#define PRIO_W2   MAX_PIPE_SZ + 1 - 3
-#define PRIO_W3   MAX_PIPE_SZ + 1 - 4
+#define PRIO_INT  MAX_PIPE_SZ + 4
+#define PRIO_W0   MAX_PIPE_SZ + 4 - 1
+#define PRIO_W1   MAX_PIPE_SZ + 4 - 2
+#define PRIO_W2   MAX_PIPE_SZ + 4 - 3
+#define PRIO_W3   MAX_PIPE_SZ + 4 - 4
 
 #define SND_DATA 0x1234
 
@@ -61,10 +62,11 @@ work_thd_fn(void *data)
 	int is_last = (int)data;
 	unsigned long i = 0;
 
+	ps_faa(rdy, 1);
+
 	while (1) {
 		i = chan_in();
 		if (unlikely(is_last)) {
-			//printc("[E%u]", cos_thdid());
 			cycles_t end, diff;
 			rdtscll(end);
 			assert(int_start);
@@ -79,8 +81,6 @@ work_thd_fn(void *data)
 				iters = 0;
 			}
 			continue;
-		} else {
-			//printc("[W%u]", cos_thdid());
 		}
 		chan_out(SND_DATA);
 	}
@@ -122,15 +122,16 @@ sched_child_aep_create(struct sched_childinfo *schedci, thdclosure_index_t idx, 
 void
 test_pipes_init(void)
 {
-	struct sl_thd *t = sl_thd_alloc(work_thd_fn, 1);
+	struct sl_thd *t = sl_thd_alloc(work_thd_fn, 0);
 	assert(t);
 	sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, PRIO_W0));
-	__sched_stdio_thd_init(sl_thd_thdid(t), c0, NULL);
-	//__sched_stdio_thd_init(sl_thd_thdid(t), c0, c1);
-//	t = sl_thd_alloc(work_thd_fn, 0);
-//	assert(t);
-//	sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, PRIO_W2));
-//	__sched_stdio_thd_init(sl_thd_thdid(t), c2, c3);
+//	__sched_stdio_thd_init(sl_thd_thdid(t), c0, NULL);
+	__sched_stdio_thd_init(sl_thd_thdid(t), c0, c1);
+	t = sl_thd_alloc(work_thd_fn, 0);
+	assert(t);
+	sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, PRIO_W2));
+	__sched_stdio_thd_init(sl_thd_thdid(t), c2, c3);
+//	__sched_stdio_thd_init(sl_thd_thdid(t), c2, NULL);
 }
 
 void
@@ -162,12 +163,14 @@ cos_init(void)
 		while (!ps_load((unsigned long *)&init_done[i])) ;
 	}
 
-	sl_init_corebmp(100*SL_MIN_PERIOD_US, cpubmp);
+	sl_init_corebmp(500*SL_MIN_PERIOD_US, cpubmp);
 	vaddr_t tscaddr = 0;
 	cbuf_t id = channel_shared_page_alloc(SHMCHANNEL_KEY, &tscaddr);
 	assert(id >= 0);
 	int_start = (cycles_t *)tscaddr;
 	*int_start = 0ULL;
+	rdy = (volatile unsigned long *)(int_start + 1);
+	*rdy = 0;
 	sched_childinfo_init();
 	test_pipes_init();
 	self_init[cos_cpuid()] = 1;

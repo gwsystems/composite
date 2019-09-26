@@ -202,11 +202,9 @@ static int count = 0;
 	if (unlikely(hpet_periodicity_curr[HPET_PERIODIC] && !hpet_first_hpet_period)) {
 	count++;
 
-	//printk("Y");
-	if (count < 5) goto done;
+	if (count < 15) goto done;
 		rdtscll(hpet_first_hpet_period);
 	}
-	//printk("H");
 
 	preempt = cap_hw_asnd(&hw_asnd_caps[get_cpuid()][HW_HPET_PERIODIC], regs);
 done:

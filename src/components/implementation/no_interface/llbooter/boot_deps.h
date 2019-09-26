@@ -39,6 +39,7 @@ struct comp_cap_info {
 	u32_t                             cpu_bitmap[NUM_CPU_BMP_WORDS];
 	struct comp_sched_info           *schedinfo[NUM_CPU];
 	struct cos_component_information *cobj_info;
+	scbcap_t                          scbcap;
 } new_comp_cap_info[MAX_NUM_SPDS];
 
 int                   schedule[NUM_CPU][MAX_NUM_SPDS];
@@ -374,6 +375,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
 	struct comp_cap_info *spdinfo  = boot_spd_compcapinfo_get(spdid);
 	struct cos_component_information *cobj_info = boot_spd_comp_cobj_info_get(spdid);
+	struct comp_sched_info *spdsi = boot_spd_comp_schedinfo_get(spdid);
 	captblcap_t ct = compinfo->captbl_cap;
 	pgtblcap_t  pt = compinfo->pgtbl_cap;
 	compcap_t   cc;
@@ -385,10 +387,16 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	vaddr_t    scb_uaddr = 0;
 	scbcap_t   scbcap    = 0;
 
-	scbcap = cos_scb_alloc(boot_info);
-	assert(scbcap);
-	scb_uaddr = cos_page_bump_intern_valloc(compinfo, COS_SCB_SIZE);
-	assert(scb_uaddr);
+	if (spdsi->flags & COMP_FLAG_SCHED) { 
+		scbcap = cos_scb_alloc(boot_info);
+		assert(scbcap);
+		spdinfo->scbcap = scbcap;
+		scb_uaddr = cos_page_bump_intern_valloc(compinfo, COS_SCB_SIZE);
+		assert(scb_uaddr);
+	} else if (spdsi->parent_spdid) {
+		struct comp_cap_info *psi = boot_spd_compcapinfo_get(spdsi->parent_spdid);
+		scbcap = psi->scbcap;
+	}
 
 	if (spdinfo->initdcbpgs == 0) {
 		vaddr_t  dcbaddr = 0;

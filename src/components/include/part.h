@@ -307,7 +307,7 @@ static inline void
 part_task_barrier(struct part_task *t, int is_end)
 {
 	struct sl_thd *ts = sl_thd_curr();
-	unsigned cbc = 0, cbep = 0;
+	unsigned cbc = 0;
 	int is_master = t->master == PART_CURR_THD ? 1 : 0;
 
 	assert(t->type != PART_TASK_T_NONE);
@@ -343,7 +343,6 @@ part_task_barrier(struct part_task *t, int is_end)
 
 	assert(t->type == PART_TASK_T_WORKSHARE);
 
-	cbep = ps_load(&t->barrier_epoch);
 	cbc = ps_faa(&t->barrier, -1);
 	if (cbc > 1) {
 		sl_thd_block(0);

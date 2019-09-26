@@ -218,6 +218,8 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 {
 	assert(t && sl_thd_curr() == t); /* only current thread is allowed to block itself */
 	assert(t != sl__globals_core()->idle_thd && t != sl__globals_core()->sched_thd);
+	/* interrupt thread could run and block itself before scheduler sees any of that! */
+	sl_thd_sched_unblock_no_cs(t);
 	assert(sl_thd_is_runnable(t));
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
 
@@ -234,7 +236,6 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	}
 
 	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
-	sl_thd_sched_unblock_no_cs(t);
 	assert(t->state == SL_THD_RUNNABLE);
 	sl_mod_block(sl_mod_thd_policy_get(t));
 	ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), -1);
@@ -665,45 +666,47 @@ static inline int
 __sl_sched_rcv(rcv_flags_t rf, struct cos_sched_event *e)
 {
 	struct sl_global_core *g = sl__globals_core();
-//	struct sl_thd *curr = sl_thd_curr();
-//	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr);
-//	int ret = 0;
-////	if (cos_spd_id() != 4) printc("D");
-//
-//	assert(curr == g->sched_thd);
-//	if (!cd) return cos_ul_sched_rcv(g->sched_rcv, rf, g->timeout_next, e);
-//
-//	rf |= RCV_ULSCHED_RCV;
-//	
-//	__asm__ __volatile__ (			\
-//		"pushl %%ebp\n\t"		\
-//		"movl %%esp, %%ebp\n\t"		\
-//		"movl $1f, (%%eax)\n\t"		\
-//		"movl %%esp, 4(%%eax)\n\t"	\
-//		"movl $2f, %%ecx\n\t"		\
-//		"movl %%edx, %%eax\n\t"		\
-//		"inc %%eax\n\t"			\
-//		"shl $16, %%eax\n\t"		\
-//		"movl $0, %%edx\n\t"		\
-//		"movl $0, %%edi\n\t"		\
-//		"sysenter\n\t"			\
-//		"jmp 2f\n\t"			\
-//		".align 4\n\t"			\
-//		"1:\n\t"			\
-//		"movl $1, %%eax\n\t"		\
-//		".align 4\n\t"			\
-//		"2:\n\t"			\
-//		"popl %%ebp\n\t"		\
-//		: "=a" (ret)
-//		: "a" (cd), "b" (rf), "S" (g->timeout_next), "d" (g->sched_rcv)
-//		: "memory", "cc", "ecx", "edi");
-//
-////	if (cos_spd_id() != 4) printc("E");
-////	if (cos_thdid() == 7) PRINTC("%s:%d %d\n", __func__, __LINE__, ret);
-//	cd = sl_thd_dcbinfo(sl_thd_curr());
-//	cd->sp = 0;
-//
-//	rf |= RCV_ULONLY;
+#if 0
+	struct sl_thd *curr = sl_thd_curr();
+	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr);
+	int ret = 0;
+//	if (cos_spd_id() != 4) printc("D");
+
+	assert(curr == g->sched_thd);
+	if (!cd) return cos_ul_sched_rcv(g->sched_rcv, rf, g->timeout_next, e);
+
+	rf |= RCV_ULSCHED_RCV;
+	
+	__asm__ __volatile__ (			\
+		"pushl %%ebp\n\t"		\
+		"movl %%esp, %%ebp\n\t"		\
+		"movl $1f, (%%eax)\n\t"		\
+		"movl %%esp, 4(%%eax)\n\t"	\
+		"movl $2f, %%ecx\n\t"		\
+		"movl %%edx, %%eax\n\t"		\
+		"inc %%eax\n\t"			\
+		"shl $16, %%eax\n\t"		\
+		"movl $0, %%edx\n\t"		\
+		"movl $0, %%edi\n\t"		\
+		"sysenter\n\t"			\
+		"jmp 2f\n\t"			\
+		".align 4\n\t"			\
+		"1:\n\t"			\
+		"movl $1, %%eax\n\t"		\
+		".align 4\n\t"			\
+		"2:\n\t"			\
+		"popl %%ebp\n\t"		\
+		: "=a" (ret)
+		: "a" (cd), "b" (rf), "S" (g->timeout_next), "d" (g->sched_rcv)
+		: "memory", "cc", "ecx", "edi");
+
+//	if (cos_spd_id() != 4) printc("E");
+//	if (cos_thdid() == 7) PRINTC("%s:%d %d\n", __func__, __LINE__, ret);
+	cd = sl_thd_dcbinfo(sl_thd_curr());
+	cd->sp = 0;
+
+	rf |= RCV_ULONLY;
+#endif
 	return cos_ul_sched_rcv(g->sched_rcv, rf, g->timeout_next, e);
 }
 

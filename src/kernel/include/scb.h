@@ -68,9 +68,10 @@ scb_comp_update(struct captbl *ct, struct cap_scb *sc, struct cap_comp *compc, s
 	paddr_t pf = chal_va2pa((void *)(sc->kern_addr));
 
 	if (unlikely(!ltbl_isalive(&sc->liveness))) return -EPERM;
-	if (pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF)) return -EINVAL;
+	/* for non-schedulers, scbs are from schedulers, so uaddrin will be zero and sc->compc should have been set! */
+	if (uaddrin && pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF)) return -EINVAL;
 
-	sc->compc = compc;
+	if (uaddrin && sc->compc == NULL) sc->compc = compc;
 	compc->info.scb_data = (struct cos_scb_info *)(sc->kern_addr);
 
 	return 0;

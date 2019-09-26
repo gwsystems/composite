@@ -30,7 +30,8 @@ chan_out(unsigned long item)
 	return crt_chan_send_LU(co, &item);
 }
 
-unsigned long chan_in(void)
+unsigned long
+chan_in(void)
 {
 	unsigned long item = 0;
 	int ret = 0;

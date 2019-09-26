@@ -11,21 +11,29 @@
 #include <capmgr.h>
 #include <chan_crt.h>
 #include <channel.h>
+#include <cos_time.h>
 
-#define SPDID_INT 1
-#define SPDID_W1  3
-#define SPDID_W3  5
+#define SPDID_INT 5
+#define SPDID_W1  6
+#define SPDID_W3  7
 
 static u32_t cycs_per_usec = 0;
+
+#define MAX_PIPE_SZ 4
 
 #define SND_DATA 0x4321
 #define HPET_PERIOD_TEST_US 5000
 
 #define SHMCHANNEL_KEY 0x2020
 static cycles_t *sttsc = NULL;
+volatile unsigned long *rdy = NULL;
+
 static void
 __test_int_fn(arcvcap_t rcv, void *data)
 {
+	ps_faa(rdy, 1);
+
+	while (ps_load(rdy) <= MAX_PIPE_SZ) sched_thd_block_timeout(0, time_now() + time_usec2cyc(HPET_PERIOD_TEST_US));
 	int a = capmgr_hw_periodic_attach(HW_HPET_PERIODIC, cos_thdid(), HPET_PERIOD_TEST_US);
 	assert(a == 0);
 
@@ -33,7 +41,6 @@ __test_int_fn(arcvcap_t rcv, void *data)
 	while (1) {
 		cos_rcv(rcv, 0);
 		rdtscll(*sttsc);
-		//printc("[i%u]", cos_thdid());
 		chan_out(SND_DATA);
 	}
 
@@ -48,11 +55,11 @@ static void
 __test_wrk_fn(void *data)
 {
 	int e = (int) data;
+	ps_faa(rdy, 1);
 	while (1) {
 		chan_in();
 
 		if (unlikely(e)) {
-			//printc("[e%u]", cos_thdid());
 			cycles_t en, diff;
 
 			rdtscll(en);
@@ -67,8 +74,6 @@ __test_wrk_fn(void *data)
 				iters = 0;
 			}
 			continue;
-		} else {
-			//printc("[w%u]", cos_thdid());
 		}
 		chan_out(SND_DATA);
 	}
@@ -102,6 +107,8 @@ cos_init(void)
 	cbuf_t id =  channel_shared_page_map(SHMCHANNEL_KEY, &addr, &pages);
 	assert(id >= 0 && addr && pages == 1);
 	sttsc = (cycles_t *)addr;
+	rdy = (volatile unsigned long *)(sttsc + 1);
+
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
 	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflags) == -1);
