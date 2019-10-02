@@ -39,6 +39,7 @@
 #include <sl_consts.h>
 #include <sl_xcore.h>
 #include <heap.h>
+#include <cos_ulsched_rcv.h>
 
 #define SL_CS
 #undef SL_REPLENISH
@@ -547,7 +548,15 @@ sl_thd_activate_c(struct sl_thd *t, sched_tok_t tok, tcap_time_t timeout, tcap_p
 {
 	if (unlikely(t->properties & SL_THD_PROPERTY_SEND)) {
 		return cos_sched_asnd(t->sndcap, g->timeout_next, g->sched_rcv, tok);
-	} else if (unlikely(t->properties & SL_THD_PROPERTY_OWN_TCAP)) {
+	}
+
+	/* there is more events.. run scheduler again! */
+	if (unlikely(cos_sched_ispending())) {
+		if (curr == g->sched_thd) return -EBUSY;
+		return sl_thd_dispatch_usr(g->sched_thd, tok, curr);
+	}
+
+	if (unlikely(t->properties & SL_THD_PROPERTY_OWN_TCAP)) {
 		return sl_thd_dispatch_kern(t, tok, curr, timeout, sl_thd_tcap(t), prio == 0 ? t->prio : prio);
 	}
 

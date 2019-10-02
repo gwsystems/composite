@@ -202,10 +202,27 @@ thd_rcvcap_init(struct thread *t, int is_init)
 	rc->rcvcap_thd_notif                   = NULL;
 }
 
+static inline struct comp_info *
+thd_invstk_peek_compinfo(struct thread *curr_thd, struct cos_cpu_local_info *cos_info, int peek_index)
+{
+	/* curr_thd should be the current thread! We are using cached invstk_top. */
+	return &(curr_thd->invstk[peek_index].comp_info);
+}
+
 static inline void
 thd_rcvcap_evt_enqueue(struct thread *head, struct thread *t)
 {
+	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
+	struct comp_info *c = thd_invstk_peek_compinfo(head, cos_info, 0); /* in its root component! */
+	struct cos_scb_info   *scb = NULL;
+	struct cos_sched_ring *r   = NULL;
+
 	if (list_empty(&t->event_list) && head != t) list_enqueue(&head->event_head, &t->event_list);
+	if (unlikely(!c ||!c->scb_data)) return;
+
+	scb = ((c->scb_data) + get_cpuid());
+	r   = &(scb->sched_events);
+	r->more = !list_isempty(&head->event_head);
 }
 
 static inline void
@@ -528,13 +545,6 @@ curr_invstk_top(struct cos_cpu_local_info *cos_info)
 }
 
 static inline struct comp_info *
-thd_invstk_peek_compinfo(struct thread *curr_thd, struct cos_cpu_local_info *cos_info, int peek_index)
-{
-	/* curr_thd should be the current thread! We are using cached invstk_top. */
-	return &(curr_thd->invstk[peek_index].comp_info);
-}
-
-static inline struct comp_info *
 thd_invstk_current_compinfo(struct thread *curr_thd, struct cos_cpu_local_info *cos_info)
 {
 	return &(curr_thd->invstk[curr_invstk_top(cos_info)].comp_info);
@@ -634,6 +644,7 @@ thd_sched_events_produce(struct thread *thd, struct cos_cpu_local_info *cos_info
 	}
 
 	r->tail += delta;
+	r->more  = !list_isempty(&thd->event_head);
 
 	return delta;
 }

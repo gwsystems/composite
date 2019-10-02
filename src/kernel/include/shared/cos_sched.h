@@ -18,7 +18,7 @@ struct cos_sched_event {
 #define COS_SCHED_EVENT_RING_SIZE 16
 
 struct cos_sched_ring {
-	int head, tail;
+	int head, tail, more;
 	struct cos_sched_event event_buf[COS_SCHED_EVENT_RING_SIZE];
 } __attribute__((packed));
 

@@ -10,6 +10,15 @@ __cos_sched_events_present(struct cos_sched_ring *r)
 }
 
 static inline int
+cos_sched_ispending(void)
+{
+	struct cos_scb_info *scb_cpu = cos_scb_info_get_core();
+	struct cos_sched_ring *r     = &scb_cpu->sched_events;
+
+	return r->more;
+}
+
+static inline int
 __cos_sched_event_consume(struct cos_sched_ring *r, struct cos_sched_event *e)
 {
 	int f = 0;
