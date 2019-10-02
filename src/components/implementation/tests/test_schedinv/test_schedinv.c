@@ -19,10 +19,10 @@
 
 static u32_t cycs_per_usec = 0;
 
-#define MAX_PIPE_SZ 4
+#define MAX_USE_PIPE_SZ 3
 
 #define SND_DATA 0x4321
-#define HPET_PERIOD_TEST_US 5000
+#define HPET_PERIOD_TEST_US 20000
 
 #define SHMCHANNEL_KEY 0x2020
 static cycles_t *sttsc = NULL;
@@ -33,7 +33,7 @@ __test_int_fn(arcvcap_t rcv, void *data)
 {
 	ps_faa(rdy, 1);
 
-	while (ps_load(rdy) <= MAX_PIPE_SZ) sched_thd_block_timeout(0, time_now() + time_usec2cyc(HPET_PERIOD_TEST_US));
+	while (ps_load(rdy) <= MAX_USE_PIPE_SZ) sched_thd_block_timeout(0, time_now() + time_usec2cyc(HPET_PERIOD_TEST_US));
 	int a = capmgr_hw_periodic_attach(HW_HPET_PERIODIC, cos_thdid(), HPET_PERIOD_TEST_US);
 	assert(a == 0);
 
@@ -69,7 +69,7 @@ __test_wrk_fn(void *data)
 			tot += diff;
 			iters++;
 			if (iters == ITERS) {
-				printc("%llu, %llu\n", tot / ITERS, wc);	
+				PRINTC("%llu, %llu\n", tot / ITERS, wc);	
 				tot = wc = 0;
 				iters = 0;
 			}
@@ -91,7 +91,10 @@ test_aeps(void)
 	if (cos_spd_id() == SPDID_INT) {
 		tid = sched_aep_create(&intaep, __test_int_fn, (void *)0, 0, 0, 0, 0);
 	} else {
-		tid = sched_thd_create(__test_wrk_fn, cos_spd_id() == SPDID_W3 ? (void *)1: (void *)0);
+		tid = sched_thd_create(__test_wrk_fn, 
+			((cos_spd_id() == SPDID_W3 && MAX_USE_PIPE_SZ == 4) 
+			|| (cos_spd_id() == SPDID_W1 && MAX_USE_PIPE_SZ == 2)) 
+			? (void *)1: (void *)0);
 	}
 	assert(tid);
 }
@@ -113,6 +116,7 @@ cos_init(void)
 
 	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflags) == -1);
 	test_aeps();
+	PRINTC("Init Done!\n");
 
 	sched_thd_exit();
 }

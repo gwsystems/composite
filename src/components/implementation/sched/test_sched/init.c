@@ -13,6 +13,12 @@
 #include <chan_crt.h>
 #include <channel.h>
 
+#define INITIALIZE_PRIO 1
+#define INITIALIZE_PERIOD_MS (4000)
+#define INITIALIZE_BUDGET_MS (2000)
+
+static struct sl_thd *__initializer_thd[NUM_CPU] CACHE_ALIGNED;
+
 u32_t cycs_per_usec = 0;
 cycles_t *int_start = NULL;
 volatile unsigned long *rdy = NULL;
@@ -29,25 +35,35 @@ sched_child_init(struct sched_childinfo *schedci)
         assert(schedci->initthd);
 	initthd = schedci->initthd;
 
-	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, 1));
+	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, 2));
 }
 
 extern void __sched_stdio_thd_init(thdid_t, struct crt_chan *, struct crt_chan *);
-#define MAX_PIPE_SZ 4
+#define MAX_PIPE_SZ 8
+#define MAX_USE_PIPE_SZ 3
 CRT_CHAN_STATIC_ALLOC(c0, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 CRT_CHAN_STATIC_ALLOC(c1, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 CRT_CHAN_STATIC_ALLOC(c2, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 CRT_CHAN_STATIC_ALLOC(c3, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
+CRT_CHAN_STATIC_ALLOC(c4, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
+CRT_CHAN_STATIC_ALLOC(c5, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
+CRT_CHAN_STATIC_ALLOC(c6, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
+CRT_CHAN_STATIC_ALLOC(c7, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 
 #define SPDID_INT 5
 #define SPDID_W1  6
 #define SPDID_W3  7
 
-#define PRIO_INT  MAX_PIPE_SZ + 4
-#define PRIO_W0   MAX_PIPE_SZ + 4 - 1
-#define PRIO_W1   MAX_PIPE_SZ + 4 - 2
-#define PRIO_W2   MAX_PIPE_SZ + 4 - 3
-#define PRIO_W3   MAX_PIPE_SZ + 4 - 4
+#define PRIO_START (MAX_PIPE_SZ + 8)
+
+#define PRIO_INT PRIO_START 
+#define PRIO_W0  (PRIO_START - 1)
+#define PRIO_W1  (PRIO_START - 2)
+#define PRIO_W2  (PRIO_START - 3)
+#define PRIO_W3  (PRIO_START - 4)
+#define PRIO_W4  (PRIO_START - 5)
+#define PRIO_W5  (PRIO_START - 6)
+#define PRIO_W6  (PRIO_START - 7)
 
 #define SND_DATA 0x1234
 
@@ -55,17 +71,67 @@ CRT_CHAN_STATIC_ALLOC(c3, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 #define MAX_ITERS 100
 int iters = 0;
 cycles_t tot = 0, wc = 0;
+static int pc, tc;
+
+struct __thd_info {
+	struct sl_thd *t;
+	tcap_prio_t p;
+} iot[MAX_PIPE_SZ + 1];
+
+struct __pipe_info {
+	struct sl_thd *sndr, *rcvr; /* p2p channels */
+	struct crt_chan *c;
+} iop[MAX_PIPE_SZ];
+
+static int
+schedinit_self(void)
+{
+	if (ps_load(&tc) < (MAX_USE_PIPE_SZ + 1)) return 1;
+
+	assert(ps_load(&tc) == (MAX_USE_PIPE_SZ + 1));
+
+	return 0;
+}
+
+static void
+__init_done(void *d)
+{
+	while (schedinit_self()) sl_thd_block_periodic(0);
+
+	int i;
+
+	for (i = 0; i < MAX_USE_PIPE_SZ; i++) {
+		if (i == 0) {
+			crt_chan_init_LU(iop[i].c);
+		} else {
+			assert(iop[i].sndr && iop[i].rcvr);
+			crt_chan_p2p_init_LU(iop[i].c, iop[i].sndr, iop[i].rcvr);
+		}
+	}
+
+	/* don't want the threads to run before channels are initialized! */
+	for (i = MAX_USE_PIPE_SZ; i >= 0; i--) {
+		PRINTC("%d, %lx, %u\n", i, (unsigned long)(iot[i].t), sl_thd_thdid(iot[i].t));
+		assert(iot[i].t);
+		sl_thd_param_set(iot[i].t, sched_param_pack(SCHEDP_PRIO, iot[i].p));
+	}
+	PRINTLOG(PRINT_DEBUG, "SELF (inc. CHILD) INIT DONE.\n");
+
+	sl_thd_exit();
+
+	assert(0);
+}
+
 
 static void
 work_thd_fn(void *data)
 {
 	int is_last = (int)data;
-	unsigned long i = 0;
 
 	ps_faa(rdy, 1);
 
 	while (1) {
-		i = chan_in();
+		chan_in();
 		if (unlikely(is_last)) {
 			cycles_t end, diff;
 			rdtscll(end);
@@ -76,7 +142,7 @@ work_thd_fn(void *data)
 			iters++;
 
 			if (iters == MAX_ITERS) {
-				printc("%llu, %llu\n", tot / iters, wc);
+				PRINTC("%llu, %llu\n", tot / iters, wc);
 				tot = wc = 0;
 				iters = 0;
 			}
@@ -93,12 +159,18 @@ sched_child_thd_create(struct sched_childinfo *schedci, thdclosure_index_t idx)
 	struct sl_thd *t = sl_thd_aep_alloc_ext(sched_child_defci_get(schedci), NULL, idx, 0, 0, 0, 0, 0, &addr, NULL);
 	assert(t);
 	if (cos_inv_token() == SPDID_W1) {
-		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, PRIO_W1));
+		iot[2].t = t;
+		iot[2].p = PRIO_W1;
+		iop[1].rcvr = t;
+		iop[2].sndr = t;
 		__sched_stdio_thd_init(sl_thd_thdid(t), c1, c2);
 	} else if (cos_inv_token() == SPDID_W3) {
-		sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, PRIO_W3));
+		iot[4].t = t;
+		iot[4].p = PRIO_W3;
+		iop[3].rcvr = t;
 		__sched_stdio_thd_init(sl_thd_thdid(t), c3, NULL);
 	}
+	ps_faa(&tc, 1);
 
 	return t ? sl_thd_thdid(t) : 0;
 }
@@ -113,8 +185,11 @@ sched_child_aep_create(struct sched_childinfo *schedci, thdclosure_index_t idx, 
 	if (!ps_cas(&first, 1, 0)) assert(0);
 	struct sl_thd *t = sl_thd_aep_alloc_ext(sched_child_defci_get(schedci), NULL, idx, 1, owntc, key, ipiwin, ipimax, &addr, extrcv);
 	assert(t);
-	sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, PRIO_INT));
 	__sched_stdio_thd_init(sl_thd_thdid(t), NULL, c0);
+	iot[0].t = t;
+	iot[0].p = PRIO_INT;
+	iop[0].sndr = t;
+	ps_faa(&tc, 1);
 
 	return t ? sl_thd_thdid(t) : 0;
 }
@@ -122,16 +197,24 @@ sched_child_aep_create(struct sched_childinfo *schedci, thdclosure_index_t idx, 
 void
 test_pipes_init(void)
 {
-	struct sl_thd *t = sl_thd_alloc(work_thd_fn, 0);
+	struct sl_thd *t = sl_thd_alloc(work_thd_fn, MAX_USE_PIPE_SZ == 1 ? (void *)1 : (void *)0);
 	assert(t);
-	sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, PRIO_W0));
-//	__sched_stdio_thd_init(sl_thd_thdid(t), c0, NULL);
+	iot[1].t = t;
+	iot[1].p = PRIO_W0;
+	iop[0].rcvr = t; /* no optimized path for rcving from INT thread */
+	iop[1].sndr = t;
 	__sched_stdio_thd_init(sl_thd_thdid(t), c0, c1);
-	t = sl_thd_alloc(work_thd_fn, 0);
-	assert(t);
-	sl_thd_param_set(t, sched_param_pack(SCHEDP_PRIO, PRIO_W2));
-	__sched_stdio_thd_init(sl_thd_thdid(t), c2, c3);
-//	__sched_stdio_thd_init(sl_thd_thdid(t), c2, NULL);
+	ps_faa(&tc, 1);
+	if (MAX_USE_PIPE_SZ >= 3) { 
+		t = sl_thd_alloc(work_thd_fn, MAX_USE_PIPE_SZ == 3 ? (void *)1 : (void *)0);
+		assert(t);
+		iot[3].t = t;
+		iot[3].p = PRIO_W2;
+		iop[2].rcvr = t;
+		iop[3].sndr = t;
+		__sched_stdio_thd_init(sl_thd_thdid(t), c2, c3);
+		ps_faa(&tc, 1);
+	}
 }
 
 void
@@ -142,6 +225,20 @@ cos_init(void)
 	static volatile unsigned long first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
 	static u32_t cpubmp[NUM_CPU_BMP_WORDS] = { 0 };
 	int i;
+
+	assert(NUM_CPU == 1);
+	assert(MAX_USE_PIPE_SZ <= MAX_PIPE_SZ);
+	memset(iop, 0, sizeof(struct __pipe_info) * MAX_PIPE_SZ);
+	memset(iot, 0, sizeof(struct __thd_info) * (MAX_PIPE_SZ + 1));
+	pc = tc = 0;
+	iop[0].c = c0;
+	iop[1].c = c1;
+	iop[2].c = c2;
+	iop[3].c = c3;
+	iop[4].c = c4;
+	iop[5].c = c5;
+	iop[6].c = c6;
+	iop[7].c = c7;
 
 	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
@@ -163,7 +260,7 @@ cos_init(void)
 		while (!ps_load((unsigned long *)&init_done[i])) ;
 	}
 
-	sl_init_corebmp(500*SL_MIN_PERIOD_US, cpubmp);
+	sl_init_corebmp(100*SL_MIN_PERIOD_US, cpubmp);
 	vaddr_t tscaddr = 0;
 	cbuf_t id = channel_shared_page_alloc(SHMCHANNEL_KEY, &tscaddr);
 	assert(id >= 0);
@@ -173,7 +270,12 @@ cos_init(void)
 	*rdy = 0;
 	sched_childinfo_init();
 	test_pipes_init();
-	self_init[cos_cpuid()] = 1;
+	__initializer_thd[cos_cpuid()] = sl_thd_alloc(__init_done, NULL);
+	assert(__initializer_thd[cos_cpuid()]);
+	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, INITIALIZE_PRIO));
+	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_WINDOW, INITIALIZE_BUDGET_MS));
+	sl_thd_param_set(__initializer_thd[cos_cpuid()], sched_param_pack(SCHEDP_BUDGET, INITIALIZE_PERIOD_MS));
+
 	hypercall_comp_init_done();
 
 	sl_sched_loop_nonblock();

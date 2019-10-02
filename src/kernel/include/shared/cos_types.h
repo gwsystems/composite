@@ -521,6 +521,10 @@ typedef unsigned int isolation_level_t;
 #define MEMMGR_MAX_SHMEM_REGIONS 1024
 #define CAPMGR_AEPKEYS_MAX       (1<<15)
 
+#define CHAN_CRT_NSLOTS 4
+#define CHAN_CRT_ITEM_TYPE unsigned long
+#define CHAN_CRT_ITEM_SZ sizeof(CHAN_CRT_ITEM_TYPE)
+
 #define IPIWIN_DEFAULT_US (1000) /* 1ms */
 #define IPIMAX_DEFAULT    (64) /* IPIs per ms for each RCV ep */
 

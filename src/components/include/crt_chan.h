@@ -14,6 +14,8 @@
 #include <cos_component.h>
 #include <crt_blkpt.h>
 #include <bitmap.h>
+#include <sl.h>
+#include <sl_thd.h>
 
 struct crt_chan {
 	u32_t producer;
@@ -32,6 +34,8 @@ struct crt_chan {
 	 */
 	u32_t item_sz, wraparound_mask;
 	u32_t nslots;
+	/* FIXME: p2p channels only SINGLE-CORE for now! */
+	unsigned long sender, receiver; /* for p2p channels, sl_thd pointers + MSB for blocked on channel send/recv.. */
 	/* The memory for the channel. */
 	char mem[0];
 };
@@ -44,44 +48,47 @@ struct __crt_chan_envelope_##name {	                        \
 } __##name;							\
 struct crt_chan *name = &__##name.c
 
-#define CRT_CHAN_TYPE_PROTOTYPES(name, type, nslots)			\
-static inline int							\
-crt_chan_init_##name(struct crt_chan *c)				\
-{ return crt_chan_init(c, sizeof(type), nslots); }			\
-static inline void							\
-crt_chan_teardown_##name(struct crt_chan *c)				\
-{ crt_chan_teardown(c); }						\
-static inline int							\
-crt_chan_empty_##name(struct crt_chan *c)				\
-{ return __crt_chan_empty(c, nslots - 1); }				\
-static inline int							\
-crt_chan_full_##name(struct crt_chan *c)				\
-{ return __crt_chan_full(c, nslots - 1); }				\
-static inline int							\
-crt_chan_send_##name(struct crt_chan *c, void *item)			\
-{									\
-	assert(pow2(nslots));						\
-	return __crt_chan_send(c, item, nslots - 1, sizeof(type));	\
-}									\
-static inline int							\
-crt_chan_recv_##name(struct crt_chan *c, void *item)			\
-{									\
-	assert(pow2(nslots));						\
-	return __crt_chan_recv(c, item, nslots - 1, sizeof(type));	\
-}									\
-static inline int							\
-crt_chan_async_send_##name(struct crt_chan *c, void *item)		\
-{									\
-	assert(pow2(nslots));						\
-	if (__crt_chan_produce(c, item, nslots - 1, sizeof(type))) return -EAGAIN; \
-	return 0;							\
-}									\
-static inline int							\
-crt_chan_async_recv_##name(struct crt_chan *c, void *item)		\
-{									\
-	assert(pow2(nslots));						\
-	if (__crt_chan_consume(c, item, nslots - 1, sizeof(type))) return -EAGAIN; \
-	return 0;							\
+#define CRT_CHAN_TYPE_PROTOTYPES(name, type, nslots)					\
+static inline int									\
+crt_chan_init_##name(struct crt_chan *c)						\
+{ return crt_chan_init(c, sizeof(type), nslots); }					\
+static inline int									\
+crt_chan_p2p_init_##name(struct crt_chan *c, struct sl_thd *sndr, struct sl_thd *rcvr)	\
+{ return crt_chan_p2p_init(c, sizeof(type), nslots, sndr, rcvr); }			\
+static inline void									\
+crt_chan_teardown_##name(struct crt_chan *c)						\
+{ crt_chan_teardown(c); }								\
+static inline int									\
+crt_chan_empty_##name(struct crt_chan *c)						\
+{ return __crt_chan_empty(c, nslots - 1); }						\
+static inline int									\
+crt_chan_full_##name(struct crt_chan *c)						\
+{ return __crt_chan_full(c, nslots - 1); }						\
+static inline int									\
+crt_chan_send_##name(struct crt_chan *c, void *item)					\
+{											\
+	assert(pow2(nslots));								\
+	return __crt_chan_send(c, item, nslots - 1, sizeof(type));			\
+}											\
+static inline int									\
+crt_chan_recv_##name(struct crt_chan *c, void *item)					\
+{											\
+	assert(pow2(nslots));								\
+	return __crt_chan_recv(c, item, nslots - 1, sizeof(type));			\
+}											\
+static inline int									\
+crt_chan_async_send_##name(struct crt_chan *c, void *item)				\
+{											\
+	assert(pow2(nslots));								\
+	if (__crt_chan_produce(c, item, nslots - 1, sizeof(type))) return -EAGAIN; 	\
+	return 0;									\
+}											\
+static inline int									\
+crt_chan_async_recv_##name(struct crt_chan *c, void *item)				\
+{											\
+	assert(pow2(nslots));								\
+	if (__crt_chan_consume(c, item, nslots - 1, sizeof(type))) return -EAGAIN; 	\
+	return 0;									\
 }
 
 #define CRT_CHANCHAN_PROTOTYPES(nslots) \
@@ -94,7 +101,6 @@ __crt_chan_buff_idx(struct crt_chan *c, u32_t v, u32_t wraparound_mask)
 static inline int
 __crt_chan_full(struct crt_chan *c, u32_t wraparound_mask)
 { return __crt_chan_buff_idx(c, c->consumer, wraparound_mask) == __crt_chan_buff_idx(c, c->producer + 1, wraparound_mask); }
-//{ return c->consumer == __crt_chan_buff_idx(c, c->producer + 1, wraparound_mask); }
 
 static inline int
 __crt_chan_empty(struct crt_chan *c, u32_t wraparound_mask)
@@ -122,6 +128,49 @@ __crt_chan_consume(struct crt_chan *c, void *d, u32_t wraparound_mask, u32_t sz)
 	return 0;
 }
 
+/* only wake it up if it's blocked on the channel! */
+static inline void
+__crt_chan_p2p_wakeup(unsigned long *w)
+{
+	unsigned long wc, wn;
+
+	sl_cs_enter();
+	wc = ps_load(w);
+	if (likely(wc & (1<<31))) goto blocked;
+	sl_cs_exit();
+
+	return;
+
+blocked:
+	wn = wc & ~(1<<31);
+	struct sl_thd *wt = (struct sl_thd *)wn;
+	if (unlikely(!ps_upcas(w, wc, wn))) BUG();
+	sl_thd_wakeup_no_cs(wt);
+	sl_cs_exit_switchto(wt);
+}
+
+/* block on channel */
+static inline void
+__crt_chan_p2p_block(unsigned long *b)
+{
+	unsigned long bc, bn;
+
+	sl_cs_enter();
+	bc = ps_load(b);
+	assert((bc & (1<<31)) == 0);
+	bn = bc | (1<<31);
+	if (unlikely(!ps_upcas(b, bc, bn))) BUG();
+
+	if (sl_thd_block_no_cs(sl_thd_curr(), SL_THD_BLOCKED, 0)) BUG();
+	sl_cs_exit_schedule();
+}
+
+static inline int
+__crt_chan_is_p2p(struct crt_chan *c)
+{
+	return ((c->sender & ~(1<<31)) && (c->receiver & ~(1<<31)));
+}
+
 /**
  * The next two functions pass all of the variables in via arguments,
  * so that we can use them for constant propagation along with
@@ -130,16 +179,27 @@ __crt_chan_consume(struct crt_chan *c, void *d, u32_t wraparound_mask, u32_t sz)
 static inline int
 __crt_chan_send(struct crt_chan *c, void *item, u32_t wraparound_mask, u32_t item_sz)
 {
-	while (1) {
-		struct crt_blkpt_checkpoint chkpt;
-
-		crt_blkpt_checkpoint(&c->full, &chkpt);
-		if (!__crt_chan_produce(c, item, wraparound_mask, item_sz)) {
-			/* success! */
-			crt_blkpt_trigger(&c->empty, 0);
-			break;
+	/* optimizing for p2p */
+	if (likely(__crt_chan_is_p2p(c))) {
+		while (1) {
+			if (!__crt_chan_produce(c, item, wraparound_mask, item_sz)) {
+				__crt_chan_p2p_wakeup(&c->receiver);
+				break;
+			}
+			__crt_chan_p2p_block(&c->sender);
 		}
-		crt_blkpt_wait(&c->full, 0, &chkpt);
+	} else {
+		while (1) {
+			struct crt_blkpt_checkpoint chkpt;
+
+			crt_blkpt_checkpoint(&c->full, &chkpt);
+			if (!__crt_chan_produce(c, item, wraparound_mask, item_sz)) {
+				/* success! */
+				crt_blkpt_trigger(&c->empty, 0);
+				break;
+			}
+			crt_blkpt_wait(&c->full, 0, &chkpt);
+		}
 	}
 
 	return 0;
@@ -148,16 +208,27 @@ __crt_chan_send(struct crt_chan *c, void *item, u32_t wraparound_mask, u32_t ite
 static inline int
 __crt_chan_recv(struct crt_chan *c, void *item, u32_t wraparound_mask, u32_t item_sz)
 {
-	while (1) {
-		struct crt_blkpt_checkpoint chkpt;
-
-		crt_blkpt_checkpoint(&c->empty, &chkpt);
-		if (!__crt_chan_consume(c, item, wraparound_mask, item_sz)) {
-			/* success! */
-			crt_blkpt_trigger(&c->full, 0);
-			break;
+	/* optimizing for p2p */
+	if (likely(__crt_chan_is_p2p(c))) {
+		while (1) {
+			if (!__crt_chan_consume(c, item, wraparound_mask, item_sz)) {
+				__crt_chan_p2p_wakeup(&c->sender);
+				break;
+			}
+			__crt_chan_p2p_block(&c->receiver);
 		}
-		crt_blkpt_wait(&c->empty, 0, &chkpt);
+	} else {
+		while (1) {
+			struct crt_blkpt_checkpoint chkpt;
+
+			crt_blkpt_checkpoint(&c->empty, &chkpt);
+			if (!__crt_chan_consume(c, item, wraparound_mask, item_sz)) {
+				/* success! */
+				crt_blkpt_trigger(&c->full, 0);
+				break;
+			}
+			crt_blkpt_wait(&c->empty, 0, &chkpt);
+		}
 	}
 
 	return 0;
@@ -192,6 +263,24 @@ crt_chan_init(struct crt_chan *c, int item_sz, int slots)
 	c->nslots  = slots;
 	c->item_sz = item_sz;
 	c->wraparound_mask = slots - 1; /* slots is a pow2 */
+	c->sender = c->receiver = 0;
+
+	return 0;
+}
+
+static inline int
+crt_chan_p2p_init(struct crt_chan *c, int item_sz, int slots,
+		  struct sl_thd *sndr, struct sl_thd *rcvr)
+{
+	int r = crt_chan_init(c, item_sz, slots);
+	assert(sndr && rcvr);
+
+	/* FIXME: only single-core for now! */
+	if (r > 0) return r;
+	c->sender = (unsigned long)sndr;
+	c->receiver = (unsigned long)rcvr;
+	assert((c->sender & (1<<31)) == 0);
+	assert((c->receiver & (1<<31)) == 0);
 
 	return 0;
 }

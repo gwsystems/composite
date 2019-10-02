@@ -1,12 +1,11 @@
 #include <chan_crt.h>
 
 #include <crt_chan.h>
+#include <sched_info.h>
 
 struct __sched_inout_chan {
 	struct crt_chan *in, *out;
 } __sched_thds[NUM_CPU][MAX_NUM_THREADS];
-
-CRT_CHAN_TYPE_PROTOTYPES(LU, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 
 void
 __sched_stdio_init(void)
