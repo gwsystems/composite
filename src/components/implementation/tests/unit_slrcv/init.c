@@ -34,12 +34,12 @@ ping_fn(void *d)
 
 unsigned int iter = 0;
 cycles_t st = 0, en = 0, tot = 0, wc = 0;
-CRT_CHAN_STATIC_ALLOC(c0, int, 4);
-CRT_CHAN_STATIC_ALLOC(c1, int, 4);
-CRT_CHAN_STATIC_ALLOC(c2, int, 4);
-CRT_CHAN_STATIC_ALLOC(c3, int, 4);
-CRT_CHAN_STATIC_ALLOC(c4, int, 4);
-CRT_CHAN_STATIC_ALLOC(c5, int, 4);
+CRT_CHAN_STATIC_ALLOC(c0, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
+CRT_CHAN_STATIC_ALLOC(c1, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
+CRT_CHAN_STATIC_ALLOC(c2, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
+CRT_CHAN_STATIC_ALLOC(c3, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
+CRT_CHAN_STATIC_ALLOC(c4, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
+CRT_CHAN_STATIC_ALLOC(c5, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 CRT_CHAN_TYPE_PROTOTYPES(test, int, 4);
 
 #define PIPELINE_LEN 3
@@ -82,15 +82,15 @@ chsnd(int i)
 }
 
 static inline void
-chinit(int i)
+chinit(int i, struct sl_thd *s, struct sl_thd *r)
 {
 	switch(i) {
 	case 0: crt_chan_init_test(c0); break;
-	case 1: crt_chan_init_test(c1); break;
-	case 2: crt_chan_init_test(c2); break;
-	case 3: crt_chan_init_test(c3); break;
-	case 4: crt_chan_init_test(c4); break;
-	case 5: crt_chan_init_test(c5); break;
+	case 1: crt_chan_p2p_init_test(c1, s, r); break;
+	case 2: crt_chan_p2p_init_test(c2, s, r); break;
+	case 3: crt_chan_p2p_init_test(c3, s, r); break;
+	case 4: crt_chan_p2p_init_test(c4, s, r); break;
+	case 5: crt_chan_p2p_init_test(c5, s, r); break;
 	default: assert(0);
 	}
 }
@@ -187,10 +187,11 @@ cos_init(void *d)
 		assert(rt);
 
 		for (i = 0; i < PIPELINE_LEN; i++) {
-			chinit(i);
 			wt[i] = sl_thd_alloc(work_fn, (void *)i);
 			assert(wt[i]);
 			sl_thd_param_set(wt[i], sched_param_pack(SCHEDP_PRIO, TCAP_PRIO_MAX+1+PIPELINE_LEN-i));
+			if (i == 0) chinit(i, 0, 0);
+			else chinit(i, wt[i-1], wt[i]);
 		}
 
 		sl_thd_param_set(rt, sched_param_pack(SCHEDP_PRIO, TCAP_PRIO_MAX+1+PIPELINE_LEN+1));
