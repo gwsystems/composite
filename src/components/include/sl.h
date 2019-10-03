@@ -1004,7 +1004,7 @@ sl_thd_rcv(rcv_flags_t flags)
 //		//q = ps_load(p);
 //	}
 //	assert(sl_thd_dcbinfo(t)->sp == 0);
-//	assert(q == 1);
+//	assert(q == 1); /* q should be 1 if the thread did not call COS_RCV and is woken up.. */
 //
 //done:
 //	ps_upcas(p, q, 0);

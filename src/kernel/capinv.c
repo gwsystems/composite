@@ -991,13 +991,15 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 	if (thd_rcvcap_pending(thd)) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 		thd_rcvcap_pending_deliver(thd, regs);
-		if (thd->dcbinfo) thd->dcbinfo->sp = 0;
+		/* for sched_rcv enabling user-level switch */
+		//if (thd->dcbinfo) thd->dcbinfo->sp = 0;
 
 		return 0;
 	} else if (rflags & RCV_NON_BLOCKING) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 		__userregs_setretvals(regs, -EAGAIN, 0, 0, 0);
-		if (thd->dcbinfo) thd->dcbinfo->sp = 0;
+		/* for sched_rcv enabling user-level switch */
+		//if (thd->dcbinfo) thd->dcbinfo->sp = 0;
 
 		return 0;
 	}

@@ -251,7 +251,7 @@ thd_track_exec(struct thread *t)
 static int
 thd_rcvcap_pending(struct thread *t)
 {
-	if (t->rcvcap.pending) return t->rcvcap.pending;
+	if (t->rcvcap.pending || (t->dcbinfo && t->dcbinfo->pending)) return 1;
 	return !list_isempty(&t->event_head);
 }
 
@@ -270,17 +270,15 @@ thd_rcvcap_set_counter(struct thread *t, sched_tok_t cntr)
 static void
 thd_rcvcap_pending_set(struct thread *arcvt)
 {
-	if (likely(arcvt->dcbinfo)) {
-		arcvt->dcbinfo->pending = 1;
-	//printk("%u:%d\n", arcvt->tid, arcvt->dcbinfo->pending);
-	}
+	if (likely(arcvt->dcbinfo)) arcvt->dcbinfo->pending = 1;
 	else arcvt->rcvcap.pending = 1;
 }
 
 static void
 thd_rcvcap_pending_reset(struct thread *arcvt)
 {
-	arcvt->rcvcap.pending = 0;
+	if (likely(arcvt->dcbinfo)) arcvt->dcbinfo->pending = 0;
+	else arcvt->rcvcap.pending = 0;
 }
 
 static inline int
