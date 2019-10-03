@@ -23,7 +23,7 @@ struct cap_dcb {
 	cpuid_t               cpuid;
 } __attribute__((packed));
 
-static int
+static inline int
 dcb_activate(struct captbl *t, capid_t ctcap, capid_t dcbcap, vaddr_t kaddr, livenessid_t lid, capid_t ptcapin, vaddr_t uaddr)
 {
 	struct cap_dcb      *dc;
@@ -50,7 +50,7 @@ dcb_activate(struct captbl *t, capid_t ctcap, capid_t dcbcap, vaddr_t kaddr, liv
 	return 0;
 }
 
-static int
+static inline int
 dcb_deactivate(struct cap_captbl *ct, capid_t dcbcap, livenessid_t lid, capid_t ptcap, capid_t cosframe_addr, capid_t ptcapin, vaddr_t uaddrin)
 {
 	struct cap_dcb *dc;

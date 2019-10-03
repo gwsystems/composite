@@ -553,7 +553,6 @@ sl_timeout_period(microsec_t period)
 	cycles_t p = sl_usec2cyc(period);
 
 	sl__globals_core()->period = p;
-	sl_timeout_relative(p);
 }
 
 /* engage space heater mode */
@@ -816,7 +815,7 @@ pending_events:
 
 		if (sl_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
-		sl_cs_exit_schedule_nospin_timeout(g->timer_next);
+		sl_cs_exit_schedule_nospin_timeout(0);
 	}
 }
 

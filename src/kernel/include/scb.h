@@ -21,7 +21,7 @@ struct cap_scb {
 	vaddr_t               kern_addr;
 } __attribute__((packed));
 
-static int
+static inline int
 scb_activate(struct captbl *t, capid_t ctcap, capid_t scbcap, vaddr_t kaddr, livenessid_t lid)
 {
 	struct cap_scb *sc;
@@ -40,7 +40,7 @@ scb_activate(struct captbl *t, capid_t ctcap, capid_t scbcap, vaddr_t kaddr, liv
 	return 0;
 }
 
-static int
+static inline int
 scb_deactivate(struct cap_captbl *ct, capid_t scbcap, capid_t ptcap, capid_t cosframe_addr, livenessid_t lid)
 {
 	struct cap_scb *sc;

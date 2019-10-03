@@ -20,8 +20,6 @@
 
 #define COS_DEFAULT_RET_CAP 0
 
-static int hw_asnd_call = 0;
-
 /*
  * TODO: switch to a dedicated TLB flush thread (in a separate
  * protection domain) to do this.
@@ -485,9 +483,6 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	struct comp_info *   next_ci = &(next->invstk[next->invstk_top].comp_info);
 	int                  preempt = 0;
 
-	if (hw_asnd_call) {
-		//printk("[%d %d]\n", curr->tid, next->tid);
-	}
 	assert(next_ci && curr && next);
 	assert(curr->cpuid == get_cpuid() && next->cpuid == get_cpuid());
 	if (unlikely(curr == next)) return thd_switch_update(curr, regs, 1);
@@ -701,13 +696,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	struct tcap *tcap    = tcap_current(cos_info);
 	int          ret;
 
-	//printk("\n\n%u:%u %lu %lu %llu %lu %lu\n", thd->tid, next->tid, arcv, tc, prio, usr_counter, timeout);
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
-	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
-		//printk("\n%u: %u %lx %lx %lx\n", thd->tid, next->tid, regs->cx, thd->dcbinfo->ip, thd->dcbinfo->ip + DCB_IP_KERN_OFF);
-//		assert((unsigned long)regs->cx == thd->dcbinfo->ip + DCB_IP_KERN_OFF);
-//		assert((unsigned long)regs->bp == thd->dcbinfo->sp);
-	}
 
 	if (arcv) {
 		struct cap_arcv *arcv_cap;
@@ -720,7 +709,8 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		ret  = cap_sched_tok_validate(rcvt, usr_counter, ci, cos_info);
 		if (ret) return ret;
 
-		if (thd_rcvcap_pending(rcvt)) {
+		/* only if it has scheduler events to process! */
+		if (thd_rcvcap_evt_pending(rcvt)) {
 			if (thd == rcvt) return -EBUSY;
 
 			next = rcvt;
@@ -747,7 +737,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 
 	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
 	if (tc && tcap_current(cos_info) == tcap && prio) tcap_setprio(tcap, prio);
-	//printk("\n\n%u:%u-%d\n", thd->tid, next->tid,ret);
 
 	return ret;
 }
@@ -862,7 +851,8 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 		ret  = cap_sched_tok_validate(rcvt, usr_tok, ci, cos_info);
 		if (ret) return ret;
 
-		if (thd_rcvcap_pending(rcvt)) {
+		/* only if the rcvt has scheduler events to process */
+		if (thd_rcvcap_evt_pending(rcvt)) {
 			if (thd == rcvt) return -EBUSY;
 
 			next = rcvt;
@@ -916,19 +906,15 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	rcv_thd  = arcv->thd;
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
-	hw_asnd_call = 1;
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0, cos_info);
 	assert(next == rcv_thd);
-	if (next == thd) {
-		hw_asnd_call = 0;
-		return 1;
-	}
+	if (next == thd) return 1;
 	thd->state |= THD_STATE_PREEMPTED;
 
-	int p = cap_switch(regs, thd, next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
-	hw_asnd_call = 0;
-	return p;
+	/* don't disable timer if we're not switching to a diff tcap.. */
+	/* TODO: hierarchical timeouts */
+	return cap_switch(regs, thd, next, tcap_next, tcap == tcap_next ? tcap_cyc2time(cos_info->next_timer) : TCAP_TIME_NIL, ci, cos_info);
 }
 
 int
@@ -1038,6 +1024,9 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state |= THD_STATE_RCVING;
 		thd->timeout = timeout;
+	} else {
+		/* switching back to the thread.. don't disable timers..*/
+		swtimeout = timeout;
 	}
 
 	return cap_switch(regs, thd, next, tc_next, swtimeout, ci, cos_info);

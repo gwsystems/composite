@@ -482,9 +482,10 @@ sl_thd_dispatch_usr(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
 	volatile struct cos_scb_info *scb = sl_scb_info_core();
 	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr), *nd = sl_thd_dcbinfo(next);
+	struct sl_global_core *g = sl__globals_core();
 
 	assert(curr != next);
-	if (unlikely(!cd || !nd)) return cos_defswitch(sl_thd_thdcap(next), next->prio, sl__globals_core()->timeout_next, tok);
+	if (unlikely(!cd || !nd)) return cos_defswitch(sl_thd_thdcap(next), next->prio, g->timeout_next, tok);
 
 	/*
 	 * jump labels in the asm routine:
@@ -501,6 +502,9 @@ sl_thd_dispatch_usr(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 	 *    of this routine or kernel at some point had to switch to a
 	 *    thread that co-operatively switched away from this routine.
 	 *    NOTE: kernel takes care of resetting dcb sp in this case!
+	 *
+	 * a simple cos_thd_switch() kind will disable timers! so, pass in the timeout anyway to 
+	 * slowpath thread switch!
 	 */
 
 	__asm__ __volatile__ (				\
@@ -520,9 +524,9 @@ sl_thd_dispatch_usr(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 		"inc %%eax\n\t"				\
 		"shl $16, %%eax\n\t"			\
 		"movl $0, %%ebx\n\t"			\
+		"movl %%esi, %%edx\n\t"			\
 		"movl $0, %%esi\n\t"			\
 		"movl $0, %%edi\n\t"			\
-		"movl $0, %%edx\n\t"			\
 		"sysenter\n\t"				\
 		"jmp 3f\n\t"				\
 		".align 4\n\t"				\
@@ -533,7 +537,7 @@ sl_thd_dispatch_usr(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 		"popl %%ebp\n\t"			\
 		:
 		: "a" (cd), "b" (nd),
-		  "S" ((u32_t)((u64_t)tok >> 32)), "D" ((u32_t)(((u64_t)tok << 32) >> 32)),
+		  "S" (g->timeout_next), "D" (tok),
 		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
 		: "memory", "cc");
 
@@ -560,9 +564,14 @@ sl_thd_activate_c(struct sl_thd *t, sched_tok_t tok, tcap_time_t timeout, tcap_p
 		return sl_thd_dispatch_kern(t, tok, curr, timeout, sl_thd_tcap(t), prio == 0 ? t->prio : prio);
 	}
 
-	if (unlikely(timeout || prio || t == g->idle_thd)) {
+	/* TODO: there is something in the kernel that seem to disable timers..!! */
+	/* WORKAROUND: idle thread is a big cpu hogger.. so make sure there is timeout set around switching to and away! */
+	if (unlikely(curr == g->idle_thd || t == g->idle_thd)) return sl_thd_dispatch_kern(t, tok, curr, g->timeout_next, g->sched_tcap, prio);
+
+	if (unlikely(timeout || prio)) {
 		return sl_thd_dispatch_kern(t, tok, curr, timeout, g->sched_tcap, prio);
 	} else {
+		assert(t != g->idle_thd);
 		return sl_thd_dispatch_usr(t, tok, curr);
 	}
 }
@@ -652,7 +661,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		struct sl_thd_policy *pt = sl_mod_schedule();
 
 		if (unlikely(!pt))
-			t = globals->sched_thd;
+			t = globals->idle_thd;
 		else
 			t = sl_mod_thd_get(pt);
 	}
@@ -665,9 +674,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 #ifdef SL_CS
 	sl_cs_exit();
 #endif
-	if (unlikely(t == c)) {
-		return 0;
-	}
+	if (unlikely(t == c)) return 0;
 
 	ret = sl_thd_activate_c(t, tok, 0, 0, c, globals);
 
@@ -737,7 +744,7 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 	now    = sl_now();
 
 	offset = (s64_t)(globals->timer_next - now);
-	if (globals->timer_next && offset <= 0) sl_timeout_expended(now, globals->timer_next);
+	if (offset <= 0) sl_timeout_expended(now, globals->timer_next);
 	sl_timeout_wakeup_expired(now);
 
 	/*
@@ -755,7 +762,7 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 		struct sl_thd_policy *pt = sl_mod_schedule();
 
 		if (unlikely(!pt))
-			t = globals->sched_thd;
+			t = globals->idle_thd;
 		else
 			t = sl_mod_thd_get(pt);
 	}
@@ -765,15 +772,17 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 #endif
 
 	assert(t && sl_thd_is_runnable(t));
-	if (unlikely(!(offset > globals->cyc_per_usec && globals->timer_prev
-		   && abs_timeout > globals->timer_next))) {
-		timeout = abs_timeout < globals->timer_next 
-				      ? tcap_cyc2time(abs_timeout) : globals->timeout_next;
+	if (offset <= 0 || 
+	    (abs_timeout > now && abs_timeout > globals->timer_next + globals->cyc_per_usec)) {
+		timeout = offset <= 0 ? globals->timer_next : (abs_timeout > now ? tcap_cyc2time(abs_timeout) : 0);
 	}
 
 #ifdef SL_CS
 	sl_cs_exit();
 #endif
+	if (likely(c == t && t == globals->sched_thd && timeout)) {
+		return cos_defswitch(globals->sched_thdcap, globals->sched_thd->prio, timeout, tok);
+	}
 	if (unlikely(t == c)) return 0;
 
 	/* 
@@ -976,7 +985,7 @@ sl_thd_event_dequeue(struct sl_thd *t, struct cos_thd_event *e)
 static inline int
 sl_thd_rcv(rcv_flags_t flags)
 {
-	return cos_rcv(sl_thd_rcvcap(sl_thd_curr()), flags);
+	return cos_ul_rcv(sl_thd_rcvcap(sl_thd_curr()), flags, sl__globals_core()->timeout_next);
 //	/* FIXME: elapsed_cycs accounting..?? */
 //	struct cos_thd_event ev = { .blocked = 1, .next_timeout = 0, .epoch = 0, .elapsed_cycs = 0 };
 //	struct sl_thd *t = sl_thd_curr();

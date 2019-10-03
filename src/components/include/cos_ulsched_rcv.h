@@ -48,7 +48,20 @@ cos_ul_sched_rcv(arcvcap_t rcv, rcv_flags_t rfl, tcap_time_t timeout, struct cos
 		if (unlikely(ret < 0)) return ret;
 	}
 
-	return (ret || __cos_sched_events_present(r));
+	return (ret || __cos_sched_events_present(r) || cos_sched_ispending());
+}
+
+static inline int
+cos_ul_rcv(arcvcap_t rcv, rcv_flags_t rfl, tcap_time_t sched_timeout)
+{
+	struct cos_sched_event ev = { .tid = 0 };
+	int ret = 0;
+
+	ret = cos_sched_rcv(rcv, rfl, sched_timeout, &(ev.tid), (int *)&(ev.evt.blocked),
+			    (cycles_t *)&(ev.evt.elapsed_cycs), (tcap_time_t *)&(ev.evt.next_timeout));
+	assert(ev.tid == 0);
+
+	return ret;
 }
 
 #endif /* COS_ULSCHED_RCV_H */

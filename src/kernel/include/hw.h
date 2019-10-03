@@ -24,7 +24,7 @@ struct cap_hw {
 	u32_t             hw_bitmap;
 } __attribute__((packed));
 
-static void
+static inline void
 hw_asndcap_init(void)
 {
 	memset(&hw_asnd_caps, 0, sizeof(struct cap_asnd) * HW_IRQ_TOTAL * NUM_CPU);
@@ -36,7 +36,7 @@ hw_asndcap_init(void)
  * from another, and only with a subset of the bitmap.  Any other HW
  * resources should not be passed on.
  */
-static int
+static inline int
 hw_activate(struct captbl *t, capid_t cap, capid_t capin, u32_t bitmap)
 {
 	struct cap_hw *hwc;
@@ -52,13 +52,13 @@ hw_activate(struct captbl *t, capid_t cap, capid_t capin, u32_t bitmap)
 	return 0;
 }
 
-static int
+static inline int
 hw_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 {
 	return cap_capdeactivate(t, capin, CAP_HW, lid);
 }
 
-static int
+static inline int
 hw_attach_rcvcap(struct cap_hw *hwc, hwid_t hwid, struct cap_arcv *rcvc, capid_t rcv_cap)
 {
 	if (hwid < HW_IRQ_EXTERNAL_MIN || hwid > HW_IRQ_EXTERNAL_MAX) return -EINVAL;
@@ -68,7 +68,7 @@ hw_attach_rcvcap(struct cap_hw *hwc, hwid_t hwid, struct cap_arcv *rcvc, capid_t
 	return asnd_construct(&hw_asnd_caps[get_cpuid()][hwid], rcvc, rcv_cap, 0, 0);
 }
 
-static int
+static inline int
 hw_detach_rcvcap(struct cap_hw *hwc, hwid_t hwid)
 {
 	if (hwid < HW_IRQ_EXTERNAL_MIN || hwid > HW_IRQ_EXTERNAL_MAX) return -EINVAL;
