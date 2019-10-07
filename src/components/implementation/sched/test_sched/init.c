@@ -40,7 +40,7 @@ sched_child_init(struct sched_childinfo *schedci)
 
 extern void __sched_stdio_thd_init(thdid_t, struct crt_chan *, struct crt_chan *);
 #define MAX_PIPE_SZ 8
-#define MAX_USE_PIPE_SZ 3
+#define MAX_USE_PIPE_SZ 4
 CRT_CHAN_STATIC_ALLOC(c0, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 CRT_CHAN_STATIC_ALLOC(c1, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 CRT_CHAN_STATIC_ALLOC(c2, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);

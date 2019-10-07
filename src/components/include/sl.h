@@ -43,6 +43,7 @@
 
 #define SL_CS
 #undef SL_REPLENISH
+#undef SL_PARENTCHILD
 
 /* Critical section (cs) API to protect scheduler data-structures */
 struct sl_cs {
@@ -450,21 +451,21 @@ sl_thd_dispatch_kern(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr, 
 	assert(curr != next);
 	if (unlikely(!cd || !nd)) return cos_switch(sl_thd_thdcap(next), sl_thd_tcap(next), next->prio, timeout, g->sched_rcv, tok);
 
-	__asm__ __volatile__ (				\
-		"pushl %%ebp\n\t"			\
-		"movl %%esp, %%ebp\n\t"			\
-		"movl $1f, (%%esi)\n\t"			\
-		"movl %%esp, 4(%%esi)\n\t"		\
-		"movl %%ecx, %%esi\n\t"			\
-		"movl $2f, %%ecx\n\t"			\
-		"sysenter\n\t"				\
-		"jmp 2f\n\t"				\
-		".align 4\n\t"				\
-		"1:\n\t"				\
-		"movl $0, %%eax\n\t"			\
-		".align 4\n\t"				\
-		"2:\n\t"				\
-		"popl %%ebp\n\t"			\
+	__asm__ __volatile__ (			\
+		"pushl %%ebp\n\t"		\
+		"movl %%esp, %%ebp\n\t"		\
+		"movl $1f, (%%esi)\n\t"		\
+		"movl %%esp, 4(%%esi)\n\t"	\
+		"movl %%ecx, %%esi\n\t"		\
+		"movl $2f, %%ecx\n\t"		\
+		"sysenter\n\t"			\
+		"jmp 2f\n\t"			\
+		".align 4\n\t"			\
+		"1:\n\t"			\
+		"movl $0, %%eax\n\t"		\
+		".align 4\n\t"			\
+		"2:\n\t"			\
+		"popl %%ebp\n\t"		\
 		: "=a" (ret)
 		: "a" (a), "b" (b), "S" (cd), "D" (D), "d" (d), "c" (S)
 		: "memory", "cc");
@@ -507,34 +508,34 @@ sl_thd_dispatch_usr(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 	 * slowpath thread switch!
 	 */
 
-	__asm__ __volatile__ (				\
-		"pushl %%ebp\n\t"			\
-		"movl %%esp, %%ebp\n\t"			\
-		"movl $2f, (%%eax)\n\t"			\
-		"movl %%esp, 4(%%eax)\n\t"		\
-		"cmp $0, 4(%%ebx)\n\t"			\
-		"je 1f\n\t"				\
-		"movl %%edx, (%%ecx)\n\t"		\
-		"movl 4(%%ebx), %%esp\n\t"		\
-		"jmp *(%%ebx)\n\t"			\
-		".align 4\n\t"				\
-		"1:\n\t"				\
-		"movl $3f, %%ecx\n\t"			\
-		"movl %%edx, %%eax\n\t"			\
-		"inc %%eax\n\t"				\
-		"shl $16, %%eax\n\t"			\
-		"movl $0, %%ebx\n\t"			\
-		"movl %%esi, %%edx\n\t"			\
-		"movl $0, %%esi\n\t"			\
-		"movl $0, %%edi\n\t"			\
-		"sysenter\n\t"				\
-		"jmp 3f\n\t"				\
-		".align 4\n\t"				\
-		"2:\n\t"				\
-		"movl $0, 4(%%ebx)\n\t"			\
-		".align 4\n\t"				\
-		"3:\n\t"				\
-		"popl %%ebp\n\t"			\
+	__asm__ __volatile__ (			\
+		"pushl %%ebp\n\t"		\
+		"movl %%esp, %%ebp\n\t"		\
+		"movl $2f, (%%eax)\n\t"		\
+		"movl %%esp, 4(%%eax)\n\t"	\
+		"cmp $0, 4(%%ebx)\n\t"		\
+		"je 1f\n\t"			\
+		"movl %%edx, (%%ecx)\n\t"	\
+		"movl 4(%%ebx), %%esp\n\t"	\
+		"jmp *(%%ebx)\n\t"		\
+		".align 4\n\t"			\
+		"1:\n\t"			\
+		"movl $3f, %%ecx\n\t"		\
+		"movl %%edx, %%eax\n\t"		\
+		"inc %%eax\n\t"			\
+		"shl $16, %%eax\n\t"		\
+		"movl $0, %%ebx\n\t"		\
+		"movl %%esi, %%edx\n\t"		\
+		"movl $0, %%esi\n\t"		\
+		"movl $0, %%edi\n\t"		\
+		"sysenter\n\t"			\
+		"jmp 3f\n\t"			\
+		".align 4\n\t"			\
+		"2:\n\t"			\
+		"movl $0, 4(%%ebx)\n\t"		\
+		".align 4\n\t"			\
+		"3:\n\t"			\
+		"popl %%ebp\n\t"		\
 		:
 		: "a" (cd), "b" (nd),
 		  "S" (g->timeout_next), "D" (tok),
@@ -566,7 +567,9 @@ sl_thd_activate_c(struct sl_thd *t, sched_tok_t tok, tcap_time_t timeout, tcap_p
 
 	/* TODO: there is something in the kernel that seem to disable timers..!! */
 	/* WORKAROUND: idle thread is a big cpu hogger.. so make sure there is timeout set around switching to and away! */
-	if (unlikely(curr == g->idle_thd || t == g->idle_thd)) return sl_thd_dispatch_kern(t, tok, curr, g->timeout_next, g->sched_tcap, prio);
+	if (unlikely(curr == g->idle_thd || t == g->idle_thd)) {
+		return sl_thd_dispatch_kern(t, tok, curr, g->timeout_next, g->sched_tcap, prio);
+	}
 
 	if (unlikely(timeout || prio)) {
 		return sl_thd_dispatch_kern(t, tok, curr, timeout, g->sched_tcap, prio);
@@ -665,6 +668,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		else
 			t = sl_mod_thd_get(pt);
 	}
+	if (unlikely(!t)) t= globals->sched_thd;
 
 #ifdef SL_REPLENISH
 	sl_thd_replenish_no_cs(t, now);
@@ -766,6 +770,7 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 		else
 			t = sl_mod_thd_get(pt);
 	}
+	if (unlikely(!t)) t= globals->sched_thd;
 
 #ifdef SL_REPLENISH
 	sl_thd_replenish_no_cs(t, now);
@@ -781,6 +786,7 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 	sl_cs_exit();
 #endif
 	if (likely(c == t && t == globals->sched_thd && timeout)) {
+		/* program the new timer.. */
 		return cos_defswitch(globals->sched_thdcap, globals->sched_thd->prio, timeout, tok);
 	}
 	if (unlikely(t == c)) return 0;
@@ -959,10 +965,8 @@ sl_thd_event_enqueue(struct sl_thd *t, struct cos_thd_event *e)
 {
 	struct sl_global_core *g = sl__globals_core();
 
-	if (e->epoch <= t->event_info.epoch) {
-		printc("<%d>", sl_thd_thdid(t));
-		return;
-	}
+	assert(e->epoch);
+	if (e->epoch <= t->event_info.epoch) return;
 
 	if (ps_list_singleton(t, SL_THD_EVENT_LIST)) ps_list_head_append(&g->event_head, t, SL_THD_EVENT_LIST);
 

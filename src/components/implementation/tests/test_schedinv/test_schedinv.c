@@ -19,7 +19,7 @@
 
 static u32_t cycs_per_usec = 0;
 
-#define MAX_USE_PIPE_SZ 3
+#define MAX_USE_PIPE_SZ 4
 
 #define SND_DATA 0x4321
 #define HPET_PERIOD_TEST_US 20000

@@ -969,8 +969,10 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 	struct next_thdinfo *nti         = &cos_info->next_ti;
 	rcv_flags_t          rflags      = __userregs_get1(regs);
 	tcap_time_t          swtimeout   = TCAP_TIME_NIL;
-	tcap_time_t          timeout     = __userregs_get2(regs);
+	tcap_time_t          timeout     = TCAP_TIME_NIL, x = __userregs_get2(regs);
 
+	if (likely(rflags & RCV_SCHEDTIMEOUT)) swtimeout = x;
+	else                                   timeout   = x;
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
 
 	/* deliver pending notifications? */

@@ -558,7 +558,23 @@ sl_timeout_period(microsec_t period)
 /* engage space heater mode */
 void
 sl_idle(void *d)
-{ while (1) ; }
+{
+	struct sl_global_core *gc = sl__globals_core();
+
+	while (1) {
+		cycles_t now = sl_now();
+
+		do {
+			if (cos_sched_ispending() ||
+#if NUM_CPU > 1
+			    ck_ring_size(sl__ring_curr()) != 0 ||
+#endif
+			    !sl_child_notif_empty()) break;
+			now = sl_now();
+		} while (now < gc->timer_next);
+		sl_thd_activate_c(gc->sched_thd, cos_sched_sync(), 0, 0, gc->idle_thd, gc);
+	}
+}
 
 /* call from the user? */
 static void
@@ -727,23 +743,12 @@ sl_sched_loop_intern(int non_block)
 			struct cos_sched_event e = { .tid = 0 };
 
 			
-	struct sl_thd *curr = sl_thd_curr();
-	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr);
-			assert(cd->sp == 0);
 			/*
 			 * a child scheduler may receive both scheduling notifications (block/unblock
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			//pending = cos_ul_sched_rcv(g->sched_rcv, rfl, g->timeout_next, &e);
-//			if (cos_spd_id() != 4) printc("L");
-			//else                   printc("l");
 			pending = __sl_sched_rcv(rfl, &e);
-			assert(cd->sp == 0);
-//			if (cos_spd_id() != 4) printc("M");
-
-			//else                   printc("m");
-
 			if (pending < 0 || !e.tid) goto pending_events;
 
 			t = sl_thd_lkup(e.tid);
@@ -762,8 +767,11 @@ sl_sched_loop_intern(int non_block)
 
 pending_events:
 			if (ps_list_head_empty(&g->event_head) &&
+#if NUM_CPU > 1
 			    ck_ring_size(sl__ring_curr()) == 0 &&
-			    sl_child_notif_empty()) continue;
+#endif
+			    sl_child_notif_empty() && 
+			    !cos_sched_events_isempty()) continue;
 
 			/*
 			 * receiving scheduler notifications is not in critical section mainly for
@@ -807,8 +815,10 @@ pending_events:
 				else                                  sl_thd_wakeup_no_cs(t);
 			}
 
+#if NUM_CPU > 1
 			/* process cross-core requests */
 			sl_xcore_process_no_cs();
+#endif
 
 			sl_cs_exit();
 		} while (pending > 0);
@@ -829,13 +839,6 @@ void
 sl_sched_loop_nonblock(void)
 {
 	sl_sched_loop_intern(1);
-}
-
-int
-sl_thd_kern_dispatch(thdcap_t t)
-{
-	//return cos_switch(t, sl__globals_core()->sched_tcap, 0, sl__globals_core()->timeout_next, sl__globals_core()->sched_rcv, cos_sched_sync());
-	return cos_thd_switch(t);
 }
 
 void

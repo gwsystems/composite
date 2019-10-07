@@ -202,7 +202,7 @@ static int count = 0;
 	if (unlikely(hpet_periodicity_curr[HPET_PERIODIC] && !hpet_first_hpet_period)) {
 	count++;
 
-	if (count < 15) goto done;
+	if (count < 25) goto done;
 		rdtscll(hpet_first_hpet_period);
 	}
 
