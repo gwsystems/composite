@@ -36,8 +36,8 @@ DEPENDENCIES += init
 # Paths and libraries derived from the interface dependencies that
 # components have defined (only if the libraries exist).
 DEP_INC_PATHS=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
-DEP_LIB_PATHS=$(foreach D,$(DEPENDENCIES),$(if $(wildcard $(INTERDIR)/$(D)/libc_$(D).a), -L$(INTERDIR)/$(D)/)
-DEP_LIBS=$(foreach D,$(DEPENDENCIES),$(if $(wildcard $(INTERDIR)/$(D)/libc_$(D).a), -lc_$(D))
+DEP_LIB_PATHS=$(foreach D,$(DEPENDENCIES),$(if $(wildcard $(INTERDIR)/$(D)/lib$(D).a), -L$(INTERDIR)/$(D)/)
+DEP_LIBS=$(foreach D,$(DEPENDENCIES),$(if $(wildcard $(INTERDIR)/$(D)/lib$(D).a), -l$(D))
 
 C_OBJS=$(patsubst %.c,%.o,$(wildcard *.c))
 CXX_OBJS=$(patsubst %.cc,%.o,$(wildcard *.cc))
@@ -77,6 +77,12 @@ COMP_INTERFACES_CLEAN=$(strip $(subst +, ,$(subst ",,$(COMP_INTERFACES)))) #"
 COMP_IFDEPS_CLEAN=$(strip $(subst +, ,$(subst ",,$(COMP_IFDEPS)))) #"
 COMP_LIBDEPS_CLEAN=$(strip $(subst +, ,$(subst ", ,$(COMP_LIBDEPS)))) #"
 
+# making the list of -L and -l based on the component's dependencies
+COMP_DEPS_CLEAN=$(foreach D,$(COMP_IFDEPS_CLEAN),$(word 1,$(subst /, ,$(D))))
+COMP_DEPLIBS_CLEAN=$(foreach D,$(COMP_DEPS_CLEAN),$(if $(wildcard $(INTERDIR)/$(D)/lib$(D).a), -l$(D)))
+COMP_DEPLIBS_CLEAN := $(COMP_DEPLIBS_CLEAN) # handle all necessary orderings
+COMP_DEPLIBDIRS_CLEAN=$(foreach D,$(COMP_DEPS_CLEAN),$(if $(wildcard $(INTERDIR)/$(D)/lib$(D).a), -L$(INTERDIR)/$(D)/))
+
 # The actual lists of objects to be compiled with the components...
 COMP_EXPIF_OBJS=$(foreach I,$(COMP_INTERFACES_CLEAN),$(INTERDIR)/$(I)/cosrt_s_stub.o)
 COMP_DEP_OBJS=$(foreach D,$(COMP_IFDEPS_CLEAN),$(INTERDIR)/$(D)/cosrt_c_stub.o)
@@ -92,7 +98,7 @@ component:
 	$(if $(COMP_INITARGS_FILE), $(CC) $(INCLUDE) -I$(CDIR)/include/initargs/ $(CFLAGS) -c -o $(COMP_INITARGS_FILE:%.c=%.o) $(COMP_INITARGS_FILE))
 	$(if $(COMP_TAR_FILE), cp $(COMP_TAR_FILE) $(TAR_SYMBOL_NAME))
 	$(if $(COMP_TAR_FILE), $(LD) $(LDFLAGS) -r -b binary $(TAR_SYMBOL_NAME) -o $(COMP_TAR_FILE).o; rm $(TAR_SYMBOL_NAME))
-	$(LD) $(LDFLAGS) -r -o $(COMPNAME).linked_libs_ifs.o $(COMPOBJ) $(COMP_EXPIF_OBJS) $(COMP_DEP_OBJS) $(if $(COMP_INITARGS_FILE), $(COMP_INITARGS_FILE:%.c=%.o)) $(if $(COMP_TAR_FILE), $(COMP_TAR_FILE).o)
+	$(LD) $(LDFLAGS) -r -o $(COMPNAME).linked_libs_ifs.o $(COMPOBJ) $(COMP_EXPIF_OBJS) $(COMP_DEP_OBJS) $(if $(COMP_INITARGS_FILE), $(COMP_INITARGS_FILE:%.c=%.o)) $(if $(COMP_TAR_FILE), $(COMP_TAR_FILE).o) $(COMP_DEPLIBDIRS_CLEAN) $(COMP_DEPLIBS_CLEAN)
 	$(MUSLCC) $(COMPNAME).linked_libs_ifs.o $(MUSLCFLAGS) -Xlinker -melf_i386 -o $(COMPNAME).linked_musl.o
 	$(LD) $(LDFLAGS) -Ttext=$(COMP_BASEADDR) -T $(COMP_LD_SCRIPT) -o $(COMP_OUTPUT) $(COMPNAME).linked_musl.o
 

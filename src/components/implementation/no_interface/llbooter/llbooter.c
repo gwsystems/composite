@@ -8,6 +8,7 @@
 
 #include <elf_loader.h>
 #include <initargs.h>
+#include <barrier.h>
 
 #include <init.h>
 
@@ -173,7 +174,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 /*
  * Create a new thread in the component @c in response to a request
  * to create the thread from that component (thus passing in the
- * requested @closure_id.
+ * requested @closure_id).
  */
 int
 crt_thd_request_create(struct crt_comp *c, thdclosure_index_t closure_id)
@@ -206,8 +207,20 @@ crt_thd_init_create(struct crt_comp *c)
 }
 
 /* Booter's additive information about the component */
+typedef enum {
+	BOOT_COMP_PREINIT,
+	BOOT_COMP_COS_INIT,
+	BOOT_COMP_PAR_INIT,
+	BOOT_COMP_MAIN, /* type of main is determined by main_type */
+	BOOT_COMP_PASSIVE,
+	BOOT_COMP_TERM
+} boot_comp_state_t;
+
 struct boot_comp {
-	int main_exec; /* does this component have a `main` that wants execution */
+	volatile boot_comp_state_t state;
+	init_main_t main_type; /* does this component have post-initialization execution? */
+	struct simple_barrier barrier;
+	coreid_t init_core;
 	struct crt_comp comp;
 };
 static struct boot_comp boot_comps[MAX_NUM_COMPS];
@@ -301,9 +314,16 @@ comps_init(void)
 		strncat(path, name, INITARGS_MAX_PATHNAME - len);
 		assert(path[INITARGS_MAX_PATHNAME - 1] == '\0'); /* no truncation allowed */
 
-		bc = boot_comp_get(id);
+		bc  = boot_comp_get(id);
 		assert(bc);
-		bc->main_exec = 0; /* by default, component not considered to have a `main` */
+		*bc = (struct boot_comp) {
+			.state     = BOOT_COMP_PREINIT,
+			.main_type = INIT_MAIN_NONE,
+			.init_core = cos_cpuid(),
+			.barrier   = SIMPLE_BARRIER_INITVAL
+		};
+		simple_barrier_init(&bc->barrier, init_parallelism());
+
 		comp = &bc->comp;
 		elf  = (struct elf_hdr *)args_get(path);
 
@@ -325,9 +345,10 @@ comps_init(void)
 		assert(cos_compinfo_get(comp->comp_res)->comp_cap);
 
 		if (!crt_is_booter(comp)) {
-			aepi = &comp->comp_res->sched_aep[cos_cpuid()];
+			aepi      = &comp->comp_res->sched_aep[cos_cpuid()];
 			aepi->thd = crt_thd_init_create(comp);
 		}
+		bc->state = BOOT_COMP_COS_INIT;
 	}
 
 	ret = args_get_entry("sinvs", &comps);
@@ -381,22 +402,47 @@ execute(void)
 
 	/* Initialize components in order of the pre-computed schedule from mkimg */
 	while ((c = boot_comp_next(comp->id))) {
+		int initcore = c->init_core == cos_cpuid();
+		thdcap_t thd = comp->comp_res->sched_aep[cos_cpuid()].thd;
+
+		assert(c->state = BOOT_COMP_COS_INIT);
 		comp = &c->comp;
 
-		printc("Initializing component %lu.\n", comp->id);
-		assert(comp->comp_res->sched_aep[cos_cpuid()].thd);
-		if (cos_defswitch(comp->comp_res->sched_aep[cos_cpuid()].thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+		if (initcore) {
+			printc("Initializing component %lu (executing cos_init).\n", comp->id);
+		}
+		assert(thd);
+		if (!initcore) {
+			/* wait for the init core's thread to initialize */
+			while (c->state == BOOT_COMP_COS_INIT) ;
+			if (c->state != BOOT_COMP_PAR_INIT) continue;
+		}
+
+		if (cos_defswitch(thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+		assert(c->state > BOOT_COMP_PAR_INIT);
 	}
 
-	/* Execute the main in components, FIFO */
+	/*
+	 * Initialization of components (parallel or sequential)
+	 * complete. Execute the main in components, FIFO
+	 */
 	comp = &boot->comp;
 	while ((c = boot_comp_next(comp->id))) {
-		comp = &c->comp;
-		if (!c->main_exec) continue;
+		int initcore = c->init_core == cos_cpuid();
+		thdcap_t thd = comp->comp_res->sched_aep[cos_cpuid()].thd;
 
-		printc("Switching back to thread in component %lu.\n", comp->id);
-		assert(comp->comp_res->sched_aep[cos_cpuid()].thd);
-		if (cos_defswitch(comp->comp_res->sched_aep[cos_cpuid()].thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+		comp = &c->comp;
+		/* wait for the initcore to change the state... */
+		while (c->state == BOOT_COMP_COS_INIT || c->state == BOOT_COMP_PAR_INIT) ;
+		/* If we don't need to continue persistent computation... */
+		if (c->state == BOOT_COMP_PASSIVE ||
+		    (c->main_type = INIT_MAIN_SINGLE && !initcore)) continue;
+
+		if (initcore) {
+			printc("Switching back to main in component %lu.\n", comp->id);
+		}
+		assert(thd);
+		if (cos_defswitch(thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 	}
 
 	printc("Executed main in each component. Halting\n");
@@ -409,27 +455,55 @@ execute(void)
 }
 
 void
-init_done(int cont)
+init_done(int parallel_init, init_main_t main_type)
 {
 	compid_t client = (compid_t)cos_inv_token();
 	struct boot_comp *c, *n;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = boot_comp_get(client);
-	if (cont) c->main_exec = 1;
+	assert(c && c->state > BOOT_COMP_PREINIT);
 
-	printc("Component %lu initialization complete%s.\n", c->comp.id, (cont ? ", awaiting main execution": ""));
+	switch (c->state) {
+	case BOOT_COMP_COS_INIT: {
+		c->main_type = main_type;
 
-	/* switch back to the booter's thread in execute */
-	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
-	/* We should only switch back if `cont` != 0, and we want to execute a main */
-	assert(cont);
-	printc("Executing main in component %lu.\n", cos_compid());
+		if (parallel_init) {
+			/* This will activate any parallel threads */
+			c->state = BOOT_COMP_PAR_INIT;
+			return; /* we're continuing with initialization, return! */
+		}
+
+		if (c->main_type == INIT_MAIN_NONE) c->state = BOOT_COMP_PASSIVE;
+		else                                c->state = BOOT_COMP_MAIN;
+
+		break;
+	}
+	case BOOT_COMP_PAR_INIT: {
+		simple_barrier(&c->barrier);
+		if (c->init_core != cos_cpuid()) break;
+
+		printc("Component %lu initialization complete%s.\n", c->comp.id, (c->main_type > 0 ? ", awaiting main execution": ""));
+		if (c->main_type == INIT_MAIN_NONE) c->state = BOOT_COMP_PASSIVE;
+		else                                c->state = BOOT_COMP_MAIN;
+
+		break;
+	}
+	default: {
+		printc("Error: component %lu past initialization called init_done.\n", c->comp.id);
+	}}
+
+	/* switch back to the booter's thread in execute() */
+	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+	assert(c->state != BOOT_COMP_PASSIVE);
+	assert(c->state != BOOT_COMP_COS_INIT && c->state != BOOT_COMP_PAR_INIT);
+
+	if (c->state == BOOT_COMP_MAIN && c->init_core == cos_cpuid()) {
+		printc("Executing main in component %lu.\n", cos_compid());
+	}
 
 	return;
 }
-
-static volatile int init_core_alloc_done = 0, core_init_done[NUM_CPU] = { 0 };
 
 void
 init_exit(int retval)
@@ -440,10 +514,14 @@ init_exit(int retval)
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = boot_comp_get(client);
 
-	printc("Component %lu has terminated.\n", c->comp.id);
+	if (c->init_core == cos_cpuid()) {
+		c->state = BOOT_COMP_TERM;
+		printc("Component %lu has terminated with error code %d on core %lu.\n",
+		       c->comp.id, retval, cos_cpuid());
+	}
 
 	/* switch back to the booter's thread in execute */
-	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 	BUG();
 	while (1) ;
 }
@@ -453,7 +531,10 @@ cos_init(void)
 {
 	booter_init();
 	comps_init();
-	execute();
+}
 
-	while (1) ;
+void
+parallel_main(coreid_t cid)
+{
+	execute();
 }

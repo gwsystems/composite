@@ -24,7 +24,6 @@ cos_init(void)
 	assert(pong_subset(8, 16, &r3) == -24 && r3 == 24);
 	tid = pong_ids(&us, &them);
 	pong_ids(&us, &them);
-	printc("thdid %lu (fn %lu), us %lu, them %lu, compid %lu\n", tid, cos_thdid(), us, them, cos_compid());
 	assert(cos_thdid() == tid && us != them && us == cos_compid());
 
 	begin = ps_tsc();

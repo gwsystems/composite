@@ -1,5 +1,6 @@
 #include "micro_xcores.h"
 #include <llprint.h>
+#include <init.h>
 
 struct cos_compinfo booter_info;
 thdcap_t            termthd[NUM_CPU] = { 0 }; /* switch to this to shutdown */
@@ -59,3 +60,6 @@ cos_init(void)
 
         return;
 }
+
+void init_done(int par_cont, init_main_t type) {}
+void init_exit(int retval) { while (1) ; }

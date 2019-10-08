@@ -12,6 +12,7 @@ use passes::{
 pub struct Dep {
     pub srv: String,
     pub interface: String,
+    pub variant: Option<String>, // should only be used when srv == "kernel", i.e. a library variant
 }
 
 #[derive(Debug, Deserialize)]
@@ -56,6 +57,7 @@ impl Dep {
         Dep {
             srv: name.clone(),
             interface: "".to_string(),
+            variant: None,
         }
     }
 
@@ -168,7 +170,8 @@ impl TomlSpecification {
                 return found;
             }
 
-            if c.deps().len() == 0 {
+            let ds: Vec<_> = c.deps().iter().filter(|d| d.srv != "kernel").collect();
+            if ds.len() == 0 {
                 true
             } else {
                 err_accum.push_str(&format!(
@@ -189,7 +192,15 @@ impl TomlSpecification {
         // TODO: same as above...should aggregate error strings
         for c in self.comps() {
             for d in c.deps() {
-                if let Some(ref s) = self.comp(d.get_name()) {
+                if d.get_name() == "kernel" {
+                    if d.variant.is_none() {
+                        err_accum.push_str(&format!(
+                            "Error: Component {}'s dependency on the kernel for interface {} must specify a variant.",
+                            c.name, d.interface
+                        ));
+                        fail = true;
+                    }
+                } else if let Some(ref s) = self.comp(d.get_name()) {
                     if s.interfaces()
                         .iter()
                         .find(|i| i.interface == d.interface)
@@ -235,6 +246,7 @@ impl TomlSpecification {
                     "Error: Component {}'s stated constructor ({}) is not a valid component.",
                     c.name, c.constructor
                 ));
+                fail = true;
             }
         }
 
@@ -246,6 +258,7 @@ impl TomlSpecification {
             != 1
         {
             err_accum.push_str(&format!("Error: the number of base constructors (with constructor = \"kernel\") is not singular."));
+            fail = true;
         }
 
         if fail {
@@ -371,17 +384,20 @@ impl Transition for SystemSpec {
                     // then the correct interface to find the
                     // variant. Note: the unwraps here are valid
                     // as they are checked in the validation step
-                    variant: spec
-                        .comp(d.srv.clone())
-                        .unwrap()
-                        .interfaces()
-                        .iter()
-                        .find(|i| i.interface == d.interface)
-                        .unwrap()
+                    variant: d
                         .variant
-                        .as_ref()
-                        .unwrap_or(&"stubs".to_string())
-                        .clone(),
+                        .clone()
+                        .unwrap_or_else(|| {
+                            spec.comp(d.srv.clone())
+                                .unwrap()
+                                .interfaces()
+                                .iter()
+                                .find(|i| i.interface == d.interface)
+                                .unwrap()
+                                .variant
+                                .clone()
+                                .unwrap_or_else(|| String::from("stubs"))
+                        })
                 })
                 .collect();
             deps.insert(ComponentName::new(&c.name, &String::from("global")), ds);

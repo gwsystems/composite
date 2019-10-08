@@ -14,6 +14,9 @@ cos_llprint(char *s, int len)
 	cos_serial_putb(s, len);
 }
 
+static void
+cos_print(char *s, int len);
+
 static int
 prints(char *s)
 {

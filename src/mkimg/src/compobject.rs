@@ -348,8 +348,14 @@ impl Transition for Constructor {
             .names()
             .iter()
             .rev()
-            .map(|n| &spec.component_named(n).constructor)
-            .filter(|c| c.var_name != "kernel")
+            .map(|n| {
+                let c = &spec.component_named(n);
+                if c.constructor.var_name == "kernel" {
+                    &c.name     // the system constructor must be counted...even if it is the *only* component
+                } else {
+                    &c.constructor
+                }
+            })
             .unique()
             .collect();
 
@@ -374,6 +380,11 @@ impl Transition for Constructor {
             if component(&s, &id).constructor.var_name == "kernel" {
                 sys_constructor = obj_path;
             }
+        }
+
+        // If we didn't find the core system constructor, something is very wrong.
+        if sys_constructor == "" {
+            return Err(format!("Error: Could not find the system constructor with \"kernel\" as its own constructor. Error copying into the final cos.img."));
         }
 
         let img_path = b.file_path(&"cos.img".to_string())?;

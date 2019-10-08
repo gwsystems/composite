@@ -3,7 +3,7 @@ include Makefile.src Makefile.comp
 IFNAME=$(lastword $(subst /, ,$(shell pwd)))
 IFLIB=lib$(IFNAME).a
 DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
-C_OBJS=$(strip $($(wildcard *.c):%.c=%.o))
+C_OBJS=$(patsubst %.c,%.o,$(wildcard *.c))
 
 # all the interface variants.  Note that "stubs/" is the default.
 VARIANTS=$(wildcard */)
@@ -19,9 +19,9 @@ print:
 # we have to compile these without musllibc so that there are no
 # symbol conflicts and this is why we have the %.a here and don't
 # output a .a file.
-$(IFLIB):$(C_OBJ)
-	$(if $(C_OBJ), $(info |     [AR]   Creating client library $@ for $(IFNAME)))
-	@$(if $(C_OBJ), @$(AR) cr $@ $^)
+$(IFLIB):$(C_OBJS)
+	$(if $(C_OBJS), $(info |     [AR]   Creating client library $@ for $(IFNAME)))
+	@$(if $(C_OBJS), @$(AR) cr $@ $^)
 
 %.o:%.c
 	$(info |     [CC]   Compiling c file $^ into $@)

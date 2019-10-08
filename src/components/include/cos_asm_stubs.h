@@ -100,14 +100,20 @@ __cosrt_s_##name:				\
  * Note that all ucaps are allocated into a separate section so that
  * they are contiguous.  That section is then collapsed with .data
  * during the build process (via comp.ld).
+ *
+ * The __cosrt_extern_* aliases are to support components to call a
+ * server function in an interface that it also exports.
  */
 
 #define cos_asm_stub(name)		       \
 .text;                                         \
 .globl name;                                   \
+.globl __cosrt_extern_##name;                  \
 .type  name, @function;			       \
+.type  __cosrt_extern_##name, @function;       \
 .align 8 ;                                     \
 name:                                          \
+__cosrt_extern_##name:			       \
         movl $__cosrt_ucap_##name, %eax ;      \
         jmp *INVFN(%eax) ;		       \
 					       \

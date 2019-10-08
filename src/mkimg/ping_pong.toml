@@ -1,10 +1,11 @@
 [system]
-description = "Simple system: ping pong!"
+description = "Simple system: the ping pong test for IPC!"
 
 [[components]]
 name = "booter"
 img  = "no_interface.llbooter"
 implements = [{interface = "init"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
 constructor = "kernel"
 
 [[components]]

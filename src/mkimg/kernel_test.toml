@@ -1,0 +1,9 @@
+[system]
+description = "Unit test and benchmarks for the kernel."
+
+[[components]]
+name = "tests"
+img  = "tests.kernel_tests"
+implements = [{interface = "init"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"

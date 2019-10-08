@@ -28,11 +28,45 @@ __crt_main(void)
 {
 	return 0;
 }
-CFN_WEAKALIAS(main, __crt_main);
+COS_FN_WEAKALIAS(main, __crt_main);
 
 CWEAKSYMB void
-cos_init(void *arg)
+cos_init()
 {
+	return;
+}
+
+static void
+__crt_parallel_main(coreid_t cid, int init_core, int ncores)
+{
+	return;
+}
+COS_FN_WEAKALIAS(parallel_main, __crt_parallel_main);
+
+void
+__crt_cos_parallel_init(coreid_t cid, int init_core, int ncores)
+{
+	return;
+}
+COS_FN_WEAKALIAS(cos_parallel_init, __crt_cos_parallel_init);
+
+int
+cos_main_defined(void)
+{
+	return __crt_main != main;
+}
+
+/*
+ * Invoke the user's main. Only makes sense to call this if there is
+ * an actual main function defined. TODO: handle passing arguments
+ * properly.
+ */
+int
+cos_main(void)
+{
+	assert(cos_main_defined());
+
+	return main();
 }
 
 /* Intended to be implement by libraries */
@@ -161,16 +195,52 @@ cos_thd_entry_exec(u32_t idx)
 }
 
 static void
-start_execution(void)
+start_execution(coreid_t cid, int init_core, int ncores)
 {
-	cos_init(NULL);
-	/* continue only if there is no user-defined main */
-	init_done(main != __crt_main);
-	assert(main != __crt_main);
+	init_main_t main_type = INIT_MAIN_NONE;
+	/* is there a user-defined parallel init? */
+	const int parallel_init = cos_parallel_init != __crt_cos_parallel_init;
+	int ret = 0;
 
-	/* ...otherwise, run their main, and exit afterwards */
-	init_exit(main()); 	/* TODO: cmd line arguments */
+	/* are parallel/regular main user-defined? */
+	if (parallel_main != __crt_parallel_main) {
+		main_type = INIT_MAIN_PARALLEL;
+	} else if (cos_main_defined()) {
+		/* only execute main if parallel_main doesn't exist */
+		main_type = INIT_MAIN_SINGLE;
+	}
 
+	/* single-core initialization */
+	if (init_core) {
+		cos_init();
+		/* continue only if there is no user-defined main, or parallel exec */
+		COS_EXTERN_INV(init_done)(parallel_init, main_type);
+		assert(parallel_init || main_type != INIT_MAIN_NONE);
+	}
+
+	/* Parallel initialization */
+	init_parallel_await_init();
+	if (parallel_init) {
+		cos_parallel_init(cid, init_core, init_parallelism());
+	}
+
+	/* All initialization completed here, go onto main execution */
+	COS_EXTERN_INV(init_done)(0, main_type);
+	/* No main? we shouldn't have continued here... */
+	assert(main_type != INIT_MAIN_NONE);
+	assert(main_type == INIT_MAIN_PARALLEL || (main_type == INIT_MAIN_SINGLE && init_core));
+
+	/* Execute the main: either parallel or normal */
+	if (main_type == INIT_MAIN_PARALLEL) {
+		parallel_main(cid, init_core, init_parallelism());
+	} else {
+		/* Only the initial core should execute main */
+		assert(init_core && main_type == INIT_MAIN_SINGLE);
+		ret = cos_main();
+	}
+	COS_EXTERN_INV(init_exit)(ret);
+
+	/* with the previous exits, we should never get here */
 	BUG();
 }
 
@@ -218,27 +288,29 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	}
 
 	switch (t) {
+        /* New thread creation method passes in this option. */
 	case COS_UPCALL_THD_CREATE:
-		/* New thread creation method passes in this type. */
-		{
-			/* A new thread is created in this comp. */
+	{
+		/* A new thread is created in this comp. */
 
-			/* arg1 is the thread init data. 0 means
-			 * bootstrap. */
-			if (arg1 == 0) {
-				start_execution();
+		/* arg1 is the thread init data. 0 means
+		 * bootstrap. */
+		if (arg1 == 0) {
+			static unsigned long first_core = 1;
+
+			start_execution(cos_coreid(), ps_cas(&first_core, 1, 0), init_parallelism());
+		} else {
+			u32_t idx = (int)arg1 - 1;
+			if (idx >= COS_THD_INIT_REGION_SIZE) {
+				/* This means static defined entry */
+				cos_thd_entry_static(idx - COS_THD_INIT_REGION_SIZE);
 			} else {
-				u32_t idx = (int)arg1 - 1;
-				if (idx >= COS_THD_INIT_REGION_SIZE) {
-					/* This means static defined entry */
-					cos_thd_entry_static(idx - COS_THD_INIT_REGION_SIZE);
-				} else {
-					/* Execute dynamic allocated entry. */
-					cos_thd_entry_exec(idx);
-				}
+				/* Execute dynamic allocated entry. */
+				cos_thd_entry_exec(idx);
 			}
 		}
 		break;
+	}
 	default:
 		/* fault! */
 		assert(0);

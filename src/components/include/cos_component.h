@@ -14,6 +14,7 @@
 #include <util.h>
 #include <string.h>
 #include <bitmap.h>
+#include <ps_plat.h>
 
 /*
  * dewarn: strtok_r()
@@ -176,6 +177,12 @@ cos_cpuid(void)
 	return get_stk_data(CPUID_OFFSET);
 }
 
+static inline coreid_t
+cos_coreid(void)
+{
+	return (coreid_t)cos_cpuid();
+}
+
 static inline unsigned short int
 cos_get_thd_id(void)
 {
@@ -288,8 +295,6 @@ cos_init_args_cpubmp(u32_t *cpubmp)
 	return cos_args_cpubmp(cpubmp, cos_init_args());
 }
 
-#define COS_EXTERN_FN(fn) __cos_extern_##fn
-
 static inline long
 cos_cmpxchg(volatile void *memory, long anticipated, long result)
 {
@@ -384,9 +389,14 @@ cos_memset(void *s, char c, int count)
 
 #define CFORCEINLINE __attribute__((always_inline))
 #define CWEAKSYMB __attribute__((weak))
-/* Create a weak function alias called "aliasn" which aliases the existing function "name"  */
-#define CFN_WEAKALIAS(aliasn, name)					\
-	extern __typeof (name) aliasn __attribute__((weak, alias(STR(name))));
+/*
+ * Create a weak function alias called "aliasn" which aliases the
+ * existing function "name".  Example: COS_FN_WEAKALIAS(read,
+ * __my_read) will take your "__my_read" function and create "read" as
+ * an a weak alias to it.
+ */
+#define COS_FN_WEAKALIAS(weak_alias, name)					\
+	__typeof__(name) weak_alias __attribute__((weak, alias(STR(name))))
 
 /*
  * A composite constructor (deconstructor): will be executed before
