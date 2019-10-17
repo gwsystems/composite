@@ -366,8 +366,8 @@ test_yields(void)
 		//sl_thd_yield_thd(threads[i]);
 	}
 	assert(N_TESTTHDS == 2);
-	//crt_chan_p2p_init_test(c0, threads[SND], threads[RCV]);
-	crt_chan_init_test(c0);
+	crt_chan_p2p_init_test(c0, threads[SND], threads[RCV]);
+	//crt_chan_init_test(c0);
 }
 
 //void

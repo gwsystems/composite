@@ -50,7 +50,8 @@ sched_child_init(struct sched_childinfo *schedci)
 	tcap_prio_t p = FIXED_PRIO;
 
 	assert(schedci);
-	if (schedci->id != 1) p++;
+	if (schedci->id != 1) p = FIXED_PRIO;
+	else                  p = FIXED_PRIO + 1;
 	schedci->initthd = sl_thd_initaep_alloc(sched_child_defci_get(schedci), NULL, schedci->flags & COMP_FLAG_SCHED, schedci->flags & COMP_FLAG_SCHED ? 1 : 0, 0, 0, 0, &dcbaddr);
         assert(schedci->initthd);
 	initthd = schedci->initthd;
@@ -59,9 +60,10 @@ sched_child_init(struct sched_childinfo *schedci)
 		if (cos_tcap_transfer(sl_thd_rcvcap(initthd), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, p)) {
 			PRINTC("Failed to transfer INF budget\n");
 			assert(0);
+		} else {
+			sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
 		}
 		sl_thd_param_set(initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
-		sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
 	}
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, p));
 }

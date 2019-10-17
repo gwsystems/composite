@@ -42,7 +42,7 @@
 #include <cos_ulsched_rcv.h>
 
 #define SL_CS
-#undef SL_REPLENISH
+#define SL_REPLENISH
 #undef SL_PARENTCHILD
 
 /* Critical section (cs) API to protect scheduler data-structures */

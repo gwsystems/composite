@@ -908,7 +908,6 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	assert(rcv_tcap && tcap);
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0, cos_info);
-	assert(next == rcv_thd);
 	if (next == thd) return 1;
 	thd->state |= THD_STATE_PREEMPTED;
 

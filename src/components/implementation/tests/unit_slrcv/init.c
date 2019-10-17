@@ -45,9 +45,8 @@ CRT_CHAN_TYPE_PROTOTYPES(test, int, 4);
 #define PIPELINE_LEN 4
 #define PRIO_START (TCAP_PRIO_MAX + 10 + PIPELINE_LEN + 1)
 #define PRIO_INT (PRIO_START + 1)
-#define ITERS 1000
+#define ITERS 100000
 static cycles_t vals[ITERS] = { 0 };
-static int iters = 0;
 static int pipe_line = 0;
 static int pipe_send = 0, pipe_rcv = 0;
 
@@ -122,14 +121,17 @@ work_fn(void *x)
 		if (likely(chid + 1 < PIPELINE_LEN)) chsnd(chid + 1);
 		else {
 			rdtscll(en);
-			printc("e");
+			if (iter >= ITERS) continue;
 			assert(en > st);
 			cycles_t diff = en - st;
 			if (diff > wc) wc = diff;
-			printc("%llu\n", diff);
+			//printc("%llu\n", diff);
+			vals[iter] = diff;
 			tot += diff;
 			iter ++;
 			if (unlikely(iter == ITERS)) {
+				int i;
+				for (i = 0; i < ITERS; i++) printc("%llu\n", vals[i]);
 				PRINTC("%d: %llu %llu\n", iter, tot / iter, wc);
 				iter = 0;
 				wc = tot = 0;
@@ -149,13 +151,12 @@ pong_fn(arcvcap_t r, void *d)
 	assert(a == 0);
 
 	while (1) {
-		//if (iter == ITERS) capmgr_hw_detach(HW_HPET_PERIODIC);
 		//printc("I");
 		int p = sl_thd_rcv(RCV_ULONLY);
 		//work_usecs(WORK_US);
-		printc("s");
 		rdtscll(st);
 		chsnd(0);
+		if (iter == ITERS) capmgr_hw_detach(HW_HPET_PERIODIC);
 	}
 	sl_thd_exit();
 }

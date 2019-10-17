@@ -19,7 +19,7 @@
 
 static u32_t cycs_per_usec = 0;
 
-#define MAX_USE_PIPE_SZ 4
+#define MAX_USE_PIPE_SZ 1
 
 #define SND_DATA 0x4321
 #define HPET_PERIOD_TEST_US 20000
@@ -27,6 +27,9 @@ static u32_t cycs_per_usec = 0;
 #define SHMCHANNEL_KEY 0x2020
 static cycles_t *sttsc = NULL;
 volatile unsigned long *rdy = NULL;
+int iters = 0;
+#define ITERS 100000
+cycles_t vals[ITERS] = { 0 };
 
 static void
 __test_int_fn(arcvcap_t rcv, void *data)
@@ -40,16 +43,17 @@ __test_int_fn(arcvcap_t rcv, void *data)
 	/* TODO: register to HPET */
 	while (1) {
 		cos_rcv(rcv, 0);
+		iters++;
 		rdtscll(*sttsc);
 		chan_out(SND_DATA);
+
+		if (iters == ITERS) capmgr_hw_detach(HW_HPET_PERIODIC);
 	}
 
 	sched_thd_exit();
 }
 
-#define ITERS 100
 cycles_t tot = 0, wc = 0;
-int iters = 0;
 
 static void
 __test_wrk_fn(void *data)
@@ -62,16 +66,23 @@ __test_wrk_fn(void *data)
 		if (unlikely(e)) {
 			cycles_t en, diff;
 
+			if (unlikely(iters >= ITERS)) continue;
 			rdtscll(en);
 			assert(sttsc);
 			diff = en - *sttsc;
 			if (diff > wc) wc = diff;
 			tot += diff;
+			vals[iters] = diff;
+			//printc("%llu\n", diff);
 			iters++;
+			if (iters % 1000 == 0) printc(",");
 			if (iters == ITERS) {
-				PRINTC("%llu, %llu\n", tot / ITERS, wc);	
+				int i;
+
+				for (i = 0; i < ITERS; i++) printc("%llu\n", vals[i]);
+				PRINTC("%llu, %llu\n", tot / ITERS, wc);
 				tot = wc = 0;
-				iters = 0;
+				//iters = 0;
 			}
 			continue;
 		}

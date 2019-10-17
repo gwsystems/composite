@@ -850,7 +850,8 @@ sl_thd_replenish_no_cs(struct sl_thd *t, cycles_t now)
 	cycles_t replenish;
 	int ret;
 
-	if (!(t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget)) return;
+	if (likely(!(t->properties & SL_THD_PROPERTY_OWN_TCAP))) return;
+	if (!t->budget) return;
 	assert(t->period);
 	assert(sl_thd_tcap(t) != sl__globals_core()->sched_tcap);
 

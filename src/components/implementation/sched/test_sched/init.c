@@ -13,6 +13,7 @@
 #include <chan_crt.h>
 #include <channel.h>
 
+#define MAX_USE_PIPE_SZ 1
 #define INITIALIZE_PRIO 1
 #define INITIALIZE_PERIOD_MS (4000)
 #define INITIALIZE_BUDGET_MS (2000)
@@ -40,7 +41,6 @@ sched_child_init(struct sched_childinfo *schedci)
 
 extern void __sched_stdio_thd_init(thdid_t, struct crt_chan *, struct crt_chan *);
 #define MAX_PIPE_SZ 8
-#define MAX_USE_PIPE_SZ 4
 CRT_CHAN_STATIC_ALLOC(c0, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 CRT_CHAN_STATIC_ALLOC(c1, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 CRT_CHAN_STATIC_ALLOC(c2, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
@@ -68,7 +68,8 @@ CRT_CHAN_STATIC_ALLOC(c7, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 #define SND_DATA 0x1234
 
 #define SHMCHANNEL_KEY 0x2020
-#define MAX_ITERS 100
+#define MAX_ITERS 100000
+cycles_t vals[MAX_ITERS] = { 0 };
 int iters = 0;
 cycles_t tot = 0, wc = 0;
 static int pc, tc;
@@ -134,17 +135,24 @@ work_thd_fn(void *data)
 		chan_in();
 		if (unlikely(is_last)) {
 			cycles_t end, diff;
+			if (iters >= MAX_ITERS) continue;
 			rdtscll(end);
 			assert(int_start);
 			diff = end - *int_start;
 			if (wc < diff) wc = diff;
 			tot += diff;
+			vals[iters] = diff;
+			//printc("%llu\n", diff);
 			iters++;
+			if (iters % 1000 == 0) printc(".");
 
 			if (iters == MAX_ITERS) {
+				int i;
+
+				for (i = 0; i < MAX_ITERS; i++) printc("%llu\n", vals[i]);
 				PRINTC("%llu, %llu\n", tot / iters, wc);
-				tot = wc = 0;
-				iters = 0;
+				//tot = wc = 0;
+				//iters = 0;
 			}
 			continue;
 		}
