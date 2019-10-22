@@ -60,5 +60,6 @@ int init_parallelism(void);
  * consumption.
  */
 void init_parallel_await_init(void);
+void COS_STUB_DECL(init_parallel_await_init)(void);
 
 #endif /* INIT_H */

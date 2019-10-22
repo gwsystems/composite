@@ -324,9 +324,9 @@ kern_boot_upcall(void)
 	void *p;
 
 	assert(get_cpuid() >= 0);
-	printk("Upcall into boot component at ip 0x%x for cpu: %d with tid: %d\n", entry, get_cpuid(), thd_current(cos_cpu_local_info())->tid);
 	/* only print complete msg for BSP */
 	if (get_cpuid() == 0) {
+		printk("Upcall into boot component at ip 0x%x for cpu: %d with tid: %d\n", entry, get_cpuid(), thd_current(cos_cpu_local_info())->tid);
 		printk("------------------[ Kernel boot complete ]------------------\n");
 	}
 

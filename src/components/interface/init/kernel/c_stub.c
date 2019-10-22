@@ -5,9 +5,9 @@
 #include <cos_stubs.h>
 
 /* want to keep this state small */
-static volatile unsigned long init_await_parallel_activation = 1;
-static volatile	coreid_t      init_core = 0;
-static struct simple_barrier  init_barrier = SIMPLE_BARRIER_INITVAL;
+static unsigned long         init_await_parallel_activation = 1;
+static coreid_t              init_core = 0;
+static struct simple_barrier init_barrier = SIMPLE_BARRIER_INITVAL;
 
 /*
  * These functions are library-defined (no sinvs to other components),
@@ -22,15 +22,21 @@ static struct simple_barrier  init_barrier = SIMPLE_BARRIER_INITVAL;
 void
 COS_STUB_LIBFN(init_done)(int parallel_init, init_main_t main_type)
 {
+	static unsigned long first = 1;
+
+	if (ps_cas(&first, 1, 0)) {
+		ps_store(&init_core, cos_coreid());
+	}
+
 	/* only the initial thread will call with parallel_init == 1 */
 	if (parallel_init) {
 		simple_barrier_init(&init_barrier, init_parallelism());
-		init_core = cos_coreid(),
 		ps_mem_fence();
-		init_await_parallel_activation = 0;
+		ps_store(&init_await_parallel_activation, 0);
 
 		return;
 	}
+	ps_store(&init_await_parallel_activation, 0);
 
 	if (main_type == INIT_MAIN_NONE) {
 		/* TODO give back stack */
@@ -41,7 +47,7 @@ COS_STUB_LIBFN(init_done)(int parallel_init, init_main_t main_type)
 	}
 
 	simple_barrier(&init_barrier);
-	if (main_type == INIT_MAIN_SINGLE && init_core != cos_coreid()) {
+	if (main_type == INIT_MAIN_SINGLE && ps_load(&init_core) != cos_coreid()) {
 		/* TODO give back stack */
 		COS_EXTERN_INV(init_exit)(0);
 
@@ -65,6 +71,6 @@ COS_STUB_ALIAS(init_exit);
 void
 COS_STUB_LIBFN(init_parallel_await_init)(void)
 {
-	while (init_await_parallel_activation) ;
+	while (ps_load(&init_await_parallel_activation)) ;
 }
 COS_STUB_ALIAS(init_parallel_await_init);

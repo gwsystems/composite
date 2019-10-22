@@ -219,11 +219,10 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	}
 
 	/* Parallel initialization */
-	init_parallel_await_init();
+	COS_EXTERN_INV(init_parallel_await_init)();
 	if (parallel_init) {
 		cos_parallel_init(cid, init_core, init_parallelism());
 	}
-
 	/* All initialization completed here, go onto main execution */
 	COS_EXTERN_INV(init_done)(0, main_type);
 	/* No main? we shouldn't have continued here... */
