@@ -13,7 +13,7 @@
 
 #define PART_MAX_TASKS      (NUM_CPU < 4 ? 2048 : 8192)
 #define PART_MAX_DATA       PART_MAX_TASKS 
-#define PART_MAX_PAR_THDS   NUM_CPU
+#define PART_MAX_PAR_THDS   4 // to test 4 data-parallel tasks on a single core
 #define PART_MAX_CORE_THDS  (NUM_CPU == 1 ? 200 : (NUM_CPU == 2 ? 128 : (NUM_CPU < 5 ? 64 : 48)))
 #define PART_MAX_THDS       512
 #define PART_MAX_CHILD      1024
@@ -108,6 +108,7 @@ part_task_init(struct part_task *t, part_task_type_t type, struct part_task *p, 
 	memset(t->ws, 0, sizeof(struct part_workshare) * PART_MAX_WORKSHARES);
 	t->cs.fn = fn;
 	t->cs.data = data;
+	assert (nthds <= PART_MAX_PAR_THDS);
 	t->nthds = nthds;
 	t->nworkers = 0;
 	memset(t->workers, 0, sizeof(unsigned) * PART_MAX_PAR_THDS);
