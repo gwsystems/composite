@@ -352,28 +352,8 @@ impl Transition for SystemSpec {
         let mut exports: HashMap<ComponentName, Vec<Export>> = HashMap::new();
 
         for c in spec.comps().iter() {
-            let comp = Component {
-                name: ComponentName::new(&c.name, &String::from("global")),
-                constructor: ComponentName::new(&c.constructor, &String::from("global")),
-                source: c.img.clone(),
-                base_vaddr: c
-                    .baseaddr
-                    .as_ref()
-                    .unwrap_or(&String::from("0x00400000"))
-                    .clone(),
-                params: c
-                    .params
-                    .as_ref()
-                    .unwrap_or(&Vec::new())
-                    .iter()
-                    .map(|p| ArgsKV::new_key(p.name.clone(), p.value.clone()))
-                    .collect(),
-                fsimg: c.initfs.clone(),
-            };
-            components.insert(ComponentName::new(&c.name, &String::from("global")), comp);
-
             // TODO: assuming no use of "at" currently
-            let ds = c
+            let ds:Vec<Dependency> = c
                 .deps()
                 .iter()
                 .map(|d| Dependency {
@@ -400,7 +380,6 @@ impl Transition for SystemSpec {
                         })
                 })
                 .collect();
-            deps.insert(ComponentName::new(&c.name, &String::from("global")), ds);
 
             let es = c
                 .implements
@@ -412,6 +391,34 @@ impl Transition for SystemSpec {
                     variant: e.variant.as_ref().unwrap_or(&"stubs".to_string()).clone(),
                 })
                 .collect();
+
+            let sched_name = ds
+                .iter()
+                .find(|d| d.interface == "init" && d.variant != "kernel")
+                .map(|d| d.server.clone())
+                .unwrap_or_else(|| ComponentName::new(&String::from("kernel"), &String::from("global")));
+
+            let comp = Component {
+                name: ComponentName::new(&c.name, &String::from("global")),
+                constructor: ComponentName::new(&c.constructor, &String::from("global")),
+                scheduler: sched_name,
+                source: c.img.clone(),
+                base_vaddr: c
+                    .baseaddr
+                    .as_ref()
+                    .unwrap_or(&String::from("0x00400000"))
+                    .clone(),
+                params: c
+                    .params
+                    .as_ref()
+                    .unwrap_or(&Vec::new())
+                    .iter()
+                    .map(|p| ArgsKV::new_key(p.name.clone(), p.value.clone()))
+                    .collect(),
+                fsimg: c.initfs.clone(),
+            };
+            components.insert(ComponentName::new(&c.name, &String::from("global")), comp);
+            deps.insert(ComponentName::new(&c.name, &String::from("global")), ds);
             exports.insert(ComponentName::new(&c.name, &String::from("global")), es);
         }
 

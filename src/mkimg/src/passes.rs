@@ -20,6 +20,7 @@ pub struct SystemState {
 
     parse: Option<Box<dyn SpecificationPass>>,
     named: Option<Box<dyn OrderedSpecPass>>,
+    properties: Option<Box<dyn PropertiesPass>>,
     restbls: Option<Box<dyn ResPass>>,
     param: HashMap<ComponentId, Box<dyn InitParamPass>>,
     objs: HashMap<ComponentId, Box<dyn ObjectsPass>>,
@@ -33,6 +34,7 @@ impl SystemState {
             spec,
             parse: None,
             named: None,
+            properties: None,
             restbls: None,
             param: HashMap::new(),
             objs: HashMap::new(),
@@ -47,6 +49,10 @@ impl SystemState {
 
     pub fn add_named(&mut self, n: Box<dyn OrderedSpecPass>) {
         self.named = Some(n);
+    }
+
+    pub fn add_properties(&mut self, n: Box<dyn PropertiesPass>) {
+        self.properties = Some(n);
     }
 
     pub fn add_restbls(&mut self, r: Box<dyn ResPass>) {
@@ -79,6 +85,10 @@ impl SystemState {
 
     pub fn get_named(&self) -> &dyn OrderedSpecPass {
         &**(self.named.as_ref().unwrap())
+    }
+
+    pub fn get_properties(&self) -> &dyn PropertiesPass {
+        &**(self.properties.as_ref().unwrap())
     }
 
     pub fn get_restbl(&self) -> &dyn ResPass {
@@ -180,7 +190,10 @@ pub type ComponentId = u32;
 #[derive(Clone, Debug)]
 pub struct Component {
     pub name: ComponentName, // How is the component identified? Component_{Name, Id}
+
     pub constructor: ComponentName, // the constructor that loads this component
+    pub scheduler: ComponentName,   // our scheduler (that creates or initial thread)
+
     pub source: String,      // Where is the component source located?
     pub base_vaddr: String, // The lowest virtual address for the component -- could be hex, so not a VAddr
     pub params: Vec<ArgsKV>, // initialization parameters
@@ -218,6 +231,7 @@ pub trait SpecificationPass {
 // depended on).
 pub trait OrderedSpecPass {
     fn ids(&self) -> &BTreeMap<ComponentId, ComponentName>;
+    fn rmap(&self) -> &BTreeMap<ComponentName, ComponentId>;
 }
 
 // Helper access functions
@@ -241,18 +255,64 @@ pub fn exports<'a>(s: &'a SystemState, id: &ComponentId) -> &'a Vec<Export> {
     s.get_spec().exports_named(name)
 }
 
+// A number of component service types are important for mkimg to
+// understand. These involve specific and somewhat complex
+// relationships often between services of the same type.
+//
+// The ServiceType is used in API calls to select which service we're
+// querying about.
+pub enum ServiceType {
+    Scheduler,
+    CapMgr,
+    MemMgr,
+    Constructor,
+}
+
+// If a component provides one of these services, which are the other
+// client components that rely on it for service. Note that it is
+// possible that a component is a Scheduler, but has not clients.
+pub enum ServiceClients {
+    Scheduler(Vec<ComponentId>),
+    CapMgr(Vec<ComponentId>),
+    MemMgr(Vec<ComponentId>),
+    Constructor(Vec<ComponentId>)
+}
+
+pub enum ServiceProvider {
+    Scheduler(ComponentId),
+    CapMgr(ComponentId),
+    MemMgr(ComponentId),
+    Constructor(ComponentId)
+}
+
+// Is the component a service of the given type? If so, who are its
+// clients? And does the component depend on a component of that
+// service type (and which component)?
+pub trait PropertiesPass {
+    fn service_is_a(&self, id: &ComponentId, t: ServiceType) -> bool;
+    fn service_clients(&self, id: &ComponentId, t: ServiceType) -> Option<&Vec<ComponentId>>;
+    fn service_dependency(&self, id: &ComponentId, t: ServiceType) -> Option<ComponentId>;
+}
+
 // Resource must be allocated and delegated to populate the resource
 // tables for each component, and determine which is in charge of
 // which resources.
 pub type CapId = u32;
+#[derive(Debug)]
 pub enum CapTarget {
     Ourselves,
     Client(ComponentId),
+    Indirect(ComponentId, ComponentId) // component with access to a cap for another component
 }
+
+#[derive(Debug)]
 pub enum CapRes {
     CapTbl(CapTarget),
     PgTbl(CapTarget),
+    Comp(CapTarget),
     Thd(CapTarget),
+    SInv,                       // only used to lookup its size
+    TCap(CapTarget),
     Rcv(CapTarget), // ...
 }
 pub type CapTable = BTreeMap<CapId, CapRes>;
@@ -260,8 +320,7 @@ pub type CapTable = BTreeMap<CapId, CapRes>;
 // Compute the resource table, and resource allocations for each
 // component.
 pub trait ResPass {
-    // for now, ignoring page-table
-    fn cap_tbl(&self, &ComponentId) -> &CapTable;
+    fn args(&self, &ComponentId) -> &Vec<ArgsKV>;
 }
 
 // The initparam, objects, and synchronous invocation passes are all

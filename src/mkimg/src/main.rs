@@ -16,6 +16,7 @@ mod resources;
 mod symbols;
 mod syshelpers;
 mod tot_order;
+mod properties;
 
 use build::DefaultBuilder;
 use compobject::{Constructor, ElfObject};
@@ -24,6 +25,7 @@ use initargs::Parameters;
 use invocations::Invocations;
 use passes::{BuildState, ComponentId, SystemState, Transition, TransitionIter};
 use resources::ResAssignPass;
+use properties::CompProperties;
 use std::env;
 use tot_order::CompTotOrd;
 
@@ -47,8 +49,10 @@ pub fn exec() -> Result<(), String> {
 
     sys.add_parsed(SystemSpec::transition(&sys, &mut build)?);
     sys.add_named(CompTotOrd::transition(&sys, &mut build)?);
+    sys.add_properties(CompProperties::transition(&sys, &mut build)?);
     sys.add_restbls(ResAssignPass::transition(&sys, &mut build)?);
 
+    // process these in reverse order of dependencies (e.g. booter last)
     let reverse_ids: Vec<ComponentId> = sys
         .get_named()
         .ids()

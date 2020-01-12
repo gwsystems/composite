@@ -3,11 +3,16 @@ use std::collections::BTreeMap;
 
 pub struct CompTotOrd {
     ids: BTreeMap<ComponentId, ComponentName>,
+    rmap: BTreeMap<ComponentName, ComponentId>,
 }
 
 impl OrderedSpecPass for CompTotOrd {
     fn ids(&self) -> &BTreeMap<ComponentId, ComponentName> {
         &self.ids
+    }
+
+    fn rmap(&self) -> &BTreeMap<ComponentName, ComponentId> {
+        &self.rmap
     }
 }
 
@@ -57,12 +62,17 @@ impl Transition for CompTotOrd {
         }
 
         let mut comps = BTreeMap::new();
+        let mut rmap = BTreeMap::new();
         let mut id: ComponentId = 1;
         for c in tot_ord {
             comps.insert(id, c.clone());
+            rmap.insert(c.clone(), id);
             id = id + 1;
         }
 
-        Ok(Box::new(CompTotOrd { ids: comps }))
+        Ok(Box::new(CompTotOrd {
+            ids: comps,
+            rmap: rmap,
+        }))
     }
 }

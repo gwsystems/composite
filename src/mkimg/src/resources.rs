@@ -1,4 +1,8 @@
-use passes::{BuildState, CapTable, ComponentId, ResPass, SystemState, Transition};
+use initargs::ArgsKV;
+use passes::{
+    deps, BuildState, CapRes, CapTable, CapTarget, ComponentId, Interface, PropertiesPass, ResPass,
+    ServiceType, SystemState, Transition,
+};
 use std::collections::{BTreeMap, HashMap};
 
 pub type CoreNum = u32;
@@ -102,6 +106,15 @@ pub enum Resource {
     Cap(Vec<ComponentId>),
 }
 
+// The equivalent of the C __captbl_cap2sz(c)
+fn cap_sz(cap: &CapRes) -> u32 {
+    match cap {
+        CapRes::Thd(_) | CapRes::TCap(_) => 1,
+        CapRes::CapTbl(_) | CapRes::PgTbl(_) => 2,
+        CapRes::Rcv(_) | CapRes::SInv | CapRes::Comp(_) => 4,
+    }
+}
+
 // resource, and parent of the resource pairs
 pub struct Res {
     resource: Resource,
@@ -109,16 +122,149 @@ pub struct Res {
 }
 
 pub struct ResAssignPass {
-    resources: HashMap<ComponentId, CapTable>,
+    resources: HashMap<ComponentId, Vec<ArgsKV>>,
+}
+
+fn sched_config(s: &SystemState, id: &ComponentId, mut args: Vec<ArgsKV>) -> Vec<ArgsKV> {
+    let props: &PropertiesPass = s.get_properties();
+    let clients = props.service_clients(&id, ServiceType::Scheduler);
+    let parent = props.service_dependency(&id, ServiceType::Scheduler);
+    let mut init = Vec::new();
+
+    assert!(props.service_is_a(&id, ServiceType::Scheduler));
+    if let Some(cs) = clients {
+        for c in cs.iter() {
+            init.push(
+                // key: component id and value: style of initialization
+                ArgsKV::new_key(
+                    c.to_string(),
+                    if props.service_is_a(c, ServiceType::Scheduler) {
+                        "sched".to_string()
+                    } else {
+                        "init".to_string()
+                    },
+                ),
+            );
+        }
+    }
+
+    args.push(ArgsKV::new_arr("execute".to_string(), init));
+    args
+}
+
+fn capmgr_config(
+    s: &SystemState,
+    id: &ComponentId,
+    mut ct: Vec<CapRes>,
+    mut ias: Vec<ArgsKV>
+) -> (Vec<CapRes>, Vec<ArgsKV>) {
+    let props: &PropertiesPass = s.get_properties();
+    let clients = props.service_clients(&id, ServiceType::Scheduler);
+    let parent = props.service_dependency(&id, ServiceType::Scheduler);
+    let mut args = Vec::new();
+
+    assert!(props.service_is_a(&id, ServiceType::CapMgr));
+    if let Some(cs) = clients {
+        for c in cs.iter() {
+            // sanity
+            assert!(*c != *id);
+            // don't support nested capmgrs yet
+            assert!(!props.service_is_a(&c, ServiceType::CapMgr));
+
+            // capability table entries for the client
+            ct.push(CapRes::CapTbl(CapTarget::Client(*c)));
+            ct.push(CapRes::PgTbl(CapTarget::Client(*c)));
+            ct.push(CapRes::Comp(CapTarget::Client(*c)));
+
+            // scheduler hierarchy
+            if (props.service_is_a(&c, ServiceType::Scheduler)) {
+                let p = props.service_dependency(&c, ServiceType::Scheduler);
+
+                // at the least, the capmgr should be the parent
+                assert!(p.is_some());
+                args.push(ArgsKV::new_key(c.to_string(), p.unwrap().to_string()));
+            }
+        }
+    }
+
+    ias.push(ArgsKV::new_arr("scheduler_hierarchy".to_string(), args));
+    (ct, ias)
+}
+
+fn constructor_config(
+    s: &SystemState,
+    id: &ComponentId,
+    mut ct: Vec<CapRes>,
+    mut args: Vec<ArgsKV>,
+) -> (Vec<CapRes>, Vec<ArgsKV>) {
+    let props: &PropertiesPass = s.get_properties();
+    let clients = props.service_clients(&id, ServiceType::Constructor);
+    let parent = props.service_dependency(&id, ServiceType::Constructor);
+
+    assert!(props.service_is_a(&id, ServiceType::Constructor));
+    assert!(parent.is_none());
+    if let Some(cs) = clients {
+        for c in cs.iter() {
+            // assert!();
+
+            if props.service_is_a(&c, ServiceType::CapMgr) {
+                let mut cm_ct = Vec::new();
+                // Assuming that the values returned by this are the
+                // same as those created while processing the capmgr
+                let (cm_ct, _) = capmgr_config(&s, &c, cm_ct, Vec::new());
+
+                for cap in &cm_ct {
+                    let cr = match cap {
+                        CapRes::CapTbl(CapTarget::Client(t)) => {
+                            Some(CapRes::CapTbl(CapTarget::Indirect(*c, *t)))
+                        }
+                        CapRes::PgTbl(CapTarget::Client(t)) => {
+                            Some(CapRes::PgTbl(CapTarget::Indirect(*c, *t)))
+                        }
+                        CapRes::Comp(CapTarget::Client(t)) => {
+                            Some(CapRes::Comp(CapTarget::Indirect(*c, *t)))
+                        }
+                        _ => None,
+                    };
+                    if let Some(res) = cr {
+                        ct.push(res);
+                    }
+                }
+            }
+        }
+    }
+
+    // FIXME: move some of the build.rs logic for constructor creation here.
+
+    (ct, args)
 }
 
 impl Transition for ResAssignPass {
     fn transition(s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
+        let prop = s.get_properties();
         let mut res = HashMap::new();
-        let ids = s.get_named().ids();
 
-        for (k, v) in ids.iter() {
-            res.insert(k.clone(), BTreeMap::new());
+        for (k, v) in s.get_named().ids().iter() {
+            let mut ct = Vec::new();
+            let mut args = Vec::new();
+
+            if prop.service_is_a(k, ServiceType::Scheduler) {
+                args = sched_config(&s, &k, args);
+            }
+            if prop.service_is_a(k, ServiceType::CapMgr) {
+                let ret = capmgr_config(&s, &k, ct, args);
+                ct = ret.0;
+                args = ret.1;
+            }
+            if prop.service_is_a(k, ServiceType::Constructor) {
+                let ret = constructor_config(&s, &k, ct, args);
+                ct = ret.0;
+                args = ret.1;
+            }
+
+            println!("Component {}, args {:?}, kv {:?}", k, ct, args);
+
+            res.insert(k.clone(), Vec::new());
         }
 
         Ok(Box::new(ResAssignPass { resources: res }))
@@ -126,7 +272,7 @@ impl Transition for ResAssignPass {
 }
 
 impl ResPass for ResAssignPass {
-    fn cap_tbl(&self, id: &ComponentId) -> &CapTable {
-        self.resources.get(&id).unwrap()
+    fn args(&self, id: &ComponentId) -> &Vec<ArgsKV> {
+        &self.resources.get(&id).unwrap()
     }
 }
