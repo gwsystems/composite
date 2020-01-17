@@ -1,12 +1,16 @@
 #!/bin/sh
 
-if [ $# -eq 0 ]
+if [ $# -ne 1 ]
   then
     echo "Usage: " $0 " <new_ifname>"
     exit
 fi
 
-# TODO checking that we aren't overwriting an existing interface
+if [ -f "$1" || -d "$1" ]; then
+    echo "Cannot create interface $1: already exists."
+    exit
+fi
+
 cp -r skel $1
 mv $1/skel.h $1/$1.h
 sed -i 's/SKEL/'`echo $1 | tr '[a-z]' '[A-Z]'`'/g' $1/$1.h
