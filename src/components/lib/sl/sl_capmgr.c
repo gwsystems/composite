@@ -371,7 +371,8 @@ sl_thd_retrieve(thdid_t tid)
 		/* sl_cs_enter(); */
 	}
 
-	aep.thd = capmgr_thd_retrieve(client, tid, &itid);
+	assert(0);
+	//aep.thd = capmgr_thd_retrieve(client, tid, &itid);
 	assert(aep.thd && itid); /* this thread must be a child thread and capmgr must know it! */
 	/* "client"'s initthd must be initialized! */
 	it = sl_thd_try_lkup(itid);

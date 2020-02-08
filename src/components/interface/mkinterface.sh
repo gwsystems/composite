@@ -6,7 +6,8 @@ if [ $# -ne 1 ]
     exit
 fi
 
-if [ -f "$1" || -d "$1" ]; then
+if [ -f "$1" ] || [ -d "$1" ]
+  then
     echo "Cannot create interface $1: already exists."
     exit
 fi

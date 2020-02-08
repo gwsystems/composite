@@ -191,6 +191,7 @@ impl TomlSpecification {
         //
         // TODO: same as above...should aggregate error strings
         for c in self.comps() {
+            println!("Component {:?}", c);
             for d in c.deps() {
                 if d.get_name() == "kernel" {
                     if d.variant.is_none() {
@@ -208,7 +209,7 @@ impl TomlSpecification {
                     {
                         err_accum.push_str(&format!(
                             "Error: Component {}'s dependency on {} is not exported by any depended on components.",
-                            c.name, d.get_name()
+                            c.name, d.interface
                         ));
                         fail = true;
                     }
@@ -353,7 +354,7 @@ impl Transition for SystemSpec {
 
         for c in spec.comps().iter() {
             // TODO: assuming no use of "at" currently
-            let ds:Vec<Dependency> = c
+            let ds: Vec<Dependency> = c
                 .deps()
                 .iter()
                 .map(|d| Dependency {
@@ -364,20 +365,17 @@ impl Transition for SystemSpec {
                     // then the correct interface to find the
                     // variant. Note: the unwraps here are valid
                     // as they are checked in the validation step
-                    variant: d
-                        .variant
-                        .clone()
-                        .unwrap_or_else(|| {
-                            spec.comp(d.srv.clone())
-                                .unwrap()
-                                .interfaces()
-                                .iter()
-                                .find(|i| i.interface == d.interface)
-                                .unwrap()
-                                .variant
-                                .clone()
-                                .unwrap_or_else(|| String::from("stubs"))
-                        })
+                    variant: d.variant.clone().unwrap_or_else(|| {
+                        spec.comp(d.srv.clone())
+                            .unwrap()
+                            .interfaces()
+                            .iter()
+                            .find(|i| i.interface == d.interface)
+                            .unwrap()
+                            .variant
+                            .clone()
+                            .unwrap_or_else(|| String::from("stubs"))
+                    }),
                 })
                 .collect();
 
@@ -396,7 +394,9 @@ impl Transition for SystemSpec {
                 .iter()
                 .find(|d| d.interface == "init" && d.variant != "kernel")
                 .map(|d| d.server.clone())
-                .unwrap_or_else(|| ComponentName::new(&String::from("kernel"), &String::from("global")));
+                .unwrap_or_else(|| {
+                    ComponentName::new(&String::from("kernel"), &String::from("global"))
+                });
 
             let comp = Component {
                 name: ComponentName::new(&c.name, &String::from("global")),

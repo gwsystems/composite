@@ -32,7 +32,7 @@ memmgr_heap_page_allocn(unsigned long npages)
 }
 
 cbuf_t
-memmgr_shared_page_allocn_cserialized(vaddr_t *pgaddr, int *unused, unsigned long npages)
+memmgr_shared_page_allocn(unsigned long npages, vaddr_t *pgaddr)
 {
 	spdid_t cur = cos_inv_token();
 	struct cap_comp_info  *cur_rci = cap_info_comp_find(cur);
@@ -52,7 +52,7 @@ done:
 }
 
 unsigned long
-memmgr_shared_page_map_cserialized(vaddr_t *pgaddr, int *unused, cbuf_t id)
+memmgr_shared_page_map(cbuf_t id, vaddr_t *pgaddr)
 {
 	spdid_t cur = cos_inv_token();
 	struct cap_comp_info  *cur_rci = cap_info_comp_find(cur);

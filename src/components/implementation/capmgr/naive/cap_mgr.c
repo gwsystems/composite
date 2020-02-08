@@ -13,7 +13,7 @@
 #include <cap_info.h>
 
 thdcap_t
-capmgr_thd_create_cserialized(thdid_t *tid, int *unused, thdclosure_index_t idx)
+capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid)
 {
 	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -42,7 +42,7 @@ err:
 }
 
 thdcap_t
-capmgr_thd_create_ext_cserialized(thdid_t *tid, int *unused, spdid_t s, thdclosure_index_t idx)
+capmgr_thd_create_ext(spdid_t s, thdclosure_index_t idx, thdid_t *tid)
 {
 	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -76,7 +76,7 @@ err:
 }
 
 thdcap_t
-capmgr_initthd_create_cserialized(thdid_t *tid, int *unused, spdid_t s)
+capmgr_initthd_create(spdid_t s, thdid_t *tid)
 {
 	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
@@ -111,19 +111,15 @@ err:
 }
 
 thdcap_t
-capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, u32_t spdid_owntc, u32_t key_ipimax, u32_t ipiwin32b)
+capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret)
 {
-	spdid_t                 cur     = cos_inv_token(), s = spdid_owntc >> 16;
+	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
-	struct cap_comp_info   *rs      = cap_info_comp_find(s);
+	struct cap_comp_info   *rs      = cap_info_comp_find(child);
 	struct sl_thd          *t       = NULL, *rinit = NULL;
 	thdcap_t                thdcap  = 0;
-	int                     owntc   = (spdid_owntc << 16) >> 16;
-	cos_channelkey_t        key     = key_ipimax >> 16;
-	u32_t                   ipimax  = (key_ipimax << 16) >> 16;
-	microsec_t              ipiwin  = (microsec_t)ipiwin32b;
 	int                     ret;
 	tcap_t                  tc;
 	arcvcap_t               rcv;
@@ -132,8 +128,8 @@ capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, u32_t spdid
 
 	if (!rc || !cap_info_init_check(rc)) return 0;
 	if (!rs || !cap_info_init_check(rs)) return 0;
-	if (!cap_info_is_sched(cur) || !cap_info_is_child(rc, s)) return 0;
-	if (!cap_info_is_sched(s)) return 0;
+	if (!cap_info_is_sched(cur) || !cap_info_is_child(rc, child)) return 0;
+	if (!cap_info_is_sched(child)) return 0;
 
 	rinit = cap_info_initthd(rc);
 	if (!rinit) return 0;
@@ -168,8 +164,12 @@ capmgr_initaep_create_cserialized(u32_t *sndtidret, u32_t *rcvtcret, u32_t spdid
 	cap_info_initthd_init(rs, t, 0);
 	cap_info_cpu_local(rs)->p_initthdcap = thdcap = ret;
 	cap_info_cpu_local(rs)->initthdid    = tid = sl_thd_thdid(t);
-	*rcvtcret  = (rcv << 16) | (tc);
-	*sndtidret = (snd << 16) | (tid);
+
+	aep->tid = tid;
+	aep->rcv = rcv;
+	aep->tc  = tc;
+	aep->thd = thdcap;
+	*sndret  = snd;
 
 	return thdcap;
 err:
@@ -179,21 +179,15 @@ err:
 }
 
 thdcap_t
-capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, u32_t owntc_spdid_thdidx, u32_t chkey_ipimax, u32_t ipiwin32b)
+capmgr_aep_create_ext(spdid_t s, struct cos_aep_info *aep, thdclosure_index_t tidx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
 {
 	spdid_t                 cur     = cos_inv_token();
-	spdid_t                 s       = (owntc_spdid_thdidx << 1) >> 17;
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
 	struct cap_comp_info   *rs      = cap_info_comp_find(s);
-	thdclosure_index_t      tidx    = (owntc_spdid_thdidx << 16) >> 16;
-	int                     owntc   = (owntc_spdid_thdidx >> 30);
 	struct sl_thd          *t       = NULL, *rinit = NULL;
 	thdcap_t                thdcap  = 0;
-	cos_channelkey_t        key     = chkey_ipimax >> 16;
-	u32_t                   ipimax  = (chkey_ipimax << 16) >> 16;
-	microsec_t              ipiwin  = (microsec_t)ipiwin32b;
 	arcvcap_t               srcrcv, dstrcv;
 	tcap_t                  tc;
 	int                     ret;
@@ -228,21 +222,23 @@ capmgr_aep_create_ext_cserialized(u32_t *drcvtidret, u32_t *rcvtcret, u32_t ownt
 
 		tc = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_TCAP, sl_thd_tcap(t));
 		if (!tc) goto err;
-
-		/* TODO: size check before packing */
-		*rcvtcret = (srcrcv << 16) | (tc);
 	} else {
 		/* copy sched tc (offset) pcapumably INITTCAP */
-		*rcvtcret = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;
+		tc     = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE;
+		srcrcv = 0;
 	}
 
 	cap_comminfo_init(t, ipiwin, ipimax);
 	cap_info_thd_init(rc, t, key);
 	cap_info_thd_init(rs, t, 0);
-	*drcvtidret = (dstrcv << 16 | sl_thd_thdid(t));
-	thdcap = ret;
 
-	return thdcap;
+	*extrcv  = dstrcv;
+	aep->tc  = tc;
+	aep->tid = sl_thd_thdid(t);
+	aep->rcv = srcrcv;
+	aep->thd = sl_thd_thdcap(t);
+
+	return sl_thd_thdcap(t);
 err:
 	sl_thd_free(t);
 
@@ -250,17 +246,12 @@ err:
 }
 
 thdcap_t
-capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, u32_t owntc_tidx, u32_t key_ipimax, u32_t ipiwin32b)
+capmgr_aep_create_thunk(struct cos_aep_info *aep, thdclosure_index_t tidx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
 {
 	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
-	thdclosure_index_t      tidx    = (owntc_tidx << 16) >> 16;
-	int                     owntc   = owntc_tidx >> 16;
-	cos_channelkey_t        key     = key_ipimax >> 16;
-	u32_t                   ipimax  = (key_ipimax << 16) >> 16;
-	microsec_t              ipiwin  = (microsec_t)ipiwin32b;
 	struct sl_thd          *t       = NULL, *rinit = NULL;
 	thdcap_t                thdcap  = 0;
 	arcvcap_t               rcv;
@@ -277,8 +268,8 @@ capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, u32_t owntc_tidx, u
 	t = sl_thd_aep_alloc_ext(cap_info_dci(rc), rinit, tidx, 1, owntc, 0, 0, 0, &rcv);
 	if (!t) return 0;
 	/* current is a sched, so copy */
-	ret = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
-	if (!ret) goto err;
+	thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(t));
+	if (!thdcap) goto err;
 
 	rcv = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_ARCV, sl_thd_rcvcap(t));
 	if (!rcv) goto err;
@@ -293,9 +284,11 @@ capmgr_aep_create_cserialized(thdid_t *tid, u32_t *tcrcvret, u32_t owntc_tidx, u
 
 	cap_comminfo_init(t, ipiwin, ipimax);
 	cap_info_thd_init(rc, t, key);
-	*tcrcvret = (tc << 16 | rcv);
-	*tid      = sl_thd_thdid(t);
-	thdcap    = ret;
+
+	aep->tc   = tc;
+	aep->rcv  = rcv;
+	aep->tid  = sl_thd_thdid(t);
+	aep->thd  = thdcap;
 
 	return thdcap;
 err:
@@ -304,77 +297,76 @@ err:
 	return 0;
 }
 
-thdcap_t
-capmgr_thd_retrieve_cserialized(thdid_t *inittid, int *unused, spdid_t s, thdid_t tid)
-{
-	spdid_t                   cur     = cos_inv_token();
-	struct cos_defcompinfo   *cap_dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo      *cap_ci  = cos_compinfo_get(cap_dci);
-	struct cap_comp_info     *rc      = cap_info_comp_find(cur);
-	struct cap_comp_info     *rs      = cap_info_comp_find(s);
-	struct sl_thd            *ti      = cap_info_thd_find(rs, tid);
-	struct cap_comp_cpu_info *rs_cpu  = NULL;
-	thdcap_t                  thdcap  = 0;
+/* thdcap_t */
+/* capmgr_thd_retrieve_cserialized(thdid_t *inittid, int *unused, spdid_t s, thdid_t tid) */
+/* { */
+/* 	spdid_t                   cur     = cos_inv_token(); */
+/* 	struct cos_defcompinfo   *cap_dci = cos_defcompinfo_curr_get(); */
+/* 	struct cos_compinfo      *cap_ci  = cos_compinfo_get(cap_dci); */
+/* 	struct cap_comp_info     *rc      = cap_info_comp_find(cur); */
+/* 	struct cap_comp_info     *rs      = cap_info_comp_find(s); */
+/* 	struct sl_thd            *ti      = cap_info_thd_find(rs, tid); */
+/* 	struct cap_comp_cpu_info *rs_cpu  = NULL; */
+/* 	thdcap_t                  thdcap  = 0; */
 
-	if (!rc || !cap_info_init_check(rc)) return 0;
-	if (!rs || !cap_info_init_check(rs)) return 0;
-	if (!cap_info_is_sched(cur) || !cap_info_is_child(rc, s)) return 0;
-	if (!ti || !sl_thd_thdcap(ti)) return 0;
-	rs_cpu = cap_info_cpu_local(rs);
+/* 	if (!rc || !cap_info_init_check(rc)) return 0; */
+/* 	if (!rs || !cap_info_init_check(rs)) return 0; */
+/* 	if (!cap_info_is_sched(cur) || !cap_info_is_child(rc, s)) return 0; */
+/* 	if (!ti || !sl_thd_thdcap(ti)) return 0; */
+/* 	rs_cpu = cap_info_cpu_local(rs); */
 
-	if (tid == rs_cpu->initthdid) {
-		thdcap = rs_cpu->p_initthdcap;
-	} else {
-		thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
-		if (!thdcap) goto err;
-		cap_info_thd_init(rc, ti, 0);
-	}
-	*inittid = rs_cpu->initthdid;
+/* 	if (tid == rs_cpu->initthdid) { */
+/* 		thdcap = rs_cpu->p_initthdcap; */
+/* 	} else { */
+/* 		thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti)); */
+/* 		if (!thdcap) goto err; */
+/* 		cap_info_thd_init(rc, ti, 0); */
+/* 	} */
+/* 	*inittid = rs_cpu->initthdid; */
 
-	return thdcap;
-err:
-	return 0;
-}
+/* 	return thdcap; */
+/* err: */
+/* 	return 0; */
+/* } */
 
-thdcap_t
-capmgr_thd_retrieve_next_cserialized(thdid_t *tid, int *unused, spdid_t s)
-{
-	spdid_t                   cur     = cos_inv_token();
-	struct cos_defcompinfo   *cap_dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo      *cap_ci  = cos_compinfo_get(cap_dci);
-	struct cap_comp_info     *rc      = cap_info_comp_find(cur);
-	struct cap_comp_info     *rs      = cap_info_comp_find(s);
-	struct sl_thd            *ti      = NULL;
-	struct cap_comp_cpu_info *rs_cpu  = NULL;
-	thdcap_t                  thdcap  = 0;
+/* thdcap_t */
+/* capmgr_thd_retrieve_next_cserialized(thdid_t *tid, int *unused, spdid_t s) */
+/* { */
+/* 	spdid_t                   cur     = cos_inv_token(); */
+/* 	struct cos_defcompinfo   *cap_dci = cos_defcompinfo_curr_get(); */
+/* 	struct cos_compinfo      *cap_ci  = cos_compinfo_get(cap_dci); */
+/* 	struct cap_comp_info     *rc      = cap_info_comp_find(cur); */
+/* 	struct cap_comp_info     *rs      = cap_info_comp_find(s); */
+/* 	struct sl_thd            *ti      = NULL; */
+/* 	struct cap_comp_cpu_info *rs_cpu  = NULL; */
+/* 	thdcap_t                  thdcap  = 0; */
 
-	if (!rc || !cap_info_init_check(rc)) return 0;
-	if (!rs || !cap_info_init_check(rs)) return 0;
-	if (!cap_info_is_sched(cur) || !cap_info_is_child(rc, s)) return 0;
-	ti = cap_info_thd_next(rs);
-	if (ti == NULL) return 0;
-	rs_cpu = cap_info_cpu_local(rs);
+/* 	if (!rc || !cap_info_init_check(rc)) return 0; */
+/* 	if (!rs || !cap_info_init_check(rs)) return 0; */
+/* 	if (!cap_info_is_sched(cur) || !cap_info_is_child(rc, s)) return 0; */
+/* 	ti = cap_info_thd_next(rs); */
+/* 	if (ti == NULL) return 0; */
+/* 	rs_cpu = cap_info_cpu_local(rs); */
 
-	if (sl_thd_thdid(ti) == rs_cpu->initthdid) {
-		thdcap = rs_cpu->p_initthdcap;
-	} else {
-		thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti));
-		if (!thdcap) goto err;
-		/* add to parent's array, for grand-parent's walk-through */
-		cap_info_thd_init(rc, ti, 0);
-	}
-	*tid = sl_thd_thdid(ti);
+/* 	if (sl_thd_thdid(ti) == rs_cpu->initthdid) { */
+/* 		thdcap = rs_cpu->p_initthdcap; */
+/* 	} else { */
+/* 		thdcap = cos_cap_cpy(cap_info_ci(rc), cap_ci, CAP_THD, sl_thd_thdcap(ti)); */
+/* 		if (!thdcap) goto err; */
+/* 		/\* add to parent's array, for grand-parent's walk-through *\/ */
+/* 		cap_info_thd_init(rc, ti, 0); */
+/* 	} */
+/* 	*tid = sl_thd_thdid(ti); */
 
-	return thdcap;
-err:
-	return 0;
-}
+/* 	return thdcap; */
+/* err: */
+/* 	return 0; */
+/* } */
 
 arcvcap_t
-capmgr_rcv_create_cserialized(u32_t spd_tid, u32_t key_ipimax, u32_t ipiwin32b)
+capmgr_rcv_create(spdid_t s, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
 {
-	spdid_t                 cur     = cos_inv_token(), s = (spd_tid >> 16);
-	thdid_t                 tid     = (spd_tid << 16) >> 16;
+	spdid_t                 cur     = cos_inv_token();
 	struct cos_defcompinfo *cap_dci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *cap_ci  = cos_compinfo_get(cap_dci);
 	struct cap_comp_info   *rc      = cap_info_comp_find(cur);
@@ -382,9 +374,6 @@ capmgr_rcv_create_cserialized(u32_t spd_tid, u32_t key_ipimax, u32_t ipiwin32b)
 	struct sl_thd          *ti      = cap_info_thd_find(rs, tid), *rinit = NULL;
 	arcvcap_t               rcv     = 0, rcvret = 0;
 	struct cap_comm_info   *comm    = NULL;
-	cos_channelkey_t        key     = (key_ipimax >> 16);
-	microsec_t              ipiwin  = (microsec_t)ipiwin32b;
-	u32_t                   ipimax  = (key_ipimax << 16) >> 16;
 	tcap_t                  tc      = 0;
 
 	if (!key) return 0;

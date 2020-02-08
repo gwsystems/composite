@@ -2,13 +2,41 @@
  * Redistribution of this file is permitted under the BSD two clause license.
  *
  * Copyright 2018, The George Washington University
- * Author: Phani Gadepalli, phanikishoreg@gwu.edu
+ * Author: Phani Gadepalli, phanikishoreg@gwu.edu & Gabe Parmer, gparmer@gwu.edu
  */
 
 #include <sched.h>
 #include <cos_thd_init.h>
+#include <cos_stubs.h>
 
-int sched_thd_block_timeout_cserialized(u32_t *elapsed_hi, u32_t *elapsed_lo, thdid_t deptid, u32_t abs_hi, u32_t abs_lo);
+COS_CLIENT_STUB(cycles_t, sched_thd_block_timeout)(struct usr_inv_cap *uc, thdid_t dep_id, cycles_t abs_timeout)
+{
+	word_t elapsed_hi = 0, elapsed_lo = 0;
+	cycles_t elapsed_cycles = 0;
+
+	cos_sinv_2rets(uc->cap_no, dep_id, (u32_t)(abs_timeout >> 32), (u32_t)((abs_timeout << 32) >> 32), 0, &elapsed_hi, &elapsed_lo);
+	elapsed_cycles = ((cycles_t)elapsed_hi << 32) | (cycles_t)elapsed_lo;
+
+	return elapsed_cycles;
+}
+
+COS_CLIENT_STUB(thdid_t, sched_aep_create_closure)(struct usr_inv_cap *uc, thdclosure_index_t id, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *rcv)
+{
+	u32_t idx_owntc = (id << 16) | owntc;
+	u32_t key_ipimax = (key << 16) | ipimax;
+	u32_t ipiwin32b = ipiwin;
+	int ret;
+	word_t unused, r;
+
+	if (id < 1) return 0;
+
+	ret = cos_sinv_2rets(uc->cap_no, idx_owntc, key_ipimax, 0, ipiwin32b, &r, &unused);
+	*rcv = r;
+
+	return ret;
+}
+
+#ifdef NIL
 thdid_t sched_thd_create_cserialized(thdclosure_index_t idx);
 thdid_t sched_aep_create_cserialized(arcvcap_t *rcv, int *unused, u32_t thdidx_owntc, u32_t key_ipimax, u32_t ipiwin);
 
@@ -60,3 +88,4 @@ sched_aep_create(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, int o
 
 	return ret;
 }
+#endif

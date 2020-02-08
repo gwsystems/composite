@@ -1,5 +1,5 @@
 [system]
-description = "Simplest simple with both capability manager, and scheduler, from unit_schedcomp.sh"
+description = "Simplest system with both capability manager and scheduler, from unit_schedcomp.sh"
 
 [[components]]
 name = "booter"
@@ -12,14 +12,14 @@ constructor = "kernel"
 name = "capmgr"
 img  = "capmgr.naive"
 deps = [{srv = "booter", interface = "init"}]
-implements = [{interface = "capmgr"}, {interface = "init"}]
+implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}]
 constructor = "booter"
 
 [[components]]
 name = "sched"
 img  = "sched.root_fprr"
-deps = [{srv = "capmgr", interface = "init"}]
-implements = [{interface = "sched"}]
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "sched"}, {interface = "init"}]
 constructor = "booter"
 
 [[components]]

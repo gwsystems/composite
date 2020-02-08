@@ -12,7 +12,7 @@ static struct cap_comp_info capci[MAX_NUM_COMPS + 1]; /* includes booter informa
 static unsigned int cap_comp_count;
 u32_t cap_info_schedbmp[NUM_CPU][MAX_NUM_COMP_WORDS];
 static struct cap_shmem_glb_info cap_shmglbinfo;
-extern int cap_xcore_asnd_inv(word_t a, word_t b, int yield);
+extern int __cosrt_s_capmgr_xcore_asnd(word_t a, word_t b, int yield);
 
 static inline struct cap_shmem_glb_info *
 __cap_info_shmglb_info(void)
@@ -159,7 +159,7 @@ cap_comminfo_sinv_create(struct cap_comm_info *comm)
 	snd = cap_comminfo_asnd_create(comm);
 	if (!snd) return 0;
 
-	sinv = cos_sinv_alloc(cap_ci, cap_ci->comp_cap, (vaddr_t)cap_xcore_asnd_inv, (unsigned long)comm);
+	sinv = cos_sinv_alloc(cap_ci, cap_ci->comp_cap, (vaddr_t)__cosrt_s_capmgr_xcore_asnd, (unsigned long)comm);
 	assert(sinv);
 
 	/* if this fails, someone else was able to update.. we have a wasted slot here but! */
