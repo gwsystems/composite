@@ -16,7 +16,7 @@ This is the most straight forward and less tedious way to boot on Bare metal.
   Instead, you could just run it using QEMU emulation -- `./qemu.sh <runscript>` in your `transfer/` directory.
 * `geniso.sh` may fail if you've an outdated `xorriso` version. Be sure to check the logs and update your `xorriso` package. example error log:
    ```
-   $ ./geniso.sh micro_boot.sh 
+   $ ./geniso.sh kernel_tests.sh
    grub-mkrescue: warning: Your xorriso doesn't support `--grub2-boot-info'. Some features are disabled. Please use xorriso 1.2.9 or later..
    ```
 
