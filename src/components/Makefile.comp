@@ -55,3 +55,11 @@ LIBCOSDEFKERN=-lcos_kernel_api -lcos_defkernel_api
 LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap -lsl_xcpu -lsl_child -lck
 LIBSLCAPMGR=$(LIBSLCORE) -lsl_capmgr
 LIBSLRAW=$(LIBSLCORE) -lsl_raw
+
+GCC_PIE=$(shell gcc -v 2>&1 | grep -c "\--enable-default-pie")
+ifeq ($(GCC_PIE),1)
+MUSLCFLAGS+=-no-pie
+LDFLAGS+=-no-pie
+CFLAGS+=-fno-pie
+CXXFLAGS+=-fno-pie
+endif
