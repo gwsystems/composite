@@ -11,6 +11,13 @@
 #include <sl.h>
 #include <capmgr.h>
 #include <cap_info.h>
+#include <capmgr_create.h>
+
+void
+capmgr_create_noop(void)
+{
+	return;
+}
 
 thdcap_t
 capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid)

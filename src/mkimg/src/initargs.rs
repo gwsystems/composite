@@ -168,8 +168,16 @@ impl TransitionIter for Parameters {
         b: &mut dyn BuildState,
     ) -> Result<Box<Self>, String> {
         let argpath = b.comp_file_path(&id, &"initargs.c".to_string(), s)?;
-        let args = &component(s, id).params;
-        initargs_create(&argpath, args)?;
+        let mut args = Vec::new();
+        component(s, id)
+            .params
+            .iter()
+            .for_each(|a| args.push(a.clone()));
+        let resargs = s.get_restbl().args(&id);
+        resargs.iter().for_each(|a| args.push(a.clone()));
+        args.push(ArgsKV::new_key(String::from("compid"), id.to_string()));
+
+        initargs_create(&argpath, &args)?;
 
         Ok(Box::new(Parameters {
             args: args.clone(),

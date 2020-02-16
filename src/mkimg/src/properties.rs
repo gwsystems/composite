@@ -60,8 +60,8 @@ impl Transition for CompProperties {
             let mut parents = Vec::new();
 
             // Scheduler properties
-            let (is_a, prop, parent) = interface_dependencies(&s, &id, "init".to_string());
-            if prop.len() > 0 || is_a {
+            let (is_an_init, prop, parent) = interface_dependencies(&s, &id, "init".to_string());
+            if prop.len() > 0 || is_an_init {
                 props.push(ServiceClients::Scheduler(prop));
             }
             if let Some(p) = parent {
@@ -69,11 +69,19 @@ impl Transition for CompProperties {
             }
 
             // Capability manager properties
-            let (is_a, prop, parent) = interface_dependencies(&s, &id, "capmgr".to_string());
-            if prop.len() > 0 || is_a {
+            let (is_a_capmgr, mut prop, parent) = interface_dependencies(&s, &id, "capmgr".to_string());
+            // Capability manager (with only thread creation) properties
+            let (is_a_capmgrthd, mut prop2, parent2) = interface_dependencies(&s, &id, "capmgr_create".to_string());
+            if prop.len() + prop2.len() > 0 || is_a_capmgr || is_a_capmgrthd {
+                prop.append(&mut prop2);
                 props.push(ServiceClients::CapMgr(prop));
             }
             if let Some(p) = parent {
+                if let Some(p2) = parent2 {
+                    if p != p2 {
+                        return Err(format!("Error: Component {} depends on both capmgr and capmgr_create, but from different components ({} and {}).", id, p, p2));
+                    }
+                }
                 parents.push(ServiceProvider::CapMgr(p));
             }
 
@@ -107,6 +115,13 @@ impl Transition for CompProperties {
             }
             if let Some(p) = parent {
                 parents.push(ServiceProvider::Constructor(p));
+            }
+
+            if *id == 2 {
+                println!("Component 2: {:?}", props);
+            }
+            if *id == 4 {
+                println!("Component 4: {:?}", parents);
             }
 
             properties.insert(id.clone(), (props, parents));

@@ -1,7 +1,7 @@
 use initargs::ArgsKV;
 use passes::{
-    deps, BuildState, CapRes, CapTable, CapTarget, ComponentId, Interface, PropertiesPass, ResPass,
-    ServiceType, SystemState, Transition,
+    deps, BuildState, ComponentId, Interface, PropertiesPass, ResPass, ServiceType, SystemState,
+    Transition,
 };
 use std::collections::{BTreeMap, HashMap};
 
@@ -106,6 +106,27 @@ pub enum Resource {
     Cap(Vec<ComponentId>),
 }
 
+// Resource must be allocated and delegated to populate the resource
+// tables for each component, and determine which is in charge of
+// which resources.
+#[derive(Debug)]
+enum CapTarget {
+    Ourselves,
+    Client(ComponentId),
+    Indirect(ComponentId, ComponentId), // component with access to a cap for another component
+}
+
+#[derive(Debug)]
+enum CapRes {
+    CapTbl(CapTarget),
+    PgTbl(CapTarget),
+    Comp(CapTarget),
+    Thd(CapTarget),
+    SInv, // only used to lookup its size
+    TCap(CapTarget),
+    Rcv(CapTarget), // ...
+}
+
 // The equivalent of the C __captbl_cap2sz(c)
 fn cap_sz(cap: &CapRes) -> u32 {
     match cap {
@@ -115,10 +136,26 @@ fn cap_sz(cap: &CapRes) -> u32 {
     }
 }
 
-// resource, and parent of the resource pairs
-pub struct Res {
-    resource: Resource,
-    parent: Option<ComponentId>,
+fn cap_targets(t: &CapTarget) -> (Option<ComponentId>, Option<ComponentId>) {
+    match t {
+        CapTarget::Ourselves => (None, None),
+        CapTarget::Client(id) => (Some(*id), None),
+        CapTarget::Indirect(chld, grandchld) => (Some(*chld), Some(*grandchld)),
+    }
+}
+
+// returns the size of the capability, the type (in captbl, pgtbl,
+// comp, for now), the target, and the indirect target.
+fn cap_info(c: &CapRes) -> (u32, String, Option<ComponentId>, Option<ComponentId>) {
+    let sz = cap_sz(&c);
+    let (n, (c, gc)) = match c {
+        CapRes::CapTbl(t) => ("captbl".to_string(), cap_targets(t)),
+        CapRes::PgTbl(t) => ("pgtbl".to_string(), cap_targets(t)),
+        CapRes::Comp(t) => ("comp".to_string(), cap_targets(t)),
+        _ => unimplemented!("Capabilities other than pgtbl, captbl, and component not supported"),
+    };
+
+    (sz, n, c, gc)
 }
 
 pub struct ResAssignPass {
@@ -156,34 +193,45 @@ fn capmgr_config(
     s: &SystemState,
     id: &ComponentId,
     mut ct: Vec<CapRes>,
-    mut ias: Vec<ArgsKV>
+    mut ias: Vec<ArgsKV>,
 ) -> (Vec<CapRes>, Vec<ArgsKV>) {
     let props: &PropertiesPass = s.get_properties();
-    let clients = props.service_clients(&id, ServiceType::Scheduler);
-    let parent = props.service_dependency(&id, ServiceType::Scheduler);
     let mut args = Vec::new();
+    let parent = props.service_dependency(&id, ServiceType::Scheduler);
+    let mut clients = props
+        .service_clients(&id, ServiceType::Scheduler)
+        .map(|cs| cs.clone()) // get rid of the reference
+        .unwrap_or_else(|| Vec::new());
+
+    // aggregate records for scheduler and capmgr dependencies
+    clients.append(
+        &mut props
+            .service_clients(&id, ServiceType::CapMgr)
+            .map(|cs| cs.clone())
+            .unwrap_or_else(|| Vec::new()),
+    );
+    clients.sort();
+    clients.dedup();
 
     assert!(props.service_is_a(&id, ServiceType::CapMgr));
-    if let Some(cs) = clients {
-        for c in cs.iter() {
-            // sanity
-            assert!(*c != *id);
-            // don't support nested capmgrs yet
-            assert!(!props.service_is_a(&c, ServiceType::CapMgr));
+    for c in &clients {
+        // sanity
+        assert!(*c != *id);
+        // don't support nested capmgrs yet
+        assert!(!props.service_is_a(&c, ServiceType::CapMgr));
 
-            // capability table entries for the client
-            ct.push(CapRes::CapTbl(CapTarget::Client(*c)));
-            ct.push(CapRes::PgTbl(CapTarget::Client(*c)));
-            ct.push(CapRes::Comp(CapTarget::Client(*c)));
+        // capability table entries for the client
+        ct.push(CapRes::CapTbl(CapTarget::Client(*c)));
+        ct.push(CapRes::PgTbl(CapTarget::Client(*c)));
+        ct.push(CapRes::Comp(CapTarget::Client(*c)));
 
-            // scheduler hierarchy
-            if (props.service_is_a(&c, ServiceType::Scheduler)) {
-                let p = props.service_dependency(&c, ServiceType::Scheduler);
+        // scheduler hierarchy
+        if (props.service_is_a(&c, ServiceType::Scheduler)) {
+            let p = props.service_dependency(&c, ServiceType::Scheduler);
 
-                // at the least, the capmgr should be the parent
-                assert!(p.is_some());
-                args.push(ArgsKV::new_key(c.to_string(), p.unwrap().to_string()));
-            }
+            // at the least, the capmgr should be the parent
+            assert!(p.is_some());
+            args.push(ArgsKV::new_key(c.to_string(), p.unwrap().to_string()));
         }
     }
 
@@ -239,6 +287,45 @@ fn constructor_config(
     (ct, args)
 }
 
+fn captbl_serialize(ct: Vec<CapRes>) -> Vec<ArgsKV> {
+    let mut args = Vec::new();
+    let mut all = Vec::new();
+    let mut capid = 4; // the first 4 capabilities are 1 slot and ret
+    let mut prev_capsz = 1;
+
+    for r in &ct {
+        let (sz, name, target, indirect) = cap_info(&r);
+
+        // all capabilities with in each block of 4 capids must have the same id
+        if (capid % 4 != 0) && (prev_capsz != sz) {
+            capid = capid + (4 - capid % 4); //  round up to power of 4
+        }
+
+        let mut capinfo = vec![ArgsKV::new_key("type".to_string(), name)];
+        if let Some(t) = target {
+            capinfo.push(ArgsKV::new_key("target".to_string(), t.to_string()));
+        }
+        if let Some(it) = indirect {
+            capinfo.push(ArgsKV::new_key("indirect".to_string(), it.to_string()));
+        }
+
+        args.push(ArgsKV::new_arr(capid.to_string(), capinfo));
+
+        prev_capsz = sz;
+        capid = capid + sz;
+    }
+
+    if args.len() > 0 {
+        all.push(ArgsKV::new_arr("captbl".to_string(), args));
+    }
+    if (capid % 4 != 0) {
+        capid = capid + (4 - capid % 4); //  round up to power of 4
+    }
+    all.push(ArgsKV::new_key("captbl_end".to_string(), capid.to_string()));
+
+    all
+}
+
 impl Transition for ResAssignPass {
     fn transition(s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
         let prop = s.get_properties();
@@ -247,6 +334,7 @@ impl Transition for ResAssignPass {
         for (k, v) in s.get_named().ids().iter() {
             let mut ct = Vec::new();
             let mut args = Vec::new();
+            let mut ctargs = Vec::new();
 
             if prop.service_is_a(k, ServiceType::Scheduler) {
                 args = sched_config(&s, &k, args);
@@ -262,9 +350,10 @@ impl Transition for ResAssignPass {
                 args = ret.1;
             }
 
-            println!("Component {}, args {:?}, kv {:?}", k, ct, args);
+            ctargs = captbl_serialize(ct);
+            args.append(&mut ctargs);
 
-            res.insert(k.clone(), Vec::new());
+            res.insert(k.clone(), args);
         }
 
         Ok(Box::new(ResAssignPass { resources: res }))

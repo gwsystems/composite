@@ -12,7 +12,7 @@ constructor = "kernel"
 name = "capmgr"
 img  = "capmgr.naive"
 deps = [{srv = "booter", interface = "init"}]
-implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}]
+implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
 constructor = "booter"
 
 [[components]]
@@ -25,5 +25,5 @@ constructor = "booter"
 [[components]]
 name = "schedtest"
 img  = "tests.unit_schedcomp"
-deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}]
+deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}]
 constructor = "booter"

@@ -159,7 +159,6 @@ fn constructor_serialize_args(
     let mut topkv = Vec::new();
     topkv.push(ArgsKV::new_arr(String::from("sinvs"), sinvs));
     topkv.push(ArgsKV::new_arr(String::from("components"), ids));
-    topkv.push(ArgsKV::new_key(String::from("compid"), String::from("1")));
     s.get_param_id(&id)
         .param_list()
         .iter()

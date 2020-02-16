@@ -261,6 +261,7 @@ pub fn exports<'a>(s: &'a SystemState, id: &ComponentId) -> &'a Vec<Export> {
 //
 // The ServiceType is used in API calls to select which service we're
 // querying about.
+#[derive(Debug)]
 pub enum ServiceType {
     Scheduler,
     CapMgr,
@@ -270,7 +271,8 @@ pub enum ServiceType {
 
 // If a component provides one of these services, which are the other
 // client components that rely on it for service. Note that it is
-// possible that a component is a Scheduler, but has not clients.
+// possible that a component is a Scheduler, but has no clients.
+#[derive(Debug)]
 pub enum ServiceClients {
     Scheduler(Vec<ComponentId>),
     CapMgr(Vec<ComponentId>),
@@ -278,6 +280,7 @@ pub enum ServiceClients {
     Constructor(Vec<ComponentId>)
 }
 
+#[derive(Debug)]
 pub enum ServiceProvider {
     Scheduler(ComponentId),
     CapMgr(ComponentId),
@@ -293,29 +296,6 @@ pub trait PropertiesPass {
     fn service_clients(&self, id: &ComponentId, t: ServiceType) -> Option<&Vec<ComponentId>>;
     fn service_dependency(&self, id: &ComponentId, t: ServiceType) -> Option<ComponentId>;
 }
-
-// Resource must be allocated and delegated to populate the resource
-// tables for each component, and determine which is in charge of
-// which resources.
-pub type CapId = u32;
-#[derive(Debug)]
-pub enum CapTarget {
-    Ourselves,
-    Client(ComponentId),
-    Indirect(ComponentId, ComponentId) // component with access to a cap for another component
-}
-
-#[derive(Debug)]
-pub enum CapRes {
-    CapTbl(CapTarget),
-    PgTbl(CapTarget),
-    Comp(CapTarget),
-    Thd(CapTarget),
-    SInv,                       // only used to lookup its size
-    TCap(CapTarget),
-    Rcv(CapTarget), // ...
-}
-pub type CapTable = BTreeMap<CapId, CapRes>;
 
 // Compute the resource table, and resource allocations for each
 // component.

@@ -49,11 +49,11 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
         if !found {
             let mut aggdeps = String::from("");
             for d in deps(&s, &id) {
-                aggdeps.push_str(&format!("{:?}", d.server.clone()));
+                aggdeps.push_str(&format!(" {:?}", d.server.clone()));
             }
 
             errors.push_str(&format!(
-                "Error: Undefined dependency for unresolved function.  Component {:?} has an undefined function call to {} that is not satisfied by any of its dependencies (i.e. that function isn't provided by any of {}).\n",
+                "Error: Undefined dependency for unresolved function.  Component {:?} has an undefined function call to {} that is not satisfied by any of its dependencies (i.e. that function isn't provided by any of{}).\n",
                 component(&s, &id).name, sname, aggdeps));
         }
     }

@@ -1,7 +1,7 @@
 C_OBJS=cap_mgr.c mem_mgr.c init.c
 ASM_OBJS=
 COMPONENT=capmgr.o
-INTERFACES=capmgr channel
+INTERFACES=capmgr channel capmgr_create
 DEPENDENCIES=
 IF_LIB=
 ADDITIONAL_LIBS=$(LIBSLRAW) -lsl_mod_fprr -lsl_thd_static_backend
