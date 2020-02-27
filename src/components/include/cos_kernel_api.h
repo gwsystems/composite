@@ -42,6 +42,7 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
+#include <ps_plat.h>
 /* Types mainly used for documentation */
 typedef capid_t sinvcap_t;
 typedef capid_t sretcap_t;
@@ -67,13 +68,16 @@ struct cos_compinfo {
 	capid_t pgtbl_cap, captbl_cap, comp_cap;
 	/* the frontier of unallocated caps, and the allocated captbl range */
 	capid_t cap_frontier, caprange_frontier;
-	/* the frontier for each of the various sizes of capability */
-	capid_t cap16_frontier, cap32_frontier, cap64_frontier;
+	/* the frontier for each of the various sizes of capability per core! */
+	capid_t cap16_frontier[NUM_CPU], cap32_frontier[NUM_CPU], cap64_frontier;
 	/* heap pointer equivalent, and range of allocated PTEs */
 	vaddr_t vas_frontier, vasrange_frontier;
 	/* the source of memory */
 	struct cos_compinfo *memsrc; /* might be self-referential */
 	struct cos_meminfo   mi;     /* only populated for the component with real memory */
+
+	struct ps_lock cap_lock, mem_lock; /* locks to make the cap frontier and mem frontier updates and expands atomic */
+	struct ps_lock va_lock; /* lock to make the vas frontier and bump expands for vas atomic */
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
@@ -185,7 +189,7 @@ int cos_tcap_merge(tcap_t dst, tcap_t rm);
 hwcap_t cos_hw_alloc(struct cos_compinfo *ci, u32_t bitmap);
 int     cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t rcvcap);
 int     cos_hw_detach(hwcap_t hwc, hwid_t hwid);
-void *  cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
+void   *cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
 int     cos_hw_cycles_per_usec(hwcap_t hwc);
 int     cos_hw_cycles_thresh(hwcap_t hwc);
 

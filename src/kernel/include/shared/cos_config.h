@@ -17,6 +17,9 @@
 
 #include "cpu_ghz.h"
 
+#define NUM_CPU 1
+#define NUM_CPU_BMP_BYTES ((NUM_CPU + 7) / 8)
+#define NUM_CPU_BMP_WORDS ((NUM_CPU_BMP_BYTES + 3) / 4)
 
 /*
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
@@ -25,25 +28,17 @@
  */
 #define COS_MEM_KERN_PA (0x00100000)
 #define COS_MEM_KERN_PA_ORDER (29)
-#define COS_MEM_KERN_PA_SZ (1 << COS_MEM_KERN_PA_ORDER)
+#define COS_MEM_KERN_PA_SZ ((1 << COS_MEM_KERN_PA_ORDER) - (1<<26)) /* FIXME: Need a way to get physical memory size from kernel. Cannot use a hardcoded value, actual memory could be much lower! */
 
 #define COS_MEM_COMP_START_VA ((1 << 30) + (1 << 22)) /* 1GB + 4MB (a relic) */
 #define COS_MEM_KERN_START_VA (0xc0000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
 
-#define COS_MEM_KERN_VA_SZ (1 << 24) /* 16 MB from KERN_START_VA + end of kernel image onward */
+#define COS_HW_MMIO_MAX_SZ (1 << 27) /* Assuming a MAX of 128MB for MMIO. */
+#define COS_PHYMEM_MAX_SZ ((1 << 30) - (1 << 22) - COS_HW_MMIO_MAX_SZ) /* 1GB - 4MB - MMIO sz */
 
-#define COS_HW_MMIO_START_VA 0xf0000000 /* Assuming all hardware virtual addresses are beyond this */
-#define COS_PHYMEM_MAX_SZ (COS_HW_MMIO_START_VA-(COS_MEM_KERN_START_VA+COS_MEM_KERN_PA)) /* Maximum addressable physical memory */
-
-#define BOOT_KERN_MEMSCAN_MAX (COS_HW_MMIO_START_VA)
-
-/* To get more memory, we need many PTE caps in the captbl. So give
- * multiple pages to it. 5 is enough for 512 MBs.*/
-#define BOOT_CAPTBL_NPAGES 1
+#define COS_PHYMEM_END_PA ((1 << 30) - COS_HW_MMIO_MAX_SZ) /* Maximum usable physical memory */
 
 #define BOOT_COMP_MAX_SZ (1 << 24) /* 16 MB for the booter component */
-
-#define NUM_CPU 1
 
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 

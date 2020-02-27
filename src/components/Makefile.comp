@@ -11,6 +11,10 @@ MUSLBIN=$(MUSLDIR)/bin
 MUSLCC=$(MUSLBIN)/musl-$(CC)
 MUSLINC=-isystem$(MUSLDIR)/include
 
+CKDIR=$(LIBDIR)/ck
+CKLIBDIR=$(CKDIR)/lib
+CKINCDIR=$(CKDIR)/include
+
 LIBCXXDIR=$(LIBDIR)/libcxx
 LIBSTDCXXOBJ=$(LIBCXXDIR)/libstdc++.a
 LIBSUPCXXOBJ=$(LIBCXXDIR)/libsupc++.a
@@ -34,11 +38,11 @@ LUADIR=$(LUABASE)/lua-5.2.1
 LUAOBJ=$(LUABASE)/cos/lua_lang.o
 LUAINC=-I$(LUADIR)/src -I$(LUABASE)/cos/include
 
-INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/ -I$(SHAREDINC)
+INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/ -I$(SHAREDINC) -I$(CKINCDIR)
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic
-OPT= -g
+OPT= -g -fvar-tracking
 #OPT= -O3
-CFLAGS=-m32 -D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable -fvar-tracking $(INC_PATH) $(MUSLINC) $(LWIPINC) $(LUAINC) $(OPT) $(SHARED_FLAGS)
+CFLAGS=-m32 -D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable $(INC_PATH) $(MUSLINC) $(LWIPINC) $(LUAINC) $(OPT) $(SHARED_FLAGS)
 CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
 LDFLAGS=-melf_i386
 MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r
@@ -48,6 +52,14 @@ SERVER_STUB=s_stub.o
 CLIENT_STUB=c_stub.o
 
 LIBCOSDEFKERN=-lcos_kernel_api -lcos_defkernel_api
-LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap
+LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap -lsl_xcpu -lsl_child -lck
 LIBSLCAPMGR=$(LIBSLCORE) -lsl_capmgr
 LIBSLRAW=$(LIBSLCORE) -lsl_raw
+
+GCC_PIE=$(shell gcc -v 2>&1 | grep -c "\--enable-default-pie")
+ifeq ($(GCC_PIE),1)
+MUSLCFLAGS+=-no-pie
+LDFLAGS+=-no-pie
+CFLAGS+=-fno-pie
+CXXFLAGS+=-fno-pie
+endif

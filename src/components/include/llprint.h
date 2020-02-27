@@ -6,11 +6,12 @@
 #include <string.h>
 
 #include <cos_component.h>
+#include <cos_serial.h>
 
 static void
 cos_llprint(char *s, int len)
 {
-	call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0);
+	cos_serial_putb(s, len);
 }
 
 static int
@@ -18,7 +19,7 @@ prints(char *s)
 {
 	size_t len = strlen(s);
 
-	cos_llprint(s, len);
+	cos_print(s, len); /* use syscall to print, so it prints to vga as well */
 
 	return len;
 }
@@ -51,8 +52,8 @@ extern cos_print_level_t  cos_print_level;
 extern int                cos_print_lvl_str;
 extern const char        *cos_print_str[];
 
-/* Prints with current spdid and the thdid */
-#define PRINTC(format, ...) printc("%lu,%u=> " format, cos_spd_id(), cos_thdid(), ## __VA_ARGS__)
+/* Prints with current (cpuid, thdid, spdid) */
+#define PRINTC(format, ...) printc("(%ld,%u,%lu) " format, cos_cpuid(), cos_thdid(), cos_spd_id(), ## __VA_ARGS__)
 
 /* Prints only if @level is <= cos_print_level */
 #define PRINTLOG(level, format, ...)                                                          \

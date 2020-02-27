@@ -37,6 +37,12 @@ sl_thdid_rs()
 	return sl_thdid();
 }
 
+thdid_t
+sl_thd_thdid_rs(struct sl_thd *thd)
+{
+	return sl_thd_thdid(thd);
+}
+
 struct sl_thd *
 sl_thd_lkup_rs(thdid_t tid)
 {

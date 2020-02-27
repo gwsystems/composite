@@ -1,7 +1,7 @@
 #include "kernel.h"
 #include "string.h"
 #include "isr.h"
-#include "io.h"
+#include "chal/io.h"
 
 /* Information taken from: http://wiki.osdev.org/PIC */
 /* FIXME:  Remove magic numbers and replace with this */
@@ -52,6 +52,7 @@ struct idt_ptr   idt_ptr;
 static void
 idt_set_gate(u8_t num, u32_t base, u16_t sel, u8_t flags)
 {
+	int cpu_id = get_cpuid();
 	idt_entries[num].base_lo = base & 0xFFFF;
 	idt_entries[num].base_hi = (base >> 16) & 0xFFFF;
 
@@ -92,11 +93,11 @@ remap_irq_table(void)
 #endif
 
 void
-idt_init(void)
+idt_init(const cpuid_t cpu_id)
 {
 	idt_ptr.limit = (sizeof(struct idt_entry) * NUM_IDT_ENTRIES) - 1;
-	idt_ptr.base  = (u32_t)&idt_entries;
-	memset(&idt_entries, 0, sizeof(struct idt_entry) * NUM_IDT_ENTRIES);
+	idt_ptr.base  = (u32_t)&(idt_entries);
+	memset(&(idt_entries), 0, sizeof(struct idt_entry) * NUM_IDT_ENTRIES);
 
 	outb(0x20, 0x11);
 	outb(0xA0, 0x11);
@@ -160,7 +161,8 @@ idt_init(void)
 	idt_set_gate(HW_ID29, (u32_t)handler_hw_60, 0x08, 0x8E);
 	idt_set_gate(HW_ID30, (u32_t)handler_hw_61, 0x08, 0x8E);
 	idt_set_gate(HW_ID31, (u32_t)handler_hw_62, 0x08, 0x8E);
-	idt_set_gate(HW_ID32, (u32_t)handler_hw_63, 0x08, 0x8E);
+	idt_set_gate(HW_LAPIC_SPURIOUS, (u32_t)lapic_spurious_irq, 0x08, 0x8E);
+	idt_set_gate(HW_LAPIC_IPI_ASND, (u32_t)lapic_ipi_asnd_irq, 0x08, 0x8E);
 	idt_set_gate(HW_LAPIC_TIMER, (u32_t)lapic_timer_irq, 0x08, 0x8E);
 
 	struct {
@@ -169,7 +171,7 @@ idt_init(void)
 	} __attribute__((__packed__)) idtr;
 
 	idtr.length = idt_ptr.limit;
-	idtr.base   = (unsigned long)idt_entries;
+	idtr.base   = (unsigned long)(&(idt_entries));
 
 	/* asm volatile("lidt (%0)" : : "p"(&idtr)); */
 	idt_flush((u32_t)&idtr);

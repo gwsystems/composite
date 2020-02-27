@@ -15,7 +15,7 @@
 .long MULTIBOOT_CHECKSUM
 
 .set STACKSIZE, 0x1000
-.comm stack, STACKSIZE, 32
+.comm stack, (STACKSIZE * NUM_CPU), 0x1000
 
 .globl loader
 loader:
@@ -26,6 +26,7 @@ loader:
 	movl    %eax, %cr4
 	movl    $(boot_comp_pgd-COS_MEM_KERN_START_VA), %eax
 	movl    %eax, %cr3
+
 	# Turn on paging.
 	movl    %cr0, %eax
 	orl     $(1<<31), %eax
@@ -34,6 +35,7 @@ loader:
 	pushl %esp
 	pushl %ecx
 	pushl %ebx
+
 	pushl $0  /* empty return value as we're jmping, not calling */
 	mov $kmain, %eax
 	jmp *%eax
@@ -109,7 +111,7 @@ smploader:
 
 	movw    %cs, %ax
 	movw    %ax, %ds
-	lgdtl   RELOCATE_ADDR_CS(smpgdtdesc) /* using cs as ds: idea taken from Quest */
+	lgdt    RELOCATE_ADDR_CS(smpgdtdesc) /* using cs as ds: idea taken from Quest */
 	xorw    %ax, %ax
 	movw    %ax, %ds
 
@@ -122,6 +124,7 @@ smploader:
 .align 0x10
 .code32
 smpstart32:
+
 	movw    $(SEL_KDSEG), %ax
 	movw    %ax, %ds
 	movw    %ax, %es
@@ -134,8 +137,10 @@ smpstart32:
 	movl    %cr4, %eax
 	orl     $((1<<4) | (1<<7)), %eax
 	movl    %eax, %cr4
-	movl    $(boot_comp_pgd-COS_MEM_KERN_START_VA), %eax
+
+	movl    $(boot_ap_pgd - COS_MEM_KERN_START_VA), %eax
 	movl    %eax, %cr3
+
 	/* Turn on paging. */
 	movl    %cr0, %eax
 	orl     $(CR0_PE|CR0_PG|CR0_WP), %eax
@@ -146,7 +151,7 @@ smpstart32:
 	movl    (%esp), %esp
 	pushl   $spin
 
-	mov     $kmain, %eax
+	mov     $smp_kmain, %eax
 	jmp     *%eax
 spin:
 	jmp     spin
@@ -160,7 +165,7 @@ smpgdt:
 
 smpgdtdesc:
   .word   (smpgdtdesc - smpgdt - 1)
-  .long   smpgdt
+  .long   RELOCATE_ADDR(smpgdt)
 
 .global smpstack
 smpstack:
