@@ -14,7 +14,7 @@
 
 union shared_region *shared_region;
 spdid_t              spdid;
-cos_aepkey_t         time_sync_key;
+cos_channelkey_t         time_sync_key;
 
 /* We could copy this from the cFE, but it's zero intialized there
  * Also it's totally unused (according to cFE documentation)

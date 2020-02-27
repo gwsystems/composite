@@ -1,4 +1,5 @@
 #include <cos_kernel_api.h>
+#include <hypercall.h>
 #include <sl.h>
 #include <sl_lock.h>
 
@@ -76,7 +77,12 @@ OS_SchedulerStart(cos_thd_fn_t main_delegate)
 	sl_thd_param_set(timer_thd, timer_window);
 	sl_thd_param_set(timer_thd, timer_priority);
 
-	sl_sched_loop();
+	// Must call this before entering scheduler loop
+	hypercall_comp_init_done();
+
+	OS_printf("CFE_PSP: Entering scheduler loop...\n");
+	sl_sched_loop_nonblock();
+	OS_printf("CFE_PSP: Exiting scheduler loop???\n");
 }
 
 void
@@ -133,8 +139,7 @@ OS_TaskCreate(uint32 *task_id, const char *task_name, osal_task_entry function_p
 		printc("task create in server (task_name = %s, fp = %p, idx = %d, spdid = %d)\n", task_name, function_pointer, idx, spdid);
 
 		cos_defcompinfo_childid_init(&child_dci, spdid);
-
-		thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 0, 0, 0, NULL);
+		thd = sl_thd_aep_alloc_ext(&child_dci, NULL, idx, 0, 0, 0, 0, 0, NULL);
 		assert(thd);
 	} else {
 		thd = sl_thd_alloc(osal_task_entry_wrapper, function_pointer);
