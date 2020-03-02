@@ -13,6 +13,7 @@
 #include <cap_info.h>
 #include <hypercall.h>
 #include <sl.h>
+#include <initargs.h>
 
 static volatile int capmgr_init_core_done = 0;
 
@@ -136,38 +137,28 @@ void
 cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
-	capid_t cap_frontier = 0;
-	vaddr_t heap_frontier = 0;
-	spdid_t child;
-	comp_flag_t ch_flags;
-	int ret = 0, i;
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
-	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
-	ret = hypercall_comp_frontier_get(cos_spd_id(), &heap_frontier, &cap_frontier);
-	assert(ret == 0);
+	printc("Starting the capability manager.\n");
+	printc("\tCPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+	assert(atol(args_get("captbl_end")) >= BOOT_CAPTBL_FREE);
 
-	if (cos_cpuid() == INIT_CORE) {
-		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-		cos_defcompinfo_init_ext(BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE,
-				BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
-				BOOT_CAPTBL_SELF_COMP, heap_frontier, cap_frontier);
-		cap_info_init();
-		sl_init(SL_MIN_PERIOD_US);
-		capmgr_comp_info_iter();
-	} else {
-		while (!capmgr_init_core_done) ; /* WAIT FOR INIT CORE TO BE DONE */
+	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_defcompinfo_init();
+	cap_info_init();
 
-		cos_defcompinfo_sched_init();
-		sl_init(SL_MIN_PERIOD_US);
-		capmgr_comp_info_iter_cpu();
-	}
-	assert(hypercall_comp_child_next(cos_spd_id(), &child, &ch_flags) == -1);
+	sl_init(SL_MIN_PERIOD_US);
+	capmgr_comp_info_iter();
 
-	PRINTLOG(PRINT_DEBUG, "Initialized CAPABILITY MANAGER\n");
+	return;
+}
 
-	hypercall_comp_init_done();
+void
+cos_parallel_init(coreid_t cid, int init_core, int ncores)
+{
+	if (init_core) return;
 
-	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
-	assert(0);
+	cos_defcompinfo_sched_init();
+	sl_init(SL_MIN_PERIOD_US);
+	capmgr_comp_info_iter_cpu();
 }

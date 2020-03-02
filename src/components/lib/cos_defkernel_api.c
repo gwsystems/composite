@@ -5,6 +5,7 @@
  */
 
 #include <cos_defkernel_api.h>
+#include <initargs.h>
 
 enum cos_defcompinfo_status
 {
@@ -38,11 +39,14 @@ cos_sched_aep_get(struct cos_defcompinfo *defci)
 void
 cos_defcompinfo_init(void)
 {
+	capid_t cap_frontier = atol(args_get("captbl_end"));
+
+	assert(cap_frontier > 0);
 	if (curr_defci_init_status == INITIALIZED) return;
 
 	cos_defcompinfo_init_ext(BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE,
 	                         BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT,
-	                         BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE);
+	                         BOOT_CAPTBL_SELF_COMP, (vaddr_t)cos_get_heap_ptr(), cap_frontier);
 
 }
 

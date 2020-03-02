@@ -110,21 +110,14 @@ pub enum Resource {
 // tables for each component, and determine which is in charge of
 // which resources.
 #[derive(Debug)]
-enum CapTarget {
-    Ourselves,
-    Client(ComponentId),
-    Indirect(ComponentId, ComponentId), // component with access to a cap for another component
-}
-
-#[derive(Debug)]
 enum CapRes {
-    CapTbl(CapTarget),
-    PgTbl(CapTarget),
-    Comp(CapTarget),
-    Thd(CapTarget),
+    CapTbl(ComponentId),
+    PgTbl(ComponentId),
+    Comp(ComponentId),
+    Thd(ComponentId),
     SInv, // only used to lookup its size
-    TCap(CapTarget),
-    Rcv(CapTarget), // ...
+    TCap(ComponentId),
+    Rcv(ComponentId), // ...
 }
 
 // The equivalent of the C __captbl_cap2sz(c)
@@ -136,34 +129,82 @@ fn cap_sz(cap: &CapRes) -> u32 {
     }
 }
 
-fn cap_targets(t: &CapTarget) -> (Option<ComponentId>, Option<ComponentId>) {
-    match t {
-        CapTarget::Ourselves => (None, None),
-        CapTarget::Client(id) => (Some(*id), None),
-        CapTarget::Indirect(chld, grandchld) => (Some(*chld), Some(*grandchld)),
-    }
-}
-
 // returns the size of the capability, the type (in captbl, pgtbl,
 // comp, for now), the target, and the indirect target.
-fn cap_info(c: &CapRes) -> (u32, String, Option<ComponentId>, Option<ComponentId>) {
-    let sz = cap_sz(&c);
-    let (n, (c, gc)) = match c {
-        CapRes::CapTbl(t) => ("captbl".to_string(), cap_targets(t)),
-        CapRes::PgTbl(t) => ("pgtbl".to_string(), cap_targets(t)),
-        CapRes::Comp(t) => ("comp".to_string(), cap_targets(t)),
+fn cap_info(c: &CapRes) -> (String, ComponentId) {
+    let (n, id) = match c {
+        CapRes::CapTbl(id) => ("captbl".to_string(), id),
+        CapRes::PgTbl(id) => ("pgtbl".to_string(), id),
+        CapRes::Comp(id) => ("comp".to_string(), id),
         _ => unimplemented!("Capabilities other than pgtbl, captbl, and component not supported"),
     };
 
-    (sz, n, c, gc)
+    (n, *id)
 }
 
-pub struct ResAssignPass {
-    resources: HashMap<ComponentId, Vec<ArgsKV>>,
+struct CaptblState {
+    captbl: BTreeMap<u32, CapRes>,
+    frontier: u32,
+    prev_sz: u32,
 }
 
-fn sched_config(s: &SystemState, id: &ComponentId, mut args: Vec<ArgsKV>) -> Vec<ArgsKV> {
+impl CaptblState {
+    fn new() -> CaptblState {
+        CaptblState {
+            captbl: BTreeMap::new(),
+            frontier: 44, // BOOT_CAPTBL_FREE...FIXME: automatically generate this
+            prev_sz: 4,
+        }
+    }
+
+    fn add(&mut self, cap: CapRes) {
+        let sz = cap_sz(&cap);
+        let frontier = self.frontier;
+
+        if (frontier % 4 != 0) && (self.prev_sz != sz) {
+            self.frontier = frontier + (4 - frontier % 4); //  round up to power of 4
+        }
+        self.frontier += sz;
+        self.prev_sz = sz;
+
+        self.captbl.insert(frontier, cap);
+    }
+
+    fn get_captbl(&self) -> &BTreeMap<u32, CapRes> {
+        &self.captbl
+    }
+
+    fn get_frontier(&self) -> u32 {
+        self.frontier.clone()
+    }
+}
+
+struct CompConfigState {
+    ct: CaptblState,
+    args: Vec<ArgsKV>,
+}
+
+impl CompConfigState {
+    fn new() -> CompConfigState {
+        CompConfigState {
+            ct: CaptblState::new(),
+            args: Vec::new(),
+        }
+    }
+
+    fn get_args(&self) -> &Vec<ArgsKV> {
+        &self.args
+    }
+}
+
+fn comp_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {}
+
+fn sched_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
     let props: &PropertiesPass = s.get_properties();
+    if !props.service_is_a(&id, ServiceType::Scheduler) {
+        return;
+    }
+
     let clients = props.service_clients(&id, ServiceType::Scheduler);
     let parent = props.service_dependency(&id, ServiceType::Scheduler);
     let mut init = Vec::new();
@@ -185,23 +226,31 @@ fn sched_config(s: &SystemState, id: &ComponentId, mut args: Vec<ArgsKV>) -> Vec
         }
     }
 
-    args.push(ArgsKV::new_arr("execute".to_string(), init));
-    args
+    cfg.args.push(ArgsKV::new_arr("execute".to_string(), init));
 }
 
-fn capmgr_config(
-    s: &SystemState,
-    id: &ComponentId,
-    mut ct: Vec<CapRes>,
-    mut ias: Vec<ArgsKV>,
-) -> (Vec<CapRes>, Vec<ArgsKV>) {
+fn cap2kvarg(capid: u32, cap: &CapRes) -> ArgsKV {
+    let (name, target) = cap_info(&cap);
+    let capinfo = vec![
+        ArgsKV::new_key("type".to_string(), name),
+        ArgsKV::new_key("target".to_string(), target.to_string()),
+    ];
+    ArgsKV::new_arr(capid.to_string(), capinfo)
+}
+
+fn capmgr_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
     let props: &PropertiesPass = s.get_properties();
-    let mut args = Vec::new();
+    if !props.service_is_a(&id, ServiceType::CapMgr) {
+        return;
+    }
+
     let parent = props.service_dependency(&id, ServiceType::Scheduler);
     let mut clients = props
         .service_clients(&id, ServiceType::Scheduler)
         .map(|cs| cs.clone()) // get rid of the reference
         .unwrap_or_else(|| Vec::new());
+    let mut sched_args = Vec::new();
+    let mut ct_args = Vec::new();
 
     // aggregate records for scheduler and capmgr dependencies
     clients.append(
@@ -221,9 +270,9 @@ fn capmgr_config(
         assert!(!props.service_is_a(&c, ServiceType::CapMgr));
 
         // capability table entries for the client
-        ct.push(CapRes::CapTbl(CapTarget::Client(*c)));
-        ct.push(CapRes::PgTbl(CapTarget::Client(*c)));
-        ct.push(CapRes::Comp(CapTarget::Client(*c)));
+        cfg.ct.add(CapRes::CapTbl(*c));
+        cfg.ct.add(CapRes::PgTbl(*c));
+        cfg.ct.add(CapRes::Comp(*c));
 
         // scheduler hierarchy
         if (props.service_is_a(&c, ServiceType::Scheduler)) {
@@ -231,99 +280,83 @@ fn capmgr_config(
 
             // at the least, the capmgr should be the parent
             assert!(p.is_some());
-            args.push(ArgsKV::new_key(c.to_string(), p.unwrap().to_string()));
+            sched_args.push(ArgsKV::new_key(c.to_string(), p.unwrap().to_string()));
         }
     }
+    cfg.args.push(ArgsKV::new_arr(
+        "scheduler_hierarchy".to_string(),
+        sched_args,
+    ));
 
-    ias.push(ArgsKV::new_arr("scheduler_hierarchy".to_string(), args));
-    (ct, ias)
+    for (capid, cap) in cfg.ct.get_captbl() {
+        ct_args.push(cap2kvarg(*capid, &cap));
+    }
+    cfg.args
+        .push(ArgsKV::new_arr("captbl".to_string(), ct_args));
 }
 
-fn constructor_config(
-    s: &SystemState,
-    id: &ComponentId,
-    mut ct: Vec<CapRes>,
-    mut args: Vec<ArgsKV>,
-) -> (Vec<CapRes>, Vec<ArgsKV>) {
+fn constructor_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
     let props: &PropertiesPass = s.get_properties();
+    if !props.service_is_a(&id, ServiceType::Constructor) {
+        return;
+    }
+
     let clients = props.service_clients(&id, ServiceType::Constructor);
-    let parent = props.service_dependency(&id, ServiceType::Constructor);
+    let mut captbls = BTreeMap::new();
 
     assert!(props.service_is_a(&id, ServiceType::Constructor));
-    assert!(parent.is_none());
+    // for now, assume only a single constructor
+    assert!(props
+        .service_dependency(&id, ServiceType::Constructor)
+        .is_none());
     if let Some(cs) = clients {
-        for c in cs.iter() {
-            // assert!();
-
-            if props.service_is_a(&c, ServiceType::CapMgr) {
-                let mut cm_ct = Vec::new();
-                // Assuming that the values returned by this are the
-                // same as those created while processing the capmgr
-                let (cm_ct, _) = capmgr_config(&s, &c, cm_ct, Vec::new());
-
-                for cap in &cm_ct {
-                    let cr = match cap {
-                        CapRes::CapTbl(CapTarget::Client(t)) => {
-                            Some(CapRes::CapTbl(CapTarget::Indirect(*c, *t)))
-                        }
-                        CapRes::PgTbl(CapTarget::Client(t)) => {
-                            Some(CapRes::PgTbl(CapTarget::Indirect(*c, *t)))
-                        }
-                        CapRes::Comp(CapTarget::Client(t)) => {
-                            Some(CapRes::Comp(CapTarget::Indirect(*c, *t)))
-                        }
-                        _ => None,
-                    };
-                    if let Some(res) = cr {
-                        ct.push(res);
-                    }
-                }
+        for c in cs {
+            // only have captbl for capmgrs
+            if !props.service_is_a(&c, ServiceType::CapMgr) {
+                continue;
             }
+
+            // Assuming that the values returned by this are the
+            // same as those created while processing the capmgr
+            let mut chld_cfg = CompConfigState::new();
+            capmgr_config(&s, &c, &mut chld_cfg);
+            captbls.insert(*c, chld_cfg);
         }
     }
 
-    // FIXME: move some of the build.rs logic for constructor creation here.
+    // OK, then we should construct the arguments
+    let mut args = Vec::new();
+    for (id, cfg) in &captbls {
+        let mut comp_args = Vec::new();
+        let ct = cfg.ct.get_captbl();
 
-    (ct, args)
+        for (capid, cap) in ct {
+            comp_args.push(cap2kvarg(*capid, &cap));
+        }
+
+        args.push(ArgsKV::new_arr(id.to_string(), comp_args));
+    }
+
+    cfg.args
+        .push(ArgsKV::new_arr("captbl_delegations".to_string(), args));
+    // FIXME: move some of the build.rs logic for constructor creation here.
 }
 
-fn captbl_serialize(ct: Vec<CapRes>) -> Vec<ArgsKV> {
-    let mut args = Vec::new();
-    let mut all = Vec::new();
-    let mut capid = 4; // the first 4 capabilities are 1 slot and ret
-    let mut prev_capsz = 1;
+fn comp_config_finalize(s: &SystemState, id: &ComponentId, cfg: CompConfigState) -> Vec<ArgsKV> {
+    let frontier = cfg.ct.get_frontier();
+    let mut cfg_mut = cfg;
 
-    for r in &ct {
-        let (sz, name, target, indirect) = cap_info(&r);
+    cfg_mut.args.push(ArgsKV::new_key(
+        "captbl_end".to_string(),
+        frontier.to_string(),
+    ));
+    // this clone is the cost of the type making it clear this is the
+    // "sink" for cfg
+    cfg_mut.args.clone()
+}
 
-        // all capabilities with in each block of 4 capids must have the same id
-        if (capid % 4 != 0) && (prev_capsz != sz) {
-            capid = capid + (4 - capid % 4); //  round up to power of 4
-        }
-
-        let mut capinfo = vec![ArgsKV::new_key("type".to_string(), name)];
-        if let Some(t) = target {
-            capinfo.push(ArgsKV::new_key("target".to_string(), t.to_string()));
-        }
-        if let Some(it) = indirect {
-            capinfo.push(ArgsKV::new_key("indirect".to_string(), it.to_string()));
-        }
-
-        args.push(ArgsKV::new_arr(capid.to_string(), capinfo));
-
-        prev_capsz = sz;
-        capid = capid + sz;
-    }
-
-    if args.len() > 0 {
-        all.push(ArgsKV::new_arr("captbl".to_string(), args));
-    }
-    if (capid % 4 != 0) {
-        capid = capid + (4 - capid % 4); //  round up to power of 4
-    }
-    all.push(ArgsKV::new_key("captbl_end".to_string(), capid.to_string()));
-
-    all
+pub struct ResAssignPass {
+    resources: HashMap<ComponentId, Vec<ArgsKV>>,
 }
 
 impl Transition for ResAssignPass {
@@ -332,28 +365,16 @@ impl Transition for ResAssignPass {
         let mut res = HashMap::new();
 
         for (k, v) in s.get_named().ids().iter() {
-            let mut ct = Vec::new();
-            let mut args = Vec::new();
-            let mut ctargs = Vec::new();
+            let mut cfg = CompConfigState::new();
 
-            if prop.service_is_a(k, ServiceType::Scheduler) {
-                args = sched_config(&s, &k, args);
-            }
-            if prop.service_is_a(k, ServiceType::CapMgr) {
-                let ret = capmgr_config(&s, &k, ct, args);
-                ct = ret.0;
-                args = ret.1;
-            }
-            if prop.service_is_a(k, ServiceType::Constructor) {
-                let ret = constructor_config(&s, &k, ct, args);
-                ct = ret.0;
-                args = ret.1;
-            }
-
-            ctargs = captbl_serialize(ct);
-            args.append(&mut ctargs);
-
-            res.insert(k.clone(), args);
+            // capmgr configuration must be first, and before
+            // constructor configuration, as constructor has to be
+            // able to replicate each capmgr's captbl layout
+            capmgr_config(&s, &k, &mut cfg);
+            constructor_config(&s, &k, &mut cfg);
+            sched_config(&s, &k, &mut cfg);
+            comp_config(&s, &k, &mut cfg);
+            res.insert(k.clone(), comp_config_finalize(&s, &k, cfg));
         }
 
         Ok(Box::new(ResAssignPass { resources: res }))

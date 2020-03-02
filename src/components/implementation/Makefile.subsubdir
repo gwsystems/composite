@@ -90,11 +90,13 @@ COMP_DEP_OBJS=$(foreach D,$(COMP_IFDEPS_CLEAN),$(INTERDIR)/$(D)/cosrt_c_stub.o)
 # NOTE: we're currently ignoring the libraries, which will break if an
 # interface's code requires a library
 
-component: clean $(COMPOBJ)
+comp_header:
 	$(info | Sealing $(COMP_INTERFACE).$(COMP_NAME) for variable $(COMP_VARNAME) by linking with:)
 	$(info |     Exported interfaces: $(COMP_INTERFACES_CLEAN))
 	$(info |     Interface dependencies: $(COMP_IFDEPS_CLEAN))
 	$(info |     Libraries: $(COMP_LIBDEPS_CLEAN) (currently ignored))
+
+component: clean comp_header $(COMPOBJ)
 	$(if $(COMP_INITARGS_FILE), $(CC) $(INCLUDE) -I$(CDIR)/include/initargs/ $(CFLAGS) -c -o $(COMP_INITARGS_FILE:%.c=%.o) $(COMP_INITARGS_FILE))
 	$(if $(COMP_TAR_FILE), cp $(COMP_TAR_FILE) $(TAR_SYMBOL_NAME))
 	$(if $(COMP_TAR_FILE), $(LD) $(LDFLAGS) -r -b binary $(TAR_SYMBOL_NAME) -o $(COMP_TAR_FILE).o; rm $(TAR_SYMBOL_NAME))

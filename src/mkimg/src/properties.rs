@@ -117,13 +117,6 @@ impl Transition for CompProperties {
                 parents.push(ServiceProvider::Constructor(p));
             }
 
-            if *id == 2 {
-                println!("Component 2: {:?}", props);
-            }
-            if *id == 4 {
-                println!("Component 4: {:?}", parents);
-            }
-
             properties.insert(id.clone(), (props, parents));
         }
 

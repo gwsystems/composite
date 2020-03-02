@@ -1,14 +1,18 @@
+/**
+ * Redistribution of this file is permitted under the BSD two clause license.
+ *
+ * Copyright 2019, The George Washington University
+ * Author: Gabriel Parmer, gparmer@gwu.edu
+ */
+
 #include <stdlib.h>
 #include <limits.h>
 
-#include <cos_kernel_api.h>
-#include <cos_defkernel_api.h>
-#include <cos_types.h>
-#include <llprint.h>
-
-#include <elf_loader.h>
 #include <initargs.h>
 #include <barrier.h>
+#include <cos_kernel_api.h>
+#include <cos_defkernel_api.h>
+#include <crt.h>
 
 #include <init.h>
 
@@ -18,367 +22,6 @@
 #ifndef INITARGS_MAX_PATHNAME
 #define INITARGS_MAX_PATHNAME 512
 #endif
-
-typedef unsigned long crt_refcnt_t;
-
-#define CRT_REFCNT_INITVAL 1
-
-/*
- * Return 0 on success, non-zero on failure (i.e. calling this on a
- * component that is not already active)
- */
-static inline int
-crt_refcnt_take(crt_refcnt_t *r)
-{
-	assert(*r > 0);
-	if (ps_faa(r, 1) == 0) BUG();
-
-	return 0;
-}
-
-/* return 1 if the component should be freed, 0 otherwise */
-static inline int
-crt_refcnt_release(crt_refcnt_t *r)
-{
-	assert(*r > 0);
-	if (ps_faa(r, -1) == 0) return 1;
-
-	return 0;
-}
-
-static inline int
-crt_refcnt_alive(crt_refcnt_t *r)
-{
-	return *r > 0;
-}
-
-typedef enum {
-	CRT_COMP_NONE        = 0,
-	CRT_COMP_SCHED       = 1, 	/* is this a scheduler? */
-	CRT_COMP_DELEG       = 1<<1,	/* does this component require delegating management capabilities to it? */
-	CRT_COMP_SCHED_DELEG = 1<<2,	/* is the system thread initialization delegated to this component? */
-	CRT_COMP_DERIVED     = 1<<4, 	/* derived/forked from another component */
-	CRT_COMP_INITIALIZE  = 1<<8,	/* The current component should initialize this component... */
-	CRT_COMP_BOOTER      = 1<<16,	/* Is this the current component (i.e. the booter)? */
-} crt_comp_flags_t;
-
-struct crt_comp {
-	crt_comp_flags_t flags;
-	char *name;
-	compid_t id;
-	vaddr_t entry_addr, ro_addr, rw_addr, info;
-
-	char *mem;		/* image memory */
-	struct elf_hdr *elf_hdr;
-	struct cos_defcompinfo *comp_res;
-	struct cos_defcompinfo comp_res_mem;
-
-	crt_refcnt_t refcnt;
-};
-
-struct crt_rcv {
-	/* The component the aep is attached to */
-	struct crt_comp *c;
-	/* Local information in this component */
-	struct cos_aep_info *aep; /* either points to local_aep, or a component's aep */
-	struct cos_aep_info local_aep;
-
-	crt_refcnt_t refcnt; 	/* senders create references */
-};
-
-struct crt_asnd {
-	struct crt_rcv *rcv;
-	asndcap_t asnd;
-};
-
-struct crt_sinv {
-	char *name;
-	struct crt_comp *server, *client;
-	vaddr_t c_fn_addr, c_ucap_addr;
-	vaddr_t s_fn_addr;
-	sinvcap_t sinv_cap;
-};
-
-struct crt_thd {
-	thdcap_t cap;
-	struct crt_comp *c;
-};
-
-/*
- * Create the component from the elf object including all the resource
- * tables, and memory.
- *
- * Notes:
- * - The capability tables are empty.
- * - `name` is *not* copied, so it is borrowed from within `c`. Copy
- *   it manually if you can't guarantee it will stay alive.
- *
- * Return 0 on success, -errno on failure -- either of elf parsing, or
- * of memory allocation.
- */
-int
-crt_comp_create(struct crt_comp *c, char *name, compid_t id, struct elf_hdr *elf_hdr, vaddr_t info)
-{
-	size_t  ro_sz,   rw_sz, data_sz, bss_sz, tot_sz;
-	char   *ro_src, *data_src, *mem;
-	int     ret;
-	struct cos_compinfo *ci, *root_ci;
-	struct cos_component_information *comp_info;
-	unsigned long info_offset;
-
-	*c = (struct crt_comp) {
-		.flags      = CRT_COMP_NONE,
-		.name       = name,
-		.id         = id,
-		.elf_hdr    = elf_hdr,
-		.entry_addr = elf_entry_addr(elf_hdr),
-		.comp_res   = &c->comp_res_mem,
-		.info       = info,
-		.refcnt     = CRT_REFCNT_INITVAL
-	};
-	assert(c->entry_addr != 0);
-
-	ci            = cos_compinfo_get(c->comp_res);
-	root_ci       = cos_compinfo_get(cos_defcompinfo_curr_get());
-
-	if (elf_load_info(c->elf_hdr, &c->ro_addr, &ro_sz, &ro_src, &c->rw_addr, &data_sz, &data_src, &bss_sz)) return -EINVAL;
-
-	printc("\t\tElf object: ro [0x%lx, 0x%lx), data [0x%lx, 0x%lx), bss [0x%lx, 0x%lx).\n",
-	       c->ro_addr, c->ro_addr + ro_sz, c->rw_addr, c->rw_addr + data_sz, c->rw_addr + data_sz, c->rw_addr + data_sz + bss_sz);
-
-	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
-	assert(!ret);
-
-	tot_sz = round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz);
-	mem    = cos_page_bump_allocn(root_ci, tot_sz);
-	if (!mem) return -ENOMEM;
-	c->mem = mem;
-
-	memcpy(mem, ro_src, ro_sz);
-	memcpy(mem + round_up_to_page(ro_sz), data_src, data_sz);
-	memset(mem + round_up_to_page(ro_sz) + data_sz, 0, bss_sz);
-
-	assert(info >= c->rw_addr && info < c->rw_addr + data_sz);
-	info_offset = info - c->rw_addr;
-	comp_info = (struct cos_component_information *)(mem + round_up_to_page(ro_sz) + info_offset);
-	assert(comp_info->cos_this_spd_id == 0);
-	comp_info->cos_this_spd_id = id;
-
-	/* FIXME: separate map of RO and RW */
-	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, tot_sz)) return -ENOMEM;
-
-	return 0;
-}
-
-int
-crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
-{
-	*c = (struct crt_comp) {
-		.flags      = CRT_COMP_BOOTER,
-		.name       = name,
-		.id         = id,
-		.comp_res   = cos_defcompinfo_curr_get(),
-		.info       = info,
-		.refcnt     = CRT_REFCNT_INITVAL
-	};
-
-	return 0;
-}
-
-static int
-crt_is_booter(struct crt_comp *c)
-{
-	return c->flags & CRT_COMP_BOOTER;
-}
-
-int
-crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client,
-		vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr)
-{
-	struct cos_compinfo *cli = cos_compinfo_get(client->comp_res);
-	struct cos_compinfo *srv = cos_compinfo_get(server->comp_res);
-	unsigned int ucap_off;
-	struct usr_inv_cap *ucap;
-
-	assert(crt_refcnt_alive(&server->refcnt) && crt_refcnt_alive(&client->refcnt));
-	if (crt_refcnt_take(&client->refcnt)) BUG();
-	if (crt_refcnt_take(&server->refcnt)) BUG();
-
-	assert(cli && cli->memsrc && srv && srv->memsrc && srv->comp_cap);
-	assert(!crt_is_booter(client));
-
-	*sinv = (struct crt_sinv) {
-		.name        = name,
-		.server      = server,
-		.client      = client,
-		.c_fn_addr   = c_fn_addr,
-		.c_ucap_addr = c_ucap_addr,
-		.s_fn_addr   = s_fn_addr
-	};
-
-	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
-	assert(sinv->sinv_cap);
-
-	/* poor-mans virtual address translation from client VAS -> our ptrs */
-	assert(sinv->c_ucap_addr - sinv->client->ro_addr > 0);
-	ucap_off = sinv->c_ucap_addr - sinv->client->ro_addr;
-	ucap = (struct usr_inv_cap *)(sinv->client->mem + ucap_off);
-	*ucap = (struct usr_inv_cap) {
-		.invocation_fn = sinv->c_fn_addr,
-		.cap_no        = sinv->sinv_cap,
-		.data          = NULL
-	};
-
-	return 0;
-}
-
-/*
- * Create a new thread in the component @c in response to a request
- * to create the thread from that component (thus passing in the
- * requested @closure_id).
- */
-int
-crt_thd_create(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t closure_id)
-{
-	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *target_ci = cos_compinfo_get(c->comp_res);
-	thdcap_t thdcap;
-
-	if (crt_refcnt_take(&c->refcnt)) BUG();
-	assert(target_ci->comp_cap);
-	thdcap = cos_thd_alloc_ext(cos_compinfo_get(defci), target_ci->comp_cap, closure_id);
-	assert(thdcap);
-
-	*t = (struct crt_thd) {
-		.cap = thdcap,
-		.c   = c
-	};
-
-	return 0;
-}
-
-int
-crt_rcv_create(struct crt_rcv *r, struct crt_comp *c, thdclosure_index_t closure_id)
-{
-	struct cos_defcompinfo *defci      = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci         = cos_compinfo_get(defci);
-	struct cos_aep_info    *sched_aep  = cos_sched_aep_get(defci);
-	struct cos_compinfo    *target_ci  = cos_compinfo_get(c->comp_res);
-	struct crt_thd thd;
-	tcap_t    tcap;
-	thdcap_t  thdcap;
-	arcvcap_t rcvcap;
-
-	/* Note that this increase the component's reference count */
-	if (crt_thd_create(&thd, c, closure_id)) BUG();
-	thdcap = thd.cap;
-
-	/* Allocate the necessary kernel resources */
-	assert(c->flags & CRT_COMP_SCHED);
-	tcap   = cos_tcap_alloc(ci);
-	assert(tcap);
-	rcvcap = cos_arcv_alloc(ci, thdcap, tcap, target_ci->comp_cap, sched_aep->rcv);
-	assert(rcvcap);
-
-	*r = (struct crt_rcv) {
-		.local_aep = (struct cos_aep_info) {
-			.tc   = tcap,
-			.thd  = thdcap,
-			.tid  = 0,
-			.rcv  = rcvcap,
-			.fn   = NULL,
-			.data = NULL
-		},
-		.c         = c,
-		.refcnt    = CRT_REFCNT_INITVAL
-	};
-	r->aep = &r->local_aep;
-
-	return 0;
-}
-
-int
-crt_asnd_create(struct crt_asnd *s, struct crt_rcv *r)
-{
-	struct cos_defcompinfo *defci      = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci         = cos_compinfo_get(defci);
-	struct cos_compinfo    *target_ci;
-	asndcap_t ascap;
-
-	assert(s && r && r->c && r->c->comp_res);
-	assert(r->aep && r->aep->rcv);
-	target_ci = cos_compinfo_get(r->c->comp_res);
-	assert(target_ci->captbl_cap);
-	if (crt_refcnt_take(&r->refcnt)) BUG();
-
-	ascap = cos_asnd_alloc(ci, r->aep->rcv, target_ci->captbl_cap);
-	assert(ascap);
-
-	*s = (struct crt_asnd) {
-		.asnd = ascap,
-		.rcv  = r
-	};
-
-	return 0;
-}
-
-/*
- * Create the initial execution within the given component, either
- * with a thread, or with a scheduling context, depending on if the
- * component is normal or a scheduler.
- */
-static inline int
-crt_thd_init_create(struct crt_comp *c)
-{
-	struct cos_defcompinfo *defci      = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *target_ci  = cos_compinfo_get(c->comp_res);
-	struct cos_aep_info    *target_aep = cos_sched_aep_get(c->comp_res);
-
-	/* Should only be called if initialization is necessary */
-	if ((c->flags & CRT_COMP_INITIALIZE) == 0) return -1;
-	assert(target_aep->thd == 0); /* should not allow double initialization */
-	assert(target_ci->comp_cap);
-
-	if (crt_refcnt_take(&c->refcnt)) BUG();
-	assert(target_ci->comp_cap);
-	target_aep->thd = cos_initthd_alloc(cos_compinfo_get(defci), target_ci->comp_cap);
-	assert(target_aep->thd);
-
-	return 0;
-}
-
-static inline int
-crt_thd_sched_create(struct crt_comp *c)
-{
-	struct cos_defcompinfo *defci      = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci         = cos_compinfo_get(defci);
-	struct cos_compinfo    *target_ci  = cos_compinfo_get(c->comp_res);
-	struct cos_aep_info    *target_aep = cos_sched_aep_get(c->comp_res);
-	struct crt_rcv r;
-	int ret;
-
-	/* Should only be called if initialization is necessary */
-	if ((c->flags & CRT_COMP_SCHED) == 0) return -1;
-	assert(target_aep->thd == 0); /* should not allow double initialization */
-	assert(target_ci->comp_cap);
-
-	if (crt_rcv_create(&r, c, 0)) BUG();
-
-	r.aep = target_aep;
-	*target_aep = r.local_aep;
-	assert(target_aep->thd && target_aep->tc && target_aep->rcv);
-
-	/* Make the resources accessible in the new scheduler component... */
-	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, ci, target_aep->thd);
-	assert(ret == 0);
-	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, ci, target_aep->rcv);
-	assert(ret == 0);
-	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, ci, target_aep->tc);
-	assert(ret == 0);
-
-	return 0;
-}
-
 
 /* Booter's additive information about the component */
 typedef enum {
@@ -430,18 +73,6 @@ boot_comp_set_idoffset(int off)
 	boot_id_offset = off;
 }
 
-static struct boot_comp *
-boot_comp_next(compid_t id)
-{
-	struct boot_comp *c = boot_comp_get(id);
-	struct boot_comp *n = boot_comp_get(id + 1);
-
-	assert(c->comp.id == id);
-	if (n->comp.id == 0) return NULL;
-
-	return n;
-}
-
 static void
 comps_init(void)
 {
@@ -468,8 +99,8 @@ comps_init(void)
 	printc("Components:\n");
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct crt_comp *comp;
-		struct elf_hdr  *elf;
 		struct boot_comp *bc;
+		void *elf_hdr;
 		int   keylen;
 		compid_t id = atoi(args_key(&curr, &keylen));
 		char *name  = args_get_from("img", &curr);
@@ -498,19 +129,19 @@ comps_init(void)
 		};
 		simple_barrier_init(&bc->barrier, init_parallelism());
 
-		comp = &bc->comp;
-		elf  = (struct elf_hdr *)args_get(path);
+		comp    = &bc->comp;
+		elf_hdr = (void *)args_get(path);
 
 		if (id == cos_compid()) {
 			int ret;
 
 			/* booter should not have an elf object */
-			assert(!elf);
+			assert(!elf_hdr);
 			ret = crt_booter_create(comp, name, id, info);
 			assert(ret == 0);
 		} else {
-			assert(elf);
-			if (crt_comp_create(comp, name, id, elf, info)) {
+			assert(elf_hdr);
+			if (crt_comp_create(comp, name, id, elf_hdr, info)) {
 				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
 				BUG();
 			}
@@ -528,6 +159,7 @@ comps_init(void)
 		compid_t id        = atoi(args_key(&curr, &keylen));
 		char    *exec_type = args_value(&curr);
 
+		assert(exec_type);
 		assert(id != cos_compid());
 		bc   = boot_comp_get(id);
 		assert(bc);
@@ -542,7 +174,7 @@ comps_init(void)
 			if (crt_thd_init_create(comp)) BUG();
 			printc("\tCreated thread for %ld\n", id);
 		} else {
-			printc("Error: Found execution schedule type %s.\n", exec_type);
+			printc("Error: Found unknown execution schedule type %s.\n", exec_type);
 			BUG();
 		}
 
@@ -588,26 +220,32 @@ booter_init(void)
 void
 execute(void)
 {
-	struct boot_comp *boot, *c;
-	struct crt_comp *comp;
-
-	assert(cos_compid() > 0);
-	boot = boot_comp_get(cos_compid());
-	assert(boot);
-	comp = &boot->comp;
-	assert(comp->id == cos_compid() && crt_is_booter(comp));
+	struct initargs comps, curr;
+	struct initargs_iter i;
+	int cont;
+	int ret;
 
 	/* Initialize components in order of the pre-computed schedule from mkimg */
-	while ((c = boot_comp_next(comp->id))) {
-		int initcore = c->init_core == cos_cpuid();
-		thdcap_t thd;
+	ret = args_get_entry("execute", &comps);
+	assert(!ret);
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		struct boot_comp *c;
+		struct crt_comp  *comp;
+		int      keylen;
+		compid_t id        = atoi(args_key(&curr, &keylen));
+		char    *exec_type = args_value(&curr);
+		int initcore;
+		thdcap_t thdcap;
 
+		c = boot_comp_get(id);
+		assert(c);
+		initcore = c->init_core == cos_cpuid();
 		assert(c->state = BOOT_COMP_COS_INIT);
-		comp = &c->comp;
-		thd  = comp->comp_res->sched_aep[cos_cpuid()].thd;
+		comp     = &c->comp;
+		thdcap   = crt_comp_thdcap_get(comp);
 
 		if (initcore) {
-			assert(thd);
+			assert(thdcap);
 			printc("Initializing component %lu (executing cos_init).\n", comp->id);
 		} else {
 			/* wait for the init core's thread to initialize */
@@ -615,15 +253,16 @@ execute(void)
 			if (ps_load(&c->state) != BOOT_COMP_PAR_INIT) continue;
 
 			/* Lazily allocate parallel threads only when they are required. */
-			if (!thd) {
-				thd = crt_thd_init_create(comp);
-				assert(!comp->comp_res->sched_aep[cos_cpuid()].thd);
-				comp->comp_res->sched_aep[cos_cpuid()].thd = thd;
-				assert(thd);
+			if (!thdcap) {
+				ret = crt_thd_init_create(comp);
+				assert(ret == 0);
+				thdcap = crt_comp_thdcap_get(comp);
+				assert(thdcap);
 			}
 		}
+		assert(thdcap);
 
-		if (cos_defswitch(thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+		if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 		assert(c->state > BOOT_COMP_PAR_INIT);
 	}
 
@@ -631,13 +270,23 @@ execute(void)
 	 * Initialization of components (parallel or sequential)
 	 * complete. Execute the main in components, FIFO
 	 */
-	comp = &boot->comp;
-	while ((c = boot_comp_next(comp->id))) {
-		int initcore = c->init_core == cos_cpuid();
-		thdcap_t thd;
+	/* Initialize components in order of the pre-computed schedule from mkimg */
+	ret = args_get_entry("execute", &comps);
+	assert(!ret);
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		struct boot_comp *c;
+		struct crt_comp  *comp;
+		int      keylen;
+		compid_t id        = atoi(args_key(&curr, &keylen));
+		char    *exec_type = args_value(&curr);
+		int initcore;
+		thdcap_t thdcap;
 
-		comp = &c->comp;
-		thd  = comp->comp_res->sched_aep[cos_cpuid()].thd;
+		c = boot_comp_get(id);
+		assert(c);
+		initcore = c->init_core == cos_cpuid();
+		comp     = &c->comp;
+		thdcap   = crt_comp_thdcap_get(comp);
 
 		/* wait for the initcore to change the state... */
 		while (ps_load(&c->state) == BOOT_COMP_COS_INIT || ps_load(&c->state) == BOOT_COMP_PAR_INIT) ;
@@ -646,15 +295,16 @@ execute(void)
 		    (c->main_type == INIT_MAIN_SINGLE && !initcore)) continue;
 
 		if (initcore) {
-			assert(thd);
-			printc("Switching back to main in component %lu.\n", comp->id);
-		} else if (!thd) {
-			thd = crt_thd_init_create(comp);
-			comp->comp_res->sched_aep[cos_cpuid()].thd = thd;
-			assert(thd);
+			assert(thdcap);
+			printc("Switching to main in component %lu.\n", comp->id);
+		} else if (!thdcap) {
+			ret = crt_thd_init_create(comp);
+			assert(ret == 0);
+			thdcap = crt_comp_thdcap_get(comp);
+			assert(thdcap);
 		}
 
-		if (cos_defswitch(thd, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+		if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 	}
 
 	cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);

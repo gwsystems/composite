@@ -2,6 +2,7 @@
 #define BARRIER_H
 
 #include <cos_config.h>
+#include <ps.h>
 
 struct simple_barrier {
 	unsigned long barrier;

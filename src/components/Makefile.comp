@@ -40,7 +40,7 @@ CFLAGS+=-fno-pie
 CXXFLAGS+=-fno-pie
 endif
 
-LIBCOSDEFKERN=-lcos_kernel_api -lcos_defkernel_api
+LIBCOSDEFKERN=-lcos_kernel_api -lcos_defkernel_api -linitargs
 LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap -lsl_xcpu -lsl_child -lck
 LIBSLCAPMGR=$(LIBSLCORE) -lsl_capmgr
 LIBSLRAW=$(LIBSLCORE) -lsl_raw
