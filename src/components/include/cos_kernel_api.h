@@ -81,8 +81,7 @@ struct cos_compinfo {
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
-                       vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);
-/*
+                       vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);/*
  * This only needs be called on compinfos that are managing resources
  * (i.e. likely only one).  All of the capabilities will be relative
  * to this component's captbls.
@@ -112,6 +111,7 @@ int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
 compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry);
+void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier);
 
 typedef void (*cos_thd_fn_t)(void *);
 thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);

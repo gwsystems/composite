@@ -10,7 +10,7 @@ typedef unsigned long crt_refcnt_t;
 typedef enum {
 	CRT_COMP_NONE        = 0,
 	CRT_COMP_SCHED       = 1, 	/* is this a scheduler? */
-	CRT_COMP_DELEG       = 1<<1,	/* does this component require delegating management capabilities to it? */
+	CRT_COMP_CAPMGR      = 1<<1,	/* does this component require delegating management capabilities to it? */
 	CRT_COMP_SCHED_DELEG = 1<<2,	/* is the system thread initialization delegated to this component? */
 	CRT_COMP_DERIVED     = 1<<4, 	/* derived/forked from another component */
 	CRT_COMP_INITIALIZE  = 1<<8,	/* The current component should initialize this component... */
@@ -76,6 +76,7 @@ crt_comp_thdcap_set(struct crt_comp *c, thdcap_t t)
 }
 
 int crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info);
+void crt_captbl_frontier_update(struct crt_comp *c, capid_t capid);
 int crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info);
 int crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr);
 int crt_asnd_create(struct crt_asnd *s, struct crt_rcv *r);

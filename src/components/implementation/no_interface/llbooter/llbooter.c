@@ -15,6 +15,7 @@
 #include <crt.h>
 
 #include <init.h>
+#include <addr.h>
 
 #ifndef BOOTER_MAX_SINV
 #define BOOTER_MAX_SINV 256
@@ -55,7 +56,7 @@ static struct crt_sinv  boot_sinvs[BOOTER_MAX_SINV];
 static struct boot_comp *
 boot_comp_get(compid_t id)
 {
-	assert(id > 0);
+	assert(id > 0 && id <= MAX_NUM_COMPS);
 
 	if (boot_id_offset == -1) {
 		boot_id_offset = id;
@@ -80,6 +81,7 @@ comps_init(void)
 	struct initargs_iter i;
 	int cont, ret, j;
 	int comp_idx = 0, sinv_idx = 0;
+	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 	/*
 	 * Assume: our component id is the lowest of the ids for all
@@ -181,6 +183,53 @@ comps_init(void)
 		bc->state = BOOT_COMP_COS_INIT;
 	}
 
+	/* perform any captbl delegations that are necessary */
+	ret = args_get_entry("captbl_delegations", &comps);
+	assert(!ret);
+	printc("Capability table delegations (%d capability managers):\n", args_len(&comps));
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		struct boot_comp *c;
+		struct initargs curr_inner;
+		struct initargs_iter i_inner;
+		int keylen, cont2;
+		compid_t capmgr_id;
+		capid_t frontier = BOOT_CAPTBL_FREE;
+
+		capmgr_id = atoi(args_key(&curr, &keylen));
+		c = boot_comp_get(capmgr_id);
+		assert(c);
+
+		c->comp.flags |= CRT_COMP_CAPMGR;
+		crt_capmgr_create(&c->comp);
+
+		printc("\tCapmgr %ld:\n", capmgr_id);
+
+		for (cont2 = args_iter(&curr, &i_inner, &curr_inner) ; cont2 ; cont2 = args_iter_next(&i_inner, &curr_inner)) {
+			char *target  = args_get_from("target", &curr_inner);
+			char *type    = args_get_from("type", &curr_inner);
+			capid_t capno = atoi(args_key(&curr_inner, &keylen));
+			struct cos_compinfo *cm_ci  = cos_compinfo_get(c->comp.comp_res);
+
+			printc("\t\tCapability #%ld: %s for component %s\n", capno, type, target);
+			if (!strcmp(type, "pgtbl")) {
+				ret = cos_cap_cpy_at(cm_ci, capno, ci, ci->pgtbl_cap);
+				assert(ret == 0);
+			} else if (!strcmp(type, "captbl")) {
+				ret = cos_cap_cpy_at(cm_ci, capno, ci, ci->captbl_cap);
+				assert(ret == 0);
+			} else if (!strcmp(type, "comp")) {
+				ret = cos_cap_cpy_at(cm_ci, capno, ci, ci->comp_cap);
+				assert(ret == 0);
+			} else {
+				BUG();
+			}
+			if (frontier < capno) frontier = capno;
+		}
+		crt_captbl_frontier_update(&c->comp, round_up_to_pow2(frontier + 1, 4));
+	}
+
+
+	/* Create the synchronous invocations for the component */
 	ret = args_get_entry("sinvs", &comps);
 	assert(!ret);
 	printc("Synchronous invocations (%d):\n", args_len(&comps));
@@ -193,6 +242,8 @@ comps_init(void)
 		sinv = &boot_sinvs[sinv_idx];
 		sinv_idx++;	/* bump pointer allocation */
 
+		printc("\t%s (%u->%u)\n", args_get_from("name", &curr), cli_id, serv_id);
+
 		crt_sinv_create(sinv, args_get_from("name", &curr), &boot_comp_get(serv_id)->comp, &boot_comp_get(cli_id)->comp,
 				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
@@ -204,6 +255,33 @@ comps_init(void)
 	printc("Kernel resources created, booting components!\n");
 
 	return;
+}
+
+unsigned long
+addr_get(compid_t id, addr_t type)
+{
+	compid_t client = (compid_t)cos_inv_token();
+	struct boot_comp *c, *target;
+	struct cos_compinfo *ci;
+
+	c = boot_comp_get(client);
+	/* only capmgrs should be allowed to call this... */
+	assert(c && c->comp.flags & CRT_COMP_CAPMGR);
+
+	if (id <= 0 || client > MAX_NUM_COMPS) return 0;
+	target = boot_comp_get(id);
+	assert(target);
+
+	ci = cos_compinfo_get(target->comp.comp_res);
+
+	switch (type) {
+	case ADDR_CAPTBL_FRONTIER:
+		return ci->cap_frontier;
+	case ADDR_HEAP_FRONTIER:
+		return ci->vas_frontier;
+	default:
+		return 0;
+	}
 }
 
 static void

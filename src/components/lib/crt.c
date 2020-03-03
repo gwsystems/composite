@@ -109,6 +109,13 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	return 0;
 }
 
+void
+crt_captbl_frontier_update(struct crt_comp *c, capid_t capid)
+{
+	assert(c);
+	cos_comp_capfrontier_update(cos_compinfo_get(c->comp_res), capid);
+}
+
 int
 crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
 {
@@ -343,7 +350,7 @@ crt_thd_sched_create(struct crt_comp *c)
 	 * I don't know a way to get away from this for now!
 	 * If it were just thdid, capmgr could have returned the thdids!
 	 */
-	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_CT, ci, ci->captbl_cap);
+	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_CT, ci, target_ci->captbl_cap);
 	assert(ret == 0);
 	/* FIXME: should subset the permissions for this around time management */
 	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_INITHW_BASE, ci, BOOT_CAPTBL_SELF_INITHW_BASE);
@@ -367,11 +374,11 @@ crt_capmgr_create(struct crt_comp *c)
 	assert(c->flags & CRT_COMP_SCHED);
 
 	/* assume CT is already mapped in from sched_create */
-	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_PT, ci, ci->pgtbl_cap);
+	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_PT, ci, target_ci->pgtbl_cap);
 	assert(ret == 0);
-	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_COMP, ci, ci->comp_cap);
+	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_COMP, ci, target_ci->comp_cap);
 	assert(ret == 0);
-	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_UNTYPED_PT, ci, ci->mi.pgtbl_cap);
+	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_UNTYPED_PT, ci, target_ci->mi.pgtbl_cap);
 	assert(ret == 0);
 
 	return 0;

@@ -4,14 +4,14 @@ description = "Simplest system with both capability manager and scheduler, from 
 [[components]]
 name = "booter"
 img  = "no_interface.llbooter"
-implements = [{interface = "init"}]
+implements = [{interface = "init"}, {interface = "addr"}]
 deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
 constructor = "kernel"
 
 [[components]]
 name = "capmgr"
 img  = "capmgr.naive"
-deps = [{srv = "booter", interface = "init"}]
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
 implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
 constructor = "booter"
 

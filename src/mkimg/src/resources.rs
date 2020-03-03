@@ -346,6 +346,7 @@ fn comp_config_finalize(s: &SystemState, id: &ComponentId, cfg: CompConfigState)
     let frontier = cfg.ct.get_frontier();
     let mut cfg_mut = cfg;
 
+    // TODO: Note that this is the end *before* all of the sinv allocations
     cfg_mut.args.push(ArgsKV::new_key(
         "captbl_end".to_string(),
         frontier.to_string(),
