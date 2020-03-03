@@ -242,8 +242,6 @@ comps_init(void)
 		sinv = &boot_sinvs[sinv_idx];
 		sinv_idx++;	/* bump pointer allocation */
 
-		printc("\t%s (%u->%u)\n", args_get_from("name", &curr), cli_id, serv_id);
-
 		crt_sinv_create(sinv, args_get_from("name", &curr), &boot_comp_get(serv_id)->comp, &boot_comp_get(cli_id)->comp,
 				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
