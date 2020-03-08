@@ -60,7 +60,7 @@ musl:
 	make -C musl-1.1.11 install
 
 ps:
-	cd ps; ./configure cos x86; cd ..; make -C ps config ; make -C ps all
+	cd ps; ./configure cos x86 general; cd ..; make -C ps config ; make -C ps all
 
 
 ck:
