@@ -5,6 +5,9 @@
  * Author: Phani Gadepalli, phanikishoreg@gwu.edu
  */
 
+#define __ASM__
+#include <consts.h>
+
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text

@@ -3,7 +3,6 @@
 
 #define __ASM__
 #include <consts.h>
-#undefine __ASM__
 
 /* clang-format off */
 

@@ -118,10 +118,11 @@ cos_thd_entry_static(u32_t idx)
 	return 0;
 }
 
-const char *cos_print_str[PRINT_LEVEL_MAX] = {
-	"ERR:",
-	"WARN:",
-	"DBG:",
+const char *cos_print_str[PRINT_LEVEL_COUNT] = {
+	"ERR: ",
+	"WARN: ",
+	"INFO: ",
+	"DBG: ",
 };
 
 cos_print_level_t cos_print_level   = PRINT_ERROR;

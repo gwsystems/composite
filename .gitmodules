@@ -1,6 +1,9 @@
 [submodule "src/components/lib/ps"]
 	path = src/components/lib/ps
 	url = https://github.com/gwsystems/ps.git
+[submodule "src/extern/cFE"]
+	path = src/extern/cFE
+	url = https://github.com/Others/cFE.git
 [submodule "src/components/lib/ck/ck"]
 	path = src/components/lib/ck/ck
 	url = https://github.com/gwsystems/ck.git
