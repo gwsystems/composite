@@ -325,6 +325,13 @@ impl BuildState for DefaultBuilder {
         let output_path = self.comp_obj_path(&id, &state)?;
 
         let cmd = comp_gen_make_cmd(&output_path, p.param_prog(), p.param_fs(), &id, &state);
+
+        let name = state.get_named().ids().get(id).unwrap();
+        println!(
+            "Compiling component {}.{} with the following command line:\n\t{}",
+            name.scope_name, name.var_name, cmd
+        );
+
         let (out, err) = exec_pipeline(vec![cmd.clone()]);
         let comp_log = self.comp_file_path(&id, &"compilation.log".to_string(), &state)?;
         emit_file(
@@ -352,8 +359,14 @@ impl BuildState for DefaultBuilder {
         let binary = self.comp_obj_path(&c, &s)?;
         let argsfile = constructor_serialize_args(&c, &s, self)?;
         let tarfile = constructor_tarball_create(&c, &s, self)?;
-
         let cmd = comp_gen_make_cmd(&binary, &argsfile, &tarfile, &c, &s);
+
+        let name = s.get_named().ids().get(c).unwrap();
+        println!(
+            "Compiling component {}.{} with the following command line:\n\t{}",
+            name.scope_name, name.var_name, cmd
+        );
+
         let (out, err) = exec_pipeline(vec![cmd.clone()]);
         let comp_log = self.comp_file_path(&c, &"constructor_compilation.log".to_string(), &s)?;
         emit_file(

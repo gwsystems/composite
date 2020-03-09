@@ -164,6 +164,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 
 	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
 	assert(sinv->sinv_cap);
+	printc("sinv %s cap %ld\n", name, sinv->sinv_cap);
 
 	/* poor-mans virtual address translation from client VAS -> our ptrs */
 	assert(sinv->c_ucap_addr - sinv->client->ro_addr > 0);
@@ -361,14 +362,16 @@ crt_thd_sched_create(struct crt_comp *c)
 
 /*
  * This should be called after crt_thd_sched_create. Capmgrs should be
- * able to manage their own resources.
+ * able to manage their own resources, thus memsz is the (multiple of
+ * PAGE_SIZE) amount of untyped memory passed to the capmgr.
  */
 int
-crt_capmgr_create(struct crt_comp *c)
+crt_capmgr_create(struct crt_comp *c, unsigned long memsz)
 {
 	struct cos_defcompinfo *defci      = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci         = cos_compinfo_get(defci);
 	struct cos_compinfo    *target_ci  = cos_compinfo_get(c->comp_res);
+	pgtblcap_t utpt;
 	int ret;
 
 	assert(c->flags & CRT_COMP_SCHED);
@@ -378,6 +381,12 @@ crt_capmgr_create(struct crt_comp *c)
 	assert(ret == 0);
 	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_COMP, ci, target_ci->comp_cap);
 	assert(ret == 0);
+
+	/* Set up the untyped memory in the new component */
+	utpt = cos_pgtbl_alloc(ci);
+	assert(utpt);
+	cos_meminfo_init(&(target_ci->mi), BOOT_MEM_KM_BASE, memsz, utpt);
+	cos_meminfo_alloc(target_ci, BOOT_MEM_KM_BASE, memsz);
 	ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_UNTYPED_PT, ci, target_ci->mi.pgtbl_cap);
 	assert(ret == 0);
 

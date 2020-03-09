@@ -24,6 +24,7 @@ struct crt_comp {
 	vaddr_t entry_addr, ro_addr, rw_addr, info;
 
 	char *mem;		/* image memory */
+	pgtblcap_t capmgr_untyped_mem;
 	struct elf_hdr *elf_hdr;
 	struct cos_defcompinfo *comp_res;
 	struct cos_defcompinfo comp_res_mem;
@@ -95,7 +96,7 @@ int crt_thd_create(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clo
 int crt_thd_init_create(struct crt_comp *c);
 
 int crt_thd_sched_create(struct crt_comp *c);
-int crt_capmgr_create(struct crt_comp *c);
+int crt_capmgr_create(struct crt_comp *c, unsigned long memsz);
 
 /*
  * TODO:

@@ -592,6 +592,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 {
 	vaddr_t kmem;
 	capid_t cap;
+	int ret;
 
 	printd("cos_thd_alloc\n");
 
@@ -600,9 +601,9 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
 	assert(!(init_data & ~((1 << 16) - 1)));
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap,
-	                __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, comp))
-		BUG();
+	ret = call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap,
+			  __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, comp);
+	if (ret) BUG();
 
 	return cap;
 }

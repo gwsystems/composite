@@ -191,7 +191,6 @@ impl TomlSpecification {
         //
         // TODO: same as above...should aggregate error strings
         for c in self.comps() {
-            println!("Component {:?}", c);
             for d in c.deps() {
                 if d.get_name() == "kernel" {
                     if d.variant.is_none() {

@@ -183,10 +183,15 @@ comps_init(void)
 		bc->state = BOOT_COMP_COS_INIT;
 	}
 
-	/* perform any captbl delegations that are necessary */
+		/* perform any necessary captbl delegations */
 	ret = args_get_entry("captbl_delegations", &comps);
 	assert(!ret);
 	printc("Capability table delegations (%d capability managers):\n", args_len(&comps));
+	/*
+	 * for now, assume only one capmgr (allocating untyped memory
+	 * gets complex here otherwise)
+	 */
+	assert(args_len(&comps) == 1);
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct boot_comp *c;
 		struct initargs curr_inner;
@@ -200,8 +205,6 @@ comps_init(void)
 		assert(c);
 
 		c->comp.flags |= CRT_COMP_CAPMGR;
-		crt_capmgr_create(&c->comp);
-
 		printc("\tCapmgr %ld:\n", capmgr_id);
 
 		for (cont2 = args_iter(&curr, &i_inner, &curr_inner) ; cont2 ; cont2 = args_iter_next(&i_inner, &curr_inner)) {
@@ -228,8 +231,12 @@ comps_init(void)
 		crt_captbl_frontier_update(&c->comp, round_up_to_pow2(frontier + 1, 4));
 	}
 
-
-	/* Create the synchronous invocations for the component */
+	/*
+	 * Create the synchronous invocations for the component. This
+	 * has to go *after* the updating of the capability frontier
+	 * for the hard-coded capabilities as we don't want to use up
+	 * those slots for the synchronous invocations.
+	 */
 	ret = args_get_entry("sinvs", &comps);
 	assert(!ret);
 	printc("Synchronous invocations (%d):\n", args_len(&comps));
@@ -248,6 +255,29 @@ comps_init(void)
 
 		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
+	}
+
+	/*
+	 * Delegate the untyped memory to the capmgr. This should go
+	 * *after* all allocations that use untyped memory, so that we
+	 * can delegate away the rest of our memory. FIXME: this might
+	 * not be the cause currently, and we rely on a few untyped
+	 * regions (after the ones we delegate to the capmgr) for the
+	 * parallel thread allocations.
+	 */
+	ret = args_get_entry("captbl_delegations", &comps);
+	assert(!ret);
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		struct boot_comp *c;
+		int keylen;
+		compid_t capmgr_id;
+
+		capmgr_id = atoi(args_key(&curr, &keylen));
+		c = boot_comp_get(capmgr_id);
+		assert(c);
+
+		/* TODO: generalize. Give the capmgr 64MB for now. */
+		crt_capmgr_create(&c->comp, 64 * 1024 * 1024);
 	}
 
 	printc("Kernel resources created, booting components!\n");

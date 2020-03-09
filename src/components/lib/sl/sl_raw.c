@@ -92,7 +92,6 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 	if (!aep->thd) goto done;
 	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	if (!aep->tid) goto done;
-
 	t = sl_thd_alloc_init(aep, 0, 0);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
