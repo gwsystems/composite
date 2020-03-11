@@ -11,12 +11,14 @@
 #include "component.h"
 #include "cap_ops.h"
 #include "fpu_regs.h"
+//#include "fpu.h"
 #include "chal/cpuid.h"
 #include "chal/call_convention.h"
 #include "pgtbl.h"
 #include "retype_tbl.h"
 #include "tcap.h"
 #include "list.h"
+#include "per_cpu.h"
 
 struct invstk_entry {
 	struct comp_info comp_info;
@@ -51,6 +53,7 @@ typedef enum {
  * importantly, the kernel invocation stack of execution through
  * components.
  */
+
 struct thread {
 	thdid_t        tid;
 	u16_t          invstk_top;
@@ -75,7 +78,7 @@ struct thread {
 	struct list        event_head; /* all events for *this* end-point */
 	struct list_node   event_list; /* the list of events for another end-point */
 } CACHE_ALIGNED;
-
+#include "fpu.h"
 /*
  * Thread capability descriptor that is minimal and contains only
  * consistency checking information (cpuid to ensure we're accessing
@@ -356,13 +359,15 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->cpuid                            = get_cpuid();
 	assert(thd->tid <= MAX_NUM_THREADS);
 	thd_scheduler_set(thd, thd_current(cli));
-
+	
 	thd_rcvcap_init(thd);
+	fpu_thread_init(thd); 
 	list_head_init(&thd->event_head);
 	list_init(&thd->event_list, thd);
 
 	thd_upcall_setup(thd, compc->entry_addr, COS_UPCALL_THD_CREATE, init_data, 0, 0);
-
+	//test hander
+	//fpu_disabled_exception_handler();
 	/* initialize the capability */
 	tc->t     = thd;
 	tc->cpuid = get_cpuid();
@@ -554,6 +559,7 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 
 	/* TODO: check FPU */
 	/* fpu_save(thd); */
+	fpu_switch(thd);
 	if (thd->state & THD_STATE_PREEMPTED) {
 		assert(!(thd->state & THD_STATE_RCVING));
 		thd->state &= ~THD_STATE_PREEMPTED;
@@ -589,5 +595,4 @@ thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
 	}
 	return 0;
 }
-
 #endif /* THD_H */

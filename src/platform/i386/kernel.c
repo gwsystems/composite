@@ -10,7 +10,7 @@
 #include <retype_tbl.h>
 #include <component.h>
 #include <thd.h>
-
+#include <fpu.h>
 #define ADDR_STR_LEN 8
 #define CMDLINE_MAX_LEN 32
 #define CMDLINE_REQ_LEN (ADDR_STR_LEN * 2 + 1)
@@ -162,6 +162,8 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	retype_tbl_init();
 	comp_init();
 	thd_init();
+	fpu_init();
+
 	paging_init();
 
 	kern_boot_comp(INIT_CORE);
