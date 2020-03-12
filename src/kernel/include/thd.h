@@ -11,7 +11,6 @@
 #include "component.h"
 #include "cap_ops.h"
 #include "fpu_regs.h"
-//#include "fpu.h"
 #include "chal/cpuid.h"
 #include "chal/call_convention.h"
 #include "pgtbl.h"
@@ -366,9 +365,6 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	list_init(&thd->event_list, thd);
 
 	thd_upcall_setup(thd, compc->entry_addr, COS_UPCALL_THD_CREATE, init_data, 0, 0);
-	//test hander
-	//fpu_disabled_exception_handler();
-	/* initialize the capability */
 	tc->t     = thd;
 	tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD);

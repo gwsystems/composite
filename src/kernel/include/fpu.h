@@ -1,9 +1,7 @@
 #ifndef FPU_H
 #define FPU_H
 
-//#include "thd.h"
 #include "per_cpu.h"
-//#include "../../platform/i386/kernel.h"
 #define FPU_DISABLED_MASK 0x8
 #define FXSR (1 << 24)
 #define HAVE_SSE (1 << 25)
@@ -106,7 +104,6 @@ fpu_init(void)
 		return -1;
 	}
 #endif
-	printk("\n\n\n FPU_init() *************** \n\n\n");
 	fpu_set(FPU_DISABLE);
 	printk("\n\n\n FPU_DISABLED");
 	*PERCPU_GET(fpu_disabled)  = 1;
@@ -141,7 +138,6 @@ fpu_thread_init(struct thread *thd)
 #if FPU_SUPPORT_SSE > 0
 	thd->fpu.mxcsr = 0x1f80;
 #endif
-//	thd->fpu.status = 0; 
 	return;
 }
 
@@ -208,7 +204,7 @@ static inline int
 fpu_is_disabled(void)
 {
 	int *disabled = PERCPU_GET(fpu_disabled);
-	//assert(fpu_read_cr0() & FPU_DISABLED_MASK ? *disabled : !*disabled);
+	assert(fpu_read_cr0() & FPU_DISABLED_MASK ? *disabled : !*disabled);
 	return *disabled;
 }
 

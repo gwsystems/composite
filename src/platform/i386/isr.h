@@ -25,7 +25,7 @@ enum
 	IRQ_X87_FLOAT_PT_EXCEPT_FAULT = 16,
 	IRQ_ALIGN_CHECK_FAULT = 17,
 	IRQ_MACHINE_CHECK_ABORT = 18,
-	IRQ_SMID_FLOAT_PT_EXCEPT_FAULT = 19,
+	IRQ_SIMD_FLOAT_PT_EXCEPT_FAULT = 19,
 	IRQ_VIRTUALIZATION_EXCEPT_FAULT = 20,
 	IRQ_SECURITY_EXCEPT_FAULT       = 30,
 };
@@ -46,7 +46,7 @@ extern void page_fault_irq(struct pt_regs *);
 extern void x87_float_pt_except_fault_irq(struct pt_regs *);
 extern void align_check_fault_irq(struct pt_regs *);
 extern void machine_check_abort_irq(struct pt_regs *);
-extern void smid_float_pt_except_fault_irq(struct pt_regs *);
+extern void simd_float_pt_except_fault_irq(struct pt_regs *);
 extern void virtualization_except_fault_irq(struct pt_regs *);
 extern void security_except_fault_irq(struct pt_regs *);
 
