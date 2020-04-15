@@ -16,7 +16,7 @@ Vagrant.configure(2) do |config|
     # Instead sync the actual composite folder
     config.vm.synced_folder "../", "/home/vagrant/composite"
 
-    config.vm.provision "shell", inline: <<-SHELL
+    config.vm.provision "shell", privileged: false, inline: <<-SHELL
         sudo apt-get update
         sudo apt-get -y install make
         sudo apt-get -y install git
