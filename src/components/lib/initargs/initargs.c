@@ -196,7 +196,7 @@ args_lkup_entry(struct initargs *arg, char *path, struct initargs *ret)
 			int key_len;
 			char *k = args_key(&curr, &key_len);
 
-			if (strncmp(k, key, len) == 0) {
+			if ((unsigned int)key_len == len && strncmp(k, key, len) == 0) {
 				if (strlen(key) == len) {
 					*ret = curr;
 					return 0;

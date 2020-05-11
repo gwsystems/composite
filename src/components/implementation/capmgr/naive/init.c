@@ -17,6 +17,7 @@
 
 static volatile int capmgr_init_core_done = 0;
 
+
 static void
 capmgr_comp_info_init(struct cap_comp_info *rci, spdid_t spdid)
 {
@@ -25,7 +26,7 @@ capmgr_comp_info_init(struct cap_comp_info *rci, spdid_t spdid)
 	struct cap_comp_info   *btinfo = cap_info_comp_find(0);
 	spdid_t sched_spdid = 0;
 	struct cap_comp_info *rci_sched = NULL;
-	struct cap_comp_cpu_info *rci_cpu = NULL;
+//	struct cap_comp_cpu_info *rci_cpu = NULL;
 	struct sl_thd *ithd = NULL;
 	u64_t chbits = 0, chschbits = 0;
 	int ret = 0, is_sched = 0;
@@ -34,24 +35,24 @@ capmgr_comp_info_init(struct cap_comp_info *rci, spdid_t spdid)
 	comp_flag_t ch_flags;
 	struct cos_aep_info aep;
 
-	assert(0);
+	memset(&aep, 0, sizeof(struct cos_aep_info));
+	assert(rci);
+	assert(cap_info_init_check(rci));
+//	rci_cpu = cap_info_cpu_local(rci);
 
-	/* memset(&aep, 0, sizeof(struct cos_aep_info)); */
-	/* assert(rci); */
-	/* assert(cap_info_init_check(rci)); */
-	/* rci_cpu = cap_info_cpu_local(rci); */
+	rci_sched = cap_info_comp_find(sched_spdid);
+	assert(rci_sched && cap_info_init_check(rci_sched));
+//	rci_cpu->parent = rci_sched;
+//	rci_cpu->thd_frontier = 1;
 
-	/* if (spdid == 0 || (spdid != cos_spd_id() && cap_info_is_child(btinfo, spdid))) { */
-	/* 	is_sched = (spdid == 0 || cap_info_is_sched_child(btinfo, spdid)) ? 1 : 0; */
-
-	/* 	ret = hypercall_comp_initaep_get(spdid, is_sched, &aep); */
-	/* 	assert(ret == 0); */
-	/* } */
-
-	/* rci_sched = cap_info_comp_find(sched_spdid); */
-	/* assert(rci_sched && cap_info_init_check(rci_sched)); */
-	/* rci_cpu->parent = rci_sched; */
-	/* rci_cpu->thd_used = 1; */
+	if (aep.thd) {
+		ithd = sl_thd_init_ext(&aep, NULL);
+		assert(ithd);
+		cap_comminfo_init(ithd, 0, 0);
+		cap_info_initthd_init(rci, ithd, 0);
+	} else if (cos_spd_id() == spdid) {
+		cap_info_initthd_init(rci, sl__globals_cpu()->sched_thd, 0);
+	}
 
 	/* while ((remain_child = hypercall_comp_child_next(spdid, &childid, &ch_flags)) >= 0) { */
 	/* 	bitmap_set(rci_cpu->child_bitmap, childid - 1); */
@@ -62,17 +63,17 @@ capmgr_comp_info_init(struct cap_comp_info *rci, spdid_t spdid)
 
 	/* 	if (!remain_child) break; */
 	/* } */
+}
 
-	/* if (aep.thd) { */
-	/* 	ithd = sl_thd_init_ext(&aep, NULL); */
-	/* 	assert(ithd); */
-	/* 	cap_comminfo_init(ithd, 0, 0); */
-	/* 	cap_info_initthd_init(rci, ithd, 0); */
-	/* } else if (cos_spd_id() == spdid) { */
-	/* 	cap_info_initthd_init(rci, sl__globals_cpu()->sched_thd, 0); */
-	/* } */
+static void
+capmgr_comp_info_self_init(void)
+{
+	struct cap_comp_info *rci = NULL;
 
-	/* return; */
+//	rci = cap_info_comp_init_internal(cos_compid(), cos_compid());
+//	assert(rci);
+
+	cap_info_initthd_init(rci, sl__globals_cpu()->sched_thd, 0);
 }
 
 static void
@@ -95,7 +96,21 @@ capmgr_comp_info_iter_cpu(void)
 	/* assert(num_comps == hypercall_numcomps_get()); */
 }
 
+static compid_t
+capmgr_comp_sched_get(compid_t cid)
+{
+#define SCHED_STR_SZ 36 /* base-10 32 bit int + "sched_hierarchy/" */
+	struct initargs sched_entry, curr;
+	struct initargs_iter i;
+	char *sched;
+	char serialized[SCHED_STR_SZ];
 
+	snprintf(serialized, SCHED_STR_SZ, "scheduler_hierarchy/%ld", cid);
+	sched = args_get(serialized);
+	if (!sched) return 0;
+
+	return atoi(sched);
+}
 
 static void
 capmgr_comp_info_iter(void)
@@ -109,10 +124,15 @@ capmgr_comp_info_iter(void)
 	int remaining = 0;
 	int num_comps = 0;
 
-	printc("Capmgr: processing components that have already been booted\n");
+	/* Initialize ourselves... */
+//	cap_info_comp_self_init();
+//	assert(self);
 
+	/* ...then those that we're responsible for... */
 	ret = args_get_entry("captbl", &cap_entries);
 	assert(!ret);
+	printc("Capmgr: processing %d components that have already been booted\n", args_len(&cap_entries));
+
 	for (cont = args_iter(&cap_entries, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct cap_comp_info *rci = NULL;
 		compid_t sched_id;
@@ -147,9 +167,12 @@ capmgr_comp_info_iter(void)
 			}
 		}
 
-		printc("Capmgr captbl info: comp %ld, comp %ld, pgtbl %ld, captbl %ld\n", id, ccslot, pgtslot, captslot);
 		assert(pgtslot && captslot && ccslot);
-		rci = cap_info_comp_init(id, captslot, pgtslot, ccslot, capfr, vasfr, sched_id);
+		sched_id = capmgr_comp_sched_get(id);
+		assert(sched_id > 0);
+		rci = cap_info_comp_init(id, captslot, pgtslot, ccslot,
+					 addr_get(id, ADDR_CAPTBL_FRONTIER),
+					 addr_get(id, ADDR_HEAP_FRONTIER), sched_id);
 		assert(rci);
 
 		capmgr_comp_info_init(rci, id);

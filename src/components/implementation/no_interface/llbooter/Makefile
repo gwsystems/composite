@@ -1,5 +1,3 @@
-COMPONENT=llbooter.o
-COMPONENT=llboot_comp.o
 INTERFACES=init addr
 DEPENDENCIES=init
 IF_LIB=

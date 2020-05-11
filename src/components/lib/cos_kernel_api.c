@@ -71,6 +71,7 @@ cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier)
 void
 cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier)
 {
+	if (cap_frontier <= ci->cap_frontier) return;
 	cos_capfrontier_init(ci, cap_frontier);
 }
 void
@@ -86,7 +87,7 @@ cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t cap
 	ci->pgtbl_cap    = pgtbl_cap;
 	ci->captbl_cap   = captbl_cap;
 	ci->comp_cap     = comp_cap;
-
+	ci->cap_frontier = 0;
 	cos_vasfrontier_init(ci, heap_ptr);
 	cos_capfrontier_init(ci, cap_frontier);
 
@@ -671,6 +672,14 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 	return cap;
 }
 
+int
+cos_comp_alloc_with(struct cos_compinfo *ci, compcap_t comp, u32_t lid, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry)
+{
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, comp, (ctc << 16) | ptc, lid, entry)) return 1;
+
+	return 0;
+}
+
 compcap_t
 cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry)
 {
@@ -683,7 +692,7 @@ cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t
 
 	cap = __capid_bump_alloc(ci, CAP_COMP);
 	if (!cap) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, cap, (ctc << 16) | ptc, lid, entry)) BUG();
+	if (cos_comp_alloc_with(ci, cap, lid, ctc, ptc, entry)) BUG();
 
 	return cap;
 }

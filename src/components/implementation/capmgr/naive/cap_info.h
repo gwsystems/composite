@@ -49,21 +49,25 @@ struct cap_shmem_info {
 };
 
 struct cap_comp_cpu_info {
-	int thd_used;
-	struct sl_thd *thdinfo[CAP_INFO_MAX_THREADS]; /* including threads from components in subtree. */
-	/* for core-specific hierarchies */
-	u32_t child_sched_bitmap[MAX_NUM_COMP_WORDS];
-	u32_t child_bitmap[MAX_NUM_COMP_WORDS];
-	struct cap_comp_info *parent;
-	int p_thd_iterator; /* iterator for parent to get all threads created by capmgr in this component so far! */
+	int      thd_used;
 	thdcap_t p_initthdcap; /* init thread's cap in parent */
 	thdid_t  initthdid; /* init thread's tid */
+	struct sl_thd *thdinfo[CAP_INFO_MAX_THREADS]; /* including threads from components in subtree. */
+	/* /\* for core-specific hierarchies *\/ */
+	/* u32_t child_sched_bitmap[MAX_NUM_COMP_WORDS]; */
+	/* u32_t child_bitmap[MAX_NUM_COMP_WORDS]; */
+	/* struct cap_comp_info *parent; */
+	/* int p_thd_iterator; /\* iterator for parent to get all threads created by capmgr in this component so far! *\/ */
 } CACHE_ALIGNED;
 
 struct cap_comp_info {
 	spdid_t cid;
 	struct cos_defcompinfo defci;
 	struct cap_shmem_info shminfo;
+
+	struct cap_comp_info *scheduler; /* which component schedules this one? */
+	int is_sched;			 /* is this component a scheduler? */
+
 	int initflag;
 
 	struct cap_comp_cpu_info cpu_local[NUM_CPU];
@@ -77,7 +81,6 @@ struct sl_thd *cap_info_initthd_init(struct cap_comp_info *rci, struct sl_thd *t
 
 struct cap_comp_info *cap_info_comp_find(spdid_t s);
 struct sl_thd        *cap_info_thd_find(struct cap_comp_info *r, thdid_t t);
-struct sl_thd        *cap_info_thd_next(struct cap_comp_info *r);
 struct sl_thd        *cap_info_initthd(struct cap_comp_info *r);
 unsigned int          cap_info_count(void);
 void                  cap_info_init(void);
@@ -116,44 +119,26 @@ cap_info_cpu_local(struct cap_comp_info *c)
 	return &c->cpu_local[cos_cpuid()];
 }
 
-static inline struct cap_comp_info *
-cap_info_parent(struct cap_comp_info *r)
-{
-	return cap_info_cpu_local(r)->parent;
-}
-
-static inline int
-cap_info_is_parent(struct cap_comp_info *r, spdid_t p)
-{
-	struct cap_comp_info *parent = cap_info_parent(r);
-
-	if (parent) return (parent->cid == p);
-
-	return 0;
-}
-
 static inline int
 cap_info_is_sched(spdid_t c)
 {
-	if (!c) return 1; /* llbooter! */
+	struct cap_comp_info *comp = cap_info_comp_find(c);
 
-	return bitmap_check(cap_info_schedbmp[cos_cpuid()], c - 1);
+	if (!comp || !comp->initflag) return 0;
+
+	return comp->is_sched;
 }
 
 static inline int
-cap_info_is_child(struct cap_comp_info *r, spdid_t c)
+cap_info_is_child(struct cap_comp_info *p, spdid_t c)
 {
-	if (!c) return 0;
+	struct cap_comp_info *child = cap_info_comp_find(c);
 
-	return bitmap_check(cap_info_cpu_local(r)->child_bitmap, c - 1);
-}
+	assert(p && p->initflag);
 
-static inline int
-cap_info_is_sched_child(struct cap_comp_info *r, spdid_t c)
-{
-	if (!c) return 0;
+	if (!child || !child->initflag) return 0;
 
-	return bitmap_check(cap_info_cpu_local(r)->child_sched_bitmap, c - 1);
+	return child->scheduler == p;
 }
 
 static inline struct cap_shmem_info *

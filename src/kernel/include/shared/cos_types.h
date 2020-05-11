@@ -355,6 +355,7 @@ typedef unsigned short int spdid_t;
 typedef unsigned long      compid_t;
 typedef unsigned long      thdid_t;
 typedef unsigned long      invtoken_t;
+#define THDCLOSURE_INIT
 typedef int                thdclosure_index_t;
 
 struct restartable_atomic_sequence {

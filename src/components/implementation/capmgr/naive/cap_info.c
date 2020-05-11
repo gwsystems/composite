@@ -23,6 +23,8 @@ __cap_info_shmglb_info(void)
 struct cap_comp_info *
 cap_info_comp_find(spdid_t spdid)
 {
+	if (spdid >= MAX_NUM_COMPS) return NULL;
+
 	return &capci[spdid];
 }
 
@@ -35,58 +37,60 @@ cap_info_count(void)
 struct sl_thd *
 cap_info_thd_find(struct cap_comp_info *rci, thdid_t tid)
 {
-	int i;
-	struct cap_comp_cpu_info *rci_cpu = NULL;
+	/* int i; */
+	/* struct cap_comp_cpu_info *rci_cpu = NULL; */
 
-	if (!rci || !cap_info_init_check(rci)) return NULL;
+	/* if (!rci || !cap_info_init_check(rci)) return NULL; */
 
-	rci_cpu = cap_info_cpu_local(rci);
-	for (i = 0; i < rci_cpu->thd_used; i++) {
-		if (sl_thd_thdid(rci_cpu->thdinfo[i]) == tid) return rci_cpu->thdinfo[i];
-	}
+	/* rci_cpu = cap_info_cpu_local(rci); */
+	/* for (i = 0; i < rci_cpu->thd_used; i++) { */
+	/* 	if (sl_thd_thdid(rci_cpu->thdinfo[i]) == tid) return rci_cpu->thdinfo[i]; */
+	/* } */
 
 	return NULL;
 }
 
-struct sl_thd *
-cap_info_thd_next(struct cap_comp_info *rci)
+struct cap_comp_info *
+cap_info_comp_init_internal(spdid_t spdid, spdid_t sched_spdid)
 {
-	struct cap_comp_cpu_info *rci_cpu = NULL;
+	struct cap_shmem_info     *cap_shi   = cap_info_shmem_info(&capci[spdid]);
+	struct cap_shmem_glb_info *rglb      = __cap_info_shmglb_info();
+	struct cap_comp_cpu_info  *rci_cpu   = cap_info_cpu_local(&capci[spdid]);
+	struct cap_comp_info      *comp_info = NULL;
 
-	if (!rci || !cap_info_init_check(rci)) return NULL;
-	rci_cpu = cap_info_cpu_local(rci);
-	if (rci_cpu->p_thd_iterator < rci_cpu->thd_used) {
-		return (rci_cpu->thdinfo[ps_faa((long unsigned *)&(rci_cpu->p_thd_iterator), 1)]);
-	}
+	rci_cpu->thd_used            = 1;
+//	capci[sched_spdid]->is_sched = 1;
+//	rci_cpu->scheduler           = &capci[sched_spdid];
 
-	return NULL;
+	comp_info = &capci[spdid];
+	comp_info->cid = spdid;
+
+	memset(rglb, 0, sizeof(struct cap_shmem_glb_info));
+	memset(cap_shi, 0, sizeof(struct cap_shmem_info));
+
+	comp_info->initflag = 1;
+	ps_faa((unsigned long *)&cap_comp_count, 1);
+
+	return comp_info;
 }
 
 struct cap_comp_info *
 cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, pgtblcap_t pgtbl_cap, compcap_t compcap,
 		   capid_t cap_frontier, vaddr_t heap_frontier, spdid_t sched_spdid)
 {
-	struct cos_compinfo       *ci      = cos_compinfo_get(&(capci[spdid].defci));
-	struct cap_shmem_info     *cap_shi = cap_info_shmem_info(&capci[spdid]);
-	struct cap_shmem_glb_info *rglb    = __cap_info_shmglb_info();
-	struct cap_comp_cpu_info  *rci_cpu = cap_info_cpu_local(&capci[spdid]);
+	struct cos_compinfo       *ci        = cos_compinfo_get(&(capci[spdid].defci));
+	struct cap_shmem_info     *cap_shi   = cap_info_shmem_info(&capci[spdid]);
+	struct cap_comp_info      *comp_info = NULL;
 
-	rci_cpu->thd_used = 1;
-	rci_cpu->parent   = &capci[sched_spdid];
+	comp_info = cap_info_comp_init_internal(spdid, sched_spdid);
+	if (!comp_info) return NULL;
 
-	capci[spdid].cid = spdid;
 	cos_meminfo_init(&ci->mi, 0, 0, 0);
 	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, compcap, heap_frontier, cap_frontier,
-			cos_compinfo_get(cos_defcompinfo_curr_get()));
-
-	memset(rglb, 0, sizeof(struct cap_shmem_glb_info));
-	memset(cap_shi, 0, sizeof(struct cap_shmem_info));
+			  cos_compinfo_get(cos_defcompinfo_curr_get()));
 	cap_shi->cinfo = ci;
 
-	capci[spdid].initflag = 1;
-	ps_faa((unsigned long *)&cap_comp_count, 1);
-
-	return &capci[spdid];
+	return comp_info;
 }
 
 struct cap_comm_info *

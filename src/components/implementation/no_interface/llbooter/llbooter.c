@@ -13,6 +13,7 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <crt.h>
+#include <static_alloc.h>
 
 #include <init.h>
 #include <addr.h>
@@ -20,9 +21,19 @@
 #ifndef BOOTER_MAX_SINV
 #define BOOTER_MAX_SINV 256
 #endif
+#ifndef BOOTER_MAX_SCHED
+#define BOOTER_MAX_SCHED 1
+#endif
+#ifndef BOOTER_MAX_INITTHD
+#define BOOTER_MAX_INITTHD (MAX_NUM_COMPS - BOOTER_MAX_SCHED)
+#endif
 #ifndef INITARGS_MAX_PATHNAME
 #define INITARGS_MAX_PATHNAME 512
 #endif
+#ifndef BOOTER_CAPMGR_MB
+#define BOOTER_CAPMGR_MB 64
+#endif
+
 
 /* Booter's additive information about the component */
 typedef enum {
@@ -34,18 +45,28 @@ typedef enum {
 	BOOT_COMP_TERM
 } boot_comp_state_t;
 
+typedef enum {
+	BOOT_COMP_THD,
+	BOOT_COMP_SCHED,
+	BOOT_COMP_NO_THD
+} boot_comp_exec_t;
+
 struct boot_comp {
 	volatile boot_comp_state_t state;
 	init_main_t main_type; /* does this component have post-initialization execution? */
 	struct simple_barrier barrier;
 	coreid_t init_core;
 	struct crt_comp comp;
+
 };
+
 static struct boot_comp boot_comps[MAX_NUM_COMPS];
 static const  compid_t  sched_root_id  = 2;
 static        long      boot_id_offset = -1;
-/* All synchronous invocations */
-static struct crt_sinv  boot_sinvs[BOOTER_MAX_SINV];
+
+SA_STATIC_ALLOC(sinv, struct crt_sinv, BOOTER_MAX_SINV);
+SA_STATIC_ALLOC(thd,  struct crt_thd,  BOOTER_MAX_INITTHD);
+SA_STATIC_ALLOC(rcv,  struct crt_rcv,  BOOTER_MAX_SCHED);
 
 /*
  * Assumptions: the component with the lowest id *must* be the one
@@ -68,6 +89,12 @@ boot_comp_get(compid_t id)
 	return &boot_comps[id - boot_id_offset];
 }
 
+static struct boot_comp *
+boot_comp_self(void)
+{
+	return boot_comp_get(cos_compid());
+}
+
 static void
 boot_comp_set_idoffset(int off)
 {
@@ -80,8 +107,7 @@ comps_init(void)
 	struct initargs comps, curr;
 	struct initargs_iter i;
 	int cont, ret, j;
-	int comp_idx = 0, sinv_idx = 0;
-	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	int comp_idx = 0;
 
 	/*
 	 * Assume: our component id is the lowest of the ids for all
@@ -98,7 +124,7 @@ comps_init(void)
 
 	ret = args_get_entry("components", &comps);
 	assert(!ret);
-	printc("Components:\n");
+	printc("Components (%d):\n", args_len(&comps));
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct crt_comp *comp;
 		struct boot_comp *bc;
@@ -148,7 +174,6 @@ comps_init(void)
 				BUG();
 			}
 		}
-		assert(cos_compinfo_get(comp->comp_res)->comp_cap);
 	}
 
 	ret = args_get_entry("execute", &comps);
@@ -160,6 +185,7 @@ comps_init(void)
 		int      keylen;
 		compid_t id        = atoi(args_key(&curr, &keylen));
 		char    *exec_type = args_value(&curr);
+		struct crt_comp_exec_context ctxt = { 0 };
 
 		assert(exec_type);
 		assert(id != cos_compid());
@@ -168,12 +194,16 @@ comps_init(void)
 		comp = &bc->comp;
 
 		if (!strcmp(exec_type, "sched")) {
-			comp->flags |= CRT_COMP_SCHED;
-			if (crt_thd_sched_create(comp)) BUG();
+			struct crt_rcv *r = sa_rcv_alloc();
+
+			assert(r);
+			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, r))) BUG();
 			printc("\tCreated scheduling execution for %ld\n", id);
 		} else if (!strcmp(exec_type, "init")) {
-			comp->flags |= CRT_COMP_INITIALIZE;
-			if (crt_thd_init_create(comp)) BUG();
+			struct crt_thd *t = sa_thd_alloc();
+
+			assert(t);
+			if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, t))) BUG();
 			printc("\tCreated thread for %ld\n", id);
 		} else {
 			printc("Error: Found unknown execution schedule type %s.\n", exec_type);
@@ -183,7 +213,7 @@ comps_init(void)
 		bc->state = BOOT_COMP_COS_INIT;
 	}
 
-		/* perform any necessary captbl delegations */
+	/* perform any necessary captbl delegations */
 	ret = args_get_entry("captbl_delegations", &comps);
 	assert(!ret);
 	printc("Capability table delegations (%d capability managers):\n", args_len(&comps));
@@ -191,45 +221,67 @@ comps_init(void)
 	 * for now, assume only one capmgr (allocating untyped memory
 	 * gets complex here otherwise)
 	 */
-	assert(args_len(&comps) == 1);
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct boot_comp *c;
 		struct initargs curr_inner;
 		struct initargs_iter i_inner;
 		int keylen, cont2;
 		compid_t capmgr_id;
-		capid_t frontier = BOOT_CAPTBL_FREE;
+		struct crt_comp_resources comp_res = { 0 };
+		crt_comp_alias_t alias_flags = 0;
+		struct boot_comp *target = NULL;
 
 		capmgr_id = atoi(args_key(&curr, &keylen));
 		c = boot_comp_get(capmgr_id);
 		assert(c);
 
-		c->comp.flags |= CRT_COMP_CAPMGR;
 		printc("\tCapmgr %ld:\n", capmgr_id);
-
+		/* This assumes that all capabilities for a given component are *contiguous* */
 		for (cont2 = args_iter(&curr, &i_inner, &curr_inner) ; cont2 ; cont2 = args_iter_next(&i_inner, &curr_inner)) {
-			char *target  = args_get_from("target", &curr_inner);
-			char *type    = args_get_from("type", &curr_inner);
-			capid_t capno = atoi(args_key(&curr_inner, &keylen));
-			struct cos_compinfo *cm_ci  = cos_compinfo_get(c->comp.comp_res);
+			char    *type      = args_get_from("type", &curr_inner);
+			capid_t  capno     = atoi(args_key(&curr_inner, &keylen));
+			compid_t target_id = atoi(args_get_from("target", &curr_inner));
 
-			printc("\t\tCapability #%ld: %s for component %s\n", capno, type, target);
+			/* If we've moved on to the next component, commit the changes for the previous */
+			if (target && target != boot_comp_get(target_id)) {
+				if (crt_comp_alias_in(&target->comp, &c->comp, &comp_res, alias_flags)) BUG();
+
+				memset(&comp_res, 0, sizeof(struct crt_comp_resources));
+				alias_flags = 0;
+			}
+			target = boot_comp_get(target_id);
+			assert(target);
+
+			printc("\t\tCapability #%ld: %s for component %ld\n", capno, type, target_id);
 			if (!strcmp(type, "pgtbl")) {
-				ret = cos_cap_cpy_at(cm_ci, capno, ci, ci->pgtbl_cap);
-				assert(ret == 0);
+				comp_res.ptc = capno;
+				alias_flags |= CRT_COMP_ALIAS_PGTBL;
 			} else if (!strcmp(type, "captbl")) {
-				ret = cos_cap_cpy_at(cm_ci, capno, ci, ci->captbl_cap);
-				assert(ret == 0);
+				comp_res.ctc = capno;
+				alias_flags |= CRT_COMP_ALIAS_CAPTBL;
 			} else if (!strcmp(type, "comp")) {
-				ret = cos_cap_cpy_at(cm_ci, capno, ci, ci->comp_cap);
-				assert(ret == 0);
+				comp_res.compc = capno;
+				alias_flags |= CRT_COMP_ALIAS_COMP;
 			} else {
 				BUG();
 			}
-			if (frontier < capno) frontier = capno;
 		}
-		crt_captbl_frontier_update(&c->comp, round_up_to_pow2(frontier + 1, 4));
+		if (crt_comp_alias_in(&target->comp, &c->comp, &comp_res, alias_flags)) BUG();
 	}
+
+	/*
+	 * *No static capability slot allocations after this point.*
+	 *
+	 * Past this point, dynamic allocations are made into the
+	 * capability tables of the components. Thus any statically
+	 * allocated capability ids can be disrupted by these
+	 * bump-pointer allocations if they are used past this
+	 * point. All of the capability manager static capabilities
+	 * should be done already.
+	 *
+	 * The exception is that capability ids under BOOT_CAPTLB_FREE
+	 * are reserved as is, so they can be allocated to regardless.
+	 */
 
 	/*
 	 * Create the synchronous invocations for the component. This
@@ -245,9 +297,7 @@ comps_init(void)
 		int serv_id = atoi(args_get_from("server", &curr));
 		int cli_id  = atoi(args_get_from("client", &curr));
 
-		assert(sinv_idx < BOOTER_MAX_SINV);
-		sinv = &boot_sinvs[sinv_idx];
-		sinv_idx++;	/* bump pointer allocation */
+		sinv = sa_sinv_alloc();
 
 		crt_sinv_create(sinv, args_get_from("name", &curr), &boot_comp_get(serv_id)->comp, &boot_comp_get(cli_id)->comp,
 				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
@@ -270,14 +320,13 @@ comps_init(void)
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct boot_comp *c;
 		int keylen;
-		compid_t capmgr_id;
+		struct crt_comp_exec_context ctxt = { 0 };
 
-		capmgr_id = atoi(args_key(&curr, &keylen));
-		c = boot_comp_get(capmgr_id);
+		c = boot_comp_get(atoi(args_key(&curr, &keylen)));
 		assert(c);
 
 		/* TODO: generalize. Give the capmgr 64MB for now. */
-		crt_capmgr_create(&c->comp, 64 * 1024 * 1024);
+		if (crt_comp_exec(&c->comp, crt_comp_exec_capmgr_init(&ctxt, BOOTER_CAPMGR_MB * 1024 * 1024))) BUG();
 	}
 
 	printc("Kernel resources created, booting components!\n");
@@ -340,7 +389,7 @@ execute(void)
 		int      keylen;
 		compid_t id        = atoi(args_key(&curr, &keylen));
 		char    *exec_type = args_value(&curr);
-		int initcore;
+		int      initcore;
 		thdcap_t thdcap;
 
 		c = boot_comp_get(id);
@@ -360,7 +409,8 @@ execute(void)
 
 			/* Lazily allocate parallel threads only when they are required. */
 			if (!thdcap) {
-				ret = crt_thd_init_create(comp);
+				assert(0);
+				/* ret = crt_thd_init_create(comp); */
 				assert(ret == 0);
 				thdcap = crt_comp_thdcap_get(comp);
 				assert(thdcap);
@@ -404,10 +454,11 @@ execute(void)
 			assert(thdcap);
 			printc("Switching to main in component %lu.\n", comp->id);
 		} else if (!thdcap) {
-			ret = crt_thd_init_create(comp);
-			assert(ret == 0);
-			thdcap = crt_comp_thdcap_get(comp);
-			assert(thdcap);
+			assert(0); /* FIXME: Update once the single core is working */
+			/* ret = crt_thd_init_create(comp); */
+			/* assert(ret == 0); */
+			/* thdcap = crt_comp_create_in(comp); */
+			/* assert(thdcap); */
 		}
 
 		if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
