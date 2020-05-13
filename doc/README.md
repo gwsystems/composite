@@ -3,6 +3,7 @@
 ## Tools necessary for Composite
 ```
 sudo apt-get -y install bc  
+sudo apt-get -y install g++
 sudo apt-get -y install gcc-multilib  
 sudo apt-get -y install binutils-dev  
 sudo apt-get -y install qemu-kvm  
@@ -25,7 +26,7 @@ $ git clone https://github.com/gparmer/composite.git composite
 $ cd composite/src/
 $ make init
 $ make
-$ make run RUNSCRIPT=kernel_tests.sh run      # microbenchmarks
+$ make run RUNSCRIPT=kernel_tests.sh run      # Kernel unit tests
 $ make run RUNSCRIPT=unit_schedtests.sh run # simple scheduler tests
 ```
 
