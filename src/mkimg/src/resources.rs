@@ -1,7 +1,7 @@
 use initargs::ArgsKV;
 use passes::{
-    deps, BuildState, ComponentId, Interface, PropertiesPass, ResPass, ServiceType, SystemState,
-    Transition,
+    component, deps, BuildState, ComponentId, Interface, PropertiesPass, ResPass, ServiceType,
+    SystemState, Transition,
 };
 use std::collections::{BTreeMap, HashMap};
 
@@ -199,15 +199,35 @@ impl CompConfigState {
 
 fn comp_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {}
 
-fn sched_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
+fn sched_config_serv_client(s: &SystemState, id: &ComponentId) -> Vec<ArgsKV> {
+    let mut init = Vec::new();
+
     let props: &PropertiesPass = s.get_properties();
     if !props.service_is_a(&id, ServiceType::Scheduler) {
-        return;
+        return init;
     }
 
     let clients = props.service_clients(&id, ServiceType::Scheduler);
-    let parent = props.service_dependency(&id, ServiceType::Scheduler);
+
+    assert!(props.service_is_a(&id, ServiceType::Scheduler));
+    if let Some(cs) = clients {
+        for c in cs.iter() {
+            init.push(ArgsKV::new_key(c.to_string(), id.to_string()));
+        }
+    }
+
+    init
+}
+
+fn sched_config_clients(s: &SystemState, id: &ComponentId) -> Vec<ArgsKV> {
     let mut init = Vec::new();
+
+    let props: &PropertiesPass = s.get_properties();
+    if !props.service_is_a(&id, ServiceType::Scheduler) {
+        return init;
+    }
+
+    let clients = props.service_clients(&id, ServiceType::Scheduler);
 
     assert!(props.service_is_a(&id, ServiceType::Scheduler));
     if let Some(cs) = clients {
@@ -226,7 +246,14 @@ fn sched_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
         }
     }
 
-    cfg.args.push(ArgsKV::new_arr("execute".to_string(), init));
+    init
+}
+
+fn sched_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
+    cfg.args.push(ArgsKV::new_arr(
+        "execute".to_string(),
+        sched_config_clients(&s, &id),
+    ));
 }
 
 fn cap2kvarg(capid: u32, cap: &CapRes) -> ArgsKV {
@@ -251,6 +278,8 @@ fn capmgr_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
         .unwrap_or_else(|| Vec::new());
     let mut sched_args = Vec::new();
     let mut ct_args = Vec::new();
+    let mut init_args = Vec::new();
+    let mut names_args = Vec::new();
 
     // aggregate records for scheduler and capmgr dependencies
     clients.append(
@@ -282,17 +311,37 @@ fn capmgr_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
             assert!(p.is_some());
             sched_args.push(ArgsKV::new_key(c.to_string(), p.unwrap().to_string()));
         }
+
+        // Initialization information for all components shipped to
+        // the capmgr This effectively grants permission for the
+        // scheduler to create execution in a client.
+        let mut init_clients = sched_config_serv_client(&s, &c);
+        if !init_clients.is_empty() {
+            init_args.append(&mut init_clients);
+        }
+
+        // client names
+        let spec_comp = component(&s, &c);
+        let name = format!(
+            "{}.{}.{}",
+            spec_comp.source, spec_comp.name.scope_name, spec_comp.name.var_name
+        );
+        names_args.push(ArgsKV::new_key(c.to_string(), name));
     }
     cfg.args.push(ArgsKV::new_arr(
         "scheduler_hierarchy".to_string(),
         sched_args,
     ));
+    cfg.args
+        .push(ArgsKV::new_arr("init_hierarchy".to_string(), init_args));
 
     for (capid, cap) in cfg.ct.get_captbl() {
         ct_args.push(cap2kvarg(*capid, &cap));
     }
     cfg.args
         .push(ArgsKV::new_arr("captbl".to_string(), ct_args));
+    cfg.args
+        .push(ArgsKV::new_arr("names".to_string(), names_args));
 }
 
 fn constructor_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {

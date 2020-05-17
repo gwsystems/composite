@@ -157,6 +157,7 @@ comps_init(void)
 		};
 		simple_barrier_init(&bc->barrier, init_parallelism());
 
+
 		comp    = &bc->comp;
 		elf_hdr = (void *)args_get(path);
 
@@ -174,6 +175,7 @@ comps_init(void)
 				BUG();
 			}
 		}
+		assert(comp->refcnt != 0);
 	}
 
 	ret = args_get_entry("execute", &comps);
@@ -198,12 +200,14 @@ comps_init(void)
 
 			assert(r);
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, r))) BUG();
+			sa_rcv_activate(r);
 			printc("\tCreated scheduling execution for %ld\n", id);
 		} else if (!strcmp(exec_type, "init")) {
 			struct crt_thd *t = sa_thd_alloc();
 
 			assert(t);
 			if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, t))) BUG();
+			sa_thd_activate(t);
 			printc("\tCreated thread for %ld\n", id);
 		} else {
 			printc("Error: Found unknown execution schedule type %s.\n", exec_type);
@@ -298,11 +302,11 @@ comps_init(void)
 		int cli_id  = atoi(args_get_from("client", &curr));
 
 		sinv = sa_sinv_alloc();
-
+		assert(sinv);
 		crt_sinv_create(sinv, args_get_from("name", &curr), &boot_comp_get(serv_id)->comp, &boot_comp_get(cli_id)->comp,
 				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
-
+		sa_sinv_activate(sinv);
 		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
 	}

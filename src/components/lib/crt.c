@@ -116,6 +116,8 @@ crt_alias_alloc_helper(capid_t cap, cap_t type, struct crt_comp *c, capid_t *ret
 static int
 crt_comp_init(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info)
 {
+	assert(c && name);
+
 	memset(c, 0, sizeof(struct crt_comp));
 	*c = (struct crt_comp) {
 		.flags      = CRT_COMP_NONE,
@@ -149,6 +151,8 @@ crt_comp_init(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_
 int
 crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_comp_resources *r)
 {
+	assert(c && name && r);
+
 	if (crt_comp_init(c, name, id, NULL, r->info)) BUG();
 
 	cos_compinfo_init(cos_compinfo_get(c->comp_res),
@@ -187,14 +191,16 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	char   *ro_src, *data_src, *mem;
 	int     ret;
 
+	assert(c && name);
+
 	if (crt_comp_init(c, name, id, elf_hdr, info)) BUG();
 	ci      = cos_compinfo_get(c->comp_res);
 	root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 	if (elf_load_info(c->elf_hdr, &c->ro_addr, &ro_sz, &ro_src, &c->rw_addr, &data_sz, &data_src, &bss_sz)) return -EINVAL;
 
-	printc("\t\t%s's elf object: ro [0x%lx, 0x%lx), data [0x%lx, 0x%lx), bss [0x%lx, 0x%lx).\n",
-	       name, c->ro_addr, c->ro_addr + ro_sz, c->rw_addr, c->rw_addr + data_sz, c->rw_addr + data_sz, c->rw_addr + data_sz + bss_sz);
+	printc("\t\t elf obj: ro [0x%lx, 0x%lx), data [0x%lx, 0x%lx), bss [0x%lx, 0x%lx).\n",
+	       c->ro_addr, c->ro_addr + ro_sz, c->rw_addr, c->rw_addr + data_sz, c->rw_addr + data_sz, c->rw_addr + data_sz + bss_sz);
 
 	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
 	assert(!ret);
@@ -224,12 +230,15 @@ void
 crt_comp_captbl_frontier_update(struct crt_comp *c, capid_t capid)
 {
 	assert(c);
+
 	cos_comp_capfrontier_update(cos_compinfo_get(c->comp_res), capid);
 }
 
 int
 crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
 {
+	assert(c && name);
+
 	*c = (struct crt_comp) {
 		.flags    = CRT_COMP_BOOTER,
 		.name     = name,
@@ -245,6 +254,8 @@ crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
 static int
 crt_is_booter(struct crt_comp *c)
 {
+	assert(c);
+
 	return c->flags & CRT_COMP_BOOTER;
 }
 
@@ -252,6 +263,8 @@ thdcap_t
 crt_comp_thdcap_get(struct crt_comp *c)
 {
 	thdcap_t ret = 0;
+
+	assert(c);
 
 	if (c->flags & CRT_COMP_INITIALIZE) {
 		struct crt_thd *t = c->exec_ctxt.exec.thd;
@@ -281,7 +294,10 @@ crt_comp_thdcap_get(struct crt_comp *c)
 int
 crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp_resources *res, crt_comp_alias_t flags)
 {
-	struct cos_compinfo *target_ci = cos_compinfo_get(c->comp_res);
+	struct cos_compinfo *target_ci;
+
+	assert(c && c_in && res);
+	target_ci = cos_compinfo_get(c->comp_res);
 
 	if (flags & CRT_COMP_ALIAS_COMP) {
 		if (crt_alias_alloc_helper(target_ci->comp_cap, CAP_COMP, c_in, &res->compc)) BUG();
@@ -299,10 +315,15 @@ int
 crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client,
 		vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr)
 {
-	struct cos_compinfo *cli = cos_compinfo_get(client->comp_res);
-	struct cos_compinfo *srv = cos_compinfo_get(server->comp_res);
+	struct cos_compinfo *cli;
+	struct cos_compinfo *srv;
 	unsigned int ucap_off;
 	struct usr_inv_cap *ucap;
+
+	assert(sinv && name && server && client);
+
+	cli = cos_compinfo_get(client->comp_res);
+	srv = cos_compinfo_get(server->comp_res);
 
 	assert(crt_refcnt_alive(&server->refcnt) && crt_refcnt_alive(&client->refcnt));
 	crt_refcnt_take(&client->refcnt);
@@ -340,6 +361,8 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 int
 crt_sinv_alias_in(struct crt_sinv *s, struct crt_comp *c, struct crt_sinv_resources *res)
 {
+	assert(s && c && res);
+
 	if (crt_alias_alloc_helper(s->sinv_cap, CAP_SINV, c, &res->sinv_cap)) BUG();
 
 	return 0;
@@ -440,6 +463,8 @@ crt_sinv_alias_in(struct crt_sinv *s, struct crt_comp *c, struct crt_sinv_resour
 int
 crt_thd_create_with(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resources *rs)
 {
+	assert(t && c && rs);
+
 	*t = (struct crt_thd) {
 		.cap = rs->cap,
 		.c   = c
@@ -457,10 +482,15 @@ int
 crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t closure_id)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *target_ci = cos_compinfo_get(c->comp_res);
-	struct cos_aep_info    *target_aep = cos_sched_aep_get(c->comp_res);
+	struct cos_compinfo    *target_ci;
+	struct cos_aep_info    *target_aep;
 	thdcap_t thdcap;
 	struct crt_thd_resources rs;
+
+	assert(t && c);
+
+	target_ci = cos_compinfo_get(c->comp_res);
+	target_aep = cos_sched_aep_get(c->comp_res);
 
 	assert(target_ci->comp_cap);
 	if (closure_id == 0) {
@@ -498,6 +528,7 @@ crt_thd_create(struct crt_thd *t, struct crt_comp *self, crt_thd_fn_t fn, void *
 	int      idx = cos_thd_init_alloc(fn, data);
 	thdcap_t ret;
 
+	assert(t && self);
 	if (idx < 1) return 0;
 	ret = crt_thd_create_in(t, self, idx);
 	if (!ret) cos_thd_init_free(idx);
@@ -508,6 +539,8 @@ crt_thd_create(struct crt_thd *t, struct crt_comp *self, crt_thd_fn_t fn, void *
 int
 crt_thd_alias_in(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resources *res)
 {
+	assert(t && c && res);
+
 	if (crt_alias_alloc_helper(t->cap, CAP_THD, c, &res->cap)) BUG();
 
 	return 0;
@@ -516,6 +549,8 @@ crt_thd_alias_in(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resources
 int
 crt_rcv_create_with(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resources *rs)
 {
+	assert(r && c && rs);
+
 	*r = (struct crt_rcv) {
 		.thd = (struct crt_thd) {
 			.cap = rs->thd,
@@ -567,6 +602,8 @@ crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, 
 	thdcap_t  thdcap;
 	arcvcap_t rcvcap;
 
+	assert(r && c);
+
 	if (sched) {
 		sched_aep = sched->aep;
 	} else {
@@ -597,6 +634,8 @@ crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, 
 	};
 	if (crt_rcv_create_with(r, c, &res)) BUG();
 
+	if (sched) crt_refcnt_take(&sched->refcnt);
+
 	return 0;
 }
 
@@ -613,6 +652,8 @@ crt_rcv_create(struct crt_rcv *r, struct crt_comp *self, crt_thd_fn_t fn, void *
 {
 	int      idx = cos_thd_init_alloc(fn, data);
 	thdcap_t ret;
+
+	assert(r && self);
 
 	if (idx < 1) return 0;
 	ret = crt_rcv_create_in(r, self, NULL, idx, CRT_RCV_TCAP_INHERIT);
@@ -634,6 +675,8 @@ crt_rcv_create(struct crt_rcv *r, struct crt_comp *self, crt_thd_fn_t fn, void *
 int
 crt_rcv_alias_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resources *res, crt_rcv_alias_t flags)
 {
+	assert(r && c && res);
+
 	if (flags & CRT_RCV_ALIAS_RCV) {
 		if (crt_alias_alloc_helper(r->aep->rcv, CAP_ARCV, c, &res->rcv)) BUG();
 	}
@@ -675,6 +718,8 @@ crt_asnd_create(struct crt_asnd *s, struct crt_rcv *r)
 int
 crt_asnd_alias_in(struct crt_asnd *s, struct crt_comp *c, struct crt_asnd_resources *res)
 {
+	assert(s && c && res);
+
 	if (crt_alias_alloc_helper(s->asnd, CAP_ASND, c, &res->asnd)) BUG();
 
 	return 0;
@@ -791,6 +836,8 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 	struct crt_comp_resources compres;
 	int ret;
 
+	assert(c && ctxt);
+
 	/* Should only be called if initialization is necessary */
 	assert(target_ci->comp_cap);
 	if (ctxt->flags & CRT_COMP_CAPMGR && !(c->flags & CRT_COMP_SCHED)) ctxt->flags |= CRT_COMP_SCHED;
@@ -841,7 +888,6 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 			.ctc = BOOT_CAPTBL_SELF_CT
 		};
 		if (crt_comp_alias_in(c, c, &compres, CRT_COMP_ALIAS_CAPTBL)) BUG();
-
 		/* FIXME: should subset the permissions for this around time management */
 		ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_INITHW_BASE, ci, BOOT_CAPTBL_SELF_INITHW_BASE);
 		assert(ret == 0);
@@ -874,6 +920,23 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		c->exec_ctxt.memsz = ctxt->memsz;
 		c->flags |= CRT_COMP_CAPMGR;
 	}
+
+	return 0;
+}
+
+void *
+crt_page_allocn(struct crt_comp *c, u32_t n_pages)
+{
+	assert(c);
+
+	return cos_page_bump_allocn(cos_compinfo_get(c->comp_res), n_pages * PAGE_SIZE);
+}
+
+int
+crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr)
+{
+	*map_addr = cos_mem_aliasn(cos_compinfo_get(c_in->comp_res), cos_compinfo_get(self->comp_res), (vaddr_t)pages, n_pages * PAGE_SIZE);
+	if (!*map_addr) return -EINVAL;
 
 	return 0;
 }

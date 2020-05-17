@@ -25,9 +25,11 @@ struct crt_comp_resources {
 };
 
 typedef enum {
+	CRT_COMP_ALIAS_NONE   = 0,
 	CRT_COMP_ALIAS_PGTBL  = 1,
 	CRT_COMP_ALIAS_CAPTBL = 1 << 1,
-	CRT_COMP_ALIAS_COMP   = 1 << 2
+	CRT_COMP_ALIAS_COMP   = 1 << 2,
+	CRT_COMP_ALIAS_ALL    = CRT_COMP_ALIAS_PGTBL | CRT_COMP_ALIAS_CAPTBL | CRT_COMP_ALIAS_COMP
 } crt_comp_alias_t;
 
 struct crt_comp_exec_context {
@@ -90,9 +92,11 @@ struct crt_rcv_resources {
 };
 
 typedef enum {
+	CRT_RCV_ALIAS_NONE = 0,
 	CRT_RCV_ALIAS_THD  = 1,
 	CRT_RCV_ALIAS_TCAP = 2,
 	CRT_RCV_ALIAS_RCV  = 4,
+	CRT_RCV_ALIAS_ALL  = CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP | CRT_RCV_ALIAS_RCV,
 } crt_rcv_alias_t;
 
 struct crt_asnd {
@@ -146,5 +150,8 @@ int crt_thd_create(struct crt_thd *t, struct crt_comp *self, crt_thd_fn_t fn, vo
 int crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t closure_id);
 int crt_thd_create_with(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resources *rs);
 int crt_thd_alias_in(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resources *res);
+
+void *crt_page_allocn(struct crt_comp *c, u32_t n_pages);
+int crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr);
 
 #endif /* CRT_H */
