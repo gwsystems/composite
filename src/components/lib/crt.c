@@ -295,8 +295,6 @@ crt_comp_thdcap_get(struct crt_comp *c)
 		ret = r->thd.cap;
 	}
 
-	printc("component %ld's thdcap: %ld\n", c->id, ret);
-
 	return ret;
 }
 
