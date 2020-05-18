@@ -246,6 +246,8 @@ fn sched_config_clients(s: &SystemState, id: &ComponentId) -> Vec<ArgsKV> {
         }
     }
 
+    // The pushes reversed the order
+    init.reverse();
     init
 }
 
