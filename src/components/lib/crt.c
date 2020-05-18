@@ -47,6 +47,9 @@
 #include <cos_types.h>
 #include <llprint.h>
 #include <elf_loader.h>
+#include <barrier.h>
+#include <ps.h>
+#include <initargs.h>
 
 #include <crt.h>
 
@@ -127,9 +130,15 @@ crt_comp_init(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_
 		.entry_addr = elf_hdr ? elf_entry_addr(elf_hdr) : 0,
 		.comp_res   = &c->comp_res_mem,
 		.info       = info,
-		.refcnt     = CRT_REFCNT_INITVAL
+		.refcnt     = CRT_REFCNT_INITVAL,
+
+		.init_state = CRT_COMP_INIT_PREINIT,
+		.main_type  = INIT_MAIN_NONE,
+		.init_core  = cos_cpuid(),
+		.barrier    = SIMPLE_BARRIER_INITVAL
 	};
 	assert(!elf_hdr || c->entry_addr != 0); /* same as `if elf_hdr then c->entry_addr` */
+	simple_barrier_init(&c->barrier, init_parallelism());
 
 	return 0;
 }
@@ -240,13 +249,19 @@ crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
 	assert(c && name);
 
 	*c = (struct crt_comp) {
-		.flags    = CRT_COMP_BOOTER,
-		.name     = name,
-		.id       = id,
-		.comp_res = cos_defcompinfo_curr_get(),
-		.info     = info,
-		.refcnt   = CRT_REFCNT_INITVAL
+		.flags      = CRT_COMP_BOOTER,
+		.name       = name,
+		.id         = id,
+		.comp_res   = cos_defcompinfo_curr_get(),
+		.info       = info,
+		.refcnt     = CRT_REFCNT_INITVAL,
+
+		.init_state = CRT_COMP_INIT_PREINIT,
+		.main_type  = INIT_MAIN_NONE,
+		.init_core  = cos_cpuid(),
+		.barrier    = SIMPLE_BARRIER_INITVAL
 	};
+	simple_barrier_init(&c->barrier, init_parallelism());
 
 	return 0;
 }
@@ -939,4 +954,175 @@ crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt
 	if (!*map_addr) return -EINVAL;
 
 	return 0;
+}
+
+/*
+ * The functions to automate much of the component initialization
+ * logic follow.
+ */
+void
+crt_compinit_execute(comp_get_fn_t comp_get)
+{
+	struct initargs comps, curr;
+	struct initargs_iter i;
+	int cont;
+	int ret;
+
+	/* Initialize components in order of the pre-computed schedule from mkimg */
+	ret = args_get_entry("execute", &comps);
+	assert(!ret);
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		struct crt_comp  *comp;
+		int      keylen;
+		compid_t id        = atoi(args_key(&curr, &keylen));
+		char    *exec_type = args_value(&curr);
+		int      initcore;
+		thdcap_t thdcap;
+
+		comp     = comp_get(id);
+		assert(comp);
+		initcore = comp->init_core == cos_cpuid();
+		assert(comp->init_state = CRT_COMP_INIT_COS_INIT);
+		thdcap   = crt_comp_thdcap_get(comp);
+
+		if (initcore) {
+			assert(thdcap);
+			printc("Initializing component %lu (executing cos_init).\n", comp->id);
+		} else {
+			/* wait for the init core's thread to initialize */
+			while (ps_load(&comp->init_state) == CRT_COMP_INIT_COS_INIT) ;
+			if (ps_load(&comp->init_state) != CRT_COMP_INIT_PAR_INIT) continue;
+
+			/* Lazily allocate parallel threads only when they are required. */
+			if (!thdcap) {
+				assert(0);
+				/* ret = crt_thd_init_create(comp); */
+				assert(ret == 0);
+				thdcap = crt_comp_thdcap_get(comp);
+				assert(thdcap);
+			}
+		}
+		assert(thdcap);
+
+		if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+		assert(comp->init_state > CRT_COMP_INIT_PAR_INIT);
+	}
+
+	/*
+	 * Initialization of components (parallel or sequential)
+	 * complete. Execute the main in components, FIFO
+	 */
+	/* Initialize components in order of the pre-computed schedule from mkimg */
+	ret = args_get_entry("execute", &comps);
+	assert(!ret);
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		struct crt_comp  *comp;
+		int      keylen;
+		compid_t id        = atoi(args_key(&curr, &keylen));
+		char    *exec_type = args_value(&curr);
+		int initcore;
+		thdcap_t thdcap;
+
+		comp = comp_get(id);
+		assert(comp);
+		initcore = comp->init_core == cos_cpuid();
+		thdcap   = crt_comp_thdcap_get(comp);
+
+		/* wait for the initcore to change the state... */
+		while (ps_load(&comp->init_state) == CRT_COMP_INIT_COS_INIT || ps_load(&comp->init_state) == CRT_COMP_INIT_PAR_INIT) ;
+		/* If we don't need to continue persistent computation... */
+		if (ps_load(&comp->init_state) == CRT_COMP_INIT_PASSIVE ||
+		    (comp->main_type == INIT_MAIN_SINGLE && !initcore)) continue;
+
+		if (initcore) {
+			assert(thdcap);
+			printc("Switching to main in component %lu.\n", comp->id);
+		} else if (!thdcap) {
+			assert(0); /* FIXME: Update once the single core is working */
+			/* ret = crt_thd_init_create(comp); */
+			/* assert(ret == 0); */
+			/* thdcap = crt_comp_create_in(comp); */
+			/* assert(thdcap); */
+		}
+
+		if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+	}
+
+	cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);
+	while (1) ;
+
+	BUG();
+
+	return;
+}
+
+void
+crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type)
+{
+	assert(c->id != cos_compid());
+	assert(c && ps_load(&c->init_state) > CRT_COMP_INIT_PREINIT);
+
+	switch (ps_load(&c->init_state)) {
+	case CRT_COMP_INIT_COS_INIT: {
+		c->main_type = main_type;
+
+		if (parallel_init) {
+			/* This will activate any parallel threads */
+			ps_store(&c->init_state, CRT_COMP_INIT_PAR_INIT);
+			return; /* we're continuing with initialization, return! */
+		}
+
+		if (c->main_type == INIT_MAIN_NONE) ps_store(&c->init_state, CRT_COMP_INIT_PASSIVE);
+		else                                ps_store(&c->init_state, CRT_COMP_INIT_MAIN);
+
+		break;
+	}
+	case CRT_COMP_INIT_PAR_INIT: {
+		simple_barrier(&c->barrier);
+		if (c->init_core != cos_cpuid()) break;
+
+		if (c->main_type == INIT_MAIN_NONE) ps_store(&c->init_state, CRT_COMP_INIT_PASSIVE);
+		else                                ps_store(&c->init_state, CRT_COMP_INIT_MAIN);
+
+		break;
+	}
+	default: {
+		printc("Error: component %lu past initialization called init_done.\n", c->id);
+	}}
+
+	if (c->init_core == cos_cpuid()) {
+		printc("Component %lu initialization complete%s.\n", c->id, (c->main_type > 0 ? ", awaiting main execution": ""));
+	}
+
+	/* switch back to the booter's thread in execute() */
+	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+
+	assert(c->init_state != CRT_COMP_INIT_PASSIVE);
+	assert(c->init_state != CRT_COMP_INIT_COS_INIT && c->init_state != CRT_COMP_INIT_PAR_INIT);
+
+	if (c->init_state == CRT_COMP_INIT_MAIN && c->init_core == cos_cpuid()) {
+		printc("Executing main in component %lu.\n", cos_compid());
+	}
+
+	return;
+}
+
+void
+crt_compinit_exit(struct crt_comp *c, int retval)
+{
+	assert(c->id != cos_compid());
+	/*
+	 * TODO: should likely wait to do this until the exit comes
+	 * from all cores.
+	 */
+	if (c->init_core == cos_cpuid()) {
+		c->init_state = CRT_COMP_INIT_TERM;
+		printc("Component %lu has terminated with error code %d on core %lu.\n",
+		       c->id, retval, cos_cpuid());
+	}
+
+	/* switch back to the booter's thread in execute */
+	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+	BUG();
+	while (1) ;
 }

@@ -4,6 +4,8 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <cos_types.h>
+#include <init.h>
+#include <barrier.h>
 
 typedef unsigned long crt_refcnt_t;
 
@@ -14,6 +16,48 @@ typedef enum {
 	CRT_COMP_INITIALIZE  = 1 << 2,	/* The current component should initialize this component... */
 	CRT_COMP_BOOTER      = 1 << 3	/* Is this the current component (i.e. the booter)? */
 } crt_comp_flags_t;
+
+struct crt_comp_exec_context {
+	crt_comp_flags_t flags;
+	union {
+		struct crt_thd *thd;
+		struct crt_rcv *sched_rcv;
+	} exec;			/* TODO: array, 1 per core */
+	size_t memsz;
+};
+
+typedef enum {
+	CRT_COMP_INIT_PREINIT,
+	CRT_COMP_INIT_COS_INIT,
+	CRT_COMP_INIT_PAR_INIT,
+	CRT_COMP_INIT_MAIN, /* type of main is determined by main_type */
+	CRT_COMP_INIT_PASSIVE,
+	CRT_COMP_INIT_TERM
+} crt_comp_init_state_t;
+
+struct crt_comp {
+	crt_comp_flags_t flags;
+	char *name;
+	compid_t id;
+	vaddr_t entry_addr, ro_addr, rw_addr, info;
+
+	char *mem;		/* image memory */
+	pgtblcap_t capmgr_untyped_mem;
+	struct elf_hdr *elf_hdr;
+	struct cos_defcompinfo *comp_res;
+	struct cos_defcompinfo comp_res_mem;
+
+	/* Flags hold tagged variant indicating the execution type */
+	struct crt_comp_exec_context exec_ctxt;
+
+	/* Initialization state and coordination information */
+	volatile crt_comp_init_state_t init_state;
+	init_main_t main_type; /* does this component have post-initialization execution? */
+	struct simple_barrier barrier;
+	coreid_t init_core;
+
+	crt_refcnt_t refcnt;
+};
 
 struct crt_comp_resources {
 	pgtblcap_t  ptc;
@@ -31,33 +75,6 @@ typedef enum {
 	CRT_COMP_ALIAS_COMP   = 1 << 2,
 	CRT_COMP_ALIAS_ALL    = CRT_COMP_ALIAS_PGTBL | CRT_COMP_ALIAS_CAPTBL | CRT_COMP_ALIAS_COMP
 } crt_comp_alias_t;
-
-struct crt_comp_exec_context {
-	crt_comp_flags_t flags;
-	union {
-		struct crt_thd *thd;
-		struct crt_rcv *sched_rcv;
-	} exec;
-	size_t memsz;
-};
-
-struct crt_comp {
-	crt_comp_flags_t flags;
-	char *name;
-	compid_t id;
-	vaddr_t entry_addr, ro_addr, rw_addr, info;
-
-	char *mem;		/* image memory */
-	pgtblcap_t capmgr_untyped_mem;
-	struct elf_hdr *elf_hdr;
-	struct cos_defcompinfo *comp_res;
-	struct cos_defcompinfo comp_res_mem;
-
-	/* Flags hold tagged variant indicating the execution type */
-	struct crt_comp_exec_context exec_ctxt;
-
-	crt_refcnt_t refcnt;
-};
 
 struct crt_thd {
 	thdcap_t cap;
@@ -153,5 +170,15 @@ int crt_thd_alias_in(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resou
 
 void *crt_page_allocn(struct crt_comp *c, u32_t n_pages);
 int crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr);
+
+/**
+ * Initialization API to automate the coordination necessary for
+ * component initialization, both in this component, and in components
+ * that this component is responsible for.
+ */
+typedef struct crt_comp *(*comp_get_fn_t)(compid_t id);
+void crt_compinit_execute(comp_get_fn_t comp_get);
+void crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type);
+void crt_compinit_exit(struct crt_comp *c, int retval);
 
 #endif /* CRT_H */

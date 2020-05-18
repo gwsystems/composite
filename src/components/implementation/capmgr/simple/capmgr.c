@@ -175,7 +175,7 @@ capmgr_comp_sched_get(compid_t cid)
 static void
 capmgr_comp_init(void)
 {
-	struct initargs cap_entries, curr;
+	struct initargs cap_entries, exec_entries, curr;
 	struct initargs_iter i;
 	vaddr_t vasfr = 0;
 	capid_t capfr = 0;
@@ -208,8 +208,6 @@ capmgr_comp_init(void)
 			if (j == 0) id = atoi(args_get_from("target", &curr));
 			else        assert((compid_t)atoi(args_get_from("target", &curr)) == id);
 
-			printc("%s\n", type);
-
 			if (!strcmp(type, "comp")) {
 				comp_res.compc = capid;
 			} else if (!strcmp(type, "captbl")) {
@@ -220,6 +218,7 @@ capmgr_comp_init(void)
 				BUG();
 			}
 		}
+		assert(id);
 
 		assert(comp_res.compc && comp_res.ctc && comp_res.ptc);
 		sched_id = capmgr_comp_sched_get(id);
@@ -241,7 +240,49 @@ capmgr_comp_init(void)
 		comp = cm_comp_alloc_with(name, id, &comp_res);
 		assert(comp);
 	}
+
+	/* Create execution in the relevant components */
+	ret = args_get_entry("execute", &exec_entries);
+	assert(!ret);
+	printc("Capmgr: %d components that need execution\n", args_len(&exec_entries));
+	for (cont = args_iter(&exec_entries, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		struct cm_comp    *cmc;
+		struct crt_comp   *comp;
+		int      keylen;
+		compid_t id        = atoi(args_key(&curr, &keylen));
+		char    *exec_type = args_value(&curr);
+		struct crt_comp_exec_context ctxt = { 0 };
+
+		assert(exec_type);
+		assert(id != cos_compid());
+		cmc  = sa_comp_get(id);
+		assert(cmc);
+		comp = &cmc->comp;
+
+		if (!strcmp(exec_type, "sched")) {
+			struct cm_rcv *r = sa_rcv_alloc();
+
+			assert(r);
+			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, &r->rcv))) BUG();
+			sa_rcv_activate(r);
+			printc("\tCreated scheduling execution for %ld\n", id);
+		} else if (!strcmp(exec_type, "init")) {
+			struct cm_thd *t = sa_thd_alloc();
+
+			assert(t);
+			if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, &t->thd))) BUG();
+			sa_thd_activate(t);
+			printc("\tCreated thread for %ld\n", id);
+		} else {
+			printc("Error: Found unknown execution schedule type %s.\n", exec_type);
+			BUG();
+		}
+	}
+
+
+
 	assert(0);
+	return;
 }
 
 void
@@ -283,6 +324,52 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	cos_defcompinfo_sched_init();
 	sl_init(SL_MIN_PERIOD_US);
 	assert(0);
+}
+
+static inline struct crt_comp *
+crtcomp_get(compid_t id)
+{
+	struct cm_comp *c = sa_comp_get(id);
+
+	assert(c);
+
+	return &c->comp;
+}
+
+void
+execute(void)
+{
+	crt_compinit_execute(crtcomp_get);
+}
+
+void
+init_done(int parallel_init, init_main_t main_type)
+{
+	compid_t client = (compid_t)cos_inv_token();
+	struct crt_comp *c;
+
+	assert(client > 0 && client <= MAX_NUM_COMPS);
+	c = crtcomp_get(client);
+
+	crt_compinit_done(c, parallel_init, main_type);
+
+	return;
+}
+
+
+void
+init_exit(int retval)
+{
+	compid_t client = (compid_t)cos_inv_token();
+	struct crt_comp *c;
+
+	assert(client > 0 && client <= MAX_NUM_COMPS);
+	c = crtcomp_get(client);
+	assert(c);
+
+	crt_compinit_exit(c, retval);
+
+	while (1) ;
 }
 
 thdcap_t  capmgr_initthd_create(spdid_t child, thdid_t *tid) { return 0; }

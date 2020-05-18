@@ -34,35 +34,9 @@
 #define BOOTER_CAPMGR_MB 64
 #endif
 
-
-/* Booter's additive information about the component */
-typedef enum {
-	BOOT_COMP_PREINIT,
-	BOOT_COMP_COS_INIT,
-	BOOT_COMP_PAR_INIT,
-	BOOT_COMP_MAIN, /* type of main is determined by main_type */
-	BOOT_COMP_PASSIVE,
-	BOOT_COMP_TERM
-} boot_comp_state_t;
-
-typedef enum {
-	BOOT_COMP_THD,
-	BOOT_COMP_SCHED,
-	BOOT_COMP_NO_THD
-} boot_comp_exec_t;
-
-struct boot_comp {
-	volatile boot_comp_state_t state;
-	init_main_t main_type; /* does this component have post-initialization execution? */
-	struct simple_barrier barrier;
-	coreid_t init_core;
-	struct crt_comp comp;
-
-};
-
-static struct boot_comp boot_comps[MAX_NUM_COMPS];
-static const  compid_t  sched_root_id  = 2;
-static        long      boot_id_offset = -1;
+static struct crt_comp boot_comps[MAX_NUM_COMPS];
+static const  compid_t sched_root_id  = 2;
+static        long     boot_id_offset = -1;
 
 SA_STATIC_ALLOC(sinv, struct crt_sinv, BOOTER_MAX_SINV);
 SA_STATIC_ALLOC(thd,  struct crt_thd,  BOOTER_MAX_INITTHD);
@@ -74,7 +48,7 @@ SA_STATIC_ALLOC(rcv,  struct crt_rcv,  BOOTER_MAX_SCHED);
  * that is higher than we have components. In that case, this will
  * return NULL.
  */
-static struct boot_comp *
+static struct crt_comp *
 boot_comp_get(compid_t id)
 {
 	assert(id > 0 && id <= MAX_NUM_COMPS);
@@ -89,7 +63,7 @@ boot_comp_get(compid_t id)
 	return &boot_comps[id - boot_id_offset];
 }
 
-static struct boot_comp *
+static struct crt_comp *
 boot_comp_self(void)
 {
 	return boot_comp_get(cos_compid());
@@ -127,7 +101,6 @@ comps_init(void)
 	printc("Components (%d):\n", args_len(&comps));
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct crt_comp *comp;
-		struct boot_comp *bc;
 		void *elf_hdr;
 		int   keylen;
 		compid_t id = atoi(args_key(&curr, &keylen));
@@ -147,18 +120,8 @@ comps_init(void)
 		strncat(path, name, INITARGS_MAX_PATHNAME - len);
 		assert(path[INITARGS_MAX_PATHNAME - 1] == '\0'); /* no truncation allowed */
 
-		bc  = boot_comp_get(id);
-		assert(bc);
-		*bc = (struct boot_comp) {
-			.state     = BOOT_COMP_PREINIT,
-			.main_type = INIT_MAIN_NONE,
-			.init_core = cos_cpuid(),
-			.barrier   = SIMPLE_BARRIER_INITVAL
-		};
-		simple_barrier_init(&bc->barrier, init_parallelism());
-
-
-		comp    = &bc->comp;
+		comp = boot_comp_get(id);
+		assert(comp);
 		elf_hdr = (void *)args_get(path);
 
 		if (id == cos_compid()) {
@@ -182,7 +145,6 @@ comps_init(void)
 	assert(!ret);
 	printc("Execution schedule:\n");
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct boot_comp    *bc;
 		struct crt_comp     *comp;
 		int      keylen;
 		compid_t id        = atoi(args_key(&curr, &keylen));
@@ -191,9 +153,8 @@ comps_init(void)
 
 		assert(exec_type);
 		assert(id != cos_compid());
-		bc   = boot_comp_get(id);
-		assert(bc);
-		comp = &bc->comp;
+		comp = boot_comp_get(id);
+		assert(comp);
 
 		if (!strcmp(exec_type, "sched")) {
 			struct crt_rcv *r = sa_rcv_alloc();
@@ -214,7 +175,7 @@ comps_init(void)
 			BUG();
 		}
 
-		bc->state = BOOT_COMP_COS_INIT;
+		comp->init_state = CRT_COMP_INIT_COS_INIT;
 	}
 
 	/* perform any necessary captbl delegations */
@@ -226,14 +187,14 @@ comps_init(void)
 	 * gets complex here otherwise)
 	 */
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct boot_comp *c;
+		struct crt_comp *c;
 		struct initargs curr_inner;
 		struct initargs_iter i_inner;
 		int keylen, cont2;
 		compid_t capmgr_id;
 		struct crt_comp_resources comp_res = { 0 };
 		crt_comp_alias_t alias_flags = 0;
-		struct boot_comp *target = NULL;
+		struct crt_comp *target = NULL;
 
 		capmgr_id = atoi(args_key(&curr, &keylen));
 		c = boot_comp_get(capmgr_id);
@@ -248,7 +209,7 @@ comps_init(void)
 
 			/* If we've moved on to the next component, commit the changes for the previous */
 			if (target && target != boot_comp_get(target_id)) {
-				if (crt_comp_alias_in(&target->comp, &c->comp, &comp_res, alias_flags)) BUG();
+				if (crt_comp_alias_in(target, c, &comp_res, alias_flags)) BUG();
 
 				memset(&comp_res, 0, sizeof(struct crt_comp_resources));
 				alias_flags = 0;
@@ -270,7 +231,7 @@ comps_init(void)
 				BUG();
 			}
 		}
-		if (crt_comp_alias_in(&target->comp, &c->comp, &comp_res, alias_flags)) BUG();
+		if (crt_comp_alias_in(target, c, &comp_res, alias_flags)) BUG();
 	}
 
 	/*
@@ -303,7 +264,7 @@ comps_init(void)
 
 		sinv = sa_sinv_alloc();
 		assert(sinv);
-		crt_sinv_create(sinv, args_get_from("name", &curr), &boot_comp_get(serv_id)->comp, &boot_comp_get(cli_id)->comp,
+		crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
 				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
 		sa_sinv_activate(sinv);
@@ -322,7 +283,7 @@ comps_init(void)
 	ret = args_get_entry("captbl_delegations", &comps);
 	assert(!ret);
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct boot_comp *c;
+		struct crt_comp *c;
 		int keylen;
 		struct crt_comp_exec_context ctxt = { 0 };
 
@@ -330,7 +291,7 @@ comps_init(void)
 		assert(c);
 
 		/* TODO: generalize. Give the capmgr 64MB for now. */
-		if (crt_comp_exec(&c->comp, crt_comp_exec_capmgr_init(&ctxt, BOOTER_CAPMGR_MB * 1024 * 1024))) BUG();
+		if (crt_comp_exec(c, crt_comp_exec_capmgr_init(&ctxt, BOOTER_CAPMGR_MB * 1024 * 1024))) BUG();
 	}
 
 	printc("Kernel resources created, booting components!\n");
@@ -342,18 +303,19 @@ unsigned long
 addr_get(compid_t id, addr_t type)
 {
 	compid_t client = (compid_t)cos_inv_token();
-	struct boot_comp *c, *target;
+	struct crt_comp *c, *target;
 	struct cos_compinfo *ci;
 
 	c = boot_comp_get(client);
 	/* only capmgrs should be allowed to call this... */
-	assert(c && c->comp.flags & CRT_COMP_CAPMGR);
+	assert(c);
+	if (!(c->flags & CRT_COMP_CAPMGR)) return 0;
 
 	if (id <= 0 || client > MAX_NUM_COMPS) return 0;
 	target = boot_comp_get(id);
 	assert(target);
 
-	ci = cos_compinfo_get(target->comp.comp_res);
+	ci = cos_compinfo_get(target->comp_res);
 
 	switch (type) {
 	case ADDR_CAPTBL_FRONTIER:
@@ -379,176 +341,36 @@ booter_init(void)
 void
 execute(void)
 {
-	struct initargs comps, curr;
-	struct initargs_iter i;
-	int cont;
-	int ret;
-
-	/* Initialize components in order of the pre-computed schedule from mkimg */
-	ret = args_get_entry("execute", &comps);
-	assert(!ret);
-	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct boot_comp *c;
-		struct crt_comp  *comp;
-		int      keylen;
-		compid_t id        = atoi(args_key(&curr, &keylen));
-		char    *exec_type = args_value(&curr);
-		int      initcore;
-		thdcap_t thdcap;
-
-		c = boot_comp_get(id);
-		assert(c);
-		initcore = c->init_core == cos_cpuid();
-		assert(c->state = BOOT_COMP_COS_INIT);
-		comp     = &c->comp;
-		thdcap   = crt_comp_thdcap_get(comp);
-
-		if (initcore) {
-			assert(thdcap);
-			printc("Initializing component %lu (executing cos_init).\n", comp->id);
-		} else {
-			/* wait for the init core's thread to initialize */
-			while (ps_load(&c->state) == BOOT_COMP_COS_INIT) ;
-			if (ps_load(&c->state) != BOOT_COMP_PAR_INIT) continue;
-
-			/* Lazily allocate parallel threads only when they are required. */
-			if (!thdcap) {
-				assert(0);
-				/* ret = crt_thd_init_create(comp); */
-				assert(ret == 0);
-				thdcap = crt_comp_thdcap_get(comp);
-				assert(thdcap);
-			}
-		}
-		assert(thdcap);
-
-		if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
-		assert(c->state > BOOT_COMP_PAR_INIT);
-	}
-
-	/*
-	 * Initialization of components (parallel or sequential)
-	 * complete. Execute the main in components, FIFO
-	 */
-	/* Initialize components in order of the pre-computed schedule from mkimg */
-	ret = args_get_entry("execute", &comps);
-	assert(!ret);
-	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct boot_comp *c;
-		struct crt_comp  *comp;
-		int      keylen;
-		compid_t id        = atoi(args_key(&curr, &keylen));
-		char    *exec_type = args_value(&curr);
-		int initcore;
-		thdcap_t thdcap;
-
-		c = boot_comp_get(id);
-		assert(c);
-		initcore = c->init_core == cos_cpuid();
-		comp     = &c->comp;
-		thdcap   = crt_comp_thdcap_get(comp);
-
-		/* wait for the initcore to change the state... */
-		while (ps_load(&c->state) == BOOT_COMP_COS_INIT || ps_load(&c->state) == BOOT_COMP_PAR_INIT) ;
-		/* If we don't need to continue persistent computation... */
-		if (ps_load(&c->state) == BOOT_COMP_PASSIVE ||
-		    (c->main_type == INIT_MAIN_SINGLE && !initcore)) continue;
-
-		if (initcore) {
-			assert(thdcap);
-			printc("Switching to main in component %lu.\n", comp->id);
-		} else if (!thdcap) {
-			assert(0); /* FIXME: Update once the single core is working */
-			/* ret = crt_thd_init_create(comp); */
-			/* assert(ret == 0); */
-			/* thdcap = crt_comp_create_in(comp); */
-			/* assert(thdcap); */
-		}
-
-		if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
-	}
-
-	cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);
-	while (1) ;
-
-	BUG();
-
-	return;
+	crt_compinit_execute(boot_comp_get);
 }
 
 void
 init_done(int parallel_init, init_main_t main_type)
 {
 	compid_t client = (compid_t)cos_inv_token();
-	struct boot_comp *c, *n;
+	struct crt_comp *c;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = boot_comp_get(client);
-	assert(c && ps_load(&c->state) > BOOT_COMP_PREINIT);
 
-	switch (ps_load(&c->state)) {
-	case BOOT_COMP_COS_INIT: {
-		c->main_type = main_type;
-
-		if (parallel_init) {
-			/* This will activate any parallel threads */
-			ps_store(&c->state, BOOT_COMP_PAR_INIT);
-			return; /* we're continuing with initialization, return! */
-		}
-
-		if (c->main_type == INIT_MAIN_NONE) ps_store(&c->state, BOOT_COMP_PASSIVE);
-		else                                ps_store(&c->state, BOOT_COMP_MAIN);
-
-		break;
-	}
-	case BOOT_COMP_PAR_INIT: {
-		simple_barrier(&c->barrier);
-		if (c->init_core != cos_cpuid()) break;
-
-		if (c->main_type == INIT_MAIN_NONE) ps_store(&c->state, BOOT_COMP_PASSIVE);
-		else                                ps_store(&c->state, BOOT_COMP_MAIN);
-
-		break;
-	}
-	default: {
-		printc("Error: component %lu past initialization called init_done.\n", c->comp.id);
-	}}
-
-	if (c->init_core == cos_cpuid()) {
-		printc("Component %lu initialization complete%s.\n", c->comp.id, (c->main_type > 0 ? ", awaiting main execution": ""));
-	}
-
-	/* switch back to the booter's thread in execute() */
-	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
-
-	assert(c->state != BOOT_COMP_PASSIVE);
-	assert(c->state != BOOT_COMP_COS_INIT && c->state != BOOT_COMP_PAR_INIT);
-
-	if (c->state == BOOT_COMP_MAIN && c->init_core == cos_cpuid()) {
-		printc("Executing main in component %lu.\n", cos_compid());
-	}
+	crt_compinit_done(c, parallel_init, main_type);
 
 	return;
 }
+
 
 void
 init_exit(int retval)
 {
 	compid_t client = (compid_t)cos_inv_token();
-	struct boot_comp *c;
+	struct crt_comp *c;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = boot_comp_get(client);
+	assert(c);
 
-	if (c->init_core == cos_cpuid()) {
-		c->state = BOOT_COMP_TERM;
-		printc("Component %lu has terminated with error code %d on core %lu.\n",
-		       c->comp.id, retval, cos_cpuid());
-	}
+	crt_compinit_exit(c, retval);
 
-	/* switch back to the booter's thread in execute */
-	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
-	BUG();
 	while (1) ;
 }
 

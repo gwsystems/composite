@@ -107,7 +107,7 @@ __cosrt_s_##name:				\
 
 #define cos_asm_stub(name)		       \
 .text;                                         \
-.globl name;                                   \
+.weak name;                                    \
 .globl __cosrt_extern_##name;                  \
 .type  name, @function;			       \
 .type  __cosrt_extern_##name, @function;       \
