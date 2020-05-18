@@ -9,6 +9,15 @@
 
 typedef unsigned long crt_refcnt_t;
 
+struct crt_asnd {
+	struct crt_rcv *rcv;
+	asndcap_t asnd;
+};
+
+struct crt_asnd_resources {
+	asndcap_t asnd;
+};
+
 typedef enum {
 	CRT_COMP_NONE        = 0,
 	CRT_COMP_SCHED       = 1, 	/* is this a scheduler? */
@@ -21,7 +30,10 @@ struct crt_comp_exec_context {
 	crt_comp_flags_t flags;
 	union {
 		struct crt_thd *thd;
-		struct crt_rcv *sched_rcv;
+		struct crt_sched {
+			struct crt_rcv *sched_rcv;
+			struct crt_asnd sched_asnd;
+		} sched;
 	} exec;			/* TODO: array, 1 per core */
 	size_t memsz;
 };
@@ -96,6 +108,7 @@ struct crt_rcv {
 	/* Local information in this component */
 	struct cos_aep_info *aep; /* either points to local_aep, or a component's aep */
 	struct cos_aep_info local_aep;
+	arcvcap_t child_rcv;	/* set by alias when mapped into child */
 
 	struct crt_comp *c;
 	crt_refcnt_t refcnt; 	/* senders create references */
@@ -116,15 +129,6 @@ typedef enum {
 	CRT_RCV_ALIAS_ALL  = CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP | CRT_RCV_ALIAS_RCV,
 } crt_rcv_alias_t;
 
-struct crt_asnd {
-	struct crt_rcv *rcv;
-	asndcap_t asnd;
-};
-
-struct crt_asnd_resources {
-	asndcap_t asnd;
-};
-
 struct crt_sinv {
 	char *name;
 	struct crt_comp *server, *client;
@@ -143,6 +147,7 @@ int crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp
 void crt_comp_captbl_frontier_update(struct crt_comp *c, capid_t capid);
 int crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info);
 thdcap_t crt_comp_thdcap_get(struct crt_comp *c);
+int crt_comp_sched_delegate(struct crt_comp *child, struct crt_comp *self, tcap_prio_t prio, tcap_res_t res);
 
 struct crt_comp_exec_context *crt_comp_exec_sched_init(struct crt_comp_exec_context *ctxt, struct crt_rcv *r);
 struct crt_comp_exec_context *crt_comp_exec_thd_init(struct crt_comp_exec_context *ctxt, struct crt_thd *t);

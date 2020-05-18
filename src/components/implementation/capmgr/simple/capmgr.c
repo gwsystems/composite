@@ -81,8 +81,9 @@ cm_comp_self_alloc(char *name)
 {
 	struct cm_comp *c = sa_comp_alloc_at_index(cos_compid());
 
-	if (!c) return NULL;
+	assert(c);
 	if (crt_booter_create(&c->comp, name, cos_compid(), 0)) BUG();
+	sa_comp_activate(c);
 
 	return c;
 }
@@ -279,51 +280,7 @@ capmgr_comp_init(void)
 		}
 	}
 
-
-
-	assert(0);
 	return;
-}
-
-void
-cos_init(void)
-{
-	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
-	int ret;
-
-	printc("Starting the capability manager.\n");
-	printc("\tCPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
-	assert(atol(args_get("captbl_end")) >= BOOT_CAPTBL_FREE);
-
-	/* Get our house in order. Initialize ourself and our data-structures */
-	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_defcompinfo_init();
-	/*
-	 * FIXME: this is a hack. The captbl_end variable does *not*
-	 * take into account the synchronous invocations yet. That is
-	 * because we don't want to modify the image to include it
-	 * after we've sealed in all initargs and sinvs. Regardless,
-	 * that is the *correct* approach.
-	 */
-	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER));
-	if (!cm_comp_self_alloc("capmgr")) BUG();
-	sl_init(SL_MIN_PERIOD_US);
-
-	/* Initialize the other component's for which we're responsible */
-	capmgr_comp_init();
-
-	return;
-}
-
-void
-cos_parallel_init(coreid_t cid, int init_core, int ncores)
-{
-	if (init_core) return;
-
-	cos_defcompinfo_sched_init();
-	sl_init(SL_MIN_PERIOD_US);
-	assert(0);
 }
 
 static inline struct crt_comp *
@@ -372,19 +329,63 @@ init_exit(int retval)
 	while (1) ;
 }
 
-thdcap_t  capmgr_initthd_create(spdid_t child, thdid_t *tid) { return 0; }
-thdcap_t  capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret) { return 0; }
-thdcap_t capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid) { return 0; }
-thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { return 0; }
-thdcap_t  capmgr_thd_create_ext(spdid_t child, thdclosure_index_t idx, thdid_t *tid) { return 0; }
-thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv) { return 0; }
-arcvcap_t capmgr_rcv_create(spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { return 0; }
-asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t) { return 0; }
-asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv) { return 0; }
-asndcap_t capmgr_asnd_key_create(cos_channelkey_t key) { return 0; }
+thdcap_t  capmgr_initthd_create(spdid_t child, thdid_t *tid) { BUG(); return 0; }
+thdcap_t  capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret) { BUG(); return 0; }
+thdcap_t capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid) { BUG(); return 0; }
+thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }
+thdcap_t  capmgr_thd_create_ext(spdid_t child, thdclosure_index_t idx, thdid_t *tid) { BUG(); return 0; }
+thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv) { BUG(); return 0; }
+arcvcap_t capmgr_rcv_create(spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }
+asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t) { BUG(); return 0; }
+asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv) { BUG(); return 0; }
+asndcap_t capmgr_asnd_key_create(cos_channelkey_t key) { BUG(); return 0; }
 
-vaddr_t memmgr_heap_page_allocn(unsigned long num_pages) { return 0; }
-cbuf_t memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr) { return 0; }
-unsigned long memmgr_shared_page_map(cbuf_t id, vaddr_t *pgaddr) { return 0; }
+vaddr_t memmgr_heap_page_allocn(unsigned long num_pages) { BUG(); return 0; }
+cbuf_t memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr) { BUG(); return 0; }
+unsigned long memmgr_shared_page_map(cbuf_t id, vaddr_t *pgaddr) { BUG(); return 0; }
 
 void capmgr_create_noop(void) { return; }
+
+void
+cos_init(void)
+{
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
+	int ret;
+
+	printc("Starting the capability manager.\n");
+	assert(atol(args_get("captbl_end")) >= BOOT_CAPTBL_FREE);
+
+	/* Get our house in order. Initialize ourself and our data-structures */
+	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	cos_defcompinfo_init();
+	/*
+	 * FIXME: this is a hack. The captbl_end variable does *not*
+	 * take into account the synchronous invocations yet. That is
+	 * because we don't want to modify the image to include it
+	 * after we've sealed in all initargs and sinvs. Regardless,
+	 * that is the *correct* approach.
+	 */
+	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER));
+	if (!cm_comp_self_alloc("capmgr")) BUG();
+
+	/* Initialize the other component's for which we're responsible */
+	capmgr_comp_init();
+
+	sl_init(SL_MIN_PERIOD_US);
+
+	return;
+}
+
+void
+cos_parallel_init(coreid_t cid, int init_core, int ncores)
+{
+	if (!init_core) cos_defcompinfo_sched_init();
+}
+
+void
+parallel_main(coreid_t cid)
+{
+	execute();
+	sl_init(SL_MIN_PERIOD_US);
+}

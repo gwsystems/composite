@@ -288,7 +288,7 @@ crt_comp_thdcap_get(struct crt_comp *c)
 
 		ret = t->cap;
 	} else if (c->flags & CRT_COMP_SCHED) {
-		struct crt_rcv *r = c->exec_ctxt.exec.sched_rcv;
+		struct crt_rcv *r = c->exec_ctxt.exec.sched.sched_rcv;
 
 		if (!r) return 0;
 
@@ -296,6 +296,18 @@ crt_comp_thdcap_get(struct crt_comp *c)
 	}
 
 	return ret;
+}
+
+int
+crt_comp_sched_delegate(struct crt_comp *child, struct crt_comp *self, tcap_prio_t prio, tcap_res_t res)
+{
+	struct cos_aep_info *sched_aep;
+
+	assert(child && self);
+
+	sched_aep = cos_sched_aep_get(self->comp_res);
+
+	return cos_tcap_delegate(child->exec_ctxt.exec.sched.sched_asnd.asnd, sched_aep->tc, res, prio, TCAP_DELEG_YIELD);
 }
 
 /**
@@ -671,6 +683,8 @@ crt_rcv_create(struct crt_rcv *r, struct crt_comp *self, crt_thd_fn_t fn, void *
 	if (idx < 1) return 0;
 	ret = crt_rcv_create_in(r, self, NULL, idx, CRT_RCV_TCAP_INHERIT);
 	if (!ret) cos_thd_init_free(idx);
+	/* As this rcv is in this component, we need this reference to make an asnd */
+	r->child_rcv = r->local_aep.rcv;
 
 	return ret;
 }
@@ -692,6 +706,11 @@ crt_rcv_alias_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resources
 
 	if (flags & CRT_RCV_ALIAS_RCV) {
 		if (crt_alias_alloc_helper(r->aep->rcv, CAP_ARCV, c, &res->rcv)) BUG();
+		/*
+		 * Creating a snd requires that we have the rcv cap
+		 * within the owning components captbl
+		 */
+		r->child_rcv = res->rcv;
 	}
 	if (flags & CRT_RCV_ALIAS_THD) {
 		if (crt_alias_alloc_helper(r->aep->thd, CAP_THD, c, &res->thd)) BUG();
@@ -706,18 +725,19 @@ crt_rcv_alias_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resources
 int
 crt_asnd_create(struct crt_asnd *s, struct crt_rcv *r)
 {
-	struct cos_defcompinfo *defci      = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci         = cos_compinfo_get(defci);
+	struct cos_compinfo    *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct cos_compinfo    *target_ci;
 	asndcap_t ascap;
 
 	assert(s && r && r->thd.c && r->thd.c->comp_res);
 	assert(r->aep && r->aep->rcv);
+	assert(r->child_rcv); 	/* must create in this the current component, or alias first */
 	target_ci = cos_compinfo_get(r->thd.c->comp_res);
 	assert(target_ci->captbl_cap);
 	crt_refcnt_take(&r->refcnt);
 
-	ascap = cos_asnd_alloc(ci, r->aep->rcv, target_ci->captbl_cap);
+	assert(r->aep->rcv && target_ci->captbl_cap);
+	ascap = cos_asnd_alloc(ci, r->child_rcv, target_ci->captbl_cap);
 	assert(ascap);
 
 	*s = (struct crt_asnd) {
@@ -767,7 +787,7 @@ crt_comp_exec_sched_init(struct crt_comp_exec_context *ctxt, struct crt_rcv *r)
 	assert(!(ctxt->flags & CRT_COMP_INITIALIZE));
 
 	ctxt->flags |= CRT_COMP_SCHED;
-	ctxt->exec.sched_rcv = r;
+	ctxt->exec.sched.sched_rcv = r;
 
 	return ctxt;
 }
@@ -808,9 +828,9 @@ struct crt_rcv *
 crt_comp_exec_schedthd(struct crt_comp *comp)
 {
 	assert(comp);
-	assert((comp->exec_ctxt.flags & CRT_COMP_SCHED) && comp->exec_ctxt.exec.sched_rcv != NULL);
+	assert((comp->exec_ctxt.flags & CRT_COMP_SCHED) && comp->exec_ctxt.exec.sched.sched_rcv != NULL);
 
-	return comp->exec_ctxt.exec.sched_rcv;
+	return comp->exec_ctxt.exec.sched.sched_rcv;
 }
 
 struct crt_thd *
@@ -872,8 +892,8 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		struct crt_rcv_resources rcvres;
 		struct crt_rcv *r;
 
-		assert(!(c->flags & CRT_COMP_SCHED) && ctxt->exec.sched_rcv);
-		r = ctxt->exec.sched_rcv;
+		assert(!(c->flags & CRT_COMP_SCHED) && ctxt->exec.sched.sched_rcv);
+		r = ctxt->exec.sched.sched_rcv;
 
 		if (crt_rcv_create_in(r, c, NULL, 0, 0)) BUG();
 
@@ -906,7 +926,10 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		assert(ret == 0);
 
 		/* Update the component's structure */
-		c->exec_ctxt.exec.sched_rcv = r;
+		c->exec_ctxt.exec.sched.sched_rcv = r;
+		/* Make an asnd capability to the child so that we can do tcap delegations */
+		if (crt_asnd_create(&c->exec_ctxt.exec.sched.sched_asnd, r)) BUG();
+
 		c->flags |= CRT_COMP_SCHED;
 	}
 	/* fall-through here */
@@ -974,7 +997,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		int      keylen;
 		compid_t id        = atoi(args_key(&curr, &keylen));
 		char    *exec_type = args_value(&curr);
-		int      initcore;
+		int      initcore, ret;
 		thdcap_t thdcap;
 
 		comp     = comp_get(id);
@@ -984,7 +1007,6 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		thdcap   = crt_comp_thdcap_get(comp);
 
 		if (initcore) {
-			assert(thdcap);
 			printc("Initializing component %lu (executing cos_init).\n", comp->id);
 		} else {
 			/* wait for the init core's thread to initialize */
@@ -997,12 +1019,18 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 				/* ret = crt_thd_init_create(comp); */
 				assert(ret == 0);
 				thdcap = crt_comp_thdcap_get(comp);
-				assert(thdcap);
 			}
 		}
 		assert(thdcap);
 
-		if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+		if (comp->flags & CRT_COMP_SCHED) {
+			if (crt_comp_sched_delegate(comp, comp_get(cos_compid()), TCAP_PRIO_MAX, TCAP_RES_INF)) BUG();
+		} else {
+			if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync()))) {
+				printc("Switch failure on thdcap %ld, with ret %d\n", thdcap, ret);
+				BUG();
+			}
+		}
 		assert(comp->init_state > CRT_COMP_INIT_PAR_INIT);
 	}
 
@@ -1043,7 +1071,14 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 			/* assert(thdcap); */
 		}
 
-		if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+		if (comp->flags & CRT_COMP_SCHED) {
+			struct cos_defcompinfo *defci     = comp->comp_res;
+			struct cos_aep_info    *child_aep = cos_sched_aep_get(defci);
+
+			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_RES_INF, child_aep->rcv, cos_sched_sync())) BUG();
+		} else {
+			if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+		}
 	}
 
 	cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);
@@ -1099,7 +1134,7 @@ crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type)
 	assert(c->init_state != CRT_COMP_INIT_COS_INIT && c->init_state != CRT_COMP_INIT_PAR_INIT);
 
 	if (c->init_state == CRT_COMP_INIT_MAIN && c->init_core == cos_cpuid()) {
-		printc("Executing main in component %lu.\n", cos_compid());
+		printc("Executing main in component %lu.\n", c->id);
 	}
 
 	return;
