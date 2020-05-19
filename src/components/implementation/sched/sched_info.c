@@ -8,8 +8,8 @@
 #include <cos_kernel_api.h>
 #include <ps.h>
 #include <sched_info.h>
-#include <hypercall.h>
 #include <sl.h>
+#include <initargs.h>
 
 #define SCHED_MAX_CHILD_COMPS 8
 static struct sched_childinfo childinfo[NUM_CPU][SCHED_MAX_CHILD_COMPS];
@@ -73,27 +73,52 @@ sched_num_childsched_get(void)
 static void
 sched_childinfo_init_intern(int is_raw)
 {
-	int remaining = 0;
 	spdid_t child;
 	comp_flag_t childflags;
 
+	struct initargs cap_entries, exec_entries, curr;
+	struct initargs_iter i;
+	vaddr_t vasfr = 0;
+	capid_t capfr = 0;
+	int ret, cont;
+
+	int remaining = 0;
+	int num_comps = 0;
+
+	assert(!is_raw);
+
 	memset(childinfo[cos_cpuid()], 0, sizeof(struct sched_childinfo) * SCHED_MAX_CHILD_COMPS);
 
-	while ((remaining = hypercall_comp_child_next(cos_spd_id(), &child, &childflags)) >= 0) {
+	/* Create execution in the relevant components */
+	ret = args_get_entry("execute", &exec_entries);
+	assert(!ret);
+	printc("Sched: %d components that need execution\n", args_len(&exec_entries));
+	for (cont = args_iter(&exec_entries, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		int      keylen;
+		compid_t id        = atoi(args_key(&curr, &keylen));
+		char    *exec_type = args_value(&curr);
 		struct cos_defcompinfo *child_dci = NULL;
 		struct sched_childinfo *schedinfo = NULL;
 		struct sl_thd          *initthd   = NULL;
 		compcap_t               compcap   = 0;
+		int cpu;
 
-		if (is_raw) {
-			compcap = hypercall_comp_compcap_get(child);
-			assert(compcap);
+		assert(exec_type);
+		assert(id != cos_compid());
+
+		/* Only init threads allowed */
+		if (strcmp(exec_type, "init")) {
+			BUG();	/* TODO: no support for hierarchical scheduling yet */
 		}
-
+		child = id;
+		childflags = 0;
 		schedinfo = sched_childinfo_alloc(child, compcap, childflags);
 		assert(schedinfo);
 		child_dci = sched_child_defci_get(schedinfo);
-		hypercall_comp_cpubitmap_get(child, schedinfo->cpubmp);
+		assert(child_dci && child_dci->id != 0);
+		for (cpu = 0; cpu < NUM_CPU; cpu++) {
+			bitmap_set(schedinfo->cpubmp, cpu);
+		}
 
 		if (bitmap_check(schedinfo->cpubmp, cos_cpuid())) {
 			PRINTLOG(PRINT_DEBUG, "Initializing child component %u, is_sched=%d\n", child, childflags & COMP_FLAG_SCHED);
@@ -104,8 +129,6 @@ sched_childinfo_init_intern(int is_raw)
 			sched_child_init(schedinfo);
 			if (childflags & COMP_FLAG_SCHED) ps_faa((unsigned long *)&sched_num_childsched[cos_cpuid()], 1);
 		}
-
-		if (!remaining) break;
 	}
 
 	assert(sched_num_child_get()); /* at least 1 child component */

@@ -31,7 +31,10 @@ struct cm_comp {
 struct cm_thd {
 	struct sl_thd  *sched_thd; /* scheduler data-structure for the thread */
 	struct crt_thd  thd;
-	struct cm_comp *sched;
+
+	struct cm_comp *client; /* component thread begins execution in */
+	struct cm_comp *sched;	/* The scheduler that has the alias */
+	thdcap_t aliased_cap;	/* location thread is aliased into the scheduler. */
 };
 
 struct cm_asnd {
@@ -117,6 +120,32 @@ cm_rcv_alloc_in(struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t cl
 	sa_rcv_activate(r);
 
 	return r;
+}
+
+struct cm_thd *
+cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, thdclosure_index_t closure_id)
+{
+	struct cm_thd *t = sa_thd_alloc();
+	struct crt_thd_resources res = { 0 };
+
+	if (!t) return NULL;
+	if (crt_thd_create_in(&t->thd, &c->comp, closure_id)) {
+		sa_thd_free(t);
+		printc("capmgr: couldn't create new thread correctly.\n");
+		return NULL;
+	}
+	sa_thd_activate(t);
+	if (crt_thd_alias_in(&t->thd, &sched->comp, &res)) {
+		printc("capmgr: couldn't alias correctly.\n");
+		/* FIXME: reclaim the thread */
+		return NULL;
+	}
+	t->sched       = sched;
+	t->aliased_cap = res.cap;
+	t->client      = c;
+	/* FIXME: should take a reference to the scheduler */
+
+	return t;
 }
 
 struct mm_page *
@@ -329,11 +358,61 @@ init_exit(int retval)
 	while (1) ;
 }
 
-thdcap_t  capmgr_initthd_create(spdid_t child, thdid_t *tid) { BUG(); return 0; }
+thdcap_t
+capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
+{
+	compid_t schedid = (compid_t)cos_inv_token();
+	struct cm_thd *t;
+	struct cm_comp *s, *c;
+
+	if (schedid != capmgr_comp_sched_get(client)) {
+		/* don't have permission to create execution in that component. */
+		printc("capmgr: Component asking to create thread from %ld in %ld -- no permission.\n",
+		       schedid, (compid_t)client);
+		return 0;
+	}
+
+	c = sa_comp_get(client);
+	s = sa_comp_get(schedid);
+	if (!c || !s) return 0;
+	t = cm_thd_alloc_in(c, s, idx);
+	if (!t) {
+		/* TODO: release resources */
+		return 0;
+	}
+	*tid = t->thd.tid;
+
+	return t->aliased_cap;
+}
+
+thdcap_t
+capmgr_initthd_create(spdid_t client, thdid_t *tid)
+{
+	return capmgr_thd_create_ext(client, 0, tid);
+}
+
 thdcap_t  capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret) { BUG(); return 0; }
-thdcap_t capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid) { BUG(); return 0; }
+
+thdcap_t
+capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid)
+{
+	compid_t client = (compid_t)cos_inv_token();
+	struct cm_thd *t;
+	struct cm_comp *c;
+
+	assert(client > 0 && client <= MAX_NUM_COMPS);
+	c = sa_comp_get(client);
+	t = cm_thd_alloc_in(c, c, idx);
+	if (!t) {
+		/* TODO: release resources */
+		return 0;
+	}
+	*tid = t->thd.tid;
+
+	return t->aliased_cap;
+}
+
 thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }
-thdcap_t  capmgr_thd_create_ext(spdid_t child, thdclosure_index_t idx, thdid_t *tid) { BUG(); return 0; }
 thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv) { BUG(); return 0; }
 arcvcap_t capmgr_rcv_create(spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }
 asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t) { BUG(); return 0; }

@@ -134,7 +134,7 @@
 		type *c = NULL;						\
 		word_t *s;						\
 									\
-		assert(idx < max_num);					\
+		if (idx >= max_num) return NULL;			\
 		c = &sa_##name##_globals[idx];				\
 		s = &sa_##name##_states[idx];				\
 		if (*s != (word_t)SA_OBJ_FREE ||			\
@@ -186,7 +186,7 @@
 	{								\
 		type *o;						\
 									\
-		assert(idx < max_num);					\
+		if (idx >= max_num) return NULL;			\
 		o = &sa_##name##_globals[idx];				\
 		if (sa_##name##_states[idx] != SA_OBJ_ALLOCATED) return NULL; \
 									\

@@ -232,6 +232,10 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	/* FIXME: separate map of RO and RW */
 	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, tot_sz)) return -ENOMEM;
 
+	/* FIXME: cos_time.h assumes we have access to this... */
+	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, root_ci, BOOT_CAPTBL_SELF_INITHW_BASE);
+	assert(ret == 0);
+
 	return 0;
 }
 
@@ -506,7 +510,8 @@ crt_thd_create_with(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resour
 int
 crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t closure_id)
 {
-	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 	struct cos_compinfo    *target_ci;
 	struct cos_aep_info    *target_aep;
 	thdcap_t thdcap;
@@ -519,22 +524,21 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 
 	assert(target_ci->comp_cap);
 	if (closure_id == 0) {
-		/* Should only be called if initialization is necessary */
-		if ((c->flags & CRT_COMP_INITIALIZE) == 0) return -1;
-		assert(target_aep->thd == 0); /* should not allow double initialization */
+		if(target_aep->thd != 0) return -1; /* should not allow double initialization */
 
 		crt_refcnt_take(&c->refcnt);
 		assert(target_ci->comp_cap);
-		thdcap = target_aep->thd = cos_initthd_alloc(cos_compinfo_get(defci), target_ci->comp_cap);
+		thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
 		assert(target_aep->thd);
 	} else {
 		crt_refcnt_take(&c->refcnt);
-		thdcap = cos_thd_alloc_ext(cos_compinfo_get(defci), target_ci->comp_cap, closure_id);
+		thdcap = cos_thd_alloc_ext(ci, target_ci->comp_cap, closure_id);
 		assert(thdcap);
 	}
 
 	rs = (struct crt_thd_resources) { .cap = thdcap };
 	if (crt_thd_create_with(t, c, &rs)) BUG();
+	t->tid = cos_introspect(ci, thdcap, THD_GET_TID);
 
 	return 0;
 }
@@ -921,9 +925,13 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 			.ctc = BOOT_CAPTBL_SELF_CT
 		};
 		if (crt_comp_alias_in(c, c, &compres, CRT_COMP_ALIAS_CAPTBL)) BUG();
-		/* FIXME: should subset the permissions for this around time management */
-		ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_INITHW_BASE, ci, BOOT_CAPTBL_SELF_INITHW_BASE);
-		assert(ret == 0);
+		/*
+		 * FIXME: should subset the permissions for this
+		 * around time management. This should be added back
+		 * in and removed above
+		 */
+		/* ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_INITHW_BASE, ci, BOOT_CAPTBL_SELF_INITHW_BASE); */
+		/* assert(ret == 0); */
 
 		/* Update the component's structure */
 		c->exec_ctxt.exec.sched.sched_rcv = r;

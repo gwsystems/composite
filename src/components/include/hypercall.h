@@ -28,6 +28,7 @@ hypercall_comp_child_next(spdid_t c, spdid_t *child, comp_flag_t *flags)
 	word_t r2 = 0, r3 = 0, r4;
 	int ret;
 
+	BUG();
 	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_CHILD_NEXT, c, 0, &r2, &r3, &r4);
 
 	if (ret < 0) return ret;
@@ -40,6 +41,7 @@ hypercall_comp_child_next(spdid_t c, spdid_t *child, comp_flag_t *flags)
 static inline int
 hypercall_comp_init_done(void)
 {
+	BUG();
 	/*
 	 * to be used only by the booter child threads
 	 * higher-level components use, schedinit interface to SINV to parent for init
@@ -51,6 +53,7 @@ hypercall_comp_init_done(void)
 static inline int
 hypercall_comp_initaep_get(spdid_t spdid, int is_sched, struct cos_aep_info *aep)
 {
+	BUG();
 	thdcap_t  thdslot = 0;
 	arcvcap_t rcvslot = 0;
 	tcap_t    tcslot  = 0;
@@ -85,6 +88,7 @@ hypercall_comp_initaep_get(spdid_t spdid, int is_sched, struct cos_aep_info *aep
 static inline int
 hypercall_comp_info_get(spdid_t spdid, pgtblcap_t *ptslot, captblcap_t *ctslot, compcap_t *compslot, spdid_t *parentid)
 {
+	BUG();
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	word_t r2 = 0, r3 = 0, r4;
 	int ret = 0;
@@ -109,6 +113,7 @@ hypercall_comp_info_get(spdid_t spdid, pgtblcap_t *ptslot, captblcap_t *ctslot, 
 static inline int
 hypercall_comp_info_next(pgtblcap_t *ptslot, captblcap_t *ctslot, compcap_t *compslot, spdid_t *compid, spdid_t *comp_parentid)
 {
+	BUG();
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	word_t r2 = 0, r3 = 0, r4;
 	int ret = 0;
@@ -133,6 +138,7 @@ hypercall_comp_info_next(pgtblcap_t *ptslot, captblcap_t *ctslot, compcap_t *com
 static inline int
 hypercall_comp_frontier_get(spdid_t spdid, vaddr_t *vasfr, capid_t *capfr)
 {
+	BUG();
 	word_t ret;
 
 	return cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, 0, HYPERCALL_COMP_FRONTIER_GET, spdid, 0, vasfr, capfr, &ret);
@@ -142,6 +148,7 @@ hypercall_comp_frontier_get(spdid_t spdid, vaddr_t *vasfr, capid_t *capfr)
 static inline compcap_t
 hypercall_comp_compcap_get(spdid_t spdid)
 {
+	BUG();
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	compcap_t compslot = cos_capid_bump_alloc(ci, CAP_COMP);
 
@@ -156,6 +163,7 @@ hypercall_comp_compcap_get(spdid_t spdid)
 static inline captblcap_t
 hypercall_comp_captblcap_get(spdid_t spdid)
 {
+	BUG();
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	captblcap_t ctslot = cos_capid_bump_alloc(ci, CAP_CAPTBL);
 
@@ -170,6 +178,7 @@ hypercall_comp_captblcap_get(spdid_t spdid)
 static inline pgtblcap_t
 hypercall_comp_pgtblcap_get(spdid_t spdid)
 {
+	BUG();
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	pgtblcap_t ptslot = cos_capid_bump_alloc(ci, CAP_PGTBL);
 
@@ -183,6 +192,7 @@ hypercall_comp_pgtblcap_get(spdid_t spdid)
 static inline capid_t
 hypercall_comp_capfrontier_get(spdid_t spdid)
 {
+		BUG();
 	word_t unused;
 	capid_t cap_frontier;
 
@@ -194,6 +204,7 @@ hypercall_comp_capfrontier_get(spdid_t spdid)
 static inline int
 hypercall_comp_cpubitmap_get(spdid_t spdid, u32_t *bmp)
 {
+		BUG();
 	word_t hi = 0, lo = 0;
 
 	assert(NUM_CPU_BMP_WORDS <= 2); /* FIXME: works for up to 64 cores */
@@ -209,6 +220,7 @@ hypercall_comp_cpubitmap_get(spdid_t spdid, u32_t *bmp)
 static inline int
 hypercall_numcomps_get(void)
 {
+		BUG();
 	return cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_NUMCOMPS_GET, 0, 0, 0);
 }
 

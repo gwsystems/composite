@@ -90,6 +90,7 @@ typedef enum {
 
 struct crt_thd {
 	thdcap_t cap;
+	thdid_t  tid;
 	struct crt_comp *c;
 };
 
