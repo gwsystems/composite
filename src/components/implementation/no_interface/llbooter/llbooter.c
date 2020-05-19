@@ -364,6 +364,7 @@ boot_create_cap_system(void)
 			if (boot_comp_map(h, spdid, ci)) BUG();
 
 			boot_newcomp_create(spdid, boot_spd_compinfo_get(spdid));
+			boot_fault_handler_sinv_alloc(spdid);
 			PRINTLOG(PRINT_DEBUG, "Comp %d (%s) created @ %x!\n", h->id, h->name, sect->vaddr);
 		}
 

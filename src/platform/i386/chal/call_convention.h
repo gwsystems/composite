@@ -64,6 +64,14 @@ __userregs_sinvupdate(struct pt_regs *regs)
 	/* regs->di = regs->di; */
 	regs->bp = regs->dx;
 }
+static inline void
+__userregs_sinvargset(struct pt_regs *regs, unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4)
+{
+	regs->bx = arg1;
+	regs->si = arg2;
+	regs->di = arg3;
+	regs->di = arg4;
+}
 static inline int
 __userregs_get1(struct pt_regs *regs)
 {
