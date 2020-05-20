@@ -17,6 +17,7 @@ enum hypercall_cntl {
 	HYPERCALL_COMP_INITAEP_GET,
 	HYPERCALL_COMP_CHILD_NEXT,
 	HYPERCALL_COMP_CPUBITMAP_GET,
+	HYPERCALL_COMP_SCHED_GET,
 
 	HYPERCALL_NUMCOMPS_GET,
 
@@ -188,6 +189,12 @@ hypercall_comp_pgtblcap_get(spdid_t spdid)
 	if (cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_PGTBLCAP_GET, spdid, ptslot, 0)) return 0;
 
 	return ptslot;
+}
+
+static inline spdid_t
+hypercall_comp_sched_get(spdid_t spdid)
+{
+	return cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_SCHED_GET, spdid, 0, 0);
 }
 
 static inline int

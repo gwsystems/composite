@@ -218,6 +218,8 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 {
 	assert(t && sl_thd_curr() == t); /* only current thread is allowed to block itself */
 	assert(t != sl__globals_core()->idle_thd && t != sl__globals_core()->sched_thd);
+	/* interrupt thread could run and block itself before scheduler sees any of that! */
+	sl_thd_sched_unblock_no_cs(t);
 	assert(sl_thd_is_runnable(t));
 	assert(block_type == SL_THD_BLOCKED_TIMEOUT || block_type == SL_THD_BLOCKED);
 
@@ -234,7 +236,6 @@ sl_thd_block_no_cs(struct sl_thd *t, sl_thd_state_t block_type, cycles_t timeout
 	}
 
 	/* reset rcv_suspended if the scheduler thinks "curr" was suspended on cos_rcv previously */
-	sl_thd_sched_unblock_no_cs(t);
 	assert(t->state == SL_THD_RUNNABLE);
 	sl_mod_block(sl_mod_thd_policy_get(t));
 	ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), -1);
@@ -502,37 +503,6 @@ sl_thd_yield_intern_timeout(cycles_t abs_timeout)
 }
 
 void
-sl_thd_event_info_reset(struct sl_thd *t)
-{
-	t->event_info.blocked      = 0;
-	t->event_info.elapsed_cycs = 0;
-	t->event_info.next_timeout = 0;
-}
-
-static inline void
-sl_thd_event_enqueue(struct sl_thd *t, struct cos_thd_event *e)
-{
-	struct sl_global_core *g = sl__globals_core();
-
-	if (ps_list_singleton(t, SL_THD_EVENT_LIST)) ps_list_head_append(&g->event_head, t, SL_THD_EVENT_LIST);
-
-	t->event_info.blocked       = e->blocked;
-	t->event_info.elapsed_cycs += e->elapsed_cycs;
-	t->event_info.next_timeout  = e->next_timeout;
-}
-
-static inline void
-sl_thd_event_dequeue(struct sl_thd *t, struct cos_thd_event *e)
-{
-	ps_list_rem(t, SL_THD_EVENT_LIST);
-
-	e->blocked      = t->event_info.blocked;
-	e->elapsed_cycs = t->event_info.elapsed_cycs;
-	e->next_timeout = t->event_info.next_timeout;
-	sl_thd_event_info_reset(t);
-}
-
-void
 sl_thd_exit()
 {
 	sl_thd_free(sl_thd_curr());
@@ -583,13 +553,28 @@ sl_timeout_period(microsec_t period)
 	cycles_t p = sl_usec2cyc(period);
 
 	sl__globals_core()->period = p;
-	sl_timeout_relative(p);
 }
 
 /* engage space heater mode */
 void
 sl_idle(void *d)
-{ while (1) ; }
+{
+	struct sl_global_core *gc = sl__globals_core();
+
+	while (1) {
+		cycles_t now = sl_now();
+
+		do {
+			if (cos_sched_ispending() ||
+#if NUM_CPU > 1
+			    ck_ring_size(sl__ring_curr()) != 0 ||
+#endif
+			    !sl_child_notif_empty()) break;
+			now = sl_now();
+		} while (now < gc->timer_next);
+		sl_thd_activate_c(gc->sched_thd, cos_sched_sync(), 0, 0, gc->idle_thd, gc);
+	}
+}
 
 /* call from the user? */
 static void
@@ -674,6 +659,72 @@ sl_init(microsec_t period)
 	sl_init_corebmp(period, corebmp);
 }
 
+static inline int
+__sl_sched_events_present(void)
+{
+	struct cos_scb_info *scb = sl_scb_info_core();
+	struct cos_sched_ring *ring = &scb->sched_events;
+
+	return __cos_sched_events_present(ring);
+}
+
+static inline int
+__sl_sched_event_consume(struct cos_sched_event *e)
+{
+	struct cos_scb_info *scb = sl_scb_info_core();
+	struct cos_sched_ring *ring = &scb->sched_events;
+
+	return __cos_sched_event_consume(ring, e);
+}
+
+static inline int
+__sl_sched_rcv(rcv_flags_t rf, struct cos_sched_event *e)
+{
+	struct sl_global_core *g = sl__globals_core();
+#if 0
+	struct sl_thd *curr = sl_thd_curr();
+	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr);
+	int ret = 0;
+//	if (cos_spd_id() != 4) printc("D");
+
+	assert(curr == g->sched_thd);
+	if (!cd) return cos_ul_sched_rcv(g->sched_rcv, rf, g->timeout_next, e);
+
+	rf |= RCV_ULSCHED_RCV;
+	
+	__asm__ __volatile__ (			\
+		"pushl %%ebp\n\t"		\
+		"movl %%esp, %%ebp\n\t"		\
+		"movl $1f, (%%eax)\n\t"		\
+		"movl %%esp, 4(%%eax)\n\t"	\
+		"movl $2f, %%ecx\n\t"		\
+		"movl %%edx, %%eax\n\t"		\
+		"inc %%eax\n\t"			\
+		"shl $16, %%eax\n\t"		\
+		"movl $0, %%edx\n\t"		\
+		"movl $0, %%edi\n\t"		\
+		"sysenter\n\t"			\
+		"jmp 2f\n\t"			\
+		".align 4\n\t"			\
+		"1:\n\t"			\
+		"movl $1, %%eax\n\t"		\
+		".align 4\n\t"			\
+		"2:\n\t"			\
+		"popl %%ebp\n\t"		\
+		: "=a" (ret)
+		: "a" (cd), "b" (rf), "S" (g->timeout_next), "d" (g->sched_rcv)
+		: "memory", "cc", "ecx", "edi");
+
+//	if (cos_spd_id() != 4) printc("E");
+//	if (cos_thdid() == 7) PRINTC("%s:%d %d\n", __func__, __LINE__, ret);
+	cd = sl_thd_dcbinfo(sl_thd_curr());
+	cd->sp = 0;
+
+	rf |= RCV_ULONLY;
+#endif
+	return cos_ul_sched_rcv(g->sched_rcv, rf, g->timeout_next, e);
+}
+
 static void
 sl_sched_loop_intern(int non_block)
 {
@@ -691,13 +742,13 @@ sl_sched_loop_intern(int non_block)
 			struct sl_child_notification notif;
 			struct cos_sched_event e = { .tid = 0 };
 
+			
 			/*
 			 * a child scheduler may receive both scheduling notifications (block/unblock
 			 * states of it's child threads) and normal notifications (mainly activations from
 			 * it's parent scheduler).
 			 */
-			pending = cos_ul_sched_rcv(g->sched_rcv, rfl, g->timeout_next, &e);
-
+			pending = __sl_sched_rcv(rfl, &e);
 			if (pending < 0 || !e.tid) goto pending_events;
 
 			t = sl_thd_lkup(e.tid);
@@ -716,8 +767,11 @@ sl_sched_loop_intern(int non_block)
 
 pending_events:
 			if (ps_list_head_empty(&g->event_head) &&
+#if NUM_CPU > 1
 			    ck_ring_size(sl__ring_curr()) == 0 &&
-			    sl_child_notif_empty()) continue;
+#endif
+			    sl_child_notif_empty() && 
+			    !cos_sched_events_isempty()) continue;
 
 			/*
 			 * receiving scheduler notifications is not in critical section mainly for
@@ -761,15 +815,17 @@ pending_events:
 				else                                  sl_thd_wakeup_no_cs(t);
 			}
 
+#if NUM_CPU > 1
 			/* process cross-core requests */
 			sl_xcore_process_no_cs();
+#endif
 
 			sl_cs_exit();
 		} while (pending > 0);
 
 		if (sl_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
-		sl_cs_exit_schedule_nospin_timeout(g->timer_next);
+		sl_cs_exit_schedule_nospin_timeout(0);
 	}
 }
 
@@ -785,13 +841,6 @@ sl_sched_loop_nonblock(void)
 	sl_sched_loop_intern(1);
 }
 
-int
-sl_thd_kern_dispatch(thdcap_t t)
-{
-	//return cos_switch(t, sl__globals_core()->sched_tcap, 0, sl__globals_core()->timeout_next, sl__globals_core()->sched_rcv, cos_sched_sync());
-	return cos_thd_switch(t);
-}
-
 void
 sl_thd_replenish_no_cs(struct sl_thd *t, cycles_t now)
 {
@@ -801,7 +850,8 @@ sl_thd_replenish_no_cs(struct sl_thd *t, cycles_t now)
 	cycles_t replenish;
 	int ret;
 
-	if (!(t->properties & SL_THD_PROPERTY_OWN_TCAP && t->budget)) return;
+	if (likely(!(t->properties & SL_THD_PROPERTY_OWN_TCAP))) return;
+	if (!t->budget) return;
 	assert(t->period);
 	assert(sl_thd_tcap(t) != sl__globals_core()->sched_tcap);
 
@@ -817,7 +867,7 @@ sl_thd_replenish_no_cs(struct sl_thd *t, cycles_t now)
 
 		/* tcap_transfer will assign sched_tcap's prio to t's tcap if t->prio == 0, which we don't want. */
 		assert(t->prio >= TCAP_PRIO_MAX && t->prio <= TCAP_PRIO_MIN);
-		ret = cos_tcap_transfer(sl_thd_rcvcap(t), globals->sched_tcap, transfer, t->prio);
+		ret = cos_tcap_transfer(sl_thd_rcvcap(t), sl__globals_core()->sched_tcap, transfer, t->prio);
 	}
 
 	if (likely(ret == 0)) t->last_replenish = replenish;

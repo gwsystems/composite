@@ -39,9 +39,11 @@
 #include <sl_consts.h>
 #include <sl_xcore.h>
 #include <heap.h>
+#include <cos_ulsched_rcv.h>
 
 #define SL_CS
-#undef  SL_REPLENISH
+#undef SL_REPLENISH
+#undef SL_PARENTCHILD
 
 /* Critical section (cs) API to protect scheduler data-structures */
 struct sl_cs {
@@ -433,44 +435,58 @@ sl_thd_is_runnable(struct sl_thd *t)
 	return (t->state == SL_THD_RUNNABLE || t->state == SL_THD_WOKEN);
 }
 
-int sl_thd_kern_dispatch(thdcap_t t);
-
 static inline int
-sl_thd_activate(struct sl_thd *t, sched_tok_t tok, tcap_time_t timeout)
+sl_thd_dispatch_kern(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr, tcap_time_t timeout, tcap_t tc, tcap_prio_t p)
 {
-	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci  = &dci->ci;
-	struct sl_global_core  *g   = sl__globals_core();
+	volatile struct cos_scb_info *scb = sl_scb_info_core();
+	struct sl_global_core *g = sl__globals_core();
+	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr), *nd = sl_thd_dcbinfo(next);
+	word_t a = ((sl_thd_thdcap(next)  + 1) << COS_CAPABILITY_OFFSET) + (tok >> 16);
+	word_t b = (tc << 16) | g->sched_rcv;
+	word_t S = (p << 32) >> 32;
+	word_t D = (((p << 16) >> 48) << 16) | ((tok << 16) >> 16);
+	word_t d = timeout; 
 	int ret = 0;
 
-	if (t->properties & SL_THD_PROPERTY_SEND) {
-		return cos_sched_asnd(t->sndcap, timeout, g->sched_rcv, tok);
-	} else if (t->properties & SL_THD_PROPERTY_OWN_TCAP) {
-		return cos_switch(sl_thd_thdcap(t), sl_thd_tcap(t), t->prio,
-				  timeout, g->sched_rcv, tok);
-	} else {
-		ret = cos_defswitch(sl_thd_thdcap(t), t->prio, t == g->sched_thd ?
-				    TCAP_TIME_NIL : timeout, tok);
-		if (likely(t != g->sched_thd && t != g->idle_thd)) return ret;
-		if (unlikely(ret != -EPERM)) return ret;
+	assert(curr != next);
+	if (unlikely(!cd || !nd)) return cos_switch(sl_thd_thdcap(next), sl_thd_tcap(next), next->prio, timeout, g->sched_rcv, tok);
 
-		/*
-		 * Attempting to activate scheduler thread or idle thread failed for no budget in it's tcap.
-		 * Force switch to the scheduler with current tcap.
-		 */
-		return cos_switch(g->sched_thdcap, g->sched_tcap, t->prio,
-				  timeout, g->sched_rcv, tok);
-	}
+	__asm__ __volatile__ (			\
+		"pushl %%ebp\n\t"		\
+		"movl %%esp, %%ebp\n\t"		\
+		"movl $1f, (%%esi)\n\t"		\
+		"movl %%esp, 4(%%esi)\n\t"	\
+		"movl %%ecx, %%esi\n\t"		\
+		"movl $2f, %%ecx\n\t"		\
+		"sysenter\n\t"			\
+		"jmp 2f\n\t"			\
+		".align 4\n\t"			\
+		"1:\n\t"			\
+		"movl $0, %%eax\n\t"		\
+		".align 4\n\t"			\
+		"2:\n\t"			\
+		"popl %%ebp\n\t"		\
+		: "=a" (ret)
+		: "a" (a), "b" (b), "S" (cd), "D" (D), "d" (d), "c" (S)
+		: "memory", "cc");
+
+	scb = sl_scb_info_core();
+	cd = sl_thd_dcbinfo(sl_thd_curr());
+	cd->sp = 0;
+	if (unlikely(ps_load(&scb->sched_tok) != tok)) return -EAGAIN;
+
+	return ret;
 }
 
 static inline int
-sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
+sl_thd_dispatch_usr(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 {
 	volatile struct cos_scb_info *scb = sl_scb_info_core();
 	struct cos_dcb_info *cd = sl_thd_dcbinfo(curr), *nd = sl_thd_dcbinfo(next);
+	struct sl_global_core *g = sl__globals_core();
 
 	assert(curr != next);
-	if (unlikely(!cd || !nd)) return sl_thd_activate(next, tok, sl__globals_core()->timeout_next);
+	if (unlikely(!cd || !nd)) return cos_defswitch(sl_thd_thdcap(next), next->prio, g->timeout_next, tok);
 
 	/*
 	 * jump labels in the asm routine:
@@ -487,39 +503,42 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 	 *    of this routine or kernel at some point had to switch to a
 	 *    thread that co-operatively switched away from this routine.
 	 *    NOTE: kernel takes care of resetting dcb sp in this case!
+	 *
+	 * a simple cos_thd_switch() kind will disable timers! so, pass in the timeout anyway to 
+	 * slowpath thread switch!
 	 */
 
-	__asm__ __volatile__ (				\
-		"pushl %%ebp\n\t"			\
-		"movl %%esp, %%ebp\n\t"			\
-		"movl $2f, (%%eax)\n\t"			\
-		"movl %%esp, 4(%%eax)\n\t"		\
-		"cmp $0, 4(%%ebx)\n\t"			\
-		"je 1f\n\t"				\
-		"movl %%edx, (%%ecx)\n\t"		\
-		"movl 4(%%ebx), %%esp\n\t"		\
-		"jmp *(%%ebx)\n\t"			\
-		".align 4\n\t"				\
-		"1:\n\t"				\
-		"movl $3f, %%ecx\n\t"			\
-		"movl %%edx, %%eax\n\t"			\
-		"inc %%eax\n\t"				\
-		"shl $16, %%eax\n\t"			\
-		"movl $0, %%ebx\n\t"			\
-		"movl $0, %%esi\n\t"			\
-		"movl $0, %%edi\n\t"			\
-		"movl $0, %%edx\n\t"			\
-		"sysenter\n\t"				\
-		"jmp 3f\n\t"				\
-		".align 4\n\t"				\
-		"2:\n\t"				\
-		"movl $0, 4(%%ebx)\n\t"			\
-		".align 4\n\t"				\
-		"3:\n\t"				\
-		"popl %%ebp\n\t"			\
+	__asm__ __volatile__ (			\
+		"pushl %%ebp\n\t"		\
+		"movl %%esp, %%ebp\n\t"		\
+		"movl $2f, (%%eax)\n\t"		\
+		"movl %%esp, 4(%%eax)\n\t"	\
+		"cmp $0, 4(%%ebx)\n\t"		\
+		"je 1f\n\t"			\
+		"movl %%edx, (%%ecx)\n\t"	\
+		"movl 4(%%ebx), %%esp\n\t"	\
+		"jmp *(%%ebx)\n\t"		\
+		".align 4\n\t"			\
+		"1:\n\t"			\
+		"movl $3f, %%ecx\n\t"		\
+		"movl %%edx, %%eax\n\t"		\
+		"inc %%eax\n\t"			\
+		"shl $16, %%eax\n\t"		\
+		"movl $0, %%ebx\n\t"		\
+		"movl %%esi, %%edx\n\t"		\
+		"movl $0, %%esi\n\t"		\
+		"movl $0, %%edi\n\t"		\
+		"sysenter\n\t"			\
+		"jmp 3f\n\t"			\
+		".align 4\n\t"			\
+		"2:\n\t"			\
+		"movl $0, 4(%%ebx)\n\t"		\
+		".align 4\n\t"			\
+		"3:\n\t"			\
+		"popl %%ebp\n\t"		\
 		:
 		: "a" (cd), "b" (nd),
-		  "S" ((u32_t)((u64_t)tok >> 32)), "D" ((u32_t)(((u64_t)tok << 32) >> 32)),
+		  "S" (g->timeout_next), "D" (tok),
 		  "c" (&(scb->curr_thd)), "d" (sl_thd_thdcap(next))
 		: "memory", "cc");
 
@@ -527,6 +546,46 @@ sl_thd_dispatch(struct sl_thd *next, sched_tok_t tok, struct sl_thd *curr)
 	if (unlikely(ps_load(&scb->sched_tok) != tok)) return -EAGAIN;
 
 	return 0;
+}
+
+static inline int
+sl_thd_activate_c(struct sl_thd *t, sched_tok_t tok, tcap_time_t timeout, tcap_prio_t prio, struct sl_thd *curr, struct sl_global_core *g)
+{
+	if (unlikely(t->properties & SL_THD_PROPERTY_SEND)) {
+		return cos_sched_asnd(t->sndcap, g->timeout_next, g->sched_rcv, tok);
+	}
+
+	/* there is more events.. run scheduler again! */
+	if (unlikely(cos_sched_ispending())) {
+		if (curr == g->sched_thd) return -EBUSY;
+		return sl_thd_dispatch_usr(g->sched_thd, tok, curr);
+	}
+
+	if (unlikely(t->properties & SL_THD_PROPERTY_OWN_TCAP)) {
+		return sl_thd_dispatch_kern(t, tok, curr, timeout, sl_thd_tcap(t), prio == 0 ? t->prio : prio);
+	}
+
+	/* TODO: there is something in the kernel that seem to disable timers..!! */
+	/* WORKAROUND: idle thread is a big cpu hogger.. so make sure there is timeout set around switching to and away! */
+	if (unlikely(curr == g->idle_thd || t == g->idle_thd)) {
+		return sl_thd_dispatch_kern(t, tok, curr, g->timeout_next, g->sched_tcap, prio);
+	}
+
+	if (unlikely(timeout || prio)) {
+		return sl_thd_dispatch_kern(t, tok, curr, timeout, g->sched_tcap, prio);
+	} else {
+		assert(t != g->idle_thd);
+		return sl_thd_dispatch_usr(t, tok, curr);
+	}
+}
+
+
+static inline int
+sl_thd_activate(struct sl_thd *t, sched_tok_t tok, tcap_time_t timeout, tcap_prio_t prio)
+{
+	struct sl_global_core *g = sl__globals_core();
+
+	return sl_thd_activate_c(t, tok, timeout, prio, sl_thd_curr(), g);
 }
 
 static inline int
@@ -540,7 +599,7 @@ sl_cs_exit_schedule_nospin_arg_c(struct sl_thd *curr, struct sl_thd *next)
 #ifdef SL_CS
 	sl_cs_exit();
 #endif
-	return sl_thd_dispatch(next, tok, curr);
+	return sl_thd_activate_c(next, tok, 0, 0, curr, sl__globals_core());
 }
 
 void sl_thd_replenish_no_cs(struct sl_thd *t, cycles_t now);
@@ -571,10 +630,12 @@ void sl_thd_replenish_no_cs(struct sl_thd *t, cycles_t now);
 static inline int
 sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 {
-	struct sl_thd         *t = to;
+	struct sl_thd         *t = to, *c = sl_thd_curr();
 	struct sl_global_core *globals = sl__globals_core();
 	sched_tok_t            tok;
-//	cycles_t               now;
+#ifdef SL_REPLENISH
+	cycles_t               now;
+#endif
 	s64_t                  offset;
 	int                    ret;
 
@@ -584,12 +645,9 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 #endif
 
 	tok    = cos_sched_sync();
-//	now    = sl_now();
-
-	/* still wakeup without timeouts? that adds to dispatch overhead! */
-//	offset = (s64_t)(globals->timer_next - now);
-//	if (globals->timer_next && offset <= 0) sl_timeout_expended(now, globals->timer_next);
-//	sl_timeout_wakeup_expired(now);
+#ifdef SL_REPLENISH
+	now    = sl_now();
+#endif
 
 	/*
 	 * Once we exit, we can't trust t's memory as it could be
@@ -606,10 +664,11 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 		struct sl_thd_policy *pt = sl_mod_schedule();
 
 		if (unlikely(!pt))
-			t = globals->sched_thd;
+			t = globals->idle_thd;
 		else
 			t = sl_mod_thd_get(pt);
 	}
+	if (unlikely(!t)) t= globals->sched_thd;
 
 #ifdef SL_REPLENISH
 	sl_thd_replenish_no_cs(t, now);
@@ -619,17 +678,9 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 #ifdef SL_CS
 	sl_cs_exit();
 #endif
-	if (unlikely(t == sl_thd_curr())) return 0;
+	if (unlikely(t == c)) return 0;
 
-	/*
-	 * if the periodic timer is already ahead,
-	 * don't reprogram it!
-	 */
-//	if (likely(offset > globals->cyc_per_usec && globals->timer_prev)) {
-		ret = sl_thd_dispatch(t, tok, sl_thd_curr());
-//	} else {
-//		ret = sl_thd_activate(t, tok, globals->timeout_next);
-//	}
+	ret = sl_thd_activate_c(t, tok, 0, 0, c, globals);
 
 	/*
 	 * one observation, in slowpath switch:
@@ -654,7 +705,7 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	 * that returns to this thread when it is not runnable.
 	 * something!!!!
 	 */
-	if (unlikely(!sl_thd_is_runnable(sl_thd_curr()))) return -EAGAIN;
+	if (unlikely(!sl_thd_is_runnable(c))) return -EAGAIN;
 
 #ifdef SL_REPLENISH 
 	/*
@@ -667,11 +718,11 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 	if (unlikely(ret == -EPERM)) {
 		assert(t != globals->sched_thd && t != globals->idle_thd);
 		sl_thd_block_expiry(t);
-		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok, globals->timeout_next);
+		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok, globals->timeout_next, 0);
 	}
 #endif
 	/* either this thread is runnable at this point or a switch failed */
-	assert(sl_thd_is_runnable(sl_thd_curr()) || ret);
+	assert(sl_thd_is_runnable(c) || ret);
 
 	return ret;
 }
@@ -679,12 +730,14 @@ sl_cs_exit_schedule_nospin_arg(struct sl_thd *to)
 static inline int
 sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 {
-	struct sl_thd         *t = to;
+	struct sl_thd         *t = to, *c = sl_thd_curr();
 	struct sl_global_core *globals = sl__globals_core();
 	sched_tok_t            tok;
 	cycles_t               now;
 	s64_t                  offset;
 	int                    ret;
+	struct cos_dcb_info *cb;
+	tcap_time_t            timeout = 0;
 
 	/* Don't abuse this, it is only to enable the tight loop around this function for races... */
 #ifdef SL_CS
@@ -695,7 +748,7 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 	now    = sl_now();
 
 	offset = (s64_t)(globals->timer_next - now);
-	if (globals->timer_next && offset <= 0) sl_timeout_expended(now, globals->timer_next);
+	if (offset <= 0) sl_timeout_expended(now, globals->timer_next);
 	sl_timeout_wakeup_expired(now);
 
 	/*
@@ -717,16 +770,26 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 		else
 			t = sl_mod_thd_get(pt);
 	}
+	if (unlikely(!t)) t= globals->sched_thd;
 
 #ifdef SL_REPLENISH
 	sl_thd_replenish_no_cs(t, now);
 #endif
 
 	assert(t && sl_thd_is_runnable(t));
+	if (offset <= 0 || 
+	    (abs_timeout > now && abs_timeout > globals->timer_next + globals->cyc_per_usec)) {
+		timeout = offset <= 0 ? globals->timer_next : (abs_timeout > now ? tcap_cyc2time(abs_timeout) : 0);
+	}
+
 #ifdef SL_CS
 	sl_cs_exit();
 #endif
-	if (unlikely(t == sl_thd_curr())) return 0;
+	if (likely(c == t && t == globals->sched_thd && timeout)) {
+		/* program the new timer.. */
+		return cos_defswitch(globals->sched_thdcap, globals->sched_thd->prio, timeout, tok);
+	}
+	if (unlikely(t == c)) return 0;
 
 	/* 
 	 * if the requested timeout is greater than next timeout 
@@ -735,14 +798,9 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 	 *
 	 * else, reprogram for an earlier timeout requested.
 	 */
-	if (likely(offset > globals->cyc_per_usec && globals->timer_prev
-		   && abs_timeout > globals->timer_next)) {
-		ret = sl_thd_dispatch(t, tok, sl_thd_curr());
-	} else {
-		ret = sl_thd_activate(t, tok, abs_timeout < globals->timer_next 
-				      ? tcap_cyc2time(abs_timeout) : globals->timeout_next);
-	}
-	if (unlikely(!sl_thd_is_runnable(sl_thd_curr()))) return -EAGAIN;
+
+	ret = sl_thd_activate_c(t, tok, timeout, 0, c, globals);
+	if (unlikely(!sl_thd_is_runnable(c))) return -EAGAIN;
 
 #ifdef SL_REPLENISH 
 	/*
@@ -755,7 +813,7 @@ sl_cs_exit_schedule_nospin_arg_timeout(struct sl_thd *to, cycles_t abs_timeout)
 	if (unlikely(ret == -EPERM)) {
 		assert(t != globals->sched_thd && t != globals->idle_thd);
 		sl_thd_block_expiry(t);
-		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate(globals->sched_thd, tok, globals->timeout_next);
+		if (unlikely(sl_thd_curr() != globals->sched_thd)) ret = sl_thd_activate_c(globals->sched_thd, tok, globals->timeout_next, 0, c, globals);
 	}
 #endif
 
@@ -893,40 +951,78 @@ sl_thd_yield_timeout(thdid_t tid, cycles_t abs_timeout)
 	}
 }
 
+static inline void
+sl_thd_event_info_reset(struct sl_thd *t)
+{
+	t->event_info.blocked      = 0;
+	t->event_info.elapsed_cycs = 0;
+	t->event_info.next_timeout = 0;
+	t->event_info.epoch        = 0;
+}
+
+static inline void
+sl_thd_event_enqueue(struct sl_thd *t, struct cos_thd_event *e)
+{
+	struct sl_global_core *g = sl__globals_core();
+
+	assert(e->epoch);
+	if (e->epoch <= t->event_info.epoch) return;
+
+	if (ps_list_singleton(t, SL_THD_EVENT_LIST)) ps_list_head_append(&g->event_head, t, SL_THD_EVENT_LIST);
+
+	t->event_info.blocked       = e->blocked;
+	t->event_info.elapsed_cycs += e->elapsed_cycs;
+	t->event_info.next_timeout  = e->next_timeout;
+}
+
+static inline void
+sl_thd_event_dequeue(struct sl_thd *t, struct cos_thd_event *e)
+{
+	ps_list_rem(t, SL_THD_EVENT_LIST);
+
+	e->blocked      = t->event_info.blocked;
+	e->elapsed_cycs = t->event_info.elapsed_cycs;
+	e->next_timeout = t->event_info.next_timeout;
+	sl_thd_event_info_reset(t);
+}
+
 static inline int
 sl_thd_rcv(rcv_flags_t flags)
 {
-	struct sl_thd *t = sl_thd_curr();
-	unsigned long *p = &sl_thd_dcbinfo(t)->pending, q = 0;
-	int ret = 0;
-
-	assert(sl_thd_rcvcap(t));
-check:
-	sl_cs_enter();
-	/* there no pending event in the dcbinfo->pending */
-	if ((q = ps_load(p)) == 0) {
-		if (unlikely(!(flags & RCV_ULONLY))) goto rcv;
-		if (unlikely(flags & RCV_NON_BLOCKING)) {
-			ret = -EAGAIN;
-			goto done;
-		}
-
-		sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED, 0);
-		sl_cs_exit_switchto(sl__globals_core()->sched_thd);
-
-		goto check;
-	}
-
-	/* cas may fail. but we got an event right now! */
-	ps_upcas(p, q, 0);
-done:
-	sl_cs_exit();
-
-	return ret;
-rcv:
-	sl_cs_exit();
-
-	return cos_rcv(sl_thd_rcvcap(t), flags);
+	return cos_ul_rcv(sl_thd_rcvcap(sl_thd_curr()), flags, sl__globals_core()->timeout_next);
+//	/* FIXME: elapsed_cycs accounting..?? */
+//	struct cos_thd_event ev = { .blocked = 1, .next_timeout = 0, .epoch = 0, .elapsed_cycs = 0 };
+//	struct sl_thd *t = sl_thd_curr();
+//	unsigned long *p = &sl_thd_dcbinfo(t)->pending, q = 0;
+//	int ret = 0;
+//
+//	assert(sl_thd_rcvcap(t));
+//	assert(!(flags & RCV_ULSCHED_RCV));
+//
+//recheck:
+//	if ((q = ps_load(p)) == 0) {
+//		if (!(flags & RCV_ULONLY)) {
+//			ret = cos_rcv(sl_thd_rcvcap(t), flags);
+//			q = ps_load(p);
+//			goto done;
+//		}
+//		if (unlikely(flags & RCV_NON_BLOCKING)) return -EAGAIN;
+//
+//		sl_cs_enter();
+//		ev.epoch = sl_now();
+//		sl_thd_event_enqueue(t, &ev);
+//		sl_thd_sched_block_no_cs(t, SL_THD_BLOCKED, 0);
+//		sl_cs_exit_switchto(sl__globals_core()->sched_thd);
+//		goto recheck;
+//		//q = ps_load(p);
+//	}
+//	assert(sl_thd_dcbinfo(t)->sp == 0);
+//	assert(q == 1); /* q should be 1 if the thread did not call COS_RCV and is woken up.. */
+//
+//done:
+//	ps_upcas(p, q, 0);
+////if (cos_spd_id() != 4) printc("[R%u]", cos_thdid()); 
+//	return ret;
 }
 
 #endif /* SL_H */

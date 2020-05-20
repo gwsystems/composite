@@ -17,8 +17,8 @@ u32_t cycs_per_usec = 0;
 #define INITIALIZE_BUDGET_MS (2000)
 
 #define FIXED_PRIO 2
-#define FIXED_PERIOD_MS (10000)
-#define FIXED_BUDGET_MS (4000)
+#define FIXED_PERIOD_MS (50000)
+#define FIXED_BUDGET_MS (100000)
 
 static struct sl_thd *__initializer_thd[NUM_CPU] CACHE_ALIGNED;
 
@@ -46,14 +46,26 @@ void
 sched_child_init(struct sched_childinfo *schedci)
 {
 	vaddr_t dcbaddr;
+	struct sl_thd *initthd;
+	tcap_prio_t p = FIXED_PRIO;
 
 	assert(schedci);
+	if (schedci->id != 1) p = FIXED_PRIO;
+	else                  p = FIXED_PRIO + 1;
 	schedci->initthd = sl_thd_initaep_alloc(sched_child_defci_get(schedci), NULL, schedci->flags & COMP_FLAG_SCHED, schedci->flags & COMP_FLAG_SCHED ? 1 : 0, 0, 0, 0, &dcbaddr);
         assert(schedci->initthd);
+	initthd = schedci->initthd;
 
-	sl_thd_param_set(schedci->initthd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
-	sl_thd_param_set(schedci->initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
-	sl_thd_param_set(schedci->initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
+	if (schedci->flags & COMP_FLAG_SCHED) {
+		if (cos_tcap_transfer(sl_thd_rcvcap(initthd), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, p)) {
+			PRINTC("Failed to transfer INF budget\n");
+			assert(0);
+		} else {
+			sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
+		}
+		sl_thd_param_set(initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
+	}
+	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, p));
 }
 
 thdid_t
@@ -103,7 +115,7 @@ cos_init(void)
 		while (!ps_load((unsigned long *)&init_done[i])) ;
 	}
 
-	sl_init_corebmp(SL_MIN_PERIOD_US, cpubmp);
+	sl_init_corebmp(100*SL_MIN_PERIOD_US, cpubmp);
 	sched_childinfo_init();
 	__initializer_thd[cos_cpuid()] = sl_thd_alloc(__init_done, NULL);
 	assert(__initializer_thd[cos_cpuid()]);

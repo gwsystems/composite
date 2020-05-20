@@ -22,9 +22,13 @@
 #define NCHANTHDS  2
 #define CHAN_BATCH 3
 
+unsigned long long iters[CHAN_ITER] = { 0 };
+
 CRT_CHAN_STATIC_ALLOC(c0, int, 4);
 CRT_CHAN_TYPE_PROTOTYPES(test, int, 4);
 struct crt_lock lock;
+
+unsigned int one_only = 0;
 
 typedef enum { CHILLING = 0, RECVING, SENDING } actions_t;
 unsigned long status[NCHANTHDS];
@@ -127,27 +131,38 @@ volatile unsigned long long end_time;
 //	}
 //}
 
+#define RCV 0
+#define SND 1
+
 void
 test_thd_fn(void *data)
 {
 	cycles_t time;
-	cycles_t iters;
+//	cycles_t iters;
 	cycles_t total = 0, max = 0, diff;
 	int send;
 	int recv;
 	int rounds = 0;
-	if (data!=0) {
+	if (data==RCV) {
 		while (1) {
 			rounds ++;
 			crt_chan_recv_test(c0, &recv);
 			rdtscll(end_time);
+			assert(ps_faa(&one_only, -1) == 1);
 
 			diff = end_time - start_time;
 			if (diff > max) max = diff;
 			total += diff;
+			iters[rounds - 1] = diff;
+			//printc("%llu, ", diff);
 
-			if (rounds == 10000) {
-				printc("Avg: %llu, Wc:%llu\n", total / 10000, max);
+			if (rounds == CHAN_ITER) {
+				int i;
+
+				for (i = 0; i < CHAN_ITER; i++) {
+					printc("%llu\n", iters[i]);
+				}
+				printc("\nAvg: %llu, Wc:%llu\n", total / CHAN_ITER, max);
 
 				while (1) ;
 			}
@@ -158,9 +173,9 @@ test_thd_fn(void *data)
 		}
 	}
 	else {
-		crt_chan_init_test(c0);
+		send = 0x1234;
 		while (1) {
-			send = 0x1234;
+			assert(ps_faa(&one_only, 1) == 0);
 			rdtscll(start_time);
 			crt_chan_send_test(c0, &send);
 		}
@@ -337,16 +352,22 @@ test_yields(void)
 {
 	int                     i;
 	struct sl_thd *         threads[N_TESTTHDS];
-	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = 10}};
+	union sched_param_union sp = {.c = {.type = SCHEDP_PRIO, .value = 0}};
+
+	start_time = end_time = 0;
 
 	for (i = 0; i < N_TESTTHDS; i++) {
 		threads[i] = sl_thd_alloc(test_thd_fn, (void *)i);
 		assert(threads[i]);
-		if(i != 0)
-			sp.c.value = 10;
+		if (i == RCV) sp.c.value = 2;
+		else          sp.c.value = 5;
 		sl_thd_param_set(threads[i], sp.v);
 		PRINTC("Thread %u:%lu created\n", sl_thd_thdid(threads[i]), sl_thd_thdcap(threads[i]));
+		//sl_thd_yield_thd(threads[i]);
 	}
+	assert(N_TESTTHDS == 2);
+	//crt_chan_p2p_init_test(c0, threads[SND], threads[RCV]);
+	crt_chan_init_test(c0);
 }
 
 //void
@@ -461,7 +482,7 @@ cos_init(void)
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_llinit();
 	cos_dcb_info_init_curr();
-	sl_init(SL_MIN_PERIOD_US);
+	sl_init(SL_MIN_PERIOD_US*50);
 
 	//test_yield_perf();
 	test_yields();

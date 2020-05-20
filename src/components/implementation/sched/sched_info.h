@@ -11,8 +11,10 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <cos_types.h>
+#include <crt_chan.h>
 
 #define SCHED_MAX_CHILD_COMPS 8
+CRT_CHAN_TYPE_PROTOTYPES(LU, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 
 struct sched_childinfo {
 	struct cos_defcompinfo defcinfo;

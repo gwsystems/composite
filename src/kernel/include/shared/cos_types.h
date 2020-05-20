@@ -73,6 +73,8 @@ typedef enum {
 typedef enum {
 	RCV_NON_BLOCKING = 1,
 	RCV_ULONLY       = (1 << 1),
+	RCV_ULSCHED_RCV  = (1 << 2),
+	RCV_SCHEDTIMEOUT = (1 << 3),
 } rcv_flags_t;
 
 #define BOOT_LIVENESS_ID_BASE 2
@@ -519,6 +521,10 @@ typedef unsigned int isolation_level_t;
 #define MEMMGR_COMP_MAX_SHMEM    MEMMGR_MAX_SHMEM_SIZE
 #define MEMMGR_MAX_SHMEM_REGIONS 1024
 #define CAPMGR_AEPKEYS_MAX       (1<<15)
+
+#define CHAN_CRT_NSLOTS 4
+#define CHAN_CRT_ITEM_TYPE unsigned long
+#define CHAN_CRT_ITEM_SZ sizeof(CHAN_CRT_ITEM_TYPE)
 
 #define IPIWIN_DEFAULT_US (1000) /* 1ms */
 #define IPIMAX_DEFAULT    (64) /* IPIs per ms for each RCV ep */

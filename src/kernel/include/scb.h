@@ -21,7 +21,7 @@ struct cap_scb {
 	vaddr_t               kern_addr;
 } __attribute__((packed));
 
-static int
+static inline int
 scb_activate(struct captbl *t, capid_t ctcap, capid_t scbcap, vaddr_t kaddr, livenessid_t lid)
 {
 	struct cap_scb *sc;
@@ -40,7 +40,7 @@ scb_activate(struct captbl *t, capid_t ctcap, capid_t scbcap, vaddr_t kaddr, liv
 	return 0;
 }
 
-static int
+static inline int
 scb_deactivate(struct cap_captbl *ct, capid_t scbcap, capid_t ptcap, capid_t cosframe_addr, livenessid_t lid)
 {
 	struct cap_scb *sc;
@@ -68,9 +68,10 @@ scb_comp_update(struct captbl *ct, struct cap_scb *sc, struct cap_comp *compc, s
 	paddr_t pf = chal_va2pa((void *)(sc->kern_addr));
 
 	if (unlikely(!ltbl_isalive(&sc->liveness))) return -EPERM;
-	if (pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF)) return -EINVAL;
+	/* for non-schedulers, scbs are from schedulers, so uaddrin will be zero and sc->compc should have been set! */
+	if (uaddrin && pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF)) return -EINVAL;
 
-	sc->compc = compc;
+	if (uaddrin && sc->compc == NULL) sc->compc = compc;
 	compc->info.scb_data = (struct cos_scb_info *)(sc->kern_addr);
 
 	return 0;

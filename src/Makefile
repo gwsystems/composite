@@ -1,9 +1,9 @@
 MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
-default: | all cp
+default: | all
 
-all: comps plat
+all: comps plat cp
 
 comps:
 	$(info )

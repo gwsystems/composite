@@ -13,6 +13,7 @@
 #include <cap_info.h>
 #include <hypercall.h>
 #include <sl.h>
+#include "spinlib.h"
 
 static volatile int capmgr_init_core_done = 0;
 
@@ -22,13 +23,13 @@ capmgr_comp_info_init(struct cap_comp_info *rci, spdid_t spdid)
 	struct cos_defcompinfo *defci  = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci     = cos_compinfo_get(defci);
 	struct cap_comp_info   *btinfo = cap_info_comp_find(0);
-	spdid_t sched_spdid = 0;
 	struct cap_comp_info *rci_sched = NULL;
 	struct cap_comp_cpu_info *rci_cpu = NULL;
 	struct sl_thd *ithd = NULL;
 	u64_t chbits = 0, chschbits = 0;
 	int ret = 0, is_sched = 0;
 	int remain_child = 0;
+	spdid_t sched_spdid = 0;
 	spdid_t childid;
 	comp_flag_t ch_flags;
 	struct cos_aep_info aep;
@@ -38,6 +39,7 @@ capmgr_comp_info_init(struct cap_comp_info *rci, spdid_t spdid)
 	assert(cap_info_init_check(rci));
 	rci_cpu = cap_info_cpu_local(rci);
 
+	sched_spdid = hypercall_comp_sched_get(spdid);
 	if (spdid == 0 || (spdid != cos_spd_id() && cap_info_is_child(btinfo, spdid))) {
 		is_sched = (spdid == 0 || cap_info_is_sched_child(btinfo, spdid)) ? 1 : 0;
 
@@ -48,7 +50,7 @@ capmgr_comp_info_init(struct cap_comp_info *rci, spdid_t spdid)
 	}
 
 	rci_sched = cap_info_comp_find(sched_spdid);
-	assert(rci_sched && cap_info_init_check(rci_sched));
+	assert(rci_sched);
 	rci_cpu->parent = rci_sched;
 	rci_cpu->thd_used = 1;
 	if (cos_cpuid() != INIT_CORE) cap_info_cpu_initdcb_init(rci);
@@ -172,8 +174,9 @@ cos_init(void)
 	spdid_t child;
 	comp_flag_t ch_flags;
 	int ret = 0, i;
+	unsigned int cycs_per_us = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 
-	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+	PRINTLOG(PRINT_DEBUG, "CPU cycles per sec: %u\n", cycs_per_us);
 	ret = hypercall_comp_frontier_get(cos_spd_id(), &heap_frontier, &cap_frontier);
 	assert(ret == 0);
 
@@ -185,6 +188,7 @@ cos_init(void)
 		cap_info_init();
 		cos_dcb_info_init_curr();
 		sl_init(SL_MIN_PERIOD_US);
+		spinlib_calib(cycs_per_us);
 		capmgr_comp_info_iter();
 	} else {
 		while (!capmgr_init_core_done) ; /* WAIT FOR INIT CORE TO BE DONE */

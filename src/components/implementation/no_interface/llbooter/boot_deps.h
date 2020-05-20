@@ -39,6 +39,7 @@ struct comp_cap_info {
 	u32_t                             cpu_bitmap[NUM_CPU_BMP_WORDS];
 	struct comp_sched_info           *schedinfo[NUM_CPU];
 	struct cos_component_information *cobj_info;
+	scbcap_t                          scbcap;
 } new_comp_cap_info[MAX_NUM_SPDS];
 
 int                   schedule[NUM_CPU][MAX_NUM_SPDS];
@@ -374,6 +375,7 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	struct cos_compinfo *boot_info = boot_spd_compinfo_curr_get();
 	struct comp_cap_info *spdinfo  = boot_spd_compcapinfo_get(spdid);
 	struct cos_component_information *cobj_info = boot_spd_comp_cobj_info_get(spdid);
+	struct comp_sched_info *spdsi = boot_spd_comp_schedinfo_get(spdid);
 	captblcap_t ct = compinfo->captbl_cap;
 	pgtblcap_t  pt = compinfo->pgtbl_cap;
 	compcap_t   cc;
@@ -385,10 +387,16 @@ boot_newcomp_create(spdid_t spdid, struct cos_compinfo *comp_info)
 	vaddr_t    scb_uaddr = 0;
 	scbcap_t   scbcap    = 0;
 
-	scbcap = cos_scb_alloc(boot_info);
-	assert(scbcap);
-	scb_uaddr = cos_page_bump_intern_valloc(compinfo, COS_SCB_SIZE);
-	assert(scb_uaddr);
+	if (spdsi->flags & COMP_FLAG_SCHED) { 
+		scbcap = cos_scb_alloc(boot_info);
+		assert(scbcap);
+		spdinfo->scbcap = scbcap;
+		scb_uaddr = cos_page_bump_intern_valloc(compinfo, COS_SCB_SIZE);
+		assert(scb_uaddr);
+	} else if (spdsi->parent_spdid) {
+		struct comp_cap_info *psi = boot_spd_compcapinfo_get(spdsi->parent_spdid);
+		scbcap = psi->scbcap;
+	}
 
 	if (spdinfo->initdcbpgs == 0) {
 		vaddr_t  dcbaddr = 0;
@@ -436,6 +444,21 @@ boot_bootcomp_init(void)
 }
 
 static void
+boot_root_sched_transfer(void)
+{
+	struct cos_aep_info *root_aep = NULL;
+	int ret;
+
+	if (!root_spdid[cos_cpuid()]) return;
+
+	root_aep = boot_spd_initaep_get(root_spdid[cos_cpuid()]);
+
+	PRINTLOG(PRINT_DEBUG, "Root scheduler is %u, transferring INF budget now!\n", root_spdid[cos_cpuid()]);
+	ret = cos_tcap_transfer(root_aep->rcv, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, LLBOOT_ROOTSCHED_PRIO);
+	assert(ret == 0);
+}
+
+static void
 boot_done(void)
 {
 	PRINTLOG(PRINT_DEBUG, "Booter: done creating system.\n");
@@ -448,7 +471,6 @@ void
 boot_root_sched_run(void)
 {
 	struct cos_aep_info *root_aep = NULL;
-	int ret;
 
 	if (!root_spdid[cos_cpuid()]) {
 		PRINTLOG(PRINT_WARN, "No root scheduler!\n");
@@ -459,10 +481,7 @@ boot_root_sched_run(void)
 	root_aep = boot_spd_initaep_get(root_spdid[cos_cpuid()]);
 
 	PRINTLOG(PRINT_DEBUG, "Root scheduler is %u, switching to it now!\n", root_spdid[cos_cpuid()]);
-	ret = cos_tcap_transfer(root_aep->rcv, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, LLBOOT_ROOTSCHED_PRIO);
-	assert(ret == 0);
-
-	ret = cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOTSCHED_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
+	cos_switch(root_aep->thd, root_aep->tc, LLBOOT_ROOTSCHED_PRIO, TCAP_TIME_NIL, 0, cos_sched_sync());
 	PRINTLOG(PRINT_ERROR, "Root scheduler returned.\n");
 	assert(0);
 }
@@ -545,6 +564,17 @@ done:
 }
 
 static inline int
+boot_comp_sched_get(spdid_t dstid, spdid_t srcid)
+{
+	struct comp_sched_info *si = NULL;
+
+	if (srcid > num_cobj || dstid > num_cobj) return -EINVAL;
+	si = boot_spd_comp_schedinfo_get(srcid);
+
+	return si->parent_spdid;
+}
+
+static inline int
 boot_comp_initaep_get(spdid_t dstid, spdid_t srcid, thdcap_t thdslot, arcvcap_t rcvslot, tcap_t tcslot, spdid_t *parent)
 {
 	struct comp_sched_info *si = NULL;
@@ -598,10 +628,11 @@ boot_root_initaep_set(spdid_t dstid, spdid_t srcid, thdcap_t thd, arcvcap_t rcv,
 	assert(a->tc);
 	a->rcv = cos_cap_cpy(b, c, CAP_ARCV, rcv);
 	assert(a->rcv);
-
-	boot_comp_sched_set(srcid);
+	if (root_spdid[cos_cpuid()] == srcid) boot_root_sched_transfer();
 
 done:
+	boot_comp_sched_set(srcid);
+
 	return 0;
 }
 
@@ -847,6 +878,15 @@ hypercall_entry(word_t *ret2, word_t *ret3, int op, word_t arg3, word_t arg4, wo
 
 		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
 		ret1 = boot_comp_cpubitmap_get(srcid, (u32_t *)ret2, (u32_t *)ret3);
+
+		break;
+	}
+	case HYPERCALL_COMP_SCHED_GET:
+	{
+		spdid_t srcid = arg3;
+
+		if (!__hypercall_resource_access_check(client, srcid, 1)) return -EACCES;
+		ret1 = boot_comp_sched_get(client, srcid);
 
 		break;
 	}

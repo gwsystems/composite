@@ -50,7 +50,7 @@ struct cap_arcv {
 	u8_t           depth;
 } __attribute__((packed));
 
-static int
+static inline int
 sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, vaddr_t entry_addr, invtoken_t token)
 {
 	struct cap_sinv *sinvc;
@@ -72,13 +72,13 @@ sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, va
 	return 0;
 }
 
-static int
+static inline int
 sinv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 {
 	return cap_capdeactivate(t, capin, CAP_SINV, lid);
 }
 
-static int
+static inline int
 sret_activate(struct captbl *t, capid_t cap, capid_t capin)
 {
 	struct cap_sret *sretc;
@@ -91,13 +91,13 @@ sret_activate(struct captbl *t, capid_t cap, capid_t capin)
 	return 0;
 }
 
-static int
+static inline int
 sret_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 {
 	return cap_capdeactivate(t, capin, CAP_SRET, lid);
 }
 
-static int
+static inline int
 asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, capid_t rcv_cap, u32_t budget, u32_t period)
 {
 	/* FIXME: Add synchronization with __xx_pre and __xx_post */
@@ -118,7 +118,7 @@ asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, capid_t rcv_cap, 
 	return 0;
 }
 
-static int
+static inline int
 asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, capid_t rcv_cap, u32_t budget,
               u32_t period)
 {
@@ -142,7 +142,7 @@ asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, 
 	return ret;
 }
 
-static int
+static inline int
 asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 {
 	return cap_capdeactivate(t, capin, CAP_ASND, lid);
@@ -153,7 +153,7 @@ int cap_ipi_process(struct pt_regs *regs);
 /* send to a receive end-point within an interrupt */
 int cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs);
 
-static void
+static inline void
 __arcv_setup(struct cap_arcv *arcv, struct thread *thd, struct tcap *tcap, struct thread *notif)
 {
 	assert(arcv && thd && tcap && !thd_bound2rcvcap(thd));
@@ -168,7 +168,7 @@ __arcv_setup(struct cap_arcv *arcv, struct thread *thd, struct tcap *tcap, struc
 	tcap_promote(tcap, thd);
 }
 
-static int
+static inline int
 __arcv_teardown(struct cap_arcv *arcv, struct thread *thd)
 {
 	struct thread *notif;
@@ -189,13 +189,13 @@ __arcv_teardown(struct cap_arcv *arcv, struct thread *thd)
 	return 0;
 }
 
-static struct thread *
+static inline struct thread *
 arcv_thd_notif(struct thread *arcvt)
 {
 	return arcvt->rcvcap.rcvcap_thd_notif;
 }
 
-static int
+static inline int
 arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap, capid_t tcap_cap,
               capid_t arcv_cap, int init)
 {
@@ -245,7 +245,7 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	return 0;
 }
 
-static int
+static inline int
 arcv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 {
 	struct cap_arcv *arcvc;
@@ -345,7 +345,7 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);
 }
 
-static void
+static inline void
 inv_init(void)
 {
 //#define __OUTPUT_CAP_SIZE

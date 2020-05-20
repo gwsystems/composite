@@ -99,6 +99,8 @@ static int           hpet_calibration_init   = 0;
 static unsigned long hpet_cpucyc_per_hpetcyc = HPET_ERROR_BOUND_FACTOR;
 static unsigned long hpet_cpucyc_per_tick;
 static unsigned long hpet_hpetcyc_per_tick;
+static unsigned long hpet_periodicity_curr[2] = { 0 };
+static cycles_t hpet_first_hpet_period = 0; /* for timer 0 = HPET_PERIODIC */
 extern u32_t chal_msr_mhz;
 
 static inline u64_t
@@ -174,6 +176,7 @@ hpet_calibration(void)
 
 		hpet_disable(HPET_PERIODIC);
 		hpet_disable(HPET_PERIODIC);
+		chal_irq_disable(HW_HPET_PERIODIC, 0);
 	}
 	cnt++;
 }
@@ -181,20 +184,30 @@ hpet_calibration(void)
 int
 chal_cyc_usec(void)
 {
-	if (lapic_timer_calib_init) return 0;
+	if (unlikely(lapic_timer_calib_init || hpet_calibration_init)) return 0;
 
-	return hpet_cpucyc_per_tick / HPET_DEFAULT_PERIOD_US;
+	if (likely(hpet_cpucyc_per_tick)) return hpet_cpucyc_per_tick / HPET_DEFAULT_PERIOD_US;
+
+	return 0;
 }
 
 int
 hpet_periodic_handler(struct pt_regs *regs)
 {
 	int preempt = 1;
-
-	if (unlikely(hpet_calibration_init)) hpet_calibration();
+static int count = 0;
 
 	lapic_ack();
+	if (unlikely(hpet_calibration_init)) hpet_calibration();
+	if (unlikely(hpet_periodicity_curr[HPET_PERIODIC] && !hpet_first_hpet_period)) {
+	count++;
+
+	if (count < 25) goto done;
+		rdtscll(hpet_first_hpet_period);
+	}
+
 	preempt = cap_hw_asnd(&hw_asnd_caps[get_cpuid()][HW_HPET_PERIODIC], regs);
+done:
 	HPET_INT_ENABLE(HPET_PERIODIC);
 
 	return preempt;
@@ -272,6 +285,54 @@ hpet_find(void *timer)
 }
 
 void
+chal_hpet_periodic_set(hwid_t hwid, unsigned long usecs_period)
+{
+	hpet_type_t type = 0;
+
+	assert(hwid == HW_HPET_PERIODIC);
+	type = HPET_PERIODIC;
+
+	if (hpet_periodicity_curr[type] != usecs_period) {
+		hpet_disable(type);
+		hpet_disable(type);
+
+		hpet_periodicity_curr[type] = 0;
+	}
+
+	if (hpet_periodicity_curr[type] == 0) {
+		unsigned long tick_multiple = 0;
+		cycles_t hpetcyc_per_period = 0;
+
+		assert(hpet_calibration_init == 0);
+		assert((usecs_period >= HPET_DEFAULT_PERIOD_US) && (usecs_period % HPET_DEFAULT_PERIOD_US == 0));
+
+		tick_multiple = usecs_period / HPET_DEFAULT_PERIOD_US;
+		hpetcyc_per_period = (cycles_t)hpet_hpetcyc_per_tick * (cycles_t)tick_multiple;
+		hpet_periodicity_curr[type] = usecs_period;
+		if (type == HPET_PERIODIC) hpet_first_hpet_period = 0;
+		hpet_set(type, hpetcyc_per_period);
+		chal_irq_enable(HW_HPET_PERIODIC, 0);
+		printk("Setting HPET [%u:%u] Periodicity:%lu hpetcyc_per_period:%llu\n", hwid, type, usecs_period, hpetcyc_per_period);
+	}
+}
+
+cycles_t
+chal_hpet_first_period(void)
+{
+	return hpet_first_hpet_period;
+}
+
+void
+chal_hpet_disable(hwid_t hwid)
+{
+	printk("Disabling HPET %u\n", hwid);
+	hpet_type_t type = (hwid == HW_HPET_PERIODIC ? HPET_PERIODIC : HPET_ONESHOT);
+
+	hpet_disable(type);
+	hpet_disable(type);
+}
+
+void
 hpet_set_page(u32_t page)
 {
 	hpet              = (void *)(page * (1 << 22) | ((u32_t)hpet & ((1 << 22) - 1)));
@@ -294,6 +355,15 @@ hpet_init(void)
 	hpet_hpetcyc_per_tick = (HPET_DEFAULT_PERIOD_US * HPET_PICO_PER_MICRO) / pico_per_hpetcyc;
 
 	printk("Enabling timer @ %p with tick granularity %ld picoseconds\n", hpet, pico_per_hpetcyc);
+
+	/*
+	 * FIXME: For some reason, setting to non-legacy mode isn't working well.
+	 * Periodicity of the HPET fired is wrong and any interval configuration
+	 * is still producing the same wrong interval timing.
+	 *
+	 * So, Enable legacy interrupt routing like we had before!
+	 */
+	*hpet_config |= HPET_LEG_RT_CNF;
 
 	/*
 	 * Set the timer as specified.  This assumes that the cycle

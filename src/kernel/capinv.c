@@ -92,10 +92,9 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	struct cap_thd      *ch_ult = NULL;
 	struct thread       *ulthd = NULL;
 	capid_t              ultc = 0;
-	int                  invstk_top = 0;
 	struct cos_scb_info *scb_core = NULL; /* per-core scb_info */
 
-	*ci_ptr = thd_invstk_current_compinfo(thd, cos_info, &invstk_top);
+	*ci_ptr = thd_invstk_current_compinfo(thd, cos_info);
 
 	assert(*ci_ptr && (*ci_ptr)->captbl);
 
@@ -111,29 +110,12 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 		if (unlikely(!CAP_TYPECHK_CORE(ch_ult, CAP_THD))) ch_ult = NULL;
 		else                                              ulthd = ch_ult->t;
 	}
-
-	if (unlikely(interrupt)) {
-		struct thread *fixthd = thd;
-
-		assert(scb_core->sched_tok < ~0U);
-		cos_faa((int *)&(scb_core->sched_tok), 1);
-
-		if (ulthd) fixthd = ulthd;
-
-		if (unlikely(fixthd->dcbinfo && fixthd->dcbinfo->sp)) {
-			regs->ip = fixthd->dcbinfo->ip + DCB_IP_KERN_OFF;
-			regs->sp = fixthd->dcbinfo->sp;
-			regs->dx = 0; /* sched token is in edx! */
-
-			fixthd->dcbinfo->sp = 0;
-		}
-	}
 	if (unlikely(!ultc || !ulthd || ulthd->dcbinfo == NULL)) goto done;
 	if (ulthd == thd) goto done;
-	/* check if kcurr and ucurr threads are both in the same page-table(component) */
-	if (thd_current_pgtbl(ulthd) != thd_current_pgtbl(thd)) goto done;
+	
 	thd_current_update(ulthd, thd, cos_info);
 	thd = ulthd;
+	*ci_ptr = thd_invstk_current_compinfo(thd, cos_info);
 
 done:
 	return thd;
@@ -527,7 +509,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 
 	preempt = thd_switch_update(next, &next->regs, 0);
 	/* if switching to the preempted/awoken thread clear cpu local next_thdinfo */
-	if (nti->thd && nti->thd == next) thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
+	//if (nti->thd && nti->thd == next) thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
 
 	copy_all_regs(&next->regs, regs);
 
@@ -539,7 +521,9 @@ notify_parent(struct thread *rcv_thd, int send)
 {
 	struct thread *curr_notif = NULL, *prev_notif = NULL, *arcv_notif = NULL;
 	int            depth = 0;
+	cycles_t       now; 
 
+	rdtscll(now);
 	/* hierarchical notifications - upto init (bounded by ARCV_NOTIF_DEPTH) */
 	prev_notif = rcv_thd;
 	curr_notif = arcv_notif = arcv_thd_notif(prev_notif);
@@ -547,6 +531,7 @@ notify_parent(struct thread *rcv_thd, int send)
 	while (curr_notif && curr_notif != prev_notif) {
 		assert(depth < ARCV_NOTIF_DEPTH);
 
+		prev_notif->event_epoch = now;
 		thd_rcvcap_evt_enqueue(curr_notif, prev_notif);
 		if (!(curr_notif->state & THD_STATE_RCVING)) break;
 
@@ -712,10 +697,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	int          ret;
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
-	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
-		assert((unsigned long)regs->cx == thd->dcbinfo->ip + DCB_IP_KERN_OFF);
-		assert((unsigned long)regs->bp == thd->dcbinfo->sp);
-	}
 
 	if (arcv) {
 		struct cap_arcv *arcv_cap;
@@ -728,7 +709,8 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		ret  = cap_sched_tok_validate(rcvt, usr_counter, ci, cos_info);
 		if (ret) return ret;
 
-		if (thd_rcvcap_pending(rcvt)) {
+		/* only if it has scheduler events to process! */
+		if (thd_rcvcap_evt_pending(rcvt)) {
 			if (thd == rcvt) return -EBUSY;
 
 			next = rcvt;
@@ -754,7 +736,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	}
 
 	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
-	if (tc && tcap_current(cos_info) == tcap) tcap_setprio(tcap, prio);
+	if (tc && tcap_current(cos_info) == tcap && prio) tcap_setprio(tcap, prio);
 
 	return ret;
 }
@@ -869,7 +851,8 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 		ret  = cap_sched_tok_validate(rcvt, usr_tok, ci, cos_info);
 		if (ret) return ret;
 
-		if (thd_rcvcap_pending(rcvt)) {
+		/* only if the rcvt has scheduler events to process */
+		if (thd_rcvcap_evt_pending(rcvt)) {
 			if (thd == rcvt) return -EBUSY;
 
 			next = rcvt;
@@ -928,7 +911,9 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	if (next == thd) return 1;
 	thd->state |= THD_STATE_PREEMPTED;
 
-	return cap_switch(regs, thd, next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
+	/* don't disable timer if we're not switching to a diff tcap.. */
+	/* TODO: hierarchical timeouts */
+	return cap_switch(regs, thd, next, tcap_next, tcap == tcap_next ? tcap_cyc2time(cos_info->next_timer) : TCAP_TIME_NIL, ci, cos_info);
 }
 
 int
@@ -983,19 +968,25 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 	struct next_thdinfo *nti         = &cos_info->next_ti;
 	rcv_flags_t          rflags      = __userregs_get1(regs);
 	tcap_time_t          swtimeout   = TCAP_TIME_NIL;
-	tcap_time_t          timeout     = __userregs_get2(regs);
+	tcap_time_t          timeout     = TCAP_TIME_NIL, x = __userregs_get2(regs);
 
+	if (likely(rflags & RCV_SCHEDTIMEOUT)) swtimeout = x;
+	else                                   timeout   = x;
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
 
 	/* deliver pending notifications? */
 	if (thd_rcvcap_pending(thd)) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 		thd_rcvcap_pending_deliver(thd, regs);
+		/* for sched_rcv enabling user-level switch */
+		//if (thd->dcbinfo) thd->dcbinfo->sp = 0;
 
 		return 0;
 	} else if (rflags & RCV_NON_BLOCKING) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 		__userregs_setretvals(regs, -EAGAIN, 0, 0, 0);
+		/* for sched_rcv enabling user-level switch */
+		//if (thd->dcbinfo) thd->dcbinfo->sp = 0;
 
 		return 0;
 	}
@@ -1006,20 +997,20 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 	if (unlikely(tc_next != thd_rcvcap_tcap(thd))) tc_next = thd_rcvcap_tcap(thd);
 
 	/* if preempted/awoken thread is waiting, switch to that */
-	if (nti->thd) {
-		assert(nti->tc);
+	//if (nti->thd) {
+	//	assert(nti->tc);
 
-		next    = nti->thd;
-		tc_next = nti->tc;
-		tcap_setprio(nti->tc, nti->prio);
-		if (nti->budget) {
-			/* convert budget to timeout */
-			cycles_t now;
-			rdtscll(now);
-			swtimeout = tcap_cyc2time(now + nti->budget);
-		}
-		thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
-	}
+	//	next    = nti->thd;
+	//	tc_next = nti->tc;
+	//	tcap_setprio(nti->tc, nti->prio);
+	//	if (nti->budget) {
+	//		/* convert budget to timeout */
+	//		cycles_t now;
+	//		rdtscll(now);
+	//		swtimeout = tcap_cyc2time(now + nti->budget);
+	//	}
+	//	thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
+	//}
 
 	/* FIXME:  for now, lets just ignore this path...need to plumb tcaps into it */
 	thd->interrupted_thread = NULL;
@@ -1034,6 +1025,9 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state |= THD_STATE_RCVING;
 		thd->timeout = timeout;
+	} else {
+		/* switching back to the thread.. don't disable timers..*/
+		swtimeout = timeout;
 	}
 
 	return cap_switch(regs, thd, next, tc_next, swtimeout, ci, cos_info);
@@ -1061,6 +1055,13 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 }
 
 #define ENABLE_KERNEL_PRINT
+
+#define cos_thd_throw(label, thd, errno) 				\
+        {								\
+                ret = (errno); 						\
+		if (unlikely(thd->dcbinfo)) thd->dcbinfo->sp = 0; 	\
+                goto label;						\
+        } 
 
 static int composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch);
 
@@ -1127,7 +1128,8 @@ composite_syscall_handler(struct pt_regs *regs)
 	switch (ch->type) {
 	case CAP_THD:
 		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, ci, cos_info);
-		if (ret < 0) cos_throw(done, ret);
+		//printk("[%d]\n", ret);
+		if (ret < 0) cos_thd_throw(done, thd, ret);
 		return ret;
 	case CAP_ASND:
 		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, ci, cos_info);
@@ -1135,7 +1137,7 @@ composite_syscall_handler(struct pt_regs *regs)
 		return ret;
 	case CAP_ARCV:
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
-		if (ret < 0) cos_throw(done, ret);
+		if (ret < 0) cos_thd_throw(done, thd, ret);
 		return ret;
 	default:
 		break;
@@ -1817,12 +1819,16 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			struct cap_arcv *rcvc;
 			hwid_t           hwid   = __userregs_get1(regs);
 			capid_t          rcvcap = __userregs_get2(regs);
+			u32_t period = __userregs_get3(regs);
 
 			rcvc = (struct cap_arcv *)captbl_lkup(ci->captbl, rcvcap);
 			if (!CAP_TYPECHK(rcvc, CAP_ARCV)) cos_throw(err, -EINVAL);
 
 			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcvcap);
-			if (!ret) ret = chal_irq_enable(hwid, get_cpuid());
+			if (!ret) {
+				if (hwid == HW_HPET_PERIODIC || hwid == HW_HPET_ONESHOT) chal_hpet_periodic_set(hwid, period);
+				ret = chal_irq_enable(hwid, get_cpuid());
+			}
 
 			break;
 		}
@@ -1830,7 +1836,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			hwid_t hwid = __userregs_get1(regs);
 
 			ret = hw_detach_rcvcap((struct cap_hw *)ch, hwid);
-			if (!ret) ret = chal_irq_disable(hwid, get_cpuid());
+			if (!ret) {
+				if (hwid == HW_HPET_PERIODIC || hwid == HW_HPET_ONESHOT) chal_hpet_disable(hwid);
+				ret = chal_irq_disable(hwid, get_cpuid());
+			}
 
 			break;
 		}
