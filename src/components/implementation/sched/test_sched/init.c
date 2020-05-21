@@ -271,7 +271,7 @@ cos_init(void)
 	sl_init_corebmp(100*SL_MIN_PERIOD_US, cpubmp);
 	vaddr_t tscaddr = 0;
 	cbuf_t id = channel_shared_page_alloc(SHMCHANNEL_KEY, &tscaddr);
-	assert(id >= 0);
+	assert(id > 0);
 	int_start = (cycles_t *)tscaddr;
 	*int_start = 0ULL;
 	rdy = (volatile unsigned long *)(int_start + 1);

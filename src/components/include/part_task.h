@@ -13,7 +13,7 @@
 
 #define PART_MAX_TASKS      (NUM_CPU < 4 ? 2048 : 8192)
 #define PART_MAX_DATA       PART_MAX_TASKS 
-#define PART_MAX_PAR_THDS   4 // to test 4 data-parallel tasks on a single core
+#define PART_MAX_PAR_THDS   NUM_CPU /* change this to test more data-parallel tasks on single core configuration */
 #define PART_MAX_CORE_THDS  (NUM_CPU == 1 ? 200 : (NUM_CPU == 2 ? 128 : (NUM_CPU < 5 ? 64 : 48)))
 #define PART_MAX_THDS       512
 #define PART_MAX_CHILD      1024

@@ -119,7 +119,7 @@ cos_init(void)
 	vaddr_t addr = 0;
 	unsigned long pages = 0;
 	cbuf_t id =  channel_shared_page_map(SHMCHANNEL_KEY, &addr, &pages);
-	assert(id >= 0 && addr && pages == 1);
+	assert(id > 0 && addr && pages == 1);
 	sttsc = (cycles_t *)addr;
 	rdy = (volatile unsigned long *)(sttsc + 1);
 

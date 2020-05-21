@@ -95,7 +95,7 @@ test_inv_setup(void)
         ic = cos_sinv_alloc(ci, cc, (vaddr_t)__inv_test_serverfn, 0);
         assert(ic > 0);
         ret = call_cap_mb(ic, 1, 2, 3);
-        assert(ret == (int)MAGIC_RET);
+        assert(ret == MAGIC_RET);
 
 	sinv_cap = ic;
 }

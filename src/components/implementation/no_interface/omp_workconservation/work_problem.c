@@ -78,7 +78,7 @@ int main(void)
 		assert(diff > 0);
 
 		total += diff;
-		if (diff > max) max = diff;
+		if ((unsigned long long) diff > max) max = diff;
 		printc("%ld, %ld\n", diff, diff / CYC_US);
 	}
 

@@ -67,7 +67,7 @@ test_thds_perf(void)
 
 		diff = end_swt_cycles - start_swt_cycles;
 	total_swt_cycles += diff;
-		if (diff > max) max = diff;
+		if (diff > (cycles_t)max) max = diff;
 	}
 	//total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
 
@@ -185,7 +185,7 @@ async_thd_parent_perf(void *thdcap)
 	rdtscll(end_arcv_cycles);
 	assert(switched);
 	diff = end_arcv_cycles - start_asnd_cycles;
-	if (diff > max) max = diff;
+	if (diff > (cycles_t)max) max = diff;
 	total_asnd_cycles += diff;
 	}
 	//total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
