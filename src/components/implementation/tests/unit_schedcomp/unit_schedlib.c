@@ -79,7 +79,7 @@ test_thd_perffn(void *data)
 
 		//diff1_cycs = mid_cycs - start_cycs;
 		diff2_cycs = end_cycs - start_cycs;
-		assert(diff2_cycs > rdtscp_min);
+		//assert(diff2_cycs > rdtscp_min);
 		//diff2_cycs -= rdtscp_min;
 
 		//if (diff1_cycs > wc_cycs) wc_cycs = diff1_cycs;

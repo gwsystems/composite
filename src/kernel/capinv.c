@@ -711,6 +711,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 
 		/* only if it has scheduler events to process! */
 		if (thd_rcvcap_evt_pending(rcvt)) {
+			printk("%s:%d\n", __func__, __LINE__);
 			if (thd == rcvt) return -EBUSY;
 
 			next = rcvt;

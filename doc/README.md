@@ -3,6 +3,7 @@
 ## Tools necessary for Composite
 ```
 sudo apt-get -y install bc  
+sudo apt-get -y install g++
 sudo apt-get -y install gcc-multilib  
 sudo apt-get -y install binutils-dev  
 sudo apt-get -y install qemu-kvm  
@@ -25,7 +26,7 @@ $ git clone https://github.com/gparmer/composite.git composite
 $ cd composite/src/
 $ make init
 $ make
-$ make run RUNSCRIPT=micro_boot.sh run      # microbenchmarks
+$ make run RUNSCRIPT=kernel_tests.sh run      # Kernel unit tests
 $ make run RUNSCRIPT=unit_schedtests.sh run # simple scheduler tests
 ```
 
@@ -33,9 +34,9 @@ When developing:
 
 ```
 $ make
-$ make run RUNSCRIPT=micro_boot.sh run
+$ make run RUNSCRIPT=kernel_tests.sh run
 ```
-Both `micro_boot.sh` and `unit_schedtests.sh` will launch a [QEMU](https://www.qemu.org/documentation/) instance, use `<Ctrl-a x>` to exit.
+Both `kernel_tests.sh` and `unit_schedtests.sh` will launch a [QEMU](https://www.qemu.org/documentation/) instance, use `<Ctrl-a x>` to exit.
 ## The `doc` Directory
 
 The only document that is currently up-to-date is the `style_guide/` (and `rust_with_composite.md`),

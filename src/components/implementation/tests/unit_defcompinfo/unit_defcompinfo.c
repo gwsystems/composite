@@ -122,7 +122,7 @@ cos_init(void)
 		is_booter = 0;
 		printc("Unit-test for defcompinfo API\n");
 		cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-		cos_defcompinfo_init();
+		cos_defcompinfo_llinit();
 
 		for (id = 0; id < CHILD_COMP_COUNT; id++) {
 			vaddr_t              vm_range, addr, dcbaddr;
