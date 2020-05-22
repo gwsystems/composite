@@ -10,22 +10,22 @@
 #undef assert
 /* On assert, immediately switch to the "exit" thread */
 #define assert(node)                                                        \
-        do {                                                                \
-                if (unlikely(!(node))) {                                    \
-                        debug_print("assert error in @ ");                  \
-                        cos_thd_switch(termthd[cos_cpuid()]);               \
-                }                                                           \
-        } while (0)
+	do {                                                                \
+		if (unlikely(!(node))) {                                    \
+			debug_print("assert error in @ ");                  \
+			cos_thd_switch(termthd[cos_cpuid()]);               \
+		}                                                           \
+	} while (0)
 
 #define EXIT_FN()                                                           \
-                exit_fn: return;
+exit_fn: return;
 
 #define CHECK_STATUS_FLAG()                                                 \
-        do {                                                                \
-                if (failure) {                                              \
-                        goto exit_fn;                                       \
-                }                                                           \
-        } while (0)
+	do {                                                                \
+		if (failure) {                                              \
+			goto exit_fn;                                       \
+		}                                                           \
+	} while (0)
 
 #include <cos_component.h>
 #include <cobj_format.h>
@@ -56,30 +56,30 @@ extern unsigned long    thd_test[TEST_NTHDS];
 extern int              num, den, count;
 
 struct results {
-        long long unsigned avg;
-        long long unsigned max;
-        long long unsigned min;
-        long long unsigned sd;
-        int                sz;
-        long long unsigned p90tile;
-        long long unsigned p95tile;
-        long long unsigned p99tile;
+	long long unsigned avg;
+	long long unsigned max;
+	long long unsigned min;
+	long long unsigned sd;
+	int                sz;
+	long long unsigned p90tile;
+	long long unsigned p95tile;
+	long long unsigned p99tile;
 };
 
-static unsigned long
+	static unsigned long
 tls_get(size_t off)
 {
-        unsigned long val;
+	unsigned long val;
 
-        __asm__ __volatile__("movl %%gs:(%1), %0" : "=r"(val) : "r"(off) :);
+	__asm__ __volatile__("movl %%gs:(%1), %0" : "=r"(val) : "r"(off) :);
 
-        return val;
+	return val;
 }
 
-static void
+	static void
 tls_set(size_t off, unsigned long val)
 {
-        __asm__ __volatile__("movl %0, %%gs:(%1)" : : "r"(val), "r"(off) : "memory");
+	__asm__ __volatile__("movl %0, %%gs:(%1)" : : "r"(val), "r"(off) : "memory");
 }
 
 extern void test_run_perf_kernel(void);
