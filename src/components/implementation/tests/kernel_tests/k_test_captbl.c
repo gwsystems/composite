@@ -14,20 +14,20 @@ extern void *__inv_test_serverfn(int a, int b, int c);
 void
 test_captbl_expands(void)
 {
-        int       i;
-        compcap_t cc;
+	int       i;
+	compcap_t cc;
 
-        cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
-        if (EXPECT_LL_LT(1, cc, "Capability Table Expansion")) {
-                return;
-        }
-        for (i = 0; i < CAPTBL_ITER; i++) {
-                sinvcap_t ic;
+	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, 0, (vaddr_t)NULL, (vaddr_t)NULL);
+	if (EXPECT_LL_LT(1, cc, "Capability Table Expansion")) {
+		return;
+	}
+	for (i = 0; i < CAPTBL_ITER; i++) {
+		sinvcap_t ic;
 
-                ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
-                if(EXPECT_LL_LT(1, ic, "Capability Table: Cannot Allocate")) {
-                        return;
-                }
-        }
-        PRINTC("\t%s: \t\tSuccess\n", "Capability Table Expansion");
+		ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
+		if(EXPECT_LL_LT(1, ic, "Capability Table: Cannot Allocate")) {
+			return;
+		}
+	}
+	PRINTC("\t%s: \t\tSuccess\n", "Capability Table Expansion");
 }

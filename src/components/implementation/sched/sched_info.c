@@ -70,6 +70,8 @@ sched_num_childsched_get(void)
 	return sched_num_childsched[cos_cpuid()];
 }
 
+extern void __sched_stdio_init(void);
+
 static void
 sched_childinfo_init_intern(int is_raw)
 {
@@ -78,11 +80,10 @@ sched_childinfo_init_intern(int is_raw)
 	comp_flag_t childflags;
 
 	memset(childinfo[cos_cpuid()], 0, sizeof(struct sched_childinfo) * SCHED_MAX_CHILD_COMPS);
+	__sched_stdio_init();
 
 	while ((remaining = hypercall_comp_child_next(cos_spd_id(), &child, &childflags)) >= 0) {
-		struct cos_defcompinfo *child_dci = NULL;
 		struct sched_childinfo *schedinfo = NULL;
-		struct sl_thd          *initthd   = NULL;
 		compcap_t               compcap   = 0;
 
 		if (is_raw) {
@@ -92,15 +93,10 @@ sched_childinfo_init_intern(int is_raw)
 
 		schedinfo = sched_childinfo_alloc(child, compcap, childflags);
 		assert(schedinfo);
-		child_dci = sched_child_defci_get(schedinfo);
 		hypercall_comp_cpubitmap_get(child, schedinfo->cpubmp);
 
 		if (bitmap_check(schedinfo->cpubmp, cos_cpuid())) {
 			PRINTLOG(PRINT_DEBUG, "Initializing child component %u, is_sched=%d\n", child, childflags & COMP_FLAG_SCHED);
-			initthd = sl_thd_initaep_alloc(child_dci, NULL, childflags & COMP_FLAG_SCHED, childflags & COMP_FLAG_SCHED ? 1 : 0, 0, 0, 0); /* TODO: rate information */
-			assert(initthd);
-			sched_child_initthd_set(schedinfo, initthd);
-
 			sched_child_init(schedinfo);
 			if (childflags & COMP_FLAG_SCHED) ps_faa((unsigned long *)&sched_num_childsched[cos_cpuid()], 1);
 		}

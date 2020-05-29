@@ -5,8 +5,6 @@
 #include "isr.h"
 #include "kernel.h"
 
-void serial_puts(const char *s);
-
 enum serial_ports
 {
 	SERIAL_PORT_A = 0x3F8,
@@ -43,7 +41,7 @@ serial_handler(struct pt_regs *r)
 	char serial;
 	int  preempt = 1;
 
-	ack_irq(HW_SERIAL);
+	lapic_ack();
 
 	serial = serial_recv();
 
@@ -62,18 +60,19 @@ serial_handler(struct pt_regs *r)
 	case 3: /* FIXME: Obviously remove this once we have working components */
 		die("Break\n");
 	case 'o':
-		timer_set(TIMER_ONESHOT, 50000000);
-		timer_set(TIMER_ONESHOT, 50000000);
+		hpet_set(HPET_ONESHOT, 50000000);
+		hpet_set(HPET_ONESHOT, 50000000);
 		break;
 	case 'p':
-		timer_set(TIMER_PERIODIC, 100000000);
-		timer_set(TIMER_PERIODIC, 100000000);
+		hpet_set(HPET_PERIODIC, 100000000);
+		hpet_set(HPET_PERIODIC, 100000000);
 		break;
 	default:
 		break;
 	}
 
-	printk("Serial: %d\n", serial);
+	PRINTK("Serial: %d\n", serial);
+
 	// printk("%c", serial);
 	return preempt;
 }
@@ -81,17 +80,24 @@ serial_handler(struct pt_regs *r)
 void
 serial_init(void)
 {
-	printk("Enabling serial I/O\n");
 	printk_register_handler(serial_puts);
 
 	/* We will initialize the first serial port */
 	outb(SERIAL_PORT_A + 1, 0x00);
 	outb(SERIAL_PORT_A + 3, 0x80); /* Enable divisor mode */
-	outb(SERIAL_PORT_A + 0, 0x03); /* Div Low:  03 Set the port to 38400 bps */
+	outb(SERIAL_PORT_A + 0, 0x01); /* Div Low:  01 Set the port to 115200 bps */
 	outb(SERIAL_PORT_A + 1, 0x00); /* Div High: 00 */
 	outb(SERIAL_PORT_A + 3, 0x03);
 	outb(SERIAL_PORT_A + 2, 0xC7);
 	outb(SERIAL_PORT_A + 4, 0x0B);
 
 	outb(SERIAL_PORT_A + 1, 0x01); /* Enable interrupts on receive */
+	printk("Enabling serial I/O\n");
+}
+
+void
+serial_late_init(void)
+{
+	chal_irq_enable(HW_SERIAL, 0);
+	chal_irq_enable(HW_KEYBOARD, 0);
 }

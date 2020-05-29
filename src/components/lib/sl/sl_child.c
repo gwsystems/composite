@@ -47,6 +47,7 @@ done:
 int
 sl_parent_notif_enqueue(struct sl_thd *thd, struct sl_child_notification *notif)
 {
+#ifdef SL_PARENTCHILD
 	assert(thd && notif);
 	assert(thd->properties & SL_THD_PROPERTY_SEND);
 
@@ -55,11 +56,14 @@ sl_parent_notif_enqueue(struct sl_thd *thd, struct sl_child_notification *notif)
 
 	if (ck_ring_enqueue_spsc_child(thd->ch_ring, thd->ch_ringbuf, notif) == false) return -1;
 	if (cos_asnd(sl_thd_asndcap(thd), 0)) return -1;
+#else
+	assert(0);
+#endif
 
 	return 0;
 }
 
-/* there is only 1 parent per scheduler per cpu */
+/* there is only 1 parent per scheduler per core */
 int
 sl_child_notif_map(cbuf_t id)
 {
@@ -85,6 +89,7 @@ sl_child_notif_map(cbuf_t id)
 int
 sl_child_notif_dequeue(struct sl_child_notification *notif)
 {
+#ifdef SL_PARENTCHILD
 	struct ck_ring *cring = child_ring[cos_cpuid()];
 	struct sl_child_notification *crbuf = child_ringbuf[cos_cpuid()];
 
@@ -92,38 +97,52 @@ sl_child_notif_dequeue(struct sl_child_notification *notif)
 	if (!cring || !crbuf) return 0;
 
 	if (ck_ring_dequeue_spsc_child(cring, crbuf, notif) == true) return 1;
-
+#endif
 	return 0;
 }
 
 int
 sl_child_notif_empty(void)
 {
+#ifdef SL_PARENTCHILD
 	struct ck_ring *cring = child_ring[cos_cpuid()];
 
 	if (!cring) return 1;
 
 	return (!ck_ring_size(cring));
+#else
+	return 1;
+#endif
 }
 
 int
 sl_parent_notif_block_no_cs(struct sl_thd *child, struct sl_thd *thd)
 {
+#ifdef SL_PARENTCHILD
 	struct sl_child_notification notif;
 
 	notif.type = SL_CHILD_THD_BLOCK;
 	notif.tid  = sl_thd_thdid(thd);
 
 	return sl_parent_notif_enqueue(child, &notif);
+#else
+	assert(0);
+	return 0;
+#endif
 }
 
 int
 sl_parent_notif_wakeup_no_cs(struct sl_thd *child, struct sl_thd *thd)
 {
+#ifdef SL_PARENTCHILD
 	struct sl_child_notification notif;
 
 	notif.type = SL_CHILD_THD_WAKEUP;
 	notif.tid  = sl_thd_thdid(thd);
 
 	return sl_parent_notif_enqueue(child, &notif);
+#else
+	assert(0);
+	return 0;
+#endif
 }

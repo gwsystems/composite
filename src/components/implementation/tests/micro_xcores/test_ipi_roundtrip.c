@@ -2,7 +2,7 @@
 
 #include "micro_xcores.h"
 
-extern void sched_events_clear(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout);
+extern void sched_events_clear(thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout);
 
 /* Test Sender Time + Receiver Time Roundtrip */
 
@@ -29,14 +29,14 @@ static cycles_t           results[2][ARRAY_SIZE];
 static void
 test_rcv(arcvcap_t r)
 {
-        int pending = 0, rcvd = 0;
+        int pending = 0;
 
-        pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
+        pending = cos_rcv(r, 0);
         assert(pending == 0);
         if (EXPECT_LL_LT(1, r, "IPI Roundtrip: Allocation on RCV"))
                 cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 
-        total_rcvd[cos_cpuid()] += rcvd;
+        total_rcvd[cos_cpuid()] += 1;
 }
 
 static void
@@ -64,18 +64,18 @@ test_rcv_fn(void *d)
 static void
 test_sched_loop(void)
 {
-        int         blocked, rcvd, pending, ret;
+        int         blocked, pending, ret;
         cycles_t    cycles;
         tcap_time_t timeout, thd_timeout;
         thdid_t     thdid;
 
         /* Clear Scheduler */
-        sched_events_clear(&rcvd, &thdid, &blocked, &cycles, &thd_timeout);
+        sched_events_clear(&thdid, &blocked, &cycles, &thd_timeout);
 
         while (1) {
 
-                while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
-                                                &rcvd, &thdid, &blocked, &cycles, &thd_timeout)) >= 0) {
+                while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0,
+                                                &thdid, &blocked, &cycles, &thd_timeout)) >= 0) {
                         if (!thdid) goto done;
                         assert(thdid == tid[cos_cpuid()]);
                         blkd[cos_cpuid()] = blocked;
@@ -157,6 +157,7 @@ test_ipi_roundtrip(void)
         thdcap_t  t = 0;
         tcap_t    tcc = 0;
 
+	if (NUM_CPU <= 1) return;
 
         if (cos_cpuid() == TEST_RCV_CORE) {
 
@@ -167,7 +168,7 @@ test_ipi_roundtrip(void)
                         return;
 
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI ROUNDTRIP: Thread Allocation"))
                         return;
 
@@ -196,7 +197,7 @@ test_ipi_roundtrip(void)
 
                 /* Test Sender Time */
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI ROUNDTRIP: Thread Allocation"))
                         return;
 

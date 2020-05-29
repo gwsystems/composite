@@ -17,17 +17,17 @@
 #define HW_IRQ_EXTERNAL_MIN 32
 #define HW_IRQ_EXTERNAL_MAX 63
 
-struct cap_asnd hw_asnd_caps[HW_IRQ_TOTAL];
+struct cap_asnd hw_asnd_caps[NUM_CPU][HW_IRQ_TOTAL];
 
 struct cap_hw {
 	struct cap_header h;
 	u32_t             hw_bitmap;
 } __attribute__((packed));
 
-static void
+static inline void
 hw_asndcap_init(void)
 {
-	memset(&hw_asnd_caps, 0, sizeof(struct cap_asnd) * HW_IRQ_TOTAL);
+	memset(&hw_asnd_caps, 0, sizeof(struct cap_asnd) * HW_IRQ_TOTAL * NUM_CPU);
 }
 
 /*
@@ -36,7 +36,7 @@ hw_asndcap_init(void)
  * from another, and only with a subset of the bitmap.  Any other HW
  * resources should not be passed on.
  */
-static int
+static inline int
 hw_activate(struct captbl *t, capid_t cap, capid_t capin, u32_t bitmap)
 {
 	struct cap_hw *hwc;
@@ -52,23 +52,23 @@ hw_activate(struct captbl *t, capid_t cap, capid_t capin, u32_t bitmap)
 	return 0;
 }
 
-static int
+static inline int
 hw_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 {
 	return cap_capdeactivate(t, capin, CAP_HW, lid);
 }
 
-static int
+static inline int
 hw_attach_rcvcap(struct cap_hw *hwc, hwid_t hwid, struct cap_arcv *rcvc, capid_t rcv_cap)
 {
 	if (hwid < HW_IRQ_EXTERNAL_MIN || hwid > HW_IRQ_EXTERNAL_MAX) return -EINVAL;
 	if (!(hwc->hw_bitmap & (1 << (hwid - HW_IRQ_EXTERNAL_MIN)))) return -EINVAL;
-	if (hw_asnd_caps[hwid].h.type == CAP_ASND) return -EEXIST;
+	if (hw_asnd_caps[get_cpuid()][hwid].h.type == CAP_ASND) return -EEXIST;
 
-	return asnd_construct(&hw_asnd_caps[hwid], rcvc, rcv_cap, 0, 0);
+	return asnd_construct(&hw_asnd_caps[get_cpuid()][hwid], rcvc, rcv_cap, 0, 0);
 }
 
-static int
+static inline int
 hw_detach_rcvcap(struct cap_hw *hwc, hwid_t hwid)
 {
 	if (hwid < HW_IRQ_EXTERNAL_MIN || hwid > HW_IRQ_EXTERNAL_MAX) return -EINVAL;
@@ -78,7 +78,7 @@ hw_detach_rcvcap(struct cap_hw *hwc, hwid_t hwid)
 	 * FIXME: Need to synchronize using __xx_pre and
 	 *        __xx_post perhaps in asnd_deconstruct()
 	 */
-	memset(&hw_asnd_caps[hwid], 0, sizeof(struct cap_asnd));
+	memset(&hw_asnd_caps[get_cpuid()][hwid], 0, sizeof(struct cap_asnd));
 
 	return 0;
 }

@@ -3,10 +3,10 @@
 #include "micro_xcores.h"
 
 void
-sched_events_clear(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout)
+sched_events_clear(thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout)
 {
-        while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
-                             rcvd, tid, blocked, cycles, thd_timeout) != 0)
+        while (cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0,
+                             tid, blocked, cycles, thd_timeout) != 0)
                 ;
 }
 
@@ -40,12 +40,12 @@ static cycles_t           results[ARRAY_SIZE];
 static void
 test_rcv(arcvcap_t r)
 {
-        int pending = 0, rcvd = 0;
+        int pending = 0;
 
-        pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
+        pending = cos_rcv(r, 0);
         assert(pending == 0);
 
-        total_rcvd[cos_cpuid()] += rcvd;
+        total_rcvd[cos_cpuid()] += 1;
 }
 
 static void
@@ -80,16 +80,16 @@ rcv_spinner(void *d)
 static void
 test_rcv_1(arcvcap_t r)
 {
-        int pending = 0, rcvd = 0;
+        int pending = 0;
 
-        pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
+        pending = cos_rcv(r, 0);
         rdtscll(global_time[1]);
         time = (global_time[1] - global_time[0]);
         perfdata_add(&pd, time);
 
         assert(pending == 0);
 
-        total_rcvd[cos_cpuid()] += rcvd;
+        total_rcvd[cos_cpuid()] += 1;
 }
 
 static void
@@ -138,13 +138,13 @@ test_asnd_fn(void *d)
 static void
 test_sched_loop(void)
 {
-        int blocked, rcvd, pending, ret;
+        int blocked, pending, ret;
         cycles_t cycles;
         tcap_time_t timeout, thd_timeout;
         thdid_t thdid;
 
         /* Clear Scheduler */
-        sched_events_clear(&rcvd, &thdid, &blocked, &cycles, &thd_timeout);
+        sched_events_clear(&thdid, &blocked, &cycles, &thd_timeout);
 
         while (1) {
 
@@ -153,8 +153,8 @@ test_sched_loop(void)
                                 ret = cos_switch(spinner_thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX + 2, 0, 0, 0);
                         } while (ret == -EAGAIN);
                 }
-                while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
-                                                &rcvd, &thdid, &blocked, &cycles, &thd_timeout)) >= 0) {
+                while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0,
+                                                &thdid, &blocked, &cycles, &thd_timeout)) >= 0) {
                         if (!thdid)
                                 goto done;
                         assert(thdid == tid[cos_cpuid()]);
@@ -183,6 +183,7 @@ test_ipi_switch(void)
         thdcap_t  t = 0;
         tcap_t    tcc = 0;
 
+	if (NUM_CPU <= 1) return;
 
         if (cos_cpuid() == TEST_RCV_CORE) {
 
@@ -192,7 +193,7 @@ test_ipi_switch(void)
                 if (EXPECT_LL_LT(1, tcc, "IPI SWITCH: TCAP Allocation"))
                         return;
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI SWITCH: Thread Allocation"))
                         return;
 
@@ -207,7 +208,7 @@ test_ipi_switch(void)
                 rcv[cos_cpuid()] = r;
                 while (!rcv[TEST_SND_CORE]) ;
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI SWITCH: Thread Allocation"))
                         return;
 
@@ -226,7 +227,7 @@ test_ipi_switch(void)
 
                 /* Test RCV1: Corresponding Send */
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI SWITCH: Thread Allocation"))
                         return;
 

@@ -5,7 +5,7 @@ INTERFACES=sched schedinit
 DEPENDENCIES=capmgr sched schedinit
 IF_LIB=
 FN_PREPEND=parent_
-ADDITIONAL_LIBS=$(LIBSLCAPMGR) -lsl_thd_static_backend -lsl_mod_fprr
+ADDITIONAL_LIBS=$(LIBSLCAPMGR) -lsl_thd_static_backend -lsl_mod_fprr -lsl_blkpt
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o

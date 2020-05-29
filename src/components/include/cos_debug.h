@@ -9,7 +9,7 @@
 #endif
 
 #ifndef PRINT_FN
-#define PRINT_FN prints
+#define PRINT_FN PRINTC 
 #endif
 
 #include <llprint.h>

@@ -49,13 +49,13 @@ hiprio_c0_lat_fn(arcvcap_t r, void *d)
 	assert(snd);
 
 	while (1) {
-		int pending = 0, rcvd = 0, ret = 0;
+		int pending = 0, ret = 0;
 		cycles_t now;
 
 		if (unlikely(testing == 0)) break;
 
-		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
-		assert(pending == 0 && rcvd == 1);
+		pending = cos_rcv(r, 0);
+		assert(pending == 0);
 		rdtscll(now);
 
 #ifdef RCV_UB_TEST
@@ -94,7 +94,7 @@ hiprio_cn_lat_fn(arcvcap_t r, void *d)
 
 	while (1) {
 		cycles_t st, en, rpcen;
-		int pending = 0, rcvd = 0, ret = 0;
+		int pending = 0, ret = 0;
 
 		if (unlikely(testing == 0)) break;
 
@@ -119,8 +119,8 @@ hiprio_cn_lat_fn(arcvcap_t r, void *d)
 #endif
 
 #ifndef CN_SND_ONLY
-		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
-		assert(pending == 0 && rcvd == 1);
+		pending = cos_rcv(r, 0);
+		assert(pending == 0);
 		rdtscll(rpcen);
 #ifdef RPC_UB_TEST
 		iters ++;
@@ -297,12 +297,12 @@ loprio_rate_c0_fn(arcvcap_t r, void *d)
 	while (testing == 0) ;
 
 	while (1) {
-		int pending = 0, rcvd = 0, ret = 0;
+		int pending = 0, ret = 0;
 
 		if (unlikely(testing == 0)) break;
 
-		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
-		assert(pending == 0 && rcvd == 1);
+		pending = cos_rcv(r, 0);
+		assert(pending == 0);
 
 		ret = cos_asnd(snd, 0);
 		assert(ret == 0);
@@ -320,7 +320,7 @@ hiprio_rate_cn_fn(arcvcap_t r, void *d)
 	while (testing == 0) ;
 
 	while (1) {
-		int pending = 0, rcvd = 0, ret = 0;
+		int pending = 0, ret = 0;
 
 		if (unlikely(testing == 0)) break;
 
@@ -330,8 +330,8 @@ hiprio_rate_cn_fn(arcvcap_t r, void *d)
 		assert(ret == 0);
 
 #ifndef CN_SND_ONLY
-		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
-		assert(pending == 0 && rcvd == 1);
+		pending = cos_rcv(r, 0);
+		assert(pending == 0);
 #endif
 	}
 
@@ -412,7 +412,7 @@ static void
 c0_ipc_fn(arcvcap_t r, void *d)
 {
 	asndcap_t snd = c0_cn_asnd[cos_cpuid()];
-	int iters;
+	int iters = 0;
 	cycles_t rtt_total = 0, one_total = 0, rtt_wc = 0, one_wc = 0, rone_total = 0, rone_wc = 0;
 
 	PRINTC("Testing Cross-core IPC:\n");
@@ -423,7 +423,7 @@ c0_ipc_fn(arcvcap_t r, void *d)
 	testing = 1;
 
 	while (1) {
-		int pending = 0, rcvd = 0, ret = 0;
+		int pending = 0, ret = 0;
 		cycles_t rtt_diff, one_diff = 0, rone_diff = 0;
 
 		rdtscll(c0_start);
@@ -431,8 +431,8 @@ c0_ipc_fn(arcvcap_t r, void *d)
 		assert(ret == 0);
 
 		rdtscll(c0_mid);
-		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
-		assert(pending == 0 && rcvd == 1);
+		pending = cos_rcv(r, 0);
+		assert(pending == 0);
 		rdtscll(c0_end);
 
 		rtt_diff = (c0_end - c0_start);
@@ -466,13 +466,13 @@ c1_ipc_fn(arcvcap_t r, void *d)
 	while (testing == 0) ;
 
 	while (1) {
-		int pending = 0, rcvd = 0, ret = 0;
+		int pending = 0, ret = 0;
 
 		if (unlikely(testing == 0)) break;
 
 		rdtscll(c1_start);
-		pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
-		assert(pending == 0 && rcvd == 1);
+		pending = cos_rcv(r, 0);
+		assert(pending == 0);
 
 		rdtscll(c1_mid);
 		ret = cos_asnd(snd, 0);
@@ -487,7 +487,7 @@ static void
 test_ipc_setup(void)
 {
 #ifdef TEST_IPC
-	static volatile int cdone[NUM_CPU] = { 0 };
+	static volatile unsigned long cdone[NUM_CPU] = { 0 };
 	int i, ret;
 	struct sl_thd *t = NULL;
 	asndcap_t snd = 0;

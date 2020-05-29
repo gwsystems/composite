@@ -94,6 +94,12 @@ void chal_send_ipi(int cpu_id);
 void chal_idle(void);
 void chal_timer_set(cycles_t cycles);
 void chal_timer_disable(void);
+void     chal_hpet_periodic_set(hwid_t, unsigned long);
+void     chal_hpet_disable(hwid_t);
+cycles_t chal_hpet_first_period(void);
+
+int chal_irq_disable(int irqline, cpuid_t cpu_id);
+int chal_irq_enable(int irqline, cpuid_t cpu_id);
 
 void chal_init(void);
 
@@ -103,6 +109,8 @@ void chal_init(void);
 /* void cos_syscall_upcall(void); */
 
 #include "../../platform/include/chal_plat.h"
+
+#define PRINTK(format, ...) printk("(CPU%ld:) " format, get_cpuid(), ## __VA_ARGS__)
 
 extern void printk(const char *fmt, ...);
 void        chal_khalt(void);

@@ -4,7 +4,7 @@ COMPONENT=root_fprr.o
 INTERFACES=sched schedinit
 DEPENDENCIES=capmgr
 IF_LIB=
-ADDITIONAL_LIBS=$(LIBSLCAPMGR) -lsl_thd_static_backend -lsl_mod_fprr 
+ADDITIONAL_LIBS=$(LIBSLCAPMGR) -lsl_thd_static_backend -lsl_mod_fprr -lsl_blkpt
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o

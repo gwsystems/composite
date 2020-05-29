@@ -55,14 +55,33 @@ __init_done(void *d)
 void
 sched_child_init(struct sched_childinfo *schedci)
 {
-	struct sl_thd *initthd = NULL;
+	vaddr_t dcbaddr;
 
 	assert(schedci);
-	initthd = sched_child_initthd_get(schedci);
-	assert(initthd);
-	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
-	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
-	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
+	schedci->initthd = sl_thd_initaep_alloc(sched_child_defci_get(schedci), NULL, schedci->flags & COMP_FLAG_SCHED, schedci->flags & COMP_FLAG_SCHED ? 1 : 0, 0, 0, 0, &dcbaddr);
+	assert(schedci->initthd);
+
+	sl_thd_param_set(schedci->initthd, sched_param_pack(SCHEDP_PRIO, FIXED_PRIO));
+	sl_thd_param_set(schedci->initthd, sched_param_pack(SCHEDP_WINDOW, FIXED_PERIOD_MS));
+	sl_thd_param_set(schedci->initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
+}
+
+thdid_t
+sched_child_thd_create(struct sched_childinfo *schedci, thdclosure_index_t idx)
+{
+	vaddr_t addr;
+	struct sl_thd *t = sl_thd_aep_alloc_ext(sched_child_defci_get(schedci), NULL, idx, 0, 0, 0, 0, 0, &addr, NULL);
+
+	return t ? sl_thd_thdid(t) : 0;
+}
+
+thdid_t
+sched_child_aep_create(struct sched_childinfo *schedci, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
+{
+	vaddr_t addr;
+	struct sl_thd *t = sl_thd_aep_alloc_ext(sched_child_defci_get(schedci), NULL, idx, 1, owntc, key, 0, 0, &addr, extrcv);
+
+	return t ? sl_thd_thdid(t) : 0;
 }
 
 void
@@ -70,7 +89,7 @@ cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
-	static volatile int first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
+	static volatile unsigned long first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
 	static u32_t cpubmp[NUM_CPU_BMP_WORDS] = { 0 };
 	int i;
 
@@ -94,7 +113,7 @@ cos_init(void)
 		while (!ps_load((unsigned long *)&init_done[i])) ;
 	}
 
-	sl_init_cpubmp(SL_MIN_PERIOD_US, cpubmp);
+	sl_init_corebmp(SL_MIN_PERIOD_US, cpubmp);
 	sched_childinfo_init();
 	__initializer_thd[cos_cpuid()] = sl_thd_alloc(__init_done, NULL);
 	assert(__initializer_thd[cos_cpuid()]);

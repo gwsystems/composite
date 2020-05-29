@@ -15,6 +15,7 @@
 #include <capmgr.h>
 #include <memmgr.h>
 #include <bitmap.h>
+#include <cos_dcb.h>
 
 #define CAP_INFO_MAX_THREADS (MAX_NUM_THREADS)
 
@@ -29,12 +30,12 @@ struct cap_shmem_glb_info {
 };
 
 struct cap_comm_info {
-	arcvcap_t  rcvcap; /* rcv capid in capmgr! */
-	cpuid_t    rcvcpuid;
-	cycles_t   ipiwin, ipiwin_start; /* TODO: synchronize TSC on all cores */
-	u32_t      ipicnt, ipimax;
-	asndcap_t  sndcap[NUM_CPU]; /* for cross-core asnds */
-	sinvcap_t  sinvcap[NUM_CPU]; /* for each core (except for the same core!) */
+	arcvcap_t     rcvcap; /* rcv capid in capmgr! */
+	cpuid_t       rcvcpuid;
+	cycles_t      ipiwin, ipiwin_start; /* TODO: synchronize TSC on all cores */
+	unsigned long ipicnt, ipimax;
+	asndcap_t     sndcap[NUM_CPU]; /* for cross-core asnds */
+	sinvcap_t     sinvcap[NUM_CPU]; /* for each core (except for the same core!) */
 } cap_comminfo[CAP_INFO_MAX_THREADS];
 
 struct cap_channelaep_info {
@@ -58,6 +59,8 @@ struct cap_comp_cpu_info {
 	int p_thd_iterator; /* iterator for parent to get all threads created by capmgr in this component so far! */
 	thdcap_t p_initthdcap; /* init thread's cap in parent */
 	thdid_t  initthdid; /* init thread's tid */
+
+	struct cos_dcbinfo_data dcb_data;
 } CACHE_ALIGNED;
 
 struct cap_comp_info {
@@ -65,6 +68,7 @@ struct cap_comp_info {
 	struct cos_defcompinfo defci;
 	struct cap_shmem_info shminfo;
 	int initflag;
+	vaddr_t init_dcb_start;
 
 	struct cap_comp_cpu_info cpu_local[NUM_CPU];
 };
@@ -74,6 +78,7 @@ struct cap_comp_info *cap_info_comp_init(spdid_t spdid, captblcap_t captbl_cap, 
 
 struct sl_thd *cap_info_thd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_channelkey_t key);
 struct sl_thd *cap_info_initthd_init(struct cap_comp_info *rci, struct sl_thd *t, cos_channelkey_t key);
+void           cap_info_cpu_initdcb_init(struct cap_comp_info *rci);
 
 struct cap_comp_info *cap_info_comp_find(spdid_t s);
 struct sl_thd        *cap_info_thd_find(struct cap_comp_info *r, thdid_t t);
@@ -116,6 +121,12 @@ cap_info_cpu_local(struct cap_comp_info *c)
 	return &c->cpu_local[cos_cpuid()];
 }
 
+static inline struct cos_dcbinfo_data *
+cap_info_cpu_dcbdata(struct cap_comp_cpu_info *c)
+{
+	return &c->dcb_data;
+}
+
 static inline struct cap_comp_info *
 cap_info_parent(struct cap_comp_info *r)
 {
@@ -133,11 +144,18 @@ cap_info_is_parent(struct cap_comp_info *r, spdid_t p)
 }
 
 static inline int
-cap_info_is_sched(spdid_t c)
+cap_info_is_sched_core(spdid_t c, cpuid_t core)
 {
+	if (core >= NUM_CPU) return 0;
 	if (!c) return 1; /* llbooter! */
 
-	return bitmap_check(cap_info_schedbmp[cos_cpuid()], c - 1);
+	return bitmap_check(cap_info_schedbmp[core], c - 1);
+}
+
+static inline int
+cap_info_is_sched(spdid_t c)
+{
+	return cap_info_is_sched_core(c, cos_cpuid());
 }
 
 static inline int

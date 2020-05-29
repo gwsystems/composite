@@ -81,7 +81,7 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 {
 	struct sinv_thdinfo *tinfo = &s->cdata.cthds[cos_thdid()];
 	volatile unsigned long *reqaddr = (volatile unsigned long *)SINV_POLL_ADDR(tinfo->shmaddr);
-	int *retval = NULL, ret, rcvd = 0;
+	int *retval = NULL, ret;
 	struct sinv_call_req *req = NULL;
 
 	assert(t >= 0 && t < SINV_NUM_MAX);
@@ -108,7 +108,7 @@ acom_client_request(struct sinv_async_info *s, acom_type_t t, word_t a, word_t b
 	cos_asnd(tinfo->sndcap, 1);
 
 	assert(tinfo->rcvcap);
-	while ((cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING | RCV_ALL_PENDING, &rcvd) < 0)) {
+	while ((cos_rcv(tinfo->rcvcap, RCV_NON_BLOCKING) < 0)) {
 		cycles_t timeout = time_now() + time_usec2cyc(SINV_SRV_POLL_US);
 
 		if (ps_load((unsigned long *)reqaddr) == SINV_REQ_RESET) break;

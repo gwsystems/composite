@@ -1,3 +1,3 @@
-INTERFACES=sched schedinit srv_dummy
+INTERFACES=sched schedinit crt srv_dummy
 
 include ../Makefile.subdir

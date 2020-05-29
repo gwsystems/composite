@@ -2,7 +2,7 @@
 
 #include "micro_xcores.h"
 
-extern void sched_events_clear(int* rcvd, thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout);
+extern void sched_events_clear(thdid_t* tid, int* blocked, cycles_t* cycles, tcap_time_t* thd_timeout);
 
 /* Test RCV 2: Close Loop at higher priority => Measure Kernel involvement */
 
@@ -38,7 +38,7 @@ test_rcv(arcvcap_t r)
 {
         int pending = 0, rcvd = 0;
 
-        pending = cos_rcv(r, RCV_ALL_PENDING, &rcvd);
+        pending = cos_rcv(r, 0);
         assert(pending == 0);
 
         total_rcvd[cos_cpuid()] += rcvd;
@@ -76,13 +76,13 @@ test_rcv_fn(void *d)
 static void
 test_sched_loop(void)
 {
-        int blocked, rcvd, pending, ret;
+        int blocked, pending, ret;
         cycles_t cycles;
         tcap_time_t timeout, thd_timeout;
         thdid_t thdid;
 
         /* Clear Scheduler */
-        sched_events_clear(&rcvd, &thdid, &blocked, &cycles, &thd_timeout);
+        sched_events_clear(&thdid, &blocked, &cycles, &thd_timeout);
 
         while (1) {
                 if(cos_cpuid() == TEST_RCV_CORE) {
@@ -90,8 +90,8 @@ test_sched_loop(void)
                                 ret = cos_switch(spinner_thd[cos_cpuid()], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_PRIO_MAX + 2, 0, 0, 0);
                         } while (ret == -EAGAIN);
                 }
-                while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
-                                                &rcvd, &thdid, &blocked, &cycles, &thd_timeout)) >= 0) {
+                while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0,
+                                                &thdid, &blocked, &cycles, &thd_timeout)) >= 0) {
                         if (!thdid) goto done;
                         assert(thdid == tid[cos_cpuid()]);
                         blkd[cos_cpuid()] = blocked;
@@ -181,6 +181,7 @@ test_ipi_interference(void)
         thdcap_t  t = 0;
         tcap_t    tcc = 0;
 
+	if (NUM_CPU <= 1) return;
 
         if (cos_cpuid() == TEST_RCV_CORE) {
 
@@ -190,7 +191,7 @@ test_ipi_interference(void)
                 if (EXPECT_LL_LT(1, tcc, "IPI Interference: TCAP Allocation"))
                         return;
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI Inteference: Thread Allocation"))
                         return;
 
@@ -205,7 +206,7 @@ test_ipi_interference(void)
                 rcv[cos_cpuid()] = r;
                 while (!rcv[TEST_SND_CORE]) ;
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI Interference: Thread Allocation"))
                         return;
 
@@ -230,7 +231,7 @@ test_ipi_interference(void)
                 if (EXPECT_LL_LT(1, tcc, "IPI Interference: TCAP Allocation"))
                         return;
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI Interference: Thread Allocation"))
                         return;
 

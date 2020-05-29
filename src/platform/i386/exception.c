@@ -6,7 +6,6 @@
 #include "isr.h"
 #include "chal_cpu.h"
 
-#define PRINTK(format, ...) printk("(CPU%ld:) " format, get_cpuid(), ## __VA_ARGS__)
 
 void
 print_regs_state(struct pt_regs *regs)

@@ -26,7 +26,7 @@ test_ipi_fn(void *d)
 
                 r = cos_asnd(snd, 1);
                 assert(r == 0);
-                p = cos_rcv(rcv, RCV_ALL_PENDING, &r);
+                p = cos_rcv(rcv, 0);
                 assert(p >= 0);
         }
 }
@@ -49,7 +49,7 @@ test_rcv_crt(void)
                 asndcap_t snd = 0;
 
                 if (cos_cpuid() == i) continue;
-                thd = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_ipi_fn, (void *)i);
+                thd = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_ipi_fn, (void *)i, 0, 0);
                 assert(thd);
 
                 rcv = cos_arcv_alloc(&booter_info, thd, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
@@ -147,7 +147,7 @@ test_ipi_n_n(void)
         rdtscll(now);
         prev = now;
         while (1) {
-                int blocked, rcvd, pending;
+                int blocked, pending;
                 cycles_t cycles;
                 tcap_time_t timeout, thd_timeout;
                 thdid_t tid;
@@ -158,8 +158,8 @@ test_ipi_n_n(void)
                 if (now - prev > wc) wc = now - prev;
                 test_thd_act();
 
-                while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, RCV_ALL_PENDING, 0,
-                                 &rcvd, &tid, &blocked, &cycles, &thd_timeout)) >= 0) {
+                while ((pending = cos_sched_rcv(BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, 0, 0,
+                                                &tid, &blocked, &cycles, &thd_timeout)) >= 0) {
                         if (!tid) goto done;
                         j = test_find_tid(tid);
                         assert(j >= 0);

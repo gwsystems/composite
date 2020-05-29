@@ -13,13 +13,15 @@ enum hypercall_cntl {
 	HYPERCALL_COMP_COMPCAP_GET,
 	HYPERCALL_COMP_CAPTBLCAP_GET,
 	HYPERCALL_COMP_PGTBLCAP_GET,
-	HYPERCALL_COMP_CAPFRONTIER_GET,
 
 	HYPERCALL_COMP_INITAEP_GET,
 	HYPERCALL_COMP_CHILD_NEXT,
 	HYPERCALL_COMP_CPUBITMAP_GET,
+	HYPERCALL_COMP_SCHED_GET,
 
 	HYPERCALL_NUMCOMPS_GET,
+
+	HYPERCALL_ROOT_INITAEP_SET, /* per-core root-scheduler init-aeps created by capmgr and passed to llbooter */
 };
 
 static inline int
@@ -48,11 +50,12 @@ hypercall_comp_init_done(void)
 
 /* Note: This API can be called ONLY by components that manage capability resources */
 static inline int
-hypercall_comp_initaep_get(spdid_t spdid, int is_sched, struct cos_aep_info *aep)
+hypercall_comp_initaep_get(spdid_t spdid, int is_sched, struct cos_aep_info *aep, spdid_t *parent_spdid)
 {
 	thdcap_t  thdslot = 0;
 	arcvcap_t rcvslot = 0;
 	tcap_t    tcslot  = 0;
+	word_t    r3 = 0;
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	int ret = 0;
 
@@ -68,14 +71,26 @@ hypercall_comp_initaep_get(spdid_t spdid, int is_sched, struct cos_aep_info *aep
 	}
 
 	/* capid_t though is unsigned long, only assuming it occupies 16bits for packing */
-	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_INITAEP_GET,
-			spdid << 16 | thdslot, rcvslot << 16 | tcslot, 0);
+	ret = cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_INITAEP_GET,
+			    spdid << 16 | thdslot, rcvslot << 16 | tcslot, 0, (word_t *)&parent_spdid, &r3);
 	if (ret) return ret;
 
 	aep->thd = thdslot;
 	aep->rcv = rcvslot;
 	aep->tc  = tcslot;
 	aep->tid = cos_introspect(ci, thdslot, THD_GET_TID);
+
+	return 0;
+}
+
+static inline int
+hypercall_root_initaep_set(spdid_t spdid, struct cos_aep_info *aep)
+{
+	int ret = 0;
+
+	ret = cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_ROOT_INITAEP_SET, spdid << 16 | aep->thd,
+		       aep->rcv << 16 | aep->tc, 0);
+	if (ret) return ret;
 
 	return 0;
 }
@@ -176,15 +191,10 @@ hypercall_comp_pgtblcap_get(spdid_t spdid)
 	return ptslot;
 }
 
-static inline capid_t
-hypercall_comp_capfrontier_get(spdid_t spdid)
+static inline spdid_t
+hypercall_comp_sched_get(spdid_t spdid)
 {
-	word_t unused;
-	capid_t cap_frontier;
-
-	if (cos_sinv_rets(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_CAPFRONTIER_GET, spdid, 0, 0, &cap_frontier, &unused)) return 0;
-
-	return cap_frontier;
+	return cos_sinv(BOOT_CAPTBL_SINV_CAP, HYPERCALL_COMP_SCHED_GET, spdid, 0, 0);
 }
 
 static inline int

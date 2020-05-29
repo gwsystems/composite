@@ -200,13 +200,17 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 					cos_thd_entry_exec(idx);
 				}
 			}
-			return;
+			break;
 		}
 	default:
 		/* fault! */
 		assert(0);
 		return;
 	}
+
+	/* FIXME: for now, don't let threads page-fault on return! */
+	while (1) ;
+
 	return;
 }
 

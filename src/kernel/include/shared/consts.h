@@ -48,7 +48,7 @@ struct pt_regs {
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS (64 * NUM_CPU)
+#define MAX_NUM_THREADS (2048)
 
 /* Stacks are 2 * page_size (expressed in words) */
 #define MAX_STACK_SZ_BYTE_ORDER 12
@@ -136,6 +136,7 @@ struct pt_regs {
  * offsets below are used to access CPU and thread IDs. */
 #define CPUID_OFFSET 1
 #define THDID_OFFSET 2
-#define INVTOKEN_OFFSET 3
+#define SLTHDPTR_OFFSET 3
+#define INVTOKEN_OFFSET 4
 
 #endif

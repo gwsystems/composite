@@ -11,8 +11,10 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <cos_types.h>
+#include <crt_chan.h>
 
 #define SCHED_MAX_CHILD_COMPS 8
+CRT_CHAN_TYPE_PROTOTYPES(LU, CHAN_CRT_ITEM_TYPE, CHAN_CRT_NSLOTS);
 
 struct sched_childinfo {
 	struct cos_defcompinfo defcinfo;
@@ -30,6 +32,8 @@ void sched_childinfo_init(void);
 void sched_childinfo_init_raw(void);
 
 extern unsigned int self_init[], num_child_init[];
+extern thdid_t sched_child_thd_create(struct sched_childinfo *schedci, thdclosure_index_t idx);
+extern thdid_t sched_child_aep_create(struct sched_childinfo *schedci, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv);
 
 static inline struct cos_defcompinfo *
 sched_child_defci_get(struct sched_childinfo *sci)
