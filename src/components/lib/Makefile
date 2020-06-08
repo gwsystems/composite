@@ -12,6 +12,7 @@ export CINC_ENV
 
 .PHONY: all sl ps ck sinv
 all: $(LIBS) $(MAND) $(SIMPLE_STKLIB) sl sinv
+	make -C tiny_ekf CC=$(MUSLCC)
 
 # we have to compile these without dietlibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't
@@ -45,7 +46,7 @@ clean:
 	$(info |     [RM]   Cleaning up directory)
 	@rm -f a.out *.o *.a *.d *~
 	make -C sl clean
-
+	make -C tiny_ekf clean
 distclean:
 	make -C musl-1.1.11 distclean
 # keep the following commands in one line. make executes each line
@@ -53,6 +54,7 @@ distclean:
 	make -C posix clean
 	make -C libcxx clean
 	make -C ck uninstall
+	make -C tiny_ekf clean
 
 musl:
 	cd musl-1.1.11; ./configure "CFLAGS=-m32 -O3" "LDFLAGS=-Wl,-melf_i386" --disable-shared --target=i386; cd ..
@@ -71,3 +73,4 @@ init: clean distclean musl ck ps all
 # keep the following commands in one line. Same as above.
 	make -C posix
 	make -C libcxx
+	make -C tiny_ekf CC=$(MUSLCC)

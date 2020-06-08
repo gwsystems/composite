@@ -4,7 +4,10 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <stdlib.h>
+#include <math.h>
 #include <gpsdata.h>
+#include "tinyekf_config.h"
+#include "tiny_ekf.h"
 #include "boot_deps_1.h"
 #define USER_CAPS_SYMB_NAME "ST_user_caps"
 

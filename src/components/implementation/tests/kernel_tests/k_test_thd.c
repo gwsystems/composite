@@ -2,7 +2,7 @@
 #include "kernel_tests.h"
 
 static int          failure = 0;
-
+static thdcap_t     thds[4];
 /*
  * Fundamental check & test
  * checks thd creation, arg passing and basic swich
@@ -12,7 +12,7 @@ static void
 test_thd_arg(void *d)
 {
         int ret = 0;
-
+	
         if (EXPECT_LL_NEQ((int)d, THD_ARG, "Thread Creation: Argument Incorrect")) failure = 1;
         while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
         PRINTC("Error, shouldn't get here!\n");
@@ -41,7 +41,7 @@ static void
 thd_fn_mthds_ring(void *d)
 {
         int ret;
-
+	
         if (count != (int) d) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 
         int next = (++count) % TEST_NTHDS;
@@ -106,6 +106,7 @@ thd_fn_mthds_classic(void *d)
  * testing if it switched to the desirable thd at each iteration
  */
 
+
 static void
 test_mthds_classic(void)
 {
@@ -161,13 +162,78 @@ test_thds_tls(void)
         PRINTC("\t%s: \t\t\tSuccess\n", "THD => Creation & TLS");
         EXIT_FN();
 }
+static void
+thds_fpu(void *d)
+{
+	float    PI = 3.0;
+	int      flag = 1, i;
+	PRINTC("\tstart calculating pi in thd %u: \t\t\tStart\n", (int)d);
+	for (i = 2; i < 20; i += 2) {	
+		if (flag) {
+			PI += (4.0 / (i * (i + 1) * (i + 2)));
+		} else {
+			PI -= (4.0 / (i * (i + 1) * (i + 2)));
+		}
+		if ((int) d == 1) {
+			PRINTC("\t%s: \t\t\tSuccess\n", "switch from thd1 to thd 2");
+               		cos_thd_switch(thds[2]);
+		} else if ((int) d == 2) {
+			PRINTC("\t%s: \t\t\tSuccess\n", "switch from thd2 to thd 1");
+		 	cos_thd_switch(thds[1]);		
+		} else if ((int) d == 3) {
+			PRINTC("\t%s: \t\t\tSuccess\n", "switch from thd3 to thd 0");
+		 	cos_thd_switch(thds[0]);		
+		}
+		flag = !flag;
+	}
+        PRINTC("\tpi = %f: \t\t\tFinish calculate Pi and switch to main thread\n", PI);
+        cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
+	return;
+}
 
+static void
+test_thds_no_fpu(void *d)
+{
+        int ret = 0;
+        while (1) {
+		PRINTC("\t%s: \t\t\tSuccess\n", "switch from thd0 to thd 3");
+		cos_thd_switch(thds[3]);
+	}
+        PRINTC("Error, shouldn't get here!\n");
+}
+static void
+test_thds_fpu(void)
+{
+        intptr_t i = 0;
+        int      ret;
+	thds[0] = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_thds_no_fpu, (void *)i);
+        PRINTC("\tAllocate thread %u \t\tSuccess\n", i);
+	
+	for (i = 1; i <= 3; i++) {
+		thds[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thds_fpu, (void *)i);
+                if (EXPECT_LL_LT(1, thds[i], "Thread FPU: Cannot Allocate")) {
+                        return;
+                }
+		PRINTC("\tAllocate thread %u \t\tSuccess\n", i);
+        }
+	for (i = 0; i < 3; i++) {
+		PRINTC("\tswtich to thread %u: \t\t Success\n", i);
+		ret = cos_thd_switch(thds[i]);
+                if (EXPECT_LL_NEQ(0, ret, "Thread TLS: COS Switch Error")) return;
+        }
+	CHECK_STATUS_FLAG();
+        PRINTC("\t%s: \t\tSuccess\n", "THD => Switch fpu");
+        EXIT_FN();
+}
 void
 test_thds(void)
 {
+/*
         test_thds_create_switch();
         test_thds_tls();
         test_mthds_classic();
         test_mthds_ring();
+*/
+	test_thds_fpu();
 }
 
