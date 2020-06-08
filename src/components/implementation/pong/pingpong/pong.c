@@ -4,11 +4,57 @@
 #include <pong.h>
 #include <cos_debug.h>
 #include <cos_types.h>
-#include <hypercall.h>
+#include <barrier.h>
 
+/* Test the initialization order, and its relationship to ping */
+typedef enum {
+	PONG_UNINIT,
+	PONG_INIT,
+	PONG_PARINIT,
+	PONG_PARMAIN
+} pong_init_state_t;
+
+volatile pong_init_state_t state = PONG_UNINIT;
+struct simple_barrier init_barrier = SIMPLE_BARRIER_INITVAL;
+volatile coreid_t initcore;
+struct simple_barrier main_barrier = SIMPLE_BARRIER_INITVAL;
+
+void
+cos_init(void)
+{
+	assert(state == PONG_UNINIT);
+	printc("Pong component %ld: cos_init\n", cos_compid());
+	state = PONG_INIT;
+}
+
+void
+cos_parallel_init(coreid_t cid, int init_core, int ncores)
+{
+	assert(state == PONG_INIT);
+	simple_barrier(&init_barrier);
+	if (init_core) {
+		printc("Pong component %ld: cos_parallel_init on core %d (of %d)\n", cos_compid(), cid, ncores);
+		initcore = cid;
+	}
+
+	state = PONG_PARINIT;
+}
+
+void
+parallel_main(coreid_t cid)
+{
+	assert(state == PONG_PARINIT);
+	simple_barrier(&main_barrier);
+	if (cos_coreid() == initcore) printc("Pong component %ld: parallel main\n", cos_compid());
+	state = PONG_PARMAIN;
+}
+
+/* We assume that ping will call pong_call upon initialization. */
 void
 pong_call(void)
 {
+	assert(state >= PONG_PARINIT);
+
 	return;
 }
 
@@ -36,7 +82,7 @@ pong_argsrets(int p0, int p1, int p2, int p3, int *r0, int *r1)
 	*r0 = p0;
 	*r1 = p1;
 
-	return p2;
+	return p2 + p3;
 }
 
 int
@@ -54,5 +100,3 @@ pong_ids(compid_t *client, compid_t *serv)
 
 	return cos_thdid();
 }
-
-/* test a cos_init that doesn't exist */

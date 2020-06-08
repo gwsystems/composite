@@ -116,8 +116,8 @@ run_tests()
 	SPIN();
 }
 
-void
-cos_init(void)
+int
+main(void)
 {
 	thdid_t testtid;
 
@@ -132,4 +132,6 @@ cos_init(void)
 		wakeup = time_now() + time_usec2cyc(1000 * 1000);
 		sched_thd_block_timeout(0, wakeup);
 	}
+
+	return 0;
 }

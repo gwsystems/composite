@@ -1,5 +1,5 @@
 [system]
-description = "Simple system: the ping pong test for IPC!"
+description = "Simple system: the ping pong test for IPC, and initialization ordering"
 
 [[components]]
 name = "booter"
