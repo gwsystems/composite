@@ -8,7 +8,7 @@
 #include <gpsdata.h>
 #include "tinyekf_config.h"
 #include "tiny_ekf.h"
-#include "boot_deps_1.h"
+#include "boot_deps_ekf.h"
 #define USER_CAPS_SYMB_NAME "ST_user_caps"
 
 #define MAX_DEPS (PAGE_SIZE/sizeof(struct deps))
@@ -523,7 +523,63 @@ cos_init(void)
 		boot_done();
 		boot_root_sched_run();
 	}
+/**
+EKF
+*//*
+    // Do generic EKF initialization
+    ekf_t ekf;
+    ekf_init(&ekf, Nsta, Mobs);
 
+    // Do local initialization
+    init(&ekf);
+
+    // Open input data file
+    //FILE * ifp = fopen("gps.csv", "r");
+
+    // Skip CSV header
+    //skipline(ifp);
+
+    // Make a place to store the data from the file and the output of the EKF
+    double SV_Pos[4][3];
+    double SV_Rho[4];
+    double Pos_KF[25][3];
+
+    // Open output CSV file and write header
+    //const char * OUTFILE = "ekf.csv";
+    //FILE * ofp = fopen(OUTFILE, "w");
+    //fprintf(ofp,"X,Y,Z\n");
+
+    int j, k;
+
+    // Loop till no more data
+    for (j=0; j<25; ++j) {
+
+        readdata(j, SV_Pos, SV_Rho);
+
+        model(&ekf, SV_Pos);
+
+        ekf_step(&ekf, SV_Rho);
+
+        // grab positions, ignoring velocities
+        for (k=0; k<3; ++k)
+            Pos_KF[j][k] = ekf.x[2*k];
+    }
+
+    // Compute means of filtered positions
+    double mean_Pos_KF[3] = {0, 0, 0};
+    for (j=0; j<25; ++j) 
+        for (k=0; k<3; ++k)
+            mean_Pos_KF[k] += Pos_KF[j][k];
+    for (k=0; k<3; ++k)
+        mean_Pos_KF[k] /= 25;
+
+
+    // Dump filtered positions minus their means
+    for (j=0; j<25; ++j) {
+        //fprintf(ofp, "%f,%f,%f\n", 
+                //Pos_KF[j][0]-mean_Pos_KF[0], Pos_KF[j][1]-mean_Pos_KF[1], Pos_KF[j][2]-mean_Pos_KF[2]);
+        PRINTLOG("%f %f %f\n", Pos_KF[j][0], Pos_KF[j][1], Pos_KF[j][2]);
+    }*/
 	PRINTLOG(PRINT_WARN, "Booter spinning!\n");
 	SPIN();
 }

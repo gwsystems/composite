@@ -1,6 +1,6 @@
-COMPONENT=llbooter_1.o
-ASM_OBJS=s_stub_1.o
-COMPONENT=llboot_comp_1.o
+COMPONENT=llbooter_ekf.o
+ASM_OBJS=s_stub_ekf.o
+COMPONENT=
 INTERFACES=
 DEPENDENCIES=
 IF_LIB=
