@@ -201,6 +201,7 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	/* is there a user-defined parallel init? */
 	const int parallel_init = cos_parallel_init != __crt_cos_parallel_init;
 	int ret = 0;
+	int main_time = 0;
 
 	/* are parallel/regular main user-defined? */
 	if (parallel_main != __crt_parallel_main) {

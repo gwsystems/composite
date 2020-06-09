@@ -1127,9 +1127,15 @@ crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type)
 
 		break;
 	}
-	default: {
-		printc("Error: component %lu past initialization called init_done.\n", c->id);
-	}}
+	default:
+		/*
+		 * We only get here if the client defined cos_init and
+		 * main, thus skipped parallel_init, and *already*
+		 * notified the system that we're executing main.
+		 */
+		assert(c->init_state == CRT_COMP_INIT_MAIN || CRT_COMP_INIT_PASSIVE);
+		return;
+	}
 
 	if (c->init_core == cos_cpuid()) {
 		printc("Component %lu initialization complete%s.\n", c->id, (c->main_type > 0 ? ", awaiting main execution": ""));
