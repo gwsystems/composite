@@ -135,6 +135,7 @@ pub trait BuildState {
 
     fn comp_build(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // build the component, and return the path to the resulting object
     fn constructor_build(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // build a constructor, including all components it is responsible for booting
+    fn kernel_build(&self, kern_output: &String, constructor_input: &String, s: &SystemState) -> Result<(), String>; // build the final kernel image
 }
 
 // The following describes the means of transitioning the system
@@ -277,7 +278,7 @@ pub enum ServiceClients {
     Scheduler(Vec<ComponentId>),
     CapMgr(Vec<ComponentId>),
     MemMgr(Vec<ComponentId>),
-    Constructor(Vec<ComponentId>)
+    Constructor(Vec<ComponentId>),
 }
 
 #[derive(Debug)]
@@ -285,7 +286,7 @@ pub enum ServiceProvider {
     Scheduler(ComponentId),
     CapMgr(ComponentId),
     MemMgr(ComponentId),
-    Constructor(ComponentId)
+    Constructor(ComponentId),
 }
 
 // Is the component a service of the given type? If so, who are its

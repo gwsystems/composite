@@ -337,7 +337,7 @@ impl ObjectsPass for ElfObject {
 }
 
 pub struct Constructor {
-    obj_path: String,
+    obj_path: String
 }
 
 impl Transition for Constructor {
@@ -351,7 +351,7 @@ impl Transition for Constructor {
             .map(|n| {
                 let c = &spec.component_named(n);
                 if c.constructor.var_name == "kernel" {
-                    &c.name     // the system constructor must be counted...even if it is the *only* component
+                    &c.name // the system constructor must be counted...even if it is the *only* component
                 } else {
                     &c.constructor
                 }
@@ -384,11 +384,11 @@ impl Transition for Constructor {
 
         // If we didn't find the core system constructor, something is very wrong.
         if sys_constructor == "" {
-            return Err(format!("Error: Could not find the system constructor with \"kernel\" as its own constructor. Error copying into the final cos.img."));
+            return Err(format!("Error: Could not find the system constructor with \"kernel\" as its own constructor. Error copying into the final constructor."));
         }
 
-        let img_path = b.file_path(&"cos.img".to_string())?;
-        let cp_cmd = format!("cp {} {}", sys_constructor, img_path);
+        let constructor_path = b.file_path(&"constructor".to_string())?;
+        let cp_cmd = format!("cp {} {}", sys_constructor, constructor_path);
         let (out, err) = exec_pipeline(vec![cp_cmd.clone()]);
         if err.len() != 0 {
             return Err(format!(
@@ -396,8 +396,12 @@ impl Transition for Constructor {
                 cp_cmd, err
             ));
         }
+        let kern_path = b.file_path(&"cos.img".to_string())?;
+        b.kernel_build(&kern_path, &constructor_path, &s)?;
 
-        Ok(Box::new(Constructor { obj_path: img_path }))
+        Ok(Box::new(Constructor {
+            obj_path: kern_path,
+        }))
     }
 }
 

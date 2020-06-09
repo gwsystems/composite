@@ -18,7 +18,10 @@ comps:
 	$(info )
 	$(MAKE) $(MAKEOPTIONS) -C components
 
-plat:
+platclean:
+	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat $(PLAT_FILE)) -C platform clean
+
+plat: platclean
 	$(info )
 	$(info ***********************************************)
 	$(info ***** Building $(shell cat $(PLAT_FILE)) Platform and Kernel *******)
@@ -32,8 +35,7 @@ cpplat:
 cp: cpplat
 	$(MAKE) $(MAKEOPTIONS) -C components cp
 
-clean:
-	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat $(PLAT_FILE)) -C platform clean
+clean: platclean
 	$(MAKE) $(MAKEOPTIONS) -C components clean
 
 

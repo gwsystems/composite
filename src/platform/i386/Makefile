@@ -10,6 +10,7 @@ CFLAGS  := -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img
+IMAGE  := cos.img
 
 WARNINGS += -Wall
 WARNINGS += -Wcast-align
@@ -62,8 +63,12 @@ OBJS += $(COS_OBJ)
 all: $(KERNEL)
 
 $(KERNEL): linker.ld $(DEPS) $(OBJS) loader.o
-	$(info |     [LD]   Linking $@)
-	@$(LD) -T linker.ld loader.o entry.o $(OBJS) -o $@
+	$(if $(CONSTRUCTOR_COMP), $(info |     [LD]   Linking in the constructor component $@))
+	$(if $(CONSTRUCTOR_COMP), @cp $(CONSTRUCTOR_COMP) constructor; $(LD) -r -b binary constructor -o constructor.o; objcopy --rename-section .data=.initial_component constructor.o; rm constructor)
+	$(if $(KERNEL_OUTPUT), $(info |     [LD]   Linking $@))
+	$(if $(KERNEL_OUTPUT), $(LD) -T linker.ld loader.o entry.o $(OBJS) $(if $(CONSTRUCTOR_COMP), constructor.o) -o $@)
+	$(if $(KERNEL_OUTPUT), $(info |     [CP]   Copying $@ into $(KERNEL_OUTPUT)))
+	$(if $(KERNEL_OUTPUT), @cp $@ $(KERNEL_OUTPUT))
 
 loader.o: loader.S entry.S
 	$(info |     [AS]   Assembling $@)
@@ -106,6 +111,3 @@ clean:
 	@rm -f *.d *.o $(KERNEL)
 
 cp: $(KERNEL)
-	$(info |     [CP]   Copying native booter to $(TRANS_DIR))
-	@cp -f $(KERNEL) .gdbinit *.sh $(TRANS_DIR)
-	@cp runscripts/*.sh $(TRANS_DIR)

@@ -31,10 +31,11 @@ extern u8_t end; /* from the linker script */
 #define MEM_KB_ONLY(x) (((x) & ((1 << 20) - 1)) >> 10)
 #define MEM_MB_ONLY(x) ((x) >> 20)
 
+extern u8_t _binary_constructor_start, _binary_constructor_end;
+
 void
 kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 {
-	struct multiboot_mod_list *mods;
 	struct multiboot_mem_list *mems;
 	unsigned int               i, wastage = 0;
 
@@ -47,29 +48,18 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		die("Multiboot flags include %x but are missing one of %x\n", mb->flags, MULTIBOOT_FLAGS_REQUIRED);
 	}
 
-	mods = (struct multiboot_mod_list *)mb->mods_addr;
 	mems = (struct multiboot_mem_list *)mb->mmap_addr;
-	if (mb->mods_count != 1) {
-		die("Boot failure: expecting a single module to load, received %d instead.\n", mb->mods_count);
-	}
-
-	glb_memlayout.kern_end = &end + PAGE_SIZE;
+	glb_memlayout.kern_end = &end;
 	assert((unsigned int)&end % RETYPE_MEM_NPAGES * PAGE_SIZE == 0);
 
-	printk("System memory info from multiboot (end 0x%x):\n", &end);
-	printk("\tModules:\n");
-	for (i = 0; i < mb->mods_count; i++) {
-		struct multiboot_mod_list *mod         = &mods[i];
-
-		printk("\t- %d: [%08x, %08x)", i, mod->mod_start, mod->mod_end);
-
-		/* These values have to be higher-half addresses */
-		glb_memlayout.mod_start = chal_pa2va((paddr_t)mod->mod_start);
-		glb_memlayout.mod_end   = chal_pa2va((paddr_t)mod->mod_end);
-	}
+	printk("Initial component found:\n");
+	/* These values have to be higher-half addresses */
+	glb_memlayout.mod_start = &_binary_constructor_start;
+	glb_memlayout.mod_end   = &_binary_constructor_end;
 	glb_memlayout.kern_boot_heap = mem_boot_start();
+	printk("\t- [%08x, %08x)\n", &_binary_constructor_start, &_binary_constructor_end);
 
-	printk("\tMemory regions:\n");
+	printk("Memory regions:\n");
 	for (i = 0; i < mb->mmap_length / sizeof(struct multiboot_mem_list); i++) {
 		struct multiboot_mem_list *mem      = &mems[i];
 		u8_t *                     mod_end  = glb_memlayout.mod_end;

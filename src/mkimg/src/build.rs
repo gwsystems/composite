@@ -224,6 +224,13 @@ fn comp_gen_make_cmd(
     cmd
 }
 
+fn kern_gen_make_cmd(input_constructor: &String, kern_output: &String, s: &SystemState) -> String {
+    format!(
+        r#"make -C ../ KERNEL_OUTPUT="{}" CONSTRUCTOR_COMP="{}" plat"#,
+        kern_output, input_constructor
+    )
+}
+
 // Get the path to the component implementation directory. Should
 // probably derive this from an environmental var passed in at compile
 // time by the surrounding build system.
@@ -385,5 +392,34 @@ impl BuildState for DefaultBuilder {
         }
 
         Ok(binary.clone())
+    }
+
+    fn kernel_build(
+        &self,
+        kern_output: &String,
+        constructor_input: &String,
+        s: &SystemState,
+    ) -> Result<(), String> {
+        let cmd = kern_gen_make_cmd(&constructor_input, &kern_output, &s);
+        println!(
+            "Compiling the kernel the following command line:\n\t{}",
+            cmd
+        );
+
+        let (out, err) = exec_pipeline(vec![cmd.clone()]);
+        let comp_log = self.file_path(&"kernel_compilation.log".to_string())?;
+        emit_file(
+            &comp_log,
+            format!(
+                "Command: {}\nKernel compilation output:{}\nKernel compilation errors:{}",
+                cmd, out, err
+            )
+            .as_bytes(),
+        );
+        if err.len() != 0 {
+            println!("Errors in compiling kernel. See {}.", comp_log)
+        }
+
+        Ok(())
     }
 }
