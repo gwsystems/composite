@@ -140,11 +140,11 @@ test_chan(void)
 	for (i = 0; i < NCHANTHDS; i++) {
 		chan_thds[i] = sl_thd_alloc(chan_thd, (void *)i);
 		assert(chan_thds[i]);
-		printc("\tcreating thread %d at prio %d\n", sl_thd_thdid(chan_thds[i]), sps[i].c.value);
+		printc("\tcreating thread %ld at prio %d\n", sl_thd_thdid(chan_thds[i]), sps[i].c.value);
 		sl_thd_param_set(chan_thds[i], sps[i].v);
 	}
 	idle = sl_thd_alloc(idle_thd, NULL);
-	printc("\tcreating IDLE %d at prio %d\n", sl_thd_thdid(idle), idle_param.c.value);
+	printc("\tcreating IDLE %ld at prio %d\n", sl_thd_thdid(idle), idle_param.c.value);
 	sl_thd_param_set(idle, idle_param.v);
 
 }
@@ -220,7 +220,7 @@ test_lock(void)
 	printc("Create threads:\n");
 	for (i = 0; i < NLOCKTHDS; i++) {
 		lock_thds[i] = sl_thd_alloc(lock_thd, NULL);
-		printc("\tcreating thread %d at prio %d\n", sl_thd_thdid(lock_thds[i]), sps[i].c.value);
+		printc("\tcreating thread %ld at prio %d\n", sl_thd_thdid(lock_thds[i]), sps[i].c.value);
 		sl_thd_param_set(lock_thds[i], sps[i].v);
 	}
 }

@@ -1,0 +1,9 @@
+[system]
+description = "Unit tests for the channels and locks of the crt."
+
+[[components]]
+name = "tests"
+img  = "tests.crt_tests"
+implements = [{interface = "init"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"
