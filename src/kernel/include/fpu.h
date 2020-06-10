@@ -117,7 +117,7 @@ fpu_disabled_exception_handler(void)
 {
 	struct thread *curr_thd;
 
-	printk("COS KERNEL: in the exception handler\n");
+	printk("COS KERNEL: SUCCESS fpu enabled, now in exception handler\n");
 	if ((curr_thd = cos_get_curr_thd()) == NULL) return 1;
 
 	assert(fpu_is_disabled());
@@ -264,6 +264,7 @@ fpu_init(void)
 static inline int
 fpu_disabled_exception_handler(void)
 {
+	printk("COS KERNEL: ERROR: fpu is disabled in cos_config.h\n");	
 	return 1;
 }
 static inline void

@@ -1,8 +1,10 @@
 #include <stdint.h>
 #include "kernel_tests.h"
 
-static int          failure = 0;
-static thdcap_t     thds[4];
+static int          		failure = 0;
+static thdcap_t     		thds[4];
+static unsigned long long	start, end, diff_ff, diff_fr;
+static int 			itr_ff = 0, itr_fr = 0;
 /*
  * Fundamental check & test
  * checks thd creation, arg passing and basic swich
@@ -228,12 +230,10 @@ test_thds_fpu(void)
 void
 test_thds(void)
 {
-/*
         test_thds_create_switch();
         test_thds_tls();
         test_mthds_classic();
         test_mthds_ring();
-*/
 	test_thds_fpu();
 }
 
