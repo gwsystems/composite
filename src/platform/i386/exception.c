@@ -79,7 +79,7 @@ int
 device_not_avail_fault_handler(struct pt_regs *regs)
 {
 	print_regs_state(regs);
-	printk("\n\n\n\n Device not avail fault handle fpu exception \n\n\n");
+	printk("\nDevice not avail fault handle fpu exception\n");
 
 	return fpu_disabled_exception_handler();
 }
@@ -176,7 +176,7 @@ machine_check_abort_handler(struct pt_regs *regs)
 }
 
 int
-simd_float_pt_except_fault_handler(struct pt_regs *regs) //it is defined as simd at the beginning, does not matter
+simd_float_pt_except_fault_handler(struct pt_regs *regs)
 {
 	print_regs_state(regs);
 	die("FAULT: SIMD Floating-point Exception\n");

@@ -105,10 +105,8 @@ fpu_init(void)
 	}
 #endif
 	fpu_set(FPU_DISABLE);
-	printk("\n\n\n FPU_DISABLED");
 	*PERCPU_GET(fpu_disabled)  = 1;
 	*PERCPU_GET(fpu_last_used) = NULL;
-
 	printk("fpu_init on core %d\n", get_cpuid());
 
 	return 0;
@@ -227,11 +225,9 @@ fpu_set(int status)
 {
 	unsigned long val, cr0;
 	cr0 = fpu_read_cr0();
-	printk("COS KERNEL BEFORE UPDATE CR0: %llu \n", fpu_read_cr0());
 	val = status ? (cr0 & ~FPU_DISABLED_MASK)
 	             : (cr0 | FPU_DISABLED_MASK); // ENABLE(status == 1) : DISABLE(status == 0)
 	asm volatile("mov %0, %%cr0" : : "r"(val));
-	printk("COS KERNEL AFTER UPDATE CR0: %llu \n", fpu_read_cr0());
 	return;
 }
 

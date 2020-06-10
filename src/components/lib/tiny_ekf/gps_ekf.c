@@ -30,7 +30,8 @@
 // positioning interval
 static const double T = 1;
 
-static void blkfill(ekf_t * ekf, const double * a, int off)
+//static 
+void blkfill(ekf_t * ekf, const double * a, int off)
 {
     off *= 2;
 
@@ -41,7 +42,8 @@ static void blkfill(ekf_t * ekf, const double * a, int off)
 }
 
 
-static void init(ekf_t * ekf)
+//static 
+void init(ekf_t * ekf)
 {
     // Set Q, see [1]
     const double Sf    = 36;
@@ -84,7 +86,8 @@ static void init(ekf_t * ekf)
     ekf->x[7] = 4.549246345845814e+001;
 }
 
-static void model(ekf_t * ekf, double SV[4][3])
+//static 
+void model(ekf_t * ekf, double SV[4][3])
 { 
 
     int i, j;
@@ -125,7 +128,8 @@ static void readline(char * line, FILE * fp)
 }
 */
 
-static void readdata(int line, double SV_Pos[4][3], double SV_Rho[4])
+//static 
+void readdata(int line, double SV_Pos[4][3], double SV_Rho[4])
 {
     int i, j, itr = 0;
     for (i=0; i<4; ++i)
