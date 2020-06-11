@@ -11,7 +11,7 @@
 #include <component.h>
 #include <thd.h>
 #include <chal_plat.h>
-
+#include <fpu.h>
 #define ADDR_STR_LEN 8
 
 boot_state_t initialization_state = INIT_BOOTED;
@@ -172,6 +172,7 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	comp_init();
 	thd_init();
 	boot_state_transition(INIT_MEM_MAP, INIT_DATA_STRUCT);
+	fpu_init();
 
 	paging_init();
 	boot_state_transition(INIT_DATA_STRUCT, INIT_UT_MEM);

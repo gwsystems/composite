@@ -52,6 +52,7 @@ OBJS += vga.o
 OBJS += exception.o
 OBJS += lapic.o
 OBJS += chal_pgtbl.o
+OBJS += fpu.o
 
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o

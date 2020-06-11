@@ -1,6 +1,6 @@
 #include <pgtbl.h>
 #include <thd.h>
-
+#include <fpu.h>
 #include "kernel.h"
 #include "string.h"
 #include "isr.h"
@@ -63,6 +63,8 @@ invalid_opcode_fault_handler(struct pt_regs *regs)
 int
 device_not_avail_fault_handler(struct pt_regs *regs)
 {
+	print_regs_state(regs);
+
 	return fpu_disabled_exception_handler();
 }
 
@@ -107,7 +109,6 @@ gen_protect_fault_handler(struct pt_regs *regs)
 {
 	print_pt_regs(regs);
 	die("FAULT: General Protection Fault\n");
-
 	return 1;
 }
 
@@ -160,7 +161,7 @@ machine_check_abort_handler(struct pt_regs *regs)
 }
 
 int
-smid_float_pt_except_fault_handler(struct pt_regs *regs)
+simd_float_pt_except_fault_handler(struct pt_regs *regs)
 {
 	print_pt_regs(regs);
 	die("FAULT: SMID Floating-point Exception\n");
