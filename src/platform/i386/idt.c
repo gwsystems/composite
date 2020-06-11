@@ -126,7 +126,7 @@ idt_init(const cpuid_t cpu_id)
 	idt_set_gate(IRQ_X87_FLOAT_PT_EXCEPT_FAULT, (u32_t)x87_float_pt_except_fault_irq, 0x08, 0x8E);
 	idt_set_gate(IRQ_ALIGN_CHECK_FAULT, (u32_t)align_check_fault_irq, 0x08, 0x8E);
 	idt_set_gate(IRQ_MACHINE_CHECK_ABORT, (u32_t)machine_check_abort_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_SMID_FLOAT_PT_EXCEPT_FAULT, (u32_t)smid_float_pt_except_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_SIMD_FLOAT_PT_EXCEPT_FAULT, (u32_t)simd_float_pt_except_fault_irq, 0x08, 0x8E);
 	idt_set_gate(IRQ_VIRTUALIZATION_EXCEPT_FAULT, (u32_t)virtualization_except_fault_irq, 0x08, 0x8E);
 	idt_set_gate(IRQ_SECURITY_EXCEPT_FAULT, (u32_t)security_except_fault_irq, 0x08, 0x8E);
 

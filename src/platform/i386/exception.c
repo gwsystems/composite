@@ -1,6 +1,6 @@
 #include <pgtbl.h>
 #include <thd.h>
-
+#include <fpu.h>
 #include "kernel.h"
 #include "string.h"
 #include "isr.h"
@@ -11,6 +11,7 @@
 void
 print_regs_state(struct pt_regs *regs)
 {
+/*
 	PRINTK("registers:\n");
 	PRINTK("General registers-> EAX: %x, EBX: %x, ECX: %x, EDX: %x\n", regs->ax, regs->bx, regs->cx, regs->dx);
 	PRINTK("Segment registers-> CS: %x, DS: %x, ES: %x, FS: %x, GS: %x, SS: %x\n", regs->cs, regs->ds, regs->es,
@@ -19,6 +20,7 @@ print_regs_state(struct pt_regs *regs)
 	       regs->sp, regs->bp);
 	PRINTK("Indicator-> EFLAGS: %x\n", regs->flags);
 	PRINTK("(Exception Error Code-> ORIG_AX: %x)\n", regs->orig_ax);
+*/
 }
 
 int
@@ -79,9 +81,9 @@ int
 device_not_avail_fault_handler(struct pt_regs *regs)
 {
 	print_regs_state(regs);
-	die("FAULT: Device Not Available\n");
+	/*printk("\nDevice not avail fault handle fpu exception\n");*/
 
-	return 1;
+	return fpu_disabled_exception_handler();
 }
 
 int
@@ -125,7 +127,6 @@ gen_protect_fault_handler(struct pt_regs *regs)
 {
 	print_regs_state(regs);
 	die("FAULT: General Protection Fault\n");
-
 	return 1;
 }
 
@@ -177,10 +178,10 @@ machine_check_abort_handler(struct pt_regs *regs)
 }
 
 int
-smid_float_pt_except_fault_handler(struct pt_regs *regs)
+simd_float_pt_except_fault_handler(struct pt_regs *regs)
 {
 	print_regs_state(regs);
-	die("FAULT: SMID Floating-point Exception\n");
+	die("FAULT: SIMD Floating-point Exception\n");
 
 	return 1;
 }
