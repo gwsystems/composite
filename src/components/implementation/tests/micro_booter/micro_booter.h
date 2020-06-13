@@ -39,8 +39,8 @@ static unsigned long
 tls_get(size_t off)
 {
 	unsigned long val;
-
-	__asm__ __volatile__("movl %%gs:(%1), %0" : "=r"(val) : "r"(off) :);
+	/* We are placing the TLS on stack, so there is not TLSSET system call */
+	val = get_stk_data(off + 16);
 
 	return val;
 }
@@ -48,9 +48,10 @@ tls_get(size_t off)
 static void
 tls_set(size_t off, unsigned long val)
 {
-	__asm__ __volatile__("movl %0, %%gs:(%1)" : : "r"(val), "r"(off) : "memory");
+	set_stk_data(off + 16, val);
 }
 
 extern void test_run_mb(void);
+extern void test_ipi_full(void);
 
 #endif /* MICRO_BOOTER_H */

@@ -10,7 +10,7 @@
 
 #include "shared/cos_errno.h"
 #include "ertrie.h"
-#include "shared/util.h"
+#include "chal/shared/util.h"
 #include "captbl.h"
 #include "retype_tbl.h"
 #include "liveness_tbl.h"
@@ -37,7 +37,6 @@ typedef enum {
 	PGTBL_COSKMEM    = 1 << 10, /* page activated as kernel object */
 	PGTBL_QUIESCENCE = 1 << 11,
 	/* Flag bits done. */
-
 	PGTBL_USER_DEF   = PGTBL_PRESENT | PGTBL_USER | PGTBL_ACCESSED | PGTBL_MODIFIED | PGTBL_WRITABLE,
 	PGTBL_INTERN_DEF = PGTBL_USER_DEF,
 } pgtbl_flags_t;
@@ -73,14 +72,9 @@ int            pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap
 int            pgtbl_mapping_scan(struct cap_pgtbl *pt);
 int            pgtbl_quie_check(u32_t orig_v);
 void           pgtbl_init_pte(void *pte);
+void           pgtbl_update(pgtbl_t pt);
 
 extern unsigned long __cr3_contents;
-
-static inline void
-pgtbl_update(pgtbl_t pt)
-{
-	asm volatile("mov %0, %%cr3" : : "r"(pt));
-}
 
 static void
 pgtbl_init(void)
@@ -128,7 +122,7 @@ int            chal_pgtbl_quie_check(u32_t orig_v);
 void           chal_pgtbl_init_pte(void *pte);
 
 /* Creation of the table object - not to be confused with activation of cap */
-int            chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_lvl);
+int            chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_order);
 /* Deactivate */
 int            chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa);
 /* Page mapping */
@@ -138,5 +132,7 @@ int            chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, 
 int            chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl);
 /* Introspection */
 int            chal_pgtbl_introspect(struct cap_header *ch, vaddr_t addr);
+/* Set current page table */
+void           chal_pgtbl_update(pgtbl_t pt);
 #endif /* PGTBL_H */
 

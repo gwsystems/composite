@@ -81,13 +81,13 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 
 		pgtbl_init_pte(p);
 		pte_cap->pgtbl = (pgtbl_t)p;
-
+if(uvm) printk("ptecap %d, addr 0x%x",ptecap,(capid_t)(user_vaddr + i * PGD_RANGE));
 		/* hook the pte into the boot component's page tables */
 		ret = cap_cons(ct, pgdcap, ptecap, (capid_t)(user_vaddr + i * PGD_RANGE));
 		assert(!ret);
 	}
 
-	printk("\tMapping in %s.\n", label);
+	printk("\tMapping in %s, %d pages.\n", label, nsmalls);
 	/* Map in the actual memory - align to 4MB first */
 	for (i = 0; i < nsmalls; i++) {
 		u8_t *  p     = kern_vaddr + i * PAGE_SIZE;

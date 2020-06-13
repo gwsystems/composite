@@ -19,13 +19,12 @@ prints(char *s)
 {
 	size_t len = strlen(s);
 
-	cos_llprint(s, len);
+	cos_print(s, len); /* use syscall to print, so it prints to vga as well */
 
 	return len;
 }
 
-static int  __attribute__((format(printf, 1, 2)))
-printc(char *fmt, ...)
+static int __attribute__((format(printf, 1, 2))) printc(char *fmt, ...)
 {
 	char    s[128];
 	va_list arg_ptr;
@@ -39,29 +38,29 @@ printc(char *fmt, ...)
 	return ret;
 }
 
-typedef enum {
+typedef enum
+{
 	PRINT_ERROR = 0, /* print only error messages */
-	PRINT_WARN,	 /* print errors and warnings */
-	PRINT_DEBUG	 /* print errors, warnings and debug messages */
+	PRINT_WARN,      /* print errors and warnings */
+	PRINT_DEBUG      /* print errors, warnings and debug messages */
 } cos_print_level_t;
 
 #ifndef PRINT_LEVEL_MAX
 #define PRINT_LEVEL_MAX 3
 #endif
 
-extern cos_print_level_t  cos_print_level;
-extern int                cos_print_lvl_str;
-extern const char        *cos_print_str[];
+extern cos_print_level_t cos_print_level;
+extern int               cos_print_lvl_str;
+extern const char *      cos_print_str[];
 
 /* Prints with current (cpuid, thdid, spdid) */
-#define PRINTC(format, ...) printc("(%ld,%u,%lu) " format, cos_cpuid(), cos_thdid(), cos_spd_id(), ## __VA_ARGS__)
+#define PRINTC(format, ...) printc("(%ld,%u,%lu) " format, cos_cpuid(), cos_thdid(), cos_spd_id(), ##__VA_ARGS__)
 /* Prints only if @level is <= cos_print_level */
-#define PRINTLOG(level, format, ...)                                                          \
-	{                                                                                     \
-		if (level <= cos_print_level) {                                               \
-			PRINTC("%s" format,                                                   \
-			       cos_print_lvl_str ? cos_print_str[level] : "", ##__VA_ARGS__); \
-		}                                                                             \
+#define PRINTLOG(level, format, ...)                                                                       \
+	{                                                                                                  \
+		if (level <= cos_print_level) {                                                            \
+			PRINTC("%s" format, cos_print_lvl_str ? cos_print_str[level] : "", ##__VA_ARGS__); \
+		}                                                                                          \
 	}
 
 #endif /* LLPRINT_H */

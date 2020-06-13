@@ -419,6 +419,8 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 
 	copy_all_regs(&next->regs, regs);
 
+	/* printk("curr %x-%x, next %x-%x, preempt %d\n", curr, curr->regs.r15_pc, next, next->regs.r15_pc, preempt); */
+
 	return preempt;
 }
 
@@ -551,7 +553,6 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		if (thd_next == thd_curr) return 1;
 		thd_curr->state |= THD_STATE_PREEMPTED;
 	}
-
 	/* switch threads */
 	return cap_thd_switch(regs, thd_curr, thd_next, ci, cos_info);
 }
@@ -600,7 +601,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		arcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv);
 		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
 		rcvt = arcv_cap->thd;
-
 		ret  = cap_sched_tok_validate(rcvt, usr_counter, ci, cos_info);
 		if (ret) return ret;
 
@@ -912,6 +912,10 @@ composite_syscall_handler(struct pt_regs *regs)
 	 *        __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs));
 	 */
 
+/* printk("thd %d calling cap %d (ip %x, sp %x), operation %d: %x, %x, %x, %x, pt_regs %x\n", thd->tid, cap,
+		      __userregs_getip(regs), __userregs_getsp(regs), __userregs_getop(regs),
+	       __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs), regs); */
+
 	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
 		/* No need to lookup captbl */
@@ -951,6 +955,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	switch (ch->type) {
 	case CAP_THD:
 		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, ci, cos_info);
+/* printk("Thd ret complete %d %x\n",ret, regs->r15_pc); */
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	case CAP_ASND:
@@ -960,6 +965,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	case CAP_ARCV:
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
+		/* We may have had a buffer overrun that destroyed memory */
 		return ret;
 	default:
 		break;
@@ -1076,10 +1082,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t pt_entry  = __userregs_get1(regs);
 			capid_t pgtbl_cap = __userregs_get2(regs);
 			vaddr_t kmem_cap  = __userregs_get3(regs);
-			capid_t pgtbl_lvl = __userregs_get4(regs);
-
+			capid_t pgtbl_order = __userregs_get4(regs);
+printk("pgtbl activate: pt_entry %x, pgtbl_cap %x, kmem_cap %x, pgtbl_order %x\n",pt_entry, pgtbl_cap, kmem_cap, pgtbl_order);
 			/* FIXME: change lvl to order */
-			ret = chal_pgtbl_pgtblactivate(ct, cap, pt_entry, pgtbl_cap, kmem_cap, pgtbl_lvl);
+			ret = chal_pgtbl_pgtblactivate(ct, cap, pt_entry, pgtbl_cap, kmem_cap, pgtbl_order);
 
 			break;
 		}
@@ -1108,13 +1114,13 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			struct thread *thd;
 			unsigned long *pte = NULL;
-
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(thd && pte);
 
 			/* ret is returned by the overall function */
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data);
+
 			if (ret) kmem_unalloc(pte);
 
 			break;
@@ -1327,12 +1333,13 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_MEMACTIVATE: {
-			/* This takes cosframe as input and constructs
-			 * mapping in pgtbl. */
+			/* This takes cosframe as input and constructs mapping in pgtbl. */
 			capid_t frame_cap = __userregs_get1(regs);
 			capid_t dest_pt   = __userregs_get2(regs);
 			vaddr_t vaddr     = __userregs_get3(regs);
 			vaddr_t order     = __userregs_get4(regs);
+
+/* printk("memactivate frame_cap %x dest_pt %d vaddr %x order %d\n", frame_cap, dest_pt, vaddr, order); */
 
 			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr, order);
 
@@ -1356,6 +1363,8 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
+//printk("retype2user, frame_addr %x, frame %x, order %d\n",frame_addr, frame,order);
+
 			if (__userregs_get2(regs) != 0) order = __userregs_get2(regs);
 			ret = retypetbl_retype2user((void *)frame, order);
 
@@ -1367,6 +1376,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t order;
 
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
+
+printk("retype2kern, frame_addr %x, frame %x, order %d\n",frame_addr, frame,order);
+
 			if (ret) cos_throw(err, ret);
 
 			if (__userregs_get2(regs) != 0) order = __userregs_get2(regs);
@@ -1579,6 +1591,40 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			ret = (int)chal_cyc_thresh();
 			break;
 		}
+		case CAPTBL_OP_HW_TLB_LOCKDOWN: {
+			extern int chal_tlb_lockdown(unsigned long entryid, unsigned long vaddr, unsigned long paddr);
+			unsigned long entryid = __userregs_get1(regs);
+			unsigned long vaddr = __userregs_get2(regs);
+			unsigned long paddr = __userregs_get3(regs);
+			ret = chal_tlb_lockdown(entryid, vaddr, paddr);
+			break;
+		}
+		case CAPTBL_OP_HW_L1FLUSH: {
+			Xil_L1DCacheFlush();
+			ret = 0;
+			break;
+		}
+		case CAPTBL_OP_HW_TLBFLUSH: {
+			__cos_cav7_tlbiall_set(0);
+			//__cos_cav7_dtlbiall_set(0);
+			//__cos_cav7_tlbiasid_set(0);
+			ret = 0;
+			break;
+		}
+		case CAPTBL_OP_HW_TLBSTALL: {
+			ret = __cos_cav7_pmxevcntr_get();
+			break;
+		}
+		case CAPTBL_OP_HW_TLBSTALL_RECOUNT: {
+			ret = 0;
+			__cos_cav7_pmxevcntr_set(0);
+			break;
+		}
+		/* The hack of all hacks - because we never mapped the SRAM in, we will have to resort to this.
+		 * copy all the page table contents to SRAM, and fix up the mappings instead, at last we just need
+		 * to..... or create a new component?? a new component might be better.
+		 * The OCSRAM range is 0x00000000 - 0x0002FFFF. We have about 48 pages, not much. */
+
 		default:
 			goto err;
 		}

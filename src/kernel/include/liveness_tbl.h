@@ -11,7 +11,7 @@
 #define LIVENESS_TBL_H
 
 #include "shared/cos_types.h"
-#include "shared/util.h"
+#include "chal/shared/util.h"
 #include "ertrie.h"
 
 #define LTBL_ENT_ORDER 20

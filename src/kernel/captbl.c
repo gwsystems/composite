@@ -208,7 +208,7 @@ captbl_leaflvl_scan(struct captbl *ct)
 
 		rdtscll(curr_ts);
 		header_i = h;
-		n_ent    = CACHELINE_SIZE / ent_size;
+		n_ent    = CACHELINE_SIZE >> (l.size + CAP_SZ_OFF) ;
 
 		for (j = 0; j < n_ent; j++) {
 			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));

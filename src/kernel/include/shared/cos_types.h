@@ -126,6 +126,11 @@ typedef enum {
 	CAPTBL_OP_HW_MAP,
 	CAPTBL_OP_HW_CYC_USEC,
 	CAPTBL_OP_HW_CYC_THRESH,
+	CAPTBL_OP_HW_TLB_LOCKDOWN,
+	CAPTBL_OP_HW_L1FLUSH,
+	CAPTBL_OP_HW_TLBFLUSH,
+	CAPTBL_OP_HW_TLBSTALL,
+	CAPTBL_OP_HW_TLBSTALL_RECOUNT
 } syscall_op_t;
 
 typedef enum {
@@ -334,7 +339,11 @@ enum
 #define PERCPU_GET(name) (&(name[GET_CURR_CPU].name))
 #define PERCPU_GET_TARGET(name, target) (&(name[target].name))
 
+#ifndef __arm__
 #define COS_SYSCALL __attribute__((regparm(0)))
+#else
+#define COS_SYSCALL
+#endif
 
 #ifndef NULL
 #define NULL ((void *)0)

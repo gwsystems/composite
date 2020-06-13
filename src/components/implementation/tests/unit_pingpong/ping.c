@@ -4,10 +4,11 @@
 #include <cobj_format.h>
 #include <hypercall.h>
 
-void cos_init(void)
+void
+cos_init(void)
 {
 	int r1 = 0, r2 = 0;
-	int a = 1, b = 2, c = 3;
+	int a = 1, b = 2, c = 3, d = 4;
 
 	PRINTLOG(PRINT_DEBUG, "Welcome to the ping component\n");
 
@@ -19,7 +20,7 @@ void cos_init(void)
 
 	PRINTLOG(PRINT_DEBUG, "Invoking pong interface w/ arguments:\n");
 	call_arg(a);
-	call_args(a, b, c);
+	call_args(a, b, c, d);
 
 	PRINTLOG(PRINT_DEBUG, "Invoking pong interface w/ multiple-rets:\n");
 	call_3rets(&r1, &r2, a, b, c);

@@ -1,0 +1,373 @@
+kernel.o: kernel.c ../../kernel/include/assert.h \
+ ../../kernel/include/chal.h ../../kernel/include/shared/cos_types.h \
+ ../../kernel/include/shared/./consts.h \
+ ../../kernel/include/shared/./cos_errno.h \
+ ../../kernel/include/shared/./../chal/shared/cos_config.h \
+ ../../kernel/include/shared/./../chal/shared/cpu_ghz.h \
+ ../../kernel/include/shared/./../asm_ipc_defs.h \
+ ../../kernel/include/shared/../chal/shared/cos_config.h \
+ ../../kernel/include/shared/./chal_config.h \
+ ../../kernel/include/../../platform/include/chal_plat.h \
+ ../../kernel/include/cc.h kernel.h \
+ ../../kernel/include/chal/shared/cos_config.h \
+ ../../kernel/include/shared/cos_types.h \
+ ../../kernel/include/shared/util.h ../../kernel/include/chal.h \
+ chal_asm_inc.h ../../kernel/include/thd.h \
+ ../../kernel/include/component.h ../../kernel/include/liveness_tbl.h \
+ ../../kernel/include/shared/util.h ../../kernel/include/ertrie.h \
+ ../../kernel/include/captbl.h ../../kernel/include/shared/cos_errno.h \
+ ../../kernel/include/pgtbl.h ../../kernel/include/retype_tbl.h \
+ ../../kernel/include/chal/shared/cos_config.h \
+ ../../kernel/include/chal/cpuid.h \
+ ../../kernel/include/chal/../../../kernel/include/shared/consts.h \
+ ../../kernel/include/chal/../../../kernel/include/shared/cos_types.h \
+ ../../kernel/include/chal/../../../kernel/include/asm_ipc_defs.h \
+ ../../kernel/include/chal/../../../kernel/include/list.h \
+ ../../kernel/include/chal/../chal_asm_inc.h \
+ ../../kernel/include/chal/defs.h ../../kernel/include/chal/chal_proto.h \
+ ../../kernel/include/cap_ops.h ../../kernel/include/fpu_regs.h \
+ ../../kernel/include/chal/call_convention.h ../../kernel/include/tcap.h \
+ ../../kernel/include/thd.h ../../kernel/include/list.h \
+ ../../kernel/include/hw.h ../../kernel/include/inv.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/string.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/_ansi.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/newlib-nano/newlib.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/_newlib_version.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/config.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/ieeefp.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/features.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/reent.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/_ansi.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/lib/gcc/arm-none-eabi/5.4.1/include/stddef.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/_types.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/_types.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/_default_types.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/lock.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/cdefs.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/_locale.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/string.h \
+ ../../kernel/include/captbl.h ../../kernel/include/retype_tbl.h \
+ ../../kernel/include/component.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_conf.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_rcc.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_def.h \
+ ../../platform/cmx/include/cmsis/stm32f7xx.h \
+ ../../platform/cmx/include/cmsis/stm32f767xx.h \
+ ../../platform/cmx/include/cmsis/core_cm7.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/lib/gcc/arm-none-eabi/5.4.1/include/stdint.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/lib/gcc/arm-none-eabi/5.4.1/include/stdint-gcc.h \
+ ../../platform/cmx/include/cmsis/core_cmInstr.h \
+ ../../platform/cmx/include/cmsis/cmsis_gcc.h \
+ ../../platform/cmx/include/cmsis/core_cmFunc.h \
+ ../../platform/cmx/include/cmsis/core_cmSimd.h \
+ ../../platform/cmx/include/cmsis/system_stm32f7xx.h \
+ ../../platform/cmx/include/stm32f7-hal/Legacy/stm32_hal_legacy.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/stdio.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/lib/gcc/arm-none-eabi/5.4.1/include/stdarg.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/types.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/_stdint.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/endian.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/_endian.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/select.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/_sigset.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/_timeval.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/timespec.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/_timespec.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/types.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/stdio.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_rcc_ex.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_gpio.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_gpio_ex.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_dma.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_dma_ex.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_cortex.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_dma2d.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_flash.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_flash_ex.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_sram.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_ll_fmc.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_nor.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_nand.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_sdram.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_ltdc.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_pwr.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_pwr_ex.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_tim.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_tim_ex.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_uart.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_uart_ex.h \
+ ../../platform/cmx/include/cmsis/core_cm7.h boot_comp.h \
+ ../../components/include/cos_component.h \
+ ../../kernel/include/shared/consts.h \
+ ../../kernel/include/shared/cos_types.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/errno.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/errno.h \
+ ../../kernel/include/shared/util.h mem_layout.h \
+ ../../kernel/include/chal/shared/cos_types.h \
+ ../../kernel/include/chal/shared/consts.h \
+ ../../platform/cmx/src/extra/lcd.h ../../platform/cmx/src/extra/sys.h \
+ ../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_conf.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/stdlib.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/stdlib.h \
+ /home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/alloca.h
+
+../../kernel/include/assert.h:
+
+../../kernel/include/chal.h:
+
+../../kernel/include/shared/cos_types.h:
+
+../../kernel/include/shared/./consts.h:
+
+../../kernel/include/shared/./cos_errno.h:
+
+../../kernel/include/shared/./../chal/shared/cos_config.h:
+
+../../kernel/include/shared/./../chal/shared/cpu_ghz.h:
+
+../../kernel/include/shared/./../asm_ipc_defs.h:
+
+../../kernel/include/shared/../chal/shared/cos_config.h:
+
+../../kernel/include/shared/./chal_config.h:
+
+../../kernel/include/../../platform/include/chal_plat.h:
+
+../../kernel/include/cc.h:
+
+kernel.h:
+
+../../kernel/include/chal/shared/cos_config.h:
+
+../../kernel/include/shared/cos_types.h:
+
+../../kernel/include/shared/util.h:
+
+../../kernel/include/chal.h:
+
+chal_asm_inc.h:
+
+../../kernel/include/thd.h:
+
+../../kernel/include/component.h:
+
+../../kernel/include/liveness_tbl.h:
+
+../../kernel/include/shared/util.h:
+
+../../kernel/include/ertrie.h:
+
+../../kernel/include/captbl.h:
+
+../../kernel/include/shared/cos_errno.h:
+
+../../kernel/include/pgtbl.h:
+
+../../kernel/include/retype_tbl.h:
+
+../../kernel/include/chal/shared/cos_config.h:
+
+../../kernel/include/chal/cpuid.h:
+
+../../kernel/include/chal/../../../kernel/include/shared/consts.h:
+
+../../kernel/include/chal/../../../kernel/include/shared/cos_types.h:
+
+../../kernel/include/chal/../../../kernel/include/asm_ipc_defs.h:
+
+../../kernel/include/chal/../../../kernel/include/list.h:
+
+../../kernel/include/chal/../chal_asm_inc.h:
+
+../../kernel/include/chal/defs.h:
+
+../../kernel/include/chal/chal_proto.h:
+
+../../kernel/include/cap_ops.h:
+
+../../kernel/include/fpu_regs.h:
+
+../../kernel/include/chal/call_convention.h:
+
+../../kernel/include/tcap.h:
+
+../../kernel/include/thd.h:
+
+../../kernel/include/list.h:
+
+../../kernel/include/hw.h:
+
+../../kernel/include/inv.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/string.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/_ansi.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/newlib-nano/newlib.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/_newlib_version.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/config.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/ieeefp.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/features.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/reent.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/_ansi.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/lib/gcc/arm-none-eabi/5.4.1/include/stddef.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/_types.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/_types.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/_default_types.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/lock.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/cdefs.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/_locale.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/string.h:
+
+../../kernel/include/captbl.h:
+
+../../kernel/include/retype_tbl.h:
+
+../../kernel/include/component.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_conf.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_rcc.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_def.h:
+
+../../platform/cmx/include/cmsis/stm32f7xx.h:
+
+../../platform/cmx/include/cmsis/stm32f767xx.h:
+
+../../platform/cmx/include/cmsis/core_cm7.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/lib/gcc/arm-none-eabi/5.4.1/include/stdint.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/lib/gcc/arm-none-eabi/5.4.1/include/stdint-gcc.h:
+
+../../platform/cmx/include/cmsis/core_cmInstr.h:
+
+../../platform/cmx/include/cmsis/cmsis_gcc.h:
+
+../../platform/cmx/include/cmsis/core_cmFunc.h:
+
+../../platform/cmx/include/cmsis/core_cmSimd.h:
+
+../../platform/cmx/include/cmsis/system_stm32f7xx.h:
+
+../../platform/cmx/include/stm32f7-hal/Legacy/stm32_hal_legacy.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/stdio.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/lib/gcc/arm-none-eabi/5.4.1/include/stdarg.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/types.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/_stdint.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/endian.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/_endian.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/select.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/_sigset.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/_timeval.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/timespec.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/_timespec.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/types.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/stdio.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_rcc_ex.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_gpio.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_gpio_ex.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_dma.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_dma_ex.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_cortex.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_dma2d.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_flash.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_flash_ex.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_sram.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_ll_fmc.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_nor.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_nand.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_sdram.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_ltdc.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_pwr.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_pwr_ex.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_tim.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_tim_ex.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_uart.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_uart_ex.h:
+
+../../platform/cmx/include/cmsis/core_cm7.h:
+
+boot_comp.h:
+
+../../components/include/cos_component.h:
+
+../../kernel/include/shared/consts.h:
+
+../../kernel/include/shared/cos_types.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/errno.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/sys/errno.h:
+
+../../kernel/include/shared/util.h:
+
+mem_layout.h:
+
+../../kernel/include/chal/shared/cos_types.h:
+
+../../kernel/include/chal/shared/consts.h:
+
+../../platform/cmx/src/extra/lcd.h:
+
+../../platform/cmx/src/extra/sys.h:
+
+../../platform/cmx/include/stm32f7-hal/stm32f7xx_hal_conf.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/stdlib.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/machine/stdlib.h:
+
+/home/pry/eclipse/gcc-arm-none-eabi-5_4-2016q3/arm-none-eabi/include/alloca.h:

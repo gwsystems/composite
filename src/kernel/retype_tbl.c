@@ -25,22 +25,13 @@ struct retype_info     retype_tbl[NUM_CPU] CACHE_ALIGNED;
 struct retype_info_glb glb_retype_tbl[N_RETYPE_SLOTS] CACHE_ALIGNED;
 
 /* The start positions of the tables - also architecture-specific */
-const int pos2base[32] = {0, N_MEM_SETS};
+const int pos2base[] = {0, N_MEM_SETS};
 
 /* Currently this is x86 specific. Convert size orders to position */
-const int order2pos[32] = {
-  /*   0/1B    1/2B    2/4B    3/8B   4/16B   5/32B   6/64B  7/128B  8/256B  9/512B */
-	-1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  /*  10/1K   11/2K   12/4K   13/8K  14/16K  15/32K  16/64K 17/128K 18/256K 19/512K */
-	-1,     -1,      0,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  /*  20/1M   21/2M   22/4M   23/8M  24/16M  25/32M  26/64M 27/128M 28/256M 29/512M */
-	-1,     -1,      1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  /*  30/1G   31/2G */
-	-1,     -1
-};
+const int order2pos[] = {COS_PGTBL_ORDER2POS};
 
 /* Convert position to size orders */
-const int pos2order[2] = {12, 22};
+const int pos2order[] = {COS_PGTBL_ORDERS};
 
 #define POS(order)       (order2pos[order])
 #define BASE(order)      (pos2base[POS(order)])
@@ -60,7 +51,6 @@ retypetbl_kern_ref(void *pa, u32_t order)
 
 	idx = GET_MEM_IDX(pa);
 	assert(idx < N_MEM_SETS);
-
 	p_glb = GET_GLB_RETYPE_ENTRY(idx, order);
 	/* Is this kernel memory? */
 	if (p_glb->refcnt_atom.type != RETYPETBL_KERN) return -EINVAL;

@@ -23,7 +23,7 @@ void                  sl_thd_free_backend(struct sl_thd_policy *t);
  *
  * sl_thd_free_backend to free the cos_aep_info struct
  */
-struct cos_aep_info  *sl_thd_alloc_aep_backend(void);
+struct cos_aep_info *sl_thd_alloc_aep_backend(void);
 
 void                  sl_thd_index_add_backend(struct sl_thd_policy *);
 void                  sl_thd_index_rem_backend(struct sl_thd_policy *);

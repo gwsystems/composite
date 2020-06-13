@@ -11,7 +11,7 @@
 
 #include "shared/cos_types.h"
 #include "chal/shared/cos_config.h"
-#include "shared/util.h"
+#include "chal/shared/util.h"
 #include "chal/cpuid.h"
 #include "chal.h"
 
@@ -22,7 +22,7 @@ typedef enum {
 	RETYPETBL_RETYPING = 3, /* ongoing retyping operation */
 } mem_type_t;
 
-#define RETYPE_ENT_TYPE_SZ 2
+#define RETYPE_ENT_TYPE_SZ COS_PGTBL_NUM_ORDER
 #define RETYPE_ENT_REFCNT_SZ (sizeof(u32_t) * 8 - RETYPE_ENT_TYPE_SZ)
 #define RETYPE_ENT_GLB_REFCNT_SZ (RETYPE_ENT_REFCNT_SZ / 2)
 #define RETYPE_REFCNT_MAX ((1 << RETYPE_ENT_REFCNT_SZ) - 1)
@@ -116,9 +116,9 @@ extern struct retype_info_glb glb_retype_tbl[N_RETYPE_SLOTS];
 #define GET_MEM_IDX(pa)                                                                 \
 	(((u32_t)pa >= COS_MEM_START) ? (((u32_t)(pa) - COS_MEM_START) / RETYPE_MEM_SIZE) \
 	                              : (((u32_t)(pa) - chal_kernel_mem_pa) / RETYPE_MEM_SIZE + N_USER_MEM_SETS))
-/* The minimum/maximum page order - currently 4kB/4MB pages */
+/* The minimum/maximum page order - currently 4kB/1MB pages. This is fine because we don't support large pages on ARM */
 #define MIN_PAGE_ORDER               12
-#define MAX_PAGE_ORDER               22
+#define MAX_PAGE_ORDER               20
 #define NUM_PAGE_SIZES               2
 /* get the memory set struct of the current cpu */
 #define GET_RETYPE_POS(idx,order)    (((idx) >> ((order) - MIN_PAGE_ORDER)) + pos2base[order2pos[order]])

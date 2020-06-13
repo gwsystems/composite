@@ -4,8 +4,18 @@
 #include <cos_types.h>
 
 typedef int res_t;
-typedef enum { RESRES_SOFT, RESRES_FIRM, RESRES_HARD } res_hardness_t;
-typedef enum { RESRES_MEM, RESRES_CPU, RESRES_IO } res_type_t;
+typedef enum
+{
+	RESRES_SOFT,
+	RESRES_FIRM,
+	RESRES_HARD
+} res_hardness_t;
+typedef enum
+{
+	RESRES_MEM,
+	RESRES_CPU,
+	RESRES_IO
+} res_type_t;
 typedef struct {
 	/* allocation, and window of that allocation */
 	s16_t a, w;
@@ -24,7 +34,8 @@ resres_spec_w(s16_t alloc, s16_t window)
 	return (res_spec_t){.a = alloc, .w = window};
 }
 
-typedef enum {
+typedef enum
+{
 	SCHEDP_NOOP = 0,
 	SCHEDP_PRIO,  /* fixed priority */
 	SCHEDP_RPRIO, /* priority relatively higher than current thread */

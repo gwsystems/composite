@@ -8,9 +8,8 @@ extern struct __thd_init_data __thd_init_data[COS_THD_INIT_REGION_SIZE];
 static inline thdclosure_index_t
 __init_data_alloc(void *fn, void *data)
 {
-	int ret, tried = 0;
+	int                ret, tried = 0;
 	thdclosure_index_t i;
-
 	assert(fn);
 again:
 	for (i = 0; i < COS_THD_INIT_REGION_SIZE; i++) {

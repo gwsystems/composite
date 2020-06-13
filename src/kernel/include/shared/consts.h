@@ -21,29 +21,31 @@
 #include <linux/thread_info.h> /* for PAGE_SIZE */
 #else
 struct pt_regs {
-	long bx;
-	long cx;
-	long dx;
-	long si;
-	long di;
-	long bp;
-	long ax;
-	long ds;
-	long es;
-	long fs;
-	long gs;
-	long orig_ax;
-	long ip;
-	long cs;
-	long flags;
-	long sp;
-	long ss;
+	unsigned long cpsr;
+	unsigned long r0;
+	unsigned long r1;
+	unsigned long r2;
+	unsigned long r3;
+	unsigned long r4;
+	unsigned long r5;
+	unsigned long r6;
+	unsigned long r7;
+	unsigned long r8;
+	unsigned long r9;
+	unsigned long r10;
+	unsigned long r11;
+	unsigned long r12;
+	unsigned long r13_sp;
+	unsigned long r14_lr;
+	unsigned long r15_pc;
 };
 // struct pt_regs { int dummy[16]; };
 #endif
 #endif
+/* TODO:need to move these to chal */
 #define PAGE_ORDER       12
 #define SUPER_PAGE_ORDER 22
+
 #define MAX_PA_LIMIT     (1ULL << 32)
 #ifndef __KERNEL__
 #define PAGE_SIZE (1 << PAGE_ORDER)
@@ -76,12 +78,13 @@ struct pt_regs {
 #define MAX_NUM_ACAP 256
 
 #define PAGE_MASK (~(PAGE_SIZE - 1))
-#define PGD_SHIFT 22
+#define PGD_SHIFT 20
 #define PGD_RANGE (1 << PGD_SHIFT)
 #define PGD_SIZE PGD_RANGE
 #define PGD_MASK (~(PGD_RANGE - 1))
 #define PGD_PER_PTBL 1024
 
+//#define pow2(x) (1UL << (x))
 /* For this family of macros, do NOT pass zero as the pow2 */
 #define round_to_pow2(x, pow2) (((unsigned long)(x)) & (~((pow2)-1)))
 #define round_up_to_pow2(x, pow2) (round_to_pow2(((unsigned long)x) + (pow2)-1, (pow2)))

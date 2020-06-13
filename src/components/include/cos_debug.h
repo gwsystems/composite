@@ -19,10 +19,10 @@
 #define STR(x) STRX(x)
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 
-static volatile int *volatile_null_ptr = (int *) NULL;
+static volatile int *volatile_null_ptr = (int *)NULL;
 
-#define BUG()                   \
-	do {                        \
+#define BUG()                           \
+	do {                            \
 		debug_print("BUG @ ");  \
 		*volatile_null_ptr = 0; \
 	} while (0);
@@ -45,13 +45,13 @@ __cos_noret(void)
 #define SPIN() __cos_noret()
 #endif
 
-#define assert(node)                                  \
-	do {                                              \
-		if (unlikely(!(node))) {                      \
+#define assert(node)                                              \
+	do {                                                      \
+		if (unlikely(!(node))) {                          \
 			debug_print("FIXME: assert error in @ "); \
 			*volatile_null_ptr = 0;                   \
 			__cos_noret();                            \
-		}                                             \
+		}                                                 \
 	} while (0)
 #endif /* ifndef assert */
 

@@ -6,11 +6,12 @@
  */
 #include <stdio.h>
 
-#include <sys/auxv.h>
+/* #include <sys/auxv.h> */
 
 #include <consts.h>
 #include <cos_component.h>
 #include <cos_debug.h>
+#include <cos_kernel_api.h>
 
 #include <ps.h>
 
@@ -74,7 +75,7 @@ libc_init()
 	/* The construction of this is:
 	 * evn1, env2, ..., NULL, auxv_n1, auxv_1, auxv_n2, auxv_2 ..., NULL
 	 * TODO: Figure out a way to set AT_HWCAP / AT_SYSINFO
-	 */
+	 *//*
 	static char *envp[] = {
                                "USER=composite_user",
                                "LANG=en_US.UTF-8",
@@ -83,20 +84,20 @@ libc_init()
                                NULL,
                                (char *)AT_PAGESZ,
                                (char *)PAGE_SIZE, /* Page size */
-                               (char *)AT_UID,
-                               (char *)1000, /* User id */
-                               (char *)AT_EUID,
-                               (char *)1000, /* Effective user id */
-                               (char *)AT_GID,
-                               (char *)1000, /* Group id */
-                               (char *)AT_EGID,
-                               (char *)1000, /* Effective group id */
-                               (char *)AT_SECURE,
-                               (char *)0, /* Whether the program is being run under sudo */
-                               NULL
+                               /* (char *)AT_UID, */
+                               /* (char *)1000, *//* User id */
+                               /* (char *)AT_EUID, */
+                               /* (char *)1000, *//* Effective user id */
+                               /* (char *)AT_GID, */
+                               /* (char *)1000, *//* Group id */
+                               /* (char *)AT_EGID, */
+                               /* (char *)1000, *//* Effective group id */
+                               /* (char *)AT_SECURE, */
+                               /* (char *)0, */ /* Whether the program is being run under sudo */
+                               /* NULL
 	};
 	char *program_name = "composite component";
-	__init_libc(envp, program_name);
+	__init_libc(envp, program_name); */
 }
 
 CWEAKSYMB void
@@ -156,10 +157,11 @@ cos_thd_entry_exec(u32_t idx)
 CWEAKSYMB void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
+	int temp;
 	static int first = 1;
 
 	if (first) {
-		first = 0;
+		printc("first-time init\n");
 		cos_print_level_set(PRINT_DEBUG, 1);
 		/* The syscall enumlator might need something to be setup before it can work */
 		pre_syscall_setup();
@@ -169,14 +171,38 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		libc_initialization_handler();
 
 		constructors_execute();
+
+		/* Initialize the fn area as well */
+		for (first = 0; first < COS_THD_INIT_REGION_SIZE; first++) {
+			__thd_init_data[first].data = 0;
+			__thd_init_data[first].fn = 0;
+		}
+
+		/* Also need to clean the bss section or everything else will be corrupt */
+		extern unsigned long __bss_start__;
+		extern unsigned long __bss_end__;
+		printc("bss start %x, bss end %x\n",&__bss_start__,&__bss_end__);
+		memset(&__bss_start__, 0, ((unsigned int)(&__bss_end__))-((unsigned int)(&__bss_start__)));
+
+		first = 0;
 	}
+
+	/*
+	 * if it's the first component.. wait for timer calibration
+	 * NOTE: for "fork"ing components and not updating "spdid"s, this call will just fail and should be fine.
+	 */
+	if (cos_spd_id() == 0) {
+		temp = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+		printc("cycles - per - usec %d\n", temp);
+	}
+
+printc("*** t %d, arg1 %d\n", t, arg1);
 
 	switch (t) {
 	case COS_UPCALL_THD_CREATE:
 		/* New thread creation method passes in this type. */
 		{
 			/* A new thread is created in this comp. */
-
 			/* arg1 is the thread init data. 0 means
 			 * bootstrap. */
 			if (arg1 == 0) {
@@ -232,6 +258,7 @@ CWEAKSYMB vaddr_t ST_user_caps;
  * Much of this is either initialized at load time, or passed to the
  * loader though this structure.
  */
+/*
 struct cos_component_information cos_comp_info __attribute__((
   section(".cinfo"))) = {.cos_this_spd_id         = 0,
                          .cos_heap_ptr            = 0,
@@ -248,3 +275,36 @@ struct cos_component_information cos_comp_info __attribute__((
                          .cos_poly = {
                            0,
                          }};
+*/
+struct cos_component_information cos_comp_info __attribute__((
+  section(".cinfo"))) = {.cos_this_spd_id         = 0,
+                         .cos_heap_ptr            = 0x19000000,
+                         .cos_heap_limit          = 0x20000000,
+                         .cos_stacks.freelists[0] = {.freelist = 0, .thd_id = 0},
+                         .cos_upcall_entry        = 0,
+                         .cos_async_inv_entry     = 0,
+                         .cos_user_caps           = 0,
+                         .cos_ras  = {{.start = 0, .end = 0},
+                                     {.start = 0, .end = 0},
+                                     {.start = 0, .end = 0},
+                                     {.start = 0, .end = 0},
+                                     {.start = 0, .end = 0}},
+                         .cos_poly = {
+                           0,
+                         }};
+/* FIXME: ck linking says undefined. checked online and made sure -fno-PIC is set through --without-pic configuration but this still occurs. */
+void *_GLOBAL_OFFSET_TABLE_ = NULL;
+
+/* Provide an _exit and _sbrk here */
+void
+_exit(int code)
+{
+	/* dead loop */
+	while(1);
+}
+
+char*
+_sbrk(int incr)
+{
+	return (char*)(0);
+}

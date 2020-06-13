@@ -15,7 +15,7 @@
 #include "shared/cos_types.h"
 #include "ertrie.h"
 #include "liveness_tbl.h"
-#include "shared/util.h"
+#include "chal/shared/util.h"
 
 #ifndef CACHELINE_SIZE
 #define CACHELINE_SIZE 64
@@ -305,7 +305,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 
 		rdtscll(curr_ts);
 		header_i = h;
-		n_ent    = CACHELINE_SIZE / ent_size;
+		n_ent    = CACHELINE_SIZE >> (l.size + CAP_SZ_OFF);
 		for (i = 0; i < n_ent; i++) {
 			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));
 

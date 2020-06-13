@@ -252,6 +252,7 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 
 	/* timeout based on the tcap budget... */
 	timer       = now + left;
+	//printk("now %lld left %d\n",now,left);
 	timeout_cyc = tcap_time2cyc(timeout, now);
 	/* ...or explicit timeout within the bounds of the budget */
 	if (timeout != TCAP_TIME_NIL && timeout_cyc < timer) {
@@ -266,7 +267,9 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 
 	assert(timer); /* TODO: wraparound check when timer == 0 */
 	cos_info->next_timer = timer;
-	chal_timer_set(timer);
+	rdtscll(timeout_cyc);
+	//printk("next timer %lld timeout %lld\n",timer, timeout_cyc);
+	chal_timer_set(timer-timeout_cyc);
 }
 
 /*

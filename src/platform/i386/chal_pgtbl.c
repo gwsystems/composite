@@ -13,6 +13,13 @@
 #include "chal/chal_proto.h"
 #include "chal_pgtbl.h"
 
+/* Update the page table */
+void
+chal_pgtbl_update(pgtbl_t pt)
+{
+	asm volatile("mov %0, %%cr3" : : "r"(pt));
+}
+
 /* These functions do flag operations */
 unsigned long
 chal_pgtbl_flag_add(unsigned long input, pgtbl_flags_t flags)
@@ -284,10 +291,12 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t or
 	orig_v = *((u32_t*)pte);
 	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 	/* If we are trying to map a superpage and this position is already occupied */
+printk("addr 0x%x,order %d\n",addr,order);
 	if (order == SUPER_PAGE_ORDER) {
 		if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
 		flags |= X86_PGTBL_SUPER;
 	} else if (order == PAGE_ORDER) {
+printk("orig_v %x\n",orig_v);
 		if (!(orig_v & X86_PGTBL_PRESENT)) return -EINVAL;
 		if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
 		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
@@ -586,18 +595,24 @@ chal_pgtbl_init_pte(void *pte)
 	for (i = 0; i < (1 << PGTBL_ENTRY_ORDER); i++) vals[i] = 0;
 }
 
+extern const int order2pos[];
+#define POS(order)       (order2pos[order])
 int
-chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_lvl)
+chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_order)
 {
 	pgtbl_t        new_pt, curr_pt;
 	vaddr_t        kmem_addr = 0;
 	unsigned long *pte       = NULL;
 	int            ret;
+	unsigned long  pgtbl_lvl = 3;
 
 	ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr, &pte);
 	if (unlikely(ret)) return ret;
 	assert(kmem_addr && pte);
 
+	/* Convert level to order here */
+	pgtbl_lvl = POS(pgtbl_order);
+ 
 	if (pgtbl_lvl == 0) {
 		/* PGD */
 		struct cap_pgtbl *cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
@@ -668,7 +683,12 @@ chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pg
 	return pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags, order);
 }
 
-/* FIXME: we need to ensure TLB quiescence for pgtbl cons/decons! */
+/* FIXME: we need to ensure TLB quiescence for pgtbl cons/decons!
+ * ct - main table capability
+ * ctsub - sub table capability
+ * expandid - address to place the subtable
+ * depth - the depth level of the subtable
+ */
 int
 chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandid, unsigned long depth)
 {
@@ -679,16 +699,21 @@ chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandi
 	intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
 	if (!intern) return -ENOENT;
 	old_pte = *intern;
+printk("@ %d line\n",__LINE__);
+printk("0x%x\n",old_pte);
+printk("0x%x\n",*(intern-1));
 	if (pgtbl_ispresent(old_pte)) return -EPERM;
-
+printk("@ %d line\n",__LINE__);
 	old_v = refcnt_flags = ((struct cap_pgtbl *)ctsub)->refcnt_flags;
 	if (refcnt_flags & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 	if ((refcnt_flags & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
 
+printk("@ %d line\n",__LINE__);
 	refcnt_flags++;
 	ret = cos_cas((unsigned long *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
 	if (ret != CAS_SUCCESS) return -ECASFAIL;
 
+printk("@ %d line\n",__LINE__);
 	new_pte = (u32_t)chal_va2pa(
 	          (void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK))
 	          | X86_PGTBL_INTERN_DEF;
