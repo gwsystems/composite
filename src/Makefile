@@ -85,8 +85,6 @@ config-armcrx: config-gen
 	@echo "crx" > PLATFORM_ID
 
 config-armcav7: config-gen
-	@echo "#define COS_PLATFORM CAV7" >> ./platform/crx/chal/shared/cpu_ghz.h
-	#@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/crx/chal/ chal
 	@echo "cav7" > PLATFORM_ID
 
 
