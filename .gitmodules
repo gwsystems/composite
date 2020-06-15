@@ -1,9 +1,12 @@
 [submodule "src/components/lib/ps"]
 	path = src/components/lib/ps
 	url = https://github.com/gwsystems/ps.git
+	branch = armv7port
 [submodule "boot-cos/u-boot-xlnx"]
 	path = boot-cos/u-boot-xlnx
 	url = https://github.com/gwsystems/u-boot-xlnx.git
+	branch = for_cos
 [submodule "src/components/lib/CMSIS_5"]
 	path = src/components/lib/CMSIS_5
 	url = https://github.com/gwsystems/CMSIS_5.git
+	branch = for_cos
