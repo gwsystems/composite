@@ -32,3 +32,8 @@ GTAGS
 .clang_complete
 Vagrantfile
 provision.sh
+
+src/components/lib/ck/include/
+src/components/lib/ck/lib/
+src/components/lib/ck/share/
+
