@@ -44,7 +44,7 @@ init:
 	$(MAKE) $(MAKEFLAGS) PLATFORM=$(shell cat PLATFORM_ID) -C platform init
 
 update:
-	git submodule update --init --recursive
+	git submodule update --init --recursive --progress
 
 config-gen: update
 	@echo "Configuring the system with clock speed and directory structure."
