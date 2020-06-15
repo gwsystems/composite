@@ -60,7 +60,7 @@ config-gen: update
 	@echo "TEST_DIR=/root/experiments/" >> Makefile.cosconfig
 
 # default platform is i386
-config: config-i386
+config: config-armcav7
 
 config-linux: config-gen
 	@echo "#define COS_PLATFORM LINUX" >> ./platform/linux/chal/shared/cpu_ghz.h
@@ -83,6 +83,12 @@ config-armcrx: config-gen
 	@echo "#define COS_PLATFORM CRX" >> ./platform/crx/chal/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/crx/chal/ chal
 	@echo "crx" > PLATFORM_ID
+
+config-armcav7: config-gen
+	@echo "#define COS_PLATFORM CAV7" >> ./platform/crx/chal/shared/cpu_ghz.h
+	#@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/crx/chal/ chal
+	@echo "cav7" > PLATFORM_ID
+
 
 run:
 ifeq ($(RUNSCRIPT),)
