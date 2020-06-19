@@ -3,7 +3,7 @@ CC := arm-none-eabi-gcc -O3 -mcpu=cortex-a9 -march=armv7-a
 # CC := clang -c -target armv7a-unknown-none-elf -mtune=cortex-a9
 # LD := ld.lld -v -m armelf
 LD := arm-none-eabi-ld
-AS := arm-none-eabi-gcc
+AS := arm-none-eabi-gcc -O3 -mcpu=cortex-a9
 # -fuse-ld=lld -target armv7a-unknown-none-elf -mtune=cortex-a9
 
 INCPATH := ../../kernel/include
