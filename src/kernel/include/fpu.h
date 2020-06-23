@@ -39,6 +39,24 @@ static inline int           fpu_get_info(void);
 static inline int           fpu_check_fxsr(void);
 static inline int           fpu_check_sse(void);
 #include "thd.h"
+static inline unsigned long 
+native_save_fl(void)
+{
+    unsigned long flags;
+
+     /*
+      * "=rm" is safe here, because "pop" adjusts the stack before
+      * it evaluates its effective address -- this is part of the
+      * documented behavior of the "pop" instruction.
+      */
+     asm volatile("# __raw_save_flags\n\t"
+              "pushf ; pop %0"
+              : "=rm" (flags)
+              : /* no input */
+              : "memory");
+
+     return flags&0x200;
+}
 static inline int
 fpu_init(void)
 {
@@ -153,8 +171,8 @@ static inline int
 fpu_disabled_exception_handler(void)
 {
 	struct thread *curr_thd;
+	printk("COS KERNEL: SUCCESS fpu enabled, now in exception handler, flag %llu\n", native_save_fl());
 
-	printk("COS KERNEL: SUCCESS fpu enabled, now in exception handler\n");
 	if ((curr_thd = cos_get_curr_thd()) == NULL) return 1;
 
 	assert(fpu_is_disabled());

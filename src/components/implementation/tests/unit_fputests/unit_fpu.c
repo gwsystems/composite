@@ -31,9 +31,10 @@ reg2_thd_fn()
 		PRINTC("in thd reg2\n");
 		i++;
 	}
-	while (m < 200) {
+	while (i < 200) {
 		m += 1.0;
 		PRINTC("in thd reg2 %f\n", m);
+		i++;
 	}
 }
 static void
