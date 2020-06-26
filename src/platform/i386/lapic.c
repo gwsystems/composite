@@ -289,10 +289,10 @@ lapic_disable_timer(int timer_type)
 {
 	assert(lapic_timer_calib_init == 0);
 	if (lapic_is_disabled[get_cpuid()]) return;
-
 	if (timer_type == LAPIC_ONESHOT) {
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
 	} else if (timer_type == LAPIC_TSC_DEADLINE) {
+		printk("lapic_disable_timer timer_type == LAPIC_TSC_DEADLINE\n");
 		writemsr(IA32_MSR_TSC_DEADLINE, 0, 0);
 	} else {
 		printk("Mode (%d) not supported\n", timer_type);
@@ -300,6 +300,7 @@ lapic_disable_timer(int timer_type)
 	}
 
 	lapic_is_disabled[get_cpuid()] = 1;
+	printk("lapic_is_disabled here");
 }
 
 void
@@ -326,6 +327,7 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 	}
 
 	lapic_is_disabled[get_cpuid()] = 0;
+	printk("in lapic_set_timer lapic_is_disabled[get_cpuid()] = %d\n", lapic_is_disabled[get_cpuid()]);
 }
 
 void
@@ -469,7 +471,7 @@ lapic_timer_handler(struct pt_regs *regs)
 	lapic_ack();
 
 	preempt = timer_process(regs);
-
+	printk("lapic timer handler preempt = %d\n", preempt);
 	return preempt;
 }
 

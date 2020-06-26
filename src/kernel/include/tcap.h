@@ -247,6 +247,7 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) {
 		cos_info->next_timer = 0;
 		chal_timer_disable();
+                printk("tcp chal_timer_disable() called\n");
 		return;
 	}
 

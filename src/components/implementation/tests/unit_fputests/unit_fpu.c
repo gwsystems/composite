@@ -15,11 +15,29 @@ static int thd1_reg[NUM_CPU] = { 0 };
 static int thd2_fpu[NUM_CPU] = { 0 };
 static int thd3_fpu[NUM_CPU] = { 0 };
 static int thd4_reg[NUM_CPU] = { 0 };
+static inline unsigned long long
+native_save_fl(void)
+{
+    unsigned long flags;
+
+     /*
+      * "=rm" is safe here, because "pop" adjusts the stack before
+      * it evaluates its effective address -- this is part of the
+      * documented behavior of the "pop" instruction.
+      */
+     asm volatile("# __raw_save_flags\n\t"
+              "pushf ; pop %0"
+              : "=rm" (flags)
+              : /* no input */
+              : "memory");
+
+     return flags&0x200;
+}
 static void
 reg_thd_fn()
 {
 	thd1_reg[cos_cpuid()] = 1;
-	while (1) PRINTC("in thd reg1\n");
+	while (1) {};//PRINTC("in thd reg1\n");}
 }
 static void
 reg2_thd_fn()
@@ -27,15 +45,7 @@ reg2_thd_fn()
 	thd4_reg[cos_cpuid()] = 1;
 	float m = 1.0;
 	int   i = 1;
-	while (i < 100) {
-		PRINTC("in thd reg2\n");
-		i++;
-	}
-	while (i < 200) {
-		m += 1.0;
-		PRINTC("in thd reg2 %f\n", m);
-		i++;
-	}
+	while (1) {m += 0.1;}//PRINTC("%f\n",m);};
 }
 static void
 pi_thd_fn()
@@ -43,14 +53,14 @@ pi_thd_fn()
 	thd2_fpu[cos_cpuid()] = 1;
 	float    PI = 3.0;
 	int      flag = 1, i;
-	for (i = 2; i < 20; i += 2) {	
+	for (i = 2; ; i += 2) {	
 		if (flag) {
 			PI += (4.0 / (i * (i + 1) * (i + 2)));
 		} else {
 			PI -= (4.0 / (i * (i + 1) * (i + 2)));
 		}
 		flag = !flag;
-		PRINTC("in thd pi\n");
+		if (i % 1000 == 0) PRINTC("in thd pi = %f\n", PI);
 	}
         PRINTC("\tpi = %f: \t\t\tFinish calculate Pi\n", PI);
 	return;
@@ -62,10 +72,10 @@ euler_thd_fn()
 	thd3_fpu[cos_cpuid()] = 1;
 	float    E = 1.0;
 	int   	 i, fact = 1;
-	for (i = 1; i < 20; i++) {	
+	for (i = 1; ; i++) {	
 		fact *= i;
 		E += (1.0 / fact);
-		PRINTC("in thd euler\n");	
+		if (i == 1000000) PRINTC("in thd euler E = %f\n", E);	
 	}
         PRINTC("\te = %f: \t\t\tFinish calculate E\n", E);
 	return;
@@ -126,7 +136,7 @@ cos_init(void)
 	struct sl_thd *testing_thread;
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
-
+        cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	PRINTC("Unit-test for the fpu\n");
 
 	if (ps_cas(&first, NUM_CPU + 1, cos_cpuid())) {
