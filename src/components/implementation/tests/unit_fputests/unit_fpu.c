@@ -15,37 +15,19 @@ static int thd1_reg[NUM_CPU] = { 0 };
 static int thd2_fpu[NUM_CPU] = { 0 };
 static int thd3_fpu[NUM_CPU] = { 0 };
 static int thd4_reg[NUM_CPU] = { 0 };
-static inline unsigned long long
-native_save_fl(void)
-{
-    unsigned long flags;
 
-     /*
-      * "=rm" is safe here, because "pop" adjusts the stack before
-      * it evaluates its effective address -- this is part of the
-      * documented behavior of the "pop" instruction.
-      */
-     asm volatile("# __raw_save_flags\n\t"
-              "pushf ; pop %0"
-              : "=rm" (flags)
-              : /* no input */
-              : "memory");
-
-     return flags&0x200;
-}
 static void
 reg_thd_fn()
 {
 	thd1_reg[cos_cpuid()] = 1;
-	while (1) {};//PRINTC("in thd reg1\n");}
+	while (1);
 }
 static void
 reg2_thd_fn()
 {
 	thd4_reg[cos_cpuid()] = 1;
-	float m = 1.0;
-	int   i = 1;
-	while (1) {m += 0.1;}//PRINTC("%f\n",m);};
+	float m = 0.1;
+	while (m < 1000000) {m += 0.1;};
 }
 static void
 pi_thd_fn()
@@ -60,9 +42,9 @@ pi_thd_fn()
 			PI -= (4.0 / (i * (i + 1) * (i + 2)));
 		}
 		flag = !flag;
-		if (i % 1000 == 0) PRINTC("in thd pi = %f\n", PI);
+		if (i % 10000 == 0) PRINTC("%f\n", PI);
 	}
-        PRINTC("\tpi = %f: \t\t\tFinish calculate Pi\n", PI);
+        //PRINTC("\tpi = %f: \t\t\tFinish calculate Pi\n", PI);
 	return;
 }
 
@@ -70,14 +52,14 @@ static void
 euler_thd_fn()
 {
 	thd3_fpu[cos_cpuid()] = 1;
-	float    E = 1.0;
-	int   	 i, fact = 1;
+	float    E = 1.0, fact = 1.0;
+	int    i;
 	for (i = 1; ; i++) {	
 		fact *= i;
 		E += (1.0 / fact);
-		if (i == 1000000) PRINTC("in thd euler E = %f\n", E);	
+		if (i % 10000 == 0) PRINTC("%f\n", E);	
 	}
-        PRINTC("\te = %f: \t\t\tFinish calculate E\n", E);
+        //PRINTC("\te = %f: \t\t\tFinish calculate E\n", E);
 	return;
 }
 static void
@@ -86,21 +68,17 @@ allocator_thread_fn()
 	struct sl_thd *thd1, *thd2, *thd3;
 	cycles_t wakeup;
 
-	thd1 = sl_thd_alloc(reg_thd_fn, NULL);
+	thd1 = sl_thd_alloc(pi_thd_fn, NULL);
 	sl_thd_param_set(thd1, sched_param_pack(SCHEDP_PRIO, FIXED_PRIORITY));
 
-	thd2 = sl_thd_alloc(reg2_thd_fn, NULL);
+	thd2 = sl_thd_alloc(euler_thd_fn, NULL);
 	sl_thd_param_set(thd2, sched_param_pack(SCHEDP_PRIO, FIXED_PRIORITY));
-
-	//thd3 = sl_thd_alloc(euler_thd_fn, NULL);
-	//sl_thd_param_set(thd3, sched_param_pack(SCHEDP_PRIO, FIXED_PRIORITY));
 
 	wakeup = sl_now() + sl_usec2cyc(1000 * 1000);
 	sl_thd_block_timeout(0, wakeup);
 
 	sl_thd_free(thd1);
 	sl_thd_free(thd2);
-	//sl_thd_free(thd3);
 
 	sl_thd_exit();
 }

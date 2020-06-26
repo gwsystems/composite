@@ -153,7 +153,7 @@ static inline int
 fpu_disabled_exception_handler(void)
 {
 	struct thread *curr_thd;
-	printk("COS KERNEL: SUCCESS fpu enabled, now in exception handler \n");
+	/*printk("COS KERNEL: SUCCESS fpu enabled, now in exception handler \n");*/
 
 	if ((curr_thd = cos_get_curr_thd()) == NULL) return 1;
 
