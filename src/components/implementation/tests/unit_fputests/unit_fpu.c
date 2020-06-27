@@ -35,17 +35,16 @@ pi_thd_fn()
 	thd2_fpu[cos_cpuid()] = 1;
 	float    PI = 3.0;
 	int      flag = 1, i;
-	for (i = 2; ; i += 2) {	
+	for (i = 2; i < 10000; i += 2) {	
 		if (flag) {
 			PI += (4.0 / (i * (i + 1) * (i + 2)));
 		} else {
 			PI -= (4.0 / (i * (i + 1) * (i + 2)));
 		}
 		flag = !flag;
-		if (i % 10000 == 0) PRINTC("%f\n", PI);
 	}
         //PRINTC("\tpi = %f: \t\t\tFinish calculate Pi\n", PI);
-	return;
+	sl_thd_exit();
 }
 
 static void
@@ -54,13 +53,12 @@ euler_thd_fn()
 	thd3_fpu[cos_cpuid()] = 1;
 	float    E = 1.0, fact = 1.0;
 	int    i;
-	for (i = 1; ; i++) {	
+	for (i = 1; i < 10000; i++) {	
 		fact *= i;
 		E += (1.0 / fact);
-		if (i % 10000 == 0) PRINTC("%f\n", E);	
 	}
         //PRINTC("\te = %f: \t\t\tFinish calculate E\n", E);
-	return;
+	sl_thd_exit();
 }
 static void
 allocator_thread_fn()
@@ -94,6 +92,7 @@ test_swapping(void)
 
 	wakeup = sl_now() + sl_usec2cyc(100 * 1000);
 	sl_thd_block_timeout(0, wakeup);
+	sl_thd_free(allocator_thread);
 }
 
 
@@ -101,7 +100,7 @@ static void
 run_tests()
 {
 	test_swapping();
-	PRINTC("%s: Swap back and forth!\n", (thd1_reg[cos_cpuid()] && thd2_fpu[cos_cpuid()]) ? "SUCCESS" : "FAILURE");
+	PRINTC("%s: Swap back and forth!\n", (thd2_fpu[cos_cpuid()] && thd3_fpu[cos_cpuid()]) ? "SUCCESS" : "FAILURE");
 	PRINTC("Unit-test done!\n");
 	sl_thd_exit();
 }
