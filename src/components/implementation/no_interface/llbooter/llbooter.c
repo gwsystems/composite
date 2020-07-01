@@ -494,13 +494,14 @@ ekf(void)
         for (k=0; k<3; ++k)
             mean_Pos_KF[k] += Pos_KF[j][k];
     	for (k=0; k<3; ++k)
-        mean_Pos_KF[k] /= 25;
+            mean_Pos_KF[k] /= 25;
 
     	// Dump filtered positions minus their means
     	for (j=0; j<25; ++j) {
         //fprintf(ofp, "%f,%f,%f\n", 
                 //Pos_KF[j][0]-mean_Pos_KF[0], Pos_KF[j][1]-mean_Pos_KF[1], Pos_KF[j][2]-mean_Pos_KF[2]);
         PRINTC("%f %f %f\n", Pos_KF[j][0], Pos_KF[j][1], Pos_KF[j][2]);
+	//PRINTC("%f %f %f\n", Pos_KF[j][0]-mean_Pos_KF[0], Pos_KF[j][1]-mean_Pos_KF[1], Pos_KF[j][2]-mean_Pos_KF[2]);
     }
 }
 
