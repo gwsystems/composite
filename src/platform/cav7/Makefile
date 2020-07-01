@@ -5,13 +5,14 @@ CC := arm-none-eabi-gcc -O3 -mcpu=cortex-a9 -march=armv7-a
 LD := arm-none-eabi-ld
 AS := arm-none-eabi-gcc -O3 -mcpu=cortex-a9
 # -fuse-ld=lld -target armv7a-unknown-none-elf -mtune=cortex-a9
+OBJCP := arm-none-eabi-objcopy
 
 INCPATH := ../../kernel/include
 INCS    := -I$(INCPATH)
 CFLAGS  := -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -fno-pic $(INCS)
 LDFLAGS := -nostdlib -nostdinc
 
-KERNEL := kernel.img
+KERNEL := kernel.bin
 
 WARNINGS += -Wall
 WARNINGS += -Wcast-align
@@ -73,7 +74,8 @@ start.o: start.S
 
 $(KERNEL): linker.ld $(DEPS) $(OBJS) start.o
 	$(info |     [LD]   Linking $@)
-	@$(LD) -T linker.ld $(OBJS) start.o -o $@
+	@$(LD) -T linker.ld $(OBJS) start.o -o $(patsubst %.bin, %.elf, $@)
+	@$(OBJCP) -O binary $(patsubst %.bin, %.elf, $@) $@
 
 %.d: %.c
 	@$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@
@@ -108,7 +110,7 @@ captbl.o: ../../kernel/captbl.c
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	@rm -f *.d *.o $(KERNEL)
+	@rm -f *.d *.o *.elf *.bin
 
 cp: $(KERNEL)
 	$(info |     [CP]   Copying native booter to $(TRANS_DIR))

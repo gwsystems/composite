@@ -23,6 +23,8 @@ src/PLATFORM_ID
 modules.order
 .depend
 *.img
+*.bin
+*.elf
 transfer/
 GPATH
 GRTAGS

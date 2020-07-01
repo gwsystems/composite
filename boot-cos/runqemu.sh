@@ -6,7 +6,7 @@ LOOPDEVNAME=/dev/loop0p1
 UDISK=uboot.disk
 UDISKPATH=$TMPDIR/$UDISK
 KERNELDIR=../src/platform/cav7/
-KERNEL=kernel.img
+KERNEL=kernel.elf
 KERNELBIN=kernel.bin
 LOCALDIRNAME=$TMPDIR/p1
 UBOOTELF=u-boot.elf
@@ -38,7 +38,7 @@ setup() {
 
 	mkdir -p $LOCALDIRNAME
 	sudo mount -t ext2 $LOOPDEVNAME $LOCALDIRNAME
-	sudo arm-none-eabi-objcopy -O binary $KERNELDIR/$KERNEL $LOCALDIRNAME/$KERNELBIN
+	sudo cp $LOCALDIRNAME/$KERNELBIN
 	sudo cp $UBOOTDIR/$UBOOTELF $TMPDIR
 	ls -l $LOCALDIRNAME
 	cleanuploop
