@@ -7,6 +7,7 @@ UDISK=uboot.disk
 UDISKPATH=$TMPDIR/$UDISK
 KERNELDIR=../src/platform/cav7/
 KERNEL=kernel.img
+KERNELBIN=kernel.bin
 LOCALDIRNAME=$TMPDIR/p1
 UBOOTELF=u-boot.elf
 UBOOTDIR=u-boot-xlnx/
@@ -38,7 +39,7 @@ setup() {
 
 	mkdir -p $LOCALDIRNAME
 	sudo mount -t ext4 $LOOPDEVNAME $LOCALDIRNAME
-	sudo cp $KERNELDIR/$KERNEL $LOCALDIRNAME
+	sudo arm-none-eabi-objcopy -O binary $KERNELDIR/$KERNEL $LOCALDIRNAME/$KERNELBIN
 	sudo cp $UBOOTDIR/$UBOOTELF $TMPDIR
 	ls -l $LOCALDIRNAME
 	cleanuploop
