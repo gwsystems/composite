@@ -7,6 +7,7 @@ UDISK=uboot.disk
 UDISKPATH=$TMPDIR/$UDISK
 KERNELDIR=../src/platform/cav7/
 KERNEL=kernel.img
+KERNELBIN=kernel.bin
 LOCALDIRNAME=$TMPDIR/p1
 UBOOTELF=u-boot.elf
 UBOOTDIR=u-boot-xlnx/
@@ -29,16 +30,15 @@ setup() {
 	LOOPDEV=`losetup -f`
 	mkdir -p $TMPDIR
 	dd if=/dev/zero of=$UDISKPATH bs=1M count=256
-	sgdisk -n 0:0:+10M -c 0:kernel $UDISKPATH
-	sgdisk -n 0:0:0 -c 0:rootfs $UDISKPATH
+	sfdisk $UDISKPATH < ./uboot.sfdisk
 
 	sudo losetup $LOOPDEV $UDISKPATH
 	sudo partprobe $LOOPDEV
-	sudo mkfs.ext4 $LOOPDEVNAME
+	sudo mkfs.ext2 $LOOPDEVNAME
 
 	mkdir -p $LOCALDIRNAME
-	sudo mount -t ext4 $LOOPDEVNAME $LOCALDIRNAME
-	sudo cp $KERNELDIR/$KERNEL $LOCALDIRNAME
+	sudo mount -t ext2 $LOOPDEVNAME $LOCALDIRNAME
+	sudo arm-none-eabi-objcopy -O binary $KERNELDIR/$KERNEL $LOCALDIRNAME/$KERNELBIN
 	sudo cp $UBOOTDIR/$UBOOTELF $TMPDIR
 	ls -l $LOCALDIRNAME
 	cleanuploop
