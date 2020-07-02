@@ -2,7 +2,6 @@
 
 TMPDIR=tmp/
 
-LOOPDEVNAME=/dev/loop0p1
 UDISK=uboot.disk
 UDISKPATH=$TMPDIR/$UDISK
 KERNELDIR=../src/platform/cav7/
@@ -17,8 +16,8 @@ MACHINE=xilinx-zynq-a9
 
 cleanuploop() {
 	sudo umount $LOCALDIRNAME
-	LOOPDEVCLEAN=`losetup -l | grep uboot.disk | cut -f1 -d' '`
-	sudo losetup -d $LOOPDEVCLEAN
+	LOOPDEVNAME=`losetup -l | grep uboot.disk | cut -f1 -d' '`
+	sudo losetup -d $LOOPDEVNAME
 }
 
 cleanup() {
@@ -33,11 +32,13 @@ setup() {
 	sfdisk $UDISKPATH < ./uboot.sfdisk
 
 	sudo losetup $LOOPDEV $UDISKPATH
+	LOOPDEVNAME=`losetup -l | grep uboot.disk | cut -f1 -d' '`
+	LOOPPART=$LOOPDEVNAME"p1"
 	sudo partprobe $LOOPDEV
-	sudo mkfs.ext2 $LOOPDEVNAME
+	sudo mkfs.ext2 $LOOPPART
 
 	mkdir -p $LOCALDIRNAME
-	sudo mount -t ext2 $LOOPDEVNAME $LOCALDIRNAME
+	sudo mount -t ext2 $LOOPPART $LOCALDIRNAME
 	sudo cp $KERNELDIR/$KERNELBIN $LOCALDIRNAME/$KERNELBIN
 	sudo cp $UBOOTDIR/$UBOOTELF $TMPDIR
 	ls -l $LOCALDIRNAME
