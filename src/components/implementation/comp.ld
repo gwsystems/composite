@@ -1,7 +1,5 @@
 PHDRS
 {
-	headers PT_PHDR PHDRS ;
- 	interp PT_INTERP ;
 	text PT_LOAD ;
 	data PT_LOAD ;
 }
