@@ -1,21 +1,24 @@
-include Makefile.src Makefile.comp
+include Makefile.src Makefile.comp Makefile.dependencies
 
 IFNAME=$(lastword $(subst /, ,$(shell pwd)))
 SUBDIRS=$(wildcard */)
 
-CLIB=libs_$(IFNAME).a # s_ for server
-IF_INCLUDE=$(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
-DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
+CLIB=libinterfacelib.a # this is the library for all implementations of this interface
+INCLUDES=$(DEPENDENCY_INCPATH) $(CINC)
 
 OBJS=$(patsubst %.c,%.o,$(wildcard *.c)) $(patsubst %.S,%.o,$(wildcard *.S)) $(patsubst %.cc,%.o,$(wildcard *.cc))
-INCLUDE=$(DEP_INC) $(IF_INCLUDE) $(CINC)
 
 #NOTE: assembly files don't have dependencies generated for them
 SOURCE_DEPENDENCIES=$($(wildcard *.c):%.c=%.d) $($(wildcard *.cc):%.cc=%.d)
 
 .PHONY: all
-all: $(SOURCE_DEPENDENCIES) $(CLIB) subdirs
+all: print $(SOURCE_DEPENDENCIES) $(CLIB) subdirs
 
+.PHONY: print
+print:
+	$(info |     [COMP]   Processing component interface $(IFNAME))
+
+.PHONY: subdirs
 subdirs:
 	@for dir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$dir ;  \
@@ -29,15 +32,15 @@ endif
 
 %.o:%.c
 	$(info |     [CC]   $<: Compiling)
-	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
+	@$(CC) $(INCLUDES) $(CFLAGS) -o $@ -c $<
 
 %.o:%.S
 	$(info |     [AS]   $<: Compiling)
-	@$(AS) $(INCLUDE) $(ASFLAGS) -c -o $@ $^
+	@$(AS) $(INCLUDES) $(ASFLAGS) -c -o $@ $^
 
 %.o:%.cc
 	$(info |     [CXX]  $<: Compiling)
-	@$(CXX) $(INCLUDE) $(LIBSTDCXXINC) $(CXXFLAGS) -o $@ -c $^
+	@$(CXX) $(INCLUDES) $(LIBSTDCXXINC) $(CXXFLAGS) -o $@ -c $^
 
 # see the make manual: create the .d dependencies from include
 # statements.
@@ -48,12 +51,6 @@ endif
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
-.PHONY: cp
-cp:
-	@for dir in $(SUBDIRS) ; do \
-		$(MAKE) -C $$dir cp ; \
-	done
-
 .PHONY: clean
 clean:
 #	$(info |     [RM]   Cleaning up implementation directory for interface $(IFNAME))
@@ -62,9 +59,8 @@ clean:
 		$(MAKE) -C $$dir clean ; \
 	done
 
+.PHONY: component
 component:
 	$(MAKE) -C $(COMP_NAME) component
-
-fresh: clean all
 
 -include $(SOURCE_DEPENDENCIES)

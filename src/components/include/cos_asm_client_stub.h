@@ -1,5 +1,0 @@
-#ifndef COS_ASM_CLIENT_STUB_H
-#define COS_ASM_CLIENT_STUB_H
-
-
-#endif /* COS_ASM_CLIENT_STUB_H */

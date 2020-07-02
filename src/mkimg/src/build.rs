@@ -1,3 +1,4 @@
+
 use initargs::ArgsKV;
 use passes::{component, deps, exports, BuildState, ComponentId, SystemState};
 use std::fs::File;
@@ -218,7 +219,7 @@ fn comp_gen_make_cmd(
     assert!(decomp.len() == 2);
     let name = format!("{}.{}", &c.name.scope_name, &c.name.var_name);
 
-    let cmd = format!(r#"make -C ../ COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="initargs" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={} {} component"#,
+    let cmd = format!(r#"make -C ../ COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={} {} component"#,
                       if_exp, if_deps, &decomp[0], &decomp[1], &name, output_name, &c.base_vaddr, &optional_cmds);
 
     cmd

@@ -1,13 +1,15 @@
-include Makefile.src Makefile.comp
+include Makefile.src Makefile.comp Makefile.dependencies
 
 IFNAME=$(lastword $(subst /, ,$(shell pwd)))
 IFLIB=lib$(IFNAME).a
-DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
+DEP_INC=$(DEPENDENCY_INCPATH)
 C_OBJS=$(patsubst %.c,%.o,$(wildcard *.c))
 
 # all the interface variants.  Note that "stubs/" is the default.
 VARIANTS=$(wildcard */)
 
+# For now, lets just inherit the dependencies in the variants
+export DEPENDENCIES=$(DEP_INC)
 MAKEOPTIONS=-I$(shell pwd)
 
 .PHONY: all
@@ -16,9 +18,6 @@ all: print variants $(IFLIB)
 print:
 	$(info | Interface $(IFNAME): Compiling stubs and libraries)
 
-# we have to compile these without musllibc so that there are no
-# symbol conflicts and this is why we have the %.a here and don't
-# output a .a file.
 $(IFLIB):$(C_OBJS)
 	$(if $(C_OBJS), $(info |     [AR]   Creating client library $@ for $(IFNAME)))
 	@$(if $(C_OBJS), @$(AR) cr $@ $^)

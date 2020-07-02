@@ -1,11 +1,18 @@
+# Required variables used to drive the compilation process. It is OK
+# for many of these to be empty.
+#
+# The set of interfaces that this component exports for use by other
+# components. This is a list of the interface names.
+INTERFACE_EXPORTS = sched
+# The interfaces this component is dependent on for compilation (this
+# is a list of directory names in interface/)
+INTERFACE_DEPENDENCIES = capmgr
+# The library dependencies this component is reliant on for
+# compilation/linking (this is a list of directory names in lib/)
+LIBRARY_DEPENDENCIES = component sl_capmgr
+# Note: Both the interface and library dependencies should be
+# *minimal*. That is to say that removing a dependency should cause
+# the build to fail. The build system does not validate this
+# minimality; that's on you!
 
-C_OBJS=
-ASM_OBJS=
-COMPONENT=root_fprr.o
-INTERFACES=sched schedinit
-DEPENDENCIES=capmgr
-IF_LIB=
-ADDITIONAL_LIBS=$(LIBSLCAPMGR) -lsl_thd_static_backend -lsl_mod_fprr
-
-include ../../Makefile.subsubdir
-MANDITORY_LIB=simple_stklib.o
+include Makefile.subsubdir

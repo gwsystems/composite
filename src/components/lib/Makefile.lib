@@ -1,23 +1,42 @@
-include Makefile.src Makefile.comp
+include Makefile.src Makefile.comp Makefile.dependencies
 
 CFILES=$(wildcard *.c)
-OBJS=$(CFILES:%.c=%.o)
+SFILES=$(wildcard *.S)
+OBJS=$(CFILES:%.c=%.o) $(SFILES:%.S=%.o)
 
-all: $(LIBTARGET)
+CINC+=$(foreach I, $(FINAL_DEPS), -I$(LIBDIR)/$(I))
 
-%.a: $(OBJS)
-	$(info |     [CC]   Creating library file $@ from $^)
+SHLIB_FILE=$(if $(LIBRARY_OUTPUT), lib$(LIBRARY_OUTPUT).a)
+SHLIB_BIN=$(if $(OBJECT_OUTPUT), $(OBJECT_OUTPUT).lib.o)
+
+LIBNAME=$(lastword $(subst /, ,$(shell pwd)))
+
+.PHONY: all clean init distclean print
+
+all: print $(SHLIB_FILE) $(SHLIB_BIN)
+
+print:
+	$(info Building library files in $(LIBNAME))
+
+$(SHLIB_BIN): $(OBJS)
+	$(info |     [LD]   Creating library binary file $@ from $^)
+	@$(LD) $(LDFLAGS) -r -o $@ $^
+
+$(SHLIB_FILE): $(OBJS)
+	$(info |     [AR]   Creating library file $@ from $^)
 	@$(AR) cr $@ $^
-	@cp $@ ../
 
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)
-	@$(AS) $(ASFLAGS) $(CINC) -c -o $@ $^
+	@$(AS) $(ASFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $^
 
 %.o:%.c
 	$(info |     [CC]   Compiling C file $^ into $@)
-	@$(CC) $(CFLAGS) $(CINC) -o $@ -c $^
+	@$(CC) $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $^
 
 clean:
-	$(info |     [RM]   Cleaning up directory)
-	@rm -f a.out *.o *.a *.d *~
+	$(info |     [RM]   Cleaning up library $(LIBNAME)'s directory)
+	@rm -f *.o *.a *.d *~
+
+init:
+distclean: clean

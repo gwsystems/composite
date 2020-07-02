@@ -109,5 +109,3 @@ captbl.o: ../../kernel/captbl.c
 
 clean:
 	@rm -f *.d *.o $(KERNEL)
-
-cp: $(KERNEL)

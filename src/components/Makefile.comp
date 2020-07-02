@@ -1,36 +1,29 @@
 # include ../../../Makefile.inc first!
 
+ARCH_CFLAGS =-m32 -D__x86__
+ARCH_ASFLAGS=$(ARCH_CFLAGS)
+ARCH_LDFLAGS=-melf_i386
+
 IMPLDIR=$(CDIR)/implementation/
 INTERDIR=$(CDIR)/interface/
 LIBDIR=$(CDIR)/lib/
-MANDITORY_LIB=cos_manditory.o
 
-MUSLDIR=$(CDIR)/lib/musl-1.1.11
+MUSLDIR=$(CDIR)/lib/libc/musl-1.1.11
 MUSLBIN=$(MUSLDIR)/bin
 MUSLCC=$(MUSLBIN)/musl-$(CC)
 MUSLINC=-isystem$(MUSLDIR)/include
 
-CKDIR=$(LIBDIR)/ck
-CKLIBDIR=$(CKDIR)/lib
-CKINCDIR=$(CKDIR)/include
-
-LIBCXXDIR=$(LIBDIR)/libcxx
-LIBSTDCXXOBJ=$(LIBCXXDIR)/libstdc++.a
-LIBSUPCXXOBJ=$(LIBCXXDIR)/libsupc++.a
-
-POSIX_LIB=$(CDIR)/lib/posix/posix.o
-
-INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/ -I$(SHAREDINC) -I$(CDIR)/lib/ck/include -I$(CDIR)/lib/ps/ -I$(CDIR)/lib/libcxx/include
-CINC=$(INC_PATH)
+CINC=-I. -I$(SHAREDINC)
 
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic -fno-pie
 OPT= -g -fvar-tracking
 #OPT= -O3
-CFLAGS=-m32 -D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable $(INC_PATH) $(MUSLINC) $(OPT) $(SHARED_FLAGS)
+
+CFLAGS=$(ARCH_CFLAGS) -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable $(CINC) $(MUSLINC) $(OPT) $(SHARED_FLAGS)
 CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
-LDFLAGS=-melf_i386 -no-pic
+LDFLAGS=$(ARCH_LDFLAGS) -no-pic
 MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r
-ASFLAGS=-m32 $(INC_PATH) $(SHARED_FLAGS)
+ASFLAGS=$(ARCH_ASFLAGS) $(CINC) $(SHARED_FLAGS)
 
 GCC_PIE=$(shell gcc -v 2>&1 | grep -c "\--enable-default-pie")
 ifeq ($(GCC_PIE),1)
@@ -39,8 +32,3 @@ LDFLAGS+=-no-pie
 CFLAGS+=-fno-pie
 CXXFLAGS+=-fno-pie
 endif
-
-LIBCOSDEFKERN=-lcos_kernel_api -lcos_defkernel_api -linitargs
-LIBSLCORE=$(LIBCOSDEFKERN) -lsl_sched -lheap -lsl_xcpu -lsl_child -lck
-LIBSLCAPMGR=$(LIBSLCORE) -lsl_capmgr
-LIBSLRAW=$(LIBSLCORE) -lsl_raw

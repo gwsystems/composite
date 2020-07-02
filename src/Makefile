@@ -3,7 +3,7 @@
 MAKEOPTIONS=--no-print-directory -I$(shell pwd)
 PLAT_FILE=.PLATFORM_ID
 
-default: | all cp
+default: | all
 
 all: comps plat
 
@@ -31,9 +31,6 @@ plat: platclean
 
 cpplat:
 	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat $(PLAT_FILE)) -C platform cp
-
-cp: cpplat
-	$(MAKE) $(MAKEOPTIONS) -C components cp
 
 clean: platclean
 	$(MAKE) $(MAKEOPTIONS) -C components clean

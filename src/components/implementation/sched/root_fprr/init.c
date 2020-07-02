@@ -38,9 +38,9 @@
 
 #include <sl.h>
 #include <res_spec.h>
-#include <sched_info.h>
 #include <barrier.h>
 #include <init.h>
+#include <sched_info.h>
 
 u32_t cycs_per_usec = 0;
 

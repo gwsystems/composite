@@ -28,7 +28,6 @@
         } while (0)
 
 #include <cos_component.h>
-#include <cobj_format.h>
 #include <cos_kernel_api.h>
 #include <perfdata.h>
 #include <cos_ubench.h>

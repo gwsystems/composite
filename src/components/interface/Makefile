@@ -1,6 +1,6 @@
 include Makefile.src Makefile.comp
 
-INTERFACES=$(wildcard */)
+INTERFACES=$(filter-out skel/, $(wildcard */))
 MAKEOPTIONS=-I$(shell pwd)
 
 .PHONY: all

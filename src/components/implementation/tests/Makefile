@@ -1,3 +1,1 @@
-INTERFACES=
-
-include ../Makefile.subdir
+include Makefile.subdir

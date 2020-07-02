@@ -10,7 +10,6 @@
 #include <res_spec.h>
 #include <sl.h>
 #include <capmgr.h>
-#include <hypercall.h>
 
 /* enable only one of these */
 #define TEST_IPC
@@ -565,8 +564,11 @@ cos_init(void)
 	}
 
 	sl_init(SCHED_PERIOD_US);
-        hypercall_comp_init_done();
+}
 
+int
+main(void)
+{
 	test_ipc_setup();
 	test_latency_setup();
 	test_rate_setup();
@@ -575,5 +577,5 @@ cos_init(void)
 
 	assert(0);
 
-	return;
+	return 0;
 }

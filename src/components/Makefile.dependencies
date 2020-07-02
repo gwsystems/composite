@@ -1,0 +1,13 @@
+include Makefile.src Makefile.comp
+
+CALC_DEPS_SCRIPT   = python $(CDIR)cidl/calculate_dependencies.py $(CDIR)
+LIBRARY_DEP_LIST   =$(strip $(shell $(CALC_DEPS_SCRIPT) libdeps))
+INTERFACE_DEP_LIST =$(strip $(shell $(CALC_DEPS_SCRIPT) ifdeps))
+# List of -L library paths
+DEPENDENCY_LIBPATH =$(strip $(shell $(CALC_DEPS_SCRIPT) libpaths))
+# List of -l libraries
+DEPENDENCY_LIBS    =$(strip $(shell $(CALC_DEPS_SCRIPT) libinc))
+# paths to the *.lib.o mandatory include objects
+DEPENDENCY_LIBOBJS =$(strip $(shell $(CALC_DEPS_SCRIPT) objpaths))
+# List of -I include paths
+DEPENDENCY_INCPATH =$(strip $(shell $(CALC_DEPS_SCRIPT) incpaths))

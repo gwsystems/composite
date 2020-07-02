@@ -5,7 +5,6 @@
  * Author: Phani Gadepalli, phanikishoreg@gwu.edu
  */
 
-#include <schedinit.h>
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <sl.h>

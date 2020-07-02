@@ -40,5 +40,5 @@ fi
 mkdir $1/$COMPNAME
 cp skel/default/* $1/$COMPNAME/
 mv $1/$COMPNAME/default.c $1/$COMPNAME/$COMPNAME.c
-sed -i 's/SKEL_COMP/'`echo $COMPNAME`'/g' $1/$COMPNAME/Makefile
+sed -i 's/SKEL_IF/'`echo $1`'/g' $1/Makefile
 sed -i 's/SKEL_IF/'`echo $1`'/g' $1/$COMPNAME/Makefile

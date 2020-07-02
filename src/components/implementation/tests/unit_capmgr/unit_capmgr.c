@@ -11,8 +11,7 @@
 #include <cos_defkernel_api.h>
 #include <capmgr.h>
 #include <memmgr.h>
-#include <channel.h>
-#include <hypercall.h>
+//#include <channel.h>
 
 static cycles_t cycs_per_usec;
 
@@ -100,37 +99,31 @@ test_sharedmem(void)
 	PRINTLOG(PRINT_DEBUG, "%s: shared memory allocation capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
 }
 
-#define SHMCHANNEL_KEY 0xff
+/* #define SHMCHANNEL_KEY 0xff */
 
-static void
-test_shmem_channel(void)
-{
-	cbuf_t id;
-	vaddr_t addr;
-	int failure = 0;
+/* static void */
+/* test_shmem_channel(void) */
+/* { */
+/* 	cbuf_t id; */
+/* 	vaddr_t addr; */
+/* 	int failure = 0; */
 
-	id = channel_shared_page_allocn(SHMCHANNEL_KEY, TEST_N_SHMEM_PAGES, &addr);
-	/* testing after test_sharedmem() */
-	if (id <= 1 || test_mem_readwrite(addr, TEST_N_SHMEM_PAGES)) failure = 1;
-	PRINTLOG(PRINT_DEBUG, "%s: shared memory channel allocation capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS");
-}
+/* 	id = channel_shared_page_allocn(SHMCHANNEL_KEY, TEST_N_SHMEM_PAGES, &addr); */
+/* 	/\* testing after test_sharedmem() *\/ */
+/* 	if (id <= 1 || test_mem_readwrite(addr, TEST_N_SHMEM_PAGES)) failure = 1; */
+/* 	PRINTLOG(PRINT_DEBUG, "%s: shared memory channel allocation capmgr unit tests\n", failure ? "FAILURE" : "SUCCESS"); */
+/* } */
 
-void
-cos_init(void)
+int
+main(void)
 {
 	spdid_t child;
 	comp_flag_t childflag;
 
-	assert(hypercall_comp_child_next(cos_spd_id(), &child, &childflag) == -1);
-
 	test_thds();
-	if (cos_cpuid() == INIT_CORE) {
-		test_sharedmem();
-		test_shmem_channel();
-	}
+	test_sharedmem();
+	// test_shmem_channel();
 	test_heapmem();
-	hypercall_comp_init_done();
 
-	PRINTLOG(PRINT_ERROR, "Cannot reach here!\n");
-	assert(0);
+	return 0;
 }

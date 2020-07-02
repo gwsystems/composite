@@ -10,7 +10,6 @@
 #include <cos_component.h>
 #include <cos_defkernel_api.h>
 #include <cos_debug.h>
-#include <cobj_format.h>
 
 #define CHILD_COMP_COUNT 2
 #define CHILD_UNTYPED_SIZE (1 << 24)

@@ -27,14 +27,14 @@ C_CSTUB_OBJS=$(strip $(C_CSTUBS:%.c=%.o))
 IFPATH=$(subst /, ,$(shell pwd))
 VARIANTNAME=$(lastword $(IFPATH))
 IFNAME=$(word $(shell echo $(words $(IFPATH))-1 | bc), $(IFPATH))
-DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
-CFLAGS +=-I.. $(DEP_INC)
+DEP_INC=$(DEPENDENCIES)
+CFLAGS += $(CINC) -I.. $(DEP_INC)
 
 .PHONY: all
 all: print $(SERVER_STUB) $(CLIENT_STUB)
 
 print:
-	$(info |     Compiling stubs for interface: $(IFNAME), variant: $(VARIANTNAME))
+	@$(info Compiling stubs for interface: $(IFNAME), variant: $(VARIANTNAME))
 
 %.o:%.c
 	$(info |     [CC]   Compiling c file $^ into $@)
@@ -42,11 +42,11 @@ print:
 
 $(S_SSTUB_OBJ):$(SSTUB_FILE)
 	$(info |     [AS]   Creating server asm stubs for $(IFNAME))
-	@$(AS) -DCOS_SERVER_STUBS $(ASFLAGS) -c -o $@ $^
+	@$(AS) -DCOS_SERVER_STUBS $(ASFLAGS) $(DEP_INC) -c -o $@ $^
 
 $(C_UCAP_STUB_OBJ):$(SSTUB_FILE)
 	$(info |     [AS]   Creating client user capability stubs for $(IFNAME))
-	@$(AS) -DCOS_UCAP_STUBS $(ASFLAGS) -c -o $@ $^
+	@$(AS) -DCOS_UCAP_STUBS $(ASFLAGS) $(DEP_INC) -c -o $@ $^
 
 # Note: these cannot be static libraries as the symbols aren't
 # referenced in the component
@@ -64,7 +64,7 @@ fresh: clean all
 
 %.d:%.c
 	@set -e; rm -f $@; \
-	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
+	@$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 

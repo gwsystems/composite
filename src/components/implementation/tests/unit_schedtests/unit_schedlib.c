@@ -9,7 +9,6 @@
 #include <string.h>
 
 #include <cos_component.h>
-#include <cobj_format.h>
 #include <cos_defkernel_api.h>
 #include <llprint.h>
 #include <sl.h>

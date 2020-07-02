@@ -1,1 +1,1 @@
-include ../../Makefile.subsubdir
+include Makefile.subsubdir

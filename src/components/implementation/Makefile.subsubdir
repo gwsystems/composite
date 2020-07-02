@@ -6,98 +6,81 @@
 # prevent musllibc from creating an executable and linking in many of
 # its normal symbols
 
-# I never want to touch this again, but will have to
+include Makefile.src Makefile.comp Makefile.dependencies
 
-include Makefile.src Makefile.comp
-
+# calculate the name of the final object = interface.compname.o
 COMPPATH=$(subst /, ,$(shell pwd))
-COMPLEN=$(words $(COMPPATH))
+COMPLEN =$(words $(COMPPATH))
 COMPLIST=$(wordlist $(shell echo $(COMPLEN)-1 | bc), $(COMPLEN), $(COMPPATH))
 COMPNAME=$(shell echo $(strip $(COMPLIST)) | sed "s/ /./")
-COMPOBJ=$(COMPNAME).o
+COMPOBJ =$(COMPNAME).o
 
-# These are compiled in with the components regardless of if they
-# export an undefined symbol from the component.  They are a manditory
-# link-in.
-LIB_ASM_MANDITORY=$(LIBDIR)/$(MANDITORY_LIB)
-
-# Derive the include paths from both the interface encoded in the
-# directory hierarchy, and the explicit DEPENDENCIES specification
-INTERFACE=$(word $(shell echo $(COMPLEN)-1 | bc), $(COMPPATH))
-ALL_INTERFACES = $(sort $(INTERFACE) $(INTERFACES)) # sort is for uniq
-# include paths for each interface
-EXPIF_INC_PATHS=$(foreach I,$(ALL_INTERFACES),-I$(INTERDIR)/$(I)/)
-# Server libraries for components that implement an interface (only if they exist).
-EXPIF_LIB_PATHS=$(foreach I,$(ALL_INTERFACES), $(if $(wildcard $(IMPLDIR)/$(I)/libs_$(I).a), -L$(IMPLDIR)/$(I)/))
-EXPIF_LIBS=$(foreach I,$(ALL_INTERFACES), $(if $(wildcard $(IMPLDIR)/$(I)/libs_$(I).a), -ls_$(I)))
-
-# every component is dependent on init
-DEPENDENCIES += init
-# Paths and libraries derived from the interface dependencies that
-# components have defined (only if the libraries exist).
-DEP_INC_PATHS=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
-DEP_LIB_PATHS=$(foreach D,$(DEPENDENCIES),$(if $(wildcard $(INTERDIR)/$(D)/lib$(D).a), -L$(INTERDIR)/$(D)/)
-DEP_LIBS=$(foreach D,$(DEPENDENCIES),$(if $(wildcard $(INTERDIR)/$(D)/lib$(D).a), -l$(D))
-
-C_OBJS=$(patsubst %.c,%.o,$(wildcard *.c))
+C_OBJS  =$(patsubst %.c,%.o,$(wildcard *.c))
 CXX_OBJS=$(patsubst %.cc,%.o,$(wildcard *.cc))
 ASM_OBJS=$(patsubst %.S,%.o,$(wildcard *.S))
-OBJS=$(CXX_OBJS) $(C_OBJS) $(ASM_OBJS) $(OBJLIBS)
-
-# put together all of the paths and libraries into command line
-# arguments
-INCLUDE=-I../ $(DEP_INC_PATHS) $(EXPIF_INC_PATHS)
-LIB_FLAGS=-L$(LIBDIR) -L$(LIBCXXDIR) -L$(CKLIBDIR) -L$(LIBDIR)/sinv_async/ $(EXPIF_LIB_PATHS) $(EXPIF_LIBS) $(ADDITIONAL_LIBS)
-
-#NOTE: assembly files don't have dependencies generated for them
+OBJS    =$(CXX_OBJS) $(C_OBJS) $(ASM_OBJS) $(OBJLIBS)
+# NOTE: assembly files don't have dependencies generated for them
 SOURCE_DEPENDENCIES=$(C_OBJS:%.o=%.d) $(CXX_OBJS:%.o=%.d)
 
-COMP_LD_SCRIPT=$(IMPLDIR)/comp.ld
+# Most of the dependencies are calculated here. These include those on
+# libraries (in src/components/lib/*/), and on the generic interface
+# code (in src/components/interface/*/). This does *not* include the
+# dependencies on the *variants* of interfaces used for a specific
+# component. For that, the composer should have passed in that
+# information.
+INCLUDE      =$(DEPENDENCY_INCPATH) -I..
+LIB_MANDATORY=$(DEPENDENCY_LIBOBJS)
+# The -l (DEPENDENCY_LIBS) flags are listed twice to catch backwards
+# references
+LIB_FLAGS    =$(LIB_MANDATORY) $(if $(wildcard ../*.a), -L.. -linterfacelib) $(DEPENDENCY_LIBPATH) $(DEPENDENCY_LIBS) $(DEPENDENCY_LIBS)
 
+COMP_LD_SCRIPT=$(IMPLDIR)/comp.ld
 TAR_SYMBOL_NAME=crt_init.tar
 
 .PHONY: all
 all: print $(SOURCE_DEPENDENCIES) $(COMPOBJ)
 
+.PHONY: print
 print:
 	$(info | Component $(COMPNAME):)
 
-# Jumping through hoops: want to link to our libraries first so that
-# symbols there are used, but then (and only then) do we want to use
-# libc's functions as part of the "component" directive
+# Gather all non-interface .o files in the code (libraries and
+# interfaces) together at this point
 $(COMPOBJ): $(OBJS)
-	$(info |     [LD]   $(COMPNAME) ($@): Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $^)
-	@$(LD) $(LDFLAGS) -r -o $@ $^ $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
+	$(info |     [LD]   $(COMPNAME) ($@): Linking together $^ $(LIB_MANDATORY))
+	@$(LD) $(LDFLAGS) $(LIB_MANDITORY) -r -o $@ $^
 
-# make COMP_INTERFACE=pong COMP_NAME=pingpong COMP_OBJNAME=IT.WORKS COMP_OUTPUT=pong.pingpong.pong.o component
-
-# These variables direct the compilation and are set by the highest-level make command
-# Note that they are all passed in as "if_0/var_0+if_1/var_1+...", so we need to remove the + and the "
+# These variables direct the compilation of the component with
+# specific interface variants. In contrast to the library includes
+# calcuated above, this is from the composer. These variables are set
+# by the highest-level make command Note that they are all passed in
+# as "if_0/var_0+if_1/var_1+...", so we need to remove the + and the "
 COMP_INTERFACES_CLEAN=$(strip $(subst +, ,$(subst ",,$(COMP_INTERFACES)))) #"
-COMP_IFDEPS_CLEAN=$(strip $(subst +, ,$(subst ",,$(COMP_IFDEPS)))) #"
+COMP_IFDEPS_CLEAN =$(strip $(subst +, ,$(subst ",,$(COMP_IFDEPS)))) #"
 COMP_LIBDEPS_CLEAN=$(strip $(subst +, ,$(subst ", ,$(COMP_LIBDEPS)))) #"
 
 # making the list of -L and -l based on the component's dependencies
-COMP_DEPS_CLEAN=$(foreach D,$(COMP_IFDEPS_CLEAN),$(word 1,$(subst /, ,$(D))))
-COMP_DEPLIBS_CLEAN=$(foreach D,$(COMP_DEPS_CLEAN),$(if $(wildcard $(INTERDIR)/$(D)/lib$(D).a), -l$(D)))
-COMP_DEPLIBS_CLEAN := $(COMP_DEPLIBS_CLEAN) # handle all necessary orderings
+COMP_DEPS_CLEAN      =$(foreach D,$(COMP_IFDEPS_CLEAN),$(word 1,$(subst /, ,$(D))))
+COMP_DEPLIBS_CLEAN   =$(foreach D,$(COMP_DEPS_CLEAN),$(if $(wildcard $(INTERDIR)/$(D)/lib$(D).a), -l$(D)))
+COMP_DEPLIBS_CLEAN  :=$(COMP_DEPLIBS_CLEAN) # handle all necessary orderings
 COMP_DEPLIBDIRS_CLEAN=$(foreach D,$(COMP_DEPS_CLEAN),$(if $(wildcard $(INTERDIR)/$(D)/lib$(D).a), -L$(INTERDIR)/$(D)/))
 
 # The actual lists of objects to be compiled with the components...
 COMP_EXPIF_OBJS=$(foreach I,$(COMP_INTERFACES_CLEAN),$(INTERDIR)/$(I)/cosrt_s_stub.o)
 COMP_DEP_OBJS=$(foreach D,$(COMP_IFDEPS_CLEAN),$(INTERDIR)/$(D)/cosrt_c_stub.o)
 
-# NOTE: we're currently ignoring the libraries, which will break if an
-# interface's code requires a library
+# NOTE: we're currently ignoring the *variants* library requirements,
+# which will break if an interface's code requires a library
 
 comp_header:
-	$(info | Sealing $(COMP_INTERFACE).$(COMP_NAME) for variable $(COMP_VARNAME) by linking with:)
+	$(info | Composing $(COMP_INTERFACE).$(COMP_NAME) for variable $(COMP_VARNAME) by linking with:)
 	$(info |     Exported interfaces: $(COMP_INTERFACES_CLEAN))
 	$(info |     Interface dependencies: $(COMP_IFDEPS_CLEAN))
-	$(info |     Libraries: $(COMP_LIBDEPS_CLEAN) (currently ignored))
+	$(info |     Libraries: $(DEPENDENCY_LIBS) $(DEPENDENCY_LIBOBJS))
 
+.PHONY: component
 component: clean comp_header $(COMPOBJ)
-	$(if $(COMP_INITARGS_FILE), $(CC) $(INCLUDE) -I$(CDIR)/include/initargs/ $(CFLAGS) -c -o $(COMP_INITARGS_FILE:%.c=%.o) $(COMP_INITARGS_FILE))
+	$(if $(COMP_INITARGS_FILE), $(CC) $(INCLUDE) $(CFLAGS) -c -o $(COMP_INITARGS_FILE:%.c=%.o) $(COMP_INITARGS_FILE))
 	$(if $(COMP_TAR_FILE), cp $(COMP_TAR_FILE) $(TAR_SYMBOL_NAME))
 	$(if $(COMP_TAR_FILE), $(LD) $(LDFLAGS) -r -b binary $(TAR_SYMBOL_NAME) -o $(COMP_TAR_FILE).o; rm $(TAR_SYMBOL_NAME))
 	$(LD) $(LDFLAGS) -r -o $(COMPNAME).linked_libs_ifs.o $(COMPOBJ) $(COMP_EXPIF_OBJS) $(COMP_DEP_OBJS) $(if $(COMP_INITARGS_FILE), $(COMP_INITARGS_FILE:%.c=%.o)) $(if $(COMP_TAR_FILE), $(COMP_TAR_FILE).o) $(COMP_DEPLIBDIRS_CLEAN) $(COMP_DEPLIBS_CLEAN) $(LIB_FLAGS)
@@ -114,34 +97,26 @@ component: clean comp_header $(COMPOBJ)
 
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)
-#	$(info |     [AS]   $<: Compiling)
 	@$(AS) $(INCLUDE) $(ASFLAGS) -c -o $@ $^
 
 # see the make manual: create the .d dependencies from include
 # statements.
 %.d:%.c
-	@set -e; rm -f $@; \
+	set -e; rm -f $@; \
 	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
 %.d:%.cc
-#	$(info |     [DEP]  Creating dependency file for $<)
 	@set -e; rm -f $@; \
 	$(CXX) -M $(INCLUDE) $(LIBSTDCXXINC) $(CXXFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
-.PHONY: cp
-cp:
-	$(info |     [CP]   Copying $(COMPNAME) to $(TRANS_DIR))
-	@cp $(COMPOBJ) $(TRANS_DIR)/
 
 .PHONY: clean
 clean:
 	$(info |     [RM]   Cleaning up implementation directory for component $(COMPNAME))
 	@rm -f a.out *.o *.a *.d *.d.* *~
-
-fresh: clean all
 
 -include $(SOURCE_DEPENDENCIES)

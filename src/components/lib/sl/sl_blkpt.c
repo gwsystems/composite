@@ -33,7 +33,7 @@ blkpt_get(sched_blkpt_id_t id)
 }
 
 sched_blkpt_id_t
-sched_blkpt_alloc(void)
+sl_blkpt_alloc(void)
 {
 	sched_blkpt_id_t id;
 	struct blkpt_mem *m;
@@ -57,14 +57,14 @@ unlock:
 }
 
 int
-sched_blkpt_free(sched_blkpt_id_t id)
+sl_blkpt_free(sched_blkpt_id_t id)
 {
 	/* alloc only for now */
 	return 0;
 }
 
 int
-sched_blkpt_trigger(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, int single)
+sl_blkpt_trigger(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, int single)
 {
 	thdid_t tid;
 	struct sl_thd *t;
@@ -97,7 +97,7 @@ unlock:
 }
 
 int
-sched_blkpt_block(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, thdid_t dependency)
+sl_blkpt_block(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, thdid_t dependency)
 {
 	struct blkpt_mem *m;
 	struct sl_thd    *t;

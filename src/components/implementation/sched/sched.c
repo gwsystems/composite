@@ -9,6 +9,7 @@
 #include <sched.h>
 #include <sl.h>
 #include <sched_info.h>
+#include <crt_blkpt.h>
 
 int
 sched_thd_wakeup(thdid_t t)
@@ -39,6 +40,30 @@ sched_thd_block_timeout(thdid_t dep_id, cycles_t abs_timeout)
 
 	if (!c || !sched_childinfo_find(c)) return 0;
 	return sl_thd_block_timeout(dep_id, abs_timeout);
+}
+
+sched_blkpt_id_t
+sched_blkpt_alloc(void)
+{
+	return sl_blkpt_alloc();
+}
+
+int
+sched_blkpt_free(sched_blkpt_id_t id)
+{
+	return sl_blkpt_free(id);
+}
+
+int
+sched_blkpt_trigger(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, int single)
+{
+	return sl_blkpt_trigger(blkpt, epoch, single);
+}
+
+int
+sched_blkpt_block(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, thdid_t dependency)
+{
+	return sl_blkpt_block(blkpt, epoch, dependency);
 }
 
 thdid_t
