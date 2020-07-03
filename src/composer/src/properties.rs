@@ -29,7 +29,7 @@ fn interface_dependencies(
 
     let clients: Vec<ComponentId> = ids
         .iter()
-        .filter_map(|(ref cli_id, ref cli_name)| {
+        .filter_map(|(ref cli_id, ref _cli_name)| {
             // is the client dependent on us for initialization?
             if deps(&s, &cli_id)
                 .iter()
@@ -52,7 +52,7 @@ fn interface_dependencies(
 }
 
 impl Transition for CompProperties {
-    fn transition(s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
+    fn transition(s: &SystemState, _b: &mut dyn BuildState) -> Result<Box<Self>, String> {
         let mut properties = HashMap::new();
 
         for (id, _) in s.get_named().ids().iter() {
@@ -96,7 +96,7 @@ impl Transition for CompProperties {
                             return (p, par);
                         }
                         let cons_id = s.get_named().rmap().get(cons).unwrap();
-                        if (id == id2) {
+                        if id == id2 {
                             // this is us; set our parent
                             (p, Some(cons_id.clone()))
                         } else if cons_id == id {
@@ -144,7 +144,6 @@ impl PropertiesPass for CompProperties {
                     ServiceClients::Constructor(c) => Some(c),
                     _ => None,
                 },
-                _ => None,
             })
         } else {
             None
@@ -172,7 +171,6 @@ impl PropertiesPass for CompProperties {
                     ServiceProvider::Constructor(c) => Some(c.clone()),
                     _ => None,
                 },
-                _ => None,
             })
         } else {
             None

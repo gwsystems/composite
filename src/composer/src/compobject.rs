@@ -1,19 +1,13 @@
-use xmas_elf::sections;
 use xmas_elf::sections::SectionData;
-use xmas_elf::sections::{
-    SHF_ALLOC, SHF_COMPRESSED, SHF_EXECINSTR, SHF_GROUP, SHF_INFO_LINK, SHF_LINK_ORDER, SHF_MASKOS,
-    SHF_MASKPROC, SHF_MERGE, SHF_OS_NONCONFORMING, SHF_STRINGS, SHF_TLS, SHF_WRITE,
-};
-use xmas_elf::symbol_table::{Binding, DynEntry32, DynEntry64, Entry, Entry32, Type};
-use xmas_elf::{header, program, ElfFile};
+use xmas_elf::symbol_table::{Binding, Entry, Entry32, Type};
+use xmas_elf::{ElfFile};
 
 use itertools::Itertools;
 use passes::{
-    component, BuildState, ClientSymb, CompSymbs, Component, ComponentId, ComponentName,
+    component, BuildState, ClientSymb, CompSymbs, ComponentId, ComponentName,
     ConstructorPass, ObjectsPass, SystemState, Transition, TransitionIter, VAddr,
 };
 use std::collections::HashMap;
-use std::fs::File;
 use symbols::Symb;
 use syshelpers::{dump_file, exec_pipeline};
 
@@ -23,68 +17,36 @@ struct ClientSymbol {
     ucap_addr: u64,
 }
 
-impl ClientSymbol {
-    pub fn name(&self) -> &String {
-        &self.name
-    }
-
-    pub fn func_addr(&self) -> u64 {
-        self.func_addr
-    }
-
-    pub fn ucap_addr(&self) -> u64 {
-        self.ucap_addr
-    }
-}
-
 struct ServerSymb {
     name: String,
     addr: u64,
 }
 
-impl ServerSymb {
-    pub fn name(&self) -> &String {
-        &self.name
-    }
-
-    pub fn addr(&self) -> u64 {
-        self.addr
-    }
-}
-
 struct CompObject {
-    name: String,
     dep_symbs: Vec<ClientSymbol>,
     exp_symbs: Vec<ServerSymb>,
     compinfo_symb: u64,
     entryfn_symb: u64,
-    defclifn_symb: u64,
 }
 
 impl CompObject {
-    pub fn parse(name: &String, obj: &Vec<u8>) -> Result<CompObject, String> {
+    pub fn parse(_name: &String, obj: &Vec<u8>) -> Result<CompObject, String> {
         let elf_file = ElfFile::new(obj).unwrap();
         let symbs = symbs_retrieve(&elf_file)?;
 
         let compinfo = compinfo_addr(&elf_file, symbs)?.addr();
         let entryfn = entry_addr(&elf_file, symbs)?.addr();
-        let defclifn = defcli_stub_addr(&elf_file, symbs)?.addr();
+        let _defclifn = defcli_stub_addr(&elf_file, symbs)?.addr();
 
         let exps = compute_exports(&elf_file, symbs)?;
         let deps = compute_dependencies(&elf_file, symbs)?;
 
         Ok(CompObject {
-            name: name.clone(),
             dep_symbs: deps,
             exp_symbs: exps,
             compinfo_symb: compinfo,
             entryfn_symb: entryfn,
-            defclifn_symb: defclifn,
         })
-    }
-
-    pub fn name(&self) -> &String {
-        &self.name
     }
 
     pub fn exported(&self) -> &Vec<ServerSymb> {
@@ -104,7 +66,7 @@ impl CompObject {
     }
 }
 
-fn symb_address<'a>(e: &ElfFile<'a>, symb: &'a Entry32) -> u64 {
+fn symb_address<'a>(_e: &ElfFile<'a>, symb: &'a Entry32) -> u64 {
     symb.value()
 }
 
@@ -270,10 +232,10 @@ pub struct ElfObject {
 }
 
 fn compute_elfobj(
-    id: &ComponentId,
+    _id: &ComponentId,
     obj_path: &String,
-    s: &SystemState,
-    b: &mut dyn BuildState,
+    _s: &SystemState,
+    _b: &mut dyn BuildState,
 ) -> Result<Box<ElfObject>, String> {
     let obj_contents = dump_file(&obj_path)?;
     let obj = CompObject::parse(&obj_path, &obj_contents)?;
@@ -367,7 +329,7 @@ impl Transition for Constructor {
                 .get_named()
                 .ids()
                 .iter()
-                .find(|(id, name)| *name == *c_name)
+                .find(|(_id, name)| *name == *c_name)
                 .unwrap();
 
             let obj_path = b.constructor_build(&id, &s)?;
@@ -389,7 +351,7 @@ impl Transition for Constructor {
 
         let constructor_path = b.file_path(&"constructor".to_string())?;
         let cp_cmd = format!("cp {} {}", sys_constructor, constructor_path);
-        let (out, err) = exec_pipeline(vec![cp_cmd.clone()]);
+        let (_out, err) = exec_pipeline(vec![cp_cmd.clone()]);
         if err.len() != 0 {
             return Err(format!(
                 "Errors copying image (in cmd {}):\n{}",

@@ -86,7 +86,7 @@ fn constructor_tarball_create(
         .get_named()
         .ids()
         .iter()
-        .filter_map(|(cid, name)| {
+        .filter_map(|(cid, _name)| {
             let c = component(&s, &cid);
             // are we the constructor for this component?
             if me.name != c.constructor {
@@ -145,7 +145,7 @@ fn constructor_serialize_args(
         sinvs.push(ArgsKV::new_arr(String::from("_"), sinv));
     }
 
-    s.get_named().ids().iter().for_each(|(id, cname)| {
+    s.get_named().ids().iter().for_each(|(id, _cname)| {
         let info_addr = s.get_objs_id(&id).comp_symbs().comp_info;
         let cinfo = ArgsKV::new_arr(
             format!("{}", id),
@@ -225,40 +225,10 @@ fn comp_gen_make_cmd(
     cmd
 }
 
-fn kern_gen_make_cmd(input_constructor: &String, kern_output: &String, s: &SystemState) -> String {
+fn kern_gen_make_cmd(input_constructor: &String, kern_output: &String, _s: &SystemState) -> String {
     format!(
         r#"make -C ../ KERNEL_OUTPUT="{}" CONSTRUCTOR_COMP="{}" plat"#,
         kern_output, input_constructor
-    )
-}
-
-// Get the path to the component implementation directory. Should
-// probably derive this from an environmental var passed in at compile
-// time by the surrounding build system.
-fn comps_base_path() -> String {
-    format!("{}/../components/implementation/", env!("PWD"))
-}
-
-fn interface_path(interface: String, variant: Option<String>) -> String {
-    format!(
-        "{}/../components/interface/{}/{}/",
-        env!("PWD"),
-        interface,
-        match variant {
-            Some(v) => v.clone(),
-            None => String::from("stubs"),
-        }
-    )
-}
-
-// Get the path to a component object via its name.  <if>.<name>
-// resolves to src/components/implementation/if/name/if.name.o
-fn comp_path(img: &String) -> String {
-    format!(
-        "{}{}/{}.o",
-        comps_base_path(),
-        img.clone().replace(".", "/"),
-        img.clone()
     )
 }
 
@@ -349,7 +319,7 @@ impl BuildState for DefaultBuilder {
                 cmd, out, err
             )
             .as_bytes(),
-        );
+        )?;
         if err.len() != 0 {
             println!(
                 "Errors in compiling component {}. See {}.",
@@ -384,7 +354,7 @@ impl BuildState for DefaultBuilder {
                 cmd, out, err
             )
             .as_bytes(),
-        );
+        )?;
         if err.len() != 0 {
             println!(
                 "Errors in compiling component {}. See {}.",
@@ -416,7 +386,7 @@ impl BuildState for DefaultBuilder {
                 cmd, out, err
             )
             .as_bytes(),
-        );
+        )?;
         if err.len() != 0 {
             println!("Errors in compiling kernel. See {}.", comp_log)
         }

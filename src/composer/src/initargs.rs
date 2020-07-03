@@ -1,7 +1,5 @@
 use passes::{component, BuildState, ComponentId, InitParamPass, SystemState, TransitionIter};
-use std::fs::File;
 use syshelpers::emit_file;
-use tar::Builder;
 
 #[derive(Debug, Clone)]
 pub enum ArgsValType {
@@ -109,25 +107,26 @@ struct initargs __initargs_root = {{ type: ARGS_IMPL_KV, d: {{ kv_ent: &__initar
 // The key within the initargs for the tarball, the path of the
 // tarball, and the set of paths to the files to include in the
 // tarball and name of them within the tarball.
-fn tarball_create(
-    tarball_key: &String,
-    tar_path: &String,
-    contents: Vec<(String, String)>,
-) -> Result<(), String> {
-    let file = File::create(&tar_path).unwrap();
-    let mut ar = Builder::new(file);
-    let key = format!("{}/", tarball_key);
+// use tar::Builder;
+// fn tarball_create(
+//     tarball_key: &String,
+//     tar_path: &String,
+//     contents: Vec<(String, String)>,
+// ) -> Result<(), String> {
+//     let file = File::create(&tar_path).unwrap();
+//     let mut ar = Builder::new(file);
+//     let key = format!("{}/", tarball_key);
 
-    ar.append_dir(&key, &key).unwrap(); // FIXME: error handling
-    contents.iter().for_each(|(p, n)| {
-        // file path, and name for the tarball
-        let mut f = File::open(p).unwrap(); //  should not fail: we just built this, TODO: fix race
-        ar.append_file(format!("{}/{}", tarball_key, n), &mut f)
-            .unwrap(); // FIXME: error handling
-    });
-    ar.finish().unwrap(); // FIXME: error handling
-    Ok(())
-}
+//     ar.append_dir(&key, &key).unwrap(); // FIXME: error handling
+//     contents.iter().for_each(|(p, n)| {
+//         // file path, and name for the tarball
+//         let mut f = File::open(p).unwrap(); //  should not fail: we just built this, TODO: fix race
+//         ar.append_file(format!("{}/{}", tarball_key, n), &mut f)
+//             .unwrap(); // FIXME: error handling
+//     });
+//     ar.finish().unwrap(); // FIXME: error handling
+//     Ok(())
+// }
 
 fn initargs_create(initargs_path: &String, kvs: &Vec<ArgsKV>) -> Result<(), String> {
     let top = ArgsKV::new_top(kvs.clone());

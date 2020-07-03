@@ -107,10 +107,6 @@ impl SystemState {
         self.invs.get(id).unwrap().as_ref()
     }
 
-    pub fn computed_invs(&self) -> bool {
-        !self.invs.is_empty()
-    }
-
     pub fn get_constructor(&self) -> &dyn ConstructorPass {
         &**(self.constructor.as_ref().unwrap())
     }
@@ -246,11 +242,6 @@ pub fn deps<'a>(s: &'a SystemState, id: &ComponentId) -> &'a Vec<Dependency> {
     s.get_spec().deps_named(name)
 }
 
-pub fn libs<'a>(s: &'a SystemState, id: &ComponentId) -> &'a Vec<Library> {
-    let name = s.get_named().ids().get(&id).unwrap();
-    s.get_spec().libs_named(name)
-}
-
 pub fn exports<'a>(s: &'a SystemState, id: &ComponentId) -> &'a Vec<Export> {
     let name = s.get_named().ids().get(&id).unwrap();
     s.get_spec().exports_named(name)
@@ -266,7 +257,6 @@ pub fn exports<'a>(s: &'a SystemState, id: &ComponentId) -> &'a Vec<Export> {
 pub enum ServiceType {
     Scheduler,
     CapMgr,
-    MemMgr,
     Constructor,
 }
 
@@ -277,7 +267,6 @@ pub enum ServiceType {
 pub enum ServiceClients {
     Scheduler(Vec<ComponentId>),
     CapMgr(Vec<ComponentId>),
-    MemMgr(Vec<ComponentId>),
     Constructor(Vec<ComponentId>),
 }
 
@@ -285,7 +274,6 @@ pub enum ServiceClients {
 pub enum ServiceProvider {
     Scheduler(ComponentId),
     CapMgr(ComponentId),
-    MemMgr(ComponentId),
     Constructor(ComponentId),
 }
 

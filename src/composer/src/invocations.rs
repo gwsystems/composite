@@ -1,5 +1,5 @@
 use passes::{
-    component, deps, exports, libs, BuildState, ComponentId, InvocationsPass, SInv, SystemState,
+    component, deps, BuildState, ComponentId, InvocationsPass, SInv, SystemState,
     TransitionIter,
 };
 
@@ -10,7 +10,6 @@ pub struct Invocations {
 fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String> {
     let mut invs = Vec::new();
     let mut errors = String::from("");
-    let spec = s.get_spec();
 
     // find each undefined symbol
     for (sname, symbinfo) in s.get_objs_id(id).client_symbs() {
@@ -69,7 +68,7 @@ impl TransitionIter for Invocations {
     fn transition_iter(
         id: &ComponentId,
         s: &SystemState,
-        b: &mut dyn BuildState,
+        _b: &mut dyn BuildState,
     ) -> Result<Box<Self>, String> {
         let curr = s.get_named().ids().get(id).unwrap();
         let mut invs = Vec::new();

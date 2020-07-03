@@ -57,7 +57,7 @@ pub fn exec() -> Result<(), String> {
         .get_named()
         .ids()
         .iter()
-        .map(|(k, v)| k.clone())
+        .map(|(k, _)| k.clone())
         .rev()
         .collect();
     for c_id in reverse_ids.iter() {

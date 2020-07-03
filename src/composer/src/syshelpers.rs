@@ -28,7 +28,7 @@ pub fn dump_file(name: &String) -> Result<Vec<u8>, String> {
     }
 
     let mut buf = Vec::new();
-    if file.unwrap().read_to_end(&mut buf).unwrap() < 0 {
+    if file.unwrap().read_to_end(&mut buf).is_err() {
         return Err(String::from(format!("Could not read data out of file {}.", &name)))
     } else {
         Ok(buf)
@@ -62,7 +62,7 @@ pub fn reset_dir(dirname: &String) -> Result<(), String> {
 }
 
 pub fn dir_exists(dirname: &String) -> bool {
-    if let Err(e) = fs::read_dir(&dirname) {
+    if let Err(_) = fs::read_dir(&dirname) {
         false
     } else {
         true

@@ -53,33 +53,12 @@ pub struct TomlSpecification {
 }
 
 impl Dep {
-    pub fn new(name: String) -> Dep {
-        Dep {
-            srv: name.clone(),
-            interface: "".to_string(),
-            variant: None,
-        }
-    }
-
     pub fn get_name(&self) -> String {
         self.srv.clone()
     }
 }
 
 impl TomlComponent {
-    pub fn new(name: String, img: String) -> TomlComponent {
-        TomlComponent {
-            name: name,
-            img: img,
-            baseaddr: None,
-            deps: Some(Vec::new()),
-            implements: None,
-            params: None,
-            initfs: None,
-            constructor: String::from(""),
-        }
-    }
-
     fn update_options(&mut self) -> () {
         if self.deps.is_none() {
             let vs = Vec::new();
@@ -100,26 +79,6 @@ impl TomlComponent {
 
     pub fn interfaces(&self) -> &Vec<InterfaceVariant> {
         self.implements.as_ref().unwrap()
-    }
-
-    pub fn img(&self) -> &String {
-        &self.img
-    }
-
-    pub fn name(&self) -> &String {
-        &self.name
-    }
-
-    pub fn baseaddr(&self) -> &Option<String> {
-        &self.baseaddr
-    }
-
-    pub fn params(&self) -> &Option<Vec<Parameters>> {
-        &self.params
-    }
-
-    pub fn initfs(&self) -> &Option<String> {
-        &self.initfs
     }
 }
 
@@ -276,10 +235,6 @@ impl TomlSpecification {
         &mut self.components
     }
 
-    pub fn resolve_dep(&self, name: String) -> Option<&TomlComponent> {
-        self.components.iter().filter(|c| name == c.name).next()
-    }
-
     pub fn parse(sysspec_path: &String) -> Result<TomlSpecification, String> {
         let conf = dump_file(&sysspec_path)?;
         // This is BRAIN DEAD.  There has to be a better way to get a str
@@ -301,15 +256,6 @@ impl TomlSpecification {
 
         Ok(cossys)
     }
-
-    pub fn empty() -> TomlSpecification {
-        TomlSpecification {
-            system: SysInfo {
-                description: String::from(""),
-            },
-            components: Vec::new(),
-        }
-    }
 }
 
 pub struct SystemSpec {
@@ -320,20 +266,8 @@ pub struct SystemSpec {
     exports: HashMap<ComponentName, Vec<Export>>,
 }
 
-impl SystemSpec {
-    fn new() -> Self {
-        SystemSpec {
-            ids: Vec::new(),
-            components: HashMap::new(),
-            deps: HashMap::new(),
-            libs: HashMap::new(),
-            exports: HashMap::new(),
-        }
-    }
-}
-
 impl Transition for SystemSpec {
-    fn transition(s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
+    fn transition(s: &SystemState, _b: &mut dyn BuildState) -> Result<Box<Self>, String> {
         let spec_err = TomlSpecification::parse(&s.get_input());
         if let Err(e) = spec_err {
             return Err(e);

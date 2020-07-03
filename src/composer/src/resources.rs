@@ -1,110 +1,9 @@
 use initargs::ArgsKV;
 use passes::{
-    component, deps, BuildState, ComponentId, Interface, PropertiesPass, ResPass, ServiceType,
+    component, BuildState, ComponentId, PropertiesPass, ResPass, ServiceType,
     SystemState, Transition,
 };
 use std::collections::{BTreeMap, HashMap};
-
-pub type CoreNum = u32;
-
-// resources allocated in slices
-pub struct RateSlice {
-    slice: u32,
-    prio: u32,
-}
-
-// resources allocated over finite or infinite window of time
-pub enum RateWindow {
-    Window(u32),
-    Inf,
-}
-
-// For each core, what temporal partitions are required?
-pub struct CPUPartition {
-    window: RateWindow,
-    slices: HashMap<u32, RateSlice>, // component -> allocation
-}
-
-pub struct Rate {
-    slice: RateSlice,
-    window: RateWindow,
-}
-
-pub struct SchedParam {
-    alloc: Option<Rate>,
-}
-
-// The assignment of components to cores. Which cores are they allowed
-// to create exectution on? Note that this information also needs to
-// get passed to the components themselves.
-pub struct CoreAssignment {
-    cores: HashMap<CoreNum, SchedParam>,
-}
-
-// Memory is allocated either as a finite span of memory, or as "the
-// rest" to consume remaining system memory. This is the user-level
-// memory, and the capability manager is in charge of managing
-// untyped/kernel memory.
-pub enum MemAmnt {
-    Span(u32), // should be a multiple of PAGE_SIZE
-    Remaining,
-}
-
-// The mkimg representation of the system's resources, and which
-// components are in charge of which resources for which other
-// components.
-pub enum Resource {
-    // Initial execution set of components for which this component
-    // provides bootup services. This requires the component to
-    // statically know about the component and access/create to
-    // component, page-tables, and capability tables.
-    Bootup(Vec<ComponentId>),
-    // This component is responsible for scheduling the specified set
-    // of components. Specifically, this includes the execution of
-    // cos_init and the synchronization of execution in order of
-    // dependencies, and after cos_init executes for each, this
-    // includes the scheduling of the main/other thread execution.
-    // This requires scheduling and all of its inherent
-    // complexity. The scheduler requires the ability to make threads,
-    // tcaps, snd/arcv end-points in other components (directly or
-    // though another component), and direct access to the thread
-    // capabilities. These are also determined by the "init"
-    // interface.
-    Sched(HashMap<ComponentId, CoreAssignment>),
-    // Static partitioning of CPU. Set of components to which this
-    // component provides static execution rate allocations using
-    // tcaps. This represents temporal partitioning. We assume that a
-    // single window over which allocations are made is shared by all
-    // components. This could be generalized by ensuring separate
-    // windows have a reasonable least common multiple. This is
-    // determined entirely by the specification in the runscript, and
-    // this component must be responsible for initial execution.
-    ExecPartition(HashMap<CoreNum, CPUPartition>),
-    // The component provides dynamic memory allocation and management
-    // to the set of components. This requires that it have access to
-    // their page-tables (at least indirectly), and know the set of
-    // components to which it is providing memory servies. This is
-    // determined by the "mem" interface.
-    DynMem(HashMap<ComponentId, MemAmnt>),
-    // Static memory partitions this component should give to
-    // other components. These are strong partitions that split the
-    // system's physical memory between the partitions. They remove
-    // shared memory opportunities, unless one of the partitions
-    // coordinates that for the others. This requires an understanding
-    // of which components it should provide memory, and how much. It
-    // requires access to their page-tables, and, as we're using the
-    // boot-time capability-table format, access to the capability
-    // table as well. For now, this partitioning is only of user-typed
-    // memory. This is determined by the runscript.
-    MemPartition(HashMap<ComponentId, MemAmnt>),
-    // The set of components for which this component provides
-    // capability management. This component is required to provide
-    // the ability to allocate different system resources for the set
-    // of other components which means it has to have access to their
-    // capability tables, and untyped/kernel memory. This is
-    // determined by the "cap" interface.
-    Cap(Vec<ComponentId>),
-}
 
 // Resource must be allocated and delegated to populate the resource
 // tables for each component, and determine which is in charge of
@@ -114,18 +13,13 @@ enum CapRes {
     CapTbl(ComponentId),
     PgTbl(ComponentId),
     Comp(ComponentId),
-    Thd(ComponentId),
-    SInv, // only used to lookup its size
-    TCap(ComponentId),
-    Rcv(ComponentId), // ...
 }
 
 // The equivalent of the C __captbl_cap2sz(c)
 fn cap_sz(cap: &CapRes) -> u32 {
     match cap {
-        CapRes::Thd(_) | CapRes::TCap(_) => 1,
         CapRes::CapTbl(_) | CapRes::PgTbl(_) => 2,
-        CapRes::Rcv(_) | CapRes::SInv | CapRes::Comp(_) => 4,
+        CapRes::Comp(_) => 4,
     }
 }
 
@@ -136,7 +30,6 @@ fn cap_info(c: &CapRes) -> (String, ComponentId) {
         CapRes::CapTbl(id) => ("captbl".to_string(), id),
         CapRes::PgTbl(id) => ("pgtbl".to_string(), id),
         CapRes::Comp(id) => ("comp".to_string(), id),
-        _ => unimplemented!("Capabilities other than pgtbl, captbl, and component not supported"),
     };
 
     (n, *id)
@@ -191,13 +84,9 @@ impl CompConfigState {
             args: Vec::new(),
         }
     }
-
-    fn get_args(&self) -> &Vec<ArgsKV> {
-        &self.args
-    }
 }
 
-fn comp_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {}
+fn comp_config(_s: &SystemState, _id: &ComponentId, _cfg: &mut CompConfigState) {}
 
 fn sched_config_serv_client(s: &SystemState, id: &ComponentId) -> Vec<ArgsKV> {
     let mut init = Vec::new();
@@ -273,7 +162,6 @@ fn capmgr_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
         return;
     }
 
-    let parent = props.service_dependency(&id, ServiceType::Scheduler);
     let mut clients = props
         .service_clients(&id, ServiceType::Scheduler)
         .map(|cs| cs.clone()) // get rid of the reference
@@ -306,7 +194,7 @@ fn capmgr_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
         cfg.ct.add(CapRes::Comp(*c));
 
         // scheduler hierarchy
-        if (props.service_is_a(&c, ServiceType::Scheduler)) {
+        if props.service_is_a(&c, ServiceType::Scheduler) {
             let p = props.service_dependency(&c, ServiceType::Scheduler);
 
             // at the least, the capmgr should be the parent
@@ -393,7 +281,7 @@ fn constructor_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigSta
     // FIXME: move some of the build.rs logic for constructor creation here.
 }
 
-fn comp_config_finalize(s: &SystemState, id: &ComponentId, cfg: CompConfigState) -> Vec<ArgsKV> {
+fn comp_config_finalize(_s: &SystemState, _id: &ComponentId, cfg: CompConfigState) -> Vec<ArgsKV> {
     let frontier = cfg.ct.get_frontier();
     let mut cfg_mut = cfg;
 
@@ -412,11 +300,10 @@ pub struct ResAssignPass {
 }
 
 impl Transition for ResAssignPass {
-    fn transition(s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
-        let prop = s.get_properties();
+    fn transition(s: &SystemState, _b: &mut dyn BuildState) -> Result<Box<Self>, String> {
         let mut res = HashMap::new();
 
-        for (k, v) in s.get_named().ids().iter() {
+        for (k, _v) in s.get_named().ids().iter() {
             let mut cfg = CompConfigState::new();
 
             // capmgr configuration must be first, and before

@@ -17,7 +17,7 @@ impl OrderedSpecPass for CompTotOrd {
 }
 
 impl Transition for CompTotOrd {
-    fn transition(s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
+    fn transition(s: &SystemState, _b: &mut dyn BuildState) -> Result<Box<Self>, String> {
         let spec = s.get_spec();
 
         // Find a total order of components based on the dependency
