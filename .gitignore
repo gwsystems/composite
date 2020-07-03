@@ -16,7 +16,7 @@
 composite_new
 *.out
 tags
-src/components/lib/musl-1.1.11/bin/musl-gcc
+src/components/lib/libc/musl-1.1.11/bin/musl-gcc
 src/kernel/include/shared/cpu_ghz.h
 src/Makefile.cosconfig
 src/.PLATFORM_ID

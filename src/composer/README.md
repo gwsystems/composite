@@ -4,13 +4,13 @@ As Composite is a component-based system, it requires a specification that binds
 The Composite build, linking, and runtime can be summarized as such:
 
 - `make` - compile all components with exported and depended on interfaces
-- `mkimg <sysspec>` - take a specification of the runtime system including a subset of the components in `src/components/implementation/*/*`, and:
+- `compose <sysspec>` - take a specification of the runtime system including a subset of the components in `src/components/implementation/*/*`, and:
 	- link them according to specified dependencies;
 	- generate an executable component binary for each of them, and the information required to link them together via synchronous invocations; and
 	- generate the image of the booter along with all of the component binaries and dependencies
 - `booter` - when the system is booted, and the booter executes, it will load the components into separate address spaces, and start executing them
 
-This program essentially captures the `mkimg` step, but also integrates closely with the `booter` to ensure that the components are correctly loaded.
+This program essentially captures the `compose` step, but also integrates closely with the `booter` to ensure that the components are correctly loaded.
 
 # TODO
 

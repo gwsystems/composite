@@ -1,6 +1,6 @@
 - Do a compilation of each component with libc and associated, necessary libraries to try and find all compilation errors.
-    Then remove it, and re-link with mkimg.
-	Note that removing it is optional, and if done, should be done by mkimg to enable `nm` and `objdump` introspection.
+    Then remove it, and re-link with composer.
+	Note that removing it is optional, and if done, should be done by composer to enable `nm` and `objdump` introspection.
 - Separate out a set of general configuration #define variables, and a set of component-specific #define variables that can specialize the component to its environment.
 	Then enable these to be specified by the system specification, or derived from the graph.
 	When compiling each separate component, enable these to be fed in to generate components that are specialized to their environment (e.g. static allocations of exactly the right size, thread pools of the right size based on hierarchy location, etc...)

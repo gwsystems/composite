@@ -1,5 +1,5 @@
 [package]
-name = "mkimg"
+name = "compose"
 version = "0.1.0"
 authors = ["Gabe Parmer <gparmer@gwu.edu>"]
 
