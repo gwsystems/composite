@@ -25,3 +25,4 @@ fi
 mkdir $LIBNAME
 cp skel/* $LIBNAME/
 sed -i 's/SKEL/'`echo $LIBNAME`'/g' $LIBNAME/Makefile
+sed -i 's/SKEL/'`echo $LIBNAME`'/g' $LIBNAME/doc.md

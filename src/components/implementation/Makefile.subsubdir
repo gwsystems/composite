@@ -113,7 +113,6 @@ component: clean comp_header $(COMPOBJ)
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
-
 .PHONY: clean
 clean:
 	$(info |     [RM]   Cleaning up implementation directory for component $(COMPNAME))
