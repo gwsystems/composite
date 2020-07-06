@@ -4,6 +4,7 @@ use passes::{component, deps, exports, BuildState, ComponentId, SystemState};
 use std::fs::File;
 use syshelpers::{dir_exists, emit_file, exec_pipeline, reset_dir};
 use tar::Builder;
+use std::env;
 
 // Interact with the composite build system to "seal" the components.
 // This requires linking them with all dependencies, and with libc,
@@ -60,7 +61,7 @@ fn tarball_create(
 ) -> Result<(), String> {
     let file = File::create(&tar_path).unwrap();
     let mut ar = Builder::new(file);
-    let dir_template = env!("PWD"); // just need *some* directory with read/write perms
+    let dir_template = env::current_dir().unwrap(); // just need *some* directory with read/write perms
     let key = format!("{}/", tarball_key);
 
     ar.append_dir(&key, &dir_template).unwrap(); // FIXME: error handling
@@ -219,7 +220,7 @@ fn comp_gen_make_cmd(
     assert!(decomp.len() == 2);
     let name = format!("{}.{}", &c.name.scope_name, &c.name.var_name);
 
-    let cmd = format!(r#"make -C ../ COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={} {} component"#,
+    let cmd = format!(r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={} {} component"#,
                       if_exp, if_deps, &decomp[0], &decomp[1], &name, output_name, &c.base_vaddr, &optional_cmds);
 
     cmd
@@ -227,7 +228,7 @@ fn comp_gen_make_cmd(
 
 fn kern_gen_make_cmd(input_constructor: &String, kern_output: &String, _s: &SystemState) -> String {
     format!(
-        r#"make -C ../ KERNEL_OUTPUT="{}" CONSTRUCTOR_COMP="{}" plat"#,
+        r#"make -C src KERNEL_OUTPUT="{}" CONSTRUCTOR_COMP="{}" plat"#,
         kern_output, input_constructor
     )
 }
@@ -254,8 +255,9 @@ fn compdir_check_build(comp_dir: &String) -> Result<(), String> {
 }
 
 impl BuildState for DefaultBuilder {
-    fn initialize(&mut self, name: &String, s: &SystemState) -> Result<(), String> {
-        let dir = format!("{}/cos_build-{}-{}", env!("PWD"), s.get_input(), name);
+    fn initialize(&mut self, name: &String, _s: &SystemState) -> Result<(), String> {
+        let pwd = env::current_dir().unwrap();
+        let dir = format!("{}/system_binaries/cos_build-{}", pwd.display(), name);
 
         reset_dir(&dir)?;
         self.builddir = dir;
