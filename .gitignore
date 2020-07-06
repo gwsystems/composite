@@ -36,3 +36,6 @@ src/components/lib/ck/include
 src/components/lib/ck/lib
 src/components/lib/ck/share
 src/mkimg/cos_build-*
+
+src/kernel/include/chal
+src/components/lib/libc/musl-1.1.11/bin/
