@@ -6,6 +6,11 @@ binary=
 
 build()
 {
+    if ! [ -r "src/.PLATFORM_ID" ]; then
+	echo "Must \"cos init\" before \"cos build\"."
+	exit 2
+    fi
+
     echo "[cos executing] make -C src all"
     make -C src all
 }
