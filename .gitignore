@@ -35,4 +35,5 @@ provision.sh
 src/components/lib/ck/include
 src/components/lib/ck/lib
 src/components/lib/ck/share
-doc/dev_manual/resources/*.pdf
+doc/dev_guide/composite_dev_manual.pdf
+doc/dev_guide/resources/*.pdf
