@@ -154,6 +154,11 @@ lib/libc.a: $(OBJS)
 	rm -f $@
 	$(AR) rc $@ $(OBJS)
 	$(RANLIB) $@
+	echo "musl-gcc & musl-gcc.specs not built for cross-compile"
+	sh tools/musl-gcc.specs.sh "$(includedir)" "$(libdir)" "$(LDSO_PATHNAME)" > lib/musl-gcc.specs
+	printf '#!/bin/sh\nexec "$${REALGCC:-$(WRAPCC_GCC)}" "$$@" -specs "%s/musl-gcc.specs"\n' "$(libdir)" > tools/musl-gcc
+	chmod +x tools/musl-gcc
+
 
 $(EMPTY_LIBS):
 	rm -f $@
@@ -163,11 +168,13 @@ lib/%.o: crt/%.o
 	cp $< $@
 
 lib/musl-gcc.specs: tools/musl-gcc.specs.sh config.mak
-	sh $< "$(includedir)" "$(libdir)" "$(LDSO_PATHNAME)" > $@
+	echo "Not invoked!"
+#	sh $< "$(includedir)" "$(libdir)" "$(LDSO_PATHNAME)" > $@
 
 tools/musl-gcc: config.mak
-	printf '#!/bin/sh\nexec "$${REALGCC:-$(WRAPCC_GCC)}" "$$@" -specs "%s/musl-gcc.specs"\n' "$(libdir)" > $@
-	chmod +x $@
+	echo "Not invoked!"
+#	printf '#!/bin/sh\nexec "$${REALGCC:-$(WRAPCC_GCC)}" "$$@" -specs "%s/musl-gcc.specs"\n' "$(libdir)" > $@
+#	chmod +x $@
 
 tools/%-clang: tools/%-clang.in config.mak
 	sed -e 's!@CC@!$(WRAPCC_CLANG)!g' -e 's!@PREFIX@!$(prefix)!g' -e 's!@INCDIR@!$(includedir)!g' -e 's!@LIBDIR@!$(libdir)!g' -e 's!@LDSO@!$(LDSO_PATHNAME)!g' $< > $@

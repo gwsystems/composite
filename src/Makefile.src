@@ -9,14 +9,17 @@ TOP_DIR=$(CODE_DIR)
 KDIR=$(TOP_DIR)/kernel/
 KINC=$(TOP_DIR)/kernel/include/
 SHAREDINC=$(TOP_DIR)/kernel/include/shared/
+CHALSHAREDINC=$(TOP_DIR)/kernel/include/chal/shared/
 CDIR=$(TOP_DIR)/components/
 
 # tools
 MAKE=make
-CC=gcc
-AR=ar
-LD=ld
+CC=$(CROSS_COMPILE)gcc
+AR=$(CROSS_COMPILE)ar
+LD=$(CROSS_COMPILE)ld
 AS=$(CC)
 MV=mv
 CP=cp
 RM=rm
+PLAT_FILE=$(TOP_DIR)/.PLATFORM_ID
+PLATFORM=$(shell cat $(PLAT_FILE))

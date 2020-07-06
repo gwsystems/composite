@@ -15,8 +15,8 @@
 #define TYPES_H
 
 #include "./consts.h"
-#include "./cos_config.h"
-#include "./chal_config.h"
+#include "../chal/shared/cos_config.h"
+#include "../chal/chal_config.h"
 
 #ifndef LLONG_MAX
 #define LLONG_MAX 9223372036854775807LL
@@ -126,6 +126,11 @@ typedef enum {
 	CAPTBL_OP_HW_CYC_USEC,
 	CAPTBL_OP_HW_CYC_THRESH,
 	CAPTBL_OP_HW_SHUTDOWN,
+	CAPTBL_OP_HW_TLB_LOCKDOWN,
+	CAPTBL_OP_HW_L1FLUSH,
+	CAPTBL_OP_HW_TLBFLUSH,
+	CAPTBL_OP_HW_TLBSTALL,
+	CAPTBL_OP_HW_TLBSTALL_RECOUNT
 } syscall_op_t;
 
 typedef enum {
@@ -252,9 +257,12 @@ enum
 	BOOT_CAPTBL_PHYSM_PTE       = 16,
 	BOOT_CAPTBL_KM_PTE          = 18,
 
-	BOOT_CAPTBL_SINV_CAP           = 20,
-	BOOT_CAPTBL_SELF_INITHW_BASE   = 24,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
+	BOOT_CAPTBL_COMP0_CT           = 20,
+	BOOT_CAPTBL_COMP0_PT           = 22,
+	BOOT_CAPTBL_COMP0_COMP         = 24,
+	BOOT_CAPTBL_SINV_CAP           = 28,
+	BOOT_CAPTBL_SELF_INITHW_BASE   = 32,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 36,
 	/*
 	 * NOTE: kernel doesn't support sharing a cache-line across cores,
 	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU
@@ -335,8 +343,6 @@ enum
  * separately in user(cos_component.h) and kernel(per_cpu.h).*/
 #define PERCPU_GET(name) (&(name[GET_CURR_CPU].name))
 #define PERCPU_GET_TARGET(name, target) (&(name[target].name))
-
-#define COS_SYSCALL __attribute__((regparm(0)))
 
 #ifndef NULL
 #define NULL ((void *)0)

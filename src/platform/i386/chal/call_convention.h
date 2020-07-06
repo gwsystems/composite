@@ -123,4 +123,19 @@ copy_all_regs(struct pt_regs *from, struct pt_regs *to)
 #undef COPY_REG
 }
 
+static inline void
+regs_upcall_setup(struct pt_regs *r, u32_t entry_addr, int option, int id, int arg1, int arg2, int arg3)
+{
+	r->cx = option;
+
+	r->bx = arg1;
+	r->di = arg2;
+	r->si = arg3;
+
+	r->ip = r->dx = entry_addr;
+	r->ax         = id | (get_cpuid() << 16); // thd id + cpu id
+
+	return;
+}
+
 #endif /* CALL_CONVENTION_H */

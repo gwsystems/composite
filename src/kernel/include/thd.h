@@ -92,18 +92,7 @@ struct cap_thd {
 static void
 thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
 {
-	struct pt_regs *r = &thd->regs;
-
-	r->cx = option;
-
-	r->bx = arg1;
-	r->di = arg2;
-	r->si = arg3;
-
-	r->ip = r->dx = entry_addr;
-	r->ax         = thd->tid | (get_cpuid() << 16); // thd id + cpu id
-
-	return;
+	regs_upcall_setup(&thd->regs, entry_addr, option, thd->tid | (get_cpuid() << 16), arg1, arg2, arg3);
 }
 
 /*

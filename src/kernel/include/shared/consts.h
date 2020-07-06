@@ -14,35 +14,19 @@
 #define CONSTS_H
 
 #include "cos_errno.h"
-#include "cos_config.h"
+#include "../chal/shared/cos_config.h"
 
 #ifndef __ASM__
 #ifdef __KERNEL__
 #include <linux/thread_info.h> /* for PAGE_SIZE */
 #else
-struct pt_regs {
-	long bx;
-	long cx;
-	long dx;
-	long si;
-	long di;
-	long bp;
-	long ax;
-	long ds;
-	long es;
-	long fs;
-	long gs;
-	long orig_ax;
-	long ip;
-	long cs;
-	long flags;
-	long sp;
-	long ss;
-};
-// struct pt_regs { int dummy[16]; };
+#include "../chal/shared/chal_consts.h"
 #endif
 #endif
+#define MAX_PA_LIMIT     (1ULL << 32)
 #define PAGE_ORDER 12
+#define SUPER_PAGE_ORDER 22
+#define MAX_PA_LIMIT     (1ULL << 32)
 #ifndef __KERNEL__
 #ifndef PAGE_SIZE
 #define PAGE_SIZE (1 << PAGE_ORDER)
@@ -139,5 +123,8 @@ struct pt_regs {
 #define CPUID_OFFSET 1
 #define THDID_OFFSET 2
 #define INVTOKEN_OFFSET 3
+
+/* FIXME: Info on superpage mappings - this should be passed from kernel to userlevel! */
+#define TEST_SUPERPAGE_FRAME    0x10400000
 
 #endif

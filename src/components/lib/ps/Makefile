@@ -59,7 +59,6 @@ CINC_ENV = $(CINC) $(DEPENDENCY_INCPATH)
 CFLAGS   = $(CINC_ENV)
 export CINC_ENV
 export CFLAGS
-# Note that these are used during the ps compilation processes
 
 all: config
 	$(info Building ps library...)
@@ -73,9 +72,15 @@ clean_lib:
 # need to make sure the ps_plat.h is always available
 clean: clean_lib config
 
-config:
-	$(info Configuring the ps library)
+cav7_config:
+	$(info Configuring the ps library for cav7)
+	@cd ps; ./configure cos cav7 general; cd ..
+
+i386_config:
+	$(info Configuring the ps library for x86)
 	@cd ps; ./configure cos x86 general; cd ..
+
+config: $(PLATFORM)_config
 	make -s -C ps config
 
 init: clean config

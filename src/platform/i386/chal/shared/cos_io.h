@@ -1,5 +1,5 @@
-#ifndef IO_H
-#define IO_H
+#ifndef COS_IO_H
+#define COS_IO_H
 
 /**
  * Write byte to specific port
@@ -23,4 +23,4 @@ inb(u16_t port)
 	return ret;
 }
 
-#endif /* IO_H */
+#endif /* COS_IO_H */

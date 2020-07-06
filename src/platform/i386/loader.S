@@ -1,4 +1,4 @@
-#include <shared/cos_config.h>
+#include <chal/shared/cos_config.h>
 #include "chal_asm_inc.h"
 
 .set MULTIBOOT_PAGE_ALIGN,  1<<0

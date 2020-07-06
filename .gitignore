@@ -16,9 +16,9 @@
 composite_new
 *.out
 tags
-src/components/lib/musl-1.1.11/bin/musl-gcc
-src/kernel/include/shared/cpu_ghz.h
+src/kernel/include/chal/shared/cpu_ghz.h
 src/Makefile.cosconfig
+src/Makefile.arch
 src/.PLATFORM_ID
 modules.order
 .depend
@@ -35,3 +35,4 @@ provision.sh
 src/components/lib/ck/include
 src/components/lib/ck/lib
 src/components/lib/ck/share
+src/mkimg/cos_build-*

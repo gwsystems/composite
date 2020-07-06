@@ -479,7 +479,6 @@ syscall_emulation_setup(void)
 	libc_syscall_override((cos_syscall_t)cos_writev, __NR_writev);
 	libc_syscall_override((cos_syscall_t)cos_ioctl, __NR_ioctl);
 	libc_syscall_override((cos_syscall_t)cos_brk, __NR_brk);
-	libc_syscall_override((cos_syscall_t)cos_mmap, __NR_mmap);
 	libc_syscall_override((cos_syscall_t)cos_mmap, __NR_mmap2);
 	libc_syscall_override((cos_syscall_t)cos_munmap, __NR_munmap);
 	libc_syscall_override((cos_syscall_t)cos_madvise, __NR_madvise);
@@ -492,7 +491,10 @@ syscall_emulation_setup(void)
 
 	libc_syscall_override((cos_syscall_t)cos_gettid, __NR_gettid);
 	libc_syscall_override((cos_syscall_t)cos_tkill, __NR_tkill);
+#if defined(__x86__)
+	libc_syscall_override((cos_syscall_t)cos_mmap, __NR_mmap);
 	libc_syscall_override((cos_syscall_t)cos_set_thread_area, __NR_set_thread_area);
+#endif
 	libc_syscall_override((cos_syscall_t)cos_set_tid_address, __NR_set_tid_address);
 	libc_syscall_override((cos_syscall_t)cos_clone, __NR_clone);
 	libc_syscall_override((cos_syscall_t)cos_futex, __NR_futex);

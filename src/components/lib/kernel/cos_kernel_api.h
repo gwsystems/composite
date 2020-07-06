@@ -166,6 +166,7 @@ int cos_sinv_2rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t
 vaddr_t cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
 vaddr_t cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz);
 int     cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);
+int     cos_mem_alias_atn(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, size_t sz);
 vaddr_t cos_mem_move(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
 int     cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);
 int     cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
@@ -193,6 +194,11 @@ int     cos_hw_detach(hwcap_t hwc, hwid_t hwid);
 void   *cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
 int     cos_hw_cycles_per_usec(hwcap_t hwc);
 int     cos_hw_cycles_thresh(hwcap_t hwc);
+int     cos_hw_tlb_lockdown(hwcap_t hwc, unsigned long entryid, unsigned long vaddr, unsigned long paddr);
+int     cos_hw_l1flush(hwcap_t hwc);
+int     cos_hw_tlbflush(hwcap_t hwc);
+int     cos_hw_tlbstall(hwcap_t hwc);
+int     cos_hw_tlbstall_recount(hwcap_t hwc);
 void    cos_hw_shutdown(hwcap_t hwc);
 
 

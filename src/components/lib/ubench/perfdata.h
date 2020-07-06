@@ -9,6 +9,7 @@
 
 #include <cos_debug.h>
 #include <llprint.h>
+#include <errno.h>
 
 #ifndef PERF_VAL_MAX_SZ
 #define PERF_VAL_MAX_SZ    10000

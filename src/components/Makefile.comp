@@ -1,8 +1,9 @@
 # include ../../../Makefile.inc first!
+include ../Makefile.arch
 
-ARCH_CFLAGS =-m32 -D__x86__
-ARCH_ASFLAGS=$(ARCH_CFLAGS)
-ARCH_LDFLAGS=-melf_i386
+#ARCH_CFLAGS =-m32 -D__x86__
+#ARCH_ASFLAGS=$(ARCH_CFLAGS)
+#ARCH_LDFLAGS=-melf_i386
 
 IMPLDIR=$(CDIR)/implementation/
 INTERDIR=$(CDIR)/interface/
@@ -13,7 +14,7 @@ MUSLBIN=$(MUSLDIR)/bin
 MUSLCC=$(MUSLBIN)/musl-$(CC)
 MUSLINC=-isystem$(MUSLDIR)/include
 
-CINC=-I. -I$(SHAREDINC)
+CINC=-I. -I$(SHAREDINC) -I$(CHALSHAREDINC)
 
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic -fno-pie
 OPT= -g -fvar-tracking

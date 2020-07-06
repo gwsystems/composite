@@ -5,7 +5,7 @@ LD := ld -m elf_i386
 AS := as --32 -g
 
 INCPATH := ../../kernel/include
-INCS    := -I$(INCPATH) -I$(INCPATH)/shared/
+INCS    := -I$(INCPATH) -I$(INCPATH)/shared/ -I$(INCPATH)/chal/
 CFLAGS  := -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone $(INCS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
@@ -48,6 +48,7 @@ OBJS += miniacpi.o
 OBJS += vga.o
 OBJS += exception.o
 OBJS += lapic.o
+OBJS += chal_pgtbl.o
 
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o

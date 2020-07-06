@@ -153,6 +153,41 @@ err:
 	return ret;
 }
 
+
+int
+captbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl)
+{
+	unsigned long *    intern, old_v;
+	u32_t l;
+	struct cap_captbl *ct = (struct cap_captbl *)head;
+
+	if (lvl <= ct->lvl) return -EINVAL;
+	intern = captbl_lkup_lvl(ct->captbl, pruneid, ct->lvl, lvl);
+	if (!intern) return -ENOENT;
+	old_v = *intern;
+
+	if (old_v == 0) return -ENOENT; /* return an error here? */
+	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
+	if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
+
+	/* FIXME: we are removing two half pages for captbl. */
+	intern = captbl_lkup_lvl(ct->captbl, pruneid + (PAGE_SIZE / 2 / CAPTBL_LEAFSZ), ct->lvl, lvl);
+	if (!intern) return -ENOENT;
+
+	old_v = *intern;
+	if (old_v == 0) return -ENOENT; /* return an error here? */
+	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
+	if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
+
+	/* decrement the refcnt */
+	ct = (struct cap_captbl *)sub;
+	l = ct->refcnt_flags;
+	if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+	cos_faa((int *)&(ct->refcnt_flags), -1);
+
+	return 0;
+}
+
 static int
 captbl_leaflvl_scan(struct captbl *ct)
 {
@@ -173,7 +208,7 @@ captbl_leaflvl_scan(struct captbl *ct)
 
 		rdtscll(curr_ts);
 		header_i = h;
-		n_ent    = CACHELINE_SIZE / ent_size;
+		n_ent    = CACHELINE_SIZE >> (l.size + CAP_SZ_OFF) ;
 
 		for (j = 0; j < n_ent; j++) {
 			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));

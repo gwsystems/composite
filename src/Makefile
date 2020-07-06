@@ -49,11 +49,6 @@ update:
 	git submodule update --init --recursive
 
 config-gen: update
-	@echo "Configuring the system with clock speed and directory structure."
-	@echo "Please view Makefile.cosconfig and kernel/include/shared/cpu_ghz.h to make sure they're accurate."
-	@echo "Do _not_ 'git add' either of these files."
-	@cat /proc/cpuinfo | grep "model name" -m 1 | sed 's/.*\([0-9]\.[0-9]*\).*/\#define CPU_GHZ \1/' > ./kernel/include/shared/cpu_ghz.h
-	@if [ -z "`cat /proc/cpuinfo | grep \"physical id\"`" ]; then echo "#define NUM_CPU_SOCKETS 1" >> ./kernel/include/shared/cpu_ghz.h; else cat /proc/cpuinfo | grep "physical id" | sort | uniq | wc -l | sed 's/.*\([0-9]\).*/\#define NUM_CPU_SOCKETS \1/' >> ./kernel/include/shared/cpu_ghz.h; fi
 	@pwd | sed 's/\(\/[a-zA-Z0-9]*\/[a-zA-Z0-9]*\/\).*/HOME_DIR=\1/' > Makefile.cosconfig
 	@echo "CODE_DIR=`pwd`" >> Makefile.cosconfig
 	@echo "TRANS_DIR=\$$(CODE_DIR)/../transfer" >> Makefile.cosconfig
@@ -64,17 +59,32 @@ config-gen: update
 # default platform is i386
 config: config-i386
 
-config-linux: config-gen
-	@echo "#define COS_PLATFORM LINUX" >> ./kernel/include/shared/cpu_ghz.h
-	@echo "#define COS_LINUX" >> ./kernel/include/shared/cpu_ghz.h
-	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/linux/module/chal/ chal
-	@echo "linux" > $(PLAT_FILE)
-
 # override the default linux chal link
 config-i386: config-gen
-	@echo "#define COS_PLATFORM I386" >> ./kernel/include/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/i386/chal/ chal
 	@echo "i386" > $(PLAT_FILE)
+	@echo "ARCH_CFLAGS = -m32 -D__x86__" >  Makefile.arch
+	@echo "ARCH_ASFLAGS= -m32 -D__x86__" >> Makefile.arch
+	@echo "ARCH_LDFLAGS=-melf_i386"      >> Makefile.arch
+	@echo "Configuring the system with clock speed and directory structure."
+	@cat /proc/cpuinfo | grep "model name" -m 1 | sed 's/.*\([0-9]\.[0-9]*\).*/\#define CPU_GHZ \1/' > ./kernel/include/chal/shared/cpu_ghz.h
+	@if [ -z "`cat /proc/cpuinfo | grep \"physical id\"`" ]; then echo "#define NUM_CPU_SOCKETS 1" >> ./kernel/include/chal/shared/cpu_ghz.h; else cat /proc/cpuinfo | grep "physical id" | sort | uniq | wc -l | sed 's/.*\([0-9]\).*/\#define NUM_CPU_SOCKETS \1/' >> ./kernel/include/chal/shared/cpu_ghz.h; fi
+	@echo "Please view Makefile.cosconfig and kernel/include/chal/shared/cpu_ghz.h to make sure they're accurate."
+	@echo "Do _not_ 'git add' either of these files."
+	@echo "#define COS_PLATFORM I386" >> ./kernel/include/chal/shared/cpu_ghz.h
+
+config-cav7: config-gen
+	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/cav7/chal/ chal
+	@echo "cav7" > $(PLAT_FILE)
+	@echo "ARCH_CFLAGS = -march=armv7-a -D__arm__" >  Makefile.arch
+	@echo "ARCH_ASFLAGS= -march=armv7-a -D__arm__" >> Makefile.arch
+	@echo "ARCH_LDFLAGS="                          >> Makefile.arch
+	@echo "Configuring the system with clock speed and directory structure."
+	@cat /proc/cpuinfo | grep "model name" -m 1 | sed 's/.*\([0-9]\.[0-9]*\).*/\#define CPU_GHZ \1/' > ./kernel/include/chal/shared/cpu_ghz.h
+	@if [ -z "`cat /proc/cpuinfo | grep \"physical id\"`" ]; then echo "#define NUM_CPU_SOCKETS 1" >> ./kernel/include/chal/shared/cpu_ghz.h; else cat /proc/cpuinfo | grep "physical id" | sort | uniq | wc -l | sed 's/.*\([0-9]\).*/\#define NUM_CPU_SOCKETS \1/' >> ./kernel/include/chal/shared/cpu_ghz.h; fi
+	@echo "Please view Makefile.cosconfig and kernel/include/chal/shared/cpu_ghz.h to make sure they're accurate."
+	@echo "Do _not_ 'git add' either of these files."
+	@echo "#define COS_PLATFORM CAV7" >> ./kernel/include/chal/shared/cpu_ghz.h
 
 run:
 ifeq ($(RUNSCRIPT),)

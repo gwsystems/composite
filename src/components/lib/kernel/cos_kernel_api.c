@@ -344,9 +344,9 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 			return 0;
 		}
 
-		/* PTE */
+		/* PTE  - we are using order = 12 */
 		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, pte_cap, meta->mi.pgtbl_cap, ptemem_cap,
-		                1)) {
+		                12)) {
 			assert(0); /* race? */
 			return 0;
 		}
@@ -551,7 +551,7 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz)
 		if (!umem) return 0;
 
 		/* Actually map in the memory. */
-		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, 0)) {
+		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, PAGE_ORDER)) {
 			assert(0);
 			return 0;
 		}
@@ -959,7 +959,23 @@ cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *s
 {
 	assert(srcci && dstci);
 
-	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) BUG();
+	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, PAGE_ORDER)) BUG();
+
+	return 0;
+}
+
+int
+cos_mem_alias_atn(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, size_t sz)
+{
+	size_t i;
+	size_t npages;
+
+	assert(srcci && dstci);
+
+	npages = sz / PAGE_SIZE;
+	for (i=0;i < npages; i++) {
+		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src + i * PAGE_SIZE, dstci->pgtbl_cap, dst + i * PAGE_SIZE, PAGE_ORDER)) BUG();
+	}
 
 	return 0;
 }
@@ -1077,6 +1093,36 @@ cos_hw_cycles_per_usec(hwcap_t hwc)
 	while (cycs <= 0) cycs = call_cap_op(hwc, CAPTBL_OP_HW_CYC_USEC, 0, 0, 0, 0);
 
 	return cycs;
+}
+
+int
+cos_hw_tlb_lockdown(hwcap_t hwc, unsigned long entryid, unsigned long vaddr, unsigned long paddr)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_TLB_LOCKDOWN, entryid, vaddr, paddr, 0);
+}
+
+int
+cos_hw_l1flush(hwcap_t hwc)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_L1FLUSH, 0, 0, 0, 0);
+}
+
+int
+cos_hw_tlbflush(hwcap_t hwc)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_TLBFLUSH, 0, 0, 0, 0);
+}
+
+int
+cos_hw_tlbstall(hwcap_t hwc)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_TLBSTALL, 0, 0, 0, 0);
+}
+
+int
+cos_hw_tlbstall_recount(hwcap_t hwc)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_TLBSTALL_RECOUNT, 0, 0, 0, 0);
 }
 
 int

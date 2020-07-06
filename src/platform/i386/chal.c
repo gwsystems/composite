@@ -54,6 +54,40 @@ chal_khalt(void)
 	khalt();
 }
 
+int
+chal_tlb_lockdown(unsigned long entryid, unsigned long vaddr, unsigned long paddr)
+{
+	return 0;
+}
+
+int
+chal_l1flush(void)
+{
+	/* TODO */
+	return 0;
+}
+
+int
+chal_tlbflush(int a)
+{
+	/* TODO */
+	return 0;
+}
+
+int
+chal_tlbstall(void)
+{
+	/* TODO */
+	return 0;
+}
+
+int
+chal_tlbstall_recount(int a)
+{
+	/* TODO */
+	return 0;
+}
+
 void
 chal_init(void)
 {

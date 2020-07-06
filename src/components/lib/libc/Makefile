@@ -75,9 +75,15 @@ include Makefile.src Makefile.comp Makefile.dependencies
 all:
 clean:
 
-init:
-	$(info Building libc (musl)...)
+cav7_init:
+	$(info Building libc (musl) for arm...)
+	cd $(MUSLDIR); ./configure "CC=arm-none-eabi-gcc" "CFLAGS=-march=armv7-a -O3" "LDFLAGS=" --disable-shared --target=arm; cd ..
+
+i386_init:
+	$(info Building libc (musl) for i386...)
 	cd $(MUSLDIR); ./configure "CFLAGS=-m32 -O3" "LDFLAGS=-Wl,-melf_i386" --disable-shared --target=i386; cd ..
+
+init: $(PLATFORM)_init
 	make -C $(MUSLDIR)
 	make -C $(MUSLDIR) install
 	cp $(MUSLLIB)*.a .
