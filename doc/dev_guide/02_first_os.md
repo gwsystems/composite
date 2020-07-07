@@ -124,13 +124,16 @@ This will run our linker that consumes the specific configuration script, and (a
 Now that we have the system image, we can run it!
 
 ```
-$ ./cos run sysudo stem_binaries/cos_build-test/cos.img
+$ sudo ./cos run stem_binaries/cos_build-test/cos.img
 [cos executing] tools/run.sh system_binaries/cos_build-test/cos.img
 ...
 (0,8,4) DBG:Test successful! Highest was scheduled only!
 (0,8,4) DBG:Test successful! We swapped back and forth!
 ```
 
+Note that we use `sudo` to run with KVM hardware virtualization support.
+This makes all of the performance measurements close (but not identical) to what you'd see on the bare-metal.
+If you remove the `sudo`, you'll use QEMU, software-driven virtualization in which performance is not accurate.
 We are in the process of standardizing our unit testing frameworks, so please excuse our ad-hoc output.
 
 ## Understanding the system binaries

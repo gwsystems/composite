@@ -125,7 +125,7 @@ A sending client waits for a server to receive.
 Once the server recieves, the client blocks on a receive.
 The server computes a reply, and sends back to the client, which finally unblocks the client, sending it the reply.
 In this way, it functionally mimics function call, despite being communication between isolated protection domains.
-Using efficient primitives (`call` and `reply_and_wait`, this integration only requires two system calls, and two page table switches, which are the dominant costs in modern IPC systems.
+Using efficient primitives (`call` and `reply_and_wait`), this integration only requires two system calls, and two page table switches, which are the dominant costs in modern IPC systems.
 I'll refer to this IPC mechanism as *traditional IPC*.
 
 Composite instead uses *thread-migration-based invocations*^[Note that this is *not* related to the *cross-core thread migration* used by schedulers to move threads between cores over time.] between components for IPC.
@@ -151,7 +151,7 @@ The story of user-level scheduling in Composite is told in four parts:
 
 - The details of how system level scheduling responsibilities over all threads in the system can be exported to user-level, isolated components that can be customized [Parmer et al. '08](https://www2.seas.gwu.edu/~gparmer/publications/parmer_west_rtss08.pdf),
 - [Parmer et al. '10](https://www2.seas.gwu.edu/~gparmer/publications/rtas11_hires.pdf) provides details about how schedulers can be hierarchically composed to delegate scheduling duties closer to applications,
-- [Gadepalli et al. '17](https://www2.seas.gwu.edu/~gparmer/publications/rtss17tcaps.pdf) discusses how *untrusting schedulers* can coordinate using temporal capabilities, and
+- [Gadepalli et al. '17](https://www2.seas.gwu.edu/~gparmer/publications/rtss17tcaps.pdf) discusses how many *untrusting schedulers* can predictably coordinate while providing global timing guarantees using temporal capabilities to provide *access control for time*, and
 - [Gadepalli et al. '20](https://www2.seas.gwu.edu/~gparmer/publications/rtas20slite.pdf) demonstrates how user-level scheduling can avoid kernel interactions to make Composite scheduling both capable of system-level scheduling, *and* faster than traditional kernel-resident schedulers.
 
 ### Wait-Free, Parallel Kernel
