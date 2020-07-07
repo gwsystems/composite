@@ -39,3 +39,4 @@ src/mkimg/cos_build-*
 
 src/kernel/include/chal
 src/components/lib/libc/musl-1.1.11/bin/
+src/platform/*/chal/shared/cpu_ghz.h
