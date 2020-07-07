@@ -72,9 +72,9 @@ clean_lib:
 # need to make sure the ps_plat.h is always available
 clean: clean_lib config
 
-cav7_config:
+armv7_config:
 	$(info Configuring the ps library for cav7)
-	@cd ps; ./configure cos cav7 general; cd ..
+	@cd ps; ./configure cos armv7 general; cd ..
 
 i386_config:
 	$(info Configuring the ps library for x86)
