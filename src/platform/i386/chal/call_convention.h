@@ -133,7 +133,7 @@ regs_upcall_setup(struct pt_regs *r, u32_t entry_addr, int option, int id, int a
 	r->si = arg3;
 
 	r->ip = r->dx = entry_addr;
-	r->ax         = id | (get_cpuid() << 16); // thd id + cpu id
+	r->ax         = id; // thd id + cpu id
 
 	return;
 }
