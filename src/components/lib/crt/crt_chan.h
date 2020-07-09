@@ -41,7 +41,7 @@ struct __crt_chan_envelope_##name {	                        \
         struct crt_chan c;					\
 	char mem[nslots * sizeof(type)];			\
 } __##name;							\
- struct crt_chan *name = &__##name.c
+struct crt_chan *name = &__##name.c
 
 #define CRT_CHAN_TYPE_PROTOTYPES(name, type, nslots)			\
 static inline int							\
