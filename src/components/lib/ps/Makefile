@@ -54,7 +54,7 @@ LIBRARY_DEPENDENCIES = component
 
 include Makefile.src Makefile.comp Makefile.dependencies
 
-.PHONY: all clean init distclean config clean_lib armv7_config i386_config
+.PHONY: all clean init distclean config clean_lib armv7a_config i386_config
 CINC_ENV = $(CINC) $(DEPENDENCY_INCPATH)
 CFLAGS   = $(CINC_ENV)
 export CINC_ENV
@@ -72,9 +72,9 @@ clean_lib:
 # need to make sure the ps_plat.h is always available
 clean: clean_lib config
 
-armv7_config:
+armv7a_config:
 	$(info Configuring the ps library for cav7)
-	@cd ps; ./configure cos armv7 general; cd ..
+	@cd ps; ./configure cos armv7a general; cd ..
 
 i386_config:
 	$(info Configuring the ps library for x86)

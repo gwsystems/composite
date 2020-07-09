@@ -66,7 +66,7 @@ include Makefile.src Makefile.comp Makefile.dependencies
 
 NCORES=1
 LIBWD = $(shell pwd)
-ifeq ($(PLATFORM), armv7)
+ifeq ($(PLATFORM), armv7a)
 MUSLLIB=$(LIBWD)/../libc/
 export AR = arm-none-eabi-ar
 export CC = arm-none-eabi-gcc
@@ -77,7 +77,7 @@ else
 export CFLAGS = $(CINC) $(DEPENDENCY_INCPATH)
 endif
 
-.PHONY: all config install clean distclean init i386_config armv7_config
+.PHONY: all config install clean distclean init i386_config armv7a_config
 all:
 clean:
 
@@ -88,7 +88,7 @@ install:
 i386_config:
 	cd ck; ./configure --platform=i586 --disable-double --without-pic --cores=$(NCORES) --prefix=$(LIBWD); cd ..
 
-armv7_config:
+armv7a_config:
 	cd ck; ./configure --profile=arm --platform=arm --disable-option-checking --disable-double --without-pic --cores=$(NCORES) --prefix=$(LIBWD); cd ..
 
 config: $(PLATFORM)_config

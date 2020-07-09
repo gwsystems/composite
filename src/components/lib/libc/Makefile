@@ -71,11 +71,11 @@ MUSLLIB=$(MUSLDIR)/lib/
 
 include Makefile.src Makefile.comp Makefile.dependencies
 
-.PHONY: all clean init distclean armv7_init i386_init
+.PHONY: all clean init distclean armv7a_init i386_init
 all:
 clean:
 
-armv7_init:
+armv7a_init:
 	$(info Building libc (musl) for arm...)
 	cd $(MUSLDIR); ./configure "CC=arm-none-eabi-gcc" "CFLAGS=-march=armv7-a -O3" "LDFLAGS=" --disable-shared --target=arm; cd ..
 
@@ -95,5 +95,6 @@ init: libc.READY
 
 distclean:
 	make -C $(MUSLDIR) distclean
+	rm -rf $(MUSLDIR)/bin/
 	rm -rf *.a
 	rm -f libc.READY

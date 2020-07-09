@@ -1,13 +1,13 @@
 include Makefile.src
 
-CC := $(CROSS_COMPILE)gcc -march=armv7-a
+CC := $(CROSS_COMPILE)gcc
 LD := $(CROSS_COMPILE)ld
 AS := $(CROSS_COMPILE)as
 OBJCP := $(CROSS_COMPILE)objcopy
 
 INCPATH := ../../kernel/include
 INCS    := -I$(INCPATH) -I$(INCPATH)/shared/ -I$(INCPATH)/chal/
-CFLAGS  := -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic $(INCS)
+CFLAGS  := -march=armv7-a -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic $(INCS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img

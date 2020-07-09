@@ -73,9 +73,9 @@ config-i386: config-gen
 	@echo "Do _not_ 'git add' either of these files."
 	@echo "#define COS_PLATFORM I386" >> ./kernel/include/chal/shared/cpu_ghz.h
 
-config-armv7: config-gen
-	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/armv7/chal/ chal
-	@echo "armv7" > $(PLAT_FILE)
+config-armv7a: config-gen
+	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/armv7a/chal/ chal
+	@echo "armv7a" > $(PLAT_FILE)
 	@echo "ARCH_CFLAGS = -march=armv7-a -D__arm__" >  Makefile.arch
 	@echo "ARCH_ASFLAGS= -march=armv7-a -D__arm__ -D__ASM__" >> Makefile.arch
 	@echo "ARCH_LDFLAGS="                          >> Makefile.arch
@@ -84,7 +84,7 @@ config-armv7: config-gen
 	@if [ -z "`cat /proc/cpuinfo | grep \"physical id\"`" ]; then echo "#define NUM_CPU_SOCKETS 1" >> ./kernel/include/chal/shared/cpu_ghz.h; else cat /proc/cpuinfo | grep "physical id" | sort | uniq | wc -l | sed 's/.*\([0-9]\).*/\#define NUM_CPU_SOCKETS \1/' >> ./kernel/include/chal/shared/cpu_ghz.h; fi
 	@echo "Please view Makefile.cosconfig and kernel/include/chal/shared/cpu_ghz.h to make sure they're accurate."
 	@echo "Do _not_ 'git add' either of these files."
-	@echo "#define COS_PLATFORM ARMV7" >> ./kernel/include/chal/shared/cpu_ghz.h
+	@echo "#define COS_PLATFORM ARMV7A" >> ./kernel/include/chal/shared/cpu_ghz.h
 
 run:
 ifeq ($(RUNSCRIPT),)

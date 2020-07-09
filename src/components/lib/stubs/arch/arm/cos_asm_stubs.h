@@ -117,7 +117,7 @@ __cosrt_s_##name:				\
 name:                                          \
 __cosrt_extern_##name:			       \
 	ldr r6, =__cosrt_ucap_##name;	       \
-	add r6, r6, #INVFN;		       \
+	ldr r6, [r6, #INVFN];		       \
 	bl   r6;			       \
 	.ltorg;				       \
 					       \
