@@ -90,6 +90,6 @@ test_inv(void)
 
         CHECK_STATUS_FLAG();
         PRINTC("\t%s: \t\tSuccess\n", "Synchronous Invocations");
-#endif
         EXIT_FN();
+#endif
 }

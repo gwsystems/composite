@@ -1,7 +1,10 @@
 
 #if defined(__x86__)
-#warning "working"
 #define INV_TEST_SERVERFN			\
+.text;						\
+.globl __inv_test_serverfn;			\
+.type __inv_test_serverfn, @function;		\
+__inv_test_serverfn:				\
 		movl %ebp, %esp;		\
 		xor %ebp, %ebp;			\
                 pushl %edi;			\
@@ -13,6 +16,5 @@
                 movl $RET_CAP, %eax;		\
                 sysenter;
 #else
-#define INV_TEST_SSERVERFN		\
-		nop;
+#define INV_TEST_SERVERFN
 #endif

@@ -29,7 +29,6 @@ void  timer_init(void);
 u64_t timer_find_hpet(void *timer);
 void  timer_set_hpet_page(u32_t page);
 void  timer_thd_init(struct thread *t);
-void  chal_timer_init(void);
 
 void  tss_init(const cpuid_t cpu_id);
 void  idt_init(const cpuid_t cpu_id);

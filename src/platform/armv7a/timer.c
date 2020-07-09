@@ -50,7 +50,7 @@ cycle_counter_user_enable(void)
 }
 
 void
-chal_timer_init(void)
+timer_init(void)
 {
 	/* We are initializing the global timer here */
 	CAV7_GTMR_GTCNTRL = 0;

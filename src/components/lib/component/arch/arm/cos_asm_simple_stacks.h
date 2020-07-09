@@ -18,7 +18,7 @@
 	str r6, [sp] ;
 
 #define COS_ASM_SAFE_SP		\
-	sub sp, sp, #0x0c ;
+	sub sp, sp, #0xF4 ;
 
 /* clang-format off */
 #define COS_ASM_GET_STACK_BASIC			\

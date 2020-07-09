@@ -6,8 +6,8 @@ INTERDIR=$(CDIR)/interface/
 LIBDIR=$(CDIR)/lib/
 
 MUSLDIR=$(CDIR)/lib/libc/musl-1.1.11
-MUSLBIN=$(MUSLDIR)/bin
-MUSLCC=$(MUSLBIN)/musl-$(CC)
+MUSLBIN=$(MUSLDIR)/tools
+MUSLCC=$(MUSLBIN)/musl-gcc
 MUSLINC=-isystem$(MUSLDIR)/include
 
 CINC=-I. -I$(SHAREDINC) -I$(CHALSHAREDINC)

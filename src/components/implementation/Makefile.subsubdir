@@ -37,6 +37,10 @@ LIB_FLAGS    =$(LIB_MANDATORY) $(if $(wildcard ../*.a), -L.. -linterfacelib) $(D
 COMP_LD_SCRIPT=$(IMPLDIR)/comp.ld
 TAR_SYMBOL_NAME=crt_init.tar
 
+ifeq ($(PLATFORM), i386)
+LINKFLAG=-Xlinker -melf_i386
+endif
+
 .PHONY: all
 all: print $(SOURCE_DEPENDENCIES) $(COMPOBJ)
 
@@ -84,7 +88,7 @@ component: clean comp_header $(COMPOBJ)
 	$(if $(COMP_TAR_FILE), cp $(COMP_TAR_FILE) $(TAR_SYMBOL_NAME))
 	$(if $(COMP_TAR_FILE), $(LD) $(LDFLAGS) -r -b binary $(TAR_SYMBOL_NAME) -o $(COMP_TAR_FILE).o; rm $(TAR_SYMBOL_NAME))
 	$(LD) $(LDFLAGS) -r -o $(COMPNAME).linked_libs_ifs.o $(COMPOBJ) $(COMP_EXPIF_OBJS) $(COMP_DEP_OBJS) $(if $(COMP_INITARGS_FILE), $(COMP_INITARGS_FILE:%.c=%.o)) $(if $(COMP_TAR_FILE), $(COMP_TAR_FILE).o) $(COMP_DEPLIBDIRS_CLEAN) $(COMP_DEPLIBS_CLEAN) $(LIB_FLAGS)
-	$(MUSLCC) $(COMPNAME).linked_libs_ifs.o $(MUSLCFLAGS) -Xlinker -melf_i386 -o $(COMPNAME).linked_musl.o
+	$(MUSLCC) $(COMPNAME).linked_libs_ifs.o $(MUSLCFLAGS) $(LINKFLAG) -o $(COMPNAME).linked_musl.o
 	$(LD) $(LDFLAGS) -Ttext=$(COMP_BASEADDR) -T $(COMP_LD_SCRIPT) -o $(COMP_OUTPUT) $(COMPNAME).linked_musl.o
 
 %.o:%.c

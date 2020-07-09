@@ -57,7 +57,7 @@ chal_init(void)
 {
 	/* Initialize timers, etc */
 	__cos_cav7_int_init();
-	lapic_timer_init();
+	timer_init();
 	l2cache_init();
 	/* Initialize the vector table */
 	printk("CAV7-Vector table: 0x%x\r\n", (unsigned long)&__cos_cav7_vector_table);

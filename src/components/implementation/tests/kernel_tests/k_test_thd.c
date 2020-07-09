@@ -129,11 +129,13 @@ test_mthds_classic(void)
 static void
 thd_tls(void *d)
 {
+#if defined(__x86__)
         if (EXPECT_LLU_NEQ((long unsigned)tls_get(0), (long unsigned)tls_test[cos_cpuid()][(int)d],
                             "Thread TLS: ARG not correct")) failure = 1;
         while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
         EXPECT_LL_NEQ(1, 0, "Error, shouldn't get here!\n");
         assert(0);
+#endif
 }
 
 /* Test the TLS support
@@ -142,6 +144,7 @@ thd_tls(void *d)
 static void
 test_thds_tls(void)
 {
+#if defined(__x86__)
         thdcap_t ts[TEST_NTHDS];
         intptr_t i;
         int      ret;
@@ -160,13 +163,14 @@ test_thds_tls(void)
         CHECK_STATUS_FLAG();
         PRINTC("\t%s: \t\t\tSuccess\n", "THD => Creation & TLS");
         EXIT_FN();
+#endif
 }
 
 void
 test_thds(void)
 {
         test_thds_create_switch();
-        //test_thds_tls();
+        test_thds_tls();
         test_mthds_classic();
         test_mthds_ring();
 }

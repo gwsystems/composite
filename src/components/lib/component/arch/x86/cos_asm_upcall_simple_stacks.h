@@ -9,7 +9,7 @@
 .align 16;				\
 .globl cos_static_stack;		\
 cos_static_stack:			\
-	.rep ALL_STACK_SZ;		\
+	.rep ALL_STACK_SZ_FLAT;		\
 	.long 0	;			\
 	.endr ;				\
 .globl cos_static_stack_end;		\
