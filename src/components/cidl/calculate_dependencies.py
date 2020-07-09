@@ -10,13 +10,14 @@ def error_out(message):
     sys.stderr.write("Error: " + sys.argv[0] + " " + message)
     sys.exit(-1);
 
-if len(sys.argv) != 3:
-    error_out("<cos base> libdeps|ifdeps|libpaths|objpaths|incpaths: \n\tfirst argument must be the base of the composite repo's component directory (src/components/).\n")
+if len(sys.argv) != 4:
+    error_out("<sw_dir> <cos base> libdeps|ifdeps|libpaths|objpaths|incpaths|shallowlibdeps|shallowifdeps|shallowifexp: \n\tThe first argument must be the path to the directory of the component|interface|library. The second should be the base of the composite repo's component directory (src/components/). Both must end in a /.\n")
 
+target_path = sys.argv[1]
 # path to the composite repo
-base_path = sys.argv[1]
-if base_path[-1] != '/':
-    error_out("<cos base> libdeps|ifdeps|libpaths|objpaths|incpaths: \n\tfirst argument must be a directory (and terminate in /).\n")
+base_path   = sys.argv[2]
+if base_path[-1] != '/' or target_path[-1] != '/':
+    error_out(target_path + " " + base_path + " libdeps|ifdeps|libpaths|objpaths|incpaths|shallowlibdeps|shallowifdeps|shallowifexp: \n\tThe first argument must be the path to the directory of the component|interface|library. The second should be the base of the composite repo's component directory (src/components/). Both must end in a /.\n")
 
 libs_path = base_path + "lib/"
 ifs_path  = base_path + "interface/"
@@ -33,7 +34,7 @@ def makefile_deps(path):
     try:
         mf = open(path+'/Makefile', 'r')
     except:
-        return (False, [], [], [], [], [], [])
+        return (False, [], [], [], [], [], [], [])
 
     lines    = mf.readlines()
     libdeps  = []
@@ -161,27 +162,30 @@ def gen_paths(libdeps, ifdeps, expifs):
     return (unique(libincs), unique(libpaths), unique(binpaths), unique(incpaths))
 
 # The current directory should have the Makefile of the build unit
-(success, ls, ifs, exps) = makefile_dependencies(os.getcwd())
+(success, shallow_ls, shallow_ifs, shallow_exps) = makefile_dependencies(target_path)
 if not success:
-    error_out("Could not find Makefile in current directory (" + os.getcwd() + ").\n")
+    error_out("Could not find Makefile in " + target_path + ").\n")
 
-(libs, ifs, exps) = resolve_deps(os.getcwd(), ls, ifs, exps)
+(libs, ifs, exps) = resolve_deps(target_path, shallow_ls, shallow_ifs, shallow_exps)
 
 (libincs, libpaths, binpaths, incpaths) = gen_paths(libs, ifs, exps)
 select_cmd = {
-    "libdeps":ls,
+    "libdeps":libs,
     "ifdeps":ifs,
     "libinc":libincs,
     "libpaths":libpaths,
     "objpaths":binpaths,
-    "incpaths":incpaths
+    "incpaths":incpaths,
+    "shallowlibdeps":shallow_ls,
+    "shallowifdeps":shallow_ifs,
+    "shallowifexps":shallow_exps,
     }
 try:
-    out = select_cmd.get(sys.argv[2])
+    out = select_cmd.get(sys.argv[3])
     if None == out:
         out = []
 except:
-    error_out(sys.argv[1] +" libdeps|ifdeps|libinc|libpaths|objpaths|incpaths: \n\tsecond argument ("+sys.argv[2]+") not one of the two options.\n")
+    error_out(sys.argv[1] + " " + sys.argv[2] +" libdeps|ifdeps|libinc|libpaths|objpaths|incpaths|shallowlibdeps|shallowifdeps|shallowifexp: \n\tsecond argument ("+sys.argv[2]+") not one of the two options.\n")
 
 output = ""
 for o in out:

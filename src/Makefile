@@ -3,9 +3,14 @@
 MAKEOPTIONS=--no-print-directory -I$(shell pwd)
 PLAT_FILE=.PLATFORM_ID
 
+.PHONY: default all composer component comps platclean plat cpplat clean distclean init update config
+
 default: | all
 
-all: comps plat
+all: composer comps plat
+
+composer:
+	cd composer/ ; cargo build
 
 component:
 	$(MAKE) $(MAKEOPTIONS) -C components component
@@ -93,12 +98,3 @@ ifeq ($(RUNSCRIPT),)
 endif
 
 	@cd ../transfer && echo "Running" $(RUNSCRIPT) && ./qemu.sh $(RUNSCRIPT)
-
-idl:
-	$(MAKE) $(MAKEOPTIONS) -C components idl
-
-ltests:
-	$(MAKE) $(MAKEOPTIONS) -C platform ltests
-
-cltests:
-	$(MAKE) $(MAKEOPTIONS) -C platform cltests

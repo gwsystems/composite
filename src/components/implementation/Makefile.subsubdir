@@ -106,7 +106,7 @@ component: clean comp_header $(COMPOBJ)
 # see the make manual: create the .d dependencies from include
 # statements.
 %.d:%.c
-	set -e; rm -f $@; \
+	@set -e; rm -f $@; \
 	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
@@ -116,7 +116,6 @@ component: clean comp_header $(COMPOBJ)
 	$(CXX) -M $(INCLUDE) $(LIBSTDCXXINC) $(CXXFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
-
 
 .PHONY: clean
 clean:

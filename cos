@@ -1,0 +1,74 @@
+#!/bin/sh
+
+script=
+name=
+binary=
+
+build()
+{
+    if ! [ -r "src/.PLATFORM_ID" ]; then
+	echo "Must \"cos init\" before \"cos build\"."
+	exit 2
+    fi
+
+    echo "[cos executing] make -C src all"
+    make -C src all
+}
+
+clean()
+{
+    echo "[cos executing] make -C clean"
+    make -C src clean
+}
+
+initialize()
+{
+    echo "[cos executing] make -C src config init"
+    make -C src config init
+}
+
+usage()
+{
+    echo "Usage: " $0 " init|build|reset|compose <script> <output name>|run <binary>"
+    exit 2
+}
+
+compose()
+{
+    if [ -z "$script" ] || [ -z "$name" ]; then
+	usage
+    fi
+    if ! [ -e "src/composer/target/debug/compose" ]; then
+	echo "Must \"cos build\" before composition. Could not find src/composer/target/debug/compose"
+	exit 2
+    fi
+    echo "[cos executing] src/composer/target/debug/compose $script $name"
+    src/composer/target/debug/compose $script $name
+}
+
+run()
+{
+    if [ -z "$binary" ]; then
+	usage
+    fi
+
+    echo "[cos executing] tools/run.sh $binary"
+    tools/run.sh $binary
+}
+
+case $1 in
+    init )    initialize
+	      ;;
+    build )   build
+	      ;;
+    reset )   clean
+	      ;;
+    compose ) script=$2
+	      name=$3
+	      compose
+	      ;;
+    run )     binary=$2
+	      run
+	      ;;
+    * )       usage
+esac

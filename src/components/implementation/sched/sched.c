@@ -9,7 +9,7 @@
 #include <sched.h>
 #include <sl.h>
 #include <sched_info.h>
-#include <crt_blkpt.h>
+#include <sl_blkpt.h>
 
 int
 sched_thd_wakeup(thdid_t t)

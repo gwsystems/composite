@@ -17,6 +17,7 @@ composite_new
 *.out
 tags
 src/kernel/include/chal/shared/cpu_ghz.h
+src/components/lib/libc/musl-1.1.11/bin/musl-gcc
 src/Makefile.cosconfig
 src/Makefile.arch
 src/.PLATFORM_ID
@@ -35,9 +36,11 @@ provision.sh
 src/components/lib/ck/include
 src/components/lib/ck/lib
 src/components/lib/ck/share
-src/mkimg/cos_build-*
 
 src/kernel/include/chal
 src/components/lib/libc/musl-1.1.11/bin/
 src/platform/*/chal/shared/cpu_ghz.h
 src/components/lib/libc/libc.READY
+doc/dev_guide/composite_dev_manual.pdf
+doc/dev_guide/resources/*.pdf
+system_binaries/cos_build-*
