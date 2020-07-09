@@ -33,14 +33,14 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	/* Pass parameters: r0,r1,r2,r3,r4 */
+	/* Pass parameters: r1,r2,r3,r4,r5, return in r0, r2, r3, r4 */
 	__asm__ __volatile__("ldr r0,%[_cap_no] \n\t"
-	                     "ldr r1,%[_arg1] \n\t"
-	                     "ldr r2,%[_arg2] \n\t"
-	                     "ldr r3,%[_arg3] \n\t"
-	                     "ldr r4,%[_arg4] \n\t"
+	                     "ldr r2,%[_arg1] \n\t"
+	                     "ldr r3,%[_arg2] \n\t"
+	                     "ldr r4,%[_arg3] \n\t"
+	                     "ldr r5,%[_arg4] \n\t"
 	                     "svc #0x00 \n\t"
-	                     "str r5,%[_ret] \n\t"
+	                     "str r0,%[_ret] \n\t"
 	                     "str r1,%[_fault] \n\t"
 	                     : [ _ret ] "=m"(ret), [ _fault ] "=m"(fault)
 	                     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3),
@@ -59,21 +59,21 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	/* Pass parameters: r0,r1,r2,r3,r4 */
-	__asm__ __volatile__("ldr r0,%[_cap_no] \n\t"
-	                     "ldr r1,%[_arg1] \n\t"
-	                     "ldr r2,%[_arg2] \n\t"
-	                     "ldr r3,%[_arg3] \n\t"
-	                     "ldr r4,%[_arg4] \n\t"
+	/* Pass parameters: r1,r2,r3,r4,r5, return in r0, r2, r3, r4 */
+	__asm__ __volatile__("ldr r1,%[_cap_no] \n\t"
+	                     "ldr r2,%[_arg1] \n\t"
+	                     "ldr r3,%[_arg2] \n\t"
+	                     "ldr r4,%[_arg3] \n\t"
+	                     "ldr r5,%[_arg4] \n\t"
 	                     "svc #0x00 \n\t"
-	                     "str r5,%[_ret] \n\t"
-	                     "ldr r6,%[_r1] \n\t"
-	                     "str r1,[r6] \n\t"
+	                     "str r0,%[_ret] \n\t"
 	                     "ldr r6,%[_r2] \n\t"
 	                     "str r2,[r6] \n\t"
 	                     "ldr r6,%[_r3] \n\t"
 	                     "str r3,[r6] \n\t"
-	                     : [ _ret ] "=m"(ret), [ _r1 ] "=m"(r1), [ _r2 ] "=m"(r2), [ _r3 ] "=m"(r3)
+	                     "ldr r6,%[_r4] \n\t"
+	                     "str r4,[r6] \n\t"
+	                     : [ _ret ] "=m"(ret), [ _r2 ] "=m"(r1), [ _r3 ] "=m"(r2), [ _r4 ] "=m"(r3)
 	                     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3),
 	                       [ _arg4 ] "m"(arg4)
 	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r14");
@@ -90,19 +90,19 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	/* Pass parameters: r0,r1,r2,r3,r4 */
-	__asm__ __volatile__("ldr r0,%[_cap_no] \n\t"
-	                     "ldr r1,%[_arg1] \n\t"
-	                     "ldr r2,%[_arg2] \n\t"
-	                     "ldr r3,%[_arg3] \n\t"
-	                     "ldr r4,%[_arg4] \n\t"
+	/* Pass parameters: r1,r2,r3,r4,r5, return in r0, r2, r3, r4 */
+	__asm__ __volatile__("ldr r1,%[_cap_no] \n\t"
+	                     "ldr r2,%[_arg1] \n\t"
+	                     "ldr r3,%[_arg2] \n\t"
+	                     "ldr r4,%[_arg3] \n\t"
+	                     "ldr r5,%[_arg4] \n\t"
 	                     "svc #0x00 \n\t"
-	                     "str r5,%[_ret] \n\t"
-	                     "ldr r6,%[_r1] \n\t"
-	                     "str r1,[r6] \n\t"
+	                     "str r0,%[_ret] \n\t"
 	                     "ldr r6,%[_r2] \n\t"
 	                     "str r2,[r6] \n\t"
-	                     : [ _ret ] "=m"(ret), [ _r1 ] "=m"(r1), [ _r2 ] "=m"(r2)
+	                     "ldr r6,%[_r3] \n\t"
+	                     "str r3,[r6] \n\t"
+	                     : [ _ret ] "=m"(ret), [ _r2 ] "=m"(r1), [ _r3 ] "=m"(r2)
 	                     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3),
 	                       [ _arg4 ] "m"(arg4)
 	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6");

@@ -12,31 +12,37 @@ __userregs_setret(struct pt_regs *regs, unsigned long ret)
 {
 	regs->ax = ret;
 }
+
 static inline unsigned long
 __userregs_getsp(struct pt_regs *regs)
 {
 	return regs->bp;
 }
+
 static inline unsigned long
 __userregs_getip(struct pt_regs *regs)
 {
 	return regs->cx;
 }
+
 static inline capid_t
 __userregs_getcap(struct pt_regs *regs)
 {
 	return (regs->ax >> COS_CAPABILITY_OFFSET) - 1;
 }
+
 static inline u32_t
 __userregs_getop(struct pt_regs *regs)
 {
 	return regs->ax & ((1 << COS_CAPABILITY_OFFSET) - 1);
 }
+
 static inline unsigned long
 __userregs_getinvret(struct pt_regs *regs)
 {
 	return regs->cx;
 } /* cx holds the return value on invocation return path. */
+
 static inline void
 __userregs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsigned long ip)
 {
@@ -44,6 +50,11 @@ __userregs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsign
 	regs->sp = regs->cx = sp;
 	regs->ip = regs->dx = ip;
 }
+
+static inline void
+__userregs_setinv(struct pt_regs *regs, unsigned long id, unsigned long tok, unsigned long ip)
+{ __userregs_set(regs, id, tok, ip); }
+
 static inline void
 __userregs_setretvals(struct pt_regs *regs, unsigned long ret, unsigned long ret1, unsigned long ret2, unsigned long ret3)
 {
@@ -52,6 +63,7 @@ __userregs_setretvals(struct pt_regs *regs, unsigned long ret, unsigned long ret
 	regs->di = ret2;
 	regs->bx = ret3;
 }
+
 static inline void
 __userregs_sinvupdate(struct pt_regs *regs)
 {
@@ -64,21 +76,25 @@ __userregs_sinvupdate(struct pt_regs *regs)
 	/* regs->di = regs->di; */
 	regs->bp = regs->dx;
 }
+
 static inline int
 __userregs_get1(struct pt_regs *regs)
 {
 	return regs->bx;
 }
+
 static inline int
 __userregs_get2(struct pt_regs *regs)
 {
 	return regs->si;
 }
+
 static inline int
 __userregs_get3(struct pt_regs *regs)
 {
 	return regs->di;
 }
+
 static inline int
 __userregs_get4(struct pt_regs *regs)
 {

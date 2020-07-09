@@ -94,6 +94,10 @@ clean:
 
 init: clean
 	$(info ***********************************************)
+	$(info ********[Explicit libc initialization]*********)
+	$(info ***********************************************)
+	$(MAKE) $(MAKEOPTIONS) -C libc init
+	$(info ***********************************************)
 	$(info **********[ Initializing Libraries ]***********)
 	$(info ***********************************************)
 	@for dir in $(SUBDIRS) ; do \

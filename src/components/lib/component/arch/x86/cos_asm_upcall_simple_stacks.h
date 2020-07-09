@@ -5,25 +5,40 @@
  * Public License v2.
  */
 
-#define COS_UPCALL_ENTRY 	\
-	COS_ASM_GET_STACK	\
-	pushl $0;		\
-	movl %esp, -8(%esp);	\
-	pushl $0;		\
-	movl %esp, -8(%esp);	\
-	subl $8, %esp;		\
-	pushl %esi;		\
-	pushl %edi;		\
-	pushl %ebx;		\
-	xor %ebp, %ebp;		\
-	pushl %ecx;		\
-	call cos_upcall_fn;	\
-	addl $24, %esp;		\
-	popl %esi;		\
-	popl %edi;		\
-	movl %eax, %ecx;	\
-	movl $RET_CAP, %eax;	\
-	COS_ASM_RET_STACK	\
+#define COS_STATIC_STACK		\
+.align 16;				\
+.globl cos_static_stack;		\
+cos_static_stack:			\
+	.rep ALL_STACK_SZ;		\
+	.long 0	;			\
+	.endr ;				\
+.globl cos_static_stack_end;		\
+cos_static_stack_end:
+
+#define COS_UPCALL_ENTRY 		\
+.text;					\
+.globl __cosrt_upcall_entry;		\
+.type __cosrt_upcall_entry, @function;	\
+.align 16;				\
+__cosrt_upcall_entry:			\
+	COS_ASM_GET_STACK		\
+	pushl $0;			\
+	movl %esp, -8(%esp);		\
+	pushl $0;			\
+	movl %esp, -8(%esp);		\
+	subl $8, %esp;			\
+	pushl %esi;			\
+	pushl %edi;			\
+	pushl %ebx;			\
+	xor %ebp, %ebp;			\
+	pushl %ecx;			\
+	call cos_upcall_fn;		\
+	addl $24, %esp;			\
+	popl %esi;			\
+	popl %edi;			\
+	movl %eax, %ecx;		\
+	movl $RET_CAP, %eax;		\
+	COS_ASM_RET_STACK		\
 	sysenter;
 
 #define COS_ATOMIC_CMPXCHG 		\

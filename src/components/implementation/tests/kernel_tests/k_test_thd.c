@@ -166,7 +166,7 @@ void
 test_thds(void)
 {
         test_thds_create_switch();
-        test_thds_tls();
+        //test_thds_tls();
         test_mthds_classic();
         test_mthds_ring();
 }

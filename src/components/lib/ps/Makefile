@@ -54,7 +54,7 @@ LIBRARY_DEPENDENCIES = component
 
 include Makefile.src Makefile.comp Makefile.dependencies
 
-.PHONY: all clean init distclean config clean_lib
+.PHONY: all clean init distclean config clean_lib armv7_config i386_config
 CINC_ENV = $(CINC) $(DEPENDENCY_INCPATH)
 CFLAGS   = $(CINC_ENV)
 export CINC_ENV

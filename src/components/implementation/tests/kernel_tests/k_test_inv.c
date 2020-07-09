@@ -1,3 +1,4 @@
+#if defined(__x86__)
 /*
  * Test allocates a tcap_invocation anf proceeds to invoke it
  * It additionally measures the roundtrip time
@@ -47,10 +48,12 @@ call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
 
         return ret;
 }
+#endif
 
 void
 test_inv(void)
 {
+#if defined(__x86__)
         compcap_t        cc;
         sinvcap_t        ic;
         unsigned int r;
@@ -87,5 +90,6 @@ test_inv(void)
 
         CHECK_STATUS_FLAG();
         PRINTC("\t%s: \t\tSuccess\n", "Synchronous Invocations");
+#endif
         EXIT_FN();
 }

@@ -14,14 +14,9 @@
 #define CONSTS_H
 
 #include "cos_errno.h"
-#include "../chal/shared/cos_config.h"
 
 #ifndef __ASM__
-#ifdef __KERNEL__
-#include <linux/thread_info.h> /* for PAGE_SIZE */
-#else
 #include "../chal/shared/chal_consts.h"
-#endif
 #endif
 #define MAX_PA_LIMIT     (1ULL << 32)
 #define PAGE_ORDER 12
@@ -43,7 +38,12 @@
 /* Stack size in words */
 #define MAX_STACK_SZ (COS_STACK_SZ / 4)
 
-#define ALL_STACK_SZ (MAX_NUM_THREADS * MAX_STACK_SZ)
+#define ALL_STACK_SZ ((MAX_NUM_THREADS + 1) * MAX_STACK_SZ)
+/* 
+ * 4096B / 4 * (64+1) : to flatten the math because of the below error
+ *cos_asm_upcall_simple_stacks.S:28: Error: bad or irreducible absolute expression
+ */
+#define ALL_STACK_SZ_FLAT 66560
 #define MAX_SPD_VAS_LOCATIONS 8
 
 /* a kludge:  should not use a tmp stack on a stack miss */

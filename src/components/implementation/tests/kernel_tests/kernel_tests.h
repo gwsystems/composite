@@ -65,6 +65,7 @@ struct results {
         long long unsigned p99tile;
 };
 
+#if defined(__x86__)
 static unsigned long
 tls_get(size_t off)
 {
@@ -80,6 +81,7 @@ tls_set(size_t off, unsigned long val)
 {
         __asm__ __volatile__("movl %0, %%gs:(%1)" : : "r"(val), "r"(off) : "memory");
 }
+#endif
 
 extern void test_run_perf_kernel(void);
 extern void test_timer(void);

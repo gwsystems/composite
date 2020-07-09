@@ -15,6 +15,7 @@ CDIR=$(TOP_DIR)/components/
 # tools
 MAKE=make
 CC=$(CROSS_COMPILE)gcc
+CPP=$(CROSS_COMPILE)g++
 AR=$(CROSS_COMPILE)ar
 LD=$(CROSS_COMPILE)ld
 AS=$(CC)

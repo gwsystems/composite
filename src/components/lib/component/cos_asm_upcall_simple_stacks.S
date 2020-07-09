@@ -5,7 +5,7 @@
  * Public License v2.
  */
 
-#define __ASM__
+//#define __ASM__
 #include <consts.h>
 #include <cos_asm_simple_stacks.h>
 #include "../../../kernel/include/asm_ipc_defs.h"
@@ -18,28 +18,16 @@
 #define IPRETURN 4
 
 .section .initonce
-.align 32
+.align 16
 .globl nil
 nil:
 	.rep 1024
 	.long 0
 	.endr
 
-.align COS_STACK_SZ
-.globl cos_static_stack
-cos_static_stack:
-	.rep ALL_STACK_SZ
-	.long 0
-	.endr
-.globl cos_static_stack_end
-cos_static_stack_end:
+COS_STATIC_STACK
 
-.text
-.globl __cosrt_upcall_entry
-.type  __cosrt_upcall_entry, %function
-.align 16
-__cosrt_upcall_entry:
-	COS_UPCALL_ENTRY
+COS_UPCALL_ENTRY
 
 /*
  * %eax = cmpval, %ebx = memaddr, %ecx = newval
@@ -49,7 +37,6 @@ __cosrt_upcall_entry:
 .type cos_atomic_cmpxchg, %function
 .align 16
 cos_atomic_cmpxchg:
-	COS_ATOMIC_CMPXCHG
 .weak cos_atomic_cmpxchg_end
 cos_atomic_cmpxchg_end:
 	COS_ATOMIC_CMPXCHG_END

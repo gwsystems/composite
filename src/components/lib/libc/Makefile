@@ -71,7 +71,7 @@ MUSLLIB=$(MUSLDIR)/lib/
 
 include Makefile.src Makefile.comp Makefile.dependencies
 
-.PHONY: all clean init distclean
+.PHONY: all clean init distclean armv7_init i386_init
 all:
 clean:
 
@@ -83,12 +83,17 @@ i386_init:
 	$(info Building libc (musl) for i386...)
 	cd $(MUSLDIR); ./configure "CFLAGS=-m32 -O3" "LDFLAGS=-Wl,-melf_i386" --disable-shared --target=i386; cd ..
 
-init: $(PLATFORM)_init
+libc.READY:
+	make $(PLATFORM)_init
 	make -C $(MUSLDIR)
 	make -C $(MUSLDIR) install
 	cp $(MUSLLIB)*.a .
+	touch libc.READY
 	rm libutil.a
+
+init: libc.READY
 
 distclean:
 	make -C $(MUSLDIR) distclean
 	rm -rf *.a
+	rm -f libc.READY

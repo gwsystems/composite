@@ -315,8 +315,8 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 
 	/* TODO: test this before pgtbl update...pre- vs. post-serialization */
 	__userregs_sinvupdate(regs);
-	__userregs_set(regs, thd->tid | (get_cpuid() << 16), sinvc->token,
-	               sinvc->entry_addr);
+	__userregs_setinv(regs, thd->tid | (get_cpuid() << 16), sinvc->token,
+			  sinvc->entry_addr);
 
 	return;
 }

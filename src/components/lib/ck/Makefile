@@ -66,9 +66,18 @@ include Makefile.src Makefile.comp Makefile.dependencies
 
 NCORES=1
 LIBWD = $(shell pwd)
+ifeq ($(PLATFORM), armv7)
+MUSLLIB=$(LIBWD)/../libc/
+export AR = arm-none-eabi-ar
+export CC = arm-none-eabi-gcc
+export LD = arm-none-eabi-ld
+export CFLAGS = $(CINC) $(DEPENDENCY_INCPATH) -march=armv7-a
+export LDFLAGS = -L$(MUSLLIB) -specs=nano.specs -specs=nosys.specs
+else
 export CFLAGS = $(CINC) $(DEPENDENCY_INCPATH)
+endif
 
-.PHONY: all ck install clean distclean init
+.PHONY: all config install clean distclean init i386_config armv7_config
 all:
 clean:
 
@@ -76,8 +85,15 @@ install:
 	cd ck; make install; cd ..
 	cp lib/libck.a .
 
-ck:
+i386_config:
 	cd ck; ./configure --platform=i586 --disable-double --without-pic --cores=$(NCORES) --prefix=$(LIBWD); cd ..
+
+armv7_config:
+	cd ck; ./configure --profile=arm --platform=arm --disable-option-checking --disable-double --without-pic --cores=$(NCORES) --prefix=$(LIBWD); cd ..
+
+config: $(PLATFORM)_config
+
+ck: config
 	make -C ck all
 
 init: ck install

@@ -8,6 +8,8 @@
 
 #define CAPTBL_ITER 1024
 
+#if defined(__x86__)
+
 extern int test_serverfn(int a, int b, int c);
 extern void *__inv_test_serverfn(int a, int b, int c);
 
@@ -31,3 +33,9 @@ test_captbl_expands(void)
         }
         PRINTC("\t%s: \t\tSuccess\n", "Capability Table Expansion");
 }
+
+#else
+void
+test_captbl_expands(void)
+{ }
+#endif

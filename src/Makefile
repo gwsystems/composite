@@ -64,7 +64,7 @@ config-i386: config-gen
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/i386/chal/ chal
 	@echo "i386" > $(PLAT_FILE)
 	@echo "ARCH_CFLAGS = -m32 -D__x86__" >  Makefile.arch
-	@echo "ARCH_ASFLAGS= -m32 -D__x86__" >> Makefile.arch
+	@echo "ARCH_ASFLAGS= -m32 -D__x86__ -D__ASM__" >> Makefile.arch
 	@echo "ARCH_LDFLAGS=-melf_i386"      >> Makefile.arch
 	@echo "Configuring the system with clock speed and directory structure."
 	@cat /proc/cpuinfo | grep "model name" -m 1 | sed 's/.*\([0-9]\.[0-9]*\).*/\#define CPU_GHZ \1/' > ./kernel/include/chal/shared/cpu_ghz.h
@@ -77,7 +77,7 @@ config-armv7: config-gen
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/armv7/chal/ chal
 	@echo "armv7" > $(PLAT_FILE)
 	@echo "ARCH_CFLAGS = -march=armv7-a -D__arm__" >  Makefile.arch
-	@echo "ARCH_ASFLAGS= -march=armv7-a -D__arm__" >> Makefile.arch
+	@echo "ARCH_ASFLAGS= -march=armv7-a -D__arm__ -D__ASM__" >> Makefile.arch
 	@echo "ARCH_LDFLAGS="                          >> Makefile.arch
 	@echo "Configuring the system with clock speed and directory structure."
 	@cat /proc/cpuinfo | grep "model name" -m 1 | sed 's/.*\([0-9]\.[0-9]*\).*/\#define CPU_GHZ \1/' > ./kernel/include/chal/shared/cpu_ghz.h

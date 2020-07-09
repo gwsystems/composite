@@ -4,3 +4,4 @@
 [submodule "src/components/lib/ck/ck"]
 	path = src/components/lib/ck/ck
 	url = https://github.com/gwsystems/ck.git
+	branch = cos_profile
