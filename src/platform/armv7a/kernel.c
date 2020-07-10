@@ -5,6 +5,7 @@
 #include "boot_comp.h"
 #include "mem_layout.h"
 #include "chal_cpu.h"
+#include "board_specifics.h"
 
 #include <captbl.h>
 #include <retype_tbl.h>
@@ -48,22 +49,6 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	/* Empty: no mboot information used here */
 }
 
-#define CAV7_UART_CONTROL (*((volatile unsigned long *)(0xE0001000)))
-#define CAV7_UART_MODE (*((volatile unsigned long *)(0xE0001004)))
-#define CAV7_UART_BRGEN (*((volatile unsigned long *)(0xE0001018)))
-#define CAV7_UART_STATUS (*((volatile unsigned long *)(0xE000102C)))
-#define CAV7_UART_FIFO (*((volatile unsigned long *)(0xE0001030)))
-#define CAV7_UART_BRDIV (*((volatile unsigned long *)(0xE0001034)))
-#define CAV7_UART_STATUS_TXE (1U << 3)
-
-static inline void
-serial_send(char out)
-{
-	while ((CAV7_UART_STATUS & CAV7_UART_STATUS_TXE) == 0)
-		;
-	CAV7_UART_FIFO = (out);
-}
-
 void
 kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 {
@@ -81,16 +66,16 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	thd_init();
 
 	/* We know the memory layout and will initialize it here - kernel : 256MB */
-	glb_memlayout.kern_end = 0x10000000;
+	glb_memlayout.kern_end = KERN_END;
 	/* Booter : 64MB, these are kernel addresses that will never be used in fact */
-	glb_memlayout.mod_start = 0x90000000;
-	glb_memlayout.mod_end   = 0x98000000;
+	glb_memlayout.mod_start = MOD_START;
+	glb_memlayout.mod_end   = MOD_END;
 	/* Booter entry */
-	glb_memlayout.bootc_entry = 0x10000000;
+	glb_memlayout.bootc_entry = BOOTC_ENTRY;
 	/* Booter virtual address */
-	glb_memlayout.bootc_vaddr    = 0x10000000;
-	glb_memlayout.kern_boot_heap = 0x98000000;
-	glb_memlayout.kmem_end       = 0xBFFF0000;
+	glb_memlayout.bootc_vaddr    = BOOTC_VADDR;
+	glb_memlayout.kern_boot_heap = KERN_BOOT_HEAP;
+	glb_memlayout.kmem_end       = KERN_MEM_END;
 	glb_memlayout.allocs_avail   = 1;
 
 	chal_kernel_mem_pa = chal_va2pa(mem_kmem_start());

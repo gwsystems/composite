@@ -11,6 +11,7 @@
 #include <component.h>
 #include <inv.h>
 #include <hw.h>
+#include "board_specifics.h"
 
 extern u8_t *boot_comp_pgd;
 
@@ -23,7 +24,7 @@ boot_nptes(unsigned int sz)
 	return round_up_to_pow2(sz, PGD_RANGE) / PGD_RANGE;
 }
 
-unsigned long boot_sram_heap = 0x80001000;
+unsigned long boot_sram_heap = BOOT_SRAM_HEAP;
 
 u8_t *
 sram_boot_alloc(int npages)
@@ -141,10 +142,10 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	 * clear that we can only make 15 entries due to the limited space of the MCU.
 	 * user_vaddr  */
 	if (uvm != 0) {
-		user_vaddr = 0x1A000000;
+		user_vaddr = USER_VADDR_ARBITRARY;
 		/* Allocate 14 ptes */
-		ptes = sram_boot_alloc(14);
-		for (i = 0; i < 14; i++) {
+		ptes = sram_boot_alloc(BOOT_SRAM_PTE);
+		for (i = 0; i < BOOT_SRAM_PTE; i++) {
 			u8_t *  p  = ptes + i * PAGE_SIZE;
 			paddr_t pf = chal_va2pa(p);
 
@@ -161,10 +162,10 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 		pgtbl = chal_va2pa((pgtbl_t)pgd_cap->pgtbl);
 
 		/* Map in the actual memory - first 16 pages are L2-speed based SRAM, the rest are SDRAM */
-		ptes = sram_uvm_alloc(16);
+		ptes = sram_uvm_alloc(BOOT_SRAM_UVM_PTE);
 		printk("\tMapping in SRAM %s, %d pages, vaddr %x.\n", label, 16, ptes);
-		for (i = 0; i < 16; i++) {
-			u8_t *  p     = 0x80010000 + i * PAGE_SIZE;
+		for (i = 0; i < BOOT_SRAM_UVM_PTE; i++) {
+			u8_t *  p     = KERN_VADDR + i * PAGE_SIZE;
 			paddr_t pf    = chal_va2pa(p);
 			u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
 
@@ -173,9 +174,9 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 			assert((void *)p == pgtbl_lkup(pgtbl, user_vaddr + i * PAGE_SIZE, &flags));
 		}
 
-		user_vaddr = 0x1A010000;
-		for (i = 0; i < 13 * 256; i++) {
-			u8_t *  p     = 0x9F000000 + i * PAGE_SIZE;
+		user_vaddr = USER_VADDR;
+		for (i = 0; i < USER_VADDR_PAGES_ARBITRARY; i++) {
+			u8_t *  p     = KERN_VADDR_ANOTHER_ARBITRARY + i * PAGE_SIZE;
 			paddr_t pf    = chal_va2pa(p);
 			u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
 

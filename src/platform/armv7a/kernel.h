@@ -40,6 +40,8 @@ void *acpi_find_timer(void);
 void  acpi_set_rsdt_page(u32_t);
 void  kern_paging_map_init(void *pa);
 
+void serial_send(char out);
+
 void smp_init(volatile int *cores_ready);
 
 void tls_update(u32_t addr);
