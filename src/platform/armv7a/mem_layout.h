@@ -60,11 +60,6 @@ mem_bootc_end(void)
 	return glb_memlayout.mod_end;
 }
 static inline u8_t *
-mem_bootc_entry(void)
-{
-	return glb_memlayout.bootc_entry;
-}
-static inline u8_t *
 mem_bootc_vaddr(void)
 {
 	return glb_memlayout.bootc_vaddr;

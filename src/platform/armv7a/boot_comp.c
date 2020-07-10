@@ -12,11 +12,18 @@
 #include <inv.h>
 #include <hw.h>
 #include "board_specifics.h"
+#include <shared/elf_loader.h>
 
 extern u8_t *boot_comp_pgd;
 
 void *         thd_mem[NUM_CPU], *tcap_mem[NUM_CPU];
 struct captbl *glb_boot_ct;
+
+static vaddr_t
+mem_bootc_entry(void)
+{
+	return elf_entry_addr((struct elf_hdr *)mem_bootc_start());
+}
 
 int
 boot_nptes(unsigned int sz)
