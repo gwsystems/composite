@@ -1,4 +1,5 @@
 #include <sl.h>
+#include <sl_blkpt.h>
 #include <stacklist.h>
 
 #define NBLKPTS 64

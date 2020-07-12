@@ -12,6 +12,127 @@
 #include <cos_debug.h>
 
 /**
+ * The second API similarly provides the logic for allocation and
+ * access implementing the following potential state machine
+ * transitions:
+ *
+ * - free -> constructing
+ * - constructing -> allocated
+ * - constructing -> free
+ * - allocated -> free
+ *
+ * When in the *free* state, an item can be constructed, and its
+ * memory should not be accessed. When it is in the *constructed*
+ * state, the item's memory should not be accessed as it is still
+ * being prepared.
+ *
+ * This API enables the *state* of the item to be embedded with a
+ * pointer. It assumes that pointers have a the least significant bit
+ * set to 0.
+ *
+ * The implementation takes care to interpret a `0` value as *free*,
+ * so that it can be applied to items in the BSS without
+ * initialization.  Both constructing and allocated are `!0`.
+ * Constructing has the least significant bit `!= 0`, while allocated
+ * has it `== 0`. The value must include a pointer if allocated (thus
+ * resulting in the entire word being `!= 0`), while the pointer can
+ * be `0` or not if constructing.
+ */
+typedef word_t sa_state_t;
+/* if we don't need to store a pointer, use this instead of NULL */
+#define SA_STATE_NULLPTR (void *)(~1)
+/*
+ * This is used for documentation of what the pointer type is even
+ * though it is encapsulated in the sa_state_t
+ */
+#define SA_STATE_T(type) sa_state_t
+
+/* State encodings in the least significant bit. */
+#define SA_STATE_FREE	0	/* free */
+#define SA_STATE_CONS	1	/* constructing */
+#define SA_STATE_ALLOC	0	/* allocated */
+
+/**
+ * Move the memory into the constructing state. Can fail due to
+ * concurrent/parallel allocation of the same memory.
+ *
+ * - @state - the state + ptr
+ * - @return - `0` = success, `1` = failure
+ */
+static inline int
+sa_state_alloc(sa_state_t *state) /* free->constructing */
+{
+	if (*state != SA_STATE_FREE ||
+	    !ps_cas(state, SA_STATE_FREE, SA_STATE_CONS)) return 1;
+
+	return 0;
+}
+
+/**
+ * Activate constructing memory. CAS is not required here as we should
+ * have exclusive access.
+ */
+static inline void
+sa_state_activate(sa_state_t *state) /* constructing->allocated */
+{
+	assert((*state & 1) == SA_STATE_CONS);
+	*state &= ~SA_STATE_CONS;
+	ps_mem_fence();	/* make sure that the previous writes are committed */
+	/* Note that this assumes that the pointer has been set */
+	assert(*state != 0);
+}
+
+static inline void
+sa_state_free(sa_state_t *state) /* (constructing|allocated)->free */
+{
+	assert(*state != 0);
+	*state = SA_STATE_FREE;
+}
+
+static inline int
+sa_state_is_allocated(sa_state_t state)
+{
+	return (state != 0) && ((state & 1) == SA_STATE_ALLOC);
+}
+
+static inline int
+sa_state_is_free(sa_state_t state)
+{
+	return state == 0;
+}
+
+/**
+ * This should only be used on allocated memory.
+ */
+static inline void *
+sa_state_ptr_get(sa_state_t state)
+{
+	assert(((state & 1) == SA_STATE_ALLOC) && ((state & ~1) != 0));
+	return (void*)(state & ~1);
+}
+
+/**
+ * This can be used on constructing or allocated memory, and it does
+ * *not* change the state.
+ */
+static inline void
+sa_state_ptr_set(sa_state_t *state, void *ptr)
+{
+	assert(*state != 0);
+	*state = (word_t)ptr | (*state & 1);
+}
+
+/**
+ * Store a pointer in the state *and* activate the memory.
+ */
+static inline void
+sa_state_activate_with(sa_state_t *state, void *ptr)
+{
+	sa_state_ptr_set(state, ptr);
+	sa_state_activate(state);
+}
+
+/**
  * A memory allocator for statically-allocated collections of
  * objects. Similar to an API, and a baby version of parsec
  * namespaces. Objects are tracked as state machines of object
@@ -119,26 +240,20 @@
  * - The implementation uses `cas` to prevent races on allocation.
  */
 
-/* Should be used with the type word_t to ensure word-aligned cas operations */
-#define SA_OBJ_FREE         0
-#define SA_OBJ_CONSTRUCTING 1
-#define SA_OBJ_ALLOCATED    2
-
 #define SA_STATIC_ALLOC(name, type, max_num)				\
-	static word_t sa_##name##_states[max_num];			\
+	static sa_state_t sa_##name##_states[max_num];			\
 	static type sa_##name##_globals[max_num];			\
 									\
 	static type *							\
 	sa_##name##_alloc_at_index(unsigned int idx)			\
 	{								\
 		type *c = NULL;						\
-		word_t *s;						\
+		sa_state_t *s;						\
 									\
 		if (idx >= max_num) return NULL;			\
 		c = &sa_##name##_globals[idx];				\
 		s = &sa_##name##_states[idx];				\
-		if (*s != (word_t)SA_OBJ_FREE ||			\
-		    !ps_cas(s, SA_OBJ_FREE, SA_OBJ_CONSTRUCTING)) return NULL; \
+		if (sa_state_alloc(s)) return NULL;			\
 		memset(c, 0, sizeof(type));				\
 									\
 		return c;						\
@@ -168,18 +283,16 @@
 	sa_##name##_activate(type *o)					\
 	{								\
 		unsigned int idx = sa_##name##_index(o);		\
-		word_t *s        = &sa_##name##_states[idx];		\
+		sa_state_t *s    = &sa_##name##_states[idx];		\
 									\
-		assert(*s == SA_OBJ_CONSTRUCTING);			\
-		/* no cas as we're the only one accessing */		\
-		*s = SA_OBJ_ALLOCATED;					\
+		sa_state_activate_with(s, SA_STATE_NULLPTR);		\
 	}								\
 	static void							\
 	sa_##name##_free(type *o)					\
 	{								\
-		word_t *s = &sa_##name##_states[sa_##name##_index(o)];	\
+		unsigned int idx = sa_##name##_index(o);		\
 									\
-		*s = (word_t)SA_OBJ_FREE;				\
+		sa_state_free(&sa_##name##_states[idx]);		\
 	}								\
 	static type *							\
 	sa_##name##_get(unsigned int idx)				\
@@ -188,9 +301,16 @@
 									\
 		if (idx >= max_num) return NULL;			\
 		o = &sa_##name##_globals[idx];				\
-		if (sa_##name##_states[idx] != SA_OBJ_ALLOCATED) return NULL; \
+		if (!sa_state_is_allocated(sa_##name##_states[idx])) return NULL; \
 									\
 		return o;						\
+	}								\
+	int								\
+	sa_##name##_is_allocated(type *o)				\
+	{								\
+		unsigned int idx = sa_##name##_index(o);		\
+									\
+		return !sa_state_is_allocated(sa_##name##_states[idx]);	\
 	}
 
 #endif	/* STATIC_ALLOC_H */

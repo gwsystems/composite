@@ -48,14 +48,20 @@ struct cm_asnd {
 #define MM_MAPPINGS_MAX 3
 
 struct mm_mapping {
-	compid_t cid;
-	vaddr_t  addr;
+	SA_STATE_T(struct cm_comp *) comp;
+	vaddr_t     addr;
 };
 
 typedef unsigned int cbuf_t;
 struct mm_page {
 	void *page;
 	struct mm_mapping mappings[MM_MAPPINGS_MAX];
+};
+
+/* Span of pages, indexed by cbuf_t */
+struct mm_span {
+	unsigned int page_off;
+	unsigned int n_pages;
 };
 
 SA_STATIC_ALLOC(comp, struct cm_comp, MAX_NUM_COMPS);
@@ -68,6 +74,7 @@ SA_STATIC_ALLOC(asnd, struct cm_asnd, MAX_NUM_THREADS);
 #define MB2PAGES(mb) (round_up_to_page(mb * 1024 * 1024) / PAGE_SIZE)
 #define MM_NPAGES (MB2PAGES(64))
 SA_STATIC_ALLOC(page, struct mm_page, MM_NPAGES);
+SA_STATIC_ALLOC(span, struct mm_span, MM_NPAGES);
 
 static struct cm_comp *
 cm_self(void)
@@ -148,7 +155,14 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, thdclosure_index_t clo
 	return t;
 }
 
-struct mm_page *
+/**
+ * Allocate a page from the pool of physical memory into a component.
+ *
+ * - @c - The component to allocate into.
+ * - @return - the allocated and initialized page, or `NULL` if no
+ *   page is available.
+ */
+static struct mm_page *
 mm_page_alloc(struct cm_comp *c)
 {
 	struct mm_mapping *m;
@@ -159,19 +173,139 @@ mm_page_alloc(struct cm_comp *c)
 	if (!p) return NULL;
 
 	m = &p->mappings[0];
-	assert(m->addr == 0);
+	if (sa_state_alloc(&m->comp)) BUG();
 
 	/* Allocate page, map page */
 	p->page = crt_page_allocn(&c->comp, 1);
 	if (!p->page) ERR_THROW(NULL, free_p);
 	if (crt_page_aliasn_in(p->page, 1, &cm_self()->comp, &c->comp, &m->addr)) BUG();
 
+	sa_state_activate_with(&m->comp, c);
+	sa_page_activate(p);
 	ret = p;
 done:
 	return ret;
 free_p:
 	sa_page_free(p);
 	goto done;
+}
+
+static struct mm_page *
+mm_page_allocn(struct cm_comp *c, unsigned long num_pages)
+{
+	struct mm_page *p, *prev, *initial;
+	unsigned long i;
+
+	initial = prev = p = mm_page_alloc(c);
+	if (!p) return 0;
+	for (i = 1; i < num_pages; i++) {
+		p = mm_page_alloc(c);
+		if (!p) return NULL;
+		if ((prev->page + 4096) != p->page) {
+			BUG(); /* FIXME: handle concurrency */
+		}
+	}
+
+	return initial;
+}
+
+vaddr_t
+memmgr_heap_page_allocn(unsigned long num_pages)
+{
+	struct cm_comp *c;
+	struct mm_page *p;
+
+	c = sa_comp_get(cos_inv_token());
+	if (!c) return 0;
+	p = mm_page_allocn(c, num_pages);
+	if (!p) return 0;
+
+	return (vaddr_t)p->page;
+}
+
+cbuf_t
+memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr)
+{
+	struct cm_comp *c;
+	struct mm_page *p;
+	struct mm_span *s;
+	cbuf_t ret = 0;
+
+	c = sa_comp_get(cos_inv_token());
+	if (!c) return 0;
+	s = sa_span_alloc();
+	if (!s) return 0;
+	p = mm_page_allocn(c, num_pages);
+	if (!p) ERR_THROW(0, cleanup);
+
+	s->page_off = sa_page_index(p);
+	s->n_pages  = num_pages;
+	sa_span_activate(s);
+
+	ret = sa_span_index(s);
+done:
+	return ret;
+cleanup:
+	sa_span_free(s);
+	goto done;
+}
+
+/**
+ * Alias a page of memory into another component (i.e., create shared
+ * memory). The number of mappings are limited by `MM_MAPPINGS_MAX`.
+ *
+ * @p - the page we're going to alias
+ * @c - the component to alias into
+ * @addr - returns the virtual address mapped into
+ * @return - `0` = success, `<0` = error
+ */
+static int
+mm_page_alias(struct mm_page *p, struct cm_comp *c, vaddr_t *addr)
+{
+	struct mm_mapping *m;
+	int i;
+
+	for (i = 1; i < MM_MAPPINGS_MAX; i++) {
+		m = &p->mappings[i];
+
+		if (sa_state_alloc(&m->comp)) continue;
+		if (crt_page_aliasn_in(p->page, 1, &cm_self()->comp, &c->comp, &m->addr)) BUG();
+		assert(m->addr);
+		sa_state_activate_with(&m->comp, c);
+
+		return 0;
+	}
+	assert(i == MM_MAPPINGS_MAX);
+
+	return -ENOMEM;
+}
+
+unsigned long
+memmgr_shared_page_map(cbuf_t id, vaddr_t *pgaddr)
+{
+	struct cm_comp *c;
+	struct mm_span *s;
+	struct mm_page *p;
+	unsigned int i;
+	vaddr_t addr;
+
+	*pgaddr = 0;
+	s = sa_span_get(id);
+	if (!s) return 0;
+	c = sa_comp_get(cos_inv_token());
+	if (!c) return 0;
+
+	for (i = 0; i < s->n_pages; i++) {
+		struct mm_page *p;
+
+		p = sa_page_get(s->page_off + i);
+		if (!p) return 0;
+
+		if (mm_page_alias(p, c, &addr)) BUG();
+		if (*pgaddr == 0) *pgaddr = addr;
+	}
+
+	return s->n_pages;
 }
 
 static compid_t
@@ -211,9 +345,19 @@ capmgr_comp_init(void)
 	capid_t capfr = 0;
 	int ret, cont;
 	struct cm_comp *comp;
+	struct mm_span *span;
 
 	int remaining = 0;
 	int num_comps = 0;
+
+	/*
+	 * cbuf_t == 0 should be an error, not allocatable.  Note that
+	 * we're not activating it, so that lookups of that value will
+	 * return an error. Result: it is reserved, thus not
+	 * allocatable, but also not lookup-able.
+	 */
+	span = sa_span_alloc_at_index(0);
+	assert(span && sa_span_index(span) == 0);
 
 	/* ...then those that we're responsible for... */
 	ret = args_get_entry("captbl", &cap_entries);
@@ -418,10 +562,6 @@ arcvcap_t capmgr_rcv_create(spdid_t child, thdid_t tid, cos_channelkey_t key, mi
 asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t) { BUG(); return 0; }
 asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv) { BUG(); return 0; }
 asndcap_t capmgr_asnd_key_create(cos_channelkey_t key) { BUG(); return 0; }
-
-vaddr_t memmgr_heap_page_allocn(unsigned long num_pages) { BUG(); return 0; }
-cbuf_t memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr) { BUG(); return 0; }
-unsigned long memmgr_shared_page_map(cbuf_t id, vaddr_t *pgaddr) { BUG(); return 0; }
 
 void capmgr_create_noop(void) { return; }
 
