@@ -124,7 +124,7 @@ This will run our linker that consumes the specific configuration script, and (a
 Now that we have the system image, we can run it!
 
 ```
-$ sudo ./cos run stem_binaries/cos_build-test/cos.img
+$ sudo ./cos run system_binaries/cos_build-test/cos.img
 [cos executing] tools/run.sh system_binaries/cos_build-test/cos.img
 ...
 (0,8,4) DBG:Test successful! Highest was scheduled only!
