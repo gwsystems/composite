@@ -57,5 +57,6 @@ timer_init(void)
 	CAV7_GTMR_GTCNTRH = 0;
 	CAV7_GTMR_GTCTLR  = 1;
 	printk("global timer init\n");
-	cycle_counter_user_enable();
+	/* This one faults "invalid instruction", will need to check again */
+//	cycle_counter_user_enable();
 }

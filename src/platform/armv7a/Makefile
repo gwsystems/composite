@@ -12,6 +12,7 @@ LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img
 IMAGE  := cos.img
+IMGBIN := cos.bin
 
 WARNINGS += -Wall
 WARNINGS += -Wcast-align
@@ -46,6 +47,12 @@ OBJS += chal_pgtbl.o
 OBJS += irq.o
 OBJS += vtxprintf.o
 #OBJS += div.o
+OBJS += __aeabi_idiv.o
+OBJS += udivmoddi4.o
+
+ASM_OBJS += __aeabi_uidiv.o
+ASM_OBJS += __aeabi_uidivmod.o
+ASM_OBJS += __aeabi_uldivmod.o
 
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o
@@ -56,22 +63,24 @@ COS_OBJ += captbl.o
 
 DEPS :=$(patsubst %.o, %.d, $(OBJS))
 
-OBJS += $(COS_OBJ)
+OBJS += $(COS_OBJ) $(ASM_OBJS)
 
 all: $(KERNEL)
 
 $(KERNEL): linker.ld $(DEPS) $(OBJS) start.o
 	$(if $(CONSTRUCTOR_COMP), $(info |     [LD]   Linking in the constructor component $@))
-	$(if $(CONSTRUCTOR_COMP), @cp $(CONSTRUCTOR_COMP) constructor; $(LD) -r -b binary constructor -o constructor.o; objcopy --rename-section .data=.initial_component constructor.o; rm constructor)
+	$(if $(CONSTRUCTOR_COMP), @cp $(CONSTRUCTOR_COMP) constructor; $(LD) -r -b binary constructor -o constructor.o; $(OBJCP) --rename-section .data=.initial_component constructor.o; rm constructor)
 	$(if $(KERNEL_OUTPUT), $(info |     [LD]   Linking $@))
 	$(if $(KERNEL_OUTPUT), $(LD) -T linker.ld start.o $(OBJS) $(if $(CONSTRUCTOR_COMP), constructor.o) -o $@)
+	$(if $(KERNEL_OUTPUT), $(info |     [OBJCP]   Converting $@ to binary))
+	$(if $(KERNEL_OUTPUT), $(OBJCP) -O binary $@ $@.bin)
 	$(if $(KERNEL_OUTPUT), $(info |     [CP]   Copying $@ into $(KERNEL_OUTPUT)))
 	$(if $(KERNEL_OUTPUT), @cp $@ $(KERNEL_OUTPUT))
+	$(if $(KERNEL_OUTPUT), @cp $@.bin $(KERNEL_OUTPUT).bin)
 
-start.o: start.S 
-	$(info |     [AS]   Assembling $@)
-	@$(AS) -c start.S -o $@
-
+#start.o: start.S 
+#	$(info |     [AS]   Assembling $@)
+#	@$(AS) -c start.S -o $@
 
 %.d: %.c
 	@$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@
@@ -100,6 +109,9 @@ captbl.o: ../../kernel/captbl.c
 	$(info |     [CC]   Compiling $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
 
+%.o: %.S
+	$(info |     [AS]   Assembling $@)
+	@$(AS) -c $< -o $@
 
 %.o: %.c
 	$(info |     [CC]   Compiling $@)

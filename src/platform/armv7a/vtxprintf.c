@@ -23,10 +23,10 @@
 
 #define do_div(n, base)                       \
 	({                                    \
-		int __base = (base);          \
-		int __rem;                    \
-		__rem = ((long)(n)) % __base; \
-		(n)   = ((long)(n)) / __base; \
+		unsigned int __base = (base);          \
+		unsigned int __rem;                    \
+		__rem = ((unsigned long)(n)) % __base; \
+		(n)   = ((unsigned long)(n)) / __base; \
 		__rem;                        \
 	})
 
@@ -54,7 +54,7 @@ skip_atoi(const char **s)
 #define LARGE 64   /* use 'ABCDEF' instead of 'abcdef' */
 
 static int
-number(void (*tx_byte)(unsigned char byte), unsigned long long num, int base, int size, int precision, int type)
+number(void (*tx_byte)(unsigned char byte), unsigned long num, int base, int size, int precision, int type)
 {
 	char        c, sign, tmp[66];
 	const char *digits = "0123456789abcdefghijklmnopqrstuvwxyz";
@@ -89,7 +89,7 @@ number(void (*tx_byte)(unsigned char byte), unsigned long long num, int base, in
 	if (num == 0)
 		tmp[i++] = '0';
 	else
-		;//while (num != 0) tmp[i++] = digits[do_div(num, base)];
+		while (num != 0) tmp[i++] = digits[do_div(num, base)];
 	if (i > precision) precision = i;
 	size -= precision;
 	if (!(type & (ZEROPAD + LEFT)))

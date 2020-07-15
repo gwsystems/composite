@@ -24,6 +24,7 @@ src/.PLATFORM_ID
 modules.order
 .depend
 *.img
+*.bin
 transfer/
 GPATH
 GRTAGS
