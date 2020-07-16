@@ -22,9 +22,9 @@
 
 #define KERN_END       0x10000000
 #define MOD_START      0x90000000
-#define MOD_END        0x98000000
+#define MOD_END        (MOD_START + 0x4000000)
 #define BOOTC_ENTRY    0x10000000
-#define BOOTC_VADDR    BOOTC_ENTRY
+#define BOOTC_VADDR    0x00400000
 #define KERN_BOOT_HEAP 0x98000000
 #define KERN_MEM_END   0xBFFF0000
 

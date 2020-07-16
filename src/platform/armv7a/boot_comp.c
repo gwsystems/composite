@@ -251,9 +251,9 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	assert(pgtbl);
 	pgtbl_update(pgtbl);
 
-	printk("content %x\n", *((volatile unsigned long *)0x98003400));
-	printk("content2 %x\n", *((volatile unsigned long *)0x98004000));
-	printk("content3 %x\n", *((volatile unsigned long *)0x10000000));
+	//printk("content %x\n", *((volatile unsigned long *)0x98003400));
+	//printk("content2 %x\n", *((volatile unsigned long *)0x98004000));
+	//printk("content3 %x\n", *((volatile unsigned long *)0x10000000));
 
 	printk("\tCreating initial threads, tcaps, and rcv end-points in boot-component.\n");
 }
@@ -324,6 +324,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	if (pgtbl_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_PT, (pgtbl_t)sram_vm_pgd, 0)) assert(0);
 
 
+	printk("Boot component start:%lx end:%lx, entry:%lx, vaddr:%lx\n", mem_bootc_start(), mem_bootc_end(), mem_bootc_entry(), mem_bootc_vaddr());
 	/* This is the booter component - we also make a shadow booter component that replicates the static segments but
 	 * have all its dynamic memory mapping page tables in SRAM. */
 	ret = boot_pgtbl_mappings_add(glb_boot_ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, "booter VM",

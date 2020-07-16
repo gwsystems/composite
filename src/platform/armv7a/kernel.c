@@ -39,6 +39,7 @@ hextol(const char *s)
 }
 
 extern u8_t end; /* from the linker script */
+extern u8_t _binary_constructor_start, _binary_constructor_end;
 
 #define MEM_KB_ONLY(x) (((x) & ((1 << 20) - 1)) >> 10)
 #define MEM_MB_ONLY(x) ((x) >> 20)
@@ -66,16 +67,18 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	thd_init();
 
 	/* We know the memory layout and will initialize it here - kernel : 256MB */
-	glb_memlayout.kern_end = KERN_END;
+	glb_memlayout.kern_end = end;
 	/* Booter : 64MB, these are kernel addresses that will never be used in fact */
-	glb_memlayout.mod_start = MOD_START;
-	glb_memlayout.mod_end   = MOD_END;
+	glb_memlayout.mod_start = &_binary_constructor_start;
+	glb_memlayout.mod_end   = &_binary_constructor_end;
+	printk("[%08x, %08x)\n", &_binary_constructor_start, &_binary_constructor_end);
 	/* Booter entry */
 	glb_memlayout.bootc_entry = BOOTC_ENTRY;
 	/* Booter virtual address */
 	glb_memlayout.bootc_vaddr    = BOOTC_VADDR;
-	glb_memlayout.kern_boot_heap = KERN_BOOT_HEAP;
+	glb_memlayout.kern_boot_heap = mem_boot_start();
 	glb_memlayout.kmem_end       = KERN_MEM_END;
+	printk("[%08x, %08x)\n", glb_memlayout.kern_boot_heap, glb_memlayout.kmem_end);
 	glb_memlayout.allocs_avail   = 1;
 
 	chal_kernel_mem_pa = chal_va2pa(mem_kmem_start());

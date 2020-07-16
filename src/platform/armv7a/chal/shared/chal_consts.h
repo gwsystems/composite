@@ -21,4 +21,11 @@ struct pt_regs {
         unsigned long r15_pc;
 };
 
+#define PAGE_MASK (~(PAGE_SIZE - 1))
+#define PGD_SHIFT 20
+#define PGD_RANGE (1 << PGD_SHIFT)
+#define PGD_SIZE PGD_RANGE
+#define PGD_MASK (~(PGD_RANGE - 1))
+#define PGD_PER_PTBL 1024
+
 #endif /* CHAL_CONSTS_H */

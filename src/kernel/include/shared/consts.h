@@ -59,13 +59,6 @@
 #define MAX_STATIC_CAP 256
 #define MAX_NUM_ACAP 256
 
-#define PAGE_MASK (~(PAGE_SIZE - 1))
-#define PGD_SHIFT 22
-#define PGD_RANGE (1 << PGD_SHIFT)
-#define PGD_SIZE PGD_RANGE
-#define PGD_MASK (~(PGD_RANGE - 1))
-#define PGD_PER_PTBL 1024
-
 /* For this family of macros, do NOT pass zero as the pow2 */
 #define round_to_pow2(x, pow2) (((unsigned long)(x)) & (~((pow2)-1)))
 #define round_up_to_pow2(x, pow2) (round_to_pow2(((unsigned long)x) + (pow2)-1, (pow2)))

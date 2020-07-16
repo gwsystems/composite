@@ -51,10 +51,12 @@ SECTIONS
   /*PROVIDE (end = .);*/
   end = .;
   . = ALIGN(4096);
+  ASSERT(. < 0x90000000, "Kernel size exceeded the limit, may need to adjust memory configurations")
 
   .initial_component : AT(phys + (initial_component - code)) {
      initial_component = .;
      *(.initial_component)
+     . = ALIGN(4096);
   }
 
   /DISCARD/ : {

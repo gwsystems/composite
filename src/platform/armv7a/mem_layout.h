@@ -38,6 +38,7 @@ struct mem_layout {
 	int   allocs_avail;
 };
 extern struct mem_layout glb_memlayout;
+extern unsigned long __initial_component_start__, __initial_component_end__;
 
 static inline u8_t *
 mem_kern_start(void)
