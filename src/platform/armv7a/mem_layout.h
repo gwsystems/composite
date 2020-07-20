@@ -68,7 +68,7 @@ mem_bootc_vaddr(void)
 static inline u8_t *
 mem_boot_start(void)
 {
-	return (u8_t *)round_up_to_pow2(mem_bootc_end(), RETYPE_MEM_NPAGES * PAGE_SIZE);
+	return (u8_t *)round_up_to_pow2(mem_kern_end(), RETYPE_MEM_NPAGES * PAGE_SIZE);
 }
 static inline u8_t *
 mem_boot_end(void)
