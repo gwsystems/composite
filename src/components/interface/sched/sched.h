@@ -1,4 +1,4 @@
-/**
+/*
  * Redistribution of this file is permitted under the BSD two clause license.
  *
  * Copyright 2018, The George Washington University
@@ -7,6 +7,11 @@
 
 #ifndef SCHED_H
 #define SCHED_H
+
+/***
+ * Components implementing the `sched` API provide threads, and thread
+ * multiplexing, synchronization, and timing services.
+ */
 
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>

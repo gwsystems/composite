@@ -130,6 +130,137 @@ gen_graphviz(compdeps)
 gen_graphviz(libdeps)
 gen_graphviz(ifdeps)
 
+# Assumes that comments have the *exact* form (space sensitive):
+# /** <- comment starts
+#  * ...comment...
+#  */ <- comment ends
+# void function_prototypes(void); <- same line
+# static inline void
+# inline_function_prototype(void) <- no ; or {
+# { <- alone on line
+#     ...
+# } <- alone on line
+# /***/ <- end prototypes
+#
+# This simply translates that into:
+# ``` c
+# void function_prototypes(void);
+# static inline void
+# inline_function_prototype(void)
+# ```
+# ...comment...
+#
+# This assumes and leverages the style perscribed by the CSG.
+
+library_headers   = comp_base + "lib/*/*.h"
+interface_headers = comp_base + "interface/*/*.h"
+### Auto-gen the documentation for the interfaces and libraries
+def gen_doc(header):
+    doc_header = "### API Documentation\n\n"
+    doc = ""
+    proto_head = "\n``` c\n"
+    proto_tail = "```\n\n"
+    header_comment = ""
+    comment = ""
+    proto = ""
+    state = "scanning"
+
+    def de_comment(line):
+        l = re.sub(r'^ \*', r'', line) # get rid of the leading " *"
+        if len(l) > 0 and l[0] == ' ':
+            return l[1:]
+        return l
+
+    def commit_proto(proto, comment):
+        if proto != "":
+            proto = proto_head + proto + proto_tail
+        ret = proto + comment
+        if ret != "":
+            ret = "\n---\n" + ret
+        return ret
+
+    in_comment = False
+    for l in re.split("\n", header):
+        # First, filter out # directives and comments
+        if re.match('^#.*', l) != None:
+            continue        # skip #endif/#define etc...
+        c_single = re.match(r'(.*)//.*', l) # remove text following //
+        if c_single != None:
+            l = c_single.group(0)
+        c_start  = re.match(r'(.*)/\*[^\*].*', l) # remove all after /*
+        c_end    = re.match(r'.*\*/(.*)', l)  # leave only code after */
+        if not in_comment and c_start != None:
+            in_comment = True
+            l = c_start.group(0)
+        if in_comment:
+            if c_end == None:
+                continue
+            in_comment = False
+            l = c_end.group(0)
+
+        # Next, work through the state machine
+        if state == "scanning" and l == "/**":
+            doc += commit_proto(proto, comment)
+            proto = ""
+            comment = ""
+            state = "comment"
+        elif state == "scanning" and l == "/***":
+            doc += commit_proto(proto, comment)
+            proto = ""
+            comment = ""
+            state = "header comment"
+        elif state == "comment":
+            if (l == " */"):
+                state = "prototypes"
+            else:
+                l = de_comment(l)
+                comment += l + "\n"
+        elif state == "header comment":
+            if (l == " */"):
+                state = "scanning"
+            else:
+                l = de_comment(l)
+                header_comment += l + "\n"
+        elif state == "prototypes":
+            p = re.search(r"^(.*);$", l)
+            if l == "/**":
+                doc += commit_proto(proto, comment)
+                proto = ""
+                comment = ""
+                state = "comment"
+            elif p != None:
+                proto += p.group(0)  + "\n"
+            elif l == "{":
+                proto += "{ ... "
+                state = "function body"
+            elif l == "/***/":
+                doc += commit_proto(proto, comment)
+                proto = ""
+                comment = ""
+                state = "scanning"
+            else:
+                proto += l + "\n"
+        elif state == "function body":
+            if l == "}":
+                proto += "}\n"
+                state  = "prototypes"
+
+    doc += commit_proto(proto,comment)
+
+    return doc_header + header_comment + doc
+
+for (b, d) in ifdeps.items():
+    path     = d["path"] + b + ".h"
+    contents = readfile(path)
+    doc      = gen_doc(contents)
+    d["doc"] = doc;
+
+for (b, d) in libdeps.items():
+    path     = d["path"] + b + ".h"
+    contents = readfile(path)
+    doc      = gen_doc(contents)
+    d["doc"] = doc;
+
 # At this point, we have all of the pdfs generated for the component
 # dependencies, and need to simply generate the markdown that links to
 # them. Note, we do *not* cleanup the temporary files created, and
@@ -139,6 +270,8 @@ def gen_md(header, blobs):
     for (b, d) in blobs.items():
         output += readfile(d["path"] + "doc.md")
         output += "\n### Dependencies and Exports\n\n![Exports and dependencies for " + b + ". Teal hexagons are *component* implementations, slate rectangles are *interfaces*, and gray ellipses are *libraries*. Dotted lines denote an *export* relation, and solid lines denote a *dependency*.](" + d["pdf"] + ")\n\n"
+        if d.has_key("doc"):
+            output += d["doc"] + "\n\n"
     return output
 
 comphead=readfile("./resources/component_doc.md")

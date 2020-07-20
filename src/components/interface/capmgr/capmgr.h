@@ -1,12 +1,22 @@
-/**
+/*
  * Redistribution of this file is permitted under the BSD two clause license.
  *
  * Copyright 2018, The George Washington University
  * Author: Phani Gadepalli, phanikishoreg@gwu.edu
+ *
+ * Copyright 2020, The George Washington University
+ * Author: Gabe Parmer, gparmer@gwu.edu
  */
 
 #ifndef CAPMGR_H
 #define CAPMGR_H
+
+/***
+ * The capability manager is in charge of the controlling and
+ * allocating resource tables (capability and page tables). It
+ * controls creating all kernel resources, and the protocols for
+ * delegation and revocation.
+ */
 
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>

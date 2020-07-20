@@ -11,7 +11,7 @@
 #include <ps.h>
 #include <cos_debug.h>
 
-/**
+/***
  * The second API similarly provides the logic for allocation and
  * access implementing the following potential state machine
  * transitions:
@@ -218,6 +218,14 @@ sa_state_activate_with(sa_state_t *state, void *ptr)
  * unbounded `cas` loops that are unacceptable. We pay for this with
  * some memory wastage.
  *
+ * *Id API*: The API has `*_offset` APIs that are internal, and `*_id`
+ * *APIs. The id* APIs view the static allocation space as
+ *
+ * 1. Offset into the id namespace by `id_offset`. For example, an
+ *    `id_offset = 1`, means that `id = 1` is the 0th item in the
+ *    static allocation array.
+ * 2. The ids are in the range `[id_offset, id_offset + max_num)`.
+ *
  * *Guarantees*:
  *
  * - All allocation is through the static array. No dynamic allocation.
@@ -240,12 +248,12 @@ sa_state_activate_with(sa_state_t *state, void *ptr)
  * - The implementation uses `cas` to prevent races on allocation.
  */
 
-#define SA_STATIC_ALLOC(name, type, max_num)				\
+#define SA_STATIC_ALLOC_OFF(name, type, max_num, id_offset)		\
 	static sa_state_t sa_##name##_states[max_num];			\
 	static type sa_##name##_globals[max_num];			\
 									\
-	static type *							\
-	sa_##name##_alloc_at_index(unsigned int idx)			\
+	static type *	/* Not part of the public API */		\
+	__sa_##name##_alloc_at_index(unsigned int idx)			\
 	{								\
 		type *c = NULL;						\
 		sa_state_t *s;						\
@@ -259,13 +267,20 @@ sa_state_activate_with(sa_state_t *state, void *ptr)
 		return c;						\
 	}								\
 	static type *							\
+	sa_##name##_alloc_at_id(unsigned int id)			\
+	{								\
+		if (id < id_offset) return NULL;			\
+									\
+		return __sa_##name##_alloc_at_index(id - id_offset);	\
+	}								\
+	static type *							\
 	sa_##name##_alloc(void)						\
 	{								\
 		unsigned int i;						\
 		type *c = NULL;						\
 									\
 		for (i = 0; i < max_num; i++) {				\
-			c = sa_##name##_alloc_at_index(i);		\
+			c = __sa_##name##_alloc_at_index(i);		\
 			if (c) break;					\
 		}							\
 		if (i >= max_num) return NULL;				\
@@ -273,16 +288,22 @@ sa_state_activate_with(sa_state_t *state, void *ptr)
 		return c;						\
 	}								\
 	static unsigned int						\
-	sa_##name##_index(type *o)					\
+	__sa_##name##_index(type *o) /* not part of the public API */	\
 	{								\
 		assert(o >= &sa_##name##_globals[0] &&			\
 		       o <= &sa_##name##_globals[max_num - 1]);		\
-		return o - &sa_##name##_globals[0];			\
+									\
+		return (o - &sa_##name##_globals[0]);			\
+	}								\
+	static unsigned int						\
+	sa_##name##_id(type *o)						\
+	{								\
+		return __sa_##name##_index(o) + id_offset;		\
 	}								\
 	static void							\
 	sa_##name##_activate(type *o)					\
 	{								\
-		unsigned int idx = sa_##name##_index(o);		\
+		unsigned int idx = __sa_##name##_index(o);		\
 		sa_state_t *s    = &sa_##name##_states[idx];		\
 									\
 		sa_state_activate_with(s, SA_STATE_NULLPTR);		\
@@ -290,15 +311,18 @@ sa_state_activate_with(sa_state_t *state, void *ptr)
 	static void							\
 	sa_##name##_free(type *o)					\
 	{								\
-		unsigned int idx = sa_##name##_index(o);		\
+		unsigned int idx = __sa_##name##_index(o);		\
 									\
 		sa_state_free(&sa_##name##_states[idx]);		\
 	}								\
 	static type *							\
-	sa_##name##_get(unsigned int idx)				\
+	sa_##name##_get(unsigned int id)				\
 	{								\
 		type *o;						\
+		unsigned int idx;					\
 									\
+		if (id < id_offset) return NULL;			\
+		idx = id - id_offset;					\
 		if (idx >= max_num) return NULL;			\
 		o = &sa_##name##_globals[idx];				\
 		if (!sa_state_is_allocated(sa_##name##_states[idx])) return NULL; \
@@ -308,9 +332,11 @@ sa_state_activate_with(sa_state_t *state, void *ptr)
 	int								\
 	sa_##name##_is_allocated(type *o)				\
 	{								\
-		unsigned int idx = sa_##name##_index(o);		\
+		unsigned int idx = __sa_##name##_index(o);		\
 									\
 		return !sa_state_is_allocated(sa_##name##_states[idx]);	\
 	}
+
+#define SA_STATIC_ALLOC(name, type, max_num) SA_STATIC_ALLOC_OFF(name, type, max_num, 0)
 
 #endif	/* STATIC_ALLOC_H */

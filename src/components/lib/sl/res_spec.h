@@ -43,31 +43,32 @@ typedef enum {
 	SCHEDP_MAX          /* maximum value */
 } sched_param_type_t;
 
-#define SCHED_PARAM_TYPE_BITS 8
-struct sched_param_s {
-	sched_param_type_t type : (SCHED_PARAM_TYPE_BITS);
-	unsigned int       value : (32 - SCHED_PARAM_TYPE_BITS);
-} __attribute__((packed));
+#define SCHED_PARAM_TYPE_BITS 6
+#define SCHED_PARAM_TYPE_MASK ((1 << SCHED_PARAM_TYPE_BITS) - 1)
 
-union sched_param_union {
-	struct sched_param_s c; /* composite */
-	u32_t                v; /* value     */
-};
 typedef u32_t sched_param_t;
 
+/* for static configuration */
+#define SCHED_PARAM_CONS(type, value) ((sched_param_t)(type | (value << SCHED_PARAM_TYPE_BITS)))
+
+/* use _cons instead! */
 static inline sched_param_t
 sched_param_pack(sched_param_type_t type, unsigned int value)
 {
-	return ((union sched_param_union){.c = {.type = type, .value = value}}).v;
+	return SCHED_PARAM_CONS(type, value);
+}
+
+static inline sched_param_t
+sched_param_cons(sched_param_type_t type, unsigned int value)
+{
+	return sched_param_pack(type, value);
 }
 
 static inline void
 sched_param_get(sched_param_t sp, sched_param_type_t *type, unsigned int *value)
 {
-	struct sched_param_s s = *(struct sched_param_s *)(void *)&sp;
-
-	*type  = s.type;
-	*value = s.value;
+	if (type)  *type  = (sched_param_type_t)(sp &  SCHED_PARAM_TYPE_MASK);
+	if (value) *value = (unsigned int)      (sp >> SCHED_PARAM_TYPE_BITS);
 }
 
 #endif /* RES_SPEC_H */

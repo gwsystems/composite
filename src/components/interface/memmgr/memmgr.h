@@ -1,4 +1,4 @@
-/**
+/*
  * Redistribution of this file is permitted under the BSD two clause license.
  *
  * Copyright 2018, The George Washington University

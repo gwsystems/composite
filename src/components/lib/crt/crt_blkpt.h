@@ -135,6 +135,17 @@ typedef enum {
 #define CRT_BLKPT_BLKED(e)         ((e) &  CRT_BLKPT_BLKED_MASK)
 #define CRT_BLKPT_EPOCH(e)         ((e) & ~CRT_BLKPT_BLKED_MASK)
 
+static inline void
+crt_blkpt_init_w_id(struct crt_blkpt *blkpt, sched_blkpt_id_t id)
+{
+	*blkpt = (struct crt_blkpt){
+		.id = id,
+		.epoch_blocked = 0
+	};
+
+	return;
+}
+
 /* Return != 0 on failure: no ids to allocate */
 static inline int
 crt_blkpt_init(struct crt_blkpt *blkpt)
@@ -144,10 +155,7 @@ crt_blkpt_init(struct crt_blkpt *blkpt)
 	id = sched_blkpt_alloc();
 	if (id == SCHED_BLKPT_NULL) return -1;
 
-	*blkpt = (struct crt_blkpt){
-		.id = id,
-		.epoch_blocked = 0
-	};
+	crt_blkpt_init_w_id(blkpt, id);
 
 	return 0;
 }
@@ -222,7 +230,7 @@ __crt_blkpt_atomic_wait(sched_blkpt_epoch_t *ec, sched_blkpt_epoch_t chkpt, crt_
 
 /* Trigger an event, waking blocked threads. */
 static inline void
-crt_blkpt_trigger(struct crt_blkpt *blkpt, crt_blkpt_flags_t flags)
+crt_blkpt_id_trigger(struct crt_blkpt *blkpt, sched_blkpt_id_t id, crt_blkpt_flags_t flags)
 {
 	/*
 	 * Note that the flags should likely be passed in statically,
@@ -250,7 +258,13 @@ crt_blkpt_trigger(struct crt_blkpt *blkpt, crt_blkpt_flags_t flags)
 	 * = max(epoch, ...) (for some wraparound-aware version of
 	 * max).
 	 */
-	sched_blkpt_trigger(blkpt->id, CRT_BLKPT_EPOCH(saved + 1), 0);
+	sched_blkpt_trigger(id, CRT_BLKPT_EPOCH(saved + 1), 0);
+}
+
+static inline void
+crt_blkpt_trigger(struct crt_blkpt *blkpt, crt_blkpt_flags_t flags)
+{
+	crt_blkpt_id_trigger(blkpt, blkpt->id, flags);
 }
 
 /* Wake only a single, specified thread (tracked manually in the data-structure) */
@@ -272,7 +286,7 @@ crt_blkpt_checkpoint(struct crt_blkpt *blkpt, struct crt_blkpt_checkpoint *chkpt
 
 /* Wait for an event. */
 static inline void
-crt_blkpt_wait(struct crt_blkpt *blkpt, crt_blkpt_flags_t flags, struct crt_blkpt_checkpoint *chkpt)
+crt_blkpt_id_wait(struct crt_blkpt *blkpt, sched_blkpt_id_t id, crt_blkpt_flags_t flags, struct crt_blkpt_checkpoint *chkpt)
 {
 	/*
 	 * If blocked is already set, we can try and block
@@ -284,9 +298,15 @@ crt_blkpt_wait(struct crt_blkpt *blkpt, crt_blkpt_flags_t flags, struct crt_blkp
 	if (!CRT_BLKPT_BLKED(chkpt->epoch_blocked) &&
 	    !__crt_blkpt_atomic_wait(&blkpt->epoch_blocked, chkpt->epoch_blocked, flags)) return;
 
-	if (unlikely(sched_blkpt_block(blkpt->id, CRT_BLKPT_EPOCH(chkpt->epoch_blocked), 0))) {
+	if (unlikely(sched_blkpt_block(id, CRT_BLKPT_EPOCH(chkpt->epoch_blocked), 0))) {
 		BUG(); 		/* we are using a blkpt id that doesn't exist! */
 	}
+}
+
+static inline void
+crt_blkpt_wait(struct crt_blkpt *blkpt, crt_blkpt_flags_t flags, struct crt_blkpt_checkpoint *chkpt)
+{
+	crt_blkpt_id_wait(blkpt, blkpt->id, flags, chkpt);
 }
 
 /*

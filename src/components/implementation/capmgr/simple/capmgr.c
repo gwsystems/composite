@@ -64,17 +64,17 @@ struct mm_span {
 	unsigned int n_pages;
 };
 
-SA_STATIC_ALLOC(comp, struct cm_comp, MAX_NUM_COMPS);
-SA_STATIC_ALLOC(thd, struct cm_thd, MAX_NUM_THREADS);
+SA_STATIC_ALLOC_OFF(comp, struct cm_comp, MAX_NUM_COMPS, 1);
+SA_STATIC_ALLOC_OFF(thd, struct cm_thd, MAX_NUM_THREADS, 1);
 /* These size values are somewhat arbitrarily chosen */
-SA_STATIC_ALLOC(rcv, struct cm_rcv, MAX_NUM_THREADS);
-SA_STATIC_ALLOC(asnd, struct cm_asnd, MAX_NUM_THREADS);
+SA_STATIC_ALLOC_OFF(rcv, struct cm_rcv, MAX_NUM_THREADS, 1);
+SA_STATIC_ALLOC_OFF(asnd, struct cm_asnd, MAX_NUM_THREADS, 1);
 
 /* 64 MiB */
 #define MB2PAGES(mb) (round_up_to_page(mb * 1024 * 1024) / PAGE_SIZE)
 #define MM_NPAGES (MB2PAGES(64))
-SA_STATIC_ALLOC(page, struct mm_page, MM_NPAGES);
-SA_STATIC_ALLOC(span, struct mm_span, MM_NPAGES);
+SA_STATIC_ALLOC_OFF(page, struct mm_page, MM_NPAGES, 1);
+SA_STATIC_ALLOC_OFF(span, struct mm_span, MM_NPAGES, 1);
 
 static struct cm_comp *
 cm_self(void)
@@ -89,7 +89,7 @@ cm_self(void)
 static struct cm_comp *
 cm_comp_self_alloc(char *name)
 {
-	struct cm_comp *c = sa_comp_alloc_at_index(cos_compid());
+	struct cm_comp *c = sa_comp_alloc_at_id(cos_compid());
 
 	assert(c);
 	if (crt_booter_create(&c->comp, name, cos_compid(), 0)) BUG();
@@ -101,7 +101,7 @@ cm_comp_self_alloc(char *name)
 static struct cm_comp *
 cm_comp_alloc_with(char *name, compid_t id, struct crt_comp_resources *resources)
 {
-	struct cm_comp *c = sa_comp_alloc_at_index(id);
+	struct cm_comp *c = sa_comp_alloc_at_id(id);
 
 	if (!c) return NULL;
 	if (crt_comp_create_with(&c->comp, name, id, resources)) {
@@ -238,11 +238,11 @@ memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr)
 	p = mm_page_allocn(c, num_pages);
 	if (!p) ERR_THROW(0, cleanup);
 
-	s->page_off = sa_page_index(p);
+	s->page_off = sa_page_id(p);
 	s->n_pages  = num_pages;
 	sa_span_activate(s);
 
-	ret = sa_span_index(s);
+	ret = sa_span_id(s);
 done:
 	return ret;
 cleanup:
@@ -265,12 +265,14 @@ mm_page_alias(struct mm_page *p, struct cm_comp *c, vaddr_t *addr)
 	struct mm_mapping *m;
 	int i;
 
+	*addr = 0;
 	for (i = 1; i < MM_MAPPINGS_MAX; i++) {
 		m = &p->mappings[i];
 
 		if (sa_state_alloc(&m->comp)) continue;
 		if (crt_page_aliasn_in(p->page, 1, &cm_self()->comp, &c->comp, &m->addr)) BUG();
 		assert(m->addr);
+		*addr = m->addr;
 		sa_state_activate_with(&m->comp, c);
 
 		return 0;
@@ -345,19 +347,9 @@ capmgr_comp_init(void)
 	capid_t capfr = 0;
 	int ret, cont;
 	struct cm_comp *comp;
-	struct mm_span *span;
 
 	int remaining = 0;
 	int num_comps = 0;
-
-	/*
-	 * cbuf_t == 0 should be an error, not allocatable.  Note that
-	 * we're not activating it, so that lookups of that value will
-	 * return an error. Result: it is reserved, thus not
-	 * allocatable, but also not lookup-able.
-	 */
-	span = sa_span_alloc_at_index(0);
-	assert(span && sa_span_index(span) == 0);
 
 	/* ...then those that we're responsible for... */
 	ret = args_get_entry("captbl", &cap_entries);
@@ -399,7 +391,6 @@ capmgr_comp_init(void)
 		if (sched_id == 0) {
 			sched_id = capmgr_comp_sched_hier_get(id);
 		}
-		assert(sched_id > 0);
 		comp_res.heap_ptr        = addr_get(id, ADDR_HEAP_FRONTIER);
 		comp_res.captbl_frontier = addr_get(id, ADDR_CAPTBL_FRONTIER);
 
