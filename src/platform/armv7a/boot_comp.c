@@ -329,7 +329,6 @@ kern_boot_upcall(void)
 	u32_t flags = 0;
 	void *p;
 
-	printk("%x %x\n", entry, *(unsigned long *)entry);
 	assert(get_cpuid() >= 0);
 	/* only print complete msg for BSP */
 	if (get_cpuid() == 0) {
