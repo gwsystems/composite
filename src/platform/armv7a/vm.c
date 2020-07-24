@@ -29,7 +29,29 @@ kern_retype_initial(void)
 	}
 }
 
-u8_t *mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
+u8_t *
+mem_boot_user_alloc(int npages) /* boot-time, bump-ptr heap */
+{
+	u8_t *        r = glb_memlayout.kern_boot_heap;
+	unsigned long i;
+
+	assert(glb_memlayout.allocs_avail);
+
+	glb_memlayout.kern_boot_heap += npages * (PAGE_SIZE / sizeof(u8_t));
+	assert(glb_memlayout.kern_boot_heap <= mem_kmem_end());
+	for (i = (unsigned long)r; i < (unsigned long)glb_memlayout.kern_boot_heap; i += PAGE_SIZE) {
+		if ((unsigned long)i % RETYPE_MEM_NPAGES == 0) {
+			if (retypetbl_retype2user((void *)chal_va2pa((void *)i), PAGE_ORDER)) {}
+		}
+	}
+
+	memset((void *)r, 0, npages * (PAGE_SIZE / sizeof(u8_t)));
+
+	return r;
+}
+
+u8_t *
+mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 {
 	u8_t *        r = glb_memlayout.kern_boot_heap;
 	unsigned long i;

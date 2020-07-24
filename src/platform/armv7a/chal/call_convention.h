@@ -169,21 +169,6 @@ copy_all_regs(struct pt_regs *from, struct pt_regs *to)
 }
 
 static inline void
-regs_upcall_setup(struct pt_regs *regs, u32_t entry_addr, int option, int id, int arg1, int arg2, int arg3)
-{
-	regs->r0 = id;
-
-	regs->r1 = option;
-	regs->r2 = arg1;
-	regs->r3 = arg2;
-	regs->r4 = arg3;
-
-	regs->r15_pc = entry_addr;
-
-	return;
-}
-
-static inline void
 regs_print(struct pt_regs* regs)
 {
 	printk("\tregs - 0x%x\n",regs);
@@ -205,4 +190,20 @@ regs_print(struct pt_regs* regs)
 	printk("\tr14_lr - 0x%x\n",regs->r14_lr);
 	printk("\tr15_pc - 0x%x\n",regs->r15_pc);
 }
+
+static inline void
+regs_upcall_setup(struct pt_regs *regs, u32_t entry_addr, int option, int id, int arg1, int arg2, int arg3)
+{
+	regs->r0 = id;
+
+	regs->r1 = option;
+	regs->r2 = arg1;
+	regs->r3 = arg2;
+	regs->r4 = arg3;
+
+	regs->r15_pc = entry_addr;
+
+	return;
+}
+
 #endif /* CALL_CONVENTION_H */

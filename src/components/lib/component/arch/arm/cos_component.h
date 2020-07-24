@@ -34,7 +34,7 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	cap_no += op;
 
 	/* Pass parameters: r1,r2,r3,r4,r5, return in r0, r2, r3, r4 */
-	__asm__ __volatile__("ldr r0,%[_cap_no] \n\t"
+	__asm__ __volatile__("ldr r1,%[_cap_no] \n\t"
 	                     "ldr r2,%[_arg1] \n\t"
 	                     "ldr r3,%[_arg2] \n\t"
 	                     "ldr r4,%[_arg3] \n\t"

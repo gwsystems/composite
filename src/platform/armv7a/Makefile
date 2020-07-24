@@ -67,7 +67,7 @@ OBJS += $(COS_OBJ) $(ASM_OBJS)
 
 all: $(KERNEL)
 
-$(KERNEL): linker.ld $(DEPS) $(OBJS) start.o dummyobj.o
+$(KERNEL): linker.ld $(DEPS) $(OBJS) start.o
 	$(if $(CONSTRUCTOR_COMP), $(info |     [LD]   Linking in the constructor component $@))
 	$(if $(CONSTRUCTOR_COMP), @cp $(CONSTRUCTOR_COMP) constructor; $(LD) -r -b binary constructor -o constructor.o; $(OBJCP) --rename-section .data=.initial_component constructor.o; rm constructor)
 	$(if $(KERNEL_OUTPUT), $(info |     [LD]   Linking $@))
@@ -77,20 +77,6 @@ $(KERNEL): linker.ld $(DEPS) $(OBJS) start.o dummyobj.o
 	$(if $(KERNEL_OUTPUT), $(info |     [CP]   Copying $@ into $(KERNEL_OUTPUT)))
 	$(if $(KERNEL_OUTPUT), @cp $@ $(KERNEL_OUTPUT))
 	$(if $(KERNEL_OUTPUT), @cp $@.bin $(KERNEL_OUTPUT).bin)
-	$(if $(KERNEL_OUTPUT), $(info |     [LD]   Linking $@.img))
-	$(if $(KERNEL_OUTPUT), $(LD) $(LDFLAGS) -T linker.ld start.o dummyobj.o $(OBJS) -o $@.img)
-	$(if $(KERNEL_OUTPUT), $(OBJCP) -O binary $@.img $@.img.bin)
-	$(if $(KERNEL_OUTPUT), $(info |     [CP]   Copying $@.img into $(KERNEL_OUTPUT).img))
-	$(if $(KERNEL_OUTPUT), @cp $@.img $(KERNEL_OUTPUT).img)
-	$(if $(KERNEL_OUTPUT), @cp $@.img.bin $(KERNEL_OUTPUT).img.bin)
-
-dummyobj.o: dummyobj.c
-	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
-
-#start.o: start.S 
-#	$(info |     [AS]   Assembling $@)
-#	@$(AS) -c start.S -o $@
 
 %.d: %.c
 	@$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $< -o $@

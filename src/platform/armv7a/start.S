@@ -1427,24 +1427,21 @@ unused_handler:
 
 undefined_handler:
     save_gp_regs
-    bl                  dbgprint
+    bl                  undefined_dbgprint
     b			.
     restore_gp_regs
 
 prefetch_abort_handler:
     sub			lr,lr,#0x04
     save_gp_regs
-    bl                  dbgprint
-    bl                  dbgprint
+    bl                  prefetch_abort_dbgprint
     b                   .
     restore_gp_regs
 
 data_abort_handler:
     sub			lr,lr,#0x08
     save_gp_regs
-    bl                  dbgprint
-    bl                  dbgprint
-    bl                  dbgprint
+    bl                  data_abort_dbgprint
     b			.
     restore_gp_regs
 
@@ -1462,10 +1459,7 @@ irq_handler:
 fiq_handler:
     sub			lr,lr,#0x04
     save_gp_regs
-    bl                  dbgprint
-    bl                  dbgprint
-    bl                  dbgprint
-    bl                  dbgprint
+    bl                  fiq_dbgprint
     b                   .
     restore_gp_regs
     .ltorg

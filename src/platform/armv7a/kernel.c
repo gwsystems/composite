@@ -73,9 +73,9 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	glb_memlayout.mod_end   = &_binary_constructor_end;
 	printk("[%08x, %08x)\n", &_binary_constructor_start, &_binary_constructor_end);
 	/* Booter entry */
-	glb_memlayout.bootc_entry = BOOTC_ENTRY; /* use elf library for this later! */
+	glb_memlayout.bootc_entry = 0; /* use elf library for this later! */
 	/* Booter virtual address */
-	glb_memlayout.bootc_vaddr    = BOOTC_VADDR;
+	glb_memlayout.bootc_vaddr    = 0;
 	glb_memlayout.kern_boot_heap = mem_boot_start(); /* this breaks if bss segment is after the initial component! */
 	glb_memlayout.kmem_end       = KERN_MEM_END;
 	printk("[%08x, %08x)\n", glb_memlayout.kern_boot_heap, glb_memlayout.kmem_end);

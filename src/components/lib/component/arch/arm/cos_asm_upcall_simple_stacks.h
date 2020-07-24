@@ -12,7 +12,7 @@
 .globl cos_static_stack;		\
 cos_static_stack:			\
 	.rept ALL_STACK_SZ_FLAT;	\
-	.byte 0;			\
+	.long 0;			\
 	.endr;				\
 .globl cos_static_stack_end;            \
 cos_static_stack_end:

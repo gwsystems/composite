@@ -257,12 +257,9 @@ enum
 	BOOT_CAPTBL_PHYSM_PTE       = 16,
 	BOOT_CAPTBL_KM_PTE          = 18,
 
-	BOOT_CAPTBL_COMP0_CT           = 20,
-	BOOT_CAPTBL_COMP0_PT           = 22,
-	BOOT_CAPTBL_COMP0_COMP         = 24,
-	BOOT_CAPTBL_SINV_CAP           = 28,
-	BOOT_CAPTBL_SELF_INITHW_BASE   = 32,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 36,
+	BOOT_CAPTBL_SINV_CAP           = 20,
+	BOOT_CAPTBL_SELF_INITHW_BASE   = 24,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
 	/*
 	 * NOTE: kernel doesn't support sharing a cache-line across cores,
 	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU

@@ -36,6 +36,30 @@ dbgprint(void)
 }
 
 void
+undefined_dbgprint(void)
+{
+	printk("Undefined handler!!\n");
+}
+
+void
+prefetch_abort_dbgprint(void)
+{
+	printk("Prefetch Abort handler!!\n");
+}
+
+void
+data_abort_dbgprint(void)
+{
+	printk("Data Abort handler!!\n");
+}
+
+void
+fiq_dbgprint(void)
+{
+	printk("FIQ handler!!\n");
+}
+
+void
 dbgval(unsigned long val)
 {
 	printk("Debug value %x\n", val);
