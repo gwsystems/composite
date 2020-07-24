@@ -11,6 +11,7 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <sl.h>
+#include <sl_blkpt.h>
 #include <res_spec.h>
 
 #include <cos_stubs.h>
