@@ -14,6 +14,25 @@
 #include <string.h>
 #include <bitmap.h>
 #include <ps_plat.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+#include <cos_serial.h>
+
+static int  __attribute__((format(printf, 1, 2)))
+llprintc(char *fmt, ...)
+{
+        char    s[128] = { '\0' };
+        va_list arg_ptr;
+        size_t  ret, len = 128;
+
+        va_start(arg_ptr, fmt);
+        ret = vsnprintf(s, len, fmt, arg_ptr);
+        va_end(arg_ptr);
+	cos_serial_putb(s, len);
+
+        return ret;
+}
 
 /*
  * dewarn: strtok_r()

@@ -196,6 +196,7 @@ regs_upcall_setup(struct pt_regs *regs, u32_t entry_addr, int option, int id, in
 {
 	regs->r0 = id;
 
+	regs->cpsr = CPSR_USER_LEVEL; 
 	regs->r1 = option;
 	regs->r2 = arg1;
 	regs->r3 = arg2;

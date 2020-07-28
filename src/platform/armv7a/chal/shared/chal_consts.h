@@ -28,4 +28,6 @@ struct pt_regs {
 #define PGD_MASK (~(PGD_RANGE - 1))
 #define PGD_PER_PTBL 1024
 
+#define CPSR_USER_LEVEL 0x600f0010
+
 #endif /* CHAL_CONSTS_H */

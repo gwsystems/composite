@@ -21,13 +21,19 @@ CROSS_COMPILE=arm-none-eabi-		#used by u-boot and composite build
 CC=arm-none-eabi-gcc			#not sure you need this but no harm
 ARCH=arm				#used in u-boot
 ```
-Command to set those:
+Commands to set those:
 ```
 export REALGCC=arm-none-eabi-gcc
 export CROSS_COMPILE=arm-none-eabi-
 export CC=arm-none-eabi-gcc
 export ARCH=arm
 ```
+Or, use the script to set the above environment variables for the current session:
+```
+. tools/arm_setenv
+```
+(this is in <composite_clone>/ directory)
+
 Verify, if you'd like:
 ```
 echo $REALGCC
