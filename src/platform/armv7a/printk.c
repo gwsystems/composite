@@ -36,21 +36,24 @@ dbgprint(void)
 }
 
 void
-undefined_dbgprint(void)
+undefined_dbgprint(struct pt_regs *regs)
 {
 	printk("Undefined handler!!\n");
+	regs_print(regs);
 }
 
 void
-prefetch_abort_dbgprint(void)
+prefetch_abort_dbgprint(struct pt_regs *regs)
 {
 	printk("Prefetch Abort handler!!\n");
+	regs_print(regs);
 }
 
 void
-data_abort_dbgprint(void)
+data_abort_dbgprint(struct pt_regs *regs)
 {
 	printk("Data Abort handler!!\n");
+	regs_print(regs);
 }
 
 void

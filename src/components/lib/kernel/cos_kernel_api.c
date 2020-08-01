@@ -38,9 +38,14 @@ cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
 	/*
 	 * The first allocation should trigger PTE allocation, thus we
 	 * always round down to a PGD.
+	 *
+	 * FIXME: first allocation should if the heap_ptr is not contiguous with the
+	 *        component's allocated segments I'd think.
+	 *        I believe best would be to round up the heap_ptr? So you always start at
+	 *        a new PGD range, which means first allocation would trigger PTE allocation?
 	 */
-	ci->vasrange_frontier = round_to_pgd_page(heap_ptr);
-	assert(ci->vasrange_frontier == round_to_pgd_page(ci->vasrange_frontier));
+	ci->vasrange_frontier = round_up_to_pgd_page(heap_ptr);
+	assert(ci->vasrange_frontier == round_up_to_pgd_page(ci->vasrange_frontier));
 }
 
 static inline void

@@ -171,6 +171,18 @@ boot_map(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *label, v
 	return boot_pgtbl_mappings_add(ct, pgdcap, ptecap, label, kern_vaddr, user_vaddr, range, user);
 }
 
+static void
+boot_elf_dump_hex(vaddr_t addr, unsigned int range)
+{
+	for (int i = 0; i < range; i += 32) {
+		printk("%x: ", addr + i);
+		for (int j = 0; j < 32; j++) {
+			printk("%x ", *(char *)(addr + i + j));
+		}
+		printk("\n");
+	}
+}
+
 static int
 boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *label, void *kern_vaddr,
 		 unsigned int range)
@@ -214,6 +226,7 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 
 	/* Map in the sections separately */
 	if (boot_map(ct, pgdcap, ptecap, label, s[0].mem, s[0].vstart, s[0].objsz, 1)) return -1;
+	//boot_elf_dump_hex(s[0].mem, s[0].objsz);
 	if (boot_map(ct, pgdcap, ptecap, label, s[1].mem, s[1].vstart, round_to_page(s[1].objsz), 1)) return -1;
 	printk("\tBSS information: %lx %lx %lx\n", bss, s[1].vstart + round_to_page(s[1].objsz), bss_sz);
 	if (boot_map(ct, pgdcap, ptecap, label, bss, s[1].vstart + round_to_page(s[1].objsz), bss_sz, 1)) return -1;

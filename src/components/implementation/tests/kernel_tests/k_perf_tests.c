@@ -242,6 +242,7 @@ test_print_ubench(void)
 void
 test_run_perf_kernel(void)
 {
+	PRINTC("\nuBenchamarks Started:\n\n");
         cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
         test_thds_create_switch();
         test_async_endpoints_perf();

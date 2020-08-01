@@ -30,32 +30,35 @@ cos_init(void)
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 }
 
+void
+test_run_unit_kernel(void)
+{
+        /* Kernel Tests */
+        PRINTC("\nUnit Test Started:\n\n");
+        //test_timer();
+        //test_tcap_budgets();
+        //test_2timers();
+        test_thds();
+        test_mem_alloc();
+        //test_async_endpoints();
+        //test_inv();
+        //test_captbl_expands();
+}
+
 int
 main(void)
 {
         int i;
 
+        PRINTC("Kernel Tests\n");
         termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
         assert(termthd[cos_cpuid()]);
-        PRINTC("Kernel Tests\n");
 
         cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	printc("\tTiming: %d cycles per microsecond\n", cyc_per_usec);
 
-        /* Kernel Tests */
-        printc("\nUnit Test Started:\n\n");
-        test_timer();
-        test_tcap_budgets();
-        test_2timers();
-        test_thds();
-        test_mem_alloc();
-        test_async_endpoints();
-        test_inv();
-        test_captbl_expands();
-
-        printc("\nuBenchamarks Started:\n\n");
-
-        test_run_perf_kernel();
+	test_run_unit_kernel();
+        //test_run_perf_kernel();
 
         /* NOTE: This is just to make sense of the output on HW! To understand that microbooter runs to completion on all cores! */
         test_done[cos_cpuid()] = 1;

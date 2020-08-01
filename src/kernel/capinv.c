@@ -1108,7 +1108,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t pgtbl_cap = __userregs_get2(regs);
 			vaddr_t kmem_cap  = __userregs_get3(regs);
 			capid_t pgtbl_order = __userregs_get4(regs);
-printk("pgtbl activate: pt_entry %x, pgtbl_cap %x, kmem_cap %x, pgtbl_order %x\n",pt_entry, pgtbl_cap, kmem_cap, pgtbl_order);
 			/* FIXME: change lvl to order */
 			ret = chal_pgtbl_pgtblactivate(ct, cap, pt_entry, pgtbl_cap, kmem_cap, pgtbl_order);
 
@@ -1364,8 +1363,6 @@ printk("pgtbl activate: pt_entry %x, pgtbl_cap %x, kmem_cap %x, pgtbl_order %x\n
 			vaddr_t vaddr     = __userregs_get3(regs);
 			vaddr_t order     = __userregs_get4(regs);
 
-			/* printk("memactivate frame_cap %x dest_pt %d vaddr %x order %d\n", frame_cap, dest_pt, vaddr, order); */
-
 			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr, order);
 
 			break;
@@ -1388,8 +1385,6 @@ printk("pgtbl activate: pt_entry %x, pgtbl_cap %x, kmem_cap %x, pgtbl_order %x\n
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
-			//printk("retype2user, frame_addr %x, frame %x, order %d\n",frame_addr, frame,order);
-
 			if (__userregs_get2(regs) != 0) order = __userregs_get2(regs);
 			ret = retypetbl_retype2user((void *)frame, order);
 
@@ -1401,8 +1396,6 @@ printk("pgtbl activate: pt_entry %x, pgtbl_cap %x, kmem_cap %x, pgtbl_order %x\n
 			vaddr_t order;
 
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
-
-			//printk("retype2kern, frame_addr %x, frame %x, order %d\n",frame_addr, frame,order);
 
 			if (ret) cos_throw(err, ret);
 
