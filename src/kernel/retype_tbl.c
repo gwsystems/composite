@@ -90,6 +90,7 @@ retypetbl_ref(void *pa, u32_t order)
 	struct retype_entry temp, old_temp;
 	int found = 0;
 
+	memset(walk, 0, sizeof(struct page_record) * NUM_PAGE_SIZES);
 	assert(pa); /* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
 

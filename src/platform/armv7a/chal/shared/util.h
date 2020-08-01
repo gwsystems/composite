@@ -3,6 +3,8 @@
 
 #define CAS_SUCCESS 1
 
+#define CAV7_SFR(base, offset) (*((volatile unsigned long *)((unsigned long)((base) + (offset)))))
+
 /* Basic assembly for Cortex-A */
 static inline unsigned long
 cos_ldrexw(volatile unsigned long *addr)
@@ -82,9 +84,6 @@ static inline unsigned long long __rdtscll(void)
 {
 	/* Global timer base */
 	#define CAV7_GTMR_BASE           0xF8F00200
-	/* Macro definitions for timers and interrupt controllers */
-	#define CAV7_SFR(base,offset)        (*((volatile unsigned long*)((unsigned long)((base)+(offset)))))
-
 	/* Global timer registers */
 	#define CAV7_GTMR_GTCNTRL            CAV7_SFR(CAV7_GTMR_BASE,0x0000)
 	#define CAV7_GTMR_GTCNTRH            CAV7_SFR(CAV7_GTMR_BASE,0x0004)

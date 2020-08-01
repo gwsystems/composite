@@ -102,7 +102,7 @@ void chal_init(void);
 /* int cos_syscall_buff_mgmt(void); */
 /* void cos_syscall_upcall(void); */
 
-#include "../../platform/include/chal_plat.h"
+#include "../chal/chal_plat.h"
 
 extern void printk(const char *fmt, ...);
 void        chal_khalt(void);

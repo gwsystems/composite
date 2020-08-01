@@ -1615,7 +1615,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_HW_TLB_LOCKDOWN: {
-			extern int chal_tlb_lockdown(unsigned long entryid, unsigned long vaddr, unsigned long paddr);
 			unsigned long entryid = __userregs_get1(regs);
 			unsigned long vaddr = __userregs_get2(regs);
 			unsigned long paddr = __userregs_get3(regs);

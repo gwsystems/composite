@@ -40,7 +40,7 @@
 
 unsigned long cos_cav7_mem_info[CAV7_MEM_ENTRIES] = {CAV7_MEM_CONTENTS};
 
-//0x00000000, 0xC0000000, 0x1,   CAV7_1M_KERN_DEF /* Kernel memory - 192kB OCSRAM */, \
+//0x00000000, 0xC0000000, 0x1,   CAV7_1M_KERN_DEF /* Kernel memory - 192kB OCSRAM */,
 /* Convert the flags from composite standard to ARM standard */
 unsigned long
 chal_pgtbl_flag_cos2nat_1M(unsigned long input)
@@ -282,7 +282,7 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 	if (order != PGTBL_PAGEIDX_SHIFT) return -EINVAL;
 
 	/* Only 4k pages are allowed for activation */
-	pte = __chal_pgtbl_lkup(pt->pgtbl, frame_cap);
+	pte = __chal_pgtbl_lkup((pgtbl_t)pt->pgtbl, frame_cap);
 	if (!pte) return -EINVAL;
 	orig_v = *pte;
 
@@ -394,7 +394,7 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t or
 	if (order != PGTBL_PAGEIDX_SHIFT) return -EINVAL;
 
 	/* look this page up */
-	pte = (struct ert_intern *)__chal_pgtbl_lkup((unsigned long)(pt->pgtbl), addr);
+	pte = (struct ert_intern *)__chal_pgtbl_lkup((pgtbl_t)pt->pgtbl, addr);
 
 	if (!pte) return -ENOENT;
 	orig_v = (u32_t)(pte->next);
@@ -432,7 +432,7 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t o
 	 */
 	if (order != PGTBL_PAGEIDX_SHIFT) return -EINVAL;
 
-	pte = (struct ert_intern *)__chal_pgtbl_lkup(pt->pgtbl, addr);
+	pte = (struct ert_intern *)__chal_pgtbl_lkup((pgtbl_t)pt->pgtbl, addr);
 
 	if (!pte) return -ENOENT;
 	orig_v = (u32_t)(pte->next);
@@ -521,7 +521,7 @@ chal_pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr)
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & addr) == 0);
-	pte  = (struct ert_intern *)__chal_pgtbl_lkup(pt, addr);
+	pte  = __chal_pgtbl_lkup(pt, addr);
 	*pte = 0;
 	return 0;
 }
@@ -928,6 +928,8 @@ chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa)
 
 	return 0;
 }
+extern void __cos_cav7_ttbr0_set(paddr_t p);
+extern void __cos_cav7_tlbiall_set(int);
 
 void
 chal_pgtbl_update(pgtbl_t pt)

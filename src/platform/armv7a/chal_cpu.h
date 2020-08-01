@@ -22,6 +22,7 @@ chal_cpu_init(void)
 static inline vaddr_t
 chal_cpu_fault_vaddr(struct pt_regs *r)
 {
+	return 0;
 }
 
 /* FIXME: I doubt these flags are really the same as the PGTBL_* macros */
@@ -36,6 +37,8 @@ chal_cpu_fault_ip(struct pt_regs *r)
 {
 	return r->r15_pc;
 }
+
+extern void __cos_enter_user_mode(void *ip, u32_t id);
 
 static inline void
 chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)

@@ -15,9 +15,7 @@
 /* Private timer and watchdog block base */
 #define CAV7_PTWD_BASE 0xF8F00600
 
-
 /* Macro definitions for timers and interrupt controllers */
-#define CAV7_SFR(base, offset) (*((volatile unsigned long *)((unsigned long)((base) + (offset)))))
 /* GIC definitions - This is only present in MPCore platform. Most Cortex-A9s,
  * all Cortex-A7s and Cortex-A5s are on the multicore platform */
 /* Distributor control register */
@@ -203,8 +201,10 @@ __cos_cav7_int_init(void)
 /* Watchdog disable register */
 #define CAV7_PTWD_WDDR CAV7_SFR(CAV7_PTWD_BASE, 0x0034)
 
+extern int timer_process(struct pt_regs *regs);
+
 void
-__cos_cav7_irq_handler(struct pt_regs regs)
+__cos_cav7_irq_handler(struct pt_regs *regs)
 {
 	unsigned long int_id;
 	unsigned long cpuid;
