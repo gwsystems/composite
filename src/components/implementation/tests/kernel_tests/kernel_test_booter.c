@@ -34,7 +34,8 @@ void
 test_run_unit_kernel(void)
 {
         /* Kernel Tests */
-        PRINTC("\nUnit Test Started:\n\n");
+	printc("\n");
+        PRINTC("Unit Test Started:\n\n");
         //test_timer();
         //test_tcap_budgets();
         //test_2timers();
