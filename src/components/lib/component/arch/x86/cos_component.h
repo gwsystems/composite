@@ -386,6 +386,7 @@ cos_memset(void *s, char c, int count)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #endif
 
+#define CREGPARM(r) __attribute__((regparm(r)))
 #define CFORCEINLINE __attribute__((always_inline))
 #define CWEAKSYMB __attribute__((weak))
 /*

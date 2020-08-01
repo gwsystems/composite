@@ -51,6 +51,8 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
+	/* dewarn */
+	(void)fault;
 
 	/* Pass parameters: r1,r2,r3,r4,r5, return in r0, r2, r3, r4 */
 	__asm__ __volatile__("ldr r1,%[_cap_no] \n\t"
@@ -77,6 +79,8 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
+	/* dewarn */
+	(void)fault;
 
 	/* Pass parameters: r1,r2,r3,r4,r5, return in r0, r2, r3, r4 */
 	__asm__ __volatile__("ldr r1,%[_cap_no] \n\t"
@@ -108,6 +112,8 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
+	/* dewarn */
+	(void)fault;
 
 	/* Pass parameters: r1,r2,r3,r4,r5, return in r0, r2, r3, r4 */
 	__asm__ __volatile__("ldr r1,%[_cap_no] \n\t"
@@ -424,6 +430,7 @@ cos_memset(void *s, char c, int count)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #endif
 
+#define CREGPARM(r) 
 #define CFORCEINLINE __attribute__((always_inline))
 #define CWEAKSYMB __attribute__((weak))
 /*

@@ -16,7 +16,9 @@ SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic -fno-pie
 OPT= -g -fvar-tracking
 #OPT= -O3
 
-CFLAGS=$(ARCH_CFLAGS) -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable $(CINC) $(MUSLINC) $(OPT) $(SHARED_FLAGS)
+ADD_FLAGS=-Wno-address-of-packed-member -Wno-cast-function-type
+
+CFLAGS=$(ARCH_CFLAGS) -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable $(CINC) $(MUSLINC) $(OPT) $(SHARED_FLAGS) $(ADD_FLAGS)
 CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
 LDFLAGS=$(ARCH_LDFLAGS) -no-pic
 MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r

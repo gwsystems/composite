@@ -95,7 +95,7 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 	return 0;
 }
 
-__attribute__((regparm(1))) long
+CREGPARM(1) long
 __cos_syscall(int syscall_num, long a, long b, long c, long d, long e, long f, long g)
 {
 	return cos_syscall_handler(syscall_num, a, b, c, d, e, f, g);
@@ -164,8 +164,8 @@ const char *cos_print_str[PRINT_LEVEL_MAX] = {
 	"DBG:",
 };
 
-cos_print_level_t cos_print_level   = PRINT_ERROR;
-int               cos_print_lvl_str = 0;
+int cos_print_level   = PRINT_ERROR;
+int cos_print_lvl_str = 0;
 
 CWEAKSYMB void
 cos_print_level_set(cos_print_level_t lvl, int print_str)

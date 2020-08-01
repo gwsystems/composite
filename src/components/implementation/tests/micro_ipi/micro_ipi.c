@@ -50,6 +50,7 @@ hiprio_c0_lat_fn(arcvcap_t r, void *d)
 	while (1) {
 		int pending = 0, rcvd = 0, ret = 0;
 		cycles_t now;
+		(void)now;
 
 		if (unlikely(testing == 0)) break;
 
@@ -95,6 +96,9 @@ hiprio_cn_lat_fn(arcvcap_t r, void *d)
 		cycles_t st, en, rpcen;
 		int pending = 0, rcvd = 0, ret = 0;
 
+		(void)st;
+		(void)en;
+		(void)rpcen;
 		if (unlikely(testing == 0)) break;
 
 		rdtscll(st);

@@ -332,6 +332,7 @@ test_tcap_budgets_multi(void)
                 cycles_t    cycles, s, e;
                 tcap_time_t thd_timeout;
 
+		(void)e;
                                         /* test both increasing budgets and constant budgets */
                 if (i > (TEST_ITER/2))
                         res = GRANULARITY * RATE_1;

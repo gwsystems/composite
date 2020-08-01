@@ -73,11 +73,11 @@ clean_lib:
 clean: clean_lib config
 
 armv7a_config:
-	$(info Configuring the ps library for cav7)
+	$(info Configuring the ps library)
 	@cd ps; ./configure cos armv7a general; cd ..
 
 i386_config:
-	$(info Configuring the ps library for x86)
+	$(info Configuring the ps library)
 	@cd ps; ./configure cos x86 general; cd ..
 
 config: $(PLATFORM)_config

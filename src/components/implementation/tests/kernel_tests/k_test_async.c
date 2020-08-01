@@ -63,7 +63,7 @@ async_thd_parent(void *thdcap)
         int         ret;
         thdid_t     tid;
         int         blocked, rcvd;
-        cycles_t    cycles, now;
+        cycles_t    cycles;
         tcap_time_t thd_timeout;
 
         /* NON_BLOCKING ASND with 0 as arg*/
@@ -86,8 +86,6 @@ async_thd_parent(void *thdcap)
 
         /* switch */
         cos_sched_rcv(rc, RCV_ALL_PENDING, 0, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
-        rdtscll(now);
-
         async_test_flag_[cos_cpuid()] = 0;
         while (1) cos_thd_switch(tc);
 }

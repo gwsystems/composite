@@ -45,16 +45,13 @@ printc(char *fmt, ...)
 typedef enum {
 	PRINT_ERROR = 0, /* print only error messages */
 	PRINT_WARN,	 /* print errors and warnings */
-	PRINT_DEBUG	 /* print errors, warnings and debug messages */
+	PRINT_DEBUG,	 /* print errors, warnings and debug messages */
+	PRINT_LEVEL_MAX
 } cos_print_level_t;
 
-#ifndef PRINT_LEVEL_MAX
-#define PRINT_LEVEL_MAX 3
-#endif
-
-extern cos_print_level_t  cos_print_level;
-extern int                cos_print_lvl_str;
-extern const char        *cos_print_str[];
+extern int         cos_print_level;
+extern int         cos_print_lvl_str;
+extern const char *cos_print_str[];
 
 /* Prints with current (cpuid, thdid, spdid) */
 #define PRINTC(format, ...) printc("(%ld,%lu,%lu) " format, cos_cpuid(), cos_thdid(), cos_compid(), ## __VA_ARGS__)
