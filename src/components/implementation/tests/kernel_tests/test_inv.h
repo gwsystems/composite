@@ -15,6 +15,20 @@ __inv_test_serverfn:				\
                 movl %eax, %ecx;		\
                 movl $RET_CAP, %eax;		\
                 sysenter;
-#else
-#define INV_TEST_SERVERFN
+
+#elif defined(__arm__)
+#define INV_TEST_SERVERFN			\
+.text;						\
+.globl __inv_test_serverfn;			\
+.type __inv_test_serverfn, %function;		\
+__inv_test_serverfn:				\
+	mov r0, r2;				\
+	mov r1, r3;				\
+	mov r2, r4;				\
+	ldr r6, =test_serverfn;			\
+	blx r6;					\
+	ldr  r1, =RET_CAP;			\
+	svc #0x00;				\
+	.ltorg;
+
 #endif

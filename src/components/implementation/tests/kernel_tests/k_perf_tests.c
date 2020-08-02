@@ -212,7 +212,6 @@ test_async_endpoints_perf(void)
 void
 test_print_ubench(void)
 {
-#if defined(__x86__)
         PRINTC("\tSINV:\t\t\t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
                         result_sinv.avg, result_sinv.max, result_sinv.max,
                         result_sinv.sz);
@@ -220,7 +219,6 @@ test_print_ubench(void)
         printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
                         result_sinv.sd, result_sinv.p90tile, result_sinv.p95tile,
                         result_sinv.p99tile);
-#endif
 
         PRINTC("\tTimer => Timeout Overhead: \t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
                         result_test_timer.avg, result_test_timer.max, result_test_timer.min,

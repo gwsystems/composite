@@ -1,4 +1,3 @@
-#if defined(__x86__)
 /*
  * Test allocates a tcap_invocation anf proceeds to invoke it
  * It additionally measures the roundtrip time
@@ -35,6 +34,7 @@ call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
          */
         cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 
+#if defined(__x86__)
         __asm__ __volatile__("pushl %%ebp\n\t"
                              "movl %%esp, %%ebp\n\t"
                              "movl %%esp, %%edx\n\t"
@@ -46,14 +46,28 @@ call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
                              : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3)
                              : "memory", "cc", "ecx", "edx");
 
+#elif defined(__arm__)
+
+	__asm__ __volatile__("ldr r1,%[_cap_no]\n\t"
+			     "ldr r2,%[_arg1]\n\t"
+			     "ldr r3,%[_arg2]\n\t"
+			     "ldr r4,%[_arg3]\n\t"
+			     "mov r5, #0\n\t"
+			     "svc #0x00\n\t"
+			     "str r0, %[_ret]\n\t"
+			     : [ _ret ] "=m"(ret)
+			     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3)
+			     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "lr");
+
+#else 
+	assert(0);
+#endif
         return ret;
 }
-#endif
 
 void
 test_inv(void)
 {
-#if defined(__x86__)
         compcap_t        cc;
         sinvcap_t        ic;
         unsigned int r;
@@ -64,7 +78,7 @@ test_inv(void)
 
         cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
         if (EXPECT_LL_LT(1, cc, "Invocation: Cannot Allocate")) return;
-        ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
+        ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0xdead);
         if (EXPECT_LL_LT(1, ic, "Invocation: Cannot Allocate")) return;
 
         r = call_cap_mb(ic, 1, 2, 3);
@@ -91,5 +105,4 @@ test_inv(void)
         CHECK_STATUS_FLAG();
         PRINTC("\t%s: \t\tSuccess\n", "Synchronous Invocations");
         EXIT_FN();
-#endif
 }

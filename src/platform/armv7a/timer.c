@@ -5,9 +5,15 @@
 void
 chal_timer_set(cycles_t cycles)
 {
+	cycles_t now;
+	rdtscll(now);
+	if (now < cycles) {
+		cycles -= now;
+	} else {
+		/* in the past? set to fire one tick from now! */
+		cycles  = CHAL_CYC_THRESH;
+	}
 	chal_timer_disable();
-	// cycles = 7670*100;
-	// printk("cycles %lld\n", cycles);
 	/* Writing this will also write the counter register as well */
 	CAV7_PTWD_PTLR = cycles / 2;
 	/* CAV7_PTWD_PTCNTR = cycles/2; */
@@ -37,18 +43,6 @@ chal_cyc_thresh(void)
 	return CHAL_CYC_THRESH;
 }
 
-/*
- * https://blog.regehr.org/archives/794
- * Code copied from here: it is required to enable user-land access to the cycle counter.
- * Lets see if this works!
- */
-void
-cycle_counter_user_enable(void)
-{
-	__asm__ __volatile__ ("mcr p15,  0, %0, c15,  c9, 0\n" : : "r" (1));
-	printk ("User-level access to CCR has been turned on.\n");
-}
-
 void
 timer_init(void)
 {
@@ -57,6 +51,4 @@ timer_init(void)
 	CAV7_GTMR_GTCNTRH = 0;
 	CAV7_GTMR_GTCTLR  = 1;
 	printk("global timer init\n");
-	/* This one faults "invalid instruction", will need to check again */
-//	cycle_counter_user_enable();
 }

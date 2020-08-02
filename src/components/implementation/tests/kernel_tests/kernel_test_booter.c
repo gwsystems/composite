@@ -36,14 +36,14 @@ test_run_unit_kernel(void)
         /* Kernel Tests */
 	printc("\n");
         PRINTC("Unit Test Started:\n\n");
-        //test_timer();
-        //test_tcap_budgets();
-        //test_2timers();
+        test_timer();
+        test_tcap_budgets();
+        test_2timers();
         test_thds();
         test_mem_alloc();
-        //test_async_endpoints();
-        //test_inv();
-        //test_captbl_expands();
+        test_async_endpoints();
+        test_inv();
+        test_captbl_expands();
 }
 
 int
@@ -59,7 +59,7 @@ main(void)
 	printc("\tTiming: %d cycles per microsecond\n", cyc_per_usec);
 
 	test_run_unit_kernel();
-        //test_run_perf_kernel();
+        test_run_perf_kernel();
 
         /* NOTE: This is just to make sense of the output on HW! To understand that microbooter runs to completion on all cores! */
         test_done[cos_cpuid()] = 1;

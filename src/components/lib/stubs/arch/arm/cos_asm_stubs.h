@@ -31,7 +31,7 @@ __cosrt_s_##name:				\
 	mov r2, r4;				\
 	mov r3, r5;				\
 	ldr r6, =name;				\
-	bx r6;					\
+	blx r6;					\
 	ldr r1, =RET_CAP;			\
 	COS_ASM_RET_STACK			\
 						\
@@ -61,7 +61,7 @@ __cosrt_s_##name:				\
 	mov r4, r6;				\
 	mov r5, r7;				\
 	ldr r8, =__cosrt_s_cstub_##name;	\
-	bx r8;					\
+	blx r8;					\
 	ldr r2, [r6];				\
 	ldr r3, [r7];				\
 						\
@@ -118,7 +118,7 @@ name:                                          \
 __cosrt_extern_##name:			       \
 	ldr r6, =__cosrt_ucap_##name;	       \
 	ldr r6, [r6, #INVFN];		       \
-	bx   r6;			       \
+	blx   r6;			       \
 	.ltorg;				       \
 					       \
 .section .ucap, "a", %progbits ;               \
