@@ -52,7 +52,7 @@ test_thds_create_switch(void)
 
         perfdata_calc(&pd[cos_cpuid()]);
 
-        PRINTC("\tCOS THD => COS_THD_SWITCH:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
+        PRINTC("\tThreads => cos_thd_switch:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
                         perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));
 
         printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
@@ -70,7 +70,7 @@ test_thds_create_switch(void)
 
         perfdata_calc(&pd[cos_cpuid()]);
 
-        PRINTC("\tCOS THD => COS_SWITCH:\t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
+        PRINTC("\tThreads => cos_switch:\t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
                         perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));
 
         printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
@@ -212,7 +212,7 @@ test_async_endpoints_perf(void)
 void
 test_print_ubench(void)
 {
-        PRINTC("\tSINV:\t\t\t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
+        PRINTC("\tSync Invocation:\t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
                         result_sinv.avg, result_sinv.max, result_sinv.max,
                         result_sinv.sz);
 
@@ -240,7 +240,8 @@ test_print_ubench(void)
 void
 test_run_perf_kernel(void)
 {
-	PRINTC("\nuBenchamarks Started:\n\n");
+	printc("\n");
+	PRINTC("uBenchamarks Started:\n\n");
         cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
         test_thds_create_switch();
         test_async_endpoints_perf();

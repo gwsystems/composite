@@ -68,7 +68,7 @@ main(void)
         }
 
         printc("\n");
-        PRINTC("Kernel Tests done.\n");
+        PRINTC("Kernel Tests done.\n\n");
 
         cos_thd_switch(termthd[cos_cpuid()]);
 
