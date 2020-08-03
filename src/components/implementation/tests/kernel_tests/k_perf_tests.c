@@ -74,6 +74,7 @@ test_thds_create_switch(void)
  *   * Roundtrip: 2 Thd that bounce between eachother through cos_rcv() and cos_asnd()
  *   * One way: 1 thd send and 1 thd receives. When the receivers block the sender will be enqueue
  */
+static cycles_t end_oneway = 0;
 
 static void
 async_thd_fn_perf(void *thdcap)
@@ -88,14 +89,10 @@ async_thd_fn_perf(void *thdcap)
                 cos_asnd(sc, 1);
         }
 
-        cos_thd_switch(tc);
-
         for (i = 0; i < ITER + 1; i++) {
                 cos_rcv(rc, 0, NULL);
+		rdtscll(end_oneway);
         }
-
-        ret = cos_thd_switch(tc);
-        EXPECT_LL_NEQ(0, ret, "COS Switch Error");
 
         EXPECT_LL_NEQ(1, 0, "Error, shouldn't get here!\n");
         assert(0);
@@ -126,11 +123,14 @@ async_thd_parent_perf(void *thdcap)
 
         perfdata_init(&pd[cos_cpuid()], "Async Endpoints => One Way", test_results, ARRAY_SIZE);
 
-        for (i = 0; i < ITER; i++) {
+	i = 0;
+	while (i < ITER) {
+		end_oneway = 0;
                 rdtscll(s);
                 cos_asnd(sc, 1);
-                rdtscll(e);
-
+		e = end_oneway;
+		if (unlikely(e == 0)) continue;
+		i++;
                 perfdata_add(&pd[cos_cpuid()], (e - s));
         }
 
