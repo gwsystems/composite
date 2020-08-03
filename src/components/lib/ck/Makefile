@@ -98,4 +98,4 @@ ck: config
 
 init: ck install
 distclean:
-	cd ck; make uninstall; cd ..
+	cd ck; make clean; make uninstall; cd ..
