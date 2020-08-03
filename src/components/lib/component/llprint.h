@@ -30,7 +30,7 @@ prints(char *s)
 static int  __attribute__((format(printf, 1, 2)))
 printc(char *fmt, ...)
 {
-	char    s[128] = { '\0' };
+	char    s[128];
 	va_list arg_ptr;
 	size_t  ret, len = 128;
 

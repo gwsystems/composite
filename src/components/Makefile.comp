@@ -13,6 +13,9 @@ MUSLINC=-isystem$(MUSLDIR)/include
 CINC=-I. -I$(SHAREDINC) -I$(CHALSHAREDINC)
 
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic -fno-pie
+ifeq ($(PLATFORM), armv7a)
+SHARED_FLAGS+=-fomit-frame-pointer -fno-unwind-tables -fno-asynchronous-unwind-tables 
+endif
 OPT= -g -fvar-tracking
 #OPT= -O3
 
