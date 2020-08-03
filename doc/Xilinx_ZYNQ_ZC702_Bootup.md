@@ -97,5 +97,19 @@ Forking is taking too long.
 1. Make sure the paths in ./tools/arm_runqemu.sh are correct. Mainly, the uboot.elf is expected to be in <composite_clone>/../cos_u-boot-xlnx/. 
 1. `./tools/arm_runqemu.sh all system_binaries/kernel_test_1/`
 1. Key in these commands:
-    a. load mmc 0:1 00100000 cos.bin && go 00100000
+    a. load mmc 0:1 00100000 cos.img.bin && go 00100000
 1. This should ideally boot your system up, if you've a working Composite kernel and user-level, you'll see the output for kernel_test running some benchmarks!
+
+## HW execution
+
+**This is for TFTP boot**
+- I did not build a custom uboot image, instead used what was on the Xilinx board, so skipping mkbootimage steps here.
+
+- For TFTP boot to work, your host and the board must be connected to the same local network. Have the tftp server installed on the host. I followed [this](https://linuxhint.com/install_tftp_server_ubuntu/)
+
+- This creates `/srv/tftp` directory on the host. All you need to do after building `Composite` is to copy the `cos.img.bin` to that directory.
+
+- On the board, stop at u-boot prompt and enter the following command:
+```
+tftp 00100000 cos.img.bin && go 00100000
+```
