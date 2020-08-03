@@ -77,14 +77,7 @@ test_timer(void)
         }
 
         perfdata_calc(&result);
-        result_test_timer.avg = perfdata_avg(&result);
-        result_test_timer.max = perfdata_avg(&result);
-        result_test_timer.min = perfdata_avg(&result);
-        result_test_timer.sz = perfdata_avg(&result);
-        result_test_timer.sd = perfdata_avg(&result);
-        result_test_timer.p90tile = perfdata_avg(&result);
-        result_test_timer.p95tile = perfdata_avg(&result);
-        result_test_timer.p99tile = perfdata_avg(&result);
+        results_save(&result_test_timer, &result);	
 
         /* Timer in past */
         c = 0, p = 0;
@@ -296,14 +289,7 @@ test_tcap_budgets_single(void)
         }
 
         perfdata_calc(&result);
-        result_budgets_single.avg = perfdata_avg(&result);
-        result_budgets_single.max = perfdata_avg(&result);
-        result_budgets_single.min = perfdata_avg(&result);
-        result_budgets_single.sz = perfdata_avg(&result);
-        result_budgets_single.sd = perfdata_avg(&result);
-        result_budgets_single.p90tile = perfdata_avg(&result);
-        result_budgets_single.p95tile = perfdata_avg(&result);
-        result_budgets_single.p99tile = perfdata_avg(&result);
+        results_save(&result_budgets_single, &result);	
 
         PRINTC("\t%s: \t\t\tSuccess\n", "Timer => Budget based");
 }
