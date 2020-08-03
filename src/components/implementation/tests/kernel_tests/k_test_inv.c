@@ -93,14 +93,7 @@ test_inv(void)
         }
 
         perfdata_calc(&result);
-        result_sinv.avg = perfdata_avg(&result);
-        result_sinv.max = perfdata_max(&result);
-        result_sinv.min = perfdata_min(&result);
-        result_sinv.sz = perfdata_sz(&result);
-        result_sinv.sd = perfdata_sd(&result);
-        result_sinv.p90tile = perfdata_90ptile(&result);
-        result_sinv.p95tile = perfdata_95ptile(&result);
-        result_sinv.p99tile = perfdata_99ptile(&result);
+	results_save(&result_sinv, &result);
 
         CHECK_STATUS_FLAG();
         PRINTC("\t%s: \t\tSuccess\n", "Synchronous Invocations");

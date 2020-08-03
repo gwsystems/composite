@@ -5,6 +5,8 @@ static struct perfdata pd[NUM_CPU] CACHE_ALIGNED;
 extern struct results  result_test_timer;
 extern struct results  result_budgets_single;
 extern struct results  result_sinv;
+struct results  result_switch, result_thd_switch;
+struct results  result_async_roundtrip, result_async_oneway;
 
 #define ARRAY_SIZE 10000
 static cycles_t test_results[ARRAY_SIZE] = { 0 };
@@ -51,12 +53,7 @@ test_thds_create_switch(void)
         }
 
         perfdata_calc(&pd[cos_cpuid()]);
-
-        PRINTC("\tThreads => cos_thd_switch:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]), perfdata_95ptile(&pd[cos_cpuid()]), perfdata_99ptile(&pd[cos_cpuid()]));
+	results_save(&result_thd_switch, &pd[cos_cpuid()]);
 
         perfdata_init(&pd[cos_cpuid()], "COS THD => COS_SWITCH", test_results, ARRAY_SIZE);
 
@@ -69,12 +66,7 @@ test_thds_create_switch(void)
         }
 
         perfdata_calc(&pd[cos_cpuid()]);
-
-        PRINTC("\tThreads => cos_switch:\t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]), perfdata_95ptile(&pd[cos_cpuid()]), perfdata_99ptile(&pd[cos_cpuid()]));
+	results_save(&result_switch, &pd[cos_cpuid()]);
 }
 
 /*
@@ -130,14 +122,7 @@ async_thd_parent_perf(void *thdcap)
         }
 
         perfdata_calc(&pd[cos_cpuid()]);
-
-        PRINTC("\tAsync Endpoints => Roundtrip:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]),
-                        perfdata_sz(&pd[cos_cpuid()]));
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]), perfdata_95ptile(&pd[cos_cpuid()]),
-                        perfdata_99ptile(&pd[cos_cpuid()]));
+	results_save(&result_async_roundtrip, &pd[cos_cpuid()]);
 
         perfdata_init(&pd[cos_cpuid()], "Async Endpoints => One Way", test_results, ARRAY_SIZE);
 
@@ -150,14 +135,7 @@ async_thd_parent_perf(void *thdcap)
         }
 
         perfdata_calc(&pd[cos_cpuid()]);
-
-        PRINTC("\tAsync Endpoints => One Way:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]),
-                        perfdata_sz(&pd[cos_cpuid()]));
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]), perfdata_95ptile(&pd[cos_cpuid()]),
-                        perfdata_99ptile(&pd[cos_cpuid()]));
+	results_save(&result_async_oneway, &pd[cos_cpuid()]);
 
         async_test_flag_[cos_cpuid()] = 0;
         while (1) cos_thd_switch(tc);
@@ -212,29 +190,13 @@ test_async_endpoints_perf(void)
 void
 test_print_ubench(void)
 {
-        PRINTC("\tSync Invocation:\t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        result_sinv.avg, result_sinv.max, result_sinv.max,
-                        result_sinv.sz);
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        result_sinv.sd, result_sinv.p90tile, result_sinv.p95tile,
-                        result_sinv.p99tile);
-
-        PRINTC("\tTimer => Timeout Overhead: \t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        result_test_timer.avg, result_test_timer.max, result_test_timer.min,
-                        result_test_timer.sz);
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        result_test_timer.sd, result_test_timer.p90tile, result_test_timer.p95tile,
-                        result_test_timer.p99tile);
-
-        PRINTC("\tTimer => Budget based: \t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        result_budgets_single.avg, result_budgets_single.max, result_budgets_single.min,
-                        result_budgets_single.sz);
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        result_budgets_single.sd, result_budgets_single.p90tile, result_budgets_single.p95tile,
-                        result_budgets_single.p99tile);
+	results_split_print(&result_thd_switch, "Threads => cos_thd_switch:");
+	results_split_print(&result_switch, "Threads => cos_switch:");
+	results_split_print(&result_async_roundtrip, "Async => Roundtrip:");
+	results_split_print(&result_async_oneway, "Async => Oneway:");
+	results_split_print(&result_sinv, "Synchronous Invocations:");
+	results_split_print(&result_test_timer, "Timer => Timeout Overhead:");
+	results_split_print(&result_budgets_single, "Timer => Budget Based:");
 }
 
 void
