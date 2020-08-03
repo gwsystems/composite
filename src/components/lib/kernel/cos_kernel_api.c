@@ -351,7 +351,7 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 
 		/* PTE  - we are using order = 12 */
 		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, pte_cap, meta->mi.pgtbl_cap, ptemem_cap,
-		                12)) {
+		                COS_PGTBL_ORDER_PTE)) {
 			assert(0); /* race? */
 			return 0;
 		}
@@ -671,7 +671,7 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 	assert(ci);
 
 	if (__alloc_mem_cap(ci, CAP_PGTBL, &kmem, &cap)) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, COS_PGTBL_ORDER_PGD))
 		BUG();
 
 	return cap;

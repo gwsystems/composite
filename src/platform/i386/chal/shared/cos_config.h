@@ -113,9 +113,12 @@
 #define ENABLE_VGA
 #define ENABLE_SERIAL
 
+#define COS_PGTBL_ORDER_PTE 12
+#define COS_PGTBL_ORDER_PGD 22
+
 /* Page sizes */
 #define COS_PGTBL_NUM_ORDER      2
-#define COS_PGTBL_ORDERS         12, 22
+#define COS_PGTBL_ORDERS         COS_PGTBL_ORDER_PTE, COS_PGTBL_ORDER_PGD
 #define COS_PGTBL_ORDER2POS /* 0/1B    1/2B    2/4B    3/8B   4/16B   5/32B   6/64B  7/128B  8/256B  9/512B */ \
 				-1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1, \
 		  	    /* 10/1K   11/2K   12/4K   13/8K  14/16K  15/32K  16/64K 17/128K 18/256K 19/512K */ \
