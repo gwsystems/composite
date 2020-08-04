@@ -42,7 +42,7 @@ int faccessat(int fd, const char *filename, int amode, int flag)
 
 	__block_all_sigs(&set);
 	
-	pid = __clone(checker, stack+sizeof stack, 0, &c);
+	pid = __clone(checker, stack+sizeof stack, 0, &c, 0, 0, 0);
 	__syscall(SYS_close, p[1]);
 
 	if (pid<0 || __syscall(SYS_read, p[0], &ret, sizeof ret) != sizeof(ret))

@@ -144,7 +144,7 @@ extern hidden void *__pthread_tsd_main[];
 extern hidden volatile int __aio_fut;
 extern hidden volatile int __eintr_valid_flag;
 
-hidden int __clone(int (*)(void *), void *, int, void *, ...);
+hidden int __clone(int (*a)(void *), void *b, int c, void *d, void *e, void* f, void* g);
 hidden int __set_thread_area(void *);
 hidden int __libc_sigaction(int, const struct sigaction *, struct sigaction *);
 hidden void __unmapself(void *, size_t);

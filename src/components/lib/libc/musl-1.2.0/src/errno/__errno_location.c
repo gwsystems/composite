@@ -3,7 +3,8 @@
 
 int *__errno_location(void)
 {
-	return &__pthread_self()->errno_val;
+	static int e;
+	return &e;
 }
 
 weak_alias(__errno_location, ___errno_location);

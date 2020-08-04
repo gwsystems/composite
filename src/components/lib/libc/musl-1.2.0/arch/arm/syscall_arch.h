@@ -34,75 +34,42 @@
 #define R7_OPERAND "r"(r7)
 #endif
 
+extern long __cos_syscall(int, long, long, long, long, long, long, long);
+
 static inline long __syscall0(long n)
 {
-	register long r7 __ASM____R7__ = n;
-	register long r0 __asm__("r0");
-	__asm_syscall(R7_OPERAND);
+	return __cos_syscall(n, 0, 0, 0, 0, 0, 0, 0);
 }
 
 static inline long __syscall1(long n, long a)
 {
-	register long r7 __ASM____R7__ = n;
-	register long r0 __asm__("r0") = a;
-	__asm_syscall(R7_OPERAND, "0"(r0));
+	return __cos_syscall(n, a, 0, 0, 0, 0, 0, 0);
 }
 
 static inline long __syscall2(long n, long a, long b)
 {
-	register long r7 __ASM____R7__ = n;
-	register long r0 __asm__("r0") = a;
-	register long r1 __asm__("r1") = b;
-	__asm_syscall(R7_OPERAND, "0"(r0), "r"(r1));
+	return __cos_syscall(n, a, b, 0, 0, 0, 0, 0);
 }
 
 static inline long __syscall3(long n, long a, long b, long c)
 {
-	register long r7 __ASM____R7__ = n;
-	register long r0 __asm__("r0") = a;
-	register long r1 __asm__("r1") = b;
-	register long r2 __asm__("r2") = c;
-	__asm_syscall(R7_OPERAND, "0"(r0), "r"(r1), "r"(r2));
+	return __cos_syscall(n, a, b, c, 0, 0, 0, 0);
 }
 
 static inline long __syscall4(long n, long a, long b, long c, long d)
 {
-	register long r7 __ASM____R7__ = n;
-	register long r0 __asm__("r0") = a;
-	register long r1 __asm__("r1") = b;
-	register long r2 __asm__("r2") = c;
-	register long r3 __asm__("r3") = d;
-	__asm_syscall(R7_OPERAND, "0"(r0), "r"(r1), "r"(r2), "r"(r3));
+	return __cos_syscall(n, a, b, c, d, 0, 0, 0);
 }
 
 static inline long __syscall5(long n, long a, long b, long c, long d, long e)
 {
-	register long r7 __ASM____R7__ = n;
-	register long r0 __asm__("r0") = a;
-	register long r1 __asm__("r1") = b;
-	register long r2 __asm__("r2") = c;
-	register long r3 __asm__("r3") = d;
-	register long r4 __asm__("r4") = e;
-	__asm_syscall(R7_OPERAND, "0"(r0), "r"(r1), "r"(r2), "r"(r3), "r"(r4));
+	return __cos_syscall(n, a, b, c, d, e, 0, 0);
 }
 
 static inline long __syscall6(long n, long a, long b, long c, long d, long e, long f)
 {
-	register long r7 __ASM____R7__ = n;
-	register long r0 __asm__("r0") = a;
-	register long r1 __asm__("r1") = b;
-	register long r2 __asm__("r2") = c;
-	register long r3 __asm__("r3") = d;
-	register long r4 __asm__("r4") = e;
-	register long r5 __asm__("r5") = f;
-	__asm_syscall(R7_OPERAND, "0"(r0), "r"(r1), "r"(r2), "r"(r3), "r"(r4), "r"(r5));
+	return __cos_syscall(n, a, b, c, d, e, f, 0);
 }
-
-#define VDSO_USEFUL
-#define VDSO_CGT32_SYM "__vdso_clock_gettime"
-#define VDSO_CGT32_VER "LINUX_2.6"
-#define VDSO_CGT_SYM "__vdso_clock_gettime64"
-#define VDSO_CGT_VER "LINUX_2.6"
 
 #define SYSCALL_FADVISE_6_ARG
 
