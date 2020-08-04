@@ -76,6 +76,7 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 {
 	long fault = 0;
 	int  ret;
+	word_t ret2, ret3, ret4;
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
@@ -90,16 +91,17 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	                     "ldr r5,%[_arg4] \n\t"
 	                     "svc #0x00 \n\t"
 	                     "str r0,%[_ret] \n\t"
-	                     "ldr r6,%[_r2] \n\t"
-	                     "str r2,[r6] \n\t"
-	                     "ldr r6,%[_r3] \n\t"
-	                     "str r3,[r6] \n\t"
-	                     "ldr r6,%[_r4] \n\t"
-	                     "str r4,[r6] \n\t"
-	                     : [ _ret ] "=m"(ret), [ _r2 ] "=m"(r1), [ _r3 ] "=m"(r2), [ _r4 ] "=m"(r3)
+	                     "str r2,%[_r2] \n\t"
+	                     "str r3,%[_r3] \n\t"
+	                     "str r4,%[_r4] \n\t"
+	                     : [ _ret ] "=m"(ret), [ _r2 ] "=m"(ret2), [ _r3 ] "=m"(ret3), [ _r4 ] "=m"(ret4)
 	                     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3),
 	                       [ _arg4 ] "m"(arg4)
-	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r14");
+	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "lr");
+
+	if (r1) *r1 = ret2;
+	if (r2) *r2 = ret3;
+	if (r3) *r3 = ret4;
 
 	return ret;
 }
@@ -108,7 +110,7 @@ static inline word_t
 call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *r1, word_t *r2)
 {
 	long   fault = 0;
-	word_t ret;
+	word_t ret, ret2, ret3;
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
@@ -123,14 +125,15 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	                     "ldr r5,%[_arg4] \n\t"
 	                     "svc #0x00 \n\t"
 	                     "str r0,%[_ret] \n\t"
-	                     "ldr r6,%[_r2] \n\t"
-	                     "str r2,[r6] \n\t"
-	                     "ldr r6,%[_r3] \n\t"
-	                     "str r3,[r6] \n\t"
-	                     : [ _ret ] "=m"(ret), [ _r2 ] "=m"(r1), [ _r3 ] "=m"(r2)
+	                     "str r2,%[_r2] \n\t"
+	                     "str r3,%[_r3] \n\t"
+	                     : [ _ret ] "=m"(ret), [ _r2 ] "=m"(ret2), [ _r3 ] "=m"(ret3)
 	                     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3),
 	                       [ _arg4 ] "m"(arg4)
-	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6");
+	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "lr");
+
+	if (r1) *r1 = ret2;
+	if (r2) *r2 = ret3;
 
 	return ret;
 }
