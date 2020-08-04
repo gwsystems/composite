@@ -18,7 +18,7 @@ OBJECT_OUTPUT =
 # The path within this directory that holds the .h files for
 # dependents to compile with (./ by default). Will be fed into the -I
 # compiler arguments.
-INCLUDE_PATHS = musl-1.1.11/include/
+INCLUDE_PATHS = musl-1.2.0/include/
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
 INTERFACE_DEPENDENCIES =
@@ -65,7 +65,7 @@ LIBRARY_DEPENDENCIES =
 # init: clean all
 # distclean: clean
 
-MUSLDIR=musl-1.1.11/
+MUSLDIR=musl-1.2.0/
 MUSLINC=$(MUSLDIR)/include/
 MUSLLIB=$(MUSLDIR)/lib/
 
