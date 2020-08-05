@@ -111,6 +111,14 @@ results_split_print(struct results *r, const char *testname)
 	PRINTC("\t\tSD:%lu (%lu), 90%%:%lu (%lu), 95%%:%lu (%lu), 99%%:%lu (%lu)\n", sd, sd_h, p90tile, p90_h, p95tile, p95_h, p99tile, p99_h);
 }
 
+static inline void
+results_print(struct results *r, const char *testname)
+{
+	PRINTC("%s\n", testname);
+	PRINTC("\t\tAvg:%llu, Max:%llu, Min:%llu, Iters: %d\n", r->avg, r->max, r->min, r->sz);
+	PRINTC("\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n", r->sd, r->p90tile, r->p95tile, r->p99tile);
+}
+
 #if defined(__x86__)
 static unsigned long
 tls_get(size_t off)

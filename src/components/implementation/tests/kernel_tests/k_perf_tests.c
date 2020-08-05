@@ -190,13 +190,13 @@ test_async_endpoints_perf(void)
 void
 test_print_ubench(void)
 {
-	results_split_print(&result_thd_switch, "Threads => cos_thd_switch:");
-	results_split_print(&result_switch, "Threads => cos_switch:");
-	results_split_print(&result_async_roundtrip, "Async => Roundtrip:");
-	results_split_print(&result_async_oneway, "Async => Oneway:");
-	results_split_print(&result_sinv, "Synchronous Invocations:");
-	results_split_print(&result_test_timer, "Timer => Timeout Overhead:");
-	results_split_print(&result_budgets_single, "Timer => Budget Based:");
+	results_print(&result_thd_switch, "Threads => cos_thd_switch:");
+	results_print(&result_switch, "Threads => cos_switch:");
+	results_print(&result_async_roundtrip, "Async => Roundtrip:");
+	results_print(&result_async_oneway, "Async => Oneway:");
+	results_print(&result_sinv, "Synchronous Invocations:");
+	results_print(&result_test_timer, "Timer => Timeout Overhead:");
+	results_print(&result_budgets_single, "Timer => Budget Based:");
 }
 
 void

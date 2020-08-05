@@ -24,12 +24,13 @@ cos_static_stack_end:
 .align 16;                              \
 __cosrt_upcall_entry:                   \
 	COS_ASM_GET_STACK		\
-	mov r0, #0x00;			\
+	mov r0, #0;			\
 	mov r1, r2;			\
 	mov r2, r3;			\
 	mov r3, r4;			\
 	ldr r12, =cos_upcall_fn;	\
-	bx  r12;			\
+	blx r12;			\
+	mov r0, #0;			\
 	.ltorg;
 
 #define COS_ATOMIC_CMPXCHG	\

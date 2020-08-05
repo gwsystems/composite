@@ -17,8 +17,13 @@
 	mov r6, #0x00 ;		\
 	str r6, [sp] ;
 
+/* stack be aligned to 8byte boundary */
 #define COS_ASM_SAFE_SP		\
-	sub sp, sp, #0xF4 ;
+	mov r6, sp;		\
+	lsr r6, r6, #8;		\
+	lsl r6, r6, #8;		\
+	sub sp, r6, #256;	\
+	mov fp, sp;
 
 /* clang-format off */
 #define COS_ASM_GET_STACK_BASIC			\
@@ -37,20 +42,20 @@
 	COS_ASM_ALLOC_SP			\
 	str r0, [sp] ;				\
 	COS_ASM_ALLOC_SP			\
-	str r6, [sp] ;				\
-	COS_ASM_CLEANUP_TLS			\
-	COS_ASM_SAFE_SP
+	str r6, [sp] ;
 
 #define COS_ASM_GET_STACK		\
 	COS_ASM_GET_STACK_BASIC		\
 	COS_ASM_ALLOC_SP		\
 	mov r6, #0x00;			\
-	str r6, [sp];
+	str r6, [sp];			\
+	COS_ASM_SAFE_SP
 
 #define COS_ASM_GET_STACK_INVTOKEN	\
 	COS_ASM_GET_STACK_BASIC		\
 	COS_ASM_ALLOC_SP		\
-	str r1, [sp];
+	str r1, [sp];			\
+	COS_ASM_SAFE_SP
 
 #define COS_ASM_RET_STACK
 
