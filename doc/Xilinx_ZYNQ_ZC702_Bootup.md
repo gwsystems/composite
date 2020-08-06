@@ -76,7 +76,7 @@ Branch: loaderarm
 - Go back to <composite_clone> directory
 - `./cos compose composition_scripts/kernel_test.toml kernel_test_1`
 
-This generates `cos.img` in `system_binaries/kernel_test_1/` directory, which we will boot from u-boot built in the previous step.
+This generates `cos.img.bin` in `system_binaries/kernel_test_1/` directory, which we will boot from u-boot built in the previous step.
 
 ### Zynq mkbootimage
 
@@ -94,13 +94,36 @@ Forking is taking too long.
 
 ## Qemu execution
 
-1. Make sure the paths in ./tools/arm_runqemu.sh are correct. Mainly, the uboot.elf is expected to be in <composite_clone>/../cos_u-boot-xlnx/. 
+1. Make sure the paths in `./tools/arm_runqemu.sh` are correct. Mainly, the uboot.elf is expected to be in `<composite_clone>/../cos_u-boot-xlnx/`. 
 1. `./tools/arm_runqemu.sh all system_binaries/kernel_test_1/`
-1. Key in these commands:
-    a. load mmc 0:1 00100000 cos.img.bin && go 00100000
+1. Key in this command:
+   ```
+   load mmc 0:1 00100000 cos.img.bin && go 00100000
+   ```
+   you may execute those commands in two steps. like
+   ```
+   load mmc 0:1 00100000 cos.img.bin
+   go 00100000
+   ```
 1. This should ideally boot your system up, if you've a working Composite kernel and user-level, you'll see the output for kernel_test running some benchmarks!
 
 ## HW execution
+
+**serial communication**
+- I used `minicom` on ubuntu. 
+   - To install `sudo apt install minicom`
+   - To setup, `sudo minicom -s`
+   - The serial cable is connected to USB, unless you have more than one such connection, you will see `/dev/ttyUSB0` as your serial USB device. so
+   - In "serial port settings", change serial device to be `/dev/ttyUSB0`, change "Hardware flow control" to `No`, keep all other defaults.
+   - (optional) I normally change the "History buffer size" to be maximum, which is `5000`. 
+   - If you haven't run it with sudo, you'd not be able to save these settings as "save setup as dfl", so it is just an inconvenience but if you prefer saving and loading a non-default config, you may go ahead and run without sudo and choose "save setup as.." option instead.
+   - In my case, the default config after these changes is in `/etc/minicom/minirc.dfl` and as below:
+   ```
+   # Machine-generated file - use "minicom -s" to change parameters.
+   pu port             /dev/ttyUSB0
+   pu rtscts           No
+   pu histlines        5000
+   ```
 
 **This is for TFTP boot**
 - I did not build a custom uboot image, instead used what was on the Xilinx board, so skipping mkbootimage steps here.
@@ -109,7 +132,13 @@ Forking is taking too long.
 
 - This creates `/srv/tftp` directory on the host. All you need to do after building `Composite` is to copy the `cos.img.bin` to that directory.
 
-- On the board, stop at u-boot prompt and enter the following command:
-```
-tftp 00100000 cos.img.bin && go 00100000
-```
+- On the board, stop at u-boot prompt:
+  - in my setup, i have both the board and host machine connected to the router which provides dhcp IP addresses. so I'm not setting static ip for the board.
+  - so all I change is the `serverip` to match my host machine IP, the board acquires its DHCP IP and connects to the host when you do tftp.
+  - after you change the environment you need, do a saveenv, so it saves that for consequent boots!
+  - read [this](https://www.denx.de/wiki/view/DULG/UBootCmdGroupEnvironment) for how to print, set, save environment on uboot.
+  
+- Once that's done and you're are ready to boot Composite, enter the following command:
+  ```
+  tftp 00100000 cos.img.bin && go 00100000
+  ```
