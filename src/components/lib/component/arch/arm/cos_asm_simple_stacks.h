@@ -9,53 +9,39 @@
  *
  * see platform/armv7/chal/call_convention.h for more details.
  */
-#define COS_ASM_ALLOC_SP	\
-	sub sp, sp, #0x04 ;
-
-#define COS_ASM_CLEANUP_TLS	\
-	COS_ASM_ALLOC_SP	\
-	mov r6, #0x00 ;		\
-	str r6, [sp] ;
-
-/* stack be aligned to 8byte boundary */
-#define COS_ASM_SAFE_SP		\
-	mov r6, sp;		\
-	lsr r6, r6, #8;		\
-	lsl r6, r6, #8;		\
-	sub sp, r6, #256;	\
-	mov fp, sp;
+/*
+ * stack be aligned to 8byte boundary
+ * we pushed cpuid, thdid, and invtoken to stack so far, and that's 12bytes
+ * so push something random here.. that aligns to 8byte boundary! 
+ */
+#define COS_ASM_ALIGN_SP			\
+	mov r6, #0;				\
+	push {r6};
 
 /* clang-format off */
 #define COS_ASM_GET_STACK_BASIC			\
-	ldr r6, =cos_static_stack ;		\
-	add r6, r6, #COS_STACK_SZ ;		\
-	lsr r6, r6, #MAX_STACK_SZ_BYTE_ORDER ;	\
-	lsl r6, r6, #MAX_STACK_SZ_BYTE_ORDER ;	\
-	mov r12, r6 ;				\
-	mov r6, r0 ;				\
-	lsl r6, r6, #0x10 ;			\
-	lsr r6, r6, #0x10 ;			\
-	lsl r6, r6, #MAX_STACK_SZ_BYTE_ORDER ;	\
-	add sp, r12, r6 ;			\
-	lsr r6, r6, #MAX_STACK_SZ_BYTE_ORDER ;	\
-	lsr r0, r0, #0x10 ;			\
-	COS_ASM_ALLOC_SP			\
-	str r0, [sp] ;				\
-	COS_ASM_ALLOC_SP			\
-	str r6, [sp] ;
+	ldr r6, =cos_static_stack;		\
+	add r6, r6, #COS_STACK_SZ;		\
+	mov r12, r6;				\
+	mov r6, r0;				\
+	and r6, r6, #0xff;			\
+	lsl r6, r6, #MAX_STACK_SZ_BYTE_ORDER;	\
+	add sp, r12, r6;			\
+	lsr r6, r6, #MAX_STACK_SZ_BYTE_ORDER;	\
+	lsr r0, r0, #16;			\
+	push {r0};				\
+	push {r6};
 
-#define COS_ASM_GET_STACK		\
-	COS_ASM_GET_STACK_BASIC		\
-	COS_ASM_ALLOC_SP		\
-	mov r6, #0x00;			\
-	str r6, [sp];			\
-	COS_ASM_SAFE_SP
+#define COS_ASM_GET_STACK			\
+	COS_ASM_GET_STACK_BASIC			\
+	mov r6, #0;				\
+	push {r6};				\
+	COS_ASM_ALIGN_SP
 
-#define COS_ASM_GET_STACK_INVTOKEN	\
-	COS_ASM_GET_STACK_BASIC		\
-	COS_ASM_ALLOC_SP		\
-	str r1, [sp];			\
-	COS_ASM_SAFE_SP
+#define COS_ASM_GET_STACK_INVTOKEN		\
+	COS_ASM_GET_STACK_BASIC			\
+	push {r1};				\
+	COS_ASM_ALIGN_SP
 
 #define COS_ASM_RET_STACK
 

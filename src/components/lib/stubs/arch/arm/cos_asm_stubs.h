@@ -50,9 +50,11 @@ __cosrt_s_##name:				\
 .align 16 ;					\
 __cosrt_s_##name:				\
 	COS_ASM_GET_STACK_INVTOKEN              \
-	COS_ASM_ALLOC_SP			\
+	mov r6, #0;				\
+	push {r6};				\
 	mov r6, sp;				\
-	COS_ASM_ALLOC_SP			\
+	mov r7, #0;				\
+	push {r7};				\
 	mov r7, sp;				\
 	mov r0, r2;				\
 	mov r1, r3;				\
