@@ -44,6 +44,15 @@ echo $ARCH
 
 ## Repositories
 
+### u-boot and composite for qemu
+
+When following the below instructions for cloning, make sure you have the directories something like this:
+```
+<workspace>/<composite> #it doesn't matter what you name the composite clone
+<workspace>/cos_u-boot-xlnx  # this is more important, as the qemu script in <composite>/tools/ directory expects this..
+```
+<workspace> can be anything, ex: `/home/<user>`.. Most important thing is that, both composite and uboot be at the same level in the directory hierarchy and follow specific name for uboot directory!! Keep this in mind while cloning things below..
+        
 ### u-boot
 
 **This is not working for now**
