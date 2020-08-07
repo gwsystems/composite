@@ -23,10 +23,10 @@
 
 #define do_div(n, base)                       \
 	({                                    \
-		int __base = (base);          \
-		int __rem;                    \
-		__rem = ((long)(n)) % __base; \
-		(n)   = ((long)(n)) / __base; \
+		unsigned int __base = (base);          \
+		unsigned int __rem;                    \
+		__rem = ((unsigned long)(n)) % __base; \
+		(n)   = ((unsigned long)(n)) / __base; \
 		__rem;                        \
 	})
 
@@ -89,7 +89,7 @@ number(void (*tx_byte)(unsigned char byte), unsigned long long num, int base, in
 	if (num == 0)
 		tmp[i++] = '0';
 	else
-		;//while (num != 0) tmp[i++] = digits[do_div(num, base)];
+		while (num != 0) tmp[i++] = digits[do_div(num, base)];
 	if (i > precision) precision = i;
 	size -= precision;
 	if (!(type & (ZEROPAD + LEFT)))

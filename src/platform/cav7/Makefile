@@ -54,7 +54,9 @@ OBJS += chal_pgtbl.o
 OBJS += irq.o
 # OBJS += start.o
 OBJS += vtxprintf.o 
-OBSJ += div.o
+#OBSJ += div.o
+OBJS += __aeabi_idiv.o
+OBJS += udivmoddi4.o
 
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o
@@ -63,14 +65,16 @@ COS_OBJ += tcap.o
 COS_OBJ += capinv.o
 COS_OBJ += captbl.o
 
+ASM_OBJ += __aeabi_uidivmod.o
+ASM_OBJ += __aeabi_uidiv.o
+ASM_OBJ += __aeabi_uldivmod.o
+
 DEPS :=$(patsubst %.o, %.d, $(OBJS))
 
 OBJS += $(COS_OBJ)
+OBJS += $(ASM_OBJ)
 
 all: $(KERNEL)
-
-start.o: start.S
-	$(AS) -c start.S -o $@
 
 $(KERNEL): linker.ld $(DEPS) $(OBJS) start.o
 	$(info |     [LD]   Linking $@)
@@ -104,6 +108,10 @@ captbl.o: ../../kernel/captbl.c
 	$(info |     [CC]   Compiling $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
 
+
+%.o: %.S
+	$(info |     [AS]   Assembling $@)
+	@$(AS) -c $< -o $@
 
 %.o: %.c
 	$(info |     [CC]   Compiling $@)
