@@ -488,17 +488,17 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 	size_t               rounded;
 
-	printd("__page_bump_alloc\n");
+	printd("__page_bump_mem_alloc\n");
 
 	assert(sz % PAGE_SIZE == 0);
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
 	heap_vaddr = ps_faa(mem_addr, sz);        /* allocate our memory addresses */
-	rounded    = sz + (heap_vaddr - round_to_pgd_page(heap_vaddr));
+	rounded    = sz - (round_up_to_pgd_page(heap_vaddr) - heap_vaddr);
 
 	/* Do we not need to allocate PTEs? */
 	if (heap_vaddr + sz <= *mem_frontier) return heap_vaddr;
 
-	retaddr = __bump_mem_expand_range(ci, ci->pgtbl_cap, round_to_pgd_page(heap_vaddr), rounded);
+	retaddr = __bump_mem_expand_range(ci, ci->pgtbl_cap, round_up_to_pgd_page(heap_vaddr), rounded);
 	assert(retaddr);
 
 	while (1) {
@@ -976,9 +976,10 @@ cos_mem_alias_atn(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *
 	size_t npages;
 
 	assert(srcci && dstci);
+	assert(sz % PAGE_SIZE == 0);
 
 	npages = sz / PAGE_SIZE;
-	for (i=0;i < npages; i++) {
+	for (i=0; i < npages; i++) {
 		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src + i * PAGE_SIZE, dstci->pgtbl_cap, dst + i * PAGE_SIZE, PAGE_ORDER)) BUG();
 	}
 
