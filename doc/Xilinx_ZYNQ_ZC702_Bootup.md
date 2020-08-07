@@ -10,6 +10,7 @@ You need arm-none-eabi-gcc installed, git, qemu-system-arm, etc.
 ```
 sudo apt install gcc-arm-none-eabi qemu git build-essential binutils-dev bison flex minicom libssl-dev qemu
 ```
+Also need rust installed. Follow [this](https://doc.rust-lang.org/cargo/getting-started/installation.html)
 
 ## Environment
 
