@@ -104,6 +104,20 @@ Forking is taking too long.
 
 ## Qemu execution
 
+**Before you proceed**
+It looks like Qemu 2.11 (on Ubuntu 18.04) doesn't seem to work correctly, it hangs for me at `Loading Environment from SPI Flash...`. So I upgraded my qemu package following the below instructions from [this](https://mathiashueber.com/manually-update-qemu-on-ubuntu-18-04/)
+```
+For the sake of completeness and beginner friendliness this is how you use it.
+
+Open a terminal and run:
+sudo add-apt-repository ppa:jacob/virtualisation
+
+When the repository is added successfully, you can update QEMU and libvirt.
+sudo apt-get update
+sudo apt-get upgrade
+```
+It gives me qemu 2.12 on ubuntu 18.04, and that goes straight to the uboot prompt and boots Cos kernel, so sufficient I guess.
+
 1. Make sure the paths in `./tools/arm_runqemu.sh` are correct. Mainly, the uboot.elf is expected to be in `<composite_clone>/../cos_u-boot-xlnx/`. 
 1. `./tools/arm_runqemu.sh all system_binaries/kernel_test_1/`
 1. Key in this command:
