@@ -8,7 +8,7 @@ This document should spell out the details for how to bootup Composite on that b
 
 You need arm-none-eabi-gcc installed, git, qemu-system-arm, etc.
 ```
-sudo apt install gcc-arm-none-eabi qemu git build-essential binutils-dev bison flex minicom
+sudo apt install gcc-arm-none-eabi qemu git build-essential binutils-dev bison flex minicom libssl-dev qemu
 ```
 
 ## Environment
