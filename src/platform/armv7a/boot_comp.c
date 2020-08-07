@@ -225,7 +225,7 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 	boot_pgtbl_expand(ct, pgdcap, ptecap, label, s[0].vstart, round_up_to_page(s[0].sz) + s[1].sz);
 
 	/* Map in the sections separately */
-	if (boot_map(ct, pgdcap, ptecap, label, s[0].mem, s[0].vstart, s[0].objsz, 1)) return -1;
+	if (boot_map(ct, pgdcap, ptecap, label, s[0].mem, s[0].vstart, round_up_to_page(s[0].objsz), 1)) return -1;
 	//boot_elf_dump_hex(s[0].mem, s[0].objsz);
 	if (boot_map(ct, pgdcap, ptecap, label, s[1].mem, s[1].vstart, round_to_page(s[1].objsz), 1)) return -1;
 	printk("\tBSS information: %lx %lx %lx\n", bss, s[1].vstart + round_to_page(s[1].objsz), bss_sz);

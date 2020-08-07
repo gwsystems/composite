@@ -30,6 +30,14 @@ printk(const char *fmt, ...)
 }
 
 void
+print_arch_regs(void)
+{
+	printk("DFSR: %lx, DFAR: 0x%lx\n", __cos_cav7_dfsr_get(), __cos_cav7_dfar_get());
+	printk("IFSR: %lx, IFAR: 0x%lx\n", __cos_cav7_ifsr_get(), __cos_cav7_ifar_get());
+	printk("ADFSR: %lx\n", __cos_cav7_adfsr_get());
+}
+
+void
 dbgprint(void)
 {
 	printk("Debug print string active\n");
@@ -39,6 +47,7 @@ void
 undefined_dbgprint(struct pt_regs *regs)
 {
 	printk("Undefined handler!!\n");
+	print_arch_regs();
 	regs_print(regs);
 }
 
@@ -46,6 +55,7 @@ void
 prefetch_abort_dbgprint(struct pt_regs *regs)
 {
 	printk("Prefetch Abort handler!!\n");
+	print_arch_regs();
 	regs_print(regs);
 }
 
@@ -53,6 +63,7 @@ void
 data_abort_dbgprint(struct pt_regs *regs)
 {
 	printk("Data Abort handler!!\n");
+	print_arch_regs();
 	regs_print(regs);
 }
 
@@ -60,6 +71,7 @@ void
 fiq_dbgprint(void)
 {
 	printk("FIQ handler!!\n");
+	print_arch_regs();
 }
 
 void

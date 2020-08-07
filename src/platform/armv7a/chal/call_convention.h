@@ -171,7 +171,7 @@ copy_all_regs(struct pt_regs *from, struct pt_regs *to)
 static inline void
 regs_print(struct pt_regs* regs)
 {
-	printk("\tregs - 0x%x\n",regs);
+	printk("Register state - 0x%x\n",regs);
 	printk("\tcpsr - 0x%x\n",regs->cpsr);
 	printk("\tr0 - 0x%x\n",regs->r0);
 	printk("\tr1 - 0x%x\n",regs->r1);

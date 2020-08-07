@@ -77,7 +77,7 @@ clean:
 
 armv7a_init:
 	$(info Building libc (musl) for arm...)
-	cd $(MUSLDIR); ./configure "CC=arm-none-eabi-gcc" "CFLAGS=-march=armv7-a -O3" "LDFLAGS=" --disable-shared --target=arm; cd ..
+	cd $(MUSLDIR); ./configure "CC=arm-none-eabi-gcc" "CFLAGS=-march=armv7-a -g" "LDFLAGS=" --disable-shared --target=arm; cd ..
 
 i386_init:
 	$(info Building libc (musl) for i386...)

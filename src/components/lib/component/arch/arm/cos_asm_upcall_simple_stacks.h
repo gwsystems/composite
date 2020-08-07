@@ -8,11 +8,12 @@
 #include "cos_asm_simple_stacks.h"
 
 #define COS_STATIC_STACK                \
+.bss;					\
 .align 16;                              \
 .globl cos_static_stack;		\
 cos_static_stack:			\
 	.rept ALL_STACK_SZ_FLAT;	\
-	.long 0;			\
+	.4byte 0;			\
 	.endr;				\
 .globl cos_static_stack_end;            \
 cos_static_stack_end:
