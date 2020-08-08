@@ -171,24 +171,13 @@ copy_all_regs(struct pt_regs *from, struct pt_regs *to)
 static inline void
 regs_print(struct pt_regs* regs)
 {
-	printk("Register state - 0x%x\n",regs);
-	printk("\tcpsr - 0x%x\n",regs->cpsr);
-	printk("\tr0 - 0x%x\n",regs->r0);
-	printk("\tr1 - 0x%x\n",regs->r1);
-	printk("\tr2 - 0x%x\n",regs->r2);
-	printk("\tr3- 0x%x\n",regs->r3);
-	printk("\tr4 - 0x%x\n",regs->r4);
-	printk("\tr5 - 0x%x\n",regs->r5);
-	printk("\tr6 - 0x%x\n",regs->r6);
-	printk("\tr7 - 0x%x\n",regs->r7);
-	printk("\tr8 - 0x%x\n",regs->r8);
-	printk("\tr9 - 0x%x\n",regs->r9);
-	printk("\tr10 - 0x%x\n",regs->r10);
-	printk("\tr11 - 0x%x\n",regs->r11);
-	printk("\tr12 - 0x%x\n",regs->r12);
-	printk("\tr13_sp - 0x%x\n",regs->r13_sp);
-	printk("\tr14_lr - 0x%x\n",regs->r14_lr);
-	printk("\tr15_pc - 0x%x\n",regs->r15_pc);
+	printk("Register state - 0x%x: \n",regs);
+	printk("\tcpsr: 0x%x, r0: 0x%x, r1: 0x%x, r2: 0x%x, r3: 0x%x, r4: 0x%x\n",
+			regs->cpsr, regs->r0, regs->r1, regs->r2, regs->r3, regs->r4);
+	printk("\tr5: 0x%x, r6: 0x%x, r7: 0x%x, r8: 0x%x, r9: 0x%x, r10: 0x%x\n",
+			regs->r5, regs->r6, regs->r7, regs->r8, regs->r9, regs->r10);
+	printk("\tr11: 0x%x, r12: 0x%x, r13 (sp): 0x%x, r14 (lr): 0x%x, r15 (pc): 0x%x\n",
+			regs->r11, regs->r12, regs->r13_sp, regs->r14_lr, regs->r15_pc);
 }
 
 static inline void
