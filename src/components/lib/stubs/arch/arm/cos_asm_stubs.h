@@ -119,8 +119,13 @@ __cosrt_s_##name:				\
 name:                                          \
 __cosrt_extern_##name:			       \
 	ldr r6, =__cosrt_ucap_##name;	       \
+	mov r4, r3;			       \
+	mov r3, r2;			       \
+	mov r2, r1;			       \
+	mov r1, r0;			       \
+	mov r0, r6;			       \
 	ldr r6, [r6, #INVFN];		       \
-	blx   r6;			       \
+	bx  r6;				       \
 	.ltorg;				       \
 					       \
 .section .ucap, "a", %progbits ;               \
