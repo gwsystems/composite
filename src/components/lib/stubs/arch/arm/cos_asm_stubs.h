@@ -32,6 +32,7 @@ __cosrt_s_##name:				\
 	mov r3, r5;				\
 	ldr r6, =name;				\
 	blx r6;					\
+						\
 	ldr r1, =RET_CAP;			\
 	COS_ASM_RET_STACK			\
 						\
@@ -50,6 +51,7 @@ __cosrt_s_##name:				\
 .align 16 ;					\
 __cosrt_s_##name:				\
 	COS_ASM_GET_STACK_INVTOKEN              \
+	mov fp, sp;				\
 	mov r6, #0;				\
 	push {r6};				\
 	mov r6, sp;				\
@@ -60,15 +62,15 @@ __cosrt_s_##name:				\
 	mov r1, r3;				\
 	mov r2, r4;				\
 	mov r3, r5;				\
-	mov r4, r6;				\
-	mov r5, r7;				\
+	push {r6-r7};				\
 	ldr r8, =__cosrt_s_cstub_##name;	\
 	blx r8;					\
-	ldr r2, [r6];				\
-	ldr r3, [r7];				\
+	ldr r2, [sp, #12];			\
+	ldr r3, [sp, #8];			\
 						\
 	ldr r1, =RET_CAP;			\
 	COS_ASM_RET_STACK			\
+						\
 	svc #0x00;				\
 	.ltorg;
 
@@ -108,35 +110,76 @@ __cosrt_s_##name:				\
  * The __cosrt_extern_* aliases are to support components to call a
  * server function in an interface that it also exports.
  */
-
-#define cos_asm_stub(name)		       \
-.text;                                         \
-.weak name;                                    \
-.globl __cosrt_extern_##name;                  \
-.type  name, %function;			       \
-.type  __cosrt_extern_##name, %function;       \
-.align 8 ;                                     \
-name:                                          \
-__cosrt_extern_##name:			       \
-	ldr r6, =__cosrt_ucap_##name;	       \
-	mov r4, r3;			       \
-	mov r3, r2;			       \
-	mov r2, r1;			       \
-	mov r1, r0;			       \
-	mov r0, r6;			       \
-	ldr r6, [r6, #INVFN];		       \
-	bx  r6;				       \
-	.ltorg;				       \
-					       \
-.section .ucap, "a", %progbits ;               \
-.globl __cosrt_ucap_##name ;                   \
-__cosrt_ucap_##name:                           \
-        .rep UCAP_SZ ;                         \
-        .long 0 ;                              \
-        .endr ;				       \
+#define cos_asm_stub(name)			\
+.text;						\
+.weak name;					\
+.globl __cosrt_extern_##name;			\
+.type  name, %function;				\
+.type  __cosrt_extern_##name, %function;	\
+.align 8 ;					\
+name:						\
+__cosrt_extern_##name:				\
+	push {r6, lr};				\
+	mov lr, r2;				\
+	mov r6, r1;				\
+	sub sp, sp, #8;				\
+	mov r1, r0;				\
+	str r3, [sp];				\
+	mov r2, r6;				\
+	ldr r0, =__cosrt_ucap_##name;		\
+	mov r3, lr;				\
+	ldr r6, [r0, #INVFN];			\
+	blx r6;					\
+	add sp, sp, #8;				\
+	pop {r6, lr};				\
+	bx lr;					\
+	.ltorg					\
+						\
+.section .ucap, "a", %progbits ;		\
+.globl __cosrt_ucap_##name ;			\
+__cosrt_ucap_##name:				\
+        .rep UCAP_SZ ;				\
+        .long 0 ;				\
+        .endr ;					\
 .text /* start out in the text segment, and always return there */
 
-#define cos_asm_stub_indirect(name) cos_asm_stub(name)
+#define cos_asm_stub_indirect(name)		\
+.text;						\
+.weak name;					\
+.globl __cosrt_extern_##name;			\
+.type  name, %function;				\
+.type  __cosrt_extern_##name, %function;	\
+.align 8 ;					\
+name:						\
+__cosrt_extern_##name:				\
+	push {r6, r5, lr};			\
+	mov r7, r1;				\
+	mov r6, r2;				\
+	sub sp, sp, #20;			\
+	ldr lr, [sp, #32];			\
+	ldr ip, [sp, #36];			\
+	str r3, [sp];				\
+	mov r1, r0;				\
+	str lr, [sp, #4];			\
+	str ip, [sp, #8];			\
+	ldr r0, =__cosrt_ucap_##name;		\
+	mov r2, r7;				\
+	mov r3, r6;				\
+	ldr r6, [r0, #INVFN];			\
+	blx r6;					\
+	add sp, sp, #20;			\
+	pop {r6, r7, lr};			\
+	bx lr;					\
+	.ltorg;					\
+						\
+.section .ucap, "a", %progbits ;		\
+.globl __cosrt_ucap_##name ;			\
+__cosrt_ucap_##name:				\
+        .rep UCAP_SZ ;				\
+        .long 0 ;				\
+        .endr ;					\
+.text /* start out in the text segment, and always return there */
+
 #endif
 
 .text
