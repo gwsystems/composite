@@ -66,7 +66,7 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	                     : [ _ret ] "=m"(ret), [ _fault ] "=m"(fault)
 	                     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3),
 	                       [ _arg4 ] "m"(arg4)
-	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "lr");
+	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "ip", "lr");
 
 	return ret;
 }
@@ -97,7 +97,7 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	                     : [ _ret ] "=m"(ret), [ _r2 ] "=m"(ret2), [ _r3 ] "=m"(ret3), [ _r4 ] "=m"(ret4)
 	                     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3),
 	                       [ _arg4 ] "m"(arg4)
-	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "lr");
+	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "ip", "lr");
 
 	if (r1) *r1 = ret2;
 	if (r2) *r2 = ret3;
@@ -130,7 +130,7 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	                     : [ _ret ] "=m"(ret), [ _r2 ] "=m"(ret2), [ _r3 ] "=m"(ret3)
 	                     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3),
 	                       [ _arg4 ] "m"(arg4)
-	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "lr");
+	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "ip", "lr");
 
 	if (r1) *r1 = ret2;
 	if (r2) *r2 = ret3;

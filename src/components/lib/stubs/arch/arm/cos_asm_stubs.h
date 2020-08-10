@@ -152,7 +152,7 @@ __cosrt_ucap_##name:				\
 .align 8 ;					\
 name:						\
 __cosrt_extern_##name:				\
-	push {r6, r5, lr};			\
+	push {r6, r7, lr};			\
 	mov r7, r1;				\
 	mov r6, r2;				\
 	sub sp, sp, #20;			\
