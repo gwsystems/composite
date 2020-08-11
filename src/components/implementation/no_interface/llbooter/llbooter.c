@@ -13,7 +13,7 @@
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
 #include <crt.h>
-#include <static_alloc.h>
+#include <static_slab.h>
 
 #include <init.h>
 #include <addr.h>
@@ -38,9 +38,9 @@ static struct crt_comp boot_comps[MAX_NUM_COMPS];
 static const  compid_t sched_root_id  = 2;
 static        long     boot_id_offset = -1;
 
-SA_STATIC_ALLOC(sinv, struct crt_sinv, BOOTER_MAX_SINV);
-SA_STATIC_ALLOC(thd,  struct crt_thd,  BOOTER_MAX_INITTHD);
-SA_STATIC_ALLOC(rcv,  struct crt_rcv,  BOOTER_MAX_SCHED);
+SS_STATIC_SLAB(sinv, struct crt_sinv, BOOTER_MAX_SINV);
+SS_STATIC_SLAB(thd,  struct crt_thd,  BOOTER_MAX_INITTHD);
+SS_STATIC_SLAB(rcv,  struct crt_rcv,  BOOTER_MAX_SCHED);
 
 /*
  * Assumptions: the component with the lowest id *must* be the one
@@ -157,18 +157,18 @@ comps_init(void)
 		assert(comp);
 
 		if (!strcmp(exec_type, "sched")) {
-			struct crt_rcv *r = sa_rcv_alloc();
+			struct crt_rcv *r = ss_rcv_alloc();
 
 			assert(r);
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, r))) BUG();
-			sa_rcv_activate(r);
+			ss_rcv_activate(r);
 			printc("\tCreated scheduling execution for %ld\n", id);
 		} else if (!strcmp(exec_type, "init")) {
-			struct crt_thd *t = sa_thd_alloc();
+			struct crt_thd *t = ss_thd_alloc();
 
 			assert(t);
 			if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, t))) BUG();
-			sa_thd_activate(t);
+			ss_thd_activate(t);
 			printc("\tCreated thread for %ld\n", id);
 		} else {
 			printc("Error: Found unknown execution schedule type %s.\n", exec_type);
@@ -262,12 +262,12 @@ comps_init(void)
 		int serv_id = atoi(args_get_from("server", &curr));
 		int cli_id  = atoi(args_get_from("client", &curr));
 
-		sinv = sa_sinv_alloc();
+		sinv = ss_sinv_alloc();
 		assert(sinv);
 		crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
 				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
-		sa_sinv_activate(sinv);
+		ss_sinv_activate(sinv);
 		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
 	}

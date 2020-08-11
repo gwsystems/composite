@@ -3,7 +3,7 @@
 
 #include <chanmgr.h>
 #include <chan.h>
-#include <static_alloc.h>
+#include <static_slab.h>
 
 #define MAX_NUM_CHAN 16
 struct chan_info {
@@ -14,7 +14,7 @@ struct chan_info {
 	cbuf_t buf_id;
 };
 
-SA_STATIC_ALLOC_OFF(channel, struct chan_info, MAX_NUM_CHAN, 1);
+SS_STATIC_SLAB(channel, struct chan_info, MAX_NUM_CHAN);
 
 chan_id_t
 chanmgr_create(unsigned int item_sz, unsigned int slots, chan_flags_t flags)
@@ -24,9 +24,9 @@ chanmgr_create(unsigned int item_sz, unsigned int slots, chan_flags_t flags)
 	struct crt_blkpt empty, full;
 	unsigned int mem_pages;
 
-	c = sa_channel_alloc();
+	c = ss_channel_alloc();
 	if (!c) return 0;
-	ret = id = sa_channel_id(c);
+	ret = id = ss_channel_id(c);
 
 	c->info = (struct __chan_meta) {
 		.nslots  = slots,
@@ -42,7 +42,7 @@ chanmgr_create(unsigned int item_sz, unsigned int slots, chan_flags_t flags)
 	c->buf_id = memmgr_shared_page_allocn(mem_pages, (vaddr_t *)&c->info.mem);
 	if (c->buf_id == 0) ERR_THROW(0, dealloc_full_blkpt);
 
-	sa_channel_activate(c);
+	ss_channel_activate(c);
 
 	return ret;
 
@@ -51,7 +51,7 @@ dealloc_full_blkpt:
 dealloc_empty_blkpt:
 	crt_blkpt_teardown(&empty);
 free_chan:
-	sa_channel_free(c);
+	ss_channel_free(c);
 
 	return ret;
 }
@@ -63,7 +63,7 @@ chanmgr_sync_resources(chan_id_t id, sched_blkpt_id_t *full, sched_blkpt_id_t *e
 	compid_t cid = cos_inv_token();
 
 	*full = *empty = 0;
-	chinfo = sa_channel_get(id);
+	chinfo = ss_channel_get(id);
 	if (!chinfo) return -1;
 
 	*full  = chinfo->info.blkpt_full_id;
@@ -80,7 +80,7 @@ chanmgr_mem_resources(chan_id_t id, cbuf_t *cb_id, void **mem)
 
 	*cb_id = 0;
 	*mem   = NULL;
-	chinfo = sa_channel_get(id);
+	chinfo = ss_channel_get(id);
 	if (!chinfo) return -1;
 
 	*cb_id = chinfo->buf_id;
