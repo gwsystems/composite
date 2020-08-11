@@ -159,7 +159,7 @@ volatile thdid_t holder;
 thdid_t
 next_thd(void)
 {
-	return sl_thd_thdid(lock_thds[(unsigned int)(ps_tsc() % NLOCKTHDS)]);
+	return sl_thd_thdid(lock_thds[(unsigned int)(sl_now() % NLOCKTHDS)]);
 }
 
 void
