@@ -1,5 +1,6 @@
 #include "kernel_tests.h"
 #include <init.h>
+#include <ps_plat.h>
 
 struct cos_compinfo booter_info;
 thdcap_t            termthd[NUM_CPU] = { 0 }; /* switch to this to shutdown */
@@ -57,6 +58,8 @@ main(void)
 
         cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	printc("\tTiming: %d cycles per microsecond\n", cyc_per_usec);
+	perfcntr_init();
+	printc("\tPerformance Counter: %llu\n", ps_tsc());
 
 	test_run_unit_kernel();
         test_run_perf_kernel();

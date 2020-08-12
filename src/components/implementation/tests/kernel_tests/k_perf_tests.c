@@ -26,7 +26,7 @@ static void
 bounceback(void *d)
 {
         while (1) {
-                rdtscll(side_thd);
+                side_thd = ps_tsc();
                 cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
         }
 }
@@ -44,8 +44,9 @@ test_thds_create_switch(void)
                 return;
         }
 
+	perfcntr_init(); /* 32bit counter, so resetting before every benchmark */
         for (i = 0; i < ITER; i++) {
-                rdtscll(main_thd);
+                main_thd = ps_tsc();
                 ret = cos_thd_switch(ts);
                 EXPECT_LL_NEQ(0, ret, "COS Switch Error");
 
@@ -57,8 +58,9 @@ test_thds_create_switch(void)
 
         perfdata_init(&pd[cos_cpuid()], "COS THD => COS_SWITCH", test_results, ARRAY_SIZE);
 
+	perfcntr_init(); /* 32bit counter, so resetting before every benchmark */
         for (i = 0; i < ITER; i++) {
-                rdtscll(main_thd);
+                main_thd = ps_tsc();
                 ret = cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, 0, 0);
                 EXPECT_LL_NEQ(0, ret, "COS Switch Error");
 
@@ -91,7 +93,7 @@ async_thd_fn_perf(void *thdcap)
 
         for (i = 0; i < ITER + 1; i++) {
                 cos_rcv(rc, 0, NULL);
-		rdtscll(end_oneway);
+		end_oneway = ps_tsc();
         }
 
         EXPECT_LL_NEQ(1, 0, "Error, shouldn't get here!\n");
@@ -108,12 +110,12 @@ async_thd_parent_perf(void *thdcap)
         int           i, pending = 0;
 
         perfdata_init(&pd[cos_cpuid()], "Async Endpoints => Roundtrip", test_results, ARRAY_SIZE);
-
+	perfcntr_init(); /* 32bit counter, so resetting before every benchmark */
         for (i = 0; i < ITER; i++) {
-                rdtscll(s);
+                s = ps_tsc();
                 cos_asnd(sc, 1);
                 cos_rcv(rc, 0, NULL);
-                rdtscll(e);
+                e = ps_tsc();
 
                 perfdata_add(&pd[cos_cpuid()], (e - s));
         }
@@ -122,15 +124,15 @@ async_thd_parent_perf(void *thdcap)
 	results_save(&result_async_roundtrip, &pd[cos_cpuid()]);
 
         perfdata_init(&pd[cos_cpuid()], "Async Endpoints => One Way", test_results, ARRAY_SIZE);
-
+	perfcntr_init(); /* 32bit counter, so resetting before every benchmark */
 	i = 0;
 	while (i < ITER) {
 		end_oneway = 0;
-                rdtscll(s);
+                s = ps_tsc();
                 cos_asnd(sc, 1);
 		e = end_oneway;
-		if (unlikely(e == 0)) continue;
 		i++;
+		if (unlikely(e == 0)) continue;
                 perfdata_add(&pd[cos_cpuid()], (e - s));
         }
 

@@ -464,4 +464,9 @@ struct __thd_init_data {
 
 typedef u32_t cbuf_t; /* TODO: remove when we have cbuf.h */
 
+#define perfcntr(v) rdtscll(v)
+static inline void pmccntr_init(void) {}
+
+#define perfcntr_init pmccntr_init
+
 #endif

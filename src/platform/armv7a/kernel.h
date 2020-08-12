@@ -22,6 +22,8 @@ typedef enum
 	TIMER_ONESHOT  = 1,
 } timer_type_t;
 
+#define CYC_PER_USEC 767 /* Set to 767 MHz */
+
 #define TIMER_DEFAULT_US_INTERARRIVAL 1000 /* US = microseconds */
 
 void  timer_set(timer_type_t timer_type, u64_t cycles);

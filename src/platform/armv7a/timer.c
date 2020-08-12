@@ -1,7 +1,7 @@
 #include "cav7_consts.h"
 
 
-#define CHAL_CYC_THRESH 76700
+#define CHAL_CYC_THRESH (CYC_PER_USEC * 100)
 void
 chal_timer_set(cycles_t cycles)
 {
@@ -44,6 +44,16 @@ chal_cyc_thresh(void)
 }
 
 void
+pmc_ready(void)
+{
+	/* enable user-mode access to the performance counter*/
+	asm ("MCR p15, 0, %0, C9, C14, 0\n\t" :: "r"(1)); 
+
+	/* disable counter overflow interrupts (just in case)*/
+	asm ("MCR p15, 0, %0, C9, C14, 2\n\t" :: "r"(0x8000000f));
+}
+
+void
 timer_init(void)
 {
 	/* We are initializing the global timer here */
@@ -51,4 +61,5 @@ timer_init(void)
 	CAV7_GTMR_GTCNTRH = 0;
 	CAV7_GTMR_GTCTLR  = 1;
 	printk("global timer init\n");
+	pmc_ready();
 }

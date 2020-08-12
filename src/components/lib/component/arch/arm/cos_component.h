@@ -510,4 +510,40 @@ struct __thd_init_data {
 
 typedef u32_t cbuf_t; /* TODO: remove when we have cbuf.h */
 
+/*
+ * NOTE: Only works if performance counter reading is enabled for user-level!
+ *     If not enabled, this leads to Undefined exception in Cos kernel!
+ */
+#define pmccntr(v) __asm__ __volatile__ ("mrc p15, 0, %0, c9, c13, 0\t\n": "=r"(v))
+#define perfcntr(v) pmccntr(v)
+
+/*
+ * http://wiki.dreamrunner.org/public_html/Embedded-System/Cortex-A8/PerformanceMonitorControlRegister.html
+ * Following init_perfcounters() here
+ */
+static inline void
+pmccntr_init(void)
+{
+	unsigned int value = 0;
+
+	//__asm__ __volatile__ ("mrc p15, 0, %0, c9, c12, 0\t\n" : "=r"(value));
+	//value  = value & ~(1 << 3); /* disable "by 64" divider */
+
+	value |= (1 << 0); /* enable counters */
+	value |= (1 << 1); /* reset all other counters */
+	value |= (1 << 2); /* reset cycle counter */
+	value |= (1 << 4); /* export events to external monitoring */
+
+	// program the performance-counter control-register:
+	__asm__ __volatile__ ("mcr p15, 0, %0, c9, c12, 0\t\n" :: "r"(value));
+
+	// enable all counters:  
+	__asm__ __volatile__ ("mcr p15, 0, %0, c9, c12, 1\t\n" :: "r"(0x8000000f));
+
+	// clear overflows:
+	__asm__ __volatile__ ("mcr p15, 0, %0, c9, c12, 3\t\n" :: "r"(0x8000000f));
+}
+
+#define perfcntr_init pmccntr_init
+
 #endif

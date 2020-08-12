@@ -29,18 +29,19 @@ cos_init(void)
 	tid = pong_ids(&us, &them);
 	assert(cos_thdid() == tid && us != them && us == cos_compid());
 
-	rdtscll(begin);
+	perfcntr_init();
+	begin = ps_tsc();
 	for (i = 0; i < ITER; i++) {
 		pong_call();
 	}
-	rdtscll(end);
+	end = ps_tsc();
 	fast_path = (end - begin)/ITER;
 
-	rdtscll(begin);
+	begin = ps_tsc();
 	for (i = 0; i < ITER; i++) {
 		pong_argsrets(0, 0, 0, 0, &r0, &r1);
 	}
-	rdtscll(end);
+	end = ps_tsc();
 	all_args = (end - begin)/ITER;
 
 	return;

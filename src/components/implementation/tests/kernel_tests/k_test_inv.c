@@ -83,11 +83,12 @@ test_inv(void)
 
         r = call_cap_mb(ic, 1, 2, 3);
         if (EXPECT_LLU_NEQ(0xDEADBEEF, r, "Test Invocation")) return;
+	perfcntr_init(); /* 32bit counter, so resetting before every benchmark */
 
         for (i = 0; i < ITER; i++) {
-                rdtscll(start_cycles);
+                start_cycles = ps_tsc();
                 call_cap_mb(ic, 1, 2, 3);
-                rdtscll(end_cycles);
+                end_cycles = ps_tsc();
 
                 perfdata_add(&result, end_cycles - start_cycles);
         }

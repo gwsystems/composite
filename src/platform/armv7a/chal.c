@@ -74,7 +74,7 @@ chal_tls_update(vaddr_t tlsaddr)
 int
 chal_cyc_usec(void)
 {
-	return 767;
+	return CYC_PER_USEC;
 }
 
 void
