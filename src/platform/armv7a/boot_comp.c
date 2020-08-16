@@ -290,6 +290,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	 */
 	boot_vm_pgd = (pgtbl_t)mem_boot_alloc(1);
 	assert(boot_vm_pgd);
+	/* There's no need to copy any kernel entry into this - because we know that kernel uses TTBR1 */
 	if (pgtbl_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (pgtbl_t)boot_vm_pgd, 0)) assert(0);
 
 	/* Map in the virtual memory */
