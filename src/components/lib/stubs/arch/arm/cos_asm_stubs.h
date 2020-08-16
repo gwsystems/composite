@@ -137,32 +137,6 @@ __cosrt_ucap_##name:				\
         .endr;					\
 .text /* start out in the text segment, and always return there */
 
-#define cos_asm_stub_dup(name)			\
-.text;						\
-.weak name;					\
-.globl __cosrt_extern_##name;			\
-.type  name, %function;				\
-.type  __cosrt_extern_##name, %function;	\
-.align 8;					\
-name:						\
-__cosrt_extern_##name:				\
-	push {r0, r1, r2, r3, lr};		\
-	ldr r0, =__cosrt_ucap_##name;		\
-	ldr ip, =cos_inv_cap_set;		\
-	blx ip;					\
-	mov ip, r0;				\
-	pop {r0, r1, r2, r3, lr};		\
-	bx ip;					\
-	.ltorg					\
-						\
-.section .ucap, "a", %progbits;			\
-.globl __cosrt_ucap_##name;			\
-__cosrt_ucap_##name:				\
-        .rep UCAP_SZ;				\
-        .long 0;				\
-        .endr;					\
-.text /* start out in the text segment, and always return there */
-
 #define cos_asm_stub_indirect cos_asm_stub
 
 #endif
