@@ -77,12 +77,26 @@ pong_args(int p1, int p2, int p3, int p4)
 }
 
 int
+pong_wideargs(long long p0, long long p1)
+{
+	if (p0 <= ((long long)1 << 31) && p1 <= ((long long)1 << 31)) return p0 + p1;
+
+	return p0 < p1 ? -1 : (p0 == p1 ? 0 : 1);
+}
+
+int
 pong_argsrets(int p0, int p1, int p2, int p3, int *r0, int *r1)
 {
 	*r0 = p0;
 	*r1 = p1;
 
 	return p2 + p3;
+}
+
+long long
+pong_widerets(long long p0, long long p1)
+{
+	return p0 + p1;
 }
 
 int

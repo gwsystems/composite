@@ -15,8 +15,9 @@ static int awaiting_init = 1;
  * doesn't have a corresponding client-side stub as it only
  * orchestrates the coordination with the await_init function.
  */
-COS_CLIENT_STUB(int, init_done)(struct usr_inv_cap *uc, int parallel_init, init_main_t cont)
+COS_CLIENT_STUB(int, init_done, int parallel_init, init_main_t cont)
 {
+	COS_CLIENT_INVCAP;
 	int ret;
 
 	ret = cos_sinv(uc->cap_no, parallel_init, cont, 0, 0);

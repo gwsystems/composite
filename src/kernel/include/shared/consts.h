@@ -116,6 +116,7 @@
 #define CPUID_OFFSET 1
 #define THDID_OFFSET 2
 #define INVTOKEN_OFFSET 3
+#define INVCAP_OFFSET 4
 
 /* FIXME: Info on superpage mappings - this should be passed from kernel to userlevel! */
 #define TEST_SUPERPAGE_FRAME    0x10400000

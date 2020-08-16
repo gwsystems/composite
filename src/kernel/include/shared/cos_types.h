@@ -22,14 +22,15 @@
 #define LLONG_MAX 9223372036854775807LL
 #endif
 
-typedef unsigned long word_t;
-typedef u64_t         cycles_t;
-typedef u64_t         microsec_t;
-typedef unsigned long tcap_res_t;
-typedef unsigned long tcap_time_t;
-typedef u64_t         tcap_prio_t;
-typedef u64_t         tcap_uid_t;
-typedef u32_t         sched_tok_t;
+typedef unsigned long      word_t;
+typedef unsigned long long dword_t;
+typedef u64_t              cycles_t;
+typedef u64_t              microsec_t;
+typedef unsigned long      tcap_res_t;
+typedef unsigned long      tcap_time_t;
+typedef u64_t              tcap_prio_t;
+typedef u64_t              tcap_uid_t;
+typedef u32_t              sched_tok_t;
 
 /*
  * The assumption in the following is that cycles_t are higher

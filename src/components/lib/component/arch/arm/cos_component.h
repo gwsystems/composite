@@ -46,13 +46,10 @@ char *cos_initargs_tar();
 static inline int
 call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 {
-	long fault = 0;
 	int  ret;
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
-	/* dewarn */
-	(void)fault;
 
 	/* Pass parameters: r1,r2,r3,r4,r5, return in r0, r2, r3, r4 */
 	__asm__ __volatile__("ldr r1,%[_cap_no] \n\t"
@@ -62,11 +59,10 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	                     "ldr r5,%[_arg4] \n\t"
 	                     "svc #0x00 \n\t"
 	                     "str r0,%[_ret] \n\t"
-	                     "str r1,%[_fault] \n\t"
-	                     : [ _ret ] "=m"(ret), [ _fault ] "=m"(fault)
+	                     : [ _ret ] "=m"(ret)
 	                     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3),
 	                       [ _arg4 ] "m"(arg4)
-	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "ip", "lr");
+	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "ip", "lr");
 
 	return ret;
 }
@@ -74,14 +70,11 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 static inline int
 call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *r1, word_t *r2, word_t *r3)
 {
-	long fault = 0;
 	int  ret;
 	word_t ret2, ret3, ret4;
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
-	/* dewarn */
-	(void)fault;
 
 	/* Pass parameters: r1,r2,r3,r4,r5, return in r0, r2, r3, r4 */
 	__asm__ __volatile__("ldr r1,%[_cap_no] \n\t"
@@ -97,7 +90,7 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	                     : [ _ret ] "=m"(ret), [ _r2 ] "=m"(ret2), [ _r3 ] "=m"(ret3), [ _r4 ] "=m"(ret4)
 	                     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3),
 	                       [ _arg4 ] "m"(arg4)
-	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "ip", "lr");
+	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "ip", "lr");
 
 	if (r1) *r1 = ret2;
 	if (r2) *r2 = ret3;
@@ -109,13 +102,10 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 static inline word_t
 call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *r1, word_t *r2)
 {
-	long   fault = 0;
 	word_t ret, ret2, ret3;
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
-	/* dewarn */
-	(void)fault;
 
 	/* Pass parameters: r1,r2,r3,r4,r5, return in r0, r2, r3, r4 */
 	__asm__ __volatile__("ldr r1,%[_cap_no] \n\t"
@@ -130,7 +120,7 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	                     : [ _ret ] "=m"(ret), [ _r2 ] "=m"(ret2), [ _r3 ] "=m"(ret3)
 	                     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3),
 	                       [ _arg4 ] "m"(arg4)
-	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "ip", "lr");
+	                     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "ip", "lr");
 
 	if (r1) *r1 = ret2;
 	if (r2) *r2 = ret3;
@@ -186,6 +176,23 @@ get_stk_data(int offset)
 	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + COS_STACK_SZ - offset * sizeof(u32_t));
 }
 
+static inline void
+set_stk_data(int offset, long value)
+{
+	unsigned long curr_stk_pointer;
+
+	curr_stk_pointer = (unsigned long)&curr_stk_pointer;
+	/*
+	 * We save the CPU_ID and thread id in the stack for fast
+	 * access.  We want to find the struct cos_stk (see the stkmgr
+	 * interface) so that we can then offset into it and get the
+	 * cpu_id.  This struct is at the _top_ of the current stack,
+	 * and cpu_id is at the top of the struct (it is a u32_t).
+	 */
+	*(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + COS_STACK_SZ - offset * sizeof(u32_t)) = value;
+}
+
+
 #define GET_CURR_CPU cos_cpuid()
 
 static inline long
@@ -219,6 +226,12 @@ static inline invtoken_t
 cos_inv_token(void)
 {
 	return get_stk_data(INVTOKEN_OFFSET);
+}
+
+static inline struct usr_inv_cap *
+cos_inv_cap(void)
+{
+	 return (struct usr_inv_cap *)get_stk_data(INVCAP_OFFSET);
 }
 
 typedef u16_t cos_thdid_t;

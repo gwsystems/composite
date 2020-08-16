@@ -25,6 +25,14 @@ cos_init(void)
 	assert(pong_args(1, 2, 3, 4) == 10);
 	assert(pong_argsrets(4, 3, 2, 1, &r0, &r1) == 3);
 	assert(r0 == 4 && r1 == 3);
+	long long a = (long long)3 << 32 | (long long)1;
+	long long b = (long long)4 << 32 | (long long)2;
+	assert(pong_wideargs(a, b) == -1);
+	assert(pong_widerets(a, b) == (a + b));
+	a = 1;
+	b = 2;
+	assert(pong_wideargs(a, b) == (a + b));
+	assert(pong_widerets(a, b) == (a + b));
 	assert(pong_subset(8, 16, &r3) == -24 && r3 == 24);
 	tid = pong_ids(&us, &them);
 	assert(cos_thdid() == tid && us != them && us == cos_compid());

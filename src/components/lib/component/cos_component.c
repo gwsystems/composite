@@ -244,6 +244,14 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	BUG();
 }
 
+CWEAKSYMB vaddr_t
+cos_inv_cap_set(struct usr_inv_cap *uc)
+{
+	set_stk_data(INVCAP_OFFSET, (long)uc);
+
+	return uc->invocation_fn;
+}
+
 CWEAKSYMB void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {

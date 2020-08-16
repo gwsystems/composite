@@ -26,6 +26,7 @@
 .align 16 ;					\
 __cosrt_s_##name:				\
 	COS_ASM_GET_STACK_INVTOKEN		\
+	mov fp, sp;				\
 	mov r0, r2;				\
 	mov r1, r3;				\
 	mov r2, r4;				\
@@ -116,69 +117,53 @@ __cosrt_s_##name:				\
 .globl __cosrt_extern_##name;			\
 .type  name, %function;				\
 .type  __cosrt_extern_##name, %function;	\
-.align 8 ;					\
+.align 8;					\
 name:						\
 __cosrt_extern_##name:				\
-	push {r6, lr};				\
-	mov lr, r2;				\
-	mov r6, r1;				\
-	sub sp, sp, #8;				\
-	mov r1, r0;				\
-	str r3, [sp];				\
-	mov r2, r6;				\
+	push {r0, r1, r2, r3, lr};		\
 	ldr r0, =__cosrt_ucap_##name;		\
-	mov r3, lr;				\
-	ldr r6, [r0, #INVFN];			\
-	blx r6;					\
-	add sp, sp, #8;				\
-	pop {r6, lr};				\
-	bx lr;					\
+	ldr ip, =cos_inv_cap_set;		\
+	blx ip;					\
+	mov ip, r0;				\
+	pop {r0, r1, r2, r3, lr};		\
+	bx ip;					\
 	.ltorg					\
 						\
-.section .ucap, "a", %progbits ;		\
-.globl __cosrt_ucap_##name ;			\
+.section .ucap, "a", %progbits;			\
+.globl __cosrt_ucap_##name;			\
 __cosrt_ucap_##name:				\
-        .rep UCAP_SZ ;				\
-        .long 0 ;				\
-        .endr ;					\
+        .rep UCAP_SZ;				\
+        .long 0;				\
+        .endr;					\
 .text /* start out in the text segment, and always return there */
 
-#define cos_asm_stub_indirect(name)		\
+#define cos_asm_stub_dup(name)			\
 .text;						\
 .weak name;					\
 .globl __cosrt_extern_##name;			\
 .type  name, %function;				\
 .type  __cosrt_extern_##name, %function;	\
-.align 8 ;					\
+.align 8;					\
 name:						\
 __cosrt_extern_##name:				\
-	push {r6, r7, lr};			\
-	mov r7, r1;				\
-	mov r6, r2;				\
-	sub sp, sp, #20;			\
-	ldr lr, [sp, #32];			\
-	ldr ip, [sp, #36];			\
-	str r3, [sp];				\
-	mov r1, r0;				\
-	str lr, [sp, #4];			\
-	str ip, [sp, #8];			\
+	push {r0, r1, r2, r3, lr};		\
 	ldr r0, =__cosrt_ucap_##name;		\
-	mov r2, r7;				\
-	mov r3, r6;				\
-	ldr r6, [r0, #INVFN];			\
-	blx r6;					\
-	add sp, sp, #20;			\
-	pop {r6, r7, lr};			\
-	bx lr;					\
-	.ltorg;					\
+	ldr ip, =cos_inv_cap_set;		\
+	blx ip;					\
+	mov ip, r0;				\
+	pop {r0, r1, r2, r3, lr};		\
+	bx ip;					\
+	.ltorg					\
 						\
-.section .ucap, "a", %progbits ;		\
-.globl __cosrt_ucap_##name ;			\
+.section .ucap, "a", %progbits;			\
+.globl __cosrt_ucap_##name;			\
 __cosrt_ucap_##name:				\
-        .rep UCAP_SZ ;				\
-        .long 0 ;				\
-        .endr ;					\
+        .rep UCAP_SZ;				\
+        .long 0;				\
+        .endr;					\
 .text /* start out in the text segment, and always return there */
+
+#define cos_asm_stub_indirect cos_asm_stub
 
 #endif
 
