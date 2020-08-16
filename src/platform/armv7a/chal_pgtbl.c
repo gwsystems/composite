@@ -645,6 +645,7 @@ chal_pgtbl_create(void *page, void *curr_pgtbl)
 {
 	pgtbl_t ret = (pgtbl_t)(page);
 
+	memset(page, 0, PAGE_SIZE);
 	/* Copying the kernel part of the pgd. */
 	memcpy(page + KERNEL_PGD_REGION_OFFSET, (void *)chal_pa2va((paddr_t)curr_pgtbl) + KERNEL_PGD_REGION_OFFSET,
 	       KERNEL_PGD_REGION_SIZE);

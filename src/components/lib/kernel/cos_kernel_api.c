@@ -371,7 +371,11 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 	 * 2. We should clean up by deactivating the pgtbl we just
 	 *    activated...or at least cache it for future use.
 	 */
-	call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, mem_ptr, 0, 0);
+	if (call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, mem_ptr, 0, 0)) {
+		assert(0); /* race? */
+		return -1;
+	}
+
 
 	return pte_cap;
 }
