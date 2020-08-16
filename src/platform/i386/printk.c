@@ -30,3 +30,17 @@ printk(const char *fmt, ...)
 		printk_handlers[i](buffer);
 	}
 }
+
+void
+print_pt_regs(struct pt_regs *regs);
+{
+        PRINTK("Register dump (%p):\n", regs);
+        PRINTK("General-> EAX: %x, EBX: %x, ECX: %x, EDX: %x\n",
+	       regs->ax, regs->bx, regs->cx, regs->dx);
+        PRINTK("Segment-> CS: %x, DS: %x, ES: %x, FS: %x, GS: %x, SS: %x\n",
+	       regs->cs, regs->ds, regs->es, regs->fs, regs->gs, regs->ss);
+        PRINTK("Index-> ESI: %x, EDI: %x, EIP: %x, ESP: %x, EBP: %x\n",
+	       regs->si, regs->di, regs->ip, regs->sp, regs->bp);
+        PRINTK("Indicator-> EFLAGS: %x\n", regs->flags);
+        PRINTK("(Exception Error Code-> ORIG_AX: %x)\n", regs->orig_ax);
+}

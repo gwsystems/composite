@@ -30,11 +30,18 @@ printk(const char *fmt, ...)
 }
 
 void
-print_arch_regs(void)
+print_pt_regs(struct pt_regs* regs)
 {
-	printk("DFSR: %lx, DFAR: 0x%lx\n", __cos_cav7_dfsr_get(), __cos_cav7_dfar_get());
-	printk("IFSR: %lx, IFAR: 0x%lx\n", __cos_cav7_ifsr_get(), __cos_cav7_ifar_get());
-	printk("ADFSR: %lx\n", __cos_cav7_adfsr_get());
+	PRINTK("Register dump (%p):\n", regs);
+	PRINTK("Argument-> R0: %x, R1: %x, R2: %x, R3: %x\n",
+	       regs->r0, regs->r1, regs->r2, regs->r3);
+	PRINTK("Variable-> R4: %x, R5: %x, R6: %x, R7: %x\n",
+	       regs->r4, regs->r5, regs->r6, regs->r7);
+	PRINTK("           R8: %x, R9: %x, R10: %x, R11: %x\n",
+	       regs->r8, regs->r9, regs->r10, regs->r11);
+	PRINTK("Special-> R12 (IP): %x, R13 (SP): %x, R14 (LR): %x, R15 (PC): %x\n",
+	       regs->r12, regs->r13_sp, regs->r14_lr, regs->r15_pc);
+	PRINTK("(CPSR: %x)\n", regs->cpsr);
 }
 
 void
@@ -47,31 +54,30 @@ void
 undefined_dbgprint(struct pt_regs *regs)
 {
 	printk("Undefined handler!!\n");
-	print_arch_regs();
-	regs_print(regs);
+	print_pt_regs(regs);
 }
 
 void
 prefetch_abort_dbgprint(struct pt_regs *regs)
 {
 	printk("Prefetch Abort handler!!\n");
-	print_arch_regs();
-	regs_print(regs);
+	print_pt_regs(regs);
+	printk("IFSR: %lx, IFAR: %lx\n", __cos_cav7_ifsr_get(), __cos_cav7_ifar_get());
 }
 
 void
 data_abort_dbgprint(struct pt_regs *regs)
 {
 	printk("Data Abort handler!!\n");
-	print_arch_regs();
-	regs_print(regs);
+	print_pt_regs(regs);
+	printk("DFSR: %lx, DFAR: %lx\n", __cos_cav7_dfsr_get(), __cos_cav7_dfar_get());
+	printk("ADFSR: %lx\n", __cos_cav7_adfsr_get());
 }
 
 void
 fiq_dbgprint(void)
 {
 	printk("FIQ handler!!\n");
-	print_arch_regs();
 }
 
 void

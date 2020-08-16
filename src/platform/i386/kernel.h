@@ -27,6 +27,8 @@ void vga_puts(const char *str);
 void serial_init(void);
 #endif
 
+#define PRINTK(format, ...) printk("(%d:) " format, get_cpuid(), ## __VA_ARGS__)
+
 typedef enum {
 	INIT_BOOTED,   /* initial boot */
 	INIT_CPU,      /* bare minimum CPU initialization (tss, gdt, idt, etc...) */
@@ -94,6 +96,7 @@ void tls_update(u32_t addr);
 
 // void printk(const char *fmt, ...);
 int printk_register_handler(void (*handler)(const char *));
+void print_pt_regs(struct pt_regs *r);
 
 void khalt(void);
 

@@ -169,18 +169,6 @@ copy_all_regs(struct pt_regs *from, struct pt_regs *to)
 }
 
 static inline void
-regs_print(struct pt_regs* regs)
-{
-	printk("Register state - 0x%x: \n",regs);
-	printk("\tcpsr: 0x%x, r0: 0x%x, r1: 0x%x, r2: 0x%x, r3: 0x%x, r4: 0x%x\n",
-			regs->cpsr, regs->r0, regs->r1, regs->r2, regs->r3, regs->r4);
-	printk("\tr5: 0x%x, r6: 0x%x, r7: 0x%x, r8: 0x%x, r9: 0x%x, r10: 0x%x\n",
-			regs->r5, regs->r6, regs->r7, regs->r8, regs->r9, regs->r10);
-	printk("\tr11: 0x%x, r12: 0x%x, r13 (sp): 0x%x, r14 (lr): 0x%x, r15 (pc): 0x%x\n",
-			regs->r11, regs->r12, regs->r13_sp, regs->r14_lr, regs->r15_pc);
-}
-
-static inline void
 regs_upcall_setup(struct pt_regs *regs, u32_t entry_addr, int option, int id, int arg1, int arg2, int arg3)
 {
 	regs->r0 = id;
