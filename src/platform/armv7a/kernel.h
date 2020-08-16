@@ -15,7 +15,7 @@
 void serial_init(void);
 #endif
 
-#define PRINTK(format, ...) printk("(%d:) " format, get_cpuid(), ## __VA_ARGS__)
+#define PRINTK(format, ...) printk("%d: " format, get_cpuid(), ## __VA_ARGS__)
 
 /* These numbers map directly to actual timers in the HPET */
 typedef enum

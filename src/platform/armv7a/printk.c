@@ -32,56 +32,56 @@ printk(const char *fmt, ...)
 void
 print_pt_regs(struct pt_regs* regs)
 {
-	PRINTK("Register dump (%p):\n", regs);
-	PRINTK("Argument-> R0: %x, R1: %x, R2: %x, R3: %x\n",
+	PRINTK("Register hexdump (0x%p):\n", regs);
+	PRINTK("Argument-> R0: 0x%x, R1: 0x%x, R2: 0x%x, R3: 0x%x\n",
 	       regs->r0, regs->r1, regs->r2, regs->r3);
-	PRINTK("Variable-> R4: %x, R5: %x, R6: %x, R7: %x\n",
+	PRINTK("Variable-> R4: 0x%x, R5: 0x%x, R6: 0x%x, R7: 0x%x\n",
 	       regs->r4, regs->r5, regs->r6, regs->r7);
-	PRINTK("           R8: %x, R9: %x, R10: %x, R11: %x\n",
+	PRINTK("           R8: 0x%x, R9: 0x%x, R10: 0x%x, R11: 0x%x\n",
 	       regs->r8, regs->r9, regs->r10, regs->r11);
-	PRINTK("Special-> R12 (IP): %x, R13 (SP): %x, R14 (LR): %x, R15 (PC): %x\n",
+	PRINTK("Special->  R12 (IP): 0x%x, R13 (SP): 0x%x, R14 (LR): 0x%x, R15 (PC): 0x%x\n",
 	       regs->r12, regs->r13_sp, regs->r14_lr, regs->r15_pc);
-	PRINTK("(CPSR: %x)\n", regs->cpsr);
+	PRINTK("(CPSR: 0x%x)\n", regs->cpsr);
 }
 
 void
 dbgprint(void)
 {
-	printk("Debug print string active\n");
+	PRINTK("Debug print string active\n");
 }
 
 void
 undefined_dbgprint(struct pt_regs *regs)
 {
-	printk("Undefined handler!!\n");
+	PRINTK("Undefined handler!!\n");
 	print_pt_regs(regs);
 }
 
 void
 prefetch_abort_dbgprint(struct pt_regs *regs)
 {
-	printk("Prefetch Abort handler!!\n");
+	PRINTK("Prefetch Abort handler!!\n");
 	print_pt_regs(regs);
-	printk("IFSR: %lx, IFAR: %lx\n", __cos_cav7_ifsr_get(), __cos_cav7_ifar_get());
+	PRINTK("IFSR: 0x%lx, IFAR: 0x%lx\n", __cos_cav7_ifsr_get(), __cos_cav7_ifar_get());
 }
 
 void
 data_abort_dbgprint(struct pt_regs *regs)
 {
-	printk("Data Abort handler!!\n");
+	PRINTK("Data Abort handler!!\n");
 	print_pt_regs(regs);
-	printk("DFSR: %lx, DFAR: %lx\n", __cos_cav7_dfsr_get(), __cos_cav7_dfar_get());
-	printk("ADFSR: %lx\n", __cos_cav7_adfsr_get());
+	PRINTK("DFSR: 0x%lx, DFAR: 0x%lx\n", __cos_cav7_dfsr_get(), __cos_cav7_dfar_get());
+	PRINTK("ADFSR: 0x%lx\n", __cos_cav7_adfsr_get());
 }
 
 void
 fiq_dbgprint(void)
 {
-	printk("FIQ handler!!\n");
+	PRINTK("FIQ handler!!\n");
 }
 
 void
 dbgval(unsigned long val)
 {
-	printk("Debug value %x\n", val);
+	PRINTK("Debug value 0x%x\n", val);
 }

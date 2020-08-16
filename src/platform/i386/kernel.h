@@ -27,7 +27,7 @@ void vga_puts(const char *str);
 void serial_init(void);
 #endif
 
-#define PRINTK(format, ...) printk("(%d:) " format, get_cpuid(), ## __VA_ARGS__)
+#define PRINTK(format, ...) printk("%d: " format, get_cpuid(), ## __VA_ARGS__)
 
 typedef enum {
 	INIT_BOOTED,   /* initial boot */
