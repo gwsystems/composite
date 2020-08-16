@@ -65,7 +65,7 @@ fpu_init(void)
 		return -1;
 	}
 #endif
-	/*printk("fpu_init on core %d\n", get_cpuid());*/
+
 	return 0;
 }
 
@@ -85,6 +85,7 @@ fpu_is_disabled(void)
 {
 	int *disabled = PERCPU_GET(fpu_disabled);
 	assert(fpu_read_cr0() & FPU_DISABLED_MASK ? *disabled : !*disabled);
+
 	return *disabled;
 }
 
@@ -93,6 +94,7 @@ fpu_read_cr0(void)
 {
 	unsigned long val;
 	asm volatile("mov %%cr0, %0" : "=r"(val));
+
 	return val;
 }
 
@@ -100,10 +102,12 @@ static inline void
 fpu_set(int status)
 {
 	unsigned long val, cr0;
+
 	cr0 = fpu_read_cr0();
 	val = status ? (cr0 & ~FPU_DISABLED_MASK)
 	             : (cr0 | FPU_DISABLED_MASK); // ENABLE(status == 1) : DISABLE(status == 0)
 	asm volatile("mov %0, %%cr0" : : "r"(val));
+
 	return;
 }
 
@@ -148,6 +152,7 @@ fpu_check_sse(void)
 	cpu_info = fpu_get_info();
 	/* sse is the 26th bit (start from bit 1) in EDX. So FXSR is 1<<25. */
 	sse_status = ((cpu_info & HAVE_SSE) != 0) ? 1 : 0;
+
 	return sse_status;
 }
 
@@ -260,6 +265,7 @@ fpu_disabled_exception_handler(void)
 {
 	printk("COS KERNEL: ERROR: fpu is disabled in cos_config.h\n");	
 	die("EXCEPTION: cannot handle Device not available exception\n");
+
 	return 1;
 }
 static inline void

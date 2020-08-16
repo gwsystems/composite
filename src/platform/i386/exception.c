@@ -11,7 +11,6 @@
 void
 print_regs_state(struct pt_regs *regs)
 {
-/*
 	PRINTK("registers:\n");
 	PRINTK("General registers-> EAX: %x, EBX: %x, ECX: %x, EDX: %x\n", regs->ax, regs->bx, regs->cx, regs->dx);
 	PRINTK("Segment registers-> CS: %x, DS: %x, ES: %x, FS: %x, GS: %x, SS: %x\n", regs->cs, regs->ds, regs->es,
@@ -20,7 +19,6 @@ print_regs_state(struct pt_regs *regs)
 	       regs->sp, regs->bp);
 	PRINTK("Indicator-> EFLAGS: %x\n", regs->flags);
 	PRINTK("(Exception Error Code-> ORIG_AX: %x)\n", regs->orig_ax);
-*/
 }
 
 int
