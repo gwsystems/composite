@@ -60,8 +60,6 @@ void chal_cycles_per_period(u64_t cycles);
  * Address translation functions *
  *********************************/
 
-paddr_t        chal_va2pa(void *va);
-void *         chal_pa2va(paddr_t pa);
 extern paddr_t chal_kernel_mem_pa;
 
 /************************************

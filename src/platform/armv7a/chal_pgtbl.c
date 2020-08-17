@@ -928,25 +928,3 @@ chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa)
 
 	return 0;
 }
-extern void __cos_cav7_ttbr0_set(paddr_t p);
-extern void __cos_cav7_tlbiall_set(int);
-
-void
-chal_pgtbl_update(pgtbl_t pt)
-{
-	/* Set TTBR0 to this. Rememberto VA2PA (va is passed in), and add the "0x4A" flag to it */
-	// printk("set pgtbl %x\n", pt);
-	/* HACK OF ALL HACKS - STOP PMU ON SWITCHING TO OTHER COMPONENT - FAILURE. GOOD. */
-	//	if(pt == 0x98003000 /* 80010000 */)
-	//		__cos_cav7_pmcntenset_set(0x80000000UL);
-	//	else
-	//		__cos_cav7_pmcntenset_set(0x80000000UL);
-
-	//	if(pt ==  0x98003000/* 0x80001000 */)
-	//		__cos_cav7_pmcntenset_set(0x80000001UL);
-	//	else
-	//		__cos_cav7_pmcntenclr_set(0x00000001UL);
-
-	__cos_cav7_ttbr0_set(chal_va2pa(pt) | 0x4A);
-	__cos_cav7_tlbiall_set(0);
-}

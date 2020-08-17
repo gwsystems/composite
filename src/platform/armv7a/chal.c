@@ -13,18 +13,6 @@ u32_t        chal_msr_mhz = 0;
 paddr_t chal_kernel_mem_pa;
 
 void *
-chal_pa2va(paddr_t address)
-{
-	return (void *)(address + COS_MEM_KERN_START_VA);
-}
-
-paddr_t
-chal_va2pa(void *address)
-{
-	return (paddr_t)(address - COS_MEM_KERN_START_VA);
-}
-
-void *
 chal_alloc_kern_mem(int order)
 {
 	return mem_kmem_start();

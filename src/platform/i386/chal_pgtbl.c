@@ -13,13 +13,6 @@
 #include "chal/chal_proto.h"
 #include "chal_pgtbl.h"
 
-/* Update the page table */
-void
-chal_pgtbl_update(pgtbl_t pt)
-{
-	asm volatile("mov %0, %%cr3" : : "r"(pt));
-}
-
 /* These functions do flag operations */
 unsigned long
 chal_pgtbl_flag_add(unsigned long input, pgtbl_flags_t flags)

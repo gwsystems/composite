@@ -29,5 +29,13 @@ struct cap_pgtbl {
 	struct cap_pgtbl *parent;    /* if !null, points to parent cap */
 	u64_t             frozen_ts; /* timestamp when frozen is set. */
 } __attribute__((packed));
+
+/* Update the page table */
+static inline void
+chal_pgtbl_update(pgtbl_t pt)
+{
+	asm volatile("mov %0, %%cr3" : : "r"(pt));
+}
+
 #endif /* CHAL_PROTO_H */
 

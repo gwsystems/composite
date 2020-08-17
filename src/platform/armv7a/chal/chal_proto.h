@@ -35,5 +35,14 @@ struct cap_pgtbl {
 	struct cap_pgtbl *parent;    /* if !null, points to parent cap */
 	u64_t             frozen_ts; /* timestamp when frozen is set. */
 } __attribute__((packed));
-#endif /* CHAL_PROTO_H */
 
+static inline void
+chal_pgtbl_update(pgtbl_t pt)
+{
+	paddr_t ttbr0 = chal_va2pa(pt) | 0x4a;
+
+	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
+	asm volatile("mcr p15, 0, r0, c8, c7, 0"); /* TLBIALL */
+}
+
+#endif /* CHAL_PROTO_H */
