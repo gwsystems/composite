@@ -153,6 +153,24 @@ cos_print(char *s, int len)
 	call_cap(PRINT_CAP_TEMP, (int) s, len, 0, 0);
 }
 
+static inline int
+cos_sinv(u32_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
+{
+	return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4);
+}
+
+static inline int
+cos_sinv_rets(u32_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2, word_t *ret3)
+{
+	return call_cap_retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret1, ret2, ret3);
+}
+
+static inline int
+cos_sinv_2rets(u32_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2)
+{
+	return call_cap_2retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret1, ret2);
+}
+
 /**
  * FIXME: Please remove this since it is no longer needed
  */
