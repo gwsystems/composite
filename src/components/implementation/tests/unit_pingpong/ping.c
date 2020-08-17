@@ -16,24 +16,35 @@ cos_init(void)
 	thdid_t tid;
 	int i;
 	ps_tsc_t begin, end;
+	long long a = (long long)3 << 32 | (long long)1;
+	long long b = (long long)4 << 32 | (long long)2;
+	int ret;
+	long long ret_ll;
 
 	printc("Ping component %ld: cos_init execution\n", cos_compid());
 
 	pong_call();
-	assert(pong_ret() == 42);
-	assert(pong_arg(1024) == 1024);
-	assert(pong_args(1, 2, 3, 4) == 10);
-	assert(pong_argsrets(4, 3, 2, 1, &r0, &r1) == 3);
+	ret = pong_ret();
+	assert(ret == 42);
+	ret = pong_arg(1024);
+	assert(ret == 1024);
+	ret = pong_args(1, 2, 3, 4);
+	assert(ret == 10);
+	ret = pong_argsrets(4, 3, 2, 1, &r0, &r1);
+	assert(ret == 3);
 	assert(r0 == 4 && r1 == 3);
-	long long a = (long long)3 << 32 | (long long)1;
-	long long b = (long long)4 << 32 | (long long)2;
-	assert(pong_wideargs(a, b) == -1);
-	assert(pong_widerets(a, b) == (a + b));
+	ret = pong_wideargs(a, b);
+	assert(ret == -1);
+	ret_ll = pong_widerets(a, b);
+	assert(ret_ll == (a + b));
 	a = 1;
 	b = 2;
-	assert(pong_wideargs(a, b) == (a + b));
-	assert(pong_widerets(a, b) == (a + b));
-	assert(pong_subset(8, 16, &r3) == -24 && r3 == 24);
+	ret = pong_wideargs(a, b);
+	assert(ret == (int)(a + b));
+	ret_ll = pong_widerets(a, b);
+	assert(ret_ll == (a + b));
+	ret = pong_subset(8, 16, &r3);
+	assert(ret == -24 && r3 == 24);
 	tid = pong_ids(&us, &them);
 	assert(cos_thdid() == tid && us != them && us == cos_compid());
 
