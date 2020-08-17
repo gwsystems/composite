@@ -8,6 +8,7 @@
 
 #include "include/retype_tbl.h"
 #include "include/chal.h"
+#include "include/chal/defs.h"
 #include "include/shared/cos_types.h"
 #include "include/shared/cos_errno.h"
 #include "cc.h"
