@@ -490,6 +490,11 @@ fill_pgtbl:
     cp15_set_init       crn=c10 op1=0 crm=c2 op2=1 /* nmrr */
     isb
 
+    /* contextidr undefined on reset, set here! */
+    ldr                 r0, =0x00
+    cp15_set_init       crn=c13 op1=0 crm=c0 op2=1
+    isb
+
     /* set base address */
     ldr                 r0,=__cos_cav7_kern_pgtbl
     ldr                 r1,=__va_offset__

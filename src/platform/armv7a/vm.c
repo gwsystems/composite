@@ -75,7 +75,6 @@ int
 kern_setup_image(void)
 {
 	chal_cpu_init();
-	/* chal_cpu_pgtbl_activate((pgtbl_t)chal_va2pa(boot_comp_pgd)); */
 
 	kern_retype_initial();
 

@@ -30,4 +30,8 @@ struct pt_regs {
 
 #define CPSR_USER_LEVEL 0x600f0010
 
+#define MAX_ASID_BITS 8
+#define MAX_NUM_ASID (1<<MAX_ASID_BITS)
+#define ASID_MASK (MAX_NUM_ASID - 1)
+
 #endif /* CHAL_CONSTS_H */

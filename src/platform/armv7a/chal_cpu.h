@@ -8,9 +8,11 @@
 static void
 chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 {
-	pgtbl_update(pgtbl);
-}
+	paddr_t ttbr0 = chal_va2pa(pgtbl) | 0x4a;
 
+	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
+	asm volatile("mcr p15, 0, %0, c8, c7, 0" :: "r" (0)); /* TLBIALL */
+}
 
 extern void sysenter_entry(void);
 

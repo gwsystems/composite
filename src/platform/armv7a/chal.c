@@ -6,6 +6,7 @@
 #include "irq.h"
 
 u32_t        free_thd_id = 1;
+asid_t       free_asid   = 1; /* reserve 0 for synchronization if necessary! */
 char         timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 extern void *cos_kmem, *cos_kmem_base;
 u32_t        chal_msr_mhz = 0;

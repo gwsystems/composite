@@ -382,7 +382,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	}
 
 	thd_current_update(next, curr, cos_info);
-	if (likely(ci->pgtbl != next_ci->pgtbl)) pgtbl_update(next_ci->pgtbl);
+	if (likely(ci->pgtblinfo.pgtbl != next_ci->pgtblinfo.pgtbl)) pgtbl_update(&next_ci->pgtblinfo);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
 	if (next->tls != curr->tls) chal_tls_update(next->tls);
@@ -1235,7 +1235,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t rcv_captbl = __userregs_get2(regs);
 			capid_t rcv_cap    = __userregs_get3(regs);
 
-			ret = asnd_activate(ct, cap, capin, rcv_captbl, rcv_cap, 0, 0);
+			ret = asnd_activate(ct, cap, capin, rcv_captbl, rcv_cap);
 			break;
 		}
 		case CAPTBL_OP_ASNDDEACTIVATE: {

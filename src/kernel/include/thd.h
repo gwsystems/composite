@@ -482,7 +482,7 @@ thd_current_pgtbl(struct thread *thd)
 	/* don't use the cached invstk_top here. We need the stack
 	 * pointer of the specified thread. */
 	curr_entry = &thd->invstk[thd->invstk_top];
-	return curr_entry->comp_info.pgtbl;
+	return curr_entry->comp_info.pgtblinfo.pgtbl;
 }
 
 static inline int

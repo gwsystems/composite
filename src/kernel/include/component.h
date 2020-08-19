@@ -13,11 +13,11 @@
 #include "pgtbl.h"
 #include "cap_ops.h"
 
+/* 24B */
 struct comp_info {
-	struct liveness_data        liveness;
-	pgtbl_t                     pgtbl;
-	struct captbl *             captbl;
-	struct cos_sched_data_area *comp_nfo;
+	struct liveness_data liveness;
+	struct pgtbl_info    pgtblinfo;
+	struct captbl *      captbl;
 } __attribute__((packed));
 
 struct cap_comp {
@@ -57,12 +57,12 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	compc = (struct cap_comp *)__cap_capactivate_pre(t, cap, capin, CAP_COMP, &ret);
 	if (!compc) cos_throw(undo_ctc, ret);
 
-	compc->entry_addr    = entry_addr;
-	compc->info.pgtbl    = ptc->pgtbl;
-	compc->info.captbl   = ctc->captbl;
-	compc->info.comp_nfo = sa;
-	compc->pgd           = ptc;
-	compc->ct_top        = ctc;
+	compc->entry_addr           = entry_addr;
+	compc->info.pgtblinfo.pgtbl = ptc->pgtbl;
+	compc->info.pgtblinfo.asid  = chal_asid_alloc();
+	compc->info.captbl          = ctc->captbl;
+	compc->pgd                  = ptc;
+	compc->ct_top               = ctc;
 	ltbl_get(lid, &compc->info.liveness);
 	__cap_capactivate_post(&compc->h, CAP_COMP);
 

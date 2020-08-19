@@ -20,6 +20,11 @@
 /* make it an opaque type...not to be touched */
 typedef struct pgtbl *pgtbl_t;
 
+struct pgtbl_info {
+	asid_t  asid; /* Unused */
+	pgtbl_t pgtbl;
+} __attribute__((packed));
+
 /* identical to the capability structure */
 struct cap_pgtbl {
 	struct cap_header h;
@@ -32,10 +37,14 @@ struct cap_pgtbl {
 
 /* Update the page table */
 static inline void
-chal_pgtbl_update(pgtbl_t pt)
+chal_pgtbl_update(struct pgtbl_info *pt)
 {
-	asm volatile("mov %0, %%cr3" : : "r"(pt));
+	asm volatile("mov %0, %%cr3" : : "r"(pt->pgtbl));
 }
+
+static inline asid_t
+chal_asid_alloc(void)
+{ return 0; }
 
 #endif /* CHAL_PROTO_H */
 

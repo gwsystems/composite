@@ -72,7 +72,12 @@ int            pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap
 int            pgtbl_mapping_scan(struct cap_pgtbl *pt);
 int            pgtbl_quie_check(u32_t orig_v);
 void           pgtbl_init_pte(void *pte);
-void           pgtbl_update(pgtbl_t pt);
+
+static inline void
+pgtbl_update(struct pgtbl_info *ptinfo)
+{
+	chal_pgtbl_update(ptinfo);
+}
 
 extern unsigned long __cr3_contents;
 
@@ -132,7 +137,6 @@ int            chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, 
 int            chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl);
 /* Introspection */
 int            chal_pgtbl_introspect(struct cap_header *ch, vaddr_t addr);
-/* Set current page table */
-void           chal_pgtbl_update(pgtbl_t pt);
+
 #endif /* PGTBL_H */
 

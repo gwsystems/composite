@@ -27,8 +27,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	struct tcap *              tc       = tcap_mem;
 	tcap_res_t                 expended;
 	int                        ret;
-	struct cap_pgtbl *         cap_pt;
-	pgtbl_t                    pgtbl;
+	struct cap_comp *          cap_comp;
 
 	assert(cpu_id >= 0);
 	assert(cos_info->cpuid == (u32_t)cpu_id);
@@ -60,15 +59,11 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	                    BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpu_id), 0, 1);
 	assert(!ret);
 
-	/*
-	 * boot component's mapped into SELF_PT,
-	 * switching to boot component's pgd
-	 */
-	cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, BOOT_CAPTBL_SELF_PT);
-	if (!cap_pt || !CAP_TYPECHK(cap_pt, CAP_PGTBL)) assert(0);
-	pgtbl = cap_pt->pgtbl;
-	assert(pgtbl);
-	pgtbl_update(pgtbl);
+	/* switching to boot component's PGD using component capability */
+	cap_comp = (struct cap_comp *)captbl_lkup(ct, BOOT_CAPTBL_SELF_COMP);
+	if (!cap_comp || !CAP_TYPECHK(cap_comp, CAP_COMP)) assert(0);
+	assert(cap_comp->info.pgtblinfo.pgtbl);
+	pgtbl_update(&cap_comp->info.pgtblinfo);
 
 	printk("\tCreating initial threads, tcaps, and rcv end-points in boot-component.\n");
 }
@@ -249,7 +244,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	assert(cpu_id >= 0);
 	if (NUM_CPU > 1 && cpu_id > 0) {
 		assert(glb_boot_ct);
-		pgtbl_update(pgtbl);
+		chal_cpu_pgtbl_activate(pgtbl);
 		kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
 		return;
 	}

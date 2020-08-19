@@ -26,6 +26,11 @@ struct pgtbl
 /* make it an opaque type...not to be touched */
 typedef struct pgtbl *pgtbl_t;
 
+struct pgtbl_info {
+	asid_t  asid;
+	pgtbl_t pgtbl;
+} __attribute__((packed));
+
 /* identical to the capability structure */
 struct cap_pgtbl {
 	struct cap_header h;
@@ -37,12 +42,27 @@ struct cap_pgtbl {
 } __attribute__((packed));
 
 static inline void
-chal_pgtbl_update(pgtbl_t pt)
+chal_pgtbl_update(struct pgtbl_info *ptinfo)
 {
-	paddr_t ttbr0 = chal_va2pa(pt) | 0x4a;
+	paddr_t ttbr0 = chal_va2pa(ptinfo->pgtbl) | 0x4a;
 
+	//asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
+	//asm volatile("mcr p15, 0, r0, c8, c7, 0"); /* TLBIALL */
+
+	asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (0));
+	asm volatile("isb");
 	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
-	asm volatile("mcr p15, 0, r0, c8, c7, 0"); /* TLBIALL */
+	asm volatile("isb");
+	/* NOTE: PROCID unused */
+	asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (ptinfo->asid));
+}
+
+extern asid_t free_asid;
+static inline asid_t
+chal_asid_alloc(void)
+{
+	if (unlikely(free_asid >= MAX_NUM_ASID)) assert(0);
+	return cos_faa((int *)&free_asid, 1);
 }
 
 #endif /* CHAL_PROTO_H */

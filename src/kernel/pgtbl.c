@@ -136,9 +136,3 @@ pgtbl_init_pte(void *pte)
 {
 	return chal_pgtbl_init_pte(pte);
 }
-
-void
-pgtbl_update(pgtbl_t pt)
-{
-	chal_pgtbl_update(pt);
-}

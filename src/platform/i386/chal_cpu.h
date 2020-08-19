@@ -52,13 +52,7 @@ chal_cpu_eflags_init(void)
 static void
 chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 {
-	//	unsigned long cr0;
-
-	pgtbl_update(pgtbl);
-	/* asm volatile("mov %%cr0, %0" : "=r"(cr0)); */
-	/* cr0 |= CR0_PG; */
-	/* printk("cr0 = %x\n", cr0); */
-	/* asm volatile("mov %0, %%cr0" : : "r"(cr0)); */
+	asm volatile("mov %0, %%cr3" : : "r"(pgtbl));
 }
 
 #define IA32_SYSENTER_CS  0x174
