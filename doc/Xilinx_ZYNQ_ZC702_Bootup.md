@@ -166,3 +166,9 @@ It gives me qemu 2.12 on ubuntu 18.04, and that goes straight to the uboot promp
   ```
   tftp 00100000 cos.img.bin && go 00100000
   ```
+  To make your life easy, you can save that as an env (works only on HW though, saveenv saves it in the persistent memory!), like:
+  ```
+  setenv cosboot "tftp 00100000 cos.img.bin && go 00100000"
+  saveenv
+  ```
+  From then on, just do: `run cosboot` 
