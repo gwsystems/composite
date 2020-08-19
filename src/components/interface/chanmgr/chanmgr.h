@@ -2,8 +2,9 @@
 #define CHANMGR_CREATE_H
 
 #include <cos_component.h>
-#include <chan.h>
 #include <memmgr.h>
+#include <chan_types.h>
+#include <crt_blkpt.h>
 
 /***
  * The interface to communicate with the channel manager. The

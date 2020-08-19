@@ -15,33 +15,8 @@
 
 /* Internal implementation details of the channel */
 #include <chan_private.h>
-
-/***
- * Channel API return values. `int` return values are `0` on success,
- * one of these values, or if an error, a negative value of one of
- * these.
- */
-
-/*
- * Non-blocking operation couldn't complete (send found a full
- * channel, or recv found an empty channel)
- */
-#include <errno.h>
-#define CHAN_TRY_AGAIN       EAGAIN
-/* trying to deallocate an active channel */
-#define CHAN_ERR_ACTIVE      EAGAIN
-/* writing or reading from a channel closed on the other end */
-#define CHAN_ERR_NOT_ACTIVE  EPIPE
-/* cannot allocate due to a lack of memory */
-#define CHAN_ERR_NOMEM       ENOMEM
-/* passed an invalid argument (e..g., chan_id_t). This is used by the `_alloc_` APIs */
-#define CHAN_ERR_INVAL_ARG   EINVAL
-
-/* values used when using the communication APIs */
-typedef enum {
-	CHAN_NONBLOCKING = 1,
-	CHAN_PEEK        = 1 << 1,
-} chan_comm_t;
+#include <evt.h>
+#include <chan_types.h>
 
 /**
  * `chan_send` sends an item to a channel. The size of the item is
@@ -63,11 +38,16 @@ typedef enum {
 static inline int
 chan_send(struct chan_snd *c, void *item, chan_comm_t flags)
 {
-	if (flags & CHAN_NONBLOCKING) {
-		if (__chan_produce_pow2(c->meta.mem, item, c->meta.wraparound_mask, c->meta.item_sz)) return -EAGAIN;
+	int ret;
+
+	ret = __chan_send_pow2(c, item, c->meta.wraparound_mask, c->meta.item_sz, !(flags & CHAN_NONBLOCKING));
+	if (likely(ret == 0)) {
 		return 0;
-	} else {
-		return __chan_send_pow2(c, item, c->meta.wraparound_mask, c->meta.item_sz);
+	} else if (ret > 0) {
+		assert(flags & CHAN_NONBLOCKING);
+		return CHAN_TRY_AGAIN;
+	} else { 		/* negative value = error */
+		return -CHAN_ERR_INVAL_ARG;
 	}
 }
 
@@ -91,11 +71,16 @@ chan_send(struct chan_snd *c, void *item, chan_comm_t flags)
 static inline int
 chan_recv(struct chan_rcv *c, void *item, chan_comm_t flags)
 {
-	if (flags & CHAN_NONBLOCKING) {
-		if (__chan_consume_pow2(c->meta.mem, item, c->meta.wraparound_mask, c->meta.item_sz)) return -EAGAIN;
+	int ret;
+
+	ret = __chan_recv_pow2(c, item, c->meta.wraparound_mask, c->meta.item_sz, !(flags & CHAN_NONBLOCKING));
+	if (likely(ret == 0)) {
 		return 0;
-	} else {
-		return __chan_recv_pow2(c, item, c->meta.wraparound_mask, c->meta.item_sz);
+	} else if (ret > 0) {
+		assert(flags & CHAN_NONBLOCKING);
+		return CHAN_TRY_AGAIN;
+	} else { 		/* negative value = error */
+		return -CHAN_ERR_INVAL_ARG;
 	}
 }
 
@@ -162,6 +147,24 @@ int  chan_teardown(struct chan *c);
  * - @return  - number of bytes required for the channel's memory
  */
 unsigned int chan_mem_sz(unsigned int item_sz, unsigned int slots);
+
+/**
+ * Add the event resource id into the channel so that when a send
+ * occurs, it will trigger the event of the receiver. This should only
+ * be called on the receiver side as we only currently support adding
+ * receivers into an event set. `disassociate` removes the previous
+ * association.
+ *
+ * - @c      - channel to add to the event set
+ * - @eid    - the event resource id to be triggered
+ * - @return -
+ *
+ *     - `0` on success
+ *     - `-n` for error with `n` being an errno value
+ */
+int chan_evt_associate(struct chan *c, evt_res_id_t eid);
+evt_res_id_t chan_evt_associated(struct chan *c);
+int chan_evt_disassociate(struct chan *c);
 
 /**
  * The following are the APIs for dynamic memory allocation of

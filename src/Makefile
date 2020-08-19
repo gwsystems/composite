@@ -53,6 +53,9 @@ init:
 update:
 	git submodule update --init --recursive
 
+submod_fastforward:
+	git submodule update --remote --merge
+
 config-gen: update
 	@echo "Configuring the system with clock speed and directory structure."
 	@echo "Please view Makefile.cosconfig and kernel/include/shared/cpu_ghz.h to make sure they're accurate."

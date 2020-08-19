@@ -17,10 +17,10 @@ COS_CLIENT_STUB(int, chanmgr_sync_resources)(struct usr_inv_cap *uc, chan_id_t i
 
 COS_CLIENT_STUB(int, chanmgr_mem_resources)(struct usr_inv_cap *uc, chan_id_t id, cbuf_t *cb, void **mem)
 {
-	word_t c, m;
+	word_t c, _tmp;
 	int ret;
 
-	ret  = cos_sinv_2rets(uc->cap_no, id, 0, 0, 0, &c, &m);
+	ret  = cos_sinv_2rets(uc->cap_no, id, 0, 0, 0, &c, &_tmp);
 	*cb = (cbuf_t)c;
 	if (ret < 0) return ret;
 	/* Lets get our own mapping for the channel */

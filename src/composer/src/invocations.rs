@@ -18,7 +18,7 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
         for d in deps(&s, &id) {
             // find the correct dependency (whose interface
             // prefixes the symbol)
-            if !sname.starts_with(&d.interface) {
+            if !sname.trim_matches('_').starts_with(&d.interface) {
                 continue;
             }
 

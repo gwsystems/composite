@@ -3,17 +3,8 @@
 
 #include <cos_component.h>
 #include <crt_blkpt.h>
-
-/* `chan_id_t`s with value `0` signal error */
-typedef word_t chan_id_t;
-
-/* Values for channel initialization */
-typedef enum {
-	CHAN_DEFAULT    = 0,
-	CHAN_MPSC       = 1,	  /* !CHAN_MPSC == SPSC */
-	CHAN_EXACT_SIZE = 1 << 1, /* The channel size cannot be higher than its initialization size */
-	CHAN_DEALLOCATE = 1 << 2  /* used internally for the `_alloc` APIs */
-} chan_flags_t;
+#include <chanmgr_evt.h>
+#include <chan_types.h>
 
 /*
  * Channel metadata associated with the chan, and copied into chan_snd
@@ -23,6 +14,7 @@ struct __chan_meta {
 	struct __chan_mem *mem;
 	sched_blkpt_id_t blkpt_empty_id, blkpt_full_id;
 	u32_t item_sz, nslots, wraparound_mask;
+	evt_res_id_t evt_id;
 	chan_flags_t flags;
 	cbuf_t cbuf_id;
 	chan_id_t id;
@@ -48,13 +40,15 @@ struct __chan_meta {
  */
 struct __chan_mem {
 	u32_t producer;
+	u32_t producer_update;
 	/* If the ring is empty, recving threads will block on this blkpt. */
 	struct crt_blkpt empty;
-	CRT_PADDING(1, (sizeof(struct crt_blkpt) + sizeof(u32_t)));
-	u32_t consumer;
+	CRT_PADDING(1, (sizeof(struct crt_blkpt) + 2 * sizeof(u32_t)));
+ 	u32_t consumer;
+	u32_t consumer_update;
 	/* If the ring is full, sending thread will block on this blkpt. */
 	struct crt_blkpt full;
-	CRT_PADDING(2, (sizeof(struct crt_blkpt) + sizeof(u32_t)));
+	CRT_PADDING(2, (sizeof(struct crt_blkpt) + 2* sizeof(u32_t)));
 	/* The memory for the channel. */
 	char mem[0];
 };
@@ -73,6 +67,8 @@ struct chan_rcv {
 	struct __chan_meta meta;
 	struct chan *c;
 };
+
+#include <chanmgr.h>
 
 static inline void
 __chan_init_with(struct __chan_meta *meta, sched_blkpt_id_t full, sched_blkpt_id_t empty, void *mem)
@@ -126,13 +122,21 @@ __chan_consume_pow2(struct __chan_mem *m, void *d, u32_t wraparound_mask, u32_t 
 	return 0;
 }
 
+evt_res_id_t chan_evt_associated(struct chan *c);
+
 /**
  * The next two functions pass all of the variables in via arguments,
  * so that we can use them for constant propagation along with
  * inlining to get rid of the general memcpy code.
+ *
+ * - @return -
+ *
+ *     - `-n` on error,
+ *     - `>0` on failure to send/recv (non-blocking), and
+ *     - `0` on "send/recv complete".
  */
 static inline int
-__chan_send_pow2(struct chan_snd *s, void *item, u32_t wraparound_mask, u32_t item_sz)
+__chan_send_pow2(struct chan_snd *s, void *item, u32_t wraparound_mask, u32_t item_sz, int blking)
 {
 	struct __chan_mem *m = s->meta.mem;
 
@@ -141,10 +145,20 @@ __chan_send_pow2(struct chan_snd *s, void *item, u32_t wraparound_mask, u32_t it
 
 		crt_blkpt_checkpoint(&m->full, &chkpt);
 		if (!__chan_produce_pow2(m, item, wraparound_mask, item_sz)) {
+			struct __chan_meta *meta = &s->meta;
+
 			/* success! */
 			crt_blkpt_id_trigger(&m->empty, s->meta.blkpt_empty_id, 0);
+			if (unlikely(meta->mem->producer_update)) {
+				meta->mem->producer_update = 0;
+				meta->evt_id = chan_evt_associated(s->c);
+			}
+			if (meta->evt_id) {
+				if (evt_trigger(meta->evt_id)) return -1;
+			}
 			break;
 		}
+		if (!blking) return 1;
 		crt_blkpt_id_wait(&m->full, s->meta.blkpt_full_id, 0, &chkpt);
 	}
 
@@ -152,7 +166,7 @@ __chan_send_pow2(struct chan_snd *s, void *item, u32_t wraparound_mask, u32_t it
 }
 
 static inline int
-__chan_recv_pow2(struct chan_rcv *r, void *item, u32_t wraparound_mask, u32_t item_sz)
+__chan_recv_pow2(struct chan_rcv *r, void *item, u32_t wraparound_mask, u32_t item_sz, int blking)
 {
 	struct __chan_mem *m = r->meta.mem;
 
@@ -165,6 +179,7 @@ __chan_recv_pow2(struct chan_rcv *r, void *item, u32_t wraparound_mask, u32_t it
 			crt_blkpt_id_trigger(&m->full, r->meta.blkpt_full_id, 0);
 			break;
 		}
+		if (!blking) return 1;
 		crt_blkpt_id_wait(&m->empty, r->meta.blkpt_empty_id, 0, &chkpt);
 	}
 

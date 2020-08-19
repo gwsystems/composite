@@ -150,3 +150,41 @@ chan_mem_sz(unsigned int item_sz, unsigned int slots)
 {
 	return sizeof(struct __chan_mem) + item_sz * slots;
 }
+
+int
+chan_evt_associate(struct chan *c, evt_res_id_t eid)
+{
+	int ret;
+
+	if (c->meta.evt_id != 0) return -1;
+	c->meta.evt_id = eid;
+
+	ret = chanmgr_evt_set(c->meta.id, c->meta.evt_id, 1);
+	/* signal to the communicating pair to update their event resource id. */
+	c->meta.mem->producer_update = 1;
+
+	return ret;
+}
+
+evt_res_id_t
+chan_evt_associated(struct chan *c)
+{
+	if (c->meta.evt_id == 0) {
+		c->meta.evt_id = chanmgr_evt_get(c->meta.id, 1);
+	}
+
+	return c->meta.evt_id;
+}
+
+int
+chan_evt_disassociate(struct chan *c)
+{
+	evt_res_id_t eid = 0;
+
+	if (c->meta.evt_id == 0) return -1;
+	chanmgr_evt_set(c->meta.id, 0, 1);
+	c->meta.mem->producer_update = 1;
+	c->meta.evt_id = 0;
+
+	return 0;
+}

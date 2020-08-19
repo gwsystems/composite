@@ -3,6 +3,7 @@
 #include <static_slab.h>
 #include <evt.h>
 #include <crt_blkpt.h>
+#include <ps_refcnt.h>
 
 #define MAX_NUM_EVT 8
 
@@ -15,7 +16,7 @@ struct ring {
 struct evt_agg {
 	compid_t client;
 	struct ring ring;
-	ps_refcnt_t refcnt;
+	struct ps_refcnt refcnt;
 	struct crt_blkpt blkpt;
 };
 

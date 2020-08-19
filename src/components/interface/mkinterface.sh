@@ -16,4 +16,4 @@ cp -r skel $1
 mv $1/skel.h $1/$1.h
 sed -i 's/SKEL/'`echo $1 | tr '[a-z]' '[A-Z]'`'/g' $1/$1.h
 sed -i 's/SKEL/'`echo $1`'/g' $1/doc.md
-sed -i 's/SKEL/'`echo $1 | tr '[a-z]' '[A-Z]'`'/g' $1/Makefile
+sed -i 's/SKEL/'`echo $1`'/g' $1/Makefile
