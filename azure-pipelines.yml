@@ -25,4 +25,10 @@ steps:
   - script: | 
       ./cos compose composition_scripts/sched.toml test
     displayName: Compile Sched Test
-  
+  - script: |
+      timeout --preserve-status 10 ./cos run system_binaries/cos_build test/cos.img > sched_tests.txt
+      exit 0
+    displayName: Run Sched Tests
+  - script : |
+      cat sched_tests.txt
+    displayName: Display Sched Tests
