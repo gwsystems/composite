@@ -9,6 +9,8 @@ container: grahamschock/composite_dev_env:latest
 steps:
 
 - script: |
+    ls -la
+    ls -la $HOME
     source $HOME/.cargo/env
     rustup default nightly
     cargo install xargo
