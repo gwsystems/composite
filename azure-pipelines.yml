@@ -9,7 +9,6 @@ container: grahamschock/composite_dev_env:latest
 steps:
 
 - script: |
-    curl https://sh.rustup.rs -sSf | sh -s -- -y
     source $HOME/.cargo/env
     rustup default nightly
     cargo install xargo
