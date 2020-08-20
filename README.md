@@ -1,3 +1,5 @@
+[![Build Status](https://dev.azure.com/gwsystems/composite/_apis/build/status/gwsystems.composite?branchName=loader_ci)](https://dev.azure.com/gwsystems/composite/_build/latest?definitionId=4&branchName=loader_ci)
+
 The _Composite_ Component-Based OS
 ==================================
 
