@@ -4,10 +4,16 @@ trigger:
 pool:
   vmImage: 'ubuntu-16.04'
 
+container : grahamschock/composite_dev_env:latest
+
 steps:
   - script: |
       curl https://sh.rustup.rs -sSf | sh -s -- -y
       echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
     displayName: Install rust
-  - script: cargo --version
-    displayName: Cargo build
+  - script: | 
+      rustup default nightly
+      cargo install xargo
+      rustup component add rust-src 
+    displayName: Add Rust Composite Dependencies
+
