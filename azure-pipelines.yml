@@ -4,8 +4,6 @@ trigger:
 pool:
   vmImage: 'ubuntu-16.04'
 
-container: grahamschock/composite_dev_env:latest
-
 steps:
   - script: |
       curl https://sh.rustup.rs -sSf | sh -s -- -y
