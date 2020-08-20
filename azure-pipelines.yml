@@ -16,4 +16,13 @@ steps:
       cargo install xargo
       rustup component add rust-src 
     displayName: Add Rust Composite Dependencies
-
+  - script: |
+      ./cos init
+    displayName: Initialize Composite
+  - script: |
+      ./cos build
+    displayName: Build Composite
+  - script: | 
+      ./cos compose composition_scripts/sched.toml test
+    displayName: Compile Sched Test
+  
