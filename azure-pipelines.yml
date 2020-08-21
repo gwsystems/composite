@@ -23,13 +23,17 @@ steps:
       ./cos build
     displayName: Build Composite
   - script: | 
-      ./cos compose composition_scripts/sched.toml test
-    displayName: Compile Sched Test
+      ./cos compose composition_scripts/kernel_test.toml test
+    displayName: Compile Kernel Test
   - script: |
       echo "Running Tests... (60s)"
-      timeout --preserve-status 60 ./cos run system_binaries/cos_build-test/cos.img > sched_tests.txt
+      timeout --preserve-status 60 ./cos run system_binaries/cos_build-test/cos.img > kernel_test.txt
       exit 0
-    displayName: Run Sched Tests 
+    displayName: Run Kernel Tests 
   - script : |
-      cat sched_tests.txt
-    displayName: Display Sched Tests
+      cat kernel_tests.txt
+    displayName: Display Kernel Tests
+  - task: PythonScript@0
+    inputs:
+      scriptSource: 'filePath'
+      scriptPath: 'tools/kernel_parse.py'
