@@ -92,7 +92,7 @@ clean:
 		$(MAKE) $(MAKEOPTIONS) -C $$dir clean ; \
 	done
 
-init: clean
+init:
 	$(info ***********************************************)
 	$(info **********[ Initializing Libraries ]***********)
 	$(info ***********************************************)
