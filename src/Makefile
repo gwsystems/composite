@@ -53,6 +53,9 @@ init:
 update:
 	git submodule update --init --recursive
 
+submod_fastforward:
+	git submodule update --remote --merge
+
 config-gen: update
 	@pwd | sed 's/\(\/[a-zA-Z0-9]*\/[a-zA-Z0-9]*\/\).*/HOME_DIR=\1/' > Makefile.cosconfig
 	@echo "CODE_DIR=`pwd`" >> Makefile.cosconfig

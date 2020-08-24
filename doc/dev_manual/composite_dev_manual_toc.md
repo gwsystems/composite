@@ -14,4 +14,5 @@ Please see the [pdf](./composite_dev_manual_v2020-07-04.pdf) for a nicely render
 - [System composition](./07_system_composition.md)
 - [Debugging](./08_debugging.md)
 - [Testing](./09_testing.md)
+- [Documentation](./10_documentation.md)
 

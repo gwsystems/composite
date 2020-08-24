@@ -10,7 +10,7 @@
 #include <sl.h>
 
 #include <crt_lock.h>
-#include <crt_chan.h>
+#include <crt_static_chan.h>
 
 struct cos_compinfo *ci;
 
@@ -18,14 +18,14 @@ struct cos_compinfo *ci;
 #define NCHANTHDS  5
 #define CHAN_BATCH 3
 
-CRT_CHAN_STATIC_ALLOC(c0, int, 4);
-CRT_CHAN_STATIC_ALLOC(c1, int, 4);
-CRT_CHAN_STATIC_ALLOC(c2, int, 4);
-CRT_CHAN_STATIC_ALLOC(c3, int, 4);
-CRT_CHAN_STATIC_ALLOC(c4, int, 4);
+CRT_STATIC_CHAN_STATIC_ALLOC(c0, int, 4);
+CRT_STATIC_CHAN_STATIC_ALLOC(c1, int, 4);
+CRT_STATIC_CHAN_STATIC_ALLOC(c2, int, 4);
+CRT_STATIC_CHAN_STATIC_ALLOC(c3, int, 4);
+CRT_STATIC_CHAN_STATIC_ALLOC(c4, int, 4);
 
-CRT_CHAN_TYPE_PROTOTYPES(test, int, 4);
-struct crt_chan *chans[NCHANTHDS + 1];
+CRT_STATIC_CHAN_TYPE_PROTOTYPES(test, int, 4);
+struct crt_static_chan *chans[NCHANTHDS + 1];
 struct sl_thd  *chan_thds[NCHANTHDS] = {NULL, };
 
 typedef enum { CHILLING = 0, RECVING, SENDING } actions_t;
@@ -47,27 +47,27 @@ chantest_is_deadlocked(void)
 }
 
 void
-chantest_send(int thd_off, struct crt_chan *c)
+chantest_send(int thd_off, struct crt_static_chan *c)
 {
 	int send = cos_thdid();
 
-	if (crt_chan_full_test(c)) status[thd_off] = SENDING;
+	if (crt_static_chan_full_test(c)) status[thd_off] = SENDING;
 	if (!chantest_is_deadlocked()) {
 		/* printc("\t%d: send\n", cos_thdid()); */
-		crt_chan_send_test(c, &send);
+		crt_static_chan_send_test(c, &send);
 	}
 	status[thd_off] = CHILLING;
 }
 
 void
-chantest_recv(int thd_off, struct crt_chan *c)
+chantest_recv(int thd_off, struct crt_static_chan *c)
 {
 	int recv;
 
-	if (crt_chan_empty_test(c)) status[thd_off] = RECVING;
+	if (crt_static_chan_empty_test(c)) status[thd_off] = RECVING;
 	if (!chantest_is_deadlocked()) {
 		/* printc("\t%d: recv\n", cos_thdid()); */
-		crt_chan_recv_test(c, &recv);
+		crt_static_chan_recv_test(c, &recv);
 		cnts[thd_off]++;
 	}
 	status[thd_off] = CHILLING;
@@ -77,7 +77,7 @@ void
 chan_thd(void *d)
 {
 	int thd_off = (int)d;
-	struct crt_chan **chan_pair = &chans[thd_off];
+	struct crt_static_chan **chan_pair = &chans[thd_off];
 	int recv;
 	int i;
 
@@ -115,15 +115,16 @@ test_chan(void)
 {
 	int i;
 	struct sl_thd *idle;
-	union sched_param_union idle_param = {.c = {.type = SCHEDP_PRIO, .value = 10}};
+	sched_param_t idle_param = SCHED_PARAM_CONS(SCHEDP_PRIO, 10);
 
-	union sched_param_union sps[] = {
-		{.c = {.type = SCHEDP_PRIO, .value = 7}},
-		{.c = {.type = SCHEDP_PRIO, .value = 6}},
-		{.c = {.type = SCHEDP_PRIO, .value = 8}},
-		{.c = {.type = SCHEDP_PRIO, .value = 5}},
-		{.c = {.type = SCHEDP_PRIO, .value = 5}}
+	sched_param_t sps[] = {
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 7),
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 6),
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 8),
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 5),
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 5)
 	};
+	unsigned int p;
 
 	chans[0] = c0;
 	chans[1] = c1;
@@ -133,19 +134,21 @@ test_chan(void)
 	chans[5] = c0;
 
 	for (i = 0; i < NCHANTHDS; i++) {
-		crt_chan_init_test(chans[i]);
+		crt_static_chan_init_test(chans[i]);
 	}
 
 	printc("Create threads:\n");
 	for (i = 0; i < NCHANTHDS; i++) {
 		chan_thds[i] = sl_thd_alloc(chan_thd, (void *)i);
 		assert(chan_thds[i]);
-		printc("\tcreating thread %ld at prio %d\n", sl_thd_thdid(chan_thds[i]), sps[i].c.value);
-		sl_thd_param_set(chan_thds[i], sps[i].v);
+		sched_param_get(sps[i], NULL, &p);
+		printc("\tcreating thread %ld at prio %d\n", sl_thd_thdid(chan_thds[i]), p);
+		sl_thd_param_set(chan_thds[i], sps[i]);
 	}
 	idle = sl_thd_alloc(idle_thd, NULL);
-	printc("\tcreating IDLE %ld at prio %d\n", sl_thd_thdid(idle), idle_param.c.value);
-	sl_thd_param_set(idle, idle_param.v);
+	sched_param_get(idle_param, NULL, &p);
+	printc("\tcreating IDLE %ld at prio %d\n", sl_thd_thdid(idle), p);
+	sl_thd_param_set(idle, idle_param);
 
 }
 
@@ -208,11 +211,11 @@ void
 test_lock(void)
 {
 	int i;
-	union sched_param_union sps[] = {
-		{.c = {.type = SCHEDP_PRIO, .value = 5}},
-		{.c = {.type = SCHEDP_PRIO, .value = 6}},
-		{.c = {.type = SCHEDP_PRIO, .value = 6}},
-		{.c = {.type = SCHEDP_PRIO, .value = 7}}
+	sched_param_t sps[] = {
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 5),
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 6),
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 6),
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 7)
 	};
 
 	crt_lock_init(&lock);
@@ -220,8 +223,8 @@ test_lock(void)
 	printc("Create threads:\n");
 	for (i = 0; i < NLOCKTHDS; i++) {
 		lock_thds[i] = sl_thd_alloc(lock_thd, NULL);
-		printc("\tcreating thread %ld at prio %d\n", sl_thd_thdid(lock_thds[i]), sps[i].c.value);
-		sl_thd_param_set(lock_thds[i], sps[i].v);
+		printc("\tcreating thread %ld at prio %d\n", sl_thd_thdid(lock_thds[i]), sps[i]);
+		sl_thd_param_set(lock_thds[i], sps[i]);
 	}
 }
 

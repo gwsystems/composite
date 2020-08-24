@@ -1,8 +1,6 @@
 # Components
 
-
-
-## Execution Model
+##  Component Initialization
 
 A component goes through a sequence of initialization functions when it starts up.
 Whereas System V defines `__start` to execute constructors, then `main`, the initialization sequence in Composite must consider two additional constraints:
@@ -37,13 +35,37 @@ Thus, it is essential that all necessary initialization to receive invocations f
 - `void parallel_main(coreid_t cid, int init_core, int ncores);` - Similar to `cos_parallel_init`, this is executed on each core, but done in parallel with client initialization and execution.
 	For services that require persistent execution, this provides it.
 
-## Abstractions - Execution
+## Abstractions
 
-### Kernel API
+### Kernel API and Abstractions
 
-### Scheduling Library
+The raw kernel API is not very friendly.
+It requires retyping of memory, and the explicit construction of resource tables.
+The `kernel` library provide abstractions to perform bump allocation into resource tables to hide these details.
+Regardless, the kernel API is still very low-level to use.
+It references kernel resources though their opaque capabilities.
+Given this, the `crt` (Composite run-time) library provides an abstraction over `kernel` that is significantly more programmable.
+By default, if you wish to implement a low-level component that manages its own resources, doing so with the `crt` API is the way to go.
+For users of this API, see the `llbooter`, the and the `capmgr`.
 
-### Scheduler Component
+### Scheduling Library and Component
+
+The scheduling library provides the logic for interacting with the kernel to provide predictable scheduling services.
+It also includes a number of plugin scheduling policies (fixed-priority, round robin being the most tested).
+Though this library exists, you should tend to write your code to the `sched` interface as implemented by the scheduling components.
+The scheduling components use the scheduling library, and a future variant of the `sched` interface will directly use the scheduling library to avoid invocation overheads.
+
+*Thread creation.*
+Thread creation is familiar to anyone used to `pthread`s, however there is one strange aspect of the API.
+Thread are *not executed* until they are prioritized using the `*_param_set` API.
+This is done so that while the thread is executing, it knows that its parameters have been explicitly chosen, thus avoiding unpredictable initialization orderings.
+
+*Thread synchronization.*
+The `block-point` API handles synchronization between threads.
+See the `sched_blkpt_*` family of calls.
+Threads can block on a blockpoint, and others can wake all (or a single) thread in the blockpoint.
+They are optimized to avoid scheduling invocations if a wakeup call is made and no threads are blocked on the block-point.
+There are examples in the code for their implementation of locks (with futex-like optimizations for uncontested access), and in channels (when the bounded buffer is full or empty).
 
 ## Abstractions - Kernel Resources
 

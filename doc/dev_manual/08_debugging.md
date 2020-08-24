@@ -42,13 +42,29 @@ OPT= -g -fvar-tracking
 If optimizations are used (e.g., `-O3`), the code is mangled in the name of efficiency.
 To ensure that all code (outside of `libc`) uses these flags, make sure to `make clean; make`.
 
+*Using `addr2line`.*
+If you quickly want to figure out in which function, and on which line the error occurred, `addr2line` can be your quick fix.
+If the component that experienced the failure is that associated with the composition script `chantest` variable, and the fault was at `0x47800037` (as above), the following will give function and line information:
+
+```
+$ addr2line -fi -e system_binaries/global.chantest/tests.chan.global.chantest 0x47800037
+__chan_init_with
+/home/gparmer/data/research/composite/src/components/lib/chan/./chan_private.h:83
+```
+
+The fault was on line `83` in `chan_private` in the `__chan_init_with` function.
+
+*Using `objdump` to get full binary information.*
+If you need more information about the fault, for example, what type of operation caused the fault, or which instructions are responsible, then `objdump` can let you introspect into the binary.
+This is a great way to learn the correspondance between C and assembly as it will print them interspersed.
+
 In the root directory, execute the following:
 
 ```
-$ objdump -Srhtl c.o
+$ objdump -Srhtl system_binaries/global.chantest/tests.chan.global.chantest
 ```
 
-(where `c.o` is the component in the build directory for the component).
+(where `system_binaries/global.chantest/tests.chan.global.chantest` is the component in the build directory for the component).
 
 You'll see the contents of the object file.
 We know that the fault happened at instruction address `0x47800037` from the fault report.

@@ -27,7 +27,11 @@
 #define CHAR_BIT 8
 
 #define TEST_RCV_CORE 0
+#if NUM_CPU == 1
+#define TEST_SND_CORE 0
+#else
 #define TEST_SND_CORE 1
+#endif
 #define TEST_IPI_ITERS 10000
 
 extern struct cos_compinfo booter_info;

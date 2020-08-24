@@ -490,7 +490,7 @@ static void
 test_ipc_setup(void)
 {
 #ifdef TEST_IPC
-	static volatile int cdone[NUM_CPU] = { 0 };
+	static volatile long cdone[NUM_CPU] = { 0 };
 	int i, ret;
 	struct sl_thd *t = NULL;
 	asndcap_t snd = 0;
