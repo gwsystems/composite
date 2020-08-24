@@ -44,17 +44,92 @@ struct cap_pgtbl {
 static inline void
 chal_pgtbl_update(struct pgtbl_info *ptinfo)
 {
+// What Fiasco does
+//  asm volatile (
+//      "mcr p15, 0, %2, c7, c5, 6    \n" // bt flush
+//      "dsb                          \n"
+//      "mcr p15, 0, %2, c13, c0, 1   \n" // change ASID to 0
+//      "isb                          \n"
+//      "mcr p15, 0, %0, c2, c0       \n" // set TTBR
+//      "isb                          \n"
+//      "mcr p15, 0, %1, c13, c0, 1   \n" // set new ASID value
+//      "isb                          \n"
+//      "mcr p15, 0, %2, c7, c5, 6    \n" // bt flush
+//      "isb                          \n"
+//      "mov r1, r1                   \n"
+//      "sub pc, pc, #4               \n"
+//      :
+//      : "r" (chal_va2pa(ptinfo->pgtbl) | 0x6a), "r" (ptinfo->asid), "r" (0)
+//      : "r1" );
+	// 6a == S Sharable | RGN = Outer WB-WA | IRGN = Inner WB-WA | NOS
+
 	paddr_t ttbr0 = chal_va2pa(ptinfo->pgtbl) | 0x4a;
-
-	//asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
-	//asm volatile("mcr p15, 0, r0, c8, c7, 0"); /* TLBIALL */
-
-	asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (0));
-	asm volatile("isb");
+//
+//	///* DEBUG */
+//	//unsigned long currasid = 0;
+//	//asm volatile("mrc p15, 0, %0, c13, c0, 1" : "=r" (currasid));
+//	//printk("(START) Curr ASID: %lx, Next ASID: %lx\n", ctxtidr, ptinfo->asid);
+//
+	/* Without ASIDs START */
 	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
-	asm volatile("isb");
-	/* NOTE: PROCID unused */
-	asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (ptinfo->asid));
+	asm volatile("mcr p15, 0, r0, c8, c7, 0"); /* TLBIALL */
+	/* Without ASIDs END */
+//
+//	///* Example 3-5 START */
+//	//unsigned long ttbcr0 = 0, ttbcr1 = 0, ttbcr2 = 0, ttbcr3 = 0, ttbcr4 = 0;
+//	//asm volatile("mrc p15, 0, %0, c2, c0, 2" : "=r" (ttbcr0));
+//	//ttbcr4 = ttbcr0;
+//	//ttbcr0 |= TTBCR_PD0;
+//	//asm volatile("mcr p15, 0, %0, c2, c0, 2" :: "r" (ttbcr0));
+//	////asm volatile("mrc p15, 0, %0, c2, c0, 2" : "=r" (ttbcr1));
+//	//asm volatile("isb");
+//	///* NOTE: PROCID unused */
+//	//asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (ptinfo->asid));
+//	//asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
+//	//asm volatile("isb");
+//	//asm volatile("mrc p15, 0, %0, c2, c0, 2" : "=r" (ttbcr2));
+//	//ttbcr3 = ttbcr2;
+//	//ttbcr3 &= ~TTBCR_PD0;
+//	//asm volatile("mcr p15, 0, %0, c2, c0, 2" :: "r" (ttbcr3));
+//	/* Example 3-5 END */
+//	//printk("%d: TTBCR start :%lx, set PD0:%lx, read after set:%lx, read after isb:%lx, last set: %lx\n", __LINE__, ttbcr4, ttbcr0, ttbcr1, ttbcr2, ttbcr3);
+//	 
+//	/* Example 3-3 START */
+//	//asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (0));
+//	//asm volatile("isb");
+//	//asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
+//	//asm volatile("isb");
+//	///* NOTE: PROCID unused */
+//	//asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (ptinfo->asid));
+//	/* Example 3-3 END */
+//
+//	/* DEBUG */
+//	//asm volatile("mrc p15, 0, %0, c13, c0, 1" : "=r" (ctxtidr));
+//	//printk("(END) Current ASID: %lx\n", ctxtidr);
+//
+//	/* Lets mimic cpu_v7_switch_mm from Linux */
+//	/* ARM ERRATA 754322 */
+//	dsb();
+//	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (globalpd)); 
+//	isb();
+//	/* ARM ERRATA 430973 */
+//	//asm volatile("mcr p15, 0, %0, c7, c5, 6" : : "r"(0));
+//	asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (ptinfo->asid));
+//	isb();
+//	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0)); 
+//	isb();
+//	//asm volatile("mcr p15, 0, %0, c8, c5, 0" :: "r" (0)); /* ITLBIALL */
+//	//asm volatile("mcr p15, 0, %0, c8, c7, 0" :: "r" (0)); /* TLBIALL */
+//	//asm volatile (	"dsb\n\t"
+//	//		"mcr p15, 0, %[_ctxtidr], c13, c0, 1\n\t"
+//	//		"isb\n\t"
+//	//		"mcr p15, 0, %[_ttbr0], c2, c0, 0\n\t"
+//	//		"isb\n\t"
+//	//		:
+//	//		: [_ctxtidr] "m" (ptinfo->asid), [_ttbr0] "m" (ttbr0)
+//	//		: "memory", "cc"
+//	//	     );
+//
 }
 
 extern asid_t free_asid;

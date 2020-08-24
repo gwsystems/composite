@@ -34,4 +34,6 @@ struct pt_regs {
 #define MAX_NUM_ASID (1<<MAX_ASID_BITS)
 #define ASID_MASK (MAX_NUM_ASID - 1)
 
+#define TTBCR_PD0 (1<<3) /* Bit 4 */
+
 #endif /* CHAL_CONSTS_H */
