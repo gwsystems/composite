@@ -293,6 +293,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	 */
 	if (cos_compid_uninitialized()) { /* we must be in the initial booter! */
 		cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+		perfcntr_init();
 	}
 
 	switch (t) {

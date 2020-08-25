@@ -48,7 +48,6 @@ cos_init(void)
 	tid = pong_ids(&us, &them);
 	assert(cos_thdid() == tid && us != them && us == cos_compid());
 
-	perfcntr_init();
 	begin = ps_tsc();
 	for (i = 0; i < ITER; i++) {
 		pong_call();
