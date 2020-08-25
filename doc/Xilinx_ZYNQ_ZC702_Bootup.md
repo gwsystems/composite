@@ -88,20 +88,6 @@ Branch: loaderarm
 
 This generates `cos.img.bin` in `system_binaries/kernel_test_1/` directory, which we will boot from u-boot built in the previous step.
 
-### Zynq mkbootimage
-
-Follow the instructions here to be able to build and boot it. This is required for the baremetal boot, which I have not tested yet!
-
-This: https://github.com/antmicro/zynq-mkbootimage.git
-Forking is taking too long.
-
-#### Steps I think are,
-
-- clone and go to the project directory
-- You should have access to the zynq board files: fsbl.elf, system.bit, boot.bif
-- Copy the u-boot.elf from your earlier step, and these 3 files in to the same directory as zynq-mkbootimage cloned directory.
-- `mkbootimage boot.bif boot.bin`
-
 ## Qemu execution
 
 **Before you proceed**
@@ -133,6 +119,26 @@ It gives me qemu 2.12 on ubuntu 18.04, and that goes straight to the uboot promp
 
 ## HW execution
 
+### Zynq mkbootimage
+
+Follow the instructions here to be able to build and boot it. This is required for the baremetal boot, I believe if you're modifying uboot in anyway.
+NOTE: **The board must come with the boot image including uboot flashed, so this step is not required in that case.**
+**When I booted up, it had a working uboot, so I didn't follow any of the mkbootimage steps!**
+
+This: https://github.com/antmicro/zynq-mkbootimage.git
+Forking is taking too long.
+
+#### Steps I think are,
+
+- clone and go to the project directory
+- You should have access to the zynq board files: fsbl.elf, system.bit, boot.bif
+- Copy the u-boot.elf from your earlier step, and these 3 files in to the same directory as zynq-mkbootimage cloned directory.
+- `mkbootimage boot.bif boot.bin`
+
+- Again, I did not build a custom uboot image, instead used what was on the Xilinx board, so skipping mkbootimage steps here.
+
+### Prerequisites
+
 **serial communication**
 - I used `minicom` on ubuntu. 
    - To install `sudo apt install minicom`
@@ -150,7 +156,6 @@ It gives me qemu 2.12 on ubuntu 18.04, and that goes straight to the uboot promp
    ```
 
 **This is for TFTP boot**
-- I did not build a custom uboot image, instead used what was on the Xilinx board, so skipping mkbootimage steps here.
 
 - For TFTP boot to work, your host and the board must be connected to the same local network. Have the tftp server installed on the host. I followed [this](https://linuxhint.com/install_tftp_server_ubuntu/)
 
@@ -161,7 +166,10 @@ It gives me qemu 2.12 on ubuntu 18.04, and that goes straight to the uboot promp
   - so all I change is the `serverip` to match my host machine IP, the board acquires its DHCP IP and connects to the host when you do tftp.
   - after you change the environment you need, do a saveenv, so it saves that for consequent boots!
   - read [this](https://www.denx.de/wiki/view/DULG/UBootCmdGroupEnvironment) for how to print, set, save environment on uboot.
-  
+ 
+### Steps to boot Composite on H/W
+
+ 
 - Once that's done and you're are ready to boot Composite, enter the following command:
   ```
   tftp 00100000 cos.img.bin && go 00100000
@@ -171,4 +179,4 @@ It gives me qemu 2.12 on ubuntu 18.04, and that goes straight to the uboot promp
   setenv cosboot "tftp 00100000 cos.img.bin && go 00100000"
   saveenv
   ```
-  From then on, just do: `run cosboot` 
+  From then on, just do: `run cosboot` from the uboot prompt! 
