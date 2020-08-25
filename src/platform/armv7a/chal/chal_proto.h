@@ -44,6 +44,12 @@ struct cap_pgtbl {
 static inline void
 chal_pgtbl_update(struct pgtbl_info *ptinfo)
 {
+	/*
+	 * https://github.com/gwsystems/composite/commit/6c41838513f6b5188a5b0353ff3c1f6c19c6fff5
+	 * In this commit, I debugged different variants for asid context switch code 
+	 * but wasn't successful with any of those. 
+	 * Not sure what I did wrong..
+	 */
 	paddr_t ttbr0 = chal_va2pa(ptinfo->pgtbl) | 0x4a;
 
 	/* Without ASIDs START */
