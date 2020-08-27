@@ -75,7 +75,7 @@ struct thread {
 	struct list        event_head; /* all events for *this* end-point */
 	struct list_node   event_list; /* the list of events for another end-point */
 } CACHE_ALIGNED;
-
+#include "fpu.h"
 /*
  * Thread capability descriptor that is minimal and contains only
  * consistency checking information (cpuid to ensure we're accessing
@@ -358,12 +358,11 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd_scheduler_set(thd, thd_current(cli));
 
 	thd_rcvcap_init(thd);
+	fpu_thread_init(thd); 
 	list_head_init(&thd->event_head);
 	list_init(&thd->event_list, thd);
 
 	thd_upcall_setup(thd, compc->entry_addr, COS_UPCALL_THD_CREATE, init_data, 0, 0);
-
-	/* initialize the capability */
 	tc->t     = thd;
 	tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD);
@@ -552,8 +551,7 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 {
 	int preempt = 0;
 
-	/* TODO: check FPU */
-	/* fpu_save(thd); */
+	fpu_switch(thd);
 	if (thd->state & THD_STATE_PREEMPTED) {
 		assert(!(thd->state & THD_STATE_RCVING));
 		thd->state &= ~THD_STATE_PREEMPTED;

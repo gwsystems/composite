@@ -47,6 +47,7 @@ OBJS += miniacpi.o
 OBJS += vga.o
 OBJS += exception.o
 OBJS += lapic.o
+OBJS += fpu.o
 
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o
