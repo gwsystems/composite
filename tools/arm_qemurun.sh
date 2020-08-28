@@ -35,7 +35,7 @@ label-id: 0xedb0411a
 device: tmp/uboot.disk
 unit: sectors
 
-tmp/uboot.disk1 : start=        2048, size=       20480, type=83
+tmp/uboot.disk1 : start=        2048, size=       40960, type=83
 
 EOF
 }
