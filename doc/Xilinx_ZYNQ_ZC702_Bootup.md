@@ -88,6 +88,11 @@ Branch: loaderarm
 
 This generates `cos.img.bin` in `system_binaries/kernel_test_1/` directory, which we will boot from u-boot built in the previous step.
 
+If you made changes in the libs or components, you can also compile them from the composite root directory:
+- `./cos reset`
+- `./cos build`
+- finally, compose the script!
+
 ## Qemu execution
 
 **Before you proceed**
@@ -180,3 +185,70 @@ Forking is taking too long.
   saveenv
   ```
   From then on, just do: `run cosboot` from the uboot prompt! 
+
+
+## What works!
+
+### kernel_tests
+To compile: `./cos compose composition_scripts/kernel_test.toml kernel_test_arm`
+This generates binaries in `<composite>/system_binaries/cos_build-kernel_test_arm/` directory.
+
+To run on Qemu: 
+1. `./tools/arm_runqemu.sh all system_binaries/cos_build-kernel_test_arm/`
+2. Follow the steps from the Qemu section
+
+To run on HW: 
+1. `cp system_binaries/cos_build-kernel_test_arm/cos.img.bin /srv/tftp`
+2. follow tftp boot from the HW section
+
+
+### ping_pong
+To compile: `./cos compose composition_scripts/ping_pong.toml ping_pong_arm`
+This generates binaries in `<composite>/system_binaries/cos_build-ping_pong_arm/` directory.
+
+To run on Qemu: 
+1. `./tools/arm_runqemu.sh all system_binaries/cos_build-ping_pong_arm/`
+2. Follow the steps from the Qemu section
+
+To run on HW: 
+1. `cp system_binaries/cos_build-ping_pong_arm/cos.img.bin /srv/tftp`
+2. follow tftp boot from the HW section
+
+### sched
+
+To compile: `./cos compose composition_scripts/sched.toml sched_arm`
+This generates binaries in `<composite>/system_binaries/cos_build-sched_arm/` directory.
+
+To run on Qemu: 
+1. `./tools/arm_runqemu.sh all system_binaries/cos_build-sched_arm/`
+2. Follow the steps from the Qemu section
+
+To run on HW: 
+1. `cp system_binaries/cos_build-sched_arm/cos.img.bin /srv/tftp`
+2. follow tftp boot from the HW section
+
+### sched_ping_pong
+
+To compile: `./cos compose composition_scripts/sched_ping_pong.toml sched_ping_pong_arm`
+This generates binaries in `<composite>/system_binaries/cos_build-sched_ping_pong_arm/` directory.
+
+To run on Qemu: `./tools/arm_runqemu.sh all system_binaries/cos_build-sched_ping_pong_arm/`
+
+To run on HW: 
+1. `cp system_binaries/cos_build-sched_ping_pong_arm/cos.img.bin /srv/tftp`
+2. follow tftp boot from the HW section
+
+### chan_evt
+
+Debugging this right now! Boots up just fine, debugging the performance numbers and stability!
+
+To compile: `./cos compose composition_scripts/chan_evt.toml chan_evt_arm`
+This generates binaries in `<composite>/system_binaries/cos_build-chan_evt_arm/` directory.
+
+To run on Qemu: 
+1. `./tools/arm_runqemu.sh all system_binaries/cos_build-chan_evt_arm/`
+2. Follow the steps from the Qemu section
+
+To run on HW: 
+1. `cp system_binaries/cos_build-chan_evt_arm/cos.img.bin /srv/tftp`
+2. follow tftp boot from the HW section
