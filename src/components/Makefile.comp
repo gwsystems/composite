@@ -13,8 +13,8 @@ MUSLINC=-isystem$(MUSLDIR)/include
 CINC=-I. -I$(SHAREDINC) -I$(CHALSHAREDINC)
 
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic -fno-pie
-#OPT= -g -fvar-tracking
-OPT= -O3
+OPT= -g -fvar-tracking
+OPT+= -O3
 
 CFLAGS=$(ARCH_CFLAGS) -Wall -Wextra -Wno-unused-parameter -Wno-type-limits -Wno-unused-function -fno-stack-protector -fomit-frame-pointer -Wno-unused-variable $(CINC) $(MUSLINC) $(OPT) $(SHARED_FLAGS)
 CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
