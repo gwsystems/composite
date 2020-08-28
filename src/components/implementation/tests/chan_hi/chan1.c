@@ -85,6 +85,7 @@ ipc(void)
 		}
 	}
 	//Sync up here before printing. Chan_lo is *very likely* not done with its measurements yet!
+	rendezvous();
 
 	printc("Thread with high priority (4):\n\trcv  %lld\n\tsend %lld\n\trtt  %lld\n\tlow->high %lld\n",
 	       rcvcost/COMM_AMNT, sendcost/COMM_AMNT, rtt/COMM_AMNT, l2h/COMM_AMNT);

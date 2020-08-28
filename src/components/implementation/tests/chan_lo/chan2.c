@@ -74,6 +74,7 @@ ipc(void)
 		}
 	}
 	/* Sync up with chan_hi here..*/
+	rendezvous();
 
 	printc("Thread with low priority (5):\n\trcv  %lld\n\tsend %lld\n\trtt  %lld\n\thigh->low %lld\n",
 	       rcvcost/COMM_AMNT, sendcost/COMM_AMNT, rtt/COMM_AMNT, h2l/COMM_AMNT);
