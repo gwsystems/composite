@@ -83,31 +83,50 @@ ipc(void)
 int
 main(void)
 {
+	cycles_t wakeup;
+
 	printc("Component chan lo: executing main.\n");
+
+	/* 
+	 * This sleep in both hi and lo comps lets the benchmark run
+	 * more predictably on HW and on Qemu.
+	 *
+	 * Likely because this helps the priority change in cos_init take effect!
+	 * Or because this lets the initialization of both ends of channels complete before tests start!
+	 */
+	wakeup = time_now() + time_usec2cyc(10 * 1000);
+	sched_thd_block_timeout(0, wakeup);
+
 	sender();
 	ipc();
 
 	return 0;
 }
 
+#define TEST_CHAN_ITEM_SZ   sizeof(u64_t)
+#define TEST_CHAN_NSLOTS    128
+#define TEST_CHAN_SEND_ID   2
+#define TEST_CHAN_RECV_ID   1
+#define TEST_CHAN_PRIO_SELF 5 /* chan_lo == low priority */
+
 void
 cos_init(void)
 {
 	memset(&s, 0, sizeof(struct chan_snd));
 	memset(&r, 0, sizeof(struct chan_rcv));
-	printc("Component chan lo initializing:\n\tJoin channel 2\n");
-	if (chan_snd_init_with(&s, 2, sizeof(u64_t), 128, CHAN_DEFAULT)) {
+	printc("Component chan lo initializing:\n\tJoin channel %d\n", TEST_CHAN_SEND_ID);
+	if (chan_snd_init_with(&s, TEST_CHAN_SEND_ID, TEST_CHAN_ITEM_SZ, TEST_CHAN_NSLOTS, CHAN_DEFAULT)) {
 		printc("Chan test 2 (%ld): Could not initialize send.\n", cos_compid());
 		BUG();
 	}
-	printc("\tJoin channel 1\n");
-	if (chan_rcv_init_with(&r, 1, sizeof(u64_t), 128, CHAN_DEFAULT)) {
+	printc("\tJoin channel %d\n", TEST_CHAN_RECV_ID);
+	if (chan_rcv_init_with(&r, TEST_CHAN_RECV_ID, TEST_CHAN_ITEM_SZ, TEST_CHAN_NSLOTS, CHAN_DEFAULT)) {
 		printc("Chan test 2 (%ld): Could not initialize recv.\n", cos_compid());
 		BUG();
 	}
 
-	printc("\tPriority 5 for self!\n");
-	if (sched_thd_param_set(cos_thdid(), sched_param_pack(SCHEDP_PRIO, 5))) {
+	printc("\tPriority %d for self!\n", TEST_CHAN_PRIO_SELF);
+	if (sched_thd_param_set(cos_thdid(), sched_param_pack(SCHEDP_PRIO, TEST_CHAN_PRIO_SELF))) {
 		printc("sched_thd_param_set failed.\n");
 		BUG();
 	}

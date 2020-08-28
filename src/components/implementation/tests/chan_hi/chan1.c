@@ -84,7 +84,7 @@ ipc(void)
 			assert(0);
 		}
 	}
-	//Sync up here before printing. Chan_lo is *very likely* not done with its measurements yet!
+	/* Sync up here before printing. Chan_lo is *very likely* not done with its measurements yet! */
 	rendezvous();
 
 	printc("Thread with high priority (4):\n\trcv  %lld\n\tsend %lld\n\trtt  %lld\n\tlow->high %lld\n",
@@ -94,31 +94,50 @@ ipc(void)
 int
 main(void)
 {
+	cycles_t wakeup;
+
 	printc("Component chan hi: executing main.\n");
+
+	/* 
+	 * This sleep in both hi and lo comps lets the benchmark run
+	 * more predictably on HW and on Qemu.
+	 *
+	 * Likely because this helps the priority change in cos_init take effect!
+	 * Or because this lets the initialization of both ends of channels complete before tests start!
+	 */
+	wakeup = time_now() + time_usec2cyc(10 * 1000);
+	sched_thd_block_timeout(0, wakeup);
+
 	receiver();
 	ipc();
 
 	return 0;
 }
 
+#define TEST_CHAN_ITEM_SZ   sizeof(u64_t)
+#define TEST_CHAN_NSLOTS    128
+#define TEST_CHAN_SEND_ID   1
+#define TEST_CHAN_RECV_ID   2
+#define TEST_CHAN_PRIO_SELF 4 /* chan_hi == high priority */
+
 void
 cos_init(void)
 {
 	memset(&s, 0, sizeof(struct chan_snd));
 	memset(&r, 0, sizeof(struct chan_rcv));
-	printc("Component chan hi initializing:\n\tCreate channel 1\n");
-	if (chan_snd_init_with(&s, 1, sizeof(u64_t), 128, CHAN_DEFAULT)) {
+	printc("Component chan hi initializing:\n\tCreate channel %d\n", TEST_CHAN_SEND_ID);
+	if (chan_snd_init_with(&s, TEST_CHAN_SEND_ID, TEST_CHAN_ITEM_SZ, TEST_CHAN_NSLOTS, CHAN_DEFAULT)) {
 		printc("Chan test 1 (%ld): Could not initialize send.\n", cos_compid());
 		BUG();
 	}
-	printc("\tCreate channel 2\n");
-	if (chan_rcv_init_with(&r, 2, sizeof(u64_t), 128, CHAN_DEFAULT)) {
+	printc("\tCreate channel %d\n", TEST_CHAN_RECV_ID);
+	if (chan_rcv_init_with(&r, TEST_CHAN_RECV_ID, TEST_CHAN_ITEM_SZ, TEST_CHAN_NSLOTS, CHAN_DEFAULT)) {
 		printc("Chan test 1 (%ld): Could not initialize recv.\n", cos_compid());
 		BUG();
 	}
 
-	printc("\tPriority 4 for self!\n");
-	if (sched_thd_param_set(cos_thdid(), sched_param_pack(SCHEDP_PRIO, 4))) {
+	printc("\tPriority %d for self!\n", TEST_CHAN_PRIO_SELF);
+	if (sched_thd_param_set(cos_thdid(), sched_param_pack(SCHEDP_PRIO, TEST_CHAN_PRIO_SELF))) {
 		printc("sched_thd_param_set failed.\n");
 		assert(0);
 	}
