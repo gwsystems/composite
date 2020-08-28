@@ -120,6 +120,13 @@ It gives me qemu 2.12 on ubuntu 18.04, and that goes straight to the uboot promp
    load mmc 0:1 00100000 cos.img.bin
    go 00100000
    ```
+   I added an environment variable through uboot source, `cosboot` that does the above for you.
+   So, instead of the above steps, you may just do this to boot composite:
+   ```
+   run cosboot
+   ```
+   **if this doesn't work, do printenv and confirm if `cosboot` exists in the environment**
+   
 1. This should ideally boot your system up, if you've a working Composite kernel and user-level, you'll see the output for kernel_test running some benchmarks!
 
 ## HW execution
