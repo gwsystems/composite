@@ -94,6 +94,7 @@ chanmgr_mem_resources(chan_id_t id, cbuf_t *cb_id, void **mem)
 	chinfo = ss_channel_get(id);
 	if (!chinfo) return -1;
 
+	*mem   = chinfo->mem;
 	*cb_id = chinfo->buf_id;
 
 	return 0;

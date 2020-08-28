@@ -76,13 +76,14 @@ __chan_init_with(struct __chan_meta *meta, sched_blkpt_id_t full, sched_blkpt_id
 	struct __chan_mem *m = mem;
 
 	/* Certainly don't "initialize" if channel has been produced into! */
-	if (m->producer != 0) return;
+	if (m->producer != 0) goto done;
 
 	crt_blkpt_init_w_id(&m->empty, empty);
 	crt_blkpt_init_w_id(&m->full,  full);
 
 	m->producer = m->consumer = 0;
 
+done:
 	meta->mem = m;
 
 	return;

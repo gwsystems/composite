@@ -507,6 +507,7 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 
 	sched_param_get(sp, &type, &value);
 
+	sl_cs_enter();
 	switch (type) {
 	case SCHEDP_WINDOW:
 	{
@@ -523,6 +524,7 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 	}
 
 	sl_mod_thd_param_set(sl_mod_thd_policy_get(t), type, value);
+	sl_cs_exit();
 }
 
 void
