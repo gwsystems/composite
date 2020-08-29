@@ -109,7 +109,7 @@ sudo apt-get upgrade
 ```
 It gives me qemu 2.12 on ubuntu 18.04, and that goes straight to the uboot prompt and boots Cos kernel, so sufficient I guess.
 
-1. Make sure the paths in `./tools/arm_runqemu.sh` are correct. Mainly, the uboot.elf is expected to be in `<composite_clone>/../cos_u-boot-xlnx/`. 
+1. Make sure the paths in `./tools/arm_qemurun.sh` are correct. Mainly, the uboot.elf is expected to be in `<composite_clone>/../cos_u-boot-xlnx/`. 
 1. `./tools/arm_qemurun.sh all system_binaries/kernel_test_1/`
 1. Key in this command:
    ```
@@ -172,6 +172,10 @@ Forking is taking too long.
 - For TFTP boot to work, your host and the board must be connected to the same local network. Have the tftp server installed on the host. I followed [this](https://linuxhint.com/install_tftp_server_ubuntu/)
 
 - This creates `/srv/tftp` directory on the host. All you need to do after building `Composite` is to copy the `cos.img.bin` to that directory.
+  Ex: 
+  ```
+  cp <workspace>/<composite>/system_binaries/cos_build-kernel_test_1/cos.img.bin /srv/tftp
+  ```
 
 - On the board, stop at u-boot prompt:
   - in my setup, i have both the board and host machine connected to the router which provides dhcp IP addresses. so I'm not setting static ip for the board.
