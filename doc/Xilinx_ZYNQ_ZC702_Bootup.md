@@ -8,7 +8,7 @@ This document should spell out the details for how to bootup Composite on that b
 
 You need arm-none-eabi-gcc installed, git, qemu-system-arm, etc.
 ```
-sudo apt install gcc-arm-none-eabi qemu git build-essential binutils-dev bison flex minicom libssl-dev qemu
+sudo apt install gcc-arm-none-eabi qemu git build-essential binutils-dev bison flex minicom libssl-dev
 ```
 Also need rust installed. Follow [this](https://doc.rust-lang.org/cargo/getting-started/installation.html)
 
@@ -110,7 +110,7 @@ sudo apt-get upgrade
 It gives me qemu 2.12 on ubuntu 18.04, and that goes straight to the uboot prompt and boots Cos kernel, so sufficient I guess.
 
 1. Make sure the paths in `./tools/arm_runqemu.sh` are correct. Mainly, the uboot.elf is expected to be in `<composite_clone>/../cos_u-boot-xlnx/`. 
-1. `./tools/arm_runqemu.sh all system_binaries/kernel_test_1/`
+1. `./tools/arm_qemurun.sh all system_binaries/kernel_test_1/`
 1. Key in this command:
    ```
    load mmc 0:1 00100000 cos.img.bin && go 00100000
@@ -201,7 +201,7 @@ To compile: `./cos compose composition_scripts/kernel_test.toml kernel_test_arm`
 This generates binaries in `<composite>/system_binaries/cos_build-kernel_test_arm/` directory.
 
 To run on Qemu: 
-1. `./tools/arm_runqemu.sh all system_binaries/cos_build-kernel_test_arm/`
+1. `./tools/arm_qemurun.sh all system_binaries/cos_build-kernel_test_arm/`
 2. Follow the steps from the Qemu section
 
 To run on HW: 
@@ -214,7 +214,7 @@ To compile: `./cos compose composition_scripts/ping_pong.toml ping_pong_arm`
 This generates binaries in `<composite>/system_binaries/cos_build-ping_pong_arm/` directory.
 
 To run on Qemu: 
-1. `./tools/arm_runqemu.sh all system_binaries/cos_build-ping_pong_arm/`
+1. `./tools/arm_qemurun.sh all system_binaries/cos_build-ping_pong_arm/`
 2. Follow the steps from the Qemu section
 
 To run on HW: 
@@ -227,7 +227,7 @@ To compile: `./cos compose composition_scripts/sched.toml sched_arm`
 This generates binaries in `<composite>/system_binaries/cos_build-sched_arm/` directory.
 
 To run on Qemu: 
-1. `./tools/arm_runqemu.sh all system_binaries/cos_build-sched_arm/`
+1. `./tools/arm_qemurun.sh all system_binaries/cos_build-sched_arm/`
 2. Follow the steps from the Qemu section
 
 To run on HW: 
@@ -239,7 +239,7 @@ To run on HW:
 To compile: `./cos compose composition_scripts/sched_ping_pong.toml sched_ping_pong_arm`
 This generates binaries in `<composite>/system_binaries/cos_build-sched_ping_pong_arm/` directory.
 
-To run on Qemu: `./tools/arm_runqemu.sh all system_binaries/cos_build-sched_ping_pong_arm/`
+To run on Qemu: `./tools/arm_qemurun.sh all system_binaries/cos_build-sched_ping_pong_arm/`
 
 To run on HW: 
 1. `cp system_binaries/cos_build-sched_ping_pong_arm/cos.img.bin /srv/tftp`
@@ -247,13 +247,11 @@ To run on HW:
 
 ### chan_evt
 
-Debugging this right now! Boots up just fine, debugging the performance numbers and stability!
-
 To compile: `./cos compose composition_scripts/chan_evt.toml chan_evt_arm`
 This generates binaries in `<composite>/system_binaries/cos_build-chan_evt_arm/` directory.
 
 To run on Qemu: 
-1. `./tools/arm_runqemu.sh all system_binaries/cos_build-chan_evt_arm/`
+1. `./tools/arm_qemurun.sh all system_binaries/cos_build-chan_evt_arm/`
 2. Follow the steps from the Qemu section
 
 To run on HW: 
