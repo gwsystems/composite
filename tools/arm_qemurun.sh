@@ -15,7 +15,7 @@ QEMU=qemu-system-arm
 MACHINE=xilinx-zynq-a9
 
 cleanuploop() {
-	sudo umount -q $LOCALDIRNAME
+	sudo umount $LOCALDIRNAME
 	LOOPDEVNAME=`losetup -l | grep uboot.disk | cut -f1 -d' '`
 	if [ "$LOOPDEVNAME" != "" ]; then
 		echo $LOOPDEVNAME 
