@@ -9,7 +9,7 @@ KERNELDIR=$2/
 KERNELBIN=cos.img.bin
 LOCALDIRNAME=$TMPDIR/p1
 UBOOTELF=u-boot.elf
-UBOOTDIR=~/research/cos_u-boot-xlnx/
+UBOOTDIR=$2/../../../cos_u-boot-xlnx/
 
 QEMU=qemu-system-arm
 MACHINE=xilinx-zynq-a9
