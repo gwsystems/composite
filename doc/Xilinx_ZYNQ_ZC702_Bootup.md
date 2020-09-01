@@ -121,9 +121,10 @@ It gives me qemu 2.12 on ubuntu 18.04, and that goes straight to the uboot promp
    go 00100000
    ```
    I added an environment variable through uboot source, `cosboot` that does the above for you.
+   This environment variable is added in this commit:https://github.com/gwsystems/u-boot-xlnx/commit/9f8ef4503ed63f2029bdf5deb7438ec9514bb784, so make sure you pull the latest for this to work!
    So, instead of the above steps, you may just do this to boot composite:
    ```
-   run cosboot (current't don't work for now, env var does not exist)
+   run cosboot
    ```
    **if this doesn't work, do printenv and confirm if `cosboot` exists in the environment**
    
