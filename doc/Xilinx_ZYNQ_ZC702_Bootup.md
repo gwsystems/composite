@@ -86,7 +86,7 @@ Branch: loaderarm
 - Go back to <composite_clone> directory
 - `./cos compose composition_scripts/kernel_test.toml kernel_test_1`
 
-This generates `cos.img.bin` in `system_binaries/kernel_test_1/` directory, which we will boot from u-boot built in the previous step.
+This generates `cos.img.bin` in `system_binaries/cos_build-kernel_test_1/` directory, which we will boot from u-boot built in the previous step.
 
 If you made changes in the libs or components, you can also compile them from the composite root directory:
 - `./cos reset`
@@ -110,7 +110,7 @@ sudo apt-get upgrade
 It gives me qemu 2.12 on ubuntu 18.04, and that goes straight to the uboot prompt and boots Cos kernel, so sufficient I guess.
 
 1. Make sure the paths in `./tools/arm_qemurun.sh` are correct. Mainly, the uboot.elf is expected to be in `<composite_clone>/../cos_u-boot-xlnx/`. 
-1. `./tools/arm_qemurun.sh all system_binaries/kernel_test_1/`
+1. `./tools/arm_qemurun.sh all system_binaries/cos_build-kernel_test_1/`
 1. Key in this command:
    ```
    load mmc 0:1 00100000 cos.img.bin && go 00100000
@@ -123,7 +123,7 @@ It gives me qemu 2.12 on ubuntu 18.04, and that goes straight to the uboot promp
    I added an environment variable through uboot source, `cosboot` that does the above for you.
    So, instead of the above steps, you may just do this to boot composite:
    ```
-   run cosboot
+   run cosboot (current't don't work for now, env var does not exist)
    ```
    **if this doesn't work, do printenv and confirm if `cosboot` exists in the environment**
    
