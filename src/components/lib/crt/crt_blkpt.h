@@ -239,8 +239,8 @@ crt_blkpt_id_trigger(struct crt_blkpt *blkpt, sched_blkpt_id_t id, crt_blkpt_fla
 	 */
 	sched_blkpt_epoch_t saved = ps_load(&blkpt->epoch_blocked);
 
-	/* The optimization: don't increment events if noone's listening */
-	if (likely(!CRT_BLKPT_BLKED(saved))) return;
+	/* TODO:The optimization: don't increment events if noone's listening - race pending! */
+	/* if (likely(!CRT_BLKPT_BLKED(saved))) return; */
 
 	/* slow(er) path for when we have blocked threads */
 	if (!__crt_blkpt_atomic_trigger(&blkpt->epoch_blocked, saved, flags)) {

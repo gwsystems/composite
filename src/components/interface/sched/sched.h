@@ -21,6 +21,8 @@
 
 #include <cos_stubs.h>
 
+int      sched_thd_yield_to(thdid_t t);
+int      COS_STUB_DECL(sched_thd_yield_to)(thdid_t t);
 int      sched_thd_wakeup(thdid_t t);
 int      COS_STUB_DECL(sched_thd_wakeup)(thdid_t t);
 int      sched_thd_block(thdid_t dep_id);

@@ -7,10 +7,11 @@
 
 #include <cos_asm_stubs.h>
 
+cos_asm_stub(sched_thd_yield_to);
 cos_asm_stub(sched_thd_wakeup);
 cos_asm_stub(sched_thd_block);
-cos_asm_stub(sched_blkpt_alloc)	;
-cos_asm_stub(sched_blkpt_free)	;
+cos_asm_stub(sched_blkpt_alloc);
+cos_asm_stub(sched_blkpt_free);
 cos_asm_stub(sched_blkpt_trigger) ;
 cos_asm_stub(sched_blkpt_block) ;
 cos_asm_stub_indirect(sched_thd_block_timeout);
