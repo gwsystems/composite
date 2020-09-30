@@ -73,7 +73,7 @@ crt_sem_take(struct crt_sem *s)
 
 	while (1) {
 		crt_blkpt_checkpoint(&s->blkpt, &chkpt);
-		if (ps_faa(&s->rescnt, -1) >= CONCURRENT_TAKES) {
+		if (ps_faa(&s->rescnt, -1) > CONCURRENT_TAKES) {
 			return;	/* success! */
 		}
 		/* failure: try and block */
@@ -93,7 +93,7 @@ crt_sem_take(struct crt_sem *s)
 static inline int
 crt_sem_try_take(struct crt_sem *s)
 {
-	if (ps_faa(&s->rescnt, -1) >= CONCURRENT_TAKES) {
+	if (ps_faa(&s->rescnt, -1) > CONCURRENT_TAKES) {
 		return 0;	/* success! */
 	}
 	ps_faa(&s->rescnt, 1);

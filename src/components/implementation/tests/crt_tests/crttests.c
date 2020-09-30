@@ -293,7 +293,7 @@ test_sem(void)
 		SCHED_PARAM_CONS(SCHEDP_PRIO, 6)
 	};
 
-	crt_sem_init(&sem, 0);
+	crt_sem_init(&sem, 1);
 
 	printc("Create threads:\n");
 	for (i = 0; i < NSEMTHDS; i++) {

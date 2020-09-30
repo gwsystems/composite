@@ -60,8 +60,8 @@ tmrmgr_create(unsigned int usecs, tmr_flags_t flags)
 
 /**
  * Start the timer. The timer must be manually started after creation, no matter if it is
- * periodic or one-shot. One-shot timers can be started over and over again. Also, we may not start
- * a timer if it is not associated with a event.
+ * periodic or one-shot. One-shot timers can be started over and over again. Also, we may
+ * not start a timer if it is not associated with a event.
  */
 int
 tmrmgr_start(tmr_id_t id)
@@ -90,7 +90,6 @@ tmrmgr_start(tmr_id_t id)
 
 /**
  * Stop the timer. Nothing will happen if we try to stop a timer that is already stopped.
- * Currently unimplemented.
  */
 int
 tmrmgr_stop(tmr_id_t id)
