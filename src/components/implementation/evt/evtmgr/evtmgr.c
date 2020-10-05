@@ -116,6 +116,8 @@ __evt_get(evt_id_t id, evt_wait_flags_t flags, evt_res_type_t *src, evt_res_data
 		if (!ring_dequeue(&e->ring, &rid)) break;
 		if (flags & EVT_WAIT_NONBLOCKING) return 1;
 
+		if (crt_blkpt_blocking(&e->blkpt, 0, &chkpt)) continue;
+		if (!ring_empty(&e->ring)) continue;
 		crt_blkpt_wait(&e->blkpt, 0, &chkpt);
 	}
 

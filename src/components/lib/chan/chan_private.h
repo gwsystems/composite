@@ -159,6 +159,11 @@ __chan_send_pow2(struct chan_snd *s, void *item, u32_t wraparound_mask, u32_t it
 			break;
 		}
 		if (!blking) return 1;
+
+		/* Post that we want to block */
+		if (crt_blkpt_id_blocking(&m->full, s->meta.blkpt_full_id, 0, &chkpt)) continue;
+		/* has a preemption before wait opened an empty slot? */
+		if (!__chan_full_pow2(m, wraparound_mask)) continue;
 		crt_blkpt_id_wait(&m->full, s->meta.blkpt_full_id, 0, &chkpt);
 	}
 
@@ -180,6 +185,10 @@ __chan_recv_pow2(struct chan_rcv *r, void *item, u32_t wraparound_mask, u32_t it
 			break;
 		}
 		if (!blking) return 1;
+		/* Post that we want to block */
+		if (crt_blkpt_id_blocking(&m->empty, r->meta.blkpt_empty_id, 0, &chkpt)) continue;
+		/* has a preemption before wait added data into a slot? */
+		if (!__chan_empty_pow2(m, wraparound_mask)) continue;
 		crt_blkpt_id_wait(&m->empty, r->meta.blkpt_empty_id, 0, &chkpt);
 	}
 

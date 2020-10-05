@@ -141,6 +141,8 @@ __crt_static_chan_send(struct crt_static_chan *c, void *item, u32_t wraparound_m
 			crt_blkpt_trigger(&c->empty, 0);
 			break;
 		}
+		if (crt_blkpt_blocking(&c->full, 0, &chkpt)) continue;
+		if (!__crt_static_chan_full(c, wraparound_mask)) continue;
 		crt_blkpt_wait(&c->full, 0, &chkpt);
 	}
 
@@ -159,6 +161,8 @@ __crt_static_chan_recv(struct crt_static_chan *c, void *item, u32_t wraparound_m
 			crt_blkpt_trigger(&c->full, 0);
 			break;
 		}
+		if (crt_blkpt_blocking(&c->empty, 0, &chkpt)) continue;
+		if (!__crt_static_chan_empty(c, wraparound_mask)) continue;
 		crt_blkpt_wait(&c->empty, 0, &chkpt);
 	}
 
