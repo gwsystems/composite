@@ -135,6 +135,11 @@ typedef enum {
 #define CRT_BLKPT_BLKED(e)         ((e) &  CRT_BLKPT_BLKED_MASK)
 #define CRT_BLKPT_EPOCH(e)         ((e) & ~CRT_BLKPT_BLKED_MASK)
 
+/**
+ * If a blockpoint has already been allocated, we can use it
+ * here. This does *not* allocate anything, and just uses an existing
+ * blockpoint.
+ */
 static inline void
 crt_blkpt_init_w_id(struct crt_blkpt *blkpt, sched_blkpt_id_t id)
 {
@@ -146,7 +151,11 @@ crt_blkpt_init_w_id(struct crt_blkpt *blkpt, sched_blkpt_id_t id)
 	return;
 }
 
-/* Return != 0 on failure: no ids to allocate */
+/**
+ * Initialize the blockpoint, and allocate the scheduler's blockpoint.
+ *
+ * @return - `!0` on failure: no ids to allocate
+ */
 static inline int
 crt_blkpt_init(struct crt_blkpt *blkpt)
 {
@@ -160,6 +169,12 @@ crt_blkpt_init(struct crt_blkpt *blkpt)
 	return 0;
 }
 
+/**
+ * Deallocate the blkpt.
+ *
+ * - @return - `0` on success, `!0` if somehow the blockpoint's id got out
+ *   of sync with the scheduler.
+ */
 static inline int
 crt_blkpt_teardown(struct crt_blkpt *blkpt)
 {
@@ -167,6 +182,11 @@ crt_blkpt_teardown(struct crt_blkpt *blkpt)
 }
 
 /* Internal APIs that must be inlined to remove the branches */
+
+/*
+ * Return `1` if the cas is successful, and `0` if it isn't successful
+ * (and we likely need to do a retry).
+ */
 static inline int
 __crt_blkpt_atomic_trigger(sched_blkpt_epoch_t *ec, sched_blkpt_epoch_t chkpt, crt_blkpt_flags_t flags)
 {
@@ -195,7 +215,7 @@ static inline int
 __crt_blkpt_atomic_wait(sched_blkpt_epoch_t *ec, sched_blkpt_epoch_t chkpt, crt_blkpt_flags_t flags)
 {
 	sched_blkpt_epoch_t cached = ps_load(ec);
-	sched_blkpt_epoch_t new    = cached | CRT_BLKPT_BLKED_MASK;
+	sched_blkpt_epoch_t new    = chkpt | CRT_BLKPT_BLKED_MASK;
 	int ret;
 
 	/*
@@ -228,9 +248,25 @@ __crt_blkpt_atomic_wait(sched_blkpt_epoch_t *ec, sched_blkpt_epoch_t chkpt, crt_
 	return 1;
 }
 
-/* Trigger an event, waking blocked threads. */
+/**
+ * Trigger an event, waking blocked threads. Will only wake blocked
+ * threads if 1. the blocked bit is set in the blkpt (which means that
+ * you have be careful of the race between when the data-structure is
+ * observed to require blocking, and when the blocking thread sets the
+ * block bit), or 2. if you explicitly tell the API that there are
+ * blocked threads (external to the blkpt).
+ *
+ * - @blkpt - the blockpoint including the (blocked x epoch)
+ * - @id -    the id to use for the blockpoint (it might be separate from
+ *            the blkpt in some cases).
+ * - @blked - If we know due to context *outside* of the blockpoint
+ *            that a thread is blocked, we pass `1` here. Otherwise,
+ *            pass `0`, and the normal blockpoint lock (and blocked
+ *            bit) are used.
+ * - @flags - Flags to modify the blockpoint's behavior.
+ */
 static inline void
-crt_blkpt_id_trigger(struct crt_blkpt *blkpt, sched_blkpt_id_t id, crt_blkpt_flags_t flags)
+crt_blkpt_id_activate(struct crt_blkpt *blkpt, sched_blkpt_id_t id, int blocked, crt_blkpt_flags_t flags)
 {
 	/*
 	 * Note that the flags should likely be passed in statically,
@@ -239,8 +275,8 @@ crt_blkpt_id_trigger(struct crt_blkpt *blkpt, sched_blkpt_id_t id, crt_blkpt_fla
 	 */
 	sched_blkpt_epoch_t saved = ps_load(&blkpt->epoch_blocked);
 
-	/* TODO:The optimization: don't increment events if noone's listening - race pending! */
-	/* if (likely(!CRT_BLKPT_BLKED(saved))) return; */
+	/* The optimization: don't increment events if noone's listening */
+	if (!blocked && likely(!CRT_BLKPT_BLKED(saved))) return;
 
 	/* slow(er) path for when we have blocked threads */
 	if (!__crt_blkpt_atomic_trigger(&blkpt->epoch_blocked, saved, flags)) {
@@ -261,22 +297,55 @@ crt_blkpt_id_trigger(struct crt_blkpt *blkpt, sched_blkpt_id_t id, crt_blkpt_fla
 	sched_blkpt_trigger(id, CRT_BLKPT_EPOCH(saved + 1), 0);
 }
 
+/**
+ * Trigger an event on the blockpoint. This will *only* attempt to
+ * wake up threads if they have been previously
+ * `crt_blkpt_blocking`ed, thus blocking is tracked in the
+ * blockpoint itself. See the `chan` library for examples of this.
+ */
+static inline void
+crt_blkpt_id_trigger(struct crt_blkpt *blkpt, sched_blkpt_id_t id, crt_blkpt_flags_t flags)
+{
+	crt_blkpt_id_activate(blkpt, id, 0, flags);
+}
+
 static inline void
 crt_blkpt_trigger(struct crt_blkpt *blkpt, crt_blkpt_flags_t flags)
 {
 	crt_blkpt_id_trigger(blkpt, blkpt->id, flags);
 }
 
+/**
+ * Wake up blocked threads on a blocked point. We have observed
+ * blocked threads as tracked by the data-structure. See the
+ * `crt_lock` for an example of this. This API should *not* be used
+ * with the `crt_blkpt_blocking` API.
+ */
+static inline void
+crt_blkpt_id_wake(struct crt_blkpt *blkpt, sched_blkpt_id_t id, crt_blkpt_flags_t flags)
+{
+	crt_blkpt_id_activate(blkpt, id, 1, flags);
+}
+
+static inline void
+crt_blkpt_wake(struct crt_blkpt *blkpt, crt_blkpt_flags_t flags)
+{
+	crt_blkpt_id_wake(blkpt, blkpt->id, flags);
+}
+
 /* Wake only a single, specified thread (tracked manually in the data-structure) */
 /* void crt_blkpt_trigger_one(struct crt_blkpt *blkpt, crt_blkpt_flags_t flags, cos_thdid_t thdid); */
 
-/*
+/**
  * Checkpoint the state of the current event counter. This checkpoint
  * is the one that is active during our operations on the
  * data-structure. If we determine that we want to wait for an event
  * (thus blocking), then the state of the checkpoint will be compared
  * versus the state of the event counter to see if we're working off
  * of outdated information.
+ *
+ * - @blkpt - the blockpoint to checkpoint
+ * - @chkpt - the memory to take the checkpoint into
  */
 static inline void
 crt_blkpt_checkpoint(struct crt_blkpt *blkpt, struct crt_blkpt_checkpoint *chkpt)
@@ -284,20 +353,50 @@ crt_blkpt_checkpoint(struct crt_blkpt *blkpt, struct crt_blkpt_checkpoint *chkpt
 	chkpt->epoch_blocked = ps_load(&blkpt->epoch_blocked);
 }
 
-/* Wait for an event. */
+/**
+ * Set the "blocked" status of the blockpoint. This is used *separate*
+ * from `crt_blkpt_wait` only if the data-structure we're waiting for
+ * doesn't track if threads are blocked on it or not. We can re-check
+ * the data-structure after setting block for if we should indeed
+ * block. This avoids the race when we check the data-structure, find
+ * we should block, and then before we set the blkpt to "blocked", the
+ * triggering thread goes through, and doesn't actually call the
+ * scheduler's trigger, thus *losing the wakeup*.
+ *
+ * - @blkpt  - the blockpoint
+ * - @id     - blockpoint id
+ * - @flags  - optional flags
+ * - @return - `1` if the atomic operation has failed, and `0`
+ *             otherwise.
+ */
+static inline int
+crt_blkpt_id_blocking(struct crt_blkpt *blkpt, sched_blkpt_id_t id, crt_blkpt_flags_t flags, struct crt_blkpt_checkpoint *chkpt)
+{
+	/* only set blocked if it isn't already */
+	if (CRT_BLKPT_BLKED(chkpt->epoch_blocked)) return 0;
+	return !__crt_blkpt_atomic_wait(&blkpt->epoch_blocked, chkpt->epoch_blocked, flags);
+}
+
+static inline int
+crt_blkpt_blocking(struct crt_blkpt *blkpt, crt_blkpt_flags_t flags, struct crt_blkpt_checkpoint *chkpt)
+{
+	return crt_blkpt_id_blocking(blkpt, blkpt->id, flags, chkpt);
+}
+
+/**
+ * Wait for an event. The @precondition here is that we've already
+ * indicated that we're blocking. This could have been either through
+ * calling `crt_blkpt_blocking`, or using a data-structure-specific
+ * indicator of blocked threads.
+ *
+ * - @blkpt  - the blockpoint
+ * - @id     - blockpoint id
+ * - @flags  - optional flags
+ * - @chkpt  - the previously taken checkpoint
+ */
 static inline void
 crt_blkpt_id_wait(struct crt_blkpt *blkpt, sched_blkpt_id_t id, crt_blkpt_flags_t flags, struct crt_blkpt_checkpoint *chkpt)
 {
-	/*
-	 * If blocked is already set, we can try and block
-	 * directly. Otherwise, go through and try to atomically set
-	 * it. If that fails, then either epoch or blocked has been
-	 * updated, so return and try accessing the data-structure
-	 * again.
-	 */
-	if (!CRT_BLKPT_BLKED(chkpt->epoch_blocked) &&
-	    !__crt_blkpt_atomic_wait(&blkpt->epoch_blocked, chkpt->epoch_blocked, flags)) return;
-
 	if (unlikely(sched_blkpt_block(id, CRT_BLKPT_EPOCH(chkpt->epoch_blocked), 0))) {
 		BUG(); 		/* we are using a blkpt id that doesn't exist! */
 	}

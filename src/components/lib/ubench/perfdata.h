@@ -1,5 +1,5 @@
 /*
- * Copyright 2019, Phani Gadepalli and Sebastian Foubert
+ * Copyright 2019, Phani Gadepalli, Sebastian Foubert and Runyu Pan
  *
  * This uses a two clause BSD License.
  */
@@ -16,7 +16,7 @@
 #endif
 
 #define PERF_VAL_MIN_SZ    10
-#define PERF_DATA_NAME     32
+#define PERF_DATA_NAME     64
 #define PERF_PTILE_SZ      3
 
 #define PERF_DATA_DEBUG
@@ -31,7 +31,7 @@ struct perfdata {
 	char      name[PERF_DATA_NAME];
 	cycles_t *values;
 	int       sz;
-	int	      array_size;
+	int	  array_size;
 	cycles_t  min, max, avg, total;
 	cycles_t  sd, var;
 	cycles_t  ptiles[PERF_PTILE_SZ]; /* 90, 95, 99 */
@@ -231,6 +231,21 @@ perfdata_print(struct perfdata *pd)
 {
 	printc("PD:%s -sz:%d,SD:%llu,Mean:%llu,99%%:%llu, Max: %llu\n", 
 		pd->name, pd->sz, pd->sd, pd->avg, pd->ptiles[PTILE_99], pd->max);
+}
+
+static void
+perfdata_all(struct perfdata *pd)
+{
+	int i;
+
+	perfdata_print(pd);
+	
+	printc(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n");
+	
+	printc("#Latency\n");
+	for (i = 0 ; i < pd->sz ; i++) printc("V: %llu\n", pd->values[i]);
+	
+	printc("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n\n");
 }
 
 #endif /* PERFDATA_H */

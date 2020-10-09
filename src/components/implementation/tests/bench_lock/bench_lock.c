@@ -8,6 +8,7 @@
 #include <sched.h>
 
 #include <crt_lock.h>
+#include <perfdata.h>
 
 #undef LOCK_TRACE_DEBUG
 #ifdef LOCK_TRACE_DEBUG
@@ -18,7 +19,7 @@
 
 /* One low-priority thread and one high-priority thread contends on the lock */
 #define ITERATION 10000
-
+#define PRINT_ALL
 
 struct crt_lock lock;
 thdid_t lock_hi = 0, lock_lo = 0;
@@ -27,18 +28,8 @@ volatile int flag = 0;
 volatile cycles_t start;
 volatile cycles_t end;
 
-cycles_t results[ITERATION] = {0, };
-
-cycles_t
-average(cycles_t* array, int num)
-{
-	int i;
-	cycles_t sum = 0;
-	
-	for (i = 0; i < num; i++) sum += array[i];
-	
-	return sum / num;
-}
+struct perfdata perf;
+cycles_t result[ITERATION] = {0, };
 
 /***
  * The high priority thread periodically challenges the lock while the low priority thread keeps spinning.
@@ -50,19 +41,18 @@ lock_hi_thd(void *d)
 {
 	/* Never stops running; low priority controls how many iters to run. */
 	while (1) {
-		debug("h1");
+		debug("h1,");
 		sched_thd_block(0);
 		sched_thd_block_timeout(0, time_now() + time_usec2cyc(1000));
 		
-		debug("h2");
+		debug("h2,");
 		flag = 1;
 		start = time_now();
-		
 		crt_lock_take(&lock);
 		crt_lock_release(&lock);
 
 		end = time_now();
-		debug("h3");
+		debug("h3,");
 	}
 }
 
@@ -70,25 +60,31 @@ void
 lock_lo_thd(void *d)
 {
 	int i;
+	int first = 0;
 
-	for (i = 0; i < ITERATION; i++) {
-		debug("l1");
+	for (i = 0; i < ITERATION + 1; i++) {
+		debug("l1,");
 		sched_thd_wakeup(lock_hi);
 
-		debug("l2");
+		debug("l2,");
 		flag = 0;
 		crt_lock_take(&lock);
 		
-		debug("l3");
+		debug("l3,");
 		while (flag != 1) {}
-		
 		crt_lock_release(&lock);
 		
-		results[i]=end-start;
-		debug("l4");
+		if (first == 0) first = 1;
+		else perfdata_add(&perf, end - start);
+		debug("l4,");
 	}
 	
-	printc("Contended: take+release %lld\n", average(results, ITERATION));
+	perfdata_calc(&perf);
+#ifdef PRINT_ALL
+	perfdata_all(&perf);
+#else
+	perfdata_print(&perf);
+#endif
 
 	while (1) ;
 }
@@ -97,6 +93,7 @@ void
 test_lock(void)
 {
 	int i;
+	int first = 0;
 	
 	sched_param_t sps[] = {
 		SCHED_PARAM_CONS(SCHEDP_PRIO, 4),
@@ -106,20 +103,26 @@ test_lock(void)
 	crt_lock_init(&lock);
 	
 	/* Uncontended lock taking/releasing */
-	for (i = 0; i < ITERATION; i++) {
+	perfdata_init(&perf, "Uncontended lock - take+release", result, ITERATION);
+	for (i = 0; i < ITERATION + 1; i++) {
 		start = time_now();
-		
+
 		crt_lock_take(&lock);
 		crt_lock_release(&lock);
 
 		end = time_now();
-		results[i] = end - start;
+		if (first == 0) first = 1;
+		else perfdata_add(&perf, end - start);
 	}
+	perfdata_calc(&perf);
+#ifdef PRINT_ALL
+	perfdata_all(&perf);
+#else
+	perfdata_print(&perf);
+#endif
+
+	perfdata_init(&perf, "Contended lock - take+release", result, ITERATION);
 	
-	printc("Uncontended: take+release %lld\n", average(results, ITERATION));
-
-	memset(results, 0, sizeof(results));
-
 	printc("Create threads:\n");
 	
 	lock_lo = sched_thd_create(lock_lo_thd, NULL);
@@ -129,12 +132,14 @@ test_lock(void)
 	lock_hi = sched_thd_create(lock_hi_thd, NULL);
 	printc("\tcreating hi thread %d at prio %d\n", lock_hi, sps[0]);
 	sched_thd_param_set(lock_hi, sps[0]);
+	
+	
 }
 
 void
 cos_init(void)
 {
-	printc("Benchmark for the crt_sem (w/sched interface).\n");
+	printc("Benchmark for the crt_lock (w/sched interface).\n");
 }
 
 int

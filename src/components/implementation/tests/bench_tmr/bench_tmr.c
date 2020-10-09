@@ -9,6 +9,7 @@
 
 #include <evt.h>
 #include <tmr.h>
+#include <perfdata.h>
 
 #undef TMR_TRACE_DEBUG
 #ifdef TMR_TRACE_DEBUG
@@ -18,9 +19,11 @@
 #endif
 
 /* High-priority thread interrupts the low-priority thread by timer ticks */
-#define ITERATION		1000
+#define ITERATION		10000
 #define TMR_PERIODIC_TIME	10000
 #define DROP_THRESHOLD		0x1000000U
+
+#define PRINT_ALL
 
 thdid_t tmr_hi = 0, tmr_lo = 0;
 
@@ -28,18 +31,8 @@ typedef unsigned int cycles_32_t;
 volatile cycles_32_t start;
 volatile cycles_32_t end;
 
-cycles_t results[ITERATION] = {0, };
-
-cycles_t
-average(cycles_t* array, int num)
-{
-	int i;
-	cycles_t sum = 0;
-	
-	for (i = 0; i < num; i++) sum += array[i];
-	
-	return sum / num;
-}
+struct perfdata perf;
+cycles_t result[ITERATION] = {0, };
 
 /***
  * The high priority thread sets up a periodic timer while the low priority thread keeps looping and updating
@@ -55,6 +48,7 @@ tmr_hi_thd(void *d)
 	evt_res_id_t evt_id;
 	evt_res_data_t evtdata;
 	evt_res_type_t  evtsrc;
+	int first = 0;
 	
 	printc("Call into timer manager to make a timer.\n");
 	assert(tmr_init(&t, TMR_PERIODIC_TIME, TMR_PERIODIC) == 0);
@@ -75,19 +69,25 @@ tmr_hi_thd(void *d)
 
 	/* Event loop */
 	i = 0;
- 	while (i < ITERATION) {
+ 	while (i < ITERATION + 1) {
 		evt_get(&e, EVT_WAIT_DEFAULT, &evtsrc, &evtdata);
 		end = (cycles_32_t)time_now();
 
 		if ((end - start) > DROP_THRESHOLD) continue;
 		
-		results[i] = end - start;
-		debug("%lld.\n", results[i]);
+		if (first == 0) first = 1;
+		else perfdata_add(&perf, end - start);
+		debug("%lld.\n", end - start);
 		
 		i++;
 	}
-	
-	printc("Timer: total latency %lld\n", average(results, ITERATION));
+
+	perfdata_calc(&perf);
+#ifdef PRINT_ALL
+	perfdata_all(&perf);
+#else
+	perfdata_print(&perf);
+#endif
 
 	while (1) ;
 }
@@ -110,6 +110,9 @@ test_tmr(void)
 		SCHED_PARAM_CONS(SCHEDP_PRIO, 4),
 		SCHED_PARAM_CONS(SCHEDP_PRIO, 6)
 	};
+	
+	
+	perfdata_init(&perf, "Timer latency - total", result, ITERATION);
 
 	printc("Create threads:\n");
 	

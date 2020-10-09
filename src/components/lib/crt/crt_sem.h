@@ -19,9 +19,14 @@
 #define CONCURRENT_TAKES	1000
 
 struct crt_sem {
-	unsigned long rescnt;
+	unsigned long rescnt_blked;
 	struct crt_blkpt blkpt;
 };
+
+#define CRT_SEM_OWNER_BLKED_BITS  (sizeof(unsigned long) * 8)
+#define CRT_SEM_BLKED_MASK        (1 << (CRT_SEM_OWNER_BLKED_BITS - 2))
+#define CRT_SEM_BLKED(e)          ((e) &  CRT_SEM_BLKED_MASK)
+#define CRT_SEM_RESCNT(e)         ((e) & ~CRT_SEM_BLKED_MASK)
 
 /**
  * Initialize a semaphore. Does *not* allocate memory for it, and assumes
@@ -37,7 +42,7 @@ crt_sem_init(struct crt_sem *s, unsigned long resnum)
 {
 	if (resnum >= MAX_SEMS) return -1;
 
-	s->rescnt = resnum + CONCURRENT_TAKES;
+	s->rescnt_blked = resnum + CONCURRENT_TAKES;
 
 	return crt_blkpt_init(&s->blkpt);
 }
@@ -56,6 +61,12 @@ crt_sem_init(struct crt_sem *s, unsigned long resnum)
 static inline int
 crt_sem_teardown(struct crt_sem *s)
 {
+	unsigned long cached;
+	
+	cached = ps_load(&s->rescnt_blked);
+	assert(CRT_SEM_BLKED(s->rescnt_blked) == 0);
+	if (!ps_cas(&s->rescnt_blked, cached, ~0)) return 1;
+
 	return crt_blkpt_teardown(&s->blkpt);
 }
 
@@ -72,12 +83,21 @@ crt_sem_take(struct crt_sem *s)
 	struct crt_blkpt_checkpoint chkpt;
 
 	while (1) {
+		unsigned long rescnt_blked;
+
 		crt_blkpt_checkpoint(&s->blkpt, &chkpt);
-		if (ps_faa(&s->rescnt, -1) > CONCURRENT_TAKES) {
+
+		/* Can we take the semaphore? If the number of semaphores are not zero, we try to take it */
+		if (CRT_SEM_RESCNT(ps_faa(&s->rescnt_blked, -1)) > CONCURRENT_TAKES) {
 			return;	/* success! */
 		}
-		/* failure: try and block */
-		ps_faa(&s->rescnt, 1);
+		ps_faa(&s->rescnt_blked, 1);
+
+		/* slowpath: we're blocking! Set the blocked bit, or try again */
+		rescnt_blked = ps_load(&s->rescnt_blked);
+		if (!ps_cas(&s->rescnt_blked, rescnt_blked, rescnt_blked | CRT_SEM_BLKED_MASK)) continue;
+
+		/* We can't take the semaphore, have set the block bit, and await release */
 		crt_blkpt_wait(&s->blkpt, 0, &chkpt);
 	}
 }
@@ -93,10 +113,10 @@ crt_sem_take(struct crt_sem *s)
 static inline int
 crt_sem_try_take(struct crt_sem *s)
 {
-	if (ps_faa(&s->rescnt, -1) > CONCURRENT_TAKES) {
+	if (CRT_SEM_RESCNT(ps_faa(&s->rescnt_blked, -1)) > CONCURRENT_TAKES) {
 		return 0;	/* success! */
 	}
-	ps_faa(&s->rescnt, 1);
+	ps_faa(&s->rescnt_blked, 1);
 	return 1;
 }
 
@@ -110,13 +130,20 @@ crt_sem_try_take(struct crt_sem *s)
 static inline void
 crt_sem_give(struct crt_sem *s)
 {
-	/* If we'd have enough of semaphores, saturate it */
-	if (s->rescnt > (CONCURRENT_TAKES + MAX_SEMS)) return;
-	
-	ps_faa(&s->rescnt, 1);
+	while (1) {
+		unsigned long o_b = ps_load(&s->rescnt_blked);
+		int blked = unlikely(CRT_SEM_BLKED(o_b) == CRT_SEM_BLKED_MASK);
 
-	/* if there are blocked threads, wake 'em up! */
-	crt_blkpt_trigger(&s->blkpt, 0);
+		/* Give semaphore */
+		ps_faa(&s->rescnt_blked, 1);
+		/* If we'd have enough of semaphores, saturate it */
+		if (CRT_SEM_RESCNT(s->rescnt_blked) > (CONCURRENT_TAKES + MAX_SEMS)) ps_faa(&s->rescnt_blked, -1);
+
+		/* if there are blocked threads, wake 'em up! */
+		if (unlikely(blked)) crt_blkpt_wake(&s->blkpt, 0);
+
+		return;
+	}
 }
 
 #endif /* CRT_SEM_H */

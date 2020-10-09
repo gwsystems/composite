@@ -16,9 +16,15 @@
 #include <crt_blkpt.h>
 
 struct crt_lock {
-	unsigned long owner;
+	unsigned long owner_blked;
 	struct crt_blkpt blkpt;
 };
+
+#define CRT_LOCK_OWNER_BLKED_BITS (sizeof(unsigned long) * 8)
+#define CRT_LOCK_BLKED_MASK       (1 << (CRT_LOCK_OWNER_BLKED_BITS - 2))
+#define CRT_LOCK_BLKED(e)         ((e) &  CRT_LOCK_BLKED_MASK)
+#define CRT_LOCK_OWNER(e)         ((e) & ~CRT_LOCK_BLKED_MASK)
+
 
 /**
  * Initialize a lock. Does *not* allocate memory for it, and assumes
@@ -31,7 +37,7 @@ struct crt_lock {
 static inline int
 crt_lock_init(struct crt_lock *l)
 {
-	l->owner = 0;
+	l->owner_blked = 0;
 
 	return crt_blkpt_init(&l->blkpt);
 }
@@ -50,8 +56,8 @@ crt_lock_init(struct crt_lock *l)
 static inline int
 crt_lock_teardown(struct crt_lock *l)
 {
-	assert(l->owner == 0);
-	if (!ps_cas(&l->owner, 0, ~0)) return 1;
+	assert(l->owner_blked == 0);
+	if (!ps_cas(&l->owner_blked, 0, ~0)) return 1;
 
 	return crt_blkpt_teardown(&l->blkpt);
 }
@@ -70,12 +76,20 @@ crt_lock_take(struct crt_lock *l)
 	struct crt_blkpt_checkpoint chkpt;
 
 	while (1) {
+		unsigned long owner_blked;
+
 		crt_blkpt_checkpoint(&l->blkpt, &chkpt);
 
-		if (ps_cas(&l->owner, 0, (unsigned long)cos_thdid())) {
+		/* Can we take the lock? */
+		if (ps_cas(&l->owner_blked, 0, (unsigned long)cos_thdid())) {
 			return;	/* success! */
 		}
-		/* failure: try and block */
+
+		/* slowpath: we're blocking! Set the blocked bit, or try again */
+		owner_blked = ps_load(&l->owner_blked);
+		if (!ps_cas(&l->owner_blked, owner_blked, owner_blked | CRT_LOCK_BLKED_MASK)) continue;
+
+		/* We can't take the lock, have set the block bit, and await release */
 		crt_blkpt_wait(&l->blkpt, 0, &chkpt);
 	}
 }
@@ -91,7 +105,7 @@ crt_lock_take(struct crt_lock *l)
 static inline int
 crt_lock_try_take(struct crt_lock *l)
 {
-	if (ps_cas(&l->owner, 0, (unsigned long)cos_thdid())) {
+	if (ps_cas(&l->owner_blked, 0, (unsigned long)cos_thdid())) {
 		return 0;	/* success! */
 	} else {
 		return 1;
@@ -108,10 +122,24 @@ crt_lock_try_take(struct crt_lock *l)
 static inline void
 crt_lock_release(struct crt_lock *l)
 {
-	assert(l->owner == cos_thdid());
-	l->owner = 0;
-	/* if there are blocked threads, wake 'em up! */
-	crt_blkpt_trigger(&l->blkpt, 0);
+	while (1) {
+		unsigned long o_b = ps_load(&l->owner_blked);
+		int blked = unlikely(CRT_LOCK_BLKED(o_b) == CRT_LOCK_BLKED_MASK);
+
+		assert(CRT_LOCK_OWNER(o_b) == cos_thdid());
+		/*
+		 * If this doesn't work, then someone must have set
+		 * blocked in the mean time. Try again! Blocked can
+		 * only be set once, so this is a bounded loop (can
+		 * fire two times, max).
+		 */
+		if (unlikely(!ps_cas(&l->owner_blked, o_b, 0))) continue;
+
+		/* if there are blocked threads, wake 'em up! */
+		if (unlikely(blked)) crt_blkpt_wake(&l->blkpt, 0);
+
+		return;
+	}
 }
 
 #endif /* CRT_LOCK_H */
