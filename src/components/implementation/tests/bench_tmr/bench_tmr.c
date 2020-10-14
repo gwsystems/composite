@@ -21,7 +21,7 @@
 /* High-priority thread interrupts the low-priority thread by timer ticks */
 #define ITERATION		10000
 #define TMR_PERIODIC_TIME	10000
-#define DROP_THRESHOLD		0x1000000U
+/* #define DROP_THRESHOLD		0x1000000U */
 
 #define PRINT_ALL
 
@@ -73,7 +73,8 @@ tmr_hi_thd(void *d)
 		evt_get(&e, EVT_WAIT_DEFAULT, &evtsrc, &evtdata);
 		end = (cycles_32_t)time_now();
 
-		if ((end - start) > DROP_THRESHOLD) continue;
+		/* Drop not used; we're dealing with unsigned ints */
+		/* if ((end - start) > DROP_THRESHOLD) continue; */
 		
 		if (first == 0) first = 1;
 		else perfdata_add(&perf, end - start);

@@ -122,7 +122,7 @@ __chan_consume_pow2(struct __chan_mem *m, void *d, u32_t wraparound_mask, u32_t 
 	return 0;
 }
 
-evt_res_id_t chan_evt_associated(struct chan *c);
+void __chan_meta_evt_update(struct __chan_meta *meta);
 
 /**
  * The next two functions pass all of the variables in via arguments,
@@ -151,7 +151,7 @@ __chan_send_pow2(struct chan_snd *s, void *item, u32_t wraparound_mask, u32_t it
 			crt_blkpt_id_trigger(&m->empty, s->meta.blkpt_empty_id, 0);
 			if (unlikely(meta->mem->producer_update)) {
 				meta->mem->producer_update = 0;
-				meta->evt_id = chan_evt_associated(s->c);
+				__chan_meta_evt_update(meta);
 			}
 			if (meta->evt_id) {
 				if (evt_trigger(meta->evt_id)) return -1;

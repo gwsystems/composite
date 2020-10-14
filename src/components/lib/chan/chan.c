@@ -151,40 +151,99 @@ chan_mem_sz(unsigned int item_sz, unsigned int slots)
 	return sizeof(struct __chan_mem) + item_sz * slots;
 }
 
-int
-chan_evt_associate(struct chan *c, evt_res_id_t eid)
+inline unsigned int
+__chan_meta_evt_associate(struct __chan_meta *meta, evt_res_id_t eid)
 {
 	int ret;
 
-	if (c->meta.evt_id != 0) return -1;
-	c->meta.evt_id = eid;
+	if (meta->evt_id != 0) return -1;
+	meta->evt_id = eid;
 
-	ret = chanmgr_evt_set(c->meta.id, c->meta.evt_id, 1);
+	ret = chanmgr_evt_set(meta->id, meta->evt_id, 1);
 	/* signal to the communicating pair to update their event resource id. */
-	c->meta.mem->producer_update = 1;
+	meta->mem->producer_update = 1;
 
 	return ret;
+}
+
+int
+chan_evt_associate(struct chan *c, evt_res_id_t eid)
+{
+	return __chan_meta_evt_associate(&c->meta, eid);
+}
+
+int
+chan_rcv_evt_associate(struct chan_rcv *r, evt_res_id_t eid)
+{
+	return __chan_meta_evt_associate(&r->meta, eid);
+}
+
+int
+chan_snd_evt_associate(struct chan_snd *s, evt_res_id_t eid)
+{
+	return __chan_meta_evt_associate(&s->meta, eid);
+}
+
+void
+__chan_meta_evt_update(struct __chan_meta *meta)
+{
+	if (meta->evt_id == 0) {
+		meta->evt_id = chanmgr_evt_get(meta->id, 1);
+	}
 }
 
 evt_res_id_t
 chan_evt_associated(struct chan *c)
 {
-	if (c->meta.evt_id == 0) {
-		c->meta.evt_id = chanmgr_evt_get(c->meta.id, 1);
-	}
+	__chan_meta_evt_update(&c->meta);
 
 	return c->meta.evt_id;
+}
+
+evt_res_id_t
+chan_rcv_evt_associated(struct chan_rcv *r)
+{
+	__chan_meta_evt_update(&r->meta);
+
+	return r->meta.evt_id;
+}
+
+evt_res_id_t
+chan_snd_evt_associated(struct chan_snd *s)
+{
+	__chan_meta_evt_update(&s->meta);
+
+	return s->meta.evt_id;
+}
+
+inline int
+__chan_meta_evt_disassociate(struct __chan_meta *meta)
+{
+	evt_res_id_t eid = 0;
+
+	if (meta->evt_id == 0) return -1;
+	chanmgr_evt_set(meta->id, 0, 1);
+	meta->mem->producer_update = 1;
+	meta->evt_id = 0;
+
+	return 0;
 }
 
 int
 chan_evt_disassociate(struct chan *c)
 {
-	evt_res_id_t eid = 0;
-
-	if (c->meta.evt_id == 0) return -1;
-	chanmgr_evt_set(c->meta.id, 0, 1);
-	c->meta.mem->producer_update = 1;
-	c->meta.evt_id = 0;
-
-	return 0;
+	return __chan_meta_evt_disassociate(&c->meta);
 }
+
+int
+chan_rcv_evt_disassociate(struct chan_rcv *r)
+{
+	return __chan_meta_evt_disassociate(&r->meta);
+}
+
+int
+chan_snd_evt_disassociate(struct chan_snd *s)
+{
+	return __chan_meta_evt_disassociate(&s->meta);
+}
+
