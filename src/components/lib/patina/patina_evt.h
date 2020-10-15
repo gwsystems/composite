@@ -22,4 +22,7 @@ int patina_event_delete(patina_event_t *eid);
 int patina_event_wait(patina_event_t *eid, struct patina_event_info events[], size_t num);
 int patina_event_check(patina_event_t *eid, struct patina_event_info events[], size_t num);
 
+evt_res_id_t patina_event_debug_fake_add(patina_event_t *eid);
+int          patina_event_debug_trigger(evt_res_id_t rid);
+
 #endif
