@@ -499,20 +499,25 @@ fill_pgtbl:
     ldr                 r0,=__cos_cav7_kern_pgtbl
     ldr                 r1,=__va_offset__
     sub                 r0,r0,r1
-    orr			r0,r0,#0x09
+    orr                 r0,r0,#0x4a /* 0x09 */
 
     cp15_set_init       crn=c2 op1=0 crm=c0 op2=0 /* ttbr0 */
     cp15_set_init       crn=c2 op1=0 crm=c0 op2=1 /* ttbr1 */
     /* load the main function address to r3 first to prepare for a long jump */
     ldr                 r3,=kmain
     isb
+    
+    /* flush BTAC and L1I */
+    ldr		 r0, =0x00
+    cp15_set_init       crn=c7 op1=0 crm=c5 op2=6
+    cp15_set_init       crn=c7 op1=0 crm=c5 op2=0
 
     /* turn on paging and cache */
     cp15_get_init       crn=c1 op1=0 crm=c0 op2=0
     isb
-    ldr                 r1,=~((1<<29)|(1<<28)|(1<<12)|(1<<2)|(1<<0))
+    ldr                 r1,=~((1<<29)|(1<<28)|(1<<12)|(1<<11)|(1<<2)|(1<<0))
     and                 r0,r0,r1
-    ldr                 r1,=(1<<29)|(1<<28)|(1<<12)|(1<<2)|(1<<0) //(1<<12)|(1<<2)|(1<<0)
+    ldr                 r1,=(1<<29)|(1<<28)|(1<<12)|(1<<11)|(1<<2)|(1<<0) //(1<<12)|(1<<2)|(1<<0)
     orr                 r0,r0,r1
     cp15_set_init       crn=c1 op1=0 crm=c0 op2=0 /* sctlr.afe,tre,i,c,m */
     isb

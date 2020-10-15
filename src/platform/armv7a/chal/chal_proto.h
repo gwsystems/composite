@@ -48,14 +48,32 @@ chal_pgtbl_update(struct pgtbl_info *ptinfo)
 	 * https://github.com/gwsystems/composite/commit/6c41838513f6b5188a5b0353ff3c1f6c19c6fff5
 	 * In this commit, I debugged different variants for asid context switch code 
 	 * but wasn't successful with any of those. 
-	 * Not sure what I did wrong..
+	 * Not sure what I did wrong.. Now this woks
 	 */
 	paddr_t ttbr0 = chal_va2pa(ptinfo->pgtbl) | 0x4a;
 
-	/* Without ASIDs START */
+	/* asm volatile("mcr p15, 0, r0, c8, c7, 0"); was using TLBIALL */
+	
+	/* Scheme 1 - slower 
+	asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (0));
+	asm volatile("isb");
 	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
-	asm volatile("mcr p15, 0, r0, c8, c7, 0"); /* TLBIALL */
-	/* Without ASIDs END */
+	asm volatile("isb");
+	asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (ptinfo->asid));
+	 */
+	extern unsigned char __cos_cav7_kern_pgtbl;
+	extern unsigned char __va_offset__;
+
+/* #define TTBR1_CONTENT 	((&__cos_cav7_kern_pgtbl - &__va_offset__) | 0x4a) */
+#define TTBR1_CONTENT  (0x0015004a)
+
+	/* Scheme 2 - faster */
+	asm volatile("dsb");
+	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (TTBR1_CONTENT));
+	asm volatile("isb");
+	asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (ptinfo->asid));
+	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
+	asm volatile("isb");
 }
 
 extern asid_t free_asid;

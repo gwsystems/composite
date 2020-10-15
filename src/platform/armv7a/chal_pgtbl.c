@@ -51,6 +51,7 @@ chal_pgtbl_flag_cos2nat_1M(unsigned long input)
 	if ((input & PGTBL_WRITABLE) == 0) output |= CAV7_1M_READONLY;
 	if ((input & PGTBL_WT) == 0) output |= CAV7_1M_BUFFERABLE;
 	if ((input & PGTBL_NOCACHE) == 0) output |= CAV7_1M_CACHEABLE;
+	if ((input & PGTBL_GLOBAL) == 0) output |= CAV7_1M_NOTGLOBAL;
 
 	/* Convert composite specific bits */
 	if ((input & PGTBL_COSFRAME) != 0) output |= CAV7_PGTBL_COSFRAME;
@@ -70,6 +71,7 @@ chal_pgtbl_flag_cos2nat_4K(unsigned long input)
 	if ((input & PGTBL_WRITABLE) == 0) output |= CAV7_4K_READONLY;
 	if ((input & PGTBL_WT) == 0) output |= CAV7_4K_BUFFERABLE;
 	if ((input & PGTBL_NOCACHE) == 0) output |= CAV7_4K_CACHEABLE;
+	if ((input & PGTBL_GLOBAL) == 0) output |= CAV7_4K_NOTGLOBAL;
 
 	/* Convert composite specific bits */
 	if ((input & PGTBL_COSFRAME) != 0) output |= CAV7_PGTBL_COSFRAME;
@@ -88,6 +90,7 @@ chal_pgtbl_flag_nat2cos_1M(unsigned long input)
 	if ((input & CAV7_1M_READONLY) == 0) output |= PGTBL_WRITABLE;
 	if ((input & CAV7_1M_BUFFERABLE) == 0) output |= PGTBL_WT;
 	if ((input & CAV7_1M_CACHEABLE) == 0) output |= PGTBL_NOCACHE;
+	if ((input & CAV7_1M_NOTGLOBAL) == 0) output |= PGTBL_GLOBAL;
 
 	/* Convert composite specific bits */
 	if ((input & CAV7_1M_PAGE_PRESENT) == 0) {
@@ -109,6 +112,7 @@ chal_pgtbl_flag_nat2cos_4K(unsigned long input)
 	if ((input & CAV7_4K_READONLY) == 0) output |= PGTBL_WRITABLE;
 	if ((input & CAV7_4K_BUFFERABLE) == 0) output |= PGTBL_WT;
 	if ((input & CAV7_4K_CACHEABLE) == 0) output |= PGTBL_NOCACHE;
+	if ((input & CAV7_4K_NOTGLOBAL) == 0) output |= PGTBL_GLOBAL;
 
 	/* Convert composite specific bits */
 	if ((input & CAV7_4K_PAGE_PRESENT) == 0) {

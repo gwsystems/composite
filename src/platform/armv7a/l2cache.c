@@ -66,7 +66,7 @@ chal_l1flush(void)
 	return 0;
 }
 
-//#define ENABLE_PREFETCH
+#define ENABLE_PREFETCH
 
 void
 l2cache_init(void)
@@ -77,6 +77,8 @@ l2cache_init(void)
 	printk("L2 aux control reg is 0x%x\n", CAV7_L2C_AUX_CONTROL);
 	printk("L2 prefetch control reg is 0x%x\n", CAV7_L2C_PREFETCH_CTRL);
 	printk("L2 power control reg is 0x%x\n", CAV7_L2C_POWER_CTRL);
+	
+	Xil_L1DCacheFlush();
 
 	/* Just enable the prefetcher in general settings, but keep them disabled at the specific controls, only
 	 * instruction pf enabled */

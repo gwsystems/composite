@@ -62,7 +62,14 @@ prefetch_abort_dbgprint(struct pt_regs *regs)
 {
 	PRINTK("Prefetch Abort handler!!\n");
 	print_pt_regs(regs);
+	PRINTK("ID_MMFR0: 0x%lx\n", __cos_cav7_id_mmfr0_get());
+	PRINTK("ID_MMFR1: 0x%lx\n", __cos_cav7_id_mmfr1_get());
+	PRINTK("SCTLR: 0x%lx\n", __cos_cav7_sctlr_get());
+	PRINTK("TTBCR: 0x%lx\n", __cos_cav7_ttbcr_get());
+	PRINTK("TTBR0: 0x%lx, TTBR1: 0x%lx\n", __cos_cav7_ttbr0_get(), __cos_cav7_ttbr1_get());
 	PRINTK("IFSR: 0x%lx, IFAR: 0x%lx\n", __cos_cav7_ifsr_get(), __cos_cav7_ifar_get());
+	PRINTK("DFSR: 0x%lx, DFAR: 0x%lx\n", __cos_cav7_dfsr_get(), __cos_cav7_dfar_get());
+	PRINTK("ADFSR: 0x%lx\n", __cos_cav7_adfsr_get());
 }
 
 void
@@ -70,6 +77,12 @@ data_abort_dbgprint(struct pt_regs *regs)
 {
 	PRINTK("Data Abort handler!!\n");
 	print_pt_regs(regs);
+	PRINTK("ID_MMFR0: 0x%lx\n", __cos_cav7_id_mmfr0_get());
+	PRINTK("ID_MMFR1: 0x%lx\n", __cos_cav7_id_mmfr1_get());
+	PRINTK("SCTLR: 0x%lx\n", __cos_cav7_sctlr_get());
+	PRINTK("TTBCR: 0x%lx\n", __cos_cav7_ttbcr_get());
+	PRINTK("TTBR0: 0x%lx, TTBR1: 0x%lx\n", __cos_cav7_ttbr0_get(), __cos_cav7_ttbr1_get());
+	PRINTK("IFSR: 0x%lx, IFAR: 0x%lx\n", __cos_cav7_ifsr_get(), __cos_cav7_ifar_get());
 	PRINTK("DFSR: 0x%lx, DFAR: 0x%lx\n", __cos_cav7_dfsr_get(), __cos_cav7_dfar_get());
 	PRINTK("ADFSR: 0x%lx\n", __cos_cav7_adfsr_get());
 }

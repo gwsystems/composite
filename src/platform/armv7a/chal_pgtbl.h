@@ -50,10 +50,10 @@ typedef enum
 } pgtbl_flags_cav7_t;
 
 /* MMU definitions operation flags, assuming the following changes:
- * TTBCR=0 : TTBR1 not used,
+ * TTBCR=2 : TTBR0 use 1GB,
  * SCTLR.AFE=1 : AP[2:1] is the permission flags, AP[0] is now the access flag.
- * DACR=0x55555555 : All pages/tables are client and access permissions always checked.
- * SCTLR.TRE=1 : TEX remap engaged, CACHEABLE and BUFFERABLE works as RME defined.
+ * DACR=0x55555555 : All pages/tables are client and access permissions always checked. 0xFFFFFFFF not checked,
+ * SCTLR.TRE=1 : TEX remap engaged, CACHEABLE and BUFFERABLE works as currently defined.
  *               {MSB TEX[0], C, B LSB} will index PRRR and NMRR.
  * PRRR=0b 00 00 00 00 00 00 10 10 00 00 00 00 10 10 01 00=0x000A00A4
  *         OUTER_SHARE PTBL_DECIDE xx xx xx xx CB C- -B --
