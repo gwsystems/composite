@@ -75,7 +75,7 @@ chal_pgtbl_update(struct pgtbl_info *ptinfo)
 	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
 	asm volatile("isb");  */
 	
-	/* Scheme 2 - cycle through global page table - faster - whole blocks.
+	/* Scheme 2 - cycle through global page table - faster - whole blocks. */
 	__asm__ __volatile__("dsb \n\t"
 	                     "mcr p15, 0, %0, c2, c0, 0 \n\t"
 	                     "isb \n\t"
