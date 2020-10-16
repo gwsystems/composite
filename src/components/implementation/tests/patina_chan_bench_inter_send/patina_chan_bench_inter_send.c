@@ -19,11 +19,11 @@
 
 patina_chan_s_t sid;
 patina_chan_r_t rid;
-struct evt      e;
+patina_event_t  evt;
 
 #define ITERATION 10 * 1000
 #undef READER_HIGH
-#undef USE_EVTMGR
+#define USE_EVTMGR
 /* #define PRINT_ALL */
 
 #define TEST_CHAN_ITEM_SZ sizeof(u32_t)
@@ -68,10 +68,8 @@ main(void)
 	/* Send data to receiver so it can register for channels */
 
 #ifdef USE_EVTMGR
-	assert(evt_init(&e, 2) == 0);
-	evt_id = evt_add(&e, 0, (evt_res_data_t)&r);
-	assert(evt_id != 0);
-	assert(chan_rcv_evt_associate(&r, evt_id) == 0);
+	patina_event_create(&evt, 1);
+	patina_event_add(&evt, rid, 0);
 	printc("Sender side event created.\n");
 #endif
 
@@ -82,7 +80,7 @@ main(void)
 	 * Likely because this helps the priority change in cos_init take effect!
 	 * Or because this lets the initialization of both ends of channels complete before tests start!
 	 */
-	wakeup = time_now() + time_usec2cyc(100 * 1000);
+	wakeup = time_now() + time_usec2cyc(1000 * 1000);
 	sched_thd_block_timeout(0, wakeup);
 
 	for (int i = 0; i < ITERATION + 1; i++) {
@@ -94,8 +92,8 @@ main(void)
 		debug("w3,");
 #ifdef USE_EVTMGR
 		/* Receive from the events then the channel */
-		while (chan_recv(&r, &ts2, CHAN_NONBLOCKING) == CHAN_TRY_AGAIN)
-			evt_get(&e, EVT_WAIT_DEFAULT, &evtsrc, &evtdata);
+		while (patina_channel_recv(rid, &ts2, 1, CHAN_NONBLOCKING) == CHAN_TRY_AGAIN)
+			patina_event_wait(&evt, NULL, 0);
 #else
 		patina_channel_recv(rid, &ts2, 1, 0);
 #endif
