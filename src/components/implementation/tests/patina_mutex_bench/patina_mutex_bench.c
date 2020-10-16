@@ -19,7 +19,7 @@
 
 /* One low-priority thread and one high-priority thread contends on the lock */
 #define ITERATION 10 * 1000
-#undef PRINT_ALL
+#define PRINT_ALL
 
 patina_mutex_t mid;
 thdid_t        lock_hi = 0, lock_lo = 0;

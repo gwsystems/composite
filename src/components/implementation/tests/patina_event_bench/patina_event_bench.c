@@ -18,7 +18,7 @@
 #endif
 
 #define ITERATION 10 * 1000
-#undef PRINT_ALL
+#define PRINT_ALL
 
 patina_sem_t   sid;
 patina_event_t evt;

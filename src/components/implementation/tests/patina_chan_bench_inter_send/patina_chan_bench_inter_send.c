@@ -24,7 +24,7 @@ patina_event_t  evt;
 #define ITERATION 10 * 1000
 #undef READER_HIGH
 #define USE_EVTMGR
-/* #define PRINT_ALL */
+#define PRINT_ALL
 
 #define TEST_CHAN_ITEM_SZ sizeof(u32_t)
 #define TEST_CHAN_NSLOTS 2

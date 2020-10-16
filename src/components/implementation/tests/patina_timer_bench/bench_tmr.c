@@ -22,7 +22,7 @@
 #define TMR_PERIODIC_TIME 10 * 1000
 #define DROP_THRESHOLD 0x1000000U
 
-#undef PRINT_ALL
+#define PRINT_ALL
 
 thdid_t tmr_hi = 0, tmr_lo = 0;
 

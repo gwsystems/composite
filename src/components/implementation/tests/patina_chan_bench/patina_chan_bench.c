@@ -18,8 +18,8 @@
 #endif
 
 /* One low-priority thread and one high-priority thread contends on the lock */
-#define ITERATION 10 * 10
-/* #define PRINT_ALL */
+#define ITERATION 10 * 1000
+#define PRINT_ALL
 
 /* Two options are available: Sender at low/high prio, data words 4 */
 #undef READER_HIGH
