@@ -150,6 +150,8 @@ cos_init(void)
 int
 main(void)
 {
+	sched_thd_block_timeout(0, time_now() + time_usec2cyc(1000 * 1000));
+
 	test_sem();
 
 	printc("Running benchmark, exiting main thread...\n");
