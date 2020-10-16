@@ -54,7 +54,7 @@ chal_pgtbl_update(struct pgtbl_info *ptinfo)
 
 	/* asm volatile("mcr p15, 0, r0, c8, c7, 0"); was using TLBIALL */
 	
-	/* Scheme 1 - slower 
+	/* Scheme 1 - cycle through an unused ASID - slower 
 	asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (0));
 	asm volatile("isb");
 	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
@@ -67,13 +67,22 @@ chal_pgtbl_update(struct pgtbl_info *ptinfo)
 /* #define TTBR1_CONTENT 	((&__cos_cav7_kern_pgtbl - &__va_offset__) | 0x4a) */
 #define TTBR1_CONTENT  (0x0015004a)
 
-	/* Scheme 2 - faster */
+	/* Scheme 2 - cycle through global page table - faster - with separated inline asms, which GCC is not good at.
 	asm volatile("dsb");
 	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (TTBR1_CONTENT));
 	asm volatile("isb");
 	asm volatile("mcr p15, 0, %0, c13, c0, 1" :: "r" (ptinfo->asid));
 	asm volatile("mcr p15, 0, %0, c2, c0, 0" :: "r" (ttbr0));
-	asm volatile("isb");
+	asm volatile("isb");  */
+	
+	/* Scheme 2 - cycle through global page table - faster - whole blocks.
+	__asm__ __volatile__("dsb \n\t"
+	                     "mcr p15, 0, %0, c2, c0, 0 \n\t"
+	                     "isb \n\t"
+	                     "mcr p15, 0, %1, c13, c0, 1  \n\t"
+	                     "mcr p15, 0, %2, c2, c0, 0 \n\t"
+	                     "isb \n\t"
+	                     :: "r"(TTBR1_CONTENT), "r"(ptinfo->asid), "r"(ttbr0));
 }
 
 extern asid_t free_asid;

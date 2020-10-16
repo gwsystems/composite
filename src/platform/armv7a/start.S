@@ -478,7 +478,7 @@ fill_pgtbl:
     cp15_set_init       crn=c2 op1=0 crm=c0 op2=2 /* ttbcr, ttbr1 only use 1gb */
     isb
 
-    ldr                 r0,=0xFFFFFFFF//0x55555555
+    ldr                 r0,=0x55555555//0xFFFFFFFF
     cp15_set_init       crn=c3 op1=0 crm=c0 op2=0 /* dacr */
     isb
 
@@ -1455,10 +1455,44 @@ data_abort_handler:
     b			.
     restore_gp_regs
 
+/* This is the faster, more intelligent way */
+svc_handler:
+    /* save user-mode pc */
+    push                {lr}
+    /* save user-mode sp and lr */
+    stmdb               sp,{sp,lr}^
+    sub                 sp,sp,#36
+    /* save user-mode critical registers, r0-r5 */
+    push                {r0-r5}
+    /* save user-mode psr */
+    mrs                 r0,spsr
+    push                {r0}
+    mov                 r0,sp
+    bl                  composite_syscall_handler
+    /* Unlikely to be taken, will restore everything */
+    cmp                 r0,#0
+    bne                 svc_switch_thd
+    /* restore user-mode psr */
+    pop                 {r0}
+    msr                 spsr_cxsf,r0
+    /* restore user-mode general purpose registers, r0-r4 */
+    pop                 {r0-r4}
+    add		 sp,sp,#32
+    /* restore user-mode sp and lr */
+    ldmia               sp,{sp,lr}^
+    add                 sp,sp,#8
+    /* restore user-mode pc */
+    ldmia               sp!,{pc}^
+    /* slow path */
+svc_switch_thd:
+    restore_gp_regs
+
+/* This is the original, stupid one that saves and restores everything.
 svc_handler:
     save_gp_regs
     bl                  composite_syscall_handler
     restore_gp_regs
+*/
 
 irq_handler:
     sub			lr,lr,#0x04
