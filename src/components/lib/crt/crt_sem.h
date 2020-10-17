@@ -91,9 +91,9 @@ crt_sem_take(struct crt_sem *s)
 		if (CRT_SEM_RESCNT(ps_faa(&s->rescnt_blked, -1)) > CONCURRENT_TAKES) {
 			return;	/* success! */
 		}
-		ps_faa(&s->rescnt_blked, 1);
 
 		/* slowpath: we're blocking! Set the blocked bit, or try again */
+		ps_faa(&s->rescnt_blked, 1);
 		rescnt_blked = ps_load(&s->rescnt_blked);
 		if (!ps_cas(&s->rescnt_blked, rescnt_blked, rescnt_blked | CRT_SEM_BLKED_MASK)) continue;
 
@@ -133,11 +133,13 @@ crt_sem_give(struct crt_sem *s)
 	while (1) {
 		unsigned long o_b = ps_load(&s->rescnt_blked);
 		int blked = unlikely(CRT_SEM_BLKED(o_b) == CRT_SEM_BLKED_MASK);
+		int rescnt = CRT_SEM_RESCNT(o_b);
 
-		/* Give semaphore */
-		ps_faa(&s->rescnt_blked, 1);
-		/* If we'd have enough of semaphores, saturate it */
-		if (CRT_SEM_RESCNT(s->rescnt_blked) > (CONCURRENT_TAKES + MAX_SEMS)) ps_faa(&s->rescnt_blked, -1);
+		/* If we'd have enough number of semaphores, saturate it */
+		if (rescnt < (CONCURRENT_TAKES + MAX_SEMS)) rescnt++;
+
+		/* Give semaphore back and clear the blocked bit, with CAS */
+		if (unlikely(!ps_cas(&s->rescnt_blked, o_b, rescnt))) continue;
 
 		/* if there are blocked threads, wake 'em up! */
 		if (unlikely(blked)) crt_blkpt_wake(&s->blkpt, 0);

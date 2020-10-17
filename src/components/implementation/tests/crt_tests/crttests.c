@@ -2,6 +2,8 @@
  * Copyright 2016, Phani Gadepalli, Runyu Pan and Gabriel Parmer, GWU, gparmer@gwu.edu.
  *
  * This uses a two clause BSD License.
+ * Care should be taken when running this: may not finish on an embedded board. 
+ * To finish, reduce iterations to 100.
  */
 
 #include <llprint.h>
