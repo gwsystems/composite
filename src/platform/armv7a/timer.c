@@ -31,7 +31,7 @@ void
 chal_timer_disable(void)
 {
 	/* Disable the interrupt */
-	CAV7_GICD_ICENABLER(0) = 0 << 29;
+	CAV7_GICD_ICENABLER(0) = 1 << 29;
 	CAV7_PTWD_PTCTLR       = 0;
 	/* Clear the interrupt flag - write 1! */
 	CAV7_PTWD_PTISR = 1;

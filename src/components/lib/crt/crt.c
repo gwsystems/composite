@@ -1034,7 +1034,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		if (comp->flags & CRT_COMP_SCHED) {
 			if (crt_comp_sched_delegate(comp, comp_get(cos_compid()), TCAP_PRIO_MAX, TCAP_RES_INF)) BUG();
 		} else {
-			if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync()))) {
+			if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync()))) {
 				printc("Switch failure on thdcap %ld, with ret %d\n", thdcap, ret);
 				BUG();
 			}
@@ -1083,12 +1083,13 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 			struct cos_defcompinfo *defci     = comp->comp_res;
 			struct cos_aep_info    *child_aep = cos_sched_aep_get(defci);
 
-			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_RES_INF, child_aep->rcv, cos_sched_sync())) BUG();
+			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, child_aep->rcv, cos_sched_sync())) BUG();
 		} else {
-			if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+			if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync())) BUG();
 		}
 	}
 
+	printc("BUG, shutting down...");
 	cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);
 	while (1) ;
 
