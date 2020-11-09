@@ -22,19 +22,13 @@ patina_chan_r_t rid;
 patina_event_t  evt;
 
 /* Keep these settings below consistent with the sender side */
-#undef READER_HIGH
-#define USE_EVTMGR
+#undef USE_EVTMGR
 
 #define TEST_CHAN_ITEM_SZ sizeof(u32_t)
 #define TEST_CHAN_NSLOTS 2
 #define TEST_CHAN_SEND_ID 3
 #define TEST_CHAN_RECV_ID 4
-/* We are the receiver, and we don't care about data gathering */
-#ifdef READER_HIGH
 #define TEST_CHAN_PRIO_SELF 4
-#else
-#define TEST_CHAN_PRIO_SELF 5
-#endif
 
 typedef unsigned int cycles_32_t;
 

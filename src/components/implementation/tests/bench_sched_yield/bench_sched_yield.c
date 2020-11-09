@@ -17,36 +17,47 @@
 
 /* lo and hi is actually running at the same prio */
 #define ITERATION 10000
-/* #define PRINT_ALL */
+#define PRINT_ALL
 
 thdid_t yield_hi = 0, yield_lo = 0;
+
 volatile cycles_t start;
-volatile cycles_t end;
+volatile int count;
 
 struct perfdata perf;
 cycles_t result[ITERATION] = {0, };
 
 /***
- * We're measuring 2-way context switch time. 
+ * We're measuring one-way context switch time. 
  */
 void
 yield_hi_thd(void *d)
 {
-	/* Never stops running; low priority controls how many iters to run. */
-	while (1) {
+	cycles_t end;
+
+	while (count < ITERATION) {
 		debug("h1,");
+
+		start = time_now();
 		sched_thd_yield_to(yield_lo);
+		end = time_now();
+
 		debug("h2,");
+
+		perfdata_add(&perf, end - start);
+
+		count++;
 	}
+
+	while (1) ;
 }
 
 void
 yield_lo_thd(void *d)
 {
-	int i;
-	int first = 0;
+	cycles_t end;
 
-	for (i = 0; i < ITERATION + 1; i++) {
+	while (count < ITERATION) {
 		debug("l1,");
 
 		start = time_now();
@@ -55,16 +66,16 @@ yield_lo_thd(void *d)
 
 		debug("l2,");
 		
-		if (first == 0) first = 1;
-		else perfdata_add(&perf, end - start);
+		perfdata_add(&perf, end - start);
+
+		count++;
 	}
 	
-	perfdata_calc(&perf);
 #ifdef PRINT_ALL
-	perfdata_all(&perf);
-#else
-	perfdata_print(&perf);
+	perfdata_raw(&perf);
 #endif
+	perfdata_calc(&perf);
+	perfdata_print(&perf);
 
 	while (1) ;
 }
@@ -76,6 +87,8 @@ test_yield(void)
 		SCHED_PARAM_CONS(SCHEDP_PRIO, 6),
 		SCHED_PARAM_CONS(SCHEDP_PRIO, 6)
 	};
+
+	count = 0;
 
 	perfdata_init(&perf, "Context switch time", result, ITERATION);
 	

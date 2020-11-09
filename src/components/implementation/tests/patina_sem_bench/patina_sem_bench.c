@@ -63,9 +63,8 @@ void
 sem_lo_thd(void *d)
 {
 	int i;
-	int first = 0;
 
-	for (i = 0; i < ITERATION + 1; i++) {
+	for (i = 0; i < ITERATION; i++) {
 		debug("l1");
 		sched_thd_wakeup(sem_hi);
 
@@ -78,19 +77,15 @@ sem_lo_thd(void *d)
 
 		patina_sem_give(sid);
 
-		if (first == 0)
-			first = 1;
-		else
-			perfdata_add(&perf, end - start);
+		perfdata_add(&perf, end - start);
 		debug("l4");
 	}
 
-	perfdata_calc(&perf);
 #ifdef PRINT_ALL
-	perfdata_all(&perf);
-#else
-	perfdata_print(&perf);
+	perfdata_raw(&perf);
 #endif
+	perfdata_calc(&perf);
+	perfdata_print(&perf);
 
 	while (1)
 		;
@@ -100,7 +95,6 @@ void
 test_sem(void)
 {
 	int      i;
-	int      first = 0;
 	cycles_t start, end;
 
 	sched_param_t sps[] = {SCHED_PARAM_CONS(SCHEDP_PRIO, 4), SCHED_PARAM_CONS(SCHEDP_PRIO, 6)};
@@ -109,24 +103,20 @@ test_sem(void)
 
 	/* Uncontended semaphore taking/releasing */
 	perfdata_init(&perf, "Uncontended semaphore - take+give", result, ITERATION);
-	for (i = 0; i < ITERATION + 1; i++) {
+	for (i = 0; i < ITERATION; i++) {
 		start = time_now();
 
 		patina_sem_take(sid);
 		patina_sem_give(sid);
 
 		end = time_now();
-		if (first == 0)
-			first = 1;
-		else
-			perfdata_add(&perf, end - start);
+		perfdata_add(&perf, end - start);
 	}
-	perfdata_calc(&perf);
 #ifdef PRINT_ALL
-	perfdata_all(&perf);
-#else
-	perfdata_print(&perf);
+	perfdata_raw(&perf);
 #endif
+	perfdata_calc(&perf);
+	perfdata_print(&perf);
 
 	perfdata_init(&perf, "Contended semaphore - take+give", result, ITERATION);
 

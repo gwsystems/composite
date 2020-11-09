@@ -22,8 +22,7 @@ patina_chan_r_t rid;
 patina_event_t  evt;
 
 #define ITERATION 10 * 1000
-#undef READER_HIGH
-#define USE_EVTMGR
+#undef USE_EVTMGR
 #define PRINT_ALL
 
 #define TEST_CHAN_ITEM_SZ sizeof(u32_t)
@@ -31,11 +30,7 @@ patina_event_t  evt;
 #define TEST_CHAN_SEND_ID 4
 #define TEST_CHAN_RECV_ID 3
 /* We are the sender, and we will be responsible for collecting resulting data */
-#ifdef READER_HIGH
 #define TEST_CHAN_PRIO_SELF 5
-#else
-#define TEST_CHAN_PRIO_SELF 4
-#endif
 
 typedef unsigned int cycles_32_t;
 
@@ -56,7 +51,6 @@ main(void)
 	int         i;
 	cycles_t    wakeup;
 	cycles_32_t ts1, ts2, ts3;
-	int         first = 0;
 #ifdef USE_EVTMGR
 	evt_res_id_t   evt_id;
 	evt_res_data_t evtdata;
@@ -83,7 +77,7 @@ main(void)
 	wakeup = time_now() + time_usec2cyc(1000 * 1000);
 	sched_thd_block_timeout(0, wakeup);
 
-	for (int i = 0; i < ITERATION + 1; i++) {
+	for (int i = 0; i < ITERATION; i++) {
 		debug("w1,");
 		ts1 = time_now();
 		debug("ts1: %d,", ts1);
@@ -102,35 +96,25 @@ main(void)
 		ts3 = time_now();
 		debug("w5,");
 
-		if (first == 0)
-			first = 1;
-		else {
-			if (ts2 > ts1 && ts3 > ts2) {
-				perfdata_add(&perf1, ts2 - ts1);
-				perfdata_add(&perf2, ts3 - ts2);
-				perfdata_add(&perf3, ts3 - ts1);
-			}
+		if (ts2 > ts1 && ts3 > ts2) {
+			perfdata_add(&perf1, ts2 - ts1);
+			perfdata_add(&perf2, ts3 - ts2);
+			perfdata_add(&perf3, ts3 - ts1);
 		}
 	}
 
+#ifdef PRINT_ALL
+	perfdata_raw(&perf1);
+	perfdata_raw(&perf2);
+	perfdata_raw(&perf3);
+#endif
 	perfdata_calc(&perf1);
 	perfdata_calc(&perf2);
 	perfdata_calc(&perf3);
-#ifdef PRINT_ALL
-#ifdef READER_HIGH
-	perfdata_all(&perf1);
-#else
-	perfdata_all(&perf2);
-#endif
-	perfdata_all(&perf3);
-#else
-#ifdef READER_HIGH
+
 	perfdata_print(&perf1);
-#else
 	perfdata_print(&perf2);
-#endif
 	perfdata_print(&perf3);
-#endif
 
 	while (1)
 		;

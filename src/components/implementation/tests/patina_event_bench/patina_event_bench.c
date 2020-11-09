@@ -39,29 +39,24 @@ void
 evt_hi_thd(void *d)
 {
 	int i;
-	int first = 0;
 
-	for (i = 0; i < ITERATION + 1; i++) {
+	for (i = 0; i < ITERATION; i++) {
 		debug("h1");
 		patina_event_wait(&evt, NULL, 0);
 		end = time_now();
 
 		debug("h2");
-		if (first == 0)
-			first = 1;
-		else
-			perfdata_add(&perf, end - start);
+		perfdata_add(&perf, end - start);
 
 		debug("h3");
 		patina_sem_give(sid);
 	}
 
-	perfdata_calc(&perf);
 #ifdef PRINT_ALL
-	perfdata_all(&perf);
-#else
-	perfdata_print(&perf);
+	perfdata_raw(&perf);
 #endif
+	perfdata_calc(&perf);
+	perfdata_print(&perf);
 
 	while (1)
 		;
@@ -98,7 +93,7 @@ test_evt(void)
 	printc("Create threads:\n");
 
 	evt_lo = sched_thd_create(evt_lo_thd, NULL);
-	printc("\tcreating lo thread %d at prio %d\n", evt_lo, sps[1]);
+	printc("\tcreating lo thread %d at prio %d\n", evt_lo, sps[0]);
 	sched_thd_param_set(evt_lo, sps[1]);
 
 	evt_hi = sched_thd_create(evt_hi_thd, NULL);

@@ -229,7 +229,7 @@ perfdata_99ptile(struct perfdata *pd)
 static void
 perfdata_print(struct perfdata *pd)
 {
-	printc("PD:%s -sz:%d,SD:%llu,Mean:%llu,99%%:%llu, Max: %llu\n", 
+	printc("#PD:%s -sz:%d,SD:%llu,Mean:%llu,99%%:%llu, Max: %llu\n", 
 		pd->name, pd->sz, pd->sd, pd->avg, pd->ptiles[PTILE_99], pd->max);
 }
 
@@ -240,12 +240,12 @@ perfdata_all(struct perfdata *pd)
 
 	perfdata_print(pd);
 	
-	printc(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n");
+	printc("#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n");
 	
 	printc("#Latency\n");
 	for (i = 0 ; i < pd->sz ; i++) printc("V: %llu\n", pd->values[i]);
 	
-	printc("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n\n");
+	printc("#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n\n");
 }
 
 static void

@@ -10,6 +10,20 @@
 #include <patina.h>
 #include <perfdata.h>
 
+#define COLD_CACHE
+#ifdef COLD_CACHE
+#define cache_flush() __cache_flush()
+#define COLD_OFFSET 1
+#define COLD_INDEX 0
+#else
+#define cache_flush()
+#define COLD_OFFSET 0
+#define COLD_INDEX -1
+#endif
+
+#define CACHE_SIZE 512 * 1024
+#define CACHE_LINE_SIZE 32
+
 #undef TMR_TRACE_DEBUG
 #ifdef TMR_TRACE_DEBUG
 #define debug(format, ...) printc(format, ##__VA_ARGS__)
@@ -18,8 +32,14 @@
 #endif
 
 /* High-priority thread interrupts the low-priority thread by timer ticks */
+#ifdef COLD_OFFSET
+#define ITERATION 10 * 10
+#define TMR_PERIODIC_TIME 1000 * 1000
+#else 
 #define ITERATION 10 * 1000
 #define TMR_PERIODIC_TIME 10 * 1000
+#endif
+
 #define DROP_THRESHOLD 0x1000000U
 
 #define PRINT_ALL
@@ -35,6 +55,20 @@ cycles_t        result[ITERATION] = {
   0,
 };
 
+volatile char pool[CACHE_SIZE * 4] = {
+  0,
+};
+
+void
+__cache_flush()
+{
+	int agg = 1;
+	for (int i = 0; i < CACHE_SIZE * 4; i += CACHE_LINE_SIZE) {
+		pool[i] += agg;
+		agg = pool[i];
+	}
+}
+
 /***
  * The high priority thread sets up a periodic timer while the low priority thread keeps looping and updating
  * the timing value variable. The variable is a 32-bit one so that it can be updated atomically. We always
@@ -47,7 +81,6 @@ tmr_hi_thd(void *d)
 	patina_time_t  t;
 	patina_timer_t tid;
 	patina_event_t evt;
-	int            first = 0;
 
 	printc("Call into timer manager to make a timer.\n");
 	tid = patina_timer_create();
@@ -67,27 +100,24 @@ tmr_hi_thd(void *d)
 
 	/* Event loop */
 	i = 0;
-	while (i < ITERATION + 1) {
+	while (i < ITERATION + COLD_OFFSET) {
+		cache_flush();
 		patina_event_wait(&evt, NULL, 0);
 		end = (cycles_32_t)time_now();
 
 		if ((end - start) > DROP_THRESHOLD) continue;
 
-		if (first == 0)
-			first = 1;
-		else
-			perfdata_add(&perf, end - start);
+		if (i != COLD_INDEX) { perfdata_add(&perf, end - start); }
 		debug("%lld.\n", end - start);
 
 		i++;
 	}
 
-	perfdata_calc(&perf);
 #ifdef PRINT_ALL
-	perfdata_all(&perf);
-#else
-	perfdata_print(&perf);
+	perfdata_raw(&perf);
 #endif
+	perfdata_calc(&perf);
+	perfdata_print(&perf);
 
 	while (1)
 		;

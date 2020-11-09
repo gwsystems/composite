@@ -10,6 +10,20 @@
 #include <patina.h>
 #include <perfdata.h>
 
+#define COLD_CACHE
+#ifdef COLD_CACHE
+#define cache_flush() __cache_flush()
+#define COLD_OFFSET 1
+#define COLD_INDEX 0
+#else
+#define cache_flush()
+#define COLD_OFFSET 0
+#define COLD_INDEX -1
+#endif
+
+#define CACHE_SIZE 512 * 1024
+#define CACHE_LINE_SIZE 32
+
 #undef LOCK_TRACE_DEBUG
 #ifdef LOCK_TRACE_DEBUG
 #define debug(format, ...) printc(format, ##__VA_ARGS__)
@@ -18,7 +32,14 @@
 #endif
 
 /* One low-priority thread and one high-priority thread contends on the lock */
+#ifdef COLD_CACHE
+#define ITERATION 10 * 10
+#define SLEEP_TIME 100 * 1000
+#else
 #define ITERATION 10 * 1000
+#define SLEEP_TIME 1000
+#endif
+
 #define PRINT_ALL
 
 patina_mutex_t mid;
@@ -33,6 +54,20 @@ cycles_t        result[ITERATION] = {
   0,
 };
 
+volatile char pool[CACHE_SIZE * 4] = {
+  0,
+};
+
+void
+__cache_flush()
+{
+	int agg = 1;
+	for (int i = 0; i < CACHE_SIZE * 4; i += CACHE_LINE_SIZE) {
+		pool[i] += agg;
+		agg = pool[i];
+	}
+}
+
 /***
  * The high priority thread periodically challenges the lock while the low priority thread keeps spinning.
  * When the low-priority thread detects that the flag is changed, it knows that the lock is challenged.
@@ -45,9 +80,10 @@ lock_hi_thd(void *d)
 	while (1) {
 		debug("h1,");
 		sched_thd_block(0);
-		sched_thd_block_timeout(0, time_now() + time_usec2cyc(1000));
+		sched_thd_block_timeout(0, time_now() + time_usec2cyc(SLEEP_TIME));
 
 		debug("h2,");
+		cache_flush();
 		flag  = 1;
 		start = time_now();
 		patina_mutex_lock(mid);
@@ -62,9 +98,8 @@ void
 lock_lo_thd(void *d)
 {
 	int i;
-	int first = 0;
 
-	for (i = 0; i < ITERATION + 1; i++) {
+	for (i = 0; i < ITERATION + COLD_OFFSET; i++) {
 		debug("l1,");
 		sched_thd_wakeup(lock_hi);
 
@@ -76,19 +111,15 @@ lock_lo_thd(void *d)
 		while (flag != 1) {}
 		patina_mutex_unlock(mid);
 
-		if (first == 0)
-			first = 1;
-		else
-			perfdata_add(&perf, end - start);
+		if (i != COLD_INDEX) { perfdata_add(&perf, end - start); }
 		debug("l4,");
 	}
 
-	perfdata_calc(&perf);
 #ifdef PRINT_ALL
-	perfdata_all(&perf);
-#else
-	perfdata_print(&perf);
+	perfdata_raw(&perf);
 #endif
+	perfdata_calc(&perf);
+	perfdata_print(&perf);
 
 	while (1)
 		;
@@ -98,7 +129,6 @@ void
 test_lock(void)
 {
 	int i;
-	int first = 0;
 
 	sched_param_t sps[] = {SCHED_PARAM_CONS(SCHEDP_PRIO, 4), SCHED_PARAM_CONS(SCHEDP_PRIO, 6)};
 
@@ -106,24 +136,21 @@ test_lock(void)
 
 	/* Uncontended lock taking/releasing */
 	perfdata_init(&perf, "Uncontended lock - take+release", result, ITERATION);
-	for (i = 0; i < ITERATION + 1; i++) {
+	for (i = 0; i < ITERATION + COLD_OFFSET; i++) {
+		cache_flush();
 		start = time_now();
 
 		patina_mutex_lock(mid);
 		patina_mutex_unlock(mid);
 
 		end = time_now();
-		if (first == 0)
-			first = 1;
-		else
-			perfdata_add(&perf, end - start);
+		if (i != COLD_INDEX) { perfdata_add(&perf, end - start); }
 	}
-	perfdata_calc(&perf);
 #ifdef PRINT_ALL
-	perfdata_all(&perf);
-#else
-	perfdata_print(&perf);
+	perfdata_raw(&perf);
 #endif
+	perfdata_calc(&perf);
+	perfdata_print(&perf);
 
 	perfdata_init(&perf, "Contended lock - take+release", result, ITERATION);
 
