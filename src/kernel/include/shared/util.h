@@ -11,7 +11,11 @@ static inline int
 cos_cas(unsigned long *target, unsigned long old, unsigned long updated)
 {
 	char z;
-	__asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"
+	/*
+ 	 * X86_64-FIXME:
+ 	 * Change oprand size from cmpxchgl to cmpxchgq
+ 	 */
+	__asm__ __volatile__("lock cmpxchgq %2, %0; setz %1"
 	                     : "+m"(*target), "=a"(z)
 	                     : "q"(updated), "a"(old)
 	                     : "memory", "cc");
