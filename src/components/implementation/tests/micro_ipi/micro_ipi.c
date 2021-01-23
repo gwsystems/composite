@@ -26,11 +26,11 @@
 #define IPI_TEST_ITERS 10000
 #define SCHED_PERIOD_US 100000 /* 100ms */
 
-static volatile cycles_t last = 0, total = 0, wc = 0, pwc = 0;
-static volatile unsigned long count = 0;
-static volatile asndcap_t c0_cn_asnd[NUM_CPU] = { 0 }, cn_c0_asnd[NUM_CPU] = { 0 };
-static volatile arcvcap_t c0_rcv[NUM_CPU] = { 0 }, cn_rcv[NUM_CPU] = { 0 };
-static volatile int testing = 0;
+static volatile cycles_t      last = 0, total = 0, wc = 0, pwc = 0;
+static volatile unsigned long count               = 0;
+static volatile asndcap_t     c0_cn_asnd[NUM_CPU] = {0}, cn_c0_asnd[NUM_CPU] = {0};
+static volatile arcvcap_t     c0_rcv[NUM_CPU] = {0}, cn_rcv[NUM_CPU] = {0};
+static volatile int           testing = 0;
 
 #define LAT_C0 0
 #define LAT_C1 1
@@ -48,7 +48,7 @@ hiprio_c0_lat_fn(arcvcap_t r, void *d)
 	assert(snd);
 
 	while (1) {
-		int pending = 0, rcvd = 0, ret = 0;
+		int      pending = 0, rcvd = 0, ret = 0;
 		cycles_t now;
 
 		if (unlikely(testing == 0)) break;
@@ -59,7 +59,7 @@ hiprio_c0_lat_fn(arcvcap_t r, void *d)
 
 #ifdef RCV_UB_TEST
 		if (now - last >= IPI_MIN_THRESH) {
-			count ++;
+			count++;
 			total += now - last;
 			if (unlikely(count == IPI_TEST_ITERS)) {
 				PRINTC("IPI LATENCY (min:%u), WC:%llu(p:%llu), AVG:%llu(total:%llu, iter:%lu)\n",
@@ -69,7 +69,7 @@ hiprio_c0_lat_fn(arcvcap_t r, void *d)
 		}
 		if (now - last > wc) {
 			pwc = wc;
-			wc = now - last;
+			wc  = now - last;
 		}
 #endif
 
@@ -84,16 +84,16 @@ hiprio_c0_lat_fn(arcvcap_t r, void *d)
 static void
 hiprio_cn_lat_fn(arcvcap_t r, void *d)
 {
-	asndcap_t snd = cn_c0_asnd[(int)d];
-	cycles_t sndtot = 0, sndwc = 0, sndpwc = 0;
-	cycles_t rpctot = 0, rpcwc = 0, rpcpwc = 0;
+	asndcap_t     snd    = cn_c0_asnd[(int)d];
+	cycles_t      sndtot = 0, sndwc = 0, sndpwc = 0;
+	cycles_t      rpctot = 0, rpcwc = 0, rpcpwc = 0;
 	unsigned long iters = 0;
 
 	assert(snd);
 
 	while (1) {
 		cycles_t st, en, rpcen;
-		int pending = 0, rcvd = 0, ret = 0;
+		int      pending = 0, rcvd = 0, ret = 0;
 
 		if (unlikely(testing == 0)) break;
 
@@ -103,7 +103,7 @@ hiprio_cn_lat_fn(arcvcap_t r, void *d)
 		rdtscll(en);
 
 #ifdef SND_UB_TEST
-		iters ++;
+		iters++;
 		sndtot += (en - st);
 		if (en - st > sndwc) {
 			sndpwc = sndwc;
@@ -111,8 +111,8 @@ hiprio_cn_lat_fn(arcvcap_t r, void *d)
 		}
 
 		if (unlikely(iters == IPI_TEST_ITERS)) {
-			PRINTC("SND WC:%llu(p:%llu), AVG:%llu(total:%llu, iter:%lu)\n",
-			       sndwc, sndpwc, sndtot / iters, sndtot, iters);
+			PRINTC("SND WC:%llu(p:%llu), AVG:%llu(total:%llu, iter:%lu)\n", sndwc, sndpwc, sndtot / iters,
+			       sndtot, iters);
 			testing = 0;
 		}
 #endif
@@ -122,7 +122,7 @@ hiprio_cn_lat_fn(arcvcap_t r, void *d)
 		assert(pending == 0 && rcvd == 1);
 		rdtscll(rpcen);
 #ifdef RPC_UB_TEST
-		iters ++;
+		iters++;
 		rpctot += (rpcen - st);
 		if (rpcen - st > rpcwc) {
 			rpcpwc = rpcwc;
@@ -130,8 +130,8 @@ hiprio_cn_lat_fn(arcvcap_t r, void *d)
 		}
 
 		if (unlikely(iters == IPI_TEST_ITERS)) {
-			PRINTC("RPC WC:%llu(p:%llu), AVG:%llu(total:%llu, iter:%lu)\n",
-			       rpcwc, rpcpwc, rpctot / iters, rpctot, iters);
+			PRINTC("RPC WC:%llu(p:%llu), AVG:%llu(total:%llu, iter:%lu)\n", rpcwc, rpcpwc, rpctot / iters,
+			       rpctot, iters);
 			testing = 0;
 		}
 #endif
@@ -157,15 +157,15 @@ static void
 test_latency_setup(void)
 {
 #ifdef TEST_LATENCY
-	static volatile int cdone[NUM_CPU] = { 0 };
-	int i, ret;
+	static volatile int cdone[NUM_CPU] = {0};
+	int                 i, ret;
 
 	assert(NUM_CPU == 2);
 	assert(LAT_C0 >= 0 && LAT_C1 >= 0 && LAT_C0 < NUM_CPU && LAT_C1 < NUM_CPU && LAT_C0 != LAT_C1);
 
 
 	if (cos_cpuid() == LAT_C0) {
-		asndcap_t snd = 0;
+		asndcap_t      snd = 0;
 		struct sl_thd *lo = NULL, *hi = NULL;
 
 		hi = sl_thd_aep_alloc(hiprio_c0_lat_fn, (void *)LAT_C1, 1, 0, 0, 0);
@@ -175,7 +175,8 @@ test_latency_setup(void)
 		lo = sl_thd_aep_alloc(loprio_c0_lat_fn, NULL, 1, 0, 0, 0);
 		assert(lo);
 
-		while (!cn_rcv[LAT_C1]) ;
+		while (!cn_rcv[LAT_C1])
+			;
 
 		snd = capmgr_asnd_rcv_create(cn_rcv[LAT_C1]);
 		assert(snd);
@@ -195,14 +196,15 @@ test_latency_setup(void)
 		rdtscll(last);
 		testing = 1;
 	} else {
-		struct sl_thd *hi = NULL;
-		asndcap_t snd = 0;
+		struct sl_thd *hi  = NULL;
+		asndcap_t      snd = 0;
 
 		hi = sl_thd_aep_alloc(hiprio_cn_lat_fn, (void *)LAT_C1, 1, 0, 0, 0);
 		assert(hi);
 		cn_rcv[LAT_C1] = sl_thd_rcvcap(hi);
 
-		while (!c0_rcv[LAT_C1]) ;
+		while (!c0_rcv[LAT_C1])
+			;
 
 		snd = capmgr_asnd_rcv_create(c0_rcv[LAT_C1]);
 		assert(snd);
@@ -217,29 +219,30 @@ test_latency_setup(void)
 
 	ps_faa((unsigned long *)&cdone[cos_cpuid()], 1);
 	for (i = 0; i < NUM_CPU; i++) {
-		while (!ps_load((unsigned long *)&cdone[i])) ;
+		while (!ps_load((unsigned long *)&cdone[i]))
+			;
 	}
 #endif
 }
 
 #define WINDOW_US 1000
-#define PRINT_US  1000000
+#define PRINT_US 1000000
 
 #define RATE_C0 0
 
-#define WINDOW_SZ (PRINT_US/WINDOW_US)
-volatile unsigned long ipi_rate[WINDOW_SZ] = { 0 }, ipi_winidx = 0;
-volatile cycles_t ipi_win_st = 0, ipi_print_st = 0;
+#define WINDOW_SZ (PRINT_US / WINDOW_US)
+volatile unsigned long ipi_rate[WINDOW_SZ] = {0}, ipi_winidx = 0;
+volatile cycles_t      ipi_win_st = 0, ipi_print_st = 0;
 
 static void
 hiprio_rate_c0_fn(arcvcap_t r, void *d)
 {
-	cycles_t now;
+	cycles_t      now;
 	unsigned long niters = 0;
 
 	rdtscll(now);
 	ipi_win_st = ipi_print_st = last = now;
-	testing = 1;
+	testing                          = 1;
 
 	while (1) {
 		cycles_t n2;
@@ -248,7 +251,7 @@ hiprio_rate_c0_fn(arcvcap_t r, void *d)
 
 		if (now - last > wc) {
 			pwc = wc;
-			wc = now - last;
+			wc  = now - last;
 		}
 
 		if (now - last >= IPI_MIN_THRESH) ipi_rate[ipi_winidx]++;
@@ -270,7 +273,7 @@ hiprio_rate_c0_fn(arcvcap_t r, void *d)
 				printc("%lu, ", ipi_rate[i]);
 			}
 			printc("[%lu]\n", tot);
-			ipi_winidx = 0;
+			ipi_winidx           = 0;
 			ipi_rate[ipi_winidx] = 0;
 			niters++;
 			rdtscll(now);
@@ -293,7 +296,8 @@ loprio_rate_c0_fn(arcvcap_t r, void *d)
 	asndcap_t snd = c0_cn_asnd[(int)d];
 
 	assert(snd);
-	while (testing == 0) ;
+	while (testing == 0)
+		;
 
 	while (1) {
 		int pending = 0, rcvd = 0, ret = 0;
@@ -316,7 +320,8 @@ hiprio_rate_cn_fn(arcvcap_t r, void *d)
 	asndcap_t snd = cn_c0_asnd[(int)d];
 
 	assert(snd);
-	while (testing == 0) ;
+	while (testing == 0)
+		;
 
 	while (1) {
 		int pending = 0, rcvd = 0, ret = 0;
@@ -341,12 +346,12 @@ static void
 test_rate_setup(void)
 {
 #ifdef TEST_RATE
-	static volatile int cdone[NUM_CPU] = { 0 };
-	int i, ret;
+	static volatile int cdone[NUM_CPU] = {0};
+	int                 i, ret;
 
 	if (cos_cpuid() == RATE_C0) {
-		struct sl_thd *lo[NUM_CPU] = { NULL }, *hi = NULL;
-		asndcap_t snd = 0;
+		struct sl_thd *lo[NUM_CPU] = {NULL}, *hi = NULL;
+		asndcap_t      snd = 0;
 
 		hi = sl_thd_aep_alloc(hiprio_rate_c0_fn, NULL, 1, 0, 0, 0);
 		assert(hi);
@@ -358,12 +363,14 @@ test_rate_setup(void)
 			assert(lo[i]);
 			c0_rcv[i] = sl_thd_rcvcap(lo[i]);
 
-			while (!cn_rcv[i]) ;
+			while (!cn_rcv[i])
+				;
 
 			snd = capmgr_asnd_rcv_create(cn_rcv[i]);
 			assert(snd);
 			c0_cn_asnd[i] = snd;
-			ret = cos_tcap_transfer(sl_thd_rcvcap(lo[i]), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF, LOW_PRIO);
+			ret = cos_tcap_transfer(sl_thd_rcvcap(lo[i]), BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, TCAP_RES_INF,
+			                        LOW_PRIO);
 			assert(ret == 0);
 			sl_thd_param_set(lo[i], sched_param_pack(SCHEDP_WINDOW, AEP_PERIOD_US));
 			sl_thd_param_set(lo[i], sched_param_pack(SCHEDP_BUDGET, AEP_BUDGET_US));
@@ -376,14 +383,15 @@ test_rate_setup(void)
 		sl_thd_param_set(hi, sched_param_pack(SCHEDP_BUDGET, AEP_BUDGET_US));
 		sl_thd_param_set(hi, sched_param_pack(SCHEDP_PRIO, HI_PRIO));
 	} else {
-		struct sl_thd *hi = NULL;
-		asndcap_t snd = 0;
+		struct sl_thd *hi  = NULL;
+		asndcap_t      snd = 0;
 
 		hi = sl_thd_aep_alloc(hiprio_rate_cn_fn, (void *)cos_cpuid(), 1, 0, 0, 0);
 		assert(hi);
 		cn_rcv[cos_cpuid()] = sl_thd_rcvcap(hi);
 
-		while (!c0_rcv[cos_cpuid()]) ;
+		while (!c0_rcv[cos_cpuid()])
+			;
 
 		snd = capmgr_asnd_rcv_create(c0_rcv[cos_cpuid()]);
 		assert(snd);
@@ -398,7 +406,8 @@ test_rate_setup(void)
 
 	ps_faa((unsigned long *)&cdone[cos_cpuid()], 1);
 	for (i = 0; i < NUM_CPU; i++) {
-		while (!ps_load((unsigned long *)&cdone[i])) ;
+		while (!ps_load((unsigned long *)&cdone[i]))
+			;
 	}
 #endif
 }
@@ -411,8 +420,8 @@ static void
 c0_ipc_fn(arcvcap_t r, void *d)
 {
 	asndcap_t snd = c0_cn_asnd[cos_cpuid()];
-	int iters;
-	cycles_t rtt_total = 0, one_total = 0, rtt_wc = 0, one_wc = 0, rone_total = 0, rone_wc = 0;
+	int       iters;
+	cycles_t  rtt_total = 0, one_total = 0, rtt_wc = 0, one_wc = 0, rone_total = 0, rone_wc = 0;
 
 	PRINTC("Testing Cross-core IPC:\n");
 	assert(snd);
@@ -422,7 +431,7 @@ c0_ipc_fn(arcvcap_t r, void *d)
 	testing = 1;
 
 	while (1) {
-		int pending = 0, rcvd = 0, ret = 0;
+		int      pending = 0, rcvd = 0, ret = 0;
 		cycles_t rtt_diff, one_diff = 0, rone_diff = 0;
 
 		rdtscll(c0_start);
@@ -434,8 +443,8 @@ c0_ipc_fn(arcvcap_t r, void *d)
 		assert(pending == 0 && rcvd == 1);
 		rdtscll(c0_end);
 
-		rtt_diff = (c0_end - c0_start);
-		one_diff = (c1_mid - c0_start);
+		rtt_diff  = (c0_end - c0_start);
+		one_diff  = (c1_mid - c0_start);
 		rone_diff = (c0_end - c1_mid);
 		if (rtt_diff > rtt_wc) rtt_wc = rtt_diff;
 		if (one_diff > one_wc) one_wc = one_diff;
@@ -462,7 +471,8 @@ c1_ipc_fn(arcvcap_t r, void *d)
 	asndcap_t snd = cn_c0_asnd[cos_cpuid()];
 
 	assert(snd);
-	while (testing == 0) ;
+	while (testing == 0)
+		;
 
 	while (1) {
 		int pending = 0, rcvd = 0, ret = 0;
@@ -486,10 +496,10 @@ static void
 test_ipc_setup(void)
 {
 #ifdef TEST_IPC
-	static volatile long cdone[NUM_CPU] = { 0 };
-	int i, ret;
-	struct sl_thd *t = NULL;
-	asndcap_t snd = 0;
+	static volatile long cdone[NUM_CPU] = {0};
+	int                  i, ret;
+	struct sl_thd *      t   = NULL;
+	asndcap_t            snd = 0;
 
 	assert(NUM_CPU == 2); /* use only 2 cores for this test! */
 
@@ -498,7 +508,8 @@ test_ipc_setup(void)
 		assert(t);
 		c0_rcv[cos_cpuid()] = sl_thd_rcvcap(t);
 
-		while (!cn_rcv[1]) ;
+		while (!cn_rcv[1])
+			;
 
 		snd = capmgr_asnd_rcv_create(cn_rcv[1]);
 		assert(snd);
@@ -508,7 +519,8 @@ test_ipc_setup(void)
 		assert(t);
 		cn_rcv[cos_cpuid()] = sl_thd_rcvcap(t);
 
-		while (!c0_rcv[0]) ;
+		while (!c0_rcv[0])
+			;
 
 		snd = capmgr_asnd_rcv_create(c0_rcv[0]);
 		assert(snd);
@@ -523,7 +535,8 @@ test_ipc_setup(void)
 
 	ps_faa((unsigned long *)&cdone[cos_cpuid()], 1);
 	for (i = 0; i < NUM_CPU; i++) {
-		while (!ps_load((unsigned long *)&cdone[i])) ;
+		while (!ps_load((unsigned long *)&cdone[i]))
+			;
 	}
 #endif
 }
@@ -533,10 +546,10 @@ test_ipc_setup(void)
 void
 cos_init(void)
 {
-	int i;
-	static unsigned long first = NUM_CPU + 1, init_done[NUM_CPU] = { 0 };
+	int                     i;
+	static unsigned long    first = NUM_CPU + 1, init_done[NUM_CPU] = {0};
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
+	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
 
 	assert(NUM_CPU > 1);
 
@@ -554,13 +567,15 @@ cos_init(void)
 #endif
 #endif
 	} else {
-		while (!ps_load(&init_done[first])) ;
+		while (!ps_load(&init_done[first]))
+			;
 
 		cos_defcompinfo_sched_init();
 	}
 	ps_faa(&init_done[cos_cpuid()], 1);
 	for (i = 0; i < NUM_CPU; i++) {
-		while (!ps_load(&init_done[i])) ;
+		while (!ps_load(&init_done[i]))
+			;
 	}
 
 	sl_init(SCHED_PERIOD_US);

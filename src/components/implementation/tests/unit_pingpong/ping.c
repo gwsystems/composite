@@ -10,12 +10,12 @@ volatile ps_tsc_t fast_path, all_args;
 void
 cos_init(void)
 {
-	int r0 = 0, r1 = 0;
+	int           r0 = 0, r1 = 0;
 	unsigned long r3 = 0;
-	compid_t us, them;
-	thdid_t tid;
-	int i;
-	ps_tsc_t begin, end;
+	compid_t      us, them;
+	thdid_t       tid;
+	int           i;
+	ps_tsc_t      begin, end;
 
 	printc("Ping component %ld: cos_init execution\n", cos_compid());
 
@@ -30,18 +30,14 @@ cos_init(void)
 	assert(cos_thdid() == tid && us != them && us == cos_compid());
 
 	begin = ps_tsc();
-	for (i = 0; i < ITER; i++) {
-		pong_call();
-	}
-	end = ps_tsc();
-	fast_path = (end - begin)/ITER;
+	for (i = 0; i < ITER; i++) { pong_call(); }
+	end       = ps_tsc();
+	fast_path = (end - begin) / ITER;
 
 	begin = ps_tsc();
-	for (i = 0; i < ITER; i++) {
-		pong_argsrets(0, 0, 0, 0, &r0, &r1);
-	}
-	end = ps_tsc();
-	all_args = (end - begin)/ITER;
+	for (i = 0; i < ITER; i++) { pong_argsrets(0, 0, 0, 0, &r0, &r1); }
+	end      = ps_tsc();
+	all_args = (end - begin) / ITER;
 
 	return;
 }

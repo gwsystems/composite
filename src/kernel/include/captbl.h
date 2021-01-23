@@ -42,7 +42,8 @@ __captbl_cap2bytes(cap_t c)
 	return 1 << (__captbl_cap2sz(c) + CAP_SZ_OFF);
 }
 
-typedef enum {
+typedef enum
+{
 	CAP_FLAG_RO    = 1,
 	CAP_FLAG_LOCAL = 1 << 1,
 	CAP_FLAG_RCU   = 1 << 2,
@@ -327,9 +328,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 			/* means a deactivation on this cap entry happened
 			 * before. */
 			rdtscll(curr_ts);
-			if (ltbl_get_timestamp(p->liveness_id, &past_ts)) {
-				cos_throw(err, -EFAULT);
-			}
+			if (ltbl_get_timestamp(p->liveness_id, &past_ts)) { cos_throw(err, -EFAULT); }
 			if (!QUIESCENCE_CHECK(curr_ts, past_ts, KERN_QUIESCENCE_CYCLES)) cos_throw(err, -EQUIESCENCE);
 		}
 	}

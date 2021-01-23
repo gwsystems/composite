@@ -19,9 +19,7 @@ print_symbs(struct symb_type *st)
 {
 	int i;
 
-	for (i = 0; i < st->num_symbs; i++) {
-		printl(PRINT_DEBUG, "%s, ", st->symbs[i].name);
-	}
+	for (i = 0; i < st->num_symbs; i++) { printl(PRINT_DEBUG, "%s, ", st->symbs[i].name); }
 
 	return;
 }

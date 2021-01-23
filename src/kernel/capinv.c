@@ -136,9 +136,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 
 		/* Require freeze memory and wait for quiescence
 		 * first! */
-		if (!(l & CAP_MEM_FROZEN_FLAG)) {
-			cos_throw(err, -EQUIESCENCE);
-		}
+		if (!(l & CAP_MEM_FROZEN_FLAG)) { cos_throw(err, -EQUIESCENCE); }
 		/* Quiescence check! */
 		if (deact_cap->lvl == 0) {
 			/* top level has tlb quiescence period (due to
@@ -181,9 +179,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 
 		/* Require freeze memory and wait for quiescence
 		 * first! */
-		if (!(l & CAP_MEM_FROZEN_FLAG)) {
-			cos_throw(err, -EQUIESCENCE);
-		}
+		if (!(l & CAP_MEM_FROZEN_FLAG)) { cos_throw(err, -EQUIESCENCE); }
 
 		/* Quiescence check! */
 		if (deact_cap->lvl == 0) {
@@ -541,7 +537,7 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		 * for now, we set timeout to 0 to use the budget of the tcap for timer interrupt programming.
 		 */
 		timeout = 0;
-		if (timer_intr_context) tc_next= thd_rcvcap_tcap(thd_next);
+		if (timer_intr_context) tc_next = thd_rcvcap_tcap(thd_next);
 
 		/* how about the scheduler's tcap? */
 		if (tcap_expended(tc_next)) {
@@ -562,9 +558,10 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		 * Note: If the timer interrupt was indeed for a timeout but the current tcap
 		 *       has expended, then budget expiry condition takes priority.
 		 */
-		if (thd_bound2rcvcap(thd_curr)
-		    && thd_rcvcap_isreferenced(thd_curr)) thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
-		else                                      thd_next = thd_scheduler(thd_curr);
+		if (thd_bound2rcvcap(thd_curr) && thd_rcvcap_isreferenced(thd_curr))
+			thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
+		else
+			thd_next = thd_scheduler(thd_curr);
 		/* tc_next is tc_curr */
 	}
 
@@ -592,7 +589,8 @@ cap_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struc
 }
 
 static int
-cap_sched_tok_validate(struct thread *rcvt, sched_tok_t usr_tok, struct comp_info *ci, struct cos_cpu_local_info *cos_info)
+cap_sched_tok_validate(struct thread *rcvt, sched_tok_t usr_tok, struct comp_info *ci,
+                       struct cos_cpu_local_info *cos_info)
 {
 	assert(rcvt && usr_tok < ~0U);
 
@@ -629,7 +627,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
 		rcvt = arcv_cap->thd;
 
-		ret  = cap_sched_tok_validate(rcvt, usr_counter, ci, cos_info);
+		ret = cap_sched_tok_validate(rcvt, usr_counter, ci, cos_info);
 		if (ret) return ret;
 
 		if (thd_rcvcap_pending(rcvt) > 0) {
@@ -679,30 +677,30 @@ __cap_asnd_to_arcv(struct cap_asnd *asnd)
 int
 cap_ipi_process(struct pt_regs *regs)
 {
-	struct cos_cpu_local_info  *cos_info = cos_cpu_local_info();
+	struct cos_cpu_local_info * cos_info = cos_cpu_local_info();
 	struct IPI_receiving_rings *receiver_rings;
-	struct xcore_ring 	   *ring;
-	struct ipi_cap_data 	    data;
-	struct cap_arcv 	   *arcv;
-	struct thread 		   *thd_curr, *thd_next;
-	struct tcap 		   *tcap_curr, *tcap_next;
-	struct comp_info 	   *ci;
+	struct xcore_ring *         ring;
+	struct ipi_cap_data         data;
+	struct cap_arcv *           arcv;
+	struct thread *             thd_curr, *thd_next;
+	struct tcap *               tcap_curr, *tcap_next;
+	struct comp_info *          ci;
 	int                         i, scan_base;
 	unsigned long               ip, sp;
 
-	thd_curr       = thd_next = thd_current(cos_info);
-	receiver_rings = &IPI_cap_dest[get_cpuid()];
-	tcap_curr      = tcap_next = tcap_current(cos_info);
-	ci             = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
+	thd_curr = thd_next = thd_current(cos_info);
+	receiver_rings      = &IPI_cap_dest[get_cpuid()];
+	tcap_curr = tcap_next = tcap_current(cos_info);
+	ci                    = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
 
-	scan_base = receiver_rings->start;
+	scan_base             = receiver_rings->start;
 	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
 
 	/* We need to scan the entire buffer once. */
 	for (i = 0; i < NUM_CPU; i++) {
 		struct thread *rcvthd  = NULL;
-		struct tcap   *rcvtcap = NULL;
+		struct tcap *  rcvtcap = NULL;
 
 		ring = &receiver_rings->IPI_source[(scan_base + i) % NUM_CPU];
 
@@ -766,13 +764,13 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 
 	if (srcv) {
 		struct cap_arcv *srcv_cap;
-		struct thread   *rcvt;
+		struct thread *  rcvt;
 
 		srcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, srcv);
 		if (!CAP_TYPECHK_CORE(srcv_cap, CAP_ARCV)) return -EINVAL;
 		rcvt = srcv_cap->thd;
 
-		ret  = cap_sched_tok_validate(rcvt, usr_tok, ci, cos_info);
+		ret = cap_sched_tok_validate(rcvt, usr_tok, ci, cos_info);
 		if (ret) return ret;
 
 		if (thd_rcvcap_pending(rcvt) > 0) {
@@ -1216,10 +1214,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		}
 		case CAPTBL_OP_THDACTIVATE: {
 			thdclosure_index_t init_data  = __userregs_get1(regs) >> 16;
-			capid_t thd_cap               = __userregs_get1(regs) & 0xFFFF;
-			capid_t pgtbl_cap             = __userregs_get2(regs);
-			capid_t pgtbl_addr            = __userregs_get3(regs);
-			capid_t compcap               = __userregs_get4(regs);
+			capid_t            thd_cap    = __userregs_get1(regs) & 0xFFFF;
+			capid_t            pgtbl_cap  = __userregs_get2(regs);
+			capid_t            pgtbl_addr = __userregs_get3(regs);
+			capid_t            compcap    = __userregs_get4(regs);
 
 			struct thread *thd;
 			unsigned long *pte = NULL;
@@ -1376,7 +1374,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			assert(ctin);
 
 			ret = cap_introspect(ctin, capin, op, &retval);
-			if (!ret) ret= retval;
+			if (!ret) ret = retval;
 
 			break;
 		}

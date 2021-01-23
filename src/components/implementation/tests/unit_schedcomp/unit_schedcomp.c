@@ -28,7 +28,7 @@ low_thread_fn()
 static void
 high_thread_fn()
 {
-	thdid_t lowtid;
+	thdid_t  lowtid;
 	cycles_t deadline;
 
 	lowtid = sched_thd_create(low_thread_fn, NULL);
@@ -43,7 +43,7 @@ high_thread_fn()
 static void
 test_highest_is_scheduled(void)
 {
-	thdid_t hitid;
+	thdid_t  hitid;
 	cycles_t wakeup;
 
 	hitid = sched_thd_create(high_thread_fn, NULL);
@@ -60,20 +60,22 @@ static void
 thd1_fn()
 {
 	thd1_ran[cos_cpuid()] = 1;
-	while (1);
+	while (1)
+		;
 }
 
 static void
 thd2_fn()
 {
 	thd2_ran[cos_cpuid()] = 1;
-	while (1);
+	while (1)
+		;
 }
 
 static void
 allocator_thread_fn()
 {
-	thdid_t tid1, tid2;
+	thdid_t  tid1, tid2;
 	cycles_t wakeup;
 
 	tid1 = sched_thd_create(thd1_fn, NULL);
@@ -94,7 +96,7 @@ allocator_thread_fn()
 static void
 test_swapping(void)
 {
-	thdid_t alloctid;
+	thdid_t  alloctid;
 	cycles_t wakeup;
 
 	alloctid = sched_thd_create(allocator_thread_fn, NULL);

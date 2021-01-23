@@ -11,7 +11,4 @@ COS_SERVER_3RET_STUB(int, pong_subset)
 	return pong_subset((unsigned long)p0, (unsigned long)p1, (unsigned long *)r1);
 }
 
-COS_SERVER_3RET_STUB(thdid_t, pong_ids)
-{
-	return pong_ids((compid_t *)r1, (compid_t *)r2);
-}
+COS_SERVER_3RET_STUB(thdid_t, pong_ids) { return pong_ids((compid_t *)r1, (compid_t *)r2); }

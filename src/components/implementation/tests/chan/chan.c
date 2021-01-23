@@ -5,9 +5,9 @@
 
 struct chan_snd s;
 struct chan_rcv r;
-thdid_t init_thd;
+thdid_t         init_thd;
 
-#define COMM_AMNT (2^10 * 16)
+#define COMM_AMNT (2 ^ 10 * 16)
 
 void
 sender(void *d)
@@ -29,7 +29,7 @@ sender(void *d)
 void
 receiver(void *d)
 {
-	int i;
+	int      i;
 	ps_tsc_t tot = 0;
 
 	for (i = 0; i < COMM_AMNT; i++) {
@@ -43,7 +43,7 @@ receiver(void *d)
 		tot += now - snd;
 	}
 
-	printc("Average send -> receive overhead %lld\n", tot/COMM_AMNT);
+	printc("Average send -> receive overhead %lld\n", tot / COMM_AMNT);
 
 	sched_thd_wakeup(init_thd);
 	sched_thd_block(0);
@@ -74,8 +74,8 @@ main(void)
 	printc("Chan tests: created channel, send/receive end-points. Proceeding with child thread creation.\n");
 
 	init_thd = cos_thdid();
-	s_id = sched_thd_create(sender, NULL);
-	r_id = sched_thd_create(receiver, NULL);
+	s_id     = sched_thd_create(sender, NULL);
+	r_id     = sched_thd_create(receiver, NULL);
 	if (s_id == 0 || r_id == 0) {
 		printc("sched_thd_create error.\n");
 		assert(0);

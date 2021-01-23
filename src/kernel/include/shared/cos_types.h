@@ -65,19 +65,22 @@ tcap_time_lessthan(tcap_time_t a, tcap_time_t b)
 	return a < b;
 }
 
-typedef enum {
+typedef enum
+{
 	TCAP_DELEG_TRANSFER = 1,
 	TCAP_DELEG_YIELD    = 1 << 1,
 } tcap_deleg_flags_t;
 
-typedef enum {
+typedef enum
+{
 	RCV_NON_BLOCKING = 1,
 	RCV_ALL_PENDING  = 1 << 1,
 } rcv_flags_t;
 
 #define BOOT_LIVENESS_ID_BASE 2
 
-typedef enum {
+typedef enum
+{
 	CAPTBL_OP_CPY,
 	CAPTBL_OP_CONS,
 	CAPTBL_OP_DECONS,
@@ -128,7 +131,8 @@ typedef enum {
 	CAPTBL_OP_HW_SHUTDOWN,
 } syscall_op_t;
 
-typedef enum {
+typedef enum
+{
 	CAP_FREE = 0,
 	CAP_SINV,       /* synchronous communication -- invoke */
 	CAP_SRET,       /* synchronous communication -- return */
@@ -170,7 +174,13 @@ typedef capid_t tcap_t;
  * capabilities in this cacheline, offset by CAP_SZ_OFF (to compress
  * memory).
  */
-typedef enum { CAP_SZ_16B = 0, CAP_SZ_32B, CAP_SZ_64B, CAP_SZ_ERR } cap_sz_t;
+typedef enum
+{
+	CAP_SZ_16B = 0,
+	CAP_SZ_32B,
+	CAP_SZ_64B,
+	CAP_SZ_ERR
+} cap_sz_t;
 
 /* Don't use unsigned type. We use negative values for error cases. */
 typedef int cpuid_t;
@@ -252,17 +262,19 @@ enum
 	BOOT_CAPTBL_PHYSM_PTE       = 16,
 	BOOT_CAPTBL_KM_PTE          = 18,
 
-	BOOT_CAPTBL_SINV_CAP           = 20,
-	BOOT_CAPTBL_SELF_INITHW_BASE   = 24,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
+	BOOT_CAPTBL_SINV_CAP          = 20,
+	BOOT_CAPTBL_SELF_INITHW_BASE  = 24,
+	BOOT_CAPTBL_SELF_INITTHD_BASE = 28,
 	/*
 	 * NOTE: kernel doesn't support sharing a cache-line across cores,
 	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU
 	 */
-	BOOT_CAPTBL_SELF_INITTCAP_BASE = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU * CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_SELF_INITTCAP_BASE = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ,
+	                                                  CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU * CAP16B_IDSZ,
+                                                         CAPMAX_ENTRY_SZ),
 
-	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
+	BOOT_CAPTBL_LAST_CAP = BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
@@ -356,7 +368,7 @@ typedef unsigned long      compid_t;
 typedef unsigned long      thdid_t;
 typedef unsigned long      invtoken_t;
 #define THDCLOSURE_INIT
-typedef int                thdclosure_index_t;
+typedef int thdclosure_index_t;
 
 struct restartable_atomic_sequence {
 	vaddr_t start, end;
@@ -366,7 +378,7 @@ struct restartable_atomic_sequence {
 struct usr_inv_cap {
 	vaddr_t       invocation_fn;
 	unsigned long cap_no;
-	void         *data;
+	void *        data;
 };
 
 #define COMP_INFO_POLY_NUM 10
@@ -418,7 +430,8 @@ struct cos_component_information {
 	char                               init_string[COMP_INFO_INIT_STR_LEN];
 } __attribute__((aligned(PAGE_SIZE)));
 
-typedef enum {
+typedef enum
+{
 	COS_UPCALL_THD_CREATE,
 	COS_UPCALL_ACAP_COMPLETE,
 	COS_UPCALL_DESTROY,
@@ -426,9 +439,10 @@ typedef enum {
 	COS_UPCALL_QUARANTINE
 } upcall_type_t;
 
-typedef enum {
-	COMP_FLAG_SCHED  = 1,      /* component is a scheduler */
-	COMP_FLAG_CAPMGR = (1<<1), /* component is a capability manager */
+typedef enum
+{
+	COMP_FLAG_SCHED  = 1,        /* component is a scheduler */
+	COMP_FLAG_CAPMGR = (1 << 1), /* component is a capability manager */
 } comp_flag_t;
 
 enum
@@ -442,7 +456,8 @@ enum
  * Fault and fault handler information.  Fault indices/identifiers and
  * the function names to handle them.
  */
-typedef enum {
+typedef enum
+{
 	COS_FLT_PGFLT,
 	COS_FLT_DIVZERO,
 	COS_FLT_BRKPT,
@@ -474,21 +489,22 @@ typedef enum {
 #define IL_INV (~0)
 typedef unsigned int isolation_level_t;
 
-#define INTERFACE_UNDEF_SYMBS 64 /* maxiumum undefined symbols in a cobj */
-#define LLBOOT_ROOTSCHED_PRIO 1  /* root scheduler priority for llbooter dispatch */
-#define LLBOOT_NEWCOMP_UNTYPED_SZ  (1<<24) /* 16 MB = untyped size per component if there is no capability manager */
-#define LLBOOT_RESERVED_UNTYPED_SZ (1<<24) /* 16 MB = reserved untyped size with booter if there is a capability manager */
-#define CAPMGR_MIN_UNTYPED_SZ      (1<<26) /* 64 MB = minimum untyped size for the capability manager in the system */
+#define INTERFACE_UNDEF_SYMBS 64            /* maxiumum undefined symbols in a cobj */
+#define LLBOOT_ROOTSCHED_PRIO 1             /* root scheduler priority for llbooter dispatch */
+#define LLBOOT_NEWCOMP_UNTYPED_SZ (1 << 24) /* 16 MB = untyped size per component if there is no capability manager */
+#define LLBOOT_RESERVED_UNTYPED_SZ \
+	(1 << 24)                       /* 16 MB = reserved untyped size with booter if there is a capability manager */
+#define CAPMGR_MIN_UNTYPED_SZ (1 << 26) /* 64 MB = minimum untyped size for the capability manager in the system */
 
 /* for simplicity, keep these multiples of PGD_RANGE */
-#define MEMMGR_COMP_MAX_HEAP     (1<<25) /* 32MB */
-#define MEMMGR_MAX_SHMEM_SIZE    (1<<22) /* 4MB */
-#define MEMMGR_COMP_MAX_SHMEM    MEMMGR_MAX_SHMEM_SIZE
+#define MEMMGR_COMP_MAX_HEAP (1 << 25)  /* 32MB */
+#define MEMMGR_MAX_SHMEM_SIZE (1 << 22) /* 4MB */
+#define MEMMGR_COMP_MAX_SHMEM MEMMGR_MAX_SHMEM_SIZE
 #define MEMMGR_MAX_SHMEM_REGIONS 1024
-#define CAPMGR_AEPKEYS_MAX       (1<<15)
+#define CAPMGR_AEPKEYS_MAX (1 << 15)
 
 #define IPIWIN_DEFAULT_US (1000) /* 1ms */
-#define IPIMAX_DEFAULT    (64) /* IPIs per ms for each RCV ep */
+#define IPIMAX_DEFAULT (64)      /* IPIs per ms for each RCV ep */
 
 typedef unsigned short int cos_channelkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KEY NAMESPACE */
 

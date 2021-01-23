@@ -15,7 +15,8 @@
 #include "chal/cpuid.h"
 #include "chal.h"
 
-typedef enum {
+typedef enum
+{
 	RETYPETBL_UNTYPED  = 0, /* untyped physical frames. */
 	RETYPETBL_USER     = 1,
 	RETYPETBL_KERN     = 2,

@@ -29,9 +29,9 @@ COS_CLIENT_STUB(int, init_done)(struct usr_inv_cap *uc, int parallel_init, init_
  * This function is implemented as a library compiled directly into
  * the client component.
  */
-void
-COS_STUB_LIBFN(init_parallel_await_init)(void)
+void COS_STUB_LIBFN(init_parallel_await_init)(void)
 {
-	while (ps_load(&awaiting_init)) ;
+	while (ps_load(&awaiting_init))
+		;
 }
 COS_STUB_ALIAS(init_parallel_await_init);

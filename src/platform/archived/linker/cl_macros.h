@@ -22,11 +22,11 @@
 #define NUM_ATOMIC_SYMBS 10
 #define NUM_KERN_SYMBS 1
 
-#define CAP_CLIENT_STUB_DEFAULT       "SS_ipc_client_marshal_args"
-#define CAP_CLIENT_STUB_RETS          "SS_ipc_client_marshal_args_rets"
-#define CAP_CLIENT_STUB_POSTPEND      "_call"
+#define CAP_CLIENT_STUB_DEFAULT "SS_ipc_client_marshal_args"
+#define CAP_CLIENT_STUB_RETS "SS_ipc_client_marshal_args_rets"
+#define CAP_CLIENT_STUB_POSTPEND "_call"
 #define CAP_SERVER_STUB_POSTPEND_RETS "_rets_inv"
-#define CAP_SERVER_STUB_POSTPEND      "_inv"
+#define CAP_SERVER_STUB_POSTPEND "_inv"
 
 #define BASE_SERVICE_ADDRESS SERVICE_START
 #define DEFAULT_SERVICE_SIZE SERVICE_SIZE

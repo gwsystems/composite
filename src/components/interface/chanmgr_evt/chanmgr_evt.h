@@ -25,7 +25,7 @@
  *     `n`. `chanmgr_evt_get`: `n` is the event resource id, or `0` is
  *     error.
  */
-int chanmgr_evt_set(chan_id_t id, evt_res_id_t rid, int sender_to_reciever);
+int          chanmgr_evt_set(chan_id_t id, evt_res_id_t rid, int sender_to_reciever);
 evt_res_id_t chanmgr_evt_get(chan_id_t id, int sender_to_reciever);
 
 /***/

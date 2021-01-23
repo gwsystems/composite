@@ -217,7 +217,7 @@ vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
 
 		case 's':
 			s = va_arg(args, char *);
-			if (!s) s= "<NULL>";
+			if (!s) s = "<NULL>";
 
 			len = strnlen(s, precision);
 
@@ -285,7 +285,7 @@ vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
 			num = va_arg(args, unsigned long);
 		} else if (qualifier == 'h') {
 			num = (unsigned short)va_arg(args, int);
-			if (flags & SIGN) num= (short)num;
+			if (flags & SIGN) num = (short)num;
 		} else if (flags & SIGN) {
 			num = va_arg(args, int);
 		} else {

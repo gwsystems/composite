@@ -17,13 +17,9 @@ rec_verify_dag(struct service_symbs *services, int current_depth, int max_depth)
 	int i;
 
 	/* cycle */
-	if (current_depth > max_depth) {
-		return -1;
-	}
+	if (current_depth > max_depth) { return -1; }
 
-	if (current_depth > services->depth) {
-		services->depth = current_depth;
-	}
+	if (current_depth > services->depth) { services->depth = current_depth; }
 
 	for (i = 0; i < services->num_dependencies; i++) {
 		struct service_symbs *d = services->dependencies[i].dep;

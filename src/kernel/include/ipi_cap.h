@@ -70,7 +70,7 @@ static inline struct cap_arcv *
 cos_ipi_arcv_get(struct ipi_cap_data *data)
 {
 	struct comp_info *ci = &data->comp_info;
-	struct cap_arcv  *arcv;
+	struct cap_arcv * arcv;
 	/* FIXME: check epoch and liveness! */
 
 	assert(ci->captbl);

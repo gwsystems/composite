@@ -21,9 +21,7 @@ get_symb_address(struct symb_type *st, const char *symb)
 	int i;
 
 	for (i = 0; i < st->num_symbs; i++) {
-		if (!strcmp(st->symbs[i].name, symb)) {
-			return st->symbs[i].addr;
-		}
+		if (!strcmp(st->symbs[i].name, symb)) { return st->symbs[i].addr; }
 	}
 	return 0;
 }
@@ -33,7 +31,7 @@ fault_handler_num(char *fn_name)
 {
 	int i;
 
-	for (i = 0; i < COS_FLT_MAX ; i++) {
+	for (i = 0; i < COS_FLT_MAX; i++) {
 		if (!strcmp(cos_flt_handlers[i], fn_name)) return i;
 	}
 	return -1;

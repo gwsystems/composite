@@ -52,24 +52,25 @@ u32_t cycs_per_usec = 0;
 #define FIXED_PERIOD_MS (10000)
 #define FIXED_BUDGET_MS (4000)
 
-typedef enum {
+typedef enum
+{
 	SCHEDINIT_FREE,
 	SCHEDINIT_INITING,
 	SCHEDINIT_PARINIT,
-	SCHEDINIT_MAIN,	/* main, or parallel_main depending on main_type */
+	SCHEDINIT_MAIN, /* main, or parallel_main depending on main_type */
 } schedinit_t;
 
 struct schedinit_status {
 	struct simple_barrier barrier;
-	schedinit_t status;
-	init_main_t  main_type;
+	schedinit_t           status;
+	init_main_t           main_type;
 };
 
-static struct schedinit_status initialization_state[MAX_NUM_COMPS] = { 0 };
+static struct schedinit_status initialization_state[MAX_NUM_COMPS] = {0};
 
 /* This schedule is used by the initializer_thd to ascertain order */
-static unsigned long init_schedule_off = 0;
-static compid_t init_schedule[MAX_NUM_COMPS] = { 0 };
+static unsigned long init_schedule_off            = 0;
+static compid_t      init_schedule[MAX_NUM_COMPS] = {0};
 /* internalizer threads simply orchestrate the initialization */
 static struct sl_thd *__initializer_thd[NUM_CPU] CACHE_ALIGNED;
 
@@ -83,9 +84,9 @@ schedinit_next(compid_t cid)
 	init_schedule_off++;
 	s = &initialization_state[cid];
 	assert(s->status == SCHEDINIT_FREE);
-	*s = (struct schedinit_status) {
-		.status = SCHEDINIT_INITING,
-		.main_type = INIT_MAIN_NONE,
+	*s = (struct schedinit_status){
+	  .status    = SCHEDINIT_INITING,
+	  .main_type = INIT_MAIN_NONE,
 	};
 	simple_barrier(&s->barrier);
 
@@ -95,7 +96,7 @@ schedinit_next(compid_t cid)
 void
 init_done(int parallel_init, init_main_t cont)
 {
-	compid_t client = (compid_t)cos_inv_token();
+	compid_t                 client = (compid_t)cos_inv_token();
 	struct schedinit_status *s;
 
 	s = &initialization_state[client];
@@ -125,7 +126,7 @@ init_done(int parallel_init, init_main_t cont)
 
 	if (cont == INIT_MAIN_NONE) {
 		printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), client);
-		sl_thd_exit();	/* No main? No more execution! */
+		sl_thd_exit(); /* No main? No more execution! */
 		BUG();
 	}
 
@@ -142,7 +143,8 @@ init_exit(int retval)
 	printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), client);
 	sl_thd_exit();
 	BUG();
-	while (1) ;
+	while (1)
+		;
 }
 
 /**
@@ -171,9 +173,9 @@ initialization_thread(void *d)
 	/* If there are more components to initialize */
 	while (init_schedule_current != ps_load(&init_schedule_off)) {
 		/* Which is the next component to initialize? */
-		compid_t client = init_schedule[init_schedule_current];
+		compid_t                 client = init_schedule[init_schedule_current];
 		struct schedinit_status *n;
-		struct sl_thd *t;
+		struct sl_thd *          t;
 
 		/* Create the thread for initialization of the next component */
 		t = sched_childinfo_init_component(client);
@@ -202,7 +204,7 @@ initialization_thread(void *d)
 	}
 
 	printc("Scheduler %ld, initialization completed.\n", cos_compid());
-	sl_thd_exit();		/* I'm out! */
+	sl_thd_exit(); /* I'm out! */
 	BUG();
 }
 
@@ -219,13 +221,13 @@ sched_child_init(struct sched_childinfo *schedci)
 	sl_thd_param_set(initthd, sched_param_pack(SCHEDP_BUDGET, FIXED_BUDGET_MS));
 }
 
-static u32_t cpubmp[NUM_CPU_BMP_WORDS] = { 0 };
+static u32_t cpubmp[NUM_CPU_BMP_WORDS] = {0};
 
 void
 cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
+	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
 
 	printc("Scheduler %ld initializing.\n", cos_compid());
 	cycs_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);

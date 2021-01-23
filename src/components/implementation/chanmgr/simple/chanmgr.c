@@ -8,10 +8,10 @@
 #define MAX_NUM_CHAN 32
 struct chan_info {
 	struct __chan_meta info;
-	unsigned int npages;
-	cbuf_t buf_id;
-	vaddr_t mem;
-	evt_res_id_t evt_id;
+	unsigned int       npages;
+	cbuf_t             buf_id;
+	vaddr_t            mem;
+	evt_res_id_t       evt_id;
 };
 
 SS_STATIC_SLAB(channel, struct chan_info, MAX_NUM_CHAN);
@@ -19,10 +19,10 @@ SS_STATIC_SLAB(channel, struct chan_info, MAX_NUM_CHAN);
 static chan_id_t
 __chanmgr_create(unsigned int item_sz, unsigned int slots, chan_flags_t flags, chan_id_t chanid)
 {
-	chan_id_t id, ret;
+	chan_id_t         id, ret;
 	struct chan_info *c;
-	struct crt_blkpt empty, full;
-	unsigned int mem_pages;
+	struct crt_blkpt  empty, full;
+	unsigned int      mem_pages;
 
 	if (chanid == 0) {
 		c = ss_channel_alloc();
@@ -32,19 +32,13 @@ __chanmgr_create(unsigned int item_sz, unsigned int slots, chan_flags_t flags, c
 	if (!c) return 0;
 	ret = id = ss_channel_id(c);
 
-	c->info = (struct __chan_meta) {
-		.nslots  = slots,
-		.item_sz = item_sz,
-		.flags   = flags,
-		.id      = id,
-		.evt_id  = 0
-	};
+	c->info = (struct __chan_meta){.nslots = slots, .item_sz = item_sz, .flags = flags, .id = id, .evt_id = 0};
 	if (crt_blkpt_init(&empty)) ERR_THROW(0, free_chan);
-	if (crt_blkpt_init(&full))  ERR_THROW(0, dealloc_empty_blkpt);
+	if (crt_blkpt_init(&full)) ERR_THROW(0, dealloc_empty_blkpt);
 	c->info.blkpt_empty_id = empty.id;
 	c->info.blkpt_full_id  = full.id;
-	mem_pages = round_up_to_page(chan_mem_sz(item_sz, slots)) / PAGE_SIZE;
-	c->buf_id = memmgr_shared_page_allocn(mem_pages, (vaddr_t *)&c->info.mem);
+	mem_pages              = round_up_to_page(chan_mem_sz(item_sz, slots)) / PAGE_SIZE;
+	c->buf_id              = memmgr_shared_page_allocn(mem_pages, (vaddr_t *)&c->info.mem);
 	if (c->buf_id == 0) ERR_THROW(0, dealloc_full_blkpt);
 
 	ss_channel_activate(c);
@@ -71,10 +65,10 @@ int
 chanmgr_sync_resources(chan_id_t id, sched_blkpt_id_t *full, sched_blkpt_id_t *empty)
 {
 	struct chan_info *chinfo;
-	compid_t cid = cos_inv_token();
+	compid_t          cid = cos_inv_token();
 
 	*full = *empty = 0;
-	chinfo = ss_channel_get(id);
+	chinfo         = ss_channel_get(id);
 	if (!chinfo) return -1;
 
 	*full  = chinfo->info.blkpt_full_id;
@@ -87,7 +81,7 @@ int
 chanmgr_mem_resources(chan_id_t id, cbuf_t *cb_id, void **mem)
 {
 	struct chan_info *chinfo;
-	compid_t cid = cos_inv_token();
+	compid_t          cid = cos_inv_token();
 
 	*cb_id = 0;
 	if (mem) *mem = NULL;
@@ -138,21 +132,17 @@ chanmgr_delete(chan_id_t id)
 }
 
 struct init_info {
-	chan_id_t id;
+	chan_id_t    id;
 	unsigned int nitems, itemsz;
 };
 
-#define CHAN_INIT(_id, _n, _sz)				\
-	(struct init_info) {				\
-		.id     = _id,				\
-		.nitems = _n,			        \
-	        .itemsz = _sz				\
-	}
+#define CHAN_INIT(_id, _n, _sz) \
+	(struct init_info) { .id = _id, .nitems = _n, .itemsz = _sz }
 
 struct init_info init_chan[] = {
-	CHAN_INIT(1, 128, sizeof(u64_t)),
-	CHAN_INIT(2, 128, sizeof(u64_t)),
-	CHAN_INIT(0, 0, 0),
+  CHAN_INIT(1, 128, sizeof(u64_t)),
+  CHAN_INIT(2, 128, sizeof(u64_t)),
+  CHAN_INIT(0, 0, 0),
 };
 
 void
@@ -164,7 +154,7 @@ cos_init(void)
 
 	for (i = 0; init_chan[i].id > 0; i++) {
 		struct init_info *ch = &init_chan[i];
-		chan_id_t id;
+		chan_id_t         id;
 
 		id = __chanmgr_create(ch->itemsz, ch->nitems, 0, ch->id);
 		if (id != ch->id) BUG();

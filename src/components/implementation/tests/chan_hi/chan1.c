@@ -6,12 +6,12 @@
 struct chan_snd s;
 struct chan_rcv r;
 
-#define COMM_AMNT (2^10 * 16)
+#define COMM_AMNT (2 ^ 10 * 16)
 
 void
 receiver(void)
 {
-	int i;
+	int      i;
 	ps_tsc_t tot = 0;
 
 	for (i = 0; i < COMM_AMNT; i++) {
@@ -25,32 +25,30 @@ receiver(void)
 		tot += now - snd;
 	}
 
-	printc("Average send -> receive overhead %lld\n", tot/COMM_AMNT);
+	printc("Average send -> receive overhead %lld\n", tot / COMM_AMNT);
 }
 
 void
 ipc(void)
 {
-	int i;
+	int      i;
 	ps_tsc_t rcv = 0, prev_rcv, snd = 0, tmp;
 	ps_tsc_t rcvcost = 0, sendcost = 0, rtt = 0, l2h = 0;
 
 	for (i = 0; i < COMM_AMNT; i++) {
 		snd = ps_tsc();
-		if (rcv > 0) {
-			sendcost += snd - rcv;
-		}
+		if (rcv > 0) { sendcost += snd - rcv; }
 		if (chan_recv(&r, &tmp, 0)) {
 			printc("chan_recv error\n");
 			assert(0);
 		}
 
 		prev_rcv = rcv;
-		rcv = ps_tsc();
+		rcv      = ps_tsc();
 		l2h += rcv - tmp;
 
 		rcvcost += rcv - snd;
-		rtt     += rcv - prev_rcv;
+		rtt += rcv - prev_rcv;
 		if (chan_send(&s, &rcv, 0)) {
 			printc("chan_send error\n");
 			assert(0);
@@ -58,7 +56,7 @@ ipc(void)
 	}
 
 	printc("Thread with high priority (4):\n\trcv  %lld\n\tsend %lld\n\trtt  %lld\n\tlow->high %lld\n",
-	       rcvcost/COMM_AMNT, sendcost/COMM_AMNT, rtt/COMM_AMNT, l2h/COMM_AMNT);
+	       rcvcost / COMM_AMNT, sendcost / COMM_AMNT, rtt / COMM_AMNT, l2h / COMM_AMNT);
 }
 
 int

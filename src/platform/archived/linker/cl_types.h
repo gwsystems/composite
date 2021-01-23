@@ -15,14 +15,22 @@
 #include <bfd.h>
 #include <cobj_format.h>
 
-typedef enum { LLBOOT_COMPN, LLBOOT_SCHED, LLBOOT_MM, LLBOOT_PRINT, LLBOOT_BOOT } llboot_component_ids;
+typedef enum
+{
+	LLBOOT_COMPN,
+	LLBOOT_SCHED,
+	LLBOOT_MM,
+	LLBOOT_PRINT,
+	LLBOOT_BOOT
+} llboot_component_ids;
 
 struct sec_info {
 	asection *s;
 	int       offset;
 };
 
-typedef enum {
+typedef enum
+{
 	TEXT_S,
 	RODATA_S,
 	CTORS_S,
@@ -80,7 +88,14 @@ struct dependency {
 	int resolved;
 };
 
-typedef enum { SERV_SECT_RO, SERV_SECT_DATA, SERV_SECT_BSS, SERV_SECT_INITONCE, SERV_SECT_NUM } serv_sect_type;
+typedef enum
+{
+	SERV_SECT_RO,
+	SERV_SECT_DATA,
+	SERV_SECT_BSS,
+	SERV_SECT_INITONCE,
+	SERV_SECT_NUM
+} serv_sect_type;
 
 struct service_section {
 	unsigned long offset;
@@ -110,7 +125,12 @@ struct service_symbs {
 	void *extern_info;
 };
 
-typedef enum { TRANS_CAP_NIL = 0, TRANS_CAP_FAULT, TRANS_CAP_SCHED } trans_cap_t;
+typedef enum
+{
+	TRANS_CAP_NIL = 0,
+	TRANS_CAP_FAULT,
+	TRANS_CAP_SCHED
+} trans_cap_t;
 
 struct cap_ret_info {
 	struct symb *         csymb, *ssymbfn, *cstub, *sstub;

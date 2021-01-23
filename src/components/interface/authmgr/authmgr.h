@@ -26,9 +26,9 @@ typedef word_t authmgr_cap_t;
  * future.
  */
 authmgr_cap_t authmgr_client_delegate(res_id_t id);
-res_id_t authmgr_server_receive(authmgr_cap_t id, compid_t client);
+res_id_t      authmgr_server_receive(authmgr_cap_t id, compid_t client);
 
-res_id_t authmgr_client_receive(authmgr_cap_t id);
+res_id_t      authmgr_client_receive(authmgr_cap_t id);
 authmgr_cap_t authmgr_server_delegate(res_id_t id, compid_t client);
 
 /* TODO: is authmgr_cap_t or (res_id_t, compid_t) better? */

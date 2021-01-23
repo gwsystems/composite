@@ -24,7 +24,7 @@ boot_state_transition(boot_state_t from, boot_state_t to)
 }
 
 struct mem_layout glb_memlayout;
-volatile int cores_ready[NUM_CPU];
+volatile int      cores_ready[NUM_CPU];
 
 extern u8_t end; /* from the linker script */
 
@@ -41,21 +41,19 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 
 	glb_memlayout.allocs_avail = 1;
 
-	if (mboot_magic != MULTIBOOT_EAX_MAGIC) {
-		die("Not started from a multiboot loader!\n");
-	}
+	if (mboot_magic != MULTIBOOT_EAX_MAGIC) { die("Not started from a multiboot loader!\n"); }
 	if ((mb->flags & MULTIBOOT_FLAGS_REQUIRED) != MULTIBOOT_FLAGS_REQUIRED) {
 		die("Multiboot flags include %x but are missing one of %x\n", mb->flags, MULTIBOOT_FLAGS_REQUIRED);
 	}
 
-	mems = (struct multiboot_mem_list *)mb->mmap_addr;
+	mems                   = (struct multiboot_mem_list *)mb->mmap_addr;
 	glb_memlayout.kern_end = &end;
 	assert((unsigned int)&end % RETYPE_MEM_NPAGES * PAGE_SIZE == 0);
 
 	printk("Initial component found:\n");
 	/* These values have to be higher-half addresses */
-	glb_memlayout.mod_start = &_binary_constructor_start;
-	glb_memlayout.mod_end   = &_binary_constructor_end;
+	glb_memlayout.mod_start      = &_binary_constructor_start;
+	glb_memlayout.mod_end        = &_binary_constructor_end;
 	glb_memlayout.kern_boot_heap = mem_boot_start();
 	printk("\t- [%08x, %08x)\n", &_binary_constructor_start, &_binary_constructor_end);
 
@@ -64,10 +62,12 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		struct multiboot_mem_list *mem      = &mems[i];
 		u8_t *                     mod_end  = glb_memlayout.mod_end;
 		u8_t *                     mem_addr = chal_pa2va((paddr_t)mem->addr);
-		unsigned long              mem_len  = (mem->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ : mem->len); /* maximum allowed */
+		unsigned long              mem_len  = (mem->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ
+		                                                                    : mem->len); /* maximum allowed */
 
-		printk("\t- %d (%s): [%08llx, %08llx) sz = %ldMB + %ldKB\n", i, mem->type == 1 ? "Available" : "Reserved ", mem->addr,
-		       mem->addr + mem->len, MEM_MB_ONLY((u32_t)mem->len), MEM_KB_ONLY((u32_t)mem->len));
+		printk("\t- %d (%s): [%08llx, %08llx) sz = %ldMB + %ldKB\n", i,
+		       mem->type == 1 ? "Available" : "Reserved ", mem->addr, mem->addr + mem->len,
+		       MEM_MB_ONLY((u32_t)mem->len), MEM_KB_ONLY((u32_t)mem->len));
 
 		if (mem->addr > COS_PHYMEM_END_PA || mem->addr + mem_len > COS_PHYMEM_END_PA) continue;
 
@@ -94,7 +94,8 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 
 	wastage += mem_boot_start() - mem_bootc_end();
 
-	printk("\tAmount of wasted memory due to layout is %u MB + 0x%x B\n", MEM_MB_ONLY(wastage), wastage & ((1 << 20) - 1));
+	printk("\tAmount of wasted memory due to layout is %u MB + 0x%x B\n", MEM_MB_ONLY(wastage),
+	       wastage & ((1 << 20) - 1));
 
 	assert(STK_INFO_SZ == sizeof(struct cos_cpu_local_info));
 }
@@ -156,7 +157,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 void
 smp_kmain(void)
 {
-	volatile cpuid_t cpu_id = get_cpuid();
+	volatile cpuid_t           cpu_id   = get_cpuid();
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 
 	printk("Initializing CPU %d\n", cpu_id);
@@ -171,11 +172,13 @@ smp_kmain(void)
 	printk("New CPU %d Booted\n", cpu_id);
 	cores_ready[cpu_id] = 1;
 	/* waiting for all cored booted */
-	while(cores_ready[INIT_CORE] == 0);
+	while (cores_ready[INIT_CORE] == 0)
+		;
 
 	kern_boot_upcall();
 
-	while(1) ;
+	while (1)
+		;
 }
 
 extern void shutdown_apm(void);
@@ -192,7 +195,7 @@ khalt(void)
 	 * thus faults on shutdown require that we bypass faulty
 	 * shutdown handlers.
 	 */
-	switch(method) {
+	switch (method) {
 	case 0:
 		method++;
 		printk("\ttry acpi");
@@ -211,5 +214,6 @@ khalt(void)
 	}
 	/* last resort */
 	printk("\t...spinning\n");
-	while (1) ;
+	while (1)
+		;
 }

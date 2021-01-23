@@ -106,9 +106,7 @@ mod_mem_type(void *pa, const mem_type_t type)
 	/* Set the retyping flag successfully. Now nobody else can
 	 * change this memory set. Update the per-core retype entries
 	 * next. */
-	for (i = 0; i < NUM_CPU; i++) {
-		retype_tbl[i].mem_set[idx].refcnt_atom.type = type;
-	}
+	for (i = 0; i < NUM_CPU; i++) { retype_tbl[i].mem_set[idx].refcnt_atom.type = type; }
 	cos_mem_fence();
 
 	/* Now commit the change to the global entry. */
@@ -245,9 +243,7 @@ retype_tbl_init(void)
 		}
 	}
 
-	for (i = 0; i < N_MEM_SETS; i++) {
-		glb_retype_tbl[i].type = RETYPETBL_UNTYPED;
-	}
+	for (i = 0; i < N_MEM_SETS; i++) { glb_retype_tbl[i].type = RETYPETBL_UNTYPED; }
 
 	cos_mem_fence();
 

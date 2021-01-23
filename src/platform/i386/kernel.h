@@ -27,13 +27,14 @@ void vga_puts(const char *str);
 void serial_init(void);
 #endif
 
-typedef enum {
-	INIT_BOOTED,   /* initial boot */
-	INIT_CPU,      /* bare minimum CPU initialization (tss, gdt, idt, etc...) */
-	INIT_MEM_MAP,  /* interpret the grub memory map to understand phys mem layout */
-	INIT_DATA_STRUCT,	/* initialize data-structures */
-	INIT_UT_MEM,   /* initialized and allocated vaddr for untyped memory  */
-	INIT_KMEM,     /* kernel virtual memory mappings are frozen */
+typedef enum
+{
+	INIT_BOOTED,      /* initial boot */
+	INIT_CPU,         /* bare minimum CPU initialization (tss, gdt, idt, etc...) */
+	INIT_MEM_MAP,     /* interpret the grub memory map to understand phys mem layout */
+	INIT_DATA_STRUCT, /* initialize data-structures */
+	INIT_UT_MEM,      /* initialized and allocated vaddr for untyped memory  */
+	INIT_KMEM,        /* kernel virtual memory mappings are frozen */
 	INIT_COMP_MEM_ALLOC,
 	INIT_MULTICORE_INIT,
 	INIT_BOOT_COMP
@@ -48,7 +49,8 @@ extern boot_state_t initialization_state;
 void boot_state_transition(boot_state_t from, boot_state_t to);
 
 /* These numbers map directly to actual timers in the HPET */
-typedef enum {
+typedef enum
+{
 	TIMER_PERIODIC = 0,
 	TIMER_ONESHOT  = 1,
 } timer_type_t;
@@ -64,11 +66,11 @@ u64_t timer_find_hpet(void *timer);
 void  timer_thd_init(struct thread *t);
 void *timer_initialize_hpet(void *timer);
 
-void  tss_init(const cpuid_t cpu_id);
-void  idt_init(const cpuid_t cpu_id);
-void  gdt_init(const cpuid_t cpu_id);
-void  user_init(void);
-void  paging_init(void);
+void tss_init(const cpuid_t cpu_id);
+void idt_init(const cpuid_t cpu_id);
+void gdt_init(const cpuid_t cpu_id);
+void user_init(void);
+void paging_init(void);
 
 void  acpi_init(void);
 void *acpi_find_rsdt(void);

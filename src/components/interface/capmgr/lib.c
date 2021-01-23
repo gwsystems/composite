@@ -12,7 +12,8 @@ capmgr_thd_create(cos_thd_fn_t fn, void *data, thdid_t *tid)
 }
 
 thdcap_t
-capmgr_aep_create(struct cos_aep_info *a, cos_aepthd_fn_t fn, void *data, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
+capmgr_aep_create(struct cos_aep_info *a, cos_aepthd_fn_t fn, void *data, int owntc, cos_channelkey_t key,
+                  microsec_t ipiwin, u32_t ipimax)
 {
 	thdclosure_index_t idx = cos_thd_init_alloc(cos_aepthd_fn, (void *)a);
 

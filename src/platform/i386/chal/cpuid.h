@@ -84,9 +84,7 @@ cos_cpu_local_info(void)
 static inline int
 get_cpuid(void)
 {
-	if (NUM_CPU > 1) {
-		return cos_cpu_local_info()->cpuid;
-	}
+	if (NUM_CPU > 1) { return cos_cpu_local_info()->cpuid; }
 
 	return 0;
 }

@@ -136,9 +136,7 @@ keyboard_handler(struct pt_regs *regs)
 
 	ack_irq(IRQ_KEYBOARD);
 
-	while (inb(KEY_PENDING) & 2) {
-		/* wait for keypress to be ready */
-	}
+	while (inb(KEY_PENDING) & 2) { /* wait for keypress to be ready */ }
 	scancode = inb(KEY_DEVICE);
 	printk("Keyboard press: %d\n", scancode);
 	return preempt;

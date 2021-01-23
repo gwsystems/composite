@@ -4,8 +4,8 @@
  * This uses a two clause BSD License.
  */
 
- #include <stdio.h>
- #include <string.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <cos_component.h>
 #include <cos_defkernel_api.h>
@@ -33,9 +33,7 @@ static void
 aep_thd_fn(arcvcap_t rcv, void *data)
 {
 	printc("\tSwitched to aep %d\n", (int)data);
-	while (1) {
-		cos_rcv(rcv, 0, NULL);
-	}
+	while (1) { cos_rcv(rcv, 0, NULL); }
 }
 
 static void
@@ -78,7 +76,7 @@ test_childcomps(void)
 	int id, ret;
 
 	printc("Test switching to new components\n");
-	for (id = 0; id < CHILD_COMP_COUNT; id ++ ) {
+	for (id = 0; id < CHILD_COMP_COUNT; id++) {
 		int         blocked;
 		cycles_t    cycs;
 		thdid_t     tid;
@@ -88,8 +86,9 @@ test_childcomps(void)
 			;
 		printc("\tSwitching to [%d] component\n", id);
 		if (id == CHILD_SCHED_ID) {
-			ret = cos_switch(cos_sched_aep_get(&child_defci[id])->thd, cos_sched_aep_get(&child_defci[id])->tc, CHILD_SCHED_PRIO,
-			                 TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			ret = cos_switch(cos_sched_aep_get(&child_defci[id])->thd,
+			                 cos_sched_aep_get(&child_defci[id])->tc, CHILD_SCHED_PRIO, TCAP_TIME_NIL,
+			                 BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
 			assert(ret == 0);
 		} else {
 			cycles_t    now;
@@ -98,7 +97,8 @@ test_childcomps(void)
 			rdtscll(now);
 			timer = tcap_cyc2time(now + 100 * cycs_per_usec);
 
-			ret = cos_defswitch(cos_sched_aep_get(&child_defci[id])->thd, timer, CHILD_SCHED_PRIO, cos_sched_sync());
+			ret = cos_defswitch(cos_sched_aep_get(&child_defci[id])->thd, timer, CHILD_SCHED_PRIO,
+			                    cos_sched_sync());
 			assert(ret == 0);
 		}
 	}
@@ -162,8 +162,9 @@ cos_init(void)
 				                     cos_sched_aep_get(&child_defci[id])->rcv);
 				assert(ret == 0);
 
-				ret = cos_tcap_transfer(cos_sched_aep_get(&child_defci[id])->rcv, BOOT_CAPTBL_SELF_INITTCAP_BASE,
-				                        CHILD_SCHED_CYCS, CHILD_SCHED_PRIO);
+				ret = cos_tcap_transfer(cos_sched_aep_get(&child_defci[id])->rcv,
+				                        BOOT_CAPTBL_SELF_INITTCAP_BASE, CHILD_SCHED_CYCS,
+				                        CHILD_SCHED_PRIO);
 				assert(ret == 0);
 			}
 

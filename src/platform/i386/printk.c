@@ -26,7 +26,5 @@ printk(const char *fmt, ...)
 	l = vsprintf(buffer, fmt, args);
 	va_end(args);
 
-	for (i = 0; i < num_handlers; i++) {
-		printk_handlers[i](buffer);
-	}
+	for (i = 0; i < num_handlers; i++) { printk_handlers[i](buffer); }
 }

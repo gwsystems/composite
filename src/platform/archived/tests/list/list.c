@@ -19,9 +19,7 @@ print(struct clist_head *lh)
 
 	clist_head_fst(lh, &l);
 	printf("[ ");
-	for (clist_head_fst(lh, &l); !clist_is_head(lh, l); l = clist_next(l)) {
-		printf("%d ", l->id);
-	}
+	for (clist_head_fst(lh, &l); !clist_is_head(lh, l); l = clist_next(l)) { printf("%d ", l->id); }
 	printf("]\n");
 }
 

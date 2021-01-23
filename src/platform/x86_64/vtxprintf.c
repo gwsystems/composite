@@ -24,19 +24,19 @@
  * X86_64-FIXME:
  * "rm(__base)" -> "m"(__base)
  */
-#define do_div(n, base)                                                                             \
-	({                                                                                          \
-		unsigned long __upper, __low, __high, __mod, __base;                                \
-		__base = (base);                                                                    \
-		asm("" : "=a"(__low), "=d"(__high) : "A"(n));                                       \
-		__upper = __high;                                                                   \
-		if (__high) {                                                                       \
-			__upper = __high % (__base);                                                \
-			__high  = __high / (__base);                                                \
-		}                                                                                   \
+#define do_div(n, base)                                                                            \
+	({                                                                                         \
+		unsigned long __upper, __low, __high, __mod, __base;                               \
+		__base = (base);                                                                   \
+		asm("" : "=a"(__low), "=d"(__high) : "A"(n));                                      \
+		__upper = __high;                                                                  \
+		if (__high) {                                                                      \
+			__upper = __high % (__base);                                               \
+			__high  = __high / (__base);                                               \
+		}                                                                                  \
 		asm("divl %2" : "=a"(__low), "=d"(__mod) : "m"(__base), "0"(__low), "1"(__upper)); \
-		asm("" : "=A"(n) : "a"(__low), "d"(__high));                                        \
-		__mod;                                                                              \
+		asm("" : "=A"(n) : "a"(__low), "d"(__high));                                       \
+		__mod;                                                                             \
 	})
 
 /* haha, don't need ctype.c */
@@ -222,7 +222,7 @@ vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
 
 		case 's':
 			s = va_arg(args, char *);
-			if (!s) s= "<NULL>";
+			if (!s) s = "<NULL>";
 
 			len = strnlen(s, precision);
 
@@ -290,7 +290,7 @@ vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
 			num = va_arg(args, unsigned long);
 		} else if (qualifier == 'h') {
 			num = (unsigned short)va_arg(args, int);
-			if (flags & SIGN) num= (short)num;
+			if (flags & SIGN) num = (short)num;
 		} else if (flags & SIGN) {
 			num = va_arg(args, int);
 		} else {

@@ -22,9 +22,7 @@ is_transparent_capability(struct symb *s, int *fltn)
 	char *n = s->name;
 	*fltn   = 0;
 
-	if (s->modifier_offset) {
-		printf("%s -> %s.\n", n, n + s->modifier_offset);
-	}
+	if (s->modifier_offset) { printf("%s -> %s.\n", n, n + s->modifier_offset); }
 	if (!strcmp(n, SCHED_CREATE_FN)) return TRANS_CAP_SCHED;
 	if (-1 != (*fltn = fault_handler_num(n + s->modifier_offset))) return TRANS_CAP_FAULT;
 	return TRANS_CAP_NIL;
@@ -144,9 +142,8 @@ find_symbol_exporter_mark_resolved(struct symb *s, struct dependency *exporters,
 	return NULL;
 }
 
-struct service_symbs *find_symbol_exporter_mark_resolved(struct symb *s,
-							 struct dependency *exporters,
-							 int num_exporters, struct symb **exported);
+struct service_symbs *find_symbol_exporter_mark_resolved(struct symb *s, struct dependency *exporters,
+                                                         int num_exporters, struct symb **exported);
 
 
 /*
@@ -206,9 +203,7 @@ verify_dependency_completeness(struct service_symbs *services)
 		}
 	}
 
-	for (services = start; services; services = services->next) {
-		create_transparent_capabilities(services);
-	}
+	for (services = start; services; services = services->next) { create_transparent_capabilities(services); }
 exit:
 	return ret;
 }

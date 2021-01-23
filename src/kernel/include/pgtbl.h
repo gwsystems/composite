@@ -20,7 +20,8 @@
 #include "chal.h"
 #endif
 
-typedef enum {
+typedef enum
+{
 	PGTBL_PRESENT  = 1,
 	PGTBL_WRITABLE = 1 << 1,
 	PGTBL_USER     = 1 << 2,

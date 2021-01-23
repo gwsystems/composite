@@ -12,21 +12,21 @@
 #include <sl_child.h>
 
 extern unsigned int num_child_init[];
-extern thdcap_t capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid);
+extern thdcap_t     capmgr_thd_retrieve_next(spdid_t child, thdid_t *tid);
 
 cbuf_t
 schedinit_child(void)
 {
-	spdid_t c = cos_inv_token();
-	thdid_t thdid  = 0;
+	spdid_t                 c     = cos_inv_token();
+	thdid_t                 thdid = 0;
 	struct cos_defcompinfo *dci;
 	struct sched_childinfo *ci;
-	struct sl_thd *init;
-	cbuf_t id = 0;
-	struct sl_thd *tcur;
+	struct sl_thd *         init;
+	cbuf_t                  id = 0;
+	struct sl_thd *         tcur;
 
 	if (!c) return 0;
-	ci  = sched_childinfo_find(c);
+	ci = sched_childinfo_find(c);
 	/* is a child sched? */
 	if (!ci || !(ci->flags & COMP_FLAG_SCHED)) return 0;
 	dci = sched_child_defci_get(ci);
@@ -40,7 +40,7 @@ schedinit_child(void)
 
 	/* thd retrieve */
 	do {
-		struct sl_thd *t = NULL;
+		struct sl_thd *     t = NULL;
 		struct cos_aep_info aep;
 
 		memset(&aep, 0, sizeof(struct cos_aep_info));
@@ -52,7 +52,7 @@ schedinit_child(void)
 
 		aep.tid = thdid;
 		aep.tc  = sl_thd_tcap(sl__globals_cpu()->sched_thd);
-		t = sl_thd_init_ext(&aep, init);
+		t       = sl_thd_init_ext(&aep, init);
 		if (!t) return 0;
 	} while (thdid);
 

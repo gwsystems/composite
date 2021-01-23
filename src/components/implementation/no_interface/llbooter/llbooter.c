@@ -35,12 +35,12 @@
 #endif
 
 static struct crt_comp boot_comps[MAX_NUM_COMPS];
-static const  compid_t sched_root_id  = 2;
-static        long     boot_id_offset = -1;
+static const compid_t  sched_root_id  = 2;
+static long            boot_id_offset = -1;
 
 SS_STATIC_SLAB(sinv, struct crt_sinv, BOOTER_MAX_SINV);
-SS_STATIC_SLAB(thd,  struct crt_thd,  BOOTER_MAX_INITTHD);
-SS_STATIC_SLAB(rcv,  struct crt_rcv,  BOOTER_MAX_SCHED);
+SS_STATIC_SLAB(thd, struct crt_thd, BOOTER_MAX_INITTHD);
+SS_STATIC_SLAB(rcv, struct crt_rcv, BOOTER_MAX_SCHED);
 
 /*
  * Assumptions: the component with the lowest id *must* be the one
@@ -53,9 +53,7 @@ boot_comp_get(compid_t id)
 {
 	assert(id > 0 && id <= MAX_NUM_COMPS);
 
-	if (boot_id_offset == -1) {
-		boot_id_offset = id;
-	}
+	if (boot_id_offset == -1) { boot_id_offset = id; }
 	/* casts are OK as we know that boot_id_offset is > 0 now */
 	assert((compid_t)boot_id_offset <= id);
 	assert(boot_id_offset >= 0 && id >= (compid_t)boot_id_offset);
@@ -78,10 +76,10 @@ boot_comp_set_idoffset(int off)
 static void
 comps_init(void)
 {
-	struct initargs comps, curr;
+	struct initargs      comps, curr;
 	struct initargs_iter i;
-	int cont, ret, j;
-	int comp_idx = 0;
+	int                  cont, ret, j;
+	int                  comp_idx = 0;
 
 	/*
 	 * Assume: our component id is the lowest of the ids for all
@@ -99,16 +97,16 @@ comps_init(void)
 	ret = args_get_entry("components", &comps);
 	assert(!ret);
 	printc("Components (%d):\n", args_len(&comps));
-	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+	for (cont = args_iter(&comps, &i, &curr); cont; cont = args_iter_next(&i, &curr)) {
 		struct crt_comp *comp;
-		void *elf_hdr;
-		int   keylen;
-		compid_t id = atoi(args_key(&curr, &keylen));
-		char *name  = args_get_from("img", &curr);
-		vaddr_t info = atol(args_get_from("info", &curr));
-		const char *root = "binaries/";
-		int   len  = strlen(root);
-		char  path[INITARGS_MAX_PATHNAME];
+		void *           elf_hdr;
+		int              keylen;
+		compid_t         id   = atoi(args_key(&curr, &keylen));
+		char *           name = args_get_from("img", &curr);
+		vaddr_t          info = atol(args_get_from("info", &curr));
+		const char *     root = "binaries/";
+		int              len  = strlen(root);
+		char             path[INITARGS_MAX_PATHNAME];
 
 		printc("%s: %lu\n", name, id);
 
@@ -134,7 +132,8 @@ comps_init(void)
 		} else {
 			assert(elf_hdr);
 			if (crt_comp_create(comp, name, id, elf_hdr, info)) {
-				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
+				printc("Error constructing the resource tables and image of component %s.\n",
+				       comp->name);
 				BUG();
 			}
 		}
@@ -144,12 +143,12 @@ comps_init(void)
 	ret = args_get_entry("execute", &comps);
 	assert(!ret);
 	printc("Execution schedule:\n");
-	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct crt_comp     *comp;
-		int      keylen;
-		compid_t id        = atoi(args_key(&curr, &keylen));
-		char    *exec_type = args_value(&curr);
-		struct crt_comp_exec_context ctxt = { 0 };
+	for (cont = args_iter(&comps, &i, &curr); cont; cont = args_iter_next(&i, &curr)) {
+		struct crt_comp *            comp;
+		int                          keylen;
+		compid_t                     id        = atoi(args_key(&curr, &keylen));
+		char *                       exec_type = args_value(&curr);
+		struct crt_comp_exec_context ctxt      = {0};
 
 		assert(exec_type);
 		assert(id != cos_compid());
@@ -186,24 +185,25 @@ comps_init(void)
 	 * for now, assume only one capmgr (allocating untyped memory
 	 * gets complex here otherwise)
 	 */
-	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct crt_comp *c;
-		struct initargs curr_inner;
-		struct initargs_iter i_inner;
-		int keylen, cont2;
-		compid_t capmgr_id;
-		struct crt_comp_resources comp_res = { 0 };
-		crt_comp_alias_t alias_flags = 0;
-		struct crt_comp *target = NULL;
+	for (cont = args_iter(&comps, &i, &curr); cont; cont = args_iter_next(&i, &curr)) {
+		struct crt_comp *         c;
+		struct initargs           curr_inner;
+		struct initargs_iter      i_inner;
+		int                       keylen, cont2;
+		compid_t                  capmgr_id;
+		struct crt_comp_resources comp_res    = {0};
+		crt_comp_alias_t          alias_flags = 0;
+		struct crt_comp *         target      = NULL;
 
 		capmgr_id = atoi(args_key(&curr, &keylen));
-		c = boot_comp_get(capmgr_id);
+		c         = boot_comp_get(capmgr_id);
 		assert(c);
 
 		printc("\tCapmgr %ld:\n", capmgr_id);
 		/* This assumes that all capabilities for a given component are *contiguous* */
-		for (cont2 = args_iter(&curr, &i_inner, &curr_inner) ; cont2 ; cont2 = args_iter_next(&i_inner, &curr_inner)) {
-			char    *type      = args_get_from("type", &curr_inner);
+		for (cont2 = args_iter(&curr, &i_inner, &curr_inner); cont2;
+		     cont2 = args_iter_next(&i_inner, &curr_inner)) {
+			char *   type      = args_get_from("type", &curr_inner);
 			capid_t  capno     = atoi(args_key(&curr_inner, &keylen));
 			compid_t target_id = atoi(args_get_from("target", &curr_inner));
 
@@ -257,19 +257,20 @@ comps_init(void)
 	ret = args_get_entry("sinvs", &comps);
 	assert(!ret);
 	printc("Synchronous invocations (%d):\n", args_len(&comps));
-	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+	for (cont = args_iter(&comps, &i, &curr); cont; cont = args_iter_next(&i, &curr)) {
 		struct crt_sinv *sinv;
-		int serv_id = atoi(args_get_from("server", &curr));
-		int cli_id  = atoi(args_get_from("client", &curr));
+		int              serv_id = atoi(args_get_from("server", &curr));
+		int              cli_id  = atoi(args_get_from("client", &curr));
 
 		sinv = ss_sinv_alloc();
 		assert(sinv);
 		crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
-				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
-				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+		                strtoul(args_get_from("c_fn_addr", &curr), NULL, 10),
+		                strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
+		                strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
 		ss_sinv_activate(sinv);
-		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
-		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
+		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n", sinv->name,
+		       sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
 	}
 
 	/*
@@ -282,10 +283,10 @@ comps_init(void)
 	 */
 	ret = args_get_entry("captbl_delegations", &comps);
 	assert(!ret);
-	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct crt_comp *c;
-		int keylen;
-		struct crt_comp_exec_context ctxt = { 0 };
+	for (cont = args_iter(&comps, &i, &curr); cont; cont = args_iter_next(&i, &curr)) {
+		struct crt_comp *            c;
+		int                          keylen;
+		struct crt_comp_exec_context ctxt = {0};
 
 		c = boot_comp_get(atoi(args_key(&curr, &keylen)));
 		assert(c);
@@ -302,8 +303,8 @@ comps_init(void)
 unsigned long
 addr_get(compid_t id, addr_t type)
 {
-	compid_t client = (compid_t)cos_inv_token();
-	struct crt_comp *c, *target;
+	compid_t             client = (compid_t)cos_inv_token();
+	struct crt_comp *    c, *target;
 	struct cos_compinfo *ci;
 
 	c = boot_comp_get(client);
@@ -347,7 +348,7 @@ execute(void)
 void
 init_done(int parallel_init, init_main_t main_type)
 {
-	compid_t client = (compid_t)cos_inv_token();
+	compid_t         client = (compid_t)cos_inv_token();
 	struct crt_comp *c;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
@@ -362,7 +363,7 @@ init_done(int parallel_init, init_main_t main_type)
 void
 init_exit(int retval)
 {
-	compid_t client = (compid_t)cos_inv_token();
+	compid_t         client = (compid_t)cos_inv_token();
 	struct crt_comp *c;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
@@ -371,7 +372,8 @@ init_exit(int retval)
 
 	crt_compinit_exit(c, retval);
 
-	while (1) ;
+	while (1)
+		;
 }
 
 void

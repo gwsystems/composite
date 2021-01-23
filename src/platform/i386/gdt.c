@@ -5,7 +5,7 @@
 #include "chal_asm_inc.h"
 
 struct gdt_aligned {
-        u64_t seg_descs[SEL_CNT];
+	u64_t seg_descs[SEL_CNT];
 } __attribute__((aligned(CACHE_LINE)));
 static volatile struct gdt_aligned gdt[NUM_CPU];
 

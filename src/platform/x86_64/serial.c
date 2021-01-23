@@ -25,9 +25,7 @@ serial_recv(void)
 static inline void
 serial_send(char out)
 {
-	while ((inb(SERIAL_PORT_A + 5) & 0x20) == 0) {
-		/* wait for port to be ready to send */
-	}
+	while ((inb(SERIAL_PORT_A + 5) & 0x20) == 0) { /* wait for port to be ready to send */ }
 	outb(SERIAL_PORT_A, out);
 }
 

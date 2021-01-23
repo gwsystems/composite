@@ -6,8 +6,8 @@
 
 /* want to keep this state small */
 static unsigned long         init_await_parallel_activation = 1;
-static coreid_t              init_core = 0;
-static struct simple_barrier init_barrier = SIMPLE_BARRIER_INITVAL;
+static coreid_t              init_core                      = 0;
+static struct simple_barrier init_barrier                   = SIMPLE_BARRIER_INITVAL;
 
 /*
  * These functions are library-defined (no sinvs to other components),
@@ -19,14 +19,11 @@ static struct simple_barrier init_barrier = SIMPLE_BARRIER_INITVAL;
  * symbol. In the component, we can use COS_EXTERN_INV...to call
  * this. See cos_component.c for the application of this idea.
  */
-void
-COS_STUB_LIBFN(init_done)(int parallel_init, init_main_t main_type)
+void COS_STUB_LIBFN(init_done)(int parallel_init, init_main_t main_type)
 {
 	static unsigned long first = 1;
 
-	if (ps_cas(&first, 1, 0)) {
-		ps_store(&init_core, cos_coreid());
-	}
+	if (ps_cas(&first, 1, 0)) { ps_store(&init_core, cos_coreid()); }
 
 	/* only the initial thread will call with parallel_init == 1 */
 	if (parallel_init) {
@@ -60,17 +57,17 @@ COS_STUB_LIBFN(init_done)(int parallel_init, init_main_t main_type)
 }
 COS_STUB_ALIAS(init_done);
 
-void
-COS_STUB_LIBFN(init_exit)(int retval)
+void COS_STUB_LIBFN(init_exit)(int retval)
 {
 	/* Don't really need to differentiate between parallel or not here... */
-	while (1) ;
+	while (1)
+		;
 }
 COS_STUB_ALIAS(init_exit);
 
-void
-COS_STUB_LIBFN(init_parallel_await_init)(void)
+void COS_STUB_LIBFN(init_parallel_await_init)(void)
 {
-	while (ps_load(&init_await_parallel_activation)) ;
+	while (ps_load(&init_await_parallel_activation))
+		;
 }
 COS_STUB_ALIAS(init_parallel_await_init);
