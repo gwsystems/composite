@@ -18,4 +18,4 @@ cp grub.cfg iso/boot/grub/
 cp kernel.img iso/boot/
 grub-mkrescue -o kernel.iso iso
 
-qemu-system-x86_64 -m 768 -cdrom kernel.iso 
+qemu-system-x86_64 -m 768 -cdrom kernel.iso -cpu max
