@@ -14,6 +14,7 @@
 #define ADDR_STR_LEN 8
 
 boot_state_t initialization_state = INIT_BOOTED;
+void serial_puts(const char *s);
 
 void
 boot_state_transition(boot_state_t from, boot_state_t to)
@@ -107,12 +108,10 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 void
 kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 {
-	char *         str     = "Hello world! This is elf-64 + multiboot2.";
-	unsigned char *vga_ptr = (unsigned char *)0xb8000;
-	while (*str != '\0') {
-		*(vga_ptr++) = *(str++);
-		*(vga_ptr++) = 12; /* red color */
-	}
+	#ifdef ENABLE_SERIAL
+	serial_init();
+	#endif
+	serial_puts("hello cos\n");
 	while (1) {}
 #define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
 	unsigned long max;
@@ -121,9 +120,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	gdt_init(INIT_CORE);
 	idt_init(INIT_CORE);
 
-#ifdef ENABLE_SERIAL
-	serial_init();
-#endif
+
 #ifdef ENABLE_CONSOLE
 	console_init();
 #endif
