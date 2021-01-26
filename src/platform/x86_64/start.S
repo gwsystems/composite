@@ -40,6 +40,7 @@ entry_point:
     cpuid
     bt $26, %edx
     jc huge_page_enabled
+    /* TODO: support for cpus which don't have 1G paging scheme here */
     jmp .
 
 huge_page_enabled:
@@ -51,9 +52,9 @@ huge_page_enabled:
     
     /* set kernel paging space */
     movl  $0x00000083, P3_table /* 0-1 GB vm -> 0-1 GB pm */
-	movl  $0x0, (P3_table+0x08*1)
-	movl  $0x0, (P3_table+0x08*2)
-	movl  $0x00000083, (P3_table+0x08*3) /* 3-4 GB vm -> 0-1 GB pm */
+    movl  $0x0, (P3_table+0x08*1)
+    movl  $0x0, (P3_table+0x08*2)
+    movl  $0x00000083, (P3_table+0x08*3) /* 3-4 GB vm -> 0-1 GB pm */
 
     /* set %cr3 to the physical address of P4_table */
     mov $P4_table, %eax
@@ -77,14 +78,14 @@ huge_page_enabled:
 
     /* load GDT so we can use selectors within them */
     mov $Gdt_Ptr, %eax
-	lgdt (%eax)
+    lgdt (%eax)
 
     /* need a jump to flush cs selector */
 .code64
     mov $entry_64, %rax
-	pushq $0x08
-	pushq %rax
-	lretq
+    pushq $0x08
+    pushq %rax
+    lretq
 
 
 entry_64:
@@ -92,18 +93,18 @@ entry_64:
     cli
     /* Flush data selectors */
     mov $0x10, %rax	
-	mov %rax, %ds
-	mov %rax, %es
-	mov %rax, %fs
-	mov %rax, %gs
-	mov %rax, %ss
+    mov %rax, %ds
+    mov %rax, %es
+    mov %rax, %fs
+    mov %rax, %gs
+    mov %rax, %ss
 
     /* set up a kernel stack for kmain */
     movabs $(stack + STACKSIZE), %rsp
     movabs $kmain, %rax
-	pushq $0x08
-	pushq %rax
-	lretq
+    pushq $0x08
+    pushq %rax
+    lretq
     jmp .
 
 
@@ -111,14 +112,14 @@ entry_64:
 .align 8
 .global Gdt_Table
 Gdt_Table:
-	.quad	0x0000000000000000	// null descriptor
-	.quad	0x0020980000000000	// kernel code descriptor
-	.quad 	0x0000920000000000	// kernel data descriptor
+    .quad	0x0000000000000000	// null descriptor
+    .quad	0x0020980000000000	// kernel code descriptor
+    .quad 	0x0000920000000000	// kernel data descriptor
 Gdt_End:
 
 Gdt_Ptr:	
-		.word	Gdt_End - Gdt_Table - 1
-		.quad	Gdt_Table
+    .word	Gdt_End - Gdt_Table - 1
+    .quad	Gdt_Table
 
 /* temparaily page directory/tables */
 /* need to be 4k aligned */
@@ -126,9 +127,9 @@ Gdt_Ptr:
 
 .global P4_table
 P4_table:
-	.fill 512, 8, 0
+    .fill 512, 8, 0
 
 .global P3_table
 P3_table:
-	.fill 512, 8, 0
+    .fill 512, 8, 0
 
