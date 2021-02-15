@@ -19,7 +19,8 @@
 
 .globl loader
 loader:
-	mov 	$(stack + STACKSIZE - STK_INFO_OFF), %esp
+	/* X86_64-FIXME: commented temparaily */
+	/* mov 	$(stack + STACKSIZE - STK_INFO_OFF), %esp */
 	movl	%eax, %ecx
 	/* X86_64-FIXME: movl %cr4, %eax -> movq %cr4, %rax */
 	movq    %cr4, %rax
@@ -44,7 +45,8 @@ loader:
 	pushq %rbx
 	/* X86_64-FIXME: pushl $0 -> pushq %0 */ 
 	pushq $0  /* empty return value as we're jmping, not calling */
-	mov $kmain, %eax
+	/* X86_64-FIXME: commented temparaily */
+	/* mov $kmain, %eax */
 	/* X86_64-FIXME: jmp *%eax -> jmp *%rax */ 
 	jmp *%rax
 
@@ -127,12 +129,11 @@ smploader:
 	orl     $CR0_PE, %eax
 	movl    %eax, %cr0
 
-	ljmpl    $(SEL_KCSEG), $RELOCATE_ADDR(smpstart32)
+	/* ljmpl    $(SEL_KCSEG), $RELOCATE_ADDR(smpstart32) */
 
 .align 0x10
 .code32
 smpstart32:
-
 	movw    $(SEL_KDSEG), %ax
 	movw    %ax, %ds
 	movw    %ax, %es
@@ -157,9 +158,10 @@ smpstart32:
 	/* Switch to the stack allocated by startothers() */
 	movl    $RELOCATE_ADDR(smpstack), %esp
 	movl    (%esp), %esp
-	pushl   $spin
-
-	mov     $smp_kmain, %eax
+	/* X86_64-FIXME: commented temparaily */
+	/* pushl   $spin */
+	/* X86_64-FIXME: commented temparaily */
+	/* mov     $smp_kmain, %eax */
 	jmp     *%eax
 spin:
 	jmp     spin

@@ -105,7 +105,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 }
 
 void
-kmain(u32_t mboot_addr, u32_t mboot_magic)
+kmain(u64_t mboot_addr, u64_t mboot_magic)
 {
 	#ifdef ENABLE_SERIAL
 	serial_init();

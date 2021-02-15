@@ -14,11 +14,11 @@
 struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED LARGE_BSS;
 struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED LARGE_BSS;
 
-#define KERN_INIT_PGD_IDX (COS_MEM_KERN_START_VA >> PGD_SHIFT)
-u32_t boot_comp_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
+#define KERN_INIT_PGD_IDX ((COS_MEM_KERN_START_VA & 0x0000ffffffffffff ) >> PGD_SHIFT)
+u64_t boot_comp_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
                                                                [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
                                                                                        | X86_PGTBL_SUPER};
-u32_t boot_ap_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
+u64_t boot_ap_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
                                                              [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
                                                                                      | X86_PGTBL_SUPER};
 

@@ -17,7 +17,7 @@ SECTIONS {
 
     boot_end = .;
 
-    . = 0xc0100000 + boot_end - phys;		/* This should be COS_MEM_KERN_START_VA + COS_MEM_KERN_PA */
+    . = 0xffff800000000000 + boot_end;		/* This should be COS_MEM_KERN_START_VA + COS_MEM_KERN_PA */
 
     .text : AT(boot_end) {
         code = .;

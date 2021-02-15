@@ -1,3 +1,4 @@
+#include "chal/shared/cos_config.h"
 #include "multiboot2.h"
 
 /* multiboot2 header must be contained completely within the first 32768 bytes of the OS image, and must be 64-bit aligned */
@@ -62,12 +63,10 @@ huge_page_enabled:
     mov $P3_table, %eax
     or $0x01, %eax
     mov %eax, P4_table
+    mov %eax, (P4_table+0x08*256)
     
     /* set kernel paging space */
     movl  $0x00000083, P3_table /* 0-1 GB vm -> 0-1 GB pm */
-    movl  $0x0, (P3_table+0x08*1)
-    movl  $0x0, (P3_table+0x08*2)
-    movl  $0x00000083, (P3_table+0x08*3) /* 3-4 GB vm -> 0-1 GB pm */
 
     /* set %cr3 to the physical address of P4_table */
     mov $P4_table, %eax
@@ -118,6 +117,8 @@ entry_64:
     xor %rdi, %rdi
     movl Multiboot_magic, %esi
     movl Multiboot_tags, %edi
+    movabs $COS_MEM_KERN_START_VA, %rax
+    add %rax, %rdi
 
     movabs $kmain, %rax
     pushq $0x08
