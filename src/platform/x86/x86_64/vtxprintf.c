@@ -34,6 +34,13 @@
 		__mod;                                                                              \
 	})
 
+unsigned int do_div_fun(unsigned long long *num, int base)
+{
+	unsigned int mod = 0;
+	mod = *num % base;
+	*num = *num / base; 
+	return mod;	
+}
 /* haha, don't need ctype.c */
 #define isdigit(c) ((c) >= '0' && (c) <= '9')
 #define is_digit isdigit
@@ -92,7 +99,7 @@ number(void (*tx_byte)(unsigned char byte), unsigned long long num, int base, in
 	if (num == 0)
 		tmp[i++] = '0';
 	else
-		while (num != 0) tmp[i++] = digits[do_div(num, base)];
+		while (num != 0) tmp[i++] = digits[do_div_fun(&num, base)];
 	if (i > precision) precision = i;
 	size -= precision;
 	if (!(type & (ZEROPAD + LEFT)))

@@ -14,14 +14,13 @@
 struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED LARGE_BSS;
 struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED LARGE_BSS;
 
-#define KERN_INIT_PGD_IDX ((COS_MEM_KERN_START_VA & 0x0000ffffffffffff ) >> PGD_SHIFT)
+#define KERN_INIT_PGD_IDX ((COS_MEM_KERN_START_VA & COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK) >> PGD_SHIFT)
 u64_t boot_comp_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
                                                                [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
                                                                                        | X86_PGTBL_SUPER};
 u64_t boot_ap_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
                                                              [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
                                                                                      | X86_PGTBL_SUPER};
-
 void
 kern_retype_initial(void)
 {
@@ -187,10 +186,10 @@ device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags)
 void
 kern_paging_map_init(void *pa)
 {
-	unsigned long i, j;
+	u64_t i, j;
 	paddr_t       kern_pa_start = 0, kern_pa_end = (paddr_t)pa;
 
-	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA / PGD_RANGE;
+	for (i = kern_pa_start, j = (COS_MEM_KERN_START_VA & COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK) / PGD_RANGE;
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end); i += PGD_RANGE, j++) {
 		assert(j != KERN_INIT_PGD_IDX
 		       || ((boot_comp_pgd[j] | X86_PGTBL_GLOBAL) & ~(X86_PGTBL_MODIFIED | X86_PGTBL_ACCESSED))
