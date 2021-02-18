@@ -6,7 +6,7 @@
  */
 
 #define COS_STATIC_STACK		\
-.align 16;				\
+.align COS_STACK_SZ;			\
 .globl cos_static_stack;		\
 cos_static_stack:			\
 	.rep ALL_STACK_SZ_FLAT;		\

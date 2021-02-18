@@ -1198,7 +1198,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			livenessid_t lid        = __userregs_get3(regs);
 			vaddr_t      entry_addr = __userregs_get4(regs);
 
-			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr, NULL);
+			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr);
 			break;
 		}
 		case CAPTBL_OP_COMPDEACTIVATE: {

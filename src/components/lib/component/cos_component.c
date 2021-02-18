@@ -244,6 +244,7 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	BUG();
 }
 
+#if defined(__arm__)
 CWEAKSYMB vaddr_t
 cos_inv_cap_set(struct usr_inv_cap *uc)
 {
@@ -251,6 +252,7 @@ cos_inv_cap_set(struct usr_inv_cap *uc)
 
 	return uc->invocation_fn;
 }
+#endif
 
 CWEAKSYMB void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)

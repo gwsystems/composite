@@ -86,38 +86,26 @@ retypetbl_kern_deref(void *pa, u32_t order)
 int
 retypetbl_ref(void *pa, u32_t order)
 {
-	struct page_record  walk[NUM_PAGE_SIZES];
-	int i, ret, idx;
-	struct retype_entry temp, old_temp;
+	int idx, old_v;
+	struct retype_entry *retype_entry;
+	union refcnt_atom local_u;
 	int found = 0;
 
-	memset(walk, 0, sizeof(struct page_record) * NUM_PAGE_SIZES);
 	assert(pa); /* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
 
 	idx = GET_MEM_IDX(pa);
 	assert(idx < N_MEM_SETS);
 
-	for (i = POS(MAX_PAGE_ORDER); i >= POS(order); i--) {
-		walk[i].p = GET_RETYPE_ENTRY(idx, ORDER(i));
-		old_temp.refcnt_atom.v = walk[i].p->refcnt_atom.v;
-		temp.refcnt_atom.v = old_temp.refcnt_atom.v;
-		if (old_temp.refcnt_atom.type == RETYPETBL_KERN) cos_throw(err, -EPERM);
-		if (old_temp.refcnt_atom.type == RETYPETBL_USER) found = 1;
-		/* Increase or decrease the core-local count with CAS */
-		temp.refcnt_atom.ref_cnt++;
-		if (retypetbl_cas(&(walk[i].p->refcnt_atom.v), old_temp.refcnt_atom.v, temp.refcnt_atom.v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
-		walk[i].inc_cnt = 1;
-	}
-	if (!found) cos_throw(err, -EPERM);
+	retype_entry = GET_RETYPE_ENTRY(idx, ORDER(0));
+	old_v = local_u.v = retype_entry->refcnt_atom.v;
+	if (local_u.ref_cnt == RETYPE_REFCNT_MAX) return -EOVERFLOW;
+	/* Increase or decrease the core-local count with CAS */
+	local_u.ref_cnt = local_u.ref_cnt + 1;
+	cos_mem_fence();
+	if (retypetbl_cas(&(retype_entry->refcnt_atom.v), old_v, local_u.v) != CAS_SUCCESS) return -ECASFAIL;
 
 	return 0;
-err:
-	/* Prepare to unwind and quit */
-	for ( ; i <= POS(MAX_PAGE_ORDER); i++) {
-		if (walk[i].inc_cnt != 0) walk[i].p->refcnt_atom.v--;
-	}
-	return ret;
 }
 
 int

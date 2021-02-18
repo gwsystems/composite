@@ -118,11 +118,11 @@ test_tmr(void)
 	printc("Create threads:\n");
 	
 	tmr_lo = sched_thd_create(tmr_lo_thd, NULL);
-	printc("\tcreating lo thread %d at prio %d\n", tmr_lo, sps[1]);
+	printc("\tcreating lo thread %ld at prio %d\n", tmr_lo, sps[1]);
 	sched_thd_param_set(tmr_lo, sps[1]);
 	
 	tmr_hi = sched_thd_create(tmr_hi_thd, NULL);
-	printc("\tcreating hi thread %d at prio %d\n", tmr_hi, sps[0]);
+	printc("\tcreating hi thread %ld at prio %d\n", tmr_hi, sps[0]);
 	sched_thd_param_set(tmr_hi, sps[0]);
 }
 

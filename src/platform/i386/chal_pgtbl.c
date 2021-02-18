@@ -278,27 +278,13 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t or
 	 * We have to do this manually, get the PGD first, to make sure that we will not
 	 * dereference the super page as a second-level pointer. Performance bummer.
 	 */
+	assert(order == PAGE_ORDER);
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-						  1, &accum);
+						  PGTBL_DEPTH, &accum);
 	if (!pte) return -ENOENT;
-	orig_v = *((u32_t*)pte);
+	orig_v = (u32_t)(pte->next);
+	if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
 	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
-	/* If we are trying to map a superpage and this position is already occupied */
-printk("addr 0x%x,order %d\n",addr,order);
-	if (order == SUPER_PAGE_ORDER) {
-		if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
-		flags |= X86_PGTBL_SUPER;
-	} else if (order == PAGE_ORDER) {
-printk("orig_v %x\n",orig_v);
-		if (!(orig_v & X86_PGTBL_PRESENT)) return -EINVAL;
-		if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
-		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-							  PGTBL_DEPTH, &accum);
-		if (!pte) return -ENOENT;
-		orig_v = (u32_t)(pte->next);
-		if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
-		if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
-	} else return -EINVAL;
 
 	/* Quiescence check */
 	ret = pgtbl_quie_check(orig_v);
@@ -330,23 +316,12 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t o
 	 * We have to do this manually, get the PGD first, to make sure that we will not
 	 * dereference the super page as a second-level pointer. Performance bummer.
 	 */
+	if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-						  1, &accum);
+						  PGTBL_DEPTH, &accum);
 	if (!pte) return -ENOENT;
-	orig_v = *((u32_t*)pte);
-
-	/* If we are trying to map a superpage and this position is already occupied */
-	if (order == SUPER_PAGE_ORDER) {
-		assert(orig_v == 0);
-		flags |= X86_PGTBL_SUPER;
-	} else if (order == PAGE_ORDER) {
-		if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
-		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-							  PGTBL_DEPTH, &accum);
-		if (!pte) return -ENOENT;
-		orig_v = (u32_t)(pte->next);
-		assert(orig_v == 0);
-	} else return -EINVAL;
+	orig_v = (u32_t)(pte->next);
+	assert(orig_v == 0);
 
 	return __pgtbl_update_leaf(pte, (void *)(page | flags), 0);
 }
@@ -649,27 +624,10 @@ chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pg
 	 * 3. Smallpage -> Smallpage [order = 12]
 	 * 4. Smallpage -> Superpage [prohibited]
 	 */
-	/* How big is the current page? */
-	f = pgtbl_lkup_pgd(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+	if (order != PAGE_ORDER) return -EINVAL;
+	f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 	if (!f) return -ENOENT;
 	old_v = *f;
-
-	if (chal_pgtbl_flag_exist(old_v, PGTBL_SUPER)) {
-		flags = chal_pgtbl_flag(old_v);
-		if (order != SUPER_PAGE_ORDER) {
-			/* We need to pick a subpage */
-			old_v += EXTRACT_SUB_PAGE(capin_from);
-			flags &= (~PGTBL_SUPER);
-		} else {
-			/* If we do superpage to superpage delegation, both addresses must be aligned to 4MB boundary */
-			if ((EXTRACT_SUB_PAGE(capin_from) != 0) || (EXTRACT_SUB_PAGE(capin_to) != 0)) return -EINVAL;
-		}
-	} else {
-		if (order != PAGE_ORDER) return -EINVAL;
-		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
-		if (!f) return -ENOENT;
-		old_v = *f;
-	}
 
 	/* Cannot copy frame, or kernel entry. */
 	if (chal_pgtbl_flag_exist(old_v, PGTBL_COSFRAME) || !chal_pgtbl_flag_exist(old_v, PGTBL_USER)) return -EPERM;
@@ -692,21 +650,15 @@ chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandi
 	intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
 	if (!intern) return -ENOENT;
 	old_pte = *intern;
-printk("@ %d line\n",__LINE__);
-printk("0x%x\n",old_pte);
-printk("0x%x\n",*(intern-1));
 	if (pgtbl_ispresent(old_pte)) return -EPERM;
-printk("@ %d line\n",__LINE__);
 	old_v = refcnt_flags = ((struct cap_pgtbl *)ctsub)->refcnt_flags;
 	if (refcnt_flags & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 	if ((refcnt_flags & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
 
-printk("@ %d line\n",__LINE__);
 	refcnt_flags++;
 	ret = cos_cas((unsigned long *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
 	if (ret != CAS_SUCCESS) return -ECASFAIL;
 
-printk("@ %d line\n",__LINE__);
 	new_pte = (u32_t)chal_va2pa(
 	          (void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK))
 	          | X86_PGTBL_INTERN_DEF;
