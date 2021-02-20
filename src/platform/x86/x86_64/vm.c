@@ -186,7 +186,7 @@ device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags)
 void
 kern_paging_map_init(void *pa)
 {
-	u64_t i, j;
+	u64_t i, j = 0;
 	paddr_t       kern_pa_start = 0, kern_pa_end = (paddr_t)pa;
 
 	for (i = kern_pa_start, j = (COS_MEM_KERN_START_VA & COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK) / PGD_RANGE;

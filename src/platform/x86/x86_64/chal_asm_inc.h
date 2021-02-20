@@ -10,7 +10,7 @@
 #define SEL_UGSEG (0x38 | SEL_RPL_USR) /* User TLS selector. */
 #define SEL_CNT 8                      /* Number of segments. */
 
-#define STK_INFO_SZ 92                 /* sizeof(struct cos_cpu_local_info) */
-#define STK_INFO_OFF (STK_INFO_SZ + 4) /* sizeof(struct cos_cpu_local_info) + sizeof(long) */
+#define STK_INFO_SZ 144                 /* sizeof(struct cos_cpu_local_info) */
+#define STK_INFO_OFF (STK_INFO_SZ + 8) /* sizeof(struct cos_cpu_local_info) + sizeof(long) */
 
 #define SMP_BOOT_PATCH_ADDR 0x70000
