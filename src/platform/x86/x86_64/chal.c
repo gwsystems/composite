@@ -123,6 +123,8 @@ chal_init(void)
 	printk("]\n");
 
 	chal_cpuid(0x16, &a, &b, &c, &d);
+	/* FIXME: need to do cpuid twice to get frequency, don't know why  */
+	chal_cpuid(0x16, &a, &b, &c, &d);
 	a = (a << 16) >> 16;
 	if (a) {
 		printk("\tCPUID base frequency: %d (* 1Mhz)\n", a);

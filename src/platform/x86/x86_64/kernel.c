@@ -156,7 +156,6 @@ kmain(u64_t mboot_addr, u64_t mboot_magic)
 	kern_memory_setup(mboot_addr, mboot_magic);
 	boot_state_transition(INIT_CPU, INIT_MEM_MAP);
 
-	while (1){}
 	chal_init();
 	cap_init();
 	ltbl_init();
