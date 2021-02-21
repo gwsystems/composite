@@ -15,9 +15,10 @@ struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED LARGE_BSS;
 struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED LARGE_BSS;
 
 #define KERN_INIT_PGD_IDX ((COS_MEM_KERN_START_VA & COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK) >> PGD_SHIFT)
-u64_t boot_comp_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
-                                                               [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
-                                                                                       | X86_PGTBL_SUPER};
+u64_t boot_comp_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {0};
+
+u64_t boot_comp_pgt3[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {0};
+
 u64_t boot_ap_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
                                                              [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
                                                                                      | X86_PGTBL_SUPER};
@@ -63,7 +64,7 @@ unsigned long kernel_mapped_offset;
 int
 kern_setup_image(void)
 {
-	u64_t i, j;
+	u64_t j;
 	paddr_t       kern_pa_start, kern_pa_end;
 	int cpu_id = get_cpuid();
 
@@ -72,16 +73,8 @@ kern_setup_image(void)
 	kern_pa_end   = chal_va2pa(mem_kmem_end());
 	/* ASSUMPTION: The static layout of boot_comp_pgd is identical to a pgd post-pgtbl_alloc */
 	/* FIXME: should use pgtbl_extend instead of directly accessing the pgd array... */
-	for (i = kern_pa_start, j = (COS_MEM_KERN_START_VA & COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK) / PGD_RANGE;
-	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end);
-	     i += PGD_RANGE, j++) {
-		assert(j != KERN_INIT_PGD_IDX
-			/* FIXME: should make a higher-level macro definition to summarize these default settings... */
-		       || ((boot_comp_pgd[j] | X86_PGTBL_GLOBAL) & ~(X86_PGTBL_MODIFIED | X86_PGTBL_ACCESSED))
-		            == (i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL));
-		boot_comp_pgd[j]             = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
-		boot_comp_pgd[i / PGD_RANGE] = 0; /* unmap lower addresses */
-	}
+	boot_comp_pgd[0] = 0; /* unmap lower addresses */
+	/* FIXME: need to re-define this value */
 	kernel_mapped_offset = j;
 
 	#ifdef ENABLE_VGA
@@ -89,13 +82,8 @@ kern_setup_image(void)
 		vga_high_init();
 	#endif
 
-	for (; j < PAGE_SIZE / sizeof(unsigned long); i += PGD_RANGE, j++) {
-		boot_comp_pgd[j] = boot_comp_pgd[i / PGD_RANGE] = 0;
-	}
-
 	chal_cpu_init();
 	chal_cpu_pgtbl_activate((pgtbl_t)chal_va2pa(boot_comp_pgd));
-
 	kern_retype_initial();
 
 	return 0;
@@ -185,18 +173,16 @@ device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags)
 void
 kern_paging_map_init(void *pa)
 {
-	u64_t i, j = 0;
+	u64_t i = 0;
 	paddr_t       kern_pa_start = 0, kern_pa_end = (paddr_t)pa;
 
-	for (i = kern_pa_start, j = (COS_MEM_KERN_START_VA & COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK) / PGD_RANGE;
-	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end); i += PGD_RANGE, j++) {
-		assert(j != KERN_INIT_PGD_IDX
-		       || ((boot_comp_pgd[j] | X86_PGTBL_GLOBAL) & ~(X86_PGTBL_MODIFIED | X86_PGTBL_ACCESSED))
-		            == (i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL));
-		/* lower mapping */
-		boot_comp_pgd[i / PGD_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
-		/* higher mapping */
-		boot_comp_pgd[j] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
+	/* lower mapping */
+	boot_comp_pgd[0] = (u64_t)chal_va2pa(&boot_comp_pgt3) | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE;
+	/* higher mapping */
+	boot_comp_pgd[KERN_INIT_PGD_IDX] = (u64_t)chal_va2pa(&boot_comp_pgt3) | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE;
+
+	for (i = kern_pa_start; i < (unsigned long)round_up_to_pgd_page(kern_pa_end); i += PGD_RANGE) {
+		boot_comp_pgt3[i / PGD_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 	}
 }
 
