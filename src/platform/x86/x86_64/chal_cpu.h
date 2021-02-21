@@ -23,14 +23,9 @@ enum
 	CR0_PRMOD = 1 << 0   /* in protected-mode (vs real-mode) */
 };
 
-static inline u32_t
+static inline u64_t
 chal_cpu_cr4_get(void)
 {
-	/*
-	 * X86_64-FIXME:
-	 * u32_t config -> u64_t config
-	 * movl -> movq
-	 */
 	u64_t config;
 	asm("movq %%cr4, %0" : "=r"(config));
 	return config;
@@ -39,32 +34,19 @@ chal_cpu_cr4_get(void)
 static inline void
 chal_cpu_cr4_set(cr4_flags_t flags)
 {
-	/*
-	 * X86_64-FIXME:
-	 * u32_t config -> u64_t config
-	 * movl -> movq
-	 */
 	u64_t config = chal_cpu_cr4_get();
-	config |= (u32_t)flags;
+	config |= (u64_t)flags;
 	asm("movq %0, %%cr4" : : "r"(config));
-
 }
 
 static inline void
 chal_cpu_eflags_init(void)
 {
-	/*
-	 * X86_64-FIXME:
-	 * u32_t val -> u64_t val
-	 * pushf -< pushfq popl -> popq
-	 * pushl -> pushq popf -> popfq
-	 */
 	u64_t val;
 
 	asm volatile("pushfq ; popq %0" : "=r"(val));
 	val |= 3 << 12; /* iopl */
 	asm volatile("pushq %0 ; popfq" : : "r"(val));
-
 }
 
 static void
@@ -103,14 +85,14 @@ chal_cpuid(int code, u32_t *a, u32_t *b, u32_t *c, u32_t *d)
 static void
 chal_cpu_init(void)
 {
-	u32_t cr4 = chal_cpu_cr4_get();
+	u64_t cr4 = chal_cpu_cr4_get();
 	cpuid_t cpu_id = get_cpuid();
 
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
 	writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
 	/* X86_64-FIXME: tss[cpu_id].esp -> rsp */
-	writemsr(IA32_SYSENTER_ESP, (u32_t)tss[cpu_id].rsp0, 0);
-	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, 0);
+	writemsr(IA32_SYSENTER_ESP, (u32_t)tss[cpu_id].rsp0, (u32_t)(tss[cpu_id].rsp0 >> 32));
+	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, (u32_t)((u64_t)sysenter_entry >> 32));
 	chal_cpu_eflags_init();
 }
 
@@ -118,18 +100,18 @@ static inline vaddr_t
 chal_cpu_fault_vaddr(struct pt_regs *r)
 {
 	vaddr_t fault_addr;
-	asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
+	asm volatile("movq %%cr2, %0" : "=r"(fault_addr));
 	return fault_addr;
 }
 
 /* FIXME: I doubt these flags are really the same as the PGTBL_* macros */
-static inline u32_t
+static inline u64_t
 chal_cpu_fault_errcode(struct pt_regs *r)
 {
 	return r->orig_ax;
 }
 
-static inline u32_t
+static inline u64_t
 chal_cpu_fault_ip(struct pt_regs *r)
 {
 	return r->ip;

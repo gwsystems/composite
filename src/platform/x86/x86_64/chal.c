@@ -131,6 +131,7 @@ chal_init(void)
 		printk("\tCPUID max  frequency: %d (* 1Mhz)\n", (b << 16) >> 16);
 	}
 
+	/* FIXME: cannot get platform info on qemu */
 	readmsr(MSR_PLATFORM_INFO, &a, &b);
 	a = (a >> 8) & ((1<<7)-1);
 	if (a) {

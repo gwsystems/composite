@@ -63,7 +63,7 @@ unsigned long kernel_mapped_offset;
 int
 kern_setup_image(void)
 {
-	unsigned long i, j;
+	u64_t i, j;
 	paddr_t       kern_pa_start, kern_pa_end;
 	int cpu_id = get_cpuid();
 
@@ -72,7 +72,7 @@ kern_setup_image(void)
 	kern_pa_end   = chal_va2pa(mem_kmem_end());
 	/* ASSUMPTION: The static layout of boot_comp_pgd is identical to a pgd post-pgtbl_alloc */
 	/* FIXME: should use pgtbl_extend instead of directly accessing the pgd array... */
-	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA / PGD_RANGE;
+	for (i = kern_pa_start, j = (COS_MEM_KERN_START_VA & COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK) / PGD_RANGE;
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end);
 	     i += PGD_RANGE, j++) {
 		assert(j != KERN_INIT_PGD_IDX
@@ -82,7 +82,6 @@ kern_setup_image(void)
 		boot_comp_pgd[j]             = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 		boot_comp_pgd[i / PGD_RANGE] = 0; /* unmap lower addresses */
 	}
-
 	kernel_mapped_offset = j;
 
 	#ifdef ENABLE_VGA
