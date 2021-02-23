@@ -206,14 +206,14 @@ __captbl_cap2sz(cap_t c)
 	case CAP_THD:
 	case CAP_TCAP:
 		return CAP_SZ_16B;
-	case CAP_CAPTBL:
-	case CAP_PGTBL:
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 		return CAP_SZ_32B;
 	case CAP_SINV:
 	case CAP_COMP:
 	case CAP_ASND:
 	case CAP_ARCV:
+	case CAP_CAPTBL:
+	case CAP_PGTBL:
 		return CAP_SZ_64B;
 	default:
 		return CAP_SZ_ERR;

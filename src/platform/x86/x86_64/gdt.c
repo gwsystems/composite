@@ -51,7 +51,11 @@ gdt_init(const cpuid_t cpu_id)
 	 */
 	make_gdtr_operand(gdtr_operand, sizeof gdt[cpu_id] - 1 ,(u64_t)(gdt + cpu_id));
 	asm volatile("lgdt %0" : : "m"(gdtr_operand));
-	asm volatile("ltr %w0" : : "q"(SEL_TSS));
+	/* 
+	 * Be careful to have the correct tss structure in memory and in gdt,
+	 * qemu does not check tss validity, but real machine does check 
+	 */
+	asm volatile("ltr %w0" : : "r"(SEL_TSS));
 	flash_selectors();
 }
 
@@ -112,7 +116,7 @@ static void
 make_tss_desc(u64_t * tss_desc, u64_t tss_addr)
 {
 	u32_t e0, e1 = 0;
-	u64_t e2 = (tss_addr >> 32) & 0x0000ffff;
+	u64_t e2 = (tss_addr >> 32) & 0x00000000ffffffff;
 	u32_t base = (u32_t)tss_addr;
 	int type = 9;
 	u32_t limit = 0x67;

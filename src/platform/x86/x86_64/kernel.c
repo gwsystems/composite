@@ -56,7 +56,7 @@ kern_memory_setup(u64_t mboot_addr, u64_t mboot_magic)
     }
 
 	glb_memlayout.kern_end = &end;
-	//assert((unsigned int)&end % RETYPE_MEM_NPAGES * PAGE_SIZE == 0);
+	assert((u64_t)&end % RETYPE_MEM_NPAGES * PAGE_SIZE == 0);
 
 	printk("Initial component found:\n");
 	/* These values have to be higher-half addresses */
@@ -134,22 +134,26 @@ kern_memory_setup(u64_t mboot_addr, u64_t mboot_magic)
 void
 kmain(u64_t mboot_addr, u64_t mboot_magic)
 {
+
+#define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
+
+	u64_t max;
+	tss_init(INIT_CORE);
+	idt_init(INIT_CORE);
+	gdt_init(INIT_CORE);
+	
 	#ifdef ENABLE_SERIAL
 	serial_init();
 	#endif
-#define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
-	u64_t max;
 
-	tss_init(INIT_CORE);
-	gdt_init(INIT_CORE);
-	idt_init(INIT_CORE);
-
-#ifdef ENABLE_CONSOLE
+	#ifdef ENABLE_CONSOLE
 	console_init();
-#endif
-#ifdef ENABLE_VGA
+	#endif
+
+	#ifdef ENABLE_VGA
 	vga_init();
-#endif
+	#endif
+
 	boot_state_transition(INIT_BOOTED, INIT_CPU);
 	max =MAX((u64_t)chal_va2pa(mboot_addr), (u64_t)(chal_va2pa(&end)));
 
