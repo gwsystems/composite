@@ -67,7 +67,8 @@ kern_memory_setup(u64_t mboot_addr, u64_t mboot_magic)
 	glb_memlayout.mod_start = &end + 1024;
 	glb_memlayout.mod_end   = glb_memlayout.mod_start + 1024;
 	glb_memlayout.kern_boot_heap = mem_boot_start();
-	printk("\t- [%08x, %08x)\n", &_binary_constructor_start, &_binary_constructor_end);
+	printk("kenrel mem layout:\n");
+	printk("\t- [%08x, %08x, %08x)\n", glb_memlayout.mod_start, glb_memlayout.mod_end, glb_memlayout.kern_boot_heap);
 
 	u32_t size = *(u32_t *)mboot_addr;
 	if (size <= 0) {
@@ -152,7 +153,7 @@ kmain(u64_t mboot_addr, u64_t mboot_magic)
 	boot_state_transition(INIT_BOOTED, INIT_CPU);
 	max =MAX((u64_t)chal_va2pa(mboot_addr), (u64_t)(chal_va2pa(&end)));
 
-	kern_paging_map_init((void *)(max + PGD_SIZE));
+	kern_paging_map_init((void *)(max));
 	kern_memory_setup(mboot_addr, mboot_magic);
 	boot_state_transition(INIT_CPU, INIT_MEM_MAP);
 

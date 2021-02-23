@@ -22,6 +22,9 @@ u64_t boot_comp_pgt3[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {0};
 u64_t boot_ap_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
                                                              [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
                                                                                      | X86_PGTBL_SUPER};
+
+#define round_up_to_pgt3_page(x) round_up_to_pow2(x, PGT3_SIZE)
+
 void
 kern_retype_initial(void)
 {
@@ -64,7 +67,7 @@ unsigned long kernel_mapped_offset;
 int
 kern_setup_image(void)
 {
-	u64_t j;
+	u64_t i, j;
 	paddr_t       kern_pa_start, kern_pa_end;
 	int cpu_id = get_cpuid();
 
@@ -73,10 +76,12 @@ kern_setup_image(void)
 	kern_pa_end   = chal_va2pa(mem_kmem_end());
 	/* ASSUMPTION: The static layout of boot_comp_pgd is identical to a pgd post-pgtbl_alloc */
 	/* FIXME: should use pgtbl_extend instead of directly accessing the pgd array... */
+	for (i = kern_pa_start; i < (unsigned long)round_up_to_pgt3_page(kern_pa_end); i += PGT3_RANGE, j++) {
+		boot_comp_pgt3[i / PGT3_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
+	}
 	boot_comp_pgd[0] = 0; /* unmap lower addresses */
-	/* FIXME: need to re-define this value */
-	kernel_mapped_offset = j;
 
+	kernel_mapped_offset = i / PGT3_RANGE;
 	#ifdef ENABLE_VGA
 		/* uses virtual address for VGA */
 		vga_high_init();
@@ -181,8 +186,9 @@ kern_paging_map_init(void *pa)
 	/* higher mapping */
 	boot_comp_pgd[KERN_INIT_PGD_IDX] = (u64_t)chal_va2pa(&boot_comp_pgt3) | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE;
 
-	for (i = kern_pa_start; i < (unsigned long)round_up_to_pgd_page(kern_pa_end); i += PGD_RANGE) {
-		boot_comp_pgt3[i / PGD_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
+
+	for (i = kern_pa_start; i < (unsigned long)round_up_to_pgt3_page(kern_pa_end); i += PGT3_RANGE) {
+		boot_comp_pgt3[i / PGT3_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 	}
 }
 

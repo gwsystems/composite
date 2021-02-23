@@ -37,4 +37,10 @@ struct pt_regs {
 #define PGD_SIZE PGD_RANGE
 #define PGD_MASK (~(PGD_RANGE - 1))
 #define PGD_PER_PTBL 1024
+
+#define PGT3_SHIFT 30
+#define PGT3_RANGE (1UL << PGT3_SHIFT)
+#define PGT3_SIZE PGT3_RANGE
+#define PGT3_MASK (~(PGT3_RANGE - 1))
+#define PGT3_PER_PTBL 512
 #endif /* CHAL_CONSTS_H */
