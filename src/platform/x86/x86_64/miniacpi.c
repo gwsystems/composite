@@ -3,8 +3,10 @@
 #include "mem_layout.h"
 #include "pgtbl.h"
 
-#define RSDP_LO_ADDRESS ((unsigned char *)0xc00E0000)
-#define RSDP_HI_ADDRESS ((unsigned char *)0xc00FFFFF)
+//#define RSDP_LO_ADDRESS ((unsigned char *)0xc00E0000)
+//#define RSDP_HI_ADDRESS ((unsigned char *)0xc00FFFFF)
+#define RSDP_LO_ADDRESS ((unsigned char *)(0x000E0000+COS_MEM_KERN_START_VA))
+#define RSDP_HI_ADDRESS ((unsigned char *)(0x000FFFFF+COS_MEM_KERN_START_VA))
 #define RSDP_ALIGNMENT (16)
 
 struct rsdp {

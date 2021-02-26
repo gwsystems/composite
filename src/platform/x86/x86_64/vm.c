@@ -23,7 +23,6 @@ u64_t boot_ap_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL
                                                              [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
                                                                                      | X86_PGTBL_SUPER};
 
-#define round_up_to_pgt3_page(x) round_up_to_pow2(x, PGT3_SIZE)
 
 void
 kern_retype_initial(void)
@@ -128,8 +127,7 @@ device_pa2va(paddr_t dev_addr)
 	int i;
 
 	for (i = 0; i < dev_map_off; i++) {
-		paddr_t rounded = round_to_pgd_page(dev_addr);
-
+		paddr_t rounded = round_to_pgt3_page(dev_addr);
 		if (round_to_pgd_page(dev_mem[i].physaddr) == rounded) {
 			return (char *)dev_mem[i].virtaddr + (dev_addr - rounded);
 		}

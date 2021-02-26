@@ -84,7 +84,13 @@ make_gdtr_operand(u8_t gdtr_addr[10], u16_t limit, u64_t base)
 static u64_t
 make_code_desc(int dpl)
 {
-	u32_t e0, e1 = 0;
+	/* 
+	 * make sure to init variables before use, you don't know 
+	 * whether the value comes from registers or memory, if it does 
+	 * comes from memory, value in that address could be random, 
+	 * thus you need to init that memory first. 	
+	 */
+	u32_t e0 = 0, e1 = 0;
 
 	e1 = ((0)
 	      | (10 << 8)       /* Segment type. */
@@ -101,7 +107,13 @@ make_code_desc(int dpl)
 static u64_t
 make_data_desc(int dpl)
 {
-	u32_t e0, e1 = 0;
+	/* 
+	 * make sure to init variables before use, you don't know 
+	 * whether the value comes from registers or memory, if it does 
+	 * comes from memory, value in that address could be random, 
+	 * thus you need to init that memory first. 	
+	 */
+	u32_t e0 = 0, e1 = 0;
 
 	e1 = ((0)
 	      | (2 << 8)        /* Segment type. */
@@ -115,7 +127,13 @@ make_data_desc(int dpl)
 static void
 make_tss_desc(u64_t * tss_desc, u64_t tss_addr)
 {
-	u32_t e0, e1 = 0;
+	/* 
+	 * make sure to init variables before use, you don't know 
+	 * whether the value comes from registers or memory, if it does 
+	 * comes from memory, value in that address could be random, 
+	 * thus you need to init that memory first. 	
+	 */
+	u32_t e0 = 0, e1 = 0;
 	u64_t e2 = (tss_addr >> 32) & 0x00000000ffffffff;
 	u32_t base = (u32_t)tss_addr;
 	int type = 9;
@@ -151,7 +169,7 @@ flash_selectors()
 						 "pushq %%rax     \n\t"
 						 "lretq    \n\t"
 						 ".global label_1\n\t"
-						 "label_1:"
+						 "label_1:\n\t"
 						:                  
 						:"i"(SEL_KDSEG), "i"(SEL_KCSEG)                         
 						:"%rax");                   
