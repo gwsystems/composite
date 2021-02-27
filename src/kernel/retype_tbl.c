@@ -183,6 +183,11 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 	struct retype_entry_glb *glb_retype_info;
 
 	assert(pa); /* cannot be NULL: kernel image takes that space */
+	assert(order == 12); /* only need/have to use 4kb page */
+	memset(walk, 0, sizeof(walk));
+	memset(&old_temp, 0, sizeof(old_temp));
+	memset(&temp, 0, sizeof(temp));
+	glb_retype_info = 0;
 	PA_BOUNDARY_CHECK();
 
 	idx = GET_MEM_IDX(pa);
@@ -192,7 +197,7 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 	if (type == RETYPETBL_KERN && chal_pa2va((paddr_t)pa) == NULL) return -EINVAL;
 
 	/* Get the global slot */
-        walk[POS(MAX_PAGE_ORDER)].p_glb = GET_GLB_RETYPE_ENTRY(idx, MAX_PAGE_ORDER);
+    walk[POS(MAX_PAGE_ORDER)].p_glb = GET_GLB_RETYPE_ENTRY(idx, MAX_PAGE_ORDER);
 	old_type = walk[POS(MAX_PAGE_ORDER)].p_glb->refcnt_atom.type;
 
 	/* only can retype untyped mem sets. */
@@ -205,7 +210,7 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 
 	/* Repetitively add the record of a page set to a type, into the level one above it */ 
 	for (i = POS(MAX_PAGE_ORDER) - 1; i >= POS(order); i--) {
-	        walk[i].p_glb = GET_GLB_RETYPE_ENTRY(idx, ORDER(i));
+	    walk[i].p_glb = GET_GLB_RETYPE_ENTRY(idx, ORDER(i));
 		walk[i].inc_cnt = 0;
 		/* Do we need to update the next highest page size count? */ 
 		if (walk[i].p_glb->refcnt_atom.type == RETYPETBL_UNTYPED || 
