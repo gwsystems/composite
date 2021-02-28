@@ -128,7 +128,7 @@ device_pa2va(paddr_t dev_addr)
 
 	for (i = 0; i < dev_map_off; i++) {
 		paddr_t rounded = round_to_pgt3_page(dev_addr);
-		if (round_to_pgd_page(dev_mem[i].physaddr) == rounded) {
+		if (round_to_pgt3_page(dev_mem[i].physaddr) == rounded) {
 			return (char *)dev_mem[i].virtaddr + (dev_addr - rounded);
 		}
 	}
@@ -151,23 +151,23 @@ device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags)
 	boot_state_assert(INIT_UT_MEM);
 	vaddr = device_pa2va(dev_addr);
 	if (vaddr) {
-		boot_comp_pgd[(unsigned long)vaddr / PGD_RANGE] |= pt_extra_flags; /* use the union of the flags */
+		boot_comp_pgt3[((unsigned long)vaddr - (unsigned long)(COS_MEM_KERN_START_VA)) / PGT3_RANGE] |= pt_extra_flags; /* use the union of the flags */
 
 		return vaddr;
 	}
 
 	/* Allocate a PGD region, and map it in */
 	assert(off < PAGE_SIZE / sizeof(unsigned long));
-	rounded = round_up_to_pgd_page(dev_addr) - PGD_RANGE;
-	boot_comp_pgd[off] = rounded | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL | pt_extra_flags;
+	rounded = round_up_to_pgt3_page(dev_addr) - PGT3_RANGE;
+	boot_comp_pgt3[off] = rounded | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL | pt_extra_flags;
 	dev_mem[dev_map_off] = (struct dev_map) {
 		.physaddr = rounded,
-		.virtaddr = (void *)(off * PGD_RANGE)
+		.virtaddr = (void *)(off * PGT3_RANGE + COS_MEM_KERN_START_VA)
 	};
 	dev_map_off++;
 	kernel_mapped_offset++;
 
-	assert(((unsigned long)device_pa2va(dev_addr) & (PGD_RANGE-1)) == (dev_addr & (PGD_RANGE-1)));
+	assert(((unsigned long)device_pa2va(dev_addr) & (PGT3_RANGE-1)) == (dev_addr & (PGT3_RANGE-1)));
 
 	return device_pa2va(dev_addr);
 }

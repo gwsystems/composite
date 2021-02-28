@@ -35,7 +35,11 @@ struct rsdt {
 	u32_t        oemrevision;
 	u32_t        creatorid;
 	u32_t        creatorrevision;
-	paddr_t      entry[0];
+	/* 
+	 * have to be a u32_t size for entry because paddr_t in 64-bit system is 8 bytes 
+	 * but rsdt make sense only when address is 32-bit
+	*/
+	u32_t      entry[0];
 } __attribute__((packed));
 
 static struct rsdt *rsdt;
@@ -68,7 +72,9 @@ acpi_find_rsdt(void)
 	}
 
 	if (!rsdp) return NULL;
-
+	printk("\tRDST paddr is @ %p\n", rsdp->rsdtaddress);
+	printk("\tRSDP lenth is :%u\n", rsdp->length);
+	printk("\tXSDT paddr is @ %p\n", rsdp->xsdtaddress);
 	rsdt_pa = (paddr_t)rsdp->rsdtaddress;
 	return device_map_mem(rsdt_pa, 0);
 }
@@ -100,8 +106,8 @@ static void *
 acpi_find_resource_flags(const char *res_name, pgtbl_flags_t flags)
 {
 	size_t  i;
-
-	for (i = 0; i < (rsdt->head.len - sizeof(struct rsdt)) / sizeof(struct rsdt *); i++) {
+	int entries = (rsdt->head.len - sizeof(struct rsdt)) / 4;
+	for (i = 0; i < entries; i++) {
 		struct rsdt *e = (struct rsdt *)device_pa2va(rsdt->entry[i]);
 
 		if (!e) {
@@ -110,7 +116,7 @@ acpi_find_resource_flags(const char *res_name, pgtbl_flags_t flags)
 			 * as the resources should be on the same
 			 * super-page as the parent rsdt.
 			 */
-			e = device_map_mem(rsdt->entry[i], flags);
+			e = device_map_mem((u32_t)rsdt->entry[i], flags);
 			assert(e);
 		}
 		if (!acpi_chk_header(e, res_name)) return e;
@@ -205,7 +211,7 @@ acpi_shutdown_init(void)
 	/* ACPI details to be able to shutdown the system */
 	facp = acpi_find_resource("FACP");
 	if (!facp) return;
-	dsdt_pa = facp->dsdt;
+	dsdt_pa = (u32_t)facp->dsdt;
 	assert(dsdt_pa);
 	dsdt = (struct acpi_header *)device_map_mem(dsdt_pa, 0);
 	if (acpi_chk_header(dsdt, "DSDT")) {
@@ -327,6 +333,7 @@ acpi_init(void)
 		return; 	/* No acpi? */
 	}
 
+	printk("\tRSDT vaddr is @ %p\n", rsdt);
 	timer = acpi_find_timer();
 	if (timer) {
 		hpet = timer_initialize_hpet(timer);
