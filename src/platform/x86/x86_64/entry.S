@@ -87,10 +87,14 @@ restore_from_thd:
 
 #define IRQPROC(fn)  \
 	SAVE_REGS_GENERAL; 	\
-	pushq $(SEL_UGSEG); 	\
-	pushq $(SEL_UDSEG); 	\
-	pushq $(SEL_UDSEG);	\
-	pushq $(SEL_UDSEG);	\
+	movq %gs, %rax;		\
+	pushq %rax;			\
+	movq %fs, %rax;		\
+	pushq %rax;			\
+	movq %es, %rax;		\
+	pushq %rax;			\
+	movq %ds, %rax;		\
+	pushq %rax;			\
 	movq $(SEL_KDSEG), %rax;\
 	mov %rax, %ds;		\
 	mov %rsp, %rdi; 	\

@@ -139,7 +139,10 @@ device_pa2va(paddr_t dev_addr)
 /*
  * For a device mapped at a physical address, map it into virtual
  * memory and return the address. This is very wasteful of physical
- * memory as it uses PGD ranges (4MB) for the allocations.
+ * memory as it uses PGD ranges (4MB) for the allocations. For 64-bit,
+ * a PGT3 is used, ranges a 1GB for allocations, but that should be OK
+ * since we have already mapped all physical memory address before this
+ * step, the remaining slots in page tables are free to use.
  */
 void *
 device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags)
@@ -156,9 +159,9 @@ device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags)
 		return vaddr;
 	}
 
-	/* Allocate a PGD region, and map it in */
+	/* Allocate a PGD/PGT3 region, and map it in */
 	assert(off < PAGE_SIZE / sizeof(unsigned long));
-	rounded = round_up_to_pgt3_page(dev_addr) - PGT3_RANGE;
+	rounded = round_to_pgt3_page(dev_addr);
 	boot_comp_pgt3[off] = rounded | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL | pt_extra_flags;
 	dev_mem[dev_map_off] = (struct dev_map) {
 		.physaddr = rounded,

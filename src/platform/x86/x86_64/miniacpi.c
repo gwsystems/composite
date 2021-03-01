@@ -151,9 +151,9 @@ acpi_find_apic(void)
 struct facp {
 	struct acpi_header head;
 	u8_t   _unneeded1[40 - 8]; /* see offsets in spec */
-	paddr_t dsdt;
+	u32_t dsdt;
 	char   _unneeded2[48 - 44];
-	paddr_t smi_cmd;
+	u32_t smi_cmd;
 	u8_t   acpi_enable;
 	u8_t   acpi_disable;
 	char   unneeded3[64 - 54];
@@ -211,7 +211,7 @@ acpi_shutdown_init(void)
 	/* ACPI details to be able to shutdown the system */
 	facp = acpi_find_resource("FACP");
 	if (!facp) return;
-	dsdt_pa = (u32_t)facp->dsdt;
+	dsdt_pa = facp->dsdt;
 	assert(dsdt_pa);
 	dsdt = (struct acpi_header *)device_map_mem(dsdt_pa, 0);
 	if (acpi_chk_header(dsdt, "DSDT")) {

@@ -117,19 +117,19 @@ gen_protect_fault_handler(struct pt_regs *regs)
 int
 page_fault_handler(struct pt_regs *regs)
 {
-	u32_t                      fault_addr, errcode = 0, eip = 0;
+	u64_t                      fault_addr = 0, errcode = 0, rip = 0;
 	struct cos_cpu_local_info *ci    = cos_cpu_local_info();
 	thdid_t                    thdid = thd_current(ci)->tid;
 
 	print_pt_regs(regs);
 	fault_addr = chal_cpu_fault_vaddr(regs);
 	errcode    = chal_cpu_fault_errcode(regs);
-	eip        = chal_cpu_fault_ip(regs);
+	rip        = chal_cpu_fault_ip(regs);
 
-	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%x, ip 0x%x\n", thdid,
+	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%p, ip 0x%p\n", thdid,
 	    errcode & PGTBL_PRESENT ? "present" : "not-present",
 	    errcode & PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & PGTBL_USER ? "user-mode" : "system",
-	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, eip);
+	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, rip);
 
 	return 1;
 }
