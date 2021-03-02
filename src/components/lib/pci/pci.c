@@ -85,8 +85,7 @@ pci_dev_get(struct pci_dev *devices, int sz, struct pci_dev *dev, u16_t dev_id, 
 	for (i = 0 ; i < sz ; i++) {
 		if (devices[i].vendor == vendor_id && devices[i].device == dev_id) {
 			*dev = devices[i];
-			
-            return 0;
+			return 0;
 		}
 	}
 
