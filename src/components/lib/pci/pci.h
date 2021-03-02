@@ -1,7 +1,3 @@
-/* 
- * copied from https://github.com/WenyuanShao/eos/blob/fwp/src/components/lib/musl-1.1.11/include/pci.h 
- */
-
 #ifndef PCI_H
 #define PCI_H
 
@@ -32,8 +28,6 @@
 #define PCI_PROG_IF(v)     (((v) >> 8) & 0xFF)
 #define PCI_HEADER(v)      (((v) >> 16) & 0xFF)
 
-/* Data Structures */
-
 struct pci_bar {
 	union {
 		u32_t raw;
@@ -50,7 +44,6 @@ struct pci_bar {
 		} __attribute__((packed)) mem;
 	};
 	u32_t mask;
-	/* LED: add phys_addr */
 	paddr_t paddr;
 } __attribute__((packed));
 
@@ -68,11 +61,35 @@ struct pci_dev {
 	void *drvdata;
 } __attribute__((packed));
 
-/* API */
-
+/**
+ * scans through the pci bus and fills the provided array
+ * @param devices array of `struct pci_dev`
+ * @param sz the length of devices (not all space will necessarily be filled, this is just the total capacity)
+ * @return 0 on success, -1 on failure
+ */
 int pci_scan(struct pci_dev *devices, int sz);
+
+/**
+ * iterates through the array and prints out device id, vendor id, and classcode for each device
+ * @param devices array to iterate through
+ * @param sz the length of devices
+ */
 void pci_dev_print(struct pci_dev *devices, int sz);
+
+/** 
+ * populate pci_dev pointer with device associated with the vendor/device id, if it exists
+ * @param devices array to iterate through
+ * @param sz the length of devices
+ * @param dev the pointer to fill
+ * @param dev_id the device id of the device we're looking for
+ * @param vendor_id the vendor id of the device we're looking for
+ * @return 0 on success, -1 if the device isn't found
+ */
 int pci_dev_get(struct pci_dev *devices, int sz, struct pci_dev *dev, u16_t dev_id, u16_t vendor_id);
-int pci_num(void);
+
+/**
+ * returns total number of pci devices on the bus
+ */
+int pci_dev_count(void);
 
 #endif /* PCI_H */
