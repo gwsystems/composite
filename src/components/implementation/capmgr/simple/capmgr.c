@@ -204,6 +204,7 @@ mm_page_allocn(struct cm_comp *c, unsigned long num_pages)
 		if ((prev->page + 4096) != p->page) {
 			BUG(); /* FIXME: handle concurrency */
 		}
+		prev = p;
 	}
 
 	return initial;
