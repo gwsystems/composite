@@ -176,7 +176,7 @@ mm_page_alloc(struct cm_comp *c)
 	if (ss_state_alloc(&m->comp)) BUG();
 
 	/* Allocate page, map page */
-	p->page = crt_page_allocn(&c->comp, 1);
+	p->page = crt_page_allocn(&cm_self()->comp, 1);
 	if (!p->page) ERR_THROW(NULL, free_p);
 	if (crt_page_aliasn_in(p->page, 1, &cm_self()->comp, &c->comp, &m->addr)) BUG();
 
@@ -204,6 +204,7 @@ mm_page_allocn(struct cm_comp *c, unsigned long num_pages)
 		if ((prev->page + 4096) != p->page) {
 			BUG(); /* FIXME: handle concurrency */
 		}
+		prev = p;
 	}
 
 	return initial;
