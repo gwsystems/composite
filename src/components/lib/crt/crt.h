@@ -7,6 +7,8 @@
 #include <init.h>
 #include <barrier.h>
 
+#include <ps_list.h>
+
 typedef unsigned long crt_refcnt_t;
 
 struct crt_asnd {
@@ -69,6 +71,9 @@ struct crt_comp {
 	coreid_t init_core;
 
 	crt_refcnt_t refcnt;
+
+	size_t tot_sz_mem;
+	
 };
 
 struct crt_comp_resources {
@@ -78,6 +83,13 @@ struct crt_comp_resources {
 	cap_t       captbl_frontier;
 	vaddr_t     heap_ptr;
 	vaddr_t     info;
+};
+
+struct crt_chkpt {
+    struct crt_comp *c;
+	char			*mem;
+	size_t			 tot_sz_mem;
+    /* some kind of pointer to the memory */
 };
 
 typedef enum {
@@ -144,6 +156,10 @@ struct crt_sinv_resources {
 
 int crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info);
 int crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_comp_resources *resources);
+
+int crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, vaddr_t info, struct crt_chkpt *chkpt);
+int crt_ncomp();
+
 int crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp_resources *res, crt_comp_alias_t flags);
 void crt_comp_captbl_frontier_update(struct crt_comp *c, capid_t capid);
 int crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info);
@@ -186,5 +202,13 @@ typedef struct crt_comp *(*comp_get_fn_t)(compid_t id);
 void crt_compinit_execute(comp_get_fn_t comp_get);
 void crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type);
 void crt_compinit_exit(struct crt_comp *c, int retval);
+
+/**
+ * Checkpoint API to allow a checkpoint to be created from an initialized component
+ * and to be restored from a finished component
+ */
+int crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c);
+int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
+
 
 #endif /* CRT_H */

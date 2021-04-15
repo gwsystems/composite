@@ -5,6 +5,9 @@
  * Author: Gabriel Parmer, gparmer@gwu.edu
  */
 
+/** 
+ * this is a booter that makes sure to checkpoint components
+ */
 #include <stdlib.h>
 #include <limits.h>
 
@@ -17,6 +20,8 @@
 
 #include <init.h>
 #include <addr.h>
+
+//#include "chkpnt.h"
 
 #ifndef BOOTER_MAX_SINV
 #define BOOTER_MAX_SINV 256
@@ -34,17 +39,60 @@
 #define BOOTER_CAPMGR_MB 64
 #endif
 
+#ifndef MAX_NUM_CHKPTS
+#define MAX_NUM_CHKPTS MAX_NUM_COMPS
+#endif
+
 static struct crt_comp boot_comps[MAX_NUM_COMPS];
 static const  compid_t sched_root_id  = 2;
 static        long     boot_id_offset = -1;
-static 		  compid_t ncomp;
 SS_STATIC_SLAB(sinv, struct crt_sinv, BOOTER_MAX_SINV);
 SS_STATIC_SLAB(thd,  struct crt_thd,  BOOTER_MAX_INITTHD);
 SS_STATIC_SLAB(rcv,  struct crt_rcv,  BOOTER_MAX_SCHED);
 
+static struct crt_chkpt   chkpts[MAX_NUM_CHKPTS];
+static		  int	   nchkpt = 0;
 
+int
+crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c)
+{
+	char *mem;
+	struct cos_compinfo *root_ci;
 
+	if(nchkpt > MAX_NUM_CHKPTS) return -1;
 
+	chkpt->c = c;
+	chkpts[nchkpt] = *chkpt;
+	nchkpt++;
+
+	/* allocate space for saving the component's memory */
+	root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	mem = cos_page_bump_allocn(root_ci, c->tot_sz_mem);
+	if (!mem) return -ENOMEM;
+
+	chkpt->mem = mem;
+	chkpt->tot_sz_mem = c->tot_sz_mem;
+
+	memcpy(mem, c->mem, c->tot_sz_mem);
+	
+
+	/* 
+	 * TODO: capabilities aren't copied, so components that could modify their capabilities
+	 * while running (schedulers/cap mgrs) shouldn't be checkpointed 
+	 */
+
+	return 0;
+}
+
+int
+crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c)
+{
+	/* turning c, a terminated component, back into a chkpt */
+	chkpt->c = c;
+	/* TODO: not sure how to put the memory back to a previous state ? */
+
+	return 0;
+}
 
 /*
  * Assumptions: the component with the lowest id *must* be the one
@@ -68,6 +116,12 @@ boot_comp_get(compid_t id)
 }
 
 static struct crt_comp *
+chkpt_comp_get(struct crt_comp *comp)
+{
+	return comp;
+}
+
+static struct crt_comp *
 boot_comp_self(void)
 {
 	return boot_comp_get(cos_compid());
@@ -79,59 +133,6 @@ boot_comp_set_idoffset(int off)
 	boot_id_offset = off;
 }
 
-void
-comps_create_new(struct initargs last)
-{
-	struct crt_comp *new_comp;
-	void *elf_hdr;
-	int   keylen;
-	compid_t id = ncomp;
-	char *name  = args_get_from("img", &last);
-	vaddr_t info = atol(args_get_from("info", &last));
-	const char *root = "binaries/";
-	int   len  = strlen(root);
-	char  path[INITARGS_MAX_PATHNAME];
-
-	printc("%s (2): %lu\n", name, id);
-
-	assert(id < MAX_NUM_COMPS && id > 0 && name);
-
-	memset(path, 0, INITARGS_MAX_PATHNAME);
-	strncat(path, root, len);
-	assert(path[len] == '\0');
-	strncat(path, name, INITARGS_MAX_PATHNAME - len);
-	assert(path[INITARGS_MAX_PATHNAME - 1] == '\0'); /* no truncation allowed */
-
-	new_comp = boot_comp_get(id);
-	assert(new_comp);
-	elf_hdr = (void *)args_get(path);
-
-	assert(elf_hdr);
-	if (crt_comp_create(new_comp, name, id, elf_hdr, info)) {
-		printc("Error constructing the resource tables and image of component %s (2).\n", new_comp->name);
-		BUG();
-	}
-
-}
-
-void
-comps_create_sinvs(struct initargs curr)
-{
-	struct crt_sinv *sinv;
-	int serv_id = atoi(args_get_from("server", &curr));
-	int cli_id  = 3; //atoi(args_get_from("client", &curr));
-
-	sinv = ss_sinv_alloc();
-	assert(sinv);
-	crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
-			strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
-			strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
-	ss_sinv_activate(sinv);
-	printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
-			sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
-
-}
-
 static void
 comps_init(void)
 {
@@ -140,7 +141,6 @@ comps_init(void)
 	int cont, ret, j;
 	int comp_idx = 0;
 	/* IDs start at 1, apparently */
-	ncomp		 = 1;
 
 	/*
 	 * Assume: our component id is the lowest of the ids for all
@@ -198,16 +198,8 @@ comps_init(void)
 			}
 			
 		}
-		ncomp++;
 		assert(comp->refcnt != 0);
 	}
-
-	/* add another component */
-	struct crt_comp *new_comp;
-	cont = args_iter(&comps, &i, &curr);
-	printc("curr has name %s\n", args_get_from("img", &curr));
-	comps_create_new(curr);
-	ncomp++;
 
 	ret = args_get_entry("execute", &comps);
 	assert(!ret);
@@ -245,9 +237,6 @@ comps_init(void)
 
 		comp->init_state = CRT_COMP_INIT_COS_INIT;
 	}
-	/* for new component */
-	struct crt_comp *comp = boot_comp_get(ncomp);
-	comp->init_state = CRT_COMP_INIT_COS_INIT;
 
 	/* perform any necessary captbl delegations */
 	ret = args_get_entry("captbl_delegations", &comps);
@@ -344,8 +333,6 @@ comps_init(void)
 	}
 	
 	args_iter(&comps, &i, &curr);
-	comps_create_sinvs(curr);
-
 
 	/*
 	 * Delegate the untyped memory to the capmgr. This should go
@@ -372,6 +359,65 @@ comps_init(void)
 	printc("Kernel resources created, booting components!\n");
 
 	return;
+}
+
+void 
+chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt)
+{
+	/* create the component */
+	void *elf_hdr;
+	int   keylen;
+	compid_t id = crt_ncomp() + 1;
+	char name[50] = "chkpt_";
+	strncat(name, chkpt->c->name, 42);
+	vaddr_t info = chkpt->c->info; //?
+	const char *root = "binaries/";
+	int   len  = strlen(root);
+	char  path[INITARGS_MAX_PATHNAME];
+
+	printc("%s: %lu\n", name, id);
+
+	//assert(id < MAX_NUM_COMPS && id > 0 && name);
+	assert(id < MAX_NUM_COMPS && id > 0);
+
+	memset(path, 0, INITARGS_MAX_PATHNAME);
+	strncat(path, root, len);
+	assert(path[len] == '\0');
+	strncat(path, name, INITARGS_MAX_PATHNAME - len);
+	assert(path[INITARGS_MAX_PATHNAME - 1] == '\0'); /* no truncation allowed */
+
+	// comp = boot_comp_get(id);
+	// assert(comp);
+	// elf_hdr = (void *)args_get(path);
+
+	if (id == cos_compid()) {
+		/* this should never happen */
+		assert(0);
+	} else {
+		//assert(elf_hdr);
+		if (crt_comp_create_from(comp, name, id, info, chkpt)) {
+			printc("Error constructing the resource tables and image of component %s.\n", comp->name);
+			BUG();
+		}
+		
+	}
+	assert(comp->refcnt != 0);
+
+	/* TODO: create the thread/execution context */
+	struct crt_comp_exec_context ctxt = { 0 };
+
+	/* TODO: assume only chkpt components that can be executed, but aren't schedulers */
+	struct crt_thd *t = ss_thd_alloc();
+
+	assert(t);
+	if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, t))) BUG();
+	ss_thd_activate(t);
+
+	comp->init_state = CRT_COMP_INIT_COS_INIT;
+
+	/* TODO: create the capabilities */
+
+	/* TODO: create the sinvs */
 }
 
 unsigned long
@@ -422,13 +468,46 @@ execute(void)
 void
 init_done(int parallel_init, init_main_t main_type)
 {
+
 	compid_t client = (compid_t)cos_inv_token();
 	struct crt_comp *c;
+	struct crt_chkpt cp;
+	struct crt_comp new_comp;
+	thdcap_t thdcap;
+	int ret;
+
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = boot_comp_get(client);
 
 	crt_compinit_done(c, parallel_init, main_type);
+
+	if(c->id == cos_compid()) {
+	 	/* don't create chkpnt for the booter */
+	 	return;
+	}
+
+	/* defaulting to creating just one chkpnt for now */
+	if(crt_chkpt_create(&cp, c) != 0) {
+	 	BUG();
+	}
+	printc("Created a checkpoint for component %ld\n", c->id);
+
+	/* this is going to initialize the components from existing chkpts */
+	chkpt_comp_init(&new_comp, &cp);
+
+	printc("Created a component from checkpoint: id = %ld\n", new_comp.id);
+	
+	//crt_compinit_done(&new_comp, parallel_init, main_type);
+	thdcap   = crt_comp_thdcap_get(&new_comp);
+	assert(thdcap);
+
+	if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync()))) {
+				printc("Switch failure on thdcap %ld, with ret %d\n", thdcap, ret);
+				BUG();
+			}
+
+	printc("Back in init_done()\n");
 
 	return;
 }
@@ -445,6 +524,8 @@ init_exit(int retval)
 	assert(c);
 
 	crt_compinit_exit(c, retval);
+
+	/* TODO: recycle back to a chkpt via chkpt_restore() */
 
 	while (1) ;
 }

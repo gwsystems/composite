@@ -214,6 +214,7 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	/* single-core initialization */
 	if (init_core) {
 		cos_init();
+		printc("return from cos_init ?\n");
 		/* continue only if there is no user-defined main, or parallel exec */
 		COS_EXTERN_INV(init_done)(parallel_init, main_type);
 		assert(parallel_init || main_type != INIT_MAIN_NONE);
@@ -247,6 +248,7 @@ start_execution(coreid_t cid, int init_core, int ncores)
 CWEAKSYMB void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
+	printc("IN COS_UPCALL!\n");
 	static int first = 1;
 
 	/*

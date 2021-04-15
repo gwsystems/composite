@@ -52,8 +52,16 @@
 #include <initargs.h>
 
 #include <crt.h>
+#include <ps_list.h>
 
 #define CRT_REFCNT_INITVAL 1
+
+int ncomp = 1;
+
+int crt_ncomp()
+{
+	return ncomp;
+}
 
 static inline int
 crt_refcnt_alive(crt_refcnt_t *r)
@@ -140,6 +148,8 @@ crt_comp_init(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_
 	assert(!elf_hdr || c->entry_addr != 0); /* same as `if elf_hdr then c->entry_addr` */
 	simple_barrier_init(&c->barrier, init_parallelism());
 
+	ncomp++;
+
 	return 0;
 }
 
@@ -167,6 +177,62 @@ crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_com
 	cos_compinfo_init(cos_compinfo_get(c->comp_res),
 			  r->ptc, r->ctc, r->compc, r->heap_ptr, r->captbl_frontier,
 			  cos_compinfo_get(cos_defcompinfo_curr_get()));
+	return 0;
+}
+
+/** 
+ * Create the component from the checkpoint
+ */
+int 
+crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, vaddr_t info, struct crt_chkpt *chkpt)
+{
+	/* c is gonna be the NEW component, chkpt is the chkpt we'll create c from */
+
+	struct cos_compinfo *ci, *root_ci;
+	struct cos_component_information *comp_info;
+	unsigned long info_offset;
+	size_t  ro_sz,   rw_sz, data_sz, bss_sz;
+	char   *ro_src, *data_src, *mem;
+	int     ret;
+
+	assert(c && name);
+
+	if (crt_comp_init(c, name, id, NULL, chkpt->c->info)) BUG();
+	ci      = cos_compinfo_get(c->comp_res);
+	root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+
+	// overwrite
+	c->entry_addr = chkpt->c->entry_addr;
+	c->ro_addr = chkpt->c->ro_addr;
+	c->rw_addr = chkpt->c->rw_addr;
+
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
+	assert(!ret);
+
+	mem = cos_page_bump_allocn(root_ci, chkpt->tot_sz_mem);
+	if (!mem) return -ENOMEM;
+	c->mem = mem;
+	c->tot_sz_mem = chkpt->tot_sz_mem;
+
+	memcpy(mem, chkpt->mem, round_up_to_page(chkpt->tot_sz_mem));
+
+	//memcpy(mem, ro_src, ro_sz);
+	//memcpy(mem + round_up_to_page(ro_sz), data_src, data_sz);
+	//memset(mem + round_up_to_page(ro_sz) + data_sz, 0, bss_sz);
+
+	//assert(info >= c->rw_addr && info < c->rw_addr + data_sz);
+	//info_offset = info - c->rw_addr;
+	//comp_info   = (struct cos_component_information *)(mem + round_up_to_page(ro_sz) + info_offset);
+
+	//assert(comp_info->cos_this_spd_id == 0);
+	//comp_info->cos_this_spd_id = id;
+
+	/* FIXME: separate map of RO and RW */
+	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, c->tot_sz_mem)) return -ENOMEM;
+
+	/* FIXME: cos_time.h assumes we have access to this... */
+	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, root_ci, BOOT_CAPTBL_SELF_INITHW_BASE);
+	assert(ret == 0);
 
 	return 0;
 }
@@ -218,6 +284,7 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	mem    = cos_page_bump_allocn(root_ci, tot_sz);
 	if (!mem) return -ENOMEM;
 	c->mem = mem;
+	c->tot_sz_mem = tot_sz;
 
 	memcpy(mem, ro_src, ro_sz);
 	memcpy(mem + round_up_to_page(ro_sz), data_src, data_sz);
@@ -1039,6 +1106,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 				BUG();
 			}
 		}
+		printc("about to assert: comp->id = %d; comp->init_state = %d\n", comp->id, comp->init_state);
 		assert(comp->init_state > CRT_COMP_INIT_PAR_INIT);
 	}
 
@@ -1089,10 +1157,10 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		}
 	}
 
-	cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);
-	while (1) ;
+	// cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);
+	// while (1) ;
 
-	BUG();
+	//BUG();
 
 	return;
 }
@@ -1173,3 +1241,4 @@ crt_compinit_exit(struct crt_comp *c, int retval)
 	BUG();
 	while (1) ;
 }
+
