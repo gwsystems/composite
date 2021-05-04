@@ -206,6 +206,19 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, vaddr_t info, 
 	c->ro_addr = chkpt->c->ro_addr;
 	c->rw_addr = chkpt->c->rw_addr;
 
+	//re-work the sinvs with the right IDs
+	memcpy(c->sinvs, chkpt->c->sinvs, sizeof(c->sinvs));
+	c->n_sinvs = chkpt->c->n_sinvs;
+	for(u32_t i = 0; i < c->n_sinvs; i++) {
+		//if the client was the old component, update id in new
+		if(chkpt->c->sinvs[i]->client->id == chkpt->c->id) {
+			c->sinvs[i]->client = c;
+		}
+		if(chkpt->c->sinvs[i]->server->id == chkpt->c->id) {
+			c->sinvs[i]->server = c;
+		}
+	}
+
 	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
 	assert(!ret);
 
@@ -296,6 +309,9 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	assert(comp_info->cos_this_spd_id == 0);
 	comp_info->cos_this_spd_id = id;
 
+	c->n_sinvs = 0;
+	memset(c->sinvs, 0, sizeof(c->sinvs));
+
 	/* FIXME: separate map of RO and RW */
 	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, tot_sz)) return -ENOMEM;
 
@@ -330,7 +346,10 @@ crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
 		.init_state = CRT_COMP_INIT_PREINIT,
 		.main_type  = INIT_MAIN_NONE,
 		.init_core  = cos_cpuid(),
-		.barrier    = SIMPLE_BARRIER_INITVAL
+		.barrier    = SIMPLE_BARRIER_INITVAL,
+
+		/* linnea adding here */
+		.n_sinvs	= 0,
 	};
 	simple_barrier_init(&c->barrier, init_parallelism());
 
@@ -1106,7 +1125,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 				BUG();
 			}
 		}
-		printc("about to assert: comp->id = %d; comp->init_state = %d\n", comp->id, comp->init_state);
+		printc("about to assert: comp->id = %ld; comp->init_state = %d\n", comp->id, comp->init_state);
 		assert(comp->init_state > CRT_COMP_INIT_PAR_INIT);
 	}
 

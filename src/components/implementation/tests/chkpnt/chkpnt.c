@@ -317,10 +317,13 @@ comps_init(void)
 	ret = args_get_entry("sinvs", &comps);
 	assert(!ret);
 	printc("Synchronous invocations (%d):\n", args_len(&comps));
+	
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct crt_sinv *sinv;
 		int serv_id = atoi(args_get_from("server", &curr));
 		int cli_id  = atoi(args_get_from("client", &curr));
+		struct crt_comp *serv = boot_comp_get(serv_id);
+		struct crt_comp *cli = boot_comp_get(cli_id);
 
 		sinv = ss_sinv_alloc();
 		assert(sinv);
@@ -330,6 +333,19 @@ comps_init(void)
 		ss_sinv_activate(sinv);
 		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
+		
+		/* TODO: somehow store this info in the array for the comp so it can be accessed if checkpointed */
+		
+		serv->sinvs[serv->n_sinvs] = sinv;
+		serv->n_sinvs++;
+
+		cli->sinvs[cli->n_sinvs] = sinv;
+		cli->n_sinvs++;
+
+		printc("n_sinvs for (cli) comp %ld = %d\n", cli->id, cli->n_sinvs);
+		printc("n_sinvs for (serv) comp %ld = %d\n", serv->id, serv->n_sinvs);
+
+		
 	}
 	
 	args_iter(&comps, &i, &curr);
@@ -412,12 +428,30 @@ chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt)
 	assert(t);
 	if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, t))) BUG();
 	ss_thd_activate(t);
+	printc("thread->cap = %ld\n", t->cap);
 
 	comp->init_state = CRT_COMP_INIT_COS_INIT;
 
 	/* TODO: create the capabilities */
 
-	/* TODO: create the sinvs */
+	/* create the sinvs */
+	printc("comp->n_sinvs = %x\n", comp->n_sinvs);
+	for(u32_t i = 0; i < comp->n_sinvs; i++) {
+		struct crt_sinv *sinv;
+		int serv_id = comp->sinvs[i]->server->id;
+		int cli_id  = comp->sinvs[i]->client->id;
+
+		sinv = ss_sinv_alloc();
+		assert(sinv);
+		crt_sinv_create(sinv, comp->sinvs[i]->name, comp->sinvs[i]->server, comp->sinvs[i]->client,
+			comp->sinvs[i]->c_fn_addr, comp->sinvs[i]->c_ucap_addr, comp->sinvs[i]->s_fn_addr);
+		
+		ss_sinv_activate(sinv);
+
+		printc("\tchkpt init sinv: %s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
+			sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);	
+	}
+	
 }
 
 unsigned long
@@ -487,27 +521,29 @@ init_done(int parallel_init, init_main_t main_type)
 	 	return;
 	}
 
-	/* defaulting to creating just one chkpnt for now */
-	if(crt_chkpt_create(&cp, c) != 0) {
-	 	BUG();
+	/* completed all initialization */
+	if(c->init_state >= CRT_COMP_INIT_MAIN) {
+		/* defaulting to creating just one chkpnt for now */
+		if(crt_chkpt_create(&cp, c) != 0) {
+			BUG();
+		}
+		printc("Created a checkpoint for component %ld\n", c->id);
+
+		/* this is going to initialize the components from existing chkpts */
+		chkpt_comp_init(&new_comp, &cp);
+
+		printc("Created a component from checkpoint: id = %ld\n", new_comp.id);
+		
+		//crt_compinit_done(&new_comp, parallel_init, main_type);
+		thdcap   = crt_comp_thdcap_get(&new_comp);
+		printc("thdcap = %ld\n", thdcap);
+		assert(thdcap);
+
+		if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync()))) {
+			printc("Switch failure on thdcap %ld, with ret %d\n", thdcap, ret);
+			BUG();
+		}
 	}
-	printc("Created a checkpoint for component %ld\n", c->id);
-
-	/* this is going to initialize the components from existing chkpts */
-	chkpt_comp_init(&new_comp, &cp);
-
-	printc("Created a component from checkpoint: id = %ld\n", new_comp.id);
-	
-	//crt_compinit_done(&new_comp, parallel_init, main_type);
-	thdcap   = crt_comp_thdcap_get(&new_comp);
-	assert(thdcap);
-
-	if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync()))) {
-				printc("Switch failure on thdcap %ld, with ret %d\n", thdcap, ret);
-				BUG();
-			}
-
-	printc("Back in init_done()\n");
 
 	return;
 }

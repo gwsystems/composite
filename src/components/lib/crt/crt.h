@@ -11,6 +11,10 @@
 
 typedef unsigned long crt_refcnt_t;
 
+#define CRT_COMP_SINVS_LEN 5
+
+struct crt_sinv;
+
 struct crt_asnd {
 	struct crt_rcv *rcv;
 	asndcap_t asnd;
@@ -73,6 +77,8 @@ struct crt_comp {
 	crt_refcnt_t refcnt;
 
 	size_t tot_sz_mem;
+	struct crt_sinv *sinvs[CRT_COMP_SINVS_LEN];
+	u32_t  n_sinvs;
 	
 };
 
