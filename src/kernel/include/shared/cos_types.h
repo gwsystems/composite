@@ -252,16 +252,16 @@ enum
 	BOOT_CAPTBL_SRET            = 0,
 	BOOT_CAPTBL_PRINT_HACK      = 2, /* This slot is not used for any capability and SRET is 16B (1slot).. */
 	BOOT_CAPTBL_SELF_CT         = 4,
-	BOOT_CAPTBL_SELF_PT         = 6,
-	BOOT_CAPTBL_SELF_COMP       = 8,
-	BOOT_CAPTBL_BOOTVM_PTE      = 12,
-	BOOT_CAPTBL_SELF_UNTYPED_PT = 14,
-	BOOT_CAPTBL_PHYSM_PTE       = 16,
-	BOOT_CAPTBL_KM_PTE          = 18,
+	BOOT_CAPTBL_SELF_PT         = 8,
+	BOOT_CAPTBL_SELF_COMP       = 12,
+	BOOT_CAPTBL_BOOTVM_PTE      = 16,
+	BOOT_CAPTBL_SELF_UNTYPED_PT = 20,
+	BOOT_CAPTBL_PHYSM_PTE       = 24,
+	BOOT_CAPTBL_KM_PTE          = 28,
 
-	BOOT_CAPTBL_SINV_CAP           = 20,
-	BOOT_CAPTBL_SELF_INITHW_BASE   = 24,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
+	BOOT_CAPTBL_SINV_CAP           = 32,
+	BOOT_CAPTBL_SELF_INITHW_BASE   = 36,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 40,
 	/*
 	 * NOTE: kernel doesn't support sharing a cache-line across cores,
 	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU

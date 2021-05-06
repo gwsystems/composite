@@ -246,13 +246,13 @@ captbl_lkup(struct captbl *t, capid_t cap)
 }
 
 static inline int
-__captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
+__captbl_store_32(u32_t *addr, u32_t new, u32_t old)
 {
-	if (!cos_cas(addr, old, new)) return -1;
+	if (!cos_cas_32(addr, old, new)){ return -1;}
 
 	return 0;
 }
-#define CTSTORE(a, n, o) __captbl_store((unsigned long *)a, *(unsigned long *)n, *(unsigned long *)o)
+#define CTSTORE(a, n, o) __captbl_store_32((u32_t *)a, *(u32_t *)n, *(u32_t *)o)
 #define cos_throw(label, errno) \
 	{                       \
 		ret = (errno);  \
@@ -335,7 +335,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 	}
 
 	if (l.size != sz) l.size = sz;
-	if (unlikely(__captbl_header_validate(&l, sz))) cos_throw(err, -EINVAL);
+	if (unlikely(__captbl_header_validate(&l, sz))){ cos_throw(err, -EINVAL);}
 
 	/* FIXME: we should _not_ do this here.  This should be done
 	 * in step 3 of the protocol for setting capabilities, not 1 */

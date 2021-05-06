@@ -136,7 +136,7 @@ extern struct retype_info_glb glb_retype_tbl[N_RETYPE_SLOTS];
 static inline int
 retypetbl_cas(u32_t *a, u32_t old, u32_t new)
 {
-	return cos_cas((unsigned long *)a, old, new);
+	return cos_cas_32((unsigned long *)a, old, new);
 }
 
 int retypetbl_retype2user(void *pa, u32_t order);
