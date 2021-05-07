@@ -8,7 +8,7 @@
  * 1 otherwise (*target == old -> *target = updated)
  */
 static inline int
-cos_cas_32(u32_t *target, u32_t old, u32_t updated)
+cos_cas(u32_t *target, u32_t old, u32_t updated)
 {
 	char z;
 	__asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"

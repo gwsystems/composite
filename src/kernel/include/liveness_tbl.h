@@ -117,7 +117,7 @@ ltbl_expire(struct liveness_data *ld)
 	//	cos_inst_bar();
 
 	// FIXME: 64-bit op
-	if (!cos_cas_64((unsigned long *)&ent->epoch, (unsigned long)old_v, (unsigned long)(old_v + 1))) return -ECASFAIL;
+	if (!cos_cas((unsigned long *)&ent->epoch, (unsigned long)old_v, (unsigned long)(old_v + 1))) return -ECASFAIL;
 
 	return 0;
 }

@@ -248,7 +248,7 @@ captbl_lkup(struct captbl *t, capid_t cap)
 static inline int
 __captbl_store_32(u32_t *addr, u32_t new, u32_t old)
 {
-	if (!cos_cas_32(addr, old, new)){ return -1;}
+	if (!cos_cas(addr, old, new)){ return -1;}
 
 	return 0;
 }

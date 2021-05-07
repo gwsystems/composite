@@ -153,7 +153,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 		}
 
 		/* set the scan flag to avoid concurrent scanning. */
-		if (cos_cas_32((unsigned long *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS)
+		if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS)
 			return -ECASFAIL;
 
 		/*
@@ -168,11 +168,11 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 
 		if (ret) {
 			/* unset scan and frozen bits. */
-			cos_cas_32((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
+			cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
 			        l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
 			cos_throw(err, ret);
 		}
-		cos_cas_32((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, l);
+		cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, l);
 	} else if (ch->type == CAP_PGTBL) {
 		ret = chal_pgtbl_deact_pre(ch, pa);
 		if (ret) cos_throw(err, ret);
@@ -201,12 +201,12 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v)
 	/* Unset coskmem bit. Release the kmem frame. */
 	new_v = chal_pgtbl_flag_clr(old_v, PGTBL_COSKMEM);
 
-	if (cos_cas_32(pte, old_v, new_v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+	if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	ret = retypetbl_kern_deref((void *)(old_v & PGTBL_FRAME_MASK), PAGE_ORDER);
 	if (ret) {
 		/* FIXME: handle this case? */
-		cos_cas_32(pte, new_v, old_v);
+		cos_cas(pte, new_v, old_v);
 		cos_throw(err, ret);
 	}
 	/* zero out the page to avoid info leaking. */
@@ -264,7 +264,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 			if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 			if ((l & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
 
-			cos_cas_32((unsigned long *)&(parent->refcnt_flags), old_v, l + 1);
+			cos_cas((unsigned long *)&(parent->refcnt_flags), old_v, l + 1);
 
 			child->refcnt_flags = 1;
 			child->parent       = parent;
@@ -276,7 +276,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 			if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 			if ((l & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
 
-			cos_cas_32((unsigned long *)&(parent->refcnt_flags), old_v, l + 1);
+			cos_cas((unsigned long *)&(parent->refcnt_flags), old_v, l + 1);
 
 			child->refcnt_flags = 1;
 			child->parent       = parent;
@@ -330,10 +330,10 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, c
 		if (ret) return ret;
 
 		/* valid to move. doing CAS next. */
-		ret = cos_cas_32(f, old_v, 0);
+		ret = cos_cas(f, old_v, 0);
 		if (ret != CAS_SUCCESS) return -ECASFAIL;
 
-		ret = cos_cas_64(moveto, old_v_to, old_v);
+		ret = cos_cas(moveto, old_v_to, old_v);
 		if (ret != CAS_SUCCESS) {
 			/*
 			 * FIXME: reverse if the second cas fails. We

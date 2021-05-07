@@ -89,7 +89,7 @@ chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned l
 	 * We keep the cos_frame entry, but mark it as COSKMEM so that
 	 * we won't use it for other kernel objects.
 	 */
-	if (unlikely(cos_cas_32((unsigned long *)pte, orig_v, new_v) != CAS_SUCCESS)) {
+	if (unlikely(cos_cas((unsigned long *)pte, orig_v, new_v) != CAS_SUCCESS)) {
 		/* restore the ref cnt. */
 		retypetbl_kern_deref((void *)(orig_v & PGTBL_FRAME_MASK), PAGE_ORDER);
 		return -ECASFAIL;
@@ -237,7 +237,7 @@ chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 		assert(!pgtbl_cap && !cosframe_addr);
 	}
 
-	if (cos_cas_32((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	/*
 	 * deactivation success. We should either release the
@@ -703,7 +703,7 @@ printk("@ %d line\n",__LINE__);
 
 printk("@ %d line\n",__LINE__);
 	refcnt_flags++;
-	ret = cos_cas_32((unsigned long *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
+	ret = cos_cas((unsigned long *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
 	if (ret != CAS_SUCCESS) return -ECASFAIL;
 
 printk("@ %d line\n",__LINE__);
@@ -711,7 +711,7 @@ printk("@ %d line\n",__LINE__);
 	          (void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK))
 	          | X86_PGTBL_INTERN_DEF;
 
-	ret = cos_cas_32(intern, old_pte, new_pte);
+	ret = cos_cas(intern, old_pte, new_pte);
 	if (ret != CAS_SUCCESS) {
 		/* decrement to restore the refcnt on failure. */
 		cos_faa((int *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), -1);
@@ -740,7 +740,7 @@ chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t prune
 	if (old_v & X86_PGTBL_SUPER) return -EINVAL;
 	if (old_v == 0) return 0; /* FIXME: old comment - return an error here? */
 	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
-	if (cos_cas_32(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
+	if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
 
 	/* decrement the refcnt */
 	pt = (struct cap_pgtbl *)sub;
@@ -800,7 +800,7 @@ chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa)
 	}
 
 	/* set the scan flag to avoid concurrent scanning. */
-	if (cos_cas_32((unsigned long *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS)
+	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS)
 		return -ECASFAIL;
 
 	if (deact_cap->lvl == 0) {
@@ -816,11 +816,11 @@ chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa)
 
 	if (ret) {
 		/* unset scan and frozen bits. */
-		cos_cas_32((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
+		cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
 		        l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
 		return ret;
 	}
-	cos_cas_32((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, l);
+	cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, l);
 
 	return 0;
 }
