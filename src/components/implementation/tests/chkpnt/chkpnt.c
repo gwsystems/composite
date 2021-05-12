@@ -5,9 +5,6 @@
  * Author: Gabriel Parmer, gparmer@gwu.edu
  */
 
-/** 
- * this is a booter that makes sure to checkpoint components
- */
 #include <stdlib.h>
 #include <limits.h>
 
@@ -20,8 +17,6 @@
 
 #include <init.h>
 #include <addr.h>
-
-//#include "chkpnt.h"
 
 #ifndef BOOTER_MAX_SINV
 #define BOOTER_MAX_SINV 256
@@ -43,52 +38,20 @@
 #define BOOTER_MAX_CHKPT 64
 #endif
 
+/*TODO: uncomment for checkpoint functionality */
+#ifndef ENABLE_CHKPT
+#define ENABLE_CHKPT 1
+#endif
+
 static struct crt_comp boot_comps[MAX_NUM_COMPS];
 static const  compid_t sched_root_id  = 2;
 static        long     boot_id_offset = -1;
+
 SS_STATIC_SLAB(sinv, 	struct crt_sinv, 	BOOTER_MAX_SINV);
 SS_STATIC_SLAB(thd,  	struct crt_thd,  	BOOTER_MAX_INITTHD);
 SS_STATIC_SLAB(rcv,  	struct crt_rcv,  	BOOTER_MAX_SCHED);
 SS_STATIC_SLAB(chkpt, 	struct crt_chkpt, 	BOOTER_MAX_CHKPT);
-//static struct crt_chkpt chkpts[BOOTER_MAX_CHKPT];
-static		  int	   nchkpt = 0;
 
-int
-crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c)
-{
-	char *mem;
-	struct cos_compinfo *root_ci;
-
-	if(nchkpt > BOOTER_MAX_CHKPT) return -1;
-
-	chkpt->c = c;
-	nchkpt++;
-
-	/* allocate space for saving the component's memory */
-	root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	mem = cos_page_bump_allocn(root_ci, c->tot_sz_mem);
-	if (!mem) return -ENOMEM;
-
-	chkpt->mem = mem;
-	chkpt->tot_sz_mem = c->tot_sz_mem;
-
-	memcpy(mem, c->mem, c->tot_sz_mem);	
-	/* 
-	 * TODO: capabilities aren't copied, so components that could modify their capabilities
-	 * while running (schedulers/cap mgrs) shouldn't be checkpointed 
-	 */
-
-	return 0;
-}
-
-int
-crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c)
-{
-	/* turning c, a terminated component, back into a chkpt */
-	/* TODO: return memory to a previous saved state */
-
-	return 0;
-}
 
 /*
  * Assumptions: the component with the lowest id *must* be the one
@@ -109,12 +72,6 @@ boot_comp_get(compid_t id)
 	assert(boot_id_offset >= 0 && id >= (compid_t)boot_id_offset);
 
 	return &boot_comps[id - boot_id_offset];
-}
-
-static struct crt_comp *
-chkpt_comp_get(struct crt_comp *comp)
-{
-	return comp;
 }
 
 static struct crt_comp *
@@ -329,19 +286,12 @@ comps_init(void)
 		ss_sinv_activate(sinv);
 		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
-		
-		/* TODO: somehow store this info in the array for the comp so it can be accessed if checkpointed */
-		
+				
 		serv->sinvs[serv->n_sinvs] = sinv;
 		serv->n_sinvs++;
 
 		cli->sinvs[cli->n_sinvs] = sinv;
 		cli->n_sinvs++;
-
-		printc("n_sinvs for (cli) comp %ld = %d\n", cli->id, cli->n_sinvs);
-		printc("n_sinvs for (serv) comp %ld = %d\n", serv->id, serv->n_sinvs);
-
-		
 	}
 	
 	args_iter(&comps, &i, &curr);
@@ -374,14 +324,13 @@ comps_init(void)
 }
 
 void 
-chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt)
+chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt, char *name)
 {
+#ifdef ENABLE_CHKPT
 	/* create the component */
 	void *elf_hdr;
 	int   keylen;
 	compid_t id = crt_ncomp() + 1;
-	char *name = "chkpt_";
-	strncat(name, chkpt->c->name, strlen(chkpt->c->name));
 	const char *root = "binaries/";
 	int   len  = strlen(root);
 	char  path[INITARGS_MAX_PATHNAME];
@@ -389,7 +338,6 @@ chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt)
 	printc("%s: %lu\n", name, id);
 
 	assert(id < MAX_NUM_COMPS && id > 0 && name);
-	printc("%s: %d\n", __FILE__, __LINE__);
 	memset(path, 0, INITARGS_MAX_PATHNAME);
 	strncat(path, root, len);
 	assert(path[len] == '\0');
@@ -417,14 +365,11 @@ chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt)
 	assert(t);
 	if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, t))) BUG();
 	ss_thd_activate(t);
-	printc("thread->cap = %ld\n", t->cap);
-
 	comp->init_state = CRT_COMP_INIT_COS_INIT;
 
 	/* TODO: create the capabilities */
 
 	/* create the sinvs */
-	printc("comp->n_sinvs = %x\n", comp->n_sinvs);
 	for(u32_t i = 0; i < comp->n_sinvs; i++) {
 		struct crt_sinv *sinv;
 		int serv_id = comp->sinvs[i]->server->id;
@@ -437,10 +382,11 @@ chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt)
 		
 		ss_sinv_activate(sinv);
 
-		printc("\tchkpt init sinv: %s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
+		printc("\tsinv (chkpt): %s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 			sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);	
 	}
-	
+#endif /* ENABLE_CHKPT */
+
 }
 
 unsigned long
@@ -498,27 +444,33 @@ init_done(int parallel_init, init_main_t main_type)
 	struct crt_comp    *new_comp  = boot_comp_get(crt_ncomp() + 1);
 	thdcap_t 			thdcap;
 	int 				ret;
+	char			   *name;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = boot_comp_get(client);
 
 	crt_compinit_done(c, parallel_init, main_type);
 
+#ifdef ENABLE_CHKPT
 	if(c->id == cos_compid()) {
 	 	/* don't create chkpnt for the booter */
 	 	return;
 	}
 
+	name = "chkpt_";
+	strncat(name, c->name, strlen(c->name));
 	/* completed all initialization */
 	if(c->init_state >= CRT_COMP_INIT_MAIN) {
 		/* defaulting to creating just one chkpnt for now */
+		if(crt_nchkpt() > BOOTER_MAX_CHKPT) return;
+
 		chkpt = ss_chkpt_alloc();
 		if(crt_chkpt_create(chkpt, c) != 0) {
 			BUG();
 		}
 		ss_chkpt_activate(chkpt);
 
-		chkpt_comp_init(new_comp, chkpt);
+		chkpt_comp_init(new_comp, chkpt, name);
 		//crt_compinit_done(&new_comp, parallel_init, main_type);
 		thdcap   = crt_comp_thdcap_get(new_comp);
 		assert(thdcap);
@@ -528,8 +480,11 @@ init_done(int parallel_init, init_main_t main_type)
 			BUG();
 		}
 	}
-
 	return;
+#else 
+	return;
+#endif /* ENABLE_CHKPT */
+
 }
 
 

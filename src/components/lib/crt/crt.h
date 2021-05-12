@@ -166,6 +166,7 @@ int crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt
 
 int crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt);
 int crt_ncomp();
+int crt_nchkpt();
 
 int crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp_resources *res, crt_comp_alias_t flags);
 void crt_comp_captbl_frontier_update(struct crt_comp *c, capid_t capid);

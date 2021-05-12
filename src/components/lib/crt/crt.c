@@ -56,11 +56,51 @@
 
 #define CRT_REFCNT_INITVAL 1
 
-int ncomp = 1;
+static int nchkpt = 0;
+static int ncomp = 1;
 
 int crt_ncomp()
 {
 	return ncomp;
+}
+
+int crt_nchkpt()
+{
+	return nchkpt;
+}
+
+int
+crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c)
+{
+	char *mem;
+	struct cos_compinfo *root_ci;
+
+	chkpt->c = c;
+	nchkpt++;
+
+	/* allocate space for saving the component's memory */
+	root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	mem = cos_page_bump_allocn(root_ci, c->tot_sz_mem);
+	if (!mem) return -ENOMEM;
+
+	chkpt->mem = mem;
+	chkpt->tot_sz_mem = c->tot_sz_mem;
+
+	memcpy(mem, c->mem, c->tot_sz_mem);	
+	/* 
+	 * TODO: capabilities aren't copied, so components that could modify their capabilities
+	 * while running (schedulers/cap mgrs) shouldn't be checkpointed 
+	 */
+
+	return 0;
+}
+
+int
+crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c)
+{
+	/* turning c, a terminated component, back into a chkpt */
+	/* TODO: return memory to a previous saved state */
+	return 0;
 }
 
 static inline int
@@ -182,12 +222,14 @@ crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_com
 
 /** 
  * Create the component from the checkpoint
+ * c is the new component
+ * chkpt is the checkpoint used to create c
+ * name is c's name
+ * id is c's component id
  */
 int 
 crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt)
 {
-	/* c is gonna be the NEW component, chkpt is the chkpt we'll create c from */
-
 	struct cos_compinfo *ci, *root_ci;
 	struct cos_component_information *comp_info;
 	unsigned long info_offset;
@@ -231,11 +273,6 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 
 	memcpy(mem, chkpt->mem, round_up_to_page(chkpt->tot_sz_mem));
 
-	//memcpy(mem, ro_src, ro_sz);
-	//memcpy(mem + round_up_to_page(ro_sz), data_src, data_sz);
-	//memset(mem + round_up_to_page(ro_sz) + data_sz, 0, bss_sz);
-
-	//assert(info >= c->rw_addr && info < c->rw_addr + data_sz);
 	info_offset = info - c->rw_addr;
 	comp_info   = (struct cos_component_information *)(mem + round_up_to_page(c->ro_sz) + info_offset);
 	comp_info->cos_this_spd_id = 0;
