@@ -3,7 +3,7 @@ description = "Creating multiple of a single component (ping) with distinct id's
 
 [[components]]
 name = "booter"
-img  = "tests.chkpnt"
+img  = "no_interface.llbooter"
 implements = [{interface = "init"}]
 deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
 constructor = "kernel"

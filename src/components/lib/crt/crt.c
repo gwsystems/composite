@@ -90,6 +90,7 @@ crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c)
 	/* 
 	 * TODO: capabilities aren't copied, so components that could modify their capabilities
 	 * while running (schedulers/cap mgrs) shouldn't be checkpointed 
+	 * TODO: copy dynamically allocated memory into the checkpoint
 	 */
 
 	return 0;
