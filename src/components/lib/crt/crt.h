@@ -77,6 +77,7 @@ struct crt_comp {
 	crt_refcnt_t refcnt;
 
 	size_t tot_sz_mem;
+	size_t ro_sz;
 	struct crt_sinv *sinvs[CRT_COMP_SINVS_LEN];
 	u32_t  n_sinvs;
 	
@@ -163,7 +164,7 @@ struct crt_sinv_resources {
 int crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info);
 int crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_comp_resources *resources);
 
-int crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, vaddr_t info, struct crt_chkpt *chkpt);
+int crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt);
 int crt_ncomp();
 
 int crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp_resources *res, crt_comp_alias_t flags);

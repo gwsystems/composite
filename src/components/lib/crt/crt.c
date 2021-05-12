@@ -184,7 +184,7 @@ crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_com
  * Create the component from the checkpoint
  */
 int 
-crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, vaddr_t info, struct crt_chkpt *chkpt)
+crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt)
 {
 	/* c is gonna be the NEW component, chkpt is the chkpt we'll create c from */
 
@@ -194,6 +194,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, vaddr_t info, 
 	size_t  ro_sz,   rw_sz, data_sz, bss_sz;
 	char   *ro_src, *data_src, *mem;
 	int     ret;
+	vaddr_t	info = chkpt->c->info;
 
 	assert(c && name);
 
@@ -226,6 +227,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, vaddr_t info, 
 	if (!mem) return -ENOMEM;
 	c->mem = mem;
 	c->tot_sz_mem = chkpt->tot_sz_mem;
+	c->ro_sz = chkpt->c->ro_sz;
 
 	memcpy(mem, chkpt->mem, round_up_to_page(chkpt->tot_sz_mem));
 
@@ -234,11 +236,11 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, vaddr_t info, 
 	//memset(mem + round_up_to_page(ro_sz) + data_sz, 0, bss_sz);
 
 	//assert(info >= c->rw_addr && info < c->rw_addr + data_sz);
-	//info_offset = info - c->rw_addr;
-	//comp_info   = (struct cos_component_information *)(mem + round_up_to_page(ro_sz) + info_offset);
-
-	//assert(comp_info->cos_this_spd_id == 0);
-	//comp_info->cos_this_spd_id = id;
+	info_offset = info - c->rw_addr;
+	comp_info   = (struct cos_component_information *)(mem + round_up_to_page(c->ro_sz) + info_offset);
+	comp_info->cos_this_spd_id = 0;
+	assert(comp_info->cos_this_spd_id == 0);
+	comp_info->cos_this_spd_id = id;
 
 	/* FIXME: separate map of RO and RW */
 	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, c->tot_sz_mem)) return -ENOMEM;
@@ -298,6 +300,7 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	if (!mem) return -ENOMEM;
 	c->mem = mem;
 	c->tot_sz_mem = tot_sz;
+	c->ro_sz = ro_sz;
 
 	memcpy(mem, ro_src, ro_sz);
 	memcpy(mem + round_up_to_page(ro_sz), data_src, data_sz);
@@ -1125,7 +1128,6 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 				BUG();
 			}
 		}
-		printc("about to assert: comp->id = %ld; comp->init_state = %d\n", comp->id, comp->init_state);
 		assert(comp->init_state > CRT_COMP_INIT_PAR_INIT);
 	}
 
