@@ -368,7 +368,7 @@ chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt, char *name)
 	comp->init_state = CRT_COMP_INIT_COS_INIT;
 
 	/* create the sinvs */
-	for(u32_t i = 0; i < comp->n_sinvs; i++) {
+	for (u32_t i = 0 ; i < comp->n_sinvs ; i++) {
 		struct crt_sinv *sinv;
 		int serv_id = comp->sinvs[i]->server->id;
 		int cli_id  = comp->sinvs[i]->client->id;
@@ -450,27 +450,27 @@ init_done(int parallel_init, init_main_t main_type)
 	crt_compinit_done(c, parallel_init, main_type);
 
 #ifdef ENABLE_CHKPT
-	if(c->id == cos_compid()) {
-	 	/* don't create chkpnt for the booter */
-	 	return;
+	if (c->id == cos_compid()) {
+	 	/* don't allow chkpnts of the booter */
+	 	BUG();
 	}
 
 	name = "chkpt_";
 	strncat(name, c->name, strlen(c->name));
 	/* completed all initialization */
-	if(c->init_state >= CRT_COMP_INIT_MAIN) {
-		/* defaulting to creating just one chkpnt for now */
-		if(crt_nchkpt() > BOOTER_MAX_CHKPT) return;
+	if (c->init_state >= CRT_COMP_INIT_MAIN) {
+		if (crt_nchkpt() > BOOTER_MAX_CHKPT) {
+			BUG();
+		}
 
 		chkpt = ss_chkpt_alloc();
-		if(crt_chkpt_create(chkpt, c) != 0) {
+		if (crt_chkpt_create(chkpt, c) != 0) {
 			BUG();
 		}
 		ss_chkpt_activate(chkpt);
 
 		chkpt_comp_init(new_comp, chkpt, name);
-		//crt_compinit_done(&new_comp, parallel_init, main_type);
-		thdcap   = crt_comp_thdcap_get(new_comp);
+		thdcap = crt_comp_thdcap_get(new_comp);
 		assert(thdcap);
 
 		if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync()))) {
