@@ -7,8 +7,6 @@
 #include <init.h>
 #include <barrier.h>
 
-#include <ps_list.h>
-
 typedef unsigned long crt_refcnt_t;
 
 #define CRT_COMP_SINVS_LEN 16
@@ -96,7 +94,6 @@ struct crt_chkpt {
     struct crt_comp *c;
 	char			*mem;
 	size_t			 tot_sz_mem;
-    /* some kind of pointer to the memory */
 };
 
 typedef enum {
@@ -211,10 +208,6 @@ void crt_compinit_execute(comp_get_fn_t comp_get);
 void crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type);
 void crt_compinit_exit(struct crt_comp *c, int retval);
 
-/**
- * Checkpoint API to allow a checkpoint to be created from an initialized component
- * and to be restored from a finished component
- */
 int crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c);
 int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
 

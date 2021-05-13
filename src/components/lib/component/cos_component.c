@@ -204,7 +204,6 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	int main_time = 0;
 	static volatile int initialization_completed = 0;
 
-
 	/* are parallel/regular main user-defined? */
 	if (parallel_main != __crt_parallel_main) {
 		main_type = INIT_MAIN_PARALLEL;
@@ -241,7 +240,6 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	} else {
 		/* Only the initial core should execute main */
 		assert(init_core && main_type == INIT_MAIN_SINGLE);
-
 		ret = cos_main();
 	}
 	COS_EXTERN_INV(init_exit)(ret);

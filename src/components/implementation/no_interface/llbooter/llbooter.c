@@ -52,7 +52,6 @@ SS_STATIC_SLAB(thd,  	struct crt_thd,  	BOOTER_MAX_INITTHD);
 SS_STATIC_SLAB(rcv,  	struct crt_rcv,  	BOOTER_MAX_SCHED);
 SS_STATIC_SLAB(chkpt, 	struct crt_chkpt, 	BOOTER_MAX_CHKPT);
 
-
 /*
  * Assumptions: the component with the lowest id *must* be the one
  * that is passed into this function first. You *can* pass in an id
@@ -93,7 +92,6 @@ comps_init(void)
 	struct initargs_iter i;
 	int cont, ret, j;
 	int comp_idx = 0;
-	/* IDs start at 1, apparently */
 
 	/*
 	 * Assume: our component id is the lowest of the ids for all
@@ -148,8 +146,7 @@ comps_init(void)
 			if (crt_comp_create(comp, name, id, elf_hdr, info)) {
 				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
 				BUG();
-			}
-			
+			}	
 		}
 		assert(comp->refcnt != 0);
 	}
@@ -270,7 +267,6 @@ comps_init(void)
 	ret = args_get_entry("sinvs", &comps);
 	assert(!ret);
 	printc("Synchronous invocations (%d):\n", args_len(&comps));
-	
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct crt_sinv *sinv;
 		int serv_id = atoi(args_get_from("server", &curr));
@@ -356,7 +352,6 @@ chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt, char *name)
 
 	/* TODO: create the thread/execution context */
 	struct crt_comp_exec_context ctxt = { 0 };
-
 	/* TODO: assume only chkpt components that can be executed, but aren't schedulers */
 	struct crt_thd *t = ss_thd_alloc();
 
@@ -375,9 +370,7 @@ chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt, char *name)
 		assert(sinv);
 		crt_sinv_create(sinv, comp->sinvs[i]->name, comp->sinvs[i]->server, comp->sinvs[i]->client,
 			comp->sinvs[i]->c_fn_addr, comp->sinvs[i]->c_ucap_addr, comp->sinvs[i]->s_fn_addr);
-		
 		ss_sinv_activate(sinv);
-
 		printc("\t(chkpt) sinv: %s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 			sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);	
 	}
@@ -433,14 +426,13 @@ execute(void)
 void
 init_done(int parallel_init, init_main_t main_type)
 {
-
 	compid_t client = (compid_t)cos_inv_token();
 	struct crt_comp    *c;
 	struct crt_chkpt   *chkpt;
 	struct crt_comp    *new_comp  = boot_comp_get(crt_ncomp() + 1);
-	thdcap_t 			thdcap;
-	int 				ret;
-	char			   *name;
+	thdcap_t 		thdcap;
+	int 			ret;
+	char			*name;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = boot_comp_get(client);
@@ -460,22 +452,20 @@ init_done(int parallel_init, init_main_t main_type)
 		if (crt_nchkpt() > BOOTER_MAX_CHKPT) {
 			BUG();
 		}
-
 		chkpt = ss_chkpt_alloc();
 		if (crt_chkpt_create(chkpt, c) != 0) {
 			BUG();
 		}
 		ss_chkpt_activate(chkpt);
-
 		chkpt_comp_init(new_comp, chkpt, name);
 		thdcap = crt_comp_thdcap_get(new_comp);
 		assert(thdcap);
-
 		if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync()))) {
 			printc("Switch failure on thdcap %ld, with ret %d\n", thdcap, ret);
 			BUG();
 		}
 	}
+
 	return;
 #else 
 	return;
@@ -488,7 +478,6 @@ void
 init_exit(int retval)
 {
 	compid_t client = (compid_t)cos_inv_token();
-
 	struct crt_comp *c;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);

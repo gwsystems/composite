@@ -52,7 +52,6 @@
 #include <initargs.h>
 
 #include <crt.h>
-#include <ps_list.h>
 
 #define CRT_REFCNT_INITVAL 1
 
@@ -388,8 +387,7 @@ crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
 		.main_type  = INIT_MAIN_NONE,
 		.init_core  = cos_cpuid(),
 		.barrier    = SIMPLE_BARRIER_INITVAL,
-
-		/* linnea adding here */
+		
 		.n_sinvs	= 0,
 	};
 	simple_barrier_init(&c->barrier, init_parallelism());
