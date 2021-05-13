@@ -1216,10 +1216,10 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		}
 	}
 
-	// cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);
-	// while (1) ;
+	cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);
+	while (1) ;
 
-	//BUG();
+	BUG();
 
 	return;
 }

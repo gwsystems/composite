@@ -38,10 +38,10 @@
 #define BOOTER_MAX_CHKPT 64
 #endif
 
-/*TODO: uncomment for checkpoint functionality */
-#ifndef ENABLE_CHKPT
-#define ENABLE_CHKPT 1
-#endif
+/* UNCOMMENT HERE FOR CHECKPOINT FUNCTIONALITY */
+// #ifndef ENABLE_CHKPT
+// #define ENABLE_CHKPT 1
+// #endif
 
 static struct crt_comp boot_comps[MAX_NUM_COMPS];
 static const  compid_t sched_root_id  = 2;
@@ -335,15 +335,12 @@ chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt, char *name)
 	int   len  = strlen(root);
 	char  path[INITARGS_MAX_PATHNAME];
 
-	printc("%s: %lu\n", name, id);
-
 	assert(id < MAX_NUM_COMPS && id > 0 && name);
 	memset(path, 0, INITARGS_MAX_PATHNAME);
 	strncat(path, root, len);
 	assert(path[len] == '\0');
 	strncat(path, name, INITARGS_MAX_PATHNAME - len);
 	assert(path[INITARGS_MAX_PATHNAME - 1] == '\0'); /* no truncation allowed */
-
 
 	if (id == cos_compid()) {
 		/* this should never happen */
@@ -380,7 +377,7 @@ chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt, char *name)
 		
 		ss_sinv_activate(sinv);
 
-		printc("\tsinv (chkpt): %s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
+		printc("\t(chkpt) sinv: %s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 			sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);	
 	}
 #endif /* ENABLE_CHKPT */
