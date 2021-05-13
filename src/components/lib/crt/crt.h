@@ -11,7 +11,7 @@
 
 typedef unsigned long crt_refcnt_t;
 
-#define CRT_COMP_SINVS_LEN 5
+#define CRT_COMP_SINVS_LEN 16
 
 struct crt_sinv;
 

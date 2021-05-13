@@ -286,12 +286,13 @@ comps_init(void)
 		ss_sinv_activate(sinv);
 		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
-				
+	#ifdef ENABLE_CHKPT
 		serv->sinvs[serv->n_sinvs] = sinv;
 		serv->n_sinvs++;
 
 		cli->sinvs[cli->n_sinvs] = sinv;
 		cli->n_sinvs++;
+	#endif /* ENABLE_CHKPT */
 	}
 	
 	args_iter(&comps, &i, &curr);
