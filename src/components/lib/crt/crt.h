@@ -11,7 +11,7 @@ typedef unsigned long crt_refcnt_t;
 
 #define CRT_COMP_SINVS_LEN 16
 
-struct crt_sinv;
+struct crt_comp;
 
 struct crt_asnd {
 	struct crt_rcv *rcv;
@@ -51,6 +51,14 @@ typedef enum {
 	CRT_COMP_INIT_TERM
 } crt_comp_init_state_t;
 
+struct crt_sinv {
+	char *name;
+	struct crt_comp *server, *client;
+	vaddr_t c_fn_addr, c_ucap_addr;
+	vaddr_t s_fn_addr;
+	sinvcap_t sinv_cap;
+};
+
 struct crt_comp {
 	crt_comp_flags_t flags;
 	char *name;
@@ -76,7 +84,7 @@ struct crt_comp {
 
 	size_t tot_sz_mem;
 	size_t ro_sz;
-	struct crt_sinv *sinvs[CRT_COMP_SINVS_LEN];
+	struct crt_sinv sinvs[CRT_COMP_SINVS_LEN];
 	u32_t  n_sinvs;
 	
 };
@@ -92,8 +100,8 @@ struct crt_comp_resources {
 
 struct crt_chkpt {
     struct crt_comp *c;
-	char			*mem;
-	size_t			 tot_sz_mem;
+	char            *mem;
+	size_t           tot_sz_mem;
 };
 
 typedef enum {
@@ -146,13 +154,7 @@ typedef enum {
 	CRT_RCV_ALIAS_ALL  = CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP | CRT_RCV_ALIAS_RCV,
 } crt_rcv_alias_t;
 
-struct crt_sinv {
-	char *name;
-	struct crt_comp *server, *client;
-	vaddr_t c_fn_addr, c_ucap_addr;
-	vaddr_t s_fn_addr;
-	sinvcap_t sinv_cap;
-};
+
 
 struct crt_sinv_resources {
 	sinvcap_t sinv_cap;

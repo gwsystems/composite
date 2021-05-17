@@ -55,15 +55,17 @@
 
 #define CRT_REFCNT_INITVAL 1
 
-static int nchkpt = 0;
-static int ncomp = 1;
+static unsigned long nchkpt = 0;
+static unsigned long ncomp = 1;
 
-int crt_ncomp()
+int
+crt_ncomp()
 {
 	return ncomp;
 }
 
-int crt_nchkpt()
+int
+crt_nchkpt()
 {
 	return nchkpt;
 }
@@ -75,7 +77,7 @@ crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c)
 	struct cos_compinfo *root_ci;
 
 	chkpt->c = c;
-	nchkpt++;
+	ps_faa(&nchkpt, 1);
 
 	/* allocate space for saving the component's memory */
 	root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
@@ -188,7 +190,7 @@ crt_comp_init(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_
 	assert(!elf_hdr || c->entry_addr != 0); /* same as `if elf_hdr then c->entry_addr` */
 	simple_barrier_init(&c->barrier, init_parallelism());
 
-	ncomp++;
+	ps_faa(&ncomp, 1);
 
 	return 0;
 }
@@ -220,12 +222,16 @@ crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_com
 	return 0;
 }
 
-/** 
- * Create the component from the checkpoint
- * c is the new component
- * chkpt is the checkpoint used to create c
- * name is c's name
- * id is c's component id
+/**
+ * Creates the new component from the checkpoint
+ *
+ * Arguments:
+ * - @c the new component to initialize
+ * - @name the name (not copied in this function) for debugging.
+ * - @id the component's id.
+ * - @chkpt the checkpoint used to create c
+ *
+ * @return: 0 on success, != 0 on error.
  */
 int 
 crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt)
@@ -244,22 +250,20 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 	ci      = cos_compinfo_get(c->comp_res);
 	root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
-	// overwrite
+	/* overwrite */
 	c->entry_addr = chkpt->c->entry_addr;
 	c->ro_addr = chkpt->c->ro_addr;
 	c->rw_addr = chkpt->c->rw_addr;
 
-	//re-work the sinvs with the right IDs
+	/* re-work the sinvs with the right IDs */
 	memcpy(c->sinvs, chkpt->c->sinvs, sizeof(c->sinvs));
 	c->n_sinvs = chkpt->c->n_sinvs;
 	for(u32_t i = 0; i < c->n_sinvs; i++) {
-		//if the client was the old component, update id in new
-		if(chkpt->c->sinvs[i]->client->id == chkpt->c->id) {
-			c->sinvs[i]->client = c;
-		}
-		if(chkpt->c->sinvs[i]->server->id == chkpt->c->id) {
-			c->sinvs[i]->server = c;
-		}
+		struct crt_sinv inv = chkpt->c->sinvs[i];
+		assert(inv.client->id == chkpt->c->id);
+		c->sinvs[i].client = c;
+		assert(inv.server->id != chkpt->c->id);
+
 	}
 
 	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
@@ -387,8 +391,7 @@ crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
 		.main_type  = INIT_MAIN_NONE,
 		.init_core  = cos_cpuid(),
 		.barrier    = SIMPLE_BARRIER_INITVAL,
-		
-		.n_sinvs	= 0,
+		.n_sinvs    = 0,
 	};
 	simple_barrier_init(&c->barrier, init_parallelism());
 
