@@ -99,7 +99,7 @@ struct crt_comp_resources {
 };
 
 struct crt_chkpt {
-    struct crt_comp *c;
+	struct crt_comp *c;
 	char            *mem;
 	size_t           tot_sz_mem;
 };
