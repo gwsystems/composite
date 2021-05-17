@@ -33,7 +33,6 @@
 #ifndef BOOTER_CAPMGR_MB
 #define BOOTER_CAPMGR_MB 64
 #endif
-
 #ifndef BOOTER_MAX_CHKPT
 #define BOOTER_MAX_CHKPT 64
 #endif
@@ -436,16 +435,19 @@ init_done_chkpt(struct crt_comp *c)
 	struct crt_chkpt *chkpt;
 	thdcap_t          thdcap;
 	int               ret;
-	char              name[32];
+	char              name[INITARGS_MAX_PATHNAME];
+	char             *prefix = "chkpt_";
+	int               prefix_sz = strlen("chkpt_");
 
 	if (c->id == cos_compid()) {
 	 	/* don't allow chkpnts of the booter */
 	 	BUG();
 	}
 
-	memcpy(name, "chkpt_", sizeof("chkpt_"));
-	assert(strlen(name) < strlen("chkpt_") + strlen(c->name));
-	strncat(name, c->name, strlen(c->name));
+	assert(INITARGS_MAX_PATHNAME > prefix_sz + strlen(c->name));
+	memcpy(name, prefix, prefix_sz + 1);
+	strncat(name, c->name, INITARGS_MAX_PATHNAME - prefix_sz - 1); 
+	c->name[INITARGS_MAX_PATHNAME - 1] = '\0';
 	
 	/* completed all initialization */
 	if (c->init_state >= CRT_COMP_INIT_MAIN) {

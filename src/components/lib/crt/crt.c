@@ -58,13 +58,13 @@
 static unsigned long nchkpt = 0;
 static unsigned long ncomp = 1;
 
-int
+unsigned long
 crt_ncomp()
 {
 	return ncomp;
 }
 
-int
+unsigned long
 crt_nchkpt()
 {
 	return nchkpt;
@@ -260,10 +260,10 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 	c->n_sinvs = chkpt->c->n_sinvs;
 	for(u32_t i = 0; i < c->n_sinvs; i++) {
 		struct crt_sinv inv = chkpt->c->sinvs[i];
+
 		assert(inv.client->id == chkpt->c->id);
 		c->sinvs[i].client = c;
 		assert(inv.server->id != chkpt->c->id);
-
 	}
 
 	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
