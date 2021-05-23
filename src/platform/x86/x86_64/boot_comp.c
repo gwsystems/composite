@@ -175,16 +175,16 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 	unsigned char *bss;	   /* memory array for the last bit of .data and .bss */
 
 	/* RO + Code */
-	if (elf_contig_mem((struct elf_hdr *)kern_vaddr, 0, &s[0])) assert(0);
+	if (elf64_contig_mem((struct elf64_hdr *)kern_vaddr, 0, &s[0])) assert(0);
 	assert(s[0].objsz == s[0].sz && s[0].access == ELF_PH_CODE);
 
 	/* Data + BSS */
-	if (elf_contig_mem((struct elf_hdr *)kern_vaddr, 1, &s[1])) assert(0);
+	if (elf64_contig_mem((struct elf64_hdr *)kern_vaddr, 1, &s[1])) assert(0);
 	assert(s[1].access == ELF_PH_RW);
 	/* the data should immediately follow code */
 	assert(round_up_to_page(s[0].vstart + s[0].sz) == s[1].vstart);
 	/* should be page aligned so that we can map it directly */
-	assert(round_to_page(s[0].mem) == (unsigned int)s[0].mem);
+	assert(round_to_page(s[0].mem) == (unsigned long)s[0].mem);
 
 	/* allocate bss memory, including the last sub-page of .data (assumes .data is page-aligned) */
 	assert(s[1].vstart % PAGE_SIZE == 0);
@@ -198,7 +198,7 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 	memset(bss + bss_offset, 0, bss_sz);
 
 	/* Assume there are no more sections */
-	if (elf_contig_mem((struct elf_hdr *)kern_vaddr, 2, &s[2]) != 1) assert(0);
+	if (elf64_contig_mem((struct elf64_hdr *)kern_vaddr, 2, &s[2]) != 1) assert(0);
 
 
 	/* We have the elf information, time to do the virtual memory operations... */

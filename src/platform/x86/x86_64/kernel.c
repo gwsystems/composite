@@ -36,7 +36,7 @@ extern u8_t end; /* from the linker script */
  * X86_64-FIXME:
  * Change these two external variable into non-external
  */
-u8_t _binary_constructor_start, _binary_constructor_end;
+extern u8_t _binary_constructor_start, _binary_constructor_end;
 
 void
 kern_memory_setup(u64_t mboot_addr, u64_t mboot_magic)
@@ -60,15 +60,15 @@ kern_memory_setup(u64_t mboot_addr, u64_t mboot_magic)
 
 	printk("Initial component found:\n");
 	/* These values have to be higher-half addresses */
-	//glb_memlayout.mod_start = &_binary_constructor_start;
-	//glb_memlayout.mod_end   = &_binary_constructor_end;
+	glb_memlayout.mod_start = &_binary_constructor_start;
+	glb_memlayout.mod_end   = &_binary_constructor_end;
 
 	/* FIXME: set mod start and end temporarily in order to test */
-	glb_memlayout.mod_start = &end + 1024;
-	glb_memlayout.mod_end   = glb_memlayout.mod_start + 1024;
+	//glb_memlayout.mod_start = &end + 1024;
+	//glb_memlayout.mod_end   = glb_memlayout.mod_start + 1024;
 	glb_memlayout.kern_boot_heap = mem_boot_start();
 	printk("kenrel mem layout:\n");
-	printk("\t- [%08x, %08x, %08x)\n", glb_memlayout.mod_start, glb_memlayout.mod_end, glb_memlayout.kern_boot_heap);
+	printk("\t- [%p, %p, %p)\n", glb_memlayout.mod_start, glb_memlayout.mod_end, glb_memlayout.kern_boot_heap);
 
 	u32_t size = *(u32_t *)mboot_addr;
 	if (size <= 0) {
