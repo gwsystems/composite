@@ -96,12 +96,12 @@ __pgtbl_setleaf(struct ert_intern *a, void *v)
  * update when the existing value matches.
  */
 static inline int
-__pgtbl_update_leaf(struct ert_intern *a, void *v, u32_t old)
+__pgtbl_update_leaf(struct ert_intern *a, void *v, u64_t old)
 {
-	u32_t new;
+	u64_t new;
 
-	new = (u32_t)(v);
-	if (!cos_cas((unsigned long *)a, old, new)) return -ECASFAIL;
+	new = (u64_t)(v);
+	if (!cos_cas_64((unsigned long *)a, old, new)) return -ECASFAIL;
 
 	return 0;
 }

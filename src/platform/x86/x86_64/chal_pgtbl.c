@@ -263,12 +263,25 @@ err:
 	return ret;
 }
 
+void *
+chal_pgtbl_lkup_lvl(pgtbl_t pt, unsigned long addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
+{
+	unsigned long *intern = chal_pa2va((unsigned long)pt & 0x0000ffffffff0000), *page = chal_pa2va((unsigned long)pt & 0x0000ffffffff0000);
+	for (int i = start_lvl; i < end_lvl;i++) {
+		addr = addr & (0xffffffffffff >> 9 * i);
+		intern = page + (addr >> (12 + 9 * (3 - i))); 
+		page = chal_pa2va(*intern);
+	}
+	return intern;
+}
+
 int
-chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order)
+chal_pgtbl_mapping_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t flags, u32_t order)
 {
 	int                ret = 0;
-	struct ert_intern *pte;
-	u32_t              orig_v, accum = 0;
+	struct ert_intern *pte = 0;
+	unsigned long orig_v;
+	u32_t              accum = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
@@ -278,24 +291,18 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t or
 	 * We have to do this manually, get the PGD first, to make sure that we will not
 	 * dereference the super page as a second-level pointer. Performance bummer.
 	 */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-						  1, &accum);
+	pte = (struct ert_intern *)chal_pgtbl_lkup_lvl((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr, &flags, 0, 4);
 	if (!pte) return -ENOENT;
-	orig_v = *((u32_t*)pte);
+	orig_v = *((u64_t*)pte);
 	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 	/* If we are trying to map a superpage and this position is already occupied */
-printk("addr 0x%x,order %d\n",addr,order);
+printk("addr 0x%p,order %d\n",addr,order);
 	if (order == SUPER_PAGE_ORDER) {
 		if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
 		flags |= X86_PGTBL_SUPER;
 	} else if (order == PAGE_ORDER) {
-printk("orig_v %x\n",orig_v);
-		if (!(orig_v & X86_PGTBL_PRESENT)) return -EINVAL;
-		if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
-		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-							  PGTBL_DEPTH, &accum);
+printk("orig_v %p\n",orig_v);
 		if (!pte) return -ENOENT;
-		orig_v = (u32_t)(pte->next);
 		if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
 		if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 	} else return -EINVAL;
@@ -476,12 +483,6 @@ chal_pgtbl_mapping_scan(struct cap_pgtbl *pt)
 	return 0;
 }
 
-void *
-chal_pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
-{
-	return __pgtbl_lkupani((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, start_lvl,
-	                       end_lvl, flags);
-}
 
 int
 chal_pgtbl_ispresent(u32_t flags)
@@ -685,7 +686,8 @@ chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pg
 int
 chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandid, unsigned long depth)
 {
-	u32_t flags = 0, old_pte, new_pte, old_v, refcnt_flags;
+	u32_t flags = 0, refcnt_flags, old_v;
+	unsigned long old_pte, new_pte;
 	unsigned long *    intern;
 	int                ret = 0;
 
@@ -711,7 +713,7 @@ printk("@ %d line\n",__LINE__);
 	          (void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK))
 	          | X86_PGTBL_INTERN_DEF;
 
-	ret = cos_cas(intern, old_pte, new_pte);
+	ret = cos_cas_64(intern, old_pte, new_pte);
 	if (ret != CAS_SUCCESS) {
 		/* decrement to restore the refcnt on failure. */
 		cos_faa((int *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), -1);

@@ -77,54 +77,56 @@ mem_bootc_entry(void)
 }
 
 static int
-boot_nptes(unsigned int sz)
+boot_nptes(unsigned long sz, int lvl)
 {
-	return round_up_to_pow2(sz, PGD_RANGE) / PGD_RANGE;
+	assert(lvl > 0);
+	return (((sz - 1) >> (12 + (4 - lvl) * 9)) + 1);
 }
 
 static void
 boot_pgtbl_expand(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *label,
-		  unsigned long user_vaddr, unsigned int range)
+		  unsigned long user_vaddr, unsigned long range)
 {
 	int               ret;
 	u8_t *            ptes;
-	unsigned int      nptes = 0, i;
+	unsigned int      nptes = 0, lvl = 0, i;
 	struct cap_pgtbl *pte_cap, *pgd_cap;
 
-	nptes = boot_nptes(range);
-	ptes  = mem_boot_alloc(nptes);
-	assert(ptes);
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, ptecap, NULL, 1)) assert(0);
+	for (lvl=1; lvl < 4; lvl++){
+		nptes = boot_nptes(range, lvl);
+		ptes  = mem_boot_alloc(nptes);
+		assert(ptes);
 
-	printk("\tCreating %d %s PTEs from [%x,%x) to [%x,%x).\n", nptes, label,
+		printk("\tCreating %d %d-lvl %s PTEs from [%x,%x) to [%x,%x).\n", nptes, lvl ,label,
 	       ptes, ptes + nptes * PAGE_SIZE, user_vaddr, user_vaddr + range);
 
-	/*
-	 * Note the use of NULL here.  We aren't actually adding a PTE
-	 * currently.  This is a hack and only used on boot-up.  We'll
-	 * reuse this capability entry to create _multiple_ ptes.  We
-	 * won't create captbl entries for each of them, so they
-	 * cannot be aliased/removed later.  The only adverse
-	 * side-effect I can think of from this is that we cannot
-	 * reclaim all of the boot-time memory, but that is so far
-	 * into the future, I don't think we care.
-	 */
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, ptecap, NULL, 1)) assert(0);
-	pte_cap = (struct cap_pgtbl *)captbl_lkup(ct, ptecap);
-	assert(pte_cap);
+		/*
+		* Note the use of NULL here.  We aren't actually adding a PTE
+		* currently.  This is a hack and only used on boot-up.  We'll
+		* reuse this capability entry to create _multiple_ ptes.  We
+		* won't create captbl entries for each of them, so they
+		* cannot be aliased/removed later.  The only adverse
+		* side-effect I can think of from this is that we cannot
+		* reclaim all of the boot-time memory, but that is so far
+		* into the future, I don't think we care.
+		*/
+		pte_cap = (struct cap_pgtbl *)captbl_lkup(ct, ptecap);
+		assert(pte_cap);
+		/* Hook in the PTEs */
+		for (i = 0; i < nptes; i++) {
+			u8_t *  p  = ptes + i * PAGE_SIZE;
+			paddr_t pf = chal_va2pa(p);
 
-	/* Hook in the PTEs */
-	for (i = 0; i < nptes; i++) {
-		u8_t *  p  = ptes + i * PAGE_SIZE;
-		paddr_t pf = chal_va2pa(p);
-
-		pgtbl_init_pte(p);
-		pte_cap->pgtbl = (pgtbl_t)p;
-
-		/* hook the pte into the boot component's page tables */
-		ret = cap_cons(ct, pgdcap, ptecap, (capid_t)(user_vaddr + i * PGD_RANGE));
-		assert(!ret);
+			pgtbl_init_pte(p);
+			pte_cap->pgtbl = (pgtbl_t)p;
+			pte_cap->lvl = lvl;
+			/* hook the pte into the boot component's page tables */
+			ret = cap_cons(ct, pgdcap, ptecap, (capid_t)(user_vaddr + i * (1 << (12 + (4 - lvl)))));
+			assert(!ret);
+		}
 	}
-
+	
 	return;
 }
 
@@ -147,7 +149,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	for (i = 0; i < round_up_to_page(range) / PAGE_SIZE; i++) {
 		u8_t *  p     = kern_vaddr + i * PAGE_SIZE;
 		paddr_t pf    = chal_va2pa(p);
-		u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
+		unsigned long   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
 
 		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, PAGE_ORDER)) assert(0);
 		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, PAGE_ORDER)) assert(0);
