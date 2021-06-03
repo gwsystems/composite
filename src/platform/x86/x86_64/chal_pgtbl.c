@@ -694,21 +694,15 @@ chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandi
 	intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
 	if (!intern) return -ENOENT;
 	old_pte = *intern;
-printk("@ %d line\n",__LINE__);
-printk("0x%x\n",old_pte);
-printk("0x%x\n",*(intern-1));
 	if (pgtbl_ispresent(old_pte)) return -EPERM;
-printk("@ %d line\n",__LINE__);
 	old_v = refcnt_flags = ((struct cap_pgtbl *)ctsub)->refcnt_flags;
 	if (refcnt_flags & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 	if ((refcnt_flags & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
 
-printk("@ %d line\n",__LINE__);
 	refcnt_flags++;
 	ret = cos_cas((unsigned long *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
 	if (ret != CAS_SUCCESS) return -ECASFAIL;
 
-printk("@ %d line\n",__LINE__);
 	new_pte = (u32_t)chal_va2pa(
 	          (void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK))
 	          | X86_PGTBL_INTERN_DEF;

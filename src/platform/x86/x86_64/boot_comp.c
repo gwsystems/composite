@@ -27,8 +27,9 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	struct tcap *              tc       = tcap_mem;
 	tcap_res_t                 expended;
 	int                        ret;
-	struct cap_pgtbl *         cap_pt;
-	pgtbl_t                    pgtbl;
+	//struct cap_pgtbl *         cap_pt;
+	//pgtbl_t                    pgtbl;
+	struct cap_comp *          cap_comp;
 
 	assert(cpu_id >= 0);
 	assert(cos_info->cpuid == (u32_t)cpu_id);
@@ -61,7 +62,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	assert(!ret);
 
 	/* switching to boot component's PGD using component capability */
-	struct cap_comp *cap_comp = (struct cap_comp *)captbl_lkup(ct, BOOT_CAPTBL_SELF_COMP);
+	cap_comp = (struct cap_comp *)captbl_lkup(ct, BOOT_CAPTBL_SELF_COMP);
 	if (!cap_comp || !CAP_TYPECHK(cap_comp, CAP_COMP)) assert(0);
 	assert(cap_comp->info.pgtblinfo.pgtbl);
 	pgtbl_update(&cap_comp->info.pgtblinfo);
@@ -308,7 +309,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	glb_memlayout.allocs_avail = 0;
 
 	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
-	                  mem_bootc_entry(), NULL))
+	                  mem_bootc_entry()))
 		assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
