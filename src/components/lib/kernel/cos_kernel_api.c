@@ -44,8 +44,8 @@ cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
 	 *        I believe best would be to round up the heap_ptr? So you always start at
 	 *        a new PGD range, which means first allocation would trigger PTE allocation?
 	 */
-	ci->vasrange_frontier = round_up_to_pgd_page(heap_ptr);
-	assert(ci->vasrange_frontier == round_up_to_pgd_page(ci->vasrange_frontier));
+	ci->vasrange_frontier = round_to_pgd_page(heap_ptr);
+	assert(ci->vasrange_frontier == round_to_pgd_page(ci->vasrange_frontier));
 }
 
 static inline void
@@ -351,7 +351,7 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 
 		/* PTE  - we are using order = 12 */
 		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, pte_cap, meta->mi.pgtbl_cap, ptemem_cap,
-		                COS_PGTBL_ORDER_PTE)) {
+		                COS_PGTBL_ORDER_PGD)) {
 			assert(0); /* race? */
 			return 0;
 		}
@@ -371,11 +371,7 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 	 * 2. We should clean up by deactivating the pgtbl we just
 	 *    activated...or at least cache it for future use.
 	 */
-	if (call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, mem_ptr, 0, 0)) {
-		assert(0); /* race? */
-		return -1;
-	}
-
+	call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, mem_ptr, 0, 0);
 
 	return pte_cap;
 }
@@ -497,12 +493,12 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 	assert(sz % PAGE_SIZE == 0);
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
 	heap_vaddr = ps_faa(mem_addr, sz);        /* allocate our memory addresses */
-	rounded    = sz - (round_up_to_pgd_page(heap_vaddr) - heap_vaddr);
+	rounded    = sz + (heap_vaddr - round_to_pgd_page(heap_vaddr));
 
 	/* Do we not need to allocate PTEs? */
 	if (heap_vaddr + sz <= *mem_frontier) return heap_vaddr;
 
-	retaddr = __bump_mem_expand_range(ci, ci->pgtbl_cap, round_up_to_pgd_page(heap_vaddr), rounded);
+	retaddr = __bump_mem_expand_range(ci, ci->pgtbl_cap, round_to_pgd_page(heap_vaddr), rounded);
 	assert(retaddr);
 
 	while (1) {
@@ -675,7 +671,7 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 	assert(ci);
 
 	if (__alloc_mem_cap(ci, CAP_PGTBL, &kmem, &cap)) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, COS_PGTBL_ORDER_PGD))
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, COS_PGTBL_ORDER_PTE))
 		BUG();
 
 	return cap;

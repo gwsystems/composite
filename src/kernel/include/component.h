@@ -30,7 +30,7 @@ struct cap_comp {
 
 static int
 comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, capid_t pgtbl_cap, livenessid_t lid,
-              vaddr_t entry_addr, struct cos_sched_data_area *sa)
+              vaddr_t entry_addr)
 {
 	struct cap_comp *  compc;
 	struct cap_pgtbl * ptc;

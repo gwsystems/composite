@@ -32,7 +32,7 @@ printk(const char *fmt, ...)
 }
 
 void
-print_pt_regs(struct pt_regs *regs);
+print_pt_regs(struct pt_regs *regs)
 {
         PRINTK("Register hexdump (0x%p):\n", regs);
         PRINTK("General->   EAX: 0x%x, EBX: 0x%x, ECX: 0x%x, EDX: 0x%x\n",

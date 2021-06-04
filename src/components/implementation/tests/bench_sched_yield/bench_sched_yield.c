@@ -82,11 +82,11 @@ test_yield(void)
 	printc("Create threads:\n");
 	
 	yield_lo = sched_thd_create(yield_lo_thd, NULL);
-	printc("\tcreating lo thread %d at prio %d\n", yield_lo, sps[1]);
+	printc("\tcreating lo thread %ld at prio %d\n", yield_lo, sps[1]);
 	sched_thd_param_set(yield_lo, sps[1]);
 	
 	yield_hi = sched_thd_create(yield_hi_thd, NULL);
-	printc("\tcreating hi thread %d at prio %d\n", yield_hi, sps[0]);
+	printc("\tcreating hi thread %ld at prio %d\n", yield_hi, sps[0]);
 	sched_thd_param_set(yield_hi, sps[0]);
 }
 
