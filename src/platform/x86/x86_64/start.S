@@ -1,4 +1,5 @@
 #include "chal/shared/cos_config.h"
+#include "chal_asm_inc.h"
 #include "multiboot2.h"
 
 /* multiboot2 header must be contained completely within the first 32768 bytes of the OS image, and must be 64-bit aligned */
@@ -19,7 +20,7 @@ multiboot_start:
 multiboot_end:
 
 .set STACKSIZE, 0x1000
-.comm stack, STACKSIZE , 0x1000
+.comm stack, (STACKSIZE * NUM_CPU) , 0x1000
 
 /* 
  * grub enters 32-bit mode, so your first section should use 32-bit code.
@@ -112,7 +113,7 @@ entry_64:
     mov %rax, %ss
 
     /* set up a kernel stack for kmain */
-    movabs $(stack + STACKSIZE), %rsp
+    movabs $(stack + STACKSIZE - STK_INFO_OFF), %rsp
     xor %rsi, %rsi
     xor %rdi, %rdi
     movl Multiboot_magic, %esi

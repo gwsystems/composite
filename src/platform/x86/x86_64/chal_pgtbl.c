@@ -296,12 +296,10 @@ chal_pgtbl_mapping_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t
 	orig_v = *((u64_t*)pte);
 	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 	/* If we are trying to map a superpage and this position is already occupied */
-printk("addr 0x%p,order %d\n",addr,order);
 	if (order == SUPER_PAGE_ORDER) {
 		if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
 		flags |= X86_PGTBL_SUPER;
 	} else if (order == PAGE_ORDER) {
-printk("orig_v %p\n",orig_v);
 		if (!pte) return -ENOENT;
 		if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
 		if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
