@@ -266,11 +266,11 @@ err:
 void *
 chal_pgtbl_lkup_lvl(pgtbl_t pt, unsigned long addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
 {
-	unsigned long *intern = chal_pa2va((unsigned long)pt & 0x0000ffffffff0000), *page = chal_pa2va((unsigned long)pt & 0x0000ffffffff0000);
+	unsigned long *intern = chal_pa2va((unsigned long)pt & 0x0000fffffffff000), *page = chal_pa2va((unsigned long)pt & 0x0000fffffffff000);
 	for (int i = start_lvl; i < end_lvl;i++) {
-		addr = addr & (0xffffffffffff >> 9 * i);
+		addr = addr & (0xffffffffffff >> (9 * i));
 		intern = page + (addr >> (12 + 9 * (3 - i))); 
-		page = chal_pa2va(*intern);
+		page = chal_pa2va((*intern) & 0xfffffffffffff000);
 	}
 	return intern;
 }
@@ -323,7 +323,7 @@ printk("orig_v %p\n",orig_v);
 }
 
 int
-chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order)
+chal_pgtbl_cosframe_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t flags, u32_t order)
 {
 	struct ert_intern *pte;
 	u32_t              orig_v, accum = 0;
@@ -337,21 +337,22 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t o
 	 * We have to do this manually, get the PGD first, to make sure that we will not
 	 * dereference the super page as a second-level pointer. Performance bummer.
 	 */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-						  1, &accum);
+	pte = (struct ert_intern *)chal_pgtbl_lkup_lvl((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr, &flags, 0, 4);
+
 	if (!pte) return -ENOENT;
-	orig_v = *((u32_t*)pte);
+	orig_v = *((u64_t*)pte);
+
 
 	/* If we are trying to map a superpage and this position is already occupied */
 	if (order == SUPER_PAGE_ORDER) {
 		assert(orig_v == 0);
 		flags |= X86_PGTBL_SUPER;
 	} else if (order == PAGE_ORDER) {
-		if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
-		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-							  PGTBL_DEPTH, &accum);
+		//if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
+		//pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+		//					  PGTBL_DEPTH, &accum);
 		if (!pte) return -ENOENT;
-		orig_v = (u32_t)(pte->next);
+		//orig_v = (u32_t)(pte->next);
 		assert(orig_v == 0);
 	} else return -EINVAL;
 

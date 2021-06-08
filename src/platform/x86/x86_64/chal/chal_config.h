@@ -87,7 +87,7 @@ cos_mem_fence(void)
 #define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))
 
 #define COS_SYSCALL __attribute__((regparm(0)))
-#define KERNEL_PGD_REGION_OFFSET (PAGE_SIZE - PAGE_SIZE / 4)
-#define KERNEL_PGD_REGION_SIZE (PAGE_SIZE / 4)
+#define KERNEL_PGD_REGION_OFFSET (PAGE_SIZE - PAGE_SIZE / 2)
+#define KERNEL_PGD_REGION_SIZE (PAGE_SIZE / 2)
 
 #endif /* CHAL_CONFIG_H */

@@ -78,10 +78,18 @@ mem_bootc_entry(void)
 }
 
 static int
-boot_nptes(unsigned long sz, int lvl)
+boot_nptes(unsigned long vaddr_start, unsigned long sz, int lvl)
 {
+	/* 
+	* Need the start address for edge cases
+	* 4 lvl page tables, each lvl is: 0, 1, 2, 3
+	* will return the number of lvl-th page tables needed.
+	*/	
 	assert(lvl > 0);
-	return (((sz - 1) >> (12 + (4 - lvl) * 9)) + 1);
+	assert(sz > 0);
+	unsigned long end_addr = (vaddr_start + sz - 1) >> PAGE_ORDER;
+	vaddr_start = vaddr_start >> PAGE_ORDER;
+	return ((end_addr >> ((4 - lvl) * 9)) - (vaddr_start >> ((4 - lvl) * 9)) + 1);
 }
 
 static void
@@ -95,11 +103,11 @@ boot_pgtbl_expand(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char 
 
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, ptecap, NULL, 1)) assert(0);
 	for (lvl=1; lvl < 4; lvl++){
-		nptes = boot_nptes(range, lvl);
+		nptes = boot_nptes(user_vaddr, range, lvl);
 		ptes  = mem_boot_alloc(nptes);
 		assert(ptes);
 
-		printk("\tCreating %d %d-lvl %s PTEs from [%x,%x) to [%x,%x).\n", nptes, lvl ,label,
+		printk("\tCreating %d %d-lvl %s pages from [%x,%x) for v_addr [%x,%x).\n", nptes, lvl ,label,
 	       ptes, ptes + nptes * PAGE_SIZE, user_vaddr, user_vaddr + range);
 
 		/*
@@ -123,7 +131,7 @@ boot_pgtbl_expand(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char 
 			pte_cap->pgtbl = (pgtbl_t)p;
 			pte_cap->lvl = lvl;
 			/* hook the pte into the boot component's page tables */
-			ret = cap_cons(ct, pgdcap, ptecap, (capid_t)(user_vaddr + i * (1 << (12 + (4 - lvl)))));
+			ret = cap_cons(ct, pgdcap, ptecap, (capid_t)(user_vaddr + i * (1 << (12 + (4 - lvl) * 9))));
 			assert(!ret);
 		}
 	}
@@ -137,7 +145,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 {
 	int               ret;
 	u8_t *            ptes;
-	unsigned int      nptes = 0, i;
+	unsigned long int      nptes = 0, i;
 	struct cap_pgtbl *pte_cap, *pgd_cap;
 	pgtbl_t           pgtbl;
 
@@ -145,16 +153,16 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	if (!pgd_cap || !CAP_TYPECHK(pgd_cap, CAP_PGTBL)) assert(0);
 	pgtbl = (pgtbl_t)pgd_cap->pgtbl;
 
-	printk("\tMapping in %s (@ [0x%x, 0x%x))\n", label, user_vaddr, user_vaddr + range);
+	printk("\tMapping in %s (@ [0x%p, 0x%p))\n", label, user_vaddr, user_vaddr + range);
 	/* Map in the actual memory. */
 	for (i = 0; i < round_up_to_page(range) / PAGE_SIZE; i++) {
 		u8_t *  p     = kern_vaddr + i * PAGE_SIZE;
 		paddr_t pf    = chal_va2pa(p);
-		unsigned long   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
+		unsigned long   mapat = (unsigned long)user_vaddr + i * PAGE_SIZE, flags = 0;
 
 		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, PAGE_ORDER)) assert(0);
 		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, PAGE_ORDER)) assert(0);
-		assert((void *)p == pgtbl_lkup(pgtbl, user_vaddr + i * PAGE_SIZE, &flags));
+		assert(pf == (*(unsigned long*)chal_pgtbl_lkup_lvl((pgtbl_t)(pgtbl), mapat, &flags, 0, 4) & 0xfffffffffffff000));
 	}
 
 	return 0;
@@ -221,7 +229,7 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 void
 kern_boot_comp(const cpuid_t cpu_id)
 {
-	int            ret = 0, nkmemptes;
+	int            ret = 0, nkmemptes = 0;
 	unsigned int   i;
 	u8_t *         boot_comp_captbl;
 	pgtbl_t        pgtbl     = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
@@ -295,7 +303,12 @@ kern_boot_comp(const cpuid_t cpu_id)
 	 */
 	if (pgtbl_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_UNTYPED_PT, pgtbl, 0)) assert(0);
 
-	nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
+
+	for (int lvl=1; lvl < 4; lvl++){
+		nkmemptes += boot_nptes(BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_end(), lvl);
+	}
+
+	//nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
 	boot_pgtbl_expand(glb_boot_ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
 			  BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_nalloc_end(nkmemptes));
 	ret = boot_pgtbl_mappings_add(glb_boot_ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
