@@ -39,8 +39,9 @@ gdt_init(const cpuid_t cpu_id)
 	gdt[cpu_id].seg_descs[SEL_NULL / sizeof *gdt[cpu_id].seg_descs]  = 0;
 	gdt[cpu_id].seg_descs[SEL_KCSEG / sizeof *gdt[cpu_id].seg_descs] = make_code_desc(0);
 	gdt[cpu_id].seg_descs[SEL_KDSEG / sizeof *gdt[cpu_id].seg_descs] = make_data_desc(0);
-	gdt[cpu_id].seg_descs[SEL_UCSEG / sizeof *gdt[cpu_id].seg_descs] = make_code_desc(3);
+
 	gdt[cpu_id].seg_descs[SEL_UDSEG / sizeof *gdt[cpu_id].seg_descs] = make_data_desc(3);
+	gdt[cpu_id].seg_descs[SEL_UCSEG / sizeof *gdt[cpu_id].seg_descs] = make_code_desc(3);
 	make_tss_desc(&(gdt[cpu_id].seg_descs[SEL_TSS / sizeof *gdt[cpu_id].seg_descs]), (u64_t)&tss[cpu_id]);
 	gdt[cpu_id].seg_descs[SEL_UGSEG / sizeof *gdt[cpu_id].seg_descs] = make_data_desc(3);
 

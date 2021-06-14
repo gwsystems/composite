@@ -93,6 +93,10 @@ chal_cpu_init(void)
 	/* X86_64-FIXME: tss[cpu_id].esp -> rsp */
 	writemsr(IA32_SYSENTER_ESP, (u32_t)tss[cpu_id].rsp0, (u32_t)(tss[cpu_id].rsp0 >> 32));
 	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, (u32_t)((u64_t)sysenter_entry >> 32));
+	writemsr(0xC0000080,0x501, 0 );
+	//writemsr(0xc0000081,0x1000, 0x00100008 );
+	//writemsr(0xC0000082,0x00000000,0xffff8000);
+
 	chal_cpu_eflags_init();
 }
 
@@ -120,8 +124,7 @@ chal_cpu_fault_ip(struct pt_regs *r)
 static inline void
 chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)
 {
-	/* edx = user-level ip, ecx = option, ebx = arg, eax = tid + cpuid */
-	__asm__("sti ; sysexit" : : "c"(0), "d"(ip), "b"(0), "a"(tid | (cpuid << 16)));
+	__asm__("movq $0, %r11;movq $0x1000, %rcx;mov $0x00, %rax; mov %rax, %ds;sysretq" );
 }
 
 void chal_timer_thd_init(struct thread *t);
