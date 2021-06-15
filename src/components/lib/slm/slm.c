@@ -4,17 +4,46 @@
 
 struct slm_global __slm_global[NUM_CPU];
 
-int
-slm_thd_init(struct slm_thd *t, tcap_t tc, thdcap_t thd, thdid_t tid)
+struct slm_thd *
+slm_thd_special(void)
 {
+	thdid_t me = cos_thdid();
+	struct slm_global *g = slm_global();
+
+	if (me == g->sched_thd.tid)     return &g->sched_thd;
+	else if (me == g->idle_thd.tid) return &g->idle_thd;
+	else                            return NULL;
+}
+
+int
+slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid)
+{
+	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
+	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
+	int ret;
+
 	memset(t, 0, sizeof(struct slm_thd));
 	*t = (struct slm_thd) {
-		.tc = tc,
+		.tc = sched_aep->tc,
 		.thd = thd,
 		.tid = tid,
+		.state = SLM_THD_RUNNABLE,
+		.priority = TCAP_PRIO_MIN,
+		.properties = 0
 	};
-
 	ps_list_init(t, event_list);
+
+	return 0;
+}
+
+int
+slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid)
+{
+	int ret;
+
+	if ((ret = slm_thd_init_internal(t, thd, tid))) return ret;
+	if ((ret = slm_timer_thd_init(t))) return ret;
+	if ((ret = slm_sched_thd_init(t))) return ret;
 
 	return 0;
 }
@@ -40,7 +69,7 @@ slm_cs_enter_contention(struct slm_cs *cs, slm_cs_cached_t cached, struct slm_th
 	}
 
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	ret = cos_defswitch(owner->thd, curr->priority, owner == g->sched_thd ? TCAP_TIME_NIL : g->timeout_next, tok);
+	ret = cos_defswitch(owner->thd, curr->priority, owner == &g->sched_thd ? TCAP_TIME_NIL : g->timeout_next, tok);
 	if (ret) return ret;
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
 
@@ -51,7 +80,7 @@ slm_cs_enter_contention(struct slm_cs *cs, slm_cs_cached_t cached, struct slm_th
 int
 slm_cs_exit_contention(struct slm_cs *cs, struct slm_thd *curr, slm_cs_cached_t cached, sched_tok_t tok)
 {
-	struct slm_thd *s = slm_global()->sched_thd;
+	struct slm_thd *s = &slm_global()->sched_thd;
 	int ret;
 
 	if (__slm_cs_cas(cs, cached, NULL, 0)) return 1;
@@ -153,7 +182,7 @@ static inline int
 slm_thd_sched_block(struct slm_thd *t)
 {
 	assert(t);
-	assert(t->state == SLM_THD_RUNNABLE || t->state == SLM_THD_BLOCKED);
+	assert(slm_state_is_runnable(t->state) || t->state == SLM_THD_BLOCKED);
 	assert(slm_thd_normal(t));
 
 	/*
@@ -162,7 +191,7 @@ slm_thd_sched_block(struct slm_thd *t)
 	 * activation. This code can execute *before* the scheduler
 	 * thread sees the notification that it had been woken.
 	 */
-	if (likely(t->state == SLM_THD_RUNNABLE)) {
+	if (likely(slm_state_is_runnable(t->state))) {
 		slm_sched_block(t);
 	}
 	t->state       = SLM_THD_BLOCKED;
@@ -170,6 +199,7 @@ slm_thd_sched_block(struct slm_thd *t)
 
 	return 0;
 }
+
 
 /*
  * This API is only used by the scheduling thread to wakeup an AEP thread.
@@ -198,7 +228,7 @@ slm_thd_sched_wakeup(struct slm_thd *t)
 	 * thread and and then scheduler sees some redundant wakeup
 	 * event through "asnd" or "tcap budget expiry".
 	 */
-	if (unlikely(t->state == SLM_THD_RUNNABLE || t->state == SLM_THD_WOKEN)) {
+	if (unlikely(slm_state_is_runnable(t->state))) {
 		t->state = SLM_THD_RUNNABLE;
 
 		return 1;
@@ -216,10 +246,9 @@ slm_thd_sched_wakeup(struct slm_thd *t)
  *   makes sense for redundant periodic wakeups.
  */
 int
-slm_thd_wakeup(struct slm_thd *current, struct slm_thd *t, int redundant)
+slm_thd_wakeup(struct slm_thd *t, int redundant)
 {
 	assert(t);
-	assert(current != t); /* current thread is not allowed to wake itself up */
 
 	if (unlikely(t->state == SLM_THD_RUNNABLE || (redundant && t->state == SLM_THD_WOKEN))) {
 		/*
@@ -249,7 +278,7 @@ slm_thd_wakeup_cs(struct slm_thd *curr, struct slm_thd *t)
 	assert(t);
 
 	slm_cs_enter(curr, SLM_CS_NONE);
-	if (slm_thd_wakeup(curr, t, 0)) {
+	if (slm_thd_wakeup(t, 0)) {
 		slm_cs_exit(curr, SLM_CS_NONE);
 	} else {
 		slm_cs_exit_reschedule(curr, NULL, SLM_CS_NONE);
@@ -301,7 +330,7 @@ slm_cs_enter_sched(void)
 {
 	int ret;
 
-	while ((ret = slm_cs_enter(slm_global()->sched_thd, SLM_CS_NOSPIN))) {
+	while ((ret = slm_cs_enter(&slm_global()->sched_thd, SLM_CS_NOSPIN))) {
 		/* We don't want to retry if we have pending events to handle */
 		if (ret == -EBUSY) break;
 	}
@@ -343,14 +372,14 @@ slm_cs_exit_reschedule(struct slm_thd *curr, struct slm_thd *to, slm_cs_flags_t 
 	int                     ret;
 
 	tok  = cos_sched_sync();
-	if (flags & SLM_CS_CHECK_TIMEOUT) {
+	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
 		cycles_t now;
 		s64_t    diff;
 
 		now  = slm_now();
 		diff = (s64_t)(g->timer_next - now);
 		/* Do we need to recompute the timer? */
-		if (g->timer_set && diff <= 0) {
+		if (diff <= 0) {
 			g->timer_set = 0;
 			/* The timer policy will likely reset the timer */
 			slm_timer_expire(now);
@@ -368,14 +397,14 @@ slm_cs_exit_reschedule(struct slm_thd *curr, struct slm_thd *to, slm_cs_flags_t 
 	 */
 	if (unlikely(to)) {
 		t = to;
-		if (t->state != SLM_THD_RUNNABLE) to = NULL;
+		if (!slm_state_is_runnable(t->state)) to = NULL;
 	}
 	if (likely(!to)) {
 		t = slm_sched_schedule();
-		if (unlikely(!t)) t = g->idle_thd;
+		if (unlikely(!t)) t = &g->idle_thd;
 	}
 
-	assert(t->state == SLM_THD_RUNNABLE);
+	assert(slm_state_is_runnable(t->state));
 	slm_cs_exit(NULL, flags);
 
 	ret = slm_thd_activate(curr, t, tok, 0);
@@ -390,7 +419,10 @@ slm_sched_loop_intern(int non_block)
 {
 	struct slm_global *g = slm_global();
 	rcv_flags_t      rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
-	struct slm_thd   *us = g->sched_thd;
+	struct slm_thd   *us = &g->sched_thd;
+
+	/* Only the scheduler thread should call this function. */
+	assert(cos_thdid() == us->tid);
 
 	while (1) {
 		int pending;
@@ -414,7 +446,7 @@ slm_sched_loop_intern(int non_block)
 			 * Important that this is *not* in the CS due
 			 * to the potential blocking.
 			 */
-			pending = cos_sched_rcv(g->sched_rcv, rfl, g->timeout_next, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
+			pending = cos_sched_rcv(us->rcv, rfl, g->timeout_next, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
 			if (!tid) goto pending_events;
 
 			/*
@@ -427,7 +459,7 @@ slm_sched_loop_intern(int non_block)
 			t = slm_thd_lookup(tid);
 			assert(t);
 			/* don't report the idle thread or a freed thread */
-			if (unlikely(t == g->idle_thd || t->state == SLM_THD_FREE)) goto pending_events;
+			if (unlikely(t == &g->idle_thd || t->state == SLM_THD_FREE)) goto pending_events;
 
 			/*
 			 * Failure to take the CS because 1. another
@@ -453,8 +485,8 @@ slm_sched_loop_intern(int non_block)
 			slm_thd_event_enqueue(t, blocked, cycles, thd_timeout);
 
 pending_events:
-			/* No events? keep on tryin! */
-			if (ps_list_head_empty(&g->event_head)) continue;
+			/* No events? make a scheduling decision */
+			if (ps_list_head_empty(&g->event_head)) break;
 
 			/*
 			 * Receiving scheduler notifications is not in critical section mainly for
@@ -490,7 +522,7 @@ pending_events:
 
 		if (slm_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
-		slm_cs_exit_reschedule(us, NULL, SLM_CS_CHECK_TIMEOUT);
+		if (slm_cs_exit_reschedule(us, NULL, SLM_CS_CHECK_TIMEOUT)) assert(0);
 	}
 }
 
@@ -504,4 +536,57 @@ void
 slm_sched_loop_nonblock(void)
 {
 	slm_sched_loop_intern(1);
+}
+
+void
+slm_idle(void *d)
+{
+	/* TODO: go through the initialization protocol for the threads... */
+
+	while (1) ;
+
+	BUG();
+}
+
+void
+slm_init(thdcap_t thd, thdid_t tid)
+{
+	struct slm_global *g = slm_global();
+	struct slm_thd *s    = &g->sched_thd;
+	struct slm_thd *i    = &g->idle_thd;
+	struct cos_defcompinfo *defci;
+	struct cos_aep_info    *sched_aep;
+
+	defci = cos_defcompinfo_curr_get();
+	sched_aep = cos_sched_aep_get(defci);
+
+	*s = (struct slm_thd) {
+		.properties = 0,
+		.state = SLM_THD_RUNNABLE,
+		.tc  = sched_aep->tc,
+		.thd = sched_aep->thd,
+		.tid = sched_aep->tid,
+		.rcv = sched_aep->rcv,
+		.priority = TCAP_PRIO_MAX
+	};
+	ps_list_init(s, event_list);
+	assert(s->tid == cos_thdid());
+
+	*i = (struct slm_thd) {
+		.properties = 0,
+		.state = SLM_THD_RUNNABLE,
+		.tc = sched_aep->tc,
+		.thd = thd,
+		.tid = tid,
+		.rcv = 0,
+		.priority = TCAP_PRIO_MIN
+	};
+	ps_list_init(i, event_list);
+
+	ps_list_head_init(&g->event_head);
+	g->cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	g->lock.owner_contention = 0;
+
+	slm_sched_init();
+	slm_timer_init();
 }

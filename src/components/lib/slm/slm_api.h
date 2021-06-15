@@ -60,15 +60,12 @@ void slm_timer_expire(cycles_t now);
 /**
  * The API that the scheduler uses to interact with slm. Initialize
  * and remove threads, add specific thread timeouts, remove them,
- * etc... Note that a thread can either have a one-shot timeouts, or
- * it can have periodic activations, but not both. `cancel` will
- * cancel either type of timeout.
+ * etc... `cancel` cancels an active timeout for this thread.
  */
 int  slm_timer_thd_init(struct slm_thd *t);
 void slm_timer_thd_deinit(struct slm_thd *t);
 
-int slm_timer_add(struct slm_thd *t, cycles_t relative_usec);
-int slm_timer_periodic(struct slm_thd *t, cycles_t period_usec);
+int slm_timer_add(struct slm_thd *t, cycles_t absolute_cyc);
 int slm_timer_cancel(struct slm_thd *t);
 
 int slm_timer_init(void);

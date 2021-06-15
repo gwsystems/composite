@@ -5,7 +5,6 @@
 #include <slm_api.h>
 #include <slm_policy_timer.h>
 #include <heap.h>
-#include <assert.h>
 
 /***
  * Quantum-based time management. Wooo. Periodic timer FTW.
@@ -47,10 +46,8 @@ quantum_wakeup_expired(cycles_t now)
 		assert(th == tp);
 
 		tt->timeout_idx = -1;
-
-		assert(tt->abs_wakeup == 0);
-		tt->abs_wakeup = now;
-		slm_sched_wakeup(th);
+		tt->abs_wakeup  = now;
+		slm_thd_wakeup(tp, 1);
 	}
 }
 
@@ -68,7 +65,9 @@ slm_timer_expire(cycles_t now)
 	 * environment. Thus we might be multiple periods into the
 	 * future.
 	 */
+	assert(now > g->current_timeout);
 	offset = (now - g->current_timeout) % g->period;
+ 	assert(g->period > offset);
 	next_timeout = now + (g->period - offset);
 	assert(next_timeout > now);
 
@@ -80,14 +79,14 @@ slm_timer_expire(cycles_t now)
 
 /* Timeout and wakeup functionality */
 /*
-  * TODO:
+ * TODO:
  * (comments from Gabe)
  * We likely want to replace all of this with rb-tree with nodes internal to the threads.
  * This heap is fast, but the static memory allocation is not great.
  */
 
 int
-slm_timer_add(struct slm_thd *t, cycles_t relative_timeout)
+slm_timer_add(struct slm_thd *t, cycles_t absolute_timeout)
 {
 	struct slm_timer_thd *tt = slm_thd_timer_policy(t);
 	struct timer_global *g = timer_global();
@@ -95,15 +94,11 @@ slm_timer_add(struct slm_thd *t, cycles_t relative_timeout)
 	assert(tt && tt->timeout_idx == -1);
 	assert(heap_size(&g->h) < MAX_NUM_THREADS);
 
-	tt->abs_wakeup = slm_now() + relative_timeout;
+	if (!cycles_greater_than(absolute_timeout, slm_now())) return 0;
+
+	tt->abs_wakeup = absolute_timeout;
 	heap_add(&g->h, t);
 
-	return 0;
-}
-
-int
-slm_timer_periodic(struct slm_thd *t, cycles_t period_usec)
-{
 	return 0;
 }
 
@@ -111,7 +106,7 @@ int
 slm_timer_cancel(struct slm_thd *t)
 {
 	struct slm_timer_thd *tt = slm_thd_timer_policy(t);
-	struct timer_global *g = timer_global();
+	struct timer_global *g   = timer_global();
 
 	assert(heap_size(&g->h));
 	assert(tt->timeout_idx > 0);
@@ -159,10 +154,19 @@ slm_policy_timer_init(microsec_t period)
 	cycles_t next_timeout;
 
 	memset(g, 0, sizeof(struct timer_global));
-	g->period = period;
+	g->period = slm_usec2cyc(period);
 	heap_init(&g->h, MAX_NUM_THREADS, __slm_timeout_compare_min, __slm_timeout_update_idx);
 
-	next_timeout = slm_now() + slm_usec2cyc(period);
+	next_timeout = slm_now() + g->period;
 	g->current_timeout = next_timeout;
 	slm_timeout_set(next_timeout);
+}
+
+int
+slm_timer_init(void)
+{
+	/* 10ms */
+	slm_policy_timer_init(10000);
+
+	return 0;
 }

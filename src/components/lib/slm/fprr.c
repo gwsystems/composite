@@ -100,14 +100,7 @@ slm_sched_thd_modify(struct slm_thd *t, sched_param_type_t type, unsigned int v)
 
 		break;
 	}
-	case SCHEDP_WINDOW:
-	{
-		break;
-	}
-	case SCHEDP_BUDGET:
-	{
-		break;
-	}
+	/* Only support priority, for now */
 	default: assert(0);
 	}
 

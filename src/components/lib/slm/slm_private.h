@@ -77,11 +77,8 @@ __slm_cs_cas(struct slm_cs *cs, slm_cs_cached_t cached, struct slm_thd *thd, int
 struct slm_global {
 	struct slm_cs lock;
 
-	thdcap_t       sched_thdcap;
-	tcap_t         sched_tcap;
-	arcvcap_t      sched_rcv;
-	struct slm_thd *sched_thd;
-	struct slm_thd *idle_thd;
+	struct slm_thd sched_thd;
+	struct slm_thd idle_thd;
 
 	int         cyc_per_usec;
 	int         timer_set; 	  /* is the timer set? */
@@ -97,9 +94,9 @@ struct slm_global {
 static inline struct slm_global *
 slm_global(void)
 {
-	extern struct slm_global __slm_globals[NUM_CPU];
+	extern struct slm_global __slm_global[NUM_CPU];
 
-	return &__slm_globals[cos_coreid()];
+	return &__slm_global[cos_coreid()];
 }
 
 /*
@@ -111,8 +108,14 @@ slm_thd_normal(struct slm_thd *t)
 {
 	struct slm_global *g = slm_global();
 
-	return t != g->idle_thd && t != g->sched_thd;
+	return t != &g->idle_thd && t != &g->sched_thd;
 }
+
+/*
+ * If the current thread is the scheduler or idle thread, return that
+ * slm_thd. That thread should generally never be used
+ */
+struct slm_thd *slm_thd_special(void);
 
 static inline int
 slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int inherit_prio)
@@ -124,7 +127,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 	tcap_time_t             timeout;
 	int                     ret = 0;
 
-	if (unlikely(t == g->sched_thd)) {
+	if (unlikely(t == &g->sched_thd)) {
 		timeout = TCAP_TIME_NIL;
 		prio    = curr->priority;
 	} else {
@@ -133,21 +136,20 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 	}
 
 	if (unlikely(t->properties & SLM_THD_PROPERTY_SEND)) {
-		return cos_sched_asnd(t->asnd, g->timeout_next, g->sched_rcv, tok);
+		return cos_sched_asnd(t->asnd, g->timeout_next, g->sched_thd.rcv, tok);
 	} else if (unlikely(t->properties & SLM_THD_PROPERTY_OWN_TCAP)) {
-		return cos_switch(t->thd, t->tc, prio, timeout, g->sched_rcv, tok);
+		return cos_switch(t->thd, t->tc, prio, timeout, g->sched_thd.rcv, tok);
 	}
 
 	ret = cos_defswitch(t->thd, prio, timeout, tok);
 
-	if (unlikely(!slm_thd_normal(t))) {
+	if (unlikely(ret == -EPERM && !slm_thd_normal(t))) {
 		/*
 		 * Attempting to activate scheduler thread or idle
 		 * thread failed for no budget in it's tcap. Force
 		 * switch to the scheduler with current tcap.
 		 */
-		if (unlikely(ret != -EPERM)) return ret;
-		ret = cos_switch(g->sched_thd->thd, 0, curr->priority, TCAP_TIME_NIL, g->sched_rcv, tok);
+		ret = cos_switch(g->sched_thd.thd, 0, curr->priority, TCAP_TIME_NIL, g->sched_thd.rcv, tok);
 	}
 
 	return ret;

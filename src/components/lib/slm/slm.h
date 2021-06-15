@@ -3,7 +3,6 @@
 
 #include <cos_component.h>
 #include <cos_defkernel_api.h>
-#include <assert.h>
 #include <ps.h>
 
 /*
@@ -16,6 +15,10 @@ typedef enum {
 	SLM_THD_RUNNABLE,
 	SLM_THD_DYING,
 } slm_thd_state_t;
+
+static inline int
+slm_state_is_runnable(slm_thd_state_t s)
+{ return s == SLM_THD_RUNNABLE || s == SLM_THD_WOKEN; }
 
 typedef enum {
 	SLM_THD_PROPERTY_OWN_TCAP  = 1,      /* Thread owns a tcap */
@@ -88,7 +91,48 @@ struct slm_thd {
 
 #include <slm_private.h>
 
-int slm_thd_init(struct slm_thd *t, tcap_t tc, thdcap_t thd, thdid_t tid);
+/***
+ * The initialization procedure for the slm must include:
+ *
+ * ```c
+ * void
+ * cos_init() {
+ *         t = thd_alloc(slm_idle, ...); // bypass the slm in allocation
+ *         slm_init(t->thdcap, t->thdid);
+ *         ...
+ * }
+ *
+ * int
+ * main(void) {
+ *         ...
+ *         slm_sched_loop(); // start processing the scheduler, never return
+ * }
+ * ```
+ */
+
+/* This is the idle function, and should be the function executed by the thread */
+void slm_idle(void *);
+/**
+ * This function *must* be called as part of the scheduler
+ * initialization, usually as part of `cos_init`. This assumes that
+ * the calling thread will become the main scheduling thread, and that
+ * it was created with the `defkernel` APIs.
+ *
+ * - @thd - a thread capability to the *idle thread* that is executing
+ *     the `slm_idle` function
+ * - @tid - the thread id of the idle thread
+ */
+void slm_init(thdcap_t thd, thdid_t tid);
+/*
+ * The initialization thread must execute this (post `slm_init`), and
+ * this thread will become the scheduler notification thread that
+ * polls the rcv end-point for other thread's activations and
+ * suspensions.
+ */
+void slm_sched_loop(void);
+void slm_sched_loop_nonblock(void);
+
+int slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid);
 
 typedef enum {
 	SLM_CS_NONE     = 0,
@@ -158,7 +202,7 @@ slm_cs_enter(struct slm_thd *current, slm_cs_flags_t flags)
 		}
 
 		/* success! common case */
-		if (!__slm_cs_cas(cs, cached, current, 0)) return 0;
+		if (likely(!__slm_cs_cas(cs, cached, current, 0))) return 0;
 		if (flags & SLM_CS_NOSPIN) return 1;
 	}
 }
@@ -173,10 +217,11 @@ slm_cs_enter(struct slm_thd *current, slm_cs_flags_t flags)
 static inline void
 slm_cs_exit(struct slm_thd *switchto, slm_cs_flags_t flags)
 {
+	int ret = 1;
 	struct slm_cs *cs = &(slm_global()->lock);
 
-	while (1) {
-		int             contention, ret = 0;
+	while (ret != 0) {
+		int             contention;
 		sched_tok_t     tok;
 		slm_cs_cached_t cached;
 		struct slm_thd *current;
@@ -194,7 +239,7 @@ slm_cs_exit(struct slm_thd *switchto, slm_cs_flags_t flags)
 		ret = __slm_cs_cas(cs, cached, 0, 0);
 		if (flags & SLM_CS_NOSPIN) return;
 		if (flags & SLM_CS_SCHEDEVT && ret == -EBUSY) return;
-	};
+	}
 
 	return;
 }
@@ -233,6 +278,9 @@ slm_switch_to(struct slm_thd *curr, struct slm_thd *to, sched_tok_t tok, int inh
 
 	return slm_thd_activate(curr, to, tok, inherit_prio);
 }
+
+int slm_thd_block(struct slm_thd *t);
+int slm_thd_wakeup(struct slm_thd *t, int redundant);
 
 /***
  * The `slm` time API. Unfortunately, three times are used in the
@@ -289,13 +337,5 @@ slm_timeout_clear(void)
 {
 	slm_global()->timer_set = 0;
 }
-
-/*
- * A thread must execute this (post initialization), and this thread
- * will become the scheduler notification thread that polls the rcv
- * end-point for other thread's activations and suspensions.
- */
-void slm_sched_loop(void);
-void slm_sched_loop_nonblock(void);
 
 #endif	/* SLM_H */
