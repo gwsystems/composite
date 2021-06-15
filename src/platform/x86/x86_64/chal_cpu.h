@@ -61,6 +61,9 @@ chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 #define MSR_PLATFORM_INFO 0x000000ce
 #define MSR_APIC_BASE     0x1b
 #define MSR_TSC_AUX       0xc0000103
+#define MSR_IA32_EFER 0xC0000080
+#define MSR_STAR 0xC0000081 
+#define MSR_LSTAR 0xC0000082
 
 extern void sysenter_entry(void);
 
@@ -85,17 +88,17 @@ chal_cpuid(int code, u32_t *a, u32_t *b, u32_t *c, u32_t *d)
 static void
 chal_cpu_init(void)
 {
+	u32_t low = 0, high = 0;
 	u64_t cr4 = chal_cpu_cr4_get();
 	cpuid_t cpu_id = get_cpuid();
 
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
-	writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
-	/* X86_64-FIXME: tss[cpu_id].esp -> rsp */
-	writemsr(IA32_SYSENTER_ESP, (u32_t)tss[cpu_id].rsp0, (u32_t)(tss[cpu_id].rsp0 >> 32));
-	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, (u32_t)((u64_t)sysenter_entry >> 32));
-	writemsr(0xC0000080,0x501, 0 );
-	//writemsr(0xc0000081,0x1000, 0x00100008 );
-	//writemsr(0xC0000082,0x00000000,0xffff8000);
+
+	readmsr(MSR_IA32_EFER, &low, &high);
+	writemsr(MSR_IA32_EFER,low | 0x1, high);
+
+	writemsr(MSR_STAR, 0, SEL_KCSEG | ((SEL_UCSEG - 16) << 16));
+	writemsr(MSR_LSTAR, (u32_t)sysenter_entry, (u32_t)((u64_t)sysenter_entry >> 32));
 
 	chal_cpu_eflags_init();
 }
@@ -124,7 +127,7 @@ chal_cpu_fault_ip(struct pt_regs *r)
 static inline void
 chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)
 {
-	__asm__("movq $0, %r11;movq $0x1000, %rcx;mov $0x00, %rax; mov %rax, %ds;sysretq" );
+	__asm__(" movq $0x200, %%r11 ; mov %%rbx, %%ds ; sysretq" : : "c"(ip), "a"(tid | (cpuid << 16)), "b"(SEL_UDSEG));
 }
 
 void chal_timer_thd_init(struct thread *t);

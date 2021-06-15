@@ -6,7 +6,7 @@
 typedef
 struct tss
 {
-    u64_t resv0;
+    u32_t resv0;
     u64_t rsp0;
     u64_t rsp1;
     u64_t rsp2;

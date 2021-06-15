@@ -80,7 +80,7 @@ restore_from_thd:
 
 	RESTORE_REGS_GENERAL
 
-	addl $8, %esp
+	addq $8, %rsp
 
 	sti
 	iretq

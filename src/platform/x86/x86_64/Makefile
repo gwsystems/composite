@@ -120,4 +120,4 @@ clean:
 	@rm constructor 
 
 gdb:
-	gdb -tui -x ./gdbinit
+	gdb -x ./gdbinit
