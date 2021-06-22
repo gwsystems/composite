@@ -106,7 +106,7 @@ static void *
 acpi_find_resource_flags(const char *res_name, pgtbl_flags_t flags)
 {
 	size_t  i;
-	int entries = (rsdt->head.len - sizeof(struct rsdt)) / 4;
+	size_t entries = (rsdt->head.len - sizeof(struct rsdt)) / 4;
 	for (i = 0; i < entries; i++) {
 		struct rsdt *e = (struct rsdt *)device_pa2va(rsdt->entry[i]);
 

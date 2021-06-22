@@ -27,6 +27,7 @@ WARNINGS += -Wstrict-prototypes
 WARNINGS += -Wundef
 WARNINGS += -Wvolatile-register-var
 WARNINGS += -Wwrite-strings
+WARNINGS += -Wno-address-of-packed-member
 
 CFLAGS += $(WARNINGS)
 
@@ -81,6 +82,9 @@ loader.o: loader.S entry.S
 	$(info |     [AS]   Assembling $@)
 	@$(CC) -c -I$(INCPATH) entry.S
 	@$(CC) -c -I$(INCPATH) loader.S
+	
+start.o: start.S
+	@$(CC) -c -I$(INCPATH) start.S
 
 %.d: %.c
 	@$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@

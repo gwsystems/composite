@@ -2,8 +2,6 @@
 #define TSS_H
 
 #include "shared/cos_types.h"
-
-typedef
 struct tss
 {
     u32_t resv0;
@@ -21,6 +19,6 @@ struct tss
     u64_t resv2;
     u16_t resv3;
     u16_t bitmap;
-}__attribute__((packed));
+} __attribute__((packed));
 extern struct tss tss[NUM_CPU];
 #endif /* TSS_H */

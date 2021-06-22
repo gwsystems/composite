@@ -8,7 +8,7 @@
  * 1 otherwise (*target == old -> *target = updated)
  */
 static inline int
-cos_cas(u32_t *target, u32_t old, u32_t updated)
+cos_cas_32(u32_t *target, u32_t old, u32_t updated)
 {
 	char z;
 	__asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"
@@ -19,13 +19,21 @@ cos_cas(u32_t *target, u32_t old, u32_t updated)
 }
 
 static inline int
-cos_cas_64(u64_t *target, u64_t old, u64_t updated)
+cos_cas(unsigned long *target, unsigned long old, unsigned long updated)
 {
 	char z;
+	#if defined(__x86_64__)
 	__asm__ __volatile__("lock cmpxchgq %2, %0; setz %1"
 	                     : "+m"(*target), "=a"(z)
 	                     : "q"(updated), "a"(old)
 	                     : "memory", "cc");
+	#elif defined(__i386__)
+	__asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"
+	                     : "+m"(*target), "=a"(z)
+	                     : "q"(updated), "a"(old)
+	                     : "memory", "cc");
+	#endif 
+
 	return (int)z;
 }
 /* Fetch-and-add implementation on x86. It returns the original value

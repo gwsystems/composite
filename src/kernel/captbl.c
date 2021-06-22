@@ -87,7 +87,7 @@ captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned lon
 	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_CAPTBL, lid);
 	if (ret) cos_throw(err, ret);
 
-	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS)
+	if (cos_cas_32((u32_t *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS)
 		cos_throw(err, -ECASFAIL);
 
 	/* deactivation success. We should either release the
@@ -123,7 +123,7 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 	if ((l & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) cos_throw(err, -EOVERFLOW);
 
 	/* increment refcnt */
-	if (cos_cas((unsigned long *)&(cons_cap->refcnt_flags), l, l + 1) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+	if (cos_cas_32((u32_t *)&(cons_cap->refcnt_flags), l, l + 1) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	/*
 	 * FIXME: we are expanding the entire page to

@@ -149,7 +149,7 @@ elf64_contig_mem(struct elf64_hdr *hdr, unsigned int nmem, struct elf_contig_mem
 	u32_t off;
 	unsigned int i, cntmem;
 
-	if (elf_chk_format(hdr) != 2||
+	if (elf_chk_format((struct elf_hdr *)hdr) != 2||
 	    hdr->e_phentsize != sizeof(struct elf64_proghdr)) return -1;
 
 	proghdr = (struct elf64_proghdr *)((char *)hdr + hdr->e_phoff);

@@ -98,7 +98,7 @@ chal_cpu_init(void)
 	writemsr(MSR_IA32_EFER,low | 0x1, high);
 
 	writemsr(MSR_STAR, 0, SEL_KCSEG | ((SEL_UCSEG - 16) << 16));
-	writemsr(MSR_LSTAR, (u32_t)sysenter_entry, (u32_t)((u64_t)sysenter_entry >> 32));
+	writemsr(MSR_LSTAR, (u32_t)(u64_t)sysenter_entry, (u32_t)((u64_t)sysenter_entry >> 32));
 
 	chal_cpu_eflags_init();
 }

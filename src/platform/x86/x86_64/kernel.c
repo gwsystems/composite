@@ -41,7 +41,7 @@ extern u8_t _binary_constructor_start, _binary_constructor_end;
 void
 kern_memory_setup(u64_t mboot_addr, u64_t mboot_magic)
 {
-	unsigned int i, wastage = 0;
+	unsigned int i = 0, wastage = 0;
 	struct multiboot_tag *tag;
 
 	glb_memlayout.allocs_avail = 1;
@@ -106,6 +106,7 @@ kern_memory_setup(u64_t mboot_addr, u64_t mboot_magic)
 						printk("\t  memory usable at boot time: %lx (%ld MB + %ld KB)\n", sz, MEM_MB_ONLY(sz),
 							MEM_KB_ONLY(sz));
 					}
+					i++;
 				 }
           	break;
 		  }
@@ -155,7 +156,7 @@ kmain(u64_t mboot_addr, u64_t mboot_magic)
 	#endif
 
 	boot_state_transition(INIT_BOOTED, INIT_CPU);
-	max =MAX((u64_t)chal_va2pa(mboot_addr), (u64_t)(chal_va2pa(&end)));
+	max =MAX((u64_t)chal_va2pa((void*)mboot_addr), (u64_t)(chal_va2pa(&end)));
 
 	kern_paging_map_init((void *)(max));
 	kern_memory_setup(mboot_addr, mboot_magic);

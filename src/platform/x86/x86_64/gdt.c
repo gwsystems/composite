@@ -12,9 +12,9 @@ static volatile struct gdt_aligned gdt[NUM_CPU];
 /* GDT helpers. */
 static u64_t make_code_desc(int dpl);
 static u64_t make_data_desc(int dpl);
-static void make_tss_desc(u64_t * tss_desc, u64_t tss_addr);
+static void make_tss_desc(volatile u64_t * tss_desc, u64_t tss_addr);
 static void make_gdtr_operand(u8_t gdtr_addr[10], u16_t limit, u64_t base);
-static void flash_selectors();
+static void flash_selectors(void);
 
 void
 chal_tls_update(vaddr_t addr)
@@ -126,7 +126,7 @@ make_data_desc(int dpl)
 }
 
 static void
-make_tss_desc(u64_t * tss_desc, u64_t tss_addr)
+make_tss_desc(volatile u64_t * tss_desc, u64_t tss_addr)
 {
 	/* 
 	 * make sure to init variables before use, you don't know 
@@ -155,7 +155,7 @@ make_tss_desc(u64_t * tss_desc, u64_t tss_addr)
 }
 
 static void
-flash_selectors()
+flash_selectors(void)
 {
 	__asm__ __volatile__("mov %0, %%rax   \n\t"   
 						 "mov %%rax, %%ds  \n\t"

@@ -158,7 +158,8 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	for (i = 0; i < round_up_to_page(range) / PAGE_SIZE; i++) {
 		u8_t *  p     = kern_vaddr + i * PAGE_SIZE;
 		paddr_t pf    = chal_va2pa(p);
-		unsigned long   mapat = (unsigned long)user_vaddr + i * PAGE_SIZE, flags = 0;
+		unsigned long   mapat = (unsigned long)user_vaddr + i * PAGE_SIZE;
+		u32_t flags = 0;
 
 		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, PAGE_ORDER)) assert(0);
 		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, PAGE_ORDER)) assert(0);

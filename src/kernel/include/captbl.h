@@ -248,11 +248,20 @@ captbl_lkup(struct captbl *t, capid_t cap)
 static inline int
 __captbl_store_32(u32_t *addr, u32_t new, u32_t old)
 {
-	if (!cos_cas(addr, old, new)){ return -1;}
+	if (!cos_cas_32(addr, old, new)){ return -1;}
 
 	return 0;
 }
-#define CTSTORE(a, n, o) __captbl_store_32((u32_t *)a, *(u32_t *)n, *(u32_t *)o)
+
+#define CTSTORE(a, n, o) \
+	({                            \
+		int tmp_ret = 0;     \
+		u32_t *tmp_n = n;   \
+		u32_t *tmp_o = o;   \
+		tmp_ret = __captbl_store_32((u32_t *)a, *tmp_n, *tmp_o); \
+		tmp_ret; \
+	})
+
 #define cos_throw(label, errno) \
 	{                       \
 		ret = (errno);  \
@@ -343,7 +352,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 		l.type        = type;
 		l.liveness_id = 0;
 	}
-	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
+	if (CTSTORE(h, (u32_t *)&l,(u32_t *)&o)) cos_throw(err, -EEXIST); /* commit */
 
 	/* FIXME: same as above */
 	if (p != h) {
@@ -407,7 +416,7 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 		l.type = CAP_QUIESCENCE;
 	}
 
-	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
+	if (CTSTORE(h, (u32_t *)&l, (u32_t *)&o)) cos_throw(err, -EEXIST); /* commit */
 err:
 	return ret;
 }
@@ -453,7 +462,7 @@ captbl_prune(struct captbl *t, capid_t cap, u32_t depth, int *retval)
 	if (unlikely(!intern)) cos_throw(err, -EPERM);
 	p   = *intern;
 	new = (unsigned long)CT_DEFINITVAL;
-	if (CTSTORE(intern, &new, &p)) cos_throw(err, -EEXIST); /* commit */
+	if (CTSTORE(intern, (u32_t*)&new, (u32_t *)&p)) cos_throw(err, -EEXIST); /* commit */
 done:
 	*retval = ret;
 	return (void *)p;

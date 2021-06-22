@@ -29,8 +29,8 @@ kern_retype_initial(void)
 {
 	u8_t *k;
 
-	assert((int)mem_bootc_start() % RETYPE_MEM_NPAGES == 0);
-	assert((int)mem_bootc_end() % RETYPE_MEM_NPAGES == 0);
+	assert((unsigned long)mem_bootc_start() % RETYPE_MEM_NPAGES == 0);
+	assert((unsigned long)mem_bootc_end() % RETYPE_MEM_NPAGES == 0);
 	for (k = mem_bootc_start(); k < mem_bootc_end(); k += PAGE_SIZE * RETYPE_MEM_NPAGES) {
 		if (retypetbl_retype2user((void *)chal_va2pa(k), PAGE_ORDER)) assert(0);
 	}

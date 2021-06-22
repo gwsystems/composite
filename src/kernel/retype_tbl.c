@@ -114,7 +114,7 @@ retypetbl_deref(void *pa, u32_t order)
 	struct page_record walk[NUM_PAGE_SIZES];
 	int found = 0;
 	int i, ret, idx;
-
+	memset(walk, 0, sizeof(struct page_record) * NUM_PAGE_SIZES);
 	assert(pa); /* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
 
@@ -364,8 +364,8 @@ retype_tbl_init(void)
 	assert(sizeof(struct retype_info_glb) % CACHE_LINE == 0);
 	assert(sizeof(retype_tbl) % CACHE_LINE == 0);
 	assert(sizeof(glb_retype_tbl) % CACHE_LINE == 0);
-	assert((int)retype_tbl % CACHE_LINE == 0);
-	assert((int)glb_retype_tbl % CACHE_LINE == 0);
+	assert((unsigned long)retype_tbl % CACHE_LINE == 0);
+	assert((unsigned long)glb_retype_tbl % CACHE_LINE == 0);
 
 	assert(sizeof(union refcnt_atom) == sizeof(u32_t));
 	assert(RETYPE_ENT_TYPE_SZ + RETYPE_ENT_REFCNT_SZ == 32);

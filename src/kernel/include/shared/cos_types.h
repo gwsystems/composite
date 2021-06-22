@@ -40,7 +40,7 @@ typedef u32_t              asid_t;
  *  sizeof(cycles_t) >= sizeof(tcap_time_t)
  */
 #define TCAP_TIME_QUANTUM_ORD 12
-#define TCAP_TIME_MAX_ORD (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
+#define TCAP_TIME_MAX_ORD (TCAP_TIME_QUANTUM_ORD) //test remove warning 
 #define TCAP_TIME_MAX_BITS(c) (((u64_t)c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
 #define TCAP_TIME_NIL 0
 
