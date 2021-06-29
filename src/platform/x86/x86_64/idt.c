@@ -29,12 +29,12 @@
 #define ICW1_ICW4 0x01
 
 struct idt_entry {
-	u16_t base_lo; // Lower 16 bits of address to jump too after int
-	u16_t sel;     // Kernel segment selector
-	u8_t  zero;    // Must always be zero
-	u8_t  flags;   // flags
-	u16_t base_hi; // Upper 16 bits of addres to jump too
-	u64_t base_hi_64; //x64
+	u16_t base_lo;    // Lower 16 bits of address to jump too after int
+	u16_t sel;        // Kernel segment selector
+	u8_t  zero;       // Must always be zero
+	u8_t  flags;      // flags
+	u16_t base_hi;    // Upper 16 bits of addres to jump too
+	u64_t base_hi_64; // x64
 } __attribute__((packed));
 
 struct idt_ptr {
@@ -48,17 +48,18 @@ struct idt_ptr {
 struct idt_entry idt_entries[NUM_IDT_ENTRIES];
 struct idt_ptr   idt_ptr;
 
-static void 
-idt_flush(struct idt_ptr * idt_ptr_addr){
-	__asm__ __volatile__("lidt %0" : :"m"(*idt_ptr_addr)); 
+static void
+idt_flush(struct idt_ptr *idt_ptr_addr)
+{
+	__asm__ __volatile__("lidt %0" : : "m"(*idt_ptr_addr));
 }
 
 static void
 idt_set_gate(u8_t num, u64_t base, u16_t sel, u8_t flags)
 {
-	int cpu_id = get_cpuid();
-	idt_entries[num].base_lo = base & 0xFFFF;
-	idt_entries[num].base_hi = (base >> 16) & 0xFFFF;
+	int cpu_id                  = get_cpuid();
+	idt_entries[num].base_lo    = base & 0xFFFF;
+	idt_entries[num].base_hi    = (base >> 16) & 0xFFFF;
 	idt_entries[num].base_hi_64 = (base >> 32) & 0x00000000ffffffff;
 
 	idt_entries[num].sel  = sel;
@@ -101,7 +102,7 @@ void
 idt_init(const cpuid_t cpu_id)
 {
 	idt_ptr.limit = (sizeof(struct idt_entry) * NUM_IDT_ENTRIES) - 1;
-	idt_ptr.base  = (u64_t)&(idt_entries);
+	idt_ptr.base  = (u64_t) & (idt_entries);
 	memset(&(idt_entries), 0, sizeof(struct idt_entry) * NUM_IDT_ENTRIES);
 
 	outb(0x20, 0x11);
@@ -167,8 +168,8 @@ idt_init(const cpuid_t cpu_id)
 	idt_set_gate(HW_ID31, (u64_t)handler_hw_62, 0x08, 0x8E);
 	idt_set_gate(HW_LAPIC_SPURIOUS, (u64_t)lapic_spurious_irq, 0x08, 0x8E);
 	idt_set_gate(HW_LAPIC_IPI_ASND, (u64_t)lapic_ipi_asnd_irq, 0x08, 0x8E);
-	idt_set_gate(HW_LAPIC_TIMER, (u64_t)lapic_timer_irq, 0x08, 0x8E);	
-	
+	idt_set_gate(HW_LAPIC_TIMER, (u64_t)lapic_timer_irq, 0x08, 0x8E);
+
 	/* asm volatile("lidt (%0)" : : "p"(&idtr)); */
 	idt_flush(&idt_ptr);
 }

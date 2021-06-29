@@ -13,7 +13,8 @@ typedef signed int         s32_t;
 typedef signed long long   s64_t;
 #endif
 
-typedef enum {
+typedef enum
+{
 	HW_PERIODIC = 32, /* periodic timer interrupt */
 	HW_KEYBOARD,      /* keyboard interrupt */
 	HW_ID3,
@@ -46,8 +47,8 @@ typedef enum {
 	HW_ID30,
 	HW_ID31,
 	HW_LAPIC_SPURIOUS,
-	HW_LAPIC_IPI_ASND    = 254, /* ipi interrupt for asnd */
-	HW_LAPIC_TIMER = 255, /* Local APIC TSC-DEADLINE mode - Timer interrupts */
+	HW_LAPIC_IPI_ASND = 254, /* ipi interrupt for asnd */
+	HW_LAPIC_TIMER    = 255, /* Local APIC TSC-DEADLINE mode - Timer interrupts */
 } hwid_t;
 
 typedef struct {

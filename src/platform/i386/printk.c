@@ -26,21 +26,18 @@ printk(const char *fmt, ...)
 	l = vsprintf(buffer, fmt, args);
 	va_end(args);
 
-	for (i = 0; i < num_handlers; i++) {
-		printk_handlers[i](buffer);
-	}
+	for (i = 0; i < num_handlers; i++) { printk_handlers[i](buffer); }
 }
 
 void
 print_pt_regs(struct pt_regs *regs)
 {
-        PRINTK("Register hexdump (0x%p):\n", regs);
-        PRINTK("General->   EAX: 0x%x, EBX: 0x%x, ECX: 0x%x, EDX: 0x%x\n",
-	       regs->ax, regs->bx, regs->cx, regs->dx);
-        PRINTK("Segment->   CS: 0x%x, DS: 0x%x, ES: 0x%x, FS: 0x%x, GS: 0x%x, SS: 0x%x\n",
-	       regs->cs, regs->ds, regs->es, regs->fs, regs->gs, regs->ss);
-        PRINTK("Index->     ESI: 0x%x, EDI: 0x%x, EIP: 0x%x, ESP: 0x%x, EBP: 0x%x\n",
-	       regs->si, regs->di, regs->ip, regs->sp, regs->bp);
-        PRINTK("Indicator-> EFLAGS: 0x%x\n", regs->flags);
-        PRINTK("(Exception Error Code-> ORIG_AX: 0x%x)\n", regs->orig_ax);
+	PRINTK("Register hexdump (0x%p):\n", regs);
+	PRINTK("General->   EAX: 0x%x, EBX: 0x%x, ECX: 0x%x, EDX: 0x%x\n", regs->ax, regs->bx, regs->cx, regs->dx);
+	PRINTK("Segment->   CS: 0x%x, DS: 0x%x, ES: 0x%x, FS: 0x%x, GS: 0x%x, SS: 0x%x\n", regs->cs, regs->ds, regs->es,
+	       regs->fs, regs->gs, regs->ss);
+	PRINTK("Index->     ESI: 0x%x, EDI: 0x%x, EIP: 0x%x, ESP: 0x%x, EBP: 0x%x\n", regs->si, regs->di, regs->ip,
+	       regs->sp, regs->bp);
+	PRINTK("Indicator-> EFLAGS: 0x%x\n", regs->flags);
+	PRINTK("(Exception Error Code-> ORIG_AX: 0x%x)\n", regs->orig_ax);
 }

@@ -23,9 +23,7 @@ __add_service_dependency(struct service_symbs *s, struct service_symbs *dep, cha
 {
 	struct dependency *d;
 
-	if (!s || !dep || s->num_dependencies == MAX_TRUSTED) {
-		return -1;
-	}
+	if (!s || !dep || s->num_dependencies == MAX_TRUSTED) { return -1; }
 	if (!is_booter_loaded(s) && is_booter_loaded(dep)) {
 		printl(PRINT_HIGH, "Error: Non-Composite-loaded component dependent on composite loaded component.\n");
 		return -1;
@@ -70,9 +68,7 @@ get_service_struct(char *name, struct service_symbs *list)
 	while (list) {
 		assert(name);
 		assert(list && list->obj);
-		if (!strcmp(name, list->obj)) {
-			return list;
-		}
+		if (!strcmp(name, list->obj)) { return list; }
 
 		list = list->next;
 	}
@@ -80,7 +76,7 @@ get_service_struct(char *name, struct service_symbs *list)
 	return NULL;
 }
 
-struct service_symbs * get_service_struct(char *name, struct service_symbs *list);
+struct service_symbs *get_service_struct(char *name, struct service_symbs *list);
 
 /*
  * Add to the service_symbs structures the dependents.

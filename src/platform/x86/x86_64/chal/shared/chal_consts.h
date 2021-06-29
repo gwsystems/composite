@@ -22,7 +22,7 @@ struct pt_regs {
 	u64_t si;
 	u64_t di;
 	u64_t bp;
-	u64_t ax;	
+	u64_t ax;
 	u64_t orig_ax;
 	u64_t ip;
 	u64_t cs;

@@ -43,9 +43,9 @@ void add_kexport(struct service_symbs *ss, const char *name);
 void
 add_kernel_exports(struct service_symbs *service)
 {
-    add_kexport(service, COMP_INFO);
-    add_kexport(service, COMP_PLT);
-    add_kexport(service, SCHED_NOTIF);
+	add_kexport(service, COMP_INFO);
+	add_kexport(service, COMP_PLT);
+	add_kexport(service, SCHED_NOTIF);
 	return;
 }
 
@@ -79,9 +79,7 @@ obs_serialize(asymbol *symb, void *data)
 	}
 
 	/* Ignore main */
-	if (!strcmp("main", symb->name)) {
-		return 0;
-	}
+	if (!strcmp("main", symb->name)) { return 0; }
 
 	name = malloc(strlen(symb->name) + 1);
 	strcpy(name, symb->name);
@@ -121,9 +119,7 @@ for_each_symb_type(bfd *obj, int symb_type, observer_t o, void *obs_data)
 		if ((symb_type & UNDEF_SYMB_TYPE && bfd_is_und_section(symbol_table[i]->section))
 		    || (symb_type & EXPORTED_SYMB_TYPE && symbol_table[i]->flags & BSF_FUNCTION
 		        && ((symbol_table[i]->flags & BSF_GLOBAL) || (symbol_table[i]->flags & BSF_WEAK)))) {
-			if ((*o)(symbol_table[i], obs_data)) {
-				return -1;
-			}
+			if ((*o)(symbol_table[i], obs_data)) { return -1; }
 		}
 	}
 
@@ -243,9 +239,7 @@ alloc_service_symbs(char *obj)
 	printl(PRINT_DEBUG, "Processed object %s (%s%s)\n", obj, t.sched ? "scheduler " : "",
 	       t.composite_loaded ? "booted" : "");
 	str = malloc(sizeof(struct service_symbs));
-	if (!str || initialize_service_symbs(str)) {
-		return NULL;
-	}
+	if (!str || initialize_service_symbs(str)) { return NULL; }
 
 	strcpy(obj_name, &obj[off]);
 	str->obj = obj_name;

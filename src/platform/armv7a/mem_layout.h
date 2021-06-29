@@ -38,7 +38,7 @@ struct mem_layout {
 	int   allocs_avail;
 };
 extern struct mem_layout glb_memlayout;
-extern unsigned long __initial_component_start__, __initial_component_end__;
+extern unsigned long     __initial_component_start__, __initial_component_end__;
 
 static inline u8_t *
 mem_kern_start(void)
@@ -102,7 +102,7 @@ mem_utmem_end(void)
 {
 	return mem_kmem_end();
 }
-u8_t *mem_boot_alloc(int npages); /* boot-time, bump-ptr heap */
+u8_t *mem_boot_alloc(int npages);      /* boot-time, bump-ptr heap */
 u8_t *mem_boot_user_alloc(int npages); /* boot-time, bump-ptr for user-allocations */
 
 #endif /* MEM_LAYOUT_H */

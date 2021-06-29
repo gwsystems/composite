@@ -18,10 +18,10 @@
 #ifndef __ASM__
 #include "../chal/shared/chal_consts.h"
 #endif
-#define MAX_PA_LIMIT     (1ULL << 32)
+#define MAX_PA_LIMIT (1ULL << 32)
 #define PAGE_ORDER 12
 #define SUPER_PAGE_ORDER 22
-#define MAX_PA_LIMIT     (1ULL << 32)
+#define MAX_PA_LIMIT (1ULL << 32)
 #ifndef __KERNEL__
 #ifndef PAGE_SIZE
 #define PAGE_SIZE (1 << PAGE_ORDER)
@@ -39,7 +39,7 @@
 #define MAX_STACK_SZ (COS_STACK_SZ / 4)
 
 #define ALL_STACK_SZ ((MAX_NUM_THREADS + 1) * MAX_STACK_SZ)
-/* 
+/*
  * 4096B / 4 * (64+1) : to flatten the math because of the below error
  *cos_asm_upcall_simple_stacks.S:28: Error: bad or irreducible absolute expression
  */
@@ -54,7 +54,7 @@
 
 #define MAX_NUM_COMPS 64
 #define MAX_NUM_SPDS (MAX_NUM_COMPS) /* Legacy code still has this. */
-#define MAX_NUM_COMP_WORDS (MAX_NUM_COMPS/(8*sizeof(u32_t)))
+#define MAX_NUM_COMP_WORDS (MAX_NUM_COMPS / (8 * sizeof(u32_t)))
 
 #define MAX_STATIC_CAP 256
 #define MAX_NUM_ACAP 256
@@ -121,6 +121,6 @@
 #define INVCAP_OFFSET 4
 
 /* FIXME: Info on superpage mappings - this should be passed from kernel to userlevel! */
-#define TEST_SUPERPAGE_FRAME    0x10400000
+#define TEST_SUPERPAGE_FRAME 0x10400000
 
 #endif

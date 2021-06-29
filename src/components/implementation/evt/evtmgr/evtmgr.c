@@ -9,13 +9,13 @@
 
 
 struct ring {
-	int producer, consumer;
+	int          producer, consumer;
 	evt_res_id_t mem[MAX_NUM_EVT];
 };
 
 struct evt_agg {
-	compid_t client;
-	struct ring ring;
+	compid_t         client;
+	struct ring      ring;
 	struct ps_refcnt refcnt;
 	struct crt_blkpt blkpt;
 };
@@ -23,11 +23,11 @@ struct evt_agg {
 SS_STATIC_SLAB(evt, struct evt_agg, MAX_NUM_THREADS);
 
 struct evt_res {
-	evt_res_id_t *evt_entry; /* -1 = not resident */
-	evt_res_id_t me;
-	evt_res_type_t type;
-	evt_res_data_t data;
-	compid_t client;
+	evt_res_id_t *  evt_entry; /* -1 = not resident */
+	evt_res_id_t    me;
+	evt_res_type_t  type;
+	evt_res_data_t  data;
+	compid_t        client;
 	struct evt_agg *evt;
 };
 
@@ -104,9 +104,9 @@ int
 __evt_get(evt_id_t id, evt_wait_flags_t flags, evt_res_type_t *src, evt_res_data_t *ret_data)
 {
 	struct crt_blkpt_checkpoint chkpt;
-	struct evt_agg *e = ss_evt_get(id);
-	struct evt_res *res;
-	evt_res_id_t rid;
+	struct evt_agg *            e = ss_evt_get(id);
+	struct evt_res *            res;
+	evt_res_id_t                rid;
 
 	if (!e) return -1;
 
@@ -121,11 +121,11 @@ __evt_get(evt_id_t id, evt_wait_flags_t flags, evt_res_type_t *src, evt_res_data
 		crt_blkpt_wait(&e->blkpt, 0, &chkpt);
 	}
 
-	res   = ss_evtres_get(rid);
+	res = ss_evtres_get(rid);
 	assert(res);
 	res->evt_entry = NULL;
-	*src      = res->type;
-	*ret_data = res->data;
+	*src           = res->type;
+	*ret_data      = res->data;
 
 	return 0;
 }
@@ -135,21 +135,21 @@ __evt_add(evt_id_t id, evt_res_type_t srctype, evt_res_data_t retdata)
 {
 	struct evt_agg *e = ss_evt_get(id);
 	struct evt_res *res;
-	evt_res_id_t rid;
+	evt_res_id_t    rid;
 
-	if (!e)  return 0;
+	if (!e) return 0;
 	res = ss_evtres_alloc();
 	if (!res) return 0;
 
 	rid = ss_evtres_id(res);
 	ps_refcnt_take(&e->refcnt);
-	*res = (struct evt_res) {
-		.client    = cos_inv_token(),
-		.type      = srctype,
-		.data      = retdata,
-		.evt_entry = NULL,
-		.me        = rid,
-		.evt       = e,
+	*res = (struct evt_res){
+	  .client    = cos_inv_token(),
+	  .type      = srctype,
+	  .data      = retdata,
+	  .evt_entry = NULL,
+	  .me        = rid,
+	  .evt       = e,
 	};
 	ss_evtres_activate(res);
 
@@ -174,8 +174,8 @@ int
 __evt_trigger(evt_res_id_t rid)
 {
 	struct evt_agg *e;
-	struct evt_res  *res;
-	evt_res_id_t   *evt_entry;
+	struct evt_res *res;
+	evt_res_id_t *  evt_entry;
 
 	res = ss_evtres_get(rid);
 	if (!res) return -1;
@@ -185,7 +185,7 @@ __evt_trigger(evt_res_id_t rid)
 
 	if (res->evt_entry != NULL) return 0; /* already triggered! */
 	evt_entry = ring_enqueue(&e->ring, rid);
-	assert(evt_entry);	/* ring should be large enough for all evts */
+	assert(evt_entry); /* ring should be large enough for all evts */
 	res->evt_entry = evt_entry;
 	crt_blkpt_trigger(&e->blkpt, 0);
 

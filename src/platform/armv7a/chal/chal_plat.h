@@ -25,13 +25,13 @@ chal_flush_tlb(void)
 static inline void *
 chal_pa2va(paddr_t address)
 {
-        return (void *)(address + COS_MEM_KERN_START_VA);
+	return (void *)(address + COS_MEM_KERN_START_VA);
 }
 
 static inline paddr_t
 chal_va2pa(void *address)
 {
-        return (paddr_t)(address - COS_MEM_KERN_START_VA);
+	return (paddr_t)(address - COS_MEM_KERN_START_VA);
 }
 
 

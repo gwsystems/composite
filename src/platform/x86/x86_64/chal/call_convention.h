@@ -53,10 +53,13 @@ __userregs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsign
 
 static inline void
 __userregs_setinv(struct pt_regs *regs, unsigned long id, unsigned long tok, unsigned long ip)
-{ __userregs_set(regs, id, tok, ip); }
+{
+	__userregs_set(regs, id, tok, ip);
+}
 
 static inline void
-__userregs_setretvals(struct pt_regs *regs, unsigned long ret, unsigned long ret1, unsigned long ret2, unsigned long ret3)
+__userregs_setretvals(struct pt_regs *regs, unsigned long ret, unsigned long ret1, unsigned long ret2,
+                      unsigned long ret3)
 {
 	regs->ax = ret;
 	regs->si = ret1;

@@ -40,7 +40,7 @@
 
 unsigned long cos_cav7_mem_info[CAV7_MEM_ENTRIES] = {CAV7_MEM_CONTENTS};
 
-//0x00000000, 0xC0000000, 0x1,   CAV7_1M_KERN_DEF /* Kernel memory - 192kB OCSRAM */,
+// 0x00000000, 0xC0000000, 0x1,   CAV7_1M_KERN_DEF /* Kernel memory - 192kB OCSRAM */,
 /* Convert the flags from composite standard to ARM standard */
 unsigned long
 chal_pgtbl_flag_cos2nat_1M(unsigned long input)

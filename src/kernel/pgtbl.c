@@ -19,7 +19,8 @@ tlb_quiescence_check(u64_t timestamp)
 }
 
 int
-cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t order)
+cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr,
+                vaddr_t order)
 {
 	return chal_cap_memactivate(ct, pt, frame_cap, dest_pt, vaddr, order);
 }
@@ -31,8 +32,8 @@ pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t
 }
 
 int
-pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin,
-                 livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
+pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
+                 capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 {
 	return chal_pgtbl_deactivate(t, dest_ct_cap, capin, lid, pgtbl_cap, cosframe_addr, root);
 }
@@ -61,7 +62,7 @@ pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 	return chal_pgtbl_mapping_del(pt, addr, liv_id);
 }
 
-/* 
+/*
  * NOTE: This just removes the mapping. NO liveness tracking! TLB
  * flush should be taken care of separately (and carefully).
  */

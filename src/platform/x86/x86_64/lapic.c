@@ -40,25 +40,25 @@ struct ioapic_cntl {
 volatile int ncpus = 1;
 volatile int apicids[NUM_CPU];
 
-#define CMOS_PORT    0x70
+#define CMOS_PORT 0x70
 
-#define LAPIC_ID_REG             0x020 /* APIC id */
-#define LAPIC_VERSION_REG        0x030 /* version */
-#define LAPIC_TP_REG             0x080 /* Task Priority Register */
+#define LAPIC_ID_REG 0x020      /* APIC id */
+#define LAPIC_VERSION_REG 0x030 /* version */
+#define LAPIC_TP_REG 0x080      /* Task Priority Register */
 
-#define LAPIC_SIV_REG            0x0F0 /* spurious interrupt vector */
-#define LAPIC_SIV_ENABLE         (1 << 8) /* enable bit in the SIV */
-#define LAPIC_EOI_REG            0x0B0 /* ack, or end-of-interrupt */
-#define LAPIC_ESR                0x280 /* error status register */
-#define LAPIC_ICR                0x300 /* interrupt control register */
-#define LAPIC_PCINT              0x340 /* Performance counter interrupts */
-#define LAPIC_LINT0              0x350 /* Local interrupt/vector table 0 */
-#define LAPIC_LINT1              0x360 /* Local interrupt/vector table 1 */
-#define LAPIC_INT_MASKED         (1<<17)
-#define LAPIC_ERROR              0x370 /* Local interrupt/vector table error */
+#define LAPIC_SIV_REG 0x0F0       /* spurious interrupt vector */
+#define LAPIC_SIV_ENABLE (1 << 8) /* enable bit in the SIV */
+#define LAPIC_EOI_REG 0x0B0       /* ack, or end-of-interrupt */
+#define LAPIC_ESR 0x280           /* error status register */
+#define LAPIC_ICR 0x300           /* interrupt control register */
+#define LAPIC_PCINT 0x340         /* Performance counter interrupts */
+#define LAPIC_LINT0 0x350         /* Local interrupt/vector table 0 */
+#define LAPIC_LINT1 0x360         /* Local interrupt/vector table 1 */
+#define LAPIC_INT_MASKED (1 << 17)
+#define LAPIC_ERROR 0x370 /* Local interrupt/vector table error */
 
 #define LAPIC_TIMER_LVT_REG 0x320
-#define LAPIC_TIMER_MASKED (1<<16)
+#define LAPIC_TIMER_MASKED (1 << 16)
 #define LAPIC_DIV_CONF_REG 0x3e0
 #define LAPIC_INIT_COUNT_REG 0x380
 #define LAPIC_CURR_COUNT_REG 0x390
@@ -70,14 +70,14 @@ volatile int apicids[NUM_CPU];
 #define LAPIC_TIMER_CALIB_VAL 0xffffffff
 
 /* flags for the interrupt control register ICR */
-#define LAPIC_ICR_LEVEL          (1 << 15) /* level vs edge mode */
-#define LAPIC_ICR_ASSERT         (1 << 14) /* assert */
-#define LAPIC_ICR_LOGICAL        (1 << 11) /* logical destination */
-#define LAPIC_ICR_STATUS         (1 << 12)
-#define LAPIC_ICR_INIT           0x500     /* INIT */
-#define LAPIC_ICR_SIPI           0x600     /* Startup IPI */
-#define LAPIC_ICR_FIXED          0x000     /* fixed IPI */
-#define LAPIC_IPI_ASND_VEC       HW_LAPIC_IPI_ASND /* interrupt vec for asnd ipi */
+#define LAPIC_ICR_LEVEL (1 << 15)   /* level vs edge mode */
+#define LAPIC_ICR_ASSERT (1 << 14)  /* assert */
+#define LAPIC_ICR_LOGICAL (1 << 11) /* logical destination */
+#define LAPIC_ICR_STATUS (1 << 12)
+#define LAPIC_ICR_INIT 0x500                 /* INIT */
+#define LAPIC_ICR_SIPI 0x600                 /* Startup IPI */
+#define LAPIC_ICR_FIXED 0x000                /* fixed IPI */
+#define LAPIC_IPI_ASND_VEC HW_LAPIC_IPI_ASND /* interrupt vec for asnd ipi */
 
 #define IA32_MSR_TSC_DEADLINE 0x000006e0
 
@@ -108,8 +108,8 @@ enum lapic_timer_div_by_config
 	LAPIC_DIV_BY_1,
 };
 
-static volatile void *lapic             = (void *)APIC_DEFAULT_PHYS;
-static unsigned int   lapic_timer_mode  = LAPIC_TSC_DEADLINE;
+static volatile void *lapic            = (void *)APIC_DEFAULT_PHYS;
+static unsigned int   lapic_timer_mode = LAPIC_TSC_DEADLINE;
 static unsigned int   lapic_is_disabled[NUM_CPU] CACHE_ALIGNED;
 
 static unsigned int lapic_cycs_thresh        = 0;
@@ -165,7 +165,7 @@ lapic_cycles_to_timer(u32_t cycles)
 
 	/* convert from (relative) CPU cycles to APIC counter */
 	cycles = (cycles / lapic_cpu_to_timer_ratio);
-	if (cycles == 0) cycles= (LAPIC_TIMER_MIN / lapic_cpu_to_timer_ratio);
+	if (cycles == 0) cycles = (LAPIC_TIMER_MIN / lapic_cpu_to_timer_ratio);
 
 	return cycles;
 }
@@ -238,13 +238,11 @@ lapic_find_localaddr(void *l)
 	unsigned char  sum       = 0;
 	unsigned char *lapicaddr = l;
 	u32_t          length    = *(u32_t *)(lapicaddr + APIC_HDR_LEN_OFF);
-	u32_t 	       addr, apic_flags, hi, lo;
+	u32_t          addr, apic_flags, hi, lo;
 
 	printk("Initializing LAPIC @ %p\n", lapicaddr);
 
-	for (i = 0; i < length; i++) {
-		sum += lapicaddr[i];
-	}
+	for (i = 0; i < length; i++) { sum += lapicaddr[i]; }
 
 	if (sum != 0) {
 		printk("\tInvalid checksum (%d)\n", sum);
@@ -261,7 +259,7 @@ lapic_find_localaddr(void *l)
 	printk("\tlapic: %p\n", lapic);
 
 	readmsr(MSR_APIC_BASE, &lo, &hi);
-	assert(lo & (1 << 8)); 	/* assume we are the BSP */
+	assert(lo & (1 << 8)); /* assume we are the BSP */
 	/* instead of using bit 11 ("enable"), we use the SIV LAPIC control register */
 
 	return 0;
@@ -321,7 +319,7 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 		u32_t counter;
 
 		counter = lapic_cycles_to_timer((u32_t)(deadline - now));
-		if (counter == 0) counter= LAPIC_COUNTER_MIN;
+		if (counter == 0) counter = LAPIC_COUNTER_MIN;
 
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, counter);
 	} else if (timer_type == LAPIC_TSC_DEADLINE) {
@@ -473,8 +471,8 @@ lapic_timer_handler(struct pt_regs *regs)
 static void
 delay_us(u32_t us)
 {
-	unsigned long long hz = CPU_GHZ, hz_per_us = hz * 1000;
-	unsigned long long end;
+	unsigned long long          hz = CPU_GHZ, hz_per_us = hz * 1000;
+	unsigned long long          end;
 	volatile unsigned long long tsc;
 
 	rdtscll(tsc);
@@ -492,8 +490,8 @@ extern char smppatchstart, smppatchend, smpstack, stack;
 void
 smp_boot_all_ap(volatile int *cores_ready)
 {
-	int i;
-	u32_t ret;
+	int    i;
+	u32_t  ret;
 	char **stackpatch;
 
 	/*
@@ -502,18 +500,18 @@ smp_boot_all_ap(volatile int *cores_ready)
 	 * an address that real-mode 16-bit code can execute
 	 */
 	memcpy((char *)chal_pa2va(SMP_BOOT_PATCH_ADDR), &smppatchstart, &smppatchend - &smppatchstart);
-	stackpatch  = (char **)chal_pa2va(SMP_BOOT_PATCH_ADDR + (&smpstack - &smppatchstart));
+	stackpatch = (char **)chal_pa2va(SMP_BOOT_PATCH_ADDR + (&smpstack - &smppatchstart));
 
 	for (i = 1; i < ncpus; i++) {
 		struct cos_cpu_local_info *cli;
-		int 	j;
-		u16_t   *warm_reset_vec;
+		int                        j;
+		u16_t *                    warm_reset_vec;
 
 		/* init shutdown code */
 		outb(CMOS_PORT, 0xF);
-		outb(CMOS_PORT+1, 0x0A);
+		outb(CMOS_PORT + 1, 0x0A);
 		/* Warm reset vector */
-		warm_reset_vec = (u16_t *)chal_pa2va((0x40 << 4 | 0x67));
+		warm_reset_vec    = (u16_t *)chal_pa2va((0x40 << 4 | 0x67));
 		warm_reset_vec[0] = 0;
 		warm_reset_vec[1] = SMP_BOOT_PATCH_ADDR >> 4;
 
@@ -527,8 +525,8 @@ smp_boot_all_ap(volatile int *cores_ready)
 		/* ...make sure that we pass this core's stack */
 		*stackpatch = (char *)((u64_t)&stack + ((PAGE_SIZE * i) + (PAGE_SIZE - STK_INFO_OFF)));
 		/* ...initialize the coreid of the new processor */
-		cli         = (struct cos_cpu_local_info *)*stackpatch;
-		cli->cpuid  = i; /* the rest is initialized during the bootup process */
+		cli        = (struct cos_cpu_local_info *)*stackpatch;
+		cli->cpuid = i; /* the rest is initialized during the bootup process */
 
 		/* Now the IPI coordination process to boot the AP: first send init ipi... */
 		lapic_ipi_send(apicids[i], LAPIC_ICR_LEVEL | LAPIC_ICR_ASSERT | LAPIC_ICR_INIT);
@@ -545,7 +543,8 @@ smp_boot_all_ap(volatile int *cores_ready)
 			delay_us(200);
 		}
 		/* waiting for AP's booting */
-		while(*(volatile int *)(cores_ready + i) == 0) ;
+		while (*(volatile int *)(cores_ready + i) == 0)
+			;
 	}
 	ret = lapic_read_reg(LAPIC_ESR);
 	if (ret) printk("SMP Bootup: LAPIC error status register is %x\n", ret);

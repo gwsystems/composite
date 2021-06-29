@@ -6,11 +6,11 @@
 struct chan_snd s;
 struct chan_rcv r;
 
-#define COMM_AMNT (2^10 * 16)
+#define COMM_AMNT (2 ^ 10 * 16)
 
 /*
  * the Receiver and sender tests could run at different times,
- * causing the numbers to blow up! 
+ * causing the numbers to blow up!
  *
  * Another issue is, when the high priority thread here is printing,
  * the test on the low prio side is not done yet!
@@ -38,7 +38,7 @@ rendezvous(void)
 void
 receiver(void)
 {
-	int i;
+	int      i;
 	ps_tsc_t tot = 0;
 
 	rendezvous();
@@ -53,28 +53,26 @@ receiver(void)
 		tot += now - snd;
 	}
 
-	printc("Average send -> receive overhead %lld\n", tot/COMM_AMNT);
+	printc("Average send -> receive overhead %lld\n", tot / COMM_AMNT);
 }
 
 void
 ipc(void)
 {
-	int i;
+	int      i;
 	ps_tsc_t rcv = 0, prev_rcv = 0, snd = 0, tmp;
 	ps_tsc_t rcvcost = 0, sendcost = 0, rtt = 0, l2h = 0;
 
 	for (i = 0; i < COMM_AMNT; i++) {
 		snd = ps_tsc();
-		if (rcv > 0) {
-			sendcost += snd - rcv;
-		}
+		if (rcv > 0) { sendcost += snd - rcv; }
 		if (chan_recv(&r, &tmp, 0)) {
 			printc("chan_recv error\n");
 			assert(0);
 		}
 
 		prev_rcv = rcv;
-		rcv = ps_tsc();
+		rcv      = ps_tsc();
 		l2h += rcv - tmp;
 
 		rcvcost += rcv - snd;
@@ -88,7 +86,7 @@ ipc(void)
 	rendezvous();
 
 	printc("Thread with high priority (4):\n\trcv  %lld\n\tsend %lld\n\trtt  %lld\n\tlow->high %lld\n",
-	       rcvcost/COMM_AMNT, sendcost/COMM_AMNT, rtt/COMM_AMNT, l2h/COMM_AMNT);
+	       rcvcost / COMM_AMNT, sendcost / COMM_AMNT, rtt / COMM_AMNT, l2h / COMM_AMNT);
 }
 
 int
@@ -98,7 +96,7 @@ main(void)
 
 	printc("Component chan hi: executing main.\n");
 
-	/* 
+	/*
 	 * This sleep in both hi and lo comps lets the benchmark run
 	 * more predictably on HW and on Qemu.
 	 *
@@ -114,10 +112,10 @@ main(void)
 	return 0;
 }
 
-#define TEST_CHAN_ITEM_SZ   sizeof(u64_t)
-#define TEST_CHAN_NSLOTS    128
-#define TEST_CHAN_SEND_ID   1
-#define TEST_CHAN_RECV_ID   2
+#define TEST_CHAN_ITEM_SZ sizeof(u64_t)
+#define TEST_CHAN_NSLOTS 128
+#define TEST_CHAN_SEND_ID 1
+#define TEST_CHAN_RECV_ID 2
 #define TEST_CHAN_PRIO_SELF 4 /* chan_hi == high priority */
 
 void

@@ -23,21 +23,35 @@
 
 /* Two options are available: Sender at low/high prio, data words 4 */
 #define READER_HIGH
-#define DATA_WORDS		2
+#define DATA_WORDS 2
 
 thdid_t chan_reader = 0, chan_writer = 0;
 
 typedef unsigned int cycles_32_t;
 
-volatile cycles_32_t tmp[DATA_WORDS] = {0, };
-volatile cycles_32_t ts1[DATA_WORDS] = {0, };
-volatile cycles_32_t ts2[DATA_WORDS] = {0, };
-volatile cycles_32_t ts3[DATA_WORDS] = {0, };
+volatile cycles_32_t tmp[DATA_WORDS] = {
+  0,
+};
+volatile cycles_32_t ts1[DATA_WORDS] = {
+  0,
+};
+volatile cycles_32_t ts2[DATA_WORDS] = {
+  0,
+};
+volatile cycles_32_t ts3[DATA_WORDS] = {
+  0,
+};
 
 struct perfdata perf1, perf2, perf3;
-cycles_t result1[ITERATION] = {0, };
-cycles_t result2[ITERATION] = {0, };
-cycles_t result3[ITERATION] = {0, };
+cycles_t        result1[ITERATION] = {
+  0,
+};
+cycles_t result2[ITERATION] = {
+  0,
+};
+cycles_t result3[ITERATION] = {
+  0,
+};
 
 CRT_STATIC_CHAN_STATIC_ALLOC(chan1, cycles_32_t, DATA_WORDS);
 CRT_STATIC_CHAN_STATIC_ALLOC(chan2, cycles_32_t, DATA_WORDS);
@@ -50,7 +64,7 @@ void
 chan_reader_thd(void *d)
 {
 	/* Never stops running; writer controls how many iters to run. */
-	while(1) {
+	while (1) {
 		debug("r1,");
 		crt_static_chan_recv_bench(chan1, tmp);
 		debug("tsr1: %d,", tmp[0]);
@@ -81,8 +95,9 @@ chan_writer_thd(void *d)
 		debug("w4,");
 		ts3[0] = time_now();
 		debug("w5,");
-		
-		if (first == 0) first = 1;
+
+		if (first == 0)
+			first = 1;
 		else {
 			if (ts2[0] > ts1[0] && ts3[0] > ts2[0]) {
 				perfdata_add(&perf1, ts2[0] - ts1[0]);
@@ -91,7 +106,7 @@ chan_writer_thd(void *d)
 			}
 		}
 	}
-	
+
 	perfdata_calc(&perf1);
 	perfdata_calc(&perf2);
 	perfdata_calc(&perf3);
@@ -111,30 +126,25 @@ chan_writer_thd(void *d)
 	perfdata_print(&perf3);
 #endif
 
-	while (1) ;
+	while (1)
+		;
 }
 
 void
 test_chan(void)
 {
-	int i;
-	int first = 0;
+	int      i;
+	int      first = 0;
 	cycles_t begin, end;
 
 #ifdef READER_HIGH
-	sched_param_t sps[] = {
-		SCHED_PARAM_CONS(SCHEDP_PRIO, 4),
-		SCHED_PARAM_CONS(SCHEDP_PRIO, 6)
-	};
+	sched_param_t sps[] = {SCHED_PARAM_CONS(SCHEDP_PRIO, 4), SCHED_PARAM_CONS(SCHEDP_PRIO, 6)};
 #else
-	sched_param_t sps[] = {
-		SCHED_PARAM_CONS(SCHEDP_PRIO, 6),
-		SCHED_PARAM_CONS(SCHEDP_PRIO, 4)
-	};
+	sched_param_t sps[] = {SCHED_PARAM_CONS(SCHEDP_PRIO, 6), SCHED_PARAM_CONS(SCHEDP_PRIO, 4)};
 #endif
 
 	crt_static_chan_init_bench(chan1);
-	
+
 	/* Uncontended lock taking/releasing */
 	perfdata_init(&perf1, "Uncontended channel - selfloop", result1, ITERATION);
 	for (i = 0; i < ITERATION + 1; i++) {
@@ -144,8 +154,10 @@ test_chan(void)
 		crt_static_chan_recv_bench(chan1, tmp);
 
 		end = time_now();
-		if (first == 0) first = 1;
-		else perfdata_add(&perf1, end - begin);
+		if (first == 0)
+			first = 1;
+		else
+			perfdata_add(&perf1, end - begin);
 	}
 	perfdata_calc(&perf1);
 #ifdef PRINT_ALL
@@ -160,13 +172,13 @@ test_chan(void)
 	perfdata_init(&perf1, "Contended channel - reader high use this", result1, ITERATION);
 	perfdata_init(&perf2, "Contended channel - writer high use this", result2, ITERATION);
 	perfdata_init(&perf3, "Contended channel - roundtrip", result3, ITERATION);
-	
+
 	printc("Create threads:\n");
-	
+
 	chan_reader = sched_thd_create(chan_reader_thd, NULL);
 	printc("\tcreating reader thread %d at prio %d\n", chan_reader, sps[0]);
 	sched_thd_param_set(chan_reader, sps[0]);
-	
+
 	chan_writer = sched_thd_create(chan_writer_thd, NULL);
 	printc("\tcreating writer thread %d at prio %d\n", chan_writer, sps[1]);
 	sched_thd_param_set(chan_writer, sps[1]);

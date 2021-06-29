@@ -128,9 +128,7 @@ process_ring(struct xcore_ring *ring)
 {
 	u32_t data;
 
-	while ((data = cos_ipi_ring_dequeue(ring)) != 0) {
-		handle_ipi_acap(data >> 16, data & 0xFFFF);
-	}
+	while ((data = cos_ipi_ring_dequeue(ring)) != 0) { handle_ipi_acap(data >> 16, data & 0xFFFF); }
 }
 
 static int

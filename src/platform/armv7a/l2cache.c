@@ -34,7 +34,7 @@ Xil_L1DCacheFlush(void)
 	LineSize = (CsidReg & 0x07U) + 4U;
 
 	NumSet = CacheSize / 4;
-	//NumSet = CacheSize / NumWays;
+	// NumSet = CacheSize / NumWays;
 	NumSet /= (0x00000001U << LineSize);
 
 	Way = 0U;
@@ -77,7 +77,7 @@ l2cache_init(void)
 	printk("L2 aux control reg is 0x%x\n", CAV7_L2C_AUX_CONTROL);
 	printk("L2 prefetch control reg is 0x%x\n", CAV7_L2C_PREFETCH_CTRL);
 	printk("L2 power control reg is 0x%x\n", CAV7_L2C_POWER_CTRL);
-	
+
 	Xil_L1DCacheFlush();
 
 	/* Just enable the prefetcher in general settings, but keep them disabled at the specific controls, only
@@ -112,7 +112,7 @@ l2cache_init(void)
 	/* We initialize the PMU to count main TLB stall */
 	unsigned long pmcr = __cos_cav7_pmcr_get();
 	printk("PMCR reg is 0x%x\n", pmcr); /* IMP = 0x41 IDCODE = 0x09 N = 00110b = 0x6, divider on, all counters
-					       enabled - leave unchanged */
+	                                       enabled - leave unchanged */
 	/* Enable the first counter */
 	unsigned long pmcntenset = __cos_cav7_pmcntenset_get();
 	printk("PMCNTENSET reg is 0x%x\n", pmcntenset);
@@ -149,4 +149,3 @@ l2cache_init(void)
 	//          .global             __cos_cav7_pmintenset_set
 	//          .global             __cos_cav7_pmintenclr_set
 }
-

@@ -45,9 +45,9 @@ test_thd_fn(void *data)
 void
 test_yields(void)
 {
-	int                     i;
-	struct sl_thd *         threads[N_TESTTHDS];
-	sched_param_t sp = sched_param_cons(SCHEDP_PRIO, 10);
+	int            i;
+	struct sl_thd *threads[N_TESTTHDS];
+	sched_param_t  sp = sched_param_cons(SCHEDP_PRIO, 10);
 
 	for (i = 0; i < N_TESTTHDS; i++) {
 		threads[i] = sl_thd_alloc(test_thd_fn, (void *)(intptr_t)(i + 1));
@@ -80,9 +80,9 @@ test_low(void *data)
 void
 test_blocking_directed_yield(void)
 {
-	struct sl_thd *         low, *high;
-	sched_param_t sph = sched_param_cons(SCHEDP_PRIO, 5);
-	sched_param_t spl = sched_param_cons(SCHEDP_PRIO, 10);
+	struct sl_thd *low, *high;
+	sched_param_t  sph = sched_param_cons(SCHEDP_PRIO, 5);
+	sched_param_t  spl = sched_param_cons(SCHEDP_PRIO, 10);
 
 	low  = sl_thd_alloc(test_low, NULL);
 	high = sl_thd_alloc(test_high, low);
@@ -125,10 +125,10 @@ test_high_wakeup(void *data)
 void
 test_timeout_wakeup(void)
 {
-	struct sl_thd *         low, *high;
-	sched_param_t sph = sched_param_cons(SCHEDP_PRIO, 5);
-	sched_param_t spl = sched_param_cons(SCHEDP_PRIO, 10);
-	sched_param_t spw = sched_param_cons(SCHEDP_WINDOW, 1000);
+	struct sl_thd *low, *high;
+	sched_param_t  sph = sched_param_cons(SCHEDP_PRIO, 5);
+	sched_param_t  spl = sched_param_cons(SCHEDP_PRIO, 10);
+	sched_param_t  spw = sched_param_cons(SCHEDP_WINDOW, 1000);
 
 	low = sl_thd_alloc(test_low, NULL);
 	sl_thd_param_set(low, spl);

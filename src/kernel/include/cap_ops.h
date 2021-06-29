@@ -150,7 +150,7 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 		return captbl_decons(head, sub, pruneid, lvl);
 	} else if (head->type == CAP_PGTBL) {
 		return chal_pgtbl_decons(head, sub, pruneid, lvl);
-	} 
+	}
 
 	return -EINVAL;
 }

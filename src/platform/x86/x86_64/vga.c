@@ -77,7 +77,7 @@ memsetw(unsigned short *dest, unsigned short val, size_t count)
 	 * unsigned short
 	 */
 	temp = (unsigned short *)dest;
-	for (; count != 0; count--) *temp++= val;
+	for (; count != 0; count--) *temp++ = val;
 	return dest;
 }
 
@@ -147,9 +147,7 @@ cls(void)
 	 * Sets the entire screen to spaces in our current
 	 * color
 	 */
-	for (i = 0; i < LINES; i++) {
-		memsetw((unsigned short *)video + i * COLUMNS, blank, COLUMNS);
-	}
+	for (i = 0; i < LINES; i++) { memsetw((unsigned short *)video + i * COLUMNS, blank, COLUMNS); }
 
 	/*
 	 * Update out virtual cursor, and then move the
@@ -173,7 +171,7 @@ vga_high_init(void)
 void
 vga_init(void)
 {
-	video = (unsigned char *) VIDEO;
+	video = (unsigned char *)VIDEO;
 
 	csr_x = 0;
 	csr_y = 0;
@@ -216,9 +214,7 @@ puts(unsigned char *text)
 	size_t i = 0;
 
 	cll();
-	for (i = 0; i < strnlen((const char *)text, STRLEN_MAX); i++) {
-		putchar(text[i]);
-	}
+	for (i = 0; i < strnlen((const char *)text, STRLEN_MAX); i++) { putchar(text[i]); }
 	move_csr();
 }
 
@@ -229,9 +225,7 @@ keyboard_handler(struct pt_regs *regs)
 
 	ack_irq(HW_KEYBOARD);
 
-	while (inb(KEY_PENDING) & 2) {
-		/* wait for keypress to be ready */
-	}
+	while (inb(KEY_PENDING) & 2) { /* wait for keypress to be ready */ }
 	scancode = inb(KEY_DEVICE);
 	printk("Keyboard press: %d\n", scancode);
 }

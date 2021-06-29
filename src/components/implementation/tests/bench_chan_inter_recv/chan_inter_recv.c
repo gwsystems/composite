@@ -13,16 +13,16 @@
 
 struct chan_snd s;
 struct chan_rcv r;
-struct evt e;
+struct evt      e;
 
 /* Keep these settings below consistent with the sender side */
 #define READER_HIGH
 #define USE_EVTMGR
 
-#define TEST_CHAN_ITEM_SZ   sizeof(u32_t)
-#define TEST_CHAN_NSLOTS    2
-#define TEST_CHAN_SEND_ID   3
-#define TEST_CHAN_RECV_ID   4
+#define TEST_CHAN_ITEM_SZ sizeof(u32_t)
+#define TEST_CHAN_NSLOTS 2
+#define TEST_CHAN_SEND_ID 3
+#define TEST_CHAN_RECV_ID 4
 /* We are the receiver, and we don't care about data gathering */
 #ifdef READER_HIGH
 #define TEST_CHAN_PRIO_SELF 4
@@ -35,16 +35,16 @@ typedef unsigned int cycles_32_t;
 int
 main(void)
 {
-	cycles_t wakeup;
+	cycles_t    wakeup;
 	cycles_32_t tmp;
 #ifdef USE_EVTMGR
-	evt_res_id_t evt_id;
+	evt_res_id_t   evt_id;
 	evt_res_data_t evtdata;
-	evt_res_type_t  evtsrc;
+	evt_res_type_t evtsrc;
 #endif
 
 	printc("Component chan receiver: executing main.\n");
-	
+
 	/* See if event manager is in use. If yes, log the receiver channel into it */
 #ifdef USE_EVTMGR
 	assert(evt_init(&e, 2) == 0);
@@ -54,7 +54,7 @@ main(void)
 	printc("Receiver side event created.\n");
 #endif
 
-	/* 
+	/*
 	 * This sleep in both hi and lo comps lets the benchmark run
 	 * more predictably on HW and on Qemu.
 	 *
@@ -65,11 +65,12 @@ main(void)
 	sched_thd_block_timeout(0, wakeup);
 
 	/* Never stops running; sender controls how many iters to run. */
-	while(1) {
+	while (1) {
 		debug("r1,");
 #ifdef USE_EVTMGR
 		/* Receive from the events then the channel */
-		while (chan_recv(&r, &tmp, CHAN_NONBLOCKING) == CHAN_TRY_AGAIN) evt_get(&e, EVT_WAIT_DEFAULT, &evtsrc, &evtdata);
+		while (chan_recv(&r, &tmp, CHAN_NONBLOCKING) == CHAN_TRY_AGAIN)
+			evt_get(&e, EVT_WAIT_DEFAULT, &evtsrc, &evtdata);
 #else
 		chan_recv(&r, &tmp, 0);
 #endif
@@ -84,7 +85,8 @@ main(void)
 }
 
 
-/* We initialize channel and threads before executing main - here the scheduler doesn't even work so we guarantee good init */
+/* We initialize channel and threads before executing main - here the scheduler doesn't even work so we guarantee good
+ * init */
 void
 cos_init(void)
 {

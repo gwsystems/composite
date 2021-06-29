@@ -130,7 +130,7 @@ chal_init(void)
 	}
 
 	readmsr(MSR_PLATFORM_INFO, &a, &b);
-	a = (a >> 8) & ((1<<7)-1);
+	a = (a >> 8) & ((1 << 7) - 1);
 	if (a) {
 		printk("\tMSR Frequency: %d (* 100Mhz)\n", a);
 		chal_msr_mhz = a * 100;

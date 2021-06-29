@@ -103,7 +103,7 @@ timer_cpu2hpet_cycles(u64_t cycles)
 
 	/* demote precision to enable word-sized math */
 	cyc = (unsigned long)cycles;
-	if (unlikely((u64_t)cyc < cycles)) cyc= ULONG_MAX;
+	if (unlikely((u64_t)cyc < cycles)) cyc = ULONG_MAX;
 	/* convert from CPU cycles to HPET cycles */
 	cyc = (cyc / timer_cycles_per_hpetcyc) * TIMER_ERROR_BOUND_FACTOR;
 	/* promote the precision to interact with the hardware correctly */
@@ -246,9 +246,7 @@ timer_initialize_hpet(void *timer)
 	printk("Initializing HPET @ %p\n", hpetaddr);
 
 	length = *(u32_t *)(hpetaddr + HPET_TAB_LENGTH);
-	for (i = 0; i < length; i++) {
-		sum += hpetaddr[i];
-	}
+	for (i = 0; i < length; i++) { sum += hpetaddr[i]; }
 
 	if (sum != 0) {
 		printk("\tInvalid checksum (%d)\n", sum);

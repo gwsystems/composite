@@ -32,7 +32,8 @@
  *                    sequence to commence?
  * - @cont - When initialization is done, which main should execute?
  */
-typedef enum {
+typedef enum
+{
 	INIT_MAIN_NONE = 0, /* no continued execution */
 	INIT_MAIN_SINGLE,   /* only initialization core executes main */
 	INIT_MAIN_PARALLEL  /* all cores execute a parallel main */

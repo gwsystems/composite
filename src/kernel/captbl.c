@@ -15,7 +15,7 @@ captbl_activate_boot(struct captbl *t, unsigned long cap)
 	int                ret;
 
 	ctc = (struct cap_captbl *)captbl_add(t, cap, CAP_CAPTBL, &ret);
-	if (!ctc){ return ret;}
+	if (!ctc) { return ret; }
 	ctc->captbl       = t; /* reference ourself! */
 	ctc->lvl          = 0;
 	ctc->h.type       = CAP_CAPTBL;
@@ -157,7 +157,7 @@ int
 captbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl)
 {
 	unsigned long *    intern, old_v;
-	u32_t l;
+	u32_t              l;
 	struct cap_captbl *ct = (struct cap_captbl *)head;
 
 	if (lvl <= ct->lvl) return -EINVAL;
@@ -180,7 +180,7 @@ captbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, 
 
 	/* decrement the refcnt */
 	ct = (struct cap_captbl *)sub;
-	l = ct->refcnt_flags;
+	l  = ct->refcnt_flags;
 	if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 	cos_faa((int *)&(ct->refcnt_flags), -1);
 
@@ -207,7 +207,7 @@ captbl_leaflvl_scan(struct captbl *ct)
 
 		rdtscll(curr_ts);
 		header_i = h;
-		n_ent    = CACHELINE_SIZE >> (l.size + CAP_SZ_OFF) ;
+		n_ent    = CACHELINE_SIZE >> (l.size + CAP_SZ_OFF);
 
 		for (j = 0; j < n_ent; j++) {
 			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));

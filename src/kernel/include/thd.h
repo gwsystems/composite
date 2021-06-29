@@ -40,7 +40,8 @@ struct rcvcap_info {
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
 };
 
-typedef enum {
+typedef enum
+{
 	THD_STATE_PREEMPTED = 1,
 	THD_STATE_RCVING    = 1 << 1, /* report to parent rcvcap that we're receiving */
 } thd_state_t;
@@ -322,11 +323,12 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 }
 
 static int
-thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data)
+thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap,
+             thdclosure_index_t init_data)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
-	struct cap_thd            *tc;
-	struct cap_comp           *compc;
+	struct cap_thd *           tc;
+	struct cap_comp *          compc;
 	int                        ret;
 
 	memset(thd, 0, sizeof(struct thread));
@@ -559,9 +561,7 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		 */
 	}
 
-	if (issame && preempt == 0) {
-		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-	}
+	if (issame && preempt == 0) { __userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs)); }
 
 	return preempt;
 }

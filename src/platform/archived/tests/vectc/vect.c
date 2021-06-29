@@ -85,9 +85,7 @@ rand_test(void)
 	}
 	cvectc_stats();
 	rdtscll(start);
-	for (i = 1; i < NTESTS; i++) {
-		assert(cvectc_lookup(&static_vect, i) == (void *)i);
-	}
+	for (i = 1; i < NTESTS; i++) { assert(cvectc_lookup(&static_vect, i) == (void *)i); }
 	rdtscll(end);
 	printf("lookup cost: %lld\n", (end - start) / (NTESTS - 1));
 	for (i = 1; i < NTESTS; i++) {
@@ -117,9 +115,7 @@ rand_test(void)
 		}
 
 		rdtscll(start);
-		for (i = 0; i < NTESTS; i++) {
-			assert(cvectc_lookup(&static_vect, ids[i]) == (void *)ids[i]);
-		}
+		for (i = 0; i < NTESTS; i++) { assert(cvectc_lookup(&static_vect, ids[i]) == (void *)ids[i]); }
 		rdtscll(end);
 		cvectc_stats();
 		printf("lookup cost: %lld\n", (end - start) / NTESTS);
@@ -130,9 +126,7 @@ rand_test(void)
 				ps();
 			}
 		}
-		for (i = 0; i < NTESTS; i++) {
-			assert((void *)CVECTC_INIT_VAL == cvectc_lookup(&static_vect, ids[i]));
-		}
+		for (i = 0; i < NTESTS; i++) { assert((void *)CVECTC_INIT_VAL == cvectc_lookup(&static_vect, ids[i])); }
 		cvectc_stats();
 	}
 }
@@ -166,7 +160,7 @@ print(struct cvectc *s)
 
 		n     = start;
 		start = n->next;
-		if (n == end) end= NULL;
+		if (n == end) end = NULL;
 		if (n == start) start = NULL;
 		e = n->e;
 
@@ -192,9 +186,9 @@ print(struct cvectc *s)
 				new->e    = &d->next[i];
 				new->next = NULL;
 				new->prev = end;
-				if (end) end->next= new;
+				if (end) end->next = new;
 				end = new;
-				if (!start) start= new;
+				if (!start) start = new;
 				/* FIXME...use real size */
 				new->size   = __cvectc_size(__cvc_dir(&d->next[i]));
 				new->parent = n->id;

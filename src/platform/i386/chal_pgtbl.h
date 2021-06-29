@@ -2,23 +2,25 @@
 #define CHAL_PGTBL_H
 
 /* These code below are for x86 specifically, only used in x86 chal */
-typedef enum {
-	X86_PGTBL_PRESENT    = 1,
-	X86_PGTBL_WRITABLE   = 1 << 1,
-	X86_PGTBL_USER       = 1 << 2,
-	X86_PGTBL_WT         = 1 << 3, /* write-through caching */
-	X86_PGTBL_NOCACHE    = 1 << 4, /* caching disabled */
-	X86_PGTBL_ACCESSED   = 1 << 5,
-	X86_PGTBL_MODIFIED   = 1 << 6,
-	X86_PGTBL_SUPER      = 1 << 7, /* super-page (4MB on x86-32) */
-	X86_PGTBL_GLOBAL     = 1 << 8,
+typedef enum
+{
+	X86_PGTBL_PRESENT  = 1,
+	X86_PGTBL_WRITABLE = 1 << 1,
+	X86_PGTBL_USER     = 1 << 2,
+	X86_PGTBL_WT       = 1 << 3, /* write-through caching */
+	X86_PGTBL_NOCACHE  = 1 << 4, /* caching disabled */
+	X86_PGTBL_ACCESSED = 1 << 5,
+	X86_PGTBL_MODIFIED = 1 << 6,
+	X86_PGTBL_SUPER    = 1 << 7, /* super-page (4MB on x86-32) */
+	X86_PGTBL_GLOBAL   = 1 << 8,
 	/* Composite defined bits next*/
 	X86_PGTBL_COSFRAME   = 1 << 9,
 	X86_PGTBL_COSKMEM    = 1 << 10, /* page activated as kernel object */
 	X86_PGTBL_QUIESCENCE = 1 << 11,
 	/* Flag bits done. */
 
-	X86_PGTBL_USER_DEF   = X86_PGTBL_PRESENT | X86_PGTBL_USER | X86_PGTBL_ACCESSED | X86_PGTBL_MODIFIED | X86_PGTBL_WRITABLE,
+	X86_PGTBL_USER_DEF = X86_PGTBL_PRESENT | X86_PGTBL_USER | X86_PGTBL_ACCESSED | X86_PGTBL_MODIFIED
+	                     | X86_PGTBL_WRITABLE,
 	X86_PGTBL_INTERN_DEF = X86_PGTBL_USER_DEF,
 } pgtbl_flags_x86_t;
 
@@ -129,8 +131,9 @@ __pgtbl_getleaf(struct ert_intern *a, void *accum)
 	return __pgtbl_get(a, accum, 1);
 }
 
-ERT_CREATE(__pgtbl, pgtbl, PGTBL_DEPTH, PGTBL_ENTRY_ORDER, sizeof(int *), PGTBL_ENTRY_ORDER, sizeof(int *), NULL, __pgtbl_init,
-           __pgtbl_get, __pgtbl_isnull, __pgtbl_set, __pgtbl_a, __pgtbl_setleaf, __pgtbl_getleaf, __pgtbl_resolve);
+ERT_CREATE(__pgtbl, pgtbl, PGTBL_DEPTH, PGTBL_ENTRY_ORDER, sizeof(int *), PGTBL_ENTRY_ORDER, sizeof(int *), NULL,
+           __pgtbl_init, __pgtbl_get, __pgtbl_isnull, __pgtbl_set, __pgtbl_a, __pgtbl_setleaf, __pgtbl_getleaf,
+           __pgtbl_resolve);
 
 static pgtbl_t
 pgtbl_alloc(void *page)
@@ -181,7 +184,8 @@ pgtbl_intern_prune(pgtbl_t pt, u32_t addr)
 	return page;
 }
 
-/* FIXME:  these pgd functions should be replaced with lookup_lvl functions (see below). Consider deleting this because we have lkup now */
+/* FIXME:  these pgd functions should be replaced with lookup_lvl functions (see below). Consider deleting this because
+ * we have lkup now */
 static void *
 pgtbl_get_pgd(pgtbl_t pt, u32_t addr)
 {
@@ -197,4 +201,3 @@ pgtbl_check_pgd_absent(pgtbl_t pt, u32_t addr)
 	return __pgtbl_isnull(pgtbl_get_pgd(pt, (u32_t)addr), 0, 0);
 }
 #endif /* CHAL_PGTBL_H */
-

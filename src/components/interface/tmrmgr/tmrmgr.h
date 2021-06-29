@@ -18,9 +18,10 @@ typedef word_t tmr_id_t;
 /**
  * The type of the timer. Set to 0 for periodic, set to 1 for one-shot.
  */
-typedef enum {
-	TMR_ONESHOT     = 0,
-	TMR_PERIODIC 	= 1
+typedef enum
+{
+	TMR_ONESHOT  = 0,
+	TMR_PERIODIC = 1
 } tmr_flags_t;
 
 /**
@@ -33,7 +34,7 @@ typedef enum {
  *     - `0` on success, and
  *     - `!0` if a timer cannot be created.
  */
- tmr_id_t tmrmgr_create(unsigned int usecs, tmr_flags_t flags);
+tmr_id_t tmrmgr_create(unsigned int usecs, tmr_flags_t flags);
 
 /**
  * Teardown a timer.
@@ -44,9 +45,9 @@ typedef enum {
  *     - `0` on success, and
  *     - `!0` if a timer cannot be deleted.
  */
- int tmrmgr_delete(tmr_id_t id);
- 
- /**
+int tmrmgr_delete(tmr_id_t id);
+
+/**
  * Start a timer.
  *
  * - @tmr_id_t id - The ID of the timer to start.
@@ -55,9 +56,9 @@ typedef enum {
  *     - `0` on success, and
  *     - `!0` if a timer cannot be started.
  */
- int tmrmgr_start(tmr_id_t id);
- 
- /**
+int tmrmgr_start(tmr_id_t id);
+
+/**
  * Stop a timer.
  *
  * - @tmr_id_t id - The ID of the timer to stop.
@@ -66,8 +67,8 @@ typedef enum {
  *     - `0` on success, and
  *     - `!0` if a timer cannot be stopped.
  */
- int tmrmgr_stop(tmr_id_t id);
- 
+int tmrmgr_stop(tmr_id_t id);
+
 /***
  * This is a simple "add-on" API to the timer API (chan). The timer API
  * is basically useless without this.
@@ -75,7 +76,7 @@ typedef enum {
 
 /**
  * Set and get the event resource id associated with a timer. Only one ID
- * can be associated with the timer, and when the timer expires, the event 
+ * can be associated with the timer, and when the timer expires, the event
  * will be fired.
  *
  * - @id  - the timer
@@ -84,7 +85,7 @@ typedef enum {
  *     `n`. `tmrmgr_evt_get`: `n` is the timer resource id, or `0` is
  *     error.
  */
-int tmrmgr_evt_set(tmr_id_t id, evt_res_id_t rid);
+int          tmrmgr_evt_set(tmr_id_t id, evt_res_id_t rid);
 evt_res_id_t tmrmgr_evt_get(tmr_id_t id);
 
 #endif /* TMRMGR_H */

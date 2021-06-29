@@ -52,7 +52,7 @@ struct idt_ptr   idt_ptr;
 static void
 idt_set_gate(u8_t num, u32_t base, u16_t sel, u8_t flags)
 {
-	int cpu_id = get_cpuid();
+	int cpu_id               = get_cpuid();
 	idt_entries[num].base_lo = base & 0xFFFF;
 	idt_entries[num].base_hi = (base >> 16) & 0xFFFF;
 
@@ -96,7 +96,7 @@ void
 idt_init(const cpuid_t cpu_id)
 {
 	idt_ptr.limit = (sizeof(struct idt_entry) * NUM_IDT_ENTRIES) - 1;
-	idt_ptr.base  = (u32_t)&(idt_entries);
+	idt_ptr.base  = (u32_t) & (idt_entries);
 	memset(&(idt_entries), 0, sizeof(struct idt_entry) * NUM_IDT_ENTRIES);
 
 	outb(0x20, 0x11);

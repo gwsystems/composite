@@ -11,21 +11,21 @@
 #define debug(format, ...)
 #endif
 
-struct chan sc, rc;
+struct chan     sc, rc;
 struct chan_snd init_s;
 struct chan_snd s;
 struct chan_rcv r;
-struct evt e;
+struct evt      e;
 
-#define ITERATION 	10000
+#define ITERATION 10000
 #define READER_HIGH
 #define USE_EVTMGR
 /* #define PRINT_ALL */
 
-#define TEST_CHAN_ITEM_SZ   sizeof(u32_t)
-#define TEST_CHAN_NSLOTS    2
-#define TEST_CHAN_SEND_ID   4
-#define TEST_CHAN_RECV_ID   3
+#define TEST_CHAN_ITEM_SZ sizeof(u32_t)
+#define TEST_CHAN_NSLOTS 2
+#define TEST_CHAN_SEND_ID 4
+#define TEST_CHAN_RECV_ID 3
 /* We are the sender, and we will be responsible for collecting resulting data */
 #ifdef READER_HIGH
 #define TEST_CHAN_PRIO_SELF 5
@@ -36,27 +36,33 @@ struct evt e;
 typedef unsigned int cycles_32_t;
 
 struct perfdata perf1, perf2, perf3;
-cycles_t result1[ITERATION] = {0, };
-cycles_t result2[ITERATION] = {0, };
-cycles_t result3[ITERATION] = {0, };
+cycles_t        result1[ITERATION] = {
+  0,
+};
+cycles_t result2[ITERATION] = {
+  0,
+};
+cycles_t result3[ITERATION] = {
+  0,
+};
 
 int
 main(void)
 {
-	int i;
-	cycles_t wakeup;
+	int         i;
+	cycles_t    wakeup;
 	cycles_32_t ts1, ts2, ts3;
-	int first = 0;
+	int         first = 0;
 #ifdef USE_EVTMGR
-	evt_res_id_t evt_id;
+	evt_res_id_t   evt_id;
 	evt_res_data_t evtdata;
-	evt_res_type_t  evtsrc;
+	evt_res_type_t evtsrc;
 #endif
 
 	printc("Component chan sender: executing main.\n");
-	
+
 	/* Send data to receiver so it can register for channels */
-	
+
 #ifdef USE_EVTMGR
 	assert(evt_init(&e, 2) == 0);
 	evt_id = evt_add(&e, 0, (evt_res_data_t)&r);
@@ -65,7 +71,7 @@ main(void)
 	printc("Sender side event created.\n");
 #endif
 
-	/* 
+	/*
 	 * This sleep in both hi and lo comps lets the benchmark run
 	 * more predictably on HW and on Qemu.
 	 *
@@ -84,7 +90,8 @@ main(void)
 		debug("w3,");
 #ifdef USE_EVTMGR
 		/* Receive from the events then the channel */
-		while (chan_recv(&r, &ts2, CHAN_NONBLOCKING) == CHAN_TRY_AGAIN) evt_get(&e, EVT_WAIT_DEFAULT, &evtsrc, &evtdata);
+		while (chan_recv(&r, &ts2, CHAN_NONBLOCKING) == CHAN_TRY_AGAIN)
+			evt_get(&e, EVT_WAIT_DEFAULT, &evtsrc, &evtdata);
 #else
 		chan_recv(&r, &ts2, 0);
 #endif
@@ -92,8 +99,9 @@ main(void)
 		debug("w4,");
 		ts3 = time_now();
 		debug("w5,");
-		
-		if (first == 0) first = 1;
+
+		if (first == 0)
+			first = 1;
 		else {
 			if (ts2 > ts1 && ts3 > ts2) {
 				perfdata_add(&perf1, ts2 - ts1);
@@ -102,7 +110,7 @@ main(void)
 			}
 		}
 	}
-	
+
 	perfdata_calc(&perf1);
 	perfdata_calc(&perf2);
 	perfdata_calc(&perf3);
@@ -122,7 +130,8 @@ main(void)
 	perfdata_print(&perf3);
 #endif
 
-	while(1);
+	while (1)
+		;
 }
 
 void

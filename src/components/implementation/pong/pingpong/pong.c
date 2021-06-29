@@ -7,17 +7,18 @@
 #include <barrier.h>
 
 /* Test the initialization order, and its relationship to ping */
-typedef enum {
+typedef enum
+{
 	PONG_UNINIT,
 	PONG_INIT,
 	PONG_PARINIT,
 	PONG_PARMAIN
 } pong_init_state_t;
 
-volatile pong_init_state_t state = PONG_UNINIT;
-struct simple_barrier init_barrier = SIMPLE_BARRIER_INITVAL;
-volatile coreid_t initcore;
-struct simple_barrier main_barrier = SIMPLE_BARRIER_INITVAL;
+volatile pong_init_state_t state        = PONG_UNINIT;
+struct simple_barrier      init_barrier = SIMPLE_BARRIER_INITVAL;
+volatile coreid_t          initcore;
+struct simple_barrier      main_barrier = SIMPLE_BARRIER_INITVAL;
 
 void
 cos_init(void)

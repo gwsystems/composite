@@ -132,9 +132,7 @@ kv_test(int max, alloc_fn_t a, free_fn_t f, lkupp_fn_t lp, add_fn_t add, del_fn_
 		assert(!add(dyn_vect, pairs[i].id, pairs[i].val));
 		assert(lp(dyn_vect, pairs[i].id) == pairs[i].val);
 	}
-	for (i = 0; i < NTESTS; i++) {
-		assert(lp(dyn_vect, pairs[i].id) == pairs[i].val);
-	}
+	for (i = 0; i < NTESTS; i++) { assert(lp(dyn_vect, pairs[i].id) == pairs[i].val); }
 	for (i = 0; i < NTESTS; i++) {
 		free(pairs[i].val);
 		assert(!d(dyn_vect, pairs[i].id));
@@ -177,9 +175,7 @@ ert_test(int max, int depth, alloc_fn_t a, lkup_fn_t l, lkupa_fn_t la, lkupan_fn
 			mem = 0;
 			assert(!en(v, pairs[i].id, j, &accum, &mem));
 			assert(lan(v, pairs[i].id, j, &accum));
-			if (j < depth && mem) {
-				assert(!lan(v, pairs[i].id, j + 1, &accum));
-			}
+			if (j < depth && mem) { assert(!lan(v, pairs[i].id, j + 1, &accum)); }
 			assert(alloc_cnt == (mem ? c + 1 : c));
 		}
 		assert((val = l(v, pairs[i].id)));

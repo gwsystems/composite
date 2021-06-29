@@ -8,7 +8,8 @@
 #ifndef ADDR_H
 #define ADDR_H
 
-typedef enum {
+typedef enum
+{
 	ADDR_HEAP_FRONTIER,
 	ADDR_CAPTBL_FRONTIER,
 } addr_t;

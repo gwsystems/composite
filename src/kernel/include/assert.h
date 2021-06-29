@@ -16,7 +16,7 @@
 #error "Assert in kernel already mysteriously defined."
 #endif
 
-#if ( COS_ASSERTIONS_ACTIVE != 0 )
+#if (COS_ASSERTIONS_ACTIVE != 0)
 #define assert(x)                                                                                           \
 	do {                                                                                                \
 		if (unlikely(0 == (x)))                                                                     \

@@ -22,17 +22,17 @@ static inline int
 cos_cas(unsigned long *target, unsigned long old, unsigned long updated)
 {
 	char z;
-	#if defined(__x86_64__)
+#if defined(__x86_64__)
 	__asm__ __volatile__("lock cmpxchgq %2, %0; setz %1"
 	                     : "+m"(*target), "=a"(z)
 	                     : "q"(updated), "a"(old)
 	                     : "memory", "cc");
-	#elif defined(__i386__)
+#elif defined(__i386__)
 	__asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"
 	                     : "+m"(*target), "=a"(z)
 	                     : "q"(updated), "a"(old)
 	                     : "memory", "cc");
-	#endif 
+#endif
 
 	return (int)z;
 }

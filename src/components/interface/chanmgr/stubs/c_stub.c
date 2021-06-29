@@ -7,9 +7,9 @@ COS_CLIENT_STUB(int, chanmgr_sync_resources, chan_id_t id, sched_blkpt_id_t *ful
 {
 	COS_CLIENT_INVCAP;
 	word_t f, e;
-	int ret;
+	int    ret;
 
-	ret  = cos_sinv_2rets(uc->cap_no, id, 0, 0, 0, &f, &e);
+	ret    = cos_sinv_2rets(uc->cap_no, id, 0, 0, 0, &f, &e);
 	*full  = (sched_blkpt_id_t)f;
 	*empty = (sched_blkpt_id_t)e;
 
@@ -20,9 +20,9 @@ COS_CLIENT_STUB(int, chanmgr_mem_resources, chan_id_t id, cbuf_t *cb, void **mem
 {
 	COS_CLIENT_INVCAP;
 	word_t c, _tmp;
-	int ret;
+	int    ret;
 
-	ret  = cos_sinv_2rets(uc->cap_no, id, 0, 0, 0, &c, &_tmp);
+	ret = cos_sinv_2rets(uc->cap_no, id, 0, 0, 0, &c, &_tmp);
 	*cb = (cbuf_t)c;
 	if (ret < 0) return ret;
 	/* Lets get our own mapping for the channel */

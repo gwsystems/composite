@@ -11,7 +11,7 @@ chal_timer_set(cycles_t cycles)
 		cycles -= now;
 	} else {
 		/* in the past? set to fire one tick from now! */
-		cycles  = CHAL_CYC_THRESH;
+		cycles = CHAL_CYC_THRESH;
 	}
 	chal_timer_disable();
 	/* Writing this will also write the counter register as well */
@@ -47,10 +47,10 @@ void
 pmc_ready(void)
 {
 	/* enable user-mode access to the performance counter*/
-	asm ("MCR p15, 0, %0, C9, C14, 0\n\t" :: "r"(1)); 
+	asm("MCR p15, 0, %0, C9, C14, 0\n\t" ::"r"(1));
 
 	/* disable counter overflow interrupts (just in case)*/
-	asm ("MCR p15, 0, %0, C9, C14, 2\n\t" :: "r"(0x8000000f));
+	asm("MCR p15, 0, %0, C9, C14, 2\n\t" ::"r"(0x8000000f));
 }
 
 void

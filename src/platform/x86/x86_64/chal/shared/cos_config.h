@@ -20,16 +20,16 @@
 #define NUM_CPU 1
 #define NUM_CPU_BMP_BYTES ((NUM_CPU + 7) / 8)
 #define NUM_CPU_BMP_WORDS ((NUM_CPU_BMP_BYTES + 3) / 4)
-/* 
- * FIXME: The macro to set a portion of memory of the booter to super pages - 
+/*
+ * FIXME: The macro to set a portion of memory of the booter to super pages -
  * should be dynamically passed from kernel to userlevel!
  */
-#define NUM_SUPERPAGES           139 
-#define MAX_USABLE_MEMORY        1700
+#define NUM_SUPERPAGES 139
+#define MAX_USABLE_MEMORY 1700
 /* FIXME: This is a hack - was 0xD800000, now expanded to 1200MB */
-#define EXTRA_MEMORY             ((MAX_USABLE_MEMORY - 512) << 20)
-#define EXTRA_SUPERPAGES         ((MAX_USABLE_MEMORY - 808) / 4)
-#define TOTAL_SUPERPAGES         (NUM_SUPERPAGES + EXTRA_SUPERPAGES - 1)
+#define EXTRA_MEMORY ((MAX_USABLE_MEMORY - 512) << 20)
+#define EXTRA_SUPERPAGES ((MAX_USABLE_MEMORY - 808) / 4)
+#define TOTAL_SUPERPAGES (NUM_SUPERPAGES + EXTRA_SUPERPAGES - 1)
 
 /*
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
@@ -38,13 +38,16 @@
  */
 #define COS_MEM_KERN_PA (0x00100000)
 #define COS_MEM_KERN_PA_ORDER (29)
-#define COS_MEM_KERN_PA_SZ ((1 << COS_MEM_KERN_PA_ORDER) - (1<<26)) /* FIXME: Need a way to get physical memory size from kernel. Cannot use a hardcoded value, actual memory could be much lower! */
+#define COS_MEM_KERN_PA_SZ                                                                                        \
+	((1 << COS_MEM_KERN_PA_ORDER)                                                                             \
+	 - (1 << 26)) /* FIXME: Need a way to get physical memory size from kernel. Cannot use a hardcoded value, \
+	                 actual memory could be much lower! */
 
 #define COS_MEM_COMP_START_VA ((1 << 30) + (1 << 22)) /* 1GB + 4MB (a relic) */
 #define COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK 0x0000ff8000000000
 #define COS_MEM_KERN_START_VA (0xffff800000000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
 
-#define COS_HW_MMIO_MAX_SZ (1 << 27) /* Assuming a MAX of 128MB for MMIO. */
+#define COS_HW_MMIO_MAX_SZ (1 << 27)                                   /* Assuming a MAX of 128MB for MMIO. */
 #define COS_PHYMEM_MAX_SZ ((1 << 30) - (1 << 22) - COS_HW_MMIO_MAX_SZ) /* 1GB - 4MB - MMIO sz */
 
 #define COS_PHYMEM_END_PA ((1 << 30) - COS_HW_MMIO_MAX_SZ) /* Maximum usable physical memory */
@@ -118,15 +121,14 @@
 #define COS_PGTBL_ORDER_PGD 22
 
 /* Page sizes */
-#define COS_PGTBL_NUM_ORDER      2
-#define COS_PGTBL_ORDERS         COS_PGTBL_ORDER_PTE, COS_PGTBL_ORDER_PGD
+#define COS_PGTBL_NUM_ORDER 2
+#define COS_PGTBL_ORDERS COS_PGTBL_ORDER_PTE, COS_PGTBL_ORDER_PGD
 #define COS_PGTBL_ORDER2POS /* 0/1B    1/2B    2/4B    3/8B   4/16B   5/32B   6/64B  7/128B  8/256B  9/512B */ \
-				-1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1, \
-		  	    /* 10/1K   11/2K   12/4K   13/8K  14/16K  15/32K  16/64K 17/128K 18/256K 19/512K */ \
-		  		-1,     -1,      0,     -1,     -1,     -1,     -1,     -1,     -1,     -1, \
-		  	    /* 20/1M   21/2M   22/4M   23/8M  24/16M  25/32M  26/64M 27/128M 28/256M 29/512M */ \
-		  		-1,     -1,      1,     -1,     -1,     -1,     -1,     -1,     -1,     -1, \
-  		  	    /* 30/1G   31/2G */ \
-		  		-1,     -1 \
+	-1, -1, -1, -1, -1, -1, -1, -1, -1,                                                                    \
+	  -1, /* 10/1K   11/2K   12/4K   13/8K  14/16K  15/32K  16/64K 17/128K 18/256K 19/512K */              \
+	  -1, -1, 0, -1, -1, -1, -1, -1, -1,                                                                   \
+	  -1, /* 20/1M   21/2M   22/4M   23/8M  24/16M  25/32M  26/64M 27/128M 28/256M 29/512M */              \
+	  -1, -1, 1, -1, -1, -1, -1, -1, -1, -1, /* 30/1G   31/2G */                                           \
+	  -1, -1
 
 #endif /* COS_CONFIG_H */

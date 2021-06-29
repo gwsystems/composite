@@ -15,7 +15,7 @@
 void serial_init(void);
 #endif
 
-#define PRINTK(format, ...) printk("%d: " format, get_cpuid(), ## __VA_ARGS__)
+#define PRINTK(format, ...) printk("%d: " format, get_cpuid(), ##__VA_ARGS__)
 
 /* These numbers map directly to actual timers in the HPET */
 typedef enum
@@ -51,7 +51,7 @@ void smp_init(volatile int *cores_ready);
 void tls_update(u32_t addr);
 
 // void printk(const char *fmt, ...);
-int printk_register_handler(void (*handler)(const char *));
+int  printk_register_handler(void (*handler)(const char *));
 void print_pt_regs(struct pt_regs *r);
 
 void khalt(void);

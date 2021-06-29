@@ -18,23 +18,23 @@
 #include <addr.h>
 
 struct cm_rcv {
-	struct crt_rcv rcv;
+	struct crt_rcv  rcv;
 	struct cm_comp *sched;
 };
 
 struct cm_comp {
 	struct crt_comp comp;
-	struct cm_rcv *sched_rcv;    /* rcv cap for this scheduler or NULL if not a scheduler */
-	struct cm_rcv *sched_parent; /* rcv cap for this scheduler's scheduler, or NULL */
+	struct cm_rcv * sched_rcv;    /* rcv cap for this scheduler or NULL if not a scheduler */
+	struct cm_rcv * sched_parent; /* rcv cap for this scheduler's scheduler, or NULL */
 };
 
 struct cm_thd {
-	struct sl_thd  *sched_thd; /* scheduler data-structure for the thread */
-	struct crt_thd  thd;
+	struct sl_thd *sched_thd; /* scheduler data-structure for the thread */
+	struct crt_thd thd;
 
-	struct cm_comp *client; /* component thread begins execution in */
-	struct cm_comp *sched;	/* The scheduler that has the alias */
-	thdcap_t aliased_cap;	/* location thread is aliased into the scheduler. */
+	struct cm_comp *client;      /* component thread begins execution in */
+	struct cm_comp *sched;       /* The scheduler that has the alias */
+	thdcap_t        aliased_cap; /* location thread is aliased into the scheduler. */
 };
 
 struct cm_asnd {
@@ -49,12 +49,12 @@ struct cm_asnd {
 
 struct mm_mapping {
 	SS_STATE_T(struct cm_comp *) comp;
-	vaddr_t     addr;
+	vaddr_t addr;
 };
 
 typedef unsigned int cbuf_t;
 struct mm_page {
-	void *page;
+	void *            page;
 	struct mm_mapping mappings[MM_MAPPINGS_MAX];
 };
 
@@ -132,8 +132,8 @@ cm_rcv_alloc_in(struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t cl
 struct cm_thd *
 cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, thdclosure_index_t closure_id)
 {
-	struct cm_thd *t = ss_thd_alloc();
-	struct crt_thd_resources res = { 0 };
+	struct cm_thd *          t   = ss_thd_alloc();
+	struct crt_thd_resources res = {0};
 
 	if (!t) return NULL;
 	if (crt_thd_create_in(&t->thd, &c->comp, closure_id)) {
@@ -166,8 +166,8 @@ static struct mm_page *
 mm_page_alloc(struct cm_comp *c)
 {
 	struct mm_mapping *m;
-	struct mm_page    *ret = NULL, *p;
-	int    i;
+	struct mm_page *   ret = NULL, *p;
+	int                i;
 
 	p = ss_page_alloc();
 	if (!p) return NULL;
@@ -194,16 +194,14 @@ static struct mm_page *
 mm_page_allocn(struct cm_comp *c, unsigned long num_pages)
 {
 	struct mm_page *p, *prev, *initial;
-	unsigned long i;
+	unsigned long   i;
 
 	initial = prev = p = mm_page_alloc(c);
 	if (!p) return 0;
 	for (i = 1; i < num_pages; i++) {
 		p = mm_page_alloc(c);
 		if (!p) return NULL;
-		if ((prev->page + 4096) != p->page) {
-			BUG(); /* FIXME: handle concurrency */
-		}
+		if ((prev->page + 4096) != p->page) { BUG(); /* FIXME: handle concurrency */ }
 	}
 
 	return initial;
@@ -229,7 +227,7 @@ memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr)
 	struct cm_comp *c;
 	struct mm_page *p;
 	struct mm_span *s;
-	cbuf_t ret = 0;
+	cbuf_t          ret = 0;
 
 	c = ss_comp_get(cos_inv_token());
 	if (!c) return 0;
@@ -263,7 +261,7 @@ static int
 mm_page_alias(struct mm_page *p, struct cm_comp *c, vaddr_t *addr)
 {
 	struct mm_mapping *m;
-	int i;
+	int                i;
 
 	*addr = 0;
 	for (i = 1; i < MM_MAPPINGS_MAX; i++) {
@@ -288,11 +286,11 @@ memmgr_shared_page_map(cbuf_t id, vaddr_t *pgaddr)
 	struct cm_comp *c;
 	struct mm_span *s;
 	struct mm_page *p;
-	unsigned int i;
-	vaddr_t addr;
+	unsigned int    i;
+	vaddr_t         addr;
 
 	*pgaddr = 0;
-	s = ss_span_get(id);
+	s       = ss_span_get(id);
 	if (!s) return 0;
 	c = ss_comp_get(cos_inv_token());
 	if (!c) return 0;
@@ -315,7 +313,7 @@ capmgr_comp_sched_hier_get(compid_t cid)
 {
 #define SCHED_STR_SZ 36 /* base-10 32 bit int + "sched_hierarchy/" */
 	char *sched;
-	char serialized[SCHED_STR_SZ];
+	char  serialized[SCHED_STR_SZ];
 
 	snprintf(serialized, SCHED_STR_SZ, "scheduler_hierarchy/%ld", cid);
 	sched = args_get(serialized);
@@ -329,7 +327,7 @@ capmgr_comp_sched_get(compid_t cid)
 {
 #define INIT_STR_SZ 35 /* base-10 32 bit int + "init_hierarchy/" */
 	char *sched;
-	char serialized[SCHED_STR_SZ];
+	char  serialized[SCHED_STR_SZ];
 
 	snprintf(serialized, SCHED_STR_SZ, "init_hierarchy/%ld", cid);
 	sched = args_get(serialized);
@@ -341,12 +339,12 @@ capmgr_comp_sched_get(compid_t cid)
 static void
 capmgr_comp_init(void)
 {
-	struct initargs cap_entries, exec_entries, curr;
+	struct initargs      cap_entries, exec_entries, curr;
 	struct initargs_iter i;
-	vaddr_t vasfr = 0;
-	capid_t capfr = 0;
-	int ret, cont;
-	struct cm_comp *comp;
+	vaddr_t              vasfr = 0;
+	capid_t              capfr = 0;
+	int                  ret, cont;
+	struct cm_comp *     comp;
 
 	int remaining = 0;
 	int num_comps = 0;
@@ -354,25 +352,28 @@ capmgr_comp_init(void)
 	/* ...then those that we're responsible for... */
 	ret = args_get_entry("captbl", &cap_entries);
 	assert(!ret);
-	printc("Capmgr: processing %d capabilities for components that have already been booted\n", args_len(&cap_entries));
+	printc("Capmgr: processing %d capabilities for components that have already been booted\n",
+	       args_len(&cap_entries));
 
-	for (cont = args_iter(&cap_entries, &i, &curr) ; cont ; ) {
-		compid_t sched_id;
-		compid_t id = 0;
-		struct crt_comp_resources comp_res = { 0 };
-		int keylen;
-		int j;
-		char id_serialized[16]; 	/* serialization of the id number */
-		char *name;
+	for (cont = args_iter(&cap_entries, &i, &curr); cont;) {
+		compid_t                  sched_id;
+		compid_t                  id       = 0;
+		struct crt_comp_resources comp_res = {0};
+		int                       keylen;
+		int                       j;
+		char                      id_serialized[16]; /* serialization of the id number */
+		char *                    name;
 
-		for (j = 0 ; j < 3 ; j++, cont = args_iter_next(&i, &curr)) {
+		for (j = 0; j < 3; j++, cont = args_iter_next(&i, &curr)) {
 			capid_t capid = atoi(args_key(&curr, &keylen));
-			char   *type  = args_get_from("type", &curr);
+			char *  type  = args_get_from("type", &curr);
 
 			assert(capid && type);
 
-			if (j == 0) id = atoi(args_get_from("target", &curr));
-			else        assert((compid_t)atoi(args_get_from("target", &curr)) == id);
+			if (j == 0)
+				id = atoi(args_get_from("target", &curr));
+			else
+				assert((compid_t)atoi(args_get_from("target", &curr)) == id);
 
 			if (!strcmp(type, "comp")) {
 				comp_res.compc = capid;
@@ -388,9 +389,7 @@ capmgr_comp_init(void)
 
 		assert(comp_res.compc && comp_res.ctc && comp_res.ptc);
 		sched_id = capmgr_comp_sched_get(id);
-		if (sched_id == 0) {
-			sched_id = capmgr_comp_sched_hier_get(id);
-		}
+		if (sched_id == 0) { sched_id = capmgr_comp_sched_hier_get(id); }
 		comp_res.heap_ptr        = addr_get(id, ADDR_HEAP_FRONTIER);
 		comp_res.captbl_frontier = addr_get(id, ADDR_CAPTBL_FRONTIER);
 
@@ -398,10 +397,9 @@ capmgr_comp_init(void)
 		name = args_get(id_serialized);
 		assert(name);
 		printc("\tCreating component %s: ", name);
-		printc("id %ld, caps (captbl:%ld, pgtbl:%ld,comp:%ld)",
-		       id, comp_res.ctc, comp_res.ptc, comp_res.compc);
-		printc(", captbl frontier %d, heap pointer %ld, scheduler %ld\n",
-		       comp_res.captbl_frontier, comp_res.heap_ptr, sched_id);
+		printc("id %ld, caps (captbl:%ld, pgtbl:%ld,comp:%ld)", id, comp_res.ctc, comp_res.ptc, comp_res.compc);
+		printc(", captbl frontier %d, heap pointer %ld, scheduler %ld\n", comp_res.captbl_frontier,
+		       comp_res.heap_ptr, sched_id);
 		comp = cm_comp_alloc_with(name, id, &comp_res);
 		assert(comp);
 	}
@@ -410,17 +408,17 @@ capmgr_comp_init(void)
 	ret = args_get_entry("execute", &exec_entries);
 	assert(!ret);
 	printc("Capmgr: %d components that need execution\n", args_len(&exec_entries));
-	for (cont = args_iter(&exec_entries, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct cm_comp    *cmc;
-		struct crt_comp   *comp;
-		int      keylen;
-		compid_t id        = atoi(args_key(&curr, &keylen));
-		char    *exec_type = args_value(&curr);
-		struct crt_comp_exec_context ctxt = { 0 };
+	for (cont = args_iter(&exec_entries, &i, &curr); cont; cont = args_iter_next(&i, &curr)) {
+		struct cm_comp *             cmc;
+		struct crt_comp *            comp;
+		int                          keylen;
+		compid_t                     id        = atoi(args_key(&curr, &keylen));
+		char *                       exec_type = args_value(&curr);
+		struct crt_comp_exec_context ctxt      = {0};
 
 		assert(exec_type);
 		assert(id != cos_compid());
-		cmc  = ss_comp_get(id);
+		cmc = ss_comp_get(id);
 		assert(cmc);
 		comp = &cmc->comp;
 
@@ -466,7 +464,7 @@ execute(void)
 void
 init_done(int parallel_init, init_main_t main_type)
 {
-	compid_t client = (compid_t)cos_inv_token();
+	compid_t         client = (compid_t)cos_inv_token();
 	struct crt_comp *c;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
@@ -481,7 +479,7 @@ init_done(int parallel_init, init_main_t main_type)
 void
 init_exit(int retval)
 {
-	compid_t client = (compid_t)cos_inv_token();
+	compid_t         client = (compid_t)cos_inv_token();
 	struct crt_comp *c;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
@@ -490,20 +488,21 @@ init_exit(int retval)
 
 	crt_compinit_exit(c, retval);
 
-	while (1) ;
+	while (1)
+		;
 }
 
 thdcap_t
 capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 {
-	compid_t schedid = (compid_t)cos_inv_token();
-	struct cm_thd *t;
+	compid_t        schedid = (compid_t)cos_inv_token();
+	struct cm_thd * t;
 	struct cm_comp *s, *c;
 
 	if (schedid != capmgr_comp_sched_get(client)) {
 		/* don't have permission to create execution in that component. */
-		printc("capmgr: Component asking to create thread from %ld in %ld -- no permission.\n",
-		       schedid, (compid_t)client);
+		printc("capmgr: Component asking to create thread from %ld in %ld -- no permission.\n", schedid,
+		       (compid_t)client);
 		return 0;
 	}
 
@@ -526,13 +525,19 @@ capmgr_initthd_create(spdid_t client, thdid_t *tid)
 	return capmgr_thd_create_ext(client, 0, tid);
 }
 
-thdcap_t  capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret) { BUG(); return 0; }
+thdcap_t
+capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin,
+                      u32_t ipimax, asndcap_t *sndret)
+{
+	BUG();
+	return 0;
+}
 
 thdcap_t
 capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid)
 {
-	compid_t client = (compid_t)cos_inv_token();
-	struct cm_thd *t;
+	compid_t        client = (compid_t)cos_inv_token();
+	struct cm_thd * t;
 	struct cm_comp *c;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
@@ -547,21 +552,57 @@ capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid)
 	return t->aliased_cap;
 }
 
-thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }
-thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv) { BUG(); return 0; }
-arcvcap_t capmgr_rcv_create(spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }
-asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t) { BUG(); return 0; }
-asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv) { BUG(); return 0; }
-asndcap_t capmgr_asnd_key_create(cos_channelkey_t key) { BUG(); return 0; }
+thdcap_t
+capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key,
+                        microsec_t ipiwin, u32_t ipimax)
+{
+	BUG();
+	return 0;
+}
+thdcap_t
+capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key,
+                      microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
+{
+	BUG();
+	return 0;
+}
+arcvcap_t
+capmgr_rcv_create(spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
+{
+	BUG();
+	return 0;
+}
+asndcap_t
+capmgr_asnd_create(spdid_t child, thdid_t t)
+{
+	BUG();
+	return 0;
+}
+asndcap_t
+capmgr_asnd_rcv_create(arcvcap_t rcv)
+{
+	BUG();
+	return 0;
+}
+asndcap_t
+capmgr_asnd_key_create(cos_channelkey_t key)
+{
+	BUG();
+	return 0;
+}
 
-void capmgr_create_noop(void) { return; }
+void
+capmgr_create_noop(void)
+{
+	return;
+}
 
 void
 cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
-	int ret;
+	struct cos_compinfo *   ci    = cos_compinfo_get(defci);
+	int                     ret;
 
 	printc("Starting the capability manager.\n");
 	assert(atol(args_get("captbl_end")) >= BOOT_CAPTBL_FREE);

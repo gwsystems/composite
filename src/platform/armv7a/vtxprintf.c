@@ -21,13 +21,13 @@
  */
 
 
-#define do_div(n, base)                       \
-	({                                    \
+#define do_div(n, base)                                \
+	({                                             \
 		unsigned int __base = (base);          \
 		unsigned int __rem;                    \
 		__rem = ((unsigned long)(n)) % __base; \
 		(n)   = ((unsigned long)(n)) / __base; \
-		__rem;                        \
+		__rem;                                 \
 	})
 
 

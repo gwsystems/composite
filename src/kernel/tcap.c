@@ -83,7 +83,7 @@ __tcap_budget_xfer(struct tcap *d, struct tcap *s, tcap_res_t cycles)
 
 	bd = &d->budget;
 	bs = &s->budget;
-	if (cycles == 0) cycles= s->budget.cycles;
+	if (cycles == 0) cycles = s->budget.cycles;
 	if (unlikely(TCAP_RES_IS_INF(cycles))) {
 		if (unlikely(!TCAP_RES_IS_INF(bs->cycles))) return -1;
 		bd->cycles = TCAP_RES_INF;

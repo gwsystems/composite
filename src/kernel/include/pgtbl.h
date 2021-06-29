@@ -22,7 +22,8 @@
 #endif
 
 /* Generic page table flags */
-typedef enum {
+typedef enum
+{
 	PGTBL_PRESENT  = 1,
 	PGTBL_WRITABLE = 1 << 1,
 	PGTBL_USER     = 1 << 2,
@@ -58,7 +59,7 @@ int            pgtbl_mapping_add(pgtbl_t pt, unsigned long addr, unsigned long p
 int            pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags);
 int            pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id);
 int            pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr);
-void          *pgtbl_lkup_lvl(pgtbl_t pt, unsigned long addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl);
+void *         pgtbl_lkup_lvl(pgtbl_t pt, unsigned long addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl);
 int            pgtbl_ispresent(u32_t flags);
 unsigned long *pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags);
 unsigned long *pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags);
@@ -90,33 +91,35 @@ pgtbl_init(void)
 }
 
 extern void kmem_unalloc(unsigned long *pte);
-int cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t order);
-int pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte);
+int         cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr,
+                            vaddr_t order);
+int         pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte);
 
 /* Chal related function prototypes */
 /* Do flag transformations */
-unsigned long  chal_pgtbl_flag_add(unsigned long input, pgtbl_flags_t flags);
-unsigned long  chal_pgtbl_flag_clr(unsigned long input, pgtbl_flags_t flags);
-unsigned long  chal_pgtbl_flag_exist(unsigned long input, pgtbl_flags_t flags);
-unsigned long  chal_pgtbl_flag_all(unsigned long input, pgtbl_flags_t flags);
-unsigned long  chal_pgtbl_frame(unsigned long input);
-unsigned long  chal_pgtbl_flag(unsigned long input);
+unsigned long chal_pgtbl_flag_add(unsigned long input, pgtbl_flags_t flags);
+unsigned long chal_pgtbl_flag_clr(unsigned long input, pgtbl_flags_t flags);
+unsigned long chal_pgtbl_flag_exist(unsigned long input, pgtbl_flags_t flags);
+unsigned long chal_pgtbl_flag_all(unsigned long input, pgtbl_flags_t flags);
+unsigned long chal_pgtbl_frame(unsigned long input);
+unsigned long chal_pgtbl_flag(unsigned long input);
 
-int            chal_pgtbl_kmem_act(pgtbl_t pt, unsigned long addr, unsigned long *kern_addr, unsigned long **pte_ret);
-int            chal_tlb_quiescence_check(u64_t timestamp);
-int            chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t order);
-int            chal_pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
-int            chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin,
-                                     livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
+int chal_pgtbl_kmem_act(pgtbl_t pt, unsigned long addr, unsigned long *kern_addr, unsigned long **pte_ret);
+int chal_tlb_quiescence_check(u64_t timestamp);
+int chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr,
+                         vaddr_t order);
+int chal_pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
+int chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
+                          capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
 
-int            chal_pgtbl_mapping_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t flags, u32_t order);
-int            chal_pgtbl_cosframe_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t flags, u32_t order);
+int chal_pgtbl_mapping_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t flags, u32_t order);
+int chal_pgtbl_cosframe_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t flags, u32_t order);
 /* This function updates flags of an existing mapping. */
 int            chal_pgtbl_mapping_mod(pgtbl_t pt, unsigned long addr, u32_t flags, u32_t *prevflags);
 int            chal_pgtbl_mapping_del(pgtbl_t pt, unsigned long addr, u32_t liv_id);
 int            chal_pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr);
 int            chal_pgtbl_mapping_scan(struct cap_pgtbl *pt);
-void          *chal_pgtbl_lkup_lvl(pgtbl_t pt, unsigned long addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl);
+void *         chal_pgtbl_lkup_lvl(pgtbl_t pt, unsigned long addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl);
 int            chal_pgtbl_ispresent(u32_t flags);
 unsigned long *chal_pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags);
 unsigned long *chal_pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags);
@@ -127,16 +130,17 @@ int            chal_pgtbl_quie_check(u32_t orig_v);
 void           chal_pgtbl_init_pte(void *pte);
 
 /* Creation of the table object - not to be confused with activation of cap */
-int            chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_order);
+int chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap,
+                             capid_t pgtbl_order);
 /* Deactivate */
-int            chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa);
+int chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa);
 /* Page mapping */
-int            chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pgtbl *ctfrom, capid_t capin_from, cap_t cap_type, vaddr_t order);
+int chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pgtbl *ctfrom, capid_t capin_from,
+                   cap_t cap_type, vaddr_t order);
 /* Cons & decons functions */
-int            chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandid, unsigned long depth);
-int            chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl);
+int chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandid, unsigned long depth);
+int chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl);
 /* Introspection */
-int            chal_pgtbl_introspect(struct cap_header *ch, vaddr_t addr);
+int chal_pgtbl_introspect(struct cap_header *ch, vaddr_t addr);
 
 #endif /* PGTBL_H */
-

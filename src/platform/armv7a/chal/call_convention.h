@@ -57,26 +57,27 @@ static inline unsigned long
 __userregs_getinvret(struct pt_regs *regs)
 {
 	return regs->r0;
-} 
+}
 
 static inline void
 __userregs_setinv(struct pt_regs *regs, unsigned long id, unsigned long tok, unsigned long ip)
 {
-	regs->r0 = id;
-	regs->r1 = tok;
+	regs->r0     = id;
+	regs->r1     = tok;
 	regs->r15_pc = ip;
 }
 
 static inline void
 __userregs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsigned long ip)
 {
-	regs->r0 = ret;
+	regs->r0     = ret;
 	regs->r13_sp = sp;
 	regs->r15_pc = ip;
 }
 
 static inline void
-__userregs_setretvals(struct pt_regs *regs, unsigned long ret, unsigned long ret1, unsigned long ret2, unsigned long ret3)
+__userregs_setretvals(struct pt_regs *regs, unsigned long ret, unsigned long ret1, unsigned long ret2,
+                      unsigned long ret3)
 {
 	regs->r0 = ret;
 	regs->r2 = ret1;
@@ -173,11 +174,11 @@ regs_upcall_setup(struct pt_regs *regs, u32_t entry_addr, int option, int id, in
 {
 	regs->r0 = id;
 
-	regs->cpsr = CPSR_USER_LEVEL; 
-	regs->r1 = option;
-	regs->r2 = arg1;
-	regs->r3 = arg2;
-	regs->r4 = arg3;
+	regs->cpsr = CPSR_USER_LEVEL;
+	regs->r1   = option;
+	regs->r2   = arg1;
+	regs->r3   = arg2;
+	regs->r4   = arg3;
 
 	regs->r15_pc = entry_addr;
 

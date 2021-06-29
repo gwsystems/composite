@@ -103,8 +103,8 @@ asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, capid_t rcv_cap)
 	asndc->arcv_epoch = arcvc->epoch;
 	asndc->arcv_cpuid = arcvc->cpuid;
 	/* ...and initialize our own data */
-	asndc->cpuid          = get_cpuid();
-	asndc->arcv_capid     = rcv_cap;
+	asndc->cpuid      = get_cpuid();
+	asndc->arcv_capid = rcv_cap;
 
 	return 0;
 }
@@ -305,8 +305,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 
 	/* TODO: test this before pgtbl update...pre- vs. post-serialization */
 	__userregs_sinvupdate(regs);
-	__userregs_setinv(regs, thd->tid | (get_cpuid() << 16), sinvc->token,
-			  sinvc->entry_addr);
+	__userregs_setinv(regs, thd->tid | (get_cpuid() << 16), sinvc->token, sinvc->entry_addr);
 
 	return;
 }

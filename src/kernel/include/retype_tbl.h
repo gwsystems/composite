@@ -15,7 +15,8 @@
 #include "chal/cpuid.h"
 #include "chal.h"
 
-typedef enum {
+typedef enum
+{
 	RETYPETBL_UNTYPED  = 0, /* untyped physical frames. */
 	RETYPETBL_USER     = 1,
 	RETYPETBL_KERN     = 2,
@@ -28,24 +29,24 @@ typedef enum {
 #define RETYPE_REFCNT_MAX ((1 << RETYPE_ENT_REFCNT_SZ) - 1)
 #define RETYPE_REFCNT_GLB_MAX ((1 << RETYPE_ENT_GLB_REFCNT_SZ) - 1)
 
-/* 
+/*
  * This maintains the information of a collection of physical pages
  * (of one core).
  */
 struct retype_entry {
 	union refcnt_atom {
 		struct {
-			/* 
+			/*
 			 * The ref_cnt is the # of mappings in user space for user
 			 * memory, or # of mappings in kernel space for kernel memory.
 			 */
-			int ref_cnt : RETYPE_ENT_REFCNT_SZ;
+			int        ref_cnt : RETYPE_ENT_REFCNT_SZ;
 			mem_type_t type : RETYPE_ENT_TYPE_SZ;
 		} __attribute__((packed));
 		u32_t v;
 	} refcnt_atom;
 	u32_t __pad; /* let's make the size power of 2. */
-	/* 
+	/*
 	 * The timestamp of when the last unmapped happened. Used to
 	 * track TLB quiescence when retype.
 	 */
@@ -62,7 +63,7 @@ struct retype_entry_glb {
 			/* How many smaller subpages are typed as kernel? */
 			int kernel_cnt : RETYPE_ENT_GLB_REFCNT_SZ;
 			/* How many smaller subpages are typed as user-level? */
-			int user_cnt : RETYPE_ENT_GLB_REFCNT_SZ;
+			int        user_cnt : RETYPE_ENT_GLB_REFCNT_SZ;
 			mem_type_t type : RETYPE_ENT_TYPE_SZ;
 		} __attribute__((packed));
 		u32_t v;
@@ -97,7 +98,7 @@ extern struct retype_info retype_tbl[NUM_CPU];
  * retyping. NOT when doing mapping / unmapping. */
 struct retype_info_glb {
 	struct retype_entry_glb info;
-	char  __pad[CACHE_LINE - sizeof(struct retype_entry_glb)];
+	char                    __pad[CACHE_LINE - sizeof(struct retype_entry_glb)];
 } CACHE_ALIGNED;
 
 extern struct retype_info_glb glb_retype_tbl[N_RETYPE_SLOTS];
@@ -105,27 +106,28 @@ extern struct retype_info_glb glb_retype_tbl[N_RETYPE_SLOTS];
 #define COS_KMEM_BOUND (chal_kernel_mem_pa + PAGE_SIZE * COS_KERNEL_MEMORY)
 
 /* physical address boundary check */
-#define PA_BOUNDARY_CHECK()                                                                            \
-	do {                                                                                           \
+#define PA_BOUNDARY_CHECK()                                                                                            \
+	do {                                                                                                           \
 		if (unlikely(!(((unsigned long)pa >= COS_MEM_START) && ((unsigned long)pa < COS_MEM_BOUND))            \
-			     && !(((unsigned long)pa >= chal_kernel_mem_pa) && ((unsigned long)pa < COS_KMEM_BOUND)))) \
-			return -EINVAL;                                                                \
+		             && !(((unsigned long)pa >= chal_kernel_mem_pa) && ((unsigned long)pa < COS_KMEM_BOUND)))) \
+			return -EINVAL;                                                                                \
 	} while (0)
 
 /* get the index of the memory set. */
-#define GET_MEM_IDX(pa)                                                                 \
-	(((unsigned long)pa >= COS_MEM_START) ? (((unsigned long)(pa) - COS_MEM_START) / RETYPE_MEM_SIZE) \
-	                              : (((unsigned long)(pa) - chal_kernel_mem_pa) / RETYPE_MEM_SIZE + N_USER_MEM_SETS))
+#define GET_MEM_IDX(pa)                                              \
+	(((unsigned long)pa >= COS_MEM_START)                        \
+	   ? (((unsigned long)(pa)-COS_MEM_START) / RETYPE_MEM_SIZE) \
+	   : (((unsigned long)(pa)-chal_kernel_mem_pa) / RETYPE_MEM_SIZE + N_USER_MEM_SETS))
 /* The minimum/maximum page order - currently 4kB/1MB pages. This is fine because we don't support large pages on ARM */
-#define MIN_PAGE_ORDER               12
-#define MAX_PAGE_ORDER               22
-#define NUM_PAGE_SIZES               2
+#define MIN_PAGE_ORDER 12
+#define MAX_PAGE_ORDER 22
+#define NUM_PAGE_SIZES 2
 /* get the memory set struct of the current cpu */
-#define GET_RETYPE_POS(idx,order)    (((idx) >> ((order) - MIN_PAGE_ORDER)) + pos2base[order2pos[order]])
-#define GET_RETYPE_ENTRY(idx, order) ((&(retype_tbl[get_cpuid()].mem_set[GET_RETYPE_POS(idx,order)])))
-#define GET_RETYPE_CPU_ENTRY(cpu, idx, order) ((&(retype_tbl[cpu].mem_set[GET_RETYPE_POS(idx,order)])))
+#define GET_RETYPE_POS(idx, order) (((idx) >> ((order)-MIN_PAGE_ORDER)) + pos2base[order2pos[order]])
+#define GET_RETYPE_ENTRY(idx, order) ((&(retype_tbl[get_cpuid()].mem_set[GET_RETYPE_POS(idx, order)])))
+#define GET_RETYPE_CPU_ENTRY(cpu, idx, order) ((&(retype_tbl[cpu].mem_set[GET_RETYPE_POS(idx, order)])))
 /* get the global memory set struct (used for retyping only). */
-#define GET_GLB_RETYPE_ENTRY(idx, order) ((&(glb_retype_tbl[GET_RETYPE_POS(idx,order)].info)))
+#define GET_GLB_RETYPE_ENTRY(idx, order) ((&(glb_retype_tbl[GET_RETYPE_POS(idx, order)].info)))
 
 #define cos_throw(label, errno) \
 	{                       \

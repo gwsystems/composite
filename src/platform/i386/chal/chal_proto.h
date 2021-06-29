@@ -10,11 +10,11 @@
 #define PGTBL_DEPTH 2
 #define PGTBL_ENTRY_ORDER 10
 #define PGTBL_ENTRY (1 << PGTBL_ENTRY_ORDER)
-#define SUPER_PAGE_FLAG_MASK  (0x3FFFFF)
-#define SUPER_PAGE_PTE_MASK   (0x3FF000)
+#define SUPER_PAGE_FLAG_MASK (0x3FFFFF)
+#define SUPER_PAGE_PTE_MASK (0x3FF000)
 
 /* FIXME:find a better way to do this */
-#define EXTRACT_SUB_PAGE(super) ((super) & SUPER_PAGE_PTE_MASK)
+#define EXTRACT_SUB_PAGE(super) ((super)&SUPER_PAGE_PTE_MASK)
 
 /* Page table related prototypes & structs */
 /* make it an opaque type...not to be touched */
@@ -44,7 +44,8 @@ chal_pgtbl_update(struct pgtbl_info *pt)
 
 static inline asid_t
 chal_asid_alloc(void)
-{ return 0; }
+{
+	return 0;
+}
 
 #endif /* CHAL_PROTO_H */
-

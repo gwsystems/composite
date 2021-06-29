@@ -20,9 +20,7 @@ mark(char *c, int sz, char val)
 {
 	int i;
 
-	for (i = 0; i < sz; i++) {
-		c[i] = val;
-	}
+	for (i = 0; i < sz; i++) { c[i] = val; }
 }
 
 void
@@ -30,9 +28,7 @@ chk(char *c, int sz, char val)
 {
 	int i;
 
-	for (i = 0; i < sz; i++) {
-		assert(c[i] == val);
-	}
+	for (i = 0; i < sz; i++) { assert(c[i] == val); }
 }
 
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A"(val))
@@ -49,12 +45,8 @@ main(void)
 	l[0] = cslab_alloc_l();
 	rdtscll(start);
 	for (j = 0; j < ITER; j++) {
-		for (i = 0; i < 10; i++) {
-			s[i] = cslab_alloc_l();
-		}
-		for (i = 0; i < 10; i++) {
-			cslab_free_l(s[i]);
-		}
+		for (i = 0; i < 10; i++) { s[i] = cslab_alloc_l(); }
+		for (i = 0; i < 10; i++) { cslab_free_l(s[i]); }
 	}
 	rdtscll(end);
 	end = (end - start) / (ITER * 10);

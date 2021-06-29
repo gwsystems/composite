@@ -80,9 +80,9 @@ sched_blkpt_block(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, thdid_t dep
 thdid_t
 sched_thd_create_closure(thdclosure_index_t idx)
 {
-	spdid_t c = cos_inv_token();
+	spdid_t                 c = cos_inv_token();
 	struct cos_defcompinfo *dci;
-	struct sl_thd *t = NULL;
+	struct sl_thd *         t = NULL;
 
 	if (!c) return 0;
 	dci = sched_child_defci_get(sched_childinfo_find(c));
@@ -95,11 +95,12 @@ sched_thd_create_closure(thdclosure_index_t idx)
 }
 
 thdid_t
-sched_aep_create_closure(thdclosure_index_t id, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *rcv)
+sched_aep_create_closure(thdclosure_index_t id, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax,
+                         arcvcap_t *rcv)
 {
-	spdid_t c = cos_inv_token();
+	spdid_t                 c = cos_inv_token();
 	struct cos_defcompinfo *dci;
-	struct sl_thd *t = NULL;
+	struct sl_thd *         t = NULL;
 
 	if (!c) return 0;
 	dci = sched_child_defci_get(sched_childinfo_find(c));
@@ -114,7 +115,7 @@ sched_aep_create_closure(thdclosure_index_t id, int owntc, cos_channelkey_t key,
 int
 sched_thd_param_set(thdid_t tid, sched_param_t sp)
 {
-	spdid_t c = cos_inv_token();
+	spdid_t        c = cos_inv_token();
 	struct sl_thd *t = sl_thd_lkup(tid);
 
 	if (!c || !sched_childinfo_find(c)) return -1;
@@ -127,7 +128,7 @@ sched_thd_param_set(thdid_t tid, sched_param_t sp)
 int
 sched_thd_delete(thdid_t tid)
 {
-	spdid_t c = cos_inv_token();
+	spdid_t        c = cos_inv_token();
 	struct sl_thd *t = sl_thd_lkup(tid);
 
 	if (!c || !sched_childinfo_find(c)) return -1;

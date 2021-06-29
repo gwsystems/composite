@@ -19,15 +19,17 @@
 #define ITERATION 10000
 /* #define PRINT_ALL */
 
-thdid_t yield_hi = 0, yield_lo = 0;
+thdid_t           yield_hi = 0, yield_lo = 0;
 volatile cycles_t start;
 volatile cycles_t end;
 
 struct perfdata perf;
-cycles_t result[ITERATION] = {0, };
+cycles_t        result[ITERATION] = {
+  0,
+};
 
 /***
- * We're measuring 2-way context switch time. 
+ * We're measuring 2-way context switch time.
  */
 void
 yield_hi_thd(void *d)
@@ -54,11 +56,13 @@ yield_lo_thd(void *d)
 		end = time_now();
 
 		debug("l2,");
-		
-		if (first == 0) first = 1;
-		else perfdata_add(&perf, end - start);
+
+		if (first == 0)
+			first = 1;
+		else
+			perfdata_add(&perf, end - start);
 	}
-	
+
 	perfdata_calc(&perf);
 #ifdef PRINT_ALL
 	perfdata_all(&perf);
@@ -66,25 +70,23 @@ yield_lo_thd(void *d)
 	perfdata_print(&perf);
 #endif
 
-	while (1) ;
+	while (1)
+		;
 }
 
 void
 test_yield(void)
-{	
-	sched_param_t sps[] = {
-		SCHED_PARAM_CONS(SCHEDP_PRIO, 6),
-		SCHED_PARAM_CONS(SCHEDP_PRIO, 6)
-	};
+{
+	sched_param_t sps[] = {SCHED_PARAM_CONS(SCHEDP_PRIO, 6), SCHED_PARAM_CONS(SCHEDP_PRIO, 6)};
 
 	perfdata_init(&perf, "Context switch time", result, ITERATION);
-	
+
 	printc("Create threads:\n");
-	
+
 	yield_lo = sched_thd_create(yield_lo_thd, NULL);
 	printc("\tcreating lo thread %ld at prio %d\n", yield_lo, sps[1]);
 	sched_thd_param_set(yield_lo, sps[1]);
-	
+
 	yield_hi = sched_thd_create(yield_hi_thd, NULL);
 	printc("\tcreating hi thread %ld at prio %d\n", yield_hi, sps[0]);
 	sched_thd_param_set(yield_hi, sps[0]);

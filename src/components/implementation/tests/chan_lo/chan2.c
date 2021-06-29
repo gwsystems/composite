@@ -6,10 +6,10 @@
 struct chan_snd s;
 struct chan_rcv r;
 
-#define COMM_AMNT (2^10 * 16)
+#define COMM_AMNT (2 ^ 10 * 16)
 
 /*
- * Sync up chan_hi and chan_lo for benchmarks! 
+ * Sync up chan_hi and chan_lo for benchmarks!
  * Because this is chan_lo, recv first, and when it wakes up from rcv, send which immediately should yield to chan_hi
  */
 void
@@ -47,20 +47,18 @@ sender(void)
 void
 ipc(void)
 {
-	int i;
+	int      i;
 	ps_tsc_t prev_snd = 0, snd = 0, rcv = 0, tmp = 0;
 	ps_tsc_t rcvcost = 0, sendcost = 0, rtt = 0, h2l = 0;
 
 	for (i = 0; i < COMM_AMNT; i++) {
 		prev_snd = snd;
-		snd = ps_tsc();
+		snd      = ps_tsc();
 		if (prev_snd != 0) {
-			rtt     += snd - prev_snd;
+			rtt += snd - prev_snd;
 			rcvcost += snd - rcv;
 		}
-		if (tmp != 0) {
-			h2l += snd - tmp;
-		}
+		if (tmp != 0) { h2l += snd - tmp; }
 		if (chan_send(&s, &snd, 0)) {
 			printc("chan_send error\n");
 			assert(0);
@@ -77,7 +75,7 @@ ipc(void)
 	rendezvous();
 
 	printc("Thread with low priority (5):\n\trcv  %lld\n\tsend %lld\n\trtt  %lld\n\thigh->low %lld\n",
-	       rcvcost/COMM_AMNT, sendcost/COMM_AMNT, rtt/COMM_AMNT, h2l/COMM_AMNT);
+	       rcvcost / COMM_AMNT, sendcost / COMM_AMNT, rtt / COMM_AMNT, h2l / COMM_AMNT);
 }
 
 int
@@ -87,7 +85,7 @@ main(void)
 
 	printc("Component chan lo: executing main.\n");
 
-	/* 
+	/*
 	 * This sleep in both hi and lo comps lets the benchmark run
 	 * more predictably on HW and on Qemu.
 	 *
@@ -103,10 +101,10 @@ main(void)
 	return 0;
 }
 
-#define TEST_CHAN_ITEM_SZ   sizeof(u64_t)
-#define TEST_CHAN_NSLOTS    128
-#define TEST_CHAN_SEND_ID   2
-#define TEST_CHAN_RECV_ID   1
+#define TEST_CHAN_ITEM_SZ sizeof(u64_t)
+#define TEST_CHAN_NSLOTS 128
+#define TEST_CHAN_SEND_ID 2
+#define TEST_CHAN_RECV_ID 1
 #define TEST_CHAN_PRIO_SELF 5 /* chan_lo == low priority */
 
 void

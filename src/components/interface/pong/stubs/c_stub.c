@@ -22,10 +22,10 @@ COS_CLIENT_STUB(int, pong_argsrets, word_t p0, word_t p1, word_t p2, word_t p3, 
 COS_CLIENT_STUB(long long, pong_widerets, long long p0, long long p1)
 {
 	COS_CLIENT_INVCAP;
-	word_t r1 = 0, r2 = 0;
+	word_t    r1 = 0, r2 = 0;
 	long long ret = 0;
-	long p0h, p0l, p1h, p1l;
-	
+	long      p0h, p0l, p1h, p1l;
+
 	COS_ARG_DWORD_TO_WORD(p0, p0h, p0l);
 	COS_ARG_DWORD_TO_WORD(p1, p1h, p1l);
 

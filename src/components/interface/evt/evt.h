@@ -81,7 +81,8 @@ typedef word_t evt_res_data_t;
  */
 typedef word_t evt_res_id_t;
 
-typedef enum {
+typedef enum
+{
 	EVT_WAIT_DEFAULT     = 0,
 	EVT_WAIT_NONBLOCKING = 1
 } evt_wait_flags_t;
@@ -160,7 +161,7 @@ int evt_get(struct evt *evt, evt_wait_flags_t flags, evt_res_type_t *src, evt_re
  *     - `>0` is the resource id
  */
 evt_res_id_t evt_add(struct evt *e, evt_res_type_t srctype, evt_res_data_t ret_data);
-int evt_rem(struct evt *e, evt_res_id_t rid);
+int          evt_rem(struct evt *e, evt_res_id_t rid);
 
 int evt_trigger(evt_res_id_t rid);
 

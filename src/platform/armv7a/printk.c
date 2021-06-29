@@ -30,17 +30,14 @@ printk(const char *fmt, ...)
 }
 
 void
-print_pt_regs(struct pt_regs* regs)
+print_pt_regs(struct pt_regs *regs)
 {
 	PRINTK("Register hexdump (0x%p):\n", regs);
-	PRINTK("Argument-> R0: 0x%x, R1: 0x%x, R2: 0x%x, R3: 0x%x\n",
-	       regs->r0, regs->r1, regs->r2, regs->r3);
-	PRINTK("Variable-> R4: 0x%x, R5: 0x%x, R6: 0x%x, R7: 0x%x\n",
-	       regs->r4, regs->r5, regs->r6, regs->r7);
-	PRINTK("           R8: 0x%x, R9: 0x%x, R10: 0x%x, R11: 0x%x\n",
-	       regs->r8, regs->r9, regs->r10, regs->r11);
-	PRINTK("Special->  R12 (IP): 0x%x, R13 (SP): 0x%x, R14 (LR): 0x%x, R15 (PC): 0x%x\n",
-	       regs->r12, regs->r13_sp, regs->r14_lr, regs->r15_pc);
+	PRINTK("Argument-> R0: 0x%x, R1: 0x%x, R2: 0x%x, R3: 0x%x\n", regs->r0, regs->r1, regs->r2, regs->r3);
+	PRINTK("Variable-> R4: 0x%x, R5: 0x%x, R6: 0x%x, R7: 0x%x\n", regs->r4, regs->r5, regs->r6, regs->r7);
+	PRINTK("           R8: 0x%x, R9: 0x%x, R10: 0x%x, R11: 0x%x\n", regs->r8, regs->r9, regs->r10, regs->r11);
+	PRINTK("Special->  R12 (IP): 0x%x, R13 (SP): 0x%x, R14 (LR): 0x%x, R15 (PC): 0x%x\n", regs->r12, regs->r13_sp,
+	       regs->r14_lr, regs->r15_pc);
 	PRINTK("(CPSR: 0x%x)\n", regs->cpsr);
 }
 

@@ -13,7 +13,8 @@
 
 #include <string.h>
 
-typedef enum {
+typedef enum
+{
 	VTYPE_STR,
 	VTYPE_ARR,
 } args_valtype_t;
@@ -21,20 +22,20 @@ typedef enum {
 union args_val {
 	const char *str;
 	struct {
-		const int sz;
+		const int               sz;
 		const struct initargs **kvs;
 	} arr;
 };
 
 struct initargs {
-	const char *key;
+	const char *         key;
 	const args_valtype_t vtype;
 	const union args_val val;
 };
 
 struct initargs_iter {
 	const struct initargs *start;
-	int curr, len;
+	int                    curr, len;
 };
 
 extern const struct initargs __initargs_top;
@@ -63,9 +64,12 @@ args_value(const struct initargs *kv)
 {
 	if (!kv) return NULL;
 	switch (kv->vtype) {
-	case VTYPE_STR: return kv->val.str;
-	case VTYPE_ARR: return NULL;
-	default: 	return NULL;
+	case VTYPE_STR:
+		return kv->val.str;
+	case VTYPE_ARR:
+		return NULL;
+	default:
+		return NULL;
 	}
 }
 
@@ -80,9 +84,12 @@ __args_len(const struct initargs *kv)
 {
 	if (!kv) return 0;
 	switch (kv->vtype) {
-	case VTYPE_STR: return 1;
-	case VTYPE_ARR: return kv->val.arr.sz;
-	default:        return 0;
+	case VTYPE_STR:
+		return 1;
+	case VTYPE_ARR:
+		return kv->val.arr.sz;
+	default:
+		return 0;
 	}
 }
 
@@ -110,11 +117,7 @@ args_iter_next(struct initargs_iter *i)
 const struct initargs *
 args_iter(const struct initargs *kv, struct initargs_iter *i)
 {
-	*i = (struct initargs_iter){
-		.start = kv,
-		.curr  = 0,
-		.len   = __args_len(kv)
-	};
+	*i = (struct initargs_iter){.start = kv, .curr = 0, .len = __args_len(kv)};
 	return args_iter_next(i);
 }
 
@@ -128,19 +131,19 @@ args_iter(const struct initargs *kv, struct initargs_iter *i)
 const struct initargs *
 args_lkup_entry(const struct initargs *kv, char *path)
 {
-	struct initargs_iter i;
+	struct initargs_iter   i;
 	const struct initargs *curr;
-	unsigned int len;
-	char *slash, *key = path;
+	unsigned int           len;
+	char *                 slash, *key = path;
 
 	if (!kv || !key) return NULL;
 	/* Iterate through the path... */
 	do {
 		slash = strchr(key, '/');
-		len = slash ? (unsigned int)(slash - key) : strlen(key);
+		len   = slash ? (unsigned int)(slash - key) : strlen(key);
 
 		/* ...and look the key up in the KV */
-		for (curr = args_iter(kv, &i) ; curr ; curr = args_iter_next(&i)) {
+		for (curr = args_iter(kv, &i); curr; curr = args_iter_next(&i)) {
 			const char *k = args_key(curr);
 
 			if (strncmp(k, key, len) == 0 && strlen(k) == len) return curr;

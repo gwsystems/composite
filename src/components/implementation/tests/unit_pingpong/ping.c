@@ -10,16 +10,16 @@ volatile ps_tsc_t fast_path, all_args;
 void
 cos_init(void)
 {
-	int r0 = 0, r1 = 0;
+	int           r0 = 0, r1 = 0;
 	unsigned long r3 = 0;
-	compid_t us, them;
-	thdid_t tid;
-	int i;
-	ps_tsc_t begin, end;
-	long long a = (long long)3 << 32 | (long long)1;
-	long long b = (long long)4 << 32 | (long long)2;
-	int ret;
-	long long ret_ll;
+	compid_t      us, them;
+	thdid_t       tid;
+	int           i;
+	ps_tsc_t      begin, end;
+	long long     a = (long long)3 << 32 | (long long)1;
+	long long     b = (long long)4 << 32 | (long long)2;
+	int           ret;
+	long long     ret_ll;
 
 	printc("Ping component %ld: cos_init execution\n", cos_compid());
 
@@ -37,8 +37,8 @@ cos_init(void)
 	assert(ret == -1);
 	ret_ll = pong_widerets(a, b);
 	assert(ret_ll == (a + b));
-	a = 1;
-	b = 2;
+	a   = 1;
+	b   = 2;
 	ret = pong_wideargs(a, b);
 	assert(ret == (int)(a + b));
 	ret_ll = pong_widerets(a, b);
@@ -49,18 +49,14 @@ cos_init(void)
 	assert(cos_thdid() == tid && us != them && us == cos_compid());
 
 	begin = ps_tsc();
-	for (i = 0; i < ITER; i++) {
-		pong_call();
-	}
-	end = ps_tsc();
-	fast_path = (end - begin)/ITER;
+	for (i = 0; i < ITER; i++) { pong_call(); }
+	end       = ps_tsc();
+	fast_path = (end - begin) / ITER;
 
 	begin = ps_tsc();
-	for (i = 0; i < ITER; i++) {
-		pong_argsrets(0, 0, 0, 0, &r0, &r1);
-	}
-	end = ps_tsc();
-	all_args = (end - begin)/ITER;
+	for (i = 0; i < ITER; i++) { pong_argsrets(0, 0, 0, 0, &r0, &r1); }
+	end      = ps_tsc();
+	all_args = (end - begin) / ITER;
 
 	return;
 }

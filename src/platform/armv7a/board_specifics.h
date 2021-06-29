@@ -10,7 +10,7 @@
 #define CAV7_UART_BRDIV (*((volatile unsigned long *)(0xE0001034)))
 #define CAV7_UART_STATUS_TXE (1U << 3)
 
-#define KERN_MEM_END   0xBFFF0000
+#define KERN_MEM_END 0xBFFF0000
 
 #endif
 
