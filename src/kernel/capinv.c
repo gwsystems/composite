@@ -45,7 +45,7 @@ printfn(struct pt_regs *regs)
 	int   len;
 	char  kern_buf[MAX_LEN];
 
-	str = (char *)(u64_t)__userregs_get1(regs);
+	str = (char *)(unsigned long)__userregs_get1(regs);
 	len = __userregs_get2(regs);
 
 	if (len < 1) goto done;

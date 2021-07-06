@@ -71,7 +71,7 @@ struct cap_header {
 	cap_flags_t flags : CAP_HEAD_FLAGS_SZ;
 	cap_t       type : CAP_HEAD_TYPE_SZ;
 
-	u8_t post[0];
+	u8_t post[];
 } __attribute__((packed));
 
 struct cap_min {
