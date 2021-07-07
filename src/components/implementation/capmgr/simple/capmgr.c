@@ -221,7 +221,7 @@ memmgr_heap_page_allocn(unsigned long num_pages)
 	p = mm_page_allocn(c, num_pages);
 	if (!p) return 0;
 
-	return (vaddr_t)p->page;
+	return (vaddr_t)p->mappings[0].addr;
 }
 
 cbuf_t
