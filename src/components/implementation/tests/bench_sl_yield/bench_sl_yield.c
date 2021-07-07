@@ -19,7 +19,7 @@
 
 /* lo and hi is actually running at the same prio */
 #define ITERATION 10000
-/* #define PRINT_ALL */
+#define PRINT_ALL
 
 /* Ensure this is the same as what is in sl_mod_fprr.c */
 #define SL_FPRR_NPRIOS 32
@@ -32,7 +32,7 @@ struct sl_thd *testing_thread;
 thdid_t thdid1, thdid2;
 
 volatile cycles_t start;
-volatile cycles_t end;
+volatile int count;
 
 struct perfdata perf;
 cycles_t result[ITERATION] = {0, };
@@ -40,21 +40,32 @@ cycles_t result[ITERATION] = {0, };
 static void
 thd1_fn()
 {
-	/* Never stops running; low priority controls how many iters to run. */
-	while (1) {
+	cycles_t end;
+
+	while (count < ITERATION) {
 		debug("h1,");
+
+		start = time_now();
 		sl_thd_yield(thdid2);
+		end = time_now();
+
 		debug("h2,");
+
+		perfdata_add(&perf, end - start);
+
+		count++;
 	}
+
+	while (1); 
 }
 
 static void
 thd2_fn()
 {
 	int i;
-	int first = 0;
+	cycles_t end;
 
-	for (i = 0; i < ITERATION + 1; i++) {
+	while (count < ITERATION) {
 		debug("l1,");
 
 		start = time_now();
@@ -63,16 +74,16 @@ thd2_fn()
 
 		debug("l2,");
 		
-		if (first == 0) first = 1;
-		else perfdata_add(&perf, end - start);
+		perfdata_add(&perf, end - start);
+
+		count++;
 	}
 	
-	perfdata_calc(&perf);
 #ifdef PRINT_ALL
-	perfdata_all(&perf);
-#else
-	perfdata_print(&perf);
+	perfdata_raw(&perf);
 #endif
+	perfdata_calc(&perf);
+	perfdata_print(&perf);
 
 	while (1) ;
 }
@@ -103,6 +114,8 @@ cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
+
+	count = 0;
 
 	PRINTC("Thread switch benchmark for the scheduling library (sl)\n");
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);

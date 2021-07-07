@@ -1,11 +1,17 @@
 #include <cos_kernel_api.h>
 #include <cos_types.h>
+#include <perfdata.h>
 #include <pong.h>
 #include <ps.h>
 
-#define ITER 1024
+#define ITER 10 * 1000
+#define PRINT_ALL
 
 volatile ps_tsc_t fast_path, all_args;
+
+struct perfdata perf1, perf2;
+ps_tsc_t        result1[ITER] = {0, };
+ps_tsc_t        result2[ITER] = {0, };
 
 void
 cos_init(void)
@@ -22,6 +28,7 @@ cos_init(void)
 	long long ret_ll;
 
 	printc("Ping component %ld: cos_init execution\n", cos_compid());
+
 
 	pong_call();
 	ret = pong_ret();
@@ -48,19 +55,27 @@ cos_init(void)
 	tid = pong_ids(&us, &them);
 	assert(cos_thdid() == tid && us != them && us == cos_compid());
 
-	begin = ps_tsc();
-	for (i = 0; i < ITER; i++) {
-		pong_call();
-	}
-	end = ps_tsc();
-	fast_path = (end - begin)/ITER;
+	perfdata_init(&perf1, "Ping-pong - fast_path", result1, ITER);
 
-	begin = ps_tsc();
 	for (i = 0; i < ITER; i++) {
-		pong_argsrets(0, 0, 0, 0, &r0, &r1);
+		begin = ps_tsc();
+		pong_call();
+		end = ps_tsc();
+
+		perfdata_add(&perf1, end - begin);
 	}
-	end = ps_tsc();
-	all_args = (end - begin)/ITER;
+
+	
+	perfdata_init(&perf2, "Ping-pong - three_return", result2, ITER);
+
+	for (i = 0; i < ITER; i++) {
+		begin = ps_tsc();
+		pong_argsrets(0, 0, 0, 0, &r0, &r1);
+		end = ps_tsc();
+
+		perfdata_add(&perf2, end - begin);
+	}
+
 
 	return;
 }
@@ -68,9 +83,19 @@ cos_init(void)
 int
 main(void)
 {
-	printc("Ping component %ld: main execution\n", cos_compid());
-	printc("Fast-path invocation: %llu cycles\n", fast_path);
-	printc("Three return value invocation: %llu cycles\n", all_args);
+#ifdef PRINT_ALL
+	perfdata_raw(&perf1);
+#endif
+	perfdata_calc(&perf1);
+	perfdata_print(&perf1);
+
+#ifdef PRINT_ALL
+	perfdata_raw(&perf2);
+#endif
+	perfdata_calc(&perf2);
+	perfdata_print(&perf2);
+
+	while(1);
 
 	return 0;
 }
