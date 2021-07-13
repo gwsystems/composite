@@ -24,7 +24,11 @@
 
 #define CAPTBL_DEPTH 2
 #define CAPTBL_INTERNSZ (sizeof(int *))
-#define CAPTBL_INTERN_ORD 8 /* log(PAGE_SIZE/(2*(CAPTBL_DEPTH-1)*CAPTBL_INTERNSZ)) */
+#if defined(__x86_64__)
+	#define CAPTBL_INTERN_ORD 8 /* log(PAGE_SIZE/(2*(CAPTBL_DEPTH-1)*CAPTBL_INTERNSZ)) */
+#else
+	#define CAPTBL_INTERN_ORD 9
+#endif
 #define CAPTBL_LEAFSZ (sizeof(struct cap_min))
 #define CAPTBL_LEAF_ORD 7 /* log(PAGE_SIZE/(2*CAPTBL_LEAFSZ)) */
 
