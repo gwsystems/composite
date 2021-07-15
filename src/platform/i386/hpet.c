@@ -55,6 +55,8 @@
 
 #define HPET_INT_ENABLE(n) (*hpet_interrupt = (0x1 << n)) /* Clears the INT n for level-triggered mode. */
 
+struct cap_asnd hw_asnd_caps[HW_IRQ_TOTAL];
+
 static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;
 static volatile u64_t *hpet_interrupt;
