@@ -36,7 +36,8 @@ kern_retype_initial(void)
 	}
 }
 
-u8_t *mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
+u8_t *
+mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 {
 	u8_t *        r = glb_memlayout.kern_boot_heap;
 	unsigned long i;

@@ -114,12 +114,14 @@ retypetbl_deref(void *pa, u32_t order)
 	struct page_record walk[NUM_PAGE_SIZES];
 	int found = 0;
 	int i, ret, idx;
-	memset(walk, 0, sizeof(struct page_record) * NUM_PAGE_SIZES);
+
 	assert(pa); /* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
 
 	idx = GET_MEM_IDX(pa);
 	assert(idx < N_MEM_SETS);
+
+	memset(walk, 0, sizeof(struct page_record) * NUM_PAGE_SIZES);
 
 	/* See if it is kernel or user */
 	for (i = POS(MAX_PAGE_ORDER); i >= POS(order); i--) {

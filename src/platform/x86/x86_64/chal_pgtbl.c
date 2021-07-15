@@ -51,7 +51,7 @@ chal_pgtbl_flag(unsigned long input)
 }
 
 int
-chal_pgtbl_kmem_act(pgtbl_t pt, unsigned long addr, unsigned long *kern_addr, unsigned long **pte_ret)
+chal_pgtbl_kmem_act(pgtbl_t pt, vaddr_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
 	struct ert_intern *pte;
 	unsigned long              orig_v, new_v, accum = 0;
@@ -264,7 +264,7 @@ err:
 }
 
 void *
-chal_pgtbl_lkup_lvl(pgtbl_t pt, unsigned long addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
+chal_pgtbl_lkup_lvl(pgtbl_t pt, vaddr_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
 {
 	unsigned long *intern = chal_pa2va((unsigned long)pt & 0x0000fffffffff000), *page = chal_pa2va((unsigned long)pt & 0x0000fffffffff000);
 	for (u32_t i = start_lvl; i < end_lvl;i++) {
@@ -276,7 +276,7 @@ chal_pgtbl_lkup_lvl(pgtbl_t pt, unsigned long addr, u32_t *flags, u32_t start_lv
 }
 
 int
-chal_pgtbl_mapping_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t flags, u32_t order)
+chal_pgtbl_mapping_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32_t order)
 {
 	int                ret = 0;
 	struct ert_intern *pte = 0;
@@ -321,7 +321,7 @@ chal_pgtbl_mapping_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t
 }
 
 int
-chal_pgtbl_cosframe_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t flags, u32_t order)
+chal_pgtbl_cosframe_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32_t order)
 {
 	struct ert_intern *pte;
 	u32_t              orig_v, accum = 0;
@@ -346,11 +346,7 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_
 		assert(orig_v == 0);
 		flags |= X86_PGTBL_SUPER;
 	} else if (order == PAGE_ORDER) {
-		//if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
-		//pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-		//					  PGTBL_DEPTH, &accum);
 		if (!pte) return -ENOENT;
-		//orig_v = (u32_t)(pte->next);
 		assert(orig_v == 0);
 	} else return -EINVAL;
 
@@ -359,7 +355,7 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_
 
 /* This function updates flags of an existing mapping. */
 int
-chal_pgtbl_mapping_mod(pgtbl_t pt, unsigned long addr, u32_t flags, u32_t *prevflags)
+chal_pgtbl_mapping_mod(pgtbl_t pt, vaddr_t addr, u32_t flags, u32_t *prevflags)
 {
 	/* Not used for now. TODO: add retypetbl_ref / _deref */
 
@@ -392,7 +388,7 @@ chal_pgtbl_mapping_mod(pgtbl_t pt, unsigned long addr, u32_t flags, u32_t *prevf
  * which tracks quiescence for us.
  */
 int
-chal_pgtbl_mapping_del(pgtbl_t pt, unsigned long addr, u32_t liv_id)
+chal_pgtbl_mapping_del(pgtbl_t pt, vaddr_t addr, u32_t liv_id)
 {
 	int                ret;
 	struct ert_intern *pte;
@@ -676,7 +672,8 @@ chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pg
 	return pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags, order);
 }
 
-/* FIXME: we need to ensure TLB quiescence for pgtbl cons/decons!
+/* 
+ * FIXME: we need to ensure TLB quiescence for pgtbl cons/decons!
  * ct - main table capability
  * ctsub - sub table capability
  * expandid - address to place the subtable

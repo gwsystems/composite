@@ -14,13 +14,14 @@ static u64_t make_code_desc(int dpl);
 static u64_t make_data_desc(int dpl);
 static void make_tss_desc(volatile u64_t * tss_desc, u64_t tss_addr);
 static void make_gdtr_operand(u8_t gdtr_addr[10], u16_t limit, u64_t base);
-static void flash_selectors(void);
+static void flush_selectors(void);
 
 void
 chal_tls_update(vaddr_t addr)
 {
 	int cpu_id = get_cpuid();
-	/* X86_64-FIXME: commented temporarily because currently I do not set up tls*/
+	assert(0);
+	/* X86_64-FIXME: commented temporarily because currently I do not set up tls */
 	//gdt[cpu_id].seg_descs[SEL_UGSEG / sizeof *gdt[cpu_id].seg_descs] = make_data_desc_at(3, (u32_t)addr);
 	/* force the reload of the segment cache */
 	asm volatile("movl %0, %%gs" : : "q"(SEL_UGSEG));
@@ -57,7 +58,7 @@ gdt_init(const cpuid_t cpu_id)
 	 * qemu does not check tss validity, but real machine does check 
 	 */
 	asm volatile("ltr %w0" : : "r"(SEL_TSS));
-	flash_selectors();
+	flush_selectors();
 }
 
 /* System segment or code/data segment? */
@@ -98,7 +99,7 @@ make_code_desc(int dpl)
 	      | (1 << 12)       /* 0=system, 1=code/data. */
 	      | (dpl << 13)     /* Descriptor privilege. */
 	      | (1 << 15)       /* Present. */
-		  | (1 << 21)       /* L bit. */
+	      | (1 << 21)       /* L bit. */
 	      | (0 << 22));       /* D/B bit. */
 
 	return e0 | ((u64_t)e1 << 32);
@@ -154,8 +155,12 @@ make_tss_desc(volatile u64_t * tss_desc, u64_t tss_addr)
 	*(tss_desc + 1) = e2;
 }
 
+/*
+ * After changing gdt, the cache in seletors might still use old value
+ * flush them use this function so the cache will use new value
+ */
 static void
-flash_selectors(void)
+flush_selectors(void)
 {
 	__asm__ __volatile__("mov %0, %%rax   \n\t"   
 						 "mov %%rax, %%ds  \n\t"

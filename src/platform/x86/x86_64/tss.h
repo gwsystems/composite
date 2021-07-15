@@ -2,8 +2,7 @@
 #define TSS_H
 
 #include "shared/cos_types.h"
-struct tss
-{
+struct tss {
     u32_t resv0;
     u64_t rsp0;
     u64_t rsp1;

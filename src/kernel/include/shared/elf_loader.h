@@ -67,6 +67,7 @@ elf_chk_format(struct elf_hdr *hdr)
 	/* Format:  "0x7fELF1" where the 1 is for 32 bit */
 	if (s[0] == 0x7f && s[1] == 'E' && s[2] == 'L' && s[3] == 'F' && s[4] == 1) return 1;
 	if (s[0] == 0x7f && s[1] == 'E' && s[2] == 'L' && s[3] == 'F' && s[4] == 2) return 2;
+
 	return -1;
 }
 
@@ -149,7 +150,7 @@ elf64_contig_mem(struct elf64_hdr *hdr, unsigned int nmem, struct elf_contig_mem
 	u32_t off;
 	unsigned int i, cntmem;
 
-	if (elf_chk_format((struct elf_hdr *)hdr) != 2||
+	if (elf_chk_format((struct elf_hdr *)hdr) != 2 ||
 	    hdr->e_phentsize != sizeof(struct elf64_proghdr)) return -1;
 
 	proghdr = (struct elf64_proghdr *)((char *)hdr + hdr->e_phoff);
@@ -171,6 +172,7 @@ elf64_contig_mem(struct elf64_hdr *hdr, unsigned int nmem, struct elf_contig_mem
 		.sz     = memsect->p_memsz,
 		.access = memsect->p_flags
 	};
+
 	return 0;
 }
 
@@ -180,9 +182,10 @@ elf64_contig_mem(struct elf64_hdr *hdr, unsigned int nmem, struct elf_contig_mem
 static inline vaddr_t
 elf_entry_addr(struct elf_hdr *hdr)
 {
-	if (elf_chk_format(hdr) == 1){
+	int ret = elf_chk_format(hdr);
+	if (ret == 1) {
 		return (vaddr_t)hdr->e_entry;
-	} else if(elf_chk_format(hdr) == 2){
+	} else if (ret == 2) {
 		return (vaddr_t)(((struct elf64_hdr* )hdr)->e_entry);
 	}
 
@@ -198,11 +201,12 @@ static inline int
 elf_contig_mem(struct elf_hdr *hdr, unsigned int nmem, struct elf_contig_mem *mem)
 {
 	int ret = elf_chk_format(hdr);
-	if (ret == 1){
+	if (ret == 1) {
 		return elf32_contig_mem(hdr, nmem, mem);
 	} else if (ret == 2) {
 		return elf64_contig_mem((struct elf64_hdr *)hdr, nmem, mem);
 	}
+
 	return -1;
 }
 

@@ -32,10 +32,6 @@ extern u8_t end; /* from the linker script */
 #define MEM_KB_ONLY(x) (((x) & ((1 << 20) - 1)) >> 10)
 #define MEM_MB_ONLY(x) ((x) >> 20)
 
-/*
- * X86_64-FIXME:
- * Change these two external variable into non-external
- */
 extern u8_t _binary_constructor_start, _binary_constructor_end;
 
 void
@@ -50,8 +46,7 @@ kern_memory_setup(u64_t mboot_addr, u64_t mboot_magic)
 		die("multiboot magic not correct\n");
 	}
 
-	if (mboot_addr & 7)
-    {
+	if (mboot_addr & 7) {
 	  die("mboot unligned mbi\n");
     }
 
@@ -63,9 +58,6 @@ kern_memory_setup(u64_t mboot_addr, u64_t mboot_magic)
 	glb_memlayout.mod_start = &_binary_constructor_start;
 	glb_memlayout.mod_end   = &_binary_constructor_end;
 
-	/* FIXME: set mod start and end temporarily in order to test */
-	//glb_memlayout.mod_start = &end + 1024;
-	//glb_memlayout.mod_end   = glb_memlayout.mod_start + 1024;
 	glb_memlayout.kern_boot_heap = mem_boot_start();
 	printk("kenrel mem layout:\n");
 	printk("\t- [%p, %p, %p)\n", glb_memlayout.mod_start, glb_memlayout.mod_end, glb_memlayout.kern_boot_heap);

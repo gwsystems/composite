@@ -212,7 +212,6 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 	/* Assume there are no more sections */
 	if (elf_contig_mem(kern_vaddr, 2, &s[2]) != 1) assert(0);
 
-
 	/* We have the elf information, time to do the virtual memory operations... */
 	boot_pgtbl_expand(ct, pgdcap, ptecap, label, s[0].vstart, round_up_to_page(s[0].sz) + s[1].sz);
 

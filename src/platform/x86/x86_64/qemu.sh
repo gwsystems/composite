@@ -1,5 +1,6 @@
 #!/bin/sh
 
+# we need this file to test the kernel img, so not to remove it
 mkdir -p iso/boot/grub
 cp grub.cfg iso/boot/grub/
 cp kernel.img iso/boot/

@@ -45,7 +45,7 @@ printfn(struct pt_regs *regs)
 	int   len;
 	char  kern_buf[MAX_LEN];
 
-	str = (char *)(unsigned long)__userregs_get1(regs);
+	str = (char *)(word_t)__userregs_get1(regs);
 	len = __userregs_get2(regs);
 
 	if (len < 1) goto done;
@@ -197,7 +197,7 @@ int
 kmem_deact_post(unsigned long *pte, unsigned long old_v)
 {
 	int   ret;
-	unsigned long new_v;
+	word_t new_v;
 	/* Unset coskmem bit. Release the kmem frame. */
 	new_v = chal_pgtbl_flag_clr(old_v, PGTBL_COSKMEM);
 

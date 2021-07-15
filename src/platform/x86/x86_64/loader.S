@@ -22,32 +22,22 @@ loader:
 	/* X86_64-FIXME: commented temparaily */
 	/* mov 	$(stack + STACKSIZE - STK_INFO_OFF), %esp */
 	movl	%eax, %ecx
-	/* X86_64-FIXME: movl %cr4, %eax -> movq %cr4, %rax */
 	movq    %cr4, %rax
 	orl     $((1<<4) | (1<<7)), %eax
-	/* X86_64-FIXME: movl %eax, %cr4 -> movq  %rax, %cr4 */
 	movq    %rax, %cr4
-	/* X86_64-FIXME: movl $(boot_comp_pgd-COS_MEM_KERN_START_VA), %eax -> movq  $(boot_comp_pgd-COS_MEM_KERN_START_VA), %rax*/
 	movq    $(boot_comp_pgd-COS_MEM_KERN_START_VA), %rax
-	/* X86_64-FIXME: movl %eax, %cr3 -> movq  %rax, %cr3 */
 	movq    %rax, %cr3
 
 	# Turn on paging.
-	/* X86_64-FIXME: movl %cr0, %eax -> movq  %cr0, %rax */
 	movq    %cr0, %rax
 	orl     $(1<<31), %eax
-	/* X86_64-FIXME: movl %eax, %cr0 ->  movq %rax, %cr0 */
 	movq    %rax, %cr0
 	cli
-	/* X86_64-FIXME: pushl %exx -> pushq %rxx*/
 	pushq %rsp
 	pushq %rcx
 	pushq %rbx
-	/* X86_64-FIXME: pushl $0 -> pushq %0 */ 
 	pushq $0  /* empty return value as we're jmping, not calling */
-	/* X86_64-FIXME: commented temparaily */
 	/* mov $kmain, %eax */
-	/* X86_64-FIXME: jmp *%eax -> jmp *%rax */ 
 	jmp *%rax
 
 .text
