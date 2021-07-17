@@ -4,7 +4,7 @@
  */
 
 OUTPUT_FORMAT(elf64-x86-64)
-ENTRY (entry_point)
+ENTRY (loader)
 phys = 0x00100000;  		/* This should be COS_MEM_KERN_PA */
 SECTIONS {
 
@@ -12,7 +12,7 @@ SECTIONS {
 
     .boottext : AT(phys) ALIGN(8)
     {
-       start.o(.text)
+       loader.o(.text)
     }
 
     boot_end = .;
@@ -21,6 +21,7 @@ SECTIONS {
 
     .text : AT(boot_end) {
         code = .;
+        loader.o(.smptext)
         *(.text)
         *(.rodata)
         . = ALIGN(4096);
