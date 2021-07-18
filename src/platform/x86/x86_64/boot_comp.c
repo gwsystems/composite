@@ -12,6 +12,7 @@
 #include <inv.h>
 #include <hw.h>
 #include <shared/elf_loader.h>
+#include <shared/cos_config.h>
 
 extern u8_t *boot_comp_pgd;
 
@@ -81,15 +82,25 @@ static int
 boot_nptes(unsigned long vaddr_start, unsigned long sz, int lvl)
 {
 	/* 
-	* Need the start address for edge cases
-	* 4 lvl page tables, each lvl is: 0, 1, 2, 3
-	* will return the number of lvl-th page tables needed.
-	*/	
+	 * Need the start address for edge cases
+	 * 4 lvl page tables, each lvl is: 0, 1, 2, 3
+	 * the 0, 1, 2 lvl page tables' order is 9, the 
+	 * last one order is 12, which is a page order
+	 * will return the number of lvl-th page tables needed.
+	 * the idea here is that page tables needed depends on
+	 * how many entries we have on higher lvl page table(s),
+	 * we calculate the entries one by one
+	 */	
 	assert(lvl > 0);
 	assert(sz > 0);
+	assert(vaddr_start <= COS_MEM_USER_MAX_VA);
+
 	unsigned long end_addr = (vaddr_start + sz - 1) >> PAGE_ORDER;
 	vaddr_start = vaddr_start >> PAGE_ORDER;
-	return ((end_addr >> ((4 - lvl) * 9)) - (vaddr_start >> ((4 - lvl) * 9)) + 1);
+
+	return ((end_addr >> ((PGTBL_DEPTH - lvl) * PGTBL_ENTRY_ORDER)) - 
+			(vaddr_start >> ((PGTBL_DEPTH - lvl) * PGTBL_ENTRY_ORDER)) 
+			+ 1);
 }
 
 static void
@@ -98,11 +109,11 @@ boot_pgtbl_expand(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char 
 {
 	int               ret;
 	u8_t *            ptes;
-	unsigned int      nptes = 0, lvl = 0, i;
+	unsigned int      nptes = 0, lvl, i;
 	struct cap_pgtbl *pte_cap, *pgd_cap;
 
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, ptecap, NULL, 1)) assert(0);
-	for (lvl=1; lvl < 4; lvl++){
+	for (lvl = 1; lvl < PGTBL_DEPTH; lvl++) {
 		nptes = boot_nptes(user_vaddr, range, lvl);
 		ptes  = mem_boot_alloc(nptes);
 		assert(ptes);
@@ -131,7 +142,8 @@ boot_pgtbl_expand(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char 
 			pte_cap->pgtbl = (pgtbl_t)p;
 			pte_cap->lvl = lvl;
 			/* hook the pte into the boot component's page tables */
-			ret = cap_cons(ct, pgdcap, ptecap, (capid_t)(user_vaddr + i * (1 << (12 + (4 - lvl) * 9))));
+			ret = cap_cons(ct, pgdcap, ptecap, 
+					(capid_t)(user_vaddr + i * (1 << (PAGE_ORDER + (PGTBL_DEPTH - lvl) * PGTBL_ENTRY_ORDER))));
 			assert(!ret);
 		}
 	}
@@ -163,7 +175,8 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 
 		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, PAGE_ORDER)) assert(0);
 		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, PAGE_ORDER)) assert(0);
-		assert(pf == (*(unsigned long*)chal_pgtbl_lkup_lvl((pgtbl_t)(pgtbl), mapat, &flags, 0, 4) & 0xfffffffffffff000));
+		assert(pf == (*(unsigned long*)chal_pgtbl_lkup_lvl((pgtbl_t)(pgtbl), mapat, &flags, 0, PGTBL_DEPTH) & 
+				PGTBL_ENTRY_ADDR_MASK));
 	}
 
 	return 0;
@@ -229,7 +242,7 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 void
 kern_boot_comp(const cpuid_t cpu_id)
 {
-	int            ret = 0, nkmemptes = 0;
+	int            ret = 0, nkmemptes = 0, lvl = 1;
 	unsigned int   i;
 	u8_t *         boot_comp_captbl;
 	pgtbl_t        pgtbl     = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
@@ -304,11 +317,10 @@ kern_boot_comp(const cpuid_t cpu_id)
 	if (pgtbl_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_UNTYPED_PT, pgtbl, 0)) assert(0);
 
 
-	for (int lvl=1; lvl < 4; lvl++){
+	for (lvl = 1; lvl < 4; lvl++) {
 		nkmemptes += boot_nptes(BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_end(), lvl);
 	}
 
-	//nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
 	boot_pgtbl_expand(glb_boot_ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
 			  BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_nalloc_end(nkmemptes));
 	ret = boot_pgtbl_mappings_add(glb_boot_ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",

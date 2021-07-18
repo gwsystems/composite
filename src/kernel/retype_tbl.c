@@ -187,7 +187,7 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 	if (type == RETYPETBL_KERN && chal_pa2va((paddr_t)pa) == NULL) return -EINVAL;
 
 	/* Get the global slot */
-    walk[POS(MAX_PAGE_ORDER)].p_glb = GET_GLB_RETYPE_ENTRY(idx, MAX_PAGE_ORDER);
+	walk[POS(MAX_PAGE_ORDER)].p_glb = GET_GLB_RETYPE_ENTRY(idx, MAX_PAGE_ORDER);
 	old_type = walk[POS(MAX_PAGE_ORDER)].p_glb->refcnt_atom.type;
 
 	/* only can retype untyped mem sets. */
@@ -200,12 +200,12 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 
 	/* Repetitively add the record of a page set to a type, into the level one above it */ 
 	for (i = POS(MAX_PAGE_ORDER) - 1; i >= POS(order); i--) {
-	    walk[i].p_glb = GET_GLB_RETYPE_ENTRY(idx, ORDER(i));
+		walk[i].p_glb = GET_GLB_RETYPE_ENTRY(idx, ORDER(i));
 		walk[i].inc_cnt = 0;
 		/* Do we need to update the next highest page size count? */ 
 		if (walk[i].p_glb->refcnt_atom.type == RETYPETBL_UNTYPED || 
-		    (((type == RETYPETBL_USER) && (walk[i].p_glb->refcnt_atom.user_cnt == 0)) ||
-		     ((type == RETYPETBL_KERN) && (walk[i].p_glb->refcnt_atom.kernel_cnt == 0)))) {
+			(((type == RETYPETBL_USER) && (walk[i].p_glb->refcnt_atom.user_cnt == 0)) ||
+			((type == RETYPETBL_KERN) && (walk[i].p_glb->refcnt_atom.kernel_cnt == 0)))) {
 			old_temp.refcnt_atom.v = walk[i + 1].p_glb->refcnt_atom.v; 
 			if (old_temp.refcnt_atom.type != RETYPETBL_UNTYPED) cos_throw(err, -EPERM); 
 			temp.refcnt_atom.v = old_temp.refcnt_atom.v;
@@ -225,7 +225,7 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 
 	/* typed as the other type? - if there is a retype/retype race */
 	if (((temp.refcnt_atom.type == RETYPETBL_KERN) && (type == RETYPETBL_USER)) ||
-	    ((temp.refcnt_atom.type == RETYPETBL_USER) && (type == RETYPETBL_KERN))) cos_throw(err, -ECASFAIL);
+		((temp.refcnt_atom.type == RETYPETBL_USER) && (type == RETYPETBL_KERN))) cos_throw(err, -ECASFAIL);
 
 	/* atomic update with CAS */
 	ret = atomic_type_swap(walk[POS(order)].p_glb, RETYPETBL_UNTYPED, RETYPETBL_RETYPING, 1);

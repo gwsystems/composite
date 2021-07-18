@@ -51,28 +51,28 @@ chal_pgtbl_flag(unsigned long input)
 }
 
 int
-chal_pgtbl_kmem_act(pgtbl_t pt, unsigned long addr, unsigned long *kern_addr, unsigned long **pte_ret)
+chal_pgtbl_kmem_act(pgtbl_t pt, vaddr_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
 	struct ert_intern *pte;
-	u32_t              orig_v, new_v, accum = 0;
+	unsigned long              orig_v, new_v, accum = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & addr) == 0);
 
 	/* Is this place really a pte? If there is a super page, reject the operation now */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 	                                          1, &accum);
 	if (unlikely(!pte)) return -ENOENT;
-	orig_v = (u32_t)(pte->next);
+	orig_v = (unsigned long)(pte->next);
 	if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
 
 	/* Get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 	                                          PGTBL_DEPTH, &accum);
 	if (unlikely(!pte)) return -ENOENT;
 	if (unlikely(__pgtbl_isnull(pte, 0, 0))) return -ENOENT;
 
-	orig_v = (u32_t)(pte->next);
+	orig_v = (unsigned long)(pte->next);
 	if (unlikely(!(orig_v & X86_PGTBL_COSFRAME))) return -EINVAL; /* can't activate non-frames */
 	if (unlikely(orig_v & X86_PGTBL_COSKMEM)) return -EEXIST;     /* can't re-activate kmem frames */
 	assert(!(orig_v & X86_PGTBL_QUIESCENCE));
@@ -237,7 +237,7 @@ chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 		assert(!pgtbl_cap && !cosframe_addr);
 	}
 
-	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+	if (cos_cas_32((u32_t *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	/*
 	 * deactivation success. We should either release the
@@ -263,12 +263,41 @@ err:
 	return ret;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wreturn-local-addr"
+void *
+chal_pgtbl_lkup_lvl(pgtbl_t pt, vaddr_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
+{
+#if defined(__x86_64__)
+	u32_t i;
+	unsigned long *intern = chal_pa2va((unsigned long)pt & PGTBL_ENTRY_ADDR_MASK);
+	unsigned long *page   = chal_pa2va((unsigned long)pt & PGTBL_ENTRY_ADDR_MASK);
+
+	assert(addr <= COS_MEM_USER_MAX_VA || addr >= COS_MEM_KERN_START_VA);
+	assert(start_lvl == 0);
+
+	for (i = start_lvl; i < end_lvl; i++) {
+		/* high 16 bits doesn't involve indexing, so we mask them */
+		addr = addr & (0xffffffffffff >> (PGTBL_ENTRY_ORDER * i));
+		intern = page + (addr >> (PAGE_ORDER + PGTBL_ENTRY_ORDER * (PGTBL_DEPTH - 1 - i))); 
+		page = chal_pa2va((*intern) & PGTBL_ENTRY_ADDR_MASK);
+	}
+
+	return intern;
+#elif defined(__i386__)
+	return __pgtbl_lkupani((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, start_lvl,
+							end_lvl, flags);
+#endif
+}
+#pragma GCC diagnostic pop
+
 int
-chal_pgtbl_mapping_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t flags, u32_t order)
+chal_pgtbl_mapping_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32_t order)
 {
 	int                ret = 0;
-	struct ert_intern *pte;
-	u32_t              orig_v, accum = 0;
+	struct ert_intern *pte = 0;
+	unsigned long      orig_v;
+	u32_t              accum = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
@@ -279,10 +308,16 @@ chal_pgtbl_mapping_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t
 	 * dereference the super page as a second-level pointer. Performance bummer.
 	 */
 	assert(order == PAGE_ORDER);
+
+#if defined(__x86_64__)
+	pte = (struct ert_intern *)chal_pgtbl_lkup_lvl((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr, &flags, 0, 4);
+#elif defined(__i386__)
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-						  PGTBL_DEPTH, &accum);
+						PGTBL_DEPTH, &accum);
+#endif
+
 	if (!pte) return -ENOENT;
-	orig_v = (u32_t)(pte->next);
+	orig_v = (unsigned long)(pte->next);
 	if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
 	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 
@@ -302,10 +337,11 @@ chal_pgtbl_mapping_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t
 }
 
 int
-chal_pgtbl_cosframe_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_t flags, u32_t order)
+chal_pgtbl_cosframe_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32_t order)
 {
 	struct ert_intern *pte;
-	u32_t              orig_v = 0, accum = 0;
+	unsigned long      orig_v = 0;
+	u32_t              accum = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
@@ -316,11 +352,15 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_
 	 * We have to do this manually, get the PGD first, to make sure that we will not
 	 * dereference the super page as a second-level pointer. Performance bummer.
 	 */
-	if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
+#if defined(__x86_64__)
+	pte = (struct ert_intern *)chal_pgtbl_lkup_lvl((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr, &flags, 0, 4);
+#elif defined(__i386__)
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
-						  PGTBL_DEPTH, &accum);
+						PGTBL_DEPTH, &accum);
+#endif
+
 	if (!pte) return -ENOENT;
-	orig_v = (u32_t)(pte->next);
+	orig_v = (unsigned long)(pte->next);
 	assert(orig_v == 0);
 
 	return __pgtbl_update_leaf(pte, (void *)(page | flags), 0);
@@ -328,7 +368,7 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, unsigned long addr, unsigned long page, u32_
 
 /* This function updates flags of an existing mapping. */
 int
-chal_pgtbl_mapping_mod(pgtbl_t pt, unsigned long addr, u32_t flags, u32_t *prevflags)
+chal_pgtbl_mapping_mod(pgtbl_t pt, vaddr_t addr, u32_t flags, u32_t *prevflags)
 {
 	/* Not used for now. TODO: add retypetbl_ref / _deref */
 
@@ -340,11 +380,11 @@ chal_pgtbl_mapping_mod(pgtbl_t pt, unsigned long addr, u32_t flags, u32_t *prevf
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
 	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 	                                          PGTBL_DEPTH, &accum);
 	if (__pgtbl_isnull(pte, 0, 0)) return -ENOENT;
 
-	orig_v = (u32_t)(pte->next);
+	orig_v = (unsigned long)(pte->next);
 	/**
 	 * accum contains flags from pgd as well, so don't use it to
 	 * get prevflags.
@@ -352,7 +392,7 @@ chal_pgtbl_mapping_mod(pgtbl_t pt, unsigned long addr, u32_t flags, u32_t *prevf
 	*prevflags = orig_v & PGTBL_FLAG_MASK;
 
 	/* and update the flags. */
-	return __pgtbl_update_leaf(pte, (void *)((orig_v & PGTBL_FRAME_MASK) | ((u32_t)flags & PGTBL_FLAG_MASK)),
+	return __pgtbl_update_leaf(pte, (void *)(unsigned long)((orig_v & PGTBL_FRAME_MASK) | ((u32_t)flags & PGTBL_FLAG_MASK)),
 	                           orig_v);
 }
 
@@ -361,7 +401,7 @@ chal_pgtbl_mapping_mod(pgtbl_t pt, unsigned long addr, u32_t flags, u32_t *prevf
  * which tracks quiescence for us.
  */
 int
-chal_pgtbl_mapping_del(pgtbl_t pt, unsigned long addr, u32_t liv_id)
+chal_pgtbl_mapping_del(pgtbl_t pt, vaddr_t addr, u32_t liv_id)
 {
 	int                ret;
 	struct ert_intern *pte;
@@ -379,22 +419,22 @@ chal_pgtbl_mapping_del(pgtbl_t pt, unsigned long addr, u32_t liv_id)
 	if (unlikely(ret)) goto done;
 
 	/* Get the PGD to see if we are deleting a superpage */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
                                                   1, &accum);
-	orig_v = (u32_t)(pte->next);
+	orig_v = (unsigned long)(pte->next);
 	if (!(orig_v & X86_PGTBL_PRESENT)) return -EEXIST;
 	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 	if (!(orig_v & X86_PGTBL_SUPER)) {
 		/* There is a pgd here. We are going to delete ptes in it */
-		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
+		pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 		                                          PGTBL_DEPTH, &accum);
-		orig_v = (u32_t)(pte->next);
+		orig_v = (unsigned long)(pte->next);
 		if (!(orig_v & X86_PGTBL_PRESENT)) return -EEXIST;
 		if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 		order = PAGE_ORDER;
 	} else order = SUPER_PAGE_ORDER;
 
-	ret = __pgtbl_update_leaf(pte, (void *)((liv_id << PGTBL_PAGEIDX_SHIFT) | X86_PGTBL_QUIESCENCE), orig_v);
+	ret = __pgtbl_update_leaf(pte, (void *)(unsigned long)((liv_id << PGTBL_PAGEIDX_SHIFT) | X86_PGTBL_QUIESCENCE), orig_v);
 	if (ret) cos_throw(done, ret);
 
 	/* decrement ref cnt on the frame. */
@@ -450,15 +490,7 @@ chal_pgtbl_mapping_scan(struct cap_pgtbl *pt)
 
 	return 0;
 }
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wreturn-local-addr"
-void *
-chal_pgtbl_lkup_lvl(pgtbl_t pt, unsigned long addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
-{
-	return __pgtbl_lkupani((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, start_lvl,
-	                       end_lvl, flags);
-}
-#pragma GCC diagnostic pop
+
 
 int
 chal_pgtbl_ispresent(u32_t flags)
@@ -636,7 +668,8 @@ chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pg
 	return pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags, order);
 }
 
-/* FIXME: we need to ensure TLB quiescence for pgtbl cons/decons!
+/* 
+ * FIXME: we need to ensure TLB quiescence for pgtbl cons/decons!
  * ct - main table capability
  * ctsub - sub table capability
  * expandid - address to place the subtable
@@ -645,7 +678,8 @@ chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pg
 int
 chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandid, unsigned long depth)
 {
-	u32_t flags = 0, old_pte, new_pte, old_v, refcnt_flags;
+	u32_t flags = 0, refcnt_flags, old_v;
+	unsigned long old_pte, new_pte;
 	unsigned long *    intern;
 	int                ret = 0;
 
@@ -658,7 +692,7 @@ chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandi
 	if ((refcnt_flags & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
 
 	refcnt_flags++;
-	ret = cos_cas((unsigned long *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
+	ret = cos_cas_32((u32_t *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
 	if (ret != CAS_SUCCESS) return -ECASFAIL;
 
 	new_pte = (u32_t)chal_va2pa(
@@ -754,7 +788,7 @@ chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa)
 	}
 
 	/* set the scan flag to avoid concurrent scanning. */
-	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS)
+	if (cos_cas_32((u32_t *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS)
 		return -ECASFAIL;
 
 	if (deact_cap->lvl == 0) {
@@ -770,7 +804,7 @@ chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa)
 
 	if (ret) {
 		/* unset scan and frozen bits. */
-		cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
+		cos_cas_32((u32_t *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
 		        l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
 		return ret;
 	}

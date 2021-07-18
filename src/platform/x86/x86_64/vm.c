@@ -17,7 +17,7 @@ struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED LARGE_BSS;
 #define KERN_INIT_PGD_IDX ((COS_MEM_KERN_START_VA & COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK) >> PGD_SHIFT)
 u64_t boot_comp_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {0};
 
-u64_t boot_comp_pgt3[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {0};
+u64_t boot_comp_pgt1[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {0};
 
 u64_t boot_ap_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
                                                              [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
@@ -76,12 +76,12 @@ kern_setup_image(void)
 	kern_pa_end   = chal_va2pa(mem_kmem_end());
 	/* ASSUMPTION: The static layout of boot_comp_pgd is identical to a pgd post-pgtbl_alloc */
 	/* FIXME: should use pgtbl_extend instead of directly accessing the pgd array... */
-	for (i = kern_pa_start; i < (unsigned long)round_up_to_pgt3_page(kern_pa_end); i += PGT3_RANGE, j++) {
-		boot_comp_pgt3[i / PGT3_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
+	for (i = kern_pa_start; i < (unsigned long)round_up_to_pgt1_page(kern_pa_end); i += PGT1_RANGE, j++) {
+		boot_comp_pgt1[i / PGT1_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 	}
 	boot_comp_pgd[0] = 0; /* unmap lower addresses */
 
-	kernel_mapped_offset = i / PGT3_RANGE;
+	kernel_mapped_offset = i / PGT1_RANGE;
 	#ifdef ENABLE_VGA
 		/* uses virtual address for VGA */
 		vga_high_init();
@@ -128,8 +128,8 @@ device_pa2va(paddr_t dev_addr)
 	int i;
 
 	for (i = 0; i < dev_map_off; i++) {
-		paddr_t rounded = round_to_pgt3_page(dev_addr);
-		if (round_to_pgt3_page(dev_mem[i].physaddr) == rounded) {
+		paddr_t rounded = round_to_pgt1_page(dev_addr);
+		if (round_to_pgt1_page(dev_mem[i].physaddr) == rounded) {
 			return (char *)dev_mem[i].virtaddr + (dev_addr - rounded);
 		}
 	}
@@ -155,23 +155,23 @@ device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags)
 	boot_state_assert(INIT_UT_MEM);
 	vaddr = device_pa2va(dev_addr);
 	if (vaddr) {
-		boot_comp_pgt3[((unsigned long)vaddr - (unsigned long)(COS_MEM_KERN_START_VA)) / PGT3_RANGE] |= pt_extra_flags; /* use the union of the flags */
+		boot_comp_pgt1[((unsigned long)vaddr - (unsigned long)(COS_MEM_KERN_START_VA)) / PGT1_RANGE] |= pt_extra_flags; /* use the union of the flags */
 
 		return vaddr;
 	}
 
 	/* Allocate a PGD/PGT3 region, and map it in */
 	assert(off < PAGE_SIZE / sizeof(unsigned long));
-	rounded = round_to_pgt3_page(dev_addr);
-	boot_comp_pgt3[off] = rounded | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL | pt_extra_flags;
+	rounded = round_to_pgt1_page(dev_addr);
+	boot_comp_pgt1[off] = rounded | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL | pt_extra_flags;
 	dev_mem[dev_map_off] = (struct dev_map) {
 		.physaddr = rounded,
-		.virtaddr = (void *)(off * PGT3_RANGE + COS_MEM_KERN_START_VA)
+		.virtaddr = (void *)(off * PGT1_RANGE + COS_MEM_KERN_START_VA)
 	};
 	dev_map_off++;
 	kernel_mapped_offset++;
 
-	assert(((unsigned long)device_pa2va(dev_addr) & (PGT3_RANGE-1)) == (dev_addr & (PGT3_RANGE-1)));
+	assert(((unsigned long)device_pa2va(dev_addr) & (PGT1_RANGE-1)) == (dev_addr & (PGT1_RANGE-1)));
 
 	return device_pa2va(dev_addr);
 }
@@ -184,13 +184,13 @@ kern_paging_map_init(void *pa)
 	paddr_t       kern_pa_start = 0, kern_pa_end = (paddr_t)pa;
 
 	/* lower mapping */
-	boot_comp_pgd[0] = (u64_t)chal_va2pa(&boot_comp_pgt3) | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE;
+	boot_comp_pgd[0] = (u64_t)chal_va2pa(&boot_comp_pgt1) | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE;
 	/* higher mapping */
-	boot_comp_pgd[KERN_INIT_PGD_IDX] = (u64_t)chal_va2pa(&boot_comp_pgt3) | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE;
+	boot_comp_pgd[KERN_INIT_PGD_IDX] = (u64_t)chal_va2pa(&boot_comp_pgt1) | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE;
 
 
-	for (i = kern_pa_start; i < (unsigned long)round_up_to_pgt3_page(kern_pa_end); i += PGT3_RANGE) {
-		boot_comp_pgt3[i / PGT3_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
+	for (i = kern_pa_start; i < (unsigned long)round_up_to_pgt1_page(kern_pa_end); i += PGT1_RANGE) {
+		boot_comp_pgt1[i / PGT1_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 	}
 }
 

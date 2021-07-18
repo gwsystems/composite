@@ -37,7 +37,7 @@ chal_pa2va(paddr_t address)
 static inline paddr_t
 chal_va2pa(void *address)
 {
-	return (paddr_t)((u32_t)address - COS_MEM_KERN_START_VA);
+	return (paddr_t)((unsigned long)address - COS_MEM_KERN_START_VA);
 }
 
 #endif /* CHAL_PLAT_H */

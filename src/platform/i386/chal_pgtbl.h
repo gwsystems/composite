@@ -43,15 +43,15 @@ __pgtbl_get(struct ert_intern *a, void *accum, int isleaf)
 {
 	(void)isleaf;
 	/* don't use | here as we only want the pte flags */
-	*(u32_t *)accum = (((u32_t)a->next) & PGTBL_FLAG_MASK);
-	return chal_pa2va((paddr_t)((((u32_t)a->next) & PGTBL_FRAME_MASK)));
+	*(u32_t *)accum = (((u32_t)(unsigned long)a->next) & PGTBL_FLAG_MASK);
+	return chal_pa2va((paddr_t)((((unsigned long)a->next) & PGTBL_FRAME_MASK)));
 }
 static int
 __pgtbl_isnull(struct ert_intern *a, void *accum, int isleaf)
 {
 	(void)isleaf;
 	(void)accum;
-	return !(((u32_t)(a->next)) & (X86_PGTBL_PRESENT | X86_PGTBL_COSFRAME));
+	return !(((u32_t)(unsigned long)(a->next)) & (X86_PGTBL_PRESENT | X86_PGTBL_COSFRAME));
 }
 static int
 __pgtbl_resolve(struct ert_intern *a, void *accum, int leaf, u32_t order, u32_t sz)
@@ -60,7 +60,7 @@ __pgtbl_resolve(struct ert_intern *a, void *accum, int leaf, u32_t order, u32_t 
 	(void)leaf;
 	(void)order;
 	(void)sz;
-	*(u32_t *)accum = (((u32_t)a->next) & PGTBL_FLAG_MASK);
+	*(u32_t *)accum = (((u32_t)(unsigned long)a->next) & PGTBL_FLAG_MASK);
 	return 1;
 }
 static void
@@ -82,9 +82,9 @@ __pgtbl_init(struct ert_intern *a, int isleaf)
 static inline int
 __pgtbl_setleaf(struct ert_intern *a, void *v)
 {
-	u32_t new, old;
-	old = (u32_t)(a->next);
-	new = (u32_t)(v);
+	unsigned long new, old;
+	old = (unsigned long)(a->next);
+	new = (unsigned long)(v);
 
 	if (!cos_cas((unsigned long *)a, old, new)) return -ECASFAIL;
 
@@ -96,11 +96,11 @@ __pgtbl_setleaf(struct ert_intern *a, void *v)
  * update when the existing value matches.
  */
 static inline int
-__pgtbl_update_leaf(struct ert_intern *a, void *v, u32_t old)
+__pgtbl_update_leaf(struct ert_intern *a, void *v, unsigned long old)
 {
-	u32_t new;
+	unsigned long new;
 
-	new = (u32_t)(v);
+	new = (unsigned long)(v);
 	if (!cos_cas((unsigned long *)a, old, new)) return -ECASFAIL;
 
 	return 0;
@@ -110,12 +110,12 @@ __pgtbl_update_leaf(struct ert_intern *a, void *v, u32_t old)
 static int
 __pgtbl_set(struct ert_intern *a, void *v, void *accum, int isleaf)
 {
-	u32_t old, new;
+	unsigned long old, new;
 	(void)accum;
 	assert(!isleaf);
 
-	old = (u32_t)a->next;
-	new = (u32_t)chal_va2pa((void *)((u32_t)v & PGTBL_FRAME_MASK)) | X86_PGTBL_INTERN_DEF;
+	old = (unsigned long)a->next;
+	new = (unsigned long)chal_va2pa((void *)((unsigned long)v & PGTBL_FRAME_MASK)) | X86_PGTBL_INTERN_DEF;
 
 	if (!cos_cas((unsigned long *)&a->next, old, new)) return -ECASFAIL;
 
@@ -139,7 +139,7 @@ pgtbl_alloc(void *page)
 }
 
 static int
-pgtbl_intern_expand(pgtbl_t pt, u32_t addr, void *pte, u32_t flags)
+pgtbl_intern_expand(pgtbl_t pt, unsigned long addr, void *pte, u32_t flags)
 {
 	unsigned long accum = (unsigned long)flags;
 	int           ret;
@@ -147,7 +147,7 @@ pgtbl_intern_expand(pgtbl_t pt, u32_t addr, void *pte, u32_t flags)
 	/* NOTE: flags currently ignored. */
 
 	assert(pt);
-	assert((PGTBL_FLAG_MASK & (u32_t)pte) == 0);
+	assert((PGTBL_FLAG_MASK & (unsigned long)pte) == 0);
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
 	if (!pte) return -EINVAL;
@@ -163,15 +163,15 @@ pgtbl_intern_expand(pgtbl_t pt, u32_t addr, void *pte, u32_t flags)
  * va2pa before returning
  */
 static void *
-pgtbl_intern_prune(pgtbl_t pt, u32_t addr)
+pgtbl_intern_prune(pgtbl_t pt, unsigned long addr)
 {
 	unsigned long accum = 0, *pgd;
 	void *        page;
 
 	assert(pt);
-	assert((PGTBL_FLAG_MASK & (u32_t)addr) == 0);
+	assert((PGTBL_FLAG_MASK & (unsigned long)addr) == 0);
 
-	pgd = __pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 1, &accum);
+	pgd = __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), (unsigned long)addr >> PGTBL_PAGEIDX_SHIFT, 1, &accum);
 	if (!pgd) return NULL;
 	page  = __pgtbl_get((struct ert_intern *)pgd, &accum, 0);
 	accum = 0;
@@ -183,12 +183,12 @@ pgtbl_intern_prune(pgtbl_t pt, u32_t addr)
 
 /* FIXME:  these pgd functions should be replaced with lookup_lvl functions (see below). Consider deleting this because we have lkup now */
 static void *
-pgtbl_get_pgd(pgtbl_t pt, u32_t addr)
+pgtbl_get_pgd(pgtbl_t pt, unsigned long addr)
 {
 	unsigned long accum = 0;
 
 	assert(pt);
-	return __pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 1, &accum);
+	return __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), (unsigned long)addr >> PGTBL_PAGEIDX_SHIFT, 1, &accum);
 }
 
 static int

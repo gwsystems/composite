@@ -30,17 +30,17 @@ struct pt_regs {
 	u64_t sp;
 	u64_t ss;
 };
-
+/* Naming scheme : PGT0 -> PGD, PGT1 -> 2-th lvl pgtbl, etc */
 #define PAGE_MASK (~(PAGE_SIZE - 1))
 #define PGD_SHIFT 39
 #define PGD_RANGE (1LU << PGD_SHIFT)
 #define PGD_SIZE PGD_RANGE
 #define PGD_MASK (~(PGD_RANGE - 1))
-#define PGD_PER_PTBL 1024
+#define PGD_PER_PTBL 512
 
-#define PGT3_SHIFT 30
-#define PGT3_RANGE (1UL << PGT3_SHIFT)
-#define PGT3_SIZE PGT3_RANGE
-#define PGT3_MASK (~(PGT3_RANGE - 1))
-#define PGT3_PER_PTBL 512
+#define PGT1_SHIFT 30
+#define PGT1_RANGE (1UL << PGT1_SHIFT)
+#define PGT1_SIZE PGT1_RANGE
+#define PGT1_MASK (~(PGT1_RANGE - 1))
+#define PGT1_PER_PTBL 512
 #endif /* CHAL_CONSTS_H */

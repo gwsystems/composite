@@ -41,7 +41,14 @@
 #define COS_MEM_KERN_PA_SZ ((1 << COS_MEM_KERN_PA_ORDER) - (1<<26)) /* FIXME: Need a way to get physical memory size from kernel. Cannot use a hardcoded value, actual memory could be much lower! */
 
 #define COS_MEM_COMP_START_VA ((1 << 30) + (1 << 22)) /* 1GB + 4MB (a relic) */
+
+#if defined(__x86_64__)
+#define COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK 0x0000ff8000000000
+#define COS_MEM_KERN_START_VA (0xffff800000000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
+#define COS_MEM_USER_MAX_VA 0x00007fffffffffff
+#elif defined(__i386__)
 #define COS_MEM_KERN_START_VA (0xc0000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
+#endif
 
 #define COS_HW_MMIO_MAX_SZ (1 << 27) /* Assuming a MAX of 128MB for MMIO. */
 #define COS_PHYMEM_MAX_SZ ((1 << 30) - (1 << 22) - COS_HW_MMIO_MAX_SZ) /* 1GB - 4MB - MMIO sz */

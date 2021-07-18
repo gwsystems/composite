@@ -140,7 +140,7 @@ copy_all_regs(struct pt_regs *from, struct pt_regs *to)
 }
 
 static inline void
-regs_upcall_setup(struct pt_regs *r, u32_t entry_addr, int option, int id, int arg1, int arg2, int arg3)
+regs_upcall_setup(struct pt_regs *r, unsigned long entry_addr, int option, int id, int arg1, int arg2, int arg3)
 {
 	r->cx = option;
 
