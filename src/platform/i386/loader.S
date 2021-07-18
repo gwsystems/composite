@@ -1,18 +1,22 @@
 #include <chal/shared/cos_config.h>
 #include "chal_asm_inc.h"
-
-.set MULTIBOOT_PAGE_ALIGN,  1<<0
-.set MULTIBOOT_MEMINFO,     1<<1
-.set MULTIBOOT_AOUT_KLUDGE, 1<<16
-.set MULTIBOOT_MAGIC,       0x1BADB002
-.set MULTIBOOT_FLAGS,       MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMINFO
-.set MULTIBOOT_CHECKSUM,    -(MULTIBOOT_MAGIC + MULTIBOOT_FLAGS)
+#include "multiboot2.h"
 
 .section .multiboot
-.align 4
-.long MULTIBOOT_MAGIC
-.long MULTIBOOT_FLAGS
-.long MULTIBOOT_CHECKSUM
+.align 8
+multiboot_start:
+
+    /* must have multiboot2 header field */
+    .long MULTIBOOT2_HEADER_MAGIC
+    .long MULTIBOOT_ARCHITECTURE_I386
+    .long multiboot_end - multiboot_start
+    .long -(MULTIBOOT2_HEADER_MAGIC + MULTIBOOT_ARCHITECTURE_I386 + (multiboot_end - multiboot_start))
+
+    /* end tag of multiboot2 */
+    .short MULTIBOOT_HEADER_TAG_END
+    .short 0
+    .long 8
+multiboot_end:
 
 .set STACKSIZE, 0x1000
 .comm stack, (STACKSIZE * NUM_CPU), 0x1000
@@ -32,7 +36,7 @@ loader:
 	orl     $(1<<31), %eax
 	movl    %eax, %cr0
 	cli
-	pushl %esp
+	#pushl %esp
 	pushl %ecx
 	pushl %ebx
 
