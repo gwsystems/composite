@@ -34,11 +34,60 @@ extern u8_t end; /* from the linker script */
 
 extern u8_t _binary_constructor_start, _binary_constructor_end;
 
+static void
+multiboot_mem_parse(struct multiboot_tag *tag)
+{
+	unsigned int i = 0;
+	multiboot_memory_map_t *mmap;
+	u8_t *                  mod_end;
+	u8_t *                  mem_addr;
+	u64_t                   mem_len;
+	u64_t sz;
+	for (mmap = ((struct multiboot_tag_mmap *) tag)->entries;
+		(multiboot_uint8_t *) mmap < (multiboot_uint8_t *) tag + tag->size;
+		mmap = (multiboot_memory_map_t *) ((unsigned long) mmap +
+		 ((struct multiboot_tag_mmap *) tag)->entry_size)) {
+
+		mod_end  = glb_memlayout.mod_end;
+		mem_addr = chal_pa2va((paddr_t)mmap->addr);
+		mem_len  = (mmap->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ : mmap->len); /* maximum allowed */
+		printk("\t- %d (%s): [%08llx, %08llx) sz = %ldMB + %ldKB\n", i, 
+			mmap->type == 1 ? "Available" : "Reserved ",
+			mmap->addr, mmap->addr + mmap->len, 
+			MEM_MB_ONLY((u64_t)mmap->len), MEM_KB_ONLY((u64_t)mmap->len));
+
+		if (mmap->addr > COS_PHYMEM_END_PA || mmap->addr + mem_len > COS_PHYMEM_END_PA) {
+			i++;
+			continue;
+		}
+		/* is this the memory region we'll use for component memory? */
+		if (mmap->type == 1 && mod_end >= mem_addr && mod_end < (mem_addr + mem_len)) {
+			sz = (mem_addr + mem_len) - mod_end;
+			glb_memlayout.kmem_end = mem_addr + mem_len;
+			printk("\t  memory usable at boot time: %lx (%ld MB + %ld KB)\n", sz, 
+				MEM_MB_ONLY(sz), MEM_KB_ONLY(sz));
+		}
+		i++;
+	}
+}
+
+static void 
+multiboot_tag_parse(u64_t mboot_addr)
+{
+	struct multiboot_tag *tag;
+	multiboot_memory_map_t *mmap;
+
+	for (tag = (struct multiboot_tag *) (mboot_addr + 8); 
+		tag->type != MULTIBOOT_TAG_TYPE_END;
+		tag = (struct multiboot_tag *) ((multiboot_uint8_t *) tag + ((tag->size + 7) & ~7))) {
+		if (tag->type == MULTIBOOT_TAG_TYPE_MMAP) multiboot_mem_parse(tag);
+	}
+}
+
 void
 kern_memory_setup(u64_t mboot_addr, u64_t mboot_magic)
 {
-	unsigned int i = 0, wastage = 0;
-	struct multiboot_tag *tag;
+	unsigned wastage = 0;
 
 	glb_memlayout.allocs_avail = 1;
 
@@ -47,8 +96,8 @@ kern_memory_setup(u64_t mboot_addr, u64_t mboot_magic)
 	}
 
 	if (mboot_addr & 7) {
-	  die("mboot unligned mbi\n");
-    }
+		die("mboot unligned mbi\n");
+	}
 
 	glb_memlayout.kern_end = &end;
 	assert((u64_t)&end % RETYPE_MEM_NPAGES * PAGE_SIZE == 0);
@@ -67,44 +116,8 @@ kern_memory_setup(u64_t mboot_addr, u64_t mboot_magic)
 		die("not found tag!\n");
 	}
 
-	size = 0;
-
 	printk("Memory regions:\n\n");
-	for (tag = (struct multiboot_tag *) (mboot_addr + 8);
-       tag->type != MULTIBOOT_TAG_TYPE_END;
-       tag = (struct multiboot_tag *) ((multiboot_uint8_t *) tag 
-                                       + ((tag->size + 7) & ~7)))
-    {
-      switch (tag->type)
-        {
-        case MULTIBOOT_TAG_TYPE_MMAP:
-          {
-            multiboot_memory_map_t *mmap;
-            for (mmap = ((struct multiboot_tag_mmap *) tag)->entries;
-                 (multiboot_uint8_t *) mmap < (multiboot_uint8_t *) tag + tag->size;
-                 mmap = (multiboot_memory_map_t *) ((unsigned long) mmap + ((struct multiboot_tag_mmap *) tag)->entry_size)){
-					u8_t * mod_end  = glb_memlayout.mod_end;
-					u8_t * mem_addr = chal_pa2va((paddr_t)mmap->addr);
-					u64_t mem_len  = (mmap->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ : mmap->len); /* maximum allowed */
-					printk("\t- %d (%s): [%08llx, %08llx) sz = %ldMB + %ldKB\n", i, mmap->type == 1 ? "Available" : "Reserved ", mmap->addr,
-		       			mmap->addr + mmap->len, MEM_MB_ONLY((u64_t)mmap->len), MEM_KB_ONLY((u64_t)mmap->len));
-
-					if (mmap->addr > COS_PHYMEM_END_PA || mmap->addr + mem_len > COS_PHYMEM_END_PA) continue;
-					/* is this the memory region we'll use for component memory? */
-					if (mmap->type == 1 && mod_end >= mem_addr && mod_end < (mem_addr + mem_len)) {
-						u64_t sz = (mem_addr + mem_len) - mod_end;
-
-						glb_memlayout.kmem_end = mem_addr + mem_len;
-						printk("\t  memory usable at boot time: %lx (%ld MB + %ld KB)\n", sz, MEM_MB_ONLY(sz),
-							MEM_KB_ONLY(sz));
-					}
-					i++;
-				 }
-          	break;
-		  }
-
-        }
-    }
+	multiboot_tag_parse(mboot_addr);
 
 	/* FIXME: check memory layout vs. the multiboot memory regions... */
 
