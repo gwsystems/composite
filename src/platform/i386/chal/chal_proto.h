@@ -7,8 +7,16 @@
 #define PGTBL_FRAME_BITS (32 - PGTBL_PAGEIDX_SHIFT)
 #define PGTBL_FLAG_MASK ((1 << PGTBL_PAGEIDX_SHIFT) - 1)
 #define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
+
+#if defined(__x86_64__)
+#define PGTBL_ENTRY_ADDR_MASK 0xfffffffffffff000
+#define PGTBL_DEPTH 4
+#define PGTBL_ENTRY_ORDER 9
+#elif defined(__i386__)
 #define PGTBL_DEPTH 2
 #define PGTBL_ENTRY_ORDER 10
+#endif
+
 #define PGTBL_ENTRY (1 << PGTBL_ENTRY_ORDER)
 #define SUPER_PAGE_FLAG_MASK  (0x3FFFFF)
 #define SUPER_PAGE_PTE_MASK   (0x3FF000)

@@ -123,12 +123,15 @@ chal_init(void)
 	printk("]\n");
 
 	chal_cpuid(0x16, &a, &b, &c, &d);
+	/* FIXME: on x86_64, need to do cpuid twice to get frequency, don't know why */
+	chal_cpuid(0x16, &a, &b, &c, &d);
 	a = (a << 16) >> 16;
 	if (a) {
 		printk("\tCPUID base frequency: %d (* 1Mhz)\n", a);
 		printk("\tCPUID max  frequency: %d (* 1Mhz)\n", (b << 16) >> 16);
 	}
 
+	/* FIXME: on x86_64, cannot get platform info on qemu */
 	readmsr(MSR_PLATFORM_INFO, &a, &b);
 	a = (a >> 8) & ((1<<7)-1);
 	if (a) {
