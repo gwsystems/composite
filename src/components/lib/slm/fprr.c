@@ -12,13 +12,13 @@
 
 struct ps_list_head threads[NUM_CPU][SLM_FPRR_NPRIOS] CACHE_ALIGNED;
 
-/* No RR yet */
+/* No RR based on execution, yet */
 void
-slm_sched_execution(struct slm_thd *t, cycles_t cycles)
+slm_sched_fprr_execution(struct slm_thd *t, cycles_t cycles)
 { return; }
 
 struct slm_thd *
-slm_sched_schedule(void)
+slm_sched_fprr_schedule(void)
 {
 	int i;
 	struct slm_sched_thd *t;
@@ -35,14 +35,16 @@ slm_sched_schedule(void)
 		ps_list_rem_d(t);
 		ps_list_head_append_d(&prios[i], t);
 
+//		printc("Schedule -> %ld\n", slm_thd_from_sched(t)->tid);
 		return slm_thd_from_sched(t);
 	}
+//	printc("Schedule -> idle\n");
 
 	return NULL;
 }
 
 int
-slm_sched_block(struct slm_thd *t)
+slm_sched_fprr_block(struct slm_thd *t)
 {
 	struct slm_sched_thd *p = slm_thd_sched_policy(t);
 
@@ -52,7 +54,7 @@ slm_sched_block(struct slm_thd *t)
 }
 
 int
-slm_sched_wakeup(struct slm_thd *t)
+slm_sched_fprr_wakeup(struct slm_thd *t)
 {
 	struct slm_sched_thd *p = slm_thd_sched_policy(t);
 
@@ -64,7 +66,7 @@ slm_sched_wakeup(struct slm_thd *t)
 }
 
 void
-slm_sched_yield(struct slm_thd *t, struct slm_thd *yield_to)
+slm_sched_fprr_yield(struct slm_thd *t, struct slm_thd *yield_to)
 {
 	struct slm_sched_thd *p = slm_thd_sched_policy(t);
 
@@ -73,7 +75,7 @@ slm_sched_yield(struct slm_thd *t, struct slm_thd *yield_to)
 }
 
 int
-slm_sched_thd_init(struct slm_thd *t)
+slm_sched_fprr_thd_init(struct slm_thd *t)
 {
 	t->priority = SLM_FPRR_PRIO_LOWEST;
 	ps_list_init_d(slm_thd_sched_policy(t));
@@ -82,11 +84,11 @@ slm_sched_thd_init(struct slm_thd *t)
 }
 
 void
-slm_sched_thd_deinit(struct slm_thd *t)
+slm_sched_fprr_thd_deinit(struct slm_thd *t)
 { ps_list_rem_d(slm_thd_sched_policy(t)); }
 
 int
-slm_sched_thd_modify(struct slm_thd *t, sched_param_type_t type, unsigned int v)
+slm_sched_fprr_thd_modify(struct slm_thd *t, sched_param_type_t type, unsigned int v)
 {
 	struct slm_sched_thd *p = slm_thd_sched_policy(t);
 
@@ -108,7 +110,7 @@ slm_sched_thd_modify(struct slm_thd *t, sched_param_type_t type, unsigned int v)
 }
 
 void
-slm_sched_init(void)
+slm_sched_fprr_init(void)
 {
 	int i;
 

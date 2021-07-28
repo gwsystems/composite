@@ -24,6 +24,7 @@
 /* These should be defined in their own policy files. */
 struct slm_timer_thd;
 struct slm_sched_thd;
+struct slm_resources_thd;
 
 /***
  * The adapter layer coordinating API must define the following. These
@@ -111,5 +112,93 @@ void slm_sched_yield(struct slm_thd *t, struct slm_thd *yield_to);
 struct slm_thd *slm_sched_schedule(void);
 /* Some amount of execution for thread t has elapsed */
 void slm_sched_execution(struct slm_thd *t, cycles_t cycles);
+
+/*
+ * Macros to create the uniform functions that are used to coordinate
+ * between slm modules (scheduling policy, timer policy, and
+ * resource/memory management).
+ *
+ * ```c
+ * #include <slm_compose.h>
+ * #include <quantum.h>
+ * #include <fprr.h>
+ * #include <static_slab.h>
+ * SLM_MODULES_COMPOSE_FNS(quantum, fprr, static_sched);
+ * ```
+ *
+ * `static_slab.h` has to include `SLM_MODULES_COMPOSE_DATA();` after
+ * `struct slm_resources_thd` has been defined, but before the
+ * implementation requires `struct slm_thd_container`.
+ *
+ * This code creates the scheduler logic that uses a quantum-based
+ * timer with fixed-priority, round-robin scheduling, and static
+ * memory layout and resources.
+ *
+ * The thread structure created as a side-effect of this is a
+ * container including
+ *
+ * - core slm thread
+ * - scheduling policy data
+ * - timer policy data
+ * - resources allocated from the kernel via `crt`
+ *
+ * TODO: remove the requirement to have the resource policy module as
+ * part of all of this by enabling the kernel to return a pointer on
+ * event notification, rather than a thread id. The event retrieval is
+ * the only place that slm requires this mapping.
+ */
+
+#define SLM_MODULES_COMPOSE_FNS(timepol, schedpol, respol)		\
+	void slm_timer_expire(cycles_t now)				\
+	{ slm_timer_##timepol##_expire(now); }				\
+	int slm_timer_thd_init(struct slm_thd *t)			\
+	{ return slm_timer_##timepol##_thd_init(t); }			\
+	void slm_timer_thd_deinit(struct slm_thd *t)			\
+	{ slm_timer_##timepol##_thd_deinit(t); }			\
+	int slm_timer_add(struct slm_thd *t, cycles_t when)		\
+	{ return slm_timer_##timepol##_add(t, when); }			\
+	int slm_timer_cancel(struct slm_thd *t)				\
+	{ return slm_timer_##timepol##_cancel(t); }			\
+	int slm_timer_init(void)					\
+	{ return slm_timer_##timepol##_init(); }			\
+									\
+	void slm_sched_init(void)					\
+	{ slm_sched_##schedpol##_init(); }				\
+	int slm_sched_thd_init(struct slm_thd *t)			\
+	{ return slm_sched_##schedpol##_thd_init(t); }			\
+	void slm_sched_thd_deinit(struct slm_thd *t)			\
+	{ slm_sched_##schedpol##_thd_deinit(t); }			\
+	int slm_sched_thd_modify(struct slm_thd *t, sched_param_type_t p, unsigned int v) \
+	{ return slm_sched_##schedpol##_thd_modify(t, p, v); }		\
+	int slm_sched_block(struct slm_thd *t)				\
+	{ return slm_sched_##schedpol##_block(t); }			\
+	int slm_sched_wakeup(struct slm_thd *t)				\
+	{ return slm_sched_##schedpol##_wakeup(t); }			\
+	void slm_sched_yield(struct slm_thd *t, struct slm_thd *to)	\
+	{ slm_sched_##schedpol##_yield(t, to); }			\
+	struct slm_thd *slm_sched_schedule(void)			\
+	{ return slm_sched_##schedpol##_schedule(); }			\
+	void slm_sched_execution(struct slm_thd *t, cycles_t c)		\
+	{ slm_sched_##schedpol##_execution(t, c); }			\
+									\
+	struct slm_thd *slm_thd_lookup(thdid_t id)			\
+	{ return slm_thd_##respol##_lookup(id); }
+
+#define SLM_MODULES_COMPOSE_DATA()					\
+	struct slm_thd_container {					\
+		struct slm_thd           thd;				\
+		struct slm_sched_thd     sched;				\
+		struct slm_timer_thd     timer;				\
+		struct slm_resources_thd resources;			\
+	};								\
+									\
+	struct slm_timer_thd *slm_thd_timer_policy(struct slm_thd *t)	\
+	{ return &ps_container(t, struct slm_thd_container, thd)->timer; } \
+	struct slm_sched_thd *slm_thd_sched_policy(struct slm_thd *t)	\
+	{ return &ps_container(t, struct slm_thd_container, thd)->sched; } \
+	struct slm_thd *slm_thd_from_timer(struct slm_timer_thd *t)	\
+	{ return &ps_container(t, struct slm_thd_container, timer)->thd; } \
+	struct slm_thd *slm_thd_from_sched(struct slm_sched_thd *t)	\
+	{ return &ps_container(t, struct slm_thd_container, sched)->thd; }
 
 #endif	/* SLM_API_H */

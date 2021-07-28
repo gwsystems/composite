@@ -3,7 +3,6 @@
 #include <slm.h>
 #include <quantum.h>
 #include <slm_api.h>
-#include <slm_policy_timer.h>
 #include <heap.h>
 
 /***
@@ -51,21 +50,21 @@ quantum_wakeup_expired(cycles_t now)
 	}
 }
 
-/* Called by slm */
+/* The timer expired */
 void
-slm_timer_expire(cycles_t now)
+slm_timer_quantum_expire(cycles_t now)
 {
 	struct timer_global *g = timer_global();
 	cycles_t             offset;
 	cycles_t             next_timeout;
-	assert(now >= g->current_timeout);
 
 	/*
-	 * We might miss specific quantum if we are in a virtualized
-	 * environment. Thus we might be multiple periods into the
-	 * future.
+	 * Note that we might miss specific quantum if we are in a
+	 * virtualized environment. Thus we might be multiple periods
+	 * into the future.
 	 */
-	assert(now > g->current_timeout);
+	assert(now >= g->current_timeout);
+
 	offset = (now - g->current_timeout) % g->period;
  	assert(g->period > offset);
 	next_timeout = now + (g->period - offset);
@@ -77,16 +76,14 @@ slm_timer_expire(cycles_t now)
 	quantum_wakeup_expired(now);
 }
 
-/* Timeout and wakeup functionality */
 /*
- * TODO:
- * (comments from Gabe)
- * We likely want to replace all of this with rb-tree with nodes internal to the threads.
- * This heap is fast, but the static memory allocation is not great.
+ * Timeout and wakeup functionality
+ *
+ * TODO: Replace the in-place heap with a rb-tree to avoid external, static allocation.
  */
 
 int
-slm_timer_add(struct slm_thd *t, cycles_t absolute_timeout)
+slm_timer_quantum_add(struct slm_thd *t, cycles_t absolute_timeout)
 {
 	struct slm_timer_thd *tt = slm_thd_timer_policy(t);
 	struct timer_global *g = timer_global();
@@ -103,7 +100,7 @@ slm_timer_add(struct slm_thd *t, cycles_t absolute_timeout)
 }
 
 int
-slm_timer_cancel(struct slm_thd *t)
+slm_timer_quantum_cancel(struct slm_thd *t)
 {
 	struct slm_timer_thd *tt = slm_thd_timer_policy(t);
 	struct timer_global *g   = timer_global();
@@ -118,7 +115,7 @@ slm_timer_cancel(struct slm_thd *t)
 }
 
 int
-slm_timer_thd_init(struct slm_thd *t)
+slm_timer_quantum_thd_init(struct slm_thd *t)
 {
 	struct slm_timer_thd *tt = slm_thd_timer_policy(t);
 
@@ -131,9 +128,9 @@ slm_timer_thd_init(struct slm_thd *t)
 }
 
 void
-slm_timer_thd_deinit(struct slm_thd *t)
+slm_timer_quantum_thd_deinit(struct slm_thd *t)
 {
-
+	return;
 }
 
 static int
@@ -163,7 +160,7 @@ slm_policy_timer_init(microsec_t period)
 }
 
 int
-slm_timer_init(void)
+slm_timer_quantum_init(void)
 {
 	/* 10ms */
 	slm_policy_timer_init(10000);

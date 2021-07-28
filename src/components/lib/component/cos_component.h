@@ -206,6 +206,8 @@ cos_thdid(void)
 	return cos_get_thd_id();
 }
 
+#define PRINT_LOCATION() printc("%s: %s@%d\n", __FILE__, __FUNCTION__, __LINE__)
+
 #define ERR_THROW(errval, label) \
 	do {                     \
 		ret = errval;    \

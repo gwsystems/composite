@@ -29,7 +29,7 @@ initialize()
 
 usage()
 {
-    echo "Usage: " $0 " init|build|reset|compose <script> <output name>|run <binary>"
+    echo "Usage: " $0 " init|build|reset|compose <script> <output name>|run <binary>|reset_compose <script> <output name>"
     exit 2
 }
 
@@ -64,6 +64,12 @@ case $1 in
     reset )   clean
 	      ;;
     compose ) script=$2
+	      name=$3
+	      compose
+	      ;;
+    reset_compose ) clean
+	      build
+	      script=$2
 	      name=$3
 	      compose
 	      ;;

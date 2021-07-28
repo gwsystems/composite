@@ -3,6 +3,7 @@
 
 #include <cos_component.h>
 #include <ps.h>
+#include <slm_api.h>
 
 typedef unsigned long slm_cs_cached_t;
 /* Critical section (cs) API to protect scheduler data-structures */
@@ -10,30 +11,9 @@ struct slm_cs {
 	unsigned long owner_contention;
 };
 
-/*
- * - @cs - critical section
- * - @cached - the cached value of the cs
- * - @curr - current thread
- * - @owner - the thread that owns the cs
- * - @contended - {0, 1} previously contended or not
- * - @tok - scheduler synchronization token for cos_defswitch
- *
- * @ret:
- *     (Caller of this function should retry for a non-zero return value.)
- *     1 for cas failure or after successful thread switch to thread that owns the lock.
- *     -ve from cos_defswitch failure, allowing caller for ex: the scheduler thread to
- *     check if it was -EBUSY to first recieve pending notifications before retrying lock.
- */
-int slm_cs_enter_contention(struct slm_cs *cs, slm_cs_cached_t cached, struct slm_thd *curr, struct slm_thd *owner, int contended, sched_tok_t tok);
-/*
- * - @cs - the critical section
- * - @curr - the current thread (releasing the cs)
- * - @cached - cached copy the critical section value
- * - @tok: scheduler synchronization token
- *
- * @ret: returns 1 if we need a retry, 0 otherwise
- */
-int slm_cs_exit_contention(struct slm_cs *cs, struct slm_thd *curr, slm_cs_cached_t cached, sched_tok_t tok);
+static inline int
+slm_state_is_runnable(slm_thd_state_t s)
+{ return s == SLM_THD_RUNNABLE || s == SLM_THD_WOKEN; }
 
 
 /**
@@ -127,18 +107,19 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 	tcap_time_t             timeout;
 	int                     ret = 0;
 
-	if (unlikely(t == &g->sched_thd)) {
-		timeout = TCAP_TIME_NIL;
-		prio    = curr->priority;
-	} else {
-		timeout = g->timeout_next;
-		prio = inherit_prio ? curr->priority : t->priority;
-	}
+	timeout = g->timeout_next;
+	prio = inherit_prio ? curr->priority : t->priority;
 
-	if (unlikely(t->properties & SLM_THD_PROPERTY_SEND)) {
-		return cos_sched_asnd(t->asnd, g->timeout_next, g->sched_thd.rcv, tok);
-	} else if (unlikely(t->properties & SLM_THD_PROPERTY_OWN_TCAP)) {
-		return cos_switch(t->thd, t->tc, prio, timeout, g->sched_thd.rcv, tok);
+	if (unlikely(t->properties & (SLM_THD_PROPERTY_SEND | SLM_THD_PROPERTY_OWN_TCAP | SLM_THD_PROPERTY_SPECIAL))) {
+		if (t == &g->sched_thd) {
+			timeout = TCAP_TIME_NIL;
+			prio    = curr->priority;
+		}
+		if (t->properties & SLM_THD_PROPERTY_SEND) {
+			return cos_sched_asnd(t->asnd, g->timeout_next, g->sched_thd.rcv, tok);
+		} else if (t->properties & SLM_THD_PROPERTY_OWN_TCAP) {
+			return cos_switch(t->thd, t->tc, prio, timeout, g->sched_thd.rcv, tok);
+		}
 	}
 
 	ret = cos_defswitch(t->thd, prio, timeout, tok);
@@ -151,6 +132,68 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 		 */
 		ret = cos_switch(g->sched_thd.thd, 0, curr->priority, TCAP_TIME_NIL, g->sched_thd.rcv, tok);
 	}
+
+	return ret;
+}
+
+static inline void slm_cs_exit(struct slm_thd *switchto, slm_cs_flags_t flags);
+
+/*
+ * Do a few things: 1. call schedule to find the next thread to run,
+ * 2. release the critical section (note this will cause visual
+ * asymmetries in your code if you call slm_cs_enter before this
+ * function), and 3. switch to the given thread. It hides some races,
+ * and details that would make this difficult to write repetitively.
+ *
+ * Preconditions: if synchronization is required with code before
+ * calling this, you must call slm_cs_enter before-hand (this is likely
+ * a typical case).
+ *
+ * Return: the return value from cos_switch.  The caller must handle
+ * this value correctly.
+ *
+ * A common use-case is:
+ *
+ * slm_cs_enter(...);
+ * scheduling_stuff()
+ * slm_cs_exit_reschedule(...);
+ *
+ * ...which correctly handles any race-conditions on thread selection and
+ * dispatch.
+ */
+static inline int
+slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
+{
+	struct cos_compinfo    *ci  = &cos_defcompinfo_curr_get()->ci;
+	struct slm_global      *g   = slm_global();
+	struct slm_thd         *t;
+	sched_tok_t             tok;
+	int                     ret;
+
+	tok  = cos_sched_sync();
+	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
+		cycles_t now;
+		s64_t    diff;
+
+		now  = slm_now();
+		diff = (s64_t)(g->timer_next - now);
+		/* Do we need to recompute the timer? */
+		if (diff <= 0) {
+			g->timer_set = 0;
+			/* The timer policy will likely reset the timer */
+			slm_timer_expire(now);
+		}
+	}
+
+	t = slm_sched_schedule();
+	if (unlikely(!t)) t = &g->idle_thd;
+
+	assert(slm_state_is_runnable(t->state));
+	slm_cs_exit(NULL, flags);
+
+	ret = slm_thd_activate(curr, t, tok, 0);
+	/* Assuming only the single tcap with infinite budget...should not get EPERM */
+	assert(ret != -EPERM);
 
 	return ret;
 }

@@ -12,7 +12,8 @@
 #include <slm.h>
 #include <quantum.h>
 #include <fprr.h>
-#include <slm_api.h>
+
+/* Quick hack at the thread memory operations */
 
 struct crt_comp self;
 
@@ -20,69 +21,77 @@ struct slm_resources_thd {
 	struct crt_thd crt_res;
 };
 
-/*
- * The thread structure that is a container including
- *
- * - core slm thread
- * - scheduling policy data
- * - timer policy data
- * - resources allocated from the kernel via `crt`
- */
-struct slm_thd_container {
-	struct slm_thd           thd;
-	struct slm_sched_thd     sched;
-	struct slm_timer_thd     timer;
-	struct slm_resources_thd resources;
-};
-
-struct slm_timer_thd *
-slm_thd_timer_policy(struct slm_thd *t)
-{
-	return &ps_container(t, struct slm_thd_container, thd)->timer;
-}
-
-struct slm_sched_thd *
-slm_thd_sched_policy(struct slm_thd *t)
-{
-	return &ps_container(t, struct slm_thd_container, thd)->sched;
-}
-
-struct slm_thd *
-slm_thd_from_timer(struct slm_timer_thd *t)
-{
-	return &ps_container(t, struct slm_thd_container, timer)->thd;
-}
-
-struct slm_thd *
-slm_thd_from_sched(struct slm_sched_thd *t)
-{
-	return &ps_container(t, struct slm_thd_container, sched)->thd;
-}
+SLM_MODULES_COMPOSE_DATA();
 
 SS_STATIC_SLAB(thd, struct slm_thd_container, MAX_NUM_THREADS);
 
 /* Implementation for use by the other parts of the slm */
 struct slm_thd *
-slm_thd_lookup(thdid_t id)
+slm_thd_preallocslab_lookup(thdid_t id)
 {
 	return &ss_thd_get(id)->thd;
 }
 
-struct slm_thd *
+static inline struct slm_thd *
 slm_thd_current(void)
 {
 	return slm_thd_lookup(cos_thdid());
 }
 
-typedef crt_thd_fn_t thd_fn_t;
+SLM_MODULES_COMPOSE_FNS(quantum, fprr, preallocslab);
+
+typedef void (*thd_fn_t)(void *);
 
 struct slm_thd_container *
-thd_alloc(thd_fn_t fn, void *data, sched_param_t *parameters, int reschedule)
+slm_mem_crtstatic_alloc(thd_fn_t fn, void *data, thdcap_t *thd, thdid_t *tid)
 {
 	struct slm_thd_container *t   = NULL;
 	struct slm_thd_container *ret = NULL;
 	struct crt_thd crt_thd        = { 0 };
+	int i;
+
+	if (crt_thd_create(&crt_thd, &self, fn, data) < 0) ERR_THROW(NULL, done);
+	ret = t = ss_thd_alloc_at_id(crt_thd.tid);
+	if (!t) assert(0);
+
+	assert(crt_thd.cap != 0 && crt_thd.tid);
+	t->resources.crt_res = crt_thd; /* copy the resources! */
+
+	*thd = crt_thd.cap;
+	*tid = crt_thd.tid;
+done:
+	return ret;
+}
+
+static inline struct slm_thd *
+slm_current(void)
+{
+	return slm_thd_lookup(cos_thdid());
+}
+
+void
+slm_mem_crtstatic_activate(struct slm_thd_container *t)
+{
+	ss_thd_activate(t);
+}
+
+struct slm_thd_container *
+slm_mem_alloc(thd_fn_t fn, void *data, thdcap_t *cap, thdid_t *tid)
+{
+	return slm_mem_crtstatic_alloc(fn, data, cap, tid);
+}
+
+void slm_mem_activate(struct slm_thd_container *t) { slm_mem_crtstatic_activate(t); }
+void slm_mem_free(struct slm_thd_container *t) { return; }
+
+struct slm_thd_container *
+thd_alloc(thd_fn_t fn, void *data, sched_param_t *parameters, int reschedule)
+{
+	struct slm_thd_container *t;
+	struct slm_thd_container *ret = NULL;
 	struct slm_thd *current       = slm_thd_current();
+	thdcap_t thdcap;
+	thdid_t tid;
 	int i;
 
 	/*
@@ -94,15 +103,11 @@ thd_alloc(thd_fn_t fn, void *data, sched_param_t *parameters, int reschedule)
 		assert(current);
 	}
 
-	if (crt_thd_create(&crt_thd, &self, fn, data) < 0) ERR_THROW(NULL, ret);
-	ret = t = ss_thd_alloc_at_id(crt_thd.tid);
-	if (!t) assert(0);
-
-	assert(crt_thd.cap != 0 && crt_thd.tid);
-	t->resources.crt_res = crt_thd; /* copy the resources! */
+	ret = t = slm_mem_alloc(fn, data, &thdcap, &tid);
+	if (!t) ERR_THROW(NULL, done);
 
 	slm_cs_enter(current, SLM_CS_NONE);
-	if (slm_thd_init(&t->thd, crt_thd.cap, crt_thd.tid)) ERR_THROW(NULL, free);
+	if (slm_thd_init(&t->thd, thdcap, tid)) ERR_THROW(NULL, free);
 
 	for (i = 0; parameters[i] != 0; i++) {
 		sched_param_type_t type;
@@ -111,22 +116,18 @@ thd_alloc(thd_fn_t fn, void *data, sched_param_t *parameters, int reschedule)
 		sched_param_get(parameters[i], &type, &value);
 		if (slm_sched_thd_modify(&t->thd, type, value)) ERR_THROW(NULL, free);
 	}
-	ss_thd_activate(t);
+	slm_mem_activate(t);
 
-	/*
-	 * We created the new thread, so we have to reschedule as it
-	 * might have a higher priority than us
-	 */
-done:
 	if (reschedule) {
-		if (slm_cs_exit_reschedule(current, NULL, SLM_CS_NONE)) ERR_THROW(NULL, ret);
+		if (slm_cs_exit_reschedule(current, SLM_CS_NONE)) ERR_THROW(NULL, done);
 	} else {
 		slm_cs_exit(NULL, SLM_CS_NONE);
 	}
-ret:
+done:
 	return ret;
 free:
-	ss_thd_free(t);
+	slm_mem_free(t);
+	ret = NULL;
 	goto done;
 }
 
@@ -138,7 +139,7 @@ thd_block(void)
 
 	slm_cs_enter(current, SLM_CS_NONE);
         ret = slm_thd_block(current);
-	if (!ret) ret = slm_cs_exit_reschedule(current, NULL, SLM_CS_NONE);
+	if (!ret) ret = slm_cs_exit_reschedule(current, SLM_CS_NONE);
 	else      slm_cs_exit(NULL, SLM_CS_NONE);
 
 	return ret;
@@ -157,7 +158,7 @@ thd_wakeup(struct slm_thd_container *t)
 		return ret;
 	}
 
-	return slm_cs_exit_reschedule(current, NULL, SLM_CS_NONE);
+	return slm_cs_exit_reschedule(current, SLM_CS_NONE);
 }
 
 static int
@@ -171,7 +172,7 @@ thd_block_until(cycles_t timeout)
 		slm_timer_cancel(current);
 	}
 done:
-	return slm_cs_exit_reschedule(current, NULL, SLM_CS_NONE);
+	return slm_cs_exit_reschedule(current, SLM_CS_NONE);
 }
 
 int
@@ -181,6 +182,9 @@ thd_sleep(cycles_t c)
 
 	return thd_block_until(timeout);
 }
+
+unsigned long num_success = 0;
+struct slm_thd_container *done_thd;
 
 #define TIMER_TEST_LEN     5000000	        /* run the test for 5 seconds */
 #define TIMER_ERROR_BOUND  (10000+10000)	/* number of microseconds in a quantum + a fudge factor*/
@@ -221,6 +225,8 @@ timer_fn(void *data)
 
 	if (ps_faa(&success_cnt_down, -1) == 1) {
 		printc("SUCCESS: timers within the expected tolerances.\n");
+		ps_faa(&num_success, 1);
+		thd_wakeup(done_thd);
 	}
 	thd_block();
 }
@@ -269,6 +275,7 @@ pingpong_fn(void *data)
 	}
 
 	printc("SUCCESS: Ping-pong complete.\n");
+	ps_faa(&num_success, 1);
 
 	thd_block();
 	BUG();
@@ -333,7 +340,6 @@ interleave_fn(void *d)
 			while (spin) {
 				ps_store(&spin, ps_load(&spin) - 1);
 			}
-			//printc("%ld", cos_thdid());
 			c->cnt++;
 		}
 	}
@@ -354,6 +360,7 @@ interleave_fn(void *d)
 	}
 	if (previd == cos_thdid()) {
 		printc("SUCCESS: Interleaving correct.\n");
+		ps_faa(&num_success, 1);
 	}
 
 	thd_block();
@@ -374,18 +381,31 @@ interleave_test(unsigned int prio_base)
 	param[1] = 0;
 
 	for (i = 0; i < NINTERLEAVE; i++) {
-		struct slm_thd_container *t;
-
 		if (!thd_alloc(interleave_fn, NULL, param, 0)) BUG();
 	}
+}
+
+void
+done_fn(void *d)
+{
+	thd_block();
+	printc("SUCCESS for %ld / 3. Tests complete.\n", num_success);
+	thd_block();
 }
 
 int
 main(void)
 {
+	sched_param_t param[2];
+
+	param[0] = sched_param_pack(SCHEDP_PRIO, 10);
+	param[1] = 0;
+
 	pingpong_block_test(1);
 	interleave_test(3);
 	timer_test(5);
+	done_thd = thd_alloc(done_fn, NULL, param, 0);
+	if (!done_thd) BUG();
 	slm_sched_loop();
 }
 
@@ -401,5 +421,6 @@ cos_init(void)
 
 	if (crt_booter_create(&self, "self", cos_compid(), 0)) assert(0);
 	if (crt_thd_create(&t, &self, slm_idle, NULL)) assert(0);
+
 	slm_init(t.cap, t.tid);
 }

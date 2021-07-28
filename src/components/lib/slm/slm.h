@@ -16,14 +16,11 @@ typedef enum {
 	SLM_THD_DYING,
 } slm_thd_state_t;
 
-static inline int
-slm_state_is_runnable(slm_thd_state_t s)
-{ return s == SLM_THD_RUNNABLE || s == SLM_THD_WOKEN; }
-
 typedef enum {
 	SLM_THD_PROPERTY_OWN_TCAP  = 1,      /* Thread owns a tcap */
 	SLM_THD_PROPERTY_SEND      = (1<<1), /* use asnd to dispatch to this thread */
 	SLM_THD_PROPERTY_SUSPENDED = (1<<2), /* suspended on a rcv capability? See note below. */
+	SLM_THD_PROPERTY_SPECIAL   = (1<<3), /* is this either the scheduler or idle thread? */
 } slm_thd_property_t;
 
 struct event_info {
@@ -89,6 +86,20 @@ struct slm_thd {
 	struct ps_list    event_list; /* list of events for the scheduler end-point */
 };
 
+typedef enum {
+	SLM_CS_NONE     = 0,
+	SLM_CS_NOSPIN   = 1, /* return if we race with another thread */
+	SLM_CS_SWITCHTO = 2, /* we should try and switch to the `switchto` argument */
+	SLM_CS_SCHEDEVT = 4, /* return if there are pending scheduler notifications */
+	SLM_CS_CHECK_TIMEOUT = 8, /* should we check for pending timeouts on exit? */
+} slm_cs_flags_t;
+
+static inline cycles_t
+slm_now(void)
+{
+	return ps_tsc();
+}
+
 #include <slm_private.h>
 
 /***
@@ -134,13 +145,9 @@ void slm_sched_loop_nonblock(void);
 
 int slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid);
 
-typedef enum {
-	SLM_CS_NONE     = 0,
-	SLM_CS_NOSPIN   = 1, /* return if we race with another thread */
-	SLM_CS_SWITCHTO = 2, /* we should try and switch to the `switchto` argument */
-	SLM_CS_SCHEDEVT = 4, /* return if there are pending scheduler notifications */
-	SLM_CS_CHECK_TIMEOUT = 8, /* should we check for pending timeouts on exit? */
-} slm_cs_flags_t;
+/* forward declarations, not part of the public API. */
+int slm_cs_enter_contention(struct slm_cs *cs, slm_cs_cached_t cached, struct slm_thd *curr, struct slm_thd *owner, int contended, sched_tok_t tok);
+int slm_cs_exit_contention(struct slm_cs *cs, struct slm_thd *curr, slm_cs_cached_t cached, sched_tok_t tok);
 
 /**
  * Try to enter into the critical section. There are few ways that
@@ -232,11 +239,11 @@ slm_cs_exit(struct slm_thd *switchto, slm_cs_flags_t flags)
 		if (unlikely(contention)) {
 			if (!slm_cs_exit_contention(cs, current, cached, tok)) return;
 
-			continue; /* we woke up, try again */
+			continue; /* we couldn't update the CS variable, try again */
 		}
 
 		/* The common case: release lock, no-one waiting for it */
-		ret = __slm_cs_cas(cs, cached, 0, 0);
+		ret = __slm_cs_cas(cs, cached, NULL, 0);
 		if (flags & SLM_CS_NOSPIN) return;
 		if (flags & SLM_CS_SCHEDEVT && ret == -EBUSY) return;
 	}
@@ -244,7 +251,7 @@ slm_cs_exit(struct slm_thd *switchto, slm_cs_flags_t flags)
 	return;
 }
 
-int slm_cs_exit_reschedule(struct slm_thd *curr, struct slm_thd *switch_to, slm_cs_flags_t flags);
+static inline int slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags);
 
 /**
  * `slm_switch_to` attempts to perform scheduler bypass and switch
@@ -299,12 +306,6 @@ int slm_thd_wakeup(struct slm_thd *t, int redundant);
  * microseconds are provided here for that policy to use, should it
  * need it.
  */
-
-static inline cycles_t
-slm_now(void)
-{
-	return ps_tsc();
-}
 
 static inline microsec_t
 slm_cyc2usec(cycles_t cyc)

@@ -15,7 +15,7 @@ slm_thd_special(void)
 	else                            return NULL;
 }
 
-int
+static int
 slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
@@ -54,8 +54,21 @@ slm_thd_deinit(struct slm_thd *t)
 
 
 /*
- * These functions are removed from the inlined fast-paths of the
- * critical section (cs) code to save on code size/locality
+ * If there is contention of the critical section, this is called.
+ * This is pulled out of the inlined fastpath.
+ *
+ * - @cs - critical section
+ * - @cached - the cached value of the cs
+ * - @curr - current thread
+ * - @owner - the thread that owns the cs
+ * - @contended - {0, 1} previously contended or not
+ * - @tok - scheduler synchronization token for cos_defswitch
+ *
+ * @ret:
+ *     (Caller of this function should retry for a non-zero return value.)
+ *     1 for cas failure or after successful thread switch to thread that owns the lock.
+ *     -ve from cos_defswitch failure, allowing caller for ex: the scheduler thread to
+ *     check if it was -EBUSY to first recieve pending notifications before retrying lock.
  */
 int
 slm_cs_enter_contention(struct slm_cs *cs, slm_cs_cached_t cached, struct slm_thd *curr, struct slm_thd *owner, int contended, sched_tok_t tok)
@@ -76,7 +89,17 @@ slm_cs_enter_contention(struct slm_cs *cs, slm_cs_cached_t cached, struct slm_th
 	return 1;
 }
 
-/* Return 1 if we need a retry, 0 otherwise */
+/*
+ * If another thread contended the critical section we're giving up,
+ * this is the slowpath.
+ *
+ * - @cs - the critical section
+ * - @curr - the current thread (releasing the cs)
+ * - @cached - cached copy the critical section value
+ * - @tok: scheduler synchronization token
+ *
+ * @ret: returns 1 if we need a retry, 0 otherwise
+ */
 int
 slm_cs_exit_contention(struct slm_cs *cs, struct slm_thd *curr, slm_cs_cached_t cached, sched_tok_t tok)
 {
@@ -166,7 +189,7 @@ slm_thd_block_cs(struct slm_thd *current)
 	if (slm_thd_block(current)) {
 		slm_cs_exit(current, SLM_CS_NONE);
 	} else {
-		slm_cs_exit_reschedule(current, NULL, SLM_CS_NONE);
+		slm_cs_exit_reschedule(current, SLM_CS_NONE);
 	}
 
 	return;
@@ -281,7 +304,7 @@ slm_thd_wakeup_cs(struct slm_thd *curr, struct slm_thd *t)
 	if (slm_thd_wakeup(t, 0)) {
 		slm_cs_exit(curr, SLM_CS_NONE);
 	} else {
-		slm_cs_exit_reschedule(curr, NULL, SLM_CS_NONE);
+		slm_cs_exit_reschedule(curr, SLM_CS_NONE);
 	}
 
 	return;
@@ -361,58 +384,42 @@ slm_cs_enter_sched(void)
  * ...which correctly handles any race-conditions on thread selection and
  * dispatch.
  */
-int
-slm_cs_exit_reschedule(struct slm_thd *curr, struct slm_thd *to, slm_cs_flags_t flags)
-{
-	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci  = &dci->ci;
-	struct slm_thd         *t;
-	struct slm_global      *g   = slm_global();
-	sched_tok_t             tok;
-	int                     ret;
+/* int */
+/* slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags) */
+/* { */
+/* 	struct cos_compinfo    *ci  = &cos_defcompinfo_curr_get()->ci; */
+/* 	struct slm_global      *g   = slm_global(); */
+/* 	struct slm_thd         *t; */
+/* 	sched_tok_t             tok; */
+/* 	int                     ret; */
 
-	tok  = cos_sched_sync();
-	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
-		cycles_t now;
-		s64_t    diff;
+/* 	tok  = cos_sched_sync(); */
+/* 	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) { */
+/* 		cycles_t now; */
+/* 		s64_t    diff; */
 
-		now  = slm_now();
-		diff = (s64_t)(g->timer_next - now);
-		/* Do we need to recompute the timer? */
-		if (diff <= 0) {
-			g->timer_set = 0;
-			/* The timer policy will likely reset the timer */
-			slm_timer_expire(now);
-		}
-	}
+/* 		now  = slm_now(); */
+/* 		diff = (s64_t)(g->timer_next - now); */
+/* 		/\* Do we need to recompute the timer? *\/ */
+/* 		if (diff <= 0) { */
+/* 			g->timer_set = 0; */
+/* 			/\* The timer policy will likely reset the timer *\/ */
+/* 			slm_timer_expire(now); */
+/* 		} */
+/* 	} */
 
-	/*
-	 * We're going to exit the critical section, then try and
-	 * switch to the thread. Given this, once we exit, we can't
-	 * trust t's memory as it could be deallocated/modified, so
-	 * cache it locally. If these values are out of date, the
-	 * scheduler synchronization tok will catch it. This is a
-	 * little twitchy and subtle, so lets put it in a function,
-	 * here.
-	 */
-	if (unlikely(to)) {
-		t = to;
-		if (!slm_state_is_runnable(t->state)) to = NULL;
-	}
-	if (likely(!to)) {
-		t = slm_sched_schedule();
-		if (unlikely(!t)) t = &g->idle_thd;
-	}
+/* 	t = slm_sched_schedule(); */
+/* 	if (unlikely(!t)) t = &g->idle_thd; */
+/* 	assert(slm_state_is_runnable(t->state)); */
 
-	assert(slm_state_is_runnable(t->state));
-	slm_cs_exit(NULL, flags);
+/* 	slm_cs_exit(NULL, flags); */
 
-	ret = slm_thd_activate(curr, t, tok, 0);
-	/* Assuming only the single tcap with infinite budget...should not get EPERM */
-	assert(ret != -EPERM);
+/* 	ret = slm_thd_activate(curr, t, tok, 0); */
+/* 	/\* Assuming only the single tcap with infinite budget...should not get EPERM *\/ */
+/* 	assert(ret != -EPERM); */
 
-	return ret;
-}
+/* 	return ret; */
+/* } */
 
 static void
 slm_sched_loop_intern(int non_block)
@@ -522,7 +529,7 @@ pending_events:
 
 		if (slm_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
-		if (slm_cs_exit_reschedule(us, NULL, SLM_CS_CHECK_TIMEOUT)) assert(0);
+		if (slm_cs_exit_reschedule(us, SLM_CS_CHECK_TIMEOUT)) assert(0);
 	}
 }
 
@@ -561,7 +568,7 @@ slm_init(thdcap_t thd, thdid_t tid)
 	sched_aep = cos_sched_aep_get(defci);
 
 	*s = (struct slm_thd) {
-		.properties = 0,
+		.properties = SLM_THD_PROPERTY_SPECIAL,
 		.state = SLM_THD_RUNNABLE,
 		.tc  = sched_aep->tc,
 		.thd = sched_aep->thd,
@@ -573,7 +580,7 @@ slm_init(thdcap_t thd, thdid_t tid)
 	assert(s->tid == cos_thdid());
 
 	*i = (struct slm_thd) {
-		.properties = 0,
+		.properties = SLM_THD_PROPERTY_SPECIAL,
 		.state = SLM_THD_RUNNABLE,
 		.tc = sched_aep->tc,
 		.thd = thd,
