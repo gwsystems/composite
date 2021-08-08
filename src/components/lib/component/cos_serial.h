@@ -5,6 +5,8 @@
 #include "arch/arm/cos_serial.h"
 #elif defined(__x86__)
 #include "arch/x86/cos_serial.h"
+#elif defined(__x86_64__)
+#include "arch/x86_64/cos_serial.h"
 #else
 #error "Undefined architecture!"
 #endif

@@ -11,6 +11,8 @@
 #include "../../../kernel/include/asm_ipc_defs.h"
 #if defined(__x86__)
 #include "arch/x86/cos_asm_upcall_simple_stacks.h"
+#elif defined(__x86_64__)
+#include "arch/x86_64/cos_asm_upcall_simple_stacks.h"
 #elif defined(__arm__)
 #include "arch/arm/cos_asm_upcall_simple_stacks.h"
 #endif
@@ -66,3 +68,4 @@ cos_atomic_user4:
 cos_atomic_user4_end:
 	/* crash out as something's wrong */
 	COS_ATOMIC_USER4_END
+	

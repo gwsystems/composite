@@ -3,6 +3,8 @@
 
 #if defined(__x86__)
 #include "arch/x86/c_stub.h"
+#elif defined(__x86_64__)
+#include "arch/x86_64/c_stub.h"
 #elif defined(__arm__)
 #include "arch/arm/c_stub.h"
 #else

@@ -16,6 +16,23 @@ __inv_test_serverfn:				\
                 movl $RET_CAP, %eax;		\
                 sysenter;
 
+#elif defined(__x86_64__)
+#define INV_TEST_SERVERFN			\
+.text;						\
+.globl __inv_test_serverfn;			\
+.type __inv_test_serverfn, @function;		\
+__inv_test_serverfn:				\
+		movl %ebp, %esp;		\
+		xor %ebp, %ebp;			\
+                push %rdi;			\
+                push %rsi;			\
+                push %rbx;			\
+                call test_serverfn;		\
+                addl $12, %esp;			\
+                movl %eax, %ecx;		\
+                movl $RET_CAP, %eax;		\
+                sysenter;
+
 #elif defined(__arm__)
 #define INV_TEST_SERVERFN			\
 .text;						\
