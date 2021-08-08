@@ -56,14 +56,15 @@ include Makefile.src Makefile.comp Makefile.dependencies
 
 .PHONY: all clean init distclean config clean_lib armv7a_config i386_config
 CINC_ENV = $(CINC) $(DEPENDENCY_INCPATH)
-CFLAGS   = $(CINC_ENV)
+# disable warnings temporarily
+CFLAGS   = $(CINC_ENV) -Wno-address-of-packed-member -w
 export CINC_ENV
 export CFLAGS
 
 all: config
 	$(info Building ps library...)
-	make -s -C ps all
-	@cp ps/libps.a .
+	make -C ps all
+	cp ps/libps.a .
 
 clean_lib:
 	@rm -f libps.a
@@ -79,6 +80,10 @@ armv7a_config:
 i386_config:
 	$(info Configuring the ps library)
 	@cd ps; ./configure cos x86 general; cd ..
+
+x86_64_config:
+	$(info Configuring the ps library)
+	cd ps; ./configure cos x86_64 general; cd ..
 
 config: $(PLATFORM)_config
 	make -s -C ps config

@@ -83,6 +83,10 @@ i386_init:
 	$(info Building libc (musl) for i386...)
 	cd $(MUSLDIR); ./configure "CFLAGS=-m32 -O3" "LDFLAGS=-Wl,-melf_i386" --disable-shared --target=i386; cd ..
 
+x86_64_init:
+	$(info Building libc (musl) for x86_64)
+	cd $(MUSLDIR); ./configure "CFLAGS=-m64 -O3" "LDFLAGS=-Wl,-melf_x86_64" --disable-shared --target=x86_64; cd ..
+
 libc.READY:
 	make $(PLATFORM)_init
 	make -C $(MUSLDIR)
