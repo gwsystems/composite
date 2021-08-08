@@ -22,20 +22,20 @@ cos_static_stack_end:
 .align 16;				\
 __cosrt_upcall_entry:			\
 	COS_ASM_GET_STACK		\
-	pushl $0;			\
+	push $0;			\
 	movl %esp, -8(%esp);		\
-	pushl $0;			\
+	push $0;			\
 	movl %esp, -8(%esp);		\
 	subl $8, %esp;			\
-	pushl %esi;			\
-	pushl %edi;			\
-	pushl %ebx;			\
+	push %rsi;			\
+	push %rdi;			\
+	push %rbx;			\
 	xor %ebp, %ebp;			\
-	pushl %ecx;			\
+	push %rcx;			\
 	call cos_upcall_fn;		\
 	addl $24, %esp;			\
-	popl %esi;			\
-	popl %edi;			\
+	pop %rsi;			\
+	pop %rdi;			\
 	movl %eax, %ecx;		\
 	movl $RET_CAP, %eax;		\
 	COS_ASM_RET_STACK		\

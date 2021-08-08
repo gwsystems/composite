@@ -10,16 +10,16 @@
 	addl %eax, %esp;		    \
 	shr $MAX_STACK_SZ_BYTE_ORDER, %eax; \
 	shr $16, %edx;			    \
-	pushl %edx;			    \
-	pushl %eax;
+	pushq %rdx;			    \
+	pushq %rax;
 
 #define COS_ASM_GET_STACK       \
 	COS_ASM_GET_STACK_BASIC \
-	pushl $0;
+	push $0;
 
 #define COS_ASM_GET_STACK_INVTOKEN \
 	COS_ASM_GET_STACK_BASIC    \
-	pushl %ecx;
+	push %rcx;
 
 #define COS_ASM_RET_STACK
 

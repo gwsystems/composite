@@ -33,7 +33,7 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	__asm__ __volatile__("pushl %%ebp\n\t"		\
+	__asm__ __volatile__("pushq %%rbp\n\t"		\
 	                     "movl %%esp, %%ebp\n\t"	\
 	                     "movl $1f, %%ecx\n\t"	\
 	                     "sysenter\n\t"		\
@@ -46,7 +46,7 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	                     "2:\n\t"			\
 	                     "movl $1, %%ecx\n\t"	\
 	                     "3:\n\t"			\
-	                     "popl %%ebp"		\
+	                     "popq %%rbp"		\
 	                     : "=a"(ret), "=c"(fault)
 	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
 	                     : "memory", "cc");
@@ -63,7 +63,7 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	__asm__ __volatile__("pushl %%ebp\n\t"		\
+	__asm__ __volatile__("pushq %%rbp\n\t"		\
 	                     "movl %%esp, %%ebp\n\t"	\
 	                     "movl $1f, %%ecx\n\t"	\
 	                     "sysenter\n\t"		\
@@ -76,7 +76,7 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	                     "2:\n\t"			\
 	                     "movl $1, %%ecx\n\t"	\
 	                     "3:\n\t"			\
-	                     "popl %%ebp\n\t"		\
+	                     "popq %%rbp\n\t"		\
 	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2), "=b" (*r3)
 	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
 	                     : "memory", "cc");
@@ -93,7 +93,7 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	__asm__ __volatile__("pushl %%ebp\n\t"		\
+	__asm__ __volatile__("pushq %%rbp\n\t"		\
 	                     "movl %%esp, %%ebp\n\t"	\
 	                     "movl $1f, %%ecx\n\t"	\
 	                     "sysenter\n\t"		\
@@ -106,7 +106,7 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	                     "2:\n\t"			\
 	                     "movl $1, %%ecx\n\t"	\
 	                     "3:\n\t"			\
-	                     "popl %%ebp\n\t"		\
+	                     "popq %%rbp\n\t"		\
 	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2)
 	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
 	                     : "memory", "cc");
@@ -169,7 +169,7 @@ get_stk_data(int offset)
 {
 	unsigned long curr_stk_pointer;
 
-	__asm__("movl %%esp, %0;" : "=r"(curr_stk_pointer));
+	__asm__("mov %%rsp, %0;" : "=r"(curr_stk_pointer));
 	/*
 	 * We save the CPU_ID and thread id in the stack for fast
 	 * access.  We want to find the struct cos_stk (see the stkmgr
