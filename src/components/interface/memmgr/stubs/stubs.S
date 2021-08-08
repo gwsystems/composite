@@ -1,5 +1,0 @@
-#include <cos_asm_stubs.h>
-
-cos_asm_stub(memmgr_heap_page_allocn)
-cos_asm_stub_indirect(memmgr_shared_page_allocn)
-cos_asm_stub_indirect(memmgr_shared_page_map)
