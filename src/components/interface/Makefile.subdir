@@ -24,7 +24,8 @@ $(IFLIB):$(C_OBJS)
 
 %.o:%.c
 	$(info |     [CC]   Compiling c file $^ into $@)
-	@$(CC) $(CFLAGS) $(CINC) $(DEP_INC) -c -o $(@) $<
+#disable warnings temporarily	
+	@$(CC) $(CFLAGS) -w $(CINC) $(DEP_INC) -c -o $(@) $<
 
 variants:
 	@for dir in $(VARIANTS) ; do \

@@ -83,7 +83,7 @@ all:
 	$(info ************[ Building Libraries ]*************)
 	$(info ***********************************************)
 	@for dir in $(SUBDIRS) ; do \
-		$(MAKE) $(MAKEOPTIONS) -C $$dir ; \
+		$(MAKE) $(MAKEOPTIONS) -C $$dir  || exit $$?; \
 	done
 
 clean:

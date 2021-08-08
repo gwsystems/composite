@@ -28,7 +28,8 @@ IFPATH=$(subst /, ,$(shell pwd))
 VARIANTNAME=$(lastword $(IFPATH))
 IFNAME=$(word $(shell echo $(words $(IFPATH))-1 | bc), $(IFPATH))
 DEP_INC=$(DEPENDENCIES)
-CFLAGS += $(CINC) -I.. $(DEP_INC)
+#disable warnings temporarily
+CFLAGS += $(CINC) -I.. $(DEP_INC) -w
 
 .PHONY: all
 all: print $(SERVER_STUB) $(CLIENT_STUB)

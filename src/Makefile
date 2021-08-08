@@ -7,7 +7,8 @@ PLAT_FILE=.PLATFORM_ID
 
 default: | all
 
-all: composer comps plat
+#all: composer comps plat
+all: comps
 
 composer:
 	cd composer/ ; cargo build
@@ -46,12 +47,13 @@ distclean: clean
 	@rm -f `pwd`/../transfer/*
 
 init:
-	test -f $(PLAT_FILE) || $(MAKE) $(MAKEOPTIONS) config
+	$(MAKE) $(MAKEOPTIONS) config
 	$(MAKE) $(MAKEOPTIONS) -C components init
 	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat $(PLAT_FILE)) -C platform init
 
 update:
-	git submodule update --init --recursive
+#	git submodule update --init --recursive
+	$(info do noting)
 
 submod_fastforward:
 	git submodule update --remote --merge
@@ -64,8 +66,8 @@ config-gen: update
 	@echo "LDIR=\$$(CODE_DIR)/linux-2.6.36/" >> Makefile.cosconfig
 	@echo "TEST_DIR=/root/experiments/" >> Makefile.cosconfig
 
-# default platform is i386
-config: config-i386
+# default platform is x86_64
+config: config-x86_64
 
 # override the default linux chal link
 config-i386: config-gen
@@ -93,6 +95,19 @@ config-armv7a: config-gen
 	@echo "Please view Makefile.cosconfig and kernel/include/chal/shared/cpu_ghz.h to make sure they're accurate."
 	@echo "Do _not_ 'git add' either of these files."
 	@echo "#define COS_PLATFORM ARMV7A" >> ./kernel/include/chal/shared/cpu_ghz.h
+
+config-x86_64: config-gen
+	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/x86_64/chal/ chal
+	@echo "x86_64" > $(PLAT_FILE)
+	@echo "ARCH_CFLAGS = -m64 -D__x86_64__" >  Makefile.arch
+	@echo "ARCH_ASFLAGS= -m64 -D__x86_64__ -D__ASM__" >> Makefile.arch
+	@echo "ARCH_LDFLAGS=-melf_x86_64"      >> Makefile.arch
+	@echo "Configuring the system with clock speed and directory structure."
+	@cat /proc/cpuinfo | grep "model name" -m 1 | sed 's/.*\([0-9]\.[0-9]*\).*/\#define CPU_GHZ \1/' > ./kernel/include/chal/shared/cpu_ghz.h
+	@if [ -z "`cat /proc/cpuinfo | grep \"physical id\"`" ]; then echo "#define NUM_CPU_SOCKETS 1" >> ./kernel/include/chal/shared/cpu_ghz.h; else cat /proc/cpuinfo | grep "physical id" | sort | uniq | wc -l | sed 's/.*\([0-9]\).*/\#define NUM_CPU_SOCKETS \1/' >> ./kernel/include/chal/shared/cpu_ghz.h; fi
+	@echo "Please view Makefile.cosconfig and kernel/include/chal/shared/cpu_ghz.h to make sure they're accurate."
+	@echo "Do _not_ 'git add' either of these files."
+	@echo "#define COS_PLATFORM x86_64" >> ./kernel/include/chal/shared/cpu_ghz.h
 
 run:
 ifeq ($(RUNSCRIPT),)
