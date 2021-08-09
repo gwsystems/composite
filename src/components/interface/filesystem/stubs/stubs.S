@@ -1,0 +1,11 @@
+#include <cos_asm_stubs.h>
+
+cos_asm_stub_indirect(filesystem_fopen)
+cos_asm_stub(filesystem_fclose)
+cos_asm_stub(filesystem_ftruncate)
+cos_asm_stub_indirect(filesystem_fread)
+cos_asm_stub_indirect(filesystem_fwrite)
+cos_asm_stub(filesystem_fseek)
+cos_asm_stub(filesystem_ftell)
+cos_asm_stub(filesystem_fsize)
+cos_asm_stub(__filesystem_s_smem_init)
