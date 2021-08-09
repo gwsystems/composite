@@ -66,7 +66,7 @@ all: $(KERNEL)
 
 $(KERNEL): linker.ld $(DEPS) $(OBJS) loader.o 
 	$(if $(CONSTRUCTOR_COMP), $(info |     [LD]   Linking in the constructor component $@))
-	$(if $(CONSTRUCTOR_COMP), cp $(CONSTRUCTOR_COMP) constructor; $(LD) -r -b binary constructor -o constructor.o; objcopy --rename-section .data=.initial_component constructor.o; rm constructor)
+	$(if $(CONSTRUCTOR_COMP), cp $(CONSTRUCTOR_COMP) constructor; $(LD) -r -b binary constructor -o constructor.o; objcopy --rename-section .data=.initial_component constructor.o;)
 	$(if $(KERNEL_OUTPUT), $(info |     [LD]   Linking $@))
 	$(if $(KERNEL_OUTPUT), $(LD) -T linker.ld loader.o entry.o $(OBJS) $(if $(CONSTRUCTOR_COMP), constructor.o) -o $@)
 	$(if $(KERNEL_OUTPUT), $(info |     [CP]   Copying $@ into $(KERNEL_OUTPUT)))
@@ -112,6 +112,7 @@ captbl.o: ../../kernel/captbl.c
 clean:
 	@rm -f *.d *.o $(KERNEL)  kernel.iso
 	@rm -rf iso
+	@-rm constructor
 
 gdb:
 	gdb -x ./gdbinit
