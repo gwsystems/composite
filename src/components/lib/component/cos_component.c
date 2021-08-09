@@ -202,6 +202,7 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	const int parallel_init = cos_parallel_init != __crt_cos_parallel_init;
 	int ret = 0;
 	int main_time = 0;
+	static volatile int initialization_completed = 0;
 
 	/* are parallel/regular main user-defined? */
 	if (parallel_main != __crt_parallel_main) {
@@ -212,20 +213,23 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	}
 
 	/* single-core initialization */
-	if (init_core) {
-		cos_init();
-		/* continue only if there is no user-defined main, or parallel exec */
-		COS_EXTERN_INV(init_done)(parallel_init, main_type);
-		assert(parallel_init || main_type != INIT_MAIN_NONE);
-	}
+	if (initialization_completed == 0) {
+		if (init_core) {
+			cos_init();
+			/* continue only if there is no user-defined main, or parallel exec */
+			COS_EXTERN_INV(init_done)(parallel_init, main_type);
+			assert(parallel_init || main_type != INIT_MAIN_NONE);
+		}
 
-	/* Parallel initialization */
-	COS_EXTERN_INV(init_parallel_await_init)();
-	if (parallel_init) {
-		cos_parallel_init(cid, init_core, init_parallelism());
+		/* Parallel initialization */
+		COS_EXTERN_INV(init_parallel_await_init)();
+		if (parallel_init) {
+			cos_parallel_init(cid, init_core, init_parallelism());
+		}
+		/* All initialization completed here, go onto main execution */
+		initialization_completed = 1;
+		COS_EXTERN_INV(init_done)(0, main_type);
 	}
-	/* All initialization completed here, go onto main execution */
-	COS_EXTERN_INV(init_done)(0, main_type);
 	/* No main? we shouldn't have continued here... */
 	assert(main_type != INIT_MAIN_NONE);
 	assert(main_type == INIT_MAIN_PARALLEL || (main_type == INIT_MAIN_SINGLE && init_core));
@@ -299,6 +303,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 			static unsigned long first_core = 1;
 
 			start_execution(cos_coreid(), ps_cas(&first_core, 1, 0), init_parallelism());
+
 		} else {
 			u32_t idx = (int)arg1 - 1;
 			if (idx >= COS_THD_INIT_REGION_SIZE) {

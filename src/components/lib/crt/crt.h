@@ -9,6 +9,10 @@
 
 typedef unsigned long crt_refcnt_t;
 
+#define CRT_COMP_SINVS_LEN 16
+
+struct crt_comp;
+
 struct crt_asnd {
 	struct crt_rcv *rcv;
 	asndcap_t asnd;
@@ -47,6 +51,14 @@ typedef enum {
 	CRT_COMP_INIT_TERM
 } crt_comp_init_state_t;
 
+struct crt_sinv {
+	char *name;
+	struct crt_comp *server, *client;
+	vaddr_t c_fn_addr, c_ucap_addr;
+	vaddr_t s_fn_addr;
+	sinvcap_t sinv_cap;
+};
+
 struct crt_comp {
 	crt_comp_flags_t flags;
 	char *name;
@@ -69,6 +81,12 @@ struct crt_comp {
 	coreid_t init_core;
 
 	crt_refcnt_t refcnt;
+
+	size_t tot_sz_mem;
+	size_t ro_sz;
+	struct crt_sinv sinvs[CRT_COMP_SINVS_LEN];
+	u32_t  n_sinvs;
+	
 };
 
 struct crt_comp_resources {
@@ -78,6 +96,12 @@ struct crt_comp_resources {
 	cap_t       captbl_frontier;
 	vaddr_t     heap_ptr;
 	vaddr_t     info;
+};
+
+struct crt_chkpt {
+	struct crt_comp *c;
+	char            *mem;
+	size_t           tot_sz_mem;
 };
 
 typedef enum {
@@ -130,13 +154,7 @@ typedef enum {
 	CRT_RCV_ALIAS_ALL  = CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP | CRT_RCV_ALIAS_RCV,
 } crt_rcv_alias_t;
 
-struct crt_sinv {
-	char *name;
-	struct crt_comp *server, *client;
-	vaddr_t c_fn_addr, c_ucap_addr;
-	vaddr_t s_fn_addr;
-	sinvcap_t sinv_cap;
-};
+
 
 struct crt_sinv_resources {
 	sinvcap_t sinv_cap;
@@ -144,6 +162,11 @@ struct crt_sinv_resources {
 
 int crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info);
 int crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_comp_resources *resources);
+
+int crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt);
+unsigned long crt_ncomp();
+unsigned long crt_nchkpt();
+
 int crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp_resources *res, crt_comp_alias_t flags);
 void crt_comp_captbl_frontier_update(struct crt_comp *c, capid_t capid);
 int crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info);
@@ -186,5 +209,9 @@ typedef struct crt_comp *(*comp_get_fn_t)(compid_t id);
 void crt_compinit_execute(comp_get_fn_t comp_get);
 void crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type);
 void crt_compinit_exit(struct crt_comp *c, int retval);
+
+int crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c);
+int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
+
 
 #endif /* CRT_H */
