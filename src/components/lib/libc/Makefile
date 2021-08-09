@@ -7,7 +7,7 @@
 #
 # NOTE: libc is special-cased and the compilation is orchestrated
 # directly. It should have no dependencies.
-LIBRARY_OUTPUT = c crypt m thread resolv rt
+LIBRARY_OUTPUT = c crypt m pthread resolv rt
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,
