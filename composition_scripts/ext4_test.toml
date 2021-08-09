@@ -1,0 +1,43 @@
+[system]
+description = "Simplest system with both capability manager and scheduler, from unit_schedcomp.sh"
+
+[[components]]
+name = "booter"
+img  = "no_interface.llbooter"
+implements = [{interface = "init"}, {interface = "addr"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"
+
+[[components]]
+name = "capmgr"
+img  = "capmgr.simple"
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
+implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
+constructor = "booter"
+
+[[components]]
+name = "sched"
+img  = "sched.root_fprr"
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "sched"}, {interface = "init"}]
+constructor = "booter"
+
+[[components]]
+name = "blockdev"
+img  = "blockdev.ramdisk"
+deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "blockdev"}]
+constructor = "booter"
+
+[[components]]
+name = "filesystem"
+img  = "filesystem.ext4"
+deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "blockdev", interface = "blockdev"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "filesystem"}]
+constructor = "booter"
+
+[[components]]
+name = "ext4_tests"
+img  = "tests.ext4_tests"
+deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "filesystem", interface = "filesystem"}, {srv = "capmgr", interface = "memmgr"}]
+constructor = "booter"
