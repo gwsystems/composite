@@ -301,6 +301,7 @@ slm_thd_wakeup_cs(struct slm_thd *curr, struct slm_thd *t)
 	assert(t);
 
 	slm_cs_enter(curr, SLM_CS_NONE);
+	/* Only reschedule if we wake up a thread */
 	if (slm_thd_wakeup(t, 0)) {
 		slm_cs_exit(curr, SLM_CS_NONE);
 	} else {
@@ -360,66 +361,6 @@ slm_cs_enter_sched(void)
 
 	return ret;
 }
-
-/*
- * Do a few things: 1. call schedule to find the next thread to run,
- * 2. release the critical section (note this will cause visual
- * asymmetries in your code if you call slm_cs_enter before this
- * function), and 3. switch to the given thread. It hides some races,
- * and details that would make this difficult to write repetitively.
- *
- * Preconditions: if synchronization is required with code before
- * calling this, you must call slm_cs_enter before-hand (this is likely
- * a typical case).
- *
- * Return: the return value from cos_switch.  The caller must handle
- * this value correctly.
- *
- * A common use-case is:
- *
- * slm_cs_enter(...);
- * scheduling_stuff()
- * slm_cs_exit_reschedule(...);
- *
- * ...which correctly handles any race-conditions on thread selection and
- * dispatch.
- */
-/* int */
-/* slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags) */
-/* { */
-/* 	struct cos_compinfo    *ci  = &cos_defcompinfo_curr_get()->ci; */
-/* 	struct slm_global      *g   = slm_global(); */
-/* 	struct slm_thd         *t; */
-/* 	sched_tok_t             tok; */
-/* 	int                     ret; */
-
-/* 	tok  = cos_sched_sync(); */
-/* 	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) { */
-/* 		cycles_t now; */
-/* 		s64_t    diff; */
-
-/* 		now  = slm_now(); */
-/* 		diff = (s64_t)(g->timer_next - now); */
-/* 		/\* Do we need to recompute the timer? *\/ */
-/* 		if (diff <= 0) { */
-/* 			g->timer_set = 0; */
-/* 			/\* The timer policy will likely reset the timer *\/ */
-/* 			slm_timer_expire(now); */
-/* 		} */
-/* 	} */
-
-/* 	t = slm_sched_schedule(); */
-/* 	if (unlikely(!t)) t = &g->idle_thd; */
-/* 	assert(slm_state_is_runnable(t->state)); */
-
-/* 	slm_cs_exit(NULL, flags); */
-
-/* 	ret = slm_thd_activate(curr, t, tok, 0); */
-/* 	/\* Assuming only the single tcap with infinite budget...should not get EPERM *\/ */
-/* 	assert(ret != -EPERM); */
-
-/* 	return ret; */
-/* } */
 
 static void
 slm_sched_loop_intern(int non_block)
