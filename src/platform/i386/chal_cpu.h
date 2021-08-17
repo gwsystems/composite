@@ -165,7 +165,8 @@ static inline void
 chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)
 {
 #if defined(__x86_64__)
-	__asm__("movq $0x200, %%r11 ; mov %%rbx, %%ds ; sysretq" : : "c"(ip), "a"(tid | (cpuid << 16)), "b"(SEL_UDSEG));
+	/* rcx = user-level ip, r12 = option, rbx = arg, rax = tid + cpuid  */
+	__asm__("movq $0x200, %%r11 ; mov %%rdx, %%ds ; movq %3, %%r12 ; sysretq" : : "c"(ip), "a"(tid | (cpuid << 16)), "d"(SEL_UDSEG), "i"(0), "b"(0));
 #elif defined(__i386__)
 	/* edx = user-level ip, ecx = option, ebx = arg, eax = tid + cpuid */
 	__asm__("sti ; sysexit" : : "c"(0), "d"(ip), "b"(0), "a"(tid | (cpuid << 16)));

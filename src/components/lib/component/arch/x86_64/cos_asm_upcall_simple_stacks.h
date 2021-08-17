@@ -23,15 +23,15 @@ cos_static_stack_end:
 __cosrt_upcall_entry:			\
 	COS_ASM_GET_STACK		\
 	push $0;			\
-	movl %esp, -8(%esp);		\
+	mov %rsp, -16(%esp);		\
 	push $0;			\
-	movl %esp, -8(%esp);		\
-	subl $8, %esp;			\
-	push %rsi;			\
-	push %rdi;			\
-	push %rbx;			\
-	xor %ebp, %ebp;			\
-	push %rcx;			\
+	mov %rsp, -16(%esp);		\
+	sub $16, %rsp;			\
+	mov %rsi, %rcx;			\
+	mov %rdi, %rdx;			\
+	mov %rbx, %rsi;			\
+	xor %rbp, %rbp;			\
+	mov %r12, %rdi;			\
 	call cos_upcall_fn;		\
 	addl $24, %esp;			\
 	pop %rsi;			\

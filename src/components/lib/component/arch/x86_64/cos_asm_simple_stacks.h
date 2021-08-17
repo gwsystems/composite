@@ -3,13 +3,13 @@
 
 /* clang-format off */
 #define COS_ASM_GET_STACK_BASIC             \
-	movl $cos_static_stack, %esp;	    \
-	movl %eax, %edx;		    \
-	andl $0xffff, %eax;		    \
-	shl $MAX_STACK_SZ_BYTE_ORDER, %eax; \
-	addl %eax, %esp;		    \
-	shr $MAX_STACK_SZ_BYTE_ORDER, %eax; \
-	shr $16, %edx;			    \
+	mov $cos_static_stack, %rsp;	    \
+	mov %rax, %rdx;		    \
+	andq $0xffff, %rax;		    \
+	shl $MAX_STACK_SZ_BYTE_ORDER, %rax; \
+	add %rax, %rsp;		    \
+	shr $MAX_STACK_SZ_BYTE_ORDER, %rax; \
+	shr $16, %rdx;			    \
 	pushq %rdx;			    \
 	pushq %rax;
 
