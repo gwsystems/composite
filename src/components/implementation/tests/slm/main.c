@@ -95,8 +95,8 @@ thd_alloc(thd_fn_t fn, void *data, sched_param_t *parameters, int reschedule)
 	int i;
 
 	/*
-	 * We are likely in the initialization sequence in the idle or
-	 * scheduler threads...
+	 * If this condition is true, we are likely in the
+	 * initialization sequence in the idle or scheduler threads...
 	 */
 	if (!current) {
 		current = slm_thd_special();
