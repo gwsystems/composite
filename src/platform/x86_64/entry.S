@@ -19,9 +19,8 @@
 	pushq %r15		\
 
 #define SAVE_REGS_ALL 		\
-	subq $48, %rsp;			\
+	subq $80, %rsp;			\
 	SAVE_REGS_GENERAL;		\
-	subq $32, %rsp
 
 /* When return to user: ecx => sp, edx => ip. */
 #define RESTORE_REGS_GENERAL	\
@@ -42,9 +41,8 @@
 	popq %rax
 
 #define RESTORE_REGS_ALL	\
-	addq $32, %rsp;			\
 	RESTORE_REGS_GENERAL; 	\
-	addq $48, %rsp
+	addq $80, %rsp
 
 #define RET_TO_USER \
 	sti; 	    \

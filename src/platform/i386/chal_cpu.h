@@ -123,7 +123,7 @@ chal_cpu_init(void)
 	writemsr(MSR_IA32_EFER,low | 0x1, high);
 
 	writemsr(MSR_STAR, 0, SEL_KCSEG | ((SEL_UCSEG - 16) << 16));
-	writemsr(MSR_LSTAR, (u32_t)(u64_t)sysenter_entry, (u32_t)((u64_t)sysenter_entry >> 32));
+	writemsr(MSR_LSTAR, (u32_t)((u64_t)sysenter_entry), (u32_t)((u64_t)sysenter_entry >> 32));
 
 #elif defined(__i386__)
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);

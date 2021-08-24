@@ -34,9 +34,9 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	cap_no += op;
 
 	__asm__ __volatile__("pushq %%rbp\n\t"		\
-	                     "movl %%esp, %%ebp\n\t"	\
-	                     "movl $1f, %%ecx\n\t"	\
-	                     "sysenter\n\t"		\
+	                     "mov %%rsp, %%rbp\n\t"	\
+	                     "mov $1f, %%rdx\n\t"	\
+	                     "syscall\n\t"		\
 	                     ".align 8\n\t"		\
 	                     "jmp 2f\n\t"		\
 	                     ".align 8\n\t"		\
