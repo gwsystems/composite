@@ -114,7 +114,7 @@ thd_alloc(thd_fn_t fn, void *data, sched_param_t *parameters, int reschedule)
 		unsigned int value;
 
 		sched_param_get(parameters[i], &type, &value);
-		if (slm_sched_thd_modify(&t->thd, type, value)) ERR_THROW(NULL, free);
+		if (slm_sched_thd_update(&t->thd, type, value)) ERR_THROW(NULL, free);
 	}
 	slm_mem_activate(t);
 
@@ -401,9 +401,9 @@ main(void)
 	param[0] = sched_param_pack(SCHEDP_PRIO, 10);
 	param[1] = 0;
 
-	pingpong_block_test(1);
-	interleave_test(3);
-	timer_test(5);
+	pingpong_block_test(2);
+	interleave_test(4);
+	timer_test(6);
 	done_thd = thd_alloc(done_fn, NULL, param, 0);
 	if (!done_thd) BUG();
 	slm_sched_loop();

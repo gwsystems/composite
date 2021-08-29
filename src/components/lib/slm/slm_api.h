@@ -63,7 +63,7 @@ void slm_timer_expire(cycles_t now);
  * and remove threads, add specific thread timeouts, remove them,
  * etc... `cancel` cancels an active timeout for this thread.
  */
-int  slm_timer_thd_init(struct slm_thd *t);
+int slm_timer_thd_init(struct slm_thd *t);
 void slm_timer_thd_deinit(struct slm_thd *t);
 
 int slm_timer_add(struct slm_thd *t, cycles_t absolute_cyc);
@@ -94,24 +94,51 @@ int slm_timer_init(void);
 
 #include <res_spec.h>
 
+/**
+ * Initialize the general scheduler toolkit.
+ */
 void slm_sched_init(void);
-int  slm_sched_thd_init(struct slm_thd *t);
+/**
+ * Initialize a new thread (but don't yet add to scheduler queues).
+ */
+int slm_sched_thd_init(struct slm_thd *t);
+/**
+ * Prepare for thread deletion.
+ */
 void slm_sched_thd_deinit(struct slm_thd *t);
-int  slm_sched_thd_modify(struct slm_thd *t, sched_param_type_t param, unsigned int v);
+/**
+ * Take a list of scheduler parameters, and apply them to a thread.
+ * Update the thread in the scheduler data-structures corresponding to
+ * these parameters.
+ */
+int slm_sched_thd_update(struct slm_thd *t, sched_param_type_t param, unsigned int v);
 
-/* remove the thread from consideration for execution */
+/**
+ * Block the *current* thread, denoted by `t`.
+ */
 int slm_sched_block(struct slm_thd *t);
-/* add the thread for consideration for execution */
+/**
+ * Add the thread, `t`, for consideration for execution.
+ */
 int slm_sched_wakeup(struct slm_thd *t);
-void slm_sched_yield(struct slm_thd *t, struct slm_thd *yield_to);
 
-/*
+/**
  * Return the next thread (e.g. highest priority thread) that should
- * execute.
+ * execute. Can return `NULL` if no thread is runnable.
  */
 struct slm_thd *slm_sched_schedule(void);
-/* Some amount of execution for thread t has elapsed */
+/**
+ * Called to notify the scheduler that some amount of execution for
+ * thread t has elapsed.
+ */
 void slm_sched_execution(struct slm_thd *t, cycles_t cycles);
+
+/***
+ * Resource APIs.
+ */
+
+typedef void (*thd_fn_t)(void *);
+
 
 /*
  * Macros to create the uniform functions that are used to coordinate
@@ -168,14 +195,12 @@ void slm_sched_execution(struct slm_thd *t, cycles_t cycles);
 	{ return slm_sched_##schedpol##_thd_init(t); }			\
 	void slm_sched_thd_deinit(struct slm_thd *t)			\
 	{ slm_sched_##schedpol##_thd_deinit(t); }			\
-	int slm_sched_thd_modify(struct slm_thd *t, sched_param_type_t p, unsigned int v) \
-	{ return slm_sched_##schedpol##_thd_modify(t, p, v); }		\
+	int slm_sched_thd_update(struct slm_thd *t, sched_param_type_t p, unsigned int v) \
+	{ return slm_sched_##schedpol##_thd_update(t, p, v); }		\
 	int slm_sched_block(struct slm_thd *t)				\
 	{ return slm_sched_##schedpol##_block(t); }			\
 	int slm_sched_wakeup(struct slm_thd *t)				\
 	{ return slm_sched_##schedpol##_wakeup(t); }			\
-	void slm_sched_yield(struct slm_thd *t, struct slm_thd *to)	\
-	{ slm_sched_##schedpol##_yield(t, to); }			\
 	struct slm_thd *slm_sched_schedule(void)			\
 	{ return slm_sched_##schedpol##_schedule(); }			\
 	void slm_sched_execution(struct slm_thd *t, cycles_t c)		\
@@ -183,6 +208,25 @@ void slm_sched_execution(struct slm_thd *t, cycles_t cycles);
 									\
 	struct slm_thd *slm_thd_lookup(thdid_t id)			\
 	{ return slm_thd_##respol##_lookup(id); }
+
+#define SLM_MODULES_POLICY_PROTOTYPES(schedpol)				\
+	void slm_sched_##schedpol##_execution(struct slm_thd *t, cycles_t cycles); \
+	struct slm_thd *slm_sched_##schedpol##_schedule(void);		\
+	int slm_sched_##schedpol##_block(struct slm_thd *t);		\
+	int slm_sched_##schedpol##_wakeup(struct slm_thd *t);		\
+	void slm_sched_##schedpol##_yield(struct slm_thd *t, struct slm_thd *yield_to);	\
+	int slm_sched_##schedpol##_thd_init(struct slm_thd *t);		\
+	void slm_sched_##schedpol##_thd_deinit(struct slm_thd *t);	\
+	int slm_sched_##schedpol##_thd_update(struct slm_thd *t, sched_param_type_t type, unsigned int v); \
+	void slm_sched_##schedpol##_init(void);
+
+#define SLM_MODULES_TIMER_PROTOTYPES(timerpol)				\
+	void slm_timer_##timerpol##_expire(cycles_t now);		\
+	int slm_timer_##timerpol##_add(struct slm_thd *t, cycles_t absolute_timeout); \
+	int slm_timer_##timerpol##_cancel(struct slm_thd *t);		\
+	int slm_timer_##timerpol##_thd_init(struct slm_thd *t);		\
+	void slm_timer_##timerpol##_thd_deinit(struct slm_thd *t);	\
+	int slm_timer_##timerpol##_init(void);
 
 #define SLM_MODULES_COMPOSE_DATA()					\
 	struct slm_thd_container {					\

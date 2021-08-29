@@ -6,7 +6,7 @@
 
 #define SLM_FPRR_NPRIOS         32
 #define SLM_FPRR_PRIO_HIGHEST   TCAP_PRIO_MAX
-#define SLM_FPRR_PRIO_LOWEST    SLM_FPRR_NPRIOS
+#define SLM_FPRR_PRIO_LOWEST    (SLM_FPRR_NPRIOS - 1)
 
 #define SLM_FPRR_PERIOD_US_MIN  10000
 
@@ -85,28 +85,49 @@ slm_sched_fprr_thd_init(struct slm_thd *t)
 
 void
 slm_sched_fprr_thd_deinit(struct slm_thd *t)
-{ ps_list_rem_d(slm_thd_sched_policy(t)); }
+{
+	ps_list_rem_d(slm_thd_sched_policy(t));
+}
 
-int
-slm_sched_fprr_thd_modify(struct slm_thd *t, sched_param_type_t type, unsigned int v)
+static void
+update_queue(struct slm_thd *t, tcap_prio_t prio)
 {
 	struct slm_sched_thd *p = slm_thd_sched_policy(t);
 
+	t->priority = prio;
+	ps_list_rem_d(p); /* if we're already on a list, and we're updating priority */
+	ps_list_head_append_d(&threads[cos_cpuid()][prio], p);
+
+	return;
+}
+
+int
+slm_sched_fprr_thd_update(struct slm_thd *t, sched_param_type_t type, unsigned int v)
+{
 	switch (type) {
+	case SCHEDP_INIT_PROTO:
+	{
+		update_queue(t, 0);
+
+		return 0;
+	}
+	case SCHEDP_INIT:
+	{
+		update_queue(t, SLM_FPRR_PRIO_LOWEST);
+
+		return 0;
+	}
 	case SCHEDP_PRIO:
 	{
-		assert(v >= SLM_FPRR_PRIO_HIGHEST && v <= SLM_FPRR_PRIO_LOWEST);
-		ps_list_rem_d(p); /* if we're already on a list, and we're updating priority */
-		t->priority = v;
-		ps_list_head_append_d(&threads[cos_cpuid()][t->priority - 1], p);
+		assert(v >= SLM_FPRR_PRIO_HIGHEST && v < SLM_FPRR_PRIO_LOWEST);
+		update_queue(t, v);
 
-		break;
+		return 0;
 	}
 	/* Only support priority, for now */
-	default: assert(0);
+	default:
+		return -1;
 	}
-
-	return 0;
 }
 
 void

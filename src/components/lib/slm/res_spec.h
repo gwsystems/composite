@@ -36,6 +36,7 @@ typedef enum {
 	SCHEDP_PROPORTION,  /* percent required */
 	SCHEDP_WEIGHT,      /* proportion compared to other */
 	SCHEDP_IDLE,        /* idle thread: internal use only */
+	SCHEDP_INIT_PROTO,  /* HP scheduler threads performing the initialization protocol */
 	SCHEDP_INIT,        /* initialization threads: internal use only */
 	SCHEDP_IPI_HANDLER, /* IPI handler thread: internal use only */
 	SCHEDP_TIMER,       /* timer thread: internal use only */

@@ -83,7 +83,8 @@ struct slm_thd {
 
 	/* Execution information retrieved by the scheduler thread */
 	struct event_info event_info;
-	struct ps_list    event_list; /* list of events for the scheduler end-point */
+	struct ps_list    thd_list;       /* list of events for the scheduler */
+	struct ps_list    graveyard_list; /* list of threads that have terminated that require deallocation */
 };
 
 typedef enum {
@@ -142,8 +143,18 @@ void slm_init(thdcap_t thd, thdid_t tid);
  */
 void slm_sched_loop(void);
 void slm_sched_loop_nonblock(void);
+/*
+ * Return if the initialization is done *and* the scheduler thread on
+ * this core has executed the scheduler loop. All threads should not
+ * be activated in the policy (thus runnable) until this has been
+ * done.
+ */
+int slm_init_done(void);
+/* After a thread has been initialized, activate it! Calls `slm_thd_sched_update`. */
+int slm_thd_commit_updates(struct slm_thd *t);
 
-int slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid);
+int  slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid);
+void slm_thd_deinit(struct slm_thd *t);
 
 /* forward declarations, not part of the public API. */
 int slm_cs_enter_contention(struct slm_cs *cs, slm_cs_cached_t cached, struct slm_thd *curr, struct slm_thd *owner, int contended, sched_tok_t tok);
@@ -281,7 +292,7 @@ static inline int slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t fl
 static inline int
 slm_switch_to(struct slm_thd *curr, struct slm_thd *to, sched_tok_t tok, int inherit_prio)
 {
-	if (to->state != SLM_THD_RUNNABLE) return 1;
+	if (unlikely(!slm_state_is_runnable(to->state))) return 1;
 
 	return slm_thd_activate(curr, to, tok, inherit_prio);
 }

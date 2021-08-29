@@ -31,7 +31,16 @@ slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid)
 		.priority = TCAP_PRIO_MIN,
 		.properties = 0
 	};
-	ps_list_init(t, event_list);
+	ps_list_init(t, thd_list);
+	ps_list_init(t, graveyard_list);
+
+	return 0;
+}
+
+static int
+slm_thd_deinit_internal(struct slm_thd *t)
+{
+	ps_list_head_append(&slm_global()->graveyard_head, t, graveyard_list);
 
 	return 0;
 }
@@ -48,10 +57,13 @@ slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid)
 	return 0;
 }
 
-int
+void
 slm_thd_deinit(struct slm_thd *t)
-{ return 0; }
-
+{
+	slm_sched_thd_deinit(t);
+	slm_timer_thd_deinit(t);
+	t->state = SLM_THD_DYING;
+}
 
 /*
  * If there is contention of the critical section, this is called.
@@ -322,7 +334,7 @@ slm_thd_event_enqueue(struct slm_thd *t, int blocked, cycles_t cycles, tcap_time
 {
 	struct slm_global *g = slm_global();
 
-	if (ps_list_singleton(t, event_list)) ps_list_head_append(&g->event_head, t, event_list);
+	if (ps_list_singleton(t, thd_list)) ps_list_head_append(&g->event_head, t, thd_list);
 
 	t->event_info.blocked = blocked;
 	t->event_info.cycles += cycles;
@@ -332,7 +344,7 @@ slm_thd_event_enqueue(struct slm_thd *t, int blocked, cycles_t cycles, tcap_time
 static inline void
 slm_thd_event_dequeue(struct slm_thd *t, int *blocked, cycles_t *cycles, tcap_time_t *timeout)
 {
-	ps_list_rem(t, event_list);
+	ps_list_rem(t, thd_list);
 
 	*blocked = t->event_info.blocked;
 	*cycles  = t->event_info.cycles;
@@ -368,6 +380,7 @@ slm_sched_loop_intern(int non_block)
 	struct slm_global *g = slm_global();
 	rcv_flags_t      rfl = (non_block ? RCV_NON_BLOCKING : 0) | RCV_ALL_PENDING;
 	struct slm_thd   *us = &g->sched_thd;
+	struct slm_thd *t = NULL, *tn = NULL;
 
 	/* Only the scheduler thread should call this function. */
 	assert(cos_thdid() == us->tid);
@@ -380,7 +393,6 @@ slm_sched_loop_intern(int non_block)
 			int            blocked, rcvd;
 			cycles_t       cycles;
 			tcap_time_t    thd_timeout;
-			struct slm_thd *t = NULL, *tn = NULL;
 
 			/*
 			 * Here we retrieve the kernel scheduler
@@ -407,7 +419,7 @@ slm_sched_loop_intern(int non_block)
 			t = slm_thd_lookup(tid);
 			assert(t);
 			/* don't report the idle thread or a freed thread */
-			if (unlikely(t == &g->idle_thd || t->state == SLM_THD_FREE)) goto pending_events;
+			if (unlikely(t == &g->idle_thd || slm_state_is_dead(t->state))) goto pending_events;
 
 			/*
 			 * Failure to take the CS because 1. another
@@ -447,12 +459,12 @@ pending_events:
 			 */
 			if (slm_cs_enter(us, SLM_CS_SCHEDEVT)) continue;
 
-			ps_list_foreach_del(&g->event_head, t, tn, event_list) {
+			ps_list_foreach_del(&g->event_head, t, tn, thd_list) {
 				/* remove the event from the list and get event info */
 				slm_thd_event_dequeue(t, &blocked, &cycles, &thd_timeout);
 
 				/* outdated event for a freed thread */
-				if (t->state == SLM_THD_FREE) continue;
+				if (unlikely(slm_state_is_dead(t->state))) continue;
 
 				/* Notify the policy that some execution has happened. */
 				slm_sched_execution(t, cycles);
@@ -517,7 +529,7 @@ slm_init(thdcap_t thd, thdid_t tid)
 		.rcv = sched_aep->rcv,
 		.priority = TCAP_PRIO_MAX
 	};
-	ps_list_init(s, event_list);
+	ps_list_init(s, thd_list);
 	assert(s->tid == cos_thdid());
 
 	*i = (struct slm_thd) {
@@ -529,9 +541,12 @@ slm_init(thdcap_t thd, thdid_t tid)
 		.rcv = 0,
 		.priority = TCAP_PRIO_MIN
 	};
-	ps_list_init(i, event_list);
+	ps_list_init(i, thd_list);
+	ps_list_init(i, graveyard_list);
 
 	ps_list_head_init(&g->event_head);
+	ps_list_head_init(&g->graveyard_head);
+
 	g->cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	g->lock.owner_contention = 0;
 

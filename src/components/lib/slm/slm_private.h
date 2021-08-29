@@ -15,6 +15,9 @@ static inline int
 slm_state_is_runnable(slm_thd_state_t s)
 { return s == SLM_THD_RUNNABLE || s == SLM_THD_WOKEN; }
 
+static inline int
+slm_state_is_dead(slm_thd_state_t s)
+{ return s == SLM_THD_FREE || s == SLM_THD_DYING; }
 
 /**
  * Get the metadata about the critical section (CS). This includes the
@@ -65,7 +68,8 @@ struct slm_global {
 	cycles_t    timer_next;	  /* ...what is it set to? */
 	tcap_time_t timeout_next; /* ...and what is the tcap representation? */
 
-	struct ps_list_head event_head; /* all pending events for sched end-point */
+	struct ps_list_head event_head;     /* all pending events for sched end-point */
+	struct ps_list_head graveyard_head; /* all deinitialized threads */
 } CACHE_ALIGNED;
 
 /*
