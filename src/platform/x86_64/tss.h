@@ -19,5 +19,13 @@ struct tss {
     u16_t resv3;
     u16_t bitmap;
 } __attribute__((packed));
+
+struct kernel_stack_info {
+	vaddr_t kernel_stack_addr;
+	vaddr_t user_stack_addr;
+};
+
 extern struct tss tss[NUM_CPU];
+extern struct kernel_stack_info kernel_stack_info[NUM_CPU];
+
 #endif /* TSS_H */

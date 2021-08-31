@@ -53,6 +53,9 @@
 .align 16
 .globl sysenter_entry
 sysenter_entry:
+	swapgs
+	movq %rsp, %gs:USER_STACK_OFFSET
+	movq %gs:KERNEL_STACK_OFFSET, %rsp
 	SAVE_REGS_ALL
 	mov %rsp, %rdi /* pt_reg */
 	call composite_syscall_handler

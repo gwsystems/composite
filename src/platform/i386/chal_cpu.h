@@ -83,9 +83,12 @@ chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 #define MSR_TSC_AUX       0xc0000103
 
 #if defined(__x86_64__)
-#define MSR_IA32_EFER 0xC0000080
-#define MSR_STAR 0xC0000081 
-#define MSR_LSTAR 0xC0000082
+#define MSR_IA32_EFER		0xC0000080
+#define MSR_STAR 		0xC0000081 
+#define MSR_LSTAR 		0xC0000082
+#define MSR_SFMASK 		0xC0000084
+#define MSR_USER_GSBASE 	0xC0000101
+#define MSR_KERNEL_GSBASE 	0xC0000102
 #endif
 
 extern void sysenter_entry(void);
@@ -124,6 +127,9 @@ chal_cpu_init(void)
 
 	writemsr(MSR_STAR, 0, SEL_KCSEG | ((SEL_UCSEG - 16) << 16));
 	writemsr(MSR_LSTAR, (u32_t)((u64_t)sysenter_entry), (u32_t)((u64_t)sysenter_entry >> 32));
+	writemsr(MSR_SFMASK, 512, 0);
+	writemsr(MSR_USER_GSBASE, 0, 0);
+	writemsr(MSR_KERNEL_GSBASE, (u32_t)((u64_t)(&kernel_stack_info[cpu_id])), (u32_t)((u64_t)(&kernel_stack_info[cpu_id]) >> 32));
 
 #elif defined(__i386__)
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);

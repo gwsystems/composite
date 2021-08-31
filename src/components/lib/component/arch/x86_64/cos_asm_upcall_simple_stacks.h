@@ -23,9 +23,9 @@ cos_static_stack_end:
 __cosrt_upcall_entry:			\
 	COS_ASM_GET_STACK		\
 	push $0;			\
-	mov %rsp, -16(%esp);		\
+	mov %rsp, -16(%rsp);		\
 	push $0;			\
-	mov %rsp, -16(%esp);		\
+	mov %rsp, -16(%rsp);		\
 	sub $16, %rsp;			\
 	mov %rsi, %rcx;			\
 	mov %rdi, %rdx;			\

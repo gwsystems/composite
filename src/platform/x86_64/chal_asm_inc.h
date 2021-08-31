@@ -14,3 +14,6 @@
 #define STK_INFO_OFF (STK_INFO_SZ + 8) /* sizeof(struct cos_cpu_local_info) + sizeof(long) */
 
 #define SMP_BOOT_PATCH_ADDR 0x70000
+
+#define KERNEL_STACK_OFFSET 0
+#define USER_STACK_OFFSET 8
