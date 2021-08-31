@@ -119,7 +119,7 @@ slm_sched_fprr_thd_update(struct slm_thd *t, sched_param_type_t type, unsigned i
 	}
 	case SCHEDP_PRIO:
 	{
-		assert(v >= SLM_FPRR_PRIO_HIGHEST && v < SLM_FPRR_PRIO_LOWEST);
+		assert(v >= SLM_FPRR_PRIO_HIGHEST && v <= SLM_FPRR_PRIO_LOWEST);
 		update_queue(t, v);
 
 		return 0;

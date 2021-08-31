@@ -105,7 +105,7 @@ calculate_initialization_schedule(void)
 	return;
 }
 
-struct slm_thd *slm_current_extern(void);
+struct slm_thd *slm_thd_current_extern(void);
 
 void
 init_done(int parallel_init, init_main_t cont)
@@ -139,8 +139,12 @@ init_done(int parallel_init, init_main_t cont)
 	if (s->main_type != INIT_MAIN_NONE) return; /* FIXME: no parallel main currently */
 
 	if (cont == INIT_MAIN_NONE) {
+		struct slm_thd *current = slm_thd_current_extern();
+
 		printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), client);
-		slm_thd_deinit(slm_current_extern());	/* No main? No more execution! */
+		slm_cs_enter(current, SLM_CS_NONE);
+		slm_thd_deinit(current);		/* I'm out! */
+		slm_cs_exit_reschedule(current, SLM_CS_NONE);
 		BUG();
 	}
 
@@ -153,9 +157,12 @@ void
 init_exit(int retval)
 {
 	compid_t client = (compid_t)cos_inv_token();
+	struct slm_thd *current = slm_thd_current_extern();
 
 	printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), client);
-	slm_thd_deinit(slm_current_extern());
+	slm_cs_enter(current, SLM_CS_NONE);
+	slm_thd_deinit(current);		/* I'm out! */
+	slm_cs_exit_reschedule(current, SLM_CS_NONE);
 	BUG();
 	while (1) ;
 }
@@ -181,6 +188,7 @@ static void
 slm_comp_init_loop(void *d)
 {
 	unsigned long init_schedule_current = 0;
+	struct slm_thd *current;
 
 	printc("Scheduler %ld: Running initialization thread.\n", cos_compid());
 	/* If there are more components to initialize */
@@ -221,12 +229,15 @@ slm_comp_init_loop(void *d)
 
 			assert(ps_load(&n->status) != SCHEDINIT_FREE);
 			tok  = cos_sched_sync();
-			slm_switch_to(slm_current_extern(), t, tok, 0);
+			slm_switch_to(slm_thd_current_extern(), t, tok, 0);
 		}
 	}
 
+	current = slm_thd_current_extern();
 	printc("Scheduler %ld, initialization completed.\n", cos_compid());
-	slm_thd_deinit(slm_current_extern());		/* I'm out! */
+	slm_cs_enter(current, SLM_CS_NONE);
+	slm_thd_deinit(current);		/* I'm out! */
+	slm_cs_exit_reschedule(current, SLM_CS_NONE);
 	BUG();
 }
 

@@ -17,6 +17,7 @@
 #include <slm.h>
 #include <quantum.h>
 #include <fprr.h>
+#include <slm_blkpt.c>
 
 struct slm_resources_thd {
 	thdcap_t cap;
@@ -98,18 +99,6 @@ slm_thd_alloc_in(compid_t cid, thdclosure_index_t idx, thdcap_t *thd, thdid_t *t
 	if (_cap <= 0) return NULL;
 
 	return slm_thd_mem_alloc(_cap, _tid, thd, tid);
-}
-
-static inline struct slm_thd *
-slm_current(void)
-{
-	return slm_thd_lookup(cos_thdid());
-}
-
-struct slm_thd *
-slm_current_extern(void)
-{
-	return slm_current();
 }
 
 void slm_mem_activate(struct slm_thd_container *t) { ss_thd_activate(t); }
@@ -336,6 +325,36 @@ sched_thd_block_timeout(thdid_t dep_id, cycles_t abs_timeout)
 	return ps_tsc();
 }
 
+sched_blkpt_id_t
+sched_blkpt_alloc(void)
+{
+	struct slm_thd *current = slm_thd_current();
+
+	return slm_blkpt_alloc(current);
+}
+
+int
+sched_blkpt_free(sched_blkpt_id_t id)
+{
+	return slm_blkpt_free(id);
+}
+
+int
+sched_blkpt_trigger(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, int single)
+{
+	struct slm_thd *current = slm_thd_current();
+
+	return slm_blkpt_trigger(blkpt, current, epoch, single);
+}
+
+int
+sched_blkpt_block(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, thdid_t dependency)
+{
+	struct slm_thd *current = slm_thd_current();
+
+	return slm_blkpt_block(blkpt, current, epoch, dependency);
+}
+
 int
 thd_sleep(cycles_t c)
 {
@@ -362,15 +381,17 @@ main(void)
 void
 cos_init(void)
 {
-	struct crt_thd t;
+	struct slm_thd_container *t;
 	struct cos_compinfo *boot_info = cos_compinfo_get(cos_defcompinfo_curr_get());
+	thdcap_t thdcap;
+	thdid_t tid;
 
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
 	cos_defcompinfo_sched_init();
 
-	if (crt_booter_create(&self, "self", cos_compid(), 0)) assert(0);
+	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid);
+	if (!t) BUG();
 
-	if (crt_thd_create(&t, &self, slm_idle, NULL)) assert(0);
-	slm_init(t.cap, t.tid);
+	slm_init(thdcap, tid);
 }

@@ -501,8 +501,6 @@ slm_sched_loop_nonblock(void)
 void
 slm_idle(void *d)
 {
-	/* TODO: go through the initialization protocol for the threads... */
-
 	while (1) ;
 
 	BUG();
