@@ -46,7 +46,7 @@
 
 #define RET_TO_USER \
 	sti; 	    \
-	sysexit
+	sysretq
 
 /* The entire IPC path should be in __ipc_entry section. */
 .section __ipc_entry, "ax"
@@ -54,7 +54,6 @@
 .globl sysenter_entry
 sysenter_entry:
 	swapgs
-	movq %rsp, %gs:USER_STACK_OFFSET
 	movq %gs:KERNEL_STACK_OFFSET, %rsp
 	SAVE_REGS_ALL
 	mov %rsp, %rdi /* pt_reg */
@@ -64,8 +63,9 @@ sysenter_entry:
 	jne restore_from_thd
 
 	RESTORE_REGS_ALL
-	RET_TO_USER
-
+	movq %rbp, %rsp
+	swapgs
+	RET_TO_USER		
 /* we are changing thread contexts, reload all registers */
 
 .align 16

@@ -22,7 +22,11 @@ __userregs_getsp(struct pt_regs *regs)
 static inline unsigned long
 __userregs_getip(struct pt_regs *regs)
 {
+#if defined(__x86_64__)
+	return regs->dx;
+#elif defined(__i386__)
 	return regs->cx;
+#endif
 }
 
 static inline capid_t
@@ -46,9 +50,15 @@ __userregs_getinvret(struct pt_regs *regs)
 static inline void
 __userregs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsigned long ip)
 {
+#if defined(__x86_64__)
+	regs->ax = ret;
+	regs->cx = ip;
+
+#elif defined(__i386__)
 	regs->ax = ret;
 	regs->sp = regs->cx = sp;
 	regs->ip = regs->dx = ip;
+#endif
 }
 
 static inline void

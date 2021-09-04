@@ -18,7 +18,7 @@ composite_new
 *.out
 tags
 src/kernel/include/chal/shared/cpu_ghz.h
-src/platform/x86_64/gdbinit
+src/platform/x86_64/gdb*
 src/platform/x86_64/grub.cfg
 src/platform/x86_64/qemu.sh
 src/components/lib/libc/musl-1.1.11/bin/musl-gcc
