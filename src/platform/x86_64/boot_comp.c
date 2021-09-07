@@ -118,7 +118,7 @@ boot_pgtbl_expand(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char 
 		ptes  = mem_boot_alloc(nptes);
 		assert(ptes);
 
-		printk("\tCreating %d %d-lvl %s pages from [%x,%x) for v_addr [%x,%x).\n", nptes, lvl ,label,
+		printk("\tCreating %d %d-lvl %s pages from [%p,%p) for v_addr [%p,%p).\n", nptes, lvl ,label,
 	       ptes, ptes + nptes * PAGE_SIZE, user_vaddr, user_vaddr + range);
 
 		/*
@@ -316,16 +316,13 @@ kern_boot_comp(const cpuid_t cpu_id)
 	 */
 	if (pgtbl_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_UNTYPED_PT, pgtbl, 0)) assert(0);
 
-
-	for (lvl = 1; lvl < 4; lvl++) {
-		nkmemptes += boot_nptes(BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_end(), lvl);
-	}
-
 	boot_pgtbl_expand(glb_boot_ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
-			  BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_nalloc_end(nkmemptes));
+			  BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_end());
+
 	ret = boot_pgtbl_mappings_add(glb_boot_ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
-                                      mem_boot_nalloc_end(nkmemptes), BOOT_MEM_KM_BASE,
-                                      mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
+                                      mem_utmem_start(), BOOT_MEM_KM_BASE,
+                                      mem_utmem_end() - mem_utmem_start(), 0);
+
 	assert(ret == 0);
 
 	printk("\tCapability table and page-table created.\n");
@@ -335,7 +332,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 
 	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
 	                  mem_bootc_entry()))
-		assert(0);
+		assert(0);	
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
 	kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
