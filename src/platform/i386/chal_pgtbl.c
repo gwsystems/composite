@@ -59,16 +59,25 @@ chal_pgtbl_kmem_act(pgtbl_t pt, vaddr_t addr, unsigned long *kern_addr, unsigned
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & addr) == 0);
 
+#if defined(__x86_64__)
+	u32_t flags;
+	pte = pgtbl_lkup_lvl(pt, addr, &flags, 0, 1);
+#elif defined(__i386__)	
 	/* Is this place really a pte? If there is a super page, reject the operation now */
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 	                                          1, &accum);
+#endif
 	if (unlikely(!pte)) return -ENOENT;
 	orig_v = (unsigned long)(pte->next);
 	if (orig_v & X86_PGTBL_SUPER) return -EINVAL;
 
 	/* Get the pte */
+#if defined(__x86_64__)
+	pte = pgtbl_lkup_lvl(pt, addr, &flags, 0, 4);
+#elif defined(__i386__)	
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 	                                          PGTBL_DEPTH, &accum);
+#endif
 	if (unlikely(!pte)) return -ENOENT;
 	if (unlikely(__pgtbl_isnull(pte, 0, 0))) return -ENOENT;
 
@@ -529,7 +538,12 @@ chal_pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe, vaddr
 	u32_t          flags;
 	unsigned long *pte;
 	paddr_t        v;
-
+#if defined(__x86_64__)
+	pte = pgtbl_lkup_lvl(pt, frame_addr, &flags, 0, 4);
+	if (!pte) return -EINVAL;
+	v = *pte;
+	*order = PAGE_ORDER;
+#elif defined(__i386__)
 	/* What is the order of this cosframe? */
 	pte = pgtbl_lkup_pgd(pt, frame_addr, &flags);
 	if (!pte) return -EINVAL;
@@ -543,6 +557,7 @@ chal_pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe, vaddr
 		*order = PAGE_ORDER;
 	}
 	
+#endif
 	if (!(v & X86_PGTBL_COSFRAME)) return -EINVAL;
 
 	*cosframe = v & PGTBL_FRAME_MASK;

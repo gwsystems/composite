@@ -25,7 +25,7 @@ char *cos_initargs_tar();
 
 /* temporary */
 static inline int
-call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
+call_cap_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
 	long fault = 0;
 	int  ret;
@@ -35,7 +35,7 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 
 	__asm__ __volatile__("pushq %%rbp\n\t"		\
 	                     "mov %%rsp, %%rbp\n\t"	\
-	                     "mov $1f, %%rdx\n\t"	\
+	                     "mov $1f, %%r8\n\t"	\
 	                     "syscall\n\t"		\
 	                     ".align 8\n\t"		\
 	                     "jmp 2f\n\t"		\
@@ -127,7 +127,7 @@ call_cap(u32_t cap_no, int arg1, int arg2, int arg3, int arg4)
 }
 
 static inline int
-call_cap_op(u32_t cap_no, u32_t op_code, int arg1, int arg2, int arg3, int arg4)
+call_cap_op(u32_t cap_no, u32_t op_code, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
 	return call_cap_asm(cap_no, op_code, arg1, arg2, arg3, arg4);
 }

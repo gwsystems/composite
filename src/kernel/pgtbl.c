@@ -7,7 +7,7 @@
 #include "chal/chal_proto.h"
 
 int
-pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
+pgtbl_kmem_act(pgtbl_t pt, vaddr_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
 	return chal_pgtbl_kmem_act(pt, addr, kern_addr, pte_ret);
 }

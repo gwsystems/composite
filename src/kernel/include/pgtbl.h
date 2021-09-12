@@ -91,7 +91,7 @@ pgtbl_init(void)
 
 extern void kmem_unalloc(unsigned long *pte);
 int cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t order);
-int pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte);
+int pgtbl_kmem_act(pgtbl_t pt, vaddr_t addr, unsigned long *kern_addr, unsigned long **pte);
 
 /* Chal related function prototypes */
 /* Do flag transformations */

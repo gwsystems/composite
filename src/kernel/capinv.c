@@ -554,6 +554,12 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
            struct cos_cpu_local_info *cos_info)
 {
 	struct thread *next        = thd_cap->t;
+#if defined(__x86_64__)
+	capid_t        arcv        = __userregs_get3(regs);
+	capid_t        tc          = __userregs_getop(regs);
+	tcap_prio_t    prio        = __userregs_get2(regs);
+	sched_tok_t    usr_counter = __userregs_get1(regs);
+#elif defined(__i386__)
 	capid_t        arcv        = (__userregs_get1(regs) << 16) >> 16;
 	capid_t        tc          = __userregs_get1(regs) >> 16;
 	u32_t          prio_higher = __userregs_get3(regs);
@@ -561,6 +567,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	tcap_prio_t    prio        = (tcap_prio_t)(prio_higher >> 16) << 32 | (tcap_prio_t)prio_lower;
 	sched_tok_t    usr_counter = (((sched_tok_t)__userregs_get3(regs) << 16) >> 16)
 	                          | ((sched_tok_t)__userregs_getop(regs) << 16); /* op holds MSB of counter */
+#endif
 	tcap_time_t  timeout = (tcap_time_t)__userregs_get4(regs);
 	struct tcap *tcap    = tcap_current(cos_info);
 	int          ret;
@@ -983,6 +990,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	case CAP_THD:
 		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
+		regs->r11 = 0x3000;
 		return ret;
 	case CAP_ASND:
 		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, ci, cos_info);

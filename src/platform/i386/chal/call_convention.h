@@ -23,7 +23,7 @@ static inline unsigned long
 __userregs_getip(struct pt_regs *regs)
 {
 #if defined(__x86_64__)
-	return regs->dx;
+	return regs->r8;
 #elif defined(__i386__)
 	return regs->cx;
 #endif
@@ -87,25 +87,25 @@ __userregs_sinvupdate(struct pt_regs *regs)
 	regs->bp = regs->dx;
 }
 
-static inline int
+static inline word_t 
 __userregs_get1(struct pt_regs *regs)
 {
 	return regs->bx;
 }
 
-static inline int
+static inline word_t 
 __userregs_get2(struct pt_regs *regs)
 {
 	return regs->si;
 }
 
-static inline int
+static inline word_t 
 __userregs_get3(struct pt_regs *regs)
 {
 	return regs->di;
 }
 
-static inline int
+static inline word_t 
 __userregs_get4(struct pt_regs *regs)
 {
 	return regs->dx;
@@ -152,6 +152,18 @@ copy_all_regs(struct pt_regs *from, struct pt_regs *to)
 static inline void
 regs_upcall_setup(struct pt_regs *r, unsigned long entry_addr, int option, int id, int arg1, int arg2, int arg3)
 {
+#if defined(__x86_64__)
+	/* $0x3200 : enable interrupt, and iopl is set to 3, the same as user's CPL */
+	r->r11	= 0x3200;
+	r->r12	= option;
+
+	r->bx	= arg1;
+	r->di	= arg2;
+	r->si	= arg3;
+
+	r->ip	= r->cx	= entry_addr;
+	r->ax	= id;
+#elif defined(__i386__)
 	r->cx = option;
 
 	r->bx = arg1;
@@ -160,7 +172,7 @@ regs_upcall_setup(struct pt_regs *r, unsigned long entry_addr, int option, int i
 
 	r->ip = r->dx = entry_addr;
 	r->ax         = id; // thd id + cpu id
-
+#endif
 	return;
 }
 
