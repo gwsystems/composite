@@ -70,16 +70,16 @@ sysenter_entry:
 
 .align 16
 restore_from_thd:
-	popq %rax
-    movq %rax, %ds
-    popq %rax
-    movq %rax, %es
-    popq %rax
-    movq %rax, %fs
-    popq %rax
-    movq %rax, %gs
-
 	RESTORE_REGS_GENERAL
+	popq %rax
+	movq %rax, %ds
+	popq %rax
+	movq %rax, %es
+	popq %rax
+	movq %rax, %fs
+	popq %rax
+	movq %rax, %gs
+
 
 	addq $8, %rsp
 
@@ -87,7 +87,6 @@ restore_from_thd:
 	iretq
 
 #define IRQPROC(fn)  \
-	SAVE_REGS_GENERAL; 	\
 	movq %gs, %rax;		\
 	pushq %rax;			\
 	movq %fs, %rax;		\
@@ -96,6 +95,7 @@ restore_from_thd:
 	pushq %rax;			\
 	movq %ds, %rax;		\
 	pushq %rax;			\
+	SAVE_REGS_GENERAL; 	\
 	movq $(SEL_KDSEG), %rax;\
 	mov %rax, %ds;		\
 	mov %rsp, %rdi; 	\

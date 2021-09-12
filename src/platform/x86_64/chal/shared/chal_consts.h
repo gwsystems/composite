@@ -23,7 +23,7 @@ struct pt_regs {
 	u64_t es;
 	u64_t fs;
 	u64_t gs;
-	u64_t orig_ax;
+	u64_t orig_ax; /* error code */
 	u64_t ip;
 	u64_t cs;
 	u64_t flags;
