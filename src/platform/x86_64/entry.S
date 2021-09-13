@@ -45,6 +45,7 @@
 	addq $80, %rsp
 
 #define RET_TO_USER \
+	movq %rbp, %rsp; \
 	sti; 	    \
 	sysretq
 
@@ -59,12 +60,11 @@ sysenter_entry:
 	mov %rsp, %rdi /* pt_reg */
 	call composite_syscall_handler
 
+	swapgs
 	testq %rax, %rax
 	jne restore_from_thd
 
-	RESTORE_REGS_ALL
-	movq %rbp, %rsp
-	swapgs
+	RESTORE_REGS_ALL	
 	RET_TO_USER		
 /* we are changing thread contexts, reload all registers */
 

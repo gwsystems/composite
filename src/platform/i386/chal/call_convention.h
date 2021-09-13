@@ -115,20 +115,40 @@ static inline void
 copy_gp_regs(struct pt_regs *from, struct pt_regs *to)
 {
 #define COPY_REG(reg) to->reg = from->reg
-	COPY_REG(ax);
+#if defined(__x86_64__)
+	COPY_REG(r15);
+	COPY_REG(r14);
+	COPY_REG(r13);
+	COPY_REG(r12);
+	COPY_REG(r11);
+	COPY_REG(r10);
+	COPY_REG(r9);
+	COPY_REG(r8);
+#endif
 	COPY_REG(bx);
 	COPY_REG(cx);
 	COPY_REG(dx);
 	COPY_REG(si);
 	COPY_REG(di);
 	COPY_REG(bp);
+	COPY_REG(ax);
 #undef COPY_REG
 }
 
 static inline void
 copy_all_regs(struct pt_regs *from, struct pt_regs *to)
 {
-#define COPY_REG(reg) to->reg = from->reg
+#define COPY_REG(reg) to->reg = from->reg	
+#if defined(__x86_64__)
+	COPY_REG(r15);
+	COPY_REG(r14);
+	COPY_REG(r13);
+	COPY_REG(r12);
+	COPY_REG(r11);
+	COPY_REG(r10);
+	COPY_REG(r9);
+	COPY_REG(r8);
+#endif
 	COPY_REG(bx);
 	COPY_REG(cx);
 	COPY_REG(dx);

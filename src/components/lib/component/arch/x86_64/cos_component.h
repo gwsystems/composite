@@ -64,17 +64,17 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	cap_no += op;
 
 	__asm__ __volatile__("pushq %%rbp\n\t"		\
-	                     "movl %%esp, %%ebp\n\t"	\
-	                     "movl $1f, %%ecx\n\t"	\
-	                     "sysenter\n\t"		\
+	                     "mov %%rsp, %%rbp\n\t"	\
+	                     "mov $1f, %%r8\n\t"	\
+	                     "syscall\n\t"		\
 	                     ".align 8\n\t"		\
 	                     "jmp 2f\n\t"		\
 	                     ".align 8\n\t"		\
 	                     "1:\n\t"			\
-	                     "movl $0, %%ecx\n\t"	\
+	                     "mov $0, %%rcx\n\t"	\
 	                     "jmp 3f\n\t"		\
 	                     "2:\n\t"			\
-	                     "movl $1, %%ecx\n\t"	\
+	                     "mov $1, %%rcx\n\t"	\
 	                     "3:\n\t"			\
 	                     "popq %%rbp\n\t"		\
 	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2), "=b" (*r3)

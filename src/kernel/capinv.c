@@ -990,7 +990,6 @@ composite_syscall_handler(struct pt_regs *regs)
 	case CAP_THD:
 		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
-		regs->r11 = 0x3000;
 		return ret;
 	case CAP_ASND:
 		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, ci, cos_info);
