@@ -65,7 +65,7 @@ cos_inst_bar(void)
 
 #ifndef rdtscll
 	#if defined(__x86_64__)
-		#define rdtscll(val) __asm__ __volatile__("rdtsc; shl $32, %%rdx; or %%rdx, %0" : "=a"(val)::"rdx")	
+		#define rdtscll(val) __asm__ __volatile__("rdtsc; shl $32, %%rdx; or %%rdx, %0" : "=a"(val)::"rdx")
 	#elif defined(__i386__)
 		#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A"(val))
 	#endif

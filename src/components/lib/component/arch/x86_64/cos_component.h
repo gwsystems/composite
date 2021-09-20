@@ -468,7 +468,13 @@ struct cos_array {
 	int   sz;
 }; /* TODO: remove */
 #define prevent_tail_call(ret) __asm__("" : "=r"(ret) : "m"(ret))
-#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A"(val))
+
+#if defined(__x86_64__)
+		#define rdtscll(val) __asm__ __volatile__("rdtsc; shl $32, %%rdx; or %%rdx, %0" : "=a"(val)::"rdx")
+#elif defined(__i386__)
+		#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A"(val))
+#endif
+
 
 #ifndef STR
 #define STRX(x) #x

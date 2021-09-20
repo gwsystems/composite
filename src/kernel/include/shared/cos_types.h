@@ -27,7 +27,7 @@ typedef unsigned long long dword_t;
 typedef u64_t              cycles_t;
 typedef u64_t              microsec_t;
 typedef unsigned long      tcap_res_t;
-typedef unsigned int      tcap_time_t;
+typedef unsigned long      tcap_time_t;
 typedef u64_t              tcap_prio_t;
 typedef u64_t              tcap_uid_t;
 typedef u32_t              sched_tok_t;
@@ -39,7 +39,11 @@ typedef u32_t              asid_t;
  *
  *  sizeof(cycles_t) >= sizeof(tcap_time_t)
  */
-#define TCAP_TIME_QUANTUM_ORD 12
+#if defined(__x86_64__)
+	#define TCAP_TIME_QUANTUM_ORD 0
+#elif defined(__i386__)
+	#define TCAP_TIME_QUANTUM_ORD 12
+#endif
 #define TCAP_TIME_MAX_ORD (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
 #define TCAP_TIME_MAX_BITS(c) (((u64_t)c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
 #define TCAP_TIME_NIL 0
@@ -47,7 +51,12 @@ typedef u32_t              asid_t;
 static inline cycles_t
 tcap_time2cyc(tcap_time_t c, cycles_t curr)
 {
+#if defined(__x86_64__)
+	(void)curr;
+	return c;
+#elif defined(__i386__)
 	return (((cycles_t)c) << TCAP_TIME_QUANTUM_ORD) | TCAP_TIME_MAX_BITS(curr);
+#endif
 }
 static inline tcap_time_t
 tcap_cyc2time(cycles_t c)
