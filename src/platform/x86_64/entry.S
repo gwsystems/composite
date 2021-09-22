@@ -16,11 +16,12 @@
 	pushq %r12;		\
 	pushq %r13;		\
 	pushq %r14;		\
-	pushq %r15		\
+	pushq %r15;		\
 
 #define SAVE_REGS_ALL 		\
-	subq $80, %rsp;			\
-	SAVE_REGS_GENERAL;		\
+	subq $0x30, %rsp;	\
+	SAVE_REGS_GENERAL;	\
+	subq $0x20, %rsp;	\
 
 /* When return to user: ecx => sp, edx => ip. */
 #define RESTORE_REGS_GENERAL	\
@@ -38,15 +39,15 @@
 	popq %rsi;		\
 	popq %rdi;		\
 	popq %rbp;		\
-	popq %rax
+	popq %rax;		\
 
 #define RESTORE_REGS_ALL	\
+	addq $0x20, %rsp;	\
 	RESTORE_REGS_GENERAL; 	\
-	addq $80, %rsp
+	addq $30, %rsp
 
 #define RET_TO_USER \
 	movq %rbp, %rsp; \
-	sti; 	    \
 	sysretq
 
 /* The entire IPC path should be in __ipc_entry section. */
@@ -70,7 +71,6 @@ sysenter_entry:
 
 .align 16
 restore_from_thd:
-	RESTORE_REGS_GENERAL
 	popq %rax
 	movq %rax, %ds
 	popq %rax
@@ -79,7 +79,7 @@ restore_from_thd:
 	movq %rax, %fs
 	popq %rax
 	movq %rax, %gs
-
+	RESTORE_REGS_GENERAL
 
 	addq $8, %rsp
 
@@ -87,6 +87,7 @@ restore_from_thd:
 	iretq
 
 #define IRQPROC(fn)  \
+	SAVE_REGS_GENERAL; 	\
 	movq %gs, %rax;		\
 	pushq %rax;			\
 	movq %fs, %rax;		\
@@ -95,7 +96,6 @@ restore_from_thd:
 	pushq %rax;			\
 	movq %ds, %rax;		\
 	pushq %rax;			\
-	SAVE_REGS_GENERAL; 	\
 	movq $(SEL_KDSEG), %rax;\
 	mov %rax, %ds;		\
 	mov %rsp, %rdi; 	\

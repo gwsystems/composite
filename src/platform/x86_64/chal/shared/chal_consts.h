@@ -4,6 +4,10 @@
 #include "../chal_config.h"
 
 struct pt_regs {
+	u64_t ds;
+	u64_t es;
+	u64_t fs;
+	u64_t gs;
 	u64_t r15;
 	u64_t r14;
 	u64_t r13;
@@ -18,11 +22,7 @@ struct pt_regs {
 	u64_t si;
 	u64_t di;
 	u64_t bp;
-	u64_t ax;	
-	u64_t ds;
-	u64_t es;
-	u64_t fs;
-	u64_t gs;
+	u64_t ax;
 	u64_t orig_ax; /* error code */
 	u64_t ip;
 	u64_t cs;
