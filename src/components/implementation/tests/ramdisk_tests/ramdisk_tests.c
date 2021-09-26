@@ -10,17 +10,36 @@ main(void)
 	strcpy(buf, "Hello World!!!");
 	strcpy(buf + 4096, "World Hello!!!");
 
-	blockdev_bwrite(buf, 0, 2);
+	/**
+	 * Read and write tests for now are meaningless,
+	 * since the current implementation is calling memcpy
+	 * and also return 0
+	 */
+
+	printc("ramdisk_tests: try to write\n");
+	if(!blockdev_bwrite(buf, 0, 2)) {
+		printc("ramdisk tests: write: passed\n");
+	} else {
+		printc("ramdisk tests: write: failed\n");
+	}
 
 	memset(buf, 0, 8192);
 
-	blockdev_bread(buf, 0, 2);
-
-	printc("%s\n", buf);
-	printc("%s\n", buf + 4096);
-
-	printc("Test finished\n");
-
-	while(1) {
+	printc("ramdisk_tests: try to read\n");
+	if(!blockdev_bread(buf, 0, 2)) {
+		printc("ramdisk_tests: read: passed\n");
+	} else {
+		printc("ramdisk_tests: read: failed\n");
 	}
+
+	if (!strcmp(buf, "Hello World!!!") & !strcmp(buf + 4096, "World Hello!!!")) {
+		printc("ramdisk_tests: check read value: passed\n");
+	} else {
+		printc("ramdisk_tests: check read value: failed\n");
+	}
+
+	printc("ramdisk_tests: finished\n");
+
+	while (1)
+		;
 }
