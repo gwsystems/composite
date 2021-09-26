@@ -2,8 +2,8 @@
 #include <llprint.h>
 #include <memmgr.h>
 
-#define BLOCKDEV_RAMDISK_BSIZE 4096
-#define BLOCKDEV_RAMDISK_SIZE 16 * 1024 * 1024
+#define BLOCKDEV_RAMDISK_BSIZE 4096 // 4K block size
+#define BLOCKDEV_RAMDISK_SIZE 16 * 1024 * 1024 // 16 MiB ramdisk size
 
 typedef struct block {
 	char c[BLOCKDEV_RAMDISK_BSIZE];

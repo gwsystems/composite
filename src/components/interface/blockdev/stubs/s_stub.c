@@ -1,7 +1,7 @@
 #include <cos_stubs.h>
 #include <blockdev.h>
 
-vaddr_t *__blockdev_s_smem_pool[64];
+vaddr_t *__blockdev_s_smem_pool[64]; // Supports up the 64 clients
 
 COS_SERVER_3RET_STUB(unsigned long, blockdev_bread)
 {
