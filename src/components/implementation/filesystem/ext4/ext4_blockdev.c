@@ -3,6 +3,10 @@
 #include <ext4_errno.h>
 #include <blockdev.h>
 
+/**
+ * Use blockdev interface to provide a block device for lwext4
+ */
+
 #define EXT4_BLOCKDEV_BSIZE 4096            // 4KiB
 #define EXT4_BLOCKDEV_SIZE 16 * 1024 * 1024 // 16KiB
 

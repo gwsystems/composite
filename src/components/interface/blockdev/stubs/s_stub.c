@@ -19,6 +19,10 @@ COS_SERVER_3RET_STUB(unsigned long, blockdev_bwrite)
 	return blockdev_bwrite(__blockdev_s_smem_pool[token], p1, p2);
 }
 
+/**
+ * Client will call __blockdev_s_smem_init with corresponding cid,
+ * and here is server calling memmgr to init the share memory.
+ */
 int
 __blockdev_s_smem_init(cbuf_t cid)
 {

@@ -121,6 +121,6 @@ cos_init(void)
 	// ext4_dmask_set(DEBUG_ALL);
 
 	ext4_mkfs(&fs, bd, &info, fs_type);
-	ext4_device_register(bd, "ext4_fs");
-	ext4_mount("ext4_fs", "/", false);
+	ext4_device_register(bd, "ext4_fs"); // Register our ramdisk as ext4_fs
+	ext4_mount("ext4_fs", "/", false); // Mount fs to root
 }

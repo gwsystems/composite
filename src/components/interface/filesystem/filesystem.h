@@ -4,6 +4,11 @@
 #include <cos_component.h>
 #include <memmgr.h>
 
+/**
+ * Basic filesystem operations are supported
+ * Most of those APIs follows the normal linux filesystem APIs.
+ */
+
 word_t filesystem_fopen(const char *path, const char *flags);
 word_t COS_STUB_DECL(filesystem_fopen)(const char *path, const char *flags);
 
@@ -28,6 +33,10 @@ unsigned long COS_STUB_DECL(filesystem_ftell)(word_t fd);
 unsigned long filesystem_fsize(word_t fd);
 unsigned long COS_STUB_DECL(filesystem_fsize)(word_t fd);
 
+/**
+ * Directory isn't supported for now.
+ */
+
 /*
 int fs_dir_rm(const char *path);
 int COS_STUB_DECL(fs_dir_rm)(const char *path);
@@ -45,6 +54,10 @@ int fs_dir_close(void *dir);
 int COS_STUB_DECL(fs_dir_close)(void *dir);
 */
 
+/**
+ * Functions to init share memory.
+ * See blockdev's comments for more information.
+ */
 CCTOR int __filesystem_c_smem_init();
 
 int __filesystem_s_smem_init(cbuf_t cid);
