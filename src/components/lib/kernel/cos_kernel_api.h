@@ -71,7 +71,12 @@ struct cos_compinfo {
 	/* the frontier for each of the various sizes of capability per core! */
 	capid_t cap16_frontier[NUM_CPU], cap32_frontier[NUM_CPU], cap64_frontier;
 	/* heap pointer equivalent, and range of allocated PTEs */
-	vaddr_t vas_frontier, vasrange_frontier;
+	vaddr_t vas_frontier;
+#if defined(__x86_64__)
+	vaddr_t vasrange_frontier[3]; 
+#elif defined(__i386__)
+	vaddr_t vasrange_frontier;
+#endif
 	/* the source of memory */
 	struct cos_compinfo *memsrc; /* might be self-referential */
 	struct cos_meminfo   mi;     /* only populated for the component with real memory */

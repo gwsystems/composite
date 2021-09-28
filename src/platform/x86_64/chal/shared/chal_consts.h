@@ -43,4 +43,16 @@ struct pt_regs {
 #define PGT1_SIZE PGT1_RANGE
 #define PGT1_MASK (~(PGT1_RANGE - 1))
 #define PGT1_PER_PTBL 512
+
+#define PGT2_SHIFT 21
+#define PGT2_RANGE (1UL << PGT2_SHIFT)
+#define PGT2_SIZE PGT2_RANGE
+#define PGT2_MASK (~(PGT2_RANGE - 1))
+#define PGT2_PER_PTBL 512
+
+#define PGT3_SHIFT 12
+#define PGT3_RANGE (1UL << PGT3_SHIFT)
+#define PGT3_SIZE PGT3_RANGE
+#define PGT3_MASK (~(PGT3_RANGE - 1))
+#define PGT3_PER_PTBL 512
 #endif /* CHAL_CONSTS_H */

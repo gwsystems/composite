@@ -164,7 +164,11 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 
 	/* What is the order needed for this? */
 	/* We will probably activate a part of a superpage */
+#if defined(__x86_64__)
+	pte = pgtbl_lkup_lvl(pt->pgtbl, frame_cap, &flags, 0, 1);
+#elif defined(__i386__)	
 	pte = pgtbl_lkup_pgd(pt->pgtbl, frame_cap, &flags);
+#endif
 	if (!pte) return -EINVAL;
 	orig_v = *pte;
 
@@ -176,7 +180,11 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 		}
 	} else {
 		if (order != PAGE_ORDER) return -EPERM;
+	#if defined(__x86_64__)
+		pte = pgtbl_lkup_lvl(pt->pgtbl, frame_cap, &flags, 0, 4);
+	#elif defined(__i386__)	
 		pte = pgtbl_lkup_pte(pt->pgtbl, frame_cap, &flags);
+	#endif
 		if (!pte) return -EINVAL;
 		orig_v = *pte;
 	}
@@ -612,8 +620,13 @@ chal_pgtbl_init_pte(void *pte)
 	for (i = 0; i < (1 << PGTBL_ENTRY_ORDER); i++) vals[i] = 0;
 }
 
+#if defined(__x86_64__)
+const int order2pos_64[] = {COS_PGTBL_ORDER2POS_64};
+#define POS(order)       (order2pos_64[order])
+#elif defined(__i386__)
 extern const int order2pos[];
 #define POS(order)       (order2pos[order])
+#endif
 int
 chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_order)
 {
@@ -644,9 +657,15 @@ chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid
 		/* PTE */
 		pgtbl_init_pte((void *)kmem_addr);
 		ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, 1);
+	} else if (pgtbl_lvl == 2) {
+		pgtbl_init_pte((void *)kmem_addr);
+		ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, 2);
+	} else if (pgtbl_lvl == 3) {
+		pgtbl_init_pte((void *)kmem_addr);
+		ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, 3);
 	} else {
 		/* Not supported yet. */
-		printk("cos: warning - PGTBL level greater than 2 not supported yet. \n");
+		printk("cos: warning - PGTBL level greater than 4 not supported yet. \n");
 		ret = -1;
 	}
 
