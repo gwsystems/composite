@@ -46,6 +46,18 @@ call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
                              : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3)
                              : "memory", "cc", "ecx", "edx");
 
+#elif defined(__x86_64__)
+        __asm__ __volatile__("pushq %%rbp\n\t"
+                             "mov %%rsp, %%rbp\n\t"
+                             "mov %%rsp, %%rdx\n\t"
+                             "mov $1f, %%r8\n\t"
+                             "syscall\n\t"
+                             "1:\n\t"
+                             "pop %%rbp"
+                             : "=a"(ret)
+                             : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3)
+                             : "memory", "cc", "rcx", "rdx");
+
 #elif defined(__arm__)
 
 	__asm__ __volatile__("ldr r1,%[_cap_no]\n\t"

@@ -22,16 +22,15 @@ __inv_test_serverfn:				\
 .globl __inv_test_serverfn;			\
 .type __inv_test_serverfn, @function;		\
 __inv_test_serverfn:				\
-		movl %ebp, %esp;		\
-		xor %ebp, %ebp;			\
-                push %rdi;			\
-                push %rsi;			\
-                push %rbx;			\
+		mov %rdx, %rsp;		\
+		xor %rbp, %rbp;			\
+                mov %rdi, %rax;			\
+                mov %rbx, %rdi;                 \
+                mov %rax, %rdx;                 \
                 call test_serverfn;		\
-                addl $12, %esp;			\
-                movl %eax, %ecx;		\
-                movl $RET_CAP, %eax;		\
-                sysenter;
+                mov %rax, %r8;		\
+                mov $RET_CAP, %rax;		\
+                syscall;
 
 #elif defined(__arm__)
 #define INV_TEST_SERVERFN			\

@@ -44,8 +44,14 @@ __userregs_getop(struct pt_regs *regs)
 static inline unsigned long
 __userregs_getinvret(struct pt_regs *regs)
 {
+#if defined(__x86_64__)
+	/* r8 holds the return value on invocation return path. */
+	return regs->r8;
+#elif defined(__i386__)
+	/* cx holds the return value on invocation return path. */
 	return regs->cx;
-} /* cx holds the return value on invocation return path. */
+#endif
+} 
 
 static inline void
 __userregs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsigned long ip)
@@ -53,6 +59,7 @@ __userregs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsign
 #if defined(__x86_64__)
 	regs->ax = ret;
 	regs->cx = ip;
+	regs->bp = sp;
 
 #elif defined(__i386__)
 	regs->ax = ret;
