@@ -450,6 +450,7 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 
 	range = __pgtbl_lvl_info[pgtbl_lvl].range;
 	tmp_frontier = __pgtbl_lvl_info[pgtbl_lvl].round_up_to_pg(mem_ptr + mem_sz);
+
 #if defined(__x86_64__)
 	for (addr = mem_ptr; addr < tmp_frontier; addr += range) {
 		if (__bump_mem_expand_intern(ci, cipgtbl, addr, 0, pgtbl_lvl) == 0) return 0;
@@ -581,6 +582,7 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 				vaddr_t tmp_frontier;
 
 				tmp_frontier = __pgtbl_lvl_info[pgtbl_lvl].round_up_to_pg(heap_vaddr + sz);
+
 				/* perhaps another thread already advanced the frontier? */
 				if (tmp >= heap_vaddr + sz) break;
 				/* If this fails, then someone else already expanded for us...win! */
