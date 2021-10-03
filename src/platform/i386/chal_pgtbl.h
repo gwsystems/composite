@@ -106,6 +106,8 @@ __pgtbl_update_leaf(struct ert_intern *a, void *v, unsigned long old)
 	return 0;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 /* Note:  We're just using pre-defined default flags for internal (pgd) entries */
 static int
 __pgtbl_set(struct ert_intern *a, void *v, void *accum, int isleaf)
@@ -121,6 +123,7 @@ __pgtbl_set(struct ert_intern *a, void *v, void *accum, int isleaf)
 
 	return 0;
 }
+#pragma GCC diagnostic pop
 
 static inline void *
 __pgtbl_getleaf(struct ert_intern *a, void *accum)

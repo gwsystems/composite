@@ -121,7 +121,7 @@ cap_switch_thd(u32_t cap_no)
 }
 
 static inline int
-call_cap(u32_t cap_no, int arg1, int arg2, int arg3, int arg4)
+call_cap(u32_t cap_no, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
 	return call_cap_asm(cap_no, 0, arg1, arg2, arg3, arg4);
 }
@@ -136,7 +136,7 @@ static void
 cos_print(char *s, int len)
 {
 	// FIXME: casting from a pointer to an int can be lossy
-	call_cap(PRINT_CAP_TEMP, (int) s, len, 0, 0);
+	call_cap(PRINT_CAP_TEMP, (word_t) s, len, 0, 0);
 }
 
 static inline int

@@ -127,7 +127,7 @@ int            chal_pgtbl_quie_check(u32_t orig_v);
 void           chal_pgtbl_init_pte(void *pte);
 
 /* Creation of the table object - not to be confused with activation of cap */
-int            chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_order);
+int            chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_lvl);
 /* Deactivate */
 int            chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa);
 /* Page mapping */

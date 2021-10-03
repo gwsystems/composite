@@ -620,28 +620,17 @@ chal_pgtbl_init_pte(void *pte)
 	for (i = 0; i < (1 << PGTBL_ENTRY_ORDER); i++) vals[i] = 0;
 }
 
-#if defined(__x86_64__)
-const int order2pos_64[] = {COS_PGTBL_ORDER2POS_64};
-#define POS(order)       (order2pos_64[order])
-#elif defined(__i386__)
-extern const int order2pos[];
-#define POS(order)       (order2pos[order])
-#endif
 int
-chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_order)
+chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_lvl)
 {
 	pgtbl_t        new_pt, curr_pt;
 	vaddr_t        kmem_addr = 0;
 	unsigned long *pte       = NULL;
 	int            ret;
-	unsigned long  pgtbl_lvl = 3;
 
 	ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr, &pte);
 	if (unlikely(ret)) return ret;
 	assert(kmem_addr && pte);
-
-	/* Convert level to order here */
-	pgtbl_lvl = POS(pgtbl_order);
  
 	if (pgtbl_lvl == 0) {
 		/* PGD */

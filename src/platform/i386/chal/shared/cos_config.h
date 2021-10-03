@@ -122,6 +122,7 @@
 
 #if defined(__x86_64__)
 /* root page tbale is 0, then second level page table is 1, etc.*/
+#define COS_PGTBL_DEPTH 4
 #define COS_PGTBL_ORDER_PTE_3 12
 #define COS_PGTBL_ORDER_PTE_2 21
 #define COS_PGTBL_ORDER_PTE_1 30
@@ -154,7 +155,7 @@
                                -1,     -1 \
 
 #elif defined(__i386__)
-
+#define COS_PGTBL_DEPTH 2
 #define COS_PGTBL_ORDER_PTE 12
 #define COS_PGTBL_ORDER_PGD 22
 

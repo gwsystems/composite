@@ -45,7 +45,8 @@ int
 retypetbl_kern_ref(void *pa, u32_t order)
 {
 	struct retype_entry_glb* p_glb;
-	int ret, idx;
+	int ret;
+	unsigned long idx;
 
 	assert(pa); /* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
@@ -65,7 +66,8 @@ int
 retypetbl_kern_deref(void *pa, u32_t order)
 {
 	struct retype_entry_glb* p_glb;
-	int ret, idx;
+	int ret;
+	unsigned long idx;
 
 	assert(pa); /* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
@@ -86,7 +88,8 @@ retypetbl_kern_deref(void *pa, u32_t order)
 int
 retypetbl_ref(void *pa, u32_t order)
 {
-	int idx, old_v;
+	int old_v;
+	unsigned long idx;
 	struct retype_entry *retype_entry;
 	union refcnt_atom local_u;
 	int found = 0;
@@ -113,7 +116,8 @@ retypetbl_deref(void *pa, u32_t order)
 {
 	struct page_record walk[NUM_PAGE_SIZES];
 	int found = 0;
-	int i, ret, idx;
+	int i, ret;
+	unsigned long idx;
 
 	assert(pa); /* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
@@ -359,7 +363,7 @@ err:
 void
 retype_tbl_init(void)
 {
-	int i, j;
+	unsigned long i, j;
 
 	/* Alignment & size checks! */
 	assert(sizeof(struct retype_info) % CACHE_LINE == 0);

@@ -298,11 +298,8 @@ enum
  */
 #define BOOT_CAPTBL_NPAGES ((BOOT_CAPTBL_FREE + CAPTBL_EXPAND_SZ + CAPTBL_EXPAND_SZ * 2 - 1) / (CAPTBL_EXPAND_SZ * 2))
 
-enum
-{
-	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1 << 22)), /* @ 1G + 8M */
-	BOOT_MEM_KM_BASE = PGD_SIZE, /* kernel & user memory @ 4M, pgd aligned start address */
-};
+#define BOOT_MEM_VM_BASE (COS_MEM_COMP_START_VA + (1 << 22)) /* @ 1G + 8M */
+#define BOOT_MEM_KM_BASE PGD_SIZE /* kernel & user memory @ 4M, pgd aligned start address */
 
 enum
 {
