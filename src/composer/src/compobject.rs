@@ -1,15 +1,28 @@
 use xmas_elf::sections::SectionData;
-use xmas_elf::symbol_table::{Binding, Entry, Entry32, Type};
-use xmas_elf::{ElfFile};
+use xmas_elf::symbol_table::{Binding, Entry, Type};
+use xmas_elf::ElfFile;
 
 use itertools::Itertools;
 use passes::{
-    component, BuildState, ClientSymb, CompSymbs, ComponentId, ComponentName,
-    ConstructorPass, ObjectsPass, SystemState, Transition, TransitionIter, VAddr,
+    component, BuildState, ClientSymb, CompSymbs, ComponentId, ComponentName, ConstructorPass,
+    ObjectsPass, SystemState, Transition, TransitionIter, VAddr,
 };
 use std::collections::HashMap;
-use symbols::Symb;
+use symbols::{Symb, SymbType};
 use syshelpers::{dump_file, exec_pipeline};
+
+impl SymbType {
+    fn new<'a>(symb: &'a dyn Entry) -> Self {
+        match symb.get_binding() {
+            Ok(Binding::Global) => match symb.get_type() {
+                Ok(Type::NoType) | Ok(Type::Object) => SymbType::GlobalData,
+                Ok(Type::Func) => SymbType::GlobalFn,
+                _ => SymbType::Other,
+            },
+            _ => SymbType::Other,
+        }
+    }
+}
 
 struct ClientSymbol {
     name: String,
@@ -34,12 +47,12 @@ impl CompObject {
         let elf_file = ElfFile::new(obj).unwrap();
         let symbs = symbs_retrieve(&elf_file)?;
 
-        let compinfo = compinfo_addr(&elf_file, symbs)?.addr();
-        let entryfn = entry_addr(&elf_file, symbs)?.addr();
-        let _defclifn = defcli_stub_addr(&elf_file, symbs)?.addr();
+        let compinfo = compinfo_addr(&symbs)?.addr();
+        let entryfn = entry_addr(&symbs)?.addr();
+        let _defclifn = defcli_stub_addr(&symbs)?.addr();
 
-        let exps = compute_exports(&elf_file, symbs)?;
-        let deps = compute_dependencies(&elf_file, symbs)?;
+        let exps = compute_exports(&symbs)?;
+        let deps = compute_dependencies(&symbs)?;
 
         Ok(CompObject {
             dep_symbs: deps,
@@ -66,50 +79,40 @@ impl CompObject {
     }
 }
 
-fn symb_address<'a>(_e: &ElfFile<'a>, symb: &'a Entry32) -> u64 {
+fn symb_address<'a>(_e: &ElfFile<'a>, symb: &'a dyn Entry) -> u64 {
     symb.value()
 }
 
-fn global_variables<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Vec<Symb<'a>> {
+fn global_variables<'a>(symbs: &Vec<Symb<'a>>) -> Vec<Symb<'a>> {
     symbs
         .iter()
-        .filter_map(
-            |symb| match (symb.get_name(&e), symb.get_binding(), symb.get_type()) {
-                (Ok(name), Ok(Binding::Global), Ok(Type::NoType))
-                | (Ok(name), Ok(Binding::Global), Ok(Type::Object)) => {
-                    Some(Symb::new(name, symb_address(e, symb)))
-                }
-                _ => None,
-            },
-        )
+        .filter_map(|s| match s.stype() {
+            SymbType::GlobalData => Some(*s),
+            _ => None,
+        })
         .collect()
 }
 
-fn global_functions<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Vec<Symb<'a>> {
+fn global_functions<'a>(symbs: &Vec<Symb<'a>>) -> Vec<Symb<'a>> {
     symbs
         .iter()
-        .filter_map(
-            |symb| match (symb.get_name(&e), symb.get_binding(), symb.get_type()) {
-                (Ok(name), Ok(Binding::Global), Ok(Type::Func)) => {
-                    Some(Symb::new(name, symb_address(e, symb)))
-                }
-                _ => None,
-            },
-        )
+        .filter_map(|s| match s.stype() {
+            SymbType::GlobalFn => Some(*s),
+            _ => None,
+        })
         .collect()
 }
 
 fn symbol_prefix_filter<'a>(
-    e: &ElfFile<'a>,
-    symbs: &'a [Entry32],
+    symbs: &Vec<Symb<'a>>,
     prefix: &str,
-    symb_filter: fn(&ElfFile<'a>, &'a [Entry32]) -> Vec<Symb<'a>>,
+    symb_filter: fn(&Vec<Symb<'a>>) -> Vec<Symb<'a>>,
 ) -> Vec<Symb<'a>> {
-    symb_filter(e, symbs)
+    symb_filter(symbs)
         .iter()
         .filter_map(|ref symb| {
             if symb.name().starts_with(prefix) {
-                Some(Symb::new(&symb.name()[prefix.len()..], symb.addr()))
+                Symb::new(&symb.name()[prefix.len()..], symb.addr(), symb.stype())
             } else {
                 None
             }
@@ -117,16 +120,16 @@ fn symbol_prefix_filter<'a>(
         .collect()
 }
 
-fn client_caps<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Vec<Symb<'a>> {
-    symbol_prefix_filter(e, symbs, "__cosrt_ucap_", global_variables)
+fn client_caps<'a>(symbs: &Vec<Symb<'a>>) -> Vec<Symb<'a>> {
+    symbol_prefix_filter(symbs, "__cosrt_ucap_", global_variables)
 }
 
-fn client_stubs<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Vec<Symb<'a>> {
-    symbol_prefix_filter(e, symbs, "__cosrt_c_", global_functions)
+fn client_stubs<'a>(symbs: &Vec<Symb<'a>>) -> Vec<Symb<'a>> {
+    symbol_prefix_filter(symbs, "__cosrt_c_", global_functions)
 }
 
-fn server_stubs<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Vec<Symb<'a>> {
-    symbol_prefix_filter(e, symbs, "__cosrt_s_", global_functions)
+fn server_stubs<'a>(symbs: &Vec<Symb<'a>>) -> Vec<Symb<'a>> {
+    symbol_prefix_filter(symbs, "__cosrt_s_", global_functions)
 }
 
 fn unique_symbol<T>(symbs: &mut Vec<T>) -> Option<T> {
@@ -140,9 +143,8 @@ fn unique_symbol<T>(symbs: &mut Vec<T>) -> Option<T> {
     }
 }
 
-fn compinfo_addr<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Symb<'a>, String> {
+fn compinfo_addr<'a>(symbs: &Vec<Symb<'a>>) -> Result<Symb<'a>, String> {
     unique_symbol(&mut symbol_prefix_filter(
-        e,
         symbs,
         "__cosrt_comp_info",
         global_variables,
@@ -152,9 +154,8 @@ fn compinfo_addr<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Symb<'a>, 
     ))
 }
 
-fn entry_addr<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Symb<'a>, String> {
+fn entry_addr<'a>(symbs: &Vec<Symb<'a>>) -> Result<Symb<'a>, String> {
     unique_symbol(&mut symbol_prefix_filter(
-        e,
         symbs,
         "__cosrt_upcall_entry",
         global_functions,
@@ -164,9 +165,8 @@ fn entry_addr<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Symb<'a>, Str
     ))
 }
 
-fn defcli_stub_addr<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Symb<'a>, String> {
+fn defcli_stub_addr<'a>(symbs: &Vec<Symb<'a>>) -> Result<Symb<'a>, String> {
     unique_symbol(&mut symbol_prefix_filter(
-        e,
         symbs,
         "__cosrt_c_cosrtdefault",
         global_functions,
@@ -176,21 +176,33 @@ fn defcli_stub_addr<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Symb<'a
     ))
 }
 
-fn symbs_retrieve<'a>(e: &ElfFile<'a>) -> Result<&'a [Entry32], String> {
+fn symbs_retrieve<'a>(e: &ElfFile<'a>) -> Result<Vec<Symb<'a>>, String> {
     match e.find_section_by_name(".symtab").unwrap().get_data(&e) {
         //Ok(SectionData::DynSymbolTable32(sts)) => section_symbols_print(e, sts),
-        Ok(SectionData::SymbolTable32(ref sts)) => Ok(sts),
+        Ok(SectionData::SymbolTable32(ref sts)) => Ok(sts
+            .iter()
+            .filter_map(|s| match s.get_name(&e) {
+                Ok(n) => Symb::new(n, symb_address(&e, s), SymbType::new(s)),
+                _ => None,
+            })
+            .collect()),
+        Ok(SectionData::SymbolTable64(ref sts)) => Ok(sts
+            .iter()
+            .filter_map(|s| match s.get_name(&e) {
+                Ok(n) => Symb::new(n, symb_address(&e, s), SymbType::new(s)),
+                _ => None,
+            })
+            .collect()),
         _ => Err(String::from("Could not find the symbol table.")),
     }
 }
 
 fn compute_dependencies<'a>(
-    e: &ElfFile<'a>,
-    symbs: &'a [Entry32],
+    symbs: &Vec<Symb<'a>>,
 ) -> Result<Vec<ClientSymbol>, String> {
-    let defstub = defcli_stub_addr(e, symbs)?;
-    let ucap_symbs = client_caps(e, symbs);
-    let dep_symbs = client_stubs(e, symbs);
+    let defstub = defcli_stub_addr(symbs)?;
+    let ucap_symbs = client_caps(symbs);
+    let dep_symbs = client_stubs(symbs);
 
     Ok(ucap_symbs
         .iter()
@@ -214,8 +226,8 @@ fn compute_dependencies<'a>(
         .collect())
 }
 
-fn compute_exports<'a>(e: &ElfFile<'a>, symbs: &'a [Entry32]) -> Result<Vec<ServerSymb>, String> {
-    Ok(server_stubs(e, symbs)
+fn compute_exports<'a>(symbs: &Vec<Symb<'a>>) -> Result<Vec<ServerSymb>, String> {
+    Ok(server_stubs(symbs)
         .iter()
         .map(|s| ServerSymb {
             name: String::from(s.name()),
@@ -299,7 +311,7 @@ impl ObjectsPass for ElfObject {
 }
 
 pub struct Constructor {
-    obj_path: String
+    obj_path: String,
 }
 
 impl Transition for Constructor {
