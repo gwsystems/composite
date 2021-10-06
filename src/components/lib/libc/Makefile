@@ -71,7 +71,7 @@ MUSLLIB=$(MUSLDIR)/lib/
 
 include Makefile.src Makefile.comp Makefile.dependencies
 
-.PHONY: all clean init distclean armv7a_init i386_init
+.PHONY: all clean init distclean armv7a_init i386_init x86_64_init
 all:
 clean:
 

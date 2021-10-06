@@ -15,6 +15,8 @@ c++98/streambuf.o c++98/streambuf-inst.o c++98/tree.o
 OBJ_CC += c++11/fstream-inst.o c++11/functexcept.o c++11/string-inst.o
 #OBJ_CC += $(EXCEPTION)
 
+CXXFLAGS += $(LIBCXX_ARCH)
+
 vpath %.cc ./src
 vpath %.cc ./config/io
 vpath %.cc ./config/locale/generic

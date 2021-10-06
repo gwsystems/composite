@@ -21,6 +21,12 @@ clean()
     make -C src clean
 }
 
+distclean()
+{
+    echo "[cos executing] make -C distclean"
+    make -C src distclean
+}
+
 initialize()
 {
     echo "[cos executing] make -C src config init"
@@ -63,6 +69,8 @@ case $1 in
 	      ;;
     reset )   clean
 	      ;;
+    distclean ) distclean
+          ;;
     compose ) script=$2
 	      name=$3
 	      compose
