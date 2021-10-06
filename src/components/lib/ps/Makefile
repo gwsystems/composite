@@ -86,7 +86,7 @@ x86_64_config:
 	cd ps; ./configure cos x86_64 general; cd ..
 
 config: $(PLATFORM)_config
-	make -s -C ps config
+	make -C ps config
 
 init: clean config
 distclean: clean
