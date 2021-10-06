@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 script=
 name=
@@ -54,12 +54,34 @@ compose()
 
 run()
 {
-    if [ -z "$binary" ]; then
-	usage
-    fi
+    local dir=$(dirname ${binary})  
+    local binary_name=$(basename ${binary})
+    local cur_dir=$(pwd)
+    local elf_type=$(readelf -h ${binary} | grep "Class:" | awk '{print $2}')
 
-    echo "[cos executing] tools/run.sh $binary"
-    tools/run.sh $binary
+    if [ "${elf_type}" == "ELF64" ]
+    then
+        #create grub.cfg 
+        cd ${dir}
+        echo "set timeout=0" > grub.cfg
+        echo "set default=0" >> grub.cfg
+        echo "menuentry "kernel" {" >> grub.cfg
+        echo "  multiboot2 /boot/${binary_name}" >> grub.cfg
+        echo "}" >> grub.cfg
+
+        mkdir -p iso/boot/grub
+        cp grub.cfg iso/boot/grub/
+        cp ${binary_name} iso/boot/
+        grub-mkrescue -o kernel.iso iso
+
+        qemu-system-x86_64 -cpu max -m 8192 -cdrom kernel.iso -no-reboot -nographic -s
+    elif [ "${elf_type}" == "ELF32" ]
+    then
+        echo "[cos executing] tools/run.sh $binary"
+        tools/run.sh $binary
+    else
+        echo "unsupported image type!"
+    fi
 }
 
 case $1 in
