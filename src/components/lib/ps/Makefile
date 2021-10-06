@@ -56,8 +56,8 @@ include Makefile.src Makefile.comp Makefile.dependencies
 
 .PHONY: all clean init distclean config clean_lib armv7a_config i386_config
 CINC_ENV = $(CINC) $(DEPENDENCY_INCPATH)
-# disable warnings temporarily
-CFLAGS   = $(CINC_ENV) -Wno-address-of-packed-member -w
+
+CFLAGS   = $(CINC_ENV) -Wno-address-of-packed-member
 export CINC_ENV
 export CFLAGS
 
