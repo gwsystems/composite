@@ -1,8 +1,8 @@
-#include Makefile.src
+include Makefile.src
 
-CC := gcc 
+CC := gcc -m64
 LD := ld -m elf_x86_64
-AS := as -g
+AS := as --64 -g
 
 INCPATH := ../../kernel/include
 INCS    := -I$(INCPATH) -I$(INCPATH)/shared/ -I$(INCPATH)/chal/

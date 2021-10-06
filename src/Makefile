@@ -7,8 +7,7 @@ PLAT_FILE=.PLATFORM_ID
 
 default: | all
 
-#all: composer comps plat
-all: comps
+all: composer comps plat
 
 composer:
 	cd composer/ ; cargo build
