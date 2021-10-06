@@ -14,10 +14,10 @@ CINC=-I. -I$(SHAREDINC) -I$(CHALSHAREDINC)
 
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic -fno-pie
 OPT= -g -fvar-tracking
+# Fixme: -O3 will case a "cap: 63 not found"
 OPT+= -O0
 
-#disable warnings temporarily
-CFLAGS=$(ARCH_CFLAGS) -w -Wextra -Wno-unused-parameter -Wno-type-limits -Wno-unused-function -fno-stack-protector -fomit-frame-pointer -Wno-unused-variable $(CINC) $(MUSLINC) $(OPT) $(SHARED_FLAGS)
+CFLAGS=$(ARCH_CFLAGS) -Wall -Wextra -Wno-unused-parameter -Wno-type-limits -Wno-unused-function -fno-stack-protector -fomit-frame-pointer -Wno-unused-variable $(CINC) $(MUSLINC) $(OPT) $(SHARED_FLAGS)
 CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
 LDFLAGS=$(ARCH_LDFLAGS) -no-pic
 MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r
