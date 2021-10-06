@@ -39,6 +39,8 @@ TAR_SYMBOL_NAME=crt_init.tar
 
 ifeq ($(PLATFORM), i386)
 LINKFLAG=-Xlinker -melf_i386
+else ifeq ($(PLATFORM), x86_64)
+LINKFLAG=-Xlinker -melf_x86_64 
 else ifeq ($(PLATFORM), armv7a)
 LINKFLAG=-Xlinker -marmelf
 endif
