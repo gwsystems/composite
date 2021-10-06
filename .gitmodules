@@ -1,6 +1,7 @@
 [submodule "src/components/lib/ps/ps"]
 	path = src/components/lib/ps/ps
 	url = git@github.com:betahxy/ps.git
+	branch = master
 [submodule "src/components/lib/ck/ck"]
 	path = src/components/lib/ck/ck
 	url = https://github.com/gwsystems/ck.git
