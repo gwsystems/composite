@@ -32,8 +32,7 @@ $(SHLIB_FILE): $(OBJS)
 
 %.o:%.c
 	$(info |     [CC]   Compiling C file $^ into $@)
-#disable warnings temporarily	
-	@$(CC) $(CFLAGS) -w $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $^
+	@$(CC) $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $^
 
 clean:
 	$(info |     [RM]   Cleaning up library $(LIBNAME)'s directory)

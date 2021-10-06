@@ -89,8 +89,8 @@ x86_64_init:
 
 libc.READY:
 	make $(PLATFORM)_init
-	make -C $(MUSLDIR)
-	make -C $(MUSLDIR) install
+	make -j -C $(MUSLDIR)
+	make -j -C $(MUSLDIR) install
 	cp $(MUSLLIB)*.a .
 	touch libc.READY
 	rm libutil.a

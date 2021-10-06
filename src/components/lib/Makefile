@@ -101,7 +101,7 @@ init: clean
 	$(info **********[ Initializing Libraries ]***********)
 	$(info ***********************************************)
 	@for dir in $(SUBDIRS) ; do \
-		$(MAKE) $(MAKEOPTIONS) -C $$dir init ; \
+		$(MAKE) $(MAKEOPTIONS) -C $$dir init || exit $$?; \
 	done
 
 distclean:
