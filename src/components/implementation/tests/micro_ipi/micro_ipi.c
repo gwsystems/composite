@@ -43,7 +43,7 @@ static volatile int testing = 0;
 static void
 hiprio_c0_lat_fn(arcvcap_t r, void *d)
 {
-	asndcap_t snd = c0_cn_asnd[(int)d];
+	asndcap_t snd = c0_cn_asnd[(unsigned long)d];
 
 	assert(snd);
 
@@ -85,7 +85,7 @@ hiprio_c0_lat_fn(arcvcap_t r, void *d)
 static void
 hiprio_cn_lat_fn(arcvcap_t r, void *d)
 {
-	asndcap_t snd = cn_c0_asnd[(int)d];
+	asndcap_t snd = cn_c0_asnd[(unsigned long)d];
 	cycles_t sndtot = 0, sndwc = 0, sndpwc = 0;
 	cycles_t rpctot = 0, rpcwc = 0, rpcpwc = 0;
 	unsigned long iters = 0;
@@ -294,7 +294,7 @@ hiprio_rate_c0_fn(arcvcap_t r, void *d)
 static void
 loprio_rate_c0_fn(arcvcap_t r, void *d)
 {
-	asndcap_t snd = c0_cn_asnd[(int)d];
+	asndcap_t snd = c0_cn_asnd[(unsigned long)d];
 
 	assert(snd);
 	while (testing == 0) ;
@@ -317,7 +317,7 @@ loprio_rate_c0_fn(arcvcap_t r, void *d)
 static void
 hiprio_rate_cn_fn(arcvcap_t r, void *d)
 {
-	asndcap_t snd = cn_c0_asnd[(int)d];
+	asndcap_t snd = cn_c0_asnd[(unsigned long)d];
 
 	assert(snd);
 	while (testing == 0) ;

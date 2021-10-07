@@ -126,11 +126,11 @@ test_lock(void)
 	printc("Create threads:\n");
 	
 	lock_lo = sched_thd_create(lock_lo_thd, NULL);
-	printc("\tcreating lo thread %d at prio %d\n", lock_lo, sps[1]);
+	printc("\tcreating lo thread %lu at prio %d\n", lock_lo, sps[1]);
 	sched_thd_param_set(lock_lo, sps[1]);
 	
 	lock_hi = sched_thd_create(lock_hi_thd, NULL);
-	printc("\tcreating hi thread %d at prio %d\n", lock_hi, sps[0]);
+	printc("\tcreating hi thread %lu at prio %d\n", lock_hi, sps[0]);
 	sched_thd_param_set(lock_hi, sps[0]);
 	
 	

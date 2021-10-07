@@ -77,7 +77,7 @@ chantest_recv(int thd_off, struct crt_static_chan *c)
 void
 chan_thd(void *d)
 {
-	int thd_off = (int)d;
+	int thd_off = (unsigned long)d;
 	struct crt_static_chan **chan_pair = &chans[thd_off];
 	int recv;
 	int i;
@@ -114,7 +114,7 @@ idle_thd(void *d)
 void
 test_chan(void)
 {
-	int i;
+	unsigned long i;
 	thdid_t idle;
 	sched_param_t idle_param = SCHED_PARAM_CONS(SCHEDP_PRIO, 10);
 
@@ -143,12 +143,12 @@ test_chan(void)
 		chan_thds[i] = sched_thd_create(chan_thd, (void *)i);
 		assert(chan_thds[i]);
 		sched_param_get(sps[i], NULL, &p);
-		printc("\tcreating thread %d at prio %d\n", chan_thds[i], p);
+		printc("\tcreating thread %lu at prio %d\n", chan_thds[i], p);
 		sched_thd_param_set(chan_thds[i], sps[i]);
 	}
 	idle = sched_thd_create(idle_thd, NULL);
 	sched_param_get(idle_param, NULL, &p);
-	printc("\tcreating IDLE %d at prio %d\n", idle, p);
+	printc("\tcreating IDLE %lu at prio %d\n", idle, p);
 	sched_thd_param_set(idle, idle_param);
 
 }
@@ -224,7 +224,7 @@ test_lock(void)
 	printc("Create threads:\n");
 	for (i = 0; i < NLOCKTHDS; i++) {
 		lock_thds[i] = sched_thd_create(lock_thd, NULL);
-		printc("\tcreating thread %d at prio %d\n", lock_thds[i], sps[i]);
+		printc("\tcreating thread %lu at prio %d\n", lock_thds[i], sps[i]);
 		sched_thd_param_set(lock_thds[i], sps[i]);
 	}
 }
@@ -300,7 +300,7 @@ test_sem(void)
 	printc("Create threads:\n");
 	for (i = 0; i < NSEMTHDS; i++) {
 		sem_thds[i] = sched_thd_create(sem_thd, NULL);
-		printc("\tcreating thread %d at prio %d\n", sem_thds[i], sps[i]);
+		printc("\tcreating thread %lu at prio %d\n", sem_thds[i], sps[i]);
 		sched_thd_param_set(sem_thds[i], sps[i]);
 	}
 }

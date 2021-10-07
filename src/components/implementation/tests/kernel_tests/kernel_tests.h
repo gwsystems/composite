@@ -52,7 +52,8 @@ extern struct cos_compinfo booter_info;
 extern thdcap_t         termthd[]; /* switch to this to shutdown */
 extern unsigned long    tls_test[][TEST_NTHDS];
 extern unsigned long    thd_test[TEST_NTHDS];
-extern int              num, den, count;
+extern int              num, den;
+extern word_t           count;
 
 struct results {
         long long unsigned avg;

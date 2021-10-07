@@ -131,7 +131,7 @@ typedef enum {
 } crt_blkpt_flags_t;
 
 #define CRT_BLKPT_EPOCH_BLKED_BITS (sizeof(sched_blkpt_epoch_t) * 8)
-#define CRT_BLKPT_BLKED_MASK       (1 << (CRT_BLKPT_EPOCH_BLKED_BITS - 2))
+#define CRT_BLKPT_BLKED_MASK       (1UL << (CRT_BLKPT_EPOCH_BLKED_BITS - 2))
 #define CRT_BLKPT_BLKED(e)         ((e) &  CRT_BLKPT_BLKED_MASK)
 #define CRT_BLKPT_EPOCH(e)         ((e) & ~CRT_BLKPT_BLKED_MASK)
 

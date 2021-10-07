@@ -481,17 +481,17 @@ cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int lvl)
 	assert(lvl > 0);
 
 	ps_lock_take(&ci->va_lock);
-	if (ci->vasrange_frontier != round_to_pgd_page(mem_ptr)) goto error;
+	if (ci->vasrange_frontier[0] != round_to_pgd_page(mem_ptr)) goto error;
 
 	cap = __bump_mem_expand_intern(ci, ci->pgtbl_cap, mem_ptr, 0, 0);
 	if (!cap) goto error;
 
 	while (1) {
-		vaddr_t tmp = ps_load(&ci->vasrange_frontier);
+		vaddr_t tmp = ps_load(&ci->vasrange_frontier[0]);
 
 		if (tmp >= mem_ptr + PGD_RANGE) break;
 		/* If someone else beats us to this, then the range has been extended anyway */
-		ps_cas(&ci->vasrange_frontier, tmp, tmp + PGD_RANGE);
+		ps_cas(&ci->vasrange_frontier[0], tmp, tmp + PGD_RANGE);
 	}
 
 	ps_lock_release(&ci->va_lock);
@@ -506,9 +506,9 @@ int
 cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem)
 {
 	ps_lock_take(&ci->va_lock);
-	if (ci->vasrange_frontier != round_to_pgd_page(mem)) goto error;
+	if (ci->vasrange_frontier[0] != round_to_pgd_page(mem)) goto error;
 
-	if ((unsigned long)ps_faa(&ci->vasrange_frontier, PGD_RANGE) > round_to_pgd_page(mem)) goto error;
+	if ((unsigned long)ps_faa(&ci->vasrange_frontier[0], PGD_RANGE) > round_to_pgd_page(mem)) goto error;
 	if ((unsigned long)ps_faa(&ci->vas_frontier, PGD_RANGE) > round_to_pgd_page(mem)) goto error;
 
 	if (__bump_mem_expand_intern(ci, ci->pgtbl_cap, mem, intern, 0) != intern) {
@@ -620,7 +620,7 @@ __page_bump_valloc(struct cos_compinfo *ci, size_t sz)
 	vaddr_t ret_addr = 0;
 
 	ps_lock_take(&ci->va_lock);
-	ret_addr = __page_bump_mem_alloc(ci, &ci->vas_frontier, &ci->vasrange_frontier, sz);
+	ret_addr = __page_bump_mem_alloc(ci, &ci->vas_frontier, (vaddr_t *)&ci->vasrange_frontier, sz);
 	ps_lock_release(&ci->va_lock);
 
 	return ret_addr;
@@ -1114,7 +1114,7 @@ cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *sr
 int
 cos_thd_mod(struct cos_compinfo *ci, thdcap_t tc, void *tlsaddr)
 {
-	return call_cap_op(ci->captbl_cap, CAPTBL_OP_THDTLSSET, tc, (int)tlsaddr, 0, 0);
+	return call_cap_op(ci->captbl_cap, CAPTBL_OP_THDTLSSET, tc, (long)tlsaddr, 0, 0);
 }
 
 /* FIXME: problems when we got to 64 bit systems with the return value */

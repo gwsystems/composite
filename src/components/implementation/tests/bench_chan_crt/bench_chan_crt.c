@@ -164,11 +164,11 @@ test_chan(void)
 	printc("Create threads:\n");
 	
 	chan_reader = sched_thd_create(chan_reader_thd, NULL);
-	printc("\tcreating reader thread %d at prio %d\n", chan_reader, sps[0]);
+	printc("\tcreating reader thread %lu at prio %d\n", chan_reader, sps[0]);
 	sched_thd_param_set(chan_reader, sps[0]);
 	
 	chan_writer = sched_thd_create(chan_writer_thd, NULL);
-	printc("\tcreating writer thread %d at prio %d\n", chan_writer, sps[1]);
+	printc("\tcreating writer thread %lu at prio %d\n", chan_writer, sps[1]);
 	sched_thd_param_set(chan_writer, sps[1]);
 }
 

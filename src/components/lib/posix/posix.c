@@ -283,6 +283,7 @@ cos_set_thread_area(void* data)
 	return 0;
 }
 
+#pragma GCC diagnostic ignored "-Wcast-function-type"
 int
 cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, void *tls, pid_t *ctid)
 {
@@ -297,6 +298,7 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 	}
 	return sl_thd_thdid(thd);
 }
+#pragma GCC diagnostic pop
 
 #define FUTEX_WAIT		0
 #define FUTEX_WAKE		1
@@ -465,6 +467,7 @@ pre_syscall_default_setup()
 	sl_init(SL_MIN_PERIOD_US);
 }
 
+#pragma GCC diagnostic ignored "-Wcast-function-type"
 void
 syscall_emulation_setup(void)
 {
@@ -499,6 +502,7 @@ syscall_emulation_setup(void)
 	libc_syscall_override((cos_syscall_t)cos_clone, __NR_clone);
 	libc_syscall_override((cos_syscall_t)cos_futex, __NR_futex);
 }
+#pragma GCC diagnostic pop
 
 long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f)

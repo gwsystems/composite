@@ -11,7 +11,7 @@ unsigned long       thd_test[TEST_NTHDS];
 
 /* For Div-by-zero test */
 int num = 1, den = 0;
-int count = 0;
+word_t count = 0;
 
 void
 term_fn(void *d)

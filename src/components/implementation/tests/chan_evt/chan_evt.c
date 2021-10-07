@@ -33,9 +33,9 @@ void
 sender(void *d)
 {
 	int i;
-	int idx;
+	word_t idx;
 	
-	idx = (int)d;
+	idx = (word_t)d;
 
 	for (i = 0; i < COMM_AMNT; i++) {
 		thdid_t tid = cos_thdid();
@@ -48,7 +48,7 @@ sender(void *d)
 		}
 	}
 
-	printc("Sender %d finished\n", idx);
+	printc("Sender %lu finished\n", idx);
 	sched_thd_block(0);
 	assert(0);
 }
@@ -79,7 +79,7 @@ receiver(void *d)
 
 		/* Must be equal or we messed up something */
 		if (test[evtsrc].s_id != snd)  {
-			printc("chan_recv value error - recv %d, should be %d\n", snd, test[evtsrc].s_id);
+			printc("chan_recv value error - recv %lu, should be %lu\n", snd, test[evtsrc].s_id);
 			assert(0);
 		}
 	}

@@ -13,7 +13,7 @@ test_thd_arg(void *d)
 {
         int ret = 0;
 
-        if (EXPECT_LL_NEQ((int)d, THD_ARG, "Thread Creation: Argument Incorrect")) failure = 1;
+        if (EXPECT_LL_NEQ((word_t)d, THD_ARG, "Thread Creation: Argument Incorrect")) failure = 1;
         while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
         PRINTC("Error, shouldn't get here!\n");
 }
@@ -42,7 +42,7 @@ thd_fn_mthds_ring(void *d)
 {
         int ret;
 
-        if (count != (int) d) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
+        if (count != (word_t) d) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 
         int next = (++count) % TEST_NTHDS;
         if (!next) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
@@ -66,7 +66,8 @@ thd_fn_mthds_ring(void *d)
 static void
 test_mthds_ring(void)
 {
-        int   i, ret;
+        word_t i;
+        int   ret;
 
         count = 0;
 
