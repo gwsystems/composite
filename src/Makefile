@@ -29,7 +29,7 @@ platclean:
 plat: platclean
 	$(info )
 	$(info ***********************************************)
-	$(info ***** Building $(shell cat $(PLAT_FILE)) Platform and Kernel *******)
+	$(info ***** Building $(shell cat $(PLAT_FILE)) Platform and Kernel *****)
 	$(info ***********************************************)
 	$(info )
 	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat $(PLAT_FILE)) -C platform
