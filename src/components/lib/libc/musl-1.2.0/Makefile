@@ -92,17 +92,17 @@ OBJ_DIRS = $(sort $(patsubst %/,%,$(dir $(ALL_LIBS) $(ALL_TOOLS) $(ALL_OBJS) $(G
 $(ALL_LIBS) $(ALL_TOOLS) $(ALL_OBJS) $(ALL_OBJS:%.o=%.lo) $(GENH) $(GENH_INT): | $(OBJ_DIRS)
 
 $(OBJ_DIRS):
-	mkdir -p $@
+	@mkdir -p $@
 
 obj/include/bits/alltypes.h: $(srcdir)/arch/$(ARCH)/bits/alltypes.h.in $(srcdir)/include/alltypes.h.in $(srcdir)/tools/mkalltypes.sed
-	sed -f $(srcdir)/tools/mkalltypes.sed $(srcdir)/arch/$(ARCH)/bits/alltypes.h.in $(srcdir)/include/alltypes.h.in > $@
+	@sed -f $(srcdir)/tools/mkalltypes.sed $(srcdir)/arch/$(ARCH)/bits/alltypes.h.in $(srcdir)/include/alltypes.h.in > $@
 
 obj/include/bits/syscall.h: $(srcdir)/arch/$(ARCH)/bits/syscall.h.in
-	cp $< $@
-	sed -n -e s/__NR_/SYS_/p < $< >> $@
+	@cp $< $@
+	@sed -n -e s/__NR_/SYS_/p < $< >> $@
 
 obj/src/internal/version.h: $(wildcard $(srcdir)/VERSION $(srcdir)/.git)
-	printf '#define VERSION "%s"\n' "$$(cd $(srcdir); sh tools/version.sh)" > $@
+	@printf '#define VERSION "%s"\n' "$$(cd $(srcdir); sh tools/version.sh)" > $@
 
 obj/src/internal/version.o obj/src/internal/version.lo: obj/src/internal/version.h
 
@@ -140,52 +140,52 @@ else
 endif
 
 obj/%.o: $(srcdir)/%.s
-	$(AS_CMD)
+	@$(AS_CMD)
 
 obj/%.o: $(srcdir)/%.S
-	$(CC_CMD)
+	@$(CC_CMD)
 
 obj/%.o: $(srcdir)/%.c $(GENH) $(IMPH)
-	$(CC_CMD)
+	@$(CC_CMD)
 
 obj/%.lo: $(srcdir)/%.s
-	$(AS_CMD)
+	@$(AS_CMD)
 
 obj/%.lo: $(srcdir)/%.S
-	$(CC_CMD)
+	@$(CC_CMD)
 
 obj/%.lo: $(srcdir)/%.c $(GENH) $(IMPH)
-	$(CC_CMD)
+	@$(CC_CMD)
 
 lib/libc.so: $(LOBJS) $(LDSO_OBJS)
-	$(CC) $(CFLAGS_ALL) $(LDFLAGS_ALL) -nostdlib -shared \
+	@$(CC) $(CFLAGS_ALL) $(LDFLAGS_ALL) -nostdlib -shared \
 	-Wl,-e,_dlstart -o $@ $(LOBJS) $(LDSO_OBJS) $(LIBCC)
 
 lib/libc.a: $(AOBJS)
-	rm -f $@
-	$(AR) rc $@ $(AOBJS)
-	$(RANLIB) $@
-	echo "musl-gcc & musl-gcc.specs not built for cross-compile"
-	sh tools/musl-gcc.specs.sh "$(includedir)" "$(libdir)" "$(LDSO_PATHNAME)" > lib/musl-gcc.specs
-	printf '#!/bin/sh\nexec "$${REALGCC:-$(WRAPCC_GCC)}" "$$@" -specs "%s/musl-gcc.specs"\n' "$(libdir)" > obj/musl-gcc
-	chmod +x obj/musl-gcc
+	@rm -f $@
+	@$(AR) rc $@ $(AOBJS)
+	@$(RANLIB) $@
+#	@echo "musl-gcc & musl-gcc.specs not built for cross-compile"
+	@sh tools/musl-gcc.specs.sh "$(includedir)" "$(libdir)" "$(LDSO_PATHNAME)" > lib/musl-gcc.specs
+	@printf '#!/bin/sh\nexec "$${REALGCC:-$(WRAPCC_GCC)}" "$$@" -specs "%s/musl-gcc.specs"\n' "$(libdir)" > obj/musl-gcc
+	@chmod +x obj/musl-gcc
 
 $(EMPTY_LIBS):
-	rm -f $@
-	$(AR) rc $@
+	@rm -f $@
+	@$(AR) rc $@
 
 lib/%.o: obj/crt/$(ARCH)/%.o
-	cp $< $@
+	@cp $< $@
 
 lib/%.o: obj/crt/%.o
-	cp $< $@
+	@cp $< $@
 
 lib/musl-gcc.specs: $(srcdir)/tools/musl-gcc.specs.sh config.mak
-	echo "Do nothing! $@"
+	@echo "Do nothing! $@"
 #	sh $< "$(includedir)" "$(libdir)" "$(LDSO_PATHNAME)" > $@
 
 obj/musl-gcc: config.mak
-	echo "Do nothing! $@"
+	@echo "Do nothing! $@"
 #	printf '#!/bin/sh\nexec "$${REALGCC:-$(WRAPCC_GCC)}" "$$@" -specs "%s/musl-gcc.specs"\n' "$(libdir)" > $@
 #	chmod +x $@
 
