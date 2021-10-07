@@ -71,7 +71,7 @@ clean_lib:
 	make -C ps clean
 
 # need to make sure the ps_plat.h is always available
-clean: clean_lib config
+clean: config clean_lib
 
 armv7a_config:
 	$(info Configuring the ps library)
