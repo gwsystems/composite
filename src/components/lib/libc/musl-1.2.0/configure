@@ -223,6 +223,10 @@ test "$target" != "$build" && \
 test -z "$CROSS_COMPILE" && \
 CROSS_COMPILE="$target-"
 
+# We don't need this CROSS_COMPILE flag since we do not need cross compile a new freestanding GNU tool chain
+# If you really need to compile a freestanding tool chain, please comment this flag setting below
+CROSS_COMPILE=""
+
 #
 # Find a C compiler to use
 #
