@@ -35,7 +35,7 @@ initialize()
 
 usage()
 {
-    echo "Usage: " $0 " init|build|reset|compose <script> <output name>|run <binary>"
+    echo "Usage: " $0 " init|build|reset|distclean|compose <script> <output name>|run <binary>"
     exit 2
 }
 
