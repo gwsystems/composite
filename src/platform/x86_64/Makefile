@@ -112,7 +112,7 @@ captbl.o: ../../kernel/captbl.c
 clean:
 	@rm -f *.d *.o $(KERNEL)  kernel.iso
 	@rm -rf iso
-	@-rm constructor
+	@rm -f constructor
 
 gdb:
 	gdb -x ./gdbinit

@@ -44,6 +44,7 @@ clean: platclean
 distclean: clean
 	$(MAKE) $(MAKEOPTIONS) -C components distclean
 	@rm -f `pwd`/../transfer/*
+	@rm Makefile.arch Makefile.cosconfig $(PLAT_FILE)
 
 init:
 	$(MAKE) $(MAKEOPTIONS) config
@@ -99,7 +100,7 @@ config-x86_64: config-gen
 	@echo "x86_64" > $(PLAT_FILE)
 	@echo "ARCH_CFLAGS = -m64 -D__x86_64__" >  Makefile.arch
 	@echo "ARCH_ASFLAGS= -m64 -D__x86_64__ -D__ASM__" >> Makefile.arch
-	@echo "ARCH_LDFLAGS=-melf_x86_64"      >> Makefile.arch
+	@echo "ARCH_LDFLAGS= -melf_x86_64"      >> Makefile.arch
 	@echo "Configuring the system with clock speed and directory structure."
 	@cat /proc/cpuinfo | grep "model name" -m 1 | sed 's/.*\([0-9]\.[0-9]*\).*/\#define CPU_GHZ \1/' > ./kernel/include/chal/shared/cpu_ghz.h
 	@if [ -z "`cat /proc/cpuinfo | grep \"physical id\"`" ]; then echo "#define NUM_CPU_SOCKETS 1" >> ./kernel/include/chal/shared/cpu_ghz.h; else cat /proc/cpuinfo | grep "physical id" | sort | uniq | wc -l | sed 's/.*\([0-9]\).*/\#define NUM_CPU_SOCKETS \1/' >> ./kernel/include/chal/shared/cpu_ghz.h; fi
