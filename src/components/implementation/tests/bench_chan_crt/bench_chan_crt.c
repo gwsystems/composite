@@ -29,10 +29,10 @@ thdid_t chan_reader = 0, chan_writer = 0;
 
 typedef unsigned int cycles_32_t;
 
-cycles_32_t tmp[DATA_WORDS] = {0, };
-cycles_32_t ts1[DATA_WORDS] = {0, };
-cycles_32_t ts2[DATA_WORDS] = {0, };
-cycles_32_t ts3[DATA_WORDS] = {0, };
+volatile cycles_32_t tmp[DATA_WORDS] = {0, };
+volatile cycles_32_t ts1[DATA_WORDS] = {0, };
+volatile cycles_32_t ts2[DATA_WORDS] = {0, };
+volatile cycles_32_t ts3[DATA_WORDS] = {0, };
 
 struct perfdata perf1, perf2, perf3;
 cycles_t result1[ITERATION] = {0, };
@@ -52,13 +52,13 @@ chan_reader_thd(void *d)
 	/* Never stops running; writer controls how many iters to run. */
 	while(1) {
 		debug("r1,");
-		crt_static_chan_recv_bench(chan1, tmp);
+		crt_static_chan_recv_bench(chan1, (void *)tmp);
 		debug("tsr1: %d,", tmp[0]);
 		debug("r2,");
 		tmp[0] = time_now();
 		debug("tsr2: %d,", tmp[0]);
 		debug("r3,");
-		crt_static_chan_send_bench(chan2, tmp);
+		crt_static_chan_send_bench(chan2, (void *)tmp);
 		debug("r4,");
 	}
 }
@@ -74,9 +74,9 @@ chan_writer_thd(void *d)
 		ts1[0] = time_now();
 		debug("ts1: %d,", ts1[0]);
 		debug("w2,");
-		crt_static_chan_send_bench(chan1, ts1);
+		crt_static_chan_send_bench(chan1, (void *)ts1);
 		debug("w3,");
-		crt_static_chan_recv_bench(chan2, ts2);
+		crt_static_chan_recv_bench(chan2, (void *)ts2);
 		debug("ts2: %d,", ts2[0]);
 		debug("w4,");
 		ts3[0] = time_now();
@@ -140,8 +140,8 @@ test_chan(void)
 	for (i = 0; i < ITERATION + 1; i++) {
 		begin = time_now();
 
-		crt_static_chan_send_bench(chan1, tmp);
-		crt_static_chan_recv_bench(chan1, tmp);
+		crt_static_chan_send_bench(chan1, (void *)tmp);
+		crt_static_chan_recv_bench(chan1, (void *)tmp);
 
 		end = time_now();
 		if (first == 0) first = 1;
