@@ -48,3 +48,4 @@ doc/dev_manual/composite_dev_manual.pdf
 doc/dev_manual/resources/*.pdf
 system_binaries/cos_build-*
 src/components/lib/libc/musl-1.2.0/include/bits/
+src/components/lib/libc/musl-1.2.0/bin/
