@@ -24,7 +24,7 @@ struct chan_test
 	struct chan_rcv r;
 };
 
-volatile struct chan_test test[SEND_THD_NUM];
+struct chan_test test[SEND_THD_NUM];
 thdid_t init_thd;
 thdid_t r_id;
 struct evt e;
@@ -124,7 +124,7 @@ main(void)
 		assert(0);
 	}
 	
-	for (int i = 0; i < SEND_THD_NUM; i++) {
+	for (word_t i = 0; i < SEND_THD_NUM; i++) {
 		thdid_t s_id = sched_thd_create(sender, (void*)i);
 
 		if (s_id == 0) {

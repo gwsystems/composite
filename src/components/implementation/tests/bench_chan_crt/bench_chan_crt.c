@@ -29,10 +29,10 @@ thdid_t chan_reader = 0, chan_writer = 0;
 
 typedef unsigned int cycles_32_t;
 
-volatile cycles_32_t tmp[DATA_WORDS] = {0, };
-volatile cycles_32_t ts1[DATA_WORDS] = {0, };
-volatile cycles_32_t ts2[DATA_WORDS] = {0, };
-volatile cycles_32_t ts3[DATA_WORDS] = {0, };
+cycles_32_t tmp[DATA_WORDS] = {0, };
+cycles_32_t ts1[DATA_WORDS] = {0, };
+cycles_32_t ts2[DATA_WORDS] = {0, };
+cycles_32_t ts3[DATA_WORDS] = {0, };
 
 struct perfdata perf1, perf2, perf3;
 cycles_t result1[ITERATION] = {0, };
