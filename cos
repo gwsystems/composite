@@ -74,7 +74,7 @@ run()
         cp ${binary_name} iso/boot/
         grub-mkrescue -o kernel.iso iso
 
-        qemu-system-x86_64 -cpu max -m 8192 -cdrom kernel.iso -no-reboot -nographic -s
+        qemu-system-x86_64 -cpu max -m 1024 -cdrom kernel.iso -no-reboot -nographic -s
     elif [ "${elf_type}" == "ELF32" ]
     then
         echo "[cos executing] tools/run.sh $binary"
