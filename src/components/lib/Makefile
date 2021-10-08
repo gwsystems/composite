@@ -80,6 +80,14 @@ MAKEOPTIONS=-I$(shell pwd)
 
 all:
 	$(info **************************************************)
+	$(info ***********[Explicit ps initialization]***********)
+	$(info **************************************************)
+	@echo "*************************[TASK START]*************************"
+	@echo "                    [ Explicit building ps ]                  "
+	$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C ps  || exit $$?
+	@echo "*************************[TASK  STOP]*************************"
+	@echo ""
+	$(info **************************************************)
 	$(info **************[ Building Libraries ]**************)
 	$(info **************************************************)
 	@for dir in $(SUBDIRS) ; do \
