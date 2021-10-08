@@ -7,4 +7,5 @@ sudo apt install git
 sudo apt install cargo
 sudo apt install python2
 sudo apt install xorriso
+sudo apt install mtools
 sudo apt install qemu-system-i386
