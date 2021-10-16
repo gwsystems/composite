@@ -73,7 +73,7 @@ chal_pgtbl_kmem_act(pgtbl_t pt, vaddr_t addr, unsigned long *kern_addr, unsigned
 
 	/* Get the pte */
 #if defined(__x86_64__)
-	pte = pgtbl_lkup_lvl(pt, addr, &flags, 0, 4);
+	pte = pgtbl_lkup_lvl(pt, addr, &flags, 0, PGTBL_DEPTH);
 #elif defined(__i386__)	
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 	                                          PGTBL_DEPTH, &accum);
@@ -181,7 +181,7 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 	} else {
 		if (order != PAGE_ORDER) return -EPERM;
 	#if defined(__x86_64__)
-		pte = pgtbl_lkup_lvl(pt->pgtbl, frame_cap, &flags, 0, 4);
+		pte = pgtbl_lkup_lvl(pt->pgtbl, frame_cap, &flags, 0, PGTBL_DEPTH);
 	#elif defined(__i386__)	
 		pte = pgtbl_lkup_pte(pt->pgtbl, frame_cap, &flags);
 	#endif
@@ -300,6 +300,7 @@ chal_pgtbl_lkup_lvl(pgtbl_t pt, vaddr_t addr, u32_t *flags, u32_t start_lvl, u32
 		page = chal_pa2va((*intern) & PGTBL_ENTRY_ADDR_MASK);
 	}
 
+	*flags = (*intern) & PGTBL_FLAG_MASK;
 	return intern;
 #elif defined(__i386__)
 	return __pgtbl_lkupani((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, start_lvl,
@@ -315,6 +316,8 @@ chal_pgtbl_mapping_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32_
 	struct ert_intern *pte = 0;
 	unsigned long      orig_v;
 	u32_t              accum = 0;
+	/* this temp_flag should not be used */
+	u32_t              temp_flag = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
@@ -327,7 +330,7 @@ chal_pgtbl_mapping_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32_
 	assert(order == PAGE_ORDER);
 
 #if defined(__x86_64__)
-	pte = (struct ert_intern *)chal_pgtbl_lkup_lvl((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr, &flags, 0, 4);
+	pte = (struct ert_intern *)chal_pgtbl_lkup_lvl((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr, &temp_flag, 0, PGTBL_DEPTH);
 #elif defined(__i386__)
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 						PGTBL_DEPTH, &accum);
@@ -359,6 +362,7 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32
 	struct ert_intern *pte;
 	unsigned long      orig_v = 0;
 	u32_t              accum = 0;
+	u32_t              temp_flags = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
@@ -370,7 +374,7 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32
 	 * dereference the super page as a second-level pointer. Performance bummer.
 	 */
 #if defined(__x86_64__)
-	pte = (struct ert_intern *)chal_pgtbl_lkup_lvl((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr, &flags, 0, 4);
+	pte = (struct ert_intern *)chal_pgtbl_lkup_lvl((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr, &temp_flags, 0, PGTBL_DEPTH);
 #elif defined(__i386__)
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT,
 						PGTBL_DEPTH, &accum);
@@ -547,7 +551,7 @@ chal_pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe, vaddr
 	unsigned long *pte;
 	paddr_t        v;
 #if defined(__x86_64__)
-	pte = pgtbl_lkup_lvl(pt, frame_addr, &flags, 0, 4);
+	pte = pgtbl_lkup_lvl(pt, frame_addr, &flags, 0, PGTBL_DEPTH);
 	if (!pte) return -EINVAL;
 	v = *pte;
 	*order = PAGE_ORDER;
@@ -682,7 +686,12 @@ chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pg
 	 * 4. Smallpage -> Superpage [prohibited]
 	 */
 	if (order != PAGE_ORDER) return -EINVAL;
+
+#if defined(__x86_64__)
+	f = pgtbl_lkup_lvl(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags, 0, PGTBL_DEPTH);
+#elif defined(__i386__)	
 	f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+#endif
 	if (!f) return -ENOENT;
 	old_v = *f;
 

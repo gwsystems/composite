@@ -45,7 +45,7 @@ impl CaptblState {
     fn new() -> CaptblState {
         CaptblState {
             captbl: BTreeMap::new(),
-            frontier: 44, // BOOT_CAPTBL_FREE...FIXME: automatically generate this
+            frontier: 52, // BOOT_CAPTBL_FREE...FIXME: automatically generate this
             prev_sz: 4,
         }
     }

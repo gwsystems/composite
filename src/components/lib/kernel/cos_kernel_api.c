@@ -772,7 +772,7 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 
 	if (__alloc_mem_cap(ci, CAP_PGTBL, &kmem, &cap)) return 0;
 	#if defined(__x86_64__)
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, COS_PGTBL_DEPTH - 1))
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))
 		BUG();
 	#elif defined(__i386__)
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, COS_PGTBL_ORDER_PTE))
@@ -814,6 +814,7 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 	pgtblcap_t  ptc;
 	captblcap_t ctc;
 	compcap_t   compc;
+	int pgtbl_lvl;
 
 	printd("cos_compinfo_alloc\n");
 
@@ -825,6 +826,11 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 	assert(compc);
 
 	cos_compinfo_init(ci, ptc, ctc, compc, heap_ptr, cap_frontier, ci_resources);
+
+	/* This is to make sure that "the address below vas_frontier has been allocated, follow the assumption we put in cos_vasfrontier_init()"*/
+	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
+		__bump_mem_expand_intern(ci, ptc, round_to_page(ci->vas_frontier - 1), 0, pgtbl_lvl);
+	}
 
 	return 0;
 }
