@@ -25,17 +25,17 @@
 __cosrt_s_##name:				\
 	COS_ASM_GET_STACK_INVTOKEN		\
 	push %rbp;				\
-	xor %ebp, %ebp;				\
-	push %rdi;				\
-	push %rsi;				\
-	push %rbx;				\
+	xor %rbp, %rbp;				\
+	mov %rdi, %rax;				\
+	mov %rbx, %rdi;				\
+	mov %rax, %rdx;				\
 	call name ;				\
  	/* addl $16, %esp; */			\
-	movl %eax, %ecx;			\
-	movl $RET_CAP, %eax;			\
+	mov %rax, %r8;			\
+	mov $RET_CAP, %rax;			\
 	COS_ASM_RET_STACK			\
 						\
-	sysenter;
+	syscall;
 
 /*
  * This stub enables three return values (%ecx, %esi, %edi), AND
@@ -114,8 +114,8 @@ __cosrt_s_##name:				\
 .align 8 ;                                     \
 name:                                          \
 __cosrt_extern_##name:			       \
-        movl $__cosrt_ucap_##name, %eax ;      \
-        jmp *INVFN(%eax) ;		       \
+        mov $__cosrt_ucap_##name, %rax ;      \
+        jmp *INVFN(%rax) ;		       \
 					       \
 .section .ucap, "a", @progbits ;               \
 .globl __cosrt_ucap_##name ;                   \

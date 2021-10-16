@@ -58,8 +58,8 @@ __userregs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsign
 {
 #if defined(__x86_64__)
 	regs->ax = ret;
-	regs->cx = ip;
-	regs->bp = sp;
+	regs->ip = regs->cx = ip;
+	regs->sp = regs->bp = sp;
 
 #elif defined(__i386__)
 	regs->ax = ret;

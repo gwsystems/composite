@@ -19,7 +19,7 @@
 
 #define COS_ASM_GET_STACK_INVTOKEN \
 	COS_ASM_GET_STACK_BASIC    \
-	push %rcx;
+	push %rbp;
 
 #define COS_ASM_RET_STACK
 

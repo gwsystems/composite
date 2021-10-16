@@ -7,9 +7,9 @@
  * interface functions that ensure the the invocation information
  * (struct usr_inv_cap) which includes the capability id.
  */
-#define COS_CLIENT_STUB(_type, _client_fn, ...) CREGPARM(1) _type __cosrt_c_##_client_fn(struct usr_inv_cap *uc, __VA_ARGS__)
+#define COS_CLIENT_STUB(_type, _client_fn, ...) _type __cosrt_c_##_client_fn(__VA_ARGS__)
 
-#define COS_CLIENT_INVCAP
+#define COS_CLIENT_INVCAP register struct usr_inv_cap *uc asm ("rax");
 
 /*
  * We marshal and demarshal double word arguments..

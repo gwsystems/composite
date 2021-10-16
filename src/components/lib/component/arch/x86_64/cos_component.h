@@ -177,7 +177,7 @@ get_stk_data(int offset)
 	 * cpu_id.  This struct is at the _top_ of the current stack,
 	 * and cpu_id is at the top of the struct (it is a u32_t).
 	 */
-	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + COS_STACK_SZ - offset * sizeof(u32_t));
+	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + COS_STACK_SZ - offset * sizeof(unsigned long));
 }
 
 #define GET_CURR_CPU cos_cpuid()
