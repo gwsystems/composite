@@ -24,7 +24,7 @@
 .align 16 ;					\
 __cosrt_s_##name:				\
 	COS_ASM_GET_STACK_INVTOKEN		\
-	push %rbp;				\
+	mov %r12, %rcx;				\
 	xor %rbp, %rbp;				\
 	mov %rdi, %rax;				\
 	mov %rbx, %rdi;				\
@@ -121,7 +121,7 @@ __cosrt_extern_##name:			       \
 .globl __cosrt_ucap_##name ;                   \
 __cosrt_ucap_##name:                           \
         .rep UCAP_SZ ;                         \
-        .long 0 ;                              \
+        .quad 0 ;                              \
         .endr ;				       \
 .text /* start out in the text segment, and always return there */
 

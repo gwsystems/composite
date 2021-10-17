@@ -84,6 +84,9 @@ __userregs_setretvals(struct pt_regs *regs, unsigned long ret, unsigned long ret
 static inline void
 __userregs_sinvupdate(struct pt_regs *regs)
 {
+#if defined(__x86_64__)
+	regs->r12 = regs->dx;
+#elif defined(__i386__)
 	/* IPC calling side has 4 args (in order): bx, si, di, dx */
 	/* IPC server side receives 4 args: bx, si, di, bp */
 	/* So we need to pass the 4th argument. */
@@ -92,6 +95,7 @@ __userregs_sinvupdate(struct pt_regs *regs)
 	/* regs->si = regs->si; */
 	/* regs->di = regs->di; */
 	regs->bp = regs->dx;
+#endif
 }
 
 static inline word_t 
