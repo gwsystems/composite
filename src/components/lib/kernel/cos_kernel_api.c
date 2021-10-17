@@ -17,6 +17,9 @@
 #define printd(...)
 #endif
 
+
+static struct pgtbl_shared shared_pgtbl;
+
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz, pgtblcap_t pgtbl_cap)
 {
@@ -368,6 +371,11 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 	 */
 	call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, mem_ptr, 0, 0);
 
+	/* TODO: use another flag to check if we can even make the allocation (if it's already been added to the shared pgtbl) */
+	ci->mi.second_lvl_pgtbl_cap = pte_cap;
+	ci->mi.second_lvl_pgtbl_addr = mem_ptr;
+	ci->mi.second_lvl_pgtbl_flag = 1;
+
 	return pte_cap;
 }
 
@@ -669,6 +677,7 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))
 		BUG();
 
+	ci->mi.second_lvl_flag = 0;
 	return cap;
 }
 
@@ -1108,4 +1117,57 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 	}
 
 	return (void *)va;
+}
+
+
+/* ----- Shared Pgtbl ------ */
+int
+cos_get_second_lvl(struct cos_compinfo *ci, capid_t *pgtbl_cap, vaddr_t *pgtbl_addr)
+{
+	if(ci->mi.second_lvl_pgtbl_flag) {
+		return -1;
+	}
+	pgtbl_cap = &ci->mi.second_lvl_pgtbl_cap;
+	pgtbl_addr = &ci->mi.second_lvl_pgtbl_addr;
+	return 0;
+}
+
+int
+cos_cons_into_shared_pgtbl(struct cos_compinfo *ci)
+{
+	/* TODO: get shared pgtbl node */
+	pgtblcap_t shared_pgtbl = shareg_pgtbl.cap; //get_shared_pgbtl();
+	capid_t pte_cap;
+	vaddr_t pgtbl_addr;
+
+	if(cos_get_second_lvl(ci, &pte_cap, &pgtbl_addr) != 0) {
+		return -1;
+	}
+
+	call_cap_op(shared_pgtbl, CAPTBL_OP_CONS, pte_cap, pgtbl_addr, 0, 0);
+
+}
+
+int
+cos_shared_pgtbl_alloc(void)
+{
+	struct cos_defcompinfo *defcomp = cos_defcompinfo_curr_get();
+	struct cos_compinfo *ci = cos_compinfo_get(defcomp);
+
+	shared_pgtbl.cap = cos_pgtbl_alloc(ci);
+
+	vaddr_t kmem;
+	capid_t cap;
+
+	printd("cos_shared_pgtbl_alloc\n");
+
+	assert(ci);
+
+	if (__alloc_mem_cap(ci, CAP_PGTBL, &kmem, &cap)) return 0;
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))
+		BUG();
+
+	//ci->mi.second_lvl_flag = 0;
+
+	return cap;
 }

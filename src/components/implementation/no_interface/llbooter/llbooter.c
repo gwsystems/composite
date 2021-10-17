@@ -52,6 +52,8 @@ SS_STATIC_SLAB(thd,    struct crt_thd,    BOOTER_MAX_INITTHD);
 SS_STATIC_SLAB(rcv,    struct crt_rcv,    BOOTER_MAX_SCHED);
 SS_STATIC_SLAB(chkpt,  struct crt_chkpt,  BOOTER_MAX_CHKPT);
 
+static struct pgtbl_shared shared_pgtbl;
+
 /*
  * Assumptions: the component with the lowest id *must* be the one
  * that is passed into this function first. You *can* pass in an id
@@ -105,6 +107,10 @@ comps_init(void)
 		cos_compid_set(booter_id);
 	}
 	boot_comp_set_idoffset(cos_compid());
+
+	/* allocate the shared pgtbl */
+	cos_shared_pgtbl_alloc();
+	//shared_pgtbl.cap = cos_pgtbl_alloc(&shared_pgtbl.ci);
 
 	ret = args_get_entry("components", &comps);
 	assert(!ret);
