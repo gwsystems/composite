@@ -50,25 +50,23 @@ __cosrt_s_##name:				\
 __cosrt_s_##name:				\
         COS_ASM_GET_STACK_INVTOKEN              \
 	push $0;				\
-	movl  %esp, %ecx;			\
+	mov %rsp, %r8;			\
 	push $0;				\
-	push %rsp;				\
-	push %rcx;				\
-	push %rbp;				\
-	xor %ebp, %ebp;				\
-	push %rdi;				\
-	push %rsi;				\
-	push %rbx;				\
+	mov %rsp, %r9;				\
+	mov %r12, %rcx;				\
+	xor %rbp, %rbp;				\
+	mov %rdi, %r12;				\
+	mov %rbx, %rdi;				\
+	mov %r12, %rdx;				\
 	call __cosrt_s_cstub_##name ;		\
-	addl $24, %esp;				\
 	pop %rdi;				\
 	pop %rsi;				\
 						\
-	movl %eax, %ecx;			\
-	movl $RET_CAP, %eax;			\
+	mov %rax, %r8;			\
+	mov $RET_CAP, %rax;			\
 	COS_ASM_RET_STACK			\
 						\
-	sysenter;
+	syscall;
 #endif
 
 #ifdef COS_UCAP_STUBS

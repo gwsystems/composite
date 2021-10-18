@@ -10,7 +10,7 @@ volatile ps_tsc_t fast_path, all_args;
 void
 cos_init(void)
 {
-	int r0 = 0, r1 = 0;
+	word_t r0 = 0, r1 = 0;
 	unsigned long r3 = 0;
 	compid_t us, them;
 	thdid_t tid;

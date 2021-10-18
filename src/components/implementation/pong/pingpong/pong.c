@@ -85,7 +85,7 @@ pong_wideargs(long long p0, long long p1)
 }
 
 int
-pong_argsrets(int p0, int p1, int p2, int p3, int *r0, int *r1)
+pong_argsrets(int p0, int p1, int p2, int p3, word_t *r0, word_t *r1)
 {
 	*r0 = p0;
 	*r1 = p1;

@@ -16,10 +16,10 @@
  * Nothing special to do for this architecture.
  */
 #define COS_ARG_DWORD_TO_WORD(dw, wh, wl)               \
-                wl = (dw << 32) >> 32;                  \
-                wh = (dw >> 32)
+                wl = 0;                  \
+                wh = dw
 
 #define COS_ARG_WORDS_TO_DWORD(wa, wb, dw)              \
-                dw = ((dword_t)wa << 32) | (dword_t)wb
+                dw = wa
 
 #endif /* COS_STUB_X86_H */
