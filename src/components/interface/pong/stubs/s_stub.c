@@ -3,7 +3,7 @@
 
 COS_SERVER_3RET_STUB(int, pong_argsrets)
 {
-	return pong_argsrets((int)p0, (int)p1, (int)p2, (int)p3, (int *)r1, (int *)r2);
+	return pong_argsrets((int)p0, (int)p1, (int)p2, (int)p3, (word_t *)r1, (word_t *)r2);
 }
 
 COS_SERVER_3RET_STUB(long long, pong_widerets)

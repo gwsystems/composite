@@ -4,14 +4,15 @@
 COS_CLIENT_STUB(int, pong_wideargs, word_t p0, word_t p1)
 {
 	COS_CLIENT_INVCAP;
+#if defined(__x86_64__)
+	return cos_sinv(uc->cap_no, p0, p1, 0, 0);
+#else
 	unsigned long p0h, p0l, p1h, p1l;
 
 	COS_ARG_DWORD_TO_WORD(p0, p0h, p0l);
 	COS_ARG_DWORD_TO_WORD(p1, p1h, p1l);
 
-#if defined(__x86_64__)
-	return cos_sinv(uc->cap_no, p0, p1, 0, 0);
-#elif defined(__i386__)
+
 	return cos_sinv(uc->cap_no, p0h, p0l, p1h, p1l);
 #endif
 }
