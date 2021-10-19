@@ -32,6 +32,7 @@ __cosrt_upcall_entry:			\
 	mov %rbx, %rsi;			\
 	xor %rbp, %rbp;			\
 	mov %r12, %rdi;			\
+	and $~0xf, %rsp;		\
 	call cos_upcall_fn;		\
 	addl $24, %esp;			\
 	pop %rsi;			\

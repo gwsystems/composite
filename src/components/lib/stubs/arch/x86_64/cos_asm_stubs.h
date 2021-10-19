@@ -29,6 +29,7 @@ __cosrt_s_##name:				\
 	mov %rdi, %rax;				\
 	mov %rbx, %rdi;				\
 	mov %rax, %rdx;				\
+	and $~0xf, %rsp;\
 	call name ;				\
  	/* addl $16, %esp; */			\
 	mov %rax, %r8;			\
