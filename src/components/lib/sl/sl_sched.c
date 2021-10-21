@@ -574,7 +574,7 @@ sl_init_cpubmp(microsec_t period, u32_t *cpubmp)
 		ps_faa((unsigned long *)&init_done, 1);
 	} else {
 		/* wait until global ring buffers are initialized correctly! */
-		while (!ps_load((unsigned long *)&init_done)) ;
+		while (!ps_load(&init_done)) ;
 		/* make sure this scheduler is active on this cpu/core */
 		assert(sl_cpu_active());
 	}

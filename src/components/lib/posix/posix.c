@@ -19,7 +19,7 @@
 volatile int* null_ptr = NULL;
 #define ABORT() do {int i = *null_ptr;} while(0)
 
-#define SYSCALLS_NUM 378
+#define SYSCALLS_NUM 500
 
 typedef long (*cos_syscall_t)(long a, long b, long c, long d, long e, long f);
 cos_syscall_t cos_syscalls[SYSCALLS_NUM];
@@ -362,7 +362,7 @@ struct sl_lock futex_lock = SL_LOCK_STATIC_INIT();
 int
 cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct timespec *timeout)
 {
-	cycles_t   deadline;
+	cycles_t   deadline = 0;
 	microsec_t wait_time;
 	struct futex_waiter waiter = (struct futex_waiter) {
 		.thdid = sl_thdid()

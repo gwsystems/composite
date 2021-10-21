@@ -49,7 +49,7 @@ call_cap_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word
 	                     "popq %%rbp"		\
 	                     : "=a"(ret), "=c"(fault)
 	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
-	                     : "memory", "cc");
+	                     : "memory", "cc", "r8", "r9", "r11","r12");
 
 	return ret;
 }
@@ -79,7 +79,7 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	                     "popq %%rbp\n\t"		\
 	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2), "=b" (*r3)
 	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
-	                     : "memory", "cc");
+	                     : "memory", "cc", "r8", "r9", "r11", "r12");
 
 	return ret;
 }
@@ -109,7 +109,7 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	                     "popq %%rbp\n\t"		\
 	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2)
 	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
-	                     : "memory", "cc");
+	                     : "memory", "cc", "r8","r9","r11", "r12");
 
 	return ret;
 }
@@ -441,10 +441,10 @@ section_fnptrs_execute(long *list)
 static void
 constructors_execute(void)
 {
-	extern long __CTOR_LIST__;
-	extern long __INIT_ARRAY_LIST__;
-	section_fnptrs_execute(&__CTOR_LIST__);
-	section_fnptrs_execute(&__INIT_ARRAY_LIST__);
+	extern void * __CTOR_LIST__;
+	extern void * __INIT_ARRAY_LIST__;
+	section_fnptrs_execute((long *)&__CTOR_LIST__);
+	section_fnptrs_execute((long *)&__INIT_ARRAY_LIST__);
 }
 static void
 destructors_execute(void)

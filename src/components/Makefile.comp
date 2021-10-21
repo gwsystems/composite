@@ -14,8 +14,7 @@ CINC=-I. -I$(SHAREDINC) -I$(CHALSHAREDINC)
 
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic -fno-pie
 OPT= -g -fvar-tracking
-# Fixme: -O3 will case a "cap: 63 not found"
-OPT+= -O0
+OPT+= -O3
 
 # This removes warnings from Ubuntu 20 (gcc 9.3), but should likely be removed by fixing the issue
 TMPFLGS := -Wno-address-of-packed-member
