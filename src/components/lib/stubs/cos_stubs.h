@@ -30,7 +30,7 @@
  */
 #define COS_SERVER_STUB(_type, _server_fn)				\
 _type									\
-__cosrt_s_cstub_##_server_fn##(word_t p0, word_t p1, word_t p2, word_t p3, word_t *r1, word_t *r2)
+__cosrt_s_cstub_##_server_fn(word_t p0, word_t p1, word_t p2, word_t p3, word_t *r1, word_t *r2)
 
 #define COS_SERVER_3RET_STUB(_type, _server_fn)			\
 _type								\

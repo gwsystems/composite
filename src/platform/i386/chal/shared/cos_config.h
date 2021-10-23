@@ -37,7 +37,11 @@
  * linker script (.ld) as well.
  */
 #define COS_MEM_KERN_PA (0x00100000)
+#if defined(__x86_64__)
 #define COS_MEM_KERN_PA_ORDER (33)
+#else
+#define COS_MEM_KERN_PA_ORDER (29)
+#endif
 #define COS_MEM_KERN_PA_SZ ((1UL << COS_MEM_KERN_PA_ORDER) - (1UL << 26)) /* FIXME: Need a way to get physical memory size from kernel. Cannot use a hardcoded value, actual memory could be much lower! */
 
 #define COS_MEM_COMP_START_VA ((1 << 30) + (1 << 22)) /* 1GB + 4MB (a relic) */
@@ -46,14 +50,19 @@
 #define COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK 0x0000ff8000000000
 #define COS_MEM_KERN_START_VA (0xffff800000000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
 #define COS_MEM_USER_MAX_VA 0x00007fffffffffff
-#elif defined(__i386__)
+#else 
 #define COS_MEM_KERN_START_VA (0xc0000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
 #endif
 
 #define COS_HW_MMIO_MAX_SZ (1UL << 27) /* Assuming a MAX of 128MB for MMIO. */
+#if defined(__x86_64__)
 #define COS_PHYMEM_MAX_SZ ((1UL << 35) - (1UL << 22) - COS_HW_MMIO_MAX_SZ) /* 1GB - 4MB - MMIO sz */
-
 #define COS_PHYMEM_END_PA ((1UL << 35) - COS_HW_MMIO_MAX_SZ) /* Maximum usable physical memory */
+#else
+#define COS_PHYMEM_MAX_SZ ((1UL << 30) - (1UL << 22) - COS_HW_MMIO_MAX_SZ) /* 1GB - 4MB - MMIO sz */
+#define COS_PHYMEM_END_PA ((1UL << 30) - COS_HW_MMIO_MAX_SZ) /* Maximum usable physical memory */
+#endif
+
 
 #define BOOT_COMP_MAX_SZ (1 << 24) /* 16 MB for the booter component */
 

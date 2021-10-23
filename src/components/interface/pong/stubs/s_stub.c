@@ -29,3 +29,12 @@ COS_SERVER_3RET_STUB(thdid_t, pong_ids)
 {
 	return pong_ids((compid_t *)r1, (compid_t *)r2);
 }
+
+COS_SERVER_STUB(int, pong_wideargs)
+{
+	long long p0d, p1d;
+
+	COS_ARG_WORDS_TO_DWORD(p0, p1, p0d);
+	COS_ARG_WORDS_TO_DWORD(p2, p3, p1d);
+	return pong_wideargs(p0d, p1d);
+}

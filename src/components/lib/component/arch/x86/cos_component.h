@@ -47,8 +47,8 @@ call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	                     "movl $1, %%ecx\n\t"	\
 	                     "3:\n\t"			\
 	                     "popl %%ebp"		\
-	                     : "=a"(ret), "=c"(fault)
-	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
+	                     : "=a"(ret), "=c"(fault), "+d"(arg4)
+	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3)
 	                     : "memory", "cc");
 
 	return ret;
@@ -77,8 +77,8 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	                     "movl $1, %%ecx\n\t"	\
 	                     "3:\n\t"			\
 	                     "popl %%ebp\n\t"		\
-	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2), "=b" (*r3)
-	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
+	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2), "=b" (*r3), "+d"(arg4)
+	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3)
 	                     : "memory", "cc");
 
 	return ret;
@@ -107,8 +107,8 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	                     "movl $1, %%ecx\n\t"	\
 	                     "3:\n\t"			\
 	                     "popl %%ebp\n\t"		\
-	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2)
-	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
+	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2), "+d"(arg4)
+	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3)
 	                     : "memory", "cc");
 
 	return ret;

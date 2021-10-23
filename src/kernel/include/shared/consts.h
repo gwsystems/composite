@@ -70,13 +70,18 @@
 
 #define round_to_pgt0_page(x) round_to_pow2(x, PGD_SIZE)
 #define round_up_to_pgt0_page(x) round_up_to_pow2(x, PGD_SIZE)
+
+#if defined(__x86_64__)
 #define round_to_pgt1_page(x) round_to_pow2(x, PGT1_SIZE)
 #define round_up_to_pgt1_page(x) round_up_to_pow2(x, PGT1_SIZE)
 #define round_to_pgt2_page(x) round_to_pow2(x, PGT2_SIZE)
 #define round_up_to_pgt2_page(x) round_up_to_pow2(x, PGT2_SIZE)
-
-#define round_to_pgt_lvl_page(lvl, x) round_to_pgt##lvl_page(x)
-#define round_up_to_pgt_lvl_page(lvl, x) round_up_to_pgt##lvl_page(x)
+#else
+#define round_to_pgt1_page(x) 0
+#define round_up_to_pgt1_page(x) 0
+#define round_to_pgt2_page(x) 0
+#define round_up_to_pgt2_page(x) 0
+#endif
 
 #define CACHE_LINE (64)
 #define CACHE_ALIGNED __attribute__((aligned(CACHE_LINE)))

@@ -97,7 +97,7 @@ cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
 		ci->vasrange_frontier[pgtbl_lvl] = __pgtbl_lvl_info[pgtbl_lvl].round_up_to_pg(last_page);
 	}
 
-#elif defined(__i386__)
+#else
 	/*
 	 * The first allocation should trigger PTE allocation, thus we
 	 * always round down to a PGD.
@@ -107,8 +107,10 @@ cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
 	 *        I believe best would be to round up the heap_ptr? So you always start at
 	 *        a new PGD range, which means first allocation would trigger PTE allocation?
 	 */
-	ci->vasrange_frontier = round_to_pgd_page(heap_ptr);
-	assert(ci->vasrange_frontier == round_to_pgd_page(ci->vasrange_frontier));
+	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
+		ci->vasrange_frontier[pgtbl_lvl] = __pgtbl_lvl_info[pgtbl_lvl].round_up_to_pg(heap_ptr);
+		assert(ci->vasrange_frontier[pgtbl_lvl] == round_to_pgd_page(ci->vasrange_frontier[pgtbl_lvl]));
+	}
 #endif
 }
 
@@ -456,7 +458,7 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 		if (__bump_mem_expand_intern(ci, cipgtbl, addr, 0, pgtbl_lvl) == 0) return 0;
 	}
 
-#elif defined(__i386__)
+#else
 	for (addr = mem_ptr; addr < mem_ptr + mem_sz; addr += PGD_RANGE) {
 		/* ignore errors likely due to races here as we want to keep expanding regardless */
 		if (__bump_mem_expand_intern(ci, cipgtbl, addr, 0, 0) == 0) return 0;
@@ -591,7 +593,7 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 		}
 	}
 	
-#elif defined(__i386__)
+#else
 	rounded    = sz + (heap_vaddr - round_to_pgd_page(heap_vaddr));
 
 	/* Do we not need to allocate PTEs? */
@@ -774,8 +776,8 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 	#if defined(__x86_64__)
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))
 		BUG();
-	#elif defined(__i386__)
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, COS_PGTBL_ORDER_PTE))
+	#else
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))
 		BUG();
 	#endif
 
@@ -975,7 +977,7 @@ cos_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_time_t timeout, arcvcap
 {
 #if defined(__x86_64__)
 	return call_cap_op(c, tc, stok, prio, rcv, timeout);
-#elif defined(__i386__)
+#else
 	return call_cap_op(c, (stok >> 16), tc << 16 | rcv, (prio << 32) >> 32,
 	                   (((prio << 16) >> 48) << 16) | ((stok << 16) >> 16), timeout);
 #endif
@@ -1044,7 +1046,7 @@ cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t s
 	first_dst = dst;
 
 	for (i = 0; i < sz; i += PAGE_SIZE, src += PAGE_SIZE, dst += PAGE_SIZE) {
-		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, PAGE_ORDER)) return 0;
+		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, PAGE_ORDER)) {printc("return bug\n");return 0;}
 	}
 
 	return first_dst;
