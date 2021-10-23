@@ -47,7 +47,6 @@ distclean: clean
 	@rm Makefile.arch Makefile.cosconfig $(PLAT_FILE)
 
 init:
-	$(MAKE) $(MAKEOPTIONS) config
 	$(MAKE) $(MAKEOPTIONS) -C components init
 	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat $(PLAT_FILE)) -C platform init
 
