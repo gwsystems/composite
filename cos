@@ -61,6 +61,23 @@ compose()
     echo "[cos generating ISO image]"
     local dir="system_binaries/cos_build-${name}"
 
+    #detect grub-mkrescue/grub2-mkrescue
+    set +e
+    grub=$(command -v grub-mkrescue)
+    grub2=$(command -v grub2-mkrescue)
+    set -e
+    local grub_command=""
+    if [ "${grub}" != "" ]
+    then
+        grub_command="grub-mkrescue"
+    elif [ "${grub2}" != "" ]
+    then
+        grub_command="grub2-mkrescue"
+    else
+        echo "Cannot find grub-mkrescue/grub2-mkrescue to generate ISO image."
+        exit 1
+    fi
+
     cd ${dir}
     echo "set timeout=0" > grub.cfg
     echo "set default=0" >> grub.cfg
@@ -71,7 +88,8 @@ compose()
     mkdir -p iso/boot/grub
     cp grub.cfg iso/boot/grub/
     cp cos.img iso/boot/
-    grub-mkrescue -o ${name}.iso iso
+    ${grub_command} -d /usr/lib/grub/i386-pc -o ${name}.iso iso
+
     #clean files
     rm -rf iso grub.cfg
 
@@ -96,10 +114,10 @@ run()
 
     if [ "${elf_type}" == "ELF64" ]
     then
-        qemu-system-x86_64 ${kvm_flag} -cpu host -m 1024 -cdrom ${dir}/${name}.iso -no-reboot -nographic -s
+        qemu-system-x86_64 ${kvm_flag} -cpu max -m 1024 -cdrom ${dir}/${name}.iso -no-reboot -nographic -s
     elif [ "${elf_type}" == "ELF32" ]
     then
-        qemu-system-i386 ${kvm_flag} -cpu host -m 1024 -cdrom ${dir}/${name}.iso -no-reboot -nographic -s
+        qemu-system-i386 ${kvm_flag} -cpu max -m 1024 -cdrom ${dir}/${name}.iso -no-reboot -nographic -s
     else
         echo "Unsupported image type!"
     fi
@@ -139,7 +157,8 @@ debug_run()
 
 gdb()
 {
-    command gdb -x ./system_binaries/gdbinit
+    cd system_binaries
+    command gdb -x ./gdbinit
 }
 
 usage()
