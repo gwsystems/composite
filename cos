@@ -157,8 +157,7 @@ debug_run()
 
 gdb()
 {
-    cd system_binaries
-    command gdb -x ./gdbinit
+    command gdb -x ./system_binaries/gdbinit
 }
 
 usage()

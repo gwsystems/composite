@@ -2,10 +2,9 @@
 #include "chal_asm_inc.h"
 #include "multiboot2.h"
 
-.section .multiboot
+.section .text
 .align 8
 multiboot_start:
-
     /* must have multiboot2 header field */
     .long MULTIBOOT2_HEADER_MAGIC
     .long MULTIBOOT_ARCHITECTURE_I386
@@ -17,9 +16,6 @@ multiboot_start:
     .short 0
     .long 8
 multiboot_end:
-
-.set STACKSIZE, 0x1000
-.comm stack, (STACKSIZE * NUM_CPU), 0x1000
 
 .globl loader
 loader:
@@ -37,6 +33,8 @@ loader:
 	movl    %eax, %cr0
 	cli
 	#pushl %esp
+	movl $COS_MEM_KERN_START_VA, %eax
+	add %eax, %ebx
 	pushl %ecx
 	pushl %ebx
 
@@ -44,8 +42,14 @@ loader:
 	mov $kmain, %eax
 	jmp *%eax
 
-.text
+.section .data
+.set STACKSIZE, 0x1000
+.global stack
+.align 0x1000
+stack:
+.fill (STACKSIZE * NUM_CPU), 1, 0
 
+.section .smptext
 /***
 The following SMP boot code is from xv6, thus:
 
@@ -205,6 +209,3 @@ mov $0x5307, %ax
 mov $0x0001, %bx
 mov $0x0003, %cx
 int $0x15
-
-.org 510
-.word 0xaa55

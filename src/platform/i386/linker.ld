@@ -8,11 +8,19 @@ ENTRY (loader)
 phys = 0x00100000;  		/* This should be COS_MEM_KERN_PA */
 SECTIONS {
 
-    . = 0xc0100000;		/* This should be COS_MEM_KERN_START_VA + COS_MEM_KERN_PA */
+    . = phys;
+    .boottext : AT(phys) ALIGN(8)
+    {
+        loader.o(.text)
+        . = ALIGN(4096);
+    }
+
+    phys = .;
+    . += 0xc0000000;		/* This should be COS_MEM_KERN_START_VA + COS_MEM_KERN_PA */
 
     .text : AT(phys) {
         code = .;
-        *(.multiboot)
+        *(.smptext)
         *(.text)
         *(.rodata)
         . = ALIGN(4096);
@@ -22,6 +30,7 @@ SECTIONS {
 
     .data : AT(phys + (data - code)) {
         data = .;
+        loader.o(.data)
         *(.data)
         . = ALIGN(4096);
     }
@@ -51,7 +60,6 @@ SECTIONS {
 
     /DISCARD/ : {
         *(.comment)
-        *(.eh_frame)
         *(.note.gnu.build-id)
     }
 }
