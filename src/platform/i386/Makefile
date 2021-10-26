@@ -1,7 +1,7 @@
 include Makefile.src
 
 CC := gcc -m32
-LD := ld -m elf_i386
+LD := ld -m elf_i386 --nmagic
 AS := as --32 -g
 
 INCPATH := ../../kernel/include

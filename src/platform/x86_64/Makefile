@@ -1,7 +1,7 @@
 include Makefile.src
 
 CC := gcc -m64
-LD := ld -m elf_x86_64
+LD := ld -m elf_x86_64 --nmagic
 AS := as --64 -g
 
 INCPATH := ../../kernel/include

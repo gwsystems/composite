@@ -9,6 +9,7 @@ phys = 0x00100000;  		/* This should be COS_MEM_KERN_PA */
 SECTIONS {
 
     . = phys;
+    
     .boottext : AT(phys) ALIGN(8)
     {
         loader.o(.text)
@@ -38,7 +39,7 @@ SECTIONS {
     .bss : AT(phys + (bss - code)) {
         bss = .;
         *(.bss)
-	. = ALIGN(4096);
+        . = ALIGN(4096);
     }
 
     /*
@@ -46,16 +47,16 @@ SECTIONS {
      * that is needed in the intial kernel image (referred to by a single 4MB super-page)
      */
     .largebss : AT(phys + (largebss - code)) {
-    	largebss = .;
+        largebss = .;
         *(.largebss)
-	. = ALIGN(4096);
+        . = ALIGN(4096);
     }
     end = .;		/* Unfortunately, this variable will take up the whole page. */
     . = ALIGN(4096);
 
     .initial_component : AT(phys + (initial_component - code)) {
         initial_component = .;
-	*(.initial_component)
+        *(.initial_component)
     }
 
     /DISCARD/ : {

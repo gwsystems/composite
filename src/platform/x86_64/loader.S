@@ -19,9 +19,6 @@ multiboot_start:
 
 multiboot_end:
 
-.set STACKSIZE, 0x1000
-.comm stack, (STACKSIZE * NUM_CPU) , 0x1000
-
 /* 
  * grub enters 32-bit mode, so your first section should use 32-bit code.
  * jmp to 64 bit yourself from here.
@@ -30,8 +27,8 @@ multiboot_end:
 .global loader 
 loader:
     /* save multiboot2 args first */
-    mov %eax, Multiboot_magic
-    mov %ebx, Multiboot_tags
+    mov %eax, multiboot_magic
+    mov %ebx, multiboot_tags
 
     /* now enable SSE */
     mov %cr0, %eax
@@ -46,7 +43,7 @@ loader:
 
     /* close paging first */
     mov %cr0, %eax                                   
-    and $0b1111111111111111111111111111111, %eax   
+    and $(~(1<<31)), %eax   
     mov %eax, %cr0                                
 
     /* test if 1G huge page is supported */
@@ -60,17 +57,17 @@ loader:
 
 huge_page_enabled:
     /* we have to set up a temparaily page scheme to before enter long mode */
-    /* we use 1G paging scheme, so only to set P4_table, P3_table */
-    mov $P3_table, %eax
+    /* we use 1G paging scheme, so only to set p0_pgt, p1_pgt */
+    mov $p1_pgt, %eax
     or $0x01, %eax
-    mov %eax, P4_table
-    mov %eax, (P4_table+0x08*256)
+    mov %eax, p0_pgt
+    mov %eax, (p0_pgt+0x08*256)
     
     /* set kernel paging space */
-    movl  $0x00000083, P3_table /* 0-1 GB vm -> 0-1 GB pm */
+    movl  $0x00000083, p1_pgt /* 0-1 GB vm -> 0-1 GB pm */
 
-    /* set %cr3 to the physical address of P4_table */
-    mov $P4_table, %eax
+    /* set %cr3 to the physical address of p0_pgt */
+    mov $p0_pgt, %eax
     mov %eax, %cr3
 
     /* enable PAE-paging by setting the PAE-bit in %cr4 */
@@ -90,7 +87,7 @@ huge_page_enabled:
     mov %eax, %cr0
 
     /* load GDT so we can use selectors within them */
-    mov $Gdt_ptr, %eax
+    mov $gdt_ptr, %eax
     lgdt (%eax)
 
     /* need a jump to flush cs selector */
@@ -104,7 +101,7 @@ huge_page_enabled:
 entry_64:
     
     cli
-    /* Flush data selectors */
+    /* flush data selectors */
     mov $0x10, %rax	
     mov %rax, %ds
     mov %rax, %es
@@ -116,8 +113,8 @@ entry_64:
     movabs $(stack + STACKSIZE - STK_INFO_OFF), %rsp
     xor %rsi, %rsi
     xor %rdi, %rdi
-    movl Multiboot_magic, %esi
-    movl Multiboot_tags, %edi
+    movl multiboot_magic, %esi
+    movl multiboot_tags, %edi
     movabs $COS_MEM_KERN_START_VA, %rax
     add %rax, %rdi
 
@@ -128,35 +125,39 @@ entry_64:
     jmp .
 
 .align 8
-Multiboot_magic:
+multiboot_magic:
     .fill 1, 4, 0
-Multiboot_tags:
+multiboot_tags:
     .fill 1, 4, 0
 
-/* a simple temparaily GDT */
+/* a simple temporary GDT */
 .align 8
-.global Gdt_table
-Gdt_table:
+gdt_table:
     .quad	0x0000000000000000	// null descriptor
     .quad	0x0020980000000000	// kernel code descriptor
-    .quad 	0x0000920000000000	// kernel data descriptor
-Gdt_end:
+    .quad	0x0000920000000000	// kernel data descriptor
+gdt_end:
 
-Gdt_ptr:	
-    .word	Gdt_end - Gdt_table - 1
-    .quad	Gdt_table
+gdt_ptr:	
+    .word	gdt_end - gdt_table - 1
+    .quad	gdt_table
 
-/* temparaily page directory/tables */
+/* temporary page directory/tables */
 /* need to be 4k aligned */
 .align 4096
-
-.global P4_table
-P4_table:
+/* P0 is PGD */
+p0_pgt:
     .fill 512, 8, 0
 
-.global P3_table
-P3_table:
+p1_pgt:
     .fill 512, 8, 0
+
+.section .data
+.set STACKSIZE, 0x1000
+.global stack
+.align 0x1000
+stack:
+.fill (STACKSIZE * NUM_CPU), 1, 0
 
 .section .smptext
 
