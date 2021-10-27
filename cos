@@ -81,7 +81,7 @@ compose()
     cd ${dir}
     echo "set timeout=0" > grub.cfg
     echo "set default=0" >> grub.cfg
-    echo "menuentry "kernel" {" >> grub.cfg
+    echo "menuentry "composite" {" >> grub.cfg
     echo "  multiboot2 /boot/cos.img" >> grub.cfg
     echo "}" >> grub.cfg
 
